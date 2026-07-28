@@ -64,6 +64,7 @@
     this.state = s;
     this.stateTime = 0;
     this.menu.index = 0;
+    this.menu.parentIndex = 0;
   };
 
   /* Kill chain: consecutive kills inside a window escalate the multiplier.
@@ -154,6 +155,28 @@
   };
 
   // ----------------------------------------------------------------- TITLE
+  /* The main menu is data-driven so hiding Stage Select before it is unlocked
+   * can't desync the cursor from what's on screen. */
+  Game.prototype.mainMenu = function () {
+    var items = [{ id: 'start', label: 'START GAME' }];
+    if (this.save.unlocked > 1) items.push({ id: 'stages', label: 'STAGE SELECT' });
+    items.push({ id: 'options', label: 'OPTIONS' });
+    items.push({ id: 'controls', label: 'CONTROLS' });
+    return items;
+  };
+
+  // Opening a submenu remembers where the cursor was so Back can restore it.
+  Game.prototype.openPage = function (page) {
+    this.menu.parentIndex = this.menu.index;
+    this.menu.page = page;
+    this.menu.index = 0;
+  };
+  Game.prototype.closePage = function () {
+    this.menu.page = 'main';
+    this.menu.index = this.menu.parentIndex || 0;
+    VZ.audio.sfx('deny');
+  };
+
   Game.prototype.updateTitle = function () {
     var In = VZ.input;
     this.titleTime++;
@@ -161,25 +184,24 @@
 
     var page = this.menu.page;
     if (page === 'main') {
-      var items = this.save.unlocked > 1 ? 4 : 3;
-      if (In.pressed.up) { this.menu.index = (this.menu.index + items - 1) % items; VZ.audio.sfx('menu'); }
-      if (In.pressed.down) { this.menu.index = (this.menu.index + 1) % items; VZ.audio.sfx('menu'); }
+      var menu = this.mainMenu();
+      var n = menu.length;
+      if (this.menu.index >= n) this.menu.index = n - 1;
+      if (In.pressed.up) { this.menu.index = (this.menu.index + n - 1) % n; VZ.audio.sfx('menu'); }
+      if (In.pressed.down) { this.menu.index = (this.menu.index + 1) % n; VZ.audio.sfx('menu'); }
       if (In.pressed.jump || In.pressed.start) {
         VZ.audio.resume();
         VZ.audio.sfx('confirm');
-        var pick = this.menu.index;
-        if (this.save.unlocked <= 1 && pick >= 1) pick += 1;   // hide stage select
-        if (pick === 0) this.beginGame(0);
-        else if (pick === 1) { this.menu.page = 'stages'; this.menu.index = 0; }
-        else if (pick === 2) { this.menu.page = 'options'; this.menu.index = 0; }
-        else if (pick === 3) { this.menu.page = 'controls'; this.menu.index = 0; }
+        var id = menu[this.menu.index].id;
+        if (id === 'start') this.beginGame(0);
+        else this.openPage(id);
       }
     } else if (page === 'stages') {
       var n = Math.min(VZ.STAGES.length, this.save.unlocked);
       if (In.pressed.up) { this.menu.index = (this.menu.index + n - 1) % n; VZ.audio.sfx('menu'); }
       if (In.pressed.down) { this.menu.index = (this.menu.index + 1) % n; VZ.audio.sfx('menu'); }
       if (In.pressed.jump || In.pressed.start) { VZ.audio.sfx('confirm'); this.beginGame(this.menu.index); }
-      if (In.pressed.select || In.pressed.fire) { this.menu.page = 'main'; VZ.audio.sfx('deny'); }
+      if (In.pressed.select || In.pressed.fire) this.closePage();
     } else if (page === 'options') {
       if (In.pressed.up) { this.menu.index = (this.menu.index + 3) % 4; VZ.audio.sfx('menu'); }
       if (In.pressed.down) { this.menu.index = (this.menu.index + 1) % 4; VZ.audio.sfx('menu'); }
@@ -199,10 +221,10 @@
         VZ.audio.sfx('confirm');
         this.message('RECORDS CLEARED', 90);
       }
-      if (In.pressed.select || In.pressed.fire) { this.menu.page = 'main'; VZ.audio.sfx('deny'); }
+      if (In.pressed.select || In.pressed.fire) this.closePage();
     } else if (page === 'controls') {
       if (In.pressed.select || In.pressed.jump || In.pressed.fire || In.pressed.start) {
-        this.menu.page = 'main'; VZ.audio.sfx('deny');
+        this.closePage();
       }
     }
   };
@@ -916,17 +938,15 @@
     ctx.restore();
 
     if (this.menu.page === 'main') {
-      var items = ['START GAME'];
-      if (this.save.unlocked > 1) items.push('STAGE SELECT');
-      items.push('OPTIONS', 'CONTROLS');
-      var by = 128;
+      var items = this.mainMenu();
+      var by = 126;
       for (var k = 0; k < items.length; k++) {
         var sel = k === this.menu.index;
         var col = sel ? '#ffd24a' : '#9fb6dd';
-        A.text(ctx, items[k], VZ.W / 2, by + k * 14, { color: col, align: 'center', shadow: '#12142e' });
+        A.text(ctx, items[k].label, VZ.W / 2, by + k * 13, { color: col, align: 'center', shadow: '#12142e' });
         if (sel) {
-          var ax = VZ.W / 2 - A.textWidth(items[k]) / 2 - 12 + Math.sin(t * 0.16) * 2;
-          A.text(ctx, '>', ax, by + k * 14, { color: '#ffd24a', shadow: '#12142e' });
+          var ax = VZ.W / 2 - A.textWidth(items[k].label) / 2 - 12 + Math.sin(t * 0.16) * 2;
+          A.text(ctx, '>', ax, by + k * 13, { color: '#ffd24a', shadow: '#12142e' });
         }
       }
       A.text(ctx, 'HI-SCORE ' + this.pad(this.save.highScore, 7), VZ.W / 2, VZ.H - 26,
@@ -965,7 +985,7 @@
           A.text(ctx, meter, VZ.W - 88, 128 + o * 13, { color: selo ? '#ffd24a' : '#5f6f92', align: 'right' });
         }
       }
-      A.text(ctx, 'X BACK', VZ.W / 2, 180, { color: '#5f6f92', align: 'center' });
+      A.text(ctx, 'X BACK', VZ.W / 2, 176, { color: '#5f6f92', align: 'center' });
     } else if (this.menu.page === 'controls') {
       this.panel(ctx, 46, 92, VZ.W - 92, 108);
       A.text(ctx, 'CONTROLS', VZ.W / 2, 98, { color: '#5fe6d8', align: 'center' });

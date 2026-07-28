@@ -42,7 +42,7 @@ The whole game is designed around these interacting:
 - **Wall slide and wall jump**, with a 7-frame coyote window after leaving the
   wall and a short un-cuttable window on the kick so releasing jump early
   can't strand you mid-shaft.
-- **Buster** with two charge tiers. A full charge deals 6x a normal shot,
+- **Buster** with two charge tiers. A full charge deals 4x a normal shot,
   pierces two targets, and breaks a shielder's guard.
 - **Two sub-weapons** earned from bosses — a three-way **Spread** and a
   piercing **Lance** — sharing a weapon-energy meter.
@@ -80,7 +80,7 @@ straight off the filesystem with no server.
 | --- | --- |
 | `js/core.js` | RNG, math, input (keyboard/gamepad/touch), fixed-timestep loop, pixel canvas |
 | `js/audio.js` | WebAudio synth, tracker, SFX, and the echo unit |
-| `js/music.js` | Song data (eight tracks) |
+| `js/music.js` | Song data (nine tracks) |
 | `js/art.js` | Sprite decoder, bitmap font, procedural tilesets and parallax backgrounds |
 | `js/sprites.js` | Hand-authored pixel art |
 | `js/fx.js` | Particles, screen shake, hitstop, popups |
