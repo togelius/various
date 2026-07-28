@@ -85,6 +85,10 @@
     anyPressed: false,
     lastDevice: 'keyboard',
     _next: {},
+    // A tap shorter than one frame would otherwise be down and up again
+    // between two polls and vanish. The latch guarantees every keydown is
+    // seen held for at least one poll.
+    _latch: {},
     _padIndex: null,
 
     init: function () {
@@ -95,11 +99,12 @@
         this.released[ACTIONS[i]] = false;
         this.buffer[ACTIONS[i]] = 0;
         this._next[ACTIONS[i]] = false;
+        this._latch[ACTIONS[i]] = false;
       }
       var self = this;
       global.addEventListener('keydown', function (e) {
         var a = KEYMAP[e.code];
-        if (a) { self._next[a] = true; self.lastDevice = 'keyboard'; }
+        if (a) { self._next[a] = true; self._latch[a] = true; self.lastDevice = 'keyboard'; }
         // Stop the page from scrolling under the canvas.
         if (a || e.code === 'Tab') e.preventDefault();
       }, { passive: false });
@@ -108,7 +113,7 @@
         if (a) { self._next[a] = false; e.preventDefault(); }
       }, { passive: false });
       global.addEventListener('blur', function () {
-        for (var k in self._next) self._next[k] = false;
+        for (var k in self._next) { self._next[k] = false; self._latch[k] = false; }
       });
       global.addEventListener('gamepadconnected', function (e) {
         self._padIndex = e.gamepad.index;
@@ -149,12 +154,13 @@
       this.anyPressed = false;
       for (i = 0; i < ACTIONS.length; i++) {
         a = ACTIONS[i];
-        var now = !!(this._next[a] || padState[a] || this.virtual[a]);
+        var now = !!(this._next[a] || this._latch[a] || padState[a] || this.virtual[a]);
         this.pressed[a] = now && !this.held[a];
         this.released[a] = !now && this.held[a];
         this.held[a] = now;
         if (this.pressed[a]) { this.buffer[a] = 8; this.anyPressed = true; }
         else if (this.buffer[a] > 0) this.buffer[a]--;
+        this._latch[a] = false;
       }
       // Opposing directions cancel (prevents ambiguous state).
       if (this.held.left && this.held.right) { this.held.left = this.held.right = false; }
@@ -183,17 +189,27 @@
       this.vctx.imageSmoothingEnabled = false;
       var self = this;
       global.addEventListener('resize', function () { self.resize(); });
+      var host = document.getElementById('stage');
+      if (host && global.ResizeObserver) {
+        new global.ResizeObserver(function () { self.resize(); }).observe(host);
+      }
       this.resize();
     },
 
     resize: function () {
+      // When the page gives us a sized container (an embed, a cabinet bezel),
+      // fit to that instead of the whole viewport.
+      var host = document.getElementById('stage');
       var maxW = global.innerWidth, maxH = global.innerHeight;
-      // Integer scale when we comfortably can; fractional only on small screens
-      // (a slightly soft image beats a tiny one).
+      if (host) {
+        var r = host.getBoundingClientRect();
+        if (r.width > 40 && r.height > 40) { maxW = r.width; maxH = r.height; }
+      }
+      // Snap to whole or half pixels, always DOWNWARDS - rounding up would
+      // push the canvas outside the space we were given.
       var s = Math.min(maxW / VZ.W, maxH / VZ.H);
-      var si = Math.floor(s);
-      if (si >= 1 && s - si < 0.34) s = si; else if (si >= 1) s = si + (s - si > 0.75 ? 1 : 0.5);
-      if (s < 1) s = Math.max(s, 0.35);
+      if (s >= 1) s = Math.floor(s) + (s - Math.floor(s) >= 0.5 ? 0.5 : 0);
+      else s = Math.max(s, 0.3);
       this.scale = s;
       var w = Math.round(VZ.W * s), h = Math.round(VZ.H * s);
       this.view.width = w; this.view.height = h;

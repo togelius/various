@@ -13,6 +13,11 @@ git clone <this repo> && cd various
 # (or: python3 -m http.server 8000  ->  http://localhost:8000)
 ```
 
+Prefer one file you can email or drop on any host? `dist/vanguard-zero.html`
+is the entire game — code, art, music — inlined into a single ~285 KB page
+with no external requests at all. Rebuild it with
+`node tools/build-single.js`.
+
 ## Controls
 
 | Action | Keyboard | Gamepad |
@@ -92,6 +97,9 @@ straight off the filesystem with no server.
 | `js/game.js` | State machine, HUD, menus, transitions |
 | `js/touch.js` | On-screen controls for touch devices |
 
+`dist/` holds generated single-file builds — don't edit them by hand; they are
+produced from `js/` and `tools/shell-*.html` by `tools/build-single.js`.
+
 A few things worth calling out:
 
 **Rendering.** Everything draws to a 384x216 backing canvas that's blitted up
@@ -111,6 +119,15 @@ trick the SNES S-DSP used, and the reason 16-bit soundtracks have that wet,
 slightly muffled tail. Music is a small tracker: text patterns of note names
 where `.` sustains and `_` cuts, scheduled with a 140ms lookahead.
 
+**Embedding.** If the host page provides a sized `#stage` element the canvas
+fits itself to that box and tracks it with a `ResizeObserver`, instead of
+assuming it owns the viewport. Scale snaps to whole or half pixels, always
+downwards, so the canvas never grows past the space it was given.
+
+**Input.** Every keydown is latched for at least one poll. Without that, a tap
+shorter than a frame is down and up again between two 60Hz polls and vanishes
+entirely — which is exactly what a fast tap on jump is.
+
 **Player sprite.** Assembled from a 17px torso and a swappable 7px leg block
 plus an overlaid gun arm, so the six-frame run cycle only costs leg frames —
 the same trick sprite artists used when VRAM was the constraint.
@@ -127,6 +144,7 @@ node tools/boss.js 1          # drive a boss fight, report pattern coverage
 node tools/sweep.js out/      # screenshot every screen and mechanic
 node tools/flow.js            # verify stage -> boss -> results -> ending
 node tools/killboss.js 2      # fight a boss to the death, time it, log phases
+node tools/build-single.js    # inline everything into dist/vanguard-zero.html
 ```
 
 `validate.js` is the useful one: it BFSes the tilemap with a movement model

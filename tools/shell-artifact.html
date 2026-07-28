@@ -1,0 +1,351 @@
+<title>Vanguard Zero</title>
+<style>
+  /* A dark arcade room. Deliberately single-theme: the game inside the bezel
+     is a committed 16-bit world, and putting it on a white page would fight it.
+     Every colour here is sampled from the game's own sprite palette. */
+  :root {
+    --room:     #06070d;
+    --cabinet:  #12142e;
+    --rail:     #2a3348;
+    --cyan:     #5fe6d8;
+    --gold:     #ffd24a;
+    --ink:      #9fb6dd;
+    --ink-dim:  #5f6f92;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--room);
+    /* light spill from the screen onto the back wall */
+    background-image:
+      radial-gradient(ellipse 70% 55% at 50% 38%, #17203c 0%, rgba(6,7,13,0) 72%),
+      linear-gradient(#07080f, #040509);
+    color: var(--ink);
+    font-family: var(--mono);
+    overflow-x: hidden;
+    overscroll-behavior: none;
+  }
+
+  .room {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: 22px 16px 30px;
+    min-height: 100vh;
+    justify-content: center;
+  }
+
+  /* ---------------------------------------------------------- marquee */
+  .marquee {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+    text-align: center;
+  }
+  #wordmark {
+    display: block;
+    image-rendering: pixelated;
+    height: 34px;
+    width: auto;
+    filter: drop-shadow(0 0 14px rgba(95, 230, 216, 0.28));
+  }
+  .tagline {
+    margin: 0;
+    max-width: 76ch;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--ink-dim);
+    letter-spacing: 0.2px;
+  }
+  .tagline em { color: var(--ink); font-style: normal; }
+
+  /* ---------------------------------------------------------- cabinet */
+  .cabinet {
+    position: relative;
+    padding: 9px;
+    border-radius: 5px;
+    background: linear-gradient(#1b2140, #0a0d1c);
+    box-shadow:
+      inset 0 0 0 1px var(--rail),
+      0 0 0 1px #05060c,
+      0 24px 60px rgba(0, 0, 0, 0.8),
+      0 0 110px rgba(58, 99, 200, 0.14);
+    line-height: 0;
+    cursor: pointer;
+  }
+  .cabinet:focus-visible {
+    outline: none;
+    box-shadow:
+      inset 0 0 0 1px rgba(95, 230, 216, 0.55),
+      0 0 0 1px #05060c,
+      0 24px 60px rgba(0, 0, 0, 0.8),
+      0 0 110px rgba(58, 99, 200, 0.2);
+  }
+  /* phosphor bloom hugging the glass */
+  .cabinet::after {
+    content: "";
+    position: absolute;
+    inset: 9px;
+    pointer-events: none;
+    box-shadow: inset 0 0 22px rgba(6, 7, 13, 0.85);
+    border-radius: 2px;
+  }
+
+  #stage {
+    /* The canvas fits itself to this box. Holding it at the game's exact
+       aspect means the snapped scale lands tight instead of letterboxing. */
+    width: min(90vw, 960px);
+    aspect-ratio: 384 / 216;
+    max-height: 60vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas#screen {
+    display: block;
+    image-rendering: pixelated;
+    background: #000;
+    border-radius: 2px;
+  }
+
+  /* click-to-focus veil: also the honest fix for keyboard focus in an embed */
+  #veil {
+    position: absolute;
+    inset: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(4, 6, 14, 0.82);
+    backdrop-filter: blur(1px);
+    border-radius: 2px;
+    z-index: 3;
+    transition: opacity 0.28s ease;
+  }
+  #veil span {
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: var(--cyan);
+    text-shadow: 0 0 12px rgba(95, 230, 216, 0.5);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  #veil.gone { opacity: 0; pointer-events: none; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.42; } }
+  @media (prefers-reduced-motion: reduce) {
+    #veil span { animation: none; }
+  }
+
+  /* ------------------------------------------------- control legend */
+  /* Laid out like the instruction panel printed on a cabinet: the action,
+     then the key that does it. */
+  .panel {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 22px;
+    padding: 11px 18px;
+    border: 1px solid var(--rail);
+    border-radius: 3px;
+    background: rgba(10, 13, 28, 0.6);
+    max-width: 100%;
+  }
+  .ctl {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .keys { display: flex; gap: 3px; }
+  kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 21px;
+    height: 21px;
+    padding: 0 5px;
+    border-radius: 3px;
+    background: linear-gradient(#232a48, #161b32);
+    border: 1px solid #39426a;
+    border-bottom-width: 2px;
+    border-bottom-color: #0d1122;
+    font: 600 10px/1 var(--mono);
+    color: var(--gold);
+    letter-spacing: 0.5px;
+  }
+  .ctl span {
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    white-space: nowrap;
+  }
+  .ctl b {
+    font-weight: 400;
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  /* Each item stays whole when the line wraps, so a phrase never splits. */
+  .colophon {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 5px 26px;
+    font-size: 10px;
+    letter-spacing: 1.1px;
+    text-transform: uppercase;
+    color: #3d4966;
+    max-width: 74ch;
+  }
+  .colophon i { font-style: normal; white-space: nowrap; }
+  .colophon b { color: var(--ink-dim); font-weight: 400; }
+
+  /* --------------------------------------------------------- touch */
+  #touch { display: none; }
+  @media (hover: none) and (pointer: coarse) {
+    .panel, .tagline { display: none; }
+    .room { padding-bottom: 42vh; justify-content: flex-start; }
+    #stage { width: 96vw; max-height: 44vh; }
+    #touch {
+      display: block;
+      position: fixed;
+      inset: auto 0 0 0;
+      height: 40vh;
+      pointer-events: none;
+      z-index: 5;
+    }
+    #touch .pad {
+      position: absolute;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      pointer-events: auto;
+    }
+    #touch .pad.left { left: max(12px, env(safe-area-inset-left)); }
+    #touch .pad.right { right: max(12px, env(safe-area-inset-right)); }
+    #touch button {
+      width: 62px; height: 62px;
+      border-radius: 50%;
+      border: 1px solid rgba(159, 182, 221, 0.35);
+      background: rgba(20, 26, 46, 0.55);
+      color: #cfe0ff;
+      font: 600 12px/1 var(--mono);
+      letter-spacing: 0.5px;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      touch-action: none;
+    }
+    #touch button.small { width: 46px; height: 46px; font-size: 10px; }
+    #touch button.a { background: rgba(58, 99, 200, 0.5); }
+    #touch button.b { background: rgba(208, 90, 88, 0.45); }
+    #touch button.c { background: rgba(95, 230, 216, 0.32); }
+    #touch button.pressed { background: rgba(255, 210, 74, 0.6); color: #12142e; }
+  }
+</style>
+
+<div class="room">
+  <div class="marquee">
+    <canvas id="wordmark" width="240" height="26" role="img" aria-label="Vanguard Zero"></canvas>
+    <p class="tagline">
+      Three stages. Three bosses. Dash, wall-jump, charge your shot.<br>
+      <em>Nothing here was downloaded</em> — every sprite and every note is
+      generated in your browser at load.
+    </p>
+  </div>
+
+  <div class="cabinet" id="cabinet" tabindex="0">
+    <div id="stage"><canvas id="screen" width="384" height="216"></canvas></div>
+    <div id="veil"><span>CLICK TO PLAY</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="ctl"><span>Move</span><div class="keys"><kbd>&larr;</kbd><kbd>&rarr;</kbd></div></div>
+    <div class="ctl"><span>Jump</span><div class="keys"><kbd>Z</kbd></div></div>
+    <div class="ctl"><span>Fire</span><div class="keys"><kbd>X</kbd></div><b>hold to charge</b></div>
+    <div class="ctl"><span>Dash</span><div class="keys"><kbd>C</kbd></div></div>
+    <div class="ctl"><span>Weapon</span><div class="keys"><kbd>V</kbd></div></div>
+    <div class="ctl"><span>Pause</span><div class="keys"><kbd>Esc</kbd></div></div>
+  </div>
+
+  <p class="colophon">
+    <i>Wall jump by holding <b>into</b> a wall, then jump</i>
+    <i><b>F</b> fullscreen</i>
+    <i><b>M</b> mute</i>
+    <i>gamepads work</i>
+    <i>sound is on</i>
+  </p>
+</div>
+
+<div id="touch" aria-hidden="true">
+  <div class="pad left">
+    <button data-act="left">&#9664;</button>
+    <button data-act="right">&#9654;</button>
+    <button data-act="down" class="small">&#9660;</button>
+  </div>
+  <div class="pad right">
+    <button data-act="dash" class="c">DASH</button>
+    <button data-act="fire" class="b">FIRE</button>
+    <button data-act="jump" class="a">JUMP</button>
+    <button data-act="weapon" class="small">WPN</button>
+  </div>
+</div>
+
+<script>
+<!--BUNDLE-->
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var cabinet = document.getElementById('cabinet');
+  var veil = document.getElementById('veil');
+
+  function boot() {
+    try { VZ.boot(); } catch (e) {
+      veil.innerHTML = '<span style="color:#d05a58">' + String(e.message) + '</span>';
+      throw e;
+    }
+    // The marquee is set in the game's own 5x7 bitmap font, so the title above
+    // the cabinet uses the exact glyphs the game renders with.
+    var wm = document.getElementById('wordmark');
+    var x = wm.getContext('2d');
+    x.imageSmoothingEnabled = false;
+    var word = 'VANGUARD ZERO';
+    var w = VZ.art.textWidth(word) * 3;
+    wm.width = w + 6; wm.height = 26;
+    x.imageSmoothingEnabled = false;
+    VZ.art.text(x, word, 3, 4, { color: '#12142e', scale: 3 });
+    VZ.art.text(x, word, 2, 2, { color: '#d6e8ff', scale: 3 });
+    VZ.art.text(x, 'ZERO', 2 + VZ.art.textWidth('VANGUARD ') * 3, 2,
+      { color: '#ffd24a', scale: 3 });
+  }
+
+  // Keyboard events only reach an embedded page once it has focus, so the
+  // veil doubles as the thing that takes it.
+  function grab() {
+    cabinet.focus({ preventScroll: true });
+    if (VZ.audio) VZ.audio.resume();
+    veil.classList.add('gone');
+  }
+  cabinet.addEventListener('pointerdown', grab);
+  document.addEventListener('pointerdown', function (e) {
+    if (!veil.classList.contains('gone')) grab();
+    else if (VZ.audio) VZ.audio.resume();
+  });
+  cabinet.addEventListener('focus', function () { veil.classList.add('gone'); });
+  window.addEventListener('keydown', function () { veil.classList.add('gone'); });
+
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot);
+})();
+</script>
