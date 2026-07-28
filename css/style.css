@@ -1,0 +1,126 @@
+:root {
+  --ink: #0a0c16;
+  --dim: #5f6f92;
+  --accent: #5fe6d8;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #06070d;
+  /* A dark room with a faint glow behind the screen, like a CRT in the corner. */
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% 42%, #16203c 0%, rgba(10,12,22,0) 70%),
+    linear-gradient(#06070d, #04050a);
+  color: #9fb6dd;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+#frame {
+  position: relative;
+  line-height: 0;
+  border-radius: 4px;
+  padding: 6px;
+  background: linear-gradient(#151a2c, #0b0e1a);
+  box-shadow:
+    0 0 0 1px #2a3348,
+    0 18px 50px rgba(0, 0, 0, 0.75),
+    0 0 90px rgba(58, 99, 200, 0.16);
+}
+
+canvas#screen {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #000;
+  border-radius: 2px;
+}
+
+#loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-size: 13px;
+  letter-spacing: 2px;
+  line-height: 1.4;
+  text-align: center;
+  padding: 12px;
+}
+
+#hint {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--dim);
+  text-align: center;
+  max-width: 90vw;
+}
+#hint b { color: #9fb6dd; font-weight: 600; }
+
+/* ------------------------------------------------------------ touch pad */
+#touch { display: none; }
+
+@media (hover: none) and (pointer: coarse) {
+  #hint { display: none; }
+  #touch {
+    display: block;
+    position: fixed;
+    inset: auto 0 0 0;
+    height: 40vh;
+    pointer-events: none;
+    z-index: 5;
+  }
+  #touch .pad {
+    position: absolute;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    pointer-events: auto;
+  }
+  #touch .pad.left { left: max(12px, env(safe-area-inset-left)); }
+  #touch .pad.right { right: max(12px, env(safe-area-inset-right)); }
+
+  #touch button {
+    width: 62px;
+    height: 62px;
+    border-radius: 50%;
+    border: 1px solid rgba(159, 182, 221, 0.35);
+    background: rgba(20, 26, 46, 0.55);
+    color: #cfe0ff;
+    font: 600 12px/1 ui-monospace, monospace;
+    letter-spacing: 0.5px;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    touch-action: none;
+    backdrop-filter: blur(2px);
+  }
+  #touch button.small { width: 46px; height: 46px; font-size: 10px; }
+  #touch button.a { background: rgba(58, 99, 200, 0.5); }
+  #touch button.b { background: rgba(208, 90, 88, 0.45); }
+  #touch button.c { background: rgba(95, 230, 216, 0.32); }
+  #touch button.pressed { background: rgba(255, 210, 74, 0.6); color: #12142e; }
+}
+
+/* Short/landscape phones: let the canvas take the room it can get. */
+@media (max-height: 480px) {
+  body { gap: 4px; }
+  #frame { padding: 2px; }
+}

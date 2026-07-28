@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>art preview</title>
+<style>body{background:#0b0b12;margin:0;padding:12px;font:12px monospace;color:#9ab}
+canvas{image-rendering:pixelated;display:block;margin:8px 0;border:1px solid #333}</style>
+</head><body>
+<canvas id="out" width="900" height="620"></canvas>
+<script src="../js/core.js"></script>
+<script src="../js/art.js"></script>
+<script src="../js/sprites.js"></script>
+<script>
+VZ.art.buildFont();
+VZ.sprites.build();
+var c=document.getElementById('out'),x=c.getContext('2d');
+x.imageSmoothingEnabled=false;
+x.fillStyle='#151520';x.fillRect(0,0,c.width,c.height);
+var S=3;
+function label(t,px,py){VZ.art.text(x,t,px,py,{color:'#8fa',scale:1});}
+function put(name,px,py,s){
+  var g=VZ.art.gfx[name]; if(!g){label('?'+name,px,py);return;}
+  s=s||S;
+  x.drawImage(g,0,0,g.width,g.height,px,py,g.width*s,g.height*s);
+}
+// player poses: torso + legs composited
+var poses=[['torso_idle','legs_idle'],['torso_run','legs_run0'],['torso_run','legs_run1'],
+ ['torso_run','legs_run2'],['torso_run','legs_run3'],['torso_run','legs_run4'],['torso_run','legs_run5'],
+ ['torso_air','legs_jump'],['torso_air','legs_fall'],['torso_dash','legs_dash'],
+ ['torso_wall','legs_wall'],['torso_hurt','legs_hurt']];
+var px=10,py=20;
+poses.forEach(function(p,i){
+  var cx=10+i*72;
+  label(p[1].replace('legs_',''),cx,8);
+  put(p[0],cx,py,S);
+  put(p[1],cx,py+17*S,S);
+});
+// buster overlay demo
+label('shoot',10,20+24*S+14);
+put('torso_idle',10,20+24*S+26,S);
+put('legs_idle',10,20+24*S+26+17*S,S);
+put('buster',10+9*S,20+24*S+26+10*S,S);
+
+// enemies
+var ey=20+24*S+26+24*S+24;
+label('enemies',10,ey-12);
+['trooper_a','trooper_b','drone_a','drone_b','hopper_c','hopper_l','shielder_a','shielder_b','turret',
+ 'pick_health','pick_energy','pick_life'].forEach(function(n,i){
+  put(n,10+i*70,ey,S);
+});
+// rival
+var ry=ey+20*S+24;
+label('rival',10,ry-12);
+put('rv_torso_idle',10,ry,S); put('rv_legs_idle',10,ry+17*S,S);
+put('rv_torso_run',90,ry,S); put('rv_legs_run0',90,ry+17*S,S);
+put('torso_idle_W',170,ry,S); put('legs_idle_W',170,ry+17*S,S);
+put('torso_idle_L',250,ry,S); put('legs_idle_L',250,ry+17*S,S);
+
+// font sample
+VZ.art.text(x,'VANGUARD ZERO 0123456789',330,ry+20,{color:'#fff',scale:2,shadow:'#333'});
+VZ.art.text(x,'ABCDEFGHIJKLMNOPQRSTUVWXYZ',330,ry+42,{color:'#5fe6d8',scale:1});
+VZ.art.text(x,'.,:-_!?/%+*()<>=#@',330,ry+56,{color:'#ffd24a',scale:1});
+document.title='ready';
+</script></body></html>

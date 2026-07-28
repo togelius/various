@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>VANGUARD ZERO</title>
+<meta name="description" content="A 16-bit action platformer that runs in the browser. Dash, wall-jump and charge-shot your way through three stages and their bosses.">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%2312142e'/><rect x='3' y='4' width='10' height='7' fill='%233a63c8'/><rect x='7' y='6' width='5' height='3' fill='%235fe6d8'/></svg>">
+</head>
+<body>
+  <div id="frame">
+    <canvas id="screen" width="384" height="216"></canvas>
+    <div id="loading">LOADING&hellip;</div>
+  </div>
+
+  <div id="touch" aria-hidden="true">
+    <div class="pad left">
+      <button data-act="left">&#9664;</button>
+      <button data-act="right">&#9654;</button>
+      <button data-act="down" class="small">&#9660;</button>
+    </div>
+    <div class="pad right">
+      <button data-act="dash" class="c">DASH</button>
+      <button data-act="fire" class="b">FIRE</button>
+      <button data-act="jump" class="a">JUMP</button>
+      <button data-act="weapon" class="small">WPN</button>
+    </div>
+  </div>
+
+  <p id="hint">
+    <b>Arrows/WASD</b> move &nbsp;&middot;&nbsp; <b>Z</b> jump &nbsp;&middot;&nbsp;
+    <b>X</b> fire (hold to charge) &nbsp;&middot;&nbsp; <b>C</b> dash &nbsp;&middot;&nbsp;
+    <b>V</b> swap weapon &nbsp;&middot;&nbsp; <b>Esc</b> pause &nbsp;&middot;&nbsp; gamepad supported
+  </p>
+
+  <script src="js/core.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/music.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/sprites.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/level.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/enemies.js"></script>
+  <script src="js/bosses.js"></script>
+  <script src="js/levels.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/touch.js"></script>
+  <script>
+    window.addEventListener('load', function () {
+      try { VZ.boot(); }
+      catch (e) {
+        var l = document.getElementById('loading');
+        if (l) { l.textContent = 'ERROR: ' + e.message; l.style.display = 'block'; }
+        throw e;
+      }
+    });
+  </script>
+</body>
+</html>
