@@ -23,6 +23,7 @@ git clone <this repo> && cd various
 | Dash | `C` / `Shift` | X / RB |
 | Swap weapon | `V` | Y |
 | Pause | `Esc` | Start |
+| Fullscreen / mute | `F` / `M` | — |
 
 Wall jump by holding *into* a wall while airborne and pressing jump. Hold jump
 longer for a higher leap; tap it for a hop. Down + jump drops through
@@ -45,6 +46,13 @@ The whole game is designed around these interacting:
   pierces two targets, and breaks a shielder's guard.
 - **Two sub-weapons** earned from bosses — a three-way **Spread** and a
   piercing **Lance** — sharing a weapon-energy meter.
+
+Damage is tuned so any grunt dies to a single full charge, while a boss takes
+ten to fourteen — or roughly half that if you land them in the punish window.
+
+**Kill chains.** Kills inside a rolling window build a multiplier up to x5.
+Clearing a room aggressively is worth far more than picking it apart, and your
+best chain is reported on the results screen.
 
 ## Stages
 
@@ -82,6 +90,7 @@ straight off the filesystem with no server.
 | `js/bosses.js` | Boss fights |
 | `js/levels.js` | Stage layouts |
 | `js/game.js` | State machine, HUD, menus, transitions |
+| `js/touch.js` | On-screen controls for touch devices |
 
 A few things worth calling out:
 

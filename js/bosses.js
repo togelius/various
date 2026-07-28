@@ -128,7 +128,7 @@
   var AegisDrone = VZ.AegisDrone = function (game, x, y) {
     Boss.call(this, game, x, y, 40, 26);
     this.name = 'AEGIS DRONE';
-    this.maxHp = 64; this.hp = this.maxHp;
+    this.maxHp = 80; this.hp = this.maxHp;
     this.gravity = 0;
     // The player's muzzle sits ~11px above their feet, so a hovering boss is
     // only hittable if its box crosses the jump arc. This band is tuned so
@@ -482,11 +482,11 @@
   var ForgeGolem = VZ.ForgeGolem = function (game, x, y) {
     Boss.call(this, game, x, y, 36, 40);
     this.name = 'FORGE GOLEM';
-    this.maxHp = 82; this.hp = this.maxHp;
+    this.maxHp = 84; this.hp = this.maxHp;
     this.gravity = 0.5;
     this.armFrame = 0;
     this.stun = 0;
-    this.armour = 0.7;         // heavily plated until stunned
+    this.armour = 0.75;        // heavily plated until stunned
     this.maxPhase = 2;
     this.facing = -1;
     this.reward = 'lance';
@@ -495,7 +495,7 @@
   ForgeGolem.prototype = Object.create(Boss.prototype);
   ForgeGolem.prototype.constructor = ForgeGolem;
 
-  ForgeGolem.prototype.onPhase = function () { this.armour = 0.85; };
+  ForgeGolem.prototype.onPhase = function () { this.armour = 0.9; };
 
   ForgeGolem.prototype.update = function () {
     this.anim++;
@@ -513,7 +513,7 @@
       var f = M.sign(p.x - this.x);
       if (f) this.facing = f;
     }
-    this.armour = this.stun > 0 ? 2.0 : (this.phase === 1 ? 0.7 : 0.85);
+    this.armour = this.stun > 0 ? 2.0 : (this.phase === 1 ? 0.75 : 0.9);
 
     if (this.stun > 0) {
       this.stun--;
@@ -827,7 +827,7 @@
     this.isBoss = true;
     this.name = 'VANGUARD PRIME';
     this.prefix = 'rv_';
-    this.maxHp = 76; this.hp = this.maxHp;
+    this.maxHp = 88; this.hp = this.maxHp;
     this.contactDamage = 3;
     this.phase = 1; this.maxPhase = 3;
     this.state = 'intro';

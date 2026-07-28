@@ -184,6 +184,7 @@
     this.prefix = '';
     this.dropThrough = false;
     this.landDust = 0;
+    this.landTimer = 0;
     this.prevVy = 0;
     this.dashGhosts = [];
     this.kills = 0;
@@ -228,6 +229,7 @@
     if (this.dashCool > 0) this.dashCool--;
     if (this.ctrlLock > 0) this.ctrlLock--;
     if (this.hurtTime > 0) this.hurtTime--;
+    if (this.landTimer > 0) this.landTimer--;
     this.animTime++;
 
     var canControl = this.hurtTime <= 0 && g.playerControl !== false;
@@ -248,6 +250,9 @@
       if (!this.grounded && this.dashTime > 6 && !this.checkGround()) this.dashTime = Math.min(this.dashTime, 6);
     }
 
+    if (this.dashTime === 1 && this.grounded) {
+      FX.dust(this.x - this.facing * 4, this.bottom() - 1, -this.facing);
+    }
     if (canControl && In.pressed.dash && this.dashCool <= 0 && this.dashTime <= 0) {
       var may = this.grounded || this.airDash;
       if (may) {
@@ -379,6 +384,7 @@
           VZ.audio.sfx('land', { vol: Math.min(1, this.prevVy / 7) });
           FX.dust(this.x, this.bottom() - 1, 1);
           FX.dust(this.x, this.bottom() - 1, -1);
+          this.landTimer = this.prevVy > 5.2 ? 8 : 5;
           if (this.prevVy > 5.6) FX.shake(1.6);
         }
       }
@@ -472,7 +478,9 @@
 
     this.shootTimer = 15;
     this.fireCool = level === 0 ? 7 : 16;
-    var dmg = level === 0 ? 1 : (level === 1 ? 3 : 6);
+    // Tuned against boss HP: a bare buster should be viable but slow, and a
+    // full charge should feel like it is worth the 1.2s wind-up.
+    var dmg = level === 0 ? 2 : (level === 1 ? 4 : 8);
     var spd = level === 0 ? 5.4 : (level === 1 ? 5.0 : 4.6);
     var pr = new Projectile(this.game, m.x, m.y, this.facing * spd, 0, {
       team: 'player', kind: 'buster', level: level, damage: dmg,
@@ -516,7 +524,7 @@
       this.fireCool = 26;
       this.game.projectiles.push(new Projectile(this.game, m.x, m.y,
         this.facing * 6.4, 0, {
-          team: 'player', kind: 'lance', damage: 4, w: 22, h: 8, color: '#ff5a6e',
+          team: 'player', kind: 'lance', damage: 5, w: 22, h: 8, color: '#ff5a6e',
           pierce: 99, life: 70, trail: true
         }));
       VZ.audio.sfx('chargeShot', { vol: 0.9 });
@@ -580,6 +588,10 @@
     if (this.dashTime > 0) return { t: 'torso_dash', l: 'legs_dash' };
     if (this.sliding) return { t: 'torso_wall', l: 'legs_wall', wall: true };
     if (!this.grounded) return { t: 'torso_air', l: this.vy < 0 ? 'legs_jump' : 'legs_fall' };
+    // Absorb the impact for a few frames after a drop - reads as weight.
+    if (this.landTimer > 0 && Math.abs(this.vx) < 1.2) {
+      return { t: 'torso_idle', l: 'legs_kneel', crouch: 1 };
+    }
     if (Math.abs(this.vx) > 0.4) return { t: 'torso_run', l: 'legs_run' + (Math.floor(this.runFrame) % 6) };
     return { t: 'torso_idle', l: 'legs_idle', idle: true };
   };
@@ -599,6 +611,7 @@
     }
 
     var bob = p.idle ? (Math.floor(Math.sin(this.animTime * 0.06) * 1.4) > 0 ? 1 : 0) : 0;
+    if (p.crouch) bob += 2;
     var footY = Math.round(this.bottom() - camY);
     var bx = Math.round(this.x - camX) - 8;
 
@@ -797,6 +810,8 @@
 
   Pickup.prototype.collect = function (p) {
     this.remove = true;
+    // Placed pickups do not come back once taken; enemy drops have no def.
+    if (this.def) { this.def.dead = true; this.def.live = null; }
     var g = this.game;
     switch (this.kind) {
       case 'health': p.heal(4); FX.popup(this.x, this.y - 8, '+4', '#ff8fa0'); break;

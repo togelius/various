@@ -221,19 +221,27 @@
           'd5 . . . | b4 . . . | a#4 . . . | . . . . |' +
           'b4 . f#5 . | b5 . . . | . . . . | . . . . '
         },
+        // 8 bars, matching the leads - a shorter loop would drift out of
+        // phase with the melody every time the song wrapped.
         { inst: 'bassS', vol: 1.05, rows:
           'e2 e2 e2 e2 | e2 e2 e2 e2 | e2 e2 e2 e2 | e2 e2 e2 e2 |' +
           'e2 e2 . e2 | e2 . e2 . | e2 e2 . e2 | e2 . g2 . |' +
           'e2 e2 . e2 | e2 . e2 . | c2 c2 . c2 | c2 . d2 . |' +
           'd2 d2 . d2 | d2 . d2 . | d2 d2 . d2 | d2 . f#2 . |' +
-          'b1 b1 . b1 | b1 . b1 . | b1 b1 . b1 | b1 d2 d#2 e2'
+          'b1 b1 . b1 | b1 . b1 . | b1 b1 . b1 | b1 . d2 . |' +
+          'c2 c2 . c2 | b1 b1 . b1 | a1 a1 . a1 | g1 g1 . g1 |' +
+          'f#1 f#1 . f#1 | e2 e2 . e2 | d#2 d#2 . d#2 | d#2 . . . |' +
+          'e2 e2 . e2 | e2 . b1 . | e2 e2 . e2 | e2 d2 d#2 e2'
         },
         { inst: 'arp', vol: 0.8, rows:
           'e5 b5 g5 b5 | e5 b5 g5 b5 | e5 b5 g5 b5 | e5 b5 g5 b5 |' +
           'e5 b5 g5 b5 | e5 b5 g5 b5 | e5 b5 g5 b5 | e5 b5 g5 b5 |' +
           'e5 b5 g5 b5 | e5 b5 g5 b5 | c5 g5 e5 g5 | c5 g5 e5 g5 |' +
           'd5 a5 f#5 a5 | d5 a5 f#5 a5 | d5 a5 f#5 a5 | d5 a5 f#5 a5 |' +
-          'b4 f#5 d#5 f#5 | b4 f#5 d#5 f#5 | b4 f#5 d#5 f#5 | b4 f#5 b5 f#5'
+          'b4 f#5 d#5 f#5 | b4 f#5 d#5 f#5 | b4 f#5 d#5 f#5 | b4 f#5 b5 f#5 |' +
+          'c5 g5 e5 g5 | b4 f#5 d#5 f#5 | a4 e5 c#5 e5 | g4 d5 b4 d5 |' +
+          'f#4 c#5 a#4 c#5 | e5 b5 g5 b5 | d#5 a#5 f#5 a#5 | d#5 a#5 f#5 a#5 |' +
+          'e5 b5 g5 b5 | e5 b5 g5 b5 | e5 b5 g5 b5 | e5 b5 g5 b5'
         },
         { inst: 'drums', vol: 1.1, rows:
           'k . k . | s . . . | k . k . | s . k k |' +

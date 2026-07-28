@@ -30,7 +30,9 @@
     this.boss = null;
     this.arena = null;
     this.bossStarted = false;
-    this.hud = { flashEnergy: 0, weaponPop: 0, bossHitFlash: 0, bossBar: 0, msg: null, msgTime: 0 };
+    this.hud = { flashEnergy: 0, weaponPop: 0, bossHitFlash: 0, bossBar: 0, bossFill: 0,
+                 msg: null, msgTime: 0 };
+    this.combo = 0; this.comboTimer = 0; this.bestCombo = 0;
     this.fade = 1; this.fadeTarget = 0; this.fadeCb = null;
     this.wipe = 0;
     this.menu = { index: 0, page: 'main' };
@@ -64,6 +66,15 @@
     this.menu.index = 0;
   };
 
+  /* Kill chain: consecutive kills inside a window escalate the multiplier.
+   * Returns the multiplier the kill should be scored at. */
+  Game.prototype.addCombo = function () {
+    this.combo++;
+    this.comboTimer = 160;
+    if (this.combo > this.bestCombo) this.bestCombo = this.combo;
+    return Math.min(5, 1 + Math.floor((this.combo - 1) / 3));
+  };
+
   Game.prototype.message = function (txt, frames) {
     this.hud.msg = txt; this.hud.msgTime = frames || 100;
   };
@@ -92,6 +103,7 @@
     this.bossDefeated = false;
     this.damageTaken = 0;
     this.stageTime = 0;
+    this.combo = 0; this.comboTimer = 0; this.bestCombo = 0;
     this.playerControl = true;
     this.deathHandled = false;
     this.stageEndTimer = 0;
@@ -169,8 +181,8 @@
       if (In.pressed.jump || In.pressed.start) { VZ.audio.sfx('confirm'); this.beginGame(this.menu.index); }
       if (In.pressed.select || In.pressed.fire) { this.menu.page = 'main'; VZ.audio.sfx('deny'); }
     } else if (page === 'options') {
-      if (In.pressed.up) { this.menu.index = (this.menu.index + 2) % 3; VZ.audio.sfx('menu'); }
-      if (In.pressed.down) { this.menu.index = (this.menu.index + 1) % 3; VZ.audio.sfx('menu'); }
+      if (In.pressed.up) { this.menu.index = (this.menu.index + 3) % 4; VZ.audio.sfx('menu'); }
+      if (In.pressed.down) { this.menu.index = (this.menu.index + 1) % 4; VZ.audio.sfx('menu'); }
       var delta = (In.pressed.right ? 1 : 0) - (In.pressed.left ? 1 : 0);
       if (delta) {
         if (this.menu.index === 0) VZ.audio.setMusicVol(M.clamp(VZ.audio.musicVol + delta * 0.1, 0, 1));
@@ -178,6 +190,10 @@
         VZ.audio.sfx('menu');
       }
       if (this.menu.index === 2 && (In.pressed.jump || In.pressed.start)) {
+        VZ.toggleFullscreen();
+        VZ.audio.sfx('confirm');
+      }
+      if (this.menu.index === 3 && (In.pressed.jump || In.pressed.start)) {
         this.save.best = {}; this.save.highScore = 0; this.save.unlocked = 1;
         VZ.save.write(this.save);
         VZ.audio.sfx('confirm');
@@ -262,6 +278,7 @@
 
     this.resolveCollisions();
     this.checkTriggers();
+    if (this.comboTimer > 0 && --this.comboTimer === 0) this.combo = 0;
 
     FX.update();
     this.camera.follow(p, false);
@@ -319,11 +336,7 @@
         if (d.kind === 'health' || d.kind === 'energy' || d.kind === 'life' || d.kind === 'bigHealth') {
           var pk = new VZ.Pickup(this, d.x, d.y - 10, d.kind === 'bigHealth' ? 'bigHealth' : d.kind);
           pk.def = d;
-          pk.onCollect = d;
           d.live = pk;
-          var self = this;
-          var origCollect = pk.collect.bind(pk);
-          pk.collect = function (pl) { d.dead = true; origCollect(pl); };
           this.pickups.push(pk);
         } else {
           var f = VZ.ENEMY_FACTORY[d.kind];
@@ -337,6 +350,10 @@
         // Off-screen by a wide margin: retire so it resets when revisited.
         var idx = this.enemies.indexOf(d.live);
         if (idx >= 0) { this.enemies.splice(idx, 1); d.live = null; }
+        else {
+          var pidx = this.pickups.indexOf(d.live);
+          if (pidx >= 0) { this.pickups.splice(pidx, 1); d.live = null; }
+        }
       }
     }
     // Enemies killed for good.
@@ -478,7 +495,8 @@
 
     this.results = {
       stage: stage, time: this.stageTime, damage: this.damageTaken,
-      kills: this.player.kills, rank: RANKS[rankIdx], rankIdx: rankIdx,
+      kills: this.player.kills, chain: this.bestCombo,
+      rank: RANKS[rankIdx], rankIdx: rankIdx,
       timeBonus: timeBonus, noHitBonus: noHitBonus, reveal: 0
     };
 
@@ -527,6 +545,10 @@
     this.lives--;
     var self = this;
     if (this.lives < 0) {
+      if (this.score > this.save.highScore) {
+        this.save.highScore = this.score;
+        VZ.save.write(this.save);
+      }
       this.fadeTo(1, function () {
         self.setState('gameOver');
         VZ.audio.fadeToSong(VZ.songs.gameOver, 0.2);
@@ -603,7 +625,12 @@
     switch (this.state) {
       case 'title': this.drawTitle(ctx); break;
       case 'stageIntro': this.drawWorld(ctx); this.drawStageIntro(ctx); break;
-      case 'play': this.drawWorld(ctx); this.drawHUD(ctx); if (this.paused) this.drawPause(ctx); break;
+      case 'play':
+        this.drawWorld(ctx);
+        this.drawHUD(ctx);
+        this.drawBossIntro(ctx);
+        if (this.paused) this.drawPause(ctx);
+        break;
       case 'results': this.drawWorld(ctx); this.drawResults(ctx); break;
       case 'gameOver': this.drawGameOver(ctx); break;
       case 'ending': this.drawEnding(ctx); break;
@@ -701,7 +728,9 @@
 
     // boss bar
     if (this.boss && !this.boss.dying) {
-      this.hud.bossBar = M.approach(this.hud.bossBar, 1, 0.04);
+      if (this.boss.state === 'intro') { this.hud.bossBar = 0; this.hud.bossFill = 0; return; }
+      this.hud.bossBar = M.approach(this.hud.bossBar, 1, 0.06);
+      this.hud.bossFill = M.approach(this.hud.bossFill || 0, 1, 0.05);
       // Sits below the arena floor line so it never covers the fight.
       var bw = 216, bx = (VZ.W - bw) / 2, by = VZ.H - 12;
       ctx.globalAlpha = this.hud.bossBar;
@@ -710,7 +739,7 @@
       ctx.fillRect(bx - 2, by - 2, bw + 4, 10);
       ctx.fillStyle = '#2a3348';
       ctx.fillRect(bx, by, bw, 6);
-      var frac = Math.max(0, this.boss.hp / this.boss.maxHp);
+      var frac = Math.max(0, this.boss.hp / this.boss.maxHp) * (this.hud.bossFill || 0);
       var grd = ctx.createLinearGradient(bx, 0, bx + bw, 0);
       grd.addColorStop(0, '#ff5a6e'); grd.addColorStop(1, '#ffd24a');
       ctx.fillStyle = this.hud.bossHitFlash > 0 ? '#ffffff' : grd;
@@ -724,12 +753,87 @@
       ctx.globalAlpha = 1;
     }
 
+    // kill chain
+    if (this.combo > 1 && this.comboTimer > 0) {
+      var cm = Math.min(5, 1 + Math.floor((this.combo - 1) / 3));
+      var fade = this.comboTimer < 40 ? this.comboTimer / 40 : 1;
+      var pop = this.comboTimer > 150 ? 1 + (this.comboTimer - 150) * 0.06 : 1;
+      ctx.globalAlpha = fade;
+      A.text(ctx, this.combo + ' CHAIN', VZ.W / 2, 8,
+        { color: cm >= 3 ? '#ffd24a' : '#5fe6d8', align: 'center', shadow: '#12142e', scale: pop });
+      if (cm > 1) {
+        A.text(ctx, 'X' + cm, VZ.W / 2, 18,
+          { color: '#ffffff', align: 'center', shadow: '#12142e' });
+      }
+      ctx.globalAlpha = 1;
+    }
+
     // centre message
     if (this.hud.msgTime > 0 && this.hud.msg) {
       var a = this.hud.msgTime > 20 ? 1 : this.hud.msgTime / 20;
       ctx.globalAlpha = a;
       A.text(ctx, this.hud.msg, VZ.W / 2, VZ.H / 2 - 30,
         { color: '#ffffff', shadow: '#12142e', align: 'center', scale: 2 });
+      ctx.globalAlpha = 1;
+    }
+  };
+
+  /* Letterboxed name card while the boss powers up. Runs off the boss's own
+   * intro timer so the two can never drift apart. */
+  Game.prototype.drawBossIntro = function (ctx) {
+    var b = this.boss;
+    if (!b || b.state !== 'intro') return;
+    var t = b.timer, TT = b.introTime;
+    var inT = M.clamp(t / 16, 0, 1);
+    var outT = M.clamp((TT - t) / 14, 0, 1);
+    var k = M.ease(Math.min(inT, outT));
+
+    var barH = Math.round(34 * k);
+    if (barH <= 0) return;
+
+    // letterbox with hazard striping along the inner edge
+    ctx.fillStyle = '#05070f';
+    ctx.fillRect(0, 0, VZ.W, barH);
+    ctx.fillRect(0, VZ.H - barH, VZ.W, barH);
+    var off = (this.stateTime * 1.4) % 16;
+    ctx.fillStyle = '#ffd24a';
+    ctx.globalAlpha = 0.85;
+    for (var sx = -16; sx < VZ.W + 16; sx += 16) {
+      ctx.beginPath();
+      ctx.moveTo(sx + off, barH - 3); ctx.lineTo(sx + off + 6, barH - 3);
+      ctx.lineTo(sx + off - 2, barH); ctx.lineTo(sx + off - 8, barH);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(sx - off, VZ.H - barH); ctx.lineTo(sx - off + 6, VZ.H - barH);
+      ctx.lineTo(sx - off - 2, VZ.H - barH + 3); ctx.lineTo(sx - off - 8, VZ.H - barH + 3);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // WARNING flasher
+    if (t > 8 && t < TT - 14) {
+      var blink = (t >> 3) % 2 === 0;
+      ctx.globalAlpha = blink ? 1 : 0.25;
+      A.text(ctx, 'WARNING', VZ.W / 2, 12, { color: '#ff5a6e', align: 'center', scale: 2, shadow: '#12142e' });
+      ctx.globalAlpha = 1;
+    }
+
+    // name slides in from the right and settles
+    if (t > 20) {
+      var slide = M.ease(M.clamp((t - 20) / 26, 0, 1));
+      var nx = M.lerp(VZ.W + 100, VZ.W / 2, slide);
+      if (t > TT - 20) nx = M.lerp(VZ.W / 2, -100, M.ease(M.clamp((t - (TT - 20)) / 20, 0, 1)));
+      ctx.globalAlpha = 1;
+      A.text(ctx, b.name, nx, VZ.H - 24, { color: '#ffffff', align: 'center', scale: 2, shadow: '#12142e' });
+      A.text(ctx, 'ELIMINATE', nx, VZ.H - 10, { color: '#ff5a6e', align: 'center', shadow: '#12142e' });
+    }
+
+    // scan sweep across the boss
+    if (t > 26 && t < TT - 20) {
+      var sy = ((t - 26) * 5) % (VZ.H - barH * 2) + barH;
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = '#5fe6d8';
+      ctx.fillRect(0, Math.round(sy), VZ.W, 1);
       ctx.globalAlpha = 1;
     }
   };
@@ -844,26 +948,27 @@
       }
       A.text(ctx, 'X BACK', VZ.W / 2, 178, { color: '#5f6f92', align: 'center' });
     } else if (this.menu.page === 'options') {
-      this.panel(ctx, 76, 110, VZ.W - 152, 74);
-      A.text(ctx, 'OPTIONS', VZ.W / 2, 116, { color: '#5fe6d8', align: 'center' });
+      this.panel(ctx, 72, 106, VZ.W - 144, 84);
+      A.text(ctx, 'OPTIONS', VZ.W / 2, 112, { color: '#5fe6d8', align: 'center' });
       var opts = [
         ['MUSIC', Math.round(VZ.audio.musicVol * 10)],
         ['SOUND', Math.round(VZ.audio.sfxVol * 10)],
+        ['FULLSCREEN', null],
         ['CLEAR RECORDS', null]
       ];
       for (var o = 0; o < opts.length; o++) {
         var selo = o === this.menu.index;
-        A.text(ctx, opts[o][0], 92, 132 + o * 13, { color: selo ? '#ffd24a' : '#9fb6dd' });
+        A.text(ctx, opts[o][0], 88, 128 + o * 13, { color: selo ? '#ffd24a' : '#9fb6dd' });
         if (opts[o][1] !== null) {
           var meter = '';
           for (var mm = 0; mm < 10; mm++) meter += mm < opts[o][1] ? '#' : '-';
-          A.text(ctx, meter, VZ.W - 92, 132 + o * 13, { color: selo ? '#ffd24a' : '#5f6f92', align: 'right' });
+          A.text(ctx, meter, VZ.W - 88, 128 + o * 13, { color: selo ? '#ffd24a' : '#5f6f92', align: 'right' });
         }
       }
-      A.text(ctx, 'X BACK', VZ.W / 2, 172, { color: '#5f6f92', align: 'center' });
+      A.text(ctx, 'X BACK', VZ.W / 2, 180, { color: '#5f6f92', align: 'center' });
     } else if (this.menu.page === 'controls') {
-      this.panel(ctx, 46, 96, VZ.W - 92, 100);
-      A.text(ctx, 'CONTROLS', VZ.W / 2, 102, { color: '#5fe6d8', align: 'center' });
+      this.panel(ctx, 46, 92, VZ.W - 92, 108);
+      A.text(ctx, 'CONTROLS', VZ.W / 2, 98, { color: '#5fe6d8', align: 'center' });
       var rows = [
         ['MOVE', 'ARROWS / WASD'],
         ['JUMP', 'Z  /  SPACE'],
@@ -871,11 +976,12 @@
         ['DASH', 'C  /  SHIFT'],
         ['SWAP WEAPON', 'V'],
         ['PAUSE', 'ESC'],
+        ['FULLSCREEN / MUTE', 'F  /  M'],
         ['WALL JUMP', 'HOLD INTO WALL + JUMP']
       ];
       for (var r = 0; r < rows.length; r++) {
-        A.text(ctx, rows[r][0], 58, 118 + r * 11, { color: '#9fb6dd' });
-        A.text(ctx, rows[r][1], VZ.W - 58, 118 + r * 11, { color: '#ffd24a', align: 'right' });
+        A.text(ctx, rows[r][0], 58, 112 + r * 11, { color: '#9fb6dd' });
+        A.text(ctx, rows[r][1], VZ.W - 58, 112 + r * 11, { color: '#ffd24a', align: 'right' });
       }
       A.text(ctx, 'GAMEPADS ARE SUPPORTED', VZ.W / 2, VZ.H - 12, { color: '#5f6f92', align: 'center' });
     }
@@ -917,25 +1023,27 @@
 
     var rows = [
       ['TIME', VZ.formatTime(r.time), 40],
-      ['DAMAGE TAKEN', String(r.damage), 62],
-      ['ENEMIES DOWN', String(r.kills), 84],
-      ['TIME BONUS', String(r.timeBonus), 106],
-      ['NO-HIT BONUS', String(r.noHitBonus), 128]
+      ['DAMAGE TAKEN', String(r.damage), 58],
+      ['ENEMIES DOWN', String(r.kills), 76],
+      ['BEST CHAIN', String(r.chain), 94],
+      ['TIME BONUS', String(r.timeBonus), 112],
+      ['NO-HIT BONUS', String(r.noHitBonus), 130]
     ];
     for (var i = 0; i < rows.length; i++) {
       if (t < rows[i][2]) continue;
-      A.text(ctx, rows[i][0], 78, 78 + i * 12, { color: '#9fb6dd' });
-      A.text(ctx, rows[i][1], VZ.W - 78, 78 + i * 12, { color: '#ffffff', align: 'right' });
+      if (t === rows[i][2]) VZ.audio.sfx('menu', { vol: 0.7 });
+      A.text(ctx, rows[i][0], 78, 76 + i * 11, { color: '#9fb6dd' });
+      A.text(ctx, rows[i][1], VZ.W - 78, 76 + i * 11, { color: '#ffffff', align: 'right' });
     }
-    if (t >= 150) {
-      var pop = t < 168 ? 3 - (t - 150) / 9 : 2;
-      A.text(ctx, 'RANK', VZ.W / 2 - 26, 146, { color: '#9fb6dd', align: 'center' });
-      A.text(ctx, r.rank.key, VZ.W / 2 + 16, 138,
+    if (t >= 158) {
+      var pop = t < 176 ? 3 - (t - 158) / 9 : 2;
+      A.text(ctx, 'RANK', VZ.W / 2 - 26, 152, { color: '#9fb6dd', align: 'center' });
+      A.text(ctx, r.rank.key, VZ.W / 2 + 16, 145,
         { color: r.rank.color, align: 'center', scale: Math.max(2, pop), shadow: '#12142e' });
-      if (t === 150) VZ.audio.sfx(r.rankIdx <= 1 ? 'checkpoint' : 'confirm');
+      if (t === 158) VZ.audio.sfx(r.rankIdx <= 1 ? 'checkpoint' : 'confirm');
     }
-    if (r.newRecord && t >= 160 && (t >> 3) % 2 === 0) {
-      A.text(ctx, 'NEW RECORD!', VZ.W / 2, 168, { color: '#ffd24a', align: 'center' });
+    if (r.newRecord && t >= 170 && (t >> 3) % 2 === 0) {
+      A.text(ctx, 'NEW RECORD!', VZ.W / 2, 172, { color: '#ffd24a', align: 'center' });
     }
     if (t > 200 && (t >> 4) % 2 === 0) {
       A.text(ctx, 'PRESS  Z', VZ.W / 2, VZ.H - 16, { color: '#ffffff', align: 'center' });
@@ -943,12 +1051,50 @@
   };
 
   Game.prototype.drawGameOver = function (ctx) {
-    ctx.fillStyle = '#05070f'; ctx.fillRect(0, 0, VZ.W, VZ.H);
     var t = this.stateTime;
-    A.text(ctx, 'GAME OVER', VZ.W / 2, 82, { color: '#d05a58', align: 'center', scale: 3, shadow: '#12142e' });
-    A.text(ctx, 'SCORE ' + this.pad(this.score, 7), VZ.W / 2, 118, { color: '#9fb6dd', align: 'center' });
+    ctx.fillStyle = '#05070f'; ctx.fillRect(0, 0, VZ.W, VZ.H);
+
+    // slow drifting embers
+    for (var i = 0; i < 40; i++) {
+      var ex = (i * 61 + Math.sin(i) * 40) % VZ.W;
+      var ey = (VZ.H + 40 - ((t * (0.25 + (i % 5) * 0.12) + i * 37) % (VZ.H + 60)));
+      ctx.globalAlpha = 0.15 + (i % 4) * 0.12;
+      ctx.fillStyle = i % 3 === 0 ? '#ff5a6e' : '#8fa3c4';
+      ctx.fillRect(ex | 0, ey | 0, 1, 2);
+    }
+    ctx.globalAlpha = 1;
+
+    // the wreck, flickering
+    var g = A.gfx;
+    if (t > 10) {
+      var flick = (t >> 2) % 9 !== 0;
+      ctx.globalAlpha = flick ? 0.9 : 0.4;
+      var px = Math.round(VZ.W / 2) - 8, py = 150;
+      ctx.drawImage(g.torso_hurt, px, py - 17);
+      ctx.drawImage(g.legs_hurt, px, py);
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = '#ff5a6e';
+      ctx.fillRect(px - 14, py + 6, 44, 1);
+      ctx.globalAlpha = 1;
+    }
+
+    var a = M.clamp((t - 6) / 24, 0, 1);
+    ctx.globalAlpha = a;
+    A.text(ctx, 'GAME OVER', VZ.W / 2, 62,
+      { color: '#d05a58', align: 'center', scale: 3, shadow: '#12142e' });
+    ctx.globalAlpha = 1;
+
+    if (t > 30) {
+      A.text(ctx, this.stageData ? this.stageData.name : '', VZ.W / 2, 94,
+        { color: '#5f6f92', align: 'center' });
+      A.text(ctx, 'SCORE  ' + this.pad(this.score, 7), VZ.W / 2, 108,
+        { color: '#9fb6dd', align: 'center' });
+      if (this.score >= this.save.highScore && this.score > 0) {
+        A.text(ctx, 'NEW HI-SCORE', VZ.W / 2, 120, { color: '#ffd24a', align: 'center' });
+      }
+    }
     if (t > 60 && (t >> 4) % 2 === 0) {
-      A.text(ctx, 'PRESS  Z', VZ.W / 2, 150, { color: '#ffffff', align: 'center' });
+      A.text(ctx, 'PRESS  Z', VZ.W / 2, VZ.H - 24, { color: '#ffffff', align: 'center' });
     }
   };
 
@@ -1001,6 +1147,17 @@
       { color: '#5fe6d8', align: 'center' });
   };
 
+  VZ.toggleFullscreen = function () {
+    var el = document.documentElement;
+    try {
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) { /* blocked outside a user gesture; nothing to do */ }
+  };
+
   // ------------------------------------------------------------------ boot
   VZ.boot = function () {
     var canvas = document.getElementById('screen');
@@ -1010,6 +1167,13 @@
     // Browsers gate audio behind a gesture; resume on the first real input.
     var resume = function () { VZ.audio.resume(); };
     global.addEventListener('keydown', resume, { once: true });
+    global.addEventListener('keydown', function (e) {
+      if (e.code === 'KeyF') { VZ.toggleFullscreen(); e.preventDefault(); }
+      if (e.code === 'KeyM') {
+        var m = VZ.audio.toggleMute();
+        g.message(m ? 'SOUND OFF' : 'SOUND ON', 70);
+      }
+    });
     global.addEventListener('pointerdown', resume, { once: true });
     g.start();
     VZ.audio.playSong(VZ.songs.title);

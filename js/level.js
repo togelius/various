@@ -97,6 +97,8 @@
     this.time = 0;
   };
 
+  var RESPAWN = 150;   // frames a collapsed block stays gone
+
   Level.prototype.idx = function (tx, ty) { return ty * this.w + tx; };
 
   Level.prototype.at = function (tx, ty) {
@@ -107,7 +109,7 @@
       return TL.EMPTY;
     }
     var id = this.grid[ty * this.w + tx];
-    if (id === TL.CRUMBLE && this.crumble[tx + ',' + ty] === -1) return TL.EMPTY;
+    if (id === TL.CRUMBLE && this.crumble[tx + ',' + ty] < 0) return TL.EMPTY;
     if (id === TL.DOOR && !this.doorsShut) return TL.EMPTY;
     return id;
   };
@@ -266,27 +268,35 @@
   };
 
   // ----------------------------------------------------------------- update
+  /* Crumble state per tile key:
+   *   undefined  intact
+   *   > 0        counting down to collapse
+   *   < 0        gone; counting back up to respawn
+   * Frame-based on both legs so pausing can't desync it. */
   Level.prototype.update = function (game) {
     this.time++;
-    var k;
+    var k, gone = [];
     for (k in this.crumble) {
       var v = this.crumble[k];
       if (v > 0) {
-        this.crumble[k] = v - 1;
-        if (v === 1) {
+        v--;
+        if (v === 0) {
           var parts = k.split(',');
           var px = (+parts[0]) * T + T / 2, py = (+parts[1]) * T + T / 2;
-          this.crumble[k] = -1;
+          v = -RESPAWN;
           VZ.fx.burst(px, py, 10, {
             speed: 1.6, life: 30, size: 3, color: A.THEMES[this.theme].base, g: 0.3, drag: 0.98
           });
           VZ.audio.sfx('land', { vol: 0.7 });
-          // Respawn the block after a while so the level stays traversable.
-          var self = this;
-          setTimeout(function () { if (self.crumble[k] === -1) delete self.crumble[k]; }, 2600);
         }
+        this.crumble[k] = v;
+      } else if (v < 0) {
+        v++;
+        if (v === 0) gone.push(k);       // back to intact
+        else this.crumble[k] = v;
       }
     }
+    for (var i = 0; i < gone.length; i++) delete this.crumble[gone[i]];
     this.updateAmbient();
   };
 
@@ -346,7 +356,7 @@
 
         if (id === TL.CRUMBLE) {
           var st = this.crumble[tx + ',' + ty];
-          if (st === -1) continue;
+          if (st < 0) continue;
           var stage = st === undefined ? 0 : (st > 30 ? 1 : (st > 14 ? 2 : 3));
           var jx = (st !== undefined && st < 30) ? Math.round(Math.sin(t * 1.4) * 1) : 0;
           ctx.drawImage(ts.crumble[stage], px + jx, py);

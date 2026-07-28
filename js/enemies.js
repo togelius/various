@@ -58,11 +58,14 @@
     if (this.dead) return;
     this.dead = true; this.remove = true;
     var g = this.game;
-    g.score += this.score;
+    var mult = g.addCombo ? g.addCombo() : 1;
+    var award = this.score * mult;
+    g.score += award;
     g.player.kills++;
     VZ.audio.sfx('explode');
     FX.explosion(this.x, this.y, this.deathScale, this.deathColor);
-    FX.popup(this.x, this.y - 10, '' + this.score, '#ffd24a');
+    FX.popup(this.x, this.y - 10, mult > 1 ? (award + ' X' + mult) : ('' + award),
+      mult > 1 ? '#ffd24a' : '#cfd8ea');
     if (VZ.rand() < this.dropChance) {
       var roll = VZ.rand();
       var kind = roll < 0.62 ? 'health' : (roll < 0.95 ? 'energy' : 'life');
@@ -122,7 +125,7 @@
   // Patrols, then plants itself and fires a three-round burst.
   var Trooper = VZ.Trooper = function (game, x, y) {
     Enemy.call(this, game, x, y - 8, 12, 16);
-    this.hp = this.maxHp = 4;
+    this.hp = this.maxHp = 6;
     this.score = 150;
     this.state = 'patrol';
     this.timer = VZ.rand.int(30, 90);
@@ -176,7 +179,7 @@
   // Hovers, tracks, and dives when it gets a clean line on you.
   var Drone = VZ.Drone = function (game, x, y) {
     Enemy.call(this, game, x, y - 20, 12, 10);
-    this.hp = this.maxHp = 3;
+    this.hp = this.maxHp = 4;
     this.score = 120;
     this.homeY = this.y;
     this.state = 'hover';
@@ -249,7 +252,7 @@
   // Crouches, telegraphs, then leaps in a fat arc.
   var Hopper = VZ.Hopper = function (game, x, y) {
     Enemy.call(this, game, x, y - 7, 14, 14);
-    this.hp = this.maxHp = 5;
+    this.hp = this.maxHp = 6;
     this.score = 180;
     this.contactDamage = 3;
     this.state = 'wait';
@@ -307,7 +310,7 @@
   // hit it from above, or break the guard with a full charge.
   var Shielder = VZ.Shielder = function (game, x, y) {
     Enemy.call(this, game, x, y - 9, 14, 18);
-    this.hp = this.maxHp = 6;
+    this.hp = this.maxHp = 8;
     this.score = 250;
     this.contactDamage = 3;
     this.dropChance = 0.4;
@@ -371,7 +374,7 @@
   // Fixed emplacement that tracks and fires along a telegraphed line.
   var Turret = VZ.Turret = function (game, x, y, ceiling) {
     Enemy.call(this, game, x, y - (ceiling ? 4 : 6), 14, 12);
-    this.hp = this.maxHp = 5;
+    this.hp = this.maxHp = 6;
     this.score = 200;
     this.contactDamage = 2;
     this.ceiling = !!ceiling;
@@ -443,7 +446,7 @@
   // A spiked drum that rolls the floor and ricochets off walls.
   var Roller = VZ.Roller = function (game, x, y) {
     Enemy.call(this, game, x, y - 7, 14, 14);
-    this.hp = this.maxHp = 6;
+    this.hp = this.maxHp = 8;
     this.score = 160;
     this.contactDamage = 3;
     this.facing = VZ.rand.sign();
