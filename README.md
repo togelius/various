@@ -126,12 +126,18 @@ node tools/bot.js 0 90        # heuristic bot plays stage 1, reports progress
 node tools/boss.js 1          # drive a boss fight, report pattern coverage
 node tools/sweep.js out/      # screenshot every screen and mechanic
 node tools/flow.js            # verify stage -> boss -> results -> ending
+node tools/killboss.js 2      # fight a boss to the death, time it, log phases
 ```
 
 `validate.js` is the useful one: it BFSes the tilemap with a movement model
 slightly more conservative than the real physics and reports anything the
 player can't reach. It caught a bottomless shaft, two ledges a tile beyond
 jump height, and ten enemies spawned standing in lava.
+
+`killboss.js` drives a scripted pilot through a whole fight and reports how
+long it took and which phases and attacks actually fired. Boss HP is tuned
+against it: roughly 18s, 20s and 37s for an invulnerable pilot, which lands a
+real fight in the 30-60s range.
 
 ## Licence
 

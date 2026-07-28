@@ -25,12 +25,12 @@ require('fs').mkdirSync(OUT,{recursive:true});
     log.push('stage '+stage+' boss started: '+JSON.stringify(await st()));
     // kill the boss outright
     await p.evaluate(()=>{const g=VZ.game;if(g.boss){g.boss.hp=1;g.boss.hurtBy(5,g.boss.x);}});
-    await p.waitForTimeout(4500);
+    await p.waitForTimeout(6000);
     log.push('  after boss death: '+JSON.stringify(await st()));
     await p.screenshot({path:OUT+'/stage'+stage+'_results.png'});
     // advance through results
-    for(let i=0;i<6;i++){ await press('jump',150); }
-    await p.waitForTimeout(2500);
+    for(let i=0;i<8;i++){ await press('jump',150); }
+    await p.waitForTimeout(3500);
     log.push('  advanced to: '+JSON.stringify(await st()));
     await p.screenshot({path:OUT+'/stage'+stage+'_next.png'});
   }

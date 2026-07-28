@@ -185,6 +185,7 @@
     this.dropThrough = false;
     this.landDust = 0;
     this.landTimer = 0;
+    this.warp = 0;
     this.prevVy = 0;
     this.dashGhosts = [];
     this.kills = 0;
@@ -210,6 +211,7 @@
     this.invuln = 60; this.hurtTime = 0; this.deadTimer = 0;
     this.spawnTimer = 26;
     this.dashTime = 0; this.charge = 0; this.chargeLevel = 0;
+    this.warp = 0;
     this.dashGhosts.length = 0;
   };
 
@@ -218,6 +220,19 @@
 
     if (this.dead) {
       this.deadTimer++;
+      return;
+    }
+    // Teleporting out at stage end: no physics, just rise.
+    if (this.warp > 0) {
+      this.warp++;
+      this.animTime++;
+      if (this.warp > 16) this.y -= Math.min(9, (this.warp - 16) * 0.55);
+      this.vx = 0; this.vy = 0;
+      if (this.warp % 3 === 0) {
+        FX.spawn({ x: this.x + VZ.rand.range(-7, 7), y: this.y + VZ.rand.range(-6, 12),
+          vx: 0, vy: -VZ.rand.range(1.5, 3.5), g: 0, drag: 1, life: 14, size: 2,
+          color: VZ.rand.chance(0.5) ? '#5fe6d8' : '#d6e8ff', glow: true });
+      }
       return;
     }
     if (this.spawnTimer > 0) { this.spawnTimer--; this.vy = 0; return; }
@@ -584,6 +599,7 @@
 
   // --------------------------------------------------------------- render
   Player.prototype.pose = function () {
+    if (this.warp > 0) return { t: 'torso_air', l: 'legs_jump' };
     if (this.hurtTime > 0) return { t: 'torso_hurt', l: 'legs_hurt' };
     if (this.dashTime > 0) return { t: 'torso_dash', l: 'legs_dash' };
     if (this.sliding) return { t: 'torso_wall', l: 'legs_wall', wall: true };

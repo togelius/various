@@ -309,7 +309,18 @@
       this.deathHandled = true;
       this.afterDeath();
     }
-    if (this.stageEndTimer > 0 && --this.stageEndTimer === 0) this.finishStage();
+    if (this.stageEndTimer > 0) {
+      this.stageEndTimer--;
+      // Warp out once the wreckage has finished going up.
+      if (this.stageEndTimer === 96 && !p.warp) {
+        p.warp = 1;
+        this.playerControl = false;
+        VZ.audio.sfx('checkpoint');
+        VZ.audio.sfx('door');
+        FX.ring(p.x, p.y, { grow: 3.2, life: 26, color: '#5fe6d8', width: 2 });
+      }
+      if (this.stageEndTimer === 0) this.finishStage();
+    }
   };
 
   Game.prototype.updatePause = function () {
@@ -492,7 +503,7 @@
     }
     this.player.energy = VZ.P.MAX_ENERGY;
     // Frame-based so a pause can't skip past the victory beat.
-    this.stageEndTimer = 130;
+    this.stageEndTimer = 170;
   };
 
   Game.prototype.finishStage = function () {
@@ -693,7 +704,10 @@
       e.draw(ctx, camX, camY);
     }
     if (this.boss) this.boss.draw(ctx, camX, camY);
-    if (this.player) this.player.draw(ctx, camX, camY);
+    if (this.player) {
+      if (this.player.warp > 0) this.drawWarpBeam(ctx, camX, camY);
+      this.player.draw(ctx, camX, camY);
+    }
     for (i = 0; i < this.projectiles.length; i++) {
       var pr = this.projectiles[i];
       if (pr.warn > 0) { this.drawWarning(ctx, pr, camX, camY); continue; }
@@ -703,6 +717,33 @@
     FX.draw(ctx, camX, camY);
     this.level.drawAtmosphere(ctx, camX, camY);
     FX.drawTexts(ctx, camX, camY);
+  };
+
+  /* Column of light the player rides out on after a boss falls. */
+  Game.prototype.drawWarpBeam = function (ctx, camX, camY) {
+    var p = this.player;
+    var x = Math.round(p.x - camX);
+    var t = Math.min(1, p.warp / 16);
+    var w = Math.round(M.lerp(2, 13, M.ease(t)));
+    ctx.save();
+    ctx.globalAlpha = 0.22 * t;
+    ctx.fillStyle = '#5fe6d8';
+    ctx.fillRect(x - w - 4, 0, (w + 4) * 2, VZ.H);
+    ctx.globalAlpha = 0.55 * t;
+    ctx.fillStyle = '#9ff4ea';
+    ctx.fillRect(x - w, 0, w * 2, VZ.H);
+    ctx.globalAlpha = 0.9 * t;
+    ctx.fillStyle = '#ffffff';
+    var jitter = Math.round(Math.sin(p.warp * 0.8) * 1);
+    ctx.fillRect(x - 3 + jitter, 0, 6, VZ.H);
+    // travelling bands
+    ctx.globalAlpha = 0.5 * t;
+    ctx.fillStyle = '#ffffff';
+    for (var i = 0; i < 6; i++) {
+      var by = (VZ.H - ((p.warp * 7 + i * 40) % (VZ.H + 40)));
+      ctx.fillRect(x - w, Math.round(by), w * 2, 2);
+    }
+    ctx.restore();
   };
 
   // Incoming-debris marker so ceiling drops are dodgeable.

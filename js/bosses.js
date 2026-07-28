@@ -128,7 +128,7 @@
   var AegisDrone = VZ.AegisDrone = function (game, x, y) {
     Boss.call(this, game, x, y, 40, 26);
     this.name = 'AEGIS DRONE';
-    this.maxHp = 80; this.hp = this.maxHp;
+    this.maxHp = 56; this.hp = this.maxHp;
     this.gravity = 0;
     // The player's muzzle sits ~11px above their feet, so a hovering boss is
     // only hittable if its box crosses the jump arc. This band is tuned so
@@ -180,7 +180,7 @@
             vx: VZ.rand.range(-0.3, 0.3), vy: 0.8, g: 0, drag: 0.95, life: 14,
             size: 2, color: '#ffd166', glow: true });
         }
-        if (this.timer > 78) {
+        if (this.timer > 96) {
           this.armour = 1; this.coreOpen = 0;
           this.state = 'idle'; this.timer = 16;
         }
@@ -211,7 +211,10 @@
           this.dropBomb();
         }
         if (Math.abs(this.x - this.targetX) < 8 || this.timer > 150) {
-          this.state = 'idle'; this.timer = this.phase === 1 ? 44 : 26;
+          // Half the time it drops low to cool after a bomb run too, so the
+          // player is not waiting on the beam pattern for every damage window.
+          if (VZ.rand.chance(0.5)) { this.state = 'vent'; this.timer = 0; }
+          else { this.state = 'idle'; this.timer = this.phase === 1 ? 44 : 26; }
         }
         break;
       }
@@ -482,7 +485,7 @@
   var ForgeGolem = VZ.ForgeGolem = function (game, x, y) {
     Boss.call(this, game, x, y, 36, 40);
     this.name = 'FORGE GOLEM';
-    this.maxHp = 84; this.hp = this.maxHp;
+    this.maxHp = 108; this.hp = this.maxHp;
     this.gravity = 0.5;
     this.armFrame = 0;
     this.stun = 0;
@@ -827,7 +830,7 @@
     this.isBoss = true;
     this.name = 'VANGUARD PRIME';
     this.prefix = 'rv_';
-    this.maxHp = 88; this.hp = this.maxHp;
+    this.maxHp = 72; this.hp = this.maxHp;
     this.contactDamage = 3;
     this.phase = 1; this.maxPhase = 3;
     this.state = 'intro';
