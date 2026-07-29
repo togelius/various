@@ -62,3 +62,15 @@ HARDEST TO EASIEST  (per visit)
   1-Run-up                  0.00 deaths    3.3 hp    5.5s  #...................
   2-Lava bridge             0.07 deaths    1.1 hp    3.4s  #...................
   3-Crumble bridge          0.00 deaths    1.0 hp    4.6s  ....................
+
+BOSS BENCHMARK  (20 attempts each, agent starts at full health)
+
+  boss                       wins    kill   survive   margin
+  AEGIS DRONE (stage 1)     20/20     16s       50s     3.07
+  FORGE GOLEM (stage 2)     19/20     19s       34s     1.75
+  VANGUARD PRIME (stage 3)  18/20     19s       40s     2.15
+
+  kill    = seconds to remove the boss's health at the rate actually achieved
+  survive = seconds before the boss removes all 16 of yours
+  margin  = survive / kill. Below 1.0 means you lose the race on average;
+            a fight only feels fair somewhere north of ~1.5.
