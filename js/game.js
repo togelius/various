@@ -404,7 +404,8 @@
 
     for (i = this.projectiles.length - 1; i >= 0; i--) {
       var pr = this.projectiles[i];
-      if (pr.remove || pr.warn > 0) continue;
+      // A hit can end the fight, which prunes this list mid-loop.
+      if (!pr || pr.remove || pr.warn > 0) continue;
       var pb = pr.box();
 
       if (pr.team === 'player') {
@@ -486,7 +487,12 @@
 
   Game.prototype.onBossDying = function () {
     this.playerControl = true;
-    this.projectiles = this.projectiles.filter(function (p) { return p.team === 'player'; });
+    // Clear enemy fire in place. Replacing the array here would pull it out
+    // from under resolveCollisions, which is what called us - a boss killed by
+    // a projectile would then crash on the next index.
+    for (var i = this.projectiles.length - 1; i >= 0; i--) {
+      if (this.projectiles[i].team !== 'player') this.projectiles.splice(i, 1);
+    }
   };
 
   Game.prototype.onBossDefeated = function (boss) {
