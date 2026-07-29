@@ -1,0 +1,543 @@
+<title>Vanguard Zero — agent playing</title>
+<style>
+  /* This is not the arcade room. It is the bench the cabinet was wheeled into:
+     a monitor, a probe on the decision loop, and a trace. Committed to one
+     dark theme on purpose - the readout and the game screen are the same
+     surface, and a light ground would put a hole in the middle of the page.
+     Every colour is sampled from the game's own sprite palette. */
+  :root {
+    --ground:   #070a10;
+    --panel:    #0d1220;
+    --panel-2:  #111829;
+    --rule:     #1c2740;
+    --live:     #5fe6d8;   /* the agent's own cyan: whatever it is doing now */
+    --plan:     #ffd24a;   /* gold: frames already committed to */
+    --alarm:    #ff5a6e;   /* crimson, from Vanguard Prime: damage and stalls */
+    --ink:      #93a8c9;
+    --ink-dim:  #56678a;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(ellipse 60% 45% at 32% 30%, #131c33 0%, rgba(7,10,16,0) 70%),
+      linear-gradient(#080b12, #05070c);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  .bench {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 20px 16px 34px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* ------------------------------------------------------------- heading */
+  /* align-items matters here: a canvas is a replaced element and a stretching
+     flex column will happily blow it up to the full width of the page. */
+  header { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+  #wordmark {
+    /* No CSS size: the canvas is built at an exact multiple of the game's 5x7
+       glyph grid, and any resize off that multiple turns a bitmap font into
+       mush. Let it sit at its intrinsic size and scale only by whole pixels. */
+    display: block;
+    image-rendering: pixelated;
+  }
+  .strap {
+    margin: 0;
+    color: var(--ink-dim);
+    max-width: 78ch;
+    text-wrap: pretty;
+  }
+  .strap b { color: var(--ink); font-weight: 400; }
+
+  /* --------------------------------------------------------------- layout */
+  .rig {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 268px;
+    gap: 14px;
+    align-items: start;
+  }
+
+  .monitor {
+    position: relative;
+    background: #04060c;
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 8px;
+  }
+  .monitor::after {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    pointer-events: none;
+    box-shadow: inset 0 0 26px rgba(4, 6, 12, 0.9);
+  }
+  #stage {
+    width: 100%;
+    aspect-ratio: 384 / 216;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  canvas#screen {
+    display: block;
+    image-rendering: pixelated;
+    background: #000;
+  }
+
+  /* the live tag sits on the bezel, not over the picture */
+  .tag {
+    position: absolute;
+    top: 14px; left: 14px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 7px;
+    background: rgba(4, 6, 12, 0.72);
+    border: 1px solid rgba(95, 230, 216, 0.32);
+    color: var(--live);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .dot {
+    width: 6px; height: 6px;
+    background: var(--live);
+    border-radius: 50%;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
+
+  /* ----------------------------------------------------------- telemetry */
+  .rail { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 10px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-width: 0;
+  }
+  .card h2 {
+    margin: 0;
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+
+  .decision {
+    color: var(--live);
+    font-size: 15px;
+    line-height: 1.25;
+    text-wrap: balance;
+    min-height: 2.5em;
+  }
+
+  /* commitment: gold cells for frames of plan still queued */
+  .commit { display: flex; gap: 2px; height: 7px; }
+  .commit i {
+    flex: 1;
+    background: var(--panel-2);
+    border-radius: 1px;
+  }
+  .commit i.on { background: var(--plan); }
+
+  dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 3px 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  dt { color: var(--ink-dim); }
+  dd { margin: 0; text-align: right; color: var(--ink); }
+  dd.hot { color: var(--alarm); }
+
+  #trace { display: block; width: 100%; height: 62px; }
+  .legend {
+    display: flex;
+    gap: 12px;
+    font-size: 10px;
+    color: var(--ink-dim);
+    letter-spacing: 0.06em;
+  }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .legend i { width: 9px; height: 2px; border-radius: 1px; }
+
+  /* --------------------------------------------------------- transport */
+  .transport {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  button {
+    font: inherit;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--ink-dim); color: #cfe0f6; }
+  button[aria-pressed="true"] {
+    color: var(--ground);
+    background: var(--live);
+    border-color: var(--live);
+  }
+  button:focus-visible { outline: 2px solid var(--live); outline-offset: 2px; }
+  .transport .spacer { flex: 1; }
+  .transport .note { color: var(--ink-dim); font-size: 11px; }
+
+  /* ------------------------------------------------------------- footer */
+  .notes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    border-top: 1px solid var(--rule);
+    padding-top: 14px;
+  }
+  .notes section { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .notes h3 {
+    margin: 0;
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--live);
+  }
+  .notes p { margin: 0; color: var(--ink-dim); text-wrap: pretty; }
+  .notes b { color: var(--ink); font-weight: 400; }
+
+  @media (max-width: 820px) {
+    .rig { grid-template-columns: minmax(0, 1fr); }
+    .rail { flex-direction: row; flex-wrap: wrap; }
+    .rail .card { flex: 1 1 240px; }
+  }
+</style>
+
+<div class="bench">
+  <header>
+    <canvas id="wordmark" width="240" height="25" role="img" aria-label="Vanguard Zero"></canvas>
+    <p class="strap">
+      Nobody is holding the controls. The game below is being played by a search
+      agent that forward-simulates its own physics, rolls out about fifty
+      candidate moves every time its plan runs out, and picks the one that ends
+      best. <b>The panel on the right is what it is thinking</b> — the move it
+      chose, how many frames of it are still committed, and whether it is
+      actually getting anywhere.
+    </p>
+  </header>
+
+  <div class="rig">
+    <div class="monitor">
+      <div class="tag"><span class="dot"></span><span id="tagtext">agent playing</span></div>
+      <div id="stage"><canvas id="screen" width="384" height="216"></canvas></div>
+    </div>
+
+    <div class="rail">
+      <div class="card">
+        <h2>Current move</h2>
+        <div class="decision" id="decision">starting up</div>
+        <div class="commit" id="commit"></div>
+        <div class="legend"><span><i style="background:var(--plan)"></i>frames still committed</span></div>
+      </div>
+
+      <div class="card">
+        <h2>Closing on the exit</h2>
+        <canvas id="trace" width="480" height="124"></canvas>
+        <div class="legend">
+          <span><i style="background:var(--live)"></i>rising = getting closer</span>
+          <span><i style="background:var(--alarm)"></i>stalled</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>This run</h2>
+        <dl>
+          <dt>stage</dt><dd id="m-stage">—</dd>
+          <dt>section</dt><dd id="m-section">—</dd>
+          <dt>health</dt><dd id="m-hp">—</dd>
+          <dt>lives</dt><dd id="m-lives">—</dd>
+          <dt>deaths</dt><dd id="m-deaths">0</dd>
+          <dt>attempt</dt><dd id="m-runs">1</dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <div class="transport">
+    <button id="speed" aria-pressed="false">speed 1&times;</button>
+    <button id="sound" aria-pressed="false">sound off</button>
+    <button id="restart">restart run</button>
+    <span class="spacer"></span>
+    <span class="note" id="hint">it plays until it dies out, then starts over</span>
+  </div>
+
+  <div class="notes">
+    <section>
+      <h3>How it moves</h3>
+      <p>
+        Navigation is solved, not learned. A backward Dijkstra pass over the
+        level gives every standable tile a <b>cost to go</b>, including the
+        wall-cling states, and the agent simply tries to spend it.
+      </p>
+    </section>
+    <section>
+      <h3>Why the trace matters</h3>
+      <p>
+        A short-horizon planner dithers: when every move is bad, the least bad
+        one is to not move. Watch the line go flat on the lava and in the spike
+        corridor — that is the failure mode. The red bar is how long it has
+        been stuck, and it eventually forces the agent to accept a hit and go.
+      </p>
+    </section>
+    <section>
+      <h3>What it measured</h3>
+      <p>
+        Over 36 full runs it finished the game about a quarter of the time and
+        beat all three bosses <b>57 times out of 60</b>. The hard parts are not
+        the bosses — they are the spike corridor, the lava climb, and stage
+        one's crumbling blocks.
+      </p>
+    </section>
+  </div>
+</div>
+
+<script>
+<!--BUNDLE-->
+</script>
+
+<script>
+(function () {
+  'use strict';
+
+  // The 32-tile chunks the stages were authored in, which is also how the
+  // difficulty report buckets them.
+  var SECTIONS = [
+    ['Opening', 'Gap run', 'Wall-jump chimney', 'Crumble + spikes', 'Turret gauntlet', 'Run-up', 'Boss arena'],
+    ['Opening', 'Conveyors', 'Flame vents', 'Lava climb', 'Lava bridge', 'Run-up', 'Boss arena'],
+    ['Opening', 'Spike corridor', 'Void ascent', 'Crumble bridge', 'Turret + shielders', 'Run-up', 'Boss arena']
+  ];
+  var STAGES = ['Skyfall Ridge', 'Magma Foundry', 'Void Citadel'];
+
+  /* The planner names its primitives for the log, not for reading. Turn one
+     back into the thing a person would say they were doing. */
+  function readable(name) {
+    if (!name) return 'thinking';
+    var deep = /\+2$/.test(name);
+    var n = name.replace(/\+2$/, '');
+    var d = n.match(/^[a-z]+([RL])/);
+    var dir = d ? (d[1] === 'R' ? 'right' : 'left') : '';
+    var s;
+    if (n === 'wait') s = 'hold position';
+    else if (/^djmp/.test(n)) s = 'dash-jump ' + dir;
+    else if (/^jmp/.test(n)) s = (/d\d/.test(n) ? 'dash-jump ' : 'jump ') + dir;
+    else if (/^dash/.test(n)) s = 'dash ' + dir;
+    else if (/^run/.test(n)) s = 'run ' + dir;
+    else if (/^drop/.test(n)) s = 'drop through ' + dir;
+    else if (/^climb/.test(n)) s = 'wall-climb ' + dir;
+    else s = n;
+    return s + (deep ? ' · two moves ahead' : '');
+  }
+
+  var el = function (id) { return document.getElementById(id); };
+  var out = {
+    decision: el('decision'), commit: el('commit'), tag: el('tagtext'),
+    stage: el('m-stage'), section: el('m-section'), hp: el('m-hp'),
+    lives: el('m-lives'), deaths: el('m-deaths'), runs: el('m-runs')
+  };
+
+  // commitment cells: one per frame of plan, capped at the boss commit window
+  var CELLS = 24, cells = [];
+  for (var i = 0; i < CELLS; i++) {
+    var c = document.createElement('i');
+    out.commit.appendChild(c);
+    cells.push(c);
+  }
+
+  // ---------------------------------------------------------------- trace
+  var traceCv = el('trace'), tctx = traceCv.getContext('2d');
+  var HIST = 240;                       // ~4 seconds at 60Hz, sampled every 4
+  var hist = [], stall = [];
+  function sizeTrace() {
+    var r = Math.min(2, window.devicePixelRatio || 1);
+    var w = traceCv.clientWidth, h = traceCv.clientHeight;
+    traceCv.width = Math.max(1, Math.round(w * r));
+    traceCv.height = Math.max(1, Math.round(h * r));
+    tctx.setTransform(r, 0, 0, r, 0, 0);
+  }
+  window.addEventListener('resize', sizeTrace);
+
+  function drawTrace() {
+    var w = traceCv.clientWidth, h = traceCv.clientHeight;
+    tctx.clearRect(0, 0, w, h);
+    if (hist.length < 2) return;
+    var lo = Infinity, hi = -Infinity;
+    for (var i = 0; i < hist.length; i++) {
+      if (hist[i] === null) continue;
+      if (hist[i] < lo) lo = hist[i];
+      if (hist[i] > hi) hi = hist[i];
+    }
+    if (!isFinite(lo)) return;
+    if (hi - lo < 40) { hi = lo + 40; }
+
+    // stall pressure behind the line, as a rising floor
+    tctx.fillStyle = 'rgba(255, 90, 110, 0.16)';
+    for (var s = 0; s < stall.length; s++) {
+      var sx = (s / (HIST - 1)) * w;
+      // full height is the point at which the agent gives up on caution
+      var sh = Math.min(1, stall[s] / 90) * (h - 6);
+      if (sh > 0) tctx.fillRect(sx, h - sh, w / HIST + 1, sh);
+    }
+
+    tctx.beginPath();
+    var started = false;
+    for (var k = 0; k < hist.length; k++) {
+      if (hist[k] === null) { started = false; continue; }
+      var x = (k / (HIST - 1)) * w;
+      var y = h - 3 - ((hi - hist[k]) / (hi - lo)) * (h - 8);
+      if (!started) { tctx.moveTo(x, y); started = true; } else tctx.lineTo(x, y);
+    }
+    tctx.strokeStyle = '#5fe6d8';
+    tctx.lineWidth = 1.5;
+    tctx.lineJoin = 'round';
+    tctx.stroke();
+  }
+
+  // ----------------------------------------------------------------- boot
+  var g, pilot, runs = 1, speed = 1, sampler = 0;
+
+  function newPilot() {
+    pilot = new AGENT.Pilot(g, {});
+    hist.length = 0; stall.length = 0;
+  }
+
+  function boot() {
+    VZ.boot();
+    g = VZ.game;
+    VZ.audio.toggleMute();               // a page that autoplays music is rude
+
+    // Set in the game's own 5x7 bitmap font, at a whole-pixel scale.
+    var wm = el('wordmark'), x = wm.getContext('2d');
+    var word = 'VANGUARD ZERO', SC = 3;
+    wm.width = VZ.art.textWidth(word) * SC + 4;
+    wm.height = 7 * SC + 4;
+    x.imageSmoothingEnabled = false;    // a resize resets this, so set it after
+    VZ.art.text(x, word, 2, 2, { color: '#d6e8ff', scale: SC });
+    VZ.art.text(x, 'ZERO', 2 + VZ.art.textWidth('VANGUARD ') * SC, 2,
+      { color: '#ffd24a', scale: SC });
+
+    sizeTrace();
+    g.loop.stop();
+    newPilot();
+    g.loop = VZ.Loop(step, function () { g.render(); });
+    g.loop.start();
+  }
+
+  var lastStage = 0;
+  function step() {
+    for (var n = 0; n < speed; n++) {
+      pilot.tick();
+      g.update();
+      if (g.stageIndex !== lastStage) {
+        lastStage = g.stageIndex;
+        pilot.reset(); pilot.fieldStage = -1;
+      }
+      if (g.state === 'gameOver' && !pilot._counted) {
+        pilot._counted = true;
+        runs++;
+      }
+      if (g.state === 'play' && pilot._counted) pilot._counted = false;
+    }
+    readout();
+  }
+
+  function readout() {
+    var p = g.player, boss = g.boss && !g.boss.dying ? g.boss : null;
+
+    out.tag.textContent = boss ? 'agent vs ' + boss.name.toLowerCase()
+      : (g.state === 'play' ? 'agent playing' : 'agent · ' + g.state);
+
+    var pick = pilot.lastDecision && pilot.lastDecision.pick;
+    out.decision.textContent = g.state === 'play'
+      ? (boss ? readable(pick) + ' · spacing the boss' : readable(pick))
+      : 'between attempts';
+
+    var q = Math.min(CELLS, pilot.queue.length);
+    for (var i = 0; i < CELLS; i++) cells[i].className = i < q ? 'on' : '';
+
+    var st = g.stageIndex || 0;
+    out.stage.textContent = STAGES[st] ? (st + 1) + ' · ' + STAGES[st] : '—';
+    var sec = p ? Math.floor(p.x / (32 * VZ.TILE)) : -1;
+    out.section.textContent = boss ? 'boss arena'
+      : ((SECTIONS[st] && SECTIONS[st][sec]) || '—').toLowerCase();
+    out.hp.textContent = p ? p.hp + ' / ' + p.maxHp : '—';
+    out.hp.className = p && p.hp <= 5 ? 'hot' : '';
+    out.lives.textContent = g.lives === undefined ? '—' : g.lives;
+    out.deaths.textContent = pilot.tele.deaths.length;
+    out.runs.textContent = runs;
+
+    // sample the trace four times a second's worth of frames
+    if (++sampler % 4 === 0) {
+      var d = null;
+      if (p && !p.dead && !boss && pilot.field) {
+        d = AGENT.plan.distAt(pilot.field, p.x, p.y);
+      }
+      hist.push(d);
+      stall.push(pilot.stallFrames || 0);
+      while (hist.length > HIST) { hist.shift(); stall.shift(); }
+      drawTrace();
+    }
+  }
+
+  // ------------------------------------------------------------ transport
+  var speedBtn = el('speed'), soundBtn = el('sound');
+  speedBtn.addEventListener('click', function () {
+    speed = speed === 1 ? 2 : (speed === 2 ? 3 : 1);
+    speedBtn.textContent = 'speed ' + speed + '×';
+    speedBtn.setAttribute('aria-pressed', String(speed !== 1));
+  });
+  soundBtn.addEventListener('click', function () {
+    VZ.audio.resume();
+    var muted = VZ.audio.toggleMute();
+    soundBtn.textContent = muted ? 'sound off' : 'sound on';
+    soundBtn.setAttribute('aria-pressed', String(!muted));
+  });
+  el('restart').addEventListener('click', function () {
+    g.lives = 3; g.score = 0; g.player = null;
+    g.fade = 0; g.fadeTarget = 0; g.fadeCb = null;
+    g.loadStage(0, false);
+    g.setState('play');
+    lastStage = 0;
+    newPilot();
+    runs++;
+  });
+
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot);
+})();
+</script>

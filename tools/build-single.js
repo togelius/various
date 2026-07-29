@@ -15,6 +15,10 @@ const ORDER = [
   'js/levels.js', 'js/game.js', 'js/touch.js'
 ];
 
+// The watch shell drives the game with the play agent, so it needs the agent
+// sources inlined after the game's.
+const AGENT_ORDER = ['tools/agent/sim.js', 'tools/agent/plan.js', 'tools/agent/pilot.js'];
+
 const arg = process.argv.find(a => a.startsWith('--shell='));
 const shellName = arg ? arg.split('=')[1] : 'standalone';
 const outArg = process.argv.find(a => a.startsWith('--out='));
@@ -25,7 +29,9 @@ if (!fs.existsSync(shellPath)) {
   process.exit(1);
 }
 
-const bundle = ORDER.map(f => {
+const sources = ORDER.concat(shellName === 'watch' ? AGENT_ORDER : []);
+
+const bundle = sources.map(f => {
   const src = fs.readFileSync(f, 'utf8');
   // Guard against a source accidentally containing a closing script tag,
   // which would terminate the inlined <script> early.
@@ -46,9 +52,10 @@ if (!html.includes('<!--BUNDLE-->')) {
 html = html.replace('<!--BUNDLE-->', () => bundle);
 
 const out = outArg ? outArg.split('=')[1]
-  : path.join('dist', shellName === 'artifact' ? 'vanguard-zero-embed.html' : 'vanguard-zero.html');
+  : path.join('dist', shellName === 'standalone' ? 'vanguard-zero.html'
+              : 'vanguard-zero-' + shellName + '.html');
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, html);
 
 const kb = (Buffer.byteLength(html) / 1024).toFixed(0);
-console.log('wrote ' + out + '  (' + kb + ' KB, ' + ORDER.length + ' sources inlined)');
+console.log('wrote ' + out + '  (' + kb + ' KB, ' + sources.length + ' sources inlined)');
