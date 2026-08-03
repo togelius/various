@@ -56,6 +56,13 @@
      * difficulty report separates a section that punishes reflexes from one
      * that punishes not knowing the level. */
     latency: 0,
+    /* Dexterity error, after Isaksen et al. by way of Talakat: the agent is
+     * forced to repeat its action for a number of frames drawn from a
+     * gaussian, and this is that gaussian's standard deviation. A high
+     * dexterity player repeats fewer frames. It is a motor-bandwidth limit
+     * rather than an information one - unlike `latency` it corrupts execution
+     * itself, every frame, rather than only the moments between plans. */
+    dexSigma: 0,
   };
 
   function snapshot(sim, game) {
@@ -87,8 +94,12 @@
     this.stallFrames = 0;
     this.tele = {
       deaths: [], damage: [], stageTimes: {}, sectionFrames: {},
-      bossAttempts: {}, bossDamage: {}, maxX: {}, cleared: [], notes: []
+      bossAttempts: {}, bossDamage: {}, maxX: {}, cleared: [], notes: [],
+      actions: {}
     };
+    // Its own stream, so clumsiness never perturbs the world being measured.
+    this._rng = VZ.RNG(0xd0d0 + ((this.p.dexSigma * 1000) | 0));
+    this._holdLeft = 0; this._held = {};
     this.hook();
   };
 
@@ -161,6 +172,45 @@
     return this._obs[0];
   };
 
+  /* Clumsiness. Whatever the planner asked for is held for a sampled number of
+   * frames before the hands are allowed to do anything else.
+   *
+   * Deliberately drawn from the pilot's own generator, not the game's: the
+   * point of the sweep is to compare sections under identical world
+   * conditions, and consuming the game's random stream would change the
+   * levels being measured.
+   */
+  Pilot.prototype.fumble = function (inp) {
+    var sigma = this.p.dexSigma;
+    if (!(sigma > 0)) return inp;
+    if (this._holdLeft > 0) { this._holdLeft--; return this._held; }
+    this._held = inp;
+    // Box-Muller, folded: a repeat length is a magnitude, never negative.
+    var u = Math.max(1e-9, this._rng()), v = this._rng();
+    var z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    this._holdLeft = Math.round(Math.abs(z) * sigma);
+    return inp;
+  };
+
+  /* The amount of input a stretch of level demands, after Talakat's `entropy`
+   * feature: the information entropy of the first, second and third
+   * derivatives of the action sequence. High where the agent is constantly
+   * changing direction, stopping while moving, or starting while stopped -
+   * and, unlike everything else here, computable from one ordinary run
+   * instead of a sweep. */
+  Pilot.prototype.recordAction = function (key, inp) {
+    var a = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
+    var st = this.tele.actions[key];
+    if (!st) st = this.tele.actions[key] = { d1: {}, d2: {}, d3: {}, a: 0, p1: 0, p2: 0, n: 0 };
+    var d1 = a - st.a, d2 = d1 - st.p1, d3 = d2 - st.p2;
+    if (st.n > 2) {
+      st.d1[d1] = (st.d1[d1] || 0) + 1;
+      st.d2[d2] = (st.d2[d2] || 0) + 1;
+      st.d3[d3] = (st.d3[d3] || 0) + 1;
+    }
+    st.a = a; st.p1 = d1; st.p2 = d2; st.n++;
+  };
+
   // -------------------------------------------------------------- main tick
   Pilot.prototype.tick = function () {
     var g = this.g;
@@ -190,13 +240,16 @@
     this.tele.maxX[mk] = Math.max(this.tele.maxX[mk] || 0, Math.round(p.x));
 
     var ob = this.observe(p);
+    var out;
     if (g.boss && !g.boss.dying) {
-      VZ.input.virtual = this.bossTick(p, g.boss, ob);
-      return;
+      out = this.bossTick(p, g.boss, ob);
+    } else {
+      this.ensureField();
+      out = this.navTick(ob);
     }
-
-    this.ensureField();
-    VZ.input.virtual = this.navTick(ob);
+    out = this.fumble(out);
+    this.recordAction(sec, out);
+    VZ.input.virtual = out;
   };
 
   // ------------------------------------------------------------ navigation
