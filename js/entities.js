@@ -145,7 +145,7 @@
     COYOTE: 7, BUFFER: 9,
     DASH_SPEED: 4.0, DASH_TIME: 20, DASH_COOL: 9,
     SLIDE_SPEED: 1.3,
-    WJ_X: 3.4, WJ_Y: -7.3, WJ_LOCK: 9, WJ_COYOTE: 7, WJ_NOCUT: 8,
+    WJ_X: 3.4, WJ_Y: -7.3, WJ_LOCK: 9, WJ_COYOTE: 7, WJ_NOCUT: 8, WJ_GRACE: 6,
     IFRAMES: 72,
     CHARGE1: 26, CHARGE2: 70,
     MAX_HP: 16, MAX_ENERGY: 28
@@ -317,9 +317,16 @@
     var touchL = lv.rectSolid(this.left() - 2, this.top() + 3, 1, this.h - 6);
     this.wallDir = 0;
     if (!this.grounded && this.dashTime <= 0) {
-      if (touchR && (ax > 0 || this.wallStick > 0)) this.wallDir = 1;
-      else if (touchL && (ax < 0 || this.wallStick > 0)) this.wallDir = -1;
-      if ((touchR && ax > 0) || (touchL && ax < 0)) this.wallStick = 8;
+      // Contact alone establishes the cling. Demanding a hold *into* the wall
+      // is one convention, but in an opposing-wall chimney it turns every kick
+      // into a frame-exact direction flip: the kick throws you away from the
+      // wall, so the stick is already pointing at the far wall by the time you
+      // arrive. Neutral or held-through input has to work. Pushing away is the
+      // deliberate way off, and even that keeps a few frames of grace so an
+      // early flip does not drop the wall out from under the jump.
+      if (touchR && (ax >= 0 || this.wallStick > 0)) this.wallDir = 1;
+      else if (touchL && (ax <= 0 || this.wallStick > 0)) this.wallDir = -1;
+      if (this.wallDir !== 0 && ax !== -this.wallDir) this.wallStick = P.WJ_GRACE;
       else if (this.wallStick > 0) this.wallStick--;
       if (this.wallDir !== 0 && this.vy > 0) {
         this.vy = Math.min(this.vy, P.SLIDE_SPEED);

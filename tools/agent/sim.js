@@ -129,9 +129,9 @@
     s.wallDir = 0;
     s.sliding = false;
     if (!s.grounded && s.dashTime <= 0) {
-      if (touchR && (ax > 0 || s.wallStick > 0)) s.wallDir = 1;
-      else if (touchL && (ax < 0 || s.wallStick > 0)) s.wallDir = -1;
-      if ((touchR && ax > 0) || (touchL && ax < 0)) s.wallStick = 8;
+      if (touchR && (ax >= 0 || s.wallStick > 0)) s.wallDir = 1;
+      else if (touchL && (ax <= 0 || s.wallStick > 0)) s.wallDir = -1;
+      if (s.wallDir !== 0 && ax !== -s.wallDir) s.wallStick = P.WJ_GRACE;
       else if (s.wallStick > 0) s.wallStick--;
       if (s.wallDir !== 0 && s.vy > 0) {
         s.vy = Math.min(s.vy, P.SLIDE_SPEED);

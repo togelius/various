@@ -56,6 +56,10 @@
      * difficulty report separates a section that punishes reflexes from one
      * that punishes not knowing the level. */
     latency: 0,
+    /* Set to test whether shooting is worth doing at all: the agent plays
+     * exactly as it otherwise would, but never pulls the trigger. If the two
+     * configurations score the same, the game is not rewarding combat. */
+    noShoot: 0,
     /* Dexterity error, after Isaksen et al. by way of Talakat: the agent is
      * forced to repeat its action for a number of frames drawn from a
      * gaussian, and this is that gaussian's standard deviation. A high
@@ -282,8 +286,10 @@
     inp = Object.assign({}, inp);
 
     // shooting is free; always be firing
-    var c = this.p.fireOn + this.p.fireOff;
-    if ((this.frame % c) < this.p.fireOn) inp.fire = true;
+    if (!this.p.noShoot) {
+      var c = this.p.fireOn + this.p.fireOff;
+      if ((this.frame % c) < this.p.fireOn) inp.fire = true;
+    }
 
     /* Progress tracking. This used to drive the policy - the threat weights
      * were discounted whenever it stalled - which spent health in exactly the
@@ -650,7 +656,9 @@
     var hitY = b.y + b.vy * tHit * 0.6;
     var aligned = p.facing === dir && gap > 14 && gap < 220 &&
                   Math.abs(shotY - hitY) < b.h / 2 + 7;
-    if (prm.bossCharge > 1.5) {
+    if (prm.noShoot) {
+      inp.fire = false;
+    } else if (prm.bossCharge > 1.5) {
       /* Mixed: charge while there is no shot to take, tap while there is.
        *
        * A bare shot is 2 damage on a 7-frame cooldown; a charged one is 8 for

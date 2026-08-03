@@ -113,7 +113,7 @@
 
     // Pre-place every spawn; they activate as the camera reaches them.
     this.spawnDefs = this.level.spawns.map(function (s) {
-      return { kind: s.kind, x: s.x, y: s.y, live: null, dead: false };
+      return { kind: s.kind, x: s.x, y: s.y, live: null, dead: false, killed: false };
     });
 
     this.arena = {
@@ -280,7 +280,13 @@
     for (i = this.enemies.length - 1; i >= 0; i--) {
       e = this.enemies[i];
       e.update();
-      if (e.remove) { if (e.def) e.def.live = null; this.enemies.splice(i, 1); }
+      if (e.remove) {
+        // An enemy only sets `remove` when it dies, so this is the kill path:
+        // mark the spawn so streaming does not put it straight back. Retiring
+        // off-screen goes through streamEnemies instead and stays respawnable.
+        if (e.def) { e.def.live = null; e.def.killed = true; }
+        this.enemies.splice(i, 1);
+      }
     }
     if (this.boss) {
       this.boss.update();
@@ -362,7 +368,7 @@
     var padIn = 80, padOut = 220;
     for (var i = 0; i < this.spawnDefs.length; i++) {
       var d = this.spawnDefs[i];
-      if (d.dead) continue;
+      if (d.dead || d.killed) continue;
       var onX = d.x > cx - padIn && d.x < cx + VZ.W + padIn;
       var onY = d.y > cy - 140 && d.y < cy + VZ.H + 140;
       if (!d.live && onX && onY) {
@@ -389,10 +395,10 @@
         }
       }
     }
-    // Enemies killed for good.
+    // Enemies killed stay killed until the next retry.
     for (var j = 0; j < this.spawnDefs.length; j++) {
       var dd = this.spawnDefs[j];
-      if (dd.live && dd.live.dead) { dd.live = null; }
+      if (dd.live && dd.live.dead) { dd.live = null; dd.killed = true; }
     }
   };
 
@@ -602,7 +608,7 @@
       self.enemies.length = 0;
       for (var i = 0; i < self.spawnDefs.length; i++) {
         var d = self.spawnDefs[i];
-        if (!d.dead) d.live = null;
+        if (!d.dead) { d.live = null; d.killed = false; }
       }
       if (self.bossStarted && !self.bossDefeated) {
         self.boss = null;
