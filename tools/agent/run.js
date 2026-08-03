@@ -10,7 +10,7 @@ const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 
-const AGENT_SRC = ['sim.js', 'plan.js', 'pilot.js']
+const AGENT_SRC = ['sim.js', 'plan.js', 'world.js', 'pilot.js']
   .map(f => fs.readFileSync(path.join(__dirname, f), 'utf8')).join('\n');
 
 function arg(name, def) {

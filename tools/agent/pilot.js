@@ -20,40 +20,42 @@
     wDist: 1.0,          // weight on progress toward the goal
     wTime: 0.55,         // frames are not free
     wSpike: 900,         // taking spike damage to save time is a bad trade
-    wEnemy: 260,         // passing through or landing on an enemy
-    wShot: 180,          // path crosses a live enemy shot
-    enemyMargin: 5,      // slack around an enemy box when testing overlap
+    wDamage: 90,         // per hp the projected world says this move costs
     wPit: 120,           // hovering over a pit is risky even if it works out
-    wLook2: 1.0,         // weight on the follow-up move in the depth-2 search
-    look2Gate: 60,       // depth-1 score below which one move is not enough
-    look2Width: 6,       // how many depth-1 candidates get a follow-up search
+    wWait: 40,           // idling needs a reason
+    commitFrames: 90,    // how much of a multi-move plan is executed as one
+    /* Depth is what this search needs, not width. Measured on the Void
+     * Citadel's spike corridor: 50 nodes / beam 14 died 5 times a run, 120
+     * nodes / beam 50 died 4, and 200 nodes / beam 20 died 0.3. Narrow and
+     * deep wins, because the plans that matter there are three and four moves
+     * long and no amount of breadth at depth one can represent them. */
+    searchNodes: 200,    // macro-action expansions per decision
+    searchDepth: 6,      // how many moves deep they may go
+    searchBeam: 20,      // successors kept per expansion
+    worldLook: 150,      // frames of enemy/boss behaviour projected per decision
+    worldRadius: 320,    // beyond this nothing can reach us inside the horizon
     wCrumbleEnd: 500,    // resting on a block already counting down
     wCrumbleFresh: 25,   // a fresh one is usually the only way across
     crumbleHaste: 7,     // once standing on one, seconds cost far more
     spikeHaste: 12,      // and getting out of spikes is more urgent still
-    wWait: 40,           // idling needs a reason
-    stallFull: 90,       // frames of no progress before threats are discounted
-    stallRelief: 0.85,   // how far the discount goes at full stall
     devX: 6, devY: 8,    // how far reality may drift before the plan is void
     fireOn: 5, fireOff: 3,
-    chargeHold: 0,       // >0: hold fire to charge on approach
-    flamerWait: 1,       // wait out a vent that is about to fire
-    flamerLook: 46,
     bossMin: 60, bossMax: 120,
-    bossWShot: 840,      // dodging in an arena is worth far more than in a
-    bossWEnemy: 1320,     // corridor: there is nowhere else to be going
-    bossJump: 42,        // jump cadence when the target is airborne
-    bossHop: 26,         // hop cadence when something is incoming
-    bossIdleJump: 150,
+    bossWDamage: 260,    // an arena has nowhere else to be, so a hit costs more
     bossFireOn: 5, bossFireOff: 3,
     bossAlign: 26,       // per-frame reward for time on the firing line
     bossBand: 260,       // reward for holding the working distance
-    bossClear: 6,        // slack when predicting the boss body
     bossLook: 46,        // how far ahead a candidate move is evaluated
     bossCommit: 6,       // how much of it is actually executed before replanning
     bossCharge: 2,       // 0 fixed cadence, 1 charge only, 2 charge-and-tap
     retreatHp: 5,        // below this, back off from the boss
-    searchJitter: 0
+    /* Reaction latency, in frames. The agent normally plans from the state as
+     * it is this instant, which no person can do. Raising this makes it plan
+     * from the state as it was N frames ago while still acting now - the same
+     * loop delay a human hand-eye path has - and sweeping it is how the
+     * difficulty report separates a section that punishes reflexes from one
+     * that punishes not knowing the level. */
+    latency: 0,
   };
 
   function snapshot(sim, game) {
@@ -143,6 +145,22 @@
     this.fieldStage = g.stageIndex;
   };
 
+  /* What the agent is allowed to know. At latency 0 this is simply the truth;
+   * above it, the observation is held for N frames before the planner sees
+   * it, so plans are made for a world that has already moved on. */
+  Pilot.prototype.observe = function (p) {
+    var cur = {
+      x: p.x, y: p.y, hp: p.hp, invuln: p.invuln, hurtTime: p.hurtTime,
+      grounded: p.grounded, sim: snapshot(AGENT.sim, this.g)
+    };
+    var n = this.p.latency | 0;
+    if (n <= 0) return cur;
+    if (!this._obs) this._obs = [];
+    this._obs.push(cur);
+    while (this._obs.length > n) this._obs.shift();
+    return this._obs[0];
+  };
+
   // -------------------------------------------------------------- main tick
   Pilot.prototype.tick = function () {
     var g = this.g;
@@ -171,17 +189,20 @@
     var mk = 's' + g.stageIndex;
     this.tele.maxX[mk] = Math.max(this.tele.maxX[mk] || 0, Math.round(p.x));
 
+    var ob = this.observe(p);
     if (g.boss && !g.boss.dying) {
-      VZ.input.virtual = this.bossTick(p, g.boss);
+      VZ.input.virtual = this.bossTick(p, g.boss, ob);
       return;
     }
 
     this.ensureField();
-    VZ.input.virtual = this.navTick(p);
+    VZ.input.virtual = this.navTick(ob);
   };
 
   // ------------------------------------------------------------ navigation
   Pilot.prototype.navTick = function (p) {
+    // `p` here is the observation, not the live player: at latency 0 they are
+    // the same object's values, above it the planner is deliberately behind.
     var inp, prm0 = this.p;
     // A queued program is only valid while reality matches the simulation it
     // came from. Knockback from a hit is the usual way that stops being true,
@@ -190,6 +211,7 @@
     if (this.queue.length && this.expect && this.expect.length >= 2) {
       var ex = this.expect[0], ey = this.expect[1];
       if (p.hurtTime > 0 || Math.abs(p.x - ex) > prm0.devX || Math.abs(p.y - ey) > prm0.devY) {
+        this.lastDev = [+(p.x - ex).toFixed(2), +(p.y - ey).toFixed(2), p.hurtTime];
         this.queue.length = 0;
         this.expect = null;
         this.aborts = (this.aborts || 0) + 1;
@@ -197,6 +219,11 @@
         this.expect = this.expect.slice(2);
       }
     }
+    /* No control means no decision worth making. Knockback locks input for 22
+     * frames, and planning through it just burns the budget on a state the
+     * agent cannot act from - and then throws the plan away next frame anyway
+     * because it is still hurt. */
+    if (p.hurtTime > 0) { this.queue.length = 0; this.expect = null; return {}; }
     if (this.queue.length === 0) this.decide(p);
     inp = this.queue.length ? this.queue.shift() : {};
     inp = Object.assign({}, inp);
@@ -205,6 +232,18 @@
     var c = this.p.fireOn + this.p.fireOff;
     if ((this.frame % c) < this.p.fireOn) inp.fire = true;
 
+    /* Progress tracking. This used to drive the policy - the threat weights
+     * were discounted whenever it stalled - which spent health in exactly the
+     * sections the difficulty report was measuring. The search makes that
+     * unnecessary, so the number is now only reported: it is a diagnostic
+     * readout, not an input. */
+    var dNow = AGENT.plan.distAt(this.field, p.x, p.y);
+    if (dNow !== null) {
+      if (dNow > this.bestDist + 300 || dNow < this.bestDist - 2) {
+        this.bestDist = dNow; this.stallFrames = 0;
+      } else this.stallFrames++;
+    }
+
     // stuck detector: if we have not moved in a while, clear the plan and
     // allow a wilder choice next time.
     if (Math.abs(p.x - this.lastX) < 0.3) {
@@ -212,7 +251,6 @@
       if (this.stuckFrames > 90) {
         this.queue.length = 0;
         this.stuckFrames = 0;
-        this.jitterNext = true;
       }
     } else this.stuckFrames = 0;
     this.lastX = p.x;
@@ -247,204 +285,257 @@
     return false;
   };
 
+  // -------------------------------------------------------- the search
+  /* A tiny binary heap. Best-first over macro-actions expands a few hundred
+   * nodes per decision and an array sort per pop is the whole cost. */
+  function Heap() { this.a = []; }
+  Heap.prototype.push = function (n) {
+    var a = this.a, i = a.length;
+    a.push(n);
+    while (i > 0) {
+      var par = (i - 1) >> 1;
+      if (a[par].f <= a[i].f) break;
+      var t = a[i]; a[i] = a[par]; a[par] = t; i = par;
+    }
+  };
+  Heap.prototype.pop = function () {
+    var a = this.a, top = a[0], last = a.pop();
+    if (a.length) {
+      a[0] = last;
+      var i = 0;
+      for (;;) {
+        var l = i * 2 + 1, r = l + 1, m = i;
+        if (l < a.length && a[l].f < a[m].f) m = l;
+        if (r < a.length && a[r].f < a[m].f) m = r;
+        if (m === i) break;
+        var t = a[i]; a[i] = a[m]; a[m] = t; i = m;
+      }
+    }
+    return top;
+  };
+
+  /* What a single macro-action costs, in the same units the distance field is
+   * denominated in. Everything here is a real consequence of taking the move:
+   * time, health, and footing that will not be there later. */
+  Pilot.prototype.stepCost = function (r, timeline, startFrame, invuln, timeW) {
+    var prm = this.p, cost = 0, tj = r.traj || [];
+    cost += r.s.frames * timeW;
+    cost += (r.spikeHits || 0) * prm.wSpike;
+
+    // Predicted damage, from the projected world, in the game's own hp.
+    var dmg = 0;
+    if (timeline && tj.length) {
+      dmg = AGENT.world.damageAlong(
+        startFrame ? timeline.slice(startFrame) : timeline, tj, invuln);
+    }
+    cost += dmg * prm.wDamage;
+
+    // Footing that is counting down. The simulator borrows the game's
+    // collision, which treats a crumbling block as solid until the frame it
+    // vanishes, so a rollout will happily cross one with six frames of life
+    // left and report a clean landing.
+    for (var cf = 0; cf < tj.length; cf += 8) {
+      var ck = this.crumbleUnder(tj[cf], tj[cf + 1]);
+      if (ck === null) continue;
+      var t1 = this.g.level.crumble[ck];
+      var left = (t1 === undefined) ? 44 : t1;
+      if (cf / 2 < left - 6) continue;
+      cost += this.fatalBelow(tj[cf], tj[cf + 1]) ? prm.wCrumbleEnd : prm.wCrumbleFresh;
+      break;
+    }
+    var ex = r.s.body.x, ey = r.s.body.y;
+    if (r.s.grounded) {
+      var ck2 = this.crumbleUnder(ex, ey);
+      if (ck2 !== null) {
+        cost += this.g.level.crumble[ck2] === undefined ? prm.wCrumbleFresh : prm.wCrumbleEnd;
+      }
+    }
+    if (!this.groundBelow(ex, ey, 3)) cost += prm.wPit;
+    return { cost: cost, dmg: dmg };
+  };
+
+  /* Best-first search over macro-actions, with the distance field as the
+   * heuristic and the projected world as the hazard model.
+   *
+   * This replaces a greedy one-move pick with a depth-two escape hatch. The
+   * greedy version had the failure mode every short-horizon planner has: when
+   * every move is bad the least bad one is to not really move, and not moving
+   * keeps scoring well forever, so it shuffled on the lip of a hazard until
+   * something killed it. It needed a patch that discounted danger whenever it
+   * stopped making progress - which then spent health in exactly the places
+   * the difficulty report was trying to measure, and made those numbers
+   * partly circular. A search with time in the path cost walks through the bad
+   * patch instead, because standing still accrues cost and going round does
+   * not, so the patch is gone and the measurement is honest again.
+   */
+  function firstNameOf(node) {
+    var n = node;
+    while (n.parent && n.parent.r) n = n.parent;
+    return n.name;
+  }
+
   Pilot.prototype.decide = function (p) {
     var g = this.g, S = AGENT.sim, PL = AGENT.plan, prm = this.p;
-    var start = snapshot(S, g);
-    var curDist = PL.distAt(this.field, p.x, p.y);
-    if (curDist === null) curDist = 1e6;
+    var start = p.sim || snapshot(S, g);
 
     /* Crumbling blocks are solid to the collision model right up until they
      * vanish, so a plan made while standing on one is a plan made on a floor
-     * that is already counting down. Weight time far higher while we are on
-     * one, and refuse to come to rest on another. */
-    var standingOn = this.crumbleUnder(p.x, p.y);
+     * that is already counting down: weight time far higher while on one. */
     var timeW = prm.wTime;
-    if (standingOn !== null) timeW = prm.wTime * prm.crumbleHaste;
+    if (this.crumbleUnder(p.x, p.y) !== null) timeW = prm.wTime * prm.crumbleHaste;
     // Standing in spikes costs 4hp every i-frame window, so getting out is
     // worth almost any amount of lost ground.
-    var inSpikes = g.level.rectHazard(p.x - 4, p.y - 9, 8, 18) === 'spike';
-    if (inSpikes) timeW = Math.max(timeW, prm.wTime * prm.spikeHaste);
-
-    /* Dithering is the failure mode of any short-horizon planner. When every
-     * move is bad, the least bad one is usually to not really move - and "not
-     * really moving" keeps scoring well forever, so the agent shuffles on the
-     * lip of a hazard until something kills it. That is exactly what happened
-     * in front of the Void Citadel's spike beds: the dash-jump that clears
-     * five tiles was found, priced against a drone hovering past the landing,
-     * and rejected in favour of another half-step.
-     *
-     * So measure progress, not position: track the best cost-to-go actually
-     * reached, and once it has not improved for a few seconds start
-     * discounting the threat terms. Eventually taking the hit and getting
-     * through outscores standing still, which is what a player concludes
-     * after the third failed attempt too. */
-    var dt = Math.max(1, this.frame - (this._lastDecideFrame || this.frame));
-    this._lastDecideFrame = this.frame;
-    // A respawn teleports us back to a checkpoint; that is not a stall.
-    if (curDist > this.bestDist + 300) { this.bestDist = curDist; this.stallFrames = 0; }
-    else if (curDist < this.bestDist - 2) { this.bestDist = curDist; this.stallFrames = 0; }
-    else this.stallFrames += dt;
-    var press = Math.min(1, this.stallFrames / prm.stallFull);
-    var timid = 1 - press * prm.stallRelief;
-    var wEnemy = prm.wEnemy * timid, wShot = prm.wShot * timid,
-        wSpikeNow = prm.wSpike * timid;
-
-    var enemies = [];
-    for (var i = 0; i < g.enemies.length; i++) {
-      var e = g.enemies[i];
-      if (!e.dead) enemies.push(e);
+    if (g.level.rectHazard(p.x - 4, p.y - 9, 8, 18) === 'spike') {
+      timeW = Math.max(timeW, prm.wTime * prm.spikeHaste);
     }
 
-    var best = null, bestScore = -1e18, cands = [];
-    for (var k = 0; k < PL.PRIMS.length; k++) {
-      var prim = PL.PRIMS[k];
-      var r = PL.rollout(S, start, prim);
-      var score;
-      if (r.dead) {
-        score = -1e6;
-      } else {
-        var d = PL.distAt(this.field, r.s.body.x, r.s.body.y);
-        if (d === null) score = -1e5;
-        else score = (curDist - d) * prm.wDist;
-        score -= r.s.frames * timeW;
-        score -= (r.spikeHits || 0) * wSpikeNow;
+    var timeline = AGENT.world.project(g, prm.worldLook, prm.worldRadius);
 
-        // Threats are scored by predicted box overlap along the whole path,
-        // not by radius. A radius punishes clearing an enemy by jumping just
-        // as hard as walking into it, which leaves the agent stuck behind
-        // shielders forever.
-        var ex = r.s.body.x, ey = r.s.body.y;
-        var tj = r.traj || [];
-        var mg = prm.enemyMargin;
-        for (var q = 0; q < enemies.length; q++) {
-          var en = enemies[q];
-          var ehw = en.w / 2 + mg, ehh = en.h / 2 + mg;
-          var hit = 0;
-          for (var ti = 0; ti < tj.length; ti += 4) {
-            if (Math.abs(en.x - tj[ti]) < ehw + VZ.P.W / 2 &&
-                Math.abs(en.y - tj[ti + 1]) < ehh + VZ.P.H / 2) { hit = 1; break; }
-          }
-          if (!hit && Math.abs(en.x - ex) < ehw + VZ.P.W / 2 &&
-              Math.abs(en.y - ey) < ehh + VZ.P.H / 2) hit = 1.4;
-          if (hit) score -= wEnemy * hit;
-        }
-        // and against live shots
-        for (var pj = 0; pj < g.projectiles.length; pj++) {
-          var pr2 = g.projectiles[pj];
-          if (pr2.team !== 'enemy' || pr2.remove) continue;
-          for (var tk = 0; tk < tj.length; tk += 8) {
-            var fx = pr2.x + pr2.vx * (tk / 2), fy = pr2.y + pr2.vy * (tk / 2);
-            if (Math.abs(fx - tj[tk]) < 12 && Math.abs(fy - tj[tk + 1]) < 14) {
-              score -= wShot;
-              break;
-            }
-          }
-        }
-        // ending on the lip of a pit
-        if (!this.groundBelow(ex, ey, 3)) score -= prm.wPit;
-        /* Keeping a knockback's worth of margin from a lethal drop was tried
-         * here and measured badly at every strength: over the Magma Foundry's
-         * lava almost every foothold is a brink, so the rule stopped the agent
-         * from crossing at all and it died to the flame vents instead (17
-         * deaths -> 70). The crossing has no safe version; it is meant not to.
-         */
-        /* Crumbling blocks, along the whole path rather than just at the end.
+    var heap = new Heap(), seen = {}, expansions = 0;
+    if (this.logNodes) this._nodeLog = [];
+    var h0 = PL.distAt(this.field, p.x, p.y);
+    if (h0 === null) h0 = 1e6;
+    heap.push({ s: start, g: 0, f: h0 * prm.wDist, frame: 0,
+                invuln: p.invuln || 0, depth: 0, parent: null, r: null, name: null });
+
+    var best = null, bestF = Infinity;
+
+    while (heap.a.length && expansions < prm.searchNodes) {
+      var node = heap.pop();
+      if (node.depth >= prm.searchDepth) continue;
+      if (node.frame >= prm.worldLook - 8) continue;
+      expansions++;
+
+      var kids = [];
+      for (var k = 0; k < PL.PRIMS.length; k++) {
+        var prim = PL.PRIMS[k];
+        var r = PL.rollout(S, node.s, prim);
+        if (r.dead) continue;
+        var hh = PL.distAt(this.field, r.s.body.x, r.s.body.y);
+        if (hh === null) continue;
+
+        var sc = this.stepCost(r, timeline, node.frame, node.invuln, timeW);
+        var gg = node.g + sc.cost + (prim.name === 'wait' ? prm.wWait : 0);
+        var ff = gg + hh * prm.wDist;
+
+        // Two routes that arrive at the same place standing the same way are
+        // the same route; keeping both just burns the node budget.
+        /* Velocity is part of the state, not a detail: arriving at a tile
+         * standing still and arriving at it with a run-up are different
+         * positions to jump from, and collapsing them loses the only approach
+         * that clears the wide spike beds. */
+        var key = ((Math.round(r.s.body.x / 6) * 4096 + Math.round(r.s.body.y / 6)) * 8 +
+                   (Math.round(r.s.vx / 2) + 3)) * 2 + (r.s.grounded ? 1 : 0);
+        if (seen[key] !== undefined && seen[key] <= ff) continue;
+        seen[key] = ff;
+
+        var spent = r.s.frames;
+        var kid = {
+          s: r.s, g: gg, f: ff, frame: node.frame + spent,
+          invuln: sc.dmg > 0 ? VZ.P.IFRAMES : Math.max(0, node.invuln - spent),
+          depth: node.depth + 1, parent: node, r: r, name: prim.name
+        };
+        kids.push(kid);
+
+        /* Judge every node as it is generated, not when it is popped.
          *
-         * The simulator borrows the game's own collision, which treats a
-         * crumbling block as solid until the frame it actually vanishes - so
-         * a rollout will happily walk a plan across a block that has 6 frames
-         * of life left and report a clean landing. Over the Magma Foundry's
-         * lava that plan is a death, and it was the single biggest killer in
-         * the run before this. So price the footing against its remaining
-         * life at the moment the plan would be standing on it, and price it
-         * as fatal where the drop is. */
-        for (var cf = 0; cf < tj.length; cf += 8) {
-          var ck2 = this.crumbleUnder(tj[cf], tj[cf + 1]);
-          if (ck2 === null) continue;
-          var t1 = this.g.level.crumble[ck2];
-          var left = (t1 === undefined) ? 44 : t1;
-          var atFrame = cf / 2;
-          if (atFrame < left - 6) continue;              // still footing then
-          score -= this.fatalBelow(tj[cf], tj[cf + 1]) ? prm.wCrumbleEnd
-                                                       : prm.wCrumbleFresh;
-          break;
+         * Popping is in f order, so taking the first popped node would just
+         * pick the cheapest single move and call it a search - which is what
+         * the greedy version already did. It works here only because the
+         * heuristic is not consistent: it is a cost-to-go over an abstracted
+         * movement graph and knows nothing about enemies, spikes or crumbling
+         * footing, so a deeper node can genuinely come out cheaper than the
+         * shallow one it descends from. Those are exactly the plans worth
+         * finding - back up four tiles, then dash-jump the spike bed. */
+        if (this._nodeLog) {
+          this._nodeLog.push({ x: r.s.body.x, y: r.s.body.y, f: ff, g: gg, h: hh,
+                               depth: kid.depth, first: firstNameOf(kid), name: prim.name,
+                               spikes: r.spikeHits || 0, dmg: sc.dmg });
         }
-        // Coming to rest on one that is already counting down is its own
-        // mistake even where the fall is survivable.
-        if (r.s.grounded) {
-          var ck = this.crumbleUnder(ex, ey);
-          if (ck !== null) {
-            var t0 = this.g.level.crumble[ck];
-            score -= (t0 === undefined) ? prm.wCrumbleFresh : prm.wCrumbleEnd;
-          }
-        }
-        if (prim.name === 'wait') score -= prm.wWait;
-        // a vent about to go off where we are headed
-        if (prm.flamerWait) {
-          for (var v = 0; v < enemies.length; v++) {
-            var fl = enemies[v];
-            if (fl.flameH === undefined) continue;
-            if (Math.abs(fl.x - ex) < prm.flamerLook &&
-                (fl.firing || fl.charging) && ey > fl.y - 70) {
-              score -= wEnemy * 1.5;
-            }
-          }
-        }
+        if (ff < bestF) { bestF = ff; best = kid; }
       }
-      if (this.jitterNext) score += (Math.random() - 0.5) * 400;
-      cands.push({ r: r, score: score, name: prim.name });
-      if (score > bestScore) { bestScore = score; best = r; this._pick = prim.name; }
-    }
-    this.jitterNext = false;
-    this._lastCands = cands;
 
-    /* Search one move deeper when one move is not enough to judge by.
-     *
-     * Two situations need it, and they look the same from here. Over lava the
-     * question is not "does this jump land" but "does it land somewhere I can
-     * leave again" - a crumbling block scores beautifully at depth one and
-     * kills you at depth two, which is how runs kept ending in the Magma
-     * Foundry. And in front of a five-tile spike bed there is no good first
-     * move at all: every option either eats spikes or gives up ground, so the
-     * agent walked in and bled out. Backing up only pays as the first half of
-     * back-up-then-dash-jump, and only a two-move search can see that.
-     *
-     * The scores telescope: depth one already carries (curDist - d1) and its
-     * own costs, so adding (d1 - d2) and r2's costs scores the pair against
-     * the position we are actually standing in. */
-    var badFirstMove = bestScore < prm.look2Gate;
-    if (bestScore > -1e5 && (badFirstMove || this.fatalBelow(p.x, p.y))) {
-      cands.sort(function (a, b) { return b.score - a.score; });
-      var top = cands.slice(0, prm.look2Width), bestTotal = -1e18;
-      for (var c = 0; c < top.length; c++) {
-        var r1 = top[c].r, cont = -1e6;
-        var d1 = PL.distAt(this.field, r1.s.body.x, r1.s.body.y);
-        if (d1 === null) d1 = 1e6;
-        for (var k2 = 0; k2 < PL.PRIMS.length; k2++) {
-          var r2 = PL.rollout(S, r1.s, PL.PRIMS[k2]);
-          if (r2.dead) continue;
-          var d2 = PL.distAt(this.field, r2.s.body.x, r2.s.body.y);
-          if (d2 === null) continue;
-          var s2 = (d1 - d2) * prm.wDist - r2.s.frames * timeW -
-                   (r2.spikeHits || 0) * wSpikeNow;
-          // Landing the follow-up on another countdown block is not an escape.
-          if (r2.s.grounded && this.crumbleUnder(r2.s.body.x, r2.s.body.y) !== null) {
-            s2 -= prm.wCrumbleFresh;
-          }
-          if (s2 > cont) cont = s2;
+      /* Keep the frontier narrow, but not so narrow that it can only go
+       * forwards. Fifty primitives per node fills the heap with near-identical
+       * shuffles and the budget is gone before the search sees past anything -
+       * but sorting purely by f drops every backward move, and backing up is
+       * the first half of the only plan that clears a five-tile spike bed.
+       * So reserve a slot for the best move in each direction before filling
+       * the rest with the globally cheapest. */
+      if (kids.length > prm.searchBeam) {
+        kids.sort(function (a, c) { return a.f - c.f; });
+        var kept = [], buckets = {}, q2;
+        for (q2 = 0; q2 < kids.length; q2++) {
+          var dx = kids[q2].s.body.x - node.s.body.x;
+          var bk = (dx < -8 ? -1 : dx > 8 ? 1 : 0) + ':' + (kids[q2].s.grounded ? 1 : 0);
+          if (buckets[bk]) continue;
+          buckets[bk] = 1; kids[q2]._kept = 1; kept.push(kids[q2]);
         }
-        var total = top[c].score + cont * prm.wLook2;
-        if (total > bestTotal) { bestTotal = total; best = r1; bestScore = total; this._pick = top[c].name + '+2'; }
+        for (q2 = 0; q2 < kids.length && kept.length < prm.searchBeam; q2++) {
+          if (!kids[q2]._kept) { kids[q2]._kept = 1; kept.push(kids[q2]); }
+        }
+        kids = kept;
       }
+      for (var q3 = 0; q3 < kids.length; q3++) heap.push(kids[q3]);
     }
 
     if (best) {
-      this.queue = best.inputs.slice();
-      this.expect = best.traj ? best.traj.slice() : null;
-      this.lastDecision = { score: bestScore, frames: best.s.frames, pick: this._pick };
+      /* Execute the whole plan, not just its head.
+       *
+       * Re-planning after every single move is right when the heuristic is
+       * good, and disastrous when it is marginal. The cost-to-go field prices
+       * a five-tile spike bed at about what it costs to walk the same distance
+       * on flat ground, because the abstract movement graph has an edge that
+       * hops it - so "back up, then dash-jump it" is worth roughly nothing per
+       * move, and a planner that re-derives its decision from scratch every
+       * time will pick the locally cheapest half-step forever. The cycle spans
+       * decisions, so no amount of search inside one can see it. Committing to
+       * the sequence the search actually found is what makes a multi-move plan
+       * mean anything. The deviation check still voids it the moment reality
+       * stops matching. */
+      var chain = [];
+      for (var nd = best; nd && nd.r; nd = nd.parent) chain.push(nd);
+      chain.reverse();
+      /* Commit less where a mistake is fatal. Committing to a long plan is
+       * what makes multi-move ideas possible, and it is also what turns one
+       * wrong assumption into a death: over lava the footing is crumbling
+       * blocks that the simulator, borrowing the game's collision, believes in
+       * until the frame they vanish. So above a lethal drop, take one move at
+       * a time and look again. */
+      var cap = this.fatalBelow(p.x, p.y) ? 1 : prm.commitFrames;
+      var inputs = [], traj = [], used = 0;
+      for (var ci = 0; ci < chain.length && used < cap; ci++) {
+        var rr2 = chain[ci].r;
+        inputs = inputs.concat(rr2.inputs);
+        if (rr2.traj) traj = traj.concat(rr2.traj);
+        used += rr2.inputs.length;
+        /* Stop committing at footing that will not be there. The simulator
+         * borrows the game's collision, which treats a crumbling block as
+         * solid until the frame it vanishes, so the far half of a plan that
+         * rests on one is a plan for a floor that has already gone. Over the
+         * Magma Foundry's lava that is the difference between a crossing and
+         * a death, and it was the whole cost of committing to long plans. */
+        var ez = rr2.s;
+        if (ez.grounded && this.crumbleUnder(ez.body.x, ez.body.y) !== null &&
+            this.fatalBelow(ez.body.x, ez.body.y)) break;
+      }
+      this.queue = inputs;
+      this.expect = traj;
+      this._pick = chain.length ? chain[0].name : null;
+      this.lastDecision = { score: -bestF, frames: used, pick: this._pick,
+                            depth: chain.length, nodes: expansions };
     } else {
-      this.queue = [{ right: true }];
-      this.expect = null;
+      // Every option ends the run. Take the one that survives longest so the
+      // next decision happens as late as possible.
+      var fallback = null, longest = -1;
+      for (var q = 0; q < PL.PRIMS.length; q++) {
+        var rr = PL.rollout(S, start, PL.PRIMS[q]);
+        if (rr.s.frames > longest) { longest = rr.s.frames; fallback = rr; }
+      }
+      this.queue = fallback ? fallback.inputs.slice() : [{ right: true }];
+      this.expect = fallback && fallback.traj ? fallback.traj.slice() : null;
+      this._pick = 'no way out';
+      this.lastDecision = { score: -1e6, frames: longest, pick: 'no way out', depth: 0, nodes: expansions };
     }
   };
 
@@ -468,20 +559,21 @@
    * positioning: don't be where a shot is about to be, do be at a height where
    * your own shots connect, and close the distance when the boss is open.
    * Same exact-rollout machinery as navigation, different objective. */
-  Pilot.prototype.bossTick = function (p, b) {
+  Pilot.prototype.bossTick = function (p, b, ob) {
     var prm = this.p, g = this.g;
+    ob = ob || p;
     var key = 's' + g.stageIndex;
     if (!this.tele.bossAttempts[key]) this.tele.bossAttempts[key] = 0;
     if (!this._bossSeen) { this._bossSeen = true; this.tele.bossAttempts[key]++; }
 
     if (this.queue.length && this.expect && this.expect.length >= 2) {
-      if (p.hurtTime > 0 || Math.abs(p.x - this.expect[0]) > prm.devX ||
-          Math.abs(p.y - this.expect[1]) > prm.devY) {
+      if (ob.hurtTime > 0 || Math.abs(ob.x - this.expect[0]) > prm.devX ||
+          Math.abs(ob.y - this.expect[1]) > prm.devY) {
         this.queue.length = 0; this.expect = null;
       } else this.expect = this.expect.slice(2);
     }
     if (this.queue.length > prm.bossCommit) this.queue.length = prm.bossCommit;
-    if (this.queue.length === 0) this.bossDecide(p, b);
+    if (this.queue.length === 0) this.bossDecide(ob, b);
 
     var inp = this.queue.length ? Object.assign({}, this.queue.shift()) : {};
 
@@ -535,7 +627,7 @@
 
   Pilot.prototype.bossDecide = function (p, b) {
     var g = this.g, S = AGENT.sim, PL = AGENT.plan, prm = this.p;
-    var start = snapshot(S, g);
+    var start = p.sim || snapshot(S, g);
 
     // The boss is open when it is stunned, venting, or mid-recovery: close in.
     // Windows where the boss is taking extra damage or cannot retaliate.
@@ -553,12 +645,13 @@
     var wantMin = open ? Math.max(18, prm.bossMin * 0.5) : prm.bossMin;
     var wantMax = open ? prm.bossMax * 0.7 : prm.bossMax;
 
-    var shots = [];
-    for (var i = 0; i < g.projectiles.length; i++) {
-      var pr = g.projectiles[i];
-      if (pr.team !== 'enemy' || pr.remove) continue;
-      shots.push(pr);
-    }
+    /* The whole threat model is now the projected world: enemy fire, debris
+     * that is still showing its warning marker, the boss body wherever its
+     * own attack script is about to put it. Before this it was three separate
+     * hand-rolled extrapolations - linear for shots, velocity-damped for the
+     * body, a special case for the beam - and each was wrong in its own way
+     * against anything that turns. */
+    var timeline = AGENT.world.project(g, look + 4, 400);
 
     var best = null, bestScore = -1e18;
     for (var k = 0; k < PL.PRIMS.length; k++) {
@@ -570,50 +663,8 @@
       else {
         var ex = r.s.body.x, ey = r.s.body.y;
 
-        /* Incoming fire, extrapolated. Debris that is still showing its
-         * warning marker counts too - the marker is the whole point, and
-         * ignoring it means standing exactly where the rock lands. */
-        for (var q = 0; q < shots.length; q++) {
-          var sp = shots[q];
-          var delay = sp.warn > 0 ? sp.warn : 0;
-          for (var ti = 0; ti < tj.length; ti += 2) {
-            var f = ti / 2;
-            if (f < delay) {
-              // not falling yet, but the column it will occupy is not a
-              // place to be standing when it arrives
-              continue;
-            }
-            var af = f - delay;
-            var fx = sp.x + sp.vx * af;
-            var fy = sp.y + sp.vy * af + 0.5 * (sp.gravityOn || 0) * af * af;
-            if (Math.abs(fx - tj[ti]) < sp.w / 2 + VZ.P.W / 2 + 3 &&
-                Math.abs(fy - tj[ti + 1]) < sp.h / 2 + VZ.P.H / 2 + 3) {
-              score -= prm.bossWShot;
-              break;
-            }
-          }
-        }
-        /* The boss body, extrapolated. Testing against where it is standing
-         * right now is fine for something that hovers, and useless against a
-         * rival that crosses 200px mid-rollout - so carry its velocity
-         * forward. Damped, because it will not hold that heading forever. */
-        for (var t2 = 0; t2 < tj.length; t2 += 4) {
-          var ff = t2 / 2;
-          var damp = 1 / (1 + ff * 0.02);
-          var bx = b.x + b.vx * ff * damp;
-          var by = b.y + b.vy * ff * damp;
-          if (Math.abs(bx - tj[t2]) < b.w / 2 + VZ.P.W / 2 + prm.bossClear &&
-              Math.abs(by - tj[t2 + 1]) < b.h / 2 + VZ.P.H / 2 + prm.bossClear) {
-            score -= prm.bossWEnemy;
-            break;
-          }
-        }
-        // the beam sweep is a column: never be under it
-        if (b.beamOn) {
-          for (var t3 = 0; t3 < tj.length; t3 += 4) {
-            if (Math.abs(b.x - tj[t3]) < 16 && tj[t3 + 1] > b.y) { score -= 4000; break; }
-          }
-        }
+        score -= AGENT.world.damageAlong(timeline, tj, p.invuln || 0) * prm.bossWDamage;
+
         // Firing line: shots leave the muzzle throughout the move, not just
         // where it stops - and you cannot come to rest at a jump apex. So
         // reward time on target across the trajectory instead of the endpoint.

@@ -17,7 +17,8 @@ const ORDER = [
 
 // The watch shell drives the game with the play agent, so it needs the agent
 // sources inlined after the game's.
-const AGENT_ORDER = ['tools/agent/sim.js', 'tools/agent/plan.js', 'tools/agent/pilot.js'];
+const AGENT_ORDER = ['tools/agent/sim.js', 'tools/agent/plan.js',
+                     'tools/agent/world.js', 'tools/agent/pilot.js'];
 
 const arg = process.argv.find(a => a.startsWith('--shell='));
 const shellName = arg ? arg.split('=')[1] : 'standalone';

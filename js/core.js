@@ -46,6 +46,13 @@
       t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
+    /* The whole generator is one 32-bit counter, so a run can be saved and
+     * resumed. Nothing in the game needs that; the play agent does. It
+     * projects the world forward to decide what to do, and those speculative
+     * draws would otherwise consume the live stream and change the future it
+     * is trying to predict. */
+    r.state = function () { return s; };
+    r.setState = function (v) { s = v | 0; };
     r.range = function (a, b) { return a + r() * (b - a); };
     r.int = function (a, b) { return Math.floor(a + r() * (b - a + 1)); };
     r.pick = function (arr) { return arr[Math.floor(r() * arr.length) % arr.length]; };
