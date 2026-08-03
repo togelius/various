@@ -74,6 +74,24 @@ function bar(v, max, w) {
   return '#'.repeat(Math.min(w, n)).padEnd(w, '.');
 }
 
+/* One latency setting per process is the only practical way to run this:
+ * a single sweep is hours of wall clock and the settings are independent. */
+function merge(paths) {
+  const cell = {}, clears = {};
+  let steps = [];
+  paths.forEach(p => {
+    const part = JSON.parse(fs.readFileSync(p, 'utf8'));
+    steps = steps.concat(part.steps);
+    Object.keys(part.clears).forEach(k => { clears[k] = part.clears[k]; });
+    Object.keys(part.cell).forEach(k => {
+      cell[k] = cell[k] || {};
+      Object.keys(part.cell[k]).forEach(l => { cell[k][l] = part.cell[k][l]; });
+    });
+  });
+  steps = [...new Set(steps)].sort((a, b) => a - b);
+  return { steps, cell, clears };
+}
+
 async function main() {
   const trials = parseInt(arg('trials', '5'), 10);
   const lives = parseInt(arg('lives', '9'), 10);
@@ -125,6 +143,14 @@ async function main() {
     process.stdout.write(' lat' + lat + '\n');
   }
 
+  report({ steps, cell, clears }, trials, lives);
+  const jsonPath = arg('json', '');
+  if (jsonPath) fs.writeFileSync(jsonPath, JSON.stringify({ steps, cell, clears }, null, 1));
+  if (errors.length) console.log('\n  errors: ' + [...new Set(errors)].slice(0, 3).join(' | '));
+  await browser.close();
+}
+
+function report({ steps, cell, clears }, trials, lives) {
   console.log('\n============================================================');
   console.log('  VANGUARD ZERO - difficulty vs reaction latency');
   console.log('  ' + trials + ' runs per stage per setting, ' + lives + ' lives');
@@ -158,6 +184,7 @@ async function main() {
       rows.push({
         label: (st + 1) + '-' + (SECTIONS[st][se] || se),
         vals, dmg,
+        visits: steps.map(s => (cell[k][s] && cell[k][s].visits) || 0),
         base: vals[0],
         grad: (vals[vals.length - 1] - vals[0]) / span
       });
@@ -169,6 +196,17 @@ async function main() {
     console.log('  ' + r.label.padEnd(24) +
       r.vals.map(v => v.toFixed(2).padStart(7)).join('') + '   ' +
       r.grad.toFixed(3).padStart(6) + '/f ' + bar(Math.max(0, r.grad), maxGrad, 14));
+  });
+
+  /* Sections past a wall stop being sampled once the agent cannot get through
+   * it, and a row of zeroes from one visit is not the same claim as a row of
+   * zeroes from four. */
+  console.log('\nVISITS BEHIND EACH NUMBER (out of ' + trials + ')');
+  console.log('  ' + 'section'.padEnd(24) + steps.map(s => (s + 'f').padStart(7)).join(''));
+  rows.forEach(r => {
+    console.log('  ' + r.label.padEnd(24) +
+      r.visits.map(v => String(v).padStart(7)).join('') +
+      (r.visits.some(v => v < trials / 2) ? '   thin' : ''));
   });
 
   console.log('\nHP LOST PER VISIT, BY LATENCY');
@@ -183,10 +221,12 @@ async function main() {
   console.log('  gradient is a reflex wall; a flat but costly row is a section');
   console.log('  that is expensive however well you see it coming.');
 
-  const jsonPath = arg('json', '');
-  if (jsonPath) fs.writeFileSync(jsonPath, JSON.stringify({ steps, cell, clears }, null, 1));
-  if (errors.length) console.log('\n  errors: ' + [...new Set(errors)].slice(0, 3).join(' | '));
-  await browser.close();
 }
 
-main();
+const mergeArg = arg('merge', '');
+if (mergeArg) {
+  report(merge(mergeArg.split(',')),
+         parseInt(arg('trials', '5'), 10), parseInt(arg('lives', '9'), 10));
+} else {
+  main();
+}

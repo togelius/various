@@ -1,0 +1,89 @@
+
+============================================================
+  VANGUARD ZERO - difficulty vs reaction latency
+  4 runs per stage per setting, 9 lives
+============================================================
+
+STAGE CLEARS (out of 4)
+  latency          0f     3f     6f     9f
+  stage 1           4      4      4      3
+  stage 2           4      4      4      1
+  stage 3           4      4      1      0
+
+DEATHS PER VISIT, BY LATENCY
+  section                      0f     3f     6f     9f    gradient
+  3-Spike corridor           1.00   2.00   8.00   8.25    0.806/f ##############
+  1-Run-up                   0.00   0.00   2.50   6.25    0.694/f ############..
+  2-Opening                  0.00   0.50   0.00   3.75    0.417/f #######.......
+  2-Lava climb               2.50   2.25   2.25   5.33    0.315/f #####.........
+  3-Opening                  0.00   0.00   0.75   2.25    0.250/f ####..........
+  2-Lava bridge              0.00   0.00   0.25   1.00    0.111/f ##............
+  1-Boss arena               0.00   0.00   0.00   0.67    0.074/f #.............
+  1-Opening                  0.00   0.00   0.00   0.00    0.000/f ..............
+  1-Gap run                  0.00   0.25   0.25   0.00    0.000/f ..............
+  1-Wall-jump chimney        0.00   0.00   0.00   0.00    0.000/f ..............
+  1-Crumble + spikes         0.00   0.00   0.75   0.00    0.000/f ..............
+  1-Turret gauntlet          0.00   0.00   0.00   0.00    0.000/f ..............
+  2-Conveyors                0.00   0.00   0.00   0.00    0.000/f ..............
+  2-Flame vents              0.00   0.00   0.00   0.00    0.000/f ..............
+  2-Run-up                   0.00   0.00   0.00   0.00    0.000/f ..............
+  2-Boss arena               0.00   0.00   0.00   0.00    0.000/f ..............
+  3-Void ascent              0.00   0.50   0.00   0.00    0.000/f ..............
+  3-Crumble bridge           0.00   0.00   0.00   0.00    0.000/f ..............
+  3-Turret + shielders       0.00   0.25   0.00   0.00    0.000/f ..............
+  3-Run-up                   0.00   0.00   0.00   0.00    0.000/f ..............
+  3-Boss arena               0.00   0.25   1.00   0.00    0.000/f ..............
+
+VISITS BEHIND EACH NUMBER (out of 4)
+  section                      0f     3f     6f     9f
+  3-Spike corridor              4      4      4      4
+  1-Run-up                      4      4      4      4
+  2-Opening                     4      4      4      4
+  2-Lava climb                  4      4      4      3
+  3-Opening                     4      4      4      4
+  2-Lava bridge                 4      4      4      2
+  1-Boss arena                  4      4      4      3
+  1-Opening                     4      4      4      4
+  1-Gap run                     4      4      4      4
+  1-Wall-jump chimney           4      4      4      4
+  1-Crumble + spikes            4      4      4      4
+  1-Turret gauntlet             4      4      4      4
+  2-Conveyors                   4      4      4      3
+  2-Flame vents                 4      4      4      3
+  2-Run-up                      4      4      4      1   thin
+  2-Boss arena                  4      4      4      1   thin
+  3-Void ascent                 4      4      1      0   thin
+  3-Crumble bridge              4      4      1      0   thin
+  3-Turret + shielders          4      4      1      0   thin
+  3-Run-up                      4      4      1      0   thin
+  3-Boss arena                  4      4      1      0   thin
+
+HP LOST PER VISIT, BY LATENCY
+  section                      0f     3f     6f     9f
+  3-Spike corridor           17.5   35.5   91.8   85.0
+  2-Lava climb               14.0   15.0   17.0   51.7
+  2-Flame vents              12.8    8.0   10.0   21.0
+  3-Opening                   8.8   13.8   65.5  104.0
+  3-Boss arena                7.3   12.0    8.0    0.0
+  3-Void ascent               6.3    8.5    2.0    0.0
+  2-Boss arena                3.8   10.5   11.8    8.0
+  3-Turret + shielders        3.0    4.3    6.0    0.0
+  1-Boss arena                2.8    4.8    6.5   15.3
+  1-Gap run                   2.8    3.3   12.0    7.5
+  1-Wall-jump chimney         2.3    2.0    2.8    2.5
+  1-Turret gauntlet           2.3    0.8    3.8    8.3
+  2-Opening                   1.8    2.5    5.0    8.3
+  2-Lava bridge               1.5    2.3    3.0    4.5
+  1-Opening                   1.5    2.0    3.0    2.5
+  1-Crumble + spikes          1.5    5.0   10.5    5.5
+  2-Conveyors                 1.3    3.0    0.8    1.0
+  1-Run-up                    0.5    2.5   23.0   20.5
+  2-Run-up                    0.0    0.0    0.0    0.0
+  3-Crumble bridge            0.0    3.8    0.0    0.0
+  3-Run-up                    0.0    2.3   12.0    0.0
+
+  latency is in frames of observation delay at 60Hz;
+  9 frames is 150ms, around a human visual reaction time.
+  gradient = extra deaths per visit per frame of delay. A steep
+  gradient is a reflex wall; a flat but costly row is a section
+  that is expensive however well you see it coming.
