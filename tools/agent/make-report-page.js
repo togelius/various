@@ -39,8 +39,17 @@ files.forEach(f => {
 });
 // one unimpaired run, shared: dexSigma 0, searchNodes 200 and latency 0 are the
 // same configuration
-const baseCell = (axes.dex && axes.dex.by[0]) || (axes.latency && axes.latency.by[0]) ||
-                 (axes.strategy && axes.strategy.by[200]);
+let baseCell = (axes.dex && axes.dex.by[0]) || (axes.latency && axes.latency.by[0]) ||
+               (axes.strategy && axes.strategy.by[200]);
+if (!baseCell) {
+  // No unimpaired run in this set - fall back to the gentlest setting present,
+  // so a partial sweep still renders while the rest is still running.
+  for (const k of Object.keys(AXES)) {
+    const lv = AXES[k].levels.find(l => axes[k] && axes[k].by[l]);
+    if (lv !== undefined) { baseCell = axes[k].by[lv]; break; }
+  }
+}
+if (!baseCell) { console.error('no data in ' + files.join(', ')); process.exit(1); }
 Object.keys(AXES).forEach(k => {
   if (!axes[k]) return;
   const zero = AXES[k].levels[0];
@@ -267,11 +276,17 @@ function worstOn(ax) {
     return v > ((a.worst[ax] || []).slice(-1)[0] || 0) ? r : a;
   }, R[0]);
 }
+function tile(title, ax) {
+  const r = worstOn(ax), v = (r.worst[ax] || []).slice(-1)[0] || 0;
+  return v > 0 ? [title, r.name, v.toFixed(2) + ' deaths / visit']
+               : [title, 'nothing', 'no section ever killed it'];
+}
 const kpis = [
-  ['Only section that kills a perfect player', worstBase.name, worstBase.base.toFixed(2) + ' deaths / visit'],
-  ['Worst under clumsy hands', worstOn('dex').name, ((worstOn('dex').worst.dex || []).slice(-1)[0] || 0).toFixed(2) + ' deaths / visit'],
-  ['Worst under slow thinking', worstOn('strategy').name, ((worstOn('strategy').worst.strategy || []).slice(-1)[0] || 0).toFixed(2) + ' deaths / visit'],
-  ['Worst under slow reactions', worstOn('latency').name, ((worstOn('latency').worst.latency || []).slice(-1)[0] || 0).toFixed(2) + ' deaths / visit']
+  ['Hardest for a perfect player', worstBase.name,
+   worstBase.base > 0 ? worstBase.base.toFixed(2) + ' deaths / visit' : 'nothing kills it'],
+  tile('Worst under clumsy hands', 'dex'),
+  tile('Worst under slow thinking', 'strategy'),
+  tile('Worst under slow reactions', 'latency')
 ];
 document.getElementById('kpis').innerHTML = kpis.map(k =>
   '<div class="kpi"><span>' + k[0] + '</span><b style="font-size:19px">' + k[1] +
@@ -284,7 +299,7 @@ document.getElementById('legend').innerHTML =
     ' &mdash; ' + DATA.AXES[a].blurb + '</span>').join('');
 
 // ------------------------------------------------------------------ chart
-const W = 1000, H = 400, M = { t: 16, r: 116, b: 92, l: 46 };
+const W = 1000, H = 440, M = { t: 16, r: 118, b: 132, l: 48 };
 const PW = W - M.l - M.r, PH = H - M.t - M.b;
 const X = i => M.l + (PW * i) / (R.length - 1);
 
@@ -311,8 +326,8 @@ function axisAndBands(maxY, ticks) {
   s += '<line x1="' + M.l + '" x2="' + (M.l + PW) + '" y1="' + (M.t + PH) + '" y2="' + (M.t + PH) +
     '" stroke="var(--axis)" stroke-width="1"/>';
   R.forEach((r, i) => {
-    s += '<text transform="translate(' + X(i) + ',' + (M.t + PH + 10) + ') rotate(38)" ' +
-      'font-size="11" fill="' + (r.boss ? 'var(--text-secondary)' : 'var(--text-muted)') +
+    s += '<text transform="translate(' + X(i) + ',' + (M.t + PH + 9) + ') rotate(-90)" ' +
+      'text-anchor="end" font-size="11" fill="' + (r.boss ? 'var(--text-secondary)' : 'var(--text-muted)') +
       '" font-weight="' + (r.boss ? '600' : '400') + '">' + r.name + '</text>';
   });
   return s;
@@ -338,16 +353,35 @@ function buildMain() {
   s += '<polyline points="' + area + '" fill="none" stroke="var(--base-line)" stroke-width="2" ' +
     'stroke-linejoin="round" stroke-linecap="round"/>';
 
-  series.forEach(se => {
+  /* Direct labels share the right margin, and three lines that all finish near
+   * zero would print on top of each other. Lay them out by their end value,
+   * then push apart to a minimum spacing. */
+  const ends = series.map((se, k) => ({ k, y: Y(se.vals[se.vals.length - 1]) }))
+                     .sort((a, b) => a.y - b.y);
+  for (let k = 1; k < ends.length; k++) {
+    if (ends[k].y - ends[k - 1].y < 15) ends[k].y = ends[k - 1].y + 15;
+  }
+  // If pushing apart ran the group off the bottom, slide the whole group up by
+  // the overflow rather than clamping - clamping just piles them back together,
+  // which is exactly what happens when several lines finish at zero.
+  const over = Math.max(0, ends[ends.length - 1].y - (M.t + PH));
+  const labelY = {};
+  ends.forEach(e => { labelY[e.k] = e.y - over; });
+
+  series.forEach((se, si) => {
     s += '<polyline points="' + R.map((r, i) => X(i) + ',' + Y(se.vals[i])).join(' ') +
       '" fill="none" stroke="' + se.col + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
     se.vals.forEach((v, i) => {
       s += '<circle cx="' + X(i) + '" cy="' + Y(v) + '" r="4" fill="' + se.col +
         '" stroke="var(--surface-1)" stroke-width="2"/>';
     });
-    // direct label at the right edge, so identity never rests on colour alone
+    // direct label at the right edge, so identity never rests on colour alone;
+    // a leader keeps it attached to its line once it has been pushed clear
     const last = se.vals[se.vals.length - 1];
-    s += '<text x="' + (M.l + PW + 10) + '" y="' + (Y(last) + 4) + '" font-size="12" font-weight="600" fill="' +
+    const ly = labelY[si];
+    s += '<path d="M' + (M.l + PW) + ' ' + Y(last) + ' L' + (M.l + PW + 6) + ' ' + ly +
+      '" stroke="' + se.col + '" stroke-width="1" fill="none" opacity="0.5"/>';
+    s += '<text x="' + (M.l + PW + 10) + '" y="' + (ly + 4) + '" font-size="12" font-weight="600" fill="' +
       se.col + '">' + se.label + '</text>';
   });
 
@@ -360,7 +394,7 @@ function buildEntropy() {
   const maxY = Math.max(0.05, ...R.map(r => r.entropy)) * 1.15;
   const step = 0.1;
   const ticks = []; for (let t = 0; t <= maxY; t += step) ticks.push(+t.toFixed(2));
-  const H2 = 300, PH2 = H2 - M.t - M.b;
+  const H2 = 330, PH2 = H2 - M.t - M.b;
   const Y = v => M.t + PH2 - (v / maxY) * PH2;
   const bw = Math.min(30, (PW / R.length) - 6);
 
@@ -382,7 +416,8 @@ function buildEntropy() {
     const h = Math.max(0, M.t + PH2 - Y(r.entropy));
     s += '<rect x="' + (X(i) - bw / 2) + '" y="' + Y(r.entropy) + '" width="' + bw + '" height="' + h +
       '" rx="4" fill="var(--s-dex)" opacity="0.85"/>';
-    s += '<text transform="translate(' + X(i) + ',' + (M.t + PH2 + 10) + ') rotate(38)" font-size="11" fill="var(--text-muted)">' + r.name + '</text>';
+    s += '<text transform="translate(' + X(i) + ',' + (M.t + PH2 + 9) + ') rotate(-90)" ' +
+      'text-anchor="end" font-size="11" fill="var(--text-muted)">' + r.name + '</text>';
   });
   s += '<line x1="' + M.l + '" x2="' + (M.l + PW) + '" y1="' + (M.t + PH2) + '" y2="' + (M.t + PH2) + '" stroke="var(--axis)"/>';
   s += '</svg>';
