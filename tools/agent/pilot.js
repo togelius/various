@@ -118,9 +118,9 @@
     AGENT._hooked = true;
 
     var origHit = VZ.Player.prototype.takeHit;
-    VZ.Player.prototype.takeHit = function (amount, srcX, force) {
+    VZ.Player.prototype.takeHit = function (amount, srcX, force, src) {
       var before = this.hp;
-      origHit.call(this, amount, srcX, force);
+      origHit.call(this, amount, srcX, force, src);
       var self = AGENT._current;
       if (self && this === self.g.player && this.hp < before) {
         self.tele.damage.push({
