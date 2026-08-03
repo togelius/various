@@ -1,0 +1,72 @@
+
+============================================================
+  Is there a reason to shoot anything?
+============================================================
+
+The agent plays the game twice: once as it normally does, once with `noShoot`
+set, which suppresses the trigger in both the level and the boss arena and
+changes nothing else. If the two configurations come out the same, combat is
+decoration.
+
+  node tools/agent/report.js --stage=N --trials=8 --lives=9 --seconds=250
+  node tools/agent/report.js --stage=N --trials=8 --lives=9 --seconds=250 \
+       --params='{"noShoot":1}'
+
+
+BEFORE: enemies respawned the frame they died
+------------------------------------------------------------
+streamEnemies cleared the spawn's live handle on death but never marked the
+spawn, so the next frame's spawn window rebuilt the same enemy. Killing bought
+nothing that lasted, and the numbers said so - refusing to shoot was *cheaper*
+through the level:
+
+  stage 1, level sections only     shoots    can't shoot
+    damage per run                  7.8 hp       5.3 hp
+    time per run                    23.6 s       25.7 s
+
+That is the whole complaint in one row. The only thing shooting was good for
+was the boss, which cannot be run past.
+
+
+AFTER: a kill lasts until you lose a life
+------------------------------------------------------------
+  stage 1, level sections only     shoots    can't shoot
+    damage per run                  6.1 hp       5.5 hp
+    time per run                    23.8 s       25.7 s
+
+  stage 3, level sections only     shoots    can't shoot
+    damage per run                 16.4 hp      22.9 hp
+    deaths per run                    0.0          0.1
+    "Turret + shielders" damage      18 hp        39 hp
+    health returned by drops        5.5 hp       0.0 hp
+
+Stage 1 is a wash and stage 3 is not, which is the right shape: the payoff
+scales with how many enemies are actually in the way. Stage 1's opening was
+deliberately thinned out during the difficulty rebalance, so there is little
+there to kill - the agent finds 2.9 kills in the whole stage against 3.8 in
+stage 3.
+
+Two caveats worth keeping in mind when reading the stage 1 row:
+
+- The agent fires on a blind duty cycle rather than aiming, so its kill count
+  is a floor, not a ceiling. It cannot demonstrate an incentive it does not
+  act on. A player who chooses to clear a room will see a larger effect than
+  this measurement can.
+- Changing the drop rolls changes how much of the random stream every other
+  system consumes, so the two arms are effectively different seeds. Do not
+  read differences under about 1 hp as real.
+
+
+WHAT ACTUALLY HURTS YOU
+------------------------------------------------------------
+takeHit carries a source tag now, so the report can say what the damage came
+from. Over four runs each, at full agent capability:
+
+  stage 1     contact 45%   shot 29%   boss 26%
+  stage 3     shot 54%      contact 43%   boss 3%
+
+Spikes contribute nothing at all - the agent prices a spike bed at 900 and
+simply never touches one, which a person will not manage. But every point of
+damage the level deals comes from an enemy: 74% of stage 1's total and 97% of
+stage 3's is something that could have been killed first. That is the ceiling
+on what engaging can save, and it is nearly the whole bill.
