@@ -62,6 +62,14 @@
   };
   VZ.rand = VZ.RNG(0x5eed1234);
 
+  /* Difficulty ramp, by stage. Everything routed through Player.takeHit is
+   * scaled by this - enemy contact, enemy fire, spikes - so the first stage is
+   * somewhere a player can learn what the buttons do without being punished at
+   * full rate for not knowing yet. Instant-death hazards (lava, pits) are
+   * deliberately not on this scale: they are a different lesson, and the ramp
+   * for those is in the level geometry. */
+  VZ.DAMAGE_SCALE = [0.5, 0.75, 1];
+
   // ------------------------------------------------------------------ input
   // Keyboard + gamepad, unified into named actions with pressed/held/released
   // edge detection. Also keeps a short buffer timer per action for jump-buffering.

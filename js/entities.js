@@ -553,6 +553,9 @@
   Player.prototype.takeHit = function (amount, srcX, force) {
     if (this.invuln > 0 || this.dead || this.game.playerControl === false) return;
     if (this.dashTime > 0 && !force) { /* dashing does not grant i-frames */ }
+    var ds = VZ.DAMAGE_SCALE;
+    var scale = ds[Math.min(ds.length - 1, this.game.stageIndex || 0)];
+    amount = Math.max(1, Math.round(amount * scale));
     this.hp -= amount;
     this.invuln = P.IFRAMES;
     this.hurtTime = 22;
