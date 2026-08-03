@@ -1,0 +1,102 @@
+
+============================================================
+  VANGUARD ZERO - what kind of difficulty, section by section
+============================================================
+
+DEX  (dexSigma = 0, 2, 6, 10)   deaths per visit
+  section                       0      2      6     10    visits at worst
+  1-Opening                  0.00   0.00   0.00   0.00               2
+  1-Gap run                  0.00   0.00   0.00   2.00               2
+  1-Wall-jump chimney        0.00   0.00   0.00   0.00               2
+  1-Crumble + spikes         0.00   0.00   0.00   2.00               2
+  1-Turret gauntlet          0.00   0.00   0.00   1.00               1
+  1-Run-up                   0.00   0.33   1.33   1.00               1
+  1-Aegis Drone              0.00   0.00   0.00   0.00               0
+  2-Opening                  0.00   0.00   1.00   1.00               2
+  2-Conveyors                0.00   0.00   0.00   0.00               2
+  2-Flame vents              0.00   0.00   0.00   0.00               2
+  2-Lava climb               0.33   1.00   1.00   2.50               2
+  2-Lava bridge              0.00   0.33   0.00   0.50               2
+  2-Run-up                   0.00   0.00   0.00   0.00               1
+  2-Forge Golem              0.00   0.33   1.67   2.00               1
+  3-Opening                  0.00   0.33   0.33   2.00               2
+  3-Spike corridor           0.67   0.33   9.33   4.50               2
+  3-Void ascent              0.00   0.33   0.00   0.00               0
+  3-Crumble bridge           0.00   0.00   0.00   0.00               0
+  3-Turret + shielders       0.33   0.00   0.00   0.00               0
+  3-Run-up                   0.00   0.00   0.00   0.00               0
+  3-Vanguard Prime           0.33   1.67   0.00   0.00               0
+  stage clears              3/3/3  3/3/3  3/3/0  0/0/0
+
+LATENCY  (latency = 0, 3, 6, 9)   deaths per visit
+  section                       0      3      6      9    visits at worst
+  1-Opening                  0.00   0.00   0.00   0.00               3
+  1-Gap run                  0.00   0.33   0.67   0.00               3
+  1-Wall-jump chimney        0.00   0.00   0.00   0.00               3
+  1-Crumble + spikes         0.00   0.00   1.33   0.00               3
+  1-Turret gauntlet          0.00   0.00   0.00   0.00               3
+  1-Run-up                   0.00   0.00   2.33   6.67               3
+  1-Aegis Drone              0.00   0.00   0.00   0.50               2
+  2-Opening                  0.00   0.00   1.33   0.67               3
+  2-Conveyors                0.00   0.00   0.00   0.00               3
+  2-Flame vents              0.00   0.00   0.00   0.00               3
+  2-Lava climb               0.33   4.00   4.67   8.33               3
+  2-Lava bridge              0.00   0.67   1.33   1.33               3
+  2-Run-up                   0.00   0.00   0.00   0.00               0
+  2-Forge Golem              0.00   0.00   0.00   0.00               0
+  3-Opening                  0.00   0.00   0.00   2.33               3
+  3-Spike corridor           0.67   1.33   5.33   5.67               3
+  3-Void ascent              0.00   0.00   1.50   1.00               1
+  3-Crumble bridge           0.00   0.67   0.00   0.00               1
+  3-Turret + shielders       0.33   0.00   0.00   0.00               1
+  3-Run-up                   0.00   0.00   0.00   1.00               1
+  3-Vanguard Prime           0.33   0.67   0.00   1.00               1
+  stage clears              3/3/3  3/2/3  2/2/2  2/0/1
+
+STRATEGY  (searchNodes = 200, 60, 20, 8)   deaths per visit
+  section                     200     60     20      8    visits at worst
+  1-Opening                  0.00   0.00   0.00   0.00               3
+  1-Gap run                  0.00   0.00   0.00   0.00               3
+  1-Wall-jump chimney        0.00   0.00   0.00   0.00               3
+  1-Crumble + spikes         0.00   0.00   0.00   0.00               3
+  1-Turret gauntlet          0.00   0.00   0.00   0.00               3
+  1-Run-up                   0.00   0.00   0.00   0.33               3
+  1-Aegis Drone              0.00   0.00   0.00   0.00               3
+  2-Opening                  0.00   0.00   0.00   0.00               3
+  2-Conveyors                0.00   0.00   0.00   0.00               3
+  2-Flame vents              0.00   0.00   0.00   0.00               3
+  2-Lava climb               0.33   1.00   1.00   1.33               3
+  2-Lava bridge              0.00   0.00   0.00   0.00               3
+  2-Run-up                   0.00   0.00   0.00   0.00               3
+  2-Forge Golem              0.00   0.00   0.00   0.00               3
+  3-Opening                  0.00   0.00   0.00   0.67               3
+  3-Spike corridor           0.67   1.00   1.33   2.67               3
+  3-Void ascent              0.00   0.33   0.33   0.00               2
+  3-Crumble bridge           0.00   0.00   0.00   0.00               2
+  3-Turret + shielders       0.33   0.33   0.00   0.00               2
+  3-Run-up                   0.00   0.00   0.00   0.00               2
+  3-Vanguard Prime           0.33   0.00   0.00   0.50               2
+  stage clears              3/3/3  3/3/3  3/3/3  3/3/2
+
+INPUT DEMAND  (entropy of the 1st/2nd/3rd derivatives of the action sequence)
+  1-Opening                 0.092   #######.................
+  1-Gap run                 0.132   ##########..............
+  1-Wall-jump chimney       0.145   ##########..............
+  1-Crumble + spikes        0.266   ###################.....
+  1-Turret gauntlet         0.125   #########...............
+  1-Run-up                  0.108   ########................
+  1-Aegis Drone             0.257   ###################.....
+  2-Opening                 0.122   #########...............
+  2-Conveyors               0.110   ########................
+  2-Flame vents             0.169   ############............
+  2-Lava climb              0.268   ###################.....
+  2-Lava bridge             0.119   #########...............
+  2-Run-up                  0.069   #####...................
+  2-Forge Golem             0.248   ##################......
+  3-Opening                 0.203   ###############.........
+  3-Spike corridor          0.296   #####################...
+  3-Void ascent             0.332   ########################
+  3-Crumble bridge          0.276   ####################....
+  3-Turret + shielders      0.108   ########................
+  3-Run-up                  0.109   ########................
+  3-Vanguard Prime          0.263   ###################.....

@@ -1,111 +1,4 @@
-/* Turn the skill sweep into a readable page.
- *
- *   node tools/agent/make-report-page.js sk_*.json --out=dist/difficulty.html
- *
- * The chart colours are the validated default categorical slots rather than the
- * game's own cyan/gold/crimson: those were picked for a dark CRT and do not
- * clear the colourblind-separation gates on a light surface. The game's palette
- * stays on the game; the data marks wear colours that were checked.
- */
-const fs = require('fs');
-const path = require('path');
-
-const SECTIONS = [
-  ['Opening', 'Gap run', 'Wall-jump chimney', 'Crumble + spikes', 'Turret gauntlet', 'Run-up', 'Aegis Drone'],
-  ['Opening', 'Conveyors', 'Flame vents', 'Lava climb', 'Lava bridge', 'Run-up', 'Forge Golem'],
-  ['Opening', 'Spike corridor', 'Void ascent', 'Crumble bridge', 'Turret + shielders', 'Run-up', 'Vanguard Prime']
-];
-const STAGE_NAMES = ['Skyfall Ridge', 'Magma Foundry', 'Void Citadel'];
-const AXES = {
-  dex: { param: 'dexSigma', levels: [0, 2, 6, 10], label: 'Dexterity',
-         blurb: 'forced action repetition (gaussian &sigma;, in frames)' },
-  strategy: { param: 'searchNodes', levels: [200, 60, 20, 8], label: 'Strategy',
-              blurb: 'search allowed per decision (node budget)' },
-  latency: { param: 'latency', levels: [0, 3, 6, 9], label: 'Reaction',
-             blurb: 'observation delay (frames at 60Hz)' }
-};
-
-const files = process.argv.slice(2).filter(a => !a.startsWith('--'));
-const outArg = process.argv.find(a => a.startsWith('--out='));
-const out = outArg ? outArg.split('=')[1] : 'dist/difficulty.html';
-
-// ---------------------------------------------------------------- assemble
-const axes = {};
-files.forEach(f => {
-  const part = JSON.parse(fs.readFileSync(f, 'utf8'));
-  const a = axes[part.axis] = axes[part.axis] || { by: {}, clears: {} };
-  a.by[part.level] = part.cell;
-  a.clears[part.level] = part.clears;
-});
-// one unimpaired run, shared: dexSigma 0, searchNodes 200 and latency 0 are the
-// same configuration
-let baseCell = (axes.dex && axes.dex.by[0]) || (axes.latency && axes.latency.by[0]) ||
-               (axes.strategy && axes.strategy.by[200]);
-if (!baseCell) {
-  // No unimpaired run in this set - fall back to the gentlest setting present,
-  // so a partial sweep still renders while the rest is still running.
-  for (const k of Object.keys(AXES)) {
-    const lv = AXES[k].levels.find(l => axes[k] && axes[k].by[l]);
-    if (lv !== undefined) { baseCell = axes[k].by[lv]; break; }
-  }
-}
-if (!baseCell) { console.error('no data in ' + files.join(', ')); process.exit(1); }
-Object.keys(AXES).forEach(k => {
-  if (!axes[k]) return;
-  const zero = AXES[k].levels[0];
-  if (!axes[k].by[zero]) axes[k].by[zero] = baseCell;
-});
-
-const per = (c, f) => (c && c.visits ? c[f] / c.visits : 0);
-
-const rows = [];
-for (let st = 0; st < 3; st++) {
-  for (let se = 0; se < 7; se++) {
-    const k = st + '|' + se;
-    const b = baseCell[k];
-    const row = {
-      stage: st, idx: se, name: SECTIONS[st][se],
-      boss: se === 6,
-      base: per(b, 'deaths'), baseHp: per(b, 'dmg'),
-      entropy: b && b.entN ? b.ent / b.entN : 0,
-      worst: {}, visits: {}
-    };
-    Object.keys(AXES).forEach(ax => {
-      if (!axes[ax]) return;
-      /* Only levels that were actually measured. Mapping over the full ladder
-       * would read a setting that never ran as a zero, and since the charts
-       * take the last level as "worst", a missing harshest setting would make
-       * that axis look harmless. */
-      const lv = AXES[ax].levels.filter(l => axes[ax].by[l]);
-      const vals = lv.map(l => per(axes[ax].by[l][k], 'deaths'));
-      const vis = lv.map(l => (axes[ax].by[l][k] || {}).visits || 0);
-      row.worst[ax] = vals;
-      row.visits[ax] = vis;
-      row.levels = row.levels || {};
-      row.levels[ax] = lv;
-      /* The headline for an axis is the worst it ever did to this section,
-       * across settings the agent actually reached the section at. Reading the
-       * harshest setting alone is wrong here: at dexterity 10 the agent dies in
-       * stage one and never sees the Void Citadel, so those cells would print
-       * as zero and read as "easy" rather than "never got there". */
-      let worst = null;
-      lv.forEach((l, i) => {
-        if (vis[i] > 0 && (worst === null || vals[i] > worst.v)) worst = { v: vals[i], l };
-      });
-      row.peak = row.peak || {};
-      row.peak[ax] = worst;   // null when the section was never reached at all
-    });
-    rows.push(row);
-  }
-}
-
-const clears = {};
-Object.keys(AXES).forEach(ax => { if (axes[ax]) clears[ax] = axes[ax].clears; });
-
-const DATA = { rows, clears, AXES, STAGE_NAMES };
-
-// ------------------------------------------------------------------- page
-const html = `<title>Vanguard Zero — where the difficulty actually is</title>
+<title>Vanguard Zero — where the difficulty actually is</title>
 <style>
   .viz-root {
     color-scheme: light;
@@ -286,7 +179,7 @@ const html = `<title>Vanguard Zero — where the difficulty actually is</title>
 </div>
 
 <script>
-const DATA = ${JSON.stringify(DATA)};
+const DATA = {"rows":[{"stage":0,"idx":0,"name":"Opening","boss":false,"base":0,"baseHp":1.3333333333333333,"entropy":0.09237823231433467,"worst":{"dex":[0,0,0,0],"strategy":[0,0,0,0],"latency":[0,0,0,0]},"visits":{"dex":[3,3,3,2],"strategy":[3,3,3,3],"latency":[3,3,3,3]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":0,"l":0},"strategy":{"v":0,"l":200},"latency":{"v":0,"l":0}}},{"stage":0,"idx":1,"name":"Gap run","boss":false,"base":0,"baseHp":2,"entropy":0.13230267204297222,"worst":{"dex":[0,0,0,2],"strategy":[0,0,0,0],"latency":[0,0.3333333333333333,0.6666666666666666,0]},"visits":{"dex":[3,3,3,2],"strategy":[3,3,3,3],"latency":[3,3,3,3]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":2,"l":10},"strategy":{"v":0,"l":200},"latency":{"v":0.6666666666666666,"l":6}}},{"stage":0,"idx":2,"name":"Wall-jump chimney","boss":false,"base":0,"baseHp":2.3333333333333335,"entropy":0.14511447406631103,"worst":{"dex":[0,0,0,0],"strategy":[0,0,0,0],"latency":[0,0,0,0]},"visits":{"dex":[3,3,3,2],"strategy":[3,3,3,3],"latency":[3,3,3,3]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":0,"l":0},"strategy":{"v":0,"l":200},"latency":{"v":0,"l":0}}},{"stage":0,"idx":3,"name":"Crumble + spikes","boss":false,"base":0,"baseHp":2,"entropy":0.26615377583172695,"worst":{"dex":[0,0,0,2],"strategy":[0,0,0,0],"latency":[0,0,1.3333333333333333,0]},"visits":{"dex":[3,3,3,2],"strategy":[3,3,3,3],"latency":[3,3,3,3]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":2,"l":10},"strategy":{"v":0,"l":200},"latency":{"v":1.3333333333333333,"l":6}}},{"stage":0,"idx":4,"name":"Turret gauntlet","boss":false,"base":0,"baseHp":2,"entropy":0.12453851184748908,"worst":{"dex":[0,0,0,1],"strategy":[0,0,0,0],"latency":[0,0,0,0]},"visits":{"dex":[3,3,3,1],"strategy":[3,3,3,3],"latency":[3,3,3,3]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":1,"l":10},"strategy":{"v":0,"l":200},"latency":{"v":0,"l":0}}},{"stage":0,"idx":5,"name":"Run-up","boss":false,"base":0,"baseHp":0.6666666666666666,"entropy":0.10817860104690902,"worst":{"dex":[0,0.3333333333333333,1.3333333333333333,1],"strategy":[0,0,0,0.3333333333333333],"latency":[0,0,2.3333333333333335,6.666666666666667]},"visits":{"dex":[3,3,3,1],"strategy":[3,3,3,3],"latency":[3,3,3,3]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":1.3333333333333333,"l":6},"strategy":{"v":0.3333333333333333,"l":8},"latency":{"v":6.666666666666667,"l":9}}},{"stage":0,"idx":6,"name":"Aegis Drone","boss":true,"base":0,"baseHp":3.6666666666666665,"entropy":0.25740431196629,"worst":{"dex":[0,0,0,0],"strategy":[0,0,0,0],"latency":[0,0,0,0.5]},"visits":{"dex":[3,3,3,0],"strategy":[3,3,3,3],"latency":[3,3,3,2]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":0,"l":0},"strategy":{"v":0,"l":200},"latency":{"v":0.5,"l":9}}},{"stage":1,"idx":0,"name":"Opening","boss":false,"base":0,"baseHp":3,"entropy":0.12166165043780407,"worst":{"dex":[0,0,1,1],"strategy":[0,0,0,0],"latency":[0,0,1.3333333333333333,0.6666666666666666]},"visits":{"dex":[3,3,3,2],"strategy":[3,3,3,3],"latency":[3,3,3,3]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":1,"l":6},"strategy":{"v":0,"l":200},"latency":{"v":1.3333333333333333,"l":6}}},{"stage":1,"idx":1,"name":"Conveyors","boss":false,"base":0,"baseHp":1,"entropy":0.10953239779568552,"worst":{"dex":[0,0,0,0],"strategy":[0,0,0,0],"latency":[0,0,0,0]},"visits":{"dex":[3,3,3,2],"strategy":[3,3,3,3],"latency":[3,3,3,3]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":0,"l":0},"strategy":{"v":0,"l":200},"latency":{"v":0,"l":0}}},{"stage":1,"idx":2,"name":"Flame vents","boss":false,"base":0,"baseHp":6.333333333333333,"entropy":0.1692600514237709,"worst":{"dex":[0,0,0,0],"strategy":[0,0,0,0],"latency":[0,0,0,0]},"visits":{"dex":[3,3,3,2],"strategy":[3,3,3,3],"latency":[3,3,3,3]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":0,"l":0},"strategy":{"v":0,"l":200},"latency":{"v":0,"l":0}}},{"stage":1,"idx":3,"name":"Lava climb","boss":false,"base":0.3333333333333333,"baseHp":3,"entropy":0.268415119911543,"worst":{"dex":[0.3333333333333333,1,1,2.5],"strategy":[0.3333333333333333,1,1,1.3333333333333333],"latency":[0.3333333333333333,4,4.666666666666667,8.333333333333334]},"visits":{"dex":[3,3,3,2],"strategy":[3,3,3,3],"latency":[3,3,3,3]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":2.5,"l":10},"strategy":{"v":1.3333333333333333,"l":8},"latency":{"v":8.333333333333334,"l":9}}},{"stage":1,"idx":4,"name":"Lava bridge","boss":false,"base":0,"baseHp":3,"entropy":0.11939693472884771,"worst":{"dex":[0,0.3333333333333333,0,0.5],"strategy":[0,0,0,0],"latency":[0,0.6666666666666666,1.3333333333333333,1.3333333333333333]},"visits":{"dex":[3,3,3,2],"strategy":[3,3,3,3],"latency":[3,3,3,3]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":0.5,"l":10},"strategy":{"v":0,"l":200},"latency":{"v":1.3333333333333333,"l":6}}},{"stage":1,"idx":5,"name":"Run-up","boss":false,"base":0,"baseHp":0,"entropy":0.06935870804700045,"worst":{"dex":[0,0,0,0],"strategy":[0,0,0,0],"latency":[0,0,0,0]},"visits":{"dex":[3,3,3,1],"strategy":[3,3,3,3],"latency":[3,3,2,0]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":0,"l":0},"strategy":{"v":0,"l":200},"latency":{"v":0,"l":0}}},{"stage":1,"idx":6,"name":"Forge Golem","boss":true,"base":0,"baseHp":2.6666666666666665,"entropy":0.24823865624069422,"worst":{"dex":[0,0.3333333333333333,1.6666666666666667,2],"strategy":[0,0,0,0],"latency":[0,0,0,0]},"visits":{"dex":[3,3,3,1],"strategy":[3,3,3,3],"latency":[3,3,2,0]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":2,"l":10},"strategy":{"v":0,"l":200},"latency":{"v":0,"l":0}}},{"stage":2,"idx":0,"name":"Opening","boss":false,"base":0,"baseHp":7.666666666666667,"entropy":0.20309089652368453,"worst":{"dex":[0,0.3333333333333333,0.3333333333333333,2],"strategy":[0,0,0,0.6666666666666666],"latency":[0,0,0,2.3333333333333335]},"visits":{"dex":[3,3,3,2],"strategy":[3,3,3,3],"latency":[3,3,3,3]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":2,"l":10},"strategy":{"v":0.6666666666666666,"l":8},"latency":{"v":2.3333333333333335,"l":9}}},{"stage":2,"idx":1,"name":"Spike corridor","boss":false,"base":0.6666666666666666,"baseHp":19.333333333333332,"entropy":0.2959079903948674,"worst":{"dex":[0.6666666666666666,0.3333333333333333,9.333333333333334,4.5],"strategy":[0.6666666666666666,1,1.3333333333333333,2.6666666666666665],"latency":[0.6666666666666666,1.3333333333333333,5.333333333333333,5.666666666666667]},"visits":{"dex":[3,3,3,2],"strategy":[3,3,3,3],"latency":[3,3,3,3]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":9.333333333333334,"l":6},"strategy":{"v":2.6666666666666665,"l":8},"latency":{"v":5.666666666666667,"l":9}}},{"stage":2,"idx":2,"name":"Void ascent","boss":false,"base":0,"baseHp":6.333333333333333,"entropy":0.33228352078096096,"worst":{"dex":[0,0.3333333333333333,0,0],"strategy":[0,0.3333333333333333,0.3333333333333333,0],"latency":[0,0,1.5,1]},"visits":{"dex":[3,3,0,0],"strategy":[3,3,3,2],"latency":[3,3,2,1]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":0.3333333333333333,"l":2},"strategy":{"v":0.3333333333333333,"l":60},"latency":{"v":1.5,"l":6}}},{"stage":2,"idx":3,"name":"Crumble bridge","boss":false,"base":0,"baseHp":0,"entropy":0.27582550829104996,"worst":{"dex":[0,0,0,0],"strategy":[0,0,0,0],"latency":[0,0.6666666666666666,0,0]},"visits":{"dex":[3,3,0,0],"strategy":[3,3,3,2],"latency":[3,3,2,1]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":0,"l":0},"strategy":{"v":0,"l":200},"latency":{"v":0.6666666666666666,"l":3}}},{"stage":2,"idx":4,"name":"Turret + shielders","boss":false,"base":0.3333333333333333,"baseHp":4,"entropy":0.10787772917864766,"worst":{"dex":[0.3333333333333333,0,0,0],"strategy":[0.3333333333333333,0.3333333333333333,0,0],"latency":[0.3333333333333333,0,0,0]},"visits":{"dex":[3,3,0,0],"strategy":[3,3,3,2],"latency":[3,3,2,1]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":0.3333333333333333,"l":0},"strategy":{"v":0.3333333333333333,"l":200},"latency":{"v":0.3333333333333333,"l":0}}},{"stage":2,"idx":5,"name":"Run-up","boss":false,"base":0,"baseHp":1.6666666666666667,"entropy":0.10918326677931364,"worst":{"dex":[0,0,0,0],"strategy":[0,0,0,0],"latency":[0,0,0,1]},"visits":{"dex":[3,3,0,0],"strategy":[3,3,3,2],"latency":[3,3,2,1]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":0,"l":0},"strategy":{"v":0,"l":200},"latency":{"v":1,"l":9}}},{"stage":2,"idx":6,"name":"Vanguard Prime","boss":true,"base":0.3333333333333333,"baseHp":11.666666666666666,"entropy":0.26338182769478974,"worst":{"dex":[0.3333333333333333,1.6666666666666667,0,0],"strategy":[0.3333333333333333,0,0,0.5],"latency":[0.3333333333333333,0.6666666666666666,0,1]},"visits":{"dex":[3,3,0,0],"strategy":[3,3,3,2],"latency":[3,3,2,1]},"levels":{"dex":[0,2,6,10],"strategy":[200,60,20,8],"latency":[0,3,6,9]},"peak":{"dex":{"v":1.6666666666666667,"l":2},"strategy":{"v":0.5,"l":8},"latency":{"v":1,"l":9}}}],"clears":{"dex":{"0":[3,3,3],"2":[3,3,3],"6":[3,3,0],"10":[0,0,0]},"strategy":{"8":[3,3,2],"20":[3,3,3],"60":[3,3,3]},"latency":{"3":[3,2,3],"6":[2,2,2],"9":[2,0,1]}},"AXES":{"dex":{"param":"dexSigma","levels":[0,2,6,10],"label":"Dexterity","blurb":"forced action repetition (gaussian &sigma;, in frames)"},"strategy":{"param":"searchNodes","levels":[200,60,20,8],"label":"Strategy","blurb":"search allowed per decision (node budget)"},"latency":{"param":"latency","levels":[0,3,6,9],"label":"Reaction","blurb":"observation delay (frames at 60Hz)"}},"STAGE_NAMES":["Skyfall Ridge","Magma Foundry","Void Citadel"]};
 const AX = ['dex', 'strategy', 'latency'];
 const COL = { dex: 'var(--s-dex)', strategy: 'var(--s-strategy)', latency: 'var(--s-latency)' };
 const R = DATA.rows;
@@ -539,9 +432,3 @@ document.getElementById('foot').innerHTML =
   'Dexterity and strategy follow Isaksen et al.&rsquo;s model as used in Talakat; reaction covers ' +
   'the half of their dexterity concept that action repetition alone does not reach.</p>';
 </script>
-`;
-
-fs.mkdirSync(path.dirname(out), { recursive: true });
-fs.writeFileSync(out, html);
-console.log('wrote ' + out + '  (' + rows.length + ' sections, axes: ' +
-  Object.keys(axes).join(', ') + ')');
