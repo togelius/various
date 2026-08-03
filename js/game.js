@@ -432,7 +432,7 @@
         }
       } else if (p && !p.dead) {
         if (VZ.aabb(pb, p.box())) {
-          p.takeHit(pr.damage, pr.x);
+          p.takeHit(pr.damage, pr.x, false, 'shot');
           pr.burst();
         }
       }
@@ -444,7 +444,7 @@
       var e = targets[i];
       if (e.dead || e.contactDamage <= 0) continue;
       if (e.isBoss && (e.state === 'intro' || e.dying)) continue;
-      if (VZ.aabb(pbox, e.box())) p.takeHit(e.contactDamage, e.x);
+      if (VZ.aabb(pbox, e.box())) p.takeHit(e.contactDamage, e.x, false, e.isBoss ? 'boss' : 'contact');
     }
   };
 

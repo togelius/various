@@ -166,6 +166,17 @@ async function main() {
   console.log('  net hp/run       ' + ((dropHp - totalDamage) / trials).toFixed(1) +
     ' hp   (damage minus what fighting paid back)');
 
+  /* Where the damage came from. Everything but `spike` is something that could
+   * have been shot first, which is the upper bound on what engaging can save. */
+  const bySrc = {};
+  runs.forEach(r => r.damage.forEach(d => {
+    bySrc[d.src || 'other'] = (bySrc[d.src || 'other'] || 0) + d.amount;
+  }));
+  const srcTotal = Object.values(bySrc).reduce((a, b) => a + b, 0) || 1;
+  console.log('  damage by source ' + Object.entries(bySrc)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => k + ' ' + (100 * v / srcTotal).toFixed(0) + '%').join('  '));
+
   // per-section table
   const maxDeaths = Math.max(1, ...Object.values(deaths).map(d => d.n));
   for (let st = 0; st < 3; st++) {

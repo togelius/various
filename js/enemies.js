@@ -541,7 +541,7 @@
     var p = this.player();
     if (p && this.firing && this.flameH > 8) {
       var box = { x: this.x - 6, y: this.y - this.flameH, w: 12, h: this.flameH };
-      if (VZ.aabb(box, p.box())) p.takeHit(3, this.x);
+      if (VZ.aabb(box, p.box())) p.takeHit(3, this.x, false, 'flame');
     }
   };
 

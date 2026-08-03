@@ -351,7 +351,7 @@
     var p = this.game.player;
     if (!p || p.dead) return;
     var box = { x: this.x - 5, y: this.y + 10, w: 10, h: this.game.arena.y1 - this.y };
-    if (VZ.aabb(box, p.box())) p.takeHit(3, this.x);
+    if (VZ.aabb(box, p.box())) p.takeHit(3, this.x, false, 'boss');
     if (this.anim % 2 === 0) {
       FX.spawn({ x: this.x + VZ.rand.range(-4, 4), y: this.y + VZ.rand.range(14, box.h),
         vx: 0, vy: 1.4, g: 0, drag: 1, life: 10, size: 2, color: '#ffe9a0', glow: true });

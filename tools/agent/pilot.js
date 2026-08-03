@@ -126,7 +126,7 @@
         self.tele.damage.push({
           stage: self.g.stageIndex, x: Math.round(this.x), y: Math.round(this.y),
           amount: before - this.hp, boss: !!(self.g.boss && !self.g.boss.dying),
-          section: self.section(this.x)
+          src: this.lastHitSrc || 'other', section: self.section(this.x)
         });
       }
     };

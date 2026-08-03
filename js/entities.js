@@ -417,7 +417,7 @@
 
     // ------------------------------------------------------- hazards
     var hz = this.lv.rectHazard(this.left() + 1, this.top() + 2, this.w - 2, this.h - 4);
-    if (hz === 'spike') this.takeHit(4, this.x - this.facing * 8, true);
+    if (hz === 'spike') this.takeHit(4, this.x - this.facing * 8, true, 'spike');
     else if (hz === 'liquid') this.kill('liquid');
     if (this.top() > this.lv.pixelH + 24) this.kill('pit');
 
@@ -557,8 +557,12 @@
   };
 
   // ------------------------------------------------------------- damage
-  Player.prototype.takeHit = function (amount, srcX, force) {
+  /* `src` is telemetry only - it names what hit you ('spike', 'contact',
+   * 'shot', 'flame', 'boss') so the difficulty report can say how much of a
+   * section's damage came from something you could have shot. */
+  Player.prototype.takeHit = function (amount, srcX, force, src) {
     if (this.invuln > 0 || this.dead || this.game.playerControl === false) return;
+    this.lastHitSrc = src || 'other';
     if (this.dashTime > 0 && !force) { /* dashing does not grant i-frames */ }
     var ds = VZ.DAMAGE_SCALE;
     var scale = ds[Math.min(ds.length - 1, this.game.stageIndex || 0)];
