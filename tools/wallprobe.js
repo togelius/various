@@ -14,7 +14,7 @@
  *   neutral - no direction at all, just jump whenever the wall is there
  *   hold    - hold one direction for the whole climb
  *
- *   node tools/wallprobe.js [--stage=N]
+ *   node tools/wallprobe.js [--stage=N] [--trace]
  */
 const { chromium } = require('playwright');
 const path = require('path');
@@ -102,6 +102,8 @@ function arg(n, d) {
 
 async function main() {
   const stage = parseInt(arg('stage', '0'), 10);
+  // Height above the start and the wall being held, sampled every 10 frames.
+  const showTrace = process.argv.includes('--trace');
   const browser = await chromium.launch({
     executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
     args: ['--no-sandbox', '--disable-gpu', '--autoplay-policy=no-user-gesture-required']
@@ -119,8 +121,8 @@ async function main() {
     if (r.error) { console.log('  ' + r.error); break; }
     console.log('  ' + style.padEnd(8) + String(r.climbed).padStart(4) + ' of ' +
       String(r.shaftPx).padStart(4) + ' px (' + r.wide + ' tiles wide)' +
-      ('  ' + r.kicks + ' kicks').padStart(12) + '  ' + r.trace.slice(0, 14).join(' ') +
-      (r.dead ? '   (died)' : ''));
+      ('  ' + r.kicks + ' kicks').padStart(12) + (r.dead ? '   (died)' : '') +
+      (showTrace ? '\n           ' + r.trace.join(' ') : ''));
   }
   if (errors.length) console.log('errors: ' + [...new Set(errors)].join(' | '));
   await browser.close();
