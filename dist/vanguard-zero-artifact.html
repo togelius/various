@@ -1,20 +1,16 @@
-<title>Vanguard Zero — agent playing</title>
+<title>Vanguard Zero</title>
 <style>
-  /* This is not the arcade room. It is the bench the cabinet was wheeled into:
-     a monitor, a probe on the decision loop, and a trace. Committed to one
-     dark theme on purpose - the readout and the game screen are the same
-     surface, and a light ground would put a hole in the middle of the page.
-     Every colour is sampled from the game's own sprite palette. */
+  /* A dark arcade room. Deliberately single-theme: the game inside the bezel
+     is a committed 16-bit world, and putting it on a white page would fight it.
+     Every colour here is sampled from the game's own sprite palette. */
   :root {
-    --ground:   #070a10;
-    --panel:    #0d1220;
-    --panel-2:  #111829;
-    --rule:     #1c2740;
-    --live:     #5fe6d8;   /* the agent's own cyan: whatever it is doing now */
-    --plan:     #ffd24a;   /* gold: frames already committed to */
-    --alarm:    #ff5a6e;   /* crimson, from Vanguard Prime: damage and stalls */
-    --ink:      #93a8c9;
-    --ink-dim:  #56678a;
+    --room:     #06070d;
+    --cabinet:  #12142e;
+    --rail:     #2a3348;
+    --cyan:     #5fe6d8;
+    --gold:     #ffd24a;
+    --ink:      #9fb6dd;
+    --ink-dim:  #5f6f92;
     --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
     color-scheme: dark;
   }
@@ -24,69 +20,90 @@
   body {
     margin: 0;
     min-height: 100vh;
-    background:
-      radial-gradient(ellipse 60% 45% at 32% 30%, #131c33 0%, rgba(7,10,16,0) 70%),
-      linear-gradient(#080b12, #05070c);
+    background: var(--room);
+    /* light spill from the screen onto the back wall */
+    background-image:
+      radial-gradient(ellipse 70% 55% at 50% 38%, #17203c 0%, rgba(6,7,13,0) 72%),
+      linear-gradient(#07080f, #040509);
     color: var(--ink);
     font-family: var(--mono);
-    font-size: 13px;
-    line-height: 1.5;
     overflow-x: hidden;
+    overscroll-behavior: none;
   }
 
-  .bench {
-    max-width: 1180px;
-    margin: 0 auto;
-    padding: 20px 16px 34px;
+  .room {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    align-items: center;
+    gap: 18px;
+    padding: 22px 16px 30px;
+    min-height: 100vh;
+    justify-content: center;
   }
 
-  /* ------------------------------------------------------------- heading */
-  /* align-items matters here: a canvas is a replaced element and a stretching
-     flex column will happily blow it up to the full width of the page. */
-  header { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+  /* ---------------------------------------------------------- marquee */
+  .marquee {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+    text-align: center;
+  }
   #wordmark {
-    /* No CSS size: the canvas is built at an exact multiple of the game's 5x7
-       glyph grid, and any resize off that multiple turns a bitmap font into
-       mush. Let it sit at its intrinsic size and scale only by whole pixels. */
     display: block;
     image-rendering: pixelated;
+    height: 34px;
+    width: auto;
+    filter: drop-shadow(0 0 14px rgba(95, 230, 216, 0.28));
   }
-  .strap {
+  .tagline {
     margin: 0;
+    max-width: 76ch;
+    font-size: 12px;
+    line-height: 1.7;
     color: var(--ink-dim);
-    max-width: 78ch;
-    text-wrap: pretty;
+    letter-spacing: 0.2px;
   }
-  .strap b { color: var(--ink); font-weight: 400; }
+  .tagline em { color: var(--ink); font-style: normal; }
 
-  /* --------------------------------------------------------------- layout */
-  .rig {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 268px;
-    gap: 14px;
-    align-items: start;
-  }
-
-  .monitor {
+  /* ---------------------------------------------------------- cabinet */
+  .cabinet {
     position: relative;
-    background: #04060c;
-    border: 1px solid var(--rule);
-    border-radius: 3px;
-    padding: 8px;
+    padding: 9px;
+    border-radius: 5px;
+    background: linear-gradient(#1b2140, #0a0d1c);
+    box-shadow:
+      inset 0 0 0 1px var(--rail),
+      0 0 0 1px #05060c,
+      0 24px 60px rgba(0, 0, 0, 0.8),
+      0 0 110px rgba(58, 99, 200, 0.14);
+    line-height: 0;
+    cursor: pointer;
   }
-  .monitor::after {
+  .cabinet:focus-visible {
+    outline: none;
+    box-shadow:
+      inset 0 0 0 1px rgba(95, 230, 216, 0.55),
+      0 0 0 1px #05060c,
+      0 24px 60px rgba(0, 0, 0, 0.8),
+      0 0 110px rgba(58, 99, 200, 0.2);
+  }
+  /* phosphor bloom hugging the glass */
+  .cabinet::after {
     content: "";
     position: absolute;
-    inset: 8px;
+    inset: 9px;
     pointer-events: none;
-    box-shadow: inset 0 0 26px rgba(4, 6, 12, 0.9);
+    box-shadow: inset 0 0 22px rgba(6, 7, 13, 0.85);
+    border-radius: 2px;
   }
+
   #stage {
-    width: 100%;
+    /* The canvas fits itself to this box. Holding it at the game's exact
+       aspect means the snapped scale lands tight instead of letterboxing. */
+    width: min(90vw, 960px);
     aspect-ratio: 384 / 216;
+    max-height: 60vh;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -95,235 +112,191 @@
     display: block;
     image-rendering: pixelated;
     background: #000;
+    border-radius: 2px;
   }
 
-  /* the live tag sits on the bezel, not over the picture */
-  .tag {
+  /* click-to-focus veil: also the honest fix for keyboard focus in an embed */
+  #veil {
     position: absolute;
-    top: 14px; left: 14px;
-    z-index: 2;
+    inset: 9px;
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 2px 7px;
-    background: rgba(4, 6, 12, 0.72);
-    border: 1px solid rgba(95, 230, 216, 0.32);
-    color: var(--live);
-    font-size: 10px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    justify-content: center;
+    background: rgba(4, 6, 14, 0.82);
+    backdrop-filter: blur(1px);
+    border-radius: 2px;
+    z-index: 3;
+    transition: opacity 0.28s ease;
   }
-  .dot {
-    width: 6px; height: 6px;
-    background: var(--live);
-    border-radius: 50%;
-    animation: pulse 1.6s ease-in-out infinite;
+  #veil span {
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: var(--cyan);
+    text-shadow: 0 0 12px rgba(95, 230, 216, 0.5);
+    animation: pulse 1.5s ease-in-out infinite;
   }
-  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
-  @media (prefers-reduced-motion: reduce) { .dot { animation: none; } }
-
-  /* ----------------------------------------------------------- telemetry */
-  .rail { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-
-  .card {
-    background: var(--panel);
-    border: 1px solid var(--rule);
-    border-radius: 3px;
-    padding: 10px 11px;
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-    min-width: 0;
-  }
-  .card h2 {
-    margin: 0;
-    font-size: 10px;
-    font-weight: 400;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: var(--ink-dim);
+  #veil.gone { opacity: 0; pointer-events: none; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.42; } }
+  @media (prefers-reduced-motion: reduce) {
+    #veil span { animation: none; }
   }
 
-  .decision {
-    color: var(--live);
-    font-size: 15px;
-    line-height: 1.25;
-    text-wrap: balance;
-    min-height: 2.5em;
-  }
-
-  /* commitment: gold cells for frames of plan still queued */
-  .commit { display: flex; gap: 2px; height: 7px; }
-  .commit i {
-    flex: 1;
-    background: var(--panel-2);
-    border-radius: 1px;
-  }
-  .commit i.on { background: var(--plan); }
-
-  dl {
-    margin: 0;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 3px 10px;
-    font-variant-numeric: tabular-nums;
-  }
-  dt { color: var(--ink-dim); }
-  dd { margin: 0; text-align: right; color: var(--ink); }
-  dd.hot { color: var(--alarm); }
-
-  #trace { display: block; width: 100%; height: 62px; }
-  .legend {
-    display: flex;
-    gap: 12px;
-    font-size: 10px;
-    color: var(--ink-dim);
-    letter-spacing: 0.06em;
-  }
-  .legend span { display: flex; align-items: center; gap: 5px; }
-  .legend i { width: 9px; height: 2px; border-radius: 1px; }
-
-  /* --------------------------------------------------------- transport */
-  .transport {
+  /* ------------------------------------------------- control legend */
+  /* Laid out like the instruction panel printed on a cabinet: the action,
+     then the key that does it. */
+  .panel {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    align-items: center;
+    justify-content: center;
+    gap: 6px 22px;
+    padding: 11px 18px;
+    border: 1px solid var(--rail);
+    border-radius: 3px;
+    background: rgba(10, 13, 28, 0.6);
+    max-width: 100%;
   }
-  button {
-    font: inherit;
-    font-size: 11px;
-    letter-spacing: 0.1em;
+  .ctl {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .keys { display: flex; gap: 3px; }
+  kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 21px;
+    height: 21px;
+    padding: 0 5px;
+    border-radius: 3px;
+    background: linear-gradient(#232a48, #161b32);
+    border: 1px solid #39426a;
+    border-bottom-width: 2px;
+    border-bottom-color: #0d1122;
+    font: 600 10px/1 var(--mono);
+    color: var(--gold);
+    letter-spacing: 0.5px;
+  }
+  .ctl span {
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    white-space: nowrap;
+  }
+  .ctl b {
+    font-weight: 400;
+    font-size: 10px;
+    letter-spacing: 1.4px;
     text-transform: uppercase;
     color: var(--ink);
-    background: var(--panel);
-    border: 1px solid var(--rule);
-    border-radius: 3px;
-    padding: 6px 12px;
-    cursor: pointer;
+    white-space: nowrap;
   }
-  button:hover { border-color: var(--ink-dim); color: #cfe0f6; }
-  button[aria-pressed="true"] {
-    color: var(--ground);
-    background: var(--live);
-    border-color: var(--live);
-  }
-  button:focus-visible { outline: 2px solid var(--live); outline-offset: 2px; }
-  .transport .spacer { flex: 1; }
-  .transport .note { color: var(--ink-dim); font-size: 11px; }
 
-  /* ------------------------------------------------------------- footer */
-  .notes {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 12px;
-    border-top: 1px solid var(--rule);
-    padding-top: 14px;
-  }
-  .notes section { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .notes h3 {
+  /* Each item stays whole when the line wraps, so a phrase never splits. */
+  .colophon {
     margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 5px 26px;
     font-size: 10px;
-    font-weight: 400;
-    letter-spacing: 0.16em;
+    letter-spacing: 1.1px;
     text-transform: uppercase;
-    color: var(--live);
+    color: #3d4966;
+    max-width: 74ch;
   }
-  .notes p { margin: 0; color: var(--ink-dim); text-wrap: pretty; }
-  .notes b { color: var(--ink); font-weight: 400; }
+  .colophon i { font-style: normal; white-space: nowrap; }
+  .colophon b { color: var(--ink-dim); font-weight: 400; }
 
-  @media (max-width: 820px) {
-    .rig { grid-template-columns: minmax(0, 1fr); }
-    .rail { flex-direction: row; flex-wrap: wrap; }
-    .rail .card { flex: 1 1 240px; }
+  /* --------------------------------------------------------- touch */
+  #touch { display: none; }
+  @media (hover: none) and (pointer: coarse) {
+    .panel, .tagline { display: none; }
+    .room { padding-bottom: 42vh; justify-content: flex-start; }
+    #stage { width: 96vw; max-height: 44vh; }
+    #touch {
+      display: block;
+      position: fixed;
+      inset: auto 0 0 0;
+      height: 40vh;
+      pointer-events: none;
+      z-index: 5;
+    }
+    #touch .pad {
+      position: absolute;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      pointer-events: auto;
+    }
+    #touch .pad.left { left: max(12px, env(safe-area-inset-left)); }
+    #touch .pad.right { right: max(12px, env(safe-area-inset-right)); }
+    #touch button {
+      width: 62px; height: 62px;
+      border-radius: 50%;
+      border: 1px solid rgba(159, 182, 221, 0.35);
+      background: rgba(20, 26, 46, 0.55);
+      color: #cfe0ff;
+      font: 600 12px/1 var(--mono);
+      letter-spacing: 0.5px;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      touch-action: none;
+    }
+    #touch button.small { width: 46px; height: 46px; font-size: 10px; }
+    #touch button.a { background: rgba(58, 99, 200, 0.5); }
+    #touch button.b { background: rgba(208, 90, 88, 0.45); }
+    #touch button.c { background: rgba(95, 230, 216, 0.32); }
+    #touch button.pressed { background: rgba(255, 210, 74, 0.6); color: #12142e; }
   }
 </style>
 
-<div class="bench">
-  <header>
-    <canvas id="wordmark" width="240" height="25" role="img" aria-label="Vanguard Zero"></canvas>
-    <p class="strap">
-      Nobody is holding the controls. The game below is being played by a search
-      agent that forward-simulates its own physics, rolls out about fifty
-      candidate moves every time its plan runs out, and picks the one that ends
-      best. <b>The panel on the right is what it is thinking</b> — the move it
-      chose, how many frames of it are still committed, and whether it is
-      actually getting anywhere.
+<div class="room">
+  <div class="marquee">
+    <canvas id="wordmark" width="240" height="26" role="img" aria-label="Vanguard Zero"></canvas>
+    <p class="tagline">
+      Three stages. Three bosses. Dash, wall-jump, charge your shot.<br>
+      <em>Nothing here was downloaded</em> — every sprite and every note is
+      generated in your browser at load.
     </p>
-  </header>
-
-  <div class="rig">
-    <div class="monitor">
-      <div class="tag"><span class="dot"></span><span id="tagtext">agent playing</span></div>
-      <div id="stage"><canvas id="screen" width="384" height="216"></canvas></div>
-    </div>
-
-    <div class="rail">
-      <div class="card">
-        <h2>Current move</h2>
-        <div class="decision" id="decision">starting up</div>
-        <div class="commit" id="commit"></div>
-        <div class="legend"><span><i style="background:var(--plan)"></i>frames still committed</span></div>
-      </div>
-
-      <div class="card">
-        <h2>Closing on the exit</h2>
-        <canvas id="trace" width="480" height="124"></canvas>
-        <div class="legend">
-          <span><i style="background:var(--live)"></i>rising = getting closer</span>
-          <span><i style="background:var(--alarm)"></i>stalled</span>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>This run</h2>
-        <dl>
-          <dt>stage</dt><dd id="m-stage">—</dd>
-          <dt>section</dt><dd id="m-section">—</dd>
-          <dt>health</dt><dd id="m-hp">—</dd>
-          <dt>lives</dt><dd id="m-lives">—</dd>
-          <dt>deaths</dt><dd id="m-deaths">0</dd>
-          <dt>attempt</dt><dd id="m-runs">1</dd>
-        </dl>
-      </div>
-    </div>
   </div>
 
-  <div class="transport">
-    <button id="speed" aria-pressed="false">speed 1&times;</button>
-    <button id="sound" aria-pressed="false">sound off</button>
-    <button id="restart">restart run</button>
-    <span class="spacer"></span>
-    <span class="note" id="hint">it plays until it dies out, then starts over</span>
+  <div class="cabinet" id="cabinet" tabindex="0">
+    <div id="stage"><canvas id="screen" width="384" height="216"></canvas></div>
+    <div id="veil"><span>CLICK TO PLAY</span></div>
   </div>
 
-  <div class="notes">
-    <section>
-      <h3>How it moves</h3>
-      <p>
-        Navigation is solved, not learned. A backward Dijkstra pass over the
-        level gives every standable tile a <b>cost to go</b>, including the
-        wall-cling states, and the agent simply tries to spend it.
-      </p>
-    </section>
-    <section>
-      <h3>Why the trace matters</h3>
-      <p>
-        A short-horizon planner dithers: when every move is bad, the least bad
-        one is to not move. Watch the line go flat on the lava and in the spike
-        corridor — that is the failure mode. The red bar is how long it has
-        been stuck, and it eventually forces the agent to accept a hit and go.
-      </p>
-    </section>
-    <section>
-      <h3>What it measured</h3>
-      <p>
-        Over 36 full runs it finished the game about a quarter of the time and
-        beat all three bosses <b>57 times out of 60</b>. The hard parts are not
-        the bosses — they are the spike corridor, the lava climb, and stage
-        one's crumbling blocks.
-      </p>
-    </section>
+  <div class="panel">
+    <div class="ctl"><span>Move</span><div class="keys"><kbd>&larr;</kbd><kbd>&rarr;</kbd></div></div>
+    <div class="ctl"><span>Jump</span><div class="keys"><kbd>Z</kbd></div></div>
+    <div class="ctl"><span>Fire</span><div class="keys"><kbd>X</kbd></div><b>hold to charge</b></div>
+    <div class="ctl"><span>Dash</span><div class="keys"><kbd>C</kbd></div></div>
+    <div class="ctl"><span>Weapon</span><div class="keys"><kbd>V</kbd></div></div>
+    <div class="ctl"><span>Pause</span><div class="keys"><kbd>Esc</kbd></div></div>
+  </div>
+
+  <p class="colophon">
+    <i>Wall jump by holding <b>into</b> a wall, then jump</i>
+    <i><b>F</b> fullscreen</i>
+    <i><b>M</b> mute</i>
+    <i>gamepads work</i>
+    <i>sound is on</i>
+  </p>
+</div>
+
+<div id="touch" aria-hidden="true">
+  <div class="pad left">
+    <button data-act="left">&#9664;</button>
+    <button data-act="right">&#9654;</button>
+    <button data-act="down" class="small">&#9660;</button>
+  </div>
+  <div class="pad right">
+    <button data-act="dash" class="c">DASH</button>
+    <button data-act="fire" class="b">FIRE</button>
+    <button data-act="jump" class="a">JUMP</button>
+    <button data-act="weapon" class="small">WPN</button>
   </div>
 </div>
 
@@ -7919,1860 +7892,48 @@
 
 })(typeof window !== 'undefined' ? window : globalThis);
 
-/* ===== tools/agent/sim.js ===== */
-/* VANGUARD ZERO - forward physics model for the play agent.
- *
- * This mirrors Player.update()'s movement half, frame for frame and in the
- * same order. Collision is NOT duplicated: the sim body is an Object.create of
- * the game's own Entity.prototype and queries the live Level, so moveX/moveY/
- * checkGround are literally the game's routines. Only the velocity and state
- * bookkeeping is restated here, and sim-check.js proves it stays in step.
- *
- * Injected into the page; exposes window.AGENT.sim.
- */
-(function (global) {
-  'use strict';
-  var AGENT = global.AGENT || (global.AGENT = {});
-  var VZ = global.VZ;
-  var P = VZ.P, M = VZ.math;
-
-  function approach(v, t, s) {
-    if (v < t) return Math.min(v + s, t);
-    if (v > t) return Math.max(v - s, t);
-    return t;
-  }
-
-  // ------------------------------------------------------------------ state
-  function makeBody(level, x, y) {
-    var b = Object.create(VZ.Entity.prototype);
-    b.lv = level;
-    b.w = P.W; b.h = P.H;
-    b.x = x; b.y = y;
-    return b;
-  }
-
-  function newState(level, x, y) {
-    return {
-      body: makeBody(level, x, y),
-      vx: 0, vy: 0,
-      grounded: true, facing: 1,
-      dashTime: 0, dashCool: 0, airDash: true,
-      coyote: P.COYOTE, ctrlLock: 0,
-      wallStick: 0, wallDir: 0, wallCoyote: 0, lastWall: 0, noCut: 0,
-      sliding: false,
-      jumpBuf: 0, prevJump: false, prevDash: false,
-      dead: null, frames: 0
-    };
-  }
-
-  function cloneState(s) {
-    var n = {
-      body: makeBody(s.body.lv, s.body.x, s.body.y),
-      vx: s.vx, vy: s.vy, grounded: s.grounded, facing: s.facing,
-      dashTime: s.dashTime, dashCool: s.dashCool, airDash: s.airDash,
-      coyote: s.coyote, ctrlLock: s.ctrlLock,
-      wallStick: s.wallStick, wallDir: s.wallDir, wallCoyote: s.wallCoyote,
-      lastWall: s.lastWall, noCut: s.noCut, sliding: s.sliding,
-      jumpBuf: s.jumpBuf, prevJump: s.prevJump, prevDash: s.prevDash,
-      dead: s.dead, frames: s.frames
-    };
-    return n;
-  }
-
-  /* One frame. `inp` = {left,right,jump,dash,down}. Mirrors the game's order:
-   * timers -> dash -> horizontal -> conveyor -> gravity -> walls -> jump ->
-   * jump-cut -> integrate -> ground -> hazards. */
-  function step(s, inp) {
-    var b = s.body, lv = b.lv;
-    inp = inp || {};
-    var jump = !!inp.jump, dash = !!inp.dash;
-    var pressedJump = jump && !s.prevJump;
-    var releasedJump = !jump && s.prevJump;
-    var pressedDash = dash && !s.prevDash;
-    s.prevJump = jump; s.prevDash = dash;
-
-    // input buffer (Input.poll: 8 on press, else decay)
-    if (pressedJump) s.jumpBuf = 8;
-    else if (s.jumpBuf > 0) s.jumpBuf--;
-
-    // --- timers
-    if (s.dashCool > 0) s.dashCool--;
-    if (s.ctrlLock > 0) s.ctrlLock--;
-
-    var axRaw = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-    if (inp.left && inp.right) axRaw = 0;         // opposing cancel
-    var ax = s.ctrlLock <= 0 ? axRaw : 0;
-
-    // --- dash
-    if (s.dashTime > 0) {
-      s.dashTime--;
-      s.vx = s.facing * P.DASH_SPEED;
-      if (!s.grounded && s.dashTime > 6 && !b.checkGround()) {
-        s.dashTime = Math.min(s.dashTime, 6);
-      }
-    }
-    if (pressedDash && s.dashCool <= 0 && s.dashTime <= 0) {
-      if (s.grounded || s.airDash) {
-        if (ax !== 0) s.facing = ax;
-        s.dashTime = P.DASH_TIME;
-        s.dashCool = P.DASH_TIME + P.DASH_COOL;
-        if (!s.grounded) s.airDash = false;
-        s.vy = s.grounded ? s.vy : Math.min(s.vy, 0.5) * 0.2;
-      }
-    }
-
-    // --- horizontal
-    if (s.dashTime <= 0) {
-      if (ax !== 0) {
-        s.vx = approach(s.vx, ax * P.RUN, s.grounded ? P.ACCEL : P.AIR_ACCEL);
-        if (s.ctrlLock <= 0) s.facing = ax;
-      } else {
-        s.vx = approach(s.vx, 0, s.grounded ? P.FRICTION : P.AIR_FRICTION);
-      }
-    }
-
-    // --- conveyor
-    if (s.grounded) {
-      var cv = lv.conveyorAt(b.left(), b.top(), b.w, b.h);
-      if (cv) s.vx += cv * 0.55;
-    }
-
-    // --- gravity
-    if (s.dashTime <= 0 || s.grounded) {
-      var gs = (Math.abs(s.vy) < P.APEX_WINDOW && !s.grounded) ? P.APEX_GRAVITY / P.GRAVITY : 1;
-      if (s.dashTime > 0) gs = 0;
-      s.vy += P.GRAVITY * gs;
-      if (s.vy > P.MAX_FALL) s.vy = P.MAX_FALL;
-    } else s.vy = 0;
-
-    // --- wall contact
-    var touchR = lv.rectSolid(b.right() + 1, b.top() + 3, 1, b.h - 6);
-    var touchL = lv.rectSolid(b.left() - 2, b.top() + 3, 1, b.h - 6);
-    s.wallDir = 0;
-    s.sliding = false;
-    if (!s.grounded && s.dashTime <= 0) {
-      if (touchR && (ax > 0 || s.wallStick > 0)) s.wallDir = 1;
-      else if (touchL && (ax < 0 || s.wallStick > 0)) s.wallDir = -1;
-      if ((touchR && ax > 0) || (touchL && ax < 0)) s.wallStick = 8;
-      else if (s.wallStick > 0) s.wallStick--;
-      if (s.wallDir !== 0 && s.vy > 0) {
-        s.vy = Math.min(s.vy, P.SLIDE_SPEED);
-        s.sliding = true;
-        s.airDash = true;
-      }
-    } else s.wallStick = 0;
-
-    if (s.wallDir !== 0) { s.lastWall = s.wallDir; s.wallCoyote = P.WJ_COYOTE; }
-    else if (s.wallCoyote > 0) s.wallCoyote--;
-    if (s.noCut > 0) s.noCut--;
-
-    // --- jump
-    if (s.grounded) { s.coyote = P.COYOTE; s.airDash = true; }
-    else if (s.coyote > 0) s.coyote--;
-
-    var dropThrough = false;
-    if (s.grounded && inp.down && s.jumpBuf > 0 && onlyPlatformBelow(b)) {
-      s.jumpBuf = 0;
-      dropThrough = true;
-      b.y += 2;
-      s.vy = 1.2;
-      s.grounded = false;
-    } else if (s.jumpBuf > 0) {
-      if (s.coyote > 0 && s.dashTime <= 0) {
-        s.jumpBuf = 0;
-        s.vy = P.JUMP;
-        s.coyote = 0; s.grounded = false;
-      } else if (s.wallDir !== 0 || s.wallCoyote > 0) {
-        var wd = s.wallDir || s.lastWall;
-        s.jumpBuf = 0;
-        s.vy = P.WJ_Y;
-        s.vx = -wd * P.WJ_X;
-        s.facing = -wd;
-        s.wallCoyote = 0;
-        s.noCut = P.WJ_NOCUT;
-        s.ctrlLock = P.WJ_LOCK;
-        s.wallStick = 0;
-        s.airDash = true;
-      }
-    }
-    if (releasedJump && s.vy < P.JUMP_CUT && s.noCut <= 0) s.vy = P.JUMP_CUT;
-
-    // --- integrate
-    var wasGrounded = s.grounded;
-    if (b.moveX(s.vx)) {
-      s.vx = 0;
-      if (s.dashTime > 0 && s.grounded) s.dashTime = 0;
-    }
-    if (b.moveY(s.vy, dropThrough || s.vy < 0)) s.vy = 0;
-    s.grounded = b.checkGround() && s.vy >= 0;
-    s.frames++;
-
-    // --- terminal conditions (the planner treats these as failure)
-    var hz = lv.rectHazard(b.left() + 1, b.top() + 2, b.w - 2, b.h - 4);
-    if (hz === 'liquid') s.dead = 'liquid';
-    else if (hz === 'spike') s.dead = s.dead || 'spike';
-    if (b.top() > lv.pixelH + 24) s.dead = 'pit';
-    return s;
-  }
-
-  function onlyPlatformBelow(b) {
-    var lv = b.lv, T = VZ.TILE;
-    if (lv.rectSolid(b.left() + 1, b.bottom() + 0.5, b.w - 2, 1)) return false;
-    var row = Math.floor((b.bottom() + 0.5) / T);
-    var x0 = Math.floor((b.left() + 1) / T), x1 = Math.floor((b.right() - 1) / T);
-    for (var tx = x0; tx <= x1; tx++) if (lv.at(tx, row) === 2) return true;
-    return false;
-  }
-
-  AGENT.sim = {
-    newState: newState,
-    cloneState: cloneState,
-    step: step,
-    P: P
-  };
-
-})(typeof window !== 'undefined' ? window : globalThis);
-
-/* ===== tools/agent/plan.js ===== */
-/* VANGUARD ZERO - navigation for the play agent.
- *
- * Two layers, deliberately:
- *   1. A cheap approximate distance-to-goal field over standing tiles, built
- *      once per stage. Tile checks only, no physics.
- *   2. An exact short-horizon search at every decision point: simulate each
- *      candidate input program with the frame-exact model and pick whichever
- *      lands closest to the goal.
- *
- * The field only has to be roughly right - it is a heuristic. The search is
- * what actually commits, and it is exact, so a chosen program replays in the
- * real game frame for frame.
- *
- * Exposes window.AGENT.plan.
- */
-(function (global) {
-  'use strict';
-  var AGENT = global.AGENT || (global.AGENT = {});
-  var VZ = global.VZ;
-  var T = VZ.TILE;
-
-  // ===================================================== distance-to-goal field
-  function tileKey(tx, ty) { return ty * 4096 + tx; }
-
-  /* Backward Dijkstra from the goal over a movement graph that includes wall
-   * cling states. This is the same model tools/validate.js uses to prove the
-   * stages are completable, so the field covers everything a player can reach
-   * - including the wall-jump chimneys, which a ground-only model misses. */
-  function buildField(level, goalTx, goalTy) {
-    var W = level.w, H = level.h;
-    var TL = VZ.tiles;
-    var solid = function (x, y) { return level.solidAt(x, y); };
-    var support = function (x, y) { return level.solidAt(x, y) || level.at(x, y) === TL.PLATFORM; };
-    var fatal = function (x, y) { return level.at(x, y) === TL.LIQUID; };
-    var spike = function (x, y) {
-      var id = level.at(x, y);
-      return id === TL.SPIKE_UP || id === TL.SPIKE_DOWN || id === TL.SPIKE_L || id === TL.SPIKE_R;
-    };
-    var canStand = function (x, y) {
-      if (x < 0 || x >= W || y < 1 || y >= H) return false;
-      if (solid(x, y) || solid(x, y - 1)) return false;
-      if (fatal(x, y) || fatal(x, y - 1)) return false;
-      return support(x, y + 1);
-    };
-    var canBe = function (x, y) {
-      if (x < 0 || x >= W || y < 1 || y >= H) return false;
-      return !solid(x, y) && !solid(x, y - 1) && !fatal(x, y) && !fatal(x, y - 1);
-    };
-    var canCling = function (x, y) {
-      return canBe(x, y) && (solid(x - 1, y) || solid(x + 1, y));
-    };
-    var fallTo = function (x, y) {
-      for (var ty = y; ty < H; ty++) {
-        if (!canBe(x, ty)) return -1;
-        if (fatal(x, ty + 1)) return -1;
-        if (support(x, ty + 1)) return ty;
-      }
-      return -1;
-    };
-    var clearRun = function (x0, x1, y) {
-      var d = x1 >= x0 ? 1 : -1;
-      for (var x = x0; x !== x1 + d; x += d) if (!canBe(x, y)) return false;
-      return true;
-    };
-
-    var JUMP_UP = 3, JUMP_RUN = 4, DASH_RUN = 6, WALL_UP = 3;
-
-    // node ids: mode 0 = standing, mode 1 = clinging
-    var ids = {}, nodes = [];
-    var nid = function (x, y, m) {
-      var k = (m * 4096 + x) * 4096 + y;
-      var v = ids[k];
-      if (v === undefined) { v = nodes.length; ids[k] = v; nodes.push([x, y, m]); }
-      return v;
-    };
-    var edges = [];   // [from, to, cost]
-    var cost = function (x0, y0, x1, y1) {
-      return 5 + Math.abs(x1 - x0) * 7 + Math.abs(y1 - y0) * 5;
-    };
-    var link = function (ax, ay, am, bx, by, bm) {
-      edges.push([nid(ax, ay, am), nid(bx, by, bm), cost(ax, ay, bx, by)]);
-    };
-
-    var x, y;
-    for (y = 1; y < H; y++) {
-      for (x = 0; x < W; x++) {
-        if (!canStand(x, y)) continue;
-        // walk / step
-        for (var dxs = -1; dxs <= 1; dxs += 2) {
-          for (var dys = -1; dys <= 1; dys++) {
-            if (canBe(x + dxs, y) && canStand(x + dxs, y + dys)) link(x, y, 0, x + dxs, y + dys, 0);
-          }
-        }
-        // step off and fall, with drift
-        for (var d1 = -DASH_RUN; d1 <= DASH_RUN; d1++) {
-          if (!d1 || !clearRun(x, x + d1, y)) continue;
-          var l1 = fallTo(x + d1, y);
-          if (l1 >= 0 && canStand(x + d1, l1)) link(x, y, 0, x + d1, l1, 0);
-        }
-        // jump
-        for (var up = 1; up <= JUMP_UP; up++) {
-          if (!canBe(x, y - up)) break;
-          var reach = up <= 2 ? DASH_RUN : JUMP_RUN;
-          for (var dx2 = -reach; dx2 <= reach; dx2++) {
-            var nx = x + dx2, ny = y - up;
-            if (!clearRun(x, nx, ny)) continue;
-            if (canStand(nx, ny)) link(x, y, 0, nx, ny, 0);
-            var l2 = fallTo(nx, ny);
-            if (l2 >= 0 && canStand(nx, l2)) link(x, y, 0, nx, l2, 0);
-            if (canCling(nx, ny)) link(x, y, 0, nx, ny, 1);
-          }
-          if (canCling(x, y - up)) link(x, y, 0, x, y - up, 1);
-        }
-      }
-    }
-    // cling nodes: kick off and up, or let go
-    var seedCount = nodes.length;
-    for (var i = 0; i < seedCount; i++) {
-      if (nodes[i][2] !== 1) continue;
-      x = nodes[i][0]; y = nodes[i][1];
-      for (var up2 = 1; up2 <= WALL_UP; up2++) {
-        for (var dx3 = -JUMP_RUN; dx3 <= JUMP_RUN; dx3++) {
-          var mx = x + dx3, my = y - up2;
-          if (!canBe(mx, my) || !clearRun(x, mx, my)) continue;
-          if (canCling(mx, my)) link(x, y, 1, mx, my, 1);
-          if (canStand(mx, my)) link(x, y, 1, mx, my, 0);
-          var l3 = fallTo(mx, my);
-          if (l3 >= 0 && canStand(mx, l3)) link(x, y, 1, mx, l3, 0);
-        }
-      }
-      var l4 = fallTo(x, y);
-      if (l4 >= 0 && canStand(x, l4)) link(x, y, 1, x, l4, 0);
-    }
-    // Cling nodes created after their own expansion pass still need outgoing
-    // edges, so sweep until the node list stops growing.
-    var guard = 0;
-    while (nodes.length > seedCount && guard++ < 12) {
-      var from = seedCount; seedCount = nodes.length;
-      for (var j = from; j < nodes.length; j++) {
-        if (nodes[j][2] !== 1) continue;
-        x = nodes[j][0]; y = nodes[j][1];
-        for (var u3 = 1; u3 <= WALL_UP; u3++) {
-          for (var d4 = -JUMP_RUN; d4 <= JUMP_RUN; d4++) {
-            var ax2 = x + d4, ay2 = y - u3;
-            if (!canBe(ax2, ay2) || !clearRun(x, ax2, ay2)) continue;
-            if (canCling(ax2, ay2)) link(x, y, 1, ax2, ay2, 1);
-            if (canStand(ax2, ay2)) link(x, y, 1, ax2, ay2, 0);
-            var l5 = fallTo(ax2, ay2);
-            if (l5 >= 0 && canStand(ax2, l5)) link(x, y, 1, ax2, l5, 0);
-          }
-        }
-        var l6 = fallTo(x, y);
-        if (l6 >= 0 && canStand(x, l6)) link(x, y, 1, x, l6, 0);
-      }
-    }
-
-    // reverse adjacency
-    var rev = nodes.map(function () { return []; });
-    for (var e = 0; e < edges.length; e++) rev[edges[e][1]].push([edges[e][0], edges[e][2]]);
-
-    /* What it costs to *be* at a node, as opposed to to move between two.
-     * A standing body occupies rows y and y-1, so that is where a spike hurts.
-     * This has to be part of the shortest path, not a decoration added to the
-     * answer afterwards: added afterwards, the field still routes straight
-     * through a spike bed and the only signal the agent gets is "do not stand
-     * exactly here" - so clearing five tiles of spikes in one dash-jump looks
-     * barely better than shuffling along the edge of them, and the agent
-     * shuffles until it dies. Folded into the relaxation, the whole approach
-     * to the bed inherits the cost and jumping it is worth a fortune. */
-    var SPIKE_COST = 4000;
-    var nodeCost = new Float64Array(nodes.length);
-    for (i = 0; i < nodes.length; i++) {
-      if (spike(nodes[i][0], nodes[i][1]) || spike(nodes[i][0], nodes[i][1] - 1)) {
-        nodeCost[i] = SPIKE_COST;
-      }
-    }
-
-    // goal = nearest standing node
-    var gi = -1, best = 1e9;
-    for (i = 0; i < nodes.length; i++) {
-      if (nodes[i][2] !== 0) continue;
-      var dg = Math.abs(nodes[i][0] - goalTx) * 2 + Math.abs(nodes[i][1] - goalTy);
-      if (dg < best) { best = dg; gi = i; }
-    }
-    if (gi < 0) return null;
-
-    // Dijkstra with a binary heap (node counts get into the thousands here)
-    var INF = 1e15;
-    var dist = new Float64Array(nodes.length);
-    for (i = 0; i < nodes.length; i++) dist[i] = INF;
-    dist[gi] = 0;
-    var heap = [[0, gi]];
-    var pop = function () {
-      var top = heap[0], last = heap.pop();
-      if (heap.length) {
-        heap[0] = last;
-        var k = 0;
-        for (;;) {
-          var l = k * 2 + 1, r = l + 1, m = k;
-          if (l < heap.length && heap[l][0] < heap[m][0]) m = l;
-          if (r < heap.length && heap[r][0] < heap[m][0]) m = r;
-          if (m === k) break;
-          var t = heap[k]; heap[k] = heap[m]; heap[m] = t; k = m;
-        }
-      }
-      return top;
-    };
-    var push = function (d, n) {
-      heap.push([d, n]);
-      var k = heap.length - 1;
-      while (k > 0) {
-        var par = (k - 1) >> 1;
-        if (heap[par][0] <= heap[k][0]) break;
-        var t = heap[k]; heap[k] = heap[par]; heap[par] = t; k = par;
-      }
-    };
-    while (heap.length) {
-      var top = pop();
-      var u = top[1];
-      if (top[0] > dist[u]) continue;
-      var list = rev[u];
-      for (var q = 0; q < list.length; q++) {
-        var v = list[q][0], w = list[q][1];
-        var nd = dist[u] + w + nodeCost[v];
-        if (nd < dist[v]) { dist[v] = nd; push(nd, v); }
-      }
-    }
-
-    var map = {};
-    for (i = 0; i < nodes.length; i++) {
-      if (nodes[i][2] !== 0 || dist[i] >= INF) continue;
-      var d = dist[i];
-      var kk = tileKey(nodes[i][0], nodes[i][1]);
-      if (map[kk] === undefined || d < map[kk]) map[kk] = d;
-    }
-    return { map: map, nodes: nodes, goal: nodes[gi], reached: Object.keys(map).length };
-  }
-
-  // Field lookup for an arbitrary pixel position: falls back to a nearby tile.
-  function distAt(field, px, py) {
-    var tx = Math.floor(px / T), ty = Math.floor((py + VZ.P.H / 2 - 1) / T);
-    var m = field.map;
-    for (var dy = 0; dy <= 3; dy++) {
-      var v = m[tileKey(tx, ty + dy)];
-      if (v !== undefined) return v;
-    }
-    for (var dx = -1; dx <= 1; dx += 2) {
-      var v2 = m[tileKey(tx + dx, ty)];
-      if (v2 !== undefined) return v2 + 10;
-    }
-    return null;
-  }
-
-  // ================================================================ primitives
-  /* Each primitive is a function (frame, state) -> input object, plus a stop
-   * rule. They are all self-contained from a near-standstill, so the executor
-   * can start one at any grounded moment. */
-  function mkJump(dir, hold, dashAt, runup) {
-    return {
-      name: 'jmp' + (dir > 0 ? 'R' : 'L') + hold + (dashAt >= 0 ? 'd' + dashAt : '') + 'r' + runup,
-      fn: function (f) {
-        var inp = {};
-        if (dir) inp[dir > 0 ? 'right' : 'left'] = true;
-        if (f >= runup && f < runup + hold) inp.jump = true;
-        if (dashAt >= 0 && f === runup + dashAt) inp.dash = true;
-        return inp;
-      },
-      maxFrames: 110
-    };
-  }
-  /* Dash along the ground first, jump once the speed is there.
-   *
-   * mkJump's `dashAt` is measured from the jump, so it can only produce a
-   * dash *at* or *after* take-off - it never builds ground speed first. That
-   * left the whole "run up and dash-jump it" idea outside the search space,
-   * and the five-tile spike beds in the Void Citadel need exactly that: from
-   * a standstill nothing clears them, with a dash already at full speed the
-   * jump lands four tiles clear. */
-  function mkDashJump(dir, hold, delay) {
-    return {
-      name: 'djmp' + (dir > 0 ? 'R' : 'L') + hold + 'w' + delay,
-      fn: function (f) {
-        var inp = {};
-        inp[dir > 0 ? 'right' : 'left'] = true;
-        if (f === 0) inp.dash = true;
-        if (f >= delay && f < delay + hold) inp.jump = true;
-        return inp;
-      },
-      maxFrames: 110
-    };
-  }
-  function mkRun(dir, frames) {
-    return {
-      groundMove: true, runFrames: frames,
-      name: 'run' + (dir > 0 ? 'R' : 'L') + frames,
-      fn: function (f) {
-        var inp = {};
-        if (f < frames) inp[dir > 0 ? 'right' : 'left'] = true;
-        return inp;
-      },
-      maxFrames: frames + 40
-    };
-  }
-  function mkDashRun(dir) {
-    return {
-      groundMove: true, runFrames: 22,
-      name: 'dash' + (dir > 0 ? 'R' : 'L'),
-      fn: function (f) {
-        var inp = {};
-        inp[dir > 0 ? 'right' : 'left'] = true;
-        if (f === 0) inp.dash = true;
-        return inp;
-      },
-      maxFrames: 40
-    };
-  }
-  function mkDrop(dir) {
-    return {
-      name: 'drop' + (dir > 0 ? 'R' : dir < 0 ? 'L' : ''),
-      fn: function (f) {
-        var inp = { down: f < 3 };
-        if (f < 3) inp.jump = true;
-        if (dir) inp[dir > 0 ? 'right' : 'left'] = true;
-        return inp;
-      },
-      maxFrames: 70
-    };
-  }
-  // Reactive wall climb: kick off whenever we start sliding, steer back after
-  // the control lock, alternate. `exitDir` biases which way we leave the shaft.
-  function mkClimb(exitDir) {
-    return {
-      name: 'climb' + (exitDir > 0 ? 'R' : 'L'),
-      fn: function (f, s) {
-        var inp = {};
-        if (s.grounded && f < 4) {
-          inp[exitDir > 0 ? 'right' : 'left'] = true;
-          inp.jump = true;
-          return inp;
-        }
-        if (s.sliding) {
-          inp.jump = true;
-          inp[s.wallDir > 0 ? 'left' : 'right'] = true;
-          s._kick = -s.wallDir;
-          s._kickT = 0;
-          return inp;
-        }
-        if (s._kick) {
-          s._kickT = (s._kickT || 0) + 1;
-          inp[s._kick > 0 ? 'right' : 'left'] = true;
-          if (s._kickT < 6) inp.jump = true;
-          if (s._kickT > 40) s._kick = 0;
-          return inp;
-        }
-        inp[exitDir > 0 ? 'right' : 'left'] = true;
-        if (!s.grounded && f % 12 < 3) inp.jump = true;
-        return inp;
-      },
-      maxFrames: 200
-    };
-  }
-
-  var PRIMS = [];
-  [1, -1].forEach(function (dir) {
-    [4, 9, 14, 22].forEach(function (hold) {
-      [0, 8].forEach(function (runup) {
-        PRIMS.push(mkJump(dir, hold, -1, runup));
-      });
-      PRIMS.push(mkJump(dir, hold, 0, 6));    // dash then jump
-      PRIMS.push(mkJump(dir, hold, 4, 0));    // jump then air-dash
-    });
-    [9, 22].forEach(function (hold) {
-      [8, 16].forEach(function (delay) { PRIMS.push(mkDashJump(dir, hold, delay)); });
-    });
-    PRIMS.push(mkRun(dir, 10));
-    PRIMS.push(mkRun(dir, 26));
-    PRIMS.push(mkDashRun(dir));
-    PRIMS.push(mkDrop(dir));
-    PRIMS.push(mkClimb(dir));
-  });
-  PRIMS.push({ groundMove: true, runFrames: 8, name: 'wait',
-               fn: function () { return {}; }, maxFrames: 10 });
-
-  // ============================================================ local search
-  /* Simulate one primitive from `state`, stopping when it settles. Returns the
-   * end state plus what it cost. */
-  /* Simulate one primitive until the move has *resolved*, and return the end
-   * state. Resolution is a property of the state, not the input: an airborne
-   * move ends when it lands, a ground move ends when its run finishes. Testing
-   * the input instead means a program that holds a direction never terminates
-   * and every candidate is scored mid-flight, which is useless. */
-  function rollout(sim, state, prim, stopAfter) {
-    var s = sim.cloneState(state);
-    s._kick = 0; s._kickT = 0;
-    var maxF = Math.min(prim.maxFrames, stopAfter || prim.maxFrames);
-    var inputs = [];
-    var traj = [];
-    var spikeHits = 0, wasHazard = false;
-    var leftGround = !s.grounded;
-    var settleFor = 0;
-    for (var f = 0; f < maxF; f++) {
-      var inp = prim.fn(f, s) || {};
-      inputs.push(inp);
-      // Record the position the input is applied AT, not the one it produces,
-      // so the executor can compare like with like when checking whether the
-      // plan is still valid.
-      traj.push(s.body.x, s.body.y);
-      sim.step(s, inp);
-
-      if (s.dead === 'liquid' || s.dead === 'pit') {
-        return { s: s, inputs: inputs, traj: traj, dead: s.dead };
-      }
-      if (s.dead === 'spike') {
-        if (!wasHazard) spikeHits++;
-        wasHazard = true;
-        s.dead = null;                 // spikes hurt; they do not end the run
-      } else wasHazard = false;
-
-      if (!s.grounded) { leftGround = true; settleFor = 0; continue; }
-
-      if (prim.groundMove) {
-        // a run or dash: finished once its programmed frames are done and it
-        // has stopped sliding
-        if (f >= prim.runFrames && Math.abs(s.vx) < 0.35) break;
-      } else if (leftGround) {
-        // an airborne move: finished a couple of frames after touching down,
-        // so the landing frame's velocity has resolved
-        if (++settleFor >= 2) break;
-      } else if (f > 24) {
-        // never actually left the ground (a jump that hit a ceiling, say)
-        break;
-      }
-    }
-    return { s: s, inputs: inputs, traj: traj, dead: null, spikeHits: spikeHits };
-  }
-
-  AGENT.plan = {
-    buildField: buildField,
-    distAt: distAt,
-    tileKey: tileKey,
-    PRIMS: PRIMS,
-    rollout: rollout
-  };
-
-})(typeof window !== 'undefined' ? window : globalThis);
-
-/* ===== tools/agent/world.js ===== */
-/* VANGUARD ZERO - forward model of everything that is not the player.
- *
- * The player sim (sim.js) borrows the game's collision; this borrows the
- * game's *behaviour*. Enemies, bosses and projectiles are cloned into a
- * sandbox and advanced with their own real update() methods, in the order the
- * game runs them, so a turret's cadence, a hopper's arc, a flame vent's cycle
- * and a boss's attack script are all exactly right rather than linearly
- * extrapolated.
- *
- * Three things have to be contained for that to be safe:
- *
- *   - Particles and sound. Enemy code calls FX.* and VZ.audio.sfx directly, so
- *     speculation would spray the screen and the speakers. Both are silenced
- *     for the duration. FX is aliased into the game modules by reference at
- *     load, so the methods are swapped on the object rather than the object
- *     being replaced.
- *   - The random stream. Attack selection draws from VZ.rand, and a planner
- *     that draws from the live generator changes the future it is trying to
- *     predict. The state is saved and restored around every projection.
- *   - The game itself. Enemies reach for this.game.projectiles, .arena, .hud
- *     and a handful of callbacks; they get a stand-in that owns its own
- *     projectile list and does nothing on the callbacks.
- *
- * What comes out is a timeline: for each of the next N frames, the exact
- * hitboxes that could hurt the player, in the game's own damage terms. Scoring
- * a candidate path against it uses the same rule resolveCollisions uses.
- *
- * The projection is made once per decision, not once per candidate, with the
- * player pinned where it stands. Enemies that react to the player inside a
- * 0.7s horizon are therefore modelled as reacting to where it is now. That is
- * the one deliberate approximation left.
- *
- * Exposes window.AGENT.world.
- */
-(function (global) {
-  'use strict';
-  var AGENT = global.AGENT || (global.AGENT = {});
-  var VZ = global.VZ;
-  var FX = VZ.fx;
-
-  var NOOP = function () {};
-  var FX_METHODS = ['spawn', 'burst', 'sparks', 'dust', 'ring', 'rings', 'explosion',
-                    'shake', 'stop', 'flash', 'popup', 'squash', 'hitstop', 'tint'];
-
-  /* Silence the world. Returns the restore. */
-  function muzzle() {
-    var savedFx = {}, savedSfx = VZ.audio.sfx, savedRand = null;
-    for (var i = 0; i < FX_METHODS.length; i++) {
-      var m = FX_METHODS[i];
-      if (typeof FX[m] === 'function') { savedFx[m] = FX[m]; FX[m] = NOOP; }
-    }
-    VZ.audio.sfx = NOOP;
-    if (VZ.rand.state) savedRand = VZ.rand.state();
-    return function () {
-      for (var k in savedFx) FX[k] = savedFx[k];
-      VZ.audio.sfx = savedSfx;
-      if (savedRand !== null && VZ.rand.setState) VZ.rand.setState(savedRand);
-    };
-  }
-
-  /* A shallow clone that keeps the prototype, so update() is the real one.
-   * Arrays are copied because several enemies push into their own (blades,
-   * dash ghosts, segment trails) and we must not grow the live ones. */
-  function clone(e, G) {
-    var c = Object.create(Object.getPrototypeOf(e));
-    for (var k in e) {
-      if (!Object.prototype.hasOwnProperty.call(e, k)) continue;
-      var v = e[k];
-      c[k] = Array.isArray(v) ? v.slice() : v;
-    }
-    c.game = G;
-    c.lv = G.level;
-    return c;
-  }
-
-  // Everything an enemy reaches for through this.game.
-  function sandbox(game, ghost) {
-    return {
-      level: game.level,
-      arena: game.arena,
-      player: ghost,
-      projectiles: [],
-      enemies: [],
-      boss: null,
-      playerControl: true,
-      damageTaken: 0,
-      hud: { flashEnergy: 0, weaponPop: 0 },
-      onPlayerDeath: NOOP, onBossReady: NOOP,
-      onBossDying: NOOP, onBossDefeated: NOOP
-    };
-  }
-
-  /* Project the world forward.
-   *
-   * `frames` is how far, `radius` how far away an entity may be and still be
-   * worth simulating - something 400px off cannot reach the player inside the
-   * horizon, and skipping it is most of the cost.
-   *
-   * Returns an array of length frames+1; entry f is the list of hazard boxes
-   * live on frame f, each {x, y, w, h, dmg} in the game's own box() terms.
-   */
-  function project(game, frames, radius) {
-    var p = game.player;
-    if (!p) return [];
-    var restore = muzzle();
-    var out = [];
-    try {
-      var ghost = Object.create(VZ.Entity.prototype);
-      ghost.game = game; ghost.lv = game.level;
-      ghost.x = p.x; ghost.y = p.y; ghost.w = p.w; ghost.h = p.h;
-      ghost.dead = false; ghost.hp = p.hp; ghost.maxHp = p.maxHp;
-      ghost.facing = p.facing; ghost.vx = 0; ghost.vy = 0;
-      ghost.invuln = 0; ghost.dashTime = 0;
-      ghost.takeHit = NOOP; ghost.kill = NOOP;
-
-      var G = sandbox(game, ghost);
-      var i;
-      for (i = 0; i < game.enemies.length; i++) {
-        var e = game.enemies[i];
-        if (e.dead || e.remove) continue;
-        if (Math.abs(e.x - p.x) > radius || Math.abs(e.y - p.y) > radius) continue;
-        G.enemies.push(clone(e, G));
-      }
-      if (game.boss && !game.boss.remove) G.boss = clone(game.boss, G);
-      for (i = 0; i < game.projectiles.length; i++) {
-        var pr = game.projectiles[i];
-        if (pr.remove || pr.team === 'player') continue;
-        var c = clone(pr, G);
-        c.hitList = [];
-        G.projectiles.push(c);
-      }
-
-      for (var f = 0; f <= frames; f++) {
-        out.push(collect(G));
-        if (f === frames) break;
-        stepWorld(G);
-      }
-    } finally {
-      restore();
-    }
-    return out;
-  }
-
-  // The same order updatePlay runs in, minus everything that cannot hurt us.
-  function stepWorld(G) {
-    var i;
-    for (i = G.enemies.length - 1; i >= 0; i--) {
-      var e = G.enemies[i];
-      try { e.update(); } catch (err) { e.remove = true; }
-      if (e.remove) G.enemies.splice(i, 1);
-    }
-    if (G.boss) {
-      try { G.boss.update(); } catch (err) { G.boss = null; }
-      if (G.boss && G.boss.remove) G.boss = null;
-    }
-    for (i = G.projectiles.length - 1; i >= 0; i--) {
-      var pr = G.projectiles[i];
-      if (pr.warn > 0) { pr.warn--; if (pr.warn > 0) continue; }
-      try { pr.update(); } catch (err) { pr.remove = true; }
-      if (pr.remove) G.projectiles.splice(i, 1);
-    }
-  }
-
-  /* Exactly what resolveCollisions would test the player against: live enemy
-   * fire, and bodies that deal contact damage. */
-  function collect(G) {
-    var boxes = [], i;
-    for (i = 0; i < G.projectiles.length; i++) {
-      var pr = G.projectiles[i];
-      if (pr.remove || pr.warn > 0) continue;
-      var b = pr.box();
-      boxes.push({ x: b.x, y: b.y, w: b.w, h: b.h, dmg: pr.damage || 1 });
-    }
-    var targets = G.enemies;
-    for (i = 0; i < targets.length; i++) {
-      var e = targets[i];
-      if (e.dead || !(e.contactDamage > 0)) continue;
-      var eb = e.box();
-      boxes.push({ x: eb.x, y: eb.y, w: eb.w, h: eb.h, dmg: e.contactDamage });
-    }
-    var bs = G.boss;
-    if (bs && !bs.dead && bs.contactDamage > 0 && !bs.dying && bs.state !== 'intro') {
-      var bb = bs.box();
-      boxes.push({ x: bb.x, y: bb.y, w: bb.w, h: bb.h, dmg: bs.contactDamage });
-    }
-    return boxes;
-  }
-
-  /* Score a trajectory against a timeline and return predicted hp lost.
-   *
-   * i-frames are the reason this is not just a count of overlaps: one hit buys
-   * 72 frames of immunity, so brushing three enemies in a row costs exactly as
-   * much as brushing one. A planner that does not know that will refuse routes
-   * that are in fact free.
-   */
-  function damageAlong(timeline, traj, invulnAt0) {
-    if (!timeline.length) return 0;
-    var W = VZ.P.W, H = VZ.P.H, IFR = VZ.P.IFRAMES;
-    var total = 0, invuln = invulnAt0 || 0;
-    var n = Math.min(timeline.length, traj.length >> 1);
-    for (var f = 0; f < n; f++) {
-      if (invuln > 0) { invuln--; continue; }
-      var px = traj[f * 2], py = traj[f * 2 + 1];
-      var x0 = px - W / 2, y0 = py - H / 2;
-      var boxes = timeline[f];
-      for (var i = 0; i < boxes.length; i++) {
-        var b = boxes[i];
-        if (x0 < b.x + b.w && x0 + W > b.x && y0 < b.y + b.h && y0 + H > b.y) {
-          total += b.dmg;
-          invuln = IFR;
-          break;
-        }
-      }
-    }
-    return total;
-  }
-
-  AGENT.world = { project: project, damageAlong: damageAlong };
-
-})(typeof window !== 'undefined' ? window : globalThis);
-
-/* ===== tools/agent/pilot.js ===== */
-/* VANGUARD ZERO - the play agent.
- *
- * Navigation is solved, not learned: a distance field plus an exact
- * short-horizon search over input programs. What IS evolved is everything the
- * search cannot model - how close to walk to an enemy, when to wait out a
- * flame vent, how to space a boss - carried in the `params` genome.
- *
- * Also records the telemetry the difficulty report is built from: every death,
- * every point of damage, and time spent, all bucketed by where it happened.
- *
- * Exposes window.AGENT.Pilot.
- */
-(function (global) {
-  'use strict';
-  var AGENT = global.AGENT || (global.AGENT = {});
-  var VZ = global.VZ;
-  var T = VZ.TILE;
-
-  AGENT.DEFAULTS = {
-    wDist: 1.0,          // weight on progress toward the goal
-    wTime: 0.55,         // frames are not free
-    wSpike: 900,         // taking spike damage to save time is a bad trade
-    wDamage: 90,         // per hp the projected world says this move costs
-    wPit: 120,           // hovering over a pit is risky even if it works out
-    wWait: 40,           // idling needs a reason
-    commitFrames: 90,    // how much of a multi-move plan is executed as one
-    /* Depth is what this search needs, not width. Measured on the Void
-     * Citadel's spike corridor: 50 nodes / beam 14 died 5 times a run, 120
-     * nodes / beam 50 died 4, and 200 nodes / beam 20 died 0.3. Narrow and
-     * deep wins, because the plans that matter there are three and four moves
-     * long and no amount of breadth at depth one can represent them. */
-    searchNodes: 200,    // macro-action expansions per decision
-    searchDepth: 6,      // how many moves deep they may go
-    searchBeam: 20,      // successors kept per expansion
-    worldLook: 150,      // frames of enemy/boss behaviour projected per decision
-    worldRadius: 320,    // beyond this nothing can reach us inside the horizon
-    wCrumbleEnd: 500,    // resting on a block already counting down
-    wCrumbleFresh: 25,   // a fresh one is usually the only way across
-    crumbleHaste: 7,     // once standing on one, seconds cost far more
-    spikeHaste: 12,      // and getting out of spikes is more urgent still
-    devX: 6, devY: 8,    // how far reality may drift before the plan is void
-    fireOn: 5, fireOff: 3,
-    bossMin: 60, bossMax: 120,
-    bossWDamage: 260,    // an arena has nowhere else to be, so a hit costs more
-    bossFireOn: 5, bossFireOff: 3,
-    bossAlign: 26,       // per-frame reward for time on the firing line
-    bossBand: 260,       // reward for holding the working distance
-    bossLook: 46,        // how far ahead a candidate move is evaluated
-    bossCommit: 6,       // how much of it is actually executed before replanning
-    bossCharge: 2,       // 0 fixed cadence, 1 charge only, 2 charge-and-tap
-    retreatHp: 5,        // below this, back off from the boss
-    /* Reaction latency, in frames. The agent normally plans from the state as
-     * it is this instant, which no person can do. Raising this makes it plan
-     * from the state as it was N frames ago while still acting now - the same
-     * loop delay a human hand-eye path has - and sweeping it is how the
-     * difficulty report separates a section that punishes reflexes from one
-     * that punishes not knowing the level. */
-    latency: 0,
-    /* Dexterity error, after Isaksen et al. by way of Talakat: the agent is
-     * forced to repeat its action for a number of frames drawn from a
-     * gaussian, and this is that gaussian's standard deviation. A high
-     * dexterity player repeats fewer frames. It is a motor-bandwidth limit
-     * rather than an information one - unlike `latency` it corrupts execution
-     * itself, every frame, rather than only the moments between plans. */
-    dexSigma: 0,
-  };
-
-  function snapshot(sim, game) {
-    var p = game.player;
-    var s = sim.newState(game.level, p.x, p.y);
-    s.vx = p.vx; s.vy = p.vy;
-    s.grounded = p.grounded; s.facing = p.facing;
-    s.dashTime = p.dashTime; s.dashCool = p.dashCool; s.airDash = p.airDash;
-    s.coyote = p.coyote; s.ctrlLock = p.ctrlLock;
-    s.wallStick = p.wallStick; s.wallDir = p.wallDir;
-    s.wallCoyote = p.wallCoyote; s.lastWall = p.lastWall; s.noCut = p.noCut;
-    s.sliding = p.sliding;
-    s.jumpBuf = VZ.input.buffer.jump;
-    s.prevJump = VZ.input.held.jump; s.prevDash = VZ.input.held.dash;
-    return s;
-  }
-
-  var Pilot = AGENT.Pilot = function (game, params) {
-    this.g = game;
-    this.p = Object.assign({}, AGENT.DEFAULTS, params || {});
-    this.queue = [];
-    this.frame = 0;
-    this.field = null;
-    this.fieldStage = -1;
-    this.lastDecision = null;
-    this.stuckFrames = 0;
-    this.lastX = 0;
-    this.bestDist = 1e18;
-    this.stallFrames = 0;
-    this.tele = {
-      deaths: [], damage: [], stageTimes: {}, sectionFrames: {},
-      bossAttempts: {}, bossDamage: {}, maxX: {}, cleared: [], notes: [],
-      actions: {}
-    };
-    // Its own stream, so clumsiness never perturbs the world being measured.
-    this._rng = VZ.RNG(0xd0d0 + ((this.p.dexSigma * 1000) | 0));
-    this._holdLeft = 0; this._held = {};
-    this.hook();
-  };
-
-  /* Record every hit and death at the position it happened.
-   * The prototype is patched once per page, but each run installs itself as
-   * the current recorder - otherwise every trial after the first writes its
-   * telemetry into the first trial's object and the numbers come out empty. */
-  Pilot.prototype.hook = function () {
-    var g = this.g;
-    AGENT._current = this;
-    if (AGENT._hooked) return;
-    AGENT._hooked = true;
-
-    var origHit = VZ.Player.prototype.takeHit;
-    VZ.Player.prototype.takeHit = function (amount, srcX, force) {
-      var before = this.hp;
-      origHit.call(this, amount, srcX, force);
-      var self = AGENT._current;
-      if (self && this === self.g.player && this.hp < before) {
-        self.tele.damage.push({
-          stage: self.g.stageIndex, x: Math.round(this.x), y: Math.round(this.y),
-          amount: before - this.hp, boss: !!(self.g.boss && !self.g.boss.dying),
-          section: self.section(this.x)
-        });
-      }
-    };
-    var origKill = VZ.Player.prototype.kill;
-    VZ.Player.prototype.kill = function (cause) {
-      var self = AGENT._current;
-      if (self && this === self.g.player && !this.dead) {
-        self.tele.deaths.push({
-          stage: self.g.stageIndex, x: Math.round(this.x), y: Math.round(this.y),
-          cause: cause, boss: !!(self.g.boss && !self.g.boss.dying),
-          section: self.section(this.x)
-        });
-      }
-      origKill.call(this, cause);
-    };
-  };
-
-  // Sections are the 32-tile chunks the stages were authored in, which is also
-  // how a designer thinks about them.
-  Pilot.prototype.section = function (px) {
-    return Math.floor(px / (32 * T));
-  };
-
-  Pilot.prototype.ensureField = function () {
-    var g = this.g;
-    if (this.fieldStage === g.stageIndex && this.field) return;
-    var gate = g.level.bossGate;
-    var gx = gate ? gate.tx + 2 : g.level.w - 3;
-    var gy = gate ? gate.ty : 11;
-    this.field = AGENT.plan.buildField(g.level, gx, gy);
-    this.fieldStage = g.stageIndex;
-  };
-
-  /* What the agent is allowed to know. At latency 0 this is simply the truth;
-   * above it, the observation is held for N frames before the planner sees
-   * it, so plans are made for a world that has already moved on. */
-  Pilot.prototype.observe = function (p) {
-    var cur = {
-      x: p.x, y: p.y, hp: p.hp, invuln: p.invuln, hurtTime: p.hurtTime,
-      grounded: p.grounded, sim: snapshot(AGENT.sim, this.g)
-    };
-    var n = this.p.latency | 0;
-    if (n <= 0) return cur;
-    if (!this._obs) this._obs = [];
-    this._obs.push(cur);
-    while (this._obs.length > n) this._obs.shift();
-    return this._obs[0];
-  };
-
-  /* Clumsiness. Whatever the planner asked for is held for a sampled number of
-   * frames before the hands are allowed to do anything else.
-   *
-   * Deliberately drawn from the pilot's own generator, not the game's: the
-   * point of the sweep is to compare sections under identical world
-   * conditions, and consuming the game's random stream would change the
-   * levels being measured.
-   */
-  Pilot.prototype.fumble = function (inp) {
-    var sigma = this.p.dexSigma;
-    if (!(sigma > 0)) return inp;
-    if (this._holdLeft > 0) { this._holdLeft--; return this._held; }
-    this._held = inp;
-    // Box-Muller, folded: a repeat length is a magnitude, never negative.
-    var u = Math.max(1e-9, this._rng()), v = this._rng();
-    var z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-    this._holdLeft = Math.round(Math.abs(z) * sigma);
-    return inp;
-  };
-
-  /* The amount of input a stretch of level demands, after Talakat's `entropy`
-   * feature: the information entropy of the first, second and third
-   * derivatives of the action sequence. High where the agent is constantly
-   * changing direction, stopping while moving, or starting while stopped -
-   * and, unlike everything else here, computable from one ordinary run
-   * instead of a sweep. */
-  Pilot.prototype.recordAction = function (key, inp) {
-    var a = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
-    var st = this.tele.actions[key];
-    if (!st) st = this.tele.actions[key] = { d1: {}, d2: {}, d3: {}, a: 0, p1: 0, p2: 0, n: 0 };
-    var d1 = a - st.a, d2 = d1 - st.p1, d3 = d2 - st.p2;
-    if (st.n > 2) {
-      st.d1[d1] = (st.d1[d1] || 0) + 1;
-      st.d2[d2] = (st.d2[d2] || 0) + 1;
-      st.d3[d3] = (st.d3[d3] || 0) + 1;
-    }
-    st.a = a; st.p1 = d1; st.p2 = d2; st.n++;
-  };
-
-  // -------------------------------------------------------------- main tick
-  Pilot.prototype.tick = function () {
-    var g = this.g;
-    this.frame++;
-    var inp = {};
-
-    if (g.state === 'results' || g.state === 'gameOver' || g.state === 'ending' ||
-        g.state === 'title' || g.state === 'stageIntro') {
-      // advance menus
-      if (this.frame % 22 < 6) inp.jump = true;
-      VZ.input.virtual = inp;
-      return;
-    }
-    if (g.state !== 'play') { VZ.input.virtual = {}; return; }
-
-    var p = g.player;
-    if (!p || p.dead || p.warp > 0 || g.playerControl === false) {
-      this.queue.length = 0;
-      VZ.input.virtual = {};
-      return;
-    }
-
-    // time accounting per section
-    var sec = g.stageIndex + ':' + this.section(p.x);
-    this.tele.sectionFrames[sec] = (this.tele.sectionFrames[sec] || 0) + 1;
-    var mk = 's' + g.stageIndex;
-    this.tele.maxX[mk] = Math.max(this.tele.maxX[mk] || 0, Math.round(p.x));
-
-    var ob = this.observe(p);
-    var out;
-    if (g.boss && !g.boss.dying) {
-      out = this.bossTick(p, g.boss, ob);
-    } else {
-      this.ensureField();
-      out = this.navTick(ob);
-    }
-    out = this.fumble(out);
-    this.recordAction(sec, out);
-    VZ.input.virtual = out;
-  };
-
-  // ------------------------------------------------------------ navigation
-  Pilot.prototype.navTick = function (p) {
-    // `p` here is the observation, not the live player: at latency 0 they are
-    // the same object's values, above it the planner is deliberately behind.
-    var inp, prm0 = this.p;
-    // A queued program is only valid while reality matches the simulation it
-    // came from. Knockback from a hit is the usual way that stops being true,
-    // and replaying the rest of a jump from the wrong place is how the agent
-    // used to walk itself into pits.
-    if (this.queue.length && this.expect && this.expect.length >= 2) {
-      var ex = this.expect[0], ey = this.expect[1];
-      if (p.hurtTime > 0 || Math.abs(p.x - ex) > prm0.devX || Math.abs(p.y - ey) > prm0.devY) {
-        this.lastDev = [+(p.x - ex).toFixed(2), +(p.y - ey).toFixed(2), p.hurtTime];
-        this.queue.length = 0;
-        this.expect = null;
-        this.aborts = (this.aborts || 0) + 1;
-      } else {
-        this.expect = this.expect.slice(2);
-      }
-    }
-    /* No control means no decision worth making. Knockback locks input for 22
-     * frames, and planning through it just burns the budget on a state the
-     * agent cannot act from - and then throws the plan away next frame anyway
-     * because it is still hurt. */
-    if (p.hurtTime > 0) { this.queue.length = 0; this.expect = null; return {}; }
-    if (this.queue.length === 0) this.decide(p);
-    inp = this.queue.length ? this.queue.shift() : {};
-    inp = Object.assign({}, inp);
-
-    // shooting is free; always be firing
-    var c = this.p.fireOn + this.p.fireOff;
-    if ((this.frame % c) < this.p.fireOn) inp.fire = true;
-
-    /* Progress tracking. This used to drive the policy - the threat weights
-     * were discounted whenever it stalled - which spent health in exactly the
-     * sections the difficulty report was measuring. The search makes that
-     * unnecessary, so the number is now only reported: it is a diagnostic
-     * readout, not an input. */
-    var dNow = AGENT.plan.distAt(this.field, p.x, p.y);
-    if (dNow !== null) {
-      if (dNow > this.bestDist + 300 || dNow < this.bestDist - 2) {
-        this.bestDist = dNow; this.stallFrames = 0;
-      } else this.stallFrames++;
-    }
-
-    // stuck detector: if we have not moved in a while, clear the plan and
-    // allow a wilder choice next time.
-    if (Math.abs(p.x - this.lastX) < 0.3) {
-      this.stuckFrames++;
-      if (this.stuckFrames > 90) {
-        this.queue.length = 0;
-        this.stuckFrames = 0;
-      }
-    } else this.stuckFrames = 0;
-    this.lastX = p.x;
-    return inp;
-  };
-
-  // Is the tile under this point a crumbling block?
-  Pilot.prototype.crumbleUnder = function (x, y) {
-    var lv = this.g.level;
-    var ty = Math.floor((y + VZ.P.H / 2 + 1) / T);
-    var x0 = Math.floor((x - 5) / T), x1 = Math.floor((x + 5) / T);
-    for (var tx = x0; tx <= x1; tx++) {
-      if (tx < 0 || tx >= lv.w || ty < 0 || ty >= lv.h) continue;
-      if (lv.grid[ty * lv.w + tx] === VZ.tiles.CRUMBLE) return tx + ',' + ty;
-    }
-    return null;
-  };
-
-  /* Is the drop below this point lethal? Scans down for lava before any
-   * footing. Crumbling blocks do not count as footing here: they are the
-   * whole reason the drop is a question. */
-  Pilot.prototype.fatalBelow = function (x, y) {
-    var lv = this.g.level, TL = VZ.tiles;
-    var tx = Math.floor(x / T);
-    var y0 = Math.floor((y + VZ.P.H / 2) / T);
-    for (var ty = y0; ty < Math.min(lv.h, y0 + 14); ty++) {
-      var id = lv.at(tx, ty);
-      if (id === TL.LIQUID) return true;
-      if (id === TL.CRUMBLE) continue;
-      if (id === TL.PLATFORM || lv.solidAt(tx, ty)) return false;
-    }
-    return false;
-  };
-
-  // -------------------------------------------------------- the search
-  /* A tiny binary heap. Best-first over macro-actions expands a few hundred
-   * nodes per decision and an array sort per pop is the whole cost. */
-  function Heap() { this.a = []; }
-  Heap.prototype.push = function (n) {
-    var a = this.a, i = a.length;
-    a.push(n);
-    while (i > 0) {
-      var par = (i - 1) >> 1;
-      if (a[par].f <= a[i].f) break;
-      var t = a[i]; a[i] = a[par]; a[par] = t; i = par;
-    }
-  };
-  Heap.prototype.pop = function () {
-    var a = this.a, top = a[0], last = a.pop();
-    if (a.length) {
-      a[0] = last;
-      var i = 0;
-      for (;;) {
-        var l = i * 2 + 1, r = l + 1, m = i;
-        if (l < a.length && a[l].f < a[m].f) m = l;
-        if (r < a.length && a[r].f < a[m].f) m = r;
-        if (m === i) break;
-        var t = a[i]; a[i] = a[m]; a[m] = t; i = m;
-      }
-    }
-    return top;
-  };
-
-  /* What a single macro-action costs, in the same units the distance field is
-   * denominated in. Everything here is a real consequence of taking the move:
-   * time, health, and footing that will not be there later. */
-  Pilot.prototype.stepCost = function (r, timeline, startFrame, invuln, timeW) {
-    var prm = this.p, cost = 0, tj = r.traj || [];
-    cost += r.s.frames * timeW;
-    cost += (r.spikeHits || 0) * prm.wSpike;
-
-    // Predicted damage, from the projected world, in the game's own hp.
-    var dmg = 0;
-    if (timeline && tj.length) {
-      dmg = AGENT.world.damageAlong(
-        startFrame ? timeline.slice(startFrame) : timeline, tj, invuln);
-    }
-    cost += dmg * prm.wDamage;
-
-    // Footing that is counting down. The simulator borrows the game's
-    // collision, which treats a crumbling block as solid until the frame it
-    // vanishes, so a rollout will happily cross one with six frames of life
-    // left and report a clean landing.
-    for (var cf = 0; cf < tj.length; cf += 8) {
-      var ck = this.crumbleUnder(tj[cf], tj[cf + 1]);
-      if (ck === null) continue;
-      var t1 = this.g.level.crumble[ck];
-      var left = (t1 === undefined) ? 44 : t1;
-      if (cf / 2 < left - 6) continue;
-      cost += this.fatalBelow(tj[cf], tj[cf + 1]) ? prm.wCrumbleEnd : prm.wCrumbleFresh;
-      break;
-    }
-    var ex = r.s.body.x, ey = r.s.body.y;
-    if (r.s.grounded) {
-      var ck2 = this.crumbleUnder(ex, ey);
-      if (ck2 !== null) {
-        cost += this.g.level.crumble[ck2] === undefined ? prm.wCrumbleFresh : prm.wCrumbleEnd;
-      }
-    }
-    if (!this.groundBelow(ex, ey, 3)) cost += prm.wPit;
-    return { cost: cost, dmg: dmg };
-  };
-
-  /* Best-first search over macro-actions, with the distance field as the
-   * heuristic and the projected world as the hazard model.
-   *
-   * This replaces a greedy one-move pick with a depth-two escape hatch. The
-   * greedy version had the failure mode every short-horizon planner has: when
-   * every move is bad the least bad one is to not really move, and not moving
-   * keeps scoring well forever, so it shuffled on the lip of a hazard until
-   * something killed it. It needed a patch that discounted danger whenever it
-   * stopped making progress - which then spent health in exactly the places
-   * the difficulty report was trying to measure, and made those numbers
-   * partly circular. A search with time in the path cost walks through the bad
-   * patch instead, because standing still accrues cost and going round does
-   * not, so the patch is gone and the measurement is honest again.
-   */
-  function firstNameOf(node) {
-    var n = node;
-    while (n.parent && n.parent.r) n = n.parent;
-    return n.name;
-  }
-
-  Pilot.prototype.decide = function (p) {
-    var g = this.g, S = AGENT.sim, PL = AGENT.plan, prm = this.p;
-    var start = p.sim || snapshot(S, g);
-
-    /* Crumbling blocks are solid to the collision model right up until they
-     * vanish, so a plan made while standing on one is a plan made on a floor
-     * that is already counting down: weight time far higher while on one. */
-    var timeW = prm.wTime;
-    if (this.crumbleUnder(p.x, p.y) !== null) timeW = prm.wTime * prm.crumbleHaste;
-    // Standing in spikes costs 4hp every i-frame window, so getting out is
-    // worth almost any amount of lost ground.
-    if (g.level.rectHazard(p.x - 4, p.y - 9, 8, 18) === 'spike') {
-      timeW = Math.max(timeW, prm.wTime * prm.spikeHaste);
-    }
-
-    var timeline = AGENT.world.project(g, prm.worldLook, prm.worldRadius);
-
-    var heap = new Heap(), seen = {}, expansions = 0;
-    if (this.logNodes) this._nodeLog = [];
-    var h0 = PL.distAt(this.field, p.x, p.y);
-    if (h0 === null) h0 = 1e6;
-    heap.push({ s: start, g: 0, f: h0 * prm.wDist, frame: 0,
-                invuln: p.invuln || 0, depth: 0, parent: null, r: null, name: null });
-
-    var best = null, bestF = Infinity;
-
-    while (heap.a.length && expansions < prm.searchNodes) {
-      var node = heap.pop();
-      if (node.depth >= prm.searchDepth) continue;
-      if (node.frame >= prm.worldLook - 8) continue;
-      expansions++;
-
-      var kids = [];
-      for (var k = 0; k < PL.PRIMS.length; k++) {
-        var prim = PL.PRIMS[k];
-        var r = PL.rollout(S, node.s, prim);
-        if (r.dead) continue;
-        var hh = PL.distAt(this.field, r.s.body.x, r.s.body.y);
-        if (hh === null) continue;
-
-        var sc = this.stepCost(r, timeline, node.frame, node.invuln, timeW);
-        var gg = node.g + sc.cost + (prim.name === 'wait' ? prm.wWait : 0);
-        var ff = gg + hh * prm.wDist;
-
-        // Two routes that arrive at the same place standing the same way are
-        // the same route; keeping both just burns the node budget.
-        /* Velocity is part of the state, not a detail: arriving at a tile
-         * standing still and arriving at it with a run-up are different
-         * positions to jump from, and collapsing them loses the only approach
-         * that clears the wide spike beds. */
-        var key = ((Math.round(r.s.body.x / 6) * 4096 + Math.round(r.s.body.y / 6)) * 8 +
-                   (Math.round(r.s.vx / 2) + 3)) * 2 + (r.s.grounded ? 1 : 0);
-        if (seen[key] !== undefined && seen[key] <= ff) continue;
-        seen[key] = ff;
-
-        var spent = r.s.frames;
-        var kid = {
-          s: r.s, g: gg, f: ff, frame: node.frame + spent,
-          invuln: sc.dmg > 0 ? VZ.P.IFRAMES : Math.max(0, node.invuln - spent),
-          depth: node.depth + 1, parent: node, r: r, name: prim.name
-        };
-        kids.push(kid);
-
-        /* Judge every node as it is generated, not when it is popped.
-         *
-         * Popping is in f order, so taking the first popped node would just
-         * pick the cheapest single move and call it a search - which is what
-         * the greedy version already did. It works here only because the
-         * heuristic is not consistent: it is a cost-to-go over an abstracted
-         * movement graph and knows nothing about enemies, spikes or crumbling
-         * footing, so a deeper node can genuinely come out cheaper than the
-         * shallow one it descends from. Those are exactly the plans worth
-         * finding - back up four tiles, then dash-jump the spike bed. */
-        if (this._nodeLog) {
-          this._nodeLog.push({ x: r.s.body.x, y: r.s.body.y, f: ff, g: gg, h: hh,
-                               depth: kid.depth, first: firstNameOf(kid), name: prim.name,
-                               spikes: r.spikeHits || 0, dmg: sc.dmg });
-        }
-        if (ff < bestF) { bestF = ff; best = kid; }
-      }
-
-      /* Keep the frontier narrow, but not so narrow that it can only go
-       * forwards. Fifty primitives per node fills the heap with near-identical
-       * shuffles and the budget is gone before the search sees past anything -
-       * but sorting purely by f drops every backward move, and backing up is
-       * the first half of the only plan that clears a five-tile spike bed.
-       * So reserve a slot for the best move in each direction before filling
-       * the rest with the globally cheapest. */
-      if (kids.length > prm.searchBeam) {
-        kids.sort(function (a, c) { return a.f - c.f; });
-        var kept = [], buckets = {}, q2;
-        for (q2 = 0; q2 < kids.length; q2++) {
-          var dx = kids[q2].s.body.x - node.s.body.x;
-          var bk = (dx < -8 ? -1 : dx > 8 ? 1 : 0) + ':' + (kids[q2].s.grounded ? 1 : 0);
-          if (buckets[bk]) continue;
-          buckets[bk] = 1; kids[q2]._kept = 1; kept.push(kids[q2]);
-        }
-        for (q2 = 0; q2 < kids.length && kept.length < prm.searchBeam; q2++) {
-          if (!kids[q2]._kept) { kids[q2]._kept = 1; kept.push(kids[q2]); }
-        }
-        kids = kept;
-      }
-      for (var q3 = 0; q3 < kids.length; q3++) heap.push(kids[q3]);
-    }
-
-    if (best) {
-      /* Execute the whole plan, not just its head.
-       *
-       * Re-planning after every single move is right when the heuristic is
-       * good, and disastrous when it is marginal. The cost-to-go field prices
-       * a five-tile spike bed at about what it costs to walk the same distance
-       * on flat ground, because the abstract movement graph has an edge that
-       * hops it - so "back up, then dash-jump it" is worth roughly nothing per
-       * move, and a planner that re-derives its decision from scratch every
-       * time will pick the locally cheapest half-step forever. The cycle spans
-       * decisions, so no amount of search inside one can see it. Committing to
-       * the sequence the search actually found is what makes a multi-move plan
-       * mean anything. The deviation check still voids it the moment reality
-       * stops matching. */
-      var chain = [];
-      for (var nd = best; nd && nd.r; nd = nd.parent) chain.push(nd);
-      chain.reverse();
-      /* Commit less where a mistake is fatal. Committing to a long plan is
-       * what makes multi-move ideas possible, and it is also what turns one
-       * wrong assumption into a death: over lava the footing is crumbling
-       * blocks that the simulator, borrowing the game's collision, believes in
-       * until the frame they vanish. So above a lethal drop, take one move at
-       * a time and look again. */
-      var cap = this.fatalBelow(p.x, p.y) ? 1 : prm.commitFrames;
-      var inputs = [], traj = [], used = 0;
-      for (var ci = 0; ci < chain.length && used < cap; ci++) {
-        var rr2 = chain[ci].r;
-        inputs = inputs.concat(rr2.inputs);
-        if (rr2.traj) traj = traj.concat(rr2.traj);
-        used += rr2.inputs.length;
-        /* Stop committing at footing that will not be there. The simulator
-         * borrows the game's collision, which treats a crumbling block as
-         * solid until the frame it vanishes, so the far half of a plan that
-         * rests on one is a plan for a floor that has already gone. Over the
-         * Magma Foundry's lava that is the difference between a crossing and
-         * a death, and it was the whole cost of committing to long plans. */
-        var ez = rr2.s;
-        if (ez.grounded && this.crumbleUnder(ez.body.x, ez.body.y) !== null &&
-            this.fatalBelow(ez.body.x, ez.body.y)) break;
-      }
-      this.queue = inputs;
-      this.expect = traj;
-      this._pick = chain.length ? chain[0].name : null;
-      this.lastDecision = { score: -bestF, frames: used, pick: this._pick,
-                            depth: chain.length, nodes: expansions };
-    } else {
-      // Every option ends the run. Take the one that survives longest so the
-      // next decision happens as late as possible.
-      var fallback = null, longest = -1;
-      for (var q = 0; q < PL.PRIMS.length; q++) {
-        var rr = PL.rollout(S, start, PL.PRIMS[q]);
-        if (rr.s.frames > longest) { longest = rr.s.frames; fallback = rr; }
-      }
-      this.queue = fallback ? fallback.inputs.slice() : [{ right: true }];
-      this.expect = fallback && fallback.traj ? fallback.traj.slice() : null;
-      this._pick = 'no way out';
-      this.lastDecision = { score: -1e6, frames: longest, pick: 'no way out', depth: 0, nodes: expansions };
-    }
-  };
-
-  /* Is there anything to land on below this point? One-way platforms count -
-   * rectSolid alone excludes them, which made every ledge read as a pit. */
-  Pilot.prototype.groundBelow = function (x, y, tiles) {
-    var lv = this.g.level;
-    var x0 = Math.floor((x - 5) / T), x1 = Math.floor((x + 5) / T);
-    var y0 = Math.floor((y + VZ.P.H / 2) / T);
-    for (var ty = y0; ty <= y0 + tiles; ty++) {
-      for (var tx = x0; tx <= x1; tx++) {
-        var id = lv.at(tx, ty);
-        if (id === VZ.tiles.PLATFORM || lv.solidAt(tx, ty)) return true;
-      }
-    }
-    return false;
-  };
-
-  // ------------------------------------------------------------------ boss
-  /* Boss arenas are flat, so navigation is trivial and the whole problem is
-   * positioning: don't be where a shot is about to be, do be at a height where
-   * your own shots connect, and close the distance when the boss is open.
-   * Same exact-rollout machinery as navigation, different objective. */
-  Pilot.prototype.bossTick = function (p, b, ob) {
-    var prm = this.p, g = this.g;
-    ob = ob || p;
-    var key = 's' + g.stageIndex;
-    if (!this.tele.bossAttempts[key]) this.tele.bossAttempts[key] = 0;
-    if (!this._bossSeen) { this._bossSeen = true; this.tele.bossAttempts[key]++; }
-
-    if (this.queue.length && this.expect && this.expect.length >= 2) {
-      if (ob.hurtTime > 0 || Math.abs(ob.x - this.expect[0]) > prm.devX ||
-          Math.abs(ob.y - this.expect[1]) > prm.devY) {
-        this.queue.length = 0; this.expect = null;
-      } else this.expect = this.expect.slice(2);
-    }
-    if (this.queue.length > prm.bossCommit) this.queue.length = prm.bossCommit;
-    if (this.queue.length === 0) this.bossDecide(ob, b);
-
-    var inp = this.queue.length ? Object.assign({}, this.queue.shift()) : {};
-
-    // Shots come out along `facing`, which movement sets. Firing while running
-    // away sends every shot into the far wall, so nudge the facing toward the
-    // boss on frames the movement plan is not already steering.
-    var toward = b.x > p.x ? 'right' : 'left';
-    var away = b.x > p.x ? 'left' : 'right';
-    if (!inp.left && !inp.right && !inp.jump) inp[toward] = true;
-
-    /* "Lined up right now" and "this shot will connect" are different
-     * questions. A charged shot crosses the arena at 4.6 px/frame, and
-     * Vanguard Prime crosses it faster than that in the other direction - so
-     * lead the target: work out when the shot arrives and test the boss's
-     * position then, damped because it will not hold that heading forever. */
-    var dir = b.x > p.x ? 1 : -1;
-    var muzzleX = p.x + dir * 8, shotY = p.y - 1;
-    var gap = Math.abs(b.x - muzzleX);
-    var closing = Math.max(0.8, 4.6 + (b.x > p.x ? -b.vx : b.vx));
-    var tHit = Math.min(60, gap / closing);
-    var hitY = b.y + b.vy * tHit * 0.6;
-    var aligned = p.facing === dir && gap > 14 && gap < 220 &&
-                  Math.abs(shotY - hitY) < b.h / 2 + 7;
-    if (prm.bossCharge > 1.5) {
-      /* Mixed: charge while there is no shot to take, tap while there is.
-       *
-       * A bare shot is 2 damage on a 7-frame cooldown; a charged one is 8 for
-       * a 70-frame wind-up. On paper the tap wins by 3x - the catch is the
-       * three-live-shot cap, which binds at long range where the flight time
-       * exceeds the cooldown. So: hold (and charge) whenever the line is not
-       * open, which also means the first aligned frame dumps whatever charge
-       * has accumulated, then fall into the tap cadence. */
-      inp.fire = aligned ? (this.frame % 2 === 0) : true;
-    } else if (prm.bossCharge > 0.5) {
-      /* Hold for a full charge (4x damage) and spend it the moment the shot
-       * will connect.
-       *
-       * Banking the charge for a high-armour window was tried and measured
-       * much worse (Golem kill time 30s -> 58s): the Golem's double-damage
-       * stun is too rare to wait for, so every banked 70-frame wind-up is
-       * mostly dead time. Fire on sight is the better policy even against
-       * plating. */
-      if (p.chargeLevel >= 2 && aligned) inp.fire = false;
-      else inp.fire = true;
-    } else {
-      var c = prm.bossFireOn + prm.bossFireOff;
-      inp.fire = (this.frame % c) < prm.bossFireOn;
-    }
-    return inp;
-  };
-
-  Pilot.prototype.bossDecide = function (p, b) {
-    var g = this.g, S = AGENT.sim, PL = AGENT.plan, prm = this.p;
-    var start = p.sim || snapshot(S, g);
-
-    // The boss is open when it is stunned, venting, or mid-recovery: close in.
-    // Windows where the boss is taking extra damage or cannot retaliate.
-    var open = (b.stun > 0) || b.state === 'vent';
-
-    /* Look far, commit little.
-     *
-     * The first version tied both to one number and every setting was a
-     * compromise: short horizons reacted fast but could not see a shockwave
-     * coming, long ones saw it and then rode a stale plan into it. Making the
-     * window depend on the boss's current attack was tried and measured worse
-     * on all three. The two knobs are simply independent - roll out deep
-     * enough to evaluate the consequence, re-decide before it goes stale. */
-    var look = prm.bossLook;
-    var wantMin = open ? Math.max(18, prm.bossMin * 0.5) : prm.bossMin;
-    var wantMax = open ? prm.bossMax * 0.7 : prm.bossMax;
-
-    /* The whole threat model is now the projected world: enemy fire, debris
-     * that is still showing its warning marker, the boss body wherever its
-     * own attack script is about to put it. Before this it was three separate
-     * hand-rolled extrapolations - linear for shots, velocity-damped for the
-     * body, a special case for the beam - and each was wrong in its own way
-     * against anything that turns. */
-    var timeline = AGENT.world.project(g, look + 4, 400);
-
-    var best = null, bestScore = -1e18;
-    for (var k = 0; k < PL.PRIMS.length; k++) {
-      var prim = PL.PRIMS[k];
-      var r = PL.rollout(S, start, prim, look);
-      var tj = r.traj || [];
-      var score = 0;
-      if (r.dead) { score = -1e6; }
-      else {
-        var ex = r.s.body.x, ey = r.s.body.y;
-
-        score -= AGENT.world.damageAlong(timeline, tj, p.invuln || 0) * prm.bossWDamage;
-
-        // Firing line: shots leave the muzzle throughout the move, not just
-        // where it stops - and you cannot come to rest at a jump apex. So
-        // reward time on target across the trajectory instead of the endpoint.
-        var onTarget = 0;
-        for (var t4 = 0; t4 < tj.length; t4 += 2) {
-          var my = tj[t4 + 1] - 1;
-          if (my > b.y - b.h / 2 - 3 && my < b.y + b.h / 2 + 3) {
-            var adt = Math.abs(b.x - tj[t4]);
-            if (adt > 14 && adt < 210) onTarget++;
-          }
-        }
-        score += onTarget * prm.bossAlign;
-
-        // stand-off band
-        var adx = Math.abs(b.x - ex);
-        if (adx < wantMin) score -= (wantMin - adx) * 4;
-        else if (adx > wantMax) score -= (adx - wantMax) * 3;
-        else score += prm.bossBand;
-
-        if (p.hp <= prm.retreatHp && adx < wantMin * 1.6) score -= 400;
-        score -= r.s.frames * 0.8;
-        if (prim.name === 'wait') score -= prm.wWait;
-      }
-      if (score > bestScore) { bestScore = score; best = r; }
-    }
-    if (best) {
-      this.queue = best.inputs.slice();
-      this.expect = best.traj ? best.traj.slice() : null;
-    } else {
-      this.queue = [{}];
-      this.expect = null;
-    }
-  };
-
-  Pilot.prototype.reset = function () {
-    this.queue.length = 0;
-    this._bossSeen = false;
-    this.bestDist = 1e18;
-    this.stallFrames = 0;
-  };
-
-})(typeof window !== 'undefined' ? window : globalThis);
-
 </script>
 
 <script>
 (function () {
   'use strict';
-
-  // The 32-tile chunks the stages were authored in, which is also how the
-  // difficulty report buckets them.
-  var SECTIONS = [
-    ['Opening', 'Gap run', 'Wall-jump chimney', 'Crumble + spikes', 'Turret gauntlet', 'Run-up', 'Boss arena'],
-    ['Opening', 'Conveyors', 'Flame vents', 'Lava climb', 'Lava bridge', 'Run-up', 'Boss arena'],
-    ['Opening', 'Spike corridor', 'Void ascent', 'Crumble bridge', 'Turret + shielders', 'Run-up', 'Boss arena']
-  ];
-  var STAGES = ['Skyfall Ridge', 'Magma Foundry', 'Void Citadel'];
-
-  /* The planner names its primitives for the log, not for reading. Turn one
-     back into the thing a person would say they were doing. */
-  function readable(name) {
-    if (!name) return 'thinking';
-    var deep = /\+2$/.test(name);
-    var n = name.replace(/\+2$/, '');
-    var d = n.match(/^[a-z]+([RL])/);
-    var dir = d ? (d[1] === 'R' ? 'right' : 'left') : '';
-    var s;
-    if (n === 'wait') s = 'hold position';
-    else if (/^djmp/.test(n)) s = 'dash-jump ' + dir;
-    else if (/^jmp/.test(n)) s = (/d\d/.test(n) ? 'dash-jump ' : 'jump ') + dir;
-    else if (/^dash/.test(n)) s = 'dash ' + dir;
-    else if (/^run/.test(n)) s = 'run ' + dir;
-    else if (/^drop/.test(n)) s = 'drop through ' + dir;
-    else if (/^climb/.test(n)) s = 'wall-climb ' + dir;
-    else s = n;
-    return s + (deep ? ' · two moves ahead' : '');
-  }
-
-  var el = function (id) { return document.getElementById(id); };
-  var out = {
-    decision: el('decision'), commit: el('commit'), tag: el('tagtext'),
-    stage: el('m-stage'), section: el('m-section'), hp: el('m-hp'),
-    lives: el('m-lives'), deaths: el('m-deaths'), runs: el('m-runs')
-  };
-
-  // commitment cells: one per frame of plan, capped at the boss commit window
-  var CELLS = 24, cells = [];
-  for (var i = 0; i < CELLS; i++) {
-    var c = document.createElement('i');
-    out.commit.appendChild(c);
-    cells.push(c);
-  }
-
-  // ---------------------------------------------------------------- trace
-  var traceCv = el('trace'), tctx = traceCv.getContext('2d');
-  var HIST = 240;                       // ~4 seconds at 60Hz, sampled every 4
-  var hist = [], stall = [];
-  function sizeTrace() {
-    var r = Math.min(2, window.devicePixelRatio || 1);
-    var w = traceCv.clientWidth, h = traceCv.clientHeight;
-    traceCv.width = Math.max(1, Math.round(w * r));
-    traceCv.height = Math.max(1, Math.round(h * r));
-    tctx.setTransform(r, 0, 0, r, 0, 0);
-  }
-  window.addEventListener('resize', sizeTrace);
-
-  function drawTrace() {
-    var w = traceCv.clientWidth, h = traceCv.clientHeight;
-    tctx.clearRect(0, 0, w, h);
-    if (hist.length < 2) return;
-    var lo = Infinity, hi = -Infinity;
-    for (var i = 0; i < hist.length; i++) {
-      if (hist[i] === null) continue;
-      if (hist[i] < lo) lo = hist[i];
-      if (hist[i] > hi) hi = hist[i];
-    }
-    if (!isFinite(lo)) return;
-    if (hi - lo < 40) { hi = lo + 40; }
-
-    // stall pressure behind the line, as a rising floor
-    tctx.fillStyle = 'rgba(255, 90, 110, 0.16)';
-    for (var s = 0; s < stall.length; s++) {
-      var sx = (s / (HIST - 1)) * w;
-      // full height is the point at which the agent gives up on caution
-      var sh = Math.min(1, stall[s] / 90) * (h - 6);
-      if (sh > 0) tctx.fillRect(sx, h - sh, w / HIST + 1, sh);
-    }
-
-    tctx.beginPath();
-    var started = false;
-    for (var k = 0; k < hist.length; k++) {
-      if (hist[k] === null) { started = false; continue; }
-      var x = (k / (HIST - 1)) * w;
-      var y = h - 3 - ((hi - hist[k]) / (hi - lo)) * (h - 8);
-      if (!started) { tctx.moveTo(x, y); started = true; } else tctx.lineTo(x, y);
-    }
-    tctx.strokeStyle = '#5fe6d8';
-    tctx.lineWidth = 1.5;
-    tctx.lineJoin = 'round';
-    tctx.stroke();
-  }
-
-  // ----------------------------------------------------------------- boot
-  var g, pilot, runs = 1, speed = 1, sampler = 0;
-
-  function newPilot() {
-    pilot = new AGENT.Pilot(g, {});
-    hist.length = 0; stall.length = 0;
-  }
+  var cabinet = document.getElementById('cabinet');
+  var veil = document.getElementById('veil');
 
   function boot() {
-    VZ.boot();
-    g = VZ.game;
-    VZ.audio.toggleMute();               // a page that autoplays music is rude
-
-    // Set in the game's own 5x7 bitmap font, at a whole-pixel scale.
-    var wm = el('wordmark'), x = wm.getContext('2d');
-    var word = 'VANGUARD ZERO', SC = 3;
-    wm.width = VZ.art.textWidth(word) * SC + 4;
-    wm.height = 7 * SC + 4;
-    x.imageSmoothingEnabled = false;    // a resize resets this, so set it after
-    VZ.art.text(x, word, 2, 2, { color: '#d6e8ff', scale: SC });
-    VZ.art.text(x, 'ZERO', 2 + VZ.art.textWidth('VANGUARD ') * SC, 2,
-      { color: '#ffd24a', scale: SC });
-
-    sizeTrace();
-    g.loop.stop();
-    newPilot();
-    g.loop = VZ.Loop(step, function () { g.render(); });
-    g.loop.start();
-  }
-
-  var lastStage = 0;
-  function step() {
-    for (var n = 0; n < speed; n++) {
-      pilot.tick();
-      g.update();
-      if (g.stageIndex !== lastStage) {
-        lastStage = g.stageIndex;
-        pilot.reset(); pilot.fieldStage = -1;
-      }
-      if (g.state === 'gameOver' && !pilot._counted) {
-        pilot._counted = true;
-        runs++;
-      }
-      if (g.state === 'play' && pilot._counted) pilot._counted = false;
+    try { VZ.boot(); } catch (e) {
+      veil.innerHTML = '<span style="color:#d05a58">' + String(e.message) + '</span>';
+      throw e;
     }
-    readout();
+    // The marquee is set in the game's own 5x7 bitmap font, so the title above
+    // the cabinet uses the exact glyphs the game renders with.
+    var wm = document.getElementById('wordmark');
+    var x = wm.getContext('2d');
+    x.imageSmoothingEnabled = false;
+    var word = 'VANGUARD ZERO';
+    var w = VZ.art.textWidth(word) * 3;
+    wm.width = w + 6; wm.height = 26;
+    x.imageSmoothingEnabled = false;
+    VZ.art.text(x, word, 3, 4, { color: '#12142e', scale: 3 });
+    VZ.art.text(x, word, 2, 2, { color: '#d6e8ff', scale: 3 });
+    VZ.art.text(x, 'ZERO', 2 + VZ.art.textWidth('VANGUARD ') * 3, 2,
+      { color: '#ffd24a', scale: 3 });
   }
 
-  function readout() {
-    var p = g.player, boss = g.boss && !g.boss.dying ? g.boss : null;
-
-    out.tag.textContent = boss ? 'agent vs ' + boss.name.toLowerCase()
-      : (g.state === 'play' ? 'agent playing' : 'agent · ' + g.state);
-
-    var pick = pilot.lastDecision && pilot.lastDecision.pick;
-    out.decision.textContent = g.state === 'play'
-      ? (boss ? readable(pick) + ' · spacing the boss' : readable(pick))
-      : 'between attempts';
-
-    var q = Math.min(CELLS, pilot.queue.length);
-    for (var i = 0; i < CELLS; i++) cells[i].className = i < q ? 'on' : '';
-
-    var st = g.stageIndex || 0;
-    out.stage.textContent = STAGES[st] ? (st + 1) + ' · ' + STAGES[st] : '—';
-    var sec = p ? Math.floor(p.x / (32 * VZ.TILE)) : -1;
-    out.section.textContent = boss ? 'boss arena'
-      : ((SECTIONS[st] && SECTIONS[st][sec]) || '—').toLowerCase();
-    out.hp.textContent = p ? p.hp + ' / ' + p.maxHp : '—';
-    out.hp.className = p && p.hp <= 5 ? 'hot' : '';
-    out.lives.textContent = g.lives === undefined ? '—' : g.lives;
-    out.deaths.textContent = pilot.tele.deaths.length;
-    out.runs.textContent = runs;
-
-    // sample the trace four times a second's worth of frames
-    if (++sampler % 4 === 0) {
-      var d = null;
-      if (p && !p.dead && !boss && pilot.field) {
-        d = AGENT.plan.distAt(pilot.field, p.x, p.y);
-      }
-      hist.push(d);
-      stall.push(pilot.stallFrames || 0);
-      while (hist.length > HIST) { hist.shift(); stall.shift(); }
-      drawTrace();
-    }
+  // Keyboard events only reach an embedded page once it has focus, so the
+  // veil doubles as the thing that takes it.
+  function grab() {
+    cabinet.focus({ preventScroll: true });
+    if (VZ.audio) VZ.audio.resume();
+    veil.classList.add('gone');
   }
-
-  // ------------------------------------------------------------ transport
-  var speedBtn = el('speed'), soundBtn = el('sound');
-  speedBtn.addEventListener('click', function () {
-    speed = speed === 1 ? 2 : (speed === 2 ? 3 : 1);
-    speedBtn.textContent = 'speed ' + speed + '×';
-    speedBtn.setAttribute('aria-pressed', String(speed !== 1));
+  cabinet.addEventListener('pointerdown', grab);
+  document.addEventListener('pointerdown', function (e) {
+    if (!veil.classList.contains('gone')) grab();
+    else if (VZ.audio) VZ.audio.resume();
   });
-  soundBtn.addEventListener('click', function () {
-    VZ.audio.resume();
-    var muted = VZ.audio.toggleMute();
-    soundBtn.textContent = muted ? 'sound off' : 'sound on';
-    soundBtn.setAttribute('aria-pressed', String(!muted));
-  });
-  el('restart').addEventListener('click', function () {
-    g.lives = 3; g.score = 0; g.player = null;
-    g.fade = 0; g.fadeTarget = 0; g.fadeCb = null;
-    g.loadStage(0, false);
-    g.setState('play');
-    lastStage = 0;
-    newPilot();
-    runs++;
-  });
+  cabinet.addEventListener('focus', function () { veil.classList.add('gone'); });
+  window.addEventListener('keydown', function () { veil.classList.add('gone'); });
 
   if (document.readyState === 'complete') boot();
   else window.addEventListener('load', boot);
