@@ -146,6 +146,26 @@ async function main() {
   console.log('  deaths/run       ' + (totalDeaths / trials).toFixed(1));
   console.log('  damage/run       ' + (totalDamage / trials).toFixed(0) + ' hp');
 
+  /* The health economy, split by where the health came from. Kills are only
+   * worth making if what they drop is worth more than what fighting costs, and
+   * placed capsules pay out whether you fight or not, so they are counted
+   * separately. */
+  const HP = { health: 4, bigHealth: 10 };
+  let kills = 0, dropHp = 0, placedHp = 0, dropEnergy = 0, oneUps = 0;
+  runs.forEach(r => {
+    kills += r.kills || 0;
+    (r.pickups || []).forEach(pk => {
+      if (pk.kind === 'life') { oneUps++; return; }
+      if (pk.kind === 'energy') { if (pk.drop) dropEnergy++; return; }
+      if (pk.drop) dropHp += HP[pk.kind] || 0; else placedHp += HP[pk.kind] || 0;
+    });
+  });
+  console.log('  kills/run        ' + (kills / trials).toFixed(1));
+  console.log('  hp from drops    ' + (dropHp / trials).toFixed(1) + ' hp   ' +
+    '(placed capsules ' + (placedHp / trials).toFixed(1) + ' hp)');
+  console.log('  net hp/run       ' + ((dropHp - totalDamage) / trials).toFixed(1) +
+    ' hp   (damage minus what fighting paid back)');
+
   // per-section table
   const maxDeaths = Math.max(1, ...Object.values(deaths).map(d => d.n));
   for (let st = 0; st < 3; st++) {

@@ -99,7 +99,7 @@
     this.tele = {
       deaths: [], damage: [], stageTimes: {}, sectionFrames: {},
       bossAttempts: {}, bossDamage: {}, maxX: {}, cleared: [], notes: [],
-      actions: {}
+      actions: {}, pickups: [], kills: 0
     };
     // Its own stream, so clumsiness never perturbs the world being measured.
     this._rng = VZ.RNG(0xd0d0 + ((this.p.dexSigma * 1000) | 0));
@@ -141,6 +141,27 @@
         });
       }
       origKill.call(this, cause);
+    };
+    /* What engaging actually pays. A drop has no `def` - it came from something
+     * the agent shot - while a placed pickup was going to be there either way,
+     * so the two have to be counted apart or the reward for fighting is
+     * indistinguishable from the reward for walking past a health capsule. */
+    var origCollect = VZ.Pickup.prototype.collect;
+    VZ.Pickup.prototype.collect = function (p) {
+      var self = AGENT._current;
+      if (self && p === self.g.player && !this.remove) {
+        self.tele.pickups.push({
+          stage: self.g.stageIndex, kind: this.kind, drop: !this.def,
+          section: self.section(p.x)
+        });
+      }
+      origCollect.call(this, p);
+    };
+    var origDie = VZ.Enemy.prototype.die;
+    VZ.Enemy.prototype.die = function () {
+      var self = AGENT._current;
+      if (self && !this.dead) self.tele.kills++;
+      origDie.call(this);
     };
   };
 

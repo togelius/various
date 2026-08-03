@@ -18,7 +18,10 @@
     this.team = 'enemy';
     this.contactDamage = 2;
     this.score = 100;
-    this.dropChance = 0.28;
+    /* Kills are permanent, so clearing a room is a real option now - but only
+     * if it pays. At 0.28 the agent came out of stage 1 with 2.9 kills and one
+     * point of health to show for them, against seven points of damage. */
+    this.dropChance = 0.45;
     this.hitFrom = 'any';       // 'any' | 'back' - which side can be damaged
     this.deathScale = 1;
     this.deathColor = '#ffb347';
@@ -68,7 +71,7 @@
       mult > 1 ? '#ffd24a' : '#cfd8ea');
     if (VZ.rand() < this.dropChance) {
       var roll = VZ.rand();
-      var kind = roll < 0.62 ? 'health' : (roll < 0.95 ? 'energy' : 'life');
+      var kind = roll < 0.68 ? 'health' : (roll < 0.96 ? 'energy' : 'life');
       var pk = new VZ.Pickup(g, this.x, this.y, kind);
       pk.vy = -1.6; pk.vx = VZ.rand.range(-0.6, 0.6);
       g.pickups.push(pk);
@@ -313,7 +316,7 @@
     this.hp = this.maxHp = 8;
     this.score = 250;
     this.contactDamage = 3;
-    this.dropChance = 0.4;
+    this.dropChance = 0.6;   // the ones that hold a position pay the most
     this.facing = -1;
     this.guardStun = 0;
   };
@@ -382,7 +385,7 @@
     this.angle = ceiling ? Math.PI / 2 : -Math.PI / 2;
     this.state = 'idle';
     this.timer = VZ.rand.int(40, 100);
-    this.dropChance = 0.4;
+    this.dropChance = 0.6;   // the ones that hold a position pay the most
     if (ceiling) this.y = y + 4;
   };
   Turret.prototype = Object.create(Enemy.prototype);
