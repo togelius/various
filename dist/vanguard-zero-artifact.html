@@ -278,7 +278,7 @@
   </div>
 
   <p class="colophon">
-    <i>Wall jump by holding <b>into</b> a wall, then jump</i>
+    <i>Touch a wall in mid-air to cling, then <b>jump</b> to kick off</i>
     <i><b>F</b> fullscreen</i>
     <i><b>M</b> mute</i>
     <i>gamepads work</i>
@@ -3979,7 +3979,7 @@
 
     // ------------------------------------------------------- hazards
     var hz = this.lv.rectHazard(this.left() + 1, this.top() + 2, this.w - 2, this.h - 4);
-    if (hz === 'spike') this.takeHit(4, this.x - this.facing * 8, true);
+    if (hz === 'spike') this.takeHit(4, this.x - this.facing * 8, true, 'spike');
     else if (hz === 'liquid') this.kill('liquid');
     if (this.top() > this.lv.pixelH + 24) this.kill('pit');
 
@@ -4119,8 +4119,12 @@
   };
 
   // ------------------------------------------------------------- damage
-  Player.prototype.takeHit = function (amount, srcX, force) {
+  /* `src` is telemetry only - it names what hit you ('spike', 'contact',
+   * 'shot', 'flame', 'boss') so the difficulty report can say how much of a
+   * section's damage came from something you could have shot. */
+  Player.prototype.takeHit = function (amount, srcX, force, src) {
     if (this.invuln > 0 || this.dead || this.game.playerControl === false) return;
+    this.lastHitSrc = src || 'other';
     if (this.dashTime > 0 && !force) { /* dashing does not grant i-frames */ }
     var ds = VZ.DAMAGE_SCALE;
     var scale = ds[Math.min(ds.length - 1, this.game.stageIndex || 0)];
@@ -4454,7 +4458,10 @@
     this.team = 'enemy';
     this.contactDamage = 2;
     this.score = 100;
-    this.dropChance = 0.28;
+    /* Kills are permanent, so clearing a room is a real option now - but only
+     * if it pays. At 0.28 the agent came out of stage 1 with 2.9 kills and one
+     * point of health to show for them, against seven points of damage. */
+    this.dropChance = 0.45;
     this.hitFrom = 'any';       // 'any' | 'back' - which side can be damaged
     this.deathScale = 1;
     this.deathColor = '#ffb347';
@@ -4504,7 +4511,7 @@
       mult > 1 ? '#ffd24a' : '#cfd8ea');
     if (VZ.rand() < this.dropChance) {
       var roll = VZ.rand();
-      var kind = roll < 0.62 ? 'health' : (roll < 0.95 ? 'energy' : 'life');
+      var kind = roll < 0.68 ? 'health' : (roll < 0.96 ? 'energy' : 'life');
       var pk = new VZ.Pickup(g, this.x, this.y, kind);
       pk.vy = -1.6; pk.vx = VZ.rand.range(-0.6, 0.6);
       g.pickups.push(pk);
@@ -4749,7 +4756,7 @@
     this.hp = this.maxHp = 8;
     this.score = 250;
     this.contactDamage = 3;
-    this.dropChance = 0.4;
+    this.dropChance = 0.6;   // the ones that hold a position pay the most
     this.facing = -1;
     this.guardStun = 0;
   };
@@ -4818,7 +4825,7 @@
     this.angle = ceiling ? Math.PI / 2 : -Math.PI / 2;
     this.state = 'idle';
     this.timer = VZ.rand.int(40, 100);
-    this.dropChance = 0.4;
+    this.dropChance = 0.6;   // the ones that hold a position pay the most
     if (ceiling) this.y = y + 4;
   };
   Turret.prototype = Object.create(Enemy.prototype);
@@ -4974,7 +4981,7 @@
     var p = this.player();
     if (p && this.firing && this.flameH > 8) {
       var box = { x: this.x - 6, y: this.y - this.flameH, w: 12, h: this.flameH };
-      if (VZ.aabb(box, p.box())) p.takeHit(3, this.x);
+      if (VZ.aabb(box, p.box())) p.takeHit(3, this.x, false, 'flame');
     }
   };
 
@@ -5368,7 +5375,7 @@
     var p = this.game.player;
     if (!p || p.dead) return;
     var box = { x: this.x - 5, y: this.y + 10, w: 10, h: this.game.arena.y1 - this.y };
-    if (VZ.aabb(box, p.box())) p.takeHit(3, this.x);
+    if (VZ.aabb(box, p.box())) p.takeHit(3, this.x, false, 'boss');
     if (this.anim % 2 === 0) {
       FX.spawn({ x: this.x + VZ.rand.range(-4, 4), y: this.y + VZ.rand.range(14, box.h),
         vx: 0, vy: 1.4, g: 0, drag: 1, life: 10, size: 2, color: '#ffe9a0', glow: true });
@@ -7016,7 +7023,7 @@
         }
       } else if (p && !p.dead) {
         if (VZ.aabb(pb, p.box())) {
-          p.takeHit(pr.damage, pr.x);
+          p.takeHit(pr.damage, pr.x, false, 'shot');
           pr.burst();
         }
       }
@@ -7028,7 +7035,7 @@
       var e = targets[i];
       if (e.dead || e.contactDamage <= 0) continue;
       if (e.isBoss && (e.state === 'intro' || e.dying)) continue;
-      if (VZ.aabb(pbox, e.box())) p.takeHit(e.contactDamage, e.x);
+      if (VZ.aabb(pbox, e.box())) p.takeHit(e.contactDamage, e.x, false, e.isBoss ? 'boss' : 'contact');
     }
   };
 
