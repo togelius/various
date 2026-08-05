@@ -7,17 +7,27 @@ Street** to defend a grant proposal before **The Grant Panel** on the roof.
 The elevator is, of course, broken.
 
 ```
- ROGUELIUS   Floor 3/8: The Lecture Halls                              Turn 214
- ########################################
- #......................#    #.........#
- #...@..e...............#####..r.......#
- #..........%...........+....#.........#
- #......................#    #....>....#
- ########################################
- Sanity 18/24  Caffeine  62  Cites  41 (h=6)  $12  Atk 3 Def 1
- Wielding: Laser Pointer   Wearing: Tweed Jacket
- Reviewer 2: 'Why not compare against a 2009 baseline?'
+ ROGUELIUS   Floor 3/8: The Lecture Halls               Bldg #000042  Turn 369
+
+                                            .
+                                            .
+                                            .
+                                           #.#   #
+                                      ######.###.##
+                                      #...........#
+                                      #...........#
+                                      #..u..@........
+                                      #.......D...#
+                                      #...........#
+                                     ...............
+                                      #############
+
+ Sanity 32/32  Caffeine  44  Cites  29 (h=5)  $16  Atk 3 Def 1
+ Wielding: Bare Rhetoric   Wearing: Tweed Jacket
+ Floor 3: The Lecture Halls.
 ```
+*(an actual game state from building permit #42: a Confused Undergrad and an
+ICML Deadline converge on the professor)*
 
 ## Running it
 
@@ -30,7 +40,10 @@ python3 roguelius.py --autoplay 200  # headless bot games + balance stats
 ```
 
 Every floor plan is procedurally generated, naturally. The building
-rearranges itself nightly; Facilities has been notified.
+rearranges itself nightly; Facilities has been notified. Each run's layout
+is identified by a "building permit" number shown in the top bar and on the
+final screen — replay any building with `--seed <number>` to trade layouts
+with colleagues.
 
 ## How to play
 

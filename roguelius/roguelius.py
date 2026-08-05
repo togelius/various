@@ -399,6 +399,8 @@ class Player:
 
 class Game:
     def __init__(self, seed=None):
+        if seed is None:
+            seed = random.randrange(10 ** 6)
         self.rng = random.Random(seed)
         self.seed = seed
         self.player = Player()
@@ -1275,7 +1277,7 @@ SCORE_FILE = os.path.expanduser("~/.roguelius_scores.json")
 def record_score(game):
     entry = dict(score=game.score(), won=game.won, depth=game.depth,
                  citations=game.player.citations, h=game.player.h_index,
-                 turns=game.turn,
+                 turns=game.turn, seed=game.seed,
                  cause="grant funded" if game.won else game.death_cause)
     try:
         scores = []
@@ -1369,7 +1371,8 @@ def run_curses(stdscr, seed):
         title = " ROGUELIUS   Floor %d/%d: %s " % (
             game.depth, NUM_FLOORS, FLOOR_NAMES[game.depth - 1])
         put(0, 0, title, attr("white", bold=True))
-        put(0, max(0, 80 - 12), "Turn %d" % game.turn, attr("white", dim=True))
+        put(0, max(0, 80 - 25), "Bldg #%06d  Turn %d" % (game.seed, game.turn),
+            attr("white", dim=True))
 
         for y in range(MAP_H):
             for x in range(MAP_W):
@@ -1502,7 +1505,8 @@ def run_curses(stdscr, seed):
                                            FLOOR_NAMES[game.depth - 1]),
             "Citations: %d   h-index: %d   Turns: %d" %
             (p.citations, p.h_index, game.turn),
-            "FINAL SCORE: %d" % game.score(),
+            "FINAL SCORE: %d   (building permit #%06d — replay with "
+            "--seed %d)" % (game.score(), game.seed, game.seed),
             "",
             "High scores:",
         ]
