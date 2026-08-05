@@ -127,6 +127,42 @@ class TestMechanics(unittest.TestCase):
         self.assertEqual(game.turn, turn)
 
 
+class TestPolish(unittest.TestCase):
+    def test_message_collapsing(self):
+        game = rl.Game(1)
+        game.msgs.clear()
+        game.msg("same")
+        game.msg("same")
+        game.msg("other")
+        self.assertEqual(game.recent_msgs(3), ["same (x2)", "other"])
+
+    def test_boss_revises_exactly_once(self):
+        game = rl.Game(2)
+        boss = rl.Monster("panel", game.player.x + 4, game.player.y,
+                          random.Random(0))
+        game.monsters.append(boss)
+        boss.hp = boss.maxhp // 2 - 1
+        game.monster_act(boss)
+        self.assertTrue(boss.revised)
+        self.assertEqual(boss.hp, boss.maxhp // 2 - 1 + 10)
+
+    def test_autoexplore_covers_floor(self):
+        game = rl.Game(3)
+        game.monsters.clear()
+        for _ in range(3000):
+            step = game.autoexplore_step()
+            if step is None:
+                break
+            self.assertTrue(game.player_turn(("move",) + step))
+        else:
+            self.fail("autoexplore never finished the floor")
+        # Every passable tile should now be explored.
+        for y in range(rl.MAP_H):
+            for x in range(rl.MAP_W):
+                if game.passable(x, y):
+                    self.assertIn((x, y), game.explored)
+
+
 class TestBot(unittest.TestCase):
     def test_bot_games_terminate_without_crash(self):
         """Full playthroughs: every game must end (win, death, or the

@@ -167,6 +167,18 @@ PLAYER_VERBS = [
     "You out-argue", "You calmly refute", "You counterexample",
 ]
 
+AMBIENT = [
+    "Somewhere below, a fire alarm chirps hopefully.",
+    "A distant printer jams in solidarity.",
+    "The espresso machine on this floor is 'being serviced.'",
+    "You overhear: '...we'll just call the results preliminary.'",
+    "A calendar notification buzzes. You choose not to look.",
+    "The elevator dings somewhere. It is lying.",
+    "Someone has scheduled a meeting about reducing meetings.",
+    "A whiteboard nearby reads: DO NOT ERASE (erased).",
+    "Through a window: the East River, indifferent to peer review.",
+]
+
 # ----------------------------------------------------------------------------
 # Geometry helpers
 # ----------------------------------------------------------------------------
@@ -337,6 +349,7 @@ class Monster:
         self.color = spec["color"]
         self.traits = set(spec["traits"])
         self.awake = False
+        self.revised = False  # boss second-wind flag
         self.name = spec["name"]
         if kind == "deadline":
             self.name = "Deadline (%s)" % rng.choice(CONFERENCES)
@@ -406,7 +419,16 @@ class Game:
     # -- messaging ----------------------------------------------------------
 
     def msg(self, text):
-        self.msgs.append(text)
+        if self.msgs and self.msgs[-1][0] == text:
+            self.msgs[-1][1] += 1
+        else:
+            self.msgs.append([text, 1])
+
+    def recent_msgs(self, n):
+        out = []
+        for text, count in list(self.msgs)[-n:]:
+            out.append(text if count == 1 else "%s (x%d)" % (text, count))
+        return out
 
     # -- floor setup --------------------------------------------------------
 
@@ -877,6 +899,13 @@ class Game:
         if see:
             m.awake = True
 
+        if "boss" in m.traits and not m.revised and m.hp < m.maxhp // 2:
+            m.revised = True
+            m.hp = min(m.maxhp, m.hp + 10)
+            self.msg("The Panel requests MAJOR REVISIONS. Your arguments "
+                     "must begin anew! (The Panel rallies, +10)")
+            return False
+
         if d <= 1:
             self.monster_attack(m)
             return True
@@ -973,6 +1002,8 @@ class Game:
                 self.check_death("caffeine withdrawal")
         if p.caffeine >= 30 and p.sanity < p.maxsanity and self.turn % 6 == 0:
             p.sanity += 1
+        if self.turn % 47 == 0:
+            self.msg(self.rng.choice(AMBIENT))
         # Faculty Meetings drain the will to live from a distance.
         for m in self.monsters:
             if "aura" in m.traits and m.hp > 0 \
@@ -1018,6 +1049,25 @@ class Game:
                 self.upkeep()
             self.update_fov()
         return result
+
+    def autoexplore_step(self):
+        """First step of a path toward the nearest unexplored tile, or None
+        when the whole floor has been seen. Used by the 'o' command."""
+        p = self.player
+        goals = {(x, y) for y in range(MAP_H) for x in range(MAP_W)
+                 if self.passable(x, y) and (x, y) not in self.explored}
+        if not goals:
+            return None
+        blocked = {(m.x, m.y) for m in self.monsters if m.hp > 0}
+        path = bfs_path(self.grid, (p.x, p.y), goals, blocked)
+        if not path:
+            return None
+        nx, ny = path[0]
+        return (nx - p.x, ny - p.y)
+
+    def hostiles_visible(self):
+        return [m for m in self.monsters
+                if m.hp > 0 and (m.x, m.y) in self.visible]
 
     def score(self):
         p = self.player
@@ -1253,6 +1303,7 @@ HELP_LINES = [
     "  g          grab item     >  climb stairs",
     "  i          inventory (letter: use/equip, SHIFT+letter: drop)",
     "  c          quick-drink first coffee in bag",
+    "  o          auto-explore    v  review visible foes",
     "  z          Lecture: hit all adjacent foes (12 caffeine)",
     "  x          Deep Work: restore 6 sanity (20 caffeine)",
     "  ?          this help    Q  abandon the semester",
@@ -1267,7 +1318,6 @@ HELP_LINES = [
     "  Caffeine drains each turn; at zero you fight worse and lose",
     "  sanity. Citations raise your h-index, which raises your stats.",
     "  Reach the roof and defeat The Grant Panel.",
-    "",
     "  (press any key)",
 ]
 
@@ -1370,7 +1420,7 @@ def run_curses(stdscr, seed):
             bar = "#" * int(20 * frac)
             put(MAP_H + 2, 46, "PANEL [%-20s]" % bar, attr("red", bold=True))
 
-        msgs = list(game.msgs)[-3:]
+        msgs = game.recent_msgs(3)
         for i, mtext in enumerate(msgs):
             a = attr("white", bold=(i == len(msgs) - 1))
             put(MAP_H + 3 + i, 0, mtext[:79], a)
@@ -1509,6 +1559,42 @@ def run_curses(stdscr, seed):
                 chosen = inventory_menu(game)
                 if chosen is not None:
                     game.player_turn(chosen)
+                continue
+            if key == ord("v"):
+                foes = game.hostiles_visible()
+                lines = ["Visible on this floor:"]
+                if not foes:
+                    lines.append("")
+                    lines.append("  Nothing. Enjoy it while it lasts.")
+                for m in sorted(foes, key=lambda m: -m.atk):
+                    traits = ", ".join(sorted(m.traits)) or "ordinary"
+                    lines.append("  %s  %-32s %2d/%-2d hp  atk %d  (%s)"
+                                 % (m.ch, m.name, m.hp, m.maxhp,
+                                    m.atk, traits))
+                lines += ["", "(press any key)"]
+                show_lines(lines)
+                continue
+            if key == ord("o"):
+                # Auto-explore until something needs attention.
+                import time as _time
+                steps = 0
+                while steps < 120 and not game.over:
+                    if game.hostiles_visible():
+                        game.msg("You spot trouble and stop exploring.")
+                        break
+                    step = game.autoexplore_step()
+                    if step is None:
+                        game.msg("This floor holds no more surprises.")
+                        break
+                    result = game.player_turn(("move",) + step)
+                    if result is not True:
+                        break
+                    steps += 1
+                    p = game.player
+                    if game.item_at(p.x, p.y) or game.grid[p.y][p.x] == ">":
+                        break
+                    draw(game)
+                    _time.sleep(0.02)
                 continue
             action = KEYMAP.get(key)
             if not action:

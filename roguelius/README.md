@@ -55,6 +55,8 @@ h-index makes you tougher; every third point makes you more persuasive.
 | `>` | climb stairs (when standing on them) |
 | `i` | inventory — letter to use/equip, SHIFT+letter to drop |
 | `c` | quick-drink the first coffee in your bag |
+| `o` | auto-explore until something interesting happens |
+| `v` | review everything visible on the floor (names, health, traits) |
 | `z` | **Lecture**: hit all adjacent foes (12 caffeine) |
 | `x` | **Deep Work**: restore 6 sanity (20 caffeine) |
 | `?` | help |
@@ -73,7 +75,7 @@ h-index makes you tougher; every third point makes you more persuasive.
 | `M` | Faculty Meeting | slow, tanky, drains your caffeine just by being near |
 | `C` | Curriculum Committee | slow; generates correspondence |
 | `A` | Associate Dean | hits hard, suggests extra teaching |
-| `G` | **The Grant Panel** | the final boss; calls in external reviewers |
+| `G` | **The Grant Panel** | the final boss; calls in external reviewers, and at half health will request *major revisions* |
 
 ### Supplies
 
