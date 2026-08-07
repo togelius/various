@@ -145,7 +145,7 @@ function setScene(i){
 // title
 // ===========================================================================
 const title={pal:PAL.factory,t:0,
-  enter(){say('a small game about a machine.  press z.');},
+  enter(){say('a small game about a machine.  click me, then press z.');},
   update(dt){this.t+=dt;},
   act(d){if(d)next();},
   draw(){
