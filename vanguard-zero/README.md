@@ -8,7 +8,7 @@ bundler, no assets to download. Every sprite, tile, background, sound effect
 and piece of music in the game is generated in JavaScript at load time.
 
 ```
-git clone <this repo> && cd various
+git clone <this repo> && cd various/vanguard-zero
 # then just open index.html in a browser
 # (or: python3 -m http.server 8000  ->  http://localhost:8000)
 ```
