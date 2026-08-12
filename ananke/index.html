@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ANANKE</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ─────────────────────────────── title ─────────────────────────────── -->
+<section id="title" class="screen on">
+  <div class="titlebox">
+    <h1>ANANKE</h1>
+    <p class="sub">a game of necessity</p>
+    <p class="creed">
+      You cannot make anything happen.<br>
+      You can only make things <em>impossible</em>.
+    </p>
+    <div class="primer">
+      <p>The figures below are not characters. They have no plans. At every
+      hour each of them may step to any open neighbour — or stand still. The
+      game does not play out <em>one</em> future. It holds <em>all of them at
+      once</em>, and draws each figure as the cloud of every place it could
+      still turn out to be.</p>
+      <p>Your only power is prohibition. Forbid a cell from a given hour
+      onward and every future that used it ceases to exist. Prune until the
+      thing you want is not merely possible but <b>necessary</b> — true in
+      every future that remains.</p>
+      <p class="warn">Prune too far and no future remains at all. A world with
+      no possible history is a contradiction, and a contradiction is a loss.</p>
+    </div>
+    <button id="begin" class="big">BEGIN</button>
+    <p class="foot">mouse or touch · arrow keys scrub the hours · H for a hint</p>
+  </div>
+</section>
+
+<!-- ─────────────────────────────── menu ──────────────────────────────── -->
+<section id="menu" class="screen">
+  <h2>THE PROHIBITIONS</h2>
+  <ol id="levellist"></ol>
+  <button class="ghost" data-goto="title">back</button>
+</section>
+
+<!-- ─────────────────────────────── game ──────────────────────────────── -->
+<section id="game" class="screen">
+  <header id="ghead">
+    <button class="ghost" data-goto="menu">&larr;</button>
+    <h2 id="lvname">—</h2>
+    <p id="lvepi">—</p>
+  </header>
+
+  <div class="stage">
+    <div class="boardwrap">
+      <canvas id="board"></canvas>
+      <div id="brief"></div>
+    </div>
+
+    <aside id="panel">
+      <div class="block">
+        <h3>WHAT MUST BE TRUE</h3>
+        <ul id="objectives"></ul>
+      </div>
+
+      <div class="block">
+        <h3>PROHIBITION</h3>
+        <p class="gauge"><span id="sealcount">0</span> <span class="dim">of</span>
+           <span id="sealbudget">0</span> <span class="dim">places forbidden</span></p>
+        <div class="bar"><i id="sealbar"></i></div>
+        <p id="argline" class="doubt hidden">
+          THE ARGUMENT — each time you reach necessity, Ananke opens a wall
+          that was always thin. <span id="argstate"></span>
+        </p>
+        <p id="doubtline" class="doubt hidden">
+          DOUBT — one forbidden place will be forgotten, and Ananke picks
+          the worst one. <span id="doubtstate"></span>
+        </p>
+      </div>
+
+      <div class="block">
+        <h3>FUTURES REMAINING</h3>
+        <p class="gauge"><span id="futures">—</span></p>
+        <div class="bar"><i id="futbar"></i></div>
+        <p class="dim tiny" id="spreadline">—</p>
+      </div>
+
+      <div class="block tools">
+        <div class="modes">
+          <button id="mWall" class="mode on">WALL</button>
+          <button id="mSweep" class="mode">SWEEP</button>
+        </div>
+        <p class="dim tiny" id="modehelp"></p>
+        <div class="btnrow">
+          <button id="undo" class="ghost">undo</button>
+          <button id="clear" class="ghost">clear</button>
+          <button id="hint" class="ghost">hint</button>
+        </div>
+        <button id="commit" class="big">LET IT HAPPEN</button>
+      </div>
+    </aside>
+  </div>
+
+  <div class="timeline">
+    <canvas id="time"></canvas>
+  </div>
+</section>
+
+<!-- ───────────────────────────── epilogue ────────────────────────────── -->
+<section id="epilogue" class="screen">
+  <div class="scroll">
+    <h2 id="epiverdict">—</h2>
+    <div id="epitext"></div>
+    <div class="btnrow center">
+      <button id="epiretry" class="ghost">again</button>
+      <button id="epinext" class="big">NEXT</button>
+    </div>
+  </div>
+</section>
+
+<script src="js/engine.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

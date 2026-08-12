@@ -8,6 +8,8 @@ subdirectory with its own README:
   grab the single-file build in `vanguard-zero/dist/`.
 - **[annamatic/](annamatic/)** — ANNAMATIC, a five-minute playable vignette
   after the games of Anna Anthropy. One HTML file, no dependencies.
+- **[ananke/](ananke/)** — ANANKE, a browser game of necessity: you cannot
+  make anything happen, only make things impossible. Open `ananke/index.html`.
 - **[roguelius/](roguelius/)** — Roguelius, a terminal roguelike about
   surviving NYU, written in Python.
 

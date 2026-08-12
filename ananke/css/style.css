@@ -1,0 +1,157 @@
+/* ANANKE — ink, indigo, and one dull gold. */
+:root{
+  --ink:#080a12;
+  --deep:#0d1020;
+  --stone:#1b2036;
+  --line:#2c3352;
+  --pale:#c8cee6;
+  --dim:#6c769c;
+  --gold:#e0a24a;
+  --cyan:#4fc3d9;
+  --red:#c94f52;
+  --green:#7fc98a;
+  --serif: Georgia,'Iowan Old Style','Palatino Linotype',serif;
+  --mono: ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--ink); color:var(--pale);
+  font-family:var(--mono); font-size:14px;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+button{font-family:var(--mono); cursor:pointer; color:inherit}
+.hidden{display:none !important}
+.dim{color:var(--dim)}
+.tiny{font-size:11px; line-height:1.5}
+
+.screen{position:fixed; inset:0; display:none; overflow:auto}
+.screen.on{display:block}
+
+/* ── title ───────────────────────────────────────────────────────────── */
+#title{display:none; place-items:center; padding:6vh 4vw}
+#title.on{display:grid}
+.titlebox{max-width:660px; text-align:center}
+h1{
+  font-family:var(--serif); font-size:clamp(48px,11vw,104px);
+  letter-spacing:.30em; margin:0 0 .1em .30em; font-weight:400;
+  color:#f0e6d2; text-shadow:0 0 42px rgba(224,162,74,.28);
+}
+.sub{margin:0 0 2.2em; color:var(--dim); letter-spacing:.34em; font-size:12px}
+.creed{
+  font-family:var(--serif); font-size:clamp(17px,2.6vw,23px); line-height:1.75;
+  color:#e7ddc9; margin:0 0 2em;
+}
+.creed em{color:var(--gold); font-style:italic}
+.primer{text-align:left; font-family:var(--serif); font-size:15px; line-height:1.72;
+  color:#a9b2cf; border-left:1px solid var(--line); padding-left:20px; margin-bottom:2.4em}
+.primer p{margin:0 0 1em}
+.primer b{color:var(--gold); font-weight:400}
+.primer .warn{color:#c98f8f}
+.foot{color:var(--dim); font-size:11px; margin-top:2em; letter-spacing:.08em}
+
+button.big{
+  background:transparent; border:1px solid var(--gold); color:var(--gold);
+  padding:13px 34px; letter-spacing:.28em; font-size:13px;
+  transition:background .18s,color .18s;
+}
+button.big:hover{background:var(--gold); color:var(--ink)}
+button.big:disabled{opacity:.3; cursor:default}
+button.big:disabled:hover{background:transparent; color:var(--gold)}
+button.ghost{
+  background:transparent; border:1px solid var(--line); color:var(--dim);
+  padding:7px 15px; font-size:11px; letter-spacing:.14em;
+}
+button.ghost:hover{border-color:var(--dim); color:var(--pale)}
+
+/* ── menu ────────────────────────────────────────────────────────────── */
+#menu{padding:8vh 6vw}
+#menu h2{font-family:var(--serif); letter-spacing:.3em; font-weight:400;
+  color:var(--gold); font-size:16px; margin:0 0 2em}
+#levellist{list-style:none; padding:0; margin:0 0 3em; max-width:720px}
+#levellist li{
+  border-top:1px solid var(--line); padding:16px 4px; display:flex;
+  align-items:baseline; gap:18px; cursor:pointer;
+}
+#levellist li:hover{background:rgba(255,255,255,.03)}
+#levellist li:last-child{border-bottom:1px solid var(--line)}
+#levellist .n{color:var(--dim); font-size:11px; width:2em}
+#levellist .nm{font-family:var(--serif); font-size:18px; letter-spacing:.12em; flex:1}
+#levellist .st{font-size:10px; letter-spacing:.2em; color:var(--dim)}
+#levellist .st.done{color:var(--green)}
+
+/* ── game ────────────────────────────────────────────────────────────── */
+#game{display:none; grid-template-rows:auto 1fr auto; height:100%; padding:14px 18px 10px}
+#game.on{display:grid}
+#ghead{display:grid; grid-template-columns:auto 1fr; gap:6px 16px; align-items:center}
+#ghead button{grid-row:span 2}
+#ghead h2{font-family:var(--serif); font-weight:400; letter-spacing:.24em;
+  font-size:17px; margin:0; color:#efe4cd}
+#ghead p{margin:0; font-family:var(--serif); font-style:italic;
+  color:var(--dim); font-size:13px}
+
+.stage{display:grid; grid-template-columns:1fr 316px; gap:20px; min-height:0; padding:12px 0}
+.boardwrap{position:relative; display:grid; place-items:center; min-height:0}
+#board{max-width:100%; max-height:100%; touch-action:none; cursor:crosshair}
+#brief{
+  position:absolute; left:50%; transform:translateX(-50%); bottom:-2px;
+  max-width:560px; text-align:center; font-family:var(--serif); font-size:13px;
+  color:#98a2c2; line-height:1.6; pointer-events:none;
+}
+#brief b{color:var(--gold); font-weight:400}
+
+#panel{overflow:auto; display:flex; flex-direction:column; gap:16px}
+.block{border-top:1px solid var(--line); padding-top:12px}
+.block h3{margin:0 0 9px; font-size:10px; letter-spacing:.26em; color:var(--dim); font-weight:400}
+#objectives{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px}
+#objectives li{font-size:12px; line-height:1.5; padding-left:22px; position:relative;
+  font-family:var(--serif); font-size:13px}
+#objectives li::before{
+  position:absolute; left:0; top:1px; font-family:var(--mono); font-size:11px;
+}
+#objectives li.yes::before{content:'□'; color:var(--green)}
+#objectives li.no::before{content:'◇'; color:var(--red)}
+#objectives li .tag{display:block; font-family:var(--mono); font-size:9px;
+  letter-spacing:.2em; margin-top:3px}
+#objectives li.yes .tag{color:var(--green)}
+#objectives li.no .tag{color:var(--red)}
+
+.gauge{margin:0 0 7px; font-size:13px}
+.bar{height:3px; background:var(--stone); overflow:hidden}
+.bar i{display:block; height:100%; width:0; background:var(--gold); transition:width .2s}
+.bar i.over{background:var(--red)}
+.doubt{font-size:11px; line-height:1.55; color:#b79a6a; margin:10px 0 0;
+  border-left:2px solid #6b5527; padding-left:9px}
+#doubtstate,#argstate{display:block; margin-top:4px; letter-spacing:.14em}
+#argline{color:#8fb6c4; border-left-color:#2d5a66}
+
+.modes{display:flex; gap:8px; margin-bottom:8px}
+button.mode{flex:1; background:transparent; border:1px solid var(--line);
+  color:var(--dim); padding:9px 0; font-size:11px; letter-spacing:.2em}
+button.mode.on{border-color:var(--gold); color:var(--gold)}
+.btnrow{display:flex; gap:8px; margin:12px 0}
+.btnrow.center{justify-content:center; margin-top:28px}
+.tools button.big{width:100%; padding:14px 0}
+
+.timeline{border-top:1px solid var(--line); padding-top:8px}
+#time{width:100%; height:86px; display:block; touch-action:none; cursor:ew-resize}
+
+/* ── epilogue ────────────────────────────────────────────────────────── */
+#epilogue{display:none; place-items:center; padding:6vh 5vw; background:rgba(8,10,18,.97)}
+#epilogue.on{display:grid}
+.scroll{max-width:600px}
+#epiverdict{font-family:var(--serif); font-weight:400; letter-spacing:.24em;
+  font-size:20px; margin:0 0 1.4em}
+#epiverdict.good{color:var(--gold)}
+#epiverdict.bad{color:var(--red)}
+#epitext{font-family:var(--serif); font-size:16px; line-height:1.85; color:#bcc4dd}
+#epitext p{margin:0 0 1.1em}
+#epitext .said{color:#8b93b4; font-style:italic}
+#epitext b{color:var(--gold); font-weight:400}
+
+@media (max-width:900px){
+  .stage{grid-template-columns:1fr; grid-template-rows:1fr auto}
+  #panel{max-height:38vh}
+  #brief{display:none}
+}
