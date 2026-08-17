@@ -10,8 +10,8 @@
   --cyan:#4fc3d9;
   --red:#c94f52;
   --green:#7fc98a;
-  --serif: Georgia,'Iowan Old Style','Palatino Linotype',serif;
-  --mono: ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --serif: 'EB Garamond',Georgia,'Iowan Old Style',serif;
+  --mono: 'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -44,7 +44,7 @@ h1{
   color:#e7ddc9; margin:0 0 2em;
 }
 .creed em{color:var(--gold); font-style:italic}
-.primer{text-align:left; font-family:var(--serif); font-size:15px; line-height:1.72;
+.primer{text-align:left; font-family:var(--serif); font-size:17px; line-height:1.68;
   color:#a9b2cf; border-left:1px solid var(--line); padding-left:20px; margin-bottom:2.4em}
 .primer p{margin:0 0 1em}
 .primer b{color:var(--gold); font-weight:400}
@@ -77,7 +77,7 @@ button.ghost:hover{border-color:var(--dim); color:var(--pale)}
 #levellist li:hover{background:rgba(255,255,255,.03)}
 #levellist li:last-child{border-bottom:1px solid var(--line)}
 #levellist .n{color:var(--dim); font-size:11px; width:2em}
-#levellist .nm{font-family:var(--serif); font-size:18px; letter-spacing:.12em; flex:1}
+#levellist .nm{font-family:var(--serif); font-size:20px; letter-spacing:.12em; flex:1}
 #levellist .st{font-size:10px; letter-spacing:.2em; color:var(--dim)}
 #levellist .st.done{color:var(--green)}
 
@@ -89,7 +89,7 @@ button.ghost:hover{border-color:var(--dim); color:var(--pale)}
 #ghead h2{font-family:var(--serif); font-weight:400; letter-spacing:.24em;
   font-size:17px; margin:0; color:#efe4cd}
 #ghead p{margin:0; font-family:var(--serif); font-style:italic;
-  color:var(--dim); font-size:13px}
+  color:var(--dim); font-size:15px}
 
 .stage{display:grid; grid-template-columns:1fr 316px; gap:20px; min-height:0; padding:12px 0}
 .boardwrap{position:relative; display:grid; place-items:center; min-height:0}
@@ -106,7 +106,7 @@ button.ghost:hover{border-color:var(--dim); color:var(--pale)}
 .block h3{margin:0 0 9px; font-size:10px; letter-spacing:.26em; color:var(--dim); font-weight:400}
 #objectives{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:9px}
 #objectives li{font-size:12px; line-height:1.5; padding-left:22px; position:relative;
-  font-family:var(--serif); font-size:13px}
+  font-family:var(--serif); font-size:15px}
 #objectives li::before{
   position:absolute; left:0; top:1px; font-family:var(--mono); font-size:11px;
 }
@@ -142,16 +142,29 @@ button.mode.on{border-color:var(--gold); color:var(--gold)}
 #epilogue.on{display:grid}
 .scroll{max-width:600px}
 #epiverdict{font-family:var(--serif); font-weight:400; letter-spacing:.24em;
-  font-size:20px; margin:0 0 1.4em}
+  font-size:22px; margin:0 0 1.4em}
 #epiverdict.good{color:var(--gold)}
 #epiverdict.bad{color:var(--red)}
-#epitext{font-family:var(--serif); font-size:16px; line-height:1.85; color:#bcc4dd}
+#epitext{font-family:var(--serif); font-size:18px; line-height:1.8; color:#bcc4dd}
 #epitext p{margin:0 0 1.1em}
 #epitext .said{color:#8b93b4; font-style:italic}
 #epitext b{color:var(--gold); font-weight:400}
 
-@media (max-width:900px){
-  .stage{grid-template-columns:1fr; grid-template-rows:1fr auto}
-  #panel{max-height:38vh}
+/* Side by side holds down to a fairly narrow board; below that the whole page
+   flows and scrolls as one, so LET IT HAPPEN is never stranded off-screen. */
+@media (max-width:1000px){ .stage{grid-template-columns:1fr 272px; gap:14px} }
+@media (max-width:720px){
+  body{overflow:auto}
+  /* A fixed box with inset:0 cannot grow past the viewport, so at this size
+     the screens rejoin the normal flow and the document itself scrolls. */
+  .screen{position:relative; inset:auto; min-height:100vh}
+  #game{height:auto; grid-template-rows:none; padding:12px; gap:16px}
+  /* Dissolve the two-column stage so the hours can sit directly under the
+     board, where scrubbing them means something, and the readouts below. */
+  .stage{display:contents}
+  #ghead{order:0}
+  .boardwrap{order:1; min-height:40vh}
+  .timeline{order:2}
+  #panel{order:3; max-height:none; overflow:visible; padding-bottom:24px}
   #brief{display:none}
 }

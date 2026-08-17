@@ -344,7 +344,7 @@
       bx.strokeRect(X + 3.5, Y + 3.5, CS - 7, CS - 7);
       bx.setLineDash([]);
       bx.fillStyle = 'rgba(201,79,82,.85)';
-      bx.font = Math.round(CS * .30) + 'px ui-monospace,monospace';
+      bx.font = '500 ' + Math.round(CS * .30) + "px 'IBM Plex Mono',ui-monospace,monospace";
       bx.textAlign = 'center'; bx.textBaseline = 'middle';
       bx.fillText(String(from), X + CS / 2, Y + CS / 2);
     }
@@ -381,7 +381,7 @@
         g.fillRect(X + .5, 56 - hb, 3.5, hb);
       }
       g.fillStyle = t === S.viewT ? '#e0a24a' : '#4b5578';
-      g.font = '10px ui-monospace,monospace';
+      g.font = "10px 'IBM Plex Mono',ui-monospace,monospace";
       g.textAlign = 'center'; g.textBaseline = 'top';
       g.fillText(String(t), X, 62);
       // hours at which a prohibition begins

@@ -4,7 +4,10 @@
 
 > You cannot make anything happen. You can only make things impossible.
 
-Open `ananke/index.html`. That's it — no build, no server.
+Open `ananke/index.html`. That's it — no build, no server. There is also a
+single-file build in `dist/ananke.html` (fonts embedded, nothing fetched) if
+you'd rather host or hand around one file — `python3 tools/build-single.py`
+regenerates it.
 
 ## What it is
 
