@@ -19,7 +19,7 @@
     stageIndex: 0,
     paused: false,
     continueT: 0,
-    respawnT: [0, 0],
+    respawnT: [0, 0], nextLife: [50000, 50000],
     attractX: 0,
     ended: false,
 
@@ -52,7 +52,8 @@
       return {
         hp: (1 + s * 0.16) * (n > 1 ? 1.28 : 1),
         dmg: 0.7 + s * 0.14,
-        aggr: 0.85 + s * 0.07
+        aggr: 0.85 + s * 0.07,
+        players: n
       };
     },
 
@@ -65,6 +66,14 @@
     noteScore: function (i, v) {
       this.scores[i] = v;
       if (v > this.hiScore) this.hiScore = v;
+      // An extra life every 50,000, the way the machine used to pay you.
+      while (v >= this.nextLife[i]) {
+        this.nextLife[i] += 50000;
+        this.lives[i]++;
+        var p = this.players[i];
+        if (p) FX.pop(p.x, p.y - p.hh - 8, '1UP', '#4ae06a');
+        if (PC.audio) PC.audio.sfx('join');
+      }
     },
 
     enemyDown: function () { },
@@ -72,7 +81,9 @@
     timeUp: function () {
       for (var i = 0; i < 2; i++) {
         var p = this.players[i];
-        if (p && !p.dead) { p.hp = 0; p.takeHit({ dmg: 999, dir: -p.facing, knock: true, x: p.x, y: p.y - 20 }); }
+        if (!p || p.dead) continue;
+        p.invuln = 0;
+        p.takeHit({ dmg: 999, dir: -p.facing, knock: true, x: p.x, y: p.y - 20, stun: 20, push: 2 });
       }
       PC.stage.timeLeft = 0;
     },
@@ -104,6 +115,7 @@
     startGame: function (firstPlayer) {
       this.scores = [0, 0];
       this.lives = [3, 3];
+      this.nextLife = [50000, 50000];
       this.players = [null, null];
       this.stageIndex = 0;
       this.ended = false;
@@ -220,6 +232,8 @@
           var x = M.clamp(W.camX + PC.W * 0.3, W.camX + 20, W.camX + PC.W - 20);
           p.reviveAt(x, PC.FLOOR_BOT - 16);
           W.add(p);
+          // being sent back out with no clock left is not a life, it is a joke
+          if (PC.stage.timeLeft <= 0) PC.stage.timeLeft = 30;
         } else {
           this.players[i] = null;
           if (i === 1) PC.input.p2Joined = false;
@@ -253,6 +267,7 @@
 
     stageClear: function () {
       this.setState('clear');
+      for (var i = 0; i < 2; i++) if (this.players[i]) this.players[i].celebrate = true;
       if (PC.audio) PC.audio.play('clear');
     },
 
@@ -260,6 +275,7 @@
       this.stageIndex++;
       if (this.stageIndex >= PC.STAGES.length) {
         this.ended = true;
+        for (var q = 0; q < 2; q++) if (this.players[q]) this.players[q].celebrate = true;
         this.setState('ending');
         if (PC.audio) PC.audio.play('ending');
         return;
@@ -271,6 +287,7 @@
       }
       PC.stage.load(this.stageIndex);
       for (var k = 0; k < keep.length; k++) {
+        keep[k].celebrate = false;
         keep[k].reviveAt(60 + k * 26, PC.FLOOR_BOT - 16 - k * 8);
         W.add(keep[k]);
       }

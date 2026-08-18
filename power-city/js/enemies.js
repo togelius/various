@@ -72,22 +72,22 @@
 
   var BOSSES = PC.BOSS_TYPES = {
     crusher: {
-      char: 'boss_crusher', hp: 210, speed: 0.85, score: 5000, standoff: 26, mass: 3.4,
+      char: 'boss_crusher', hp: 168, speed: 0.85, score: 5000, standoff: 26, mass: 3.4,
       armor: 3, knockRes: 0.82, boss: true, downTime: 44,
       moves: ['slam', 'hook', 'charge', 'pound'], aggr: 0.6, grabber: 0.3
     },
     viper: {
-      char: 'boss_viper', hp: 180, speed: 1.55, score: 6000, standoff: 34, mass: 1.4,
+      char: 'boss_viper', hp: 150, speed: 1.55, score: 6000, standoff: 34, mass: 1.4,
       armor: 1, knockRes: 0.6, boss: true, weapon: 'chain', downTime: 34,
       moves: ['chainSweep', 'kick', 'chainSweep', 'jumpKick'], aggr: 0.85, jumpy: 0.35, retreat: 0.4
     },
     jaws: {
-      char: 'boss_jaws', hp: 200, speed: 1.25, score: 7000, standoff: 28, mass: 2.4,
+      char: 'boss_jaws', hp: 172, speed: 1.25, score: 7000, standoff: 28, mass: 2.4,
       armor: 2, knockRes: 0.7, boss: true, downTime: 40,
       moves: ['spin', 'hook', 'kick', 'charge'], aggr: 0.8, thrower: 0.3, grabber: 0.25
     },
     power: {
-      char: 'boss_power', hp: 260, speed: 1.5, score: 12000, standoff: 26, mass: 2,
+      char: 'boss_power', hp: 204, speed: 1.5, score: 12000, standoff: 26, mass: 2,
       armor: 2, knockRes: 0.78, boss: true, downTime: 32,
       moves: ['upper', 'jab', 'hook', 'spin', 'charge'], aggr: 0.95, jumpy: 0.3, retreat: 0.3
     }

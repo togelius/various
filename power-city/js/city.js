@@ -280,6 +280,30 @@
     }
   };
 
+  MOD.metalWall = {
+    w: 56,
+    paint: function (ctx, x, t, r) {
+      var base = t.metal || '#5a6472', dark = C.shade(base, -0.3), light = C.shade(base, 0.16);
+      Art.rect(ctx, x, 0, 56, FIELD_H, base);
+      for (var i = 0; i < 56; i += 4) {
+        Art.rect(ctx, x + i, 0, 1, FIELD_H, dark);
+        Art.rect(ctx, x + i + 2, 0, 1, FIELD_H, light);
+      }
+      Art.rect(ctx, x, 0, 56, 4, C.shade(base, 0.3));
+      Art.rect(ctx, x, 26, 56, 3, dark);
+      Art.rect(ctx, x, FIELD_H - 16, 56, 3, dark);
+      // rust creeping up from the ground
+      for (var k = 0; k < 22; k++) Art.dither(ctx, x, FIELD_H - 20 + k, 56, 1, t.rust || '#6a4630', k % 2);
+      if (r.chance(0.45)) {
+        var wx = x + 10, wy = 34;
+        Art.rect(ctx, wx - 2, wy - 2, 34, 24, dark);
+        Art.rect(ctx, wx, wy, 30, 20, '#12202c');
+        Art.hatch(ctx, wx, wy, 30, 20, 10, C.shade(base, -0.1), 'v');
+        Art.limb(ctx, wx + 2, wy + 17, wx + 20, wy + 3, 2, 2, 'rgba(200,230,255,0.12)');
+      }
+    }
+  };
+
   MOD.container = {
     w: 68,
     paint: function (ctx, x, t, r) {
@@ -375,6 +399,19 @@
         Art.rect(ctx, x0 + j + off, y + bands[i], 1, bands[i + 1] - bands[i], slabD);
       }
     }
+    if (t.planks) {
+      // a wharf is boards, not paving: seams run away from the camera
+      Art.rect(ctx, x0, y, w, 48, slab);
+      for (i = 0; i < w; i += 13) {
+        Art.rect(ctx, x0 + i, y, 1, 48, slabD);
+        Art.rect(ctx, x0 + i + 1, y, 1, 48, C.shade(slab, 0.1));
+      }
+      for (i = 1; i < bands.length; i++) {
+        Art.rect(ctx, x0, y + bands[i], w, 1, C.shade(slab, -0.12));
+        for (j = ((i * 17) % 40); j < w; j += 40) Art.rect(ctx, x0 + j, y + bands[i] - 1, 2, 2, slabD);
+      }
+    }
+
     // curb + road
     Art.rect(ctx, x0, y + 48, w, 3, C.shade(slab, 0.3));
     Art.rect(ctx, x0, y + 51, w, 9, t.road || '#3a3f4c');
@@ -438,13 +475,14 @@
       sky: ['#040a18', '#0e2a3c'], tower: '#0a1424', lit: '#7fd8f0', moon: [120, 26], water: '#123044',
       neon: '#3ad8c8', neon2: '#f0f0a0', signTop: 'DOCK', signBot: 'NO ENTRY',
       tag: 'JAWS', tagColor: '#f0a030', fence: '#5f7a8a',
-      modules: ['container', 'crates', 'wall', 'container', 'crane', 'fence', 'container', 'pipe'],
+      metal: '#5a6472', rust: '#6a4630', planks: true,
+      modules: ['container', 'crates', 'metalWall', 'container', 'crane', 'fence', 'metalWall', 'container'],
       landmarks: [[150, 'crane'], [430, 'container'], [760, 'crane']]
     },
     tower: {
       seed: 44,
       brick: '#3a3f5c', floor: '#5a5f7a', road: '#2a2e42',
-      sky: ['#08081a', '#2a1040'], tower: '#12162e', lit: '#ff5f8a',
+      sky: ['#08081a', '#2a1040'], tower: '#12162e', lit: '#e8a83a',
       neon: '#ff2a5a', neon2: '#ffffff', signTop: 'POWER', signBot: 'TOWER',
       tag: 'MR POWER', tagColor: '#ff2a5a', fence: '#8a5fd8',
       modules: ['glassWall', 'pillar', 'glassWall', 'neon', 'pillar', 'glassWall'],

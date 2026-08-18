@@ -114,6 +114,12 @@
 
   // ------------------------------------------------------------------ control
   Player.prototype.control = function () {
+    // the fight is over and won: stand there with your arms up
+    if (this.celebrate) {
+      this.setState('win');
+      this.vx = 0; this.vy = 0;
+      return;
+    }
     var inp = PC.input.p[this.index];
     var held = inp.held, pressed = inp.pressed;
     var b = this.buffer, k;
@@ -381,6 +387,7 @@
     this.state = 'idle'; this.st = 0;
     this.invuln = 110;
     this.combo = 0; this.runT = 0;
+    this.celebrate = false;
     this.weapon = null; this.weaponItem = null; this.carry = null;
   };
 

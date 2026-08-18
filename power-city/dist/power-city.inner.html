@@ -1612,6 +1612,30 @@ canvas#screen {
     }
   };
 
+  MOD.metalWall = {
+    w: 56,
+    paint: function (ctx, x, t, r) {
+      var base = t.metal || '#5a6472', dark = C.shade(base, -0.3), light = C.shade(base, 0.16);
+      Art.rect(ctx, x, 0, 56, FIELD_H, base);
+      for (var i = 0; i < 56; i += 4) {
+        Art.rect(ctx, x + i, 0, 1, FIELD_H, dark);
+        Art.rect(ctx, x + i + 2, 0, 1, FIELD_H, light);
+      }
+      Art.rect(ctx, x, 0, 56, 4, C.shade(base, 0.3));
+      Art.rect(ctx, x, 26, 56, 3, dark);
+      Art.rect(ctx, x, FIELD_H - 16, 56, 3, dark);
+      // rust creeping up from the ground
+      for (var k = 0; k < 22; k++) Art.dither(ctx, x, FIELD_H - 20 + k, 56, 1, t.rust || '#6a4630', k % 2);
+      if (r.chance(0.45)) {
+        var wx = x + 10, wy = 34;
+        Art.rect(ctx, wx - 2, wy - 2, 34, 24, dark);
+        Art.rect(ctx, wx, wy, 30, 20, '#12202c');
+        Art.hatch(ctx, wx, wy, 30, 20, 10, C.shade(base, -0.1), 'v');
+        Art.limb(ctx, wx + 2, wy + 17, wx + 20, wy + 3, 2, 2, 'rgba(200,230,255,0.12)');
+      }
+    }
+  };
+
   MOD.container = {
     w: 68,
     paint: function (ctx, x, t, r) {
@@ -1707,6 +1731,19 @@ canvas#screen {
         Art.rect(ctx, x0 + j + off, y + bands[i], 1, bands[i + 1] - bands[i], slabD);
       }
     }
+    if (t.planks) {
+      // a wharf is boards, not paving: seams run away from the camera
+      Art.rect(ctx, x0, y, w, 48, slab);
+      for (i = 0; i < w; i += 13) {
+        Art.rect(ctx, x0 + i, y, 1, 48, slabD);
+        Art.rect(ctx, x0 + i + 1, y, 1, 48, C.shade(slab, 0.1));
+      }
+      for (i = 1; i < bands.length; i++) {
+        Art.rect(ctx, x0, y + bands[i], w, 1, C.shade(slab, -0.12));
+        for (j = ((i * 17) % 40); j < w; j += 40) Art.rect(ctx, x0 + j, y + bands[i] - 1, 2, 2, slabD);
+      }
+    }
+
     // curb + road
     Art.rect(ctx, x0, y + 48, w, 3, C.shade(slab, 0.3));
     Art.rect(ctx, x0, y + 51, w, 9, t.road || '#3a3f4c');
@@ -1770,13 +1807,14 @@ canvas#screen {
       sky: ['#040a18', '#0e2a3c'], tower: '#0a1424', lit: '#7fd8f0', moon: [120, 26], water: '#123044',
       neon: '#3ad8c8', neon2: '#f0f0a0', signTop: 'DOCK', signBot: 'NO ENTRY',
       tag: 'JAWS', tagColor: '#f0a030', fence: '#5f7a8a',
-      modules: ['container', 'crates', 'wall', 'container', 'crane', 'fence', 'container', 'pipe'],
+      metal: '#5a6472', rust: '#6a4630', planks: true,
+      modules: ['container', 'crates', 'metalWall', 'container', 'crane', 'fence', 'metalWall', 'container'],
       landmarks: [[150, 'crane'], [430, 'container'], [760, 'crane']]
     },
     tower: {
       seed: 44,
       brick: '#3a3f5c', floor: '#5a5f7a', road: '#2a2e42',
-      sky: ['#08081a', '#2a1040'], tower: '#12162e', lit: '#ff5f8a',
+      sky: ['#08081a', '#2a1040'], tower: '#12162e', lit: '#e8a83a',
       neon: '#ff2a5a', neon2: '#ffffff', signTop: 'POWER', signBot: 'TOWER',
       tag: 'MR POWER', tagColor: '#ff2a5a', fence: '#8a5fd8',
       modules: ['glassWall', 'pillar', 'glassWall', 'neon', 'pillar', 'glassWall'],
@@ -3352,6 +3390,12 @@ canvas#screen {
 
   // ------------------------------------------------------------------ control
   Player.prototype.control = function () {
+    // the fight is over and won: stand there with your arms up
+    if (this.celebrate) {
+      this.setState('win');
+      this.vx = 0; this.vy = 0;
+      return;
+    }
     var inp = PC.input.p[this.index];
     var held = inp.held, pressed = inp.pressed;
     var b = this.buffer, k;
@@ -3619,6 +3663,7 @@ canvas#screen {
     this.state = 'idle'; this.st = 0;
     this.invuln = 110;
     this.combo = 0; this.runT = 0;
+    this.celebrate = false;
     this.weapon = null; this.weaponItem = null; this.carry = null;
   };
 
@@ -3699,22 +3744,22 @@ canvas#screen {
 
   var BOSSES = PC.BOSS_TYPES = {
     crusher: {
-      char: 'boss_crusher', hp: 210, speed: 0.85, score: 5000, standoff: 26, mass: 3.4,
+      char: 'boss_crusher', hp: 168, speed: 0.85, score: 5000, standoff: 26, mass: 3.4,
       armor: 3, knockRes: 0.82, boss: true, downTime: 44,
       moves: ['slam', 'hook', 'charge', 'pound'], aggr: 0.6, grabber: 0.3
     },
     viper: {
-      char: 'boss_viper', hp: 180, speed: 1.55, score: 6000, standoff: 34, mass: 1.4,
+      char: 'boss_viper', hp: 150, speed: 1.55, score: 6000, standoff: 34, mass: 1.4,
       armor: 1, knockRes: 0.6, boss: true, weapon: 'chain', downTime: 34,
       moves: ['chainSweep', 'kick', 'chainSweep', 'jumpKick'], aggr: 0.85, jumpy: 0.35, retreat: 0.4
     },
     jaws: {
-      char: 'boss_jaws', hp: 200, speed: 1.25, score: 7000, standoff: 28, mass: 2.4,
+      char: 'boss_jaws', hp: 172, speed: 1.25, score: 7000, standoff: 28, mass: 2.4,
       armor: 2, knockRes: 0.7, boss: true, downTime: 40,
       moves: ['spin', 'hook', 'kick', 'charge'], aggr: 0.8, thrower: 0.3, grabber: 0.25
     },
     power: {
-      char: 'boss_power', hp: 260, speed: 1.5, score: 12000, standoff: 26, mass: 2,
+      char: 'boss_power', hp: 204, speed: 1.5, score: 12000, standoff: 26, mass: 2,
       armor: 2, knockRes: 0.78, boss: true, downTime: 32,
       moves: ['upper', 'jab', 'hook', 'spin', 'charge'], aggr: 0.95, jumpy: 0.3, retreat: 0.3
     }
@@ -4059,7 +4104,12 @@ canvas#screen {
         }
       }
       this.encT = 0;
-      if (e.boss && PC.audio) PC.audio.play('boss');
+      /* A boss deserves a clock of its own. Arriving at the last fight with
+       * nine seconds left is not tension, it is a coin-op tax. */
+      if (e.boss) {
+        this.timeLeft = Math.max(this.timeLeft, 50);
+        if (PC.audio) PC.audio.play('boss');
+      }
     },
 
     spawnOne: function (s) {
@@ -4076,9 +4126,13 @@ canvas#screen {
       var ex = side > 0 ? W.camX + PC.W + PC.rand.range(10, 40) : W.camX - PC.rand.range(14, 44);
       ex = M.clamp(ex, W.minX + 4, W.maxX - 4);
       var ey = PC.rand.range(PC.FLOOR_TOP + 6, PC.FLOOR_BOT - 4);
-      var d = PC.game ? PC.game.difficulty() : { hp: 1, dmg: 1, aggr: 1 };
+      var d = PC.game ? PC.game.difficulty() : { hp: 1, dmg: 1, aggr: 1, players: 1 };
+      // Bosses are already sized for the stage they guard; only the gang
+      // scales with how far you have come.
       var e = PC.spawnEnemy(s.type, ex, ey, {
-        facing: side > 0 ? -1 : 1, hpScale: d.hp, dmgScale: d.dmg, aggrScale: d.aggr
+        facing: side > 0 ? -1 : 1,
+        hpScale: s.boss ? (d.players > 1 ? 1.4 : 1) : d.hp,
+        dmgScale: d.dmg, aggrScale: d.aggr
       });
       if (s.boss) {
         this.bossActive = e;
@@ -4098,7 +4152,7 @@ canvas#screen {
 
       // ---- countdown
       if (!this.cleared) {
-        if (++this.timeT >= 72) {
+        if (++this.timeT >= 76) {
           this.timeT = 0;
           this.timeLeft--;
           if (this.timeLeft <= 10 && this.timeLeft > 0 && PC.audio) PC.audio.sfx('tick');
@@ -4371,7 +4425,7 @@ canvas#screen {
     stageIndex: 0,
     paused: false,
     continueT: 0,
-    respawnT: [0, 0],
+    respawnT: [0, 0], nextLife: [50000, 50000],
     attractX: 0,
     ended: false,
 
@@ -4404,7 +4458,8 @@ canvas#screen {
       return {
         hp: (1 + s * 0.16) * (n > 1 ? 1.28 : 1),
         dmg: 0.7 + s * 0.14,
-        aggr: 0.85 + s * 0.07
+        aggr: 0.85 + s * 0.07,
+        players: n
       };
     },
 
@@ -4417,6 +4472,14 @@ canvas#screen {
     noteScore: function (i, v) {
       this.scores[i] = v;
       if (v > this.hiScore) this.hiScore = v;
+      // An extra life every 50,000, the way the machine used to pay you.
+      while (v >= this.nextLife[i]) {
+        this.nextLife[i] += 50000;
+        this.lives[i]++;
+        var p = this.players[i];
+        if (p) FX.pop(p.x, p.y - p.hh - 8, '1UP', '#4ae06a');
+        if (PC.audio) PC.audio.sfx('join');
+      }
     },
 
     enemyDown: function () { },
@@ -4424,7 +4487,9 @@ canvas#screen {
     timeUp: function () {
       for (var i = 0; i < 2; i++) {
         var p = this.players[i];
-        if (p && !p.dead) { p.hp = 0; p.takeHit({ dmg: 999, dir: -p.facing, knock: true, x: p.x, y: p.y - 20 }); }
+        if (!p || p.dead) continue;
+        p.invuln = 0;
+        p.takeHit({ dmg: 999, dir: -p.facing, knock: true, x: p.x, y: p.y - 20, stun: 20, push: 2 });
       }
       PC.stage.timeLeft = 0;
     },
@@ -4456,6 +4521,7 @@ canvas#screen {
     startGame: function (firstPlayer) {
       this.scores = [0, 0];
       this.lives = [3, 3];
+      this.nextLife = [50000, 50000];
       this.players = [null, null];
       this.stageIndex = 0;
       this.ended = false;
@@ -4572,6 +4638,8 @@ canvas#screen {
           var x = M.clamp(W.camX + PC.W * 0.3, W.camX + 20, W.camX + PC.W - 20);
           p.reviveAt(x, PC.FLOOR_BOT - 16);
           W.add(p);
+          // being sent back out with no clock left is not a life, it is a joke
+          if (PC.stage.timeLeft <= 0) PC.stage.timeLeft = 30;
         } else {
           this.players[i] = null;
           if (i === 1) PC.input.p2Joined = false;
@@ -4605,6 +4673,7 @@ canvas#screen {
 
     stageClear: function () {
       this.setState('clear');
+      for (var i = 0; i < 2; i++) if (this.players[i]) this.players[i].celebrate = true;
       if (PC.audio) PC.audio.play('clear');
     },
 
@@ -4612,6 +4681,7 @@ canvas#screen {
       this.stageIndex++;
       if (this.stageIndex >= PC.STAGES.length) {
         this.ended = true;
+        for (var q = 0; q < 2; q++) if (this.players[q]) this.players[q].celebrate = true;
         this.setState('ending');
         if (PC.audio) PC.audio.play('ending');
         return;
@@ -4623,6 +4693,7 @@ canvas#screen {
       }
       PC.stage.load(this.stageIndex);
       for (var k = 0; k < keep.length; k++) {
+        keep[k].celebrate = false;
         keep[k].reviveAt(60 + k * 26, PC.FLOOR_BOT - 16 - k * 8);
         W.add(keep[k]);
       }

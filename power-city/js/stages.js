@@ -125,7 +125,12 @@
         }
       }
       this.encT = 0;
-      if (e.boss && PC.audio) PC.audio.play('boss');
+      /* A boss deserves a clock of its own. Arriving at the last fight with
+       * nine seconds left is not tension, it is a coin-op tax. */
+      if (e.boss) {
+        this.timeLeft = Math.max(this.timeLeft, 50);
+        if (PC.audio) PC.audio.play('boss');
+      }
     },
 
     spawnOne: function (s) {
@@ -142,9 +147,13 @@
       var ex = side > 0 ? W.camX + PC.W + PC.rand.range(10, 40) : W.camX - PC.rand.range(14, 44);
       ex = M.clamp(ex, W.minX + 4, W.maxX - 4);
       var ey = PC.rand.range(PC.FLOOR_TOP + 6, PC.FLOOR_BOT - 4);
-      var d = PC.game ? PC.game.difficulty() : { hp: 1, dmg: 1, aggr: 1 };
+      var d = PC.game ? PC.game.difficulty() : { hp: 1, dmg: 1, aggr: 1, players: 1 };
+      // Bosses are already sized for the stage they guard; only the gang
+      // scales with how far you have come.
       var e = PC.spawnEnemy(s.type, ex, ey, {
-        facing: side > 0 ? -1 : 1, hpScale: d.hp, dmgScale: d.dmg, aggrScale: d.aggr
+        facing: side > 0 ? -1 : 1,
+        hpScale: s.boss ? (d.players > 1 ? 1.4 : 1) : d.hp,
+        dmgScale: d.dmg, aggrScale: d.aggr
       });
       if (s.boss) {
         this.bossActive = e;
@@ -164,7 +173,7 @@
 
       // ---- countdown
       if (!this.cleared) {
-        if (++this.timeT >= 72) {
+        if (++this.timeT >= 76) {
           this.timeT = 0;
           this.timeLeft--;
           if (this.timeLeft <= 10 && this.timeLeft > 0 && PC.audio) PC.audio.sfx('tick');
