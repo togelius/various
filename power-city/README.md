@@ -5,7 +5,10 @@ build step, no dependencies, no assets.
 
 Open `power-city/index.html` and press **5**, then **1**. There is also a
 single-file build in `dist/power-city.html` if you would rather host or hand
-around one file; `python3 tools/build-single.py` regenerates it.
+around one file, and `dist/power-city-artifact.html` — the same game in a
+cabinet, for embedding somewhere that supplies its own page. `python3
+tools/build-single.py` regenerates all three from `tools/shell-artifact.html`
+and the script order in `index.html`.
 
 > Four stages. Four bosses. Two players on one keyboard. A clock that does not
 > care whether you are ready.

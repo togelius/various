@@ -2,14 +2,16 @@
 """Inline POWER CITY into one self-contained file.
 
 Emits:
-  dist/power-city.html        a standalone page - open it, host it, mail it
-  dist/power-city.inner.html  the same body without the document wrapper, for
-                              hosts that supply their own <head>/<body>
+  dist/power-city.html          a standalone page - open it, host it, mail it
+  dist/power-city.inner.html    the same body without the document wrapper, for
+                                hosts that supply their own <head>/<body>
+  dist/power-city-artifact.html the cabinet shell from tools/shell-artifact.html,
+                                for embedding somewhere that hands us a page
 
 No assets to bundle: every pixel and every sound in this game is generated at
 runtime, so the whole cabinet is the text of these scripts.
 """
-import pathlib, re
+import pathlib, re, sys
 
 root = pathlib.Path(__file__).resolve().parent.parent
 html = (root / 'index.html').read_text()
@@ -19,6 +21,11 @@ css = (root / 'css/style.css').read_text()
 # that could drift out of step with it.
 order = re.findall(r'<script src="js/([^"]+)\.js"></script>', html)
 js = [(root / f'js/{name}.js').read_text() for name in order]
+
+# A stray closing script tag inside a source would end the inlined block early.
+for name, src in zip(order, js):
+    if re.search(r'</script', src, re.I):
+        sys.exit(f'!! js/{name}.js contains a </script sequence; escape it first')
 
 body = html.split('<body>', 1)[1].rsplit('</body>', 1)[0]
 body = re.sub(r'\s*<script src="[^"]+"></script>', '', body).strip()
@@ -49,3 +56,18 @@ inner = '\n'.join(parts) + '\n'
 
 for f in ('dist/power-city.html', 'dist/power-city.inner.html'):
     print(f, (root / f).stat().st_size // 1024, 'KB')
+
+# ---------------------------------------------------------------- the cabinet
+# A shell that brings its own page furniture - marquee, bezel, control panel -
+# and takes the bundle at its <!--BUNDLE--> marker.
+shell_path = root / 'tools/shell-artifact.html'
+if shell_path.exists():
+    shell = shell_path.read_text()
+    if '<!--BUNDLE-->' not in shell:
+        sys.exit('!! tools/shell-artifact.html is missing its <!--BUNDLE--> marker')
+    bundle = '\n'.join(f'/* ===== js/{n}.js ===== */\n' + s.strip()
+                       for n, s in zip(order, js))
+    (root / 'dist/power-city-artifact.html').write_text(
+        shell.replace('<!--BUNDLE-->', bundle))
+    print('dist/power-city-artifact.html',
+          (root / 'dist/power-city-artifact.html').stat().st_size // 1024, 'KB')

@@ -1,0 +1,453 @@
+<title>POWER CITY</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+  /* POWER CITY, in its cabinet.
+     Deliberately one world, not two themes: the game inside the bezel is a
+     committed late-night arcade, and a light page around it would fight the
+     screen instead of framing it. Every colour below is sampled from the
+     game's own palette - the marquee pink is the BAR STARLIGHT sign, the
+     blue is the CITY half of the logo, the amber is the HUD. */
+  :root {
+    --room:      #08060e;
+    --room-lift: #191026;
+    --cabinet:   #1c1226;
+    --panel:     #241733;
+    --rail:      #43284c;
+    --neon:      #ff4f9a;
+    --volt:      #2f6ef0;
+    --amber:     #ffe070;
+    --ink:       #c8bad9;
+    --ink-dim:   #7c6b93;
+    --punch:     #d8283c;
+    --kick:      #2f6ef0;
+    --jump:      #d8a020;
+    --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+    --cab: 790px;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--room);
+    /* the screen spilling light onto the back wall of the arcade */
+    background-image:
+      radial-gradient(ellipse 72% 52% at 50% 34%, var(--room-lift) 0%, rgba(8, 6, 14, 0) 70%),
+      linear-gradient(#0a0712, #050409);
+    color: var(--ink);
+    font-family: var(--mono);
+    overflow-x: hidden;
+    overscroll-behavior: none;
+  }
+
+  .arcade {
+    height: 100vh;
+    min-height: 520px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 11px;
+    padding: 14px 14px 16px;
+  }
+
+  /* ------------------------------------------------------------- marquee */
+  .marquee {
+    /* every panel is the width of the screen at 2x plus its bezel, so the
+       machine reads as one object rather than three stacked boxes */
+    width: min(94vw, var(--cab));
+    flex-wrap: wrap;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 7px 18px;
+    border-radius: 3px;
+    background: linear-gradient(#2a1030, #170a1e);
+    border: 1px solid var(--rail);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 0 22px rgba(255, 79, 154, 0.16);
+  }
+
+  .marquee .plate {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    white-space: nowrap;
+  }
+  .marquee .plate.right { text-align: right; }
+
+  /* the wordmark is painted in the game's own 5x7 bitmap font at boot */
+  #wordmark {
+    display: block;
+    image-rendering: pixelated;
+    filter: drop-shadow(0 0 9px rgba(255, 79, 154, 0.4));
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* the tube strikes once, then holds */
+    #wordmark { animation: strike 900ms steps(1, end) 1; }
+    @keyframes strike {
+      0%, 14%, 30% { opacity: 0.15; }
+      8%, 22%, 100% { opacity: 1; }
+    }
+  }
+
+  /* -------------------------------------------------------------- screen */
+  /* #stage is the measuring frame: the game fits its canvas to whatever room
+     is left after the furniture, snapping to whole pixel scales. The bezel
+     then shrink-wraps the canvas, so leftover space reads as room rather
+     than as a black border inside the cabinet. */
+  #stage {
+    flex: 1 1 auto;
+    min-height: 180px;
+    width: min(96vw, 900px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #cabinet {
+    position: relative;
+    width: max-content;
+    padding: 10px;
+    border-radius: 6px;
+    background: linear-gradient(var(--cabinet), #0e0916);
+    border: 1px solid var(--rail);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 24px 70px rgba(0, 0, 0, 0.8),
+      0 0 90px rgba(47, 110, 240, 0.1);
+    outline: none;
+  }
+  #cabinet:focus-visible { border-color: var(--neon); }
+
+  canvas#screen {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #000;
+    border-radius: 2px;
+  }
+
+  /* the veil takes the first click, which is also what hands the page the
+     keyboard and lets the browser make a sound */
+  #veil {
+    position: absolute;
+    inset: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-align: center;
+    background: rgba(6, 4, 12, 0.82);
+    color: var(--ink);
+    font-size: 13px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: opacity 220ms ease;
+  }
+  #veil.gone { opacity: 0; pointer-events: none; }
+  #veil .big {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(22px, 4.4vw, 34px);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--amber);
+  }
+  #veil .sub {
+    color: var(--ink-dim);
+    max-width: 46ch;
+    line-height: 1.6;
+    text-wrap: balance;
+  }
+
+  /* ------------------------------------------------------- control panel */
+  .panel {
+    width: min(94vw, var(--cab));
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 26px;
+    padding: 9px 18px;
+    border-radius: 4px;
+    background: linear-gradient(var(--panel), #170e21);
+    border: 1px solid var(--rail);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .cluster { display: flex; align-items: center; gap: 9px; }
+
+  .cluster .label {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+
+  /* button caps, in the same colours as the on-screen pad */
+  .cap {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.35), inset 0 2px 0 rgba(255, 255, 255, 0.14);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.05;
+    color: #fff;
+  }
+  .cap b { font-size: 13px; letter-spacing: 0.02em; }
+  .cap.p { background: var(--punch); }
+  .cap.k { background: var(--kick); }
+  .cap.j { background: var(--jump); color: #2a1a00; }
+
+  .stick {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 32%, #4a3358, #1a1024 70%);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; color: var(--ink);
+  }
+
+  .slot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 12px;
+    border-radius: 3px;
+    background: #100a18;
+    border: 1px solid var(--rail);
+  }
+  .slot .mouth {
+    width: 6px; height: 24px;
+    border-radius: 2px;
+    background: #05030a;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  }
+  .slot span {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--amber);
+  }
+
+  /* ------------------------------------------------------------- footnote */
+  .keys {
+    width: min(94vw, var(--cab));
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px 16px;
+    font-size: 11.5px;
+    color: var(--ink-dim);
+    line-height: 1.7;
+  }
+  .keys i { font-style: normal; white-space: nowrap; }
+  .keys b { color: var(--ink); font-weight: 600; }
+
+  .colophon {
+    width: min(94vw, var(--cab));
+    margin: 0;
+    text-align: center;
+    font-size: 11px;
+    color: #5c4d72;
+    line-height: 1.7;
+  }
+
+  /* The screen only lands on a whole-pixel scale if the furniture leaves it
+     room, so the least important line goes first. */
+  @media (max-height: 860px) {
+    .colophon { display: none; }
+  }
+  @media (max-height: 720px) {
+    .arcade { gap: 8px; padding: 9px; }
+  }
+  @media (max-height: 600px) {
+    .keys { display: none; }
+  }
+  @media (max-width: 560px) {
+    .marquee .plate { display: none; }
+  }
+
+  /* ---------------------------------------------------------- touch pad */
+  #touch { display: none; }
+
+  @media (hover: none) and (pointer: coarse) {
+    .keys, .colophon { display: none; }
+    .panel { display: none; }
+    .arcade { height: auto; min-height: 100vh; justify-content: flex-start; }
+    #stage { flex: 0 0 auto; max-height: 46vh; }
+    #touch {
+      display: block;
+      position: fixed;
+      inset: auto 0 0 0;
+      height: 42vh;
+      pointer-events: none;
+      z-index: 5;
+    }
+    #touch .pad { position: absolute; bottom: 3vh; pointer-events: auto; }
+    #touch .pad.left { left: 3vw; width: 34vw; height: 34vw; }
+    #touch .pad.right { right: 3vw; width: 40vw; height: 34vw; }
+    #touch button {
+      position: absolute;
+      border: 1px solid rgba(220, 200, 255, 0.3);
+      background: rgba(36, 23, 51, 0.6);
+      color: #e6dcf4;
+      font: 600 11px/1 var(--mono);
+      border-radius: 50%;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    #touch button:active { filter: brightness(1.6); }
+    .pad.left .u { left: 34%; top: 0; width: 32%; height: 32%; }
+    .pad.left .d { left: 34%; bottom: 0; width: 32%; height: 32%; }
+    .pad.left .l { left: 0; top: 34%; width: 32%; height: 32%; }
+    .pad.left .r { right: 0; top: 34%; width: 32%; height: 32%; }
+    .pad.right .a { right: 0; bottom: 8%; width: 42%; height: 42%; background: rgba(216, 40, 60, 0.55); }
+    .pad.right .b { right: 40%; bottom: 22%; width: 38%; height: 38%; background: rgba(47, 110, 240, 0.55); }
+    .pad.right .c { right: 12%; top: 2%; width: 38%; height: 38%; background: rgba(216, 160, 32, 0.5); }
+    .pad.right .small { left: 0; bottom: 0; width: 30%; height: 22%; border-radius: 6px; font-size: 10px; }
+  }
+</style>
+
+<div class="arcade">
+  <div class="marquee">
+    <span class="plate">Coin-Op</span>
+    <canvas id="wordmark" width="10" height="10" aria-label="POWER CITY"></canvas>
+    <span class="plate right">2 Players</span>
+  </div>
+
+  <div id="stage">
+    <div id="cabinet" tabindex="0">
+      <canvas id="screen" width="384" height="288"></canvas>
+      <div id="veil">
+        <span class="big">Click to play</span>
+        <span class="sub">Then <b>5</b> for a coin, <b>1</b> to start. Sound is on.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="cluster">
+      <span class="stick" aria-hidden="true">&#10021;</span>
+      <span class="label">Move &mdash; arrows / WASD</span>
+    </div>
+    <div class="cluster">
+      <span class="cap p"><b>Z</b>PUNCH</span>
+      <span class="cap k"><b>X</b>KICK</span>
+      <span class="cap j"><b>C</b>JUMP</span>
+    </div>
+    <div class="slot">
+      <span class="mouth" aria-hidden="true"></span>
+      <span>Press 5 &mdash; Insert coin</span>
+    </div>
+  </div>
+
+  <p class="keys">
+    <i><b>Punch &times;3</b> knocks down</i>
+    <i><b>Punch+Kick</b> spin kick</i>
+    <i><b>Up+Punch</b> uppercut</i>
+    <i><b>Double-tap</b> to run</i>
+    <i>Walk in close and <b>punch</b> to grab, <b>kick</b> to throw</i>
+    <i><b>2</b> joins player two</i>
+    <i><b>Esc</b> pause</i>
+    <i><b>M</b> mute</i>
+    <i>gamepads work</i>
+  </p>
+
+  <p class="colophon">
+    Four stages, four bosses &mdash; and not one pixel or sample loaded from
+    disk. Every fighter is one articulated rig posed from a table, every
+    backdrop is assembled from facade modules, every sound is an oscillator.
+  </p>
+</div>
+
+<div id="touch" aria-hidden="true">
+  <div class="pad left">
+    <button data-act="up" class="u">&#9650;</button>
+    <button data-act="left" class="l">&#9664;</button>
+    <button data-act="right" class="r">&#9654;</button>
+    <button data-act="down" class="d">&#9660;</button>
+  </div>
+  <div class="pad right">
+    <button data-act="jump" class="c">JUMP</button>
+    <button data-act="kick" class="b">KICK</button>
+    <button data-act="punch" class="a">PUNCH</button>
+    <button id="touch-start" class="small">START</button>
+  </div>
+</div>
+
+<script>
+<!--BUNDLE-->
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var cabinet = document.getElementById('cabinet');
+  var veil = document.getElementById('veil');
+
+  function boot() {
+    try { PC.boot(); }
+    catch (e) {
+      veil.innerHTML = '<span class="big" style="color:#ff5f6a">' + String(e.message) + '</span>';
+      throw e;
+    }
+    /* The marquee is set in the game's own 5x7 bitmap font, so the name above
+       the cabinet is drawn with the exact glyphs the HUD uses. */
+    var wm = document.getElementById('wordmark');
+    var x = wm.getContext('2d');
+    var scale = 3, gap = PC.art.textWidth('POWER ', scale, 1);
+    var w = PC.art.textWidth('POWER CITY', scale, 1);
+    wm.width = w + 4; wm.height = 7 * scale + 5;
+    x.imageSmoothingEnabled = false;
+    PC.art.text(x, 'POWER CITY', 2, 4, '#2a0a16', { scale: scale });
+    PC.art.text(x, 'POWER', 2, 2, '#ff4f9a', { scale: scale });
+    PC.art.text(x, 'CITY', 2 + gap, 2, '#7fd8f0', { scale: scale });
+  }
+
+  /* Keyboard events only reach an embedded page once it has focus, so the
+     veil doubles as the thing that takes it - and as the gesture the browser
+     wants before it will play a sound. */
+  function grab() {
+    cabinet.focus({ preventScroll: true });
+    if (PC.audio) PC.audio.resume();
+    veil.classList.add('gone');
+  }
+  cabinet.addEventListener('pointerdown', grab);
+  document.addEventListener('pointerdown', function () {
+    if (!veil.classList.contains('gone')) grab();
+    else if (PC.audio) PC.audio.resume();
+  });
+  cabinet.addEventListener('focus', function () { veil.classList.add('gone'); });
+  window.addEventListener('keydown', function () { veil.classList.add('gone'); });
+
+  if (document.readyState === 'complete') boot();
+  else window.addEventListener('load', boot);
+})();
+</script>
