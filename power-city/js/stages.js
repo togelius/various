@@ -22,7 +22,7 @@
   PC.STAGES = [
     {
       name: 'SLUM ALLEY', theme: 'alley', length: 1760, time: 99, music: 'stage1',
-      intro: 'THE GANG TOOK MARIAN.  START WHERE THEY LIVE.',
+      intro: 'THEY TOOK YOUR BROTHER. START WHERE THEY LIVE.',
       encounters: [
         enc(230, [['punk', 2, 1, 0]]),
         enc(500, [['punk', 2, 1, 0], ['rough', 1, -1, 90]], { items: [['prop', 'crate', 60], ['prop', 'crate', 120]] }),
@@ -33,7 +33,7 @@
     },
     {
       name: 'DOWNTOWN', theme: 'downtown', length: 1900, time: 99, music: 'stage2',
-      intro: 'THEY RUN THE BLOCK FROM THE OLD BAR.',
+      intro: 'THEY RUN THIS BLOCK OUT OF THE OLD BAR.',
       encounters: [
         enc(240, [['punk', 2, 1, 0], ['rough', 1, 1, 60]]),
         enc(520, [['knifer', 2, 1, 0], ['punk', 1, -1, 70]], { items: [['prop', 'drum', 70]] }),

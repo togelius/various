@@ -1112,7 +1112,7 @@ canvas#screen {
 
   // -------------------------------------------------------------- the heroes
   Rig.def('hero1', {
-    name: 'BILLY', vest: true, hair: 'flat',
+    name: 'DUKE', vest: true, hair: 'flat',
     pal: pal({
       skin: '#f4b183', skinD: '#c07a4e', hair: '#1b1b30', eye: '#141422',
       shirt: '#eef1f8', shirtD: '#b3b9cc',
@@ -1122,7 +1122,7 @@ canvas#screen {
   });
 
   Rig.def('hero2', {
-    name: 'JIMMY', vest: true, hair: 'flat',
+    name: 'REY', vest: true, hair: 'flat',
     pal: pal({
       skin: '#f4b183', skinD: '#c07a4e', hair: '#3c2412', eye: '#141422',
       shirt: '#eef1f8', shirtD: '#b3b9cc',
@@ -1133,7 +1133,7 @@ canvas#screen {
 
   // --------------------------------------------------------------- the gang
   Rig.def('punk', {
-    name: 'WILLIAMS', hair: 'flat',
+    name: 'HOOD', hair: 'flat',
     pal: pal({
       skin: '#e8a878', skinD: '#b0724a', hair: '#e2622a', eye: '#141422',
       shirt: '#23232e', shirtD: '#141420',
@@ -1143,7 +1143,7 @@ canvas#screen {
   });
 
   Rig.def('rough', {
-    name: 'LINDA', hair: 'spiky',
+    name: 'SPIKE', hair: 'spiky',
     pal: pal({
       skin: '#e8a878', skinD: '#b0724a', hair: '#8c3ad8', eye: '#141422',
       shirt: '#23232e', shirtD: '#141420',
@@ -1153,7 +1153,7 @@ canvas#screen {
   });
 
   Rig.def('knifer', {
-    name: 'JEFF', hair: 'cap', sleeves: true,
+    name: 'BLADE', hair: 'cap', sleeves: true,
     pal: pal({
       skin: '#c98a5c', skinD: '#96603a', hair: '#1e2a18', eye: '#141422',
       shirt: '#3f8c46', shirtD: '#26592c',
@@ -1163,7 +1163,7 @@ canvas#screen {
   });
 
   Rig.def('batter', {
-    name: 'ROPER', hair: 'mohawk', sleeves: true,
+    name: 'SLUGGER', hair: 'mohawk', sleeves: true,
     pal: pal({
       skin: '#e8a878', skinD: '#b0724a', hair: '#f0d63a', eye: '#141422',
       shirt: '#2f7fd8', shirtD: '#1d4d85',
@@ -1173,7 +1173,7 @@ canvas#screen {
   });
 
   Rig.def('brute', {
-    name: 'ABORE', hair: 'bald', scale: 1.16, bulk: 1.3,
+    name: 'BREAKER', hair: 'bald', scale: 1.16, bulk: 1.3,
     pal: pal({
       skin: '#b8865a', skinD: '#845a36', hair: '#2b2b1e', eye: '#141422',
       shirt: '#4a5266', shirtD: '#2e3444',
@@ -4001,7 +4001,7 @@ canvas#screen {
   PC.STAGES = [
     {
       name: 'SLUM ALLEY', theme: 'alley', length: 1760, time: 99, music: 'stage1',
-      intro: 'THE GANG TOOK MARIAN.  START WHERE THEY LIVE.',
+      intro: 'THEY TOOK YOUR BROTHER. START WHERE THEY LIVE.',
       encounters: [
         enc(230, [['punk', 2, 1, 0]]),
         enc(500, [['punk', 2, 1, 0], ['rough', 1, -1, 90]], { items: [['prop', 'crate', 60], ['prop', 'crate', 120]] }),
@@ -4012,7 +4012,7 @@ canvas#screen {
     },
     {
       name: 'DOWNTOWN', theme: 'downtown', length: 1900, time: 99, music: 'stage2',
-      intro: 'THEY RUN THE BLOCK FROM THE OLD BAR.',
+      intro: 'THEY RUN THIS BLOCK OUT OF THE OLD BAR.',
       encounters: [
         enc(240, [['punk', 2, 1, 0], ['rough', 1, 1, 60]]),
         enc(520, [['knifer', 2, 1, 0], ['punk', 1, -1, 70]], { items: [['prop', 'drum', 70]] }),
@@ -4824,7 +4824,8 @@ canvas#screen {
       var lines = [
         'THE TOWER GOES QUIET.',
         '',
-        'THE GANG IS FINISHED. THE BLOCK IS',
+        'YOUR BROTHER CAN WALK. JUST ABOUT.',
+        'THE GANG IS FINISHED, AND THE BLOCK IS',
         'YOURS AGAIN - FOR TONIGHT, ANYWAY.',
         '',
         'SOMEWHERE DOWNTOWN A NEON SIGN',

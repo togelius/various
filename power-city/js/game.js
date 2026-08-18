@@ -418,7 +418,8 @@
       var lines = [
         'THE TOWER GOES QUIET.',
         '',
-        'THE GANG IS FINISHED. THE BLOCK IS',
+        'YOUR BROTHER CAN WALK. JUST ABOUT.',
+        'THE GANG IS FINISHED, AND THE BLOCK IS',
         'YOURS AGAIN - FOR TONIGHT, ANYWAY.',
         '',
         'SOMEWHERE DOWNTOWN A NEON SIGN',

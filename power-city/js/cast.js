@@ -13,7 +13,7 @@
 
   // -------------------------------------------------------------- the heroes
   Rig.def('hero1', {
-    name: 'BILLY', vest: true, hair: 'flat',
+    name: 'DUKE', vest: true, hair: 'flat',
     pal: pal({
       skin: '#f4b183', skinD: '#c07a4e', hair: '#1b1b30', eye: '#141422',
       shirt: '#eef1f8', shirtD: '#b3b9cc',
@@ -23,7 +23,7 @@
   });
 
   Rig.def('hero2', {
-    name: 'JIMMY', vest: true, hair: 'flat',
+    name: 'REY', vest: true, hair: 'flat',
     pal: pal({
       skin: '#f4b183', skinD: '#c07a4e', hair: '#3c2412', eye: '#141422',
       shirt: '#eef1f8', shirtD: '#b3b9cc',
@@ -34,7 +34,7 @@
 
   // --------------------------------------------------------------- the gang
   Rig.def('punk', {
-    name: 'WILLIAMS', hair: 'flat',
+    name: 'HOOD', hair: 'flat',
     pal: pal({
       skin: '#e8a878', skinD: '#b0724a', hair: '#e2622a', eye: '#141422',
       shirt: '#23232e', shirtD: '#141420',
@@ -44,7 +44,7 @@
   });
 
   Rig.def('rough', {
-    name: 'LINDA', hair: 'spiky',
+    name: 'SPIKE', hair: 'spiky',
     pal: pal({
       skin: '#e8a878', skinD: '#b0724a', hair: '#8c3ad8', eye: '#141422',
       shirt: '#23232e', shirtD: '#141420',
@@ -54,7 +54,7 @@
   });
 
   Rig.def('knifer', {
-    name: 'JEFF', hair: 'cap', sleeves: true,
+    name: 'BLADE', hair: 'cap', sleeves: true,
     pal: pal({
       skin: '#c98a5c', skinD: '#96603a', hair: '#1e2a18', eye: '#141422',
       shirt: '#3f8c46', shirtD: '#26592c',
@@ -64,7 +64,7 @@
   });
 
   Rig.def('batter', {
-    name: 'ROPER', hair: 'mohawk', sleeves: true,
+    name: 'SLUGGER', hair: 'mohawk', sleeves: true,
     pal: pal({
       skin: '#e8a878', skinD: '#b0724a', hair: '#f0d63a', eye: '#141422',
       shirt: '#2f7fd8', shirtD: '#1d4d85',
@@ -74,7 +74,7 @@
   });
 
   Rig.def('brute', {
-    name: 'ABORE', hair: 'bald', scale: 1.16, bulk: 1.3,
+    name: 'BREAKER', hair: 'bald', scale: 1.16, bulk: 1.3,
     pal: pal({
       skin: '#b8865a', skinD: '#845a36', hair: '#2b2b1e', eye: '#141422',
       shirt: '#4a5266', shirtD: '#2e3444',
