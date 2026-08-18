@@ -1,0 +1,117 @@
+:root {
+  --ink: #05060e;
+  --dim: #6a7290;
+  --accent: #ffe070;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #05060c;
+  /* a dark arcade, one machine lit */
+  background-image:
+    radial-gradient(ellipse 70% 55% at 50% 40%, #1a1430 0%, rgba(8, 8, 16, 0) 72%),
+    linear-gradient(#07070f, #030308);
+  color: #9fb0d0;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+#frame {
+  position: relative;
+  line-height: 0;
+  border-radius: 5px;
+  padding: 7px;
+  background: linear-gradient(#20182c, #0c0a16);
+  box-shadow:
+    0 0 0 1px #3a2a44,
+    0 20px 60px rgba(0, 0, 0, 0.8),
+    0 0 100px rgba(224, 32, 48, 0.12);
+}
+
+canvas#screen {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #000;
+  border-radius: 2px;
+}
+
+#loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 12px;
+}
+
+#hint {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  color: var(--dim);
+  text-align: center;
+  max-width: 92vw;
+  line-height: 1.6;
+}
+#hint b { color: #b8c4e0; font-weight: 600; }
+
+/* ---------------------------------------------------------- touch controls */
+#touch { display: none; }
+
+@media (hover: none) and (pointer: coarse) {
+  #hint { display: none; }
+  #touch {
+    display: block;
+    position: fixed;
+    inset: auto 0 0 0;
+    height: 46vh;
+    pointer-events: none;
+    z-index: 5;
+  }
+  #touch .pad { position: absolute; bottom: 4vh; pointer-events: auto; }
+  #touch .pad.left { left: 3vw; width: 34vw; height: 34vw; }
+  #touch .pad.right { right: 3vw; width: 40vw; height: 34vw; }
+  #touch button {
+    position: absolute;
+    border: 1px solid rgba(180, 200, 255, 0.3);
+    background: rgba(30, 36, 60, 0.5);
+    color: #d8e0f4;
+    font: 600 11px/1 ui-monospace, monospace;
+    border-radius: 50%;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #touch button:active { background: rgba(90, 120, 220, 0.6); }
+  .pad.left .u { left: 34%; top: 0; width: 32%; height: 32%; }
+  .pad.left .d { left: 34%; bottom: 0; width: 32%; height: 32%; }
+  .pad.left .l { left: 0; top: 34%; width: 32%; height: 32%; }
+  .pad.left .r { right: 0; top: 34%; width: 32%; height: 32%; }
+  .pad.right .a { right: 0; bottom: 8%; width: 42%; height: 42%; background: rgba(200, 40, 60, 0.45); }
+  .pad.right .b { right: 40%; bottom: 22%; width: 38%; height: 38%; background: rgba(40, 90, 200, 0.45); }
+  .pad.right .c { right: 12%; top: 2%; width: 38%; height: 38%; background: rgba(200, 160, 40, 0.4); }
+  .pad.right .small {
+    left: 0; bottom: 0; width: 30%; height: 22%; border-radius: 6px; font-size: 10px;
+  }
+}
+
+@media (max-height: 620px) { #hint { display: none; } }

@@ -1,0 +1,24 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>city</title>
+<style>body{margin:0;background:#000}canvas{image-rendering:pixelated;display:block}</style></head>
+<body><canvas id="c" width="1152" height="1600"></canvas>
+<script src="../js/core.js"></script><script src="../js/art.js"></script>
+<script src="../js/rig.js"></script><script src="../js/cast.js"></script><script src="../js/city.js"></script>
+<script>
+var Z = 2, ctx = document.getElementById('c').getContext('2d');
+ctx.imageSmoothingEnabled = false;
+var off = document.createElement('canvas'); off.width = 1600/Z; off.height = 1600/Z;
+var o = off.getContext('2d'); o.imageSmoothingEnabled = false;
+var names = Object.keys(PC.city.THEMES);
+for (var i=0;i<names.length;i++){
+  var t = PC.city.THEMES[names[i]];
+  var sky = PC.city.makeSky(t, 560, PC.FLOOR_TOP - PC.FIELD_Y);
+  var fac = PC.city.build(t, 560);
+  var y = i*(PC.FIELD_BOT-PC.FIELD_Y+6);
+  o.fillStyle='#000'; o.fillRect(0,y,560,PC.FIELD_BOT-PC.FIELD_Y);
+  o.drawImage(sky, 0, y);
+  o.drawImage(fac, 0, y);
+  PC.art.text(o, names[i], 2, y+2, '#ffffff', {shadow:'#000'});
+}
+ctx.drawImage(off,0,0,off.width*Z,off.height*Z);
+document.title='ready';
+</script></body></html>

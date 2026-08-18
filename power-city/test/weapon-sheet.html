@@ -1,0 +1,28 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>weapons</title>
+<style>body{margin:0;background:#101018}canvas{image-rendering:pixelated}</style></head>
+<body><canvas id="c" width="1200" height="400"></canvas>
+<script src="../js/core.js"></script><script src="../js/art.js"></script>
+<script src="../js/rig.js"></script><script src="../js/cast.js"></script>
+<script src="../js/city.js"></script><script src="../js/fx.js"></script>
+<script src="../js/actors.js"></script><script src="../js/items.js"></script>
+<script>
+PC.bakeThings();
+var Z=4, ctx=document.getElementById('c').getContext('2d'); ctx.imageSmoothingEnabled=false;
+var off=document.createElement('canvas'); off.width=1200/Z; off.height=400/Z;
+var o=off.getContext('2d'); o.imageSmoothingEnabled=false;
+o.fillStyle='#20203a'; o.fillRect(0,0,off.width,off.height);
+var poses=['idle','jab','hook','kickHigh','walk0','upper','crouch'];
+var wpns=['bat','knife','pipe','chain'];
+for (var wi=0; wi<wpns.length; wi++){
+  for (var pi=0; pi<poses.length; pi++){
+    var x=20+pi*40, y=24+wi*24;
+    var fake={facing: pi%2?1:-1, weapon:wpns[wi], scale:1};
+    var f=PC.rig.frame('hero1', poses[pi]);
+    PC.rig.draw(o,f,x,y,fake.facing<0);
+    PC.items.drawHeld(o, fake, f, x, y);
+  }
+  PC.art.text(o, wpns[wi], 2, 8+wi*24, '#ffcc44');
+}
+ctx.drawImage(off,0,0,off.width*Z,off.height*Z);
+document.title='ready';
+</script></body></html>

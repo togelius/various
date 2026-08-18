@@ -1,0 +1,36 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>rig sheet</title>
+<style>body{margin:0;background:#101018}canvas{image-rendering:pixelated;display:block}</style></head>
+<body>
+<canvas id="c" width="1280" height="960"></canvas>
+<script src="../js/core.js"></script>
+<script src="../js/art.js"></script>
+<script src="../js/rig.js"></script>
+<script src="../js/cast.js"></script>
+<script>
+var ctx = document.getElementById('c').getContext('2d');
+ctx.imageSmoothingEnabled = false;
+PC.bakeThings();
+var Q = new URLSearchParams(location.search);
+var who = (Q.get('c') || 'hero1').split(',');
+var Z = parseInt(Q.get('z') || '3', 10);
+var poses = Object.keys(PC.rig.POSES);
+var off = document.createElement('canvas');
+off.width = 1280/Z; off.height = 960/Z;
+var o = off.getContext('2d'); o.imageSmoothingEnabled = false;
+o.fillStyle = '#181828'; o.fillRect(0,0,off.width,off.height);
+var cw = 42, chh = 64, cols = Math.floor(off.width/cw);
+for (var wi=0; wi<who.length; wi++) {
+  for (var pi=0; pi<poses.length; pi++) {
+    var idx = wi*poses.length + pi;
+    var cx = (idx%cols)*cw, cy = Math.floor(idx/cols)*chh;
+    o.fillStyle = (idx%2) ? '#20203a' : '#191930';
+    o.fillRect(cx, cy, cw-1, chh-1);
+    o.fillStyle = '#3a3a66'; o.fillRect(cx, cy+chh-12, cw-1, 1);
+    var f = PC.rig.frame(who[wi], poses[pi]);
+    PC.rig.draw(o, f, cx+cw/2, cy+chh-12, false);
+    PC.art.text(o, poses[pi].slice(0,7), cx+1, cy+chh-10, '#ffcc44');
+  }
+}
+ctx.drawImage(off, 0,0, off.width*Z, off.height*Z);
+document.title='ready';
+</script></body></html>

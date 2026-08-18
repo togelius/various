@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>POWER CITY</title>
+<meta name="description" content="POWER CITY - a side-scrolling arcade beat 'em up in the browser. Four stages, four bosses, two players, no downloads.">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23050a24'/><rect x='2' y='3' width='12' height='4' fill='%23e02030'/><rect x='2' y='9' width='12' height='4' fill='%232f6ef0'/></svg>">
+</head>
+<body>
+  <div id="frame">
+    <canvas id="screen" width="384" height="288"></canvas>
+    <div id="loading">LOADING&hellip;</div>
+  </div>
+
+  <div id="touch" aria-hidden="true">
+    <div class="pad left">
+      <button data-act="up" class="u">&#9650;</button>
+      <button data-act="left" class="l">&#9664;</button>
+      <button data-act="right" class="r">&#9654;</button>
+      <button data-act="down" class="d">&#9660;</button>
+    </div>
+    <div class="pad right">
+      <button data-act="jump" class="c">JUMP</button>
+      <button data-act="kick" class="b">KICK</button>
+      <button data-act="punch" class="a">PUNCH</button>
+      <button id="touch-start" class="small">START</button>
+    </div>
+  </div>
+
+  <p id="hint">
+    <b>Arrows/WASD</b> move &nbsp;&middot;&nbsp; <b>Z/J</b> punch &nbsp;&middot;&nbsp;
+    <b>X/K</b> kick &nbsp;&middot;&nbsp; <b>C/L</b> jump &nbsp;&middot;&nbsp;
+    <b>Punch+Kick</b> spin kick &nbsp;&middot;&nbsp; <b>5</b> insert coin &nbsp;&middot;&nbsp;
+    <b>1</b>/<b>2</b> start &nbsp;&middot;&nbsp; <b>Esc</b> pause &nbsp;&middot;&nbsp;
+    <b>M</b> mute &nbsp;&middot;&nbsp; <b>F</b> fullscreen &nbsp;&middot;&nbsp; gamepads supported
+  </p>
+
+  <script src="js/core.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/rig.js"></script>
+  <script src="js/cast.js"></script>
+  <script src="js/city.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/music.js"></script>
+  <script src="js/fx.js"></script>
+  <script src="js/actors.js"></script>
+  <script src="js/items.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/enemies.js"></script>
+  <script src="js/stages.js"></script>
+  <script src="js/hud.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/touch.js"></script>
+  <script>
+    window.addEventListener('load', function () {
+      try { PC.boot(); }
+      catch (e) {
+        var l = document.getElementById('loading');
+        if (l) { l.textContent = 'ERROR: ' + e.message; l.style.display = 'block'; }
+        throw e;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,4913 @@
+<title>POWER CITY</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23050a24'/><rect x='2' y='3' width='12' height='4' fill='%23e02030'/><rect x='2' y='9' width='12' height='4' fill='%232f6ef0'/></svg>">
+<style>
+:root {
+  --ink: #05060e;
+  --dim: #6a7290;
+  --accent: #ffe070;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #05060c;
+  /* a dark arcade, one machine lit */
+  background-image:
+    radial-gradient(ellipse 70% 55% at 50% 40%, #1a1430 0%, rgba(8, 8, 16, 0) 72%),
+    linear-gradient(#07070f, #030308);
+  color: #9fb0d0;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+#frame {
+  position: relative;
+  line-height: 0;
+  border-radius: 5px;
+  padding: 7px;
+  background: linear-gradient(#20182c, #0c0a16);
+  box-shadow:
+    0 0 0 1px #3a2a44,
+    0 20px 60px rgba(0, 0, 0, 0.8),
+    0 0 100px rgba(224, 32, 48, 0.12);
+}
+
+canvas#screen {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #000;
+  border-radius: 2px;
+}
+
+#loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-align: center;
+  padding: 12px;
+}
+
+#hint {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  color: var(--dim);
+  text-align: center;
+  max-width: 92vw;
+  line-height: 1.6;
+}
+#hint b { color: #b8c4e0; font-weight: 600; }
+
+/* ---------------------------------------------------------- touch controls */
+#touch { display: none; }
+
+@media (hover: none) and (pointer: coarse) {
+  #hint { display: none; }
+  #touch {
+    display: block;
+    position: fixed;
+    inset: auto 0 0 0;
+    height: 46vh;
+    pointer-events: none;
+    z-index: 5;
+  }
+  #touch .pad { position: absolute; bottom: 4vh; pointer-events: auto; }
+  #touch .pad.left { left: 3vw; width: 34vw; height: 34vw; }
+  #touch .pad.right { right: 3vw; width: 40vw; height: 34vw; }
+  #touch button {
+    position: absolute;
+    border: 1px solid rgba(180, 200, 255, 0.3);
+    background: rgba(30, 36, 60, 0.5);
+    color: #d8e0f4;
+    font: 600 11px/1 ui-monospace, monospace;
+    border-radius: 50%;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #touch button:active { background: rgba(90, 120, 220, 0.6); }
+  .pad.left .u { left: 34%; top: 0; width: 32%; height: 32%; }
+  .pad.left .d { left: 34%; bottom: 0; width: 32%; height: 32%; }
+  .pad.left .l { left: 0; top: 34%; width: 32%; height: 32%; }
+  .pad.left .r { right: 0; top: 34%; width: 32%; height: 32%; }
+  .pad.right .a { right: 0; bottom: 8%; width: 42%; height: 42%; background: rgba(200, 40, 60, 0.45); }
+  .pad.right .b { right: 40%; bottom: 22%; width: 38%; height: 38%; background: rgba(40, 90, 200, 0.45); }
+  .pad.right .c { right: 12%; top: 2%; width: 38%; height: 38%; background: rgba(200, 160, 40, 0.4); }
+  .pad.right .small {
+    left: 0; bottom: 0; width: 30%; height: 22%; border-radius: 6px; font-size: 10px;
+  }
+}
+
+@media (max-height: 620px) { #hint { display: none; } }
+</style>
+<div id="frame">
+    <canvas id="screen" width="384" height="288"></canvas>
+    <div id="loading">LOADING&hellip;</div>
+  </div>
+
+  <div id="touch" aria-hidden="true">
+    <div class="pad left">
+      <button data-act="up" class="u">&#9650;</button>
+      <button data-act="left" class="l">&#9664;</button>
+      <button data-act="right" class="r">&#9654;</button>
+      <button data-act="down" class="d">&#9660;</button>
+    </div>
+    <div class="pad right">
+      <button data-act="jump" class="c">JUMP</button>
+      <button data-act="kick" class="b">KICK</button>
+      <button data-act="punch" class="a">PUNCH</button>
+      <button id="touch-start" class="small">START</button>
+    </div>
+  </div>
+
+  <p id="hint">
+    <b>Arrows/WASD</b> move &nbsp;&middot;&nbsp; <b>Z/J</b> punch &nbsp;&middot;&nbsp;
+    <b>X/K</b> kick &nbsp;&middot;&nbsp; <b>C/L</b> jump &nbsp;&middot;&nbsp;
+    <b>Punch+Kick</b> spin kick &nbsp;&middot;&nbsp; <b>5</b> insert coin &nbsp;&middot;&nbsp;
+    <b>1</b>/<b>2</b> start &nbsp;&middot;&nbsp; <b>Esc</b> pause &nbsp;&middot;&nbsp;
+    <b>M</b> mute &nbsp;&middot;&nbsp; <b>F</b> fullscreen &nbsp;&middot;&nbsp; gamepads supported
+  </p>
+<script>
+/* POWER CITY - core: constants, math, RNG, input, pixel screen, loop, storage.
+ *
+ * Classic scripts (no modules) so the game runs straight off the filesystem
+ * with a double-click, and so tools/build-single.py can concatenate it.
+ */
+(function (global) {
+  'use strict';
+
+  var PC = global.PC || (global.PC = {});
+
+  // ------------------------------------------------------------- screen box
+  PC.W = 384;
+  PC.H = 288;
+  PC.FPS = 60;
+  PC.DT = 1 / 60;
+
+  /* The cabinet layout. A beat 'em up is a shallow diorama: a backdrop, a
+   * band of floor you can walk in, and arcade furniture stacked above and
+   * below it. Everything else in the game measures itself against these. */
+  PC.HUD_TOP = 64;          // black band at the top ends here
+  PC.FIELD_Y = 64;          // backdrop starts
+  PC.FIELD_BOT = 256;       // backdrop ends / bottom bar starts
+  PC.FLOOR_TOP = 196;       // nearest-to-the-wall footline
+  PC.FLOOR_BOT = 246;       // nearest-to-the-camera footline
+  PC.FLOOR_H = PC.FLOOR_BOT - PC.FLOOR_TOP;
+
+  // ------------------------------------------------------------------- math
+  var M = PC.math = {
+    clamp: function (v, a, b) { return v < a ? a : (v > b ? b : v); },
+    lerp: function (a, b, t) { return a + (b - a) * t; },
+    sign: function (v) { return v < 0 ? -1 : (v > 0 ? 1 : 0); },
+    approach: function (v, target, step) {
+      if (v < target) return Math.min(v + step, target);
+      if (v > target) return Math.max(v - step, target);
+      return target;
+    },
+    dist: function (ax, ay, bx, by) { var dx = bx - ax, dy = by - ay; return Math.sqrt(dx * dx + dy * dy); },
+    ease: function (t) { return t * t * (3 - 2 * t); }
+  };
+
+  // ---------------------------------------------------------- mulberry32 RNG
+  PC.RNG = function (seed) {
+    var s = (seed >>> 0) || 0x9e3779b9;
+    var r = function () {
+      s |= 0; s = (s + 0x6D2B79F5) | 0;
+      var t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    r.range = function (a, b) { return a + r() * (b - a); };
+    r.int = function (a, b) { return Math.floor(a + r() * (b - a + 1)); };
+    r.pick = function (arr) { return arr[Math.floor(r() * arr.length) % arr.length]; };
+    r.chance = function (p) { return r() < p; };
+    r.sign = function () { return r() < 0.5 ? -1 : 1; };
+    return r;
+  };
+  PC.rand = PC.RNG(0xC0FFEE01);
+
+  // ------------------------------------------------------------------ input
+  /* Two players share one keyboard. The arrow cluster belongs to player one
+   * until player two actually joins, at which point it moves over to them -
+   * so a solo player can use whichever hand they like, and a second player
+   * never has to be told which keys became theirs. */
+  var ACTIONS = ['left', 'right', 'up', 'down', 'punch', 'kick', 'jump', 'start'];
+
+  var MAP_P1 = {
+    KeyA: 'left', KeyD: 'right', KeyW: 'up', KeyS: 'down',
+    KeyJ: 'punch', KeyZ: 'punch',
+    KeyK: 'kick', KeyX: 'kick',
+    KeyL: 'jump', KeyC: 'jump', Space: 'jump',
+    Enter: 'start', Digit1: 'start'
+  };
+  var MAP_ARROWS = {
+    ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down'
+  };
+  var MAP_P2 = {
+    Comma: 'punch', Period: 'kick', Slash: 'jump',
+    Numpad1: 'punch', Numpad2: 'kick', Numpad3: 'jump',
+    Numpad0: 'start', Digit2: 'start', ShiftRight: 'jump'
+  };
+  // 0=A 1=B 2=X 3=Y ... standard mapping
+  var MAP_PAD = {
+    0: 'jump', 1: 'kick', 2: 'punch', 3: 'jump', 5: 'kick', 7: 'punch',
+    9: 'start', 12: 'up', 13: 'down', 14: 'left', 15: 'right'
+  };
+
+  function blankState() {
+    var s = { held: {}, pressed: {}, released: {}, tapDir: 0, _tapTimer: 0, _tapDir: 0 };
+    for (var i = 0; i < ACTIONS.length; i++) {
+      s.held[ACTIONS[i]] = false; s.pressed[ACTIONS[i]] = false; s.released[ACTIONS[i]] = false;
+    }
+    return s;
+  }
+
+  var Input = PC.input = {
+    p: [blankState(), blankState()],
+    coin: false, pause: false, mute: false, fullscreen: false, anyKey: false,
+    p2Joined: false,
+    touch: null,           // filled in by touch.js: { held: {...} }
+    _down: {},             // raw code -> true
+    _edge: {},             // raw code pressed this frame
+    _latch: {},            // guarantees sub-frame taps are seen
+    _globals: {},
+
+    init: function () {
+      var self = this;
+      global.addEventListener('keydown', function (e) {
+        if (e.repeat) { e.preventDefault(); return; }
+        if (self._interesting(e.code)) e.preventDefault();
+        self._down[e.code] = true; self._latch[e.code] = true;
+        self._edge[e.code] = true;
+      });
+      global.addEventListener('keyup', function (e) {
+        if (self._interesting(e.code)) e.preventDefault();
+        self._down[e.code] = false;
+      });
+      global.addEventListener('blur', function () { self._down = {}; });
+    },
+
+    _interesting: function (code) {
+      return !!(MAP_P1[code] || MAP_P2[code] || MAP_ARROWS[code] ||
+        code === 'Digit5' || code === 'Escape' || code === 'KeyP' ||
+        code === 'KeyM' || code === 'KeyF' || code === 'Tab');
+    },
+
+    // Collapse raw key state into per-player actions once per simulation step.
+    poll: function () {
+      var i, a, code, st, prev = {};
+      var pads = (global.navigator && global.navigator.getGamepads) ? global.navigator.getGamepads() : [];
+
+      for (i = 0; i < 2; i++) {
+        st = this.p[i];
+        prev[i] = {};
+        for (a = 0; a < ACTIONS.length; a++) prev[i][ACTIONS[a]] = st.held[ACTIONS[a]];
+        for (a = 0; a < ACTIONS.length; a++) st.held[ACTIONS[a]] = false;
+      }
+
+      function set(pl, act) { if (act) Input.p[pl].held[act] = true; }
+      function down(c) { return Input._down[c] || Input._latch[c]; }
+
+      for (code in MAP_P1) if (down(code)) set(0, MAP_P1[code]);
+      for (code in MAP_P2) if (down(code)) set(1, MAP_P2[code]);
+      var arrowsTo = this.p2Joined ? 1 : 0;
+      for (code in MAP_ARROWS) if (down(code)) set(arrowsTo, MAP_ARROWS[code]);
+
+      // Gamepads take players in the order the browser lists them.
+      var padPlayer = 0;
+      for (i = 0; i < pads.length && padPlayer < 2; i++) {
+        var pad = pads[i];
+        if (!pad || !pad.connected) continue;
+        var b, ax;
+        for (b in MAP_PAD) if (pad.buttons[b] && pad.buttons[b].pressed) set(padPlayer, MAP_PAD[b]);
+        ax = pad.axes[0] || 0;
+        if (ax < -0.35) set(padPlayer, 'left'); else if (ax > 0.35) set(padPlayer, 'right');
+        ax = pad.axes[1] || 0;
+        if (ax < -0.35) set(padPlayer, 'up'); else if (ax > 0.35) set(padPlayer, 'down');
+        padPlayer++;
+      }
+
+      // Touch overlay always drives whichever player is on screen first.
+      if (this.touch) {
+        for (a in this.touch.held) if (this.touch.held[a]) set(0, a);
+      }
+
+      for (i = 0; i < 2; i++) {
+        st = this.p[i];
+        for (a = 0; a < ACTIONS.length; a++) {
+          var act = ACTIONS[a];
+          st.pressed[act] = st.held[act] && !prev[i][act];
+          st.released[act] = !st.held[act] && prev[i][act];
+        }
+        // Double-tap left/right, for the run. Window is 16 frames.
+        st.tapDir = 0;
+        if (st._tapTimer > 0) st._tapTimer--;
+        var dir = st.pressed.left ? -1 : (st.pressed.right ? 1 : 0);
+        if (dir) {
+          if (st._tapTimer > 0 && st._tapDir === dir) { st.tapDir = dir; st._tapTimer = 0; }
+          else { st._tapDir = dir; st._tapTimer = 16; }
+        }
+      }
+
+      this.coin = !!(this._edge.Digit5 || this._edge.Digit6 || this._edge.KeyR);
+      this.pause = !!(this._edge.Escape || this._edge.KeyP);
+      this.mute = !!this._edge.KeyM;
+      this.fullscreen = !!this._edge.KeyF;
+      this.anyKey = false;
+      for (code in this._edge) if (this._edge[code]) { this.anyKey = true; break; }
+
+      this._edge = {};
+      this._latch = {};
+    },
+
+    axis: function (i) { var h = this.p[i].held; return (h.right ? 1 : 0) - (h.left ? 1 : 0); },
+    axisY: function (i) { var h = this.p[i].held; return (h.down ? 1 : 0) - (h.up ? 1 : 0); }
+  };
+
+  // -------------------------------------------------------------- the screen
+  PC.Screen = {
+    canvas: null, ctx: null, view: null, vctx: null, scale: 1,
+
+    init: function (viewCanvas) {
+      this.view = viewCanvas;
+      this.vctx = viewCanvas.getContext('2d', { alpha: false });
+      this.canvas = document.createElement('canvas');
+      this.canvas.width = PC.W; this.canvas.height = PC.H;
+      this.ctx = this.canvas.getContext('2d', { alpha: false });
+      this.ctx.imageSmoothingEnabled = false;
+      this.vctx.imageSmoothingEnabled = false;
+      var self = this;
+      global.addEventListener('resize', function () { self.resize(); });
+      var host = document.getElementById('stage');
+      if (host && global.ResizeObserver) {
+        new global.ResizeObserver(function () { self.resize(); }).observe(host);
+      }
+      this.resize();
+    },
+
+    resize: function () {
+      var host = document.getElementById('stage');
+      var maxW = global.innerWidth, maxH = global.innerHeight - 54;
+      if (host) {
+        var r = host.getBoundingClientRect();
+        if (r.width > 40 && r.height > 40) { maxW = r.width; maxH = r.height; }
+      }
+      var s = Math.min(maxW / PC.W, maxH / PC.H);
+      // Whole-pixel scales only (down to a half step) so the art stays crisp.
+      if (s >= 1) s = Math.floor(s) + (s - Math.floor(s) >= 0.5 ? 0.5 : 0);
+      else s = Math.max(s, 0.3);
+      this.scale = s;
+      var w = Math.round(PC.W * s), h = Math.round(PC.H * s);
+      this.view.width = w; this.view.height = h;
+      this.view.style.width = w + 'px';
+      this.view.style.height = h + 'px';
+      this.vctx.imageSmoothingEnabled = false;
+    },
+
+    present: function () {
+      this.vctx.imageSmoothingEnabled = false;
+      this.vctx.drawImage(this.canvas, 0, 0, this.view.width, this.view.height);
+    }
+  };
+
+  // ---------------------------------------------------------------- colours
+  PC.color = {
+    hex: function (r, g, b) {
+      return '#' + ((1 << 24) + (Math.round(r) << 16) + (Math.round(g) << 8) + Math.round(b)).toString(16).slice(1);
+    },
+    parse: function (h) {
+      h = String(h).replace('#', '');
+      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      var n = parseInt(h, 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    },
+    mix: function (a, b, t) {
+      var ca = this.parse(a), cb = this.parse(b);
+      return this.hex(M.lerp(ca[0], cb[0], t), M.lerp(ca[1], cb[1], t), M.lerp(ca[2], cb[2], t));
+    },
+    shade: function (h, amt) {
+      var c = this.parse(h);
+      if (amt >= 0) return this.hex(M.lerp(c[0], 255, amt), M.lerp(c[1], 255, amt), M.lerp(c[2], 255, amt));
+      return this.hex(c[0] * (1 + amt), c[1] * (1 + amt), c[2] * (1 + amt));
+    }
+  };
+
+  // -------------------------------------------------------------- game loop
+  PC.Loop = function (update, render) {
+    var acc = 0, last = 0, running = false, raf = 0;
+    var STEP = 1000 / PC.FPS;
+    function frame(now) {
+      if (!running) return;
+      raf = requestAnimationFrame(frame);
+      if (!last) last = now;
+      var delta = now - last; last = now;
+      if (delta > 250) delta = STEP;   // tab was hidden: drop the gap
+      acc += delta;
+      var steps = 0;
+      while (acc >= STEP && steps < 5) { update(); acc -= STEP; steps++; }
+      if (steps === 5) acc = 0;
+      render();
+    }
+    return {
+      start: function () { if (running) return; running = true; last = 0; raf = requestAnimationFrame(frame); },
+      stop: function () { running = false; cancelAnimationFrame(raf); },
+      step: function () { update(); render(); }
+    };
+  };
+
+  // ----------------------------------------------------------------- saving
+  PC.save = {
+    key: 'power-city-v1',
+    read: function () {
+      try { return JSON.parse(global.localStorage.getItem(this.key)) || {}; } catch (e) { return {}; }
+    },
+    write: function (o) {
+      try { global.localStorage.setItem(this.key, JSON.stringify(o)); } catch (e) { /* private mode */ }
+    },
+    merge: function (patch) {
+      var d = this.read();
+      for (var k in patch) d[k] = patch[k];
+      this.write(d); return d;
+    }
+  };
+
+  PC.pad = function (n, len) {
+    var s = String(Math.max(0, Math.floor(n)));
+    while (s.length < len) s = '0' + s;
+    return s.length > len ? s.slice(-len) : s;
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - art primitives.
+ *
+ * Nothing is loaded from disk. Every pixel in the game is drawn here or by
+ * something that calls in here: the arcade font, the chunky limb shapes the
+ * fighters are built from, and the outline pass that gives every sprite the
+ * hard black keyline that 8-bit brawlers all had.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+  var Art = PC.art = {};
+
+  function mk(w, h) {
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, w | 0); c.height = Math.max(1, h | 0);
+    var x = c.getContext('2d');
+    x.imageSmoothingEnabled = false;
+    return c;
+  }
+  Art.mk = mk;
+
+  // ------------------------------------------------------------------- font
+  /* A 5x7 arcade face. Rows are bit strings, which is a format you can read
+   * and fix by eye - the whole point when the letters are seven pixels tall. */
+  var GLYPHS = {
+    'A': '01110,10001,10001,11111,10001,10001,10001',
+    'B': '11110,10001,10001,11110,10001,10001,11110',
+    'C': '01110,10001,10000,10000,10000,10001,01110',
+    'D': '11110,10001,10001,10001,10001,10001,11110',
+    'E': '11111,10000,10000,11110,10000,10000,11111',
+    'F': '11111,10000,10000,11110,10000,10000,10000',
+    'G': '01110,10001,10000,10111,10001,10001,01111',
+    'H': '10001,10001,10001,11111,10001,10001,10001',
+    'I': '11111,00100,00100,00100,00100,00100,11111',
+    'J': '00111,00010,00010,00010,00010,10010,01100',
+    'K': '10001,10010,10100,11000,10100,10010,10001',
+    'L': '10000,10000,10000,10000,10000,10000,11111',
+    'M': '10001,11011,10101,10101,10001,10001,10001',
+    'N': '10001,11001,10101,10011,10001,10001,10001',
+    'O': '01110,10001,10001,10001,10001,10001,01110',
+    'P': '11110,10001,10001,11110,10000,10000,10000',
+    'Q': '01110,10001,10001,10001,10101,10010,01101',
+    'R': '11110,10001,10001,11110,10100,10010,10001',
+    'S': '01111,10000,10000,01110,00001,00001,11110',
+    'T': '11111,00100,00100,00100,00100,00100,00100',
+    'U': '10001,10001,10001,10001,10001,10001,01110',
+    'V': '10001,10001,10001,10001,10001,01010,00100',
+    'W': '10001,10001,10001,10101,10101,11011,01010',
+    'X': '10001,10001,01010,00100,01010,10001,10001',
+    'Y': '10001,10001,01010,00100,00100,00100,00100',
+    'Z': '11111,00001,00010,00100,01000,10000,11111',
+    '0': '01110,10001,10011,10101,11001,10001,01110',
+    '1': '00100,01100,00100,00100,00100,00100,01110',
+    '2': '01110,10001,00001,00010,00100,01000,11111',
+    '3': '11111,00010,00100,00010,00001,10001,01110',
+    '4': '00010,00110,01010,10010,11111,00010,00010',
+    '5': '11111,10000,11110,00001,00001,10001,01110',
+    '6': '00110,01000,10000,11110,10001,10001,01110',
+    '7': '11111,00001,00010,00100,01000,01000,01000',
+    '8': '01110,10001,10001,01110,10001,10001,01110',
+    '9': '01110,10001,10001,01111,00001,00010,01100',
+    '.': '00000,00000,00000,00000,00000,01100,01100',
+    ',': '00000,00000,00000,00000,01100,01100,11000',
+    '-': '00000,00000,00000,11111,00000,00000,00000',
+    '_': '00000,00000,00000,00000,00000,00000,11111',
+    '!': '00100,00100,00100,00100,00100,00000,00100',
+    '?': '01110,10001,00001,00010,00100,00000,00100',
+    ':': '00000,01100,01100,00000,01100,01100,00000',
+    ';': '00000,01100,01100,00000,01100,01100,11000',
+    "'": '00100,00100,01000,00000,00000,00000,00000',
+    '"': '01010,01010,01010,00000,00000,00000,00000',
+    '(': '00010,00100,01000,01000,01000,00100,00010',
+    ')': '01000,00100,00010,00010,00010,00100,01000',
+    '/': '00001,00001,00010,00100,01000,10000,10000',
+    '+': '00000,00100,00100,11111,00100,00100,00000',
+    '=': '00000,00000,11111,00000,11111,00000,00000',
+    '*': '00000,10101,01110,11111,01110,10101,00000',
+    '%': '11001,11011,00010,00100,01000,11011,10011',
+    '&': '01100,10010,10100,01000,10101,10010,01101',
+    '#': '01010,11111,01010,01010,01010,11111,01010',
+    '<': '00001,00010,00100,01000,00100,00010,00001',
+    '>': '10000,01000,00100,00010,00100,01000,10000',
+    '^': '00100,01110,11011,10001,00000,00000,00000',
+    '$': '00100,01111,10100,01110,00101,11110,00100',
+    '★': '00100,00100,11111,01110,01110,01010,10001',
+    '→': '00000,00100,00010,11111,00010,00100,00000',
+    '●': '00000,01110,11111,11111,11111,01110,00000'
+  };
+
+  Art.FONT_W = 5; Art.FONT_H = 7; Art.FONT_SP = 1;
+
+  var glyphIndex = {}, glyphOrder = [], gi = 0;
+  for (var gk in GLYPHS) { glyphIndex[gk] = gi++; glyphOrder.push(gk); }
+
+  var atlasCache = {};
+  function atlas(color) {
+    var a = atlasCache[color];
+    if (a) return a;
+    var n = glyphOrder.length;
+    var c = mk(n * Art.FONT_W, Art.FONT_H), x = c.getContext('2d');
+    var img = x.createImageData(c.width, c.height), d = img.data;
+    var rgb = PC.color.parse(color);
+    for (var g = 0; g < n; g++) {
+      var rows = GLYPHS[glyphOrder[g]].split(',');
+      for (var r = 0; r < rows.length; r++) {
+        for (var i = 0; i < rows[r].length; i++) {
+          if (rows[r][i] !== '1') continue;
+          var o = (r * c.width + g * Art.FONT_W + i) * 4;
+          d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
+        }
+      }
+    }
+    x.putImageData(img, 0, 0);
+    atlasCache[color] = c;
+    return c;
+  }
+
+  Art.textWidth = function (str, scale, tracking) {
+    scale = scale || 1;
+    tracking = tracking === undefined ? Art.FONT_SP : tracking;
+    var n = String(str).length;
+    return n <= 0 ? 0 : (n * (Art.FONT_W + tracking) - tracking) * scale;
+  };
+
+  /* opts: { scale, tracking, shadow, align: 'left'|'center'|'right', wobble } */
+  Art.text = function (ctx, str, x, y, color, opts) {
+    opts = opts || {};
+    str = String(str).toUpperCase();
+    var scale = opts.scale || 1;
+    var tracking = opts.tracking === undefined ? Art.FONT_SP : opts.tracking;
+    var w = Art.textWidth(str, scale, tracking);
+    if (opts.align === 'center') x = Math.round(x - w / 2);
+    else if (opts.align === 'right') x = Math.round(x - w);
+    x = Math.round(x); y = Math.round(y);
+
+    if (opts.shadow) {
+      var sd = opts.shadowDist || scale;
+      Art.text(ctx, str, x + sd, y + sd, opts.shadow, {
+        scale: scale, tracking: tracking, wobble: opts.wobble, phase: opts.phase
+      });
+    }
+    var at = atlas(color);
+    var step = (Art.FONT_W + tracking) * scale;
+    for (var i = 0; i < str.length; i++) {
+      var ch = str[i];
+      if (ch === ' ') continue;
+      var idx = glyphIndex[ch];
+      if (idx === undefined) idx = glyphIndex['?'];
+      var dy = 0;
+      if (opts.wobble) dy = Math.round(Math.sin((opts.phase || 0) + i * 0.6) * opts.wobble);
+      ctx.drawImage(at, idx * Art.FONT_W, 0, Art.FONT_W, Art.FONT_H,
+        x + i * step, y + dy, Art.FONT_W * scale, Art.FONT_H * scale);
+    }
+    return w;
+  };
+
+  // ------------------------------------------------------- sprite from rows
+  Art.sprite = function (rows, pal) {
+    var h = rows.length, w = 0, i, j;
+    for (i = 0; i < h; i++) w = Math.max(w, rows[i].length);
+    var c = mk(w, h), x = c.getContext('2d');
+    var img = x.createImageData(w, h), d = img.data, cache = {};
+    for (i = 0; i < h; i++) {
+      var row = rows[i];
+      for (j = 0; j < row.length; j++) {
+        var ch = row[j];
+        if (ch === '.' || ch === ' ') continue;
+        var col = pal[ch];
+        if (!col) continue;
+        var rgb = cache[ch] || (cache[ch] = PC.color.parse(col));
+        var o = (i * w + j) * 4;
+        d[o] = rgb[0]; d[o + 1] = rgb[1]; d[o + 2] = rgb[2]; d[o + 3] = 255;
+      }
+    }
+    x.putImageData(img, 0, 0);
+    return c;
+  };
+
+  Art.flipH = function (src) {
+    var c = mk(src.width, src.height), x = c.getContext('2d');
+    x.translate(src.width, 0); x.scale(-1, 1);
+    x.drawImage(src, 0, 0);
+    return c;
+  };
+
+  Art.solid = function (src, color) {
+    var c = mk(src.width, src.height), x = c.getContext('2d');
+    x.drawImage(src, 0, 0);
+    x.globalCompositeOperation = 'source-atop';
+    x.fillStyle = color;
+    x.fillRect(0, 0, c.width, c.height);
+    return c;
+  };
+
+  Art.tint = function (src, color, amount) {
+    var c = mk(src.width, src.height), x = c.getContext('2d');
+    x.drawImage(src, 0, 0);
+    x.globalCompositeOperation = 'source-atop';
+    x.globalAlpha = amount;
+    x.fillStyle = color;
+    x.fillRect(0, 0, c.width, c.height);
+    return c;
+  };
+
+  /* Grow a 1px keyline around everything opaque in `src`, returning a new
+   * canvas one pixel larger on every side. Cheaper and far more reliable than
+   * outlining each limb by hand, and it never leaves a seam where two body
+   * parts overlap. */
+  Art.outline = function (src, color, pad) {
+    pad = pad || 1;
+    var c = mk(src.width + pad * 2, src.height + pad * 2), x = c.getContext('2d');
+    var sil = Art.solid(src, color || '#000');
+    var dx, dy;
+    for (dy = -pad; dy <= pad; dy++) {
+      for (dx = -pad; dx <= pad; dx++) {
+        if (!dx && !dy) continue;
+        x.drawImage(sil, pad + dx, pad + dy);
+      }
+    }
+    x.drawImage(src, pad, pad);
+    return c;
+  };
+
+  // Crop to the tight bounding box of opaque pixels; returns {canvas,ox,oy}.
+  Art.trim = function (src) {
+    var x = src.getContext('2d');
+    var d = x.getImageData(0, 0, src.width, src.height).data;
+    var minX = src.width, minY = src.height, maxX = -1, maxY = -1;
+    for (var j = 0; j < src.height; j++) {
+      for (var i = 0; i < src.width; i++) {
+        if (d[(j * src.width + i) * 4 + 3] < 8) continue;
+        if (i < minX) minX = i; if (i > maxX) maxX = i;
+        if (j < minY) minY = j; if (j > maxY) maxY = j;
+      }
+    }
+    if (maxX < 0) return { canvas: mk(1, 1), ox: 0, oy: 0 };
+    var w = maxX - minX + 1, h = maxY - minY + 1;
+    var c = mk(w, h);
+    c.getContext('2d').drawImage(src, -minX, -minY);
+    return { canvas: c, ox: minX, oy: minY };
+  };
+
+  // ------------------------------------------------- chunky drawing helpers
+  // All of these snap to whole pixels; nothing in this game is ever anti-aliased.
+  Art.rect = function (ctx, x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(Math.round(x), Math.round(y), Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
+  };
+
+  // Pixel-perfect filled ellipse (Bresenham-ish, row by row).
+  Art.ellipse = function (ctx, cx, cy, rx, ry, color) {
+    ctx.fillStyle = color;
+    rx = Math.max(0.5, rx); ry = Math.max(0.5, ry);
+    var y0 = Math.round(cy - ry), y1 = Math.round(cy + ry);
+    for (var y = y0; y <= y1; y++) {
+      var t = (y + 0.5 - cy) / ry;
+      if (t * t >= 1) continue;
+      var half = rx * Math.sqrt(1 - t * t);
+      var xa = Math.round(cx - half), xb = Math.round(cx + half);
+      if (xb <= xa) xb = xa + 1;
+      ctx.fillRect(xa, y, xb - xa, 1);
+    }
+  };
+
+  /* A tapered limb: a segment swept by a width that lerps end to end. Drawn
+   * as a stack of short spans so it stays blocky instead of turning into a
+   * smooth vector stroke. */
+  Art.limb = function (ctx, x0, y0, x1, y1, w0, w1, color) {
+    var dx = x1 - x0, dy = y1 - y0;
+    var len = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+    var steps = Math.ceil(len) + 1;
+    ctx.fillStyle = color;
+    for (var i = 0; i <= steps; i++) {
+      var t = i / steps;
+      var px = x0 + dx * t, py = y0 + dy * t;
+      var w = w0 + (w1 - w0) * t;
+      var half = w / 2;
+      if (Math.abs(dy) > Math.abs(dx)) {
+        ctx.fillRect(Math.round(px - half), Math.round(py), Math.max(1, Math.round(w)), 1);
+      } else {
+        ctx.fillRect(Math.round(px), Math.round(py - half), 1, Math.max(1, Math.round(w)));
+      }
+    }
+  };
+
+  // Repeating vertical/horizontal hatch used for fences, grates, shutters.
+  Art.hatch = function (ctx, x, y, w, h, step, color, dir) {
+    ctx.fillStyle = color;
+    var i;
+    if (dir !== 'h') for (i = 0; i < w; i += step) ctx.fillRect(Math.round(x + i), Math.round(y), 1, Math.round(h));
+    if (dir !== 'v') for (i = 0; i < h; i += step) ctx.fillRect(Math.round(x), Math.round(y + i), Math.round(w), 1);
+  };
+
+  // A 50% checker between two colours - the poor man's gradient, and exactly
+  // how a real 8-bit background would fake a shade it did not have.
+  Art.dither = function (ctx, x, y, w, h, color, phase) {
+    ctx.fillStyle = color;
+    phase = phase || 0;
+    for (var j = 0; j < h; j++) {
+      for (var i = (j + phase) % 2; i < w; i += 2) ctx.fillRect(Math.round(x + i), Math.round(y + j), 1, 1);
+    }
+  };
+
+  Art.shadow = function (ctx, cx, cy, rx, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha === undefined ? 0.35 : alpha;
+    Art.ellipse(ctx, cx, cy, rx, Math.max(1.5, rx * 0.36), '#000000');
+    ctx.restore();
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - the fighter rig.
+ *
+ * Hand-drawing twenty-odd animation frames for eight brawlers is a lot of
+ * pixels to push, and they never quite agree with each other. Instead every
+ * fighter in this game is the same articulated figure - head, torso, two arms,
+ * two legs - drawn from a table of poses and a palette. Bake once at boot,
+ * blit forever. Change a pose here and everyone in the city learns it.
+ *
+ * Pose space: x runs forward (the figure always faces +x and is mirrored for
+ * the other way), y runs UP from the floor, in pixels, for a 40px fighter.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+  var Art = PC.art, C = PC.color;
+  var Rig = PC.rig = {};
+
+  // ------------------------------------------------------------------ poses
+  // p(hip, chest, head, frontArm, backArm, frontLeg, backLeg)
+  // arms: [[elbowX,elbowY],[handX,handY]]   legs: [[kneeX,kneeY],[footX,footY]]
+  function p(hip, chest, head, aF, aB, lF, lB, extra) {
+    var o = { hip: hip, chest: chest, head: head, aF: aF, aB: aB, lF: lF, lB: lB };
+    if (extra) for (var k in extra) o[k] = extra[k];
+    return o;
+  }
+
+  var POSES = Rig.POSES = {
+    // --------------------------------------------------------- standing
+    idle: p([0, 19], [0, 30], [1, 35.5],
+      [[4, 25], [7, 26]], [[-3, 25], [1, 26]],
+      [[3, 10], [5, 0]], [[-3, 10], [-5, 0]]),
+    idle2: p([0, 18.5], [0, 29.5], [1, 35],
+      [[4, 24.5], [7, 25]], [[-3, 24.5], [1, 25]],
+      [[3, 10], [5, 0]], [[-3, 10], [-5, 0]]),
+
+    // --------------------------------------------------------- walking
+    walk0: p([0, 18.5], [0, 29.5], [1, 35],
+      [[1, 25], [2, 21]], [[-2, 25], [3, 25]],
+      [[5, 10], [8, 0]], [[-4, 9], [-7, 0]]),
+    walk1: p([0, 19.5], [0, 30.5], [1, 36],
+      [[3, 25], [5, 24]], [[-3, 25], [-1, 22]],
+      [[2, 11], [3, 2]], [[-3, 10], [-4, 0]]),
+    walk2: p([0, 18.5], [0, 29.5], [1, 35],
+      [[3, 25], [4, 25]], [[-2, 25], [-3, 21]],
+      [[-3, 10], [-6, 0]], [[4, 9], [7, 0]]),
+    walk3: p([0, 19.5], [0, 30.5], [1, 36],
+      [[3, 25], [5, 22]], [[-3, 25], [-1, 24]],
+      [[2, 11], [2, 1]], [[-2, 10], [-3, 0]]),
+
+    // --------------------------------------------------------- running
+    run0: p([1, 18], [3, 29], [5, 34.5],
+      [[6, 25], [9, 27]], [[-4, 24], [-7, 21]],
+      [[7, 11], [11, 1]], [[-5, 8], [-9, 1]]),
+    run1: p([1, 19.5], [3, 30], [5, 35.5],
+      [[5, 25], [7, 22]], [[-3, 24], [-2, 20]],
+      [[4, 13], [3, 5]], [[-4, 9], [-8, 0]]),
+    run2: p([1, 18], [3, 29], [5, 34.5],
+      [[4, 25], [4, 21]], [[-3, 24], [-1, 27]],
+      [[-4, 10], [-8, 1]], [[6, 11], [10, 1]]),
+    run3: p([1, 19.5], [3, 30], [5, 35.5],
+      [[5, 25], [8, 23]], [[-3, 24], [-3, 20]],
+      [[4, 13], [4, 6]], [[-3, 9], [-6, 0]]),
+
+    // --------------------------------------------------------- punching
+    jab: p([0, 19], [1, 30], [2, 35.5],
+      [[7, 28], [13, 28]], [[-3, 25], [0, 26]],
+      [[4, 10], [6, 0]], [[-3, 10], [-6, 0]]),
+    cross: p([1, 19], [2, 30], [3, 35.5],
+      [[3, 26], [1, 25]], [[6, 28], [15, 29]],
+      [[5, 10], [8, 0]], [[-3, 10], [-6, 0]]),
+    hook: p([1, 19], [2, 30.5], [3, 36],
+      [[8, 32], [13, 31]], [[-4, 26], [-2, 23]],
+      [[5, 10], [8, 0]], [[-4, 10], [-7, 0]]),
+    upper: p([0, 17], [1, 28.5], [2, 34],
+      [[6, 28], [9, 37]], [[-3, 24], [-1, 22]],
+      [[4, 9], [6, 0]], [[-3, 9], [-6, 0]]),
+    elbow: p([0, 19], [-1, 30], [-2, 35.5],
+      [[2, 28], [-4, 30]], [[3, 26], [5, 24]],
+      [[3, 10], [5, 0]], [[-4, 10], [-7, 0]]),
+
+    // --------------------------------------------------------- kicking
+    kick: p([-1, 19], [-3, 29.5], [-4, 34.5],
+      [[1, 26], [4, 23]], [[-6, 26], [-10, 25]],
+      [[8, 15], [15, 16]], [[-3, 10], [-5, 0]]),
+    kickHigh: p([-2, 19], [-4, 29], [-5, 34],
+      [[0, 26], [3, 24]], [[-7, 26], [-11, 26]],
+      [[9, 21], [16, 27]], [[-3, 10], [-5, 0]]),
+    kickLow: p([-1, 18], [-3, 28.5], [-4, 33.5],
+      [[1, 25], [4, 22]], [[-6, 25], [-10, 24]],
+      [[8, 10], [15, 6]], [[-3, 9], [-5, 0]]),
+
+    // --------------------------------------------------------- airborne
+    jump: p([0, 20], [0, 30.5], [1, 36],
+      [[4, 27], [6, 31]], [[-4, 27], [-6, 31]],
+      [[5, 13], [8, 8]], [[-4, 13], [-6, 7]]),
+    jumpKick: p([0, 19], [-2, 29.5], [-3, 34.5],
+      [[1, 26], [3, 22]], [[-5, 26], [-9, 24]],
+      [[8, 14], [16, 11]], [[-3, 12], [-6, 8]]),
+    knee: p([0, 20], [1, 30.5], [2, 36],
+      [[5, 27], [9, 29]], [[-3, 26], [-1, 24]],
+      [[7, 20], [5, 12]], [[-3, 11], [-6, 2]]),
+
+    // --------------------------------------------------------- reacting
+    hurt: p([-1, 19], [-3, 29.5], [-5, 34.5],
+      [[0, 28], [-2, 32]], [[-6, 27], [-10, 30]],
+      [[2, 10], [4, 0]], [[-5, 10], [-8, 0]]),
+    dizzy: p([-1, 18.5], [-2, 29], [-3, 34],
+      [[2, 26], [4, 29]], [[-5, 26], [-8, 28]],
+      [[2, 10], [3, 0]], [[-4, 10], [-7, 0]]),
+    fall: p([-2, 15], [-8, 21], [-13, 24],
+      [[-9, 26], [-14, 28]], [[-11, 22], [-16, 21]],
+      [[5, 15], [11, 17]], [[1, 12], [5, 9]]),
+    down: p([-3, 4.5], [-10, 5.5], [-16, 6.5],
+      [[-13, 3], [-17, 2]], [[-12, 8], [-18, 9]],
+      [[4, 4], [9, 2]], [[2, 6], [7, 7]]),
+    getup: p([-2, 10], [-3, 19], [-2, 24.5],
+      [[-6, 13], [-10, 5]], [[1, 15], [4, 8]],
+      [[4, 6], [7, 0]], [[-6, 4], [-9, 1]]),
+    crouch: p([-1, 11], [-1, 21], [0, 26.5],
+      [[4, 15], [8, 8]], [[-4, 15], [-1, 7]],
+      [[4, 6], [7, 0]], [[-4, 6], [-7, 0]]),
+
+    // --------------------------------------------------------- grappling
+    grab: p([0, 19], [1, 30], [2, 35.5],
+      [[6, 28], [11, 29]], [[4, 27], [10, 27]],
+      [[3, 10], [5, 0]], [[-3, 10], [-6, 0]]),
+    held: p([0, 19], [-1, 29.5], [-2, 34.5],
+      [[-1, 27], [-4, 30]], [[-5, 26], [-8, 29]],
+      [[2, 10], [4, 0]], [[-4, 10], [-7, 0]]),
+    windup: p([-2, 19], [-4, 30], [-6, 35],
+      [[-2, 33], [0, 40]], [[-6, 32], [-5, 39]],
+      [[2, 10], [4, 0]], [[-5, 10], [-9, 0]]),
+    throwOut: p([2, 18.5], [4, 29], [6, 34],
+      [[8, 28], [13, 23]], [[6, 27], [11, 21]],
+      [[6, 10], [9, 0]], [[-3, 10], [-6, 0]]),
+
+    // --------------------------------------------------------- spinning
+    spin0: p([0, 19], [0, 30], [0, 35.5],
+      [[7, 30], [13, 30]], [[-7, 30], [-13, 30]],
+      [[6, 13], [11, 9]], [[-3, 10], [-5, 0]]),
+    spin1: p([0, 19], [0, 30], [0, 35.5],
+      [[-5, 29], [-9, 31]], [[5, 29], [9, 31]],
+      [[-6, 13], [-11, 9]], [[3, 10], [5, 0]]),
+
+    // --------------------------------------------------------- flourish
+    win: p([0, 19], [0, 30.5], [1, 36],
+      [[5, 34], [4, 40]], [[-5, 34], [-4, 40]],
+      [[3, 10], [5, 0]], [[-3, 10], [-5, 0]]),
+    taunt: p([0, 19], [0, 30], [1, 35.5],
+      [[5, 27], [1, 28]], [[-4, 27], [-1, 27]],
+      [[3, 10], [5, 0]], [[-3, 10], [-5, 0]]),
+    guard: p([-1, 18.5], [-1, 29.5], [0, 35],
+      [[3, 27], [4, 32]], [[-3, 27], [-1, 31]],
+      [[2, 10], [4, 0]], [[-4, 10], [-7, 0]])
+  };
+
+  // ---------------------------------------------------------------- figures
+  /* A character is a palette plus a build. `scale` stretches the whole rig,
+   * `bulk` only thickens it - which is the difference between a big man and a
+   * tall one, and the game has both. */
+  Rig.CHARS = {};
+  Rig.def = function (key, spec) {
+    spec.key = key;
+    spec.scale = spec.scale || 1;
+    spec.bulk = spec.bulk || 1;
+    spec.hair = spec.hair || 'flat';
+    Rig.CHARS[key] = spec;
+    return spec;
+  };
+
+  function shadeAll(pal) {
+    var out = {};
+    for (var k in pal) out[k] = C.shade(pal[k], -0.32);
+    return out;
+  }
+
+  /* Draw the figure into ctx with the floor point at (ox, oy). Back limbs
+   * first, in a darkened palette - the cheapest depth cue there is, and the
+   * one every 8-bit brawler used. */
+  function drawFigure(ctx, ch, pose, ox, oy) {
+    var pal = ch.pal, back = ch._back || (ch._back = shadeAll(pal));
+    var s = ch.scale, b = ch.bulk * ch.scale;
+    function X(v) { return ox + v * s; }
+    function Y(v) { return oy - v * s; }
+
+    var hip = pose.hip, chest = pose.chest, head = pose.head;
+    var shF = [chest[0] + 1.5, chest[1] - 1.5], shB = [chest[0] - 2.5, chest[1] - 1.5];
+
+    function leg(l, hipX, P) {
+      Art.limb(ctx, X(hipX), Y(hip[1] - 1), X(l[0][0]), Y(l[0][1]), 7 * b, 5.6 * b, P.pants);
+      Art.limb(ctx, X(l[0][0]), Y(l[0][1]), X(l[1][0]), Y(l[1][1]), 5.4 * b, 4.2 * b, P.pantsD);
+      // shoe: sits on the floor point and pokes forward
+      Art.rect(ctx, X(l[1][0] - 2.2), Y(l[1][1] + 2.4), 6.6 * b, 2.6 * s, P.shoe);
+      Art.rect(ctx, X(l[1][0] - 2.2), Y(l[1][1] + 0.4), 6.6 * b, 1 * s, P.shoeD);
+    }
+
+    function arm(a, sh, P, sleeve) {
+      var upper = sleeve ? P.shirt : P.skin;
+      Art.limb(ctx, X(sh[0]), Y(sh[1]), X(a[0][0]), Y(a[0][1]), 5.2 * b, 4 * b, upper);
+      Art.limb(ctx, X(a[0][0]), Y(a[0][1]), X(a[1][0]), Y(a[1][1]), 4 * b, 3.4 * b, P.skin);
+      Art.ellipse(ctx, X(a[1][0]), Y(a[1][1]), 2.6 * b, 2.5 * b, P.skin);      // fist
+      Art.rect(ctx, X(a[1][0] - 2), Y(a[1][1] + 0.6), 4 * b, 1 * s, P.skinD);
+    }
+
+    // ---- back half
+    leg(pose.lB, hip[0] - 1.5, back);
+    arm(pose.aB, shB, back, ch.sleeves);
+
+    // ---- torso
+    Art.limb(ctx, X(hip[0]), Y(hip[1] - 2), X(chest[0]), Y(chest[1]), 10 * b, 12 * b, pal.pants);
+    Art.limb(ctx, X(hip[0]), Y(hip[1] + 1), X(chest[0]), Y(chest[1]), 10.6 * b, 13 * b, pal.shirt);
+    // the rear third sits in its own shade, which is what gives a flat
+    // side-on figure any barrel to its chest at all
+    Art.limb(ctx, X(hip[0] - 3.4), Y(hip[1] + 1), X(chest[0] - 4), Y(chest[1]), 3.6 * b, 4.6 * b, pal.shirtD);
+    // shoulder caps make the silhouette read as a brawler and not a stick
+    Art.ellipse(ctx, X(shF[0] + 0.5), Y(shF[1]), 3.6 * b, 3.2 * b, pal.shirt);
+    Art.ellipse(ctx, X(shB[0]), Y(shB[1]), 3.2 * b, 3 * b, back.shirt);
+    // a vest laces up the front: one seam, two pixels of it
+    if (ch.vest) {
+      Art.limb(ctx, X(hip[0] + 2.4), Y(hip[1] + 3), X(chest[0] + 3), Y(chest[1] - 1), 1.6 * b, 1.6 * b, pal.trim);
+      Art.rect(ctx, X(chest[0] - 1), Y(chest[1] + 1), 5 * b, 1.4 * s, pal.trim);
+    }
+    Art.limb(ctx, X(hip[0] - 0.2), Y(hip[1] + 1), X(hip[0] + 0.2), Y(hip[1] + 2), 10.8 * b, 10.8 * b, pal.trim);
+
+    // ---- neck + head
+    var hx = X(head[0]), hy = Y(head[1]);
+    Art.limb(ctx, X(chest[0]), Y(chest[1]), X(head[0]), Y(head[1] - 3), 4.4 * b, 4 * b, pal.skinD);
+    Art.ellipse(ctx, hx - 0.3 * s, hy - 0.5 * s, 4.4 * b, 4.8 * s, pal.hair);   // hair mass
+    Art.ellipse(ctx, hx + 1.5 * s, hy + 1.1 * s, 3.9 * b, 4.2 * s, pal.skin);   // face
+    Art.rect(ctx, hx - 3.4 * s, hy - 0.2 * s, 2.4 * s, 3 * s, pal.hair);        // sideburn
+    Art.rect(ctx, hx + 1.6 * s, hy - 0.6 * s, 1.4 * s, 1.8 * s, pal.eye || '#20202e');
+    Art.rect(ctx, hx - 0.8 * s, hy - 0.8 * s, 1.2 * s, 1.6 * s, pal.eye || '#20202e');
+    Art.rect(ctx, hx + 0.4 * s, hy + 3.4 * s, 3.2 * s, 1 * s, pal.skinD);       // jaw line
+
+    if (ch.hair === 'spiky') {
+      for (var i = -2; i <= 2; i++) {
+        Art.limb(ctx, hx + i * 2 * s, hy - 3 * s, hx + i * 2.4 * s - 1.5 * s, hy - 7 * s, 3 * s, 1 * s, pal.hair);
+      }
+    } else if (ch.hair === 'mohawk') {
+      Art.limb(ctx, hx - 3 * s, hy - 4 * s, hx + 2 * s, hy - 9 * s, 3 * s, 2 * s, pal.hair);
+      Art.rect(ctx, hx - 4 * s, hy - 6 * s, 8 * s, 3 * s, pal.hair);
+    } else if (ch.hair === 'pony') {
+      Art.limb(ctx, hx - 3 * s, hy - 2 * s, hx - 9 * s, hy + 3 * s, 4 * s, 2 * s, pal.hair);
+    } else if (ch.hair === 'bald') {
+      Art.ellipse(ctx, hx + 0.5 * s, hy - 0.5 * s, 4.2 * b, 4.4 * s, pal.skin);
+      Art.rect(ctx, hx - 4 * s, hy + 1 * s, 3 * s, 3 * s, pal.hair);
+    } else if (ch.hair === 'cap') {
+      Art.rect(ctx, hx - 5 * s, hy - 4.5 * s, 10 * b, 3 * s, pal.trim);
+      Art.rect(ctx, hx + 2 * s, hy - 2.5 * s, 5 * s, 1.4 * s, pal.trim);
+    }
+    if (ch.band) Art.rect(ctx, hx - 5 * s, hy - 2.2 * s, 10 * b, 1.6 * s, ch.band);
+
+    // ---- front half
+    leg(pose.lF, hip[0] + 1.5, pal);
+    arm(pose.aF, shF, pal, ch.sleeves);
+  }
+
+  // ------------------------------------------------------------------ baking
+  /* Every (character, pose) pair is rendered once into its own canvas with a
+   * black keyline, and the hand position is recorded so a bat or a knife can
+   * be hung off it later without re-deriving the pose. */
+  var cache = {};
+
+  function bake(ch, poseName) {
+    var pose = POSES[poseName];
+    var s = ch.scale;
+    var w = Math.ceil(64 * s), h = Math.ceil(56 * s);
+    var ox = Math.round(w / 2), oy = h - Math.ceil(6 * s);
+    var c = Art.mk(w, h), x = c.getContext('2d');
+    drawFigure(x, ch, pose, ox, oy);
+    var outlined = Art.outline(c, ch.pal.out || '#0b0b14', 1);
+    return {
+      canvas: outlined,
+      ox: ox + 1, oy: oy + 1,
+      handX: pose.aF[1][0] * s, handY: pose.aF[1][1] * s,
+      elbowX: pose.aF[0][0] * s, elbowY: pose.aF[0][1] * s,
+      headX: pose.head[0] * s, headY: pose.head[1] * s
+    };
+  }
+
+  Rig.frame = function (charKey, poseName) {
+    var k = charKey + '/' + poseName;
+    var f = cache[k];
+    if (f) return f;
+    var ch = Rig.CHARS[charKey];
+    if (!ch) throw new Error('no character ' + charKey);
+    if (!POSES[poseName]) throw new Error('no pose ' + poseName);
+    f = cache[k] = bake(ch, poseName);
+    return f;
+  };
+
+  Rig.bakeAll = function () {
+    for (var k in Rig.CHARS) for (var pn in POSES) Rig.frame(k, pn);
+  };
+
+  /* Draw a baked frame with its floor point at (x, y). Mirroring happens at
+   * blit time so nothing is stored twice. */
+  Rig.draw = function (ctx, frame, x, y, flip, tintCanvas) {
+    var cv = tintCanvas || frame.canvas;
+    x = Math.round(x); y = Math.round(y);
+    if (flip) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(-1, 1);
+      ctx.drawImage(cv, -frame.ox, -frame.oy);
+      ctx.restore();
+    } else {
+      ctx.drawImage(cv, x - frame.ox, y - frame.oy);
+    }
+  };
+
+  // White-hot copy of a frame, for the flash on a connecting hit.
+  var flashCache = {};
+  Rig.flash = function (charKey, poseName, color) {
+    var k = charKey + '/' + poseName + '/' + color;
+    if (flashCache[k]) return flashCache[k];
+    var f = Rig.frame(charKey, poseName);
+    // A tint rather than a fill: the figure still reads as a person mid-flash,
+    // which matters when four of them are flashing at once.
+    return (flashCache[k] = Art.tint(f.canvas, color, 0.82));
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - the cast, and the things they hit each other with.
+ *
+ * Palettes only: every fighter shares one rig, so a new gang member is nine
+ * colours and a hairstyle. Weapons and throwables are baked here too, since
+ * they are drawn by the same outline pass as the bodies and have to match.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+  var Art = PC.art, Rig = PC.rig;
+
+  function pal(o) { return o; }
+
+  // -------------------------------------------------------------- the heroes
+  Rig.def('hero1', {
+    name: 'BILLY', vest: true, hair: 'flat',
+    pal: pal({
+      skin: '#f4b183', skinD: '#c07a4e', hair: '#1b1b30', eye: '#141422',
+      shirt: '#eef1f8', shirtD: '#b3b9cc',
+      pants: '#2f52d8', pantsD: '#1c327f', trim: '#16224a',
+      shoe: '#ffffff', shoeD: '#8f96ad', out: '#0a0a12'
+    })
+  });
+
+  Rig.def('hero2', {
+    name: 'JIMMY', vest: true, hair: 'flat',
+    pal: pal({
+      skin: '#f4b183', skinD: '#c07a4e', hair: '#3c2412', eye: '#141422',
+      shirt: '#eef1f8', shirtD: '#b3b9cc',
+      pants: '#d33a2c', pantsD: '#8c1f18', trim: '#4a1410',
+      shoe: '#ffffff', shoeD: '#8f96ad', out: '#0a0a12'
+    })
+  });
+
+  // --------------------------------------------------------------- the gang
+  Rig.def('punk', {
+    name: 'WILLIAMS', hair: 'flat',
+    pal: pal({
+      skin: '#e8a878', skinD: '#b0724a', hair: '#e2622a', eye: '#141422',
+      shirt: '#23232e', shirtD: '#141420',
+      pants: '#e2422a', pantsD: '#992414', trim: '#5c1a10',
+      shoe: '#ffffff', shoeD: '#8f96ad', out: '#0a0a12'
+    })
+  });
+
+  Rig.def('rough', {
+    name: 'LINDA', hair: 'spiky',
+    pal: pal({
+      skin: '#e8a878', skinD: '#b0724a', hair: '#8c3ad8', eye: '#141422',
+      shirt: '#23232e', shirtD: '#141420',
+      pants: '#a63ad8', pantsD: '#65208c', trim: '#3d1252',
+      shoe: '#ffffff', shoeD: '#8f96ad', out: '#0a0a12'
+    })
+  });
+
+  Rig.def('knifer', {
+    name: 'JEFF', hair: 'cap', sleeves: true,
+    pal: pal({
+      skin: '#c98a5c', skinD: '#96603a', hair: '#1e2a18', eye: '#141422',
+      shirt: '#3f8c46', shirtD: '#26592c',
+      pants: '#2c3a2a', pantsD: '#1a241a', trim: '#141c14',
+      shoe: '#6b5a3a', shoeD: '#42371f', out: '#0a0a12'
+    })
+  });
+
+  Rig.def('batter', {
+    name: 'ROPER', hair: 'mohawk', sleeves: true,
+    pal: pal({
+      skin: '#e8a878', skinD: '#b0724a', hair: '#f0d63a', eye: '#141422',
+      shirt: '#2f7fd8', shirtD: '#1d4d85',
+      pants: '#38405c', pantsD: '#232840', trim: '#161a2c',
+      shoe: '#c04030', shoeD: '#7a2620', out: '#0a0a12'
+    })
+  });
+
+  Rig.def('brute', {
+    name: 'ABORE', hair: 'bald', scale: 1.16, bulk: 1.3,
+    pal: pal({
+      skin: '#b8865a', skinD: '#845a36', hair: '#2b2b1e', eye: '#141422',
+      shirt: '#4a5266', shirtD: '#2e3444',
+      pants: '#7a5230', pantsD: '#4d331c', trim: '#2c1c0f',
+      shoe: '#3c3c4a', shoeD: '#22222c', out: '#0a0a12'
+    })
+  });
+
+  // ---------------------------------------------------------------- bosses
+  Rig.def('boss_crusher', {
+    name: 'CRUSHER', hair: 'bald', scale: 1.34, bulk: 1.38, boss: true,
+    pal: pal({
+      skin: '#c08a52', skinD: '#8a5c2e', hair: '#241a12', eye: '#2a0a0a',
+      shirt: '#7a2a24', shirtD: '#4c1712',
+      pants: '#2a2a38', pantsD: '#181822', trim: '#e0b040',
+      shoe: '#1e1e28', shoeD: '#101018', out: '#0a0a12'
+    })
+  });
+
+  Rig.def('boss_viper', {
+    name: 'VIPER', hair: 'pony', scale: 1.06, bulk: 0.95, boss: true,
+    pal: pal({
+      skin: '#f0b48c', skinD: '#bc7c54', hair: '#20c4a8', eye: '#141422',
+      shirt: '#1c1c28', shirtD: '#101018',
+      pants: '#20a890', pantsD: '#136055', trim: '#0c3a33',
+      shoe: '#f0f0f4', shoeD: '#9098a8', out: '#0a0a12'
+    })
+  });
+
+  Rig.def('boss_jaws', {
+    name: 'JAWS', hair: 'mohawk', scale: 1.2, bulk: 1.16, boss: true,
+    pal: pal({
+      skin: '#d09060', skinD: '#9a6238', hair: '#e0e0ec', eye: '#141422',
+      shirt: '#8c1c2c', shirtD: '#571018', sleeves: true,
+      pants: '#3a2a1c', pantsD: '#241a10', trim: '#c8a038',
+      shoe: '#221c14', shoeD: '#141008', out: '#0a0a12'
+    })
+  });
+
+  Rig.def('boss_power', {
+    name: 'MR. POWER', hair: 'flat', scale: 1.14, bulk: 1.08, boss: true, sleeves: true,
+    pal: pal({
+      skin: '#e8b48c', skinD: '#b07a54', hair: '#101018', eye: '#3a0a0a',
+      shirt: '#1a1a26', shirtD: '#0e0e16',
+      pants: '#1a1a26', pantsD: '#0e0e16', trim: '#c0182c',
+      shoe: '#0c0c12', shoeD: '#05050a', out: '#0a0a12'
+    })
+  });
+
+  // ---------------------------------------------------------------- weapons
+  /* Weapons hang off the fighter's front hand. Each is baked pointing right
+   * with a grip point, so the same canvas serves held, swung and thrown. */
+  var W = PC.weapons = {};
+
+  function weapon(key, spec) { W[key] = spec; return spec; }
+
+  function bakeBat() {
+    var c = Art.mk(24, 8), x = c.getContext('2d');
+    Art.limb(x, 3, 4, 21, 4, 2.5, 5.5, '#c08a44');
+    Art.limb(x, 3, 4, 12, 4, 2.5, 3.4, '#8a5c2c');
+    Art.rect(x, 2, 2, 2, 4, '#5c3a1c');
+    Art.limb(x, 12, 3, 21, 3, 1, 2, '#e0b070');
+    return Art.outline(c, '#0a0a12', 1);
+  }
+
+  function bakeKnife() {
+    var c = Art.mk(16, 7), x = c.getContext('2d');
+    Art.rect(x, 1, 3, 5, 3, '#3a3a4a');
+    Art.rect(x, 5, 2, 2, 5, '#8a8a9c');
+    Art.limb(x, 7, 3.5, 14, 3.5, 4, 1, '#d8dce8');
+    Art.limb(x, 7, 3, 13, 3, 1.4, 1, '#f4f8ff');
+    return Art.outline(c, '#0a0a12', 1);
+  }
+
+  function bakePipe() {
+    var c = Art.mk(22, 6), x = c.getContext('2d');
+    Art.limb(x, 2, 3, 20, 3, 3.6, 3.6, '#98a0b4');
+    Art.limb(x, 2, 2, 20, 2, 1.2, 1.2, '#d8dce8');
+    Art.rect(x, 17, 0, 4, 6, '#6c7488');
+    return Art.outline(c, '#0a0a12', 1);
+  }
+
+  function bakeChain() {
+    var c = Art.mk(26, 6), x = c.getContext('2d');
+    for (var i = 0; i < 8; i++) Art.ellipse(x, 3 + i * 3, 3, 1.8, 1.6, i % 2 ? '#9aa2b6' : '#c8ceda');
+    Art.ellipse(x, 22, 3, 3, 2.6, '#6c7488');
+    return Art.outline(c, '#0a0a12', 1);
+  }
+
+  weapon('bat', { label: 'BAT', canvas: null, grip: [4, 4], dmg: 14, reach: 26, hits: 'sweep', ammo: 8, make: bakeBat });
+  weapon('pipe', { label: 'PIPE', canvas: null, grip: [3, 3], dmg: 12, reach: 24, hits: 'sweep', ammo: 8, make: bakePipe });
+  weapon('knife', { label: 'KNIFE', canvas: null, grip: [3, 4], dmg: 10, reach: 18, hits: 'stab', ammo: 6, throwable: true, make: bakeKnife });
+  weapon('chain', { label: 'CHAIN', canvas: null, grip: [3, 3], dmg: 11, reach: 30, hits: 'sweep', ammo: 10, make: bakeChain });
+
+  // ------------------------------------------------------------ throwables
+  var P = PC.props = {};
+
+  function bakeCrate() {
+    var c = Art.mk(20, 18), x = c.getContext('2d');
+    Art.rect(x, 0, 0, 20, 18, '#a8702c');
+    Art.rect(x, 1, 1, 18, 16, '#c08a44');
+    Art.rect(x, 1, 1, 18, 2, '#d8a664');
+    Art.limb(x, 1, 17, 19, 1, 2, 2, '#8a5c2c');
+    Art.limb(x, 1, 1, 19, 17, 2, 2, '#8a5c2c');
+    Art.rect(x, 0, 0, 20, 2, '#8a5c2c');
+    return Art.outline(c, '#0a0a12', 1);
+  }
+
+  function bakeDrum() {
+    var c = Art.mk(16, 22), x = c.getContext('2d');
+    Art.rect(x, 0, 2, 16, 18, '#b03428');
+    Art.rect(x, 1, 2, 6, 18, '#d8503c');
+    Art.rect(x, 12, 2, 3, 18, '#7a1e18');
+    Art.ellipse(x, 8, 3, 8, 3, '#e06450');
+    Art.rect(x, 0, 6, 16, 2, '#f0d8a0');
+    Art.rect(x, 0, 14, 16, 2, '#f0d8a0');
+    return Art.outline(c, '#0a0a12', 1);
+  }
+
+  P.crate = { hp: 2, dmg: 16, make: bakeCrate };
+  P.drum = { hp: 3, dmg: 18, make: bakeDrum, explodes: true };
+
+  // ---------------------------------------------------------------- pickups
+  var I = PC.pickups = {};
+
+  function bakeHeart() {
+    var c = Art.mk(13, 12), x = c.getContext('2d');
+    Art.ellipse(x, 4, 4, 4, 4, '#e03c50');
+    Art.ellipse(x, 9, 4, 4, 4, '#e03c50');
+    for (var i = 0; i < 8; i++) Art.rect(x, 1 + i * 0.75, 5 + i, 11 - i * 1.5, 1, '#e03c50');
+    Art.rect(x, 3, 2, 2, 2, '#f88090');
+    return Art.outline(c, '#0a0a12', 1);
+  }
+
+  function bakeCoin() {
+    var c = Art.mk(12, 12), x = c.getContext('2d');
+    Art.ellipse(x, 6, 6, 5.5, 5.5, '#c89018');
+    Art.ellipse(x, 6, 6, 4, 4, '#f0d040');
+    Art.rect(x, 5, 3, 2, 6, '#c89018');
+    return Art.outline(c, '#0a0a12', 1);
+  }
+
+  I.heart = { heal: 30, score: 500, make: bakeHeart };
+  I.coin = { heal: 0, score: 1000, make: bakeCoin };
+
+  // Weapons, props and pickups all bake the same way; do it once at boot.
+  PC.bakeThings = function () {
+    var k;
+    for (k in W) if (!W[k].canvas) W[k].canvas = W[k].make();
+    for (k in P) if (!P[k].canvas) P[k].canvas = P[k].make();
+    for (k in I) if (!I[k].canvas) I[k].canvas = I[k].make();
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - the city itself.
+ *
+ * Backgrounds are composed, not drawn: a seeded walk along the stage lays
+ * down facade modules - brick, shutters, neon, chain-link - each of which
+ * knows how to paint itself. Panels that should show sky (an alley mouth, a
+ * fence) simply leave their pixels transparent, and the parallax skyline
+ * behind shows through. Same trick the arcade original used, minus the ROM.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+  var Art = PC.art, C = PC.color;
+  var City = PC.city = {};
+
+  var FIELD_H = PC.FLOOR_TOP - PC.FIELD_Y;      // wall height, 132px
+  var FLOOR_H = PC.FIELD_BOT - PC.FLOOR_TOP;    // street height, 60px
+
+  // ------------------------------------------------------------- the skyline
+  /* One wide, horizontally tiling canvas per theme: night sky, stars, and a
+   * ragged block of towers with windows lit at random. */
+  City.makeSky = function (theme, w, h) {
+    var c = Art.mk(w, h), x = c.getContext('2d');
+    var r = PC.RNG(theme.seed || 7);
+    var top = theme.sky[0], bot = theme.sky[1];
+    /* The horizon sits level with the top of the street-level fences, so a
+     * gap anywhere in the facade shows towers and not just empty gradient. */
+    var hor = Math.round(h * 0.47);
+    var i, j;
+    for (j = 0; j < hor; j++) Art.rect(x, 0, j, w, 1, C.mix(top, bot, j / hor));
+    for (i = 0; i < w * hor / 700; i++) {
+      Art.rect(x, r.int(0, w - 1), r.int(0, hor - 6), 1, 1, r.chance(0.25) ? '#ffffff' : '#b8c8f0');
+    }
+    if (theme.moon) {
+      Art.ellipse(x, theme.moon[0], theme.moon[1], 11, 11, '#f0ecd0');
+      Art.ellipse(x, theme.moon[0] + 4, theme.moon[1] - 2, 9, 9, C.mix(top, bot, 0.25));
+    }
+    // ---- towers, standing on the horizon
+    var bx = 0;
+    while (bx < w) {
+      var bw = r.int(12, 26), bh = r.int(Math.floor(hor * 0.3), Math.floor(hor * 0.92));
+      var col = C.mix(theme.tower, bot, r.range(0, 0.3));
+      Art.rect(x, bx, hor - bh, bw, bh, col);
+      if (r.chance(0.3)) Art.rect(x, bx + Math.floor(bw / 2) - 1, hor - bh - r.int(4, 10), 2, 10, col);
+      if (r.chance(0.22)) Art.rect(x, bx + Math.floor(bw / 2) - 1, hor - bh - r.int(6, 12), 2, 2, '#ff4a4a');
+      for (j = hor - bh + 3; j < hor - 2; j += 5) {
+        for (i = bx + 2; i < bx + bw - 3; i += 4) {
+          if (r.chance(0.4)) Art.rect(x, i, j, 2, 3, r.chance(0.18) ? '#f8e070' : theme.lit);
+        }
+      }
+      bx += bw + r.int(0, 3);
+    }
+    // ---- whatever lies below the horizon, for gaps that reach the ground
+    if (theme.water) {
+      for (j = hor; j < h; j++) {
+        Art.rect(x, 0, j, w, 1, C.mix(theme.water, C.shade(theme.water, -0.5), (j - hor) / (h - hor)));
+      }
+      // broken reflections of the lit skyline
+      for (i = 0; i < w / 3; i++) {
+        var rx = r.int(0, w - 1), ry = hor + r.int(1, h - hor - 2);
+        Art.rect(x, rx, ry, r.int(2, 5), 1, r.chance(0.3) ? theme.lit : C.shade(theme.water, 0.22));
+      }
+      Art.rect(x, 0, hor, w, 1, C.shade(theme.water, 0.35));
+    } else {
+      Art.rect(x, 0, hor, w, h - hor, theme.behind || C.shade(theme.sky[1], -0.55));
+      // a haze of low roofs so the ground gaps are not a flat block
+      for (i = 0; i < w; i += r.int(9, 22)) {
+        var rh = r.int(3, 12);
+        Art.rect(x, i, hor, r.int(8, 20), rh, C.shade(theme.behind || theme.sky[1], -0.35));
+      }
+    }
+    return c;
+  };
+
+  // -------------------------------------------------------- facade modules
+  /* Every module paints into the wall strip (0..FIELD_H) starting at x, and
+   * returns nothing; the composer knows each module's width up front. */
+  var MOD = {};
+
+  function brick(x, ctx, w, t, r) {
+    var base = t.brick, dark = C.shade(base, -0.3), light = C.shade(base, 0.18);
+    Art.rect(ctx, x, 0, w, FIELD_H, dark);
+    var bw = 12, bh = 6, row = 0;
+    for (var j = 0; j < FIELD_H; j += bh, row++) {
+      var off = (row % 2) ? bw / 2 : 0;
+      for (var i = -bw; i < w + bw; i += bw) {
+        var px = x + i + off;
+        Art.rect(ctx, px + 1, j + 1, bw - 1, bh - 1, r.chance(0.13) ? C.mix(base, light, 0.6) : base);
+      }
+    }
+    // a wash of grime toward the ground
+    for (var k = 0; k < 18; k++) Art.dither(ctx, x, FIELD_H - 26 + k, w, 1, dark, k % 2);
+  }
+
+  MOD.wall = { w: 48, paint: function (ctx, x, t, r) { brick(x, ctx, 48, t, r); } };
+
+  MOD.windows = {
+    w: 48,
+    paint: function (ctx, x, t, r) {
+      brick(x, ctx, 48, t, r);
+      for (var i = 0; i < 2; i++) {
+        var wx = x + 6 + i * 24, wy = 14 + (i % 2) * 4;
+        Art.rect(ctx, wx - 2, wy - 2, 22, 30, C.shade(t.brick, -0.45));
+        Art.rect(ctx, wx, wy, 18, 26, r.chance(0.45) ? t.lit : '#101a2e');
+        Art.rect(ctx, wx + 8, wy, 2, 26, C.shade(t.brick, -0.5));
+        Art.rect(ctx, wx, wy + 12, 18, 2, C.shade(t.brick, -0.5));
+        // a slash of reflected light across the glass
+        Art.limb(ctx, wx + 2, wy + 22, wx + 14, wy + 4, 2, 2, 'rgba(255,255,255,0.16)');
+        Art.rect(ctx, wx - 3, wy + 28, 24, 3, C.shade(t.brick, 0.25));
+      }
+    }
+  };
+
+  MOD.door = {
+    w: 40,
+    paint: function (ctx, x, t, r) {
+      brick(x, ctx, 40, t, r);
+      var dw = 24, dh = 54, dx = x + 8, dy = FIELD_H - dh;
+      Art.rect(ctx, dx - 3, dy - 3, dw + 6, dh + 3, C.shade(t.brick, -0.5));
+      Art.rect(ctx, dx, dy, dw, dh, '#8a8fa0');
+      Art.rect(ctx, dx, dy, dw, 2, '#b4bacd');
+      Art.rect(ctx, dx + dw - 3, dy, 3, dh, '#5f6474');
+      Art.rect(ctx, dx + 4, dy + 6, 12, 10, '#2a3040');
+      Art.limb(ctx, dx + 5, dy + 15, dx + 14, dy + 7, 1.6, 1.6, '#c8ccd8');
+      Art.rect(ctx, dx + 4, dy + 24, 14, 12, '#6f7484');
+      Art.rect(ctx, dx + 3, dy + 30, 3, 3, '#3a4050');
+    }
+  };
+
+  MOD.neon = {
+    w: 80,
+    paint: function (ctx, x, t, r) {
+      brick(x, ctx, 80, t, r);
+      var sx = x + 6, sy = 16, sw = 68, sh = 30;
+      Art.rect(ctx, sx, sy, sw, sh, '#1a1020');
+      Art.rect(ctx, sx + 1, sy + 1, sw - 2, sh - 2, '#2a1430');
+      // tube border
+      var neon = t.neon || '#ff5fa8';
+      Art.rect(ctx, sx + 2, sy + 2, sw - 4, 1, neon);
+      Art.rect(ctx, sx + 2, sy + sh - 3, sw - 4, 1, neon);
+      Art.rect(ctx, sx + 2, sy + 2, 1, sh - 4, neon);
+      Art.rect(ctx, sx + sw - 3, sy + 2, 1, sh - 4, neon);
+      var l1 = t.signTop || 'BAR', l2 = t.signBot || 'STARLIGHT';
+      Art.text(ctx, l1, sx + sw / 2 - (t.signStar ? 6 : 0), sy + 7, neon, { align: 'center', scale: 1, tracking: 2 });
+      if (t.signStar) Art.text(ctx, '★', sx + sw / 2 + 12, sy + 7, t.neon2 || '#ffd23a');
+      Art.text(ctx, l2, sx + sw / 2, sy + 18, t.neon2 || neon, { align: 'center', scale: 1, tracking: 1 });
+      // glow spill on the brick
+      ctx.save(); ctx.globalAlpha = 0.10; ctx.fillStyle = neon;
+      ctx.fillRect(Math.round(sx - 5), sy - 4, sw + 10, sh + 9);
+      ctx.restore();
+    }
+  };
+
+  MOD.shutter = {
+    w: 84,
+    paint: function (ctx, x, t, r) {
+      brick(x, ctx, 84, t, r);
+      var sx = x + 8, sw = 68, sh = 74, sy = FIELD_H - sh;
+      Art.rect(ctx, sx - 3, sy - 5, sw + 6, sh + 5, C.shade(t.brick, -0.5));
+      Art.rect(ctx, sx, sy, sw, sh, '#9096a4');
+      for (var j = 0; j < sh; j += 4) {
+        Art.rect(ctx, sx, sy + j, sw, 1, '#6c7180');
+        Art.rect(ctx, sx, sy + j + 2, sw, 1, '#b0b6c4');
+      }
+      Art.rect(ctx, sx, sy - 4, sw, 5, '#5f6474');
+      Art.rect(ctx, sx, sy + sh - 4, sw, 4, '#4a4f5e');
+      // graffiti - the tag the stage is named for
+      var tag = t.tag || 'POWER CITY', tw = tag.split(' ');
+      var gc = t.tagColor || '#c840e0';
+      for (var i = 0; i < tw.length; i++) {
+        Art.text(ctx, tw[i], sx + sw / 2 + (i % 2 ? 3 : -3), sy + 16 + i * 16, gc,
+          { align: 'center', scale: 2, tracking: 0, wobble: 2, phase: i * 1.7, shadow: C.shade(gc, -0.55), shadowDist: 2 });
+      }
+    }
+  };
+
+  MOD.fence = {
+    w: 96, gap: true,
+    paint: function (ctx, x, t, r) {
+      // the sky shows through: leave the upper panel empty, wire it over later
+      var pw = 96, ph = 62;
+      Art.rect(ctx, x, ph, pw, FIELD_H - ph, C.shade(t.brick, -0.55));
+      // low wall under the fence
+      brickBand(ctx, x, ph, pw, FIELD_H - ph, t, r);
+      // posts + chain link over the open part
+      Art.rect(ctx, x, 0, 3, ph, '#6c7180');
+      Art.rect(ctx, x + pw - 3, 0, 3, ph, '#6c7180');
+      Art.rect(ctx, x, 0, pw, 3, '#6c7180');
+      Art.rect(ctx, x, ph - 3, pw, 4, '#6c7180');
+      var wire = t.fence || '#3a5fd8';
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x + 3, 3, pw - 6, ph - 6); ctx.clip();
+      for (var i = -ph; i < pw; i += 8) {
+        Art.limb(ctx, x + i, 3, x + i + ph, ph - 3, 1, 1, wire);
+        Art.limb(ctx, x + i + ph, 3, x + i, ph - 3, 1, 1, C.shade(wire, -0.3));
+      }
+      ctx.restore();
+      // KEEP OUT plate
+      var kx = x + pw / 2 - 20, ky = 22;
+      Art.rect(ctx, kx, ky, 40, 22, '#c8a038');
+      Art.rect(ctx, kx + 1, ky + 1, 38, 20, '#e8c258');
+      Art.rect(ctx, kx + 3, ky + 3, 34, 16, '#3a2c10');
+      Art.text(ctx, 'KEEP', kx + 20, ky + 5, '#f0d878', { align: 'center' });
+      Art.text(ctx, 'OUT', kx + 20, ky + 12, '#f0d878', { align: 'center' });
+    }
+  };
+
+  function brickBand(ctx, x, y, w, h, t, r) {
+    var base = C.shade(t.brick, -0.15), dark = C.shade(base, -0.35);
+    Art.rect(ctx, x, y, w, h, dark);
+    for (var j = y; j < y + h; j += 6) {
+      var off = ((j - y) / 6 % 2) ? 6 : 0;
+      for (var i = -12; i < w + 12; i += 12) Art.rect(ctx, x + i + off + 1, j + 1, 11, 5, base);
+    }
+  }
+
+  MOD.alley = {
+    w: 40, gap: true,
+    paint: function (ctx, x, t, r) {
+      // a black slot between buildings, with a bin and a stripe of skyline
+      Art.rect(ctx, x + 6, 0, 28, FIELD_H, 'rgba(0,0,0,0)');
+      Art.rect(ctx, x, 0, 6, FIELD_H, C.shade(t.brick, -0.55));
+      Art.rect(ctx, x + 34, 0, 6, FIELD_H, C.shade(t.brick, -0.55));
+      Art.rect(ctx, x + 6, FIELD_H - 40, 28, 40, '#0d0f18');
+      Art.rect(ctx, x + 10, FIELD_H - 20, 18, 20, '#2a3448');
+      Art.rect(ctx, x + 10, FIELD_H - 22, 18, 3, '#3e4a62');
+    }
+  };
+
+  MOD.escape = {
+    w: 56,
+    paint: function (ctx, x, t, r) {
+      brick(x, ctx, 56, t, r);
+      var m = '#3a4054', ml = '#59617a';
+      for (var lv = 0; lv < 2; lv++) {
+        var y = 22 + lv * 44;
+        Art.rect(ctx, x + 4, y, 48, 2, ml);
+        Art.hatch(ctx, x + 4, y - 10, 48, 10, 5, m, 'v');
+        Art.rect(ctx, x + 4, y - 10, 48, 1, m);
+        // the stair run down to the next landing
+        for (var s = 0; s < 9; s++) Art.rect(ctx, x + 8 + s * 4, y + 2 + s * 4, 6, 2, ml);
+      }
+      Art.rect(ctx, x + 50, 0, 3, FIELD_H, C.shade(t.brick, -0.5));
+    }
+  };
+
+  MOD.pipe = {
+    w: 16,
+    paint: function (ctx, x, t, r) {
+      brick(x, ctx, 16, t, r);
+      Art.rect(ctx, x + 5, 0, 5, FIELD_H, '#5a6070');
+      Art.rect(ctx, x + 5, 0, 2, FIELD_H, '#8a90a0');
+      for (var j = 14; j < FIELD_H; j += 34) Art.rect(ctx, x + 3, j, 9, 3, '#3f4554');
+    }
+  };
+
+  MOD.poster = {
+    w: 32,
+    paint: function (ctx, x, t, r) {
+      brick(x, ctx, 32, t, r);
+      var px = x + 6, py = 24;
+      Art.rect(ctx, px, py, 20, 28, '#e8e4d8');
+      Art.rect(ctx, px + 1, py + 1, 18, 26, r.pick(['#d84a3a', '#3a6ad8', '#d8a83a']));
+      Art.rect(ctx, px + 3, py + 4, 14, 10, '#f0ece0');
+      Art.rect(ctx, px + 3, py + 17, 14, 2, '#f0ece0');
+      Art.rect(ctx, px + 3, py + 21, 9, 2, '#f0ece0');
+    }
+  };
+
+  MOD.crates = {
+    w: 44,
+    paint: function (ctx, x, t, r) {
+      brick(x, ctx, 44, t, r);
+      var stack = [[4, 0, 20, 18], [26, 0, 16, 14], [8, 18, 18, 16]];
+      for (var i = 0; i < stack.length; i++) {
+        var s = stack[i], sx = x + s[0], sy = FIELD_H - s[3] - s[1];
+        Art.rect(ctx, sx, sy, s[2], s[3], '#8a5c2c');
+        Art.rect(ctx, sx + 1, sy + 1, s[2] - 2, s[3] - 2, '#b0762e');
+        Art.limb(ctx, sx + 1, sy + s[3] - 2, sx + s[2] - 2, sy + 1, 1.6, 1.6, '#7a4e22');
+      }
+    }
+  };
+
+  MOD.container = {
+    w: 68,
+    paint: function (ctx, x, t, r) {
+      Art.rect(ctx, x, 0, 68, FIELD_H, 'rgba(0,0,0,0)');
+      var col = r.pick(['#c05028', '#2f7f9a', '#3f8c46', '#b8a030']);
+      var h = 62, y = FIELD_H - h;
+      Art.rect(ctx, x + 2, y, 64, h, C.shade(col, -0.35));
+      Art.rect(ctx, x + 3, y + 1, 62, h - 2, col);
+      Art.hatch(ctx, x + 5, y + 3, 58, h - 6, 5, C.shade(col, -0.22), 'v');
+      Art.rect(ctx, x + 2, y, 64, 4, C.shade(col, 0.2));
+      Art.rect(ctx, x + 2, y + h - 5, 64, 5, C.shade(col, -0.45));
+      Art.text(ctx, 'PCX', x + 34, y + 26, C.shade(col, 0.55), { align: 'center', scale: 2, tracking: 1 });
+      // a second one, stacked and set back
+      if (r.chance(0.5)) {
+        var c2 = C.shade(r.pick(['#c05028', '#2f7f9a', '#b8a030']), -0.1);
+        Art.rect(ctx, x + 10, y - 44, 54, 42, C.shade(c2, -0.3));
+        Art.rect(ctx, x + 11, y - 43, 52, 40, c2);
+        Art.hatch(ctx, x + 13, y - 41, 48, 36, 5, C.shade(c2, -0.2), 'v');
+      }
+    }
+  };
+
+  MOD.crane = {
+    w: 80, gap: true,
+    paint: function (ctx, x, t, r) {
+      var m = '#c8a830', md = '#8a6f18';
+      ctx.save(); ctx.beginPath(); ctx.rect(x, 0, 80, FIELD_H); ctx.clip();
+      Art.limb(ctx, x + 20, FIELD_H, x + 20, 8, 7, 5, md);
+      Art.limb(ctx, x + 22, 8, x + 22, FIELD_H, 3, 2, m);
+      Art.rect(ctx, x + 6, 6, 68, 5, md);
+      Art.rect(ctx, x + 6, 6, 68, 2, m);
+      for (var i = 0; i < 8; i++) Art.limb(ctx, x + 8 + i * 8, 6, x + 14 + i * 8, 11, 1.4, 1.4, md);
+      Art.limb(ctx, x + 62, 11, x + 62, 40, 1, 1, '#9aa0b0');
+      Art.rect(ctx, x + 56, 40, 13, 9, '#4a5060');
+      Art.rect(ctx, x + 12, 12, 18, 14, '#3a4050');
+      Art.rect(ctx, x + 14, 14, 12, 8, '#7fd8f0');
+      ctx.restore();
+    }
+  };
+
+  MOD.glassWall = {
+    w: 64,
+    paint: function (ctx, x, t, r) {
+      Art.rect(ctx, x, 0, 64, FIELD_H, '#1a2038');
+      for (var j = 4; j < FIELD_H - 8; j += 18) {
+        for (var i = 4; i < 60; i += 15) {
+          var roll = r();
+          // mostly dark glass, a few offices still working
+          var col = roll < 0.16 ? C.mix(t.lit, '#ffe0b0', 0.3)
+            : roll < 0.34 ? C.mix(t.lit, '#101830', 0.55)
+              : roll < 0.5 ? '#182042' : '#0f1526';
+          Art.rect(ctx, x + i, j, 12, 14, col);
+          if (roll < 0.34) Art.limb(ctx, x + i + 1, j + 12, x + i + 9, j + 2, 2, 2, 'rgba(255,255,255,0.13)');
+        }
+      }
+      Art.hatch(ctx, x, 0, 64, FIELD_H, 18, '#39415e', 'h');
+      Art.hatch(ctx, x, 0, 64, FIELD_H, 15, '#39415e', 'v');
+      Art.rect(ctx, x, FIELD_H - 10, 64, 10, '#2c3350');
+    }
+  };
+
+  MOD.pillar = {
+    w: 34,
+    paint: function (ctx, x, t, r) {
+      Art.rect(ctx, x, 0, 34, FIELD_H, '#2a3048');
+      Art.rect(ctx, x + 4, 0, 26, FIELD_H, '#4a5270');
+      Art.rect(ctx, x + 6, 0, 6, FIELD_H, '#5f688a');
+      Art.rect(ctx, x + 24, 0, 4, FIELD_H, '#333a54');
+      Art.rect(ctx, x + 2, FIELD_H - 12, 30, 12, '#5f688a');
+      Art.rect(ctx, x + 2, 0, 30, 10, '#5f688a');
+    }
+  };
+
+  City.MOD = MOD;
+
+  // -------------------------------------------------------------- the floor
+  City.paintFloor = function (ctx, x0, w, t, r) {
+    var y = PC.FLOOR_TOP - PC.FIELD_Y;  // in wall-canvas coordinates
+    var h = FLOOR_H;
+    var slab = t.floor || '#9aa0ac', slabD = C.shade(slab, -0.25), slabL = C.shade(slab, 0.18);
+    Art.rect(ctx, x0, y, w, h, slab);
+    // The pavement recedes: bands get taller toward the camera, which is the
+    // only perspective cue a flat beat 'em up floor ever needs.
+    var bands = [0, 4, 10, 18, 30, 44], i, j;
+    for (i = 1; i < bands.length; i++) {
+      Art.rect(ctx, x0, y + bands[i], w, 1, slabD);
+      Art.rect(ctx, x0, y + bands[i] + 1, w, 1, slabL);
+    }
+    // slab joints, spaced wider as they come forward
+    for (i = 0; i < bands.length - 1; i++) {
+      var step = 22 + i * 6, off = (i * 9) % step;
+      for (j = -step; j < w + step; j += step) {
+        Art.rect(ctx, x0 + j + off, y + bands[i], 1, bands[i + 1] - bands[i], slabD);
+      }
+    }
+    // curb + road
+    Art.rect(ctx, x0, y + 48, w, 3, C.shade(slab, 0.3));
+    Art.rect(ctx, x0, y + 51, w, 9, t.road || '#3a3f4c');
+    Art.rect(ctx, x0, y + 51, w, 1, '#22262f');
+    for (j = 0; j < w; j += 26) Art.rect(ctx, x0 + j, y + 55, 12, 2, '#c8b840');
+    if (t.wet) {
+      // a slick of reflected neon on the near pavement
+      ctx.save(); ctx.globalAlpha = 0.09; ctx.fillStyle = t.neon || '#ff5fa8';
+      for (j = 0; j < w; j += 83) ctx.fillRect(x0 + j, y + 33, 30, 14);
+      ctx.restore();
+    }
+  };
+
+  // ------------------------------------------------------------- composing
+  /* Lay modules end to end until the stage is wide enough. `must` entries are
+   * dropped in at fixed points first so a stage always has its landmark. */
+  City.build = function (theme, width) {
+    var c = Art.mk(width, PC.FIELD_BOT - PC.FIELD_Y);
+    var x = c.getContext('2d');
+    var r = PC.RNG(theme.seed || 1);
+    var pos = 0, guard = 0;
+    var seq = theme.modules;
+    var forced = (theme.landmarks || []).slice();
+    while (pos < width && guard++ < 400) {
+      var name = null;
+      if (forced.length && pos >= forced[0][0]) name = forced.shift()[1];
+      if (!name) name = r.pick(seq);
+      var m = MOD[name];
+      if (!m) continue;
+      if (pos + m.w > width) m = MOD[theme.filler || 'wall'];
+      m.paint(x, pos, theme, r);
+      pos += m.w;
+    }
+    City.paintFloor(x, 0, width, theme, r);
+    return c;
+  };
+
+  // --------------------------------------------------------------- themes
+  City.THEMES = {
+    alley: {
+      seed: 11,
+      brick: '#7a3a2c', floor: '#6e6a66', road: '#33302e',
+      sky: ['#0a0a1e', '#241634'], tower: '#181430', lit: '#e8a63a',
+      neon: '#ff8a3a', neon2: '#ffd23a', signTop: 'PAWN', signBot: 'OPEN 24H',
+      tag: 'SLUM', tagColor: '#e05a3a', fence: '#4a5a7a',
+      modules: ['wall', 'windows', 'escape', 'pipe', 'poster', 'crates', 'door', 'alley', 'windows', 'escape'],
+      landmarks: [[130, 'escape'], [420, 'alley'], [700, 'neon']]
+    },
+    downtown: {
+      seed: 22,
+      brick: '#2f8c8c', floor: '#9aa0ac', road: '#3a3f4c', wet: true,
+      sky: ['#050a24', '#101a4a'], tower: '#0e1430', lit: '#f0c840',
+      neon: '#ff5fa8', neon2: '#ffd23a', signTop: 'BAR', signBot: 'STARLIGHT', signStar: true,
+      tag: 'POWER CITY', tagColor: '#c840e0', fence: '#3a5fd8',
+      modules: ['wall', 'windows', 'door', 'fence', 'shutter', 'neon', 'pipe', 'poster', 'windows'],
+      landmarks: [[60, 'neon'], [180, 'fence'], [330, 'shutter'], [620, 'fence'], [900, 'neon']]
+    },
+    docks: {
+      seed: 33,
+      brick: '#4a5566', floor: '#7a6a52', road: '#2a3a48',
+      sky: ['#040a18', '#0e2a3c'], tower: '#0a1424', lit: '#7fd8f0', moon: [120, 26], water: '#123044',
+      neon: '#3ad8c8', neon2: '#f0f0a0', signTop: 'DOCK', signBot: 'NO ENTRY',
+      tag: 'JAWS', tagColor: '#f0a030', fence: '#5f7a8a',
+      modules: ['container', 'crates', 'wall', 'container', 'crane', 'fence', 'container', 'pipe'],
+      landmarks: [[150, 'crane'], [430, 'container'], [760, 'crane']]
+    },
+    tower: {
+      seed: 44,
+      brick: '#3a3f5c', floor: '#5a5f7a', road: '#2a2e42',
+      sky: ['#08081a', '#2a1040'], tower: '#12162e', lit: '#ff5f8a',
+      neon: '#ff2a5a', neon2: '#ffffff', signTop: 'POWER', signBot: 'TOWER',
+      tag: 'MR POWER', tagColor: '#ff2a5a', fence: '#8a5fd8',
+      modules: ['glassWall', 'pillar', 'glassWall', 'neon', 'pillar', 'glassWall'],
+      landmarks: [[100, 'neon'], [500, 'neon']]
+    }
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - the sound board.
+ *
+ * Two pulse voices, a triangle bass and a noise channel, which is exactly
+ * what the machine this game is pretending to be had. No samples: the hits,
+ * the coin, the sirens and the songs are all made out of oscillators at
+ * runtime, so the whole game stays one folder of text.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+
+  var NOTE = { c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 };
+
+  function freq(name) {
+    var s = String(name).toLowerCase();
+    var semi = NOTE[s[0]];
+    if (semi === undefined) return 0;
+    var i = 1;
+    if (s[i] === '#') { semi++; i++; } else if (s[i] === 'b') { semi--; i++; }
+    var oct = parseInt(s.slice(i), 10);
+    if (isNaN(oct)) oct = 4;
+    return 440 * Math.pow(2, ((oct + 1) * 12 + semi - 69) / 12);
+  }
+  PC.noteFreq = freq;
+
+  var A = PC.audio = {
+    ctx: null, ready: false, muted: false, enabled: true,
+    musicVol: 0.42, sfxVol: 0.55,
+    _song: null, _row: 0, _next: 0, _timer: null, _paused: false, _waves: {},
+
+    init: function () {
+      if (this.ctx) return;
+      var AC = global.AudioContext || global.webkitAudioContext;
+      if (!AC) { this.enabled = false; return; }
+      var c = this.ctx = new AC();
+
+      this.master = c.createGain();
+      this.master.gain.value = 0.85;
+
+      this.comp = c.createDynamicsCompressor();
+      this.comp.threshold.value = -12;
+      this.comp.ratio.value = 8;
+      this.comp.attack.value = 0.003;
+      this.comp.release.value = 0.15;
+
+      this.musicBus = c.createGain(); this.musicBus.gain.value = this.musicVol;
+      this.sfxBus = c.createGain(); this.sfxBus.gain.value = this.sfxVol;
+
+      // A short slap echo: cheap, and it glues the square leads together the
+      // way a cabinet speaker in a room does.
+      this.delay = c.createDelay(0.6);
+      this.delay.delayTime.value = 0.14;
+      this.fb = c.createGain(); this.fb.gain.value = 0.22;
+      this.echoLP = c.createBiquadFilter();
+      this.echoLP.type = 'lowpass'; this.echoLP.frequency.value = 2400;
+      this.echoOut = c.createGain(); this.echoOut.gain.value = 0.3;
+      this.delay.connect(this.echoLP);
+      this.echoLP.connect(this.fb);
+      this.fb.connect(this.delay);
+      this.echoLP.connect(this.echoOut);
+      this.echoOut.connect(this.comp);
+
+      this.musicBus.connect(this.comp);
+      this.musicBus.connect(this.delay);
+      this.sfxBus.connect(this.comp);
+      this.comp.connect(this.master);
+      this.master.connect(c.destination);
+
+      // noise, one second of it, looped
+      var n = c.sampleRate;
+      var buf = c.createBuffer(1, n, n), d = buf.getChannelData(0);
+      for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+      this._noise = buf;
+
+      this.ready = true;
+      var self = this;
+      this._timer = setInterval(function () { self.tick(); }, 24);
+    },
+
+    resume: function () {
+      if (!this.ctx) this.init();
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    },
+
+    toggleMute: function () {
+      this.muted = !this.muted;
+      if (this.master) this.master.gain.value = this.muted ? 0 : 0.85;
+    },
+
+    setPaused: function (p) {
+      this._paused = p;
+      if (this.musicBus) this.musicBus.gain.value = p ? this.musicVol * 0.25 : this.musicVol;
+    },
+
+    // --------------------------------------------------------------- voices
+    pulse: function (duty) {
+      var key = 'p' + duty;
+      if (this._waves[key]) return this._waves[key];
+      // Fourier series for a rectangle of the given duty cycle.
+      var n = 24, real = new Float32Array(n), imag = new Float32Array(n);
+      for (var k = 1; k < n; k++) {
+        real[k] = (2 / (k * Math.PI)) * Math.sin(Math.PI * k * duty);
+        imag[k] = 0;
+      }
+      var w = this.ctx.createPeriodicWave(real, imag, { disableNormalization: false });
+      this._waves[key] = w;
+      return w;
+    },
+
+    /* One note. `o` carries the shape: wave, attack/decay, pitch slide,
+     * vibrato, and which bus it lands on. */
+    note: function (o) {
+      if (!this.ready || !this.enabled) return;
+      var c = this.ctx, t = o.at || c.currentTime;
+      var dur = o.dur || 0.12;
+      var bus = o.bus || this.sfxBus;
+      var g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(o.vol || 0.2, t + (o.atk || 0.005));
+      if (o.sustain) {
+        g.gain.setValueAtTime(o.vol || 0.2, t + dur * 0.7);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      } else {
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      }
+      g.connect(bus);
+
+      var src;
+      if (o.noise) {
+        src = c.createBufferSource();
+        src.buffer = this._noise;
+        src.loop = true;
+        var f = c.createBiquadFilter();
+        f.type = o.filter || 'bandpass';
+        f.frequency.setValueAtTime(o.freq || 1200, t);
+        if (o.freq2) f.frequency.exponentialRampToValueAtTime(Math.max(40, o.freq2), t + dur);
+        f.Q.value = o.q === undefined ? 1.2 : o.q;
+        src.connect(f); f.connect(g);
+      } else {
+        src = c.createOscillator();
+        if (o.wave === 'tri') src.type = 'triangle';
+        else if (o.wave === 'saw') src.type = 'sawtooth';
+        else if (o.wave === 'sine') src.type = 'sine';
+        else src.setPeriodicWave(this.pulse(o.duty || 0.5));
+        src.frequency.setValueAtTime(o.freq, t);
+        if (o.freq2) src.frequency.exponentialRampToValueAtTime(Math.max(20, o.freq2), t + (o.slide || dur));
+        if (o.vib) {
+          var lfo = c.createOscillator(), la = c.createGain();
+          lfo.frequency.value = o.vib;
+          la.gain.value = o.vibDepth || 6;
+          lfo.connect(la); la.connect(src.frequency);
+          lfo.start(t); lfo.stop(t + dur + 0.02);
+        }
+        src.connect(g);
+      }
+      src.start(t);
+      src.stop(t + dur + 0.03);
+      return g;
+    },
+
+    // ------------------------------------------------------------------ sfx
+    sfx: function (name) {
+      if (!this.ready) return;
+      var t = this.ctx.currentTime, v = 1;
+      switch (name) {
+        case 'swing':
+          this.note({ noise: true, at: t, dur: 0.07, freq: 2600, freq2: 900, q: 0.9, vol: 0.13 });
+          break;
+        case 'swingHard':
+        case 'whoosh':
+          this.note({ noise: true, at: t, dur: 0.14, freq: 1800, freq2: 420, q: 0.8, vol: 0.17 });
+          break;
+        case 'hit':
+          this.note({ noise: true, at: t, dur: 0.09, freq: 1500, freq2: 300, q: 1.4, vol: 0.3 });
+          this.note({ at: t, dur: 0.07, freq: 320, freq2: 110, duty: 0.5, vol: 0.16 });
+          break;
+        case 'hitHeavy':
+          this.note({ noise: true, at: t, dur: 0.19, freq: 1100, freq2: 150, q: 1, vol: 0.38 });
+          this.note({ at: t, dur: 0.16, freq: 220, freq2: 60, wave: 'tri', vol: 0.32 });
+          break;
+        case 'thud':
+          this.note({ noise: true, at: t, dur: 0.13, freq: 500, freq2: 90, q: 0.7, vol: 0.26 });
+          this.note({ at: t, dur: 0.12, freq: 140, freq2: 50, wave: 'tri', vol: 0.24 });
+          break;
+        case 'crash':
+          this.note({ noise: true, at: t, dur: 0.3, freq: 3200, freq2: 500, q: 0.5, vol: 0.26, filter: 'highpass' });
+          break;
+        case 'clank':
+          this.note({ at: t, dur: 0.1, freq: 1400, freq2: 700, duty: 0.25, vol: 0.14 });
+          this.note({ noise: true, at: t, dur: 0.08, freq: 4000, q: 0.6, vol: 0.1, filter: 'highpass' });
+          break;
+        case 'boom':
+          this.note({ noise: true, at: t, dur: 0.55, freq: 900, freq2: 60, q: 0.4, vol: 0.5 });
+          this.note({ at: t, dur: 0.4, freq: 160, freq2: 30, wave: 'tri', vol: 0.4 });
+          break;
+        case 'jump':
+          this.note({ at: t, dur: 0.13, freq: 300, freq2: 720, duty: 0.25, vol: 0.14 });
+          break;
+        case 'grab':
+          this.note({ at: t, dur: 0.09, freq: 200, freq2: 340, duty: 0.5, vol: 0.16 });
+          break;
+        case 'throw':
+          this.note({ noise: true, at: t, dur: 0.2, freq: 2200, freq2: 300, q: 0.7, vol: 0.2 });
+          this.note({ at: t + 0.02, dur: 0.14, freq: 480, freq2: 140, duty: 0.5, vol: 0.16 });
+          break;
+        case 'escape':
+          this.note({ at: t, dur: 0.14, freq: 400, freq2: 900, duty: 0.5, vol: 0.16 });
+          break;
+        case 'pickup':
+          this.note({ at: t, dur: 0.06, freq: freq('e5'), duty: 0.5, vol: 0.16 });
+          this.note({ at: t + 0.06, dur: 0.09, freq: freq('b5'), duty: 0.5, vol: 0.16 });
+          break;
+        case 'heal':
+          this.note({ at: t, dur: 0.08, freq: freq('c5'), duty: 0.5, vol: 0.17 });
+          this.note({ at: t + 0.08, dur: 0.08, freq: freq('e5'), duty: 0.5, vol: 0.17 });
+          this.note({ at: t + 0.16, dur: 0.16, freq: freq('g5'), duty: 0.5, vol: 0.17 });
+          break;
+        case 'coin':
+          this.note({ at: t, dur: 0.07, freq: freq('b5'), duty: 0.25, vol: 0.2 });
+          this.note({ at: t + 0.07, dur: 0.22, freq: freq('e6'), duty: 0.25, vol: 0.2 });
+          break;
+        case 'join':
+          this.note({ at: t, dur: 0.09, freq: freq('c4'), duty: 0.5, vol: 0.2 });
+          this.note({ at: t + 0.09, dur: 0.09, freq: freq('g4'), duty: 0.5, vol: 0.2 });
+          this.note({ at: t + 0.18, dur: 0.2, freq: freq('c5'), duty: 0.5, vol: 0.2 });
+          break;
+        case 'ko':
+          this.note({ at: t, dur: 0.3, freq: 400, freq2: 90, duty: 0.25, vol: 0.22 });
+          this.note({ noise: true, at: t, dur: 0.3, freq: 900, freq2: 120, vol: 0.2 });
+          break;
+        case 'playerDown':
+          this.note({ at: t, dur: 0.5, freq: 300, freq2: 60, wave: 'tri', vol: 0.3 });
+          this.note({ at: t, dur: 0.45, freq: 320, freq2: 70, duty: 0.5, vol: 0.16 });
+          break;
+        case 'bossIn':
+          this.note({ at: t, dur: 0.7, freq: 90, freq2: 220, wave: 'tri', vol: 0.4 });
+          this.note({ noise: true, at: t, dur: 0.7, freq: 200, freq2: 1400, q: 0.8, vol: 0.2 });
+          break;
+        case 'bossDown':
+          for (var i = 0; i < 6; i++) {
+            this.note({ noise: true, at: t + i * 0.09, dur: 0.3, freq: 1200 - i * 150, freq2: 80, vol: 0.3 });
+          }
+          break;
+        case 'tick':
+          this.note({ at: t, dur: 0.05, freq: freq('a5'), duty: 0.25, vol: 0.14 });
+          break;
+        case 'tally':
+          this.note({ at: t, dur: 0.03, freq: freq('e6'), duty: 0.25, vol: 0.1 });
+          break;
+        default: v = 0;
+      }
+      return v;
+    },
+
+    // -------------------------------------------------------------- sequencer
+    play: function (name) {
+      var s = PC.songs && PC.songs[name];
+      if (!this.ready) { this._pendingSong = name; return; }
+      if (!s) return;
+      if (this._songName === name) return;
+      this._songName = name;
+      this._song = s;
+      this._row = 0;
+      this._next = this.ctx.currentTime + 0.05;
+    },
+
+    stop: function () { this._song = null; this._songName = null; },
+
+    tick: function () {
+      if (!this.ready || !this._song) return;
+      var s = this._song, c = this.ctx;
+      var rowDur = 60 / s.bpm / (s.div || 4);
+      var ahead = c.currentTime + 0.12;
+      var guard = 0;
+      while (this._next < ahead && guard++ < 32) {
+        this.playRow(s, this._row, this._next, rowDur);
+        this._next += rowDur;
+        this._row++;
+        var len = s.len || (s.p1 ? s.p1.length : 16);
+        if (this._row >= len) {
+          if (s.loop === false) { this._song = null; this._songName = null; break; }
+          this._row = 0;
+        }
+      }
+    },
+
+    playRow: function (s, row, at, rowDur) {
+      var bus = this.musicBus;
+      var n;
+      // ---- lead
+      if (s.p1) {
+        n = s.p1[row % s.p1.length];
+        if (n && n !== '.' && n !== '-') {
+          this.note({
+            at: at, dur: rowDur * (s.gate || 0.9), freq: freq(n), duty: s.duty1 || 0.5,
+            vol: (s.vol1 || 0.16), bus: bus, atk: 0.004, vib: s.vib || 0, vibDepth: 5
+          });
+        }
+      }
+      // ---- harmony
+      if (s.p2) {
+        n = s.p2[row % s.p2.length];
+        if (n && n !== '.' && n !== '-') {
+          this.note({
+            at: at, dur: rowDur * (s.gate2 || 0.85), freq: freq(n), duty: s.duty2 || 0.25,
+            vol: (s.vol2 || 0.1), bus: bus, atk: 0.004
+          });
+        }
+      }
+      // ---- bass
+      if (s.bass) {
+        n = s.bass[row % s.bass.length];
+        if (n && n !== '.' && n !== '-') {
+          this.note({ at: at, dur: rowDur * 0.95, freq: freq(n), wave: 'tri', vol: s.volB || 0.3, bus: bus, atk: 0.006 });
+        }
+      }
+      // ---- drums
+      if (s.drum) {
+        var d = s.drum[row % s.drum.length];
+        if (d === 'k') this.note({ at: at, dur: 0.13, freq: 150, freq2: 45, wave: 'tri', vol: 0.42, bus: bus });
+        else if (d === 's') this.note({ noise: true, at: at, dur: 0.13, freq: 1500, freq2: 700, q: 0.9, vol: 0.24, bus: bus });
+        else if (d === 'h') this.note({ noise: true, at: at, dur: 0.045, freq: 7000, q: 0.6, vol: 0.09, bus: bus, filter: 'highpass' });
+        else if (d === 'H') this.note({ noise: true, at: at, dur: 0.09, freq: 6000, q: 0.6, vol: 0.13, bus: bus, filter: 'highpass' });
+      }
+    }
+  };
+
+  // The browser will not make a sound until the player touches something.
+  function wake() {
+    A.resume();
+    if (A._pendingSong) { var n = A._pendingSong; A._pendingSong = null; A.play(n); }
+  }
+  global.addEventListener('keydown', wake, { once: false });
+  global.addEventListener('pointerdown', wake, { once: false });
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - the songs.
+ *
+ * Sixteenth-note patterns for two pulse voices, a triangle bass and a noise
+ * drum, in the shape a late-eighties brawler soundtrack took: a minor key, a
+ * riff that will not let go, and a bass line doing all the work.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+
+  // "a4 . c5 -" -> ['a4','.','c5','-']
+  function S(str) { return str.trim().split(/\s+/); }
+  // repeat a pattern n times
+  function R(str, n) {
+    var one = S(str), out = [];
+    for (var i = 0; i < n; i++) out = out.concat(one);
+    return out;
+  }
+
+  var K = 'k . . . s . . . k . k . s . . .';
+  var K2 = 'k . h . s . h . k . h . s . h h';
+  var K3 = 'k h h h s h k h k h h h s h s h';
+
+  PC.songs = {
+
+    title: {
+      bpm: 128, div: 4, duty1: 0.5, duty2: 0.25, vol1: 0.15, vol2: 0.09, volB: 0.3,
+      p1: S(`a4 . e5 . a5 . g5 e5 . d5 . c5 . b4 . .
+             a4 . e5 . a5 . c6 b5 . a5 . e5 . d5 . .
+             f4 . c5 . f5 . e5 c5 . b4 . a4 . g4 . .
+             e4 . b4 . e5 . g5 f5 . e5 . d5 . b4 . .`),
+      p2: S(`c4 . c4 . e4 . e4 . a3 . a3 . b3 . b3 .
+             c4 . c4 . e4 . e4 . a3 . a3 . e4 . e4 .
+             f3 . f3 . a3 . a3 . c4 . c4 . d4 . d4 .
+             e3 . e3 . g3 . g3 . b3 . b3 . e4 . e4 .`),
+      bass: R('a2 . a2 a2 . a2 . a2 f2 . f2 f2 . f2 . f2', 2)
+        .concat(R('d2 . d2 d2 . d2 . d2 e2 . e2 e2 . e2 e2 e2', 2)),
+      drum: R(K2, 4),
+      len: 64
+    },
+
+    ready: {
+      bpm: 132, div: 4, loop: false, duty1: 0.5, vol1: 0.2, volB: 0.3,
+      p1: S('a4 . c5 . e5 . a5 . . . g5 . e5 . c5 . a4 . . . . . . .'),
+      bass: S('a2 . . . a2 . . . f2 . . . e2 . . . a2 . . . . . . .'),
+      drum: S('k . . . s . . . k . . . s . . . k . k . s . . .'),
+      len: 24
+    },
+
+    stage1: {
+      bpm: 140, div: 4, duty1: 0.5, duty2: 0.125, vol1: 0.15, vol2: 0.085, volB: 0.32, vib: 5.5,
+      p1: S(`a4 . a4 c5 . a4 . e5 . d5 c5 . a4 . . .
+             a4 . a4 c5 . a4 . e5 . g5 e5 . d5 . c5 .
+             f4 . f4 a4 . f4 . c5 . b4 a4 . g4 . . .
+             e4 . g4 b4 . e5 . d5 . c5 b4 . a4 . . .`),
+      p2: S(`. e4 . . e4 . e4 . . a4 . . a4 . . .
+             . e4 . . e4 . e4 . . c5 . . c5 . . .
+             . c4 . . c4 . c4 . . f4 . . f4 . . .
+             . b3 . . b3 . b3 . . e4 . . e4 . e4 .`),
+      bass: R('a2 a2 . a2 . a2 a3 . a2 a2 . a2 . a2 g2 .', 2)
+        .concat(R('f2 f2 . f2 . f2 f3 . e2 e2 . e2 . e2 e3 .', 2)),
+      drum: R(K3, 4),
+      len: 64
+    },
+
+    stage2: {
+      bpm: 148, div: 4, duty1: 0.25, duty2: 0.5, vol1: 0.15, vol2: 0.08, volB: 0.32,
+      p1: S(`d5 . c5 a4 . d5 . f5 . e5 d5 . c5 . a4 .
+             d5 . c5 a4 . d5 . a5 . g5 f5 . e5 . d5 .
+             c5 . b4 g4 . c5 . e5 . d5 c5 . b4 . g4 .
+             a4 . . e5 . d5 . c5 . b4 . a4 . . . .`),
+      p2: S(`. a4 . . a4 . . f4 . . f4 . . a4 . .
+             . a4 . . a4 . . c5 . . c5 . . a4 . .
+             . g4 . . g4 . . e4 . . e4 . . g4 . .
+             . e4 . . e4 . . c5 . . a4 . . . . .`),
+      bass: R('d2 . d3 d2 . d2 d3 . a2 . a3 a2 . a2 a3 .', 2)
+        .concat(R('c2 . c3 c2 . c2 c3 . e2 . e3 e2 . e2 e3 e3', 2)),
+      drum: R(K3, 4),
+      len: 64
+    },
+
+    stage3: {
+      bpm: 136, div: 4, duty1: 0.125, duty2: 0.5, vol1: 0.15, vol2: 0.08, volB: 0.34, vib: 4,
+      p1: S(`e4 . g4 . b4 . e5 . d5 . b4 . g4 . e4 .
+             f4 . a4 . c5 . f5 . e5 . c5 . a4 . f4 .
+             g4 . b4 . d5 . g5 . f5 . d5 . b4 . g4 .
+             e5 . . d5 . c5 . b4 . a4 . g4 . . . .`),
+      p2: S(`. e3 . e3 . b3 . b3 . e4 . e4 . b3 . b3
+             . f3 . f3 . c4 . c4 . f4 . f4 . c4 . c4
+             . g3 . g3 . d4 . d4 . g4 . g4 . d4 . d4
+             . e3 . e3 . b3 . b3 . e4 . e4 . e4 . .`),
+      bass: R('e2 . e2 . e2 e2 . e2 e2 . e2 . e2 e2 . d2', 1)
+        .concat(R('f2 . f2 . f2 f2 . f2 f2 . f2 . f2 f2 . e2', 1))
+        .concat(R('g2 . g2 . g2 g2 . g2 g2 . g2 . g2 g2 . f2', 1))
+        .concat(R('e2 . e2 . e2 e2 . e2 b2 . b2 . b2 b2 b2 b2', 1)),
+      drum: R(K2, 4),
+      len: 64
+    },
+
+    stage4: {
+      bpm: 156, div: 4, duty1: 0.5, duty2: 0.125, vol1: 0.155, vol2: 0.09, volB: 0.34,
+      p1: S(`c5 c5 . c5 . b4 . c5 . e5 . g5 . f5 e5 .
+             c5 c5 . c5 . b4 . c5 . a5 . g5 . e5 c5 .
+             b4 b4 . b4 . a4 . b4 . d5 . f5 . e5 d5 .
+             c5 . e5 . g5 . c6 . b5 . g5 . e5 . c5 .`),
+      p2: S(`. g4 . g4 . g4 . g4 . c5 . c5 . c5 . c5
+             . g4 . g4 . g4 . g4 . e5 . e5 . e5 . e5
+             . f4 . f4 . f4 . f4 . b4 . b4 . b4 . b4
+             . g4 . . c5 . . e5 . . g5 . . e5 . .`),
+      bass: R('c2 c2 . c2 c3 . c2 . c2 c2 . c2 c3 . c2 .', 2)
+        .concat(R('b1 b1 . b1 b2 . b1 . c2 c2 . c2 c3 . g2 g2', 2)),
+      drum: R(K3, 4),
+      len: 64
+    },
+
+    boss: {
+      bpm: 168, div: 4, duty1: 0.125, duty2: 0.5, vol1: 0.16, vol2: 0.09, volB: 0.36, vib: 7,
+      p1: S(`a4 a4 a4 . c5 . a4 . d5 d5 d5 . c5 . a4 .
+             a4 a4 a4 . c5 . e5 . f5 . e5 . d5 . c5 .
+             a4 a4 a4 . c5 . a4 . d5 d5 d5 . f5 . e5 .
+             a5 . g5 . f5 . e5 . d5 . c5 . b4 . a4 .`),
+      p2: S(`e4 . e4 . e4 . e4 . a4 . a4 . a4 . a4 .
+             e4 . e4 . e4 . e4 . c5 . c5 . c5 . c5 .
+             e4 . e4 . e4 . e4 . a4 . a4 . a4 . a4 .
+             c5 . b4 . a4 . g4 . f4 . e4 . d4 . c4 .`),
+      bass: R('a1 a1 a2 a1 a1 a1 a2 a1 d2 d2 d3 d2 d2 d2 d3 d2', 2)
+        .concat(R('a1 a1 a2 a1 a1 a1 a2 a1 e2 e2 e3 e2 e2 e2 e3 e2', 2)),
+      drum: R('k h k h s h k h k h k h s h s h', 4),
+      len: 64
+    },
+
+    clear: {
+      bpm: 128, div: 4, loop: false, duty1: 0.5, vol1: 0.2, volB: 0.32,
+      p1: S(`c5 . e5 . g5 . c6 . . g5 . c6 . . . .
+             a5 . . g5 . e5 . c5 . . . . . . . .`),
+      bass: S(`c3 . . . g2 . . . c3 . . . g2 . . .
+               f2 . . . g2 . . . c3 . . . . . . .`),
+      drum: S(`k . s . k . s . k . k . s . . .
+               k . s . k . s . k . k . s . . .`),
+      len: 32
+    },
+
+    gameover: {
+      bpm: 88, div: 4, loop: false, duty1: 0.5, vol1: 0.18, volB: 0.3,
+      p1: S('a4 . . . g4 . . . f4 . . . e4 . . . d4 . . . . . . . a3 . . . . . . .'),
+      bass: S('a2 . . . g2 . . . f2 . . . e2 . . . d2 . . . . . . . a1 . . . . . . .'),
+      drum: S('k . . . . . . . k . . . . . . . k . . . . . . . k . . . . . . .'),
+      len: 32
+    },
+
+    ending: {
+      bpm: 108, div: 4, duty1: 0.5, duty2: 0.25, vol1: 0.15, vol2: 0.08, volB: 0.3,
+      p1: S(`c5 . e5 . g5 . e5 . f5 . a5 . g5 . e5 .
+             d5 . f5 . a5 . f5 . e5 . g5 . c6 . . .
+             a5 . g5 . e5 . c5 . d5 . e5 . g5 . . .
+             c5 . . . . . . . . . . . . . . .`),
+      p2: S(`c4 . . e4 . . g4 . f4 . . a4 . . c5 .
+             d4 . . f4 . . a4 . e4 . . g4 . . c5 .
+             a4 . . c5 . . e5 . d4 . . g4 . . b4 .
+             c4 . . e4 . . g4 . . . . . . . . .`),
+      bass: R('c2 . c3 . g2 . c3 . f2 . f3 . g2 . g3 .', 2)
+        .concat(R('a2 . a3 . e2 . e3 . f2 . g2 . c2 . c3 .', 2)),
+      drum: R('k . h . s . h . k . h . s . h .', 4),
+      len: 64
+    }
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - hit sparks, dust, score pops, screen shake.
+ *
+ * Everything here is cosmetic and runs even while the world is frozen for a
+ * hit-stop, which is the point: the freeze is what sells the punch, and the
+ * spark has to be visible during it.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+  var Art = PC.art;
+
+  var FX = PC.fx = {
+    list: [], shake: 0, shakeX: 0, shakeY: 0, flashT: 0, flashCol: '#ffffff',
+
+    reset: function () { this.list.length = 0; this.shake = 0; this.flashT = 0; },
+
+    add: function (o) { this.list.push(o); return o; },
+
+    /* A starburst plus a few sparks, at the point of contact. Heavy hits get
+     * a bigger star and a longer freeze; that difference is most of what a
+     * player feels when a combo finisher lands. */
+    hit: function (x, y, heavy, color) {
+      color = color || (heavy ? '#ffe070' : '#ffffff');
+      this.add({ t: 0, life: heavy ? 11 : 8, x: x, y: y, kind: 'star', heavy: heavy, col: color });
+      var n = heavy ? 7 : 4;
+      for (var i = 0; i < n; i++) {
+        var a = PC.rand() * Math.PI * 2, sp = PC.rand.range(0.8, heavy ? 3.4 : 2.2);
+        this.add({
+          t: 0, life: PC.rand.int(9, 18), kind: 'spark', x: x, y: y,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6, g: 0.12, col: color
+        });
+      }
+      if (heavy) this.shakeBy(3.2);
+    },
+
+    dust: function (x, y, dir, n) {
+      for (var i = 0; i < (n || 4); i++) {
+        this.add({
+          t: 0, life: PC.rand.int(10, 20), kind: 'dust', x: x, y: y,
+          vx: dir * PC.rand.range(0.2, 1.1) + PC.rand.range(-0.3, 0.3),
+          vy: -PC.rand.range(0.1, 0.5), g: 0.02, col: '#c8c8d8'
+        });
+      }
+    },
+
+    ring: function (x, y, col) {
+      this.add({ t: 0, life: 14, kind: 'ring', x: x, y: y, col: col || '#ffffff' });
+    },
+
+    pop: function (x, y, text, col) {
+      this.add({ t: 0, life: 46, kind: 'pop', x: x, y: y, text: String(text), col: col || '#ffe070' });
+    },
+
+    boom: function (x, y) {
+      this.add({ t: 0, life: 22, kind: 'boom', x: x, y: y });
+      for (var i = 0; i < 14; i++) {
+        var a = PC.rand() * Math.PI * 2, sp = PC.rand.range(1, 4);
+        this.add({
+          t: 0, life: PC.rand.int(12, 26), kind: 'spark', x: x, y: y,
+          vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.7, g: 0.14,
+          col: PC.rand.pick(['#ffe070', '#ff8a20', '#ffffff'])
+        });
+      }
+      this.shakeBy(6);
+      this.flash('#ffb040', 5);
+    },
+
+    shakeBy: function (v) { this.shake = Math.max(this.shake, v); },
+    flash: function (col, frames) { this.flashCol = col; this.flashT = frames; },
+
+    update: function () {
+      var i, p;
+      for (i = this.list.length - 1; i >= 0; i--) {
+        p = this.list[i];
+        p.t++;
+        if (p.vx !== undefined) { p.x += p.vx; p.y += p.vy; p.vy += p.g || 0; }
+        if (p.kind === 'pop') p.y -= 0.55 * Math.max(0, 1 - p.t / 26);
+        if (p.t >= p.life) this.list.splice(i, 1);
+      }
+      if (this.shake > 0) {
+        this.shakeX = (PC.rand() - 0.5) * this.shake * 2;
+        this.shakeY = (PC.rand() - 0.5) * this.shake;
+        this.shake *= 0.78;
+        if (this.shake < 0.25) { this.shake = 0; this.shakeX = 0; this.shakeY = 0; }
+      }
+      if (this.flashT > 0) this.flashT--;
+    },
+
+    draw: function (ctx, camX) {
+      var i, p, k;
+      for (i = 0; i < this.list.length; i++) {
+        p = this.list[i];
+        var x = Math.round(p.x - camX), y = Math.round(p.y);
+        var f = p.t / p.life;
+        if (p.kind === 'star') {
+          var r = (p.heavy ? 11 : 7) * (0.45 + f * 0.75);
+          ctx.fillStyle = f > 0.55 ? p.col : '#ffffff';
+          for (k = 0; k < 4; k++) {
+            var a = k * Math.PI / 4 + (p.heavy ? 0.4 : 0);
+            var dx = Math.cos(a) * r, dy = Math.sin(a) * r * 0.7;
+            ctx.fillRect(Math.round(x - dx), Math.round(y - dy), 2, 2);
+            ctx.fillRect(Math.round(x + dx - 2), Math.round(y + dy - 2), 2, 2);
+          }
+          if (f < 0.6) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x - 3, y - 3, 6, 6);
+            ctx.fillStyle = p.col;
+            ctx.fillRect(x - 5, y - 1, 10, 2);
+            ctx.fillRect(x - 1, y - 5, 2, 10);
+          }
+        } else if (p.kind === 'spark') {
+          ctx.fillStyle = f > 0.7 ? '#8a8a9c' : p.col;
+          ctx.fillRect(x, y, 2, 2);
+        } else if (p.kind === 'dust') {
+          ctx.globalAlpha = 1 - f;
+          ctx.fillStyle = p.col;
+          ctx.fillRect(x, y, 2, 1);
+          ctx.globalAlpha = 1;
+        } else if (p.kind === 'ring') {
+          ctx.strokeStyle = p.col;
+          ctx.globalAlpha = 1 - f;
+          var rr = 3 + f * 16;
+          ctx.beginPath();
+          ctx.ellipse(x + 0.5, y + 0.5, rr, rr * 0.4, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        } else if (p.kind === 'boom') {
+          var br = 4 + f * 26;
+          Art.ellipse(ctx, x, y, br, br * 0.8, f < 0.4 ? '#fff4c0' : (f < 0.7 ? '#ff9a20' : '#883018'));
+          if (f > 0.5) {
+            ctx.globalAlpha = 1 - (f - 0.5) * 2;
+            Art.ellipse(ctx, x, y - f * 8, br * 0.7, br * 0.6, '#4a4a58');
+            ctx.globalAlpha = 1;
+          }
+        } else if (p.kind === 'pop') {
+          Art.text(ctx, p.text, x, y, p.col, { align: 'center', shadow: '#301810' });
+        }
+      }
+    }
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - actors, the fight system, and the things lying in the street.
+ *
+ * The world is two and a half dimensions: `x` runs along the street, `y` is
+ * how far up the pavement you are standing (a smaller y is further away), and
+ * `z` is height off the ground. Everything sorts by y, collides in x/y, and
+ * only jumps in z.
+ *
+ * A hit connects when the attacker's active frames overlap the target in all
+ * three, and then the whole world stops for a few frames. That freeze is the
+ * punch: take it out and the game feels like it is made of paper.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+  var M = PC.math, Rig = PC.rig, FX = PC.fx;
+
+  var GRAV = 0.30;
+  var DEPTH_TOL = 11;
+
+  // --------------------------------------------------------------- the world
+  var W = PC.world = {
+    actors: [], items: [], shots: [],
+    camX: 0, lockX: 0, maxX: 2400, minX: 0,
+    hitstop: 0, slowmo: 0, time: 0,
+    theme: null, sky: null, facade: null,
+
+    reset: function () {
+      this.actors.length = 0; this.items.length = 0; this.shots.length = 0;
+      this.camX = 0; this.hitstop = 0; this.time = 0;
+      FX.reset();
+    },
+
+    add: function (a) { this.actors.push(a); return a; },
+    addItem: function (it) { this.items.push(it); return it; },
+
+    players: function () {
+      var out = [];
+      for (var i = 0; i < this.actors.length; i++) {
+        if (this.actors[i].team === 0 && !this.actors[i].removed) out.push(this.actors[i]);
+      }
+      return out;
+    },
+
+    livePlayers: function () {
+      var out = this.players(), r = [];
+      for (var i = 0; i < out.length; i++) if (!out[i].dead) r.push(out[i]);
+      return r;
+    },
+
+    enemies: function () {
+      var out = [];
+      for (var i = 0; i < this.actors.length; i++) {
+        var a = this.actors[i];
+        if (a.team === 1 && !a.removed && !a.dead) out.push(a);
+      }
+      return out;
+    },
+
+    // Nearest live player to a point - what every enemy brain asks for.
+    nearestPlayer: function (x, y) {
+      var ps = this.livePlayers(), best = null, bd = 1e9;
+      for (var i = 0; i < ps.length; i++) {
+        var d = Math.abs(ps[i].x - x) + Math.abs(ps[i].y - y) * 0.5;
+        if (d < bd) { bd = d; best = ps[i]; }
+      }
+      return best;
+    }
+  };
+
+  PC.freeze = function (frames) { if (frames > W.hitstop) W.hitstop = frames; };
+
+  // ---------------------------------------------------------------- the actor
+  function Actor(spec) {
+    this.char = spec.char;
+    this.team = spec.team || 0;
+    this.x = spec.x || 0;
+    this.y = spec.y || PC.FLOOR_BOT - 10;
+    this.z = spec.z || 0;
+    this.vx = 0; this.vy = 0; this.vz = 0;
+    this.facing = spec.facing || 1;
+    this.maxHp = spec.hp || 40;
+    this.hp = this.maxHp;
+    this.speed = spec.speed || 1.4;
+    this.runSpeed = spec.runSpeed || 2.7;
+    this.scale = (Rig.CHARS[this.char] || {}).scale || 1;
+    this.hh = 40 * this.scale;          // hurt height
+    this.hw = 7 * this.scale;           // half body width for pushing
+    this.hd = 5;                        // half depth
+    this.mass = spec.mass || 1;
+    this.state = 'idle'; this.st = 0;
+    this.anim = 0;
+    this.atk = null; this.atkT = 0; this.hitList = null;
+    this.combo = 0; this.comboT = 0;
+    this.invuln = 0; this.flash = 0;
+    this.dead = false; this.removed = false;
+    this.deathT = 0;
+    this.weapon = null; this.ammo = 0;
+    this.carry = null;                  // a crate or drum held overhead
+    this.grabbing = null; this.grabbedBy = null; this.grabT = 0;
+    this.stunned = 0;
+    this.score = spec.score || 100;
+    this.name = spec.name || (Rig.CHARS[this.char] || {}).name || '?';
+    this.armor = spec.armor || 0;       // hits absorbed without flinching
+    this.armorLeft = this.armor;
+    this.knockRes = spec.knockRes || 0; // 0..1, resistance to being knocked down
+    this.blink = 0;
+    this.aiTimer = 0;
+    this.token = false;
+  }
+  PC.Actor = Actor;
+
+  Actor.prototype.isBusy = function () {
+    return this.state === 'attack' || this.state === 'hurt' || this.state === 'fall' ||
+      this.state === 'down' || this.state === 'getup' || this.state === 'held' ||
+      this.state === 'throwing' || this.state === 'dizzy';
+  };
+
+  Actor.prototype.canAct = function () {
+    return !this.dead && !this.isBusy() && this.state !== 'jump';
+  };
+
+  Actor.prototype.setState = function (s) {
+    if (this.state === s) return;
+    this.state = s; this.st = 0;
+  };
+
+  // ------------------------------------------------------------------ attacks
+  Actor.prototype.startAttack = function (def) {
+    this.atk = def;
+    this.atkT = 0;
+    this.hitList = {};
+    this.setState('attack');
+    this.vx = 0;
+    if (def.lunge) this.vx = this.facing * def.lunge;
+    if (def.sfx && PC.audio) PC.audio.sfx(def.sfx);
+  };
+
+  Actor.prototype.attackPose = function () {
+    var d = this.atk;
+    if (!d) return 'idle';
+    if (this.atkT < d.startup) return d.wind || d.pose;
+    if (this.atkT < d.startup + d.active) {
+      if (d.poses) return d.poses[Math.floor((this.atkT - d.startup) / (d.frameT || 4)) % d.poses.length];
+      return d.pose;
+    }
+    return d.rec || d.pose;
+  };
+
+  // Where the fist/foot is right now, in world space - used for sparks.
+  Actor.prototype.strikePoint = function () {
+    var d = this.atk || {};
+    var reach = d.reach ? d.reach[1] : 18;
+    var dir = d.back ? -this.facing : this.facing;
+    return {
+      x: this.x + dir * (reach - 5),
+      y: this.y - this.z - (d.zhi !== undefined ? (d.zlo + d.zhi) / 2 : 22) * this.scale
+    };
+  };
+
+  Actor.prototype.hurtBox = function () {
+    var lowProfile = (this.state === 'down' || (this.state === 'fall' && this.z <= 0.5));
+    return {
+      x0: this.x - this.hw - 2, x1: this.x + this.hw + 2,
+      z0: this.z, z1: this.z + (lowProfile ? 12 : this.hh)
+    };
+  };
+
+  /* Resolve one active attack against everyone who is not on its side. */
+  Actor.prototype.resolveHits = function () {
+    var d = this.atk;
+    if (!d) return;
+    if (this.atkT < d.startup || this.atkT >= d.startup + d.active) return;
+    var near = d.reach[0], far = d.reach[1];
+    // `back` swings behind you (the elbow), `sweep` reaches both ways (the
+    // spin kick); everything else comes out of the front.
+    var dir = d.back ? -this.facing : this.facing;
+    var ax0, ax1;
+    if (d.sweep) { ax0 = this.x - far; ax1 = this.x + far; }
+    else if (dir > 0) { ax0 = this.x + near; ax1 = this.x + far; }
+    else { ax0 = this.x - far; ax1 = this.x - near; }
+    var az0 = this.z + (d.zlo === undefined ? 6 : d.zlo) * this.scale;
+    var az1 = this.z + (d.zhi === undefined ? 34 : d.zhi) * this.scale;
+    var i, t, hb;
+
+    for (i = 0; i < W.actors.length; i++) {
+      t = W.actors[i];
+      if (t === this || t.removed || t.dead) continue;
+      if (t.team === this.team && !d.friendly) continue;
+      if (this.hitList[t._id === undefined ? (t._id = ++uid) : t._id]) continue;
+      if (t.invuln > 0) continue;
+      if (Math.abs(t.y - this.y) > (d.depth || DEPTH_TOL)) continue;
+      hb = t.hurtBox();
+      if (hb.x1 < ax0 || hb.x0 > ax1) continue;
+      if (hb.z1 < az0 || hb.z0 > az1) continue;
+      this.hitList[t._id] = true;
+      this.land(t, d);
+      if (!d.multi) break;
+    }
+
+    // Weapons and crates also smash the scenery lying around.
+    if (d.breaks) {
+      for (i = 0; i < W.items.length; i++) {
+        var it = W.items[i];
+        if (it.held || it.hp === undefined || it.dead) continue;
+        if (Math.abs(it.y - this.y) > 14) continue;
+        if (it.x < ax0 - 6 || it.x > ax1 + 6) continue;
+        PC.items.damage(it, 1, this.facing);
+      }
+    }
+  };
+
+  var uid = 0;
+
+  Actor.prototype.land = function (t, d) {
+    var pt = this.strikePoint();
+    var cx = M.clamp(pt.x, Math.min(this.x, t.x) - 6, Math.max(this.x, t.x) + 6);
+    var cy = t.y - t.z - M.clamp((d.zhi === undefined ? 30 : d.zhi) * this.scale, 8, t.hh) * 0.75;
+    var heavy = !!d.knock || d.dmg >= 12;
+
+    t.takeHit({
+      dmg: d.dmg, from: this, knock: d.knock, stun: d.stun || 14,
+      push: d.push === undefined ? 1.6 : d.push, launch: d.launch,
+      dir: this.facing, x: cx, y: cy, heavy: heavy
+    });
+
+    PC.freeze(d.stop || (heavy ? 7 : 4));
+    FX.hit(cx, cy, heavy, d.spark);
+    if (PC.audio) PC.audio.sfx(heavy ? 'hitHeavy' : 'hit');
+    if (this.onHitLanded) this.onHitLanded(t, d);
+  };
+
+  Actor.prototype.takeHit = function (h) {
+    if (this.dead || this.invuln > 0) return;
+    var dmg = h.dmg * (this.dmgScale || 1);
+    this.hp -= dmg;
+    this.flash = 5;
+    this.stunned = 0;
+
+    if (this.grabbedBy) { this.grabbedBy.releaseGrab(); }
+    if (this.grabbing) this.releaseGrab();
+    if (this.carry) { PC.items.drop(this); }
+
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.knockDown(h.dir, h.launch || { vx: 3.4, vz: 3.6 });
+      this.dead = true;
+      this.deathT = 0;
+      if (this.onDeath) this.onDeath(h.from);
+      return;
+    }
+
+    // Big enemies shrug off a couple of hits before they react at all.
+    if (this.armorLeft > 0 && !h.knock) {
+      this.armorLeft--;
+      this.x += h.dir * 0.6;
+      return;
+    }
+    this.armorLeft = this.armor;
+
+    /* Four quick hits and the head goes. A dizzy enemy is stars, no guard,
+     * and an open invitation to grab - which is how a beat 'em up teaches
+     * you that its clinch exists. */
+    this.recentHits = (W.time - (this.hitClock || -999) < 75) ? (this.recentHits || 0) + 1 : 1;
+    this.hitClock = W.time;
+    if (this.team === 1 && !this.isBoss && this.recentHits >= 4 && !h.knock) {
+      this.recentHits = 0;
+      this.atk = null;
+      this.stunned = 1;
+      this.dizzyT = 110;
+      this.setState('dizzy');
+      this.vx = h.dir * h.push * 0.6;
+      if (W.dropToken) W.dropToken(this);
+      return;
+    }
+
+    var knocked = h.knock && PC.rand() >= this.knockRes;
+    if (knocked || this.z > 2) {
+      this.knockDown(h.dir, h.launch || { vx: 2.9, vz: 3.4 });
+    } else {
+      this.atk = null;
+      this.setState('hurt');
+      this.hurtT = h.stun;
+      this.vx = h.dir * h.push;
+      this.facing = -h.dir;
+      if (this.onHurt) this.onHurt(h);
+    }
+  };
+
+  Actor.prototype.knockDown = function (dir, launch) {
+    this.atk = null;
+    this.setState('fall');
+    this.vx = dir * launch.vx;
+    this.vz = launch.vz;
+    this.z = Math.max(this.z, 0.1);
+    this.facing = -dir;
+    this.bounced = false;
+    if (this.onKnockdown) this.onKnockdown();
+  };
+
+  Actor.prototype.releaseGrab = function () {
+    if (this.grabbing) {
+      this.grabbing.grabbedBy = null;
+      if (this.grabbing.state === 'held') this.grabbing.setState('idle');
+      this.grabbing = null;
+    }
+    if (this.grabbedBy) {
+      this.grabbedBy.grabbing = null;
+      this.grabbedBy = null;
+      if (this.state === 'held') this.setState('idle');
+    }
+    this.grabT = 0;
+  };
+
+  // ----------------------------------------------------------------- stepping
+  Actor.prototype.update = function () {
+    var i;
+    if (this.flash > 0) this.flash--;
+    if (this.invuln > 0) this.invuln--;
+    if (this.comboT > 0) { this.comboT--; if (!this.comboT) this.combo = 0; }
+    this.st++;
+    this.anim++;
+
+    if (this.dead) { this.updateDead(); return; }
+
+    if (this.control) this.control();
+
+    switch (this.state) {
+      case 'attack':
+        this.atkT++;
+        this.resolveHits();
+        this.vx *= 0.82;
+        this.vy *= 0.7;
+        if (this.atk && this.atkT >= this.atk.startup + this.atk.active + this.atk.recovery) {
+          var nxt = this.atk.chain;
+          this.atk = null;
+          this.setState(this.z > 0 ? 'jump' : 'idle');
+          if (nxt && this.onChainEnd) this.onChainEnd(nxt);
+        }
+        break;
+      case 'hurt':
+        this.vx *= 0.86; this.vy *= 0.8;
+        if (--this.hurtT <= 0) this.setState('idle');
+        break;
+      case 'fall':
+        this.vx *= 0.985;
+        break;
+      case 'down':
+        this.vx *= 0.8;
+        if (this.st > (this.downTime || 44)) { this.setState('getup'); this.invuln = 34; }
+        break;
+      case 'getup':
+        this.vx *= 0.7;
+        if (this.st > 22) { this.setState('idle'); this.invuln = 12; }
+        break;
+      case 'dizzy':
+        this.vx *= 0.86; this.vy *= 0.8;
+        if (--this.dizzyT <= 0) { this.stunned = 0; this.setState('idle'); }
+        break;
+      case 'held':
+        this.vx = 0; this.vy = 0;
+        break;
+      default:
+        break;
+    }
+
+    // ---- physics
+    if (this.state === 'held' && this.grabbedBy) {
+      var g = this.grabbedBy;
+      this.x = g.x + g.facing * (11 * g.scale);
+      this.y = g.y;
+      this.facing = -g.facing;
+      this.z = 0;
+    } else {
+      this.x += this.vx;
+      this.y += this.vy;
+      if (this.z > 0 || this.vz !== 0) {
+        this.z += this.vz;
+        this.vz -= GRAV;
+        if (this.z <= 0) {
+          this.z = 0;
+          this.onLand();
+        }
+      }
+    }
+
+    // ---- bounds
+    this.y = M.clamp(this.y, PC.FLOOR_TOP, PC.FLOOR_BOT);
+    var lo = W.minX + 6, hi = W.maxX - 6;
+    if (this.team === 0) { lo = Math.max(lo, W.camX + 8); hi = Math.min(hi, W.camX + PC.W - 8); }
+    this.x = M.clamp(this.x, lo, hi);
+
+    if (this.grabbing) {
+      this.grabT++;
+      if (this.grabbing.dead || this.grabT > 190) this.releaseGrab();
+    }
+  };
+
+  Actor.prototype.onLand = function () {
+    this.vz = 0;
+    if (this.state === 'fall') {
+      if (!this.bounced && Math.abs(this.vx) > 1.2) {
+        this.bounced = true;
+        this.vz = 1.5;
+        this.z = 0.1;
+        FX.dust(this.x, this.y, -M.sign(this.vx), 5);
+        if (PC.audio) PC.audio.sfx('thud');
+        return;
+      }
+      this.setState('down');
+      this.vz = 0;
+      FX.dust(this.x, this.y, -M.sign(this.vx), 4);
+      if (PC.audio) PC.audio.sfx('thud');
+      FX.shakeBy(2);
+    } else if (this.state === 'jump' || this.state === 'attack') {
+      if (this.state === 'attack' && this.atk && this.atk.air) this.atk = null;
+      this.setState('idle');
+      FX.dust(this.x, this.y, this.facing, 2);
+    }
+  };
+
+  Actor.prototype.updateDead = function () {
+    this.deathT++;
+    // fall, lie there, then flicker out
+    if (this.state === 'fall') {
+      this.x += this.vx; this.vx *= 0.985;
+      this.z += this.vz; this.vz -= GRAV;
+      if (this.z <= 0) { this.z = 0; this.setState('down'); FX.dust(this.x, this.y, -M.sign(this.vx), 5); }
+    } else {
+      this.vx *= 0.8;
+      this.x += this.vx;
+    }
+    if (this.deathT > 62) this.blink = 1;
+    if (this.deathT > 96) this.removed = true;
+  };
+
+  // --------------------------------------------------------------- animation
+  Actor.prototype.pose = function () {
+    if (this.carry && (this.state === 'idle' || this.state === 'walk' || this.state === 'run')) return 'windup';
+    switch (this.state) {
+      case 'idle': return (this.anim % 48 < 24) ? 'idle' : 'idle2';
+      case 'walk': return ['walk0', 'walk1', 'walk2', 'walk3'][Math.floor(this.anim / 7) % 4];
+      case 'run': return ['run0', 'run1', 'run2', 'run3'][Math.floor(this.anim / 5) % 4];
+      case 'attack': return this.attackPose();
+      case 'hurt': return 'hurt';
+      case 'dizzy': return 'dizzy';
+      case 'fall': return this.z > 0.5 ? 'fall' : 'down';
+      case 'down': return 'down';
+      case 'getup': return 'getup';
+      case 'jump': return 'jump';
+      case 'grab': return 'grab';
+      case 'held': return 'held';
+      case 'throwing': return 'throwOut';
+      case 'crouch': return 'crouch';
+      case 'win': return 'win';
+      default: return 'idle';
+    }
+  };
+
+  Actor.prototype.draw = function (ctx, camX) {
+    if (this.removed) return;
+    if (this.blink && (this.deathT >> 1) % 2) return;
+    var px = this.x - camX, py = this.y - this.z;
+    var f;
+    try { f = Rig.frame(this.char, this.pose()); }
+    catch (e) { f = Rig.frame(this.char, 'idle'); }
+
+    // shadow, always on the floor no matter how high the body is
+    var sr = 8 * this.scale * (1 - Math.min(0.45, this.z / 90));
+    PC.art.shadow(ctx, px, this.y, sr, 0.34 - Math.min(0.18, this.z / 260));
+
+    var flipped = this.facing < 0;
+    if (this.flash > 0 && (this.flash % 2)) {
+      Rig.draw(ctx, f, px, py, flipped, Rig.flash(this.char, this.pose(), '#ffffff'));
+    } else if (this.invuln > 0 && (this.anim >> 1) % 2 && this.team === 0 && this.state !== 'getup') {
+      ctx.globalAlpha = 0.55;
+      Rig.draw(ctx, f, px, py, flipped);
+      ctx.globalAlpha = 1;
+    } else {
+      Rig.draw(ctx, f, px, py, flipped);
+    }
+
+    if (this.weapon) PC.items.drawHeld(ctx, this, f, px, py);
+    if (this.carry) PC.items.drawCarried(ctx, this, px, py);
+    if (this.stunned > 0) this.drawStars(ctx, px, py);
+  };
+
+  Actor.prototype.drawStars = function (ctx, px, py) {
+    var n = 3;
+    for (var i = 0; i < n; i++) {
+      var a = this.anim * 0.11 + i * (Math.PI * 2 / n);
+      var sx = px + Math.cos(a) * 9, sy = py - 44 * this.scale + Math.sin(a) * 3;
+      PC.art.text(ctx, '★', sx - 2, sy, i % 2 ? '#ffe070' : '#ffffff');
+    }
+  };
+
+  // ------------------------------------------------------- pushing each other
+  W.separate = function () {
+    var a, b, i, j, dx, dy, ov;
+    for (i = 0; i < this.actors.length; i++) {
+      a = this.actors[i];
+      if (a.removed || a.state === 'held' || a.z > 6) continue;
+      for (j = i + 1; j < this.actors.length; j++) {
+        b = this.actors[j];
+        if (b.removed || b.state === 'held' || b.z > 6) continue;
+        if (a.dead && b.dead) continue;
+        if (a.state === 'down' || b.state === 'down') continue;
+        if (a.grabbing === b || b.grabbing === a) continue;
+        dy = b.y - a.y;
+        if (Math.abs(dy) > a.hd + b.hd) continue;
+        dx = b.x - a.x;
+        ov = (a.hw + b.hw) - Math.abs(dx);
+        if (ov <= 0) continue;
+        var push = ov * 0.24;
+        var ma = b.mass / (a.mass + b.mass), mb = a.mass / (a.mass + b.mass);
+        var s = dx === 0 ? (i % 2 ? 1 : -1) : M.sign(dx);
+        a.x -= s * push * ma * 2;
+        b.x += s * push * mb * 2;
+      }
+    }
+  };
+
+  // ------------------------------------------------------------------ stepping
+  W.update = function () {
+    var i;
+    this.time++;
+    if (this.hitstop > 0) {
+      this.hitstop--;
+      FX.update();
+      return;
+    }
+    for (i = 0; i < this.actors.length; i++) this.actors[i].update();
+    PC.items.update();
+    this.separate();
+    for (i = this.actors.length - 1; i >= 0; i--) if (this.actors[i].removed) this.actors.splice(i, 1);
+    FX.update();
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - bats, knives, crates, oil drums and the odd roast chicken.
+ *
+ * One entity type covers all of it. A thing lies on the floor until someone
+ * picks it up; then it either swings from a hand (a weapon) or rides overhead
+ * (a crate). Thrown, it flies until it meets a body or the ground, and what
+ * happens next is a property of the thing, not a special case in the player.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+  var M = PC.math, FX = PC.fx, Art = PC.art;
+  var W = PC.world;
+
+  // One white copy per canvas, made once and kept.
+  var whites = [], whiteOut = [];
+  function whiteCopy(cv) {
+    var i = whites.indexOf(cv);
+    if (i >= 0) return whiteOut[i];
+    whites.push(cv);
+    whiteOut.push(Art.solid(cv, '#ffffff'));
+    return whiteOut[whiteOut.length - 1];
+  }
+
+  var Items = PC.items = {
+
+    spawn: function (kind, key, x, y, opts) {
+      opts = opts || {};
+      var def = kind === 'weapon' ? PC.weapons[key] : (kind === 'prop' ? PC.props[key] : PC.pickups[key]);
+      var it = {
+        kind: kind, key: key, def: def,
+        x: x, y: y, z: opts.z || 0,
+        vx: opts.vx || 0, vy: 0, vz: opts.vz || 0,
+        held: null, flying: false, spin: 0, spinV: 0,
+        hp: kind === 'prop' ? (PC.props[key].hp) : undefined,
+        dead: false, life: opts.life || 0, blink: 0, thrower: null
+      };
+      W.addItem(it);
+      return it;
+    },
+
+    canvasOf: function (it) {
+      if (it.kind === 'weapon') return PC.weapons[it.key].canvas;
+      if (it.kind === 'prop') return PC.props[it.key].canvas;
+      return PC.pickups[it.key] ? PC.pickups[it.key].canvas : null;
+    },
+
+    // ---------------------------------------------------------------- picking
+    /* The nearest thing an actor could reasonably bend down and take. */
+    nearest: function (a, range) {
+      var best = null, bd = range || 18;
+      for (var i = 0; i < W.items.length; i++) {
+        var it = W.items[i];
+        if (it.held || it.dead || it.flying || it.z > 6) continue;
+        var d = Math.abs(it.x - a.x) + Math.abs(it.y - a.y) * 0.8;
+        if (d < bd) { bd = d; best = it; }
+      }
+      return best;
+    },
+
+    take: function (a, it) {
+      if (it.kind === 'pickup') {
+        this.consume(a, it);
+        return true;
+      }
+      if (a.weapon || a.carry) return false;
+      it.held = a;
+      if (it.kind === 'weapon') { a.weapon = it.key; a.ammo = PC.weapons[it.key].ammo; a.weaponItem = it; }
+      else { a.carry = it; }
+      if (PC.audio) PC.audio.sfx('pickup');
+      return true;
+    },
+
+    consume: function (a, it) {
+      var d = PC.pickups[it.key];
+      it.dead = true;
+      if (d.heal) {
+        a.hp = Math.min(a.maxHp, a.hp + d.heal);
+        FX.pop(a.x, a.y - a.hh - 6, 'ENERGY', '#ff6a7a');
+        if (PC.audio) PC.audio.sfx('heal');
+      }
+      if (d.score && a.addScore) a.addScore(d.score);
+      FX.ring(it.x, it.y - 6, '#ffe070');
+    },
+
+    drop: function (a) {
+      var it = a.carry || a.weaponItem;
+      if (!it) return;
+      it.held = null;
+      it.x = a.x + a.facing * 6;
+      it.y = a.y;
+      it.z = a.carry ? 22 : 6;
+      it.vx = a.facing * 0.4; it.vz = 0;
+      a.carry = null; a.weapon = null; a.weaponItem = null; a.ammo = 0;
+    },
+
+    /* Throwing. A crate arcs, a knife flies flat, and both keep the thrower's
+     * id so they cannot hit the hand that threw them. */
+    hurl: function (a) {
+      var it = a.carry || a.weaponItem;
+      if (!it) return false;
+      it.held = null;
+      it.flying = true;
+      it.thrower = a;
+      it.x = a.x + a.facing * 10;
+      it.y = a.y;
+      it.z = a.carry ? 26 : 20;
+      if (a.carry) { it.vx = a.facing * 4.2; it.vz = 0.8; it.spinV = a.facing * 0.22; }
+      else { it.vx = a.facing * 5.4; it.vz = 0.15; it.spinV = a.facing * 0.5; }
+      it.dmg = a.carry ? PC.props[it.key].dmg : (PC.weapons[it.key].dmg + 4);
+      a.carry = null;
+      if (a.weaponItem === it) { a.weapon = null; a.weaponItem = null; a.ammo = 0; }
+      if (PC.audio) PC.audio.sfx('whoosh');
+      return true;
+    },
+
+    damage: function (it, dmg, dir) {
+      if (it.hp === undefined || it.dead) return;
+      it.hp -= dmg;
+      it.flashT = 4;
+      if (it.hp <= 0) this.smash(it, dir);
+      else { it.vx = dir * 0.8; it.z = Math.max(it.z, 1); it.vz = 1.2; }
+    },
+
+    smash: function (it, dir) {
+      it.dead = true;
+      if (PC.props[it.key] && PC.props[it.key].explodes) {
+        FX.boom(it.x, it.y - 10);
+        if (PC.audio) PC.audio.sfx('boom');
+        // an oil drum takes the block with it
+        for (var i = 0; i < W.actors.length; i++) {
+          var t = W.actors[i];
+          if (t.removed || t.dead) continue;
+          if (Math.abs(t.x - it.x) > 34 || Math.abs(t.y - it.y) > 20) continue;
+          t.takeHit({
+            dmg: 16, dir: M.sign(t.x - it.x) || 1, knock: true, stun: 20, push: 2,
+            x: t.x, y: t.y - 20, heavy: true, from: it.thrower
+          });
+        }
+      } else {
+        if (PC.audio) PC.audio.sfx('crash');
+        FX.dust(it.x, it.y - 6, dir || 1, 8);
+        for (var k = 0; k < 6; k++) {
+          FX.add({
+            t: 0, life: PC.rand.int(14, 26), kind: 'spark', x: it.x, y: it.y - 8,
+            vx: PC.rand.range(-2, 2), vy: -PC.rand.range(0.5, 2), g: 0.16, col: '#b0762e'
+          });
+        }
+        // a smashed crate sometimes had something in it
+        if (PC.rand.chance(0.4)) {
+          Items.spawn('pickup', PC.rand.chance(0.6) ? 'heart' : 'coin', it.x, it.y, { z: 6 });
+        }
+      }
+    },
+
+    // ---------------------------------------------------------------- stepping
+    update: function () {
+      for (var i = W.items.length - 1; i >= 0; i--) {
+        var it = W.items[i];
+        if (it.dead) { W.items.splice(i, 1); continue; }
+        if (it.flashT > 0) it.flashT--;
+        if (it.held) continue;
+
+        if (it.flying) {
+          it.x += it.vx; it.z += it.vz; it.vz -= 0.16; it.spin += it.spinV;
+          if (this.flyingHit(it)) continue;
+          if (it.z <= 0) {
+            it.z = 0; it.flying = false; it.vx = 0; it.spin = 0;
+            if (it.hp !== undefined) this.smash(it, M.sign(it.vx) || 1);
+            else { FX.dust(it.x, it.y, 1, 3); if (PC.audio) PC.audio.sfx('clank'); }
+          }
+        } else if (it.z > 0 || it.vz !== 0) {
+          it.z += it.vz; it.vz -= 0.26; it.x += it.vx; it.vx *= 0.9;
+          if (it.z <= 0) { it.z = 0; it.vz = 0; it.vx = 0; }
+        }
+
+        if (it.kind === 'pickup') {
+          it.life++;
+          if (it.life > 620) it.blink = 1;
+          if (it.life > 780) it.dead = true;
+        }
+        if (it.x < W.minX + 4 || it.x > W.maxX - 4) { it.x = M.clamp(it.x, W.minX + 4, W.maxX - 4); if (it.flying) it.vx = 0; }
+      }
+    },
+
+    flyingHit: function (it) {
+      for (var i = 0; i < W.actors.length; i++) {
+        var t = W.actors[i];
+        if (t.removed || t.dead || t === it.thrower) continue;
+        if (it.thrower && t.team === it.thrower.team) continue;
+        if (t.invuln > 0 || t.state === 'down') continue;
+        if (Math.abs(t.y - it.y) > 12) continue;
+        if (Math.abs(t.x - it.x) > t.hw + 7) continue;
+        if (it.z > t.z + t.hh || it.z + 8 < t.z) continue;
+        t.takeHit({
+          dmg: it.dmg || 12, dir: M.sign(it.vx) || 1, knock: true, stun: 22, push: 2.4,
+          x: it.x, y: t.y - t.hh * 0.6, heavy: true, from: it.thrower
+        });
+        PC.freeze(7);
+        FX.hit(it.x, t.y - t.hh * 0.6, true);
+        if (PC.audio) PC.audio.sfx('hitHeavy');
+        it.flying = false;
+        if (it.hp !== undefined) { this.smash(it, M.sign(it.vx)); return true; }
+        it.vx = -it.vx * 0.2; it.vz = 1;
+        return false;
+      }
+      return false;
+    },
+
+    // ------------------------------------------------------------------ drawing
+    drawHeld: function (ctx, a, frame, px, py) {
+      var def = PC.weapons[a.weapon];
+      if (!def || !def.canvas) return;
+      var f = frame;
+      var hx = px + a.facing * f.handX, hy = py - f.handY;
+      /* The angle is measured in the figure's own (always right-facing)
+       * space; the mirror below takes care of the other direction, and
+       * measuring it in screen space instead would flip the swing. */
+      var ang = Math.atan2(-(f.handY - f.elbowY), f.handX - f.elbowX);
+      ctx.save();
+      ctx.translate(Math.round(hx), Math.round(hy));
+      if (a.facing < 0) ctx.scale(-1, 1);
+      ctx.rotate(ang);
+      ctx.drawImage(def.canvas, -def.grip[0] - 1, -def.grip[1] - 1);
+      ctx.restore();
+    },
+
+    drawCarried: function (ctx, a, px, py) {
+      var cv = PC.props[a.carry.key].canvas;
+      if (!cv) return;
+      ctx.drawImage(cv, Math.round(px - cv.width / 2), Math.round(py - 44 * a.scale - cv.height + 6));
+    },
+
+    draw: function (ctx, it, camX) {
+      var cv = it.kind === 'weapon' ? PC.weapons[it.key].canvas
+        : it.kind === 'prop' ? PC.props[it.key].canvas
+          : PC.pickups[it.key].canvas;
+      if (!cv) return;
+      if (it.blink && (W.time >> 2) % 2) return;
+      var px = Math.round(it.x - camX), py = Math.round(it.y - it.z);
+      if (!it.flying && it.z < 1) Art.shadow(ctx, px, it.y, cv.width * 0.4, 0.3);
+      else Art.shadow(ctx, px, it.y, cv.width * 0.3, 0.2);
+      var bob = it.kind === 'pickup' ? Math.round(Math.sin(W.time * 0.09) * 1.5) : 0;
+      ctx.save();
+      ctx.translate(px, py + bob);
+      if (it.spin) ctx.rotate(it.spin);
+      if (it.flashT > 0 && it.flashT % 2) {
+        ctx.drawImage(whiteCopy(cv), -Math.round(cv.width / 2), -cv.height + 2);
+      } else {
+        ctx.drawImage(cv, -Math.round(cv.width / 2), -cv.height + 2);
+      }
+      ctx.restore();
+    }
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - the player character and everything the buttons do.
+ *
+ * Two buttons and a jump, and out of them: a three-hit combo that ends in a
+ * knockdown, a kick, an uppercut, a back elbow for whoever crept up behind
+ * you, a running knee, a jump kick, a spin kick that clears a crowd, and a
+ * clinch you can knee or throw out of. Beat 'em ups live or die on how much
+ * vocabulary two buttons can carry.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+  var M = PC.math, FX = PC.fx, W = PC.world, Items = PC.items;
+
+  var MOVES = PC.MOVES = {
+    jab: {
+      pose: 'jab', startup: 3, active: 3, recovery: 7, reach: [4, 25], zlo: 14, zhi: 36,
+      dmg: 5, stun: 12, push: 1.1, stop: 4, sfx: 'swing', chain: 'cross', score: 20
+    },
+    cross: {
+      pose: 'cross', startup: 3, active: 3, recovery: 8, reach: [4, 28], zlo: 14, zhi: 36,
+      dmg: 6, stun: 13, push: 1.4, stop: 5, sfx: 'swing', chain: 'hook', score: 30
+    },
+    hook: {
+      pose: 'hook', startup: 5, active: 4, recovery: 15, reach: [4, 27], zlo: 15, zhi: 40,
+      dmg: 10, stun: 18, push: 2.2, knock: true, stop: 9, sfx: 'swingHard', score: 60
+    },
+    upper: {
+      pose: 'upper', wind: 'crouch', startup: 7, active: 4, recovery: 18, reach: [2, 23], zlo: 6, zhi: 44,
+      dmg: 12, stun: 22, push: 1.2, knock: true, launch: { vx: 1.4, vz: 5.2 }, stop: 10,
+      sfx: 'swingHard', score: 80
+    },
+    kick: {
+      pose: 'kick', startup: 6, active: 4, recovery: 14, reach: [6, 34], zlo: 6, zhi: 30,
+      dmg: 8, stun: 16, push: 2.7, stop: 6, sfx: 'swing', score: 40
+    },
+    kickHigh: {
+      pose: 'kickHigh', startup: 8, active: 4, recovery: 17, reach: [6, 35], zlo: 18, zhi: 44,
+      dmg: 11, stun: 20, push: 2.4, knock: true, stop: 8, sfx: 'swingHard', score: 70
+    },
+    elbow: {
+      pose: 'elbow', back: true, startup: 4, active: 3, recovery: 13, reach: [2, 24], zlo: 12, zhi: 36,
+      dmg: 9, stun: 18, push: 2.2, knock: true, stop: 8, sfx: 'swingHard', score: 70
+    },
+    spin: {
+      poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true,
+      startup: 4, active: 20, recovery: 18, reach: [0, 30], zlo: 10, zhi: 40,
+      dmg: 7, stun: 18, push: 2.6, knock: true, stop: 6, sfx: 'whoosh', score: 50
+    },
+    jumpKick: {
+      pose: 'jumpKick', air: true, startup: 2, active: 22, recovery: 4, reach: [4, 32], zlo: -4, zhi: 30,
+      dmg: 12, stun: 20, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', score: 90
+    },
+    runKnee: {
+      pose: 'knee', startup: 3, active: 8, recovery: 16, reach: [2, 24], zlo: 10, zhi: 36,
+      dmg: 11, stun: 20, push: 3.2, knock: true, stop: 9, sfx: 'swingHard', lunge: 3.4, score: 80
+    },
+    knee: {
+      pose: 'knee', startup: 4, active: 3, recovery: 10, reach: [4, 20], zlo: 10, zhi: 32,
+      dmg: 7, stun: 10, push: 0, stop: 6, sfx: 'swing', grabMove: true, score: 40
+    },
+    batSwing: {
+      pose: 'hook', startup: 5, active: 5, recovery: 16, reach: [4, 40], zlo: 10, zhi: 42,
+      dmg: 14, stun: 20, push: 3, knock: true, stop: 10, sfx: 'swingHard', breaks: true, score: 90
+    },
+    knifeStab: {
+      pose: 'jab', startup: 3, active: 4, recovery: 9, reach: [4, 32], zlo: 14, zhi: 34,
+      dmg: 10, stun: 14, push: 1.2, stop: 6, sfx: 'swing', spark: '#ff8888', score: 60
+    },
+    pipeSwing: {
+      pose: 'hook', startup: 5, active: 5, recovery: 15, reach: [4, 38], zlo: 10, zhi: 42,
+      dmg: 12, stun: 18, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', breaks: true, score: 80
+    }
+  };
+
+  var WEAPON_MOVE = { bat: 'batSwing', pipe: 'pipeSwing', chain: 'pipeSwing', knife: 'knifeStab' };
+
+  // ---------------------------------------------------------------- the player
+  function Player(index, charKey) {
+    PC.Actor.call(this, {
+      char: charKey, team: 0, hp: 100, x: 60, y: PC.FLOOR_BOT - 14,
+      speed: 1.45, runSpeed: 2.85, mass: 1.2
+    });
+    this.index = index;
+    this.lives = 3;
+    this.score = 0;
+    this.credits = 0;
+    this.joined = false;
+    this.runT = 0;
+    this.buffer = { punch: 0, kick: 0, jump: 0 };
+    this.grabCool = 0;
+    this.kneeCount = 0;
+    this.downTime = 30;
+    this.dmgScale = 1;
+    this.respawnT = 0;
+    this.hitsLanded = 0;
+  }
+  Player.prototype = Object.create(PC.Actor.prototype);
+  Player.prototype.constructor = Player;
+  PC.Player = Player;
+
+  Player.prototype.addScore = function (n) {
+    this.score += n;
+    if (PC.game) PC.game.noteScore(this.index, this.score);
+  };
+
+  Player.prototype.onHitLanded = function (t, d) {
+    this.addScore(d.score || 20);
+    this.hitsLanded++;
+  };
+
+  Player.prototype.onDeath = function () {
+    if (PC.audio) PC.audio.sfx('playerDown');
+  };
+
+  // ------------------------------------------------------------------ control
+  Player.prototype.control = function () {
+    var inp = PC.input.p[this.index];
+    var held = inp.held, pressed = inp.pressed;
+    var b = this.buffer, k;
+    for (k in b) if (b[k] > 0) b[k]--;
+    if (pressed.punch) b.punch = 7;
+    if (pressed.kick) b.kick = 7;
+    if (pressed.jump) b.jump = 7;
+    if (this.grabCool > 0) this.grabCool--;
+
+    if (this.dead) return;
+
+    /* Caught in a bear hug: mash your way out. Six presses or a couple of
+     * seconds, whichever comes first - being held should be frightening, not
+     * a place you sit and watch your health go. */
+    if (this.state === 'held' && this.grabbedBy) {
+      if (pressed.punch || pressed.kick || pressed.jump) this.escapeMash = (this.escapeMash || 0) + 1;
+      if (PC.input.axis(this.index) === -this.facing && this.st % 8 === 0) this.escapeMash = (this.escapeMash || 0) + 1;
+      if ((this.escapeMash || 0) >= 6) {
+        var g = this.grabbedBy;
+        this.releaseGrab();
+        if (g) { g.hold = 20; g.setState('idle'); }
+        this.invuln = 26;
+        FX.dust(this.x, this.y, this.facing, 4);
+        if (PC.audio) PC.audio.sfx('escape');
+      }
+      return;
+    }
+
+    // ---- grappling takes over the whole button map while it lasts
+    if (this.grabbing) { this.grabControl(b, held); return; }
+
+    // ---- the spin kick is both buttons at once. The window is two frames,
+    // not the whole buffer, or every fast punch-then-kick becomes a spin.
+    if (b.punch >= 5 && b.kick >= 5 && this.canAct() && this.z <= 0) {
+      b.punch = b.kick = 0;
+      this.startAttack(MOVES.spin);
+      return;
+    }
+
+    if (this.state === 'attack' || this.state === 'hurt' || this.state === 'fall' ||
+      this.state === 'down' || this.state === 'getup' || this.state === 'held') {
+      // The only thing you may do mid-move is chain the next punch.
+      if (this.state === 'attack' && b.punch > 0 && this.atk && this.atk.chain &&
+        this.atkT >= this.atk.startup + this.atk.active) {
+        b.punch = 0;
+        this.combo++;
+        this.comboT = 40;
+        this.startAttack(MOVES[this.atk.chain]);
+      }
+      return;
+    }
+
+    // recovery frames from a throw or a pick-up: nothing to do but finish
+    if (this.state === 'throwing' || this.state === 'crouch') {
+      var key = this.state === 'throwing' ? 'throwT' : 'crouchT';
+      this.vx *= 0.7; this.vy *= 0.7;
+      if (--this[key] <= 0) this.setState('idle');
+      return;
+    }
+
+    var ax = PC.input.axis(this.index), ay = PC.input.axisY(this.index);
+
+    // ---- airborne
+    if (this.z > 0 || this.state === 'jump') {
+      if (ax) { this.vx = M.approach(this.vx, ax * this.speed * 1.15, 0.22); this.facing = ax; }
+      if ((b.punch > 0 || b.kick > 0)) {
+        b.punch = b.kick = 0;
+        this.startAttack(MOVES.jumpKick);
+        this.vx = this.facing * Math.max(1.6, Math.abs(this.vx));
+      }
+      return;
+    }
+
+    // ---- jump
+    if (b.jump > 0) {
+      b.jump = 0;
+      this.vz = 4.7;
+      this.z = 0.1;
+      this.setState('jump');
+      this.vx = ax * this.speed * 1.2;
+      this.vy = ay * this.speed * 0.6;
+      if (PC.audio) PC.audio.sfx('jump');
+      return;
+    }
+
+    // ---- punch button
+    if (b.punch > 0) {
+      b.punch = 0;
+      if (this.carry) { Items.hurl(this); this.setState('throwing'); this.throwT = 10; return; }
+      var pick = Items.nearest(this, 16);
+      if (pick && !this.weapon && (pick.kind === 'pickup' || !this.nearFoe(28))) {
+        if (Items.take(this, pick)) { this.setState('crouch'); this.crouchT = 10; return; }
+      }
+      if (this.weapon) { this.startAttack(MOVES[WEAPON_MOVE[this.weapon] || 'batSwing']); this.spendWeapon(); return; }
+      var behind = this.foeBehind(26);
+      if (behind && !this.nearFoe(26)) { this.startAttack(MOVES.elbow); return; }
+      if (ay < 0) { this.startAttack(MOVES.upper); return; }
+      var clinch = this.grabTarget();
+      if (clinch && this.grabCool <= 0 && this.combo === 0) { this.beginGrab(clinch); return; }
+      if (this.runT > 6) { this.startAttack(MOVES.runKnee); this.runT = 0; return; }
+      this.combo = this.comboT > 0 ? this.combo : 0;
+      this.comboT = 40;
+      this.startAttack(MOVES.jab);
+      return;
+    }
+
+    // ---- kick button
+    if (b.kick > 0) {
+      b.kick = 0;
+      if (this.carry) { Items.hurl(this); this.setState('throwing'); this.throwT = 10; return; }
+      if (this.weapon) {
+        // A weapon you throw is a weapon you no longer have.
+        Items.hurl(this);
+        this.setState('throwing'); this.throwT = 10;
+        return;
+      }
+      if (ay < 0) { this.startAttack(MOVES.kickHigh); return; }
+      this.startAttack(MOVES.kick);
+      return;
+    }
+
+    // ---- moving
+    // double-tap to run, and keep running while the stick stays over
+    if (inp.tapDir && inp.tapDir === ax) this.runT = 1;
+    if (this.runT > 0) {
+      if (ax !== M.sign(this.vx || ax) || !ax) this.runT = 0;
+      else this.runT++;
+    }
+    var running = this.runT > 0;
+    var sp = running ? this.runSpeed : this.speed;
+
+    if (ax || ay) {
+      var dx = ax * sp, dy = ay * sp * 0.62;
+      if (ax && ay) { dx *= 0.85; dy *= 0.85; }
+      this.vx = dx; this.vy = dy;
+      if (ax) this.facing = ax;
+      this.setState(running ? 'run' : 'walk');
+      if (running && this.anim % 8 === 0) FX.dust(this.x - this.facing * 6, this.y, -this.facing, 1);
+    } else {
+      this.vx *= 0.5; this.vy *= 0.5;
+      this.setState('idle');
+      this.runT = 0;
+    }
+  };
+
+  Player.prototype.spendWeapon = function () {
+    if (!this.weapon) return;
+    this.ammo--;
+    if (this.ammo <= 0) {
+      // it breaks in your hands on the last swing
+      var it = this.weaponItem;
+      this.weapon = null; this.weaponItem = null;
+      if (it) { it.dead = true; FX.dust(this.x + this.facing * 12, this.y - 20, this.facing, 5); }
+    }
+  };
+
+  // ------------------------------------------------------------------ clinch
+  Player.prototype.grabTarget = function () {
+    var es = W.enemies(), best = null, bd = 15;
+    for (var i = 0; i < es.length; i++) {
+      var e = es[i];
+      if (e.state === 'down' || e.state === 'fall' || e.z > 6 || e.noGrab) continue;
+      if (Math.abs(e.y - this.y) > 10) continue;
+      var dx = (e.x - this.x) * this.facing;
+      // a dizzy one can be taken from a step further out
+      var range = e.state === 'dizzy' ? bd + 8 : bd;
+      if (dx < -4 || dx > range) continue;
+      bd = dx; best = e;
+    }
+    return best;
+  };
+
+  Player.prototype.beginGrab = function (e) {
+    this.grabbing = e;
+    e.grabbedBy = this;
+    e.setState('held');
+    e.atk = null;
+    this.setState('grab');
+    this.grabT = 0;
+    this.kneeCount = 0;
+    if (PC.audio) PC.audio.sfx('grab');
+  };
+
+  Player.prototype.grabControl = function (b, held) {
+    var e = this.grabbing;
+    if (!e || e.dead || e.removed) { this.releaseGrab(); return; }
+    this.setState('grab');
+    this.vx = 0; this.vy = 0;
+
+    if (b.kick > 0) {
+      b.kick = 0;
+      this.throwVictim(e);
+      return;
+    }
+    if (b.punch > 0) {
+      b.punch = 0;
+      this.kneeCount++;
+      var d = MOVES.knee;
+      e.takeHit({
+        dmg: d.dmg, from: this, knock: false, stun: 8, push: 0, dir: this.facing,
+        x: e.x, y: e.y - 22, heavy: false
+      });
+      // knees do not free them - the third one does
+      if (e.grabbedBy !== this) { e.grabbedBy = this; e.setState('held'); }
+      PC.freeze(5);
+      FX.hit(e.x, e.y - 22, false);
+      if (PC.audio) PC.audio.sfx('hit');
+      this.addScore(d.score);
+      this.grabT = 0;
+      if (this.kneeCount >= 3 || e.dead) this.throwVictim(e);
+      return;
+    }
+    // pull away to let go
+    if (PC.input.axis(this.index) === -this.facing) { this.releaseGrab(); this.grabCool = 24; }
+  };
+
+  Player.prototype.throwVictim = function (e) {
+    var dir = this.facing;
+    this.releaseGrab();
+    this.setState('throwing');
+    this.throwT = 16;
+    this.grabCool = 26;
+    e.x = this.x + dir * 14;
+    e.z = 14;
+    e.takeHit({
+      dmg: 16, from: this, knock: true, stun: 24, push: 3, dir: dir,
+      x: e.x, y: e.y - 24, heavy: true, launch: { vx: 4.4, vz: 3.4 }
+    });
+    e.thrownBy = this;
+    e.isThrown = true;
+    PC.freeze(10);
+    FX.shakeBy(4);
+    if (PC.audio) PC.audio.sfx('throw');
+    this.addScore(120);
+  };
+
+  // ------------------------------------------------------------------ helpers
+  Player.prototype.nearFoe = function (range) {
+    var es = W.enemies();
+    for (var i = 0; i < es.length; i++) {
+      var e = es[i];
+      if (Math.abs(e.y - this.y) > 12) continue;
+      if ((e.x - this.x) * this.facing > 0 && Math.abs(e.x - this.x) < range) return e;
+    }
+    return null;
+  };
+
+  Player.prototype.foeBehind = function (range) {
+    var es = W.enemies();
+    for (var i = 0; i < es.length; i++) {
+      var e = es[i];
+      if (Math.abs(e.y - this.y) > 12) continue;
+      if (e.state === 'down' || e.state === 'fall') continue;
+      if ((e.x - this.x) * this.facing < 0 && Math.abs(e.x - this.x) < range) return e;
+    }
+    return null;
+  };
+
+  // ------------------------------------------------------------------ lifespan
+  Player.prototype.reviveAt = function (x, y) {
+    this.hp = this.maxHp;
+    this.dead = false; this.removed = false; this.blink = 0; this.deathT = 0;
+    this.x = x; this.y = y; this.z = 0;
+    this.vx = this.vy = this.vz = 0;
+    this.state = 'idle'; this.st = 0;
+    this.invuln = 110;
+    this.combo = 0; this.runT = 0;
+    this.weapon = null; this.weaponItem = null; this.carry = null;
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - the gang, and the four people at the top of it.
+ *
+ * The rule that makes a brawler fair: only two of them may be attacking at
+ * once. Everyone else circles, shuffles into a free lane, or waits at arm's
+ * length looking menacing. Take the token system out and eight thugs all
+ * punch you on the same frame, which is not difficulty, it is arithmetic.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+  var M = PC.math, FX = PC.fx, W = PC.world, Items = PC.items;
+
+  // ---------------------------------------------------------- attack tokens
+  W.tokens = 2;
+  W.tokenHolders = [];
+  W.claimToken = function (e) {
+    var i = this.tokenHolders.indexOf(e);
+    if (i >= 0) return true;
+    for (i = this.tokenHolders.length - 1; i >= 0; i--) {
+      var h = this.tokenHolders[i];
+      if (h.removed || h.dead || (h.state !== 'attack' && h.tokenT-- <= 0)) this.tokenHolders.splice(i, 1);
+    }
+    if (this.tokenHolders.length >= this.tokens) return false;
+    e.tokenT = 90;
+    this.tokenHolders.push(e);
+    return true;
+  };
+  W.dropToken = function (e) {
+    var i = this.tokenHolders.indexOf(e);
+    if (i >= 0) this.tokenHolders.splice(i, 1);
+  };
+
+  // ------------------------------------------------------------ enemy moves
+  var EM = PC.ENEMY_MOVES = {
+    jab: { pose: 'jab', startup: 8, active: 3, recovery: 16, reach: [4, 24], zlo: 14, zhi: 36, dmg: 5, stun: 12, push: 1.2, stop: 4, sfx: 'swing' },
+    hook: { pose: 'hook', startup: 11, active: 4, recovery: 22, reach: [4, 26], zlo: 14, zhi: 40, dmg: 8, stun: 16, push: 2, knock: true, stop: 7, sfx: 'swingHard' },
+    kick: { pose: 'kick', startup: 12, active: 4, recovery: 22, reach: [6, 32], zlo: 6, zhi: 30, dmg: 7, stun: 15, push: 2.4, stop: 6, sfx: 'swing' },
+    jumpKick: { pose: 'jumpKick', air: true, startup: 2, active: 24, recovery: 4, reach: [4, 30], zlo: -4, zhi: 30, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard' },
+    batSwing: { pose: 'hook', startup: 14, active: 5, recovery: 24, reach: [4, 40], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
+    knifeStab: { pose: 'jab', startup: 9, active: 4, recovery: 18, reach: [4, 32], zlo: 14, zhi: 34, dmg: 8, stun: 14, push: 1.4, stop: 6, sfx: 'swing', spark: '#ff8888' },
+    slam: { pose: 'hook', startup: 16, active: 5, recovery: 30, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard' },
+    charge: { pose: 'knee', startup: 6, active: 30, recovery: 26, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2 },
+    pound: { pose: 'upper', startup: 10, active: 8, recovery: 34, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom' },
+    chainSweep: { poses: ['spin0', 'spin1'], frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 26, reach: [0, 38], zlo: 8, zhi: 40, dmg: 10, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
+    upper: { pose: 'upper', startup: 12, active: 4, recovery: 26, reach: [2, 24], zlo: 6, zhi: 44, dmg: 12, stun: 22, knock: true, launch: { vx: 1.4, vz: 5 }, stop: 10, sfx: 'swingHard' },
+    spin: { poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true, startup: 8, active: 18, recovery: 22, reach: [0, 30], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
+  };
+
+  // ------------------------------------------------------------- enemy types
+  var TYPES = PC.ENEMY_TYPES = {
+    punk: {
+      char: 'punk', hp: 30, speed: 0.95, score: 200, standoff: 22,
+      moves: ['jab', 'jab', 'hook', 'kick'], aggr: 0.55, downTime: 46
+    },
+    rough: {
+      char: 'rough', hp: 28, speed: 1.3, score: 300, standoff: 24,
+      moves: ['jab', 'kick', 'kick'], aggr: 0.75, jumpy: 0.3, downTime: 40
+    },
+    knifer: {
+      char: 'knifer', hp: 26, speed: 1.1, score: 400, standoff: 26, weapon: 'knife',
+      moves: ['knifeStab', 'knifeStab', 'kick'], aggr: 0.6, thrower: 0.25, downTime: 44
+    },
+    batter: {
+      char: 'batter', hp: 38, speed: 0.9, score: 400, standoff: 32, weapon: 'bat',
+      moves: ['batSwing', 'batSwing', 'kick'], aggr: 0.5, downTime: 48
+    },
+    brute: {
+      char: 'brute', hp: 76, speed: 0.8, score: 700, standoff: 22, mass: 2.2, armor: 2,
+      knockRes: 0.55, moves: ['slam', 'hook', 'hook'], aggr: 0.45, grabber: 0.35, downTime: 54
+    }
+  };
+
+  var BOSSES = PC.BOSS_TYPES = {
+    crusher: {
+      char: 'boss_crusher', hp: 210, speed: 0.85, score: 5000, standoff: 26, mass: 3.4,
+      armor: 3, knockRes: 0.82, boss: true, downTime: 44,
+      moves: ['slam', 'hook', 'charge', 'pound'], aggr: 0.6, grabber: 0.3
+    },
+    viper: {
+      char: 'boss_viper', hp: 180, speed: 1.55, score: 6000, standoff: 34, mass: 1.4,
+      armor: 1, knockRes: 0.6, boss: true, weapon: 'chain', downTime: 34,
+      moves: ['chainSweep', 'kick', 'chainSweep', 'jumpKick'], aggr: 0.85, jumpy: 0.35, retreat: 0.4
+    },
+    jaws: {
+      char: 'boss_jaws', hp: 200, speed: 1.25, score: 7000, standoff: 28, mass: 2.4,
+      armor: 2, knockRes: 0.7, boss: true, downTime: 40,
+      moves: ['spin', 'hook', 'kick', 'charge'], aggr: 0.8, thrower: 0.3, grabber: 0.25
+    },
+    power: {
+      char: 'boss_power', hp: 260, speed: 1.5, score: 12000, standoff: 26, mass: 2,
+      armor: 2, knockRes: 0.78, boss: true, downTime: 32,
+      moves: ['upper', 'jab', 'hook', 'spin', 'charge'], aggr: 0.95, jumpy: 0.3, retreat: 0.3
+    }
+  };
+
+  // ---------------------------------------------------------------- the enemy
+  function Enemy(typeKey, spec) {
+    var t = TYPES[typeKey] || BOSSES[typeKey];
+    if (!t) throw new Error('unknown enemy ' + typeKey);
+    spec = spec || {};
+    PC.Actor.call(this, {
+      char: t.char, team: 1, hp: Math.round(t.hp * (spec.hpScale || 1)),
+      x: spec.x || 0, y: spec.y || PC.FLOOR_BOT - 20,
+      speed: t.speed, mass: t.mass || 1, score: t.score,
+      armor: t.armor || 0, knockRes: t.knockRes || 0
+    });
+    this.type = typeKey;
+    this.T = t;
+    this.isBoss = !!t.boss;
+    this.downTime = t.downTime || 44;
+    this.think = 0;
+    this.intent = 'approach';
+    this.lane = 0;
+    this.tokenT = 0;
+    this.aggr = (t.aggr || 0.5) * (spec.aggrScale || 1);
+    this.dmgScale = 1;
+    this.facing = spec.facing || -1;
+    this.spawnFade = 0;
+    if (t.weapon) {
+      var it = Items.spawn('weapon', t.weapon, this.x, this.y);
+      Items.take(this, it);
+    }
+    if (this.isBoss) { this.tag = t.tagName || (PC.rig.CHARS[t.char] || {}).name; this.tagCol = '#ff5f6a'; }
+  }
+  Enemy.prototype = Object.create(PC.Actor.prototype);
+  Enemy.prototype.constructor = Enemy;
+  PC.Enemy = Enemy;
+
+  Enemy.prototype.onDeath = function (killer) {
+    W.dropToken(this);
+    if (killer && killer.addScore) killer.addScore(this.score);
+    FX.pop(this.x, this.y - this.hh - 4, this.score, '#ffe070');
+    if (this.weaponItem) { Items.drop(this); }
+    if (PC.audio) PC.audio.sfx(this.isBoss ? 'bossDown' : 'ko');
+    if (PC.game) PC.game.enemyDown(this);
+    if (this.isBoss) { FX.shakeBy(7); FX.flash('#ffffff', 6); }
+  };
+
+  Enemy.prototype.onKnockdown = function () { W.dropToken(this); };
+
+  // ------------------------------------------------------------------- brain
+  Enemy.prototype.control = function () {
+    if (this.dead) return;
+    if (this.state === 'held') { this.vx = 0; return; }
+    if (this.hold > 0) { this.hold--; this.vx *= 0.7; this.vy *= 0.7; this.setState('idle'); return; }
+    if (!this.canAct()) return;
+    if (this.z > 0) return;
+
+    var p = W.nearestPlayer(this.x, this.y);
+    if (!p) { this.setState('idle'); this.vx *= 0.8; this.vy *= 0.8; return; }
+
+    var dx = p.x - this.x, dy = p.y - this.y;
+    var adx = Math.abs(dx);
+    this.facing = dx === 0 ? this.facing : M.sign(dx);
+
+    if (--this.think <= 0) this.decide(p, adx, dy);
+
+    var t = this.T;
+    var standoff = t.standoff;
+    var speed = this.speed;
+
+    switch (this.intent) {
+      case 'approach': {
+        var wantX = p.x - this.facing * standoff * 0.86;
+        var wantY = p.y + this.lane;
+        var mx = M.clamp((wantX - this.x) * 0.1, -1, 1);
+        var my = M.clamp((wantY - this.y) * 0.1, -1, 1);
+        if (Math.abs(wantX - this.x) < 2) mx = 0;
+        if (Math.abs(wantY - this.y) < 2) my = 0;
+        this.vx = mx * speed;
+        this.vy = my * speed * 0.66;
+        this.setState((mx || my) ? 'walk' : 'idle');
+        if (adx < standoff && Math.abs(dy) < 11) this.tryAttack(p, adx);
+        break;
+      }
+      case 'wait': {
+        // hold at the edge of your reach, drifting in your lane
+        var backX = p.x - this.facing * (standoff + 16);
+        this.vx = M.clamp((backX - this.x) * 0.05, -1, 1) * speed * 0.7;
+        this.vy = M.clamp((p.y + this.lane - this.y) * 0.06, -1, 1) * speed * 0.5;
+        this.setState(Math.abs(this.vx) + Math.abs(this.vy) > 0.15 ? 'walk' : 'idle');
+        break;
+      }
+      case 'flank': {
+        var fx = p.x + this.facing * standoff;   // cross to the other side
+        this.vx = M.clamp((fx - this.x) * 0.07, -1, 1) * speed;
+        this.vy = M.clamp((p.y + this.lane - this.y) * 0.1, -1, 1) * speed * 0.7;
+        this.setState('walk');
+        break;
+      }
+      case 'retreat': {
+        this.vx = -this.facing * speed * 0.85;
+        this.vy = M.clamp(this.lane, -1, 1) * speed * 0.4;
+        this.setState('walk');
+        break;
+      }
+      case 'grab': {
+        var gx = p.x - this.facing * 12;
+        this.vx = M.clamp((gx - this.x) * 0.15, -1, 1) * speed * 1.15;
+        this.vy = M.clamp((p.y - this.y) * 0.12, -1, 1) * speed * 0.8;
+        this.setState('walk');
+        if (adx < 15 && Math.abs(dy) < 8 && !p.invuln && p.state !== 'down' && p.state !== 'fall') {
+          this.doGrab(p);
+        }
+        break;
+      }
+    }
+  };
+
+  Enemy.prototype.decide = function (p, adx, dy) {
+    var t = this.T, r = PC.rand;
+    this.think = r.int(24, 52);
+    this.lane = r.range(-13, 13);
+
+    if (t.grabber && r.chance(t.grabber) && adx < 60) { this.intent = 'grab'; this.think = 60; return; }
+    if (t.thrower && this.weapon && r.chance(t.thrower) && adx > 40 && adx < 150) {
+      Items.hurl(this);
+      this.setState('throwing'); this.hold = 22;
+      this.intent = 'approach';
+      return;
+    }
+    if (t.jumpy && r.chance(t.jumpy) && adx > 34 && adx < 90) {
+      this.vz = 4.4; this.z = 0.1;
+      this.setState('jump');
+      this.vx = this.facing * this.speed * 2;
+      this.startAttack(EM.jumpKick);
+      this.intent = 'approach';
+      return;
+    }
+    if (t.retreat && r.chance(t.retreat) && adx < 30) { this.intent = 'retreat'; this.think = r.int(16, 30); return; }
+
+    if (r.chance(this.aggr)) this.intent = 'approach';
+    else this.intent = r.chance(0.45) ? 'flank' : 'wait';
+  };
+
+  Enemy.prototype.tryAttack = function (p, adx) {
+    if (this.atkCool > 0) { this.atkCool--; return; }
+    if (!W.claimToken(this)) return;
+    var name = PC.rand.pick(this.T.moves);
+    var mv = EM[name];
+    if (!mv) return;
+    if (adx > (mv.reach[1] - 4)) return;
+    this.startAttack(mv);
+    this.atkCool = PC.rand.int(14, 40);
+    this.think = mv.startup + mv.active + mv.recovery + 8;
+  };
+
+  Enemy.prototype.doGrab = function (p) {
+    if (p.invuln > 0 || p.grabbedBy) return;
+    this.grabbing = p;
+    p.grabbedBy = this;
+    p.setState('held');
+    p.atk = null;
+    p.escapeMash = 0;
+    this.setState('grab');
+    this.grabT = 0;
+    this.squeezeT = 26;
+    this.intent = 'approach';
+    if (PC.audio) PC.audio.sfx('grab');
+  };
+
+  /* Held by a brute: it squeezes on a timer, and you get out by mashing.
+   * Runs from the enemy side so the player's own control loop stays simple. */
+  var baseUpdate = PC.Actor.prototype.update;
+  Enemy.prototype.update = function () {
+    if (this.grabbing && !this.dead) {
+      var v = this.grabbing;
+      this.setState('grab');
+      if (--this.squeezeT <= 0) {
+        this.squeezeT = 30;
+        v.takeHit({
+          dmg: 6, from: this, knock: false, stun: 6, push: 0, dir: this.facing,
+          x: v.x, y: v.y - 24, heavy: false
+        });
+        if (v.grabbedBy === this && !v.dead) { v.setState('held'); v.grabbedBy = this; }
+        FX.hit(v.x, v.y - 24, false);
+        PC.freeze(4);
+        if (PC.audio) PC.audio.sfx('hit');
+      }
+      if (v.dead || this.grabT > 150) {
+        // toss them clear when done
+        var dir = this.facing;
+        this.releaseGrab();
+        if (!v.dead) {
+          v.takeHit({
+            dmg: 8, from: this, knock: true, stun: 20, push: 3, dir: dir,
+            x: v.x, y: v.y - 24, heavy: true, launch: { vx: 4, vz: 3.2 }
+          });
+        }
+        this.hold = 24;
+      }
+    }
+    baseUpdate.call(this);
+  };
+
+  // --------------------------------------------------------------- spawning
+  PC.spawnEnemy = function (typeKey, x, y, opts) {
+    var e = new Enemy(typeKey, { x: x, y: y, facing: opts && opts.facing, hpScale: opts && opts.hpScale });
+    if (opts && opts.aggrScale) e.aggr *= opts.aggrScale;
+    if (opts && opts.dmgScale) e.dmgScale = opts.dmgScale;
+    W.add(e);
+    return e;
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - four stages, and the fights that happen along them.
+ *
+ * A stage is a strip of street plus a list of encounters. The camera walks
+ * forward with the players until it hits the next encounter, then locks: the
+ * gang comes in from both sides and nobody moves on until the street is
+ * clear. Locking the camera is what turns a scrolling background into an
+ * arena, and it is the whole structure of the genre.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+  var M = PC.math, W = PC.world, FX = PC.fx;
+
+  function enc(x, groups, opts) {
+    var e = { x: x, groups: groups, boss: false, items: null };
+    if (opts) for (var k in opts) e[k] = opts[k];
+    return e;
+  }
+
+  /* groups: [type, count, side, delay] - side -1 comes in from behind you,
+   * +1 from up ahead, 0 means already standing there. */
+  PC.STAGES = [
+    {
+      name: 'SLUM ALLEY', theme: 'alley', length: 1760, time: 99, music: 'stage1',
+      intro: 'THE GANG TOOK MARIAN.  START WHERE THEY LIVE.',
+      encounters: [
+        enc(230, [['punk', 2, 1, 0]]),
+        enc(500, [['punk', 2, 1, 0], ['rough', 1, -1, 90]], { items: [['prop', 'crate', 60], ['prop', 'crate', 120]] }),
+        enc(880, [['rough', 2, 1, 0], ['punk', 1, -1, 60]], { items: [['weapon', 'bat', 40]] }),
+        enc(1230, [['punk', 2, 1, 0], ['batter', 1, 1, 70], ['rough', 1, -1, 120]]),
+        enc(1560, [['brute', 1, 1, 0], ['punk', 2, -1, 80]], { boss: 'crusher', bossDelay: 150 })
+      ]
+    },
+    {
+      name: 'DOWNTOWN', theme: 'downtown', length: 1900, time: 99, music: 'stage2',
+      intro: 'THEY RUN THE BLOCK FROM THE OLD BAR.',
+      encounters: [
+        enc(240, [['punk', 2, 1, 0], ['rough', 1, 1, 60]]),
+        enc(520, [['knifer', 2, 1, 0], ['punk', 1, -1, 70]], { items: [['prop', 'drum', 70]] }),
+        enc(900, [['batter', 2, 1, 0], ['rough', 2, -1, 80]], { items: [['weapon', 'pipe', 30], ['pickup', 'heart', 150]] }),
+        enc(1280, [['brute', 1, 1, 0], ['knifer', 1, 1, 40], ['punk', 2, -1, 90]]),
+        enc(1660, [['rough', 2, 1, 0]], { boss: 'viper', bossDelay: 120 })
+      ]
+    },
+    {
+      name: 'THE DOCKS', theme: 'docks', length: 2000, time: 99, music: 'stage3',
+      intro: 'CONTAINER SIX. THE ONE WITH THE LIGHT ON.',
+      encounters: [
+        enc(240, [['rough', 2, 1, 0], ['knifer', 1, -1, 50]]),
+        enc(560, [['batter', 2, 1, 0], ['punk', 2, -1, 60]], { items: [['prop', 'crate', 40], ['prop', 'crate', 100], ['prop', 'drum', 160]] }),
+        enc(960, [['brute', 2, 1, 0], ['rough', 1, -1, 70]], { items: [['weapon', 'bat', 50]] }),
+        enc(1380, [['knifer', 2, 1, 0], ['batter', 1, -1, 40], ['rough', 2, 1, 110]], { items: [['pickup', 'heart', 140]] }),
+        enc(1760, [['punk', 2, -1, 0]], { boss: 'jaws', bossDelay: 110 })
+      ]
+    },
+    {
+      name: 'POWER TOWER', theme: 'tower', length: 1840, time: 99, music: 'stage4',
+      intro: 'TOP FLOOR. HE IS EXPECTING YOU.',
+      encounters: [
+        enc(240, [['rough', 2, 1, 0], ['batter', 1, 1, 60], ['knifer', 1, -1, 100]]),
+        enc(560, [['brute', 2, 1, 0], ['rough', 2, -1, 70]], { items: [['weapon', 'pipe', 40]] }),
+        enc(940, [['knifer', 2, 1, 0], ['batter', 2, -1, 60], ['punk', 2, 1, 130]], { items: [['pickup', 'heart', 120]] }),
+        enc(1320, [['brute', 1, 1, 0], ['rough', 2, 1, 50], ['knifer', 2, -1, 100]], { items: [['prop', 'drum', 60]] }),
+        enc(1680, [], { boss: 'power', bossDelay: 60, escort: [['brute', 1, -1, 260]] })
+      ]
+    }
+  ];
+
+  // -------------------------------------------------------------- the runner
+  var Stage = PC.stage = {
+    def: null, index: 0, theme: null,
+    sky: null, facade: null, skyW: 0,
+    encIndex: 0, active: null, locked: false, lockX: 0,
+    pending: [], cleared: false, arrowT: 0, timeLeft: 99, timeT: 0,
+    bossActive: null,
+
+    load: function (index) {
+      this.index = M.clamp(index, 0, PC.STAGES.length - 1);
+      this.def = PC.STAGES[this.index];
+      this.theme = PC.city.THEMES[this.def.theme];
+      this.skyW = 560;
+      this.sky = PC.city.makeSky(this.theme, this.skyW, PC.FLOOR_TOP - PC.FIELD_Y);
+      this.facade = PC.city.build(this.theme, this.def.length + PC.W);
+      W.reset();
+      W.minX = 0;
+      W.maxX = this.def.length + PC.W - 20;
+      W.camX = 0;
+      this.encIndex = 0;
+      this.active = null;
+      this.locked = false;
+      this.cleared = false;
+      this.arrowT = 0;
+      this.pending.length = 0;
+      this.timeLeft = this.def.time;
+      this.timeT = 0;
+      this.bossActive = null;
+      this.bossBanner = 0;
+      this.finishT = 0;
+    },
+
+    // ---- encounters
+    startEncounter: function (e) {
+      this.active = e;
+      this.locked = true;
+      this.lockX = W.camX;
+      this.pending.length = 0;
+      var i, g;
+      for (i = 0; i < e.groups.length; i++) {
+        g = e.groups[i];
+        for (var n = 0; n < g[1]; n++) {
+          this.pending.push({ type: g[0], side: g[2], t: (g[3] || 0) + n * 22 });
+        }
+      }
+      if (e.escort) {
+        for (i = 0; i < e.escort.length; i++) {
+          g = e.escort[i];
+          for (var m = 0; m < g[1]; m++) this.pending.push({ type: g[0], side: g[2], t: (g[3] || 0) + m * 24 });
+        }
+      }
+      if (e.boss) this.pending.push({ type: e.boss, side: 1, t: e.bossDelay || 100, boss: true });
+      if (e.items) {
+        for (i = 0; i < e.items.length; i++) {
+          var it = e.items[i];
+          this.pending.push({ item: it, t: it[2] || 0 });
+        }
+      }
+      this.encT = 0;
+      if (e.boss && PC.audio) PC.audio.play('boss');
+    },
+
+    spawnOne: function (s) {
+      if (s.item) {
+        // Crates and weapons are already lying in the street; food and money
+        // come down from somewhere off the top of the screen.
+        var kind = s.item[0], key = s.item[1];
+        var x = W.camX + PC.rand.range(50, PC.W - 50);
+        var y = PC.rand.range(PC.FLOOR_TOP + 8, PC.FLOOR_BOT - 4);
+        PC.items.spawn(kind, key, x, y, { z: kind === 'pickup' ? 60 : 0 });
+        return;
+      }
+      var side = s.side || (PC.rand.chance(0.5) ? 1 : -1);
+      var ex = side > 0 ? W.camX + PC.W + PC.rand.range(10, 40) : W.camX - PC.rand.range(14, 44);
+      ex = M.clamp(ex, W.minX + 4, W.maxX - 4);
+      var ey = PC.rand.range(PC.FLOOR_TOP + 6, PC.FLOOR_BOT - 4);
+      var d = PC.game ? PC.game.difficulty() : { hp: 1, dmg: 1, aggr: 1 };
+      var e = PC.spawnEnemy(s.type, ex, ey, {
+        facing: side > 0 ? -1 : 1, hpScale: d.hp, dmgScale: d.dmg, aggrScale: d.aggr
+      });
+      if (s.boss) {
+        this.bossActive = e;
+        this.bossBanner = 110;
+        e.invuln = 40;
+        FX.flash('#ffffff', 5);
+        FX.shakeBy(5);
+        PC.freeze(22);
+        if (PC.audio) PC.audio.sfx('bossIn');
+      }
+      return e;
+    },
+
+    update: function () {
+      if (!this.def) return;
+      var i;
+
+      // ---- countdown
+      if (!this.cleared) {
+        if (++this.timeT >= 72) {
+          this.timeT = 0;
+          this.timeLeft--;
+          if (this.timeLeft <= 10 && this.timeLeft > 0 && PC.audio) PC.audio.sfx('tick');
+          if (this.timeLeft <= 0) { this.timeLeft = 0; if (PC.game) PC.game.timeUp(); }
+        }
+      }
+
+      // ---- spawn queue
+      if (this.active) {
+        this.encT++;
+        for (i = this.pending.length - 1; i >= 0; i--) {
+          if (this.encT >= this.pending[i].t) {
+            this.spawnOne(this.pending[i]);
+            this.pending.splice(i, 1);
+          }
+        }
+        if (!this.pending.length && !W.enemies().length) {
+          this.active = null;
+          this.locked = false;
+          this.bossActive = null;
+          this.arrowT = 1;
+          if (this.encIndex >= this.def.encounters.length) this.cleared = true;
+          else if (PC.audio) PC.audio.play(this.def.music);
+        }
+      } else {
+        var next = this.def.encounters[this.encIndex];
+        var lead = 0, ps = W.livePlayers();
+        for (i = 0; i < ps.length; i++) lead = Math.max(lead, ps[i].x);
+        if (next && lead >= next.x) {
+          this.encIndex++;
+          this.startEncounter(next);
+          this.arrowT = 0;
+        }
+      }
+
+      if (this.arrowT > 0) this.arrowT++;
+      if (this.bossBanner > 0) this.bossBanner--;
+      this.updateCamera();
+
+      if (this.cleared && !W.enemies().length) this.finishT++;
+    },
+
+    /* The camera trails the party, never reverses, and stops dead at a lock.
+     * Players are fenced to the visible strip by Actor.update. */
+    updateCamera: function () {
+      var ps = W.livePlayers();
+      if (!ps.length) return;
+      var sum = 0;
+      for (var i = 0; i < ps.length; i++) sum += ps[i].x;
+      var target = sum / ps.length - PC.W * 0.42;
+      var maxCam = this.def.length - 4;
+      if (this.locked) maxCam = Math.min(maxCam, this.lockX);
+      target = M.clamp(target, 0, maxCam);
+      if (target > W.camX) W.camX = M.approach(W.camX, target, 3.2);
+      else if (!this.locked && target < W.camX - 40) W.camX = M.approach(W.camX, target, 2);
+    },
+
+    atEnd: function () {
+      return this.cleared && W.camX >= this.def.length - 6;
+    },
+
+    // ------------------------------------------------------------- rendering
+    draw: function (ctx) {
+      var camX = W.camX;
+      // sky, at a third the speed, tiling forever
+      var sx = -Math.floor(camX * 0.34) % this.skyW;
+      if (sx > 0) sx -= this.skyW;
+      for (var x = sx; x < PC.W; x += this.skyW) {
+        ctx.drawImage(this.sky, Math.round(x), PC.FIELD_Y);
+      }
+      ctx.drawImage(this.facade, Math.round(-camX), PC.FIELD_Y);
+    },
+
+    /* A boss walks on to their own title card. Costs two seconds and buys
+     * the fight a beginning. */
+    drawBanner: function (ctx) {
+      if (!this.bossBanner || !this.bossActive) return;
+      var t = this.bossBanner;
+      var a = Math.min(1, t / 24);
+      var y = PC.FIELD_Y + 58;
+      ctx.save();
+      ctx.globalAlpha = a * 0.72;
+      PC.art.rect(ctx, 0, y - 6, PC.W, 30, '#160408');
+      ctx.restore();
+      PC.art.rect(ctx, 0, y - 7, PC.W, 1, '#e03040');
+      PC.art.rect(ctx, 0, y + 24, PC.W, 1, '#e03040');
+      var slide = Math.round((1 - Math.min(1, (110 - t) / 14)) * 60);
+      PC.art.text(ctx, this.bossActive.name, PC.W / 2 - slide, y, '#ff5f6a',
+        { align: 'center', scale: 2, tracking: 3, shadow: '#2a0006', shadowDist: 2 });
+      PC.art.text(ctx, 'GANG BOSS', PC.W / 2 + slide, y + 17, '#ffffff', { align: 'center', tracking: 2 });
+    },
+
+    drawArrow: function (ctx) {
+      if (!this.arrowT || this.locked) return;
+      var t = this.arrowT;
+      var bob = Math.sin(t * 0.14) * 3;
+      var x = PC.W - 54 + bob, y = PC.FIELD_Y + 26;
+      if ((t >> 3) % 2 === 0) return;
+      PC.art.text(ctx, 'GO', x - 10, y, '#ffe070', { scale: 2, shadow: '#802000', shadowDist: 2 });
+      // a chunky arrow, drawn rather than typed
+      var ax = x + 16, ay = y + 4;
+      ctx.fillStyle = '#ffe070';
+      ctx.fillRect(Math.round(ax), Math.round(ay), 12, 4);
+      for (var i = 0; i < 5; i++) ctx.fillRect(Math.round(ax + 11 + i), Math.round(ay - 4 + i), 2, 12 - i * 2);
+    }
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - the cabinet furniture.
+ *
+ * Score, hi-score, timer, lives, health and the credit counter, laid out the
+ * way an arcade board would have laid them out: everything the player needs
+ * is above and below the picture, never in it.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+  var Art = PC.art, C = PC.color, W = PC.world;
+
+  var Hud = PC.hud = {};
+
+  // A little head, for the lives row. Same palette as the fighter it counts.
+  var iconCache = {};
+  Hud.icon = function (charKey) {
+    if (iconCache[charKey]) return iconCache[charKey];
+    var ch = PC.rig.CHARS[charKey], pal = ch.pal;
+    var c = Art.mk(11, 11), x = c.getContext('2d');
+    Art.ellipse(x, 5, 6, 5, 5.2, pal.hair);
+    Art.ellipse(x, 5.5, 7, 4.2, 4.4, pal.skin);
+    Art.rect(x, 0, 1, 11, 3, pal.hair);
+    Art.rect(x, 3, 5, 1.6, 2, pal.eye || '#20202e');
+    Art.rect(x, 7, 5, 1.6, 2, pal.eye || '#20202e');
+    Art.rect(x, 4, 9, 3, 1, pal.skinD);
+    return (iconCache[charKey] = Art.outline(c, '#0a0a12', 1));
+  };
+
+  // ------------------------------------------------------------- health bar
+  /* Twelve blocks in a box. Blocks, not a smooth bar: you can count them at a
+   * glance mid-fight, which is the only time anybody looks. */
+  Hud.bar = function (ctx, x, y, w, h, frac, col, colDim) {
+    var segs = 12, i;
+    Art.rect(ctx, x - 1, y - 1, w + 2, h + 2, '#101018');
+    Art.rect(ctx, x, y, w, h, '#2a2e3c');
+    var sw = Math.floor((w - 2) / segs);
+    var lit = frac * segs;
+    for (i = 0; i < segs; i++) {
+      var f = Math.min(1, Math.max(0, lit - i));
+      if (f <= 0) { Art.rect(ctx, x + 1 + i * sw, y + 1, sw - 1, h - 2, colDim || '#3a3f52'); continue; }
+      Art.rect(ctx, x + 1 + i * sw, y + 1, sw - 1, h - 2, col);
+      Art.rect(ctx, x + 1 + i * sw, y + 1, sw - 1, 1, C.shade(col, 0.35));
+    }
+    Art.rect(ctx, x - 1, y - 1, w + 2, 1, '#585f78');
+  };
+
+  // ------------------------------------------------------------------ top bar
+  Hud.drawTop = function (ctx, g) {
+    Art.rect(ctx, 0, 0, PC.W, PC.HUD_TOP, '#000000');
+    var mid = PC.W / 2;
+    var p1 = g.player(0), p2 = g.player(1);
+
+    Art.text(ctx, '1UP', 14, 5, p1 && !p1.dead ? '#ffffff' : '#8a8a9c');
+    Art.text(ctx, PC.pad(g.scores[0], 6), 14, 14, '#ffffff');
+
+    Art.text(ctx, 'HI-SCORE', mid, 5, '#ffe070', { align: 'center' });
+    Art.text(ctx, PC.pad(g.hiScore, 6), mid, 14, '#ffffff', { align: 'center' });
+
+    Art.text(ctx, '2UP', PC.W - 14, 5, p2 ? '#ffffff' : '#8a8a9c', { align: 'right' });
+    if (p2) Art.text(ctx, PC.pad(g.scores[1], 6), PC.W - 14, 14, '#ffffff', { align: 'right' });
+    else {
+      Art.text(ctx, '000000', PC.W - 14, 14, '#5a6070', { align: 'right' });
+      if ((W.time >> 5) % 2) Art.text(ctx, 'INSERT COIN', PC.W - 14, 26, '#4aa8ff', { align: 'right' });
+    }
+
+    // lives, as a row of heads
+    if (p1) {
+      var ic = Hud.icon(p1.char);
+      for (var i = 0; i < Math.min(5, g.lives[0]); i++) ctx.drawImage(ic, 13 + i * 13, 22);
+      if (g.lives[0] > 5) Art.text(ctx, 'X' + g.lives[0], 13, 24, '#ffffff');
+    }
+    if (p2) {
+      var ic2 = Hud.icon(p2.char);
+      for (var j = 0; j < Math.min(5, g.lives[1]); j++) {
+        ctx.drawImage(ic2, PC.W - 24 - j * 13, 22);
+      }
+    }
+
+    // clock
+    if (g.state === 'title') return;
+    var t = PC.stage.timeLeft;
+    Art.text(ctx, 'TIME', mid, 24, t <= 10 ? '#ff4a4a' : '#ff8a3a', { align: 'center' });
+    Art.text(ctx, PC.pad(t, 2), mid, 33, t <= 10 && (W.time >> 3) % 2 ? '#ff4a4a' : '#ffffff', { align: 'center' });
+
+    // where we are
+    if (PC.stage.def) {
+      Art.text(ctx, 'STAGE ' + (PC.stage.index + 1), mid, 45, '#4ae06a', { align: 'center' });
+      Art.text(ctx, PC.stage.def.name, mid, 54, '#ffffff', { align: 'center' });
+    }
+  };
+
+  // --------------------------------------------------------------- bottom bar
+  Hud.drawBottom = function (ctx, g) {
+    var y0 = PC.FIELD_BOT;
+    Art.rect(ctx, 0, y0, PC.W, PC.H - y0, '#000000');
+    var p1 = g.player(0), p2 = g.player(1);
+
+    Art.text(ctx, 'PLAYER', 12, y0 + 8, '#ffffff');
+    Hud.bar(ctx, 58, y0 + 6, 146, 10, p1 ? p1.hp / p1.maxHp : 0, '#2f6ef0');
+
+    if (p2) {
+      Art.text(ctx, 'PLAYER 2', 12, y0 + 21, '#ffffff');
+      Hud.bar(ctx, 58, y0 + 19, 146, 10, p2.hp / p2.maxHp, '#e04a3a');
+    } else if (g.state === 'play') {
+      if ((W.time >> 5) % 2) Art.text(ctx, 'PRESS 2 TO JOIN', 12, y0 + 21, '#4aa8ff');
+    }
+
+    Art.text(ctx, 'CREDIT ' + PC.pad(g.credits, 2), PC.W - 12, y0 + 21, '#ffffff', { align: 'right' });
+
+    // The weapon in your hands, named, so you know what you picked up.
+    if (p1 && p1.weapon) {
+      Art.text(ctx, PC.weapons[p1.weapon].label, PC.W - 12, y0 + 8, '#ffe070', { align: 'right' });
+    } else if (p1 && p1.carry) {
+      Art.text(ctx, p1.carry.key === 'drum' ? 'DRUM' : 'CRATE', PC.W - 12, y0 + 8, '#ffe070', { align: 'right' });
+    }
+  };
+
+  // ---------------------------------------------------------------- boss bar
+  Hud.drawBoss = function (ctx) {
+    var b = PC.stage.bossActive;
+    if (!b || b.removed) return;
+    var y = PC.FIELD_Y + 5;
+    Art.text(ctx, b.name, PC.W / 2, y, '#ff5f6a', { align: 'center', shadow: '#000000' });
+    Hud.bar(ctx, PC.W / 2 - 66, y + 9, 132, 7, Math.max(0, b.hp / b.maxHp), '#e03040', '#3a1a20');
+  };
+
+  // -------------------------------------------------------------- big banners
+  Hud.banner = function (ctx, lines, y, opts) {
+    opts = opts || {};
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i];
+      Art.text(ctx, l.t, PC.W / 2, y + i * (l.scale ? l.scale * 9 + 4 : 13), l.c || '#ffffff', {
+        align: 'center', scale: l.scale || 1, shadow: l.shadow || '#000000', shadowDist: (l.scale || 1),
+        tracking: l.tracking === undefined ? 1 : l.tracking, wobble: l.wobble, phase: opts.phase
+      });
+    }
+  };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - the cabinet: attract, credits, stages, continues, endings.
+ *
+ * Everything above this file knows how to fight. This one knows what the
+ * machine does between fights - which is most of what makes a game feel like
+ * an arcade game rather than a physics demo.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+  var M = PC.math, Art = PC.art, W = PC.world, FX = PC.fx, Hud = PC.hud;
+
+  var HERO = ['hero1', 'hero2'];
+
+  var G = PC.game = {
+    state: 'boot', stateT: 0,
+    credits: 0, hiScore: 50000,
+    scores: [0, 0], lives: [3, 3],
+    players: [null, null],
+    stageIndex: 0,
+    paused: false,
+    continueT: 0,
+    respawnT: [0, 0],
+    attractX: 0,
+    ended: false,
+
+    // ------------------------------------------------------------------ boot
+    boot: function () {
+      PC.input.init();
+      PC.Screen.init(document.getElementById('screen'));
+      PC.bakeThings();
+      PC.rig.bakeAll();
+      var saved = PC.save.read();
+      if (saved.hiScore) this.hiScore = saved.hiScore;
+      PC.stage.load(0);
+      this.setState('title');
+      var loading = document.getElementById('loading');
+      if (loading) loading.style.display = 'none';
+      this.loop = PC.Loop(function () { G.update(); }, function () { G.render(); });
+      this.loop.start();
+    },
+
+    setState: function (s) {
+      this.state = s;
+      this.stateT = 0;
+    },
+
+    player: function (i) { return this.players[i]; },
+
+    difficulty: function () {
+      var n = this.livePlayerCount();
+      var s = PC.stage.index;
+      return {
+        hp: (1 + s * 0.16) * (n > 1 ? 1.28 : 1),
+        dmg: 0.7 + s * 0.14,
+        aggr: 0.85 + s * 0.07
+      };
+    },
+
+    livePlayerCount: function () {
+      var n = 0;
+      for (var i = 0; i < 2; i++) if (this.players[i]) n++;
+      return n;
+    },
+
+    noteScore: function (i, v) {
+      this.scores[i] = v;
+      if (v > this.hiScore) this.hiScore = v;
+    },
+
+    enemyDown: function () { },
+
+    timeUp: function () {
+      for (var i = 0; i < 2; i++) {
+        var p = this.players[i];
+        if (p && !p.dead) { p.hp = 0; p.takeHit({ dmg: 999, dir: -p.facing, knock: true, x: p.x, y: p.y - 20 }); }
+      }
+      PC.stage.timeLeft = 0;
+    },
+
+    // ---------------------------------------------------------------- coins
+    coin: function () {
+      this.credits = Math.min(99, this.credits + 1);
+      if (PC.audio) PC.audio.sfx('coin');
+    },
+
+    joinPlayer: function (i) {
+      if (this.players[i] || this.credits <= 0) return false;
+      this.credits--;
+      var p = new PC.Player(i, HERO[i]);
+      p.lives = 3;
+      this.lives[i] = 3;
+      this.scores[i] = 0;
+      var other = this.players[1 - i];
+      p.x = other ? other.x - 24 : W.camX + 70;
+      p.y = other ? M.clamp(other.y + 10, PC.FLOOR_TOP, PC.FLOOR_BOT) : PC.FLOOR_BOT - 16;
+      p.invuln = 90;
+      this.players[i] = p;
+      W.add(p);
+      if (i === 1) PC.input.p2Joined = true;
+      if (PC.audio) PC.audio.sfx('join');
+      return true;
+    },
+
+    startGame: function (firstPlayer) {
+      this.scores = [0, 0];
+      this.lives = [3, 3];
+      this.players = [null, null];
+      this.stageIndex = 0;
+      this.ended = false;
+      PC.input.p2Joined = false;
+      PC.stage.load(0);
+      this.joinPlayer(firstPlayer);
+      if (firstPlayer === 1) PC.input.p2Joined = true;
+      this.setState('ready');
+      if (PC.audio) PC.audio.play('ready');
+    },
+
+    // --------------------------------------------------------------- updating
+    update: function () {
+      PC.input.poll();
+      if (PC.input.coin) this.coin();
+      if (PC.input.mute && PC.audio) PC.audio.toggleMute();
+      if (PC.input.fullscreen) this.toggleFullscreen();
+
+      if (PC.input.pause && (this.state === 'play')) {
+        this.paused = !this.paused;
+        if (PC.audio) PC.audio.setPaused(this.paused);
+      }
+      if (this.paused) { W.time++; return; }
+
+      this.stateT++;
+      var i, p, anyStart = PC.input.p[0].pressed.start, anyStart2 = PC.input.p[1].pressed.start;
+
+      switch (this.state) {
+        case 'title':
+          this.attractX += 0.4;
+          if (anyStart || anyStart2) {
+            if (this.credits <= 0) this.coin();
+            this.startGame(anyStart ? 0 : 1);
+          }
+          break;
+
+        case 'ready':
+          if (this.stateT === 1 && PC.audio) PC.audio.play(PC.stage.def.music);
+          if (this.stateT > 150) this.setState('play');
+          this.tryJoin();
+          break;
+
+        case 'play':
+          this.tryJoin();
+          PC.stage.update();
+          W.update();
+          this.checkPlayers();
+          if (PC.stage.atEnd() && PC.stage.finishT > 40) this.stageClear();
+          break;
+
+        case 'clear':
+          W.update();
+          if (this.stateT > 40 && this.stateT % 3 === 0 && PC.stage.timeLeft > 0) {
+            PC.stage.timeLeft--;
+            var pl = this.players[0] || this.players[1];
+            if (pl) pl.addScore(100);
+            if (PC.audio) PC.audio.sfx('tally');
+          }
+          if (this.stateT > 260) this.nextStage();
+          break;
+
+        case 'over':
+          W.update();
+          if (this.stateT > 90) { this.setState('continue'); this.continueT = 10 * 60; }
+          break;
+
+        case 'continue':
+          W.update();
+          this.continueT--;
+          if ((anyStart || anyStart2) && this.credits > 0) {
+            this.doContinue(anyStart ? 0 : 1);
+          } else if (anyStart || anyStart2) {
+            this.coin();
+          }
+          if (this.continueT <= 0) {
+            this.saveHi();
+            this.setState('title');
+            PC.stage.load(0);
+            if (PC.audio) PC.audio.play('title');
+          }
+          break;
+
+        case 'ending':
+          W.update();
+          if (this.stateT > 900 || anyStart) { this.saveHi(); this.setState('title'); PC.stage.load(0); if (PC.audio) PC.audio.play('title'); }
+          break;
+      }
+
+      if (this.state !== 'play' && this.state !== 'ready') W.time++;
+    },
+
+    tryJoin: function () {
+      for (var i = 0; i < 2; i++) {
+        if (!this.players[i] && PC.input.p[i].pressed.start) {
+          if (this.credits <= 0) this.coin();
+          this.joinPlayer(i);
+        }
+      }
+    },
+
+    /* Death, respawn, and the point at which the machine stops being polite.
+     * A slot only empties when that player is out of lives, so "both slots
+     * empty" is exactly the game-over condition and nothing else needs to
+     * agree with it. */
+    checkPlayers: function () {
+      for (var i = 0; i < 2; i++) {
+        var p = this.players[i];
+        if (!p || !p.dead) continue;
+        if (!p.removed) continue;                 // still falling over
+        if (this.respawnT[i] <= 0) { this.respawnT[i] = 70; continue; }
+        if (--this.respawnT[i] > 0) continue;
+        this.lives[i]--;
+        if (this.lives[i] > 0) {
+          var x = M.clamp(W.camX + PC.W * 0.3, W.camX + 20, W.camX + PC.W - 20);
+          p.reviveAt(x, PC.FLOOR_BOT - 16);
+          W.add(p);
+        } else {
+          this.players[i] = null;
+          if (i === 1) PC.input.p2Joined = false;
+        }
+      }
+      if (!this.players[0] && !this.players[1] && this.state === 'play') {
+        this.setState('over');
+        if (PC.audio) PC.audio.play('gameover');
+      }
+    },
+
+    doContinue: function (i) {
+      this.credits--;
+      this.lives[i] = 3;
+      var p = this.players[i];
+      if (!p) {
+        p = new PC.Player(i, HERO[i]);
+        this.players[i] = p;
+        if (i === 1) PC.input.p2Joined = true;
+      }
+      // Put the street back the way it was and re-run the fight you lost.
+      for (var k = W.actors.length - 1; k >= 0; k--) if (W.actors[k].team === 1) W.actors.splice(k, 1);
+      W.tokenHolders.length = 0;
+      p.reviveAt(W.camX + PC.W * 0.3, PC.FLOOR_BOT - 16);
+      if (W.actors.indexOf(p) < 0) W.add(p);
+      PC.stage.timeLeft = PC.stage.def.time;
+      if (PC.stage.active) PC.stage.startEncounter(PC.stage.active);
+      this.setState('play');
+      if (PC.audio) PC.audio.play(PC.stage.def.music);
+    },
+
+    stageClear: function () {
+      this.setState('clear');
+      if (PC.audio) PC.audio.play('clear');
+    },
+
+    nextStage: function () {
+      this.stageIndex++;
+      if (this.stageIndex >= PC.STAGES.length) {
+        this.ended = true;
+        this.setState('ending');
+        if (PC.audio) PC.audio.play('ending');
+        return;
+      }
+      var keep = [];
+      for (var i = 0; i < 2; i++) {
+        var p = this.players[i];
+        if (p) { p.hp = p.maxHp; keep.push(p); }
+      }
+      PC.stage.load(this.stageIndex);
+      for (var k = 0; k < keep.length; k++) {
+        keep[k].reviveAt(60 + k * 26, PC.FLOOR_BOT - 16 - k * 8);
+        W.add(keep[k]);
+      }
+      this.setState('ready');
+    },
+
+    saveHi: function () {
+      if (this.hiScore > (PC.save.read().hiScore || 0)) PC.save.merge({ hiScore: this.hiScore });
+    },
+
+    toggleFullscreen: function () {
+      var el = document.documentElement;
+      if (!document.fullscreenElement) { if (el.requestFullscreen) el.requestFullscreen(); }
+      else if (document.exitFullscreen) document.exitFullscreen();
+    },
+
+    // --------------------------------------------------------------- drawing
+    render: function () {
+      var ctx = PC.Screen.ctx;
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, PC.W, PC.H);
+
+      if (this.state === 'title') this.renderTitle(ctx);
+      else this.renderWorld(ctx);
+
+      if (FX.flashT > 0) {
+        ctx.save();
+        ctx.globalAlpha = Math.min(0.8, FX.flashT / 6);
+        ctx.fillStyle = FX.flashCol;
+        ctx.fillRect(0, 0, PC.W, PC.H);
+        ctx.restore();
+      }
+      PC.Screen.present();
+    },
+
+    renderWorld: function (ctx) {
+      var sx = Math.round(FX.shakeX), sy = Math.round(FX.shakeY);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, PC.FIELD_Y, PC.W, PC.FIELD_BOT - PC.FIELD_Y);
+      ctx.clip();
+      ctx.translate(sx, sy);
+      PC.stage.draw(ctx);
+
+      // ---- everything in the street, sorted back to front
+      var draws = [], i;
+      for (i = 0; i < W.actors.length; i++) {
+        var a = W.actors[i];
+        if (!a.removed) draws.push({ y: a.y, a: a });
+      }
+      for (i = 0; i < W.items.length; i++) {
+        var it = W.items[i];
+        if (!it.held && !it.dead) draws.push({ y: it.flying ? it.y + 0.5 : it.y, it: it });
+      }
+      draws.sort(function (p, q) { return p.y - q.y; });
+      for (i = 0; i < draws.length; i++) {
+        if (draws[i].a) draws[i].a.draw(ctx, W.camX);
+        else PC.items.draw(ctx, draws[i].it, W.camX);
+      }
+
+      FX.draw(ctx, W.camX);
+      PC.stage.drawArrow(ctx);
+      PC.stage.drawBanner(ctx);
+      ctx.restore();
+
+      Hud.drawTop(ctx, this);
+      Hud.drawBottom(ctx, this);
+      if (PC.stage.bossActive) Hud.drawBoss(ctx);
+
+      this.renderOverlays(ctx);
+    },
+
+    renderOverlays: function (ctx) {
+      var mid = PC.FIELD_Y + 74;
+      var t = this.stateT;
+      switch (this.state) {
+        case 'ready':
+          this.dim(ctx, 0.45);
+          Hud.banner(ctx, [
+            { t: 'STAGE ' + (PC.stage.index + 1), c: '#4ae06a', scale: 2 },
+            { t: PC.stage.def.name, c: '#ffffff', scale: 3 }
+          ], mid - 20);
+          Art.text(ctx, PC.stage.def.intro, PC.W / 2, mid + 34, '#c8d0e8', { align: 'center' });
+          if (t > 110 && (t >> 3) % 2) {
+            Art.text(ctx, 'READY', PC.W / 2, mid + 52, '#ffe070', { align: 'center', scale: 2 });
+          }
+          break;
+        case 'clear':
+          this.dim(ctx, 0.4);
+          Hud.banner(ctx, [{ t: 'STAGE CLEAR', c: '#ffe070', scale: 3 }], mid - 16);
+          if (t > 40) {
+            Art.text(ctx, 'TIME BONUS  ' + PC.pad(PC.stage.timeLeft * 100, 5), PC.W / 2, mid + 24, '#ffffff', { align: 'center' });
+          }
+          break;
+        case 'over':
+          this.dim(ctx, 0.55);
+          Hud.banner(ctx, [{ t: 'GAME OVER', c: '#ff4a4a', scale: 3 }], mid - 10);
+          break;
+        case 'continue':
+          this.dim(ctx, 0.6);
+          var n = Math.max(0, Math.ceil(this.continueT / 60));
+          Hud.banner(ctx, [{ t: 'CONTINUE?', c: '#ffffff', scale: 3 }], mid - 26);
+          Art.text(ctx, String(n), PC.W / 2, mid + 10, n <= 3 ? '#ff4a4a' : '#ffe070', { align: 'center', scale: 4 });
+          if ((t >> 4) % 2) {
+            Art.text(ctx, 'PRESS 1 TO CONTINUE', PC.W / 2, mid + 54, '#4aa8ff', { align: 'center' });
+          }
+          break;
+        case 'ending':
+          this.renderEnding(ctx);
+          break;
+      }
+      if (this.paused) {
+        this.dim(ctx, 0.6);
+        Hud.banner(ctx, [{ t: 'PAUSED', c: '#ffffff', scale: 3 }], mid - 10);
+      }
+    },
+
+    dim: function (ctx, a) {
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#000010';
+      ctx.fillRect(0, PC.FIELD_Y, PC.W, PC.FIELD_BOT - PC.FIELD_Y);
+      ctx.restore();
+    },
+
+    renderEnding: function (ctx) {
+      this.dim(ctx, 0.7);
+      var lines = [
+        'THE TOWER GOES QUIET.',
+        '',
+        'THE GANG IS FINISHED. THE BLOCK IS',
+        'YOURS AGAIN - FOR TONIGHT, ANYWAY.',
+        '',
+        'SOMEWHERE DOWNTOWN A NEON SIGN',
+        'FLICKERS BACK ON.',
+        '',
+        'THANK YOU FOR PLAYING'
+      ];
+      var y = PC.FIELD_Y + 26;
+      for (var i = 0; i < lines.length; i++) {
+        if (this.stateT < 30 + i * 26) break;
+        Art.text(ctx, lines[i], PC.W / 2, y + i * 12, i === lines.length - 1 ? '#ffe070' : '#ffffff', { align: 'center' });
+      }
+      if (this.stateT > 300) {
+        Art.text(ctx, 'FINAL SCORE  ' + PC.pad(Math.max(this.scores[0], this.scores[1]), 6),
+          PC.W / 2, PC.FIELD_BOT - 22, '#4ae06a', { align: 'center' });
+      }
+    },
+
+    // ----------------------------------------------------------------- title
+    renderTitle: function (ctx) {
+      var t = this.stateT;
+      // the city rolls past behind the logo
+      W.camX = this.attractX % Math.max(1, (PC.stage.def.length - PC.W));
+      PC.stage.draw(ctx);
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#04040e';
+      ctx.fillRect(0, PC.FIELD_Y, PC.W, PC.FIELD_BOT - PC.FIELD_Y);
+      ctx.restore();
+      Art.rect(ctx, 0, 0, PC.W, PC.HUD_TOP, '#000000');
+      Art.rect(ctx, 0, PC.FIELD_BOT, PC.W, PC.H - PC.FIELD_BOT, '#000000');
+
+      // a band behind the writing so the brickwork never eats it
+      Art.rect(ctx, 0, PC.FIELD_BOT - 48, PC.W, 48, 'rgba(4,4,14,0.84)');
+      var mid = PC.W / 2, ly = PC.FIELD_Y + 18;
+      // logo: a heavy shadow, a red plate, a white face
+      Art.text(ctx, 'POWER', mid + 2, ly + 3, '#3a0a12', { align: 'center', scale: 5, tracking: 2 });
+      Art.text(ctx, 'POWER', mid, ly, '#e02030', { align: 'center', scale: 5, tracking: 2 });
+      Art.text(ctx, 'POWER', mid, ly - 2, '#ff9a40', { align: 'center', scale: 5, tracking: 2 });
+      Art.text(ctx, 'CITY', mid + 2, ly + 42, '#0a1a3a', { align: 'center', scale: 5, tracking: 2 });
+      Art.text(ctx, 'CITY', mid, ly + 39, '#2f6ef0', { align: 'center', scale: 5, tracking: 2 });
+      Art.text(ctx, 'CITY', mid, ly + 37, '#7fd8f0', { align: 'center', scale: 5, tracking: 2 });
+      Art.text(ctx, 'A NIGHT ON THE TOWN', mid, ly + 78, '#ffffff', { align: 'center', tracking: 2, shadow: '#000000' });
+
+      if ((t >> 4) % 2) {
+        Art.text(ctx, this.credits > 0 ? 'PRESS 1 PLAYER START' : 'INSERT COIN  (PRESS 5)',
+          mid, PC.FIELD_BOT - 40, this.credits > 0 ? '#ffe070' : '#4aa8ff', { align: 'center' });
+      }
+      Art.text(ctx, '1 OR 2 PLAYERS', mid, PC.FIELD_BOT - 26, '#c8d0e8', { align: 'center' });
+      Art.text(ctx, '(C) 1988 POWER CITY WORKS', mid, PC.FIELD_BOT - 12, '#6a7290', { align: 'center' });
+
+      Hud.drawTop(ctx, this);
+      Hud.drawBottom(ctx, this);
+      // the empty half of the marquee earns its keep by teaching the moves
+      var hints = [
+        'PUNCH THREE TIMES FOR A KNOCKDOWN',
+        'PUNCH AND KICK TOGETHER TO SPIN',
+        'GET CLOSE AND PUNCH TO GRAB',
+        'KICK OUT OF A GRAB TO THROW THEM',
+        'DOUBLE-TAP TO RUN, THEN PUNCH',
+        'PICK UP BATS, PIPES AND CRATES',
+        'JUMP, THEN KICK, ON THE WAY DOWN'
+      ];
+      Art.text(ctx, 'HOW TO PLAY', mid, 27, '#ff8a3a', { align: 'center' });
+      Art.text(ctx, hints[Math.floor(t / 170) % hints.length], mid, 40, '#ffffff', { align: 'center' });
+
+      W.time++;
+      FX.update();
+    }
+  };
+
+  PC.boot = function () { G.boot(); };
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+/* POWER CITY - on-screen controls for phones and tablets.
+ * The pad only exists on coarse pointers; on a desktop it never renders.
+ */
+(function (global) {
+  'use strict';
+  var PC = global.PC || (global.PC = {});
+
+  var state = { held: {} };
+  PC.input.touch = state;
+
+  function bind() {
+    var root = document.getElementById('touch');
+    if (!root) return;
+    var btns = root.querySelectorAll('button');
+    var active = {};
+
+    function set(act, on) { state.held[act] = on; }
+
+    function pointFrom(e) {
+      var el = document.elementFromPoint(e.clientX, e.clientY);
+      return el && el.dataset && el.dataset.act ? el.dataset.act : null;
+    }
+
+    function refresh() {
+      var k;
+      for (k in state.held) state.held[k] = false;
+      for (k in active) if (active[k]) state.held[active[k]] = true;
+    }
+
+    root.addEventListener('pointerdown', function (e) {
+      var act = pointFrom(e);
+      if (!act) return;
+      e.preventDefault();
+      active[e.pointerId] = act;
+      refresh();
+      if (PC.audio) PC.audio.resume();
+    });
+    root.addEventListener('pointermove', function (e) {
+      if (!(e.pointerId in active)) return;
+      e.preventDefault();
+      active[e.pointerId] = pointFrom(e);
+      refresh();
+    });
+    function up(e) {
+      if (!(e.pointerId in active)) return;
+      delete active[e.pointerId];
+      refresh();
+    }
+    root.addEventListener('pointerup', up);
+    root.addEventListener('pointercancel', up);
+    root.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+    // Start / coin live on the pad too, so a phone can put a coin in.
+    var start = document.getElementById('touch-start');
+    if (start) {
+      start.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        PC.input._edge.Enter = true;
+        PC.input._down.Enter = true;
+        PC.input._latch.Enter = true;
+        setTimeout(function () { PC.input._down.Enter = false; }, 60);
+      });
+    }
+    void btns;
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>
+window.addEventListener('load', function () {
+      try { PC.boot(); }
+      catch (e) {
+        var l = document.getElementById('loading');
+        if (l) { l.textContent = 'ERROR: ' + e.message; l.style.display = 'block'; }
+        throw e;
+      }
+    });
+</script>

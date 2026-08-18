@@ -12,6 +12,9 @@ subdirectory with its own README:
   make anything happen, only make things impossible. Open `ananke/index.html`.
 - **[roguelius/](roguelius/)** — Roguelius, a terminal roguelike about
   surviving NYU, written in Python.
+- **[power-city/](power-city/)** — POWER CITY, a side-scrolling arcade beat
+  'em up. Four stages, four bosses, two players on one keyboard. Open
+  `power-city/index.html`, or the single-file build in `power-city/dist/`.
 
 ## Repository policy
 
