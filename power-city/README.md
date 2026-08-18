@@ -6,7 +6,10 @@ build step, no dependencies, no assets.
 Open `power-city/index.html` and press **5**, then **1**. There is also a
 single-file build in `dist/power-city.html` if you would rather host or hand
 around one file, and `dist/power-city-artifact.html` — the same game in a
-cabinet, for embedding somewhere that supplies its own page. `python3
+cabinet, for embedding somewhere that supplies its own page. That one also
+draws a working control panel: an embedded frame is not guaranteed the
+keyboard, so one click starts the game and every button on the panel plays
+it with a mouse. `python3
 tools/build-single.py` regenerates all three from `tools/shell-artifact.html`
 and the script order in `index.html`.
 

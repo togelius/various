@@ -181,24 +181,62 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-    gap: 10px 26px;
-    padding: 9px 18px;
+    gap: 8px 22px;
+    padding: 7px 16px;
     border-radius: 4px;
     background: linear-gradient(var(--panel), #170e21);
     border: 1px solid var(--rail);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   }
 
-  .cluster { display: flex; align-items: center; gap: 9px; }
+  .cluster { display: flex; align-items: center; gap: 11px; }
 
   .cluster .label {
     font-family: var(--display);
     font-weight: 600;
-    font-size: 12px;
-    letter-spacing: 0.2em;
+    font-size: 12.5px;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: var(--ink-dim);
+    line-height: 1.35;
+    color: var(--ink);
   }
+  .cluster .label em { font-style: normal; color: var(--ink-dim); letter-spacing: 0.1em; }
+
+  /* Every control here is a real button: an embedded frame does not always
+     get the keyboard, and the panel is the way in when it does not. */
+  .panel button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .panel button:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
+
+  .dpad {
+    position: relative;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 auto;
+  }
+  .dpad button {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: #2b1b3a;
+    color: var(--ink);
+    font-size: 8px;
+    line-height: 1;
+    border-radius: 2px;
+  }
+  .dpad button:active { background: var(--neon); color: #200410; }
+  .dpad .u { left: 15px; top: 0; }
+  .dpad .d { left: 15px; bottom: 0; }
+  .dpad .l { left: 0; top: 15px; }
+  .dpad .r { right: 0; top: 15px; }
 
   /* button caps, in the same colours as the on-screen pad */
   .cap {
@@ -211,47 +249,43 @@
     border-radius: 50%;
     border: 1px solid rgba(255, 255, 255, 0.16);
     box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.35), inset 0 2px 0 rgba(255, 255, 255, 0.14);
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 600;
-    line-height: 1.05;
+    line-height: 1.1;
     color: #fff;
   }
   .cap b { font-size: 13px; letter-spacing: 0.02em; }
   .cap.p { background: var(--punch); }
   .cap.k { background: var(--kick); }
   .cap.j { background: var(--jump); color: #2a1a00; }
-
-  .stick {
-    width: 40px; height: 40px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 50% 32%, #4a3358, #1a1024 70%);
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 15px; color: var(--ink);
-  }
+  .cap:active { box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.5); transform: translateY(1px); }
 
   .slot {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 7px 12px;
+    gap: 9px;
+    padding: 6px 12px;
     border-radius: 3px;
     background: #100a18;
     border: 1px solid var(--rail);
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 12.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    line-height: 1.35;
+    color: var(--amber);
+    text-align: left;
   }
+  .slot em { font-style: normal; color: var(--ink-dim); letter-spacing: 0.1em; }
+  .slot.go { color: #7fe0a0; }
+  .slot:active { background: #1c1228; }
   .slot .mouth {
-    width: 6px; height: 24px;
+    width: 6px; height: 22px;
     border-radius: 2px;
     background: #05030a;
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-  }
-  .slot span {
-    font-family: var(--display);
-    font-weight: 600;
-    font-size: 12px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--amber);
+    flex: 0 0 auto;
   }
 
   /* ------------------------------------------------------------- footnote */
@@ -268,6 +302,16 @@
   }
   .keys i { font-style: normal; white-space: nowrap; }
   .keys b { color: var(--ink); font-weight: 600; }
+
+  .nokeys {
+    width: min(94vw, var(--cab));
+    margin: 0;
+    text-align: center;
+    font-size: 11px;
+    color: var(--amber);
+    line-height: 1.6;
+  }
+  .nokeys[hidden] { display: none; }
 
   .colophon {
     width: min(94vw, var(--cab));
@@ -286,7 +330,7 @@
   @media (max-height: 720px) {
     .arcade { gap: 8px; padding: 9px; }
   }
-  @media (max-height: 600px) {
+  @media (max-height: 780px) {
     .keys { display: none; }
   }
   @media (max-width: 560px) {
@@ -297,7 +341,7 @@
   #touch { display: none; }
 
   @media (hover: none) and (pointer: coarse) {
-    .keys, .colophon { display: none; }
+    .keys, .colophon, .nokeys { display: none; }
     .panel { display: none; }
     .arcade { height: auto; min-height: 100vh; justify-content: flex-start; }
     #stage { flex: 0 0 auto; max-height: 46vh; }
@@ -347,26 +391,42 @@
       <canvas id="screen" width="384" height="288"></canvas>
       <div id="veil">
         <span class="big">Click to play</span>
-        <span class="sub">Then <b>5</b> for a coin, <b>1</b> to start. Sound is on.</span>
+        <span class="sub">One click drops a coin and starts the game. Sound is on.</span>
       </div>
     </div>
   </div>
 
   <div class="panel">
     <div class="cluster">
-      <span class="stick" aria-hidden="true">&#10021;</span>
-      <span class="label">Move &mdash; arrows / WASD</span>
+      <div class="dpad">
+        <button type="button" data-act="up" class="u" aria-label="Up">&#9650;</button>
+        <button type="button" data-act="left" class="l" aria-label="Left">&#9664;</button>
+        <button type="button" data-act="right" class="r" aria-label="Right">&#9654;</button>
+        <button type="button" data-act="down" class="d" aria-label="Down">&#9660;</button>
+      </div>
+      <span class="label">Move<br><em>arrows / WASD</em></span>
     </div>
+
     <div class="cluster">
-      <span class="cap p"><b>Z</b>PUNCH</span>
-      <span class="cap k"><b>X</b>KICK</span>
-      <span class="cap j"><b>C</b>JUMP</span>
+      <button type="button" class="cap p" data-act="punch"><b>Z</b>PUNCH</button>
+      <button type="button" class="cap k" data-act="kick"><b>X</b>KICK</button>
+      <button type="button" class="cap j" data-act="jump"><b>C</b>JUMP</button>
     </div>
-    <div class="slot">
-      <span class="mouth" aria-hidden="true"></span>
-      <span>Press 5 &mdash; Insert coin</span>
+
+    <div class="cluster">
+      <button type="button" class="slot" data-key="Digit5">
+        <span class="mouth" aria-hidden="true"></span>
+        <span>Coin<br><em>press 5</em></span>
+      </button>
+      <button type="button" class="slot go" data-key="Enter">
+        <span>Start<br><em>press 1</em></span>
+      </button>
     </div>
   </div>
+
+  <p class="nokeys" id="nokeys" hidden>
+    These buttons work with the mouse. For the keyboard, click the screen once.
+  </p>
 
   <p class="keys">
     <i><b>Punch &times;3</b> knocks down</i>
@@ -411,6 +471,8 @@
   'use strict';
   var cabinet = document.getElementById('cabinet');
   var veil = document.getElementById('veil');
+  var nokeys = document.getElementById('nokeys');
+  var sawKey = false;
 
   function boot() {
     try { PC.boot(); }
@@ -429,23 +491,46 @@
     PC.art.text(x, 'POWER CITY', 2, 4, '#2a0a16', { scale: scale });
     PC.art.text(x, 'POWER', 2, 2, '#ff4f9a', { scale: scale });
     PC.art.text(x, 'CITY', 2 + gap, 2, '#7fd8f0', { scale: scale });
+
+    /* An embedded page is not guaranteed the keyboard, so say so rather than
+       leave someone pressing 5 at a machine that cannot hear them. The panel
+       below works with a mouse either way. */
+    setTimeout(function () {
+      if (!sawKey && nokeys) nokeys.hidden = false;
+    }, 5000);
   }
 
-  /* Keyboard events only reach an embedded page once it has focus, so the
-     veil doubles as the thing that takes it - and as the gesture the browser
-     wants before it will play a sound. */
-  function grab() {
+  /* One click: take the keyboard, satisfy the browser's gesture requirement
+     for sound, and put a coin in. Nothing about starting should depend on a
+     keystroke arriving. */
+  function play() {
     cabinet.focus({ preventScroll: true });
-    if (PC.audio) PC.audio.resume();
+    if (window.PC && PC.audio) PC.audio.resume();
     veil.classList.add('gone');
+    if (window.PC && PC.game) PC.game.startPressed(0);
   }
-  cabinet.addEventListener('pointerdown', grab);
+
+  veil.addEventListener('pointerdown', function (e) { e.preventDefault(); play(); });
+  cabinet.addEventListener('pointerdown', function () {
+    cabinet.focus({ preventScroll: true });
+    if (window.PC && PC.audio) PC.audio.resume();
+    veil.classList.add('gone');
+  });
+  // Clicking the screen also works as START on the title and continue screens.
+  cabinet.addEventListener('click', function () {
+    if (window.PC && PC.game && (PC.game.state === 'title' || PC.game.state === 'continue')) {
+      PC.game.startPressed(0);
+    }
+  });
   document.addEventListener('pointerdown', function () {
-    if (!veil.classList.contains('gone')) grab();
-    else if (PC.audio) PC.audio.resume();
+    if (window.PC && PC.audio) PC.audio.resume();
   });
   cabinet.addEventListener('focus', function () { veil.classList.add('gone'); });
-  window.addEventListener('keydown', function () { veil.classList.add('gone'); });
+  window.addEventListener('keydown', function () {
+    sawKey = true;
+    if (nokeys) nokeys.hidden = true;
+    veil.classList.add('gone');
+  });
 
   if (document.readyState === 'complete') boot();
   else window.addEventListener('load', boot);

@@ -1,5 +1,13 @@
-/* POWER CITY - on-screen controls for phones and tablets.
- * The pad only exists on coarse pointers; on a desktop it never renders.
+/* POWER CITY - pointer controls.
+ *
+ * Any element in the page carrying data-act ("punch", "left", ...) becomes a
+ * button you can press with a finger or a mouse: the phone pad, and equally
+ * the control panel an embedding page might draw around the cabinet. That
+ * matters more than it sounds - an embedded frame does not always get the
+ * keyboard, and a game you cannot reach is not a game.
+ *
+ * data-key elements ("Digit5", "Enter") synthesise a key edge instead, for
+ * the coin slot and the start button.
  */
 (function (global) {
   'use strict';
@@ -9,16 +17,13 @@
   PC.input.touch = state;
 
   function bind() {
-    var root = document.getElementById('touch');
-    if (!root) return;
-    var btns = root.querySelectorAll('button');
-    var active = {};
+    var active = {};          // pointerId -> action
 
-    function set(act, on) { state.held[act] = on; }
-
-    function pointFrom(e) {
+    function actAt(e) {
       var el = document.elementFromPoint(e.clientX, e.clientY);
-      return el && el.dataset && el.dataset.act ? el.dataset.act : null;
+      if (!el || !el.closest) return null;
+      var hit = el.closest('[data-act]');
+      return hit ? hit.getAttribute('data-act') : null;
     }
 
     function refresh() {
@@ -27,42 +32,53 @@
       for (k in active) if (active[k]) state.held[active[k]] = true;
     }
 
-    root.addEventListener('pointerdown', function (e) {
-      var act = pointFrom(e);
+    document.addEventListener('pointerdown', function (e) {
+      if (PC.audio) PC.audio.resume();
+      var keyEl = e.target && e.target.closest && e.target.closest('[data-key]');
+      if (keyEl) {
+        e.preventDefault();
+        tapKey(keyEl.getAttribute('data-key'));
+        return;
+      }
+      var act = actAt(e);
       if (!act) return;
       e.preventDefault();
       active[e.pointerId] = act;
       refresh();
-      if (PC.audio) PC.audio.resume();
     });
-    root.addEventListener('pointermove', function (e) {
+
+    // Sliding off one button and onto another keeps working, which is how
+    // anyone actually plays with a thumb.
+    document.addEventListener('pointermove', function (e) {
       if (!(e.pointerId in active)) return;
       e.preventDefault();
-      active[e.pointerId] = pointFrom(e);
+      active[e.pointerId] = actAt(e);
       refresh();
     });
-    function up(e) {
+
+    function release(e) {
       if (!(e.pointerId in active)) return;
       delete active[e.pointerId];
       refresh();
     }
-    root.addEventListener('pointerup', up);
-    root.addEventListener('pointercancel', up);
-    root.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    document.addEventListener('pointerup', release);
+    document.addEventListener('pointercancel', release);
+    document.addEventListener('lostpointercapture', release);
+    global.addEventListener('blur', function () { active = {}; refresh(); });
 
-    // Start / coin live on the pad too, so a phone can put a coin in.
-    var start = document.getElementById('touch-start');
-    if (start) {
-      start.addEventListener('pointerdown', function (e) {
-        e.preventDefault();
-        PC.input._edge.Enter = true;
-        PC.input._down.Enter = true;
-        PC.input._latch.Enter = true;
-        setTimeout(function () { PC.input._down.Enter = false; }, 60);
-      });
-    }
-    void btns;
+    var touchRoot = document.getElementById('touch');
+    if (touchRoot) touchRoot.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   }
+
+  /* Hold a synthetic key down long enough for one poll to see the edge. */
+  function tapKey(code) {
+    if (!code) return;
+    PC.input._edge[code] = true;
+    PC.input._down[code] = true;
+    PC.input._latch[code] = true;
+    global.setTimeout(function () { PC.input._down[code] = false; }, 90);
+  }
+  PC.tapKey = tapKey;
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
   else bind();

@@ -94,6 +94,28 @@
       if (PC.audio) PC.audio.sfx('coin');
     },
 
+    /* Everything that can start, continue or join a game goes through here,
+     * so a mouse, a touch, a gamepad and the 1 key all take the same route
+     * and none of them can drift out of step with the state machine. */
+    startPressed: function (i) {
+      i = i || 0;
+      if (this.state === 'title') {
+        if (this.credits <= 0) this.coin();
+        this.startGame(i);
+        return true;
+      }
+      if (this.state === 'continue') {
+        if (this.credits <= 0) this.coin();
+        this.doContinue(i);
+        return true;
+      }
+      if ((this.state === 'play' || this.state === 'ready') && !this.players[i]) {
+        if (this.credits <= 0) this.coin();
+        return this.joinPlayer(i);
+      }
+      return false;
+    },
+
     joinPlayer: function (i) {
       if (this.players[i] || this.credits <= 0) return false;
       this.credits--;
@@ -146,10 +168,7 @@
       switch (this.state) {
         case 'title':
           this.attractX += 0.4;
-          if (anyStart || anyStart2) {
-            if (this.credits <= 0) this.coin();
-            this.startGame(anyStart ? 0 : 1);
-          }
+          if (anyStart || anyStart2) this.startPressed(anyStart ? 0 : 1);
           break;
 
         case 'ready':
@@ -185,11 +204,7 @@
         case 'continue':
           W.update();
           this.continueT--;
-          if ((anyStart || anyStart2) && this.credits > 0) {
-            this.doContinue(anyStart ? 0 : 1);
-          } else if (anyStart || anyStart2) {
-            this.coin();
-          }
+          if (anyStart || anyStart2) this.startPressed(anyStart ? 0 : 1);
           if (this.continueT <= 0) {
             this.saveHi();
             this.setState('title');
@@ -209,10 +224,7 @@
 
     tryJoin: function () {
       for (var i = 0; i < 2; i++) {
-        if (!this.players[i] && PC.input.p[i].pressed.start) {
-          if (this.credits <= 0) this.coin();
-          this.joinPlayer(i);
-        }
+        if (!this.players[i] && PC.input.p[i].pressed.start) this.startPressed(i);
       }
     },
 
