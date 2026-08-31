@@ -34,6 +34,11 @@ a contradiction, and a contradiction is a loss. So:
 | arrow keys | scrub the hours; space plays them |
 | Z / R / H | undo · clear · hint |
 | Enter | let it happen |
+| **show me** | lays out the intended answer so you can scrub it and see why it works — then press **clear** and do it yourself |
+
+The first board, THE STANDING STONE, walks you through the whole idea in six
+steps, each one waiting for you to actually do the thing before it says the
+next. Everything after it is the same move in harder company.
 
 A cell drawn at full strength with a hard ring means that figure is there in
 **every** remaining future. That is what necessity looks like.
@@ -65,7 +70,9 @@ Two files do the work.
   counterexamples are extracted from it; the closing sample is drawn uniformly
   from it. Nothing is approximated or simulated.
 - `js/levels.js` — the boards. Each carries the solution it was designed
-  around, which is a regression test, not a cheat sheet.
+    around — which is the regression test, the `show me` button, and not a
+  cheat sheet. The opening board also carries its tutorial beats here, each
+  with the condition that has to become true before the next one is said.
 
 `node test/check.js` replays every level: the stored answer must make every
 objective necessary inside budget without paradox, doing nothing must *not*

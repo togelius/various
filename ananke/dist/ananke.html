@@ -95,16 +95,16 @@ button.ghost:hover{border-color:var(--dim); color:var(--pale)}
 #levellist .st.done{color:var(--green)}
 
 /* ── game ────────────────────────────────────────────────────────────── */
-#game{display:none; grid-template-rows:auto 1fr auto; height:100%; padding:14px 18px 10px}
+#game{display:none; grid-template-rows:auto auto 1fr auto; height:100%; padding:14px 18px 10px}
 #game.on{display:grid}
-#ghead{display:grid; grid-template-columns:auto 1fr; gap:6px 16px; align-items:center}
+#ghead{grid-row:1; display:grid; grid-template-columns:auto 1fr; gap:6px 16px; align-items:center}
 #ghead button{grid-row:span 2}
 #ghead h2{font-family:var(--serif); font-weight:400; letter-spacing:.24em;
   font-size:17px; margin:0; color:#efe4cd}
 #ghead p{margin:0; font-family:var(--serif); font-style:italic;
   color:var(--dim); font-size:15px}
 
-.stage{display:grid; grid-template-columns:1fr 316px; gap:20px; min-height:0; padding:12px 0}
+.stage{grid-row:3; display:grid; grid-template-columns:1fr 316px; gap:20px; min-height:0; padding:12px 0}
 .boardwrap{position:relative; display:grid; place-items:center; min-height:0}
 #board{max-width:100%; max-height:100%; touch-action:none; cursor:crosshair}
 #brief{
@@ -142,13 +142,32 @@ button.ghost:hover{border-color:var(--dim); color:var(--pale)}
 .modes{display:flex; gap:8px; margin-bottom:8px}
 button.mode{flex:1; background:transparent; border:1px solid var(--line);
   color:var(--dim); padding:9px 0; font-size:11px; letter-spacing:.2em}
-button.mode.on{border-color:var(--gold); color:var(--gold)}
-.btnrow{display:flex; gap:8px; margin:12px 0}
+button.mode.on{border-color:var(--red); color:#e8969a;
+  background:rgba(201,79,82,.07)}
+.btnrow{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0}
+.btnrow button{flex:1 1 auto}
 .btnrow.center{justify-content:center; margin-top:28px}
 .tools button.big{width:100%; padding:14px 0}
 
-.timeline{border-top:1px solid var(--line); padding-top:8px}
+.timeline{grid-row:4; border-top:1px solid var(--line); padding-top:8px}
 #time{width:100%; height:86px; display:block; touch-action:none; cursor:ew-resize}
+
+/* ── the teaching band ───────────────────────────────────────────────── */
+#teach{
+  grid-row:2; display:grid; grid-template-columns:auto 1fr; gap:0 14px;
+  align-items:start; align-self:start;
+  border:1px solid #4a3a1c; border-left:3px solid var(--gold);
+  background:linear-gradient(90deg,rgba(224,162,74,.09),rgba(224,162,74,.02));
+  padding:11px 16px; margin-top:12px;
+}
+#teachn{font-size:10px; letter-spacing:.2em; color:var(--gold); padding-top:4px;
+  font-variant-numeric:tabular-nums; white-space:nowrap}
+#teachtext{margin:0; font-family:var(--serif); font-size:16px; line-height:1.6;
+  color:#ded3bd; max-width:78ch}
+#teachtext b{color:var(--gold); font-weight:500}
+#teachtext i{color:#b9c0da}
+#teach.done{border-left-color:var(--green)}
+#teach.done #teachn{color:var(--green)}
 
 /* ── epilogue ────────────────────────────────────────────────────────── */
 #epilogue{display:none; place-items:center; padding:6vh 5vw; background:rgba(8,10,18,.97)}
@@ -175,10 +194,15 @@ button.mode.on{border-color:var(--gold); color:var(--gold)}
   /* Dissolve the two-column stage so the hours can sit directly under the
      board, where scrubbing them means something, and the readouts below. */
   .stage{display:contents}
+  /* Flow order takes over from the pinned rows at this size. */
+  #ghead,#teach,.stage,.boardwrap,#panel,.timeline{grid-row:auto}
   #ghead{order:0}
-  .boardwrap{order:1; min-height:40vh}
-  .timeline{order:2}
-  #panel{order:3; max-height:none; overflow:visible; padding-bottom:24px}
+  #teach{order:1; margin-top:0}
+  .boardwrap{order:2}
+  .timeline{order:3}
+  #panel{order:4}
+  .boardwrap{min-height:40vh}
+  #panel{max-height:none; overflow:visible; padding-bottom:24px}
   #brief{display:none}
 }
 </style>
@@ -207,7 +231,8 @@ button.mode.on{border-color:var(--gold); color:var(--gold)}
       no possible history is a contradiction, and a contradiction is a loss.</p>
     </div>
     <button id="begin" class="big">BEGIN</button>
-    <p class="foot">mouse or touch · arrow keys scrub the hours · H for a hint</p>
+    <p class="foot">the first board walks you through it, one step at a time</p>
+    <p class="foot" style="margin-top:.6em">mouse or touch · arrow keys scrub the hours · H for a hint</p>
   </div>
 </section>
 
@@ -225,6 +250,11 @@ button.mode.on{border-color:var(--gold); color:var(--gold)}
     <h2 id="lvname">—</h2>
     <p id="lvepi">—</p>
   </header>
+
+  <div id="teach" class="hidden">
+    <span id="teachn"></span>
+    <p id="teachtext"></p>
+  </div>
 
   <div class="stage">
     <div class="boardwrap">
@@ -270,6 +300,7 @@ button.mode.on{border-color:var(--gold); color:var(--gold)}
           <button id="undo" class="ghost">undo</button>
           <button id="clear" class="ghost">clear</button>
           <button id="hint" class="ghost">hint</button>
+          <button id="showme" class="ghost">show me</button>
         </div>
         <button id="commit" class="big">LET IT HAPPEN</button>
       </div>
@@ -825,7 +856,45 @@ button.mode.on{border-color:var(--gold); color:var(--gold)}
       shrines: [[5, 2]],
       objectives: [{ type: 'reach', agent: 0, at: [5, 2], by: 6,
                      text: 'the Pilgrim stands at the shrine by the sixth hour' }],
-      solution: [seal(1, 2, 1), seal(2, 2, 2), seal(3, 2, 3), seal(4, 2, 4)]
+      solution: [seal(1, 2, 1), seal(2, 2, 2), seal(3, 2, 3), seal(4, 2, 4)],
+
+      // The opening board talks you through it. Each beat waits for the thing
+      // it just described to actually happen before it says the next one.
+      teach: [
+        { say: 'That gold disc is not a woman standing in a corridor. It is ' +
+               '<b>every place she could be</b> at the hour you are looking ' +
+               'at — and at hour zero there is only one. Scrub forward: press ' +
+               'the <b>→</b> key a few times, or drag along the hours below.',
+          done: function (g) { return g.viewT >= 3; } },
+
+        { say: 'She has spread. By now she could be anywhere in the corridor: ' +
+               'she might be at the shrine, or she might have stood still the ' +
+               'whole time. The panel calls that <b>MERELY POSSIBLE</b>, and ' +
+               'merely possible loses. Go back to <b>hour 0</b> — press ' +
+               '<b>←</b>, or click the 0 below.',
+          done: function (g) { return g.viewT === 0; } },
+
+        { say: 'You cannot push her. You can only take the ground away. But a ' +
+               'prohibition starts at the hour you are looking at, and ' +
+               'forbidding her square at hour 0 would mean she was never ' +
+               'anywhere at all. So step forward one hour first: <b>hour 1</b>.',
+          done: function (g) { return g.viewT === 1; } },
+
+        { say: 'Now click the square she is standing on. You are saying: ' +
+               '<i>from the first hour onward, nothing may be here.</i>',
+          done: function (g) { return g.seals.some(function (s) { return s.a >= 1; }); } },
+
+        { say: 'She moved — and you never pushed her. You made standing still ' +
+               'impossible, and moving was all that was left. Now do that ' +
+               'three more times, each one hour later than the last. Faster: ' +
+               'hit <b>SWEEP</b> and drag from her square along the corridor.',
+          done: function (g) { return g.res.won && !g.res.paradox; } },
+
+        { say: '<b>NECESSARY.</b> Not likely, not nearly — there is no longer ' +
+               'a single surviving future in which she fails to arrive. ' +
+               'Press <b>LET IT HAPPEN</b> and watch one of them play out.',
+          done: null }
+      ]
     },
 
     {
@@ -1115,7 +1184,7 @@ button.mode.on{border-color:var(--gold); color:var(--gold)}
     res: null, hist: [],
     stroke: null, playing: false, anim: null,
     opened: [], roundsLeft: 0,
-    erosion: null, erosionKey: null,
+    erosion: null, erosionKey: null, teachStep: 0, revealed: false,
     done: load()
   };
 
@@ -1158,6 +1227,7 @@ button.mode.on{border-color:var(--gold); color:var(--gold)}
     S.seals = []; S.hist = []; S.viewT = 0; S.anim = null;
     S.opened = []; S.roundsLeft = S.level.ananke || 0;
     S.erosion = null; S.erosionKey = null;
+    S.teachStep = 0; S.revealed = false;
     S.mode = 'wall'; setMode('wall');
     // The untouched world's future count is the yardstick for the "futures
     // remaining" meter: from here it only ever goes down.
@@ -1241,8 +1311,31 @@ button.mode.on{border-color:var(--gold); color:var(--gold)}
     return any ? Math.exp(H) : 0;
   }
 
+  function teachTick() {
+    var lv = S.level, band = $('teach');
+    if (!lv.teach) { band.classList.add('hidden'); return; }
+    band.classList.remove('hidden');
+    // Advance past every beat whose condition is now met — but only one per
+    // pass, so each beat gets read before the next one replaces it.
+    var step = lv.teach[S.teachStep];
+    if (step && step.done && step.done({
+          viewT: S.viewT, seals: S.seals, res: S.res, world: S.world })) {
+      S.teachStep++;
+      step = lv.teach[S.teachStep];
+    }
+    var last = S.teachStep >= lv.teach.length;
+    band.classList.toggle('done', last);
+    $('teachn').textContent = last ? '✓ DONE'
+      : (S.teachStep + 1) + ' / ' + lv.teach.length;
+    $('teachtext').innerHTML = last
+      ? 'That is the whole game. Everything after this is the same move in ' +
+        'harder company.'
+      : step.say;
+  }
+
   function refresh() {
     var res = S.res, lv = S.level;
+    teachTick();
 
     var ul = $('objectives');
     ul.innerHTML = '';
@@ -1434,6 +1527,8 @@ button.mode.on{border-color:var(--gold); color:var(--gold)}
       bx.strokeStyle = 'rgba(201,79,82,.85)'; bx.lineWidth = 1.5;
       bx.strokeRect(X + .75, Y + .75, CS - 1.5, CS - 1.5);
     } else {
+      bx.fillStyle = 'rgba(201,79,82,.10)';
+      bx.fillRect(X, Y, CS, CS);
       bx.strokeStyle = 'rgba(201,79,82,.5)'; bx.lineWidth = 1;
       bx.setLineDash([3, 3]);
       bx.strokeRect(X + 3.5, Y + 3.5, CS - 7, CS - 7);
@@ -1591,6 +1686,18 @@ button.mode.on{border-color:var(--gold); color:var(--gold)}
     S.seals = S.hist.pop(); recompute();
   };
   $('clear').onclick = function () { pushHist(); S.seals = []; recompute(); };
+  $('showme').onclick = function () {
+    if (!S.level.solution) return;
+    pushHist();
+    S.revealed = true;
+    S.seals = S.level.solution.map(function (c) {
+      return { p: S.world.idxAt[c.y * S.world.w + c.x], a: Math.min(c.a, S.world.T) };
+    }).filter(function (c) { return c.p >= 0; });
+    recompute();
+    $('brief').innerHTML = '<span style="color:#e0a24a">THE ANSWER — </span>' +
+      'this is the shape it wants. Scrub the hours to see why it works, then ' +
+      'press <b>clear</b> and lay it yourself.';
+  };
   $('hint').onclick = function () {
     $('brief').innerHTML = '<span style="color:#e0a24a">HINT — </span>' + S.level.hint;
   };
@@ -1606,6 +1713,7 @@ button.mode.on{border-color:var(--gold); color:var(--gold)}
     else if (e.key === 'z') $('undo').onclick();
     else if (e.key === 'r') $('clear').onclick();
     else if (e.key === 'h') $('hint').onclick();
+    else if (e.key === '?') $('showme').onclick();
     else if (e.key === 'w') setMode('wall');
     else if (e.key === 's') setMode('sweep');
     else if (e.key === 'Enter') $('commit').onclick();

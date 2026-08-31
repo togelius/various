@@ -20,7 +20,7 @@
     res: null, hist: [],
     stroke: null, playing: false, anim: null,
     opened: [], roundsLeft: 0,
-    erosion: null, erosionKey: null,
+    erosion: null, erosionKey: null, teachStep: 0, revealed: false,
     done: load()
   };
 
@@ -63,6 +63,7 @@
     S.seals = []; S.hist = []; S.viewT = 0; S.anim = null;
     S.opened = []; S.roundsLeft = S.level.ananke || 0;
     S.erosion = null; S.erosionKey = null;
+    S.teachStep = 0; S.revealed = false;
     S.mode = 'wall'; setMode('wall');
     // The untouched world's future count is the yardstick for the "futures
     // remaining" meter: from here it only ever goes down.
@@ -146,8 +147,31 @@
     return any ? Math.exp(H) : 0;
   }
 
+  function teachTick() {
+    var lv = S.level, band = $('teach');
+    if (!lv.teach) { band.classList.add('hidden'); return; }
+    band.classList.remove('hidden');
+    // Advance past every beat whose condition is now met — but only one per
+    // pass, so each beat gets read before the next one replaces it.
+    var step = lv.teach[S.teachStep];
+    if (step && step.done && step.done({
+          viewT: S.viewT, seals: S.seals, res: S.res, world: S.world })) {
+      S.teachStep++;
+      step = lv.teach[S.teachStep];
+    }
+    var last = S.teachStep >= lv.teach.length;
+    band.classList.toggle('done', last);
+    $('teachn').textContent = last ? '✓ DONE'
+      : (S.teachStep + 1) + ' / ' + lv.teach.length;
+    $('teachtext').innerHTML = last
+      ? 'That is the whole game. Everything after this is the same move in ' +
+        'harder company.'
+      : step.say;
+  }
+
   function refresh() {
     var res = S.res, lv = S.level;
+    teachTick();
 
     var ul = $('objectives');
     ul.innerHTML = '';
@@ -339,6 +363,8 @@
       bx.strokeStyle = 'rgba(201,79,82,.85)'; bx.lineWidth = 1.5;
       bx.strokeRect(X + .75, Y + .75, CS - 1.5, CS - 1.5);
     } else {
+      bx.fillStyle = 'rgba(201,79,82,.10)';
+      bx.fillRect(X, Y, CS, CS);
       bx.strokeStyle = 'rgba(201,79,82,.5)'; bx.lineWidth = 1;
       bx.setLineDash([3, 3]);
       bx.strokeRect(X + 3.5, Y + 3.5, CS - 7, CS - 7);
@@ -496,6 +522,18 @@
     S.seals = S.hist.pop(); recompute();
   };
   $('clear').onclick = function () { pushHist(); S.seals = []; recompute(); };
+  $('showme').onclick = function () {
+    if (!S.level.solution) return;
+    pushHist();
+    S.revealed = true;
+    S.seals = S.level.solution.map(function (c) {
+      return { p: S.world.idxAt[c.y * S.world.w + c.x], a: Math.min(c.a, S.world.T) };
+    }).filter(function (c) { return c.p >= 0; });
+    recompute();
+    $('brief').innerHTML = '<span style="color:#e0a24a">THE ANSWER — </span>' +
+      'this is the shape it wants. Scrub the hours to see why it works, then ' +
+      'press <b>clear</b> and lay it yourself.';
+  };
   $('hint').onclick = function () {
     $('brief').innerHTML = '<span style="color:#e0a24a">HINT — </span>' + S.level.hint;
   };
@@ -511,6 +549,7 @@
     else if (e.key === 'z') $('undo').onclick();
     else if (e.key === 'r') $('clear').onclick();
     else if (e.key === 'h') $('hint').onclick();
+    else if (e.key === '?') $('showme').onclick();
     else if (e.key === 'w') setMode('wall');
     else if (e.key === 's') setMode('sweep');
     else if (e.key === 'Enter') $('commit').onclick();

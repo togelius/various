@@ -32,7 +32,8 @@
       no possible history is a contradiction, and a contradiction is a loss.</p>
     </div>
     <button id="begin" class="big">BEGIN</button>
-    <p class="foot">mouse or touch · arrow keys scrub the hours · H for a hint</p>
+    <p class="foot">the first board walks you through it, one step at a time</p>
+    <p class="foot" style="margin-top:.6em">mouse or touch · arrow keys scrub the hours · H for a hint</p>
   </div>
 </section>
 
@@ -50,6 +51,11 @@
     <h2 id="lvname">—</h2>
     <p id="lvepi">—</p>
   </header>
+
+  <div id="teach" class="hidden">
+    <span id="teachn"></span>
+    <p id="teachtext"></p>
+  </div>
 
   <div class="stage">
     <div class="boardwrap">
@@ -95,6 +101,7 @@
           <button id="undo" class="ghost">undo</button>
           <button id="clear" class="ghost">clear</button>
           <button id="hint" class="ghost">hint</button>
+          <button id="showme" class="ghost">show me</button>
         </div>
         <button id="commit" class="big">LET IT HAPPEN</button>
       </div>

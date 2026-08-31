@@ -170,6 +170,33 @@ again. So the level is deleted rather than shipped as a duplicate. The design
 constraint is real and worth knowing: the sweeps and THE VOW are where time
 carries weight, and that is not an accident.
 
+## Iteration 6 — playtest: "this is so hard for a mere mortal"
+
+First outside read of the game, and it was the right criticism. Everything the
+player needed to know was stated on the title screen and then never again, and
+the two idioms the whole game runs on — *sweep to compel, wall early to
+contain* — were never taught, only assumed.
+
+Three changes:
+
+- **The first board now teaches, in six beats**, each one gated on the thing it
+  just described actually happening: scrub forward and watch her spread, come
+  back to hour 0, step to hour 1 (with the reason — forbidding her square at
+  hour 0 would say she was never anywhere at all), take the ground from under
+  her, watch her move without being pushed, reach necessity. The beats live in
+  the level data next to its solution.
+- **`show me`** on every board lays out the intended answer. The stored
+  solutions were already there as regression tests; exposing them costs
+  nothing and turns each board into a worked example you can scrub through.
+- The same read asked: *should the wall really be the same colour as the
+  sweep?* On the board — yes, and the reason is mechanical: **a wall is a
+  sweep placed at hour 0.** Identical objects, so a second hue would assert a
+  difference that does not exist. What does deserve separating is *shut now*
+  versus *shuts later*, which is what the numbered, red-washed cells say. But
+  the question found a real collision elsewhere: the armed WALL/SWEEP buttons
+  were **gold**, the Pilgrim's own colour. The tools place prohibitions, so
+  they now wear prohibition's red, and gold means the Pilgrim and nothing else.
+
 ## Where it ended up
 
 Nine boards. Four ideas that each break a different assumption: that a game

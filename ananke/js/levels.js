@@ -43,7 +43,45 @@
       shrines: [[5, 2]],
       objectives: [{ type: 'reach', agent: 0, at: [5, 2], by: 6,
                      text: 'the Pilgrim stands at the shrine by the sixth hour' }],
-      solution: [seal(1, 2, 1), seal(2, 2, 2), seal(3, 2, 3), seal(4, 2, 4)]
+      solution: [seal(1, 2, 1), seal(2, 2, 2), seal(3, 2, 3), seal(4, 2, 4)],
+
+      // The opening board talks you through it. Each beat waits for the thing
+      // it just described to actually happen before it says the next one.
+      teach: [
+        { say: 'That gold disc is not a woman standing in a corridor. It is ' +
+               '<b>every place she could be</b> at the hour you are looking ' +
+               'at — and at hour zero there is only one. Scrub forward: press ' +
+               'the <b>→</b> key a few times, or drag along the hours below.',
+          done: function (g) { return g.viewT >= 3; } },
+
+        { say: 'She has spread. By now she could be anywhere in the corridor: ' +
+               'she might be at the shrine, or she might have stood still the ' +
+               'whole time. The panel calls that <b>MERELY POSSIBLE</b>, and ' +
+               'merely possible loses. Go back to <b>hour 0</b> — press ' +
+               '<b>←</b>, or click the 0 below.',
+          done: function (g) { return g.viewT === 0; } },
+
+        { say: 'You cannot push her. You can only take the ground away. But a ' +
+               'prohibition starts at the hour you are looking at, and ' +
+               'forbidding her square at hour 0 would mean she was never ' +
+               'anywhere at all. So step forward one hour first: <b>hour 1</b>.',
+          done: function (g) { return g.viewT === 1; } },
+
+        { say: 'Now click the square she is standing on. You are saying: ' +
+               '<i>from the first hour onward, nothing may be here.</i>',
+          done: function (g) { return g.seals.some(function (s) { return s.a >= 1; }); } },
+
+        { say: 'She moved — and you never pushed her. You made standing still ' +
+               'impossible, and moving was all that was left. Now do that ' +
+               'three more times, each one hour later than the last. Faster: ' +
+               'hit <b>SWEEP</b> and drag from her square along the corridor.',
+          done: function (g) { return g.res.won && !g.res.paradox; } },
+
+        { say: '<b>NECESSARY.</b> Not likely, not nearly — there is no longer ' +
+               'a single surviving future in which she fails to arrive. ' +
+               'Press <b>LET IT HAPPEN</b> and watch one of them play out.',
+          done: null }
+      ]
     },
 
     {

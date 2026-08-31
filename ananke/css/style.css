@@ -82,16 +82,16 @@ button.ghost:hover{border-color:var(--dim); color:var(--pale)}
 #levellist .st.done{color:var(--green)}
 
 /* ── game ────────────────────────────────────────────────────────────── */
-#game{display:none; grid-template-rows:auto 1fr auto; height:100%; padding:14px 18px 10px}
+#game{display:none; grid-template-rows:auto auto 1fr auto; height:100%; padding:14px 18px 10px}
 #game.on{display:grid}
-#ghead{display:grid; grid-template-columns:auto 1fr; gap:6px 16px; align-items:center}
+#ghead{grid-row:1; display:grid; grid-template-columns:auto 1fr; gap:6px 16px; align-items:center}
 #ghead button{grid-row:span 2}
 #ghead h2{font-family:var(--serif); font-weight:400; letter-spacing:.24em;
   font-size:17px; margin:0; color:#efe4cd}
 #ghead p{margin:0; font-family:var(--serif); font-style:italic;
   color:var(--dim); font-size:15px}
 
-.stage{display:grid; grid-template-columns:1fr 316px; gap:20px; min-height:0; padding:12px 0}
+.stage{grid-row:3; display:grid; grid-template-columns:1fr 316px; gap:20px; min-height:0; padding:12px 0}
 .boardwrap{position:relative; display:grid; place-items:center; min-height:0}
 #board{max-width:100%; max-height:100%; touch-action:none; cursor:crosshair}
 #brief{
@@ -129,13 +129,32 @@ button.ghost:hover{border-color:var(--dim); color:var(--pale)}
 .modes{display:flex; gap:8px; margin-bottom:8px}
 button.mode{flex:1; background:transparent; border:1px solid var(--line);
   color:var(--dim); padding:9px 0; font-size:11px; letter-spacing:.2em}
-button.mode.on{border-color:var(--gold); color:var(--gold)}
-.btnrow{display:flex; gap:8px; margin:12px 0}
+button.mode.on{border-color:var(--red); color:#e8969a;
+  background:rgba(201,79,82,.07)}
+.btnrow{display:flex; flex-wrap:wrap; gap:8px; margin:12px 0}
+.btnrow button{flex:1 1 auto}
 .btnrow.center{justify-content:center; margin-top:28px}
 .tools button.big{width:100%; padding:14px 0}
 
-.timeline{border-top:1px solid var(--line); padding-top:8px}
+.timeline{grid-row:4; border-top:1px solid var(--line); padding-top:8px}
 #time{width:100%; height:86px; display:block; touch-action:none; cursor:ew-resize}
+
+/* ── the teaching band ───────────────────────────────────────────────── */
+#teach{
+  grid-row:2; display:grid; grid-template-columns:auto 1fr; gap:0 14px;
+  align-items:start; align-self:start;
+  border:1px solid #4a3a1c; border-left:3px solid var(--gold);
+  background:linear-gradient(90deg,rgba(224,162,74,.09),rgba(224,162,74,.02));
+  padding:11px 16px; margin-top:12px;
+}
+#teachn{font-size:10px; letter-spacing:.2em; color:var(--gold); padding-top:4px;
+  font-variant-numeric:tabular-nums; white-space:nowrap}
+#teachtext{margin:0; font-family:var(--serif); font-size:16px; line-height:1.6;
+  color:#ded3bd; max-width:78ch}
+#teachtext b{color:var(--gold); font-weight:500}
+#teachtext i{color:#b9c0da}
+#teach.done{border-left-color:var(--green)}
+#teach.done #teachn{color:var(--green)}
 
 /* ── epilogue ────────────────────────────────────────────────────────── */
 #epilogue{display:none; place-items:center; padding:6vh 5vw; background:rgba(8,10,18,.97)}
@@ -162,9 +181,14 @@ button.mode.on{border-color:var(--gold); color:var(--gold)}
   /* Dissolve the two-column stage so the hours can sit directly under the
      board, where scrubbing them means something, and the readouts below. */
   .stage{display:contents}
+  /* Flow order takes over from the pinned rows at this size. */
+  #ghead,#teach,.stage,.boardwrap,#panel,.timeline{grid-row:auto}
   #ghead{order:0}
-  .boardwrap{order:1; min-height:40vh}
-  .timeline{order:2}
-  #panel{order:3; max-height:none; overflow:visible; padding-bottom:24px}
+  #teach{order:1; margin-top:0}
+  .boardwrap{order:2}
+  .timeline{order:3}
+  #panel{order:4}
+  .boardwrap{min-height:40vh}
+  #panel{max-height:none; overflow:visible; padding-bottom:24px}
   #brief{display:none}
 }
