@@ -15,6 +15,10 @@ subdirectory with its own README:
 - **[power-city/](power-city/)** — POWER CITY, a side-scrolling arcade beat
   'em up. Four stages, four bosses, two players on one keyboard. Open
   `power-city/index.html`, or the single-file build in `power-city/dist/`.
+- **[grift-city/](grift-city/)** — GRIFT CITY, a 3D open-world crime game in
+  WebGL2: a generated island city, traffic, pedestrians, five-star police,
+  nine story missions and side jobs. Open `grift-city/index.html`, or the
+  single-file build in `grift-city/dist/`.
 
 ## Repository policy
 
