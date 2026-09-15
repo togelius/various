@@ -1,0 +1,5 @@
+html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; font-family: "Helvetica Neue", Arial, sans-serif; }
+#stage { position: fixed; inset: 0; }
+#gl, #hud { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#hud { pointer-events: none; }
+body.locked { cursor: none; }
