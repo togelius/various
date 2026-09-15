@@ -66,6 +66,14 @@ const W = (() => {
     end() { const all = F.tris.length + F.adds.length + F.lines.length; if (all / 7 > 16384) { F.adds.length = 0; F.lines.length = 0; } F.data.set(F.tris, 0); F.data.set(F.adds, F.tris.length); F.data.set(F.lines, F.tris.length + F.adds.length); F.triCount = F.tris.length / 7; F.addCount = F.adds.length / 7; F.lineCount = F.lines.length / 7; F.count = F.triCount + F.addCount + F.lineCount; },
   };
 
+  // ---- Decals: skid marks and blood pools, a ring buffer of flat quads that fade out
+  const decals = []; let decalHead = 0; const MAX_DECALS = 600;
+  function decal(kind, x0, z0, x1, z1, w, col, a) { const d = { kind, x0, z0, x1, z1, w, col, a, t: 0 }; if (decals.length < MAX_DECALS) decals.push(d); else { decals[decalHead] = d; decalHead = (decalHead + 1) % MAX_DECALS; } }
+  function drawDecals(camX, camZ, dt) {
+    for (const d of decals) { d.t += dt; const life = d.kind === 'blood' ? 90 : 45; if (d.t > life) { d.a = 0; continue; } if (M.dist2(d.x0, d.z0, camX, camZ) > 160 * 160) continue; const a = d.a * Math.min(1, (life - d.t) / 10);
+      const dx = d.x1 - d.x0, dz = d.z1 - d.z0; const l = Math.hypot(dx, dz) || 1; const rx = -dz / l * d.w * 0.5, rz = dx / l * d.w * 0.5; const y0 = CITY.groundY(d.x0, d.z0) + 0.015, y1 = CITY.groundY(d.x1, d.z1) + 0.015;
+      fx.quad(F.tris, [d.x0 + rx, y0, d.z0 + rz], [d.x0 - rx, y0, d.z0 - rz], [d.x1 - rx, y1, d.z1 - rz], [d.x1 + rx, y1, d.z1 + rz], d.col, a); }
+  }
   // ---- Collision helpers
   const bounds = CITY.outerBound();
   // Push a circle out of building lots and solid props; returns [x, z, hitNormalX, hitNormalZ] or null for no hit.
@@ -150,9 +158,9 @@ const W = (() => {
       for (let k = 0; k < 3; k++) { // 0 red (top), 1 yellow, 2 green
         const on = (st === 'red' && k === 0) || (st === 'yellow' && k === 1) || (st === 'green' && k === 2);
         const col = k === 0 ? [1, 0.15, 0.1] : k === 1 ? [1, 0.75, 0.1] : [0.2, 1, 0.3];
-        const y = 4.75 - k * 0.32; M.trs(tmpM, p.x + Math.sin(a) * 2.8 - Math.cos(a) * 0.0, y, p.z + Math.cos(a) * 2.8, a + Math.PI, 1, 1, 1);
+        const y = 4.75 - k * 0.32; M.trs(tmpM, p.x + Math.sin(a) * 2.8, y, p.z + Math.cos(a) * 2.8, a + Math.PI, 1.3, 1.3, 1.3);
         // head faces the approaching traffic, i.e. -arm direction
-        tlHeads.instData.set(tmpM, n * 20); tlHeads.instData.set([col[0], col[1], col[2], on ? 1.2 : 0], n * 20 + 16); if (!on) tlHeads.instData.set([col[0] * 0.25, col[1] * 0.25, col[2] * 0.25, 0], n * 20 + 16); n++;
+        tlHeads.instData.set(tmpM, n * 20); tlHeads.instData.set([col[0], col[1], col[2], on ? 2.0 : 0], n * 20 + 16); if (!on) tlHeads.instData.set([col[0] * 0.25, col[1] * 0.25, col[2] * 0.25, 0], n * 20 + 16); n++;
       }
     }
     GL.updateInstances(tlHeads, n);
@@ -172,7 +180,7 @@ const W = (() => {
   // ---- Lights for the renderer
   function collectLights(camX, camZ) {
     const out = []; const night = RENDER.env.nightEmis;
-    if (night > 0.05) { for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 < 110 * 110) { const a = p.a || 0; out.push({ x: p.x + Math.sin(a) * 1.6, y: 5.6, z: p.z + Math.cos(a) * 1.6, r: 16, col: [1.1 * night, 0.85 * night, 0.55 * night] }); } } }
+    if (night > 0.05) { for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 < 110 * 110) { const a = p.a || 0; out.push({ x: p.x + Math.sin(a) * 1.6, y: 5.6, z: p.z + Math.cos(a) * 1.6, r: 20, col: [1.3 * night, 1.0 * night, 0.65 * night] }); } } }
     for (const d of dyn) out.push(d);
     return out;
   }
@@ -185,5 +193,5 @@ const W = (() => {
   function frameBegin() { dyn.length = 0; state.shots.length = 0; state.noises.length = 0; }
   function updateExplosions(dt) { let w = 0; for (const e of explosions) { e.t += dt; if (e.t < 0.6) { dyn.push({ x: e.x, y: e.y + 1, z: e.z, r: 30 * e.big, col: [3 * (1 - e.t), 1.5 * (1 - e.t), 0.3] }); explosions[w++] = e; } } explosions.length = w; }
 
-  return { cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds };
+  return { decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds };
 })();

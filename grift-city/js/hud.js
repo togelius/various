@@ -105,7 +105,7 @@ const HUD = (() => {
     // crosshair
     if (P.aim || (P.car && (INPUT.mouse.buttons & 1))) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.arc(W_ / 2, H_ / 2, 8, 0, 7); g.stroke(); g.fillStyle = '#fff'; g.fillRect(W_ / 2 - 1, H_ / 2 - 1, 2, 2); }
     // help prompts
-    if (!P.car && P.alive && W.state.elapsed < 90 && !MISSIONS.S.current) text('WASD move · mouse look · SHIFT sprint · F enter car · LMB attack · SCROLL weapons · TAB map · ESC menu', W_ / 2, H_ - 22, 12, '#bbb', 'center', 'normal');
+    if (state === 'playing' && !P.car && P.alive && W.state.elapsed < 90 && !MISSIONS.S.current) text('WASD move · mouse look · SHIFT sprint · F enter car · LMB attack · SCROLL weapons · TAB map · ESC menu', W_ / 2, H_ - 22, 12, '#bbb', 'center', 'normal');
     // shop
     const shop = MISSIONS.shop; if (shop) { const x = W_ / 2 - 170, y = H_ / 2 - 150; g.fillStyle = 'rgba(0,0,0,0.85)'; g.fillRect(x, y, 340, 290); text('IRONMONGER', x + 170, y + 26, 22, '#e0453b', 'center'); MISSIONS.GUNS.forEach(([k, price, ammo], i) => { const name = k === 'armor' ? 'BODY ARMOR' : WEAPONS[k].name + (ammo ? ' (' + ammo + ')' : ''); text((i + 1) + '.  ' + name, x + 20, y + 62 + i * 28, 15, P.money >= price ? '#fff' : '#777'); text('$' + price, x + 320, y + 62 + i * 28, 15, '#3df06a', 'right'); }); text('ESC to leave', x + 170, y + 268, 12, '#aaa', 'center', 'normal'); }
     if (big) { big.t -= dt; const a = Math.min(1, big.t / 0.5, (big.max - big.t) * 3 + 0.05); g.globalAlpha = M.clamp(a, 0, 1); outlined(big.text, W_ / 2, H_ * 0.4, big.text.length > 3 ? 54 : 110, big.color); g.globalAlpha = 1; if (big.t <= 0) big = null; }
@@ -127,7 +127,7 @@ const HUD = (() => {
     const P = PLAYER.P; g.fillStyle = 'rgba(0,0,0,0.7)'; g.fillRect(0, 0, W_, H_); outlined('PAUSED', W_ / 2, 80, 48, '#f5c542');
     const st = P.stats; const rows = [['Missions passed', st.missions + ' / ' + MISSIONS.LIST.length], ['Cash earned', '$' + st.cash], ['Hidden packages', st.packages + ' / 20'], ['Cars stolen', st.carsStolen], ['People killed', st.kills], ['Distance travelled', (st.distance / 1000).toFixed(1) + ' km'], ['Insane stunts', st.stunts], ['Times wasted / busted', st.wasted + ' / ' + st.busted], ['Time of day', W.clockString()]];
     rows.forEach(([k, v], i) => { text(k, W_ / 2 - 20, 150 + i * 28, 17, '#bbb', 'right', 'normal'); text(String(v), W_ / 2 + 20, 150 + i * 28, 17, '#fff', 'left'); });
-    text('ESC  resume  ·  M  mute (' + (AUDIO.muted ? 'muted' : 'on') + ')  ·  K  shadows (' + (GAME.quality.shadows ? 'on' : 'off') + ')  ·  N  new game', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
+    text('ESC or click  resume  ·  M  mute (' + (AUDIO.muted ? 'muted' : 'on') + ')  ·  K  shadows (' + (GAME.quality.shadows ? 'on' : 'off') + ')  ·  N  new game', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
     text('WASD move · mouse look · LMB attack · RMB aim · SHIFT sprint · SPACE jump/handbrake · F car · T side job · R radio · L siren · H horn', W_ / 2, H_ - 34, 12, '#888', 'center', 'normal');
   }
   function drawBigMap(P) {
@@ -135,7 +135,7 @@ const HUD = (() => {
     g.save(); g.translate(ox, oy); g.scale(scale, scale); g.translate(-mapCanvas._b0, -mapCanvas._b0); g.drawImage(mapCanvas, 0, 0, 1024, 1024, mapCanvas._b0, mapCanvas._b0, 1024 / mapCanvas._s, 1024 / mapCanvas._s);
     drawMapIcons(scale * 0.6, null); const bp = MISSIONS.blipPos(); if (bp) { g.fillStyle = bp.col; g.beginPath(); g.arc(bp.x, bp.z, 8 / scale, 0, 7); g.fill(); }
     for (const p of W.pickups) if (!p.taken && p.kind === 'package' && false) { g.fillStyle = '#ffb060'; g.beginPath(); g.arc(p.x, p.z, 4 / scale, 0, 7); g.fill(); }
-    g.fillStyle = '#fff'; g.beginPath(); g.arc(P.x, P.z, 7 / scale, 0, 7); g.fill(); g.restore();
+    g.save(); g.translate(P.x, P.z); g.rotate(-(P.car ? P.car.angle : P.angle) + Math.PI); g.fillStyle = '#fff'; g.strokeStyle = '#000'; g.lineWidth = 2 / scale; g.beginPath(); g.moveTo(0, -12 / scale); g.lineTo(8 / scale, 9 / scale); g.lineTo(0, 4 / scale); g.lineTo(-8 / scale, 9 / scale); g.closePath(); g.fill(); g.stroke(); g.restore(); g.restore();
     const legend = [['#ff70d0', 'Safehouse'], ['#f5a623', 'Voss Motors'], ['#f5c542', "Pay 'n' Spray"], ['#e0453b', 'Ironmonger'], ['#ffffff', 'Hospital'], ['#5aa0ff', 'Police'], ['#3df06a', 'Bank'], ['#a0a0ff', 'Crane Holdings'], ['#c0a060', 'Pier 9']];
     legend.forEach(([c, n], i) => { g.fillStyle = c; g.beginPath(); g.arc(24, 30 + i * 22, 5, 0, 7); g.fill(); text(n, 36, 30 + i * 22, 13, '#ddd', 'left', 'normal'); });
     text('TAB to close', W_ / 2, H_ - 16, 13, '#aaa', 'center', 'normal');

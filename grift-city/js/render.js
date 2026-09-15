@@ -34,7 +34,7 @@ const RENDER = (() => {
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in vec4 vShadow; in float vEmis;
     uniform sampler2DArray uTex; uniform sampler2DShadow uShadow;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
-    uniform float uFogDensity; uniform float uNightEmis; uniform float uShadowOn; uniform float uTexOn;
+    uniform float uFogDensity; uniform float uNightEmis; uniform float uShadowOn; uniform float uTexOn; uniform float uSpec;
     uniform vec4 uLights[${MAX_LIGHTS}]; uniform vec3 uLightCols[${MAX_LIGHTS}]; uniform int uNumLights;
     out vec4 o;
     float shadowAt() {
@@ -54,6 +54,7 @@ const RENDER = (() => {
       float sh = (uShadowOn > 0.5 && ndl > 0.0) ? shadowAt() : 1.0;
       vec3 hemi = mix(uGroundCol, uSkyCol, n.y * 0.5 + 0.5);
       vec3 col = albedo * (hemi + uSunCol * ndl * sh);
+      if (uSpec > 0.0) { vec3 v = normalize(uCamPos - vWorld); vec3 hv = normalize(uSunDir + v); float sp = pow(max(dot(n, hv), 0.0), 48.0); col += uSunCol * sp * uSpec * sh; col += hemi * uSpec * 0.6 * pow(1.0 - max(dot(n, v), 0.0), 3.0); }
       for (int i = 0; i < ${MAX_LIGHTS}; i++) {
         if (i >= uNumLights) break;
         vec3 L = uLights[i].xyz - vWorld; float d = length(L); float att = clamp(1.0 - d / uLights[i].w, 0.0, 1.0); att *= att;
@@ -75,6 +76,9 @@ const RENDER = (() => {
     in vec2 vNdc; uniform mat4 uInvVP; uniform vec3 uCamPos; uniform vec3 uSunDir; uniform vec3 uZenith; uniform vec3 uHorizon; uniform vec3 uSunCol; uniform float uStars; uniform float uSunDisc; uniform float uTime;
     out vec4 o;
     float hash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+    float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash2(i), hash2(i + vec2(1, 0)), f.x), mix(hash2(i + vec2(0, 1)), hash2(i + vec2(1, 1)), f.x), f.y); }
+    float fbm(vec2 p) { float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * vnoise(p); p *= 2.1; a *= 0.5; } return v; }
     void main() {
       vec4 a = uInvVP * vec4(vNdc, 1.0, 1.0); vec3 dir = normalize(a.xyz / a.w - uCamPos);
       float h = clamp(dir.y, 0.0, 1.0);
@@ -86,6 +90,9 @@ const RENDER = (() => {
       // moon at night: opposite the sun
       float md = max(dot(dir, -uSunDir * vec3(1.0, -1.0, 1.0)), 0.0);
       col += vec3(0.7, 0.75, 0.85) * pow(md, 900.0) * uStars * 1.5;
+      // clouds: a noise sheet at a fixed height, fading toward the horizon
+      if (dir.y > 0.02) { vec2 cp = (uCamPos.xz + dir.xz / dir.y * 900.0) * 0.0009 + vec2(uTime * 0.004, 0.0); float c = fbm(cp); float cov = smoothstep(0.52, 0.72, c) * smoothstep(0.02, 0.2, dir.y);
+        vec3 cloudCol = mix(uHorizon * 0.9, vec3(1.0), 0.6) * (0.55 + 0.45 * uSunDisc) * (uStars > 0.5 ? 0.25 : 1.0); col = mix(col, cloudCol, cov * 0.85); }
       // low haze band near horizon at night
       col = mix(col, uHorizon, (1.0 - h) * 0.15);
       o = vec4(pow(col, vec3(1.0 / 1.25)), 1.0);
@@ -136,8 +143,8 @@ const RENDER = (() => {
     const mix3 = (a, b, k) => [M.lerp(a[0], b[0], k), M.lerp(a[1], b[1], k), M.lerp(a[2], b[2], k)];
     const sunDay = mix3([1.0, 0.96, 0.88], [1.0, 0.55, 0.25], dusk); const sunNight = [0.10, 0.12, 0.2];
     env.sunCol = mix3(sunNight, sunDay.map(v => v * 1.15), day);
-    env.skyCol = mix3([0.06, 0.08, 0.14], mix3([0.42, 0.52, 0.68], [0.5, 0.35, 0.3], dusk), day);
-    env.groundCol = mix3([0.04, 0.045, 0.06], mix3([0.28, 0.26, 0.24], [0.3, 0.2, 0.15], dusk), day);
+    env.skyCol = mix3([0.11, 0.13, 0.21], mix3([0.42, 0.52, 0.68], [0.5, 0.35, 0.3], dusk), day);
+    env.groundCol = mix3([0.06, 0.065, 0.085], mix3([0.28, 0.26, 0.24], [0.3, 0.2, 0.15], dusk), day);
     env.zenith = mix3([0.02, 0.03, 0.08], mix3([0.2, 0.42, 0.85], [0.25, 0.25, 0.5], dusk), day);
     env.horizon = mix3([0.08, 0.09, 0.16], mix3([0.72, 0.8, 0.9], [0.95, 0.5, 0.3], dusk), day);
     env.fogCol = mix3([0.06, 0.07, 0.12], mix3([0.7, 0.78, 0.88], [0.85, 0.5, 0.35], dusk), day);
@@ -175,7 +182,7 @@ const RENDER = (() => {
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadow.tex); gl.uniform1i(P.u.uShadow, 1);
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
       gl.uniform3fv(P.u.uFogCol, env.fogCol); gl.uniform3f(P.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform1f(P.u.uFogDensity, env.fogDensity);
-      gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1);
+      gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0);
       gl.uniform4fv(P.u.uLights, lights.pos); gl.uniform3fv(P.u.uLightCols, lights.col); gl.uniform1i(P.u.uNumLights, lights.n);
     }
     gl.uniform2f(P.u.uUVOff, 0, 0);
@@ -187,12 +194,12 @@ const RENDER = (() => {
     gl.uniformMatrix4fv(P.u.uBones, false, identityBones); gl.uniform1fv(P.u.uBoneEmis, zeroEmis);
     gl.uniformMatrix4fv(P.u.uModel, false, identityBones.subarray(0, 16));
     for (const m of scene.statics) { if (m.uvOff) gl.uniform2fv(P.u.uUVOff, m.uvOff); GL.draw(m); stats.draws++; if (m.uvOff) gl.uniform2f(P.u.uUVOff, 0, 0); }
-    let lastBones = null;
+    let lastBones = null, lastSpec = 0;
     for (const e of scene.entities) {
       if (forShadow && e.noShadow) continue;
       gl.uniformMatrix4fv(P.u.uModel, false, e.model);
       if (e.bones) { gl.uniformMatrix4fv(P.u.uBones, false, e.bones); lastBones = e.bones; } else if (lastBones) { gl.uniformMatrix4fv(P.u.uBones, false, identityBones); lastBones = null; }
-      if (!forShadow) gl.uniform1fv(P.u.uBoneEmis, e.emis || zeroEmis);
+      if (!forShadow) { gl.uniform1fv(P.u.uBoneEmis, e.emis || zeroEmis); if ((e.spec || 0) !== lastSpec) { lastSpec = e.spec || 0; gl.uniform1f(P.u.uSpec, lastSpec); } }
       GL.draw(e.mesh); stats.draws++;
     }
     bindCommon(PI, forShadow);

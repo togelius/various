@@ -64,12 +64,15 @@ const PEDS = (() => {
     update(dt) {
       if (this.removed) return; this.stateT += dt; if (this.shoutT > 0) this.shoutT -= dt; if (this.hitT > 0) this.hitT -= dt; if (this.attackCooldown > 0) this.attackCooldown -= dt;
       if (this.inCar) { this.x = this.inCar.x; this.z = this.inCar.z; this.y = this.inCar.y; return; }
-      if (this.state === 'dead') { this.deadT += dt; this.lying = Math.min(1, this.lying + dt * 3.5); this.moveBody(dt, true); return; }
+      if (this.state === 'dead') { this.deadT += dt; this.lying = Math.min(1, this.lying + dt * 3.5); this.moveBody(dt, true); if (!this.pooled && this.deadT > 1.2 && !this.airborne) { this.pooled = true; const a = this.angle; W.decal('blood', this.x - Math.sin(a) * 0.3, this.z - Math.cos(a) * 0.3, this.x + Math.sin(a) * 1.0, this.z + Math.cos(a) * 1.0, 1.1, [0.35, 0.01, 0.01], 0.75); } return; }
       if (this.knockT > 0) { this.knockT -= dt; this.lying = Math.min(1, this.lying + dt * 4); this.moveBody(dt, true); if (this.knockT <= 0) { this.state = this.gotoTarget && this.gotoResume ? 'goto' : (this.fear > 0 ? 'flee' : 'walk'); this.lying = 0; } return; }
       if (this.lying > 0) this.lying = Math.max(0, this.lying - dt * 3);
       // hear gunfire
       for (const n of W.state.noises) { if (M.dist2(n.x, n.z, this.x, this.z) < n.r * n.r) { if (this.isCop) { this.alerted = 8; } else this.scare(n.x, n.z); } }
-      if (this.state === 'goto') { const [gx, gz] = this.gotoTarget; this.moveToward(gx, gz, this.gotoSpeed || 6, dt); if (this.speed > 0 && M.dist(this.x, this.z, gx, gz) < 1.5) { this.speed = 0; if (this.onArrive) { const f = this.onArrive; this.onArrive = null; f(this); } } }
+      if (this.state === 'goto') { let [gx, gz] = this.gotoTarget; // steer around buildings with a probe
+        const dx = gx - this.x, dz = gz - this.z, dl = Math.hypot(dx, dz) || 1; const probe = W.pushOut(this.x + dx / dl * 2.2, this.z + dz / dl * 2.2, 0.5, { noProps: true });
+        if (probe.hit && dl > 2.5) { if (this.sideStep === undefined) this.sideStep = W.rng() < 0.5 ? 1 : -1; gx = this.x + (dx / dl * 0.3 - dz / dl * this.sideStep) * 4; gz = this.z + (dz / dl * 0.3 + dx / dl * this.sideStep) * 4; } else if (!probe.hit) this.sideStep = undefined;
+        this.moveToward(gx, gz, this.gotoSpeed || 6, dt); if (this.speed > 0 && M.dist(this.x, this.z, gx, gz) < 1.5) { this.speed = 0; if (this.onArrive) { const f = this.onArrive; this.onArrive = null; f(this); } } }
       else if (this.isCop || this.isSwat) this.aiCop(dt); else if (this.isGang || this.hostile) this.aiHostile(dt); else if (this.role === 'crew') this.aiCrew(dt); else this.aiCivilian(dt);
       this.moveBody(dt, false);
     }
@@ -158,6 +161,7 @@ const PEDS = (() => {
       const g = CITY.groundY(this.x, this.z);
       if (this.airborne) { if (this.y <= g) { this.y = g; this.airborne = false; this.vy = 0; if (this.state === 'dead') { this.vx *= 0.3; this.vz *= 0.3; } } } else this.y = g;
       const res = W.pushOut(this.x, this.z, 0.4); this.x = res.x; this.z = res.z;
+      if (!ragdoll) for (const c of W.cars) { if (c.removed || M.dist2(c.x, c.z, this.x, this.z) > 49) continue; for (const [cx, cz, r] of c.circles()) { const dx = this.x - cx, dz = this.z - cz; const rr = r + 0.35; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); this.x = cx + dx / d * rr; this.z = cz + dz / d * rr; } } }
       if (!ragdoll) { this.vx = 0; this.vz = 0; this.phase += dt * (this.speed > 3 ? 11 : 7) * Math.min(1, this.speed / 1.2); }
     }
     // ---- Rig

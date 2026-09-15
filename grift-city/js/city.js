@@ -255,15 +255,15 @@ const CITY = (() => {
     }
     if (stunt) {
       // A pair of ramps facing each other across the lot, and a couple facing the open (north) exit.
-      const r = { x0: x + 20, z0: z + 30, x1: x + 30, z1: z + 40, h: 3.5, dir: 'n' }; ramps.push(r);
-      b.wedge(r.x0, CURB, r.z0, 10, 3.5, 10, [0.85, 0.5, 0.2], T.metal);
-      const r2 = { x0: x + 36, z0: z + 20, x1: x + 46, z1: z + 30, h: 3.5, dir: 's' }; ramps.push(r2);
-      // 's' ramp: slope rises toward +z; draw mirrored wedge via poly
-      b.poly([[r2.x0, CURB, r2.z0], [r2.x0, CURB + 3.5, r2.z1], [r2.x1, CURB + 3.5, r2.z1], [r2.x1, CURB, r2.z0]], [0.85, 0.5, 0.2], T.metal, [[0, 0], [0, 10], [10, 10], [10, 0]]);
-      b.poly([[r2.x1, CURB, r2.z1], [r2.x1, CURB + 3.5, r2.z1], [r2.x0, CURB + 3.5, r2.z1], [r2.x0, CURB, r2.z1]], [0.85, 0.5, 0.2], T.metal);
-      b.poly([[r2.x0, CURB, r2.z0], [r2.x0, CURB + 3.5, r2.z1], [r2.x0, CURB, r2.z1]], [0.85, 0.5, 0.2], T.metal);
-      b.poly([[r2.x1, CURB, r2.z1], [r2.x1, CURB + 3.5, r2.z1], [r2.x1, CURB, r2.z0]], [0.85, 0.5, 0.2], T.metal);
-      stunts.push({ x: x + 25, z: z + 35 }, { x: x + 41, z: z + 25 });
+      // Two ramps at the open (north) end of the lot, rising toward the street: turn around at the back
+      // wall, floor it across the lot, and fly over the road.
+      const RH = 4.2, RL = 13;
+      for (const rx of [x + 14, x + 40]) {
+        const r = { x0: rx, z0: z + 2, x1: rx + 10, z1: z + 2 + RL, h: RH, dir: 'n' }; ramps.push(r);
+        b.wedge(r.x0, CURB, r.z0, 10, RH, RL, [0.85, 0.5, 0.2], T.metal);
+        for (let k = 0; k < 5; k++) b.box(r.x0, CURB + 0.02, r.z1 + 2 + k * 4, 10, 0.005, 1.2, [0.9, 0.8, 0.1], 0, { faces: 4 });
+        stunts.push({ x: rx + 5, z: z + 8 });
+      }
     }
     addPlace('parking', { x: x + BLOCK / 2, z: z + BLOCK / 2, label: 'car park' });
   }

@@ -26,6 +26,7 @@ const GAME = (() => {
     // pre-warm a few frames of traffic and peds around the player
     for (let i = 0; i < 40; i++) { VEH.spawnTraffic(PLAYER.x, PLAYER.z, PLAYER.P.camYaw + Math.PI, 26); PEDS.populate(PLAYER.x, PLAYER.z, PLAYER.P.camYaw + Math.PI, 40); }
     state = 'title';
+    INPUT.onLockLost = () => { if (state === 'playing' && !MISSIONS.shop) { state = 'paused'; INPUT.releaseLock(); } };
     document.addEventListener('mousedown', () => { if (state === 'title') startPlay(); }, { once: false });
     window.addEventListener('keydown', e => { if (state === 'title' && e.code === 'KeyN') newGame(); });
     window.__ready = true;
@@ -44,6 +45,7 @@ const GAME = (() => {
     if (state === 'paused' && INPUT.hit('KeyK')) quality.shadows = !quality.shadows;
     if (state === 'paused' && INPUT.hit('KeyN')) newGame();
     if (state === 'playing' && !INPUT.locked && INPUT.mouse.clicked) INPUT.requestLock();
+    if (state === 'paused' && INPUT.mouse.clicked) { state = 'playing'; INPUT.requestLock(); }
     if (state === 'playing' && !window.__manual) { step(dt); }
     fpsAcc += dt; fpsN++; if (fpsAcc > 1) { window.__fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
     renderWorld(dt, false); HUD.draw(dt, state); INPUT.endFrame();
@@ -51,7 +53,21 @@ const GAME = (() => {
   let fpsAcc = 0, fpsN = 0;
   // Deterministic stepping for tests: window.__sim(seconds) advances the simulation without rendering.
   window.__sim = (seconds, keys = []) => { window.__manual = true; for (const k of keys) window.dispatchEvent(new KeyboardEvent('keydown', { code: k })); for (let t = 0; t < seconds; t += 1 / 60) { step(1 / 60); INPUT.endFrame(); } for (const k of keys) window.dispatchEvent(new KeyboardEvent('keyup', { code: k })); };
+  // Cheats, typed anywhere during play. Old habits.
+  const CHEATS = {
+    BIGBANK: () => { PLAYER.addMoney(25000, 'cheat'); },
+    KEVLAR: () => { PLAYER.P.health = 100; PLAYER.P.armor = 100; HUD.notify('Health and armor restored'); },
+    ARSENAL: () => { for (const k of ['bat', 'pistol', 'uzi', 'shotgun', 'rifle', 'rocket', 'grenade']) PLAYER.giveWeapon(k, 200); HUD.notify('Every weapon in the cabinet'); },
+    COOLOFF: () => { POLICE.clear(); HUD.notify('The cops forgot about you'); },
+    HOTHEAD: () => { POLICE.setStars(Math.min(5, PLAYER.wanted + 2)); },
+    NIGHTFALL: () => { W.state.time = 22; HUD.notify('Night falls'); },
+    SUNRISE: () => { W.state.time = 8; HUD.notify('Morning comes'); },
+    FALCATA: () => { const P = PLAYER.P; const c = VEH.spawn('sports', P.x + 3, P.z, P.camYaw, { mode: 'parked', color: 0 }); c.playerOwned = true; HUD.notify('A Falcata appears'); },
+    BASTION: () => { const P = PLAYER.P; const c = VEH.spawn('swat', P.x + 3, P.z, P.camYaw, { mode: 'parked' }); c.playerOwned = true; HUD.notify('A Bastion appears'); },
+  };
+  function checkCheats() { const t = INPUT.typed; for (const k in CHEATS) if (t.endsWith(k)) { INPUT.typed = ''; CHEATS[k](); AUDIO.play('cash'); } }
   function step(dt) {
+    checkCheats();
     W.frameBegin(); W.updateClock(dt); RENDER.setTimeOfDay(W.state.time); const night = W.isNight();
     const dlg = !!MISSIONS.dialogue;
     MISSIONS.update(dt);
@@ -61,19 +77,19 @@ const GAME = (() => {
     W.updateLights(dt); W.updateKnocked(dt); W.updateExplosions(dt); W.updateParticles(dt);
     // population management
     const px = PLAYER.x, pz = PLAYER.z, yaw = W.state.camYaw;
-    if (W.state.frame % 4 === 0) VEH.spawnTraffic(px, pz, yaw, night ? 20 : 28);
-    if (W.state.frame % 3 === 0) PEDS.populate(px, pz, yaw, night ? 26 : 44);
+    if (W.state.frame % 4 === 0) VEH.spawnTraffic(px, pz, yaw, night ? 24 : 34);
+    if (W.state.frame % 3 === 0) PEDS.populate(px, pz, yaw, night ? 30 : 56);
     if (W.state.frame % 30 === 0) { VEH.despawn(px, pz); PEDS.despawn(px, pz); }
     AUDIO.listener(px, pz); AUDIO.radioTick(dt, !!PLAYER.car); if (!PLAYER.car) { AUDIO.engine(false, 0, 0); AUDIO.screech(0); }
     // hydrant fountains
     for (const p of CITY.props.hydrant) if (p.hydrantT > 0) { p.hydrantT -= dt; if (W.state.frame % 2 === 0) W.particle(p.x, 0.4, p.z, (W.rng() - 0.5) * 1.5, 9 + W.rng() * 5, (W.rng() - 0.5) * 1.5, 1.4, 0.45, [0.75, 0.88, 1], 0.7, { grav: 12, grow: 0.8 }); }
   }
-  function titleCamera(t) { const g = CITY.place('tower'); const a = t * 0.08; const x = g.x + Math.sin(a) * 120, z = g.z + 20 + Math.cos(a) * 120; RENDER.setCamera(x, 60 + Math.sin(t * 0.2) * 10, z, g.x, 60, g.z); W.state.camYaw = Math.atan2(g.x - x, g.z - z); }
+  function titleCamera(t) { const g = CITY.place('tower'); const a = t * 0.06; const x = g.roofX + Math.sin(a) * 260, z = g.roofZ + Math.cos(a) * 260; RENDER.setCamera(x, 150 + Math.sin(t * 0.15) * 20, z, g.roofX, 70, g.roofZ); W.state.camYaw = Math.atan2(g.roofX - x, g.roofZ - z); }
   function renderWorld(dt, title) {
     const night = RENDER.env.nightEmis > 0.05; const cam = RENDER.cam;
     RENDER.env.shadowOn = RENDER.env.shadowOn && quality.shadows;
     scene.statics = [staticMesh]; scene.entities.length = 0;
-    W.fx.begin();
+    W.fx.begin(); W.drawDecals(cam.tx, cam.tz, dt);
     for (const c of W.cars) { if (c.removed || M.dist2(c.x, c.z, cam.tx, cam.tz) > 300 * 300) continue; scene.entities.push(c.entity(night)); if (night) c.headlightFX(); }
     for (const p of W.peds) { if (p.removed || p.inCar || M.dist2(p.x, p.z, cam.tx, cam.tz) > 140 * 140) continue; scene.entities.push(p.entity()); }
     const pe = PLAYER.entity(); if (pe && !title) scene.entities.push(pe);

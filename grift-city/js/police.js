@@ -4,14 +4,18 @@ const POLICE = (() => {
   const S = { heat: 0, seenT: 99, lastSeen: null, arrestT: 0, arresting: false, spawnT: 0, roadblockT: 20, footT: 0, heliT: 0, evadeMsg: 0, sirenVol: 0 };
   const HEAT = { kill: 1.0, copkill: 1.6, cop: 1.0, jack: 0.45, hit: 0.2, assault: 0.25, shoot: 0.12, explosion: 1.3, vandal: 0.12 };
   const stars = () => Math.min(5, Math.floor(S.heat));
+  const COOLDOWN = { shoot: 1.5, assault: 1.2, hit: 0.6, vandal: 1.0 }; const lastCrime = {};
   function crime(kind, x, z, victim) {
     const P = PLAYER.P; if (!P.alive) return;
+    // rapid fire is one crime, not forty
+    if (COOLDOWN[kind]) { const now = W.state.elapsed; if (lastCrime[kind] !== undefined && now - lastCrime[kind] < COOLDOWN[kind]) return; lastCrime[kind] = now; }
     let h = HEAT[kind] || 0.2;
     const copsNear = W.peds.some(p => p.isCop && p.alive && M.dist2(p.x, p.z, x, z) < 70 * 70) || W.cars.some(c => !c.removed && c.driver && c.driver.isCop && M.dist2(c.x, c.z, x, z) < 70 * 70);
     const witnesses = W.pedsNear(x, z, 30).filter(p => p.alive && !p.inCar).length;
     if (!copsNear && witnesses === 0 && P.wanted === 0 && kind !== 'copkill' && kind !== 'cop') h *= 0.25;
     if (copsNear) h *= 1.4;
     if (kind === 'shoot' && P.wanted === 0 && !copsNear) h = witnesses > 0 ? 0.06 : 0.02;
+    h *= 1 / (1 + S.heat * 0.6); // each star is harder to earn than the last
     const before = stars(); S.heat = Math.min(5.99, S.heat + h); S.seenT = 0; S.lastSeen = [P.x, P.z];
     if (stars() > before) { AUDIO.play('star'); HUD.flashStars(); if (before === 0) S.spawnT = 0; }
     P.wanted = stars();
@@ -116,7 +120,7 @@ const POLICE = (() => {
       for (const p of W.peds) { if (!p.alive || !p.isCop || p.inCar || !p.car || p.car.removed || p.car.wrecked) continue; if (M.dist(p.x, p.z, P.x, P.z) > 32 && M.dist(p.x, p.z, p.car.x, p.car.z) < 3 && !p.car.driver) { p.inCar = p.car; p.car.driver = p; p.car.ai.mode = 'chase'; p.car.siren = true; p.state = 'driving'; } else if (M.dist(p.x, p.z, P.x, P.z) > 32 && p.car && !p.car.driver && M.dist(p.x, p.z, p.car.x, p.car.z) < 40) { /* walk back */ p.returnT = 1; } }
       for (const c of W.cars) if (!c.removed && c.roadblock && !c.driver && M.dist(c.x, c.z, P.x, P.z) > 60) { c.roadblock = false; }
     } else {
-      for (const c of W.cars) if (!c.removed && c.ai.mode === 'chase') { c.ai.mode = 'traffic'; c.ai.edge = null; c.siren = false; }
+      for (const c of W.cars) if (!c.removed && c.ai.mode === 'chase' && (c.type === 'police' || c.type === 'swat')) { c.ai.mode = 'traffic'; c.ai.edge = null; c.siren = false; }
       if (W.heli && !W.heli.dead) W.heli.leaving = true;
     }
     updateHeli(dt);

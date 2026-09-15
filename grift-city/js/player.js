@@ -17,9 +17,9 @@ const PLAYER = (() => {
     x: 0, z: 0, y: 0, angle: 0, vx: 0, vz: 0, vy: 0, airborne: false, speed: 0, phase: 0, lying: 0, fallDir: 1,
     health: 100, armor: 0, money: 500, wanted: 0, weapons: { fist: Infinity }, weapon: 'fist', fireT: 0, weaponOut: false, aim: 0, recoil: 0, punchT: 0,
     car: null, state: 'foot', stateT: 0, alive: true, deadT: 0, look: PEDS.PLAYER_LOOK, mesh: null, bones: null, emis: null, model: null,
-    camYaw: 0, camPitch: 0.28, camYawOff: 0, camIdle: 0, camX: 0, camY: 0, camZ: 0, camDist: 4.6, fov: 62,
+    camYaw: 0, camPitch: 0.28, camYawOff: 0, camIdle: 0, camX: 0, camY: 0, camZ: 0, camDist: 5.4, fov: 62,
     stats: { kills: 0, carsStolen: 0, missions: 0, distance: 0, packages: 0, stunts: 0, busted: 0, wasted: 0, cash: 0 },
-    hurtFlash: 0, knockT: 0, enterTarget: null, targetCar: null, invuln: 0, lastGround: 0, inCarT: 0, airT: 0, stuntBonus: 0, sprintT: 0, radio: 0, headBob: 0, lastCarName: '', carNameT: 0,
+    hurtFlash: 0, knockT: 0, enterTarget: null, targetCar: null, invuln: 0, lastGround: 0, inCarT: 0, airT: 0, stuntBonus: 0, sprintT: 0, radio: 1, headBob: 0, lastCarName: '', carNameT: 0,
   };
   const projectiles = []; const tracers = [];
   const tmp = M.create();
@@ -205,6 +205,7 @@ const PLAYER = (() => {
     for (const px of c.passengers.slice()) if (px.role !== 'crew') { px.exitCar(); px.scare(c.x, c.z); }
     c.driver = PLAYER; c.ai.mode = 'player'; c.ai.edge = null; c.playerOwned = true; c.scared = 0; P.car = c; P.state = 'car'; P.inCarT = 0; P.x = c.x; P.z = c.z; P.lastCarName = c.name; P.carNameT = 3; P.weaponOut = false; P.aim = 0;
     if (c.type === 'police' || c.type === 'swat') c.siren = false;
+    if (AUDIO.radioStation !== P.radio) AUDIO.setRadio(P.radio);
     MISSIONS.onEnterCar(c);
   }
   function exitCar() {
@@ -234,7 +235,7 @@ const PLAYER = (() => {
     if (firing && P.fireT <= 0 && (P.weapon === 'pistol' || P.weapon === 'uzi') && P.weapons[P.weapon] > 0) { P.fireT = wp.rate * 1.2; P.weapons[P.weapon]--; fireBullet(PLAYER, c.x + c.fwd[0] * 0.5, c.z + c.fwd[1] * 0.5, 1.2, aimAngle(), wp, 1, c); }
     P.stats.distance += c.absSpeed * dt;
     // stunt jumps
-    if (c.airborne) { P.airT += dt; } else if (P.airT > 0) { if (P.airT > 1.1 && c.absSpeed > 8) { const bonus = Math.floor(P.airT * 400); addMoney(bonus, 'INSANE STUNT'); HUD.big('INSANE STUNT!', '#f5c542', 1.6); P.stats.stunts++; } P.airT = 0; }
+    if (c.airborne) { P.airT += dt; } else if (P.airT > 0) { if (P.airT > 0.85 && c.absSpeed > 8) { const bonus = Math.floor(P.airT * 500); addMoney(bonus, 'INSANE STUNT'); HUD.big('INSANE STUNT!', '#f5c542', 1.6); P.stats.stunts++; } P.airT = 0; }
     // engine sound
     const rpm = M.clamp(Math.abs(c.speed) / c.spec.top, 0, 1); AUDIO.engine(true, rpm * 0.7 + ctl.throttle * 0.25 + 0.05, ctl.throttle); AUDIO.screech(c.skid && !c.airborne ? Math.min(1, Math.abs(c.lat) / 6 + (ctl.handbrake ? 0.4 : 0)) : 0);
     if (c.skid && !c.airborne && W.state.frame % 2 === 0) { const r = c.right, f = c.fwd; const wz = c.spec.len * 0.3; W.FX.dust(c.x - f[0] * wz + r[0], 0, c.z - f[1] * wz + r[1], 1); W.FX.dust(c.x - f[0] * wz - r[0], 0, c.z - f[1] * wz - r[1], 1); }
@@ -249,7 +250,7 @@ const PLAYER = (() => {
       else { P.camYawOff = M.angleTo(behind, P.camYaw); }
       yaw = P.camYaw; pitch = M.clamp(P.camPitch, 0.08, 0.9); dist = 6.5 + c.spec.len * 0.3 + spd * 0.06; tx = c.x; ty = c.y + 1.3; tz = c.z; fov = 62 + spd * 0.25;
     } else {
-      yaw = P.camYaw; pitch = P.camPitch; dist = P.aim ? 2.3 : P.camDist; tx = P.x; ty = P.y + 1.55; tz = P.z; fov = P.aim ? 50 : 62;
+      yaw = P.camYaw; pitch = P.camPitch; dist = P.aim ? 2.4 : P.camDist; tx = P.x; ty = P.y + 1.45; tz = P.z; fov = P.aim ? 50 : 62;
       if (P.aim) { const r = [-Math.cos(yaw), Math.sin(yaw)]; tx += r[0] * 0.55; tz += r[1] * 0.55; }
       if (!P.alive) { dist = 6; pitch = 0.9; }
     }

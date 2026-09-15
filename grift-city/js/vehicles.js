@@ -80,15 +80,17 @@ const VEH = (() => {
         this.vy -= 22 * dt; this.y += this.vy * dt; this.airT += dt;
         if (this.y <= g) { this.y = g; const impact = -this.vy; this.airborne = false; this.vy = 0; if (impact > 9) { this.damage(impact * 6, null); AUDIO.play('crash', this.x, this.z, impact / 15); W.FX.dust(this.x, g, this.z, 10); } this.landed = this.airT; this.airT = 0; }
       } else {
-        if (g < this.y - 0.35 && Math.abs(vF) > 3) { this.airborne = true; this.vy = Math.max(this.vy, 0); }
-        else { const dy = g - this.y; this.vy = dy / Math.max(dt, 0.001); this.y = g; if (dy > 0.05 && Math.abs(vF) > 8) { this.vy = Math.min(dy / dt, 9); this.airborne = true; } }
-        if (this.airborne && this.vy > 0.5) { this.y += this.vy * dt; }
+        const dy = g - this.y;
+        if (dy < -0.35 && Math.abs(vF) > 3) { this.airborne = true; this.vy = Math.max(this.slopeVy || 0, 0); this.y += this.vy * dt; } // the ground fell away: launch with the slope's vertical speed
+        else { this.slopeVy = M.clamp(dy / Math.max(dt, 0.001), -30, 30); if (dy > 0.3) this.slopeVy = 0; this.vy = 0; this.y = g; }
       }
       // cosmetic body pitch and roll
       const acc = c.throttle * s.accel * 0.006 - (c.brake > 0 && vF > 1 ? 0.03 : 0);
       this.pitch = M.lerp(this.pitch, this.airborne ? -Math.atan2(this.vy, Math.max(Math.abs(vF), 3)) * 0.5 : -acc, 8 * dt);
       this.roll = M.lerp(this.roll, M.clamp(vL * 0.012 + this.steer * Math.abs(vF) * 0.0025, -0.12, 0.12), 8 * dt);
       this.wheelRot += vF / s.wheelR * dt;
+      // skid marks from the rear wheels
+      if (this.skid && !this.airborne && !this.wrecked) { const rr = this.right, ff = this.fwd; const wz = s.len * 0.31, wx = s.wid / 2 - 0.15; for (const sign of [1, -1]) { const x1 = this.x - ff[0] * wz + rr[0] * wx * sign, z1 = this.z - ff[1] * wz + rr[1] * wx * sign; const key = sign > 0 ? 'skidL' : 'skidR'; const prev = this[key]; if (prev && M.dist2(prev[0], prev[1], x1, z1) < 9) W.decal('skid', prev[0], prev[1], x1, z1, 0.32, [0.05, 0.05, 0.05], 0.55); this[key] = [x1, z1]; } } else { this.skidL = this.skidR = null; }
       this.brakeLights = c.brake > 0.1 && vF > 0.5;
       this.collide(dt);
       this.wasAir = this.airborne;
@@ -266,10 +268,10 @@ const VEH = (() => {
       if (!this.wrecked) {
         e[5] = this.lightsOn ? 1.0 : 0; e[6] = this.brakeLights ? 1.3 : (this.lightsOn ? 0.45 : 0);
         e[7] = night ? 1.2 : 0.2;
-        if (this.siren) { this.sirenPhase += 0.25; const ph = Math.floor(this.sirenPhase) % 2; e[8] = ph ? 1.6 : 0.1; e[9] = ph ? 0.1 : 1.6; W.dyn.push({ x: this.x, y: this.y + 2, z: this.z, r: 22, col: ph ? [1.5, 0.2, 0.2] : [0.2, 0.4, 1.5] }); }
+        if (this.siren) { this.sirenPhase += 0.25; const ph = Math.floor(this.sirenPhase) % 2; e[8] = ph ? 1.6 : 0.1; e[9] = ph ? 0.1 : 1.6; const k = 0.15 + 0.6 * RENDER.env.nightEmis; W.dyn.push({ x: this.x, y: this.y + 2, z: this.z, r: 16, col: ph ? [1.2 * k, 0.15 * k, 0.15 * k] : [0.15 * k, 0.3 * k, 1.2 * k] }); }
       }
       if (this.damageFlash > 0) { for (let i = 0; i < 5; i++) e[i] = 0.25; }
-      return { mesh: this.mesh, model: this.model, bones: this.bones, emis: e };
+      return { mesh: this.mesh, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.6 };
     }
     headlightFX() { if (!this.lightsOn || this.wrecked) return; const f = this.fwd, r = this.right; const s = this.spec; const hx = this.x + f[0] * s.len * 0.5, hz = this.z + f[1] * s.len * 0.5; W.fx.lightPool(hx, hz, f[0], f[1], 16, 3.2, [1, 0.95, 0.75], 0.32); W.dyn.push({ x: hx + f[0] * 5, y: 1, z: hz + f[1] * 5, r: 13, col: [0.9, 0.85, 0.65] }); }
     remove() { this.removed = true; if (this.driver && this.driver !== PLAYER) { this.driver.removed = true; } for (const p of this.passengers) p.removed = true; }

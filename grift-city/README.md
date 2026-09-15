@@ -11,6 +11,10 @@ around one file; `python3 tools/build-single.py` regenerates it.
 > Pedestrians who scream. Police who never forget. A garage in Midtown with a
 > woman inside who has work for you.
 
+![Downtown at nine in the morning](screenshots/day.jpg)
+![Northgate at night, headlights on](screenshots/night.jpg)
+![Four stars and a helicopter](screenshots/chase.jpg)
+
 ## What it is
 
 A third-person open-world game in the shape of the early 3D crime games: you
@@ -51,6 +55,9 @@ Yellow markers are jobs. Walk into the one outside VOSS MOTORS to meet
 Marla. Red markers are IRONMONGER gun shops, the yellow driveway marker is
 a Pay 'n' Spray (drive in with a wanted level and $100), and the pink marker
 outside the safehouse saves the game and sleeps six hours.
+
+Old habits: type `BIGBANK`, `KEVLAR`, `ARSENAL`, `COOLOFF`, `HOTHEAD`,
+`NIGHTFALL`, `SUNRISE`, `FALCATA` or `BASTION` during play.
 
 ## The city
 

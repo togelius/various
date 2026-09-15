@@ -102,7 +102,7 @@ const MISSIONS = (() => {
       start(d) { PLAYER.giveWeapon('pistol', 60); const [bx, bz] = CITY.blockOrigin(5, 8); const x = bx + 32, z = bz - 4.5; d.spot = [x, z];
         d.teddy = spawnPed(x, z, { role: 'target', stationary: true, name: 'TEDDY', health: 90 }); d.teddy.look = PEDS.CRANE; d.teddy.mesh = PEDS.getMesh(PEDS.CRANE);
         d.goons = []; for (let i = 0; i < 3; i++) { const g = spawnPed(x - 6 + i * 6, z - 1.5, { look: PEDS.GANG, gang: true, stationary: true, weapon: i === 1 ? 'pistol' : null, health: 80 }); g.faceTarget = PLAYER.P; d.goons.push(g); }
-        const s = laneSpot(5, 9, -1, 0, 40, 1); d.car = spawnCar('sedan', s.x, s.z, s.angle, { color: 3 }); d.phase = 0; blip(x, z); objective("Go to Teddy Lark's bar in Southport."); },
+        const s = laneSpot(5, 8, 1, 0, 62, 1); d.car = spawnCar('sedan', s.x, s.z, s.angle, { color: 3 }); d.phase = 0; blip(x, z); objective("Go to Teddy Lark's bar in Southport."); },
       update(d, dt) { const t = d.teddy;
         if (d.phase === 0 && near(d.spot[0], d.spot[1], 18)) { d.phase = 1; for (const g of d.goons) { g.stationary = false; g.hostile = true; } t.say("Who let you in here?"); objective('Deal with the goons.'); }
         if (d.phase === 1 && (d.goons.every(g => !g.alive) || near(t.x, t.z, 6) || W.state.noises.length)) { d.phase = 2; t.say("Marla can wait!"); objective("Don't let Teddy get away!"); blip(t.x, t.z, '#f5c542', t); t.fleeInCar(d.car, 16); }
@@ -123,7 +123,7 @@ const MISSIONS = (() => {
       intro: [['MARLA', 'Some kids race the loop around Downtown. Three laps, no rules, and there is a purse.'], ['MARLA', 'I put your name down. Get to the start line. Beat them and the purse is yours.'], ['MARLA', "The Falcata you brought me is outside. You've earned a drive."]],
       start(d) { const pts = []; const loop = [[3, 3, 1, 0], [7, 3, 0, 1], [7, 7, -1, 0], [3, 7, 0, -1]]; for (let k = 0; k < 4; k++) { const [i, j, di, dj] = loop[k]; const s1 = laneSpot(i, j, di, dj, 24, 0); pts.push([s1.x, s1.z]); const s2 = laneSpot(i, j, di, dj, CITY.laneLen(s1.e) - 6, 0); pts.push([s2.x, s2.z]); }
         d.route = pts; d.cp = 0; d.lap = 0; d.laps = 3; d.started = false; d.count = -1;
-        const st = laneSpot(3, 3, 1, 0, 8, 0); d.startPt = [st.x, st.z]; d.rivals = []; const g = place('garage'); d.car = spawnCar('sports', g.x + 14, g.z - 8, Math.PI, { color: 0 }); d.car.locked = false;
+        const st = laneSpot(3, 3, 1, 0, 34, 0); d.startPt = [st.x, st.z]; d.rivals = []; const g = place('garage'); d.car = spawnCar('sports', g.x + 14, g.z - 8, Math.PI, { color: 0 }); d.car.locked = false;
         for (let k = 0; k < 3; k++) { const s = laneSpot(3, 3, 1, 0, 2 + k * 7, k % 2); const c = spawnCar(['sports', 'muscle', 'sports'][k], s.x, s.z, s.angle, { color: [1, 6, 9][k] }); c.ai.route = pts.map(p => [p[0], p[1], 9]); c.ai.routeIdx = 0; c.ai.routeLoop = true; c.ai.routeSpeed = [26, 24, 27][k]; c.ai.mode = 'parked'; c.rivalCp = 0; c.rivalLap = 0; const drv = PEDS.spawn(c.x, c.z, { important: true }); drv.inCar = c; c.driver = drv; drv.state = 'driving'; S.spawned.push(drv); d.rivals.push(c); }
         blip(st.x, st.z); objective('Get to the start line by the Downtown loop.'); },
       update(d, dt) {
@@ -195,8 +195,8 @@ const MISSIONS = (() => {
     const sh = place('safehouse'); if (!p.car && M.dist2(p.x, p.z, sh.x, sh.z) < 4 && (S.saveT === undefined || S.saveT <= 0)) { S.saveT = 8; p.health = 100; POLICE.clear(); GAME.save(); W.state.time = (W.state.time + 6) % 24; HUD.fade(1.5); HUD.notify('Game saved. You slept until ' + W.clockString() + '.'); }
     if (S.saveT > 0) S.saveT -= dt;
     // side jobs
-    if (p.car && !S.side && !S.current && INPUT.hit('KeyT')) { if (p.car.type === 'taxi') startSide('taxi', p.car); else if (p.car.type === 'police' || p.car.type === 'swat') startSide('vigilante', p.car); }
-    if (S.side && INPUT.hit('KeyT')) endSide();
+    if (p.car && !S.side && !S.current && INPUT.hit('KeyT')) { if (p.car.type === 'taxi') startSide('taxi', p.car); else if (p.car.type === 'police' || p.car.type === 'swat') startSide('vigilante', p.car); else HUD.notify('Side jobs start in a taxi or a police car.'); }
+    else if (S.side && INPUT.hit('KeyT')) endSide();
   }
 
   function update(dt) {
