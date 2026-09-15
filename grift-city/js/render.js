@@ -73,7 +73,7 @@ const RENDER = (() => {
   const SHADOW_FS = `out vec4 o; void main() { o = vec4(1.0); }`;
   const SKY_VS = `const vec2 v[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0)); out vec2 vNdc; void main() { vNdc = v[gl_VertexID]; gl_Position = vec4(v[gl_VertexID], 0.9999, 1.0); }`;
   const SKY_FS = `
-    in vec2 vNdc; uniform mat4 uInvVP; uniform vec3 uCamPos; uniform vec3 uSunDir; uniform vec3 uZenith; uniform vec3 uHorizon; uniform vec3 uSunCol; uniform float uStars; uniform float uSunDisc; uniform float uTime;
+    in vec2 vNdc; uniform mat4 uInvVP; uniform vec3 uCamPos; uniform vec3 uSunDir; uniform vec3 uZenith; uniform vec3 uHorizon; uniform vec3 uSunCol; uniform float uStars; uniform float uSunDisc; uniform float uTime; uniform float uCloud;
     out vec4 o;
     float hash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
     float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -91,7 +91,7 @@ const RENDER = (() => {
       float md = max(dot(dir, -uSunDir * vec3(1.0, -1.0, 1.0)), 0.0);
       col += vec3(0.7, 0.75, 0.85) * pow(md, 900.0) * uStars * 1.5;
       // clouds: a noise sheet at a fixed height, fading toward the horizon
-      if (dir.y > 0.02) { vec2 cp = (uCamPos.xz + dir.xz / dir.y * 900.0) * 0.0009 + vec2(uTime * 0.004, 0.0); float c = fbm(cp); float cov = smoothstep(0.52, 0.72, c) * smoothstep(0.02, 0.2, dir.y);
+      if (dir.y > 0.02) { vec2 cp = (uCamPos.xz + dir.xz / dir.y * 900.0) * 0.0009 + vec2(uTime * 0.004, 0.0); float c = fbm(cp); float cov = smoothstep(0.52 - uCloud * 0.4, 0.72 - uCloud * 0.3, c) * smoothstep(0.02, 0.2, dir.y);
         vec3 cloudCol = mix(uHorizon * 0.9, vec3(1.0), 0.6) * (0.55 + 0.45 * uSunDisc) * (uStars > 0.5 ? 0.25 : 1.0); col = mix(col, cloudCol, cov * 0.85); }
       // low haze band near horizon at night
       col = mix(col, uHorizon, (1.0 - h) * 0.15);
@@ -132,7 +132,7 @@ const RENDER = (() => {
   }
 
   // ---- Time of day → environment
-  function setTimeOfDay(hours) {
+  function setTimeOfDay(hours, rain = 0) {
     const t = hours / 24; const sunAng = (t - 0.25) * M.TAU; // 6:00 sunrise at angle 0, noon at 90°
     const elev = Math.sin(sunAng), az = Math.cos(sunAng);
     let sx = az * 0.7, sy = elev, sz = -0.45 + 0.2 * az; let l = Math.hypot(sx, sy, sz); sx /= l; sy /= l; sz /= l;
@@ -149,8 +149,13 @@ const RENDER = (() => {
     env.horizon = mix3([0.08, 0.09, 0.16], mix3([0.72, 0.8, 0.9], [0.95, 0.5, 0.3], dusk), day);
     env.fogCol = mix3([0.06, 0.07, 0.12], mix3([0.7, 0.78, 0.88], [0.85, 0.5, 0.35], dusk), day);
     env.fogDensity = M.lerp(0.0028, 0.0016, day);
-    env.nightEmis = M.clamp(night * 1.3, 0, 1); env.daylight = day; env.starAlpha = M.clamp(night * 1.2 - 0.2, 0, 1); env.sunDisc = sy > 0.02 ? 1 : 0;
-    env.shadowOn = day > 0.15;
+    env.nightEmis = M.clamp(night * 1.3, 0, 1); env.daylight = day; env.starAlpha = M.clamp(night * 1.2 - 0.2, 0, 1) * (1 - rain); env.sunDisc = sy > 0.02 ? (1 - rain) : 0;
+    if (rain > 0) { // overcast: grey it all down, thicken the fog
+      const grey = c => { const l = c[0] * 0.3 + c[1] * 0.5 + c[2] * 0.2; return [M.lerp(c[0], l * 0.85, rain * 0.8), M.lerp(c[1], l * 0.88, rain * 0.8), M.lerp(c[2], l * 0.95, rain * 0.8)]; };
+      env.sunCol = env.sunCol.map(v => v * (1 - 0.75 * rain)); env.skyCol = grey(env.skyCol); env.zenith = grey(env.zenith).map(v => v * (1 - 0.35 * rain)); env.horizon = grey(env.horizon); env.fogCol = grey(env.fogCol); env.groundCol = grey(env.groundCol);
+      env.fogDensity = M.lerp(env.fogDensity, 0.0055, rain);
+    }
+    env.rain = rain; env.shadowOn = day > 0.15 && rain < 0.5;
   }
 
   function setCamera(x, y, z, tx, ty, tz, fov) { cam.x = x; cam.y = y; cam.z = z; cam.tx = tx; cam.ty = ty; cam.tz = tz; if (fov) cam.fov = fov; }
@@ -218,7 +223,7 @@ const RENDER = (() => {
     // Sky
     gl.useProgram(skyProg.p); gl.depthMask(false); gl.disable(gl.DEPTH_TEST);
     gl.uniformMatrix4fv(skyProg.u.uInvVP, false, invVP); gl.uniform3f(skyProg.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform3fv(skyProg.u.uSunDir, env.sunDir);
-    gl.uniform3fv(skyProg.u.uZenith, env.zenith); gl.uniform3fv(skyProg.u.uHorizon, env.horizon); gl.uniform3fv(skyProg.u.uSunCol, env.sunCol); gl.uniform1f(skyProg.u.uStars, env.starAlpha); gl.uniform1f(skyProg.u.uSunDisc, env.sunDisc); gl.uniform1f(skyProg.u.uTime, time);
+    gl.uniform3fv(skyProg.u.uZenith, env.zenith); gl.uniform3fv(skyProg.u.uHorizon, env.horizon); gl.uniform3fv(skyProg.u.uSunCol, env.sunCol); gl.uniform1f(skyProg.u.uStars, env.starAlpha); gl.uniform1f(skyProg.u.uSunDisc, env.sunDisc); gl.uniform1f(skyProg.u.uTime, time); gl.uniform1f(skyProg.u.uCloud, env.rain || 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.depthMask(true); gl.enable(gl.DEPTH_TEST);
     drawScene(scene, false);

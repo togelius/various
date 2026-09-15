@@ -185,6 +185,14 @@ const W = (() => {
     return out;
   }
 
+  // ---- Weather: clear spells and rain, a few game hours each
+  const weather = { rain: 0, target: 0, nextChange: 3 };
+  function updateWeather(dt) {
+    weather.nextChange -= dt * 24 / state.dayLength; // in game hours
+    if (weather.nextChange <= 0) { weather.target = weather.target > 0 ? 0 : (rng() < 0.55 ? 0.6 + rng() * 0.4 : 0); weather.nextChange = weather.target > 0 ? 1.5 + rng() * 2.5 : 3 + rng() * 6; }
+    weather.rain = M.approach(weather.rain, weather.target, dt * 0.08);
+    if (weather.rain > 0.02) { const cam = RENDER.cam; const n = Math.floor(40 * weather.rain); for (let i = 0; i < n; i++) { const x = cam.tx + (rng() - 0.5) * 40, z = cam.tz + (rng() - 0.5) * 40; particle(x, cam.ty + 6 + rng() * 14, z, 0.6, -22, 0.3, 0.75, 0.09, [0.75, 0.8, 0.9], 0.45 * weather.rain, { grav: 0, drag: 0, fade: 1 }); } }
+  }
   // ---- Clock
   function updateClock(dt) { state.time += dt * 24 / state.dayLength; if (state.time >= 24) state.time -= 24; state.elapsed += dt; state.frame++; }
   const clockString = () => { const h = Math.floor(state.time), m = Math.floor((state.time - h) * 60); return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m; };
@@ -193,5 +201,5 @@ const W = (() => {
   function frameBegin() { dyn.length = 0; state.shots.length = 0; state.noises.length = 0; }
   function updateExplosions(dt) { let w = 0; for (const e of explosions) { e.t += dt; if (e.t < 0.6) { dyn.push({ x: e.x, y: e.y + 1, z: e.z, r: 30 * e.big, col: [3 * (1 - e.t), 1.5 * (1 - e.t), 0.3] }); explosions[w++] = e; } } explosions.length = w; }
 
-  return { decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds };
+  return { weather, updateWeather, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds };
 })();

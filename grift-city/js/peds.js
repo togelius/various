@@ -186,7 +186,7 @@ const PEDS = (() => {
     bone(bones, 16, 0, hip + TORSO_H + 0.03, lean * 0.2, 0, lean * 0.6 + (aim ? 0 : Math.sin(ph * 0.5) * 0.03), 0);
     // arms: pivot at the shoulders
     const armPitchL = aim ? -0.4 : swing * 0.8 + (run ? -0.4 * run : 0), armPitchR = aim ? -Math.PI / 2 + 0.05 + (p.recoil || 0) * 2 : -swing * 0.8 + (run ? -0.4 * run : 0) - punch * 1.4;
-    bone(bones, 32, 0, hip + SHOULDER, 0, 0, armPitchL, run * 0.3 + (aim ? 0.35 : 0));
+    bone(bones, 32, 0, hip + SHOULDER, 0, 0, armPitchL, run * 0.3 + (aim ? 0.12 : 0));
     bone(bones, 48, 0, hip + SHOULDER, 0, aim ? -0.15 : 0, armPitchR, -run * 0.3);
     // legs: pivot at the hips
     bone(bones, 64, 0, hip, 0, 0, -swing * 0.9, 0); bone(bones, 80, 0, hip, 0, 0, swing * 0.9, 0);

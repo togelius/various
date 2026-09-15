@@ -162,6 +162,8 @@ const MESH = (() => {
       b.poly([[cw / 2, cabinY + cabinH, c1], [cw / 2 + 0.001, cabinY, c1], [cw / 2, cabinY, c1 - ws * 0.7]], bodyDk);
       b.poly([[-cw / 2, cabinY, c1 - ws * 0.7], [-cw / 2 - 0.001, cabinY, c1], [-cw / 2, cabinY + cabinH, c1]], bodyDk);
       if (s.bed) { b.cbox(0, cabinY + 0.25, (c1 - half) / 2, W * 0.96, 0.5, c1 + half - 0.1, bodyDk); b.cbox(0, cabinY + 0.1, (c1 - half) / 2, W * 0.8, 0.1, c1 + half - 0.4, [0.2, 0.2, 0.2]); }
+      // door seams and handles
+      for (const sx of [1, -1]) { const doors = s.seats > 2 ? [c0 - 0.05, (c0 + c1) / 2, c1 + 0.05] : [c0 - 0.05, c1 + 0.05]; for (const dz of doors) b.cbox(sx * (W / 2 + 0.005), floorY + bodyH * 0.55, dz, 0.01, bodyH * 0.9, 0.05, dark, 0, { faces: sx > 0 ? 1 : 2 }); for (let k = 0; k + 1 < doors.length; k++) b.cbox(sx * (W / 2 + 0.02), floorY + bodyH * 0.8, (doors[k] + doors[k + 1]) / 2 - 0.3, 0.03, 0.05, 0.2, chrome); }
       // bumpers
       b.cbox(0, floorY + 0.15, half + 0.05, W * 0.98, 0.3, 0.12, dark); b.cbox(0, floorY + 0.15, -half - 0.05, W * 0.98, 0.3, 0.12, dark);
       // headlights & taillights (emissive by vertex colour in the "white" tile — handled via car light uniform)

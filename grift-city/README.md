@@ -57,7 +57,7 @@ a Pay 'n' Spray (drive in with a wanted level and $100), and the pink marker
 outside the safehouse saves the game and sleeps six hours.
 
 Old habits: type `BIGBANK`, `KEVLAR`, `ARSENAL`, `COOLOFF`, `HOTHEAD`,
-`NIGHTFALL`, `SUNRISE`, `FALCATA` or `BASTION` during play.
+`NIGHTFALL`, `SUNRISE`, `DOWNPOUR`, `CLEARSKY`, `FALCATA` or `BASTION` during play.
 
 ## The city
 
@@ -70,6 +70,10 @@ lights and crosswalks:
 - **Westfield** — low and leafy, with parks and a clinic.
 - **Eastside** — warehouses and the gang that keeps them; the 9th Precinct.
 - **Southport** — the beach, Pier 9 and the docks.
+
+A day lasts twenty-four real minutes; at night the windows come on and
+the police helicopter's searchlight is the brightest thing in the sky. Rain
+comes and goes on its own schedule and takes the shadows with it.
 
 Three parking lots at the corners of the island carry stunt ramps. Twenty
 hidden packages are tucked into corners; every five unlocks a weapon at the

@@ -84,8 +84,10 @@ const AUDIO = (() => {
     const g = ctx.createGain(); g.gain.value = 0.05; g.connect(sfxBus); const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 180; src.connect(f); f.connect(g); src.start();
     // helicopter rotor: pulsed low noise
     const hg = ctx.createGain(); hg.gain.value = 0; hg.connect(sfxBus); const hs = ctx.createBufferSource(); hs.buffer = noiseBuf; hs.loop = true; const hf = ctx.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 220; const lfo = ctx.createOscillator(); lfo.frequency.value = 13; const lg = ctx.createGain(); lg.gain.value = 0.5; lfo.connect(lg); lg.connect(hg.gain); hs.connect(hf); hf.connect(hg); hs.start(); lfo.start();
-    ambient = { g, hg };
+    const rg = ctx.createGain(); rg.gain.value = 0; rg.connect(sfxBus); const rs = ctx.createBufferSource(); rs.buffer = noiseBuf; rs.loop = true; const rf = ctx.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 3200; rf.Q.value = 0.4; rs.connect(rf); rf.connect(rg); rs.start();
+    ambient = { g, hg, rg };
   }
+  function rain(v, inCar) { if (!ctx) return; ambient.rg.gain.setTargetAtTime(v * (inCar ? 0.05 : 0.14), now(), 0.5); }
   function heliVolume(v) { if (!ctx) return; ambient.hg.gain.setTargetAtTime(v * 0.5, now(), 0.2); }
 
   // ---- Radio: a tiny step sequencer per station.
@@ -118,5 +120,5 @@ const AUDIO = (() => {
     }
   }
   function toggleMute() { muted = !muted; if (ctx) master.gain.setTargetAtTime(muted ? 0 : 0.8, now(), 0.05); return muted; }
-  return { ensure, resume, play, engine, siren, screech, heliVolume, radioTick, setRadio, get radioStation() { return radioStation; }, STATIONS, toggleMute, get muted() { return muted; }, listener, get ready() { return !!ctx; } };
+  return { ensure, resume, play, engine, siren, screech, heliVolume, rain, radioTick, setRadio, get radioStation() { return radioStation; }, STATIONS, toggleMute, get muted() { return muted; }, listener, get ready() { return !!ctx; } };
 })();

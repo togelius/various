@@ -38,7 +38,7 @@ const GAME = (() => {
   function frame(now) {
     requestAnimationFrame(frame);
     let dt = Math.min(0.05, (now - last) / 1000); last = now; INPUT.pollPad();
-    if (state === 'title') { RENDER.setTimeOfDay(W.state.time); titleCamera(now / 1000); renderWorld(dt, true); HUD.draw(dt, 'title'); INPUT.endFrame(); return; }
+    if (state === 'title') { RENDER.setTimeOfDay(W.state.time, W.weather.rain); titleCamera(now / 1000); renderWorld(dt, true); HUD.draw(dt, 'title'); INPUT.endFrame(); return; }
     if (INPUT.hit('Escape')) { if (MISSIONS.shop) { } else if (state === 'playing') { state = 'paused'; INPUT.releaseLock(); } else if (state === 'paused') { state = 'playing'; INPUT.requestLock(); } }
     if (INPUT.hit('Tab')) { if (state === 'playing') state = 'map'; else if (state === 'map') state = 'playing'; }
     if (INPUT.hit('KeyM')) AUDIO.toggleMute();
@@ -61,6 +61,8 @@ const GAME = (() => {
     COOLOFF: () => { POLICE.clear(); HUD.notify('The cops forgot about you'); },
     HOTHEAD: () => { POLICE.setStars(Math.min(5, PLAYER.wanted + 2)); },
     NIGHTFALL: () => { W.state.time = 22; HUD.notify('Night falls'); },
+    DOWNPOUR: () => { W.weather.target = 1; W.weather.nextChange = 3; HUD.notify('Rain'); },
+    CLEARSKY: () => { W.weather.target = 0; W.weather.rain = 0; W.weather.nextChange = 6; HUD.notify('Clear skies'); },
     SUNRISE: () => { W.state.time = 8; HUD.notify('Morning comes'); },
     FALCATA: () => { const P = PLAYER.P; const c = VEH.spawn('sports', P.x + 3, P.z, P.camYaw, { mode: 'parked', color: 0 }); c.playerOwned = true; HUD.notify('A Falcata appears'); },
     BASTION: () => { const P = PLAYER.P; const c = VEH.spawn('swat', P.x + 3, P.z, P.camYaw, { mode: 'parked' }); c.playerOwned = true; HUD.notify('A Bastion appears'); },
@@ -68,7 +70,7 @@ const GAME = (() => {
   function checkCheats() { const t = INPUT.typed; for (const k in CHEATS) if (t.endsWith(k)) { INPUT.typed = ''; CHEATS[k](); AUDIO.play('cash'); } }
   function step(dt) {
     checkCheats();
-    W.frameBegin(); W.updateClock(dt); RENDER.setTimeOfDay(W.state.time); const night = W.isNight();
+    W.frameBegin(); W.updateClock(dt); W.updateWeather(dt); RENDER.setTimeOfDay(W.state.time, W.weather.rain); const night = W.isNight();
     const dlg = !!MISSIONS.dialogue;
     MISSIONS.update(dt);
     if (!dlg) PLAYER.update(dt); else { PLAYER.P.aim = 0; PLAYER.P.vx = PLAYER.P.vz = 0; if (PLAYER.car) { PLAYER.car.controls.throttle = 0; PLAYER.car.controls.brake = 1; } PLAYER.update(0); }
@@ -80,7 +82,7 @@ const GAME = (() => {
     if (W.state.frame % 4 === 0) VEH.spawnTraffic(px, pz, yaw, night ? 24 : 34);
     if (W.state.frame % 3 === 0) PEDS.populate(px, pz, yaw, night ? 30 : 56);
     if (W.state.frame % 30 === 0) { VEH.despawn(px, pz); PEDS.despawn(px, pz); }
-    AUDIO.listener(px, pz); AUDIO.radioTick(dt, !!PLAYER.car); if (!PLAYER.car) { AUDIO.engine(false, 0, 0); AUDIO.screech(0); }
+    AUDIO.listener(px, pz); AUDIO.rain(W.weather.rain, !!PLAYER.car); AUDIO.radioTick(dt, !!PLAYER.car); if (!PLAYER.car) { AUDIO.engine(false, 0, 0); AUDIO.screech(0); }
     // hydrant fountains
     for (const p of CITY.props.hydrant) if (p.hydrantT > 0) { p.hydrantT -= dt; if (W.state.frame % 2 === 0) W.particle(p.x, 0.4, p.z, (W.rng() - 0.5) * 1.5, 9 + W.rng() * 5, (W.rng() - 0.5) * 1.5, 1.4, 0.45, [0.75, 0.88, 1], 0.7, { grav: 12, grow: 0.8 }); }
   }
