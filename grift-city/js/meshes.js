@@ -9,12 +9,12 @@ const MESH = (() => {
     tri(a, b, c) { this.i.push(a, b, c); }
     // Axis-aligned box from min corner + size. faces: bitmask of which faces to emit (default all). uv in world units / uvScale.
     box(x, y, z, w, h, d, col, tile = 0, opts = {}) {
-      const { bone = 0, faces = 63, uvScale = 1, uOff = 0, vOff = 0, tint = null, topTile = -1, sideTile = -1 } = opts;
-      const [r, g, b] = col; const x1 = x + w, y1 = y + h, z1 = z + d; const s = 1 / uvScale;
+      const { bone = 0, faces = 63, uvScale = 1, uvScaleV = 0, uOff = 0, vOff = 0, tint = null, topTile = -1, sideTile = -1 } = opts;
+      const [r, g, b] = col; const x1 = x + w, y1 = y + h, z1 = z + d; const s = 1 / uvScale, sv = 1 / (uvScaleV || uvScale);
       const tt = topTile >= 0 ? topTile : tile, st = sideTile >= 0 ? sideTile : tile;
       const f = (nx, ny, nz, p, tl, uvs) => {
         const base = this.n;
-        for (let k = 0; k < 4; k++) this.vert(p[k][0], p[k][1], p[k][2], nx, ny, nz, r, g, b, uvs[k][0] * s + uOff, uvs[k][1] * s + vOff, tl, bone);
+        for (let k = 0; k < 4; k++) this.vert(p[k][0], p[k][1], p[k][2], nx, ny, nz, r, g, b, uvs[k][0] * s + uOff, uvs[k][1] * sv + vOff, tl, bone);
         this.quad(base, base + 1, base + 2, base + 3);
       };
       // +x
@@ -195,11 +195,11 @@ const MESH = (() => {
       lightBox(W * 0.36, belt + 0.02, -half - 0.01, 0.4, 0.18, [1, 0.08, 0.06], 32, 6); lightBox(-W * 0.36, belt + 0.02, -half - 0.01, 0.4, 0.18, [1, 0.08, 0.06], 32, 6);
       b.cbox(0, belt - 0.05, half + 0.005, W * 0.35, 0.2, 0.02, dark, 0, { faces: 16 }); b.cbox(0, floorY + 0.38, -half - 0.005, 0.5, 0.15, 0.02, [0.9, 0.9, 0.85], 0, { faces: 32 });
       b.cbox(cw / 2 + 0.1, cabinY + cabinH * 0.3, c0 - 0.05, 0.18, 0.12, 0.22, bodyDk); b.cbox(-cw / 2 - 0.1, cabinY + cabinH * 0.3, c0 - 0.05, 0.18, 0.12, 0.22, bodyDk);
-      if (s.taxi) { b.cbox(0, cabinY + cabinH + 0.15, (c0 + c1) / 2, 0.9, 0.3, 0.4, [1, 0.85, 0.1], 0, { bone: 7 }); b.cbox(0, belt + 0.3, half - 0.01, 0.01, 0.01, 0.01, dark); }
+      if (s.taxi) { b.cbox(0, cabinY + cabinH + 0.15, (c0 + c1) / 2, 0.9, 0.3, 0.4, [1, 0.85, 0.1], 0, { bone: 7 }); b.cbox(0, (floorY + belt) / 2 + 0.02, (c0 + c1) / 2, W + 0.02, (belt - floorY) * 0.95, (c0 - c1) * 0.95, [1, 1, 1], TEX.names.taxi, { faces: 3, uvScale: (c0 - c1) * 0.95, uvScaleV: (belt - floorY) * 0.95 }); }
       if (s.police) {
         b.cbox(0, cabinY + cabinH + 0.12, (c0 + c1) / 2, 1.3, 0.22, 0.35, dark);
         b.cbox(0.4, cabinY + cabinH + 0.14, (c0 + c1) / 2, 0.5, 0.26, 0.38, [1, 0.1, 0.1], 0, { bone: 8 }); b.cbox(-0.4, cabinY + cabinH + 0.14, (c0 + c1) / 2, 0.5, 0.26, 0.38, [0.1, 0.3, 1], 0, { bone: 9 });
-        b.cbox(0, (floorY + belt) / 2, (c0 + c1) / 2, W + 0.02, (belt - floorY) * 0.9, (c0 - c1) * 0.9, [0.1, 0.1, 0.12], 0, { faces: 3 });
+        b.cbox(0, (floorY + belt) / 2 + 0.02, (c0 + c1) / 2, W + 0.02, (belt - floorY) * 0.95, (c0 - c1) * 0.95, [1, 1, 1], TEX.names.police, { faces: 3, uvScale: (c0 - c1) * 0.95, uvScaleV: (belt - floorY) * 0.95 });
         b.cbox(0, belt + 0.02, half + 0.2, W * 0.9, 0.35, 0.3, dark); // push bar
       }
       if (s.armor) { b.cbox(0, (floorY + belt) / 2, half + 0.2, W * 0.9, belt - floorY, 0.3, dark); b.cbox(0, cabinY + cabinH * 0.5, (c0 + c1) / 2, cw + 0.06, cabinH * 0.35, (c0 - c1) * 0.98, bodyDk); }
@@ -228,7 +228,7 @@ const MESH = (() => {
 
   // ---- Pedestrians. Bones: 0 pelvis/torso, 1 head, 2 left arm, 3 right arm, 4 left leg, 5 right leg, 6 weapon.
   function pedMesh(look) {
-    const b = new Builder(); const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket || Math.random() < 0.5, glasses = false, bag = null } = look;
+    const b = new Builder(); const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket || Math.random() < 0.5, glasses = false, bag = null, skirt = false, longHair = false, beanie = false } = look;
     const legH = 0.85, torsoH = 0.65, headR = 0.14;
     const skinDk = skin.map(c => c * 0.85), shirtDk = (jacket || shirt).map(c => c * 0.8);
     // legs hang from the hips (bones 4, 5)
@@ -238,6 +238,7 @@ const MESH = (() => {
     }
     // torso (bone 0): hips, chest, shoulders
     b.cbox(0, 0.1, 0, 0.42, 0.22, 0.25, pants, 0, { bone: 0 }); b.cbox(0, 0.06, 0, 0.44, 0.06, 0.27, [0.15, 0.1, 0.08], 0, { bone: 0 }); // belt
+    if (skirt) b.cbox(0, -0.12, 0, 0.5, 0.42, 0.32, pants, 0, { bone: 0 });
     b.cbox(0, torsoH * 0.55, 0, 0.46, torsoH * 0.75, 0.26, jacket || shirt, 0, { bone: 0 });
     b.cbox(0, torsoH * 0.88, 0, 0.5, torsoH * 0.18, 0.27, jacket || shirt, 0, { bone: 0 }); // shoulders
     if (jacket) { b.cbox(0, torsoH * 0.5, 0.06, 0.18, torsoH * 0.8, 0.22, shirt, 0, { bone: 0 }); b.cbox(0.1, torsoH * 0.9, 0.12, 0.08, 0.1, 0.06, jacket.map(c => c * 0.7), 0, { bone: 0 }); b.cbox(-0.1, torsoH * 0.9, 0.12, 0.08, 0.1, 0.06, jacket.map(c => c * 0.7), 0, { bone: 0 }); }
@@ -253,7 +254,9 @@ const MESH = (() => {
     b.cbox(0, headR * 0.95, headR + 0.02, 0.05, 0.06, 0.05, skinDk, 0, { bone: 1 }); // nose
     b.cbox(0, headR * 0.6, headR + 0.003, 0.08, 0.015, 0.01, [0.45, 0.2, 0.2], 0, { bone: 1, faces: 16 }); // mouth
     b.cbox(headR + 0.005, headR * 1.05, 0, 0.02, 0.06, 0.04, skinDk, 0, { bone: 1 }); b.cbox(-headR - 0.005, headR * 1.05, 0, 0.02, 0.06, 0.04, skinDk, 0, { bone: 1 }); // ears
-    if (hat) { b.cbox(0, headR * 2.15, 0, headR * 2.2, headR * 0.5, headR * 2.2, hat, 0, { bone: 1 }); b.cbox(0, headR * 2.0, headR * 1.2, headR * 2.0, headR * 0.15, headR * 1.2, hat, 0, { bone: 1 }); }
+    if (hat && !beanie) { b.cbox(0, headR * 2.15, 0, headR * 2.2, headR * 0.5, headR * 2.2, hat, 0, { bone: 1 }); b.cbox(0, headR * 2.0, headR * 1.2, headR * 2.0, headR * 0.15, headR * 1.2, hat, 0, { bone: 1 }); }
+    if (hat && beanie) b.cbox(0, headR * 2.0, 0, headR * 2.15, headR * 0.8, headR * 2.15, hat, 0, { bone: 1 });
+    if (longHair) b.cbox(0, headR * 0.9, -headR * 0.9, headR * 2.1, headR * 2.2, headR * 0.5, hair, 0, { bone: 1 });
     // arms (bones 2, 3): upper arm in sleeve, forearm skin or sleeve, hand
     const armL = 0.62;
     for (const [sx, bone] of [[0.3, 2], [-0.3, 3]]) {
@@ -274,9 +277,36 @@ const MESH = (() => {
   function hydrant() { const b = new Builder(); b.cyl(0, 0, 0, 0.16, 0.7, [0.85, 0.15, 0.12], 0, 6); b.cbox(0, 0.45, 0, 0.5, 0.14, 0.2, [0.85, 0.15, 0.12]); b.cyl(0, 0.7, 0, 0.1, 0.85, [0.85, 0.15, 0.12], 0, 6); return b; }
   function bin() { const b = new Builder(); b.cyl(0, 0, 0, 0.32, 0.95, [0.2, 0.28, 0.2], 0, 8); b.cyl(0, 0.95, 0, 0.36, 1.05, [0.15, 0.2, 0.15], 0, 8); return b; }
   function bench() { const b = new Builder(); const w = [0.45, 0.32, 0.2]; b.cbox(0, 0.45, 0, 1.8, 0.06, 0.5, w); b.cbox(0, 0.75, -0.22, 1.8, 0.4, 0.06, w); b.cbox(0.7, 0.22, 0, 0.08, 0.45, 0.45, [0.2, 0.2, 0.2]); b.cbox(-0.7, 0.22, 0, 0.08, 0.45, 0.45, [0.2, 0.2, 0.2]); return b; }
+  function dumpster() { const b = new Builder(); const c = [0.15, 0.35, 0.2]; b.cbox(0, 0.7, 0, 1.8, 1.2, 1.0, c, 0); b.cbox(0, 1.35, 0, 1.85, 0.12, 1.05, c.map(v => v * 0.8)); b.cbox(0, 0.05, 0, 1.6, 0.1, 0.8, [0.1, 0.1, 0.1]); b.cbox(0.6, 1.5, 0.2, 0.5, 0.25, 0.4, [0.1, 0.1, 0.1]); return b; }
+  function mailbox() { const b = new Builder(); const c = [0.15, 0.25, 0.6]; b.cbox(0, 0.65, 0, 0.6, 0.9, 0.5, c); b.cbox(0, 1.15, 0, 0.6, 0.15, 0.5, c.map(v => v * 0.8)); b.cbox(0, 0.1, 0, 0.5, 0.2, 0.4, [0.2, 0.2, 0.22]); b.cbox(0, 1.0, 0.26, 0.4, 0.12, 0.02, [0.05, 0.05, 0.08]); return b; }
+  function meter() { const b = new Builder(); b.cyl(0, 0, 0, 0.04, 1.2, [0.3, 0.3, 0.32], 0, 6); b.cbox(0, 1.35, 0, 0.16, 0.3, 0.12, [0.45, 0.45, 0.48]); b.cbox(0, 1.4, 0.065, 0.1, 0.1, 0.01, [0.8, 0.2, 0.2], 0, { faces: 16 }); return b; }
+  function newsbox() { const b = new Builder(); const c = [[0.8, 0.15, 0.1], [0.1, 0.3, 0.7], [0.9, 0.7, 0.1]][Math.floor(Math.random() * 3)]; b.cbox(0, 0.55, 0, 0.5, 1.1, 0.45, c); b.cbox(0, 0.85, 0.23, 0.4, 0.35, 0.01, [0.85, 0.85, 0.8], 0, { faces: 16 }); return b; }
+  function busShelter() { const b = new Builder(); const c = [0.25, 0.27, 0.3]; b.cbox(-1.9, 1.3, 0, 0.1, 2.6, 0.1, c); b.cbox(1.9, 1.3, 0, 0.1, 2.6, 0.1, c); b.cbox(-1.9, 1.3, -1.1, 0.1, 2.6, 0.1, c); b.cbox(1.9, 1.3, -1.1, 0.1, 2.6, 0.1, c); b.cbox(0, 2.65, -0.55, 4.2, 0.1, 1.4, [0.2, 0.25, 0.35]); b.cbox(0, 1.3, -1.15, 3.9, 2.0, 0.04, [0.5, 0.65, 0.8]); b.cbox(0, 0.5, -0.8, 3.0, 0.06, 0.45, [0.45, 0.32, 0.2]); b.cbox(0, 2.35, -0.55, 1.6, 0.4, 0.06, [0.95, 0.75, 0.1]); return b; }
+  function cone() { const b = new Builder(); b.cyl(0, 0, 0, 0.22, 0.75, [1, 0.42, 0], 0, 8, 0, true, false, 0.06); b.cbox(0, 0.02, 0, 0.5, 0.04, 0.5, [0.1, 0.1, 0.1]); b.cyl(0, 0.3, 0, 0.16, 0.4, [1, 1, 1], 0, 8, 0, false, false, 0.13); return b; }
+  function barrier() { const b = new Builder(); b.cbox(0, 0.85, 0, 2.2, 0.3, 0.06, [1, 0.42, 0]); b.cbox(0, 0.85, 0, 2.2, 0.3, 0.065, [1, 1, 1], 0, { faces: 0 }); for (const sx of [-1, 1]) { b.cbox(sx * 1.0, 0.5, 0, 0.08, 1.0, 0.08, [0.3, 0.3, 0.32]); b.cbox(sx * 1.0, 0.03, 0, 0.5, 0.06, 0.4, [0.3, 0.3, 0.32]); } for (let k = 0; k < 5; k++) b.cbox(-0.9 + k * 0.45, 0.85, 0.035, 0.2, 0.3, 0.01, [1, 1, 1], 0, { faces: 16 }); return b; }
+  function hedge() { const b = new Builder(); b.cbox(0, 0.5, 0, 3.0, 1.0, 0.8, [0.18, 0.4, 0.16]); b.cbox(0, 0.95, 0, 2.9, 0.15, 0.7, [0.24, 0.5, 0.2]); return b; }
+  function roundTree() { const b = new Builder(); b.cyl(0, 0, 0, 0.16, 2.0, [0.33, 0.24, 0.14], 0, 6); for (let k = 0; k < 4; k++) { const y = 1.6 + k * 0.7, r = [1.5, 1.9, 1.7, 1.0][k]; b.cyl(0, y, 0, r, y + 0.75, [0.16 + k * 0.03, 0.42 + k * 0.03, 0.16], 0, 9, 0, k === 3, k === 0, k === 3 ? 0.4 : r * 0.95); } return b; }
+  function palm() { const b = new Builder(); b.cyl(0, 0, 0, 0.16, 5.5, [0.45, 0.35, 0.22], 0, 6, 0, true, false, 0.1); for (let k = 0; k < 7; k++) { const a = k / 7 * M.TAU; const lx = Math.cos(a), lz = Math.sin(a); b.poly([[0, 5.5, 0], [lx * 1.2 + lz * 0.35, 5.6, lz * 1.2 - lx * 0.35], [lx * 3.2, 4.6, lz * 3.2], [lx * 1.2 - lz * 0.35, 5.6, lz * 1.2 + lx * 0.35]], [0.2, 0.5, 0.2]); b.poly([[lx * 1.2 - lz * 0.35, 5.6, lz * 1.2 + lx * 0.35], [lx * 3.2, 4.6, lz * 3.2], [lx * 1.2 + lz * 0.35, 5.6, lz * 1.2 - lx * 0.35], [0, 5.5, 0]], [0.16, 0.42, 0.16]); } b.cyl(0, 5.2, 0, 0.3, 5.6, [0.5, 0.35, 0.1], 0, 6); return b; }
+  function umbrella() { const b = new Builder(); b.cyl(0, 0, 0, 0.04, 2.2, [0.8, 0.8, 0.8], 0, 5); const c = [[0.9, 0.2, 0.2], [0.2, 0.5, 0.9], [0.95, 0.8, 0.1]][Math.floor(Math.random() * 3)]; b.cyl(0, 1.9, 0, 1.4, 2.3, c, 0, 10, 0, true, false, 0.05); return b; }
+  function streetSign() { const b = new Builder(); b.cbox(0, 2.6, 0, 0.9, 0.22, 0.03, [1, 1, 1], TEX.names.signs, { uvScale: 1 }); return b; }
   function payphone() { const b = new Builder(); b.cbox(0, 0.9, 0, 0.5, 1.8, 0.4, [0.15, 0.3, 0.6]); b.cbox(0, 1.35, 0.21, 0.36, 0.5, 0.04, [0.05, 0.05, 0.06]); b.cbox(-0.12, 1.0, 0.22, 0.08, 0.3, 0.06, [0.1, 0.1, 0.12]); b.cbox(0, 1.9, 0, 0.55, 0.12, 0.45, [0.15, 0.3, 0.6]); return b; }
   function bollard() { const b = new Builder(); b.cyl(0, 0, 0, 0.14, 0.9, [0.3, 0.3, 0.32], 0, 6); return b; }
   function pickupBox() { const b = new Builder(); b.cbox(0, 0.6, 0, 0.7, 0.7, 0.7, [1, 1, 1], 0, { bone: 0 }); return b; }
+  // Pickup models, origin on the ground, about half a metre tall.
+  const PICKUP_MODELS = {
+    weapon(key) { const b = new Builder(); const d = [0.15, 0.15, 0.17], w = [0.35, 0.25, 0.15];
+      if (key === 'bat') { b.cyl(0, 0.05, 0, 0.05, 0.9, [0.6, 0.45, 0.25], 0, 6, 0, true, true, 0.035); }
+      else if (key === 'grenade') { b.cyl(0, 0.05, 0, 0.14, 0.4, [0.2, 0.32, 0.2], 0, 8, 0, true, true); b.cbox(0, 0.46, 0, 0.1, 0.1, 0.1, [0.5, 0.5, 0.5]); }
+      else if (key === 'rocket') { b.cbox(0, 0.3, 0, 0.16, 0.16, 1.2, [0.25, 0.3, 0.25]); b.cbox(0, 0.3, 0.55, 0.22, 0.22, 0.2, [0.15, 0.15, 0.15]); b.cbox(0, 0.16, -0.1, 0.06, 0.16, 0.3, w); }
+      else { const L = key === 'pistol' ? 0.36 : key === 'uzi' ? 0.5 : 0.9; b.cbox(0, 0.32, 0, 0.07, 0.1, L, d); b.cbox(0, 0.2, -L * 0.25, 0.06, 0.18, 0.09, w); if (key !== 'pistol') b.cbox(0, 0.22, L * 0.1, 0.06, 0.14, 0.06, d); if (key === 'shotgun' || key === 'rifle') b.cbox(0, 0.3, -L * 0.45, 0.07, 0.12, 0.25, w); if (key === 'uzi' || key === 'rifle') b.cbox(0, 0.16, L * 0.05, 0.06, 0.22, 0.08, d); }
+      return b; },
+    health() { const b = new Builder(); const c = [0.95, 0.15, 0.15]; b.cbox(0, 0.35, 0, 0.5, 0.16, 0.16, c); b.cbox(0, 0.35, 0, 0.16, 0.5, 0.16, c); b.cbox(0, 0.35, 0, 0.16, 0.16, 0.5, c); return b; },
+    armor() { const b = new Builder(); const c = [0.25, 0.5, 0.9]; b.cbox(0, 0.32, 0, 0.5, 0.55, 0.22, c); b.cbox(0, 0.58, 0, 0.32, 0.12, 0.24, c.map(v => v * 0.8)); b.cbox(0, 0.32, 0.12, 0.2, 0.3, 0.02, [0.9, 0.9, 0.95], 0, { faces: 16 }); return b; },
+    cash() { const b = new Builder(); for (let k = 0; k < 3; k++) b.cbox((k - 1) * 0.05, 0.05 + k * 0.07, (k - 1) * 0.03, 0.42, 0.06, 0.22, [0.25, 0.75, 0.3]); b.cbox(0, 0.28, 0, 0.16, 0.02, 0.24, [0.9, 0.9, 0.6]); return b; },
+    bribe() { const b = new Builder(); b.cyl(0, 0.15, 0, 0.32, 0.25, [0.2, 0.4, 0.95], 0, 5, 0, true, true); b.cyl(0, 0.26, 0, 0.16, 0.3, [0.95, 0.85, 0.3], 0, 5, 0, true, false); return b; },
+    rampage() { const b = new Builder(); const c = [0.95, 0.95, 0.9]; b.cbox(0, 0.42, 0, 0.36, 0.34, 0.34, c); b.cbox(0, 0.16, 0, 0.3, 0.2, 0.28, c); b.cbox(0.09, 0.44, 0.17, 0.09, 0.09, 0.02, [0.1, 0.1, 0.1], 0, { faces: 16 }); b.cbox(-0.09, 0.44, 0.17, 0.09, 0.09, 0.02, [0.1, 0.1, 0.1], 0, { faces: 16 }); for (let k = 0; k < 3; k++) b.cbox(-0.1 + k * 0.1, 0.1, 0.15, 0.05, 0.1, 0.02, [0.1, 0.1, 0.1], 0, { faces: 16 }); return b; },
+    package() { return packageBox(); },
+  };
   function packageBox() { const b = new Builder(); b.cbox(0, 0.25, 0, 0.5, 0.5, 0.5, [0.55, 0.4, 0.25]); b.cbox(0, 0.26, 0, 0.52, 0.1, 0.1, [0.9, 0.85, 0.7]); b.cbox(0, 0.26, 0, 0.1, 0.1, 0.52, [0.9, 0.85, 0.7]); return b; }
   function marker() { const b = new Builder(); b.cyl(0, 0, 0, 1.6, 1.4, [1, 1, 1], 0, 16, 0, false, false); return b; }
   function heli() {
@@ -289,5 +319,5 @@ const MESH = (() => {
     b.cbox(0, 0.75, 1.5, 0.5, 0.3, 0.5, [1, 1, 0.9], 0, { bone: 3 });
     return b;
   }
-  return { Builder, VEHICLES, carMesh, dentBody, pedMesh, payphone, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
+  return { Builder, VEHICLES, carMesh, dentBody, pedMesh, PICKUP_MODELS, dumpster, mailbox, meter, newsbox, busShelter, cone, barrier, hedge, roundTree, palm, umbrella, streetSign, payphone, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
 })();

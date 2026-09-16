@@ -3,7 +3,7 @@
 const PICKUPS = (() => {
   const COLORS = { weapon: [0.9, 0.9, 0.95], health: [1, 0.25, 0.25], armor: [0.3, 0.6, 1], cash: [0.3, 0.95, 0.35], package: [0.8, 0.6, 0.3], bribe: [0.3, 0.5, 1.0], rampage: [1, 0.5, 0.1] };
   const meshes = {}; let pkgMesh = null;
-  const meshFor = kind => meshes[kind] || (meshes[kind] = new MESH.Builder().cbox(0, 0.5, 0, 0.7, 0.7, 0.7, COLORS[kind]).build());
+  const meshFor = (kind, weapon) => { const k = kind === 'weapon' ? 'w:' + weapon : kind; return meshes[k] || (meshes[k] = MESH.PICKUP_MODELS[kind](weapon).build()); };
   function add(kind, x, z, data = {}) { const p = { kind, x, z, y: CITY.groundY(x, z), taken: false, respawn: data.respawn ?? (kind === 'cash' ? -1 : 240), t: 0, spin: W.rng() * 6, ...data }; W.pickups.push(p); return p; }
   function dropCash(x, z, n) { const p = add('cash', x + (W.rng() - 0.5), z + (W.rng() - 0.5), { amount: n, respawn: -1, life: 40 }); return p; }
   function placeWorld() {
@@ -46,7 +46,8 @@ const PICKUPS = (() => {
     pkgMesh = pkgMesh || MESH.packageBox().build(); const out = [];
     for (const p of W.pickups) { if (p.taken || M.dist2(p.x, p.z, camX, camZ) > 120 * 120) continue; const m = M.create(); const y = p.y + 0.15 + Math.sin(p.spin * 1.5) * 0.08; const col = COLORS[p.kind];
       if (p.kind === 'package') { M.trs(m, p.x, y, p.z, p.spin, 1, 1, 1); out.push({ mesh: pkgMesh, model: m }); }
-      else { M.trs(m, p.x, y, p.z, p.spin, 0.9, 0.9, 0.9); const e = new Float32Array(RENDER.MAX_BONES); e[0] = 0.35; out.push({ mesh: meshFor(p.kind), model: m, emis: e }); }
+      else if (p.kind === 'cash') { M.trs(m, p.x, p.y + 0.02, p.z, p.spin * 0.3, 1, 1, 1); out.push({ mesh: meshFor('cash'), model: m }); }
+      else { M.trs(m, p.x, y + 0.1, p.z, p.spin, 1.1, 1.1, 1.1); const e = new Float32Array(RENDER.MAX_BONES); e[0] = 0.25; out.push({ mesh: meshFor(p.kind, p.weapon), model: m, emis: e, spec: 0.5 }); }
       W.dyn.length < 24 && W.dyn.push({ x: p.x, y: p.y + 1, z: p.z, r: 4, col: [col[0] * 0.6, col[1] * 0.6, col[2] * 0.6] }); }
     return out;
   }
@@ -289,9 +290,9 @@ const MISSIONS = (() => {
     else if (p.alive && S.cooldown <= 0 && !S.side && !S.rampage) {
       const next = LIST[S.progress];
       if (next && next.auto) start(next);
-      else if (next && !p.car) { const g = place('mission'); marker(g.x, g.z, 2, [1, 0.85, 0.2]); if (S.blip === null) blip(g.x, g.z, '#f5c542', null, 'M'); if (M.dist2(p.x, p.z, g.x, g.z) < 4) start(next); }
+      else if (next) { const g = place('mission'); marker(g.x, g.z, 2, [1, 0.85, 0.2]); if (S.blip === null) blip(g.x, g.z, '#f5c542', null, 'M'); if (!p.car && M.dist2(p.x, p.z, g.x, g.z) < 4) start(next); else if (p.car && M.dist2(p.x, p.z, g.x, g.z) < 100) objective('Get out and walk into the marker to see Marla.'); else if (S.objective.startsWith('Get out and walk')) objective(''); }
       const next2 = LIST2[S.progress2];
-      if (next2 && S.progress >= 4 && !p.car) { const g = place('mission2'); marker(g.x, g.z, 2, [0.2, 0.8, 1]); S.blips.length = 0; S.blips.push({ obj: g, col: '#3bb8ff' }); if (M.dist2(p.x, p.z, g.x, g.z) < 4) start(next2); }
+      if (next2 && S.progress >= 4) { const g = place('mission2'); marker(g.x, g.z, 2, [0.2, 0.8, 1]); S.blips.length = 0; S.blips.push({ obj: g, col: '#3bb8ff' }); if (!p.car && M.dist2(p.x, p.z, g.x, g.z) < 4) start(next2); else if (p.car && M.dist2(p.x, p.z, g.x, g.z) < 100) objective('Get out and walk into the marker to see Okafor.'); }
       const ph = PHONE[S.phoneProgress];
       if (ph && S.progress >= 2 && !p.car) { for (const t of CITY.places.phone) { marker(t.x, t.z, 1.0, [0.3, 0.5, 1]); if (M.dist2(p.x, p.z, t.x, t.z) < 2.5) { AUDIO.play('phone'); start(ph); break; } } }
     }

@@ -8,7 +8,7 @@ const PEDS = (() => {
   const HAIR = [[0.1, 0.08, 0.06], [0.35, 0.22, 0.1], [0.75, 0.6, 0.3], [0.5, 0.5, 0.5], [0.6, 0.15, 0.1]];
   const looks = []; const meshCache = {};
   const r0 = M.rng(77);
-  for (let i = 0; i < 28; i++) looks.push({ skin: r0.pick(SKIN), shirt: r0.pick(CLOTH), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: r0.chance(0.2) ? r0.pick(CLOTH) : null, jacket: r0.chance(0.3) ? r0.pick(CLOTH) : null, sleeves: r0.chance(0.5), glasses: r0.chance(0.15), bag: r0.chance(0.2) ? r0.pick(PANTS) : null });
+  for (let i = 0; i < 40; i++) looks.push({ skin: r0.pick(SKIN), shirt: r0.pick(CLOTH), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: r0.chance(0.25) ? r0.pick(CLOTH) : null, beanie: r0.chance(0.4), jacket: r0.chance(0.3) ? r0.pick(CLOTH) : null, sleeves: r0.chance(0.5), glasses: r0.chance(0.15), bag: r0.chance(0.2) ? r0.pick(PANTS) : null, skirt: r0.chance(0.25), longHair: r0.chance(0.35) });
   const COP = { skin: [0.9, 0.75, 0.62], shirt: [0.2, 0.3, 0.6], pants: [0.15, 0.18, 0.3], hair: [0.1, 0.1, 0.1], hat: [0.15, 0.18, 0.35], jacket: null, sleeves: true, glasses: true };
   const SWAT = { skin: [0.85, 0.7, 0.6], shirt: [0.12, 0.12, 0.14], pants: [0.1, 0.1, 0.12], hair: [0.1, 0.1, 0.1], hat: [0.1, 0.1, 0.12], jacket: [0.2, 0.2, 0.22], sleeves: true, glasses: true };
   const GANG = { skin: [0.6, 0.42, 0.3], shirt: [0.55, 0.05, 0.1], pants: [0.12, 0.12, 0.12], hair: [0.08, 0.06, 0.06], hat: [0.5, 0.05, 0.1], jacket: [0.15, 0.15, 0.15], sleeves: true };
@@ -29,7 +29,7 @@ const PEDS = (() => {
       this.aim = 0; this.role = opts.role || null; this.important = !!opts.important; this.name = opts.name || null; this.money = Math.floor(W.rng() * 40) + 5;
       this.bones = new Float32Array(16 * RENDER.MAX_BONES); this.emis = new Float32Array(RENDER.MAX_BONES); this.model = M.create();
       this.wanderT = 0; this.talkT = 0; this.hitT = 0; this.knockT = 0; this.shout = null; this.shoutT = 0; this.onDeath = null; this.hostile = !!opts.hostile; this.followTarget = null; this.attackCooldown = 0; this.stationary = !!opts.stationary; this.faceTarget = null;
-      this.walkSpeed = 1.3 + W.rng() * 0.5; this.hearing = 45; this.headYaw = 0; this.gestureT = 0; this.partner = null; this.seat = null;
+      this.walkSpeed = 1.3 + W.rng() * 0.5; this.hearing = 45; this.headYaw = 0; this.gestureT = 0; this.partner = null; this.seat = null; this.sx = 0.9 + W.rng() * 0.2; this.sy = 0.93 + W.rng() * 0.14;
     }
     get alive() { return this.state !== 'dead' && !this.removed; }
     get armed() { return !!this.weapon; }
@@ -182,7 +182,7 @@ const PEDS = (() => {
     const aim = p.aim || 0; const punch = p.punchT > 0 ? Math.sin(Math.min(1, p.punchT / 0.3) * Math.PI) : 0;
     const hip = LEG_H + bob - lying * (LEG_H - 0.25);
     const lean = run * 0.18 + (p.recoil || 0) * -0.5;
-    M.trsEuler(model, p.x, p.y, p.z, p.angle, lying * (dead ? -Math.PI / 2 * p.fallDir : -Math.PI / 2), 0);
+    M.trsEuler(model, p.x, p.y, p.z, p.angle, lying * (dead ? -Math.PI / 2 * p.fallDir : -Math.PI / 2), 0, p.sx || 1, p.sy || 1, p.sx || 1);
     // torso
     bone(bones, 0, 0, hip, 0, 0, lean, 0);
     // head: sits at top of torso
@@ -203,7 +203,7 @@ const PEDS = (() => {
   // Seated pose inside a car (or on a bench): hips at the seat, legs forward, hands on the wheel.
   const seatTmp = M.create(), seatLocal = M.create(), seatWorld = M.create();
   function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0) {
-    M.trs(seatLocal, lx, ly, lz, yaw); M.multiply(model, carModel, seatLocal);
+    M.trs(seatLocal, lx, ly, lz, yaw, p.sx || 1, p.sy || 1, p.sx || 1); M.multiply(model, carModel, seatLocal);
     const hip = 0.02; const lean = driving ? 0.12 : 0.05;
     bone(bones, 0, 0, hip, 0, 0, lean, 0);
     bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, lean * 0.5, 0);

@@ -21,8 +21,8 @@ const GAME = (() => {
   }
   function build() {
     RENDER.init(canvas, TEX.build()); loadOptions();
-    const sb = CITY.generate(); staticMesh = sb.build(); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; W.indexLights(); W.initProps();
-    propList = ['lamppost', 'trafficLight', 'tree', 'hydrant', 'bin', 'bench', 'bollard', 'payphone'].map(k => W.propMeshes[k]); propList.push(W.lampHeads, W.tlHeads);
+    const sb = CITY.generate(); console.log('static tris', (sb.i.length / 3) | 0, 'verts', sb.n); staticMesh = sb.build(); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; waterMesh.water = true; W.indexLights(); W.initProps();
+    propList = ['lamppost', 'trafficLight', 'tree', 'hydrant', 'bin', 'bench', 'bollard', 'payphone', 'dumpster', 'mailbox', 'meter', 'newsbox', 'busShelter', 'cone', 'barrier', 'hedge', 'roundTree', 'palm', 'umbrella', 'streetSign'].map(k => W.propMeshes[k]); propList.push(W.lampHeads, W.tlHeads);
     PICKUPS.placeWorld(); MISSIONS.placeRampages(); VEH.spawnParked();
     const sh = CITY.place('safehouse'); PLAYER.init(sh.x + 6, sh.z + 1, Math.PI);
     if (hasSave()) load();
@@ -42,6 +42,14 @@ const GAME = (() => {
   function frame(now) {
     requestAnimationFrame(frame);
     let dt = Math.min(0.05, (now - last) / 1000); last = now; INPUT.pollPad();
+    if (window.__pt) { // playtest mode: fixed timestep, render every N steps, full quality only on request
+      const pt = window.__pt; if (pt.paused) { INPUT.endFrame(); return; } dt = pt.dt; pt.n = (pt.n || 0) + 1; const shot = pt.wantShot;
+      if (pt.bot && state === 'playing') pt.bot(dt);
+      if (state === 'playing') step(dt);
+      if (shot || pt.n % pt.renderEvery === 0) { const qs = quality.shadows, qp = RENDER.post.enabled; if (!shot && pt.cheap) { quality.shadows = false; RENDER.post.enabled = false; } renderWorld(dt * pt.renderEvery, false); HUD.draw(dt * pt.renderEvery, state); quality.shadows = qs; RENDER.post.enabled = qp; if (shot) { pt.wantShot = false; pt.shotFrame = pt.n; } }
+      if (INPUT.hit('Escape') && state === 'playing') { /* bot never pauses */ }
+      INPUT.endFrame(); return;
+    }
     if (state === 'title') { RENDER.setTimeOfDay(W.state.time, W.weather.rain); titleCamera(now / 1000); renderWorld(dt, true); HUD.draw(dt, 'title'); INPUT.endFrame(); return; }
     if (INPUT.hit('Escape')) { if (MISSIONS.shop) { } else if (state === 'playing') { state = 'paused'; INPUT.releaseLock(); } else if (state === 'paused') { state = 'playing'; INPUT.requestLock(); } }
     if (INPUT.hit('Tab')) { if (state === 'playing') state = 'map'; else if (state === 'map') state = 'playing'; }
@@ -62,6 +70,27 @@ const GAME = (() => {
     renderWorld(dt, false); HUD.draw(dt, state); INPUT.endFrame();
   }
   let fpsAcc = 0, fpsN = 0;
+  // Playtest bot hooks: a compact state snapshot and a road route to a point.
+  window.__ptState = () => { const P = PLAYER.P; const c = P.car; const bp = MISSIONS.blipPos(); let nc = null, nd = 1e9; for (const v of W.cars) { if (v.removed || v.wrecked || v === c) continue; const d = M.dist(v.x, v.z, P.x, P.z); if (d < nd) { nd = d; nc = v; } }
+    const tgt = bp && MISSIONS.S.blip && MISSIONS.S.blip.obj; const tc = tgt && tgt.spec ? tgt : null;
+    return { frame: W.state.frame, n: window.__pt && window.__pt.n, time: W.clockString(), x: P.x, z: P.z, angle: P.angle, camYaw: P.camYaw, alive: P.alive, state: P.state, hp: P.health, wanted: P.wanted, money: P.money, weapon: P.weapon, ammo: P.weapons[P.weapon], entering: P.state === 'entering',
+      car: c ? { x: c.x, z: c.z, angle: c.angle, speed: c.speed, abs: c.absSpeed, type: c.type, health: c.health / c.maxHealth, wrecked: c.wrecked, air: c.airborne } : null,
+      blip: bp ? { x: bp.x, z: bp.z, isCar: !!tc, carSpeed: tc ? tc.absSpeed : 0, carDriver: tc ? (tc.driver ? (tc.driver === PLAYER ? 'me' : 'npc') : 'none') : null, carWrecked: tc ? tc.wrecked : false } : null,
+      objective: MISSIONS.objective, dialogue: !!MISSIONS.dialogue, shop: !!MISSIONS.shop, mission: MISSIONS.S.current ? MISSIONS.S.current.name : null, progress: MISSIONS.S.progress,
+      nearCar: nc ? { x: nc.x, z: nc.z, dist: nd, driver: nc.driver ? 'npc' : 'none', type: nc.type, speed: nc.absSpeed } : null, cops: W.peds.filter(q => q.alive && q.isCop && !q.inCar).length, copCars: W.cars.filter(v => !v.removed && v.ai.mode === 'chase').length, stats: P.stats }; };
+  window.__ptWalkRoute = (tx, tz) => { // BFS over the sidewalk graph from the nearest node to the node nearest the target
+    const P = PLAYER.P; const start = CITY.nearestWalkNode(P.x, P.z), goal = CITY.nearestWalkNode(tx, tz); const prev = new Map([[start, null]]); const q = [start]; let ok = false;
+    while (q.length) { const n = q.shift(); if (n === goal) { ok = true; break; } for (const l of n.links) if (!prev.has(l.to)) { prev.set(l.to, n); q.push(l.to); } }
+    const pts = []; let cur = goal; while (cur) { pts.unshift([cur.x, cur.z]); cur = prev.get(cur); } pts.push([tx, tz]); return pts; };
+  window.__ptRoute = (tx, tz) => { // BFS over the intersection grid, then lane points on the right side of travel
+    const G = CITY.GRID, PT = CITY.PITCH; const ni = x => M.clamp(Math.round(x / PT), 0, G), key = (i, j) => i + ',' + j;
+    const P = PLAYER.P; const sx = P.x, sz = P.z; const si = ni(sx), sj = ni(sz), ti = ni(tx), tj = ni(tz);
+    const prev = {}; const q = [[si, sj]]; prev[key(si, sj)] = null; let found = false;
+    while (q.length) { const [i, j] = q.shift(); if (i === ti && j === tj) { found = true; break; } for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const a = i + di, b2 = j + dj; if (a < 0 || a > G || b2 < 0 || b2 > G || prev[key(a, b2)] !== undefined) continue; prev[key(a, b2)] = [i, j]; q.push([a, b2]); } }
+    const nodes = []; let cur = [ti, tj]; while (cur) { nodes.unshift(cur); cur = prev[key(cur[0], cur[1])]; }
+    const pts = [];
+    for (let k = 0; k + 1 < nodes.length; k++) { const [i, j] = nodes[k], [i2, j2] = nodes[k + 1]; const dx = Math.sign(i2 - i), dz = Math.sign(j2 - j); const rx = -dz, rz = dx; const x0 = i * PT, z0 = j * PT, x1 = i2 * PT, z1 = j2 * PT; pts.push([x0 + dx * 9 + rx * 1.75, z0 + dz * 9 + rz * 1.75]); pts.push([x1 - dx * 9 + rx * 1.75, z1 - dz * 9 + rz * 1.75]); }
+    pts.push([tx, tz]); return pts; };
   // Deterministic stepping for tests: window.__sim(seconds) advances the simulation without rendering.
   window.__sim = (seconds, keys = []) => { window.__manual = true; for (const k of keys) window.dispatchEvent(new KeyboardEvent('keydown', { code: k })); for (let t = 0; t < seconds; t += 1 / 60) { step(1 / 60); INPUT.endFrame(); } for (const k of keys) window.dispatchEvent(new KeyboardEvent('keyup', { code: k })); };
   // Cheats, typed anywhere during play. Old habits.
@@ -102,7 +131,7 @@ const GAME = (() => {
     const night = RENDER.env.nightEmis > 0.05; const cam = RENDER.cam;
     RENDER.env.shadowOn = RENDER.env.shadowOn && quality.shadows;
     waterMesh.uvOff[0] = W.state.elapsed * 0.01; waterMesh.uvOff[1] = Math.sin(W.state.elapsed * 0.3) * 0.02; scene.statics = [staticMesh, waterMesh]; scene.entities.length = 0;
-    W.fx.begin(); W.drawDecals(cam.tx, cam.tz, dt);
+    W.fx.begin(); W.drawDecals(cam.tx, cam.tz, dt); W.lampCones(cam.tx, cam.tz);
     for (const c of W.cars) { if (c.removed || M.dist2(c.x, c.z, cam.tx, cam.tz) > 300 * 300) continue; scene.entities.push(c.entity(night)); if (night) c.headlightFX();
       if (M.dist2(c.x, c.z, cam.tx, cam.tz) < 90 * 90) { // occupants, seen through the glass
         if (c.driver && c.driver !== PLAYER) scene.entities.push(PEDS.seatedEntity(c.driver, c, 0, true));

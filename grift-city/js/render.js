@@ -4,7 +4,7 @@
 const RENDER = (() => {
   let gl, litProg, instProg, shadowProg, shadowInstProg, skyProg, partProg, flatProg, texArray, shadow;
   const MAX_LIGHTS = 32, MAX_BONES = 10;
-  const proj = M.create(), view = M.create(), vp = M.create(), invVP = M.create(), lightVP = M.create(), lightView = M.create(), lightProj = M.create();
+  const proj = M.create(), view = M.create(), vp = M.create(), invVP = M.create(), invProj = M.create(), lightVP = M.create(), lightView = M.create(), lightProj = M.create();
   const identityBones = new Float32Array(16 * MAX_BONES); for (let i = 0; i < MAX_BONES; i++) identityBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
   const zeroEmis = new Float32Array(MAX_BONES);
   const cam = { x: 0, y: 20, z: 0, tx: 0, ty: 0, tz: 1, fov: 60 * Math.PI / 180, near: 0.3, far: 900 };
@@ -34,7 +34,7 @@ const RENDER = (() => {
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in vec4 vShadow; in float vEmis;
     uniform sampler2DArray uTex; uniform sampler2DShadow uShadow;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
-    uniform float uFogDensity; uniform float uNightEmis; uniform float uShadowOn; uniform float uTexOn; uniform float uSpec; uniform float uHDR; uniform float uAlpha;
+    uniform float uFogDensity; uniform float uNightEmis; uniform float uShadowOn; uniform float uTexOn; uniform float uSpec; uniform float uHDR; uniform float uAlpha; uniform float uWater; uniform float uTime;
     uniform vec4 uLights[${MAX_LIGHTS}]; uniform vec3 uLightCols[${MAX_LIGHTS}]; uniform int uNumLights;
     out vec4 o;
     float shadowAt() {
@@ -50,6 +50,7 @@ const RENDER = (() => {
       vec4 t = uTexOn > 0.5 ? texture(uTex, vec3(vUV, vTile)) : vec4(1.0);
       vec3 albedo = t.rgb * vCol;
       vec3 n = normalize(vNrm);
+      if (uWater > 0.5) { n = normalize(n + vec3(sin(vWorld.x * 0.35 + uTime * 1.1) * 0.07 + sin(vWorld.z * 0.9 - uTime * 1.7) * 0.04, 0.0, cos(vWorld.z * 0.4 + uTime * 0.9) * 0.07 + cos(vWorld.x * 1.1 + uTime * 1.3) * 0.04)); }
       float ndl = max(dot(n, uSunDir), 0.0);
       float sh = (uShadowOn > 0.5 && ndl > 0.0) ? shadowAt() : 1.0;
       vec3 hemi = mix(uGroundCol, uSkyCol, n.y * 0.5 + 0.5);
@@ -106,10 +107,28 @@ const RENDER = (() => {
   const BRIGHT_FS = `in vec2 vUV; uniform sampler2D uTex; uniform float uThreshold; out vec4 o; void main() { vec3 c = texture(uTex, vUV).rgb; float l = dot(c, vec3(0.3, 0.55, 0.15)); float k = max(l - uThreshold, 0.0) / max(l, 1e-3); o = vec4(c * k, 1.0); }`;
   const BLUR_FS = `in vec2 vUV; uniform sampler2D uTex; uniform vec2 uDir; out vec4 o;
     void main() { const float w[5] = float[5](0.227, 0.194, 0.121, 0.054, 0.016); vec3 c = texture(uTex, vUV).rgb * w[0]; for (int i = 1; i < 5; i++) { vec2 off = uDir * float(i); c += texture(uTex, vUV + off).rgb * w[i]; c += texture(uTex, vUV - off).rgb * w[i]; } o = vec4(c, 1.0); }`;
-  const COMPOSITE_FS = `in vec2 vUV; uniform sampler2D uScene; uniform sampler2D uBloom; uniform float uBloomAmt; uniform float uExposure; uniform float uHDR; uniform float uVignette; uniform float uSat; out vec4 o;
+  const AO_FS = `in vec2 vUV; uniform sampler2D uDepth; uniform mat4 uInvProj; uniform mat4 uProj; uniform vec2 uRes; uniform float uRadius; uniform float uTime; out vec4 o;
+    vec3 viewPos(vec2 uv) { float d = texture(uDepth, uv).r; vec4 p = uInvProj * vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0); return p.xyz / p.w; }
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main() {
+      float d0 = texture(uDepth, vUV).r; if (d0 >= 0.99999) { o = vec4(1.0); return; }
+      vec3 P = viewPos(vUV); vec3 N = normalize(cross(dFdx(P), dFdy(P))); if (dot(N, -P) < 0.0) N = -N;
+      float a = hash(vUV * uRes) * 6.2832; float ca = cos(a), sa = sin(a);
+      const vec3 K[10] = vec3[10](vec3(0.27,0.1,0.35), vec3(-0.2,0.3,0.25), vec3(0.4,-0.15,0.2), vec3(-0.35,-0.3,0.3), vec3(0.1,0.45,0.4), vec3(-0.5,0.1,0.15), vec3(0.2,-0.5,0.3), vec3(0.6,0.3,0.45), vec3(-0.25,0.55,0.55), vec3(0.05,-0.2,0.75));
+      float occ = 0.0; float scale = uRadius * clamp(1.0 / (-P.z * 0.08 + 1.0), 0.2, 1.0);
+      vec3 T = normalize(abs(N.y) < 0.9 ? cross(N, vec3(0.0, 1.0, 0.0)) : cross(N, vec3(1.0, 0.0, 0.0))); vec3 B = cross(N, T);
+      for (int i = 0; i < 10; i++) { vec3 k = K[i]; vec2 r = vec2(k.x * ca - k.y * sa, k.x * sa + k.y * ca); vec3 sp = P + (T * r.x + B * r.y + N * k.z) * uRadius * (0.3 + 0.7 * float(i) / 9.0);
+        vec4 c = uProj * vec4(sp, 1.0); vec2 suv = c.xy / c.w * 0.5 + 0.5;
+        if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0) continue;
+        vec3 sceneP = viewPos(suv); float rangeCheck = smoothstep(0.0, 1.0, uRadius / max(abs(P.z - sceneP.z), 1e-3));
+        occ += (sceneP.z >= sp.z + 0.05 ? 1.0 : 0.0) * rangeCheck; }
+      float ao = 1.0 - occ / 10.0; o = vec4(vec3(ao), 1.0);
+    }`;
+  const AOBLUR_FS = `in vec2 vUV; uniform sampler2D uTex; uniform vec2 uTexel; out vec4 o; void main() { float s = 0.0; for (int x = -2; x <= 1; x++) for (int y = -2; y <= 1; y++) s += texture(uTex, vUV + vec2(float(x) + 0.5, float(y) + 0.5) * uTexel).r; o = vec4(vec3(s / 16.0), 1.0); }`;
+  const COMPOSITE_FS = `in vec2 vUV; uniform sampler2D uScene; uniform sampler2D uBloom; uniform sampler2D uAO; uniform float uAOAmt; uniform float uBloomAmt; uniform float uExposure; uniform float uHDR; uniform float uVignette; uniform float uSat; out vec4 o;
     vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
     void main() {
-      vec3 c = texture(uScene, vUV).rgb + texture(uBloom, vUV).rgb * uBloomAmt;
+      float ao = mix(1.0, texture(uAO, vUV).r, uAOAmt); vec3 c = texture(uScene, vUV).rgb * ao + texture(uBloom, vUV).rgb * uBloomAmt;
       if (uHDR > 0.5) { c = aces(c * uExposure); c = pow(c, vec3(1.0 / 2.2)); }
       float l = dot(c, vec3(0.3, 0.55, 0.15)); c = mix(vec3(l), c, uSat);
       vec2 d = vUV - 0.5; c *= 1.0 - uVignette * dot(d, d) * 2.2;
@@ -118,10 +137,11 @@ const RENDER = (() => {
   const FLAT_VS = `in vec3 aPos; in vec4 aCol; uniform mat4 uVP; out vec4 vCol; void main() { gl_Position = uVP * vec4(aPos, 1.0); vCol = aCol; }`;
   const FLAT_FS = `in vec4 vCol; out vec4 o; void main() { o = vCol; }`;
 
-  let partVao, partBuf, flatVao, flatBuf, brightProg, blurProg, compProg;
-  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, samples: 4, bloom: 0.35, exposure: 1.0, vignette: 0.3, sat: 1.12 };
-  function makeTarget(w, h, samples) {
-    const fmt = post.hdr ? gl.RGBA16F : gl.RGBA8; const t = { w, h };
+  let partVao, partBuf, flatVao, flatBuf, brightProg, blurProg, compProg, aoProg, aoBlurProg;
+  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.75, samples: 4, bloom: 0.35, exposure: 1.0, vignette: 0.3, sat: 1.12 };
+  function makeDepthTarget(w, h) { const t = { w, h }; t.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo); t.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t.tex); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, w, h); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t.tex, 0); t.ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER, null); return t; }
+  function makeTarget(w, h, samples, fmtOverride) {
+    const fmt = fmtOverride || (post.hdr ? gl.RGBA16F : gl.RGBA8); const t = { w, h };
     t.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo);
     if (samples > 0) {
       t.rb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, t.rb); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, fmt, w, h); gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, t.rb);
@@ -136,21 +156,22 @@ const RENDER = (() => {
   function destroyTarget(t) { if (!t) return; gl.deleteFramebuffer(t.fbo); if (t.rb) gl.deleteRenderbuffer(t.rb); if (t.db) gl.deleteRenderbuffer(t.db); if (t.tex) gl.deleteTexture(t.tex); }
   function ensureTargets(w, h) {
     if (post.w === w && post.h === h && post.msaa) return;
-    destroyTarget(post.msaa); destroyTarget(post.scene); destroyTarget(post.bloomA); destroyTarget(post.bloomB);
+    destroyTarget(post.msaa); destroyTarget(post.scene); destroyTarget(post.bloomA); destroyTarget(post.bloomB); destroyTarget(post.depth); destroyTarget(post.aoA); destroyTarget(post.aoB);
     post.w = w; post.h = h;
     post.msaa = makeTarget(w, h, post.samples); post.scene = makeTarget(w, h, 0);
     const bw = Math.max(1, w >> 2), bh = Math.max(1, h >> 2); post.bloomA = makeTarget(bw, bh, 0); post.bloomB = makeTarget(bw, bh, 0);
+    post.depth = makeDepthTarget(w, h); const aw = Math.max(1, w >> 1), ah = Math.max(1, h >> 1); post.aoA = makeTarget(aw, ah, 0, gl.RGBA8); post.aoB = makeTarget(aw, ah, 0, gl.RGBA8);
     if (!post.msaa.ok || !post.scene.ok || !post.bloomA.ok) { post.enabled = false; console.warn('post-processing unavailable'); }
   }
   function init(canvas, textures) {
     gl = GL.init(canvas);
     post.hdr = !!gl.getExtension('EXT_color_buffer_float'); const maxS = gl.getParameter(gl.MAX_SAMPLES); post.samples = Math.min(4, maxS);
-    brightProg = GL.program(QUAD_VS, BRIGHT_FS); blurProg = GL.program(QUAD_VS, BLUR_FS); compProg = GL.program(QUAD_VS, COMPOSITE_FS);
+    brightProg = GL.program(QUAD_VS, BRIGHT_FS); blurProg = GL.program(QUAD_VS, BLUR_FS); compProg = GL.program(QUAD_VS, COMPOSITE_FS); aoProg = GL.program(QUAD_VS, AO_FS); aoBlurProg = GL.program(QUAD_VS, AOBLUR_FS);
     litProg = GL.program(VS, FS); instProg = GL.program(VS, FS, '#define INSTANCED');
     shadowProg = GL.program(VS, SHADOW_FS, '#define SHADOW'); shadowInstProg = GL.program(VS, SHADOW_FS, '#define INSTANCED\n#define SHADOW');
     skyProg = GL.program(SKY_VS, SKY_FS); partProg = GL.program(PART_VS, PART_FS); flatProg = GL.program(FLAT_VS, FLAT_FS);
     texArray = GL.textureArray(textures);
-    shadow = GL.shadowTarget(2048);
+    const shadowSize = +(new URLSearchParams(location.search).get('shadow') || 0) || 3072; shadow = GL.shadowTarget(shadowSize);
     // particle buffer: pos3 size1 col4 = 8 floats
     partVao = gl.createVertexArray(); gl.bindVertexArray(partVao); partBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, partBuf);
     gl.bufferData(gl.ARRAY_BUFFER, 8 * 4 * 4096, gl.DYNAMIC_DRAW);
@@ -203,7 +224,7 @@ const RENDER = (() => {
     resize(canvas);
     M.perspective(proj, cam.fov, canvas.width / canvas.height, cam.near, cam.far);
     M.lookAt(view, cam.x, cam.y, cam.z, cam.tx, cam.ty, cam.tz, 0, 1, 0);
-    M.multiply(vp, proj, view); M.invert(invVP, vp);
+    M.multiply(vp, proj, view); M.invert(invVP, vp); M.invert(invProj, proj);
     // Shadow frustum: ortho box around the area in front of the camera.
     const fx = cam.tx - cam.x, fz = cam.tz - cam.z, fl = Math.hypot(fx, fz) || 1;
     const cx = cam.x + fx / fl * 45, cz = cam.z + fz / fl * 45, R = 95;
@@ -227,7 +248,7 @@ const RENDER = (() => {
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadow.tex); gl.uniform1i(P.u.uShadow, 1);
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
       gl.uniform3fv(P.u.uFogCol, env.fogCol); gl.uniform3f(P.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform1f(P.u.uFogDensity, env.fogDensity);
-      gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uHDR, post.hdr ? 1 : 0); gl.uniform1f(P.u.uAlpha, 1);
+      gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uHDR, post.hdr ? 1 : 0); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uWater, 0); gl.uniform1f(P.u.uTime, env.time || 0);
       gl.uniform4fv(P.u.uLights, lights.pos); gl.uniform3fv(P.u.uLightCols, lights.col); gl.uniform1i(P.u.uNumLights, lights.n);
     }
     gl.uniform2f(P.u.uUVOff, 0, 0);
@@ -238,7 +259,7 @@ const RENDER = (() => {
     bindCommon(P, forShadow);
     gl.uniformMatrix4fv(P.u.uBones, false, identityBones); gl.uniform1fv(P.u.uBoneEmis, zeroEmis);
     gl.uniformMatrix4fv(P.u.uModel, false, identityBones.subarray(0, 16));
-    for (const m of scene.statics) { if (m.uvOff) gl.uniform2fv(P.u.uUVOff, m.uvOff); if (!forShadow && m.spec) gl.uniform1f(P.u.uSpec, m.spec); GL.draw(m); stats.draws++; if (m.uvOff) gl.uniform2f(P.u.uUVOff, 0, 0); if (!forShadow && m.spec) gl.uniform1f(P.u.uSpec, 0); }
+    for (const m of scene.statics) { if (m.uvOff) gl.uniform2fv(P.u.uUVOff, m.uvOff); const sp = m.water ? m.spec : (m.spec || 0.12) + (env.rain || 0) * 0.5; if (!forShadow) { gl.uniform1f(P.u.uSpec, sp); gl.uniform1f(P.u.uWater, m.water ? 1 : 0); } GL.draw(m); stats.draws++; if (m.uvOff) gl.uniform2f(P.u.uUVOff, 0, 0); if (!forShadow) { gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uWater, 0); } }
     let lastBones = null, lastSpec = 0;
     for (const e of scene.entities) {
       if (forShadow && e.noShadow) continue;
@@ -261,6 +282,7 @@ const RENDER = (() => {
     gl.uniform1f(P.u.uAlpha, 1); gl.depthMask(true); gl.disable(gl.BLEND);
   }
   function render(canvas, scene, time) {
+    env.time = time;
     // Shadow pass
     if (env.shadowOn) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, shadow.fbo); gl.viewport(0, 0, shadow.size, shadow.size);
@@ -306,7 +328,16 @@ const RENDER = (() => {
     // resolve MSAA into the scene texture
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, post.msaa.fbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, post.scene.fbo);
     gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    const aoOn = post.ao > 0 && post.depth && post.depth.ok;
+    if (aoOn) { gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, post.depth.fbo); gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.DEPTH_BUFFER_BIT, gl.NEAREST); }
     gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
+    if (aoOn) {
+      const aw = post.aoA.w, ah = post.aoA.h; gl.bindFramebuffer(gl.FRAMEBUFFER, post.aoA.fbo); gl.viewport(0, 0, aw, ah);
+      gl.useProgram(aoProg.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, post.depth.tex); gl.uniform1i(aoProg.u.uDepth, 0);
+      gl.uniformMatrix4fv(aoProg.u.uInvProj, false, invProj); gl.uniformMatrix4fv(aoProg.u.uProj, false, proj); gl.uniform2f(aoProg.u.uRes, aw, ah); gl.uniform1f(aoProg.u.uRadius, 1.1); gl.uniform1f(aoProg.u.uTime, env.time || 0);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, post.aoB.fbo); gl.useProgram(aoBlurProg.p); gl.bindTexture(gl.TEXTURE_2D, post.aoA.tex); gl.uniform1i(aoBlurProg.u.uTex, 0); gl.uniform2f(aoBlurProg.u.uTexel, 1 / aw, 1 / ah); gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
     // bright pass at quarter resolution
     const bw = post.bloomA.w, bh = post.bloomA.h;
     gl.bindFramebuffer(gl.FRAMEBUFFER, post.bloomA.fbo); gl.viewport(0, 0, bw, bh);
@@ -321,6 +352,7 @@ const RENDER = (() => {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h);
     gl.useProgram(compProg.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, post.scene.tex); gl.uniform1i(compProg.u.uScene, 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, post.bloomA.tex); gl.uniform1i(compProg.u.uBloom, 1);
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, aoOn ? post.aoB.tex : post.bloomA.tex); gl.uniform1i(compProg.u.uAO, 2); gl.uniform1f(compProg.u.uAOAmt, aoOn ? post.ao : 0);
     gl.uniform1f(compProg.u.uBloomAmt, post.bloom); gl.uniform1f(compProg.u.uExposure, post.exposure); gl.uniform1f(compProg.u.uHDR, post.hdr ? 1 : 0); gl.uniform1f(compProg.u.uVignette, post.vignette); gl.uniform1f(compProg.u.uSat, post.sat);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.enable(gl.DEPTH_TEST); gl.depthMask(true);

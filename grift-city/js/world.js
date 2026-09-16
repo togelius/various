@@ -88,14 +88,22 @@ const W = (() => {
         if (m === dl) { x = l.x0 - r; hit = [-1, 0]; } else if (m === dr) { x = l.x1 + r; hit = [1, 0]; } else if (m === dt) { z = l.z0 - r; hit = [0, -1]; } else { z = l.z1 + r; hit = [0, 1]; }
       } else { const d = Math.sqrt(d2); dx /= d; dz /= d; x = cx + dx * r; z = cz + dz * r; hit = [dx, dz]; }
     }
-    if (!opts.noProps) for (const p of CITY.solidProps) {
+    if (!opts.noProps) for (const p of propsNear(x, z)) {
       if (p.down) continue; const rr = r + p.r; const dx = x - p.x, dz = z - p.z; const d2 = dx * dx + dz * dz; if (d2 >= rr * rr || d2 < 1e-8) continue;
       const d = Math.sqrt(d2); x = p.x + dx / d * rr; z = p.z + dz / d * rr; hit = [dx / d, dz / d]; hit.prop = p;
     }
     if (x < bounds[0] + r) { x = bounds[0] + r; hit = [1, 0]; } if (x > bounds[1] - r) { x = bounds[1] - r; hit = [-1, 0]; }
-    if (z < bounds[0] + r) { z = bounds[0] + r; hit = [0, 1]; } if (z > bounds[1] - r) { z = bounds[1] - r; hit = [0, -1]; }
+    if (z < bounds[0] + r) { z = bounds[0] + r; hit = [0, 1]; }
+    const pier = CITY.pier; const onPier = x > pier.x0 + r && x < pier.x1 - r;
+    if (z > bounds[1] - r) { if (onPier) { if (z > pier.z1 - r) { z = pier.z1 - r; hit = [0, -1]; } } else { z = bounds[1] - r; hit = [0, -1]; } }
+    if (z > bounds[1] + 0.5 && !onPier) { x = M.clamp(x, pier.x0 + r, pier.x1 - r); }
     return { x, z, hit };
   }
+  // Solid props bucketed on a 16 m grid so collision queries only touch the neighbourhood.
+  const propGrid = new Map(); const PG = 16; let propGridBuilt = false;
+  function buildPropGrid() { propGrid.clear(); for (const p of CITY.solidProps) { const k = Math.floor(p.x / PG) + ',' + Math.floor(p.z / PG); let a = propGrid.get(k); if (!a) propGrid.set(k, a = []); a.push(p); } propGridBuilt = true; }
+  const propTmp = [];
+  function propsNear(x, z) { if (!propGridBuilt) buildPropGrid(); propTmp.length = 0; const i = Math.floor(x / PG), j = Math.floor(z / PG); for (let a = i - 1; a <= i + 1; a++) for (let b = j - 1; b <= j + 1; b++) { const c = propGrid.get(a + ',' + b); if (c) for (const p of c) propTmp.push(p); } return propTmp; }
   function solidPropsNear(x, z, r) { const out = []; for (const p of CITY.solidProps) if (!p.down && M.dist2(x, z, p.x, p.z) < (r + 3) * (r + 3)) out.push(p); return out; }
   // Line of sight in 2D against building lots (ignores low walls).
   function los(ax, az, bx, bz) {
@@ -112,7 +120,7 @@ const W = (() => {
     for (let s = 0; s <= steps; s++) { const px = ox + ex * s / steps, pz = oz + ez * s / steps; for (const l of CITY.lotsNear(px, pz, 25)) { if (seen.has(l)) continue; seen.add(l); if (l.h < oy) continue; const t = M.rayAABB2(ox, oz, ex, ez, l.x0, l.z0, l.x1, l.z1); if (t >= 0 && t < best.t) best = { t, kind: 'lot', obj: l }; } }
     for (const c of cars) { if (c === ignore || c.removed) continue; for (const [cx, cz, r] of c.circles()) { const t = M.rayCircle2(ox, oz, ex, ez, cx, cz, r); if (t >= 0 && t < best.t) best = { t, kind: 'car', obj: c }; } }
     for (const p of peds) { if (p === ignore || p.removed || p.state === 'dead' || p.inCar) continue; const t = M.rayCircle2(ox, oz, ex, ez, p.x, p.z, 0.5); if (t >= 0 && t < best.t) best = { t, kind: 'ped', obj: p }; }
-    for (const p of CITY.solidProps) { if (p.down || p.r < 0.3) continue; const t = M.rayCircle2(ox, oz, ex, ez, p.x, p.z, p.r); if (t >= 0 && t < best.t) best = { t, kind: 'prop', obj: p }; }
+    { const seenP = new Set(); for (let s2 = 0; s2 <= steps; s2++) { const px = ox + ex * s2 / steps, pz = oz + ez * s2 / steps; for (const p of propsNear(px, pz)) { if (p.down || p.r < 0.3 || seenP.has(p)) continue; seenP.add(p); const t = M.rayCircle2(ox, oz, ex, ez, p.x, p.z, p.r); if (t >= 0 && t < best.t) best = { t, kind: 'prop', obj: p }; } } }
     if (heli && heli !== ignore && !heli.dead) { const t = M.rayCircle2(ox, oz, ex, ez, heli.x, heli.z, 3.5); if (t >= 0 && t < best.t && Math.abs(heli.y - oy) < 6) best = { t, kind: 'heli', obj: heli }; }
     best.x = ox + ex * best.t; best.z = oz + ez * best.t; best.dist = best.t * maxDist; return best;
   }
@@ -122,9 +130,9 @@ const W = (() => {
 
   // ---- Props: instanced meshes, knockable
   const propMeshes = {}; let lampHeads = null, tlHeads = null, markerMesh = null;
-  const PROP_TYPES = ['lamppost', 'trafficLight', 'tree', 'hydrant', 'bin', 'bench', 'bollard', 'payphone'];
+  const PROP_TYPES = ['lamppost', 'trafficLight', 'tree', 'hydrant', 'bin', 'bench', 'bollard', 'payphone', 'dumpster', 'mailbox', 'meter', 'newsbox', 'busShelter', 'cone', 'barrier', 'hedge', 'roundTree', 'palm', 'umbrella', 'streetSign'];
   function initProps() {
-    for (const t of PROP_TYPES) { const list = CITY.props[t]; propMeshes[t] = MESH[t]().buildInstanced(Math.max(1, list.length)); }
+    for (const t of PROP_TYPES) { const list = CITY.props[t] || (CITY.props[t] = []); propMeshes[t] = MESH[t]().buildInstanced(Math.max(1, list.length)); }
     lampHeads = MESH.lampHead().buildInstanced(CITY.props.lamppost.length + 8);
     tlHeads = MESH.lampHead().buildInstanced(CITY.props.trafficLight.length * 3 + 8);
   }
@@ -178,6 +186,16 @@ const W = (() => {
   const lightFor = node => lightIndex[node.i + ',' + node.j] || null;
 
   // ---- Lights for the renderer
+  // Faint additive cones under the lampposts at night, drawn into the flat FX buffer.
+  function lampCones(camX, camZ) {
+    const night = RENDER.env.nightEmis; if (night < 0.05) return; const rain = weather.rain;
+    let cones = 0;
+    for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 > 60 * 60 || cones++ > 14) continue; const a = p.a || 0; const hx = p.x + Math.sin(a) * 1.6, hz = p.z + Math.cos(a) * 1.6; const y0 = CITY.groundY(hx, hz);
+      const al = 0.045 * night * (1 + rain * 1.5) * (1 - Math.sqrt(d2) / 60); const R = 2.6; const segs = 8;
+      for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU; fx.tri(F.adds, hx, 5.7, hz, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R, 1, 0.85, 0.55, al); fx.tri(F.adds, hx, 5.7, hz, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R, 1, 0.85, 0.55, al); }
+      // pool on the ground
+      fx.quad(F.adds, [hx - R, y0 + 0.03, hz - R], [hx + R, y0 + 0.03, hz - R], [hx + R, y0 + 0.03, hz + R], [hx - R, y0 + 0.03, hz + R], [1, 0.85, 0.55], al * 1.5, al * 1.5); }
+  }
   function collectLights(camX, camZ) {
     const out = []; const night = RENDER.env.nightEmis;
     if (night > 0.05) { for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 < 110 * 110) { const a = p.a || 0; out.push({ x: p.x + Math.sin(a) * 1.6, y: 5.6, z: p.z + Math.cos(a) * 1.6, r: 17, col: [0.42 * night, 0.33 * night, 0.19 * night] }); } } }
@@ -201,5 +219,5 @@ const W = (() => {
   function frameBegin() { dyn.length = 0; state.shots.length = 0; state.noises.length = 0; }
   function updateExplosions(dt) { let w = 0; for (const e of explosions) { e.t += dt; if (e.t < 0.6) { dyn.push({ x: e.x, y: e.y + 1, z: e.z, r: 30 * e.big, col: [3 * (1 - e.t), 1.5 * (1 - e.t), 0.3] }); explosions[w++] = e; } } explosions.length = w; }
 
-  return { weather, updateWeather, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds };
+  return { weather, updateWeather, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds };
 })();

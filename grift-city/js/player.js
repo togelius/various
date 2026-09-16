@@ -219,7 +219,10 @@ const PLAYER = (() => {
   function updateInCar(dt) {
     const c = P.car, pad = INPUT.pad; P.inCarT += dt; P.x = c.x; P.z = c.z; P.y = c.y;
     if (c.wrecked) { exitCar(); return; }
-    const [ix, iz] = inputMove();
+    // raw axes: steering and throttle are independent in a car, never normalised together
+    let ix = 0, iz = 0;
+    if (INPUT.down('KeyW') || INPUT.down('ArrowUp')) iz += 1; if (INPUT.down('KeyS') || INPUT.down('ArrowDown')) iz -= 1; if (INPUT.down('KeyD') || INPUT.down('ArrowRight')) ix += 1; if (INPUT.down('KeyA') || INPUT.down('ArrowLeft')) ix -= 1;
+    if (pad.active) { ix = M.clamp(ix + pad.lx, -1, 1); iz = M.clamp(iz - pad.ly, -1, 1); }
     const ctl = c.controls;
     const fwdIn = Math.max(0, iz) + pad.rt, backIn = Math.max(0, -iz) + pad.lt;
     if (fwdIn > 0) { if (c.speed < -0.5) { ctl.throttle = 0; ctl.brake = fwdIn; ctl.reverse = false; } else { ctl.throttle = fwdIn; ctl.brake = 0; } }

@@ -122,12 +122,19 @@ js/game.js       boot, the frame loop, scene assembly, save games
 The renderer draws the whole static city as one mesh, props as instanced
 draws, and each car or pedestrian as one draw with a small bone array for
 wheels and limbs; car glass is a second, translucent draw so you can see who
-is inside. Everything renders in linear HDR into a multisampled float target,
-then a bloom pass and a filmic tonemap bring it to the screen. A 2048² shadow
+is inside. Everything renders in linear HDR into a multisampled float target;
+a screen-space ambient occlusion pass grounds everything in its surroundings,
+then bloom, a filmic tonemap and a vignette bring it to the screen. A 2048² shadow
 map follows the camera during the day; at night the sun goes out, the
 windows come on, and the lampposts and headlights become point lights. Cars
 crumple as they take damage: the body mesh is rebuilt with dents at each
 damage step.
 
 `window.__sim(seconds, [keyCodes])` steps the simulation deterministically
-without rendering, which is how the game was tested headless.
+without rendering, which is how the missions were tested headless. For real
+playtests there is a bot: with `window.__pt = { dt: 1/30, renderEvery: 6,
+cheap: true }` set before play starts, the loop runs at a fixed timestep,
+renders every sixth step, and calls `__pt.bot(dt)` each step; the bot drives
+the game through ordinary DOM keyboard and mouse events, navigates by the
+radar blip along the sidewalk and road graphs, and a runner captures a
+filmstrip with the game state under each frame.

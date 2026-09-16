@@ -105,7 +105,7 @@ const VEH = (() => {
         const res = W.pushOut(cx, cz, r, { ignoreLow: this.y > 1.4 });
         if (res.hit) {
           const nx = res.hit[0], nz = res.hit[1];
-          if (res.hit.prop) { const p = res.hit.prop; const spd = this.absSpeed; if ((p.kind === 'lamppost' || p.kind === 'hydrant' || p.kind === 'bin' || p.kind === 'trafficLight' || p.kind === 'bollard') && spd > 3) { W.knockProp(p, this.vx / spd, this.vz / spd); this.vx *= 0.8; this.vz *= 0.8; this.damage(spd * 2, null); AUDIO.play('bump', this.x, this.z); if (p.kind === 'hydrant') { for (let i = 0; i < 40; i++) W.particle(p.x, 0.5, p.z, (W.rng() - 0.5) * 2, 8 + W.rng() * 6, (W.rng() - 0.5) * 2, 1.2, 0.5, [0.7, 0.85, 1], 0.8, { grav: 12, grow: 1 }); p.ref.hydrantT = 30; } continue; } }
+          if (res.hit.prop) { const p = res.hit.prop; const spd = this.absSpeed; if ((p.kind === 'lamppost' || p.kind === 'hydrant' || p.kind === 'bin' || p.kind === 'trafficLight' || p.kind === 'bollard' || p.kind === 'cone' || p.kind === 'barrier' || p.kind === 'newsbox' || p.kind === 'mailbox' || p.kind === 'meter') && spd > (p.kind === 'cone' ? 1 : 3)) { W.knockProp(p, this.vx / spd, this.vz / spd); this.vx *= 0.8; this.vz *= 0.8; this.damage(spd * 2, null); AUDIO.play('bump', this.x, this.z); if (p.kind === 'hydrant') { for (let i = 0; i < 40; i++) W.particle(p.x, 0.5, p.z, (W.rng() - 0.5) * 2, 8 + W.rng() * 6, (W.rng() - 0.5) * 2, 1.2, 0.5, [0.7, 0.85, 1], 0.8, { grav: 12, grow: 1 }); p.ref.hydrantT = 30; } continue; } }
           const dx = res.x - cx, dz = res.z - cz; this.x += dx; this.z += dz;
           const vn = this.vx * nx + this.vz * nz;
           if (vn < 0) {

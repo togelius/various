@@ -44,7 +44,7 @@ const CITY = (() => {
   const lots = [];       // collision boxes: {x0,z0,x1,z1,h, kind}
   const blocks = [];     // per block: {i,j,x,z,lots:[], kind}
   const places = {};     // named locations: kind -> [{x,z,angle,label,...}]
-  const props = { lamppost: [], trafficLight: [], tree: [], hydrant: [], bin: [], bench: [], bollard: [], payphone: [] };
+  const props = { lamppost: [], trafficLight: [], tree: [], hydrant: [], bin: [], bench: [], bollard: [], payphone: [], dumpster: [], mailbox: [], meter: [], newsbox: [], busShelter: [], cone: [], barrier: [], hedge: [], roundTree: [], palm: [], umbrella: [], streetSign: [] };
   const solidProps = []; // {x,z,r,kind,idx}
   const parkedSpots = [];// {x,z,angle}
   const ramps = [];      // {x0,z0,x1,z1,h,dir}
@@ -78,11 +78,13 @@ const CITY = (() => {
     for (let j = 0; j <= GRID; j++) for (let i = 0; i < GRID; i++) {
       const x0 = i * PITCH + HALF_ROAD, x1 = (i + 1) * PITCH - HALF_ROAD, zc = j * PITCH;
       b.poly([[x0, 0, zc - HALF_ROAD], [x0, 0, zc + HALF_ROAD], [x1, 0, zc + HALF_ROAD], [x1, 0, zc - HALF_ROAD]], C, T.road, [[0, 0], [1, 0], [1, (x1 - x0) / 16], [0, (x1 - x0) / 16]]);
+      roadEdgesForManholes.push({ x0, z0: zc, x1, z1: zc, ox: 0, oz: rng.pick([-3.5, 3.5]) });
       // sidewalk strips between the block corners, outside the grid, are part of block slabs; extend for edge roads
     }
     for (let i = 0; i <= GRID; i++) for (let j = 0; j < GRID; j++) {
       const z0 = j * PITCH + HALF_ROAD, z1 = (j + 1) * PITCH - HALF_ROAD, xc = i * PITCH;
       b.poly([[xc - HALF_ROAD, 0, z0], [xc - HALF_ROAD, 0, z1], [xc + HALF_ROAD, 0, z1], [xc + HALF_ROAD, 0, z0]], C, T.road, [[0, 0], [0, (z1 - z0) / 16], [1, (z1 - z0) / 16], [1, 0]]);
+      roadEdgesForManholes.push({ x0: xc, z0, x1: xc, z1, ox: rng.pick([-3.5, 3.5]), oz: 0 });
     }
     // Intersections + crosswalks + stop lines
     for (let i = 0; i <= GRID; i++) for (let j = 0; j <= GRID; j++) {
@@ -102,6 +104,10 @@ const CITY = (() => {
         if (sx) b.box(xc + sx * 10, 0.01, sx > 0 ? zc - 7 : zc, 0.4, 0.005, 7, stripe, 0, { faces: 4 });
         else b.box(sz > 0 ? xc : xc - 7, 0.01, zc + sz * 10, 7, 0.005, 0.4, stripe, 0, { faces: 4 });
       }
+      // street name signs on a pole at the north-east corner
+      if (i < GRID && j > 0) { const T2 = TEX.names; const px = xc + HALF_ROAD + 1.4, pz = zc - HALF_ROAD - 1.4; b.cyl(px, CURB, pz, 0.05, 3.0, [0.3, 0.3, 0.32], 0, 5); const rowA = (j % 16), rowB = ((i + 8) % 16);
+        const plate = (x0, z0, x1, z1, row, nx, nz) => { const base = b.n; const v0 = row / 16, v1 = (row + 1) / 16; [[x0, 2.55, z0, 0, v1], [x0, 2.8, z0, 0, v0], [x1, 2.8, z1, 1, v0], [x1, 2.55, z1, 1, v1]].forEach(([x, y, z, u, v]) => b.vert(x, y, z, nx, 0, nz, 1, 1, 1, u, v, T2.signs, 0)); b.quad(base, base + 1, base + 2, base + 3); const b2 = b.n; [[x1, 2.55, z1, 1, v1], [x1, 2.8, z1, 1, v0], [x0, 2.8, z0, 0, v0], [x0, 2.55, z0, 0, v1]].forEach(([x, y, z, u, v]) => b.vert(x, y, z, -nx, 0, -nz, 1, 1, 1, u, v, T2.signs, 0)); b.quad(b2, b2 + 1, b2 + 2, b2 + 3); };
+        plate(px - 0.55, pz - 0.05, px + 0.55, pz - 0.05, rowA, 0, -1); plate(px + 0.05, pz + 0.55, px + 0.05, pz - 0.55, rowB, 1, 0); }
       if (inner) {
         lights.push({ x: xc, z: zc, i, j });
         // Four traffic light poles at the corners, arm pointing over the road.
@@ -110,10 +116,27 @@ const CITY = (() => {
         }
       }
     }
+    // manholes on the roads
+    for (let k = 0; k < 90; k++) { const e = roadEdgesForManholes[k % roadEdgesForManholes.length]; const t = rng.range(0.15, 0.85); const x = e.x0 + (e.x1 - e.x0) * t, z = e.z0 + (e.z1 - e.z0) * t; b.cyl(x + e.ox, 0, z + e.oz, 0.5, 0.025, [0.22, 0.22, 0.24], T.metal, 10, 0, true, false); }
+    // roadworks on one Eastside street: cones, barriers, a dug-up patch
+    { const xc = 7 * PITCH + 5.25, z0 = 3 * PITCH + 30; b.floor(xc - 2, z0, 4, 22, 0.012, [0.5, 0.45, 0.4], T.asphalt, 4); b.floor(xc - 1.4, z0 + 3, 2.8, 8, 0.015, [0.15, 0.12, 0.1], T.asphalt, 4);
+      for (let k = 0; k <= 22; k += 3.5) { props.cone.push({ x: xc - 2.3, z: z0 + k, a: 0 }); props.cone.push({ x: xc + 2.3, z: z0 + k, a: 0 }); }
+      props.barrier.push({ x: xc, z: z0 - 1, a: Math.PI / 2 }, { x: xc, z: z0 + 23, a: Math.PI / 2 }); }
+    // the south shore: palms, umbrellas, a wooden pier out over the water
+    { const zs = SIZE + HALF_ROAD + SW + 4; for (let x = W0 + 30; x < W1 - 30; x += 26) { props.palm.push({ x: x + rng.range(-6, 6), z: zs + rng.range(2, 8), a: rng.range(0, 6.28), s: rng.range(0.8, 1.2) }); solidProps.push({ x, z: zs + 4, r: 0.3, kind: 'tree' }); if (rng.chance(0.6)) props.umbrella.push({ x: x + rng.range(-8, 8), z: zs + rng.range(10, 18), a: 0 }); if (rng.chance(0.5)) b.floor(x + rng.range(-10, 10), zs + rng.range(9, 19), 1.8, 0.9, 0.01, rng.pick([[0.9, 0.3, 0.3], [0.3, 0.5, 0.9], [0.95, 0.85, 0.3], [0.3, 0.8, 0.6]]), 0, 1); }
+      const px0 = pierX0, px1 = pierX1; const pz0 = W1 - 1, pz1 = pierZ1;
+      b.floor(px0, pz0, px1 - px0, pz1 - pz0, 0.05, [1, 1, 1], T.planks, 4);
+      for (let z = pz0 + 3; z < pz1; z += 6) for (const x of [px0 + 0.5, px1 - 0.5]) { b.cyl(x, -2, z, 0.25, 0.9, [0.35, 0.25, 0.15], 0, 6); b.cyl(x, 0.9, z, 0.06, 1.0, [0.5, 0.5, 0.52], 0, 5); }
+      for (const x of [px0 + 0.5, px1 - 0.5]) b.box(x - 0.04, 0.95, pz0, 0.08, 0.06, pz1 - pz0, [0.5, 0.5, 0.52]);
+      b.box(px0, 0.05, pz1 - 4, px1 - px0, 0.02, 4, [0.4, 0.3, 0.2]); b.cbox((px0 + px1) / 2, 1.4, pz1 - 2, 3, 2.8, 2.5, [0.55, 0.6, 0.7], T.metal, { uvScale: 2 }); b.box((px0 + px1) / 2 - 1.6, 4.2, pz1 - 3.35, 3.2, 0.15, 3.2, [0.4, 0.3, 0.2]);
+      for (let k = 0; k < 6; k++) props.bench.push({ x: px0 + 1.2 + (k % 2) * (px1 - px0 - 2.4), z: pz0 + 8 + Math.floor(k / 2) * 14, a: (k % 2) ? -Math.PI / 2 : Math.PI / 2 });
+      addPlace('pier', { x: (px0 + px1) / 2, z: pz1 - 6, label: 'the pier' }); }
     // Blocks
     for (let i = 0; i < GRID; i++) for (let j = 0; j < GRID; j++) buildBlock(b, i, j);
     return b;
   }
+  const pierX0 = 5 * PITCH + HALF_ROAD + SW + 26, pierX1 = pierX0 + 8, pierZ1 = SIZE + HALF_ROAD + SW + SHORE + 60;
+  const roadEdgesForManholes = [];
 
   function buildBlock(b, i, j) {
     const T = TEX.names; const [bx, bz] = blockOrigin(i, j); const C = [1, 1, 1];
@@ -132,6 +155,16 @@ const CITY = (() => {
     if (rng.chance(0.7)) props.hydrant.push({ x: bx + BLOCK + SW - 0.8, z: bz + rng.range(4, 60), a: 0 });
     for (let k = 0; k < 3; k++) if (rng.chance(0.6)) { const side = rng.int(0, 3); const t = rng.range(3, 61); props.bin.push(side === 0 ? { x: bx + t, z: bz - SW + 0.7, a: 0 } : side === 1 ? { x: bx + t, z: bz + BLOCK + SW - 0.7, a: 0 } : side === 2 ? { x: bx - SW + 0.7, z: bz + t, a: 0 } : { x: bx + BLOCK + SW - 0.7, z: bz + t, a: 0 }); }
 
+    // street furniture by district
+    const dist0 = district(i, j); const isTown = dist0 === 'downtown' || dist0 === 'midtown';
+    if (isTown) { for (let k = 6; k < BLOCK - 4; k += 7) props.meter.push({ x: bx + k, z: bz + BLOCK + SW - 0.5, a: Math.PI }); }
+    if (rng.chance(0.5)) props.mailbox.push({ x: bx - SW + 0.7, z: bz + rng.range(6, 20), a: Math.PI / 2 });
+    if (rng.chance(0.6)) { const nx = bx + BLOCK + SW - 0.7; for (let k = 0; k < rng.int(1, 3); k++) props.newsbox.push({ x: nx, z: bz + 2 + k * 0.6, a: -Math.PI / 2 }); }
+    if (rng.chance(0.3)) { const sx = bx + rng.range(14, 46); props.busShelter.push({ x: sx, z: bz - SW + 1.4, a: Math.PI }); solidProps.push({ x: sx - 1.9, z: bz - SW + 1.4, r: 0.4, kind: 'shelter' }, { x: sx + 1.9, z: bz - SW + 1.4, r: 0.4, kind: 'shelter' }); }
+    if (dist0 === 'westfield' || dist0 === 'midtown') { for (let k = 6; k < BLOCK - 4; k += 12) { const t = { x: bx + k, z: bz - SW + 1.2, a: rng.range(0, 6.28), s: rng.range(0.8, 1.1) }; (rng.chance(0.5) ? props.roundTree : props.tree).push(t); solidProps.push({ x: t.x, z: t.z, r: 0.4, kind: 'tree' }); } }
+    if (dist0 === 'westfield') { for (let k = 4; k < BLOCK - 4; k += 3.2) if (rng.chance(0.8)) props.hedge.push({ x: bx + BLOCK + SW - 1.0, z: bz + k, a: Math.PI / 2 }); }
+    if (dist0 === 'eastside' || dist0 === 'southport') { // power poles and wires along the west edge
+      let prev = null; for (let k = 2; k < BLOCK; k += 16) { const px = bx - SW + 0.5, pz = bz + k; b.cyl(px, CURB, pz, 0.14, 8, [0.4, 0.3, 0.2], 0, 6); b.cbox(px, CURB + 7.6, pz, 1.6, 0.1, 0.1, [0.4, 0.3, 0.2]); if (prev) for (const ox of [-0.7, 0.7]) b.box(px + ox - 0.015, CURB + 7.55, prev, 0.03, 0.03, pz - prev, [0.1, 0.1, 0.1]); prev = pz; solidProps.push({ x: px, z: pz, r: 0.2, kind: 'pole' }); } }
     const kind = block.kind;
     if (kind === 'park') return buildPark(b, block);
     if (kind === 'parking') return buildParking(b, block, false);
@@ -156,12 +189,14 @@ const CITY = (() => {
       }
       zc += zs[zi];
     }
+    // dumpsters and rubbish in the alleys between lots
+    for (let k = 0; k < rng.int(1, 3); k++) { for (let t = 0; t < 6; t++) { const px = bx + rng.range(2, BLOCK - 2), pz = bz + rng.range(2, BLOCK - 2); const lot = block.lots.find(l => px > l.x0 - 1.2 && px < l.x1 + 1.2 && pz > l.z0 - 1.2 && pz < l.z1 + 1.2); if (lot) continue; const nearWall = block.lots.some(l => px > l.x0 - 2.2 && px < l.x1 + 2.2 && pz > l.z0 - 2.2 && pz < l.z1 + 2.2); if (!nearWall) continue; props.dumpster.push({ x: px, z: pz, a: rng.pick([0, Math.PI / 2]) }); solidProps.push({ x: px, z: pz, r: 0.9, kind: 'dumpster' }); for (let g = 0; g < 3; g++) b.cbox(px + rng.range(-1.6, 1.6), CURB + 0.2, pz + rng.range(-1.4, 1.4), 0.5, 0.4, 0.45, [0.1, 0.1, 0.12]); break; } }
   }
 
   const FACADES = {
-    downtown: ['glass', 'office', 'office', 'concrete'], midtown: ['office', 'concrete', 'brick', 'tenement'],
-    northgate: ['brick', 'tenement', 'brick', 'concrete'], westfield: ['brick', 'concrete', 'tenement'],
-    eastside: ['concrete', 'tenement', 'tenement', 'brick'], southport: ['tenement', 'brick', 'concrete'],
+    downtown: ['glass', 'office', 'office', 'deco', 'concrete', 'glass'], midtown: ['office', 'concrete', 'brick', 'deco', 'tenement', 'stone'],
+    northgate: ['brick', 'tenement', 'brick', 'concrete', 'stone'], westfield: ['painted', 'brick', 'painted', 'concrete'],
+    eastside: ['concrete', 'tenement', 'tenement', 'brick', 'metal'], southport: ['tenement', 'brick', 'painted', 'stone'],
   };
   const FLOORS = { downtown: [14, 42], midtown: [6, 16], northgate: [3, 8], westfield: [2, 5], eastside: [2, 6], southport: [3, 7] };
 
@@ -179,39 +214,74 @@ const CITY = (() => {
     const floors = rng.int(fmin, fmax); const fh = 3.2; const ground = 4.2;
     const facade = rng.pick(FACADES[dist] || FACADES.midtown);
     const tint = rng.chance(0.3) ? [rng.range(0.7, 1.05), rng.range(0.7, 1.05), rng.range(0.7, 1.05)] : [1, 1, 1].map(v => v * rng.range(0.75, 1.05));
-    const y = CURB;
+    const trim = tint.map(v => v * 0.82); const y = CURB;
     const commercial = rng.chance(dist === 'downtown' ? 0.6 : 0.75);
+    // which side faces the street: the doorway, awning and fire escape go there
+    const fz = front === 'n' ? z0 : front === 's' ? z1 : null, fx = front === 'w' ? x0 : front === 'e' ? x1 : null;
     let top = y;
     if (commercial) {
-      b.box(x0, y, z0, W, ground, D, tint, T.shops, { faces: 1 | 2 | 16 | 32, uvScale: 8, vOff: 0 });
+      const shopTile = rng.pick([T.shops0, T.shops1, T.shops2]);
+      b.box(x0, y, z0, W, ground, D, tint, shopTile, { faces: 1 | 2 | 16 | 32, uvScale: 8 });
+      b.box(x0 - 0.3, y + ground - 0.35, z0 - 0.3, W + 0.6, 0.35, D + 0.6, trim, 0);
+      // a real awning over the street side
+      if (rng.chance(0.5)) { const ac = [rng.range(0.4, 0.9), rng.range(0.2, 0.6), rng.range(0.2, 0.6)]; const aw = Math.min(W * 0.6, 7);
+        if (fz !== null) { const ax = x0 + (W - aw) / 2; const zz = front === 'n' ? z0 - 1.4 : z1; b.wedge(ax, y + 2.6, front === 'n' ? zz : zz + 0.0, aw, 0.5, 1.4, ac, 0); }
+        else { const az = z0 + (D - aw) / 2; const xx = front === 'w' ? x0 - 1.4 : x1; b.box(xx, y + 2.6, az, 1.4, 0.35, aw, ac, 0); } }
+      // planters by the door downtown
+      if (dist === 'downtown' && fz !== null) { const zz = front === 'n' ? z0 - 0.9 : z1 + 0.3; for (const px of [x0 + 1, x1 - 1.6]) { b.box(px, y, zz, 0.6, 0.55, 0.6, [0.4, 0.38, 0.35], T.metal, { uvScale: 2 }); b.floor(px + 0.05, zz + 0.05, 0.5, 0.5, y + 0.56, [1, 1, 1], T.flowers, 0.5); } }
       top = y + ground;
-      // awning band
-      b.box(x0 - 0.3, top - 0.35, z0 - 0.3, W + 0.6, 0.35, D + 0.6, tint.map(v => v * 0.6), 0);
+    } else if (fz !== null || fx !== null) {
+      // residential doorway: recessed dark door, step, lintel
+      const dw = 1.6; if (fz !== null) { const dx = x0 + W / 2 - dw / 2, zz = front === 'n' ? z0 - 0.02 : z1 - 0.2; b.box(dx, y, zz, dw, 2.6, 0.22, [0.15, 0.1, 0.08]); b.box(dx - 0.25, y + 2.6, zz - 0.1, dw + 0.5, 0.25, 0.42, trim); b.box(dx - 0.3, y, front === 'n' ? z0 - 0.7 : z1, dw + 0.6, 0.18, 0.7, trim); }
+      else { const dz = z0 + D / 2 - dw / 2, xx = front === 'w' ? x0 - 0.02 : x1 - 0.2; b.box(xx, y, dz, 0.22, 2.6, dw, [0.15, 0.1, 0.08]); b.box(xx - 0.1, y + 2.6, dz - 0.25, 0.42, 0.25, dw + 0.5, trim); }
     }
     const H = floors * fh;
-    // window texture: 4 window columns per 14 units, 4 rows per 12.8 units
     const facadeOpts = { faces: 1 | 2 | 16 | 32, uvScale: 1, uOff: rng.range(0, 1), vOff: 0 };
     facadeBox(b, x0, top, z0, W, H, D, tint, T[facade], facadeOpts);
+    // ledges every floor for the masonry styles, a cornice on top
+    if (facade !== 'glass' && facade !== 'metal') for (let k = (commercial ? 0 : 1); k < floors; k++) { const ly = top + k * fh; b.box(x0 - 0.12, ly, z0 - 0.12, W + 0.24, 0.14, D + 0.24, trim, 0, { faces: 1 | 2 | 4 | 16 | 32 }); }
+    b.box(x0 - 0.35, top + H - 0.45, z0 - 0.35, W + 0.7, 0.45, D + 0.7, trim, 0);
+    // fire escape on brick and tenement fronts
+    if ((facade === 'brick' || facade === 'tenement') && floors >= 3 && rng.chance(0.6)) fireEscape(b, x0, z0, x1, z1, top + fh, floors - 1, fh, front);
+    // graffiti low on a side wall in the rough districts
+    if ((dist === 'eastside' || dist === 'southport') && rng.chance(0.45)) { const gw = Math.min(6, D - 2); const gx = rng.chance(0.5) ? x0 - 0.02 : x1 + 0.02; b.box(gx - 0.01, y + 0.4, z0 + rng.range(1, D - gw - 1), 0.02, 2.2, gw, [1, 1, 1], T.graffiti, { uvScale: gw, faces: gx < x0 + 0.5 ? 2 : 1 }); }
     // roof
     b.floor(x0, z0, W, D, top + H, tint.map(v => v * 0.9), T.roof, 8);
     roofDetails(b, x0, top + H, z0, W, D, tint, floors > 12);
-    // optional setback tower
     let totalH = top + H;
     if (floors > 10 && rng.chance(0.5)) {
       const s = rng.range(0.55, 0.8); const tw = W * s, td = D * s, tx = x0 + (W - tw) / 2, tz = z0 + (D - td) / 2, th = rng.int(4, floors) * fh;
       facadeBox(b, tx, top + H, tz, tw, th, td, tint, T[facade], facadeOpts);
+      if (facade !== 'glass') for (let k = 1; k < th / fh; k++) b.box(tx - 0.12, top + H + k * fh, tz - 0.12, tw + 0.24, 0.14, td + 0.24, trim, 0, { faces: 1 | 2 | 4 | 16 | 32 });
+      b.box(tx - 0.35, top + H + th - 0.45, tz - 0.35, tw + 0.7, 0.45, td + 0.7, trim, 0);
       b.floor(tx, tz, tw, td, top + H + th, tint.map(v => v * 0.9), T.roof, 8);
       roofDetails(b, tx, top + H + th, tz, tw, td, tint, true);
       totalH = top + H + th;
     }
-    // Billboard on some roofs facing the street
-    if (rng.chance(0.18) && floors < 12) {
-      const tile = rng.pick([T.billboard, T.billboard2]); const bw = Math.min(W - 2, 10), bh = bw * 0.6;
+    if (rng.chance(0.2) && floors < 12) {
+      const tile = T['bill' + rng.int(0, 5)]; const bw = Math.min(W - 2, 10), bh = bw * 0.6;
       const bxp = x0 + (W - bw) / 2; const bzp = front === 's' ? z1 - 0.5 : z0 + 0.5;
       b.box(bxp, totalH + 1.5, bzp - 0.15, bw, bh, 0.3, [1, 1, 1], tile, { uvScale: bw, faces: 16 | 32 });
       b.box(bxp + 1, totalH, bzp - 0.05, 0.15, 1.5, 0.1, [0.3, 0.3, 0.3]); b.box(bxp + bw - 1, totalH, bzp - 0.05, 0.15, 1.5, 0.1, [0.3, 0.3, 0.3]);
+      // floodlights on the billboard
+      b.box(bxp + bw * 0.3, totalH + 1.5 + bh, bzp - 0.5, 0.3, 0.15, 0.5, [0.2, 0.2, 0.2]); b.box(bxp + bw * 0.7, totalH + 1.5 + bh, bzp - 0.5, 0.3, 0.15, 0.5, [0.2, 0.2, 0.2]);
     }
+    // a neon sign on some shop corners
+    if (commercial && rng.chance(0.3)) { const nt = rng.pick([T.neon, T.neonc, T.neony, T.neong]); if (fz !== null) b.box(x0 + rng.range(0.5, W - 3), y + ground + 0.5, front === 'n' ? z0 - 0.6 : z1 + 0.1, 2.4, 0.9, 0.5, [1, 1, 1], nt); else b.box(front === 'w' ? x0 - 0.6 : x1 + 0.1, y + ground + 0.5, z0 + rng.range(0.5, D - 3), 0.5, 0.9, 2.4, [1, 1, 1], nt); }
     addLot(block, x0, z0, x1, z1, totalH);
+  }
+  function fireEscape(b, x0, z0, x1, z1, y0, floors, fh, front) {
+    const c = [0.16, 0.16, 0.18]; const W = x1 - x0; const pw = Math.min(4, W - 2); const px = x0 + (W - pw) / 2;
+    const zz = front === 's' ? z1 : z0 - 0.9; const dir = front === 's' ? 1 : -1;
+    for (let k = 0; k < floors; k++) {
+      const y = y0 + k * fh - 0.1;
+      b.box(px, y, zz, pw, 0.08, 0.9, c); // platform
+      for (let r = 0; r < 2; r++) b.box(px, y + 0.5 + r * 0.45, zz + (dir > 0 ? 0.85 : 0), pw, 0.04, 0.04, c);
+      b.box(px, y, zz + (dir > 0 ? 0.85 : 0), 0.04, 1.0, 0.04, c); b.box(px + pw - 0.04, y, zz + (dir > 0 ? 0.85 : 0), 0.04, 1.0, 0.04, c);
+      // stair up to the next platform, as a slanted slab
+      if (k < floors - 1) { const sx0 = k % 2 ? px + pw - 0.7 : px, sx1 = k % 2 ? px + pw : px + 0.7; b.poly([[sx0, y + 0.08, zz + 0.9 * (dir > 0 ? 0.2 : 0.8)], [sx0, y + fh, zz + 0.9 * (dir > 0 ? 0.8 : 0.2)], [sx1, y + fh, zz + 0.9 * (dir > 0 ? 0.8 : 0.2)], [sx1, y + 0.08, zz + 0.9 * (dir > 0 ? 0.2 : 0.8)]], c); b.poly([[sx1, y + 0.08, zz + 0.9 * (dir > 0 ? 0.2 : 0.8)], [sx1, y + fh, zz + 0.9 * (dir > 0 ? 0.8 : 0.2)], [sx0, y + fh, zz + 0.9 * (dir > 0 ? 0.8 : 0.2)], [sx0, y + 0.08, zz + 0.9 * (dir > 0 ? 0.2 : 0.8)]], c); }
+    }
+    b.box(px + pw / 2 - 0.02, y0 - fh + 0.5, zz + 0.4, 0.04, fh - 0.6, 0.04, c); // ladder to the street
   }
   // Box with windows scaled so a window column is ~3.5 units and a row 3.2 units; uv v=0 at the bottom.
   function facadeBox(b, x, y, z, w, h, d, tint, tile, opts) {
@@ -230,8 +300,11 @@ const CITY = (() => {
     const T = TEX.names; const p = tint.map(v => v * 0.85);
     b.box(x, y, z, w, 0.7, 0.4, p); b.box(x, y, z + d - 0.4, w, 0.7, 0.4, p); b.box(x, y, z, 0.4, 0.7, d, p); b.box(x + w - 0.4, y, z, 0.4, 0.7, d, p);
     const n = rng.int(1, 3);
-    for (let k = 0; k < n; k++) { const aw = rng.range(1.5, 3), ad = rng.range(1.5, 3); b.box(x + rng.range(1, Math.max(1.1, w - aw - 1)), y, z + rng.range(1, Math.max(1.1, d - ad - 1)), aw, rng.range(0.8, 1.6), ad, [0.6, 0.6, 0.62], T.metal, { uvScale: 2 }); }
-    if (rng.chance(0.3) && w > 8 && d > 8) { const cx = x + rng.range(3, w - 3), cz = z + rng.range(3, d - 3); b.cyl(cx, y, cz, 0.15, 2.5, [0.3, 0.3, 0.3], 0, 4); b.cyl(cx, y + 2.5, cz, 1.3, 4.3, [0.45, 0.35, 0.25], 0, 8, 0, true, true); }
+    for (let k = 0; k < n; k++) { const aw = rng.range(1.5, 3), ad = rng.range(1.5, 3); const ax = x + rng.range(1, Math.max(1.1, w - aw - 1)), az = z + rng.range(1, Math.max(1.1, d - ad - 1)); b.box(ax, y, az, aw, rng.range(0.8, 1.6), ad, [0.6, 0.6, 0.62], T.metal, { uvScale: 2 }); b.box(ax + 0.2, y + 0.8, az + 0.2, aw - 0.4, 0.05, ad - 0.4, [0.25, 0.25, 0.27]); }
+    for (let k = 0; k < rng.int(1, 4); k++) { const vx = x + rng.range(1, w - 1), vz = z + rng.range(1, d - 1); b.cyl(vx, y, vz, 0.25, rng.range(0.8, 1.6), [0.55, 0.55, 0.58], 0, 6); b.cyl(vx, y + 1.2, vz, 0.4, 1.35, [0.45, 0.45, 0.48], 0, 6); }
+    if (rng.chance(0.3) && w > 8 && d > 8) { const cx = x + rng.range(3, w - 3), cz = z + rng.range(3, d - 3); for (const [ox, oz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) b.cyl(cx + ox, y, cz + oz, 0.08, 2.5, [0.3, 0.3, 0.3], 0, 4); b.cyl(cx, y + 2.5, cz, 1.3, 4.3, [0.45, 0.35, 0.25], 0, 10, 0, true, true); b.cyl(cx, y + 4.3, cz, 1.4, 4.6, [0.35, 0.28, 0.2], 0, 10, 0, true, false, 0.4); }
+    if (rng.chance(0.4) && w > 6 && d > 6) { const sx = x + rng.range(1, w - 3.5), sz = z + rng.range(1, d - 3.5); b.box(sx, y, sz, 2.4, 2.6, 2.8, tint.map(v => v * 0.8)); b.box(sx + 0.7, y, sz - 0.05, 1, 2.1, 0.1, [0.2, 0.15, 0.1]); } // roof access shed
+    if (rng.chance(0.35)) { const dx = x + rng.range(1, w - 1), dz = z + rng.range(1, d - 1); b.cyl(dx, y, dz, 0.06, 1.2, [0.5, 0.5, 0.5], 0, 4); b.cyl(dx, y + 1.0, dz, 0.7, 1.15, [0.85, 0.85, 0.88], 0, 10, 0, true, true, 0.1); } // dish
     if (tall) { b.box(x + w / 2 - 0.1, y, z + d / 2 - 0.1, 0.2, 6, 0.2, [0.7, 0.7, 0.7]); b.cbox(x + w / 2, y + 6.1, z + d / 2, 0.3, 0.3, 0.3, [1, 0.1, 0.1], 0, { bone: 0 }); }
   }
   function buildPark(b, block) {
@@ -244,7 +317,7 @@ const CITY = (() => {
     solidProps.push({ x: x + BLOCK / 2, z: z + BLOCK / 2, r: 4.2, kind: 'fountain' });
     for (let k = 0; k < 22; k++) {
       let tx, tz, tries = 0; do { tx = x + rng.range(3, BLOCK - 3); tz = z + rng.range(3, BLOCK - 3); tries++; } while (tries < 20 && (Math.abs(tx - x - BLOCK / 2) < 4 || Math.abs(tz - z - BLOCK / 2) < 4 || M.dist(tx, tz, x + BLOCK / 2, z + BLOCK / 2) < 8));
-      props.tree.push({ x: tx, z: tz, a: rng.range(0, 6.28), s: rng.range(0.8, 1.3) }); solidProps.push({ x: tx, z: tz, r: 0.5, kind: 'tree' });
+      (rng.chance(0.5) ? props.roundTree : props.tree).push({ x: tx, z: tz, a: rng.range(0, 6.28), s: rng.range(0.8, 1.3) }); solidProps.push({ x: tx, z: tz, r: 0.5, kind: 'tree' });
     }
     for (let k = 0; k < 6; k++) { const along = rng.chance(0.5); const t = rng.range(6, BLOCK - 6); const p = along ? { x: x + t, z: z + BLOCK / 2 + (rng.chance(0.5) ? 3 : -3), a: 0 } : { x: x + BLOCK / 2 + (rng.chance(0.5) ? 3 : -3), z: z + t, a: Math.PI / 2 }; props.bench.push(p); }
     addPlace('park', { x: x + BLOCK / 2, z: z + BLOCK / 2, label: 'park' });
@@ -342,7 +415,7 @@ const CITY = (() => {
         addPlace('spray', { x: bayX + bayW / 2, z: z0 - 2.4, label: sp.label, angle: 0 }); break;
       }
       case 'guns':
-        h = 5; b.box(x0, y, z0, W, h, D, [0.45, 0.45, 0.5], T.shops, { uvScale: 8 }); b.box(x0 - 0.2, y + h, z0 - 0.2, W + 0.4, 0.5, D + 0.4, [0.2, 0.2, 0.22]);
+        h = 5; b.box(x0, y, z0, W, h, D, [0.45, 0.45, 0.5], T.shops1, { uvScale: 8 }); b.box(x0 - 0.2, y + h, z0 - 0.2, W + 0.4, 0.5, D + 0.4, [0.2, 0.2, 0.22]);
         signBox(b, x0 + W / 2, y + h + 1.2, z0 + 0.3, Math.min(W - 2, 10), 1.6, [0.9, 0.1, 0.1]); b.box(x0 + W / 2 - 3, y + h + 1.2, z0 - 0.4, 6, 1.6, 0.1, [1, 1, 1], T.neon, { faces: 32 });
         addPlace('guns', { x: front.x, z: front.z, label: sp.label, angle: 0 }); break;
     }
@@ -429,6 +502,7 @@ const CITY = (() => {
     for (const p of props.trafficLight) solidProps.push({ x: p.x, z: p.z, r: 0.2, kind: 'trafficLight', ref: p });
     for (const p of props.hydrant) solidProps.push({ x: p.x, z: p.z, r: 0.25, kind: 'hydrant', ref: p });
     for (const p of props.bin) solidProps.push({ x: p.x, z: p.z, r: 0.35, kind: 'bin', ref: p });
+    for (const [k, r] of [['cone', 0.25], ['barrier', 1.0], ['newsbox', 0.3], ['mailbox', 0.35], ['meter', 0.12]]) for (const p of props[k]) solidProps.push({ x: p.x, z: p.z, r, kind: k, ref: p });
     // payphones on four street corners, contracts come through them
     for (const [i, j] of [[1, 6], [6, 1], [8, 7], [4, 3]]) { const [bx, bz] = blockOrigin(i, j); const p = { x: bx - SW + 1.0, z: bz + 6, a: Math.PI / 2 }; props.payphone.push(p); solidProps.push({ x: p.x, z: p.z, r: 0.35, kind: 'payphone', ref: p }); addPlace('phone', { x: p.x + 1.2, z: p.z, label: 'payphone' }); }
     for (const l of lights) { l.phase = 0; l.t = 0; }
@@ -436,5 +510,5 @@ const CITY = (() => {
   }
 
   return { GRID, BLOCK, ROAD, SW, PITCH, HALF_ROAD, LANE, CURB, SIZE, SHORE, lots, blocks, places, props, solidProps, parkedSpots, ramps, lights, get stunts() { return stunts; },
-    roadNodes, roadEdges, walkNodes, generate, get water() { return waterBuilder; }, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
+    pier: { x0: pierX0, x1: pierX1, z1: pierZ1 }, roadNodes, roadEdges, walkNodes, generate, get water() { return waterBuilder; }, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
 })();
