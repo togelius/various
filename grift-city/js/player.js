@@ -2,6 +2,7 @@
 'use strict';
 const WEAPONS = {
   fist:    { name: 'FISTS', dmg: 12, rate: 0.42, range: 1.8, melee: true },
+  camera:  { name: 'CAMERA', dmg: 0, rate: 0.9, range: 40, camera: true },
   bat:     { name: 'BASEBALL BAT', dmg: 30, rate: 0.55, range: 2.2, melee: true },
   pistol:  { name: 'PISTOL', dmg: 24, rate: 0.28, range: 60, spread: 0.018, sound: 'pistol', clip: 17, carDmg: 3 },
   uzi:     { name: 'MICRO SMG', dmg: 11, rate: 0.07, range: 45, spread: 0.055, auto: true, sound: 'uzi', clip: 30, carDmg: 2.5 },
@@ -159,6 +160,7 @@ const PLAYER = (() => {
     for (const c of W.cars) { if (c.removed || c === P.car) continue; const spd = c.absSpeed; if (spd < 2.5) continue; if (M.dist2(c.x, c.z, P.x, P.z) > 36) continue; const [lf, ll] = c.local(P.x, P.z); if (Math.abs(lf) < c.spec.len / 2 + 0.4 && Math.abs(ll) < c.spec.wid / 2 + 0.35) { const d = [c.vx / spd, c.vz / spd]; hurt(Math.max(0, spd - 2.5) * 6, 'car', c); knock(d[0] * spd * 0.8, Math.min(8, spd * 0.45), d[1] * spd * 0.8); AUDIO.play('bump', P.x, P.z); c.damage(2, null); if (c.ai.mode === 'traffic') { c.scared = 5; c.ai.mode = 'flee'; } break; } }
   }
   function attack(wp) {
+    if (wp.camera) { P.fireT = wp.rate; const f = [Math.sin(P.camYaw), Math.cos(P.camYaw)]; W.FX.spark(P.x + f[0] * 0.6, 1.5, P.z + f[1] * 0.6, 6); AUDIO.play('click'); HUD.fade(0.25); MISSIONS.onPhoto(f[0], f[1]); return; }
     if (wp.melee) {
       P.fireT = wp.rate; P.punchT = 0.3; P.angle = P.camYaw; AUDIO.play('punch', P.x, P.z);
       const f = [Math.sin(P.angle), Math.cos(P.angle)]; let hitSomething = false;

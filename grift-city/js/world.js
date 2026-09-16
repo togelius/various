@@ -5,7 +5,7 @@ const W = (() => {
   let heli = null;
   const dyn = []; // dynamic lights this frame
   const rng = M.rng(Date.now() & 0xffff);
-  const state = { time: 9.0, dayLength: 24 * 60, elapsed: 0, frame: 0, camYaw: 0, shots: [], noises: [] };
+  const state = { time: 9.0, dayLength: 24 * 60, elapsed: 0, frame: 0, camYaw: 0, shots: [], noises: [], heard: [] };
 
   // ---- Particles
   const P = { list: [], data: new Float32Array(4096 * 8), count: 0, alphaCount: 0, addCount: 0 };
@@ -130,7 +130,8 @@ const W = (() => {
   }
   function carsNear(x, z, r) { const out = []; const r2 = r * r; for (const c of cars) if (!c.removed && M.dist2(x, z, c.x, c.z) < r2) out.push(c); return out; }
   function pedsNear(x, z, r) { const out = []; const r2 = r * r; for (const p of peds) if (!p.removed && M.dist2(x, z, p.x, p.z) < r2) out.push(p); return out; }
-  function noise(x, z, r, kind) { state.noises.push({ x, z, r, kind }); }
+  // noises is cleared every frame (peds read it after the player has fired); heard keeps the last half second for mission scripts that run before the player update
+  function noise(x, z, r, kind) { const n = { x, z, r, kind, t: state.elapsed }; state.noises.push(n); state.heard.push(n); }
 
   // ---- Props: instanced meshes, knockable
   const propMeshes = {}; let lampHeads = null, tlHeads = null, markerMesh = null;
@@ -225,7 +226,7 @@ const W = (() => {
   const clockString = () => { const h = Math.floor(state.time), m = Math.floor((state.time - h) * 60); return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m; };
   const isNight = () => state.time < 6 || state.time > 19.5;
 
-  function frameBegin() { dyn.length = 0; state.shots.length = 0; state.noises.length = 0; }
+  function frameBegin() { dyn.length = 0; state.shots.length = 0; state.noises.length = 0; if (state.heard.length && state.elapsed - state.heard[0].t > 0.5) state.heard = state.heard.filter(n => state.elapsed - n.t <= 0.5); }
   function updateExplosions(dt) { let w = 0; for (const e of explosions) { e.t += dt; if (e.t < 0.6) { dyn.push({ x: e.x, y: e.y + 1, z: e.z, r: 30 * e.big, col: [3 * (1 - e.t), 1.5 * (1 - e.t), 0.3] }); explosions[w++] = e; } } explosions.length = w; }
 
   return { weather, updateWeather, bustle, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds };

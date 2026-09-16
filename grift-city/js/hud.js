@@ -110,6 +110,7 @@ const HUD = (() => {
     // help prompts
     if (INPUT.fallback && W.state.elapsed < 20) text('Pointer lock unavailable here: the mouse steers the camera without capture', W_ / 2, H_ - 40, 12, '#f5c542', 'center', 'normal');
     if (state === 'playing' && !P.car && P.alive && W.state.elapsed < 90 && !MISSIONS.S.current) text('WASD move · mouse look · SHIFT sprint · F enter car · LMB attack · SCROLL weapons · TAB map · ESC menu', W_ / 2, H_ - 22, 12, '#bbb', 'center', 'normal');
+    const cur = MISSIONS.S.current; if (cur && cur.data && cur.data.det !== undefined && !cur.data.alarm) { const w = 220, x = W_ / 2 - w / 2, y = 84; g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x - 2, y - 2, w + 4, 14); g.fillStyle = cur.data.det > 0.7 ? '#e0453b' : '#f5c542'; g.fillRect(x, y, w * cur.data.det, 10); text('DETECTION', W_ / 2, y - 6, 11, '#ddd', 'center', 'normal'); }
     // shop
     const shop = MISSIONS.shop; if (shop) { const n = shop.items.length; const hh = 90 + n * 28; const x = W_ / 2 - 190, y = H_ / 2 - hh / 2; g.fillStyle = 'rgba(0,0,0,0.85)'; g.fillRect(x, y, 380, hh); text(shop.title, x + 190, y + 26, 22, shop.color || '#fff', 'center');
       shop.items.forEach((it, i) => { text((i + 1) + '.  ' + it.label, x + 20, y + 62 + i * 28, 15, it.enabled ? '#fff' : '#777'); if (it.price) text('$' + it.price, x + 360, y + 62 + i * 28, 15, it.enabled ? '#3df06a' : '#777', 'right'); });

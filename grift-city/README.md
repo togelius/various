@@ -20,8 +20,13 @@ around one file; `python3 tools/build-single.py` regenerates it.
 A third-person open-world game in the shape of the early 3D crime games: you
 walk, you steal a car, you drive too fast, you shoot, the stars climb, the
 helicopter comes. Nine story missions for Marla Voss run from a repo job to a
-bank heist to a shoot-out in a Downtown plaza; five more for Captain Okafor at
-Pier 9 open up once Marla trusts you; four contracts come in on payphones.
+bank heist to a shoot-out in a Downtown plaza; eight more for Captain Okafor at
+Pier 9 open up once Marla trusts you, among them a stealth job, a
+photography job and a tanker that takes a car yard with it; four contracts
+come in on payphones. Missions branch on what you do (a debtor who dies
+before he can be repossessed, a collector who keeps his fingers), keep
+checkpoints at their hard turns, and give a third attempt more time and a
+vest.
 Between them the city stays open: taxi fares, vigilante chases, three
 rampages, twenty hidden packages, six unique stunt jumps, gun shops, a Pay
 'n' Spray, and a safehouse with a bed that saves the game and a kerb that
@@ -90,6 +95,19 @@ comes and goes on its own schedule and takes the shadows with it.
 Three parking lots at the corners of the island carry stunt ramps. Twenty
 hidden packages are tucked into corners; every five unlocks a weapon at the
 safehouse.
+
+## The jobs
+
+Missions record their failures: fail one and `Y` puts you back at the
+mission giver, or at the last checkpoint if the mission set one (the ambush
+in SPECIAL DELIVERY, the last lap of MIDNIGHT RUN); the third attempt runs
+its clocks at 1.4x and starts you with a vest. Some intros are written at
+the moment they start, so Marla knows whether you already own a car.
+Okafor's later jobs are less about shooting: QUIET WORK puts four patrolling
+guards around a hut and fills a detection bar when you stand in their sight
+or run near them (gunfire within earshot rings the alarm outright), EVIDENCE
+hands you a camera that scores a frame by distance, aim and line of sight,
+and FIREWORKS is one tanker parked next to six cars.
 
 ## The police
 
