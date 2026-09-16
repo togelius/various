@@ -1083,14 +1083,15 @@ const CITY = (() => {
     b.floor(x, z, BLOCK, BLOCK, CURB + 0.01, C, T.asphalt, 12);
     // stacked containers and a warehouse
     const cols = [[0.75, 0.2, 0.15], [0.15, 0.35, 0.65], [0.2, 0.55, 0.3], [0.8, 0.6, 0.1], [0.5, 0.5, 0.55]];
-    for (let k = 0; k < 9; k++) { const cx = x + 4 + (k % 3) * 8, cz = z + 4 + Math.floor(k / 3) * 7, n = rng.int(1, 3); for (let s = 0; s < n; s++) b.box(cx, CURB + s * 2.6, cz, 6, 2.6, 2.4, rng.pick(cols), T.metal, { uvScale: 2 }); addLot(block, cx, cz, cx + 6, cz + 2.4, 2.6 * n); }
+    // three solid rows of containers with wide lanes between them (a car must never be able to wedge between stacks)
+    for (let k = 0; k < 9; k++) { const cx = x + 4 + (k % 3) * 6, cz = z + 4 + Math.floor(k / 3) * 9, n = rng.int(1, 3); for (let s = 0; s < n; s++) b.box(cx, CURB + s * 2.6, cz, 6, 2.6, 2.4, rng.pick(cols), T.metal, { uvScale: 2 }); addLot(block, cx, cz, cx + 6, cz + 2.4, 2.6 * n); }
     b.box(x + 34, CURB, z + 30, 28, 9, 30, [0.6, 0.6, 0.62], T.metal, { uvScale: 3 }); b.box(x + 34 - 0.2, CURB + 9, z + 30 - 0.2, 28.4, 0.6, 30.4, [0.4, 0.4, 0.42]);
     b.box(x + 38, CURB, z + 29.8, 8, 6, 0.3, [0.3, 0.32, 0.36], T.garage, { uvScale: 8 });
     addLot(block, x + 34, z + 30, x + 62, z + 60, 9, 'warehouse');
     // crane
     b.box(x + 8, CURB, z + 44, 2, 18, 2, [0.85, 0.6, 0.1]); b.box(x + 8, CURB + 17, z + 44, 26, 1.2, 1.4, [0.85, 0.6, 0.1]); addLot(block, x + 8, z + 44, x + 10, z + 46, 18);
     addPlace('docks', { x: x + 29, z: z + 20, label: 'PIER 9', angle: 0 }); /* in the open lane between the container stacks and the warehouse */ addPlace('mission2', { x: x + 30, z: z + 4, label: 'OKAFOR', angle: 0 });
-    for (let k = 0; k < 4; k++) parkedSpots.push({ x: x + 6 + k * 7, z: z + 25, angle: 0 });
+    for (let k = 0; k < 4; k++) parkedSpots.push({ x: x + 6 + k * 7, z: z + 29, angle: 0 });
   }
 
   function buildSpecial(b, block, sp, x, z, w, d) {
@@ -1864,7 +1865,9 @@ const W = (() => {
   // Push a circle out of building lots and solid props; returns [x, z, hitNormalX, hitNormalZ] or null for no hit.
   function pushOut(x, z, r, opts = {}) {
     let hit = null;
-    for (const l of CITY.lotsNear(x, z, r)) {
+    const lots = CITY.lotsNear(x, z, r + 3);
+    for (let pass = 0; pass < 3; pass++) { let moved = false; // a push out of one lot can land inside a neighbour; settle in a few passes
+    for (const l of lots) {
       if (opts.ignoreLow && l.h < 1.2) continue;
       const cx = M.clamp(x, l.x0, l.x1), cz = M.clamp(z, l.z0, l.z1); let dx = x - cx, dz = z - cz; const d2 = dx * dx + dz * dz;
       if (d2 >= r * r) continue;
@@ -1872,7 +1875,9 @@ const W = (() => {
         const dl = x - l.x0, dr = l.x1 - x, dt = z - l.z0, db = l.z1 - z; const m = Math.min(dl, dr, dt, db);
         if (m === dl) { x = l.x0 - r; hit = [-1, 0]; } else if (m === dr) { x = l.x1 + r; hit = [1, 0]; } else if (m === dt) { z = l.z0 - r; hit = [0, -1]; } else { z = l.z1 + r; hit = [0, 1]; }
       } else { const d = Math.sqrt(d2); dx /= d; dz /= d; x = cx + dx * r; z = cz + dz * r; hit = [dx, dz]; }
+      moved = true;
     }
+    if (!moved) break; }
     if (!opts.noProps) for (const p of propsNear(x, z)) {
       if (p.down) continue; const rr = r + p.r; const dx = x - p.x, dz = z - p.z; const d2 = dx * dx + dz * dz; if (d2 >= rr * rr || d2 < 1e-8) continue;
       const d = Math.sqrt(d2); x = p.x + dx / d * rr; z = p.z + dz / d * rr; hit = [dx / d, dz / d]; hit.prop = p;

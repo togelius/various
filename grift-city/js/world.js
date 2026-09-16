@@ -79,7 +79,9 @@ const W = (() => {
   // Push a circle out of building lots and solid props; returns [x, z, hitNormalX, hitNormalZ] or null for no hit.
   function pushOut(x, z, r, opts = {}) {
     let hit = null;
-    for (const l of CITY.lotsNear(x, z, r)) {
+    const lots = CITY.lotsNear(x, z, r + 3);
+    for (let pass = 0; pass < 3; pass++) { let moved = false; // a push out of one lot can land inside a neighbour; settle in a few passes
+    for (const l of lots) {
       if (opts.ignoreLow && l.h < 1.2) continue;
       const cx = M.clamp(x, l.x0, l.x1), cz = M.clamp(z, l.z0, l.z1); let dx = x - cx, dz = z - cz; const d2 = dx * dx + dz * dz;
       if (d2 >= r * r) continue;
@@ -87,7 +89,9 @@ const W = (() => {
         const dl = x - l.x0, dr = l.x1 - x, dt = z - l.z0, db = l.z1 - z; const m = Math.min(dl, dr, dt, db);
         if (m === dl) { x = l.x0 - r; hit = [-1, 0]; } else if (m === dr) { x = l.x1 + r; hit = [1, 0]; } else if (m === dt) { z = l.z0 - r; hit = [0, -1]; } else { z = l.z1 + r; hit = [0, 1]; }
       } else { const d = Math.sqrt(d2); dx /= d; dz /= d; x = cx + dx * r; z = cz + dz * r; hit = [dx, dz]; }
+      moved = true;
     }
+    if (!moved) break; }
     if (!opts.noProps) for (const p of propsNear(x, z)) {
       if (p.down) continue; const rr = r + p.r; const dx = x - p.x, dz = z - p.z; const d2 = dx * dx + dz * dz; if (d2 >= rr * rr || d2 < 1e-8) continue;
       const d = Math.sqrt(d2); x = p.x + dx / d * rr; z = p.z + dz / d * rr; hit = [dx / d, dz / d]; hit.prop = p;
