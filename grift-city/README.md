@@ -11,9 +11,9 @@ around one file; `python3 tools/build-single.py` regenerates it.
 > Pedestrians who scream. Police who never forget. A garage in Midtown with a
 > woman inside who has work for you.
 
-![Downtown at nine in the morning](screenshots/day.jpg)
+![Midtown at nine in the morning](screenshots/day.jpg)
 ![Northgate at night, headlights on](screenshots/night.jpg)
-![Four stars and a helicopter](screenshots/chase.jpg)
+![Four stars in Downtown](screenshots/chase.jpg)
 
 ## What it is
 
