@@ -105,6 +105,7 @@ const HUD = (() => {
     // crosshair
     if (P.aim || (P.car && (INPUT.mouse.buttons & 1))) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.arc(W_ / 2, H_ / 2, 8, 0, 7); g.stroke(); g.fillStyle = '#fff'; g.fillRect(W_ / 2 - 1, H_ / 2 - 1, 2, 2); }
     // help prompts
+    if (INPUT.fallback && W.state.elapsed < 20) text('Pointer lock unavailable here: the mouse steers the camera without capture', W_ / 2, H_ - 40, 12, '#f5c542', 'center', 'normal');
     if (state === 'playing' && !P.car && P.alive && W.state.elapsed < 90 && !MISSIONS.S.current) text('WASD move · mouse look · SHIFT sprint · F enter car · LMB attack · SCROLL weapons · TAB map · ESC menu', W_ / 2, H_ - 22, 12, '#bbb', 'center', 'normal');
     // shop
     const shop = MISSIONS.shop; if (shop) { const x = W_ / 2 - 170, y = H_ / 2 - 150; g.fillStyle = 'rgba(0,0,0,0.85)'; g.fillRect(x, y, 340, 290); text('IRONMONGER', x + 170, y + 26, 22, '#e0453b', 'center'); MISSIONS.GUNS.forEach(([k, price, ammo], i) => { const name = k === 'armor' ? 'BODY ARMOR' : WEAPONS[k].name + (ammo ? ' (' + ammo + ')' : ''); text((i + 1) + '.  ' + name, x + 20, y + 62 + i * 28, 15, P.money >= price ? '#fff' : '#777'); text('$' + price, x + 320, y + 62 + i * 28, 15, '#3df06a', 'right'); }); text('ESC to leave', x + 170, y + 268, 12, '#aaa', 'center', 'normal'); }
