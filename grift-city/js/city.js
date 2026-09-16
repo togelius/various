@@ -161,7 +161,8 @@ const CITY = (() => {
     if (rng.chance(0.5)) props.mailbox.push({ x: bx - SW + 0.7, z: bz + rng.range(6, 20), a: Math.PI / 2 });
     if (rng.chance(0.6)) { const nx = bx + BLOCK + SW - 0.7; for (let k = 0; k < rng.int(1, 3); k++) props.newsbox.push({ x: nx, z: bz + 2 + k * 0.6, a: -Math.PI / 2 }); }
     if (rng.chance(0.3)) { const sx = bx + rng.range(14, 46); props.busShelter.push({ x: sx, z: bz - SW + 1.4, a: Math.PI }); solidProps.push({ x: sx - 1.9, z: bz - SW + 1.4, r: 0.4, kind: 'shelter' }, { x: sx + 1.9, z: bz - SW + 1.4, r: 0.4, kind: 'shelter' }); }
-    if (dist0 === 'westfield' || dist0 === 'midtown') { for (let k = 6; k < BLOCK - 4; k += 12) { const t = { x: bx + k, z: bz - SW + 1.2, a: rng.range(0, 6.28), s: rng.range(0.8, 1.1) }; (rng.chance(0.5) ? props.roundTree : props.tree).push(t); solidProps.push({ x: t.x, z: t.z, r: 0.4, kind: 'tree' }); } }
+    const nearPlace = (x, z) => SPECIALS.some(sp => sp.i === i && sp.j === j) && Math.abs(z - (bz - SW)) < 6;
+    if (dist0 === 'westfield' || dist0 === 'midtown') { for (let k = 6; k < BLOCK - 4; k += 12) { if (nearPlace(bx + k, bz - SW)) continue; const t = { x: bx + k, z: bz - SW + 0.45, a: rng.range(0, 6.28), s: rng.range(0.8, 1.1) }; (rng.chance(0.5) ? props.roundTree : props.tree).push(t); solidProps.push({ x: t.x, z: t.z, r: 0.4, kind: 'tree' }); } }
     if (dist0 === 'westfield') { for (let k = 4; k < BLOCK - 4; k += 3.2) if (rng.chance(0.8)) props.hedge.push({ x: bx + BLOCK + SW - 1.0, z: bz + k, a: Math.PI / 2 }); }
     if (dist0 === 'eastside' || dist0 === 'southport') { // power poles and wires along the west edge
       let prev = null; for (let k = 2; k < BLOCK; k += 16) { const px = bx - SW + 0.5, pz = bz + k; b.cyl(px, CURB, pz, 0.14, 8, [0.4, 0.3, 0.2], 0, 6); b.cbox(px, CURB + 7.6, pz, 1.6, 0.1, 0.1, [0.4, 0.3, 0.2]); if (prev) for (const ox of [-0.7, 0.7]) b.box(px + ox - 0.015, CURB + 7.55, prev, 0.03, 0.03, pz - prev, [0.1, 0.1, 0.1]); prev = pz; solidProps.push({ x: px, z: pz, r: 0.2, kind: 'pole' }); } }
@@ -287,14 +288,14 @@ const CITY = (() => {
   function facadeBox(b, x, y, z, w, h, d, tint, tile, opts) {
     const [r, g, bb] = tint;
     const faceUV = (len) => len / 14;
-    const f = (nx, nz, pts, len) => { const base = b.n; const vs = h / 12.8, us = faceUV(len); const uo = opts.uOff || 0;
-      pts.forEach((p, k) => { const u = (k === 2 || k === 3) ? us : 0, v = (k === 1 || k === 2) ? vs : 0; b.vert(p[0], p[1], p[2], nx, 0, nz, r, g, bb, u + uo, v, tile, 0); });
+    const f = (nx, nz, pts, len, flip) => { const base = b.n; const vs = h / 12.8, us = faceUV(len); const uo = opts.uOff || 0;
+      pts.forEach((p, k) => { const right = (k === 2 || k === 3) !== !!flip; const u = right ? us : 0, v = (k === 1 || k === 2) ? vs : 0; b.vert(p[0], p[1], p[2], nx, 0, nz, r, g, bb, u + uo, v, tile, 0); });
       b.quad(base, base + 1, base + 2, base + 3); };
     const x1 = x + w, z1 = z + d, y1 = y + h;
-    f(1, 0, [[x1, y, z], [x1, y1, z], [x1, y1, z1], [x1, y, z1]], d);
-    f(-1, 0, [[x, y, z1], [x, y1, z1], [x, y1, z], [x, y, z]], d);
-    f(0, 1, [[x1, y, z1], [x1, y1, z1], [x, y1, z1], [x, y, z1]], w);
-    f(0, -1, [[x, y, z], [x, y1, z], [x1, y1, z], [x1, y, z]], w);
+    f(1, 0, [[x1, y, z], [x1, y1, z], [x1, y1, z1], [x1, y, z1]], d, false);
+    f(-1, 0, [[x, y, z1], [x, y1, z1], [x, y1, z], [x, y, z]], d, true);
+    f(0, 1, [[x1, y, z1], [x1, y1, z1], [x, y1, z1], [x, y, z1]], w, false);
+    f(0, -1, [[x, y, z], [x, y1, z], [x1, y1, z], [x1, y, z]], w, false);
   }
   function roofDetails(b, x, y, z, w, d, tint, tall) {
     const T = TEX.names; const p = tint.map(v => v * 0.85);

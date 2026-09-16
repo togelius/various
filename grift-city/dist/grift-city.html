@@ -422,10 +422,10 @@ const MESH = (() => {
         for (let k = 0; k < 4; k++) this.vert(p[k][0], p[k][1], p[k][2], nx, ny, nz, r, g, b, uvs[k][0] * s + uOff, uvs[k][1] * sv + vOff, tl, bone);
         this.quad(base, base + 1, base + 2, base + 3);
       };
-      // +x
+      // +x (u runs so that text reads left-to-right from outside)
       if (faces & 1) f(1, 0, 0, [[x1, y, z], [x1, y1, z], [x1, y1, z1], [x1, y, z1]], st, [[0, 0], [0, h], [d, h], [d, 0]]);
       // -x
-      if (faces & 2) f(-1, 0, 0, [[x, y, z1], [x, y1, z1], [x, y1, z], [x, y, z]], st, [[0, 0], [0, h], [d, h], [d, 0]]);
+      if (faces & 2) f(-1, 0, 0, [[x, y, z1], [x, y1, z1], [x, y1, z], [x, y, z]], st, [[d, 0], [d, h], [0, h], [0, 0]]);
       // +y (top)
       if (faces & 4) f(0, 1, 0, [[x, y1, z], [x, y1, z1], [x1, y1, z1], [x1, y1, z]], tt, [[0, 0], [0, d], [w, d], [w, 0]]);
       // -y
@@ -892,7 +892,8 @@ const CITY = (() => {
     if (rng.chance(0.5)) props.mailbox.push({ x: bx - SW + 0.7, z: bz + rng.range(6, 20), a: Math.PI / 2 });
     if (rng.chance(0.6)) { const nx = bx + BLOCK + SW - 0.7; for (let k = 0; k < rng.int(1, 3); k++) props.newsbox.push({ x: nx, z: bz + 2 + k * 0.6, a: -Math.PI / 2 }); }
     if (rng.chance(0.3)) { const sx = bx + rng.range(14, 46); props.busShelter.push({ x: sx, z: bz - SW + 1.4, a: Math.PI }); solidProps.push({ x: sx - 1.9, z: bz - SW + 1.4, r: 0.4, kind: 'shelter' }, { x: sx + 1.9, z: bz - SW + 1.4, r: 0.4, kind: 'shelter' }); }
-    if (dist0 === 'westfield' || dist0 === 'midtown') { for (let k = 6; k < BLOCK - 4; k += 12) { const t = { x: bx + k, z: bz - SW + 1.2, a: rng.range(0, 6.28), s: rng.range(0.8, 1.1) }; (rng.chance(0.5) ? props.roundTree : props.tree).push(t); solidProps.push({ x: t.x, z: t.z, r: 0.4, kind: 'tree' }); } }
+    const nearPlace = (x, z) => SPECIALS.some(sp => sp.i === i && sp.j === j) && Math.abs(z - (bz - SW)) < 6;
+    if (dist0 === 'westfield' || dist0 === 'midtown') { for (let k = 6; k < BLOCK - 4; k += 12) { if (nearPlace(bx + k, bz - SW)) continue; const t = { x: bx + k, z: bz - SW + 0.45, a: rng.range(0, 6.28), s: rng.range(0.8, 1.1) }; (rng.chance(0.5) ? props.roundTree : props.tree).push(t); solidProps.push({ x: t.x, z: t.z, r: 0.4, kind: 'tree' }); } }
     if (dist0 === 'westfield') { for (let k = 4; k < BLOCK - 4; k += 3.2) if (rng.chance(0.8)) props.hedge.push({ x: bx + BLOCK + SW - 1.0, z: bz + k, a: Math.PI / 2 }); }
     if (dist0 === 'eastside' || dist0 === 'southport') { // power poles and wires along the west edge
       let prev = null; for (let k = 2; k < BLOCK; k += 16) { const px = bx - SW + 0.5, pz = bz + k; b.cyl(px, CURB, pz, 0.14, 8, [0.4, 0.3, 0.2], 0, 6); b.cbox(px, CURB + 7.6, pz, 1.6, 0.1, 0.1, [0.4, 0.3, 0.2]); if (prev) for (const ox of [-0.7, 0.7]) b.box(px + ox - 0.015, CURB + 7.55, prev, 0.03, 0.03, pz - prev, [0.1, 0.1, 0.1]); prev = pz; solidProps.push({ x: px, z: pz, r: 0.2, kind: 'pole' }); } }
@@ -1018,14 +1019,14 @@ const CITY = (() => {
   function facadeBox(b, x, y, z, w, h, d, tint, tile, opts) {
     const [r, g, bb] = tint;
     const faceUV = (len) => len / 14;
-    const f = (nx, nz, pts, len) => { const base = b.n; const vs = h / 12.8, us = faceUV(len); const uo = opts.uOff || 0;
-      pts.forEach((p, k) => { const u = (k === 2 || k === 3) ? us : 0, v = (k === 1 || k === 2) ? vs : 0; b.vert(p[0], p[1], p[2], nx, 0, nz, r, g, bb, u + uo, v, tile, 0); });
+    const f = (nx, nz, pts, len, flip) => { const base = b.n; const vs = h / 12.8, us = faceUV(len); const uo = opts.uOff || 0;
+      pts.forEach((p, k) => { const right = (k === 2 || k === 3) !== !!flip; const u = right ? us : 0, v = (k === 1 || k === 2) ? vs : 0; b.vert(p[0], p[1], p[2], nx, 0, nz, r, g, bb, u + uo, v, tile, 0); });
       b.quad(base, base + 1, base + 2, base + 3); };
     const x1 = x + w, z1 = z + d, y1 = y + h;
-    f(1, 0, [[x1, y, z], [x1, y1, z], [x1, y1, z1], [x1, y, z1]], d);
-    f(-1, 0, [[x, y, z1], [x, y1, z1], [x, y1, z], [x, y, z]], d);
-    f(0, 1, [[x1, y, z1], [x1, y1, z1], [x, y1, z1], [x, y, z1]], w);
-    f(0, -1, [[x, y, z], [x, y1, z], [x1, y1, z], [x1, y, z]], w);
+    f(1, 0, [[x1, y, z], [x1, y1, z], [x1, y1, z1], [x1, y, z1]], d, false);
+    f(-1, 0, [[x, y, z1], [x, y1, z1], [x, y1, z], [x, y, z]], d, true);
+    f(0, 1, [[x1, y, z1], [x1, y1, z1], [x, y1, z1], [x, y, z1]], w, false);
+    f(0, -1, [[x, y, z], [x, y1, z], [x1, y1, z], [x1, y, z]], w, false);
   }
   function roofDetails(b, x, y, z, w, d, tint, tall) {
     const T = TEX.names; const p = tint.map(v => v * 0.85);
@@ -2374,7 +2375,7 @@ const PEDS = (() => {
     scare(x, z) { if (this.isCop || this.isGang || this.role === 'target' || this.role === 'crew' || this.state === 'goto') return; if (this.state === 'dead' || this.inCar) return; this.fear = Math.max(this.fear, 6 + W.rng() * 4); this.threat = [x, z]; this.seat = null; this.partner = null; if (this.state !== 'flee') { this.state = 'flee'; if (W.rng() < 0.35) AUDIO.play('scream', this.x, this.z); if (W.rng() < 0.3) this.say(SHOUTS[Math.floor(W.rng() * SHOUTS.length)]); } }
     say(text) { this.shout = text; this.shoutT = 2.5; }
     hitByCar(car, spd) {
-      if (this.state === 'dead') return; if (this.hitT > 0) return;
+      if (this.state === 'dead' || this.hitT > 0) return; if (this.invincible) { this.hitT = 0.8; return; }
       const dir = spd > 0 ? [car.vx / spd, car.vz / spd] : [0, 0];
       this.hitT = 0.8;
       if (spd > 7) { this.die(car.driver === PLAYER ? PLAYER : car, 'car'); this.launch(dir[0] * spd * 0.7, Math.min(9, spd * 0.5), dir[1] * spd * 0.7); W.FX.blood(this.x, 1, this.z, 8, dir); AUDIO.play('hit', this.x, this.z); car.damage(4, null); }
@@ -2388,9 +2389,9 @@ const PEDS = (() => {
       else { if (!this.isCop && !this.isGang && !this.hostile && this.role !== 'target' && this.role !== 'crew') { if (source === PLAYER && amount < 35 && !PLAYER.car && W.rng() < 0.3) { this.hostile = true; this.state = 'walk'; this.seat = null; this.partner = null; this.say(W.rng() < 0.5 ? 'You want some?!' : 'Big mistake!'); } else this.scare(source ? source.x : this.x, source ? source.z : this.z); } if (source === PLAYER && (this.isGang || this.role === 'target')) this.hostile = true; if (source === PLAYER && !this.isCop) POLICE.crime('assault', this.x, this.z, this); if (source === PLAYER && this.isCop) POLICE.crime('cop', this.x, this.z, this); }
     }
     die(source, how) {
-      if (this.state === 'dead') return; this.state = 'dead'; this.deadT = 0; this.aim = 0; this.weaponOut = false;
+      if (this.state === 'dead' || this.invincible) return; this.state = 'dead'; this.deadT = 0; this.aim = 0; this.weaponOut = false;
       if (this.inCar) { const c = this.inCar; if (c.driver === this) c.driver = null; this.inCar = null; this.x = c.x; this.z = c.z; this.removed = true; }
-      if (source === PLAYER || (source && source.driver === PLAYER)) { POLICE.crime(this.isCop ? 'copkill' : 'kill', this.x, this.z, this); PLAYER.stats.kills++; if (this.isGang) MISSIONS.rampageKill(how === 'car' ? 'gangcar' : 'gangkill', this); if (!this.isCop && W.rng() < 0.6) PICKUPS.dropCash(this.x, this.z, this.money + (this.isGang ? 60 : 0)); }
+      if (source === PLAYER || (source && source.driver === PLAYER)) { POLICE.crime(this.isCop ? 'copkill' : (how === 'car' ? 'killcar' : 'kill'), this.x, this.z, this); PLAYER.stats.kills++; if (this.isGang) MISSIONS.rampageKill(how === 'car' ? 'gangcar' : 'gangkill', this); if (!this.isCop && W.rng() < 0.6) PICKUPS.dropCash(this.x, this.z, this.money + (this.isGang ? 60 : 0)); }
       if (how !== 'explosion') AUDIO.play('scream', this.x, this.z);
       for (const p of W.pedsNear(this.x, this.z, 30)) if (p !== this) p.scare(source ? source.x : this.x, source ? source.z : this.z);
       if (this.onDeath) this.onDeath(this, source);
@@ -2886,7 +2887,7 @@ const PLAYER = (() => {
 'use strict';
 const POLICE = (() => {
   const S = { heat: 0, seenT: 99, lastSeen: null, arrestT: 0, arresting: false, spawnT: 0, roadblockT: 20, footT: 0, heliT: 0, evadeMsg: 0, sirenVol: 0 };
-  const HEAT = { kill: 1.0, copkill: 1.6, cop: 1.0, jack: 0.45, hit: 0.2, assault: 0.25, shoot: 0.12, explosion: 1.3, vandal: 0.12 };
+  const HEAT = { kill: 1.0, killcar: 0.55, copkill: 1.6, cop: 1.0, jack: 0.45, hit: 0.2, assault: 0.25, shoot: 0.12, explosion: 1.3, vandal: 0.12 };
   const stars = () => Math.min(5, Math.floor(S.heat));
   const COOLDOWN = { shoot: 1.5, assault: 1.2, hit: 0.6, vandal: 1.0 }; const lastCrime = {};
   function crime(kind, x, z, victim) {

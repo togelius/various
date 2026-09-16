@@ -40,7 +40,7 @@ const PEDS = (() => {
     scare(x, z) { if (this.isCop || this.isGang || this.role === 'target' || this.role === 'crew' || this.state === 'goto') return; if (this.state === 'dead' || this.inCar) return; this.fear = Math.max(this.fear, 6 + W.rng() * 4); this.threat = [x, z]; this.seat = null; this.partner = null; if (this.state !== 'flee') { this.state = 'flee'; if (W.rng() < 0.35) AUDIO.play('scream', this.x, this.z); if (W.rng() < 0.3) this.say(SHOUTS[Math.floor(W.rng() * SHOUTS.length)]); } }
     say(text) { this.shout = text; this.shoutT = 2.5; }
     hitByCar(car, spd) {
-      if (this.state === 'dead') return; if (this.hitT > 0) return;
+      if (this.state === 'dead' || this.hitT > 0) return; if (this.invincible) { this.hitT = 0.8; return; }
       const dir = spd > 0 ? [car.vx / spd, car.vz / spd] : [0, 0];
       this.hitT = 0.8;
       if (spd > 7) { this.die(car.driver === PLAYER ? PLAYER : car, 'car'); this.launch(dir[0] * spd * 0.7, Math.min(9, spd * 0.5), dir[1] * spd * 0.7); W.FX.blood(this.x, 1, this.z, 8, dir); AUDIO.play('hit', this.x, this.z); car.damage(4, null); }
@@ -54,9 +54,9 @@ const PEDS = (() => {
       else { if (!this.isCop && !this.isGang && !this.hostile && this.role !== 'target' && this.role !== 'crew') { if (source === PLAYER && amount < 35 && !PLAYER.car && W.rng() < 0.3) { this.hostile = true; this.state = 'walk'; this.seat = null; this.partner = null; this.say(W.rng() < 0.5 ? 'You want some?!' : 'Big mistake!'); } else this.scare(source ? source.x : this.x, source ? source.z : this.z); } if (source === PLAYER && (this.isGang || this.role === 'target')) this.hostile = true; if (source === PLAYER && !this.isCop) POLICE.crime('assault', this.x, this.z, this); if (source === PLAYER && this.isCop) POLICE.crime('cop', this.x, this.z, this); }
     }
     die(source, how) {
-      if (this.state === 'dead') return; this.state = 'dead'; this.deadT = 0; this.aim = 0; this.weaponOut = false;
+      if (this.state === 'dead' || this.invincible) return; this.state = 'dead'; this.deadT = 0; this.aim = 0; this.weaponOut = false;
       if (this.inCar) { const c = this.inCar; if (c.driver === this) c.driver = null; this.inCar = null; this.x = c.x; this.z = c.z; this.removed = true; }
-      if (source === PLAYER || (source && source.driver === PLAYER)) { POLICE.crime(this.isCop ? 'copkill' : 'kill', this.x, this.z, this); PLAYER.stats.kills++; if (this.isGang) MISSIONS.rampageKill(how === 'car' ? 'gangcar' : 'gangkill', this); if (!this.isCop && W.rng() < 0.6) PICKUPS.dropCash(this.x, this.z, this.money + (this.isGang ? 60 : 0)); }
+      if (source === PLAYER || (source && source.driver === PLAYER)) { POLICE.crime(this.isCop ? 'copkill' : (how === 'car' ? 'killcar' : 'kill'), this.x, this.z, this); PLAYER.stats.kills++; if (this.isGang) MISSIONS.rampageKill(how === 'car' ? 'gangcar' : 'gangkill', this); if (!this.isCop && W.rng() < 0.6) PICKUPS.dropCash(this.x, this.z, this.money + (this.isGang ? 60 : 0)); }
       if (how !== 'explosion') AUDIO.play('scream', this.x, this.z);
       for (const p of W.pedsNear(this.x, this.z, 30)) if (p !== this) p.scare(source ? source.x : this.x, source ? source.z : this.z);
       if (this.onDeath) this.onDeath(this, source);
