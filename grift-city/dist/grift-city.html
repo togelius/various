@@ -4219,7 +4219,12 @@ const GAME = (() => {
     photo.x += mx * sp; photo.y = Math.max(CITY.groundY(photo.x, photo.z) + 0.3, photo.y + my * sp); photo.z += mz * sp; if (m.wheel) photo.fov = M.clamp(photo.fov + m.wheel * 0.02, 18, 100);
     if (INPUT.hit('Enter') || m.clicked) photo.shot = true; if (photo.savedT > 0) photo.savedT -= dt;
     RENDER.setCamera(photo.x, photo.y, photo.z, photo.x + f[0], photo.y + f[1], photo.z + f[2], photo.fov * Math.PI / 180); W.state.camYaw = photo.yaw; }
-  function savePhoto() { try { const url = canvas.toDataURL('image/png'); const a = document.createElement('a'); a.href = url; a.download = 'grift-city-' + Date.now() + '.png'; document.body.appendChild(a); a.click(); a.remove(); photo.savedT = 1.5; AUDIO.play('click'); } catch (e) { HUD.notify('Could not save the photo.'); } }
+  // The frame is read synchronously (the drawing buffer does not survive the frame); inside the claude.ai viewer the
+  // save goes through its downloads capability, anywhere else through a plain download link.
+  function savePhoto() { try { const url = canvas.toDataURL('image/png'); const name = 'grift-city-' + Date.now() + '.png';
+      const viewer = typeof window.claude === 'object' && window.claude && typeof window.claude.use === 'function';
+      if (viewer) { window.claude.use('downloads').then(dl => { if (!dl) throw new Error('unavailable'); return fetch(url).then(r => r.blob()).then(blob => dl.save({ filename: name, data: blob })); }).then(() => { photo.savedT = 1.5; AUDIO.play('click'); }).catch(e => { if (!e || e.code !== 'declined') HUD.notify('Could not save the photo here.'); }); return; }
+      const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); photo.savedT = 1.5; AUDIO.play('click'); } catch (e) { HUD.notify('Could not save the photo.'); } }
   // ---- Per-district colour grade: a tint and a saturation the composite pass blends toward as you cross the city
   const GRADES = { downtown: [[0.94, 0.98, 1.07], 1.05], midtown: [[1, 1, 1], 1.1], northgate: [[1.05, 0.98, 0.9], 0.98], westfield: [[0.96, 1.04, 0.95], 1.14], eastside: [[1.07, 0.98, 0.88], 0.94], southport: [[0.98, 1.02, 1.05], 1.2], sea: [[0.95, 1.02, 1.08], 1.25], indoor: [[1.06, 0.98, 0.9], 1.0] };
   function updateGrade(dt, px, pz) { const bl = CITY.blockAt(px, pz); const key = CITY.interiorRoom ? 'indoor' : bl ? CITY.district(bl.i, bl.j) : (W.onWater(px, pz) ? 'sea' : 'southport'); const g = GRADES[key] || GRADES.midtown; const k = Math.min(1, 0.6 * dt); const t = RENDER.post.tint; for (let i = 0; i < 3; i++) t[i] = M.lerp(t[i], g[0][i], k); RENDER.post.sat = M.lerp(RENDER.post.sat, g[1], k); }
