@@ -114,7 +114,7 @@ const VEH = (() => {
             this.vx *= 0.9; this.vz *= 0.9;
             const front = (cx - this.x) * f[0] + (cz - this.z) * f[1] > 0; const side = (nx * f[1] - nz * f[0]); // which side the wall is on
             this.angle += (front ? -1 : 1) * Math.sign(side || 1) * Math.min(impact * 0.03, 0.15) * (this.speed < 0 ? -1 : 1);
-            if (impact > 3) { this.damage(impact * impact * 0.9, null); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; }
+            if (impact > 3) { this.damage(impact * impact * 0.35, null); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; }
           }
         }
       }
@@ -135,7 +135,7 @@ const VEH = (() => {
             const offA = (ax - this.x) * this.right[0] + (az - this.z) * this.right[1]; const offB = (bx - o.x) * o.right[0] + (bz - o.z) * o.right[1];
             this.angle += M.clamp(offA * impact * 0.01, -0.2, 0.2) * (mB / tot); o.angle -= M.clamp(offB * impact * 0.01, -0.2, 0.2) * (mA / tot);
             if (impact > 2.5) {
-              const dmg = impact * impact * 0.7; this.damage(dmg * (mB / mA), o); o.damage(dmg * (mA / mB), this);
+              const dmg = impact * impact * 0.4; this.damage(dmg * (mB / mA), o); o.damage(dmg * (mA / mB), this);
               AUDIO.play('crash', ax, az, impact / 10); W.FX.spark(ax - nx * ar, 0.7, az - nz * ar, Math.min(14, impact * 2)); if (impact > 7) W.FX.glass(ax, 1.2, az, 8);
               if (o.ai.mode === 'traffic' && !o.driverIsPlayer()) { o.scared = 4; o.ai.mode = 'flee'; o.fleeFrom = this; } if (this.ai.mode === 'traffic' && !this.driverIsPlayer()) { this.ai.honk = 1; }
               W.noise(ax, az, 30, 'crash');
@@ -240,7 +240,7 @@ const VEH = (() => {
       const ai = this.ai, c = this.controls; const t = ai.target || PLAYER; if (!t) return;
       // drive-by: armed passengers lean out and shoot
       this.fireT = (this.fireT || 0) - dt;
-      if (this.fireT <= 0 && t === PLAYER && PLAYER.alive) { const shooters = this.passengers.filter(q => q.alive && q.weapon && (q.hostile || q.isGang || (q.isCop && PLAYER.wanted >= 3))); const d = M.dist(this.x, this.z, t.x, t.z);
+      if (this.fireT <= 0 && t === PLAYER && PLAYER.alive) { const shooters = this.passengers.filter(q => q.alive && q.weapon && (q.hostile || q.isGang || (q.isCop && PLAYER.wanted >= 4))); const d = M.dist(this.x, this.z, t.x, t.z);
         if (shooters.length && d < 45 && W.los(this.x, this.z, t.x, t.z)) { this.fireT = 0.9 / shooters.length; const q = shooters[0]; const ang = Math.atan2(t.x - this.x, t.z - this.z) + (W.rng() - 0.5) * 0.3; PLAYER.fireBullet(q, this.x + this.right[0] * 0.8, this.z + this.right[1] * 0.8, 1.3, ang, WEAPONS[q.weapon === 'rifle' ? 'rifle' : 'pistol'], 0.5, this); } else this.fireT = 0.3; }
       const tv = t.car ? [t.car.vx, t.car.vz] : [0, 0]; const px = t.x + tv[0] * 0.6, pz = t.z + tv[1] * 0.6;
       const d = M.dist(this.x, this.z, px, pz); const desired = Math.atan2(px - this.x, pz - this.z); const da = M.angleTo(this.angle, desired);

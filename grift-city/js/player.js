@@ -66,7 +66,7 @@ const PLAYER = (() => {
       if (hit.kind === 'ped') { hit.obj.damage(wp.dmg * dmgScale, shooter, [dx, dz]); }
       else if (hit.kind === 'car') { hit.obj.damage(wp.dmg * (wp.carDmg || 2) * dmgScale, shooter); W.FX.spark(hx, 0.9, hz, 4); if (W.rng() < 0.3) W.FX.glass(hx, 1.2, hz, 4); if (hit.obj.driver && hit.obj.driver !== PLAYER && hit.obj.ai.mode === 'traffic') { hit.obj.scared = 6; hit.obj.ai.mode = 'flee'; } if (hit.obj.driver === PLAYER) hurt(wp.dmg * 0.25 * dmgScale, 'shot', shooter); }
       else if (hit.kind === 'player') { hurt(wp.dmg * dmgScale * 0.45, 'shot', shooter); W.FX.blood(P.x, 1.2, P.z, 4, [dx, dz]); }
-      else if (hit.kind === 'playercar') { if (P.car) { P.car.damage(wp.dmg * 1.5 * dmgScale, shooter); W.FX.spark(hx, 0.9, hz, 3); if (W.rng() < 0.35) hurt(wp.dmg * 0.3 * dmgScale, 'shot', shooter); } }
+      else if (hit.kind === 'playercar') { if (P.car) { P.car.damage(wp.dmg * 1.5 * dmgScale, shooter); W.FX.spark(hx, 0.9, hz, 3); if (W.rng() < 0.2) hurt(wp.dmg * 0.2 * dmgScale, 'shot', shooter); } }
       else if (hit.kind === 'heli') { hit.obj.damage(wp.dmg * dmgScale * 1.2, shooter); W.FX.spark(hx, hit.obj.y, hz, 4); hy = hit.obj.y; }
       else if (hit.kind === 'lot') { W.FX.dust(hx, y, hz, 3); }
       else if (hit.kind === 'prop') { W.FX.spark(hx, y, hz, 4); }

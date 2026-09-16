@@ -2,7 +2,7 @@
 'use strict';
 const HUD = (() => {
   let cv, g, W_, H_, mapCanvas = null; const notes = []; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
-  const FONT = '"Helvetica Neue", Arial, sans-serif';
+  const FONT = '"Helvetica Neue", Arial, sans-serif'; const DISPLAY = 'Impact, "Arial Black", "Helvetica Neue", sans-serif';
   function init(canvas) { cv = canvas; g = cv.getContext('2d'); }
   function resize() { const dpr = Math.min(window.devicePixelRatio || 1, 2); const w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } W_ = cv.clientWidth; H_ = cv.clientHeight; g.setTransform(dpr, 0, 0, dpr, 0, 0); }
   function notify(text) { notes.push({ text, t: 4 }); if (notes.length > 4) notes.shift(); }
@@ -12,7 +12,7 @@ const HUD = (() => {
   function flashStars() { starFlash = 1.5; }
   function fade(dur) { fadeT = dur; fadeDur = dur; }
   function text(t, x, y, size, color = '#fff', align = 'left', weight = 'bold', shadow = true) { g.font = `${weight} ${size}px ${FONT}`; g.textAlign = align; g.textBaseline = 'middle'; if (shadow) { g.fillStyle = 'rgba(0,0,0,0.75)'; g.fillText(t, x + 2, y + 2); } g.fillStyle = color; g.fillText(t, x, y); }
-  function outlined(t, x, y, size, color, align = 'center') { g.font = `900 ${size}px ${FONT}`; g.textAlign = align; g.textBaseline = 'middle'; g.lineWidth = Math.max(2, size * 0.1); g.strokeStyle = '#000'; g.lineJoin = 'round'; g.strokeText(t, x, y); g.fillStyle = color; g.fillText(t, x, y); }
+  function outlined(t, x, y, size, color, align = 'center') { g.font = `900 ${size}px ${DISPLAY}`; g.letterSpacing = '1px'; g.textAlign = align; g.textBaseline = 'middle'; g.lineWidth = Math.max(2, size * 0.1); g.strokeStyle = '#000'; g.lineJoin = 'round'; g.strokeText(t, x, y); g.fillStyle = color; g.fillText(t, x, y); }
 
   // ---- Radar map, painted once
   function buildMap() {
