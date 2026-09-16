@@ -16,6 +16,8 @@ const { chromium } = (() => { try { return require('playwright'); } catch (e) { 
       // M2 delivery
       let d = begin(2); note(2, 'start'); note(2, 'enter van', { ok: enter(d.van) }); sim(1); note(2, 'phase', { phase: d.phase, timer: Math.round(S.timer) });
       const k = CITY.place('docks'); carTo(d.van, k.x + 100, k.z); sim(2); note(2, 'near ambush', { ambush: d.ambush, chasers: W.cars.filter(c => c.ai.mode === 'chase').length }); carTo(d.van, k.x, k.z); sim(3); note(2, 'delivered');
+      // retry: fail the delivery on the clock, press Y, expect the mission to restart from Marla
+      d = begin(2); enter(d.van); sim(0.5); S.timer = 0.05; sim(0.5); note(2, 'failed', { cur: S.current && S.current.name, retry: !!S.retry }); sim(0.1, ['KeyY']); sim(0.5); const dlg = S.dialogue; S.dialogue = null; if (dlg && dlg.then) dlg.then(); S.dialogue = null; note(2, 'retried', { cur: S.current && S.current.name, retry: !!S.retry, nearMarla: M.dist(P.x, P.z, CITY.place('mission').x, CITY.place('mission').z) < 6 });
       // M3 collections
       d = begin(3); note(3, 'start'); P.x = d.spot[0] + 10; P.z = d.spot[1] + 4; sim(2); note(3, 'arrived', { phase: d.phase, hostile: d.goons.filter(g => g.hostile).length });
       for (const g of d.goons) g.die(PLAYER, 'shot'); sim(2); note(3, 'goons dead', { phase: d.phase, teddy: d.teddy.state });

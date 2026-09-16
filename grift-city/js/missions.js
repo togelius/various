@@ -78,7 +78,9 @@ const MISSIONS = (() => {
   function marker(x, z, r = 2, col = [1, 0.85, 0.2]) { S.markers.push({ x, z, r, col }); }
   function say(lines, then, focus = null) { S.dialogue = { lines, i: 0, then, focus }; S.lineT = 0; P().aim = 0; }
   function pass(reward, text) { AUDIO.play('missionPass'); HUD.big('MISSION PASSED!' + (reward ? '  $' + reward : ''), '#f5c542', 3.5); if (reward) PLAYER.addMoney(reward, null); if (S.current) { const m = S.current; if (m.strand === 2) { S.done['o' + m.id] = true; if (m.id === S.progress2) S.progress2++; } else if (m.strand === 'phone') { if (m.id === S.phoneProgress) S.phoneProgress++; } else { S.done[m.id] = true; if (m.id === S.progress) S.progress++; } } P().stats.missions++; cleanup(); POLICE.clear(); S.current = null; S.cooldown = 3; if (text) HUD.notify(text); GAME.save(); }
-  function fail(reason) { AUDIO.play('missionFail'); HUD.big('MISSION FAILED', '#c0281e', 3); if (reason) HUD.notify(reason); cleanup(); S.current = null; S.cooldown = 3; }
+  function fail(reason) { AUDIO.play('missionFail'); HUD.big('MISSION FAILED', '#c0281e', 3); if (reason) HUD.notify(reason + '  (Y to retry)'); if (S.current) S.retry = { m: S.current, t: 25 }; cleanup(); S.current = null; S.cooldown = 3; }
+  // Y after a failure restarts the mission from its giver, healed and with the police off your back.
+  function retry() { const m = S.retry.m; S.retry = null; const p = P(); if (p.car) PLAYER.exitCar(); const g = m.strand === 2 ? place('mission2') : m.strand === 'phone' ? null : place('mission'); if (g) { p.x = g.x + 2.5; p.z = g.z + 2.5; p.y = CITY.groundY(p.x, p.z); p.vx = p.vz = 0; } p.health = 100; if (!p.alive) PLAYER.respawn(); POLICE.clear(); S.cooldown = 0; start(m); }
   function onPlayerDown(how) { if (S.current) fail(how === 'busted' ? 'You got busted.' : 'You got wasted.'); if (S.side) endSide(how); if (S.rampage) { S.rampage = null; S.objective = ''; } }
   function onEnterCar(c) { if (S.current && S.current.onEnterCar) S.current.onEnterCar(c); if (S.side && S.side.onEnterCar) S.side.onEnterCar(c); }
   function onExitCar(c) { if (S.current && S.current.onExitCar) S.current.onExitCar(c); if (S.side && S.side.onExitCar) S.side.onExitCar(c); }
@@ -296,6 +298,7 @@ const MISSIONS = (() => {
       const ph = PHONE[S.phoneProgress];
       if (ph && S.progress >= 2 && !p.car) { for (const t of CITY.places.phone) { marker(t.x, t.z, 1.0, [0.3, 0.5, 1]); if (M.dist2(p.x, p.z, t.x, t.z) < 2.5) { AUDIO.play('phone'); start(ph); break; } } }
     }
+    if (S.retry) { S.retry.t -= dt; if (S.retry.t <= 0 || S.current) S.retry = null; else if (p.alive && INPUT.hit('KeyY')) { retry(); return; } else if (!S.side) objective('Mission failed. Press Y to retry ' + S.retry.m.name + '.'); }
     updateSide(dt); updateShops(dt);
   }
   function start(m) { S.current = m; m.data = {}; S.blip = null; S.blips.length = 0; S.markers.length = 0; HUD.big(m.name, '#f5c542', 3); const focus = m.strand === 2 ? S.givers.okafor : m.strand === 'phone' ? null : (m.auto ? null : S.givers.marla); if (m.intro) say(m.intro, () => { m.start(m.data); }, focus); else m.start(m.data); }

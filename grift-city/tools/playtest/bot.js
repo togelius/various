@@ -46,10 +46,10 @@
       while (routeIdx < route.length - 1 && dist(c.x, c.z, ...route[routeIdx]) < 9) routeIdx++;
       const wp = route[Math.min(routeIdx, route.length - 1)]; const e = ang(c.angle, Math.atan2(wp[0] - c.x, wp[1] - c.z));
       const keys = [];
-      if (B.t < reverseUntil) { keys.push('KeyS'); keys.push((e > 0) !== revFlip ? 'KeyA' : 'KeyD'); }
+      if (B.t < reverseUntil) { keys.push('KeyS'); keys.push((e > 0) !== revFlip ? 'KeyD' : 'KeyA'); }
       else {
         if (stillT > 2.5 && dT > 6) { unstickN = (B.t - lastUnstick < 20) ? unstickN + 1 : 0; lastUnstick = B.t; reverseUntil = B.t + (unstickN > 2 ? 3.5 : 1.6); revFlip = unstickN % 2 === 1; stillT = 0; route = null; if (unstickN >= 1 && dT < 60) { const a = Math.atan2(target[0] - c.x, target[1] - c.z) + (revFlip ? 1 : -1) * 1.2; detour = [c.x + Math.sin(a) * 14, c.z + Math.cos(a) * 14]; detourUntil = B.t + 6; } say({ act: 'unstick reverse', at: [Math.round(c.x), Math.round(c.z)], n: unstickN }); }
-        if (e > 0.08) keys.push('KeyD'); else if (e < -0.08) keys.push('KeyA');
+        if (e > 0.08) keys.push('KeyA'); else if (e < -0.08) keys.push('KeyD'); // heading grows toward screen-left, so a positive error means steer left
         const sharp = Math.abs(e) > 0.6; const near = dT < 15; const fwdSpd = c.speed; // signed: negative when reversing
         if (fwdSpd < -1) keys.push('KeyW'); // rolling backwards by accident: go forward, never hold the brake into reverse
         else if (sharp && fwdSpd > 9) keys.push('KeyS'); else if ((near && !targetIsCar && fwdSpd > 8) || (targetIsCar && dT < 6 && s.blip.carSpeed < 2.5 && fwdSpd > 5)) { } else keys.push('KeyW');

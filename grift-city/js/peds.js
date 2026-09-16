@@ -215,10 +215,12 @@ const PEDS = (() => {
   // Seat positions in car-local space: driver on the left (+x), passenger right, rear seats behind.
   function seatOf(car, index) {
     const s = car.spec; const L = s.len, W = s.wid, wr = s.wheelR; const floorY = wr * 0.9, bodyH = s.hgt * 0.5; const cabinY = floorY + bodyH;
-    if (s.bus) return [index === 0 ? W * 0.25 : -W * 0.25, floorY + 0.3, L / 2 - 1.2 - Math.floor(index / 2) * 1.2];
-    if (s.box) return [index === 0 ? W * 0.22 : -W * 0.22, cabinY + 0.05, L / 2 - L * 0.3 * 0.55];
+    const seatY = MESH.seatHeight(s);
+    if (s.bus) return [index === 0 ? W * 0.25 : -W * 0.25, seatY, L / 2 - 1.2 - Math.floor(index / 2) * 1.2];
+    if (s.box) return [index === 0 ? W * 0.22 : -W * 0.22, seatY, L / 2 - L * 0.3 * 0.55];
+    if (s.armor || s.hgt > 2.0) return [index % 2 === 0 ? W * 0.22 : -W * 0.22, seatY, L / 2 - 1.5 - Math.floor(index / 2) * 1.0];
     const half = L / 2; const c0 = half - s.cabin[0] * L - s.hood * 0.5, c1 = half - s.cabin[1] * L - s.hood * 0.5; const seatZ = (c0 + c1) / 2 - 0.1;
-    const row = Math.floor(index / 2), side = index % 2 === 0 ? 1 : -1; return [side * W * 0.21, cabinY + 0.02, seatZ - row * 0.9];
+    const row = Math.floor(index / 2), side = index % 2 === 0 ? 1 : -1; return [side * W * 0.21, seatY, seatZ - row * 0.9];
   }
   function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0); p.emis.fill(0); return { mesh: p.mesh, model: p.model, bones: p.bones, emis: p.emis }; }
 

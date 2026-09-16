@@ -92,6 +92,10 @@ const GAME = (() => {
     for (let k = 0; k + 1 < nodes.length; k++) { const [i, j] = nodes[k], [i2, j2] = nodes[k + 1]; const dx = Math.sign(i2 - i), dz = Math.sign(j2 - j); const rx = -dz, rz = dx; const x0 = i * PT, z0 = j * PT, x1 = i2 * PT, z1 = j2 * PT; pts.push([x0 + dx * 9 + rx * 1.75, z0 + dz * 9 + rz * 1.75]); pts.push([x1 - dx * 9 + rx * 1.75, z1 - dz * 9 + rz * 1.75]); }
     pts.push([tx, tz]); return pts; };
   // Deterministic stepping for tests: window.__sim(seconds) advances the simulation without rendering.
+  // Debug geometry for the visual tests: unlit (emissive) boxes drawn as entities. __renderOnce draws one frame on demand.
+  window.__debugBoxes = [];
+  window.__debugBox = (x, y, z, w, h, d, col, tile = 0, emis = 1) => { const b = new MESH.Builder(); b.box(x, y, z, w, h, d, col, tile, { uvScale: Math.max(w, d), uvScaleV: h }); const bones = new Float32Array(16 * RENDER.MAX_BONES); for (let i = 0; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16); const em = new Float32Array(RENDER.MAX_BONES); em.fill(emis); const e = { mesh: b.build(), model: M.identity(M.create()), bones, emis: em }; window.__debugBoxes.push(e); return e; };
+  window.__renderOnce = () => { if (PLAYER.updateCamera) for (let i = 0; i < 120; i++) PLAYER.updateCamera(1 / 60); /* let the chase camera settle on the new position */ renderWorld(1 / 60, false); HUD.draw(1 / 60, state); };
   window.__sim = (seconds, keys = []) => { window.__manual = true; for (const k of keys) window.dispatchEvent(new KeyboardEvent('keydown', { code: k })); for (let t = 0; t < seconds; t += 1 / 60) { step(1 / 60); INPUT.endFrame(); } for (const k of keys) window.dispatchEvent(new KeyboardEvent('keyup', { code: k })); };
   // Cheats, typed anywhere during play. Old habits.
   const CHEATS = {
@@ -138,6 +142,7 @@ const GAME = (() => {
         else if (c.driver === PLAYER && !title) scene.entities.push(PEDS.seatedEntity(PLAYER.P, c, 0, true));
         c.passengers.forEach((q, i) => { if (!q.removed) scene.entities.push(PEDS.seatedEntity(q, c, i + 1, false)); }); } }
     for (const p of W.peds) { if (p.removed || p.inCar || M.dist2(p.x, p.z, cam.tx, cam.tz) > 140 * 140) continue; scene.entities.push(p.entity()); }
+    for (const e of window.__debugBoxes) scene.entities.push(e);
     const pe = PLAYER.entity(); if (pe && !title) scene.entities.push(pe);
     for (const e of PLAYER.projectileEntities()) scene.entities.push(e);
     for (const e of PICKUPS.entities(cam.tx, cam.tz)) scene.entities.push(e);

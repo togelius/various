@@ -45,7 +45,7 @@ const HUD = (() => {
     g.translate(P.x, P.z); g.rotate(-(P.car ? P.car.angle : P.angle) + Math.PI); g.fillStyle = '#fff'; g.beginPath(); g.moveTo(0, -9 / scale); g.lineTo(6 / scale, 7 / scale); g.lineTo(0, 3 / scale); g.lineTo(-6 / scale, 7 / scale); g.closePath(); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 1.5 / scale; g.stroke();
     g.restore();
     // edge blip for off-radar mission target
-    const bp = MISSIONS.blipPos(); if (bp) { const dx = bp.x - P.x, dz = bp.z - P.z; if (Math.hypot(dx, dz) * scale > R) { const a = Math.atan2(dx, dz); const sa = a - yaw; const ex = cx + Math.sin(sa) * -(R - 8), ey = cy + Math.cos(sa) * (R - 8); g.fillStyle = bp.col; g.beginPath(); g.arc(ex, ey, 6, 0, 7); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 2; g.stroke(); } }
+    const bp = MISSIONS.blipPos(); if (bp) { const dx = bp.x - P.x, dz = bp.z - P.z; if (Math.hypot(dx, dz) * scale > R) { const a = Math.atan2(dx, dz); const sa = a - yaw; const ex = cx - Math.sin(sa) * (R - 8), ey = cy - Math.cos(sa) * (R - 8); /* same rotation as the map: ahead is up */ g.fillStyle = bp.col; g.beginPath(); g.arc(ex, ey, 6, 0, 7); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 2; g.stroke(); } }
     g.strokeStyle = 'rgba(0,0,0,0.85)'; g.lineWidth = 4; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.stroke(); g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = 1.5; g.stroke();
     // north indicator
     { const a = yaw + Math.PI; const nx = cx + Math.sin(a) * (R + 12), ny = cy - Math.cos(a) * (R + 12); text('N', nx, ny, 12, '#fff', 'center'); }

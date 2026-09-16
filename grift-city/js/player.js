@@ -221,7 +221,8 @@ const PLAYER = (() => {
   function updateInCar(dt) {
     const c = P.car, pad = INPUT.pad; P.inCarT += dt; P.x = c.x; P.z = c.z; P.y = c.y;
     if (c.wrecked) { exitCar(); return; }
-    // raw axes: steering and throttle are independent in a car, never normalised together
+    // raw axes: steering and throttle are independent in a car, never normalised together.
+    // Heading grows counter-clockwise seen from above (+z toward +x, which is screen-left), so steering right is negative.
     let ix = 0, iz = 0;
     if (INPUT.down('KeyW') || INPUT.down('ArrowUp')) iz += 1; if (INPUT.down('KeyS') || INPUT.down('ArrowDown')) iz -= 1; if (INPUT.down('KeyD') || INPUT.down('ArrowRight')) ix += 1; if (INPUT.down('KeyA') || INPUT.down('ArrowLeft')) ix -= 1;
     if (pad.active) { ix = M.clamp(ix + pad.lx, -1, 1); iz = M.clamp(iz - pad.ly, -1, 1); }
@@ -230,7 +231,7 @@ const PLAYER = (() => {
     if (fwdIn > 0) { if (c.speed < -0.5) { ctl.throttle = 0; ctl.brake = fwdIn; ctl.reverse = false; } else { ctl.throttle = fwdIn; ctl.brake = 0; } }
     else if (backIn > 0) { ctl.throttle = 0; ctl.brake = backIn; ctl.reverse = true; }
     else { ctl.throttle = 0; ctl.brake = 0; ctl.reverse = false; }
-    ctl.steer = ix; ctl.handbrake = (INPUT.down('Space') || pad.buttons[0]) ? 1 : 0;
+    ctl.steer = -ix; ctl.handbrake = (INPUT.down('Space') || pad.buttons[0]) ? 1 : 0;
     if (INPUT.down('KeyH') || pad.buttons[3]) { if (c.horn <= 0) { c.horn = 0.5; AUDIO.play('horn', c.x, c.z, 0.5); } }
     if ((c.type === 'police' || c.type === 'swat') && (INPUT.hit('KeyL') || pad.pressed[9])) c.siren = !c.siren;
     if (INPUT.hit('KeyR') || pad.pressed[8]) { P.radio = (AUDIO.radioStation + 1) % AUDIO.STATIONS.length; AUDIO.setRadio(P.radio); HUD.notify('RADIO: ' + AUDIO.STATIONS[P.radio]); }

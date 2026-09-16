@@ -49,6 +49,7 @@ this directory.
 | Radio / horn / siren  | `R` / `H` / `L`                            |
 | Taxi or vigilante job | `T` in a taxi or a police car              |
 | Map / pause / mute    | `Tab` / `Esc` / `M`                        |
+| Retry a failed job    | `Y` (within half a minute of failing)      |
 
 Gamepads work: left stick moves, right stick looks, triggers fire and aim
 (on foot) or drive (in a car), A sprints or handbrakes, B jumps, X enters
@@ -150,7 +151,19 @@ node tools/playtest/contact.js story1            # contact sheets from the films
 node tools/playtest/shot.js out.png "tp(300, 336); sim(2, ['KeyW'])"   # one full-quality screenshot
 node tools/playtest/tests/missions_all.js        # every mission and side job, teleport-driven
 node tools/playtest/tests/soak.js                # six minutes of chaos, counts errors
+node tools/playtest/tests/visual.js [group ...]  # screenshot inspection: camera handedness, steering, radar, textures, exposure, HUD, model detail
 ```
+
+The visual suite renders controlled scenes with the frame loop parked and
+decodes each screenshot in the page to check pixels: a magenta marker placed
+to the player's right must land on the right half of the frame, holding D
+must turn the car toward that side, a mission blip ahead must sit above the
+radar centre and swing the right way when you turn, a four-colour test card
+must read upright and unmirrored on all four box faces, night must be darker
+than day but not black, the HUD must be where it belongs, and every car must
+have more than a thousand triangles. It was written after a player reported
+mirrored steering and a radar blip that circled at twice the speed of the
+map; both were real, and both are now checks that would fail again.
 
 Filmstrips land in `tools/playtest/pt/<name>/` with a JSON line of game state
 per frame (position, car, health, stars, objective, and what the bot was
@@ -167,4 +180,10 @@ a mission driver could fail to get into their own car when they approached
 it end-on, one crime could jump several stars at once, and every painted
 texture on the side of a box was upside down (the shop signs gave it away),
 and pressing the accelerator while rolling backwards floored the car in
-reverse instead of stopping it.
+reverse instead of stopping it. A second round from a human playtester:
+steering was mirrored (the heading grows counter-clockwise, so right is
+negative), the off-radar blip rotated against the map, and the cars and
+people were boxes. Cars are now lofted from rounded cross-sections with a
+shared roof-and-glass surface, wheel arches, bumpers, mirrors, trim and
+five-spoke wheels; people have ellipsoid heads with hair, jointed tapered
+limbs and a lofted torso.
