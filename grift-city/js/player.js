@@ -228,8 +228,8 @@ const PLAYER = (() => {
     const ctl = c.controls;
     const fwdIn = Math.max(0, iz) + pad.rt, backIn = Math.max(0, -iz) + pad.lt;
     if (fwdIn > 0) { if (c.speed < -0.5) { ctl.throttle = 0; ctl.brake = fwdIn; ctl.reverse = false; } else { ctl.throttle = fwdIn; ctl.brake = 0; } }
-    else if (backIn > 0) { if (c.speed > 0.5) { ctl.throttle = 0; ctl.brake = backIn; } else { ctl.throttle = 0; ctl.brake = backIn; } }
-    else { ctl.throttle = 0; ctl.brake = 0; }
+    else if (backIn > 0) { ctl.throttle = 0; ctl.brake = backIn; ctl.reverse = true; }
+    else { ctl.throttle = 0; ctl.brake = 0; ctl.reverse = false; }
     ctl.steer = ix; ctl.handbrake = (INPUT.down('Space') || pad.buttons[0]) ? 1 : 0;
     if (INPUT.down('KeyH') || pad.buttons[3]) { if (c.horn <= 0) { c.horn = 0.5; AUDIO.play('horn', c.x, c.z, 0.5); } }
     if ((c.type === 'police' || c.type === 'swat') && (INPUT.hit('KeyL') || pad.pressed[9])) c.siren = !c.siren;

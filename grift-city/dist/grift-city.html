@@ -2072,7 +2072,7 @@ const VEH = (() => {
       // engine
       if (!this.wrecked && (this.driver || this.ai.mode !== 'parked')) {
         if (c.throttle > 0 && !this.airborne) { const k = Math.max(0.15, 1 - Math.max(0, vF) / top); vF += s.accel * k * c.throttle * dt; }
-        if (c.brake > 0 && !this.airborne) { if (vF > 0.3) vF = Math.max(0, vF - s.brake * c.brake * dt); else vF = Math.max(-top * 0.35, vF - s.accel * 0.6 * c.brake * dt); }
+        if (c.brake > 0 && !this.airborne) { if (vF > 0.3) vF = Math.max(0, vF - s.brake * c.brake * dt); else if (c.reverse === false) vF = Math.min(0, vF + s.brake * c.brake * dt); /* forward pedal while rolling backwards: stop, don't reverse harder */ else vF = Math.max(-top * 0.35, vF - s.accel * 0.6 * c.brake * dt); }
       }
       // resistances
       if (!this.airborne) { const roll = 1.2 + (c.handbrake ? 6 : 0); vF = M.approach(vF, 0, roll * dt); vF -= vF * Math.abs(vF) * 0.0035 * dt; }
@@ -2824,8 +2824,8 @@ const PLAYER = (() => {
     const ctl = c.controls;
     const fwdIn = Math.max(0, iz) + pad.rt, backIn = Math.max(0, -iz) + pad.lt;
     if (fwdIn > 0) { if (c.speed < -0.5) { ctl.throttle = 0; ctl.brake = fwdIn; ctl.reverse = false; } else { ctl.throttle = fwdIn; ctl.brake = 0; } }
-    else if (backIn > 0) { if (c.speed > 0.5) { ctl.throttle = 0; ctl.brake = backIn; } else { ctl.throttle = 0; ctl.brake = backIn; } }
-    else { ctl.throttle = 0; ctl.brake = 0; }
+    else if (backIn > 0) { ctl.throttle = 0; ctl.brake = backIn; ctl.reverse = true; }
+    else { ctl.throttle = 0; ctl.brake = 0; ctl.reverse = false; }
     ctl.steer = ix; ctl.handbrake = (INPUT.down('Space') || pad.buttons[0]) ? 1 : 0;
     if (INPUT.down('KeyH') || pad.buttons[3]) { if (c.horn <= 0) { c.horn = 0.5; AUDIO.play('horn', c.x, c.z, 0.5); } }
     if ((c.type === 'police' || c.type === 'swat') && (INPUT.hit('KeyL') || pad.pressed[9])) c.siren = !c.siren;

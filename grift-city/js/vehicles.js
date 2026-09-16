@@ -61,7 +61,7 @@ const VEH = (() => {
       // engine
       if (!this.wrecked && (this.driver || this.ai.mode !== 'parked')) {
         if (c.throttle > 0 && !this.airborne) { const k = Math.max(0.15, 1 - Math.max(0, vF) / top); vF += s.accel * k * c.throttle * dt; }
-        if (c.brake > 0 && !this.airborne) { if (vF > 0.3) vF = Math.max(0, vF - s.brake * c.brake * dt); else vF = Math.max(-top * 0.35, vF - s.accel * 0.6 * c.brake * dt); }
+        if (c.brake > 0 && !this.airborne) { if (vF > 0.3) vF = Math.max(0, vF - s.brake * c.brake * dt); else if (c.reverse === false) vF = Math.min(0, vF + s.brake * c.brake * dt); /* forward pedal while rolling backwards: stop, don't reverse harder */ else vF = Math.max(-top * 0.35, vF - s.accel * 0.6 * c.brake * dt); }
       }
       // resistances
       if (!this.airborne) { const roll = 1.2 + (c.handbrake ? 6 : 0); vF = M.approach(vF, 0, roll * dt); vF -= vF * Math.abs(vF) * 0.0035 * dt; }

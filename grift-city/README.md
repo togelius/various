@@ -147,4 +147,6 @@ at the same speed as your car could never be stopped (now a driver who is
 tailed closely for about ten seconds loses their nerve, pulls over and runs),
 a mission driver could fail to get into their own car when they approached
 it end-on, one crime could jump several stars at once, and every painted
-texture on the side of a box was upside down (the shop signs gave it away).
+texture on the side of a box was upside down (the shop signs gave it away),
+and pressing the accelerator while rolling backwards floored the car in
+reverse instead of stopping it.
