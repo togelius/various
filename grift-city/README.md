@@ -20,9 +20,9 @@ around one file; `python3 tools/build-single.py` regenerates it.
 A third-person open-world game in the shape of the early 3D crime games: you
 walk, you steal a car, you drive too fast, you shoot, the stars climb, the
 helicopter comes. Nine story missions for Marla Voss run from a repo job to a
-bank heist to a shoot-out in a Downtown plaza; eight more for Captain Okafor at
+bank heist to a shoot-out in a Downtown plaza; nine more for Captain Okafor at
 Pier 9 open up once Marla trusts you, among them a stealth job, a
-photography job and a tanker that takes a car yard with it; four contracts
+photography job, a tanker that takes a car yard with it and a boat chase; four contracts
 come in on payphones. Missions branch on what you do (a debtor who dies
 before he can be repossessed, a collector who keeps his fingers), keep
 checkpoints at their hard turns, and give a third attempt more time and a
@@ -108,6 +108,17 @@ guards around a hut and fills a detection bar when you stand in their sight
 or run near them (gunfire within earshot rings the alarm outright), EVIDENCE
 hands you a camera that scores a frame by distance, aim and line of sight,
 and FIREWORKS is one tanker parked next to six cars.
+
+## Getting around
+
+Eleven kinds of car, a motorcycle and a speedboat. The VIPER motorcycle
+takes the same tyre model as the cars with a rider who leans into the
+corners; a hard stop puts them over the bars, so treat kerbs with respect.
+Three SKIMMER boats are moored beside Pier 9 and off the beach. On the water
+the rudder needs way on, the hull slides wide through a turn, and the shore
+and the pier are walls. You cannot swim: `F` only gets you out of a boat
+within a few metres of land, and a boat that sinks under you takes you down
+with it. Okafor's last job, SALT WATER, is a boat chase round the island.
 
 ## The police
 

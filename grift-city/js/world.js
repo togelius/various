@@ -76,6 +76,24 @@ const W = (() => {
   }
   // ---- Collision helpers
   const bounds = CITY.outerBound();
+  const WATER_Y = -1.6, OPEN_SEA = 320; // water level, and how far off the island a boat may go
+  // Keep a boat's circle off the island, off the pier and inside the open-sea limit. Returns {x, z, hit} like pushOut; hit.edge marks the sea limit.
+  function pushOutWater(x, z, r) {
+    let hit = null; const B0 = bounds[0] - r, B1 = bounds[1] + r;
+    if (x > B0 && x < B1 && z > B0 && z < B1) { const dl = x - B0, dr = B1 - x, dt = z - B0, db = B1 - z; const m = Math.min(dl, dr, dt, db); if (m === dl) { x = B0; hit = [-1, 0]; } else if (m === dr) { x = B1; hit = [1, 0]; } else if (m === dt) { z = B0; hit = [0, -1]; } else { z = B1; hit = [0, 1]; } }
+    const pier = CITY.pier; const P0 = pier.x0 - r, P1 = pier.x1 + r, PZ = pier.z1 + r;
+    if (x > P0 && x < P1 && z > bounds[1] - 1 && z < PZ) { const dl = x - P0, dr = P1 - x, db = PZ - z; const m = Math.min(dl, dr, db); if (m === dl) { x = P0; hit = [-1, 0]; } else if (m === dr) { x = P1; hit = [1, 0]; } else { z = PZ; hit = [0, 1]; } }
+    const S0 = bounds[0] - OPEN_SEA, S1 = bounds[1] + OPEN_SEA;
+    if (x < S0) { x = S0; hit = [1, 0]; hit.edge = true; } if (x > S1) { x = S1; hit = [-1, 0]; hit.edge = true; } if (z < S0) { z = S0; hit = [0, 1]; hit.edge = true; } if (z > S1) { z = S1; hit = [0, -1]; hit.edge = true; }
+    return { x, z, hit };
+  }
+  // Nearest point of dry land (the island's edge or the pier deck) to a point on the water, with its distance.
+  function nearestLand(x, z) {
+    const cands = []; const ix = M.clamp(x, bounds[0] + 1, bounds[1] - 1), iz = M.clamp(z, bounds[0] + 1, bounds[1] - 1); cands.push([ix, iz]);
+    const pier = CITY.pier; cands.push([M.clamp(x, pier.x0 + 0.6, pier.x1 - 0.6), M.clamp(z, bounds[1] - 1, pier.z1 - 0.6)]);
+    let best = null; for (const [cx, cz] of cands) { const d = M.dist(x, z, cx, cz); if (!best || d < best.d) best = { x: cx, z: cz, d }; } return best;
+  }
+  const onWater = (x, z) => (x < bounds[0] || x > bounds[1] || z < bounds[0] || z > bounds[1]) && !(x > CITY.pier.x0 && x < CITY.pier.x1 && z < CITY.pier.z1 && z > bounds[1] - 1);
   // Push a circle out of building lots and solid props; returns [x, z, hitNormalX, hitNormalZ] or null for no hit.
   function pushOut(x, z, r, opts = {}) {
     let hit = null;
@@ -229,5 +247,5 @@ const W = (() => {
   function frameBegin() { dyn.length = 0; state.shots.length = 0; state.noises.length = 0; if (state.heard.length && state.elapsed - state.heard[0].t > 0.5) state.heard = state.heard.filter(n => state.elapsed - n.t <= 0.5); }
   function updateExplosions(dt) { let w = 0; for (const e of explosions) { e.t += dt; if (e.t < 0.6) { dyn.push({ x: e.x, y: e.y + 1, z: e.z, r: 30 * e.big, col: [3 * (1 - e.t), 1.5 * (1 - e.t), 0.3] }); explosions[w++] = e; } } explosions.length = w; }
 
-  return { weather, updateWeather, bustle, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds };
+  return { weather, updateWeather, bustle, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds, WATER_Y, pushOutWater, nearestLand, onWater };
 })();

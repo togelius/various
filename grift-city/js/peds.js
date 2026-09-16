@@ -221,8 +221,13 @@ const PEDS = (() => {
 
   // Seated pose inside a car (or on a bench): hips at the seat, thighs forward, shins down, hands on the wheel.
   const seatTmp = M.create(), seatLocal = M.create(), seatWorld = M.create();
-  function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1) {
+  function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1, bike = false) {
     M.trs(seatLocal, lx, ly, lz, yaw, (p.sx || 1) * fit, (p.sy || 1) * fit, (p.sx || 1) * fit); M.multiply(model, carModel, seatLocal);
+    if (bike) { // astride: torso forward over the tank, arms out to the bars, knees bent down to the pegs
+      const hip = 0.02, lean = 0.32; bone(bones, 0, 0, hip, 0, 0, lean, 0); bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, -0.1, 0);
+      bone(bones, 32, 0, hip + SHOULDER, 0, 0.35, -1.05, 0.2); bone(bones, 48, 0, hip + SHOULDER, 0, -0.35, -1.05, -0.2); jointBone(bones, 144, 32, 0.3, ELBOW_Y, 0, -0.45); jointBone(bones, 160, 48, -0.3, ELBOW_Y, 0, -0.45);
+      bone(bones, 64, 0, hip, 0, 0, -0.95, 0.28); bone(bones, 80, 0, hip, 0, 0, -0.95, -0.28); jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, 1.45); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, 1.45);
+      bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001); for (let i = 11; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16); return; }
     const hip = 0.02; const lean = driving ? 0.12 : 0.05;
     bone(bones, 0, 0, hip, 0, 0, lean, 0);
     bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, lean * 0.5, 0);
@@ -284,13 +289,15 @@ const PEDS = (() => {
   function seatOf(car, index) {
     const s = car.spec; const L = s.len, W = s.wid;
     const seatY = MESH.seatHeight(s);
+    if (s.bike) return [0, seatY, -0.3];
+    if (s.boat) return [index === 0 ? -0.5 : 0.5, seatY, -0.85];
     if (s.bus) return [index === 0 ? W * 0.25 : -W * 0.25, seatY, L / 2 - 1.2 - Math.floor(index / 2) * 1.2];
     if (s.box) return [index === 0 ? W * 0.22 : -W * 0.22, seatY, L / 2 - L * 0.3 * 0.55];
     if (s.armor || s.hgt > 2.0) return [index % 2 === 0 ? W * 0.22 : -W * 0.22, seatY, L / 2 - 1.5 - Math.floor(index / 2) * 1.0];
     const half = L / 2; const c0 = half - s.cabin[0] * L - s.hood * 0.5, c1 = half - s.cabin[1] * L - s.hood * 0.5; const seatZ = (c0 + c1) / 2 - 0.1;
     const row = Math.floor(index / 2), side = index % 2 === 0 ? 1 : -1; return [side * W * 0.21, seatY, seatZ - row * 0.9];
   }
-  function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0, MESH.seatFit(car.spec).scale); p.emis.fill(0); return { mesh: p.mesh, model: p.model, bones: p.bones, emis: p.emis }; }
+  function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0, MESH.seatFit(car.spec).scale, !!car.spec.bike); p.emis.fill(0); return { mesh: p.mesh, model: p.model, bones: p.bones, emis: p.emis }; }
 
   // ---- Spawning
   function spawn(x, z, opts = {}) { const look = opts.look || looks[Math.floor(W.rng() * looks.length)]; const p = new Ped(look, x, z, opts); W.peds.push(p); return p; }

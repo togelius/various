@@ -214,16 +214,18 @@ const PLAYER = (() => {
     MISSIONS.onEnterCar(c);
   }
   function exitCar() {
-    const c = P.car; if (!c) return; const r = c.right; const spd = c.absSpeed;
-    P.x = c.x - r[0] * (c.spec.wid / 2 + 0.9); P.z = c.z - r[1] * (c.spec.wid / 2 + 0.9); P.y = CITY.groundY(P.x, P.z); P.angle = c.angle; P.camYaw = c.angle; P.vx = 0; P.vz = 0;
+    const c = P.car; if (!c) return false; const r = c.right; const spd = c.absSpeed;
+    if (c.spec.boat) { const land = W.nearestLand(c.x, c.z); if (!land || land.d > 5.5) { if (P.alive) HUD.notify("You can't swim. Bring the boat to the shore or the pier."); return false; } P.x = land.x; P.z = land.z; }
+    else { P.x = c.x - r[0] * (c.spec.wid / 2 + 0.9); P.z = c.z - r[1] * (c.spec.wid / 2 + 0.9); }
+    P.y = CITY.groundY(P.x, P.z); P.angle = c.angle; P.camYaw = c.angle; P.vx = 0; P.vz = 0;
     c.driver = null; c.ai.mode = 'parked'; c.controls.throttle = 0; c.controls.brake = spd > 4 ? 0 : 1; c.controls.handbrake = 0; c.siren = false; P.car = null; P.state = 'foot'; AUDIO.play('door', P.x, P.z);
     if (spd > 7) { knock(c.vx * 0.5, 3, c.vz * 0.5); hurt(spd * 1.5, 'fall', null); }
     P.weaponOut = P.weapon !== 'fist';
-    MISSIONS.onExitCar(c);
+    MISSIONS.onExitCar(c); return true;
   }
   function updateInCar(dt) {
     const c = P.car, pad = INPUT.pad; P.inCarT += dt; P.x = c.x; P.z = c.z; P.y = c.y;
-    if (c.wrecked) { exitCar(); return; }
+    if (c.wrecked) { if (!exitCar()) { if (c.sinkT > 2.5 && P.alive) { P.armor = 0; hurt(1e4, 'drown', c.lastHitBy); } P.y = c.y; } return; }
     // raw axes: steering and throttle are independent in a car, never normalised together.
     // Heading grows counter-clockwise seen from above (+z toward +x, which is screen-left), so steering right is negative.
     let ix = 0, iz = 0;
@@ -238,7 +240,7 @@ const PLAYER = (() => {
     if (INPUT.down('KeyH') || pad.buttons[3]) { if (c.horn <= 0) { c.horn = 0.5; AUDIO.play('horn', c.x, c.z, 0.5); } }
     if ((c.type === 'police' || c.type === 'swat') && (INPUT.hit('KeyL') || pad.pressed[9])) c.siren = !c.siren;
     if (INPUT.hit('KeyR') || pad.pressed[8]) { P.radio = (AUDIO.radioStation + 1) % AUDIO.STATIONS.length; AUDIO.setRadio(P.radio); HUD.notify('RADIO: ' + AUDIO.STATIONS[P.radio]); }
-    if (INPUT.hit('KeyF') || pad.pressed[2]) { exitCar(); return; }
+    if (INPUT.hit('KeyF') || pad.pressed[2]) { if (exitCar()) return; }
     // drive-by shooting with a one-handed weapon
     const wp = WEAPONS[P.weapon]; const firing = (INPUT.mouse.buttons & 1) || INPUT.down('ControlLeft');
     if (firing && P.fireT <= 0 && (P.weapon === 'pistol' || P.weapon === 'uzi') && P.weapons[P.weapon] > 0) { P.fireT = wp.rate * 1.2; P.weapons[P.weapon]--; fireBullet(PLAYER, c.x + c.fwd[0] * 0.5, c.z + c.fwd[1] * 0.5, 1.2, aimAngle(), wp, 1, c); }
@@ -248,7 +250,7 @@ const PLAYER = (() => {
     else if (P.airT > 0) { if (P.airT > 0.85 && c.absSpeed > 8) { let bonus = Math.floor(P.airT * 500); P.stats.stunts++; if (P.jumpRamp >= 0 && !P.stats.jumps.includes(P.jumpRamp)) { P.stats.jumps.push(P.jumpRamp); bonus += 1000; HUD.big('UNIQUE STUNT!  ' + P.stats.jumps.length + '/' + CITY.ramps.length, '#f5c542', 2.2); AUDIO.play('missionPass'); } else HUD.big('INSANE STUNT!', '#f5c542', 1.6); addMoney(bonus, 'stunt bonus'); } P.airT = 0; }
     // engine sound
     const rpm = M.clamp(Math.abs(c.speed) / c.spec.top, 0, 1); AUDIO.engine(true, rpm * 0.7 + ctl.throttle * 0.25 + 0.05, ctl.throttle, c.type); AUDIO.screech(c.skid && !c.airborne ? M.clamp(Math.max(Math.abs(c.slipR || 0) - 0.08, Math.abs(c.slipF || 0) - 0.14, c.wheelspin ? 0.35 : 0) * 3, 0, 1) : 0); // squeal follows the tyre slip
-    if (c.skid && !c.airborne && W.state.frame % 2 === 0) { const r = c.right, f = c.fwd; const wz = c.spec.len * 0.3; W.FX.dust(c.x - f[0] * wz + r[0], 0, c.z - f[1] * wz + r[1], 1); W.FX.dust(c.x - f[0] * wz - r[0], 0, c.z - f[1] * wz - r[1], 1); }
+    if (c.skid && !c.airborne && !c.spec.boat && W.state.frame % 2 === 0) { const r = c.right, f = c.fwd; const wz = c.spec.len * 0.3; W.FX.dust(c.x - f[0] * wz + r[0], 0, c.z - f[1] * wz + r[1], 1); W.FX.dust(c.x - f[0] * wz - r[0], 0, c.z - f[1] * wz - r[1], 1); }
   }
   // ---- Camera
   function updateCamera(dt) {

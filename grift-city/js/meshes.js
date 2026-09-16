@@ -99,6 +99,14 @@ const MESH = (() => {
       return this;
     }
     // Quad from 4 points whose normal is forced to point away from (cx, cy, cz).
+    // Tilted cylinder from p0 to p1 with end radii r0/r1 (frame tubes, forks, exhausts, rails).
+    tube(p0, p1, r0, r1, col, tile = 0, bone = 0, n = 6) {
+      const ax = p1[0] - p0[0], ay = p1[1] - p0[1], az = p1[2] - p0[2]; const l = Math.hypot(ax, ay, az) || 1; const ux = ax / l, uy = ay / l, uz = az / l;
+      const ref = Math.abs(uy) < 0.9 ? [0, 1, 0] : [1, 0, 0]; let bx = uy * ref[2] - uz * ref[1], by = uz * ref[0] - ux * ref[2], bz = ux * ref[1] - uy * ref[0]; const bl = Math.hypot(bx, by, bz) || 1; bx /= bl; by /= bl; bz /= bl;
+      const cx = uy * bz - uz * by, cy = uz * bx - ux * bz, cz = ux * by - uy * bx;
+      const ring = (p, r) => { const pts = []; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2, ca = Math.cos(a) * r, sa = Math.sin(a) * r; pts.push([p[0] + bx * ca + cx * sa, p[1] + by * ca + cy * sa, p[2] + bz * ca + cz * sa]); } return pts; };
+      return this.loft([ring(p0, r0), ring(p1, r1)], col, tile, bone, { closed: true, capStart: true, capEnd: true, smooth: n > 5 });
+    }
     polyOut(pts, col, cx, cy, cz, tile = 0, bone = 0) {
       const [ax, ay, az] = pts[0], [bx, by, bz] = pts[1], [qx, qy, qz] = pts[2];
       const nx = (by - ay) * (qz - az) - (bz - az) * (qy - ay), ny = (bz - az) * (qx - ax) - (bx - ax) * (qz - az), nz = (bx - ax) * (qy - ay) - (by - ay) * (qx - ax);
@@ -187,12 +195,14 @@ const MESH = (() => {
     bus:     { len: 9.5, wid: 2.5, hgt: 3.0, cabin: [0.0, 1.0], wheelR: 0.5, mass: 3.0, accel: 5, top: 19, grip: 0.8, turn: 1.4, brake: 15, seats: 4, hood: 0.0, bus: true },
     muscle:  { len: 4.9, wid: 2.05, hgt: 1.38, cabin: [0.34, 0.66], wheelR: 0.38, mass: 1.15, accel: 15, top: 33, grip: 0.86, turn: 2.5, brake: 26, seats: 2, hood: 1.0 },
     swat:    { len: 5.6, wid: 2.3, hgt: 2.4, cabin: [0.2, 0.9], wheelR: 0.42, mass: 1.8, accel: 10, top: 26, grip: 0.9, turn: 2.0, brake: 24, seats: 4, hood: 0.9, police: true, armor: true },
+    bike:    { len: 2.2, wid: 0.8, hgt: 1.15, cabin: null, wheelR: 0.33, mass: 0.35, accel: 17, top: 38, grip: 0.9, turn: 3.0, brake: 26, seats: 1, hood: 0, bike: true },
+    boat:    { len: 6.2, wid: 2.4, hgt: 1.5, cabin: null, wheelR: 0.3, mass: 1.2, accel: 11, top: 24, grip: 0.4, turn: 1.4, brake: 6, seats: 2, hood: 0, boat: true },
   };
 
   // Height of the seat cushion in car-local space: a seated ped is 1.05 m from hip to crown, so it sits that far below the roof.
   function seatHeight(s) { return seatFit(s).y; }
   // Seat height plus a body scale for low cabins: a seated ped is 1.05 m from hip to crown, so in a sports car it shrinks a little rather than wearing the roof.
-  function seatFit(s) { const wr = s.wheelR, floorY = wr * 0.9, bodyH = s.hgt * 0.46, cabinY = floorY + bodyH, cabinH = s.hgt - bodyH - floorY * 0.6;
+  function seatFit(s) { if (s.bike) return { y: 0.8, scale: 1 }; if (s.boat) return { y: 0.42, scale: 1 }; const wr = s.wheelR, floorY = wr * 0.9, bodyH = s.hgt * 0.46, cabinY = floorY + bodyH, cabinH = s.hgt - bodyH - floorY * 0.6;
     if (s.bus) return { y: floorY + 0.3, scale: 1 }; const roof = s.box ? cabinY - 0.05 + cabinH * 1.2 : (s.armor || !s.cabin || s.hgt > 2.0) ? s.hgt : cabinY + cabinH; const y = Math.max(floorY + 0.08, roof - 1.05); return { y, scale: M.clamp((roof - y - 0.03) / 1.05, 0.8, 1) }; }
   // Returns { body, glass } builders. opts.dent (0..1) crumples the body, opts.seed varies the dents.
   // Bodies are lofted from rounded cross-sections so the panels curve; the greenhouse is one surface whose
@@ -211,6 +221,8 @@ const MESH = (() => {
       b.polyOut([[x, wr + Math.sin(a0) * r0, az + Math.cos(a0) * r0], [x, wr + Math.sin(a1) * r0, az + Math.cos(a1) * r0], [x, wr + Math.sin(a1) * r1, az + Math.cos(a1) * r1], [x, wr + Math.sin(a0) * r1, az + Math.cos(a0) * r1]], bodyDk.map(c => c * 0.55), 0, wr, az); } };
     const grille = (y, z, w, h) => { b.cbox(0, y, z, w, h, 0.06, dark, 0, { faces: 16 }); if (!LOD) for (let k = 0; k < 3; k++) b.cbox(0, y - h / 2 + (k + 0.5) * h / 3, z + 0.01, w, 0.02, 0.04, chrome, 0, { faces: 16 }); };
     const bumper = (z, colr) => { const d = 0.22; b.roundedBox(-hw * 0.98, floorY + 0.02, z > 0 ? z - d / 2 : z - d / 2, W * 0.96, 0.32, d, 0.09, colr); };
+    if (s.bike) { bikeMesh(b, s, col, LOD); if (opts.dent > 0) dentBody(b, opts.dent * 0.5, opts.seed || 1); return { body: b, glass: gb }; }
+    if (s.boat) { boatMesh(b, gb, s, col, LOD); if (opts.dent > 0) dentBody(b, opts.dent * 0.6, opts.seed || 1); return { body: b, glass: gb }; }
     if (s.bus) {
       b.roundedBox(-hw, floorY, -half, W, H - floorY, L, 0.16, body);
       // window band all round, front screen and a door
@@ -311,6 +323,58 @@ const MESH = (() => {
     return { body: b, glass: gb };
   }
   // Crumple: nudge body vertices (bone 0 only) by a hash of their position; the more dented, the further.
+  // A motorcycle: two spoked wheels (bones 1 and 3), a tube frame, tank, seat and engine on the body, and the
+  // fork, bars, front fender and mirrors on bone 10 so they turn with the steering.
+  function bikeMesh(b, s, col, LOD) {
+    const wr = s.wheelR, half = s.len / 2, wz = half * 0.62; const dark = [0.12, 0.13, 0.15], chrome = [0.8, 0.82, 0.85], leather = [0.15, 0.13, 0.12];
+    const segs = LOD ? 8 : 16, n = LOD ? 5 : 8;
+    b.wheel(0, wr, wz, wr, 0.11, 1, segs); b.wheel(0, wr, -wz, wr, 0.15, 3, segs);
+    const head = [0, wr + 0.74, wz - 0.24], seatP = [0, wr + 0.6, -0.4], eng = [0, wr + 0.14, 0.05];
+    b.tube(head, seatP, 0.035, 0.035, col, 0, 0, n); b.tube(head, eng, 0.03, 0.03, col, 0, 0, n); b.tube(seatP, [0, wr + 0.12, -0.25], 0.03, 0.03, col, 0, 0, n);
+    for (const sx of [1, -1]) { b.tube([sx * 0.1, wr + 0.22, -0.2], [sx * 0.1, wr, -wz], 0.022, 0.022, dark, 0, 0, n); b.tube([sx * 0.16, wr + 0.42, -0.3], [sx * 0.1, wr + 0.02, -wz + 0.08], 0.018, 0.018, chrome, 0, 0, n); } // swingarm, shocks
+    b.roundedBox(-0.17, wr, -0.16, 0.34, 0.36, 0.5, 0.05, dark); if (!LOD) for (let k = 0; k < 4; k++) b.cbox(0, wr + 0.08 + k * 0.08, 0.1, 0.4, 0.02, 0.34, chrome); // engine and fins
+    b.roundedBox(-0.19, wr + 0.5, -0.12, 0.38, 0.3, 0.56, 0.1, col); // tank
+    b.roundedBox(-0.16, wr + 0.62, -0.98, 0.32, 0.1, 0.62, 0.04, leather); b.roundedBox(-0.17, wr + 0.7, -1.0, 0.34, 0.12, 0.1, 0.03, leather); // seat and its lip
+    b.tube([-0.14, wr + 0.06, 0.12], [-0.17, wr + 0.1, -half - 0.05], 0.035, 0.05, chrome, 0, 0, n); // exhaust on the right
+    const fender = (cz, a0, a1, r0, r1, w, bone, colr) => { const k = LOD ? 3 : 7; for (let i = 0; i < k; i++) { const p = a0 + (a1 - a0) * i / k, q = a0 + (a1 - a0) * (i + 1) / k;
+      b.polyOut([[-w / 2, wr + Math.sin(p) * r0, cz + Math.cos(p) * r0], [w / 2, wr + Math.sin(p) * r0, cz + Math.cos(p) * r0], [w / 2, wr + Math.sin(q) * r0, cz + Math.cos(q) * r0], [-w / 2, wr + Math.sin(q) * r0, cz + Math.cos(q) * r0]], colr, 0, wr, cz, 0, bone);
+      b.polyOut([[-w / 2, wr + Math.sin(p) * r0, cz + Math.cos(p) * r0], [-w / 2, wr + Math.sin(p) * r1, cz + Math.cos(p) * r1], [-w / 2, wr + Math.sin(q) * r1, cz + Math.cos(q) * r1], [-w / 2, wr + Math.sin(q) * r0, cz + Math.cos(q) * r0]], colr, 0, wr, cz, 0, bone);
+      b.polyOut([[w / 2, wr + Math.sin(p) * r0, cz + Math.cos(p) * r0], [w / 2, wr + Math.sin(p) * r1, cz + Math.cos(p) * r1], [w / 2, wr + Math.sin(q) * r1, cz + Math.cos(q) * r1], [w / 2, wr + Math.sin(q) * r0, cz + Math.cos(q) * r0]], colr, 0, wr, cz, 0, bone); } };
+    fender(-wz, Math.PI * 0.15, Math.PI * 0.8, wr + 0.06, wr + 0.1, 0.2, 0, col);
+    // steering assembly on bone 10
+    for (const sx of [1, -1]) b.tube([sx * 0.085, wr + 0.92, wz - 0.27], [sx * 0.085, wr, wz], 0.022, 0.02, chrome, 0, 10, n);
+    b.tube([-0.34, wr + 0.98, wz - 0.32], [0.34, wr + 0.98, wz - 0.32], 0.018, 0.018, dark, 0, 10, n); b.cbox(0, wr + 0.9, wz - 0.25, 0.14, 0.14, 0.14, dark, 0, { bone: 10 });
+    if (!LOD) for (const sx of [1, -1]) { b.tube([sx * 0.3, wr + 0.98, wz - 0.32], [sx * 0.3, wr + 1.12, wz - 0.42], 0.01, 0.01, dark, 0, 10, n); b.cbox(sx * 0.3, wr + 1.14, wz - 0.42, 0.11, 0.07, 0.02, [0.75, 0.8, 0.85], 0, { bone: 10 }); } // mirrors
+    fender(wz, Math.PI * 0.2, Math.PI * 0.85, wr + 0.06, wr + 0.1, 0.16, 10, col);
+    b.cbox(0, wr + 0.8, wz - 0.1, 0.18, 0.16, 0.12, dark, 0, { bone: 10 }); b.cbox(0, wr + 0.8, wz - 0.03, 0.15, 0.13, 0.02, [1, 1, 0.92], 0, { faces: 16, bone: 5 }); // headlight
+    b.cbox(0, wr + 0.62, -half - 0.02, 0.12, 0.06, 0.04, [1, 0.2, 0.2], 0, { faces: 32, bone: 6 }); if (!LOD) b.cbox(0, wr + 0.5, -half - 0.03, 0.2, 0.1, 0.02, [0.92, 0.92, 0.88], 0, { faces: 32 }); // tail light, plate
+    b.cbox(0, wr + 0.05, -0.05, 0.6, 0.03, 0.3, dark); for (const sx of [1, -1]) b.cbox(sx * 0.32, wr + 0.05, -0.05, 0.08, 0.06, 0.08, chrome); // foot pegs
+  }
+  // A speedboat: a lofted V hull with a raised bow, a teak deck, a low windscreen, two seats, a console and an outboard.
+  function boatMesh(b, gb, s, col, LOD) {
+    const L = s.len, hw = s.wid / 2, half = L / 2; const keel = -0.62, deck0 = 0.28; const dark = [0.12, 0.13, 0.15], teak = [0.72, 0.6, 0.42], white = [0.92, 0.92, 0.9], glass = [0.28, 0.38, 0.48];
+    const N = LOD ? 3 : 6; const stations = [[-half, 0.85, 0.88, 0], [-half + 0.9, 1, 1, 0.02], [0, 1, 1, 0.06], [half * 0.45, 0.94, 0.95, 0.12], [half * 0.78, 0.62, 0.8, 0.2], [half - 0.02, 0.03, 0.45, 0.3]];
+    const rings = [], decks = [];
+    for (const [z, wf, df, rise] of stations) { const w = hw * wf, d = keel * df, dy = deck0 + rise; const pts = [];
+      for (let i = 0; i <= N; i++) { const u = i / N; pts.push([w * (1 - Math.pow(u, 1.7)), dy + (d - dy) * Math.pow(u, 0.85), z]); }
+      for (let i = N - 1; i >= 0; i--) { const u = i / N; pts.push([-w * (1 - Math.pow(u, 1.7)), dy + (d - dy) * Math.pow(u, 0.85), z]); }
+      pts.push([-w * 0.5, dy, z], [0, dy, z], [w * 0.5, dy, z]); rings.push(pts); decks.push([w, dy, z]); }
+    b.loft(rings, col, 0, 0, { closed: true, capStart: true, capEnd: true, pick: (n) => n[1] > 0.6 ? null : b });
+    for (let i = 0; i + 1 < decks.length; i++) { const [w0, y0, z0] = decks[i], [w1, y1, z1] = decks[i + 1]; b.polyOut([[w0, y0, z0], [-w0, y0, z0], [-w1, y1, z1], [w1, y1, z1]], teak, 0, -1, 0); }
+    if (!LOD) for (let i = 0; i + 1 < decks.length; i++) for (const sx of [1, -1]) b.tube([sx * decks[i][0], decks[i][1] + 0.02, decks[i][2]], [sx * decks[i + 1][0], decks[i + 1][1] + 0.02, decks[i + 1][2]], 0.04, 0.04, white, 0, 0, 5); // rub rail
+    // cockpit: coamings, console, windscreen, seats
+    for (const sx of [1, -1]) b.roundedBox(sx > 0 ? hw * 0.62 : -hw * 0.78, deck0, -1.9, hw * 0.16, 0.22, 2.6, 0.03, col.map(c => c * 0.8));
+    b.roundedBox(-hw * 0.7, deck0, 0.45, hw * 1.4, 0.5, 0.4, 0.05, dark); b.cbox(0, deck0 + 0.52, 0.55, hw * 1.2, 0.03, 0.25, [0.2, 0.2, 0.22]);
+    gb.polyOut([[hw * 0.78, deck0 + 0.02, 0.95], [-hw * 0.78, deck0 + 0.02, 0.95], [-hw * 0.72, deck0 + 0.72, 0.62], [hw * 0.72, deck0 + 0.72, 0.62]], glass, 0, deck0, -2);
+    if (!LOD) { b.tube([hw * 0.78, deck0 + 0.02, 0.95], [hw * 0.72, deck0 + 0.72, 0.62], 0.025, 0.025, dark, 0, 0, 5); b.tube([-hw * 0.78, deck0 + 0.02, 0.95], [-hw * 0.72, deck0 + 0.72, 0.62], 0.025, 0.025, dark, 0, 0, 5); b.tube([-hw * 0.72, deck0 + 0.72, 0.62], [hw * 0.72, deck0 + 0.72, 0.62], 0.025, 0.025, dark, 0, 0, 5); }
+    b.cyl(-0.5, deck0 + 0.5, 0.35, 0.16, deck0 + 0.53, dark, 0, LOD ? 8 : 12, 0, true, true); // wheel at the helm, right of centre
+    for (const sx of [-0.5, 0.5]) { b.roundedBox(sx - 0.26, deck0, -1.15, 0.52, 0.16, 0.5, 0.04, white); b.roundedBox(sx - 0.26, deck0 + 0.1, -1.2, 0.52, 0.5, 0.12, 0.04, white); }
+    b.roundedBox(-hw * 0.8, deck0, -half + 0.2, hw * 1.6, 0.34, 0.9, 0.05, col.map(c => c * 0.85)); // stern locker
+    b.roundedBox(-0.24, deck0 - 0.05, -half - 0.5, 0.48, 0.6, 0.55, 0.08, dark); b.cyl(0, keel + 0.05, -half - 0.35, 0.06, deck0 - 0.05, dark, 0, 6); b.cyl(0, keel + 0.02, -half - 0.35, 0.14, keel + 0.08, chromeish(), 0, 6, 0, true, true); // outboard
+    b.cbox(0, deck0 + 0.36, half - 0.35, 0.08, 0.06, 0.08, [1, 1, 0.9], 0, { bone: 5 }); b.cbox(0, deck0 + 0.2, -half - 0.02, 0.14, 0.05, 0.03, [1, 0.2, 0.2], 0, { faces: 32, bone: 6 }); // nav and stern lights
+    if (!LOD) { for (let k = 0; k < 3; k++) b.cbox(0, deck0 + 0.02, half - 0.9 - k * 0.5, hw * 0.9, 0.02, 0.05, dark); b.cbox(0, deck0 + 0.2, half - 0.2, 0.25, 0.4, 0.05, chromeish()); } // deck slats and a bow cleat
+    function chromeish() { return [0.75, 0.78, 0.8]; }
+  }
   function dentBody(b, amount, seed) {
     const v = b.v; const r = M.rng(seed * 7919);
     const hash = (x, y, z) => { const t = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719 + seed) * 43758.5453; return t - Math.floor(t); };

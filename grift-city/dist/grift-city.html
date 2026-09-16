@@ -506,6 +506,14 @@ const MESH = (() => {
       return this;
     }
     // Quad from 4 points whose normal is forced to point away from (cx, cy, cz).
+    // Tilted cylinder from p0 to p1 with end radii r0/r1 (frame tubes, forks, exhausts, rails).
+    tube(p0, p1, r0, r1, col, tile = 0, bone = 0, n = 6) {
+      const ax = p1[0] - p0[0], ay = p1[1] - p0[1], az = p1[2] - p0[2]; const l = Math.hypot(ax, ay, az) || 1; const ux = ax / l, uy = ay / l, uz = az / l;
+      const ref = Math.abs(uy) < 0.9 ? [0, 1, 0] : [1, 0, 0]; let bx = uy * ref[2] - uz * ref[1], by = uz * ref[0] - ux * ref[2], bz = ux * ref[1] - uy * ref[0]; const bl = Math.hypot(bx, by, bz) || 1; bx /= bl; by /= bl; bz /= bl;
+      const cx = uy * bz - uz * by, cy = uz * bx - ux * bz, cz = ux * by - uy * bx;
+      const ring = (p, r) => { const pts = []; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2, ca = Math.cos(a) * r, sa = Math.sin(a) * r; pts.push([p[0] + bx * ca + cx * sa, p[1] + by * ca + cy * sa, p[2] + bz * ca + cz * sa]); } return pts; };
+      return this.loft([ring(p0, r0), ring(p1, r1)], col, tile, bone, { closed: true, capStart: true, capEnd: true, smooth: n > 5 });
+    }
     polyOut(pts, col, cx, cy, cz, tile = 0, bone = 0) {
       const [ax, ay, az] = pts[0], [bx, by, bz] = pts[1], [qx, qy, qz] = pts[2];
       const nx = (by - ay) * (qz - az) - (bz - az) * (qy - ay), ny = (bz - az) * (qx - ax) - (bx - ax) * (qz - az), nz = (bx - ax) * (qy - ay) - (by - ay) * (qx - ax);
@@ -594,12 +602,14 @@ const MESH = (() => {
     bus:     { len: 9.5, wid: 2.5, hgt: 3.0, cabin: [0.0, 1.0], wheelR: 0.5, mass: 3.0, accel: 5, top: 19, grip: 0.8, turn: 1.4, brake: 15, seats: 4, hood: 0.0, bus: true },
     muscle:  { len: 4.9, wid: 2.05, hgt: 1.38, cabin: [0.34, 0.66], wheelR: 0.38, mass: 1.15, accel: 15, top: 33, grip: 0.86, turn: 2.5, brake: 26, seats: 2, hood: 1.0 },
     swat:    { len: 5.6, wid: 2.3, hgt: 2.4, cabin: [0.2, 0.9], wheelR: 0.42, mass: 1.8, accel: 10, top: 26, grip: 0.9, turn: 2.0, brake: 24, seats: 4, hood: 0.9, police: true, armor: true },
+    bike:    { len: 2.2, wid: 0.8, hgt: 1.15, cabin: null, wheelR: 0.33, mass: 0.35, accel: 17, top: 38, grip: 0.9, turn: 3.0, brake: 26, seats: 1, hood: 0, bike: true },
+    boat:    { len: 6.2, wid: 2.4, hgt: 1.5, cabin: null, wheelR: 0.3, mass: 1.2, accel: 11, top: 24, grip: 0.4, turn: 1.4, brake: 6, seats: 2, hood: 0, boat: true },
   };
 
   // Height of the seat cushion in car-local space: a seated ped is 1.05 m from hip to crown, so it sits that far below the roof.
   function seatHeight(s) { return seatFit(s).y; }
   // Seat height plus a body scale for low cabins: a seated ped is 1.05 m from hip to crown, so in a sports car it shrinks a little rather than wearing the roof.
-  function seatFit(s) { const wr = s.wheelR, floorY = wr * 0.9, bodyH = s.hgt * 0.46, cabinY = floorY + bodyH, cabinH = s.hgt - bodyH - floorY * 0.6;
+  function seatFit(s) { if (s.bike) return { y: 0.8, scale: 1 }; if (s.boat) return { y: 0.42, scale: 1 }; const wr = s.wheelR, floorY = wr * 0.9, bodyH = s.hgt * 0.46, cabinY = floorY + bodyH, cabinH = s.hgt - bodyH - floorY * 0.6;
     if (s.bus) return { y: floorY + 0.3, scale: 1 }; const roof = s.box ? cabinY - 0.05 + cabinH * 1.2 : (s.armor || !s.cabin || s.hgt > 2.0) ? s.hgt : cabinY + cabinH; const y = Math.max(floorY + 0.08, roof - 1.05); return { y, scale: M.clamp((roof - y - 0.03) / 1.05, 0.8, 1) }; }
   // Returns { body, glass } builders. opts.dent (0..1) crumples the body, opts.seed varies the dents.
   // Bodies are lofted from rounded cross-sections so the panels curve; the greenhouse is one surface whose
@@ -618,6 +628,8 @@ const MESH = (() => {
       b.polyOut([[x, wr + Math.sin(a0) * r0, az + Math.cos(a0) * r0], [x, wr + Math.sin(a1) * r0, az + Math.cos(a1) * r0], [x, wr + Math.sin(a1) * r1, az + Math.cos(a1) * r1], [x, wr + Math.sin(a0) * r1, az + Math.cos(a0) * r1]], bodyDk.map(c => c * 0.55), 0, wr, az); } };
     const grille = (y, z, w, h) => { b.cbox(0, y, z, w, h, 0.06, dark, 0, { faces: 16 }); if (!LOD) for (let k = 0; k < 3; k++) b.cbox(0, y - h / 2 + (k + 0.5) * h / 3, z + 0.01, w, 0.02, 0.04, chrome, 0, { faces: 16 }); };
     const bumper = (z, colr) => { const d = 0.22; b.roundedBox(-hw * 0.98, floorY + 0.02, z > 0 ? z - d / 2 : z - d / 2, W * 0.96, 0.32, d, 0.09, colr); };
+    if (s.bike) { bikeMesh(b, s, col, LOD); if (opts.dent > 0) dentBody(b, opts.dent * 0.5, opts.seed || 1); return { body: b, glass: gb }; }
+    if (s.boat) { boatMesh(b, gb, s, col, LOD); if (opts.dent > 0) dentBody(b, opts.dent * 0.6, opts.seed || 1); return { body: b, glass: gb }; }
     if (s.bus) {
       b.roundedBox(-hw, floorY, -half, W, H - floorY, L, 0.16, body);
       // window band all round, front screen and a door
@@ -718,6 +730,58 @@ const MESH = (() => {
     return { body: b, glass: gb };
   }
   // Crumple: nudge body vertices (bone 0 only) by a hash of their position; the more dented, the further.
+  // A motorcycle: two spoked wheels (bones 1 and 3), a tube frame, tank, seat and engine on the body, and the
+  // fork, bars, front fender and mirrors on bone 10 so they turn with the steering.
+  function bikeMesh(b, s, col, LOD) {
+    const wr = s.wheelR, half = s.len / 2, wz = half * 0.62; const dark = [0.12, 0.13, 0.15], chrome = [0.8, 0.82, 0.85], leather = [0.15, 0.13, 0.12];
+    const segs = LOD ? 8 : 16, n = LOD ? 5 : 8;
+    b.wheel(0, wr, wz, wr, 0.11, 1, segs); b.wheel(0, wr, -wz, wr, 0.15, 3, segs);
+    const head = [0, wr + 0.74, wz - 0.24], seatP = [0, wr + 0.6, -0.4], eng = [0, wr + 0.14, 0.05];
+    b.tube(head, seatP, 0.035, 0.035, col, 0, 0, n); b.tube(head, eng, 0.03, 0.03, col, 0, 0, n); b.tube(seatP, [0, wr + 0.12, -0.25], 0.03, 0.03, col, 0, 0, n);
+    for (const sx of [1, -1]) { b.tube([sx * 0.1, wr + 0.22, -0.2], [sx * 0.1, wr, -wz], 0.022, 0.022, dark, 0, 0, n); b.tube([sx * 0.16, wr + 0.42, -0.3], [sx * 0.1, wr + 0.02, -wz + 0.08], 0.018, 0.018, chrome, 0, 0, n); } // swingarm, shocks
+    b.roundedBox(-0.17, wr, -0.16, 0.34, 0.36, 0.5, 0.05, dark); if (!LOD) for (let k = 0; k < 4; k++) b.cbox(0, wr + 0.08 + k * 0.08, 0.1, 0.4, 0.02, 0.34, chrome); // engine and fins
+    b.roundedBox(-0.19, wr + 0.5, -0.12, 0.38, 0.3, 0.56, 0.1, col); // tank
+    b.roundedBox(-0.16, wr + 0.62, -0.98, 0.32, 0.1, 0.62, 0.04, leather); b.roundedBox(-0.17, wr + 0.7, -1.0, 0.34, 0.12, 0.1, 0.03, leather); // seat and its lip
+    b.tube([-0.14, wr + 0.06, 0.12], [-0.17, wr + 0.1, -half - 0.05], 0.035, 0.05, chrome, 0, 0, n); // exhaust on the right
+    const fender = (cz, a0, a1, r0, r1, w, bone, colr) => { const k = LOD ? 3 : 7; for (let i = 0; i < k; i++) { const p = a0 + (a1 - a0) * i / k, q = a0 + (a1 - a0) * (i + 1) / k;
+      b.polyOut([[-w / 2, wr + Math.sin(p) * r0, cz + Math.cos(p) * r0], [w / 2, wr + Math.sin(p) * r0, cz + Math.cos(p) * r0], [w / 2, wr + Math.sin(q) * r0, cz + Math.cos(q) * r0], [-w / 2, wr + Math.sin(q) * r0, cz + Math.cos(q) * r0]], colr, 0, wr, cz, 0, bone);
+      b.polyOut([[-w / 2, wr + Math.sin(p) * r0, cz + Math.cos(p) * r0], [-w / 2, wr + Math.sin(p) * r1, cz + Math.cos(p) * r1], [-w / 2, wr + Math.sin(q) * r1, cz + Math.cos(q) * r1], [-w / 2, wr + Math.sin(q) * r0, cz + Math.cos(q) * r0]], colr, 0, wr, cz, 0, bone);
+      b.polyOut([[w / 2, wr + Math.sin(p) * r0, cz + Math.cos(p) * r0], [w / 2, wr + Math.sin(p) * r1, cz + Math.cos(p) * r1], [w / 2, wr + Math.sin(q) * r1, cz + Math.cos(q) * r1], [w / 2, wr + Math.sin(q) * r0, cz + Math.cos(q) * r0]], colr, 0, wr, cz, 0, bone); } };
+    fender(-wz, Math.PI * 0.15, Math.PI * 0.8, wr + 0.06, wr + 0.1, 0.2, 0, col);
+    // steering assembly on bone 10
+    for (const sx of [1, -1]) b.tube([sx * 0.085, wr + 0.92, wz - 0.27], [sx * 0.085, wr, wz], 0.022, 0.02, chrome, 0, 10, n);
+    b.tube([-0.34, wr + 0.98, wz - 0.32], [0.34, wr + 0.98, wz - 0.32], 0.018, 0.018, dark, 0, 10, n); b.cbox(0, wr + 0.9, wz - 0.25, 0.14, 0.14, 0.14, dark, 0, { bone: 10 });
+    if (!LOD) for (const sx of [1, -1]) { b.tube([sx * 0.3, wr + 0.98, wz - 0.32], [sx * 0.3, wr + 1.12, wz - 0.42], 0.01, 0.01, dark, 0, 10, n); b.cbox(sx * 0.3, wr + 1.14, wz - 0.42, 0.11, 0.07, 0.02, [0.75, 0.8, 0.85], 0, { bone: 10 }); } // mirrors
+    fender(wz, Math.PI * 0.2, Math.PI * 0.85, wr + 0.06, wr + 0.1, 0.16, 10, col);
+    b.cbox(0, wr + 0.8, wz - 0.1, 0.18, 0.16, 0.12, dark, 0, { bone: 10 }); b.cbox(0, wr + 0.8, wz - 0.03, 0.15, 0.13, 0.02, [1, 1, 0.92], 0, { faces: 16, bone: 5 }); // headlight
+    b.cbox(0, wr + 0.62, -half - 0.02, 0.12, 0.06, 0.04, [1, 0.2, 0.2], 0, { faces: 32, bone: 6 }); if (!LOD) b.cbox(0, wr + 0.5, -half - 0.03, 0.2, 0.1, 0.02, [0.92, 0.92, 0.88], 0, { faces: 32 }); // tail light, plate
+    b.cbox(0, wr + 0.05, -0.05, 0.6, 0.03, 0.3, dark); for (const sx of [1, -1]) b.cbox(sx * 0.32, wr + 0.05, -0.05, 0.08, 0.06, 0.08, chrome); // foot pegs
+  }
+  // A speedboat: a lofted V hull with a raised bow, a teak deck, a low windscreen, two seats, a console and an outboard.
+  function boatMesh(b, gb, s, col, LOD) {
+    const L = s.len, hw = s.wid / 2, half = L / 2; const keel = -0.62, deck0 = 0.28; const dark = [0.12, 0.13, 0.15], teak = [0.72, 0.6, 0.42], white = [0.92, 0.92, 0.9], glass = [0.28, 0.38, 0.48];
+    const N = LOD ? 3 : 6; const stations = [[-half, 0.85, 0.88, 0], [-half + 0.9, 1, 1, 0.02], [0, 1, 1, 0.06], [half * 0.45, 0.94, 0.95, 0.12], [half * 0.78, 0.62, 0.8, 0.2], [half - 0.02, 0.03, 0.45, 0.3]];
+    const rings = [], decks = [];
+    for (const [z, wf, df, rise] of stations) { const w = hw * wf, d = keel * df, dy = deck0 + rise; const pts = [];
+      for (let i = 0; i <= N; i++) { const u = i / N; pts.push([w * (1 - Math.pow(u, 1.7)), dy + (d - dy) * Math.pow(u, 0.85), z]); }
+      for (let i = N - 1; i >= 0; i--) { const u = i / N; pts.push([-w * (1 - Math.pow(u, 1.7)), dy + (d - dy) * Math.pow(u, 0.85), z]); }
+      pts.push([-w * 0.5, dy, z], [0, dy, z], [w * 0.5, dy, z]); rings.push(pts); decks.push([w, dy, z]); }
+    b.loft(rings, col, 0, 0, { closed: true, capStart: true, capEnd: true, pick: (n) => n[1] > 0.6 ? null : b });
+    for (let i = 0; i + 1 < decks.length; i++) { const [w0, y0, z0] = decks[i], [w1, y1, z1] = decks[i + 1]; b.polyOut([[w0, y0, z0], [-w0, y0, z0], [-w1, y1, z1], [w1, y1, z1]], teak, 0, -1, 0); }
+    if (!LOD) for (let i = 0; i + 1 < decks.length; i++) for (const sx of [1, -1]) b.tube([sx * decks[i][0], decks[i][1] + 0.02, decks[i][2]], [sx * decks[i + 1][0], decks[i + 1][1] + 0.02, decks[i + 1][2]], 0.04, 0.04, white, 0, 0, 5); // rub rail
+    // cockpit: coamings, console, windscreen, seats
+    for (const sx of [1, -1]) b.roundedBox(sx > 0 ? hw * 0.62 : -hw * 0.78, deck0, -1.9, hw * 0.16, 0.22, 2.6, 0.03, col.map(c => c * 0.8));
+    b.roundedBox(-hw * 0.7, deck0, 0.45, hw * 1.4, 0.5, 0.4, 0.05, dark); b.cbox(0, deck0 + 0.52, 0.55, hw * 1.2, 0.03, 0.25, [0.2, 0.2, 0.22]);
+    gb.polyOut([[hw * 0.78, deck0 + 0.02, 0.95], [-hw * 0.78, deck0 + 0.02, 0.95], [-hw * 0.72, deck0 + 0.72, 0.62], [hw * 0.72, deck0 + 0.72, 0.62]], glass, 0, deck0, -2);
+    if (!LOD) { b.tube([hw * 0.78, deck0 + 0.02, 0.95], [hw * 0.72, deck0 + 0.72, 0.62], 0.025, 0.025, dark, 0, 0, 5); b.tube([-hw * 0.78, deck0 + 0.02, 0.95], [-hw * 0.72, deck0 + 0.72, 0.62], 0.025, 0.025, dark, 0, 0, 5); b.tube([-hw * 0.72, deck0 + 0.72, 0.62], [hw * 0.72, deck0 + 0.72, 0.62], 0.025, 0.025, dark, 0, 0, 5); }
+    b.cyl(-0.5, deck0 + 0.5, 0.35, 0.16, deck0 + 0.53, dark, 0, LOD ? 8 : 12, 0, true, true); // wheel at the helm, right of centre
+    for (const sx of [-0.5, 0.5]) { b.roundedBox(sx - 0.26, deck0, -1.15, 0.52, 0.16, 0.5, 0.04, white); b.roundedBox(sx - 0.26, deck0 + 0.1, -1.2, 0.52, 0.5, 0.12, 0.04, white); }
+    b.roundedBox(-hw * 0.8, deck0, -half + 0.2, hw * 1.6, 0.34, 0.9, 0.05, col.map(c => c * 0.85)); // stern locker
+    b.roundedBox(-0.24, deck0 - 0.05, -half - 0.5, 0.48, 0.6, 0.55, 0.08, dark); b.cyl(0, keel + 0.05, -half - 0.35, 0.06, deck0 - 0.05, dark, 0, 6); b.cyl(0, keel + 0.02, -half - 0.35, 0.14, keel + 0.08, chromeish(), 0, 6, 0, true, true); // outboard
+    b.cbox(0, deck0 + 0.36, half - 0.35, 0.08, 0.06, 0.08, [1, 1, 0.9], 0, { bone: 5 }); b.cbox(0, deck0 + 0.2, -half - 0.02, 0.14, 0.05, 0.03, [1, 0.2, 0.2], 0, { faces: 32, bone: 6 }); // nav and stern lights
+    if (!LOD) { for (let k = 0; k < 3; k++) b.cbox(0, deck0 + 0.02, half - 0.9 - k * 0.5, hw * 0.9, 0.02, 0.05, dark); b.cbox(0, deck0 + 0.2, half - 0.2, 0.25, 0.4, 0.05, chromeish()); } // deck slats and a bow cleat
+    function chromeish() { return [0.75, 0.78, 0.8]; }
+  }
   function dentBody(b, amount, seed) {
     const v = b.v; const r = M.rng(seed * 7919);
     const hash = (x, y, z) => { const t = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719 + seed) * 43758.5453; return t - Math.floor(t); };
@@ -971,12 +1035,14 @@ const CITY = (() => {
       for (const x of [px0 + 0.5, px1 - 0.5]) b.box(x - 0.04, 0.95, pz0, 0.08, 0.06, pz1 - pz0, [0.5, 0.5, 0.52]);
       b.box(px0, 0.05, pz1 - 4, px1 - px0, 0.02, 4, [0.4, 0.3, 0.2]); b.cbox((px0 + px1) / 2, 1.4, pz1 - 2, 3, 2.8, 2.5, [0.55, 0.6, 0.7], T.metal, { uvScale: 2 }); b.box((px0 + px1) / 2 - 1.6, 4.2, pz1 - 3.35, 3.2, 0.15, 3.2, [0.4, 0.3, 0.2]);
       for (let k = 0; k < 6; k++) props.bench.push({ x: px0 + 1.2 + (k % 2) * (px1 - px0 - 2.4), z: pz0 + 8 + Math.floor(k / 2) * 14, a: (k % 2) ? -Math.PI / 2 : Math.PI / 2 });
-      addPlace('pier', { x: (px0 + px1) / 2, z: pz1 - 6, label: 'the pier' }); }
+      addPlace('pier', { x: (px0 + px1) / 2, z: pz1 - 6, label: 'the pier' }); addPlace('marina', { x: (px0 + px1) / 2, z: pz1 - 14, label: 'the marina' });
+      marina.push({ x: px1 + 1.7, z: pz1 - 14, angle: 0 }, { x: px1 + 1.7, z: pz1 - 34, angle: 0 }, { x: W0 + 150, z: W1 + 1.7, angle: 0 }); }
     // Blocks
     for (let i = 0; i < GRID; i++) for (let j = 0; j < GRID; j++) buildBlock(b, i, j);
     return b;
   }
   const pierX0 = 5 * PITCH + HALF_ROAD + SW + 26, pierX1 = pierX0 + 8, pierZ1 = SIZE + HALF_ROAD + SW + SHORE + 60;
+  const marina = []; // moorings for boats: beside the pier and off the beach
   const roadEdgesForManholes = [];
 
   function buildBlock(b, i, j) {
@@ -1353,7 +1419,7 @@ const CITY = (() => {
   }
 
   return { GRID, BLOCK, ROAD, SW, PITCH, HALF_ROAD, LANE, CURB, SIZE, SHORE, lots, blocks, places, props, solidProps, parkedSpots, ramps, lights, get stunts() { return stunts; },
-    pier: { x0: pierX0, x1: pierX1, z1: pierZ1 }, roadNodes, roadEdges, walkNodes, generate, get water() { return waterBuilder; }, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
+    pier: { x0: pierX0, x1: pierX1, z1: pierZ1 }, marina, roadNodes, roadEdges, walkNodes, generate, get water() { return waterBuilder; }, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
 })();
 
 </script>
@@ -1799,7 +1865,7 @@ const AUDIO = (() => {
     engineNodes = { g, o1, o2, f };
   }
   function engine(on, rpm, load, kind = 'sedan') { if (!ctx) return; const e = engineNodes; const t = now();
-    const K = { sports: 1.35, muscle: 1.15, police: 1.1, hatch: 1.05, taxi: 1, sedan: 1, van: 0.85, pickup: 0.8, swat: 0.75, truck: 0.55, bus: 0.6 }[kind] || 1;
+    const K = { sports: 1.35, muscle: 1.15, police: 1.1, hatch: 1.05, taxi: 1, sedan: 1, van: 0.85, pickup: 0.8, swat: 0.75, truck: 0.55, bus: 0.6, bike: 1.7, boat: 0.5 }[kind] || 1;
     e.g.gain.setTargetAtTime(on ? 0.12 + load * 0.1 : 0, t, 0.08);
     const base = (45 + rpm * 160) * K; e.o1.frequency.setTargetAtTime(base, t, 0.06); e.o2.frequency.setTargetAtTime(base * 0.5, t, 0.06); e.f.frequency.setTargetAtTime(300 + rpm * 900 + load * 400, t, 0.08); }
   function buildSiren() {
@@ -1973,6 +2039,24 @@ const W = (() => {
   }
   // ---- Collision helpers
   const bounds = CITY.outerBound();
+  const WATER_Y = -1.6, OPEN_SEA = 320; // water level, and how far off the island a boat may go
+  // Keep a boat's circle off the island, off the pier and inside the open-sea limit. Returns {x, z, hit} like pushOut; hit.edge marks the sea limit.
+  function pushOutWater(x, z, r) {
+    let hit = null; const B0 = bounds[0] - r, B1 = bounds[1] + r;
+    if (x > B0 && x < B1 && z > B0 && z < B1) { const dl = x - B0, dr = B1 - x, dt = z - B0, db = B1 - z; const m = Math.min(dl, dr, dt, db); if (m === dl) { x = B0; hit = [-1, 0]; } else if (m === dr) { x = B1; hit = [1, 0]; } else if (m === dt) { z = B0; hit = [0, -1]; } else { z = B1; hit = [0, 1]; } }
+    const pier = CITY.pier; const P0 = pier.x0 - r, P1 = pier.x1 + r, PZ = pier.z1 + r;
+    if (x > P0 && x < P1 && z > bounds[1] - 1 && z < PZ) { const dl = x - P0, dr = P1 - x, db = PZ - z; const m = Math.min(dl, dr, db); if (m === dl) { x = P0; hit = [-1, 0]; } else if (m === dr) { x = P1; hit = [1, 0]; } else { z = PZ; hit = [0, 1]; } }
+    const S0 = bounds[0] - OPEN_SEA, S1 = bounds[1] + OPEN_SEA;
+    if (x < S0) { x = S0; hit = [1, 0]; hit.edge = true; } if (x > S1) { x = S1; hit = [-1, 0]; hit.edge = true; } if (z < S0) { z = S0; hit = [0, 1]; hit.edge = true; } if (z > S1) { z = S1; hit = [0, -1]; hit.edge = true; }
+    return { x, z, hit };
+  }
+  // Nearest point of dry land (the island's edge or the pier deck) to a point on the water, with its distance.
+  function nearestLand(x, z) {
+    const cands = []; const ix = M.clamp(x, bounds[0] + 1, bounds[1] - 1), iz = M.clamp(z, bounds[0] + 1, bounds[1] - 1); cands.push([ix, iz]);
+    const pier = CITY.pier; cands.push([M.clamp(x, pier.x0 + 0.6, pier.x1 - 0.6), M.clamp(z, bounds[1] - 1, pier.z1 - 0.6)]);
+    let best = null; for (const [cx, cz] of cands) { const d = M.dist(x, z, cx, cz); if (!best || d < best.d) best = { x: cx, z: cz, d }; } return best;
+  }
+  const onWater = (x, z) => (x < bounds[0] || x > bounds[1] || z < bounds[0] || z > bounds[1]) && !(x > CITY.pier.x0 && x < CITY.pier.x1 && z < CITY.pier.z1 && z > bounds[1] - 1);
   // Push a circle out of building lots and solid props; returns [x, z, hitNormalX, hitNormalZ] or null for no hit.
   function pushOut(x, z, r, opts = {}) {
     let hit = null;
@@ -2126,7 +2210,7 @@ const W = (() => {
   function frameBegin() { dyn.length = 0; state.shots.length = 0; state.noises.length = 0; if (state.heard.length && state.elapsed - state.heard[0].t > 0.5) state.heard = state.heard.filter(n => state.elapsed - n.t <= 0.5); }
   function updateExplosions(dt) { let w = 0; for (const e of explosions) { e.t += dt; if (e.t < 0.6) { dyn.push({ x: e.x, y: e.y + 1, z: e.z, r: 30 * e.big, col: [3 * (1 - e.t), 1.5 * (1 - e.t), 0.3] }); explosions[w++] = e; } } explosions.length = w; }
 
-  return { weather, updateWeather, bustle, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds };
+  return { weather, updateWeather, bustle, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds, WATER_Y, pushOutWater, nearestLand, onWater };
 })();
 
 </script>
@@ -2135,7 +2219,7 @@ const W = (() => {
 'use strict';
 const VEH = (() => {
   const SPECS = MESH.VEHICLES;
-  const NAMES = { sedan: 'MERIDIAN', sports: 'FALCATA', hatch: 'GNAT', pickup: 'MULE', van: 'BOXER', taxi: 'CABCO', police: 'ENFORCER', truck: 'HAULER', bus: 'TRANSIT', muscle: 'BRAWLER', swat: 'BASTION' };
+  const NAMES = { sedan: 'MERIDIAN', sports: 'FALCATA', hatch: 'GNAT', pickup: 'MULE', van: 'BOXER', taxi: 'CABCO', police: 'ENFORCER', truck: 'HAULER', bus: 'TRANSIT', muscle: 'BRAWLER', swat: 'BASTION', bike: 'VIPER', boat: 'SKIMMER' };
   const PALETTE = [[0.85, 0.12, 0.1], [0.12, 0.22, 0.6], [0.92, 0.92, 0.9], [0.15, 0.15, 0.17], [0.62, 0.62, 0.66], [0.1, 0.48, 0.25], [0.9, 0.6, 0.12], [0.45, 0.12, 0.5], [0.7, 0.35, 0.15], [0.2, 0.6, 0.7], [0.55, 0.05, 0.1], [0.75, 0.75, 0.5]];
   const FIXED = { taxi: [1, 0.8, 0.1], police: [0.95, 0.95, 0.98], swat: [0.16, 0.18, 0.22], bus: [0.85, 0.55, 0.15] };
   const meshCache = {};
@@ -2145,11 +2229,11 @@ const VEH = (() => {
   function dentedMesh(type, colIdx, dent, seed) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed }); return { body: m.body.build(), glass: m.glass.build() }; }
   const TRAFFIC_TYPES = ['sedan', 'sedan', 'sedan', 'hatch', 'hatch', 'sports', 'pickup', 'van', 'taxi', 'taxi', 'muscle', 'truck', 'bus'];
 
-  const tmpV = [0, 0, 0];
+  const tmpV = [0, 0, 0]; const LEAN_SIGN = -1; // positive roll tips the body to the right, so leaning into a left turn (positive yaw) is negative
   class Vehicle {
     constructor(type, x, z, angle, opts = {}) {
       this.type = type; this.spec = SPECS[type]; this.name = NAMES[type];
-      this.x = x; this.z = z; this.y = CITY.groundY(x, z); this.vy = 0; this.angle = angle; this.vx = 0; this.vz = 0; this.speed = 0; this.lat = 0;
+      this.x = x; this.z = z; this.y = this.spec.boat ? W.WATER_Y + 0.55 : CITY.groundY(x, z); this.vy = 0; this.bob = W.rng() * 6; this.sinkT = 0; this.angle = angle; this.vx = 0; this.vz = 0; this.speed = 0; this.lat = 0;
       this.steer = 0; this.controls = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
       this.colIdx = opts.color !== undefined ? opts.color : Math.floor(W.rng() * PALETTE.length); this.meshes = getMesh(type, this.colIdx); this.mesh = this.meshes.body; this.dentLevel = 0; this.dentSeed = Math.floor(W.rng() * 1e6);
       this.maxHealth = this.spec.armor ? 2600 : 1000 * this.spec.mass; this.health = this.maxHealth; this.wrecked = false; this.fireT = 0;
@@ -2176,7 +2260,8 @@ const VEH = (() => {
       if (this.removed) return; this.age += dt; if (this.damageFlash > 0) this.damageFlash -= dt;
       if (!this.wrecked) { if (this.ai.mode === 'traffic' || this.ai.mode === 'flee') this.aiTraffic(dt); else if (this.ai.mode === 'chase') this.aiChase(dt); else if (this.ai.mode === 'parked' && !this.driver) { this.controls.throttle = 0; this.controls.brake = this.absSpeed > 0.2 ? 0.5 : 0; this.controls.steer = 0; } else if (this.ai.mode === 'route') this.aiRoute(dt); }
       else { this.controls.throttle = 0; this.controls.brake = 1; this.controls.steer = 0; }
-      this.physics(dt);
+      if (this.spec.boat) this.boatPhysics(dt); else this.physics(dt);
+      if (this.spec.boat && this.wrecked) { this.sinkT += dt; if (this.sinkT > 9 && this.driver !== PLAYER) this.remove(); }
       if (this.scared > 0) this.scared -= dt;
       if (this.horn > 0) this.horn -= dt;
       // fire & smoke
@@ -2222,7 +2307,7 @@ const VEH = (() => {
         const kinYaw = vF / Lw * Math.tan(delta);
         vL += aLat * h * w; vL -= yawR * vF * h * w; vL -= vL * Math.min(1, 10 * h) * (1 - w);
         yawR += yawAcc * h * w; yawR = yawR * w + kinYaw * (1 - w); yawR -= yawR * Math.min(1, 1.5 * h);
-        this.latForceR = Fr; this.slipF = af; this.slipR = ar;
+        this.latForceR = Fr; this.slipF = af; this.slipR = ar; this.latAcc = aLat;
       }
       if (!this.airborne) this.angle += yawR * dt;
       this.yawRate = yawR; this.wheelspin = wheelspin;
@@ -2243,7 +2328,8 @@ const VEH = (() => {
       // cosmetic body pitch and roll
       const accF = (vF - (this.prevVF === undefined ? vF : this.prevVF)) / dt; this.prevVF = vF; const accL = (this.latForceR || 0) * 2;
       this.pitch = M.lerp(this.pitch, this.airborne ? -Math.atan2(this.vy, Math.max(Math.abs(vF), 3)) * 0.5 : M.clamp(-accF * 0.006, -0.06, 0.06), 6 * dt); // squat under power, dive under braking
-      this.roll = M.lerp(this.roll, M.clamp(accL * 0.012, -0.12, 0.12), 6 * dt);
+      if (s.bike) this.roll = M.lerp(this.roll, this.airborne ? 0 : M.clamp(LEAN_SIGN * Math.atan2(this.latAcc || 0, 9.81) * 1.15, -0.62, 0.62), 8 * dt); // a rider leans into the corner
+      else this.roll = M.lerp(this.roll, M.clamp(accL * 0.012, -0.12, 0.12), 6 * dt);
       this.wheelRot += vF / s.wheelR * dt;
       // skid marks from the rear wheels
       if (this.skid && !this.airborne && !this.wrecked) { const rr = this.right, ff = this.fwd; const wz = s.len * 0.31, wx = s.wid / 2 - 0.15; for (const sign of [1, -1]) { const x1 = this.x - ff[0] * wz + rr[0] * wx * sign, z1 = this.z - ff[1] * wz + rr[1] * wx * sign; const key = sign > 0 ? 'skidL' : 'skidR'; const prev = this[key]; if (prev && M.dist2(prev[0], prev[1], x1, z1) < 9) W.decal('skid', prev[0], prev[1], x1, z1, 0.32, [0.05, 0.05, 0.05], 0.55); this[key] = [x1, z1]; } } else { this.skidL = this.skidR = null; }
@@ -2251,10 +2337,10 @@ const VEH = (() => {
       this.collide(dt);
       this.wasAir = this.airborne;
     }
-    collide(dt) {
+    collide(dt, water = false) {
       const s = this.spec; const f = this.fwd; const half = s.len / 2;
-      // buildings & props: each circle
-      for (const [cx, cz, r] of this.circles()) {
+      // buildings & props: each circle (a boat has already been kept off the shore)
+      if (!water) for (const [cx, cz, r] of this.circles()) {
         const res = W.pushOut(cx, cz, r, { ignoreLow: this.y > 1.4 });
         if (res.hit) {
           const nx = res.hit[0], nz = res.hit[1];
@@ -2267,7 +2353,7 @@ const VEH = (() => {
             this.vx *= 0.9; this.vz *= 0.9;
             const front = (cx - this.x) * f[0] + (cz - this.z) * f[1] > 0; const side = (nx * f[1] - nz * f[0]); // which side the wall is on
             this.angle += (front ? -1 : 1) * Math.sign(side || 1) * Math.min(impact * 0.03, 0.15) * (this.speed < 0 ? -1 : 1);
-            if (impact > 3) { this.damage(impact * impact * 0.35, null); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; }
+            if (impact > 3) { this.damage(impact * impact * 0.35, null); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; if (s.bike && impact > 6.5) this.throwRider(impact); }
           }
         }
       }
@@ -2291,6 +2377,7 @@ const VEH = (() => {
               const dmg = impact * impact * 0.4; this.damage(dmg * (mB / mA), o); o.damage(dmg * (mA / mB), this);
               AUDIO.play('crash', ax, az, impact / 10); W.FX.spark(ax - nx * ar, 0.7, az - nz * ar, Math.min(14, impact * 2)); if (impact > 7) W.FX.glass(ax, 1.2, az, 8);
               if (o.ai.mode === 'traffic' && !o.driverIsPlayer()) { o.scared = 4; o.ai.mode = 'flee'; o.fleeFrom = this; } if (this.ai.mode === 'traffic' && !this.driverIsPlayer()) { this.ai.honk = 1; }
+              if (impact > 5) { if (this.spec.bike) this.throwRider(impact); if (o.spec.bike) o.throwRider(impact); }
               W.noise(ax, az, 30, 'crash');
             }
           }
@@ -2298,12 +2385,45 @@ const VEH = (() => {
       }
       // pedestrians
       const spd = this.absSpeed;
-      if (spd > 1.5) for (const p of W.peds) {
+      if (spd > 1.5 && !water) for (const p of W.peds) {
         if (p.removed || p.inCar || p.state === 'dead') continue; if (M.dist2(this.x, this.z, p.x, p.z) > (half + 2) * (half + 2)) continue;
         const [lf, ll] = this.local(p.x, p.z); if (Math.abs(lf) < half + 0.4 && Math.abs(ll) < s.wid / 2 + 0.35) { p.hitByCar(this, spd); }
       }
     }
     driverIsPlayer() { return this.driver === PLAYER; }
+    // A hard stop on a motorcycle puts the rider over the bars.
+    throwRider(impact) {
+      const d = this.driver; if (!d) return; const f = this.fwd; const sp = Math.min(impact, 14);
+      if (d === PLAYER) { if (!PLAYER.exitCar()) return; PLAYER.knock(f[0] * sp * 0.6, 4 + sp * 0.25, f[1] * sp * 0.6); PLAYER.hurt(impact * 3.5, 'fall', null); HUD.notify('Thrown from the bike.'); }
+      else { d.exitCar(); d.x = this.x + f[0] * 1.2; d.z = this.z + f[1] * 1.2; d.knockT = 2.5; d.state = 'knocked'; d.launch(f[0] * sp * 0.6, 4 + sp * 0.2, f[1] * sp * 0.6); d.damage(impact * 5, null); if (this.ai.mode === 'traffic') { this.ai.mode = 'parked'; } }
+      this.vx *= 0.3; this.vz *= 0.3;
+    }
+    // Boats: thrust against water drag, a rudder that needs way on, sideways slip, a hull that bobs and banks.
+    boatPhysics(dt) {
+      const s = this.spec, c = this.controls; const f = this.fwd, r = this.right;
+      let vF = this.vx * f[0] + this.vz * f[1], vL = this.vx * r[0] + this.vz * r[1]; const top = s.top;
+      const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked');
+      this.steer = M.approach(this.steer, M.clamp(c.steer, -1, 1), 4 * dt); this.steerAngle = this.steer * 0.5;
+      let aLong = 0;
+      if (live) { if (c.throttle > 0) aLong += s.accel * c.throttle * Math.max(0.2, 1 - Math.max(0, vF) / top); if (c.brake > 0) { if (vF > 0.5) aLong -= s.brake * c.brake; else if (vF > -top * 0.25) aLong -= s.accel * 0.4 * c.brake; } }
+      aLong -= vF * Math.abs(vF) * 0.006 + vF * 0.1; if (this.wrecked) aLong -= vF * 0.8;
+      const way = M.clamp(Math.abs(vF) / 6, 0, 1); const yawWant = live ? this.steer * s.turn * 0.55 * way * Math.sign(vF || 1) : 0;
+      this.yawRate = M.lerp(this.yawRate || 0, yawWant, Math.min(1, 2.5 * dt)); this.angle += this.yawRate * dt;
+      vL -= this.yawRate * vF * dt * 0.45; vL -= vL * Math.min(1, 1.4 * dt); vF += aLong * dt;
+      const nf = this.fwd, nr = this.right; this.vx = nf[0] * vF + nr[0] * vL; this.vz = nf[1] * vF + nr[1] * vL; this.speed = vF; this.lat = vL; this.skid = false; this.wheelspin = 0; this.airborne = false; this.vy = 0;
+      this.x += this.vx * dt; this.z += this.vz * dt;
+      const t = W.state.elapsed + this.bob; const bob = (Math.sin(t * 1.3) * 0.05 + Math.sin(t * 2.3) * 0.025) * (1 - 0.5 * way);
+      this.y = W.WATER_Y + 0.55 + bob - (this.wrecked ? Math.min(1.6, this.sinkT * 0.2) : 0);
+      this.pitch = M.lerp(this.pitch, -0.09 * M.clamp(vF / top, 0, 1) + Math.sin(t * 1.1) * 0.02 + (this.wrecked ? 0.15 : 0), 3 * dt);
+      this.roll = M.lerp(this.roll, M.clamp(LEAN_SIGN * this.yawRate * vF * 0.02, -0.22, 0.22) + Math.sin(t * 0.9) * 0.02, 3 * dt);
+      this.brakeLights = c.brake > 0.1 && vF > 0.5;
+      // wake and spray
+      if (Math.abs(vF) > 3 && !this.wrecked && W.state.frame % 2 === 0) { const sx = this.x - nf[0] * s.len * 0.5, sz = this.z - nf[1] * s.len * 0.5; for (const sg of [1, -1]) W.particle(sx + nr[0] * sg * 0.9, W.WATER_Y + 0.1, sz + nr[1] * sg * 0.9, nr[0] * sg * 1.2 - this.vx * 0.1, 0.3 + W.rng() * 0.5, nr[1] * sg * 1.2 - this.vz * 0.1, 0.9, 0.3, [0.92, 0.96, 1], 0.4, { grav: 3, grow: 1.1 }); }
+      // collisions: other hulls and cars share the circle test, the shore and the pier are walls
+      for (const [cx, cz, rr] of this.circles()) { const res = W.pushOutWater(cx, cz, rr); if (res.hit) { const nx = res.hit[0], nz = res.hit[1]; this.x += res.x - cx; this.z += res.z - cz; const vn = this.vx * nx + this.vz * nz;
+        if (vn < 0) { const impact = -vn; this.vx -= vn * nx * 1.1; this.vz -= vn * nz * 1.1; this.vx *= 0.85; this.vz *= 0.85; if (impact > 3 && !res.hit.edge) { this.damage(impact * impact * 0.3, null); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.dust(cx, W.WATER_Y + 0.3, cz, 6); this.ai.stuck += 0.5; } if (res.hit.edge && this.driver === PLAYER) HUD.notify('Open water. Turn back.'); } } }
+      this.collide(dt, true);
+    }
     damage(amount, source) {
       if (this.wrecked) return; amount *= this.damageScale || 1; this.health -= amount; this.damageFlash = 0.15; if (source && source !== this) this.lastHitBy = source;
       const hf = this.health / this.maxHealth; const lvl = hf < 0.3 ? 2 : hf < 0.65 ? 1 : 0;
@@ -2436,8 +2556,9 @@ const VEH = (() => {
       const s = this.spec; const wr = s.wheelR; const half = s.len / 2;
       M.trsEuler(this.model, this.x, this.y + (this.wrecked ? -0.12 : 0), this.z, this.angle, this.pitch, this.roll);
       const wz = half * (s.bus ? 0.7 : 0.62), wx = s.wid / 2 - 0.05;
-      const wheels = [[wx, wr, wz, true], [-wx, wr, wz, true], [wx, wr, -wz, false], [-wx, wr, -wz, false]];
-      for (let i = 0; i < 4; i++) { const [px, py, pz, front] = wheels[i]; const flat = this.dmg.burst === (front ? 'front' : 'rear') && (i % 2 === 0); wheelBone(this.bones, (i + 1) * 16, px, flat ? py - wr * 0.18 : py, pz, front ? (this.steerAngle || 0) : 0, this.wheelRot, flat ? 0.82 : 1); }
+      const bx = s.bike ? 0 : wx; const wheels = [[bx, wr, wz, true], [-bx, wr, wz, true], [bx, wr, -wz, false], [-bx, wr, -wz, false]];
+      if (s.bike) wheelBone(this.bones, 10 * 16, 0, wr, wz, this.steerAngle || 0, 0);
+      if (!s.boat) for (let i = 0; i < 4; i++) { const [px, py, pz, front] = wheels[i]; const flat = this.dmg.burst === (front ? 'front' : 'rear') && (i % 2 === 0); wheelBone(this.bones, (i + 1) * 16, px, flat ? py - wr * 0.18 : py, pz, front ? (this.steerAngle || 0) : 0, this.wheelRot, flat ? 0.82 : 1); }
       const e = this.emis; e.fill(0);
       if (!this.wrecked) {
         e[5] = this.lightsOn ? 1.0 : 0; e[6] = this.brakeLights ? 1.3 : (this.lightsOn ? 0.45 : 0);
@@ -2467,11 +2588,11 @@ const VEH = (() => {
   // Each district drives something different: cabs and coupes downtown, hatchbacks and vans in the suburbs, muscle and pickups east, trucks by the docks.
   const DISTRICT_MIX = {
     downtown: ['sedan', 'sedan', 'taxi', 'taxi', 'taxi', 'sports', 'sports', 'hatch', 'bus', 'van'],
-    midtown: ['sedan', 'sedan', 'hatch', 'taxi', 'sports', 'pickup', 'van', 'bus', 'muscle'],
+    midtown: ['sedan', 'sedan', 'hatch', 'taxi', 'sports', 'pickup', 'van', 'bus', 'muscle', 'bike'],
     westfield: ['hatch', 'hatch', 'sedan', 'van', 'van', 'pickup', 'sedan', 'bus'],
-    eastside: ['muscle', 'muscle', 'pickup', 'pickup', 'sedan', 'hatch', 'van', 'truck'],
+    eastside: ['muscle', 'muscle', 'pickup', 'pickup', 'sedan', 'hatch', 'van', 'truck', 'bike', 'bike'],
     northgate: ['sedan', 'hatch', 'muscle', 'pickup', 'taxi', 'van', 'truck'],
-    southport: ['truck', 'truck', 'van', 'van', 'pickup', 'sedan', 'bus', 'taxi'],
+    southport: ['truck', 'truck', 'van', 'van', 'pickup', 'sedan', 'bus', 'taxi', 'bike'],
   };
   function trafficTypeFor(x, z) { const bl = CITY.blockAt(x, z); const d = bl ? CITY.district(bl.i, bl.j) : 'midtown'; const list = DISTRICT_MIX[d] || TRAFFIC_TYPES; const hour = W.state.time; let t = list[Math.floor(W.rng() * list.length)]; if ((hour < 6 || hour > 22) && W.rng() < 0.35) t = W.rng() < 0.6 ? 'taxi' : 'muscle'; /* night: cabs and cruisers */ return t; }
   function trim(px, pz, camYaw, want) {
@@ -2495,11 +2616,12 @@ const VEH = (() => {
       return v;
     }
   }
-  function despawn(px, pz) { for (const c of W.cars) { if (c.removed || c.important || c === (PLAYER && PLAYER.car)) continue; const d = M.dist(c.x, c.z, px, pz); if (d > 280 || (c.wrecked && d > 150 && c.fireT > 10)) c.remove(); } let w = 0; for (const c of W.cars) if (!c.removed) W.cars[w++] = c; W.cars.length = w; }
+  function despawn(px, pz) { for (const c of W.cars) { if (c.removed || c.important || c.persistent || c === (PLAYER && PLAYER.car)) continue; const d = M.dist(c.x, c.z, px, pz); if (d > 280 || (c.wrecked && d > 150 && c.fireT > 10)) c.remove(); } let w = 0; for (const c of W.cars) if (!c.removed) W.cars[w++] = c; W.cars.length = w; }
+  function spawnMarina() { CITY.marina.forEach((m, i) => { const b = spawn('boat', m.x, m.z, m.angle, { mode: 'parked', color: [2, 9, 6][i % 3] }); b.persistent = true; }); }
   function spawnParked() { for (const p of CITY.parkedSpots) { const type = p.type || TRAFFIC_TYPES[Math.floor(W.rng() * TRAFFIC_TYPES.length)]; if (type === 'bus' || type === 'truck') continue; spawn(type, p.x, p.z, p.angle, { mode: 'parked' }); } }
   function nearest(x, z, r, filter) { let best = null, bd = r * r; for (const c of W.cars) { if (c.removed || (filter && !filter(c))) continue; const d = M.dist2(c.x, c.z, x, z); if (d < bd) { bd = d; best = c; } } return best; }
   function updateAll(dt, night) { for (const c of W.cars) { if (c.removed) continue; c.lightsOn = night && !c.wrecked && (c.driver !== null || c.ai.mode !== 'parked' || c.playerOwned) ; c.update(dt); } }
-  return { Vehicle, SPECS, NAMES, PALETTE, TRAFFIC_TYPES, trafficTypeFor, trim, spawn, spawnTraffic, despawn, spawnParked, nearest, updateAll, getMesh };
+  return { Vehicle, SPECS, NAMES, PALETTE, TRAFFIC_TYPES, trafficTypeFor, trim, spawn, spawnTraffic, despawn, spawnParked, spawnMarina, nearest, updateAll, getMesh };
 })();
 
 </script>
@@ -2727,8 +2849,13 @@ const PEDS = (() => {
 
   // Seated pose inside a car (or on a bench): hips at the seat, thighs forward, shins down, hands on the wheel.
   const seatTmp = M.create(), seatLocal = M.create(), seatWorld = M.create();
-  function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1) {
+  function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1, bike = false) {
     M.trs(seatLocal, lx, ly, lz, yaw, (p.sx || 1) * fit, (p.sy || 1) * fit, (p.sx || 1) * fit); M.multiply(model, carModel, seatLocal);
+    if (bike) { // astride: torso forward over the tank, arms out to the bars, knees bent down to the pegs
+      const hip = 0.02, lean = 0.32; bone(bones, 0, 0, hip, 0, 0, lean, 0); bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, -0.1, 0);
+      bone(bones, 32, 0, hip + SHOULDER, 0, 0.35, -1.05, 0.2); bone(bones, 48, 0, hip + SHOULDER, 0, -0.35, -1.05, -0.2); jointBone(bones, 144, 32, 0.3, ELBOW_Y, 0, -0.45); jointBone(bones, 160, 48, -0.3, ELBOW_Y, 0, -0.45);
+      bone(bones, 64, 0, hip, 0, 0, -0.95, 0.28); bone(bones, 80, 0, hip, 0, 0, -0.95, -0.28); jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, 1.45); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, 1.45);
+      bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001); for (let i = 11; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16); return; }
     const hip = 0.02; const lean = driving ? 0.12 : 0.05;
     bone(bones, 0, 0, hip, 0, 0, lean, 0);
     bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, lean * 0.5, 0);
@@ -2790,13 +2917,15 @@ const PEDS = (() => {
   function seatOf(car, index) {
     const s = car.spec; const L = s.len, W = s.wid;
     const seatY = MESH.seatHeight(s);
+    if (s.bike) return [0, seatY, -0.3];
+    if (s.boat) return [index === 0 ? -0.5 : 0.5, seatY, -0.85];
     if (s.bus) return [index === 0 ? W * 0.25 : -W * 0.25, seatY, L / 2 - 1.2 - Math.floor(index / 2) * 1.2];
     if (s.box) return [index === 0 ? W * 0.22 : -W * 0.22, seatY, L / 2 - L * 0.3 * 0.55];
     if (s.armor || s.hgt > 2.0) return [index % 2 === 0 ? W * 0.22 : -W * 0.22, seatY, L / 2 - 1.5 - Math.floor(index / 2) * 1.0];
     const half = L / 2; const c0 = half - s.cabin[0] * L - s.hood * 0.5, c1 = half - s.cabin[1] * L - s.hood * 0.5; const seatZ = (c0 + c1) / 2 - 0.1;
     const row = Math.floor(index / 2), side = index % 2 === 0 ? 1 : -1; return [side * W * 0.21, seatY, seatZ - row * 0.9];
   }
-  function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0, MESH.seatFit(car.spec).scale); p.emis.fill(0); return { mesh: p.mesh, model: p.model, bones: p.bones, emis: p.emis }; }
+  function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0, MESH.seatFit(car.spec).scale, !!car.spec.bike); p.emis.fill(0); return { mesh: p.mesh, model: p.model, bones: p.bones, emis: p.emis }; }
 
   // ---- Spawning
   function spawn(x, z, opts = {}) { const look = opts.look || looks[Math.floor(W.rng() * looks.length)]; const p = new Ped(look, x, z, opts); W.peds.push(p); return p; }
@@ -3051,16 +3180,18 @@ const PLAYER = (() => {
     MISSIONS.onEnterCar(c);
   }
   function exitCar() {
-    const c = P.car; if (!c) return; const r = c.right; const spd = c.absSpeed;
-    P.x = c.x - r[0] * (c.spec.wid / 2 + 0.9); P.z = c.z - r[1] * (c.spec.wid / 2 + 0.9); P.y = CITY.groundY(P.x, P.z); P.angle = c.angle; P.camYaw = c.angle; P.vx = 0; P.vz = 0;
+    const c = P.car; if (!c) return false; const r = c.right; const spd = c.absSpeed;
+    if (c.spec.boat) { const land = W.nearestLand(c.x, c.z); if (!land || land.d > 5.5) { if (P.alive) HUD.notify("You can't swim. Bring the boat to the shore or the pier."); return false; } P.x = land.x; P.z = land.z; }
+    else { P.x = c.x - r[0] * (c.spec.wid / 2 + 0.9); P.z = c.z - r[1] * (c.spec.wid / 2 + 0.9); }
+    P.y = CITY.groundY(P.x, P.z); P.angle = c.angle; P.camYaw = c.angle; P.vx = 0; P.vz = 0;
     c.driver = null; c.ai.mode = 'parked'; c.controls.throttle = 0; c.controls.brake = spd > 4 ? 0 : 1; c.controls.handbrake = 0; c.siren = false; P.car = null; P.state = 'foot'; AUDIO.play('door', P.x, P.z);
     if (spd > 7) { knock(c.vx * 0.5, 3, c.vz * 0.5); hurt(spd * 1.5, 'fall', null); }
     P.weaponOut = P.weapon !== 'fist';
-    MISSIONS.onExitCar(c);
+    MISSIONS.onExitCar(c); return true;
   }
   function updateInCar(dt) {
     const c = P.car, pad = INPUT.pad; P.inCarT += dt; P.x = c.x; P.z = c.z; P.y = c.y;
-    if (c.wrecked) { exitCar(); return; }
+    if (c.wrecked) { if (!exitCar()) { if (c.sinkT > 2.5 && P.alive) { P.armor = 0; hurt(1e4, 'drown', c.lastHitBy); } P.y = c.y; } return; }
     // raw axes: steering and throttle are independent in a car, never normalised together.
     // Heading grows counter-clockwise seen from above (+z toward +x, which is screen-left), so steering right is negative.
     let ix = 0, iz = 0;
@@ -3075,7 +3206,7 @@ const PLAYER = (() => {
     if (INPUT.down('KeyH') || pad.buttons[3]) { if (c.horn <= 0) { c.horn = 0.5; AUDIO.play('horn', c.x, c.z, 0.5); } }
     if ((c.type === 'police' || c.type === 'swat') && (INPUT.hit('KeyL') || pad.pressed[9])) c.siren = !c.siren;
     if (INPUT.hit('KeyR') || pad.pressed[8]) { P.radio = (AUDIO.radioStation + 1) % AUDIO.STATIONS.length; AUDIO.setRadio(P.radio); HUD.notify('RADIO: ' + AUDIO.STATIONS[P.radio]); }
-    if (INPUT.hit('KeyF') || pad.pressed[2]) { exitCar(); return; }
+    if (INPUT.hit('KeyF') || pad.pressed[2]) { if (exitCar()) return; }
     // drive-by shooting with a one-handed weapon
     const wp = WEAPONS[P.weapon]; const firing = (INPUT.mouse.buttons & 1) || INPUT.down('ControlLeft');
     if (firing && P.fireT <= 0 && (P.weapon === 'pistol' || P.weapon === 'uzi') && P.weapons[P.weapon] > 0) { P.fireT = wp.rate * 1.2; P.weapons[P.weapon]--; fireBullet(PLAYER, c.x + c.fwd[0] * 0.5, c.z + c.fwd[1] * 0.5, 1.2, aimAngle(), wp, 1, c); }
@@ -3085,7 +3216,7 @@ const PLAYER = (() => {
     else if (P.airT > 0) { if (P.airT > 0.85 && c.absSpeed > 8) { let bonus = Math.floor(P.airT * 500); P.stats.stunts++; if (P.jumpRamp >= 0 && !P.stats.jumps.includes(P.jumpRamp)) { P.stats.jumps.push(P.jumpRamp); bonus += 1000; HUD.big('UNIQUE STUNT!  ' + P.stats.jumps.length + '/' + CITY.ramps.length, '#f5c542', 2.2); AUDIO.play('missionPass'); } else HUD.big('INSANE STUNT!', '#f5c542', 1.6); addMoney(bonus, 'stunt bonus'); } P.airT = 0; }
     // engine sound
     const rpm = M.clamp(Math.abs(c.speed) / c.spec.top, 0, 1); AUDIO.engine(true, rpm * 0.7 + ctl.throttle * 0.25 + 0.05, ctl.throttle, c.type); AUDIO.screech(c.skid && !c.airborne ? M.clamp(Math.max(Math.abs(c.slipR || 0) - 0.08, Math.abs(c.slipF || 0) - 0.14, c.wheelspin ? 0.35 : 0) * 3, 0, 1) : 0); // squeal follows the tyre slip
-    if (c.skid && !c.airborne && W.state.frame % 2 === 0) { const r = c.right, f = c.fwd; const wz = c.spec.len * 0.3; W.FX.dust(c.x - f[0] * wz + r[0], 0, c.z - f[1] * wz + r[1], 1); W.FX.dust(c.x - f[0] * wz - r[0], 0, c.z - f[1] * wz - r[1], 1); }
+    if (c.skid && !c.airborne && !c.spec.boat && W.state.frame % 2 === 0) { const r = c.right, f = c.fwd; const wz = c.spec.len * 0.3; W.FX.dust(c.x - f[0] * wz + r[0], 0, c.z - f[1] * wz + r[1], 1); W.FX.dust(c.x - f[0] * wz - r[0], 0, c.z - f[1] * wz - r[1], 1); }
   }
   // ---- Camera
   function updateCamera(dt) {
@@ -3513,6 +3644,19 @@ const MISSIONS = (() => {
         for (let i = 0; i < 3; i++) spawnGang(x - 8 + i * 8, z - 8, 'uzi', { stationary: true, hostile: false }); blip(x, z, '#e0453b', d.tanker); objective('Blow the tanker in the Eastside yard.'); },
       update(d, dt) { const left = d.cars.filter(c => !c.wrecked).length; if (d.tanker.wrecked && !d.boom) { d.boom = true; for (const g of S.spawned) if (g.isGang) g.hostile = true; POLICE.setStars(3); }
         if (d.boom) { if (left === 0) { const k = place('mission2'); blip(k.x, k.z); objective('Get back to Okafor.'); if (near(k.x, k.z, 4) && !P().car) pass(6000, 'Okafor: "I saw the glow from the pier."'); } else objective('Finish the cars. ' + left + ' left.'); } } },
+    { id: 8, strand: 2, name: 'SALT WATER', intro: [['OKAFOR', "Crane's launch leaves Pier 9 at dusk with a week of product aboard."], ['OKAFOR', 'My boat is moored beside the pier. Take it. Put his on the bottom.'], ['OKAFOR', 'Ram it, shoot it, I do not care. Just do not bring mine back with holes in it.']],
+      start(d) { const mar = CITY.marina[0]; d.boat = W.cars.find(c => !c.removed && !c.wrecked && c.spec.boat && M.dist2(c.x, c.z, mar.x, mar.z) < 36) || spawnCar('boat', mar.x, mar.z, mar.angle, { color: 9 }); d.boat.important = true; if (!S.spawned.includes(d.boat)) S.spawned.push(d.boat); d.boat.repair();
+        const pier = CITY.pier, B0 = W.bounds[0], B1 = W.bounds[1]; d.launch = spawnCar('boat', pier.x1 + 10, pier.z1 + 8, 0, { color: 3, health: 1700 }); d.launch.locked = true;
+        for (let i = 0; i < 2; i++) { const g = spawnGang(d.launch.x, d.launch.z, i ? 'uzi' : 'pistol', {}); g.inCar = d.launch; g.state = 'driving'; if (i === 0) d.launch.driver = g; else d.launch.passengers.push(g); }
+        const off = 48; const R0 = B0 - off, R1 = B1 + off; d.launch.ai.route = [[pier.x1 + 40, pier.z1 + 40, 16], [R1, R1, 18], [R1, R0, 18], [R0, R0, 18], [R0, R1, 18], [(B0 + B1) / 2 - 90, R1, 18]]; d.launch.ai.routeIdx = 0; d.launch.ai.routeSpeed = 14; d.launch.ai.mode = 'parked'; d.launch.ai.onRouteEnd = () => { d.escaped = true; };
+        d.phase = 0; d.fireT = 0; PLAYER.giveWeapon('uzi', 120); blip(d.boat.x, d.boat.z, '#f5c542', d.boat); objective("Get in Okafor's Skimmer, moored beside Pier 9."); W.state.time = Math.max(W.state.time, 18.2); if (W.state.time > 20.5) W.state.time = 18.5; },
+      onEnterCar(c) { const d = S.current.data; if (c === d.boat && d.phase === 0) { d.phase = 1; d.launch.ai.mode = 'route'; blip(d.launch.x, d.launch.z, '#e0453b', d.launch); objective('Sink the launch before it gets round the island.'); if (d.launch.driver) d.launch.driver.say('Go, go!'); } },
+      update(d, dt) { const p = P(); if (d.boat.wrecked) return fail("Okafor's boat is on the bottom. Wrong boat."); if (d.escaped) return fail('The launch made it round the island.');
+        if (d.phase === 1) { const l = d.launch; if (l.wrecked) { d.phase = 2; const k = place('mission2'); blip(k.x, k.z); objective('Get back to Okafor at Pier 9. Leave the boat at the pier.'); return; }
+          d.fireT -= dt; const dist = M.dist(l.x, l.z, p.x, p.z); const q = l.passengers[0]; // the gunman fires back when you are close
+          if (d.fireT <= 0 && dist < 42 && p.alive && q && q.alive) { d.fireT = 0.7; const ang = Math.atan2(p.x - l.x, p.z - l.z) + (W.rng() - 0.5) * 0.35; PLAYER.fireBullet(q, l.x + l.right[0] * 0.9, l.z + l.right[1] * 0.9, l.y + 1.3, ang, WEAPONS.pistol, 0.5, l); }
+          objective('Sink the launch before it gets round the island.  Hull ' + Math.round(Math.max(0, l.health) / l.maxHealth * 100) + '%'); }
+        if (d.phase === 2) { const k = place('mission2'); if (near(k.x, k.z, 4) && !p.car) pass(8000, 'Okafor: "The sea keeps what it is given."'); } } },
   ];
   // ---- Payphone contracts
   const PHONE = [
@@ -3867,7 +4011,7 @@ const GAME = (() => {
     RENDER.init(canvas, TEX.build()); loadOptions();
     const sb = CITY.generate(); console.log('static tris', (sb.i.length / 3) | 0, 'verts', sb.n); staticMesh = sb.build(); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; waterMesh.water = true; W.indexLights(); W.initProps();
     propList = ['lamppost', 'trafficLight', 'tree', 'hydrant', 'bin', 'bench', 'bollard', 'payphone', 'dumpster', 'mailbox', 'meter', 'newsbox', 'busShelter', 'cone', 'barrier', 'hedge', 'roundTree', 'palm', 'umbrella', 'streetSign'].map(k => W.propMeshes[k]); propList.push(W.lampHeads, W.tlHeads);
-    PICKUPS.placeWorld(); MISSIONS.placeRampages(); VEH.spawnParked();
+    PICKUPS.placeWorld(); MISSIONS.placeRampages(); VEH.spawnParked(); VEH.spawnMarina();
     const sh = CITY.place('safehouse'); PLAYER.init(sh.x + 6, sh.z + 1, Math.PI);
     if (hasSave()) load();
     RENDER.setTimeOfDay(W.state.time);

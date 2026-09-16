@@ -23,7 +23,7 @@ const GAME = (() => {
     RENDER.init(canvas, TEX.build()); loadOptions();
     const sb = CITY.generate(); console.log('static tris', (sb.i.length / 3) | 0, 'verts', sb.n); staticMesh = sb.build(); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; waterMesh.water = true; W.indexLights(); W.initProps();
     propList = ['lamppost', 'trafficLight', 'tree', 'hydrant', 'bin', 'bench', 'bollard', 'payphone', 'dumpster', 'mailbox', 'meter', 'newsbox', 'busShelter', 'cone', 'barrier', 'hedge', 'roundTree', 'palm', 'umbrella', 'streetSign'].map(k => W.propMeshes[k]); propList.push(W.lampHeads, W.tlHeads);
-    PICKUPS.placeWorld(); MISSIONS.placeRampages(); VEH.spawnParked();
+    PICKUPS.placeWorld(); MISSIONS.placeRampages(); VEH.spawnParked(); VEH.spawnMarina();
     const sh = CITY.place('safehouse'); PLAYER.init(sh.x + 6, sh.z + 1, Math.PI);
     if (hasSave()) load();
     RENDER.setTimeOfDay(W.state.time);

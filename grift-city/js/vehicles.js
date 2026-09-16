@@ -2,7 +2,7 @@
 'use strict';
 const VEH = (() => {
   const SPECS = MESH.VEHICLES;
-  const NAMES = { sedan: 'MERIDIAN', sports: 'FALCATA', hatch: 'GNAT', pickup: 'MULE', van: 'BOXER', taxi: 'CABCO', police: 'ENFORCER', truck: 'HAULER', bus: 'TRANSIT', muscle: 'BRAWLER', swat: 'BASTION' };
+  const NAMES = { sedan: 'MERIDIAN', sports: 'FALCATA', hatch: 'GNAT', pickup: 'MULE', van: 'BOXER', taxi: 'CABCO', police: 'ENFORCER', truck: 'HAULER', bus: 'TRANSIT', muscle: 'BRAWLER', swat: 'BASTION', bike: 'VIPER', boat: 'SKIMMER' };
   const PALETTE = [[0.85, 0.12, 0.1], [0.12, 0.22, 0.6], [0.92, 0.92, 0.9], [0.15, 0.15, 0.17], [0.62, 0.62, 0.66], [0.1, 0.48, 0.25], [0.9, 0.6, 0.12], [0.45, 0.12, 0.5], [0.7, 0.35, 0.15], [0.2, 0.6, 0.7], [0.55, 0.05, 0.1], [0.75, 0.75, 0.5]];
   const FIXED = { taxi: [1, 0.8, 0.1], police: [0.95, 0.95, 0.98], swat: [0.16, 0.18, 0.22], bus: [0.85, 0.55, 0.15] };
   const meshCache = {};
@@ -12,11 +12,11 @@ const VEH = (() => {
   function dentedMesh(type, colIdx, dent, seed) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed }); return { body: m.body.build(), glass: m.glass.build() }; }
   const TRAFFIC_TYPES = ['sedan', 'sedan', 'sedan', 'hatch', 'hatch', 'sports', 'pickup', 'van', 'taxi', 'taxi', 'muscle', 'truck', 'bus'];
 
-  const tmpV = [0, 0, 0];
+  const tmpV = [0, 0, 0]; const LEAN_SIGN = -1; // positive roll tips the body to the right, so leaning into a left turn (positive yaw) is negative
   class Vehicle {
     constructor(type, x, z, angle, opts = {}) {
       this.type = type; this.spec = SPECS[type]; this.name = NAMES[type];
-      this.x = x; this.z = z; this.y = CITY.groundY(x, z); this.vy = 0; this.angle = angle; this.vx = 0; this.vz = 0; this.speed = 0; this.lat = 0;
+      this.x = x; this.z = z; this.y = this.spec.boat ? W.WATER_Y + 0.55 : CITY.groundY(x, z); this.vy = 0; this.bob = W.rng() * 6; this.sinkT = 0; this.angle = angle; this.vx = 0; this.vz = 0; this.speed = 0; this.lat = 0;
       this.steer = 0; this.controls = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
       this.colIdx = opts.color !== undefined ? opts.color : Math.floor(W.rng() * PALETTE.length); this.meshes = getMesh(type, this.colIdx); this.mesh = this.meshes.body; this.dentLevel = 0; this.dentSeed = Math.floor(W.rng() * 1e6);
       this.maxHealth = this.spec.armor ? 2600 : 1000 * this.spec.mass; this.health = this.maxHealth; this.wrecked = false; this.fireT = 0;
@@ -43,7 +43,8 @@ const VEH = (() => {
       if (this.removed) return; this.age += dt; if (this.damageFlash > 0) this.damageFlash -= dt;
       if (!this.wrecked) { if (this.ai.mode === 'traffic' || this.ai.mode === 'flee') this.aiTraffic(dt); else if (this.ai.mode === 'chase') this.aiChase(dt); else if (this.ai.mode === 'parked' && !this.driver) { this.controls.throttle = 0; this.controls.brake = this.absSpeed > 0.2 ? 0.5 : 0; this.controls.steer = 0; } else if (this.ai.mode === 'route') this.aiRoute(dt); }
       else { this.controls.throttle = 0; this.controls.brake = 1; this.controls.steer = 0; }
-      this.physics(dt);
+      if (this.spec.boat) this.boatPhysics(dt); else this.physics(dt);
+      if (this.spec.boat && this.wrecked) { this.sinkT += dt; if (this.sinkT > 9 && this.driver !== PLAYER) this.remove(); }
       if (this.scared > 0) this.scared -= dt;
       if (this.horn > 0) this.horn -= dt;
       // fire & smoke
@@ -89,7 +90,7 @@ const VEH = (() => {
         const kinYaw = vF / Lw * Math.tan(delta);
         vL += aLat * h * w; vL -= yawR * vF * h * w; vL -= vL * Math.min(1, 10 * h) * (1 - w);
         yawR += yawAcc * h * w; yawR = yawR * w + kinYaw * (1 - w); yawR -= yawR * Math.min(1, 1.5 * h);
-        this.latForceR = Fr; this.slipF = af; this.slipR = ar;
+        this.latForceR = Fr; this.slipF = af; this.slipR = ar; this.latAcc = aLat;
       }
       if (!this.airborne) this.angle += yawR * dt;
       this.yawRate = yawR; this.wheelspin = wheelspin;
@@ -110,7 +111,8 @@ const VEH = (() => {
       // cosmetic body pitch and roll
       const accF = (vF - (this.prevVF === undefined ? vF : this.prevVF)) / dt; this.prevVF = vF; const accL = (this.latForceR || 0) * 2;
       this.pitch = M.lerp(this.pitch, this.airborne ? -Math.atan2(this.vy, Math.max(Math.abs(vF), 3)) * 0.5 : M.clamp(-accF * 0.006, -0.06, 0.06), 6 * dt); // squat under power, dive under braking
-      this.roll = M.lerp(this.roll, M.clamp(accL * 0.012, -0.12, 0.12), 6 * dt);
+      if (s.bike) this.roll = M.lerp(this.roll, this.airborne ? 0 : M.clamp(LEAN_SIGN * Math.atan2(this.latAcc || 0, 9.81) * 1.15, -0.62, 0.62), 8 * dt); // a rider leans into the corner
+      else this.roll = M.lerp(this.roll, M.clamp(accL * 0.012, -0.12, 0.12), 6 * dt);
       this.wheelRot += vF / s.wheelR * dt;
       // skid marks from the rear wheels
       if (this.skid && !this.airborne && !this.wrecked) { const rr = this.right, ff = this.fwd; const wz = s.len * 0.31, wx = s.wid / 2 - 0.15; for (const sign of [1, -1]) { const x1 = this.x - ff[0] * wz + rr[0] * wx * sign, z1 = this.z - ff[1] * wz + rr[1] * wx * sign; const key = sign > 0 ? 'skidL' : 'skidR'; const prev = this[key]; if (prev && M.dist2(prev[0], prev[1], x1, z1) < 9) W.decal('skid', prev[0], prev[1], x1, z1, 0.32, [0.05, 0.05, 0.05], 0.55); this[key] = [x1, z1]; } } else { this.skidL = this.skidR = null; }
@@ -118,10 +120,10 @@ const VEH = (() => {
       this.collide(dt);
       this.wasAir = this.airborne;
     }
-    collide(dt) {
+    collide(dt, water = false) {
       const s = this.spec; const f = this.fwd; const half = s.len / 2;
-      // buildings & props: each circle
-      for (const [cx, cz, r] of this.circles()) {
+      // buildings & props: each circle (a boat has already been kept off the shore)
+      if (!water) for (const [cx, cz, r] of this.circles()) {
         const res = W.pushOut(cx, cz, r, { ignoreLow: this.y > 1.4 });
         if (res.hit) {
           const nx = res.hit[0], nz = res.hit[1];
@@ -134,7 +136,7 @@ const VEH = (() => {
             this.vx *= 0.9; this.vz *= 0.9;
             const front = (cx - this.x) * f[0] + (cz - this.z) * f[1] > 0; const side = (nx * f[1] - nz * f[0]); // which side the wall is on
             this.angle += (front ? -1 : 1) * Math.sign(side || 1) * Math.min(impact * 0.03, 0.15) * (this.speed < 0 ? -1 : 1);
-            if (impact > 3) { this.damage(impact * impact * 0.35, null); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; }
+            if (impact > 3) { this.damage(impact * impact * 0.35, null); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; if (s.bike && impact > 6.5) this.throwRider(impact); }
           }
         }
       }
@@ -158,6 +160,7 @@ const VEH = (() => {
               const dmg = impact * impact * 0.4; this.damage(dmg * (mB / mA), o); o.damage(dmg * (mA / mB), this);
               AUDIO.play('crash', ax, az, impact / 10); W.FX.spark(ax - nx * ar, 0.7, az - nz * ar, Math.min(14, impact * 2)); if (impact > 7) W.FX.glass(ax, 1.2, az, 8);
               if (o.ai.mode === 'traffic' && !o.driverIsPlayer()) { o.scared = 4; o.ai.mode = 'flee'; o.fleeFrom = this; } if (this.ai.mode === 'traffic' && !this.driverIsPlayer()) { this.ai.honk = 1; }
+              if (impact > 5) { if (this.spec.bike) this.throwRider(impact); if (o.spec.bike) o.throwRider(impact); }
               W.noise(ax, az, 30, 'crash');
             }
           }
@@ -165,12 +168,45 @@ const VEH = (() => {
       }
       // pedestrians
       const spd = this.absSpeed;
-      if (spd > 1.5) for (const p of W.peds) {
+      if (spd > 1.5 && !water) for (const p of W.peds) {
         if (p.removed || p.inCar || p.state === 'dead') continue; if (M.dist2(this.x, this.z, p.x, p.z) > (half + 2) * (half + 2)) continue;
         const [lf, ll] = this.local(p.x, p.z); if (Math.abs(lf) < half + 0.4 && Math.abs(ll) < s.wid / 2 + 0.35) { p.hitByCar(this, spd); }
       }
     }
     driverIsPlayer() { return this.driver === PLAYER; }
+    // A hard stop on a motorcycle puts the rider over the bars.
+    throwRider(impact) {
+      const d = this.driver; if (!d) return; const f = this.fwd; const sp = Math.min(impact, 14);
+      if (d === PLAYER) { if (!PLAYER.exitCar()) return; PLAYER.knock(f[0] * sp * 0.6, 4 + sp * 0.25, f[1] * sp * 0.6); PLAYER.hurt(impact * 3.5, 'fall', null); HUD.notify('Thrown from the bike.'); }
+      else { d.exitCar(); d.x = this.x + f[0] * 1.2; d.z = this.z + f[1] * 1.2; d.knockT = 2.5; d.state = 'knocked'; d.launch(f[0] * sp * 0.6, 4 + sp * 0.2, f[1] * sp * 0.6); d.damage(impact * 5, null); if (this.ai.mode === 'traffic') { this.ai.mode = 'parked'; } }
+      this.vx *= 0.3; this.vz *= 0.3;
+    }
+    // Boats: thrust against water drag, a rudder that needs way on, sideways slip, a hull that bobs and banks.
+    boatPhysics(dt) {
+      const s = this.spec, c = this.controls; const f = this.fwd, r = this.right;
+      let vF = this.vx * f[0] + this.vz * f[1], vL = this.vx * r[0] + this.vz * r[1]; const top = s.top;
+      const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked');
+      this.steer = M.approach(this.steer, M.clamp(c.steer, -1, 1), 4 * dt); this.steerAngle = this.steer * 0.5;
+      let aLong = 0;
+      if (live) { if (c.throttle > 0) aLong += s.accel * c.throttle * Math.max(0.2, 1 - Math.max(0, vF) / top); if (c.brake > 0) { if (vF > 0.5) aLong -= s.brake * c.brake; else if (vF > -top * 0.25) aLong -= s.accel * 0.4 * c.brake; } }
+      aLong -= vF * Math.abs(vF) * 0.006 + vF * 0.1; if (this.wrecked) aLong -= vF * 0.8;
+      const way = M.clamp(Math.abs(vF) / 6, 0, 1); const yawWant = live ? this.steer * s.turn * 0.55 * way * Math.sign(vF || 1) : 0;
+      this.yawRate = M.lerp(this.yawRate || 0, yawWant, Math.min(1, 2.5 * dt)); this.angle += this.yawRate * dt;
+      vL -= this.yawRate * vF * dt * 0.45; vL -= vL * Math.min(1, 1.4 * dt); vF += aLong * dt;
+      const nf = this.fwd, nr = this.right; this.vx = nf[0] * vF + nr[0] * vL; this.vz = nf[1] * vF + nr[1] * vL; this.speed = vF; this.lat = vL; this.skid = false; this.wheelspin = 0; this.airborne = false; this.vy = 0;
+      this.x += this.vx * dt; this.z += this.vz * dt;
+      const t = W.state.elapsed + this.bob; const bob = (Math.sin(t * 1.3) * 0.05 + Math.sin(t * 2.3) * 0.025) * (1 - 0.5 * way);
+      this.y = W.WATER_Y + 0.55 + bob - (this.wrecked ? Math.min(1.6, this.sinkT * 0.2) : 0);
+      this.pitch = M.lerp(this.pitch, -0.09 * M.clamp(vF / top, 0, 1) + Math.sin(t * 1.1) * 0.02 + (this.wrecked ? 0.15 : 0), 3 * dt);
+      this.roll = M.lerp(this.roll, M.clamp(LEAN_SIGN * this.yawRate * vF * 0.02, -0.22, 0.22) + Math.sin(t * 0.9) * 0.02, 3 * dt);
+      this.brakeLights = c.brake > 0.1 && vF > 0.5;
+      // wake and spray
+      if (Math.abs(vF) > 3 && !this.wrecked && W.state.frame % 2 === 0) { const sx = this.x - nf[0] * s.len * 0.5, sz = this.z - nf[1] * s.len * 0.5; for (const sg of [1, -1]) W.particle(sx + nr[0] * sg * 0.9, W.WATER_Y + 0.1, sz + nr[1] * sg * 0.9, nr[0] * sg * 1.2 - this.vx * 0.1, 0.3 + W.rng() * 0.5, nr[1] * sg * 1.2 - this.vz * 0.1, 0.9, 0.3, [0.92, 0.96, 1], 0.4, { grav: 3, grow: 1.1 }); }
+      // collisions: other hulls and cars share the circle test, the shore and the pier are walls
+      for (const [cx, cz, rr] of this.circles()) { const res = W.pushOutWater(cx, cz, rr); if (res.hit) { const nx = res.hit[0], nz = res.hit[1]; this.x += res.x - cx; this.z += res.z - cz; const vn = this.vx * nx + this.vz * nz;
+        if (vn < 0) { const impact = -vn; this.vx -= vn * nx * 1.1; this.vz -= vn * nz * 1.1; this.vx *= 0.85; this.vz *= 0.85; if (impact > 3 && !res.hit.edge) { this.damage(impact * impact * 0.3, null); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.dust(cx, W.WATER_Y + 0.3, cz, 6); this.ai.stuck += 0.5; } if (res.hit.edge && this.driver === PLAYER) HUD.notify('Open water. Turn back.'); } } }
+      this.collide(dt, true);
+    }
     damage(amount, source) {
       if (this.wrecked) return; amount *= this.damageScale || 1; this.health -= amount; this.damageFlash = 0.15; if (source && source !== this) this.lastHitBy = source;
       const hf = this.health / this.maxHealth; const lvl = hf < 0.3 ? 2 : hf < 0.65 ? 1 : 0;
@@ -303,8 +339,9 @@ const VEH = (() => {
       const s = this.spec; const wr = s.wheelR; const half = s.len / 2;
       M.trsEuler(this.model, this.x, this.y + (this.wrecked ? -0.12 : 0), this.z, this.angle, this.pitch, this.roll);
       const wz = half * (s.bus ? 0.7 : 0.62), wx = s.wid / 2 - 0.05;
-      const wheels = [[wx, wr, wz, true], [-wx, wr, wz, true], [wx, wr, -wz, false], [-wx, wr, -wz, false]];
-      for (let i = 0; i < 4; i++) { const [px, py, pz, front] = wheels[i]; const flat = this.dmg.burst === (front ? 'front' : 'rear') && (i % 2 === 0); wheelBone(this.bones, (i + 1) * 16, px, flat ? py - wr * 0.18 : py, pz, front ? (this.steerAngle || 0) : 0, this.wheelRot, flat ? 0.82 : 1); }
+      const bx = s.bike ? 0 : wx; const wheels = [[bx, wr, wz, true], [-bx, wr, wz, true], [bx, wr, -wz, false], [-bx, wr, -wz, false]];
+      if (s.bike) wheelBone(this.bones, 10 * 16, 0, wr, wz, this.steerAngle || 0, 0);
+      if (!s.boat) for (let i = 0; i < 4; i++) { const [px, py, pz, front] = wheels[i]; const flat = this.dmg.burst === (front ? 'front' : 'rear') && (i % 2 === 0); wheelBone(this.bones, (i + 1) * 16, px, flat ? py - wr * 0.18 : py, pz, front ? (this.steerAngle || 0) : 0, this.wheelRot, flat ? 0.82 : 1); }
       const e = this.emis; e.fill(0);
       if (!this.wrecked) {
         e[5] = this.lightsOn ? 1.0 : 0; e[6] = this.brakeLights ? 1.3 : (this.lightsOn ? 0.45 : 0);
@@ -334,11 +371,11 @@ const VEH = (() => {
   // Each district drives something different: cabs and coupes downtown, hatchbacks and vans in the suburbs, muscle and pickups east, trucks by the docks.
   const DISTRICT_MIX = {
     downtown: ['sedan', 'sedan', 'taxi', 'taxi', 'taxi', 'sports', 'sports', 'hatch', 'bus', 'van'],
-    midtown: ['sedan', 'sedan', 'hatch', 'taxi', 'sports', 'pickup', 'van', 'bus', 'muscle'],
+    midtown: ['sedan', 'sedan', 'hatch', 'taxi', 'sports', 'pickup', 'van', 'bus', 'muscle', 'bike'],
     westfield: ['hatch', 'hatch', 'sedan', 'van', 'van', 'pickup', 'sedan', 'bus'],
-    eastside: ['muscle', 'muscle', 'pickup', 'pickup', 'sedan', 'hatch', 'van', 'truck'],
+    eastside: ['muscle', 'muscle', 'pickup', 'pickup', 'sedan', 'hatch', 'van', 'truck', 'bike', 'bike'],
     northgate: ['sedan', 'hatch', 'muscle', 'pickup', 'taxi', 'van', 'truck'],
-    southport: ['truck', 'truck', 'van', 'van', 'pickup', 'sedan', 'bus', 'taxi'],
+    southport: ['truck', 'truck', 'van', 'van', 'pickup', 'sedan', 'bus', 'taxi', 'bike'],
   };
   function trafficTypeFor(x, z) { const bl = CITY.blockAt(x, z); const d = bl ? CITY.district(bl.i, bl.j) : 'midtown'; const list = DISTRICT_MIX[d] || TRAFFIC_TYPES; const hour = W.state.time; let t = list[Math.floor(W.rng() * list.length)]; if ((hour < 6 || hour > 22) && W.rng() < 0.35) t = W.rng() < 0.6 ? 'taxi' : 'muscle'; /* night: cabs and cruisers */ return t; }
   function trim(px, pz, camYaw, want) {
@@ -362,9 +399,10 @@ const VEH = (() => {
       return v;
     }
   }
-  function despawn(px, pz) { for (const c of W.cars) { if (c.removed || c.important || c === (PLAYER && PLAYER.car)) continue; const d = M.dist(c.x, c.z, px, pz); if (d > 280 || (c.wrecked && d > 150 && c.fireT > 10)) c.remove(); } let w = 0; for (const c of W.cars) if (!c.removed) W.cars[w++] = c; W.cars.length = w; }
+  function despawn(px, pz) { for (const c of W.cars) { if (c.removed || c.important || c.persistent || c === (PLAYER && PLAYER.car)) continue; const d = M.dist(c.x, c.z, px, pz); if (d > 280 || (c.wrecked && d > 150 && c.fireT > 10)) c.remove(); } let w = 0; for (const c of W.cars) if (!c.removed) W.cars[w++] = c; W.cars.length = w; }
+  function spawnMarina() { CITY.marina.forEach((m, i) => { const b = spawn('boat', m.x, m.z, m.angle, { mode: 'parked', color: [2, 9, 6][i % 3] }); b.persistent = true; }); }
   function spawnParked() { for (const p of CITY.parkedSpots) { const type = p.type || TRAFFIC_TYPES[Math.floor(W.rng() * TRAFFIC_TYPES.length)]; if (type === 'bus' || type === 'truck') continue; spawn(type, p.x, p.z, p.angle, { mode: 'parked' }); } }
   function nearest(x, z, r, filter) { let best = null, bd = r * r; for (const c of W.cars) { if (c.removed || (filter && !filter(c))) continue; const d = M.dist2(c.x, c.z, x, z); if (d < bd) { bd = d; best = c; } } return best; }
   function updateAll(dt, night) { for (const c of W.cars) { if (c.removed) continue; c.lightsOn = night && !c.wrecked && (c.driver !== null || c.ai.mode !== 'parked' || c.playerOwned) ; c.update(dt); } }
-  return { Vehicle, SPECS, NAMES, PALETTE, TRAFFIC_TYPES, trafficTypeFor, trim, spawn, spawnTraffic, despawn, spawnParked, nearest, updateAll, getMesh };
+  return { Vehicle, SPECS, NAMES, PALETTE, TRAFFIC_TYPES, trafficTypeFor, trim, spawn, spawnTraffic, despawn, spawnParked, spawnMarina, nearest, updateAll, getMesh };
 })();

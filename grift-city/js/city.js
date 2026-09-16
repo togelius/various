@@ -130,12 +130,14 @@ const CITY = (() => {
       for (const x of [px0 + 0.5, px1 - 0.5]) b.box(x - 0.04, 0.95, pz0, 0.08, 0.06, pz1 - pz0, [0.5, 0.5, 0.52]);
       b.box(px0, 0.05, pz1 - 4, px1 - px0, 0.02, 4, [0.4, 0.3, 0.2]); b.cbox((px0 + px1) / 2, 1.4, pz1 - 2, 3, 2.8, 2.5, [0.55, 0.6, 0.7], T.metal, { uvScale: 2 }); b.box((px0 + px1) / 2 - 1.6, 4.2, pz1 - 3.35, 3.2, 0.15, 3.2, [0.4, 0.3, 0.2]);
       for (let k = 0; k < 6; k++) props.bench.push({ x: px0 + 1.2 + (k % 2) * (px1 - px0 - 2.4), z: pz0 + 8 + Math.floor(k / 2) * 14, a: (k % 2) ? -Math.PI / 2 : Math.PI / 2 });
-      addPlace('pier', { x: (px0 + px1) / 2, z: pz1 - 6, label: 'the pier' }); }
+      addPlace('pier', { x: (px0 + px1) / 2, z: pz1 - 6, label: 'the pier' }); addPlace('marina', { x: (px0 + px1) / 2, z: pz1 - 14, label: 'the marina' });
+      marina.push({ x: px1 + 1.7, z: pz1 - 14, angle: 0 }, { x: px1 + 1.7, z: pz1 - 34, angle: 0 }, { x: W0 + 150, z: W1 + 1.7, angle: 0 }); }
     // Blocks
     for (let i = 0; i < GRID; i++) for (let j = 0; j < GRID; j++) buildBlock(b, i, j);
     return b;
   }
   const pierX0 = 5 * PITCH + HALF_ROAD + SW + 26, pierX1 = pierX0 + 8, pierZ1 = SIZE + HALF_ROAD + SW + SHORE + 60;
+  const marina = []; // moorings for boats: beside the pier and off the beach
   const roadEdgesForManholes = [];
 
   function buildBlock(b, i, j) {
@@ -512,5 +514,5 @@ const CITY = (() => {
   }
 
   return { GRID, BLOCK, ROAD, SW, PITCH, HALF_ROAD, LANE, CURB, SIZE, SHORE, lots, blocks, places, props, solidProps, parkedSpots, ramps, lights, get stunts() { return stunts; },
-    pier: { x0: pierX0, x1: pierX1, z1: pierZ1 }, roadNodes, roadEdges, walkNodes, generate, get water() { return waterBuilder; }, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
+    pier: { x0: pierX0, x1: pierX1, z1: pierZ1 }, marina, roadNodes, roadEdges, walkNodes, generate, get water() { return waterBuilder; }, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
 })();

@@ -234,6 +234,19 @@ const MISSIONS = (() => {
         for (let i = 0; i < 3; i++) spawnGang(x - 8 + i * 8, z - 8, 'uzi', { stationary: true, hostile: false }); blip(x, z, '#e0453b', d.tanker); objective('Blow the tanker in the Eastside yard.'); },
       update(d, dt) { const left = d.cars.filter(c => !c.wrecked).length; if (d.tanker.wrecked && !d.boom) { d.boom = true; for (const g of S.spawned) if (g.isGang) g.hostile = true; POLICE.setStars(3); }
         if (d.boom) { if (left === 0) { const k = place('mission2'); blip(k.x, k.z); objective('Get back to Okafor.'); if (near(k.x, k.z, 4) && !P().car) pass(6000, 'Okafor: "I saw the glow from the pier."'); } else objective('Finish the cars. ' + left + ' left.'); } } },
+    { id: 8, strand: 2, name: 'SALT WATER', intro: [['OKAFOR', "Crane's launch leaves Pier 9 at dusk with a week of product aboard."], ['OKAFOR', 'My boat is moored beside the pier. Take it. Put his on the bottom.'], ['OKAFOR', 'Ram it, shoot it, I do not care. Just do not bring mine back with holes in it.']],
+      start(d) { const mar = CITY.marina[0]; d.boat = W.cars.find(c => !c.removed && !c.wrecked && c.spec.boat && M.dist2(c.x, c.z, mar.x, mar.z) < 36) || spawnCar('boat', mar.x, mar.z, mar.angle, { color: 9 }); d.boat.important = true; if (!S.spawned.includes(d.boat)) S.spawned.push(d.boat); d.boat.repair();
+        const pier = CITY.pier, B0 = W.bounds[0], B1 = W.bounds[1]; d.launch = spawnCar('boat', pier.x1 + 10, pier.z1 + 8, 0, { color: 3, health: 1700 }); d.launch.locked = true;
+        for (let i = 0; i < 2; i++) { const g = spawnGang(d.launch.x, d.launch.z, i ? 'uzi' : 'pistol', {}); g.inCar = d.launch; g.state = 'driving'; if (i === 0) d.launch.driver = g; else d.launch.passengers.push(g); }
+        const off = 48; const R0 = B0 - off, R1 = B1 + off; d.launch.ai.route = [[pier.x1 + 40, pier.z1 + 40, 16], [R1, R1, 18], [R1, R0, 18], [R0, R0, 18], [R0, R1, 18], [(B0 + B1) / 2 - 90, R1, 18]]; d.launch.ai.routeIdx = 0; d.launch.ai.routeSpeed = 14; d.launch.ai.mode = 'parked'; d.launch.ai.onRouteEnd = () => { d.escaped = true; };
+        d.phase = 0; d.fireT = 0; PLAYER.giveWeapon('uzi', 120); blip(d.boat.x, d.boat.z, '#f5c542', d.boat); objective("Get in Okafor's Skimmer, moored beside Pier 9."); W.state.time = Math.max(W.state.time, 18.2); if (W.state.time > 20.5) W.state.time = 18.5; },
+      onEnterCar(c) { const d = S.current.data; if (c === d.boat && d.phase === 0) { d.phase = 1; d.launch.ai.mode = 'route'; blip(d.launch.x, d.launch.z, '#e0453b', d.launch); objective('Sink the launch before it gets round the island.'); if (d.launch.driver) d.launch.driver.say('Go, go!'); } },
+      update(d, dt) { const p = P(); if (d.boat.wrecked) return fail("Okafor's boat is on the bottom. Wrong boat."); if (d.escaped) return fail('The launch made it round the island.');
+        if (d.phase === 1) { const l = d.launch; if (l.wrecked) { d.phase = 2; const k = place('mission2'); blip(k.x, k.z); objective('Get back to Okafor at Pier 9. Leave the boat at the pier.'); return; }
+          d.fireT -= dt; const dist = M.dist(l.x, l.z, p.x, p.z); const q = l.passengers[0]; // the gunman fires back when you are close
+          if (d.fireT <= 0 && dist < 42 && p.alive && q && q.alive) { d.fireT = 0.7; const ang = Math.atan2(p.x - l.x, p.z - l.z) + (W.rng() - 0.5) * 0.35; PLAYER.fireBullet(q, l.x + l.right[0] * 0.9, l.z + l.right[1] * 0.9, l.y + 1.3, ang, WEAPONS.pistol, 0.5, l); }
+          objective('Sink the launch before it gets round the island.  Hull ' + Math.round(Math.max(0, l.health) / l.maxHealth * 100) + '%'); }
+        if (d.phase === 2) { const k = place('mission2'); if (near(k.x, k.z, 4) && !p.car) pass(8000, 'Okafor: "The sea keeps what it is given."'); } } },
   ];
   // ---- Payphone contracts
   const PHONE = [

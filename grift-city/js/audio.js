@@ -71,7 +71,7 @@ const AUDIO = (() => {
     engineNodes = { g, o1, o2, f };
   }
   function engine(on, rpm, load, kind = 'sedan') { if (!ctx) return; const e = engineNodes; const t = now();
-    const K = { sports: 1.35, muscle: 1.15, police: 1.1, hatch: 1.05, taxi: 1, sedan: 1, van: 0.85, pickup: 0.8, swat: 0.75, truck: 0.55, bus: 0.6 }[kind] || 1;
+    const K = { sports: 1.35, muscle: 1.15, police: 1.1, hatch: 1.05, taxi: 1, sedan: 1, van: 0.85, pickup: 0.8, swat: 0.75, truck: 0.55, bus: 0.6, bike: 1.7, boat: 0.5 }[kind] || 1;
     e.g.gain.setTargetAtTime(on ? 0.12 + load * 0.1 : 0, t, 0.08);
     const base = (45 + rpm * 160) * K; e.o1.frequency.setTargetAtTime(base, t, 0.06); e.o2.frequency.setTargetAtTime(base * 0.5, t, 0.06); e.f.frequency.setTargetAtTime(300 + rpm * 900 + load * 400, t, 0.08); }
   function buildSiren() {
