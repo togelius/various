@@ -731,7 +731,7 @@ const MESH = (() => {
     }
   }
 
-  // ---- Pedestrians. Bones: 0 pelvis/torso, 1 head, 2 left arm, 3 right arm, 4 left leg, 5 right leg, 6 weapon.
+  // ---- Pedestrians. Bones: 0 pelvis/torso, 1 head, 2/3 upper arms, 4/5 thighs, 6 weapon, 7/8 shins, 9/10 forearms.
   // Limbs are tapered cylinders with ball joints, the torso is a lofted body, the head an ellipsoid with a hair cap.
   function pedMesh(look) {
     const b = new Builder(); const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket || Math.random() < 0.5, glasses = false, bag = null, skirt = false, longHair = false, beanie = false } = look;
@@ -739,11 +739,11 @@ const MESH = (() => {
     const skinDk = skin.map(c => c * 0.85), top = jacket || shirt, topDk = top.map(c => c * 0.8);
     const ball = (x, y, z, r, col, bone, segs = 6, rings = 2) => b.sphere(x, y, z, r, r, r, col, { segs, rings, bone });
     // legs hang from the hips (bones 4, 5): thigh, knee, shin, shoe
-    for (const [sx, bone] of [[0.11, 4], [-0.11, 5]]) {
+    for (const [sx, bone, shin] of [[0.11, 4, 7], [-0.11, 5, 8]]) {
       b.cyl(sx, -legH * 0.5, 0, 0.082, 0.03, pants, 0, 9, bone, false, false, 0.105);
       ball(sx, -legH * 0.5, 0.005, 0.078, pants, bone);
-      b.cyl(sx, -legH + 0.07, 0.015, 0.06, -legH * 0.5, pants, 0, 9, bone, false, true, 0.08);
-      b.roundedBox(sx - 0.09, -legH, -0.09, 0.18, 0.11, 0.31, 0.035, shoes, 0, bone, { n: 1 });
+      b.cyl(sx, -legH + 0.07, 0.015, 0.06, -legH * 0.5, pants, 0, 9, shin, false, true, 0.08);
+      b.roundedBox(sx - 0.09, -legH, -0.09, 0.18, 0.11, 0.31, 0.035, shoes, 0, shin, { n: 1 });
     }
     // torso (bone 0): pants top, belt, lofted chest with shoulders
     const rr = (y, hw, hd, r) => Builder.rrect(0, 0, hw, hd, r, 3, y, 'y');
@@ -771,13 +771,13 @@ const MESH = (() => {
     if (hat && beanie) b.sphere(0, headR * 1.0, -0.01, hairR * 1.05, hairR * 1.3, hairR * 1.08, hat, { segs: 12, rings: 4, lat0: 0.05, lat1: 1, bone: 1 });
     // arms (bones 2, 3): shoulder ball, upper arm, elbow, forearm, hand
     const armL = 0.62;
-    for (const [sx, bone] of [[0.3, 2], [-0.3, 3]]) {
+    for (const [sx, bone, fore] of [[0.3, 2, 9], [-0.3, 3, 10]]) {
       ball(sx, -0.01, 0, 0.075, top, bone);
       b.cyl(sx, -armL * 0.5, 0, 0.052, -0.02, top, 0, 8, bone, false, false, 0.068);
       ball(sx, -armL * 0.5, 0.005, 0.052, sleeves ? top : skin, bone);
-      b.cyl(sx, -armL + 0.07, 0.01, 0.04, -armL * 0.5, sleeves ? top : skin, 0, 8, bone, false, false, 0.05);
-      if (sleeves) b.cyl(sx, -armL + 0.1, 0.01, 0.044, -armL + 0.16, skin, 0, 8, bone, false, false, 0.044); // wrist
-      b.roundedBox(sx - 0.042, -armL - 0.02, -0.02, 0.084, 0.1, 0.06, 0.02, skin, 0, bone, { n: 1 });
+      b.cyl(sx, -armL + 0.07, 0.01, 0.04, -armL * 0.5, sleeves ? top : skin, 0, 8, fore, false, false, 0.05);
+      if (sleeves) b.cyl(sx, -armL + 0.1, 0.01, 0.044, -armL + 0.16, skin, 0, 8, fore, false, false, 0.044); // wrist
+      b.roundedBox(sx - 0.042, -armL - 0.02, -0.02, 0.084, 0.1, 0.06, 0.02, skin, 0, fore, { n: 1 });
     }
     // weapon in the right hand (bone 6): hidden by scaling when unarmed
     b.cbox(-0.3, -armL + 0.03, 0.2, 0.05, 0.07, 0.34, [0.15, 0.15, 0.17], 0, { bone: 6 }); b.cbox(-0.3, -armL - 0.06, 0.08, 0.045, 0.14, 0.07, [0.25, 0.2, 0.15], 0, { bone: 6 }); b.cbox(-0.3, -armL + 0.06, 0.12, 0.03, 0.03, 0.12, [0.1, 0.1, 0.11], 0, { bone: 6 });
@@ -1363,7 +1363,7 @@ const CITY = (() => {
 'use strict';
 const RENDER = (() => {
   let gl, litProg, instProg, shadowProg, shadowInstProg, skyProg, partProg, flatProg, texArray, shadow;
-  const MAX_LIGHTS = 32, MAX_BONES = 10;
+  const MAX_LIGHTS = 32, MAX_BONES = 12;
   const proj = M.create(), view = M.create(), vp = M.create(), invVP = M.create(), invProj = M.create(), lightVP = M.create(), lightView = M.create(), lightProj = M.create();
   const identityBones = new Float32Array(16 * MAX_BONES); for (let i = 0; i < MAX_BONES; i++) identityBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
   const zeroEmis = new Float32Array(MAX_BONES);
@@ -2180,26 +2180,43 @@ const VEH = (() => {
     physics(dt) {
       const s = this.spec, c = this.controls; const f = this.fwd, r = this.right;
       let vF = this.vx * f[0] + this.vz * f[1], vL = this.vx * r[0] + this.vz * r[1];
-      const top = s.top;
-      // steering
-      const steerRate = 5;
-      this.steer = M.approach(this.steer, M.clamp(c.steer, -1, 1), steerRate * dt);
-      // engine
-      if (!this.wrecked && (this.driver || this.ai.mode !== 'parked')) {
-        if (c.throttle > 0 && !this.airborne) { const k = Math.max(0.15, 1 - Math.max(0, vF) / top); vF += s.accel * k * c.throttle * dt; }
-        if (c.brake > 0 && !this.airborne) { if (vF > 0.3) vF = Math.max(0, vF - s.brake * c.brake * dt); else if (c.reverse === false) vF = Math.min(0, vF + s.brake * c.brake * dt); /* forward pedal while rolling backwards: stop, don't reverse harder */ else vF = Math.max(-top * 0.35, vF - s.accel * 0.6 * c.brake * dt); }
+      const top = s.top; const spd = Math.abs(vF);
+      // steering: the wheel angle that full lock gives shrinks with speed, so a twitch at 150 km/h is not a spin
+      this.steer = M.approach(this.steer, M.clamp(c.steer, -1, 1), 6 * dt);
+      const maxSteer = 0.62 / (1 + spd / 13); const delta = this.steer * maxSteer; this.steerAngle = delta;
+      // tyre model: a bicycle with a front and a rear axle, lateral force from slip angle up to a friction limit
+      const Lw = s.len * 0.58, bF = Lw * 0.5, bR = Lw * 0.5; const mu = 13 * s.grip; // total lateral grip, m/s^2
+      const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked');
+      let muF = mu * 0.5, muR = mu * 0.5; if (c.handbrake) muR *= 0.32; if (c.brake > 0.6 && vF > 4) muF *= 0.75; // locked rears slide, hard braking dulls the front
+      const Cf = muF / 0.11, Cr = muR / 0.1; // cornering stiffness: the front saturates at a slightly larger slip than the rear, so the car understeers gently
+      let wheelspin = 0;
+      // engine and brakes as longitudinal accelerations; the driven rear axle only gets what the friction circle leaves
+      let aLong = 0;
+      if (live && !this.airborne) {
+        if (c.throttle > 0) { const k = Math.max(0.15, 1 - Math.max(0, vF) / top); const want = s.accel * k * c.throttle; const latUse = Math.min(1, Math.abs(this.latForceR || 0) / muR); const avail = muR * 1.1 * Math.sqrt(Math.max(0.05, 1 - latUse * latUse)); aLong += Math.min(want, avail); if (want > avail * 1.15 && spd < 12) wheelspin = 1; }
+        if (c.brake > 0) { if (vF > 0.3) aLong -= Math.min(s.brake, mu * 0.9) * c.brake; else if (c.reverse === false) aLong += Math.min(s.brake * c.brake, -vF / dt); /* forward pedal while rolling backwards: stop, don't reverse harder */ else if (vF > -top * 0.35) aLong -= s.accel * 0.6 * c.brake; }
       }
-      // resistances
-      if (!this.airborne) { const roll = 1.2 + (c.handbrake ? 6 : 0); vF = M.approach(vF, 0, roll * dt); vF -= vF * Math.abs(vF) * 0.0035 * dt; }
-      // lateral grip
-      const gripK = c.handbrake ? 1.8 : (7 + 6 * s.grip); const latMax = Math.abs(vL);
-      vL -= vL * Math.min(1, gripK * dt);
-      this.skid = latMax > 3.5 || (c.handbrake && Math.abs(vF) > 6);
-      // yaw
-      const speedK = M.clamp(Math.abs(vF) / 7, 0, 1) * (1 - 0.45 * M.clamp(Math.abs(vF) / top, 0, 1));
-      let yawRate = this.steer * s.turn * speedK * (vF < -0.2 ? -1 : 1);
-      if (c.handbrake && Math.abs(vF) > 4) yawRate *= 1.6;
-      if (!this.airborne) this.angle += yawRate * dt;
+      if (!this.airborne) { aLong -= Math.sign(vF) * Math.min(Math.abs(vF) / dt, 1.2 + (c.handbrake ? 6 : 0)); aLong -= vF * Math.abs(vF) * 0.0035; }
+      let yawR = this.yawRate || 0;
+      const sub = 2, h = dt / sub;
+      for (let k = 0; k < sub; k++) {
+        vF += aLong * h; if (c.brake > 0 && c.reverse !== true && Math.abs(vF) < 0.15 && spd < 1) vF = 0;
+        if (this.airborne) continue;
+        const v = Math.max(Math.abs(vF), 2.5);
+        // slip angles and lateral forces (m/s^2 at the centre of mass)
+        const af = Math.atan2(vL + yawR * bF, v) - delta * Math.sign(vF || 1), ar = Math.atan2(vL - yawR * bR, v);
+        let Ff = -M.clamp(Cf * af, -muF, muF), Fr = -M.clamp(Cr * ar, -muR, muR); if (wheelspin) Fr *= 0.55; // spinning tyres have little sideways bite
+        const aLat = Ff + Fr, yawAcc = (Ff * bF - Fr * bR) / (0.28 * Lw * Lw);
+        // dynamic response, blended with a plain kinematic turn below walking pace where slip angles mean little
+        const w = M.clamp((Math.abs(vF) - 2.0) / 3.0, 0, 1);
+        const kinYaw = vF / Lw * Math.tan(delta);
+        vL += aLat * h * w; vL -= yawR * vF * h * w; vL -= vL * Math.min(1, 10 * h) * (1 - w);
+        yawR += yawAcc * h * w; yawR = yawR * w + kinYaw * (1 - w); yawR -= yawR * Math.min(1, 1.5 * h);
+        this.latForceR = Fr; this.slipF = af; this.slipR = ar;
+      }
+      if (!this.airborne) this.angle += yawR * dt;
+      this.yawRate = yawR; this.wheelspin = wheelspin;
+      this.skid = !this.airborne && (Math.abs(this.slipR || 0) > 0.16 || Math.abs(this.slipF || 0) > 0.2 || wheelspin || (c.handbrake && spd > 4)) && spd > 3;
       const nf = this.fwd, nr = this.right;
       this.vx = nf[0] * vF + nr[0] * vL; this.vz = nf[1] * vF + nr[1] * vL; this.speed = vF; this.lat = vL;
       this.x += this.vx * dt; this.z += this.vz * dt;
@@ -2214,9 +2231,9 @@ const VEH = (() => {
         else { this.slopeVy = M.clamp(dy / Math.max(dt, 0.001), -30, 30); if (dy > 0.3) this.slopeVy = 0; this.vy = 0; this.y = g; }
       }
       // cosmetic body pitch and roll
-      const acc = c.throttle * s.accel * 0.006 - (c.brake > 0 && vF > 1 ? 0.03 : 0);
-      this.pitch = M.lerp(this.pitch, this.airborne ? -Math.atan2(this.vy, Math.max(Math.abs(vF), 3)) * 0.5 : -acc, 8 * dt);
-      this.roll = M.lerp(this.roll, M.clamp(vL * 0.012 + this.steer * Math.abs(vF) * 0.0025, -0.12, 0.12), 8 * dt);
+      const accF = (vF - (this.prevVF === undefined ? vF : this.prevVF)) / dt; this.prevVF = vF; const accL = (this.latForceR || 0) * 2;
+      this.pitch = M.lerp(this.pitch, this.airborne ? -Math.atan2(this.vy, Math.max(Math.abs(vF), 3)) * 0.5 : M.clamp(-accF * 0.006, -0.06, 0.06), 6 * dt); // squat under power, dive under braking
+      this.roll = M.lerp(this.roll, M.clamp(accL * 0.012, -0.12, 0.12), 6 * dt);
       this.wheelRot += vF / s.wheelR * dt;
       // skid marks from the rear wheels
       if (this.skid && !this.airborne && !this.wrecked) { const rr = this.right, ff = this.fwd; const wz = s.len * 0.31, wx = s.wid / 2 - 0.15; for (const sign of [1, -1]) { const x1 = this.x - ff[0] * wz + rr[0] * wx * sign, z1 = this.z - ff[1] * wz + rr[1] * wx * sign; const key = sign > 0 ? 'skidL' : 'skidR'; const prev = this[key]; if (prev && M.dist2(prev[0], prev[1], x1, z1) < 9) W.decal('skid', prev[0], prev[1], x1, z1, 0.32, [0.05, 0.05, 0.05], 0.55); this[key] = [x1, z1]; } } else { this.skidL = this.skidR = null; }
@@ -2405,7 +2422,7 @@ const VEH = (() => {
       M.trsEuler(this.model, this.x, this.y + (this.wrecked ? -0.12 : 0), this.z, this.angle, this.pitch, this.roll);
       const wz = half * (s.bus ? 0.7 : 0.62), wx = s.wid / 2 - 0.05;
       const wheels = [[wx, wr, wz, true], [-wx, wr, wz, true], [wx, wr, -wz, false], [-wx, wr, -wz, false]];
-      for (let i = 0; i < 4; i++) { const [px, py, pz, front] = wheels[i]; wheelBone(this.bones, (i + 1) * 16, px, py, pz, front ? this.steer * 0.55 : 0, this.wheelRot); }
+      for (let i = 0; i < 4; i++) { const [px, py, pz, front] = wheels[i]; wheelBone(this.bones, (i + 1) * 16, px, py, pz, front ? (this.steerAngle || 0) : 0, this.wheelRot); }
       const e = this.emis; e.fill(0);
       if (!this.wrecked) {
         e[5] = this.lightsOn ? 1.0 : 0; e[6] = this.brakeLights ? 1.3 : (this.lightsOn ? 0.45 : 0);
@@ -2631,43 +2648,62 @@ const PEDS = (() => {
 
   const tmp = M.create(), tmp2 = M.create();
   function bone(out, off, x, y, z, yaw, pitch, roll, s = 1) { M.trsEuler(tmp, x, y, z, yaw, pitch, roll, s, s, s); out.set(tmp, off); }
-  // Animates the rig from the ped's state. Also used by the player.
+  // A child bone that bends about a joint given in its parent's space (knees and elbows).
+  const jt1 = M.create(), jt2 = M.create(), jt3 = M.create();
+  function jointBone(out, off, parentOff, jx, jy, jz, pitch) { M.trsEuler(jt1, jx, jy, jz, 0, pitch, 0); M.trs(jt2, -jx, -jy, -jz, 0); M.multiply(jt3, jt1, jt2); M.multiply(jt1, out.subarray(parentOff, parentOff + 16), jt3); out.set(jt1, off); }
+  const KNEE_Y = -LEG_H * 0.5, ELBOW_Y = -0.31;
+  // Animates the rig from the ped's state. Also used by the player. The walk is a two-beat cycle: the thigh swings,
+  // the knee folds while the foot is in the air and straightens for the heel strike, the pelvis sways and counter-
+  // rotates against the shoulders, the arms swing opposite the legs with the elbows folding on the forward swing.
   function buildRig(p, model, bones) {
     const lying = p.lying || 0; const dead = p.state === 'dead';
-    const walk = Math.min(1, (p.speed || 0) / 1.2); const run = M.clamp(((p.speed || 0) - 3) / 3, 0, 1);
-    const ph = p.phase; const swing = Math.sin(ph) * (0.5 + 0.55 * run) * walk; const bob = Math.abs(Math.cos(ph)) * 0.05 * walk;
+    const spd = p.speed || 0; const walk = Math.min(1, spd / 1.2); const run = M.clamp((spd - 3) / 3, 0, 1);
+    const ph = p.phase; const amp = 0.45 + 0.6 * run; const swing = Math.sin(ph) * amp * walk;
+    const bob = Math.abs(Math.cos(ph)) * (0.035 + 0.04 * run) * walk;
     const aim = p.aim || 0; const punch = p.punchT > 0 ? Math.sin(Math.min(1, p.punchT / 0.3) * Math.PI) : 0;
-    const hip = LEG_H + bob - lying * (LEG_H - 0.25);
-    const lean = run * 0.18 + (p.recoil || 0) * -0.5;
+    const t = W.state.elapsed + (p.phase % 7); const idle = 1 - walk; const breath = Math.sin(t * 1.6) * idle;
+    const hip = LEG_H + bob - lying * (LEG_H - 0.25) - (0.08 + 0.05 * run) * walk * 0.35; // knees bend, so the pelvis rides a little lower when moving
+    const lean = run * 0.2 + walk * 0.04 + (p.recoil || 0) * -0.5;
+    const sway = Math.sin(ph) * walk; // pelvis moves over the planted foot
     M.trsEuler(model, p.x, p.y, p.z, p.angle, lying * (dead ? -Math.PI / 2 * p.fallDir : -Math.PI / 2), 0, p.sx || 1, p.sy || 1, p.sx || 1);
-    // torso
-    bone(bones, 0, 0, hip, 0, 0, lean, 0);
-    // head: sits at top of torso
-    bone(bones, 16, 0, hip + TORSO_H + 0.03, lean * 0.2, aim ? 0 : (p.headYaw || 0), lean * 0.6 + (aim ? 0 : Math.sin(ph * 0.5) * 0.03), 0);
-    // arms: pivot at the shoulders
-    const armPitchL = aim ? -0.4 : swing * 0.8 + (run ? -0.4 * run : 0), armPitchR = aim ? -Math.PI / 2 + 0.05 + (p.recoil || 0) * 2 : -swing * 0.8 + (run ? -0.4 * run : 0) - punch * 1.4;
-    bone(bones, 32, 0, hip + SHOULDER, 0, 0, armPitchL, run * 0.3 + (aim ? 0.12 : 0));
-    bone(bones, 48, 0, hip + SHOULDER, 0, aim ? -0.15 : 0, armPitchR, -run * 0.3);
-    // legs: pivot at the hips
-    bone(bones, 64, 0, hip, 0, 0, -swing * 0.9, 0); bone(bones, 80, 0, hip, 0, 0, swing * 0.9, 0);
-    // weapon: follows right arm, hidden when unarmed
-    if (p.weaponOut && !dead) bones.set(bones.subarray(48, 64), 96); else bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
-    for (let i = 7; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
+    // torso: lean, hip sway and a counter-twist against the leg swing; breathing when standing
+    bone(bones, 0, sway * 0.02, hip + breath * 0.006, 0, -sway * 0.09 + Math.sin(t * 0.7) * 0.02 * idle, lean, sway * 0.05 + breath * 0.008);
+    // head: rides on the torso and cancels most of the twist so it keeps looking where the ped goes
+    bone(bones, 16, sway * 0.02, hip + TORSO_H + 0.03 + breath * 0.006, lean * 0.2, (aim ? 0 : (p.headYaw || 0)) + sway * 0.07, lean * 0.5 + (aim ? 0 : Math.sin(ph * 0.5) * 0.03 + Math.sin(t * 0.9) * 0.02 * idle), -sway * 0.03);
+    // upper arms: pivot at the shoulders, swing opposite to the legs, held out a little at a run
+    const armPitchL = aim ? -0.4 : swing * 0.85 - 0.45 * run, armPitchR = aim ? -Math.PI / 2 + 0.05 + (p.recoil || 0) * 2 : -swing * 0.85 - 0.45 * run - punch * 1.4;
+    const armRoll = 0.06 + run * 0.3 + Math.sin(t * 1.1) * 0.015 * idle;
+    bone(bones, 32, sway * 0.02, hip + SHOULDER + breath * 0.006, 0, 0, armPitchL, armRoll + (aim ? 0.12 : 0));
+    bone(bones, 48, sway * 0.02, hip + SHOULDER + breath * 0.006, 0, aim ? -0.15 : 0, armPitchR, -armRoll);
+    // forearms: elbows fold on the forward swing, stay bent at a run, straight when aiming
+    const elbowL = aim ? -0.05 : -(0.22 + 0.35 * Math.max(0, Math.sin(ph)) * walk + 0.8 * run);
+    const elbowR = aim ? 0 : -(0.22 + 0.35 * Math.max(0, -Math.sin(ph)) * walk + 0.8 * run + punch * 0.6);
+    jointBone(bones, 144, 32, 0.3, ELBOW_Y, 0, elbowL); jointBone(bones, 160, 48, -0.3, ELBOW_Y, 0, elbowR);
+    // thighs: pivot at the hips; knees fold while the foot swings through and straighten for the strike
+    bone(bones, 64, sway * 0.02, hip, 0, 0, -swing * 0.95, 0); bone(bones, 80, sway * 0.02, hip, 0, 0, swing * 0.95, 0);
+    const kneeL = (0.08 + (0.75 + 0.55 * run) * Math.max(0, Math.cos(ph))) * walk + 0.04 * idle;
+    const kneeR = (0.08 + (0.75 + 0.55 * run) * Math.max(0, -Math.cos(ph))) * walk + 0.04 * idle;
+    jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, dead ? 0 : kneeL); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, dead ? 0 : kneeR);
+    // weapon: follows the right forearm, hidden when unarmed
+    if (p.weaponOut && !dead) bones.set(bones.subarray(160, 176), 96); else bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
+    for (let i = 11; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
     if (p.recoil > 0) p.recoil = Math.max(0, p.recoil - 0.016 * 3);
     if (p.punchT > 0) p.punchT -= 0.016;
   }
 
-  // Seated pose inside a car (or on a bench): hips at the seat, legs forward, hands on the wheel.
+  // Seated pose inside a car (or on a bench): hips at the seat, thighs forward, shins down, hands on the wheel.
   const seatTmp = M.create(), seatLocal = M.create(), seatWorld = M.create();
   function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1) {
     M.trs(seatLocal, lx, ly, lz, yaw, (p.sx || 1) * fit, (p.sy || 1) * fit, (p.sx || 1) * fit); M.multiply(model, carModel, seatLocal);
     const hip = 0.02; const lean = driving ? 0.12 : 0.05;
     bone(bones, 0, 0, hip, 0, 0, lean, 0);
     bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, lean * 0.5, 0);
-    const armP = driving ? -1.15 : -0.35; bone(bones, 32, 0, hip + SHOULDER, 0, driving ? 0.25 : 0, armP, driving ? 0.15 : 0.05); bone(bones, 48, 0, hip + SHOULDER, 0, driving ? -0.25 : 0, armP, driving ? -0.15 : -0.05);
+    const armP = driving ? -0.9 : -0.35; bone(bones, 32, 0, hip + SHOULDER, 0, driving ? 0.25 : 0, armP, driving ? 0.15 : 0.05); bone(bones, 48, 0, hip + SHOULDER, 0, driving ? -0.25 : 0, armP, driving ? -0.15 : -0.05);
+    jointBone(bones, 144, 32, 0.3, ELBOW_Y, 0, driving ? -0.7 : -0.5); jointBone(bones, 160, 48, -0.3, ELBOW_Y, 0, driving ? -0.7 : -0.5);
     bone(bones, 64, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0); bone(bones, 80, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0);
+    jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, Math.PI / 2 - 0.35); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, Math.PI / 2 - 0.35);
     bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
-    for (let i = 7; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
+    for (let i = 11; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
   }
   // Seat positions in car-local space: driver on the left (+x), passenger right, rear seats behind.
   function seatOf(car, index) {

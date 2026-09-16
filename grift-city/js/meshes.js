@@ -324,7 +324,7 @@ const MESH = (() => {
     }
   }
 
-  // ---- Pedestrians. Bones: 0 pelvis/torso, 1 head, 2 left arm, 3 right arm, 4 left leg, 5 right leg, 6 weapon.
+  // ---- Pedestrians. Bones: 0 pelvis/torso, 1 head, 2/3 upper arms, 4/5 thighs, 6 weapon, 7/8 shins, 9/10 forearms.
   // Limbs are tapered cylinders with ball joints, the torso is a lofted body, the head an ellipsoid with a hair cap.
   function pedMesh(look) {
     const b = new Builder(); const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket || Math.random() < 0.5, glasses = false, bag = null, skirt = false, longHair = false, beanie = false } = look;
@@ -332,11 +332,11 @@ const MESH = (() => {
     const skinDk = skin.map(c => c * 0.85), top = jacket || shirt, topDk = top.map(c => c * 0.8);
     const ball = (x, y, z, r, col, bone, segs = 6, rings = 2) => b.sphere(x, y, z, r, r, r, col, { segs, rings, bone });
     // legs hang from the hips (bones 4, 5): thigh, knee, shin, shoe
-    for (const [sx, bone] of [[0.11, 4], [-0.11, 5]]) {
+    for (const [sx, bone, shin] of [[0.11, 4, 7], [-0.11, 5, 8]]) {
       b.cyl(sx, -legH * 0.5, 0, 0.082, 0.03, pants, 0, 9, bone, false, false, 0.105);
       ball(sx, -legH * 0.5, 0.005, 0.078, pants, bone);
-      b.cyl(sx, -legH + 0.07, 0.015, 0.06, -legH * 0.5, pants, 0, 9, bone, false, true, 0.08);
-      b.roundedBox(sx - 0.09, -legH, -0.09, 0.18, 0.11, 0.31, 0.035, shoes, 0, bone, { n: 1 });
+      b.cyl(sx, -legH + 0.07, 0.015, 0.06, -legH * 0.5, pants, 0, 9, shin, false, true, 0.08);
+      b.roundedBox(sx - 0.09, -legH, -0.09, 0.18, 0.11, 0.31, 0.035, shoes, 0, shin, { n: 1 });
     }
     // torso (bone 0): pants top, belt, lofted chest with shoulders
     const rr = (y, hw, hd, r) => Builder.rrect(0, 0, hw, hd, r, 3, y, 'y');
@@ -364,13 +364,13 @@ const MESH = (() => {
     if (hat && beanie) b.sphere(0, headR * 1.0, -0.01, hairR * 1.05, hairR * 1.3, hairR * 1.08, hat, { segs: 12, rings: 4, lat0: 0.05, lat1: 1, bone: 1 });
     // arms (bones 2, 3): shoulder ball, upper arm, elbow, forearm, hand
     const armL = 0.62;
-    for (const [sx, bone] of [[0.3, 2], [-0.3, 3]]) {
+    for (const [sx, bone, fore] of [[0.3, 2, 9], [-0.3, 3, 10]]) {
       ball(sx, -0.01, 0, 0.075, top, bone);
       b.cyl(sx, -armL * 0.5, 0, 0.052, -0.02, top, 0, 8, bone, false, false, 0.068);
       ball(sx, -armL * 0.5, 0.005, 0.052, sleeves ? top : skin, bone);
-      b.cyl(sx, -armL + 0.07, 0.01, 0.04, -armL * 0.5, sleeves ? top : skin, 0, 8, bone, false, false, 0.05);
-      if (sleeves) b.cyl(sx, -armL + 0.1, 0.01, 0.044, -armL + 0.16, skin, 0, 8, bone, false, false, 0.044); // wrist
-      b.roundedBox(sx - 0.042, -armL - 0.02, -0.02, 0.084, 0.1, 0.06, 0.02, skin, 0, bone, { n: 1 });
+      b.cyl(sx, -armL + 0.07, 0.01, 0.04, -armL * 0.5, sleeves ? top : skin, 0, 8, fore, false, false, 0.05);
+      if (sleeves) b.cyl(sx, -armL + 0.1, 0.01, 0.044, -armL + 0.16, skin, 0, 8, fore, false, false, 0.044); // wrist
+      b.roundedBox(sx - 0.042, -armL - 0.02, -0.02, 0.084, 0.1, 0.06, 0.02, skin, 0, fore, { n: 1 });
     }
     // weapon in the right hand (bone 6): hidden by scaling when unarmed
     b.cbox(-0.3, -armL + 0.03, 0.2, 0.05, 0.07, 0.34, [0.15, 0.15, 0.17], 0, { bone: 6 }); b.cbox(-0.3, -armL - 0.06, 0.08, 0.045, 0.14, 0.07, [0.25, 0.2, 0.15], 0, { bone: 6 }); b.cbox(-0.3, -armL + 0.06, 0.12, 0.03, 0.03, 0.12, [0.1, 0.1, 0.11], 0, { bone: 6 });

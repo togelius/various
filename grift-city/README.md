@@ -186,4 +186,19 @@ negative), the off-radar blip rotated against the map, and the cars and
 people were boxes. Cars are now lofted from rounded cross-sections with a
 shared roof-and-glass surface, wheel arches, bumpers, mirrors, trim and
 five-spoke wheels; people have ellipsoid heads with hair, jointed tapered
-limbs and a lofted torso.
+limbs and a lofted torso. A later pass gave the rig knees and elbows: the
+thigh swings, the knee folds while the foot is in the air and straightens for
+the heel strike, the pelvis sways and counter-rotates against the shoulders,
+the elbows fold on the forward swing, and a standing ped breathes and shifts
+its weight. Seated peds fold their knees and put bent arms on the wheel.
+
+Cars went from an arcade "lateral velocity decays" model to a two-axle
+slip-angle model: each axle makes lateral force from its slip angle up to a
+friction limit, the yaw rate comes from the front-rear force difference, the
+front saturates a little before the rear so the car understeers gently at
+speed, the handbrake cuts the rear grip to a third so it slides and can be
+caught with countersteer, the driven axle only gets the acceleration the
+friction circle leaves it (so a muscle car spins its tyres out of a corner),
+and the steering lock shrinks with speed. Below walking pace it blends to a
+plain kinematic turn so parking is not a physics exercise. The body squats,
+dives and rolls from the real accelerations.

@@ -54,26 +54,43 @@ const VEH = (() => {
     physics(dt) {
       const s = this.spec, c = this.controls; const f = this.fwd, r = this.right;
       let vF = this.vx * f[0] + this.vz * f[1], vL = this.vx * r[0] + this.vz * r[1];
-      const top = s.top;
-      // steering
-      const steerRate = 5;
-      this.steer = M.approach(this.steer, M.clamp(c.steer, -1, 1), steerRate * dt);
-      // engine
-      if (!this.wrecked && (this.driver || this.ai.mode !== 'parked')) {
-        if (c.throttle > 0 && !this.airborne) { const k = Math.max(0.15, 1 - Math.max(0, vF) / top); vF += s.accel * k * c.throttle * dt; }
-        if (c.brake > 0 && !this.airborne) { if (vF > 0.3) vF = Math.max(0, vF - s.brake * c.brake * dt); else if (c.reverse === false) vF = Math.min(0, vF + s.brake * c.brake * dt); /* forward pedal while rolling backwards: stop, don't reverse harder */ else vF = Math.max(-top * 0.35, vF - s.accel * 0.6 * c.brake * dt); }
+      const top = s.top; const spd = Math.abs(vF);
+      // steering: the wheel angle that full lock gives shrinks with speed, so a twitch at 150 km/h is not a spin
+      this.steer = M.approach(this.steer, M.clamp(c.steer, -1, 1), 6 * dt);
+      const maxSteer = 0.62 / (1 + spd / 13); const delta = this.steer * maxSteer; this.steerAngle = delta;
+      // tyre model: a bicycle with a front and a rear axle, lateral force from slip angle up to a friction limit
+      const Lw = s.len * 0.58, bF = Lw * 0.5, bR = Lw * 0.5; const mu = 13 * s.grip; // total lateral grip, m/s^2
+      const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked');
+      let muF = mu * 0.5, muR = mu * 0.5; if (c.handbrake) muR *= 0.32; if (c.brake > 0.6 && vF > 4) muF *= 0.75; // locked rears slide, hard braking dulls the front
+      const Cf = muF / 0.11, Cr = muR / 0.1; // cornering stiffness: the front saturates at a slightly larger slip than the rear, so the car understeers gently
+      let wheelspin = 0;
+      // engine and brakes as longitudinal accelerations; the driven rear axle only gets what the friction circle leaves
+      let aLong = 0;
+      if (live && !this.airborne) {
+        if (c.throttle > 0) { const k = Math.max(0.15, 1 - Math.max(0, vF) / top); const want = s.accel * k * c.throttle; const latUse = Math.min(1, Math.abs(this.latForceR || 0) / muR); const avail = muR * 1.1 * Math.sqrt(Math.max(0.05, 1 - latUse * latUse)); aLong += Math.min(want, avail); if (want > avail * 1.15 && spd < 12) wheelspin = 1; }
+        if (c.brake > 0) { if (vF > 0.3) aLong -= Math.min(s.brake, mu * 0.9) * c.brake; else if (c.reverse === false) aLong += Math.min(s.brake * c.brake, -vF / dt); /* forward pedal while rolling backwards: stop, don't reverse harder */ else if (vF > -top * 0.35) aLong -= s.accel * 0.6 * c.brake; }
       }
-      // resistances
-      if (!this.airborne) { const roll = 1.2 + (c.handbrake ? 6 : 0); vF = M.approach(vF, 0, roll * dt); vF -= vF * Math.abs(vF) * 0.0035 * dt; }
-      // lateral grip
-      const gripK = c.handbrake ? 1.8 : (7 + 6 * s.grip); const latMax = Math.abs(vL);
-      vL -= vL * Math.min(1, gripK * dt);
-      this.skid = latMax > 3.5 || (c.handbrake && Math.abs(vF) > 6);
-      // yaw
-      const speedK = M.clamp(Math.abs(vF) / 7, 0, 1) * (1 - 0.45 * M.clamp(Math.abs(vF) / top, 0, 1));
-      let yawRate = this.steer * s.turn * speedK * (vF < -0.2 ? -1 : 1);
-      if (c.handbrake && Math.abs(vF) > 4) yawRate *= 1.6;
-      if (!this.airborne) this.angle += yawRate * dt;
+      if (!this.airborne) { aLong -= Math.sign(vF) * Math.min(Math.abs(vF) / dt, 1.2 + (c.handbrake ? 6 : 0)); aLong -= vF * Math.abs(vF) * 0.0035; }
+      let yawR = this.yawRate || 0;
+      const sub = 2, h = dt / sub;
+      for (let k = 0; k < sub; k++) {
+        vF += aLong * h; if (c.brake > 0 && c.reverse !== true && Math.abs(vF) < 0.15 && spd < 1) vF = 0;
+        if (this.airborne) continue;
+        const v = Math.max(Math.abs(vF), 2.5);
+        // slip angles and lateral forces (m/s^2 at the centre of mass)
+        const af = Math.atan2(vL + yawR * bF, v) - delta * Math.sign(vF || 1), ar = Math.atan2(vL - yawR * bR, v);
+        let Ff = -M.clamp(Cf * af, -muF, muF), Fr = -M.clamp(Cr * ar, -muR, muR); if (wheelspin) Fr *= 0.55; // spinning tyres have little sideways bite
+        const aLat = Ff + Fr, yawAcc = (Ff * bF - Fr * bR) / (0.28 * Lw * Lw);
+        // dynamic response, blended with a plain kinematic turn below walking pace where slip angles mean little
+        const w = M.clamp((Math.abs(vF) - 2.0) / 3.0, 0, 1);
+        const kinYaw = vF / Lw * Math.tan(delta);
+        vL += aLat * h * w; vL -= yawR * vF * h * w; vL -= vL * Math.min(1, 10 * h) * (1 - w);
+        yawR += yawAcc * h * w; yawR = yawR * w + kinYaw * (1 - w); yawR -= yawR * Math.min(1, 1.5 * h);
+        this.latForceR = Fr; this.slipF = af; this.slipR = ar;
+      }
+      if (!this.airborne) this.angle += yawR * dt;
+      this.yawRate = yawR; this.wheelspin = wheelspin;
+      this.skid = !this.airborne && (Math.abs(this.slipR || 0) > 0.16 || Math.abs(this.slipF || 0) > 0.2 || wheelspin || (c.handbrake && spd > 4)) && spd > 3;
       const nf = this.fwd, nr = this.right;
       this.vx = nf[0] * vF + nr[0] * vL; this.vz = nf[1] * vF + nr[1] * vL; this.speed = vF; this.lat = vL;
       this.x += this.vx * dt; this.z += this.vz * dt;
@@ -88,9 +105,9 @@ const VEH = (() => {
         else { this.slopeVy = M.clamp(dy / Math.max(dt, 0.001), -30, 30); if (dy > 0.3) this.slopeVy = 0; this.vy = 0; this.y = g; }
       }
       // cosmetic body pitch and roll
-      const acc = c.throttle * s.accel * 0.006 - (c.brake > 0 && vF > 1 ? 0.03 : 0);
-      this.pitch = M.lerp(this.pitch, this.airborne ? -Math.atan2(this.vy, Math.max(Math.abs(vF), 3)) * 0.5 : -acc, 8 * dt);
-      this.roll = M.lerp(this.roll, M.clamp(vL * 0.012 + this.steer * Math.abs(vF) * 0.0025, -0.12, 0.12), 8 * dt);
+      const accF = (vF - (this.prevVF === undefined ? vF : this.prevVF)) / dt; this.prevVF = vF; const accL = (this.latForceR || 0) * 2;
+      this.pitch = M.lerp(this.pitch, this.airborne ? -Math.atan2(this.vy, Math.max(Math.abs(vF), 3)) * 0.5 : M.clamp(-accF * 0.006, -0.06, 0.06), 6 * dt); // squat under power, dive under braking
+      this.roll = M.lerp(this.roll, M.clamp(accL * 0.012, -0.12, 0.12), 6 * dt);
       this.wheelRot += vF / s.wheelR * dt;
       // skid marks from the rear wheels
       if (this.skid && !this.airborne && !this.wrecked) { const rr = this.right, ff = this.fwd; const wz = s.len * 0.31, wx = s.wid / 2 - 0.15; for (const sign of [1, -1]) { const x1 = this.x - ff[0] * wz + rr[0] * wx * sign, z1 = this.z - ff[1] * wz + rr[1] * wx * sign; const key = sign > 0 ? 'skidL' : 'skidR'; const prev = this[key]; if (prev && M.dist2(prev[0], prev[1], x1, z1) < 9) W.decal('skid', prev[0], prev[1], x1, z1, 0.32, [0.05, 0.05, 0.05], 0.55); this[key] = [x1, z1]; } } else { this.skidL = this.skidR = null; }
@@ -279,7 +296,7 @@ const VEH = (() => {
       M.trsEuler(this.model, this.x, this.y + (this.wrecked ? -0.12 : 0), this.z, this.angle, this.pitch, this.roll);
       const wz = half * (s.bus ? 0.7 : 0.62), wx = s.wid / 2 - 0.05;
       const wheels = [[wx, wr, wz, true], [-wx, wr, wz, true], [wx, wr, -wz, false], [-wx, wr, -wz, false]];
-      for (let i = 0; i < 4; i++) { const [px, py, pz, front] = wheels[i]; wheelBone(this.bones, (i + 1) * 16, px, py, pz, front ? this.steer * 0.55 : 0, this.wheelRot); }
+      for (let i = 0; i < 4; i++) { const [px, py, pz, front] = wheels[i]; wheelBone(this.bones, (i + 1) * 16, px, py, pz, front ? (this.steerAngle || 0) : 0, this.wheelRot); }
       const e = this.emis; e.fill(0);
       if (!this.wrecked) {
         e[5] = this.lightsOn ? 1.0 : 0; e[6] = this.brakeLights ? 1.3 : (this.lightsOn ? 0.45 : 0);

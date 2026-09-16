@@ -174,43 +174,62 @@ const PEDS = (() => {
 
   const tmp = M.create(), tmp2 = M.create();
   function bone(out, off, x, y, z, yaw, pitch, roll, s = 1) { M.trsEuler(tmp, x, y, z, yaw, pitch, roll, s, s, s); out.set(tmp, off); }
-  // Animates the rig from the ped's state. Also used by the player.
+  // A child bone that bends about a joint given in its parent's space (knees and elbows).
+  const jt1 = M.create(), jt2 = M.create(), jt3 = M.create();
+  function jointBone(out, off, parentOff, jx, jy, jz, pitch) { M.trsEuler(jt1, jx, jy, jz, 0, pitch, 0); M.trs(jt2, -jx, -jy, -jz, 0); M.multiply(jt3, jt1, jt2); M.multiply(jt1, out.subarray(parentOff, parentOff + 16), jt3); out.set(jt1, off); }
+  const KNEE_Y = -LEG_H * 0.5, ELBOW_Y = -0.31;
+  // Animates the rig from the ped's state. Also used by the player. The walk is a two-beat cycle: the thigh swings,
+  // the knee folds while the foot is in the air and straightens for the heel strike, the pelvis sways and counter-
+  // rotates against the shoulders, the arms swing opposite the legs with the elbows folding on the forward swing.
   function buildRig(p, model, bones) {
     const lying = p.lying || 0; const dead = p.state === 'dead';
-    const walk = Math.min(1, (p.speed || 0) / 1.2); const run = M.clamp(((p.speed || 0) - 3) / 3, 0, 1);
-    const ph = p.phase; const swing = Math.sin(ph) * (0.5 + 0.55 * run) * walk; const bob = Math.abs(Math.cos(ph)) * 0.05 * walk;
+    const spd = p.speed || 0; const walk = Math.min(1, spd / 1.2); const run = M.clamp((spd - 3) / 3, 0, 1);
+    const ph = p.phase; const amp = 0.45 + 0.6 * run; const swing = Math.sin(ph) * amp * walk;
+    const bob = Math.abs(Math.cos(ph)) * (0.035 + 0.04 * run) * walk;
     const aim = p.aim || 0; const punch = p.punchT > 0 ? Math.sin(Math.min(1, p.punchT / 0.3) * Math.PI) : 0;
-    const hip = LEG_H + bob - lying * (LEG_H - 0.25);
-    const lean = run * 0.18 + (p.recoil || 0) * -0.5;
+    const t = W.state.elapsed + (p.phase % 7); const idle = 1 - walk; const breath = Math.sin(t * 1.6) * idle;
+    const hip = LEG_H + bob - lying * (LEG_H - 0.25) - (0.08 + 0.05 * run) * walk * 0.35; // knees bend, so the pelvis rides a little lower when moving
+    const lean = run * 0.2 + walk * 0.04 + (p.recoil || 0) * -0.5;
+    const sway = Math.sin(ph) * walk; // pelvis moves over the planted foot
     M.trsEuler(model, p.x, p.y, p.z, p.angle, lying * (dead ? -Math.PI / 2 * p.fallDir : -Math.PI / 2), 0, p.sx || 1, p.sy || 1, p.sx || 1);
-    // torso
-    bone(bones, 0, 0, hip, 0, 0, lean, 0);
-    // head: sits at top of torso
-    bone(bones, 16, 0, hip + TORSO_H + 0.03, lean * 0.2, aim ? 0 : (p.headYaw || 0), lean * 0.6 + (aim ? 0 : Math.sin(ph * 0.5) * 0.03), 0);
-    // arms: pivot at the shoulders
-    const armPitchL = aim ? -0.4 : swing * 0.8 + (run ? -0.4 * run : 0), armPitchR = aim ? -Math.PI / 2 + 0.05 + (p.recoil || 0) * 2 : -swing * 0.8 + (run ? -0.4 * run : 0) - punch * 1.4;
-    bone(bones, 32, 0, hip + SHOULDER, 0, 0, armPitchL, run * 0.3 + (aim ? 0.12 : 0));
-    bone(bones, 48, 0, hip + SHOULDER, 0, aim ? -0.15 : 0, armPitchR, -run * 0.3);
-    // legs: pivot at the hips
-    bone(bones, 64, 0, hip, 0, 0, -swing * 0.9, 0); bone(bones, 80, 0, hip, 0, 0, swing * 0.9, 0);
-    // weapon: follows right arm, hidden when unarmed
-    if (p.weaponOut && !dead) bones.set(bones.subarray(48, 64), 96); else bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
-    for (let i = 7; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
+    // torso: lean, hip sway and a counter-twist against the leg swing; breathing when standing
+    bone(bones, 0, sway * 0.02, hip + breath * 0.006, 0, -sway * 0.09 + Math.sin(t * 0.7) * 0.02 * idle, lean, sway * 0.05 + breath * 0.008);
+    // head: rides on the torso and cancels most of the twist so it keeps looking where the ped goes
+    bone(bones, 16, sway * 0.02, hip + TORSO_H + 0.03 + breath * 0.006, lean * 0.2, (aim ? 0 : (p.headYaw || 0)) + sway * 0.07, lean * 0.5 + (aim ? 0 : Math.sin(ph * 0.5) * 0.03 + Math.sin(t * 0.9) * 0.02 * idle), -sway * 0.03);
+    // upper arms: pivot at the shoulders, swing opposite to the legs, held out a little at a run
+    const armPitchL = aim ? -0.4 : swing * 0.85 - 0.45 * run, armPitchR = aim ? -Math.PI / 2 + 0.05 + (p.recoil || 0) * 2 : -swing * 0.85 - 0.45 * run - punch * 1.4;
+    const armRoll = 0.06 + run * 0.3 + Math.sin(t * 1.1) * 0.015 * idle;
+    bone(bones, 32, sway * 0.02, hip + SHOULDER + breath * 0.006, 0, 0, armPitchL, armRoll + (aim ? 0.12 : 0));
+    bone(bones, 48, sway * 0.02, hip + SHOULDER + breath * 0.006, 0, aim ? -0.15 : 0, armPitchR, -armRoll);
+    // forearms: elbows fold on the forward swing, stay bent at a run, straight when aiming
+    const elbowL = aim ? -0.05 : -(0.22 + 0.35 * Math.max(0, Math.sin(ph)) * walk + 0.8 * run);
+    const elbowR = aim ? 0 : -(0.22 + 0.35 * Math.max(0, -Math.sin(ph)) * walk + 0.8 * run + punch * 0.6);
+    jointBone(bones, 144, 32, 0.3, ELBOW_Y, 0, elbowL); jointBone(bones, 160, 48, -0.3, ELBOW_Y, 0, elbowR);
+    // thighs: pivot at the hips; knees fold while the foot swings through and straighten for the strike
+    bone(bones, 64, sway * 0.02, hip, 0, 0, -swing * 0.95, 0); bone(bones, 80, sway * 0.02, hip, 0, 0, swing * 0.95, 0);
+    const kneeL = (0.08 + (0.75 + 0.55 * run) * Math.max(0, Math.cos(ph))) * walk + 0.04 * idle;
+    const kneeR = (0.08 + (0.75 + 0.55 * run) * Math.max(0, -Math.cos(ph))) * walk + 0.04 * idle;
+    jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, dead ? 0 : kneeL); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, dead ? 0 : kneeR);
+    // weapon: follows the right forearm, hidden when unarmed
+    if (p.weaponOut && !dead) bones.set(bones.subarray(160, 176), 96); else bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
+    for (let i = 11; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
     if (p.recoil > 0) p.recoil = Math.max(0, p.recoil - 0.016 * 3);
     if (p.punchT > 0) p.punchT -= 0.016;
   }
 
-  // Seated pose inside a car (or on a bench): hips at the seat, legs forward, hands on the wheel.
+  // Seated pose inside a car (or on a bench): hips at the seat, thighs forward, shins down, hands on the wheel.
   const seatTmp = M.create(), seatLocal = M.create(), seatWorld = M.create();
   function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1) {
     M.trs(seatLocal, lx, ly, lz, yaw, (p.sx || 1) * fit, (p.sy || 1) * fit, (p.sx || 1) * fit); M.multiply(model, carModel, seatLocal);
     const hip = 0.02; const lean = driving ? 0.12 : 0.05;
     bone(bones, 0, 0, hip, 0, 0, lean, 0);
     bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, lean * 0.5, 0);
-    const armP = driving ? -1.15 : -0.35; bone(bones, 32, 0, hip + SHOULDER, 0, driving ? 0.25 : 0, armP, driving ? 0.15 : 0.05); bone(bones, 48, 0, hip + SHOULDER, 0, driving ? -0.25 : 0, armP, driving ? -0.15 : -0.05);
+    const armP = driving ? -0.9 : -0.35; bone(bones, 32, 0, hip + SHOULDER, 0, driving ? 0.25 : 0, armP, driving ? 0.15 : 0.05); bone(bones, 48, 0, hip + SHOULDER, 0, driving ? -0.25 : 0, armP, driving ? -0.15 : -0.05);
+    jointBone(bones, 144, 32, 0.3, ELBOW_Y, 0, driving ? -0.7 : -0.5); jointBone(bones, 160, 48, -0.3, ELBOW_Y, 0, driving ? -0.7 : -0.5);
     bone(bones, 64, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0); bone(bones, 80, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0);
+    jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, Math.PI / 2 - 0.35); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, Math.PI / 2 - 0.35);
     bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
-    for (let i = 7; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
+    for (let i = 11; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
   }
   // Seat positions in car-local space: driver on the left (+x), passenger right, rear seats behind.
   function seatOf(car, index) {
