@@ -32,6 +32,7 @@
     if (waitT > 0) { waitT -= 0.1; setKeys([]); return; }
     if (s.car) {
       const c = s.car;
+      if (c.health < 0.14 && !c.wrecked) { setKeys([]); tap('KeyF'); say({ act: 'bail burning car', hp: +c.health.toFixed(2) }); waitT = 1.5; route = null; return; }
       if (targetIsCar) { if (dT < 9 && s.blip.carSpeed < 2.5) tgtStopT += 0.1; else tgtStopT = 0; }
       if (targetIsCar && dT < 9 && (s.blip.carDriver === 'none' || tgtStopT > 2.5)) { if (c.abs > 2) { setKeys(['KeyS']); return; } setKeys([]); tap('KeyF'); say({ act: 'exit to jack', dT: +dT.toFixed(1), drv: s.blip.carDriver }); route = null; waitT = 1.5; return; }
       if (!targetIsCar && dT < 7) { if (c.abs > 1.5) { setKeys(['KeyS']); return; } if (/get out|Park|marker|Stop the/i.test(s.objective)) { stopT = (stopT || 0) + 0.1; if (stopT < 2) { setKeys([]); return; } stopT = 0; setKeys([]); tap('KeyF'); say({ act: 'exit at target' }); waitT = 1.5; return; } }

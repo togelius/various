@@ -2174,7 +2174,7 @@ const VEH = (() => {
       const hf = this.health / this.maxHealth;
       if (!this.wrecked && hf < 0.35 && W.state.frame % 3 === 0) { const f = this.fwd; W.FX.smoke(this.x + f[0] * this.spec.len * 0.4, this.y + 1, this.z + f[1] * this.spec.len * 0.4, 1, hf < 0.15); }
       if (!this.wrecked && hf < 0.25 && this.driver && this.driver !== PLAYER && !this.driver.isCop && this.ai.mode !== 'chase' && this.absSpeed < 6) { const d = this.driver; d.exitCar(); d.state = 'flee'; d.fear = 12; d.threat = [this.x, this.z]; d.say(W.rng() < 0.5 ? "It's going to blow!" : 'Get away from it!'); this.ai.mode = 'parked'; for (const q of this.passengers.slice()) { q.exitCar(); q.scare(this.x, this.z); } }
-      if (!this.wrecked && hf < 0.12) { this.fireT += dt; const f = this.fwd; if (W.state.frame % 2 === 0) W.FX.fire(this.x + f[0] * this.spec.len * 0.4, this.y + 1, this.z + f[1] * this.spec.len * 0.4, 1); if (this.fireT > 5) this.explode(); }
+      if (!this.wrecked && hf < 0.12) { if (this.fireT === 0 && this.driver === PLAYER) HUD.notify("The engine's on fire. Get out!"); this.fireT += dt; const f = this.fwd; if (W.state.frame % 2 === 0) W.FX.fire(this.x + f[0] * this.spec.len * 0.4, this.y + 1, this.z + f[1] * this.spec.len * 0.4, 1); if (this.fireT > 5) this.explode(); }
       if (this.wrecked && this.fireT < 10) { this.fireT += dt; if (W.state.frame % 2 === 0) { W.FX.fire(this.x, this.y + 0.8, this.z, 1); if (W.state.frame % 4 === 0) W.FX.smoke(this.x, this.y + 1, this.z, 1, true); } }
     }
     physics(dt) {
