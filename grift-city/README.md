@@ -139,6 +139,24 @@ the game through ordinary DOM keyboard and mouse events, navigates by the
 radar blip along the sidewalk and road graphs, and a runner captures a
 filmstrip with the game state under each frame.
 
+The harness lives in `tools/playtest/` and needs Node and Playwright with
+Chromium (`npm i playwright` next to it, or a global install):
+
+```
+node tools/playtest/run.js story1 story 420      # bot plays the story for 420 game-seconds
+node tools/playtest/run.js mayhem1 mayhem 150    # bot shoots and steals cars until the police win
+node tools/playtest/run.js drive1 drive 200      # bot just drives around the city
+node tools/playtest/contact.js story1            # contact sheets from the filmstrip
+node tools/playtest/shot.js out.png "tp(300, 336); sim(2, ['KeyW'])"   # one full-quality screenshot
+node tools/playtest/tests/missions_all.js        # every mission and side job, teleport-driven
+node tools/playtest/tests/soak.js                # six minutes of chaos, counts errors
+```
+
+Filmstrips land in `tools/playtest/pt/<name>/` with a JSON line of game state
+per frame (position, car, health, stars, objective, and what the bot was
+holding). On software rendering a story run takes about ten times as long as
+the game time it covers.
+
 Things the bot playtests found and that were fixed as a result: the road
 graph was steering it into a corner pole, run-overs earned stars as fast as
 murders, mission givers could be killed, crashes wrecked cars far too fast,
