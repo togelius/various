@@ -16,6 +16,7 @@ const POLICE = (() => {
     if (copsNear) h *= 1.4;
     if (kind === 'shoot' && P.wanted === 0 && !copsNear) h = witnesses > 0 ? 0.06 : 0.02;
     h *= 1 / (1 + S.heat * 0.6); // each star is harder to earn than the last
+    h = Math.min(h, 1.0); // no single crime jumps more than one star
     const before = stars(); S.heat = Math.min(5.99, S.heat + h); S.seenT = 0; S.lastSeen = [P.x, P.z];
     if (stars() > before) { AUDIO.play('star'); HUD.flashStars(); if (before === 0) S.spawnT = 0; }
     P.wanted = stars();

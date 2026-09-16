@@ -34,9 +34,9 @@ const PEDS = (() => {
     get alive() { return this.state !== 'dead' && !this.removed; }
     get armed() { return !!this.weapon; }
     launch(vx, vy, vz) { this.vx += vx; this.vz += vz; this.vy = Math.max(this.vy, vy); this.airborne = true; }
-    goto(x, z, speed, onArrive) { this.state = 'goto'; this.gotoTarget = [x, z]; this.gotoSpeed = speed; this.onArrive = onArrive || null; this.stationary = false; }
+    goto(x, z, speed, onArrive, radius = 1.5) { this.state = 'goto'; this.gotoTarget = [x, z]; this.gotoSpeed = speed; this.gotoRadius = radius; this.onArrive = onArrive || null; this.stationary = false; }
     // Scripted: run to a car and drive off in it.
-    fleeInCar(car, cruise = 17) { this.goto(car.x, car.z, 6.5, () => { if (car.wrecked || car.driver) { this.state = 'flee'; this.fear = 99; return; } this.inCar = car; car.driver = this; car.ai.mode = 'flee'; car.scared = 1e9; car.ai.cruise = cruise; car.ai.fleeSpeed = cruise; car.ai.edge = null; this.state = 'driving'; }); }
+    fleeInCar(car, cruise = 17) { this.goto(car.x, car.z, 6.5, () => { if (car.wrecked || car.driver) { this.state = 'flee'; this.fear = 99; return; } this.inCar = car; car.driver = this; car.ai.mode = 'flee'; car.scared = 1e9; car.ai.cruise = cruise; car.ai.fleeSpeed = cruise; car.ai.edge = null; car.ai.missionFlee = true; car.ai.pressure = 0; car.ai.bailing = false; this.bailed = false; this.state = 'driving'; }, 3.4); }
     scare(x, z) { if (this.isCop || this.isGang || this.role === 'target' || this.role === 'crew' || this.state === 'goto') return; if (this.state === 'dead' || this.inCar) return; this.fear = Math.max(this.fear, 6 + W.rng() * 4); this.threat = [x, z]; this.seat = null; this.partner = null; if (this.state !== 'flee') { this.state = 'flee'; if (W.rng() < 0.35) AUDIO.play('scream', this.x, this.z); if (W.rng() < 0.3) this.say(SHOUTS[Math.floor(W.rng() * SHOUTS.length)]); } }
     say(text) { this.shout = text; this.shoutT = 2.5; }
     hitByCar(car, spd) {
@@ -73,7 +73,7 @@ const PEDS = (() => {
       if (this.state === 'goto') { let [gx, gz] = this.gotoTarget; // steer around buildings with a probe
         const dx = gx - this.x, dz = gz - this.z, dl = Math.hypot(dx, dz) || 1; const probe = W.pushOut(this.x + dx / dl * 2.2, this.z + dz / dl * 2.2, 0.5, { noProps: true });
         if (probe.hit && dl > 2.5) { if (this.sideStep === undefined) this.sideStep = W.rng() < 0.5 ? 1 : -1; gx = this.x + (dx / dl * 0.3 - dz / dl * this.sideStep) * 4; gz = this.z + (dz / dl * 0.3 + dx / dl * this.sideStep) * 4; } else if (!probe.hit) this.sideStep = undefined;
-        this.moveToward(gx, gz, this.gotoSpeed || 6, dt); if (this.speed > 0 && M.dist(this.x, this.z, gx, gz) < 1.5) { this.speed = 0; if (this.onArrive) { const f = this.onArrive; this.onArrive = null; f(this); } } }
+        this.moveToward(gx, gz, this.gotoSpeed || 6, dt); if (this.speed > 0 && M.dist(this.x, this.z, gx, gz) < (this.gotoRadius || 1.5)) { this.speed = 0; if (this.onArrive) { const f = this.onArrive; this.onArrive = null; f(this); } } }
       else if (this.isCop || this.isSwat) this.aiCop(dt); else if (this.isGang || this.hostile) this.aiHostile(dt); else if (this.role === 'crew') this.aiCrew(dt); else this.aiCivilian(dt);
       this.moveBody(dt, false);
     }

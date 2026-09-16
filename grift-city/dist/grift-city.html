@@ -422,18 +422,18 @@ const MESH = (() => {
         for (let k = 0; k < 4; k++) this.vert(p[k][0], p[k][1], p[k][2], nx, ny, nz, r, g, b, uvs[k][0] * s + uOff, uvs[k][1] * sv + vOff, tl, bone);
         this.quad(base, base + 1, base + 2, base + 3);
       };
-      // +x (u runs so that text reads left-to-right from outside)
-      if (faces & 1) f(1, 0, 0, [[x1, y, z], [x1, y1, z], [x1, y1, z1], [x1, y, z1]], st, [[0, 0], [0, h], [d, h], [d, 0]]);
+      // side faces: canvas row 0 is the top of the face; u runs so that text reads left-to-right from outside
+      if (faces & 1) f(1, 0, 0, [[x1, y, z], [x1, y1, z], [x1, y1, z1], [x1, y, z1]], st, [[d, h], [d, 0], [0, 0], [0, h]]);
       // -x
-      if (faces & 2) f(-1, 0, 0, [[x, y, z1], [x, y1, z1], [x, y1, z], [x, y, z]], st, [[d, 0], [d, h], [0, h], [0, 0]]);
+      if (faces & 2) f(-1, 0, 0, [[x, y, z1], [x, y1, z1], [x, y1, z], [x, y, z]], st, [[d, h], [d, 0], [0, 0], [0, h]]);
       // +y (top)
       if (faces & 4) f(0, 1, 0, [[x, y1, z], [x, y1, z1], [x1, y1, z1], [x1, y1, z]], tt, [[0, 0], [0, d], [w, d], [w, 0]]);
       // -y
       if (faces & 8) f(0, -1, 0, [[x, y, z1], [x, y, z], [x1, y, z], [x1, y, z1]], tt, [[0, 0], [0, d], [w, d], [w, 0]]);
       // +z
-      if (faces & 16) f(0, 0, 1, [[x1, y, z1], [x1, y1, z1], [x, y1, z1], [x, y, z1]], st, [[0, 0], [0, h], [w, h], [w, 0]]);
+      if (faces & 16) f(0, 0, 1, [[x1, y, z1], [x1, y1, z1], [x, y1, z1], [x, y, z1]], st, [[w, h], [w, 0], [0, 0], [0, h]]);
       // -z
-      if (faces & 32) f(0, 0, -1, [[x, y, z], [x, y1, z], [x1, y1, z], [x1, y, z]], st, [[0, 0], [0, h], [w, h], [w, 0]]);
+      if (faces & 32) f(0, 0, -1, [[x, y, z], [x, y1, z], [x1, y1, z], [x1, y, z]], st, [[w, h], [w, 0], [0, 0], [0, h]]);
       return this;
     }
     // Box centred at (cx,cy,cz) — handy for vehicle parts.
@@ -1020,13 +1020,13 @@ const CITY = (() => {
     const [r, g, bb] = tint;
     const faceUV = (len) => len / 14;
     const f = (nx, nz, pts, len, flip) => { const base = b.n; const vs = h / 12.8, us = faceUV(len); const uo = opts.uOff || 0;
-      pts.forEach((p, k) => { const right = (k === 2 || k === 3) !== !!flip; const u = right ? us : 0, v = (k === 1 || k === 2) ? vs : 0; b.vert(p[0], p[1], p[2], nx, 0, nz, r, g, bb, u + uo, v, tile, 0); });
+      pts.forEach((p, k) => { const right = (k === 2 || k === 3) !== !!flip; const u = right ? us : 0, v = (k === 1 || k === 2) ? 0 : vs; /* canvas row 0 is the top of the wall */ b.vert(p[0], p[1], p[2], nx, 0, nz, r, g, bb, u + uo, v, tile, 0); });
       b.quad(base, base + 1, base + 2, base + 3); };
     const x1 = x + w, z1 = z + d, y1 = y + h;
-    f(1, 0, [[x1, y, z], [x1, y1, z], [x1, y1, z1], [x1, y, z1]], d, false);
+    f(1, 0, [[x1, y, z], [x1, y1, z], [x1, y1, z1], [x1, y, z1]], d, true);
     f(-1, 0, [[x, y, z1], [x, y1, z1], [x, y1, z], [x, y, z]], d, true);
-    f(0, 1, [[x1, y, z1], [x1, y1, z1], [x, y1, z1], [x, y, z1]], w, false);
-    f(0, -1, [[x, y, z], [x, y1, z], [x1, y1, z], [x1, y, z]], w, false);
+    f(0, 1, [[x1, y, z1], [x1, y1, z1], [x, y1, z1], [x, y, z1]], w, true);
+    f(0, -1, [[x, y, z], [x, y1, z], [x1, y1, z], [x1, y, z]], w, true);
   }
   function roofDetails(b, x, y, z, w, d, tint, tall) {
     const T = TEX.names; const p = tint.map(v => v * 0.85);
@@ -2203,6 +2203,13 @@ const VEH = (() => {
       c.steer = M.clamp(da * 2.2, -1, 1);
       // target speed
       let target = ai.mode === 'flee' ? (ai.fleeSpeed || 24) : ai.cruise;
+      // a fleeing mission driver who is tailed closely for long enough loses their nerve, pulls over and runs
+      if (ai.missionFlee && this.driver && this.driver !== PLAYER) {
+        const close = PLAYER && PLAYER.alive && PLAYER.car && M.dist(PLAYER.x, PLAYER.z, this.x, this.z) < 16;
+        ai.pressure = close ? ai.pressure + dt : Math.max(0, ai.pressure - dt * 0.5);
+        if (!ai.bailing && (ai.pressure > 9 || this.health < this.maxHealth * 0.55)) { ai.bailing = true; this.driver.say(W.rng() < 0.5 ? 'Alright! Alright!' : "Take it, just don't shoot!"); }
+        if (ai.bailing) { target = 0; if (this.absSpeed < 2.5) { const d = this.driver; d.exitCar(); d.bailed = true; d.state = 'flee'; d.fear = 30; d.threat = [PLAYER.x, PLAYER.z]; ai.mode = 'parked'; ai.missionFlee = false; this.scared = 0; return; } }
+      }
       if (turning && ai.turnKind !== 'straight') target = Math.min(target, 7);
       if (Math.abs(da) > 0.6) target = Math.min(target, 5);
       // traffic light
@@ -2369,9 +2376,9 @@ const PEDS = (() => {
     get alive() { return this.state !== 'dead' && !this.removed; }
     get armed() { return !!this.weapon; }
     launch(vx, vy, vz) { this.vx += vx; this.vz += vz; this.vy = Math.max(this.vy, vy); this.airborne = true; }
-    goto(x, z, speed, onArrive) { this.state = 'goto'; this.gotoTarget = [x, z]; this.gotoSpeed = speed; this.onArrive = onArrive || null; this.stationary = false; }
+    goto(x, z, speed, onArrive, radius = 1.5) { this.state = 'goto'; this.gotoTarget = [x, z]; this.gotoSpeed = speed; this.gotoRadius = radius; this.onArrive = onArrive || null; this.stationary = false; }
     // Scripted: run to a car and drive off in it.
-    fleeInCar(car, cruise = 17) { this.goto(car.x, car.z, 6.5, () => { if (car.wrecked || car.driver) { this.state = 'flee'; this.fear = 99; return; } this.inCar = car; car.driver = this; car.ai.mode = 'flee'; car.scared = 1e9; car.ai.cruise = cruise; car.ai.fleeSpeed = cruise; car.ai.edge = null; this.state = 'driving'; }); }
+    fleeInCar(car, cruise = 17) { this.goto(car.x, car.z, 6.5, () => { if (car.wrecked || car.driver) { this.state = 'flee'; this.fear = 99; return; } this.inCar = car; car.driver = this; car.ai.mode = 'flee'; car.scared = 1e9; car.ai.cruise = cruise; car.ai.fleeSpeed = cruise; car.ai.edge = null; car.ai.missionFlee = true; car.ai.pressure = 0; car.ai.bailing = false; this.bailed = false; this.state = 'driving'; }, 3.4); }
     scare(x, z) { if (this.isCop || this.isGang || this.role === 'target' || this.role === 'crew' || this.state === 'goto') return; if (this.state === 'dead' || this.inCar) return; this.fear = Math.max(this.fear, 6 + W.rng() * 4); this.threat = [x, z]; this.seat = null; this.partner = null; if (this.state !== 'flee') { this.state = 'flee'; if (W.rng() < 0.35) AUDIO.play('scream', this.x, this.z); if (W.rng() < 0.3) this.say(SHOUTS[Math.floor(W.rng() * SHOUTS.length)]); } }
     say(text) { this.shout = text; this.shoutT = 2.5; }
     hitByCar(car, spd) {
@@ -2408,7 +2415,7 @@ const PEDS = (() => {
       if (this.state === 'goto') { let [gx, gz] = this.gotoTarget; // steer around buildings with a probe
         const dx = gx - this.x, dz = gz - this.z, dl = Math.hypot(dx, dz) || 1; const probe = W.pushOut(this.x + dx / dl * 2.2, this.z + dz / dl * 2.2, 0.5, { noProps: true });
         if (probe.hit && dl > 2.5) { if (this.sideStep === undefined) this.sideStep = W.rng() < 0.5 ? 1 : -1; gx = this.x + (dx / dl * 0.3 - dz / dl * this.sideStep) * 4; gz = this.z + (dz / dl * 0.3 + dx / dl * this.sideStep) * 4; } else if (!probe.hit) this.sideStep = undefined;
-        this.moveToward(gx, gz, this.gotoSpeed || 6, dt); if (this.speed > 0 && M.dist(this.x, this.z, gx, gz) < 1.5) { this.speed = 0; if (this.onArrive) { const f = this.onArrive; this.onArrive = null; f(this); } } }
+        this.moveToward(gx, gz, this.gotoSpeed || 6, dt); if (this.speed > 0 && M.dist(this.x, this.z, gx, gz) < (this.gotoRadius || 1.5)) { this.speed = 0; if (this.onArrive) { const f = this.onArrive; this.onArrive = null; f(this); } } }
       else if (this.isCop || this.isSwat) this.aiCop(dt); else if (this.isGang || this.hostile) this.aiHostile(dt); else if (this.role === 'crew') this.aiCrew(dt); else this.aiCivilian(dt);
       this.moveBody(dt, false);
     }
@@ -2901,6 +2908,7 @@ const POLICE = (() => {
     if (copsNear) h *= 1.4;
     if (kind === 'shoot' && P.wanted === 0 && !copsNear) h = witnesses > 0 ? 0.06 : 0.02;
     h *= 1 / (1 + S.heat * 0.6); // each star is harder to earn than the last
+    h = Math.min(h, 1.0); // no single crime jumps more than one star
     const before = stars(); S.heat = Math.min(5.99, S.heat + h); S.seenT = 0; S.lastSeen = [P.x, P.z];
     if (stars() > before) { AUDIO.play('star'); HUD.flashStars(); if (before === 0) S.spawnT = 0; }
     P.wanted = stars();
@@ -3114,7 +3122,7 @@ const MISSIONS = (() => {
       start(d) { const s = laneSpot(4, 1, 1, 0, 30, 1); d.car = spawnCar('sports', s.x, s.z, s.angle, { color: 0 }); d.owner = spawnPed(s.x - 3, s.z + 3, { role: 'target', stationary: true, name: 'DEBTOR' }); d.owner.faceTarget = d.car; d.owner.health = 50; d.fled = false; blip(d.car.x, d.car.z, '#f5c542', d.car); objective('Get the red Falcata in Northgate.'); },
       update(d, dt) { const c = d.car, o = d.owner;
         if (c.wrecked) return fail('You destroyed the Falcata.');
-        if (!d.fled && o.alive && !o.inCar && near(o.x, o.z, 28)) { d.fled = true; o.say("You'll never take her!"); o.fleeInCar(c, 17); }
+        if (!d.fled && o.alive && !o.inCar && near(o.x, o.z, 28)) { d.fled = true; o.say("You'll never take her!"); o.fleeInCar(c, 15); }
         if (c.driver === PLAYER) { const g = place('garage'); blip(g.x, g.z); objective('Take the Falcata back to Voss Motors.'); if (near(g.x, g.z, 7)) { PLAYER.exitCar(); c.locked = true; c.important = false; pass(1000, 'Marla: "Not a scratch. Almost."'); } }
         else if (d.fled) objective('Stop the debtor and take the Falcata.'); } },
     { id: 2, name: 'SPECIAL DELIVERY',
@@ -3136,8 +3144,8 @@ const MISSIONS = (() => {
       update(d, dt) { const t = d.teddy;
         if (d.phase === 0 && near(d.spot[0], d.spot[1], 18)) { d.phase = 1; for (const g of d.goons) { g.stationary = false; g.hostile = true; } t.say("Who let you in here?"); objective('Deal with the goons.'); }
         if (d.phase === 1 && (d.goons.every(g => !g.alive) || near(t.x, t.z, 6) || W.state.noises.length)) { d.phase = 2; t.say("Marla can wait!"); objective("Don't let Teddy get away!"); blip(t.x, t.z, '#f5c542', t); t.fleeInCar(d.car, 16); }
-        if (d.phase === 2 && t.alive && t.state !== 'goto' && !t.inCar && !d.car.wrecked && !d.car.driver) { t.fleeInCar(d.car, 16); }
-        if (d.phase === 2 && t.inCar) blip(d.car.x, d.car.z, '#f5c542', d.car);
+        if (d.phase === 2 && t.alive && !t.bailed && t.state !== 'goto' && !t.inCar && !d.car.wrecked && !d.car.driver) { t.fleeInCar(d.car, 16); }
+        if (d.phase === 2 && t.alive) { if (t.inCar) blip(d.car.x, d.car.z, '#f5c542', d.car); else blip(t.x, t.z, '#f5c542', t); }
         if (d.phase === 2 && t.inCar && d.car.wrecked) { t.die(PLAYER, 'explosion'); }
         if (d.phase === 2 && !t.alive) { d.phase = 3; const p = PICKUPS.add('cash', t.x, t.z, { amount: 8000, respawn: -1 }); d.cash = p; blip(t.x, t.z, '#3df06a'); objective("Pick up Teddy's money."); }
         if (d.phase === 3 && d.cash.taken) { d.phase = 4; const g = place('mission'); blip(g.x, g.z); objective('Take the money back to Marla.'); }
@@ -3184,7 +3192,7 @@ const MISSIONS = (() => {
         d.car = spawnCar('swat', t.x + 16, t.z - 1, -Math.PI / 2, { health: 3600 }); d.car.locked = true; d.phase = 0; blip(t.x, t.z); objective('Get to Crane Holdings, Downtown.'); },
       update(d, dt) { const t = place('tower'); const c = d.crane;
         if (d.phase === 0 && (near(t.x, t.z, 34) || W.state.noises.some(n => M.dist(n.x, n.z, t.x, t.z) < 60))) { d.phase = 1; for (const g of d.guards) { g.stationary = false; g.hostile = true; } c.say('Kill them!'); objective("Stop Crane's Bastion!"); blip(d.car.x, d.car.z, '#f5c542', d.car); c.fleeInCar(d.car, 21); }
-        if (d.phase === 1 && c.alive && !c.inCar && c.state !== 'goto' && !d.car.driver && !d.car.wrecked) c.fleeInCar(d.car, 21);
+        if (d.phase === 1 && c.alive && !c.bailed && !c.inCar && c.state !== 'goto' && !d.car.driver && !d.car.wrecked) c.fleeInCar(d.car, 21);
         if (d.phase === 1 && ((c.inCar && d.car.wrecked) || !c.alive)) { if (c.alive) c.die(PLAYER, 'explosion'); d.phase = 2; POLICE.setStars(5); const s = place('safehouse'); blip(s.x, s.z); objective('Crane is finished. Get to the safehouse!'); HUD.big('CRANE IS DEAD', '#f5c542', 3); }
         if (d.phase === 2) { const s = place('safehouse'); if (near(s.x, s.z, 8)) { POLICE.clear(); pass(25000, null); S.ending = true; say([['MARLA', 'It is done. Crane is gone, and every crook on this island is asking who you are.'], ['MARLA', 'You know what? Let them ask.'], [null, 'GRIFT CITY IS YOURS.'], [null, 'Thanks for playing. The city stays open: side jobs, packages, and the police, who never forget.']], () => { S.ending = false; }); } } } },
   ];

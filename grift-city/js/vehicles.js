@@ -192,6 +192,13 @@ const VEH = (() => {
       c.steer = M.clamp(da * 2.2, -1, 1);
       // target speed
       let target = ai.mode === 'flee' ? (ai.fleeSpeed || 24) : ai.cruise;
+      // a fleeing mission driver who is tailed closely for long enough loses their nerve, pulls over and runs
+      if (ai.missionFlee && this.driver && this.driver !== PLAYER) {
+        const close = PLAYER && PLAYER.alive && PLAYER.car && M.dist(PLAYER.x, PLAYER.z, this.x, this.z) < 16;
+        ai.pressure = close ? ai.pressure + dt : Math.max(0, ai.pressure - dt * 0.5);
+        if (!ai.bailing && (ai.pressure > 9 || this.health < this.maxHealth * 0.55)) { ai.bailing = true; this.driver.say(W.rng() < 0.5 ? 'Alright! Alright!' : "Take it, just don't shoot!"); }
+        if (ai.bailing) { target = 0; if (this.absSpeed < 2.5) { const d = this.driver; d.exitCar(); d.bailed = true; d.state = 'flee'; d.fear = 30; d.threat = [PLAYER.x, PLAYER.z]; ai.mode = 'parked'; ai.missionFlee = false; this.scared = 0; return; } }
+      }
       if (turning && ai.turnKind !== 'straight') target = Math.min(target, 7);
       if (Math.abs(da) > 0.6) target = Math.min(target, 5);
       // traffic light

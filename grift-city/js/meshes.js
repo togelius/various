@@ -17,18 +17,18 @@ const MESH = (() => {
         for (let k = 0; k < 4; k++) this.vert(p[k][0], p[k][1], p[k][2], nx, ny, nz, r, g, b, uvs[k][0] * s + uOff, uvs[k][1] * sv + vOff, tl, bone);
         this.quad(base, base + 1, base + 2, base + 3);
       };
-      // +x (u runs so that text reads left-to-right from outside)
-      if (faces & 1) f(1, 0, 0, [[x1, y, z], [x1, y1, z], [x1, y1, z1], [x1, y, z1]], st, [[0, 0], [0, h], [d, h], [d, 0]]);
+      // side faces: canvas row 0 is the top of the face; u runs so that text reads left-to-right from outside
+      if (faces & 1) f(1, 0, 0, [[x1, y, z], [x1, y1, z], [x1, y1, z1], [x1, y, z1]], st, [[d, h], [d, 0], [0, 0], [0, h]]);
       // -x
-      if (faces & 2) f(-1, 0, 0, [[x, y, z1], [x, y1, z1], [x, y1, z], [x, y, z]], st, [[d, 0], [d, h], [0, h], [0, 0]]);
+      if (faces & 2) f(-1, 0, 0, [[x, y, z1], [x, y1, z1], [x, y1, z], [x, y, z]], st, [[d, h], [d, 0], [0, 0], [0, h]]);
       // +y (top)
       if (faces & 4) f(0, 1, 0, [[x, y1, z], [x, y1, z1], [x1, y1, z1], [x1, y1, z]], tt, [[0, 0], [0, d], [w, d], [w, 0]]);
       // -y
       if (faces & 8) f(0, -1, 0, [[x, y, z1], [x, y, z], [x1, y, z], [x1, y, z1]], tt, [[0, 0], [0, d], [w, d], [w, 0]]);
       // +z
-      if (faces & 16) f(0, 0, 1, [[x1, y, z1], [x1, y1, z1], [x, y1, z1], [x, y, z1]], st, [[0, 0], [0, h], [w, h], [w, 0]]);
+      if (faces & 16) f(0, 0, 1, [[x1, y, z1], [x1, y1, z1], [x, y1, z1], [x, y, z1]], st, [[w, h], [w, 0], [0, 0], [0, h]]);
       // -z
-      if (faces & 32) f(0, 0, -1, [[x, y, z], [x, y1, z], [x1, y1, z], [x1, y, z]], st, [[0, 0], [0, h], [w, h], [w, 0]]);
+      if (faces & 32) f(0, 0, -1, [[x, y, z], [x, y1, z], [x1, y1, z], [x1, y, z]], st, [[w, h], [w, 0], [0, 0], [0, h]]);
       return this;
     }
     // Box centred at (cx,cy,cz) — handy for vehicle parts.

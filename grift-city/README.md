@@ -124,7 +124,7 @@ draws, and each car or pedestrian as one draw with a small bone array for
 wheels and limbs; car glass is a second, translucent draw so you can see who
 is inside. Everything renders in linear HDR into a multisampled float target;
 a screen-space ambient occlusion pass grounds everything in its surroundings,
-then bloom, a filmic tonemap and a vignette bring it to the screen. A 2048² shadow
+then bloom, a filmic tonemap and a vignette bring it to the screen. A 3072² shadow
 map follows the camera during the day; at night the sun goes out, the
 windows come on, and the lampposts and headlights become point lights. Cars
 crumple as they take damage: the body mesh is rebuilt with dents at each
@@ -138,3 +138,13 @@ renders every sixth step, and calls `__pt.bot(dt)` each step; the bot drives
 the game through ordinary DOM keyboard and mouse events, navigates by the
 radar blip along the sidewalk and road graphs, and a runner captures a
 filmstrip with the game state under each frame.
+
+Things the bot playtests found and that were fixed as a result: the road
+graph was steering it into a corner pole, run-overs earned stars as fast as
+murders, mission givers could be killed, crashes wrecked cars far too fast,
+the police made a 3-star chase lethal in seconds, a fleeing mission driver
+at the same speed as your car could never be stopped (now a driver who is
+tailed closely for about ten seconds loses their nerve, pulls over and runs),
+a mission driver could fail to get into their own car when they approached
+it end-on, one crime could jump several stars at once, and every painted
+texture on the side of a box was upside down (the shop signs gave it away).

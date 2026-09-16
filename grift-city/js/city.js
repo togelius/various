@@ -289,13 +289,13 @@ const CITY = (() => {
     const [r, g, bb] = tint;
     const faceUV = (len) => len / 14;
     const f = (nx, nz, pts, len, flip) => { const base = b.n; const vs = h / 12.8, us = faceUV(len); const uo = opts.uOff || 0;
-      pts.forEach((p, k) => { const right = (k === 2 || k === 3) !== !!flip; const u = right ? us : 0, v = (k === 1 || k === 2) ? vs : 0; b.vert(p[0], p[1], p[2], nx, 0, nz, r, g, bb, u + uo, v, tile, 0); });
+      pts.forEach((p, k) => { const right = (k === 2 || k === 3) !== !!flip; const u = right ? us : 0, v = (k === 1 || k === 2) ? 0 : vs; /* canvas row 0 is the top of the wall */ b.vert(p[0], p[1], p[2], nx, 0, nz, r, g, bb, u + uo, v, tile, 0); });
       b.quad(base, base + 1, base + 2, base + 3); };
     const x1 = x + w, z1 = z + d, y1 = y + h;
-    f(1, 0, [[x1, y, z], [x1, y1, z], [x1, y1, z1], [x1, y, z1]], d, false);
+    f(1, 0, [[x1, y, z], [x1, y1, z], [x1, y1, z1], [x1, y, z1]], d, true);
     f(-1, 0, [[x, y, z1], [x, y1, z1], [x, y1, z], [x, y, z]], d, true);
-    f(0, 1, [[x1, y, z1], [x1, y1, z1], [x, y1, z1], [x, y, z1]], w, false);
-    f(0, -1, [[x, y, z], [x, y1, z], [x1, y1, z], [x1, y, z]], w, false);
+    f(0, 1, [[x1, y, z1], [x1, y1, z1], [x, y1, z1], [x, y, z1]], w, true);
+    f(0, -1, [[x, y, z], [x, y1, z], [x1, y1, z], [x1, y, z]], w, true);
   }
   function roofDetails(b, x, y, z, w, d, tint, tall) {
     const T = TEX.names; const p = tint.map(v => v * 0.85);

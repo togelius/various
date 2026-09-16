@@ -95,7 +95,7 @@ const MISSIONS = (() => {
       start(d) { const s = laneSpot(4, 1, 1, 0, 30, 1); d.car = spawnCar('sports', s.x, s.z, s.angle, { color: 0 }); d.owner = spawnPed(s.x - 3, s.z + 3, { role: 'target', stationary: true, name: 'DEBTOR' }); d.owner.faceTarget = d.car; d.owner.health = 50; d.fled = false; blip(d.car.x, d.car.z, '#f5c542', d.car); objective('Get the red Falcata in Northgate.'); },
       update(d, dt) { const c = d.car, o = d.owner;
         if (c.wrecked) return fail('You destroyed the Falcata.');
-        if (!d.fled && o.alive && !o.inCar && near(o.x, o.z, 28)) { d.fled = true; o.say("You'll never take her!"); o.fleeInCar(c, 17); }
+        if (!d.fled && o.alive && !o.inCar && near(o.x, o.z, 28)) { d.fled = true; o.say("You'll never take her!"); o.fleeInCar(c, 15); }
         if (c.driver === PLAYER) { const g = place('garage'); blip(g.x, g.z); objective('Take the Falcata back to Voss Motors.'); if (near(g.x, g.z, 7)) { PLAYER.exitCar(); c.locked = true; c.important = false; pass(1000, 'Marla: "Not a scratch. Almost."'); } }
         else if (d.fled) objective('Stop the debtor and take the Falcata.'); } },
     { id: 2, name: 'SPECIAL DELIVERY',
@@ -117,8 +117,8 @@ const MISSIONS = (() => {
       update(d, dt) { const t = d.teddy;
         if (d.phase === 0 && near(d.spot[0], d.spot[1], 18)) { d.phase = 1; for (const g of d.goons) { g.stationary = false; g.hostile = true; } t.say("Who let you in here?"); objective('Deal with the goons.'); }
         if (d.phase === 1 && (d.goons.every(g => !g.alive) || near(t.x, t.z, 6) || W.state.noises.length)) { d.phase = 2; t.say("Marla can wait!"); objective("Don't let Teddy get away!"); blip(t.x, t.z, '#f5c542', t); t.fleeInCar(d.car, 16); }
-        if (d.phase === 2 && t.alive && t.state !== 'goto' && !t.inCar && !d.car.wrecked && !d.car.driver) { t.fleeInCar(d.car, 16); }
-        if (d.phase === 2 && t.inCar) blip(d.car.x, d.car.z, '#f5c542', d.car);
+        if (d.phase === 2 && t.alive && !t.bailed && t.state !== 'goto' && !t.inCar && !d.car.wrecked && !d.car.driver) { t.fleeInCar(d.car, 16); }
+        if (d.phase === 2 && t.alive) { if (t.inCar) blip(d.car.x, d.car.z, '#f5c542', d.car); else blip(t.x, t.z, '#f5c542', t); }
         if (d.phase === 2 && t.inCar && d.car.wrecked) { t.die(PLAYER, 'explosion'); }
         if (d.phase === 2 && !t.alive) { d.phase = 3; const p = PICKUPS.add('cash', t.x, t.z, { amount: 8000, respawn: -1 }); d.cash = p; blip(t.x, t.z, '#3df06a'); objective("Pick up Teddy's money."); }
         if (d.phase === 3 && d.cash.taken) { d.phase = 4; const g = place('mission'); blip(g.x, g.z); objective('Take the money back to Marla.'); }
@@ -165,7 +165,7 @@ const MISSIONS = (() => {
         d.car = spawnCar('swat', t.x + 16, t.z - 1, -Math.PI / 2, { health: 3600 }); d.car.locked = true; d.phase = 0; blip(t.x, t.z); objective('Get to Crane Holdings, Downtown.'); },
       update(d, dt) { const t = place('tower'); const c = d.crane;
         if (d.phase === 0 && (near(t.x, t.z, 34) || W.state.noises.some(n => M.dist(n.x, n.z, t.x, t.z) < 60))) { d.phase = 1; for (const g of d.guards) { g.stationary = false; g.hostile = true; } c.say('Kill them!'); objective("Stop Crane's Bastion!"); blip(d.car.x, d.car.z, '#f5c542', d.car); c.fleeInCar(d.car, 21); }
-        if (d.phase === 1 && c.alive && !c.inCar && c.state !== 'goto' && !d.car.driver && !d.car.wrecked) c.fleeInCar(d.car, 21);
+        if (d.phase === 1 && c.alive && !c.bailed && !c.inCar && c.state !== 'goto' && !d.car.driver && !d.car.wrecked) c.fleeInCar(d.car, 21);
         if (d.phase === 1 && ((c.inCar && d.car.wrecked) || !c.alive)) { if (c.alive) c.die(PLAYER, 'explosion'); d.phase = 2; POLICE.setStars(5); const s = place('safehouse'); blip(s.x, s.z); objective('Crane is finished. Get to the safehouse!'); HUD.big('CRANE IS DEAD', '#f5c542', 3); }
         if (d.phase === 2) { const s = place('safehouse'); if (near(s.x, s.z, 8)) { POLICE.clear(); pass(25000, null); S.ending = true; say([['MARLA', 'It is done. Crane is gone, and every crook on this island is asking who you are.'], ['MARLA', 'You know what? Let them ask.'], [null, 'GRIFT CITY IS YOURS.'], [null, 'Thanks for playing. The city stays open: side jobs, packages, and the police, who never forget.']], () => { S.ending = false; }); } } } },
   ];
