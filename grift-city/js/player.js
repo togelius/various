@@ -205,6 +205,7 @@ const PLAYER = (() => {
     if (c.driver && c.driver !== PLAYER) { const d0 = c.driver; d0.exitCar(); d0.x = c.x + r[0] * (c.spec.wid / 2 + 1.0); d0.z = c.z + r[1] * (c.spec.wid / 2 + 1.0); d0.knockT = 1.5; d0.state = 'knocked'; d0.launch(r[0] * 2, 2, r[1] * 2); d0.fear = 8; d0.threat = [c.x, c.z]; if (d0.isCop) { d0.hostile = true; POLICE.crime('cop', c.x, c.z, d0); } else { if (W.rng() < 0.5) d0.say(W.rng() < 0.5 ? 'My car!' : 'Hey! Thief!'); POLICE.crime('jack', c.x, c.z, null); } P.stats.carsStolen++; }
     else if (!c.playerOwned && c.ai.mode !== 'parked') P.stats.carsStolen++;
     for (const px of c.passengers.slice()) if (px.role !== 'crew') { px.exitCar(); px.scare(c.x, c.z); }
+    if (P.wanted > 0 && POLICE.S.seenT > 3 && c !== P.lastCar) { POLICE.S.seenT += 5; HUD.notify("They didn't see you take this one."); } P.lastCar = c;
     c.driver = PLAYER; c.ai.mode = 'player'; c.ai.edge = null; c.playerOwned = true; c.scared = 0; P.car = c; P.state = 'car'; P.inCarT = 0; P.x = c.x; P.z = c.z; P.lastCarName = c.name; P.carNameT = 3; P.weaponOut = false; P.aim = 0;
     if (c.type === 'police' || c.type === 'swat') c.siren = false;
     if (AUDIO.radioStation !== P.radio) AUDIO.setRadio(P.radio);

@@ -273,7 +273,8 @@ const VEH = (() => {
       this.fireT = (this.fireT || 0) - dt;
       if (this.fireT <= 0 && t === PLAYER && PLAYER.alive) { const shooters = this.passengers.filter(q => q.alive && q.weapon && (q.hostile || q.isGang || (q.isCop && PLAYER.wanted >= 4))); const d = M.dist(this.x, this.z, t.x, t.z);
         if (shooters.length && d < 45 && W.los(this.x, this.z, t.x, t.z)) { this.fireT = 0.9 / shooters.length; const q = shooters[0]; const ang = Math.atan2(t.x - this.x, t.z - this.z) + (W.rng() - 0.5) * 0.3; PLAYER.fireBullet(q, this.x + this.right[0] * 0.8, this.z + this.right[1] * 0.8, 1.3, ang, WEAPONS[q.weapon === 'rifle' ? 'rifle' : 'pistol'], 0.5, this); } else this.fireT = 0.3; }
-      const tv = t.car ? [t.car.vx, t.car.vz] : [0, 0]; const px = t.x + tv[0] * 0.6, pz = t.z + tv[1] * 0.6;
+      const tv = t.car ? [t.car.vx, t.car.vz] : [0, 0]; let px = t.x + tv[0] * 0.6, pz = t.z + tv[1] * 0.6;
+      if (t === PLAYER && this.driver && this.driver.isCop) { const pp = POLICE.pursuitPoint(); px = pp[0]; pz = pp[1]; } // cops only know where they last saw you
       const d = M.dist(this.x, this.z, px, pz); const desired = Math.atan2(px - this.x, pz - this.z); const da = M.angleTo(this.angle, desired);
       c.handbrake = 0;
       if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.steer = M.clamp(-da * 2, -1, 1); return; }

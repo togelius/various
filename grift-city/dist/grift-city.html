@@ -2405,7 +2405,8 @@ const VEH = (() => {
       this.fireT = (this.fireT || 0) - dt;
       if (this.fireT <= 0 && t === PLAYER && PLAYER.alive) { const shooters = this.passengers.filter(q => q.alive && q.weapon && (q.hostile || q.isGang || (q.isCop && PLAYER.wanted >= 4))); const d = M.dist(this.x, this.z, t.x, t.z);
         if (shooters.length && d < 45 && W.los(this.x, this.z, t.x, t.z)) { this.fireT = 0.9 / shooters.length; const q = shooters[0]; const ang = Math.atan2(t.x - this.x, t.z - this.z) + (W.rng() - 0.5) * 0.3; PLAYER.fireBullet(q, this.x + this.right[0] * 0.8, this.z + this.right[1] * 0.8, 1.3, ang, WEAPONS[q.weapon === 'rifle' ? 'rifle' : 'pistol'], 0.5, this); } else this.fireT = 0.3; }
-      const tv = t.car ? [t.car.vx, t.car.vz] : [0, 0]; const px = t.x + tv[0] * 0.6, pz = t.z + tv[1] * 0.6;
+      const tv = t.car ? [t.car.vx, t.car.vz] : [0, 0]; let px = t.x + tv[0] * 0.6, pz = t.z + tv[1] * 0.6;
+      if (t === PLAYER && this.driver && this.driver.isCop) { const pp = POLICE.pursuitPoint(); px = pp[0]; pz = pp[1]; } // cops only know where they last saw you
       const d = M.dist(this.x, this.z, px, pz); const desired = Math.atan2(px - this.x, pz - this.z); const da = M.angleTo(this.angle, desired);
       c.handbrake = 0;
       if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.steer = M.clamp(-da * 2, -1, 1); return; }
@@ -2620,7 +2621,7 @@ const PEDS = (() => {
     aiHostile(dt) { // gang members / mission targets: attack the player when hostile, otherwise loiter
       const p = PLAYER; const d = M.dist(this.x, this.z, p.x, p.z);
       if (this.state === 'flee') { this.aiCivilian(dt); return; }
-      if (!this.hostile) { if (this.isGang && d < 14 && p.alive && (W.state.noises.length || p.wanted > 0) && W.rng() < 0.01) this.hostile = true; if (this.stationary) { this.speed = 0; if (d < 10) this.faceTo(p.x, p.z, dt); } else this.aiCivilian(dt); return; }
+      if (!this.hostile) { if (this.isGang && d < 14 && p.alive && (W.state.noises.length || p.wanted > 0) && W.rng() < 0.01) this.hostile = true; if (this.isGang && ECON.craneHostile() && d < 22 && p.alive && W.los(this.x, this.z, p.x, p.z) && W.rng() < 0.03) { this.hostile = true; this.say("That's the one who crossed Crane!"); } if (this.stationary) { this.speed = 0; if (d < 10) this.faceTo(p.x, p.z, dt); } else this.aiCivilian(dt); return; }
       if (!p.alive) { this.aim = 0; this.speed = 0; return; }
       const canSee = d < 60 && W.los(this.x, this.z, p.x, p.z);
       if (this.weapon) {
@@ -3040,6 +3041,7 @@ const PLAYER = (() => {
     if (c.driver && c.driver !== PLAYER) { const d0 = c.driver; d0.exitCar(); d0.x = c.x + r[0] * (c.spec.wid / 2 + 1.0); d0.z = c.z + r[1] * (c.spec.wid / 2 + 1.0); d0.knockT = 1.5; d0.state = 'knocked'; d0.launch(r[0] * 2, 2, r[1] * 2); d0.fear = 8; d0.threat = [c.x, c.z]; if (d0.isCop) { d0.hostile = true; POLICE.crime('cop', c.x, c.z, d0); } else { if (W.rng() < 0.5) d0.say(W.rng() < 0.5 ? 'My car!' : 'Hey! Thief!'); POLICE.crime('jack', c.x, c.z, null); } P.stats.carsStolen++; }
     else if (!c.playerOwned && c.ai.mode !== 'parked') P.stats.carsStolen++;
     for (const px of c.passengers.slice()) if (px.role !== 'crew') { px.exitCar(); px.scare(c.x, c.z); }
+    if (P.wanted > 0 && POLICE.S.seenT > 3 && c !== P.lastCar) { POLICE.S.seenT += 5; HUD.notify("They didn't see you take this one."); } P.lastCar = c;
     c.driver = PLAYER; c.ai.mode = 'player'; c.ai.edge = null; c.playerOwned = true; c.scared = 0; P.car = c; P.state = 'car'; P.inCarT = 0; P.x = c.x; P.z = c.z; P.lastCarName = c.name; P.carNameT = 3; P.weaponOut = false; P.aim = 0;
     if (c.type === 'police' || c.type === 'swat') c.siren = false;
     if (AUDIO.radioStation !== P.radio) AUDIO.setRadio(P.radio);
@@ -3156,6 +3158,8 @@ const POLICE = (() => {
     P.wanted = stars();
   }
   function seen(cop) { S.seenT = 0; S.lastSeen = [PLAYER.x, PLAYER.z]; }
+  // Where a pursuing unit should head: the player while they are in sight, otherwise a search pattern around the last sighting.
+  function pursuitPoint() { const P = PLAYER.P; if (S.seenT < 2.5 || !S.lastSeen) return [P.x + (P.car ? P.car.vx * 0.6 : 0), P.z + (P.car ? P.car.vz * 0.6 : 0)]; if (!S.search || S.searchT <= 0) { const a = W.rng() * M.TAU, r = 20 + Math.min(80, S.seenT * 5) * W.rng(); S.search = [S.lastSeen[0] + Math.sin(a) * r, S.lastSeen[1] + Math.cos(a) * r]; S.searchT = 6; } return S.search; }
   function arrestProgress(dt, cop) { S.arrestT += dt; S.arresting = true; if (S.arrestT > 0.7) PLAYER.bust(); }
   function clear() { S.heat = 0; PLAYER.P.wanted = 0; S.seenT = 99; for (const c of W.cars) if (!c.removed && c.driver && c.driver.isCop && c.ai.mode === 'chase') { c.ai.mode = 'traffic'; c.ai.edge = null; c.siren = false; } if (W.heli) W.heli.leaving = true; }
   function setStars(n) { S.heat = Math.max(S.heat, n); PLAYER.P.wanted = stars(); S.seenT = 0; S.lastSeen = [PLAYER.x, PLAYER.z]; S.spawnT = 0; }
@@ -3231,8 +3235,10 @@ const POLICE = (() => {
   function update(dt) {
     const P = PLAYER.P; const w = stars(); P.wanted = w;
     if (!S.arresting) S.arrestT = Math.max(0, S.arrestT - dt * 2); S.arresting = false;
-    S.seenT += dt;
+    S.seenT += dt; if (S.searchT > 0) S.searchT -= dt;
     if (w > 0 && P.alive) {
+      // out of sight in a car park or the safehouse yard, the trail goes cold twice as fast
+      const bl = CITY.blockAt(P.x, P.z); const sh = CITY.place('safehouse'); if (S.seenT > 3 && ((bl && bl.kind === 'parking') || M.dist2(P.x, P.z, sh.x, sh.z) < 18 * 18)) S.seenT += dt;
       // cop cars see the player too
       const see = 70 * (1 - 0.55 * (W.weather.fog || 0)) * (W.isNight() ? 0.8 : 1); // fog and darkness shorten the police's sight
       for (const c of W.cars) if (!c.removed && c.ai.mode === 'chase' && M.dist2(c.x, c.z, P.x, P.z) < see * see && W.los(c.x, c.z, P.x, P.z)) { S.seenT = 0; S.lastSeen = [P.x, P.z]; break; }
@@ -3263,7 +3269,7 @@ const POLICE = (() => {
     // siren audio: nearest siren car
     let vol = 0; for (const c of W.cars) if (!c.removed && c.siren) vol = Math.max(vol, 1 - M.dist(c.x, c.z, P.x, P.z) / 120); AUDIO.siren(M.clamp(vol, 0, 1) * (P.car && P.car.siren ? 1 : 0.8) + (P.car && P.car.siren ? 0.6 : 0), dt);
   }
-  return { S, crime, seen, arrestProgress, clear, setStars, bribe, update, heliEntity, stars, get lastSeen() { return S.lastSeen; } };
+  return { S, crime, seen, pursuitPoint, arrestProgress, clear, setStars, bribe, update, heliEntity, stars, get lastSeen() { return S.lastSeen; } };
 })();
 
 </script>
@@ -3325,7 +3331,7 @@ const PICKUPS = (() => {
 })();
 
 const MISSIONS = (() => {
-  const S = { saveT: 6, sprayT: 0, sprayWarn: 0, progress2: 0, phoneProgress: 0, rampage: null, rampageDone: {}, givers: {}, blips: [], current: null, progress: 0, done: {}, dialogue: null, lineT: 0, blip: null, blips: [], objective: '', timer: -1, spawned: [], markers: [], shop: null, side: null, pending: null, cooldown: 0, ending: false };
+  const S = { fails: {}, timerScale: 1, saveT: 6, sprayT: 0, sprayWarn: 0, progress2: 0, phoneProgress: 0, rampage: null, rampageDone: {}, givers: {}, blips: [], current: null, progress: 0, done: {}, dialogue: null, lineT: 0, blip: null, blips: [], objective: '', timer: -1, spawned: [], markers: [], shop: null, side: null, pending: null, cooldown: 0, ending: false };
   const P = () => PLAYER.P;
   const place = (k, i = 0) => CITY.place(k, i);
   const laneSpot = (i, j, di, dj, s, lane = 0) => { const n = CITY.roadNodes[i * (CITY.GRID + 1) + j]; const e = n.out.find(o => o.dx === di && o.dz === dj); let [x, z] = CITY.lanePoint(e, lane, s); if (lane === 1) { x += e.rx * 0.7; z += e.rz * 0.7; } return { x, z, angle: Math.atan2(di, dj), e, lane, s }; };
@@ -3347,8 +3353,8 @@ const MISSIONS = (() => {
     pts.push([b[0], b[1], 10]); return pts; }
   function marker(x, z, r = 2, col = [1, 0.85, 0.2]) { S.markers.push({ x, z, r, col }); }
   function say(lines, then, focus = null) { S.dialogue = { lines, i: 0, then, focus }; S.lineT = 0; P().aim = 0; }
-  function pass(reward, text) { AUDIO.play('missionPass'); HUD.big('MISSION PASSED!' + (reward ? '  $' + reward : ''), '#f5c542', 3.5); if (reward) PLAYER.addMoney(reward, null); if (S.current) { const m = S.current; if (m.strand === 2) { S.done['o' + m.id] = true; if (m.id === S.progress2) S.progress2++; } else if (m.strand === 'phone') { if (m.id === S.phoneProgress) S.phoneProgress++; } else { S.done[m.id] = true; if (m.id === S.progress) S.progress++; } } P().stats.missions++; cleanup(); POLICE.clear(); S.current = null; S.cooldown = 3; if (text) HUD.notify(text); GAME.save(); }
-  function fail(reason) { AUDIO.play('missionFail'); HUD.big('MISSION FAILED', '#c0281e', 3); if (reason) HUD.notify(reason + '  (Y to retry)'); if (S.current) S.retry = { m: S.current, t: 25 }; cleanup(); S.current = null; S.cooldown = 3; }
+  function pass(reward, text) { AUDIO.play('missionPass'); HUD.big('MISSION PASSED!' + (reward ? '  $' + reward : ''), '#f5c542', 3.5); if (reward) PLAYER.addMoney(reward, null); if (S.current) { const m = S.current; if (m.strand === 2) { S.done['o' + m.id] = true; if (m.id === S.progress2) S.progress2++; } else if (m.strand === 'phone') { if (m.id === S.phoneProgress) S.phoneProgress++; } else { S.done[m.id] = true; if (m.id === S.progress) S.progress++; } } P().stats.missions++; if (S.current) ECON.onMissionPassed(S.current); cleanup(); POLICE.clear(); S.current = null; S.cooldown = 3; if (text) HUD.notify(text); GAME.save(); }
+  function fail(reason) { AUDIO.play('missionFail'); HUD.big('MISSION FAILED', '#c0281e', 3); if (reason) HUD.notify(reason + '  (Y to retry)'); if (S.current) { S.retry = { m: S.current, t: 25 }; S.fails[S.current.name] = (S.fails[S.current.name] || 0) + 1; } cleanup(); S.current = null; S.cooldown = 3; }
   // Y after a failure restarts the mission from its giver, healed and with the police off your back.
   function retry() { const m = S.retry.m; S.retry = null; const p = P(); if (p.car) PLAYER.exitCar(); const g = m.strand === 2 ? place('mission2') : m.strand === 'phone' ? null : place('mission'); if (g) { p.x = g.x + 2.5; p.z = g.z + 2.5; p.y = CITY.groundY(p.x, p.z); p.vx = p.vz = 0; } p.health = 100; if (!p.alive) PLAYER.respawn(); POLICE.clear(); S.cooldown = 0; start(m); }
   function onPlayerDown(how) { if (S.current) fail(how === 'busted' ? 'You got busted.' : 'You got wasted.'); if (S.side) endSide(how); if (S.rampage) { S.rampage = null; S.objective = ''; } }
@@ -3533,12 +3539,16 @@ const MISSIONS = (() => {
 
   // ---- Shops, spray, safehouse
   const GUNS = [['pistol', 250, 34], ['uzi', 650, 90], ['shotgun', 800, 24], ['rifle', 1800, 90], ['rocket', 6000, 3], ['grenade', 900, 6], ['armor', 400, 0]];
+  // Shops are menus: a title, numbered items with prices, and an action each. The gun shop, the dealer and the properties all use it.
+  function gunMenu(g) { const p = P(); const disc = ECON.discount(); return { kind: 'guns', title: 'IRONMONGER', color: '#e0453b', x: g.x, z: g.z, hint: disc < 1 ? "Marla's friends pay 20% less" : '', items: GUNS.map(([k, base, ammo]) => { const price = Math.round(base * disc); return { label: k === 'armor' ? 'BODY ARMOR' : WEAPONS[k].name + (ammo ? ' (' + ammo + ')' : ''), price, enabled: p.money >= price, action: () => { PLAYER.addMoney(-price, null); if (k === 'armor') p.armor = 100; else PLAYER.giveWeapon(k, ammo); AUDIO.play('pickup'); } }; }) }; }
+  function openShop(menu) { if (S.shop) return; S.shop = menu; AUDIO.play('click'); }
+  function closeShop() { S.shop = null; }
   function updateShops(dt) {
     const p = P(); if (!p.alive) return;
-    if (S.shop) { objective(''); if (INPUT.hit('Escape') || INPUT.hit('KeyF') || M.dist2(p.x, p.z, S.shop.x, S.shop.z) > 16) { S.shop = null; return; }
-      for (let i = 0; i < GUNS.length; i++) if (INPUT.hit('Digit' + (i + 1))) { const [k, price, ammo] = GUNS[i]; if (p.money < price) { HUD.notify('Not enough cash.'); AUDIO.play('click'); } else { PLAYER.addMoney(-price, null); if (k === 'armor') p.armor = 100; else PLAYER.giveWeapon(k, ammo); AUDIO.play('pickup'); HUD.notify('Bought ' + (k === 'armor' ? 'body armor' : WEAPONS[k].name)); } }
+    if (S.shop) { objective(''); if (INPUT.hit('Escape') || INPUT.hit('KeyF') || M.dist2(p.x, p.z, S.shop.x, S.shop.z) > (S.shop.kind === 'dealer' ? 64 : 16)) { closeShop(); return; }
+      for (let i = 0; i < S.shop.items.length; i++) if (INPUT.hit('Digit' + (i + 1))) { const it = S.shop.items[i]; if (!it.enabled) { HUD.notify(it.price > p.money ? 'Not enough cash.' : "Can't do that now."); AUDIO.play('click'); } else if (it.action) it.action(); if (!S.shop) break; }
       return; }
-    for (const g of CITY.places.guns) if (!p.car && M.dist2(p.x, p.z, g.x, g.z) < 4) { S.shop = g; AUDIO.play('click'); }
+    for (const g of CITY.places.guns) if (!p.car && M.dist2(p.x, p.z, g.x, g.z) < 4) openShop(gunMenu(g));
     for (const sp of CITY.places.spray) if (p.car && M.dist2(p.car.x, p.car.z, sp.x, sp.z) < 16 && p.car.absSpeed < 1.5) { if (S.sprayT === undefined || S.sprayT <= 0) { if (p.money >= 100) { PLAYER.addMoney(-100, "Pay 'n' Spray"); p.car.colIdx = Math.floor(W.rng() * VEH.PALETTE.length); p.car.repair(); POLICE.clear(); HUD.fade(1.2); AUDIO.play('pickup'); S.sprayT = 6; } else if (!S.sprayWarn) { HUD.notify("Pay 'n' Spray costs $100."); S.sprayWarn = 4; } } }
     if (S.sprayT > 0) S.sprayT -= dt; if (S.sprayWarn > 0) S.sprayWarn -= dt;
     const sh = place('safehouse'); if (!p.car && M.dist2(p.x, p.z, sh.x, sh.z) < 4 && (S.saveT === undefined || S.saveT <= 0)) { S.saveT = 8; p.health = 100; POLICE.clear(); GAME.save(); W.state.time = (W.state.time + 6) % 24; HUD.fade(1.5); HUD.notify('Game saved. You slept until ' + W.clockString() + '.'); }
@@ -3556,7 +3566,7 @@ const MISSIONS = (() => {
   function update(dt) {
     if (S.cooldown > 0) S.cooldown -= dt; ensureGivers(); updateRampage(dt);
     if (S.dialogue) { const d = S.dialogue; S.lineT += dt; if (S.lineT > 4.2 || INPUT.hit('Space') || INPUT.hit('Enter') || INPUT.mouse.clicked || INPUT.pad.pressed[0]) { d.i++; S.lineT = 0; AUDIO.play('click'); if (d.i >= d.lines.length) { S.dialogue = null; if (d.then) d.then(); } } return; }
-    if (S.timer > 0) S.timer -= dt;
+    if (S.timer > 0) S.timer -= dt / S.timerScale; // the third try at a job gets a gentler clock
     const p = P();
     if (S.current) { try { S.current.update(S.current.data, dt); } catch (e) { console.error(e); fail('Something went wrong.'); } }
     else if (p.alive && S.cooldown <= 0 && !S.side && !S.rampage) {
@@ -3571,11 +3581,73 @@ const MISSIONS = (() => {
     if (S.retry) { S.retry.t -= dt; if (S.retry.t <= 0 || S.current) S.retry = null; else if (p.alive && INPUT.hit('KeyY')) { retry(); return; } else if (!S.side) objective('Mission failed. Press Y to retry ' + S.retry.m.name + '.'); }
     updateSide(dt); updateShops(dt);
   }
-  function start(m) { S.current = m; m.data = {}; S.blip = null; S.blips.length = 0; S.markers.length = 0; HUD.big(m.name, '#f5c542', 3); const focus = m.strand === 2 ? S.givers.okafor : m.strand === 'phone' ? null : (m.auto ? null : S.givers.marla); if (m.intro) say(m.intro, () => { m.start(m.data); }, focus); else m.start(m.data); }
+  function start(m) { S.current = m; m.data = {}; S.blip = null; S.blips.length = 0; S.markers.length = 0; HUD.big(m.name, '#f5c542', 3); const tries = S.fails[m.name] || 0; S.timerScale = tries >= 2 ? 1.4 : 1; if (tries >= 2) { P().armor = Math.max(P().armor, 50); HUD.notify('Third time lucky: more time on the clock, and a vest.'); } const focus = m.strand === 2 ? S.givers.okafor : m.strand === 'phone' ? null : (m.auto ? null : S.givers.marla); if (m.intro) say(m.intro, () => { m.start(m.data); }, focus); else m.start(m.data); }
   function markersFX(t) { for (const mk of S.markers) W.fx.marker(mk.x, mk.z, mk.r, 1.6, mk.col, t); if (!S.current && !S.side) { for (const g of CITY.places.guns) W.fx.marker(g.x, g.z, 1.4, 1.6, [1, 0.3, 0.3], t); for (const sp of CITY.places.spray) W.fx.marker(sp.x, sp.z, 2.6, 1.6, [1, 0.8, 0.2], t); const sh = place('safehouse'); W.fx.marker(sh.x, sh.z, 1.4, 1.6, [1, 0.5, 0.9], t); } else { for (const sp of CITY.places.spray) W.fx.marker(sp.x, sp.z, 2.6, 1.6, [1, 0.8, 0.2], t); } }
   function allBlips() { const out = []; const b = blipPos(); if (b) out.push(b); for (const e of S.blips) { const o = e.obj; if (!o || o.removed || (o.wrecked && o.spec)) continue; out.push({ x: o.x, z: o.z, col: e.col }); } return out; }
   function blipPos() { if (!S.blip) return null; const b = S.blip; if (b.obj) { if (b.obj.removed) return null; return { x: b.obj.x, z: b.obj.z, col: b.col }; } return b; }
-  return { S, LIST, LIST2, PHONE, RAMPAGES, GUNS, placeRampages, startRampage, rampageKill, update, start, onPlayerDown, onEnterCar, onExitCar, markersFX, blipPos, allBlips, get objective() { return S.objective; }, get dialogue() { return S.dialogue; }, get shop() { return S.shop; }, get timer() { return S.timer; }, fmt, cleanup, endSide };
+  return { S, LIST, LIST2, PHONE, RAMPAGES, GUNS, openShop, closeShop, placeRampages, startRampage, rampageKill, update, start, onPlayerDown, onEnterCar, onExitCar, markersFX, blipPos, allBlips, get objective() { return S.objective; }, get dialogue() { return S.dialogue; }, get shop() { return S.shop; }, get timer() { return S.timer; }, fmt, cleanup, endSide };
+})();
+
+</script>
+<script>
+// GRIFT CITY — the money side: the dealer and mod shop at Voss Motors, properties that pay out, and standing with the families.
+const ECON = (() => {
+  const S = { owned: [], properties: {}, rep: { marla: 0, crane: 0, okafor: 0 }, lastCollect: 0, dealerT: 0 };
+  const P = () => PLAYER.P;
+  const CARS = [['hatch', 3000], ['sedan', 5000], ['pickup', 6500], ['taxi', 7000], ['van', 8000], ['muscle', 14000], ['sports', 22000], ['police', 30000]];
+  const MODS = [
+    ['engine', 'Engine tune', [2500, 5000, 9000], (sp, lvl) => { sp.accel *= 1 + 0.12 * lvl; sp.top *= 1 + 0.07 * lvl; }],
+    ['tyres', 'Sticky tyres', [1500, 3500], (sp, lvl) => { sp.grip *= 1 + 0.08 * lvl; }],
+    ['brakes', 'Race brakes', [1200, 2800], (sp, lvl) => { sp.brake *= 1 + 0.15 * lvl; }],
+    ['armor', 'Armour plating', [4000, 9000], (sp, lvl) => { sp.mass *= 1 + 0.08 * lvl; }],
+  ];
+  const PROPS = [['westfield', 'Westfield bungalow', 12000, 900], ['northgate', 'Northgate bar', 22000, 1800], ['eastside', 'Eastside lock-up', 9000, 700], ['southport', 'Southport warehouse', 30000, 2600]];
+  let propSpots = null; let dealerSpot = null;
+  function spots() {
+    if (propSpots) return; propSpots = [];
+    for (const [dist, name, price, income] of PROPS) { const bl = CITY.blocks.find(b => b.kind === dist && !CITY.blocks.some(o => o !== b && o.kind !== dist && Math.abs(o.i - b.i) + Math.abs(o.j - b.j) === 0)); if (!bl) continue; propSpots.push({ id: dist, name, price, income, x: bl.x + 12, z: bl.z - 1.6 }); }
+    const g = CITY.place('garage'); dealerSpot = { x: g.x + 10, z: g.z + 3 };
+  }
+  // ---- mods change a car's own copy of its spec so nothing else on the road is affected
+  function applyMods(c) { c.spec = Object.assign({}, VEH.SPECS[c.type]); for (const [key, , , fn] of MODS) { const lvl = (c.mods && c.mods[key]) || 0; if (lvl) fn(c.spec, lvl); } if (c.mods && c.mods.armor) { const k = 1 + 0.35 * c.mods.armor; const hf = c.health / c.maxHealth; c.maxHealth = (c.spec.armor ? 2600 : 1000 * VEH.SPECS[c.type].mass) * k; c.health = c.maxHealth * hf; } }
+  function buyCar(type, price) { const p = P(); if (p.money < price) { HUD.notify('Not enough cash.'); AUDIO.play('click'); return; } PLAYER.addMoney(-price, 'Voss Motors'); const g = CITY.place('garage'); const c = VEH.spawn(type, g.x + 14, g.z - 8, Math.PI, { mode: 'parked', color: Math.floor(W.rng() * VEH.PALETTE.length) }); c.playerOwned = true; c.mods = {}; HUD.notify('Your ' + VEH.NAMES[type] + ' is round the side.'); MISSIONS.closeShop(); }
+  function storeCar() { const c = P().car; if (!c) return; if (S.owned.length >= 3) { HUD.notify('The garage only holds three cars.'); return; } S.owned.push({ type: c.type, color: c.colIdx, mods: Object.assign({}, c.mods || {}) }); PLAYER.exitCar(); c.removed = true; HUD.notify(VEH.NAMES[c.type] + ' stored at Voss Motors.'); MISSIONS.closeShop(); }
+  function takeCar(i) { const o = S.owned[i]; if (!o) return; const g = CITY.place('garage'); const c = VEH.spawn(o.type, g.x + 14, g.z - 8, Math.PI, { mode: 'parked', color: o.color }); c.playerOwned = true; c.mods = o.mods; applyMods(c); S.owned.splice(i, 1); HUD.notify('Your ' + VEH.NAMES[o.type] + ' is round the side.'); MISSIONS.closeShop(); }
+  function discount() { return S.rep.marla >= 3 ? 0.8 : 1; }
+  function dealerMenu() {
+    const p = P(); const items = [];
+    if (p.car) { const c = p.car; items.push({ label: 'Store this ' + VEH.NAMES[c.type] + ' (' + S.owned.length + '/3 slots used)', price: 0, enabled: S.owned.length < 3, action: storeCar });
+      for (const [key, name, prices, fn] of MODS) { const lvl = (c.mods && c.mods[key]) || 0; if (lvl >= prices.length) { items.push({ label: name + '  (maxed)', price: 0, enabled: false, action: null }); continue; } const price = Math.round(prices[lvl] * discount()); items.push({ label: name + ' ' + 'I'.repeat(lvl + 1), price, enabled: p.money >= price, action: () => { PLAYER.addMoney(-price, 'Voss Motors'); c.mods = c.mods || {}; c.mods[key] = lvl + 1; c.playerOwned = true; applyMods(c); AUDIO.play('pickup'); MISSIONS.closeShop(); } }); }
+      items.push({ label: 'Respray (pick a colour)', price: Math.round(200 * discount()), enabled: p.money >= 200, action: () => { PLAYER.addMoney(-Math.round(200 * discount()), 'Voss Motors'); c.colIdx = (c.colIdx + 1) % VEH.PALETTE.length; c.repair(); MISSIONS.closeShop(); } });
+    } else {
+      S.owned.forEach((o, i) => items.push({ label: 'Take out your ' + VEH.NAMES[o.type], price: 0, enabled: true, action: () => takeCar(i) }));
+      for (const [type, base] of CARS) { const price = Math.round(base * discount()); items.push({ label: 'Buy a ' + VEH.NAMES[type], price, enabled: p.money >= price, action: () => buyCar(type, price) }); }
+    }
+    return { kind: 'dealer', title: 'VOSS MOTORS', color: '#f5a623', items: items.slice(0, 9), x: dealerSpot.x, z: dealerSpot.z, hint: p.car ? 'Drive in to store or modify; walk in to buy' : (S.rep.marla >= 3 ? "Marla's friends pay 20% less" : 'Walk in to buy, drive in to modify') };
+  }
+  function propertyMenu(sp) {
+    const p = P(); const owned = S.properties[sp.id]; const items = [];
+    if (!owned) items.push({ label: 'Buy ' + sp.name + '  (pays $' + sp.income + ' a day)', price: sp.price, enabled: p.money >= sp.price, action: () => { PLAYER.addMoney(-sp.price, sp.name); S.properties[sp.id] = { since: W.state.day || 0, banked: 0 }; HUD.notify('You own the ' + sp.name + '. Come back to collect.'); MISSIONS.closeShop(); } });
+    else { const banked = Math.round(owned.banked); items.push({ label: 'Collect $' + banked, price: 0, enabled: banked > 0, action: () => { PLAYER.addMoney(banked, sp.name); owned.banked = 0; MISSIONS.closeShop(); } }); }
+    return { kind: 'property', title: sp.name.toUpperCase(), color: '#3df06a', items, x: sp.x, z: sp.z, hint: owned ? 'Income accrues while you play' : '' };
+  }
+  function update(dt) {
+    spots(); const p = P(); if (!p.alive) return;
+    // income accrues by the game clock: a full game day pays the listed amount
+    const perSec = 24 / W.state.dayLength; for (const id in S.properties) { const pr = PROPS.find(x => x[0] === id); if (pr) S.properties[id].banked += pr[3] * dt * perSec / 24; }
+    if (S.dealerT > 0) S.dealerT -= dt;
+    if (MISSIONS.shop || MISSIONS.S.current || MISSIONS.S.dialogue) return;
+    if (M.dist2(p.x, p.z, dealerSpot.x, dealerSpot.z) < (p.car ? 25 : 4) && (!p.car || p.car.absSpeed < 1.5)) { if (S.dealerT <= 0) { MISSIONS.openShop(dealerMenu()); S.dealerT = 2; } } else S.dealerT = 0;
+    for (const sp of propSpots) if (!p.car && M.dist2(p.x, p.z, sp.x, sp.z) < 4) MISSIONS.openShop(propertyMenu(sp));
+  }
+  function markersFX(t) { spots(); if (MISSIONS.S.current) return; W.fx.marker(dealerSpot.x, dealerSpot.z, 2.2, 1.6, [1, 0.65, 0.15], t); for (const sp of propSpots) W.fx.marker(sp.x, sp.z, 1.4, 1.6, S.properties[sp.id] ? [0.2, 0.9, 0.4] : [0.4, 0.9, 0.5], t); }
+  function mapIcons() { spots(); return [{ x: dealerSpot.x, z: dealerSpot.z, col: '#f5a623', ch: '$' }].concat(propSpots.map(sp => ({ x: sp.x, z: sp.z, col: S.properties[sp.id] ? '#3df06a' : '#7fbf7f', ch: 'P' }))); }
+  // ---- standing with the families: missions move it, and it changes who shoots on sight and what things cost
+  function onMissionPassed(m) { if (m.strand === 2) { S.rep.okafor++; S.rep.crane--; } else if (m.strand === 'phone') { S.rep.crane -= 1; } else { S.rep.marla++; if (m.id >= 2) S.rep.crane--; } }
+  function craneHostile() { return S.rep.crane <= -3; }
+  function saveData() { return { owned: S.owned, properties: S.properties, rep: S.rep }; }
+  function loadData(d) { if (!d) return; S.owned = d.owned || []; S.properties = d.properties || {}; Object.assign(S.rep, d.rep || {}); }
+  return { S, update, markersFX, mapIcons, applyMods, onMissionPassed, craneHostile, discount, saveData, loadData, CARS, MODS, PROPS };
 })();
 
 </script>
@@ -3615,6 +3687,8 @@ const HUD = (() => {
     const s = mapCanvas._s, b0 = mapCanvas._b0; g.drawImage(mapCanvas, 0, 0, 1024, 1024, b0, b0, 1024 / s, 1024 / s);
     drawMapIcons(scale, null);
     // blips
+    if (P.wanted > 0 && POLICE.S.seenT > 2 && POLICE.S.lastSeen) { const ls = POLICE.S.lastSeen; const rr = Math.min(120, 12 + POLICE.S.seenT * 6); g.fillStyle = 'rgba(90,160,255,0.18)'; g.beginPath(); g.arc(ls[0], ls[1], rr, 0, 7); g.fill(); g.strokeStyle = 'rgba(90,160,255,0.5)'; g.lineWidth = 1.5 / scale; g.stroke(); } // where the police think you are
+    for (const ic of ECON.mapIcons()) { g.fillStyle = ic.col; g.beginPath(); g.arc(ic.x, ic.z, 4 / scale, 0, 7); g.fill(); }
     for (const bp of MISSIONS.allBlips()) { g.fillStyle = bp.col; g.beginPath(); g.arc(bp.x, bp.z, 6 / scale, 0, 7); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 2 / scale; g.stroke(); }
     for (const p of W.pickups) if (!p.taken && p.kind === 'rampage' && !MISSIONS.S.rampageDone[p.rampage.id]) { g.fillStyle = '#ff7020'; g.beginPath(); g.arc(p.x, p.z, 4 / scale, 0, 7); g.fill(); }
     if (P.wanted > 0) for (const c of W.cars) if (!c.removed && c.ai.mode === 'chase') { g.fillStyle = '#5aa0ff'; g.fillRect(c.x - 3 / scale, c.z - 3 / scale, 6 / scale, 6 / scale); }
@@ -3691,7 +3765,9 @@ const HUD = (() => {
     if (INPUT.fallback && W.state.elapsed < 20) text('Pointer lock unavailable here: the mouse steers the camera without capture', W_ / 2, H_ - 40, 12, '#f5c542', 'center', 'normal');
     if (state === 'playing' && !P.car && P.alive && W.state.elapsed < 90 && !MISSIONS.S.current) text('WASD move · mouse look · SHIFT sprint · F enter car · LMB attack · SCROLL weapons · TAB map · ESC menu', W_ / 2, H_ - 22, 12, '#bbb', 'center', 'normal');
     // shop
-    const shop = MISSIONS.shop; if (shop) { const x = W_ / 2 - 170, y = H_ / 2 - 150; g.fillStyle = 'rgba(0,0,0,0.85)'; g.fillRect(x, y, 340, 290); text('IRONMONGER', x + 170, y + 26, 22, '#e0453b', 'center'); MISSIONS.GUNS.forEach(([k, price, ammo], i) => { const name = k === 'armor' ? 'BODY ARMOR' : WEAPONS[k].name + (ammo ? ' (' + ammo + ')' : ''); text((i + 1) + '.  ' + name, x + 20, y + 62 + i * 28, 15, P.money >= price ? '#fff' : '#777'); text('$' + price, x + 320, y + 62 + i * 28, 15, '#3df06a', 'right'); }); text('ESC to leave', x + 170, y + 268, 12, '#aaa', 'center', 'normal'); }
+    const shop = MISSIONS.shop; if (shop) { const n = shop.items.length; const hh = 90 + n * 28; const x = W_ / 2 - 190, y = H_ / 2 - hh / 2; g.fillStyle = 'rgba(0,0,0,0.85)'; g.fillRect(x, y, 380, hh); text(shop.title, x + 190, y + 26, 22, shop.color || '#fff', 'center');
+      shop.items.forEach((it, i) => { text((i + 1) + '.  ' + it.label, x + 20, y + 62 + i * 28, 15, it.enabled ? '#fff' : '#777'); if (it.price) text('$' + it.price, x + 360, y + 62 + i * 28, 15, it.enabled ? '#3df06a' : '#777', 'right'); });
+      if (shop.hint) text(shop.hint, x + 190, y + hh - 38, 12, '#ccc', 'center', 'normal'); text('ESC to leave', x + 190, y + hh - 16, 12, '#aaa', 'center', 'normal'); }
     if (big) { big.t -= dt; const a = Math.min(1, big.t / 0.5, (big.max - big.t) * 3 + 0.05); g.globalAlpha = M.clamp(a, 0, 1); outlined(big.text, W_ / 2, H_ * 0.4, big.text.length > 3 ? 54 : 110, big.color); g.globalAlpha = 1; if (big.t <= 0) big = null; }
     if (P.state === 'busted' || P.state === 'dead') { g.fillStyle = 'rgba(0,0,0,' + M.clamp((P.deadT - 2) / 2.5, 0, 0.9) + ')'; g.fillRect(0, 0, W_, H_); }
     if (starFlash > 0) starFlash -= dt;
@@ -3709,7 +3785,7 @@ const HUD = (() => {
   function drawLoading() { g.fillStyle = '#000'; g.fillRect(0, 0, W_, H_); outlined('GRIFT CITY', W_ / 2, H_ * 0.45, 70, '#f5c542'); text('building the city…', W_ / 2, H_ * 0.45 + 60, 18, '#ccc', 'center', 'normal'); }
   function drawPause() {
     const P = PLAYER.P; g.fillStyle = 'rgba(0,0,0,0.7)'; g.fillRect(0, 0, W_, H_); outlined('PAUSED', W_ / 2, 80, 48, '#f5c542');
-    const st = P.stats; const rows = [['Missions passed', st.missions + ' / ' + (MISSIONS.LIST.length + MISSIONS.LIST2.length + MISSIONS.PHONE.length)], ['Unique stunts', (st.jumps || []).length + ' / ' + CITY.ramps.length], ['Cash earned', '$' + st.cash], ['Hidden packages', st.packages + ' / 20'], ['Cars stolen', st.carsStolen], ['People killed', st.kills], ['Distance travelled', (st.distance / 1000).toFixed(1) + ' km'], ['Insane stunts', st.stunts], ['Times wasted / busted', st.wasted + ' / ' + st.busted], ['Time of day', W.clockString()]];
+    const st = P.stats; const rows = [['Missions passed', st.missions + ' / ' + (MISSIONS.LIST.length + MISSIONS.LIST2.length + MISSIONS.PHONE.length)], ['Standing: Marla / Crane', ECON.S.rep.marla + ' / ' + ECON.S.rep.crane], ['Properties / stored cars', Object.keys(ECON.S.properties).length + ' / ' + ECON.S.owned.length], ['Unique stunts', (st.jumps || []).length + ' / ' + CITY.ramps.length], ['Cash earned', '$' + st.cash], ['Hidden packages', st.packages + ' / 20'], ['Cars stolen', st.carsStolen], ['People killed', st.kills], ['Distance travelled', (st.distance / 1000).toFixed(1) + ' km'], ['Insane stunts', st.stunts], ['Times wasted / busted', st.wasted + ' / ' + st.busted], ['Time of day', W.clockString()]];
     rows.forEach(([k, v], i) => { text(k, W_ / 2 - 60, 150 + i * 26, 15, '#bbb', 'right', 'normal'); text(String(v), W_ / 2 - 48, 150 + i * 26, 15, '#fff', 'left'); });
     const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', '']];
     opts.forEach(([k, n, v], i) => { const y = 150 + i * 26; text(k, W_ / 2 + 200, y, 15, '#f5c542', 'right'); text(n, W_ / 2 + 212, y, 15, '#ccc', 'left', 'normal'); text(v, W_ / 2 + 360, y, 15, '#fff', 'left'); });
@@ -3742,8 +3818,8 @@ const GAME = (() => {
   let canvas, hud, state = 'loading', last = 0, staticMesh = null, waterMesh = null, propList = [], started = false, accum = 0;
   const SAVE_KEY = 'grift-city-save-v1';
   function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } }
-  function save() { try { const P = PLAYER.P; const sh = CITY.place('safehouse'); let garage = null; for (const c of W.cars) if (!c.removed && !c.wrecked && c.playerOwned && M.dist(c.x, c.z, sh.x, sh.z) < 12) { garage = { type: c.type, color: c.colIdx, x: c.x, z: c.z, angle: c.angle }; break; } localStorage.setItem(SAVE_KEY, JSON.stringify({ garage, progress2: MISSIONS.S.progress2, phoneProgress: MISSIONS.S.phoneProgress, rampageDone: MISSIONS.S.rampageDone, x: P.x, z: P.z, money: P.money, health: P.health, armor: P.armor, weapons: Object.fromEntries(Object.entries(P.weapons).map(([k, v]) => [k, v === Infinity ? -1 : v])), weapon: P.weapon, stats: P.stats, progress: MISSIONS.S.progress, done: MISSIONS.S.done, time: W.state.time, packages: W.pickups.filter(p => p.kind === 'package' && p.taken).map(p => p.id) })); } catch (e) { } }
-  function load() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (!s) return false; const P = PLAYER.P; P.x = s.x; P.z = s.z; P.money = s.money; P.health = s.health || 100; P.armor = s.armor || 0; P.weapons = Object.fromEntries(Object.entries(s.weapons).map(([k, v]) => [k, v === -1 ? Infinity : v])); P.weapon = s.weapon in P.weapons ? s.weapon : 'fist'; P.weaponOut = P.weapon !== 'fist'; Object.assign(P.stats, s.stats || {}); MISSIONS.S.progress = s.progress || 0; MISSIONS.S.done = s.done || {}; MISSIONS.S.progress2 = s.progress2 || 0; MISSIONS.S.phoneProgress = s.phoneProgress || 0; MISSIONS.S.rampageDone = s.rampageDone || {}; if (!Array.isArray(P.stats.jumps)) P.stats.jumps = []; if (s.garage) { const c = VEH.spawn(s.garage.type, s.garage.x, s.garage.z, s.garage.angle, { mode: 'parked', color: s.garage.color }); c.playerOwned = true; } W.state.time = s.time ?? 9; for (const p of W.pickups) if (p.kind === 'package' && (s.packages || []).includes(p.id)) p.taken = true; return true; } catch (e) { return false; } }
+  function save() { try { const P = PLAYER.P; const sh = CITY.place('safehouse'); let garage = null; for (const c of W.cars) if (!c.removed && !c.wrecked && c.playerOwned && M.dist(c.x, c.z, sh.x, sh.z) < 12) { garage = { type: c.type, color: c.colIdx, x: c.x, z: c.z, angle: c.angle }; break; } localStorage.setItem(SAVE_KEY, JSON.stringify({ garage, econ: ECON.saveData(), progress2: MISSIONS.S.progress2, phoneProgress: MISSIONS.S.phoneProgress, rampageDone: MISSIONS.S.rampageDone, x: P.x, z: P.z, money: P.money, health: P.health, armor: P.armor, weapons: Object.fromEntries(Object.entries(P.weapons).map(([k, v]) => [k, v === Infinity ? -1 : v])), weapon: P.weapon, stats: P.stats, progress: MISSIONS.S.progress, done: MISSIONS.S.done, time: W.state.time, packages: W.pickups.filter(p => p.kind === 'package' && p.taken).map(p => p.id) })); } catch (e) { } }
+  function load() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (!s) return false; const P = PLAYER.P; P.x = s.x; P.z = s.z; P.money = s.money; P.health = s.health || 100; P.armor = s.armor || 0; P.weapons = Object.fromEntries(Object.entries(s.weapons).map(([k, v]) => [k, v === -1 ? Infinity : v])); P.weapon = s.weapon in P.weapons ? s.weapon : 'fist'; P.weaponOut = P.weapon !== 'fist'; Object.assign(P.stats, s.stats || {}); MISSIONS.S.progress = s.progress || 0; MISSIONS.S.done = s.done || {}; MISSIONS.S.progress2 = s.progress2 || 0; MISSIONS.S.phoneProgress = s.phoneProgress || 0; MISSIONS.S.rampageDone = s.rampageDone || {}; ECON.loadData(s.econ); if (!Array.isArray(P.stats.jumps)) P.stats.jumps = []; if (s.garage) { const c = VEH.spawn(s.garage.type, s.garage.x, s.garage.z, s.garage.angle, { mode: 'parked', color: s.garage.color }); c.playerOwned = true; } W.state.time = s.time ?? 9; for (const p of W.pickups) if (p.kind === 'package' && (s.packages || []).includes(p.id)) p.taken = true; return true; } catch (e) { return false; } }
   function newGame() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { } location.reload(); }
   function onPackage(n) { if (n % 5 === 0) { const s = CITY.place('safehouse'); const w = ['uzi', 'shotgun', 'rifle', 'rocket'][n / 5 - 1]; PICKUPS.add('weapon', s.x + 4, s.z - 4, { weapon: w, ammo: w === 'rocket' ? 4 : 60, respawn: 240 }); HUD.notify(WEAPONS[w].name + ' now spawns at the safehouse'); } }
 
@@ -3849,7 +3925,7 @@ const GAME = (() => {
     checkCheats();
     W.frameBegin(); W.updateClock(dt); W.updateWeather(dt); RENDER.setTimeOfDay(W.state.time, W.weather.rain, W.weather.fog); const night = W.isNight();
     const dlg = !!MISSIONS.dialogue;
-    MISSIONS.update(dt);
+    MISSIONS.update(dt); ECON.update(dt);
     if (!dlg) PLAYER.update(dt); else { PLAYER.P.aim = 0; PLAYER.P.vx = PLAYER.P.vz = 0; if (PLAYER.car) { PLAYER.car.controls.throttle = 0; PLAYER.car.controls.brake = 1; } PLAYER.updateCamera(dt); }
     PLAYER.updateProjectiles(dt);
     VEH.updateAll(dt, night); PEDS.updateAll(dt); POLICE.update(dt); PICKUPS.update(dt);
@@ -3882,7 +3958,7 @@ const GAME = (() => {
     for (const e of PLAYER.projectileEntities()) scene.entities.push(e);
     for (const e of PICKUPS.entities(cam.tx, cam.tz)) scene.entities.push(e);
     const he = POLICE.heliEntity(); if (he) scene.entities.push(he);
-    if (!title) { MISSIONS.markersFX(W.state.elapsed); PLAYER.drawFX(); }
+    if (!title) { MISSIONS.markersFX(W.state.elapsed); ECON.markersFX(W.state.elapsed); PLAYER.drawFX(); }
     // soft blob shadows under peds at night (sun shadows are off)
     if (!RENDER.env.shadowOn) { for (const p of W.peds) if (!p.removed && !p.inCar && M.dist2(p.x, p.z, cam.tx, cam.tz) < 60 * 60) W.fx.blob(p.x, p.y + 0.02, p.z, 0.45, 0.35); if (!PLAYER.car && !title) W.fx.blob(PLAYER.x, PLAYER.y + 0.02, PLAYER.z, 0.45, 0.35); for (const c of W.cars) if (!c.removed && M.dist2(c.x, c.z, cam.tx, cam.tz) < 120 * 120) W.fx.blob(c.x, c.y + 0.02, c.z, c.spec.len * 0.45, 0.3); }
     W.fx.end();

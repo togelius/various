@@ -50,6 +50,7 @@ this directory.
 | Taxi or vigilante job | `T` in a taxi or a police car              |
 | Map / pause / mute    | `Tab` / `Esc` / `M`                        |
 | Retry a failed job    | `Y` (within half a minute of failing)      |
+| Shop menus            | `1`–`9` to pick, `Esc` to leave            |
 
 Gamepads work: left stick moves, right stick looks, triggers fire and aim
 (on foot) or drive (in a car), A sprints or handbrakes, B jumps, X enters
@@ -223,3 +224,17 @@ crowds and cars when the target drops. Each district has its own traffic mix
 and cruisers after midnight) and its own police response time, slowest on the
 east side. Fog rolls in off the water before dawn and burns off by mid-morning;
 it thickens the haze, dulls the sun and shortens how far the police can see.
+
+Money has somewhere to go. The orange marker beside Voss Motors is the dealer
+and mod shop: walk in to buy a car, drive in to store it (three slots), tune
+the engine, fit stickier tyres or race brakes, plate it with armour, or pick a
+colour. Mods change that car's own copy of its spec, so the streets stay stock.
+Four green markers around the city are properties: buy one and it banks an
+income by the game clock that you collect on the doorstep. Your standing with
+Marla's and Crane's people moves with the jobs you do: Marla's friends get a
+fifth off everything, and once Crane's people hate you enough his gangs shoot
+on sight. The police no longer know where you are: cruisers head for where
+you were last seen and search around it (the blue haze on the radar), and the
+trail goes cold faster in a car park, in the safehouse yard, or in a car they
+never saw you take. Fail the same job twice and the third try gets a longer
+clock and a vest.

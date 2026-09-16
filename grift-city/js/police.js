@@ -22,6 +22,8 @@ const POLICE = (() => {
     P.wanted = stars();
   }
   function seen(cop) { S.seenT = 0; S.lastSeen = [PLAYER.x, PLAYER.z]; }
+  // Where a pursuing unit should head: the player while they are in sight, otherwise a search pattern around the last sighting.
+  function pursuitPoint() { const P = PLAYER.P; if (S.seenT < 2.5 || !S.lastSeen) return [P.x + (P.car ? P.car.vx * 0.6 : 0), P.z + (P.car ? P.car.vz * 0.6 : 0)]; if (!S.search || S.searchT <= 0) { const a = W.rng() * M.TAU, r = 20 + Math.min(80, S.seenT * 5) * W.rng(); S.search = [S.lastSeen[0] + Math.sin(a) * r, S.lastSeen[1] + Math.cos(a) * r]; S.searchT = 6; } return S.search; }
   function arrestProgress(dt, cop) { S.arrestT += dt; S.arresting = true; if (S.arrestT > 0.7) PLAYER.bust(); }
   function clear() { S.heat = 0; PLAYER.P.wanted = 0; S.seenT = 99; for (const c of W.cars) if (!c.removed && c.driver && c.driver.isCop && c.ai.mode === 'chase') { c.ai.mode = 'traffic'; c.ai.edge = null; c.siren = false; } if (W.heli) W.heli.leaving = true; }
   function setStars(n) { S.heat = Math.max(S.heat, n); PLAYER.P.wanted = stars(); S.seenT = 0; S.lastSeen = [PLAYER.x, PLAYER.z]; S.spawnT = 0; }
@@ -97,8 +99,10 @@ const POLICE = (() => {
   function update(dt) {
     const P = PLAYER.P; const w = stars(); P.wanted = w;
     if (!S.arresting) S.arrestT = Math.max(0, S.arrestT - dt * 2); S.arresting = false;
-    S.seenT += dt;
+    S.seenT += dt; if (S.searchT > 0) S.searchT -= dt;
     if (w > 0 && P.alive) {
+      // out of sight in a car park or the safehouse yard, the trail goes cold twice as fast
+      const bl = CITY.blockAt(P.x, P.z); const sh = CITY.place('safehouse'); if (S.seenT > 3 && ((bl && bl.kind === 'parking') || M.dist2(P.x, P.z, sh.x, sh.z) < 18 * 18)) S.seenT += dt;
       // cop cars see the player too
       const see = 70 * (1 - 0.55 * (W.weather.fog || 0)) * (W.isNight() ? 0.8 : 1); // fog and darkness shorten the police's sight
       for (const c of W.cars) if (!c.removed && c.ai.mode === 'chase' && M.dist2(c.x, c.z, P.x, P.z) < see * see && W.los(c.x, c.z, P.x, P.z)) { S.seenT = 0; S.lastSeen = [P.x, P.z]; break; }
@@ -129,5 +133,5 @@ const POLICE = (() => {
     // siren audio: nearest siren car
     let vol = 0; for (const c of W.cars) if (!c.removed && c.siren) vol = Math.max(vol, 1 - M.dist(c.x, c.z, P.x, P.z) / 120); AUDIO.siren(M.clamp(vol, 0, 1) * (P.car && P.car.siren ? 1 : 0.8) + (P.car && P.car.siren ? 0.6 : 0), dt);
   }
-  return { S, crime, seen, arrestProgress, clear, setStars, bribe, update, heliEntity, stars, get lastSeen() { return S.lastSeen; } };
+  return { S, crime, seen, pursuitPoint, arrestProgress, clear, setStars, bribe, update, heliEntity, stars, get lastSeen() { return S.lastSeen; } };
 })();

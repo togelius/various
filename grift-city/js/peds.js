@@ -116,7 +116,7 @@ const PEDS = (() => {
     aiHostile(dt) { // gang members / mission targets: attack the player when hostile, otherwise loiter
       const p = PLAYER; const d = M.dist(this.x, this.z, p.x, p.z);
       if (this.state === 'flee') { this.aiCivilian(dt); return; }
-      if (!this.hostile) { if (this.isGang && d < 14 && p.alive && (W.state.noises.length || p.wanted > 0) && W.rng() < 0.01) this.hostile = true; if (this.stationary) { this.speed = 0; if (d < 10) this.faceTo(p.x, p.z, dt); } else this.aiCivilian(dt); return; }
+      if (!this.hostile) { if (this.isGang && d < 14 && p.alive && (W.state.noises.length || p.wanted > 0) && W.rng() < 0.01) this.hostile = true; if (this.isGang && ECON.craneHostile() && d < 22 && p.alive && W.los(this.x, this.z, p.x, p.z) && W.rng() < 0.03) { this.hostile = true; this.say("That's the one who crossed Crane!"); } if (this.stationary) { this.speed = 0; if (d < 10) this.faceTo(p.x, p.z, dt); } else this.aiCivilian(dt); return; }
       if (!p.alive) { this.aim = 0; this.speed = 0; return; }
       const canSee = d < 60 && W.los(this.x, this.z, p.x, p.z);
       if (this.weapon) {
