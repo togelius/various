@@ -34,7 +34,7 @@ const RENDER = (() => {
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in vec4 vShadow; in float vEmis;
     uniform sampler2DArray uTex; uniform sampler2DShadow uShadow;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
-    uniform float uFogDensity; uniform float uNightEmis; uniform float uShadowOn; uniform float uTexOn; uniform float uSpec;
+    uniform float uFogDensity; uniform float uNightEmis; uniform float uShadowOn; uniform float uTexOn; uniform float uSpec; uniform float uHDR; uniform float uAlpha;
     uniform vec4 uLights[${MAX_LIGHTS}]; uniform vec3 uLightCols[${MAX_LIGHTS}]; uniform int uNumLights;
     out vec4 o;
     float shadowAt() {
@@ -62,18 +62,19 @@ const RENDER = (() => {
         float nl = max(dot(n, L / d), 0.0) * 0.8 + 0.2;
         col += albedo * uLightCols[i] * att * nl;
       }
-      col += mix(albedo, vec3(1.0, 0.85, 0.6), 0.6) * t.a * uNightEmis * 0.8;
+      col += mix(albedo, vec3(1.0, 0.85, 0.6), 0.6) * t.a * uNightEmis * 0.9;
       col += vCol * vEmis;
       float dist = length(vWorld - uCamPos);
       float f = 1.0 - exp(-dist * uFogDensity);
       col = mix(col, uFogCol, f);
+      if (uHDR > 0.5) { o = vec4(col, uAlpha); return; }
       col = col / (1.0 + col * 0.15);
-      o = vec4(pow(col, vec3(1.0 / 1.25)), 1.0);
+      o = vec4(pow(col, vec3(1.0 / 1.25)), uAlpha);
     }`;
   const SHADOW_FS = `out vec4 o; void main() { o = vec4(1.0); }`;
   const SKY_VS = `const vec2 v[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0)); out vec2 vNdc; void main() { vNdc = v[gl_VertexID]; gl_Position = vec4(v[gl_VertexID], 0.9999, 1.0); }`;
   const SKY_FS = `
-    in vec2 vNdc; uniform mat4 uInvVP; uniform vec3 uCamPos; uniform vec3 uSunDir; uniform vec3 uZenith; uniform vec3 uHorizon; uniform vec3 uSunCol; uniform float uStars; uniform float uSunDisc; uniform float uTime; uniform float uCloud;
+    in vec2 vNdc; uniform mat4 uInvVP; uniform vec3 uCamPos; uniform vec3 uSunDir; uniform vec3 uZenith; uniform vec3 uHorizon; uniform vec3 uSunCol; uniform float uStars; uniform float uSunDisc; uniform float uTime; uniform float uCloud; uniform float uHDR;
     out vec4 o;
     float hash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
     float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -95,17 +96,56 @@ const RENDER = (() => {
         vec3 cloudCol = mix(uHorizon * 0.9, vec3(1.0), 0.6) * (0.55 + 0.45 * uSunDisc) * (uStars > 0.5 ? 0.25 : 1.0); col = mix(col, cloudCol, cov * 0.85); }
       // low haze band near horizon at night
       col = mix(col, uHorizon, (1.0 - h) * 0.15);
+      if (uHDR > 0.5) { o = vec4(col, 1.0); return; }
       o = vec4(pow(col, vec3(1.0 / 1.25)), 1.0);
     }`;
   const PART_VS = `in vec3 aPos; in float aSize; in vec4 aCol; uniform mat4 uVP; uniform vec3 uCamPos; uniform float uScale; out vec4 vCol;
     void main() { gl_Position = uVP * vec4(aPos, 1.0); float d = max(gl_Position.w, 0.1); gl_PointSize = clamp(aSize * uScale / d, 1.0, 256.0); vCol = aCol; }`;
   const PART_FS = `in vec4 vCol; out vec4 o; void main() { vec2 c = gl_PointCoord * 2.0 - 1.0; float r = dot(c, c); if (r > 1.0) discard; float a = smoothstep(1.0, 0.2, r); o = vec4(vCol.rgb, vCol.a * a); }`;
+  const QUAD_VS = `const vec2 v[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0)); out vec2 vUV; void main() { vUV = v[gl_VertexID] * 0.5 + 0.5; gl_Position = vec4(v[gl_VertexID], 0.0, 1.0); }`;
+  const BRIGHT_FS = `in vec2 vUV; uniform sampler2D uTex; uniform float uThreshold; out vec4 o; void main() { vec3 c = texture(uTex, vUV).rgb; float l = dot(c, vec3(0.3, 0.55, 0.15)); float k = max(l - uThreshold, 0.0) / max(l, 1e-3); o = vec4(c * k, 1.0); }`;
+  const BLUR_FS = `in vec2 vUV; uniform sampler2D uTex; uniform vec2 uDir; out vec4 o;
+    void main() { const float w[5] = float[5](0.227, 0.194, 0.121, 0.054, 0.016); vec3 c = texture(uTex, vUV).rgb * w[0]; for (int i = 1; i < 5; i++) { vec2 off = uDir * float(i); c += texture(uTex, vUV + off).rgb * w[i]; c += texture(uTex, vUV - off).rgb * w[i]; } o = vec4(c, 1.0); }`;
+  const COMPOSITE_FS = `in vec2 vUV; uniform sampler2D uScene; uniform sampler2D uBloom; uniform float uBloomAmt; uniform float uExposure; uniform float uHDR; uniform float uVignette; uniform float uSat; out vec4 o;
+    vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+    void main() {
+      vec3 c = texture(uScene, vUV).rgb + texture(uBloom, vUV).rgb * uBloomAmt;
+      if (uHDR > 0.5) { c = aces(c * uExposure); c = pow(c, vec3(1.0 / 2.2)); }
+      float l = dot(c, vec3(0.3, 0.55, 0.15)); c = mix(vec3(l), c, uSat);
+      vec2 d = vUV - 0.5; c *= 1.0 - uVignette * dot(d, d) * 2.2;
+      o = vec4(c, 1.0);
+    }`;
   const FLAT_VS = `in vec3 aPos; in vec4 aCol; uniform mat4 uVP; out vec4 vCol; void main() { gl_Position = uVP * vec4(aPos, 1.0); vCol = aCol; }`;
   const FLAT_FS = `in vec4 vCol; out vec4 o; void main() { o = vCol; }`;
 
-  let partVao, partBuf, flatVao, flatBuf;
+  let partVao, partBuf, flatVao, flatBuf, brightProg, blurProg, compProg;
+  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, samples: 4, bloom: 0.35, exposure: 1.0, vignette: 0.3, sat: 1.12 };
+  function makeTarget(w, h, samples) {
+    const fmt = post.hdr ? gl.RGBA16F : gl.RGBA8; const t = { w, h };
+    t.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo);
+    if (samples > 0) {
+      t.rb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, t.rb); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, fmt, w, h); gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, t.rb);
+      t.db = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, t.db); gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, gl.DEPTH_COMPONENT24, w, h); gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, t.db);
+    } else {
+      t.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t.tex); gl.texStorage2D(gl.TEXTURE_2D, 1, fmt, w, h);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t.tex, 0);
+    }
+    const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER, null); t.ok = ok; return t;
+  }
+  function destroyTarget(t) { if (!t) return; gl.deleteFramebuffer(t.fbo); if (t.rb) gl.deleteRenderbuffer(t.rb); if (t.db) gl.deleteRenderbuffer(t.db); if (t.tex) gl.deleteTexture(t.tex); }
+  function ensureTargets(w, h) {
+    if (post.w === w && post.h === h && post.msaa) return;
+    destroyTarget(post.msaa); destroyTarget(post.scene); destroyTarget(post.bloomA); destroyTarget(post.bloomB);
+    post.w = w; post.h = h;
+    post.msaa = makeTarget(w, h, post.samples); post.scene = makeTarget(w, h, 0);
+    const bw = Math.max(1, w >> 2), bh = Math.max(1, h >> 2); post.bloomA = makeTarget(bw, bh, 0); post.bloomB = makeTarget(bw, bh, 0);
+    if (!post.msaa.ok || !post.scene.ok || !post.bloomA.ok) { post.enabled = false; console.warn('post-processing unavailable'); }
+  }
   function init(canvas, textures) {
     gl = GL.init(canvas);
+    post.hdr = !!gl.getExtension('EXT_color_buffer_float'); const maxS = gl.getParameter(gl.MAX_SAMPLES); post.samples = Math.min(4, maxS);
+    brightProg = GL.program(QUAD_VS, BRIGHT_FS); blurProg = GL.program(QUAD_VS, BLUR_FS); compProg = GL.program(QUAD_VS, COMPOSITE_FS);
     litProg = GL.program(VS, FS); instProg = GL.program(VS, FS, '#define INSTANCED');
     shadowProg = GL.program(VS, SHADOW_FS, '#define SHADOW'); shadowInstProg = GL.program(VS, SHADOW_FS, '#define INSTANCED\n#define SHADOW');
     skyProg = GL.program(SKY_VS, SKY_FS); partProg = GL.program(PART_VS, PART_FS); flatProg = GL.program(FLAT_VS, FLAT_FS);
@@ -126,7 +166,7 @@ const RENDER = (() => {
     gl.clearColor(0, 0, 0, 1);
   }
   function resize(canvas) {
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const dpr = Math.min(window.devicePixelRatio || 1, post.dprCap || 1.5);
     const w = Math.floor(canvas.clientWidth * dpr), h = Math.floor(canvas.clientHeight * dpr);
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
   }
@@ -141,13 +181,13 @@ const RENDER = (() => {
     const night = 1 - day;
     if (sy > 0.02) env.sunDir = [sx, sy, sz]; else env.sunDir = [-sx * 0.5, Math.max(0.35, -sy), -sz * 0.5]; // moon-ish from the other side
     const mix3 = (a, b, k) => [M.lerp(a[0], b[0], k), M.lerp(a[1], b[1], k), M.lerp(a[2], b[2], k)];
-    const sunDay = mix3([1.0, 0.96, 0.88], [1.0, 0.55, 0.25], dusk); const sunNight = [0.10, 0.12, 0.2];
-    env.sunCol = mix3(sunNight, sunDay.map(v => v * 1.15), day);
-    env.skyCol = mix3([0.11, 0.13, 0.21], mix3([0.42, 0.52, 0.68], [0.5, 0.35, 0.3], dusk), day);
-    env.groundCol = mix3([0.06, 0.065, 0.085], mix3([0.28, 0.26, 0.24], [0.3, 0.2, 0.15], dusk), day);
-    env.zenith = mix3([0.02, 0.03, 0.08], mix3([0.2, 0.42, 0.85], [0.25, 0.25, 0.5], dusk), day);
-    env.horizon = mix3([0.08, 0.09, 0.16], mix3([0.72, 0.8, 0.9], [0.95, 0.5, 0.3], dusk), day);
-    env.fogCol = mix3([0.06, 0.07, 0.12], mix3([0.7, 0.78, 0.88], [0.85, 0.5, 0.35], dusk), day);
+    const sunDay = mix3([1.35, 1.27, 1.12], [1.2, 0.55, 0.22], dusk); const sunNight = [0.02, 0.025, 0.045];
+    env.sunCol = mix3(sunNight, sunDay.map(v => v * 1.0), day);
+    env.skyCol = mix3([0.014, 0.017, 0.032], mix3([0.14, 0.19, 0.28], [0.22, 0.14, 0.11], dusk), day);
+    env.groundCol = mix3([0.006, 0.007, 0.011], mix3([0.09, 0.085, 0.075], [0.12, 0.07, 0.05], dusk), day);
+    env.zenith = mix3([0.004, 0.006, 0.02], mix3([0.12, 0.3, 0.75], [0.15, 0.15, 0.4], dusk), day);
+    env.horizon = mix3([0.012, 0.014, 0.03], mix3([0.36, 0.47, 0.68], [0.9, 0.4, 0.2], dusk), day);
+    env.fogCol = mix3([0.008, 0.009, 0.018], mix3([0.36, 0.46, 0.64], [0.8, 0.4, 0.25], dusk), day);
     env.fogDensity = M.lerp(0.0028, 0.0016, day);
     env.nightEmis = M.clamp(night * 1.3, 0, 1); env.daylight = day; env.starAlpha = M.clamp(night * 1.2 - 0.2, 0, 1) * (1 - rain); env.sunDisc = sy > 0.02 ? (1 - rain) : 0;
     if (rain > 0) { // overcast: grey it all down, thicken the fog
@@ -187,7 +227,7 @@ const RENDER = (() => {
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadow.tex); gl.uniform1i(P.u.uShadow, 1);
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
       gl.uniform3fv(P.u.uFogCol, env.fogCol); gl.uniform3f(P.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform1f(P.u.uFogDensity, env.fogDensity);
-      gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0);
+      gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uHDR, post.hdr ? 1 : 0); gl.uniform1f(P.u.uAlpha, 1);
       gl.uniform4fv(P.u.uLights, lights.pos); gl.uniform3fv(P.u.uLightCols, lights.col); gl.uniform1i(P.u.uNumLights, lights.n);
     }
     gl.uniform2f(P.u.uUVOff, 0, 0);
@@ -198,7 +238,7 @@ const RENDER = (() => {
     bindCommon(P, forShadow);
     gl.uniformMatrix4fv(P.u.uBones, false, identityBones); gl.uniform1fv(P.u.uBoneEmis, zeroEmis);
     gl.uniformMatrix4fv(P.u.uModel, false, identityBones.subarray(0, 16));
-    for (const m of scene.statics) { if (m.uvOff) gl.uniform2fv(P.u.uUVOff, m.uvOff); GL.draw(m); stats.draws++; if (m.uvOff) gl.uniform2f(P.u.uUVOff, 0, 0); }
+    for (const m of scene.statics) { if (m.uvOff) gl.uniform2fv(P.u.uUVOff, m.uvOff); if (!forShadow && m.spec) gl.uniform1f(P.u.uSpec, m.spec); GL.draw(m); stats.draws++; if (m.uvOff) gl.uniform2f(P.u.uUVOff, 0, 0); if (!forShadow && m.spec) gl.uniform1f(P.u.uSpec, 0); }
     let lastBones = null, lastSpec = 0;
     for (const e of scene.entities) {
       if (forShadow && e.noShadow) continue;
@@ -210,6 +250,16 @@ const RENDER = (() => {
     bindCommon(PI, forShadow);
     for (const m of scene.props) { if (m.instances > 0) { GL.draw(m); stats.draws++; } }
   }
+  // Translucent car glass, drawn after everything opaque (and after occupants), sorted far to near.
+  function drawGlass(scene) {
+    const P = litProg; const list = scene.entities.filter(e => e.glass);
+    if (!list.length) return;
+    list.sort((a, b) => M.dist2(b.model[12], b.model[14], cam.x, cam.z) - M.dist2(a.model[12], a.model[14], cam.x, cam.z));
+    bindCommon(P, false); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+    gl.uniform1f(P.u.uAlpha, 0.55); gl.uniform1f(P.u.uSpec, 1.2); gl.uniformMatrix4fv(P.u.uBones, false, identityBones); gl.uniform1fv(P.u.uBoneEmis, zeroEmis);
+    for (const e of list) { gl.uniformMatrix4fv(P.u.uModel, false, e.model); GL.draw(e.glass); stats.draws++; }
+    gl.uniform1f(P.u.uAlpha, 1); gl.depthMask(true); gl.disable(gl.BLEND);
+  }
   function render(canvas, scene, time) {
     // Shadow pass
     if (env.shadowOn) {
@@ -218,15 +268,18 @@ const RENDER = (() => {
       drawScene(scene, true);
       gl.disable(gl.POLYGON_OFFSET_FILL); gl.cullFace(gl.BACK);
     }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, canvas.width, canvas.height);
+    if (post.enabled) ensureTargets(canvas.width, canvas.height);
+    const usePost = post.enabled && post.msaa;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, usePost ? post.msaa.fbo : null); gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     // Sky
     gl.useProgram(skyProg.p); gl.depthMask(false); gl.disable(gl.DEPTH_TEST);
     gl.uniformMatrix4fv(skyProg.u.uInvVP, false, invVP); gl.uniform3f(skyProg.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform3fv(skyProg.u.uSunDir, env.sunDir);
-    gl.uniform3fv(skyProg.u.uZenith, env.zenith); gl.uniform3fv(skyProg.u.uHorizon, env.horizon); gl.uniform3fv(skyProg.u.uSunCol, env.sunCol); gl.uniform1f(skyProg.u.uStars, env.starAlpha); gl.uniform1f(skyProg.u.uSunDisc, env.sunDisc); gl.uniform1f(skyProg.u.uTime, time); gl.uniform1f(skyProg.u.uCloud, env.rain || 0);
+    gl.uniform3fv(skyProg.u.uZenith, env.zenith); gl.uniform3fv(skyProg.u.uHorizon, env.horizon); gl.uniform3fv(skyProg.u.uSunCol, env.sunCol); gl.uniform1f(skyProg.u.uStars, env.starAlpha); gl.uniform1f(skyProg.u.uSunDisc, env.sunDisc); gl.uniform1f(skyProg.u.uTime, time); gl.uniform1f(skyProg.u.uCloud, env.rain || 0); gl.uniform1f(skyProg.u.uHDR, post.hdr ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.depthMask(true); gl.enable(gl.DEPTH_TEST);
     drawScene(scene, false);
+    drawGlass(scene);
     // Flat FX (alpha blended triangles + lines), then particles
     gl.enable(gl.BLEND); gl.depthMask(false);
     if (scene.flat && scene.flat.count > 0) {
@@ -246,9 +299,34 @@ const RENDER = (() => {
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE); if (scene.particles.addCount) gl.drawArrays(gl.POINTS, scene.particles.alphaCount, scene.particles.addCount);
     }
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.disable(gl.BLEND); gl.depthMask(true); gl.bindVertexArray(null);
+    if (usePost) postProcess(canvas);
+  }
+  function postProcess(canvas) {
+    const w = canvas.width, h = canvas.height;
+    // resolve MSAA into the scene texture
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, post.msaa.fbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, post.scene.fbo);
+    gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
+    // bright pass at quarter resolution
+    const bw = post.bloomA.w, bh = post.bloomA.h;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, post.bloomA.fbo); gl.viewport(0, 0, bw, bh);
+    gl.useProgram(brightProg.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, post.scene.tex); gl.uniform1i(brightProg.u.uTex, 0); gl.uniform1f(brightProg.u.uThreshold, post.hdr ? 1.15 : 0.8);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.useProgram(blurProg.p); gl.uniform1i(blurProg.u.uTex, 0);
+    for (let i = 0; i < 2; i++) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, post.bloomB.fbo); gl.bindTexture(gl.TEXTURE_2D, post.bloomA.tex); gl.uniform2f(blurProg.u.uDir, 1.5 / bw, 0); gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, post.bloomA.fbo); gl.bindTexture(gl.TEXTURE_2D, post.bloomB.tex); gl.uniform2f(blurProg.u.uDir, 0, 1.5 / bh); gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+    // composite to the screen
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h);
+    gl.useProgram(compProg.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, post.scene.tex); gl.uniform1i(compProg.u.uScene, 0);
+    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, post.bloomA.tex); gl.uniform1i(compProg.u.uBloom, 1);
+    gl.uniform1f(compProg.u.uBloomAmt, post.bloom); gl.uniform1f(compProg.u.uExposure, post.exposure); gl.uniform1f(compProg.u.uHDR, post.hdr ? 1 : 0); gl.uniform1f(compProg.u.uVignette, post.vignette); gl.uniform1f(compProg.u.uSat, post.sat);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
   }
   // World → screen (pixels) for HUD labels. Returns null if behind the camera.
   const tmp = [0, 0, 0];
   function project(x, y, z, canvas) { M.transformPoint(tmp, vp, x, y, z); const w = vp[3] * x + vp[7] * y + vp[11] * z + vp[15]; if (w <= 0) return null; return [(tmp[0] * 0.5 + 0.5) * canvas.clientWidth, (0.5 - tmp[1] * 0.5) * canvas.clientHeight, w]; }
-  return { init, cam, env, setTimeOfDay, setCamera, beginFrame, setLights, render, project, stats, get gl() { return gl; }, MAX_BONES };
+  return { post, init, cam, env, setTimeOfDay, setCamera, beginFrame, setLights, render, project, stats, get gl() { return gl; }, MAX_BONES };
 })();

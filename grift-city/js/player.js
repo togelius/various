@@ -18,7 +18,7 @@ const PLAYER = (() => {
     health: 100, armor: 0, money: 500, wanted: 0, weapons: { fist: Infinity }, weapon: 'fist', fireT: 0, weaponOut: false, aim: 0, recoil: 0, punchT: 0,
     car: null, state: 'foot', stateT: 0, alive: true, deadT: 0, look: PEDS.PLAYER_LOOK, mesh: null, bones: null, emis: null, model: null,
     camYaw: 0, camPitch: 0.28, camYawOff: 0, camIdle: 0, camX: 0, camY: 0, camZ: 0, camDist: 5.4, fov: 62,
-    stats: { kills: 0, carsStolen: 0, missions: 0, distance: 0, packages: 0, stunts: 0, busted: 0, wasted: 0, cash: 0 },
+    stats: { kills: 0, carsStolen: 0, missions: 0, distance: 0, packages: 0, stunts: 0, busted: 0, wasted: 0, cash: 0, jumps: [] },
     hurtFlash: 0, knockT: 0, enterTarget: null, targetCar: null, invuln: 0, lastGround: 0, inCarT: 0, airT: 0, stuntBonus: 0, sprintT: 0, radio: 1, headBob: 0, lastCarName: '', carNameT: 0,
   };
   const projectiles = []; const tracers = [];
@@ -115,7 +115,7 @@ const PLAYER = (() => {
     P.stateT += dt; if (P.hurtFlash > 0) P.hurtFlash -= dt; if (P.invuln > 0) P.invuln -= dt; if (P.fireT > 0) P.fireT -= dt; if (P.carNameT > 0) P.carNameT -= dt;
     const m = INPUT.mouse, pad = INPUT.pad;
     // camera look
-    P.camIdle += dt; if (INPUT.locked || pad.active) { const sens = 0.0022; P.camYaw -= m.dx * sens + pad.rx * 2.5 * dt; P.camPitch = M.clamp(P.camPitch + m.dy * sens * 0.8 + pad.ry * 1.5 * dt, -0.35, 1.1); if (m.dx || m.dy || pad.rx) P.camIdle = 0; }
+    P.camIdle += dt; if (INPUT.locked || pad.active) { const sens = 0.0022 * GAME.options.sensitivity; const inv = GAME.options.invertY ? -1 : 1; P.camYaw -= m.dx * sens + pad.rx * 2.5 * dt; P.camPitch = M.clamp(P.camPitch + (m.dy * sens * 0.8 + pad.ry * 1.5 * dt) * inv, -0.35, 1.1); if (m.dx || m.dy || pad.rx) P.camIdle = 0; }
     if (!P.alive) { P.deadT += dt; if (P.state === 'dead') { P.lying = Math.min(1, P.lying + dt * 3); moveBody(dt, true); } if (P.deadT > 4.5) respawn(P.state === 'busted' ? 'police' : 'hospital'); updateCamera(dt); return; }
     if (P.state === 'entering') { updateEntering(dt); updateCamera(dt); return; }
     if (P.state === 'knocked') { P.knockT -= dt; P.lying = Math.min(1, P.lying + dt * 4); moveBody(dt, true); if (P.knockT <= 0) { P.state = 'foot'; P.lying = 0; } updateCamera(dt); return; }
@@ -235,14 +235,25 @@ const PLAYER = (() => {
     if (firing && P.fireT <= 0 && (P.weapon === 'pistol' || P.weapon === 'uzi') && P.weapons[P.weapon] > 0) { P.fireT = wp.rate * 1.2; P.weapons[P.weapon]--; fireBullet(PLAYER, c.x + c.fwd[0] * 0.5, c.z + c.fwd[1] * 0.5, 1.2, aimAngle(), wp, 1, c); }
     P.stats.distance += c.absSpeed * dt;
     // stunt jumps
-    if (c.airborne) { P.airT += dt; } else if (P.airT > 0) { if (P.airT > 0.85 && c.absSpeed > 8) { const bonus = Math.floor(P.airT * 500); addMoney(bonus, 'INSANE STUNT'); HUD.big('INSANE STUNT!', '#f5c542', 1.6); P.stats.stunts++; } P.airT = 0; }
+    if (c.airborne) { if (P.airT === 0) { P.jumpRamp = -1; CITY.ramps.forEach((r, i) => { if (M.dist(c.x, c.z, (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2) < 14) P.jumpRamp = i; }); } P.airT += dt; }
+    else if (P.airT > 0) { if (P.airT > 0.85 && c.absSpeed > 8) { let bonus = Math.floor(P.airT * 500); P.stats.stunts++; if (P.jumpRamp >= 0 && !P.stats.jumps.includes(P.jumpRamp)) { P.stats.jumps.push(P.jumpRamp); bonus += 1000; HUD.big('UNIQUE STUNT!  ' + P.stats.jumps.length + '/' + CITY.ramps.length, '#f5c542', 2.2); AUDIO.play('missionPass'); } else HUD.big('INSANE STUNT!', '#f5c542', 1.6); addMoney(bonus, 'stunt bonus'); } P.airT = 0; }
     // engine sound
-    const rpm = M.clamp(Math.abs(c.speed) / c.spec.top, 0, 1); AUDIO.engine(true, rpm * 0.7 + ctl.throttle * 0.25 + 0.05, ctl.throttle); AUDIO.screech(c.skid && !c.airborne ? Math.min(1, Math.abs(c.lat) / 6 + (ctl.handbrake ? 0.4 : 0)) : 0);
+    const rpm = M.clamp(Math.abs(c.speed) / c.spec.top, 0, 1); AUDIO.engine(true, rpm * 0.7 + ctl.throttle * 0.25 + 0.05, ctl.throttle, c.type); AUDIO.screech(c.skid && !c.airborne ? Math.min(1, Math.abs(c.lat) / 6 + (ctl.handbrake ? 0.4 : 0)) : 0);
     if (c.skid && !c.airborne && W.state.frame % 2 === 0) { const r = c.right, f = c.fwd; const wz = c.spec.len * 0.3; W.FX.dust(c.x - f[0] * wz + r[0], 0, c.z - f[1] * wz + r[1], 1); W.FX.dust(c.x - f[0] * wz - r[0], 0, c.z - f[1] * wz - r[1], 1); }
   }
   // ---- Camera
   function updateCamera(dt) {
     let tx, ty, tz, dist, yaw, pitch, fov = 62;
+    const dlg = MISSIONS.dialogue;
+    if (dlg && dlg.focus && dlg.focus.alive) { // cinematic: a slow arc around whoever is talking, framing them and the player, kept out of the walls
+      const f = dlg.focus; const t = W.state.elapsed; const mid = [(f.x + P.x) / 2, (f.z + P.z) / 2]; const base = Math.atan2(P.x - f.x, P.z - f.z);
+      let best = null;
+      for (const off of [Math.PI / 2, -Math.PI / 2, Math.PI * 0.85, -Math.PI * 0.85, 0]) { const a = base + off + Math.sin(t * 0.25) * 0.3; for (const dist of [4.2, 3.2, 2.4]) { const cx = mid[0] + Math.sin(a) * dist, cz = mid[1] + Math.cos(a) * dist; if (CITY.insideLot(cx, cz) || !W.los(cx, cz, f.x, f.z) || !W.los(cx, cz, P.x, P.z)) continue; best = [cx, cz]; break; } if (best) break; }
+      if (!best) best = [mid[0] + Math.sin(base) * 2, mid[1] + Math.cos(base) * 2];
+      const cy = 1.7 + Math.sin(t * 0.4) * 0.15;
+      P.camX = M.lerp(P.camX, best[0], Math.min(1, 3 * dt)); P.camY = M.lerp(P.camY, cy, Math.min(1, 3 * dt)); P.camZ = M.lerp(P.camZ, best[1], Math.min(1, 3 * dt));
+      RENDER.setCamera(P.camX, P.camY, P.camZ, f.x * 0.6 + P.x * 0.4, 1.35, f.z * 0.6 + P.z * 0.4, 42 * Math.PI / 180); W.state.camYaw = Math.atan2(f.x - P.camX, f.z - P.camZ); P.angle += M.angleTo(P.angle, Math.atan2(f.x - P.x, f.z - P.z)) * Math.min(1, 6 * dt); f.faceTo && f.faceTo(P.x, P.z, dt); return;
+    }
     if (P.car) {
       const c = P.car; const spd = c.absSpeed; const behind = c.speed < -2 && P.camIdle > 1 ? c.angle + Math.PI : c.angle;
       const targetYaw = behind + P.camYawOff;
@@ -274,6 +285,6 @@ const PLAYER = (() => {
   let gm = null, rm = null;
   const GRENADE_MESH = () => gm || (gm = new MESH.Builder().cbox(0, 0, 0, 0.3, 0.35, 0.3, [0.2, 0.3, 0.2]).build());
   const ROCKET_MESH = () => rm || (rm = new MESH.Builder().cbox(0, 0, 0, 0.18, 0.18, 0.9, [0.4, 0.4, 0.42]).cbox(0, 0, 0.5, 0.12, 0.12, 0.2, [0.9, 0.2, 0.1]).build());
-  return { P, init, update, giveWeapon, addMoney, hurt, knock, die, bust, respawn, fireBullet, explodeAt, updateProjectiles, entity, drawFX, projectileEntities, exitCar,
+  return { P, init, update, updateCamera, giveWeapon, addMoney, hurt, knock, die, bust, respawn, fireBullet, explodeAt, updateProjectiles, entity, drawFX, projectileEntities, exitCar,
     get x() { return P.x; }, get z() { return P.z; }, get y() { return P.y; }, get car() { return P.car; }, get alive() { return P.alive; }, get wanted() { return P.wanted; }, set wanted(v) { P.wanted = v; }, get stats() { return P.stats; }, get health() { return P.health; }, get money() { return P.money; }, get weapons() { return P.weapons; }, get weapon() { return P.weapon; } };
 })();

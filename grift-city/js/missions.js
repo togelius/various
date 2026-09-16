@@ -26,7 +26,7 @@ const PICKUPS = (() => {
       p.spin += dt * 2; p.t += dt;
       if (p.taken) { if (p.respawn < 0) continue; if (p.t > p.respawn) { p.taken = false; p.t = 0; } W.pickups[w++] = p; continue; }
       if (p.life !== undefined && p.t > p.life) continue;
-      const inCar = !!P.car; const r = inCar ? 2.2 : 1.3;
+      const inCar = !!P.car; const r = inCar ? 2.2 : 1.3; if (p.kind === 'rampage' && MISSIONS.S.rampageDone[p.rampage.id]) continue;
       if (P.alive && M.dist2(P.x, P.z, p.x, p.z) < r * r && (!inCar || p.kind === 'cash' || p.kind === 'bribe' || p.kind === 'package')) {
         p.taken = true; p.t = 0;
         if (p.kind === 'weapon') { PLAYER.giveWeapon(p.weapon, p.ammo); HUD.notify(WEAPONS[p.weapon].name + (WEAPONS[p.weapon].melee ? '' : ' +' + p.ammo)); AUDIO.play('pickup'); }
@@ -35,6 +35,7 @@ const PICKUPS = (() => {
         else if (p.kind === 'cash') { PLAYER.addMoney(p.amount, null); }
         else if (p.kind === 'bribe') { POLICE.bribe(); AUDIO.play('pickup'); HUD.notify('Police bribe'); }
         else if (p.kind === 'package') { P.stats.packages++; PLAYER.addMoney(500, 'hidden package ' + P.stats.packages + '/20'); GAME.onPackage(P.stats.packages); }
+        else if (p.kind === 'rampage') { if (!MISSIONS.startRampage(p.rampage)) { p.taken = false; continue; } }
         if (p.respawn < 0) continue;
       }
       W.pickups[w++] = p;
@@ -53,7 +54,7 @@ const PICKUPS = (() => {
 })();
 
 const MISSIONS = (() => {
-  const S = { saveT: 6, sprayT: 0, sprayWarn: 0, current: null, progress: 0, done: {}, dialogue: null, lineT: 0, blip: null, blips: [], objective: '', timer: -1, spawned: [], markers: [], shop: null, side: null, pending: null, cooldown: 0, ending: false };
+  const S = { saveT: 6, sprayT: 0, sprayWarn: 0, progress2: 0, phoneProgress: 0, rampage: null, rampageDone: {}, givers: {}, blips: [], current: null, progress: 0, done: {}, dialogue: null, lineT: 0, blip: null, blips: [], objective: '', timer: -1, spawned: [], markers: [], shop: null, side: null, pending: null, cooldown: 0, ending: false };
   const P = () => PLAYER.P;
   const place = (k, i = 0) => CITY.place(k, i);
   const laneSpot = (i, j, di, dj, s, lane = 0) => { const n = CITY.roadNodes[i * (CITY.GRID + 1) + j]; const e = n.out.find(o => o.dx === di && o.dz === dj); let [x, z] = CITY.lanePoint(e, lane, s); if (lane === 1) { x += e.rx * 0.7; z += e.rz * 0.7; } return { x, z, angle: Math.atan2(di, dj), e, lane, s }; };
@@ -61,14 +62,23 @@ const MISSIONS = (() => {
   const sideOf = (x, z) => { const res = W.pushOut(x, z, 0.5); return [res.x, res.z]; };
   function spawnCar(type, x, z, angle, opts = {}) { for (const o of W.cars) if (!o.removed && !o.important && o !== PLAYER.car && M.dist2(o.x, o.z, x, z) < 100) o.remove(); const c = VEH.spawn(type, x, z, angle, { mode: opts.mode || 'parked', color: opts.color }); c.important = true; c.isMission = true; if (opts.health) { c.maxHealth = opts.health; c.health = opts.health; } S.spawned.push(c); return c; }
   function spawnPed(x, z, opts = {}) { const p = PEDS.spawn(x, z, { important: true, ...opts }); S.spawned.push(p); return p; }
-  function cleanup() { for (const e of S.spawned) { if (e instanceof VEH.Vehicle) { e.important = false; if (e.driver && e.driver !== PLAYER) { e.ai.mode = 'traffic'; e.ai.edge = null; } } else { e.important = false; if (e.alive) { e.hostile = false; e.role = null; e.stationary = false; e.isGang = false; if (e.inCar && e.inCar.driver === PLAYER) e.exitCar(); } } } S.spawned.length = 0; S.blip = null; S.blips.length = 0; S.objective = ''; S.timer = -1; S.markers.length = 0; }
+  function cleanup() { S.blips.length = 0; for (const e of S.spawned) { if (e instanceof VEH.Vehicle) { e.important = false; if (e.driver && e.driver !== PLAYER) { e.ai.mode = 'traffic'; e.ai.edge = null; } } else { e.important = false; if (e.alive) { e.hostile = false; e.role = null; e.stationary = false; e.isGang = false; if (e.inCar && e.inCar.driver === PLAYER) e.exitCar(); } } } S.spawned.length = 0; S.blip = null; S.blips.length = 0; S.objective = ''; S.timer = -1; S.markers.length = 0; }
   function objective(text) { S.objective = text; }
   function blip(x, z, col = '#f5c542', obj = null, label = '') { S.blip = { x, z, col, obj, label }; }
+  function addBlip(obj, col = '#f5c542') { S.blips.push({ obj, col }); }
+  function spawnGang(x, z, weapon, opts = {}) { const g = spawnPed(x, z, { look: PEDS.GANG, gang: true, weapon, health: opts.health || 90, stationary: !!opts.stationary, hostile: !!opts.hostile }); if (opts.stationary) g.faceTarget = PLAYER.P; return g; }
+  function pathBetween(a, b) { // road waypoints from a to b: along the row a is on, then down a column, then straight to b
+    const PT = CITY.PITCH; const pts = []; const ai = Math.round(a[0] / PT), aj = Math.round(a[1] / PT);
+    const bi = a[0] < b[0] ? Math.floor(b[0] / PT) : Math.ceil(b[0] / PT), bj = a[1] < b[1] ? Math.floor(b[1] / PT) : Math.ceil(b[1] / PT);
+    const sx = ai < bi ? 1 : -1, sz = aj < bj ? 1 : -1; const laneX = sx > 0 ? 1.75 : -1.75, laneZ = sz > 0 ? -1.75 : 1.75;
+    for (let i = ai; i !== bi; i += sx) pts.push([(i + sx) * PT + (i + sx === bi ? laneZ : 0), aj * PT + laneX, 9]);
+    for (let j = aj; j !== bj; j += sz) pts.push([bi * PT + laneZ, (j + sz) * PT + (j + sz === bj ? (b[0] > bi * PT ? 1.75 : -1.75) : 0), 9]);
+    pts.push([b[0], b[1], 10]); return pts; }
   function marker(x, z, r = 2, col = [1, 0.85, 0.2]) { S.markers.push({ x, z, r, col }); }
-  function say(lines, then) { S.dialogue = { lines, i: 0, then }; S.lineT = 0; P().aim = 0; }
-  function pass(reward, text) { AUDIO.play('missionPass'); HUD.big('MISSION PASSED!', '#f5c542', 3); if (reward) PLAYER.addMoney(reward, null); if (S.current) { S.done[S.current.id] = true; if (S.current.id === S.progress) S.progress++; } P().stats.missions++; cleanup(); S.current = null; S.cooldown = 3; if (text) HUD.notify(text); GAME.save(); }
+  function say(lines, then, focus = null) { S.dialogue = { lines, i: 0, then, focus }; S.lineT = 0; P().aim = 0; }
+  function pass(reward, text) { AUDIO.play('missionPass'); HUD.big('MISSION PASSED!' + (reward ? '  $' + reward : ''), '#f5c542', 3.5); if (reward) PLAYER.addMoney(reward, null); if (S.current) { const m = S.current; if (m.strand === 2) { S.done['o' + m.id] = true; if (m.id === S.progress2) S.progress2++; } else if (m.strand === 'phone') { if (m.id === S.phoneProgress) S.phoneProgress++; } else { S.done[m.id] = true; if (m.id === S.progress) S.progress++; } } P().stats.missions++; cleanup(); S.current = null; S.cooldown = 3; if (text) HUD.notify(text); GAME.save(); }
   function fail(reason) { AUDIO.play('missionFail'); HUD.big('MISSION FAILED', '#c0281e', 3); if (reason) HUD.notify(reason); cleanup(); S.current = null; S.cooldown = 3; }
-  function onPlayerDown(how) { if (S.current) fail(how === 'busted' ? 'You got busted.' : 'You got wasted.'); if (S.side) endSide(how); }
+  function onPlayerDown(how) { if (S.current) fail(how === 'busted' ? 'You got busted.' : 'You got wasted.'); if (S.side) endSide(how); if (S.rampage) { S.rampage = null; S.objective = ''; } }
   function onEnterCar(c) { if (S.current && S.current.onEnterCar) S.current.onEnterCar(c); if (S.side && S.side.onEnterCar) S.side.onEnterCar(c); }
   function onExitCar(c) { if (S.current && S.current.onExitCar) S.current.onExitCar(c); if (S.side && S.side.onExitCar) S.side.onExitCar(c); }
   const fmt = t => { t = Math.max(0, Math.ceil(t)); const m = Math.floor(t / 60), s = t % 60; return m + ':' + (s < 10 ? '0' : '') + s; };
@@ -159,6 +169,72 @@ const MISSIONS = (() => {
         if (d.phase === 2) { const s = place('safehouse'); if (near(s.x, s.z, 8)) { POLICE.clear(); pass(25000, null); S.ending = true; say([['MARLA', 'It is done. Crane is gone, and every crook on this island is asking who you are.'], ['MARLA', 'You know what? Let them ask.'], [null, 'GRIFT CITY IS YOURS.'], [null, 'Thanks for playing. The city stays open: side jobs, packages, and the police, who never forget.']], () => { S.ending = false; }); } } } },
   ];
 
+  // ---- Strand two: Captain Okafor at Pier 9. Opens after COLLECTIONS.
+  const LIST2 = [
+    { id: 0, strand: 2, name: 'CARGO', intro: [['OKAFOR', "Marla says you can drive. I say we'll see."], ['OKAFOR', "Crane's people took a HAULER of mine and parked it at their warehouse yard in Eastside. Eight wheels, forty tons of my patience."], ['OKAFOR', 'Bring it back to Pier 9. They will object.']],
+      start(d) { const [bx, bz] = CITY.blockOrigin(8, 3); const x = bx + 30, z = bz + 40; d.truck = spawnCar('truck', x, z, Math.PI / 2, { color: 2, health: 3000 }); d.truck.locked = false; for (let i = 0; i < 4; i++) spawnGang(x - 8 + i * 5, z - 6, i % 2 ? 'uzi' : 'pistol', { stationary: true }); d.phase = 0; blip(x, z, '#f5c542', d.truck); objective('Get the Hauler from the Eastside warehouse yard.'); },
+      update(d, dt) { if (d.truck.wrecked) return fail('The Hauler is scrap.'); if (d.phase === 0 && near(d.truck.x, d.truck.z, 30)) { d.phase = 1; for (const e of S.spawned) if (e.isGang) e.hostile = true; }
+        if (d.phase < 2 && P().car === d.truck) { d.phase = 2; const k = place('docks'); blip(k.x, k.z); objective('Take the Hauler to Pier 9.'); for (let i = 0; i < 2; i++) { const sp = laneSpot(8, 4 + i, -1, 0, 20, i); const c = spawnCar('pickup', sp.x, sp.z, sp.angle, { mode: 'chase', color: 3 }); c.ai.mode = 'chase'; const drv = spawnGang(c.x, c.z, 'pistol', { hostile: true }); drv.inCar = c; c.driver = drv; drv.state = 'driving'; const g = spawnGang(c.x, c.z, 'uzi', { hostile: true }); g.enterCar(c); } HUD.notify("Crane's crew want their truck back."); }
+        if (d.phase === 2) { const k = place('docks'); if (P().car === d.truck && near(k.x, k.z, 14) && d.truck.absSpeed < 2) { PLAYER.exitCar(); d.truck.locked = true; d.truck.important = false; pass(3000, 'Okafor: "Every panel dented. Still mine."'); } else if (P().car !== d.truck) objective('Get back in the Hauler!'); } } },
+    { id: 1, strand: 2, name: 'THE WAREHOUSE', intro: [['OKAFOR', "They're coming tonight, in numbers, to burn the pier."], ['OKAFOR', 'Two of my dockers will stand with you. Keep them alive and keep the gate. Three waves, I hear.'], ['OKAFOR', 'Take the shotgun by the crane.']],
+      start(d) { const k = place('docks'); PLAYER.giveWeapon('shotgun', 40); d.workers = []; for (let i = 0; i < 2; i++) { const w = spawnPed(k.x + 8 + i * 4, k.z + 10, { role: 'crew', weapon: 'shotgun', health: 140 }); w.weaponOut = true; d.workers.push(w); } d.wave = 0; d.waveT = 6; d.attackers = []; blip(k.x, k.z); objective('Get to Pier 9 and hold the gate.'); d.phase = 0; },
+      update(d, dt) { const k = place('docks'); const alive = d.workers.filter(w => w.alive); if (!alive.length) return fail('The dockers are dead.');
+        if (d.phase === 0) { if (near(k.x, k.z, 30)) { d.phase = 1; S.blip = null; for (const w of alive) { w.role = 'crewwork'; w.stationary = true; } } return; }
+        d.attackers = d.attackers.filter(a => a.alive); d.waveT -= dt;
+        if (d.wave < 3 && (d.waveT <= 0 || (d.wave > 0 && !d.attackers.length))) { d.wave++; d.waveT = 40; HUD.big('WAVE ' + d.wave, '#e0453b', 1.5); for (let c = 0; c < 2; c++) { const sp = laneSpot(8 - c, 8, 0, 1, 10 + c * 12, c); const car = spawnCar(['sedan', 'muscle', 'pickup'][(d.wave + c) % 3], sp.x, sp.z, sp.angle, { mode: 'chase', color: 3 }); car.ai.mode = 'chase'; const drv = spawnGang(car.x, car.z, 'pistol', { hostile: true }); drv.inCar = car; car.driver = drv; drv.state = 'driving'; d.attackers.push(drv); for (let g = 0; g < 2; g++) { const q = spawnGang(car.x, car.z, d.wave >= 3 ? 'rifle' : 'uzi', { hostile: true }); q.enterCar(car); d.attackers.push(q); } car.ai.target = { x: k.x, z: k.z, car: null }; } }
+        for (const c of S.spawned) if (c instanceof VEH.Vehicle && c.ai.mode === 'chase' && !c.wrecked && M.dist(c.x, c.z, k.x, k.z) < 26 && c.absSpeed < 4) { for (const q of [c.driver, ...c.passengers]) if (q && q.alive) { q.exitCar(); q.hostile = true; } c.driver = null; c.passengers.length = 0; c.ai.mode = 'parked'; }
+        objective('Hold Pier 9. Wave ' + d.wave + '/3' + (d.attackers.length ? '  (' + d.attackers.length + ' left)' : ''));
+        if (d.wave >= 3 && !d.attackers.length) { for (const w of alive) { w.role = null; w.stationary = false; } pass(4000, 'Okafor: "The pier stands. So do you."'); } } },
+    { id: 2, strand: 2, name: 'CLEAN SWEEP', intro: [['OKAFOR', 'Crane keeps six cars in Eastside for his runners. Fast ones, with fast men beside them.'], ['OKAFOR', 'Four minutes. Every car burned. I would bring something explosive.']],
+      start(d) { d.cars = []; const spots = [[7, 3, 0, 1, 30], [8, 2, 1, 0, 40], [8, 4, 0, 1, 20], [9, 5, -1, 0, 30], [7, 5, 1, 0, 24], [8, 6, 0, -1, 36]]; for (const [i, j, di, dj, sp] of spots) { const l = laneSpot(i, j, di, dj, sp, 1); const c = spawnCar(['sports', 'muscle', 'sedan'][d.cars.length % 3], l.x, l.z, l.angle, { color: 10 }); c.locked = true; d.cars.push(c); addBlip(c, '#e0453b'); for (let g = 0; g < 2; g++) spawnGang(l.x + (g ? 2 : -2), l.z + 2, g ? 'pistol' : null, { stationary: true }); } S.timer = 240; PLAYER.giveWeapon('grenade', 6); objective('Destroy the six gang cars in Eastside.'); },
+      update(d, dt) { if (S.timer <= 0) return fail('Out of time.'); const left = d.cars.filter(c => !c.wrecked); for (const g of S.spawned) if (g.isGang && !g.hostile && g.alive && M.dist(g.x, g.z, P().x, P().z) < 24) g.hostile = true; S.blips = S.blips.filter(b => !b.obj.wrecked); objective('Destroy the gang cars: ' + left.length + ' left.  ' + fmt(S.timer)); if (!left.length) pass(5000, 'Okafor: "Six pillars of smoke. He will be counting them."'); } },
+    { id: 3, strand: 2, name: 'TAILGATE', intro: [['OKAFOR', 'A BOXER van leaves Downtown every night for somewhere I do not know. I want to know.'], ['OKAFOR', 'Follow it. Not close enough that they notice. When it stops, nobody there drives home.']],
+      start(d) { const b = place('bank'); const sp = laneSpot(5, 5, 1, 0, 20, 1); d.van = spawnCar('van', sp.x, sp.z, sp.angle, { color: 3 }); d.van.locked = true; const dest = CITY.blockOrigin(8, 7); d.dest = [dest[0] + 32, dest[1] - 4.5]; d.van.ai.route = pathBetween([sp.x, sp.z], [dest[0] + 32, dest[1] - 10]); d.van.ai.routeIdx = 0; d.van.ai.routeSpeed = 12; d.van.ai.mode = 'parked'; const drv = spawnGang(d.van.x, d.van.z, 'pistol'); drv.inCar = d.van; d.van.driver = drv; drv.state = 'driving'; d.van.ai.onRouteEnd = () => { d.arrived = true; }; d.phase = 0; d.closeT = 0; blip(d.van.x, d.van.z, '#f5c542', d.van); objective('Get near the Boxer van in Downtown, then follow it.'); },
+      update(d, dt) { const v = d.van; if (v.wrecked) return fail('The van is destroyed. You learned nothing.'); const dist = M.dist(P().x, P().z, v.x, v.z);
+        if (d.phase === 0) { if (dist < 60) { d.phase = 1; v.ai.mode = 'route'; objective('Follow the van. Stay back, stay in sight.'); } return; }
+        if (d.phase === 1) { if (dist < 11 && !d.arrived) { d.closeT += dt; objective('TOO CLOSE! Back off.  ' + (3 - d.closeT).toFixed(1)); if (d.closeT > 3) return fail('They spotted you and vanished.'); } else { d.closeT = Math.max(0, d.closeT - dt); if (dist > 110) { d.farT = (d.farT || 0) + dt; objective('You are losing the van!'); if (d.farT > 12) return fail('You lost the van.'); } else { d.farT = 0; objective('Follow the van. Stay back, stay in sight.'); } }
+          if (d.arrived) { d.phase = 2; v.ai.mode = 'parked'; const dv = v.driver; if (dv) { dv.exitCar(); dv.hostile = true; } d.guards = [dv]; for (let i = 0; i < 5; i++) d.guards.push(spawnGang(d.dest[0] - 8 + i * 4, d.dest[1] - 3, ['uzi', 'pistol', 'shotgun', 'pistol', 'rifle'][i], { hostile: true })); objective('The hideout. Nobody drives home.'); blip(d.dest[0], d.dest[1], '#e0453b'); } }
+        if (d.phase === 2) { const left = d.guards.filter(g => g && g.alive).length; objective('Kill everyone at the hideout: ' + left + ' left.'); if (!left) pass(5000, 'Okafor: "So that is where. Good."'); } } },
+    { id: 4, strand: 2, name: 'HARBOR NIGHT', intro: [['OKAFOR', 'Last thing. A Hauler goes from my pier to Voss Motors tonight with everything Crane wants and cannot have.'], ['OKAFOR', 'Ride with it. Crane will throw what he has left. The truck arrives, or none of this mattered.']],
+      start(d) { const k = place('docks'); const g = place('garage'); const [bx, bz] = CITY.blockOrigin(8, 8); d.truck = spawnCar('truck', bx + 30, bz + 10, Math.PI, { color: 2, health: 6000 }); d.truck.locked = true; d.truck.damageScale = 0.35; const drv = spawnPed(d.truck.x, d.truck.z, { look: PEDS.OKAFOR, important: true }); drv.inCar = d.truck; d.truck.driver = drv; drv.state = 'driving'; d.truck.ai.route = [[bx + 30, bz - 8, 6], ...pathBetween([bx + 30, bz - 8], [g.x + 10, g.z - 12])]; d.truck.ai.routeIdx = 0; d.truck.ai.routeSpeed = 13; d.truck.ai.mode = 'parked'; d.truck.ai.onRouteEnd = () => { d.arrived = true; }; d.phase = 0; d.attackT = 18; d.attacks = 0; blip(d.truck.x, d.truck.z, '#f5c542', d.truck); objective('Get to the Hauler at Pier 9.'); PLAYER.giveWeapon('rifle', 90); },
+      update(d, dt) { const t = d.truck; if (t.wrecked) return fail('The Hauler burned with everything in it.'); const dist = M.dist(P().x, P().z, t.x, t.z);
+        if (d.phase === 0) { if (dist < 25 && P().car) { d.phase = 1; t.ai.mode = 'route'; objective('Escort the Hauler to Voss Motors.'); } else if (dist < 25) objective('Get a car. The Hauler will not wait for a pedestrian.'); return; }
+        if (dist > 80) { t.ai.mode = 'parked'; objective('The driver stopped. Stay with the truck!'); } else if (t.ai.mode === 'parked' && !d.arrived) { t.ai.mode = 'route'; objective('Escort the Hauler to Voss Motors.  Truck ' + Math.round(t.health / t.maxHealth * 100) + '%'); } else if (!d.arrived) objective('Escort the Hauler to Voss Motors.  Truck ' + Math.round(t.health / t.maxHealth * 100) + '%');
+        d.attackT -= dt; if (d.attackT <= 0 && d.attacks < 3 && !d.arrived) { d.attacks++; d.attackT = 30; const spot = POLICE.laneSpotAway ? null : null; for (let c = 0; c < 2; c++) { let sp = null; for (let tr = 0; tr < 20 && !sp; tr++) { const e = CITY.roadEdges[Math.floor(W.rng() * CITY.roadEdges.length)]; const [x, z] = CITY.lanePoint(e, c, 10 + W.rng() * 40); const dd = M.dist(x, z, t.x, t.z); if (dd > 70 && dd < 150) sp = { x, z, e, c }; } if (!sp) continue; const car = spawnCar(d.attacks >= 3 ? 'swat' : 'muscle', sp.x, sp.z, 0, { mode: 'chase', color: 3 }); car.placeOnLane(sp.e, sp.c, 10); car.ai.mode = 'chase'; car.ai.target = t; const drv = spawnGang(car.x, car.z, 'pistol', { hostile: true }); drv.inCar = car; car.driver = drv; drv.state = 'driving'; const q = spawnGang(car.x, car.z, 'rifle', { hostile: true }); q.enterCar(car); } HUD.notify("Crane's cars incoming!"); }
+        if (d.arrived) { t.ai.mode = 'parked'; POLICE.clear(); pass(8000, 'Okafor: "Tell Marla the pier is hers to use. And you: you are welcome on it."'); } } },
+  ];
+  // ---- Payphone contracts
+  const PHONE = [
+    { id: 0, strand: 'phone', name: 'CONTRACT: THE WITNESS', intro: [['THE VOICE', 'You answered. That makes you the contractor.'], ['THE VOICE', 'A man in Westfield saw something he should not have. Grey coat, walks the park every morning. Make him stop walking.']],
+      start(d) { const pk = CITY.places.park[0]; d.t = spawnPed(pk.x + 6, pk.z + 6, { role: 'target', name: 'WITNESS', health: 60 }); d.t.node = CITY.nearestWalkNode(d.t.x, d.t.z); blip(d.t.x, d.t.z, '#e0453b', d.t); objective('Kill the witness in Westfield park.'); },
+      update(d, dt) { if (!d.t.alive) return pass(1500, 'The voice: "Clean."'); if (near(d.t.x, d.t.z, 14) && d.t.state !== 'flee') { d.t.state = 'flee'; d.t.fear = 99; d.t.threat = [P().x, P().z]; d.t.say('Please, no!'); } } },
+    { id: 1, strand: 'phone', name: 'CONTRACT: THE CABBIE', intro: [['THE VOICE', 'A CABCO driver in Northgate has been carrying more than passengers. He drives a loop, north side.'], ['THE VOICE', 'The car can burn or the man can bleed. I do not care which.']],
+      start(d) { const sp = laneSpot(3, 1, 1, 0, 20, 0); d.c = spawnCar('taxi', sp.x, sp.z, sp.angle, {}); d.c.placeOnLane(sp.e, 0, 20); d.c.ai.mode = 'traffic'; d.c.ai.cruise = 11; d.d = spawnPed(d.c.x, d.c.z, { role: 'target', name: 'CABBIE' }); d.d.inCar = d.c; d.c.driver = d.d; d.d.state = 'driving'; blip(d.c.x, d.c.z, '#e0453b', d.c); objective('Kill the cab driver in Northgate.'); },
+      update(d, dt) { if (!d.d.alive || d.c.wrecked) { if (d.d.alive) d.d.die(PLAYER, 'explosion'); return pass(2500, 'The voice: "Adequate."'); } if (d.c.driver === PLAYER) { d.d.exitCar(); d.d.state = 'flee'; d.d.fear = 99; } if (d.c.ai.mode === 'traffic' && (near(d.c.x, d.c.z, 20) && W.state.noises.length)) { d.c.ai.mode = 'flee'; d.c.scared = 1e9; d.c.ai.fleeSpeed = 18; } } },
+    { id: 2, strand: 'phone', name: 'CONTRACT: THE ACCOUNTANT', intro: [['THE VOICE', "Crane's accountant takes lunch in Downtown's little park, with four men who are not there for the sandwiches."], ['THE VOICE', 'He does not survive lunch.']],
+      start(d) { const pk = CITY.nearestPlace('park', place('tower').x, place('tower').z); d.t = spawnPed(pk.x, pk.z + 8, { role: 'target', name: 'ACCOUNTANT', stationary: true, health: 80 }); d.t.look = PEDS.CRANE; d.t.mesh = PEDS.getMesh(PEDS.CRANE); d.g = []; for (let i = 0; i < 4; i++) d.g.push(spawnGang(pk.x - 4 + i * 2.7, pk.z + 11, ['uzi', 'pistol', 'shotgun', 'pistol'][i], { stationary: true })); blip(d.t.x, d.t.z, '#e0453b', d.t); objective('Kill the accountant in the Downtown park.'); },
+      update(d, dt) { if (!d.t.alive) return pass(4000, 'The voice: "The books close."'); if (near(d.t.x, d.t.z, 22)) { for (const g of d.g) g.hostile = true; if (d.t.state !== 'flee') { d.t.stationary = false; d.t.state = 'flee'; d.t.fear = 99; d.t.threat = [P().x, P().z]; } } } },
+    { id: 3, strand: 'phone', name: 'CONTRACT: THE LAST FERRY', intro: [['THE VOICE', 'The last one. A FALCATA leaves the Ironmonger in Midtown in thirty seconds, for the ferry, forever.'], ['THE VOICE', 'It must not reach the south shore. Move.']],
+      start(d) { const g = place('guns'); const sp = laneSpot(5, 2, 0, 1, 10, 1); d.c = spawnCar('sports', sp.x, sp.z, sp.angle, { color: 0 }); d.c.locked = true; d.d = spawnPed(d.c.x, d.c.z, { role: 'target', name: 'RUNNER', health: 120 }); d.d.inCar = d.c; d.c.driver = d.d; d.d.state = 'driving'; d.wait = 30; S.timer = 150; blip(d.c.x, d.c.z, '#e0453b', d.c); objective('Stop the Falcata before it reaches the south shore.  ' + fmt(S.timer)); },
+      update(d, dt) { if (!d.d.alive || d.c.wrecked) return pass(6000, 'The voice: "We will not speak again. That is a compliment."'); d.wait -= dt; if (d.wait <= 0 && d.c.ai.mode !== 'flee') { d.c.ai.mode = 'flee'; d.c.scared = 1e9; d.c.ai.fleeSpeed = 26; d.c.ai.edge = null; } objective((d.wait > 0 ? 'The runner leaves in ' + Math.ceil(d.wait) + 's. ' : 'Stop the Falcata!  ') + fmt(S.timer)); if (S.timer <= 0 || d.c.z > CITY.SIZE + 2) return fail('The ferry left with him on it.'); } },
+  ];
+  // ---- Rampages: a timed kill count with a given weapon, started from a skull pickup
+  const RAMPAGES = [
+    { id: 0, x: [8, 5, 20, 20], text: 'Kill 15 gang members with a shotgun in 2:00', weapon: 'shotgun', ammo: 60, need: 15, kind: 'gangkill' },
+    { id: 1, x: [4, 5, 10, 55], text: 'Destroy 8 vehicles with rockets in 2:00', weapon: 'rocket', ammo: 14, need: 8, kind: 'cars' },
+    { id: 2, x: [6, 8, 50, 10], text: 'Run down 12 gang members in 2:00', weapon: null, ammo: 0, need: 12, kind: 'gangcar' },
+  ];
+  function placeRampages() { for (const r of RAMPAGES) { const [i, j, dx, dz] = r.x; const [bx, bz] = CITY.blockOrigin(i, j); const res = W.pushOut(bx + dx, bz + dz, 0.6); PICKUPS.add('rampage', res.x, res.z, { rampage: r, respawn: 300 }); } }
+  function startRampage(r) { if (S.current || S.side || S.rampage) return false; S.rampage = { r, t: 120, count: 0, spawnT: 0 }; if (r.weapon) PLAYER.giveWeapon(r.weapon, r.ammo); HUD.big('RAMPAGE', '#ff7020', 2); HUD.notify(r.text); AUDIO.play('star'); return true; }
+  function rampageKill(kind, obj) { const R = S.rampage; if (!R) return; if (kind === R.r.kind) R.count++; }
+  function updateRampage(dt) { const R = S.rampage; if (!R) return; R.t -= dt; R.spawnT -= dt; const p = P();
+    objective(R.r.text + '   ' + R.count + '/' + R.r.need + '   ' + fmt(R.t));
+    if (R.r.kind !== 'cars' && R.spawnT <= 0) { R.spawnT = 2.5; let n = 0; for (const q of W.peds) if (q.alive && q.isGang) n++; if (n < 10) for (let k = 0; k < 3; k++) { const a = W.rng() * M.TAU; const res = W.pushOut(p.x + Math.sin(a) * 30, p.z + Math.cos(a) * 30, 0.5); const g = PEDS.spawn(res.x, res.z, { look: PEDS.GANG, gang: true, hostile: true, weapon: R.r.kind === 'gangcar' ? null : (W.rng() < 0.5 ? 'pistol' : null), health: 70 }); g.rampage = true; } }
+    if (R.r.kind === 'cars' && R.spawnT <= 0) { R.spawnT = 3; VEH.spawnTraffic(p.x, p.z, W.state.camYaw, 40); }
+    if (R.count >= R.r.need) { S.rampage = null; S.rampageDone[R.r.id] = true; PLAYER.addMoney(2500, 'RAMPAGE'); HUD.big('RAMPAGE PASSED!', '#f5c542', 3); AUDIO.play('missionPass'); S.objective = ''; GAME.save(); }
+    else if (R.t <= 0) { S.rampage = null; HUD.big('RAMPAGE FAILED', '#c0281e', 3); AUDIO.play('missionFail'); S.objective = ''; }
+  }
+
   // ---- Side jobs
   function startSide(kind, car) {
     if (kind === 'taxi') { S.side = { kind, car, fare: null, phase: 0, earned: 0, fares: 0, timer: 0 }; HUD.notify('TAXI: pick up the fare. F ends the shift.'); newFare(); }
@@ -190,7 +266,7 @@ const MISSIONS = (() => {
       for (let i = 0; i < GUNS.length; i++) if (INPUT.hit('Digit' + (i + 1))) { const [k, price, ammo] = GUNS[i]; if (p.money < price) { HUD.notify('Not enough cash.'); AUDIO.play('click'); } else { PLAYER.addMoney(-price, null); if (k === 'armor') p.armor = 100; else PLAYER.giveWeapon(k, ammo); AUDIO.play('pickup'); HUD.notify('Bought ' + (k === 'armor' ? 'body armor' : WEAPONS[k].name)); } }
       return; }
     for (const g of CITY.places.guns) if (!p.car && M.dist2(p.x, p.z, g.x, g.z) < 4) { S.shop = g; AUDIO.play('click'); }
-    for (const sp of CITY.places.spray) if (p.car && M.dist2(p.car.x, p.car.z, sp.x, sp.z) < 16 && p.car.absSpeed < 1.5) { if (S.sprayT === undefined || S.sprayT <= 0) { if (p.money >= 100) { PLAYER.addMoney(-100, "Pay 'n' Spray"); p.car.health = p.car.maxHealth; p.car.fireT = 0; p.car.colIdx = Math.floor(W.rng() * VEH.PALETTE.length); if (!(p.car.type in { taxi: 1, police: 1, swat: 1, bus: 1 })) p.car.mesh = VEH.getMesh(p.car.type, p.car.colIdx); POLICE.clear(); HUD.fade(1.2); AUDIO.play('pickup'); S.sprayT = 6; } else if (!S.sprayWarn) { HUD.notify("Pay 'n' Spray costs $100."); S.sprayWarn = 4; } } }
+    for (const sp of CITY.places.spray) if (p.car && M.dist2(p.car.x, p.car.z, sp.x, sp.z) < 16 && p.car.absSpeed < 1.5) { if (S.sprayT === undefined || S.sprayT <= 0) { if (p.money >= 100) { PLAYER.addMoney(-100, "Pay 'n' Spray"); p.car.health = p.car.maxHealth; p.car.fireT = 0; p.car.colIdx = Math.floor(W.rng() * VEH.PALETTE.length); p.car.dentLevel = 0; p.car.meshes = VEH.getMesh(p.car.type, p.car.colIdx); p.car.mesh = p.car.meshes.body; POLICE.clear(); HUD.fade(1.2); AUDIO.play('pickup'); S.sprayT = 6; } else if (!S.sprayWarn) { HUD.notify("Pay 'n' Spray costs $100."); S.sprayWarn = 4; } } }
     if (S.sprayT > 0) S.sprayT -= dt; if (S.sprayWarn > 0) S.sprayWarn -= dt;
     const sh = place('safehouse'); if (!p.car && M.dist2(p.x, p.z, sh.x, sh.z) < 4 && (S.saveT === undefined || S.saveT <= 0)) { S.saveT = 8; p.health = 100; POLICE.clear(); GAME.save(); W.state.time = (W.state.time + 6) % 24; HUD.fade(1.5); HUD.notify('Game saved. You slept until ' + W.clockString() + '.'); }
     if (S.saveT > 0) S.saveT -= dt;
@@ -199,21 +275,31 @@ const MISSIONS = (() => {
     else if (S.side && INPUT.hit('KeyT')) endSide();
   }
 
+  function ensureGivers() {
+    if (!S.givers.marla) { const g = place('mission'); const m = PEDS.spawn(g.x + 1.6, g.z - 1.2, { look: PEDS.MARLA, important: true, stationary: true, name: 'MARLA', health: 1e9 }); m.faceTarget = PLAYER.P; m.invincible = true; S.givers.marla = m; }
+    if (!S.givers.okafor) { const g = place('mission2'); const o = PEDS.spawn(g.x + 1.6, g.z + 1.2, { look: PEDS.OKAFOR, important: true, stationary: true, name: 'OKAFOR', health: 1e9 }); o.faceTarget = PLAYER.P; o.invincible = true; S.givers.okafor = o; }
+    for (const k in S.givers) { const g = S.givers[k]; g.health = 1e9; if (g.state === 'dead' || g.removed) { g.removed = true; delete S.givers[k]; } }
+  }
   function update(dt) {
-    if (S.cooldown > 0) S.cooldown -= dt;
+    if (S.cooldown > 0) S.cooldown -= dt; ensureGivers(); updateRampage(dt);
     if (S.dialogue) { const d = S.dialogue; S.lineT += dt; if (S.lineT > 4.2 || INPUT.hit('Space') || INPUT.hit('Enter') || INPUT.mouse.clicked || INPUT.pad.pressed[0]) { d.i++; S.lineT = 0; AUDIO.play('click'); if (d.i >= d.lines.length) { S.dialogue = null; if (d.then) d.then(); } } return; }
     if (S.timer > 0) S.timer -= dt;
     const p = P();
     if (S.current) { try { S.current.update(S.current.data, dt); } catch (e) { console.error(e); fail('Something went wrong.'); } }
-    else if (p.alive && S.cooldown <= 0 && !S.side) {
+    else if (p.alive && S.cooldown <= 0 && !S.side && !S.rampage) {
       const next = LIST[S.progress];
       if (next && next.auto) start(next);
       else if (next && !p.car) { const g = place('mission'); marker(g.x, g.z, 2, [1, 0.85, 0.2]); if (S.blip === null) blip(g.x, g.z, '#f5c542', null, 'M'); if (M.dist2(p.x, p.z, g.x, g.z) < 4) start(next); }
+      const next2 = LIST2[S.progress2];
+      if (next2 && S.progress >= 4 && !p.car) { const g = place('mission2'); marker(g.x, g.z, 2, [0.2, 0.8, 1]); S.blips.length = 0; S.blips.push({ obj: g, col: '#3bb8ff' }); if (M.dist2(p.x, p.z, g.x, g.z) < 4) start(next2); }
+      const ph = PHONE[S.phoneProgress];
+      if (ph && S.progress >= 2 && !p.car) { for (const t of CITY.places.phone) { marker(t.x, t.z, 1.0, [0.3, 0.5, 1]); if (M.dist2(p.x, p.z, t.x, t.z) < 2.5) { AUDIO.play('phone'); start(ph); break; } } }
     }
     updateSide(dt); updateShops(dt);
   }
-  function start(m) { S.current = m; m.data = {}; S.blip = null; S.markers.length = 0; HUD.big(m.name, '#f5c542', 3); if (m.intro) say(m.intro, () => { m.start(m.data); }); else m.start(m.data); }
+  function start(m) { S.current = m; m.data = {}; S.blip = null; S.blips.length = 0; S.markers.length = 0; HUD.big(m.name, '#f5c542', 3); const focus = m.strand === 2 ? S.givers.okafor : m.strand === 'phone' ? null : (m.auto ? null : S.givers.marla); if (m.intro) say(m.intro, () => { m.start(m.data); }, focus); else m.start(m.data); }
   function markersFX(t) { for (const mk of S.markers) W.fx.marker(mk.x, mk.z, mk.r, 1.6, mk.col, t); if (!S.current && !S.side) { for (const g of CITY.places.guns) W.fx.marker(g.x, g.z, 1.4, 1.6, [1, 0.3, 0.3], t); for (const sp of CITY.places.spray) W.fx.marker(sp.x, sp.z, 2.6, 1.6, [1, 0.8, 0.2], t); const sh = place('safehouse'); W.fx.marker(sh.x, sh.z, 1.4, 1.6, [1, 0.5, 0.9], t); } else { for (const sp of CITY.places.spray) W.fx.marker(sp.x, sp.z, 2.6, 1.6, [1, 0.8, 0.2], t); } }
+  function allBlips() { const out = []; const b = blipPos(); if (b) out.push(b); for (const e of S.blips) { const o = e.obj; if (!o || o.removed || (o.wrecked && o.spec)) continue; out.push({ x: o.x, z: o.z, col: e.col }); } return out; }
   function blipPos() { if (!S.blip) return null; const b = S.blip; if (b.obj) { if (b.obj.removed) return null; return { x: b.obj.x, z: b.obj.z, col: b.col }; } return b; }
-  return { S, LIST, GUNS, update, start, onPlayerDown, onEnterCar, onExitCar, markersFX, blipPos, get objective() { return S.objective; }, get dialogue() { return S.dialogue; }, get shop() { return S.shop; }, get timer() { return S.timer; }, fmt, cleanup, endSide };
+  return { S, LIST, LIST2, PHONE, RAMPAGES, GUNS, placeRampages, startRampage, rampageKill, update, start, onPlayerDown, onEnterCar, onExitCar, markersFX, blipPos, allBlips, get objective() { return S.objective; }, get dialogue() { return S.dialogue; }, get shop() { return S.shop; }, get timer() { return S.timer; }, fmt, cleanup, endSide };
 })();

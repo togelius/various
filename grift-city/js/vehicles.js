@@ -6,7 +6,9 @@ const VEH = (() => {
   const PALETTE = [[0.85, 0.12, 0.1], [0.12, 0.22, 0.6], [0.92, 0.92, 0.9], [0.15, 0.15, 0.17], [0.62, 0.62, 0.66], [0.1, 0.48, 0.25], [0.9, 0.6, 0.12], [0.45, 0.12, 0.5], [0.7, 0.35, 0.15], [0.2, 0.6, 0.7], [0.55, 0.05, 0.1], [0.75, 0.75, 0.5]];
   const FIXED = { taxi: [1, 0.8, 0.1], police: [0.95, 0.95, 0.98], swat: [0.16, 0.18, 0.22], bus: [0.85, 0.55, 0.15] };
   const meshCache = {};
-  function getMesh(type, colIdx) { const key = type + ':' + colIdx; if (!meshCache[key]) { const col = colIdx === 'wreck' ? [0.07, 0.07, 0.07] : FIXED[type] || PALETTE[colIdx]; meshCache[key] = MESH.carMesh(type, col).build(); } return meshCache[key]; }
+  function colorOf(type, colIdx) { return colIdx === 'wreck' ? [0.07, 0.07, 0.07] : FIXED[type] || PALETTE[colIdx]; }
+  function getMesh(type, colIdx) { const key = type + ':' + colIdx; if (!meshCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx)); meshCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return meshCache[key]; }
+  function dentedMesh(type, colIdx, dent, seed) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed }); return { body: m.body.build(), glass: m.glass.build() }; }
   const TRAFFIC_TYPES = ['sedan', 'sedan', 'sedan', 'hatch', 'hatch', 'sports', 'pickup', 'van', 'taxi', 'taxi', 'muscle', 'truck', 'bus'];
 
   const tmpV = [0, 0, 0];
@@ -15,7 +17,7 @@ const VEH = (() => {
       this.type = type; this.spec = SPECS[type]; this.name = NAMES[type];
       this.x = x; this.z = z; this.y = CITY.groundY(x, z); this.vy = 0; this.angle = angle; this.vx = 0; this.vz = 0; this.speed = 0; this.lat = 0;
       this.steer = 0; this.controls = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
-      this.colIdx = opts.color !== undefined ? opts.color : Math.floor(W.rng() * PALETTE.length); this.mesh = getMesh(type, this.colIdx);
+      this.colIdx = opts.color !== undefined ? opts.color : Math.floor(W.rng() * PALETTE.length); this.meshes = getMesh(type, this.colIdx); this.mesh = this.meshes.body; this.dentLevel = 0; this.dentSeed = Math.floor(W.rng() * 1e6);
       this.maxHealth = this.spec.armor ? 2600 : 1000 * this.spec.mass; this.health = this.maxHealth; this.wrecked = false; this.fireT = 0;
       this.driver = null; this.passengers = []; this.ai = { mode: opts.mode || 'parked', edge: null, lane: 0, path: null, pathIdx: 0, stuck: 0, honk: 0, cruise: 9 + W.rng() * 5, reverseT: 0, blockedT: 0, target: null, waitT: 0 };
       this.lightsOn = false; this.brakeLights = false; this.siren = false; this.sirenPhase = W.rng() * 10; this.horn = 0;
@@ -150,12 +152,14 @@ const VEH = (() => {
     }
     driverIsPlayer() { return this.driver === PLAYER; }
     damage(amount, source) {
-      if (this.wrecked) return; this.health -= amount; this.damageFlash = 0.15; if (source && source !== this) this.lastHitBy = source;
+      if (this.wrecked) return; amount *= this.damageScale || 1; this.health -= amount; this.damageFlash = 0.15; if (source && source !== this) this.lastHitBy = source;
+      const hf = this.health / this.maxHealth; const lvl = hf < 0.3 ? 2 : hf < 0.65 ? 1 : 0;
+      if (lvl > this.dentLevel && this.health > 0) { this.dentLevel = lvl; this.meshes = dentedMesh(this.type, this.colIdx, lvl * 0.5, this.dentSeed); this.mesh = this.meshes.body; }
       if (this.ai.mode === 'traffic' && amount > 30) { this.scared = 6; this.ai.mode = 'flee'; }
       if (this.health <= 0) this.explode();
     }
     explode() {
-      if (this.wrecked) return; this.wrecked = true; this.health = 0; this.fireT = 0; this.mesh = getMesh(this.type, 'wreck'); this.siren = false; this.lightsOn = false;
+      if (this.wrecked) return; this.wrecked = true; this.health = 0; this.fireT = 0; this.meshes = dentedMesh(this.type, 'wreck', 1.0, this.dentSeed); this.mesh = this.meshes.body; this.siren = false; this.lightsOn = false;
       W.FX.explosion(this.x, this.y + 0.5, this.z, this.spec.len > 6 ? 1.6 : 1); AUDIO.play('explosion', this.x, this.z); W.noise(this.x, this.z, 120, 'explosion');
       this.vy = 4; this.airborne = true; this.y += 0.05;
       const killer = this.lastHitBy;
@@ -163,7 +167,7 @@ const VEH = (() => {
       if (this.driver && this.driver !== PLAYER) { this.driver.inCar = null; this.driver = null; }
       for (const c of W.cars) { if (c === this || c.removed) continue; const d = M.dist(c.x, c.z, this.x, this.z); if (d < 9) { c.lastHitBy = killer; c.damage(320 * (1 - d / 9) + 60, this); const k = (9 - d) * 1.2; c.vx += (c.x - this.x) / (d + 0.1) * k; c.vz += (c.z - this.z) / (d + 0.1) * k; c.vy = 3; c.airborne = true; } }
       if (PLAYER && PLAYER.alive) { const d = M.dist(PLAYER.x, PLAYER.z, this.x, this.z); if (PLAYER.car === this) PLAYER.hurt(300, 'explosion', killer); else if (d < 9) { PLAYER.hurt(110 * (1 - d / 9), 'explosion', killer); PLAYER.knock((PLAYER.x - this.x) / (d + 0.1) * 6, 5, (PLAYER.z - this.z) / (d + 0.1) * 6); } }
-      if (killer === PLAYER || (killer && killer.driver === PLAYER)) POLICE.crime('explosion', this.x, this.z, this);
+      if (killer === PLAYER || (killer && killer.driver === PLAYER)) { POLICE.crime('explosion', this.x, this.z, this); MISSIONS.rampageKill('cars', this); }
       if (this.onExplode) this.onExplode();
     }
 
@@ -176,7 +180,7 @@ const VEH = (() => {
       const e = ai.edge; const L = CITY.laneLen(e); let s = this.laneS();
       let tx, tz; const look = 4 + Math.abs(this.speed) * 0.45; let turning = false;
       if (ai.path) {
-        const p = ai.path[ai.pathIdx]; if (M.dist(this.x, this.z, p[0], p[1]) < 2.8) { ai.pathIdx++; if (ai.pathIdx >= ai.path.length) { ai.path = null; ai.edge = ai.nextEdge; s = this.laneS(); } }
+        const p = ai.path[ai.pathIdx]; if (M.dist(this.x, this.z, p[0], p[1]) < (ai.turnKind === 'straight' ? 2.8 : 1.9)) { ai.pathIdx++; if (ai.pathIdx >= ai.path.length) { ai.path = null; ai.edge = ai.nextEdge; s = this.laneS(); } }
         if (ai.path) { const p = ai.path[Math.min(ai.pathIdx, ai.path.length - 1)]; tx = p[0]; tz = p[1]; turning = true; }
       }
       if (!ai.path) {
@@ -234,6 +238,10 @@ const VEH = (() => {
     // ---- AI: chase a target (the player) — road-agnostic pursuit with reversing when stuck.
     aiChase(dt) {
       const ai = this.ai, c = this.controls; const t = ai.target || PLAYER; if (!t) return;
+      // drive-by: armed passengers lean out and shoot
+      this.fireT = (this.fireT || 0) - dt;
+      if (this.fireT <= 0 && t === PLAYER && PLAYER.alive) { const shooters = this.passengers.filter(q => q.alive && q.weapon && (q.hostile || q.isGang || (q.isCop && PLAYER.wanted >= 3))); const d = M.dist(this.x, this.z, t.x, t.z);
+        if (shooters.length && d < 45 && W.los(this.x, this.z, t.x, t.z)) { this.fireT = 0.9 / shooters.length; const q = shooters[0]; const ang = Math.atan2(t.x - this.x, t.z - this.z) + (W.rng() - 0.5) * 0.3; PLAYER.fireBullet(q, this.x + this.right[0] * 0.8, this.z + this.right[1] * 0.8, 1.3, ang, WEAPONS[q.weapon === 'rifle' ? 'rifle' : 'pistol'], 0.5, this); } else this.fireT = 0.3; }
       const tv = t.car ? [t.car.vx, t.car.vz] : [0, 0]; const px = t.x + tv[0] * 0.6, pz = t.z + tv[1] * 0.6;
       const d = M.dist(this.x, this.z, px, pz); const desired = Math.atan2(px - this.x, pz - this.z); const da = M.angleTo(this.angle, desired);
       c.handbrake = 0;
@@ -250,7 +258,7 @@ const VEH = (() => {
     // ---- AI: follow a list of waypoints (race rivals, mission cars)
     aiRoute(dt) {
       const ai = this.ai, c = this.controls; const pts = ai.route; if (!pts || !pts.length) { c.throttle = 0; c.brake = 1; return; }
-      let p = pts[ai.routeIdx % pts.length]; if (M.dist(this.x, this.z, p[0], p[1]) < (p[2] || 7)) { ai.routeIdx++; if (!ai.routeLoop && ai.routeIdx >= pts.length) { ai.route = null; if (ai.onRouteEnd) ai.onRouteEnd(this); return; } p = pts[ai.routeIdx % pts.length]; }
+      let p = pts[ai.routeIdx % pts.length]; const last = !ai.routeLoop && ai.routeIdx === pts.length - 1; if (last && M.dist(this.x, this.z, p[0], p[1]) < 18 && this.absSpeed < 1) { ai.stuckEnd = (ai.stuckEnd || 0) + dt; } if (M.dist(this.x, this.z, p[0], p[1]) < (p[2] || 7) || (ai.stuckEnd || 0) > 3) { ai.routeIdx++; if (!ai.routeLoop && ai.routeIdx >= pts.length) { ai.route = null; if (ai.onRouteEnd) ai.onRouteEnd(this); return; } p = pts[ai.routeIdx % pts.length]; }
       const desired = Math.atan2(p[0] - this.x, p[1] - this.z); const da = M.angleTo(this.angle, desired);
       if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.steer = M.clamp(-da * 2, -1, 1); return; }
       c.steer = M.clamp(da * 2.5, -1, 1); const maxS = ai.routeSpeed || 22; const want = Math.abs(da) > 0.5 ? 8 : maxS;
@@ -272,9 +280,9 @@ const VEH = (() => {
         if (this.siren) { this.sirenPhase += 0.25; const ph = Math.floor(this.sirenPhase) % 2; e[8] = ph ? 1.6 : 0.1; e[9] = ph ? 0.1 : 1.6; const k = 0.15 + 0.6 * RENDER.env.nightEmis; W.dyn.push({ x: this.x, y: this.y + 2, z: this.z, r: 16, col: ph ? [1.2 * k, 0.15 * k, 0.15 * k] : [0.15 * k, 0.3 * k, 1.2 * k] }); }
       }
       if (this.damageFlash > 0) { for (let i = 0; i < 5; i++) e[i] = 0.25; }
-      return { mesh: this.mesh, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.6 };
+      return { mesh: this.mesh, glass: this.meshes.glass, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.6 };
     }
-    headlightFX() { if (!this.lightsOn || this.wrecked) return; const f = this.fwd, r = this.right; const s = this.spec; const hx = this.x + f[0] * s.len * 0.5, hz = this.z + f[1] * s.len * 0.5; W.fx.lightPool(hx, hz, f[0], f[1], 16, 3.2, [1, 0.95, 0.75], 0.32); W.dyn.push({ x: hx + f[0] * 5, y: 1, z: hz + f[1] * 5, r: 13, col: [0.9, 0.85, 0.65] }); }
+    headlightFX() { if (!this.lightsOn || this.wrecked) return; const f = this.fwd, r = this.right; const s = this.spec; const hx = this.x + f[0] * s.len * 0.5, hz = this.z + f[1] * s.len * 0.5; W.fx.lightPool(hx, hz, f[0], f[1], 16, 3.2, [1, 0.95, 0.75], 0.2); W.dyn.push({ x: hx + f[0] * 5, y: 1, z: hz + f[1] * 5, r: 13, col: [0.6, 0.56, 0.42] }); }
     remove() { this.removed = true; if (this.driver && this.driver !== PLAYER) { this.driver.removed = true; } for (const p of this.passengers) p.removed = true; }
   }
   // Bone matrix rotating a wheel around its own axle: T(p) * Ry(yaw) * Rx(rot) * T(-p)

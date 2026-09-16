@@ -33,7 +33,8 @@ const HUD = (() => {
     const s = mapCanvas._s, b0 = mapCanvas._b0; g.drawImage(mapCanvas, 0, 0, 1024, 1024, b0, b0, 1024 / s, 1024 / s);
     drawMapIcons(scale, null);
     // blips
-    const bp = MISSIONS.blipPos(); if (bp) { g.fillStyle = bp.col; g.beginPath(); g.arc(bp.x, bp.z, 6 / scale, 0, 7); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 2 / scale; g.stroke(); }
+    for (const bp of MISSIONS.allBlips()) { g.fillStyle = bp.col; g.beginPath(); g.arc(bp.x, bp.z, 6 / scale, 0, 7); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 2 / scale; g.stroke(); }
+    for (const p of W.pickups) if (!p.taken && p.kind === 'rampage' && !MISSIONS.S.rampageDone[p.rampage.id]) { g.fillStyle = '#ff7020'; g.beginPath(); g.arc(p.x, p.z, 4 / scale, 0, 7); g.fill(); }
     if (P.wanted > 0) for (const c of W.cars) if (!c.removed && c.ai.mode === 'chase') { g.fillStyle = '#5aa0ff'; g.fillRect(c.x - 3 / scale, c.z - 3 / scale, 6 / scale, 6 / scale); }
     if (P.wanted > 0) for (const p of W.peds) if (p.alive && p.isCop && !p.inCar) { g.fillStyle = '#5aa0ff'; g.beginPath(); g.arc(p.x, p.z, 2.5 / scale, 0, 7); g.fill(); }
     for (const p of W.pickups) if (!p.taken && p.kind === 'package' && M.dist2(p.x, p.z, P.x, P.z) < 60 * 60) { g.fillStyle = '#ffb060'; g.beginPath(); g.arc(p.x, p.z, 3 / scale, 0, 7); g.fill(); }
@@ -44,7 +45,7 @@ const HUD = (() => {
     g.translate(P.x, P.z); g.rotate(-(P.car ? P.car.angle : P.angle) + Math.PI); g.fillStyle = '#fff'; g.beginPath(); g.moveTo(0, -9 / scale); g.lineTo(6 / scale, 7 / scale); g.lineTo(0, 3 / scale); g.lineTo(-6 / scale, 7 / scale); g.closePath(); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 1.5 / scale; g.stroke();
     g.restore();
     // edge blip for off-radar mission target
-    if (bp) { const dx = bp.x - P.x, dz = bp.z - P.z; if (Math.hypot(dx, dz) * scale > R) { const a = Math.atan2(dx, dz); const sa = a - yaw; const ex = cx + Math.sin(sa) * -(R - 8), ey = cy + Math.cos(sa) * (R - 8); g.fillStyle = bp.col; g.beginPath(); g.arc(ex, ey, 6, 0, 7); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 2; g.stroke(); } }
+    const bp = MISSIONS.blipPos(); if (bp) { const dx = bp.x - P.x, dz = bp.z - P.z; if (Math.hypot(dx, dz) * scale > R) { const a = Math.atan2(dx, dz); const sa = a - yaw; const ex = cx + Math.sin(sa) * -(R - 8), ey = cy + Math.cos(sa) * (R - 8); g.fillStyle = bp.col; g.beginPath(); g.arc(ex, ey, 6, 0, 7); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 2; g.stroke(); } }
     g.strokeStyle = 'rgba(0,0,0,0.85)'; g.lineWidth = 4; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.stroke(); g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = 1.5; g.stroke();
     // north indicator
     { const a = yaw + Math.PI; const nx = cx + Math.sin(a) * (R + 12), ny = cy - Math.cos(a) * (R + 12); text('N', nx, ny, 12, '#fff', 'center'); }
@@ -126,18 +127,20 @@ const HUD = (() => {
   function drawLoading() { g.fillStyle = '#000'; g.fillRect(0, 0, W_, H_); outlined('GRIFT CITY', W_ / 2, H_ * 0.45, 70, '#f5c542'); text('building the city…', W_ / 2, H_ * 0.45 + 60, 18, '#ccc', 'center', 'normal'); }
   function drawPause() {
     const P = PLAYER.P; g.fillStyle = 'rgba(0,0,0,0.7)'; g.fillRect(0, 0, W_, H_); outlined('PAUSED', W_ / 2, 80, 48, '#f5c542');
-    const st = P.stats; const rows = [['Missions passed', st.missions + ' / ' + MISSIONS.LIST.length], ['Cash earned', '$' + st.cash], ['Hidden packages', st.packages + ' / 20'], ['Cars stolen', st.carsStolen], ['People killed', st.kills], ['Distance travelled', (st.distance / 1000).toFixed(1) + ' km'], ['Insane stunts', st.stunts], ['Times wasted / busted', st.wasted + ' / ' + st.busted], ['Time of day', W.clockString()]];
-    rows.forEach(([k, v], i) => { text(k, W_ / 2 - 20, 150 + i * 28, 17, '#bbb', 'right', 'normal'); text(String(v), W_ / 2 + 20, 150 + i * 28, 17, '#fff', 'left'); });
-    text('ESC or click  resume  ·  M  mute (' + (AUDIO.muted ? 'muted' : 'on') + ')  ·  K  shadows (' + (GAME.quality.shadows ? 'on' : 'off') + ')  ·  N  new game', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
+    const st = P.stats; const rows = [['Missions passed', st.missions + ' / ' + (MISSIONS.LIST.length + MISSIONS.LIST2.length + MISSIONS.PHONE.length)], ['Unique stunts', (st.jumps || []).length + ' / ' + CITY.ramps.length], ['Cash earned', '$' + st.cash], ['Hidden packages', st.packages + ' / 20'], ['Cars stolen', st.carsStolen], ['People killed', st.kills], ['Distance travelled', (st.distance / 1000).toFixed(1) + ' km'], ['Insane stunts', st.stunts], ['Times wasted / busted', st.wasted + ' / ' + st.busted], ['Time of day', W.clockString()]];
+    rows.forEach(([k, v], i) => { text(k, W_ / 2 - 60, 150 + i * 26, 15, '#bbb', 'right', 'normal'); text(String(v), W_ / 2 - 48, 150 + i * 26, 15, '#fff', 'left'); });
+    const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', '']];
+    opts.forEach(([k, n, v], i) => { const y = 150 + i * 26; text(k, W_ / 2 + 200, y, 15, '#f5c542', 'right'); text(n, W_ / 2 + 212, y, 15, '#ccc', 'left', 'normal'); text(v, W_ / 2 + 360, y, 15, '#fff', 'left'); });
+    text('ESC or click  resume', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
     text('WASD move · mouse look · LMB attack · RMB aim · SHIFT sprint · SPACE jump/handbrake · F car · T side job · R radio · L siren · H horn', W_ / 2, H_ - 34, 12, '#888', 'center', 'normal');
   }
   function drawBigMap(P) {
     g.fillStyle = 'rgba(0,0,0,0.8)'; g.fillRect(0, 0, W_, H_); const size = Math.min(W_, H_) - 60; const scale = size / (1024 / mapCanvas._s); const ox = (W_ - size) / 2, oy = (H_ - size) / 2;
     g.save(); g.translate(ox, oy); g.scale(scale, scale); g.translate(-mapCanvas._b0, -mapCanvas._b0); g.drawImage(mapCanvas, 0, 0, 1024, 1024, mapCanvas._b0, mapCanvas._b0, 1024 / mapCanvas._s, 1024 / mapCanvas._s);
-    drawMapIcons(scale * 0.6, null); const bp = MISSIONS.blipPos(); if (bp) { g.fillStyle = bp.col; g.beginPath(); g.arc(bp.x, bp.z, 8 / scale, 0, 7); g.fill(); }
+    drawMapIcons(scale * 0.6, null); for (const bp of MISSIONS.allBlips()) { g.fillStyle = bp.col; g.beginPath(); g.arc(bp.x, bp.z, 8 / scale, 0, 7); g.fill(); }
     for (const p of W.pickups) if (!p.taken && p.kind === 'package' && false) { g.fillStyle = '#ffb060'; g.beginPath(); g.arc(p.x, p.z, 4 / scale, 0, 7); g.fill(); }
     g.save(); g.translate(P.x, P.z); g.rotate(-(P.car ? P.car.angle : P.angle) + Math.PI); g.fillStyle = '#fff'; g.strokeStyle = '#000'; g.lineWidth = 2 / scale; g.beginPath(); g.moveTo(0, -12 / scale); g.lineTo(8 / scale, 9 / scale); g.lineTo(0, 4 / scale); g.lineTo(-8 / scale, 9 / scale); g.closePath(); g.fill(); g.stroke(); g.restore(); g.restore();
-    const legend = [['#ff70d0', 'Safehouse'], ['#f5a623', 'Voss Motors'], ['#f5c542', "Pay 'n' Spray"], ['#e0453b', 'Ironmonger'], ['#ffffff', 'Hospital'], ['#5aa0ff', 'Police'], ['#3df06a', 'Bank'], ['#a0a0ff', 'Crane Holdings'], ['#c0a060', 'Pier 9']];
+    const legend = [['#ff70d0', 'Safehouse'], ['#f5a623', 'Voss Motors'], ['#3bb8ff', 'Pier 9 jobs'], ['#ff7020', 'Rampage'], ['#f5c542', "Pay 'n' Spray"], ['#e0453b', 'Ironmonger'], ['#ffffff', 'Hospital'], ['#5aa0ff', 'Police'], ['#3df06a', 'Bank'], ['#a0a0ff', 'Crane Holdings'], ['#c0a060', 'Pier 9']];
     legend.forEach(([c, n], i) => { g.fillStyle = c; g.beginPath(); g.arc(24, 30 + i * 22, 5, 0, 7); g.fill(); text(n, 36, 30 + i * 22, 13, '#ddd', 'left', 'normal'); });
     text('TAB to close', W_ / 2, H_ - 16, 13, '#aaa', 'center', 'normal');
   }

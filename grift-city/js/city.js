@@ -44,7 +44,7 @@ const CITY = (() => {
   const lots = [];       // collision boxes: {x0,z0,x1,z1,h, kind}
   const blocks = [];     // per block: {i,j,x,z,lots:[], kind}
   const places = {};     // named locations: kind -> [{x,z,angle,label,...}]
-  const props = { lamppost: [], trafficLight: [], tree: [], hydrant: [], bin: [], bench: [], bollard: [] };
+  const props = { lamppost: [], trafficLight: [], tree: [], hydrant: [], bin: [], bench: [], bollard: [], payphone: [] };
   const solidProps = []; // {x,z,r,kind,idx}
   const parkedSpots = [];// {x,z,angle}
   const ramps = [];      // {x0,z0,x1,z1,h,dir}
@@ -55,14 +55,15 @@ const CITY = (() => {
 
   // ---- Static geometry
   function buildStatic() {
-    const T = TEX.names; const b = new MESH.Builder();
+    const T = TEX.names; const b = new MESH.Builder(); curBuilder = b;
     const C = [1, 1, 1];
-    // Water and shore
+    // Water (its own mesh so it can scroll and shine) and shore
     const W0 = -HALF_ROAD - SW - SHORE, W1 = SIZE + HALF_ROAD + SW + SHORE;
-    b.floor(W0 - 2000, W1 - 2000, 4000 + (W1 - W0), 2000, -1.6, C, T.water, 24); // north strip... simpler: four big strips around
-    b.floor(W0 - 2000, W1, 4000 + (W1 - W0), 2000, -1.6, C, T.water, 24);
-    b.floor(W0 - 2000, W0, 2000, W1 - W0, -1.6, C, T.water, 24);
-    b.floor(W1, W0, 2000, W1 - W0, -1.6, C, T.water, 24);
+    const wb = waterBuilder = new MESH.Builder(); const wc = [0.85, 0.9, 1];
+    wb.floor(W0 - 2000, W1 - 2000, 4000 + (W1 - W0), 2000, -1.6, wc, T.water, 24);
+    wb.floor(W0 - 2000, W1, 4000 + (W1 - W0), 2000, -1.6, wc, T.water, 24);
+    wb.floor(W0 - 2000, W0, 2000, W1 - W0, -1.6, wc, T.water, 24);
+    wb.floor(W1, W0, 2000, W1 - W0, -1.6, wc, T.water, 24);
     // Island ground: grass ring with a sandy south beach
     b.floor(W0, W0, W1 - W0, W1 - W0, -0.02, C, T.grass, 8);
     b.box(W0, -1.6, W0, W1 - W0, 1.58, W1 - W0, [0.55, 0.55, 0.5], T.sidewalk, { faces: 1 | 2 | 16 | 32, uvScale: 4 }); // seawall
@@ -105,7 +106,7 @@ const CITY = (() => {
         lights.push({ x: xc, z: zc, i, j });
         // Four traffic light poles at the corners, arm pointing over the road.
         for (const [cx, cz, ang] of [[1, 1, Math.PI], [-1, -1, 0], [1, -1, -Math.PI / 2], [-1, 1, Math.PI / 2]]) {
-          props.trafficLight.push({ x: xc + cx * (HALF_ROAD + 1.2), z: zc + cz * (HALF_ROAD + 1.2), a: ang, light: lights.length - 1, axis: (cx * cz > 0) ? 0 : 1 });
+          props.trafficLight.push({ x: xc + cx * (HALF_ROAD + 2.3), z: zc + cz * (HALF_ROAD + 2.3), a: ang, light: lights.length - 1, axis: (cx * cz > 0) ? 0 : 1 });
         }
       }
     }
@@ -164,7 +165,12 @@ const CITY = (() => {
   };
   const FLOORS = { downtown: [14, 42], midtown: [6, 16], northgate: [3, 8], westfield: [2, 5], eastside: [2, 6], southport: [3, 7] };
 
-  function addLot(block, x0, z0, x1, z1, h, kind = 'building') { const l = { x0, z0, x1, z1, h, kind }; lots.push(l); block.lots.push(l); return l; }
+  function addLot(block, x0, z0, x1, z1, h, kind = 'building') { const l = { x0, z0, x1, z1, h, kind }; lots.push(l); block.lots.push(l); if (kind !== 'wall' && curBuilder) groundAO(curBuilder, x0, z0, x1, z1); return l; }
+  // A darkened ring of pavement hugging the building footprint reads as ambient occlusion.
+  function groundAO(b, x0, z0, x1, z1) { const T = TEX.names; const w = 0.8, y = CURB + 0.006, c = [0.5, 0.5, 0.52];
+    b.floor(x0 - w, z0 - w, (x1 - x0) + 2 * w, w, y, c, T.sidewalk, 8); b.floor(x0 - w, z1, (x1 - x0) + 2 * w, w, y, c, T.sidewalk, 8);
+    b.floor(x0 - w, z0, w, z1 - z0, y, c, T.sidewalk, 8); b.floor(x1, z0, w, z1 - z0, y, c, T.sidewalk, 8); }
+  let curBuilder = null;
 
   function buildLot(b, block, x, z, w, d, front) {
     const T = TEX.names; const dist = block.kind;
@@ -278,7 +284,7 @@ const CITY = (() => {
     addLot(block, x + 34, z + 30, x + 62, z + 60, 9, 'warehouse');
     // crane
     b.box(x + 8, CURB, z + 44, 2, 18, 2, [0.85, 0.6, 0.1]); b.box(x + 8, CURB + 17, z + 44, 26, 1.2, 1.4, [0.85, 0.6, 0.1]); addLot(block, x + 8, z + 44, x + 10, z + 46, 18);
-    addPlace('docks', { x: x + 20, z: z + 22, label: 'PIER 9', angle: 0 });
+    addPlace('docks', { x: x + 20, z: z + 22, label: 'PIER 9', angle: 0 }); addPlace('mission2', { x: x + 30, z: z + 4, label: 'OKAFOR', angle: 0 });
     for (let k = 0; k < 4; k++) parkedSpots.push({ x: x + 6 + k * 7, z: z + 25, angle: 0 });
   }
 
@@ -415,7 +421,7 @@ const CITY = (() => {
   function nearestPlace(kind, x, z) { let best = null, bd = 1e9; for (const p of (places[kind] || [])) { const d = M.dist2(x, z, p.x, p.z); if (d < bd) { bd = d; best = p; } } return best; }
   function districtName(x, z) { const bl = blockAt(x, z); const i = bl ? bl.i : Math.round(x / PITCH), j = bl ? bl.j : Math.round(z / PITCH); return { downtown: 'Downtown', midtown: 'Midtown', westfield: 'Westfield', northgate: 'Northgate', eastside: 'Eastside', southport: 'Southport' }[district(M.clamp(i, 0, GRID - 1), M.clamp(j, 0, GRID - 1))]; }
 
-  let staticBuilder = null;
+  let staticBuilder = null, waterBuilder = null;
   function generate() {
     staticBuilder = buildStatic();
     buildRoads(); buildWalks();
@@ -423,10 +429,12 @@ const CITY = (() => {
     for (const p of props.trafficLight) solidProps.push({ x: p.x, z: p.z, r: 0.2, kind: 'trafficLight', ref: p });
     for (const p of props.hydrant) solidProps.push({ x: p.x, z: p.z, r: 0.25, kind: 'hydrant', ref: p });
     for (const p of props.bin) solidProps.push({ x: p.x, z: p.z, r: 0.35, kind: 'bin', ref: p });
+    // payphones on four street corners, contracts come through them
+    for (const [i, j] of [[1, 6], [6, 1], [8, 7], [4, 3]]) { const [bx, bz] = blockOrigin(i, j); const p = { x: bx - SW + 1.0, z: bz + 6, a: Math.PI / 2 }; props.payphone.push(p); solidProps.push({ x: p.x, z: p.z, r: 0.35, kind: 'payphone', ref: p }); addPlace('phone', { x: p.x + 1.2, z: p.z, label: 'payphone' }); }
     for (const l of lights) { l.phase = 0; l.t = 0; }
     return staticBuilder;
   }
 
   return { GRID, BLOCK, ROAD, SW, PITCH, HALF_ROAD, LANE, CURB, SIZE, SHORE, lots, blocks, places, props, solidProps, parkedSpots, ramps, lights, get stunts() { return stunts; },
-    roadNodes, roadEdges, walkNodes, generate, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
+    roadNodes, roadEdges, walkNodes, generate, get water() { return waterBuilder; }, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
 })();

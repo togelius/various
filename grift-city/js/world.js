@@ -122,7 +122,7 @@ const W = (() => {
 
   // ---- Props: instanced meshes, knockable
   const propMeshes = {}; let lampHeads = null, tlHeads = null, markerMesh = null;
-  const PROP_TYPES = ['lamppost', 'trafficLight', 'tree', 'hydrant', 'bin', 'bench', 'bollard'];
+  const PROP_TYPES = ['lamppost', 'trafficLight', 'tree', 'hydrant', 'bin', 'bench', 'bollard', 'payphone'];
   function initProps() {
     for (const t of PROP_TYPES) { const list = CITY.props[t]; propMeshes[t] = MESH[t]().buildInstanced(Math.max(1, list.length)); }
     lampHeads = MESH.lampHead().buildInstanced(CITY.props.lamppost.length + 8);
@@ -158,7 +158,7 @@ const W = (() => {
       for (let k = 0; k < 3; k++) { // 0 red (top), 1 yellow, 2 green
         const on = (st === 'red' && k === 0) || (st === 'yellow' && k === 1) || (st === 'green' && k === 2);
         const col = k === 0 ? [1, 0.15, 0.1] : k === 1 ? [1, 0.75, 0.1] : [0.2, 1, 0.3];
-        const y = 4.75 - k * 0.32; M.trs(tmpM, p.x + Math.sin(a) * 2.8, y, p.z + Math.cos(a) * 2.8, a + Math.PI, 1.3, 1.3, 1.3);
+        const y = 4.75 - k * 0.32; M.trs(tmpM, p.x + Math.sin(a) * 3.9, y, p.z + Math.cos(a) * 3.9, a + Math.PI, 1.3, 1.3, 1.3);
         // head faces the approaching traffic, i.e. -arm direction
         tlHeads.instData.set(tmpM, n * 20); tlHeads.instData.set([col[0], col[1], col[2], on ? 2.0 : 0], n * 20 + 16); if (!on) tlHeads.instData.set([col[0] * 0.25, col[1] * 0.25, col[2] * 0.25, 0], n * 20 + 16); n++;
       }
@@ -180,7 +180,7 @@ const W = (() => {
   // ---- Lights for the renderer
   function collectLights(camX, camZ) {
     const out = []; const night = RENDER.env.nightEmis;
-    if (night > 0.05) { for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 < 110 * 110) { const a = p.a || 0; out.push({ x: p.x + Math.sin(a) * 1.6, y: 5.6, z: p.z + Math.cos(a) * 1.6, r: 20, col: [1.3 * night, 1.0 * night, 0.65 * night] }); } } }
+    if (night > 0.05) { for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 < 110 * 110) { const a = p.a || 0; out.push({ x: p.x + Math.sin(a) * 1.6, y: 5.6, z: p.z + Math.cos(a) * 1.6, r: 17, col: [0.42 * night, 0.33 * night, 0.19 * night] }); } } }
     for (const d of dyn) out.push(d);
     return out;
   }

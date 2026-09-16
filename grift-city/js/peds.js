@@ -8,13 +8,14 @@ const PEDS = (() => {
   const HAIR = [[0.1, 0.08, 0.06], [0.35, 0.22, 0.1], [0.75, 0.6, 0.3], [0.5, 0.5, 0.5], [0.6, 0.15, 0.1]];
   const looks = []; const meshCache = {};
   const r0 = M.rng(77);
-  for (let i = 0; i < 24; i++) looks.push({ skin: r0.pick(SKIN), shirt: r0.pick(CLOTH), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: r0.chance(0.2) ? r0.pick(CLOTH) : null, jacket: r0.chance(0.3) ? r0.pick(CLOTH) : null });
-  const COP = { skin: [0.9, 0.75, 0.62], shirt: [0.2, 0.3, 0.6], pants: [0.15, 0.18, 0.3], hair: [0.1, 0.1, 0.1], hat: [0.15, 0.18, 0.35], jacket: null };
-  const SWAT = { skin: [0.85, 0.7, 0.6], shirt: [0.12, 0.12, 0.14], pants: [0.1, 0.1, 0.12], hair: [0.1, 0.1, 0.1], hat: [0.1, 0.1, 0.12], jacket: [0.2, 0.2, 0.22] };
-  const GANG = { skin: [0.6, 0.42, 0.3], shirt: [0.55, 0.05, 0.1], pants: [0.12, 0.12, 0.12], hair: [0.08, 0.06, 0.06], hat: [0.5, 0.05, 0.1], jacket: [0.15, 0.15, 0.15] };
-  const PLAYER_LOOK = { skin: [0.9, 0.74, 0.62], shirt: [0.85, 0.85, 0.8], pants: [0.2, 0.2, 0.25], hair: [0.15, 0.1, 0.08], hat: null, jacket: [0.25, 0.14, 0.1] };
-  const MARLA = { skin: [0.85, 0.65, 0.5], shirt: [0.9, 0.2, 0.4], pants: [0.1, 0.1, 0.12], hair: [0.05, 0.05, 0.05], hat: null, jacket: [0.1, 0.1, 0.12] };
-  const CRANE = { skin: [0.92, 0.8, 0.7], shirt: [0.95, 0.95, 0.95], pants: [0.2, 0.2, 0.25], hair: [0.7, 0.7, 0.7], hat: null, jacket: [0.2, 0.2, 0.25] };
+  for (let i = 0; i < 28; i++) looks.push({ skin: r0.pick(SKIN), shirt: r0.pick(CLOTH), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: r0.chance(0.2) ? r0.pick(CLOTH) : null, jacket: r0.chance(0.3) ? r0.pick(CLOTH) : null, sleeves: r0.chance(0.5), glasses: r0.chance(0.15), bag: r0.chance(0.2) ? r0.pick(PANTS) : null });
+  const COP = { skin: [0.9, 0.75, 0.62], shirt: [0.2, 0.3, 0.6], pants: [0.15, 0.18, 0.3], hair: [0.1, 0.1, 0.1], hat: [0.15, 0.18, 0.35], jacket: null, sleeves: true, glasses: true };
+  const SWAT = { skin: [0.85, 0.7, 0.6], shirt: [0.12, 0.12, 0.14], pants: [0.1, 0.1, 0.12], hair: [0.1, 0.1, 0.1], hat: [0.1, 0.1, 0.12], jacket: [0.2, 0.2, 0.22], sleeves: true, glasses: true };
+  const GANG = { skin: [0.6, 0.42, 0.3], shirt: [0.55, 0.05, 0.1], pants: [0.12, 0.12, 0.12], hair: [0.08, 0.06, 0.06], hat: [0.5, 0.05, 0.1], jacket: [0.15, 0.15, 0.15], sleeves: true };
+  const PLAYER_LOOK = { skin: [0.9, 0.74, 0.62], shirt: [0.85, 0.85, 0.8], pants: [0.2, 0.2, 0.25], hair: [0.15, 0.1, 0.08], hat: null, jacket: [0.25, 0.14, 0.1], sleeves: true };
+  const MARLA = { skin: [0.85, 0.65, 0.5], shirt: [0.9, 0.2, 0.4], pants: [0.1, 0.1, 0.12], hair: [0.05, 0.05, 0.05], hat: null, jacket: [0.1, 0.1, 0.12], sleeves: true };
+  const OKAFOR = { skin: [0.42, 0.28, 0.2], shirt: [0.9, 0.85, 0.7], pants: [0.3, 0.3, 0.35], hair: [0.05, 0.05, 0.05], hat: [0.2, 0.25, 0.3], jacket: [0.85, 0.55, 0.1], sleeves: true };
+  const CRANE = { skin: [0.92, 0.8, 0.7], shirt: [0.95, 0.95, 0.95], pants: [0.2, 0.2, 0.25], hair: [0.7, 0.7, 0.7], hat: null, jacket: [0.2, 0.2, 0.25], sleeves: true, glasses: true };
   function getMesh(look) { const key = JSON.stringify(look); if (!meshCache[key]) meshCache[key] = MESH.pedMesh(look).build(); return meshCache[key]; }
   const SHOUTS = ['Hey!', 'Watch it!', 'My car!', 'Somebody call the cops!', 'Get away from me!', 'What is wrong with you?!', 'Not today!', 'Help!', 'Are you insane?', 'I have a family!'];
 
@@ -28,7 +29,7 @@ const PEDS = (() => {
       this.aim = 0; this.role = opts.role || null; this.important = !!opts.important; this.name = opts.name || null; this.money = Math.floor(W.rng() * 40) + 5;
       this.bones = new Float32Array(16 * RENDER.MAX_BONES); this.emis = new Float32Array(RENDER.MAX_BONES); this.model = M.create();
       this.wanderT = 0; this.talkT = 0; this.hitT = 0; this.knockT = 0; this.shout = null; this.shoutT = 0; this.onDeath = null; this.hostile = !!opts.hostile; this.followTarget = null; this.attackCooldown = 0; this.stationary = !!opts.stationary; this.faceTarget = null;
-      this.walkSpeed = 1.3 + W.rng() * 0.5; this.hearing = 45;
+      this.walkSpeed = 1.3 + W.rng() * 0.5; this.hearing = 45; this.headYaw = 0; this.gestureT = 0; this.partner = null; this.seat = null;
     }
     get alive() { return this.state !== 'dead' && !this.removed; }
     get armed() { return !!this.weapon; }
@@ -36,7 +37,7 @@ const PEDS = (() => {
     goto(x, z, speed, onArrive) { this.state = 'goto'; this.gotoTarget = [x, z]; this.gotoSpeed = speed; this.onArrive = onArrive || null; this.stationary = false; }
     // Scripted: run to a car and drive off in it.
     fleeInCar(car, cruise = 17) { this.goto(car.x, car.z, 6.5, () => { if (car.wrecked || car.driver) { this.state = 'flee'; this.fear = 99; return; } this.inCar = car; car.driver = this; car.ai.mode = 'flee'; car.scared = 1e9; car.ai.cruise = cruise; car.ai.fleeSpeed = cruise; car.ai.edge = null; this.state = 'driving'; }); }
-    scare(x, z) { if (this.isCop || this.isGang || this.role === 'target' || this.role === 'crew' || this.state === 'goto') return; if (this.state === 'dead' || this.inCar) return; this.fear = Math.max(this.fear, 6 + W.rng() * 4); this.threat = [x, z]; if (this.state !== 'flee') { this.state = 'flee'; if (W.rng() < 0.35) AUDIO.play('scream', this.x, this.z); if (W.rng() < 0.3) this.say(SHOUTS[Math.floor(W.rng() * SHOUTS.length)]); } }
+    scare(x, z) { if (this.isCop || this.isGang || this.role === 'target' || this.role === 'crew' || this.state === 'goto') return; if (this.state === 'dead' || this.inCar) return; this.fear = Math.max(this.fear, 6 + W.rng() * 4); this.threat = [x, z]; this.seat = null; this.partner = null; if (this.state !== 'flee') { this.state = 'flee'; if (W.rng() < 0.35) AUDIO.play('scream', this.x, this.z); if (W.rng() < 0.3) this.say(SHOUTS[Math.floor(W.rng() * SHOUTS.length)]); } }
     say(text) { this.shout = text; this.shoutT = 2.5; }
     hitByCar(car, spd) {
       if (this.state === 'dead') return; if (this.hitT > 0) return;
@@ -47,15 +48,15 @@ const PEDS = (() => {
       if (car.driver === PLAYER) car.damage(2, null);
     }
     damage(amount, source, dir = null) {
-      if (this.state === 'dead') return; this.health -= amount;
+      if (this.state === 'dead' || this.invincible) return; this.health -= amount;
       W.FX.blood(this.x, 1.2, this.z, Math.min(10, 3 + amount / 6), dir);
       if (this.health <= 0) { this.die(source, 'shot'); if (dir) this.launch(dir[0] * 2.5, 2, dir[1] * 2.5); this.fallDir = 1; }
-      else { if (!this.isCop && !this.isGang && !this.hostile && this.role !== 'target' && this.role !== 'crew') { this.scare(source ? source.x : this.x, source ? source.z : this.z); } if (source === PLAYER && (this.isGang || this.role === 'target')) this.hostile = true; if (source === PLAYER && !this.isCop) POLICE.crime('assault', this.x, this.z, this); if (source === PLAYER && this.isCop) POLICE.crime('cop', this.x, this.z, this); }
+      else { if (!this.isCop && !this.isGang && !this.hostile && this.role !== 'target' && this.role !== 'crew') { if (source === PLAYER && amount < 35 && !PLAYER.car && W.rng() < 0.3) { this.hostile = true; this.state = 'walk'; this.seat = null; this.partner = null; this.say(W.rng() < 0.5 ? 'You want some?!' : 'Big mistake!'); } else this.scare(source ? source.x : this.x, source ? source.z : this.z); } if (source === PLAYER && (this.isGang || this.role === 'target')) this.hostile = true; if (source === PLAYER && !this.isCop) POLICE.crime('assault', this.x, this.z, this); if (source === PLAYER && this.isCop) POLICE.crime('cop', this.x, this.z, this); }
     }
     die(source, how) {
       if (this.state === 'dead') return; this.state = 'dead'; this.deadT = 0; this.aim = 0; this.weaponOut = false;
       if (this.inCar) { const c = this.inCar; if (c.driver === this) c.driver = null; this.inCar = null; this.x = c.x; this.z = c.z; this.removed = true; }
-      if (source === PLAYER || (source && source.driver === PLAYER)) { POLICE.crime(this.isCop ? 'copkill' : 'kill', this.x, this.z, this); PLAYER.stats.kills++; if (!this.isCop && W.rng() < 0.6) PICKUPS.dropCash(this.x, this.z, this.money + (this.isGang ? 60 : 0)); }
+      if (source === PLAYER || (source && source.driver === PLAYER)) { POLICE.crime(this.isCop ? 'copkill' : 'kill', this.x, this.z, this); PLAYER.stats.kills++; if (this.isGang) MISSIONS.rampageKill(how === 'car' ? 'gangcar' : 'gangkill', this); if (!this.isCop && W.rng() < 0.6) PICKUPS.dropCash(this.x, this.z, this.money + (this.isGang ? 60 : 0)); }
       if (how !== 'explosion') AUDIO.play('scream', this.x, this.z);
       for (const p of W.pedsNear(this.x, this.z, 30)) if (p !== this) p.scare(source ? source.x : this.x, source ? source.z : this.z);
       if (this.onDeath) this.onDeath(this, source);
@@ -84,6 +85,8 @@ const PEDS = (() => {
         const probe = W.pushOut(this.x + ax * 2.5, this.z + az * 2.5, 0.5); if (probe.hit) { const s = W.rng() < 0.5 ? 1 : -1; const tx = -az * s, tz = ax * s; ax = ax * 0.3 + tx; az = az * 0.3 + tz; const l = Math.hypot(ax, az); ax /= l; az /= l; }
         this.moveToward(this.x + ax * 5, this.z + az * 5, 5.5, dt); return;
       }
+      if (this.state === 'sit') { this.speed = 0; return; }
+      if (this.state === 'chat') { this.speed = 0; if (this.partner && this.partner.alive) { this.faceTo(this.partner.x, this.partner.z, dt); this.gestureT -= dt; if (this.gestureT <= 0) { this.gestureT = 1.5 + W.rng() * 4; this.punchT = 0.5; } } else this.state = 'walk'; return; }
       if (this.stationary) { this.speed = 0; if (this.faceTarget) this.faceTo(this.faceTarget.x, this.faceTarget.z, dt); return; }
       if (this.state === 'stand') { this.speed = 0; this.wanderT -= dt; if (this.wanderT <= 0) this.state = 'walk'; return; }
       if (!this.node) this.node = CITY.nearestWalkNode(this.x, this.z);
@@ -165,7 +168,7 @@ const PEDS = (() => {
       if (!ragdoll) { this.vx = 0; this.vz = 0; this.phase += dt * (this.speed > 3 ? 11 : 7) * Math.min(1, this.speed / 1.2); }
     }
     // ---- Rig
-    entity() { buildRig(this, this.model, this.bones); this.emis.fill(0); return { mesh: this.mesh, model: this.model, bones: this.bones, emis: this.emis }; }
+    entity() { if (this.state === 'sit' && this.seat) { M.trs(seatWorld, this.seat.x, this.seat.y, this.seat.z, this.seat.a); buildRigSeated(this, this.model, this.bones, seatWorld, 0, 0, 0, 0, false, this.headYaw); this.emis.fill(0); return { mesh: this.mesh, model: this.model, bones: this.bones, emis: this.emis }; } buildRig(this, this.model, this.bones); this.emis.fill(0); return { mesh: this.mesh, model: this.model, bones: this.bones, emis: this.emis }; }
     remove() { this.removed = true; if (this.inCar) { if (this.inCar.driver === this) this.inCar.driver = null; } }
   }
 
@@ -183,7 +186,7 @@ const PEDS = (() => {
     // torso
     bone(bones, 0, 0, hip, 0, 0, lean, 0);
     // head: sits at top of torso
-    bone(bones, 16, 0, hip + TORSO_H + 0.03, lean * 0.2, 0, lean * 0.6 + (aim ? 0 : Math.sin(ph * 0.5) * 0.03), 0);
+    bone(bones, 16, 0, hip + TORSO_H + 0.03, lean * 0.2, aim ? 0 : (p.headYaw || 0), lean * 0.6 + (aim ? 0 : Math.sin(ph * 0.5) * 0.03), 0);
     // arms: pivot at the shoulders
     const armPitchL = aim ? -0.4 : swing * 0.8 + (run ? -0.4 * run : 0), armPitchR = aim ? -Math.PI / 2 + 0.05 + (p.recoil || 0) * 2 : -swing * 0.8 + (run ? -0.4 * run : 0) - punch * 1.4;
     bone(bones, 32, 0, hip + SHOULDER, 0, 0, armPitchL, run * 0.3 + (aim ? 0.12 : 0));
@@ -197,6 +200,28 @@ const PEDS = (() => {
     if (p.punchT > 0) p.punchT -= 0.016;
   }
 
+  // Seated pose inside a car (or on a bench): hips at the seat, legs forward, hands on the wheel.
+  const seatTmp = M.create(), seatLocal = M.create(), seatWorld = M.create();
+  function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0) {
+    M.trs(seatLocal, lx, ly, lz, yaw); M.multiply(model, carModel, seatLocal);
+    const hip = 0.02; const lean = driving ? 0.12 : 0.05;
+    bone(bones, 0, 0, hip, 0, 0, lean, 0);
+    bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, lean * 0.5, 0);
+    const armP = driving ? -1.15 : -0.35; bone(bones, 32, 0, hip + SHOULDER, 0, driving ? 0.25 : 0, armP, driving ? 0.15 : 0.05); bone(bones, 48, 0, hip + SHOULDER, 0, driving ? -0.25 : 0, armP, driving ? -0.15 : -0.05);
+    bone(bones, 64, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0); bone(bones, 80, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0);
+    bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
+    for (let i = 7; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
+  }
+  // Seat positions in car-local space: driver on the left (+x), passenger right, rear seats behind.
+  function seatOf(car, index) {
+    const s = car.spec; const L = s.len, W = s.wid, wr = s.wheelR; const floorY = wr * 0.9, bodyH = s.hgt * 0.5; const cabinY = floorY + bodyH;
+    if (s.bus) return [index === 0 ? W * 0.25 : -W * 0.25, floorY + 0.3, L / 2 - 1.2 - Math.floor(index / 2) * 1.2];
+    if (s.box) return [index === 0 ? W * 0.22 : -W * 0.22, cabinY + 0.05, L / 2 - L * 0.3 * 0.55];
+    const half = L / 2; const c0 = half - s.cabin[0] * L - s.hood * 0.5, c1 = half - s.cabin[1] * L - s.hood * 0.5; const seatZ = (c0 + c1) / 2 - 0.1;
+    const row = Math.floor(index / 2), side = index % 2 === 0 ? 1 : -1; return [side * W * 0.21, cabinY + 0.02, seatZ - row * 0.9];
+  }
+  function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0); p.emis.fill(0); return { mesh: p.mesh, model: p.model, bones: p.bones, emis: p.emis }; }
+
   // ---- Spawning
   function spawn(x, z, opts = {}) { const look = opts.look || looks[Math.floor(W.rng() * looks.length)]; const p = new Ped(look, x, z, opts); W.peds.push(p); return p; }
   function spawnDriver(car) { const p = new Ped(looks[Math.floor(W.rng() * looks.length)], car.x, car.z, {}); p.inCar = car; p.state = 'driving'; W.peds.push(p); return p; }
@@ -204,15 +229,23 @@ const PEDS = (() => {
   function populate(px, pz, camYaw, want) {
     let count = 0; for (const p of W.peds) if (!p.removed && !p.inCar && !p.isCop && !p.important) count++;
     if (count >= want) return;
+    const r = W.rng();
+    if (r < 0.12) { // someone on a bench
+      for (let tries = 0; tries < 6; tries++) { const bn = CITY.props.bench[Math.floor(W.rng() * CITY.props.bench.length)]; if (!bn || bn.taken) continue; const d = M.dist(bn.x, bn.z, px, pz); if (d < 30 || d > 120) continue;
+        const a = bn.a || 0; const side = W.rng() < 0.5 ? 0.45 : -0.45; const p = spawn(bn.x + Math.cos(a) * side, bn.z - Math.sin(a) * side, {}); p.state = 'sit'; p.seat = { x: p.x, y: CITY.groundY(bn.x, bn.z) + 0.46, z: p.z, a: a }; p.angle = a; bn.taken = true; p.onRemove = () => { bn.taken = false; }; return; }
+    }
     for (let tries = 0; tries < 8; tries++) {
       const n = CITY.walkNodes[Math.floor(W.rng() * CITY.walkNodes.length)]; const d = M.dist(n.x, n.z, px, pz); if (d < 40 || d > 130) continue;
       const ang = Math.atan2(n.x - px, n.z - pz); if (d < 90 && Math.abs(M.angleTo(camYaw, ang)) < 0.8) continue;
+      if (r > 0.82) { // two people talking
+        const a = spawn(n.x + 0.5, n.z, { node: n }), b2 = spawn(n.x - 0.5, n.z, { node: n }); a.state = b2.state = 'chat'; a.partner = b2; b2.partner = a; a.angle = -Math.PI / 2; b2.angle = Math.PI / 2; a.gestureT = W.rng() * 3; b2.gestureT = W.rng() * 3; return;
+      }
       const p = spawn(n.x + (W.rng() - 0.5), n.z + (W.rng() - 0.5), { node: n });
       if (CITY.district(CITY.blockAt(n.x, n.z)?.i ?? 0, CITY.blockAt(n.x, n.z)?.j ?? 0) === 'eastside' && W.rng() < 0.25) { p.look = GANG; p.mesh = getMesh(GANG); p.isGang = true; p.weapon = W.rng() < 0.5 ? 'pistol' : null; p.health = 80; }
       return;
     }
   }
-  function despawn(px, pz) { let w = 0; for (const p of W.peds) { if (!p.removed && !p.important) { const d = M.dist(p.x, p.z, px, pz); if ((d > 170 && !p.inCar) || (p.state === 'dead' && (p.deadT > 25 || (d > 60 && p.deadT > 6)))) p.removed = true; } if (!p.removed) W.peds[w++] = p; } W.peds.length = w; }
+  function despawn(px, pz) { let w = 0; for (const p of W.peds) { if (!p.removed && !p.important) { const d = M.dist(p.x, p.z, px, pz); if ((d > 170 && !p.inCar) || (p.state === 'dead' && (p.deadT > 25 || (d > 60 && p.deadT > 6)))) p.removed = true; } if (p.removed && p.onRemove) { p.onRemove(); p.onRemove = null; } if (!p.removed) W.peds[w++] = p; } W.peds.length = w; }
   function updateAll(dt) { for (const p of W.peds) p.update(dt); }
-  return { Ped, spawn, spawnDriver, spawnCop, populate, despawn, updateAll, buildRig, getMesh, looks, COP, SWAT, GANG, PLAYER_LOOK, MARLA, CRANE };
+  return { Ped, spawn, spawnDriver, spawnCop, populate, despawn, updateAll, buildRig, buildRigSeated, seatOf, seatedEntity, getMesh, looks, COP, SWAT, GANG, PLAYER_LOOK, MARLA, OKAFOR, CRANE };
 })();

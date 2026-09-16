@@ -19,10 +19,13 @@ around one file; `python3 tools/build-single.py` regenerates it.
 
 A third-person open-world game in the shape of the early 3D crime games: you
 walk, you steal a car, you drive too fast, you shoot, the stars climb, the
-helicopter comes. Nine story missions run from a repo job to a bank heist to a
-shoot-out in a Downtown plaza, and between them the city stays open: taxi
-fares, vigilante chases, hidden packages, stunt ramps, gun shops, a Pay 'n'
-Spray, and a safehouse bed that saves the game.
+helicopter comes. Nine story missions for Marla Voss run from a repo job to a
+bank heist to a shoot-out in a Downtown plaza; five more for Captain Okafor at
+Pier 9 open up once Marla trusts you; four contracts come in on payphones.
+Between them the city stays open: taxi fares, vigilante chases, three
+rampages, twenty hidden packages, six unique stunt jumps, gun shops, a Pay
+'n' Spray, and a safehouse with a bed that saves the game and a kerb that
+keeps whatever you parked there.
 
 Everything is generated at runtime. The city is laid out from a seed; every
 building facade, road, sidewalk and billboard is painted onto a canvas and
@@ -52,9 +55,16 @@ Gamepads work: left stick moves, right stick looks, triggers fire and aim
 cars, bumpers change weapon.
 
 Yellow markers are jobs. Walk into the one outside VOSS MOTORS to meet
-Marla. Red markers are IRONMONGER gun shops, the yellow driveway marker is
-a Pay 'n' Spray (drive in with a wanted level and $100), and the pink marker
-outside the safehouse saves the game and sleeps six hours.
+Marla; the blue one at PIER 9 is Okafor, once you have done enough for
+Marla. Blue markers at street-corner payphones ring with contracts. Orange
+skulls start rampages. Red markers are IRONMONGER gun shops, the yellow
+driveway marker is a Pay 'n' Spray (drive in with a wanted level and $100),
+and the pink marker outside the safehouse saves the game and sleeps six
+hours. Park a car beside it before you save and it will be there when you
+come back.
+
+`Esc` opens the pause menu, which is also the options menu: mouse
+sensitivity, inverted look, shadows, bloom, and render scale.
 
 Old habits: type `BIGBANK`, `KEVLAR`, `ARSENAL`, `COOLOFF`, `HOTHEAD`,
 `NIGHTFALL`, `SUNRISE`, `DOWNPOUR`, `CLEARSKY`, `FALCATA` or `BASTION` during play.
@@ -111,9 +121,13 @@ js/game.js       boot, the frame loop, scene assembly, save games
 
 The renderer draws the whole static city as one mesh, props as instanced
 draws, and each car or pedestrian as one draw with a small bone array for
-wheels and limbs. A 2048² shadow map follows the camera during the day; at
-night the sun goes out, the windows come on, and the lampposts and
-headlights become point lights.
+wheels and limbs; car glass is a second, translucent draw so you can see who
+is inside. Everything renders in linear HDR into a multisampled float target,
+then a bloom pass and a filmic tonemap bring it to the screen. A 2048² shadow
+map follows the camera during the day; at night the sun goes out, the
+windows come on, and the lampposts and headlights become point lights. Cars
+crumple as they take damage: the body mesh is rebuilt with dents at each
+damage step.
 
 `window.__sim(seconds, [keyCodes])` steps the simulation deterministically
 without rendering, which is how the game was tested headless.
