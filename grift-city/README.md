@@ -202,3 +202,24 @@ friction circle leaves it (so a muscle car spins its tyres out of a corner),
 and the steering lock shrinks with speed. Below walking pace it blends to a
 plain kinematic turn so parking is not a physics exercise. The body squats,
 dives and rolls from the real accelerations.
+
+Damage now changes how a car drives: a hard hit can bend the steering so the
+car pulls to one side, a harder one bursts a tyre on one axle, which loses
+grip and rides low until a Pay 'n' Spray repairs it. Rain takes almost a third
+of everyone's grip and the traffic slows for it. Tyre squeal follows the real
+slip angle. Cars and people beyond eighty metres draw at a coarser level of
+detail so the extra geometry costs nothing at range.
+
+People who die or get knocked down go into a verlet ragdoll: sixteen joints
+with bone-length and bracing constraints, ground contact with friction and
+building push-out, refitted to the skeleton every frame using the shoulders
+as a twist reference. A knocked-down ped gets back up after a couple of
+seconds; the dead settle where they land.
+
+The city keeps hours. A bustle curve empties the streets in the small hours
+and fills them for the rushes at eight and six, trimming the farthest unseen
+crowds and cars when the target drops. Each district has its own traffic mix
+(cabs and coupes downtown, muscle and pickups east, trucks by the docks, cabs
+and cruisers after midnight) and its own police response time, slowest on the
+east side. Fog rolls in off the water before dawn and burns off by mid-morning;
+it thickens the haze, dulls the sun and shortens how far the police can see.

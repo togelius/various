@@ -208,11 +208,16 @@ const W = (() => {
   }
 
   // ---- Weather: clear spells and rain, a few game hours each
-  const weather = { rain: 0, target: 0, nextChange: 3 };
+  const weather = { rain: 0, target: 0, nextChange: 3, fog: 0, fogTarget: 0 };
+  // How busy the streets are by the clock: dead at 3am, rush at 8 and 18, thinning after 22.
+  function bustle(hour) { const h = ((hour % 24) + 24) % 24; if (h < 5) return 0.22; if (h < 9) return 0.22 + (h - 5) / 4 * 0.78; if (h < 19) return 1; if (h < 23) return 1 - (h - 19) / 4 * 0.6; return 0.4 - (h - 23) * 0.18; }
   function updateWeather(dt) {
     weather.nextChange -= dt * 24 / state.dayLength; // in game hours
     if (weather.nextChange <= 0) { weather.target = weather.target > 0 ? 0 : (rng() < 0.55 ? 0.6 + rng() * 0.4 : 0); weather.nextChange = weather.target > 0 ? 1.5 + rng() * 2.5 : 3 + rng() * 6; }
     weather.rain = M.approach(weather.rain, weather.target, dt * 0.08);
+    // fog rolls in off the water in the small hours and burns off by mid-morning
+    const h = state.time; const fogHour = (h > 3.5 && h < 9) ? M.clamp(1 - Math.abs(h - 6) / 2.5, 0, 1) : 0; if (weather.fogTarget === 0 && fogHour > 0 && weather.rain < 0.1 && rng() < dt * 0.12) weather.fogTarget = 0.5 + rng() * 0.5; if (fogHour === 0 || weather.rain > 0.3) weather.fogTarget = 0;
+    weather.fog = M.approach(weather.fog, weather.fogTarget * fogHour, dt * 0.05);
     if (weather.rain > 0.02) { const cam = RENDER.cam; const n = Math.floor(40 * weather.rain); for (let i = 0; i < n; i++) { const x = cam.tx + (rng() - 0.5) * 40, z = cam.tz + (rng() - 0.5) * 40; particle(x, cam.ty + 6 + rng() * 14, z, 0.6, -22, 0.3, 0.75, 0.09, [0.75, 0.8, 0.9], 0.45 * weather.rain, { grav: 0, drag: 0, fade: 1 }); } }
   }
   // ---- Clock
@@ -223,5 +228,5 @@ const W = (() => {
   function frameBegin() { dyn.length = 0; state.shots.length = 0; state.noises.length = 0; }
   function updateExplosions(dt) { let w = 0; for (const e of explosions) { e.t += dt; if (e.t < 0.6) { dyn.push({ x: e.x, y: e.y + 1, z: e.z, r: 30 * e.big, col: [3 * (1 - e.t), 1.5 * (1 - e.t), 0.3] }); explosions[w++] = e; } } explosions.length = w; }
 
-  return { weather, updateWeather, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds };
+  return { weather, updateWeather, bustle, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds };
 })();

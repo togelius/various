@@ -114,7 +114,7 @@ const GAME = (() => {
   function checkCheats() { const t = INPUT.typed; for (const k in CHEATS) if (t.endsWith(k)) { INPUT.typed = ''; CHEATS[k](); AUDIO.play('cash'); } }
   function step(dt) {
     checkCheats();
-    W.frameBegin(); W.updateClock(dt); W.updateWeather(dt); RENDER.setTimeOfDay(W.state.time, W.weather.rain); const night = W.isNight();
+    W.frameBegin(); W.updateClock(dt); W.updateWeather(dt); RENDER.setTimeOfDay(W.state.time, W.weather.rain, W.weather.fog); const night = W.isNight();
     const dlg = !!MISSIONS.dialogue;
     MISSIONS.update(dt);
     if (!dlg) PLAYER.update(dt); else { PLAYER.P.aim = 0; PLAYER.P.vx = PLAYER.P.vz = 0; if (PLAYER.car) { PLAYER.car.controls.throttle = 0; PLAYER.car.controls.brake = 1; } PLAYER.updateCamera(dt); }
@@ -123,8 +123,10 @@ const GAME = (() => {
     W.updateLights(dt); W.updateKnocked(dt); W.updateExplosions(dt); W.updateParticles(dt);
     // population management
     const px = PLAYER.x, pz = PLAYER.z, yaw = W.state.camYaw;
-    if (W.state.frame % 4 === 0) VEH.spawnTraffic(px, pz, yaw, night ? 24 : 34);
-    if (W.state.frame % 3 === 0) PEDS.populate(px, pz, yaw, night ? 30 : 56);
+    const busy = W.bustle(W.state.time); // rush hours fill the streets, the small hours empty them
+    if (W.state.frame % 4 === 0) VEH.spawnTraffic(px, pz, yaw, Math.round(12 + 24 * busy));
+    if (W.state.frame % 3 === 0) PEDS.populate(px, pz, yaw, Math.round(12 + 46 * busy));
+    if (W.state.frame % 20 === 10) { PEDS.trim(px, pz, yaw, Math.round(12 + 46 * busy)); VEH.trim(px, pz, yaw, Math.round(12 + 24 * busy)); }
     if (W.state.frame % 30 === 0) { VEH.despawn(px, pz); PEDS.despawn(px, pz); }
     AUDIO.listener(px, pz); AUDIO.rain(W.weather.rain, !!PLAYER.car); if (W.state.frame % 20 === 0) { let n = 0; for (const c of W.cars) if (!c.removed && c.absSpeed > 2 && M.dist2(c.x, c.z, px, pz) < 60 * 60) n++; AUDIO.traffic(Math.min(1, n / 8)); } AUDIO.radioTick(dt, !!PLAYER.car); if (!PLAYER.car) { AUDIO.engine(false, 0, 0); AUDIO.screech(0); }
     // hydrant fountains

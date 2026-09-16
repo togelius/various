@@ -39,7 +39,7 @@ const PLAYER = (() => {
   function die(source) {
     if (!P.alive) return; P.alive = false; P.health = 0; P.deadT = 0; P.stats.wasted++; P.aim = 0;
     if (P.car) { const c = P.car; c.driver = null; c.ai.mode = 'parked'; P.x = c.x; P.z = c.z; }
-    P.state = 'dead'; P.lying = 0; P.fallDir = 1; AUDIO.play('wasted'); HUD.big('WASTED', '#c0281e'); MISSIONS.onPlayerDown('wasted');
+    P.state = 'dead'; P.lying = 0; P.fallDir = 1; if (!P.car) P.rag = PEDS.makeRagdoll(P, P.vx, 2, P.vz); AUDIO.play('wasted'); HUD.big('WASTED', '#c0281e'); MISSIONS.onPlayerDown('wasted');
   }
   function bust() {
     if (!P.alive || P.state === 'busted') return; P.alive = false; P.state = 'busted'; P.deadT = 0; P.stats.busted++; P.aim = 0;
@@ -48,7 +48,7 @@ const PLAYER = (() => {
   }
   function respawn(where) {
     const p = CITY.nearestPlace(where, P.x, P.z) || CITY.place('hospital'); P.x = p.x + 3; P.z = p.z; P.y = CITY.groundY(P.x, P.z); P.angle = Math.PI; P.camYaw = P.angle;
-    P.health = 100; P.alive = true; P.state = 'foot'; P.car = null; P.vx = P.vz = P.vy = 0; P.airborne = false; P.lying = 0; P.knockT = 0; P.invuln = 2;
+    P.health = 100; P.alive = true; P.state = 'foot'; P.car = null; P.rag = null; P.vx = P.vz = P.vy = 0; P.airborne = false; P.lying = 0; P.knockT = 0; P.invuln = 2;
     const fee = Math.min(P.money, Math.max(200, Math.floor(P.money * 0.1))); if (fee > 0) addMoney(-fee, where === 'police' ? 'bail' : 'hospital bill');
     if (where === 'police') { for (const k in P.weapons) if (!WEAPONS[k].melee) P.weapons[k] = Math.floor(P.weapons[k] * 0.5); }
     POLICE.clear(); HUD.clearBig();
@@ -116,7 +116,7 @@ const PLAYER = (() => {
     const m = INPUT.mouse, pad = INPUT.pad;
     // camera look
     P.camIdle += dt; if (INPUT.locked || pad.active) { const sens = 0.0022 * GAME.options.sensitivity; const inv = GAME.options.invertY ? -1 : 1; P.camYaw -= m.dx * sens + pad.rx * 2.5 * dt; P.camPitch = M.clamp(P.camPitch + (m.dy * sens * 0.8 + pad.ry * 1.5 * dt) * inv, -0.35, 1.1); if (m.dx || m.dy || pad.rx) P.camIdle = 0; }
-    if (!P.alive) { P.deadT += dt; if (P.state === 'dead') { P.lying = Math.min(1, P.lying + dt * 3); moveBody(dt, true); } if (P.deadT > 4.5) respawn(P.state === 'busted' ? 'police' : 'hospital'); updateCamera(dt); return; }
+    if (!P.alive) { P.deadT += dt; if (P.state === 'dead') { if (P.rag) PEDS.stepRagdoll(P, dt); else { P.lying = Math.min(1, P.lying + dt * 3); moveBody(dt, true); } } if (P.deadT > 4.5) respawn(P.state === 'busted' ? 'police' : 'hospital'); updateCamera(dt); return; }
     if (P.state === 'entering') { updateEntering(dt); updateCamera(dt); return; }
     if (P.state === 'knocked') { P.knockT -= dt; P.lying = Math.min(1, P.lying + dt * 4); moveBody(dt, true); if (P.knockT <= 0) { P.state = 'foot'; P.lying = 0; } updateCamera(dt); return; }
     if (P.lying > 0) P.lying = Math.max(0, P.lying - dt * 3);
@@ -244,7 +244,7 @@ const PLAYER = (() => {
     if (c.airborne) { if (P.airT === 0) { P.jumpRamp = -1; CITY.ramps.forEach((r, i) => { if (M.dist(c.x, c.z, (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2) < 14) P.jumpRamp = i; }); } P.airT += dt; }
     else if (P.airT > 0) { if (P.airT > 0.85 && c.absSpeed > 8) { let bonus = Math.floor(P.airT * 500); P.stats.stunts++; if (P.jumpRamp >= 0 && !P.stats.jumps.includes(P.jumpRamp)) { P.stats.jumps.push(P.jumpRamp); bonus += 1000; HUD.big('UNIQUE STUNT!  ' + P.stats.jumps.length + '/' + CITY.ramps.length, '#f5c542', 2.2); AUDIO.play('missionPass'); } else HUD.big('INSANE STUNT!', '#f5c542', 1.6); addMoney(bonus, 'stunt bonus'); } P.airT = 0; }
     // engine sound
-    const rpm = M.clamp(Math.abs(c.speed) / c.spec.top, 0, 1); AUDIO.engine(true, rpm * 0.7 + ctl.throttle * 0.25 + 0.05, ctl.throttle, c.type); AUDIO.screech(c.skid && !c.airborne ? Math.min(1, Math.abs(c.lat) / 6 + (ctl.handbrake ? 0.4 : 0)) : 0);
+    const rpm = M.clamp(Math.abs(c.speed) / c.spec.top, 0, 1); AUDIO.engine(true, rpm * 0.7 + ctl.throttle * 0.25 + 0.05, ctl.throttle, c.type); AUDIO.screech(c.skid && !c.airborne ? M.clamp(Math.max(Math.abs(c.slipR || 0) - 0.08, Math.abs(c.slipF || 0) - 0.14, c.wheelspin ? 0.35 : 0) * 3, 0, 1) : 0); // squeal follows the tyre slip
     if (c.skid && !c.airborne && W.state.frame % 2 === 0) { const r = c.right, f = c.fwd; const wz = c.spec.len * 0.3; W.FX.dust(c.x - f[0] * wz + r[0], 0, c.z - f[1] * wz + r[1], 1); W.FX.dust(c.x - f[0] * wz - r[0], 0, c.z - f[1] * wz - r[1], 1); }
   }
   // ---- Camera
@@ -285,7 +285,7 @@ const PLAYER = (() => {
     RENDER.setCamera(P.camX, P.camY, P.camZ, tx, ty, tz, P.fov * Math.PI / 180);
     W.state.camYaw = yaw;
   }
-  function entity() { if (P.car) return null; PEDS.buildRig(P, P.model, P.bones); P.emis.fill(0); return { mesh: P.mesh, model: P.model, bones: P.bones, emis: P.emis }; }
+  function entity() { if (P.car) return null; if (P.rag) { PEDS.ragdollBones(P, P.rag); P.emis.fill(0); return { mesh: P.mesh, model: P.model, bones: P.bones, emis: P.emis }; } PEDS.buildRig(P, P.model, P.bones); P.emis.fill(0); return { mesh: P.mesh, model: P.model, bones: P.bones, emis: P.emis }; }
   function drawFX() { for (const t of tracers) W.fx.line(t.x0, t.y0, t.z0, t.x1, t.y1, t.z1, [1, 0.9, 0.6], 0.9, 0.2); for (const p of projectiles) if (p.kind === 'grenade') W.fx.blob(p.x, CITY.groundY(p.x, p.z) + 0.03, p.z, 0.25, 0.4); }
   function projectileEntities() { const out = []; for (const p of projectiles) { const m = M.create(); if (p.kind === 'grenade') { M.trs(m, p.x, p.y, p.z, 0, 0.5, 0.5, 0.5); out.push({ mesh: GRENADE_MESH(), model: m }); } else { const yaw = Math.atan2(p.vx, p.vz), pitch = -Math.atan2(p.vy, Math.hypot(p.vx, p.vz)); M.trsEuler(m, p.x, p.y, p.z, yaw, pitch, 0); out.push({ mesh: ROCKET_MESH(), model: m }); } } return out; }
   let gm = null, rm = null;

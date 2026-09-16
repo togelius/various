@@ -8,6 +8,7 @@ const VEH = (() => {
   const meshCache = {};
   function colorOf(type, colIdx) { return colIdx === 'wreck' ? [0.07, 0.07, 0.07] : FIXED[type] || PALETTE[colIdx]; }
   function getMesh(type, colIdx) { const key = type + ':' + colIdx; if (!meshCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx)); meshCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return meshCache[key]; }
+  const lodCache = {}; function getLod(type, colIdx) { const key = type + ':' + colIdx; if (!lodCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx), { lod: true }); lodCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return lodCache[key]; }
   function dentedMesh(type, colIdx, dent, seed) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed }); return { body: m.body.build(), glass: m.glass.build() }; }
   const TRAFFIC_TYPES = ['sedan', 'sedan', 'sedan', 'hatch', 'hatch', 'sports', 'pickup', 'van', 'taxi', 'taxi', 'muscle', 'truck', 'bus'];
 
@@ -19,6 +20,7 @@ const VEH = (() => {
       this.steer = 0; this.controls = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
       this.colIdx = opts.color !== undefined ? opts.color : Math.floor(W.rng() * PALETTE.length); this.meshes = getMesh(type, this.colIdx); this.mesh = this.meshes.body; this.dentLevel = 0; this.dentSeed = Math.floor(W.rng() * 1e6);
       this.maxHealth = this.spec.armor ? 2600 : 1000 * this.spec.mass; this.health = this.maxHealth; this.wrecked = false; this.fireT = 0;
+      this.dmg = { pull: 0, front: 1, rear: 1, burst: null }; // lasting damage: a bent axle pulls, a burst tyre loses grip on its axle
       this.driver = null; this.passengers = []; this.ai = { mode: opts.mode || 'parked', edge: null, lane: 0, path: null, pathIdx: 0, stuck: 0, honk: 0, cruise: 9 + W.rng() * 5, reverseT: 0, blockedT: 0, target: null, waitT: 0 };
       this.lightsOn = false; this.brakeLights = false; this.siren = false; this.sirenPhase = W.rng() * 10; this.horn = 0;
       this.wheelRot = 0; this.pitch = 0; this.roll = 0; this.airborne = false; this.airT = 0; this.wasAir = false;
@@ -57,11 +59,12 @@ const VEH = (() => {
       const top = s.top; const spd = Math.abs(vF);
       // steering: the wheel angle that full lock gives shrinks with speed, so a twitch at 150 km/h is not a spin
       this.steer = M.approach(this.steer, M.clamp(c.steer, -1, 1), 6 * dt);
-      const maxSteer = 0.62 / (1 + spd / 13); const delta = this.steer * maxSteer; this.steerAngle = delta;
+      const maxSteer = 0.62 / (1 + spd / 13); const delta = this.steer * maxSteer + this.dmg.pull * Math.min(1, spd / 8); this.steerAngle = delta;
       // tyre model: a bicycle with a front and a rear axle, lateral force from slip angle up to a friction limit
       const Lw = s.len * 0.58, bF = Lw * 0.5, bR = Lw * 0.5; const mu = 13 * s.grip; // total lateral grip, m/s^2
       const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked');
-      let muF = mu * 0.5, muR = mu * 0.5; if (c.handbrake) muR *= 0.32; if (c.brake > 0.6 && vF > 4) muF *= 0.75; // locked rears slide, hard braking dulls the front
+      const wet = 1 - 0.3 * (W.weather ? W.weather.rain : 0); // rain takes almost a third of the grip
+      let muF = mu * 0.5 * wet * this.dmg.front, muR = mu * 0.5 * wet * this.dmg.rear; if (c.handbrake) muR *= 0.32; if (c.brake > 0.6 && vF > 4) muF *= 0.75; // locked rears slide, hard braking dulls the front
       const Cf = muF / 0.11, Cr = muR / 0.1; // cornering stiffness: the front saturates at a slightly larger slip than the rear, so the car understeers gently
       let wheelspin = 0;
       // engine and brakes as longitudinal accelerations; the driven rear axle only gets what the friction circle leaves
@@ -171,10 +174,14 @@ const VEH = (() => {
     damage(amount, source) {
       if (this.wrecked) return; amount *= this.damageScale || 1; this.health -= amount; this.damageFlash = 0.15; if (source && source !== this) this.lastHitBy = source;
       const hf = this.health / this.maxHealth; const lvl = hf < 0.3 ? 2 : hf < 0.65 ? 1 : 0;
-      if (lvl > this.dentLevel && this.health > 0) { this.dentLevel = lvl; this.meshes = dentedMesh(this.type, this.colIdx, lvl * 0.5, this.dentSeed); this.mesh = this.meshes.body; }
+      if (lvl > this.dentLevel && this.health > 0) { this.dentLevel = lvl; this.meshes = dentedMesh(this.type, this.colIdx, lvl * 0.5, this.dentSeed); this.mesh = this.meshes.body;
+        // handling consequences: a heavy hit can bend the steering, a heavier one bursts a tyre
+        if (lvl === 1 && W.rng() < 0.4) this.dmg.pull = (W.rng() < 0.5 ? 1 : -1) * (0.03 + W.rng() * 0.05);
+        if (lvl === 2 && !this.dmg.burst && W.rng() < 0.65) { this.dmg.burst = W.rng() < 0.5 ? 'front' : 'rear'; if (this.dmg.burst === 'front') { this.dmg.front = 0.55; this.dmg.pull += (W.rng() < 0.5 ? 1 : -1) * 0.06; } else this.dmg.rear = 0.6; AUDIO.play('hit', this.x, this.z); if (this.driver === PLAYER) HUD.notify(this.dmg.burst === 'front' ? 'Front tyre blown. It pulls.' : 'Rear tyre blown. Easy on the throttle.'); } }
       if (this.ai.mode === 'traffic' && amount > 30) { this.scared = 6; this.ai.mode = 'flee'; }
       if (this.health <= 0) this.explode();
     }
+    repair() { this.health = this.maxHealth; this.dentLevel = 0; this.meshes = getMesh(this.type, this.colIdx); this.mesh = this.meshes.body; this.dmg = { pull: 0, front: 1, rear: 1, burst: null }; this.fireT = 0; }
     explode() {
       if (this.wrecked) return; this.wrecked = true; this.health = 0; this.fireT = 0; this.meshes = dentedMesh(this.type, 'wreck', 1.0, this.dentSeed); this.mesh = this.meshes.body; this.siren = false; this.lightsOn = false;
       W.FX.explosion(this.x, this.y + 0.5, this.z, this.spec.len > 6 ? 1.6 : 1); AUDIO.play('explosion', this.x, this.z); W.noise(this.x, this.z, 120, 'explosion');
@@ -208,7 +215,7 @@ const VEH = (() => {
       const desired = Math.atan2(tx - this.x, tz - this.z); const da = M.angleTo(this.angle, desired);
       c.steer = M.clamp(da * 2.2, -1, 1);
       // target speed
-      let target = ai.mode === 'flee' ? (ai.fleeSpeed || 24) : ai.cruise;
+      let target = (ai.mode === 'flee' ? (ai.fleeSpeed || 24) : ai.cruise) * (1 - 0.25 * (W.weather ? W.weather.rain : 0)); // everyone slows down in the wet
       // a fleeing mission driver who is tailed closely for long enough loses their nerve, pulls over and runs
       if (ai.missionFlee && this.driver && this.driver !== PLAYER) {
         const close = PLAYER && PLAYER.alive && PLAYER.car && M.dist(PLAYER.x, PLAYER.z, this.x, this.z) < 16;
@@ -296,7 +303,7 @@ const VEH = (() => {
       M.trsEuler(this.model, this.x, this.y + (this.wrecked ? -0.12 : 0), this.z, this.angle, this.pitch, this.roll);
       const wz = half * (s.bus ? 0.7 : 0.62), wx = s.wid / 2 - 0.05;
       const wheels = [[wx, wr, wz, true], [-wx, wr, wz, true], [wx, wr, -wz, false], [-wx, wr, -wz, false]];
-      for (let i = 0; i < 4; i++) { const [px, py, pz, front] = wheels[i]; wheelBone(this.bones, (i + 1) * 16, px, py, pz, front ? (this.steerAngle || 0) : 0, this.wheelRot); }
+      for (let i = 0; i < 4; i++) { const [px, py, pz, front] = wheels[i]; const flat = this.dmg.burst === (front ? 'front' : 'rear') && (i % 2 === 0); wheelBone(this.bones, (i + 1) * 16, px, flat ? py - wr * 0.18 : py, pz, front ? (this.steerAngle || 0) : 0, this.wheelRot, flat ? 0.82 : 1); }
       const e = this.emis; e.fill(0);
       if (!this.wrecked) {
         e[5] = this.lightsOn ? 1.0 : 0; e[6] = this.brakeLights ? 1.3 : (this.lightsOn ? 0.45 : 0);
@@ -304,16 +311,17 @@ const VEH = (() => {
         if (this.siren) { this.sirenPhase += 0.25; const ph = Math.floor(this.sirenPhase) % 2; e[8] = ph ? 1.6 : 0.1; e[9] = ph ? 0.1 : 1.6; const k = 0.15 + 0.6 * RENDER.env.nightEmis; W.dyn.push({ x: this.x, y: this.y + 2, z: this.z, r: 16, col: ph ? [1.2 * k, 0.15 * k, 0.15 * k] : [0.15 * k, 0.3 * k, 1.2 * k] }); }
       }
       if (this.damageFlash > 0) { for (let i = 0; i < 5; i++) e[i] = 0.25; }
-      return { mesh: this.mesh, glass: this.meshes.glass, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.6 };
+      const far = !this.wrecked && this.dentLevel === 0 && M.dist2(this.x, this.z, RENDER.cam.tx, RENDER.cam.tz) > 85 * 85; const lod = far ? getLod(this.type, this.colIdx) : null;
+      return { mesh: lod ? lod.body : this.mesh, glass: lod ? lod.glass : this.meshes.glass, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.6 };
     }
     headlightFX() { if (!this.lightsOn || this.wrecked) return; const f = this.fwd, r = this.right; const s = this.spec; const hx = this.x + f[0] * s.len * 0.5, hz = this.z + f[1] * s.len * 0.5; W.fx.lightPool(hx, hz, f[0], f[1], 16, 3.2, [1, 0.95, 0.75], 0.2); W.dyn.push({ x: hx + f[0] * 5, y: 1, z: hz + f[1] * 5, r: 13, col: [0.6, 0.56, 0.42] }); }
     remove() { this.removed = true; if (this.driver && this.driver !== PLAYER) { this.driver.removed = true; } for (const p of this.passengers) p.removed = true; }
   }
   // Bone matrix rotating a wheel around its own axle: T(p) * Ry(yaw) * Rx(rot) * T(-p)
-  function wheelBone(out, off, px, py, pz, yaw, rot) {
+  function wheelBone(out, off, px, py, pz, yaw, rot, scale = 1) {
     const cy = Math.cos(yaw), sy = Math.sin(yaw), cx = Math.cos(rot), sx = Math.sin(rot);
     // R = Ry * Rx (column-major entries)
-    const r00 = cy, r01 = 0, r02 = -sy, r10 = sy * sx, r11 = cx, r12 = cy * sx, r20 = sy * cx, r21 = -sx, r22 = cy * cx;
+    const k = scale; const r00 = cy * k, r01 = 0, r02 = -sy * k, r10 = sy * sx * k, r11 = cx * k, r12 = cy * sx * k, r20 = sy * cx * k, r21 = -sx * k, r22 = cy * cx * k;
     out[off + 0] = r00; out[off + 1] = r01; out[off + 2] = r02; out[off + 3] = 0;
     out[off + 4] = r10; out[off + 5] = r11; out[off + 6] = r12; out[off + 7] = 0;
     out[off + 8] = r20; out[off + 9] = r21; out[off + 10] = r22; out[off + 11] = 0;
@@ -322,6 +330,22 @@ const VEH = (() => {
 
   // ---- Spawning
   function spawn(type, x, z, angle, opts = {}) { const v = new Vehicle(type, x, z, angle, opts); W.cars.push(v); return v; }
+  // Each district drives something different: cabs and coupes downtown, hatchbacks and vans in the suburbs, muscle and pickups east, trucks by the docks.
+  const DISTRICT_MIX = {
+    downtown: ['sedan', 'sedan', 'taxi', 'taxi', 'taxi', 'sports', 'sports', 'hatch', 'bus', 'van'],
+    midtown: ['sedan', 'sedan', 'hatch', 'taxi', 'sports', 'pickup', 'van', 'bus', 'muscle'],
+    westfield: ['hatch', 'hatch', 'sedan', 'van', 'van', 'pickup', 'sedan', 'bus'],
+    eastside: ['muscle', 'muscle', 'pickup', 'pickup', 'sedan', 'hatch', 'van', 'truck'],
+    northgate: ['sedan', 'hatch', 'muscle', 'pickup', 'taxi', 'van', 'truck'],
+    southport: ['truck', 'truck', 'van', 'van', 'pickup', 'sedan', 'bus', 'taxi'],
+  };
+  function trafficTypeFor(x, z) { const bl = CITY.blockAt(x, z); const d = bl ? CITY.district(bl.i, bl.j) : 'midtown'; const list = DISTRICT_MIX[d] || TRAFFIC_TYPES; const hour = W.state.time; let t = list[Math.floor(W.rng() * list.length)]; if ((hour < 6 || hour > 22) && W.rng() < 0.35) t = W.rng() < 0.6 ? 'taxi' : 'muscle'; /* night: cabs and cruisers */ return t; }
+  function trim(px, pz, camYaw, want) {
+    let count = 0; for (const c of W.cars) if (!c.removed && c.ai.mode === 'traffic') count++;
+    if (count <= want + 2) return; let best = null, bd = 0;
+    for (const c of W.cars) { if (c.removed || c.ai.mode !== 'traffic' || c.important || c.driver === PLAYER || c.playerOwned) continue; const d = M.dist(c.x, c.z, px, pz); if (d < 60) continue; const ang = Math.atan2(c.x - px, c.z - pz); if (d < 160 && Math.abs(M.angleTo(camYaw, ang)) < 1.0) continue; if (d > bd) { bd = d; best = c; } }
+    if (best) { if (best.driver) best.driver.remove(); for (const q of best.passengers) q.remove(); best.removed = true; }
+  }
   function spawnTraffic(px, pz, camYaw, wantCount) {
     let count = 0; for (const c of W.cars) if (!c.removed && c.ai.mode === 'traffic') count++;
     if (count >= wantCount) return;
@@ -332,7 +356,7 @@ const VEH = (() => {
       // don't spawn in front of the camera unless far
       const ang = Math.atan2(x - px, z - pz); if (d < 140 && Math.abs(M.angleTo(camYaw, ang)) < 0.9) continue;
       let clear = true; for (const c of W.cars) if (!c.removed && M.dist2(c.x, c.z, x, z) < 100) { clear = false; break; } if (!clear) continue;
-      const type = TRAFFIC_TYPES[Math.floor(W.rng() * TRAFFIC_TYPES.length)]; const v = spawn(type, x, z, 0, { mode: 'traffic' }); v.placeOnLane(e, lane, s);
+      const type = trafficTypeFor(x, z); const v = spawn(type, x, z, 0, { mode: 'traffic' }); v.placeOnLane(e, lane, s);
       v.driver = PEDS.spawnDriver(v); v.lightsOn = W.isNight();
       return v;
     }
@@ -341,5 +365,5 @@ const VEH = (() => {
   function spawnParked() { for (const p of CITY.parkedSpots) { const type = p.type || TRAFFIC_TYPES[Math.floor(W.rng() * TRAFFIC_TYPES.length)]; if (type === 'bus' || type === 'truck') continue; spawn(type, p.x, p.z, p.angle, { mode: 'parked' }); } }
   function nearest(x, z, r, filter) { let best = null, bd = r * r; for (const c of W.cars) { if (c.removed || (filter && !filter(c))) continue; const d = M.dist2(c.x, c.z, x, z); if (d < bd) { bd = d; best = c; } } return best; }
   function updateAll(dt, night) { for (const c of W.cars) { if (c.removed) continue; c.lightsOn = night && !c.wrecked && (c.driver !== null || c.ai.mode !== 'parked' || c.playerOwned) ; c.update(dt); } }
-  return { Vehicle, SPECS, NAMES, PALETTE, TRAFFIC_TYPES, spawn, spawnTraffic, despawn, spawnParked, nearest, updateAll, getMesh };
+  return { Vehicle, SPECS, NAMES, PALETTE, TRAFFIC_TYPES, trafficTypeFor, trim, spawn, spawnTraffic, despawn, spawnParked, nearest, updateAll, getMesh };
 })();
