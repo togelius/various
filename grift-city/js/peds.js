@@ -202,8 +202,8 @@ const PEDS = (() => {
 
   // Seated pose inside a car (or on a bench): hips at the seat, legs forward, hands on the wheel.
   const seatTmp = M.create(), seatLocal = M.create(), seatWorld = M.create();
-  function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0) {
-    M.trs(seatLocal, lx, ly, lz, yaw, p.sx || 1, p.sy || 1, p.sx || 1); M.multiply(model, carModel, seatLocal);
+  function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1) {
+    M.trs(seatLocal, lx, ly, lz, yaw, (p.sx || 1) * fit, (p.sy || 1) * fit, (p.sx || 1) * fit); M.multiply(model, carModel, seatLocal);
     const hip = 0.02; const lean = driving ? 0.12 : 0.05;
     bone(bones, 0, 0, hip, 0, 0, lean, 0);
     bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, lean * 0.5, 0);
@@ -214,7 +214,7 @@ const PEDS = (() => {
   }
   // Seat positions in car-local space: driver on the left (+x), passenger right, rear seats behind.
   function seatOf(car, index) {
-    const s = car.spec; const L = s.len, W = s.wid, wr = s.wheelR; const floorY = wr * 0.9, bodyH = s.hgt * 0.5; const cabinY = floorY + bodyH;
+    const s = car.spec; const L = s.len, W = s.wid;
     const seatY = MESH.seatHeight(s);
     if (s.bus) return [index === 0 ? W * 0.25 : -W * 0.25, seatY, L / 2 - 1.2 - Math.floor(index / 2) * 1.2];
     if (s.box) return [index === 0 ? W * 0.22 : -W * 0.22, seatY, L / 2 - L * 0.3 * 0.55];
@@ -222,7 +222,7 @@ const PEDS = (() => {
     const half = L / 2; const c0 = half - s.cabin[0] * L - s.hood * 0.5, c1 = half - s.cabin[1] * L - s.hood * 0.5; const seatZ = (c0 + c1) / 2 - 0.1;
     const row = Math.floor(index / 2), side = index % 2 === 0 ? 1 : -1; return [side * W * 0.21, seatY, seatZ - row * 0.9];
   }
-  function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0); p.emis.fill(0); return { mesh: p.mesh, model: p.model, bones: p.bones, emis: p.emis }; }
+  function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0, MESH.seatFit(car.spec).scale); p.emis.fill(0); return { mesh: p.mesh, model: p.model, bones: p.bones, emis: p.emis }; }
 
   // ---- Spawning
   function spawn(x, z, opts = {}) { const look = opts.look || looks[Math.floor(W.rng() * looks.length)]; const p = new Ped(look, x, z, opts); W.peds.push(p); return p; }

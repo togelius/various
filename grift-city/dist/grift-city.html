@@ -583,30 +583,32 @@ const MESH = (() => {
   // ---- Vehicles. Local frame: +z forward, +x left, y up, origin on the ground under the car's centre.
   // Bones: 0 body, 1 FL wheel, 2 FR wheel, 3 RL wheel, 4 RR wheel, 5 light bar / extra.
   const VEHICLES = {
-    sedan:   { len: 4.6, wid: 2.0, hgt: 1.45, cabin: [0.35, 0.62], wheelR: 0.36, mass: 1.0, accel: 11, top: 26, grip: 0.92, turn: 2.4, brake: 24, seats: 4, hood: 0.9 },
-    sports:  { len: 4.4, wid: 2.0, hgt: 1.2, cabin: [0.3, 0.55], wheelR: 0.36, mass: 0.95, accel: 16, top: 36, grip: 0.95, turn: 2.8, brake: 30, seats: 2, hood: 0.7 },
+    sedan:   { len: 4.6, wid: 2.0, hgt: 1.45, cabin: [0.32, 0.66], wheelR: 0.36, mass: 1.0, accel: 11, top: 26, grip: 0.92, turn: 2.4, brake: 24, seats: 4, hood: 0.9 },
+    sports:  { len: 4.4, wid: 2.0, hgt: 1.24, cabin: [0.27, 0.63], wheelR: 0.36, mass: 0.95, accel: 16, top: 36, grip: 0.95, turn: 2.8, brake: 30, seats: 2, hood: 0.7 },
     hatch:   { len: 3.8, wid: 1.85, hgt: 1.5, cabin: [0.3, 0.75], wheelR: 0.33, mass: 0.85, accel: 10, top: 24, grip: 0.9, turn: 2.6, brake: 22, seats: 4, hood: 0.85 },
     pickup:  { len: 5.2, wid: 2.1, hgt: 1.8, cabin: [0.28, 0.55], wheelR: 0.42, mass: 1.3, accel: 10, top: 25, grip: 0.86, turn: 2.1, brake: 22, seats: 2, hood: 1.1, bed: true },
     van:     { len: 5.2, wid: 2.1, hgt: 2.2, cabin: [0.2, 0.95], wheelR: 0.38, mass: 1.4, accel: 8, top: 22, grip: 0.84, turn: 2.0, brake: 20, seats: 4, hood: 1.0 },
-    taxi:    { len: 4.6, wid: 2.0, hgt: 1.45, cabin: [0.35, 0.62], wheelR: 0.36, mass: 1.0, accel: 11, top: 27, grip: 0.92, turn: 2.4, brake: 24, seats: 4, hood: 0.9, taxi: true },
-    police:  { len: 4.8, wid: 2.05, hgt: 1.5, cabin: [0.35, 0.62], wheelR: 0.37, mass: 1.1, accel: 14, top: 32, grip: 0.94, turn: 2.6, brake: 28, seats: 4, hood: 0.9, police: true },
+    taxi:    { len: 4.6, wid: 2.0, hgt: 1.45, cabin: [0.32, 0.66], wheelR: 0.36, mass: 1.0, accel: 11, top: 27, grip: 0.92, turn: 2.4, brake: 24, seats: 4, hood: 0.9, taxi: true },
+    police:  { len: 4.8, wid: 2.05, hgt: 1.5, cabin: [0.32, 0.66], wheelR: 0.37, mass: 1.1, accel: 14, top: 32, grip: 0.94, turn: 2.6, brake: 28, seats: 4, hood: 0.9, police: true },
     truck:   { len: 7.5, wid: 2.4, hgt: 3.0, cabin: [0.0, 0.3], wheelR: 0.5, mass: 2.6, accel: 6, top: 20, grip: 0.8, turn: 1.6, brake: 16, seats: 2, hood: 0.4, box: true },
     bus:     { len: 9.5, wid: 2.5, hgt: 3.0, cabin: [0.0, 1.0], wheelR: 0.5, mass: 3.0, accel: 5, top: 19, grip: 0.8, turn: 1.4, brake: 15, seats: 4, hood: 0.0, bus: true },
-    muscle:  { len: 4.9, wid: 2.05, hgt: 1.35, cabin: [0.38, 0.62], wheelR: 0.38, mass: 1.15, accel: 15, top: 33, grip: 0.86, turn: 2.5, brake: 26, seats: 2, hood: 1.0 },
+    muscle:  { len: 4.9, wid: 2.05, hgt: 1.38, cabin: [0.34, 0.66], wheelR: 0.38, mass: 1.15, accel: 15, top: 33, grip: 0.86, turn: 2.5, brake: 26, seats: 2, hood: 1.0 },
     swat:    { len: 5.6, wid: 2.3, hgt: 2.4, cabin: [0.2, 0.9], wheelR: 0.42, mass: 1.8, accel: 10, top: 26, grip: 0.9, turn: 2.0, brake: 24, seats: 4, hood: 0.9, police: true, armor: true },
   };
 
   // Height of the seat cushion in car-local space: a seated ped is 1.05 m from hip to crown, so it sits that far below the roof.
-  function seatHeight(s) { const wr = s.wheelR, floorY = wr * 0.9, bodyH = s.hgt * 0.5, cabinY = floorY + bodyH, cabinH = s.hgt - bodyH - floorY * 0.6;
-    if (s.bus) return floorY + 0.3; const roof = s.box ? cabinY - 0.05 + cabinH * 1.2 : (s.armor || !s.cabin || s.hgt > 2.0) ? s.hgt : cabinY + cabinH; return Math.max(floorY + 0.1, roof - 1.05); }
+  function seatHeight(s) { return seatFit(s).y; }
+  // Seat height plus a body scale for low cabins: a seated ped is 1.05 m from hip to crown, so in a sports car it shrinks a little rather than wearing the roof.
+  function seatFit(s) { const wr = s.wheelR, floorY = wr * 0.9, bodyH = s.hgt * 0.46, cabinY = floorY + bodyH, cabinH = s.hgt - bodyH - floorY * 0.6;
+    if (s.bus) return { y: floorY + 0.3, scale: 1 }; const roof = s.box ? cabinY - 0.05 + cabinH * 1.2 : (s.armor || !s.cabin || s.hgt > 2.0) ? s.hgt : cabinY + cabinH; const y = Math.max(floorY + 0.08, roof - 1.05); return { y, scale: M.clamp((roof - y - 0.03) / 1.05, 0.8, 1) }; }
   // Returns { body, glass } builders. opts.dent (0..1) crumples the body, opts.seed varies the dents.
   // Bodies are lofted from rounded cross-sections so the panels curve; the greenhouse is one surface whose
   // roof quads go to the body and whose side/front/back quads go to the translucent glass builder.
   function carMesh(type, col, opts = {}) {
     const s = VEHICLES[type], b = new Builder(), gb = new Builder(); const L = s.len, W = s.wid, H = s.hgt, wr = s.wheelR;
-    const dark = [0.12, 0.13, 0.15], glass = [0.55, 0.7, 0.85], chrome = [0.8, 0.82, 0.85], rubber = [0.08, 0.08, 0.09];
-    const body = col, bodyDk = col.map(c => c * 0.72), roofCol = col.map(c => c * 0.92);
-    const floorY = wr * 0.9, bodyH = H * 0.5, cabinY = floorY + bodyH, cabinH = H - bodyH - floorY * 0.6;
+    const dark = [0.12, 0.13, 0.15], glass = [0.28, 0.38, 0.48], chrome = [0.8, 0.82, 0.85], rubber = [0.08, 0.08, 0.09]; // tinted glass so the cabin reads as a shape
+    const body = col, bodyDk = col.map(c => c * 0.72), roofCol = col.map(c => c * 0.86);
+    const floorY = wr * 0.9, bodyH = H * 0.46, cabinY = floorY + bodyH, cabinH = H - bodyH - floorY * 0.6;
     const half = L / 2, hw = W / 2;
     const lightBox = (x, y, z, w, h, colr, face, bone) => b.cbox(x, y, z, w, h, 0.08, colr, 0, { faces: face, bone });
     const ring = (z, y0, y1, halfW, rTop, rBot) => Builder.rrect(0, (y0 + y1) / 2, halfW, (y1 - y0) / 2, rBot, 3, z, 'z', rTop);
@@ -832,7 +834,7 @@ const MESH = (() => {
     b.cbox(0, 0.75, 1.5, 0.5, 0.3, 0.5, [1, 1, 0.9], 0, { bone: 3 });
     return b;
   }
-  return { Builder, VEHICLES, carMesh, seatHeight, dentBody, pedMesh, PICKUP_MODELS, dumpster, mailbox, meter, newsbox, busShelter, cone, barrier, hedge, roundTree, palm, umbrella, streetSign, payphone, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
+  return { Builder, VEHICLES, carMesh, seatHeight, seatFit, dentBody, pedMesh, PICKUP_MODELS, dumpster, mailbox, meter, newsbox, busShelter, cone, barrier, hedge, roundTree, palm, umbrella, streetSign, payphone, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
 })();
 
 </script>
@@ -2657,8 +2659,8 @@ const PEDS = (() => {
 
   // Seated pose inside a car (or on a bench): hips at the seat, legs forward, hands on the wheel.
   const seatTmp = M.create(), seatLocal = M.create(), seatWorld = M.create();
-  function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0) {
-    M.trs(seatLocal, lx, ly, lz, yaw, p.sx || 1, p.sy || 1, p.sx || 1); M.multiply(model, carModel, seatLocal);
+  function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1) {
+    M.trs(seatLocal, lx, ly, lz, yaw, (p.sx || 1) * fit, (p.sy || 1) * fit, (p.sx || 1) * fit); M.multiply(model, carModel, seatLocal);
     const hip = 0.02; const lean = driving ? 0.12 : 0.05;
     bone(bones, 0, 0, hip, 0, 0, lean, 0);
     bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, lean * 0.5, 0);
@@ -2669,7 +2671,7 @@ const PEDS = (() => {
   }
   // Seat positions in car-local space: driver on the left (+x), passenger right, rear seats behind.
   function seatOf(car, index) {
-    const s = car.spec; const L = s.len, W = s.wid, wr = s.wheelR; const floorY = wr * 0.9, bodyH = s.hgt * 0.5; const cabinY = floorY + bodyH;
+    const s = car.spec; const L = s.len, W = s.wid;
     const seatY = MESH.seatHeight(s);
     if (s.bus) return [index === 0 ? W * 0.25 : -W * 0.25, seatY, L / 2 - 1.2 - Math.floor(index / 2) * 1.2];
     if (s.box) return [index === 0 ? W * 0.22 : -W * 0.22, seatY, L / 2 - L * 0.3 * 0.55];
@@ -2677,7 +2679,7 @@ const PEDS = (() => {
     const half = L / 2; const c0 = half - s.cabin[0] * L - s.hood * 0.5, c1 = half - s.cabin[1] * L - s.hood * 0.5; const seatZ = (c0 + c1) / 2 - 0.1;
     const row = Math.floor(index / 2), side = index % 2 === 0 ? 1 : -1; return [side * W * 0.21, seatY, seatZ - row * 0.9];
   }
-  function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0); p.emis.fill(0); return { mesh: p.mesh, model: p.model, bones: p.bones, emis: p.emis }; }
+  function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0, MESH.seatFit(car.spec).scale); p.emis.fill(0); return { mesh: p.mesh, model: p.model, bones: p.bones, emis: p.emis }; }
 
   // ---- Spawning
   function spawn(x, z, opts = {}) { const look = opts.look || looks[Math.floor(W.rng() * looks.length)]; const p = new Ped(look, x, z, opts); W.peds.push(p); return p; }

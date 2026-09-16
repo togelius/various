@@ -18,6 +18,7 @@
     B.t += dt; tick++; if (tick % 3 !== 0) return; const s = window.__ptState();
     if (s.dialogue) { setKeys([]); if (B.t - dlgT > 1.2) { dlgT = B.t; tap('Space'); } return; }
     if (s.shop) { tap('Escape'); return; }
+    if (/Press Y to retry/.test(s.objective) && s.alive) { setKeys([]); tap('KeyY'); say({ act: 'retry mission' }); waitT = 3; return; }
     if (!s.alive) { setKeys([]); return; }
     let target = s.blip ? [s.blip.x, s.blip.z] : null; let targetIsCar = !!(s.blip && s.blip.isCar && s.blip.carDriver !== 'me' && !s.blip.carWrecked);
     if (B.scenario === 'mayhem') {
