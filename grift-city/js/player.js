@@ -156,7 +156,7 @@ const PLAYER = (() => {
     P.speed = Math.hypot(P.vx, P.vz); P.phase += dt * (P.speed > 4 ? 11 : 7) * Math.min(1, P.speed / 1.2);
     P.stats.distance += P.speed * dt;
     // hit by cars
-    for (const c of W.cars) { if (c.removed || c === P.car) continue; const spd = c.absSpeed; if (spd < 2.5) continue; if (M.dist2(c.x, c.z, P.x, P.z) > 36) continue; const [lf, ll] = c.local(P.x, P.z); if (Math.abs(lf) < c.spec.len / 2 + 0.4 && Math.abs(ll) < c.spec.wid / 2 + 0.35) { const d = [c.vx / spd, c.vz / spd]; hurt(spd * 4.5, 'car', c); knock(d[0] * spd * 0.8, Math.min(8, spd * 0.45), d[1] * spd * 0.8); AUDIO.play('bump', P.x, P.z); c.damage(2, null); if (c.ai.mode === 'traffic') { c.scared = 5; c.ai.mode = 'flee'; } break; } }
+    for (const c of W.cars) { if (c.removed || c === P.car) continue; const spd = c.absSpeed; if (spd < 2.5) continue; if (M.dist2(c.x, c.z, P.x, P.z) > 36) continue; const [lf, ll] = c.local(P.x, P.z); if (Math.abs(lf) < c.spec.len / 2 + 0.4 && Math.abs(ll) < c.spec.wid / 2 + 0.35) { const d = [c.vx / spd, c.vz / spd]; hurt(Math.max(0, spd - 2.5) * 6, 'car', c); knock(d[0] * spd * 0.8, Math.min(8, spd * 0.45), d[1] * spd * 0.8); AUDIO.play('bump', P.x, P.z); c.damage(2, null); if (c.ai.mode === 'traffic') { c.scared = 5; c.ai.mode = 'flee'; } break; } }
   }
   function attack(wp) {
     if (wp.melee) {
@@ -188,15 +188,17 @@ const PLAYER = (() => {
   // ---- Cars
   function tryEnterCar() {
     let best = null, bd = 5.5;
-    for (const c of W.cars) { if (c.removed || c.wrecked) continue; const d = M.dist(c.x, c.z, P.x, P.z) - c.spec.len * 0.25; if (d < bd) { bd = d; best = c; } }
+    const want = MISSIONS.S.blip && MISSIONS.S.blip.obj; // the mission's car wins a tie with the one you just left
+    for (const c of W.cars) { if (c.removed || c.wrecked) continue; let d = M.dist(c.x, c.z, P.x, P.z) - c.spec.len * 0.25; if (c === want) d -= 1.5; if (d < bd) { bd = d; best = c; } }
     if (!best) return; if (best.locked) { HUD.notify('This car is locked.'); return; }
     P.state = 'entering'; P.stateT = 0; P.targetCar = best; P.aim = 0;
+    const r = best.right; P.doorSide = ((P.x - best.x) * r[0] + (P.z - best.z) * r[1]) > 0 ? 1 : -1; // use whichever door is nearer
   }
   function updateEntering(dt) {
     const c = P.targetCar; if (!c || c.removed || c.wrecked) { P.state = 'foot'; return; }
-    const r = c.right; const doorX = c.x - r[0] * (c.spec.wid / 2 + 0.6), doorZ = c.z - r[1] * (c.spec.wid / 2 + 0.6);
+    const r = c.right; const side = P.doorSide || -1; const doorX = c.x + r[0] * side * (c.spec.wid / 2 + 0.6), doorZ = c.z + r[1] * side * (c.spec.wid / 2 + 0.6);
     const d = M.dist(P.x, P.z, doorX, doorZ);
-    if (d > 0.5 && P.stateT < 1.2 && c.absSpeed < 4) { const s = 4.5; P.vx = (doorX - P.x) / d * s; P.vz = (doorZ - P.z) / d * s; P.angle += M.angleTo(P.angle, Math.atan2(doorX - P.x, doorZ - P.z)) * Math.min(1, 12 * dt); moveBody(dt, false); P.speed = s; P.phase += dt * 7; return; }
+    if (d > 0.5 && P.stateT < 2.2 && c.absSpeed < 4) { const s = 4.5; P.vx = (doorX - P.x) / d * s; P.vz = (doorZ - P.z) / d * s; P.angle += M.angleTo(P.angle, Math.atan2(doorX - P.x, doorZ - P.z)) * Math.min(1, 12 * dt); moveBody(dt, false); P.speed = s; P.phase += dt * 7; return; }
     if (d > 2.5 || c.absSpeed >= 4) { P.state = 'foot'; P.vx = P.vz = 0; return; }
     // get in
     P.speed = 0; P.vx = P.vz = 0; AUDIO.play('door', P.x, P.z);
