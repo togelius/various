@@ -3138,8 +3138,8 @@ const MISSIONS = (() => {
       onEnterCar(c) { const d = S.current.data; if (c === d.van && d.phase === 0) { d.phase = 1; S.timer = 180; const k = place('docks'); blip(k.x, k.z); objective('Deliver the crate to Pier 9 in Southport.'); } },
       update(d, dt) { if (d.van.wrecked || d.van.health < d.van.maxHealth * 0.35) return fail('The crate is ruined.'); if (d.phase === 0) return; if (S.timer <= 0) return fail('Too slow. The buyer walked.');
         if (d.phase === 1 && P().car !== d.van) objective('Get back in the van!');
-        else if (d.phase === 1) objective('Deliver the crate to Pier 9 in Southport.  ' + fmt(S.timer));
         const k = place('docks'); const dist = M.dist(P().x, P().z, k.x, k.z);
+        if (d.phase === 1 && P().car === d.van) objective((dist < 40 ? 'Stop the van in the marker at Pier 9.  ' : 'Deliver the crate to Pier 9 in Southport.  ') + fmt(S.timer));
         if (d.phase === 1 && dist < 260 && !d.ambush) { d.ambush = true; for (let i = 0; i < 2; i++) { const s = laneSpot(6 + i, 7, 0, 1, 20, i); const c = spawnCar('muscle', s.x, s.z, s.angle, { mode: 'chase', color: 10 }); c.ai.mode = 'chase'; const p = PEDS.spawn(c.x, c.z, { look: PEDS.GANG, gang: true, hostile: true, weapon: 'uzi', important: true }); p.inCar = c; c.driver = p; S.spawned.push(p); } HUD.notify("Crane's crew are on you!"); }
         if (P().car === d.van && dist < 9 && d.van.absSpeed < 3) { PLAYER.exitCar(); d.van.important = false; pass(1500, 'Marla: "Pier 9 says thank you. In their way."'); } } },
     { id: 3, name: 'COLLECTIONS',
