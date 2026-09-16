@@ -390,6 +390,7 @@ const MESH = (() => {
 
   // ---- Pedestrians. Bones: 0 pelvis/torso, 1 head, 2/3 upper arms, 4/5 thighs, 6 weapon, 7/8 shins, 9/10 forearms.
   // Limbs are tapered cylinders with ball joints, the torso is a lofted body, the head an ellipsoid with a hair cap.
+  const MOUTH_POS = [0, 0.14 * 0.62, 0.14 * 0.93]; // where the mouth sits in head-bone space
   function pedMesh(look, lod = false) {
     const b = new Builder(); const SEG = lod ? 6 : 12, RNG = lod ? 3 : 6, CS = lod ? 5 : 9, AS = lod ? 5 : 8; const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket || Math.random() < 0.5, glasses = false, bag = null, skirt = false, longHair = false, beanie = false } = look;
     const legH = 0.85, torsoH = 0.65, headR = 0.14;
@@ -422,7 +423,7 @@ const MESH = (() => {
     if (!lod) for (const sx of [0.052, -0.052]) { b.cbox(sx, headR * 1.15, headR * 0.92, 0.04, 0.03, 0.02, [0.95, 0.95, 0.95], 0, { bone: 1 }); b.cbox(sx, headR * 1.15, headR * 0.94, 0.02, 0.025, 0.02, [0.1, 0.08, 0.08], 0, { bone: 1 }); b.cbox(sx, headR * 1.36, headR * 0.9, 0.05, 0.012, 0.02, hair, 0, { bone: 1 }); } // eyes, brows
     if (glasses) { b.cbox(0, headR * 1.15, headR + 0.01, 0.2, 0.05, 0.02, [0.05, 0.05, 0.06], 0, { bone: 1 }); for (const sx of [0.11, -0.11]) b.cbox(sx, headR * 1.15, headR * 0.5, 0.01, 0.01, headR, [0.05, 0.05, 0.06], 0, { bone: 1 }); }
     if (!lod) { b.cbox(0, headR * 0.95, headR * 0.98, 0.045, 0.07, 0.04, skinDk, 0, { bone: 1 }); // nose
-    b.cbox(0, headR * 0.62, headR * 0.93, 0.07, 0.014, 0.02, [0.5, 0.22, 0.2], 0, { bone: 1 }); // mouth
+    b.cbox(0, headR * 0.62, headR * 0.93, 0.07, 0.014, 0.02, [0.5, 0.22, 0.2], 0, { bone: 11 }); // mouth, on its own bone so it can open when the ped talks
     ball(headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); ball(-headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); } // ears
     if (hat && !beanie) { b.cyl(0, headR * 1.65, -0.01, hairR * 1.02, headR * 2.25, hat, 0, 12, 1, true, false, hairR * 0.9); const base = b.n; const bz = headR * 0.6; for (let k = 0; k <= 8; k++) { const a = -Math.PI / 2 + k / 8 * Math.PI; b.vert(Math.cos(a) * headR * 1.05, headR * 1.7, bz + Math.sin(a) * headR * 1.25, 0, 1, 0, ...hat, 0, 0, 0, 1); } const c = b.vert(0, headR * 1.7, bz, 0, 1, 0, ...hat, 0, 0, 0, 1); for (let k = 0; k < 8; k++) { b.tri(c, base + k, base + k + 1); b.tri(c, base + k + 1, base + k); } }
     if (hat && beanie) b.sphere(0, headR * 1.0, -0.01, hairR * 1.05, hairR * 1.3, hairR * 1.08, hat, { segs: 12, rings: 4, lat0: 0.05, lat1: 1, bone: 1 });
@@ -436,8 +437,7 @@ const MESH = (() => {
       if (sleeves) b.cyl(sx, -armL + 0.1, 0.01, 0.044, -armL + 0.16, skin, 0, 8, fore, false, false, 0.044); // wrist
       b.roundedBox(sx - 0.042, -armL - 0.02, -0.02, 0.084, 0.1, 0.06, 0.02, skin, 0, fore, { n: 1 });
     }
-    // weapon in the right hand (bone 6): hidden by scaling when unarmed
-    b.cbox(-0.3, -armL + 0.03, 0.2, 0.05, 0.07, 0.34, [0.15, 0.15, 0.17], 0, { bone: 6 }); b.cbox(-0.3, -armL - 0.06, 0.08, 0.045, 0.14, 0.07, [0.25, 0.2, 0.15], 0, { bone: 6 }); b.cbox(-0.3, -armL + 0.06, 0.12, 0.03, 0.03, 0.12, [0.1, 0.1, 0.11], 0, { bone: 6 });
+    // the held weapon is its own entity attached to the right forearm (see heldMesh), so nothing is baked in here
     return b;
   }
 
@@ -465,6 +465,22 @@ const MESH = (() => {
   function bollard() { const b = new Builder(); b.cyl(0, 0, 0, 0.14, 0.9, [0.3, 0.3, 0.32], 0, 6); return b; }
   function pickupBox() { const b = new Builder(); b.cbox(0, 0.6, 0, 0.7, 0.7, 0.7, [1, 1, 1], 0, { bone: 0 }); return b; }
   // Pickup models, origin on the ground, about half a metre tall.
+  // Held weapons: built around the hand with the barrel along +z, drawn as a second entity on the right forearm.
+  const HAND = [-0.3, -0.6, 0.1]; // where the right hand sits in the rest pose (arm hanging), for the forearm bone to carry
+  const heldCache = {};
+  function heldMesh(key) {
+    if (heldCache[key]) return heldCache[key];
+    const b = new Builder(); const dark = [0.15, 0.15, 0.17], wood = [0.4, 0.28, 0.16], olive = [0.25, 0.3, 0.22], steel = [0.5, 0.5, 0.55];
+    if (key === 'pistol') { b.cbox(0, 0.05, 0.13, 0.05, 0.06, 0.28, dark); b.cbox(0, -0.04, 0.0, 0.045, 0.14, 0.06, wood); b.cbox(0, 0.0, 0.07, 0.03, 0.03, 0.08, dark); }
+    else if (key === 'uzi') { b.cbox(0, 0.05, 0.15, 0.06, 0.08, 0.36, dark); b.cbox(0, -0.09, 0.06, 0.04, 0.2, 0.05, dark); b.cbox(0, -0.04, -0.02, 0.045, 0.12, 0.06, wood); b.cbox(0, 0.05, -0.15, 0.03, 0.05, 0.14, steel); }
+    else if (key === 'shotgun') { b.cbox(0, 0.06, 0.4, 0.045, 0.045, 0.75, dark); b.cbox(0, 0.01, 0.4, 0.045, 0.045, 0.75, dark); b.cbox(0, 0.0, 0.32, 0.06, 0.06, 0.2, wood); b.cbox(0, 0.03, -0.15, 0.05, 0.11, 0.32, wood); }
+    else if (key === 'rifle') { b.cbox(0, 0.06, 0.25, 0.06, 0.08, 0.6, dark); b.cbox(0, 0.08, 0.68, 0.03, 0.03, 0.3, dark); b.cbox(0, -0.07, 0.12, 0.04, 0.18, 0.06, dark); b.cbox(0, 0.05, -0.2, 0.05, 0.1, 0.3, dark); b.cbox(0, 0.13, 0.15, 0.03, 0.05, 0.12, dark); }
+    else if (key === 'rocket') { b.cbox(0, 0.16, 0.2, 0.16, 0.16, 1.1, olive); b.cbox(0, 0.16, 0.7, 0.2, 0.2, 0.15, dark); b.cbox(0, -0.02, 0.0, 0.05, 0.14, 0.06, dark); b.cbox(0, 0.28, 0.1, 0.04, 0.08, 0.1, dark); }
+    else if (key === 'grenade') { b.cyl(0, -0.08, 0.05, 0.05, 0.06, [0.2, 0.32, 0.2], 0, 8, 0, true, true); b.cbox(0, 0.08, 0.05, 0.04, 0.04, 0.04, steel); }
+    else if (key === 'bat') { b.tube([0, -0.05, -0.05], [0, 0.32, 0.72], 0.028, 0.048, [0.62, 0.46, 0.26], 0, 0, 8); b.tube([0, -0.06, -0.06], [0, -0.09, -0.1], 0.035, 0.035, dark, 0, 0, 6); }
+    else if (key === 'camera') { b.cbox(0, 0.05, 0.05, 0.14, 0.09, 0.07, dark); b.tube([0, 0.05, 0.08], [0, 0.05, 0.14], 0.03, 0.03, [0.05, 0.05, 0.06], 0, 0, 8); b.cbox(-0.04, 0.11, 0.05, 0.03, 0.03, 0.03, steel); }
+    heldCache[key] = b.build(); return heldCache[key];
+  }
   const PICKUP_MODELS = {
     weapon(key) { const b = new Builder(); const d = [0.15, 0.15, 0.17], w = [0.35, 0.25, 0.15];
       if (key === 'bat') { b.cyl(0, 0.05, 0, 0.05, 0.9, [0.6, 0.45, 0.25], 0, 6, 0, true, true, 0.035); }
@@ -491,5 +507,5 @@ const MESH = (() => {
     b.cbox(0, 0.75, 1.5, 0.5, 0.3, 0.5, [1, 1, 0.9], 0, { bone: 3 });
     return b;
   }
-  return { Builder, VEHICLES, carMesh, seatHeight, seatFit, dentBody, pedMesh, PICKUP_MODELS, dumpster, mailbox, meter, newsbox, busShelter, cone, barrier, hedge, roundTree, palm, umbrella, streetSign, payphone, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
+  return { Builder, VEHICLES, MOUTH_POS, HAND, heldMesh, carMesh, seatHeight, seatFit, dentBody, pedMesh, PICKUP_MODELS, dumpster, mailbox, meter, newsbox, busShelter, cone, barrier, hedge, roundTree, palm, umbrella, streetSign, payphone, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
 })();

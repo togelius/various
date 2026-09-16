@@ -25,6 +25,8 @@ const PLAYER = (() => {
   const projectiles = []; const tracers = [];
   const tmp = M.create();
 
+  const OUTFITS = [{ name: 'Street', shirt: [0.85, 0.85, 0.8], jacket: [0.25, 0.14, 0.1], pants: [0.2, 0.2, 0.25] }, { name: 'Suit', shirt: [0.95, 0.95, 0.95], jacket: [0.1, 0.1, 0.13], pants: [0.1, 0.1, 0.13] }, { name: 'Tracksuit', shirt: [0.9, 0.9, 0.9], jacket: [0.12, 0.32, 0.7], pants: [0.12, 0.32, 0.7] }, { name: 'Leather', shirt: [0.3, 0.3, 0.32], jacket: [0.08, 0.07, 0.07], pants: [0.15, 0.1, 0.08] }, { name: 'Bowling shirt', shirt: [0.9, 0.45, 0.2], jacket: [0.95, 0.8, 0.3], pants: [0.25, 0.22, 0.2] }];
+  function setOutfit(i) { const o = OUTFITS[i % OUTFITS.length]; P.outfit = i % OUTFITS.length; P.look.shirt = o.shirt; P.look.jacket = o.jacket; P.look.pants = o.pants; P.mesh = PEDS.getMesh(P.look); }
   function init(x, z, angle) { P.mesh = PEDS.getMesh(P.look); P.bones = new Float32Array(16 * RENDER.MAX_BONES); P.emis = new Float32Array(RENDER.MAX_BONES); P.model = M.create(); P.x = x; P.z = z; P.y = CITY.groundY(x, z); P.angle = angle; P.camYaw = angle; }
   function giveWeapon(key, ammo) { if (!(key in P.weapons)) { P.weapons[key] = 0; P.weapon = key; } if (WEAPONS[key].melee) P.weapons[key] = Infinity; else P.weapons[key] += ammo; P.weaponOut = !WEAPONS[P.weapon].melee || P.weapon === 'bat'; }
   function addMoney(n, why) { P.money += n; if (n > 0) P.stats.cash += n; HUD.money(n, why); if (n > 0) AUDIO.play('cash'); }
@@ -113,7 +115,7 @@ const PLAYER = (() => {
 
   // ---- Update
   function update(dt) {
-    P.stateT += dt; if (P.hurtFlash > 0) P.hurtFlash -= dt; if (P.invuln > 0) P.invuln -= dt; if (P.fireT > 0) P.fireT -= dt; if (P.carNameT > 0) P.carNameT -= dt;
+    P.stateT += dt; if (P.drunk > 0) P.drunk -= dt; if (P.kickT > 0) P.kickT -= dt; if (P.flinchT > 0) P.flinchT -= dt; if (P.hurtFlash > 0) P.hurtFlash -= dt; if (P.invuln > 0) P.invuln -= dt; if (P.fireT > 0) P.fireT -= dt; if (P.carNameT > 0) P.carNameT -= dt;
     const m = INPUT.mouse, pad = INPUT.pad;
     // camera look
     P.camIdle += dt; if (INPUT.locked || pad.active) { const sens = 0.0022 * GAME.options.sensitivity; const inv = GAME.options.invertY ? -1 : 1; P.camYaw -= m.dx * sens + pad.rx * 2.5 * dt; P.camPitch = M.clamp(P.camPitch + (m.dy * sens * 0.8 + pad.ry * 1.5 * dt) * inv, -0.35, 1.1); if (m.dx || m.dy || pad.rx) P.camIdle = 0; }
@@ -141,6 +143,7 @@ const PLAYER = (() => {
     // camera-relative movement
     const fy = P.camYaw; const fwd = [Math.sin(fy), Math.cos(fy)], right = [-Math.cos(fy), Math.sin(fy)];
     let mx = fwd[0] * iz + right[0] * ix, mz = fwd[1] * iz + right[1] * ix; const moving = Math.hypot(mx, mz) > 0.01;
+    if (P.drunk > 0 && moving) { const k = Math.min(1, P.drunk / 12), w = Math.sin(W.state.elapsed * 1.1) * 0.6 * k; const c = Math.cos(w), s = Math.sin(w); const rx = mx * c + mz * s, rz = -mx * s + mz * c; mx = rx; mz = rz; } // the legs go where they like
     const speed = P.aim ? 2.6 : sprint ? 7.2 : 3.6;
     if (moving && !P.airborne) { P.vx = mx * speed; P.vz = mz * speed; } else if (!P.airborne) { P.vx *= Math.max(0, 1 - 12 * dt); P.vz *= Math.max(0, 1 - 12 * dt); }
     // facing
@@ -162,7 +165,8 @@ const PLAYER = (() => {
   function attack(wp) {
     if (wp.camera) { P.fireT = wp.rate; const f = [Math.sin(P.camYaw), Math.cos(P.camYaw)]; W.FX.spark(P.x + f[0] * 0.6, 1.5, P.z + f[1] * 0.6, 6); AUDIO.play('click'); HUD.fade(0.25); MISSIONS.onPhoto(f[0], f[1]); return; }
     if (wp.melee) {
-      P.fireT = wp.rate; P.punchT = 0.3; P.angle = P.camYaw; AUDIO.play('punch', P.x, P.z);
+      P.fireT = wp.rate; P.angle = P.camYaw; AUDIO.play('punch', P.x, P.z); P.combo = (P.combo || 0) + 1; if (P.comboT === undefined || P.stateT - P.comboT > 1.2) P.combo = 1; P.comboT = P.stateT;
+      const isKick = wp === WEAPONS.fist && P.combo % 3 === 0; if (isKick) { P.kickT = 0.35; P.punchT = 0; wp = { ...wp, dmg: wp.dmg * 2.2, range: wp.range + 0.3 }; } else P.punchT = 0.3; // every third punch is a kick that puts them down
       const f = [Math.sin(P.angle), Math.cos(P.angle)]; let hitSomething = false;
       for (const p of W.peds) { if (!p.alive || p.inCar) continue; const dx = p.x - P.x, dz = p.z - P.z; const d = Math.hypot(dx, dz); if (d < wp.range && (dx * f[0] + dz * f[1]) / (d || 1) > 0.5) { p.damage(wp.dmg, PLAYER, f); if (!p.alive || W.rng() < 0.35) { p.knockT = Math.max(p.knockT, 1.2); if (p.alive) p.state = 'knocked'; p.launch(f[0] * 2, 1.5, f[1] * 2); } hitSomething = true; break; } }
       if (!hitSomething) for (const c of W.cars) { if (c.removed) continue; const [lf, ll] = c.local(P.x, P.z); if (Math.abs(lf) < c.spec.len / 2 + wp.range && Math.abs(ll) < c.spec.wid / 2 + wp.range) { c.damage(wp.dmg * 1.5, PLAYER); W.FX.glass(P.x + f[0] * 0.8, 1.2, P.z + f[1] * 0.8, 5); AUDIO.play('crash', P.x, P.z, 0.3); if (c.driver && c.driver !== P && c.ai.mode === 'traffic') { c.scared = 6; c.ai.mode = 'flee'; } if (c.ai.mode === 'parked' && !c.playerOwned) POLICE.crime('vandal', P.x, P.z, null); break; } }
@@ -180,7 +184,9 @@ const PLAYER = (() => {
     else if (ragdoll) { P.vx *= Math.max(0, 1 - 6 * dt); P.vz *= Math.max(0, 1 - 6 * dt); }
     P.x += P.vx * dt; P.z += P.vz * dt;
     const g = CITY.groundY(P.x, P.z);
-    if (P.airborne) { if (P.y <= g) { P.y = g; P.airborne = false; P.vy = 0; if (ragdoll) { P.vx *= 0.3; P.vz *= 0.3; } } } else P.y = g;
+    if (P.airborne) { if (P.y <= g) { const vy = P.vy; P.y = g; P.airborne = false; P.vy = 0; if (ragdoll) { P.vx *= 0.3; P.vz *= 0.3; } if (vy < -12 && P.alive) { hurt((-vy - 10) * 7, 'fall', null); if (P.alive && vy < -16) { knock(P.vx * 0.2, 2, P.vz * 0.2); } } } }
+    else if (P.y > g + 0.6) { P.airborne = true; P.vy = 0; } // walked off an edge: fall rather than snap
+    else P.y = g;
     const res = W.pushOut(P.x, P.z, 0.42); P.x = res.x; P.z = res.z;
     // cars are solid
     for (const c of W.cars) { if (c.removed || c === P.car) continue; if (M.dist2(c.x, c.z, P.x, P.z) > 64) continue; for (const [cx, cz, r] of c.circles()) { const dx = P.x - cx, dz = P.z - cz; const rr = r + 0.4; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); P.x = cx + dx / d * rr; P.z = cz + dz / d * rr; } } }
@@ -236,7 +242,7 @@ const PLAYER = (() => {
     if (fwdIn > 0) { if (c.speed < -0.5) { ctl.throttle = 0; ctl.brake = fwdIn; ctl.reverse = false; } else { ctl.throttle = fwdIn; ctl.brake = 0; } }
     else if (backIn > 0) { ctl.throttle = 0; ctl.brake = backIn; ctl.reverse = true; }
     else { ctl.throttle = 0; ctl.brake = 0; ctl.reverse = false; }
-    ctl.steer = -ix; ctl.handbrake = (INPUT.down('Space') || pad.buttons[0]) ? 1 : 0;
+    ctl.steer = -ix + (P.drunk > 0 ? Math.sin(W.state.elapsed * 1.7) * 0.4 * Math.min(1, P.drunk / 12) : 0); ctl.handbrake = (INPUT.down('Space') || pad.buttons[0]) ? 1 : 0;
     if (INPUT.down('KeyH') || pad.buttons[3]) { if (c.horn <= 0) { c.horn = 0.5; AUDIO.play('horn', c.x, c.z, 0.5); } }
     if ((c.type === 'police' || c.type === 'swat') && (INPUT.hit('KeyL') || pad.pressed[9])) c.siren = !c.siren;
     if (INPUT.hit('KeyR') || pad.pressed[8]) { P.radio = (AUDIO.radioStation + 1) % AUDIO.STATIONS.length; AUDIO.setRadio(P.radio); HUD.notify('RADIO: ' + AUDIO.STATIONS[P.radio]); }
@@ -245,8 +251,9 @@ const PLAYER = (() => {
     const wp = WEAPONS[P.weapon]; const firing = (INPUT.mouse.buttons & 1) || INPUT.down('ControlLeft');
     if (firing && P.fireT <= 0 && (P.weapon === 'pistol' || P.weapon === 'uzi') && P.weapons[P.weapon] > 0) { P.fireT = wp.rate * 1.2; P.weapons[P.weapon]--; fireBullet(PLAYER, c.x + c.fwd[0] * 0.5, c.z + c.fwd[1] * 0.5, 1.2, aimAngle(), wp, 1, c); }
     P.stats.distance += c.absSpeed * dt;
-    // stunt jumps
-    if (c.airborne) { if (P.airT === 0) { P.jumpRamp = -1; CITY.ramps.forEach((r, i) => { if (M.dist(c.x, c.z, (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2) < 14) P.jumpRamp = i; }); } P.airT += dt; }
+    // stunt jumps (the stunt camera lets go a moment after the landing)
+    if (P.stuntCam && !c.airborne) { P.stuntCam.t += dt; if (P.stuntCam.t > 1.4) P.stuntCam = null; }
+    if (c.airborne) { if (P.airT === 0) { P.jumpRamp = -1; CITY.ramps.forEach((r, i) => { if (M.dist(c.x, c.z, (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2) < 14) P.jumpRamp = i; }); } P.airT += dt; if (P.jumpRamp >= 0 && P.airT > 0.35 && !P.stuntCam) P.stuntCam = { x: P.camX, y: P.camY + 1.5, z: P.camZ, t: 0 }; }
     else if (P.airT > 0) { if (P.airT > 0.85 && c.absSpeed > 8) { let bonus = Math.floor(P.airT * 500); P.stats.stunts++; if (P.jumpRamp >= 0 && !P.stats.jumps.includes(P.jumpRamp)) { P.stats.jumps.push(P.jumpRamp); bonus += 1000; HUD.big('UNIQUE STUNT!  ' + P.stats.jumps.length + '/' + CITY.ramps.length, '#f5c542', 2.2); AUDIO.play('missionPass'); } else HUD.big('INSANE STUNT!', '#f5c542', 1.6); addMoney(bonus, 'stunt bonus'); } P.airT = 0; }
     // engine sound
     const rpm = M.clamp(Math.abs(c.speed) / c.spec.top, 0, 1); AUDIO.engine(true, rpm * 0.7 + ctl.throttle * 0.25 + 0.05, ctl.throttle, c.type); AUDIO.screech(c.skid && !c.airborne ? M.clamp(Math.max(Math.abs(c.slipR || 0) - 0.08, Math.abs(c.slipF || 0) - 0.14, c.wheelspin ? 0.35 : 0) * 3, 0, 1) : 0); // squeal follows the tyre slip
@@ -258,13 +265,17 @@ const PLAYER = (() => {
     const dlg = MISSIONS.dialogue;
     if (dlg && dlg.focus && dlg.focus.alive) { // cinematic: a slow arc around whoever is talking, framing them and the player, kept out of the walls
       const f = dlg.focus; const t = W.state.elapsed; const mid = [(f.x + P.x) / 2, (f.z + P.z) / 2]; const base = Math.atan2(P.x - f.x, P.z - f.z);
+      // a cut on every line: the shot list rotates with the line index, and the camera jumps to the new setup instead of drifting there
+      const cut = P.dlgLine !== dlg.i || P.dlgFocus !== f; if (cut) { P.dlgLine = dlg.i; P.dlgFocus = f; }
+      const SHOTS = [[Math.PI / 2, 4.2], [-Math.PI * 0.85, 3.0], [-Math.PI / 2, 4.2], [Math.PI * 0.85, 3.0], [0.4, 2.6], [-0.4, 2.6]]; const start = dlg.i % SHOTS.length;
       let best = null;
-      for (const off of [Math.PI / 2, -Math.PI / 2, Math.PI * 0.85, -Math.PI * 0.85, 0]) { const a = base + off + Math.sin(t * 0.25) * 0.3; for (const dist of [4.2, 3.2, 2.4]) { const cx = mid[0] + Math.sin(a) * dist, cz = mid[1] + Math.cos(a) * dist; if (CITY.insideLot(cx, cz) || !W.los(cx, cz, f.x, f.z) || !W.los(cx, cz, P.x, P.z)) continue; best = [cx, cz]; break; } if (best) break; }
+      for (let k = 0; k < SHOTS.length; k++) { const [off, d0] = SHOTS[(start + k) % SHOTS.length]; const a = base + off + Math.sin(t * 0.25) * 0.15; for (const dist of [d0, d0 * 0.75, 2.2]) { const cx = mid[0] + Math.sin(a) * dist, cz = mid[1] + Math.cos(a) * dist; if (CITY.insideLot(cx, cz) || !W.los(cx, cz, f.x, f.z) || !W.los(cx, cz, P.x, P.z)) continue; best = [cx, cz]; break; } if (best) break; }
       if (!best) best = [mid[0] + Math.sin(base) * 2, mid[1] + Math.cos(base) * 2];
-      const cy = 1.7 + Math.sin(t * 0.4) * 0.15;
-      P.camX = M.lerp(P.camX, best[0], Math.min(1, 3 * dt)); P.camY = M.lerp(P.camY, cy, Math.min(1, 3 * dt)); P.camZ = M.lerp(P.camZ, best[1], Math.min(1, 3 * dt));
+      const cy = (dlg.i % 2 ? 1.55 : 1.8) + Math.sin(t * 0.4) * 0.1;
+      if (cut) { P.camX = best[0]; P.camY = cy; P.camZ = best[1]; } else { P.camX = M.lerp(P.camX, best[0], Math.min(1, 3 * dt)); P.camY = M.lerp(P.camY, cy, Math.min(1, 3 * dt)); P.camZ = M.lerp(P.camZ, best[1], Math.min(1, 3 * dt)); }
       RENDER.setCamera(P.camX, P.camY, P.camZ, f.x * 0.6 + P.x * 0.4, 1.35, f.z * 0.6 + P.z * 0.4, 42 * Math.PI / 180); W.state.camYaw = Math.atan2(f.x - P.camX, f.z - P.camZ); P.angle += M.angleTo(P.angle, Math.atan2(f.x - P.x, f.z - P.z)) * Math.min(1, 6 * dt); f.faceTo && f.faceTo(P.x, P.z, dt); return;
     }
+    if (P.car && P.stuntCam) { const c = P.car, sc = P.stuntCam; RENDER.setCamera(sc.x, sc.y, sc.z, c.x, c.y + 0.8, c.z, 38 * Math.PI / 180); W.state.camYaw = Math.atan2(c.x - sc.x, c.z - sc.z); P.camX = sc.x; P.camY = sc.y; P.camZ = sc.z; return; } // the stunt camera stays on the ramp and watches the car fly
     if (P.car) {
       const c = P.car; const spd = c.absSpeed; const behind = c.speed < -2 && P.camIdle > 1 ? c.angle + Math.PI : c.angle;
       const targetYaw = behind + P.camYawOff;
@@ -276,10 +287,12 @@ const PLAYER = (() => {
       if (P.aim) { const r = [-Math.cos(yaw), Math.sin(yaw)]; tx += r[0] * 0.55; tz += r[1] * 0.55; }
       if (!P.alive) { dist = 6; pitch = 0.9; }
     }
+    if (P.drunk > 0) { const k = Math.min(1, P.drunk / 12), t = W.state.elapsed; yaw += Math.sin(t * 0.9) * 0.14 * k; pitch += Math.sin(t * 1.3) * 0.07 * k; fov += Math.sin(t * 0.7) * 8 * k; }
     let cx = tx - Math.sin(yaw) * Math.cos(pitch) * dist, cz = tz - Math.cos(yaw) * Math.cos(pitch) * dist, cy = ty + Math.sin(pitch) * dist;
-    // collision with buildings: shorten the boom
+    // collision with buildings (or the room's walls indoors): shorten the boom
     const dx = cx - tx, dz = cz - tz; let best = 1;
-    for (const l of CITY.lotsNear(tx, tz, dist + 2)) { if (l.h < cy - 0.3 && l.h < ty) continue; const t = M.rayAABB2(tx, tz, dx, dz, l.x0 - 0.3, l.z0 - 0.3, l.x1 + 0.3, l.z1 + 0.3); if (t >= 0 && t < best) { const hy = ty + (cy - ty) * t; if (hy < l.h + 0.3) best = t; } }
+    const room = CITY.interiorRoom; if (room && ty < -10) { cy = Math.min(cy, room.floorY + 3.0); }
+    for (const l of (room && ty < -10 ? room.walls : CITY.lotsNear(tx, tz, dist + 2))) { if (l.h < cy - 0.3 && l.h < ty) continue; const t = M.rayAABB2(tx, tz, dx, dz, l.x0 - 0.3, l.z0 - 0.3, l.x1 + 0.3, l.z1 + 0.3); if (t >= 0 && t < best) { const hy = ty + (cy - ty) * t; if (hy < l.h + 0.3) best = t; } }
     if (best < 1) { cx = tx + dx * best * 0.92; cz = tz + dz * best * 0.92; cy = ty + (cy - ty) * best * 0.92; }
     const gy = CITY.groundY(cx, cz) + 0.5; if (cy < gy) cy = gy;
     // smoothing
@@ -290,12 +303,13 @@ const PLAYER = (() => {
     RENDER.setCamera(P.camX, P.camY, P.camZ, tx, ty, tz, P.fov * Math.PI / 180);
     W.state.camYaw = yaw;
   }
+  function heldEntity() { return PEDS.heldEntity(P); }
   function entity() { if (P.car) return null; if (P.rag) { PEDS.ragdollBones(P, P.rag); P.emis.fill(0); return { mesh: P.mesh, model: P.model, bones: P.bones, emis: P.emis }; } PEDS.buildRig(P, P.model, P.bones); P.emis.fill(0); return { mesh: P.mesh, model: P.model, bones: P.bones, emis: P.emis }; }
   function drawFX() { for (const t of tracers) W.fx.line(t.x0, t.y0, t.z0, t.x1, t.y1, t.z1, [1, 0.9, 0.6], 0.9, 0.2); for (const p of projectiles) if (p.kind === 'grenade') W.fx.blob(p.x, CITY.groundY(p.x, p.z) + 0.03, p.z, 0.25, 0.4); }
   function projectileEntities() { const out = []; for (const p of projectiles) { const m = M.create(); if (p.kind === 'grenade') { M.trs(m, p.x, p.y, p.z, 0, 0.5, 0.5, 0.5); out.push({ mesh: GRENADE_MESH(), model: m }); } else { const yaw = Math.atan2(p.vx, p.vz), pitch = -Math.atan2(p.vy, Math.hypot(p.vx, p.vz)); M.trsEuler(m, p.x, p.y, p.z, yaw, pitch, 0); out.push({ mesh: ROCKET_MESH(), model: m }); } } return out; }
   let gm = null, rm = null;
   const GRENADE_MESH = () => gm || (gm = new MESH.Builder().cbox(0, 0, 0, 0.3, 0.35, 0.3, [0.2, 0.3, 0.2]).build());
   const ROCKET_MESH = () => rm || (rm = new MESH.Builder().cbox(0, 0, 0, 0.18, 0.18, 0.9, [0.4, 0.4, 0.42]).cbox(0, 0, 0.5, 0.12, 0.12, 0.2, [0.9, 0.2, 0.1]).build());
-  return { P, init, update, updateCamera, giveWeapon, addMoney, hurt, knock, die, bust, respawn, fireBullet, explodeAt, updateProjectiles, entity, drawFX, projectileEntities, exitCar,
+  return { P, OUTFITS, setOutfit, init, update, updateCamera, heldEntity, giveWeapon, addMoney, hurt, knock, die, bust, respawn, fireBullet, explodeAt, updateProjectiles, entity, drawFX, projectileEntities, exitCar,
     get x() { return P.x; }, get z() { return P.z; }, get y() { return P.y; }, get car() { return P.car; }, get alive() { return P.alive; }, get wanted() { return P.wanted; }, set wanted(v) { P.wanted = v; }, get stats() { return P.stats; }, get health() { return P.health; }, get money() { return P.money; }, get weapons() { return P.weapons; }, get weapon() { return P.weapon; } };
 })();

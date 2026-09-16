@@ -1,18 +1,20 @@
 // usage: node playtest2.js <name> <scenario> <gameSeconds>
 const { chromium } = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })(); const fs = require('fs'); const path = require('path');
-const [name, scenario = 'story', secsArg = '180'] = process.argv.slice(2); const GAME_SECS = +secsArg;
+const flags = process.argv.slice(2).filter(a => a.startsWith('--')); const [name, scenario = 'story', secsArg = '180'] = process.argv.slice(2).filter(a => !a.startsWith('--')); const GAME_SECS = +secsArg;
+const seed = (+process.env.SEED || Math.floor(Math.random() * 65535)) || 1; const record = flags.includes('--record'); // --record writes inputs.json for tools/playtest/replay.js
 const dir = path.join(__dirname, 'pt', name); fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
 (async () => {
   const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
   const page = await b.newPage({ viewport: { width: 640, height: 360 } }); const t0 = Date.now(); const errors = [];
   page.on('pageerror', e => { errors.push(e.message + ' | ' + (e.stack || '').split('\n').slice(1, 3).join(' | ')); });
-  await page.goto('file://' + require('path').resolve(__dirname, '..', '..', 'index.html') + ''); await page.waitForFunction(() => window.__ready, null, { timeout: 90000 });
-  await page.evaluate(sc => { window.__pt = { dt: 1 / 30, renderEvery: 10, cheap: true, n: 0 }; window.__botScenario = sc; GAME.startPlay(); if (sc !== 'story') { MISSIONS.S.dialogue = null; MISSIONS.S.progress = 1; } }, scenario);
+  await page.goto('file://' + require('path').resolve(__dirname, '..', '..', 'index.html') + '?seed=' + seed); console.log(JSON.stringify({ seed, record })); await page.waitForFunction(() => window.__ready, null, { timeout: 90000 });
+  await page.evaluate(([sc, rec]) => { window.__pt = { dt: 1 / 30, renderEvery: 10, cheap: true, n: 0, record: rec ? [] : null }; window.__botScenario = sc; GAME.startPlay(); if (sc !== 'story') { MISSIONS.S.dialogue = null; MISSIONS.S.progress = 1; } }, [scenario, record]);
   await page.addScriptTag({ content: fs.readFileSync(path.join(__dirname, 'bot.js'), 'utf8') });
-  const shots = []; const lines = []; let lastT = -99, logIdx = 0;
+  const shots = []; const lines = []; const track = []; let lastT = -99, logIdx = 0;
   while (true) {
     await new Promise(r => setTimeout(r, 400));
     const s = await page.evaluate(() => { const st = window.__ptState(); st.botT = window.__bot.t; st.botLog = window.__bot.log.slice(); st.dbg = window.__bot.debug; return st; });
+    track.push([Math.round(s.x), Math.round(s.z)]);
     for (; logIdx < s.botLog.length; logIdx++) { lines.push(s.botLog[logIdx]); console.log(JSON.stringify(s.botLog[logIdx])); }
     if (s.botT - lastT >= 4 || shots.length === 0) {
       lastT = s.botT; await page.evaluate(() => { window.__pt.wantShot = true; }); await page.waitForFunction(() => !window.__pt.wantShot, null, { timeout: 60000 }); await page.evaluate(() => { window.__pt.paused = true; }); await new Promise(r => setTimeout(r, 150));
@@ -24,6 +26,9 @@ const dir = path.join(__dirname, 'pt', name); fs.rmSync(dir, { recursive: true, 
   }
   const final = await page.evaluate(() => window.__ptState()); console.log(JSON.stringify({ final: { stats: final.stats, money: final.money, progress: final.progress, mission: final.mission } }));
   fs.writeFileSync(path.join(dir, 'log.json'), JSON.stringify(lines, null, 1)); fs.writeFileSync(path.join(dir, 'shots.json'), JSON.stringify(shots));
+  // where the run went, and (with --record) how to play it back
+  try { await page.evaluate(t => { window.__pt.paused = true; HUD.heatmap(t); }, track); await page.locator('#hud').screenshot({ path: path.join(dir, 'heatmap.png'), timeout: 60000 }); console.log('heatmap', path.join(dir, 'heatmap.png')); } catch (e) { console.log('heatmap failed', e.message.split('\n')[0]); }
+  if (record) { const inputs = await page.evaluate(() => window.__pt.record); fs.writeFileSync(path.join(dir, 'inputs.json'), JSON.stringify({ seed, dt: 1 / 30, scenario, frames: inputs.length, final: { x: final.x, z: final.z, money: final.money }, inputs })); console.log('recorded', inputs.length, 'frames'); }
   console.log('errors', errors.length, errors.slice(0, 5).join('\n'), 'wall', Math.round((Date.now() - t0) / 1000) + 's');
   await b.close();
 })();

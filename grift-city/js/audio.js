@@ -78,7 +78,7 @@ const AUDIO = (() => {
     const g = ctx.createGain(); g.gain.value = 0; g.connect(sfxBus); const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 700;
     const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1800; o.connect(f); f.connect(g); o.start(); sirenNodes = { g, o, phase: 0 };
   }
-  function siren(vol, dt) { if (!ctx) return; const s = sirenNodes; s.phase += dt; const hi = Math.floor(s.phase / 0.55) % 2; s.o.frequency.setTargetAtTime(hi ? 960 : 640, now(), 0.05); s.g.gain.setTargetAtTime(vol * 0.12, now(), 0.1); }
+  function siren(vol, dt, pitch = 1) { if (!ctx) return; const s = sirenNodes; s.phase += dt; const hi = Math.floor(s.phase / 0.55) % 2; s.o.frequency.setTargetAtTime((hi ? 960 : 640) * pitch, now(), 0.05); s.g.gain.setTargetAtTime(vol * 0.12, now(), 0.1); }
   function buildScreech() { const g = ctx.createGain(); g.gain.value = 0; g.connect(sfxBus); const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2200; f.Q.value = 6; src.connect(f); f.connect(g); src.start(); screechNodes = { g, f }; }
   function screech(vol) { if (!ctx) return; screechNodes.g.gain.setTargetAtTime(vol * 0.25, now(), 0.05); screechNodes.f.frequency.setTargetAtTime(1800 + vol * 800, now(), 0.1); }
   function buildAmbient() {

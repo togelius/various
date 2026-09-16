@@ -22,6 +22,7 @@ const CITY = (() => {
   // ---- Special lots: block [i, j], which cell of the block, and what.
   const SPECIALS = [
     { i: 2, j: 2, kind: 'safehouse', label: 'SAFEHOUSE' },
+    { i: 1, j: 2, kind: 'bar', label: 'THE HALFWAY' },
     { i: 3, j: 4, kind: 'garage', label: "VOSS MOTORS" },
     { i: 4, j: 5, kind: 'bank', label: 'FIRST GRIFT BANK' },
     { i: 5, j: 4, kind: 'tower', label: 'CRANE HOLDINGS' },
@@ -134,6 +135,7 @@ const CITY = (() => {
       marina.push({ x: px1 + 1.7, z: pz1 - 14, angle: 0 }, { x: px1 + 1.7, z: pz1 - 34, angle: 0 }, { x: W0 + 150, z: W1 + 1.7, angle: 0 }); }
     // Blocks
     for (let i = 0; i < GRID; i++) for (let j = 0; j < GRID; j++) buildBlock(b, i, j);
+    buildInteriors(b);
     return b;
   }
   const pierX0 = 5 * PITCH + HALF_ROAD + SW + 26, pierX1 = pierX0 + 8, pierZ1 = SIZE + HALF_ROAD + SW + SHORE + 60;
@@ -374,7 +376,13 @@ const CITY = (() => {
       case 'safehouse':
         h = 7; b.box(x0, y, z0, W, h, D, [0.95, 0.85, 0.75], T.brick, { uvScale: 14, faces: 63 }); b.box(x0 - 0.3, y + h, z0 - 0.3, W + 0.6, 0.6, D + 0.6, [0.45, 0.3, 0.25]);
         b.box(x0 + W / 2 - 1.2, y, z0 - 0.1, 2.4, 3, 0.2, [0.3, 0.2, 0.15]); // door
-        addPlace('safehouse', { x: front.x, z: front.z, label: sp.label, spawnX: front.x, spawnZ: front.z + 0, angle: Math.PI });
+        addPlace('safehouse', { x: front.x, z: front.z, label: sp.label, spawnX: front.x, spawnZ: front.z + 0, angle: Math.PI }); specialLots.safehouse = { x0, z0, x1, z1, door: front };
+        break;
+      case 'bar':
+        h = 6.5; b.box(x0, y, z0, W, h, D, [0.55, 0.35, 0.28], T.brick, { uvScale: 12, faces: 63 }); b.box(x0 - 0.3, y + h, z0 - 0.3, W + 0.6, 0.5, D + 0.6, [0.3, 0.22, 0.2]);
+        b.box(x0 + W / 2 - 1.1, y, z0 - 0.12, 2.2, 2.8, 0.2, [0.12, 0.1, 0.1]); b.box(x0 + W / 2 - 1.3, y + 2.8, z0 - 0.5, 2.6, 0.3, 0.6, [0.2, 0.15, 0.12]); // door and its hood
+        signBox(b, x0 + W / 2, y + h - 1.4, z0 + 0.3, Math.min(W - 2, 9), 1.4, [0.2, 0.5, 0.9]); for (const sx of [-1, 1]) b.cbox(x0 + W / 2 + sx * (W / 2 - 2.5), y + 1.6, z0 - 0.02, 2.2, 1.6, 0.04, [0.7, 0.85, 1], 0, { faces: 32 }); // sign and two windows
+        addPlace('bar', { x: front.x, z: front.z, label: sp.label, angle: 0 }); specialLots.bar = { x0, z0, x1, z1, door: front };
         break;
       case 'garage':
         h = 6; b.box(x0, y, z0, W, h, D, [0.85, 0.85, 0.85], T.garage, { uvScale: 12 }); b.box(x0 - 0.2, y + h, z0 - 0.2, W + 0.4, 0.5, D + 0.4, [0.35, 0.35, 0.38]);
@@ -396,6 +404,9 @@ const CITY = (() => {
         b.box(x0 + W / 2 - 3, y, z0 - 0.1, 6, 4.5, 0.2, [0.1, 0.1, 0.12]);
         signBox(b, x0 + W / 2, y + 6.5, z0 + 0.2, Math.min(W - 2, 18), 2.4, [0.1, 0.5, 0.9]);
         addLot(block, tx, tz, tx + tw, tz + td, h); addPlace('tower', { x: front.x, z: front.z, label: sp.label, angle: 0, roofY: y + h, roofX: tx + tw / 2, roofZ: tz + td / 2 });
+        b.box(tx + tw / 2 - 1.6, y + h, tz + 0.6, 3.2, 3.2, 3.2, [0.35, 0.36, 0.4]); b.box(tx + tw / 2 - 0.7, y + h, tz + 3.79, 1.4, 2.4, 0.05, [0.12, 0.12, 0.14]); b.cbox(tx + tw / 2, y + h + 0.4, tz + td / 2, 8, 0.03, 8, [0.9, 0.85, 0.2]); b.cbox(tx + tw / 2, y + h + 0.42, tz + td / 2, 6, 0.03, 6, [0.3, 0.3, 0.32]); b.cbox(tx + tw / 2, y + h + 0.44, tz + td / 2, 5.4, 0.03, 5.4, [0.9, 0.85, 0.2]); // elevator shed and a helipad
+        for (let k = 0; k < 4; k++) { const ex = k < 2 ? tx + 0.15 : tx + tw - 0.15, ez = tz + 0.15 + (k % 2) * (td - 0.3); b.cyl(ex, y + h, ez, 0.03, y + h + 1.0, [0.5, 0.5, 0.55], 0, 5); } b.box(tx, y + h + 0.95, tz, tw, 0.05, 0.05, [0.5, 0.5, 0.55]); b.box(tx, y + h + 0.95, tz + td - 0.05, tw, 0.05, 0.05, [0.5, 0.5, 0.55]); b.box(tx, y + h + 0.95, tz, 0.05, 0.05, td, [0.5, 0.5, 0.55]); b.box(tx + tw - 0.05, y + h + 0.95, tz, 0.05, 0.05, td, [0.5, 0.5, 0.55]); // a rail you can step over
+        roofAccess = { x0: tx, z0: tz, x1: tx + tw, z1: tz + td, h: y + h, outside: { x: front.x + W * 0.32, z: front.z }, top: { x: tx + tw / 2, z: tz + 5.2 }, spots: { pad: { x: tx + tw / 2, z: tz + td / 2 } }, walls: [{ x0: tx + tw / 2 - 1.6, z0: tz + 0.6, x1: tx + tw / 2 + 1.6, z1: tz + 3.8, h: y + h + 3.2, kind: 'wall' }] };
         lots.push({ x0, z0, x1, z1, h: 6, kind: 'building' }); block.lots.push(lots[lots.length - 1]);
         return;
       }
@@ -424,6 +435,42 @@ const CITY = (() => {
         addPlace('guns', { x: front.x, z: front.z, label: sp.label, angle: 0 }); break;
     }
     addLot(block, x0, z0, x1, z1, h, sp.kind);
+  }
+  // ---- Interiors: rooms sixty metres under their own lots, reached through the front door. Each room has the
+  // walls the player and camera collide with, the door spot inside, lamps, and the spots the room's menus hang on.
+  const specialLots = {}; const interiors = {}; let interiorRoom = null, roofAccess = null, roofLot = null;
+  function setInterior(room) { interiorRoom = room; }
+  function setRoof(r) { roofLot = r; }
+  function buildInteriors(b) {
+    const T = TEX.names; const Y = -60; const dark = [0.16, 0.14, 0.13];
+    const room = (key, lot, w, d) => { const cx = (lot.x0 + lot.x1) / 2, cz = (lot.z0 + lot.z1) / 2; const x0 = cx - w / 2, z0 = cz - d / 2, x1 = cx + w / 2, z1 = cz + d / 2;
+      const r = { key, x0, z0, x1, z1, floorY: Y, cx, cz, walls: [], lights: [], spots: {}, door: { x: cx, z: z0 + 1.2 }, outside: { x: lot.door.x, z: lot.door.z } };
+      b.box(x0 - 0.5, Y - 0.2, z0 - 0.5, w + 1, 0.2, d + 1, [0.75, 0.65, 0.5], T.planks, { uvScale: 3 }); b.box(x0 - 0.5, Y + 3.2, z0 - 0.5, w + 1, 0.3, d + 1, [0.35, 0.33, 0.3]);
+      const wall = (wx0, wz0, wx1, wz1) => { b.box(wx0, Y, wz0, wx1 - wx0, 3.2, wz1 - wz0, key === 'bar' ? [0.42, 0.3, 0.24] : [0.72, 0.68, 0.58]); b.box(wx0 - 0.01, Y, wz0 - 0.01, wx1 - wx0 + 0.02, 0.9, wz1 - wz0 + 0.02, key === 'bar' ? [0.28, 0.2, 0.15] : [0.45, 0.4, 0.33]); /* plain plaster over a dark dado */ r.walls.push({ x0: wx0, z0: wz0, x1: wx1, z1: wz1, h: Y + 3.2, kind: 'wall' }); };
+      wall(x0 - 0.5, z0 - 0.5, x1 + 0.5, z0); wall(x0 - 0.5, z1, x1 + 0.5, z1 + 0.5); wall(x0 - 0.5, z0, x0, z1); wall(x1, z0, x1 + 0.5, z1);
+      b.box(cx - 0.9, Y, z0 - 0.45, 1.8, 2.4, 0.15, [0.12, 0.1, 0.1]); b.cbox(cx + 0.6, Y + 1.1, z0 - 0.3, 0.08, 0.08, 0.1, [0.85, 0.8, 0.4]); // the way out
+      interiors[key] = r; return r; };
+    if (specialLots.bar) { const r = room('bar', specialLots.bar, 15, 10); const { x0, z0, x1, z1, cx, cz } = r;
+      b.box(x0 + 1, Y, z1 - 2.6, x1 - x0 - 2, 1.1, 1.0, [0.3, 0.2, 0.14]); b.box(x0 + 0.9, Y + 1.1, z1 - 2.7, x1 - x0 - 1.8, 0.08, 1.2, [0.5, 0.35, 0.22]); r.walls.push({ x0: x0 + 1, z0: z1 - 2.6, x1: x1 - 1, z1: z1 - 1.6, h: Y + 1.2, kind: 'wall' }); // the counter
+      b.box(x0 + 1, Y + 1.3, z1 - 0.35, x1 - x0 - 2, 1.6, 0.3, [0.25, 0.18, 0.12]); for (let k = 0; k < 3; k++) b.box(x0 + 1, Y + 1.5 + k * 0.5, z1 - 0.4, x1 - x0 - 2, 0.04, 0.35, [0.6, 0.5, 0.4]); // shelves
+      for (let k = 0; k < 18; k++) { const bx = x0 + 1.4 + k * (x1 - x0 - 2.8) / 17, by = Y + 1.54 + (k % 3) * 0.5; const cols = [[0.6, 0.35, 0.1], [0.2, 0.6, 0.3], [0.8, 0.75, 0.5], [0.5, 0.1, 0.1], [0.3, 0.5, 0.9]]; b.cbox(bx, by + 0.12, z1 - 0.22, 0.09, 0.24, 0.09, cols[k % 5]); b.cbox(bx, by + 0.3, z1 - 0.22, 0.04, 0.12, 0.04, cols[k % 5]); } // bottles
+      for (let k = 0; k < 5; k++) { const sx = x0 + 2.5 + k * (x1 - x0 - 5) / 4; b.cyl(sx, Y, z1 - 3.4, 0.06, Y + 0.7, [0.3, 0.3, 0.32], 0, 6); b.cyl(sx, Y + 0.7, z1 - 3.4, 0.22, Y + 0.8, [0.5, 0.12, 0.1], 0, 10); } // stools
+      for (const [tx, tz] of [[x0 + 3, z0 + 3.5], [cx + 1, z0 + 3.2], [x1 - 3, z0 + 3.8]]) { b.cyl(tx, Y, tz, 0.08, Y + 0.72, dark, 0, 6); b.cyl(tx, Y + 0.72, tz, 0.55, Y + 0.78, [0.4, 0.28, 0.18], 0, 12); for (const [ax, az] of [[0.9, 0], [-0.9, 0], [0, 0.9]]) { b.cbox(tx + ax, Y + 0.24, tz + az, 0.4, 0.06, 0.4, [0.35, 0.25, 0.16]); b.cbox(tx + ax * 1.2, Y + 0.5, tz + az * 1.2, ax ? 0.06 : 0.4, 0.6, az ? 0.06 : 0.4, [0.35, 0.25, 0.16]); } r.walls.push({ x0: tx - 0.6, z0: tz - 0.6, x1: tx + 0.6, z1: tz + 0.6, h: Y + 0.8, kind: 'wall' }); } // tables
+      b.box(x1 - 1.6, Y, z0 + 0.2, 1.2, 1.7, 0.7, [0.6, 0.2, 0.15]); b.cbox(x1 - 1.0, Y + 1.2, z0 + 0.9, 0.9, 0.5, 0.05, [1, 0.85, 0.5], T.neon, { faces: 16 }); r.walls.push({ x0: x1 - 1.6, z0: z0, x1: x1 - 0.4, z1: z0 + 0.9, h: Y + 1.7, kind: 'wall' }); // jukebox
+      b.cbox(cx, Y + 2.6, z1 - 0.2, 5, 0.9, 0.1, [1, 1, 0.9], T.neon, { faces: 16 }); // the sign over the bar
+      for (const lx of [x0 + 4, cx, x1 - 4]) { b.cyl(lx, Y + 2.5, cz, 0.02, Y + 3.2, dark, 0, 4); b.cyl(lx, Y + 2.2, cz, 0.35, Y + 2.5, [0.9, 0.85, 0.6], 0, 8, 0, true, true, 0.12); r.lights.push({ x: lx, y: Y + 2.1, z: cz, r: 9, col: [1.0, 0.8, 0.5] }); }
+      r.lights.push({ x: cx, y: Y + 2.4, z: z1 - 1, r: 8, col: [0.9, 0.5, 0.9] }, { x: x1 - 1, y: Y + 1.3, z: z0 + 1, r: 5, col: [1, 0.7, 0.3] });
+      r.spots.counter = { x: cx, z: z1 - 3.6 }; r.spots.bartender = { x: cx, z: z1 - 1.0 }; r.spots.jukebox = { x: x1 - 1.0, z: z0 + 1.9 }; r.spots.patrons = [[x0 + 3, z0 + 4.6], [cx + 1.8, z0 + 3.2], [x0 + 3.2, z1 - 3.5]]; }
+    if (specialLots.safehouse) { const r = room('safehouse', specialLots.safehouse, 11, 9); const { x0, z0, x1, z1, cx, cz } = r;
+      b.box(x1 - 3.2, Y, z1 - 2.3, 2.2, 0.5, 2.1, [0.35, 0.28, 0.2]); b.box(x1 - 3.1, Y + 0.5, z1 - 2.2, 2.0, 0.25, 1.9, [0.75, 0.75, 0.8]); b.cbox(x1 - 2.1, Y + 0.85, z1 - 0.7, 1.4, 0.2, 0.5, [0.95, 0.95, 0.9]); b.box(x1 - 3.2, Y + 0.5, z1 - 2.3, 2.2, 0.35, 0.35, [0.5, 0.3, 0.3]); r.walls.push({ x0: x1 - 3.2, z0: z1 - 2.3, x1: x1 - 1.0, z1: z1 - 0.2, h: Y + 0.8, kind: 'wall' }); // bed
+      b.box(x0 + 0.2, Y, z1 - 2.2, 1.0, 2.2, 2.0, [0.3, 0.2, 0.12]); b.cbox(x0 + 1.22, Y + 1.1, z1 - 1.2, 0.02, 2.0, 1.8, [0.4, 0.28, 0.16]); b.cbox(x0 + 1.25, Y + 1.1, z1 - 1.2, 0.03, 0.12, 0.03, [0.85, 0.8, 0.4]); r.walls.push({ x0: x0, z0: z1 - 2.2, x1: x0 + 1.2, z1: z1 - 0.2, h: Y + 2.2, kind: 'wall' }); // wardrobe
+      b.box(cx - 1.4, Y, z1 - 0.9, 2.8, 0.7, 0.6, [0.2, 0.18, 0.16]); b.cbox(cx, Y + 1.25, z1 - 0.6, 2.2, 1.1, 0.08, [0.05, 0.05, 0.06]); b.cbox(cx, Y + 1.25, z1 - 0.65, 2.0, 0.95, 0.02, [0.9, 0.95, 1], T.neon, { faces: 32 }); r.walls.push({ x0: cx - 1.4, z0: z1 - 0.9, x1: cx + 1.4, z1: z1 - 0.3, h: Y + 0.7, kind: 'wall' }); // TV on its stand
+      b.box(cx - 2.0, Y, z0 + 2.0, 2.4, 0.42, 1.0, [0.3, 0.32, 0.4]); b.box(cx - 2.0, Y + 0.42, z0 + 2.0, 2.4, 0.5, 0.35, [0.3, 0.32, 0.4]); r.walls.push({ x0: cx - 2.0, z0: z0 + 2.0, x1: cx + 0.4, z1: z0 + 3.0, h: Y + 0.9, kind: 'wall' }); // sofa
+      b.box(cx - 2.5, Y + 0.001, cz - 1.5, 5, 0.02, 3, [0.55, 0.2, 0.18]); b.box(x0 + 0.2, Y, z0 + 0.3, 1.8, 0.9, 0.5, [0.3, 0.2, 0.12]); b.cbox(x0 + 1.1, Y + 1.5, z0 + 0.4, 1.2, 0.8, 0.05, [0.8, 0.75, 0.6]); // rug, sideboard, a map on the wall
+      for (const sx of [1, -1]) b.cbox(cx + sx * 2.2, Y + 1.6, z0 + 0.03, 1.6, 1.2, 0.04, [0.65, 0.75, 0.9], 0, { faces: 32 }); // windows that show nothing but light
+      b.cyl(cx, Y + 2.6, cz, 0.02, Y + 3.2, dark, 0, 4); b.cyl(cx, Y + 2.3, cz, 0.4, Y + 2.6, [0.95, 0.9, 0.7], 0, 8, 0, true, true, 0.15); b.cyl(x1 - 0.6, Y, z0 + 0.6, 0.05, Y + 1.5, dark, 0, 5); b.cyl(x1 - 0.6, Y + 1.5, z0 + 0.6, 0.25, Y + 1.8, [0.95, 0.9, 0.7], 0, 8, 0, true, false, 0.18);
+      r.lights.push({ x: cx, y: Y + 2.2, z: cz, r: 10, col: [1, 0.9, 0.7] }, { x: x1 - 0.6, y: Y + 1.7, z: z0 + 0.6, r: 6, col: [1, 0.8, 0.5] }, { x: cx, y: Y + 1.3, z: z1 - 1.2, r: 4, col: [0.6, 0.8, 1] });
+      r.spots.bed = { x: x1 - 2.1, z: z1 - 1.2 }; r.spots.wardrobe = { x: x0 + 2.0, z: z1 - 1.2 }; r.spots.tv = { x: cx, z: z1 - 2.0 }; }
   }
   function signBox(b, cx, y, z, w, h, col) { b.cbox(cx, y, z, w, h, 0.4, col); b.cbox(cx, y, z - 0.25, w * 0.9, h * 0.6, 0.1, [1, 1, 0.9], TEX.names.neon, { faces: 32 }); }
 
@@ -464,6 +511,8 @@ const CITY = (() => {
 
   // ---- Queries
   function groundY(x, z) {
+    if (roofLot && x > roofLot.x0 && x < roofLot.x1 && z > roofLot.z0 && z < roofLot.z1) return roofLot.h;
+    if (interiorRoom && x > interiorRoom.x0 - 8 && x < interiorRoom.x1 + 8 && z > interiorRoom.z0 - 8 && z < interiorRoom.z1 + 8) return interiorRoom.floorY;
     // ramps
     for (const r of ramps) if (x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1) { const t = r.dir === 'n' ? (r.z1 - z) / (r.z1 - r.z0) : (z - r.z0) / (r.z1 - r.z0); return CURB + t * r.h; }
     const gx = (x - HALF_ROAD) / PITCH, gz = (z - HALF_ROAD) / PITCH; // block slab spans [i*PITCH+7, (i+1)*PITCH-7]
@@ -514,5 +563,5 @@ const CITY = (() => {
   }
 
   return { GRID, BLOCK, ROAD, SW, PITCH, HALF_ROAD, LANE, CURB, SIZE, SHORE, lots, blocks, places, props, solidProps, parkedSpots, ramps, lights, get stunts() { return stunts; },
-    pier: { x0: pierX0, x1: pierX1, z1: pierZ1 }, marina, roadNodes, roadEdges, walkNodes, generate, get water() { return waterBuilder; }, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
+    pier: { x0: pierX0, x1: pierX1, z1: pierZ1 }, marina, interiors, setInterior, get interiorRoom() { return interiorRoom; }, setRoof, get roofLot() { return roofLot; }, get roofAccess() { return roofAccess; }, roadNodes, roadEdges, walkNodes, generate, get water() { return waterBuilder; }, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
 })();

@@ -4,7 +4,7 @@ const W = (() => {
   const cars = [], peds = [], pickups = [], explosions = [], blips = [];
   let heli = null;
   const dyn = []; // dynamic lights this frame
-  const rng = M.rng(Date.now() & 0xffff);
+  const seed = (+(new URLSearchParams(location.search).get('seed')) || (Date.now() & 0xffff)) & 0xffff; const rng = M.rng(seed); // ?seed=N makes a run repeatable
   const state = { time: 9.0, dayLength: 24 * 60, elapsed: 0, frame: 0, camYaw: 0, shots: [], noises: [], heard: [] };
 
   // ---- Particles
@@ -97,7 +97,9 @@ const W = (() => {
   // Push a circle out of building lots and solid props; returns [x, z, hitNormalX, hitNormalZ] or null for no hit.
   function pushOut(x, z, r, opts = {}) {
     let hit = null;
-    const lots = CITY.lotsNear(x, z, r + 3);
+    const room = CITY.interiorRoom; const indoor = room && x > room.x0 - 3 && x < room.x1 + 3 && z > room.z0 - 3 && z < room.z1 + 3;
+    let lots = indoor ? room.walls : CITY.lotsNear(x, z, r + 3); if (indoor) opts = { ...opts, noProps: true, indoor: true };
+    const roof = CITY.roofLot; if (roof && x > roof.x0 - 1 && x < roof.x1 + 1 && z > roof.z0 - 1 && z < roof.z1 + 1) { lots = lots.filter(l => !(l.x0 <= x && l.x1 >= x && l.z0 <= z && l.z1 >= z)).concat(roof.walls); opts = { ...opts, noProps: true, indoor: true }; }
     for (let pass = 0; pass < 3; pass++) { let moved = false; // a push out of one lot can land inside a neighbour; settle in a few passes
     for (const l of lots) {
       if (opts.ignoreLow && l.h < 1.2) continue;
@@ -114,6 +116,7 @@ const W = (() => {
       if (p.down) continue; const rr = r + p.r; const dx = x - p.x, dz = z - p.z; const d2 = dx * dx + dz * dz; if (d2 >= rr * rr || d2 < 1e-8) continue;
       const d = Math.sqrt(d2); x = p.x + dx / d * rr; z = p.z + dz / d * rr; hit = [dx / d, dz / d]; hit.prop = p;
     }
+    if (opts.indoor) return { x, z, hit };
     if (x < bounds[0] + r) { x = bounds[0] + r; hit = [1, 0]; } if (x > bounds[1] - r) { x = bounds[1] - r; hit = [-1, 0]; }
     if (z < bounds[0] + r) { z = bounds[0] + r; hit = [0, 1]; }
     const pier = CITY.pier; const onPier = x > pier.x0 + r && x < pier.x1 - r;
@@ -247,5 +250,5 @@ const W = (() => {
   function frameBegin() { dyn.length = 0; state.shots.length = 0; state.noises.length = 0; if (state.heard.length && state.elapsed - state.heard[0].t > 0.5) state.heard = state.heard.filter(n => state.elapsed - n.t <= 0.5); }
   function updateExplosions(dt) { let w = 0; for (const e of explosions) { e.t += dt; if (e.t < 0.6) { dyn.push({ x: e.x, y: e.y + 1, z: e.z, r: 30 * e.big, col: [3 * (1 - e.t), 1.5 * (1 - e.t), 0.3] }); explosions[w++] = e; } } explosions.length = w; }
 
-  return { weather, updateWeather, bustle, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds, WATER_Y, pushOutWater, nearestLand, onWater };
+  return { weather, updateWeather, bustle, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds, seed, WATER_Y, pushOutWater, nearestLand, onWater };
 })();

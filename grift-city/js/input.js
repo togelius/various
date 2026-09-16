@@ -30,6 +30,9 @@ const INPUT = (() => {
   const down = code => !!keys[code];
   const hit = code => !!pressed[code];
   function endFrame() { for (const k in pressed) pressed[k] = false; mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0; mouse.clicked = 0; mouse.rclicked = 0; for (let i = 0; i < pad.pressed.length; i++) pad.pressed[i] = false; }
-  const api = { init, down, hit, mouse, pad, pollPad, endFrame, requestLock, releaseLock, get locked() { return locked || fallback; }, get fallback() { return fallback; }, onLockLost: null, typed: '' };
+  // For recordings: the whole input state of a frame as plain data, and back.
+  function snapshot() { const k = [], p = []; for (const c in keys) if (keys[c]) k.push(c); for (const c in pressed) if (pressed[c]) p.push(c); return { k, p, m: [mouse.dx, mouse.dy, mouse.buttons, mouse.wheel, mouse.clicked, mouse.rclicked] }; }
+  function restore(s) { for (const c in keys) keys[c] = false; for (const c of s.k) keys[c] = true; for (const c in pressed) pressed[c] = false; for (const c of s.p) pressed[c] = true; [mouse.dx, mouse.dy, mouse.buttons, mouse.wheel, mouse.clicked, mouse.rclicked] = s.m; }
+  const api = { init, down, hit, mouse, pad, pollPad, endFrame, snapshot, restore, requestLock, releaseLock, get locked() { return locked || fallback; }, get fallback() { return fallback; }, onLockLost: null, typed: '' };
   return api;
 })();

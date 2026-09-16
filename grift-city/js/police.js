@@ -131,7 +131,9 @@ const POLICE = (() => {
     }
     updateHeli(dt);
     // siren audio: nearest siren car
-    let vol = 0; for (const c of W.cars) if (!c.removed && c.siren) vol = Math.max(vol, 1 - M.dist(c.x, c.z, P.x, P.z) / 120); AUDIO.siren(M.clamp(vol, 0, 1) * (P.car && P.car.siren ? 1 : 0.8) + (P.car && P.car.siren ? 0.6 : 0), dt);
+    let vol = 0, loud = null; for (const c of W.cars) if (!c.removed && c.siren) { const v = 1 - M.dist(c.x, c.z, P.x, P.z) / 120; if (v > vol) { vol = v; loud = c; } }
+    let pitch = 1; if (loud && loud !== P.car) { const dx = loud.x - P.x, dz = loud.z - P.z, d = Math.hypot(dx, dz) || 1; const pv = P.car ? [P.car.vx, P.car.vz] : [P.vx || 0, P.vz || 0]; const vrel = ((loud.vx - pv[0]) * dx + (loud.vz - pv[1]) * dz) / d; pitch = M.clamp(343 / (343 + vrel), 0.86, 1.16); } // doppler: a cruiser closing sounds sharper, one pulling away flatter
+    AUDIO.siren(M.clamp(vol, 0, 1) * (P.car && P.car.siren ? 1 : 0.8) + (P.car && P.car.siren ? 0.6 : 0), dt, pitch);
   }
   return { S, crime, seen, pursuitPoint, arrestProgress, clear, setStars, bribe, update, heliEntity, stars, get lastSeen() { return S.lastSeen; } };
 })();

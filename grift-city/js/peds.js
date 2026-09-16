@@ -48,7 +48,7 @@ const PEDS = (() => {
       if (car.driver === PLAYER) car.damage(2, null);
     }
     damage(amount, source, dir = null) {
-      if (this.state === 'dead' || this.invincible) return; this.health -= amount;
+      if (this.state === 'dead' || this.invincible) return; this.health -= amount; if (!(this.knockT > 0)) this.flinchT = 0.35; // a hit reads on the body before anything else happens
       W.FX.blood(this.x, 1.2, this.z, Math.min(10, 3 + amount / 6), dir);
       if (this.health <= 0) { this.die(source, 'shot'); if (dir) this.launch(dir[0] * 2.5, 2, dir[1] * 2.5); this.fallDir = 1; }
       else { if (!this.isCop && !this.isGang && !this.hostile && this.role !== 'target' && this.role !== 'crew') { if (source === PLAYER && amount < 35 && !PLAYER.car && W.rng() < 0.3) { this.hostile = true; this.state = 'walk'; this.seat = null; this.partner = null; this.say(W.rng() < 0.5 ? 'You want some?!' : 'Big mistake!'); } else this.scare(source ? source.x : this.x, source ? source.z : this.z); } if (source === PLAYER && (this.isGang || this.role === 'target')) this.hostile = true; if (source === PLAYER && !this.isCop) POLICE.crime('assault', this.x, this.z, this); if (source === PLAYER && this.isCop) POLICE.crime('cop', this.x, this.z, this); }
@@ -65,6 +65,7 @@ const PEDS = (() => {
     update(dt) {
       if (this.removed) return; this.stateT += dt; if (this.shoutT > 0) this.shoutT -= dt; if (this.hitT > 0) this.hitT -= dt; if (this.attackCooldown > 0) this.attackCooldown -= dt;
       if (this.inCar) { this.x = this.inCar.x; this.z = this.inCar.z; this.y = this.inCar.y; return; }
+      if (this.flinchT > 0) this.flinchT -= dt; if (this.kickT > 0) this.kickT -= dt;
       if (this.rag) { stepRagdoll(this, dt); if (this.state !== 'dead' && this.knockT > 0) { this.knockT -= dt; if (this.knockT <= 0) { endRagdoll(this); this.state = this.gotoTarget && this.gotoResume ? 'goto' : (this.fear > 0 ? 'flee' : 'walk'); this.lying = 0; } return; } }
       if (this.state === 'dead') { this.deadT += dt; this.lying = Math.min(1, this.lying + dt * 3.5); if (!this.rag) this.moveBody(dt, true); if (!this.pooled && this.deadT > 1.2 && !this.airborne) { this.pooled = true; const a = this.angle; W.decal('blood', this.x - Math.sin(a) * 0.3, this.z - Math.cos(a) * 0.3, this.x + Math.sin(a) * 1.0, this.z + Math.cos(a) * 1.0, 1.1, [0.35, 0.01, 0.01], 0.75); } return; }
       if (this.knockT > 0) { this.knockT -= dt; this.lying = Math.min(1, this.lying + dt * 4); this.moveBody(dt, true); if (this.knockT <= 0) { this.state = this.gotoTarget && this.gotoResume ? 'goto' : (this.fear > 0 ? 'flee' : 'walk'); this.lying = 0; } return; }
@@ -169,6 +170,7 @@ const PEDS = (() => {
       if (!ragdoll) { this.vx = 0; this.vz = 0; this.phase += dt * (this.speed > 3 ? 11 : 7) * Math.min(1, this.speed / 1.2); }
     }
     // ---- Rig
+    heldEntity() { return heldEntity(this); }
     entity() { if (this.rag) { ragdollBones(this, this.rag); this.emis.fill(0); return { mesh: this.mesh, model: this.model, bones: this.bones, emis: this.emis }; }
       if (this.state === 'sit' && this.seat) { M.trs(seatWorld, this.seat.x, this.seat.y, this.seat.z, this.seat.a); buildRigSeated(this, this.model, this.bones, seatWorld, 0, 0, 0, 0, false, this.headYaw); this.emis.fill(0); return { mesh: this.mesh, model: this.model, bones: this.bones, emis: this.emis }; } buildRig(this, this.model, this.bones); this.emis.fill(0); const far = M.dist2(this.x, this.z, RENDER.cam.tx, RENDER.cam.tz) > 55 * 55; return { mesh: far && this.lodMesh ? this.lodMesh : this.mesh, model: this.model, bones: this.bones, emis: this.emis }; }
     remove() { this.removed = true; if (this.inCar) { if (this.inCar.driver === this) this.inCar.driver = null; } }
@@ -178,6 +180,16 @@ const PEDS = (() => {
   function bone(out, off, x, y, z, yaw, pitch, roll, s = 1) { M.trsEuler(tmp, x, y, z, yaw, pitch, roll, s, s, s); out.set(tmp, off); }
   // A child bone that bends about a joint given in its parent's space (knees and elbows).
   const jt1 = M.create(), jt2 = M.create(), jt3 = M.create();
+  // The weapon in the right hand is a second entity riding the forearm bone: model * forearm * T(hand).
+  const heldBones = new Float32Array(16 * RENDER.MAX_BONES); for (let i = 0; i < RENDER.MAX_BONES; i++) heldBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16); const heldEmis = new Float32Array(RENDER.MAX_BONES);
+  const heldTmp = M.create(), heldHand = M.create();
+  function heldEntity(p) { const key = p.weapon; if (!key || key === 'fist' || !p.weaponOut || p.inCar || p.rag || p.state === 'dead') return null; const mesh = MESH.heldMesh(key); if (!mesh) return null;
+    if (!p.heldModel) p.heldModel = M.create(); M.multiply(heldTmp, p.model, p.bones.subarray(160, 176)); M.trs(heldHand, MESH.HAND[0], MESH.HAND[1], MESH.HAND[2], 0); M.multiply(p.heldModel, heldTmp, heldHand); return { mesh, model: p.heldModel, bones: heldBones, emis: heldEmis }; }
+  // Bone 11 carries the mouth: the head bone with a vertical stretch about the mouth's own position, so a talking ped's lips move.
+  const mtmp1 = M.create(), mtmp2 = M.create(), mtmp3 = M.create();
+  function mouthBone(out, open) { const [mx, my, mz] = MESH.MOUTH_POS; M.trs(mtmp1, mx, my, mz, 0, 1, 1 + open * 5, 1); M.trs(mtmp2, -mx, -my, -mz, 0); M.multiply(mtmp3, mtmp1, mtmp2); M.multiply(mtmp1, out.subarray(16, 32), mtmp3); out.set(mtmp1, 176); }
+  // How far open the mouth is: shouting peds and the giver whose line is on screen move their lips
+  function talkOpen(p) { const dlg = typeof MISSIONS !== 'undefined' && MISSIONS.dialogue; const talking = (p.shoutT || 0) > 0 || (dlg && dlg.focus === p && dlg.lines[dlg.i] && dlg.lines[dlg.i][0] === p.name); if (!talking) return 0; const t = W.state.elapsed + (p.bob || 0); return Math.max(0, Math.sin(t * 17) * 0.6 + Math.sin(t * 29) * 0.5); }
   function jointBone(out, off, parentOff, jx, jy, jz, pitch) { M.trsEuler(jt1, jx, jy, jz, 0, pitch, 0); M.trs(jt2, -jx, -jy, -jz, 0); M.multiply(jt3, jt1, jt2); M.multiply(jt1, out.subarray(parentOff, parentOff + 16), jt3); out.set(jt1, off); }
   const KNEE_Y = -LEG_H * 0.5, ELBOW_Y = -0.31;
   // Animates the rig from the ped's state. Also used by the player. The walk is a two-beat cycle: the thigh swings,
@@ -191,7 +203,8 @@ const PEDS = (() => {
     const aim = p.aim || 0; const punch = p.punchT > 0 ? Math.sin(Math.min(1, p.punchT / 0.3) * Math.PI) : 0;
     const t = W.state.elapsed + (p.phase % 7); const idle = 1 - walk; const breath = Math.sin(t * 1.6) * idle;
     const hip = LEG_H + bob - lying * (LEG_H - 0.25) - (0.08 + 0.05 * run) * walk * 0.35; // knees bend, so the pelvis rides a little lower when moving
-    const lean = run * 0.2 + walk * 0.04 + (p.recoil || 0) * -0.5;
+    const flinch = p.flinchT > 0 ? Math.sin(Math.min(1, p.flinchT / 0.35) * Math.PI) : 0; const kick = p.kickT > 0 ? Math.sin(Math.min(1, p.kickT / 0.35) * Math.PI) : 0;
+    const lean = run * 0.2 + walk * 0.04 + (p.recoil || 0) * -0.5 - flinch * 0.35 + kick * 0.15;
     const sway = Math.sin(ph) * walk; // pelvis moves over the planted foot
     M.trsEuler(model, p.x, p.y, p.z, p.angle, lying * (dead ? -Math.PI / 2 * p.fallDir : -Math.PI / 2), 0, p.sx || 1, p.sy || 1, p.sx || 1);
     // torso: lean, hip sway and a counter-twist against the leg swing; breathing when standing
@@ -199,7 +212,7 @@ const PEDS = (() => {
     // head: rides on the torso and cancels most of the twist so it keeps looking where the ped goes
     bone(bones, 16, sway * 0.02, hip + TORSO_H + 0.03 + breath * 0.006, lean * 0.2, (aim ? 0 : (p.headYaw || 0)) + sway * 0.07, lean * 0.5 + (aim ? 0 : Math.sin(ph * 0.5) * 0.03 + Math.sin(t * 0.9) * 0.02 * idle), -sway * 0.03);
     // upper arms: pivot at the shoulders, swing opposite to the legs, held out a little at a run
-    const armPitchL = aim ? -0.4 : swing * 0.85 - 0.45 * run, armPitchR = aim ? -Math.PI / 2 + 0.05 + (p.recoil || 0) * 2 : -swing * 0.85 - 0.45 * run - punch * 1.4;
+    const armPitchL = (aim ? -0.4 : swing * 0.85 - 0.45 * run) - flinch * 1.1 - kick * 0.5, armPitchR = (aim ? -Math.PI / 2 + 0.05 + (p.recoil || 0) * 2 : -swing * 0.85 - 0.45 * run - punch * 1.4) - flinch * 0.9 + kick * 0.6;
     const armRoll = 0.06 + run * 0.3 + Math.sin(t * 1.1) * 0.015 * idle;
     bone(bones, 32, sway * 0.02, hip + SHOULDER + breath * 0.006, 0, 0, armPitchL, armRoll + (aim ? 0.12 : 0));
     bone(bones, 48, sway * 0.02, hip + SHOULDER + breath * 0.006, 0, aim ? -0.15 : 0, armPitchR, -armRoll);
@@ -208,13 +221,13 @@ const PEDS = (() => {
     const elbowR = aim ? 0 : -(0.22 + 0.35 * Math.max(0, -Math.sin(ph)) * walk + 0.8 * run + punch * 0.6);
     jointBone(bones, 144, 32, 0.3, ELBOW_Y, 0, elbowL); jointBone(bones, 160, 48, -0.3, ELBOW_Y, 0, elbowR);
     // thighs: pivot at the hips; knees fold while the foot swings through and straighten for the strike
-    bone(bones, 64, sway * 0.02, hip, 0, 0, -swing * 0.95, 0); bone(bones, 80, sway * 0.02, hip, 0, 0, swing * 0.95, 0);
+    bone(bones, 64, sway * 0.02, hip, 0, 0, -swing * 0.95 + kick * 0.3, 0); bone(bones, 80, sway * 0.02, hip, 0, 0, swing * 0.95 - kick * 1.5, 0); // a kick swings the right leg up
     const kneeL = (0.08 + (0.75 + 0.55 * run) * Math.max(0, Math.cos(ph))) * walk + 0.04 * idle;
     const kneeR = (0.08 + (0.75 + 0.55 * run) * Math.max(0, -Math.cos(ph))) * walk + 0.04 * idle;
     jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, dead ? 0 : kneeL); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, dead ? 0 : kneeR);
     // weapon: follows the right forearm, hidden when unarmed
     if (p.weaponOut && !dead) bones.set(bones.subarray(160, 176), 96); else bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
-    for (let i = 11; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
+    mouthBone(bones, talkOpen(p));
     if (p.recoil > 0) p.recoil = Math.max(0, p.recoil - 0.016 * 3);
     if (p.punchT > 0) p.punchT -= 0.016;
   }
@@ -227,7 +240,7 @@ const PEDS = (() => {
       const hip = 0.02, lean = 0.32; bone(bones, 0, 0, hip, 0, 0, lean, 0); bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, -0.1, 0);
       bone(bones, 32, 0, hip + SHOULDER, 0, 0.35, -1.05, 0.2); bone(bones, 48, 0, hip + SHOULDER, 0, -0.35, -1.05, -0.2); jointBone(bones, 144, 32, 0.3, ELBOW_Y, 0, -0.45); jointBone(bones, 160, 48, -0.3, ELBOW_Y, 0, -0.45);
       bone(bones, 64, 0, hip, 0, 0, -0.95, 0.28); bone(bones, 80, 0, hip, 0, 0, -0.95, -0.28); jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, 1.45); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, 1.45);
-      bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001); for (let i = 11; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16); return; }
+      bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001); mouthBone(bones, talkOpen(p)); return; }
     const hip = 0.02; const lean = driving ? 0.12 : 0.05;
     bone(bones, 0, 0, hip, 0, 0, lean, 0);
     bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, lean * 0.5, 0);
@@ -236,7 +249,7 @@ const PEDS = (() => {
     bone(bones, 64, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0); bone(bones, 80, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0);
     jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, Math.PI / 2 - 0.35); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, Math.PI / 2 - 0.35);
     bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
-    for (let i = 11; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
+    mouthBone(bones, talkOpen(p));
   }
   // ---- Ragdoll: sixteen verlet joints with bone-length and bracing constraints, ground contact and building push-out.
   // Bones are refitted to the joint pairs every frame, using the shoulders as a twist reference so nothing spins on its axis.
@@ -283,7 +296,7 @@ const PEDS = (() => {
     fitBone(p.bones, 64, P[RJ.hipL], P[RJ.knL], 0.11, 0, 0, rx, ry, rz, true, sc); fitBone(p.bones, 80, P[RJ.hipR], P[RJ.knR], -0.11, 0, 0, rx, ry, rz, true, sc);
     fitBone(p.bones, 112, P[RJ.knL], P[RJ.ftL], 0.11, -0.425, 0, rx, ry, rz, true, sc); fitBone(p.bones, 128, P[RJ.knR], P[RJ.ftR], -0.11, -0.425, 0, rx, ry, rz, true, sc);
     bone(p.bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
-    for (let i = 11; i < RENDER.MAX_BONES; i++) p.bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
+    mouthBone(p.bones, 0);
   }
   // Seat positions in car-local space: driver on the left (+x), passenger right, rear seats behind.
   function seatOf(car, index) {
@@ -331,5 +344,5 @@ const PEDS = (() => {
   }
   function despawn(px, pz) { let w = 0; for (const p of W.peds) { if (!p.removed && !p.important) { const d = M.dist(p.x, p.z, px, pz); if ((d > 170 && !p.inCar) || (p.state === 'dead' && (p.deadT > 25 || (d > 60 && p.deadT > 6)))) p.removed = true; } if (p.removed && p.onRemove) { p.onRemove(); p.onRemove = null; } if (!p.removed) W.peds[w++] = p; } W.peds.length = w; }
   function updateAll(dt) { for (const p of W.peds) p.update(dt); }
-  return { Ped, spawn, spawnDriver, spawnCop, populate, trim, despawn, updateAll, buildRig, buildRigSeated, seatOf, seatedEntity, getMesh, makeRagdoll, stepRagdoll, ragdollBones, endRagdoll, looks, COP, SWAT, GANG, PLAYER_LOOK, MARLA, OKAFOR, CRANE };
+  return { Ped, heldEntity, spawn, spawnDriver, spawnCop, populate, trim, despawn, updateAll, buildRig, buildRigSeated, seatOf, seatedEntity, getMesh, makeRagdoll, stepRagdoll, ragdollBones, endRagdoll, looks, COP, SWAT, GANG, PLAYER_LOOK, MARLA, OKAFOR, CRANE };
 })();

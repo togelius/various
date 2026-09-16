@@ -55,6 +55,7 @@ this directory.
 | Taxi or vigilante job | `T` in a taxi or a police car              |
 | Map / pause / mute    | `Tab` / `Esc` / `M`                        |
 | Retry a failed job    | `Y` (within half a minute of failing)      |
+| Photo mode            | `P` (WASD/QE fly, wheel zooms, click saves) |
 | Shop menus            | `1`–`9` to pick, `Esc` to leave            |
 
 Gamepads work: left stick moves, right stick looks, triggers fire and aim
@@ -120,6 +121,38 @@ and the pier are walls. You cannot swim: `F` only gets you out of a boat
 within a few metres of land, and a boat that sinks under you takes you down
 with it. Okafor's last job, SALT WATER, is a boat chase round the island.
 
+## Indoors and off duty
+
+Two doors open. THE HALFWAY, a bar in Northgate, sells whiskey that heals
+a little and makes the camera and the steering wander for a while, tips
+about where a hidden package is hiding, a round for the room that Marla
+hears about, and a jukebox. The safehouse has a bed that saves the game
+and a wardrobe with five outfits. Rooms are real geometry sixty metres
+under their own lot, with walls the player and the camera collide with
+and lamps instead of a sun.
+
+Presentation: each district has its own colour grade that the picture
+drifts toward as you cross a boundary; dialogue cuts between shots on
+every line, and whoever is speaking moves their mouth; a cruiser's siren
+rises as it closes and falls as it pulls away. `P` opens a photo mode
+that freezes the world and hands you a free camera; click or `Enter`
+saves a PNG.
+
+## Fists, falls and the roof
+
+Every third punch is a kick that does more and puts people down; a bat
+from the Ironmonger (or from under the bar) reaches further. Peds flinch
+when they are hit. Weapons are drawn in the hand: a pistol, a machine
+pistol, a shotgun, a rifle, a launcher, a grenade, the bat and the camera
+each have their own model riding the right forearm. Walk off a roof and
+you fall; from anything taller than a house it hurts, from Crane Holdings
+it kills. A service elevator on the tower's front takes you to its roof,
+where a helipad keeps a briefcase, a vest and a launcher. A stunt jump
+holds the camera on the ramp and watches the car fly. The Ironmonger
+closes from eleven at night to seven. Reach five stars and Crane puts a
+price on your head: three crews come for you, one at a time, whenever the
+police have lost interest, and each one drops what he paid them.
+
 ## The police
 
 Crimes raise heat. Witnesses and nearby officers make it climb faster. One
@@ -182,6 +215,8 @@ node tools/playtest/shot.js out.png "tp(300, 336); sim(2, ['KeyW'])"   # one ful
 node tools/playtest/tests/missions_all.js        # every mission and side job, teleport-driven
 node tools/playtest/tests/soak.js                # six minutes of chaos, counts errors
 node tools/playtest/tests/visual.js [group ...]  # screenshot inspection: camera handedness, steering, radar, textures, exposure, HUD, model detail
+SEED=4242 node tools/playtest/run.js <name> story 180 --record   # a repeatable bot run: heatmap.png of where it went, inputs.json of what it pressed
+node tools/playtest/replay.js <name> [everyGameSeconds]           # play the recording back on the same seed and report whether it landed in the same place
 ```
 
 The visual suite renders controlled scenes with the frame loop parked and
