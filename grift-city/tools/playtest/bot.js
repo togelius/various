@@ -55,7 +55,7 @@
         else if (sharp && fwdSpd > 9) keys.push('KeyS'); else if ((near && !targetIsCar && fwdSpd > 8) || (targetIsCar && dT < 6 && s.blip.carSpeed < 2.5 && fwdSpd > 5)) { } else keys.push('KeyW');
         if (Math.abs(e) > 1.0 && fwdSpd > 6) keys.push('Space');
       }
-      setKeys(keys); B.debug = { held: [...B.held].join(','), e: +e.toFixed(2), wp: wp.map(Math.round), idx: routeIdx, n: route.length, spd: +c.speed.toFixed(1), still: +stillT.toFixed(1), rev: +(reverseUntil - B.t).toFixed(1) };
+      setKeys(keys); B.debug = { held: [...B.held].join(','), e: +e.toFixed(2), wp: wp.map(Math.round), idx: routeIdx, n: route ? route.length : 0, spd: +c.speed.toFixed(1), still: +stillT.toFixed(1), rev: +(reverseUntil - B.t).toFixed(1) };
     } else {
       if (s.entering) { setKeys([]); return; }
       // a stopped or abandoned target car: walk straight to it and take it
