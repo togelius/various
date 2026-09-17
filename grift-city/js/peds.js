@@ -174,7 +174,7 @@ const PEDS = (() => {
       if (this.airborne) { if (this.y <= g) { this.y = g; this.airborne = false; this.vy = 0; if (this.state === 'dead') { this.vx *= 0.3; this.vz *= 0.3; } } } else this.y = g;
       const res = W.pushOut(this.x, this.z, 0.4); this.x = res.x; this.z = res.z;
       if (!ragdoll) for (const c of W.cars) { if (c.removed || M.dist2(c.x, c.z, this.x, this.z) > 49) continue; for (const [cx, cz, r] of c.circles()) { const dx = this.x - cx, dz = this.z - cz; const rr = r + 0.35; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); this.x = cx + dx / d * rr; this.z = cz + dz / d * rr; } } }
-      if (!ragdoll) { this.vx = 0; this.vz = 0; this.phase += dt * (this.speed > 3 ? 11 : 7) * Math.min(1, this.speed / 1.2); }
+      if (!ragdoll) { this.vx = 0; this.vz = 0; this.phase += dt * (this.speed > 0.05 ? M.TAU * this.speed / (1.2 + 0.24 * this.speed) : 0); }
     }
     // ---- Rig
     heldEntity() { return heldEntity(this); }

@@ -32,10 +32,12 @@ const PLAYER = (() => {
   function addMoney(n, why) { P.money += n; if (n > 0) P.stats.cash += n; HUD.money(n, why); if (n > 0) AUDIO.play('cash'); }
   function cycleWeapon(dir) { const have = WEAPON_ORDER.filter(k => k in P.weapons && (P.weapons[k] > 0)); if (!have.length) return; let i = have.indexOf(P.weapon); i = (i + dir + have.length) % have.length; P.weapon = have[i]; P.weaponOut = P.weapon !== 'fist'; AUDIO.play('click'); }
 
+  // camera shake: a knock the camera takes and lets go of over a third of a second
+  function shake(a) { P.shake = Math.max(P.shake || 0, a); }
   function hurt(amount, how, source) {
     if (!P.alive || P.invuln > 0) return; if (how === 'melee' && P.car) return;
     let a = amount; if (P.armor > 0) { const ab = Math.min(P.armor, a * 0.7); P.armor -= ab; a -= ab; }
-    P.health -= a; P.hurtFlash = 0.4; if (how === 'shot' && W.rng() < 0.5) AUDIO.play('hit', P.x, P.z);
+    P.health -= a; P.hurtFlash = 0.4; shake(Math.min(1, a / 35)); if (how === 'shot' && W.rng() < 0.5) AUDIO.play('hit', P.x, P.z);
     if (P.health <= 0) die(source);
   }
   function knock(vx, vy, vz) { if (P.car || !P.alive) return; P.vx += vx; P.vz += vz; P.vy = Math.max(P.vy, vy); P.airborne = true; P.knockT = 1.6; P.state = 'knocked'; P.lying = 0; }
@@ -66,8 +68,8 @@ const PLAYER = (() => {
       let hx = hit.x, hz = hit.z, hy = y;
       // player check for NPC shooters
       if (!shooterIsPlayer && P.alive) { const pr = P.car ? 1.6 : 0.55; const t = M.rayCircle2(x, z, dx * wp.range, dz * wp.range, P.x, P.z, pr); if (t >= 0 && t < hit.t) { hit.kind = P.car ? 'playercar' : 'player'; hit.t = t; hx = x + dx * wp.range * t; hz = z + dz * wp.range * t; } }
-      if (hit.kind === 'ped') { hit.obj.damage(wp.dmg * dmgScale, shooter, [dx, dz]); }
-      else if (hit.kind === 'car') { hit.obj.damage(wp.dmg * (wp.carDmg || 2) * dmgScale, shooter); W.FX.spark(hx, 0.9, hz, 4); if (W.rng() < 0.3) W.FX.glass(hx, 1.2, hz, 4); if (hit.obj.driver && hit.obj.driver !== PLAYER && hit.obj.ai.mode === 'traffic') { hit.obj.scared = 6; hit.obj.ai.mode = 'flee'; } if (hit.obj.driver === PLAYER) hurt(wp.dmg * 0.25 * dmgScale, 'shot', shooter); }
+      if (hit.kind === 'ped') { const was = hit.obj.alive; hit.obj.damage(wp.dmg * dmgScale, shooter, [dx, dz]); if (shooterIsPlayer) HUD.hitMark(was && !hit.obj.alive); }
+      else if (hit.kind === 'car') { hit.obj.damage(wp.dmg * (wp.carDmg || 2) * dmgScale, shooter); if (shooterIsPlayer) HUD.hitMark(false); W.FX.spark(hx, 0.9, hz, 4); if (W.rng() < 0.3) W.FX.glass(hx, 1.2, hz, 4); if (hit.obj.driver && hit.obj.driver !== PLAYER && hit.obj.ai.mode === 'traffic') { hit.obj.scared = 6; hit.obj.ai.mode = 'flee'; } if (hit.obj.driver === PLAYER) hurt(wp.dmg * 0.25 * dmgScale, 'shot', shooter); }
       else if (hit.kind === 'player') { hurt(wp.dmg * dmgScale * 0.45, 'shot', shooter); W.FX.blood(P.x, 1.2, P.z, 4, [dx, dz]); }
       else if (hit.kind === 'playercar') { if (P.car) { P.car.damage(wp.dmg * 1.5 * dmgScale, shooter); W.FX.spark(hx, 0.9, hz, 3); if (W.rng() < 0.2) hurt(wp.dmg * 0.2 * dmgScale, 'shot', shooter); } }
       else if (hit.kind === 'heli') { hit.obj.damage(wp.dmg * dmgScale * 1.2, shooter); W.FX.spark(hx, hit.obj.y, hz, 4); hy = hit.obj.y; }
@@ -144,8 +146,10 @@ const PLAYER = (() => {
     const fy = P.camYaw; const fwd = [Math.sin(fy), Math.cos(fy)], right = [-Math.cos(fy), Math.sin(fy)];
     let mx = fwd[0] * iz + right[0] * ix, mz = fwd[1] * iz + right[1] * ix; const moving = Math.hypot(mx, mz) > 0.01;
     if (P.drunk > 0 && moving) { const k = Math.min(1, P.drunk / 12), w = Math.sin(W.state.elapsed * 1.1) * 0.6 * k; const c = Math.cos(w), s = Math.sin(w); const rx = mx * c + mz * s, rz = -mx * s + mz * c; mx = rx; mz = rz; } // the legs go where they like
-    const speed = P.aim ? 2.6 : sprint ? 7.2 : 3.6;
-    if (moving && !P.airborne) { P.vx = mx * speed; P.vz = mz * speed; } else if (!P.airborne) { P.vx *= Math.max(0, 1 - 12 * dt); P.vz *= Math.max(0, 1 - 12 * dt); }
+    const speed = P.aim ? 2.4 : sprint ? 6.8 : 3.3;
+    // accelerate over a tenth of a second and brake a little softer, so starts and stops read as steps rather than a switch
+    if (!P.airborne) { const tx = moving ? mx * speed : 0, tz = moving ? mz * speed : 0; const rate = (moving ? 34 : 26) * dt; P.vx = M.approach(P.vx, tx, rate); P.vz = M.approach(P.vz, tz, rate); }
+    P.sprinting = moving && sprint && !P.aim;
     // facing
     if (P.aim) P.angle += M.angleTo(P.angle, P.camYaw) * Math.min(1, 18 * dt);
     else if (moving) { const desired = Math.atan2(mx, mz); P.angle += M.angleTo(P.angle, desired) * Math.min(1, 14 * dt); }
@@ -157,7 +161,7 @@ const PLAYER = (() => {
     if (firing && P.fireT <= 0) attack(wp);
     if (INPUT.hit('KeyR') && !wp.melee) AUDIO.play('reload');
     moveBody(dt, false);
-    P.speed = Math.hypot(P.vx, P.vz); P.phase += dt * (P.speed > 4 ? 11 : 7) * Math.min(1, P.speed / 1.2);
+    P.speed = Math.hypot(P.vx, P.vz); P.phase += dt * (P.speed > 0.05 ? M.TAU * P.speed / (1.2 + 0.24 * P.speed) : 0); // the stride lengthens with speed, so feet stop sliding
     P.stats.distance += P.speed * dt;
     // hit by cars
     for (const c of W.cars) { if (c.removed || c === P.car) continue; const spd = c.absSpeed; if (spd < 2.5) continue; if (M.dist2(c.x, c.z, P.x, P.z) > 36) continue; const [lf, ll] = c.local(P.x, P.z); if (Math.abs(lf) < c.spec.len / 2 + 0.4 && Math.abs(ll) < c.spec.wid / 2 + 0.35) { const d = [c.vx / spd, c.vz / spd]; hurt(Math.max(0, spd - 2.5) * 6, 'car', c); knock(d[0] * spd * 0.8, Math.min(8, spd * 0.45), d[1] * spd * 0.8); AUDIO.play('bump', P.x, P.z); c.damage(2, null); if (c.ai.mode === 'traffic') { c.scared = 5; c.ai.mode = 'flee'; } break; } }
@@ -279,11 +283,11 @@ const PLAYER = (() => {
     if (P.car) {
       const c = P.car; const spd = c.absSpeed; const behind = c.speed < -2 && P.camIdle > 1 ? c.angle + Math.PI : c.angle;
       const targetYaw = behind + P.camYawOff;
-      if (P.camIdle > 1.2) { P.camYawOff *= Math.max(0, 1 - 3 * dt); P.camYaw += M.angleTo(P.camYaw, behind + P.camYawOff) * Math.min(1, (2.5 + spd * 0.15) * dt); }
+      if (P.camIdle > 1.0) { P.camYawOff *= Math.max(0, 1 - 4 * dt); P.camYaw += M.angleTo(P.camYaw, behind + P.camYawOff + (c.yawRate || 0) * 0.12) * Math.min(1, (4.5 + spd * 0.22) * dt); } // swings round faster and leads a little into the turn
       else { P.camYawOff = M.angleTo(behind, P.camYaw); }
-      yaw = P.camYaw; pitch = M.clamp(P.camPitch, 0.08, 0.9); dist = 6.5 + c.spec.len * 0.3 + spd * 0.06; tx = c.x; ty = c.y + 1.3; tz = c.z; fov = 62 + spd * 0.25;
+      yaw = P.camYaw; pitch = M.clamp(P.camPitch, 0.1, 0.9); dist = 6.0 + c.spec.len * 0.3 + spd * 0.05; const la = Math.min(3, spd * 0.12); tx = c.x + c.vx / (spd || 1) * la; ty = c.y + 1.2; tz = c.z + c.vz / (spd || 1) * la; fov = 60 + spd * 0.32;
     } else {
-      yaw = P.camYaw; pitch = P.camPitch; dist = P.aim ? 2.4 : P.camDist; tx = P.x; ty = P.y + 1.45; tz = P.z; fov = P.aim ? 50 : 62;
+      yaw = P.camYaw; pitch = P.camPitch; dist = P.aim ? 2.4 : P.camDist + (P.sprinting ? 0.6 : 0); tx = P.x; ty = P.y + 1.45 + (P.sprinting ? Math.sin(P.phase) * 0.02 : 0); tz = P.z; fov = P.aim ? 50 : P.sprinting ? 68 : 62;
       if (P.aim) { const r = [-Math.cos(yaw), Math.sin(yaw)]; tx += r[0] * 0.55; tz += r[1] * 0.55; }
       if (!P.alive) { dist = 6; pitch = 0.9; }
     }
@@ -296,9 +300,10 @@ const PLAYER = (() => {
     if (best < 1) { cx = tx + dx * best * 0.92; cz = tz + dz * best * 0.92; cy = ty + (cy - ty) * best * 0.92; }
     const gy = CITY.groundY(cx, cz) + 0.5; if (cy < gy) cy = gy;
     // smoothing
-    const k = Math.min(1, (P.car ? 14 : 20) * dt);
+    const k = Math.min(1, (P.car ? 16 : 28) * dt);
     if (P.camX === 0 && P.camZ === 0) { P.camX = cx; P.camY = cy; P.camZ = cz; }
     P.camX = M.lerp(P.camX, cx, k); P.camY = M.lerp(P.camY, cy, k); P.camZ = M.lerp(P.camZ, cz, k);
+    if (P.shake > 0) { const s = P.shake * 0.25; P.camX += (Math.random() - 0.5) * s; P.camY += (Math.random() - 0.5) * s; P.camZ += (Math.random() - 0.5) * s; P.shake = Math.max(0, P.shake - 3 * dt); }
     P.fov = M.lerp(P.fov, fov, Math.min(1, 4 * dt));
     RENDER.setCamera(P.camX, P.camY, P.camZ, tx, ty, tz, P.fov * Math.PI / 180);
     W.state.camYaw = yaw;
@@ -310,6 +315,6 @@ const PLAYER = (() => {
   let gm = null, rm = null;
   const GRENADE_MESH = () => gm || (gm = new MESH.Builder().cbox(0, 0, 0, 0.3, 0.35, 0.3, [0.2, 0.3, 0.2]).build());
   const ROCKET_MESH = () => rm || (rm = new MESH.Builder().cbox(0, 0, 0, 0.18, 0.18, 0.9, [0.4, 0.4, 0.42]).cbox(0, 0, 0.5, 0.12, 0.12, 0.2, [0.9, 0.2, 0.1]).build());
-  return { P, OUTFITS, setOutfit, init, update, updateCamera, heldEntity, giveWeapon, addMoney, hurt, knock, die, bust, respawn, fireBullet, explodeAt, updateProjectiles, entity, drawFX, projectileEntities, exitCar,
+  return { P, OUTFITS, setOutfit, init, update, updateCamera, heldEntity, shake, giveWeapon, addMoney, hurt, knock, die, bust, respawn, fireBullet, explodeAt, updateProjectiles, entity, drawFX, projectileEntities, exitCar,
     get x() { return P.x; }, get z() { return P.z; }, get y() { return P.y; }, get car() { return P.car; }, get alive() { return P.alive; }, get wanted() { return P.wanted; }, set wanted(v) { P.wanted = v; }, get stats() { return P.stats; }, get health() { return P.health; }, get money() { return P.money; }, get weapons() { return P.weapons; }, get weapon() { return P.weapon; } };
 })();

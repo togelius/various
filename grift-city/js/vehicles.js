@@ -136,6 +136,7 @@ const VEH = (() => {
             this.vx *= 0.9; this.vz *= 0.9;
             const front = (cx - this.x) * f[0] + (cz - this.z) * f[1] > 0; const side = (nx * f[1] - nz * f[0]); // which side the wall is on
             this.angle += (front ? -1 : 1) * Math.sign(side || 1) * Math.min(impact * 0.03, 0.15) * (this.speed < 0 ? -1 : 1);
+            if (impact > 3 && this.driver === PLAYER) PLAYER.shake(Math.min(1, impact / 10));
             if (impact > 3) { this.damage(impact * impact * 0.35, null); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; if (s.bike && impact > 6.5) this.throwRider(impact); }
           }
         }
@@ -157,6 +158,7 @@ const VEH = (() => {
             const offA = (ax - this.x) * this.right[0] + (az - this.z) * this.right[1]; const offB = (bx - o.x) * o.right[0] + (bz - o.z) * o.right[1];
             this.angle += M.clamp(offA * impact * 0.01, -0.2, 0.2) * (mB / tot); o.angle -= M.clamp(offB * impact * 0.01, -0.2, 0.2) * (mA / tot);
             if (impact > 2.5) {
+              if (this.driver === PLAYER || o.driver === PLAYER) PLAYER.shake(Math.min(1, impact / 9));
               const dmg = impact * impact * 0.4; this.damage(dmg * (mB / mA), o); o.damage(dmg * (mA / mB), this);
               AUDIO.play('crash', ax, az, impact / 10); W.FX.spark(ax - nx * ar, 0.7, az - nz * ar, Math.min(14, impact * 2)); if (impact > 7) W.FX.glass(ax, 1.2, az, 8);
               if (o.ai.mode === 'traffic' && !o.driverIsPlayer()) { o.scared = 4; o.ai.mode = 'flee'; o.fleeFrom = this; } if (this.ai.mode === 'traffic' && !this.driverIsPlayer()) { this.ai.honk = 1; }
@@ -220,13 +222,13 @@ const VEH = (() => {
     repair() { this.health = this.maxHealth; this.dentLevel = 0; this.meshes = getMesh(this.type, this.colIdx); this.mesh = this.meshes.body; this.dmg = { pull: 0, front: 1, rear: 1, burst: null }; this.fireT = 0; }
     explode() {
       if (this.wrecked) return; this.wrecked = true; this.health = 0; this.fireT = 0; this.meshes = dentedMesh(this.type, 'wreck', 1.0, this.dentSeed); this.mesh = this.meshes.body; this.siren = false; this.lightsOn = false;
-      const big = this.bigBoom ? 3 : 1; W.FX.explosion(this.x, this.y + 0.5, this.z, (this.spec.len > 6 ? 1.6 : 1) * big); AUDIO.play('explosion', this.x, this.z); W.noise(this.x, this.z, 120 * big, 'explosion'); if (this.bigBoom) { for (let k = 0; k < 6; k++) setTimeout(() => W.FX.explosion(this.x + (W.rng() - 0.5) * 16, this.y + 1, this.z + (W.rng() - 0.5) * 16, 1.4), 150 + k * 120); HUD.shake && HUD.shake(1); }
+      const big = this.bigBoom ? 3 : 1; W.FX.explosion(this.x, this.y + 0.5, this.z, (this.spec.len > 6 ? 1.6 : 1) * big); AUDIO.play('explosion', this.x, this.z); W.noise(this.x, this.z, 120 * big, 'explosion'); if (this.bigBoom) { for (let k = 0; k < 6; k++) setTimeout(() => W.FX.explosion(this.x + (W.rng() - 0.5) * 16, this.y + 1, this.z + (W.rng() - 0.5) * 16, 1.4), 150 + k * 120); PLAYER.shake(1); }
       this.vy = 4; this.airborne = true; this.y += 0.05;
       const killer = this.lastHitBy;
       for (const p of W.peds) { if (p.removed || p.state === 'dead') continue; const d = M.dist(p.x, p.z, this.x, this.z); if (p.inCar === this) { p.die(killer, 'explosion'); } else if (d < 7) { p.die(killer, 'explosion'); p.launch((p.x - this.x) / d * 6, 5, (p.z - this.z) / d * 6); } else if (d < 40) p.scare(this.x, this.z); }
       if (this.driver && this.driver !== PLAYER) { this.driver.inCar = null; this.driver = null; }
       const R = this.bigBoom ? 28 : 9; for (const c of W.cars) { if (c === this || c.removed) continue; const d = M.dist(c.x, c.z, this.x, this.z); if (d < R) { if (this.bigBoom) { c.lastHitBy = killer; c.damage(1500 * (1 - d / R) + 200, this); c.vy = 4; c.airborne = true; continue; } c.lastHitBy = killer; c.damage(320 * (1 - d / 9) + 60, this); const k = (9 - d) * 1.2; c.vx += (c.x - this.x) / (d + 0.1) * k; c.vz += (c.z - this.z) / (d + 0.1) * k; c.vy = 3; c.airborne = true; } }
-      if (PLAYER && PLAYER.alive) { const d = M.dist(PLAYER.x, PLAYER.z, this.x, this.z); if (PLAYER.car === this) PLAYER.hurt(300, 'explosion', killer); else if (d < 9) { PLAYER.hurt(110 * (1 - d / 9), 'explosion', killer); PLAYER.knock((PLAYER.x - this.x) / (d + 0.1) * 6, 5, (PLAYER.z - this.z) / (d + 0.1) * 6); } }
+      if (PLAYER && PLAYER.alive) { const d = M.dist(PLAYER.x, PLAYER.z, this.x, this.z); PLAYER.shake(M.clamp(1.4 - d / (this.bigBoom ? 60 : 30), 0, 1)); if (PLAYER.car === this) PLAYER.hurt(300, 'explosion', killer); else if (d < 9) { PLAYER.hurt(110 * (1 - d / 9), 'explosion', killer); PLAYER.knock((PLAYER.x - this.x) / (d + 0.1) * 6, 5, (PLAYER.z - this.z) / (d + 0.1) * 6); } }
       if (killer === PLAYER || (killer && killer.driver === PLAYER)) { POLICE.crime('explosion', this.x, this.z, this); MISSIONS.rampageKill('cars', this); }
       if (this.onExplode) this.onExplode();
     }

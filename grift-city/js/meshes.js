@@ -502,19 +502,26 @@ const MESH = (() => {
   function heldMesh(key) {
     if (heldCache[key]) return heldCache[key];
     const b = new Builder(); const dark = [0.15, 0.15, 0.17], wood = [0.4, 0.28, 0.16], olive = [0.25, 0.3, 0.22], steel = [0.5, 0.5, 0.55];
-    if (key === 'pistol') { b.cbox(0, 0.05, 0.13, 0.05, 0.06, 0.28, dark); b.cbox(0, -0.04, 0.0, 0.045, 0.14, 0.06, wood); b.cbox(0, 0.0, 0.07, 0.03, 0.03, 0.08, dark); }
-    else if (key === 'uzi') { b.cbox(0, 0.05, 0.15, 0.06, 0.08, 0.36, dark); b.cbox(0, -0.09, 0.06, 0.04, 0.2, 0.05, dark); b.cbox(0, -0.04, -0.02, 0.045, 0.12, 0.06, wood); b.cbox(0, 0.05, -0.15, 0.03, 0.05, 0.14, steel); }
-    else if (key === 'shotgun') { b.cbox(0, 0.06, 0.4, 0.045, 0.045, 0.75, dark); b.cbox(0, 0.01, 0.4, 0.045, 0.045, 0.75, dark); b.cbox(0, 0.0, 0.32, 0.06, 0.06, 0.2, wood); b.cbox(0, 0.03, -0.15, 0.05, 0.11, 0.32, wood); }
-    else if (key === 'rifle') { b.cbox(0, 0.06, 0.25, 0.06, 0.08, 0.6, dark); b.cbox(0, 0.08, 0.68, 0.03, 0.03, 0.3, dark); b.cbox(0, -0.07, 0.12, 0.04, 0.18, 0.06, dark); b.cbox(0, 0.05, -0.2, 0.05, 0.1, 0.3, dark); b.cbox(0, 0.13, 0.15, 0.03, 0.05, 0.12, dark); }
-    else if (key === 'rocket') { b.cbox(0, 0.16, 0.2, 0.16, 0.16, 1.1, olive); b.cbox(0, 0.16, 0.7, 0.2, 0.2, 0.15, dark); b.cbox(0, -0.02, 0.0, 0.05, 0.14, 0.06, dark); b.cbox(0, 0.28, 0.1, 0.04, 0.08, 0.1, dark); }
-    else if (key === 'grenade') { b.cyl(0, -0.08, 0.05, 0.05, 0.06, [0.2, 0.32, 0.2], 0, 8, 0, true, true); b.cbox(0, 0.08, 0.05, 0.04, 0.04, 0.04, steel); }
-    else if (key === 'bat') { b.tube([0, -0.05, -0.05], [0, 0.32, 0.72], 0.028, 0.048, [0.62, 0.46, 0.26], 0, 0, 8); b.tube([0, -0.06, -0.06], [0, -0.09, -0.1], 0.035, 0.035, dark, 0, 0, 6); }
+    // Weapons are modelled in "aim space" (barrel +z, up +y) and turned into the rest pose of a hanging arm, where the
+    // forearm points down -y and the palm faces +z: aim (x, y, z) -> rest (x, -z, y). Raising the arm then points the barrel forward.
+    const A = (x, y, z) => [x, -z, y];
+    const cb = (x, y, z, w, h, d, col, tile = 0, opts = {}) => { const [X, Y, Z] = A(x, y, z); b.cbox(X, Y, Z, w, d, h, col, tile, opts); };
+    const tb = (p0, p1, r0, r1, col, n = 6) => b.tube(A(...p0), A(...p1), r0, r1, col, 0, 0, n);
+    const sp = (x, y, z, rx, ry, rz, col, o) => b.sphere(...A(x, y, z), rx, rz, ry, col, o);
+    if (key === 'pistol') { cb(0, 0.05, 0.13, 0.05, 0.06, 0.28, dark); cb(0, -0.04, 0.0, 0.045, 0.14, 0.06, wood); cb(0, 0.0, 0.07, 0.03, 0.03, 0.08, dark); }
+    else if (key === 'uzi') { cb(0, 0.05, 0.15, 0.06, 0.08, 0.36, dark); cb(0, -0.09, 0.06, 0.04, 0.2, 0.05, dark); cb(0, -0.04, -0.02, 0.045, 0.12, 0.06, wood); cb(0, 0.05, -0.15, 0.03, 0.05, 0.14, steel); }
+    else if (key === 'shotgun') { cb(0, 0.06, 0.4, 0.045, 0.045, 0.75, dark); cb(0, 0.01, 0.4, 0.045, 0.045, 0.75, dark); cb(0, 0.0, 0.32, 0.06, 0.06, 0.2, wood); cb(0, 0.03, -0.15, 0.05, 0.11, 0.32, wood); }
+    else if (key === 'rifle') { cb(0, 0.06, 0.25, 0.06, 0.08, 0.6, dark); cb(0, 0.08, 0.68, 0.03, 0.03, 0.3, dark); cb(0, -0.07, 0.12, 0.04, 0.18, 0.06, dark); cb(0, 0.05, -0.2, 0.05, 0.1, 0.3, dark); cb(0, 0.13, 0.15, 0.03, 0.05, 0.12, dark); }
+    else if (key === 'rocket') { cb(0, 0.16, 0.2, 0.16, 0.16, 1.1, olive); cb(0, 0.16, 0.7, 0.2, 0.2, 0.15, dark); cb(0, -0.02, 0.0, 0.05, 0.14, 0.06, dark); cb(0, 0.28, 0.1, 0.04, 0.08, 0.1, dark); }
+    else if (key === 'grenade') { sp(0, 0.0, 0.05, 0.05, 0.06, 0.05, [0.2, 0.32, 0.2], { segs: 8, rings: 3 }); cb(0, 0.08, 0.05, 0.04, 0.04, 0.04, steel); }
+    else if (key === 'bat') { tb([0, -0.05, -0.05], [0, 0.08, 0.78], 0.028, 0.048, [0.62, 0.46, 0.26], 8); tb([0, -0.06, -0.06], [0, -0.07, -0.1], 0.035, 0.035, dark, 6); }
+    else if (key === 'camera') { cb(0, 0.05, 0.05, 0.14, 0.09, 0.07, dark); tb([0, 0.05, 0.08], [0, 0.05, 0.14], 0.03, 0.03, [0.05, 0.05, 0.06], 8); cb(-0.04, 0.11, 0.05, 0.03, 0.03, 0.03, steel); }
+    // things carried in a hanging hand stay in rest space (up is +y, forward +z)
     else if (key === 'coffee') { b.cyl(0, -0.06, 0.06, 0.04, 0.08, [0.95, 0.93, 0.88], 0, 8, 0, true, true, 0.035); b.cyl(0, 0.08, 0.06, 0.045, 0.1, [0.3, 0.25, 0.2], 0, 8, 0, true, false); }
     else if (key === 'bag') { b.cbox(0, -0.28, 0.04, 0.26, 0.32, 0.12, [0.85, 0.75, 0.55]); b.tube([-0.08, -0.12, 0.04], [0.08, -0.12, 0.04], 0.01, 0.01, [0.4, 0.3, 0.2], 0, 0, 4); b.cbox(0, -0.2, 0.105, 0.14, 0.1, 0.005, [0.8, 0.2, 0.2], 0, { faces: 16 }); }
     else if (key === 'umbrella') { b.tube([0, 0, -0.05], [0, 0.05, 0.95], 0.012, 0.012, dark, 0, 0, 5); const uc = [[0.85, 0.15, 0.15], [0.15, 0.2, 0.5], [0.1, 0.1, 0.12], [0.9, 0.85, 0.2]][Math.floor(Math.random() * 4)]; for (let k = 0; k < 8; k++) { const a0 = k / 8 * Math.PI * 2, a1 = (k + 1) / 8 * Math.PI * 2; b.polyOut([[0, 0.05, 1.0], [Math.cos(a0) * 0.55, Math.sin(a0) * 0.55, 0.8], [Math.cos(a1) * 0.55, Math.sin(a1) * 0.55, 0.8]], uc, 0, 0, 0.3); b.polyOut([[0, 0.04, 1.0], [Math.cos(a1) * 0.55, Math.sin(a1) * 0.55, 0.8], [Math.cos(a0) * 0.55, Math.sin(a0) * 0.55, 0.8]], uc.map(v => v * 0.8), 0, 0, 1.4); } }
     else if (key === 'phone') { b.cbox(0, 0.06, 0.02, 0.07, 0.14, 0.012, [0.05, 0.05, 0.06]); b.cbox(0, 0.06, 0.028, 0.06, 0.12, 0.002, [0.3, 0.6, 0.9], TEX.names.neon, { faces: 16 }); }
     else if (key === 'guitar') { const wd = [0.6, 0.4, 0.2]; b.sphere(0, -0.2, 0.05, 0.16, 0.05, 0.2, wd, { segs: 10, rings: 3 }); b.sphere(0, 0.05, 0.05, 0.13, 0.05, 0.16, wd, { segs: 10, rings: 3 }); b.tube([0, 0.15, 0.05], [0, 0.75, 0.02], 0.025, 0.025, [0.3, 0.2, 0.1], 0, 0, 5); b.cbox(0, 0.78, 0.02, 0.06, 0.12, 0.03, dark); b.cbox(0, -0.15, 0.1, 0.05, 0.04, 0.02, dark); }
-    else if (key === 'camera') { b.cbox(0, 0.05, 0.05, 0.14, 0.09, 0.07, dark); b.tube([0, 0.05, 0.08], [0, 0.05, 0.14], 0.03, 0.03, [0.05, 0.05, 0.06], 0, 0, 8); b.cbox(-0.04, 0.11, 0.05, 0.03, 0.03, 0.03, steel); }
     heldCache[key] = b.build(); return heldCache[key];
   }
   const PICKUP_MODELS = {

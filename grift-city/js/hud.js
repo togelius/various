@@ -111,9 +111,12 @@ const HUD = (() => {
     const obj = MISSIONS.objective; if (obj) { g.font = `bold 16px ${FONT}`; const tw = g.measureText(obj).width; g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(W_ / 2 - tw / 2 - 14, H_ - 66, tw + 28, 30); text(obj, W_ / 2, H_ - 51, 16, '#f5e9c0', 'center'); }
     // crosshair
     if (P.aim || (P.car && (INPUT.mouse.buttons & 1))) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.arc(W_ / 2, H_ / 2, 8, 0, 7); g.stroke(); g.fillStyle = '#fff'; g.fillRect(W_ / 2 - 1, H_ / 2 - 1, 2, 2); }
+    if (hitT > 0) { hitT -= dt; const k = hitT / 0.2; g.strokeStyle = hitKill ? `rgba(255,60,40,${k})` : `rgba(255,255,255,${k})`; g.lineWidth = 2.5; const r0 = 6 + (1 - k) * 6, r1 = r0 + 7; g.beginPath(); for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { g.moveTo(W_ / 2 + sx * r0, H_ / 2 + sy * r0); g.lineTo(W_ / 2 + sx * r1, H_ / 2 + sy * r1); } g.stroke(); }
     // help prompts
     if (INPUT.fallback && W.state.elapsed < 20) text('Pointer lock unavailable here: the mouse steers the camera without capture', W_ / 2, H_ - 40, 12, '#f5c542', 'center', 'normal');
-    if (state === 'playing' && !P.car && P.alive && W.state.elapsed < 90 && !MISSIONS.S.current) text('WASD move · mouse look · SHIFT sprint · F enter car · LMB attack · SCROLL weapons · TAB map · ESC menu', W_ / 2, H_ - 22, 12, '#bbb', 'center', 'normal');
+    if (INPUT.hit('F1')) showControls = !showControls;
+    if (state === 'playing' && P.alive) text(hintLine(P), W_ / 2, H_ - 22, 12, 'rgba(210,210,210,0.85)', 'center', 'normal');
+    if (showControls) drawControls();
     const cur = MISSIONS.S.current; if (cur && cur.data && cur.data.det !== undefined && !cur.data.alarm) { const w = 220, x = W_ / 2 - w / 2, y = 84; g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x - 2, y - 2, w + 4, 14); g.fillStyle = cur.data.det > 0.7 ? '#e0453b' : '#f5c542'; g.fillRect(x, y, w * cur.data.det, 10); text('DETECTION', W_ / 2, y - 6, 11, '#ddd', 'center', 'normal'); }
     // shop
     const shop = MISSIONS.shop; if (shop) { const n = shop.items.length; const hh = 90 + n * 28; const x = W_ / 2 - 190, y = H_ / 2 - hh / 2; g.fillStyle = 'rgba(0,0,0,0.85)'; g.fillRect(x, y, 380, hh); text(shop.title, x + 190, y + 26, 22, shop.color || '#fff', 'center');
@@ -134,6 +137,24 @@ const HUD = (() => {
     lines.forEach((l, i) => text(l, W_ / 2, H_ * 0.7 + i * 22, 14, '#bbb', 'center', 'normal'));
   }
   function drawLoading() { g.fillStyle = '#000'; g.fillRect(0, 0, W_, H_); outlined('GRIFT CITY', W_ / 2, H_ * 0.45, 70, '#f5c542'); text('building the city…', W_ / 2, H_ * 0.45 + 60, 18, '#ccc', 'center', 'normal'); }
+  // ---- Key reminders: a line for what you are doing right now, F1 for the whole sheet
+  let showControls = false, hitT = 0, hitKill = false;
+  function hitMark(kill) { hitT = 0.2; hitKill = !!kill; }
+  function hintLine(P) {
+    if (MISSIONS.shop) return 'DIGITS pick · F or ESC leave';
+    if (MISSIONS.dialogue) return 'SPACE next line';
+    const c = P.car;
+    if (c) { if (c.spec.boat) return 'W/S throttle · A/D rudder · F get out near land · F1 all controls'; if (c.spec.bike) return 'W/S throttle · A/D lean · SPACE brake slide · F get off · LMB drive-by · F1 all controls';
+      return 'W/S drive · A/D steer · SPACE handbrake · F get out · H horn' + (c.type === 'police' || c.type === 'swat' ? ' · L siren' : '') + ' · R radio · LMB drive-by · F1 all controls'; }
+    const near = W.cars.some(v => !v.removed && !v.wrecked && M.dist2(v.x, v.z, P.x, P.z) < 30);
+    return (near ? 'F get in · ' : '') + 'WASD move · SHIFT run · SPACE jump · LMB attack · RMB aim · WHEEL weapon · TAB map · F1 all controls';
+  }
+  const CONTROLS = [['ON FOOT', [['W A S D', 'move'], ['mouse', 'look'], ['SHIFT', 'run'], ['SPACE', 'jump'], ['LMB / CTRL', 'attack or fire'], ['RMB', 'aim'], ['WHEEL / 1-9', 'change weapon'], ['F', 'get in a car, boat or bike'], ['Y', 'retry a failed mission']]],
+    ['DRIVING', [['W / S', 'accelerate / brake, reverse'], ['A / D', 'steer'], ['SPACE', 'handbrake'], ['F', 'get out'], ['H', 'horn'], ['L', 'siren (police cars)'], ['R', 'next radio station'], ['LMB', 'drive-by with a pistol or SMG']]],
+    ['CITY', [['T', 'start or stop a side job in a taxi or police car'], ['walk in', 'shops, the bar, the safehouse, elevators'], ['DIGITS', 'pick from a menu'], ['P', 'photo mode'], ['TAB', 'map'], ['ESC', 'pause and options'], ['F1', 'this sheet']]]];
+  function drawControls() { g.fillStyle = 'rgba(0,0,0,0.78)'; g.fillRect(0, 0, W_, H_); outlined('CONTROLS', W_ / 2, 60, 40, '#f5c542'); const colW = Math.min(300, W_ / 3.2); const x0 = W_ / 2 - colW * 1.5;
+    CONTROLS.forEach(([title, rows], c) => { const cx = x0 + c * colW; text(title, cx + colW / 2, 120, 16, '#f5c542', 'center'); rows.forEach(([k, d], i) => { text(k, cx + colW * 0.42, 154 + i * 26, 14, '#fff', 'right'); text(d, cx + colW * 0.48, 154 + i * 26, 13, '#ccc', 'left', 'normal'); }); });
+    text('F1 to close', W_ / 2, H_ - 40, 14, '#aaa', 'center', 'normal'); }
   function drawPause() {
     const P = PLAYER.P; g.fillStyle = 'rgba(0,0,0,0.7)'; g.fillRect(0, 0, W_, H_); outlined('PAUSED', W_ / 2, 80, 48, '#f5c542');
     const st = P.stats; const rows = [['Missions passed', st.missions + ' / ' + (MISSIONS.LIST.length + MISSIONS.LIST2.length + MISSIONS.PHONE.length)], ['Standing: Marla / Crane', ECON.S.rep.marla + ' / ' + ECON.S.rep.crane], ['Properties / stored cars', Object.keys(ECON.S.properties).length + ' / ' + ECON.S.owned.length], ['Unique stunts', (st.jumps || []).length + ' / ' + CITY.ramps.length], ['Cash earned', '$' + st.cash], ['Hidden packages', st.packages + ' / 20'], ['Cars stolen', st.carsStolen], ['People killed', st.kills], ['Distance travelled', (st.distance / 1000).toFixed(1) + ' km'], ['Insane stunts', st.stunts], ['Times wasted / busted', st.wasted + ' / ' + st.busted], ['Time of day', W.clockString()]];
@@ -141,7 +162,7 @@ const HUD = (() => {
     const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', '']];
     opts.forEach(([k, n, v], i) => { const y = 150 + i * 26; text(k, W_ / 2 + 200, y, 15, '#f5c542', 'right'); text(n, W_ / 2 + 212, y, 15, '#ccc', 'left', 'normal'); text(v, W_ / 2 + 360, y, 15, '#fff', 'left'); });
     text('ESC or click  resume', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
-    text('WASD move · mouse look · LMB attack · RMB aim · SHIFT sprint · SPACE jump/handbrake · F car · T side job · R radio · L siren · H horn', W_ / 2, H_ - 34, 12, '#888', 'center', 'normal');
+    text('F1 shows every control', W_ / 2, H_ - 34, 12, '#888', 'center', 'normal');
   }
   function drawBigMap(P, overlay = null) {
     g.fillStyle = 'rgba(0,0,0,0.8)'; g.fillRect(0, 0, W_, H_); const size = Math.min(W_, H_) - 60; const scale = size / (1024 / mapCanvas._s); const ox = (W_ - size) / 2, oy = (H_ - size) / 2;
@@ -156,5 +177,5 @@ const HUD = (() => {
   }
   // Where a run went: the big map with every sampled position burned in (tools/playtest/run.js writes it as heatmap.png).
   function heatmap(track) { resize(); g.clearRect(0, 0, W_, H_); drawBigMap(PLAYER.P, (scale) => { g.fillStyle = 'rgba(255,70,30,0.22)'; for (const [x, z] of track) { g.beginPath(); g.arc(x, z, 7 / scale, 0, 7); g.fill(); } g.fillStyle = '#fff'; g.beginPath(); g.arc(track[0][0], track[0][1], 5 / scale, 0, 7); g.fill(); }); text('positions sampled every 0.4 s of wall time; white dot is the start', W_ / 2, H_ - 14, 12, '#ccc', 'center', 'normal'); }
-  return { init, draw, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap };
+  return { init, draw, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, shake: (a) => PLAYER.shake(a) };
 })();

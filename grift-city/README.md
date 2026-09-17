@@ -56,6 +56,7 @@ this directory.
 | Map / pause / mute    | `Tab` / `Esc` / `M`                        |
 | Retry a failed job    | `Y` (within half a minute of failing)      |
 | Photo mode            | `P` (WASD/QE fly, wheel zooms, click saves) |
+| All controls          | `F1` (a sheet in the game; the bottom line always shows the keys for what you are doing) |
 | Shop menus            | `1`–`9` to pick, `Esc` to leave            |
 
 Gamepads work: left stick moves, right stick looks, triggers fire and aim
@@ -178,6 +179,16 @@ stop to look in shop windows and sit on benches. Pigeons feed on the
 sidewalks and scatter when you or a car come close, gulls circle the pier
 and the docks, manholes steam, litter blows down the street, a plane
 crosses now and then, and a ferry runs round the island all day.
+
+## Feel
+
+On foot you accelerate over a tenth of a second and brake over a
+quarter, and the stride lengthens with speed so the feet stay planted
+at a walk, a jog and a run; sprinting widens the view. The car camera
+swings round quicker, leads into a turn and looks a little down the
+road. Hits you land show a marker at the crosshair, kills a red one; car
+impacts, explosions and damage shake the camera. Weapons are modelled so
+the barrel points where the arm does.
 
 ## The police
 
