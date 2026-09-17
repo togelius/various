@@ -352,6 +352,20 @@ and the steering lock shrinks with speed. Below walking pace it blends to a
 plain kinematic turn so parking is not a physics exercise. The body squats,
 dives and rolls from the real accelerations.
 
+The renderer works to keep the GPU's share small. The city is one static
+mesh whose triangles are grouped by block into chunks with bounding boxes,
+and each frame draws only the chunks inside the camera's frustum, and in
+the shadow pass only those inside the light's box, through a vertex
+shader variant without skinning. Cars and people outside the view are
+neither built nor drawn (except close by, where their shadows can still
+fall into the frame), distant people and small props cast no shadow, and
+prop instance buffers are rebuilt only when the camera has moved or
+turned enough to matter, with a culling margin that grows with distance
+so a small turn pops nothing in. A typical street view went from 2.3
+million triangles a frame to about half a million. On the simulation
+side, building lots are bucketed on a grid for collision queries and a
+parked car that has come to rest sleeps until something moves it.
+
 Damage now changes how a car drives: a hard hit can bend the steering so the
 car pulls to one side, a harder one bursts a tyre on one axle, which loses
 grip and rides low until a Pay 'n' Spray repairs it. Rain takes almost a third

@@ -566,10 +566,13 @@ const CITY = (() => {
   const outerBound = () => { const W0 = -HALF_ROAD - SW - SHORE + 1, W1 = SIZE + HALF_ROAD + SW + SHORE - 1; return [W0, W1]; };
   function blockAt(x, z) { const i = Math.floor((x - HALF_ROAD) / PITCH), j = Math.floor((z - HALF_ROAD) / PITCH); return (i >= 0 && i < GRID && j >= 0 && j < GRID) ? blocks[i * GRID + j] : null; }
   // Lots whose AABB may overlap a circle (x, z, r): check the blocks the circle touches.
+  // Lots bucketed on a 24 m grid (a lot sits in every cell it overlaps). The result array is reused: use it before the next call.
+  const LG = 24; let lotGrid = null, lotGridN = -1, lotStamp = 0; const lotOut = [];
+  function buildLotGrid() { lotGrid = new Map(); for (const l of lots) for (let i = Math.floor(l.x0 / LG); i <= Math.floor(l.x1 / LG); i++) for (let j = Math.floor(l.z0 / LG); j <= Math.floor(l.z1 / LG); j++) { const k = (i + 16) * 4096 + j + 16; let a = lotGrid.get(k); if (!a) lotGrid.set(k, a = []); a.push(l); } lotGridN = lots.length; }
   function lotsNear(x, z, r) {
-    const out = []; const seen = new Set();
-    for (const [dx, dz] of [[-r, -r], [r, -r], [-r, r], [r, r], [0, 0]]) { const bl = blockAt(x + dx, z + dz); if (bl && !seen.has(bl)) { seen.add(bl); for (const l of bl.lots) out.push(l); } }
-    return out;
+    if (lotGridN !== lots.length) buildLotGrid(); lotStamp++; lotOut.length = 0;
+    for (let i = Math.floor((x - r) / LG); i <= Math.floor((x + r) / LG); i++) for (let j = Math.floor((z - r) / LG); j <= Math.floor((z + r) / LG); j++) { const c = lotGrid.get((i + 16) * 4096 + j + 16); if (c) for (const l of c) if (l._s !== lotStamp) { l._s = lotStamp; lotOut.push(l); } }
+    return lotOut;
   }
   function insideLot(x, z) { for (const l of lotsNear(x, z, 0.5)) if (x > l.x0 && x < l.x1 && z > l.z0 && z < l.z1) return l; return null; }
   function onRoad(x, z) { return groundY(x, z) === 0 && x > -HALF_ROAD && x < SIZE + HALF_ROAD && z > -HALF_ROAD && z < SIZE + HALF_ROAD; }

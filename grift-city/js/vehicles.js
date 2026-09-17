@@ -44,7 +44,10 @@ const VEH = (() => {
       if (this.removed) return; this.age += dt; if (this.damageFlash > 0) this.damageFlash -= dt;
       if (!this.wrecked) { if (this.ai.mode === 'traffic' || this.ai.mode === 'flee') this.aiTraffic(dt); else if (this.ai.mode === 'chase') this.aiChase(dt); else if (this.ai.mode === 'parked' && !this.driver) { this.controls.throttle = 0; this.controls.brake = this.absSpeed > 0.2 ? 0.5 : 0; this.controls.steer = 0; } else if (this.ai.mode === 'route') this.aiRoute(dt); }
       else { this.controls.throttle = 0; this.controls.brake = 1; this.controls.steer = 0; }
-      if (this.spec.boat) this.boatPhysics(dt); else this.physics(dt);
+      // a parked car that has come to rest sleeps: no physics or collision until a driver, a shove or a shot wakes it
+      if (this.ai.mode === 'parked' && !this.driver && !this.wrecked && !this.spec.boat && !this.airborne && this.absSpeed < 0.03) { this.sleepT = (this.sleepT || 0) + dt; } else this.sleepT = 0;
+      if (this.sleepT > 1.5) { this.vx = 0; this.vz = 0; this.speed = 0; }
+      else if (this.spec.boat) this.boatPhysics(dt); else this.physics(dt);
       if (this.spec.boat && this.wrecked) { this.sinkT += dt; if (this.sinkT > 9 && this.driver !== PLAYER) this.remove(); }
       if (this.scared > 0) this.scared -= dt;
       if (this.horn > 0) this.horn -= dt;

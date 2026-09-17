@@ -127,5 +127,20 @@ const M = (() => {
     disc = Math.sqrt(disc); const t = (-b - disc) / (2 * a);
     return t >= 0 && t <= 1 ? t : -1;
   }
-  return { TAU, clamp, lerp, wrapAngle, angleTo, approach, dist, dist2, rng, create, identity, multiply, perspective, ortho, lookAt, trs, trsEuler, invert, transformPoint, rayAABB2, rayCircle2 };
+  // The six planes (a, b, c, d; inside where ax+by+cz+d >= 0) of a clip matrix, for culling boxes and spheres against a camera or a light.
+  function frustumPlanes(out, m) {
+    for (let k = 0; k < 6; k++) { const row = k >> 1, sign = (k & 1) ? -1 : 1; const o = k * 4;
+      let a = m[3] + sign * m[row], b = m[7] + sign * m[4 + row], c = m[11] + sign * m[8 + row], d = m[15] + sign * m[12 + row];
+      const l = Math.hypot(a, b, c) || 1; out[o] = a / l; out[o + 1] = b / l; out[o + 2] = c / l; out[o + 3] = d / l; }
+    return out;
+  }
+  function aabbInFrustum(pl, mn, mx) {
+    for (let k = 0; k < 24; k += 4) { const a = pl[k], b = pl[k + 1], c = pl[k + 2]; if (a * (a >= 0 ? mx[0] : mn[0]) + b * (b >= 0 ? mx[1] : mn[1]) + c * (c >= 0 ? mx[2] : mn[2]) + pl[k + 3] < 0) return false; }
+    return true;
+  }
+  function sphereInFrustum(pl, x, y, z, r) {
+    for (let k = 0; k < 24; k += 4) if (pl[k] * x + pl[k + 1] * y + pl[k + 2] * z + pl[k + 3] < -r) return false;
+    return true;
+  }
+  return { TAU, clamp, lerp, wrapAngle, angleTo, approach, dist, dist2, rng, create, identity, multiply, perspective, ortho, lookAt, trs, trsEuler, invert, transformPoint, rayAABB2, rayCircle2, frustumPlanes, aabbInFrustum, sphereInFrustum };
 })();

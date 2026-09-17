@@ -32,7 +32,7 @@ const GAME = (() => {
   }
   function build() {
     RENDER.init(canvas, TEX.build()); loadOptions();
-    const sb = CITY.generate(); console.log('static tris', (sb.i.length / 3) | 0, 'verts', sb.n); staticMesh = sb.build(); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; waterMesh.water = true; W.indexLights(); AMBIENT.init(); W.initProps();
+    const sb = CITY.generate(); console.log('static tris', (sb.i.length / 3) | 0, 'verts', sb.n); staticMesh = sb.buildChunked(CITY.PITCH); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; waterMesh.water = true; W.indexLights(); AMBIENT.init(); W.initProps();
     propList = W.PROP_TYPES.map(k => W.propMeshes[k]); propList.push(W.lampHeads, W.tlHeads);
     PICKUPS.placeWorld(); MISSIONS.placeRampages(); VEH.spawnParked(); VEH.spawnMarina(); AMBIENT.launchFerry();
     const sh = CITY.place('safehouse'); PLAYER.init(sh.x + 6, sh.z + 1, Math.PI);
@@ -176,13 +176,17 @@ const GAME = (() => {
     const night = RENDER.env.nightEmis > 0.05; const cam = RENDER.cam;
     RENDER.env.shadowOn = RENDER.env.shadowOn && quality.shadows;
     waterMesh.uvOff[0] = W.state.elapsed * 0.01; waterMesh.uvOff[1] = Math.sin(W.state.elapsed * 0.3) * 0.02; scene.statics = [staticMesh, waterMesh]; scene.entities.length = 0;
+    RENDER.beginFrame(canvas); // matrices and frustum planes first, so what follows can leave out what the camera cannot see
     W.fx.begin(); W.drawDecals(cam.tx, cam.tz, dt); W.lampCones(cam.tx, cam.tz);
-    for (const c of W.cars) { if (c.removed || M.dist2(c.x, c.z, cam.tx, cam.tz) > 300 * 300) continue; scene.entities.push(c.entity(night)); if (night) c.headlightFX();
+    // cars and people outside the view frustum are not built or drawn at all, except close by where their shadows can still fall into view
+    for (const c of W.cars) { if (c.removed) continue; const d2 = M.dist2(c.x, c.z, cam.tx, cam.tz); if (d2 > 300 * 300 || (d2 > 35 * 35 && !RENDER.inView(c.x, c.y + 1, c.z, c.spec.len * 0.6 + 1))) continue;
+      const ce = c.entity(night); ce.noShadow = !RENDER.inLight(c.x, c.y + 1, c.z, c.spec.len * 0.6 + 1); scene.entities.push(ce); if (night) c.headlightFX();
       if (M.dist2(c.x, c.z, cam.tx, cam.tz) < 90 * 90) { // occupants, seen through the glass
         if (c.driver && c.driver !== PLAYER) scene.entities.push(PEDS.seatedEntity(c.driver, c, 0, true));
         else if (c.driver === PLAYER && !title) scene.entities.push(PEDS.seatedEntity(PLAYER.P, c, 0, true));
         c.passengers.forEach((q, i) => { if (!q.removed) scene.entities.push(PEDS.seatedEntity(q, c, i + 1, false)); }); } }
-    for (const p of W.peds) { if (p.removed || p.inCar || M.dist2(p.x, p.z, cam.tx, cam.tz) > 140 * 140) continue; scene.entities.push(p.entity()); const h = p.heldEntity(); if (h) scene.entities.push(h); }
+    for (const p of W.peds) { if (p.removed || p.inCar) continue; const d2 = M.dist2(p.x, p.z, cam.tx, cam.tz); if (d2 > 140 * 140 || (d2 > 25 * 25 && !RENDER.inView(p.x, p.y + 1, p.z, 1.6))) continue;
+      const pe = p.entity(); pe.noShadow = d2 > 70 * 70 || !RENDER.inLight(p.x, p.y + 1, p.z, 1.6); scene.entities.push(pe); const h = p.heldEntity(); if (h) { h.noShadow = pe.noShadow; scene.entities.push(h); } }
     for (const e of window.__debugBoxes) scene.entities.push(e);
     const pe = PLAYER.entity(); if (pe && !title) { scene.entities.push(pe); const h = PLAYER.heldEntity(); if (h) scene.entities.push(h); }
     for (const e of PLAYER.projectileEntities()) scene.entities.push(e);
@@ -193,7 +197,7 @@ const GAME = (() => {
     if (!RENDER.env.shadowOn) { for (const p of W.peds) if (!p.removed && !p.inCar && M.dist2(p.x, p.z, cam.tx, cam.tz) < 60 * 60) W.fx.blob(p.x, p.y + 0.02, p.z, 0.45, 0.35); if (!PLAYER.car && !title) W.fx.blob(PLAYER.x, PLAYER.y + 0.02, PLAYER.z, 0.45, 0.35); for (const c of W.cars) if (!c.removed && M.dist2(c.x, c.z, cam.tx, cam.tz) < 120 * 120) W.fx.blob(c.x, c.y + 0.02, c.z, c.spec.len * 0.45, 0.3); }
     W.fx.end();
     W.updateProps(cam.tx, cam.tz); scene.props = propList;
-    RENDER.beginFrame(canvas); RENDER.setLights(W.collectLights(cam.tx, cam.tz));
+    RENDER.setLights(W.collectLights(cam.tx, cam.tz));
     RENDER.render(canvas, scene, W.state.elapsed);
   }
   window.addEventListener('load', boot);

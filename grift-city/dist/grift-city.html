@@ -148,7 +148,22 @@ const M = (() => {
     disc = Math.sqrt(disc); const t = (-b - disc) / (2 * a);
     return t >= 0 && t <= 1 ? t : -1;
   }
-  return { TAU, clamp, lerp, wrapAngle, angleTo, approach, dist, dist2, rng, create, identity, multiply, perspective, ortho, lookAt, trs, trsEuler, invert, transformPoint, rayAABB2, rayCircle2 };
+  // The six planes (a, b, c, d; inside where ax+by+cz+d >= 0) of a clip matrix, for culling boxes and spheres against a camera or a light.
+  function frustumPlanes(out, m) {
+    for (let k = 0; k < 6; k++) { const row = k >> 1, sign = (k & 1) ? -1 : 1; const o = k * 4;
+      let a = m[3] + sign * m[row], b = m[7] + sign * m[4 + row], c = m[11] + sign * m[8 + row], d = m[15] + sign * m[12 + row];
+      const l = Math.hypot(a, b, c) || 1; out[o] = a / l; out[o + 1] = b / l; out[o + 2] = c / l; out[o + 3] = d / l; }
+    return out;
+  }
+  function aabbInFrustum(pl, mn, mx) {
+    for (let k = 0; k < 24; k += 4) { const a = pl[k], b = pl[k + 1], c = pl[k + 2]; if (a * (a >= 0 ? mx[0] : mn[0]) + b * (b >= 0 ? mx[1] : mn[1]) + c * (c >= 0 ? mx[2] : mn[2]) + pl[k + 3] < 0) return false; }
+    return true;
+  }
+  function sphereInFrustum(pl, x, y, z, r) {
+    for (let k = 0; k < 24; k += 4) if (pl[k] * x + pl[k + 1] * y + pl[k + 2] * z + pl[k + 3] < -r) return false;
+    return true;
+  }
+  return { TAU, clamp, lerp, wrapAngle, angleTo, approach, dist, dist2, rng, create, identity, multiply, perspective, ortho, lookAt, trs, trsEuler, invert, transformPoint, rayAABB2, rayCircle2, frustumPlanes, aabbInFrustum, sphereInFrustum };
 })();
 
 </script>
@@ -227,6 +242,7 @@ const GL = (() => {
     if (m.instanced) gl.drawElementsInstanced(gl.TRIANGLES, m.count, gl.UNSIGNED_INT, 0, m.instances);
     else gl.drawElements(gl.TRIANGLES, m.count, gl.UNSIGNED_INT, 0);
   }
+  function drawRange(m, first, count) { gl.bindVertexArray(m.vao); gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_INT, first * 4); }
 
   // 2D texture array from a list of same-sized canvases.
   function textureArray(canvases) {
@@ -269,7 +285,7 @@ const GL = (() => {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     return { fbo, tex, size };
   }
-  return { init, get gl() { return gl; }, program, mesh, instancedMesh, updateInstances, updateMesh, draw, textureArray, texture2D, shadowTarget, STRIDE, LAYOUT };
+  return { init, get gl() { return gl; }, program, mesh, instancedMesh, updateInstances, updateMesh, draw, drawRange, textureArray, texture2D, shadowTarget, STRIDE, LAYOUT };
 })();
 
 </script>
@@ -659,6 +675,19 @@ const MESH = (() => {
       return this;
     }
     build(dynamic = false) { return GL.mesh(new Float32Array(this.v), new Uint32Array(this.i), dynamic); }
+    // One mesh whose triangles are grouped by the ground cell their centre falls in, each group with its bounding box, so the
+    // renderer can draw only the cells a camera or the shadow light can see.
+    buildChunked(cell) {
+      const v = this.v, idx = this.i, nt = idx.length / 3; const groups = new Map();
+      for (let t = 0; t < nt; t++) { const a = idx[t * 3] * 13, b = idx[t * 3 + 1] * 13, c = idx[t * 3 + 2] * 13;
+        const key = (Math.floor((v[a] + v[b] + v[c]) / (3 * cell)) + 64) * 4096 + Math.floor((v[a + 2] + v[b + 2] + v[c + 2]) / (3 * cell)) + 64;
+        let g = groups.get(key); if (!g) groups.set(key, g = []); g.push(t); }
+      const out = new Uint32Array(idx.length); const chunks = []; let off = 0;
+      for (const g of groups.values()) { const first = off; const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+        for (const t of g) for (let k = 0; k < 3; k++) { const vi = idx[t * 3 + k]; out[off++] = vi; const o = vi * 13; for (let d = 0; d < 3; d++) { const val = v[o + d]; if (val < mn[d]) mn[d] = val; if (val > mx[d]) mx[d] = val; } }
+        chunks.push({ first, count: off - first, min: mn, max: mx }); }
+      const m = GL.mesh(new Float32Array(v), out); m.chunks = chunks; return m;
+    }
     buildInstanced(max) { return GL.instancedMesh(new Float32Array(this.v), new Uint32Array(this.i), max); }
   }
 
@@ -1613,10 +1642,13 @@ const CITY = (() => {
   const outerBound = () => { const W0 = -HALF_ROAD - SW - SHORE + 1, W1 = SIZE + HALF_ROAD + SW + SHORE - 1; return [W0, W1]; };
   function blockAt(x, z) { const i = Math.floor((x - HALF_ROAD) / PITCH), j = Math.floor((z - HALF_ROAD) / PITCH); return (i >= 0 && i < GRID && j >= 0 && j < GRID) ? blocks[i * GRID + j] : null; }
   // Lots whose AABB may overlap a circle (x, z, r): check the blocks the circle touches.
+  // Lots bucketed on a 24 m grid (a lot sits in every cell it overlaps). The result array is reused: use it before the next call.
+  const LG = 24; let lotGrid = null, lotGridN = -1, lotStamp = 0; const lotOut = [];
+  function buildLotGrid() { lotGrid = new Map(); for (const l of lots) for (let i = Math.floor(l.x0 / LG); i <= Math.floor(l.x1 / LG); i++) for (let j = Math.floor(l.z0 / LG); j <= Math.floor(l.z1 / LG); j++) { const k = (i + 16) * 4096 + j + 16; let a = lotGrid.get(k); if (!a) lotGrid.set(k, a = []); a.push(l); } lotGridN = lots.length; }
   function lotsNear(x, z, r) {
-    const out = []; const seen = new Set();
-    for (const [dx, dz] of [[-r, -r], [r, -r], [-r, r], [r, r], [0, 0]]) { const bl = blockAt(x + dx, z + dz); if (bl && !seen.has(bl)) { seen.add(bl); for (const l of bl.lots) out.push(l); } }
-    return out;
+    if (lotGridN !== lots.length) buildLotGrid(); lotStamp++; lotOut.length = 0;
+    for (let i = Math.floor((x - r) / LG); i <= Math.floor((x + r) / LG); i++) for (let j = Math.floor((z - r) / LG); j <= Math.floor((z + r) / LG); j++) { const c = lotGrid.get((i + 16) * 4096 + j + 16); if (c) for (const l of c) if (l._s !== lotStamp) { l._s = lotStamp; lotOut.push(l); } }
+    return lotOut;
   }
   function insideLot(x, z) { for (const l of lotsNear(x, z, 0.5)) if (x > l.x0 && x < l.x1 && z > l.z0 && z < l.z1) return l; return null; }
   function onRoad(x, z) { return groundY(x, z) === 0 && x > -HALF_ROAD && x < SIZE + HALF_ROAD && z > -HALF_ROAD && z < SIZE + HALF_ROAD; }
@@ -1660,7 +1692,7 @@ const CITY = (() => {
 // a sky, a shadow pass, instanced props, point-sprite particles and a flat FX pass.
 'use strict';
 const RENDER = (() => {
-  let gl, litProg, instProg, shadowProg, shadowInstProg, skyProg, partProg, flatProg, texArray, shadow;
+  let gl, litProg, instProg, shadowProg, shadowInstProg, litStaticProg, shadowStaticProg, skyProg, partProg, flatProg, texArray, shadow;
   const MAX_LIGHTS = 32, MAX_BONES = 12;
   const proj = M.create(), view = M.create(), vp = M.create(), invVP = M.create(), invProj = M.create(), lightVP = M.create(), lightView = M.create(), lightProj = M.create();
   const identityBones = new Float32Array(16 * MAX_BONES); for (let i = 0; i < MAX_BONES; i++) identityBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
@@ -1668,7 +1700,7 @@ const RENDER = (() => {
   const cam = { x: 0, y: 20, z: 0, tx: 0, ty: 0, tz: 1, fov: 60 * Math.PI / 180, near: 0.3, far: 900 };
   const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 };
   const lights = { pos: new Float32Array(MAX_LIGHTS * 4), col: new Float32Array(MAX_LIGHTS * 3), n: 0 };
-  const stats = { draws: 0 };
+  const stats = { draws: 0, tris: 0 };
 
   const VS = `
     in vec3 aPos; in vec3 aNrm; in vec3 aCol; in vec2 aUV; in float aTile; in float aBone;
@@ -1680,6 +1712,8 @@ const RENDER = (() => {
     void main() {
       #ifdef INSTANCED
       mat4 model = mat4(aI0, aI1, aI2, aI3); vCol = aCol * aTint.rgb; vEmis = aTint.a;
+      #elif defined(STATIC)
+      mat4 model = uModel; vCol = aCol; vEmis = 0.0;
       #else
       mat4 model = uModel * uBones[int(aBone)]; vCol = aCol; vEmis = uBoneEmis[int(aBone)];
       #endif
@@ -1825,11 +1859,11 @@ const RENDER = (() => {
     gl = GL.init(canvas);
     post.hdr = !!gl.getExtension('EXT_color_buffer_float'); const maxS = gl.getParameter(gl.MAX_SAMPLES); post.samples = Math.min(4, maxS);
     brightProg = GL.program(QUAD_VS, BRIGHT_FS); blurProg = GL.program(QUAD_VS, BLUR_FS); compProg = GL.program(QUAD_VS, COMPOSITE_FS); aoProg = GL.program(QUAD_VS, AO_FS); aoBlurProg = GL.program(QUAD_VS, AOBLUR_FS);
-    litProg = GL.program(VS, FS); instProg = GL.program(VS, FS, '#define INSTANCED');
+    litProg = GL.program(VS, FS); instProg = GL.program(VS, FS, '#define INSTANCED'); litStaticProg = GL.program(VS, FS, '#define STATIC'); shadowStaticProg = GL.program(VS, SHADOW_FS, '#define STATIC\n#define SHADOW');
     shadowProg = GL.program(VS, SHADOW_FS, '#define SHADOW'); shadowInstProg = GL.program(VS, SHADOW_FS, '#define INSTANCED\n#define SHADOW');
     skyProg = GL.program(SKY_VS, SKY_FS); partProg = GL.program(PART_VS, PART_FS); flatProg = GL.program(FLAT_VS, FLAT_FS);
     texArray = GL.textureArray(textures);
-    const shadowSize = +(new URLSearchParams(location.search).get('shadow') || 0) || 3072; shadow = GL.shadowTarget(shadowSize);
+    const shadowSize = +(new URLSearchParams(location.search).get('shadow') || 0) || 2048; shadow = GL.shadowTarget(shadowSize);
     // particle buffer: pos3 size1 col4 = 8 floats
     partVao = gl.createVertexArray(); gl.bindVertexArray(partVao); partBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, partBuf);
     gl.bufferData(gl.ARRAY_BUFFER, 8 * 4 * 4096, gl.DYNAMIC_DRAW);
@@ -1879,6 +1913,8 @@ const RENDER = (() => {
   }
 
   function setCamera(x, y, z, tx, ty, tz, fov) { cam.x = x; cam.y = y; cam.z = z; cam.tx = tx; cam.ty = ty; cam.tz = tz; if (fov) cam.fov = fov; }
+  const viewPlanes = new Float32Array(24), lightPlanes = new Float32Array(24);
+  const inView = (x, y, z, r) => M.sphereInFrustum(viewPlanes, x, y, z, r), inLight = (x, y, z, r) => M.sphereInFrustum(lightPlanes, x, y, z, r);
   function beginFrame(canvas) {
     resize(canvas);
     M.perspective(proj, cam.fov, canvas.width / canvas.height, cam.near, cam.far);
@@ -1890,7 +1926,8 @@ const RENDER = (() => {
     const s = env.sunDir;
     M.lookAt(lightView, cx + s[0] * 300, s[1] * 300, cz + s[2] * 300, cx, 0, cz, 0, 1, 0);
     M.ortho(lightProj, -R, R, -R, R, 1, 700); M.multiply(lightVP, lightProj, lightView);
-    stats.draws = 0;
+    M.frustumPlanes(viewPlanes, vp); M.frustumPlanes(lightPlanes, lightVP);
+    stats.draws = 0; stats.tris = 0;
   }
   function setLights(list) {
     // list: [{x,y,z,r,col:[r,g,b]}] — nearest MAX_LIGHTS to the camera target win
@@ -1914,21 +1951,25 @@ const RENDER = (() => {
   }
   // scene = { statics: [mesh], props: [instancedMesh], entities: [{mesh, model, bones?, emis?, uvOff?}] }
   function drawScene(scene, forShadow) {
-    const P = forShadow ? shadowProg : litProg, PI = forShadow ? shadowInstProg : instProg;
+    const P = forShadow ? shadowProg : litProg, PI = forShadow ? shadowInstProg : instProg, PS = forShadow ? shadowStaticProg : litStaticProg;
+    // statics: no bones in the vertex shader, and a chunked mesh draws only the cells inside the camera's (or the light's) frustum
+    bindCommon(PS, forShadow); gl.uniformMatrix4fv(PS.u.uModel, false, identityBones.subarray(0, 16));
+    const planes = forShadow ? lightPlanes : viewPlanes;
+    for (const m of scene.statics) { if (m.uvOff) gl.uniform2fv(PS.u.uUVOff, m.uvOff); const sp = m.water ? m.spec : (m.spec || 0.12) + (env.rain || 0) * 0.5; if (!forShadow) { gl.uniform1f(PS.u.uSpec, sp); gl.uniform1f(PS.u.uWater, m.water ? 1 : 0); }
+      if (m.chunks) { for (const ch of m.chunks) if (M.aabbInFrustum(planes, ch.min, ch.max)) { GL.drawRange(m, ch.first, ch.count); stats.draws++; stats.tris += ch.count / 3; } } else { GL.draw(m); stats.draws++; stats.tris += m.count / 3; }
+      if (m.uvOff) gl.uniform2f(PS.u.uUVOff, 0, 0); if (!forShadow) { gl.uniform1f(PS.u.uSpec, 0); gl.uniform1f(PS.u.uWater, 0); } }
     bindCommon(P, forShadow);
     gl.uniformMatrix4fv(P.u.uBones, false, identityBones); gl.uniform1fv(P.u.uBoneEmis, zeroEmis);
-    gl.uniformMatrix4fv(P.u.uModel, false, identityBones.subarray(0, 16));
-    for (const m of scene.statics) { if (m.uvOff) gl.uniform2fv(P.u.uUVOff, m.uvOff); const sp = m.water ? m.spec : (m.spec || 0.12) + (env.rain || 0) * 0.5; if (!forShadow) { gl.uniform1f(P.u.uSpec, sp); gl.uniform1f(P.u.uWater, m.water ? 1 : 0); } GL.draw(m); stats.draws++; if (m.uvOff) gl.uniform2f(P.u.uUVOff, 0, 0); if (!forShadow) { gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uWater, 0); } }
     let lastBones = null, lastSpec = 0;
     for (const e of scene.entities) {
       if (forShadow && e.noShadow) continue;
       gl.uniformMatrix4fv(P.u.uModel, false, e.model);
       if (e.bones) { gl.uniformMatrix4fv(P.u.uBones, false, e.bones); lastBones = e.bones; } else if (lastBones) { gl.uniformMatrix4fv(P.u.uBones, false, identityBones); lastBones = null; }
       if (!forShadow) { gl.uniform1fv(P.u.uBoneEmis, e.emis || zeroEmis); if ((e.spec || 0) !== lastSpec) { lastSpec = e.spec || 0; gl.uniform1f(P.u.uSpec, lastSpec); } }
-      GL.draw(e.mesh); stats.draws++;
+      GL.draw(e.mesh); stats.draws++; stats.tris += e.mesh.count / 3;
     }
     bindCommon(PI, forShadow);
-    for (const m of scene.props) { if (m.instances > 0) { GL.draw(m); stats.draws++; } }
+    for (const m of scene.props) { if (m.instances > 0 && !(forShadow && m.noShadow)) { GL.draw(m); stats.draws++; stats.tris += m.count / 3 * m.instances; } }
   }
   // Translucent car glass, drawn after everything opaque (and after occupants), sorted far to near.
   function drawGlass(scene) {
@@ -2019,7 +2060,7 @@ const RENDER = (() => {
   // World → screen (pixels) for HUD labels. Returns null if behind the camera.
   const tmp = [0, 0, 0];
   function project(x, y, z, canvas) { M.transformPoint(tmp, vp, x, y, z); const w = vp[3] * x + vp[7] * y + vp[11] * z + vp[15]; if (w <= 0) return null; return [(tmp[0] * 0.5 + 0.5) * canvas.clientWidth, (0.5 - tmp[1] * 0.5) * canvas.clientHeight, w]; }
-  return { post, init, cam, env, setTimeOfDay, setCamera, beginFrame, setLights, render, project, stats, get gl() { return gl; }, MAX_BONES };
+  return { post, init, cam, env, setTimeOfDay, setCamera, beginFrame, setLights, render, project, stats, inView, inLight, get gl() { return gl; }, MAX_BONES };
 })();
 
 </script>
@@ -2205,10 +2246,10 @@ const INPUT = (() => {
   const pad = { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, buttons: [], pressed: [], active: false };
   function init(c) {
     canvas = c;
-    window.addEventListener('keydown', e => { if (!keys[e.code]) pressed[e.code] = true; keys[e.code] = true; if (e.key && e.key.length === 1) { api.typed = (api.typed + e.key.toUpperCase()).slice(-12); } if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyF', 'F1', 'AltLeft', 'AltRight'].includes(e.code) || e.code.startsWith('Digit')) e.preventDefault(); });
-    window.addEventListener('keyup', e => { keys[e.code] = false; });
+    window.addEventListener('keydown', e => { let code = e.code; if (!code || (e.key === 'Shift' && code !== 'ShiftLeft' && code !== 'ShiftRight')) code = e.key === 'Shift' ? 'ShiftLeft' : code; if (!keys[code]) pressed[code] = true; keys[code] = true; if (e.key && e.key.length === 1) { api.typed = (api.typed + e.key.toUpperCase()).slice(-12); } if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyF', 'F1', 'AltLeft', 'AltRight'].includes(e.code) || e.code.startsWith('Digit')) e.preventDefault(); });
+    window.addEventListener('keyup', e => { keys[e.code] = false; if (e.key === 'Shift') { keys.ShiftLeft = false; keys.ShiftRight = false; } });
     window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.buttons = 0; });
-    document.addEventListener('mousemove', e => { if (locked || fallback) { mouse.dx += e.movementX; mouse.dy += e.movementY; } });
+    document.addEventListener('mousemove', e => { if (locked || fallback) { mouse.dx += e.movementX; mouse.dy += e.movementY; } if (typeof e.buttons === 'number') mouse.buttons = e.buttons & 7; }); // the browser's own button mask heals a missed mouseup (a two-finger click on a Mac trackpad can lose one)
     document.addEventListener('pointerlockerror', () => { fallback = true; locked = false; });
     document.addEventListener('mousedown', e => { if (e.button === 0) { mouse.clicked++; mouse.buttons |= 1; } if (e.button === 2) { mouse.rclicked++; mouse.buttons |= 2; } if (e.button === 1) mouse.buttons |= 4; if (wantLock && !locked) requestLock(); });
     document.addEventListener('mouseup', e => { if (e.button === 0) mouse.buttons &= ~1; if (e.button === 2) mouse.buttons &= ~2; if (e.button === 1) mouse.buttons &= ~4; });
@@ -2228,11 +2269,14 @@ const INPUT = (() => {
   }
   const down = code => !!keys[code];
   const hit = code => !!pressed[code];
-  function endFrame() { for (const k in pressed) pressed[k] = false; mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0; mouse.clicked = 0; mouse.rclicked = 0; for (let i = 0; i < pad.pressed.length; i++) pad.pressed[i] = false; }
+  // The per-frame edges (key presses, clicks, mouse motion, wheel) are consumed by the first simulation step of a frame;
+  // held keys and buttons stay for the following sub-steps.
+  function consumeEdges() { for (const k in pressed) pressed[k] = false; mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0; mouse.clicked = 0; mouse.rclicked = 0; for (let i = 0; i < pad.pressed.length; i++) pad.pressed[i] = false; }
+  const endFrame = consumeEdges;
   // For recordings: the whole input state of a frame as plain data, and back.
   function snapshot() { const k = [], p = []; for (const c in keys) if (keys[c]) k.push(c); for (const c in pressed) if (pressed[c]) p.push(c); return { k, p, m: [mouse.dx, mouse.dy, mouse.buttons, mouse.wheel, mouse.clicked, mouse.rclicked] }; }
   function restore(s) { for (const c in keys) keys[c] = false; for (const c of s.k) keys[c] = true; for (const c in pressed) pressed[c] = false; for (const c of s.p) pressed[c] = true; [mouse.dx, mouse.dy, mouse.buttons, mouse.wheel, mouse.clicked, mouse.rclicked] = s.m; }
-  const api = { init, down, hit, mouse, pad, pollPad, endFrame, snapshot, restore, requestLock, releaseLock, get locked() { return locked || fallback; }, get fallback() { return fallback; }, onLockLost: null, typed: '' };
+  const api = { init, down, hit, mouse, pad, pollPad, endFrame, consumeEdges, snapshot, restore, requestLock, releaseLock, get locked() { return locked || fallback; }, get fallback() { return fallback; }, onLockLost: null, typed: '' };
   return api;
 })();
 
@@ -2290,8 +2334,8 @@ const W = (() => {
   const F = { data: new Float32Array(16384 * 7), tris: [], adds: [], lines: [], count: 0, triCount: 0, addCount: 0, lineCount: 0 };
   const fx = {
     tri(list, ax, ay, az, bx, by, bz, cx, cy, cz, r, g, b, a) { list.push(ax, ay, az, r, g, b, a, bx, by, bz, r, g, b, a, cx, cy, cz, r, g, b, a); },
-    quad(list, p0, p1, p2, p3, col, a, a2) { const a3 = a2 === undefined ? a : a2; list.push(p0[0], p0[1], p0[2], ...col, a, p1[0], p1[1], p1[2], ...col, a, p2[0], p2[1], p2[2], ...col, a3, p0[0], p0[1], p0[2], ...col, a, p2[0], p2[1], p2[2], ...col, a3, p3[0], p3[1], p3[2], ...col, a3); },
-    line(ax, ay, az, bx, by, bz, col, a, a2) { F.lines.push(ax, ay, az, ...col, a, bx, by, bz, ...col, a2 === undefined ? a : a2); },
+    quad(list, p0, p1, p2, p3, col, a, a2) { const a3 = a2 === undefined ? a : a2; const r = col[0], g = col[1], b = col[2]; list.push(p0[0], p0[1], p0[2], r, g, b, a, p1[0], p1[1], p1[2], r, g, b, a, p2[0], p2[1], p2[2], r, g, b, a3, p0[0], p0[1], p0[2], r, g, b, a, p2[0], p2[1], p2[2], r, g, b, a3, p3[0], p3[1], p3[2], r, g, b, a3); },
+    line(ax, ay, az, bx, by, bz, col, a, a2) { F.lines.push(ax, ay, az, col[0], col[1], col[2], a, bx, by, bz, col[0], col[1], col[2], a2 === undefined ? a : a2); },
     // Translucent cylinder marker with a base ring; alpha fades to zero at the top.
     marker(x, z, r, h, col, pulse) {
       const y0 = CITY.groundY(x, z) + 0.02, segs = 20; const rr = r * (1 + 0.06 * Math.sin(pulse * 4));
@@ -2403,12 +2447,20 @@ const W = (() => {
     tlHeads = MESH.lampHead().buildInstanced(CITY.props.trafficLight.length * 3 + 8);
   }
   const tmpM = M.create();
+  // Instance buffers are rebuilt when the camera has moved or turned enough for the culling margin to matter, or on a timer;
+  // types that move every frame (pigeons) or are mid-fall are rebuilt every frame. Instances outside the view (with a margin
+  // that grows with distance, so a small turn does not pop anything) are left out.
+  const propCam = { x: 1e9, z: 1e9, yaw: 0, frame: -99 }; const ALWAYS_PROPS = new Set(['pigeon']); let anyFalling = false;
+  const NO_SHADOW_PROPS = new Set(['pigeon', 'meter', 'cone', 'flowerBucket', 'sandwichBoard', 'newsbox', 'mailbox', 'hydrant', 'bin', 'bikeRack', 'barberPole', 'payphone', 'barrel', 'hedge']);
   function updateProps(camX, camZ) {
-    const R2 = 320 * 320;
+    const R2 = 320 * 320; const cam = RENDER.cam; const yaw = Math.atan2(cam.tx - cam.x, cam.tz - cam.z);
+    const moved = M.dist2(cam.x, cam.z, propCam.x, propCam.z) > 1.2 * 1.2 || Math.abs(M.angleTo(propCam.yaw, yaw)) > 0.08 || state.frame - propCam.frame > 40 || anyFalling;
+    if (moved) { propCam.x = cam.x; propCam.z = cam.z; propCam.yaw = yaw; propCam.frame = state.frame; }
     for (const t of PROP_TYPES) {
-      const m = propMeshes[t]; let n = 0;
+      const m = propMeshes[t]; let n = 0; if (!moved && !ALWAYS_PROPS.has(t)) continue; m.noShadow = NO_SHADOW_PROPS.has(t);
       for (const p of CITY.props[t]) {
-        if (M.dist2(p.x, p.z, camX, camZ) > R2) continue;
+        const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 > R2) continue;
+        if (d2 > 30 * 30 && !RENDER.inView(p.x, (p.y !== undefined ? p.y : CITY.groundY(p.x, p.z)) + 2, p.z, 5 + Math.sqrt(d2) * 0.14)) continue;
         const s = p.s || 1;
         if (p.fall !== undefined) { // knocked: rotate about the base
           const k = Math.min(1, p.fall); const tilt = k * Math.PI * 0.48;
@@ -2441,7 +2493,7 @@ const W = (() => {
     GL.updateInstances(tlHeads, n);
   }
   function knockProp(p, dirX, dirZ) { if (p.down || p.ref === undefined) return; const ref = p.ref; if (ref.fall !== undefined) return; ref.fall = 0; ref.fallDir = Math.atan2(dirX, dirZ) + Math.PI; p.down = true; p.fallT = 0; FX.spark(p.x, 1, p.z, 8); FX.dust(p.x, 0, p.z, 6); }
-  function updateKnocked(dt) { for (const p of CITY.solidProps) if (p.down && p.ref && p.ref.fall < 1) p.ref.fall = Math.min(1, p.ref.fall + dt * 2.2); }
+  function updateKnocked(dt) { anyFalling = false; for (const p of CITY.solidProps) if (p.down && p.ref && p.ref.fall < 1) { p.ref.fall = Math.min(1, p.ref.fall + dt * 2.2); anyFalling = true; } }
 
   // ---- Traffic lights
   const CYCLE = { green: 9, yellow: 2.5, red: 1 };
@@ -2510,7 +2562,8 @@ const VEH = (() => {
   function dentedMesh(type, colIdx, dent, seed) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed }); return { body: m.body.build(), glass: m.glass.build() }; }
   const TRAFFIC_TYPES = ['sedan', 'sedan', 'sedan', 'hatch', 'hatch', 'sports', 'pickup', 'van', 'taxi', 'taxi', 'muscle', 'truck', 'bus'];
 
-  const tmpV = [0, 0, 0]; const LEAN_SIGN = -1; // positive roll tips the body to the right, so leaning into a left turn (positive yaw) is negative
+  const tmpV = [0, 0, 0]; const TURN_R = 10; // radius of the arc traffic drives through a corner (m); long vehicles need more
+  const LEAN_SIGN = -1; // positive roll tips the body to the right, so leaning into a left turn (positive yaw) is negative
   class Vehicle {
     constructor(type, x, z, angle, opts = {}) {
       this.type = type; this.spec = SPECS[type]; this.name = NAMES[type];
@@ -2541,7 +2594,10 @@ const VEH = (() => {
       if (this.removed) return; this.age += dt; if (this.damageFlash > 0) this.damageFlash -= dt;
       if (!this.wrecked) { if (this.ai.mode === 'traffic' || this.ai.mode === 'flee') this.aiTraffic(dt); else if (this.ai.mode === 'chase') this.aiChase(dt); else if (this.ai.mode === 'parked' && !this.driver) { this.controls.throttle = 0; this.controls.brake = this.absSpeed > 0.2 ? 0.5 : 0; this.controls.steer = 0; } else if (this.ai.mode === 'route') this.aiRoute(dt); }
       else { this.controls.throttle = 0; this.controls.brake = 1; this.controls.steer = 0; }
-      if (this.spec.boat) this.boatPhysics(dt); else this.physics(dt);
+      // a parked car that has come to rest sleeps: no physics or collision until a driver, a shove or a shot wakes it
+      if (this.ai.mode === 'parked' && !this.driver && !this.wrecked && !this.spec.boat && !this.airborne && this.absSpeed < 0.03) { this.sleepT = (this.sleepT || 0) + dt; } else this.sleepT = 0;
+      if (this.sleepT > 1.5) { this.vx = 0; this.vz = 0; this.speed = 0; }
+      else if (this.spec.boat) this.boatPhysics(dt); else this.physics(dt);
       if (this.spec.boat && this.wrecked) { this.sinkT += dt; if (this.sinkT > 9 && this.driver !== PLAYER) this.remove(); }
       if (this.scared > 0) this.scared -= dt;
       if (this.horn > 0) this.horn -= dt;
@@ -2738,18 +2794,29 @@ const VEH = (() => {
       const ai = this.ai, c = this.controls;
       if (!ai.edge) { const nl = CITY.nearestLane(this.x, this.z, this.fwd[0], this.fwd[1]); if (!nl) return; ai.edge = nl.e; ai.lane = nl.k; ai.path = null; }
       const e = ai.edge; const L = CITY.laneLen(e); let s = this.laneS();
-      let tx, tz; const look = 4 + Math.abs(this.speed) * 0.45; let turning = false;
+      let tx, tz; const look = 4 + Math.abs(this.speed) * 0.55; let turning = false;
       if (ai.path) {
-        const p = ai.path[ai.pathIdx]; if (M.dist(this.x, this.z, p[0], p[1]) < (ai.turnKind === 'straight' ? 2.8 : 1.9)) { ai.pathIdx++; if (ai.pathIdx >= ai.path.length) { ai.path = null; ai.edge = ai.nextEdge; s = this.laneS(); } }
-        if (ai.path) { const p = ai.path[Math.min(ai.pathIdx, ai.path.length - 1)]; tx = p[0]; tz = p[1]; turning = true; }
+        // pure pursuit along the corner polyline: the target is the first waypoint at least a look-ahead away, and waypoints
+        // already within reach or behind the car are dropped. Chasing the very next waypoint is how a car ends up doing
+        // laps of an intersection, aiming at a point inside its own turning circle.
+        ai.pathT = (ai.pathT || 0) + dt; const fw = this.fwd; const la = 3.5 + Math.abs(this.speed) * 0.35; const n = ai.path.length;
+        const rel = i => { const p = ai.path[i]; const dx = p[0] - this.x, dz = p[1] - this.z; return [Math.hypot(dx, dz), dx * fw[0] + dz * fw[1]]; };
+        while (ai.pathIdx < n - 1) { const [d, along] = rel(ai.pathIdx); if (d < la * 0.6 || (along < 1 && d < 9)) ai.pathIdx++; else break; }
+        if (ai.pathIdx >= n - 1) { const [d, along] = rel(n - 1); if (d < 2.5 || (along < 1 && d < 9) || ai.pathT > 12) { ai.path = null; ai.edge = ai.nextEdge; ai.nextEdge = null; ai.pathT = 0; s = this.laneS(); } }
+        if (ai.path) { let i = ai.pathIdx; while (i < n - 1 && rel(i)[0] < la) i++; tx = ai.path[i][0]; tz = ai.path[i][1]; turning = true; }
       }
       if (!ai.path) {
-        if (s >= L - 1.5) { this.chooseNext(); const p = ai.path[0]; tx = p[0]; tz = p[1]; turning = true; }
+        if ((!ai.nextEdge || ai.nextEdge.from !== e.to) && s > L - 16) this.planNext();
+        const early = ai.nextEdge && ai.nextEdge.from === e.to && ai.turnKind === 'turn' ? this.turnRadius() - 1 : 1.5; // a corner's arc begins before the node
+        if (s >= L - early) { this.chooseNext(); const p = ai.path[ai.pathIdx]; tx = p[0]; tz = p[1]; turning = true; }
         else { [tx, tz] = CITY.lanePoint(e, ai.lane, s + look); }
       }
       // steering toward the target
-      const desired = Math.atan2(tx - this.x, tz - this.z); const da = M.angleTo(this.angle, desired);
-      c.steer = M.clamp(da * 2.2, -1, 1);
+      const desired = Math.atan2(tx - this.x, tz - this.z); const da = M.angleTo(this.angle, desired); const ld = Math.max(2.5, M.dist(this.x, this.z, tx, tz));
+      // pure pursuit: the steer angle that puts the front axle on the circle through the target, over the lock available at this speed,
+      // with a touch of yaw-rate damping so a car coming out of a corner settles instead of fishtailing
+      const spd0 = Math.abs(this.speed); const lock = 0.62 / (1 + spd0 / 13); const delta = Math.atan2(2 * this.spec.len * 0.58 * Math.sin(da), ld);
+      c.steer = M.clamp(delta / lock - (this.yawRate || 0) * 0.1, -1, 1);
       // target speed
       let target = (ai.mode === 'flee' ? (ai.fleeSpeed || 24) : ai.cruise) * (1 - 0.25 * (W.weather ? W.weather.rain : 0)); // everyone slows down in the wet
       // a fleeing mission driver who is tailed closely for long enough loses their nerve, pulls over and runs
@@ -2759,10 +2826,10 @@ const VEH = (() => {
         if (!ai.bailing && (ai.pressure > 9 || this.health < this.maxHealth * 0.55)) { ai.bailing = true; this.driver.say(W.rng() < 0.5 ? 'Alright! Alright!' : "Take it, just don't shoot!"); }
         if (ai.bailing) { target = 0; if (this.absSpeed < 2.5) { const d = this.driver; d.exitCar(); d.bailed = true; d.state = 'flee'; d.fear = 30; d.threat = [PLAYER.x, PLAYER.z]; ai.mode = 'parked'; ai.missionFlee = false; this.scared = 0; return; } }
       }
-      if (turning && ai.turnKind !== 'straight') target = Math.min(target, 7);
+      if (ai.nextEdge && ai.nextEdge.from === e.to && ai.turnKind !== 'straight' && (turning || s > L - 12)) target = Math.min(target, this.spec.len > 6 ? 4.5 : 6); // corners are taken slowly, and the braking starts before the corner
       if (Math.abs(da) > 0.6) target = Math.min(target, 5);
       // traffic light
-      if (ai.mode !== 'flee' && !ai.path) {
+      if (ai.mode !== 'flee' && (!ai.path || s < L - 0.5)) {
         const light = W.lightFor(e.to); const remain = L - s;
         if (light && remain < 14 && remain > 1) { const st = W.lightState(light, e.axis); if (st === 'red' || (st === 'yellow' && remain > 7)) { if (remain < 3.5) target = 0; else target = Math.min(target, Math.max(0, (remain - 3) * 1.5)); ai.atLight = true; } else ai.atLight = false; } else ai.atLight = false;
       }
@@ -2789,18 +2856,28 @@ const VEH = (() => {
       else if (target > 2 && Math.abs(sp) < 0.3 && !blocked && !ai.atLight) { ai.stuck += dt; if (ai.stuck > 2.5) { ai.reverseT = 1.2; ai.stuck = 0; } } else ai.stuck = Math.max(0, ai.stuck - dt);
       if (ai.mode === 'flee' && this.scared <= 0) ai.mode = 'traffic';
     }
-    chooseNext() {
+    turnRadius() { return Math.max(TURN_R, 1.2 * this.spec.len * 0.58 / Math.tan(0.62 / (1 + 4 / 13))); } // what the steering lock manages at corner speed, with margin
+    planNext() { // which way at the coming node: mostly straight on, sometimes a turn, never back the way we came
       const ai = this.ai, e = ai.edge; const node = e.to; let opts = node.out.filter(o => o.to !== e.from); if (!opts.length) opts = node.out;
       const straight = opts.find(o => o.dx === e.dx && o.dz === e.dz);
       let next = (straight && W.rng() < 0.55) ? straight : opts[Math.floor(W.rng() * opts.length)];
       if (ai.forceDir) { const f = opts.find(o => o.dx === ai.forceDir[0] && o.dz === ai.forceDir[1]); if (f) next = f; ai.forceDir = null; }
+      ai.nextEdge = next; ai.turnKind = next === straight ? 'straight' : 'turn';
+    }
+    chooseNext() {
+      const ai = this.ai, e = ai.edge; if (!ai.nextEdge || ai.nextEdge.from !== e.to || ai.forceDir) this.planNext(); /* a plan made for another edge is stale */ const next = ai.nextEdge, kind = ai.turnKind;
       const lane = ai.lane; const [p0x, p0z] = CITY.lanePoint(e, lane, CITY.laneLen(e)); const [p3x, p3z] = CITY.lanePoint(next, lane, 0);
-      const kind = next === straight ? 'straight' : 'turn'; ai.turnKind = kind;
       const path = [];
-      if (kind === 'straight') { path.push([p3x, p3z]); }
-      else { const proj = (p3x - p0x) * e.dx + (p3z - p0z) * e.dz; const cx = p0x + e.dx * proj, cz = p0z + e.dz * proj; for (let k = 1; k <= 6; k++) { const t = k / 6; const u = 1 - t; path.push([u * u * p0x + 2 * u * t * cx + t * t * p3x, u * u * p0z + 2 * u * t * cz + t * t * p3z]); } }
-      path.push(CITY.lanePoint(next, lane, 3));
-      ai.path = path; ai.pathIdx = 0; ai.nextEdge = next;
+      if (kind === 'straight') { path.push([p3x, p3z], CITY.lanePoint(next, lane, 3)); }
+      else { // a circular arc tangent to both lane lines, wide enough that the steering lock follows it and the kerb corner stays clear
+        const proj = (p3x - p0x) * e.dx + (p3z - p0z) * e.dz; const cx = p0x + e.dx * proj, cz = p0z + e.dz * proj; // where the two lane lines meet
+        const R = this.turnRadius(), bRaw = (p3x - cx) * next.dx + (p3z - cz) * next.dz;
+        const qx = cx - e.dx * R + next.dx * R, qz = cz - e.dz * R + next.dz * R; // arc centre: R before the corner and R along the exit
+        const ax = cx - e.dx * R - qx, az = cz - e.dz * R - qz, bx = cx + next.dx * R - qx, bz = cz + next.dz * R - qz; // radii to the tangent points
+        const N = 9; for (let k = 0; k <= N; k++) { const t = k / N * Math.PI / 2; path.push([qx + ax * Math.cos(t) + bx * Math.sin(t), qz + az * Math.cos(t) + bz * Math.sin(t)]); }
+        for (const ext of [3, 7, 12]) path.push(CITY.lanePoint(next, lane, R - bRaw + ext)); } /* waypoints down the exit lane keep the pursuit target on the true path, so the lock unwinds without cutting the corner */
+      const f = this.fwd; let i0 = 0; while (i0 < path.length - 1 && (path[i0][0] - this.x) * f[0] + (path[i0][1] - this.z) * f[1] < 1) i0++; // skip what is already behind us
+      ai.path = path; ai.pathIdx = i0; ai.pathT = 0;
     }
     // ---- AI: chase a target (the player) — road-agnostic pursuit with reversing when stuck.
     aiChase(dt) {
@@ -4275,7 +4352,7 @@ const HUD = (() => {
   let cv, g, W_, H_, mapCanvas = null; const notes = []; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
   const FONT = '"Helvetica Neue", Arial, sans-serif'; const DISPLAY = 'Impact, "Arial Black", "Helvetica Neue", sans-serif';
   function init(canvas) { cv = canvas; g = cv.getContext('2d'); }
-  function resize() { const dpr = Math.min(window.devicePixelRatio || 1, 2); const w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } W_ = cv.clientWidth; H_ = cv.clientHeight; g.setTransform(dpr, 0, 0, dpr, 0, 0); }
+  function resize() { const dpr = Math.min(window.devicePixelRatio || 1, 1.5); /* a full-retina overlay costs more to composite than its text is worth */ const w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } W_ = cv.clientWidth; H_ = cv.clientHeight; g.setTransform(dpr, 0, 0, dpr, 0, 0); }
   function notify(text) { notes.push({ text, t: 4 }); if (notes.length > 4) notes.shift(); }
   function money(n, why) { moneyAnim.target = PLAYER.money; if (why) notify((n >= 0 ? '+$' : '-$') + Math.abs(n) + '  ' + why); }
   function bigText(text, color, dur = 3) { big = { text, color, t: dur, max: dur }; }
@@ -4430,9 +4507,10 @@ const HUD = (() => {
     const P = PLAYER.P; g.fillStyle = 'rgba(0,0,0,0.7)'; g.fillRect(0, 0, W_, H_); outlined('PAUSED', W_ / 2, 80, 48, '#f5c542');
     const st = P.stats; const rows = [['Missions passed', st.missions + ' / ' + (MISSIONS.LIST.length + MISSIONS.LIST2.length + MISSIONS.PHONE.length)], ['Standing: Marla / Crane', ECON.S.rep.marla + ' / ' + ECON.S.rep.crane], ['Properties / stored cars', Object.keys(ECON.S.properties).length + ' / ' + ECON.S.owned.length], ['Unique stunts', (st.jumps || []).length + ' / ' + CITY.ramps.length], ['Cash earned', '$' + st.cash], ['Hidden packages', st.packages + ' / 20'], ['Cars stolen', st.carsStolen], ['People killed', st.kills], ['Distance travelled', (st.distance / 1000).toFixed(1) + ' km'], ['Insane stunts', st.stunts], ['Times wasted / busted', st.wasted + ' / ' + st.busted], ['Time of day', W.clockString()]];
     rows.forEach(([k, v], i) => { text(k, W_ / 2 - 60, 150 + i * 26, 15, '#bbb', 'right', 'normal'); text(String(v), W_ / 2 - 48, 150 + i * 26, 15, '#fff', 'left'); });
-    const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', '']];
+    const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['A', 'auto quality', o.auto ? (GAME.auto.level ? 'on, stepped down ' + GAME.auto.level : 'on') : 'off'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', '']];
     opts.forEach(([k, n, v], i) => { const y = 150 + i * 26; text(k, W_ / 2 + 200, y, 15, '#f5c542', 'right'); text(n, W_ / 2 + 212, y, 15, '#ccc', 'left', 'normal'); text(v, W_ / 2 + 360, y, 15, '#fff', 'left'); });
     text('ESC or click  resume', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
+    if (GAME.fps) text(GAME.fps + ' fps' + (GAME.fps < 30 ? '  (slow: try P for a lower render scale, K for no shadows)' : ''), W_ / 2, H_ - 86, 13, GAME.fps < 30 ? '#f5a623' : '#888', 'center', 'normal');
     text('F1 shows every control', W_ / 2, H_ - 34, 12, '#888', 'center', 'normal');
   }
   function drawBigMap(P, overlay = null) {
@@ -4457,10 +4535,21 @@ const HUD = (() => {
 'use strict';
 const GAME = (() => {
   const quality = { shadows: true };
-  const options = { sensitivity: 1.0, invertY: false, bloom: true, resolution: 1.5, shadows: true };
+  const options = { sensitivity: 1.0, invertY: false, bloom: true, resolution: 1.25, shadows: true, auto: true };
+  // Adaptive quality: when frames stay slow the renderer steps down (render scale, ambient occlusion, shadows, post) one
+  // level at a time, and steps back up when there is headroom. A slow machine gets a game that runs at full speed.
+  const auto = { level: 0, ema: 16, slowT: 0, fastT: 0, told: false, warm: 0, raises: 0 };
+  const AUTO_LEVELS = 5, AO_STRENGTH = 0.75, STEP = 1 / 60, MAX_STEPS = 6;
   function loadOptions() { try { Object.assign(options, JSON.parse(localStorage.getItem('grift-city-options') || '{}')); } catch (e) { } applyOptions(); }
   function saveOptions() { try { localStorage.setItem('grift-city-options', JSON.stringify(options)); } catch (e) { } applyOptions(); }
-  function applyOptions() { quality.shadows = options.shadows; RENDER.post.enabled = options.bloom; RENDER.post.dprCap = options.resolution; }
+  function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 4; RENDER.post.enabled = options.bloom && L < 5; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
+  function autoQuality(raw) {
+    if (!options.auto || window.__pt || state !== 'playing') return; auto.warm += raw; if (auto.warm < 4) return; // the first seconds after a load are shader warm-up, not a slow machine
+    const ms = Math.min(120, raw * 1000); auto.ema += (ms - auto.ema) * 0.06;
+    if (auto.ema > 30) { auto.slowT += raw; auto.fastT = 0; } else if (auto.ema < 17.5) { auto.fastT += raw; auto.slowT = 0; } else { auto.slowT = 0; auto.fastT = 0; }
+    if (auto.slowT > 2.5 && auto.level < AUTO_LEVELS) { auto.level++; auto.slowT = 0; auto.ema = 22; applyOptions(); if (!auto.told) { auto.told = true; HUD.notify('Slow frames: lowering render quality automatically (see the pause menu).'); } }
+    else if (auto.fastT > 20 && auto.level > 0 && auto.raises < 2) { auto.level--; auto.raises++; auto.fastT = 0; auto.ema = 22; applyOptions(); }
+  }
   let canvas, hud, state = 'loading', last = 0, staticMesh = null, waterMesh = null, propList = [], started = false, accum = 0;
   const SAVE_KEY = 'grift-city-save-v1';
   function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } }
@@ -4476,7 +4565,7 @@ const GAME = (() => {
   }
   function build() {
     RENDER.init(canvas, TEX.build()); loadOptions();
-    const sb = CITY.generate(); console.log('static tris', (sb.i.length / 3) | 0, 'verts', sb.n); staticMesh = sb.build(); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; waterMesh.water = true; W.indexLights(); AMBIENT.init(); W.initProps();
+    const sb = CITY.generate(); console.log('static tris', (sb.i.length / 3) | 0, 'verts', sb.n); staticMesh = sb.buildChunked(CITY.PITCH); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; waterMesh.water = true; W.indexLights(); AMBIENT.init(); W.initProps();
     propList = W.PROP_TYPES.map(k => W.propMeshes[k]); propList.push(W.lampHeads, W.tlHeads);
     PICKUPS.placeWorld(); MISSIONS.placeRampages(); VEH.spawnParked(); VEH.spawnMarina(); AMBIENT.launchFerry();
     const sh = CITY.place('safehouse'); PLAYER.init(sh.x + 6, sh.z + 1, Math.PI);
@@ -4496,7 +4585,7 @@ const GAME = (() => {
   const scene = { statics: [], props: [], entities: [], flat: W.F, particles: W.P };
   function frame(now) {
     requestAnimationFrame(frame);
-    let dt = Math.min(0.05, (now - last) / 1000); last = now; INPUT.pollPad();
+    const raw = Math.max(0, (now - last) / 1000); let dt = Math.min(0.1, raw); last = now; INPUT.pollPad(); autoQuality(raw);
     if (window.__pt) { // playtest mode: fixed timestep, render every N steps, full quality only on request
       const pt = window.__pt; if (pt.paused) { INPUT.endFrame(); return; } dt = pt.dt; pt.n = (pt.n || 0) + 1; const shot = pt.wantShot;
       if (pt.replay) { const s = pt.replay[pt.n - 1]; if (s) INPUT.restore(s); else { pt.paused = true; pt.done = true; INPUT.endFrame(); return; } } // a recording drives the inputs instead of a bot
@@ -4518,18 +4607,21 @@ const GAME = (() => {
       if (INPUT.hit('KeyK')) { options.shadows = !options.shadows; saveOptions(); }
       if (INPUT.hit('KeyB')) { options.bloom = !options.bloom; saveOptions(); }
       if (INPUT.hit('KeyI')) { options.invertY = !options.invertY; saveOptions(); }
-      if (INPUT.hit('KeyP')) { options.resolution = options.resolution >= 1.5 ? 1.0 : options.resolution >= 1.0 ? 0.75 : 1.5; saveOptions(); }
+      if (INPUT.hit('KeyP')) { options.resolution = options.resolution >= 1.5 ? 0.75 : options.resolution >= 1.25 ? 1.5 : options.resolution >= 1.0 ? 1.25 : 1.0; saveOptions(); }
+      if (INPUT.hit('KeyA')) { options.auto = !options.auto; auto.level = 0; auto.slowT = auto.fastT = 0; saveOptions(); }
       if (INPUT.hit('BracketLeft')) { options.sensitivity = Math.max(0.3, +(options.sensitivity - 0.1).toFixed(1)); saveOptions(); }
       if (INPUT.hit('BracketRight')) { options.sensitivity = Math.min(3, +(options.sensitivity + 0.1).toFixed(1)); saveOptions(); }
     }
     if (state === 'paused' && INPUT.hit('KeyN')) newGame();
     if (state === 'playing' && !INPUT.locked && INPUT.mouse.clicked) INPUT.requestLock();
     if (state === 'paused' && INPUT.mouse.clicked) { state = 'playing'; INPUT.requestLock(); }
-    if (state === 'playing' && !window.__manual) { step(dt); }
-    fpsAcc += dt; fpsN++; if (fpsAcc > 1) { window.__fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
+    // the world advances in steps no longer than a 60 Hz frame: a slow frame is simulated as several small steps rather
+    // than one big one, so the game keeps real-time pace down to ten frames a second and the physics never sees a jump
+    if (state === 'playing' && !window.__manual) { const n = Math.min(MAX_STEPS, Math.max(1, Math.ceil(dt / STEP - 1e-6))); const h = dt / n; for (let i = 0; i < n; i++) { step(h); if (i < n - 1) INPUT.consumeEdges(); } }
+    fpsAcc += raw; fpsN++; if (fpsAcc > 1) { window.__fps = fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
     renderWorld(dt, false); if (state === 'photo' && photo.shot) { photo.shot = false; savePhoto(); } HUD.draw(dt, state, photo); INPUT.endFrame();
   }
-  let fpsAcc = 0, fpsN = 0; const nearSounds = { park: null, water: null };
+  let fpsAcc = 0, fpsN = 0, fps = 0; const nearSounds = { park: null, water: null };
   // ---- Photo mode: the world freezes and the camera is yours. WASD/QE fly, mouse looks, wheel zooms, click or Enter saves a PNG.
   let photo = null;
   function updatePhoto(dt) { const m = INPUT.mouse; const sens = 0.0022 * (options.sensitivity || 1); photo.yaw -= m.dx * sens; photo.pitch = M.clamp(photo.pitch - m.dy * sens * (options.invertY ? -1 : 1), -1.4, 1.4);
@@ -4617,13 +4709,17 @@ const GAME = (() => {
     const night = RENDER.env.nightEmis > 0.05; const cam = RENDER.cam;
     RENDER.env.shadowOn = RENDER.env.shadowOn && quality.shadows;
     waterMesh.uvOff[0] = W.state.elapsed * 0.01; waterMesh.uvOff[1] = Math.sin(W.state.elapsed * 0.3) * 0.02; scene.statics = [staticMesh, waterMesh]; scene.entities.length = 0;
+    RENDER.beginFrame(canvas); // matrices and frustum planes first, so what follows can leave out what the camera cannot see
     W.fx.begin(); W.drawDecals(cam.tx, cam.tz, dt); W.lampCones(cam.tx, cam.tz);
-    for (const c of W.cars) { if (c.removed || M.dist2(c.x, c.z, cam.tx, cam.tz) > 300 * 300) continue; scene.entities.push(c.entity(night)); if (night) c.headlightFX();
+    // cars and people outside the view frustum are not built or drawn at all, except close by where their shadows can still fall into view
+    for (const c of W.cars) { if (c.removed) continue; const d2 = M.dist2(c.x, c.z, cam.tx, cam.tz); if (d2 > 300 * 300 || (d2 > 35 * 35 && !RENDER.inView(c.x, c.y + 1, c.z, c.spec.len * 0.6 + 1))) continue;
+      const ce = c.entity(night); ce.noShadow = !RENDER.inLight(c.x, c.y + 1, c.z, c.spec.len * 0.6 + 1); scene.entities.push(ce); if (night) c.headlightFX();
       if (M.dist2(c.x, c.z, cam.tx, cam.tz) < 90 * 90) { // occupants, seen through the glass
         if (c.driver && c.driver !== PLAYER) scene.entities.push(PEDS.seatedEntity(c.driver, c, 0, true));
         else if (c.driver === PLAYER && !title) scene.entities.push(PEDS.seatedEntity(PLAYER.P, c, 0, true));
         c.passengers.forEach((q, i) => { if (!q.removed) scene.entities.push(PEDS.seatedEntity(q, c, i + 1, false)); }); } }
-    for (const p of W.peds) { if (p.removed || p.inCar || M.dist2(p.x, p.z, cam.tx, cam.tz) > 140 * 140) continue; scene.entities.push(p.entity()); const h = p.heldEntity(); if (h) scene.entities.push(h); }
+    for (const p of W.peds) { if (p.removed || p.inCar) continue; const d2 = M.dist2(p.x, p.z, cam.tx, cam.tz); if (d2 > 140 * 140 || (d2 > 25 * 25 && !RENDER.inView(p.x, p.y + 1, p.z, 1.6))) continue;
+      const pe = p.entity(); pe.noShadow = d2 > 70 * 70 || !RENDER.inLight(p.x, p.y + 1, p.z, 1.6); scene.entities.push(pe); const h = p.heldEntity(); if (h) { h.noShadow = pe.noShadow; scene.entities.push(h); } }
     for (const e of window.__debugBoxes) scene.entities.push(e);
     const pe = PLAYER.entity(); if (pe && !title) { scene.entities.push(pe); const h = PLAYER.heldEntity(); if (h) scene.entities.push(h); }
     for (const e of PLAYER.projectileEntities()) scene.entities.push(e);
@@ -4634,11 +4730,11 @@ const GAME = (() => {
     if (!RENDER.env.shadowOn) { for (const p of W.peds) if (!p.removed && !p.inCar && M.dist2(p.x, p.z, cam.tx, cam.tz) < 60 * 60) W.fx.blob(p.x, p.y + 0.02, p.z, 0.45, 0.35); if (!PLAYER.car && !title) W.fx.blob(PLAYER.x, PLAYER.y + 0.02, PLAYER.z, 0.45, 0.35); for (const c of W.cars) if (!c.removed && M.dist2(c.x, c.z, cam.tx, cam.tz) < 120 * 120) W.fx.blob(c.x, c.y + 0.02, c.z, c.spec.len * 0.45, 0.3); }
     W.fx.end();
     W.updateProps(cam.tx, cam.tz); scene.props = propList;
-    RENDER.beginFrame(canvas); RENDER.setLights(W.collectLights(cam.tx, cam.tz));
+    RENDER.setLights(W.collectLights(cam.tx, cam.tz));
     RENDER.render(canvas, scene, W.state.elapsed);
   }
   window.addEventListener('load', boot);
-  return { quality, options, save, load, hasSave, newGame, onPackage, get state() { return state; }, set state(s) { state = s; }, startPlay };
+  return { quality, options, auto, save, load, hasSave, newGame, onPackage, get state() { return state; }, set state(s) { state = s; }, get fps() { return fps; }, startPlay };
 })();
 
 </script>

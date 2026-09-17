@@ -4,7 +4,7 @@ const HUD = (() => {
   let cv, g, W_, H_, mapCanvas = null; const notes = []; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
   const FONT = '"Helvetica Neue", Arial, sans-serif'; const DISPLAY = 'Impact, "Arial Black", "Helvetica Neue", sans-serif';
   function init(canvas) { cv = canvas; g = cv.getContext('2d'); }
-  function resize() { const dpr = Math.min(window.devicePixelRatio || 1, 2); const w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } W_ = cv.clientWidth; H_ = cv.clientHeight; g.setTransform(dpr, 0, 0, dpr, 0, 0); }
+  function resize() { const dpr = Math.min(window.devicePixelRatio || 1, 1.5); /* a full-retina overlay costs more to composite than its text is worth */ const w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } W_ = cv.clientWidth; H_ = cv.clientHeight; g.setTransform(dpr, 0, 0, dpr, 0, 0); }
   function notify(text) { notes.push({ text, t: 4 }); if (notes.length > 4) notes.shift(); }
   function money(n, why) { moneyAnim.target = PLAYER.money; if (why) notify((n >= 0 ? '+$' : '-$') + Math.abs(n) + '  ' + why); }
   function bigText(text, color, dur = 3) { big = { text, color, t: dur, max: dur }; }

@@ -50,8 +50,8 @@ const W = (() => {
   const F = { data: new Float32Array(16384 * 7), tris: [], adds: [], lines: [], count: 0, triCount: 0, addCount: 0, lineCount: 0 };
   const fx = {
     tri(list, ax, ay, az, bx, by, bz, cx, cy, cz, r, g, b, a) { list.push(ax, ay, az, r, g, b, a, bx, by, bz, r, g, b, a, cx, cy, cz, r, g, b, a); },
-    quad(list, p0, p1, p2, p3, col, a, a2) { const a3 = a2 === undefined ? a : a2; list.push(p0[0], p0[1], p0[2], ...col, a, p1[0], p1[1], p1[2], ...col, a, p2[0], p2[1], p2[2], ...col, a3, p0[0], p0[1], p0[2], ...col, a, p2[0], p2[1], p2[2], ...col, a3, p3[0], p3[1], p3[2], ...col, a3); },
-    line(ax, ay, az, bx, by, bz, col, a, a2) { F.lines.push(ax, ay, az, ...col, a, bx, by, bz, ...col, a2 === undefined ? a : a2); },
+    quad(list, p0, p1, p2, p3, col, a, a2) { const a3 = a2 === undefined ? a : a2; const r = col[0], g = col[1], b = col[2]; list.push(p0[0], p0[1], p0[2], r, g, b, a, p1[0], p1[1], p1[2], r, g, b, a, p2[0], p2[1], p2[2], r, g, b, a3, p0[0], p0[1], p0[2], r, g, b, a, p2[0], p2[1], p2[2], r, g, b, a3, p3[0], p3[1], p3[2], r, g, b, a3); },
+    line(ax, ay, az, bx, by, bz, col, a, a2) { F.lines.push(ax, ay, az, col[0], col[1], col[2], a, bx, by, bz, col[0], col[1], col[2], a2 === undefined ? a : a2); },
     // Translucent cylinder marker with a base ring; alpha fades to zero at the top.
     marker(x, z, r, h, col, pulse) {
       const y0 = CITY.groundY(x, z) + 0.02, segs = 20; const rr = r * (1 + 0.06 * Math.sin(pulse * 4));
@@ -163,12 +163,20 @@ const W = (() => {
     tlHeads = MESH.lampHead().buildInstanced(CITY.props.trafficLight.length * 3 + 8);
   }
   const tmpM = M.create();
+  // Instance buffers are rebuilt when the camera has moved or turned enough for the culling margin to matter, or on a timer;
+  // types that move every frame (pigeons) or are mid-fall are rebuilt every frame. Instances outside the view (with a margin
+  // that grows with distance, so a small turn does not pop anything) are left out.
+  const propCam = { x: 1e9, z: 1e9, yaw: 0, frame: -99 }; const ALWAYS_PROPS = new Set(['pigeon']); let anyFalling = false;
+  const NO_SHADOW_PROPS = new Set(['pigeon', 'meter', 'cone', 'flowerBucket', 'sandwichBoard', 'newsbox', 'mailbox', 'hydrant', 'bin', 'bikeRack', 'barberPole', 'payphone', 'barrel', 'hedge']);
   function updateProps(camX, camZ) {
-    const R2 = 320 * 320;
+    const R2 = 320 * 320; const cam = RENDER.cam; const yaw = Math.atan2(cam.tx - cam.x, cam.tz - cam.z);
+    const moved = M.dist2(cam.x, cam.z, propCam.x, propCam.z) > 1.2 * 1.2 || Math.abs(M.angleTo(propCam.yaw, yaw)) > 0.08 || state.frame - propCam.frame > 40 || anyFalling;
+    if (moved) { propCam.x = cam.x; propCam.z = cam.z; propCam.yaw = yaw; propCam.frame = state.frame; }
     for (const t of PROP_TYPES) {
-      const m = propMeshes[t]; let n = 0;
+      const m = propMeshes[t]; let n = 0; if (!moved && !ALWAYS_PROPS.has(t)) continue; m.noShadow = NO_SHADOW_PROPS.has(t);
       for (const p of CITY.props[t]) {
-        if (M.dist2(p.x, p.z, camX, camZ) > R2) continue;
+        const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 > R2) continue;
+        if (d2 > 30 * 30 && !RENDER.inView(p.x, (p.y !== undefined ? p.y : CITY.groundY(p.x, p.z)) + 2, p.z, 5 + Math.sqrt(d2) * 0.14)) continue;
         const s = p.s || 1;
         if (p.fall !== undefined) { // knocked: rotate about the base
           const k = Math.min(1, p.fall); const tilt = k * Math.PI * 0.48;
@@ -201,7 +209,7 @@ const W = (() => {
     GL.updateInstances(tlHeads, n);
   }
   function knockProp(p, dirX, dirZ) { if (p.down || p.ref === undefined) return; const ref = p.ref; if (ref.fall !== undefined) return; ref.fall = 0; ref.fallDir = Math.atan2(dirX, dirZ) + Math.PI; p.down = true; p.fallT = 0; FX.spark(p.x, 1, p.z, 8); FX.dust(p.x, 0, p.z, 6); }
-  function updateKnocked(dt) { for (const p of CITY.solidProps) if (p.down && p.ref && p.ref.fall < 1) p.ref.fall = Math.min(1, p.ref.fall + dt * 2.2); }
+  function updateKnocked(dt) { anyFalling = false; for (const p of CITY.solidProps) if (p.down && p.ref && p.ref.fall < 1) { p.ref.fall = Math.min(1, p.ref.fall + dt * 2.2); anyFalling = true; } }
 
   // ---- Traffic lights
   const CYCLE = { green: 9, yellow: 2.5, red: 1 };

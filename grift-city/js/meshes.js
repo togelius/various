@@ -178,6 +178,19 @@ const MESH = (() => {
       return this;
     }
     build(dynamic = false) { return GL.mesh(new Float32Array(this.v), new Uint32Array(this.i), dynamic); }
+    // One mesh whose triangles are grouped by the ground cell their centre falls in, each group with its bounding box, so the
+    // renderer can draw only the cells a camera or the shadow light can see.
+    buildChunked(cell) {
+      const v = this.v, idx = this.i, nt = idx.length / 3; const groups = new Map();
+      for (let t = 0; t < nt; t++) { const a = idx[t * 3] * 13, b = idx[t * 3 + 1] * 13, c = idx[t * 3 + 2] * 13;
+        const key = (Math.floor((v[a] + v[b] + v[c]) / (3 * cell)) + 64) * 4096 + Math.floor((v[a + 2] + v[b + 2] + v[c + 2]) / (3 * cell)) + 64;
+        let g = groups.get(key); if (!g) groups.set(key, g = []); g.push(t); }
+      const out = new Uint32Array(idx.length); const chunks = []; let off = 0;
+      for (const g of groups.values()) { const first = off; const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+        for (const t of g) for (let k = 0; k < 3; k++) { const vi = idx[t * 3 + k]; out[off++] = vi; const o = vi * 13; for (let d = 0; d < 3; d++) { const val = v[o + d]; if (val < mn[d]) mn[d] = val; if (val > mx[d]) mx[d] = val; } }
+        chunks.push({ first, count: off - first, min: mn, max: mx }); }
+      const m = GL.mesh(new Float32Array(v), out); m.chunks = chunks; return m;
+    }
     buildInstanced(max) { return GL.instancedMesh(new Float32Array(this.v), new Uint32Array(this.i), max); }
   }
 

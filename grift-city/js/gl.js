@@ -72,6 +72,7 @@ const GL = (() => {
     if (m.instanced) gl.drawElementsInstanced(gl.TRIANGLES, m.count, gl.UNSIGNED_INT, 0, m.instances);
     else gl.drawElements(gl.TRIANGLES, m.count, gl.UNSIGNED_INT, 0);
   }
+  function drawRange(m, first, count) { gl.bindVertexArray(m.vao); gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_INT, first * 4); }
 
   // 2D texture array from a list of same-sized canvases.
   function textureArray(canvases) {
@@ -114,5 +115,5 @@ const GL = (() => {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     return { fbo, tex, size };
   }
-  return { init, get gl() { return gl; }, program, mesh, instancedMesh, updateInstances, updateMesh, draw, textureArray, texture2D, shadowTarget, STRIDE, LAYOUT };
+  return { init, get gl() { return gl; }, program, mesh, instancedMesh, updateInstances, updateMesh, draw, drawRange, textureArray, texture2D, shadowTarget, STRIDE, LAYOUT };
 })();
