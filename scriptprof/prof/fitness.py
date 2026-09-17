@@ -5,6 +5,8 @@ Cheapest checks first, each tier only reached if the previous one passed:
     tier 0  does not compile                       -> fitness -3
     tier 1  compiles but no level is solvable      -> fitness -2
     tier 2  some levels unsolved within budget     -> fitness -1 + fraction solved
+            (a level that is already won at the start counts as unsolved:
+            it is a degenerate level, e.g. one with no targets)
     tier 3  all levels solvable; scored in [0, 1] by the harmonic mean of
             non-triviality (solution length), rule coverage (every compiled
             rule fires on some solution), and level progression (search
@@ -31,6 +33,7 @@ class Evaluation:
     n_levels: int = 0
     n_solved: int = 0
     solutions: dict[int, list[int]] = field(default_factory=dict)
+    trivial: list[int] = field(default_factory=list)  # levels won in zero moves
     lengths: list[int] = field(default_factory=list)
     iters: list[int] = field(default_factory=list)
     coverage: dict[str, Any] | None = None
@@ -80,7 +83,9 @@ def evaluate(text: str, max_iters: int = 100_000, timeout_ms: int = 5_000,
     for i in idxs:
         s = E.solve_level(eng, i, "bfs", max_iters=max_iters, timeout_ms=timeout_ms)
         ev.iters.append(s.iterations)
-        if s.solved:
+        if s.solved and len(s.actions) == 0:
+            ev.trivial.append(i)
+        elif s.solved:
             ev.solutions[i] = s.actions
             ev.lengths.append(len(s.actions))
     ev.n_solved = len(ev.solutions)
@@ -90,7 +95,7 @@ def evaluate(text: str, max_iters: int = 100_000, timeout_ms: int = 5_000,
     if ev.n_solved < ev.n_levels:
         ev.tier = 2
         ev.fitness = -1.0 + ev.n_solved / ev.n_levels
-        ev.reason = "some levels unsolved"
+        ev.reason = "some levels unsolved" + (f", {len(ev.trivial)} won at start" if ev.trivial else "")
         return ev
     # tier 3: all levels solvable
     ev.tier = 3
