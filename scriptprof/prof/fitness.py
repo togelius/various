@@ -81,6 +81,11 @@ def evaluate(text: str, max_iters: int = 100_000, timeout_ms: int = 5_000,
         return Evaluation(fitness=-3.0, tier=0, reason="no playable levels", compiled=True)
     ev = Evaluation(fitness=-2.0, tier=1, reason="", compiled=True, n_levels=len(idxs))
     for i in idxs:
+        eng.load_level(i)
+        if eng.check_win():  # won before any move: degenerate level (e.g. no targets)
+            ev.trivial.append(i)
+            ev.iters.append(0)
+            continue
         s = E.solve_level(eng, i, "bfs", max_iters=max_iters, timeout_ms=timeout_ms)
         ev.iters.append(s.iterations)
         if s.solved and len(s.actions) == 0:
