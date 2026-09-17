@@ -32,6 +32,7 @@ const AUDIO = (() => {
   const att = (x, z, range) => { if (x === undefined) return 1; const d = M.dist(x, z, lx, lz); return M.clamp(1 - d / range, 0, 1) ** 1.5; };
 
   const SFX = {
+    flap(x, z) { const a = att(x, z, 45); if (a <= 0) return; noise(0.22, 0.25 * a, 'bandpass', 700, 0.7, 0.05); noise(0.16, 0.18 * a, 'bandpass', 1100, 0.7, 0.04); },
     pistol(x, z) { const a = att(x, z, 120); if (a <= 0) return; const v = 0.85 + Math.random() * 0.3; noise(0.25, 0.9 * a, 'bandpass', 1800 * v, 0.6, 0.12); tone(160 * v, 0.12, 0.5 * a, 'square', 60); },
     uzi(x, z) { const a = att(x, z, 120); if (a <= 0) return; const v = 0.9 + Math.random() * 0.2; noise(0.12, 0.6 * a, 'bandpass', 2400 * v, 0.8, 0.07); tone(220 * v, 0.07, 0.35 * a, 'square', 90); },
     rifle(x, z) { const a = att(x, z, 150); if (a <= 0) return; const v = 0.9 + Math.random() * 0.2; noise(0.2, 0.8 * a, 'bandpass', 1500 * v, 0.7, 0.1); tone(130 * v, 0.14, 0.5 * a, 'sawtooth', 50); },

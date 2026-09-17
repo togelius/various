@@ -153,6 +153,32 @@ closes from eleven at night to seven. Reach five stars and Crane puts a
 price on your head: three crews come for you, one at a time, whenever the
 police have lost interest, and each one drops what he paid them.
 
+## What you see on the street
+
+Ground floors are painted from sixteen kinds of shop, two to a tile, each
+with its own sign, window and door: bodegas with crates of fruit, diners
+with neon and stools, pharmacies with a green cross, laundromats,
+bars, pawnbrokers behind bars, bookshops, cafes with chalk menus, barbers,
+tattoo parlours, all-night liquor stores, noodle houses with red lanterns,
+electronics with a wall of screens, boutiques with mannequins, florists
+and bakeries; some fronts are shuttered and flyposted. Every eight
+metres of wall takes a different tile drawn from the district's mix, so
+a block reads as a row of separate businesses. Upper floors come in
+sixteen facade styles with balconies, window boxes, air conditioners,
+fire escapes and faded painted adverts on side walls; offices downtown
+fly banners, tenements have stoops, Westfield houses have fences and
+front gardens. The sidewalks carry cafe tables, crates, sandwich boards,
+vending machines, barber poles, bike racks, flower buckets, tyre stacks,
+barrels and hot-dog carts with a vendor behind them.
+
+The city is populated by district: suits downtown, hi-vis on the east
+side, joggers in Westfield, wool by the water. People carry coffee, bags,
+phones and guitars, put umbrellas up in the rain, wait at bus shelters,
+stop to look in shop windows and sit on benches. Pigeons feed on the
+sidewalks and scatter when you or a car come close, gulls circle the pier
+and the docks, manholes steam, litter blows down the street, a plane
+crosses now and then, and a ferry runs round the island all day.
+
 ## The police
 
 Crimes raise heat. Witnesses and nearby officers make it climb faster. One

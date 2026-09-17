@@ -21,9 +21,9 @@ const GAME = (() => {
   }
   function build() {
     RENDER.init(canvas, TEX.build()); loadOptions();
-    const sb = CITY.generate(); console.log('static tris', (sb.i.length / 3) | 0, 'verts', sb.n); staticMesh = sb.build(); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; waterMesh.water = true; W.indexLights(); W.initProps();
-    propList = ['lamppost', 'trafficLight', 'tree', 'hydrant', 'bin', 'bench', 'bollard', 'payphone', 'dumpster', 'mailbox', 'meter', 'newsbox', 'busShelter', 'cone', 'barrier', 'hedge', 'roundTree', 'palm', 'umbrella', 'streetSign'].map(k => W.propMeshes[k]); propList.push(W.lampHeads, W.tlHeads);
-    PICKUPS.placeWorld(); MISSIONS.placeRampages(); VEH.spawnParked(); VEH.spawnMarina();
+    const sb = CITY.generate(); console.log('static tris', (sb.i.length / 3) | 0, 'verts', sb.n); staticMesh = sb.build(); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; waterMesh.water = true; W.indexLights(); AMBIENT.init(); W.initProps();
+    propList = W.PROP_TYPES.map(k => W.propMeshes[k]); propList.push(W.lampHeads, W.tlHeads);
+    PICKUPS.placeWorld(); MISSIONS.placeRampages(); VEH.spawnParked(); VEH.spawnMarina(); AMBIENT.launchFerry();
     const sh = CITY.place('safehouse'); PLAYER.init(sh.x + 6, sh.z + 1, Math.PI);
     if (hasSave()) load();
     RENDER.setTimeOfDay(W.state.time);
@@ -143,7 +143,7 @@ const GAME = (() => {
     if (!dlg) PLAYER.update(dt); else { PLAYER.P.aim = 0; PLAYER.P.vx = PLAYER.P.vz = 0; if (PLAYER.car) { PLAYER.car.controls.throttle = 0; PLAYER.car.controls.brake = 1; } PLAYER.updateCamera(dt); }
     PLAYER.updateProjectiles(dt);
     VEH.updateAll(dt, night); PEDS.updateAll(dt); POLICE.update(dt); PICKUPS.update(dt);
-    W.updateLights(dt); W.updateKnocked(dt); W.updateExplosions(dt); W.updateParticles(dt);
+    W.updateLights(dt); W.updateKnocked(dt); W.updateExplosions(dt); W.updateParticles(dt); AMBIENT.update(dt, PLAYER.x, PLAYER.z);
     // population management
     const px = PLAYER.x, pz = PLAYER.z, yaw = W.state.camYaw;
     const busy = W.bustle(W.state.time); // rush hours fill the streets, the small hours empty them
@@ -171,7 +171,7 @@ const GAME = (() => {
     for (const e of window.__debugBoxes) scene.entities.push(e);
     const pe = PLAYER.entity(); if (pe && !title) { scene.entities.push(pe); const h = PLAYER.heldEntity(); if (h) scene.entities.push(h); }
     for (const e of PLAYER.projectileEntities()) scene.entities.push(e);
-    for (const e of PICKUPS.entities(cam.tx, cam.tz)) scene.entities.push(e);
+    for (const e of PICKUPS.entities(cam.tx, cam.tz)) scene.entities.push(e); AMBIENT.entities(scene.entities);
     const he = POLICE.heliEntity(); if (he) scene.entities.push(he);
     if (!title) { MISSIONS.markersFX(W.state.elapsed); ECON.markersFX(W.state.elapsed); PLAYER.drawFX(); }
     // soft blob shadows under peds at night (sun shadows are off)

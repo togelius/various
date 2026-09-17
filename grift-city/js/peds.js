@@ -3,12 +3,19 @@
 'use strict';
 const PEDS = (() => {
   const SKIN = [[0.95, 0.8, 0.68], [0.85, 0.65, 0.5], [0.6, 0.42, 0.3], [0.42, 0.28, 0.2], [0.9, 0.75, 0.62]];
-  const CLOTH = [[0.8, 0.2, 0.2], [0.2, 0.3, 0.7], [0.9, 0.9, 0.85], [0.15, 0.15, 0.15], [0.3, 0.6, 0.3], [0.9, 0.7, 0.2], [0.6, 0.3, 0.6], [0.4, 0.4, 0.45], [0.95, 0.5, 0.2], [0.2, 0.7, 0.75]];
+  const CLOTH = [[0.8, 0.2, 0.2], [0.2, 0.3, 0.7], [0.9, 0.9, 0.85], [0.15, 0.15, 0.15], [0.3, 0.6, 0.3], [0.9, 0.7, 0.2], [0.6, 0.3, 0.6], [0.4, 0.4, 0.45], [0.95, 0.5, 0.2], [0.2, 0.7, 0.75], [0.95, 0.75, 0.8], [0.55, 0.75, 0.95], [0.35, 0.25, 0.2], [0.75, 0.85, 0.6], [0.5, 0.1, 0.15], [0.98, 0.95, 0.6], [0.25, 0.45, 0.55], [0.7, 0.7, 0.72], [0.1, 0.35, 0.25], [1, 0.6, 0.1]];
   const PANTS = [[0.2, 0.25, 0.4], [0.15, 0.15, 0.15], [0.45, 0.4, 0.35], [0.3, 0.3, 0.35], [0.55, 0.5, 0.42]];
   const HAIR = [[0.1, 0.08, 0.06], [0.35, 0.22, 0.1], [0.75, 0.6, 0.3], [0.5, 0.5, 0.5], [0.6, 0.15, 0.1]];
   const looks = []; const meshCache = {};
   const r0 = M.rng(77);
-  for (let i = 0; i < 40; i++) looks.push({ skin: r0.pick(SKIN), shirt: r0.pick(CLOTH), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: r0.chance(0.25) ? r0.pick(CLOTH) : null, beanie: r0.chance(0.4), jacket: r0.chance(0.3) ? r0.pick(CLOTH) : null, sleeves: r0.chance(0.5), glasses: r0.chance(0.15), bag: r0.chance(0.2) ? r0.pick(PANTS) : null, skirt: r0.chance(0.25), longHair: r0.chance(0.35) });
+  for (let i = 0; i < 90; i++) looks.push({ skin: r0.pick(SKIN), shirt: r0.pick(CLOTH), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: r0.chance(0.25) ? r0.pick(CLOTH) : null, beanie: r0.chance(0.4), jacket: r0.chance(0.3) ? r0.pick(CLOTH) : null, sleeves: r0.chance(0.5), glasses: r0.chance(0.15), bag: r0.chance(0.2) ? r0.pick(PANTS) : null, skirt: r0.chance(0.25), longHair: r0.chance(0.35) });
+  // district wardrobes: suits downtown, hi-vis and overalls on the east side, running gear in the leafy west, wool by the water
+  const SUIT = () => ({ skin: r0.pick(SKIN), shirt: [0.95, 0.95, 0.95], pants: r0.pick([[0.1, 0.1, 0.13], [0.2, 0.2, 0.3], [0.35, 0.3, 0.28]]), hair: r0.pick(HAIR), hat: null, jacket: r0.pick([[0.1, 0.1, 0.13], [0.2, 0.2, 0.3], [0.35, 0.3, 0.28], [0.15, 0.2, 0.35]]), sleeves: true, glasses: r0.chance(0.3), bag: r0.chance(0.4) ? [0.15, 0.1, 0.08] : null, skirt: r0.chance(0.3), longHair: r0.chance(0.3) });
+  const WORK = () => ({ skin: r0.pick(SKIN), shirt: r0.pick([[1, 0.6, 0.1], [0.95, 0.9, 0.2], [0.3, 0.35, 0.55], [0.4, 0.4, 0.42]]), pants: r0.pick([[0.3, 0.35, 0.55], [0.35, 0.3, 0.25], [0.2, 0.2, 0.22]]), hair: r0.pick(HAIR), hat: r0.chance(0.5) ? [0.95, 0.8, 0.15] : null, beanie: r0.chance(0.3), jacket: null, sleeves: r0.chance(0.6), glasses: false, bag: null, skirt: false, longHair: r0.chance(0.15) });
+  const RUN = () => ({ skin: r0.pick(SKIN), shirt: r0.pick([[0.95, 0.3, 0.5], [0.2, 0.8, 0.9], [0.9, 0.9, 0.2], [0.98, 0.98, 0.98], [0.1, 0.1, 0.1]]), pants: r0.pick([[0.1, 0.1, 0.12], [0.2, 0.2, 0.5], [0.4, 0.4, 0.42]]), hair: r0.pick(HAIR), hat: r0.chance(0.4) ? r0.pick(CLOTH) : null, jacket: null, sleeves: false, glasses: r0.chance(0.4), bag: null, skirt: false, longHair: r0.chance(0.5) });
+  const WOOL = () => ({ skin: r0.pick(SKIN), shirt: r0.pick([[0.35, 0.3, 0.28], [0.2, 0.25, 0.3], [0.5, 0.45, 0.35]]), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: null, beanie: r0.chance(0.7), jacket: r0.pick([[0.9, 0.65, 0.1], [0.2, 0.25, 0.3], [0.35, 0.3, 0.28]]), sleeves: true, glasses: false, bag: null, skirt: false, longHair: r0.chance(0.2) });
+  const WARDROBE = { downtown: [], eastside: [], westfield: [], southport: [] }; for (let i = 0; i < 16; i++) { WARDROBE.downtown.push(SUIT()); WARDROBE.eastside.push(WORK()); WARDROBE.westfield.push(RUN()); WARDROBE.southport.push(WOOL()); }
+  const VENDOR = { skin: [0.85, 0.65, 0.5], shirt: [0.95, 0.95, 0.9], pants: [0.2, 0.2, 0.22], hair: [0.2, 0.15, 0.1], hat: [0.95, 0.95, 0.9], jacket: null, sleeves: false, glasses: false, bag: null, skirt: false, longHair: false };
   const COP = { skin: [0.9, 0.75, 0.62], shirt: [0.2, 0.3, 0.6], pants: [0.15, 0.18, 0.3], hair: [0.1, 0.1, 0.1], hat: [0.15, 0.18, 0.35], jacket: null, sleeves: true, glasses: true };
   const SWAT = { skin: [0.85, 0.7, 0.6], shirt: [0.12, 0.12, 0.14], pants: [0.1, 0.1, 0.12], hair: [0.1, 0.1, 0.1], hat: [0.1, 0.1, 0.12], jacket: [0.2, 0.2, 0.22], sleeves: true, glasses: true };
   const GANG = { skin: [0.6, 0.42, 0.3], shirt: [0.55, 0.05, 0.1], pants: [0.12, 0.12, 0.12], hair: [0.08, 0.06, 0.06], hat: [0.5, 0.05, 0.1], jacket: [0.15, 0.15, 0.15], sleeves: true };
@@ -183,7 +190,7 @@ const PEDS = (() => {
   // The weapon in the right hand is a second entity riding the forearm bone: model * forearm * T(hand).
   const heldBones = new Float32Array(16 * RENDER.MAX_BONES); for (let i = 0; i < RENDER.MAX_BONES; i++) heldBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16); const heldEmis = new Float32Array(RENDER.MAX_BONES);
   const heldTmp = M.create(), heldHand = M.create();
-  function heldEntity(p) { const key = p.weapon; if (!key || key === 'fist' || !p.weaponOut || p.inCar || p.rag || p.state === 'dead') return null; const mesh = MESH.heldMesh(key); if (!mesh) return null;
+  function heldEntity(p) { const armed = p.weapon && p.weapon !== 'fist' && p.weaponOut; const key = armed ? p.weapon : p.item; if (!key || p.inCar || p.rag || p.state === 'dead' || (p.state === 'sit' && !armed)) return null; const mesh = MESH.heldMesh(key); if (!mesh) return null;
     if (!p.heldModel) p.heldModel = M.create(); M.multiply(heldTmp, p.model, p.bones.subarray(160, 176)); M.trs(heldHand, MESH.HAND[0], MESH.HAND[1], MESH.HAND[2], 0); M.multiply(p.heldModel, heldTmp, heldHand); return { mesh, model: p.heldModel, bones: heldBones, emis: heldEmis }; }
   // Bone 11 carries the mouth: the head bone with a vertical stretch about the mouth's own position, so a talking ped's lips move.
   const mtmp1 = M.create(), mtmp2 = M.create(), mtmp3 = M.create();
@@ -212,13 +219,14 @@ const PEDS = (() => {
     // head: rides on the torso and cancels most of the twist so it keeps looking where the ped goes
     bone(bones, 16, sway * 0.02, hip + TORSO_H + 0.03 + breath * 0.006, lean * 0.2, (aim ? 0 : (p.headYaw || 0)) + sway * 0.07, lean * 0.5 + (aim ? 0 : Math.sin(ph * 0.5) * 0.03 + Math.sin(t * 0.9) * 0.02 * idle), -sway * 0.03);
     // upper arms: pivot at the shoulders, swing opposite to the legs, held out a little at a run
-    const armPitchL = (aim ? -0.4 : swing * 0.85 - 0.45 * run) - flinch * 1.1 - kick * 0.5, armPitchR = (aim ? -Math.PI / 2 + 0.05 + (p.recoil || 0) * 2 : -swing * 0.85 - 0.45 * run - punch * 1.4) - flinch * 0.9 + kick * 0.6;
+    const hold = !aim && p.item && (p.item === 'umbrella' || p.item === 'phone') ? p.item : null;
+    const armPitchL = (aim ? -0.4 : swing * 0.85 - 0.45 * run) - flinch * 1.1 - kick * 0.5, armPitchR = hold === 'umbrella' ? -2.1 : hold === 'phone' ? -2.3 : (aim ? -Math.PI / 2 + 0.05 + (p.recoil || 0) * 2 : -swing * 0.85 - 0.45 * run - punch * 1.4) - flinch * 0.9 + kick * 0.6;
     const armRoll = 0.06 + run * 0.3 + Math.sin(t * 1.1) * 0.015 * idle;
     bone(bones, 32, sway * 0.02, hip + SHOULDER + breath * 0.006, 0, 0, armPitchL, armRoll + (aim ? 0.12 : 0));
     bone(bones, 48, sway * 0.02, hip + SHOULDER + breath * 0.006, 0, aim ? -0.15 : 0, armPitchR, -armRoll);
     // forearms: elbows fold on the forward swing, stay bent at a run, straight when aiming
     const elbowL = aim ? -0.05 : -(0.22 + 0.35 * Math.max(0, Math.sin(ph)) * walk + 0.8 * run);
-    const elbowR = aim ? 0 : -(0.22 + 0.35 * Math.max(0, -Math.sin(ph)) * walk + 0.8 * run + punch * 0.6);
+    const elbowR = hold === 'phone' ? -2.3 : hold === 'umbrella' ? -0.3 : aim ? 0 : -(0.22 + 0.35 * Math.max(0, -Math.sin(ph)) * walk + 0.8 * run + punch * 0.6);
     jointBone(bones, 144, 32, 0.3, ELBOW_Y, 0, elbowL); jointBone(bones, 160, 48, -0.3, ELBOW_Y, 0, elbowR);
     // thighs: pivot at the hips; knees fold while the foot swings through and straighten for the strike
     bone(bones, 64, sway * 0.02, hip, 0, 0, -swing * 0.95 + kick * 0.3, 0); bone(bones, 80, sway * 0.02, hip, 0, 0, swing * 0.95 - kick * 1.5, 0); // a kick swings the right leg up
@@ -327,7 +335,11 @@ const PEDS = (() => {
     let count = 0; for (const p of W.peds) if (!p.removed && !p.inCar && !p.isCop && !p.important) count++;
     if (count >= want) return;
     const r = W.rng();
-    if (r < 0.12) { // someone on a bench
+    if (r < 0.06) { // a vendor behind an unattended cart
+      for (const ct of CITY.props.hotdogCart) { if (ct.taken) continue; const d = M.dist(ct.x, ct.z, px, pz); if (d < 25 || d > 130) continue; const p = spawn(ct.x - Math.sin(ct.a) * 1.1, ct.z - Math.cos(ct.a) * 1.1, { look: VENDOR }); p.state = 'stand'; p.wanderT = 1e9; p.angle = ct.a; p.vendor = true; ct.taken = true; p.onRemove = () => { ct.taken = false; }; return; } }
+    if (r < 0.14) { // waiting for a bus
+      for (let tries = 0; tries < 6; tries++) { const sh = CITY.props.busShelter[Math.floor(W.rng() * CITY.props.busShelter.length)]; if (!sh) continue; const d = M.dist(sh.x, sh.z, px, pz); if (d < 30 || d > 130) continue; const nq = 1 + Math.floor(W.rng() * 2); for (let k = 0; k < nq; k++) { const p = spawn(sh.x + (k - 0.5) * 1.4 + (W.rng() - 0.5) * 0.4, sh.z - 0.6, {}); dress(p, sh.x, sh.z); p.state = 'stand'; p.wanderT = 20 + W.rng() * 40; p.angle = sh.a + Math.PI + (W.rng() - 0.5) * 0.6; if (W.rng() < 0.5) p.item = 'phone'; } return; } }
+    if (r < 0.26) { // someone on a bench
       for (let tries = 0; tries < 6; tries++) { const bn = CITY.props.bench[Math.floor(W.rng() * CITY.props.bench.length)]; if (!bn || bn.taken) continue; const d = M.dist(bn.x, bn.z, px, pz); if (d < 30 || d > 120) continue;
         const a = bn.a || 0; const side = W.rng() < 0.5 ? 0.45 : -0.45; const p = spawn(bn.x + Math.cos(a) * side, bn.z - Math.sin(a) * side, {}); p.state = 'sit'; p.seat = { x: p.x, y: CITY.groundY(bn.x, bn.z) + 0.46, z: p.z, a: a }; p.angle = a; bn.taken = true; p.onRemove = () => { bn.taken = false; }; return; }
     }
@@ -337,10 +349,17 @@ const PEDS = (() => {
       if (r > 0.82) { // two people talking
         const a = spawn(n.x + 0.5, n.z, { node: n }), b2 = spawn(n.x - 0.5, n.z, { node: n }); a.state = b2.state = 'chat'; a.partner = b2; b2.partner = a; a.angle = -Math.PI / 2; b2.angle = Math.PI / 2; a.gestureT = W.rng() * 3; b2.gestureT = W.rng() * 3; return;
       }
-      const p = spawn(n.x + (W.rng() - 0.5), n.z + (W.rng() - 0.5), { node: n });
+      const p = spawn(n.x + (W.rng() - 0.5), n.z + (W.rng() - 0.5), { node: n }); dress(p, n.x, n.z);
       if (CITY.district(CITY.blockAt(n.x, n.z)?.i ?? 0, CITY.blockAt(n.x, n.z)?.j ?? 0) === 'eastside' && W.rng() < 0.25) { p.look = GANG; p.mesh = getMesh(GANG); p.lodMesh = getMesh(GANG, true); p.isGang = true; p.weapon = W.rng() < 0.5 ? 'pistol' : null; p.health = 80; }
       return;
     }
+  }
+  // what a ped wears and carries depends on the district and the weather
+  function dress(p, x, z) { const bl = CITY.blockAt(x, z); const d = bl ? CITY.district(bl.i, bl.j) : 'southport'; const pool = WARDROBE[d];
+    if (pool && W.rng() < (d === 'downtown' ? 0.45 : 0.3)) { p.look = pool[Math.floor(W.rng() * pool.length)]; p.mesh = getMesh(p.look); p.lodMesh = getMesh(p.look, true); if (d === 'westfield' && W.rng() < 0.5) { p.walkSpeed = 3.6 + W.rng(); p.jog = true; } }
+    const rain = W.weather ? W.weather.rain : 0; const r = W.rng();
+    if (rain > 0.3 && r < 0.45) p.item = 'umbrella'; else if (r < 0.12) p.item = 'coffee'; else if (r < 0.2) p.item = 'bag'; else if (r < 0.3 && !p.jog) p.item = 'phone'; else if (r < 0.32) p.item = 'guitar';
+    if (W.rng() < 0.1 && !p.jog) { p.state = 'stand'; p.wanderT = 5 + W.rng() * 10; const lot = CITY.lotsNear(x, z, 6).find(l => l.kind !== 'wall'); if (lot) p.angle = Math.atan2(M.clamp(x, lot.x0, lot.x1) - x, M.clamp(z, lot.z0, lot.z1) - z); } // a look in a shop window
   }
   function despawn(px, pz) { let w = 0; for (const p of W.peds) { if (!p.removed && !p.important) { const d = M.dist(p.x, p.z, px, pz); if ((d > 170 && !p.inCar) || (p.state === 'dead' && (p.deadT > 25 || (d > 60 && p.deadT > 6)))) p.removed = true; } if (p.removed && p.onRemove) { p.onRemove(); p.onRemove = null; } if (!p.removed) W.peds[w++] = p; } W.peds.length = w; }
   function updateAll(dt) { for (const p of W.peds) p.update(dt); }

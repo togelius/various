@@ -156,7 +156,7 @@ const W = (() => {
 
   // ---- Props: instanced meshes, knockable
   const propMeshes = {}; let lampHeads = null, tlHeads = null, markerMesh = null;
-  const PROP_TYPES = ['lamppost', 'trafficLight', 'tree', 'hydrant', 'bin', 'bench', 'bollard', 'payphone', 'dumpster', 'mailbox', 'meter', 'newsbox', 'busShelter', 'cone', 'barrier', 'hedge', 'roundTree', 'palm', 'umbrella', 'streetSign'];
+  const PROP_TYPES = ['lamppost', 'trafficLight', 'tree', 'hydrant', 'bin', 'bench', 'bollard', 'payphone', 'dumpster', 'mailbox', 'meter', 'newsbox', 'busShelter', 'cone', 'barrier', 'hedge', 'roundTree', 'palm', 'umbrella', 'streetSign', 'cafeSet', 'crates', 'sandwichBoard', 'vending', 'barberPole', 'bikeRack', 'flowerBucket', 'tireStack', 'barrel', 'hotdogCart', 'pigeon', 'gull'];
   function initProps() {
     for (const t of PROP_TYPES) { const list = CITY.props[t] || (CITY.props[t] = []); propMeshes[t] = MESH[t]().buildInstanced(Math.max(1, list.length)); }
     lampHeads = MESH.lampHead().buildInstanced(CITY.props.lamppost.length + 8);
@@ -173,7 +173,8 @@ const W = (() => {
         if (p.fall !== undefined) { // knocked: rotate about the base
           const k = Math.min(1, p.fall); const tilt = k * Math.PI * 0.48;
           M.trsEuler(tmpM, p.x, CITY.groundY(p.x, p.z), p.z, p.fallDir, tilt, 0, s, s, s);
-        } else M.trs(tmpM, p.x, CITY.groundY(p.x, p.z), p.z, p.a || 0, s, s, s);
+        } else if (p.y !== undefined) M.trsEuler(tmpM, p.x, p.y, p.z, p.a || 0, p.pitch || 0, p.roll || 0, s, p.sy || s, s);
+        else M.trs(tmpM, p.x, CITY.groundY(p.x, p.z), p.z, p.a || 0, s, s, s);
         m.instData.set(tmpM, n * 20); m.instData.set(p.tint || [1, 1, 1, 0], n * 20 + 16); n++;
       }
       GL.updateInstances(m, n);
@@ -250,5 +251,5 @@ const W = (() => {
   function frameBegin() { dyn.length = 0; state.shots.length = 0; state.noises.length = 0; if (state.heard.length && state.elapsed - state.heard[0].t > 0.5) state.heard = state.heard.filter(n => state.elapsed - n.t <= 0.5); }
   function updateExplosions(dt) { let w = 0; for (const e of explosions) { e.t += dt; if (e.t < 0.6) { dyn.push({ x: e.x, y: e.y + 1, z: e.z, r: 30 * e.big, col: [3 * (1 - e.t), 1.5 * (1 - e.t), 0.3] }); explosions[w++] = e; } } explosions.length = w; }
 
-  return { weather, updateWeather, bustle, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds, seed, WATER_Y, pushOutWater, nearestLand, onWater };
+  return { weather, updateWeather, bustle, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds, seed, PROP_TYPES, WATER_Y, pushOutWater, nearestLand, onWater };
 })();

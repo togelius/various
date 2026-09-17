@@ -63,7 +63,7 @@ const RENDER = (() => {
         float nl = max(dot(n, L / d), 0.0) * 0.8 + 0.2;
         col += albedo * uLightCols[i] * att * nl;
       }
-      col += mix(albedo, vec3(1.0, 0.85, 0.6), 0.6) * t.a * uNightEmis * 0.9;
+      col += mix(albedo, vec3(1.0, 0.85, 0.6), 0.6) * t.a * uNightEmis * 0.55;
       col += vCol * vEmis;
       float dist = length(vWorld - uCamPos);
       float f = 1.0 - exp(-dist * uFogDensity);
