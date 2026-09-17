@@ -188,7 +188,12 @@ at a walk, a jog and a run; sprinting widens the view. The car camera
 swings round quicker, leads into a turn and looks a little down the
 road. Hits you land show a marker at the crosshair, kills a red one; car
 impacts, explosions and damage shake the camera. Weapons are modelled so
-the barrel points where the arm does.
+the barrel points where the arm does. Shots are resolved along the
+crosshair line rather than from the player's feet (the aim camera sits
+half a metre to the side, so the two lines do not coincide), the mouse
+slows while you aim and slows further over a target, the crosshair
+settles onto anyone you are nearly on and turns red when it has them,
+and the aim camera keeps the crosshair near body height.
 
 ## The police
 

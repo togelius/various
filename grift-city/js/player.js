@@ -107,12 +107,16 @@ const PLAYER = (() => {
     POLICE.crime('explosion', x, z, null);
   }
   // Auto-aim: snap the shot toward the nearest ped/car within a small cone of the camera direction.
-  function aimAngle() {
-    const base = P.camYaw; let best = base, bd = 0.14; const cx = P.x, cz = P.z;
-    const consider = (x, z, bonus) => { const d = M.dist(x, z, cx, cz); if (d > 55 || d < 1) return; const a = Math.atan2(x - cx, z - cz); const da = Math.abs(M.angleTo(base, a)) - bonus; if (da < bd) { bd = da; best = a; } };
-    for (const p of W.peds) if (p.alive && !p.inCar) consider(p.x, p.z, p.isCop || p.hostile || p.isGang ? 0.03 : 0);
-    if (W.heli && !W.heli.dead) consider(W.heli.x, W.heli.z, 0.05);
-    return best;
+  // Shots are resolved along the crosshair line (the camera's centre ray), not from the player's feet: the camera sits
+  // half a metre to the side of the player, so a line from the player would miss whatever the crosshair is on.
+  function aimOrigin() { if (P.car) return [P.x, P.z]; const dx = Math.sin(P.camYaw), dz = Math.cos(P.camYaw); const along = Math.max(0, (P.x - P.camX) * dx + (P.z - P.camZ) * dz) + 0.3; return [P.camX + dx * along, P.camZ + dz * along]; }
+  // Auto-aim: the nearest target within a cone of the crosshair, measured from the crosshair line. P.aimTarget shows the lock.
+  function aimAngle(cone = P.aim ? 0.2 : 0.14) {
+    const base = P.camYaw; let best = base, bd = cone; const [cx, cz] = aimOrigin(); let target = null;
+    const consider = (x, z, bonus, obj) => { const d = M.dist(x, z, cx, cz); if (d > 60 || d < 0.8) return; const a = Math.atan2(x - cx, z - cz); const da = Math.abs(M.angleTo(base, a)) - bonus; if (da < bd && W.los(cx, cz, x, z)) { bd = da; best = a; target = obj; } };
+    for (const p of W.peds) if (p.alive && !p.inCar) consider(p.x, p.z, p.isCop || p.hostile || p.isGang ? 0.04 : 0, p);
+    if (W.heli && !W.heli.dead) consider(W.heli.x, W.heli.z, 0.05, W.heli);
+    P.aimTarget = target; return best;
   }
 
   // ---- Update
@@ -120,7 +124,8 @@ const PLAYER = (() => {
     P.stateT += dt; if (P.drunk > 0) P.drunk -= dt; if (P.kickT > 0) P.kickT -= dt; if (P.flinchT > 0) P.flinchT -= dt; if (P.hurtFlash > 0) P.hurtFlash -= dt; if (P.invuln > 0) P.invuln -= dt; if (P.fireT > 0) P.fireT -= dt; if (P.carNameT > 0) P.carNameT -= dt;
     const m = INPUT.mouse, pad = INPUT.pad;
     // camera look
-    P.camIdle += dt; if (INPUT.locked || pad.active) { const sens = 0.0022 * GAME.options.sensitivity; const inv = GAME.options.invertY ? -1 : 1; P.camYaw -= m.dx * sens + pad.rx * 2.5 * dt; P.camPitch = M.clamp(P.camPitch + (m.dy * sens * 0.8 + pad.ry * 1.5 * dt) * inv, -0.35, 1.1); if (m.dx || m.dy || pad.rx) P.camIdle = 0; }
+    P.camIdle += dt; if (INPUT.locked || pad.active) { const sens = 0.0022 * GAME.options.sensitivity * (P.aim ? (P.aimTarget ? 0.5 : 0.78) : 1); const inv = GAME.options.invertY ? -1 : 1; P.camYaw -= m.dx * sens + pad.rx * 2.5 * dt;
+      if (P.aim && !P.car) { const want = aimAngle(0.16); if (P.aimTarget && Math.abs(m.dx) < 6) P.camYaw += M.angleTo(P.camYaw, want) * Math.min(1, 5 * dt); } /* magnetism: the crosshair settles onto a target you are nearly on */ P.camPitch = M.clamp(P.camPitch + (m.dy * sens * 0.8 + pad.ry * 1.5 * dt) * inv, P.aim && !P.car ? -0.2 : -0.35, P.aim && !P.car ? 0.5 : 1.1); if (m.dx || m.dy || pad.rx) P.camIdle = 0; }
     if (!P.alive) { P.deadT += dt; if (P.state === 'dead') { if (P.rag) PEDS.stepRagdoll(P, dt); else { P.lying = Math.min(1, P.lying + dt * 3); moveBody(dt, true); } } if (P.deadT > 4.5) respawn(P.state === 'busted' ? 'police' : 'hospital'); updateCamera(dt); return; }
     if (P.state === 'entering') { updateEntering(dt); updateCamera(dt); return; }
     if (P.state === 'knocked') { P.knockT -= dt; P.lying = Math.min(1, P.lying + dt * 4); moveBody(dt, true); if (P.knockT <= 0) { P.state = 'foot'; P.lying = 0; } updateCamera(dt); return; }
@@ -150,6 +155,7 @@ const PLAYER = (() => {
     // accelerate over a tenth of a second and brake a little softer, so starts and stops read as steps rather than a switch
     if (!P.airborne) { const tx = moving ? mx * speed : 0, tz = moving ? mz * speed : 0; const rate = (moving ? 34 : 26) * dt; P.vx = M.approach(P.vx, tx, rate); P.vz = M.approach(P.vz, tz, rate); }
     P.sprinting = moving && sprint && !P.aim;
+    if (P.aim) aimAngle(0.16); else P.aimTarget = null; // keep the lock indicator honest even when the mouse is still
     // facing
     if (P.aim) P.angle += M.angleTo(P.angle, P.camYaw) * Math.min(1, 18 * dt);
     else if (moving) { const desired = Math.atan2(mx, mz); P.angle += M.angleTo(P.angle, desired) * Math.min(1, 14 * dt); }
@@ -178,9 +184,9 @@ const PLAYER = (() => {
     }
     if (P.weapons[P.weapon] <= 0) { AUDIO.play('click'); P.fireT = 0.3; return; }
     P.fireT = wp.rate; P.weapons[P.weapon]--; P.recoil = 0.12; P.angle = P.camYaw;
-    const y = 1.35; const ang = aimAngle();
+    const y = 1.35; const ang = aimAngle(); const [ox, oz] = aimOrigin();
     if (wp.projectile) { const pitch = -P.camPitch * 0.6 + (wp.projectile === 'grenade' ? 0.45 : 0.05); launchProjectile(wp.projectile, P.x + Math.sin(ang) * 0.8, y, P.z + Math.cos(ang) * 0.8, ang, pitch, wp.projectile === 'grenade' ? 14 : 45); AUDIO.play(wp.sound || 'click', P.x, P.z); }
-    else fireBullet(PLAYER, P.x, P.z, y, ang, wp, 1);
+    else fireBullet(PLAYER, ox, oz, y, ang, wp, 1);
     if (P.weapons[P.weapon] <= 0) { P.weapons[P.weapon] = 0; setTimeout(() => cycleWeapon(-1), 300); }
   }
   function moveBody(dt, ragdoll) {
