@@ -19,6 +19,9 @@ subdirectory with its own README:
   WebGL2: a generated island city, traffic, pedestrians, five-star police,
   nine story missions and side jobs. Open `grift-city/index.html`, or the
   single-file build in `grift-city/dist/`.
+- **[scriptprof/](scriptprof/)** — SCRIPTPROF, a lab for generating
+  PuzzleScript games: rewrite-rule engine, BFS playtester, MAP-Elites
+  archive. Open `scriptprof/index.html`.
 
 ## Repository policy
 

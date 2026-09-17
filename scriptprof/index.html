@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SCRIPTPROF</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<section id="title" class="screen on">
+  <div class="titlebox">
+    <h1>SCRIPTPROF</h1>
+    <p class="sub">a lab for generating puzzle games</p>
+    <p class="creed">
+      Write the rules as rewrite patterns.<br>
+      Let a search agent sit the exam.<br>
+      Keep the mutants that still <em>mean</em> something.
+    </p>
+    <div class="primer">
+      <p>PuzzleScript is a language of local rewrites over a grid. A player walking into a crate is one pattern; the crate inheriting that force is the replacement. Whole games fit in a page of text, and a breadth-first student can mark them.</p>
+      <p>ScriptProf is a small instrument built from three papers: ScriptDoctor's compile–playtest loop, GAVEL's evolutionary wrapping of a language model, and PuzzleJAX's observation that those rewrites are a benchmark, not just a toy.</p>
+      <p class="papers">
+        <a href="https://arxiv.org/abs/2506.06524">ScriptDoctor</a> ·
+        <a href="https://proceedings.neurips.cc/paper_files/paper/2024/hash/c7b04e4e13bb77996d3ae2ff667231ac-Abstract-Conference.html">GAVEL</a> ·
+        <a href="https://arxiv.org/abs/2508.16821">PuzzleJAX</a>
+      </p>
+    </div>
+    <button id="begin" class="big">OPEN THE LAB</button>
+    <p class="foot">arrows move · z undo · r restart · enter to watch the solver</p>
+  </div>
+</section>
+
+<section id="app" class="screen">
+  <header id="apphead">
+    <button class="ghost" id="toTitle">←</button>
+    <h2>SCRIPTPROF</h2>
+    <div id="modes">
+      <button class="ghost on" data-mode="play">PLAY</button>
+      <button class="ghost" data-mode="solve">SOLVE</button>
+      <button class="ghost" data-mode="evolve">EVOLVE</button>
+    </div>
+  </header>
+
+  <div id="layout">
+    <aside id="catalog">
+      <h3>GAMES</h3>
+      <div id="gamelist"></div>
+    </aside>
+
+    <div id="stage">
+      <div id="stagehead">
+        <h3 id="stagetitle">—</h3>
+        <div id="stagemeta">—</div>
+      </div>
+      <p id="msg"></p>
+      <div id="boardwrap">
+        <canvas id="board" width="320" height="320"></canvas>
+        <div id="winbanner">SOLVED</div>
+      </div>
+      <div id="hud">
+        <button id="undo">UNDO (Z)</button>
+        <button id="restart">RESTART (R)</button>
+        <button id="nextlv">NEXT LEVEL</button>
+        <button id="solvebtn">SOLVE</button>
+        <span id="status"></span>
+      </div>
+      <div id="dpad">
+        <span></span><button data-dir="up">↑</button><span></span>
+        <button data-dir="left">←</button><button data-dir="down">↓</button><button data-dir="right">→</button>
+      </div>
+    </div>
+
+    <aside id="scriptpane">
+      <h3>SCRIPT</h3>
+      <pre id="source"></pre>
+    </aside>
+
+    <aside id="labpane" class="hidden">
+      <h3>MAP-ELITES</h3>
+      <p id="labstats">solution length × mechanic count. click a cell to sit the exam.</p>
+      <div>
+        <button class="ghost" id="evolvebtn">RUN 12 GENERATIONS</button>
+        <button class="ghost" id="evolvestop">STOP</button>
+      </div>
+      <div id="archive"></div>
+      <div id="log"></div>
+    </aside>
+  </div>
+</section>
+
+<script src="js/parser.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/search.js"></script>
+<script src="js/games.js"></script>
+<script src="js/evolve.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
