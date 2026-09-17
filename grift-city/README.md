@@ -237,6 +237,22 @@ count as reached once they are behind the car, which is what used to send
 a car in laps round an intersection when the corner was tighter than its
 steering lock.
 
+## Imported art
+
+Not everything is built in code any more. `js/assets.js` carries a set of
+Kenney models converted to flat-shaded vertex-coloured triangles by
+`tools/assets/import-glb.py` (sources and licence in
+`tools/assets/SOURCES.md`): a pickup (the RANCHER) and a motorcycle (the
+HORNET) that join the traffic in the suburbs, the east side and the docks,
+with their wheels on the game's wheel bones so they steer and spin; five
+small houses and a garage that replace some procedural buildings on
+suburban lots, scaled to the lot and turned to face the street; a fountain
+on its plaza in every park; and clusters of trees among the park's own.
+Imported colours are desaturated a little so they sit with the rest of the
+city. The converter samples each model's colour map at every vertex, keeps
+wheel parts in their own space so they spin about their centres, and flips
+the winding of mirrored parts.
+
 ## The police
 
 Crimes raise heat. Witnesses and nearby officers make it climb faster. One

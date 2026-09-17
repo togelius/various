@@ -311,7 +311,7 @@ const PEDS = (() => {
   function seatOf(car, index) {
     const s = car.spec; const L = s.len, W = s.wid;
     const seatY = MESH.seatHeight(s);
-    if (s.bike) return [0, seatY, -0.3];
+    if (s.bike) return [0, seatY, s.seatZ !== undefined ? s.seatZ : -0.3];
     if (s.boat) return [index === 0 ? -0.5 : 0.5, seatY, -0.85];
     if (s.bus) return [index === 0 ? W * 0.25 : -W * 0.25, seatY, L / 2 - 1.2 - Math.floor(index / 2) * 1.2];
     if (s.box) return [index === 0 ? W * 0.22 : -W * 0.22, seatY, L / 2 - L * 0.3 * 0.55];

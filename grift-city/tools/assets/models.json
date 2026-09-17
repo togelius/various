@@ -1,0 +1,49 @@
+{
+  "credits": "Models by Kenney (kenney.nl) from the Starter Kit City Builder, Starter Kit Racing and Starter Kit 3D Platformer repositories on GitHub, MIT licence, converted to vertex colours.",
+  "models": {
+    "ktruck": {
+      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-Racing/models/vehicle-truck-red.glb",
+      "opts": {
+        "local": true,
+        "paint": "red"
+      }
+    },
+    "kmoto": {
+      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-Racing/models/vehicle-motorcycle.glb",
+      "opts": {
+        "local": true,
+        "paint": "green"
+      }
+    },
+    "kbuildA": {
+      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/building-small-a.glb"
+    },
+    "kbuildB": {
+      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/building-small-b.glb"
+    },
+    "kbuildC": {
+      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/building-small-c.glb"
+    },
+    "kbuildD": {
+      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/building-small-d.glb"
+    },
+    "kgarage": {
+      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/building-garage.glb"
+    },
+    "kfountain": {
+      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/pavement-fountain.glb"
+    },
+    "ktrees": {
+      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/grass-trees.glb",
+      "opts": {
+        "dropBelow": 0.06
+      }
+    },
+    "ktreesTall": {
+      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/grass-trees-tall.glb",
+      "opts": {
+        "dropBelow": 0.06
+      }
+    }
+  }
+}

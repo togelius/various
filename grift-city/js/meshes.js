@@ -211,12 +211,15 @@ const MESH = (() => {
     bike:    { len: 2.2, wid: 0.8, hgt: 1.15, cabin: null, wheelR: 0.33, mass: 0.35, accel: 17, top: 38, grip: 0.9, turn: 3.0, brake: 26, seats: 1, hood: 0, bike: true },
     boat:    { len: 6.2, wid: 2.4, hgt: 1.5, cabin: null, wheelR: 0.3, mass: 1.2, accel: 11, top: 24, grip: 0.4, turn: 1.4, brake: 6, seats: 2, hood: 0, boat: true },
     ferry:   { len: 15, wid: 5, hgt: 4, cabin: null, wheelR: 0.3, mass: 5, accel: 4, top: 9, grip: 0.4, turn: 0.5, brake: 3, seats: 6, hood: 0, boat: true, ferry: true },
+    // imported models (js/assets.js): the body is the model, wheels are its wheel parts on the usual bones, axle positions come from the model
+    ktruck:  { len: 4.2, wid: 2.25, hgt: 1.8, cabin: [0.3, 0.6], wheelR: 0.45, mass: 1.35, accel: 10, top: 25, grip: 0.86, turn: 2.1, brake: 22, seats: 2, hood: 1.0, model: 'ktruck', modelScale: 1.5, axleF: 1.29, axleR: -0.99, track: 0.83, seatY: 0.66, seatScale: 0.8 },
+    kmoto:   { len: 2.0, wid: 0.8, hgt: 1.15, cabin: null, wheelR: 0.345, mass: 0.4, accel: 16, top: 36, grip: 0.9, turn: 3.0, brake: 25, seats: 1, hood: 0, bike: true, model: 'kmoto', modelScale: 1.15, axleF: 0.99, axleR: -0.76, track: 0, seatY: 0.68, seatScale: 1, seatZ: -0.5 },
   };
 
   // Height of the seat cushion in car-local space: a seated ped is 1.05 m from hip to crown, so it sits that far below the roof.
   function seatHeight(s) { return seatFit(s).y; }
   // Seat height plus a body scale for low cabins: a seated ped is 1.05 m from hip to crown, so in a sports car it shrinks a little rather than wearing the roof.
-  function seatFit(s) { if (s.bike) return { y: 0.8, scale: 1 }; if (s.boat) return { y: 0.42, scale: 1 }; const wr = s.wheelR, floorY = wr * 0.9, bodyH = s.hgt * 0.46, cabinY = floorY + bodyH, cabinH = s.hgt - bodyH - floorY * 0.6;
+  function seatFit(s) { if (s.seatY !== undefined) return { y: s.seatY, scale: s.seatScale || 1 }; if (s.bike) return { y: 0.8, scale: 1 }; if (s.boat) return { y: 0.42, scale: 1 }; const wr = s.wheelR, floorY = wr * 0.9, bodyH = s.hgt * 0.46, cabinY = floorY + bodyH, cabinH = s.hgt - bodyH - floorY * 0.6;
     if (s.bus) return { y: floorY + 0.3, scale: 1 }; const roof = s.box ? cabinY - 0.05 + cabinH * 1.2 : (s.armor || !s.cabin || s.hgt > 2.0) ? s.hgt : cabinY + cabinH; const y = Math.max(floorY + 0.08, roof - 1.05); return { y, scale: M.clamp((roof - y - 0.03) / 1.05, 0.8, 1) }; }
   // Returns { body, glass } builders. opts.dent (0..1) crumples the body, opts.seed varies the dents.
   // Bodies are lofted from rounded cross-sections so the panels curve; the greenhouse is one surface whose
@@ -235,6 +238,7 @@ const MESH = (() => {
       b.polyOut([[x, wr + Math.sin(a0) * r0, az + Math.cos(a0) * r0], [x, wr + Math.sin(a1) * r0, az + Math.cos(a1) * r0], [x, wr + Math.sin(a1) * r1, az + Math.cos(a1) * r1], [x, wr + Math.sin(a0) * r1, az + Math.cos(a0) * r1]], bodyDk.map(c => c * 0.55), 0, wr, az); } };
     const grille = (y, z, w, h) => { b.cbox(0, y, z, w, h, 0.06, dark, 0, { faces: 16 }); if (!LOD) for (let k = 0; k < 3; k++) b.cbox(0, y - h / 2 + (k + 0.5) * h / 3, z + 0.01, w, 0.02, 0.04, chrome, 0, { faces: 16 }); };
     const bumper = (z, colr) => { const d = 0.22; b.roundedBox(-hw * 0.98, floorY + 0.02, z > 0 ? z - d / 2 : z - d / 2, W * 0.96, 0.32, d, 0.09, colr); };
+    if (s.model) { assetVehicle(b, s, col); if (opts.dent > 0) dentBody(b, opts.dent * 0.5, opts.seed || 1); return { body: b, glass: gb }; }
     if (s.bike) { bikeMesh(b, s, col, LOD); if (opts.dent > 0) dentBody(b, opts.dent * 0.5, opts.seed || 1); return { body: b, glass: gb }; }
     if (s.boat) { boatMesh(b, gb, s, col, LOD); if (opts.dent > 0) dentBody(b, opts.dent * 0.6, opts.seed || 1); return { body: b, glass: gb }; }
     if (s.bus) {
@@ -475,6 +479,31 @@ const MESH = (() => {
   function lamppost() { const b = new Builder(); const c = [0.35, 0.36, 0.38]; b.cyl(0, 0, 0, 0.12, 6, c, 0, 6); b.cbox(0, 6, 0.8, 0.14, 0.14, 1.8, c); b.cbox(0, 5.9, 1.6, 0.35, 0.18, 0.7, [1, 0.95, 0.8], 0, { bone: 0 }); return b; }
   function trafficLight() { const b = new Builder(); const c = [0.2, 0.2, 0.22]; b.cyl(0, 0, 0, 0.1, 5, c, 0, 6); b.cbox(0, 5, 2.0, 0.12, 0.12, 4.2, c); b.cbox(0, 4.4, 3.9, 0.36, 1.05, 0.36, [0.15, 0.15, 0.15]); return b; }
   function lampHead() { const b = new Builder(); b.cbox(0, 0, 0, 0.22, 0.22, 0.1, [1, 1, 1], 0, { faces: 16 }); return b; }
+  // ---- Imported models (Kenney kits via tools/assets/import-glb.py). Flat-shaded, vertex-coloured, so every triangle is emitted
+  // with its own face normal on the white tile. Parts can go to bones (vehicle wheels) and paint colours can be swapped.
+  const ASSET_BONES = { 'wheel-front-left': 1, 'wheel-front-right': 2, 'wheel-back-left': 3, 'wheel-back-right': 4, 'wheel-front': 1, 'wheel-back': 3, fork: 10 };
+  function assetInto(b, name, o = {}) {
+    const A = ASSETS.models[name]; if (!A) throw new Error('no model ' + name);
+    const S = o.scale || 1, ca = Math.cos(o.angle || 0), sa = Math.sin(o.angle || 0), ox = o.x || 0, oy = o.y || 0, oz = o.z || 0, desat = o.desat || 0;
+    let pal = A.pal.map(c => desat ? c.map(v => v + (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2] - v) * desat) : c);
+    if (o.paint && A.paint) { const base = A.pal[A.paint[0]]; const bl = 0.299 * base[0] + 0.587 * base[1] + 0.114 * base[2]; for (const i of A.paint) { const c = A.pal[i]; const k = (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / bl; pal[i] = o.paint.map(v => Math.min(1, v * k)); } }
+    const v = A.v, I = A.i; const p = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    for (const [pname, part] of Object.entries(A.parts)) {
+      const bone = o.bones ? (ASSET_BONES[pname] || 0) : 0; const tx = o.local ? part.t[0] : 0, ty = o.local ? part.t[1] : 0, tz = o.local ? part.t[2] : 0;
+      for (let t = part.first; t < part.first + part.count; t += 3) {
+        let col = null;
+        for (let k = 0; k < 3; k++) { const vi = I[t + k] * 4; const lx = (v[vi] + tx) * S, ly = (v[vi + 1] + ty) * S, lz = (v[vi + 2] + tz) * S; p[k][0] = lx * ca + lz * sa + ox; p[k][1] = ly + oy; p[k][2] = -lx * sa + lz * ca + oz; if (!col) col = pal[v[vi + 3]]; }
+        const ax = p[1][0] - p[0][0], ay = p[1][1] - p[0][1], az = p[1][2] - p[0][2], bx = p[2][0] - p[0][0], by = p[2][1] - p[0][1], bz = p[2][2] - p[0][2];
+        let nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx; const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+        const base = b.n; for (let k = 0; k < 3; k++) b.vert(p[k][0], p[k][1], p[k][2], nx, ny, nz, col[0], col[1], col[2], 0, 0, 0, bone); b.tri(base, base + 1, base + 2);
+      }
+    }
+    return b;
+  }
+  function assetVehicle(b, s, col) { assetInto(b, s.model, { scale: s.modelScale, bones: true, local: true, paint: col, desat: 0.15 }); }
+  function assetBounds(name, scale) { const A = ASSETS.models[name]; return { min: A.min.map(v => v * scale), max: A.max.map(v => v * scale) }; }
+  function ktree() { return assetInto(new Builder(), 'ktrees', { scale: 8, desat: 0.2 }); }
+  function ktreeTall() { return assetInto(new Builder(), 'ktreesTall', { scale: 8, desat: 0.2 }); }
   function tree() { const b = new Builder(); b.cyl(0, 0, 0, 0.18, 2.4, [0.35, 0.25, 0.15], 0, 7, 0, false, false, 0.12); const tiers = [[1.5, 1.7, 1.2], [2.5, 1.45, 1.1], [3.5, 1.15, 1.0], [4.4, 0.8, 0.9], [5.2, 0.45, 0.7]]; tiers.forEach(([y, r, h], k) => { const g = 0.4 + k * 0.03; b.cyl(0, y, 0, r, y + h, [0.16 + k * 0.02, g, 0.15], 0, 9, 0, true, k === 0, 0.05); }); return b; }
   function hydrant() { const b = new Builder(); b.cyl(0, 0, 0, 0.16, 0.7, [0.85, 0.15, 0.12], 0, 6); b.cbox(0, 0.45, 0, 0.5, 0.14, 0.2, [0.85, 0.15, 0.12]); b.cyl(0, 0.7, 0, 0.1, 0.85, [0.85, 0.15, 0.12], 0, 6); return b; }
   function bin() { const b = new Builder(); b.cyl(0, 0, 0, 0.32, 0.95, [0.2, 0.28, 0.2], 0, 8); b.cyl(0, 0.95, 0, 0.36, 1.05, [0.15, 0.2, 0.15], 0, 8); return b; }
@@ -572,5 +601,5 @@ const MESH = (() => {
     b.cbox(0, 0.75, 1.5, 0.5, 0.3, 0.5, [1, 1, 0.9], 0, { bone: 3 });
     return b;
   }
-  return { Builder, VEHICLES, MOUTH_POS, HAND, heldMesh, carMesh, seatHeight, seatFit, dentBody, pedMesh, PICKUP_MODELS, dumpster, mailbox, meter, newsbox, busShelter, cone, barrier, hedge, roundTree, palm, umbrella, streetSign, payphone, hotdogCart, pigeon, gull, plane, cafeSet, crates, sandwichBoard, vending, barberPole, bikeRack, flowerBucket, tireStack, barrel, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
+  return { Builder, VEHICLES, MOUTH_POS, HAND, heldMesh, carMesh, seatHeight, seatFit, dentBody, pedMesh, PICKUP_MODELS, assetInto, assetBounds, ktree, ktreeTall, dumpster, mailbox, meter, newsbox, busShelter, cone, barrier, hedge, roundTree, palm, umbrella, streetSign, payphone, hotdogCart, pigeon, gull, plane, cafeSet, crates, sandwichBoard, vending, barberPole, bikeRack, flowerBucket, tireStack, barrel, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
 })();

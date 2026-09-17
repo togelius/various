@@ -156,7 +156,7 @@ const W = (() => {
 
   // ---- Props: instanced meshes, knockable
   const propMeshes = {}; let lampHeads = null, tlHeads = null, markerMesh = null;
-  const PROP_TYPES = ['lamppost', 'trafficLight', 'tree', 'hydrant', 'bin', 'bench', 'bollard', 'payphone', 'dumpster', 'mailbox', 'meter', 'newsbox', 'busShelter', 'cone', 'barrier', 'hedge', 'roundTree', 'palm', 'umbrella', 'streetSign', 'cafeSet', 'crates', 'sandwichBoard', 'vending', 'barberPole', 'bikeRack', 'flowerBucket', 'tireStack', 'barrel', 'hotdogCart', 'pigeon', 'gull'];
+  const PROP_TYPES = ['lamppost', 'trafficLight', 'tree', 'hydrant', 'bin', 'bench', 'bollard', 'payphone', 'dumpster', 'mailbox', 'meter', 'newsbox', 'busShelter', 'cone', 'barrier', 'hedge', 'roundTree', 'palm', 'umbrella', 'streetSign', 'cafeSet', 'crates', 'sandwichBoard', 'vending', 'barberPole', 'bikeRack', 'flowerBucket', 'tireStack', 'barrel', 'hotdogCart', 'pigeon', 'gull', 'ktree', 'ktreeTall'];
   function initProps() {
     for (const t of PROP_TYPES) { const list = CITY.props[t] || (CITY.props[t] = []); propMeshes[t] = MESH[t]().buildInstanced(Math.max(1, list.length)); }
     lampHeads = MESH.lampHead().buildInstanced(CITY.props.lamppost.length + 8);

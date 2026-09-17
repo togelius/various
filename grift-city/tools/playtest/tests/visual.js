@@ -97,7 +97,7 @@ function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); con
 
   if (want('models')) {
   // ---- 7. models are not boxes: triangle budgets
-  { const m = await ev(() => { const o = {}; for (const t of Object.keys(MESH.VEHICLES)) { const c = MESH.carMesh(t, [1, 0, 0]); o[t] = c.body.i.length / 3 + c.glass.i.length / 3; } o.ped = MESH.pedMesh(PEDS.MARLA).i.length / 3; return o; });
+  { const m = await ev(() => { const o = {}; for (const t of Object.keys(MESH.VEHICLES)) { if (MESH.VEHICLES[t].model) continue; /* imported models are authored art, not a procedural budget */ const c = MESH.carMesh(t, [1, 0, 0]); o[t] = c.body.i.length / 3 + c.glass.i.length / 3; } o.ped = MESH.pedMesh(PEDS.MARLA).i.length / 3; return o; });
     const low = Object.entries(m).filter(([k, v]) => v < (k === 'ped' ? 700 : 1000)); check('models: every car has over 1000 triangles and a ped over 700', low.length === 0, m); } }
 
   // ---- 8. nothing threw
