@@ -2,7 +2,7 @@
 'use strict';
 const VEH = (() => {
   const SPECS = MESH.VEHICLES;
-  const NAMES = { sedan: 'MERIDIAN', sports: 'FALCATA', hatch: 'GNAT', pickup: 'MULE', van: 'BOXER', taxi: 'CABCO', police: 'ENFORCER', truck: 'HAULER', bus: 'TRANSIT', muscle: 'BRAWLER', swat: 'BASTION', bike: 'VIPER', boat: 'SKIMMER', ktruck: 'RANCHER', kmoto: 'HORNET' };
+  const NAMES = { sedan: 'MERIDIAN', sports: 'FALCATA', hatch: 'GNAT', pickup: 'MULE', van: 'BOXER', taxi: 'CABCO', police: 'ENFORCER', truck: 'HAULER', bus: 'TRANSIT', muscle: 'BRAWLER', swat: 'BASTION', bike: 'VIPER', boat: 'SKIMMER', ktruck: 'RANCHER', kmoto: 'HORNET', kgarbage: 'SANITATION', kambulance: 'MEDIVAC', kfire: 'FIREBRAND' };
   const PALETTE = [[0.85, 0.12, 0.1], [0.12, 0.22, 0.6], [0.92, 0.92, 0.9], [0.15, 0.15, 0.17], [0.62, 0.62, 0.66], [0.1, 0.48, 0.25], [0.9, 0.6, 0.12], [0.45, 0.12, 0.5], [0.7, 0.35, 0.15], [0.2, 0.6, 0.7], [0.55, 0.05, 0.1], [0.75, 0.75, 0.5], [0.2, 0.45, 0.35], [0.85, 0.85, 0.6], [0.3, 0.2, 0.4], [0.9, 0.35, 0.25], [0.75, 0.2, 0.35], [0.55, 0.6, 0.7], [0.15, 0.3, 0.45], [0.8, 0.55, 0.3], [0.35, 0.35, 0.4], [0.95, 0.85, 0.8]];
   const FIXED = { taxi: [1, 0.8, 0.1], police: [0.95, 0.95, 0.98], swat: [0.16, 0.18, 0.22], bus: [0.85, 0.55, 0.15] };
   const meshCache = {};
@@ -10,7 +10,7 @@ const VEH = (() => {
   function getMesh(type, colIdx) { const key = type + ':' + colIdx; if (!meshCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx)); meshCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return meshCache[key]; }
   const lodCache = {}; function getLod(type, colIdx) { const key = type + ':' + colIdx; if (!lodCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx), { lod: true }); lodCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return lodCache[key]; }
   function dentedMesh(type, colIdx, dent, seed) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed }); return { body: m.body.build(), glass: m.glass.build() }; }
-  const TRAFFIC_TYPES = ['sedan', 'sedan', 'sedan', 'hatch', 'hatch', 'sports', 'pickup', 'van', 'taxi', 'taxi', 'muscle', 'truck', 'bus', 'ktruck', 'kmoto'];
+  const TRAFFIC_TYPES = ['sedan', 'sedan', 'sedan', 'hatch', 'hatch', 'sports', 'pickup', 'van', 'taxi', 'taxi', 'muscle', 'truck', 'bus', 'ktruck', 'kmoto', 'kgarbage', 'kambulance', 'kfire'];
 
   const tmpV = [0, 0, 0]; const TURN_R = 10; // radius of the arc traffic drives through a corner (m); long vehicles need more
   const LEAN_SIGN = -1; // positive roll tips the body to the right, so leaning into a left turn (positive yaw) is negative
@@ -398,11 +398,11 @@ const VEH = (() => {
   function spawn(type, x, z, angle, opts = {}) { const v = new Vehicle(type, x, z, angle, opts); W.cars.push(v); return v; }
   // Each district drives something different: cabs and coupes downtown, hatchbacks and vans in the suburbs, muscle and pickups east, trucks by the docks.
   const DISTRICT_MIX = {
-    downtown: ['sedan', 'sedan', 'taxi', 'taxi', 'taxi', 'sports', 'sports', 'hatch', 'bus', 'van'],
-    midtown: ['sedan', 'sedan', 'hatch', 'taxi', 'sports', 'pickup', 'van', 'bus', 'muscle', 'bike'],
-    westfield: ['hatch', 'hatch', 'sedan', 'van', 'van', 'pickup', 'sedan', 'bus', 'ktruck', 'kmoto'],
+    downtown: ['sedan', 'sedan', 'taxi', 'taxi', 'taxi', 'sports', 'sports', 'hatch', 'bus', 'van', 'kambulance'],
+    midtown: ['sedan', 'sedan', 'hatch', 'taxi', 'sports', 'pickup', 'van', 'bus', 'muscle', 'bike', 'kgarbage', 'kfire'],
+    westfield: ['hatch', 'hatch', 'sedan', 'van', 'van', 'pickup', 'sedan', 'bus', 'ktruck', 'kmoto', 'kambulance'],
     eastside: ['muscle', 'muscle', 'pickup', 'pickup', 'sedan', 'hatch', 'van', 'truck', 'bike', 'kmoto', 'ktruck'],
-    northgate: ['sedan', 'hatch', 'muscle', 'pickup', 'taxi', 'van', 'truck', 'ktruck'],
+    northgate: ['sedan', 'hatch', 'muscle', 'pickup', 'taxi', 'van', 'truck', 'ktruck', 'kgarbage'],
     southport: ['truck', 'truck', 'van', 'van', 'pickup', 'sedan', 'bus', 'taxi', 'bike', 'ktruck', 'kmoto'],
   };
   function trafficTypeFor(x, z) { const bl = CITY.blockAt(x, z); const d = bl ? CITY.district(bl.i, bl.j) : 'midtown'; const list = DISTRICT_MIX[d] || TRAFFIC_TYPES; const hour = W.state.time; let t = list[Math.floor(W.rng() * list.length)]; if ((hour < 6 || hour > 22) && W.rng() < 0.35) t = W.rng() < 0.6 ? 'taxi' : 'muscle'; /* night: cabs and cruisers */ return t; }

@@ -4,7 +4,7 @@
 const RENDER = (() => {
   let gl, litProg, instProg, shadowProg, shadowInstProg, litStaticProg, shadowStaticProg, skyProg, partProg, flatProg, texArray, nrmArray, shadow;
   const MAX_LIGHTS = 32, MAX_BONES = 12;
-  const proj = M.create(), view = M.create(), vp = M.create(), invVP = M.create(), invProj = M.create(), lightVP = M.create(), lightView = M.create(), lightProj = M.create();
+  const proj = M.create(), view = M.create(), vp = M.create(), invVP = M.create(), invProj = M.create(), lightView = M.create(), lightProj = M.create();
   const identityBones = new Float32Array(16 * MAX_BONES); for (let i = 0; i < MAX_BONES; i++) identityBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
   const zeroEmis = new Float32Array(MAX_BONES);
   const cam = { x: 0, y: 20, z: 0, tx: 0, ty: 0, tz: 1, fov: 60 * Math.PI / 180, near: 0.3, far: 900 };
@@ -17,8 +17,8 @@ const RENDER = (() => {
     #ifdef INSTANCED
     in vec4 aI0; in vec4 aI1; in vec4 aI2; in vec4 aI3; in vec4 aTint;
     #endif
-    uniform mat4 uVP; uniform mat4 uModel; uniform mat4 uLightVP; uniform mat4 uBones[${MAX_BONES}]; uniform float uBoneEmis[${MAX_BONES}]; uniform vec2 uUVOff;
-    out vec3 vWorld; out vec3 vNrm; out vec3 vCol; out vec2 vUV; flat out float vTile; out vec4 vShadow; out float vEmis;
+    uniform mat4 uVP; uniform mat4 uModel; uniform mat4 uBones[${MAX_BONES}]; uniform float uBoneEmis[${MAX_BONES}]; uniform vec2 uUVOff;
+    out vec3 vWorld; out vec3 vNrm; out vec3 vCol; out vec2 vUV; flat out float vTile; out float vEmis;
     void main() {
       #ifdef INSTANCED
       mat4 model = mat4(aI0, aI1, aI2, aI3); vCol = aCol * aTint.rgb; vEmis = aTint.a;
@@ -29,29 +29,46 @@ const RENDER = (() => {
       #endif
       vec4 w = model * vec4(aPos, 1.0); vWorld = w.xyz; vNrm = normalize(mat3(model) * aNrm);
       vUV = aUV + uUVOff; vTile = aTile;
-      vShadow = uLightVP * vec4(w.xyz + vNrm * 0.15, 1.0);
       gl_Position = uVP * w;
     }`;
   const FS = `
-    in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in vec4 vShadow; in float vEmis;
+    in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in float vEmis;
     uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform sampler2DArray uNrm;
     uniform float uNrmOn; uniform float uNrmStr;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
     uniform float uFogDensity; uniform float uFogHeight; uniform float uFogSun; uniform float uNightEmis;
+    uniform mat4 uLightVP[2]; uniform float uCascadeFar;
     uniform vec3 uZenith; uniform vec3 uHorizon; uniform float uReflect; uniform float uShadowOn; uniform float uTexOn; uniform float uSpec; uniform float uHDR; uniform float uAlpha; uniform float uWater; uniform float uTime;
     uniform vec4 uLights[${MAX_LIGHTS}]; uniform vec3 uLightCols[${MAX_LIGHTS}]; uniform int uNumLights;
     out vec4 o;
     // Textures and palette colours are authored in sRGB; lighting has to happen in linear light or everything
     // washes out once the composite gamma-encodes the result. This is the usual cheap sRGB decode.
     vec3 s2l(vec3 c) { return c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878); }
-    float shadowAt() {
-      vec3 p = vShadow.xyz / vShadow.w * 0.5 + 0.5;
-      if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0 || p.z > 1.0) return 1.0;
-      p.z -= 0.0015;
+    float sampleCascade(int c, vec3 wp, float bias) {
+      vec4 sp = uLightVP[c] * vec4(wp, 1.0);
+      vec3 p = sp.xyz / sp.w * 0.5 + 0.5;
+      if (p.x < 0.002 || p.x > 0.998 || p.y < 0.002 || p.y > 0.998 || p.z > 1.0) return -1.0; // outside this cascade
+      p.z -= bias;
+      p.x = p.x * 0.5 + (c == 0 ? 0.0 : 0.5); // the two cascades sit side by side in one atlas
       float s = textureOffset(uShadow, p, ivec2(-1, -1)) + textureOffset(uShadow, p, ivec2(0, -1)) + textureOffset(uShadow, p, ivec2(1, -1))
               + textureOffset(uShadow, p, ivec2(-1, 0)) + textureOffset(uShadow, p, ivec2(0, 0)) + textureOffset(uShadow, p, ivec2(1, 0))
               + textureOffset(uShadow, p, ivec2(-1, 1)) + textureOffset(uShadow, p, ivec2(0, 1)) + textureOffset(uShadow, p, ivec2(1, 1));
       return s / 9.0;
+    }
+    float shadowAt(vec3 n) {
+      vec3 wp = vWorld + n * 0.06;
+      float d = length(vWorld - uCamPos);
+      if (d < uCascadeFar) { // the near cascade is tight, so it can afford a small bias
+        float s = sampleCascade(0, wp + n * 0.04, 0.0012);
+        if (s >= 0.0) {
+          float fade = smoothstep(uCascadeFar * 0.82, uCascadeFar, d);
+          if (fade <= 0.0) return s;
+          float f = sampleCascade(1, wp + n * 0.14, 0.0022);
+          return mix(s, f < 0.0 ? 1.0 : f, fade);
+        }
+      }
+      float f = sampleCascade(1, wp + n * 0.14, 0.0022);
+      return f < 0.0 ? 1.0 : f;
     }
     void main() {
       vec4 t = uTexOn > 0.5 ? texture(uTex, vec3(vUV, vTile)) : vec4(1.0);
@@ -78,7 +95,7 @@ const RENDER = (() => {
       }
       if (uWater > 0.5) { n = normalize(n + vec3(sin(vWorld.x * 0.35 + uTime * 1.1) * 0.07 + sin(vWorld.z * 0.9 - uTime * 1.7) * 0.04, 0.0, cos(vWorld.z * 0.4 + uTime * 0.9) * 0.07 + cos(vWorld.x * 1.1 + uTime * 1.3) * 0.04)); }
       float ndl = max(dot(n, uSunDir), 0.0);
-      float sh = (uShadowOn > 0.5 && ndl > 0.0) ? shadowAt() : 1.0;
+      float sh = (uShadowOn > 0.5 && ndl > 0.0) ? shadowAt(n) : 1.0;
       vec3 hemi = mix(uGroundCol, uSkyCol, n.y * 0.5 + 0.5);
       vec3 col = albedo * (hemi + uSunCol * ndl * sh);
       if (uSpec > 0.0) { vec3 v = normalize(uCamPos - vWorld); vec3 hv = normalize(uSunDir + v);
@@ -221,7 +238,7 @@ const RENDER = (() => {
     const colorLayers = textures.color || textures, normalLayers = textures.normal;
     texArray = GL.textureArray(colorLayers);
     if (normalLayers && normalLayers.length === colorLayers.length) nrmArray = GL.textureArray(normalLayers);
-    const shadowSize = +(new URLSearchParams(location.search).get('shadow') || 0) || 2048; shadow = GL.shadowTarget(shadowSize);
+    const shadowSize = +(new URLSearchParams(location.search).get('shadow') || 0) || 2048; shadow = GL.shadowTarget(shadowSize * 2, shadowSize);
     // particle buffer: pos3 size1 col4 = 8 floats
     partVao = gl.createVertexArray(); gl.bindVertexArray(partVao); partBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, partBuf);
     gl.bufferData(gl.ARRAY_BUFFER, 8 * 4 * 4096, gl.DYNAMIC_DRAW);
@@ -271,20 +288,32 @@ const RENDER = (() => {
   }
 
   function setCamera(x, y, z, tx, ty, tz, fov) { cam.x = x; cam.y = y; cam.z = z; cam.tx = tx; cam.ty = ty; cam.tz = tz; if (fov) cam.fov = fov; }
-  const viewPlanes = new Float32Array(24), lightPlanes = new Float32Array(24);
-  const inView = (x, y, z, r) => M.sphereInFrustum(viewPlanes, x, y, z, r), inLight = (x, y, z, r) => M.sphereInFrustum(lightPlanes, x, y, z, r);
+  const CASCADE = [{ r: 34, ahead: 20 }, { r: 105, ahead: 52 }];
+  const viewPlanes = new Float32Array(24); const cascadePlanes = [new Float32Array(24), new Float32Array(24)];
+  const lightVPs = [M.create(), M.create()]; const lightAll = new Float32Array(32);
+  let shadowPass = 1; // which cascade the shadow pass is drawing, for culling
+  const inView = (x, y, z, r) => M.sphereInFrustum(viewPlanes, x, y, z, r);
+  const inLight = (x, y, z, r) => M.sphereInFrustum(cascadePlanes[0], x, y, z, r) || M.sphereInFrustum(cascadePlanes[1], x, y, z, r);
   function beginFrame(canvas) {
     resize(canvas);
     M.perspective(proj, cam.fov, canvas.width / canvas.height, cam.near, cam.far);
     M.lookAt(view, cam.x, cam.y, cam.z, cam.tx, cam.ty, cam.tz, 0, 1, 0);
     M.multiply(vp, proj, view); M.invert(invVP, vp); M.invert(invProj, proj);
-    // Shadow frustum: ortho box around the area in front of the camera.
+    // Two shadow cascades: a tight box just in front of the camera for crisp contact shadows, and a wide one
+    // for everything else. Each centre is snapped to a shadow texel so the shadows do not crawl as you move.
     const fx = cam.tx - cam.x, fz = cam.tz - cam.z, fl = Math.hypot(fx, fz) || 1;
-    const cx = cam.x + fx / fl * 45, cz = cam.z + fz / fl * 45, R = 95;
     const s = env.sunDir;
-    M.lookAt(lightView, cx + s[0] * 300, s[1] * 300, cz + s[2] * 300, cx, 0, cz, 0, 1, 0);
-    M.ortho(lightProj, -R, R, -R, R, 1, 700); M.multiply(lightVP, lightProj, lightView);
-    M.frustumPlanes(viewPlanes, vp); M.frustumPlanes(lightPlanes, lightVP);
+    for (let c = 0; c < 2; c++) {
+      const R = c === 0 ? CASCADE[0].r : CASCADE[1].r, ahead = c === 0 ? CASCADE[0].ahead : CASCADE[1].ahead;
+      const texel = 2 * R / shadow.h;
+      let cx = cam.x + fx / fl * ahead, cz = cam.z + fz / fl * ahead;
+      cx = Math.round(cx / texel) * texel; cz = Math.round(cz / texel) * texel;
+      M.lookAt(lightView, cx + s[0] * 300, s[1] * 300, cz + s[2] * 300, cx, 0, cz, 0, 1, 0);
+      M.ortho(lightProj, -R, R, -R, R, 1, 700); M.multiply(lightVPs[c], lightProj, lightView);
+      lightAll.set(lightVPs[c], c * 16);
+      M.frustumPlanes(cascadePlanes[c], lightVPs[c]);
+    }
+    M.frustumPlanes(viewPlanes, vp);
     stats.draws = 0; stats.tris = 0;
   }
   function setLights(list) {
@@ -295,9 +324,9 @@ const RENDER = (() => {
   }
   function bindCommon(P, forShadow) {
     gl.useProgram(P.p);
-    gl.uniformMatrix4fv(P.u.uVP, false, forShadow ? lightVP : vp);
+    gl.uniformMatrix4fv(P.u.uVP, false, forShadow ? lightVPs[shadowPass] : vp);
     if (!forShadow) {
-      gl.uniformMatrix4fv(P.u.uLightVP, false, lightVP);
+      gl.uniformMatrix4fv(P.u.uLightVP, false, lightAll); gl.uniform1f(P.u.uCascadeFar, CASCADE[0].r * 1.25);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, texArray); gl.uniform1i(P.u.uTex, 0);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadow.tex); gl.uniform1i(P.u.uShadow, 1);
       gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D_ARRAY, nrmArray || texArray); gl.uniform1i(P.u.uNrm, 3);
@@ -316,7 +345,7 @@ const RENDER = (() => {
     const P = forShadow ? shadowProg : litProg, PI = forShadow ? shadowInstProg : instProg, PS = forShadow ? shadowStaticProg : litStaticProg;
     // statics: no bones in the vertex shader, and a chunked mesh draws only the cells inside the camera's (or the light's) frustum
     bindCommon(PS, forShadow); gl.uniformMatrix4fv(PS.u.uModel, false, identityBones.subarray(0, 16));
-    const planes = forShadow ? lightPlanes : viewPlanes;
+    const planes = forShadow ? cascadePlanes[shadowPass] : viewPlanes;
     for (const m of scene.statics) { if (m.uvOff) gl.uniform2fv(PS.u.uUVOff, m.uvOff); const sp = m.water ? m.spec : (m.spec || 0.3) + (env.rain || 0) * 0.5; if (!forShadow) { gl.uniform1f(PS.u.uSpec, sp); gl.uniform1f(PS.u.uWater, m.water ? 1 : 0); }
       if (m.chunks) { for (const ch of m.chunks) if (M.aabbInFrustum(planes, ch.min, ch.max)) { GL.drawRange(m, ch.first, ch.count); stats.draws++; stats.tris += ch.count / 3; } } else { GL.draw(m); stats.draws++; stats.tris += m.count / 3; }
       if (m.uvOff) gl.uniform2f(PS.u.uUVOff, 0, 0); if (!forShadow) { gl.uniform1f(PS.u.uSpec, 0); gl.uniform1f(PS.u.uWater, 0); } }
@@ -347,9 +376,11 @@ const RENDER = (() => {
     env.time = time;
     // Shadow pass
     if (env.shadowOn) {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, shadow.fbo); gl.viewport(0, 0, shadow.size, shadow.size);
-      gl.clear(gl.DEPTH_BUFFER_BIT); gl.cullFace(gl.FRONT); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(2, 4);
-      drawScene(scene, true);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, shadow.fbo);
+      gl.viewport(0, 0, shadow.w, shadow.h); gl.clear(gl.DEPTH_BUFFER_BIT);
+      gl.cullFace(gl.FRONT); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(2, 4);
+      for (let c = 0; c < 2; c++) { shadowPass = c; gl.viewport(c * shadow.h, 0, shadow.h, shadow.h); drawScene(scene, true); }
+      shadowPass = 1;
       gl.disable(gl.POLYGON_OFFSET_FILL); gl.cullFace(gl.BACK);
     }
     if (post.enabled) ensureTargets(canvas.width, canvas.height);

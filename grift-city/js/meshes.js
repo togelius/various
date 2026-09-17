@@ -214,6 +214,9 @@ const MESH = (() => {
     // imported models (js/assets.js): the body is the model, wheels are its wheel parts on the usual bones, axle positions come from the model
     ktruck:  { len: 4.2, wid: 2.25, hgt: 1.8, cabin: [0.3, 0.6], wheelR: 0.45, mass: 1.35, accel: 10, top: 25, grip: 0.86, turn: 2.1, brake: 22, seats: 2, hood: 1.0, model: 'ktruck', modelScale: 1.5, axleF: 1.29, axleR: -0.99, track: 0.83, seatY: 0.66, seatScale: 0.8 },
     kmoto:   { len: 2.0, wid: 0.8, hgt: 1.15, cabin: null, wheelR: 0.345, mass: 0.4, accel: 16, top: 36, grip: 0.9, turn: 3.0, brake: 25, seats: 1, hood: 0, bike: true, model: 'kmoto', modelScale: 1.15, axleF: 0.99, axleR: -0.76, track: 0, seatY: 0.68, seatScale: 1, seatZ: -0.5 },
+    kgarbage:  { len: 5.5, wid: 2.56, hgt: 2.85, cabin: [0.28, 0.5], wheelR: 0.48, mass: 2.4, accel: 6, top: 19, grip: 0.82, turn: 1.7, brake: 17, seats: 2, hood: 0.6, model: 'kgarbage', modelScale: 1.6, axleF: 1.78, axleR: -0.82, track: 0.72, seatY: 1.15, seatScale: 0.85 },
+    kambulance: { len: 4.9, wid: 2.25, hgt: 2.85, cabin: [0.3, 0.55], wheelR: 0.45, mass: 1.7, accel: 11, top: 27, grip: 0.9, turn: 2.1, brake: 24, seats: 2, hood: 0.7, model: 'kambulance', modelScale: 1.5, axleF: 1.52, axleR: -1.37, track: 0.68, seatY: 1.15, seatScale: 0.85 },
+    kfire:     { len: 5.4, wid: 2.48, hgt: 2.97, cabin: [0.3, 0.52], wheelR: 0.5, mass: 2.6, accel: 8, top: 24, grip: 0.86, turn: 1.8, brake: 20, seats: 2, hood: 0.7, model: 'kfire', modelScale: 1.65, axleF: 1.58, axleR: -1.09, track: 0.91, seatY: 1.2, seatScale: 0.85 },
   };
 
   // Height of the seat cushion in car-local space: a seated ped is 1.05 m from hip to crown, so it sits that far below the roof.

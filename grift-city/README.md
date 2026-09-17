@@ -248,6 +248,11 @@ Fog is a height fog rather than a plain distance fade: an analytic integral of a
 along the view ray, so haze pools in the streets and thins with altitude and the skyline stays crisp.
 Near the sun it warms toward the sunlight, which is what gives a long avenue its depth.
 
+Sunlight casts two shadow cascades packed side by side in one depth atlas: a tight box just in front
+of the camera for crisp contact shadows and a wide one for the rest, each snapped to a shadow texel so
+the shadows do not crawl as you move, and each culled to its own frustum — which makes the two passes
+together cheaper than the single wide one they replaced.
+
 Every surface carries a normal map and a roughness map alongside its colour. The tangent frame is
 rebuilt in the fragment shader from the screen-space derivatives of world position and UV, so no mesh
 stores tangents. Roughness drives the highlight, and a smooth surface also mirrors the sky along the
