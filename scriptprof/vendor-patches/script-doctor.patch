@@ -1,0 +1,89 @@
+diff --git a/puzzlescript_cpp/src/bindings.cpp b/puzzlescript_cpp/src/bindings.cpp
+index f2a09d0..2f42ca4 100644
+--- a/puzzlescript_cpp/src/bindings.cpp
++++ b/puzzlescript_cpp/src/bindings.cpp
+@@ -58,6 +58,10 @@ PYBIND11_MODULE(_puzzlescript_cpp, m) {
+              "Whether the game is in a winning state")
+         .def("is_againing", &Engine::isAgaining,
+              "Whether the game wants an 'again' tick")
++        .def("get_rule_fire_counts", &Engine::getRuleFireCounts,
++             "scriptprof: dict of rule source line number -> number of times applied")
++        .def("reset_rule_fire_counts", &Engine::resetRuleFireCounts,
++             "scriptprof: zero the rule-firing counters")
+         .def("get_objects", [](const Engine& e) {
+             const auto& objs = e.getObjects();
+             return py::array_t<int32_t>(
+diff --git a/puzzlescript_cpp/src/engine.cpp b/puzzlescript_cpp/src/engine.cpp
+index 2e14c32..ffd196b 100644
+--- a/puzzlescript_cpp/src/engine.cpp
++++ b/puzzlescript_cpp/src/engine.cpp
+@@ -85,6 +85,7 @@ Engine::Engine(Engine&& other) noexcept
+       winning_(other.winning_),
+       againing_(other.againing_),
+       rng_(other.rng_),
++      ruleFireCounts_(std::move(other.ruleFireCounts_)),
+       curLevel_(other.curLevel_),
+       _o1(std::move(other._o1)), _o2(std::move(other._o2)),
+       _o2_5(std::move(other._o2_5)), _o3(std::move(other._o3)),
+@@ -134,6 +135,7 @@ Engine& Engine::operator=(Engine&& other) noexcept {
+         winning_ = other.winning_;
+         againing_ = other.againing_;
+         rng_ = other.rng_;
++        ruleFireCounts_ = std::move(other.ruleFireCounts_);
+         curLevel_ = other.curLevel_;
+         _o1 = std::move(other._o1); _o2 = std::move(other._o2);
+         _o2_5 = std::move(other._o2_5); _o3 = std::move(other._o3);
+@@ -1135,6 +1137,9 @@ bool Engine::ruleTryApply(Rule& rule) {
+ 
+     if (!matches.empty()) {
+         ruleQueueCommands(rule);
++        // scriptprof: a rule "fires" when it rewrites the level, or, for a
++        // command-only rule, whenever its pattern matches.
++        if (result || !rule.hasReplacements) ruleFireCounts_[rule.lineNumber]++;
+     }
+ 
+     return result;
+@@ -1163,6 +1168,7 @@ bool Engine::applyRandomRuleGroup(std::vector<Rule*>& ruleGroup) {
+     Rule& rule = *ruleGroup[match.ruleIndex];
+     int delta = level_.delta_index(rule.direction);
+     bool modified = ruleApplyAt(rule, match.tuple, false, delta);
++    if (modified || !rule.hasReplacements) ruleFireCounts_[rule.lineNumber]++;  // scriptprof
+ 
+     ruleQueueCommands(rule);
+     return modified;
+diff --git a/puzzlescript_cpp/src/engine.h b/puzzlescript_cpp/src/engine.h
+index c8e72e8..77a1014 100644
+--- a/puzzlescript_cpp/src/engine.h
++++ b/puzzlescript_cpp/src/engine.h
+@@ -117,6 +117,10 @@ public:
+     bool isWinning() const { return winning_; }
+     bool isAgaining() const { return againing_; }
+ 
++    // scriptprof: rule-firing instrumentation (keyed by rule source line number)
++    const std::map<int, long long>& getRuleFireCounts() const { return ruleFireCounts_; }
++    void resetRuleFireCounts() { ruleFireCounts_.clear(); }
++
+     // Get idDict for interpreting object bits
+     const std::vector<std::string>& getIdDict() const { return idDict_; }
+ 
+@@ -164,6 +168,8 @@ private:
+     bool winning_ = false;
+     bool againing_ = false;
+     RNG rng_;
++    // scriptprof: how many times each source rule (by line number) has applied
++    std::map<int, long long> ruleFireCounts_;
+     int curLevel_ = 0;
+ 
+     // Scratch BitVecs (to avoid repeated allocation in hot paths)
+diff --git a/puzzlescript_nodejs/puzzlescript/engine.js b/puzzlescript_nodejs/puzzlescript/engine.js
+index db0db52..fb81822 100644
+--- a/puzzlescript_nodejs/puzzlescript/engine.js
++++ b/puzzlescript_nodejs/puzzlescript/engine.js
+@@ -125,6 +125,7 @@ function createSandbox() {
+ 
+     sandbox.canvasResize = function() {};
+     sandbox.redraw = function() {};
++    sandbox.updateFocusBorderColour = function() {}; // scriptprof: upstream colorhelpers.js not bundled
+     sandbox.forceRegenImages = function() {};
+     sandbox.consolePrintFromRule = function() {};
+     sandbox.consolePrint = function() {};

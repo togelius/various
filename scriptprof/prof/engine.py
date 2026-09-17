@@ -109,3 +109,58 @@ def level_indices(compiled: Compiled) -> list[int]:
         if eng.width > 0 and eng.height > 0:
             out.append(i)
     return out
+
+
+# ---- rule-firing instrumentation (scriptprof patch to the C++ engine) -----
+
+def rule_fire_counts(eng) -> dict[int, int]:
+    """Counts of rule applications since the last reset, keyed by source line."""
+    return {int(k): int(v) for k, v in eng._engine.get_rule_fire_counts().items()}
+
+
+def replay(eng, level: int, actions: list[int]) -> dict[str, Any]:
+    """Replay actions on a level from scratch, returning win flag and rule counts."""
+    eng.load_level(level)
+    eng._engine.reset_rule_fire_counts()
+    changed = 0
+    for a in actions:
+        changed += int(eng.process_input(a))
+    return {"won": bool(eng.winning), "steps": len(actions), "changed": changed,
+            "counts": rule_fire_counts(eng)}
+
+
+def rule_source_lines(text: str) -> dict[int, str]:
+    """1-based line number -> source line, for every line containing a rule arrow."""
+    out = {}
+    for i, ln in enumerate(text.splitlines(), start=1):
+        if "->" in ln:
+            out[i] = ln.strip()
+    return out
+
+
+def coverage(compiled: Compiled, solutions: dict[int, list[int]]) -> dict[str, Any]:
+    """Rule coverage over a set of level solutions.
+
+    ``solutions`` maps level index -> action list. Returns which rule source
+    lines fired on at least one solution, which never fired, and per-level
+    counts. This is the check GAVEL could not do in Ludii: a rule that never
+    fires on any solution is an unused game component.
+    """
+    eng = new_engine(compiled)
+    src = rule_source_lines(compiled.text)
+    fired: dict[int, int] = {}
+    per_level = {}
+    for lvl, acts in solutions.items():
+        r = replay(eng, lvl, acts)
+        per_level[lvl] = r
+        for k, v in r["counts"].items():
+            fired[k] = fired.get(k, 0) + v
+    compiled_lines = {r["lineNumber"] for g in compiled.state.get("rules", []) + compiled.state.get("lateRules", []) for r in g}
+    never = sorted(compiled_lines - set(fired))
+    return {
+        "n_rules": len(compiled_lines),
+        "n_fired": len(set(fired) & compiled_lines),
+        "never_fired": [(ln, src.get(ln, "?")) for ln in never],
+        "fired": {ln: (fired[ln], src.get(ln, "?")) for ln in sorted(fired)},
+        "per_level": per_level,
+    }
