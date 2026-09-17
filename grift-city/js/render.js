@@ -2,13 +2,13 @@
 // a sky, a shadow pass, instanced props, point-sprite particles and a flat FX pass.
 'use strict';
 const RENDER = (() => {
-  let gl, litProg, instProg, shadowProg, shadowInstProg, litStaticProg, shadowStaticProg, skyProg, partProg, flatProg, texArray, shadow;
+  let gl, litProg, instProg, shadowProg, shadowInstProg, litStaticProg, shadowStaticProg, skyProg, partProg, flatProg, texArray, nrmArray, shadow;
   const MAX_LIGHTS = 32, MAX_BONES = 12;
   const proj = M.create(), view = M.create(), vp = M.create(), invVP = M.create(), invProj = M.create(), lightVP = M.create(), lightView = M.create(), lightProj = M.create();
   const identityBones = new Float32Array(16 * MAX_BONES); for (let i = 0; i < MAX_BONES; i++) identityBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
   const zeroEmis = new Float32Array(MAX_BONES);
   const cam = { x: 0, y: 20, z: 0, tx: 0, ty: 0, tz: 1, fov: 60 * Math.PI / 180, near: 0.3, far: 900 };
-  const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 };
+  const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 , normalMaps: true, normalStrength: 1.0 , fogHeight: 30, fogSun: 0.7 , reflect: 1.7 };
   const lights = { pos: new Float32Array(MAX_LIGHTS * 4), col: new Float32Array(MAX_LIGHTS * 3), n: 0 };
   const stats = { draws: 0, tris: 0 };
 
@@ -34,9 +34,11 @@ const RENDER = (() => {
     }`;
   const FS = `
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in vec4 vShadow; in float vEmis;
-    uniform sampler2DArray uTex; uniform sampler2DShadow uShadow;
+    uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform sampler2DArray uNrm;
+    uniform float uNrmOn; uniform float uNrmStr;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
-    uniform float uFogDensity; uniform float uNightEmis; uniform float uShadowOn; uniform float uTexOn; uniform float uSpec; uniform float uHDR; uniform float uAlpha; uniform float uWater; uniform float uTime;
+    uniform float uFogDensity; uniform float uFogHeight; uniform float uFogSun; uniform float uNightEmis;
+    uniform vec3 uZenith; uniform vec3 uHorizon; uniform float uReflect; uniform float uShadowOn; uniform float uTexOn; uniform float uSpec; uniform float uHDR; uniform float uAlpha; uniform float uWater; uniform float uTime;
     uniform vec4 uLights[${MAX_LIGHTS}]; uniform vec3 uLightCols[${MAX_LIGHTS}]; uniform int uNumLights;
     out vec4 o;
     float shadowAt() {
@@ -52,12 +54,43 @@ const RENDER = (() => {
       vec4 t = uTexOn > 0.5 ? texture(uTex, vec3(vUV, vTile)) : vec4(1.0);
       vec3 albedo = t.rgb * vCol;
       vec3 n = normalize(vNrm);
+      // Normal and roughness from the parallel map. The tangent frame comes from the screen-space derivatives of world
+      // position and UV (Mikkelsen's cotangent frame), so no tangents need storing on the mesh.
+      float rough = 0.72;
+      if (uNrmOn > 0.5 && uTexOn > 0.5) {
+        vec4 nm = texture(uNrm, vec3(vUV, vTile));
+        rough = nm.a;
+        vec3 dp1 = dFdx(vWorld), dp2 = dFdy(vWorld);
+        vec2 duv1 = dFdx(vUV), duv2 = dFdy(vUV);
+        vec3 dp2perp = cross(dp2, n), dp1perp = cross(n, dp1);
+        vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+        vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+        float m = max(dot(T, T), dot(B, B));
+        if (m > 1e-12) {
+          vec3 tn = nm.xyz * 2.0 - 1.0; tn.y = -tn.y; // the canvas v axis runs down the texture
+          tn.xy *= uNrmStr;
+          float inv = inversesqrt(m);
+          n = normalize(mat3(T * inv, B * inv, n) * normalize(tn));
+        }
+      }
       if (uWater > 0.5) { n = normalize(n + vec3(sin(vWorld.x * 0.35 + uTime * 1.1) * 0.07 + sin(vWorld.z * 0.9 - uTime * 1.7) * 0.04, 0.0, cos(vWorld.z * 0.4 + uTime * 0.9) * 0.07 + cos(vWorld.x * 1.1 + uTime * 1.3) * 0.04)); }
       float ndl = max(dot(n, uSunDir), 0.0);
       float sh = (uShadowOn > 0.5 && ndl > 0.0) ? shadowAt() : 1.0;
       vec3 hemi = mix(uGroundCol, uSkyCol, n.y * 0.5 + 0.5);
       vec3 col = albedo * (hemi + uSunCol * ndl * sh);
-      if (uSpec > 0.0) { vec3 v = normalize(uCamPos - vWorld); vec3 hv = normalize(uSunDir + v); float sp = pow(max(dot(n, hv), 0.0), 48.0); col += uSunCol * sp * uSpec * sh; col += hemi * uSpec * 0.6 * pow(1.0 - max(dot(n, v), 0.0), 3.0); }
+      if (uSpec > 0.0) { vec3 v = normalize(uCamPos - vWorld); vec3 hv = normalize(uSunDir + v);
+        float gloss = 1.0 - rough; float power = mix(6.0, 110.0, gloss * gloss);
+        float sp = pow(max(dot(n, hv), 0.0), power) * (0.12 + 1.5 * gloss * gloss);
+        col += uSunCol * sp * uSpec * sh;
+        // A smooth surface mirrors the sky: the same gradient the sky shader draws, looked up along the reflected
+        // view ray, with a Fresnel edge. This is what makes a glass tower read as glass rather than a painted grid.
+        vec3 refl = reflect(-v, n);
+        vec3 skyRefl = mix(uHorizon, uZenith, pow(clamp(refl.y, 0.0, 1.0), 0.55));
+        skyRefl += uSunCol * pow(max(dot(refl, uSunDir), 0.0), 64.0) * 0.6;
+        float fres = 0.08 + 0.92 * pow(1.0 - max(dot(n, v), 0.0), 4.0);
+        float dn = clamp(refl.y * 2.0 + 0.55, 0.0, 1.0); // rays aimed at the ground see the street, not the sky
+        col = mix(col, skyRefl, clamp(uReflect * uSpec * gloss * gloss * fres * dn, 0.0, 0.92));
+        col += hemi * uSpec * (0.2 + 0.5 * gloss) * pow(1.0 - max(dot(n, v), 0.0), 3.0); }
       for (int i = 0; i < ${MAX_LIGHTS}; i++) {
         if (i >= uNumLights) break;
         vec3 L = uLights[i].xyz - vWorld; float d = length(L); float att = clamp(1.0 - d / uLights[i].w, 0.0, 1.0); att *= att;
@@ -65,11 +98,19 @@ const RENDER = (() => {
         float nl = max(dot(n, L / d), 0.0) * 0.8 + 0.2;
         col += albedo * uLightCols[i] * att * nl;
       }
-      col += mix(albedo, vec3(1.0, 0.85, 0.6), 0.6) * t.a * uNightEmis * 0.55;
+      col += mix(albedo, vec3(1.0, 0.86, 0.62), 0.82) * t.a * uNightEmis * 1.15;
       col += vCol * vEmis;
-      float dist = length(vWorld - uCamPos);
-      float f = 1.0 - exp(-dist * uFogDensity);
-      col = mix(col, uFogCol, f);
+      // Height fog: haze pools in the streets and thins with altitude, so the skyline stays crisp and the city gains depth.
+      // Analytic integral of an exponential density along the view ray, then tinted toward the sun for aerial perspective.
+      vec3 dv = vWorld - uCamPos; float dist = length(dv);
+      float invH = 1.0 / uFogHeight;
+      float dy = dv.y;
+      float integral = abs(dy) < 0.05 ? exp(-uCamPos.y * invH) : (exp(-uCamPos.y * invH) - exp(-vWorld.y * invH)) / (dy * invH);
+      float f = 1.0 - exp(-dist * uFogDensity * max(integral, 0.0));
+      vec3 vdir = dv / max(dist, 0.001);
+      float sunAmt = pow(max(dot(vdir, uSunDir), 0.0), 6.0);
+      vec3 fogC = mix(uFogCol, uFogCol * 0.6 + uSunCol * 0.7, sunAmt * uFogSun);
+      col = mix(col, fogC, clamp(f, 0.0, 1.0));
       if (uHDR > 0.5) { o = vec4(col, uAlpha); return; }
       col = col / (1.0 + col * 0.15);
       o = vec4(pow(col, vec3(1.0 / 1.25)), uAlpha);
@@ -172,7 +213,9 @@ const RENDER = (() => {
     litProg = GL.program(VS, FS); instProg = GL.program(VS, FS, '#define INSTANCED'); litStaticProg = GL.program(VS, FS, '#define STATIC'); shadowStaticProg = GL.program(VS, SHADOW_FS, '#define STATIC\n#define SHADOW');
     shadowProg = GL.program(VS, SHADOW_FS, '#define SHADOW'); shadowInstProg = GL.program(VS, SHADOW_FS, '#define INSTANCED\n#define SHADOW');
     skyProg = GL.program(SKY_VS, SKY_FS); partProg = GL.program(PART_VS, PART_FS); flatProg = GL.program(FLAT_VS, FLAT_FS);
-    texArray = GL.textureArray(textures);
+    const colorLayers = textures.color || textures, normalLayers = textures.normal;
+    texArray = GL.textureArray(colorLayers);
+    if (normalLayers && normalLayers.length === colorLayers.length) nrmArray = GL.textureArray(normalLayers);
     const shadowSize = +(new URLSearchParams(location.search).get('shadow') || 0) || 2048; shadow = GL.shadowTarget(shadowSize);
     // particle buffer: pos3 size1 col4 = 8 floats
     partVao = gl.createVertexArray(); gl.bindVertexArray(partVao); partBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, partBuf);
@@ -204,21 +247,21 @@ const RENDER = (() => {
     const night = 1 - day;
     if (sy > 0.02) env.sunDir = [sx, sy, sz]; else env.sunDir = [-sx * 0.5, Math.max(0.35, -sy), -sz * 0.5]; // moon-ish from the other side
     const mix3 = (a, b, k) => [M.lerp(a[0], b[0], k), M.lerp(a[1], b[1], k), M.lerp(a[2], b[2], k)];
-    const sunDay = mix3([1.35, 1.27, 1.12], [1.2, 0.55, 0.22], dusk); const sunNight = [0.02, 0.025, 0.045];
+    const sunDay = mix3([1.62, 1.5, 1.28], [1.45, 0.62, 0.24], dusk); const sunNight = [0.02, 0.025, 0.045];
     env.sunCol = mix3(sunNight, sunDay.map(v => v * 1.0), day);
-    env.skyCol = mix3([0.014, 0.017, 0.032], mix3([0.14, 0.19, 0.28], [0.22, 0.14, 0.11], dusk), day);
-    env.groundCol = mix3([0.006, 0.007, 0.011], mix3([0.09, 0.085, 0.075], [0.12, 0.07, 0.05], dusk), day);
+    env.skyCol = mix3([0.014, 0.017, 0.032], mix3([0.13, 0.18, 0.29], [0.2, 0.13, 0.11], dusk), day);
+    env.groundCol = mix3([0.006, 0.007, 0.011], mix3([0.075, 0.072, 0.064], [0.1, 0.06, 0.045], dusk), day);
     env.zenith = mix3([0.004, 0.006, 0.02], mix3([0.12, 0.3, 0.75], [0.15, 0.15, 0.4], dusk), day);
     env.horizon = mix3([0.012, 0.014, 0.03], mix3([0.36, 0.47, 0.68], [0.9, 0.4, 0.2], dusk), day);
-    env.fogCol = mix3([0.008, 0.009, 0.018], mix3([0.36, 0.46, 0.64], [0.8, 0.4, 0.25], dusk), day);
-    env.fogDensity = M.lerp(0.0028, 0.0016, day);
+    env.fogCol = mix3([0.01, 0.012, 0.024], mix3([0.33, 0.43, 0.62], [0.78, 0.4, 0.26], dusk), day);
+    env.fogDensity = M.lerp(0.0032, 0.0022, day); env.fogHeight = M.lerp(22, 34, day); env.fogSun = 0.7 * day;
     env.nightEmis = M.clamp(night * 1.3, 0, 1); env.daylight = day; env.starAlpha = M.clamp(night * 1.2 - 0.2, 0, 1) * (1 - rain); env.sunDisc = sy > 0.02 ? (1 - rain) : 0;
     if (rain > 0) { // overcast: grey it all down, thicken the fog
       const grey = c => { const l = c[0] * 0.3 + c[1] * 0.5 + c[2] * 0.2; return [M.lerp(c[0], l * 0.85, rain * 0.8), M.lerp(c[1], l * 0.88, rain * 0.8), M.lerp(c[2], l * 0.95, rain * 0.8)]; };
       env.sunCol = env.sunCol.map(v => v * (1 - 0.75 * rain)); env.skyCol = grey(env.skyCol); env.zenith = grey(env.zenith).map(v => v * (1 - 0.35 * rain)); env.horizon = grey(env.horizon); env.fogCol = grey(env.fogCol); env.groundCol = grey(env.groundCol);
-      env.fogDensity = M.lerp(env.fogDensity, 0.0055, rain);
+      env.fogDensity = M.lerp(env.fogDensity, 0.0075, rain); env.fogHeight = M.lerp(env.fogHeight, 60, rain); env.fogSun *= (1 - rain);
     }
-    if (fog > 0) { env.fogDensity = M.lerp(env.fogDensity, 0.012, fog); env.fogCol = env.fogCol.map((v, i) => M.lerp(v, [0.62, 0.66, 0.72][i] * (0.15 + 0.85 * day), fog)); env.sunCol = env.sunCol.map(v => v * (1 - 0.6 * fog)); env.sunDisc *= (1 - fog); env.horizon = env.horizon.map((v, i) => M.lerp(v, env.fogCol[i], fog)); }
+    if (fog > 0) { env.fogDensity = M.lerp(env.fogDensity, 0.016, fog); env.fogHeight = M.lerp(env.fogHeight, 90, fog); env.fogSun *= (1 - fog); env.fogCol = env.fogCol.map((v, i) => M.lerp(v, [0.62, 0.66, 0.72][i] * (0.15 + 0.85 * day), fog)); env.sunCol = env.sunCol.map(v => v * (1 - 0.6 * fog)); env.sunDisc *= (1 - fog); env.horizon = env.horizon.map((v, i) => M.lerp(v, env.fogCol[i], fog)); }
     env.rain = rain; env.fog = fog; env.shadowOn = day > 0.15 && rain < 0.5 && fog < 0.6;
   }
 
@@ -252,8 +295,12 @@ const RENDER = (() => {
       gl.uniformMatrix4fv(P.u.uLightVP, false, lightVP);
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, texArray); gl.uniform1i(P.u.uTex, 0);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadow.tex); gl.uniform1i(P.u.uShadow, 1);
+      gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D_ARRAY, nrmArray || texArray); gl.uniform1i(P.u.uNrm, 3);
+      gl.uniform1f(P.u.uNrmOn, nrmArray && env.normalMaps ? 1 : 0); gl.uniform1f(P.u.uNrmStr, env.normalStrength);
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
       gl.uniform3fv(P.u.uFogCol, env.fogCol); gl.uniform3f(P.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform1f(P.u.uFogDensity, env.fogDensity);
+      gl.uniform1f(P.u.uFogHeight, env.fogHeight); gl.uniform1f(P.u.uFogSun, env.fogSun);
+      gl.uniform3fv(P.u.uZenith, env.zenith); gl.uniform3fv(P.u.uHorizon, env.horizon); gl.uniform1f(P.u.uReflect, env.reflect);
       gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uHDR, post.hdr ? 1 : 0); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uWater, 0); gl.uniform1f(P.u.uTime, env.time || 0);
       gl.uniform4fv(P.u.uLights, lights.pos); gl.uniform3fv(P.u.uLightCols, lights.col); gl.uniform1i(P.u.uNumLights, lights.n);
     }
@@ -265,7 +312,7 @@ const RENDER = (() => {
     // statics: no bones in the vertex shader, and a chunked mesh draws only the cells inside the camera's (or the light's) frustum
     bindCommon(PS, forShadow); gl.uniformMatrix4fv(PS.u.uModel, false, identityBones.subarray(0, 16));
     const planes = forShadow ? lightPlanes : viewPlanes;
-    for (const m of scene.statics) { if (m.uvOff) gl.uniform2fv(PS.u.uUVOff, m.uvOff); const sp = m.water ? m.spec : (m.spec || 0.12) + (env.rain || 0) * 0.5; if (!forShadow) { gl.uniform1f(PS.u.uSpec, sp); gl.uniform1f(PS.u.uWater, m.water ? 1 : 0); }
+    for (const m of scene.statics) { if (m.uvOff) gl.uniform2fv(PS.u.uUVOff, m.uvOff); const sp = m.water ? m.spec : (m.spec || 0.3) + (env.rain || 0) * 0.5; if (!forShadow) { gl.uniform1f(PS.u.uSpec, sp); gl.uniform1f(PS.u.uWater, m.water ? 1 : 0); }
       if (m.chunks) { for (const ch of m.chunks) if (M.aabbInFrustum(planes, ch.min, ch.max)) { GL.drawRange(m, ch.first, ch.count); stats.draws++; stats.tris += ch.count / 3; } } else { GL.draw(m); stats.draws++; stats.tris += m.count / 3; }
       if (m.uvOff) gl.uniform2f(PS.u.uUVOff, 0, 0); if (!forShadow) { gl.uniform1f(PS.u.uSpec, 0); gl.uniform1f(PS.u.uWater, 0); } }
     bindCommon(P, forShadow);

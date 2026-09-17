@@ -1,14 +1,14 @@
 // Play back a recording made by run.js --record: same seed, same fixed timestep, the recorded inputs instead of a bot.
 // usage: node replay.js <name> [everyGameSeconds=4]
 // Writes screenshots to pt/<name>/replay/ and prints the final position next to the recorded one, so a diverging replay shows up.
-const { chromium } = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })(); const fs = require('fs'); const path = require('path');
+const { launch } = require('./launch.js'); const fs = require('fs'); const path = require('path');
 const [name, everyArg = '4'] = process.argv.slice(2); const EVERY = +everyArg;
 const dir = path.join(__dirname, 'pt', name); const rec = JSON.parse(fs.readFileSync(path.join(dir, 'inputs.json'), 'utf8'));
 const out = path.join(dir, 'replay'); fs.rmSync(out, { recursive: true, force: true }); fs.mkdirSync(out, { recursive: true });
 (async () => {
-  const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const b = await launch([]);
   const page = await b.newPage({ viewport: { width: 640, height: 360 } }); const errors = []; page.on('pageerror', e => errors.push(e.message));
-  await page.goto('file://' + path.resolve(__dirname, '..', '..', 'index.html') + '?seed=' + rec.seed); await page.waitForFunction(() => window.__ready, null, { timeout: 90000 });
+  await page.goto('file://' + path.resolve(__dirname, '..', '..', 'index.html') + '?seed=' + rec.seed); await page.waitForFunction(() => window.__ready, null, { timeout: 240000 });
   await page.evaluate(([sc, inputs, dt]) => { window.__pt = { dt, renderEvery: 10, cheap: true, n: 0, replay: inputs }; window.__botScenario = sc; GAME.startPlay(); if (sc !== 'story') { MISSIONS.S.dialogue = null; MISSIONS.S.progress = 1; } }, [rec.scenario, rec.inputs, rec.dt]);
   let shots = 0, lastT = -99;
   while (true) {

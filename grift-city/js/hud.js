@@ -136,7 +136,10 @@ const HUD = (() => {
     const lines = ['WASD / arrows  move · drive', 'Mouse  look and aim · left button  attack · right button  aim', 'SHIFT  sprint · SPACE  jump / handbrake · F  enter / leave car', 'Scroll, Q / E, 1–8  weapons · R  radio · H  horn · L  siren · T  taxi / vigilante job', 'TAB  map · ESC  pause · M  mute'];
     lines.forEach((l, i) => text(l, W_ / 2, H_ * 0.7 + i * 22, 14, '#bbb', 'center', 'normal'));
   }
-  function drawLoading() { g.fillStyle = '#000'; g.fillRect(0, 0, W_, H_); outlined('GRIFT CITY', W_ / 2, H_ * 0.45, 70, '#f5c542'); text('building the city…', W_ / 2, H_ * 0.45 + 60, 18, '#ccc', 'center', 'normal'); }
+  let loadNote = 'building the city…', loadFrac = -1;
+  function loading(note, frac) { loadNote = note; loadFrac = frac === undefined ? -1 : frac; draw(0, 'loading'); }
+  function drawLoading() { g.fillStyle = '#000'; g.fillRect(0, 0, W_, H_); outlined('GRIFT CITY', W_ / 2, H_ * 0.45, 70, '#f5c542'); text(loadNote, W_ / 2, H_ * 0.45 + 60, 18, '#ccc', 'center', 'normal');
+    if (loadFrac >= 0) { const w = Math.min(320, W_ * 0.5), x = (W_ - w) / 2, y = H_ * 0.45 + 84; g.fillStyle = 'rgba(255,255,255,0.15)'; g.fillRect(x, y, w, 6); g.fillStyle = '#f5c542'; g.fillRect(x, y, w * M.clamp(loadFrac, 0, 1), 6); } }
   // ---- Key reminders: a line for what you are doing right now, F1 for the whole sheet
   let showControls = false, hitT = 0, hitKill = false;
   function hitMark(kill) { hitT = 0.2; hitKill = !!kill; }
@@ -178,5 +181,5 @@ const HUD = (() => {
   }
   // Where a run went: the big map with every sampled position burned in (tools/playtest/run.js writes it as heatmap.png).
   function heatmap(track) { resize(); g.clearRect(0, 0, W_, H_); drawBigMap(PLAYER.P, (scale) => { g.fillStyle = 'rgba(255,70,30,0.22)'; for (const [x, z] of track) { g.beginPath(); g.arc(x, z, 7 / scale, 0, 7); g.fill(); } g.fillStyle = '#fff'; g.beginPath(); g.arc(track[0][0], track[0][1], 5 / scale, 0, 7); g.fill(); }); text('positions sampled every 0.4 s of wall time; white dot is the start', W_ / 2, H_ - 14, 12, '#ccc', 'center', 'normal'); }
-  return { init, draw, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, shake: (a) => PLAYER.shake(a) };
+  return { init, draw, loading, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, shake: (a) => PLAYER.shake(a) };
 })();

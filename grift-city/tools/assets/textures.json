@@ -1,0 +1,195 @@
+{
+  "_comment": "Which ambientCG (CC0) material sits under each painted texture layer. `tile` is how many times the material repeats across the 512px layer; `bright`/`sat` adjust it toward the city's palette. See tools/assets/SOURCES.md.",
+  "quality": {
+    "color": 512,
+    "colorQ": 86,
+    "normal": 320,
+    "normalQ": 88,
+    "rough": 128,
+    "roughQ": 80
+  },
+  "layers": {
+    "asphalt": {
+      "material": "Asphalt025A",
+      "tile": 3,
+      "bright": 1.0,
+      "sat": 0.8,
+      "tint": 0.25
+    },
+    "road": {
+      "material": "Asphalt022",
+      "tile": 4,
+      "bright": 0.82,
+      "sat": 0.7,
+      "tint": 0.25
+    },
+    "sidewalk": {
+      "material": "Concrete036",
+      "tile": 3,
+      "bright": 1.0,
+      "sat": 0.75,
+      "tint": 0.22
+    },
+    "parking": {
+      "material": "Concrete042A",
+      "tile": 3,
+      "bright": 0.95,
+      "sat": 0.8,
+      "tint": 0.25
+    },
+    "grass": {
+      "material": "Grass004",
+      "tile": 5,
+      "bright": 1.0,
+      "sat": 0.95,
+      "tint": 0.2
+    },
+    "sand": {
+      "material": "Ground054",
+      "tile": 4,
+      "bright": 1.05,
+      "sat": 0.9,
+      "tint": 0.25
+    },
+    "planks": {
+      "material": "Planks016",
+      "tile": 3,
+      "bright": 0.9,
+      "sat": 0.85,
+      "tint": 0.3
+    },
+    "brick": {
+      "material": "Bricks101",
+      "tile": 3,
+      "bright": 1.0,
+      "sat": 0.9,
+      "tint": 0.3
+    },
+    "brick2": {
+      "material": "Bricks059",
+      "tile": 3,
+      "bright": 0.98,
+      "sat": 0.88,
+      "tint": 0.3
+    },
+    "brick3": {
+      "material": "Bricks060",
+      "tile": 3,
+      "bright": 1.0,
+      "sat": 0.85,
+      "tint": 0.3
+    },
+    "tenement": {
+      "material": "Bricks074",
+      "tile": 3,
+      "bright": 1.0,
+      "sat": 0.88,
+      "tint": 0.3
+    },
+    "loft": {
+      "material": "Bricks086",
+      "tile": 3,
+      "bright": 0.98,
+      "sat": 0.9,
+      "tint": 0.3
+    },
+    "office": {
+      "material": "Plaster006",
+      "tile": 3,
+      "bright": 1.0,
+      "sat": 0.8,
+      "tint": 0.35
+    },
+    "office2": {
+      "material": "Concrete031",
+      "tile": 3,
+      "bright": 1.05,
+      "sat": 0.8,
+      "tint": 0.35
+    },
+    "concrete": {
+      "material": "Concrete019",
+      "tile": 3,
+      "bright": 1.0,
+      "sat": 0.8,
+      "tint": 0.35
+    },
+    "stone": {
+      "material": "PavingStones128",
+      "tile": 3,
+      "bright": 1.0,
+      "sat": 0.85,
+      "tint": 0.3
+    },
+    "deco": {
+      "material": "Bricks076A",
+      "tile": 3,
+      "bright": 1.05,
+      "sat": 0.8,
+      "tint": 0.3
+    },
+    "stucco2": {
+      "material": "PaintedPlaster015",
+      "tile": 3,
+      "bright": 1.0,
+      "sat": 0.85,
+      "tint": 0.4
+    },
+    "painted": {
+      "material": "Plaster004",
+      "tile": 3,
+      "bright": 1.0,
+      "sat": 0.85,
+      "tint": 0.45
+    },
+    "warehouse": {
+      "material": "MetalPlates013",
+      "tile": 2,
+      "bright": 0.95,
+      "sat": 0.8,
+      "tint": 0.4
+    },
+    "metal": {
+      "material": "Metal032",
+      "tile": 2,
+      "bright": 1.0,
+      "sat": 0.85,
+      "tint": 0.4
+    },
+    "roof": {
+      "material": "RoofingTiles003",
+      "tile": 3,
+      "bright": 1.35,
+      "sat": 0.8,
+      "tint": 0.3
+    },
+    "gravel": {
+      "material": "Gravel023",
+      "tile": 4,
+      "bright": 0.95,
+      "sat": 0.8,
+      "tint": 0.3
+    },
+    "marble": {
+      "material": "Marble012",
+      "tile": 2,
+      "bright": 1.0,
+      "sat": 0.85,
+      "tint": 0.3
+    },
+    "tilefloor": {
+      "material": "Tiles074",
+      "tile": 2,
+      "bright": 1.0,
+      "sat": 0.9,
+      "tint": 0.3
+    },
+    "woodfloor": {
+      "material": "WoodFloor051",
+      "tile": 3,
+      "bright": 0.95,
+      "sat": 0.9,
+      "tint": 0.3
+    }
+  }
+}

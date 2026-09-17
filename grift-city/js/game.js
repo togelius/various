@@ -27,12 +27,14 @@ const GAME = (() => {
 
   function boot() {
     canvas = document.getElementById('gl'); hud = document.getElementById('hud'); HUD.init(hud); INPUT.init(canvas);
-    HUD.draw(0, 'loading');
-    setTimeout(build, 30);
+    const T = window.__bootTimes = {}; let t0 = performance.now(); const mark = k => { T[k] = Math.round(performance.now() - t0); t0 = performance.now(); };
+    HUD.loading('loading materials…', 0);
+    TEX.preload(p => HUD.loading('loading materials…', p)).then(n => { mark('materials'); T.materials_n = n; HUD.loading('building the city…'); setTimeout(() => build(mark), 30); });
   }
-  function build() {
-    RENDER.init(canvas, TEX.build()); loadOptions();
-    const sb = CITY.generate(); console.log('static tris', (sb.i.length / 3) | 0, 'verts', sb.n); staticMesh = sb.buildChunked(CITY.PITCH); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; waterMesh.water = true; W.indexLights(); AMBIENT.init(); W.initProps();
+  function build(mark = () => { }) {
+    const tex = TEX.build(); mark('textures');
+    RENDER.init(canvas, tex); mark('renderInit'); loadOptions();
+    const sb = CITY.generate(); mark('cityGen'); console.log('static tris', (sb.i.length / 3) | 0, 'verts', sb.n); staticMesh = sb.buildChunked(CITY.PITCH); mark('cityMesh'); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; waterMesh.water = true; W.indexLights(); AMBIENT.init(); W.initProps();
     propList = W.PROP_TYPES.map(k => W.propMeshes[k]); propList.push(W.lampHeads, W.tlHeads);
     PICKUPS.placeWorld(); MISSIONS.placeRampages(); VEH.spawnParked(); VEH.spawnMarina(); AMBIENT.launchFerry();
     const sh = CITY.place('safehouse'); PLAYER.init(sh.x + 6, sh.z + 1, Math.PI);
@@ -45,6 +47,7 @@ const GAME = (() => {
     document.addEventListener('mousedown', () => { if (state === 'title') startPlay(); }, { once: false });
     window.addEventListener('keydown', e => { if (state === 'title' && e.code === 'KeyN') newGame(); });
     window.__ready = true;
+    mark('rest'); console.log('boot', JSON.stringify(window.__bootTimes));
     last = performance.now(); requestAnimationFrame(frame);
   }
   function startPlay() { AUDIO.resume(); INPUT.requestLock(); state = 'playing'; started = true; HUD.notify('Welcome to Grift City.'); }

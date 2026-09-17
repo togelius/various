@@ -1,10 +1,10 @@
-const { chromium } = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
+const { launch } = require('../launch.js');
 (async () => {
-  const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const b = await launch([]);
   const p = await b.newPage({ viewport: { width: 640, height: 360 } });
   const errs = []; p.on('pageerror', e => errs.push(e.message + ' | ' + (e.stack || '').split('\n').slice(1, 3).join(' | '))); p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text().slice(0, 200)); });
   await p.goto('file://' + require('path').resolve(__dirname, '..', '..', '..', 'index.html') + '');
-  await p.waitForFunction(() => window.__ready, null, { timeout: 90000 });
+  await p.waitForFunction(() => window.__ready, null, { timeout: 240000 });
   const res = await p.evaluate(() => {
     GAME.startPlay(); MISSIONS.S.dialogue = null; MISSIONS.S.progress = 1; window.__manual = true; const log = []; const P = PLAYER.P; const sim = window.__sim;
     PLAYER.giveWeapon('uzi', 9999); PLAYER.giveWeapon('rocket', 999); P.invuln = 1e9; let rng = M.rng(5);

@@ -1,14 +1,14 @@
 // usage: node play.js out.png "<js script; may call sim(sec, [codes])>" [w h]
-const { chromium } = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
+const { launch } = require('./launch.js');
 (async () => {
   const [out, script, w, h] = process.argv.slice(2);
-  const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
+  const b = await launch(['--autoplay-policy=no-user-gesture-required']);
   const p = await b.newPage({ viewport: { width: +w || 960, height: +h || 540 } });
   const errors = [];
   p.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') { const t = m.text(); if (!t.includes('GL_INVALID') || errors.length < 3) errors.push(t.slice(0, 400)); } });
   p.on('pageerror', e => errors.push('PAGEERROR ' + e.message + '\n' + (e.stack || '').split('\n').slice(0, 4).join('\n')));
   await p.goto('file://' + require('path').resolve(__dirname, '..', '..', 'index.html') + '?shadow=' + (process.env.SHADOW || 1024));
-  await p.waitForFunction(() => window.__ready, null, { timeout: 90000 });
+  await p.waitForFunction(() => window.__ready, null, { timeout: 240000 });
   await p.evaluate(() => { GAME.startPlay(); MISSIONS.S.dialogue = null; MISSIONS.S.progress = 1; window.sim = window.__sim; window.tp = (x, z) => { PLAYER.P.x = x; PLAYER.P.z = z; }; });
   if (script) { try { await p.evaluate(script); } catch (e) { errors.push('SCRIPT ' + e.message); } }
   await p.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));

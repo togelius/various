@@ -2,7 +2,7 @@
 // Catches the class of bug a numeric test cannot: mirrored cameras, mirrored or upside-down textures,
 // radar blips that rotate the wrong way, a black screen at night, a missing HUD, models that are just boxes.
 // usage: node visual.js [--keep]   (screenshots of every check land in ../pt/visual/)
-const { chromium } = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
+const { launch } = require('../launch.js');
 const fs = require('fs'); const path = require('path');
 const OUT = path.join(__dirname, '..', 'pt', 'visual'); fs.mkdirSync(OUT, { recursive: true });
 const results = []; let shotN = 0;
@@ -10,11 +10,11 @@ const ONLY = process.argv.slice(2).filter(a => !a.startsWith('--')); const want 
 function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); console.log((ok ? 'PASS ' : 'FAIL ') + name + (detail ? '  ' + JSON.stringify(detail) : '')); }
 
 (async () => {
-  const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const b = await launch([]);
   const page = await b.newPage({ viewport: { width: 960, height: 540 } }); const errors = [];
   page.on('pageerror', e => errors.push(e.message)); page.on('console', m => { if (m.type() === 'error' && !m.text().includes('GL_INVALID')) errors.push(m.text().slice(0, 200)); });
   await page.goto('file://' + path.resolve(__dirname, '..', '..', '..', 'index.html') + '?shadow=512');
-  await page.waitForFunction(() => window.__ready, null, { timeout: 120000 });
+  await page.waitForFunction(() => window.__ready, null, { timeout: 240000 });
   await page.evaluate(() => { GAME.startPlay(); MISSIONS.S.dialogue = null; MISSIONS.S.progress = 1; MISSIONS.S.cooldown = 1e9; window.__manual = true; window.__pt = { paused: true }; // the frame loop is parked; every render is explicit
     window.sim = (sec, keys) => { GAME.state = 'playing'; /* a screenshot can drop pointer lock, which auto-pauses */ return window.__sim(sec, keys); }; window.tp = (x, z, yaw) => { const P = PLAYER.P; P.x = x; P.z = z; P.vx = P.vz = 0; if (yaw !== undefined) { P.camYaw = yaw; P.angle = yaw; } };
     window.clearArea = (x, z, r) => { for (const c of W.cars) if (!c.removed && c !== PLAYER.car && M.dist(c.x, c.z, x, z) < r) c.removed = true; for (const p of W.peds) if (!p.inCar && M.dist(p.x, p.z, x, z) < r) p.removed = true; };

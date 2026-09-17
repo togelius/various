@@ -1,13 +1,13 @@
 // usage: node playtest2.js <name> <scenario> <gameSeconds>
-const { chromium } = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })(); const fs = require('fs'); const path = require('path');
+const { launch } = require('./launch.js'); const fs = require('fs'); const path = require('path');
 const flags = process.argv.slice(2).filter(a => a.startsWith('--')); const [name, scenario = 'story', secsArg = '180'] = process.argv.slice(2).filter(a => !a.startsWith('--')); const GAME_SECS = +secsArg;
 const seed = (+process.env.SEED || Math.floor(Math.random() * 65535)) || 1; const record = flags.includes('--record'); // --record writes inputs.json for tools/playtest/replay.js
 const dir = path.join(__dirname, 'pt', name); fs.rmSync(dir, { recursive: true, force: true }); fs.mkdirSync(dir, { recursive: true });
 (async () => {
-  const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'] });
+  const b = await launch(['--autoplay-policy=no-user-gesture-required']);
   const page = await b.newPage({ viewport: { width: 640, height: 360 } }); const t0 = Date.now(); const errors = [];
   page.on('pageerror', e => { errors.push(e.message + ' | ' + (e.stack || '').split('\n').slice(1, 3).join(' | ')); });
-  await page.goto('file://' + require('path').resolve(__dirname, '..', '..', 'index.html') + '?seed=' + seed); console.log(JSON.stringify({ seed, record })); await page.waitForFunction(() => window.__ready, null, { timeout: 90000 });
+  await page.goto('file://' + require('path').resolve(__dirname, '..', '..', 'index.html') + '?seed=' + seed); console.log(JSON.stringify({ seed, record })); await page.waitForFunction(() => window.__ready, null, { timeout: 240000 });
   await page.evaluate(([sc, rec]) => { window.__pt = { dt: 1 / 30, renderEvery: 10, cheap: true, n: 0, record: rec ? [] : null }; window.__botScenario = sc; GAME.startPlay(); if (sc !== 'story') { MISSIONS.S.dialogue = null; MISSIONS.S.progress = 1; } }, [scenario, record]);
   await page.addScriptTag({ content: fs.readFileSync(path.join(__dirname, 'bot.js'), 'utf8') });
   const shots = []; const lines = []; const track = []; let lastT = -99, logIdx = 0;

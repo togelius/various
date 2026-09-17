@@ -1,10 +1,10 @@
-const { chromium } = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
+const { launch } = require('../launch.js');
 (async () => {
-  const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const b = await launch([]);
   const p = await b.newPage({ viewport: { width: 640, height: 360 } });
   p.on('pageerror', e => console.log('PAGEERROR', e.message, (e.stack || '').split('\n').slice(1, 3).join(' | ')));
   await p.goto('file://' + require('path').resolve(__dirname, '..', '..', '..', 'index.html') + '?shadow=512');
-  await p.waitForFunction(() => window.__ready, null, { timeout: 90000 });
+  await p.waitForFunction(() => window.__ready, null, { timeout: 240000 });
   const res = await p.evaluate(() => {
     GAME.startPlay(); MISSIONS.S.dialogue = null; MISSIONS.S.progress = 1; window.__manual = true; const log = []; const S = MISSIONS.S; const sim = window.__sim; const P = PLAYER.P;
     const begin = id => { MISSIONS.cleanup(); S.current = null; S.cooldown = 0; S.progress = id; MISSIONS.start(MISSIONS.LIST[id]); const d = S.dialogue; S.dialogue = null; if (d && d.then) d.then(); S.dialogue = null; return S.current.data; };

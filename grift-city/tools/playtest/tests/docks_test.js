@@ -1,10 +1,10 @@
-const { chromium } = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
+const { launch } = require('../launch.js');
 (async () => {
-  const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+  const b = await launch([]);
   const p = await b.newPage({ viewport: { width: 320, height: 180 } });
   p.on('pageerror', e => console.log('PAGEERROR', e.message));
   await p.goto('file://' + require('path').resolve(__dirname, '..', '..', '..', 'index.html') + '?shadow=256');
-  await p.waitForFunction(() => window.__ready, null, { timeout: 90000 });
+  await p.waitForFunction(() => window.__ready, null, { timeout: 240000 });
   const res = await p.evaluate(() => {
     GAME.startPlay(); MISSIONS.S.dialogue = null; window.__manual = true; const sim = window.__sim; const P = PLAYER.P; const out = [];
     sim(3); const k = CITY.place('docks'); out.push({ docks: [k.x, k.z] });
