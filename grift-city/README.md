@@ -172,6 +172,13 @@ front gardens. The sidewalks carry cafe tables, crates, sandwich boards,
 vending machines, barber poles, bike racks, flower buckets, tyre stacks,
 barrels and hot-dog carts with a vendor behind them.
 
+People have a skull and a jaw, eyes with irises and brows, a nose, ears,
+eight hair styles from a bun to an afro, beards, open jackets with
+lapels over a shirt, cuffs, thumbs and shaped shoes, in fabric colours
+rather than paint. Shop names are drawn from a hundred without
+repetition across twenty tiles, so no two doors down a street read the
+same.
+
 The city is populated by district: suits downtown, hi-vis on the east
 side, joggers in Westfield, wool by the water. People carry coffee, bags,
 phones and guitars, put umbrellas up in the rain, wait at bus shelters,
@@ -179,6 +186,20 @@ stop to look in shop windows and sit on benches. Pigeons feed on the
 sidewalks and scatter when you or a car come close, gulls circle the pier
 and the docks, manholes steam, litter blows down the street, a plane
 crosses now and then, and a ferry runs round the island all day.
+
+## Sound
+
+Everything is still synthesised at runtime, but through a proper chain:
+a convolution reverb built from decaying noise, a compressor on the mix,
+envelopes with real attacks, and lowpassed buses for the harsher
+waveforms. Gunshots are four layers (crack, body, thump, tail), crashes
+rattle, explosions crackle with debris. The engine is two detuned saws
+and a sub through a soft clipper and a resonant filter, with an exhaust
+pulse at the firing rate and gears the note climbs through and drops
+between. The siren wails instead of stepping. Your footfalls land on
+each half stride, birds sing near the parks, gulls call near the water,
+and the radio plays pads, a sliding bass, an electric piano and a real
+kit through the tone of a car speaker.
 
 ## Feel
 

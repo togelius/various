@@ -170,6 +170,7 @@ const PLAYER = (() => {
     moveBody(dt, false);
     P.speed = Math.hypot(P.vx, P.vz); P.phase += dt * (P.speed > 0.05 ? M.TAU * P.speed / (1.2 + 0.24 * P.speed) : 0); // the stride lengthens with speed, so feet stop sliding
     P.stats.distance += P.speed * dt;
+    { const st = Math.floor(P.phase / Math.PI); if (st !== P.lastStep && P.speed > 0.6 && !P.airborne) { P.lastStep = st; AUDIO.play('step', P.x, P.z, !CITY.interiorRoom); } } // a footfall each half stride
     // hit by cars
     for (const c of W.cars) { if (c.removed || c === P.car) continue; const spd = c.absSpeed; if (spd < 2.5) continue; if (M.dist2(c.x, c.z, P.x, P.z) > 36) continue; const [lf, ll] = c.local(P.x, P.z); if (Math.abs(lf) < c.spec.len / 2 + 0.4 && Math.abs(ll) < c.spec.wid / 2 + 0.35) { const d = [c.vx / spd, c.vz / spd]; hurt(Math.max(0, spd - 2.5) * 6, 'car', c); knock(d[0] * spd * 0.8, Math.min(8, spd * 0.45), d[1] * spd * 0.8); AUDIO.play('bump', P.x, P.z); c.damage(2, null); if (c.ai.mode === 'traffic') { c.scared = 5; c.ai.mode = 'flee'; } break; } }
   }

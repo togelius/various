@@ -400,52 +400,61 @@ const MESH = (() => {
   // Limbs are tapered cylinders with ball joints, the torso is a lofted body, the head an ellipsoid with a hair cap.
   const MOUTH_POS = [0, 0.14 * 0.62, 0.14 * 0.93]; // where the mouth sits in head-bone space
   function pedMesh(look, lod = false) {
-    const b = new Builder(); const SEG = lod ? 6 : 12, RNG = lod ? 3 : 6, CS = lod ? 5 : 9, AS = lod ? 5 : 8; const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket || Math.random() < 0.5, glasses = false, bag = null, skirt = false, longHair = false, beanie = false } = look;
+    const b = new Builder(); const SEG = lod ? 6 : 14, RNG = lod ? 3 : 7, CS = lod ? 5 : 10, AS = lod ? 5 : 9; const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket || Math.random() < 0.5, glasses = false, bag = null, skirt = false, longHair = false, beanie = false, hairStyle = 0, beard = false } = look;
     const legH = 0.85, torsoH = 0.65, headR = 0.14;
-    const skinDk = skin.map(c => c * 0.85), top = jacket || shirt, topDk = top.map(c => c * 0.8);
+    const skinDk = skin.map(c => c * 0.82), top = jacket || shirt, topDk = top.map(c => c * 0.78);
     const ball = (x, y, z, r, col, bone, segs = 6, rings = 2) => b.sphere(x, y, z, r, r, r, col, { segs: lod ? 4 : segs, rings: lod ? 1 : rings, bone });
-    // legs hang from the hips (bones 4, 5): thigh, knee, shin, shoe
+    // legs hang from the hips (bones 4, 5): thigh, knee, shin, a shaped shoe
     for (const [sx, bone, shin] of [[0.11, 4, 7], [-0.11, 5, 8]]) {
-      b.cyl(sx, -legH * 0.5, 0, 0.082, 0.03, pants, 0, CS, bone, false, false, 0.105);
-      ball(sx, -legH * 0.5, 0.005, 0.078, pants, bone);
-      b.cyl(sx, -legH + 0.07, 0.015, 0.06, -legH * 0.5, pants, 0, CS, shin, false, true, 0.08);
-      b.roundedBox(sx - 0.09, -legH, -0.09, 0.18, 0.11, 0.31, 0.035, shoes, 0, shin, { n: 1 });
+      b.cyl(sx, -legH * 0.5, 0, 0.078, 0.03, pants, 0, CS, bone, false, false, 0.102);
+      ball(sx, -legH * 0.5, 0.005, 0.074, pants, bone, 7, 3);
+      b.cyl(sx, -legH + 0.09, 0.015, 0.058, -legH * 0.5, pants, 0, CS, shin, false, true, 0.076);
+      b.cyl(sx, -legH + 0.02, 0.012, 0.05, -legH + 0.1, skin, 0, 7, shin, false, false, 0.05); // ankle
+      b.roundedBox(sx - 0.075, -legH + 0.02, -0.08, 0.15, 0.09, 0.27, 0.04, shoes, 0, shin, { n: lod ? 1 : 2 }); b.box(sx - 0.078, -legH - 0.01, -0.085, 0.156, 0.03, 0.28, shoes.map(c => c * 0.6), 0, { bone: shin }); // upper and sole
     }
-    // torso (bone 0): pants top, belt, lofted chest with shoulders
-    const rr = (y, hw, hd, r) => Builder.rrect(0, 0, hw, hd, r, 3, y, 'y');
-    b.loft([rr(-0.04, 0.2, 0.12, 0.07), rr(0.1, 0.205, 0.125, 0.07), rr(0.13, 0.2, 0.12, 0.07)], pants, 0, 0, { capStart: true });
-    b.loft([rr(0.09, 0.212, 0.132, 0.07), rr(0.13, 0.212, 0.132, 0.07)], [0.15, 0.1, 0.08], 0, 0, {}); // belt
+    // torso (bone 0): pants top, belt, a chest lofted from rounded sections that narrow at the waist and slope at the shoulders
+    const rr = (y, hw, hd, r) => Builder.rrect(0, 0, hw, hd, r, lod ? 2 : 4, y, 'y');
+    b.loft([rr(-0.04, 0.2, 0.125, 0.09), rr(0.1, 0.205, 0.13, 0.09), rr(0.13, 0.2, 0.125, 0.09)], pants, 0, 0, { capStart: true });
+    b.loft([rr(0.09, 0.212, 0.137, 0.09), rr(0.13, 0.212, 0.137, 0.09)], [0.15, 0.1, 0.08], 0, 0, {}); b.cbox(0, 0.11, 0.135, 0.05, 0.035, 0.012, [0.75, 0.7, 0.4], 0, { bone: 0 }); // belt, buckle
     if (skirt) b.cyl(0, -0.34, 0, 0.27, 0.12, pants, 0, 12, 0, false, true, 0.2);
-    const chest = [rr(0.12, 0.2, 0.12, 0.07), rr(0.3, 0.205, 0.12, 0.07), rr(0.46, 0.225, 0.13, 0.08), rr(0.56, 0.245, 0.135, 0.09), rr(0.63, 0.235, 0.125, 0.1), rr(0.67, 0.16, 0.1, 0.08)];
+    const chest = [rr(0.12, 0.2, 0.125, 0.09), rr(0.22, 0.195, 0.12, 0.09), rr(0.34, 0.205, 0.125, 0.1), rr(0.46, 0.228, 0.135, 0.11), rr(0.55, 0.25, 0.14, 0.12), rr(0.62, 0.24, 0.13, 0.12), rr(0.665, 0.17, 0.1, 0.09), rr(0.68, 0.09, 0.07, 0.06)];
     b.loft(chest, top, 0, 0, { capEnd: true });
-    if (jacket) { b.cbox(0, torsoH * 0.5, 0.075, 0.16, torsoH * 0.78, 0.13, shirt, 0, { bone: 0 }); b.cbox(0.095, torsoH * 0.88, 0.12, 0.08, 0.12, 0.05, jacket.map(c => c * 0.7), 0, { bone: 0 }); b.cbox(-0.095, torsoH * 0.88, 0.12, 0.08, 0.12, 0.05, jacket.map(c => c * 0.7), 0, { bone: 0 }); }
-    else b.cbox(0, torsoH * 0.92, 0.1, 0.15, 0.05, 0.08, topDk, 0, { bone: 0 }); // collar
-    if (bag) b.roundedBox(-0.32, torsoH * 0.15, -0.16, 0.1, 0.3, 0.22, 0.03, bag, 0, 0, { n: 1 });
-    b.cyl(0, torsoH - 0.03, 0, 0.058, torsoH + 0.06, skin, 0, 8, 0, false, false); // neck
-    // head (bone 1): skull, hair cap, back hair, face
-    b.sphere(0, headR * 1.05, 0, headR * 0.92, headR * 1.12, headR * 0.98, skin, { segs: SEG, rings: RNG, bone: 1 });
-    const hairR = headR * 1.02;
-    b.sphere(0, headR * 1.05, -0.01, hairR * 0.95, hairR * 1.14, hairR * 1.0, hair, { segs: SEG, rings: lod ? 2 : 4, lat0: 0.28, lat1: 1, bone: 1 });
-    b.sphere(0, headR * 1.05, -0.01, hairR * 0.95, hairR * 1.14, hairR * 1.02, hair, { segs: 12, rings: 3, lat0: longHair ? -0.55 : -0.1, lat1: 0.3, az0: Math.PI * 0.6, az1: Math.PI * 1.4, bone: 1 }); // back of the head
-    if (longHair) b.sphere(0, headR * 0.7, -0.03, hairR * 1.05, hairR * 1.4, hairR * 1.05, hair, { segs: 12, rings: 3, lat0: -0.7, lat1: -0.1, az0: Math.PI * 0.55, az1: Math.PI * 1.45, bone: 1 });
-    if (!lod) for (const sx of [0.052, -0.052]) { b.cbox(sx, headR * 1.15, headR * 0.92, 0.04, 0.03, 0.02, [0.95, 0.95, 0.95], 0, { bone: 1 }); b.cbox(sx, headR * 1.15, headR * 0.94, 0.02, 0.025, 0.02, [0.1, 0.08, 0.08], 0, { bone: 1 }); b.cbox(sx, headR * 1.36, headR * 0.9, 0.05, 0.012, 0.02, hair, 0, { bone: 1 }); } // eyes, brows
+    if (jacket) { // an open jacket: a shirt V with lapels, and the jacket's own hem line
+      b.polyOut([[-0.075, 0.64, 0.138], [0.075, 0.64, 0.138], [0.03, 0.2, 0.128], [-0.03, 0.2, 0.128]], shirt, 0, 0, -0.2); if (!lod) { b.polyOut([[-0.08, 0.65, 0.14], [-0.02, 0.6, 0.142], [0.0, 0.3, 0.135], [-0.045, 0.32, 0.133]], topDk, 0, 0, -0.2); b.polyOut([[0.08, 0.65, 0.14], [0.045, 0.32, 0.133], [0.0, 0.3, 0.135], [0.02, 0.6, 0.142]], topDk, 0, 0, -0.2); b.cbox(0, 0.13, 0, 0.415, 0.02, 0.26, topDk, 0, { bone: 0 }); for (const sx of [1, -1]) b.cbox(sx * 0.06, 0.62, 0.142, 0.07, 0.03, 0.004, shirt.map(c => c * 0.9), 0, { bone: 0 }); } }
+    else { b.cbox(0, torsoH * 0.95, 0.1, 0.13, 0.04, 0.06, topDk, 0, { bone: 0 }); if (!lod) for (let k = 0; k < 4; k++) b.cbox(0, 0.22 + k * 0.1, 0.136, 0.012, 0.012, 0.004, topDk, 0, { bone: 0 }); } // collar and buttons
+    if (bag) { b.roundedBox(-0.32, torsoH * 0.15, -0.16, 0.1, 0.3, 0.22, 0.03, bag, 0, 0, { n: 1 }); b.tube([-0.27, 0.62, -0.02], [-0.27, 0.25, -0.1], 0.012, 0.012, bag.map(c => c * 0.7), 0, 0, 5); }
+    b.cyl(0, torsoH - 0.03, 0, 0.056, torsoH + 0.07, skin, 0, 8, 0, false, false, 0.06); // neck
+    // head (bone 1): skull, jaw, ears, eyes with irises, brows, nose, mouth (bone 11)
+    b.sphere(0, headR * 1.08, -0.005, headR * 0.9, headR * 1.05, headR * 0.98, skin, { segs: SEG, rings: RNG, bone: 1 });
+    b.sphere(0, headR * 0.72, 0.012, headR * 0.78, headR * 0.72, headR * 0.86, skin, { segs: SEG, rings: RNG, bone: 1 }); // jaw and cheeks
+    const hairR = headR * 1.03; const style = beanie || (hat && !beanie) ? (hairStyle === 5 ? 5 : 0) : hairStyle;
+    if (style !== 5) { b.sphere(0, headR * 1.1, -0.012, hairR * 0.95, hairR * 1.1, hairR * 1.0, hair, { segs: SEG, rings: lod ? 2 : 4, lat0: style === 1 ? 0.2 : 0.3, lat1: 1, bone: 1 }); b.sphere(0, headR * 1.08, -0.012, hairR * 0.95, hairR * 1.1, hairR * 1.02, hair, { segs: 12, rings: 3, lat0: (longHair || style === 2) ? -0.55 : -0.05, lat1: 0.32, az0: Math.PI * 0.62, az1: Math.PI * 1.38, bone: 1 }); } // cap and the back of the head
+    else b.sphere(0, headR * 1.1, -0.012, hairR * 0.92, hairR * 1.07, hairR * 0.97, skinDk.map(c => c * 0.9), { segs: 8, rings: 2, lat0: 0.75, lat1: 1, bone: 1 }); // bald: a little shine on top
+    if (style === 1 && !lod) b.cbox(-0.03, headR * 1.62, headR * 0.86, 0.13, 0.05, 0.05, hair, 0, { bone: 1 }); // a fringe
+    if (longHair || style === 2) b.sphere(0, headR * 0.7, -0.03, hairR * 1.05, hairR * 1.4, hairR * 1.05, hair, { segs: 12, rings: 3, lat0: -0.7, lat1: -0.1, az0: Math.PI * 0.55, az1: Math.PI * 1.45, bone: 1 });
+    if (style === 3) { b.sphere(0, headR * 1.15, -headR * 0.95, 0.045, 0.04, 0.045, hair, { segs: 7, rings: 2, bone: 1 }); b.tube([0, headR * 1.1, -headR * 0.95], [0.02, headR * 0.3, -headR * 1.15], 0.03, 0.018, hair, 0, 1, 6); } // ponytail
+    if (style === 4) b.sphere(0, headR * 1.7, -headR * 0.75, 0.055, 0.045, 0.055, hair, { segs: 8, rings: 3, bone: 1 }); // bun
+    if (style === 6 && !lod) for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2; b.sphere(Math.cos(a) * headR * 0.75, headR * 1.65 + Math.sin(a * 2) * 0.01, -0.01 + Math.sin(a) * headR * 0.75, 0.05, 0.045, 0.05, hair, { segs: 6, rings: 2, bone: 1 }); } // curls
+    if (style === 7) b.sphere(0, headR * 1.25, -0.02, hairR * 1.35, hairR * 1.35, hairR * 1.35, hair, { segs: SEG, rings: RNG, lat0: -0.15, lat1: 1, bone: 1 }); // afro
+    if (beard && !lod) b.sphere(0, headR * 0.66, 0.02, headR * 0.82, headR * 0.7, headR * 0.9, hair, { segs: 12, rings: 3, lat0: -1, lat1: 0.12, az0: -Math.PI * 0.42, az1: Math.PI * 0.42, bone: 1 });
+    if (!lod) { for (const sx of [0.05, -0.05]) { b.sphere(sx, headR * 1.15, headR * 0.8, 0.017, 0.013, 0.014, [0.95, 0.95, 0.94], { segs: 8, rings: 3, bone: 1 }); b.sphere(sx, headR * 1.15, headR * 0.865, 0.0085, 0.0085, 0.006, [0.12, 0.09, 0.07], { segs: 6, rings: 2, bone: 1 }); b.cbox(sx, headR * 1.215, headR * 0.83, 0.038, 0.008, 0.02, skinDk, 0, { bone: 1 }); b.cbox(sx, headR * 1.34, headR * 0.9, 0.055, 0.012, 0.015, hair.map(c => c * 0.8), 0, { bone: 1 }); } // eyes, irises, brows
+      b.sphere(0, headR * 0.98, headR * 0.98, 0.02, 0.035, 0.028, skin.map(c => c * 0.95), { segs: 7, rings: 3, bone: 1 }); // nose
+      b.cbox(0, headR * 0.62, headR * 0.93, 0.07, 0.014, 0.02, [0.55, 0.25, 0.22], 0, { bone: 11 }); // mouth, on its own bone so it can open when the ped talks
+      ball(headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); ball(-headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); } // ears
     if (glasses) { b.cbox(0, headR * 1.15, headR + 0.01, 0.2, 0.05, 0.02, [0.05, 0.05, 0.06], 0, { bone: 1 }); for (const sx of [0.11, -0.11]) b.cbox(sx, headR * 1.15, headR * 0.5, 0.01, 0.01, headR, [0.05, 0.05, 0.06], 0, { bone: 1 }); }
-    if (!lod) { b.cbox(0, headR * 0.95, headR * 0.98, 0.045, 0.07, 0.04, skinDk, 0, { bone: 1 }); // nose
-    b.cbox(0, headR * 0.62, headR * 0.93, 0.07, 0.014, 0.02, [0.5, 0.22, 0.2], 0, { bone: 11 }); // mouth, on its own bone so it can open when the ped talks
-    ball(headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); ball(-headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); } // ears
-    if (hat && !beanie) { b.cyl(0, headR * 1.65, -0.01, hairR * 1.02, headR * 2.25, hat, 0, 12, 1, true, false, hairR * 0.9); const base = b.n; const bz = headR * 0.6; for (let k = 0; k <= 8; k++) { const a = -Math.PI / 2 + k / 8 * Math.PI; b.vert(Math.cos(a) * headR * 1.05, headR * 1.7, bz + Math.sin(a) * headR * 1.25, 0, 1, 0, ...hat, 0, 0, 0, 1); } const c = b.vert(0, headR * 1.7, bz, 0, 1, 0, ...hat, 0, 0, 0, 1); for (let k = 0; k < 8; k++) { b.tri(c, base + k, base + k + 1); b.tri(c, base + k + 1, base + k); } }
+    if (hat && !beanie) { b.cyl(0, headR * 1.65, -0.01, hairR * 1.02, headR * 2.25, hat, 0, 12, 1, true, false, hairR * 0.9); const base = b.n; const bz = headR * 0.6; for (let k = 0; k <= 8; k++) { const a = -Math.PI / 2 + k / 8 * Math.PI; b.vert(Math.cos(a) * headR * 1.05, headR * 1.7, bz + Math.sin(a) * headR * 1.25, 0, 1, 0, ...hat, 0, 0, 0, 1); } const c = b.vert(0, headR * 1.7, bz, 0, 1, 0, ...hat, 0, 0, 0, 1); for (let k = 0; k < 8; k++) b.tri(base + k, base + k + 1, c); }
     if (hat && beanie) b.sphere(0, headR * 1.0, -0.01, hairR * 1.05, hairR * 1.3, hairR * 1.08, hat, { segs: 12, rings: 4, lat0: 0.05, lat1: 1, bone: 1 });
-    // arms (bones 2, 3): shoulder ball, upper arm, elbow, forearm, hand
+    // arms (bones 2, 3): a rounded shoulder, upper arm, elbow, forearm, a hand with a thumb
     const armL = 0.62;
     for (const [sx, bone, fore] of [[0.3, 2, 9], [-0.3, 3, 10]]) {
-      ball(sx, -0.01, 0, 0.075, top, bone);
-      b.cyl(sx, -armL * 0.5, 0, 0.052, -0.02, top, 0, AS, bone, false, false, 0.068);
-      ball(sx, -armL * 0.5, 0.005, 0.052, sleeves ? top : skin, bone);
+      ball(sx * 0.97, 0.0, 0, 0.08, top, bone, 8, 3);
+      b.cyl(sx, -armL * 0.5, 0, 0.05, -0.02, top, 0, AS, bone, false, false, 0.066);
+      ball(sx, -armL * 0.5, 0.005, 0.05, sleeves ? top : skin, bone, 7, 3);
       b.cyl(sx, -armL + 0.07, 0.01, 0.04, -armL * 0.5, sleeves ? top : skin, 0, AS, fore, false, false, 0.05);
-      if (sleeves) b.cyl(sx, -armL + 0.1, 0.01, 0.044, -armL + 0.16, skin, 0, 8, fore, false, false, 0.044); // wrist
-      b.roundedBox(sx - 0.042, -armL - 0.02, -0.02, 0.084, 0.1, 0.06, 0.02, skin, 0, fore, { n: 1 });
+      if (sleeves) b.cyl(sx, -armL + 0.1, 0.01, 0.046, -armL + 0.16, topDk, 0, 8, fore, false, false, 0.046); // cuff
+      b.cyl(sx, -armL + 0.02, 0.01, 0.036, -armL + 0.11, skin, 0, 7, fore, false, false, 0.038); // wrist
+      b.roundedBox(sx - 0.04, -armL - 0.03, -0.022, 0.08, 0.1, 0.05, 0.02, skin, 0, fore, { n: 1 }); if (!lod) b.roundedBox(sx + (sx > 0 ? -0.075 : 0.04), -armL + 0.0, -0.005, 0.035, 0.05, 0.04, 0.015, skin, 0, fore, { n: 1 }); // hand and thumb
     }
-    // the held weapon is its own entity attached to the right forearm (see heldMesh), so nothing is baked in here
     return b;
   }
 

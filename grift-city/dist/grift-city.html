@@ -279,7 +279,7 @@ const GL = (() => {
 'use strict';
 const TEX = (() => {
   const S = 512;
-  const layers = []; const names = {};
+  const layers = []; const names = {}; let shopKinds = [];
   function add(name, painter) {
     const c = document.createElement('canvas'); c.width = S; c.height = S;
     const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, S, S); g._lit = [];
@@ -373,27 +373,28 @@ const TEX = (() => {
     // Shopfronts: one tile = 8 units (two shops), 4 tall. Sixteen kinds of shop, each with its own sign, window
     // and door, painted two to a tile; a tenth tile is two shuttered fronts. city.js mixes tiles along a wall.
     const SHOPS = {
-      bodega:   { names: ['BODEGA', 'CORNER MART', 'LUCKY 7 GROCERY', 'DELI & GROCERY'], sign: 'stripes', hue: 10, font: 'heavy', win: 'produce', door: 'glass' },
-      laundro:  { names: ['LAUNDROMAT', 'WASH & FOLD', 'SUDS'], sign: 'box', hue: 200, font: 'sans', win: 'washers', door: 'glass' },
-      diner:    { names: ['GRIFT DINER', "MARLA'S", 'ALL NITE DINER', 'THE GRILL'], sign: 'neon', hue: 350, font: 'script', win: 'diner', door: 'chrome' },
-      pharmacy: { names: ['PHARMACY', 'DRUGS', 'MARROW PHARMACY'], sign: 'box', hue: 140, font: 'sans', win: 'pharmacy', door: 'glass' },
-      bar:      { names: ['BAR NONE', 'THE HOLLOW', 'DIVE', 'LAST CALL', "O'ROURKE'S"], sign: 'neon', hue: 30, font: 'serif', win: 'bar', door: 'wood' },
-      pawn:     { names: ['PAWN & GOLD', 'CASH 4 GOLD', 'BAIL BONDS', 'WE BUY GOLD'], sign: 'board', hue: 48, font: 'heavy', win: 'pawn', door: 'bars' },
-      books:    { names: ['BOOKS', 'USED BOOKS', 'LARK BOOKSHOP', 'MAPS & PRINTS'], sign: 'board', hue: 120, font: 'serif', win: 'books', door: 'wood' },
-      cafe:     { names: ['CAFE MARROW', 'ESPRESSO', 'THE DAILY GRIND', 'CAFE'], sign: 'board', hue: 25, font: 'script', win: 'cafe', door: 'wood' },
-      barber:   { names: ['BARBER', 'CUTS', 'FADE CITY', "GINO'S BARBER"], sign: 'box', hue: 210, font: 'serif', win: 'barber', door: 'glass' },
-      tattoo:   { names: ['TATTOO', 'INK', 'PIERCING & INK', 'BLACK HEART TATTOO'], sign: 'neon', hue: 300, font: 'heavy', win: 'tattoo', door: 'dark' },
-      liquor:   { names: ['24H LIQUOR', 'LIQUOR', 'BEER WINE SPIRITS', 'DISCOUNT LIQUOR'], sign: 'stripes', hue: 0, font: 'heavy', win: 'liquor', door: 'bars' },
-      noodle:   { names: ['NOODLE HOUSE', 'PHO 9', 'GOLDEN WOK', 'KEBAB', 'DUMPLINGS'], sign: 'box', hue: 0, font: 'sans', win: 'noodle', door: 'glass' },
-      electro:  { names: ['ELECTRONICS', 'PHONES UNLOCKED', 'TV & AUDIO', 'REPAIRS'], sign: 'box', hue: 220, font: 'sans', win: 'electro', door: 'glass' },
-      clothes:  { names: ['BOUTIQUE', 'MENSWEAR', 'VINTAGE', 'SNEAKERS', 'THREADS'], sign: 'board', hue: 330, font: 'serif', win: 'clothes', door: 'glass' },
-      florist:  { names: ['FLOWERS', 'FLORIST', 'BLOOM', 'PETALS'], sign: 'board', hue: 100, font: 'script', win: 'florist', door: 'glass' },
-      bakery:   { names: ['BAKERY', 'FRESH BREAD', 'PATISSERIE', 'DONUTS'], sign: 'board', hue: 38, font: 'script', win: 'bakery', door: 'wood' },
+      bodega:   { names: ['BODEGA', 'CORNER MART', 'LUCKY 7 GROCERY', 'DELI & GROCERY', 'FRESH MARKET', 'SUNRISE DELI', 'M & J GROCERY', 'QUICK STOP'], sign: 'stripes', hue: 10, font: 'heavy', win: 'produce', door: 'glass' },
+      laundro:  { names: ['LAUNDROMAT', 'WASH & FOLD', 'SUDS', 'SPIN CYCLE', 'COIN WASH', 'BUBBLES'], sign: 'box', hue: 200, font: 'sans', win: 'washers', door: 'glass' },
+      diner:    { names: ['GRIFT DINER', "MARLA'S", 'ALL NITE DINER', 'THE GRILL', "ROSIE'S", 'BLUE PLATE', 'STARLITE DINER', 'PIER 9 GRILL'], sign: 'neon', hue: 350, font: 'script', win: 'diner', door: 'chrome' },
+      pharmacy: { names: ['PHARMACY', 'DRUGS', 'MARROW PHARMACY', 'RX EXPRESS', 'CITY CHEMIST', 'NORTHGATE DRUGS'], sign: 'box', hue: 140, font: 'sans', win: 'pharmacy', door: 'glass' },
+      bar:      { names: ['BAR NONE', 'THE HOLLOW', 'DIVE', 'LAST CALL', "O'ROURKE'S", 'THE ANCHOR', 'GULL & CRANE', 'SALOON', 'THE VAULT', 'LUCKY DOG'], sign: 'neon', hue: 30, font: 'serif', win: 'bar', door: 'wood' },
+      pawn:     { names: ['PAWN & GOLD', 'CASH 4 GOLD', 'BAIL BONDS', 'WE BUY GOLD', 'CHECKS CASHED', 'LOANS', 'EZ PAWN', 'GOLD & GUNS'], sign: 'board', hue: 48, font: 'heavy', win: 'pawn', door: 'bars' },
+      books:    { names: ['BOOKS', 'USED BOOKS', 'LARK BOOKSHOP', 'MAPS & PRINTS', 'COMICS', 'THE READING ROOM', 'RARE BOOKS', 'PAPERBACKS'], sign: 'board', hue: 120, font: 'serif', win: 'books', door: 'wood' },
+      cafe:     { names: ['CAFE MARROW', 'ESPRESSO', 'THE DAILY GRIND', 'CAFE', 'BEAN THERE', 'CORNER CAFE', 'TEA & TOAST', 'MOKA', 'CAFE LARK'], sign: 'board', hue: 25, font: 'script', win: 'cafe', door: 'wood' },
+      barber:   { names: ['BARBER', 'CUTS', 'FADE CITY', "GINO'S BARBER", 'SALON', 'HAIR TODAY', 'THE CHAIR', 'CLIPPERS'], sign: 'box', hue: 210, font: 'serif', win: 'barber', door: 'glass' },
+      tattoo:   { names: ['TATTOO', 'INK', 'PIERCING & INK', 'BLACK HEART TATTOO', 'NEEDLE & THREAD', 'IRON INK', 'SKIN DEEP'], sign: 'neon', hue: 300, font: 'heavy', win: 'tattoo', door: 'dark' },
+      liquor:   { names: ['24H LIQUOR', 'LIQUOR', 'BEER WINE SPIRITS', 'DISCOUNT LIQUOR', 'WINE CELLAR', 'BOTTLE SHOP', 'SPIRITS', 'LOTTO & LIQUOR'], sign: 'stripes', hue: 0, font: 'heavy', win: 'liquor', door: 'bars' },
+      noodle:   { names: ['NOODLE HOUSE', 'PHO 9', 'GOLDEN WOK', 'KEBAB', 'DUMPLINGS', 'TACOS', 'PIZZA SLICE', 'CURRY HOUSE', 'SUSHI', 'FALAFEL KING', 'RAMEN'], sign: 'box', hue: 0, font: 'sans', win: 'noodle', door: 'glass' },
+      electro:  { names: ['ELECTRONICS', 'PHONES UNLOCKED', 'TV & AUDIO', 'REPAIRS', 'CAMERA WORLD', 'GAMES', 'HI-FI', 'COMPUTERS'], sign: 'box', hue: 220, font: 'sans', win: 'electro', door: 'glass' },
+      clothes:  { names: ['BOUTIQUE', 'MENSWEAR', 'VINTAGE', 'SNEAKERS', 'THREADS', 'DENIM CO', 'SHOES', 'TAILOR', 'HATS', 'OUTFITTERS'], sign: 'board', hue: 330, font: 'serif', win: 'clothes', door: 'glass' },
+      florist:  { names: ['FLOWERS', 'FLORIST', 'BLOOM', 'PETALS', 'ROSE & THORN', 'GARDEN SHOP', 'ORCHID'], sign: 'board', hue: 100, font: 'script', win: 'florist', door: 'glass' },
+      bakery:   { names: ['BAKERY', 'FRESH BREAD', 'PATISSERIE', 'DONUTS', 'BAGELS', 'CAKE BOX', 'PIES', 'SOURDOUGH'], sign: 'board', hue: 38, font: 'script', win: 'bakery', door: 'wood' },
     };
     const textFit = (g, t, maxW, size, font, style = 'bold') => { let sz = size; g.font = `${style} ${sz}px ${font}`; while (g.measureText(t).width > maxW && sz > 14) { sz -= 2; g.font = `${style} ${sz}px ${font}`; } };
     // paints one shop of `kind` into the 256-wide slot at x0
+    const usedNames = new Set(); const SIGN_ALT = { board: 'box', box: 'board', neon: 'board', stripes: 'board' };
     function shop(g, r, x0, kind) {
-      const sp = SHOPS[kind]; const name = sp.names[Math.floor(r() * sp.names.length)]; const hue = (sp.hue + (r() - 0.5) * 30 + 360) % 360; const font = FONTS[sp.font];
+      const sp = { ...SHOPS[kind] }; if (r() < 0.3) sp.sign = SIGN_ALT[sp.sign]; const fresh = sp.names.filter(n => !usedNames.has(n)); const name = (fresh.length ? fresh : sp.names)[Math.floor(r() * (fresh.length ? fresh : sp.names).length)]; usedNames.add(name); const hue = (sp.hue + (r() - 0.5) * 40 + 360) % 360; const font = FONTS[sp.font];
       const dark = `hsl(${hue},30%,14%)`, mid = `hsl(${hue},45%,34%)`, light = `hsl(${hue},60%,85%)`;
       g.textAlign = 'center'; g.textBaseline = 'middle';
       // ---- sign band (14..90)
@@ -437,10 +438,11 @@ const TEX = (() => {
       g.fillStyle = '#6a6560'; g.fillRect(x0 + 14, 486, 228, 12); // step
       if (r() < 0.35) { const py = 300 + r() * 120; g.fillStyle = ['#ffe23b', '#37d4ff', '#ff8c2b', '#fff'][Math.floor(r() * 4)]; g.fillRect(x0 + 238, py, 12, 40); } // a flyer on the door frame
     }
-    const SHOP_TILES = [['bodega', 'laundro'], ['diner', 'pharmacy'], ['bar', 'pawn'], ['books', 'cafe'], ['barber', 'tattoo'], ['liquor', 'noodle'], ['electro', 'clothes'], ['florist', 'bakery'], ['cafe', 'clothes']];
-    SHOP_TILES.forEach((pair, v) => add('shops' + v, (g, r) => { g.fillStyle = '#4a4540'; g.fillRect(0, 0, S, S); grain(g, r, 8000, 0.05); shop(g, r, 0, pair[0]); shop(g, r, 256, pair[1]); }));
+    const SHOP_TILES = [['bodega', 'laundro'], ['diner', 'pharmacy'], ['bar', 'pawn'], ['books', 'cafe'], ['barber', 'tattoo'], ['liquor', 'noodle'], ['electro', 'clothes'], ['florist', 'bakery'], ['cafe', 'clothes'],
+      ['noodle', 'bar'], ['clothes', 'cafe'], ['bodega', 'pawn'], ['electro', 'diner'], ['barber', 'liquor'], ['bakery', 'books'], ['noodle', 'clothes'], ['cafe', 'florist'], ['pharmacy', 'bodega'], ['bar', 'electro'], ['laundro', 'noodle']];
+    shopKinds = SHOP_TILES; SHOP_TILES.forEach((pair, v) => add('shops' + v, (g, r) => { g.fillStyle = '#4a4540'; g.fillRect(0, 0, S, S); grain(g, r, 8000, 0.05); shop(g, r, 0, pair[0]); shop(g, r, 256, pair[1]); }));
     // two shuttered fronts: roll-down doors, flyposting, a FOR LEASE sign
-    add('shops9', (g, r) => { g.fillStyle = '#3e3a36'; g.fillRect(0, 0, S, S); grain(g, r, 8000, 0.06);
+    add('shops20', (g, r) => { g.fillStyle = '#3e3a36'; g.fillRect(0, 0, S, S); grain(g, r, 8000, 0.06);
       for (let i = 0; i < 2; i++) { const x0 = i * 256; g.fillStyle = i ? '#5a5650' : '#6a5a48'; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = 'rgba(255,255,255,0.25)'; g.font = `bold 30px ${FONTS.sans}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(i ? 'FOR LEASE' : '', x0 + 128, 52);
         g.fillStyle = '#4a4a4c'; g.fillRect(x0 + 14, 140, 228, 350); for (let y = 148; y < 486; y += 14) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x0 + 14, y, 228, 4); g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(x0 + 14, y + 8, 228, 2); }
         for (let k = 0; k < 5; k++) { const px = x0 + 20 + r() * 180, py = 180 + r() * 220; g.fillStyle = ['#ffe23b', '#37d4ff', '#ff8c2b', '#f4f2ea', '#ff3b8d'][Math.floor(r() * 5)]; g.fillRect(px, py, 40, 56); g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(px + 6, py + 8, 28, 6); g.fillRect(px + 6, py + 20, 28, 20); }
@@ -472,7 +474,7 @@ const TEX = (() => {
     add('barrier', (g, r) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#ff6a00'; g.fillRect(i * 64, 0, 64, S); } });
     return layers;
   }
-  return { build, names, S, get layers() { return layers; } };
+  return { build, names, S, get layers() { return layers; }, get shopKinds() { return shopKinds; } };
 })();
 
 </script>
@@ -879,52 +881,61 @@ const MESH = (() => {
   // Limbs are tapered cylinders with ball joints, the torso is a lofted body, the head an ellipsoid with a hair cap.
   const MOUTH_POS = [0, 0.14 * 0.62, 0.14 * 0.93]; // where the mouth sits in head-bone space
   function pedMesh(look, lod = false) {
-    const b = new Builder(); const SEG = lod ? 6 : 12, RNG = lod ? 3 : 6, CS = lod ? 5 : 9, AS = lod ? 5 : 8; const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket || Math.random() < 0.5, glasses = false, bag = null, skirt = false, longHair = false, beanie = false } = look;
+    const b = new Builder(); const SEG = lod ? 6 : 14, RNG = lod ? 3 : 7, CS = lod ? 5 : 10, AS = lod ? 5 : 9; const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket || Math.random() < 0.5, glasses = false, bag = null, skirt = false, longHair = false, beanie = false, hairStyle = 0, beard = false } = look;
     const legH = 0.85, torsoH = 0.65, headR = 0.14;
-    const skinDk = skin.map(c => c * 0.85), top = jacket || shirt, topDk = top.map(c => c * 0.8);
+    const skinDk = skin.map(c => c * 0.82), top = jacket || shirt, topDk = top.map(c => c * 0.78);
     const ball = (x, y, z, r, col, bone, segs = 6, rings = 2) => b.sphere(x, y, z, r, r, r, col, { segs: lod ? 4 : segs, rings: lod ? 1 : rings, bone });
-    // legs hang from the hips (bones 4, 5): thigh, knee, shin, shoe
+    // legs hang from the hips (bones 4, 5): thigh, knee, shin, a shaped shoe
     for (const [sx, bone, shin] of [[0.11, 4, 7], [-0.11, 5, 8]]) {
-      b.cyl(sx, -legH * 0.5, 0, 0.082, 0.03, pants, 0, CS, bone, false, false, 0.105);
-      ball(sx, -legH * 0.5, 0.005, 0.078, pants, bone);
-      b.cyl(sx, -legH + 0.07, 0.015, 0.06, -legH * 0.5, pants, 0, CS, shin, false, true, 0.08);
-      b.roundedBox(sx - 0.09, -legH, -0.09, 0.18, 0.11, 0.31, 0.035, shoes, 0, shin, { n: 1 });
+      b.cyl(sx, -legH * 0.5, 0, 0.078, 0.03, pants, 0, CS, bone, false, false, 0.102);
+      ball(sx, -legH * 0.5, 0.005, 0.074, pants, bone, 7, 3);
+      b.cyl(sx, -legH + 0.09, 0.015, 0.058, -legH * 0.5, pants, 0, CS, shin, false, true, 0.076);
+      b.cyl(sx, -legH + 0.02, 0.012, 0.05, -legH + 0.1, skin, 0, 7, shin, false, false, 0.05); // ankle
+      b.roundedBox(sx - 0.075, -legH + 0.02, -0.08, 0.15, 0.09, 0.27, 0.04, shoes, 0, shin, { n: lod ? 1 : 2 }); b.box(sx - 0.078, -legH - 0.01, -0.085, 0.156, 0.03, 0.28, shoes.map(c => c * 0.6), 0, { bone: shin }); // upper and sole
     }
-    // torso (bone 0): pants top, belt, lofted chest with shoulders
-    const rr = (y, hw, hd, r) => Builder.rrect(0, 0, hw, hd, r, 3, y, 'y');
-    b.loft([rr(-0.04, 0.2, 0.12, 0.07), rr(0.1, 0.205, 0.125, 0.07), rr(0.13, 0.2, 0.12, 0.07)], pants, 0, 0, { capStart: true });
-    b.loft([rr(0.09, 0.212, 0.132, 0.07), rr(0.13, 0.212, 0.132, 0.07)], [0.15, 0.1, 0.08], 0, 0, {}); // belt
+    // torso (bone 0): pants top, belt, a chest lofted from rounded sections that narrow at the waist and slope at the shoulders
+    const rr = (y, hw, hd, r) => Builder.rrect(0, 0, hw, hd, r, lod ? 2 : 4, y, 'y');
+    b.loft([rr(-0.04, 0.2, 0.125, 0.09), rr(0.1, 0.205, 0.13, 0.09), rr(0.13, 0.2, 0.125, 0.09)], pants, 0, 0, { capStart: true });
+    b.loft([rr(0.09, 0.212, 0.137, 0.09), rr(0.13, 0.212, 0.137, 0.09)], [0.15, 0.1, 0.08], 0, 0, {}); b.cbox(0, 0.11, 0.135, 0.05, 0.035, 0.012, [0.75, 0.7, 0.4], 0, { bone: 0 }); // belt, buckle
     if (skirt) b.cyl(0, -0.34, 0, 0.27, 0.12, pants, 0, 12, 0, false, true, 0.2);
-    const chest = [rr(0.12, 0.2, 0.12, 0.07), rr(0.3, 0.205, 0.12, 0.07), rr(0.46, 0.225, 0.13, 0.08), rr(0.56, 0.245, 0.135, 0.09), rr(0.63, 0.235, 0.125, 0.1), rr(0.67, 0.16, 0.1, 0.08)];
+    const chest = [rr(0.12, 0.2, 0.125, 0.09), rr(0.22, 0.195, 0.12, 0.09), rr(0.34, 0.205, 0.125, 0.1), rr(0.46, 0.228, 0.135, 0.11), rr(0.55, 0.25, 0.14, 0.12), rr(0.62, 0.24, 0.13, 0.12), rr(0.665, 0.17, 0.1, 0.09), rr(0.68, 0.09, 0.07, 0.06)];
     b.loft(chest, top, 0, 0, { capEnd: true });
-    if (jacket) { b.cbox(0, torsoH * 0.5, 0.075, 0.16, torsoH * 0.78, 0.13, shirt, 0, { bone: 0 }); b.cbox(0.095, torsoH * 0.88, 0.12, 0.08, 0.12, 0.05, jacket.map(c => c * 0.7), 0, { bone: 0 }); b.cbox(-0.095, torsoH * 0.88, 0.12, 0.08, 0.12, 0.05, jacket.map(c => c * 0.7), 0, { bone: 0 }); }
-    else b.cbox(0, torsoH * 0.92, 0.1, 0.15, 0.05, 0.08, topDk, 0, { bone: 0 }); // collar
-    if (bag) b.roundedBox(-0.32, torsoH * 0.15, -0.16, 0.1, 0.3, 0.22, 0.03, bag, 0, 0, { n: 1 });
-    b.cyl(0, torsoH - 0.03, 0, 0.058, torsoH + 0.06, skin, 0, 8, 0, false, false); // neck
-    // head (bone 1): skull, hair cap, back hair, face
-    b.sphere(0, headR * 1.05, 0, headR * 0.92, headR * 1.12, headR * 0.98, skin, { segs: SEG, rings: RNG, bone: 1 });
-    const hairR = headR * 1.02;
-    b.sphere(0, headR * 1.05, -0.01, hairR * 0.95, hairR * 1.14, hairR * 1.0, hair, { segs: SEG, rings: lod ? 2 : 4, lat0: 0.28, lat1: 1, bone: 1 });
-    b.sphere(0, headR * 1.05, -0.01, hairR * 0.95, hairR * 1.14, hairR * 1.02, hair, { segs: 12, rings: 3, lat0: longHair ? -0.55 : -0.1, lat1: 0.3, az0: Math.PI * 0.6, az1: Math.PI * 1.4, bone: 1 }); // back of the head
-    if (longHair) b.sphere(0, headR * 0.7, -0.03, hairR * 1.05, hairR * 1.4, hairR * 1.05, hair, { segs: 12, rings: 3, lat0: -0.7, lat1: -0.1, az0: Math.PI * 0.55, az1: Math.PI * 1.45, bone: 1 });
-    if (!lod) for (const sx of [0.052, -0.052]) { b.cbox(sx, headR * 1.15, headR * 0.92, 0.04, 0.03, 0.02, [0.95, 0.95, 0.95], 0, { bone: 1 }); b.cbox(sx, headR * 1.15, headR * 0.94, 0.02, 0.025, 0.02, [0.1, 0.08, 0.08], 0, { bone: 1 }); b.cbox(sx, headR * 1.36, headR * 0.9, 0.05, 0.012, 0.02, hair, 0, { bone: 1 }); } // eyes, brows
+    if (jacket) { // an open jacket: a shirt V with lapels, and the jacket's own hem line
+      b.polyOut([[-0.075, 0.64, 0.138], [0.075, 0.64, 0.138], [0.03, 0.2, 0.128], [-0.03, 0.2, 0.128]], shirt, 0, 0, -0.2); if (!lod) { b.polyOut([[-0.08, 0.65, 0.14], [-0.02, 0.6, 0.142], [0.0, 0.3, 0.135], [-0.045, 0.32, 0.133]], topDk, 0, 0, -0.2); b.polyOut([[0.08, 0.65, 0.14], [0.045, 0.32, 0.133], [0.0, 0.3, 0.135], [0.02, 0.6, 0.142]], topDk, 0, 0, -0.2); b.cbox(0, 0.13, 0, 0.415, 0.02, 0.26, topDk, 0, { bone: 0 }); for (const sx of [1, -1]) b.cbox(sx * 0.06, 0.62, 0.142, 0.07, 0.03, 0.004, shirt.map(c => c * 0.9), 0, { bone: 0 }); } }
+    else { b.cbox(0, torsoH * 0.95, 0.1, 0.13, 0.04, 0.06, topDk, 0, { bone: 0 }); if (!lod) for (let k = 0; k < 4; k++) b.cbox(0, 0.22 + k * 0.1, 0.136, 0.012, 0.012, 0.004, topDk, 0, { bone: 0 }); } // collar and buttons
+    if (bag) { b.roundedBox(-0.32, torsoH * 0.15, -0.16, 0.1, 0.3, 0.22, 0.03, bag, 0, 0, { n: 1 }); b.tube([-0.27, 0.62, -0.02], [-0.27, 0.25, -0.1], 0.012, 0.012, bag.map(c => c * 0.7), 0, 0, 5); }
+    b.cyl(0, torsoH - 0.03, 0, 0.056, torsoH + 0.07, skin, 0, 8, 0, false, false, 0.06); // neck
+    // head (bone 1): skull, jaw, ears, eyes with irises, brows, nose, mouth (bone 11)
+    b.sphere(0, headR * 1.08, -0.005, headR * 0.9, headR * 1.05, headR * 0.98, skin, { segs: SEG, rings: RNG, bone: 1 });
+    b.sphere(0, headR * 0.72, 0.012, headR * 0.78, headR * 0.72, headR * 0.86, skin, { segs: SEG, rings: RNG, bone: 1 }); // jaw and cheeks
+    const hairR = headR * 1.03; const style = beanie || (hat && !beanie) ? (hairStyle === 5 ? 5 : 0) : hairStyle;
+    if (style !== 5) { b.sphere(0, headR * 1.1, -0.012, hairR * 0.95, hairR * 1.1, hairR * 1.0, hair, { segs: SEG, rings: lod ? 2 : 4, lat0: style === 1 ? 0.2 : 0.3, lat1: 1, bone: 1 }); b.sphere(0, headR * 1.08, -0.012, hairR * 0.95, hairR * 1.1, hairR * 1.02, hair, { segs: 12, rings: 3, lat0: (longHair || style === 2) ? -0.55 : -0.05, lat1: 0.32, az0: Math.PI * 0.62, az1: Math.PI * 1.38, bone: 1 }); } // cap and the back of the head
+    else b.sphere(0, headR * 1.1, -0.012, hairR * 0.92, hairR * 1.07, hairR * 0.97, skinDk.map(c => c * 0.9), { segs: 8, rings: 2, lat0: 0.75, lat1: 1, bone: 1 }); // bald: a little shine on top
+    if (style === 1 && !lod) b.cbox(-0.03, headR * 1.62, headR * 0.86, 0.13, 0.05, 0.05, hair, 0, { bone: 1 }); // a fringe
+    if (longHair || style === 2) b.sphere(0, headR * 0.7, -0.03, hairR * 1.05, hairR * 1.4, hairR * 1.05, hair, { segs: 12, rings: 3, lat0: -0.7, lat1: -0.1, az0: Math.PI * 0.55, az1: Math.PI * 1.45, bone: 1 });
+    if (style === 3) { b.sphere(0, headR * 1.15, -headR * 0.95, 0.045, 0.04, 0.045, hair, { segs: 7, rings: 2, bone: 1 }); b.tube([0, headR * 1.1, -headR * 0.95], [0.02, headR * 0.3, -headR * 1.15], 0.03, 0.018, hair, 0, 1, 6); } // ponytail
+    if (style === 4) b.sphere(0, headR * 1.7, -headR * 0.75, 0.055, 0.045, 0.055, hair, { segs: 8, rings: 3, bone: 1 }); // bun
+    if (style === 6 && !lod) for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2; b.sphere(Math.cos(a) * headR * 0.75, headR * 1.65 + Math.sin(a * 2) * 0.01, -0.01 + Math.sin(a) * headR * 0.75, 0.05, 0.045, 0.05, hair, { segs: 6, rings: 2, bone: 1 }); } // curls
+    if (style === 7) b.sphere(0, headR * 1.25, -0.02, hairR * 1.35, hairR * 1.35, hairR * 1.35, hair, { segs: SEG, rings: RNG, lat0: -0.15, lat1: 1, bone: 1 }); // afro
+    if (beard && !lod) b.sphere(0, headR * 0.66, 0.02, headR * 0.82, headR * 0.7, headR * 0.9, hair, { segs: 12, rings: 3, lat0: -1, lat1: 0.12, az0: -Math.PI * 0.42, az1: Math.PI * 0.42, bone: 1 });
+    if (!lod) { for (const sx of [0.05, -0.05]) { b.sphere(sx, headR * 1.15, headR * 0.8, 0.017, 0.013, 0.014, [0.95, 0.95, 0.94], { segs: 8, rings: 3, bone: 1 }); b.sphere(sx, headR * 1.15, headR * 0.865, 0.0085, 0.0085, 0.006, [0.12, 0.09, 0.07], { segs: 6, rings: 2, bone: 1 }); b.cbox(sx, headR * 1.215, headR * 0.83, 0.038, 0.008, 0.02, skinDk, 0, { bone: 1 }); b.cbox(sx, headR * 1.34, headR * 0.9, 0.055, 0.012, 0.015, hair.map(c => c * 0.8), 0, { bone: 1 }); } // eyes, irises, brows
+      b.sphere(0, headR * 0.98, headR * 0.98, 0.02, 0.035, 0.028, skin.map(c => c * 0.95), { segs: 7, rings: 3, bone: 1 }); // nose
+      b.cbox(0, headR * 0.62, headR * 0.93, 0.07, 0.014, 0.02, [0.55, 0.25, 0.22], 0, { bone: 11 }); // mouth, on its own bone so it can open when the ped talks
+      ball(headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); ball(-headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); } // ears
     if (glasses) { b.cbox(0, headR * 1.15, headR + 0.01, 0.2, 0.05, 0.02, [0.05, 0.05, 0.06], 0, { bone: 1 }); for (const sx of [0.11, -0.11]) b.cbox(sx, headR * 1.15, headR * 0.5, 0.01, 0.01, headR, [0.05, 0.05, 0.06], 0, { bone: 1 }); }
-    if (!lod) { b.cbox(0, headR * 0.95, headR * 0.98, 0.045, 0.07, 0.04, skinDk, 0, { bone: 1 }); // nose
-    b.cbox(0, headR * 0.62, headR * 0.93, 0.07, 0.014, 0.02, [0.5, 0.22, 0.2], 0, { bone: 11 }); // mouth, on its own bone so it can open when the ped talks
-    ball(headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); ball(-headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); } // ears
-    if (hat && !beanie) { b.cyl(0, headR * 1.65, -0.01, hairR * 1.02, headR * 2.25, hat, 0, 12, 1, true, false, hairR * 0.9); const base = b.n; const bz = headR * 0.6; for (let k = 0; k <= 8; k++) { const a = -Math.PI / 2 + k / 8 * Math.PI; b.vert(Math.cos(a) * headR * 1.05, headR * 1.7, bz + Math.sin(a) * headR * 1.25, 0, 1, 0, ...hat, 0, 0, 0, 1); } const c = b.vert(0, headR * 1.7, bz, 0, 1, 0, ...hat, 0, 0, 0, 1); for (let k = 0; k < 8; k++) { b.tri(c, base + k, base + k + 1); b.tri(c, base + k + 1, base + k); } }
+    if (hat && !beanie) { b.cyl(0, headR * 1.65, -0.01, hairR * 1.02, headR * 2.25, hat, 0, 12, 1, true, false, hairR * 0.9); const base = b.n; const bz = headR * 0.6; for (let k = 0; k <= 8; k++) { const a = -Math.PI / 2 + k / 8 * Math.PI; b.vert(Math.cos(a) * headR * 1.05, headR * 1.7, bz + Math.sin(a) * headR * 1.25, 0, 1, 0, ...hat, 0, 0, 0, 1); } const c = b.vert(0, headR * 1.7, bz, 0, 1, 0, ...hat, 0, 0, 0, 1); for (let k = 0; k < 8; k++) b.tri(base + k, base + k + 1, c); }
     if (hat && beanie) b.sphere(0, headR * 1.0, -0.01, hairR * 1.05, hairR * 1.3, hairR * 1.08, hat, { segs: 12, rings: 4, lat0: 0.05, lat1: 1, bone: 1 });
-    // arms (bones 2, 3): shoulder ball, upper arm, elbow, forearm, hand
+    // arms (bones 2, 3): a rounded shoulder, upper arm, elbow, forearm, a hand with a thumb
     const armL = 0.62;
     for (const [sx, bone, fore] of [[0.3, 2, 9], [-0.3, 3, 10]]) {
-      ball(sx, -0.01, 0, 0.075, top, bone);
-      b.cyl(sx, -armL * 0.5, 0, 0.052, -0.02, top, 0, AS, bone, false, false, 0.068);
-      ball(sx, -armL * 0.5, 0.005, 0.052, sleeves ? top : skin, bone);
+      ball(sx * 0.97, 0.0, 0, 0.08, top, bone, 8, 3);
+      b.cyl(sx, -armL * 0.5, 0, 0.05, -0.02, top, 0, AS, bone, false, false, 0.066);
+      ball(sx, -armL * 0.5, 0.005, 0.05, sleeves ? top : skin, bone, 7, 3);
       b.cyl(sx, -armL + 0.07, 0.01, 0.04, -armL * 0.5, sleeves ? top : skin, 0, AS, fore, false, false, 0.05);
-      if (sleeves) b.cyl(sx, -armL + 0.1, 0.01, 0.044, -armL + 0.16, skin, 0, 8, fore, false, false, 0.044); // wrist
-      b.roundedBox(sx - 0.042, -armL - 0.02, -0.02, 0.084, 0.1, 0.06, 0.02, skin, 0, fore, { n: 1 });
+      if (sleeves) b.cyl(sx, -armL + 0.1, 0.01, 0.046, -armL + 0.16, topDk, 0, 8, fore, false, false, 0.046); // cuff
+      b.cyl(sx, -armL + 0.02, 0.01, 0.036, -armL + 0.11, skin, 0, 7, fore, false, false, 0.038); // wrist
+      b.roundedBox(sx - 0.04, -armL - 0.03, -0.022, 0.08, 0.1, 0.05, 0.02, skin, 0, fore, { n: 1 }); if (!lod) b.roundedBox(sx + (sx > 0 ? -0.075 : 0.04), -armL + 0.0, -0.005, 0.035, 0.05, 0.04, 0.015, skin, 0, fore, { n: 1 }); // hand and thumb
     }
-    // the held weapon is its own entity attached to the right forearm (see heldMesh), so nothing is baked in here
     return b;
   }
 
@@ -1245,7 +1256,7 @@ const CITY = (() => {
     eastside: ['concrete', 'tenement', 'warehouse', 'brick2', 'metal', 'loft', 'warehouse', 'tenement'], southport: ['tenement', 'brick2', 'painted', 'stone', 'warehouse', 'stucco2'],
   };
   // which shopfront tiles a district's ground floors are painted with (tools: see the SHOP_TILES list in textures.js; 9 is shuttered)
-  const SHOP_POOL = { downtown: [1, 3, 6, 6, 8, 2, 3], midtown: [1, 3, 4, 6, 7, 8, 0, 1], northgate: [0, 2, 4, 5, 9, 0, 3, 2], westfield: [3, 7, 7, 1, 8, 4, 3], eastside: [2, 5, 4, 0, 9, 9, 6, 5], southport: [5, 2, 0, 4, 9, 3, 5] };
+  const SHOP_POOL = { downtown: [1, 3, 6, 8, 10, 12, 16, 18, 3, 6], midtown: [1, 3, 4, 6, 7, 8, 0, 10, 12, 13, 14, 15, 16], northgate: [0, 2, 4, 5, 9, 11, 13, 17, 19, 20, 2, 5], westfield: [3, 7, 8, 14, 16, 17, 10, 1, 4], eastside: [2, 5, 4, 0, 9, 11, 13, 19, 20, 20, 18], southport: [5, 2, 0, 9, 11, 19, 20, 17, 3] };
   const MASONRY = ['brick', 'brick2', 'brick3', 'tenement', 'stone', 'painted', 'stucco2', 'loft'];
   const FLOORS = { downtown: [14, 42], midtown: [6, 16], northgate: [3, 8], westfield: [2, 5], eastside: [2, 6], southport: [3, 7] };
 
@@ -1287,13 +1298,13 @@ const CITY = (() => {
       top = y + ground;
       // sidewalk trade: tables outside the cafes, crates outside the grocers, a board, a rack, a machine, a pole
       const put = (kind, t, off, opts = {}) => { const [px, pz] = frontPt(t, off); props[kind].push({ x: px, z: pz, a: frontAngle + (opts.turn || 0), s: opts.s || 1 }); if (opts.r) solidProps.push({ x: px, z: pz, r: opts.r, kind }); };
-      const has = (k) => shopTiles.includes(k); const hasAny = (...ks) => ks.some(has);
-      if (hasAny(3, 8, 1) && rng.chance(0.7)) put('cafeSet', frontLen * rng.range(0.2, 0.35), 1.9, { r: 0.7, turn: rng.range(0, 6.28) });
-      if (hasAny(0, 5, 7) && rng.chance(0.7)) put('crates', frontLen * rng.range(0.55, 0.8), 1.1, { r: 0.6 });
-      if (has(7) && rng.chance(0.8)) put('flowerBucket', frontLen * rng.range(0.1, 0.3), 1.0, {});
-      if (has(4) && rng.chance(0.8)) put('barberPole', frontLen * rng.range(0.3, 0.7), 0.15, {});
+      const kinds = TEX.shopKinds; const has = (kind) => shopTiles.some(k => (kinds[k] || []).includes(kind)); const hasAny = (...ks) => ks.some(has);
+      if (hasAny('cafe', 'diner', 'bakery') && rng.chance(0.7)) put('cafeSet', frontLen * rng.range(0.2, 0.35), 1.9, { r: 0.7, turn: rng.range(0, 6.28) });
+      if (hasAny('bodega', 'liquor', 'florist', 'noodle') && rng.chance(0.7)) put('crates', frontLen * rng.range(0.55, 0.8), 1.1, { r: 0.6 });
+      if (has('florist') && rng.chance(0.8)) put('flowerBucket', frontLen * rng.range(0.1, 0.3), 1.0, {});
+      if (has('barber') && rng.chance(0.8)) put('barberPole', frontLen * rng.range(0.3, 0.7), 0.15, {});
       if (rng.chance(0.35)) put('sandwichBoard', frontLen * rng.range(0.15, 0.85), 1.6, { r: 0.35, turn: rng.range(-0.4, 0.4) });
-      if (hasAny(1, 5, 6) && rng.chance(0.4)) put('vending', frontLen * rng.range(0.1, 0.9), 0.5, { r: 0.5 });
+      if (hasAny('diner', 'liquor', 'electro', 'laundro') && rng.chance(0.4)) put('vending', frontLen * rng.range(0.1, 0.9), 0.5, { r: 0.5 });
       if ((dist === 'midtown' || dist === 'westfield' || dist === 'downtown') && rng.chance(0.3)) put('bikeRack', frontLen * rng.range(0.1, 0.9), 2.2, { r: 0.5, turn: Math.PI / 2 });
       if (dist === 'eastside' && rng.chance(0.4)) put('tireStack', frontLen * rng.range(0.1, 0.9), 1.0, { r: 0.4 });
       if ((dist === 'eastside' || dist === 'southport') && rng.chance(0.4)) put('barrel', frontLen * rng.range(0.1, 0.9), 0.6, { r: 0.35 });
@@ -2013,134 +2024,175 @@ const RENDER = (() => {
 
 </script>
 <script>
-// GRIFT CITY — every sound is synthesised: engine, guns, sirens, a three-station radio.
+// GRIFT CITY — every sound is synthesised, but not with a beeper: layered noise and oscillators through filters,
+// envelopes with real attacks, a convolution reverb and a compressor on the mix, an engine with gears and an exhaust
+// pulse, a siren that wails, footsteps, birds by the parks, gulls by the water, and a radio with pads, bass and drums.
 'use strict';
 const AUDIO = (() => {
-  let ctx = null, master, sfxBus, musicBus, engineNodes = null, sirenNodes = null, screechNodes = null, ambient = null, noiseBuf = null;
-  let muted = false, radioStation = 0, radioTimer = 0, radioNextNote = 0, radioBeat = 0, radioOn = false;
+  let ctx = null, master, comp, sfxBus, musicBus, revBus, engineNodes = null, sirenNodes = null, screechNodes = null, ambient = null, noiseBuf = null, analyser = null;
+  let muted = false, radioStation = 0, radioTimer = 0, radioBeat = 0, radioOn = false, birdT = 3, gullT = 5;
   const STATIONS = ['OFF', 'NEON FM', 'GRIFT BEATS', 'STATIC 91.1'];
   function ensure() {
     if (ctx) return true;
     try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return false; }
-    master = ctx.createGain(); master.gain.value = muted ? 0 : 0.8; master.connect(ctx.destination);
-    sfxBus = ctx.createGain(); sfxBus.gain.value = 1; sfxBus.connect(master);
-    musicBus = ctx.createGain(); musicBus.gain.value = 0.0; musicBus.connect(master);
+    comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.18;
+    master = ctx.createGain(); master.gain.value = muted ? 0 : 0.8; comp.connect(master); master.connect(ctx.destination);
+    analyser = ctx.createAnalyser(); analyser.fftSize = 1024; master.connect(analyser);
+    sfxBus = ctx.createGain(); sfxBus.gain.value = 1; sfxBus.connect(comp);
+    musicBus = ctx.createGain(); musicBus.gain.value = 0.0; const mHi = ctx.createBiquadFilter(); mHi.type = 'highpass'; mHi.frequency.value = 110; const mLo = ctx.createBiquadFilter(); mLo.type = 'lowpass'; mLo.frequency.value = 7000; musicBus.connect(mHi); mHi.connect(mLo); mLo.connect(comp); // a car radio has no sub and no air
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    // reverb: a stereo impulse of decaying noise, fed from a send on the sound bus
+    const irLen = Math.floor(ctx.sampleRate * 1.7); const ir = ctx.createBuffer(2, irLen, ctx.sampleRate); for (let ch = 0; ch < 2; ch++) { const o = ir.getChannelData(ch); let lp = 0; for (let i = 0; i < irLen; i++) { const t = i / irLen; const w = (Math.random() * 2 - 1); lp += (w - lp) * 0.25; o[i] = lp * Math.pow(1 - t, 2.6) * (i < 200 ? i / 200 : 1); } }
+    const conv = ctx.createConvolver(); conv.buffer = ir; revBus = ctx.createGain(); revBus.gain.value = 0.22; sfxBus.connect(revBus); revBus.connect(conv); conv.connect(comp);
+    const mrev = ctx.createGain(); mrev.gain.value = 0.12; mLo.connect(mrev); mrev.connect(conv);
     buildEngine(); buildSiren(); buildScreech(); buildAmbient();
     return true;
   }
   function resume() { if (ensure() && ctx.state === 'suspended') ctx.resume(); }
   const now = () => ctx.currentTime;
-  function noise(dur, vol, filterType = 'bandpass', freq = 1000, q = 1, decay = null, dest = null) {
-    const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
-    const f = ctx.createBiquadFilter(); f.type = filterType; f.frequency.value = freq; f.Q.value = q;
-    const g = ctx.createGain(); g.gain.setValueAtTime(vol, now()); g.gain.exponentialRampToValueAtTime(0.001, now() + (decay || dur));
-    src.connect(f); f.connect(g); g.connect(dest || sfxBus); src.start(); src.stop(now() + dur + 0.05); return { src, f, g };
+  // an envelope with a real attack: linear up, exponential down
+  function env(g, vol, attack, decay, t0 = now()) { g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vol, t0 + attack); g.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + decay); }
+  function noise(dur, vol, filterType = 'bandpass', freq = 1000, q = 1, decay = null, dest = null, attack = 0.004, sweepTo = null) {
+    const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; src.playbackRate.value = 0.8 + Math.random() * 0.4;
+    const f = ctx.createBiquadFilter(); f.type = filterType; f.frequency.setValueAtTime(freq, now()); if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, now() + dur); f.Q.value = q;
+    const g = ctx.createGain(); env(g, vol, attack, decay || dur);
+    src.connect(f); f.connect(g); g.connect(dest || sfxBus); src.start(); src.stop(now() + attack + (decay || dur) + 0.05); return { src, f, g };
   }
-  function tone(freq, dur, vol, type = 'sine', slideTo = null, dest = null) {
-    const o = ctx.createOscillator(); o.type = type; o.frequency.setValueAtTime(freq, now()); if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, now() + dur);
-    const g = ctx.createGain(); g.gain.setValueAtTime(vol, now()); g.gain.exponentialRampToValueAtTime(0.001, now() + dur);
-    o.connect(g); g.connect(dest || sfxBus); o.start(); o.stop(now() + dur + 0.05); return o;
+  function tone(freq, dur, vol, type = 'sine', slideTo = null, dest = null, attack = 0.005, detune = 0) {
+    const o = ctx.createOscillator(); o.type = type; o.detune.value = detune; o.frequency.setValueAtTime(freq, now()); if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, now() + dur);
+    const g = ctx.createGain(); env(g, vol, attack, dur);
+    o.connect(g); g.connect(dest || sfxBus); o.start(); o.stop(now() + attack + dur + 0.05); return o;
   }
+  // a bell: a sine with two decaying partials, for the interface
+  function bell(freq, dur, vol, dest = null) { tone(freq, dur, vol, 'sine', null, dest, 0.003); tone(freq * 2.5, dur * 0.45, vol * 0.25, 'sine', null, dest, 0.002); tone(freq * 4.1, dur * 0.25, vol * 0.1, 'sine', null, dest, 0.002); }
+  const later = (ms, f) => setTimeout(() => { if (ctx && !muted) f(); }, ms);
   // Distance attenuation helper for world sounds: vol scaled by distance to the listener.
   let lx = 0, lz = 0; function listener(x, z) { lx = x; lz = z; }
   const att = (x, z, range) => { if (x === undefined) return 1; const d = M.dist(x, z, lx, lz); return M.clamp(1 - d / range, 0, 1) ** 1.5; };
+  // a gunshot in four layers: the crack, the body, the thump under it, and the tail the street gives back
+  function shot(a, body, crack, thump, tail, tailFreq = 500) {
+    noise(0.012, crack * a, 'highpass', 3000, 0.7, 0.012, null, 0.001);
+    noise(0.22, body * a, 'bandpass', 520 + Math.random() * 120, 0.6, 0.14, null, 0.002);
+    tone(95, 0.16, thump * a, 'sine', 38, null, 0.002);
+    noise(0.7, tail * a, 'lowpass', tailFreq, 0.5, 0.55, null, 0.02);
+  }
 
   const SFX = {
     flap(x, z) { const a = att(x, z, 45); if (a <= 0) return; noise(0.22, 0.25 * a, 'bandpass', 700, 0.7, 0.05); noise(0.16, 0.18 * a, 'bandpass', 1100, 0.7, 0.04); },
-    pistol(x, z) { const a = att(x, z, 120); if (a <= 0) return; const v = 0.85 + Math.random() * 0.3; noise(0.25, 0.9 * a, 'bandpass', 1800 * v, 0.6, 0.12); tone(160 * v, 0.12, 0.5 * a, 'square', 60); },
-    uzi(x, z) { const a = att(x, z, 120); if (a <= 0) return; const v = 0.9 + Math.random() * 0.2; noise(0.12, 0.6 * a, 'bandpass', 2400 * v, 0.8, 0.07); tone(220 * v, 0.07, 0.35 * a, 'square', 90); },
-    rifle(x, z) { const a = att(x, z, 150); if (a <= 0) return; const v = 0.9 + Math.random() * 0.2; noise(0.2, 0.8 * a, 'bandpass', 1500 * v, 0.7, 0.1); tone(130 * v, 0.14, 0.5 * a, 'sawtooth', 50); },
-    shotgun(x, z) { const a = att(x, z, 150); if (a <= 0) return; noise(0.45, 1.2 * a, 'lowpass', 1200, 0.5, 0.3); tone(90, 0.25, 0.7 * a, 'square', 40); },
-    rocket(x, z) { const a = att(x, z, 150); if (a <= 0) return; noise(0.8, 0.8 * a, 'lowpass', 600, 0.5, 0.7); tone(200, 0.6, 0.4 * a, 'sawtooth', 60); },
-    explosion(x, z) { const a = att(x, z, 400); if (a <= 0) return; noise(2.2, 1.6 * a, 'lowpass', 400, 0.3, 1.8); tone(60, 1.2, 1.0 * a, 'sine', 25); noise(0.5, 0.8 * a, 'highpass', 2000, 0.5, 0.3); },
-    punch(x, z) { const a = att(x, z, 40); if (a <= 0) return; noise(0.15, 0.7 * a, 'lowpass', 500, 0.5, 0.1); tone(120, 0.1, 0.3 * a, 'sine', 50); },
-    hit(x, z) { const a = att(x, z, 60); if (a <= 0) return; noise(0.12, 0.5 * a, 'bandpass', 900, 1, 0.08); },
-    crash(x, z, force = 1) { const a = att(x, z, 150) * M.clamp(force, 0.2, 1.5); if (a <= 0) return; noise(0.5, 0.9 * a, 'lowpass', 800, 0.5, 0.35); noise(0.3, 0.5 * a, 'highpass', 3000, 0.5, 0.2); tone(80, 0.3, 0.4 * a, 'sine', 30); },
-    bump(x, z) { const a = att(x, z, 80); if (a <= 0) return; noise(0.15, 0.4 * a, 'lowpass', 400, 0.5, 0.1); },
-    horn(x, z, len = 0.4) { const a = att(x, z, 150); if (a <= 0) return; tone(420, len, 0.25 * a, 'square'); tone(530, len, 0.2 * a, 'square'); },
-    scream(x, z) { const a = att(x, z, 60); if (a <= 0) return; tone(700 + Math.random() * 300, 0.35, 0.15 * a, 'sawtooth', 300); },
-    pickup() { tone(880, 0.12, 0.3, 'square'); setTimeout(() => ctx && tone(1320, 0.18, 0.3, 'square'), 90); },
-    cash() { tone(1200, 0.08, 0.25, 'square'); setTimeout(() => ctx && tone(1600, 0.12, 0.25, 'square'), 60); },
-    door(x, z) { const a = att(x, z, 30); noise(0.12, 0.4 * a, 'lowpass', 900, 0.5, 0.1); },
-    missionPass() { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => ctx && tone(f, 0.5, 0.3, 'triangle'), i * 120)); },
-    missionFail() { [400, 300, 200].forEach((f, i) => setTimeout(() => ctx && tone(f, 0.6, 0.3, 'sawtooth'), i * 250)); },
-    wasted() { tone(150, 2.5, 0.4, 'sawtooth', 40); noise(1.5, 0.3, 'lowpass', 300, 0.5, 1.2); },
-    busted() { [300, 250, 200, 150].forEach((f, i) => setTimeout(() => ctx && tone(f, 0.5, 0.3, 'square'), i * 200)); },
-    star() { tone(600, 0.15, 0.25, 'square'); setTimeout(() => ctx && tone(900, 0.2, 0.25, 'square'), 100); },
-    click() { tone(1000, 0.04, 0.15, 'square'); },
-    splash(x, z) { const a = att(x, z, 100); noise(0.6, 0.5 * a, 'lowpass', 700, 0.5, 0.5); },
-    checkpoint() { tone(700, 0.1, 0.25, 'square'); setTimeout(() => ctx && tone(1050, 0.15, 0.25, 'square'), 80); },
-    reload() { noise(0.08, 0.3, 'highpass', 2500, 1, 0.05); setTimeout(() => ctx && noise(0.08, 0.3, 'highpass', 1800, 1, 0.05), 120); },
-    phone() { for (let i = 0; i < 3; i++) setTimeout(() => ctx && tone(1400, 0.08, 0.15, 'square'), i * 110); },
+    pistol(x, z) { const a = att(x, z, 140); if (a <= 0) return; shot(a, 0.9, 0.7, 0.55, 0.3); },
+    uzi(x, z) { const a = att(x, z, 130); if (a <= 0) return; noise(0.01, 0.5 * a, 'highpass', 3500, 0.7, 0.01, null, 0.001); noise(0.1, 0.55 * a, 'bandpass', 900 + Math.random() * 200, 0.7, 0.07, null, 0.002); tone(120, 0.07, 0.3 * a, 'sine', 50, null, 0.002); },
+    rifle(x, z) { const a = att(x, z, 170); if (a <= 0) return; shot(a, 1.0, 0.8, 0.6, 0.45, 420); },
+    shotgun(x, z) { const a = att(x, z, 170); if (a <= 0) return; noise(0.015, 0.7 * a, 'highpass', 2500, 0.7, 0.015, null, 0.001); noise(0.35, 1.2 * a, 'lowpass', 900, 0.5, 0.25, null, 0.003); tone(70, 0.28, 0.8 * a, 'sine', 30, null, 0.002); noise(1.0, 0.5 * a, 'lowpass', 350, 0.5, 0.8, null, 0.03); },
+    rocket(x, z) { const a = att(x, z, 170); if (a <= 0) return; noise(0.9, 0.8 * a, 'bandpass', 300, 0.8, 0.8, null, 0.02, 1800); tone(180, 0.5, 0.35 * a, 'sawtooth', 60, null, 0.01); noise(0.4, 0.5 * a, 'lowpass', 300, 0.5, 0.35, null, 0.005); },
+    explosion(x, z) { const a = att(x, z, 420); if (a <= 0) return; tone(55, 1.6, 1.0 * a, 'sine', 22, null, 0.004); noise(2.6, 1.5 * a, 'lowpass', 380, 0.4, 2.2, null, 0.01); noise(0.35, 0.7 * a, 'highpass', 1800, 0.5, 0.25, null, 0.002); for (let k = 0; k < 7; k++) later(120 + k * 90 + Math.random() * 60, () => noise(0.05, 0.25 * a, 'bandpass', 700 + Math.random() * 1500, 2, 0.04)); },
+    punch(x, z) { const a = att(x, z, 40); if (a <= 0) return; noise(0.1, 0.6 * a, 'lowpass', 320, 0.7, 0.08, null, 0.002); tone(110, 0.12, 0.35 * a, 'sine', 45, null, 0.002); },
+    hit(x, z) { const a = att(x, z, 60); if (a <= 0) return; noise(0.1, 0.45 * a, 'bandpass', 700, 1.2, 0.07, null, 0.002); tone(180, 0.06, 0.15 * a, 'sine', 90); },
+    crash(x, z, force = 1) { const a = att(x, z, 160) * M.clamp(force, 0.2, 1.5); if (a <= 0) return; noise(0.45, 0.8 * a, 'lowpass', 700, 0.6, 0.3, null, 0.003); noise(0.25, 0.45 * a, 'bandpass', 1400, 2.5, 0.2, null, 0.002); tone(75, 0.3, 0.45 * a, 'sine', 28, null, 0.003); for (let k = 0; k < 3; k++) later(80 + k * 70, () => noise(0.06, 0.2 * a, 'bandpass', 1800 + Math.random() * 900, 3, 0.05)); },
+    bump(x, z) { const a = att(x, z, 80); if (a <= 0) return; noise(0.12, 0.35 * a, 'lowpass', 380, 0.6, 0.1, null, 0.003); },
+    horn(x, z, len = 0.4) { const a = att(x, z, 150); if (a <= 0) return; const dest = hornBus(); tone(415, len, 0.35 * a, 'sawtooth', null, dest, 0.02, 4); tone(415, len, 0.25 * a, 'sawtooth', null, dest, 0.02, -6); tone(520, len, 0.22 * a, 'sawtooth', null, dest, 0.02, 3); },
+    scream(x, z) { const a = att(x, z, 60); if (a <= 0) return; const dest = hornBus(1600); tone(650 + Math.random() * 250, 0.4, 0.18 * a, 'sawtooth', 380, dest, 0.03); },
+    pickup() { bell(880, 0.25, 0.22); later(90, () => bell(1320, 0.35, 0.2)); },
+    cash() { bell(1180, 0.14, 0.18); later(70, () => bell(1570, 0.2, 0.18)); },
+    door(x, z) { const a = att(x, z, 30); noise(0.06, 0.35 * a, 'lowpass', 700, 0.7, 0.05, null, 0.002); later(70, () => noise(0.05, 0.25 * a, 'bandpass', 1500, 2, 0.04)); },
+    missionPass() { [523, 659, 784].forEach((f, i) => later(i * 110, () => { tone(f, 1.6, 0.14, 'triangle', null, null, 0.02); tone(f, 1.6, 0.08, 'sine', null, null, 0.02, 6); })); later(360, () => bell(1046, 1.8, 0.2)); },
+    missionFail() { [392, 311, 233].forEach((f, i) => later(i * 260, () => { const dest = hornBus(900); tone(f, 0.7, 0.2, 'sawtooth', null, dest, 0.02, 5); tone(f, 0.7, 0.2, 'sawtooth', null, dest, 0.02, -5); })); },
+    wasted() { tone(110, 3.0, 0.35, 'sine', 38, null, 0.05); tone(110, 3.0, 0.12, 'sawtooth', 38, hornBus(500), 0.05, 7); noise(2.0, 0.25, 'lowpass', 260, 0.6, 1.8, null, 0.1); },
+    busted() { [330, 262, 220, 165].forEach((f, i) => later(i * 210, () => { const dest = hornBus(1100); tone(f, 0.5, 0.2, 'square', null, dest, 0.01); tone(f * 1.5, 0.5, 0.08, 'square', null, dest, 0.01); })); },
+    star() { bell(660, 0.18, 0.18); later(100, () => bell(990, 0.25, 0.18)); },
+    click() { noise(0.02, 0.18, 'bandpass', 2200, 3, 0.02, null, 0.001); tone(900, 0.03, 0.06, 'sine'); },
+    splash(x, z) { const a = att(x, z, 100); noise(0.5, 0.5 * a, 'lowpass', 900, 0.6, 0.45, null, 0.005); for (let k = 0; k < 4; k++) later(60 + k * 90, () => tone(400 + Math.random() * 600, 0.08, 0.06 * a, 'sine', 900)); },
+    checkpoint() { bell(740, 0.15, 0.18); later(80, () => bell(1110, 0.25, 0.18)); },
+    reload() { noise(0.05, 0.3, 'bandpass', 3200, 4, 0.04, null, 0.001); later(110, () => noise(0.05, 0.3, 'bandpass', 2400, 4, 0.04, null, 0.001)); later(220, () => noise(0.04, 0.2, 'bandpass', 4000, 4, 0.03, null, 0.001)); },
+    phone() { for (let i = 0; i < 3; i++) later(i * 120, () => { tone(1320, 0.08, 0.1, 'sine'); tone(1760, 0.08, 0.06, 'sine'); }); },
+    step(x, z, hard = true) { const a = att(x, z, 25); if (a <= 0) return; noise(0.06, (hard ? 0.16 : 0.1) * a, 'lowpass', hard ? 420 + Math.random() * 120 : 260, 0.8, 0.05, null, 0.002); },
+    chirp(x, z) { const a = att(x, z, 60); if (a <= 0) return; const f = 2800 + Math.random() * 1400; tone(f, 0.07, 0.05 * a, 'sine', f * 1.35, null, 0.005); later(110, () => tone(f * 1.1, 0.06, 0.04 * a, 'sine', f * 0.85, null, 0.005)); },
+    gull(x, z) { const a = att(x, z, 90); if (a <= 0) return; const dest = hornBus(2400); tone(1100 + Math.random() * 300, 0.32, 0.07 * a, 'sawtooth', 700, dest, 0.03); later(260, () => tone(950, 0.2, 0.05 * a, 'sawtooth', 620, dest, 0.02)); },
     heli(x, z, on) { /* handled by ambient loop */ },
   };
+  // a lowpassed bus for the harsher waveforms (horns, screams, fail stings) so they stop sounding like a chip
+  const hornBuses = {}; function hornBus(cut = 1300) { if (hornBuses[cut]) return hornBuses[cut]; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; f.Q.value = 0.7; f.connect(sfxBus); hornBuses[cut] = f; return f; }
   function play(name, x, z, ...rest) { if (!ctx || muted) return; try { SFX[name](x, z, ...rest); } catch (e) { } }
 
-  // ---- Engine: two oscillators + noise, pitched by rpm.
+  // ---- Engine: two detuned saws and a sub through a soft clipper and a resonant lowpass, plus an exhaust noise pulsed at the firing rate.
   function buildEngine() {
     const g = ctx.createGain(); g.gain.value = 0; g.connect(sfxBus);
-    const o1 = ctx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 60; const o2 = ctx.createOscillator(); o2.type = 'square'; o2.frequency.value = 30;
-    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 400; f.Q.value = 2;
-    const g1 = ctx.createGain(); g1.gain.value = 0.5; const g2 = ctx.createGain(); g2.gain.value = 0.35;
-    o1.connect(g1); o2.connect(g2); g1.connect(f); g2.connect(f); f.connect(g); o1.start(); o2.start();
-    engineNodes = { g, o1, o2, f };
+    const o1 = ctx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 60; const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = 60.4; const o3 = ctx.createOscillator(); o3.type = 'triangle'; o3.frequency.value = 30;
+    const shaper = ctx.createWaveShaper(); const curve = new Float32Array(256); for (let i = 0; i < 256; i++) { const x = i / 127.5 - 1; curve[i] = Math.tanh(x * 2.2); } shaper.curve = curve;
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 400; f.Q.value = 3;
+    const g1 = ctx.createGain(); g1.gain.value = 0.35; const g2 = ctx.createGain(); g2.gain.value = 0.3; const g3 = ctx.createGain(); g3.gain.value = 0.4;
+    o1.connect(g1); o2.connect(g2); o3.connect(g3); g1.connect(shaper); g2.connect(shaper); g3.connect(shaper); shaper.connect(f); f.connect(g); o1.start(); o2.start(); o3.start();
+    // exhaust: bandpassed noise whose volume follows an LFO at the firing rate
+    const ns = ctx.createBufferSource(); ns.buffer = noiseBuf; ns.loop = true; const nf = ctx.createBiquadFilter(); nf.type = 'bandpass'; nf.frequency.value = 180; nf.Q.value = 1.2; const ng = ctx.createGain(); ng.gain.value = 0.0; const lfo = ctx.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 30; const lg = ctx.createGain(); lg.gain.value = 0.5; const base = ctx.createGain(); base.gain.value = 0.5; lfo.connect(lg); lg.connect(ng.gain); ns.connect(nf); nf.connect(ng); ng.connect(g); ns.start(); lfo.start();
+    engineNodes = { g, o1, o2, o3, f, ng, nf, lfo };
   }
   function engine(on, rpm, load, kind = 'sedan') { if (!ctx) return; const e = engineNodes; const t = now();
-    const K = { sports: 1.35, muscle: 1.15, police: 1.1, hatch: 1.05, taxi: 1, sedan: 1, van: 0.85, pickup: 0.8, swat: 0.75, truck: 0.55, bus: 0.6, bike: 1.7, boat: 0.5 }[kind] || 1;
-    e.g.gain.setTargetAtTime(on ? 0.12 + load * 0.1 : 0, t, 0.08);
-    const base = (45 + rpm * 160) * K; e.o1.frequency.setTargetAtTime(base, t, 0.06); e.o2.frequency.setTargetAtTime(base * 0.5, t, 0.06); e.f.frequency.setTargetAtTime(300 + rpm * 900 + load * 400, t, 0.08); }
+    const K = { sports: 1.35, muscle: 1.15, police: 1.1, hatch: 1.05, taxi: 1, sedan: 1, van: 0.85, pickup: 0.8, swat: 0.75, truck: 0.55, bus: 0.6, bike: 1.7, boat: 0.5, ferry: 0.35 }[kind] || 1;
+    // gears: the note climbs through each gear and drops into the next
+    const gears = kind === 'truck' || kind === 'bus' ? 5 : kind === 'boat' || kind === 'ferry' ? 1 : 4; const x = M.clamp(rpm, 0, 1) * gears; const frac = rpm < 0.03 ? 0 : (x - Math.floor(Math.min(gears - 0.001, x))); const r = 0.18 + frac * 0.82 * (rpm < 0.03 ? 0 : 1);
+    e.g.gain.setTargetAtTime(on ? 0.1 + load * 0.09 : 0, t, 0.08);
+    const base = (38 + r * 150) * K; e.o1.frequency.setTargetAtTime(base, t, 0.05); e.o2.frequency.setTargetAtTime(base * 1.007, t, 0.05); e.o3.frequency.setTargetAtTime(base * 0.5, t, 0.05); e.lfo.frequency.setTargetAtTime(base * 0.5, t, 0.05);
+    e.f.frequency.setTargetAtTime(240 + r * 1100 + load * 500, t, 0.08); e.ng.gain.setTargetAtTime(0.25 + load * 0.35, t, 0.1); e.nf.frequency.setTargetAtTime(140 + r * 260, t, 0.1); }
   function buildSiren() {
-    const g = ctx.createGain(); g.gain.value = 0; g.connect(sfxBus); const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 700;
-    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1800; o.connect(f); f.connect(g); o.start(); sirenNodes = { g, o, phase: 0 };
+    const g = ctx.createGain(); g.gain.value = 0; g.connect(sfxBus); const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = 700; const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = 700; const g2 = ctx.createGain(); g2.gain.value = 0.35;
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 2400; f.Q.value = 0.8; o.connect(f); o2.connect(g2); g2.connect(f); f.connect(g); o.start(); o2.start(); sirenNodes = { g, o, o2, phase: 0 };
   }
-  function siren(vol, dt, pitch = 1) { if (!ctx) return; const s = sirenNodes; s.phase += dt; const hi = Math.floor(s.phase / 0.55) % 2; s.o.frequency.setTargetAtTime((hi ? 960 : 640) * pitch, now(), 0.05); s.g.gain.setTargetAtTime(vol * 0.12, now(), 0.1); }
-  function buildScreech() { const g = ctx.createGain(); g.gain.value = 0; g.connect(sfxBus); const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2200; f.Q.value = 6; src.connect(f); f.connect(g); src.start(); screechNodes = { g, f }; }
-  function screech(vol) { if (!ctx) return; screechNodes.g.gain.setTargetAtTime(vol * 0.25, now(), 0.05); screechNodes.f.frequency.setTargetAtTime(1800 + vol * 800, now(), 0.1); }
+  function siren(vol, dt, pitch = 1) { if (!ctx) return; const s = sirenNodes; s.phase += dt; const w = 0.5 + 0.5 * Math.sin(s.phase / 1.15 * M.TAU); const f = (620 + 360 * Math.pow(w, 1.4)) * pitch; s.o.frequency.setTargetAtTime(f, now(), 0.03); s.o2.frequency.setTargetAtTime(f * 1.003, now(), 0.03); s.g.gain.setTargetAtTime(vol * 0.11, now(), 0.1); }
+  function buildScreech() { const g = ctx.createGain(); g.gain.value = 0; g.connect(sfxBus); const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2200; f.Q.value = 8; const f2 = ctx.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 3300; f2.Q.value = 10; const g2 = ctx.createGain(); g2.gain.value = 0.5; src.connect(f); f.connect(g); src.connect(f2); f2.connect(g2); g2.connect(g); src.start(); screechNodes = { g, f }; }
+  function screech(vol) { if (!ctx) return; screechNodes.g.gain.setTargetAtTime(vol * 0.22, now(), 0.05); screechNodes.f.frequency.setTargetAtTime(1700 + vol * 900, now(), 0.1); }
   function buildAmbient() {
     const g = ctx.createGain(); g.gain.value = 0.05; g.connect(sfxBus); const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 180; src.connect(f); f.connect(g); src.start();
+    // wind: a slow-breathing band of air
+    const wg = ctx.createGain(); wg.gain.value = 0.02; wg.connect(sfxBus); const ws = ctx.createBufferSource(); ws.buffer = noiseBuf; ws.loop = true; const wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 520; wf.Q.value = 0.5; const wl = ctx.createOscillator(); wl.frequency.value = 0.08; const wlg = ctx.createGain(); wlg.gain.value = 0.012; wl.connect(wlg); wlg.connect(wg.gain); ws.connect(wf); wf.connect(wg); ws.start(); wl.start();
     // helicopter rotor: pulsed low noise
     const hg = ctx.createGain(); hg.gain.value = 0; hg.connect(sfxBus); const hs = ctx.createBufferSource(); hs.buffer = noiseBuf; hs.loop = true; const hf = ctx.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 220; const lfo = ctx.createOscillator(); lfo.frequency.value = 13; const lg = ctx.createGain(); lg.gain.value = 0.5; lfo.connect(lg); lg.connect(hg.gain); hs.connect(hf); hf.connect(hg); hs.start(); lfo.start();
     const rg = ctx.createGain(); rg.gain.value = 0; rg.connect(sfxBus); const rs = ctx.createBufferSource(); rs.buffer = noiseBuf; rs.loop = true; const rf = ctx.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 3200; rf.Q.value = 0.4; rs.connect(rf); rf.connect(rg); rs.start();
-    ambient = { g, hg, rg, f };
+    ambient = { g, hg, rg, f, wg };
   }
   function traffic(v) { if (!ctx) return; ambient.g.gain.setTargetAtTime(0.03 + v * 0.06, now(), 0.8); ambient.f.frequency.setTargetAtTime(150 + v * 120, now(), 0.8); }
-  function rain(v, inCar) { if (!ctx) return; ambient.rg.gain.setTargetAtTime(v * (inCar ? 0.05 : 0.14), now(), 0.5); }
+  function rain(v, inCar) { if (!ctx) return; ambient.rg.gain.setTargetAtTime(v * (inCar ? 0.05 : 0.14), now(), 0.5); ambient.wg.gain.setTargetAtTime(0.02 + v * 0.03, now(), 1); }
   function heliVolume(v) { if (!ctx) return; ambient.hg.gain.setTargetAtTime(v * 0.5, now(), 0.2); }
+  // the small sounds of a place: birds by the parks, gulls by the water
+  function ambientTick(dt, near) { if (!ctx || muted) return; birdT -= dt; gullT -= dt; if (near.park && birdT <= 0) { birdT = 1.5 + Math.random() * 4; play('chirp', near.park.x, near.park.z); } if (near.water && gullT <= 0) { gullT = 4 + Math.random() * 8; play('gull', near.water.x, near.water.z); } }
 
-  // ---- Radio: a tiny step sequencer per station.
+  // ---- Radio: three stations from a step sequencer with proper voices.
   const SCALES = { minor: [0, 2, 3, 5, 7, 8, 10], dorian: [0, 2, 3, 5, 7, 9, 10] };
   const midi = n => 440 * Math.pow(2, (n - 69) / 12);
+  function pad(freq, dur, vol) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(500, now()); f.frequency.linearRampToValueAtTime(1600, now() + dur * 0.4); f.frequency.exponentialRampToValueAtTime(400, now() + dur); f.Q.value = 1.5; f.connect(musicBus); tone(freq, dur, vol, 'sawtooth', null, f, dur * 0.25, 8); tone(freq, dur, vol, 'sawtooth', null, f, dur * 0.25, -8); tone(freq * 0.5, dur, vol * 0.7, 'triangle', null, f, dur * 0.25); }
+  function bass(freq, dur, vol, slideTo = null) { const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(900, now()); f.frequency.exponentialRampToValueAtTime(250, now() + dur); f.connect(musicBus); tone(freq, dur, vol, 'sawtooth', slideTo, f, 0.006); tone(freq, dur, vol * 0.8, 'sine', slideTo, musicBus, 0.006); }
+  function lead(freq, dur, vol, type = 'triangle') { const o = tone(freq, dur, vol, type, null, musicBus, 0.01); const v = ctx.createOscillator(); v.frequency.value = 5.5; const vg = ctx.createGain(); vg.gain.value = freq * 0.006; v.connect(vg); vg.connect(o.frequency); v.start(); v.stop(now() + dur + 0.1); }
+  function epiano(freq, dur, vol) { tone(freq, dur, vol, 'sine', null, musicBus, 0.004); tone(freq * 2, dur * 0.5, vol * 0.35, 'sine', null, musicBus, 0.004); tone(freq * 3.01, dur * 0.2, vol * 0.12, 'sine', null, musicBus, 0.002); }
+  function kick(vol) { tone(150, 0.14, vol, 'sine', 42, musicBus, 0.001); noise(0.02, vol * 0.4, 'lowpass', 900, 0.7, 0.02, musicBus, 0.001); }
+  function snare(vol) { noise(0.16, vol, 'bandpass', 1900, 0.9, 0.13, musicBus, 0.001); tone(190, 0.08, vol * 0.5, 'triangle', 120, musicBus, 0.001); }
+  function hat(vol, open = false) { noise(open ? 0.22 : 0.04, vol, 'highpass', 7500, 0.8, open ? 0.2 : 0.03, musicBus, 0.001); }
   function setRadio(st) { radioStation = st; radioOn = st > 0; if (ctx) musicBus.gain.setTargetAtTime(radioOn ? 0.35 : 0, now(), 0.3); radioBeat = 0; }
   function radioTick(dt, inCar) {
     if (!ctx || !radioOn) return;
     musicBus.gain.setTargetAtTime(inCar ? 0.35 : 0.08, now(), 0.5);
-    radioTimer += dt; const bpm = radioStation === 1 ? 118 : radioStation === 2 ? 92 : 70; const step = 60 / bpm / 4;
+    radioTimer += dt; const bpm = radioStation === 1 ? 118 : radioStation === 2 ? 92 : 68; const step = 60 / bpm / 4;
     while (radioTimer >= step) {
       radioTimer -= step; const b = radioBeat++; const bar = Math.floor(b / 16), s = b % 16;
-      const PROG = radioStation === 1 ? [45, 41, 48, 43, 45, 41, 50, 52] : radioStation === 2 ? [43, 43, 46, 41, 43, 43, 38, 41] : [45, 48, 43, 41]; const root = PROG[bar % PROG.length]; const lead = SCALES.minor;
-      if (radioStation === 1) { // synthwave: driving 8ths bass, arps, four-on-the-floor
-        if (s % 2 === 0) tone(midi(root - 12 + (s % 8 === 6 ? 3 : 0)), 0.12, 0.35, 'sawtooth', null, musicBus);
-        if (s % 4 === 0) { noise(0.12, 0.6, 'lowpass', 150, 1, 0.1, musicBus); tone(90, 0.12, 0.6, 'sine', 40, musicBus); }
-        if (s % 4 === 2) noise(0.06, 0.25, 'highpass', 6000, 1, 0.04, musicBus);
-        const arp = lead[(b * 3) % 7] + (b % 4 === 3 ? 12 : 0); tone(midi(root + 12 + arp), 0.2, 0.1, 'square', null, musicBus);
-        if (bar % 4 >= 2 && (s === 0 || s === 3 || s === 6 || s === 10 || s === 12)) { const n = lead[(bar * 5 + s * 3) % 7]; tone(midi(root + 24 + n), s === 12 ? 0.9 : 0.35, 0.09, 'triangle', null, musicBus); }
-        if (s === 0) { tone(midi(root + 12), 1.6, 0.05, 'sawtooth', null, musicBus); tone(midi(root + 19), 1.6, 0.05, 'sawtooth', null, musicBus); }
-      } else if (radioStation === 2) { // hip hop: kick/snare/hat, bass slides
-        if (s === 0 || s === 7 || s === 10) { noise(0.15, 0.7, 'lowpass', 120, 1, 0.12, musicBus); tone(70, 0.2, 0.7, 'sine', 35, musicBus); }
-        if (s === 4 || s === 12) noise(0.18, 0.5, 'bandpass', 1800, 0.8, 0.15, musicBus);
-        if (s % 2 === 0) noise(0.05, 0.2, 'highpass', 8000, 1, 0.03, musicBus);
-        if (s === 0 || s === 6 || s === 11) tone(midi(root - 12), 0.4, 0.4, 'triangle', midi(root - 12 + (s === 6 ? 5 : 0)), musicBus);
-        if (s === 2 || s === 9 || s === 14) tone(midi(root + 12 + SCALES.dorian[(bar + s) % 7]), 0.3, 0.1, 'square', null, musicBus);
-        if (bar % 2 === 1 && (s === 4 || s === 6 || s === 11)) tone(midi(root + 24 + SCALES.dorian[(bar * 3 + s) % 7]), 0.5, 0.07, 'sine', null, musicBus);
-      } else { // ambient: slow pads and sparse bells
-        if (s === 0) { tone(midi(root), 3.5, 0.15, 'triangle', null, musicBus); tone(midi(root + 7), 3.5, 0.1, 'sine', null, musicBus); tone(midi(root + 15), 3.0, 0.06, 'sine', null, musicBus); }
-        if (s === 8 && bar % 2) tone(midi(root + 24 + SCALES.minor[bar % 7]), 1.2, 0.08, 'sine', null, musicBus);
+      const PROG = radioStation === 1 ? [45, 41, 48, 43, 45, 41, 50, 52] : radioStation === 2 ? [43, 43, 46, 41, 43, 43, 38, 41] : [45, 48, 43, 41]; const root = PROG[bar % PROG.length]; const sc = SCALES.minor;
+      if (radioStation === 1) { // synthwave: pads on the chord, driving bass, four on the floor, an arpeggio and a lead every other phrase
+        if (s === 0) { pad(midi(root + 12), 3.8, 0.06); pad(midi(root + 15), 3.8, 0.05); pad(midi(root + 19), 3.8, 0.05); }
+        if (s % 2 === 0) bass(midi(root - 12 + (s % 8 === 6 ? 3 : 0)), 0.16, 0.3);
+        if (s % 4 === 0) kick(0.6); if (s % 4 === 2) hat(0.16, s === 14); if (s === 4 || s === 12) snare(0.3);
+        const arp = sc[(b * 3) % 7] + (b % 4 === 3 ? 12 : 0); tone(midi(root + 24 + arp), 0.18, 0.06, 'square', null, musicBus, 0.003);
+        if (bar % 4 >= 2 && (s === 0 || s === 3 || s === 6 || s === 10 || s === 12)) lead(midi(root + 24 + sc[(bar * 5 + s * 3) % 7]), s === 12 ? 0.9 : 0.35, 0.09);
+      } else if (radioStation === 2) { // hip hop: a heavy kit, sliding bass, electric piano stabs
+        if (s === 0 || s === 7 || s === 10) kick(0.8); if (s === 4 || s === 12) snare(0.5); if (s % 2 === 0) hat(0.12, s === 10);
+        if (s === 0 || s === 6 || s === 11) bass(midi(root - 12), 0.42, 0.35, midi(root - 12 + (s === 6 ? 5 : 0)));
+        if (s === 2 || s === 9) { epiano(midi(root + 12), 0.5, 0.09); epiano(midi(root + 15), 0.5, 0.07); epiano(midi(root + 19), 0.5, 0.07); }
+        if (bar % 2 === 1 && (s === 4 || s === 6 || s === 11)) lead(midi(root + 24 + SCALES.dorian[(bar * 3 + s) % 7]), 0.5, 0.07, 'sine');
+      } else { // ambient: slow pads that open and close, sparse bells
+        if (s === 0) { pad(midi(root), 4.2, 0.09); pad(midi(root + 7), 4.2, 0.06); if (bar % 2) pad(midi(root + 15), 4.2, 0.05); }
+        if (s === 8 && bar % 2) bell(midi(root + 24 + sc[bar % 7]), 1.6, 0.07, musicBus); if (s === 13 && bar % 4 === 3) bell(midi(root + 31), 1.2, 0.05, musicBus);
       }
     }
   }
   function toggleMute() { muted = !muted; if (ctx) master.gain.setTargetAtTime(muted ? 0 : 0.8, now(), 0.05); return muted; }
-  return { ensure, resume, play, engine, siren, screech, heliVolume, rain, traffic, radioTick, setRadio, get radioStation() { return radioStation; }, STATIONS, toggleMute, get muted() { return muted; }, listener, get ready() { return !!ctx; } };
+  // for the test harness: the loudest sample on the mix over the last analyser window
+  function peak() { if (!analyser) return 0; const d = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(d); let m = 0; for (let i = 0; i < d.length; i++) m = Math.max(m, Math.abs(d[i])); return m; }
+  return { ensure, resume, play, engine, siren, screech, heliVolume, rain, traffic, ambientTick, radioTick, setRadio, get radioStation() { return radioStation; }, STATIONS, toggleMute, get muted() { return muted; }, listener, peak, get ready() { return !!ctx; } };
 })();
 
 </script>
@@ -2863,16 +2915,17 @@ const VEH = (() => {
 const PEDS = (() => {
   const SKIN = [[0.95, 0.8, 0.68], [0.85, 0.65, 0.5], [0.6, 0.42, 0.3], [0.42, 0.28, 0.2], [0.9, 0.75, 0.62]];
   const CLOTH = [[0.8, 0.2, 0.2], [0.2, 0.3, 0.7], [0.9, 0.9, 0.85], [0.15, 0.15, 0.15], [0.3, 0.6, 0.3], [0.9, 0.7, 0.2], [0.6, 0.3, 0.6], [0.4, 0.4, 0.45], [0.95, 0.5, 0.2], [0.2, 0.7, 0.75], [0.95, 0.75, 0.8], [0.55, 0.75, 0.95], [0.35, 0.25, 0.2], [0.75, 0.85, 0.6], [0.5, 0.1, 0.15], [0.98, 0.95, 0.6], [0.25, 0.45, 0.55], [0.7, 0.7, 0.72], [0.1, 0.35, 0.25], [1, 0.6, 0.1]];
-  const PANTS = [[0.2, 0.25, 0.4], [0.15, 0.15, 0.15], [0.45, 0.4, 0.35], [0.3, 0.3, 0.35], [0.55, 0.5, 0.42]];
+  const PANTS = [[0.2, 0.25, 0.4], [0.15, 0.15, 0.15], [0.45, 0.4, 0.35], [0.3, 0.3, 0.35], [0.55, 0.5, 0.42], [0.25, 0.3, 0.45], [0.38, 0.33, 0.28], [0.2, 0.22, 0.24]];
+  for (const c of CLOTH) { const g = (c[0] + c[1] + c[2]) / 3; for (let i = 0; i < 3; i++) c[i] = c[i] * 0.72 + g * 0.28; } // fabric, not paint
   const HAIR = [[0.1, 0.08, 0.06], [0.35, 0.22, 0.1], [0.75, 0.6, 0.3], [0.5, 0.5, 0.5], [0.6, 0.15, 0.1]];
   const looks = []; const meshCache = {};
   const r0 = M.rng(77);
-  for (let i = 0; i < 90; i++) looks.push({ skin: r0.pick(SKIN), shirt: r0.pick(CLOTH), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: r0.chance(0.25) ? r0.pick(CLOTH) : null, beanie: r0.chance(0.4), jacket: r0.chance(0.3) ? r0.pick(CLOTH) : null, sleeves: r0.chance(0.5), glasses: r0.chance(0.15), bag: r0.chance(0.2) ? r0.pick(PANTS) : null, skirt: r0.chance(0.25), longHair: r0.chance(0.35) });
+  for (let i = 0; i < 90; i++) looks.push({ skin: r0.pick(SKIN), shirt: r0.pick(CLOTH), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: r0.chance(0.2) ? r0.pick(CLOTH) : null, beanie: r0.chance(0.4), jacket: r0.chance(0.35) ? r0.pick(CLOTH) : null, sleeves: r0.chance(0.5), glasses: r0.chance(0.15), bag: r0.chance(0.2) ? r0.pick(PANTS) : null, skirt: r0.chance(0.25), longHair: r0.chance(0.25), hairStyle: r0.pick([0, 0, 1, 1, 2, 3, 4, 5, 6, 7]), beard: r0.chance(0.2) });
   // district wardrobes: suits downtown, hi-vis and overalls on the east side, running gear in the leafy west, wool by the water
-  const SUIT = () => ({ skin: r0.pick(SKIN), shirt: [0.95, 0.95, 0.95], pants: r0.pick([[0.1, 0.1, 0.13], [0.2, 0.2, 0.3], [0.35, 0.3, 0.28]]), hair: r0.pick(HAIR), hat: null, jacket: r0.pick([[0.1, 0.1, 0.13], [0.2, 0.2, 0.3], [0.35, 0.3, 0.28], [0.15, 0.2, 0.35]]), sleeves: true, glasses: r0.chance(0.3), bag: r0.chance(0.4) ? [0.15, 0.1, 0.08] : null, skirt: r0.chance(0.3), longHair: r0.chance(0.3) });
-  const WORK = () => ({ skin: r0.pick(SKIN), shirt: r0.pick([[1, 0.6, 0.1], [0.95, 0.9, 0.2], [0.3, 0.35, 0.55], [0.4, 0.4, 0.42]]), pants: r0.pick([[0.3, 0.35, 0.55], [0.35, 0.3, 0.25], [0.2, 0.2, 0.22]]), hair: r0.pick(HAIR), hat: r0.chance(0.5) ? [0.95, 0.8, 0.15] : null, beanie: r0.chance(0.3), jacket: null, sleeves: r0.chance(0.6), glasses: false, bag: null, skirt: false, longHair: r0.chance(0.15) });
-  const RUN = () => ({ skin: r0.pick(SKIN), shirt: r0.pick([[0.95, 0.3, 0.5], [0.2, 0.8, 0.9], [0.9, 0.9, 0.2], [0.98, 0.98, 0.98], [0.1, 0.1, 0.1]]), pants: r0.pick([[0.1, 0.1, 0.12], [0.2, 0.2, 0.5], [0.4, 0.4, 0.42]]), hair: r0.pick(HAIR), hat: r0.chance(0.4) ? r0.pick(CLOTH) : null, jacket: null, sleeves: false, glasses: r0.chance(0.4), bag: null, skirt: false, longHair: r0.chance(0.5) });
-  const WOOL = () => ({ skin: r0.pick(SKIN), shirt: r0.pick([[0.35, 0.3, 0.28], [0.2, 0.25, 0.3], [0.5, 0.45, 0.35]]), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: null, beanie: r0.chance(0.7), jacket: r0.pick([[0.9, 0.65, 0.1], [0.2, 0.25, 0.3], [0.35, 0.3, 0.28]]), sleeves: true, glasses: false, bag: null, skirt: false, longHair: r0.chance(0.2) });
+  const SUIT = () => ({ hairStyle: r0.pick([0, 1, 1, 3, 4, 5]), beard: r0.chance(0.15), skin: r0.pick(SKIN), shirt: [0.95, 0.95, 0.95], pants: r0.pick([[0.1, 0.1, 0.13], [0.2, 0.2, 0.3], [0.35, 0.3, 0.28]]), hair: r0.pick(HAIR), hat: null, jacket: r0.pick([[0.1, 0.1, 0.13], [0.2, 0.2, 0.3], [0.35, 0.3, 0.28], [0.15, 0.2, 0.35]]), sleeves: true, glasses: r0.chance(0.3), bag: r0.chance(0.4) ? [0.15, 0.1, 0.08] : null, skirt: r0.chance(0.3), longHair: r0.chance(0.3) });
+  const WORK = () => ({ hairStyle: r0.pick([0, 5, 6, 1]), beard: r0.chance(0.35), skin: r0.pick(SKIN), shirt: r0.pick([[1, 0.6, 0.1], [0.95, 0.9, 0.2], [0.3, 0.35, 0.55], [0.4, 0.4, 0.42]]), pants: r0.pick([[0.3, 0.35, 0.55], [0.35, 0.3, 0.25], [0.2, 0.2, 0.22]]), hair: r0.pick(HAIR), hat: r0.chance(0.5) ? [0.95, 0.8, 0.15] : null, beanie: r0.chance(0.3), jacket: null, sleeves: r0.chance(0.6), glasses: false, bag: null, skirt: false, longHair: r0.chance(0.15) });
+  const RUN = () => ({ hairStyle: r0.pick([0, 3, 4, 3]), skin: r0.pick(SKIN), shirt: r0.pick([[0.95, 0.3, 0.5], [0.2, 0.8, 0.9], [0.9, 0.9, 0.2], [0.98, 0.98, 0.98], [0.1, 0.1, 0.1]]), pants: r0.pick([[0.1, 0.1, 0.12], [0.2, 0.2, 0.5], [0.4, 0.4, 0.42]]), hair: r0.pick(HAIR), hat: r0.chance(0.4) ? r0.pick(CLOTH) : null, jacket: null, sleeves: false, glasses: r0.chance(0.4), bag: null, skirt: false, longHair: r0.chance(0.5) });
+  const WOOL = () => ({ hairStyle: r0.pick([0, 5, 2]), beard: r0.chance(0.4), skin: r0.pick(SKIN), shirt: r0.pick([[0.35, 0.3, 0.28], [0.2, 0.25, 0.3], [0.5, 0.45, 0.35]]), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: null, beanie: r0.chance(0.7), jacket: r0.pick([[0.9, 0.65, 0.1], [0.2, 0.25, 0.3], [0.35, 0.3, 0.28]]), sleeves: true, glasses: false, bag: null, skirt: false, longHair: r0.chance(0.2) });
   const WARDROBE = { downtown: [], eastside: [], westfield: [], southport: [] }; for (let i = 0; i < 16; i++) { WARDROBE.downtown.push(SUIT()); WARDROBE.eastside.push(WORK()); WARDROBE.westfield.push(RUN()); WARDROBE.southport.push(WOOL()); }
   const VENDOR = { skin: [0.85, 0.65, 0.5], shirt: [0.95, 0.95, 0.9], pants: [0.2, 0.2, 0.22], hair: [0.2, 0.15, 0.1], hat: [0.95, 0.95, 0.9], jacket: null, sleeves: false, glasses: false, bag: null, skirt: false, longHair: false };
   const COP = { skin: [0.9, 0.75, 0.62], shirt: [0.2, 0.3, 0.6], pants: [0.15, 0.18, 0.3], hair: [0.1, 0.1, 0.1], hat: [0.15, 0.18, 0.35], jacket: null, sleeves: true, glasses: true };
@@ -3399,6 +3452,7 @@ const PLAYER = (() => {
     moveBody(dt, false);
     P.speed = Math.hypot(P.vx, P.vz); P.phase += dt * (P.speed > 0.05 ? M.TAU * P.speed / (1.2 + 0.24 * P.speed) : 0); // the stride lengthens with speed, so feet stop sliding
     P.stats.distance += P.speed * dt;
+    { const st = Math.floor(P.phase / Math.PI); if (st !== P.lastStep && P.speed > 0.6 && !P.airborne) { P.lastStep = st; AUDIO.play('step', P.x, P.z, !CITY.interiorRoom); } } // a footfall each half stride
     // hit by cars
     for (const c of W.cars) { if (c.removed || c === P.car) continue; const spd = c.absSpeed; if (spd < 2.5) continue; if (M.dist2(c.x, c.z, P.x, P.z) > 36) continue; const [lf, ll] = c.local(P.x, P.z); if (Math.abs(lf) < c.spec.len / 2 + 0.4 && Math.abs(ll) < c.spec.wid / 2 + 0.35) { const d = [c.vx / spd, c.vz / spd]; hurt(Math.max(0, spd - 2.5) * 6, 'car', c); knock(d[0] * spd * 0.8, Math.min(8, spd * 0.45), d[1] * spd * 0.8); AUDIO.play('bump', P.x, P.z); c.damage(2, null); if (c.ai.mode === 'traffic') { c.scared = 5; c.ai.mode = 'flee'; } break; } }
   }
@@ -4475,7 +4529,7 @@ const GAME = (() => {
     fpsAcc += dt; fpsN++; if (fpsAcc > 1) { window.__fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
     renderWorld(dt, false); if (state === 'photo' && photo.shot) { photo.shot = false; savePhoto(); } HUD.draw(dt, state, photo); INPUT.endFrame();
   }
-  let fpsAcc = 0, fpsN = 0;
+  let fpsAcc = 0, fpsN = 0; const nearSounds = { park: null, water: null };
   // ---- Photo mode: the world freezes and the camera is yours. WASD/QE fly, mouse looks, wheel zooms, click or Enter saves a PNG.
   let photo = null;
   function updatePhoto(dt) { const m = INPUT.mouse; const sens = 0.0022 * (options.sensitivity || 1); photo.yaw -= m.dx * sens; photo.pitch = M.clamp(photo.pitch - m.dy * sens * (options.invertY ? -1 : 1), -1.4, 1.4);
@@ -4553,7 +4607,8 @@ const GAME = (() => {
     if (W.state.frame % 20 === 10) { PEDS.trim(px, pz, yaw, Math.round(18 + 62 * busy)); VEH.trim(px, pz, yaw, Math.round(18 + 34 * busy)); }
     if (W.state.frame % 30 === 0) { VEH.despawn(px, pz); PEDS.despawn(px, pz); }
     updateGrade(dt, px, pz);
-    AUDIO.listener(px, pz); AUDIO.rain(CITY.interiorRoom ? 0 : W.weather.rain, !!PLAYER.car); if (W.state.frame % 20 === 0) { let n = 0; for (const c of W.cars) if (!c.removed && c.absSpeed > 2 && M.dist2(c.x, c.z, px, pz) < 60 * 60) n++; AUDIO.traffic(Math.min(1, n / 8)); } AUDIO.radioTick(dt, !!PLAYER.car || !!CITY.interiorRoom); if (!PLAYER.car) { AUDIO.engine(false, 0, 0); AUDIO.screech(0); }
+    AUDIO.listener(px, pz); AUDIO.rain(CITY.interiorRoom ? 0 : W.weather.rain, !!PLAYER.car);
+    if (W.state.frame % 30 === 7) { const pk = CITY.nearestPlace('park', px, pz); nearSounds.park = pk && M.dist2(pk.x, pk.z, px, pz) < 70 * 70 && !CITY.interiorRoom ? pk : null; const wx = M.clamp(px, W.bounds[0], W.bounds[1]), wz = M.clamp(pz, W.bounds[0], W.bounds[1]); const edge = Math.min(px - W.bounds[0], W.bounds[1] - px, pz - W.bounds[0], W.bounds[1] - pz); nearSounds.water = edge < 60 && !CITY.interiorRoom ? { x: edge === px - W.bounds[0] ? W.bounds[0] : edge === W.bounds[1] - px ? W.bounds[1] : wx, z: edge === pz - W.bounds[0] ? W.bounds[0] : edge === W.bounds[1] - pz ? W.bounds[1] : wz } : null; } AUDIO.ambientTick(dt, nearSounds); if (W.state.frame % 20 === 0) { let n = 0; for (const c of W.cars) if (!c.removed && c.absSpeed > 2 && M.dist2(c.x, c.z, px, pz) < 60 * 60) n++; AUDIO.traffic(Math.min(1, n / 8)); } AUDIO.radioTick(dt, !!PLAYER.car || !!CITY.interiorRoom); if (!PLAYER.car) { AUDIO.engine(false, 0, 0); AUDIO.screech(0); }
     // hydrant fountains
     for (const p of CITY.props.hydrant) if (p.hydrantT > 0) { p.hydrantT -= dt; if (W.state.frame % 2 === 0) W.particle(p.x, 0.4, p.z, (W.rng() - 0.5) * 1.5, 9 + W.rng() * 5, (W.rng() - 0.5) * 1.5, 1.4, 0.45, [0.75, 0.88, 1], 0.7, { grav: 12, grow: 0.8 }); }
   }

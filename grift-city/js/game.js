@@ -74,7 +74,7 @@ const GAME = (() => {
     fpsAcc += dt; fpsN++; if (fpsAcc > 1) { window.__fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
     renderWorld(dt, false); if (state === 'photo' && photo.shot) { photo.shot = false; savePhoto(); } HUD.draw(dt, state, photo); INPUT.endFrame();
   }
-  let fpsAcc = 0, fpsN = 0;
+  let fpsAcc = 0, fpsN = 0; const nearSounds = { park: null, water: null };
   // ---- Photo mode: the world freezes and the camera is yours. WASD/QE fly, mouse looks, wheel zooms, click or Enter saves a PNG.
   let photo = null;
   function updatePhoto(dt) { const m = INPUT.mouse; const sens = 0.0022 * (options.sensitivity || 1); photo.yaw -= m.dx * sens; photo.pitch = M.clamp(photo.pitch - m.dy * sens * (options.invertY ? -1 : 1), -1.4, 1.4);
@@ -152,7 +152,8 @@ const GAME = (() => {
     if (W.state.frame % 20 === 10) { PEDS.trim(px, pz, yaw, Math.round(18 + 62 * busy)); VEH.trim(px, pz, yaw, Math.round(18 + 34 * busy)); }
     if (W.state.frame % 30 === 0) { VEH.despawn(px, pz); PEDS.despawn(px, pz); }
     updateGrade(dt, px, pz);
-    AUDIO.listener(px, pz); AUDIO.rain(CITY.interiorRoom ? 0 : W.weather.rain, !!PLAYER.car); if (W.state.frame % 20 === 0) { let n = 0; for (const c of W.cars) if (!c.removed && c.absSpeed > 2 && M.dist2(c.x, c.z, px, pz) < 60 * 60) n++; AUDIO.traffic(Math.min(1, n / 8)); } AUDIO.radioTick(dt, !!PLAYER.car || !!CITY.interiorRoom); if (!PLAYER.car) { AUDIO.engine(false, 0, 0); AUDIO.screech(0); }
+    AUDIO.listener(px, pz); AUDIO.rain(CITY.interiorRoom ? 0 : W.weather.rain, !!PLAYER.car);
+    if (W.state.frame % 30 === 7) { const pk = CITY.nearestPlace('park', px, pz); nearSounds.park = pk && M.dist2(pk.x, pk.z, px, pz) < 70 * 70 && !CITY.interiorRoom ? pk : null; const wx = M.clamp(px, W.bounds[0], W.bounds[1]), wz = M.clamp(pz, W.bounds[0], W.bounds[1]); const edge = Math.min(px - W.bounds[0], W.bounds[1] - px, pz - W.bounds[0], W.bounds[1] - pz); nearSounds.water = edge < 60 && !CITY.interiorRoom ? { x: edge === px - W.bounds[0] ? W.bounds[0] : edge === W.bounds[1] - px ? W.bounds[1] : wx, z: edge === pz - W.bounds[0] ? W.bounds[0] : edge === W.bounds[1] - pz ? W.bounds[1] : wz } : null; } AUDIO.ambientTick(dt, nearSounds); if (W.state.frame % 20 === 0) { let n = 0; for (const c of W.cars) if (!c.removed && c.absSpeed > 2 && M.dist2(c.x, c.z, px, pz) < 60 * 60) n++; AUDIO.traffic(Math.min(1, n / 8)); } AUDIO.radioTick(dt, !!PLAYER.car || !!CITY.interiorRoom); if (!PLAYER.car) { AUDIO.engine(false, 0, 0); AUDIO.screech(0); }
     // hydrant fountains
     for (const p of CITY.props.hydrant) if (p.hydrantT > 0) { p.hydrantT -= dt; if (W.state.frame % 2 === 0) W.particle(p.x, 0.4, p.z, (W.rng() - 0.5) * 1.5, 9 + W.rng() * 5, (W.rng() - 0.5) * 1.5, 1.4, 0.45, [0.75, 0.88, 1], 0.7, { grav: 12, grow: 0.8 }); }
   }

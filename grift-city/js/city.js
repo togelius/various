@@ -209,7 +209,7 @@ const CITY = (() => {
     eastside: ['concrete', 'tenement', 'warehouse', 'brick2', 'metal', 'loft', 'warehouse', 'tenement'], southport: ['tenement', 'brick2', 'painted', 'stone', 'warehouse', 'stucco2'],
   };
   // which shopfront tiles a district's ground floors are painted with (tools: see the SHOP_TILES list in textures.js; 9 is shuttered)
-  const SHOP_POOL = { downtown: [1, 3, 6, 6, 8, 2, 3], midtown: [1, 3, 4, 6, 7, 8, 0, 1], northgate: [0, 2, 4, 5, 9, 0, 3, 2], westfield: [3, 7, 7, 1, 8, 4, 3], eastside: [2, 5, 4, 0, 9, 9, 6, 5], southport: [5, 2, 0, 4, 9, 3, 5] };
+  const SHOP_POOL = { downtown: [1, 3, 6, 8, 10, 12, 16, 18, 3, 6], midtown: [1, 3, 4, 6, 7, 8, 0, 10, 12, 13, 14, 15, 16], northgate: [0, 2, 4, 5, 9, 11, 13, 17, 19, 20, 2, 5], westfield: [3, 7, 8, 14, 16, 17, 10, 1, 4], eastside: [2, 5, 4, 0, 9, 11, 13, 19, 20, 20, 18], southport: [5, 2, 0, 9, 11, 19, 20, 17, 3] };
   const MASONRY = ['brick', 'brick2', 'brick3', 'tenement', 'stone', 'painted', 'stucco2', 'loft'];
   const FLOORS = { downtown: [14, 42], midtown: [6, 16], northgate: [3, 8], westfield: [2, 5], eastside: [2, 6], southport: [3, 7] };
 
@@ -251,13 +251,13 @@ const CITY = (() => {
       top = y + ground;
       // sidewalk trade: tables outside the cafes, crates outside the grocers, a board, a rack, a machine, a pole
       const put = (kind, t, off, opts = {}) => { const [px, pz] = frontPt(t, off); props[kind].push({ x: px, z: pz, a: frontAngle + (opts.turn || 0), s: opts.s || 1 }); if (opts.r) solidProps.push({ x: px, z: pz, r: opts.r, kind }); };
-      const has = (k) => shopTiles.includes(k); const hasAny = (...ks) => ks.some(has);
-      if (hasAny(3, 8, 1) && rng.chance(0.7)) put('cafeSet', frontLen * rng.range(0.2, 0.35), 1.9, { r: 0.7, turn: rng.range(0, 6.28) });
-      if (hasAny(0, 5, 7) && rng.chance(0.7)) put('crates', frontLen * rng.range(0.55, 0.8), 1.1, { r: 0.6 });
-      if (has(7) && rng.chance(0.8)) put('flowerBucket', frontLen * rng.range(0.1, 0.3), 1.0, {});
-      if (has(4) && rng.chance(0.8)) put('barberPole', frontLen * rng.range(0.3, 0.7), 0.15, {});
+      const kinds = TEX.shopKinds; const has = (kind) => shopTiles.some(k => (kinds[k] || []).includes(kind)); const hasAny = (...ks) => ks.some(has);
+      if (hasAny('cafe', 'diner', 'bakery') && rng.chance(0.7)) put('cafeSet', frontLen * rng.range(0.2, 0.35), 1.9, { r: 0.7, turn: rng.range(0, 6.28) });
+      if (hasAny('bodega', 'liquor', 'florist', 'noodle') && rng.chance(0.7)) put('crates', frontLen * rng.range(0.55, 0.8), 1.1, { r: 0.6 });
+      if (has('florist') && rng.chance(0.8)) put('flowerBucket', frontLen * rng.range(0.1, 0.3), 1.0, {});
+      if (has('barber') && rng.chance(0.8)) put('barberPole', frontLen * rng.range(0.3, 0.7), 0.15, {});
       if (rng.chance(0.35)) put('sandwichBoard', frontLen * rng.range(0.15, 0.85), 1.6, { r: 0.35, turn: rng.range(-0.4, 0.4) });
-      if (hasAny(1, 5, 6) && rng.chance(0.4)) put('vending', frontLen * rng.range(0.1, 0.9), 0.5, { r: 0.5 });
+      if (hasAny('diner', 'liquor', 'electro', 'laundro') && rng.chance(0.4)) put('vending', frontLen * rng.range(0.1, 0.9), 0.5, { r: 0.5 });
       if ((dist === 'midtown' || dist === 'westfield' || dist === 'downtown') && rng.chance(0.3)) put('bikeRack', frontLen * rng.range(0.1, 0.9), 2.2, { r: 0.5, turn: Math.PI / 2 });
       if (dist === 'eastside' && rng.chance(0.4)) put('tireStack', frontLen * rng.range(0.1, 0.9), 1.0, { r: 0.4 });
       if ((dist === 'eastside' || dist === 'southport') && rng.chance(0.4)) put('barrel', frontLen * rng.range(0.1, 0.9), 0.6, { r: 0.35 });

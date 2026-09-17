@@ -3,7 +3,7 @@
 'use strict';
 const TEX = (() => {
   const S = 512;
-  const layers = []; const names = {};
+  const layers = []; const names = {}; let shopKinds = [];
   function add(name, painter) {
     const c = document.createElement('canvas'); c.width = S; c.height = S;
     const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, S, S); g._lit = [];
@@ -97,27 +97,28 @@ const TEX = (() => {
     // Shopfronts: one tile = 8 units (two shops), 4 tall. Sixteen kinds of shop, each with its own sign, window
     // and door, painted two to a tile; a tenth tile is two shuttered fronts. city.js mixes tiles along a wall.
     const SHOPS = {
-      bodega:   { names: ['BODEGA', 'CORNER MART', 'LUCKY 7 GROCERY', 'DELI & GROCERY'], sign: 'stripes', hue: 10, font: 'heavy', win: 'produce', door: 'glass' },
-      laundro:  { names: ['LAUNDROMAT', 'WASH & FOLD', 'SUDS'], sign: 'box', hue: 200, font: 'sans', win: 'washers', door: 'glass' },
-      diner:    { names: ['GRIFT DINER', "MARLA'S", 'ALL NITE DINER', 'THE GRILL'], sign: 'neon', hue: 350, font: 'script', win: 'diner', door: 'chrome' },
-      pharmacy: { names: ['PHARMACY', 'DRUGS', 'MARROW PHARMACY'], sign: 'box', hue: 140, font: 'sans', win: 'pharmacy', door: 'glass' },
-      bar:      { names: ['BAR NONE', 'THE HOLLOW', 'DIVE', 'LAST CALL', "O'ROURKE'S"], sign: 'neon', hue: 30, font: 'serif', win: 'bar', door: 'wood' },
-      pawn:     { names: ['PAWN & GOLD', 'CASH 4 GOLD', 'BAIL BONDS', 'WE BUY GOLD'], sign: 'board', hue: 48, font: 'heavy', win: 'pawn', door: 'bars' },
-      books:    { names: ['BOOKS', 'USED BOOKS', 'LARK BOOKSHOP', 'MAPS & PRINTS'], sign: 'board', hue: 120, font: 'serif', win: 'books', door: 'wood' },
-      cafe:     { names: ['CAFE MARROW', 'ESPRESSO', 'THE DAILY GRIND', 'CAFE'], sign: 'board', hue: 25, font: 'script', win: 'cafe', door: 'wood' },
-      barber:   { names: ['BARBER', 'CUTS', 'FADE CITY', "GINO'S BARBER"], sign: 'box', hue: 210, font: 'serif', win: 'barber', door: 'glass' },
-      tattoo:   { names: ['TATTOO', 'INK', 'PIERCING & INK', 'BLACK HEART TATTOO'], sign: 'neon', hue: 300, font: 'heavy', win: 'tattoo', door: 'dark' },
-      liquor:   { names: ['24H LIQUOR', 'LIQUOR', 'BEER WINE SPIRITS', 'DISCOUNT LIQUOR'], sign: 'stripes', hue: 0, font: 'heavy', win: 'liquor', door: 'bars' },
-      noodle:   { names: ['NOODLE HOUSE', 'PHO 9', 'GOLDEN WOK', 'KEBAB', 'DUMPLINGS'], sign: 'box', hue: 0, font: 'sans', win: 'noodle', door: 'glass' },
-      electro:  { names: ['ELECTRONICS', 'PHONES UNLOCKED', 'TV & AUDIO', 'REPAIRS'], sign: 'box', hue: 220, font: 'sans', win: 'electro', door: 'glass' },
-      clothes:  { names: ['BOUTIQUE', 'MENSWEAR', 'VINTAGE', 'SNEAKERS', 'THREADS'], sign: 'board', hue: 330, font: 'serif', win: 'clothes', door: 'glass' },
-      florist:  { names: ['FLOWERS', 'FLORIST', 'BLOOM', 'PETALS'], sign: 'board', hue: 100, font: 'script', win: 'florist', door: 'glass' },
-      bakery:   { names: ['BAKERY', 'FRESH BREAD', 'PATISSERIE', 'DONUTS'], sign: 'board', hue: 38, font: 'script', win: 'bakery', door: 'wood' },
+      bodega:   { names: ['BODEGA', 'CORNER MART', 'LUCKY 7 GROCERY', 'DELI & GROCERY', 'FRESH MARKET', 'SUNRISE DELI', 'M & J GROCERY', 'QUICK STOP'], sign: 'stripes', hue: 10, font: 'heavy', win: 'produce', door: 'glass' },
+      laundro:  { names: ['LAUNDROMAT', 'WASH & FOLD', 'SUDS', 'SPIN CYCLE', 'COIN WASH', 'BUBBLES'], sign: 'box', hue: 200, font: 'sans', win: 'washers', door: 'glass' },
+      diner:    { names: ['GRIFT DINER', "MARLA'S", 'ALL NITE DINER', 'THE GRILL', "ROSIE'S", 'BLUE PLATE', 'STARLITE DINER', 'PIER 9 GRILL'], sign: 'neon', hue: 350, font: 'script', win: 'diner', door: 'chrome' },
+      pharmacy: { names: ['PHARMACY', 'DRUGS', 'MARROW PHARMACY', 'RX EXPRESS', 'CITY CHEMIST', 'NORTHGATE DRUGS'], sign: 'box', hue: 140, font: 'sans', win: 'pharmacy', door: 'glass' },
+      bar:      { names: ['BAR NONE', 'THE HOLLOW', 'DIVE', 'LAST CALL', "O'ROURKE'S", 'THE ANCHOR', 'GULL & CRANE', 'SALOON', 'THE VAULT', 'LUCKY DOG'], sign: 'neon', hue: 30, font: 'serif', win: 'bar', door: 'wood' },
+      pawn:     { names: ['PAWN & GOLD', 'CASH 4 GOLD', 'BAIL BONDS', 'WE BUY GOLD', 'CHECKS CASHED', 'LOANS', 'EZ PAWN', 'GOLD & GUNS'], sign: 'board', hue: 48, font: 'heavy', win: 'pawn', door: 'bars' },
+      books:    { names: ['BOOKS', 'USED BOOKS', 'LARK BOOKSHOP', 'MAPS & PRINTS', 'COMICS', 'THE READING ROOM', 'RARE BOOKS', 'PAPERBACKS'], sign: 'board', hue: 120, font: 'serif', win: 'books', door: 'wood' },
+      cafe:     { names: ['CAFE MARROW', 'ESPRESSO', 'THE DAILY GRIND', 'CAFE', 'BEAN THERE', 'CORNER CAFE', 'TEA & TOAST', 'MOKA', 'CAFE LARK'], sign: 'board', hue: 25, font: 'script', win: 'cafe', door: 'wood' },
+      barber:   { names: ['BARBER', 'CUTS', 'FADE CITY', "GINO'S BARBER", 'SALON', 'HAIR TODAY', 'THE CHAIR', 'CLIPPERS'], sign: 'box', hue: 210, font: 'serif', win: 'barber', door: 'glass' },
+      tattoo:   { names: ['TATTOO', 'INK', 'PIERCING & INK', 'BLACK HEART TATTOO', 'NEEDLE & THREAD', 'IRON INK', 'SKIN DEEP'], sign: 'neon', hue: 300, font: 'heavy', win: 'tattoo', door: 'dark' },
+      liquor:   { names: ['24H LIQUOR', 'LIQUOR', 'BEER WINE SPIRITS', 'DISCOUNT LIQUOR', 'WINE CELLAR', 'BOTTLE SHOP', 'SPIRITS', 'LOTTO & LIQUOR'], sign: 'stripes', hue: 0, font: 'heavy', win: 'liquor', door: 'bars' },
+      noodle:   { names: ['NOODLE HOUSE', 'PHO 9', 'GOLDEN WOK', 'KEBAB', 'DUMPLINGS', 'TACOS', 'PIZZA SLICE', 'CURRY HOUSE', 'SUSHI', 'FALAFEL KING', 'RAMEN'], sign: 'box', hue: 0, font: 'sans', win: 'noodle', door: 'glass' },
+      electro:  { names: ['ELECTRONICS', 'PHONES UNLOCKED', 'TV & AUDIO', 'REPAIRS', 'CAMERA WORLD', 'GAMES', 'HI-FI', 'COMPUTERS'], sign: 'box', hue: 220, font: 'sans', win: 'electro', door: 'glass' },
+      clothes:  { names: ['BOUTIQUE', 'MENSWEAR', 'VINTAGE', 'SNEAKERS', 'THREADS', 'DENIM CO', 'SHOES', 'TAILOR', 'HATS', 'OUTFITTERS'], sign: 'board', hue: 330, font: 'serif', win: 'clothes', door: 'glass' },
+      florist:  { names: ['FLOWERS', 'FLORIST', 'BLOOM', 'PETALS', 'ROSE & THORN', 'GARDEN SHOP', 'ORCHID'], sign: 'board', hue: 100, font: 'script', win: 'florist', door: 'glass' },
+      bakery:   { names: ['BAKERY', 'FRESH BREAD', 'PATISSERIE', 'DONUTS', 'BAGELS', 'CAKE BOX', 'PIES', 'SOURDOUGH'], sign: 'board', hue: 38, font: 'script', win: 'bakery', door: 'wood' },
     };
     const textFit = (g, t, maxW, size, font, style = 'bold') => { let sz = size; g.font = `${style} ${sz}px ${font}`; while (g.measureText(t).width > maxW && sz > 14) { sz -= 2; g.font = `${style} ${sz}px ${font}`; } };
     // paints one shop of `kind` into the 256-wide slot at x0
+    const usedNames = new Set(); const SIGN_ALT = { board: 'box', box: 'board', neon: 'board', stripes: 'board' };
     function shop(g, r, x0, kind) {
-      const sp = SHOPS[kind]; const name = sp.names[Math.floor(r() * sp.names.length)]; const hue = (sp.hue + (r() - 0.5) * 30 + 360) % 360; const font = FONTS[sp.font];
+      const sp = { ...SHOPS[kind] }; if (r() < 0.3) sp.sign = SIGN_ALT[sp.sign]; const fresh = sp.names.filter(n => !usedNames.has(n)); const name = (fresh.length ? fresh : sp.names)[Math.floor(r() * (fresh.length ? fresh : sp.names).length)]; usedNames.add(name); const hue = (sp.hue + (r() - 0.5) * 40 + 360) % 360; const font = FONTS[sp.font];
       const dark = `hsl(${hue},30%,14%)`, mid = `hsl(${hue},45%,34%)`, light = `hsl(${hue},60%,85%)`;
       g.textAlign = 'center'; g.textBaseline = 'middle';
       // ---- sign band (14..90)
@@ -161,10 +162,11 @@ const TEX = (() => {
       g.fillStyle = '#6a6560'; g.fillRect(x0 + 14, 486, 228, 12); // step
       if (r() < 0.35) { const py = 300 + r() * 120; g.fillStyle = ['#ffe23b', '#37d4ff', '#ff8c2b', '#fff'][Math.floor(r() * 4)]; g.fillRect(x0 + 238, py, 12, 40); } // a flyer on the door frame
     }
-    const SHOP_TILES = [['bodega', 'laundro'], ['diner', 'pharmacy'], ['bar', 'pawn'], ['books', 'cafe'], ['barber', 'tattoo'], ['liquor', 'noodle'], ['electro', 'clothes'], ['florist', 'bakery'], ['cafe', 'clothes']];
-    SHOP_TILES.forEach((pair, v) => add('shops' + v, (g, r) => { g.fillStyle = '#4a4540'; g.fillRect(0, 0, S, S); grain(g, r, 8000, 0.05); shop(g, r, 0, pair[0]); shop(g, r, 256, pair[1]); }));
+    const SHOP_TILES = [['bodega', 'laundro'], ['diner', 'pharmacy'], ['bar', 'pawn'], ['books', 'cafe'], ['barber', 'tattoo'], ['liquor', 'noodle'], ['electro', 'clothes'], ['florist', 'bakery'], ['cafe', 'clothes'],
+      ['noodle', 'bar'], ['clothes', 'cafe'], ['bodega', 'pawn'], ['electro', 'diner'], ['barber', 'liquor'], ['bakery', 'books'], ['noodle', 'clothes'], ['cafe', 'florist'], ['pharmacy', 'bodega'], ['bar', 'electro'], ['laundro', 'noodle']];
+    shopKinds = SHOP_TILES; SHOP_TILES.forEach((pair, v) => add('shops' + v, (g, r) => { g.fillStyle = '#4a4540'; g.fillRect(0, 0, S, S); grain(g, r, 8000, 0.05); shop(g, r, 0, pair[0]); shop(g, r, 256, pair[1]); }));
     // two shuttered fronts: roll-down doors, flyposting, a FOR LEASE sign
-    add('shops9', (g, r) => { g.fillStyle = '#3e3a36'; g.fillRect(0, 0, S, S); grain(g, r, 8000, 0.06);
+    add('shops20', (g, r) => { g.fillStyle = '#3e3a36'; g.fillRect(0, 0, S, S); grain(g, r, 8000, 0.06);
       for (let i = 0; i < 2; i++) { const x0 = i * 256; g.fillStyle = i ? '#5a5650' : '#6a5a48'; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = 'rgba(255,255,255,0.25)'; g.font = `bold 30px ${FONTS.sans}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(i ? 'FOR LEASE' : '', x0 + 128, 52);
         g.fillStyle = '#4a4a4c'; g.fillRect(x0 + 14, 140, 228, 350); for (let y = 148; y < 486; y += 14) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x0 + 14, y, 228, 4); g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(x0 + 14, y + 8, 228, 2); }
         for (let k = 0; k < 5; k++) { const px = x0 + 20 + r() * 180, py = 180 + r() * 220; g.fillStyle = ['#ffe23b', '#37d4ff', '#ff8c2b', '#f4f2ea', '#ff3b8d'][Math.floor(r() * 5)]; g.fillRect(px, py, 40, 56); g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(px + 6, py + 8, 28, 6); g.fillRect(px + 6, py + 20, 28, 20); }
@@ -196,5 +198,5 @@ const TEX = (() => {
     add('barrier', (g, r) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#ff6a00'; g.fillRect(i * 64, 0, 64, S); } });
     return layers;
   }
-  return { build, names, S, get layers() { return layers; } };
+  return { build, names, S, get layers() { return layers; }, get shopKinds() { return shopKinds; } };
 })();
