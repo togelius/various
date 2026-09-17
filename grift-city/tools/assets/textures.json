@@ -40,9 +40,9 @@
     "grass": {
       "material": "Grass004",
       "tile": 5,
-      "bright": 1.0,
-      "sat": 0.95,
-      "tint": 0.2
+      "bright": 0.88,
+      "sat": 1.15,
+      "tint": 0.3
     },
     "sand": {
       "material": "Ground054",

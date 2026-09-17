@@ -502,9 +502,13 @@ const MESH = (() => {
   }
   function assetVehicle(b, s, col) { assetInto(b, s.model, { scale: s.modelScale, bones: true, local: true, paint: col, desat: 0.15 }); }
   function assetBounds(name, scale) { const A = ASSETS.models[name]; return { min: A.min.map(v => v * scale), max: A.max.map(v => v * scale) }; }
-  function ktree() { return assetInto(new Builder(), 'ktrees', { scale: 8, desat: 0.2 }); }
-  function ktreeTall() { return assetInto(new Builder(), 'ktreesTall', { scale: 8, desat: 0.2 }); }
-  function tree() { const b = new Builder(); b.cyl(0, 0, 0, 0.18, 2.4, [0.35, 0.25, 0.15], 0, 7, 0, false, false, 0.12); const tiers = [[1.5, 1.7, 1.2], [2.5, 1.45, 1.1], [3.5, 1.15, 1.0], [4.4, 0.8, 0.9], [5.2, 0.45, 0.7]]; tiers.forEach(([y, r, h], k) => { const g = 0.4 + k * 0.03; b.cyl(0, y, 0, r, y + h, [0.16 + k * 0.02, g, 0.15], 0, 9, 0, true, k === 0, 0.05); }); return b; }
+  // A plant from the nature kit, scaled to the height the city expects, with a fallback to the built one.
+  const plant = (model, height, desat, fallback) => () => {
+    const A = typeof ASSETS !== 'undefined' && ASSETS.models[model];
+    if (!A) return fallback();
+    return assetInto(new Builder(), model, { scale: height / (A.max[1] - A.min[1]), desat: desat === undefined ? 0.18 : desat });
+  };
+  function builtTree() { const b = new Builder(); b.cyl(0, 0, 0, 0.18, 2.4, [0.35, 0.25, 0.15], 0, 7, 0, false, false, 0.12); const tiers = [[1.5, 1.7, 1.2], [2.5, 1.45, 1.1], [3.5, 1.15, 1.0], [4.4, 0.8, 0.9], [5.2, 0.45, 0.7]]; tiers.forEach(([y, r, h], k) => { const g = 0.4 + k * 0.03; b.cyl(0, y, 0, r, y + h, [0.16 + k * 0.02, g, 0.15], 0, 9, 0, true, k === 0, 0.05); }); return b; }
   function hydrant() { const b = new Builder(); b.cyl(0, 0, 0, 0.16, 0.7, [0.85, 0.15, 0.12], 0, 6); b.cbox(0, 0.45, 0, 0.5, 0.14, 0.2, [0.85, 0.15, 0.12]); b.cyl(0, 0.7, 0, 0.1, 0.85, [0.85, 0.15, 0.12], 0, 6); return b; }
   function bin() { const b = new Builder(); b.cyl(0, 0, 0, 0.32, 0.95, [0.2, 0.28, 0.2], 0, 8); b.cyl(0, 0.95, 0, 0.36, 1.05, [0.15, 0.2, 0.15], 0, 8); return b; }
   function bench() { const b = new Builder(); const w = [0.45, 0.32, 0.2]; b.cbox(0, 0.45, 0, 1.8, 0.06, 0.5, w); b.cbox(0, 0.75, -0.22, 1.8, 0.4, 0.06, w); b.cbox(0.7, 0.22, 0, 0.08, 0.45, 0.45, [0.2, 0.2, 0.2]); b.cbox(-0.7, 0.22, 0, 0.08, 0.45, 0.45, [0.2, 0.2, 0.2]); return b; }
@@ -516,9 +520,13 @@ const MESH = (() => {
   function cone() { const b = new Builder(); b.cyl(0, 0, 0, 0.22, 0.75, [1, 0.42, 0], 0, 8, 0, true, false, 0.06); b.cbox(0, 0.02, 0, 0.5, 0.04, 0.5, [0.1, 0.1, 0.1]); b.cyl(0, 0.3, 0, 0.16, 0.4, [1, 1, 1], 0, 8, 0, false, false, 0.13); return b; }
   function barrier() { const b = new Builder(); b.cbox(0, 0.85, 0, 2.2, 0.3, 0.06, [1, 0.42, 0]); b.cbox(0, 0.85, 0, 2.2, 0.3, 0.065, [1, 1, 1], 0, { faces: 0 }); for (const sx of [-1, 1]) { b.cbox(sx * 1.0, 0.5, 0, 0.08, 1.0, 0.08, [0.3, 0.3, 0.32]); b.cbox(sx * 1.0, 0.03, 0, 0.5, 0.06, 0.4, [0.3, 0.3, 0.32]); } for (let k = 0; k < 5; k++) b.cbox(-0.9 + k * 0.45, 0.85, 0.035, 0.2, 0.3, 0.01, [1, 1, 1], 0, { faces: 16 }); return b; }
   function hedge() { const b = new Builder(); b.cbox(0, 0.5, 0, 3.0, 1.0, 0.8, [0.18, 0.4, 0.16]); b.cbox(0, 0.95, 0, 2.9, 0.15, 0.7, [0.24, 0.5, 0.2]); return b; }
-  function roundTree() { const b = new Builder(); b.cyl(0, 0, 0, 0.16, 2.2, [0.33, 0.24, 0.14], 0, 7, 0, false, false, 0.1); b.tube([0, 1.6, 0], [0.7, 2.6, 0.3], 0.07, 0.04, [0.33, 0.24, 0.14], 0, 0, 5); b.tube([0, 1.8, 0], [-0.6, 2.7, -0.4], 0.07, 0.04, [0.33, 0.24, 0.14], 0, 0, 5);
+  const tree = plant('tree2', 7.2, 0.05, builtTree), roundTree = plant('tree1', 6.4, 0.05, builtRoundTree), palm = plant('palm1', 8.5, 0.05, builtPalm);
+  const treeFat = plant('tree4', 5.6, 0.05, builtRoundTree), treeTall = plant('tree3', 8.6, 0.05, builtTree);
+  const pine = plant('pine2', 8.0, 0.05, builtTree), pineSmall = plant('pine1', 5.0, 0.05, builtTree);
+  const bush = plant('bush1', 1.0, 0.05, hedge), rock = plant('rock2', 0.85, 0.12, hedge), tuft = plant('tuft1', 0.5, 0.05, hedge);
+  function builtRoundTree() { const b = new Builder(); b.cyl(0, 0, 0, 0.16, 2.2, [0.33, 0.24, 0.14], 0, 7, 0, false, false, 0.1); b.tube([0, 1.6, 0], [0.7, 2.6, 0.3], 0.07, 0.04, [0.33, 0.24, 0.14], 0, 0, 5); b.tube([0, 1.8, 0], [-0.6, 2.7, -0.4], 0.07, 0.04, [0.33, 0.24, 0.14], 0, 0, 5);
     const blobs = [[0, 3.2, 0, 1.7], [0.9, 2.8, 0.5, 1.2], [-0.8, 2.9, -0.5, 1.15], [0.3, 3.9, -0.7, 1.1], [-0.4, 3.7, 0.8, 1.0], [0.6, 2.4, -0.9, 0.9]]; blobs.forEach(([x, y, z, r], k) => b.sphere(x, y, z, r, r * 0.85, r, [0.18 + (k % 3) * 0.03, 0.44 + (k % 2) * 0.05, 0.16], { segs: 9, rings: 4 })); return b; }
-  function palm() { const b = new Builder(); b.cyl(0, 0, 0, 0.16, 5.5, [0.45, 0.35, 0.22], 0, 6, 0, true, false, 0.1); for (let k = 0; k < 7; k++) { const a = k / 7 * M.TAU; const lx = Math.cos(a), lz = Math.sin(a); b.poly([[0, 5.5, 0], [lx * 1.2 + lz * 0.35, 5.6, lz * 1.2 - lx * 0.35], [lx * 3.2, 4.6, lz * 3.2], [lx * 1.2 - lz * 0.35, 5.6, lz * 1.2 + lx * 0.35]], [0.2, 0.5, 0.2]); b.poly([[lx * 1.2 - lz * 0.35, 5.6, lz * 1.2 + lx * 0.35], [lx * 3.2, 4.6, lz * 3.2], [lx * 1.2 + lz * 0.35, 5.6, lz * 1.2 - lx * 0.35], [0, 5.5, 0]], [0.16, 0.42, 0.16]); } b.cyl(0, 5.2, 0, 0.3, 5.6, [0.5, 0.35, 0.1], 0, 6); return b; }
+  function builtPalm() { const b = new Builder(); b.cyl(0, 0, 0, 0.16, 5.5, [0.45, 0.35, 0.22], 0, 6, 0, true, false, 0.1); for (let k = 0; k < 7; k++) { const a = k / 7 * M.TAU; const lx = Math.cos(a), lz = Math.sin(a); b.poly([[0, 5.5, 0], [lx * 1.2 + lz * 0.35, 5.6, lz * 1.2 - lx * 0.35], [lx * 3.2, 4.6, lz * 3.2], [lx * 1.2 - lz * 0.35, 5.6, lz * 1.2 + lx * 0.35]], [0.2, 0.5, 0.2]); b.poly([[lx * 1.2 - lz * 0.35, 5.6, lz * 1.2 + lx * 0.35], [lx * 3.2, 4.6, lz * 3.2], [lx * 1.2 + lz * 0.35, 5.6, lz * 1.2 - lx * 0.35], [0, 5.5, 0]], [0.16, 0.42, 0.16]); } b.cyl(0, 5.2, 0, 0.3, 5.6, [0.5, 0.35, 0.1], 0, 6); return b; }
   function umbrella() { const b = new Builder(); b.cyl(0, 0, 0, 0.04, 2.2, [0.8, 0.8, 0.8], 0, 5); const c = [[0.9, 0.2, 0.2], [0.2, 0.5, 0.9], [0.95, 0.8, 0.1]][Math.floor(Math.random() * 3)]; b.cyl(0, 1.9, 0, 1.4, 2.3, c, 0, 10, 0, true, false, 0.05); return b; }
   function streetSign() { const b = new Builder(); b.cbox(0, 2.6, 0, 0.9, 0.22, 0.03, [1, 1, 1], TEX.names.signs, { uvScale: 1 }); return b; }
   // Sidewalk life in front of the shops
@@ -601,5 +609,5 @@ const MESH = (() => {
     b.cbox(0, 0.75, 1.5, 0.5, 0.3, 0.5, [1, 1, 0.9], 0, { bone: 3 });
     return b;
   }
-  return { Builder, VEHICLES, MOUTH_POS, HAND, heldMesh, carMesh, seatHeight, seatFit, dentBody, pedMesh, PICKUP_MODELS, assetInto, assetBounds, ktree, ktreeTall, dumpster, mailbox, meter, newsbox, busShelter, cone, barrier, hedge, roundTree, palm, umbrella, streetSign, payphone, hotdogCart, pigeon, gull, plane, cafeSet, crates, sandwichBoard, vending, barberPole, bikeRack, flowerBucket, tireStack, barrel, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
+  return { Builder, VEHICLES, MOUTH_POS, HAND, heldMesh, carMesh, seatHeight, seatFit, dentBody, pedMesh, PICKUP_MODELS, assetInto, assetBounds, treeFat, treeTall, pine, pineSmall, bush, rock, tuft, dumpster, mailbox, meter, newsbox, busShelter, cone, barrier, hedge, roundTree, palm, umbrella, streetSign, payphone, hotdogCart, pigeon, gull, plane, cafeSet, crates, sandwichBoard, vending, barberPole, bikeRack, flowerBucket, tireStack, barrel, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
 })();

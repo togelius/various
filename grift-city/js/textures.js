@@ -42,7 +42,6 @@ const TEX = (() => {
   }
   const parseHex = c => { if (c[0] !== '#') { const m = c.match(/[\d.]+/g); return m ? [+m[0], +m[1], +m[2]] : [128, 128, 128]; }
     const h = c.length === 4 ? c[1] + c[1] + c[2] + c[2] + c[3] + c[3] : c.slice(1); const v = parseInt(h, 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; };
-  const hasPhoto = () => { const spec = typeof TEXDATA !== 'undefined' && curLayer && TEXDATA.layers[curLayer]; return !!(spec && photos[spec[0]]); };
   // Flatten a rectangle of the normal map and give it its own roughness: window glass, signs and painted panels are
   // smooth however bumpy the wall behind them is.
   function flatN(g, x, y, w, h, rough = 0.2) {

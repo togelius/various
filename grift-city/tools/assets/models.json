@@ -1,48 +1,543 @@
 {
-  "credits": "Models by Kenney (kenney.nl) from the Starter Kit City Builder, Starter Kit Racing and Starter Kit 3D Platformer repositories on GitHub, MIT licence, converted to vertex colours.",
+  "_comment": "Paths are relative to the kit cache filled by tools/assets/fetch-kits.js.",
+  "credits": "Models by Kenney (kenney.nl): the Nature Kit and Car Kit asset packs (CC0) and the Starter Kit Racing and Starter Kit City Builder repositories on GitHub (MIT). Converted to vertex colours by tools/assets/import-glb.py.",
   "models": {
     "ktruck": {
-      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-Racing/models/vehicle-truck-red.glb",
+      "file": "Starter-Kit-Racing/models/vehicle-truck-red.glb",
       "opts": {
         "local": true,
         "paint": "red"
       }
     },
     "kmoto": {
-      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-Racing/models/vehicle-motorcycle.glb",
+      "file": "Starter-Kit-Racing/models/vehicle-motorcycle.glb",
       "opts": {
         "local": true,
         "paint": "green"
       }
     },
-    "kbuildA": {
-      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/building-small-a.glb"
-    },
-    "kbuildB": {
-      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/building-small-b.glb"
-    },
-    "kbuildC": {
-      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/building-small-c.glb"
-    },
-    "kbuildD": {
-      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/building-small-d.glb"
-    },
-    "kgarage": {
-      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/building-garage.glb"
-    },
-    "kfountain": {
-      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/pavement-fountain.glb"
-    },
-    "ktrees": {
-      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/grass-trees.glb",
+    "kgarbage": {
+      "file": "car-kit/Models/GLB format/garbage-truck.glb",
       "opts": {
-        "dropBelow": 0.06
+        "local": true
       }
     },
-    "ktreesTall": {
-      "file": "/tmp/claude-0/-home-user-various/290b39fc-64d9-58dc-bea6-5cda48bfdd64/scratchpad/kenney/Starter-Kit-City-Builder/models/grass-trees-tall.glb",
+    "kambulance": {
+      "file": "car-kit/Models/GLB format/ambulance.glb",
       "opts": {
-        "dropBelow": 0.06
+        "local": true
+      }
+    },
+    "kfire": {
+      "file": "car-kit/Models/GLB format/firetruck.glb",
+      "opts": {
+        "local": true
+      }
+    },
+    "kbuildA": {
+      "file": "Starter-Kit-City-Builder/models/building-small-a.glb"
+    },
+    "kbuildB": {
+      "file": "Starter-Kit-City-Builder/models/building-small-b.glb"
+    },
+    "kbuildC": {
+      "file": "Starter-Kit-City-Builder/models/building-small-c.glb"
+    },
+    "kbuildD": {
+      "file": "Starter-Kit-City-Builder/models/building-small-d.glb"
+    },
+    "kgarage": {
+      "file": "Starter-Kit-City-Builder/models/building-garage.glb"
+    },
+    "kfountain": {
+      "file": "Starter-Kit-City-Builder/models/pavement-fountain.glb"
+    },
+    "tree1": {
+      "file": "nature-kit/Models/GLTF format/tree_default.glb",
+      "opts": {
+        "recolor": {
+          "leafsGreen": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "leafsDark": [
+            0.16,
+            0.33,
+            0.15
+          ],
+          "leafs": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "grass": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "woodBark": [
+            0.34,
+            0.26,
+            0.19
+          ],
+          "wood": [
+            0.34,
+            0.26,
+            0.19
+          ]
+        }
+      }
+    },
+    "tree2": {
+      "file": "nature-kit/Models/GLTF format/tree_oak.glb",
+      "opts": {
+        "recolor": {
+          "leafsGreen": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "leafsDark": [
+            0.16,
+            0.33,
+            0.15
+          ],
+          "leafs": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "grass": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "woodBark": [
+            0.34,
+            0.26,
+            0.19
+          ],
+          "wood": [
+            0.34,
+            0.26,
+            0.19
+          ]
+        }
+      }
+    },
+    "tree3": {
+      "file": "nature-kit/Models/GLTF format/tree_detailed.glb",
+      "opts": {
+        "recolor": {
+          "leafsGreen": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "leafsDark": [
+            0.16,
+            0.33,
+            0.15
+          ],
+          "leafs": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "grass": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "woodBark": [
+            0.34,
+            0.26,
+            0.19
+          ],
+          "wood": [
+            0.34,
+            0.26,
+            0.19
+          ]
+        }
+      }
+    },
+    "tree4": {
+      "file": "nature-kit/Models/GLTF format/tree_fat.glb",
+      "opts": {
+        "recolor": {
+          "leafsGreen": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "leafsDark": [
+            0.16,
+            0.33,
+            0.15
+          ],
+          "leafs": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "grass": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "woodBark": [
+            0.34,
+            0.26,
+            0.19
+          ],
+          "wood": [
+            0.34,
+            0.26,
+            0.19
+          ]
+        }
+      }
+    },
+    "pine1": {
+      "file": "nature-kit/Models/GLTF format/tree_pineRoundC.glb",
+      "opts": {
+        "recolor": {
+          "leafsGreen": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "leafsDark": [
+            0.16,
+            0.33,
+            0.15
+          ],
+          "leafs": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "grass": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "woodBark": [
+            0.34,
+            0.26,
+            0.19
+          ],
+          "wood": [
+            0.34,
+            0.26,
+            0.19
+          ]
+        }
+      }
+    },
+    "pine2": {
+      "file": "nature-kit/Models/GLTF format/tree_pineTallB.glb",
+      "opts": {
+        "recolor": {
+          "leafsGreen": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "leafsDark": [
+            0.16,
+            0.33,
+            0.15
+          ],
+          "leafs": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "grass": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "woodBark": [
+            0.34,
+            0.26,
+            0.19
+          ],
+          "wood": [
+            0.34,
+            0.26,
+            0.19
+          ]
+        }
+      }
+    },
+    "pine3": {
+      "file": "nature-kit/Models/GLTF format/tree_pineSmallC.glb",
+      "opts": {
+        "recolor": {
+          "leafsGreen": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "leafsDark": [
+            0.16,
+            0.33,
+            0.15
+          ],
+          "leafs": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "grass": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "woodBark": [
+            0.34,
+            0.26,
+            0.19
+          ],
+          "wood": [
+            0.34,
+            0.26,
+            0.19
+          ]
+        }
+      }
+    },
+    "palm1": {
+      "file": "nature-kit/Models/GLTF format/tree_palmDetailedTall.glb",
+      "opts": {
+        "recolor": {
+          "leafsGreen": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "leafsDark": [
+            0.16,
+            0.33,
+            0.15
+          ],
+          "leafs": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "grass": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "woodBark": [
+            0.34,
+            0.26,
+            0.19
+          ],
+          "wood": [
+            0.34,
+            0.26,
+            0.19
+          ]
+        },
+        "twoSided": true
+      }
+    },
+    "palm2": {
+      "file": "nature-kit/Models/GLTF format/tree_palmShort.glb",
+      "opts": {
+        "recolor": {
+          "leafsGreen": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "leafsDark": [
+            0.16,
+            0.33,
+            0.15
+          ],
+          "leafs": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "grass": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "woodBark": [
+            0.34,
+            0.26,
+            0.19
+          ],
+          "wood": [
+            0.34,
+            0.26,
+            0.19
+          ]
+        },
+        "twoSided": true
+      }
+    },
+    "rock1": {
+      "file": "nature-kit/Models/GLTF format/rock_smallA.glb",
+      "opts": {
+        "recolor": {
+          "grass": [
+            0.26,
+            0.42,
+            0.18
+          ],
+          "dirt": [
+            0.38,
+            0.3,
+            0.22
+          ],
+          "rock": [
+            0.44,
+            0.43,
+            0.4
+          ],
+          "stone": [
+            0.44,
+            0.43,
+            0.4
+          ]
+        }
+      }
+    },
+    "rock2": {
+      "file": "nature-kit/Models/GLTF format/rock_largeC.glb",
+      "opts": {
+        "recolor": {
+          "grass": [
+            0.26,
+            0.42,
+            0.18
+          ],
+          "dirt": [
+            0.38,
+            0.3,
+            0.22
+          ],
+          "rock": [
+            0.44,
+            0.43,
+            0.4
+          ],
+          "stone": [
+            0.44,
+            0.43,
+            0.4
+          ]
+        }
+      }
+    },
+    "bush1": {
+      "file": "nature-kit/Models/GLTF format/plant_bushDetailed.glb",
+      "opts": {
+        "recolor": {
+          "leafsGreen": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "leafsDark": [
+            0.16,
+            0.33,
+            0.15
+          ],
+          "leafs": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "grass": [
+            0.26,
+            0.42,
+            0.18
+          ],
+          "woodBark": [
+            0.34,
+            0.26,
+            0.19
+          ],
+          "wood": [
+            0.34,
+            0.26,
+            0.19
+          ]
+        },
+        "twoSided": true
+      }
+    },
+    "tuft1": {
+      "file": "nature-kit/Models/GLTF format/grass_large.glb",
+      "opts": {
+        "recolor": {
+          "leafsGreen": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "leafsDark": [
+            0.16,
+            0.33,
+            0.15
+          ],
+          "leafs": [
+            0.24,
+            0.44,
+            0.17
+          ],
+          "grass": [
+            0.26,
+            0.42,
+            0.18
+          ],
+          "woodBark": [
+            0.34,
+            0.26,
+            0.19
+          ],
+          "wood": [
+            0.34,
+            0.26,
+            0.19
+          ]
+        },
+        "twoSided": true
+      }
+    },
+    "flower1": {
+      "file": "nature-kit/Models/GLTF format/flower_redA.glb",
+      "opts": {
+        "twoSided": true,
+        "recolor": {
+          "woodBark": [
+            0.34,
+            0.26,
+            0.19
+          ],
+          "stem": [
+            0.2,
+            0.4,
+            0.16
+          ],
+          "grass": [
+            0.26,
+            0.42,
+            0.18
+          ]
+        }
       }
     }
   }

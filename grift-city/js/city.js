@@ -45,7 +45,7 @@ const CITY = (() => {
   const lots = [];       // collision boxes: {x0,z0,x1,z1,h, kind}
   const blocks = [];     // per block: {i,j,x,z,lots:[], kind}
   const places = {};     // named locations: kind -> [{x,z,angle,label,...}]
-  const props = { lamppost: [], trafficLight: [], tree: [], hydrant: [], bin: [], bench: [], bollard: [], payphone: [], dumpster: [], mailbox: [], meter: [], newsbox: [], busShelter: [], cone: [], barrier: [], hedge: [], roundTree: [], palm: [], umbrella: [], streetSign: [], cafeSet: [], crates: [], sandwichBoard: [], vending: [], barberPole: [], bikeRack: [], flowerBucket: [], tireStack: [], barrel: [], hotdogCart: [], pigeon: [], gull: [], ktree: [], ktreeTall: [] };
+  const props = { lamppost: [], trafficLight: [], tree: [], hydrant: [], bin: [], bench: [], bollard: [], payphone: [], dumpster: [], mailbox: [], meter: [], newsbox: [], busShelter: [], cone: [], barrier: [], hedge: [], roundTree: [], palm: [], umbrella: [], streetSign: [], cafeSet: [], crates: [], sandwichBoard: [], vending: [], barberPole: [], bikeRack: [], flowerBucket: [], tireStack: [], barrel: [], hotdogCart: [], pigeon: [], gull: [], treeFat: [], treeTall: [], pine: [], pineSmall: [], bush: [], rock: [], tuft: [] };
   const manholes = []; // road spots for the covers and their steam
   const solidProps = []; // {x,z,r,kind,idx}
   const parkedSpots = [];// {x,z,angle}
@@ -171,7 +171,7 @@ const CITY = (() => {
     if ((dist0 === 'downtown' || dist0 === 'midtown') && rng.chance(0.35)) { const cx = bx + rng.pick([4, BLOCK - 4]), cz = bz - SW + 1.6; props.hotdogCart.push({ x: cx, z: cz, a: Math.PI / 2 }); solidProps.push({ x: cx, z: cz, r: 0.9, kind: 'cart' }); }
     if (rng.chance(0.3)) { const sx = bx + rng.range(14, 46); props.busShelter.push({ x: sx, z: bz - SW + 1.4, a: Math.PI }); solidProps.push({ x: sx - 1.9, z: bz - SW + 1.4, r: 0.4, kind: 'shelter' }, { x: sx + 1.9, z: bz - SW + 1.4, r: 0.4, kind: 'shelter' }); }
     const nearPlace = (x, z) => SPECIALS.some(sp => sp.i === i && sp.j === j) && Math.abs(z - (bz - SW)) < 6;
-    if (dist0 === 'westfield' || dist0 === 'midtown') { for (let k = 6; k < BLOCK - 4; k += 12) { if (nearPlace(bx + k, bz - SW)) continue; const t = { x: bx + k, z: bz - SW + 0.45, a: rng.range(0, 6.28), s: rng.range(0.8, 1.15), tint: rng.chance(0.25) ? rng.pick([[1.1, 0.85, 0.5, 0], [1.15, 0.7, 0.4, 0], [0.85, 1.05, 0.7, 0]]) : [rng.range(0.85, 1.05), rng.range(0.9, 1.1), rng.range(0.85, 1.05), 0] }; (rng.chance(0.5) ? props.roundTree : props.tree).push(t); solidProps.push({ x: t.x, z: t.z, r: 0.4, kind: 'tree' }); } }
+    if (dist0 === 'westfield' || dist0 === 'midtown') { for (let k = 6; k < BLOCK - 4; k += 12) { if (nearPlace(bx + k, bz - SW)) continue; const t = { x: bx + k, z: bz - SW + 0.45, a: rng.range(0, 6.28), s: rng.range(0.8, 1.15), tint: rng.chance(0.25) ? rng.pick([[1.1, 0.85, 0.5, 0], [1.15, 0.7, 0.4, 0], [0.85, 1.05, 0.7, 0]]) : [rng.range(0.85, 1.05), rng.range(0.9, 1.1), rng.range(0.85, 1.05), 0] }; rng.pick([props.roundTree, props.tree, props.tree, props.treeTall, props.treeFat]).push(t); solidProps.push({ x: t.x, z: t.z, r: 0.4, kind: 'tree' }); } }
     if (dist0 === 'westfield') { for (let k = 4; k < BLOCK - 4; k += 3.2) if (rng.chance(0.8)) props.hedge.push({ x: bx + BLOCK + SW - 1.0, z: bz + k, a: Math.PI / 2 }); }
     if (dist0 === 'eastside' || dist0 === 'southport') { // power poles and wires along the west edge
       let prev = null; for (let k = 2; k < BLOCK; k += 16) { const px = bx - SW + 0.5, pz = bz + k; b.cyl(px, CURB, pz, 0.14, 8, [0.4, 0.3, 0.2], 0, 6); b.cbox(px, CURB + 7.6, pz, 1.6, 0.1, 0.1, [0.4, 0.3, 0.2]); if (prev) for (const ox of [-0.7, 0.7]) b.box(px + ox - 0.015, CURB + 7.55, prev, 0.03, 0.03, pz - prev, [0.1, 0.1, 0.1]); prev = pz; solidProps.push({ x: px, z: pz, r: 0.2, kind: 'pole' }); } }
@@ -371,10 +371,21 @@ const CITY = (() => {
     MESH.assetInto(b, 'kfountain', { x: x + BLOCK / 2, y: CURB + 0.015, z: z + BLOCK / 2, scale: 11, desat: 0.15 });
     solidProps.push({ x: x + BLOCK / 2, z: z + BLOCK / 2, r: 3.4, kind: 'fountain' });
     for (let k = 0; k < 4; k++) { const cx = x + (k % 2 ? BLOCK * 0.75 : BLOCK * 0.25) + rng.range(-4, 4), cz = z + (k < 2 ? BLOCK * 0.25 : BLOCK * 0.75) + rng.range(-4, 4);
-      (rng.chance(0.5) ? props.ktree : props.ktreeTall).push({ x: cx, z: cz, a: rng.range(0, 6.28), s: rng.range(0.9, 1.2), tint: [rng.range(0.9, 1.05), rng.range(0.9, 1.1), rng.range(0.9, 1.05), 0] }); solidProps.push({ x: cx, z: cz, r: 1.1, kind: 'tree' }); }
+      rng.pick([props.treeTall, props.pine, props.tree]).push({ x: cx, z: cz, a: rng.range(0, 6.28), s: rng.range(0.9, 1.2), tint: [rng.range(0.9, 1.05), rng.range(0.9, 1.1), rng.range(0.9, 1.05), 0] }); solidProps.push({ x: cx, z: cz, r: 0.6, kind: 'tree' }); }
     for (let k = 0; k < 16; k++) {
       let tx, tz, tries = 0; do { tx = x + rng.range(3, BLOCK - 3); tz = z + rng.range(3, BLOCK - 3); tries++; } while (tries < 20 && (Math.abs(tx - x - BLOCK / 2) < 4 || Math.abs(tz - z - BLOCK / 2) < 4 || M.dist(tx, tz, x + BLOCK / 2, z + BLOCK / 2) < 8));
-      (rng.chance(0.5) ? props.roundTree : props.tree).push({ x: tx, z: tz, a: rng.range(0, 6.28), s: rng.range(0.8, 1.3), tint: [rng.range(0.85, 1.05), rng.range(0.9, 1.12), rng.range(0.85, 1.05), 0] }); solidProps.push({ x: tx, z: tz, r: 0.5, kind: 'tree' });
+      const species = rng.pick([props.roundTree, props.tree, props.tree, props.treeTall, props.treeFat, props.pine, props.pine, props.pineSmall]);
+      species.push({ x: tx, z: tz, a: rng.range(0, 6.28), s: rng.range(0.8, 1.25), tint: [rng.range(0.85, 1.05), rng.range(0.9, 1.12), rng.range(0.85, 1.05), 0] }); solidProps.push({ x: tx, z: tz, r: 0.5, kind: 'tree' });
+    }
+    for (let k = 0; k < 40; k++) { // tufts of longer grass across the lawn
+      const gx = x + rng.range(2, BLOCK - 2), gz = z + rng.range(2, BLOCK - 2);
+      if (Math.abs(gx - x - BLOCK / 2) < 3 || Math.abs(gz - z - BLOCK / 2) < 3) continue;
+      props.tuft.push({ x: gx, z: gz, a: rng.range(0, 6.28), s: rng.range(0.7, 1.5), tint: [rng.range(0.8, 1.1), rng.range(0.85, 1.15), rng.range(0.8, 1.05), 0] });
+    }
+    for (let k = 0; k < 14; k++) { // undergrowth between the trees
+      const bx2 = x + rng.range(4, BLOCK - 4), bz2 = z + rng.range(4, BLOCK - 4);
+      if (Math.abs(bx2 - x - BLOCK / 2) < 4 || Math.abs(bz2 - z - BLOCK / 2) < 4) continue;
+      (rng.chance(0.75) ? props.bush : props.rock).push({ x: bx2, z: bz2, a: rng.range(0, 6.28), s: rng.range(0.7, 1.4), tint: [rng.range(0.85, 1.1), rng.range(0.9, 1.1), rng.range(0.85, 1.1), 0] });
     }
     for (let k = 0; k < 6; k++) { const along = rng.chance(0.5); const t = rng.range(6, BLOCK - 6); const p = along ? { x: x + t, z: z + BLOCK / 2 + (rng.chance(0.5) ? 3 : -3), a: 0 } : { x: x + BLOCK / 2 + (rng.chance(0.5) ? 3 : -3), z: z + t, a: Math.PI / 2 }; props.bench.push(p); }
     addPlace('park', { x: x + BLOCK / 2, z: z + BLOCK / 2, label: 'park' });

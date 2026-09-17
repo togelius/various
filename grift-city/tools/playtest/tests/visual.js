@@ -23,7 +23,7 @@ function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); con
       // centroid and count of pixels matching a colour predicate inside an optional rect
       find(pred, rect) { const s = window.__shot; const [x0, y0, x1, y1] = rect || [0, 0, s.width, s.height]; let n = 0, sx = 0, sy = 0, bx0 = 1e9, bx1 = -1, by0 = 1e9, by1 = -1; const d = s.data; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * s.width + x) * 4; if (pred(d[i], d[i + 1], d[i + 2])) { n++; sx += x; sy += y; bx0 = Math.min(bx0, x); bx1 = Math.max(bx1, x); by0 = Math.min(by0, y); by1 = Math.max(by1, y); } } return n ? { n, x: sx / n, y: sy / n, box: [bx0, by0, bx1, by1] } : { n: 0, x: -1, y: -1 }; },
       mean(rect) { const s = window.__shot; const [x0, y0, x1, y1] = rect; let sum = 0, n = 0; const d = s.data; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * s.width + x) * 4; sum += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; } return sum / n; } };
-    window.COL = { magenta: (r, g, b) => r > 140 && b > 140 && g < 100, cyan: (r, g, b) => g > 140 && b > 140 && r < 100, red: (r, g, b) => r > 90 && r > g + 60 && r > b + 60, green: (r, g, b) => g > 90 && g > r + 60 && g > b + 60, blue: (r, g, b) => b > 90 && b > r + 60 && b > g + 40, yellow: (r, g, b) => r > 70 && g > r * 0.45 && g < r * 0.88 && b < g - 25, /* the card's orange quadrant, which may be in shade */ blip: (r, g, b) => Math.abs(r - 245) < 12 && Math.abs(g - 197) < 12 && Math.abs(b - 66) < 14 };
+    window.COL = { magenta: (r, g, b) => r > 140 && b > 140 && g < 100, cyan: (r, g, b) => g > 140 && b > 140 && r < 100, red: (r, g, b) => r > 90 && g < r * 0.38 && b < r * 0.45, green: (r, g, b) => g > 90 && g > r + 60 && g > b + 60, blue: (r, g, b) => b > 90 && r < b * 0.5 && g < b * 0.45, yellow: (r, g, b) => r > 70 && g > r * 0.40 && g < r * 0.80 && b < g - 10, /* the card's orange quadrant, which may be in shade */ blip: (r, g, b) => Math.abs(r - 245) < 12 && Math.abs(g - 197) < 12 && Math.abs(b - 66) < 14 };
   });
   async function shot(label) { await page.evaluate(() => { MISSIONS.S.dialogue = null; GAME.state = 'playing'; window.__renderOnce(); }); const buf = await page.screenshot({ timeout: 240000 }); fs.writeFileSync(path.join(OUT, `${String(shotN++).padStart(2, '0')}-${label}.png`), buf); return page.evaluate(b64 => window.px.load(b64), buf.toString('base64')); }
   const ev = (fn, ...args) => page.evaluate(fn, ...args);
@@ -64,7 +64,18 @@ function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); con
     await ev(([yaw, dx, dz]) => { window.__debugBoxes.length = 0; W.state.time = 12; sim(0.2); tp(300 + dx, 336 + dz, yaw); clearArea(300, 336, 60); const rx = -Math.cos(yaw), rz = Math.sin(yaw); /* screen-right for this yaw */ const bx = 300 + rx * 3.2, bz = 336 + rz * 3.2; window.__tbox = [bx, bz]; __debugBox(bx - 1.5, 0.3, bz - 1.5, 3, 3, 3, [1, 1, 1], TEX.names.testcard, 0); /* lit, not emissive: emissive adds the vertex colour and would wash the card white */ }, [yaw, px_, pz_]);
     await shot('face' + face);
     /* search only around the box itself: the shopfronts behind it carry every colour on the card */
-    const mid = await ev(([W, H, dpr]) => { const c = document.getElementById('gl'); const pr = RENDER.project(window.__tbox[0], 1.8, window.__tbox[1], c) || [W * 0.6, H * 0.45]; const cl = (v, lo, hi) => Math.max(lo, Math.min(hi, v)); return [Math.round(cl(pr[0] - W * 0.22, 0, W) * dpr), Math.round(cl(pr[1] - H * 0.3, 0, H) * dpr), Math.round(cl(pr[0] + W * 0.22, 0, W) * dpr), Math.round(cl(pr[1] + H * 0.3, 0, H) * dpr)]; }, [W, H, dpr]);
+    /* project the four corners of the face under test and inset: the cube's other visible face carries the
+       same card, and would drag every centroid sideways */
+    const mid = await ev(([face, dpr]) => { const c = document.getElementById('gl'); const [bx, bz] = window.__tbox;
+      const x0 = bx - 1.5, x1 = bx + 1.5, z0 = bz - 1.5, z1 = bz + 1.5, y0 = 0.35, y1 = 3.25;
+      const corners = face === '+z' ? [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]]
+                    : face === '-z' ? [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]]
+                    : face === '+x' ? [[x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0]]
+                                    : [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]];
+      let ax0 = 1e9, ay0 = 1e9, ax1 = -1e9, ay1 = -1e9;
+      for (const [x, y, z] of corners) { const p = RENDER.project(x, y, z, c); if (!p) return null; ax0 = Math.min(ax0, p[0]); ay0 = Math.min(ay0, p[1]); ax1 = Math.max(ax1, p[0]); ay1 = Math.max(ay1, p[1]); }
+      const ix = (ax1 - ax0) * 0.1, iy = (ay1 - ay0) * 0.1;
+      return [Math.round((ax0 + ix) * dpr), Math.round((ay0 + iy) * dpr), Math.round((ax1 - ix) * dpr), Math.round((ay1 - iy) * dpr)]; }, [face, dpr]);
     const q = await ev(m => ({ r: px.find(COL.red, m), g: px.find(COL.green, m), b: px.find(COL.blue, m), y: px.find(COL.yellow, m) }), mid);
     const ok = q.r.n > 200 && q.g.n > 200 && q.b.n > 200 && q.y.n > 200 && q.r.x < q.g.x - 20 && q.b.x < q.y.x - 20 && q.r.y < q.b.y - 20 && q.g.y < q.y.y - 20;
     check(`texture: ${face} face reads upright and unmirrored`, ok, { red: [Math.round(q.r.x), Math.round(q.r.y), q.r.n], green: [Math.round(q.g.x), Math.round(q.g.y), q.g.n], blue: [Math.round(q.b.x), Math.round(q.b.y), q.b.n], yellow: [Math.round(q.y.x), Math.round(q.y.y), q.y.n] });

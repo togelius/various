@@ -237,6 +237,24 @@ count as reached once they are behind the car, which is what used to send
 a car in laps round an intersection when the corner was tighter than its
 steering lock.
 
+## Light and colour
+
+The renderer lights in linear space. Textures and palette colours are authored in sRGB, so they are
+decoded on the way in and the composite encodes the result on the way out; skipping that step is what
+made the old city look hazy and washed out whatever the textures were. The sun, sky and ground
+ambient are physical multipliers on top of that.
+
+Fog is a height fog rather than a plain distance fade: an analytic integral of an exponential density
+along the view ray, so haze pools in the streets and thins with altitude and the skyline stays crisp.
+Near the sun it warms toward the sunlight, which is what gives a long avenue its depth.
+
+Every surface carries a normal map and a roughness map alongside its colour. The tangent frame is
+rebuilt in the fragment shader from the screen-space derivatives of world position and UV, so no mesh
+stores tangents. Roughness drives the highlight, and a smooth surface also mirrors the sky along the
+reflected view ray with a Fresnel edge — which is what makes a glass tower read as glass rather than
+a painted grid. Window glass is dark in itself and gets its daylight brightness from that reflection;
+the warm glow of a lit window lives in the emissive mask and only shows at night.
+
 ## Imported art
 
 Not everything is built in code any more. `js/assets.js` carries a set of
@@ -248,10 +266,22 @@ with their wheels on the game's wheel bones so they steer and spin; five
 small houses and a garage that replace some procedural buildings on
 suburban lots, scaled to the lot and turned to face the street; a fountain
 on its plaza in every park; and clusters of trees among the park's own.
-Imported colours are desaturated a little so they sit with the rest of the
-city. The converter samples each model's colour map at every vertex, keeps
-wheel parts in their own space so they spin about their centres, and flips
-the winding of mirrored parts.
+The trees, bushes, grass tufts and mounds come from the Nature Kit; the
+garbage truck, ambulance and fire engine from the Car Kit. The converter
+samples each model's colour map at every vertex, keeps wheel parts in their
+own space so they spin about their centres, flips the winding of mirrored
+parts, doubles single-sided foliage so it is not hollow, and remaps
+materials by name — Kenney's foliage is a stylised teal, which sits badly in
+a photographic city, so it is mapped to something that grows here.
+
+Every painted texture also sits on a photographic base: CC0 materials from
+ambientCG, baked by `tools/assets/bake-textures.py` into a colour, normal and
+roughness map tiled to the metre scale each texture layer covers. Tiling a
+normal map down averages opposing slopes away, so the baker measures what
+survives and amplifies it back. The painters draw their own detail — windows,
+road markings, shop signs, slab joints — on top, recoloured toward the palette
+by a luminance-preserving blend so the mortar and grain of the photograph
+survive the recolour.
 
 ## The police
 
