@@ -226,10 +226,12 @@ const W = (() => {
     const night = RENDER.env.nightEmis; if (night < 0.05) return; const rain = weather.rain;
     let cones = 0;
     for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 > 60 * 60 || cones++ > 14) continue; const a = p.a || 0; const hx = p.x + Math.sin(a) * 1.6, hz = p.z + Math.cos(a) * 1.6; const y0 = CITY.groundY(hx, hz);
-      const al = 0.045 * night * (1 + rain * 1.5) * (1 - Math.sqrt(d2) / 60); const R = 2.6; const segs = 8;
+      const al = 0.03 * night * (1 + rain * 1.5) * (1 - Math.sqrt(d2) / 60); const R = 2.6; const segs = 16;
       for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU; fx.tri(F.adds, hx, 5.7, hz, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R, 1, 0.85, 0.55, al); fx.tri(F.adds, hx, 5.7, hz, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R, 1, 0.85, 0.55, al); }
-      // pool on the ground
-      fx.quad(F.adds, [hx - R, y0 + 0.03, hz - R], [hx + R, y0 + 0.03, hz - R], [hx + R, y0 + 0.03, hz + R], [hx - R, y0 + 0.03, hz + R], [1, 0.85, 0.55], al * 1.5, al * 1.5); }
+      // pool on the ground: a fan that fades to nothing at the rim, so there is no hard square of light
+      { const pr = R * 1.35, py = y0 + 0.03, col = [1, 0.85, 0.55], a0 = al * 2.2;
+        for (let i = 0; i < 16; i++) { const t0 = i / 16 * M.TAU, t1 = (i + 1) / 16 * M.TAU;
+          fx.quad(F.adds, [hx, py, hz], [hx, py, hz], [hx + Math.cos(t1) * pr, py, hz + Math.sin(t1) * pr], [hx + Math.cos(t0) * pr, py, hz + Math.sin(t0) * pr], col, a0, 0); } } }
   }
   function collectLights(camX, camZ) {
     const out = []; const night = RENDER.env.nightEmis;

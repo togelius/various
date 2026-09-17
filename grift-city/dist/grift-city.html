@@ -373,7 +373,7 @@ const TEX = (() => {
   function finish(g, rects, base = 0) {
     const id = g.getImageData(0, 0, S, S), d = id.data;
     for (let i = 3; i < d.length; i += 4) d[i] = base;
-    for (const [x, y, w, h] of rects) for (let yy = Math.max(0, Math.floor(y)); yy < Math.min(S, y + h); yy++) for (let xx = Math.max(0, Math.floor(x)); xx < Math.min(S, x + w); xx++) d[(yy * S + xx) * 4 + 3] = 255;
+    for (const [x, y, w, h, a] of rects) { const v = a === undefined ? 255 : a; for (let yy = Math.max(0, Math.floor(y)); yy < Math.min(S, y + h); yy++) for (let xx = Math.max(0, Math.floor(x)); xx < Math.min(S, x + w); xx++) d[(yy * S + xx) * 4 + 3] = v; }
     return id;
   }
   const grain = (g, r, count = 20000, alpha = 0.07, size = 2) => { for (let i = 0; i < count; i++) { g.fillStyle = r() < 0.5 ? `rgba(0,0,0,${alpha})` : `rgba(255,255,255,${alpha})`; g.fillRect(r() * S, r() * S, size, size); } };
@@ -384,16 +384,19 @@ const TEX = (() => {
   // A window pane with frame, glass, mullions and (maybe) light behind it.
   function pane(g, r, x, y, w, h, o) {
     const lit = r() < o.litFrac;
-    g.fillStyle = o.frame; g.fillRect(x - 3, y - 3, w + 6, h + 6);
+    const fw = Math.max(1.5, Math.min(3, w * 0.07)); g.fillStyle = o.frame; g.fillRect(x - fw, y - fw, w + 2 * fw, h + 2 * fw);
     g.fillStyle = r() < 0.5 ? o.glassA : o.glassB; g.fillRect(x, y, w, h);
     // reflection gradient
     const gr = g.createLinearGradient(x, y, x + w * 0.35, y + h); gr.addColorStop(0, 'rgba(210,232,255,0.4)'); gr.addColorStop(0.45, 'rgba(160,190,225,0.12)'); gr.addColorStop(1, 'rgba(0,0,0,0.3)'); g.fillStyle = gr; g.fillRect(x, y, w, h);
-    if (lit) { g.fillStyle = `rgba(${200 + r() * 45},${170 + r() * 45},${110 + r() * 55},${0.12 + r() * 0.12})`; g.fillRect(x, y, w, h); if (r() < 0.5) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(x + w * r() * 0.5, y + h * 0.35, w * 0.28, h * 0.65); } g._lit.push([x, y, w, h]); }
+    if (lit) { const cool = r() < 0.3; // a few floors are fluorescent rather than lamplit
+      g.fillStyle = cool ? `rgba(${185 + r() * 40},${205 + r() * 40},${215 + r() * 40},${0.1 + r() * 0.1})` : `rgba(${200 + r() * 45},${170 + r() * 45},${110 + r() * 55},${0.12 + r() * 0.12})`;
+      g.fillRect(x, y, w, h); if (r() < 0.5) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(x + w * r() * 0.5, y + h * 0.35, w * 0.28, h * 0.65); }
+      g._lit.push([x, y, w, h, 105 + Math.floor(r() * r() * 150)]); }
     else if (r() < 0.4) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x, y, w, h * (0.2 + r() * 0.55)); }
     if (o.mullion) { g.fillStyle = o.frame; g.fillRect(x + w / 2 - 1.5, y, 3, h); if (o.mullion > 1) g.fillRect(x, y + h * 0.4 - 1.5, w, 3); }
     if (o.sill) { g.fillStyle = o.sillCol || 'rgba(255,255,255,0.35)'; g.fillRect(x - 6, y + h + 3, w + 12, 5); g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x - 6, y + h + 8, w + 12, 3); streaks(g, r, 3, x - 4, x + w + 4, y + h + 11, 30, 'rgba(0,0,0,0.1)'); }
     if (o.lintel) { g.fillStyle = 'rgba(255,255,255,0.25)'; g.fillRect(x - 6, y - 9, w + 12, 6); }
-    if (o.arch) { g.fillStyle = o.frame; g.beginPath(); g.arc(x + w / 2, y + 2, w / 2 + 3, Math.PI, 0); g.fill(); g.fillStyle = r() < 0.5 ? o.glassA : o.glassB; g.beginPath(); g.arc(x + w / 2, y + 2, w / 2, Math.PI, 0); g.fill(); if (lit) { g.fillStyle = 'rgb(230,205,150)'; g.beginPath(); g.arc(x + w / 2, y + 2, w / 2, Math.PI, 0); g.fill(); g._lit.push([x, y - w / 2, w, w / 2 + 2]); } }
+    if (o.arch) { g.fillStyle = o.frame; g.beginPath(); g.arc(x + w / 2, y + 2, w / 2 + 3, Math.PI, 0); g.fill(); g.fillStyle = r() < 0.5 ? o.glassA : o.glassB; g.beginPath(); g.arc(x + w / 2, y + 2, w / 2, Math.PI, 0); g.fill(); if (lit) { g.fillStyle = 'rgb(230,205,150)'; g.beginPath(); g.arc(x + w / 2, y + 2, w / 2, Math.PI, 0); g.fill(); g._lit.push([x, y - w / 2, w, w / 2 + 2, 170]); } }
     if (o.ac && r() < 0.25) { g.fillStyle = '#9a9a96'; g.fillRect(x + w * 0.55, y + h * 0.55, w * 0.42, h * 0.42); g.fillStyle = '#6a6a66'; for (let k = 0; k < 4; k++) g.fillRect(x + w * 0.58, y + h * 0.6 + k * h * 0.09, w * 0.36, 2); }
     flatN(g, x - 3, y - 3, w + 6, h + 6, 0.12); // glass and its frame: smooth and shiny
   }
@@ -433,8 +436,8 @@ const TEX = (() => {
       for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(20,20,20,0.35)'; g.beginPath(); g.arc(r() * S, r() * S, 2 + r() * 3, 0, 7); g.fill(); } // gum
     });
     const glassA = '#3e566b', glassB = '#2d4256', dark = '#2a2f36';
-    add('office', (g, r) => { windows(g, r, { cols: 4, rows: 4, wPad: 0.09, hPad: 0.2, wall: (g, r) => concreteWall(g, r, '#68727c'), frame: dark, glassA, glassB, litFrac: 0.55, mullion: 1, band: '#4a525a' }); });
-    add('glass', (g, r) => { windows(g, r, { cols: 4, rows: 4, wPad: 0.05, hPad: 0.06, wall: (g, r) => { g.fillStyle = '#1c2a38'; g.fillRect(0, 0, S, S); }, frame: '#16202a', glassA: '#26465e', glassB: '#1d3a50', litFrac: 0.6, mullion: 2 }); const gr = g.createLinearGradient(0, 0, 0, S); gr.addColorStop(0, 'rgba(255,255,255,0.12)'); gr.addColorStop(1, 'rgba(0,0,0,0.1)'); g.fillStyle = gr; g.fillRect(0, 0, S, S); });
+    add('office', (g, r) => { windows(g, r, { cols: 7, rows: 4, wPad: 0.09, hPad: 0.2, wall: (g, r) => concreteWall(g, r, '#68727c'), frame: dark, glassA, glassB, litFrac: 0.55, mullion: 1, band: '#4a525a' }); });
+    add('glass', (g, r) => { windows(g, r, { cols: 8, rows: 4, wPad: 0.05, hPad: 0.06, wall: (g, r) => { g.fillStyle = '#1c2a38'; g.fillRect(0, 0, S, S); }, frame: '#16202a', glassA: '#26465e', glassB: '#1d3a50', litFrac: 0.6, mullion: 2 }); const gr = g.createLinearGradient(0, 0, 0, S); gr.addColorStop(0, 'rgba(255,255,255,0.12)'); gr.addColorStop(1, 'rgba(0,0,0,0.1)'); g.fillStyle = gr; g.fillRect(0, 0, S, S); });
     add('brick', (g, r) => { windows(g, r, { cols: 4, rows: 4, wPad: 0.26, hPad: 0.22, wall: (g, r) => bricks(g, r, '#8a4a3a', 'rgba(230,220,200,0.55)'), frame: '#e8e0d0', glassA: '#4d5d6b', glassB: '#3b4a57', litFrac: 0.4, sill: true, sillCol: '#d8d0c0', arch: true }); streaks(g, r, 30, 0, S, 0, 120, 'rgba(0,0,0,0.08)'); });
     add('concrete', (g, r) => { windows(g, r, { cols: 4, rows: 4, wPad: 0.2, hPad: 0.27, wall: (g, r) => concreteWall(g, r, '#b1aba0'), frame: '#3a3a3a', glassA: '#41505c', glassB: '#2f3c47', litFrac: 0.35, sill: true, ac: true }); });
     add('tenement', (g, r) => { windows(g, r, { cols: 4, rows: 4, wPad: 0.28, hPad: 0.22, wall: (g, r) => { bricks(g, r, '#6d675b', 'rgba(200,190,170,0.4)', 9, 20); stains(g, r, 8, 'rgba(0,0,0,0.12)'); }, frame: '#2c2620', glassA: '#3d4a52', glassB: '#2c3840', litFrac: 0.45, sill: true, sillCol: '#a89c88', ac: true }); streaks(g, r, 40, 0, S, 0, 200, 'rgba(0,0,0,0.1)'); });
@@ -442,9 +445,9 @@ const TEX = (() => {
     add('stone', (g, r) => { windows(g, r, { cols: 4, rows: 3, wPad: 0.27, hPad: 0.2, wall: (g, r) => { bricks(g, r, '#9c948a', 'rgba(60,55,50,0.5)', 42, 128); }, frame: '#e2dccf', glassA: '#4a5866', glassB: '#3a4754', litFrac: 0.3, arch: true, sill: true, sillCol: '#e2dccf' }); });
     add('brick2', (g, r) => { windows(g, r, { cols: 4, rows: 4, wPad: 0.27, hPad: 0.23, wall: (g, r) => bricks(g, r, '#6e4a3e', 'rgba(220,205,190,0.45)', 10, 22), frame: '#2a2622', glassA: '#4d5d6b', glassB: '#3b4a57', litFrac: 0.4, sill: true, sillCol: '#c8b8a0', lintel: true }); streaks(g, r, 30, 0, S, 0, 100, 'rgba(0,0,0,0.08)'); }); // brown brick, square heads
     add('brick3', (g, r) => { windows(g, r, { cols: 4, rows: 4, wPad: 0.26, hPad: 0.22, wall: (g, r) => { bricks(g, r, '#d8d2c6', 'rgba(120,110,100,0.35)', 10, 22); stains(g, r, 6, 'rgba(0,0,0,0.06)'); }, frame: '#2e3a30', glassA: '#3d4a52', glassB: '#2c3840', litFrac: 0.45, sill: true, sillCol: '#a8a098' }); }); // whitewashed brick, dark frames
-    add('office2', (g, r) => { windows(g, r, { cols: 5, rows: 4, wPad: 0.08, hPad: 0.22, wall: (g, r) => concreteWall(g, r, '#3e4448'), frame: '#20242a', glassA: '#6a8aa0', glassB: '#5a7a90', litFrac: 0.6, mullion: 2, band: '#2a2e33' }); }); // dark stone bands, wide glass
-    add('glass2', (g, r) => { windows(g, r, { cols: 4, rows: 4, wPad: 0.05, hPad: 0.06, wall: (g, r) => { g.fillStyle = '#e8ecee'; g.fillRect(0, 0, S, S); }, frame: '#d8dde0', glassA: '#31584f', glassB: '#274a45', litFrac: 0.55, mullion: 2 }); const gr = g.createLinearGradient(0, 0, 0, S); gr.addColorStop(0, 'rgba(255,255,255,0.15)'); gr.addColorStop(1, 'rgba(0,0,0,0.08)'); g.fillStyle = gr; g.fillRect(0, 0, S, S); }); // green glass in white mullions
-    add('glass3', (g, r) => { windows(g, r, { cols: 3, rows: 4, wPad: 0.04, hPad: 0.05, wall: (g, r) => { g.fillStyle = '#2a2018'; g.fillRect(0, 0, S, S); }, frame: '#3a2c20', glassA: '#5d442a', glassB: '#4b3623', litFrac: 0.5, mullion: 1 }); const gr = g.createLinearGradient(0, 0, S, S); gr.addColorStop(0, 'rgba(255,240,200,0.18)'); gr.addColorStop(1, 'rgba(0,0,0,0.15)'); g.fillStyle = gr; g.fillRect(0, 0, S, S); }); // bronze glass
+    add('office2', (g, r) => { windows(g, r, { cols: 7, rows: 4, wPad: 0.08, hPad: 0.22, wall: (g, r) => concreteWall(g, r, '#3e4448'), frame: '#20242a', glassA: '#6a8aa0', glassB: '#5a7a90', litFrac: 0.6, mullion: 2, band: '#2a2e33' }); }); // dark stone bands, wide glass
+    add('glass2', (g, r) => { windows(g, r, { cols: 8, rows: 4, wPad: 0.05, hPad: 0.06, wall: (g, r) => { g.fillStyle = '#e8ecee'; g.fillRect(0, 0, S, S); }, frame: '#d8dde0', glassA: '#31584f', glassB: '#274a45', litFrac: 0.55, mullion: 2 }); const gr = g.createLinearGradient(0, 0, 0, S); gr.addColorStop(0, 'rgba(255,255,255,0.15)'); gr.addColorStop(1, 'rgba(0,0,0,0.08)'); g.fillStyle = gr; g.fillRect(0, 0, S, S); }); // green glass in white mullions
+    add('glass3', (g, r) => { windows(g, r, { cols: 6, rows: 4, wPad: 0.04, hPad: 0.05, wall: (g, r) => { g.fillStyle = '#2a2018'; g.fillRect(0, 0, S, S); }, frame: '#3a2c20', glassA: '#5d442a', glassB: '#4b3623', litFrac: 0.5, mullion: 1 }); const gr = g.createLinearGradient(0, 0, S, S); gr.addColorStop(0, 'rgba(255,240,200,0.18)'); gr.addColorStop(1, 'rgba(0,0,0,0.15)'); g.fillStyle = gr; g.fillRect(0, 0, S, S); }); // bronze glass
     add('warehouse', (g, r) => { if (!base(g, '#8a8c88')) { g.fillStyle = '#8a8c88'; g.fillRect(0, 0, S, S); } for (let x = 0; x < S; x += 12) { g.fillStyle = `rgba(0,0,0,${0.12 + r() * 0.1})`; g.fillRect(x, 0, 4, S); g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(x + 6, 0, 2, S); } streaks(g, r, 40, 0, S, 0, 200, 'rgba(120,60,20,0.18)'); stains(g, r, 10, 'rgba(90,50,20,0.15)'); for (let i = 0; i < 4; i++) { pane(g, r, 20 + i * 124, 30, 84, 60, { frame: '#3a3a3a', glassA: '#5a6a70', glassB: '#4a5a60', litFrac: 0.25, mullion: 2 }); } g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, 250, S, 6); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, 506, S, 6); }); // corrugated metal with a strip of high windows
     add('stucco2', (g, r) => { windows(g, r, { cols: 4, rows: 4, wPad: 0.3, hPad: 0.24, wall: (g, r) => stucco(g, r, ['#e8d8b0', '#d8b8a0', '#c8d8c0', '#e0c8d0', '#f0e0c8'][Math.floor(r() * 5)]), frame: '#f8f4ec', glassA: '#4e5d6b', glassB: '#3d4c5a', litFrac: 0.4, sill: true, sillCol: '#f8f4ec' }); const cw = S / 4, ch = S / 4; for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { const x = i * cw + cw * 0.3, y = j * ch + ch * 0.24, w = cw * 0.4, h = ch * 0.52; const sc = ['#3a6a4a', '#4a5a8a', '#7a3a3a', '#5a5a5a'][Math.floor(r() * 4)]; g.fillStyle = sc; g.fillRect(x - 22, y, 16, h); g.fillRect(x + w + 6, y, 16, h); g.fillStyle = 'rgba(0,0,0,0.3)'; for (let k = 4; k < h; k += 7) { g.fillRect(x - 21, y + k, 14, 2); g.fillRect(x + w + 7, y + k, 14, 2); } } }); // pastel plaster with shutters
     add('loft', (g, r) => { windows(g, r, { cols: 3, rows: 3, wPad: 0.12, hPad: 0.12, wall: (g, r) => bricks(g, r, '#7a5040', 'rgba(210,190,170,0.4)', 10, 22), frame: '#2a2a2e', glassA: '#5a6a74', glassB: '#4a5a64', litFrac: 0.5, mullion: 2, lintel: true }); const cw = S / 3, ch = S / 3; g.fillStyle = '#2a2a2e'; for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) { const x = i * cw + cw * 0.12, y = j * ch + ch * 0.12, w = cw * 0.76, h = ch * 0.76; for (let k = 1; k < 4; k++) g.fillRect(x + w * k / 4 - 1, y, 2, h); for (let k = 1; k < 3; k++) g.fillRect(x, y + h * k / 3 - 1, w, 2); } }); // industrial: big gridded windows in old brick
@@ -1834,7 +1837,7 @@ const RENDER = (() => {
   const identityBones = new Float32Array(16 * MAX_BONES); for (let i = 0; i < MAX_BONES; i++) identityBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
   const zeroEmis = new Float32Array(MAX_BONES);
   const cam = { x: 0, y: 20, z: 0, tx: 0, ty: 0, tz: 1, fov: 60 * Math.PI / 180, near: 0.3, far: 900 };
-  const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 , normalMaps: true, normalStrength: 1.0 , fogHeight: 30, fogSun: 0.7 , reflect: 1.7 };
+  const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 , normalMaps: true, normalStrength: 1.0 , fogHeight: 30, fogSun: 0.7 , reflect: 1.7 , wet: 0 };
   const lights = { pos: new Float32Array(MAX_LIGHTS * 4), col: new Float32Array(MAX_LIGHTS * 3), n: 0 };
   const stats = { draws: 0, tris: 0 };
 
@@ -1863,7 +1866,7 @@ const RENDER = (() => {
     uniform float uNrmOn; uniform float uNrmStr;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
     uniform float uFogDensity; uniform float uFogHeight; uniform float uFogSun; uniform float uNightEmis;
-    uniform mat4 uLightVP[2]; uniform float uCascadeFar;
+    uniform mat4 uLightVP[2]; uniform float uCascadeFar; uniform float uWet;
     uniform vec3 uZenith; uniform vec3 uHorizon; uniform float uReflect; uniform float uShadowOn; uniform float uTexOn; uniform float uSpec; uniform float uHDR; uniform float uAlpha; uniform float uWater; uniform float uTime;
     uniform vec4 uLights[${MAX_LIGHTS}]; uniform vec3 uLightCols[${MAX_LIGHTS}]; uniform int uNumLights;
     out vec4 o;
@@ -1920,12 +1923,16 @@ const RENDER = (() => {
         }
       }
       if (uWater > 0.5) { n = normalize(n + vec3(sin(vWorld.x * 0.35 + uTime * 1.1) * 0.07 + sin(vWorld.z * 0.9 - uTime * 1.7) * 0.04, 0.0, cos(vWorld.z * 0.4 + uTime * 0.9) * 0.07 + cos(vWorld.x * 1.1 + uTime * 1.3) * 0.04)); }
+      // Rain pools on anything facing the sky. The film darkens what is under it and reflects what is above.
+      float wet = uWet > 0.0 ? smoothstep(0.45, 0.92, n.y) * uWet : 0.0;
+      if (wet > 0.0) { rough = mix(rough, 0.1, wet); albedo *= mix(1.0, 0.45, wet); }
       float ndl = max(dot(n, uSunDir), 0.0);
       float sh = (uShadowOn > 0.5 && ndl > 0.0) ? shadowAt(n) : 1.0;
       vec3 hemi = mix(uGroundCol, uSkyCol, n.y * 0.5 + 0.5);
       vec3 col = albedo * (hemi + uSunCol * ndl * sh);
-      if (uSpec > 0.0) { vec3 v = normalize(uCamPos - vWorld); vec3 hv = normalize(uSunDir + v);
-        float gloss = 1.0 - rough; float power = mix(6.0, 110.0, gloss * gloss);
+      vec3 v = normalize(uCamPos - vWorld);
+      float gloss = 1.0 - rough; float power = mix(6.0, 110.0, gloss * gloss);
+      if (uSpec > 0.0) { vec3 hv = normalize(uSunDir + v);
         float sp = pow(max(dot(n, hv), 0.0), power) * (0.12 + 1.5 * gloss * gloss);
         col += uSunCol * sp * uSpec * sh;
         // A smooth surface mirrors the sky: the same gradient the sky shader draws, looked up along the reflected
@@ -1936,15 +1943,18 @@ const RENDER = (() => {
         float fres = 0.08 + 0.92 * pow(1.0 - max(dot(n, v), 0.0), 4.0);
         float dn = clamp(refl.y * 2.0 + 0.55, 0.0, 1.0); // rays aimed at the ground see the street, not the sky
         col = mix(col, skyRefl, clamp(uReflect * uSpec * gloss * gloss * fres * dn, 0.0, 0.92));
-        col += hemi * uSpec * (0.2 + 0.5 * gloss) * pow(1.0 - max(dot(n, v), 0.0), 3.0); }
+        col += hemi * uSpec * (0.25 - 0.2 * gloss) * pow(1.0 - max(dot(n, v), 0.0), 3.0); }
       for (int i = 0; i < ${MAX_LIGHTS}; i++) {
         if (i >= uNumLights) break;
         vec3 L = uLights[i].xyz - vWorld; float d = length(L); float att = clamp(1.0 - d / uLights[i].w, 0.0, 1.0); att *= att;
         if (att <= 0.0) continue;
-        float nl = max(dot(n, L / d), 0.0) * 0.8 + 0.2;
+        vec3 Ln = L / d;
+        float nl = max(dot(n, Ln), 0.0) * 0.8 + 0.2;
         col += albedo * uLightCols[i] * att * nl;
+        // a lamp reflected in a wet street, which is most of what a city looks like in the rain at night
+        if (uSpec > 0.0 && gloss > 0.4) col += uLightCols[i] * att * pow(max(dot(n, normalize(Ln + v)), 0.0), power) * uSpec * gloss * gloss * 1.6;
       }
-      col += mix(albedo, s2l(vec3(1.0, 0.86, 0.62)), 0.82) * t.a * uNightEmis * 2.2;
+      col += mix(albedo, s2l(vec3(1.0, 0.87, 0.66)), 0.55) * t.a * uNightEmis * 3.4;
       col += s2l(vCol) * vEmis;
       // Height fog: haze pools in the streets and thins with altitude, so the skyline stays crisp and the city gains depth.
       // Analytic integral of an exponential density along the view ray, then tinted toward the sun for aerial perspective.
@@ -2110,7 +2120,7 @@ const RENDER = (() => {
       env.fogDensity = M.lerp(env.fogDensity, 0.0075, rain); env.fogHeight = M.lerp(env.fogHeight, 60, rain); env.fogSun *= (1 - rain);
     }
     if (fog > 0) { env.fogDensity = M.lerp(env.fogDensity, 0.016, fog); env.fogHeight = M.lerp(env.fogHeight, 90, fog); env.fogSun *= (1 - fog); env.fogCol = env.fogCol.map((v, i) => M.lerp(v, [0.62, 0.66, 0.72][i] * (0.15 + 0.85 * day), fog)); env.sunCol = env.sunCol.map(v => v * (1 - 0.6 * fog)); env.sunDisc *= (1 - fog); env.horizon = env.horizon.map((v, i) => M.lerp(v, env.fogCol[i], fog)); }
-    env.rain = rain; env.fog = fog; env.shadowOn = day > 0.15 && rain < 0.5 && fog < 0.6;
+    env.wet = Math.max(rain, (env.wet || 0) - 0.004); env.rain = rain; env.fog = fog; env.shadowOn = day > 0.15 && rain < 0.5 && fog < 0.6;
   }
 
   function setCamera(x, y, z, tx, ty, tz, fov) { cam.x = x; cam.y = y; cam.z = z; cam.tx = tx; cam.ty = ty; cam.tz = tz; if (fov) cam.fov = fov; }
@@ -2160,7 +2170,7 @@ const RENDER = (() => {
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
       gl.uniform3fv(P.u.uFogCol, env.fogCol); gl.uniform3f(P.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform1f(P.u.uFogDensity, env.fogDensity);
       gl.uniform1f(P.u.uFogHeight, env.fogHeight); gl.uniform1f(P.u.uFogSun, env.fogSun);
-      gl.uniform3fv(P.u.uZenith, env.zenith); gl.uniform3fv(P.u.uHorizon, env.horizon); gl.uniform1f(P.u.uReflect, env.reflect);
+      gl.uniform3fv(P.u.uZenith, env.zenith); gl.uniform3fv(P.u.uHorizon, env.horizon); gl.uniform1f(P.u.uReflect, env.reflect); gl.uniform1f(P.u.uWet, env.wet);
       gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uHDR, post.hdr ? 1 : 0); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uWater, 0); gl.uniform1f(P.u.uTime, env.time || 0);
       gl.uniform4fv(P.u.uLights, lights.pos); gl.uniform3fv(P.u.uLightCols, lights.col); gl.uniform1i(P.u.uNumLights, lights.n);
     }
@@ -2729,10 +2739,12 @@ const W = (() => {
     const night = RENDER.env.nightEmis; if (night < 0.05) return; const rain = weather.rain;
     let cones = 0;
     for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 > 60 * 60 || cones++ > 14) continue; const a = p.a || 0; const hx = p.x + Math.sin(a) * 1.6, hz = p.z + Math.cos(a) * 1.6; const y0 = CITY.groundY(hx, hz);
-      const al = 0.045 * night * (1 + rain * 1.5) * (1 - Math.sqrt(d2) / 60); const R = 2.6; const segs = 8;
+      const al = 0.03 * night * (1 + rain * 1.5) * (1 - Math.sqrt(d2) / 60); const R = 2.6; const segs = 16;
       for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU; fx.tri(F.adds, hx, 5.7, hz, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R, 1, 0.85, 0.55, al); fx.tri(F.adds, hx, 5.7, hz, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R, 1, 0.85, 0.55, al); }
-      // pool on the ground
-      fx.quad(F.adds, [hx - R, y0 + 0.03, hz - R], [hx + R, y0 + 0.03, hz - R], [hx + R, y0 + 0.03, hz + R], [hx - R, y0 + 0.03, hz + R], [1, 0.85, 0.55], al * 1.5, al * 1.5); }
+      // pool on the ground: a fan that fades to nothing at the rim, so there is no hard square of light
+      { const pr = R * 1.35, py = y0 + 0.03, col = [1, 0.85, 0.55], a0 = al * 2.2;
+        for (let i = 0; i < 16; i++) { const t0 = i / 16 * M.TAU, t1 = (i + 1) / 16 * M.TAU;
+          fx.quad(F.adds, [hx, py, hz], [hx, py, hz], [hx + Math.cos(t1) * pr, py, hz + Math.sin(t1) * pr], [hx + Math.cos(t0) * pr, py, hz + Math.sin(t0) * pr], col, a0, 0); } } }
   }
   function collectLights(camX, camZ) {
     const out = []; const night = RENDER.env.nightEmis;

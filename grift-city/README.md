@@ -248,6 +248,14 @@ Fog is a height fog rather than a plain distance fade: an analytic integral of a
 along the view ray, so haze pools in the streets and thins with altitude and the skyline stays crisp.
 Near the sun it warms toward the sunlight, which is what gives a long avenue its depth.
 
+Rain pools on anything facing the sky. The film darkens what is under it and smooths it, so a wet
+street goes dark and starts mirroring the sky and the street lamps, and it dries off slowly after the
+rain stops. Street lamps also throw a soft pool of light that fades to nothing at its rim.
+
+Windows are subdivided to a curtain wall's real bay, about 1.7 m, rather than the 3.5 m slabs a
+four-column texture gave; and a lit window carries its own strength and colour temperature in the
+emissive mask, so a tower at night is a grid of bright, dim and dark panes rather than one flat sheet.
+
 Sunlight casts two shadow cascades packed side by side in one depth atlas: a tight box just in front
 of the camera for crisp contact shadows and a wide one for the rest, each snapped to a shadow texel so
 the shadows do not crawl as you move, and each culled to its own frustum — which makes the two passes

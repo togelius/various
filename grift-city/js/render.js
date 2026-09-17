@@ -8,7 +8,7 @@ const RENDER = (() => {
   const identityBones = new Float32Array(16 * MAX_BONES); for (let i = 0; i < MAX_BONES; i++) identityBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
   const zeroEmis = new Float32Array(MAX_BONES);
   const cam = { x: 0, y: 20, z: 0, tx: 0, ty: 0, tz: 1, fov: 60 * Math.PI / 180, near: 0.3, far: 900 };
-  const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 , normalMaps: true, normalStrength: 1.0 , fogHeight: 30, fogSun: 0.7 , reflect: 1.7 };
+  const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 , normalMaps: true, normalStrength: 1.0 , fogHeight: 30, fogSun: 0.7 , reflect: 1.7 , wet: 0 };
   const lights = { pos: new Float32Array(MAX_LIGHTS * 4), col: new Float32Array(MAX_LIGHTS * 3), n: 0 };
   const stats = { draws: 0, tris: 0 };
 
@@ -37,7 +37,7 @@ const RENDER = (() => {
     uniform float uNrmOn; uniform float uNrmStr;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
     uniform float uFogDensity; uniform float uFogHeight; uniform float uFogSun; uniform float uNightEmis;
-    uniform mat4 uLightVP[2]; uniform float uCascadeFar;
+    uniform mat4 uLightVP[2]; uniform float uCascadeFar; uniform float uWet;
     uniform vec3 uZenith; uniform vec3 uHorizon; uniform float uReflect; uniform float uShadowOn; uniform float uTexOn; uniform float uSpec; uniform float uHDR; uniform float uAlpha; uniform float uWater; uniform float uTime;
     uniform vec4 uLights[${MAX_LIGHTS}]; uniform vec3 uLightCols[${MAX_LIGHTS}]; uniform int uNumLights;
     out vec4 o;
@@ -94,12 +94,16 @@ const RENDER = (() => {
         }
       }
       if (uWater > 0.5) { n = normalize(n + vec3(sin(vWorld.x * 0.35 + uTime * 1.1) * 0.07 + sin(vWorld.z * 0.9 - uTime * 1.7) * 0.04, 0.0, cos(vWorld.z * 0.4 + uTime * 0.9) * 0.07 + cos(vWorld.x * 1.1 + uTime * 1.3) * 0.04)); }
+      // Rain pools on anything facing the sky. The film darkens what is under it and reflects what is above.
+      float wet = uWet > 0.0 ? smoothstep(0.45, 0.92, n.y) * uWet : 0.0;
+      if (wet > 0.0) { rough = mix(rough, 0.1, wet); albedo *= mix(1.0, 0.45, wet); }
       float ndl = max(dot(n, uSunDir), 0.0);
       float sh = (uShadowOn > 0.5 && ndl > 0.0) ? shadowAt(n) : 1.0;
       vec3 hemi = mix(uGroundCol, uSkyCol, n.y * 0.5 + 0.5);
       vec3 col = albedo * (hemi + uSunCol * ndl * sh);
-      if (uSpec > 0.0) { vec3 v = normalize(uCamPos - vWorld); vec3 hv = normalize(uSunDir + v);
-        float gloss = 1.0 - rough; float power = mix(6.0, 110.0, gloss * gloss);
+      vec3 v = normalize(uCamPos - vWorld);
+      float gloss = 1.0 - rough; float power = mix(6.0, 110.0, gloss * gloss);
+      if (uSpec > 0.0) { vec3 hv = normalize(uSunDir + v);
         float sp = pow(max(dot(n, hv), 0.0), power) * (0.12 + 1.5 * gloss * gloss);
         col += uSunCol * sp * uSpec * sh;
         // A smooth surface mirrors the sky: the same gradient the sky shader draws, looked up along the reflected
@@ -110,15 +114,18 @@ const RENDER = (() => {
         float fres = 0.08 + 0.92 * pow(1.0 - max(dot(n, v), 0.0), 4.0);
         float dn = clamp(refl.y * 2.0 + 0.55, 0.0, 1.0); // rays aimed at the ground see the street, not the sky
         col = mix(col, skyRefl, clamp(uReflect * uSpec * gloss * gloss * fres * dn, 0.0, 0.92));
-        col += hemi * uSpec * (0.2 + 0.5 * gloss) * pow(1.0 - max(dot(n, v), 0.0), 3.0); }
+        col += hemi * uSpec * (0.25 - 0.2 * gloss) * pow(1.0 - max(dot(n, v), 0.0), 3.0); }
       for (int i = 0; i < ${MAX_LIGHTS}; i++) {
         if (i >= uNumLights) break;
         vec3 L = uLights[i].xyz - vWorld; float d = length(L); float att = clamp(1.0 - d / uLights[i].w, 0.0, 1.0); att *= att;
         if (att <= 0.0) continue;
-        float nl = max(dot(n, L / d), 0.0) * 0.8 + 0.2;
+        vec3 Ln = L / d;
+        float nl = max(dot(n, Ln), 0.0) * 0.8 + 0.2;
         col += albedo * uLightCols[i] * att * nl;
+        // a lamp reflected in a wet street, which is most of what a city looks like in the rain at night
+        if (uSpec > 0.0 && gloss > 0.4) col += uLightCols[i] * att * pow(max(dot(n, normalize(Ln + v)), 0.0), power) * uSpec * gloss * gloss * 1.6;
       }
-      col += mix(albedo, s2l(vec3(1.0, 0.86, 0.62)), 0.82) * t.a * uNightEmis * 2.2;
+      col += mix(albedo, s2l(vec3(1.0, 0.87, 0.66)), 0.55) * t.a * uNightEmis * 3.4;
       col += s2l(vCol) * vEmis;
       // Height fog: haze pools in the streets and thins with altitude, so the skyline stays crisp and the city gains depth.
       // Analytic integral of an exponential density along the view ray, then tinted toward the sun for aerial perspective.
@@ -284,7 +291,7 @@ const RENDER = (() => {
       env.fogDensity = M.lerp(env.fogDensity, 0.0075, rain); env.fogHeight = M.lerp(env.fogHeight, 60, rain); env.fogSun *= (1 - rain);
     }
     if (fog > 0) { env.fogDensity = M.lerp(env.fogDensity, 0.016, fog); env.fogHeight = M.lerp(env.fogHeight, 90, fog); env.fogSun *= (1 - fog); env.fogCol = env.fogCol.map((v, i) => M.lerp(v, [0.62, 0.66, 0.72][i] * (0.15 + 0.85 * day), fog)); env.sunCol = env.sunCol.map(v => v * (1 - 0.6 * fog)); env.sunDisc *= (1 - fog); env.horizon = env.horizon.map((v, i) => M.lerp(v, env.fogCol[i], fog)); }
-    env.rain = rain; env.fog = fog; env.shadowOn = day > 0.15 && rain < 0.5 && fog < 0.6;
+    env.wet = Math.max(rain, (env.wet || 0) - 0.004); env.rain = rain; env.fog = fog; env.shadowOn = day > 0.15 && rain < 0.5 && fog < 0.6;
   }
 
   function setCamera(x, y, z, tx, ty, tz, fov) { cam.x = x; cam.y = y; cam.z = z; cam.tx = tx; cam.ty = ty; cam.tz = tz; if (fov) cam.fov = fov; }
@@ -334,7 +341,7 @@ const RENDER = (() => {
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
       gl.uniform3fv(P.u.uFogCol, env.fogCol); gl.uniform3f(P.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform1f(P.u.uFogDensity, env.fogDensity);
       gl.uniform1f(P.u.uFogHeight, env.fogHeight); gl.uniform1f(P.u.uFogSun, env.fogSun);
-      gl.uniform3fv(P.u.uZenith, env.zenith); gl.uniform3fv(P.u.uHorizon, env.horizon); gl.uniform1f(P.u.uReflect, env.reflect);
+      gl.uniform3fv(P.u.uZenith, env.zenith); gl.uniform3fv(P.u.uHorizon, env.horizon); gl.uniform1f(P.u.uReflect, env.reflect); gl.uniform1f(P.u.uWet, env.wet);
       gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uHDR, post.hdr ? 1 : 0); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uWater, 0); gl.uniform1f(P.u.uTime, env.time || 0);
       gl.uniform4fv(P.u.uLights, lights.pos); gl.uniform3fv(P.u.uLightCols, lights.col); gl.uniform1i(P.u.uNumLights, lights.n);
     }
