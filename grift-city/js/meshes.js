@@ -522,7 +522,16 @@ const MESH = (() => {
   function busShelter() { const b = new Builder(); const c = [0.25, 0.27, 0.3]; b.cbox(-1.9, 1.3, 0, 0.1, 2.6, 0.1, c); b.cbox(1.9, 1.3, 0, 0.1, 2.6, 0.1, c); b.cbox(-1.9, 1.3, -1.1, 0.1, 2.6, 0.1, c); b.cbox(1.9, 1.3, -1.1, 0.1, 2.6, 0.1, c); b.cbox(0, 2.65, -0.55, 4.2, 0.1, 1.4, [0.2, 0.25, 0.35]); b.cbox(0, 1.3, -1.15, 3.9, 2.0, 0.04, [0.5, 0.65, 0.8]); b.cbox(0, 0.5, -0.8, 3.0, 0.06, 0.45, [0.45, 0.32, 0.2]); b.cbox(0, 2.35, -0.55, 1.6, 0.4, 0.06, [0.95, 0.75, 0.1]); return b; }
   function cone() { const b = new Builder(); b.cyl(0, 0, 0, 0.22, 0.75, [1, 0.42, 0], 0, 8, 0, true, false, 0.06); b.cbox(0, 0.02, 0, 0.5, 0.04, 0.5, [0.1, 0.1, 0.1]); b.cyl(0, 0.3, 0, 0.16, 0.4, [1, 1, 1], 0, 8, 0, false, false, 0.13); return b; }
   function barrier() { const b = new Builder(); b.cbox(0, 0.85, 0, 2.2, 0.3, 0.06, [1, 0.42, 0]); b.cbox(0, 0.85, 0, 2.2, 0.3, 0.065, [1, 1, 1], 0, { faces: 0 }); for (const sx of [-1, 1]) { b.cbox(sx * 1.0, 0.5, 0, 0.08, 1.0, 0.08, [0.3, 0.3, 0.32]); b.cbox(sx * 1.0, 0.03, 0, 0.5, 0.06, 0.4, [0.3, 0.3, 0.32]); } for (let k = 0; k < 5; k++) b.cbox(-0.9 + k * 0.45, 0.85, 0.035, 0.2, 0.3, 0.01, [1, 1, 1], 0, { faces: 16 }); return b; }
-  function hedge() { const b = new Builder(); b.cbox(0, 0.5, 0, 3.0, 1.0, 0.8, [0.18, 0.4, 0.16]); b.cbox(0, 0.95, 0, 2.9, 0.15, 0.7, [0.24, 0.5, 0.2]); return b; }
+  // A clipped hedge: a dark mass with foliage clumps along the top, rather than one flat slab of green.
+  function hedge() {
+    const b = new Builder(); b.cbox(0, 0.42, 0, 3.0, 0.84, 0.78, [0.09, 0.16, 0.08]);
+    const A = typeof ASSETS !== 'undefined' && ASSETS.models.bush1;
+    if (!A) { b.cbox(0, 0.9, 0, 2.9, 0.16, 0.7, [0.16, 0.32, 0.14]); return b; }
+    const sc = 0.42 / (A.max[1] - A.min[1]); // small clumps read as clipped foliage; big ones read as agave
+    for (let i = 0; i < 9; i++) { const t = (i / 8 - 0.5) * 2.7;
+      assetInto(b, 'bush1', { scale: sc * (0.8 + (i % 3) * 0.14), x: t, y: 0.74, z: ((i % 3) - 1) * 0.2, angle: i * 1.7, desat: 0.05 }); }
+    return b;
+  }
   const tree = plant('tree2', 7.2, 0.05, builtTree), roundTree = plant('tree1', 6.4, 0.05, builtRoundTree), palm = plant('palm1', 8.5, 0.05, builtPalm);
   const treeFat = plant('tree4', 5.6, 0.05, builtRoundTree), treeTall = plant('tree3', 8.6, 0.05, builtTree);
   const pine = plant('pine2', 8.0, 0.05, builtTree), pineSmall = plant('pine1', 5.0, 0.05, builtTree);

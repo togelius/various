@@ -229,15 +229,7 @@ const CITY = (() => {
     const tint = rng.chance(0.3) ? [rng.range(0.7, 1.05), rng.range(0.7, 1.05), rng.range(0.7, 1.05)] : [1, 1, 1].map(v => v * rng.range(0.75, 1.05));
     const trim = tint.map(v => v * 0.82); const y = CURB;
     const commercial = rng.chance(dist === 'downtown' ? 0.6 : 0.75);
-    // some suburban lots get an imported house (Kenney city kit) instead of a procedural one: scaled to the lot, facing the street
-    const HOUSES = { westfield: 0.4, northgate: 0.2, midtown: 0.12 };
-    if (!commercial && HOUSES[dist] && W >= 11 && D >= 11 && front && rng.chance(HOUSES[dist])) {
-      const model = rng.pick(['kbuildA', 'kbuildB', 'kbuildC', 'kbuildD', 'kgarage']); const S = Math.min(W, D, 15) - 0.5; const cx = x0 + W / 2, cz = z0 + D / 2;
-      const angle = front === 's' ? 0 : front === 'n' ? Math.PI : front === 'e' ? Math.PI / 2 : -Math.PI / 2; // the model's door is on its +z side
-      MESH.assetInto(b, model, { x: cx, y: CURB, z: cz, scale: S, angle, desat: 0.25 });
-      const hb = MESH.assetBounds(model, S); addLot(block, cx - S / 2, cz - S / 2, cx + S / 2, cz + S / 2, hb.max[1]);
-      b.floor(x0, z0, W, D, CURB + 0.005, [1, 1, 1], T.grass, 3); addPlace('house', { x: cx, z: cz, front, model, label: 'house' }); return;
-    }
+
     // which side faces the street: the doorway, awning and fire escape go there
     const fz = front === 'n' ? z0 : front === 's' ? z1 : null, fx = front === 'w' ? x0 : front === 'e' ? x1 : null;
     let top = y;

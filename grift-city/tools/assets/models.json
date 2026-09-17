@@ -34,21 +34,6 @@
         "local": true
       }
     },
-    "kbuildA": {
-      "file": "Starter-Kit-City-Builder/models/building-small-a.glb"
-    },
-    "kbuildB": {
-      "file": "Starter-Kit-City-Builder/models/building-small-b.glb"
-    },
-    "kbuildC": {
-      "file": "Starter-Kit-City-Builder/models/building-small-c.glb"
-    },
-    "kbuildD": {
-      "file": "Starter-Kit-City-Builder/models/building-small-d.glb"
-    },
-    "kgarage": {
-      "file": "Starter-Kit-City-Builder/models/building-garage.glb"
-    },
     "kfountain": {
       "file": "Starter-Kit-City-Builder/models/pavement-fountain.glb"
     },

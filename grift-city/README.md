@@ -280,7 +280,10 @@ small houses and a garage that replace some procedural buildings on
 suburban lots, scaled to the lot and turned to face the street; a fountain
 on its plaza in every park; and clusters of trees among the park's own.
 The trees, bushes, grass tufts and mounds come from the Nature Kit; the
-garbage truck, ambulance and fire engine from the Car Kit. The converter
+garbage truck, ambulance and fire engine from the Car Kit; a pickup and a
+motorcycle from the Starter Kit Racing repository, and the fountain in every
+park from the Starter Kit City Builder. A hedge is a dark mass with nine small
+foliage clumps along its top rather than one flat slab of green. The converter
 samples each model's colour map at every vertex, keeps wheel parts in their
 own space so they spin about their centres, flips the winding of mirrored
 parts, doubles single-sided foliage so it is not hollow, and remaps
