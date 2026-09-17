@@ -73,7 +73,15 @@ hours. Park a car beside it before you save and it will be there when you
 come back.
 
 `Esc` opens the pause menu, which is also the options menu: mouse
-sensitivity, inverted look, shadows, bloom, and render scale.
+sensitivity, inverted look, shadows, bloom, render scale and auto quality.
+The menu shows the frame rate. Auto quality (`A`, on by default) watches
+it and, when frames stay slow, steps the renderer down one notch at a
+time (render scale, then ambient occlusion, then a lower scale, then
+shadows, then the post pass) and steps back up when there is headroom;
+the menu says how far it has stepped. The game itself keeps real-time
+pace regardless: a slow frame is simulated as several sixtieth-of-a-second
+steps rather than one long one, so on a slow machine you still walk, run
+and drive at full speed, only with fewer pictures of it.
 
 Old habits: type `BIGBANK`, `KEVLAR`, `ARSENAL`, `COOLOFF`, `HOTHEAD`,
 `NIGHTFALL`, `SUNRISE`, `DOWNPOUR`, `CLEARSKY`, `FALCATA` or `BASTION` during play.
@@ -217,6 +225,17 @@ settles onto anyone you are nearly on and turns red when it has them,
 and the aim camera keeps the crosshair near body height. Aim with the
 right mouse button, a two-finger click on a trackpad, or by holding
 Option/Alt or `C`; fire with a click or `Ctrl`.
+
+Traffic drives like it has somewhere to be. A car decides its turn a
+block early and brakes for it before the corner, then follows a circular
+arc tangent to both lanes (ten metres for a car, wider for a truck or a
+bus, so the kerb corner stays clear) with pure-pursuit steering: the front
+wheels are set to the angle that puts the car on the circle through a
+point a few metres ahead on its path, damped on yaw rate, so it comes out
+of the corner in lane and settles rather than fishtailing. Waypoints
+count as reached once they are behind the car, which is what used to send
+a car in laps round an intersection when the corner was tighter than its
+steering lock.
 
 ## The police
 

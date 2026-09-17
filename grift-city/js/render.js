@@ -171,7 +171,7 @@ const RENDER = (() => {
     shadowProg = GL.program(VS, SHADOW_FS, '#define SHADOW'); shadowInstProg = GL.program(VS, SHADOW_FS, '#define INSTANCED\n#define SHADOW');
     skyProg = GL.program(SKY_VS, SKY_FS); partProg = GL.program(PART_VS, PART_FS); flatProg = GL.program(FLAT_VS, FLAT_FS);
     texArray = GL.textureArray(textures);
-    const shadowSize = +(new URLSearchParams(location.search).get('shadow') || 0) || 3072; shadow = GL.shadowTarget(shadowSize);
+    const shadowSize = +(new URLSearchParams(location.search).get('shadow') || 0) || 2048; shadow = GL.shadowTarget(shadowSize);
     // particle buffer: pos3 size1 col4 = 8 floats
     partVao = gl.createVertexArray(); gl.bindVertexArray(partVao); partBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, partBuf);
     gl.bufferData(gl.ARRAY_BUFFER, 8 * 4 * 4096, gl.DYNAMIC_DRAW);

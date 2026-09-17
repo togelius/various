@@ -12,7 +12,8 @@ const VEH = (() => {
   function dentedMesh(type, colIdx, dent, seed) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed }); return { body: m.body.build(), glass: m.glass.build() }; }
   const TRAFFIC_TYPES = ['sedan', 'sedan', 'sedan', 'hatch', 'hatch', 'sports', 'pickup', 'van', 'taxi', 'taxi', 'muscle', 'truck', 'bus'];
 
-  const tmpV = [0, 0, 0]; const LEAN_SIGN = -1; // positive roll tips the body to the right, so leaning into a left turn (positive yaw) is negative
+  const tmpV = [0, 0, 0]; const TURN_R = 10; // radius of the arc traffic drives through a corner (m); long vehicles need more
+  const LEAN_SIGN = -1; // positive roll tips the body to the right, so leaning into a left turn (positive yaw) is negative
   class Vehicle {
     constructor(type, x, z, angle, opts = {}) {
       this.type = type; this.spec = SPECS[type]; this.name = NAMES[type];
@@ -240,18 +241,29 @@ const VEH = (() => {
       const ai = this.ai, c = this.controls;
       if (!ai.edge) { const nl = CITY.nearestLane(this.x, this.z, this.fwd[0], this.fwd[1]); if (!nl) return; ai.edge = nl.e; ai.lane = nl.k; ai.path = null; }
       const e = ai.edge; const L = CITY.laneLen(e); let s = this.laneS();
-      let tx, tz; const look = 4 + Math.abs(this.speed) * 0.45; let turning = false;
+      let tx, tz; const look = 4 + Math.abs(this.speed) * 0.55; let turning = false;
       if (ai.path) {
-        const p = ai.path[ai.pathIdx]; if (M.dist(this.x, this.z, p[0], p[1]) < (ai.turnKind === 'straight' ? 2.8 : 1.9)) { ai.pathIdx++; if (ai.pathIdx >= ai.path.length) { ai.path = null; ai.edge = ai.nextEdge; s = this.laneS(); } }
-        if (ai.path) { const p = ai.path[Math.min(ai.pathIdx, ai.path.length - 1)]; tx = p[0]; tz = p[1]; turning = true; }
+        // pure pursuit along the corner polyline: the target is the first waypoint at least a look-ahead away, and waypoints
+        // already within reach or behind the car are dropped. Chasing the very next waypoint is how a car ends up doing
+        // laps of an intersection, aiming at a point inside its own turning circle.
+        ai.pathT = (ai.pathT || 0) + dt; const fw = this.fwd; const la = 3.5 + Math.abs(this.speed) * 0.35; const n = ai.path.length;
+        const rel = i => { const p = ai.path[i]; const dx = p[0] - this.x, dz = p[1] - this.z; return [Math.hypot(dx, dz), dx * fw[0] + dz * fw[1]]; };
+        while (ai.pathIdx < n - 1) { const [d, along] = rel(ai.pathIdx); if (d < la * 0.6 || (along < 1 && d < 9)) ai.pathIdx++; else break; }
+        if (ai.pathIdx >= n - 1) { const [d, along] = rel(n - 1); if (d < 2.5 || (along < 1 && d < 9) || ai.pathT > 12) { ai.path = null; ai.edge = ai.nextEdge; ai.nextEdge = null; ai.pathT = 0; s = this.laneS(); } }
+        if (ai.path) { let i = ai.pathIdx; while (i < n - 1 && rel(i)[0] < la) i++; tx = ai.path[i][0]; tz = ai.path[i][1]; turning = true; }
       }
       if (!ai.path) {
-        if (s >= L - 1.5) { this.chooseNext(); const p = ai.path[0]; tx = p[0]; tz = p[1]; turning = true; }
+        if ((!ai.nextEdge || ai.nextEdge.from !== e.to) && s > L - 16) this.planNext();
+        const early = ai.nextEdge && ai.nextEdge.from === e.to && ai.turnKind === 'turn' ? this.turnRadius() - 1 : 1.5; // a corner's arc begins before the node
+        if (s >= L - early) { this.chooseNext(); const p = ai.path[ai.pathIdx]; tx = p[0]; tz = p[1]; turning = true; }
         else { [tx, tz] = CITY.lanePoint(e, ai.lane, s + look); }
       }
       // steering toward the target
-      const desired = Math.atan2(tx - this.x, tz - this.z); const da = M.angleTo(this.angle, desired);
-      c.steer = M.clamp(da * 2.2, -1, 1);
+      const desired = Math.atan2(tx - this.x, tz - this.z); const da = M.angleTo(this.angle, desired); const ld = Math.max(2.5, M.dist(this.x, this.z, tx, tz));
+      // pure pursuit: the steer angle that puts the front axle on the circle through the target, over the lock available at this speed,
+      // with a touch of yaw-rate damping so a car coming out of a corner settles instead of fishtailing
+      const spd0 = Math.abs(this.speed); const lock = 0.62 / (1 + spd0 / 13); const delta = Math.atan2(2 * this.spec.len * 0.58 * Math.sin(da), ld);
+      c.steer = M.clamp(delta / lock - (this.yawRate || 0) * 0.1, -1, 1);
       // target speed
       let target = (ai.mode === 'flee' ? (ai.fleeSpeed || 24) : ai.cruise) * (1 - 0.25 * (W.weather ? W.weather.rain : 0)); // everyone slows down in the wet
       // a fleeing mission driver who is tailed closely for long enough loses their nerve, pulls over and runs
@@ -261,10 +273,10 @@ const VEH = (() => {
         if (!ai.bailing && (ai.pressure > 9 || this.health < this.maxHealth * 0.55)) { ai.bailing = true; this.driver.say(W.rng() < 0.5 ? 'Alright! Alright!' : "Take it, just don't shoot!"); }
         if (ai.bailing) { target = 0; if (this.absSpeed < 2.5) { const d = this.driver; d.exitCar(); d.bailed = true; d.state = 'flee'; d.fear = 30; d.threat = [PLAYER.x, PLAYER.z]; ai.mode = 'parked'; ai.missionFlee = false; this.scared = 0; return; } }
       }
-      if (turning && ai.turnKind !== 'straight') target = Math.min(target, 7);
+      if (ai.nextEdge && ai.nextEdge.from === e.to && ai.turnKind !== 'straight' && (turning || s > L - 12)) target = Math.min(target, this.spec.len > 6 ? 4.5 : 6); // corners are taken slowly, and the braking starts before the corner
       if (Math.abs(da) > 0.6) target = Math.min(target, 5);
       // traffic light
-      if (ai.mode !== 'flee' && !ai.path) {
+      if (ai.mode !== 'flee' && (!ai.path || s < L - 0.5)) {
         const light = W.lightFor(e.to); const remain = L - s;
         if (light && remain < 14 && remain > 1) { const st = W.lightState(light, e.axis); if (st === 'red' || (st === 'yellow' && remain > 7)) { if (remain < 3.5) target = 0; else target = Math.min(target, Math.max(0, (remain - 3) * 1.5)); ai.atLight = true; } else ai.atLight = false; } else ai.atLight = false;
       }
@@ -291,18 +303,28 @@ const VEH = (() => {
       else if (target > 2 && Math.abs(sp) < 0.3 && !blocked && !ai.atLight) { ai.stuck += dt; if (ai.stuck > 2.5) { ai.reverseT = 1.2; ai.stuck = 0; } } else ai.stuck = Math.max(0, ai.stuck - dt);
       if (ai.mode === 'flee' && this.scared <= 0) ai.mode = 'traffic';
     }
-    chooseNext() {
+    turnRadius() { return Math.max(TURN_R, 1.2 * this.spec.len * 0.58 / Math.tan(0.62 / (1 + 4 / 13))); } // what the steering lock manages at corner speed, with margin
+    planNext() { // which way at the coming node: mostly straight on, sometimes a turn, never back the way we came
       const ai = this.ai, e = ai.edge; const node = e.to; let opts = node.out.filter(o => o.to !== e.from); if (!opts.length) opts = node.out;
       const straight = opts.find(o => o.dx === e.dx && o.dz === e.dz);
       let next = (straight && W.rng() < 0.55) ? straight : opts[Math.floor(W.rng() * opts.length)];
       if (ai.forceDir) { const f = opts.find(o => o.dx === ai.forceDir[0] && o.dz === ai.forceDir[1]); if (f) next = f; ai.forceDir = null; }
+      ai.nextEdge = next; ai.turnKind = next === straight ? 'straight' : 'turn';
+    }
+    chooseNext() {
+      const ai = this.ai, e = ai.edge; if (!ai.nextEdge || ai.nextEdge.from !== e.to || ai.forceDir) this.planNext(); /* a plan made for another edge is stale */ const next = ai.nextEdge, kind = ai.turnKind;
       const lane = ai.lane; const [p0x, p0z] = CITY.lanePoint(e, lane, CITY.laneLen(e)); const [p3x, p3z] = CITY.lanePoint(next, lane, 0);
-      const kind = next === straight ? 'straight' : 'turn'; ai.turnKind = kind;
       const path = [];
-      if (kind === 'straight') { path.push([p3x, p3z]); }
-      else { const proj = (p3x - p0x) * e.dx + (p3z - p0z) * e.dz; const cx = p0x + e.dx * proj, cz = p0z + e.dz * proj; for (let k = 1; k <= 6; k++) { const t = k / 6; const u = 1 - t; path.push([u * u * p0x + 2 * u * t * cx + t * t * p3x, u * u * p0z + 2 * u * t * cz + t * t * p3z]); } }
-      path.push(CITY.lanePoint(next, lane, 3));
-      ai.path = path; ai.pathIdx = 0; ai.nextEdge = next;
+      if (kind === 'straight') { path.push([p3x, p3z], CITY.lanePoint(next, lane, 3)); }
+      else { // a circular arc tangent to both lane lines, wide enough that the steering lock follows it and the kerb corner stays clear
+        const proj = (p3x - p0x) * e.dx + (p3z - p0z) * e.dz; const cx = p0x + e.dx * proj, cz = p0z + e.dz * proj; // where the two lane lines meet
+        const R = this.turnRadius(), bRaw = (p3x - cx) * next.dx + (p3z - cz) * next.dz;
+        const qx = cx - e.dx * R + next.dx * R, qz = cz - e.dz * R + next.dz * R; // arc centre: R before the corner and R along the exit
+        const ax = cx - e.dx * R - qx, az = cz - e.dz * R - qz, bx = cx + next.dx * R - qx, bz = cz + next.dz * R - qz; // radii to the tangent points
+        const N = 9; for (let k = 0; k <= N; k++) { const t = k / N * Math.PI / 2; path.push([qx + ax * Math.cos(t) + bx * Math.sin(t), qz + az * Math.cos(t) + bz * Math.sin(t)]); }
+        for (const ext of [3, 7, 12]) path.push(CITY.lanePoint(next, lane, R - bRaw + ext)); } /* waypoints down the exit lane keep the pursuit target on the true path, so the lock unwinds without cutting the corner */
+      const f = this.fwd; let i0 = 0; while (i0 < path.length - 1 && (path[i0][0] - this.x) * f[0] + (path[i0][1] - this.z) * f[1] < 1) i0++; // skip what is already behind us
+      ai.path = path; ai.pathIdx = i0; ai.pathT = 0;
     }
     // ---- AI: chase a target (the player) — road-agnostic pursuit with reversing when stuck.
     aiChase(dt) {

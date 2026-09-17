@@ -6,10 +6,10 @@ const INPUT = (() => {
   const pad = { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, buttons: [], pressed: [], active: false };
   function init(c) {
     canvas = c;
-    window.addEventListener('keydown', e => { if (!keys[e.code]) pressed[e.code] = true; keys[e.code] = true; if (e.key && e.key.length === 1) { api.typed = (api.typed + e.key.toUpperCase()).slice(-12); } if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyF', 'F1', 'AltLeft', 'AltRight'].includes(e.code) || e.code.startsWith('Digit')) e.preventDefault(); });
-    window.addEventListener('keyup', e => { keys[e.code] = false; });
+    window.addEventListener('keydown', e => { let code = e.code; if (!code || (e.key === 'Shift' && code !== 'ShiftLeft' && code !== 'ShiftRight')) code = e.key === 'Shift' ? 'ShiftLeft' : code; if (!keys[code]) pressed[code] = true; keys[code] = true; if (e.key && e.key.length === 1) { api.typed = (api.typed + e.key.toUpperCase()).slice(-12); } if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyF', 'F1', 'AltLeft', 'AltRight'].includes(e.code) || e.code.startsWith('Digit')) e.preventDefault(); });
+    window.addEventListener('keyup', e => { keys[e.code] = false; if (e.key === 'Shift') { keys.ShiftLeft = false; keys.ShiftRight = false; } });
     window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.buttons = 0; });
-    document.addEventListener('mousemove', e => { if (locked || fallback) { mouse.dx += e.movementX; mouse.dy += e.movementY; } });
+    document.addEventListener('mousemove', e => { if (locked || fallback) { mouse.dx += e.movementX; mouse.dy += e.movementY; } if (typeof e.buttons === 'number') mouse.buttons = e.buttons & 7; }); // the browser's own button mask heals a missed mouseup (a two-finger click on a Mac trackpad can lose one)
     document.addEventListener('pointerlockerror', () => { fallback = true; locked = false; });
     document.addEventListener('mousedown', e => { if (e.button === 0) { mouse.clicked++; mouse.buttons |= 1; } if (e.button === 2) { mouse.rclicked++; mouse.buttons |= 2; } if (e.button === 1) mouse.buttons |= 4; if (wantLock && !locked) requestLock(); });
     document.addEventListener('mouseup', e => { if (e.button === 0) mouse.buttons &= ~1; if (e.button === 2) mouse.buttons &= ~2; if (e.button === 1) mouse.buttons &= ~4; });
@@ -29,10 +29,13 @@ const INPUT = (() => {
   }
   const down = code => !!keys[code];
   const hit = code => !!pressed[code];
-  function endFrame() { for (const k in pressed) pressed[k] = false; mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0; mouse.clicked = 0; mouse.rclicked = 0; for (let i = 0; i < pad.pressed.length; i++) pad.pressed[i] = false; }
+  // The per-frame edges (key presses, clicks, mouse motion, wheel) are consumed by the first simulation step of a frame;
+  // held keys and buttons stay for the following sub-steps.
+  function consumeEdges() { for (const k in pressed) pressed[k] = false; mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0; mouse.clicked = 0; mouse.rclicked = 0; for (let i = 0; i < pad.pressed.length; i++) pad.pressed[i] = false; }
+  const endFrame = consumeEdges;
   // For recordings: the whole input state of a frame as plain data, and back.
   function snapshot() { const k = [], p = []; for (const c in keys) if (keys[c]) k.push(c); for (const c in pressed) if (pressed[c]) p.push(c); return { k, p, m: [mouse.dx, mouse.dy, mouse.buttons, mouse.wheel, mouse.clicked, mouse.rclicked] }; }
   function restore(s) { for (const c in keys) keys[c] = false; for (const c of s.k) keys[c] = true; for (const c in pressed) pressed[c] = false; for (const c of s.p) pressed[c] = true; [mouse.dx, mouse.dy, mouse.buttons, mouse.wheel, mouse.clicked, mouse.rclicked] = s.m; }
-  const api = { init, down, hit, mouse, pad, pollPad, endFrame, snapshot, restore, requestLock, releaseLock, get locked() { return locked || fallback; }, get fallback() { return fallback; }, onLockLost: null, typed: '' };
+  const api = { init, down, hit, mouse, pad, pollPad, endFrame, consumeEdges, snapshot, restore, requestLock, releaseLock, get locked() { return locked || fallback; }, get fallback() { return fallback; }, onLockLost: null, typed: '' };
   return api;
 })();

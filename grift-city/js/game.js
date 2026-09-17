@@ -2,10 +2,21 @@
 'use strict';
 const GAME = (() => {
   const quality = { shadows: true };
-  const options = { sensitivity: 1.0, invertY: false, bloom: true, resolution: 1.5, shadows: true };
+  const options = { sensitivity: 1.0, invertY: false, bloom: true, resolution: 1.25, shadows: true, auto: true };
+  // Adaptive quality: when frames stay slow the renderer steps down (render scale, ambient occlusion, shadows, post) one
+  // level at a time, and steps back up when there is headroom. A slow machine gets a game that runs at full speed.
+  const auto = { level: 0, ema: 16, slowT: 0, fastT: 0, told: false, warm: 0, raises: 0 };
+  const AUTO_LEVELS = 5, AO_STRENGTH = 0.75, STEP = 1 / 60, MAX_STEPS = 6;
   function loadOptions() { try { Object.assign(options, JSON.parse(localStorage.getItem('grift-city-options') || '{}')); } catch (e) { } applyOptions(); }
   function saveOptions() { try { localStorage.setItem('grift-city-options', JSON.stringify(options)); } catch (e) { } applyOptions(); }
-  function applyOptions() { quality.shadows = options.shadows; RENDER.post.enabled = options.bloom; RENDER.post.dprCap = options.resolution; }
+  function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 4; RENDER.post.enabled = options.bloom && L < 5; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
+  function autoQuality(raw) {
+    if (!options.auto || window.__pt || state !== 'playing') return; auto.warm += raw; if (auto.warm < 4) return; // the first seconds after a load are shader warm-up, not a slow machine
+    const ms = Math.min(120, raw * 1000); auto.ema += (ms - auto.ema) * 0.06;
+    if (auto.ema > 30) { auto.slowT += raw; auto.fastT = 0; } else if (auto.ema < 17.5) { auto.fastT += raw; auto.slowT = 0; } else { auto.slowT = 0; auto.fastT = 0; }
+    if (auto.slowT > 2.5 && auto.level < AUTO_LEVELS) { auto.level++; auto.slowT = 0; auto.ema = 22; applyOptions(); if (!auto.told) { auto.told = true; HUD.notify('Slow frames: lowering render quality automatically (see the pause menu).'); } }
+    else if (auto.fastT > 20 && auto.level > 0 && auto.raises < 2) { auto.level--; auto.raises++; auto.fastT = 0; auto.ema = 22; applyOptions(); }
+  }
   let canvas, hud, state = 'loading', last = 0, staticMesh = null, waterMesh = null, propList = [], started = false, accum = 0;
   const SAVE_KEY = 'grift-city-save-v1';
   function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } }
@@ -41,7 +52,7 @@ const GAME = (() => {
   const scene = { statics: [], props: [], entities: [], flat: W.F, particles: W.P };
   function frame(now) {
     requestAnimationFrame(frame);
-    let dt = Math.min(0.05, (now - last) / 1000); last = now; INPUT.pollPad();
+    const raw = Math.max(0, (now - last) / 1000); let dt = Math.min(0.1, raw); last = now; INPUT.pollPad(); autoQuality(raw);
     if (window.__pt) { // playtest mode: fixed timestep, render every N steps, full quality only on request
       const pt = window.__pt; if (pt.paused) { INPUT.endFrame(); return; } dt = pt.dt; pt.n = (pt.n || 0) + 1; const shot = pt.wantShot;
       if (pt.replay) { const s = pt.replay[pt.n - 1]; if (s) INPUT.restore(s); else { pt.paused = true; pt.done = true; INPUT.endFrame(); return; } } // a recording drives the inputs instead of a bot
@@ -63,18 +74,21 @@ const GAME = (() => {
       if (INPUT.hit('KeyK')) { options.shadows = !options.shadows; saveOptions(); }
       if (INPUT.hit('KeyB')) { options.bloom = !options.bloom; saveOptions(); }
       if (INPUT.hit('KeyI')) { options.invertY = !options.invertY; saveOptions(); }
-      if (INPUT.hit('KeyP')) { options.resolution = options.resolution >= 1.5 ? 1.0 : options.resolution >= 1.0 ? 0.75 : 1.5; saveOptions(); }
+      if (INPUT.hit('KeyP')) { options.resolution = options.resolution >= 1.5 ? 0.75 : options.resolution >= 1.25 ? 1.5 : options.resolution >= 1.0 ? 1.25 : 1.0; saveOptions(); }
+      if (INPUT.hit('KeyA')) { options.auto = !options.auto; auto.level = 0; auto.slowT = auto.fastT = 0; saveOptions(); }
       if (INPUT.hit('BracketLeft')) { options.sensitivity = Math.max(0.3, +(options.sensitivity - 0.1).toFixed(1)); saveOptions(); }
       if (INPUT.hit('BracketRight')) { options.sensitivity = Math.min(3, +(options.sensitivity + 0.1).toFixed(1)); saveOptions(); }
     }
     if (state === 'paused' && INPUT.hit('KeyN')) newGame();
     if (state === 'playing' && !INPUT.locked && INPUT.mouse.clicked) INPUT.requestLock();
     if (state === 'paused' && INPUT.mouse.clicked) { state = 'playing'; INPUT.requestLock(); }
-    if (state === 'playing' && !window.__manual) { step(dt); }
-    fpsAcc += dt; fpsN++; if (fpsAcc > 1) { window.__fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
+    // the world advances in steps no longer than a 60 Hz frame: a slow frame is simulated as several small steps rather
+    // than one big one, so the game keeps real-time pace down to ten frames a second and the physics never sees a jump
+    if (state === 'playing' && !window.__manual) { const n = Math.min(MAX_STEPS, Math.max(1, Math.ceil(dt / STEP - 1e-6))); const h = dt / n; for (let i = 0; i < n; i++) { step(h); if (i < n - 1) INPUT.consumeEdges(); } }
+    fpsAcc += raw; fpsN++; if (fpsAcc > 1) { window.__fps = fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
     renderWorld(dt, false); if (state === 'photo' && photo.shot) { photo.shot = false; savePhoto(); } HUD.draw(dt, state, photo); INPUT.endFrame();
   }
-  let fpsAcc = 0, fpsN = 0; const nearSounds = { park: null, water: null };
+  let fpsAcc = 0, fpsN = 0, fps = 0; const nearSounds = { park: null, water: null };
   // ---- Photo mode: the world freezes and the camera is yours. WASD/QE fly, mouse looks, wheel zooms, click or Enter saves a PNG.
   let photo = null;
   function updatePhoto(dt) { const m = INPUT.mouse; const sens = 0.0022 * (options.sensitivity || 1); photo.yaw -= m.dx * sens; photo.pitch = M.clamp(photo.pitch - m.dy * sens * (options.invertY ? -1 : 1), -1.4, 1.4);
@@ -183,5 +197,5 @@ const GAME = (() => {
     RENDER.render(canvas, scene, W.state.elapsed);
   }
   window.addEventListener('load', boot);
-  return { quality, options, save, load, hasSave, newGame, onPackage, get state() { return state; }, set state(s) { state = s; }, startPlay };
+  return { quality, options, auto, save, load, hasSave, newGame, onPackage, get state() { return state; }, set state(s) { state = s; }, get fps() { return fps; }, startPlay };
 })();
