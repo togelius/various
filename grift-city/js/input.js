@@ -6,7 +6,7 @@ const INPUT = (() => {
   const pad = { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, buttons: [], pressed: [], active: false };
   function init(c) {
     canvas = c;
-    window.addEventListener('keydown', e => { if (!keys[e.code]) pressed[e.code] = true; keys[e.code] = true; if (e.key && e.key.length === 1) { api.typed = (api.typed + e.key.toUpperCase()).slice(-12); } if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyF', 'F1'].includes(e.code) || e.code.startsWith('Digit')) e.preventDefault(); });
+    window.addEventListener('keydown', e => { if (!keys[e.code]) pressed[e.code] = true; keys[e.code] = true; if (e.key && e.key.length === 1) { api.typed = (api.typed + e.key.toUpperCase()).slice(-12); } if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyF', 'F1', 'AltLeft', 'AltRight'].includes(e.code) || e.code.startsWith('Digit')) e.preventDefault(); });
     window.addEventListener('keyup', e => { keys[e.code] = false; });
     window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.buttons = 0; });
     document.addEventListener('mousemove', e => { if (locked || fallback) { mouse.dx += e.movementX; mouse.dy += e.movementY; } });

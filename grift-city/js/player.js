@@ -146,7 +146,8 @@ const PLAYER = (() => {
     const [ix, iz] = inputMove(); const pad = INPUT.pad; const wp = WEAPONS[P.weapon];
     const sprint = INPUT.down('ShiftLeft') || INPUT.down('ShiftRight') || pad.buttons[0];
     const firing = (INPUT.mouse.buttons & 1) || pad.rt > 0.5 || INPUT.down('ControlLeft');
-    P.aim = ((INPUT.mouse.buttons & 2) || pad.lt > 0.5 || firing) && !wp.melee ? 1 : 0;
+    const aimKey = INPUT.down('AltLeft') || INPUT.down('AltRight') || INPUT.down('KeyC'); // trackpads have no right button: Option/Alt or C aims
+    P.aim = ((INPUT.mouse.buttons & 2) || aimKey || pad.lt > 0.5 || firing) && !wp.melee ? 1 : 0;
     // camera-relative movement
     const fy = P.camYaw; const fwd = [Math.sin(fy), Math.cos(fy)], right = [-Math.cos(fy), Math.sin(fy)];
     let mx = fwd[0] * iz + right[0] * ix, mz = fwd[1] * iz + right[1] * ix; const moving = Math.hypot(mx, mz) > 0.01;

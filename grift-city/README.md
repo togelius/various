@@ -46,7 +46,7 @@ this directory.
 | Move / drive          | `WASD` or arrows                           |
 | Look / aim            | mouse (click the game to capture it)       |
 | Attack / fire         | left mouse button                          |
-| Aim                   | right mouse button                         |
+| Aim                   | right mouse button, two-finger click, or hold Option/Alt or `C` |
 | Sprint                | `Shift`                                    |
 | Jump / handbrake      | `Space`                                    |
 | Enter or leave a car  | `F`                                        |
@@ -193,7 +193,9 @@ crosshair line rather than from the player's feet (the aim camera sits
 half a metre to the side, so the two lines do not coincide), the mouse
 slows while you aim and slows further over a target, the crosshair
 settles onto anyone you are nearly on and turns red when it has them,
-and the aim camera keeps the crosshair near body height.
+and the aim camera keeps the crosshair near body height. Aim with the
+right mouse button, a two-finger click on a trackpad, or by holding
+Option/Alt or `C`; fire with a click or `Ctrl`.
 
 ## The police
 
