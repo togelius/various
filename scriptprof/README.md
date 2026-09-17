@@ -72,3 +72,27 @@ node scriptprof/test/check.js
 
 Parser, push/pull/block, BFS on every seed, and a short evolutionary run
 that has to leave at least one playable elite in the archive.
+
+## Python layer (`prof/`)
+
+The browser lab above is a subset engine. The research pipeline in `PLAN.md`
+runs on the real thing: the original PuzzleScript compiler and the C++ engine
+and solvers from the [PuzzleJAX / script-doctor](https://github.com/smearle/script-doctor)
+repository, vendored under `vendor/` by `tools/setup_vendor.sh` (which also
+applies `vendor-patches/` — rule-firing counters in the C++ engine).
+
+| | |
+|---|---|
+| `prof/engine.py` | compile via Node (`tools/compile_cli.js`), C++ BFS / A* / GBFS, replay, rule coverage |
+| `prof/concepts.py` | static concept vector (text + compiled state), the descriptor space |
+| `prof/fitness.py` | hierarchical fitness: compiles, solvable, non-trivial, coverage, progression |
+| `prof/mutate.py` | LLM mutation operator through a local Ollama model, with compile-error repair |
+| `prof/evolve.py` | MAP-Elites over games, resumable archive under `data/evolve/` |
+| `prof/census.py` | corpus census: every scraped game compiled, every level searched |
+| `tests/` | `vendor/script-doctor/.venv/bin/python -m pytest -q tests` |
+
+```sh
+tools/setup_vendor.sh                                    # once
+vendor/script-doctor/.venv/bin/python -m prof.census     # ~1 h on 10 cores
+vendor/script-doctor/.venv/bin/python -m prof.evolve --seeds sokoban_basic kettle --gens 10
+```
