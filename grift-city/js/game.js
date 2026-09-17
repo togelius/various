@@ -147,9 +147,9 @@ const GAME = (() => {
     // population management
     const px = PLAYER.x, pz = PLAYER.z, yaw = W.state.camYaw;
     const busy = W.bustle(W.state.time); // rush hours fill the streets, the small hours empty them
-    if (W.state.frame % 4 === 0) VEH.spawnTraffic(px, pz, yaw, Math.round(12 + 24 * busy));
-    if (W.state.frame % 3 === 0) PEDS.populate(px, pz, yaw, Math.round(12 + 46 * busy));
-    if (W.state.frame % 20 === 10) { PEDS.trim(px, pz, yaw, Math.round(12 + 46 * busy)); VEH.trim(px, pz, yaw, Math.round(12 + 24 * busy)); }
+    if (W.state.frame % 4 === 0) VEH.spawnTraffic(px, pz, yaw, Math.round(18 + 34 * busy));
+    if (W.state.frame % 3 === 0) PEDS.populate(px, pz, yaw, Math.round(18 + 62 * busy));
+    if (W.state.frame % 20 === 10) { PEDS.trim(px, pz, yaw, Math.round(18 + 62 * busy)); VEH.trim(px, pz, yaw, Math.round(18 + 34 * busy)); }
     if (W.state.frame % 30 === 0) { VEH.despawn(px, pz); PEDS.despawn(px, pz); }
     updateGrade(dt, px, pz);
     AUDIO.listener(px, pz); AUDIO.rain(CITY.interiorRoom ? 0 : W.weather.rain, !!PLAYER.car); if (W.state.frame % 20 === 0) { let n = 0; for (const c of W.cars) if (!c.removed && c.absSpeed > 2 && M.dist2(c.x, c.z, px, pz) < 60 * 60) n++; AUDIO.traffic(Math.min(1, n / 8)); } AUDIO.radioTick(dt, !!PLAYER.car || !!CITY.interiorRoom); if (!PLAYER.car) { AUDIO.engine(false, 0, 0); AUDIO.screech(0); }

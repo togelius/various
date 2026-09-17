@@ -390,9 +390,9 @@ const VEH = (() => {
     for (let tries = 0; tries < 6; tries++) {
       const e = CITY.roadEdges[Math.floor(W.rng() * CITY.roadEdges.length)]; const L = CITY.laneLen(e); const s = W.rng() * (L - 10) + 5; const lane = W.rng() < 0.6 ? 0 : 1;
       const [x, z] = CITY.lanePoint(e, lane, s); const d = M.dist(x, z, px, pz);
-      if (d < 70 || d > 190) continue;
+      if (d < 55 || d > 190) continue;
       // don't spawn in front of the camera unless far
-      const ang = Math.atan2(x - px, z - pz); if (d < 140 && Math.abs(M.angleTo(camYaw, ang)) < 0.9) continue;
+      const ang = Math.atan2(x - px, z - pz); if (d < 95 && Math.abs(M.angleTo(camYaw, ang)) < 0.9 && W.los(px, pz, x, z)) continue; // round a corner is fine
       let clear = true; for (const c of W.cars) if (!c.removed && M.dist2(c.x, c.z, x, z) < 100) { clear = false; break; } if (!clear) continue;
       const type = trafficTypeFor(x, z); const v = spawn(type, x, z, 0, { mode: 'traffic' }); v.placeOnLane(e, lane, s);
       v.driver = PEDS.spawnDriver(v); v.lightsOn = W.isNight();

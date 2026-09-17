@@ -2829,9 +2829,9 @@ const VEH = (() => {
     for (let tries = 0; tries < 6; tries++) {
       const e = CITY.roadEdges[Math.floor(W.rng() * CITY.roadEdges.length)]; const L = CITY.laneLen(e); const s = W.rng() * (L - 10) + 5; const lane = W.rng() < 0.6 ? 0 : 1;
       const [x, z] = CITY.lanePoint(e, lane, s); const d = M.dist(x, z, px, pz);
-      if (d < 70 || d > 190) continue;
+      if (d < 55 || d > 190) continue;
       // don't spawn in front of the camera unless far
-      const ang = Math.atan2(x - px, z - pz); if (d < 140 && Math.abs(M.angleTo(camYaw, ang)) < 0.9) continue;
+      const ang = Math.atan2(x - px, z - pz); if (d < 95 && Math.abs(M.angleTo(camYaw, ang)) < 0.9 && W.los(px, pz, x, z)) continue; // round a corner is fine
       let clear = true; for (const c of W.cars) if (!c.removed && M.dist2(c.x, c.z, x, z) < 100) { clear = false; break; } if (!clear) continue;
       const type = trafficTypeFor(x, z); const v = spawn(type, x, z, 0, { mode: 'traffic' }); v.placeOnLane(e, lane, s);
       v.driver = PEDS.spawnDriver(v); v.lightsOn = W.isNight();
@@ -3194,8 +3194,8 @@ const PEDS = (() => {
         const a = bn.a || 0; const side = W.rng() < 0.5 ? 0.45 : -0.45; const p = spawn(bn.x + Math.cos(a) * side, bn.z - Math.sin(a) * side, {}); p.state = 'sit'; p.seat = { x: p.x, y: CITY.groundY(bn.x, bn.z) + 0.46, z: p.z, a: a }; p.angle = a; bn.taken = true; p.onRemove = () => { bn.taken = false; }; return; }
     }
     for (let tries = 0; tries < 8; tries++) {
-      const n = CITY.walkNodes[Math.floor(W.rng() * CITY.walkNodes.length)]; const d = M.dist(n.x, n.z, px, pz); if (d < 40 || d > 130) continue;
-      const ang = Math.atan2(n.x - px, n.z - pz); if (d < 90 && Math.abs(M.angleTo(camYaw, ang)) < 0.8) continue;
+      const n = CITY.walkNodes[Math.floor(W.rng() * CITY.walkNodes.length)]; const d = M.dist(n.x, n.z, px, pz); if (d < 28 || d > 130) continue;
+      const ang = Math.atan2(n.x - px, n.z - pz); if (d < 48 && Math.abs(M.angleTo(camYaw, ang)) < 0.8 && W.los(px, pz, n.x, n.z)) continue; // in front of the camera is fine if a building hides the spot
       if (r > 0.82) { // two people talking
         const a = spawn(n.x + 0.5, n.z, { node: n }), b2 = spawn(n.x - 0.5, n.z, { node: n }); a.state = b2.state = 'chat'; a.partner = b2; b2.partner = a; a.angle = -Math.PI / 2; b2.angle = Math.PI / 2; a.gestureT = W.rng() * 3; b2.gestureT = W.rng() * 3; return;
       }
@@ -4506,9 +4506,9 @@ const GAME = (() => {
     // population management
     const px = PLAYER.x, pz = PLAYER.z, yaw = W.state.camYaw;
     const busy = W.bustle(W.state.time); // rush hours fill the streets, the small hours empty them
-    if (W.state.frame % 4 === 0) VEH.spawnTraffic(px, pz, yaw, Math.round(12 + 24 * busy));
-    if (W.state.frame % 3 === 0) PEDS.populate(px, pz, yaw, Math.round(12 + 46 * busy));
-    if (W.state.frame % 20 === 10) { PEDS.trim(px, pz, yaw, Math.round(12 + 46 * busy)); VEH.trim(px, pz, yaw, Math.round(12 + 24 * busy)); }
+    if (W.state.frame % 4 === 0) VEH.spawnTraffic(px, pz, yaw, Math.round(18 + 34 * busy));
+    if (W.state.frame % 3 === 0) PEDS.populate(px, pz, yaw, Math.round(18 + 62 * busy));
+    if (W.state.frame % 20 === 10) { PEDS.trim(px, pz, yaw, Math.round(18 + 62 * busy)); VEH.trim(px, pz, yaw, Math.round(18 + 34 * busy)); }
     if (W.state.frame % 30 === 0) { VEH.despawn(px, pz); PEDS.despawn(px, pz); }
     updateGrade(dt, px, pz);
     AUDIO.listener(px, pz); AUDIO.rain(CITY.interiorRoom ? 0 : W.weather.rain, !!PLAYER.car); if (W.state.frame % 20 === 0) { let n = 0; for (const c of W.cars) if (!c.removed && c.absSpeed > 2 && M.dist2(c.x, c.z, px, pz) < 60 * 60) n++; AUDIO.traffic(Math.min(1, n / 8)); } AUDIO.radioTick(dt, !!PLAYER.car || !!CITY.interiorRoom); if (!PLAYER.car) { AUDIO.engine(false, 0, 0); AUDIO.screech(0); }

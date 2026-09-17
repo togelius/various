@@ -344,8 +344,8 @@ const PEDS = (() => {
         const a = bn.a || 0; const side = W.rng() < 0.5 ? 0.45 : -0.45; const p = spawn(bn.x + Math.cos(a) * side, bn.z - Math.sin(a) * side, {}); p.state = 'sit'; p.seat = { x: p.x, y: CITY.groundY(bn.x, bn.z) + 0.46, z: p.z, a: a }; p.angle = a; bn.taken = true; p.onRemove = () => { bn.taken = false; }; return; }
     }
     for (let tries = 0; tries < 8; tries++) {
-      const n = CITY.walkNodes[Math.floor(W.rng() * CITY.walkNodes.length)]; const d = M.dist(n.x, n.z, px, pz); if (d < 40 || d > 130) continue;
-      const ang = Math.atan2(n.x - px, n.z - pz); if (d < 90 && Math.abs(M.angleTo(camYaw, ang)) < 0.8) continue;
+      const n = CITY.walkNodes[Math.floor(W.rng() * CITY.walkNodes.length)]; const d = M.dist(n.x, n.z, px, pz); if (d < 28 || d > 130) continue;
+      const ang = Math.atan2(n.x - px, n.z - pz); if (d < 48 && Math.abs(M.angleTo(camYaw, ang)) < 0.8 && W.los(px, pz, n.x, n.z)) continue; // in front of the camera is fine if a building hides the spot
       if (r > 0.82) { // two people talking
         const a = spawn(n.x + 0.5, n.z, { node: n }), b2 = spawn(n.x - 0.5, n.z, { node: n }); a.state = b2.state = 'chat'; a.partner = b2; b2.partner = a; a.angle = -Math.PI / 2; b2.angle = Math.PI / 2; a.gestureT = W.rng() * 3; b2.gestureT = W.rng() * 3; return;
       }
