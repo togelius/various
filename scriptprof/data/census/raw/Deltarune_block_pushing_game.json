@@ -1,0 +1,1 @@
+{"game": "Deltarune_block_pushing_game", "bytes": 881, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 8, "h": 6, "solved": true, "len": 20, "iters": 4771, "time": 0.2014, "timeout": false, "actions": [0, 0, 2, 3, 2, 3, 0, 0, 0, 1, 1, 2, 1, 0, 3, 0, 1, 3, 3, 3], "replay_won": true}], "compile_time": 0.07935523986816406, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "twolittlecrates2", "bytes": 1188, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 16, "h": 7, "solved": false, "len": 17, "iters": 50568, "time": 5.0635, "timeout": true, "actions": null}], "compile_time": 0.08269047737121582, "n_entries": 1}

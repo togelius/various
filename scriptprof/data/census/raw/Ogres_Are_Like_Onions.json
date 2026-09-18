@@ -1,0 +1,1 @@
+{"game": "Ogres_Are_Like_Onions", "bytes": 6893, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 96, "h": 12, "solved": false, "len": 47, "iters": 3278, "time": 5.0312, "timeout": true, "actions": null}], "compile_time": 0.11118626594543457, "n_entries": 8}

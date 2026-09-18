@@ -1,0 +1,1 @@
+{"game": "Depth-First_Maze", "bytes": 1355, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 21, "h": 21, "solved": false, "len": 129, "iters": 996, "time": 0.3339, "timeout": false, "actions": null}], "compile_time": 0.08359360694885254, "n_entries": 1}

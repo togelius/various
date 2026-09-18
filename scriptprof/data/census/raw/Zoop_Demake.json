@@ -1,0 +1,1 @@
+{"game": "Zoop_Demake", "bytes": 7742, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 20, "h": 20, "solved": false, "len": 7, "iters": 64, "time": 0.029, "timeout": false, "actions": null}], "compile_time": 0.11973285675048828, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "Cell_Division", "bytes": 1352, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 12, "h": 12, "solved": false, "len": 21, "iters": 40035, "time": 5.0031, "timeout": true, "actions": null}], "compile_time": 0.08675479888916016, "n_entries": 1}

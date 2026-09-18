@@ -1,0 +1,1 @@
+{"game": "Kill_the_eyes", "bytes": 954, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 7, "solved": true, "len": 12, "iters": 974, "time": 0.0678, "timeout": false, "actions": [3, 2, 3, 3, 2, 3, 3, 0, 0, 0, 1, 0], "replay_won": true}], "compile_time": 0.07674002647399902, "n_entries": 2}

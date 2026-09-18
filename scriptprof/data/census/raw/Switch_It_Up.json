@@ -1,0 +1,1 @@
+{"game": "Switch_It_Up", "bytes": 2049, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 14, "h": 8, "solved": false, "len": 14, "iters": 246, "time": 0.0182, "timeout": false, "actions": null}], "compile_time": 0.08177351951599121, "n_entries": 1}

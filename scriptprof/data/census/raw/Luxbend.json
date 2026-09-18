@@ -1,0 +1,1 @@
+{"game": "Luxbend", "bytes": 7509, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 7, "h": 7, "solved": false, "len": 11, "iters": 45852, "time": 5.0419, "timeout": true, "actions": null}], "compile_time": 0.10840487480163574, "n_entries": 3}

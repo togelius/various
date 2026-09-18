@@ -1,0 +1,1 @@
+{"game": "the_camel_and_th_", "bytes": 11629, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 63, "h": 63, "solved": true, "len": 3, "iters": 5, "time": 0.0268, "timeout": false, "actions": [0, 0, 3], "replay_won": true}], "compile_time": 0.2007460594177246, "n_entries": 2}

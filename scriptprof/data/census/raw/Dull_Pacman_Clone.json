@@ -1,0 +1,1 @@
+{"game": "Dull_Pacman_Clone", "bytes": 2536, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 27, "h": 11, "solved": false, "len": 15, "iters": 20208, "time": 5.0176, "timeout": true, "actions": null}], "compile_time": 0.08931207656860352, "n_entries": 2}

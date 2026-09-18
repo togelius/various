@@ -1,0 +1,1 @@
+{"game": "Airport_Aggression", "bytes": 13729, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 31, "h": 80, "solved": false, "len": 5, "iters": 331, "time": 5.0395, "timeout": true, "actions": null}], "compile_time": 0.11790800094604492, "n_entries": 2}

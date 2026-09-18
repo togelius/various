@@ -1,0 +1,1 @@
+{"game": "5_step_steve_DEMAKE", "bytes": 34188, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 176, "h": 112, "solved": false, "len": 7, "iters": 66, "time": 5.0098, "timeout": true, "actions": null}], "compile_time": 0.1878201961517334, "n_entries": 7}

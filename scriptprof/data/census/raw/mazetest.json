@@ -1,0 +1,1 @@
+{"game": "mazetest", "bytes": 2573, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 40, "h": 30, "solved": false, "len": 29, "iters": 3667, "time": 5.0551, "timeout": true, "actions": null}], "compile_time": 0.09792780876159668, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "MatchLess_0.2", "bytes": 8470, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 15, "h": 32, "solved": false, "len": 17, "iters": 1701, "time": 5.0498, "timeout": true, "actions": null}], "compile_time": 0.10590410232543945, "n_entries": 2}

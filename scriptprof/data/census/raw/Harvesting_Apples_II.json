@@ -1,0 +1,1 @@
+{"game": "Harvesting_Apples_II", "bytes": 2131, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 9, "solved": false, "len": 25, "iters": 60798, "time": 5.0446, "timeout": true, "actions": null}], "compile_time": 0.08428335189819336, "n_entries": 5}

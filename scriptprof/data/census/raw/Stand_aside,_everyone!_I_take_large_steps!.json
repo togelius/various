@@ -1,0 +1,1 @@
+{"game": "Stand_aside,_everyone!_I_take_large_steps!", "bytes": 1457, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 11, "solved": false, "len": 24, "iters": 38378, "time": 3.6339, "timeout": false, "actions": null}], "compile_time": 0.08125448226928711, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "Painter", "bytes": 3795, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 43, "h": 26, "solved": false, "len": 11, "iters": 6014, "time": 5.0045, "timeout": true, "actions": null}], "compile_time": 0.09923505783081055, "n_entries": 2}

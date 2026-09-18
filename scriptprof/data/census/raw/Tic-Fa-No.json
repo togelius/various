@@ -1,0 +1,1 @@
+{"game": "Tic-Fa-No", "bytes": 29796, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 8, "solved": false, "len": 9, "iters": 121, "time": 0.0304, "timeout": false, "actions": null}], "compile_time": 0.22748374938964844, "n_entries": 1}

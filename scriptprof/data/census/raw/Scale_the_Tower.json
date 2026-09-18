@@ -1,0 +1,1 @@
+{"game": "Scale_the_Tower", "bytes": 1803, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 7, "h": 7, "solved": false, "len": 6, "iters": 12, "time": 0.0008, "timeout": false, "actions": null}], "compile_time": 0.08847856521606445, "n_entries": 1}

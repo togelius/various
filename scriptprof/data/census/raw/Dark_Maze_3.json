@@ -1,0 +1,1 @@
+{"game": "Dark_Maze_3", "bytes": 1863, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 17, "h": 25, "solved": true, "len": 8, "iters": 19, "time": 0.033, "timeout": false, "actions": [2, 2, 2, 2, 3, 3, 2, 2], "replay_won": false}], "compile_time": 0.08893847465515137, "n_entries": 1}

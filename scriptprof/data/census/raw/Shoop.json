@@ -1,0 +1,1 @@
+{"game": "Shoop", "bytes": 1207, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 6, "h": 9, "solved": false, "len": 17, "iters": 21717, "time": 5.0105, "timeout": true, "actions": null}], "compile_time": 0.08588576316833496, "n_entries": 1}

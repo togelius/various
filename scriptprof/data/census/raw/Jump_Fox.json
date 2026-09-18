@@ -1,0 +1,1 @@
+{"game": "Jump_Fox", "bytes": 1645, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 6, "h": 6, "solved": false, "len": 16, "iters": 303, "time": 0.011, "timeout": false, "actions": null}], "compile_time": 0.09625601768493652, "n_entries": 1}

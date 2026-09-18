@@ -1,0 +1,1 @@
+{"game": "castlecloset", "bytes": 7163, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 24, "h": 16, "solved": true, "len": 26, "iters": 2867, "time": 0.9621, "timeout": false, "actions": [0, 0, 0, 3, 3, 3, 3, 3, 2, 2, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 4], "replay_won": true}], "compile_time": 0.1124105453491211, "n_entries": 5}

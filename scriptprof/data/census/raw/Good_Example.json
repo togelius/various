@@ -1,0 +1,1 @@
+{"game": "Good_Example", "bytes": 2473, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 24, "h": 9, "solved": false, "len": 13, "iters": 15803, "time": 5.0351, "timeout": true, "actions": null}], "compile_time": 0.08274126052856445, "n_entries": 3}

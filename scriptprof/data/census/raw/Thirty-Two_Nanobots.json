@@ -1,0 +1,1 @@
+{"game": "Thirty-Two_Nanobots", "bytes": 1095, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 12, "h": 9, "solved": false, "len": 11, "iters": 27799, "time": 5.0516, "timeout": true, "actions": null}], "compile_time": 0.08022332191467285, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "W3RDS", "bytes": 243648, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 19, "h": 11, "solved": false, "len": 7, "iters": 1390, "time": 5.0673, "timeout": true, "actions": null}], "compile_time": 5.769987106323242, "n_entries": 1}

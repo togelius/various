@@ -1,0 +1,1 @@
+{"game": "rigid_11", "bytes": 1028, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 6, "h": 7, "solved": false, "len": 12, "iters": 127, "time": 0.0054, "timeout": false, "actions": null}], "compile_time": 0.08599424362182617, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "Rush_Hour", "bytes": 2361, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 11, "h": 8, "solved": false, "len": 35, "iters": 34391, "time": 5.0475, "timeout": true, "actions": null}], "compile_time": 0.08757233619689941, "n_entries": 1}

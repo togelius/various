@@ -1,0 +1,1 @@
+{"game": "Twin_Drop", "bytes": 4583, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 17, "h": 12, "solved": false, "len": 0, "iters": 12603, "time": 5.0039, "timeout": true, "actions": null}], "compile_time": 0.09925365447998047, "n_entries": 6}

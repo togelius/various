@@ -1,0 +1,1 @@
+{"game": "Zaap", "bytes": 5297, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 18, "h": 14, "solved": false, "len": 17, "iters": 1280, "time": 0.2518, "timeout": false, "actions": null}], "compile_time": 0.11528420448303223, "n_entries": 1}

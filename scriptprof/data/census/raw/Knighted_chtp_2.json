@@ -1,0 +1,1 @@
+{"game": "Knighted_chtp_2", "bytes": 6918, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 27, "h": 27, "solved": false, "len": 5, "iters": 451, "time": 5.0053, "timeout": true, "actions": null}], "compile_time": 0.1041414737701416, "n_entries": 7}

@@ -1,0 +1,1 @@
+{"game": "ironic_game", "bytes": 5162, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 18, "h": 28, "solved": false, "len": 8, "iters": 2811, "time": 5.0569, "timeout": true, "actions": null}], "compile_time": 0.11755514144897461, "n_entries": 1}

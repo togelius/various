@@ -1,0 +1,1 @@
+{"game": "spooki", "bytes": 15629, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 28, "h": 15, "solved": false, "len": 7, "iters": 636, "time": 5.0242, "timeout": true, "actions": null}], "compile_time": 0.14554786682128906, "n_entries": 1}

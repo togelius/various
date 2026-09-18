@@ -1,0 +1,1 @@
+{"game": "Impossible_Sokoban", "bytes": 1320, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 15, "h": 11, "solved": false, "len": 12, "iters": 22726, "time": 5.0318, "timeout": true, "actions": null}], "compile_time": 0.08787846565246582, "n_entries": 1}

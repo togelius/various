@@ -1,0 +1,1 @@
+{"game": "PENTAGO", "bytes": 17789, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 8, "h": 9, "solved": false, "len": 12, "iters": 15505, "time": 5.059, "timeout": true, "actions": null}], "compile_time": 0.22207331657409668, "n_entries": 1}

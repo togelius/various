@@ -1,0 +1,1 @@
+{"game": "Goblin_Slayer", "bytes": 13605, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 77, "h": 35, "solved": false, "len": 16, "iters": 620, "time": 5.0503, "timeout": true, "actions": null}], "compile_time": 0.18846607208251953, "n_entries": 12}

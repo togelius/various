@@ -1,0 +1,1 @@
+{"game": "Roze", "bytes": 1344, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 20, "h": 15, "solved": false, "len": 34, "iters": 16953, "time": 5.032, "timeout": true, "actions": null}], "compile_time": 0.08751463890075684, "n_entries": 3}

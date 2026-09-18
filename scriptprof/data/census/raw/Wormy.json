@@ -1,0 +1,1 @@
+{"game": "Wormy", "bytes": 2066, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 8, "h": 9, "solved": false, "len": 27, "iters": 41222, "time": 5.0136, "timeout": true, "actions": null}], "compile_time": 0.08666753768920898, "n_entries": 1}

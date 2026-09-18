@@ -1,0 +1,1 @@
+{"game": "Lufia_Puzzle_Remake", "bytes": 1468, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 16, "h": 9, "solved": false, "len": 27, "iters": 36394, "time": 5.0415, "timeout": true, "actions": null}], "compile_time": 0.08348894119262695, "n_entries": 1}

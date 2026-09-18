@@ -1,0 +1,1 @@
+{"game": "randomspawner", "bytes": 1019, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 7, "h": 7, "solved": false, "len": 8, "iters": 72554, "time": 5.0453, "timeout": true, "actions": null}], "compile_time": 0.08093142509460449, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "wrappingrecipe", "bytes": 524, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 7, "h": 7, "solved": false, "len": 4, "iters": 25, "time": 0.0009, "timeout": false, "actions": null}], "compile_time": 0.07469344139099121, "n_entries": 1}

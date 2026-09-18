@@ -4,13 +4,15 @@ Notes from building out the Python layer against the vendored PuzzleJAX
 engine. Written for whoever picks this up next; `PLAN.md` is the research
 plan, this is what actually happened when the code met the corpus.
 
-## Three bugs made solver solutions unreplayable
+## Four bugs made solver solutions unreplayable
 
 Rule coverage is the signal the plan leans on hardest: it is the check GAVEL
 could not perform in Ludii, and it is what separates "the search found a way
 through" from "the mechanics work as intended". It is computed by replaying a
 solver's action list and recording which rules fire. That replay did not
-reproduce what the solver did, for three independent reasons.
+reproduce what the solver did, for four independent reasons. The fourth only
+became visible once the first three were fixed, and only against the full
+corpus.
 
 **`again` ticks were not settled on replay.** A rule suffixed with `again`
 asks the engine for another turn, which is how PuzzleScript expresses gravity,
@@ -36,15 +38,25 @@ was reported solved with the action list `[0, 0]`, which does nothing at all;
 the real solution is a single ACTION. Any fitness computed for such a game was
 built on a replay that never reached the win state.
 
-All three are fixed in `vendor-patches/script-doctor.patch` and
+**`load_level` and `restore_level` disagreed about an already-won board.**
+Some levels satisfy their win conditions before any move. `load_level` set the
+win flag hard-false without consulting the board, while the fix above made
+`restore_level` recompute it. A search restores a board before each action, so
+it saw the win; a replay only loads, so it did not. The search credited the
+win to whichever action it tried first, and that one-move solution replayed to
+nothing. This was every solved level of Flood and Hitori. Searches now report
+a zero-move win when a level starts won, so callers can treat it as the
+degenerate level it is.
+
+All four are fixed in `vendor-patches/script-doctor.patch` and
 `prof/engine.py`, with regression tests. The restore fix recomputes the win
 state on every restore rather than trusting the cache, which costs about 4.5%
 of search throughput (23.3k against 24.5k expansions per second on the
 benchmark games). Recomputing only when the cached flag is already set would
 recover most of that and still rule out phantom wins, at the price of a
 subtler invariant; the flat version was kept while correctness is the thing
-being established. Across the sample games every solver
-solution now replays to a win, on all three search algorithms. The census
+being established. Across the whole corpus every solver solution now replays
+to a win: 4053 validated, zero deterministic mismatches. The census
 replays every solution it finds and reports the mismatches, so a future
 disagreement between search and engine shows up as a number instead of as
 quietly wrong coverage.
@@ -136,17 +148,63 @@ It is off by default in `prof.fitness.evaluate` because it costs a few
 thousand engine steps per level. Pass `insight=True`, or `--insight` to
 `prof.evolve`.
 
+## The corpus census, and what the descriptors say
+
+The full run, against the fixed engine: 952 games, 926 compiling, 7733
+playable levels, 4140 solved by breadth-first search inside 100k expansions or
+5 seconds. 168 games have every level solved. 14 games exhaust the 300 second
+per-game wall clock and 12 fail to compile.
+
+**Every solution replays.** Of 4053 solutions with an action list, zero
+deterministic games disagree with the engine. The 61 remaining mismatches are
+all in games with `random` rules, where search and replay draw from different
+RNG states, which is the limitation PuzzleJAX names for its own validation.
+
+**87 solved levels are won before any move.** A `no X` win condition where X
+only appears once the player acts, and similar. They are degenerate as
+puzzles whatever the engine scores them, and `prof.fitness` counts them as
+unsolved for that reason. Worth knowing that the corpus contains them: a
+generator rewarded for solvability will find this exploit if the fitness
+function does not exclude it.
+
+**The default MAP-Elites descriptors are too coarse.** 926 human games land in
+76 of the 100 cells of the default grid (rule count against mean solution
+length), about twelve games per occupied cell. GAVEL's criterion was the
+smallest archive that still separates distinct games, and this does not meet
+it: the archive cannot tell most human games apart, so a search over it cannot
+be credited with finding a genuinely new region.
+
+A two-dimensional PCA projection of the 75-feature concept vector, binned 40
+by 40 as GAVEL bins Ludii concepts, puts the same games in 555 cells, about
+1.7 games per cell. That is the resolution the plan's WP3 needs, and switching
+`DEFAULT_DESCRIPTORS` to the projection is a small change worth making before
+any archive results are reported.
+
+The first two components explain 29% of variance, which is close to the ~28%
+GAVEL reports for Ludii concepts on a different corpus in a different
+description language. They read cleanly:
+
+- **PC1 is mechanical complexity**: rule count, object count, how many rules
+  create or clear objects.
+- **PC2 is puzzle depth**: solution length, level count, number of win
+  conditions, fraction of levels solved.
+
+That second axis is close to what the fitness function is trying to measure,
+which is mild evidence the concept vector captures the right things.
+
 ## What to do next
 
-1. **Validate the metrics against human judgement.** Everything above is
+1. **Switch the archive descriptors to the PCA projection.** The default grid
+   collapses twelve human games into the average occupied cell.
+2. **Validate the metrics against human judgement.** Everything above is
    internally consistent but nothing is yet checked against whether people
    enjoy the games. That is WP2's real deliverable and it needs the itch.io
    metadata and a designer panel.
-2. **Cap the `again` loop in the C++ engine** so trusted callers can evaluate
+3. **Cap the `again` loop in the C++ engine** so trusted callers can evaluate
    in-process and get the throughput back.
-3. **Run the operator comparison.** Grammatical versus Ollama versus a
+4. **Run the operator comparison.** Grammatical versus Ollama versus a
    frontier model, same seeds, same budget, measured on archive coverage
    rather than compile rate.
-4. **Upstream the engine fixes.** All three replay bugs and the timeout bug
+5. **Upstream the engine fixes.** All four replay bugs and the timeout bug
    are in the vendored PuzzleJAX code, not in anything specific to this
    project. They affect anyone using its solvers to validate solutions.

@@ -1,0 +1,1 @@
+{"game": "Path_Finder", "bytes": 1510, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 21, "h": 21, "solved": false, "len": 17, "iters": 406, "time": 5.0178, "timeout": true, "actions": null}], "compile_time": 0.07775759696960449, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "King_of_walls", "bytes": 998, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 13, "h": 14, "solved": false, "len": 45, "iters": 29916, "time": 5.0132, "timeout": true, "actions": null}], "compile_time": 0.08127975463867188, "n_entries": 2}

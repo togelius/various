@@ -27,6 +27,11 @@ def main() -> None:
     solved = [l for l in levels if l["solved"]]
     timeouts = [l for l in levels if l.get("timeout")]
     replayed = [l for l in solved if "replay_won" in l]
+    # A level whose win conditions hold before any move: the search returns a
+    # zero-move win and there is no action list to replay. Worth counting,
+    # because such a level is degenerate as a puzzle however the engine scores
+    # it, and prof.fitness treats it as unsolved for exactly that reason.
+    zero_move = [l for l in solved if l.get("len") == 0]
     # A solution to a game with `random` rules is not expected to replay: the
     # search and the replay draw from different RNG states, the limitation
     # PuzzleJAX names for its own JavaScript-to-JAX validation. Only a
@@ -69,6 +74,7 @@ def main() -> None:
         f"| games flagged as using randomness | {len(rnd)} |",
         f"| playable levels | {len(levels)} |",
         f"| levels solved | {len(solved)} |",
+        f"| of those, won before any move (degenerate) | {len(zero_move)} |",
         f"| levels hitting the time budget | {len(timeouts)} |",
         f"| solutions replayed for validation | {len(replayed)} |",
         f"| replay mismatches, games using randomness (expected) | {len(replay_bad_rand)} |",

@@ -1,0 +1,1 @@
+{"game": "Crypt_of_the_Necrodancer__DEMAKE_", "bytes": 5846, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 26, "h": 21, "solved": false, "len": 1, "iters": 6, "time": 0.0236, "timeout": false, "actions": null}], "compile_time": 0.10840463638305664, "n_entries": 3}

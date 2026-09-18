@@ -1,0 +1,1 @@
+{"game": "Cannon_Fodder", "bytes": 5085, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 27, "h": 8, "solved": false, "len": 15, "iters": 21688, "time": 5.0148, "timeout": true, "actions": null}], "compile_time": 0.20072102546691895, "n_entries": 1}

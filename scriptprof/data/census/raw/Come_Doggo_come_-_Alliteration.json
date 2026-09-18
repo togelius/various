@@ -1,0 +1,1 @@
+{"game": "Come_Doggo_come_-_Alliteration", "bytes": 1363, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 23, "h": 9, "solved": false, "len": 58, "iters": 29428, "time": 5.0535, "timeout": true, "actions": null}], "compile_time": 0.07864022254943848, "n_entries": 4}

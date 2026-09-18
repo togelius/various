@@ -1,0 +1,1 @@
+{"game": "rigid_scott1", "bytes": 1431, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 16, "h": 13, "solved": false, "len": 16, "iters": 25220, "time": 5.034, "timeout": true, "actions": null}], "compile_time": 0.09432029724121094, "n_entries": 1}

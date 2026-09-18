@@ -1,0 +1,1 @@
+{"game": "the_gods_await_me", "bytes": 9030, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 49, "h": 49, "solved": true, "len": 3, "iters": 8, "time": 0.0558, "timeout": false, "actions": [0, 3, 0], "replay_won": true}], "compile_time": 0.11988997459411621, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "City_Founder", "bytes": 52396, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 101, "h": 35, "solved": false, "len": 8, "iters": 510, "time": 5.032, "timeout": true, "actions": null}], "compile_time": 2.7385170459747314, "n_entries": 9}

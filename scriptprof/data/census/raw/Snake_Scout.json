@@ -1,0 +1,1 @@
+{"game": "Snake_Scout", "bytes": 3254, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 11, "solved": false, "len": 18, "iters": 12255, "time": 5.0356, "timeout": true, "actions": null}], "compile_time": 0.26021289825439453, "n_entries": 1}

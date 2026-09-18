@@ -1,0 +1,1 @@
+{"game": "Dungeon_Walk_II__Stephen's_Delight", "bytes": 12357, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 66, "h": 51, "solved": false, "len": 31, "iters": 120, "time": 4.1977, "timeout": false, "actions": null}], "compile_time": 0.1670682430267334, "n_entries": 1}

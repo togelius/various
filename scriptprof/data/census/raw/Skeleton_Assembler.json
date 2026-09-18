@@ -1,0 +1,1 @@
+{"game": "Skeleton_Assembler", "bytes": 3368, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 19, "h": 12, "solved": false, "len": 17, "iters": 10163, "time": 5.0334, "timeout": true, "actions": null}], "compile_time": 0.0811300277709961, "n_entries": 2}

@@ -1,0 +1,1 @@
+{"game": "Nom", "bytes": 974, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 11, "h": 6, "solved": true, "len": 23, "iters": 28142, "time": 2.2629, "timeout": false, "actions": [1, 1, 1, 1, 2, 3, 3, 3, 3, 3, 0, 3, 2, 3, 3, 3, 0, 1, 1, 1, 1, 1, 1], "replay_won": true}], "compile_time": 0.07618451118469238, "n_entries": 1}

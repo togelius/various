@@ -1,0 +1,1 @@
+{"game": "randomrobots", "bytes": 726, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 11, "h": 9, "solved": false, "len": 8, "iters": 47653, "time": 5.0105, "timeout": true, "actions": null}], "compile_time": 0.07633018493652344, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "Channel", "bytes": 4730, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 13, "h": 222, "solved": false, "len": 7, "iters": 11, "time": 0.0232, "timeout": false, "actions": null}], "compile_time": 0.10120511054992676, "n_entries": 1}
