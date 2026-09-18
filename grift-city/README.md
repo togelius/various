@@ -278,6 +278,19 @@ east, weathered greys and teals by the water — so accents come from signs, car
 rather than from the walls. Shop signs lost a third of their saturation, car paint a third of
 its, the district grades no longer push saturation up, and the grass is a greyer green.
 
+Behind every window pane there is a room. The fragment shader treats each pane of a facade tile
+as the opening of a virtual box one pane wide, one storey tall and three metres deep, and
+intersects the view ray with it in the wall's tangent frame: you see a back wall, a side wall, a
+floor or a ceiling depending on where you stand, with a colour hashed from the room's position, a
+cupboard on some back walls, and a brighter interior behind the panes the emissive mask marks as
+lit. No geometry is added; the pane's albedo becomes what is behind it and the glass reflection
+sits on top. Each windowed tile records its pane grid at build time so the rooms line up with the
+painted panes. `?rooms=0` turns it off.
+
+The skyline has a shape. Building heights climb toward the centre of downtown, and a few lots
+there carry landmark towers of fifty floors or more with two stepped tiers, a spire and a beacon,
+so the city has a silhouette you can navigate by.
+
 Two things fake depth for free: the window painter puts every pane back in the wall, with
 its head and one jamb in shadow and a lit sill below, and the static shader darkens the foot
 of every wall over the first two and a half metres, the grime any street has. Residential buildings gained a plinth at the base, and tall buildings carry a water tank more

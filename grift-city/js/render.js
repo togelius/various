@@ -34,7 +34,7 @@ const RENDER = (() => {
   const FS = `
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in float vEmis;
     uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform sampler2DArray uNrm;
-    uniform float uNrmOn; uniform float uNrmStr;
+    uniform float uNrmOn; uniform float uNrmStr; uniform vec4 uPanes[128]; uniform float uInterior;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
     uniform float uFogDensity; uniform float uFogHeight; uniform float uFogSun; uniform float uNightEmis;
     uniform mat4 uLightVP[2]; uniform float uCascadeFar; uniform float uWet;
@@ -55,6 +55,8 @@ const RENDER = (() => {
               + textureOffset(uShadow, p, ivec2(-1, 1)) + textureOffset(uShadow, p, ivec2(0, 1)) + textureOffset(uShadow, p, ivec2(1, 1));
       return s / 9.0;
     }
+    float hash13(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
+    float roomDepth(float t, float tz) { return clamp(t / max(tz, 0.01), 0.0, 1.0) * 0.5; }
     float shadowAt(vec3 n) {
       vec3 wp = vWorld + n * 0.06;
       float d = length(vWorld - uCamPos);
@@ -73,7 +75,8 @@ const RENDER = (() => {
     void main() {
       vec4 t = uTexOn > 0.5 ? texture(uTex, vec3(vUV, vTile)) : vec4(1.0);
       vec3 albedo = s2l(t.rgb) * s2l(vCol);
-      vec3 n = normalize(vNrm);
+      vec3 n = normalize(vNrm); vec3 nGeom = n;
+      vec3 dp1 = dFdx(vWorld), dp2 = dFdy(vWorld); vec2 duv1 = dFdx(vUV), duv2 = dFdy(vUV);
       #ifdef STATIC
       // grime: the foot of every wall is darker, as it is on any street
       if (abs(n.y) < 0.5 && vWorld.y > -1.0) albedo *= 1.0 - 0.3 * (1.0 - smoothstep(0.1, 2.6, vWorld.y));
@@ -84,8 +87,6 @@ const RENDER = (() => {
       if (uNrmOn > 0.5 && uTexOn > 0.5) {
         vec4 nm = texture(uNrm, vec3(vUV, vTile));
         rough = nm.a;
-        vec3 dp1 = dFdx(vWorld), dp2 = dFdy(vWorld);
-        vec2 duv1 = dFdx(vUV), duv2 = dFdy(vUV);
         vec3 dp2perp = cross(dp2, n), dp1perp = cross(n, dp1);
         vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
         vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
@@ -95,6 +96,29 @@ const RENDER = (() => {
           tn.xy *= uNrmStr;
           float inv = inversesqrt(m);
           n = normalize(mat3(T * inv, B * inv, n) * normalize(tn));
+        }
+      }
+      // Interior mapping: behind every window pane of a facade tile there is a virtual room, a box one pane wide and one
+      // storey tall and about three metres deep, intersected along the view ray in the wall's tangent frame. Its walls,
+      // floor and ceiling take a colour from a hash of the room's position, and a lit pane (the emissive mask) lights it.
+      // No geometry: the window pane's albedo becomes what you would see through it, and the glass reflection sits on top.
+      vec4 pg = uPanes[int(vTile + 0.5)];
+      if (uInterior > 0.5 && uTexOn > 0.5 && pg.x > 0.5 && abs(nGeom.y) < 0.5) {
+        vec2 cell = vec2(vUV.x * pg.x, vUV.y * pg.y); vec2 f = fract(cell);
+        if (f.x > pg.z && f.x < 1.0 - pg.z && f.y > pg.w && f.y < 1.0 - pg.w) {
+          vec3 dp2p = cross(dp2, nGeom), dp1p = cross(nGeom, dp1);
+          vec3 Th = normalize(dp2p * duv1.x + dp1p * duv2.x), Bh = normalize(dp2p * duv1.y + dp1p * duv2.y);
+          vec3 vd = normalize(vWorld - uCamPos); vec3 d = vec3(dot(vd, Th), dot(vd, Bh), min(dot(vd, nGeom), -0.05));
+          float W = 14.0 / pg.x, H = 12.8 / pg.y, D = 3.0; vec3 o = vec3(f.x * W, f.y * H, 0.0);
+          float tx = abs(d.x) < 1e-4 ? 1e9 : ((d.x > 0.0 ? W : 0.0) - o.x) / d.x, ty = abs(d.y) < 1e-4 ? 1e9 : ((d.y > 0.0 ? H : 0.0) - o.y) / d.y, tz = -D / d.z;
+          float tt = min(min(tx, ty), tz);
+          vec3 rid = vec3(floor(cell.x) + floor((vWorld.x + vWorld.z) / 14.0) * 53.0, floor(cell.y) + floor(vWorld.y / 12.8) * 17.0, vTile);
+          float h1 = hash13(rid), h2 = hash13(rid + 7.1), h3 = hash13(rid + 3.3);
+          vec3 wall = mix(vec3(0.82, 0.78, 0.7), vec3(0.62, 0.68, 0.74), h1); wall = mix(wall, vec3(0.78, 0.62, 0.5), h2 * 0.5);
+          vec3 hit = tt == tz ? wall * 0.72 : tt == tx ? wall * 0.88 : (d.y > 0.0 ? wall * vec3(0.42, 0.38, 0.34) : vec3(0.92, 0.9, 0.86));
+          if (tt == tz && h3 > 0.55) { vec3 hp = o + d * tt; float px = fract(hp.x / W * 2.0 + h1); if (px > 0.3 && px < 0.75 && hp.y > H * 0.45) hit *= 0.55; } // a cupboard or a picture on the back wall
+          float lit = t.a > 0.02 ? 1.0 : 0.0; float amb = 0.16 + 0.6 * lit * (0.6 + 0.4 * (1.0 - roomDepth(tt, tz)));
+          albedo = s2l(hit) * amb * s2l(vCol);
         }
       }
       if (uWater > 0.5) { n = normalize(n + vec3(sin(vWorld.x * 0.35 + uTime * 1.1) * 0.07 + sin(vWorld.z * 0.9 - uTime * 1.7) * 0.04, 0.0, cos(vWorld.z * 0.4 + uTime * 0.9) * 0.07 + cos(vWorld.x * 1.1 + uTime * 1.3) * 0.04)); }
@@ -261,6 +285,8 @@ const RENDER = (() => {
     const colorLayers = textures.color || textures, normalLayers = textures.normal;
     texArray = GL.textureArray(colorLayers);
     if (normalLayers && normalLayers.length === colorLayers.length) nrmArray = GL.textureArray(normalLayers);
+    const pg = new Float32Array(128 * 4); (textures.panes || []).forEach((p, i) => { if (p && i < 128) pg.set(p, i * 4); });
+    for (const P of [litProg, instProg, litStaticProg]) { gl.useProgram(P.p); gl.uniform4fv(P.u.uPanes, pg); }
     const shadowSize = +(new URLSearchParams(location.search).get('shadow') || 0) || 2048; shadow = GL.shadowTarget(shadowSize * 2, shadowSize);
     // particle buffer: pos3 size1 col4 = 8 floats
     partVao = gl.createVertexArray(); gl.bindVertexArray(partVao); partBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, partBuf);
@@ -353,7 +379,7 @@ const RENDER = (() => {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, texArray); gl.uniform1i(P.u.uTex, 0);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadow.tex); gl.uniform1i(P.u.uShadow, 1);
       gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D_ARRAY, nrmArray || texArray); gl.uniform1i(P.u.uNrm, 3);
-      gl.uniform1f(P.u.uNrmOn, nrmArray && env.normalMaps ? 1 : 0); gl.uniform1f(P.u.uNrmStr, env.normalStrength);
+      gl.uniform1f(P.u.uNrmOn, nrmArray && env.normalMaps ? 1 : 0); gl.uniform1f(P.u.uNrmStr, env.normalStrength); gl.uniform1f(P.u.uInterior, env.interiors === false ? 0 : 1);
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
       gl.uniform3fv(P.u.uFogCol, env.fogCol); gl.uniform3f(P.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform1f(P.u.uFogDensity, env.fogDensity);
       gl.uniform1f(P.u.uFogHeight, env.fogHeight); gl.uniform1f(P.u.uFogSun, env.fogSun);

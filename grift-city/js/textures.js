@@ -3,7 +3,7 @@
 'use strict';
 const TEX = (() => {
   const S = 512, NS = 320; // colour maps are painted at 512; normal and roughness at 320, which is plenty for them
-  const layers = [], normals = []; const names = {}; let shopKinds = [];
+  const layers = [], normals = [], panes = []; const names = {}; let shopKinds = [];
   const photos = {}; let curLayer = null; // decoded photographic materials (js/texdata.js), and the layer being painted
   // Decode every baked material. Called before build(); without it the painters fall back to their drawn colours.
   function preload(onProgress) {
@@ -68,7 +68,7 @@ const TEX = (() => {
     g._n = ng; g._r = rg; g._touched = false; curLayer = name;
     painter(g, M.rng(layers.length * 7919 + 13));
     curLayer = null;
-    names[name] = layers.length; layers.push(g._out || finish(g, g._lit)); normals.push(packMaps(ng, rg, g._touched));
+    names[name] = layers.length; layers.push(g._out || finish(g, g._lit)); normals.push(packMaps(ng, rg, g._touched)); panes.push(g._panes || null);
   }
   // Bake the emissive rectangles into alpha and hand back raw ImageData.
   function finish(g, rects, base = 0) {
@@ -103,7 +103,7 @@ const TEX = (() => {
   }
   // A wall of windows: cols x rows panes with wall texture painted by `wall(g, r)` first.
   function windows(g, r, o) {
-    o.wall(g, r);
+    o.wall(g, r); g._panes = [o.cols, o.rows, o.wPad, o.hPad];
     const cw = S / o.cols, ch = S / o.rows;
     for (let j = 0; j < o.rows; j++) {
       if (o.band) { g.fillStyle = o.band; g.fillRect(0, j * ch, S, 6); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, j * ch + 6, S, 3); }
@@ -262,7 +262,7 @@ const TEX = (() => {
     add('manhole', (g, r) => { g.fillStyle = '#39393d'; g.fillRect(0, 0, S, S); g.fillStyle = '#2a2a2c'; g.beginPath(); g.arc(256, 256, 236, 0, 7); g.fill(); g.fillStyle = '#4a4a4e'; g.beginPath(); g.arc(256, 256, 220, 0, 7); g.fill(); g.strokeStyle = '#2a2a2c'; g.lineWidth = 10; for (let k = -4; k <= 4; k++) { g.beginPath(); g.moveTo(256 + k * 44, 60); g.lineTo(256 + k * 44, 452); g.stroke(); g.beginPath(); g.moveTo(60, 256 + k * 44); g.lineTo(452, 256 + k * 44); g.stroke(); } g.strokeStyle = '#1e1e20'; g.lineWidth = 14; g.beginPath(); g.arc(256, 256, 228, 0, 7); g.stroke(); grain(g, r, 6000, 0.08); });
     add('cone', (g, r) => { g.fillStyle = '#ff6a00'; g.fillRect(0, 0, S, S); g.fillStyle = '#fff'; g.fillRect(0, 160, S, 60); g.fillRect(0, 300, S, 60); });
     add('barrier', (g, r) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#ff6a00'; g.fillRect(i * 64, 0, 64, S); } });
-    return { color: layers, normal: normals };
+    return { color: layers, normal: normals, panes };
   }
   return { build, preload, names, S, NS, base, flatN, get layers() { return layers; }, get normals() { return normals; }, get shopKinds() { return shopKinds; } };
 })();

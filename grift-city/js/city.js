@@ -234,7 +234,11 @@ const CITY = (() => {
     const T = TEX.names; const dist = block.kind;
     const m = rng.range(1.5, 3.5); const x0 = x + m, z0 = z + m, x1 = x + w - m, z1 = z + d - m; const W = x1 - x0, D = z1 - z0;
     const [fmin, fmax] = FLOORS[dist] || [3, 8];
-    const floors = rng.int(fmin, fmax); const fh = 3.2; const ground = 4.2;
+    // a skyline: heights climb toward the centre of downtown, and a few lots there carry landmark towers with stepped tops and spires
+    const cd = Math.hypot(block.i - (GRID - 1) / 2, block.j - (GRID - 1) / 2);
+    let floors = rng.int(fmin, fmax); if (dist === 'downtown') floors = Math.round(floors * (1 + 0.5 * Math.max(0, 1 - cd / 1.7)));
+    const landmark = dist === 'downtown' && cd < 1.3 && W > 15 && D > 15 && rng.chance(0.25); if (landmark) floors = Math.max(floors, 50);
+    const fh = 3.2; const ground = 4.2;
     const facade = rng.pick(FACADES[dist] || FACADES.midtown);
     const tint = rng.pick(WALL_TINTS[dist] || WALL_TINTS.midtown).map(v => v * rng.range(0.92, 1.08)); // each district keeps to a few muted wall colours
     const trim = tint.map(v => v * 0.82); const y = CURB;
@@ -340,14 +344,21 @@ const CITY = (() => {
     b.floor(x0, z0, W, D, top + H, tint.map(v => v * 0.9), T.roof, 8);
     roofDetails(b, x0, top + H, z0, W, D, tint, floors > 12);
     let totalH = top + H;
-    if (floors > 10 && rng.chance(0.5)) {
-      const s = rng.range(0.55, 0.8); const tw = W * s, td = D * s, tx = x0 + (W - tw) / 2, tz = z0 + (D - td) / 2, th = rng.int(4, floors) * fh;
+    if (floors > 10 && (landmark || rng.chance(0.5))) {
+      const s = landmark ? 0.72 : rng.range(0.55, 0.8); const tw = W * s, td = D * s, tx = x0 + (W - tw) / 2, tz = z0 + (D - td) / 2, th = rng.int(4, floors) * fh;
       facadeBox(b, tx, top + H, tz, tw, th, td, tint, T[facade], facadeOpts);
       if (facade !== 'glass') for (let k = 1; k < th / fh; k++) b.box(tx - 0.12, top + H + k * fh, tz - 0.12, tw + 0.24, 0.14, td + 0.24, trim, 0, { faces: 1 | 2 | 4 | 16 | 32 });
       b.box(tx - 0.35, top + H + th - 0.45, tz - 0.35, tw + 0.7, 0.45, td + 0.7, trim, 0);
       b.floor(tx, tz, tw, td, top + H + th, tint.map(v => v * 0.9), T.roof, 8);
       roofDetails(b, tx, top + H + th, tz, tw, td, tint, true);
       totalH = top + H + th;
+      if (landmark) { // a second, narrower tier and a spire with a beacon
+        const t2w = tw * 0.6, t2d = td * 0.6, t2x = tx + (tw - t2w) / 2, t2z = tz + (td - t2d) / 2, t2h = rng.int(5, 9) * fh;
+        facadeBox(b, t2x, totalH, t2z, t2w, t2h, t2d, tint, T[facade], facadeOpts); b.box(t2x - 0.35, totalH + t2h - 0.45, t2z - 0.35, t2w + 0.7, 0.45, t2d + 0.7, trim, 0);
+        b.floor(t2x, t2z, t2w, t2d, totalH + t2h, tint.map(v => v * 0.9), T.roof, 8); totalH += t2h;
+        const cx = t2x + t2w / 2, cz = t2z + t2d / 2; b.box(cx - 0.9, totalH, cz - 0.9, 1.8, 3, 1.8, trim); b.box(cx - 0.35, totalH + 3, cz - 0.35, 0.7, 14, 0.7, trim.map(v => v * 0.85)); b.box(cx - 0.12, totalH + 17, cz - 0.12, 0.24, 6, 0.24, [0.7, 0.7, 0.72]);
+        b.cbox(cx, totalH + 23.2, cz, 0.5, 0.5, 0.5, [1, 0.1, 0.1], 0, { bone: 0 }); addPlace('landmark', { x: cx, z: cz, h: totalH + 23, label: 'tower' });
+      }
     }
     if (rng.chance(0.2) && floors < 12) {
       const tile = T['bill' + rng.int(0, 5)]; const bw = Math.min(W - 2, 10), bh = bw * 0.6;
