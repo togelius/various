@@ -145,3 +145,37 @@ def test_every_solver_returns_a_replayable_solution():
             s = E.solve_level(eng, lvl, algo, max_iters=20_000, timeout_ms=4000)
             assert s.solved, f"{name}/{algo} did not solve level {lvl}"
             assert E.replay(eng, lvl, s.actions)["won"], f"{name}/{algo} solution does not replay"
+
+
+def test_isolated_evaluation_matches_in_process():
+    from prof.fitness import evaluate_isolated
+    text = SOKOBAN.read_text(encoding="utf-8", errors="replace")
+    a = evaluate(text, timeout_ms=2000)
+    b = evaluate_isolated(text, timeout_ms=2000)
+    assert (b.tier, b.n_solved, b.solutions) == (a.tier, a.n_solved, a.solutions)
+    assert abs(a.fitness - b.fitness) < 1e-9
+
+
+def test_isolated_evaluation_survives_a_game_that_kills_the_engine():
+    """A mutant that crashes or hangs the engine must cost one candidate, not the run.
+
+    1D_Rubik's_Cube segfaults the C++ engine inside load_level, and a rule that
+    keeps issuing `again` spins inside a single expansion where no solver
+    timeout can reach it. Either would take down a MAP-Elites run evaluating
+    in its own process.
+    """
+    from prof.fitness import evaluate_isolated
+    crasher = SOKOBAN.parent / "1D_Rubik's_Cube.txt"
+    if not crasher.exists():
+        import pytest
+        pytest.skip("reference crashing game not in the corpus")
+    ev = evaluate_isolated(crasher.read_text(encoding="utf-8", errors="replace"),
+                           timeout_s=30, timeout_ms=1000)
+    assert ev.tier == 0 and ev.fitness == -3.0
+    assert "hung" in ev.reason or "crashed" in ev.reason
+
+
+def test_isolated_evaluation_reports_a_compile_failure_normally():
+    from prof.fitness import evaluate_isolated
+    ev = evaluate_isolated("not a game at all\n")
+    assert ev.tier == 0 and ev.reason.startswith("compile")

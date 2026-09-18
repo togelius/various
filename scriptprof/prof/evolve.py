@@ -23,7 +23,7 @@ from typing import Any, Callable
 
 from prof import engine as E
 from prof.concepts import concepts
-from prof.fitness import Evaluation, evaluate
+from prof.fitness import Evaluation, evaluate, evaluate_isolated
 
 ROOT = Path(__file__).resolve().parent.parent
 GAMES_DIR = ROOT / "vendor" / "script-doctor" / "data" / "scraped_games"
@@ -123,11 +123,12 @@ class Archive:
         return f"cells {n} tier3 {t3} f>0.5 {hi} QD {self.qd_score():.1f}"
 
 
-def seed_archive(archive: Archive, seeds: list[str], eval_kwargs: dict[str, Any]) -> None:
+def seed_archive(archive: Archive, seeds: list[str], eval_kwargs: dict[str, Any],
+                 evaluator: Callable[..., Evaluation] = evaluate_isolated) -> None:
     for s in seeds:
         p = Path(s) if s.endswith(".txt") else GAMES_DIR / f"{s}.txt"
         text = p.read_text(encoding="utf-8", errors="replace")
-        ev = evaluate(text, **eval_kwargs)
+        ev = evaluator(text, **eval_kwargs)
         state = E.compile_text(text).state if ev.compiled else None
         feats = describe(text, ev, state)
         added = archive.offer(text, ev, feats, name=p.stem, parent=None, instruction="seed", gen=0)
@@ -137,7 +138,7 @@ def seed_archive(archive: Archive, seeds: list[str], eval_kwargs: dict[str, Any]
 
 def run(archive: Archive, mutate: Callable[[str, str], tuple[str | None, Any]], gens: int,
         per_gen: int, instructions: list[str], eval_kwargs: dict[str, Any], rng: random.Random,
-        log_path: Path) -> None:
+        log_path: Path, evaluator: Callable[..., Evaluation] = evaluate_isolated) -> None:
     gen0 = max((e.generation for e in archive.elites.values()), default=0) + 1
     with open(log_path, "a") as logf:
         for gen in range(gen0, gen0 + gens):
@@ -153,7 +154,7 @@ def run(archive: Archive, mutate: Callable[[str, str], tuple[str | None, Any]], 
                 if child is None:
                     rec["result"] = "no compiling child"
                 else:
-                    ev = evaluate(child, **eval_kwargs)
+                    ev = evaluator(child, **eval_kwargs)
                     state = E.compile_text(child).state if ev.compiled else None
                     feats = describe(child, ev, state)
                     name = f"g{gen}_{j}_{pk}"
@@ -207,12 +208,25 @@ def main() -> None:
     ap.add_argument("--max-levels", type=int, default=6)
     ap.add_argument("--timeout-ms", type=int, default=3000)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--insight", action="store_true",
+                    help="fold the insight gap (prof.players) into tier-3 fitness")
+    ap.add_argument("--eval-timeout", type=float, default=120.0,
+                    help="wall-clock cap per candidate; a child that overruns is unfit")
+    ap.add_argument("--in-process", action="store_true",
+                    help="evaluate in this process (faster, but one bad game kills the run)")
     a = ap.parse_args()
     out = ROOT / a.out
     archive = Archive(out, DEFAULT_DESCRIPTORS)
-    eval_kwargs = {"max_levels": a.max_levels, "timeout_ms": a.timeout_ms}
+    eval_kwargs: dict[str, Any] = {"max_levels": a.max_levels, "timeout_ms": a.timeout_ms}
+    if a.insight:
+        eval_kwargs["insight"] = True
+    if a.in_process:
+        evaluator: Callable[..., Evaluation] = evaluate
+    else:
+        def evaluator(text: str, **kw: Any) -> Evaluation:
+            return evaluate_isolated(text, timeout_s=a.eval_timeout, **kw)
     if not archive.elites:
-        seed_archive(archive, a.seeds, eval_kwargs)
+        seed_archive(archive, a.seeds, eval_kwargs, evaluator)
     rng = random.Random(a.seed)
     if a.operator == "llm":
         from prof.mutate import INSTRUCTIONS, OllamaMutator
@@ -221,7 +235,8 @@ def main() -> None:
     else:
         mutate_fn = make_grammar_operator(archive, rng, a.edits, a.p_crossover)
         instructions = [""]
-    run(archive, mutate_fn, a.gens, a.per_gen, instructions, eval_kwargs, rng, out / "log.jsonl")
+    run(archive, mutate_fn, a.gens, a.per_gen, instructions, eval_kwargs, rng,
+        out / "log.jsonl", evaluator)
 
 
 if __name__ == "__main__":
