@@ -1,5 +1,11 @@
 # PuzzleScript corpus census
 
+> **Stale.** These numbers come from a partial run (131 of 952 games) made
+> before three engine bugs were found: solver solutions that did not replay,
+> phantom wins from a stale win flag, and time budgets the solver did not
+> keep. See `../../FINDINGS.md`. Regenerate with `python -m prof.census`
+> followed by `python -m prof.census_report`.
+
 Every scraped game compiled with the original PuzzleScript engine, every
 playable level searched with breadth-first search in the C++ engine
 (budget per level: 100k expansions or 5 s; per game: 600 s wall clock).
