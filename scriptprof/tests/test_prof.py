@@ -179,3 +179,32 @@ def test_isolated_evaluation_reports_a_compile_failure_normally():
     from prof.fitness import evaluate_isolated
     ev = evaluate_isolated("not a game at all\n")
     assert ev.tier == 0 and ev.reason.startswith("compile")
+
+
+def test_a_level_won_before_any_move_is_reported_as_zero_moves():
+    """load_level and restore_level must agree about the same board.
+
+    Some levels satisfy their win conditions at load: a `no X` condition where
+    X only appears once the player acts, say. load_level set the win flag
+    hard-false without consulting the board, while restore_level recomputes it,
+    so a search (which restores) saw the win and a replay (which only loads)
+    did not. The search then credited the win to the first action it happened
+    to try, and that one-move "solution" replayed to nothing. Every solved
+    level of Flood and Hitori was affected.
+    """
+    c = E.compile_file(_game("Hitori"))
+    lvl = E.level_indices(c)[0]
+    eng = E.new_engine(c)
+    eng.load_level(lvl)
+    assert eng.winning, "this level is won at load; the flag should say so"
+    s = E.solve_level(eng, lvl, "bfs", max_iters=20_000, timeout_ms=3000)
+    assert s.solved and s.actions == [], f"expected a zero-move win, got {s.actions}"
+    assert E.replay(eng, lvl, s.actions)["won"]
+
+
+def test_degenerate_levels_do_not_count_as_solved_for_fitness():
+    """A game whose levels are won at the start is not a playable game."""
+    text = _game("Hitori").read_text(encoding="utf-8", errors="replace")
+    ev = evaluate(text, timeout_ms=1500, max_levels=4)
+    assert ev.n_solved == 0 and ev.tier == 1
+    assert ev.trivial, "the levels should be recorded as trivial, not solved"

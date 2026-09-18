@@ -14,7 +14,7 @@ index f2a09d0..2f42ca4 100644
              const auto& objs = e.getObjects();
              return py::array_t<int32_t>(
 diff --git a/puzzlescript_cpp/src/engine.cpp b/puzzlescript_cpp/src/engine.cpp
-index 2e14c32..616bf7e 100644
+index 2e14c32..5279dda 100644
 --- a/puzzlescript_cpp/src/engine.cpp
 +++ b/puzzlescript_cpp/src/engine.cpp
 @@ -85,6 +85,7 @@ Engine::Engine(Engine&& other) noexcept
@@ -33,7 +33,23 @@ index 2e14c32..616bf7e 100644
          curLevel_ = other.curLevel_;
          _o1 = std::move(other._o1); _o2 = std::move(other._o2);
          _o2_5 = std::move(other._o2_5); _o3 = std::move(other._o3);
-@@ -468,6 +470,20 @@ LevelBackup Engine::backupLevel() const {
+@@ -452,6 +454,15 @@ void Engine::loadLevel(int levelIndex) {
+         processInput(-1);
+         againing_ = false;
+     }
++
++    // scriptprof: settle the win flag against the board we just loaded, the
++    // same way restoreLevel does. Some levels satisfy their win conditions
++    // before any move -- a `no X` condition where X only ever appears once the
++    // player acts, for instance -- and leaving the flag hard-false here made
++    // loadLevel and restoreLevel disagree about the very same board. A search
++    // restores and so saw the win; a replay only loaded and so did not, which
++    // reported the solution as unreplayable (Flood and Hitori, every level).
++    winning_ = checkWin();
+ }
+ 
+ // ============================================================
+@@ -468,6 +479,20 @@ LevelBackup Engine::backupLevel() const {
  void Engine::restoreLevel(const LevelBackup& bak) {
      level_.objects = bak.dat;
      level_.calculateRowColMasks();
@@ -54,7 +70,7 @@ index 2e14c32..616bf7e 100644
  }
  
  void Engine::restart() {
-@@ -1135,6 +1151,9 @@ bool Engine::ruleTryApply(Rule& rule) {
+@@ -1135,6 +1160,9 @@ bool Engine::ruleTryApply(Rule& rule) {
  
      if (!matches.empty()) {
          ruleQueueCommands(rule);
@@ -64,7 +80,7 @@ index 2e14c32..616bf7e 100644
      }
  
      return result;
-@@ -1163,6 +1182,7 @@ bool Engine::applyRandomRuleGroup(std::vector<Rule*>& ruleGroup) {
+@@ -1163,6 +1191,7 @@ bool Engine::applyRandomRuleGroup(std::vector<Rule*>& ruleGroup) {
      Rule& rule = *ruleGroup[match.ruleIndex];
      int delta = level_.delta_index(rule.direction);
      bool modified = ruleApplyAt(rule, match.tuple, false, delta);
@@ -97,7 +113,7 @@ index c8e72e8..77a1014 100644
  
      // Scratch BitVecs (to avoid repeated allocation in hot paths)
 diff --git a/puzzlescript_cpp/src/solver.cpp b/puzzlescript_cpp/src/solver.cpp
-index be08cc4..52c70ce 100644
+index be08cc4..6be2074 100644
 --- a/puzzlescript_cpp/src/solver.cpp
 +++ b/puzzlescript_cpp/src/solver.cpp
 @@ -66,6 +66,57 @@ double elapsedSeconds(const Clock::time_point& start) {
@@ -191,7 +207,20 @@ index be08cc4..52c70ce 100644
              result.iterations = i;
              result.time = elapsedSeconds(start);
              result.timeout = true;
-@@ -332,9 +399,10 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
+@@ -323,6 +390,12 @@ SolverResult solveRandom(Engine& engine, int maxLength, int maxIters, int timeou
+ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
+     const auto start = Clock::now();
+     const LevelBackup initialState = engine.backupLevel();
++    // scriptprof: a level already satisfying its win conditions is won in zero
++    // moves. Reporting that honestly lets callers treat it as the degenerate
++    // level it is, instead of attributing the win to the first action tried.
++    if (engine.isWinning()) {
++        return makeSolverResult(engine, true, {}, 0, start, engine.getScore(), initialState, false);
++    }
+     std::queue<LevelBackup> frontier;
+     std::unordered_map<StateVec, ParentInfo, StateVecHash> parents;
+     frontier.push(initialState);
+@@ -332,9 +405,10 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
      LevelBackup bestState = initialState;
      double bestScore = engine.getScore();
      int iterations = 0;
@@ -203,7 +232,7 @@ index be08cc4..52c70ce 100644
              return makeSolverResult(engine, false, bestActions, iterations, start, bestScore, bestState, true);
          }
  
-@@ -344,6 +412,28 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
+@@ -344,6 +418,28 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
          for (int action : actionsForEngine(engine)) {
              engine.restoreLevel(parentState);
              const bool changed = processInputSearch(engine, action);
@@ -232,7 +261,20 @@ index be08cc4..52c70ce 100644
              if (!changed) {
                  continue;
              }
-@@ -387,10 +477,11 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
+@@ -379,6 +475,12 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
+ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
+     const auto start = Clock::now();
+     const LevelBackup initialState = engine.backupLevel();
++    // scriptprof: a level already satisfying its win conditions is won in zero
++    // moves. Reporting that honestly lets callers treat it as the degenerate
++    // level it is, instead of attributing the win to the first action tried.
++    if (engine.isWinning()) {
++        return makeSolverResult(engine, true, {}, 0, start, engine.getScore(), initialState, false);
++    }
+     std::priority_queue<PriorityNode, std::vector<PriorityNode>, AStarComparator> frontier;
+     std::unordered_map<StateVec, ParentInfo, StateVecHash> parents;
+     parents.emplace(initialState.dat, ParentInfo{initialState.dat, -1});
+@@ -387,10 +489,11 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
      LevelBackup bestState = initialState;
      double bestScore = engine.getScore();
      int totalIters = 0;
@@ -245,7 +287,7 @@ index be08cc4..52c70ce 100644
              return makeSolverResult(
                  engine,
                  false,
-@@ -411,6 +502,28 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
+@@ -411,6 +514,28 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
          for (int action : actions) {
              engine.restoreLevel(current.state);
              const bool changed = processInputSearch(engine, action);
@@ -274,7 +316,20 @@ index be08cc4..52c70ce 100644
              if (!changed) {
                  continue;
              }
-@@ -469,10 +582,11 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
+@@ -461,6 +586,12 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
+ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
+     const auto start = Clock::now();
+     const LevelBackup initialState = engine.backupLevel();
++    // scriptprof: a level already satisfying its win conditions is won in zero
++    // moves. Reporting that honestly lets callers treat it as the degenerate
++    // level it is, instead of attributing the win to the first action tried.
++    if (engine.isWinning()) {
++        return makeSolverResult(engine, true, {}, 0, start, engine.getScore(), initialState, false);
++    }
+     std::priority_queue<PriorityNode, std::vector<PriorityNode>, GBFSComparator> frontier;
+     std::unordered_map<StateVec, ParentInfo, StateVecHash> parents;
+     parents.emplace(initialState.dat, ParentInfo{initialState.dat, -1});
+@@ -469,10 +600,11 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
      LevelBackup bestState = initialState;
      double bestScore = engine.getScore();
      int totalIters = 0;
@@ -287,7 +342,7 @@ index be08cc4..52c70ce 100644
              return makeSolverResult(
                  engine,
                  false,
-@@ -493,6 +607,28 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
+@@ -493,6 +625,28 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
          for (int action : actions) {
              engine.restoreLevel(current.state);
              const bool changed = processInputSearch(engine, action);
@@ -316,6 +371,19 @@ index be08cc4..52c70ce 100644
              if (!changed) {
                  continue;
              }
+@@ -543,6 +697,12 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
+ SolverResult solveMCTS(Engine& engine, const MCTSOptions& options) {
+     const auto start = Clock::now();
+     const LevelBackup initialState = engine.backupLevel();
++    // scriptprof: a level already satisfying its win conditions is won in zero
++    // moves. Reporting that honestly lets callers treat it as the degenerate
++    // level it is, instead of attributing the win to the first action tried.
++    if (engine.isWinning()) {
++        return makeSolverResult(engine, true, {}, 0, start, engine.getScore(), initialState, false);
++    }
+     LevelBackup bestState = initialState;
+     double bestScore = engine.getScore();
+ 
 diff --git a/puzzlescript_nodejs/puzzlescript/engine.js b/puzzlescript_nodejs/puzzlescript/engine.js
 index db0db52..fb81822 100644
 --- a/puzzlescript_nodejs/puzzlescript/engine.js
