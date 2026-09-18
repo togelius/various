@@ -282,8 +282,32 @@ const CITY = (() => {
     const H = floors * fh;
     const facadeOpts = { faces: 1 | 2 | 16 | 32, uvScale: 1, uOff: rng.range(0, 1), vOff: 0 };
     facadeBox(b, x0, top, z0, W, H, D, tint, T[facade], facadeOpts);
-    // ledges every floor for the masonry styles, a cornice on top
-    if (facade !== 'glass' && facade !== 'glass2' && facade !== 'glass3' && facade !== 'metal' && facade !== 'warehouse') for (let k = (commercial ? 0 : 1); k < floors; k++) { const ly = top + k * fh; b.box(x0 - 0.12, ly, z0 - 0.12, W + 0.24, 0.14, D + 0.24, trim, 0, { faces: 1 | 2 | 4 | 16 | 32 }); }
+    // Stable architectural families: no new random draws, so saved city locations remain unchanged.
+    const family = Math.abs(Math.floor(x0 * 17 + z0 * 31)) % 3;
+    const masonry = MASONRY.includes(facade) || facade === 'deco';
+    const stone = [0.66, 0.63, 0.55].map((v, i) => v * tint[i]);
+    const frontBox = (t, yy, width, height, depth, off, color) => {
+      const [px, pz] = frontPt(t, off);
+      b.cbox(px, yy, pz, fz !== null ? width : depth, height, fz !== null ? depth : width, color);
+    };
+    // Masonry corners, rhythmic piers and layered cornices cast actual shadows on the facade.
+    if (masonry) {
+      const pierColor = family === 1 ? stone : trim.map(v => v * 0.75);
+      for (const t of [0.20, frontLen - 0.20]) frontBox(t, top + H / 2, 0.48, H, 0.32, 0.06, pierColor);
+      if (family === 0 && frontLen > 12) for (let t = 7; t < frontLen - 3; t += 7) frontBox(t, top + H / 2, 0.36, H, 0.28, 0.05, pierColor);
+      if (family === 1) for (let k = 0; k < Math.min(floors, 8); k++) for (const t of [0.24, frontLen - 0.24]) {
+        frontBox(t, top + k * fh + 0.50, 0.72, 0.38, 0.40, 0.08, stone);
+        frontBox(t, top + k * fh + 1.12, 0.50, 0.30, 0.36, 0.08, stone);
+      }
+      frontBox(frontLen / 2, top + H - 0.78, frontLen + 0.5, 0.18, 0.55, 0.12, stone);
+      if (family === 2) for (let t = 0.8; t < frontLen; t += 1.4) frontBox(t, top + H - 0.60, 0.30, 0.26, 0.48, 0.14, stone);
+    } else if (facade !== 'metal' && facade !== 'warehouse') {
+      // Office facades alternate strong vertical fins with broad horizontal spandrels.
+      if (family !== 1) for (let t = 0.25; t < frontLen; t += family === 0 ? 3.5 : 7) frontBox(t, top + H / 2, 0.18, H, 0.52, 0.15, [0.45, 0.49, 0.48]);
+      else for (let k = 2; k < floors; k += 3) frontBox(frontLen / 2, top + k * fh, frontLen, 0.50, 0.26, 0.08, [0.35, 0.39, 0.39]);
+    }
+    // Ledge spacing varies with the facade family instead of wrapping every building at every floor.
+    if (masonry || facade === 'concrete') for (let k = (commercial ? 0 : 1); k < floors; k += family === 0 ? 3 : family === 1 ? 2 : 1) { const ly = top + k * fh; b.box(x0 - 0.12, ly, z0 - 0.12, W + 0.24, 0.14, D + 0.24, trim, 0, { faces: 1 | 2 | 4 | 16 | 32 }); }
     b.box(x0 - 0.35, top + H - 0.45, z0 - 0.35, W + 0.7, 0.45, D + 0.7, trim, 0);
     // balconies on the masonry fronts, window boxes on the painted ones, air conditioners on the side walls
     const bays = Math.floor(frontLen / 3.5);

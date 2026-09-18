@@ -246,6 +246,18 @@ uses a quieter palette and softer highlights. Shallow stone surrounds give
 shop bays real edges and contact shadows; emissive windows retain their painted
 detail at night instead of turning into white rectangles.
 
+A second geometry pass separates jacket and shirt silhouettes, fills out sleeves
+and trouser thighs, and adds lapels, pockets and a shoulder yoke. Hair wraps the
+back of the head and beards face forward; both use the ellipsoid builder's
+actual azimuth convention. The existing animation pivots and vehicle seating
+heights are retained. `node test/character-geometry.js` checks hair orientation
+and the generated high/low-detail meshes.
+
+Facades now have three stable architectural treatments: masonry piers and
+corner stones, layered/dentilled cornices, and office fins or broad horizontal
+bands. Floor ledges vary in spacing. These details derive from lot coordinates
+without consuming city random numbers, preserving generated lot locations.
+
 The HUD uses a compact radar, warm-white cash without leading zeroes, and
 wanted stars only during pursuit. Full movement hints remain during the first
 thirty seconds and contextual driving/aiming hints remain available; nearby

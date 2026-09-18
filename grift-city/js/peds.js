@@ -20,7 +20,7 @@ const PEDS = (() => {
   const COP = { skin: [0.9, 0.75, 0.62], shirt: [0.2, 0.3, 0.6], pants: [0.15, 0.18, 0.3], hair: [0.1, 0.1, 0.1], hat: [0.15, 0.18, 0.35], jacket: null, sleeves: true, glasses: true };
   const SWAT = { skin: [0.85, 0.7, 0.6], shirt: [0.12, 0.12, 0.14], pants: [0.1, 0.1, 0.12], hair: [0.1, 0.1, 0.1], hat: [0.1, 0.1, 0.12], jacket: [0.2, 0.2, 0.22], sleeves: true, glasses: true };
   const GANG = { skin: [0.6, 0.42, 0.3], shirt: [0.55, 0.05, 0.1], pants: [0.12, 0.12, 0.12], hair: [0.08, 0.06, 0.06], hat: [0.5, 0.05, 0.1], jacket: [0.15, 0.15, 0.15], sleeves: true };
-  const PLAYER_LOOK = { skin: [0.9, 0.74, 0.62], shirt: [0.85, 0.85, 0.8], pants: [0.2, 0.2, 0.25], hair: [0.15, 0.1, 0.08], hat: null, jacket: [0.25, 0.14, 0.1], sleeves: true };
+  const PLAYER_LOOK = { skin: [0.9, 0.74, 0.62], shirt: [0.85, 0.85, 0.8], pants: [0.2, 0.2, 0.25], hair: [0.15, 0.1, 0.08], hat: null, jacket: [0.36, 0.25, 0.19], sleeves: true };
   const MARLA = { skin: [0.85, 0.65, 0.5], shirt: [0.9, 0.2, 0.4], pants: [0.1, 0.1, 0.12], hair: [0.05, 0.05, 0.05], hat: null, jacket: [0.1, 0.1, 0.12], sleeves: true };
   const OKAFOR = { skin: [0.42, 0.28, 0.2], shirt: [0.9, 0.85, 0.7], pants: [0.3, 0.3, 0.35], hair: [0.05, 0.05, 0.05], hat: [0.2, 0.25, 0.3], jacket: [0.85, 0.55, 0.1], sleeves: true };
   const CRANE = { skin: [0.92, 0.8, 0.7], shirt: [0.95, 0.95, 0.95], pants: [0.2, 0.2, 0.25], hair: [0.7, 0.7, 0.7], hat: null, jacket: [0.2, 0.2, 0.25], sleeves: true, glasses: true };
