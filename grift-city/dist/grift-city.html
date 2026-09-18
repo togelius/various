@@ -315,7 +315,7 @@ const TEX = (() => {
     }))).then(() => Object.keys(photos).length);
   }
   // The photographic base of the layer being painted: the material's colour map, blended toward the palette colour the
-  // painter asks for (a 'color' blend keeps the photo's luminance, so mortar and grain survive the recolour). The normal
+  // painter asks for (a restrained luminance blend keeps mortar and grain without overpowering the shapes). The normal
   // and roughness maps go to the parallel canvases at the same time. Returns false when the material is missing.
   function base(g, col, opts = {}) {
     const spec = typeof TEXDATA !== 'undefined' && curLayer && TEXDATA.layers[curLayer]; const im = spec && photos[spec[0]];
@@ -323,13 +323,13 @@ const TEX = (() => {
     g.drawImage(im.c, 0, 0, S, S);
     const amt = opts.amt !== undefined ? opts.amt : spec[1];
     if (col && amt > 0) {
-      // Recolour toward the palette colour while keeping the photo's own luminance, so mortar, grain and stains
-      // survive. This is a 'color' blend done by hand: the canvas blend mode is correct but far too slow here.
+      // Recolour toward the palette, compressing photographic contrast toward its luminance.
+      // Surface grain survives, but no longer competes as strongly with silhouettes and signage.
       const t = parseHex(col); const tl = 0.299 * t[0] + 0.587 * t[1] + 0.114 * t[2] || 1;
       const kr = t[0] / tl, kg = t[1] / tl, kb = t[2] / tl, inv = 1 - amt;
       const id = g.getImageData(0, 0, S, S), d = id.data;
       for (let i = 0; i < d.length; i += 4) {
-        const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        const l = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) * 0.65 + tl * 0.35;
         d[i] = inv * d[i] + amt * l * kr; d[i + 1] = inv * d[i + 1] + amt * l * kg; d[i + 2] = inv * d[i + 2] + amt * l * kb;
       }
       g.putImageData(id, 0, 0);
@@ -1455,8 +1455,16 @@ const CITY = (() => {
       { let last = -1; for (let t = 0; t < frontLen - 0.5; t += 8) { let k = rng.pick(pool); if (k === last) k = rng.pick(pool); last = k; shopTiles.push(k); const seg = Math.min(8, frontLen - t); const tl = T['shops' + k];
         if (front === 'n') b.box(x0 + t, y, z0 - 0.03, seg, ground, 0.03, tint, tl, { faces: 32, uvScale: 8 }); else if (front === 's') b.box(x0 + t, y, z1, seg, ground, 0.03, tint, tl, { faces: 16, uvScale: 8 }); else if (front === 'w') b.box(x0 - 0.03, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 2, uvScale: 8 }); else b.box(x1, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 1, uvScale: 8 }); } }
       b.box(x0 - 0.3, y + ground - 0.35, z0 - 0.3, W + 0.6, 0.35, D + 0.6, trim, 0);
+      // Give the painted shop bays a shallow stone surround so the street catches light and shadow.
+      const surround = [0.62, 0.59, 0.52].map((v, i) => v * tint[i]);
+      for (let t = 0.12; t < frontLen; t += 4) {
+        const [px, pz] = frontPt(t, 0.10);
+        b.cbox(px, y + 1.55, pz, fz !== null ? 0.18 : 0.24, 3.1, fz !== null ? 0.24 : 0.18, surround);
+      }
+      const [sx, sz] = frontPt(frontLen / 2, 0.09);
+      b.cbox(sx, y + 0.22, sz, fz !== null ? frontLen : 0.22, 0.20, fz !== null ? 0.22 : frontLen, surround);
       // a real awning over the street side
-      if (rng.chance(0.5)) { const ac = [rng.range(0.4, 0.9), rng.range(0.2, 0.6), rng.range(0.2, 0.6)]; const aw = Math.min(W * 0.6, 7);
+      if (rng.chance(0.5)) { const ac = [rng.range(0.30, 0.56), rng.range(0.25, 0.42), rng.range(0.22, 0.34)]; const aw = Math.min(W * 0.6, 7);
         if (fz !== null) { const ax = x0 + (W - aw) / 2; const zz = front === 'n' ? z0 - 1.4 : z1; b.wedge(ax, y + 2.6, front === 'n' ? zz : zz + 0.0, aw, 0.5, 1.4, ac, 0); }
         else { const az = z0 + (D - aw) / 2; const xx = front === 'w' ? x0 - 1.4 : x1; b.box(xx, y + 2.6, az, 1.4, 0.35, aw, ac, 0); } }
       // planters by the door downtown
@@ -1848,7 +1856,7 @@ const RENDER = (() => {
   const identityBones = new Float32Array(16 * MAX_BONES); for (let i = 0; i < MAX_BONES; i++) identityBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
   const zeroEmis = new Float32Array(MAX_BONES);
   const cam = { x: 0, y: 20, z: 0, tx: 0, ty: 0, tz: 1, fov: 60 * Math.PI / 180, near: 0.3, far: 900 };
-  const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 , normalMaps: true, normalStrength: 1.0 , fogHeight: 30, fogSun: 0.7 , reflect: 1.7 , wet: 0 };
+  const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 , normalMaps: true, normalStrength: 0.6 , fogHeight: 30, fogSun: 0.7 , reflect: 1.7 , wet: 0 };
   const lights = { pos: new Float32Array(MAX_LIGHTS * 4), col: new Float32Array(MAX_LIGHTS * 3), n: 0 };
   const stats = { draws: 0, tris: 0 };
 
@@ -1965,7 +1973,7 @@ const RENDER = (() => {
         // a lamp reflected in a wet street, which is most of what a city looks like in the rain at night
         if (uSpec > 0.0 && gloss > 0.4) col += uLightCols[i] * att * pow(max(dot(n, normalize(Ln + v)), 0.0), power) * uSpec * gloss * gloss * 1.6;
       }
-      col += mix(albedo, s2l(vec3(1.0, 0.87, 0.66)), 0.55) * t.a * uNightEmis * 3.4;
+      col += mix(albedo, s2l(vec3(1.0, 0.87, 0.66)), 0.15) * t.a * uNightEmis * 1.8;
       col += s2l(vCol) * vEmis;
       // Height fog: haze pools in the streets and thins with altitude, so the skyline stays crisp and the city gains depth.
       // Analytic integral of an exponential density along the view ray, then tinted toward the sun for aerial perspective.
@@ -2050,7 +2058,7 @@ const RENDER = (() => {
   const FLAT_FS = `in vec4 vCol; out vec4 o; void main() { vec3 c = vCol.rgb; o = vec4(c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878), vCol.a); }`;
 
   let partVao, partBuf, flatVao, flatBuf, brightProg, blurProg, compProg, aoProg, aoBlurProg;
-  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.75, samples: 4, bloom: 0.35, exposure: 1.0, vignette: 0.3, sat: 1.12, tint: [1, 1, 1] };
+  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.75, samples: 4, bloom: 0.18, exposure: 1.08, vignette: 0.18, sat: 0.96, tint: [1, 1, 1] };
   function makeDepthTarget(w, h) { const t = { w, h }; t.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo); t.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t.tex); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, w, h); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t.tex, 0); t.ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER, null); return t; }
   function makeTarget(w, h, samples, fmtOverride) {
     const fmt = fmtOverride || (post.hdr ? gl.RGBA16F : gl.RGBA8); const t = { w, h };
@@ -2116,13 +2124,13 @@ const RENDER = (() => {
     const night = 1 - day;
     if (sy > 0.02) env.sunDir = [sx, sy, sz]; else env.sunDir = [-sx * 0.5, Math.max(0.35, -sy), -sz * 0.5]; // moon-ish from the other side
     const mix3 = (a, b, k) => [M.lerp(a[0], b[0], k), M.lerp(a[1], b[1], k), M.lerp(a[2], b[2], k)];
-    const sunDay = mix3([1.62, 1.5, 1.28], [1.45, 0.62, 0.24], dusk); const sunNight = [0.02, 0.025, 0.045];
+    const sunDay = mix3([1.72, 1.49, 1.17], [1.45, 0.62, 0.24], dusk); const sunNight = [0.02, 0.025, 0.045];
     env.sunCol = mix3(sunNight, sunDay.map(v => v * 1.0), day);
-    env.skyCol = mix3([0.03, 0.037, 0.07], mix3([0.36, 0.45, 0.62], [0.42, 0.26, 0.2], dusk), day);
-    env.groundCol = mix3([0.014, 0.016, 0.024], mix3([0.17, 0.165, 0.145], [0.2, 0.12, 0.09], dusk), day);
-    env.zenith = mix3([0.004, 0.006, 0.02], mix3([0.12, 0.3, 0.75], [0.15, 0.15, 0.4], dusk), day);
-    env.horizon = mix3([0.012, 0.014, 0.03], mix3([0.36, 0.47, 0.68], [0.9, 0.4, 0.2], dusk), day);
-    env.fogCol = mix3([0.01, 0.012, 0.024], mix3([0.33, 0.43, 0.62], [0.78, 0.4, 0.26], dusk), day);
+    env.skyCol = mix3([0.03, 0.037, 0.07], mix3([0.48, 0.50, 0.56], [0.42, 0.26, 0.2], dusk), day);
+    env.groundCol = mix3([0.014, 0.016, 0.024], mix3([0.23, 0.205, 0.175], [0.2, 0.12, 0.09], dusk), day);
+    env.zenith = mix3([0.004, 0.006, 0.02], mix3([0.20, 0.37, 0.53], [0.15, 0.15, 0.4], dusk), day);
+    env.horizon = mix3([0.012, 0.014, 0.03], mix3([0.64, 0.66, 0.65], [0.9, 0.4, 0.2], dusk), day);
+    env.fogCol = mix3([0.01, 0.012, 0.024], mix3([0.56, 0.59, 0.60], [0.78, 0.4, 0.26], dusk), day);
     env.fogDensity = M.lerp(0.0032, 0.0022, day); env.fogHeight = M.lerp(22, 34, day); env.fogSun = 0.7 * day;
     env.nightEmis = M.clamp(night * 1.3, 0, 1); env.daylight = day; env.starAlpha = M.clamp(night * 1.2 - 0.2, 0, 1) * (1 - rain); env.sunDisc = sy > 0.02 ? (1 - rain) : 0;
     if (rain > 0) { // overcast: grey it all down, thicken the fog
@@ -2798,7 +2806,9 @@ const VEH = (() => {
   const PALETTE = [[0.85, 0.12, 0.1], [0.12, 0.22, 0.6], [0.92, 0.92, 0.9], [0.15, 0.15, 0.17], [0.62, 0.62, 0.66], [0.1, 0.48, 0.25], [0.9, 0.6, 0.12], [0.45, 0.12, 0.5], [0.7, 0.35, 0.15], [0.2, 0.6, 0.7], [0.55, 0.05, 0.1], [0.75, 0.75, 0.5], [0.2, 0.45, 0.35], [0.85, 0.85, 0.6], [0.3, 0.2, 0.4], [0.9, 0.35, 0.25], [0.75, 0.2, 0.35], [0.55, 0.6, 0.7], [0.15, 0.3, 0.45], [0.8, 0.55, 0.3], [0.35, 0.35, 0.4], [0.95, 0.85, 0.8]];
   const FIXED = { taxi: [1, 0.8, 0.1], police: [0.95, 0.95, 0.98], swat: [0.16, 0.18, 0.22], bus: [0.85, 0.55, 0.15] };
   const meshCache = {};
-  function colorOf(type, colIdx) { return colIdx === 'wreck' ? [0.07, 0.07, 0.07] : FIXED[type] || PALETTE[colIdx]; }
+  function colorOf(type, colIdx) { if (colIdx === 'wreck') return [0.07, 0.07, 0.07];
+    const c = FIXED[type] || PALETTE[colIdx], l = c[0] * .3 + c[1] * .59 + c[2] * .11;
+    return c.map(v => (v * .72 + l * .28) * .88 + .035); }
   function getMesh(type, colIdx) { const key = type + ':' + colIdx; if (!meshCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx)); meshCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return meshCache[key]; }
   const lodCache = {}; function getLod(type, colIdx) { const key = type + ':' + colIdx; if (!lodCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx), { lod: true }); lodCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return lodCache[key]; }
   function dentedMesh(type, colIdx, dent, seed) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed }); return { body: m.body.build(), glass: m.glass.build() }; }
@@ -3170,7 +3180,7 @@ const VEH = (() => {
       }
       if (this.damageFlash > 0) { for (let i = 0; i < 5; i++) e[i] = 0.25; }
       const far = !this.wrecked && this.dentLevel === 0 && M.dist2(this.x, this.z, RENDER.cam.tx, RENDER.cam.tz) > 85 * 85; const lod = far ? getLod(this.type, this.colIdx) : null;
-      return { mesh: lod ? lod.body : this.mesh, glass: lod ? lod.glass : this.meshes.glass, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.6 };
+      return { mesh: lod ? lod.body : this.mesh, glass: lod ? lod.glass : this.meshes.glass, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.25 };
     }
     headlightFX() { if (!this.lightsOn || this.wrecked) return; const f = this.fwd, r = this.right; const s = this.spec; const hx = this.x + f[0] * s.len * 0.5, hz = this.z + f[1] * s.len * 0.5; W.fx.lightPool(hx, hz, f[0], f[1], 16, 3.2, [1, 0.95, 0.75], 0.2); W.dyn.push({ x: hx + f[0] * 5, y: 1, z: hz + f[1] * 5, r: 13, col: [0.6, 0.56, 0.42] }); }
     remove() { this.removed = true; if (this.driver && this.driver !== PLAYER) { this.driver.removed = true; } for (const p of this.passengers) p.removed = true; }
@@ -4610,18 +4620,19 @@ const HUD = (() => {
   // ---- Radar map, painted once
   function buildMap() {
     const [b0, b1] = W.bounds; const size = b1 - b0; mapCanvas = document.createElement('canvas'); mapCanvas.width = mapCanvas.height = 1024; const m = mapCanvas.getContext('2d'); const s = 1024 / size; mapCanvas._s = s; mapCanvas._b0 = b0;
-    m.fillStyle = '#1b3a55'; m.fillRect(0, 0, 1024, 1024);
-    m.fillStyle = '#5f6b5a'; m.fillRect((-14 - b0) * s, (-14 - b0) * s, (CITY.SIZE + 28) * s, (CITY.SIZE + 28) * s);
-    for (const bl of CITY.blocks) { const col = bl.kind === 'park' ? '#4a7a3c' : (bl.kind === 'parking' || bl.kind === 'stunt') ? '#6d6d6d' : bl.kind === 'docks' ? '#7a6f55' : '#8d8d86'; m.fillStyle = col; m.fillRect((bl.x - 3 - b0) * s, (bl.z - 3 - b0) * s, 70 * s, 70 * s); m.fillStyle = 'rgba(0,0,0,0.25)'; for (const l of bl.lots) if (l.kind !== 'wall') m.fillRect((l.x0 - b0) * s, (l.z0 - b0) * s, (l.x1 - l.x0) * s, (l.z1 - l.z0) * s); }
-    m.fillStyle = '#d9d7cf'; for (let i = 0; i <= CITY.GRID; i++) { m.fillRect((i * CITY.PITCH - 7 - b0) * s, (-7 - b0) * s, 14 * s, (CITY.SIZE + 14) * s); m.fillRect((-7 - b0) * s, (i * CITY.PITCH - 7 - b0) * s, (CITY.SIZE + 14) * s, 14 * s); }
+    m.fillStyle = '#24383e'; m.fillRect(0, 0, 1024, 1024);
+    m.fillStyle = '#454b43'; m.fillRect((-14 - b0) * s, (-14 - b0) * s, (CITY.SIZE + 28) * s, (CITY.SIZE + 28) * s);
+    for (const bl of CITY.blocks) { const col = bl.kind === 'park' ? '#526451' : (bl.kind === 'parking' || bl.kind === 'stunt') ? '#6d6d6d' : bl.kind === 'docks' ? '#7a6f55' : '#686b60'; m.fillStyle = col; m.fillRect((bl.x - 3 - b0) * s, (bl.z - 3 - b0) * s, 70 * s, 70 * s); m.fillStyle = 'rgba(0,0,0,0.25)'; for (const l of bl.lots) if (l.kind !== 'wall') m.fillRect((l.x0 - b0) * s, (l.z0 - b0) * s, (l.x1 - l.x0) * s, (l.z1 - l.z0) * s); }
+    m.fillStyle = '#b7b6a6'; for (let i = 0; i <= CITY.GRID; i++) { m.fillRect((i * CITY.PITCH - 7 - b0) * s, (-7 - b0) * s, 14 * s, (CITY.SIZE + 14) * s); m.fillRect((-7 - b0) * s, (i * CITY.PITCH - 7 - b0) * s, (CITY.SIZE + 14) * s, 14 * s); }
     const icons = { safehouse: ['#ff70d0', 'S'], garage: ['#f5a623', 'V'], spray: ['#f5c542', 'P'], guns: ['#e0453b', 'G'], hospital: ['#ffffff', 'H'], police: ['#5aa0ff', 'P'], bank: ['#3df06a', '$'], tower: ['#a0a0ff', 'C'], docks: ['#c0a060', 'D'] };
     mapCanvas._icons = []; for (const k in icons) for (const p of (CITY.places[k] || [])) mapCanvas._icons.push({ x: p.x, z: p.z, col: icons[k][0], ch: icons[k][1], kind: k });
   }
   function drawMapIcons(scale, filter) { for (const ic of mapCanvas._icons) { if (filter && !filter(ic)) continue; g.fillStyle = ic.col; g.beginPath(); g.arc(ic.x, ic.z, 4 / scale, 0, 7); g.fill(); } }
+  function radarLayout(w, h) { const R = Math.min(82, w * 0.12); return { R, cx: R + 24, cy: h - R - 30 }; }
   function radar(P, cam) {
-    const R = Math.min(110, W_ * 0.14), cx = R + 24, cy = H_ - R - 24; const scale = 0.55; const yaw = W.state.camYaw;
+    const { R, cx, cy } = radarLayout(W_, H_); const scale = 0.55; const yaw = W.state.camYaw;
     g.save(); g.beginPath(); g.arc(cx, cy, R, 0, 7); g.clip();
-    g.fillStyle = '#1b3a55'; g.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+    g.fillStyle = '#24383e'; g.fillRect(cx - R, cy - R, 2 * R, 2 * R);
     g.translate(cx, cy); g.rotate(yaw + Math.PI); g.scale(scale, scale); g.translate(-P.x, -P.z);
     const s = mapCanvas._s, b0 = mapCanvas._b0; g.drawImage(mapCanvas, 0, 0, 1024, 1024, b0, b0, 1024 / s, 1024 / s);
     drawMapIcons(scale, null);
@@ -4645,7 +4656,7 @@ const HUD = (() => {
     // north indicator
     { const a = yaw + Math.PI; const nx = cx + Math.sin(a) * (R + 12), ny = cy - Math.cos(a) * (R + 12); text('N', nx, ny, 12, '#fff', 'center'); }
     // health & armor bars beside the radar
-    const bx = cx + R + 12, by = cy + R - 14, bw = Math.min(170, W_ * 0.2);
+    const bx = cx + R + 12, by = cy + R - 14, bw = Math.min(112, W_ * 0.16);
     g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(bx - 2, by - 12, bw + 4, 14); g.fillStyle = P.health > 25 ? '#d8352f' : (Math.sin(W.state.elapsed * 10) > 0 ? '#ff6060' : '#802020'); g.fillRect(bx, by - 10, bw * M.clamp(P.health / 100, 0, 1), 10);
     if (P.armor > 0) { g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(bx - 2, by - 28, bw + 4, 14); g.fillStyle = '#c8c8d0'; g.fillRect(bx, by - 26, bw * M.clamp(P.armor / 100, 0, 1), 10); }
     if (P.car) { const kmh = Math.round(P.car.absSpeed * 3.6 * 1.6); text(kmh + ' km/h', bx, by - (P.armor > 0 ? 42 : 26), 14, '#ddd'); }
@@ -4684,17 +4695,18 @@ const HUD = (() => {
       text('SPACE to continue', W_ - 20, H_ - 18, 12, '#aaa', 'right', 'normal');
       if (fadeT > 0) drawFade(dt); return;
     }
+    const shade = g.createLinearGradient(0, 0, 0, 115); shade.addColorStop(0, 'rgba(16,25,29,0.55)'); shade.addColorStop(1, 'rgba(16,25,29,0)'); g.fillStyle = shade; g.fillRect(0, 0, W_, 115);
     radar(P, RENDER.cam);
     // top right: money, stars, weapon
     moneyAnim.shown = Math.abs(moneyAnim.target - moneyAnim.shown) < 2 ? moneyAnim.target : M.lerp(moneyAnim.shown, moneyAnim.target, Math.min(1, 6 * dt)); moneyAnim.target = P.money;
-    outlined('$' + Math.round(moneyAnim.shown).toString().padStart(8, '0'), W_ - 24, 34, 26, '#3df06a', 'right');
-    stars(P, W_ - 34, 70);
+    text('$' + Math.round(moneyAnim.shown).toLocaleString('en-US'), W_ - 28, 32, 24, '#eee5ce', 'right', '500');
+    if (P.wanted > 0) stars(P, W_ - 38, 65);
     weaponIcon(W_ - 60, 112, P.weapon); const ammo = P.weapons[P.weapon]; if (ammo !== Infinity) text(String(ammo), W_ - 100, 112, 18, '#fff', 'right');
     if (ECON.S.bounty > 0) text('BOUNTY  ' + '\u25cf'.repeat(ECON.S.bounty), W_ - 24, 150, 13, ECON.S.crew ? '#ff5040' : '#e0a040', 'right');
     text(WEAPONS[P.weapon].name, W_ - 24, 140, 12, '#ccc', 'right', 'normal');
     if (P.carNameT > 0 && P.car) text(P.lastCarName, W_ - 24, H_ - 40, 22, 'rgba(245,197,66,' + Math.min(1, P.carNameT) + ')', 'right');
     // top left: clock and district
-    text(W.clockString(), 24, 30, 22, '#fff'); text(CITY.districtName(P.x, P.z).toUpperCase(), 24, 54, 13, '#ccc', 'left', 'normal');
+    text(CITY.districtName(P.x, P.z).toUpperCase(), 28, 30, 17, '#eee5ce', 'left', '500'); text(W.clockString(), 28, 53, 13, '#bfc8c6', 'left', 'normal');
     if (AUDIO.radioStation > 0 && P.car) text('♪ ' + AUDIO.STATIONS[AUDIO.radioStation], 24, 76, 12, '#ccc', 'left', 'normal');
     // notifications
     for (let i = notes.length - 1, k = 0; i >= 0; i--, k++) { const n = notes[i]; n.t -= dt; if (n.t <= 0) { notes.splice(i, 1); continue; } text(n.text, W_ / 2, 60 + k * 22, 15, 'rgba(255,255,255,' + Math.min(1, n.t) + ')', 'center'); }
@@ -4706,7 +4718,7 @@ const HUD = (() => {
     // help prompts
     if (INPUT.fallback && W.state.elapsed < 20) text('Pointer lock unavailable here: the mouse steers the camera without capture', W_ / 2, H_ - 40, 12, '#f5c542', 'center', 'normal');
     if (INPUT.hit('F1')) showControls = !showControls;
-    if (state === 'playing' && P.alive) text(hintLine(P), W_ / 2, H_ - 22, 12, 'rgba(210,210,210,0.85)', 'center', 'normal');
+    if (state === 'playing' && P.alive) text(W.state.elapsed < 30 || P.car || P.aim || MISSIONS.shop ? hintLine(P) : W.cars.some(c => !c.removed && !c.wrecked && M.dist2(c.x, c.z, P.x, P.z) < 30) ? 'F  ENTER VEHICLE   ·   F1  CONTROLS' : 'F1  CONTROLS', W_ / 2, H_ - 22, 12, 'rgba(210,210,210,0.85)', 'center', 'normal');
     if (showControls) drawControls();
     const cur = MISSIONS.S.current; if (cur && cur.data && cur.data.det !== undefined && !cur.data.alarm) { const w = 220, x = W_ / 2 - w / 2, y = 84; g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x - 2, y - 2, w + 4, 14); g.fillStyle = cur.data.det > 0.7 ? '#e0453b' : '#f5c542'; g.fillRect(x, y, w * cur.data.det, 10); text('DETECTION', W_ / 2, y - 6, 11, '#ddd', 'center', 'normal'); }
     // shop
@@ -4772,7 +4784,7 @@ const HUD = (() => {
   }
   // Where a run went: the big map with every sampled position burned in (tools/playtest/run.js writes it as heatmap.png).
   function heatmap(track) { resize(); g.clearRect(0, 0, W_, H_); drawBigMap(PLAYER.P, (scale) => { g.fillStyle = 'rgba(255,70,30,0.22)'; for (const [x, z] of track) { g.beginPath(); g.arc(x, z, 7 / scale, 0, 7); g.fill(); } g.fillStyle = '#fff'; g.beginPath(); g.arc(track[0][0], track[0][1], 5 / scale, 0, 7); g.fill(); }); text('positions sampled every 0.4 s of wall time; white dot is the start', W_ / 2, H_ - 14, 12, '#ccc', 'center', 'normal'); }
-  return { init, draw, loading, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, shake: (a) => PLAYER.shake(a) };
+  return { radarLayout, init, draw, loading, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, shake: (a) => PLAYER.shake(a) };
 })();
 
 </script>
@@ -4955,7 +4967,7 @@ const GAME = (() => {
       if (viewer) { window.claude.use('downloads').then(dl => { if (!dl) throw new Error('unavailable'); return fetch(url).then(r => r.blob()).then(blob => dl.save({ filename: name, data: blob })); }).then(() => { photo.savedT = 1.5; AUDIO.play('click'); }).catch(e => { if (!e || e.code !== 'declined') HUD.notify('Could not save the photo here.'); }); return; }
       const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); photo.savedT = 1.5; AUDIO.play('click'); } catch (e) { HUD.notify('Could not save the photo.'); } }
   // ---- Per-district colour grade: a tint and a saturation the composite pass blends toward as you cross the city
-  const GRADES = { downtown: [[0.94, 0.98, 1.07], 1.05], midtown: [[1, 1, 1], 1.1], northgate: [[1.05, 0.98, 0.9], 0.98], westfield: [[0.96, 1.04, 0.95], 1.14], eastside: [[1.07, 0.98, 0.88], 0.94], southport: [[0.98, 1.02, 1.05], 1.2], sea: [[0.95, 1.02, 1.08], 1.25], indoor: [[1.06, 0.98, 0.9], 1.0] };
+  const GRADES = { downtown: [[0.99, 1.0, 1.02], 0.96], midtown: [[1.02, 1.0, 0.97], 0.97], northgate: [[1.05, 0.98, 0.9], 0.98], westfield: [[0.99, 1.02, 0.96], 0.98], eastside: [[1.07, 0.98, 0.88], 0.94], southport: [[1.01, 1.02, 1.03], 0.98], sea: [[0.98, 1.02, 1.04], 1.0], indoor: [[1.06, 0.98, 0.9], 1.0] };
   function updateGrade(dt, px, pz) { const bl = CITY.blockAt(px, pz); const key = CITY.interiorRoom ? 'indoor' : bl ? CITY.district(bl.i, bl.j) : (W.onWater(px, pz) ? 'sea' : 'southport'); const g = GRADES[key] || GRADES.midtown; const k = Math.min(1, 0.6 * dt); const t = RENDER.post.tint; for (let i = 0; i < 3; i++) t[i] = M.lerp(t[i], g[0][i], k); RENDER.post.sat = M.lerp(RENDER.post.sat, g[1], k); }
   // Playtest bot hooks: a compact state snapshot and a road route to a point.
   window.__ptState = () => { const P = PLAYER.P; const c = P.car; const bp = MISSIONS.blipPos(); let nc = null, nd = 1e9; for (const v of W.cars) { if (v.removed || v.wrecked || v === c) continue; const d = M.dist(v.x, v.z, P.x, P.z); if (d < nd) { nd = d; nc = v; } }

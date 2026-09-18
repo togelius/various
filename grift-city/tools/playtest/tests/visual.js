@@ -25,10 +25,10 @@ function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); con
       mean(rect) { const s = window.__shot; const [x0, y0, x1, y1] = rect; let sum = 0, n = 0; const d = s.data; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * s.width + x) * 4; sum += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; } return sum / n; } };
     window.COL = { magenta: (r, g, b) => r > 140 && b > 140 && g < 100, cyan: (r, g, b) => g > 140 && b > 140 && r < 100, red: (r, g, b) => r > 90 && g < r * 0.38 && b < r * 0.45, green: (r, g, b) => g > 90 && g > r + 60 && g > b + 60, blue: (r, g, b) => b > 90 && r < b * 0.5 && g < b * 0.45, yellow: (r, g, b) => r > 70 && g > r * 0.40 && g < r * 0.80 && b < g - 10, /* the card's orange quadrant, which may be in shade */ blip: (r, g, b) => Math.abs(r - 245) < 12 && Math.abs(g - 197) < 12 && Math.abs(b - 66) < 14 };
   });
-  async function shot(label) { await page.evaluate(() => { MISSIONS.S.dialogue = null; GAME.state = 'playing'; window.__renderOnce(); }); const buf = await page.screenshot({ timeout: 240000 }); fs.writeFileSync(path.join(OUT, `${String(shotN++).padStart(2, '0')}-${label}.png`), buf); return page.evaluate(b64 => window.px.load(b64), buf.toString('base64')); }
+  async function shot(label, hideHud = false) { await page.evaluate(() => { MISSIONS.S.dialogue = null; GAME.state = 'playing'; window.__renderOnce(); }); await page.evaluate(hide => { document.getElementById('hud').style.visibility = hide ? 'hidden' : ''; }, hideHud); const buf = await page.screenshot({ timeout: 240000 }); await page.evaluate(() => { document.getElementById('hud').style.visibility = ''; }); fs.writeFileSync(path.join(OUT, `${String(shotN++).padStart(2, '0')}-${label}.png`), buf); return page.evaluate(b64 => window.px.load(b64), buf.toString('base64')); }
   const ev = (fn, ...args) => page.evaluate(fn, ...args);
   const W = 960, H = 540; const clearBoxes = () => ev(() => { window.__debugBoxes.length = 0; });
-  const radarC = await ev(() => { const R = Math.min(110, innerWidth * 0.14); return { R, cx: R + 24, cy: innerHeight - R - 24 }; });
+  const radarC = await ev(() => { return HUD.radarLayout(innerWidth, innerHeight); });
   const dpr = await ev(() => devicePixelRatio);
 
   if (want('camera')) {
@@ -88,7 +88,7 @@ function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); con
   await ev(() => { if (!PLAYER.P.alive) PLAYER.respawn(); PLAYER.P.health = 100; W.state.time = 12.5; tp(300, 336, Math.PI); clearArea(300, 336, 40); sim(0.3); tp(300, 336, Math.PI); }); await shot('day');
   const day = await ev(r => px.mean(r), centre); await ev(() => { PLAYER.P.camPitch = 0.28; });
   // the sky: stand on the beach at the south edge and look out to sea, where nothing tall is in the way
-  await ev(() => { if (!PLAYER.P.alive) PLAYER.respawn(); PLAYER.P.health = 100; tp(420, 846, 0); clearArea(420, 846, 40); sim(0.3); tp(420, 846, 0); PLAYER.P.camPitch = 0.08; }); await shot('sky');
+  await ev(() => { if (!PLAYER.P.alive) PLAYER.respawn(); PLAYER.P.health = 100; tp(420, 846, 0); clearArea(420, 846, 40); sim(0.3); tp(420, 846, 0); PLAYER.P.camPitch = 0.08; }); await shot('sky', true); // exposure measures the renderer, not the HUD's top gradient
   const skyTop = await ev(r => px.mean(r), [Math.round(W * 0.3 * dpr), 0, Math.round(W * 0.7 * dpr), Math.round(20 * dpr)]);
   await ev(() => { W.state.time = 22.5; tp(300, 336, Math.PI); sim(0.3); tp(300, 336, Math.PI); }); await shot('night');
   const night = await ev(r => px.mean(r), centre);
@@ -99,9 +99,9 @@ function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); con
   if (want('hud')) {
   // ---- 6. HUD: health bar, radar disc and money are drawn where they belong
   await ev(() => { W.state.time = 12; sim(0.3); tp(300, 336, Math.PI); }); await shot('hud');
-  { const bar = await ev(r => px.find((R, G, B) => R > 170 && G < 90 && B < 90, r), [Math.round(250 * dpr), Math.round((H - 60) * dpr), Math.round(440 * dpr), Math.round((H - 30) * dpr)]);
+  { const bar = await ev(r => px.find((R, G, B) => R > 170 && G < 90 && B < 90, r), [Math.round((radarC.cx + radarC.R + 10) * dpr), Math.round((radarC.cy + radarC.R - 28) * dpr), Math.round((radarC.cx + radarC.R + 130) * dpr), Math.round((radarC.cy + radarC.R - 10) * dpr)]);
     check('hud: health bar is drawn beside the radar', bar.n > 200, { n: bar.n });
-    const money = await ev(r => px.find((R, G, B) => G > 180 && R < 140 && B < 140, r), [Math.round((W - 260) * dpr), 0, Math.round(W * dpr), Math.round(60 * dpr)]);
+    const money = await ev(r => px.find((R, G, B) => R > 210 && G > 195 && B > 165 && R > B + 12, r), [Math.round((W - 260) * dpr), 0, Math.round(W * dpr), Math.round(60 * dpr)]);
     check('hud: money counter is drawn top-right', money.n > 80, { n: money.n });
     const arrow = await ev(r => px.find((R, G, B) => R > 235 && G > 235 && B > 235, r), [Math.round((radarC.cx - 12) * dpr), Math.round((radarC.cy - 12) * dpr), Math.round((radarC.cx + 12) * dpr), Math.round((radarC.cy + 12) * dpr)]);
     check('hud: player arrow sits at the radar centre', arrow.n > 10, { n: arrow.n }); } }

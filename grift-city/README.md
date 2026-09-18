@@ -237,6 +237,20 @@ count as reached once they are behind the car, which is what used to send
 a car in laps round an intersection when the corner was tighter than its
 steering lock.
 
+## Visual direction
+
+The first style pass uses warm sunlight, neutral-blue shade and a hazy coastal
+sky, with restrained saturation and bloom. Photographic texture contrast and
+normal-map strength are reduced to fit the simpler geometry. Vehicle paint
+uses a quieter palette and softer highlights. Shallow stone surrounds give
+shop bays real edges and contact shadows; emissive windows retain their painted
+detail at night instead of turning into white rectangles.
+
+The HUD uses a compact radar, warm-white cash without leading zeroes, and
+wanted stars only during pursuit. Full movement hints remain during the first
+thirty seconds and contextual driving/aiming hints remain available; nearby
+cars show the entry key, and F1 always opens the controls sheet.
+
 ## Light and colour
 
 The renderer lights in linear space. Textures and palette colours are authored in sRGB, so they are
@@ -294,8 +308,8 @@ roughness map tiled to the metre scale each texture layer covers. Tiling a
 normal map down averages opposing slopes away, so the baker measures what
 survives and amplifies it back. The painters draw their own detail — windows,
 road markings, shop signs, slab joints — on top, recoloured toward the palette
-by a luminance-preserving blend so the mortar and grain of the photograph
-survive the recolour.
+with restrained photographic contrast so the mortar and grain survive without
+overpowering the building shapes.
 
 ## Saving and regression checks
 

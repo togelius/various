@@ -6,7 +6,9 @@ const VEH = (() => {
   const PALETTE = [[0.85, 0.12, 0.1], [0.12, 0.22, 0.6], [0.92, 0.92, 0.9], [0.15, 0.15, 0.17], [0.62, 0.62, 0.66], [0.1, 0.48, 0.25], [0.9, 0.6, 0.12], [0.45, 0.12, 0.5], [0.7, 0.35, 0.15], [0.2, 0.6, 0.7], [0.55, 0.05, 0.1], [0.75, 0.75, 0.5], [0.2, 0.45, 0.35], [0.85, 0.85, 0.6], [0.3, 0.2, 0.4], [0.9, 0.35, 0.25], [0.75, 0.2, 0.35], [0.55, 0.6, 0.7], [0.15, 0.3, 0.45], [0.8, 0.55, 0.3], [0.35, 0.35, 0.4], [0.95, 0.85, 0.8]];
   const FIXED = { taxi: [1, 0.8, 0.1], police: [0.95, 0.95, 0.98], swat: [0.16, 0.18, 0.22], bus: [0.85, 0.55, 0.15] };
   const meshCache = {};
-  function colorOf(type, colIdx) { return colIdx === 'wreck' ? [0.07, 0.07, 0.07] : FIXED[type] || PALETTE[colIdx]; }
+  function colorOf(type, colIdx) { if (colIdx === 'wreck') return [0.07, 0.07, 0.07];
+    const c = FIXED[type] || PALETTE[colIdx], l = c[0] * .3 + c[1] * .59 + c[2] * .11;
+    return c.map(v => (v * .72 + l * .28) * .88 + .035); }
   function getMesh(type, colIdx) { const key = type + ':' + colIdx; if (!meshCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx)); meshCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return meshCache[key]; }
   const lodCache = {}; function getLod(type, colIdx) { const key = type + ':' + colIdx; if (!lodCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx), { lod: true }); lodCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return lodCache[key]; }
   function dentedMesh(type, colIdx, dent, seed) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed }); return { body: m.body.build(), glass: m.glass.build() }; }
@@ -378,7 +380,7 @@ const VEH = (() => {
       }
       if (this.damageFlash > 0) { for (let i = 0; i < 5; i++) e[i] = 0.25; }
       const far = !this.wrecked && this.dentLevel === 0 && M.dist2(this.x, this.z, RENDER.cam.tx, RENDER.cam.tz) > 85 * 85; const lod = far ? getLod(this.type, this.colIdx) : null;
-      return { mesh: lod ? lod.body : this.mesh, glass: lod ? lod.glass : this.meshes.glass, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.6 };
+      return { mesh: lod ? lod.body : this.mesh, glass: lod ? lod.glass : this.meshes.glass, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.25 };
     }
     headlightFX() { if (!this.lightsOn || this.wrecked) return; const f = this.fwd, r = this.right; const s = this.spec; const hx = this.x + f[0] * s.len * 0.5, hz = this.z + f[1] * s.len * 0.5; W.fx.lightPool(hx, hz, f[0], f[1], 16, 3.2, [1, 0.95, 0.75], 0.2); W.dyn.push({ x: hx + f[0] * 5, y: 1, z: hz + f[1] * 5, r: 13, col: [0.6, 0.56, 0.42] }); }
     remove() { this.removed = true; if (this.driver && this.driver !== PLAYER) { this.driver.removed = true; } for (const p of this.passengers) p.removed = true; }

@@ -8,7 +8,7 @@ const RENDER = (() => {
   const identityBones = new Float32Array(16 * MAX_BONES); for (let i = 0; i < MAX_BONES; i++) identityBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
   const zeroEmis = new Float32Array(MAX_BONES);
   const cam = { x: 0, y: 20, z: 0, tx: 0, ty: 0, tz: 1, fov: 60 * Math.PI / 180, near: 0.3, far: 900 };
-  const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 , normalMaps: true, normalStrength: 1.0 , fogHeight: 30, fogSun: 0.7 , reflect: 1.7 , wet: 0 };
+  const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 , normalMaps: true, normalStrength: 0.6 , fogHeight: 30, fogSun: 0.7 , reflect: 1.7 , wet: 0 };
   const lights = { pos: new Float32Array(MAX_LIGHTS * 4), col: new Float32Array(MAX_LIGHTS * 3), n: 0 };
   const stats = { draws: 0, tris: 0 };
 
@@ -125,7 +125,7 @@ const RENDER = (() => {
         // a lamp reflected in a wet street, which is most of what a city looks like in the rain at night
         if (uSpec > 0.0 && gloss > 0.4) col += uLightCols[i] * att * pow(max(dot(n, normalize(Ln + v)), 0.0), power) * uSpec * gloss * gloss * 1.6;
       }
-      col += mix(albedo, s2l(vec3(1.0, 0.87, 0.66)), 0.55) * t.a * uNightEmis * 3.4;
+      col += mix(albedo, s2l(vec3(1.0, 0.87, 0.66)), 0.15) * t.a * uNightEmis * 1.8;
       col += s2l(vCol) * vEmis;
       // Height fog: haze pools in the streets and thins with altitude, so the skyline stays crisp and the city gains depth.
       // Analytic integral of an exponential density along the view ray, then tinted toward the sun for aerial perspective.
@@ -210,7 +210,7 @@ const RENDER = (() => {
   const FLAT_FS = `in vec4 vCol; out vec4 o; void main() { vec3 c = vCol.rgb; o = vec4(c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878), vCol.a); }`;
 
   let partVao, partBuf, flatVao, flatBuf, brightProg, blurProg, compProg, aoProg, aoBlurProg;
-  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.75, samples: 4, bloom: 0.35, exposure: 1.0, vignette: 0.3, sat: 1.12, tint: [1, 1, 1] };
+  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.75, samples: 4, bloom: 0.18, exposure: 1.08, vignette: 0.18, sat: 0.96, tint: [1, 1, 1] };
   function makeDepthTarget(w, h) { const t = { w, h }; t.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo); t.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t.tex); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, w, h); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t.tex, 0); t.ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER, null); return t; }
   function makeTarget(w, h, samples, fmtOverride) {
     const fmt = fmtOverride || (post.hdr ? gl.RGBA16F : gl.RGBA8); const t = { w, h };
@@ -276,13 +276,13 @@ const RENDER = (() => {
     const night = 1 - day;
     if (sy > 0.02) env.sunDir = [sx, sy, sz]; else env.sunDir = [-sx * 0.5, Math.max(0.35, -sy), -sz * 0.5]; // moon-ish from the other side
     const mix3 = (a, b, k) => [M.lerp(a[0], b[0], k), M.lerp(a[1], b[1], k), M.lerp(a[2], b[2], k)];
-    const sunDay = mix3([1.62, 1.5, 1.28], [1.45, 0.62, 0.24], dusk); const sunNight = [0.02, 0.025, 0.045];
+    const sunDay = mix3([1.72, 1.49, 1.17], [1.45, 0.62, 0.24], dusk); const sunNight = [0.02, 0.025, 0.045];
     env.sunCol = mix3(sunNight, sunDay.map(v => v * 1.0), day);
-    env.skyCol = mix3([0.03, 0.037, 0.07], mix3([0.36, 0.45, 0.62], [0.42, 0.26, 0.2], dusk), day);
-    env.groundCol = mix3([0.014, 0.016, 0.024], mix3([0.17, 0.165, 0.145], [0.2, 0.12, 0.09], dusk), day);
-    env.zenith = mix3([0.004, 0.006, 0.02], mix3([0.12, 0.3, 0.75], [0.15, 0.15, 0.4], dusk), day);
-    env.horizon = mix3([0.012, 0.014, 0.03], mix3([0.36, 0.47, 0.68], [0.9, 0.4, 0.2], dusk), day);
-    env.fogCol = mix3([0.01, 0.012, 0.024], mix3([0.33, 0.43, 0.62], [0.78, 0.4, 0.26], dusk), day);
+    env.skyCol = mix3([0.03, 0.037, 0.07], mix3([0.48, 0.50, 0.56], [0.42, 0.26, 0.2], dusk), day);
+    env.groundCol = mix3([0.014, 0.016, 0.024], mix3([0.23, 0.205, 0.175], [0.2, 0.12, 0.09], dusk), day);
+    env.zenith = mix3([0.004, 0.006, 0.02], mix3([0.20, 0.37, 0.53], [0.15, 0.15, 0.4], dusk), day);
+    env.horizon = mix3([0.012, 0.014, 0.03], mix3([0.64, 0.66, 0.65], [0.9, 0.4, 0.2], dusk), day);
+    env.fogCol = mix3([0.01, 0.012, 0.024], mix3([0.56, 0.59, 0.60], [0.78, 0.4, 0.26], dusk), day);
     env.fogDensity = M.lerp(0.0032, 0.0022, day); env.fogHeight = M.lerp(22, 34, day); env.fogSun = 0.7 * day;
     env.nightEmis = M.clamp(night * 1.3, 0, 1); env.daylight = day; env.starAlpha = M.clamp(night * 1.2 - 0.2, 0, 1) * (1 - rain); env.sunDisc = sy > 0.02 ? (1 - rain) : 0;
     if (rain > 0) { // overcast: grey it all down, thicken the fog

@@ -243,8 +243,16 @@ const CITY = (() => {
       { let last = -1; for (let t = 0; t < frontLen - 0.5; t += 8) { let k = rng.pick(pool); if (k === last) k = rng.pick(pool); last = k; shopTiles.push(k); const seg = Math.min(8, frontLen - t); const tl = T['shops' + k];
         if (front === 'n') b.box(x0 + t, y, z0 - 0.03, seg, ground, 0.03, tint, tl, { faces: 32, uvScale: 8 }); else if (front === 's') b.box(x0 + t, y, z1, seg, ground, 0.03, tint, tl, { faces: 16, uvScale: 8 }); else if (front === 'w') b.box(x0 - 0.03, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 2, uvScale: 8 }); else b.box(x1, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 1, uvScale: 8 }); } }
       b.box(x0 - 0.3, y + ground - 0.35, z0 - 0.3, W + 0.6, 0.35, D + 0.6, trim, 0);
+      // Give the painted shop bays a shallow stone surround so the street catches light and shadow.
+      const surround = [0.62, 0.59, 0.52].map((v, i) => v * tint[i]);
+      for (let t = 0.12; t < frontLen; t += 4) {
+        const [px, pz] = frontPt(t, 0.10);
+        b.cbox(px, y + 1.55, pz, fz !== null ? 0.18 : 0.24, 3.1, fz !== null ? 0.24 : 0.18, surround);
+      }
+      const [sx, sz] = frontPt(frontLen / 2, 0.09);
+      b.cbox(sx, y + 0.22, sz, fz !== null ? frontLen : 0.22, 0.20, fz !== null ? 0.22 : frontLen, surround);
       // a real awning over the street side
-      if (rng.chance(0.5)) { const ac = [rng.range(0.4, 0.9), rng.range(0.2, 0.6), rng.range(0.2, 0.6)]; const aw = Math.min(W * 0.6, 7);
+      if (rng.chance(0.5)) { const ac = [rng.range(0.30, 0.56), rng.range(0.25, 0.42), rng.range(0.22, 0.34)]; const aw = Math.min(W * 0.6, 7);
         if (fz !== null) { const ax = x0 + (W - aw) / 2; const zz = front === 'n' ? z0 - 1.4 : z1; b.wedge(ax, y + 2.6, front === 'n' ? zz : zz + 0.0, aw, 0.5, 1.4, ac, 0); }
         else { const az = z0 + (D - aw) / 2; const xx = front === 'w' ? x0 - 1.4 : x1; b.box(xx, y + 2.6, az, 1.4, 0.35, aw, ac, 0); } }
       // planters by the door downtown

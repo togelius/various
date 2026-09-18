@@ -16,7 +16,7 @@ const TEX = (() => {
     }))).then(() => Object.keys(photos).length);
   }
   // The photographic base of the layer being painted: the material's colour map, blended toward the palette colour the
-  // painter asks for (a 'color' blend keeps the photo's luminance, so mortar and grain survive the recolour). The normal
+  // painter asks for (a restrained luminance blend keeps mortar and grain without overpowering the shapes). The normal
   // and roughness maps go to the parallel canvases at the same time. Returns false when the material is missing.
   function base(g, col, opts = {}) {
     const spec = typeof TEXDATA !== 'undefined' && curLayer && TEXDATA.layers[curLayer]; const im = spec && photos[spec[0]];
@@ -24,13 +24,13 @@ const TEX = (() => {
     g.drawImage(im.c, 0, 0, S, S);
     const amt = opts.amt !== undefined ? opts.amt : spec[1];
     if (col && amt > 0) {
-      // Recolour toward the palette colour while keeping the photo's own luminance, so mortar, grain and stains
-      // survive. This is a 'color' blend done by hand: the canvas blend mode is correct but far too slow here.
+      // Recolour toward the palette, compressing photographic contrast toward its luminance.
+      // Surface grain survives, but no longer competes as strongly with silhouettes and signage.
       const t = parseHex(col); const tl = 0.299 * t[0] + 0.587 * t[1] + 0.114 * t[2] || 1;
       const kr = t[0] / tl, kg = t[1] / tl, kb = t[2] / tl, inv = 1 - amt;
       const id = g.getImageData(0, 0, S, S), d = id.data;
       for (let i = 0; i < d.length; i += 4) {
-        const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        const l = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) * 0.65 + tl * 0.35;
         d[i] = inv * d[i] + amt * l * kr; d[i + 1] = inv * d[i + 1] + amt * l * kg; d[i + 2] = inv * d[i + 2] + amt * l * kb;
       }
       g.putImageData(id, 0, 0);
