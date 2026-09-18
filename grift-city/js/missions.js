@@ -26,7 +26,7 @@ const PICKUPS = (() => {
     const P = PLAYER.P; let w = 0;
     for (const p of W.pickups) {
       p.spin += dt * 2; p.t += dt;
-      if (p.taken) { if (p.respawn < 0) continue; if (p.t > p.respawn) { p.taken = false; p.t = 0; } W.pickups[w++] = p; continue; }
+      if (p.taken) { if (p.respawn < 0) { if (p.kind === 'package') W.pickups[w++] = p; continue; } if (p.t > p.respawn) { p.taken = false; p.t = 0; } W.pickups[w++] = p; continue; }
       if (p.life !== undefined && p.t > p.life) continue;
       const inCar = !!P.car; const r = inCar ? 2.2 : 1.3; if (p.kind === 'rampage' && MISSIONS.S.rampageDone[p.rampage.id]) continue;
       if (P.alive && M.dist2(P.x, P.z, p.x, p.z) < r * r && (!inCar || p.kind === 'cash' || p.kind === 'bribe' || p.kind === 'package')) {
@@ -36,9 +36,9 @@ const PICKUPS = (() => {
         else if (p.kind === 'armor') { P.armor = 100; AUDIO.play('pickup'); HUD.notify('Body armor'); }
         else if (p.kind === 'cash') { PLAYER.addMoney(p.amount, null); }
         else if (p.kind === 'bribe') { POLICE.bribe(); AUDIO.play('pickup'); HUD.notify('Police bribe'); }
-        else if (p.kind === 'package') { P.stats.packages++; PLAYER.addMoney(500, 'hidden package ' + P.stats.packages + '/20'); GAME.onPackage(P.stats.packages); }
+        else if (p.kind === 'package') { P.stats.packages = Math.min(20, P.stats.packages + 1); PLAYER.addMoney(500, 'hidden package ' + P.stats.packages + '/20'); GAME.onPackage(P.stats.packages); }
         else if (p.kind === 'rampage') { if (!MISSIONS.startRampage(p.rampage)) { p.taken = false; continue; } }
-        if (p.respawn < 0) continue;
+        if (p.respawn < 0) { if (p.kind === 'package') W.pickups[w++] = p; continue; }
       }
       W.pickups[w++] = p;
     }
@@ -308,7 +308,7 @@ const MISSIONS = (() => {
   // ---- Shops, spray, safehouse
   const GUNS = [['bat', 150, 0], ['pistol', 250, 34], ['uzi', 650, 90], ['shotgun', 800, 24], ['rifle', 1800, 90], ['rocket', 6000, 3], ['grenade', 900, 6], ['armor', 400, 0]];
   // Shops are menus: a title, numbered items with prices, and an action each. The gun shop, the dealer and the properties all use it.
-  function gunMenu(g) { const p = P(); const disc = ECON.discount(); return { kind: 'guns', title: 'IRONMONGER', color: '#e0453b', x: g.x, z: g.z, hint: disc < 1 ? "Marla's friends pay 20% less" : '', items: GUNS.map(([k, base, ammo]) => { const price = Math.round(base * disc); return { label: k === 'armor' ? 'BODY ARMOR' : WEAPONS[k].name + (ammo ? ' (' + ammo + ')' : ''), price, enabled: p.money >= price, action: () => { PLAYER.addMoney(-price, null); if (k === 'armor') p.armor = 100; else PLAYER.giveWeapon(k, ammo); AUDIO.play('pickup'); } }; }) }; }
+  function gunMenu(g) { const p = P(); const disc = ECON.discount(); return { kind: 'guns', title: 'IRONMONGER', color: '#e0453b', x: g.x, z: g.z, hint: disc < 1 ? "Marla's friends pay 20% less" : '', items: GUNS.map(([k, base, ammo]) => { const price = Math.round(base * disc); return { label: k === 'armor' ? 'BODY ARMOR' : WEAPONS[k].name + (ammo ? ' (' + ammo + ')' : ''), price, get enabled() { return p.money >= price; }, action: () => { PLAYER.addMoney(-price, null); if (k === 'armor') p.armor = 100; else PLAYER.giveWeapon(k, ammo); AUDIO.play('pickup'); } }; }) }; }
   function openShop(menu) { if (S.shop) return; S.shop = menu; AUDIO.play('click'); }
   // ---- Interiors: walk into a front door and the room under the lot takes over; walk into its door to come back out.
   function enterInterior(room) { const p = P(); S.inside = room.key; S.doorT = 1.0; CITY.setInterior(room); p.x = room.door.x; p.z = room.door.z + 2.2; p.y = room.floorY; p.vx = p.vz = 0; p.angle = 0; p.camYaw = 0; p.camX = 0; p.camZ = 0; HUD.fade(0.6); AUDIO.play('door', p.x, p.z);
@@ -318,7 +318,7 @@ const MISSIONS = (() => {
   function exitInterior() { const room = CITY.interiors[S.inside]; if (!room) return; const p = P(); for (const q of S.roomPeds || []) q.remove(); S.roomPeds = []; closeShop(); S.inside = null; CITY.setInterior(null); p.x = room.outside.x; p.z = room.outside.z + 1.6; p.y = CITY.groundY(p.x, p.z); p.vx = p.vz = 0; p.angle = Math.PI; p.camYaw = Math.PI; p.camX = 0; p.camZ = 0; S.doorT = 1.5; HUD.fade(0.6); AUDIO.play('door', p.x, p.z); }
   const OUTFIT_PRICES = [0, 800, 400, 600, 250];
   function barMenu(room) { const p = P(); return { kind: 'bar', title: 'THE HALFWAY', color: '#5aa0ff', x: room.spots.counter.x, z: room.spots.counter.z, hint: p.drunk > 0 ? 'The room is moving. That is you.' : 'Digits pick, F or ESC leave the bar', items: [
-    { label: 'A whiskey', price: 25, enabled: p.money >= 25, action() { PLAYER.addMoney(-25, null); p.health = Math.min(100, p.health + 15); p.drunk = Math.min(60, (p.drunk || 0) + 25); AUDIO.play('pickup'); HUD.notify(p.drunk > 30 ? 'The bartender gives you a look.' : 'Smooth.'); } },
+    { label: 'A whiskey', price: 25, get enabled() { return p.money >= 25; }, action() { PLAYER.addMoney(-25, null); p.health = Math.min(100, p.health + 15); p.drunk = Math.min(60, (p.drunk || 0) + 25); AUDIO.play('pickup'); HUD.notify(p.drunk > 30 ? 'The bartender gives you a look.' : 'Smooth.'); } },
     { label: 'Ask around about a package', price: 100, enabled: p.money >= 100 && W.pickups.some(k => k.kind === 'package' && !k.taken), action() { PLAYER.addMoney(-100, null); let best = null, bd = 1e12; for (const k of W.pickups) { if (k.kind !== 'package' || k.taken) continue; const d = M.dist2(k.x, k.z, room.outside.x, room.outside.z); if (d < bd) { bd = d; best = k; } } if (best) { S.tip = { x: best.x, z: best.z, t: 120 }; HUD.notify('Bartender: "Someone left something in ' + CITY.districtName(best.x, best.z) + '. Look for the glow." (marked for two minutes)'); } closeShop(); } },
     { label: 'Buy the room a round', price: 500, enabled: p.money >= 500 && !(S.roundT > 0), action() { PLAYER.addMoney(-500, null); S.roundT = 600; ECON.S.rep.marla = Math.min(3, (ECON.S.rep.marla || 0) + 1); AUDIO.play('missionPass'); HUD.notify("The room cheers. Word of that gets back to Marla."); closeShop(); } },
     { label: 'Jukebox: next station', price: 0, enabled: true, action() { p.radio = (AUDIO.radioStation + 1) % AUDIO.STATIONS.length; AUDIO.setRadio(p.radio); HUD.notify('JUKEBOX: ' + AUDIO.STATIONS[p.radio]); } },
@@ -332,12 +332,12 @@ const MISSIONS = (() => {
     if (S.doorT <= 0 && M.dist2(p.x, p.z, room.door.x, room.door.z) < 1.2) { exitInterior(); return; }
     if (room.key === 'bar' && M.dist2(p.x, p.z, room.spots.counter.x, room.spots.counter.z) < 4) openShop(barMenu(room));
     if (room.key === 'safehouse') { if (M.dist2(p.x, p.z, room.spots.wardrobe.x, room.spots.wardrobe.z) < 2.5) openShop(wardrobeMenu(room));
-      const bed = room.spots.bed; if (M.dist2(p.x, p.z, bed.x, bed.z) < 2.2 && !(S.saveT > 0)) { S.saveT = 8; p.health = 100; POLICE.clear(); GAME.save(); W.state.time = (W.state.time + 6) % 24; HUD.fade(1.5); HUD.notify('Game saved. You slept until ' + W.clockString() + '.'); } } }
+      const bed = room.spots.bed; if (M.dist2(p.x, p.z, bed.x, bed.z) < 2.2 && !(S.saveT > 0)) { S.saveT = 8; p.health = 100; POLICE.clear(); W.state.time = (W.state.time + 6) % 24; const saved = GAME.save(); HUD.fade(1.5); if (saved) HUD.notify('Game saved. You slept until ' + W.clockString() + '.'); } } }
   function closeShop() { S.shop = null; }
   function updateShops(dt) {
     const p = P(); if (!p.alive) return; if (S.doorT > 0) S.doorT -= dt;
     if (S.shop) { objective(''); if (INPUT.hit('Escape') || INPUT.hit('KeyF') || M.dist2(p.x, p.z, S.shop.x, S.shop.z) > (S.shop.kind === 'dealer' ? 64 : 16)) { closeShop(); return; }
-      for (let i = 0; i < S.shop.items.length; i++) if (INPUT.hit('Digit' + (i + 1))) { const it = S.shop.items[i]; if (!it.enabled) { HUD.notify(it.price > p.money ? 'Not enough cash.' : "Can't do that now."); AUDIO.play('click'); } else if (it.action) it.action(); if (!S.shop) break; }
+      for (let i = 0; i < S.shop.items.length; i++) if (INPUT.hit('Digit' + (i + 1))) { const it = S.shop.items[i]; if (!it.enabled || it.price > p.money) { HUD.notify(it.price > p.money ? 'Not enough cash.' : "Can't do that now."); AUDIO.play('click'); } else if (it.action) it.action(); if (!S.shop) break; }
       return; }
     for (const g of CITY.places.guns) if (!p.car && M.dist2(p.x, p.z, g.x, g.z) < 4) { const hr = W.state.time; if (hr >= 23 || hr < 7) { if (!(S.closedT > 0)) { HUD.notify('IRONMONGER is closed. Opens at 7.'); S.closedT = 6; } } else openShop(gunMenu(g)); } if (S.closedT > 0) S.closedT -= dt;
     for (const sp of CITY.places.spray) if (p.car && M.dist2(p.car.x, p.car.z, sp.x, sp.z) < 16 && p.car.absSpeed < 1.5) { if (S.sprayT === undefined || S.sprayT <= 0) { if (p.money >= 100) { PLAYER.addMoney(-100, "Pay 'n' Spray"); p.car.colIdx = Math.floor(W.rng() * VEH.PALETTE.length); p.car.repair(); POLICE.clear(); HUD.fade(1.2); AUDIO.play('pickup'); S.sprayT = 6; } else if (!S.sprayWarn) { HUD.notify("Pay 'n' Spray costs $100."); S.sprayWarn = 4; } } }

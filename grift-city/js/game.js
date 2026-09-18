@@ -20,10 +20,79 @@ const GAME = (() => {
   let canvas, hud, state = 'loading', last = 0, staticMesh = null, waterMesh = null, propList = [], started = false, accum = 0;
   const SAVE_KEY = 'grift-city-save-v1';
   function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } }
-  function save() { try { const P = PLAYER.P; const sh = CITY.place('safehouse'); let garage = null; for (const c of W.cars) if (!c.removed && !c.wrecked && c.playerOwned && M.dist(c.x, c.z, sh.x, sh.z) < 12) { garage = { type: c.type, color: c.colIdx, x: c.x, z: c.z, angle: c.angle }; break; } localStorage.setItem(SAVE_KEY, JSON.stringify({ outfit: P.outfit || 0, garage, econ: ECON.saveData(), flags: MISSIONS.S.flags, progress2: MISSIONS.S.progress2, phoneProgress: MISSIONS.S.phoneProgress, rampageDone: MISSIONS.S.rampageDone, x: P.x, z: P.z, money: P.money, health: P.health, armor: P.armor, weapons: Object.fromEntries(Object.entries(P.weapons).map(([k, v]) => [k, v === Infinity ? -1 : v])), weapon: P.weapon, stats: P.stats, progress: MISSIONS.S.progress, done: MISSIONS.S.done, time: W.state.time, packages: W.pickups.filter(p => p.kind === 'package' && p.taken).map(p => p.id) })); } catch (e) { } }
-  function load() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (!s) return false; const P = PLAYER.P; P.x = s.x; P.z = s.z; P.money = s.money; P.health = s.health || 100; P.armor = s.armor || 0; if (s.outfit) PLAYER.setOutfit(s.outfit); P.weapons = Object.fromEntries(Object.entries(s.weapons).map(([k, v]) => [k, v === -1 ? Infinity : v])); P.weapon = s.weapon in P.weapons ? s.weapon : 'fist'; P.weaponOut = P.weapon !== 'fist'; Object.assign(P.stats, s.stats || {}); MISSIONS.S.progress = s.progress || 0; MISSIONS.S.done = s.done || {}; MISSIONS.S.progress2 = s.progress2 || 0; MISSIONS.S.phoneProgress = s.phoneProgress || 0; MISSIONS.S.rampageDone = s.rampageDone || {}; ECON.loadData(s.econ); MISSIONS.S.flags = s.flags || {}; if (!Array.isArray(P.stats.jumps)) P.stats.jumps = []; if (s.garage) { const c = VEH.spawn(s.garage.type, s.garage.x, s.garage.z, s.garage.angle, { mode: 'parked', color: s.garage.color }); c.playerOwned = true; } W.state.time = s.time ?? 9; for (const p of W.pickups) if (p.kind === 'package' && (s.packages || []).includes(p.id)) p.taken = true; return true; } catch (e) { return false; } }
+  function save() {
+    try {
+      const P = PLAYER.P, sh = CITY.place('safehouse');
+      let garage = null;
+      for (const c of W.cars) if (!c.removed && !c.wrecked && c.playerOwned && M.dist(c.x, c.z, sh.x, sh.z) < 12) {
+        garage = { type: c.type, color: c.colIdx, x: c.x, z: c.z, angle: c.angle, mods: { ...c.mods } };
+        break;
+      }
+      localStorage.setItem(SAVE_KEY, JSON.stringify({
+        version: 2, x: P.x, y: P.y, z: P.z, inside: MISSIONS.S.inside || null, roof: !!MISSIONS.S.roof,
+        outfit: P.outfit || 0, garage, econ: ECON.saveData(), flags: MISSIONS.S.flags,
+        progress2: MISSIONS.S.progress2, phoneProgress: MISSIONS.S.phoneProgress, rampageDone: MISSIONS.S.rampageDone,
+        money: P.money, health: P.health, armor: P.armor,
+        weapons: Object.fromEntries(Object.entries(P.weapons).map(([k, v]) => [k, v === Infinity ? -1 : v])),
+        weapon: P.weapon, stats: P.stats, progress: MISSIONS.S.progress, done: MISSIONS.S.done,
+        time: W.state.time, packages: W.pickups.filter(p => p.kind === 'package' && p.taken).map(p => p.id)
+      }));
+      return true;
+    } catch (e) { HUD.notify('Could not save the game.'); return false; }
+  }
+  function load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+      if (!s) return false;
+      const P = PLAYER.P;
+      if (!Number.isFinite(s.x) || !Number.isFinite(s.z) || !s.weapons || typeof s.weapons !== 'object') return false;
+      P.x = s.x; P.z = s.z; P.money = Math.max(0, s.money || 0); P.health = s.health || 100; P.armor = s.armor || 0;
+      PLAYER.setOutfit(s.outfit || 0);
+      P.weapons = Object.fromEntries(Object.entries(s.weapons).filter(([k]) => WEAPONS[k]).map(([k, v]) => [k, v === -1 ? Infinity : v]));
+      P.weapon = s.weapon in P.weapons ? s.weapon : 'fist'; P.weaponOut = P.weapon !== 'fist';
+      Object.assign(P.stats, s.stats || {});
+      P.stats.packages = M.clamp(P.stats.packages || 0, 0, 20);
+      if (!Array.isArray(P.stats.jumps)) P.stats.jumps = [];
+      MISSIONS.S.progress = s.progress || 0; MISSIONS.S.done = s.done || {};
+      MISSIONS.S.progress2 = s.progress2 || 0; MISSIONS.S.phoneProgress = s.phoneProgress || 0;
+      MISSIONS.S.rampageDone = s.rampageDone || {}; MISSIONS.S.flags = s.flags || {};
+      ECON.loadData(s.econ);
+      const room = s.inside && CITY.interiors[s.inside];
+      if (room) {
+        MISSIONS.enterInterior(room);
+        P.x = s.x; P.z = s.z; P.y = room.floorY;
+        MISSIONS.S.saveT = 8; // loading beside the bed must not immediately sleep and save again
+      } else if (s.roof && CITY.roofAccess) {
+        MISSIONS.S.roof = true; CITY.setRoof(CITY.roofAccess); P.y = Math.max(CITY.roofAccess.h, s.y || 0);
+      } else {
+        // Old bed saves lack an interior identifier. Resume outside rather than inside a solid building.
+        if (CITY.insideLot(P.x, P.z)) { const sh = CITY.place('safehouse'); P.x = sh.x + 6; P.z = sh.z + 1; }
+        P.y = CITY.groundY(P.x, P.z);
+      }
+      if (s.garage && VEH.SPECS[s.garage.type]) {
+        const c = VEH.spawn(s.garage.type, s.garage.x, s.garage.z, s.garage.angle, { mode: 'parked', color: s.garage.color });
+        c.playerOwned = true; c.mods = s.garage.mods || {}; ECON.applyMods(c);
+      }
+      W.state.time = s.time ?? 9;
+      for (const p of W.pickups) if (p.kind === 'package' && (s.packages || []).includes(p.id)) p.taken = true;
+      restorePackageRewards(P.stats.packages);
+      return true;
+    } catch (e) { return false; }
+  }
   function newGame() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { } location.reload(); }
-  function onPackage(n) { if (n % 5 === 0) { const s = CITY.place('safehouse'); const w = ['uzi', 'shotgun', 'rifle', 'rocket'][n / 5 - 1]; PICKUPS.add('weapon', s.x + 4, s.z - 4, { weapon: w, ammo: w === 'rocket' ? 4 : 60, respawn: 240 }); HUD.notify(WEAPONS[w].name + ' now spawns at the safehouse'); } }
+  const PACKAGE_WEAPONS = ['uzi', 'shotgun', 'rifle', 'rocket'];
+  function restorePackageRewards(n) {
+    const s = CITY.place('safehouse');
+    PACKAGE_WEAPONS.forEach((w, i) => {
+      if (n < (i + 1) * 5 || W.pickups.some(p => p.packageReward === w)) return;
+      PICKUPS.add('weapon', s.x + 4, s.z - 4, { weapon: w, ammo: w === 'rocket' ? 4 : 60, respawn: 240, packageReward: w });
+    });
+  }
+  function onPackage(n) {
+    restorePackageRewards(n);
+    const w = PACKAGE_WEAPONS[n / 5 - 1];
+    if (w) HUD.notify(WEAPONS[w].name + ' now spawns at the safehouse');
+  }
 
   function boot() {
     canvas = document.getElementById('gl'); hud = document.getElementById('hud'); HUD.init(hud); INPUT.init(canvas);

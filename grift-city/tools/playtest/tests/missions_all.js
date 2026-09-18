@@ -1,8 +1,11 @@
+const assert = require('node:assert/strict');
 const { launch } = require('../launch.js');
 (async () => {
   const b = await launch([]);
+  try {
+  const errors = [];
   const p = await b.newPage({ viewport: { width: 640, height: 360 } });
-  p.on('pageerror', e => console.log('PAGEERROR', e.message, (e.stack || '').split('\n').slice(1, 3).join(' | ')));
+  p.on('pageerror', e => errors.push(e.message));
   p.on('console', m => { if (m.type() === 'error') console.log('CONSOLE', m.text().slice(0, 400)); });
   await p.goto('file://' + require('path').resolve(__dirname, '..', '..', '..', 'index.html') + '');
   await p.waitForFunction(() => window.__ready, null, { timeout: 240000 });
@@ -56,5 +59,18 @@ const { launch } = require('../launch.js');
     return log;
   });
   for (const s of res) console.log(JSON.stringify(s));
-  await b.close();
-})();
+  assert.deepEqual(errors, [], 'no browser exceptions');
+  assert.ok(!res.some(r => r.error), JSON.stringify(res.find(r => r.error)));
+  for (const [m, stage] of [[2, 'delivered'], [3, 'back at marla'], [4, 'delivered bus'], [5, 'finished'], [6, 'cleared'], [7, 'at safehouse'], [8, 'ending']]) {
+    const r = res.find(r => r.m === m && r.s === stage);
+    assert.ok(r && r.cur === null && r.prog === m + 1, `mission ${m} must complete: ${JSON.stringify(r)}`);
+  }
+  const retried = res.find(r => r.s === 'retried');
+  assert.ok(retried && retried.cur === 'SPECIAL DELIVERY' && retried.nearMarla, 'retry restarts the mission');
+  assert.equal(res.find(r => r.m === 'taxi' && r.s === 'dropoff').fares, 1, 'taxi fare completes');
+  assert.equal(res.find(r => r.m === 'vig' && r.s === 'kill').level, 2, 'vigilante advances');
+  assert.equal(res.find(r => r.m === 'spray').wanted, 0, 'spray clears wanted level');
+  assert.equal(res.find(r => r.m === 'save').has, true, 'save exists');
+  console.log('Mission assertions passed');
+  } finally { await b.close(); }
+})().catch(e => { console.error(e); process.exitCode = 1; });

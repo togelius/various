@@ -1,7 +1,7 @@
 # GRIFT CITY
 
 *a 3D open-world crime game in the browser* — one folder of plain JavaScript
-and WebGL2, no build step, no dependencies, no assets.
+and WebGL2, no build step or runtime dependencies; art assets are embedded.
 
 Open `grift-city/index.html` in a desktop browser and click. There is also a
 single-file build in `dist/grift-city.html` if you would rather host or hand
@@ -32,12 +32,12 @@ rampages, twenty hidden packages, six unique stunt jumps, gun shops, a Pay
 'n' Spray, and a safehouse with a bed that saves the game and a kerb that
 keeps whatever you parked there.
 
-Everything is generated at runtime. The city is laid out from a seed; every
-building facade, road, sidewalk and billboard is painted onto a canvas and
-uploaded as a texture; every car, pedestrian, lamppost and helicopter is
-built from boxes and cylinders; every sound, including the three radio
-stations, is synthesised. There is no model file, image or audio file in
-this directory.
+The city layout and most geometry are generated at runtime. Building facades,
+roads, sidewalks and billboards combine canvas-painted details with embedded
+photographic materials; selected vehicles, vegetation and props use embedded
+Kenney models. Every sound, including the radio stations, is synthesised.
+The game needs no asset downloads to run. See **Imported art** below for sources
+and regeneration tools.
 
 ## Playing
 
@@ -275,9 +275,7 @@ Kenney models converted to flat-shaded vertex-coloured triangles by
 `tools/assets/import-glb.py` (sources and licence in
 `tools/assets/SOURCES.md`): a pickup (the RANCHER) and a motorcycle (the
 HORNET) that join the traffic in the suburbs, the east side and the docks,
-with their wheels on the game's wheel bones so they steer and spin; five
-small houses and a garage that replace some procedural buildings on
-suburban lots, scaled to the lot and turned to face the street; a fountain
+with their wheels on the game's wheel bones so they steer and spin; a fountain
 on its plaza in every park; and clusters of trees among the park's own.
 The trees, bushes, grass tufts and mounds come from the Nature Kit; the
 garbage truck, ambulance and fire engine from the Car Kit; a pickup and a
@@ -298,6 +296,24 @@ survives and amplifies it back. The painters draw their own detail — windows,
 road markings, shop signs, slab joints — on top, recoloured toward the palette
 by a luminance-preserving blend so the mortar and grain of the photograph
 survive the recolour.
+
+## Saving and regression checks
+
+Mission completion and the safehouse bed save to browser local storage. Bed
+saves restore the room and the time after sleeping. Collected package IDs,
+package weapon rewards, and modifications on the car parked at the safehouse
+survive reloads. Saves belong to the browser profile and page origin.
+
+Older saves remain readable. Old bed saves without a room identifier resume
+outside the safehouse. Package IDs and car upgrades that an older version
+never wrote cannot be recovered; the saved package total is retained (capped
+at twenty), and its weapon rewards are restored.
+
+Run `node tools/playtest/tests/persistence.js` to check purchases and repeated
+save/load cycles; add `--dist` to test the single-file release. Like the other
+browser harnesses, it needs Playwright and Chromium or Chrome. Failures return
+a nonzero exit status. The mission and soak harnesses also assert their results;
+the mission harness uses teleportation and is not a normal-control playthrough.
 
 ## The police
 
