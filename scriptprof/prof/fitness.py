@@ -12,8 +12,10 @@ Cheapest checks first, each tier only reached if the previous one passed:
             rule fires on some solution), and level progression (search
             effort tends to grow across levels)
 
-The insight-gap tier (search solves, learners do not) is deferred until player
-agents exist; it slots in as one more factor of the harmonic mean.
+Pass ``insight=True`` to add a fourth tier-3 factor: the insight gap from
+``prof.players``, the fraction of search-solved levels that neither random play
+nor greedy hill-climbing ever wins. It costs a few thousand extra engine steps
+per level, so it is off by default and switched on for the runs that care.
 """
 from __future__ import annotations
 
@@ -37,6 +39,7 @@ class Evaluation:
     lengths: list[int] = field(default_factory=list)
     iters: list[int] = field(default_factory=list)
     coverage: dict[str, Any] | None = None
+    insight: dict[str, Any] | None = None
     factors: dict[str, float] = field(default_factory=dict)
 
     def summary(self) -> str:
@@ -65,7 +68,9 @@ def _progression(iters: list[int]) -> float:
 
 
 def evaluate(text: str, max_iters: int = 100_000, timeout_ms: int = 5_000,
-             min_len: int = 10, target_len: int = 40, max_levels: int | None = None) -> Evaluation:
+             min_len: int = 10, target_len: int = 40, max_levels: int | None = None,
+             insight: bool = False, insight_episodes: int = 6,
+             insight_steps: int = 150) -> Evaluation:
     try:
         c = E.compile_text(text)
     except E.CompileError as e:
@@ -112,6 +117,13 @@ def evaluate(text: str, max_iters: int = 100_000, timeout_ms: int = 5_000,
     cov = ev.coverage["n_fired"] / ev.coverage["n_rules"] if ev.coverage["n_rules"] else 1.0
     prog = _progression(ev.iters)
     ev.factors = {"nontrivial": nontrivial, "coverage": cov, "progression": prog}
+    if insight:
+        from prof.players import myopic_gap
+
+        ev.insight = myopic_gap(c, sorted(ev.solutions), episodes=insight_episodes,
+                                max_steps=insight_steps)
+        if ev.insight["gap"] is not None:
+            ev.factors["insight"] = ev.insight["gap"]
     ev.fitness = _hmean(list(ev.factors.values()))
     ev.reason = "ok"
     return ev

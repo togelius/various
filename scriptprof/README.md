@@ -88,6 +88,8 @@ applies `vendor-patches/` — rule-firing counters in the C++ engine).
 | `prof/fitness.py` | hierarchical fitness: compiles, solvable, non-trivial, coverage, progression |
 | `prof/mutate.py` | LLM mutation operator through a local Ollama model, with compile-error repair |
 | `prof/evolve.py` | MAP-Elites over games, resumable archive under `data/evolve/` |
+| `prof/players.py` | player ladder (random, greedy, GBFS, A*, BFS) and the insight gap |
+| `prof/grammar_mutate.py` | structural mutation and crossover, no model needed |
 | `prof/census.py` | corpus census: every scraped game compiled, every level searched |
 | `tests/` | `vendor/script-doctor/.venv/bin/python -m pytest -q tests` |
 
