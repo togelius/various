@@ -95,3 +95,10 @@ def test_players_leave_the_engine_usable():
     greedy_play(eng, 0, [0, 1, 2, 3, 4], random.Random(3), max_steps=30, episodes=1)
     s = E.solve_level(eng, 0, "bfs", max_iters=20_000, timeout_ms=3000)
     assert s.solved and E.replay(eng, 0, s.actions)["won"]
+
+
+def test_action_set_drops_action_key_when_the_game_disables_it():
+    """`noaction` in the prelude means four moves, matching the C++ solvers."""
+    from prof.players import _actions
+    assert _actions(_compiled("sokoban_basic")) == [0, 1, 2, 3, 4]
+    assert _actions(_compiled("12345_v1.0")) == [0, 1, 2, 3]
