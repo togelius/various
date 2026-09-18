@@ -168,25 +168,60 @@ def run(archive: Archive, mutate: Callable[[str, str], tuple[str | None, Any]], 
             print(f"== gen {gen} done in {time.time()-t0:.0f}s: {archive.stats()}", flush=True)
 
 
+def make_grammar_operator(archive: "Archive", rng: random.Random, n_edits: int,
+                          p_crossover: float) -> Callable[[str, str], tuple[str | None, Any]]:
+    """Grammatical mutation, occasionally recombining with another elite.
+
+    The donor is drawn from the archive, so recombination happens between
+    games the search has already judged worth keeping.
+    """
+    from prof.grammar_mutate import GrammarLog, GrammarMutator, crossover
+
+    gm = GrammarMutator(seed=rng.randrange(1 << 30), n_edits=n_edits)
+
+    def operator(parent: str, instruction: str = "") -> tuple[str | None, Any]:
+        if p_crossover > 0 and len(archive.elites) > 1 and rng.random() < p_crossover:
+            donor_key = rng.choice(list(archive.elites))
+            child, desc = crossover(parent, archive.game_text(donor_key), rng)
+            if child is not None:
+                return child, GrammarLog(operator=f"crossover from {donor_key}: {desc}",
+                                         instruction=instruction, attempts=1, ok=True)
+        return gm.mutate(parent, instruction)
+
+    return operator
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", nargs="+", default=["sokoban_basic", "kettle", "slidings"])
     ap.add_argument("--out", default="data/evolve/run1")
     ap.add_argument("--gens", type=int, default=10)
     ap.add_argument("--per-gen", type=int, default=3)
+    ap.add_argument("--operator", choices=["grammar", "llm"], default="grammar",
+                    help="grammar: structural edits, no model, thousands/hour. "
+                         "llm: prof.mutate through a local Ollama server.")
+    ap.add_argument("--edits", type=int, default=1, help="grammatical edits per child")
+    ap.add_argument("--p-crossover", type=float, default=0.25,
+                    help="chance a grammatical child is a graft from another elite")
     ap.add_argument("--model", default="qwen3.8:27b-mlx")
     ap.add_argument("--max-levels", type=int, default=6)
     ap.add_argument("--timeout-ms", type=int, default=3000)
     ap.add_argument("--seed", type=int, default=1)
     a = ap.parse_args()
-    from prof.mutate import INSTRUCTIONS, OllamaMutator
     out = ROOT / a.out
     archive = Archive(out, DEFAULT_DESCRIPTORS)
     eval_kwargs = {"max_levels": a.max_levels, "timeout_ms": a.timeout_ms}
     if not archive.elites:
         seed_archive(archive, a.seeds, eval_kwargs)
-    mut = OllamaMutator(model=a.model)
-    run(archive, mut.mutate, a.gens, a.per_gen, INSTRUCTIONS, eval_kwargs, random.Random(a.seed), out / "log.jsonl")
+    rng = random.Random(a.seed)
+    if a.operator == "llm":
+        from prof.mutate import INSTRUCTIONS, OllamaMutator
+        mutate_fn = OllamaMutator(model=a.model).mutate
+        instructions = INSTRUCTIONS
+    else:
+        mutate_fn = make_grammar_operator(archive, rng, a.edits, a.p_crossover)
+        instructions = [""]
+    run(archive, mutate_fn, a.gens, a.per_gen, instructions, eval_kwargs, rng, out / "log.jsonl")
 
 
 if __name__ == "__main__":
