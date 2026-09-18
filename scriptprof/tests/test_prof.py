@@ -59,3 +59,25 @@ def test_fitness_tiers():
 def test_extract_game():
     assert extract_game("blah\n```puzzlescript\ntitle x\n```\n") == "title x\n"
     assert extract_game("no block") is None
+
+
+def test_solver_respects_its_time_budget():
+    """A slow game must not overrun its timeout.
+
+    The upstream solvers consult the clock every 1000 expansions. In games
+    whose rules loop heavily a single expansion can take tens of milliseconds,
+    so a 1s budget ran for 78s. The vendor patch replaces the fixed stride with
+    a poller that retunes itself to the measured cost of an expansion.
+    """
+    import time
+
+    slow = SOKOBAN.parent / "5_step_steve_DEMAKE.txt"
+    if not slow.exists():
+        import pytest
+        pytest.skip("slow reference game not in the corpus")
+    eng = E.new_engine(E.compile_file(slow))
+    t0 = time.time()
+    s = E.solve_level(eng, 0, "bfs", max_iters=100_000, timeout_ms=1000)
+    wall = time.time() - t0
+    assert s.timeout and not s.solved
+    assert wall < 5.0, f"1s budget overran to {wall:.1f}s"

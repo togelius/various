@@ -75,6 +75,117 @@ index c8e72e8..77a1014 100644
      int curLevel_ = 0;
  
      // Scratch BitVecs (to avoid repeated allocation in hot paths)
+diff --git a/puzzlescript_cpp/src/solver.cpp b/puzzlescript_cpp/src/solver.cpp
+index be08cc4..ab034ad 100644
+--- a/puzzlescript_cpp/src/solver.cpp
++++ b/puzzlescript_cpp/src/solver.cpp
+@@ -66,6 +66,57 @@ double elapsedSeconds(const Clock::time_point& start) {
+     return std::chrono::duration<double>(Clock::now() - start).count();
+ }
+ 
++// scriptprof: adaptive clock polling for the search loops.
++//
++// Upstream consults the clock every 1000 expansions, which assumes expansions
++// are cheap. In games whose rules loop heavily a single expansion can take
++// tens of milliseconds, so a 1s budget could run for 78s. A small fixed
++// stride fixes that but taxes fast searches, which poll far more often than
++// they need to.
++//
++// This poller measures how long expansions actually take and retunes its
++// stride to land roughly kPollsPerBudget checks inside the budget. Slow games
++// converge to checking every iteration; fast games settle on a stride wider
++// than upstream's, so they poll less than before.
++constexpr int kPollsPerBudget = 64;
++constexpr long long kMaxStride = 4096;
++
++class TimeoutPoller {
++public:
++    TimeoutPoller(const Clock::time_point& start, int timeoutMs)
++        : timeoutMs_(timeoutMs), lastTime_(start) {}
++
++    // Call once per iteration with a monotonically increasing counter.
++    bool expired(const Clock::time_point& start, long long iter) {
++        if (timeoutMs_ <= 0 || iter < nextIter_) {
++            return false;
++        }
++        const auto now = Clock::now();
++        if (std::chrono::duration<double, std::milli>(now - start).count() > timeoutMs_) {
++            return true;
++        }
++        const double sinceMs = std::chrono::duration<double, std::milli>(now - lastTime_).count();
++        const long long done = iter - lastIter_;
++        if (done > 0 && sinceMs > 0.0) {
++            const double perIterMs = sinceMs / static_cast<double>(done);
++            const double targetMs = std::max(1.0, static_cast<double>(timeoutMs_) / kPollsPerBudget);
++            const long long tuned = static_cast<long long>(targetMs / perIterMs);
++            stride_ = std::min(kMaxStride, std::max(1LL, tuned));
++        }
++        lastTime_ = now;
++        lastIter_ = iter;
++        nextIter_ = iter + stride_;
++        return false;
++    }
++
++private:
++    int timeoutMs_;
++    Clock::time_point lastTime_;
++    long long lastIter_ = 0;
++    long long nextIter_ = 0;
++    long long stride_ = 16;
++};
++
+ bool timedOut(const Clock::time_point& start, int timeoutMs) {
+     if (timeoutMs <= 0) {
+         return false;
+@@ -262,8 +313,9 @@ RandomRolloutResult randomRolloutRaw(Engine& engine, int maxIters, int timeoutMs
+     std::mt19937 rng(std::random_device{}());
+     std::uniform_int_distribution<int> actionDist(0, actionCount(engine) - 1);
+ 
++    TimeoutPoller poller(start, timeoutMs);
+     for (int i = 0; i < maxIters; ++i) {
+-        if (i % 1000 == 0 && timedOut(start, timeoutMs)) {
++        if (poller.expired(start, i)) {
+             result.iterations = i;
+             result.time = elapsedSeconds(start);
+             result.timeout = true;
+@@ -332,9 +384,10 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
+     LevelBackup bestState = initialState;
+     double bestScore = engine.getScore();
+     int iterations = 0;
++    TimeoutPoller poller(start, timeoutMs);
+ 
+     while (!frontier.empty() && iterations < maxIters) {
+-        if (iterations % 1000 == 0 && timedOut(start, timeoutMs)) {
++        if (poller.expired(start, iterations)) {
+             return makeSolverResult(engine, false, bestActions, iterations, start, bestScore, bestState, true);
+         }
+ 
+@@ -387,10 +440,11 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
+     LevelBackup bestState = initialState;
+     double bestScore = engine.getScore();
+     int totalIters = 0;
++    TimeoutPoller poller(start, timeoutMs);
+     std::mt19937 rng(std::random_device{}());
+ 
+     while (!frontier.empty() && totalIters < maxIters) {
+-        if (totalIters % 1000 == 0 && timedOut(start, timeoutMs)) {
++        if (poller.expired(start, totalIters)) {
+             return makeSolverResult(
+                 engine,
+                 false,
+@@ -469,10 +523,11 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
+     LevelBackup bestState = initialState;
+     double bestScore = engine.getScore();
+     int totalIters = 0;
++    TimeoutPoller poller(start, timeoutMs);
+     std::mt19937 rng(std::random_device{}());
+ 
+     while (!frontier.empty() && totalIters < maxIters) {
+-        if (totalIters % 1000 == 0 && timedOut(start, timeoutMs)) {
++        if (poller.expired(start, totalIters)) {
+             return makeSolverResult(
+                 engine,
+                 false,
 diff --git a/puzzlescript_nodejs/puzzlescript/engine.js b/puzzlescript_nodejs/puzzlescript/engine.js
 index db0db52..fb81822 100644
 --- a/puzzlescript_nodejs/puzzlescript/engine.js
