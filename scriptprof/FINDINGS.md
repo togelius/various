@@ -37,7 +37,13 @@ the real solution is a single ACTION. Any fitness computed for such a game was
 built on a replay that never reached the win state.
 
 All three are fixed in `vendor-patches/script-doctor.patch` and
-`prof/engine.py`, with regression tests. Across the sample games every solver
+`prof/engine.py`, with regression tests. The restore fix recomputes the win
+state on every restore rather than trusting the cache, which costs about 4.5%
+of search throughput (23.3k against 24.5k expansions per second on the
+benchmark games). Recomputing only when the cached flag is already set would
+recover most of that and still rule out phantom wins, at the price of a
+subtler invariant; the flat version was kept while correctness is the thing
+being established. Across the sample games every solver
 solution now replays to a win, on all three search algorithms. The census
 replays every solution it finds and reports the mismatches, so a future
 disagreement between search and engine shows up as a number instead of as
