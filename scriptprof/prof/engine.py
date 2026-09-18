@@ -118,13 +118,35 @@ def rule_fire_counts(eng) -> dict[int, int]:
     return {int(k): int(v) for k, v in eng._engine.get_rule_fire_counts().items()}
 
 
+TICK = -1  # the engine's "no input, advance a turn" action
+
+
+def step(eng, action: int) -> bool:
+    """Apply one action and settle any `again` ticks it triggers.
+
+    A rule suffixed with `again` asks the engine to run another turn once this
+    one finishes: it is how PuzzleScript expresses gravity, spreading fire,
+    sliding blocks and the like. The C++ solvers settle those ticks after every
+    action (``processInputSearch``), but the raw ``process_input`` binding does
+    not. Replaying a solver's action list without settling them therefore ends
+    in a different state than the solver reached. 304 of the 952 corpus games
+    use `again` in a rule, so this is the common case, not an edge case.
+    """
+    changed = bool(eng.process_input(action))
+    for _ in range(1000):  # a rule looping forever would otherwise hang here
+        if not eng.againing:
+            break
+        changed = bool(eng.process_input(TICK)) or changed
+    return changed
+
+
 def replay(eng, level: int, actions: list[int]) -> dict[str, Any]:
     """Replay actions on a level from scratch, returning win flag and rule counts."""
     eng.load_level(level)
     eng._engine.reset_rule_fire_counts()
     changed = 0
     for a in actions:
-        changed += int(eng.process_input(a))
+        changed += int(step(eng, a))
     return {"won": bool(eng.winning), "steps": len(actions), "changed": changed,
             "counts": rule_fire_counts(eng)}
 

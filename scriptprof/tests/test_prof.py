@@ -81,3 +81,67 @@ def test_solver_respects_its_time_budget():
     wall = time.time() - t0
     assert s.timeout and not s.solved
     assert wall < 5.0, f"1s budget overran to {wall:.1f}s"
+
+
+def _game(name):
+    import pytest
+    p = SOKOBAN.parent / f"{name}.txt"
+    if not p.exists():
+        pytest.skip(f"{name} not in the corpus")
+    return p
+
+
+def test_restore_level_clears_per_turn_state():
+    """A restored board must not inherit the previous branch's win.
+
+    backup_level captures the object grid only. The engine also holds a command
+    queue, an `again` flag and a cached win flag. Leaving those set let one
+    search branch contaminate the next.
+    """
+    eng = E.new_engine(E.compile_file(_game("Angize")))
+    eng.load_level(0)
+    backup = eng.backup_level()
+    E.step(eng, 4)                       # ACTION wins this level
+    assert eng.winning
+    eng.restore_level(backup)
+    assert not eng.winning, "restored board inherited the win flag"
+
+
+def test_solver_finds_a_win_that_changes_no_tiles():
+    """A rule may issue `win` without moving anything.
+
+    The search loops discarded any action that left the board unchanged, before
+    testing for a win, so such a win was invisible; the stale flag then surfaced
+    it against a later, unrelated action.
+    """
+    c = E.compile_file(_game("Angize"))
+    eng = E.new_engine(c)
+    s = E.solve_level(eng, E.level_indices(c)[0], "bfs", max_iters=5000, timeout_ms=3000)
+    assert s.solved and s.actions == [4], s.actions
+    assert E.replay(eng, E.level_indices(c)[0], s.actions)["won"]
+
+
+def test_again_ticks_are_settled_on_replay():
+    """Replaying a solution must settle `again` ticks as the solver does."""
+    c = E.compile_file(_game("Animal_Cascade"))
+    lvl = E.level_indices(c)[0]
+    eng = E.new_engine(c)
+    s = E.solve_level(eng, lvl, "bfs", max_iters=5000, timeout_ms=3000)
+    assert s.solved
+    assert E.replay(eng, lvl, s.actions)["won"]
+    # Without settling, the same actions land somewhere else entirely.
+    eng.load_level(lvl)
+    for a in s.actions:
+        eng.process_input(a)
+    assert not eng.winning, "this game no longer exercises `again`; pick another"
+
+
+def test_every_solver_returns_a_replayable_solution():
+    for name in ("sokoban_basic", "kettle", "slidings"):
+        c = E.compile_file(_game(name))
+        lvl = E.level_indices(c)[0]
+        eng = E.new_engine(c)
+        for algo in ("bfs", "astar", "gbfs"):
+            s = E.solve_level(eng, lvl, algo, max_iters=20_000, timeout_ms=4000)
+            assert s.solved, f"{name}/{algo} did not solve level {lvl}"
+            assert E.replay(eng, lvl, s.actions)["won"], f"{name}/{algo} solution does not replay"

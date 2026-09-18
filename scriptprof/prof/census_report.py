@@ -22,6 +22,8 @@ def main() -> None:
     levels = [l for r in compiled for l in r["levels"] if "error" not in l]
     solved = [l for l in levels if l["solved"]]
     timeouts = [l for l in levels if l.get("timeout")]
+    replayed = [l for l in solved if "replay_won" in l]
+    replay_bad = [l for l in replayed if not l["replay_won"]]
     full = [r for r in compiled if r["levels"] and all(l.get("solved") for l in r["levels"] if "error" not in l)]
     partial = [r for r in compiled if r["levels"] and any(l.get("solved") for l in r["levels"]) and r not in full]
     none_ = [r for r in compiled if r["levels"] and not any(l.get("solved") for l in r["levels"])]
@@ -36,7 +38,11 @@ def main() -> None:
         "",
         "Every scraped game compiled with the original PuzzleScript engine, every",
         "playable level searched with breadth-first search in the C++ engine",
-        "(budget per level: 100k expansions or 5 s; per game: 600 s wall clock).",
+        "(budget per level: 100k expansions or 5 s; per game: 300 s wall clock).",
+        "",
+        "Every solution found is then replayed from a fresh level and checked to",
+        "reach a win, the way PuzzleJAX validates its JAX engine against NodeJS.",
+        "A mismatch means the search and the engine disagree about the game.",
         "",
         "| | count |",
         "|---|---|",
@@ -48,6 +54,8 @@ def main() -> None:
         f"| playable levels | {len(levels)} |",
         f"| levels solved | {len(solved)} |",
         f"| levels hitting the time budget | {len(timeouts)} |",
+        f"| solutions replayed for validation | {len(replayed)} |",
+        f"| solutions that did not replay to a win | {len(replay_bad)} |",
         f"| games with every level solved | {len(full)} |",
         f"| games with some levels solved | {len(partial)} |",
         f"| games with no level solved | {len(none_)} |",

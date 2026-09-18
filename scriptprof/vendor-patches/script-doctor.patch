@@ -14,7 +14,7 @@ index f2a09d0..2f42ca4 100644
              const auto& objs = e.getObjects();
              return py::array_t<int32_t>(
 diff --git a/puzzlescript_cpp/src/engine.cpp b/puzzlescript_cpp/src/engine.cpp
-index 2e14c32..ffd196b 100644
+index 2e14c32..616bf7e 100644
 --- a/puzzlescript_cpp/src/engine.cpp
 +++ b/puzzlescript_cpp/src/engine.cpp
 @@ -85,6 +85,7 @@ Engine::Engine(Engine&& other) noexcept
@@ -33,7 +33,28 @@ index 2e14c32..ffd196b 100644
          curLevel_ = other.curLevel_;
          _o1 = std::move(other._o1); _o2 = std::move(other._o2);
          _o2_5 = std::move(other._o2_5); _o3 = std::move(other._o3);
-@@ -1135,6 +1137,9 @@ bool Engine::ruleTryApply(Rule& rule) {
+@@ -468,6 +470,20 @@ LevelBackup Engine::backupLevel() const {
+ void Engine::restoreLevel(const LevelBackup& bak) {
+     level_.objects = bak.dat;
+     level_.calculateRowColMasks();
++    // scriptprof: a backup holds the object grid and nothing else, but the
++    // engine also carries per-turn state: the command queue, the `again` flag
++    // and the cached win flag. Leaving those in place lets one search branch
++    // contaminate the next. Concretely, when a solver skips a winning
++    // successor because it has seen that grid before, it skips the win check
++    // too, so `winning_` stays set and the next sibling action inherits it;
++    // the solver then reports a win with an action sequence that does not
++    // produce one (Angize returns [0,0] where the winning move is ACTION).
++    // A `win` command left in the queue leaks the same way, because checkWin
++    // consults the queue before it looks at the board.
++    level_.commandQueue.clear();
++    againing_ = false;
++    winning_ = false;
++    winning_ = checkWin();
+ }
+ 
+ void Engine::restart() {
+@@ -1135,6 +1151,9 @@ bool Engine::ruleTryApply(Rule& rule) {
  
      if (!matches.empty()) {
          ruleQueueCommands(rule);
@@ -43,7 +64,7 @@ index 2e14c32..ffd196b 100644
      }
  
      return result;
-@@ -1163,6 +1168,7 @@ bool Engine::applyRandomRuleGroup(std::vector<Rule*>& ruleGroup) {
+@@ -1163,6 +1182,7 @@ bool Engine::applyRandomRuleGroup(std::vector<Rule*>& ruleGroup) {
      Rule& rule = *ruleGroup[match.ruleIndex];
      int delta = level_.delta_index(rule.direction);
      bool modified = ruleApplyAt(rule, match.tuple, false, delta);
@@ -76,7 +97,7 @@ index c8e72e8..77a1014 100644
  
      // Scratch BitVecs (to avoid repeated allocation in hot paths)
 diff --git a/puzzlescript_cpp/src/solver.cpp b/puzzlescript_cpp/src/solver.cpp
-index be08cc4..ab034ad 100644
+index be08cc4..52c70ce 100644
 --- a/puzzlescript_cpp/src/solver.cpp
 +++ b/puzzlescript_cpp/src/solver.cpp
 @@ -66,6 +66,57 @@ double elapsedSeconds(const Clock::time_point& start) {
@@ -137,7 +158,29 @@ index be08cc4..ab034ad 100644
  bool timedOut(const Clock::time_point& start, int timeoutMs) {
      if (timeoutMs <= 0) {
          return false;
-@@ -262,8 +313,9 @@ RandomRolloutResult randomRolloutRaw(Engine& engine, int maxIters, int timeoutMs
+@@ -133,6 +184,21 @@ std::vector<int> reconstructSolution(
+     return actions;
+ }
+ 
++// scriptprof: the action list for a win reached from `parentDat` via `action`.
++// A winning successor is not always a new entry in `parents`: a rule can issue
++// the `win` command without moving anything, leaving the board identical to its
++// parent's. Reconstructing from the parent and appending the action covers both
++// cases.
++std::vector<int> solutionVia(
++    const StateVec& parentDat,
++    int action,
++    const std::unordered_map<StateVec, ParentInfo, StateVecHash>& parents
++) {
++    std::vector<int> actions = reconstructSolution(parentDat, parents);
++    actions.push_back(action);
++    return actions;
++}
++
+ int selectMCTSChild(const std::vector<MCTSNode>& nodes, int nodeIndex, double explorationConstant) {
+     const MCTSNode& node = nodes[nodeIndex];
+     double bestScore = -std::numeric_limits<double>::infinity();
+@@ -262,8 +328,9 @@ RandomRolloutResult randomRolloutRaw(Engine& engine, int maxIters, int timeoutMs
      std::mt19937 rng(std::random_device{}());
      std::uniform_int_distribution<int> actionDist(0, actionCount(engine) - 1);
  
@@ -148,7 +191,7 @@ index be08cc4..ab034ad 100644
              result.iterations = i;
              result.time = elapsedSeconds(start);
              result.timeout = true;
-@@ -332,9 +384,10 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
+@@ -332,9 +399,10 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
      LevelBackup bestState = initialState;
      double bestScore = engine.getScore();
      int iterations = 0;
@@ -160,7 +203,36 @@ index be08cc4..ab034ad 100644
              return makeSolverResult(engine, false, bestActions, iterations, start, bestScore, bestState, true);
          }
  
-@@ -387,10 +440,11 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
+@@ -344,6 +412,28 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
+         for (int action : actionsForEngine(engine)) {
+             engine.restoreLevel(parentState);
+             const bool changed = processInputSearch(engine, action);
++
++            // scriptprof: check for a win before the guards below. A rule may
++            // win by issuing the `win` command without altering a single tile
++            // (Angize is won by ACTION alone), so the `!changed` guard would
++            // discard the winning action; and when the resulting board repeats
++            // one already seen, the `parents` guard would discard it too. Both
++            // paths previously left `winning_` set for the next sibling to
++            // inherit, which is how a solver came to report a win with an
++            // action sequence that does not produce one.
++            if (engine.isWinning()) {
++                return makeSolverResult(
++                    engine,
++                    true,
++                    solutionVia(parentState.dat, action, parents),
++                    iterations,
++                    start,
++                    engine.getScore(),
++                    engine.backupLevel(),
++                    false
++                );
++            }
++
+             if (!changed) {
+                 continue;
+             }
+@@ -387,10 +477,11 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
      LevelBackup bestState = initialState;
      double bestScore = engine.getScore();
      int totalIters = 0;
@@ -173,7 +245,36 @@ index be08cc4..ab034ad 100644
              return makeSolverResult(
                  engine,
                  false,
-@@ -469,10 +523,11 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
+@@ -411,6 +502,28 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
+         for (int action : actions) {
+             engine.restoreLevel(current.state);
+             const bool changed = processInputSearch(engine, action);
++
++            // scriptprof: check for a win before the guards below. A rule may
++            // win by issuing the `win` command without altering a single tile
++            // (Angize is won by ACTION alone), so the `!changed` guard would
++            // discard the winning action; and when the resulting board repeats
++            // one already seen, the `parents` guard would discard it too. Both
++            // paths previously left `winning_` set for the next sibling to
++            // inherit, which is how a solver came to report a win with an
++            // action sequence that does not produce one.
++            if (engine.isWinning()) {
++                return makeSolverResult(
++                    engine,
++                    true,
++                    solutionVia(current.state.dat, action, parents),
++                    totalIters,
++                    start,
++                    engine.getScore(),
++                    engine.backupLevel(),
++                    false
++                );
++            }
++
+             if (!changed) {
+                 continue;
+             }
+@@ -469,10 +582,11 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
      LevelBackup bestState = initialState;
      double bestScore = engine.getScore();
      int totalIters = 0;
@@ -186,6 +287,35 @@ index be08cc4..ab034ad 100644
              return makeSolverResult(
                  engine,
                  false,
+@@ -493,6 +607,28 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
+         for (int action : actions) {
+             engine.restoreLevel(current.state);
+             const bool changed = processInputSearch(engine, action);
++
++            // scriptprof: check for a win before the guards below. A rule may
++            // win by issuing the `win` command without altering a single tile
++            // (Angize is won by ACTION alone), so the `!changed` guard would
++            // discard the winning action; and when the resulting board repeats
++            // one already seen, the `parents` guard would discard it too. Both
++            // paths previously left `winning_` set for the next sibling to
++            // inherit, which is how a solver came to report a win with an
++            // action sequence that does not produce one.
++            if (engine.isWinning()) {
++                return makeSolverResult(
++                    engine,
++                    true,
++                    solutionVia(current.state.dat, action, parents),
++                    totalIters,
++                    start,
++                    engine.getScore(),
++                    engine.backupLevel(),
++                    false
++                );
++            }
++
+             if (!changed) {
+                 continue;
+             }
 diff --git a/puzzlescript_nodejs/puzzlescript/engine.js b/puzzlescript_nodejs/puzzlescript/engine.js
 index db0db52..fb81822 100644
 --- a/puzzlescript_nodejs/puzzlescript/engine.js
