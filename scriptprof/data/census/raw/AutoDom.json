@@ -1,0 +1,1 @@
+{"game": "AutoDom", "bytes": 2328, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 10, "h": 10, "solved": false, "len": 12, "iters": 37409, "time": 5.0565, "timeout": true, "actions": null}], "compile_time": 0.12726712226867676, "n_entries": 5}

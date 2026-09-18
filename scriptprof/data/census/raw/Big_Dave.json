@@ -1,0 +1,1 @@
+{"game": "Big_Dave", "bytes": 4102, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 12, "h": 13, "solved": false, "len": 13, "iters": 15176, "time": 5.0178, "timeout": true, "actions": null}], "compile_time": 0.09632134437561035, "n_entries": 2}

@@ -1,0 +1,1 @@
+{"game": "An_Auspicious_Day_v0.2.1", "bytes": 36105, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 340, "h": 66, "solved": false, "len": 67, "iters": 290, "time": 5.0502, "timeout": true, "actions": null}], "compile_time": 0.27741527557373047, "n_entries": 3}
