@@ -406,7 +406,9 @@ const TEX = (() => {
     const cw = S / o.cols, ch = S / o.rows;
     for (let j = 0; j < o.rows; j++) {
       if (o.band) { g.fillStyle = o.band; g.fillRect(0, j * ch, S, 6); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, j * ch + 6, S, 3); }
-      for (let i = 0; i < o.cols; i++) { const x = i * cw + cw * o.wPad, y = j * ch + ch * o.hPad, w = cw * (1 - 2 * o.wPad), h = ch * (1 - 2 * o.hPad); pane(g, r, x, y, w, h, o); }
+      for (let i = 0; i < o.cols; i++) { const x = i * cw + cw * o.wPad, y = j * ch + ch * o.hPad, w = cw * (1 - 2 * o.wPad), h = ch * (1 - 2 * o.hPad); pane(g, r, x, y, w, h, o);
+        // the reveal: a window sits back in the wall, so its head and one jamb are in shadow and the sill below catches the light
+        g.fillStyle = 'rgba(0,0,0,0.32)'; g.fillRect(x, y, w, Math.max(2, h * 0.11)); g.fillRect(x, y, Math.max(2, w * 0.07), h); g.fillStyle = 'rgba(255,255,255,0.16)'; g.fillRect(x - 2, y + h, w + 4, Math.max(2, h * 0.05)); g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(x - 2, y + h + Math.max(2, h * 0.05), w + 4, Math.max(2, h * 0.04)); }
     }
     if (o.pilasters) for (let i = 0; i <= o.cols; i++) { const x = i * cw - 8; g.fillStyle = 'rgba(255,255,255,0.14)'; g.fillRect(x, 0, 10, S); g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(x + 10, 0, 6, S); }
   }
@@ -454,7 +456,7 @@ const TEX = (() => {
     // ghost signs: faded painted advertising on a blank brick wall
     const GHOST = [['DRINK', 'GRIFT COLA'], ['OKAFOR & SONS', 'SHIPPING'], ['HOTEL', 'ROOMS $2'], ['MARROW', 'HARDWARE'], ['CIGARS', '5 CENTS']];
     add('ghost', (g, r) => { bricks(g, r, '#8a4a3a', 'rgba(230,220,200,0.5)'); streaks(g, r, 30, 0, S, 0, 200, 'rgba(0,0,0,0.1)'); const gs = GHOST[Math.floor(r() * GHOST.length)]; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(240,230,210,0.32)'; g.fillRect(40, 60, 432, 392); g.fillStyle = 'rgba(30,20,20,0.35)'; g.font = `bold 92px ${FONTS.heavy}`; let sz = 92; while (g.measureText(gs[0]).width > 400 && sz > 40) { sz -= 4; g.font = `bold ${sz}px ${FONTS.heavy}`; } g.fillText(gs[0], 256, 180); g.font = `bold 60px ${FONTS.serif}`; sz = 60; while (g.measureText(gs[1]).width > 400 && sz > 30) { sz -= 4; g.font = `bold ${sz}px ${FONTS.serif}`; } g.fillText(gs[1], 256, 330); g.fillStyle = 'rgba(200,40,40,0.25)'; g.fillRect(120, 400, 272, 20); grain(g, r, 20000, 0.06, 3); });
-    add('banner', (g, r) => { for (let i = 0; i < 4; i++) { const hue = Math.floor(r() * 360); g.fillStyle = `hsl(${hue},55%,40%)`; g.fillRect(i * 128, 0, 128, S); g.fillStyle = `hsl(${hue},60%,75%)`; g.fillRect(i * 128 + 20, 60, 88, 88); g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = `bold 34px ${FONTS.sans}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.save(); g.translate(i * 128 + 64, 330); g.rotate(-Math.PI / 2); g.fillText(['GRIFT CITY', 'MUSEUM', 'OPERA', 'MARKET DAYS'][i], 0, 0); g.restore(); } }); // four hanging banners for downtown flagpoles
+    add('banner', (g, r) => { for (let i = 0; i < 4; i++) { const hue = Math.floor(r() * 360); g.fillStyle = `hsl(${hue},42%,40%)`; g.fillRect(i * 128, 0, 128, S); g.fillStyle = `hsl(${hue},48%,75%)`; g.fillRect(i * 128 + 20, 60, 88, 88); g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = `bold 34px ${FONTS.sans}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.save(); g.translate(i * 128 + 64, 330); g.rotate(-Math.PI / 2); g.fillText(['GRIFT CITY', 'MUSEUM', 'OPERA', 'MARKET DAYS'][i], 0, 0); g.restore(); } }); // four hanging banners for downtown flagpoles
     add('painted', (g, r) => { windows(g, r, { cols: 4, rows: 4, wPad: 0.27, hPad: 0.24, wall: (g, r) => stucco(g, r, ['#c98a6a', '#d8c07a', '#8fb5a0', '#b58fa8'][Math.floor(r() * 4)]), frame: '#f3efe6', glassA: '#4e5d6b', glassB: '#3d4c5a', litFrac: 0.45, sill: true, sillCol: '#f3efe6' }); // shutters
       const cw = S / 4, ch = S / 4; for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { if (r() > 0.6) continue; const x = i * cw + cw * 0.27, y = j * ch + ch * 0.24, w = cw * 0.46, h = ch * 0.52; g.fillStyle = '#3d5a4a'; g.fillRect(x - 16, y, 12, h); g.fillRect(x + w + 4, y, 12, h); g.fillStyle = 'rgba(0,0,0,0.3)'; for (let k = 4; k < h; k += 6) { g.fillRect(x - 15, y + k, 10, 2); g.fillRect(x + w + 5, y + k, 10, 2); } } });
     // Shopfronts: one tile = 8 units (two shops), 4 tall. Sixteen kinds of shop, each with its own sign, window
@@ -482,12 +484,12 @@ const TEX = (() => {
     const usedNames = new Set(); const SIGN_ALT = { board: 'box', box: 'board', neon: 'board', stripes: 'board' };
     function shop(g, r, x0, kind) {
       const sp = { ...SHOPS[kind] }; if (r() < 0.3) sp.sign = SIGN_ALT[sp.sign]; const fresh = sp.names.filter(n => !usedNames.has(n)); const name = (fresh.length ? fresh : sp.names)[Math.floor(r() * (fresh.length ? fresh : sp.names).length)]; usedNames.add(name); const hue = (sp.hue + (r() - 0.5) * 40 + 360) % 360; const font = FONTS[sp.font];
-      const dark = `hsl(${hue},30%,14%)`, mid = `hsl(${hue},45%,34%)`, light = `hsl(${hue},60%,85%)`;
+      const dark = `hsl(${hue},30%,14%)`, mid = `hsl(${hue},34%,34%)`, light = `hsl(${hue},60%,85%)`;
       g.textAlign = 'center'; g.textBaseline = 'middle';
       // ---- sign band (14..90)
-      if (sp.sign === 'board') { g.fillStyle = mid; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = `hsl(${hue},45%,26%)`; g.fillRect(x0 + 6, 84, 244, 8); g.strokeStyle = light; g.lineWidth = 3; g.strokeRect(x0 + 14, 22, 228, 60); g.fillStyle = light; textFit(g, name, 216, 40, font); g.fillText(name, x0 + 128, 52); }
-      else if (sp.sign === 'box') { g.fillStyle = '#2a2a2e'; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = '#f4f2ea'; g.fillRect(x0 + 14, 22, 228, 60); g._lit.push([x0 + 14, 22, 228, 60]); g.fillStyle = `hsl(${hue},70%,38%)`; textFit(g, name, 216, 42, font); g.fillText(name, x0 + 128, 52); }
-      else if (sp.sign === 'neon') { g.fillStyle = '#15151a'; g.fillRect(x0 + 6, 14, 244, 76); const col = `hsl(${hue},95%,68%)`; g.shadowColor = col; g.shadowBlur = 18; g.fillStyle = col; textFit(g, name, 210, 44, font, 'italic bold'); g.fillText(name, x0 + 128, 52); g.shadowBlur = 0; g._lit.push([x0 + 30, 26, 196, 52]); g.strokeStyle = `hsl(${hue},80%,40%)`; g.lineWidth = 2; g.strokeRect(x0 + 12, 20, 232, 64); }
+      if (sp.sign === 'board') { g.fillStyle = mid; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = `hsl(${hue},34%,26%)`; g.fillRect(x0 + 6, 84, 244, 8); g.strokeStyle = light; g.lineWidth = 3; g.strokeRect(x0 + 14, 22, 228, 60); g.fillStyle = light; textFit(g, name, 216, 40, font); g.fillText(name, x0 + 128, 52); }
+      else if (sp.sign === 'box') { g.fillStyle = '#2a2a2e'; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = '#f4f2ea'; g.fillRect(x0 + 14, 22, 228, 60); g._lit.push([x0 + 14, 22, 228, 60]); g.fillStyle = `hsl(${hue},52%,38%)`; textFit(g, name, 216, 42, font); g.fillText(name, x0 + 128, 52); }
+      else if (sp.sign === 'neon') { g.fillStyle = '#15151a'; g.fillRect(x0 + 6, 14, 244, 76); const col = `hsl(${hue},78%,66%)`; g.shadowColor = col; g.shadowBlur = 18; g.fillStyle = col; textFit(g, name, 210, 44, font, 'italic bold'); g.fillText(name, x0 + 128, 52); g.shadowBlur = 0; g._lit.push([x0 + 30, 26, 196, 52]); g.strokeStyle = `hsl(${hue},58%,40%)`; g.lineWidth = 2; g.strokeRect(x0 + 12, 20, 232, 64); }
       else { /* stripes: an awning-style band with the name on it */ for (let k = 0; k < 12; k++) { g.fillStyle = k % 2 ? mid : '#f0ebe0'; g.fillRect(x0 + 6 + k * 20.3, 14, 20.3, 76); } g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(x0 + 20, 32, 216, 40); g.fillStyle = '#fff'; textFit(g, name, 200, 34, font); g.fillText(name, x0 + 128, 52); }
       // ---- awning (some kinds) and the frame around the window
       const awning = sp.sign !== 'stripes' && r() < 0.45; if (awning) { const ac = `hsl(${(hue + 180) % 360},50%,42%)`; g.fillStyle = ac; g.fillRect(x0 + 6, 96, 244, 34); g.fillStyle = 'rgba(255,255,255,0.18)'; for (let k = 0; k < 6; k++) g.fillRect(x0 + 6 + k * 40.6, 96, 20, 34); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x0 + 6, 128, 244, 6); }
@@ -536,7 +538,7 @@ const TEX = (() => {
         g.strokeStyle = ['#ff3b8d', '#37d4ff', '#7dff5a'][i]; g.lineWidth = 6; g.beginPath(); let gx = x0 + 30, gy = 300 + r() * 100; g.moveTo(gx, gy); for (let k = 0; k < 6; k++) { gx += 30; gy += (r() - 0.5) * 60; g.lineTo(gx, gy); } g.stroke();
         g.fillStyle = '#6a6560'; g.fillRect(x0 + 14, 486, 228, 12); } });
     add('roof', (g, r) => { if (!base(g, '#56534f')) { g.fillStyle = '#56534f'; g.fillRect(0, 0, S, S); noise(g, r, 80, 20000); grain(g, r, 20000, 0.05); } stains(g, r, 6, 'rgba(0,0,0,0.12)'); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, 0, S, 14); g.fillRect(0, 0, 14, S); for (let i = 0; i < 3; i++) { g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(r() * S, r() * S, 60 + r() * 100, 40 + r() * 60); } });
-    add('grass', (g, r) => { if (!base(g, '#4c7738')) { g.fillStyle = '#4c7738'; g.fillRect(0, 0, S, S); for (let i = 0; i < 30000; i++) { g.fillStyle = r() < 0.5 ? 'rgba(20,60,10,0.35)' : 'rgba(150,200,80,0.28)'; g.fillRect(r() * S, r() * S, 1, 2 + r() * 4); } } for (let i = 0; i < 12; i++) { g.fillStyle = 'rgba(90,70,40,0.25)'; g.beginPath(); g.ellipse(r() * S, r() * S, 10 + r() * 30, 6 + r() * 16, r() * 3, 0, 7); g.fill(); } });
+    add('grass', (g, r) => { if (!base(g, '#566e46')) { g.fillStyle = '#566e46'; g.fillRect(0, 0, S, S); for (let i = 0; i < 30000; i++) { g.fillStyle = r() < 0.5 ? 'rgba(20,60,10,0.35)' : 'rgba(150,200,80,0.28)'; g.fillRect(r() * S, r() * S, 1, 2 + r() * 4); } } for (let i = 0; i < 12; i++) { g.fillStyle = 'rgba(90,70,40,0.25)'; g.beginPath(); g.ellipse(r() * S, r() * S, 10 + r() * 30, 6 + r() * 16, r() * 3, 0, 7); g.fill(); } });
     add('parking', (g, r) => { if (!base(g, '#48484a')) { g.fillStyle = '#48484a'; g.fillRect(0, 0, S, S); noise(g, r, 60, 12000); cracks(g, r, 5); } stains(g, r, 8, 'rgba(0,0,0,0.25)'); g.fillStyle = '#d0d0c8'; for (let x = 0; x < S; x += 128) { g.fillRect(x, 0, 5, S * 0.45); g.fillRect(x, S * 0.55, 5, S * 0.45); } });
     add('water', (g, r) => { g.fillStyle = '#1e4862'; g.fillRect(0, 0, S, S); for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(170,215,240,${0.05 + r() * 0.16})`; g.fillRect(r() * S, r() * S, 16 + r() * 70, 1 + r() * 3); } for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(10,30,50,${0.1 + r() * 0.2})`; g.fillRect(r() * S, r() * S, 20 + r() * 60, 2 + r() * 3); } });
     add('metal', (g, r) => { if (!base(g, '#7c8088')) { g.fillStyle = '#7c8088'; g.fillRect(0, 0, S, S); } for (let y = 0; y < S; y += 4) { g.fillStyle = `rgba(0,0,0,${0.06 + r() * 0.12})`; g.fillRect(0, y, S, 2); } streaks(g, r, 30, 0, S, 0, 300, 'rgba(120,70,30,0.12)'); grain(g, r, 6000, 0.05); });
@@ -1439,6 +1441,16 @@ const CITY = (() => {
   // which shopfront tiles a district's ground floors are painted with (tools: see the SHOP_TILES list in textures.js; 9 is shuttered)
   const SHOP_POOL = { downtown: [1, 3, 6, 8, 10, 12, 16, 18, 3, 6], midtown: [1, 3, 4, 6, 7, 8, 0, 10, 12, 13, 14, 15, 16], northgate: [0, 2, 4, 5, 9, 11, 13, 17, 19, 20, 2, 5], westfield: [3, 7, 8, 14, 16, 17, 10, 1, 4], eastside: [2, 5, 4, 0, 9, 11, 13, 19, 20, 20, 18], southport: [5, 2, 0, 9, 11, 19, 20, 17, 3] };
   const MASONRY = ['brick', 'brick2', 'brick3', 'tenement', 'stone', 'painted', 'stucco2', 'loft'];
+  // Wall tints per district: cool greys downtown, warm brick browns midtown, dark reds up north, creams in the suburbs,
+  // ochres east, weathered greys and teals by the water. Saturation is low everywhere; accents come from signs and cars.
+  const WALL_TINTS = {
+    downtown: [[0.8, 0.82, 0.86], [0.7, 0.72, 0.76], [0.86, 0.85, 0.82], [0.64, 0.68, 0.74], [0.9, 0.9, 0.9]],
+    midtown: [[0.82, 0.74, 0.66], [0.74, 0.64, 0.57], [0.86, 0.81, 0.73], [0.68, 0.62, 0.58], [0.8, 0.78, 0.74]],
+    northgate: [[0.66, 0.54, 0.48], [0.74, 0.62, 0.54], [0.58, 0.51, 0.48], [0.8, 0.72, 0.64], [0.7, 0.66, 0.6]],
+    westfield: [[0.9, 0.87, 0.8], [0.85, 0.83, 0.77], [0.82, 0.8, 0.72], [0.88, 0.85, 0.82], [0.78, 0.8, 0.74]],
+    eastside: [[0.72, 0.62, 0.5], [0.64, 0.57, 0.5], [0.76, 0.7, 0.57], [0.6, 0.54, 0.5], [0.7, 0.66, 0.6]],
+    southport: [[0.68, 0.7, 0.7], [0.62, 0.66, 0.68], [0.74, 0.72, 0.68], [0.57, 0.6, 0.62], [0.66, 0.7, 0.66]],
+  };
   const FLOORS = { downtown: [14, 42], midtown: [6, 16], northgate: [3, 8], westfield: [2, 5], eastside: [2, 6], southport: [3, 7] };
 
   function addLot(block, x0, z0, x1, z1, h, kind = 'building') { const l = { x0, z0, x1, z1, h, kind }; lots.push(l); block.lots.push(l); if (kind !== 'wall' && curBuilder) groundAO(curBuilder, x0, z0, x1, z1); return l; }
@@ -1454,7 +1466,7 @@ const CITY = (() => {
     const [fmin, fmax] = FLOORS[dist] || [3, 8];
     const floors = rng.int(fmin, fmax); const fh = 3.2; const ground = 4.2;
     const facade = rng.pick(FACADES[dist] || FACADES.midtown);
-    const tint = rng.chance(0.3) ? [rng.range(0.7, 1.05), rng.range(0.7, 1.05), rng.range(0.7, 1.05)] : [1, 1, 1].map(v => v * rng.range(0.75, 1.05));
+    const tint = rng.pick(WALL_TINTS[dist] || WALL_TINTS.midtown).map(v => v * rng.range(0.92, 1.08)); // each district keeps to a few muted wall colours
     const trim = tint.map(v => v * 0.82); const y = CURB;
     const commercial = rng.chance(dist === 'downtown' ? 0.6 : 0.75);
 
@@ -1536,6 +1548,8 @@ const CITY = (() => {
     }
     // Ledge spacing varies with the facade family instead of wrapping every building at every floor.
     if (masonry || facade === 'concrete') for (let k = (commercial ? 0 : 1); k < floors; k += family === 0 ? 3 : family === 1 ? 2 : 1) { const ly = top + k * fh; b.box(x0 - 0.12, ly, z0 - 0.12, W + 0.24, 0.14, D + 0.24, trim, 0, { faces: 1 | 2 | 4 | 16 | 32 }); }
+    // a plinth at the foot of a residential facade (the roofline cornice is built below)
+    if (!commercial) b.box(x0 - 0.12, y, z0 - 0.12, W + 0.24, 0.9, D + 0.24, trim.map(v => v * 0.8));
     b.box(x0 - 0.35, top + H - 0.45, z0 - 0.35, W + 0.7, 0.45, D + 0.7, trim, 0);
     // balconies on the masonry fronts, window boxes on the painted ones, air conditioners on the side walls
     const bays = Math.floor(frontLen / 3.5);
@@ -1609,7 +1623,7 @@ const CITY = (() => {
     const n = rng.int(1, 3);
     for (let k = 0; k < n; k++) { const aw = rng.range(1.5, 3), ad = rng.range(1.5, 3); const ax = x + rng.range(1, Math.max(1.1, w - aw - 1)), az = z + rng.range(1, Math.max(1.1, d - ad - 1)); b.box(ax, y, az, aw, rng.range(0.8, 1.6), ad, [0.6, 0.6, 0.62], T.metal, { uvScale: 2 }); b.box(ax + 0.2, y + 0.8, az + 0.2, aw - 0.4, 0.05, ad - 0.4, [0.25, 0.25, 0.27]); }
     for (let k = 0; k < rng.int(1, 4); k++) { const vx = x + rng.range(1, w - 1), vz = z + rng.range(1, d - 1); b.cyl(vx, y, vz, 0.25, rng.range(0.8, 1.6), [0.55, 0.55, 0.58], 0, 6); b.cyl(vx, y + 1.2, vz, 0.4, 1.35, [0.45, 0.45, 0.48], 0, 6); }
-    if (rng.chance(0.3) && w > 8 && d > 8) { const cx = x + rng.range(3, w - 3), cz = z + rng.range(3, d - 3); for (const [ox, oz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) b.cyl(cx + ox, y, cz + oz, 0.08, 2.5, [0.3, 0.3, 0.3], 0, 4); b.cyl(cx, y + 2.5, cz, 1.3, 4.3, [0.45, 0.35, 0.25], 0, 10, 0, true, true); b.cyl(cx, y + 4.3, cz, 1.4, 4.6, [0.35, 0.28, 0.2], 0, 10, 0, true, false, 0.4); }
+    if (rng.chance(tall ? 0.55 : 0.3) && w > 8 && d > 8) { const cx = x + rng.range(3, w - 3), cz = z + rng.range(3, d - 3); for (const [ox, oz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) b.cyl(cx + ox, y, cz + oz, 0.08, 2.5, [0.3, 0.3, 0.3], 0, 4); b.cyl(cx, y + 2.5, cz, 1.3, 4.3, [0.45, 0.35, 0.25], 0, 10, 0, true, true); b.cyl(cx, y + 4.3, cz, 1.4, 4.6, [0.35, 0.28, 0.2], 0, 10, 0, true, false, 0.4); }
     if (rng.chance(0.4) && w > 6 && d > 6) { const sx = x + rng.range(1, w - 3.5), sz = z + rng.range(1, d - 3.5); b.box(sx, y, sz, 2.4, 2.6, 2.8, tint.map(v => v * 0.8)); b.box(sx + 0.7, y, sz - 0.05, 1, 2.1, 0.1, [0.2, 0.15, 0.1]); } // roof access shed
     if (rng.chance(0.35)) { const dx = x + rng.range(1, w - 1), dz = z + rng.range(1, d - 1); b.cyl(dx, y, dz, 0.06, 1.2, [0.5, 0.5, 0.5], 0, 4); b.cyl(dx, y + 1.0, dz, 0.7, 1.15, [0.85, 0.85, 0.88], 0, 10, 0, true, true, 0.1); } // dish
     if (tall) { b.box(x + w / 2 - 0.1, y, z + d / 2 - 0.1, 0.2, 6, 0.2, [0.7, 0.7, 0.7]); b.cbox(x + w / 2, y + 6.1, z + d / 2, 0.3, 0.3, 0.3, [1, 0.1, 0.1], 0, { bone: 0 }); }
@@ -1962,6 +1976,10 @@ const RENDER = (() => {
       vec4 t = uTexOn > 0.5 ? texture(uTex, vec3(vUV, vTile)) : vec4(1.0);
       vec3 albedo = s2l(t.rgb) * s2l(vCol);
       vec3 n = normalize(vNrm);
+      #ifdef STATIC
+      // grime: the foot of every wall is darker, as it is on any street
+      if (abs(n.y) < 0.5 && vWorld.y > -1.0) albedo *= 1.0 - 0.3 * (1.0 - smoothstep(0.1, 2.6, vWorld.y));
+      #endif
       // Normal and roughness from the parallel map. The tangent frame comes from the screen-space derivatives of world
       // position and UV (Mikkelsen's cotangent frame), so no tangents need storing on the mesh.
       float rough = 0.72;
@@ -2085,11 +2103,23 @@ const RENDER = (() => {
       float ao = 1.0 - occ / 10.0; o = vec4(vec3(ao), 1.0);
     }`;
   const AOBLUR_FS = `in vec2 vUV; uniform sampler2D uTex; uniform vec2 uTexel; out vec4 o; void main() { float s = 0.0; for (int x = -2; x <= 1; x++) for (int y = -2; y <= 1; y++) s += texture(uTex, vUV + vec2(float(x) + 0.5, float(y) + 0.5) * uTexel).r; o = vec4(vec3(s / 16.0), 1.0); }`;
-  const COMPOSITE_FS = `in vec2 vUV; uniform sampler2D uScene; uniform sampler2D uBloom; uniform sampler2D uAO; uniform float uAOAmt; uniform float uBloomAmt; uniform float uExposure; uniform float uHDR; uniform float uVignette; uniform float uSat; uniform vec3 uTint; out vec4 o;
+  const COMPOSITE_FS = `in vec2 vUV; uniform sampler2D uScene; uniform sampler2D uBloom; uniform sampler2D uAO; uniform sampler2D uDepth; uniform float uAOAmt; uniform float uBloomAmt; uniform float uExposure; uniform float uHDR; uniform float uVignette; uniform float uSat; uniform vec3 uTint; uniform vec2 uTexel; uniform vec2 uNF; uniform float uEdge; out vec4 o;
     vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+    float lin(vec2 uv) { float z = texture(uDepth, uv).r * 2.0 - 1.0; return 2.0 * uNF.x * uNF.y / (uNF.y + uNF.x - z * (uNF.y - uNF.x)); }
+    // Ink lines: a depth step (silhouette) or a change of depth slope (crease) between neighbouring pixels draws a dark
+    // line, thinner and fainter with distance, so every object reads as drawn rather than rendered.
+    float edge() {
+      float dc = lin(vUV); if (dc > 260.0) return 0.0;
+      float dl = lin(vUV - vec2(uTexel.x, 0.0)), dr = lin(vUV + vec2(uTexel.x, 0.0)), du = lin(vUV + vec2(0.0, uTexel.y)), dd = lin(vUV - vec2(0.0, uTexel.y));
+      // second difference of depth: zero across any flat surface however oblique, large at a silhouette step or a crease
+      float lap = max(abs(dl + dr - 2.0 * dc), abs(du + dd - 2.0 * dc)) / dc;
+      float e = smoothstep(0.004, 0.014, lap);
+      return e * (1.0 - smoothstep(70.0, 240.0, dc));
+    }
     void main() {
       float ao = mix(1.0, texture(uAO, vUV).r, uAOAmt); vec3 c = texture(uScene, vUV).rgb * ao + texture(uBloom, vUV).rgb * uBloomAmt;
       if (uHDR > 0.5) { c = aces(c * uExposure); c = pow(c, vec3(1.0 / 2.2)); }
+      if (uEdge > 0.0) c *= 1.0 - uEdge * edge(); // on the display-referred colour, so a line is a line at any exposure
       float l = dot(c, vec3(0.3, 0.55, 0.15)); c = mix(vec3(l), c, uSat) * uTint;
       vec2 d = vUV - 0.5; c *= 1.0 - uVignette * dot(d, d) * 2.2;
       o = vec4(c, 1.0);
@@ -2098,7 +2128,7 @@ const RENDER = (() => {
   const FLAT_FS = `in vec4 vCol; out vec4 o; void main() { vec3 c = vCol.rgb; o = vec4(c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878), vCol.a); }`;
 
   let partVao, partBuf, flatVao, flatBuf, brightProg, blurProg, compProg, aoProg, aoBlurProg;
-  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.75, samples: 4, bloom: 0.18, exposure: 1.08, vignette: 0.18, sat: 0.96, tint: [1, 1, 1] };
+  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.75, edges: 0.55, samples: 4, bloom: 0.18, exposure: 1.08, vignette: 0.18, sat: 0.96, tint: [1, 1, 1] };
   function makeDepthTarget(w, h) { const t = { w, h }; t.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo); t.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t.tex); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, w, h); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t.tex, 0); t.ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER, null); return t; }
   function makeTarget(w, h, samples, fmtOverride) {
     const fmt = fmtOverride || (post.hdr ? gl.RGBA16F : gl.RGBA8); const t = { w, h };
@@ -2316,8 +2346,8 @@ const RENDER = (() => {
     // resolve MSAA into the scene texture
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, post.msaa.fbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, post.scene.fbo);
     gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-    const aoOn = post.ao > 0 && post.depth && post.depth.ok;
-    if (aoOn) { gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, post.depth.fbo); gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.DEPTH_BUFFER_BIT, gl.NEAREST); }
+    const aoOn = post.ao > 0 && post.depth && post.depth.ok; const edgeOn = post.edges > 0 && post.depth && post.depth.ok;
+    if (aoOn || edgeOn) { gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, post.depth.fbo); gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.DEPTH_BUFFER_BIT, gl.NEAREST); }
     gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
     if (aoOn) {
       const aw = post.aoA.w, ah = post.aoA.h; gl.bindFramebuffer(gl.FRAMEBUFFER, post.aoA.fbo); gl.viewport(0, 0, aw, ah);
@@ -2341,6 +2371,7 @@ const RENDER = (() => {
     gl.useProgram(compProg.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, post.scene.tex); gl.uniform1i(compProg.u.uScene, 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, post.bloomA.tex); gl.uniform1i(compProg.u.uBloom, 1);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, aoOn ? post.aoB.tex : post.bloomA.tex); gl.uniform1i(compProg.u.uAO, 2); gl.uniform1f(compProg.u.uAOAmt, aoOn ? post.ao : 0);
+    gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, edgeOn ? post.depth.tex : post.bloomA.tex); gl.uniform1i(compProg.u.uDepth, 3); const px = Math.max(1, Math.round((canvas.width / (canvas.clientWidth || canvas.width)) * 0.85)); gl.uniform2f(compProg.u.uTexel, px / w, px / h); gl.uniform2f(compProg.u.uNF, cam.near, cam.far); gl.uniform1f(compProg.u.uEdge, edgeOn ? post.edges : 0);
     gl.uniform1f(compProg.u.uBloomAmt, post.bloom); gl.uniform1f(compProg.u.uExposure, post.exposure); gl.uniform1f(compProg.u.uHDR, post.hdr ? 1 : 0); gl.uniform1f(compProg.u.uVignette, post.vignette); gl.uniform1f(compProg.u.uSat, post.sat); gl.uniform3fv(compProg.u.uTint, post.tint);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
@@ -2843,7 +2874,7 @@ const W = (() => {
 const VEH = (() => {
   const SPECS = MESH.VEHICLES;
   const NAMES = { sedan: 'MERIDIAN', sports: 'FALCATA', hatch: 'GNAT', pickup: 'MULE', van: 'BOXER', taxi: 'CABCO', police: 'ENFORCER', truck: 'HAULER', bus: 'TRANSIT', muscle: 'BRAWLER', swat: 'BASTION', bike: 'VIPER', boat: 'SKIMMER', ktruck: 'RANCHER', kmoto: 'HORNET', kgarbage: 'SANITATION', kambulance: 'MEDIVAC', kfire: 'FIREBRAND' };
-  const PALETTE = [[0.85, 0.12, 0.1], [0.12, 0.22, 0.6], [0.92, 0.92, 0.9], [0.15, 0.15, 0.17], [0.62, 0.62, 0.66], [0.1, 0.48, 0.25], [0.9, 0.6, 0.12], [0.45, 0.12, 0.5], [0.7, 0.35, 0.15], [0.2, 0.6, 0.7], [0.55, 0.05, 0.1], [0.75, 0.75, 0.5], [0.2, 0.45, 0.35], [0.85, 0.85, 0.6], [0.3, 0.2, 0.4], [0.9, 0.35, 0.25], [0.75, 0.2, 0.35], [0.55, 0.6, 0.7], [0.15, 0.3, 0.45], [0.8, 0.55, 0.3], [0.35, 0.35, 0.4], [0.95, 0.85, 0.8]];
+  const PALETTE = [[0.696,0.185,0.171],[0.154,0.224,0.49],[0.919,0.919,0.905],[0.151,0.151,0.165],[0.621,0.621,0.649],[0.172,0.438,0.277],[0.82,0.61,0.274],[0.394,0.163,0.429],[0.62,0.375,0.235],[0.288,0.568,0.638],[0.447,0.097,0.132],[0.741,0.741,0.566],[0.249,0.424,0.354],[0.841,0.841,0.666],[0.286,0.216,0.356],[0.781,0.396,0.326],[0.639,0.254,0.359],[0.564,0.599,0.669],[0.187,0.292,0.397],[0.739,0.564,0.389],[0.352,0.352,0.387],[0.927,0.857,0.822]]; // desaturated a third toward grey: a street of cars is mostly muted
   const FIXED = { taxi: [1, 0.8, 0.1], police: [0.95, 0.95, 0.98], swat: [0.16, 0.18, 0.22], bus: [0.85, 0.55, 0.15] };
   const meshCache = {};
   function colorOf(type, colIdx) { if (colIdx === 'wreck') return [0.07, 0.07, 0.07];
@@ -4805,7 +4836,7 @@ const HUD = (() => {
     const P = PLAYER.P; g.fillStyle = 'rgba(0,0,0,0.7)'; g.fillRect(0, 0, W_, H_); outlined('PAUSED', W_ / 2, 80, 48, '#f5c542');
     const st = P.stats; const rows = [['Missions passed', st.missions + ' / ' + (MISSIONS.LIST.length + MISSIONS.LIST2.length + MISSIONS.PHONE.length)], ['Standing: Marla / Crane', ECON.S.rep.marla + ' / ' + ECON.S.rep.crane], ['Properties / stored cars', Object.keys(ECON.S.properties).length + ' / ' + ECON.S.owned.length], ['Unique stunts', (st.jumps || []).length + ' / ' + CITY.ramps.length], ['Cash earned', '$' + st.cash], ['Hidden packages', st.packages + ' / 20'], ['Cars stolen', st.carsStolen], ['People killed', st.kills], ['Distance travelled', (st.distance / 1000).toFixed(1) + ' km'], ['Insane stunts', st.stunts], ['Times wasted / busted', st.wasted + ' / ' + st.busted], ['Time of day', W.clockString()]];
     rows.forEach(([k, v], i) => { text(k, W_ / 2 - 60, 150 + i * 26, 15, '#bbb', 'right', 'normal'); text(String(v), W_ / 2 - 48, 150 + i * 26, 15, '#fff', 'left'); });
-    const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['A', 'auto quality', o.auto ? (GAME.auto.level ? 'on, stepped down ' + GAME.auto.level : 'on') : 'off'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', '']];
+    const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['E', 'ink lines', o.edges ? 'on' : 'off'], ['A', 'auto quality', o.auto ? (GAME.auto.level ? 'on, stepped down ' + GAME.auto.level : 'on') : 'off'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', '']];
     opts.forEach(([k, n, v], i) => { const y = 150 + i * 26; text(k, W_ / 2 + 200, y, 15, '#f5c542', 'right'); text(n, W_ / 2 + 212, y, 15, '#ccc', 'left', 'normal'); text(v, W_ / 2 + 360, y, 15, '#fff', 'left'); });
     text('ESC or click  resume', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
     if (GAME.fps) text(GAME.fps + ' fps' + (GAME.fps < 30 ? '  (slow: try P for a lower render scale, K for no shadows)' : ''), W_ / 2, H_ - 86, 13, GAME.fps < 30 ? '#f5a623' : '#888', 'center', 'normal');
@@ -4833,14 +4864,14 @@ const HUD = (() => {
 'use strict';
 const GAME = (() => {
   const quality = { shadows: true };
-  const options = { sensitivity: 1.0, invertY: false, bloom: true, resolution: 1.25, shadows: true, auto: true };
+  const options = { sensitivity: 1.0, invertY: false, bloom: true, resolution: 1.25, shadows: true, auto: true, edges: true };
   // Adaptive quality: when frames stay slow the renderer steps down (render scale, ambient occlusion, shadows, post) one
   // level at a time, and steps back up when there is headroom. A slow machine gets a game that runs at full speed.
   const auto = { level: 0, ema: 16, slowT: 0, fastT: 0, told: false, warm: 0, raises: 0 };
   const AUTO_LEVELS = 5, AO_STRENGTH = 0.75, STEP = 1 / 60, MAX_STEPS = 6;
   function loadOptions() { try { Object.assign(options, JSON.parse(localStorage.getItem('grift-city-options') || '{}')); } catch (e) { } applyOptions(); }
   function saveOptions() { try { localStorage.setItem('grift-city-options', JSON.stringify(options)); } catch (e) { } applyOptions(); }
-  function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 4; RENDER.post.enabled = options.bloom && L < 5; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
+  function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 4; RENDER.post.enabled = options.bloom && L < 5; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.55 : 0; RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
   function autoQuality(raw) {
     if (!options.auto || window.__pt || state !== 'playing') return; auto.warm += raw; if (auto.warm < 4) return; // the first seconds after a load are shader warm-up, not a slow machine
     const ms = Math.min(120, raw * 1000); auto.ema += (ms - auto.ema) * 0.06;
@@ -4978,6 +5009,7 @@ const GAME = (() => {
       if (INPUT.hit('KeyB')) { options.bloom = !options.bloom; saveOptions(); }
       if (INPUT.hit('KeyI')) { options.invertY = !options.invertY; saveOptions(); }
       if (INPUT.hit('KeyP')) { options.resolution = options.resolution >= 1.5 ? 0.75 : options.resolution >= 1.25 ? 1.5 : options.resolution >= 1.0 ? 1.25 : 1.0; saveOptions(); }
+      if (INPUT.hit('KeyE')) { options.edges = !options.edges; saveOptions(); }
       if (INPUT.hit('KeyA')) { options.auto = !options.auto; auto.level = 0; auto.slowT = auto.fastT = 0; saveOptions(); }
       if (INPUT.hit('BracketLeft')) { options.sensitivity = Math.max(0.3, +(options.sensitivity - 0.1).toFixed(1)); saveOptions(); }
       if (INPUT.hit('BracketRight')) { options.sensitivity = Math.min(3, +(options.sensitivity + 0.1).toFixed(1)); saveOptions(); }

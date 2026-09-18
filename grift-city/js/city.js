@@ -211,6 +211,16 @@ const CITY = (() => {
   // which shopfront tiles a district's ground floors are painted with (tools: see the SHOP_TILES list in textures.js; 9 is shuttered)
   const SHOP_POOL = { downtown: [1, 3, 6, 8, 10, 12, 16, 18, 3, 6], midtown: [1, 3, 4, 6, 7, 8, 0, 10, 12, 13, 14, 15, 16], northgate: [0, 2, 4, 5, 9, 11, 13, 17, 19, 20, 2, 5], westfield: [3, 7, 8, 14, 16, 17, 10, 1, 4], eastside: [2, 5, 4, 0, 9, 11, 13, 19, 20, 20, 18], southport: [5, 2, 0, 9, 11, 19, 20, 17, 3] };
   const MASONRY = ['brick', 'brick2', 'brick3', 'tenement', 'stone', 'painted', 'stucco2', 'loft'];
+  // Wall tints per district: cool greys downtown, warm brick browns midtown, dark reds up north, creams in the suburbs,
+  // ochres east, weathered greys and teals by the water. Saturation is low everywhere; accents come from signs and cars.
+  const WALL_TINTS = {
+    downtown: [[0.8, 0.82, 0.86], [0.7, 0.72, 0.76], [0.86, 0.85, 0.82], [0.64, 0.68, 0.74], [0.9, 0.9, 0.9]],
+    midtown: [[0.82, 0.74, 0.66], [0.74, 0.64, 0.57], [0.86, 0.81, 0.73], [0.68, 0.62, 0.58], [0.8, 0.78, 0.74]],
+    northgate: [[0.66, 0.54, 0.48], [0.74, 0.62, 0.54], [0.58, 0.51, 0.48], [0.8, 0.72, 0.64], [0.7, 0.66, 0.6]],
+    westfield: [[0.9, 0.87, 0.8], [0.85, 0.83, 0.77], [0.82, 0.8, 0.72], [0.88, 0.85, 0.82], [0.78, 0.8, 0.74]],
+    eastside: [[0.72, 0.62, 0.5], [0.64, 0.57, 0.5], [0.76, 0.7, 0.57], [0.6, 0.54, 0.5], [0.7, 0.66, 0.6]],
+    southport: [[0.68, 0.7, 0.7], [0.62, 0.66, 0.68], [0.74, 0.72, 0.68], [0.57, 0.6, 0.62], [0.66, 0.7, 0.66]],
+  };
   const FLOORS = { downtown: [14, 42], midtown: [6, 16], northgate: [3, 8], westfield: [2, 5], eastside: [2, 6], southport: [3, 7] };
 
   function addLot(block, x0, z0, x1, z1, h, kind = 'building') { const l = { x0, z0, x1, z1, h, kind }; lots.push(l); block.lots.push(l); if (kind !== 'wall' && curBuilder) groundAO(curBuilder, x0, z0, x1, z1); return l; }
@@ -226,7 +236,7 @@ const CITY = (() => {
     const [fmin, fmax] = FLOORS[dist] || [3, 8];
     const floors = rng.int(fmin, fmax); const fh = 3.2; const ground = 4.2;
     const facade = rng.pick(FACADES[dist] || FACADES.midtown);
-    const tint = rng.chance(0.3) ? [rng.range(0.7, 1.05), rng.range(0.7, 1.05), rng.range(0.7, 1.05)] : [1, 1, 1].map(v => v * rng.range(0.75, 1.05));
+    const tint = rng.pick(WALL_TINTS[dist] || WALL_TINTS.midtown).map(v => v * rng.range(0.92, 1.08)); // each district keeps to a few muted wall colours
     const trim = tint.map(v => v * 0.82); const y = CURB;
     const commercial = rng.chance(dist === 'downtown' ? 0.6 : 0.75);
 
@@ -308,6 +318,8 @@ const CITY = (() => {
     }
     // Ledge spacing varies with the facade family instead of wrapping every building at every floor.
     if (masonry || facade === 'concrete') for (let k = (commercial ? 0 : 1); k < floors; k += family === 0 ? 3 : family === 1 ? 2 : 1) { const ly = top + k * fh; b.box(x0 - 0.12, ly, z0 - 0.12, W + 0.24, 0.14, D + 0.24, trim, 0, { faces: 1 | 2 | 4 | 16 | 32 }); }
+    // a plinth at the foot of a residential facade (the roofline cornice is built below)
+    if (!commercial) b.box(x0 - 0.12, y, z0 - 0.12, W + 0.24, 0.9, D + 0.24, trim.map(v => v * 0.8));
     b.box(x0 - 0.35, top + H - 0.45, z0 - 0.35, W + 0.7, 0.45, D + 0.7, trim, 0);
     // balconies on the masonry fronts, window boxes on the painted ones, air conditioners on the side walls
     const bays = Math.floor(frontLen / 3.5);
@@ -381,7 +393,7 @@ const CITY = (() => {
     const n = rng.int(1, 3);
     for (let k = 0; k < n; k++) { const aw = rng.range(1.5, 3), ad = rng.range(1.5, 3); const ax = x + rng.range(1, Math.max(1.1, w - aw - 1)), az = z + rng.range(1, Math.max(1.1, d - ad - 1)); b.box(ax, y, az, aw, rng.range(0.8, 1.6), ad, [0.6, 0.6, 0.62], T.metal, { uvScale: 2 }); b.box(ax + 0.2, y + 0.8, az + 0.2, aw - 0.4, 0.05, ad - 0.4, [0.25, 0.25, 0.27]); }
     for (let k = 0; k < rng.int(1, 4); k++) { const vx = x + rng.range(1, w - 1), vz = z + rng.range(1, d - 1); b.cyl(vx, y, vz, 0.25, rng.range(0.8, 1.6), [0.55, 0.55, 0.58], 0, 6); b.cyl(vx, y + 1.2, vz, 0.4, 1.35, [0.45, 0.45, 0.48], 0, 6); }
-    if (rng.chance(0.3) && w > 8 && d > 8) { const cx = x + rng.range(3, w - 3), cz = z + rng.range(3, d - 3); for (const [ox, oz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) b.cyl(cx + ox, y, cz + oz, 0.08, 2.5, [0.3, 0.3, 0.3], 0, 4); b.cyl(cx, y + 2.5, cz, 1.3, 4.3, [0.45, 0.35, 0.25], 0, 10, 0, true, true); b.cyl(cx, y + 4.3, cz, 1.4, 4.6, [0.35, 0.28, 0.2], 0, 10, 0, true, false, 0.4); }
+    if (rng.chance(tall ? 0.55 : 0.3) && w > 8 && d > 8) { const cx = x + rng.range(3, w - 3), cz = z + rng.range(3, d - 3); for (const [ox, oz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) b.cyl(cx + ox, y, cz + oz, 0.08, 2.5, [0.3, 0.3, 0.3], 0, 4); b.cyl(cx, y + 2.5, cz, 1.3, 4.3, [0.45, 0.35, 0.25], 0, 10, 0, true, true); b.cyl(cx, y + 4.3, cz, 1.4, 4.6, [0.35, 0.28, 0.2], 0, 10, 0, true, false, 0.4); }
     if (rng.chance(0.4) && w > 6 && d > 6) { const sx = x + rng.range(1, w - 3.5), sz = z + rng.range(1, d - 3.5); b.box(sx, y, sz, 2.4, 2.6, 2.8, tint.map(v => v * 0.8)); b.box(sx + 0.7, y, sz - 0.05, 1, 2.1, 0.1, [0.2, 0.15, 0.1]); } // roof access shed
     if (rng.chance(0.35)) { const dx = x + rng.range(1, w - 1), dz = z + rng.range(1, d - 1); b.cyl(dx, y, dz, 0.06, 1.2, [0.5, 0.5, 0.5], 0, 4); b.cyl(dx, y + 1.0, dz, 0.7, 1.15, [0.85, 0.85, 0.88], 0, 10, 0, true, true, 0.1); } // dish
     if (tall) { b.box(x + w / 2 - 0.1, y, z + d / 2 - 0.1, 0.2, 6, 0.2, [0.7, 0.7, 0.7]); b.cbox(x + w / 2, y + 6.1, z + d / 2, 0.3, 0.3, 0.3, [1, 0.1, 0.1], 0, { bone: 0 }); }

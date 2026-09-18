@@ -263,6 +263,26 @@ wanted stars only during pursuit. Full movement hints remain during the first
 thirty seconds and contextual driving/aiming hints remain available; nearby
 cars show the entry key, and F1 always opens the controls sheet.
 
+## The look
+
+The city is drawn as much as rendered. An ink pass in the composite reads the depth buffer
+and draws a thin dark line wherever depth takes a step or changes slope between neighbouring
+pixels — a silhouette or a crease — fainter with distance and gone by 240 m. It is a second
+difference, so a flat surface at any angle draws nothing, and it is applied after tone
+mapping so a line is a line at any exposure. `E` in the pause menu turns it off, and
+`?edges=0` on the URL does the same for a side-by-side.
+
+Colour keeps to a rule. Each district picks its wall tints from a short muted list — cool
+greys downtown, warm brick browns midtown, dark reds up north, creams in the suburbs, ochres
+east, weathered greys and teals by the water — so accents come from signs, cars and neon
+rather than from the walls. Shop signs lost a third of their saturation, car paint a third of
+its, the district grades no longer push saturation up, and the grass is a greyer green.
+
+Two things fake depth for free: the window painter puts every pane back in the wall, with
+its head and one jamb in shadow and a lit sill below, and the static shader darkens the foot
+of every wall over the first two and a half metres, the grime any street has. Residential buildings gained a plinth at the base, and tall buildings carry a water tank more
+often.
+
 ## Light and colour
 
 The renderer lights in linear space. Textures and palette colours are authored in sRGB, so they are

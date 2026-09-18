@@ -74,6 +74,10 @@ const RENDER = (() => {
       vec4 t = uTexOn > 0.5 ? texture(uTex, vec3(vUV, vTile)) : vec4(1.0);
       vec3 albedo = s2l(t.rgb) * s2l(vCol);
       vec3 n = normalize(vNrm);
+      #ifdef STATIC
+      // grime: the foot of every wall is darker, as it is on any street
+      if (abs(n.y) < 0.5 && vWorld.y > -1.0) albedo *= 1.0 - 0.3 * (1.0 - smoothstep(0.1, 2.6, vWorld.y));
+      #endif
       // Normal and roughness from the parallel map. The tangent frame comes from the screen-space derivatives of world
       // position and UV (Mikkelsen's cotangent frame), so no tangents need storing on the mesh.
       float rough = 0.72;
@@ -197,11 +201,23 @@ const RENDER = (() => {
       float ao = 1.0 - occ / 10.0; o = vec4(vec3(ao), 1.0);
     }`;
   const AOBLUR_FS = `in vec2 vUV; uniform sampler2D uTex; uniform vec2 uTexel; out vec4 o; void main() { float s = 0.0; for (int x = -2; x <= 1; x++) for (int y = -2; y <= 1; y++) s += texture(uTex, vUV + vec2(float(x) + 0.5, float(y) + 0.5) * uTexel).r; o = vec4(vec3(s / 16.0), 1.0); }`;
-  const COMPOSITE_FS = `in vec2 vUV; uniform sampler2D uScene; uniform sampler2D uBloom; uniform sampler2D uAO; uniform float uAOAmt; uniform float uBloomAmt; uniform float uExposure; uniform float uHDR; uniform float uVignette; uniform float uSat; uniform vec3 uTint; out vec4 o;
+  const COMPOSITE_FS = `in vec2 vUV; uniform sampler2D uScene; uniform sampler2D uBloom; uniform sampler2D uAO; uniform sampler2D uDepth; uniform float uAOAmt; uniform float uBloomAmt; uniform float uExposure; uniform float uHDR; uniform float uVignette; uniform float uSat; uniform vec3 uTint; uniform vec2 uTexel; uniform vec2 uNF; uniform float uEdge; out vec4 o;
     vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+    float lin(vec2 uv) { float z = texture(uDepth, uv).r * 2.0 - 1.0; return 2.0 * uNF.x * uNF.y / (uNF.y + uNF.x - z * (uNF.y - uNF.x)); }
+    // Ink lines: a depth step (silhouette) or a change of depth slope (crease) between neighbouring pixels draws a dark
+    // line, thinner and fainter with distance, so every object reads as drawn rather than rendered.
+    float edge() {
+      float dc = lin(vUV); if (dc > 260.0) return 0.0;
+      float dl = lin(vUV - vec2(uTexel.x, 0.0)), dr = lin(vUV + vec2(uTexel.x, 0.0)), du = lin(vUV + vec2(0.0, uTexel.y)), dd = lin(vUV - vec2(0.0, uTexel.y));
+      // second difference of depth: zero across any flat surface however oblique, large at a silhouette step or a crease
+      float lap = max(abs(dl + dr - 2.0 * dc), abs(du + dd - 2.0 * dc)) / dc;
+      float e = smoothstep(0.004, 0.014, lap);
+      return e * (1.0 - smoothstep(70.0, 240.0, dc));
+    }
     void main() {
       float ao = mix(1.0, texture(uAO, vUV).r, uAOAmt); vec3 c = texture(uScene, vUV).rgb * ao + texture(uBloom, vUV).rgb * uBloomAmt;
       if (uHDR > 0.5) { c = aces(c * uExposure); c = pow(c, vec3(1.0 / 2.2)); }
+      if (uEdge > 0.0) c *= 1.0 - uEdge * edge(); // on the display-referred colour, so a line is a line at any exposure
       float l = dot(c, vec3(0.3, 0.55, 0.15)); c = mix(vec3(l), c, uSat) * uTint;
       vec2 d = vUV - 0.5; c *= 1.0 - uVignette * dot(d, d) * 2.2;
       o = vec4(c, 1.0);
@@ -210,7 +226,7 @@ const RENDER = (() => {
   const FLAT_FS = `in vec4 vCol; out vec4 o; void main() { vec3 c = vCol.rgb; o = vec4(c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878), vCol.a); }`;
 
   let partVao, partBuf, flatVao, flatBuf, brightProg, blurProg, compProg, aoProg, aoBlurProg;
-  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.75, samples: 4, bloom: 0.18, exposure: 1.08, vignette: 0.18, sat: 0.96, tint: [1, 1, 1] };
+  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.75, edges: 0.55, samples: 4, bloom: 0.18, exposure: 1.08, vignette: 0.18, sat: 0.96, tint: [1, 1, 1] };
   function makeDepthTarget(w, h) { const t = { w, h }; t.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo); t.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t.tex); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, w, h); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t.tex, 0); t.ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER, null); return t; }
   function makeTarget(w, h, samples, fmtOverride) {
     const fmt = fmtOverride || (post.hdr ? gl.RGBA16F : gl.RGBA8); const t = { w, h };
@@ -428,8 +444,8 @@ const RENDER = (() => {
     // resolve MSAA into the scene texture
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, post.msaa.fbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, post.scene.fbo);
     gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-    const aoOn = post.ao > 0 && post.depth && post.depth.ok;
-    if (aoOn) { gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, post.depth.fbo); gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.DEPTH_BUFFER_BIT, gl.NEAREST); }
+    const aoOn = post.ao > 0 && post.depth && post.depth.ok; const edgeOn = post.edges > 0 && post.depth && post.depth.ok;
+    if (aoOn || edgeOn) { gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, post.depth.fbo); gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.DEPTH_BUFFER_BIT, gl.NEAREST); }
     gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
     if (aoOn) {
       const aw = post.aoA.w, ah = post.aoA.h; gl.bindFramebuffer(gl.FRAMEBUFFER, post.aoA.fbo); gl.viewport(0, 0, aw, ah);
@@ -453,6 +469,7 @@ const RENDER = (() => {
     gl.useProgram(compProg.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, post.scene.tex); gl.uniform1i(compProg.u.uScene, 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, post.bloomA.tex); gl.uniform1i(compProg.u.uBloom, 1);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, aoOn ? post.aoB.tex : post.bloomA.tex); gl.uniform1i(compProg.u.uAO, 2); gl.uniform1f(compProg.u.uAOAmt, aoOn ? post.ao : 0);
+    gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, edgeOn ? post.depth.tex : post.bloomA.tex); gl.uniform1i(compProg.u.uDepth, 3); const px = Math.max(1, Math.round((canvas.width / (canvas.clientWidth || canvas.width)) * 0.85)); gl.uniform2f(compProg.u.uTexel, px / w, px / h); gl.uniform2f(compProg.u.uNF, cam.near, cam.far); gl.uniform1f(compProg.u.uEdge, edgeOn ? post.edges : 0);
     gl.uniform1f(compProg.u.uBloomAmt, post.bloom); gl.uniform1f(compProg.u.uExposure, post.exposure); gl.uniform1f(compProg.u.uHDR, post.hdr ? 1 : 0); gl.uniform1f(compProg.u.uVignette, post.vignette); gl.uniform1f(compProg.u.uSat, post.sat); gl.uniform3fv(compProg.u.uTint, post.tint);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
