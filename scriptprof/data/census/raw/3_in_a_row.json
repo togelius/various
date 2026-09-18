@@ -1,1 +1,0 @@
-{"game": "3_in_a_row", "bytes": 6741, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 10, "h": 11, "solved": false, "len": 7, "iters": 9055, "time": 5.0401, "timeout": true, "actions": null}], "compile_time": 0.17190790176391602, "n_entries": 1}

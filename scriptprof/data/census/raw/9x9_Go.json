@@ -1,1 +1,0 @@
-{"game": "9x9_Go", "bytes": 3757, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 11, "h": 11, "solved": false, "len": 9, "iters": 5426, "time": 5.0091, "timeout": true, "actions": null}], "compile_time": 0.0820000171661377, "n_entries": 1}

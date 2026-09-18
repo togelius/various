@@ -1,1 +1,0 @@
-{"game": "AutoTrom", "bytes": 2998, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 11, "h": 11, "solved": false, "len": 12, "iters": 19782, "time": 5.0506, "timeout": true, "actions": null}], "compile_time": 0.38605213165283203, "n_entries": 5}

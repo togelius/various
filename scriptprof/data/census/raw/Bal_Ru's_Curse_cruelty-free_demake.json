@@ -1,1 +1,0 @@
-{"game": "Bal_Ru's_Curse_cruelty-free_demake", "bytes": 4533, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 8, "h": 6, "solved": false, "len": 15, "iters": 36627, "time": 5.0245, "timeout": true, "actions": null}], "compile_time": 0.0989687442779541, "n_entries": 5}
