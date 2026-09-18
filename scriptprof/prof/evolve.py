@@ -52,6 +52,54 @@ DEFAULT_DESCRIPTORS = [
     Descriptor("mean_solution_len", 0, 80, 10, log=True),
 ]
 
+PCA_PATH = ROOT / "data" / "census" / "pca.json"
+
+
+class PCADescriptors:
+    """Archive axes fitted to the human corpus, the way GAVEL fits Ludii concepts.
+
+    The two hand-picked axes above put the 926 compiling corpus games into 76
+    of 100 cells, about twelve games per occupied cell, so the archive cannot
+    separate most human games and a search over it cannot be credited with
+    reaching a new region. Projecting the full concept vector onto its first
+    two principal components and binning 40 by 40 puts the same games in 555
+    cells.
+
+    The projection is fitted by ``prof.corpus_features`` and read from disk, so
+    generated games land in the archive the corpus defines.
+    """
+
+    def __init__(self, path: Path = PCA_PATH):
+        import math
+
+        d = json.loads(path.read_text())
+        self.features: list[str] = d["features"]
+        self.mean = d["mean"]
+        self.std = d["std"]
+        self.components = d["components"]
+        self.lo, self.hi, self.bins = d["lo"], d["hi"], d["bins"]
+        self.variance_explained = d.get("variance_explained", [])
+        self._log1p = math.log1p
+
+    @property
+    def names(self) -> list[str]:
+        return [f"pc{i + 1}" for i in range(len(self.components))]
+
+    def project(self, feats: dict[str, float]) -> list[float]:
+        z = [
+            (self._log1p(max(0.0, feats.get(name, 0.0))) - m) / (sd + 1e-9)
+            for name, m, sd in zip(self.features, self.mean, self.std)
+        ]
+        return [sum(c * v for c, v in zip(comp, z)) for comp in self.components]
+
+    def cell_of(self, feats: dict[str, float]) -> tuple[int, ...]:
+        span = self.hi - self.lo
+        out = []
+        for value in self.project(feats):
+            t = (value - self.lo) / span
+            out.append(max(0, min(self.bins - 1, int(t * self.bins))))
+        return tuple(out)
+
 
 @dataclass
 class Elite:
@@ -71,11 +119,12 @@ def describe(text: str, ev: Evaluation, state: dict[str, Any] | None) -> dict[st
     f["mean_solution_len"] = (sum(ev.lengths) / len(ev.lengths)) if ev.lengths else 0.0
     f["max_solution_len"] = max(ev.lengths, default=0)
     f["mean_search_iters"] = (sum(ev.iters) / len(ev.iters)) if ev.iters else 0.0
+    f["frac_solved"] = (ev.n_solved / ev.n_levels) if ev.n_levels else 0.0
     return f
 
 
 class Archive:
-    def __init__(self, out: Path, descriptors: list[Descriptor]):
+    def __init__(self, out: Path, descriptors: "list[Descriptor] | PCADescriptors"):
         self.out = out
         self.desc = descriptors
         self.elites: dict[str, Elite] = {}
@@ -87,11 +136,13 @@ class Archive:
                 self.elites[k] = Elite(**v)
 
     @staticmethod
-    def key(cell: tuple[int, int]) -> str:
-        return f"{cell[0]:02d}_{cell[1]:02d}"
+    def key(cell: tuple[int, ...]) -> str:
+        return "_".join(f"{c:02d}" for c in cell)
 
-    def cell_of(self, feats: dict[str, float]) -> tuple[int, int]:
-        return tuple(d.bin(feats.get(d.name, 0.0)) for d in self.desc)  # type: ignore[return-value]
+    def cell_of(self, feats: dict[str, float]) -> tuple[int, ...]:
+        if isinstance(self.desc, PCADescriptors):
+            return self.desc.cell_of(feats)
+        return tuple(d.bin(feats.get(d.name, 0.0)) for d in self.desc)
 
     def offer(self, text: str, ev: Evaluation, feats: dict[str, float], name: str,
               parent: str | None, instruction: str | None, gen: int) -> bool:
@@ -212,11 +263,24 @@ def main() -> None:
                     help="fold the insight gap (prof.players) into tier-3 fitness")
     ap.add_argument("--eval-timeout", type=float, default=120.0,
                     help="wall-clock cap per candidate; a child that overruns is unfit")
+    ap.add_argument("--descriptors", choices=["pca", "grid"], default="pca",
+                    help="pca: archive axes fitted to the corpus (prof.corpus_features). "
+                         "grid: the two hand-picked axes, which collapse most human games.")
     ap.add_argument("--in-process", action="store_true",
                     help="evaluate in this process (faster, but one bad game kills the run)")
     a = ap.parse_args()
     out = ROOT / a.out
-    archive = Archive(out, DEFAULT_DESCRIPTORS)
+    if a.descriptors == "pca" and PCA_PATH.exists():
+        descriptors: Any = PCADescriptors()
+        print(f"archive: {descriptors.bins}x{descriptors.bins} over the corpus PCA "
+              f"({', '.join(f'{v:.0%}' for v in descriptors.variance_explained)} of variance)",
+              flush=True)
+    else:
+        if a.descriptors == "pca":
+            print(f"no {PCA_PATH.name}; run prof.corpus_features. Falling back to the grid.",
+                  flush=True)
+        descriptors = DEFAULT_DESCRIPTORS
+    archive = Archive(out, descriptors)
     eval_kwargs: dict[str, Any] = {"max_levels": a.max_levels, "timeout_ms": a.timeout_ms}
     if a.insight:
         eval_kwargs["insight"] = True

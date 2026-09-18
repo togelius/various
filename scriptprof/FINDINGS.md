@@ -176,9 +176,10 @@ be credited with finding a genuinely new region.
 
 A two-dimensional PCA projection of the 75-feature concept vector, binned 40
 by 40 as GAVEL bins Ludii concepts, puts the same games in 555 cells, about
-1.7 games per cell. That is the resolution the plan's WP3 needs, and switching
-`DEFAULT_DESCRIPTORS` to the projection is a small change worth making before
-any archive results are reported.
+1.7 games per cell. That is the resolution the plan's WP3 needs, so the projection is now what
+`prof.evolve` uses by default, fitted by `prof.corpus_features` and read from
+`data/census/pca.json`. `--descriptors grid` restores the old axes for
+comparison.
 
 The first two components explain 29% of variance, which is close to the ~28%
 GAVEL reports for Ludii concepts on a different corpus in a different
@@ -194,17 +195,15 @@ which is mild evidence the concept vector captures the right things.
 
 ## What to do next
 
-1. **Switch the archive descriptors to the PCA projection.** The default grid
-   collapses twelve human games into the average occupied cell.
-2. **Validate the metrics against human judgement.** Everything above is
+1. **Validate the metrics against human judgement.** Everything above is
    internally consistent but nothing is yet checked against whether people
    enjoy the games. That is WP2's real deliverable and it needs the itch.io
    metadata and a designer panel.
-3. **Cap the `again` loop in the C++ engine** so trusted callers can evaluate
+2. **Cap the `again` loop in the C++ engine** so trusted callers can evaluate
    in-process and get the throughput back.
-4. **Run the operator comparison.** Grammatical versus Ollama versus a
+3. **Run the operator comparison.** Grammatical versus Ollama versus a
    frontier model, same seeds, same budget, measured on archive coverage
    rather than compile rate.
-5. **Upstream the engine fixes.** All four replay bugs and the timeout bug
+4. **Upstream the engine fixes.** All four replay bugs and the timeout bug
    are in the vendored PuzzleJAX code, not in anything specific to this
    project. They affect anyone using its solvers to validate solutions.
