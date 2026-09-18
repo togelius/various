@@ -1,0 +1,1 @@
+{"game": "CC2", "bytes": 1115, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 10, "h": 6, "solved": true, "len": 5, "iters": 69, "time": 0.0049, "timeout": false, "actions": [3, 3, 3, 2, 0], "replay_won": true}], "compile_time": 0.11033058166503906, "n_entries": 1}
