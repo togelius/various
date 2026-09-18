@@ -309,6 +309,13 @@ outside the safehouse. Package IDs and car upgrades that an older version
 never wrote cannot be recovered; the saved package total is retained (capped
 at twenty), and its weapon rewards are restored.
 
+Vehicle geometry checks need only Node: `node test/vehicle-geometry.js` checks
+window attachment, outward wheel faces, and body/glass damage seams. For visual
+inspection, `node tools/playtest/tests/vehicles.js` renders front, rear and
+damaged views of six vehicle types into `tools/playtest/pt/vehicles/`; add
+`--dist` to inspect the single-file build. These screenshots are for inspection,
+not pixel-baseline assertions.
+
 Run `node tools/playtest/tests/persistence.js` to check purchases and repeated
 save/load cycles; add `--dist` to test the single-file release. Like the other
 browser harnesses, it needs Playwright and Chromium or Chrome. Failures return

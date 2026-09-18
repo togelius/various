@@ -83,18 +83,18 @@ const MESH = (() => {
         // sidewall shoulder ring (slightly rounded look)
         for (const [x, nx] of [[x0, -1], [x1, 1]]) { const b2 = this.n; const rs = r * 0.86; this.vert(x, cy + Math.cos(a0) * rr, cz + Math.sin(a0) * rr, nx * 0.7, Math.cos(a0) * 0.7, Math.sin(a0) * 0.7, ...tyre, 0, 0, 0, bone); this.vert(x, cy + Math.cos(a1) * rr, cz + Math.sin(a1) * rr, nx * 0.7, Math.cos(a1) * 0.7, Math.sin(a1) * 0.7, ...tyre, 0, 0, 0, bone);
           this.vert(x, cy + Math.cos(a1) * rs, cz + Math.sin(a1) * rs, nx, 0, 0, ...tyre, 0, 0, 0, bone); this.vert(x, cy + Math.cos(a0) * rs, cz + Math.sin(a0) * rs, nx, 0, 0, ...tyre, 0, 0, 0, bone);
-          if (nx > 0) this.quad(b2, b2 + 3, b2 + 2, b2 + 1); else this.quad(b2, b2 + 1, b2 + 2, b2 + 3); }
+          if (nx > 0) this.quad(b2, b2 + 1, b2 + 2, b2 + 3); else this.quad(b2, b2 + 3, b2 + 2, b2 + 1); }
       }
       // rim: dark dish, five spokes, hub cap; the outer face gets the detail, the inner face a plain disc
       for (const [x, nx] of [[x0, -1], [x1, 1]]) {
         const rr = r * 0.86; const c = this.vert(x, cy, cz, nx, 0, 0, ...rimDk, 0, 0, 0, bone);
-        for (let k = 0; k < segs; k++) { const a0 = k / segs * M.TAU, a1 = (k + 1) / segs * M.TAU; const p0 = this.vert(x, cy + Math.cos(a0) * rr, cz + Math.sin(a0) * rr, nx, 0, 0, ...rimDk, 0, 0, 0, bone), p1 = this.vert(x, cy + Math.cos(a1) * rr, cz + Math.sin(a1) * rr, nx, 0, 0, ...rimDk, 0, 0, 0, bone); if (nx > 0) this.tri(c, p1, p0); else this.tri(c, p0, p1); }
+        for (let k = 0; k < segs; k++) { const a0 = k / segs * M.TAU, a1 = (k + 1) / segs * M.TAU; const p0 = this.vert(x, cy + Math.cos(a0) * rr, cz + Math.sin(a0) * rr, nx, 0, 0, ...rimDk, 0, 0, 0, bone), p1 = this.vert(x, cy + Math.cos(a1) * rr, cz + Math.sin(a1) * rr, nx, 0, 0, ...rimDk, 0, 0, 0, bone); if (nx > 0) this.tri(c, p0, p1); else this.tri(c, p1, p0); }
         const xo = x + nx * 0.012;
         for (let sp = 0; sp < 5; sp++) { const a = sp / 5 * M.TAU, hw = 0.13; const ax = Math.cos(a), az = Math.sin(a), px = -az, pz = ax; const r0 = r * 0.2, r1 = r * 0.8;
           const pts = [[xo, cy + ax * r0 + px * hw * r0, cz + az * r0 + pz * hw * r0], [xo, cy + ax * r1 + px * hw * 0.5, cz + az * r1 + pz * hw * 0.5], [xo, cy + ax * r1 - px * hw * 0.5, cz + az * r1 - pz * hw * 0.5], [xo, cy + ax * r0 - px * hw * r0, cz + az * r0 - pz * hw * r0]];
           this.polyOut(pts, rim, x - nx, cy, cz, 0, bone); }
         const hub = this.vert(xo + nx * 0.01, cy, cz, nx, 0, 0, ...rim, 0, 0, 0, bone); const hr = r * 0.24;
-        for (let k = 0; k < 10; k++) { const a0 = k / 10 * M.TAU, a1 = (k + 1) / 10 * M.TAU; const p0 = this.vert(xo + nx * 0.01, cy + Math.cos(a0) * hr, cz + Math.sin(a0) * hr, nx, 0, 0, ...rim, 0, 0, 0, bone), p1 = this.vert(xo + nx * 0.01, cy + Math.cos(a1) * hr, cz + Math.sin(a1) * hr, nx, 0, 0, ...rim, 0, 0, 0, bone); if (nx > 0) this.tri(hub, p1, p0); else this.tri(hub, p0, p1); }
+        for (let k = 0; k < 10; k++) { const a0 = k / 10 * M.TAU, a1 = (k + 1) / 10 * M.TAU; const p0 = this.vert(xo + nx * 0.01, cy + Math.cos(a0) * hr, cz + Math.sin(a0) * hr, nx, 0, 0, ...rim, 0, 0, 0, bone), p1 = this.vert(xo + nx * 0.01, cy + Math.cos(a1) * hr, cz + Math.sin(a1) * hr, nx, 0, 0, ...rim, 0, 0, 0, bone); if (nx > 0) this.tri(hub, p0, p1); else this.tri(hub, p1, p0); }
       }
       return this;
     }
@@ -235,7 +235,7 @@ const MESH = (() => {
     const half = L / 2, hw = W / 2;
     const lightBox = (x, y, z, w, h, colr, face, bone) => b.cbox(x, y, z, w, h, 0.08, colr, 0, { faces: face, bone });
     const ring = (z, y0, y1, halfW, rTop, rBot) => Builder.rrect(0, (y0 + y1) / 2, halfW, (y1 - y0) / 2, rBot, LOD ? 1 : 3, z, 'z', rTop);
-    const mirrors = (y, z) => { if (LOD) return; for (const sx of [1, -1]) { b.cbox(sx * (hw + 0.12), y, z, 0.16, 0.11, 0.2, bodyDk); b.cbox(sx * (hw + 0.04), y, z, 0.1, 0.04, 0.04, bodyDk); b.cbox(sx * (hw + 0.12), y, z - 0.101, 0.13, 0.08, 0.005, [0.75, 0.8, 0.85], 0, { faces: 32 }); } };
+    const mirrors = (y, z, mountHalfW = hw) => { if (LOD) return; for (const sx of [1, -1]) { b.cbox(sx * (mountHalfW + 0.12), y, z, 0.16, 0.11, 0.2, bodyDk); b.cbox(sx * (mountHalfW + 0.05), y, z, 0.16, 0.04, 0.04, bodyDk); b.cbox(sx * (mountHalfW + 0.12), y, z - 0.101, 0.13, 0.08, 0.005, [0.75, 0.8, 0.85], 0, { faces: 32 }); } };
     const plate = (z, face) => { if (LOD) return; b.cbox(0, floorY + 0.36, z, 0.52, 0.16, 0.02, [0.92, 0.92, 0.88], 0, { faces: face }); b.cbox(0, floorY + 0.36, z + (face === 16 ? -0.005 : 0.005), 0.56, 0.2, 0.02, dark, 0, { faces: face }); };
     const wheelArch = (ax, az) => { if (LOD) return; const sx = Math.sign(ax); const x = ax + sx * 0.006; for (let k = 0; k < 8; k++) { const a0 = k / 8 * Math.PI, a1 = (k + 1) / 8 * Math.PI; const r0 = wr + 0.05, r1 = wr + 0.11;
       b.polyOut([[x, wr + Math.sin(a0) * r0, az + Math.cos(a0) * r0], [x, wr + Math.sin(a1) * r0, az + Math.cos(a1) * r0], [x, wr + Math.sin(a1) * r1, az + Math.cos(a1) * r1], [x, wr + Math.sin(a0) * r1, az + Math.cos(a0) * r1]], bodyDk.map(c => c * 0.55), 0, wr, az); } };
@@ -243,7 +243,7 @@ const MESH = (() => {
     const bumper = (z, colr) => { const d = 0.22; b.roundedBox(-hw * 0.98, floorY + 0.02, z > 0 ? z - d / 2 : z - d / 2, W * 0.96, 0.32, d, 0.09, colr); };
     if (s.model) { assetVehicle(b, s, col); if (opts.dent > 0) dentBody(b, opts.dent * 0.5, opts.seed || 1); return { body: b, glass: gb }; }
     if (s.bike) { bikeMesh(b, s, col, LOD); if (opts.dent > 0) dentBody(b, opts.dent * 0.5, opts.seed || 1); return { body: b, glass: gb }; }
-    if (s.boat) { boatMesh(b, gb, s, col, LOD); if (opts.dent > 0) dentBody(b, opts.dent * 0.6, opts.seed || 1); return { body: b, glass: gb }; }
+    if (s.boat) { boatMesh(b, gb, s, col, LOD); if (opts.dent > 0) { dentBody(b, opts.dent * 0.6, opts.seed || 1); dentBody(gb, opts.dent * 0.6, opts.seed || 1); } return { body: b, glass: gb }; }
     if (s.bus) {
       b.roundedBox(-hw, floorY, -half, W, H - floorY, L, 0.16, body);
       // window band all round, front screen and a door
@@ -258,17 +258,23 @@ const MESH = (() => {
       b.cbox(0, H - 0.35, half + 0.02, W * 0.7, 0.35, 0.05, [0.95, 0.6, 0.1], 0, { faces: 16, bone: 7 });
       bumper(half + 0.02, dark); bumper(-half - 0.02 + 0.22, dark); mirrors(H * 0.72, half - 0.2); plate(-half - 0.012, 32);
     } else if (s.box) {
-      const cabL = L * 0.3, cabZ = half - cabL / 2;
+      const cabL = L * 0.3;
+      const cabBack = half - cabL * 0.9 - 0.1, cabFront = cabBack + cabL * 0.8;
+      const cabHalfW = hw * 0.94, cabBottom = cabinY - 0.05, cabTop = cabBottom + cabinH * 1.2;
       b.roundedBox(-hw, floorY, half - cabL, W, bodyH, cabL, 0.12, body); // lower cab
-      b.roundedBox(-hw * 0.94, cabinY - 0.05, half - cabL * 0.9 - 0.1, W * 0.94, cabinH * 1.2, cabL * 0.8, 0.14, body); // cab
-      gb.cbox(0, cabinY + cabinH * 0.7, half - cabL * 0.15, W * 0.86, cabinH * 0.6, cabL * 0.9, glass, 0, { faces: 3 | 16 });
-      b.cbox(0, cabinY + cabinH * 1.15, half - cabL * 0.15, W * 0.9, 0.12, 0.35, bodyDk); // sun visor
+      b.roundedBox(-cabHalfW, cabBottom, cabBack, cabHalfW * 2, cabTop - cabBottom, cabFront - cabBack, 0.14, body);
+      // Panes sit on the flat part of the actual cab, clear of its rounded corners.
+      // The old glass box was centred near the bumper and extended beyond the vehicle.
+      const winBottom = cabinY + cabinH * 0.4, winTop = cabTop - 0.22, gap = 0.012;
+      gb.box(-cabHalfW - gap, winBottom, cabBack + 0.2, (cabHalfW + gap) * 2, winTop - winBottom, cabFront - cabBack - 0.4, glass, 0, { faces: 3 });
+      gb.box(-cabHalfW + 0.2, winBottom, cabFront + gap, cabHalfW * 2 - 0.4, winTop - winBottom, 0, glass, 0, { faces: 16 });
+      b.cbox(0, cabTop - 0.12, cabFront + 0.06, W * 0.9, 0.12, 0.25, bodyDk); // sun visor
       b.roundedBox(-hw, floorY, -half, W, H - floorY, L - cabL - 0.3, 0.08, [0.85, 0.85, 0.82]); // cargo box
       for (let k = 1; k < 6; k++) b.cbox(0, floorY + (H - floorY) / 2, -half + k * (L - cabL - 0.3) / 6, W + 0.02, H - floorY - 0.2, 0.03, [0.72, 0.72, 0.7]); // box ribs
       b.cbox(0, floorY + (H - floorY) / 2, -half + (L - cabL - 0.3) / 2, W + 0.02, 0.06, L - cabL - 0.3, [0.6, 0.6, 0.6]);
       lightBox(W * 0.35, floorY + 0.5, half + 0.01, 0.35, 0.25, [1, 1, 0.9], 16, 5); lightBox(-W * 0.35, floorY + 0.5, half + 0.01, 0.35, 0.25, [1, 1, 0.9], 16, 5);
       lightBox(W * 0.4, floorY + 0.4, -half - 0.01, 0.3, 0.2, [1, 0.1, 0.1], 32, 6); lightBox(-W * 0.4, floorY + 0.4, -half - 0.01, 0.3, 0.2, [1, 0.1, 0.1], 32, 6);
-      grille(floorY + bodyH * 0.55, half + 0.01, W * 0.5, 0.35); bumper(half + 0.02, dark); mirrors(cabinY + cabinH * 0.5, half - 0.1); plate(half + 0.012, 16);
+      grille(floorY + bodyH * 0.55, half + 0.01, W * 0.5, 0.35); bumper(half + 0.02, dark); mirrors(cabinY + cabinH * 0.5, cabFront - 0.18, cabHalfW); plate(half + 0.012, 16);
       b.cyl(W * 0.3, floorY + bodyH * 0.6, half - cabL * 0.9, 0.07, floorY + bodyH * 0.6 + 1.3, chrome, 0, 8); // exhaust stack
       for (const sx of [1, -1]) b.cbox(sx * (hw - 0.3), floorY - 0.05, half - cabL * 0.5, 0.5, 0.06, 0.6, dark); // step
     } else if (s.armor || type === 'van') {
@@ -278,9 +284,11 @@ const MESH = (() => {
         ring(noseZ + 0.45, floorY, cabinY + 0.35, hw - 0.02, 0.16, 0.1), ring(half - 0.12, floorY, cabinY + 0.02, hw - 0.04, 0.12, 0.1), ring(half, floorY + 0.08, cabinY - 0.12, hw - 0.14, 0.1, 0.08)];
       b.loft(rs, body, 0, 0, { capStart: true, capEnd: true });
       // windscreen lies along the nose slope, side windows in the cab, rear doors seams
-      gb.polyOut([[hw * 0.9, cabinY + 0.35, noseZ + 0.46], [hw * 0.9, H - 0.08, noseZ + 0.01], [-hw * 0.9, H - 0.08, noseZ + 0.01], [-hw * 0.9, cabinY + 0.35, noseZ + 0.46]], glass, 0, cabinY, 0);
+      const screenBottom = cabinY + 0.4, screenTop = H - 0.15, screenHalfW = hw - 0.26;
+      const screenZ = y => noseZ + 0.45 * (H - 0.05 - y) / (H - 0.05 - cabinY - 0.35) + 0.012;
+      gb.polyOut([[screenHalfW, screenBottom, screenZ(screenBottom)], [screenHalfW, screenTop, screenZ(screenTop)], [-screenHalfW, screenTop, screenZ(screenTop)], [-screenHalfW, screenBottom, screenZ(screenBottom)]], glass, 0, cabinY, 0);
       gb.cbox(0, cabinY + (H - cabinY) * 0.5, noseZ - 0.7, W + 0.02, (H - cabinY) * 0.55, 1.1, glass, 0, { faces: 3 });
-      if (!s.armor) gb.cbox(0, cabinY + (H - cabinY) * 0.5, -half + 0.25, W * 0.7, (H - cabinY) * 0.5, 0.1, glass, 0, { faces: 32 });
+      if (!s.armor) gb.cbox(0, cabinY + (H - cabinY) * 0.5, -half - 0.012, W * 0.7, (H - cabinY) * 0.5, 0, glass, 0, { faces: 32 });
       for (const sx of [1, -1]) { b.cbox(sx * (hw + 0.006), (floorY + H) / 2, noseZ - 1.3, 0.01, (H - floorY) * 0.8, 0.05, dark, 0, { faces: sx > 0 ? 1 : 2 }); b.cbox(sx * (hw + 0.006), (floorY + H) / 2, -half + 0.05 + (L - 1.2) * 0.3, 0.01, (H - floorY) * 0.8, 0.05, dark, 0, { faces: sx > 0 ? 1 : 2 }); }
       b.cbox(0, (floorY + H) / 2, -half - 0.005, 0.03, (H - floorY) * 0.85, 0.02, dark, 0, { faces: 32 }); // rear door split
       lightBox(W * 0.36, cabinY - 0.05, half + 0.01, 0.4, 0.22, [1, 1, 0.92], 16, 5); lightBox(-W * 0.36, cabinY - 0.05, half + 0.01, 0.4, 0.22, [1, 1, 0.92], 16, 5);
@@ -305,7 +313,9 @@ const MESH = (() => {
       const ws = 0.55 * (s.sports ? 1.3 : 1), wsR = type === 'hatch' ? 0.25 : s.bed ? 0.1 : ws * 0.7; const roofY = cabinY + cabinH; const gw = cw / 2;
       const gr = [ring(c0 + ws, topY, topY + 0.015, gw - 0.03, 0.01, 0.01), ring(c0 + ws * 0.45, topY, topY + cabinH * 0.7, gw - 0.015, 0.1, 0.01), ring(c0, topY, roofY, gw, 0.14, 0.01), ring(c1, topY, roofY, gw, 0.14, 0.01),
         ring(c1 - wsR * 0.45, topY, topY + cabinH * (type === 'hatch' ? 0.85 : 0.72), gw - 0.015, 0.1, 0.01), ring(c1 - wsR, topY, topY + 0.015, gw - 0.03, 0.01, 0.01)];
-      b.loft(gr, roofCol, 0, 0, { pick: (n) => n[1] < -0.5 ? null : (n[1] > 0.55 ? b : gb) });
+      // Only the middle span is roof. Sloped windscreens can have upward normals too.
+      b.loft(gr, roofCol, 0, 0, { pick: (n, span) => n[1] < -0.5 ? null : (span === 2 && n[1] > 0.55 ? b : gb) });
+      for (let k = 0; k < gb.v.length; k += 13) { gb.v[k + 6] = glass[0]; gb.v[k + 7] = glass[1]; gb.v[k + 8] = glass[2]; }
       // pillars: outer strips in dark over the glass edges
       const pTop = roofY - 0.13; for (const sx of [1, -1]) { const x = sx * (gw + 0.008); b.polyOut([[x, topY, c0 + ws + 0.02], [x, pTop, c0 + ws * 0.22 + 0.02], [x, pTop, c0 + ws * 0.22 - 0.07], [x, topY, c0 + ws - 0.07]], bodyDk, 0, cabinY, c0); b.polyOut([[x, topY, c1 - wsR - 0.02], [x, pTop, c1 - wsR * 0.22 - 0.02], [x, pTop, c1 - wsR * 0.22 + 0.07], [x, topY, c1 - wsR + 0.07]], bodyDk, 0, cabinY, c1);
         if (s.seats > 2) b.cbox(x, (topY + pTop) / 2, (c0 + c1) / 2, 0.008, pTop - topY, 0.07, bodyDk); }
@@ -340,7 +350,7 @@ const MESH = (() => {
     // wheels
     const wz = half * (s.bus ? 0.7 : 0.62), wx = hw - 0.05;
     const ws_ = LOD ? 8 : 16; b.wheel(wx, wr, wz, wr, 0.3, 1, ws_); b.wheel(-wx, wr, wz, wr, 0.3, 2, ws_); b.wheel(wx, wr, -wz, wr, 0.3, 3, ws_); b.wheel(-wx, wr, -wz, wr, 0.3, 4, ws_);
-    if (opts.dent > 0) dentBody(b, opts.dent, opts.seed || 1);
+    if (opts.dent > 0) { dentBody(b, opts.dent, opts.seed || 1); dentBody(gb, opts.dent, opts.seed || 1); }
     return { body: b, glass: gb };
   }
   // Crumple: nudge body vertices (bone 0 only) by a hash of their position; the more dented, the further.
