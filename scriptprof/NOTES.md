@@ -254,12 +254,53 @@ more games outside the human cloud. Rewarding distance from the corpus did not
 cost quality here. One run each and different seeds, so this is a reason to run
 replicates, not a result.
 
-### Does the depth metric see design? (not yet answerable)
+### Does the depth metric see design? No. (the main negative result)
 
-The first validation sweep returned 4 usable pairs out of 36 games, because 31
-inherited a process pool poisoned by the one game that segfaulted the C++
-engine. Every metric landed at 50-58%, which on n=4 is noise. Rerunning with
-`prof.pool` and 60 games.
+The honest headline of the night. 50 human games, 149 mutants matched on the
+thing ScriptDoctor would have accepted -- every probed level solvable by
+breadth-first search -- and then asked whether the metrics still tell them
+apart. "Higher" is the fraction of pairs where the human game scores above its
+own mutant, so 50% is a coin flip.
+
+| metric | human | mutant | human higher | pairs |
+|---|---|---|---|---|
+| insight | 0.057 | 0.062 | 48% | 149 |
+| random-play wins | 0.156 | 0.220 | 45% | 149 |
+| solution length | 18.9 | 16.2 | 58% | 149 |
+| search effort | 2038 | 1471 | 54% | 149 |
+| fatal-move fraction | 0.023 | 0.025 | 53% | 46 |
+| danger concentration | 0.268 | 0.250 | 53% | 46 |
+| key moves | 0.118 | 0.185 | 48% | 46 |
+| deadlock fraction | 0.044 | 0.051 | 48% | 46 |
+
+Nothing clears 58%. **At matched solvability, these metrics cannot tell a
+designed game from a random mutation of it.** The fitness function built on
+them is, on this evidence, mostly decoration.
+
+Three things are worth separating out of that.
+
+**The insight metric has no variance to work with.** It sits at 0.057 for
+humans and 0.062 for mutants because greedy best-first on the win-condition
+heuristic solves ~94% of what breadth-first search solves. A metric defined as
+"search succeeds where the weak player fails" is dead when the weak player
+almost never fails. That is a fixable problem and it is the highest-value fix
+available: put a learned policy in the slot, which is the co-evolution step
+`PLAN.md` already specifies.
+
+**The random-play floor leans the right way and is too weak to use.** Mutants
+are beaten by random play more often than their parents (0.220 against 0.156),
+which is the expected direction, but only 55% of pairs order correctly.
+
+**The structural rows have a third of the sample.** Only 46 of 149 pairs had
+measurements the survival probe could vouch for, because of the rule-count
+gate and the reliability check. Their 53% is measured on less evidence than
+the rest, not more.
+
+What this does *not* show: that the metrics are meaningless in general. The
+comparison is deliberately hard, since a mutant that survives the solvability
+filter is by construction not obviously broken, and the sample is one mutation
+or two from the parent rather than a different game. It does show that these
+metrics cannot currently carry the weight the fitness function puts on them.
 
 ### Which operators earn their place
 
