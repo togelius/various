@@ -1,0 +1,1 @@
+{"game": "Merger_Tiles_-_2048_Remix_", "bytes": 4064, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 8, "h": 8, "solved": false, "len": 8, "iters": 19571, "time": 5.027, "timeout": true, "actions": null}], "compile_time": 0.1110067367553711, "n_entries": 10}

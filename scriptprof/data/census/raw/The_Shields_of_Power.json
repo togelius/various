@@ -1,0 +1,1 @@
+{"game": "The_Shields_of_Power", "bytes": 21996, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 51, "h": 76, "solved": false, "len": 7, "iters": 482, "time": 5.0029, "timeout": true, "actions": null}], "compile_time": 0.19147562980651855, "n_entries": 4}

@@ -13,6 +13,7 @@ const PEDS = (() => {
   // district wardrobes: suits downtown, hi-vis and overalls on the east side, running gear in the leafy west, wool by the water
   const SUIT = () => ({ hairStyle: r0.pick([0, 1, 1, 3, 4, 5]), beard: r0.chance(0.15), skin: r0.pick(SKIN), shirt: [0.95, 0.95, 0.95], pants: r0.pick([[0.1, 0.1, 0.13], [0.2, 0.2, 0.3], [0.35, 0.3, 0.28]]), hair: r0.pick(HAIR), hat: null, jacket: r0.pick([[0.1, 0.1, 0.13], [0.2, 0.2, 0.3], [0.35, 0.3, 0.28], [0.15, 0.2, 0.35]]), sleeves: true, glasses: r0.chance(0.3), bag: r0.chance(0.4) ? [0.15, 0.1, 0.08] : null, skirt: r0.chance(0.3), longHair: r0.chance(0.3) });
   const WORK = () => ({ hairStyle: r0.pick([0, 5, 6, 1]), beard: r0.chance(0.35), skin: r0.pick(SKIN), shirt: r0.pick([[1, 0.6, 0.1], [0.95, 0.9, 0.2], [0.3, 0.35, 0.55], [0.4, 0.4, 0.42]]), pants: r0.pick([[0.3, 0.35, 0.55], [0.35, 0.3, 0.25], [0.2, 0.2, 0.22]]), hair: r0.pick(HAIR), hat: r0.chance(0.5) ? [0.95, 0.8, 0.15] : null, beanie: r0.chance(0.3), jacket: null, sleeves: r0.chance(0.6), glasses: false, bag: null, skirt: false, longHair: r0.chance(0.15) });
+  const CIRC = new Float64Array(9); // scratch for a car's collision circles, so walking past traffic allocates nothing
   const RUN = () => ({ hairStyle: r0.pick([0, 3, 4, 3]), skin: r0.pick(SKIN), shirt: r0.pick([[0.95, 0.3, 0.5], [0.2, 0.8, 0.9], [0.9, 0.9, 0.2], [0.98, 0.98, 0.98], [0.1, 0.1, 0.1]]), pants: r0.pick([[0.1, 0.1, 0.12], [0.2, 0.2, 0.5], [0.4, 0.4, 0.42]]), hair: r0.pick(HAIR), hat: r0.chance(0.4) ? r0.pick(CLOTH) : null, jacket: null, sleeves: false, glasses: r0.chance(0.4), bag: null, skirt: false, longHair: r0.chance(0.5) });
   const WOOL = () => ({ hairStyle: r0.pick([0, 5, 2]), beard: r0.chance(0.4), skin: r0.pick(SKIN), shirt: r0.pick([[0.35, 0.3, 0.28], [0.2, 0.25, 0.3], [0.5, 0.45, 0.35]]), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: null, beanie: r0.chance(0.7), jacket: r0.pick([[0.9, 0.65, 0.1], [0.2, 0.25, 0.3], [0.35, 0.3, 0.28]]), sleeves: true, glasses: false, bag: null, skirt: false, longHair: r0.chance(0.2) });
   const WARDROBE = { downtown: [], eastside: [], westfield: [], southport: [] }; for (let i = 0; i < 16; i++) { WARDROBE.downtown.push(SUIT()); WARDROBE.eastside.push(WORK()); WARDROBE.westfield.push(RUN()); WARDROBE.southport.push(WOOL()); }
@@ -20,7 +21,7 @@ const PEDS = (() => {
   const COP = { skin: [0.9, 0.75, 0.62], shirt: [0.2, 0.3, 0.6], pants: [0.15, 0.18, 0.3], hair: [0.1, 0.1, 0.1], hat: [0.15, 0.18, 0.35], jacket: null, sleeves: true, glasses: true };
   const SWAT = { skin: [0.85, 0.7, 0.6], shirt: [0.12, 0.12, 0.14], pants: [0.1, 0.1, 0.12], hair: [0.1, 0.1, 0.1], hat: [0.1, 0.1, 0.12], jacket: [0.2, 0.2, 0.22], sleeves: true, glasses: true };
   const GANG = { skin: [0.6, 0.42, 0.3], shirt: [0.55, 0.05, 0.1], pants: [0.12, 0.12, 0.12], hair: [0.08, 0.06, 0.06], hat: [0.5, 0.05, 0.1], jacket: [0.15, 0.15, 0.15], sleeves: true };
-  const PLAYER_LOOK = { skin: [0.9, 0.74, 0.62], shirt: [0.85, 0.85, 0.8], pants: [0.2, 0.2, 0.25], hair: [0.15, 0.1, 0.08], hat: null, jacket: [0.25, 0.14, 0.1], sleeves: true };
+  const PLAYER_LOOK = { skin: [0.9, 0.74, 0.62], shirt: [0.85, 0.85, 0.8], pants: [0.2, 0.2, 0.25], hair: [0.15, 0.1, 0.08], hat: null, jacket: [0.36, 0.25, 0.19], sleeves: true };
   const MARLA = { skin: [0.85, 0.65, 0.5], shirt: [0.9, 0.2, 0.4], pants: [0.1, 0.1, 0.12], hair: [0.05, 0.05, 0.05], hat: null, jacket: [0.1, 0.1, 0.12], sleeves: true };
   const OKAFOR = { skin: [0.42, 0.28, 0.2], shirt: [0.9, 0.85, 0.7], pants: [0.3, 0.3, 0.35], hair: [0.05, 0.05, 0.05], hat: [0.2, 0.25, 0.3], jacket: [0.85, 0.55, 0.1], sleeves: true };
   const CRANE = { skin: [0.92, 0.8, 0.7], shirt: [0.95, 0.95, 0.95], pants: [0.2, 0.2, 0.25], hair: [0.7, 0.7, 0.7], hat: null, jacket: [0.2, 0.2, 0.25], sleeves: true, glasses: true };
@@ -174,7 +175,7 @@ const PEDS = (() => {
       const g = CITY.groundY(this.x, this.z);
       if (this.airborne) { if (this.y <= g) { this.y = g; this.airborne = false; this.vy = 0; if (this.state === 'dead') { this.vx *= 0.3; this.vz *= 0.3; } } } else this.y = g;
       const res = W.pushOut(this.x, this.z, 0.4); this.x = res.x; this.z = res.z;
-      if (!ragdoll) for (const c of W.cars) { if (c.removed || M.dist2(c.x, c.z, this.x, this.z) > 49) continue; for (const [cx, cz, r] of c.circles()) { const dx = this.x - cx, dz = this.z - cz; const rr = r + 0.35; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); this.x = cx + dx / d * rr; this.z = cz + dz / d * rr; } } }
+      if (!ragdoll) for (const c of W.cars) { if (c.removed || M.dist2(c.x, c.z, this.x, this.z) > 49) continue; for (let ci = 0, nci = c.circlesInto(CIRC); ci < nci; ci++) { const cx = CIRC[ci * 3], cz = CIRC[ci * 3 + 1], r = CIRC[ci * 3 + 2]; const dx = this.x - cx, dz = this.z - cz; const rr = r + 0.35; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); this.x = cx + dx / d * rr; this.z = cz + dz / d * rr; } } }
       if (!ragdoll) { this.vx = 0; this.vz = 0; this.phase += dt * (this.speed > 0.05 ? M.TAU * this.speed / (1.2 + 0.24 * this.speed) : 0); }
     }
     // ---- Rig
@@ -363,6 +364,15 @@ const PEDS = (() => {
     if (W.rng() < 0.1 && !p.jog) { p.state = 'stand'; p.wanderT = 5 + W.rng() * 10; const lot = CITY.lotsNear(x, z, 6).find(l => l.kind !== 'wall'); if (lot) p.angle = Math.atan2(M.clamp(x, lot.x0, lot.x1) - x, M.clamp(z, lot.z0, lot.z1) - z); } // a look in a shop window
   }
   function despawn(px, pz) { let w = 0; for (const p of W.peds) { if (!p.removed && !p.important) { const d = M.dist(p.x, p.z, px, pz); if ((d > 170 && !p.inCar) || (p.state === 'dead' && (p.deadT > 25 || (d > 60 && p.deadT > 6)))) p.removed = true; } if (p.removed && p.onRemove) { p.onRemove(); p.onRemove = null; } if (!p.removed) W.peds[w++] = p; } W.peds.length = w; }
-  function updateAll(dt) { for (const p of W.peds) p.update(dt); }
+  // People far from the camera run at a third of the rate, on the same frame as each other.
+  const FAR2 = 62 * 62;
+  function updateAll(dt) {
+    const cam = RENDER.cam; const cx = cam.tx, cz = cam.tz; const phase = W.state.frame % 3;
+    for (const p of W.peds) {
+      if (p.removed || p.inCar || p.important || p.isCop || p.state === 'dead' || p.rag) { p.update(dt); continue; }
+      const dx = p.x - cx, dz = p.z - cz;
+      if (dx * dx + dz * dz > FAR2) { if (phase === 1) p.update(dt * 3); } else p.update(dt);
+    }
+  }
   return { Ped, heldEntity, spawn, spawnDriver, spawnCop, populate, trim, despawn, updateAll, buildRig, buildRigSeated, seatOf, seatedEntity, getMesh, makeRagdoll, stepRagdoll, ragdollBones, endRagdoll, looks, COP, SWAT, GANG, PLAYER_LOOK, MARLA, OKAFOR, CRANE };
 })();

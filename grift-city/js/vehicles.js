@@ -3,16 +3,18 @@
 const VEH = (() => {
   const SPECS = MESH.VEHICLES;
   const NAMES = { sedan: 'MERIDIAN', sports: 'FALCATA', hatch: 'GNAT', pickup: 'MULE', van: 'BOXER', taxi: 'CABCO', police: 'ENFORCER', truck: 'HAULER', bus: 'TRANSIT', muscle: 'BRAWLER', swat: 'BASTION', bike: 'VIPER', boat: 'SKIMMER', ktruck: 'RANCHER', kmoto: 'HORNET', kgarbage: 'SANITATION', kambulance: 'MEDIVAC', kfire: 'FIREBRAND' };
-  const PALETTE = [[0.85, 0.12, 0.1], [0.12, 0.22, 0.6], [0.92, 0.92, 0.9], [0.15, 0.15, 0.17], [0.62, 0.62, 0.66], [0.1, 0.48, 0.25], [0.9, 0.6, 0.12], [0.45, 0.12, 0.5], [0.7, 0.35, 0.15], [0.2, 0.6, 0.7], [0.55, 0.05, 0.1], [0.75, 0.75, 0.5], [0.2, 0.45, 0.35], [0.85, 0.85, 0.6], [0.3, 0.2, 0.4], [0.9, 0.35, 0.25], [0.75, 0.2, 0.35], [0.55, 0.6, 0.7], [0.15, 0.3, 0.45], [0.8, 0.55, 0.3], [0.35, 0.35, 0.4], [0.95, 0.85, 0.8]];
+  const PALETTE = [[0.696,0.185,0.171],[0.154,0.224,0.49],[0.919,0.919,0.905],[0.151,0.151,0.165],[0.621,0.621,0.649],[0.172,0.438,0.277],[0.82,0.61,0.274],[0.394,0.163,0.429],[0.62,0.375,0.235],[0.288,0.568,0.638],[0.447,0.097,0.132],[0.741,0.741,0.566],[0.249,0.424,0.354],[0.841,0.841,0.666],[0.286,0.216,0.356],[0.781,0.396,0.326],[0.639,0.254,0.359],[0.564,0.599,0.669],[0.187,0.292,0.397],[0.739,0.564,0.389],[0.352,0.352,0.387],[0.927,0.857,0.822]]; // desaturated a third toward grey: a street of cars is mostly muted
   const FIXED = { taxi: [1, 0.8, 0.1], police: [0.95, 0.95, 0.98], swat: [0.16, 0.18, 0.22], bus: [0.85, 0.55, 0.15] };
   const meshCache = {};
-  function colorOf(type, colIdx) { return colIdx === 'wreck' ? [0.07, 0.07, 0.07] : FIXED[type] || PALETTE[colIdx]; }
+  function colorOf(type, colIdx) { if (colIdx === 'wreck') return [0.07, 0.07, 0.07];
+    const c = FIXED[type] || PALETTE[colIdx], l = c[0] * .3 + c[1] * .59 + c[2] * .11;
+    return c.map(v => (v * .72 + l * .28) * .88 + .035); }
   function getMesh(type, colIdx) { const key = type + ':' + colIdx; if (!meshCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx)); meshCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return meshCache[key]; }
   const lodCache = {}; function getLod(type, colIdx) { const key = type + ':' + colIdx; if (!lodCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx), { lod: true }); lodCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return lodCache[key]; }
   function dentedMesh(type, colIdx, dent, seed) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed }); return { body: m.body.build(), glass: m.glass.build() }; }
   const TRAFFIC_TYPES = ['sedan', 'sedan', 'sedan', 'hatch', 'hatch', 'sports', 'pickup', 'van', 'taxi', 'taxi', 'muscle', 'truck', 'bus', 'ktruck', 'kmoto', 'kgarbage', 'kambulance', 'kfire'];
 
-  const tmpV = [0, 0, 0]; const TURN_R = 10; // radius of the arc traffic drives through a corner (m); long vehicles need more
+  const tmpV = [0, 0, 0]; const CIRC_A = new Float64Array(9), CIRC_B = new Float64Array(9); /* scratch for circlesInto */ const TURN_R = 10; // radius of the arc traffic drives through a corner (m); long vehicles need more
   const LEAN_SIGN = -1; // positive roll tips the body to the right, so leaning into a left turn (positive yaw) is negative
   class Vehicle {
     constructor(type, x, z, angle, opts = {}) {
@@ -33,11 +35,23 @@ const VEH = (() => {
     get fwd() { return [Math.sin(this.angle), Math.cos(this.angle)]; }
     get right() { return [-Math.cos(this.angle), Math.sin(this.angle)]; }
     circles() {
-      const s = this.spec, f = this.fwd, r = s.wid / 2 + 0.1; const L = s.len;
-      if (L > 6.5) return [[this.x + f[0] * L * 0.36, this.z + f[1] * L * 0.36, r], [this.x, this.z, r], [this.x - f[0] * L * 0.36, this.z - f[1] * L * 0.36, r]];
-      return [[this.x + f[0] * L * 0.26, this.z + f[1] * L * 0.26, r], [this.x - f[0] * L * 0.26, this.z - f[1] * L * 0.26, r]];
+      const s = this.spec, fx = Math.sin(this.angle), fz = Math.cos(this.angle), r = s.wid / 2 + 0.1; const L = s.len;
+      if (L > 6.5) return [[this.x + fx * L * 0.36, this.z + fz * L * 0.36, r], [this.x, this.z, r], [this.x - fx * L * 0.36, this.z - fz * L * 0.36, r]];
+      return [[this.x + fx * L * 0.26, this.z + fz * L * 0.26, r], [this.x - fx * L * 0.26, this.z - fz * L * 0.26, r]];
     }
-    local(px, pz) { const f = this.fwd, r = this.right; const dx = px - this.x, dz = pz - this.z; return [dx * f[0] + dz * f[1], dx * r[0] + dz * r[1]]; }
+    // The same circles written into a caller's flat [x, z, r, ...] buffer: the collision loops run this thousands of
+    // times a second and the array-of-arrays version was most of their cost in garbage alone.
+    circlesInto(out) {
+      const s = this.spec, fx = Math.sin(this.angle), fz = Math.cos(this.angle), r = s.wid / 2 + 0.1; const L = s.len;
+      if (L > 6.5) { const o = L * 0.36;
+        out[0] = this.x + fx * o; out[1] = this.z + fz * o; out[2] = r;
+        out[3] = this.x; out[4] = this.z; out[5] = r;
+        out[6] = this.x - fx * o; out[7] = this.z - fz * o; out[8] = r; return 3; }
+      const o = L * 0.26;
+      out[0] = this.x + fx * o; out[1] = this.z + fz * o; out[2] = r;
+      out[3] = this.x - fx * o; out[4] = this.z - fz * o; out[5] = r; return 2;
+    }
+    local(px, pz) { const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const dx = px - this.x, dz = pz - this.z; return [dx * sa + dz * ca, -dx * ca + dz * sa]; }
     get absSpeed() { return Math.hypot(this.vx, this.vz); }
 
     update(dt) {
@@ -59,7 +73,7 @@ const VEH = (() => {
       if (this.wrecked && this.fireT < 10) { this.fireT += dt; if (W.state.frame % 2 === 0) { W.FX.fire(this.x, this.y + 0.8, this.z, 1); if (W.state.frame % 4 === 0) W.FX.smoke(this.x, this.y + 1, this.z, 1, true); } }
     }
     physics(dt) {
-      const s = this.spec, c = this.controls; const f = this.fwd, r = this.right;
+      const s = this.spec, c = this.controls; const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const f = [sa, ca], r = [-ca, sa];
       let vF = this.vx * f[0] + this.vz * f[1], vL = this.vx * r[0] + this.vz * r[1];
       const top = s.top; const spd = Math.abs(vF);
       // steering: the wheel angle that full lock gives shrinks with speed, so a twitch at 150 km/h is not a spin
@@ -127,7 +141,7 @@ const VEH = (() => {
     collide(dt, water = false) {
       const s = this.spec; const f = this.fwd; const half = s.len / 2;
       // buildings & props: each circle (a boat has already been kept off the shore)
-      if (!water) for (const [cx, cz, r] of this.circles()) {
+      if (!water) for (let ci = 0, nci = this.circlesInto(CIRC_A); ci < nci; ci++) { const cx = CIRC_A[ci * 3], cz = CIRC_A[ci * 3 + 1], r = CIRC_A[ci * 3 + 2];
         const res = W.pushOut(cx, cz, r, { ignoreLow: this.y > 1.4 });
         if (res.hit) {
           const nx = res.hit[0], nz = res.hit[1];
@@ -148,7 +162,10 @@ const VEH = (() => {
       // other cars
       for (const o of W.cars) {
         if (o === this || o.removed) continue; if (M.dist2(this.x, this.z, o.x, o.z) > 144) continue;
-        for (const [ax, az, ar] of this.circles()) for (const [bx, bz, br] of o.circles()) {
+        const na = this.circlesInto(CIRC_A), nb = o.circlesInto(CIRC_B);
+        for (let ai = 0; ai < na; ai++) for (let bi = 0; bi < nb; bi++) {
+          const ax = CIRC_A[ai * 3], az = CIRC_A[ai * 3 + 1], ar = CIRC_A[ai * 3 + 2];
+          const bx = CIRC_B[bi * 3], bz = CIRC_B[bi * 3 + 1], br = CIRC_B[bi * 3 + 2];
           const dx = ax - bx, dz = az - bz; const rr = ar + br; const d2 = dx * dx + dz * dz; if (d2 >= rr * rr || d2 < 1e-6) continue;
           const d = Math.sqrt(d2), nx = dx / d, nz = dz / d, pen = rr - d;
           const mA = this.spec.mass, mB = o.spec.mass, tot = mA + mB;
@@ -189,7 +206,7 @@ const VEH = (() => {
     }
     // Boats: thrust against water drag, a rudder that needs way on, sideways slip, a hull that bobs and banks.
     boatPhysics(dt) {
-      const s = this.spec, c = this.controls; const f = this.fwd, r = this.right;
+      const s = this.spec, c = this.controls; const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const f = [sa, ca], r = [-ca, sa];
       let vF = this.vx * f[0] + this.vz * f[1], vL = this.vx * r[0] + this.vz * r[1]; const top = s.top;
       const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked');
       this.steer = M.approach(this.steer, M.clamp(c.steer, -1, 1), 4 * dt); this.steerAngle = this.steer * 0.5;
@@ -284,7 +301,7 @@ const VEH = (() => {
         if (light && remain < 14 && remain > 1) { const st = W.lightState(light, e.axis); if (st === 'red' || (st === 'yellow' && remain > 7)) { if (remain < 3.5) target = 0; else target = Math.min(target, Math.max(0, (remain - 3) * 1.5)); ai.atLight = true; } else ai.atLight = false; } else ai.atLight = false;
       }
       // obstacles ahead
-      const f = this.fwd, r = this.right; let blocked = false, blockSpeed = 99; const reach = 5 + Math.abs(this.speed) * 1.0;
+      const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const f = [sa, ca], r = [-ca, sa]; let blocked = false, blockSpeed = 99; const reach = 5 + Math.abs(this.speed) * 1.0;
       for (const o of W.cars) { if (o === this || o.removed) continue; const dx = o.x - this.x, dz = o.z - this.z; if (dx * dx + dz * dz > (reach + 8) * (reach + 8)) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; const half = o.spec.len / 2; if (lf > 0 && lf - half < reach && Math.abs(ll) < 2.4) { const os = o.vx * f[0] + o.vz * f[1]; const gap = lf - half - this.spec.len / 2; if (gap < 3) { target = 0; blocked = true; } else target = Math.min(target, Math.max(0, os + (gap - 3) * 0.8)); blockSpeed = Math.min(blockSpeed, Math.abs(os)); } }
       if (ai.mode !== 'flee') {
         for (const p of W.peds) { if (p.removed || p.inCar || p.state === 'dead') continue; const dx = p.x - this.x, dz = p.z - this.z; if (dx * dx + dz * dz > 400) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < reach + 2 && Math.abs(ll) < 1.8) { target = lf < 5 ? 0 : Math.min(target, 3); blocked = blocked || lf < 5; } }
@@ -378,7 +395,7 @@ const VEH = (() => {
       }
       if (this.damageFlash > 0) { for (let i = 0; i < 5; i++) e[i] = 0.25; }
       const far = !this.wrecked && this.dentLevel === 0 && M.dist2(this.x, this.z, RENDER.cam.tx, RENDER.cam.tz) > 85 * 85; const lod = far ? getLod(this.type, this.colIdx) : null;
-      return { mesh: lod ? lod.body : this.mesh, glass: lod ? lod.glass : this.meshes.glass, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.6 };
+      return { mesh: lod ? lod.body : this.mesh, glass: lod ? lod.glass : this.meshes.glass, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.25 };
     }
     headlightFX() { if (!this.lightsOn || this.wrecked) return; const f = this.fwd, r = this.right; const s = this.spec; const hx = this.x + f[0] * s.len * 0.5, hz = this.z + f[1] * s.len * 0.5; W.fx.lightPool(hx, hz, f[0], f[1], 16, 3.2, [1, 0.95, 0.75], 0.2); W.dyn.push({ x: hx + f[0] * 5, y: 1, z: hz + f[1] * 5, r: 13, col: [0.6, 0.56, 0.42] }); }
     remove() { this.removed = true; if (this.driver && this.driver !== PLAYER) { this.driver.removed = true; } for (const p of this.passengers) p.removed = true; }
@@ -431,6 +448,18 @@ const VEH = (() => {
   function spawnMarina() { CITY.marina.forEach((m, i) => { const b = spawn('boat', m.x, m.z, m.angle, { mode: 'parked', color: [2, 9, 6][i % 3] }); b.persistent = true; }); }
   function spawnParked() { for (const p of CITY.parkedSpots) { const type = p.type || TRAFFIC_TYPES[Math.floor(W.rng() * TRAFFIC_TYPES.length)]; if (type === 'bus' || type === 'truck') continue; spawn(type, p.x, p.z, p.angle, { mode: 'parked' }); } }
   function nearest(x, z, r, filter) { let best = null, bd = r * r; for (const c of W.cars) { if (c.removed || (filter && !filter(c))) continue; const d = M.dist2(c.x, c.z, x, z); if (d < bd) { bd = d; best = c; } } return best; }
-  function updateAll(dt, night) { for (const c of W.cars) { if (c.removed) continue; c.lightsOn = night && !c.wrecked && (c.driver !== null || c.ai.mode !== 'parked' || c.playerOwned) ; c.update(dt); } }
+  // Traffic far from the camera runs at a third of the rate with three times the step. All distant cars move on the
+  // same frame, so they still see each other consistently; anything the player is near, or involved in, runs every frame.
+  const FAR2 = 95 * 95;
+  function updateAll(dt, night) {
+    const cam = RENDER.cam; const cx = cam.tx, cz = cam.tz; const phase = W.state.frame % 3;
+    for (const c of W.cars) {
+      if (c.removed) continue;
+      c.lightsOn = night && !c.wrecked && (c.driver !== null || c.ai.mode !== 'parked' || c.playerOwned);
+      const dx = c.x - cx, dz = c.z - cz;
+      const far = dx * dx + dz * dz > FAR2 && c.driver !== PLAYER && !c.important && c.ai.mode !== 'chase' && !c.wrecked && !c.airborne;
+      if (far) { if (phase === 0) c.update(dt * 3); } else c.update(dt);
+    }
+  }
   return { Vehicle, SPECS, NAMES, PALETTE, TRAFFIC_TYPES, trafficTypeFor, trim, spawn, spawnTraffic, despawn, spawnParked, spawnMarina, nearest, updateAll, getMesh };
 })();

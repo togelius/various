@@ -1,0 +1,1 @@
+{"game": "riverpuzzle", "bytes": 3148, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 15, "h": 7, "solved": false, "len": 5, "iters": 238, "time": 5.0594, "timeout": true, "actions": null}], "compile_time": 0.09689640998840332, "n_entries": 1}

@@ -59,3 +59,152 @@ def test_fitness_tiers():
 def test_extract_game():
     assert extract_game("blah\n```puzzlescript\ntitle x\n```\n") == "title x\n"
     assert extract_game("no block") is None
+
+
+def test_solver_respects_its_time_budget():
+    """A slow game must not overrun its timeout.
+
+    The upstream solvers consult the clock every 1000 expansions. In games
+    whose rules loop heavily a single expansion can take tens of milliseconds,
+    so a 1s budget ran for 78s. The vendor patch replaces the fixed stride with
+    a poller that retunes itself to the measured cost of an expansion.
+    """
+    import time
+
+    slow = SOKOBAN.parent / "5_step_steve_DEMAKE.txt"
+    if not slow.exists():
+        import pytest
+        pytest.skip("slow reference game not in the corpus")
+    eng = E.new_engine(E.compile_file(slow))
+    t0 = time.time()
+    s = E.solve_level(eng, 0, "bfs", max_iters=100_000, timeout_ms=1000)
+    wall = time.time() - t0
+    assert s.timeout and not s.solved
+    assert wall < 5.0, f"1s budget overran to {wall:.1f}s"
+
+
+def _game(name):
+    import pytest
+    p = SOKOBAN.parent / f"{name}.txt"
+    if not p.exists():
+        pytest.skip(f"{name} not in the corpus")
+    return p
+
+
+def test_restore_level_clears_per_turn_state():
+    """A restored board must not inherit the previous branch's win.
+
+    backup_level captures the object grid only. The engine also holds a command
+    queue, an `again` flag and a cached win flag. Leaving those set let one
+    search branch contaminate the next.
+    """
+    eng = E.new_engine(E.compile_file(_game("Angize")))
+    eng.load_level(0)
+    backup = eng.backup_level()
+    E.step(eng, 4)                       # ACTION wins this level
+    assert eng.winning
+    eng.restore_level(backup)
+    assert not eng.winning, "restored board inherited the win flag"
+
+
+def test_solver_finds_a_win_that_changes_no_tiles():
+    """A rule may issue `win` without moving anything.
+
+    The search loops discarded any action that left the board unchanged, before
+    testing for a win, so such a win was invisible; the stale flag then surfaced
+    it against a later, unrelated action.
+    """
+    c = E.compile_file(_game("Angize"))
+    eng = E.new_engine(c)
+    s = E.solve_level(eng, E.level_indices(c)[0], "bfs", max_iters=5000, timeout_ms=3000)
+    assert s.solved and s.actions == [4], s.actions
+    assert E.replay(eng, E.level_indices(c)[0], s.actions)["won"]
+
+
+def test_again_ticks_are_settled_on_replay():
+    """Replaying a solution must settle `again` ticks as the solver does."""
+    c = E.compile_file(_game("Animal_Cascade"))
+    lvl = E.level_indices(c)[0]
+    eng = E.new_engine(c)
+    s = E.solve_level(eng, lvl, "bfs", max_iters=5000, timeout_ms=3000)
+    assert s.solved
+    assert E.replay(eng, lvl, s.actions)["won"]
+    # Without settling, the same actions land somewhere else entirely.
+    eng.load_level(lvl)
+    for a in s.actions:
+        eng.process_input(a)
+    assert not eng.winning, "this game no longer exercises `again`; pick another"
+
+
+def test_every_solver_returns_a_replayable_solution():
+    for name in ("sokoban_basic", "kettle", "slidings"):
+        c = E.compile_file(_game(name))
+        lvl = E.level_indices(c)[0]
+        eng = E.new_engine(c)
+        for algo in ("bfs", "astar", "gbfs"):
+            s = E.solve_level(eng, lvl, algo, max_iters=20_000, timeout_ms=4000)
+            assert s.solved, f"{name}/{algo} did not solve level {lvl}"
+            assert E.replay(eng, lvl, s.actions)["won"], f"{name}/{algo} solution does not replay"
+
+
+def test_isolated_evaluation_matches_in_process():
+    from prof.fitness import evaluate_isolated
+    text = SOKOBAN.read_text(encoding="utf-8", errors="replace")
+    a = evaluate(text, timeout_ms=2000)
+    b = evaluate_isolated(text, timeout_ms=2000)
+    assert (b.tier, b.n_solved, b.solutions) == (a.tier, a.n_solved, a.solutions)
+    assert abs(a.fitness - b.fitness) < 1e-9
+
+
+def test_isolated_evaluation_survives_a_game_that_kills_the_engine():
+    """A mutant that crashes or hangs the engine must cost one candidate, not the run.
+
+    1D_Rubik's_Cube segfaults the C++ engine inside load_level, and a rule that
+    keeps issuing `again` spins inside a single expansion where no solver
+    timeout can reach it. Either would take down a MAP-Elites run evaluating
+    in its own process.
+    """
+    from prof.fitness import evaluate_isolated
+    crasher = SOKOBAN.parent / "1D_Rubik's_Cube.txt"
+    if not crasher.exists():
+        import pytest
+        pytest.skip("reference crashing game not in the corpus")
+    ev = evaluate_isolated(crasher.read_text(encoding="utf-8", errors="replace"),
+                           timeout_s=30, timeout_ms=1000)
+    assert ev.tier == 0 and ev.fitness == -3.0
+    assert "hung" in ev.reason or "crashed" in ev.reason
+
+
+def test_isolated_evaluation_reports_a_compile_failure_normally():
+    from prof.fitness import evaluate_isolated
+    ev = evaluate_isolated("not a game at all\n")
+    assert ev.tier == 0 and ev.reason.startswith("compile")
+
+
+def test_a_level_won_before_any_move_is_reported_as_zero_moves():
+    """load_level and restore_level must agree about the same board.
+
+    Some levels satisfy their win conditions at load: a `no X` condition where
+    X only appears once the player acts, say. load_level set the win flag
+    hard-false without consulting the board, while restore_level recomputes it,
+    so a search (which restores) saw the win and a replay (which only loads)
+    did not. The search then credited the win to the first action it happened
+    to try, and that one-move "solution" replayed to nothing. Every solved
+    level of Flood and Hitori was affected.
+    """
+    c = E.compile_file(_game("Hitori"))
+    lvl = E.level_indices(c)[0]
+    eng = E.new_engine(c)
+    eng.load_level(lvl)
+    assert eng.winning, "this level is won at load; the flag should say so"
+    s = E.solve_level(eng, lvl, "bfs", max_iters=20_000, timeout_ms=3000)
+    assert s.solved and s.actions == [], f"expected a zero-move win, got {s.actions}"
+    assert E.replay(eng, lvl, s.actions)["won"]
+
+
+def test_degenerate_levels_do_not_count_as_solved_for_fitness():
+    """A game whose levels are won at the start is not a playable game."""
+    text = _game("Hitori").read_text(encoding="utf-8", errors="replace")
+    ev = evaluate(text, timeout_ms=1500, max_levels=4)
+    assert ev.n_solved == 0 and ev.tier == 1
+    assert ev.trivial, "the levels should be recorded as trivial, not solved"

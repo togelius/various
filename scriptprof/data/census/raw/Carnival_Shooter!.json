@@ -1,0 +1,1 @@
+{"game": "Carnival_Shooter!", "bytes": 597, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 14, "h": 7, "solved": false, "len": 20, "iters": 392, "time": 0.0279, "timeout": false, "actions": null}], "compile_time": 0.08080649375915527, "n_entries": 1}

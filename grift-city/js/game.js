@@ -2,28 +2,112 @@
 'use strict';
 const GAME = (() => {
   const quality = { shadows: true };
-  const options = { sensitivity: 1.0, invertY: false, bloom: true, resolution: 1.25, shadows: true, auto: true };
+  const options = { sensitivity: 1.0, invertY: false, bloom: true, resolution: 1.25, shadows: true, auto: true, edges: true };
   // Adaptive quality: when frames stay slow the renderer steps down (render scale, ambient occlusion, shadows, post) one
   // level at a time, and steps back up when there is headroom. A slow machine gets a game that runs at full speed.
-  const auto = { level: 0, ema: 16, slowT: 0, fastT: 0, told: false, warm: 0, raises: 0 };
+  const auto = { level: 0, ema: 16, slowT: 0, fastT: 0, told: false, warm: 0, badRaises: 0, sinceRaise: Infinity };
   const AUTO_LEVELS = 5, AO_STRENGTH = 0.75, STEP = 1 / 60, MAX_STEPS = 6;
   function loadOptions() { try { Object.assign(options, JSON.parse(localStorage.getItem('grift-city-options') || '{}')); } catch (e) { } applyOptions(); }
   function saveOptions() { try { localStorage.setItem('grift-city-options', JSON.stringify(options)); } catch (e) { } applyOptions(); }
-  function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 4; RENDER.post.enabled = options.bloom && L < 5; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
+  function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 4; RENDER.post.enabled = options.bloom && L < 5; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.55 : 0; RENDER.env.interiors = !/[?&]rooms=0/.test(location.search); RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
+  // The decision alone, with no side effects, so it can be driven directly by a test. Returns 'lower', 'raise'
+  // or null. What stops it oscillating is not a limit on how often quality may be restored -- that turned a few
+  // transient stalls into a permanent downgrade on a machine well able to run it -- but a count of the restores
+  // that did not hold: a raise undone within half a minute was the wrong call, and two of those settle it.
+  function autoStep(a, raw) {
+    const ms = Math.min(120, raw * 1000); a.ema += (ms - a.ema) * 0.06;
+    if (a.ema > 30) { a.slowT += raw; a.fastT = 0; } else if (a.ema < 17.5) { a.fastT += raw; a.slowT = 0; } else { a.slowT = 0; a.fastT = 0; }
+    a.sinceRaise += raw;
+    if (a.slowT > 2.5 && a.level < AUTO_LEVELS) {
+      if (a.sinceRaise < 30) a.badRaises++;
+      a.level++; a.slowT = 0; a.ema = 22; a.sinceRaise = Infinity; return 'lower';
+    }
+    if (a.fastT > 20 && a.level > 0 && a.badRaises < 2) { a.level--; a.fastT = 0; a.ema = 22; a.sinceRaise = 0; return 'raise'; }
+    return null;
+  }
   function autoQuality(raw) {
     if (!options.auto || window.__pt || state !== 'playing') return; auto.warm += raw; if (auto.warm < 4) return; // the first seconds after a load are shader warm-up, not a slow machine
-    const ms = Math.min(120, raw * 1000); auto.ema += (ms - auto.ema) * 0.06;
-    if (auto.ema > 30) { auto.slowT += raw; auto.fastT = 0; } else if (auto.ema < 17.5) { auto.fastT += raw; auto.slowT = 0; } else { auto.slowT = 0; auto.fastT = 0; }
-    if (auto.slowT > 2.5 && auto.level < AUTO_LEVELS) { auto.level++; auto.slowT = 0; auto.ema = 22; applyOptions(); if (!auto.told) { auto.told = true; HUD.notify('Slow frames: lowering render quality automatically (see the pause menu).'); } }
-    else if (auto.fastT > 20 && auto.level > 0 && auto.raises < 2) { auto.level--; auto.raises++; auto.fastT = 0; auto.ema = 22; applyOptions(); }
+    const act = autoStep(auto, raw);
+    if (!act) return;
+    applyOptions();
+    if (act === 'lower' && !auto.told) { auto.told = true; HUD.notify('Slow frames: lowering render quality automatically (see the pause menu).'); }
   }
   let canvas, hud, state = 'loading', last = 0, staticMesh = null, waterMesh = null, propList = [], started = false, accum = 0;
   const SAVE_KEY = 'grift-city-save-v1';
   function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } }
-  function save() { try { const P = PLAYER.P; const sh = CITY.place('safehouse'); let garage = null; for (const c of W.cars) if (!c.removed && !c.wrecked && c.playerOwned && M.dist(c.x, c.z, sh.x, sh.z) < 12) { garage = { type: c.type, color: c.colIdx, x: c.x, z: c.z, angle: c.angle }; break; } localStorage.setItem(SAVE_KEY, JSON.stringify({ outfit: P.outfit || 0, garage, econ: ECON.saveData(), flags: MISSIONS.S.flags, progress2: MISSIONS.S.progress2, phoneProgress: MISSIONS.S.phoneProgress, rampageDone: MISSIONS.S.rampageDone, x: P.x, z: P.z, money: P.money, health: P.health, armor: P.armor, weapons: Object.fromEntries(Object.entries(P.weapons).map(([k, v]) => [k, v === Infinity ? -1 : v])), weapon: P.weapon, stats: P.stats, progress: MISSIONS.S.progress, done: MISSIONS.S.done, time: W.state.time, packages: W.pickups.filter(p => p.kind === 'package' && p.taken).map(p => p.id) })); } catch (e) { } }
-  function load() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (!s) return false; const P = PLAYER.P; P.x = s.x; P.z = s.z; P.money = s.money; P.health = s.health || 100; P.armor = s.armor || 0; if (s.outfit) PLAYER.setOutfit(s.outfit); P.weapons = Object.fromEntries(Object.entries(s.weapons).map(([k, v]) => [k, v === -1 ? Infinity : v])); P.weapon = s.weapon in P.weapons ? s.weapon : 'fist'; P.weaponOut = P.weapon !== 'fist'; Object.assign(P.stats, s.stats || {}); MISSIONS.S.progress = s.progress || 0; MISSIONS.S.done = s.done || {}; MISSIONS.S.progress2 = s.progress2 || 0; MISSIONS.S.phoneProgress = s.phoneProgress || 0; MISSIONS.S.rampageDone = s.rampageDone || {}; ECON.loadData(s.econ); MISSIONS.S.flags = s.flags || {}; if (!Array.isArray(P.stats.jumps)) P.stats.jumps = []; if (s.garage) { const c = VEH.spawn(s.garage.type, s.garage.x, s.garage.z, s.garage.angle, { mode: 'parked', color: s.garage.color }); c.playerOwned = true; } W.state.time = s.time ?? 9; for (const p of W.pickups) if (p.kind === 'package' && (s.packages || []).includes(p.id)) p.taken = true; return true; } catch (e) { return false; } }
+  function save() {
+    try {
+      const P = PLAYER.P, sh = CITY.place('safehouse');
+      let garage = null;
+      for (const c of W.cars) if (!c.removed && !c.wrecked && c.playerOwned && M.dist(c.x, c.z, sh.x, sh.z) < 12) {
+        garage = { type: c.type, color: c.colIdx, x: c.x, z: c.z, angle: c.angle, mods: { ...c.mods } };
+        break;
+      }
+      localStorage.setItem(SAVE_KEY, JSON.stringify({
+        version: 2, x: P.x, y: P.y, z: P.z, inside: MISSIONS.S.inside || null, roof: !!MISSIONS.S.roof,
+        outfit: P.outfit || 0, garage, econ: ECON.saveData(), flags: MISSIONS.S.flags,
+        progress2: MISSIONS.S.progress2, phoneProgress: MISSIONS.S.phoneProgress, rampageDone: MISSIONS.S.rampageDone,
+        money: P.money, health: P.health, armor: P.armor,
+        weapons: Object.fromEntries(Object.entries(P.weapons).map(([k, v]) => [k, v === Infinity ? -1 : v])),
+        weapon: P.weapon, stats: P.stats, progress: MISSIONS.S.progress, done: MISSIONS.S.done,
+        time: W.state.time, packages: W.pickups.filter(p => p.kind === 'package' && p.taken).map(p => p.id)
+      }));
+      return true;
+    } catch (e) { HUD.notify('Could not save the game.'); return false; }
+  }
+  function load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+      if (!s) return false;
+      const P = PLAYER.P;
+      if (!Number.isFinite(s.x) || !Number.isFinite(s.z) || !s.weapons || typeof s.weapons !== 'object') return false;
+      P.x = s.x; P.z = s.z; P.money = Math.max(0, s.money || 0); P.health = s.health || 100; P.armor = s.armor || 0;
+      PLAYER.setOutfit(s.outfit || 0);
+      P.weapons = Object.fromEntries(Object.entries(s.weapons).filter(([k]) => WEAPONS[k]).map(([k, v]) => [k, v === -1 ? Infinity : v]));
+      P.weapon = s.weapon in P.weapons ? s.weapon : 'fist'; P.weaponOut = P.weapon !== 'fist';
+      Object.assign(P.stats, s.stats || {});
+      P.stats.packages = M.clamp(P.stats.packages || 0, 0, 20);
+      if (!Array.isArray(P.stats.jumps)) P.stats.jumps = [];
+      MISSIONS.S.progress = s.progress || 0; MISSIONS.S.done = s.done || {};
+      MISSIONS.S.progress2 = s.progress2 || 0; MISSIONS.S.phoneProgress = s.phoneProgress || 0;
+      MISSIONS.S.rampageDone = s.rampageDone || {}; MISSIONS.S.flags = s.flags || {};
+      ECON.loadData(s.econ);
+      const room = s.inside && CITY.interiors[s.inside];
+      if (room) {
+        MISSIONS.enterInterior(room);
+        P.x = s.x; P.z = s.z; P.y = room.floorY;
+        MISSIONS.S.saveT = 8; // loading beside the bed must not immediately sleep and save again
+      } else if (s.roof && CITY.roofAccess) {
+        MISSIONS.S.roof = true; CITY.setRoof(CITY.roofAccess); P.y = Math.max(CITY.roofAccess.h, s.y || 0);
+      } else {
+        // Old bed saves lack an interior identifier. Resume outside rather than inside a solid building.
+        if (CITY.insideLot(P.x, P.z)) { const sh = CITY.place('safehouse'); P.x = sh.x + 6; P.z = sh.z + 1; }
+        P.y = CITY.groundY(P.x, P.z);
+      }
+      if (s.garage && VEH.SPECS[s.garage.type]) {
+        const c = VEH.spawn(s.garage.type, s.garage.x, s.garage.z, s.garage.angle, { mode: 'parked', color: s.garage.color });
+        c.playerOwned = true; c.mods = s.garage.mods || {}; ECON.applyMods(c);
+      }
+      W.state.time = s.time ?? 9;
+      for (const p of W.pickups) if (p.kind === 'package' && (s.packages || []).includes(p.id)) p.taken = true;
+      restorePackageRewards(P.stats.packages);
+      return true;
+    } catch (e) { return false; }
+  }
   function newGame() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { } location.reload(); }
-  function onPackage(n) { if (n % 5 === 0) { const s = CITY.place('safehouse'); const w = ['uzi', 'shotgun', 'rifle', 'rocket'][n / 5 - 1]; PICKUPS.add('weapon', s.x + 4, s.z - 4, { weapon: w, ammo: w === 'rocket' ? 4 : 60, respawn: 240 }); HUD.notify(WEAPONS[w].name + ' now spawns at the safehouse'); } }
+  const PACKAGE_WEAPONS = ['uzi', 'shotgun', 'rifle', 'rocket'];
+  function restorePackageRewards(n) {
+    const s = CITY.place('safehouse');
+    PACKAGE_WEAPONS.forEach((w, i) => {
+      if (n < (i + 1) * 5 || W.pickups.some(p => p.packageReward === w)) return;
+      PICKUPS.add('weapon', s.x + 4, s.z - 4, { weapon: w, ammo: w === 'rocket' ? 4 : 60, respawn: 240, packageReward: w });
+    });
+  }
+  function onPackage(n) {
+    restorePackageRewards(n);
+    const w = PACKAGE_WEAPONS[n / 5 - 1];
+    if (w) HUD.notify(WEAPONS[w].name + ' now spawns at the safehouse');
+  }
 
   function boot() {
     canvas = document.getElementById('gl'); hud = document.getElementById('hud'); HUD.init(hud); INPUT.init(canvas);
@@ -78,6 +162,7 @@ const GAME = (() => {
       if (INPUT.hit('KeyB')) { options.bloom = !options.bloom; saveOptions(); }
       if (INPUT.hit('KeyI')) { options.invertY = !options.invertY; saveOptions(); }
       if (INPUT.hit('KeyP')) { options.resolution = options.resolution >= 1.5 ? 0.75 : options.resolution >= 1.25 ? 1.5 : options.resolution >= 1.0 ? 1.25 : 1.0; saveOptions(); }
+      if (INPUT.hit('KeyE')) { options.edges = !options.edges; saveOptions(); }
       if (INPUT.hit('KeyA')) { options.auto = !options.auto; auto.level = 0; auto.slowT = auto.fastT = 0; saveOptions(); }
       if (INPUT.hit('BracketLeft')) { options.sensitivity = Math.max(0.3, +(options.sensitivity - 0.1).toFixed(1)); saveOptions(); }
       if (INPUT.hit('BracketRight')) { options.sensitivity = Math.min(3, +(options.sensitivity + 0.1).toFixed(1)); saveOptions(); }
@@ -107,8 +192,21 @@ const GAME = (() => {
       if (viewer) { window.claude.use('downloads').then(dl => { if (!dl) throw new Error('unavailable'); return fetch(url).then(r => r.blob()).then(blob => dl.save({ filename: name, data: blob })); }).then(() => { photo.savedT = 1.5; AUDIO.play('click'); }).catch(e => { if (!e || e.code !== 'declined') HUD.notify('Could not save the photo here.'); }); return; }
       const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); photo.savedT = 1.5; AUDIO.play('click'); } catch (e) { HUD.notify('Could not save the photo.'); } }
   // ---- Per-district colour grade: a tint and a saturation the composite pass blends toward as you cross the city
-  const GRADES = { downtown: [[0.94, 0.98, 1.07], 1.05], midtown: [[1, 1, 1], 1.1], northgate: [[1.05, 0.98, 0.9], 0.98], westfield: [[0.96, 1.04, 0.95], 1.14], eastside: [[1.07, 0.98, 0.88], 0.94], southport: [[0.98, 1.02, 1.05], 1.2], sea: [[0.95, 1.02, 1.08], 1.25], indoor: [[1.06, 0.98, 0.9], 1.0] };
-  function updateGrade(dt, px, pz) { const bl = CITY.blockAt(px, pz); const key = CITY.interiorRoom ? 'indoor' : bl ? CITY.district(bl.i, bl.j) : (W.onWater(px, pz) ? 'sea' : 'southport'); const g = GRADES[key] || GRADES.midtown; const k = Math.min(1, 0.6 * dt); const t = RENDER.post.tint; for (let i = 0; i < 3; i++) t[i] = M.lerp(t[i], g[0][i], k); RENDER.post.sat = M.lerp(RENDER.post.sat, g[1], k); }
+  const GRADES = { downtown: [[0.99, 1.0, 1.02], 0.96], midtown: [[1.02, 1.0, 0.97], 0.97], northgate: [[1.05, 0.98, 0.9], 0.98], westfield: [[0.99, 1.02, 0.96], 0.98], eastside: [[1.07, 0.98, 0.88], 0.94], southport: [[1.01, 1.02, 1.03], 0.98], sea: [[0.98, 1.02, 1.04], 1.0], indoor: [[1.06, 0.98, 0.9], 1.0], underwater: [[0.42, 0.74, 0.92], 0.66] };
+  let vigBase = -1;
+  function updateGrade(dt, px, pz) {
+    // Under the surface the picture turns green-blue, loses most of its colour and closes in at the edges, so falling
+    // in the sea reads as being in it rather than as the screen going dark.
+    if (vigBase < 0) vigBase = RENDER.post.vignette;
+    const under = RENDER.cam.y < W.WATER_Y - 0.05;
+    RENDER.post.vignette = M.lerp(RENDER.post.vignette, under ? 0.62 : vigBase, Math.min(1, 3 * dt));
+    if (under) { // dense uniform fog: the water surface is a single-sided plane, so without this you look out at the
+      // skyline from the sea bed. Everything past a few metres now fades into the green of the water.
+      const e = RENDER.env; e.fogDensity = 0.22; e.fogHeight = 1e5; e.fogSun = 0; e.fogCol = [0.04, 0.12, 0.15];
+      e.sunCol = [e.sunCol[0] * 0.35, e.sunCol[1] * 0.5, e.sunCol[2] * 0.55]; e.skyCol = [0.07, 0.2, 0.24]; e.groundCol = [0.02, 0.06, 0.08];
+      // the sky takes no fog, so it is painted the colour of the water instead: brighter overhead, darker below
+      e.zenith = [0.07, 0.2, 0.23]; e.horizon = [0.03, 0.1, 0.12]; e.starAlpha = 0; e.sunDisc = 0; }
+    const bl = CITY.blockAt(px, pz); const key = under ? 'underwater' : CITY.interiorRoom ? 'indoor' : bl ? CITY.district(bl.i, bl.j) : (W.onWater(px, pz) ? 'sea' : 'southport'); const g = GRADES[key] || GRADES.midtown; const k = Math.min(1, 0.6 * dt); const t = RENDER.post.tint; for (let i = 0; i < 3; i++) t[i] = M.lerp(t[i], g[0][i], k); RENDER.post.sat = M.lerp(RENDER.post.sat, g[1], k); }
   // Playtest bot hooks: a compact state snapshot and a road route to a point.
   window.__ptState = () => { const P = PLAYER.P; const c = P.car; const bp = MISSIONS.blipPos(); let nc = null, nd = 1e9; for (const v of W.cars) { if (v.removed || v.wrecked || v === c) continue; const d = M.dist(v.x, v.z, P.x, P.z); if (d < nd) { nd = d; nc = v; } }
     const tgt = bp && MISSIONS.S.blip && MISSIONS.S.blip.obj; const tc = tgt && tgt.spec ? tgt : null;
@@ -135,6 +233,9 @@ const GAME = (() => {
   window.__debugBoxes = [];
   window.__debugBox = (x, y, z, w, h, d, col, tile = 0, emis = 1) => { const b = new MESH.Builder(); b.box(x, y, z, w, h, d, col, tile, { uvScale: Math.max(w, d), uvScaleV: h }); const bones = new Float32Array(16 * RENDER.MAX_BONES); for (let i = 0; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16); const em = new Float32Array(RENDER.MAX_BONES); em.fill(emis); const e = { mesh: b.build(), model: M.identity(M.create()), bones, emis: em }; window.__debugBoxes.push(e); return e; };
   window.__renderOnce = () => { if (PLAYER.updateCamera) for (let i = 0; i < 120; i++) PLAYER.updateCamera(1 / 60); /* let the chase camera settle on the new position */ renderWorld(1 / 60, false); HUD.draw(1 / 60, state); };
+  // the adaptive-quality decision, exposed so a test can drive it with a frame-time history
+  window.__autoStep = (a, raw) => autoStep(a, raw);
+  window.__autoState = () => ({ level: 0, ema: 16, slowT: 0, fastT: 0, told: false, warm: 99, badRaises: 0, sinceRaise: Infinity });
   window.__sim = (seconds, keys = []) => { window.__manual = true; for (const k of keys) window.dispatchEvent(new KeyboardEvent('keydown', { code: k })); for (let t = 0; t < seconds; t += 1 / 60) { step(1 / 60); INPUT.endFrame(); } for (const k of keys) window.dispatchEvent(new KeyboardEvent('keyup', { code: k })); };
   // Cheats, typed anywhere during play. Old habits.
   const CHEATS = {
@@ -153,7 +254,7 @@ const GAME = (() => {
   function checkCheats() { const t = INPUT.typed; for (const k in CHEATS) if (t.endsWith(k)) { INPUT.typed = ''; CHEATS[k](); AUDIO.play('cash'); } }
   function step(dt) {
     checkCheats();
-    W.frameBegin(); W.updateClock(dt); W.updateWeather(dt); RENDER.setTimeOfDay(W.state.time, W.weather.rain, W.weather.fog); const night = W.isNight();
+    W.frameBegin(); W.updateClock(dt); W.updateWeather(dt); RENDER.setTimeOfDay(W.state.time, W.weather.rain, W.weather.fog, dt); const night = W.isNight();
     const room = CITY.interiorRoom; if (room) { const e = RENDER.env; e.sunCol = e.sunCol.map(v => v * 0.08); e.skyCol = [0.34, 0.3, 0.26]; e.groundCol = [0.2, 0.17, 0.14]; e.fogDensity = 0; e.nightEmis = 1; for (const l of room.lights) W.dyn.push({ x: l.x, y: l.y, z: l.z, r: l.r * 1.3, col: l.col.map(v => v * 1.2) }); } // a room lit by its lamps, not the sun
     const dlg = !!MISSIONS.dialogue;
     MISSIONS.update(dt); ECON.update(dt);
@@ -200,6 +301,7 @@ const GAME = (() => {
     if (!RENDER.env.shadowOn) { for (const p of W.peds) if (!p.removed && !p.inCar && M.dist2(p.x, p.z, cam.tx, cam.tz) < 60 * 60) W.fx.blob(p.x, p.y + 0.02, p.z, 0.45, 0.35); if (!PLAYER.car && !title) W.fx.blob(PLAYER.x, PLAYER.y + 0.02, PLAYER.z, 0.45, 0.35); for (const c of W.cars) if (!c.removed && M.dist2(c.x, c.z, cam.tx, cam.tz) < 120 * 120) W.fx.blob(c.x, c.y + 0.02, c.z, c.spec.len * 0.45, 0.3); }
     W.fx.end();
     W.updateProps(cam.tx, cam.tz); scene.props = propList;
+    RENDER.env.noSky = cam.y < W.WATER_Y - 0.05; // tracked here rather than in the step, so it is right in every state
     RENDER.setLights(W.collectLights(cam.tx, cam.tz));
     RENDER.render(canvas, scene, W.state.elapsed);
   }

@@ -1,0 +1,1 @@
+{"game": "Sok7", "bytes": 4576, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 14, "h": 9, "solved": false, "len": 9, "iters": 10356, "time": 5.0036, "timeout": true, "actions": null}], "compile_time": 0.15337228775024414, "n_entries": 2}

@@ -1,0 +1,1 @@
+{"game": "Drainage", "bytes": 1563, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 15, "h": 22, "solved": false, "len": 6, "iters": 2814, "time": 5.0419, "timeout": true, "actions": null}], "compile_time": 0.08384561538696289, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "notsnake", "bytes": 653, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 8, "h": 5, "solved": false, "len": 13, "iters": 100000, "time": 4.2437, "timeout": false, "actions": null}], "compile_time": 0.08278179168701172, "n_entries": 1}

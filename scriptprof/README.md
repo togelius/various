@@ -92,6 +92,7 @@ loop and export them as things a person can play.
 | `prof/grammar.py` | PuzzleScript as a mutable structure; parse, edit, emit |
 | `prof/mutations.py` | 19 mechanic templates plus perturbation operators and crossover |
 | `prof/levelgen.py` | levels generated against a game's own rules, searched in batch |
+| `prof/grammar_mutate.py` | a second structural operator, developed in parallel |
 | `prof/mutate.py` | the older LLM operator, through a local Ollama model |
 
 ### Judging them
@@ -102,6 +103,7 @@ loop and export them as things a person can play.
 | `prof/pjax.py` | in-memory PuzzleJAX: batched search, including from arbitrary states |
 | `prof/fitness.py` | tier 1: compiles, solvable, non-trivial, rule coverage, progression |
 | `prof/depth.py` | tier 2: random floor, insight gap, fatal-move structure, deadlock |
+| `prof/players.py` | player ladder (random, greedy, GBFS, A*, BFS) and the insight gap |
 | `prof/concepts.py` | static concept vector, the descriptor space |
 | `prof/novelty.py` | distance from the 904-game human corpus in concept space |
 
@@ -110,6 +112,7 @@ loop and export them as things a person can play.
 | | |
 |---|---|
 | `prof/qd.py` | MAP-Elites over a four-axis archive, resumable, survives worker deaths |
+| `prof/evolve.py` | the earlier MAP-Elites loop, with PCA archive axes |
 | `prof/polish.py` | regenerate an elite's levels, deep-score it, keep it if it improved |
 | `prof/standalone.py` | one self-contained HTML file per game, playable offline |
 | `prof/explorer.py` | one offline HTML file: play any archived game, touch-first |

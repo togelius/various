@@ -1,0 +1,1 @@
+{"game": "Deadly_Cat_Maze", "bytes": 1288, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 14, "h": 11, "solved": false, "len": 24, "iters": 38308, "time": 5.0224, "timeout": true, "actions": null}], "compile_time": 0.0805816650390625, "n_entries": 2}

@@ -1,0 +1,1 @@
+{"game": "octat_test", "bytes": 1037, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 4, "h": 4, "solved": false, "len": 63, "iters": 10040, "time": 0.6212, "timeout": false, "actions": null}], "compile_time": 0.07913041114807129, "n_entries": 2}

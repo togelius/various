@@ -1,0 +1,1 @@
+{"game": "Freeform_Bal_Ru's_Curse", "bytes": 4329, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 6, "h": 6, "solved": false, "len": 16, "iters": 54007, "time": 5.0079, "timeout": true, "actions": null}], "compile_time": 0.09281134605407715, "n_entries": 5}

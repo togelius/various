@@ -1,0 +1,1 @@
+{"game": "leftrightnpcs", "bytes": 971, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 6, "h": 7, "solved": false, "len": 12, "iters": 888, "time": 0.052, "timeout": false, "actions": null}], "compile_time": 0.08527994155883789, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "Turing_Machine", "bytes": 1190, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 11, "h": 9, "solved": false, "len": 10, "iters": 57505, "time": 5.059, "timeout": true, "actions": null}], "compile_time": 0.07616686820983887, "n_entries": 1}

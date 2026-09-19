@@ -1,0 +1,1 @@
+{"game": "Hill_Buddies", "bytes": 3255, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 26, "h": 20, "solved": true, "len": 18, "iters": 3246, "time": 1.7303, "timeout": false, "actions": [0, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4], "replay_won": true}], "compile_time": 0.10097455978393555, "n_entries": 2}

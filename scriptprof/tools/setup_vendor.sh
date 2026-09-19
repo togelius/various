@@ -27,7 +27,9 @@ git apply --check "$ROOT/vendor-patches/script-doctor.patch" 2>/dev/null && git 
 if [ ! -d .venv ]; then
   uv venv -q -p 3.13 .venv
 fi
-grep -v -E '^(#|$)|jax\[cuda\]|selenium|webdriver|wandb|hydra-submitit|submitit|opencv|scikit-image|javascript==' requirements.txt > /tmp/scriptprof-req.txt
-uv pip install -q -p .venv/bin/python -r /tmp/scriptprof-req.txt pybind11 setuptools
+grep -v -E '^(#|$)|jax\[cuda\]|selenium|webdriver|wandb|hydra-submitit|submitit|opencv|scikit-image' requirements.txt > /tmp/scriptprof-req.txt
+# `javascript` (JSPyBridge) is imported by backends/nodejs.py, which puzzlescript_cpp
+# pulls in transitively, so it is needed even though we never drive Node through it.
+uv pip install -q -p .venv/bin/python -r /tmp/scriptprof-req.txt pybind11 setuptools pytest
 .venv/bin/python setup_cpp.py build_ext --inplace
 echo "vendor ready: $ROOT/vendor/script-doctor"

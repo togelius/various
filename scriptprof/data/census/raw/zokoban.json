@@ -1,0 +1,1 @@
+{"game": "zokoban", "bytes": 3489, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 36, "h": 14, "solved": false, "len": 6, "iters": 7917, "time": 5.0482, "timeout": true, "actions": null}], "compile_time": 0.09294867515563965, "n_entries": 2}

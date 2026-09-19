@@ -1,0 +1,1 @@
+{"game": "Colour_Chained_Endless", "bytes": 4779, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 10, "h": 10, "solved": false, "len": 0, "iters": 4113, "time": 5.0122, "timeout": true, "actions": null}], "compile_time": 0.09435439109802246, "n_entries": 1}

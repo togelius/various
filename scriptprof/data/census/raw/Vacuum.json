@@ -1,0 +1,1 @@
+{"game": "Vacuum", "bytes": 18673, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 63, "h": 54, "solved": false, "len": 21, "iters": 936, "time": 5.0133, "timeout": true, "actions": null}], "compile_time": 0.2702634334564209, "n_entries": 11}

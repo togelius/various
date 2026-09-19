@@ -58,10 +58,14 @@ def build() -> list[dict]:
     return rows
 
 
+PCA_OUT = ROOT / "data" / "census" / "pca.json"
+
+
 def analyse(rows: list[dict]) -> None:
     X = np.array([[row[k] for k in KEYS + EXTRA] for row in rows], dtype=float)
     X = np.log1p(np.clip(X, 0, None))  # counts are heavy-tailed
-    X = (X - X.mean(0)) / (X.std(0) + 1e-9)
+    mean, std = X.mean(0), X.std(0)
+    X = (X - mean) / (std + 1e-9)
     U, S, Vt = np.linalg.svd(X, full_matrices=False)
     var = S**2 / (S**2).sum()
     print(f"{len(rows)} games x {X.shape[1]} features")
@@ -76,6 +80,19 @@ def analyse(rows: list[dict]) -> None:
     P = X @ Vt[:2].T
     grid = {(int(np.clip((p[0] + 5) / 10 * 40, 0, 39)), int(np.clip((p[1] + 5) / 10 * 40, 0, 39))) for p in P}
     print(f"PCA 2-D 40x40 archive: human games occupy {len(grid)} cells")
+    # Persist the projection so prof.evolve can place a generated game in the
+    # same archive the human corpus defines, rather than in a grid whose axes
+    # were guessed. This is what GAVEL does with Ludii concept vectors.
+    PCA_OUT.write_text(json.dumps({
+        "features": KEYS + EXTRA,
+        "mean": mean.tolist(),
+        "std": std.tolist(),
+        "components": Vt[:2].tolist(),
+        "variance_explained": var[:2].tolist(),
+        "n_games": len(rows),
+        "lo": -5.0, "hi": 5.0, "bins": 40,
+    }, indent=1))
+    print(f"wrote {PCA_OUT.relative_to(ROOT)}")
 
 
 def main() -> None:

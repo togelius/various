@@ -1,0 +1,1 @@
+{"game": "Jormungandr", "bytes": 8490, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 60, "h": 62, "solved": false, "len": 13, "iters": 1701, "time": 5.0257, "timeout": true, "actions": null}], "compile_time": 0.13444304466247559, "n_entries": 7}

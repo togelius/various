@@ -1,0 +1,1 @@
+{"game": "naughtysprite", "bytes": 834, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 7, "solved": false, "len": 18, "iters": 1190, "time": 0.0561, "timeout": false, "actions": null}], "compile_time": 0.08426761627197266, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "SNAQUIA", "bytes": 4079, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 7, "h": 9, "solved": false, "len": 12, "iters": 48740, "time": 5.0011, "timeout": true, "actions": null}], "compile_time": 0.10257506370544434, "n_entries": 2}

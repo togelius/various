@@ -1,0 +1,1 @@
+{"game": "Luxbend_II__Marbles", "bytes": 6163, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 7, "h": 7, "solved": false, "len": 11, "iters": 52257, "time": 5.058, "timeout": true, "actions": null}], "compile_time": 0.09376740455627441, "n_entries": 2}

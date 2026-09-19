@@ -1,0 +1,1 @@
+{"game": "Puzzle_Snake", "bytes": 5273, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 7, "solved": false, "len": 0, "iters": 1, "time": 0.0001, "timeout": false, "actions": null}], "compile_time": 0.09546828269958496, "n_entries": 1}

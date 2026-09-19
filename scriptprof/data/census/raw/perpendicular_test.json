@@ -1,0 +1,1 @@
+{"game": "perpendicular_test", "bytes": 926, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 7, "solved": false, "len": 26, "iters": 3906, "time": 0.1708, "timeout": false, "actions": null}], "compile_time": 0.10264825820922852, "n_entries": 1}

@@ -358,7 +358,8 @@ class LevelGen:
                 except Exception:  # noqa: BLE001
                     break
                 for _ in range(steps):
-                    eng.process_input(rng.randrange(N_ACTIONS))
+                    # settle `again` ticks, as the solvers do; see prof.engine.step
+                    E.step(eng, rng.randrange(N_ACTIONS))
                     if eng.check_win():
                         wins += 1
                         break

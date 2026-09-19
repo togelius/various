@@ -1,0 +1,1 @@
+{"game": "blocks", "bytes": 771, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 13, "h": 11, "solved": false, "len": 12, "iters": 34786, "time": 5.0052, "timeout": true, "actions": null}], "compile_time": 0.07621502876281738, "n_entries": 1}

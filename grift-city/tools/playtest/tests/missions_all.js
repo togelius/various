@@ -1,15 +1,18 @@
+const assert = require('node:assert/strict');
 const { launch } = require('../launch.js');
 (async () => {
   const b = await launch([]);
+  try {
+  const errors = [];
   const p = await b.newPage({ viewport: { width: 640, height: 360 } });
-  p.on('pageerror', e => console.log('PAGEERROR', e.message, (e.stack || '').split('\n').slice(1, 3).join(' | ')));
+  p.on('pageerror', e => errors.push(e.message));
   p.on('console', m => { if (m.type() === 'error') console.log('CONSOLE', m.text().slice(0, 400)); });
   await p.goto('file://' + require('path').resolve(__dirname, '..', '..', '..', 'index.html') + '');
   await p.waitForFunction(() => window.__ready, null, { timeout: 240000 });
   const res = await p.evaluate(() => {
     GAME.startPlay(); MISSIONS.S.dialogue = null; MISSIONS.S.progress = 1; window.__manual = true; const log = []; const S = MISSIONS.S; const sim = window.__sim; const P = PLAYER.P;
     const begin = id => { MISSIONS.cleanup(); S.current = null; S.cooldown = 0; S.progress = id; MISSIONS.start(MISSIONS.LIST[id]); const d = S.dialogue; S.dialogue = null; if (d && d.then) d.then(); S.dialogue = null; return S.current.data; };
-    const enter = c => { if (P.car) PLAYER.exitCar(); P.x = c.x - c.right[0] * 2; P.z = c.z - c.right[1] * 2; P.state = 'foot'; sim(0.1, ['KeyF']); sim(2); return PLAYER.car === c; };
+    const enter = c => { if (P.car) PLAYER.exitCar(); P.x = c.x - c.right[0] * 2; P.z = c.z - c.right[1] * 2; P.state = 'foot'; sim(0.1, ['KeyF']); for (let i = 0; i < 24 && PLAYER.car !== c; i++) sim(0.5); return PLAYER.car === c; };
     const carTo = (c, x, z) => { c.x = x; c.z = z; c.vx = c.vz = 0; };
     const note = (m, s, extra = {}) => log.push({ m, s, obj: MISSIONS.objective, cur: S.current && S.current.name, prog: S.progress, money: PLAYER.money, ...extra });
     try {
@@ -47,7 +50,14 @@ const { launch } = require('../launch.js');
       if (S.side && S.side.fare) { const f = S.side.fare; carTo(taxi, f.x + 3, f.z); sim(2); note('taxi', 'pickup', { phase: S.side.phase, inCar: !!f.inCar }); carTo(taxi, S.side.dest.x + 3, S.side.dest.z); sim(2); note('taxi', 'dropoff', { fares: S.side && S.side.fares, earned: S.side && S.side.earned }); }
       sim(0.1, ['KeyT']); sim(0.5); note('taxi', 'ended', { side: !!S.side });
       // vigilante
-      PLAYER.exitCar(); const cop = VEH.spawn('police', P.x + 4, P.z, Math.PI / 2, { mode: 'parked' }); enter(cop); sim(0.1, ['KeyT']); sim(1); note('vig', 'started', { side: S.side && S.side.kind, target: !!(S.side && S.side.target), inCop: PLAYER.car === cop, st: P.state, near: W.cars.filter(c => !c.removed && M.dist(c.x, c.z, P.x, P.z) < 8).map(c => c.type).join('+') }); if (S.side && S.side.target) { S.side.target.explode(); sim(1); note('vig', 'kill', { level: S.side && S.side.level }); } sim(0.1, ['KeyT']); sim(0.5);
+      PLAYER.exitCar(); const cop = VEH.spawn('police', P.x + 4, P.z, Math.PI / 2, { mode: 'parked' }); const inCop0 = enter(cop); sim(0.1, ['KeyT']); sim(1); note('vig', 'started', { side: S.side && S.side.kind, target: !!(S.side && S.side.target), inCop: PLAYER.car === cop, inCop0, st: P.state, near: W.cars.filter(c => !c.removed && M.dist(c.x, c.z, P.x, P.z) < 8).map(c => c.type).join('+') }); if (S.side && S.side.target) { S.side.target.explode(); sim(1); note('vig', 'kill', { level: S.side && S.side.level }); }
+      // A suspect that cannot be placed must not leave the wrecked one as the target: that paid out and gained a
+      // level on every frame. Force every candidate to land too close to qualify, which is how placement really fails.
+      if (S.side) { const lp = CITY.lanePoint; CITY.lanePoint = () => [P.x + 1, P.z + 1];
+        const l0 = S.side.level, m0 = PLAYER.money; if (S.side.target) S.side.target.explode(); sim(3);
+        note('vig', 'unplaceable', { levelGain: (S.side ? S.side.level : l0) - l0, moneyGain: PLAYER.money - m0 });
+        CITY.lanePoint = lp; }
+      sim(0.1, ['KeyT']); sim(0.5);
       // spray
       POLICE.setStars(2); cop.health = 300; const sp = CITY.place('spray'); carTo(cop, sp.x, sp.z); sim(2); note('spray', 'done', { wanted: PLAYER.wanted, health: cop.health, money: PLAYER.money });
       // save
@@ -56,5 +66,20 @@ const { launch } = require('../launch.js');
     return log;
   });
   for (const s of res) console.log(JSON.stringify(s));
-  await b.close();
-})();
+  assert.deepEqual(errors, [], 'no browser exceptions');
+  assert.ok(!res.some(r => r.error), JSON.stringify(res.find(r => r.error)));
+  for (const [m, stage] of [[2, 'delivered'], [3, 'back at marla'], [4, 'delivered bus'], [5, 'finished'], [6, 'cleared'], [7, 'at safehouse'], [8, 'ending']]) {
+    const r = res.find(r => r.m === m && r.s === stage);
+    assert.ok(r && r.cur === null && r.prog === m + 1, `mission ${m} must complete: ${JSON.stringify(r)}`);
+  }
+  const retried = res.find(r => r.s === 'retried');
+  assert.ok(retried && retried.cur === 'SPECIAL DELIVERY' && retried.nearMarla, 'retry restarts the mission');
+  assert.equal(res.find(r => r.m === 'taxi' && r.s === 'dropoff').fares, 1, 'taxi fare completes');
+  assert.equal(res.find(r => r.m === 'vig' && r.s === 'kill').level, 2, 'vigilante advances');
+  const unp = res.find(r => r.m === 'vig' && r.s === 'unplaceable');
+  assert.ok(unp && unp.levelGain <= 1 && unp.moneyGain <= 800, `an unplaceable suspect pays out once at most: ${JSON.stringify(unp)}`);
+  assert.equal(res.find(r => r.m === 'spray').wanted, 0, 'spray clears wanted level');
+  assert.equal(res.find(r => r.m === 'save').has, true, 'save exists');
+  console.log('Mission assertions passed');
+  } finally { await b.close(); }
+})().catch(e => { console.error(e); process.exitCode = 1; });

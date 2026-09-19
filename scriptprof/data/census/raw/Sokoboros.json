@@ -1,0 +1,1 @@
+{"game": "Sokoboros", "bytes": 29223, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 52, "h": 52, "solved": false, "len": 93, "iters": 1405, "time": 5.0165, "timeout": true, "actions": null}], "compile_time": 0.20043110847473145, "n_entries": 3}

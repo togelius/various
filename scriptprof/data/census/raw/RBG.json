@@ -1,0 +1,1 @@
+{"game": "RBG", "bytes": 3946, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 10, "h": 7, "solved": true, "len": 22, "iters": 930, "time": 0.0712, "timeout": false, "actions": [2, 2, 2, 3, 3, 3, 0, 0, 1, 1, 1, 1, 2, 2, 1, 1, 0, 0, 3, 3, 3, 3], "replay_won": true}], "compile_time": 0.11417603492736816, "n_entries": 1}

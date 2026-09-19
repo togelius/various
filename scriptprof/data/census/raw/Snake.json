@@ -1,0 +1,1 @@
+{"game": "Snake", "bytes": 5033, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 11, "h": 10, "solved": false, "len": 14, "iters": 45971, "time": 5.0255, "timeout": true, "actions": null}], "compile_time": 0.10595512390136719, "n_entries": 1}

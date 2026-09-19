@@ -13,15 +13,38 @@ RAW = ROOT / "data" / "census" / "raw"
 OUT = ROOT / "data" / "census" / "REPORT.md"
 
 
+GAMES_DIR = ROOT / "vendor" / "script-doctor" / "data" / "scraped_games"
+
+
 def main() -> None:
     recs = [json.loads(p.read_text()) for p in sorted(RAW.glob("*.json"))]
     n = len(recs)
+    corpus = len(list(GAMES_DIR.glob("*.txt"))) if GAMES_DIR.exists() else n
     compiled = [r for r in recs if r["compiled"]]
     hangs = [r for r in recs if (r.get("error") or "").startswith("hang")]
     cerr = [r for r in recs if not r["compiled"] and r not in hangs]
     levels = [l for r in compiled for l in r["levels"] if "error" not in l]
     solved = [l for l in levels if l["solved"]]
     timeouts = [l for l in levels if l.get("timeout")]
+    replayed = [l for l in solved if "replay_won" in l]
+    # A level whose win conditions hold before any move: the search returns a
+    # zero-move win and there is no action list to replay. Worth counting,
+    # because such a level is degenerate as a puzzle however the engine scores
+    # it, and prof.fitness treats it as unsolved for exactly that reason.
+    zero_move = [l for l in solved if l.get("len") == 0]
+    # A solution to a game with `random` rules is not expected to replay: the
+    # search and the replay draw from different RNG states, the limitation
+    # PuzzleJAX names for its own JavaScript-to-JAX validation. Only a
+    # deterministic game that fails to replay indicates a real disagreement.
+    replay_bad_rand = [l for r in compiled if r.get("random")
+                       for l in r["levels"]
+                       if isinstance(l, dict) and l.get("replay_won") is False]
+    replay_bad = [l for r in compiled if not r.get("random")
+                  for l in r["levels"]
+                  if isinstance(l, dict) and l.get("replay_won") is False]
+    replay_bad_games = sorted({r["game"] for r in compiled if not r.get("random")
+                               and any(isinstance(l, dict) and l.get("replay_won") is False
+                                       for l in r["levels"])})
     full = [r for r in compiled if r["levels"] and all(l.get("solved") for l in r["levels"] if "error" not in l)]
     partial = [r for r in compiled if r["levels"] and any(l.get("solved") for l in r["levels"]) and r not in full]
     none_ = [r for r in compiled if r["levels"] and not any(l.get("solved") for l in r["levels"])]
@@ -36,22 +59,39 @@ def main() -> None:
         "",
         "Every scraped game compiled with the original PuzzleScript engine, every",
         "playable level searched with breadth-first search in the C++ engine",
-        "(budget per level: 100k expansions or 5 s; per game: 600 s wall clock).",
+        "(budget per level: 100k expansions or 5 s; per game: 300 s wall clock).",
+        "",
+        "Every solution found is then replayed from a fresh level and checked to",
+        "reach a win, the way PuzzleJAX validates its JAX engine against NodeJS.",
+        "A mismatch means the search and the engine disagree about the game.",
         "",
         "| | count |",
         "|---|---|",
-        f"| games | {n} |",
+        f"| games censused | {n}{'' if n >= corpus else f' of {corpus} (run incomplete)'} |",
         f"| compiled | {len(compiled)} |",
         f"| compile errors | {len(cerr)} |",
         f"| engine hangs (wall-clock cap) | {len(hangs)} |",
         f"| games flagged as using randomness | {len(rnd)} |",
         f"| playable levels | {len(levels)} |",
         f"| levels solved | {len(solved)} |",
+        f"| of those, won before any move (degenerate) | {len(zero_move)} |",
         f"| levels hitting the time budget | {len(timeouts)} |",
+        f"| solutions replayed for validation | {len(replayed)} |",
+        f"| replay mismatches, games using randomness (expected) | {len(replay_bad_rand)} |",
+        f"| replay mismatches, deterministic games (real) | {len(replay_bad)} |",
         f"| games with every level solved | {len(full)} |",
         f"| games with some levels solved | {len(partial)} |",
         f"| games with no level solved | {len(none_)} |",
         "",
+    ]
+    if replay_bad_games:
+        lines += [
+            "## Deterministic games whose solutions do not replay",
+            "",
+            "These are real disagreements between the search and the engine.",
+            "",
+        ] + [f"- {g}" for g in replay_bad_games] + [""]
+    lines += [
         "## Solution lengths (solved levels)",
         "",
         "| moves | levels |",

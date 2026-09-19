@@ -1,7 +1,7 @@
 # GRIFT CITY
 
 *a 3D open-world crime game in the browser* — one folder of plain JavaScript
-and WebGL2, no build step, no dependencies, no assets.
+and WebGL2, no build step or runtime dependencies; art assets are embedded.
 
 Open `grift-city/index.html` in a desktop browser and click. There is also a
 single-file build in `dist/grift-city.html` if you would rather host or hand
@@ -32,12 +32,12 @@ rampages, twenty hidden packages, six unique stunt jumps, gun shops, a Pay
 'n' Spray, and a safehouse with a bed that saves the game and a kerb that
 keeps whatever you parked there.
 
-Everything is generated at runtime. The city is laid out from a seed; every
-building facade, road, sidewalk and billboard is painted onto a canvas and
-uploaded as a texture; every car, pedestrian, lamppost and helicopter is
-built from boxes and cylinders; every sound, including the three radio
-stations, is synthesised. There is no model file, image or audio file in
-this directory.
+The city layout and most geometry are generated at runtime. Building facades,
+roads, sidewalks and billboards combine canvas-painted details with embedded
+photographic materials; selected vehicles, vegetation and props use embedded
+Kenney models. Every sound, including the radio stations, is synthesised.
+The game needs no asset downloads to run. See **Imported art** below for sources
+and regeneration tools.
 
 ## Playing
 
@@ -237,6 +237,211 @@ count as reached once they are behind the car, which is what used to send
 a car in laps round an intersection when the corner was tighter than its
 steering lock.
 
+## Visual direction
+
+The first style pass uses warm sunlight, neutral-blue shade and a hazy coastal
+sky, with restrained saturation and bloom. Photographic texture contrast and
+normal-map strength are reduced to fit the simpler geometry. Vehicle paint
+uses a quieter palette and softer highlights. Shallow stone surrounds give
+shop bays real edges and contact shadows; emissive windows retain their painted
+detail at night instead of turning into white rectangles.
+
+A second geometry pass separates jacket and shirt silhouettes, fills out sleeves
+and trouser thighs, and adds lapels, pockets and a shoulder yoke. Hair wraps the
+back of the head and beards face forward; both use the ellipsoid builder's
+actual azimuth convention. The existing animation pivots and vehicle seating
+heights are retained. `node test/character-geometry.js` checks hair orientation
+and the generated high/low-detail meshes.
+
+Facades now have three stable architectural treatments: masonry piers and
+corner stones, layered/dentilled cornices, and office fins or broad horizontal
+bands. Floor ledges vary in spacing. These details derive from lot coordinates
+without consuming city random numbers, preserving generated lot locations.
+
+The HUD uses a compact radar, warm-white cash without leading zeroes, and
+wanted stars only during pursuit. Full movement hints remain during the first
+thirty seconds and contextual driving/aiming hints remain available; nearby
+cars show the entry key, and F1 always opens the controls sheet.
+
+## The look
+
+The city is drawn as much as rendered. An ink pass in the composite reads the depth buffer
+and draws a thin dark line wherever depth takes a step or changes slope between neighbouring
+pixels — a silhouette or a crease — fainter with distance and gone by 240 m. It is a second
+difference, so a flat surface at any angle draws nothing, and it is applied after tone
+mapping so a line is a line at any exposure. `E` in the pause menu turns it off, and
+`?edges=0` on the URL does the same for a side-by-side.
+
+Colour keeps to a rule. Each district picks its wall tints from a short muted list — cool
+greys downtown, warm brick browns midtown, dark reds up north, creams in the suburbs, ochres
+east, weathered greys and teals by the water — so accents come from signs, cars and neon
+rather than from the walls. Shop signs lost a third of their saturation, car paint a third of
+its, the district grades no longer push saturation up, and the grass is a greyer green.
+
+Behind every window pane there is a room. The fragment shader treats each pane of a facade tile
+as the opening of a virtual box one pane wide, one storey tall and three metres deep, and
+intersects the view ray with it in the wall's tangent frame: you see a back wall, a side wall, a
+floor or a ceiling depending on where you stand, with a colour hashed from the room's position, a
+cupboard on some back walls, and a brighter interior behind the panes the emissive mask marks as
+lit. No geometry is added; the pane's albedo becomes what is behind it and the glass reflection
+sits on top. Each windowed tile records its pane grid at build time so the rooms line up with the
+painted panes. `?rooms=0` turns it off.
+
+The skyline has a shape. Building heights climb toward the centre of downtown, and a few lots
+there carry landmark towers of fifty floors or more with two stepped tiers, a spire and a beacon,
+so the city has a silhouette you can navigate by.
+
+Two things fake depth for free: the window painter puts every pane back in the wall, with
+its head and one jamb in shadow and a lit sill below, and the static shader darkens the foot
+of every wall over the first two and a half metres, the grime any street has. Residential buildings gained a plinth at the base, and tall buildings carry a water tank more
+often.
+
+## Night, and the hours either side of it
+
+A lit shop window is what a real street is lit by, so each open front throws a warm wedge across the
+pavement that fades out at its edge and carries a short-range light, and the fronts are recorded
+during generation from a hash of their position so the seeded layout is untouched. Shops keep hours:
+most go dark after eleven and a handful stay lit all night. Those hours drive the spill on the pavement
+and the short-range light; the lit windows themselves are one mask over the whole city, which dims
+through the small hours and comes back before dawn, because the static mesh carries a single emissive
+term rather than one per building.
+
+Closing time nearly did nothing on the streets where it should show most. Only thirteen fronts are lit
+at once, for cost, and where more than that are in range -- the busiest block has twenty-four within the
+glow radius and twenty-one open of an evening -- every shop that closed was simply replaced by one
+further along, so the count stayed pinned at thirteen from eight in the evening until well past
+midnight. The limit now scales with the hour, so that block goes from thirteen lit fronts to nine at
+half ten and four at two, and its pavement drops thirteen per cent in brightness across the night
+instead of holding steady.
+
+The street lamps used to throw a cone of constant brightness, which put a hard-edged slab of light
+across half the screen when you stood near one. The shaft now fades to nothing at the ground rim and
+fades out as you walk up to it, and the pool underneath is strong enough to actually light the
+pavement.
+
+Measuring the same street through the day showed the best light in the game was a spike a few seconds
+wide: colour saturation ran 0.13 at noon, reached 0.31 at six in the evening, and was full night by
+twenty past. The brightness curve was right, so only the warm horizon term was widened; midday and the
+afternoon are exactly as bright as before, and the golden hour now covers the evening rather than a
+moment of it.
+
+Under the water the picture turns green-blue and loses most of its colour, the edges close in, the fog
+goes dense and uniform, and the sky is not drawn at all: the buffer is cleared to the colour of the
+water, which is what the fog fades into, so the whole frame is one body of water. The sea is a
+single-sided plane, and without this you looked out at the skyline from the sea bed.
+
+Grass is laid as a grid whose colour varies smoothly across it, some of it greener and some dried out.
+The tint is a two-octave value noise of the world position sampled at each corner, so neighbouring
+cells agree along their shared edge; a park reads as ground rather than as one flat sheet of green, and
+laying it per cell with a single colour each reads as a checkerboard, which is why the corners are
+sampled rather than the cells.
+
+Rain leaves the streets wet, and they stay wet. The rain itself fades over about twelve seconds, and
+the wetness used to drain away faster than that, so it was pinned to the rainfall and the city was
+bone-dry the instant the sky cleared: the separate wetness value never did anything. It now dries over
+roughly eighty seconds, which buys a minute of shining streets under a clearing sky.
+
+That exposed a second problem. The wet surface shading had only ever been seen under a rainstorm's
+flat grey sky, and in clear daylight it drove the roughness almost to a mirror: the road turned pale,
+the asphalt grain went flat and the lane markings dissolved into it. Wet asphalt is a rough mirror,
+not glass, so it is now taken to a roughness of 0.26 rather than 0.1. The road keeps its grain and its
+markings, and still reads darker and cooler than a dry one, which is what rain actually does to it.
+
+A light on a wet street reflects in it, and that reflection is a streak running back toward whoever is
+looking. Each lamp and lit shopfront lays one down the ground toward the camera, fading along its
+length and to nothing at its sides. Getting the shape right took three attempts: a single quad of even
+brightness reads as a searchlight cast on the ground rather than as anything reflected in it, and
+narrowing and dimming it does not help, because the tell is the hard edge, not the width. It is built
+instead from a narrow core with flanking strips that fade out sideways, in four segments along its
+length so the falloff is a curve. Held against a frame with the streaks switched off, it moves under
+one per cent of the pixels.
+
+The markers on the ground — the safehouse, the gun shops, the spray shops — were being built every frame
+for every one of them in the city, sixty quads each, whether or not any were within sight. They are now
+cut off at seventy-eight metres, which is where the minimap blip takes over as the thing guiding you;
+over a sample, ninety-three per cent of the markers asked for were never drawn, and the flat effects
+buffer went from a peak of 11,370 vertices on a rainy night street to 7,050. A marker also stops getting
+brighter as you walk into it, though it never disappears, so you can still tell you are standing in one.
+
+That buffer had a cliff in it. On overflow it emptied the whole additive list, which puts out every lamp,
+shopfront and tracer in the frame at once; and if the alpha-blended list alone exceeded the buffer, the
+copy into it threw outright. It now keeps whatever fits and drops the rest a triangle at a time, and the
+renderer sizes its own buffer from the one the game fills, so the capacity is set in a single place.
+
+The vigilante job had a hole in it. Wrecking a suspect pays you, raises the level and calls for another one,
+but placing one needs a lane between 120 and 260 metres away and gives up after twenty tries. When it gave
+up, the wrecked car stayed as the target, so the next frame saw a wrecked target and paid out again — and
+again, every frame. Forced to fail, three seconds of it gained 181 levels and $6,588,400. The target is now
+cleared before a new one is sought and checked before it is used, so placement simply retries; the same
+three seconds now gain one level and one payout. The mission suite forces the failure and asserts it.
+
+Shop names never repeated — each of the sixteen kinds hands out its names once and the tiles are baked with
+no name used twice — but the tiles themselves did, and a tile carries two shops, so a wall could read QUICK
+STOP, CHECKS CASHED, QUICK STOP. The obvious fix, drawing tiles without replacement, changes how many random
+numbers generation spends and so shifts every building, prop and parking space after it. So the draw is left
+exactly as it was, and still decides the sidewalk trade outside, while what is actually painted may differ
+from what was drawn: a tile already used in the last four along that wall is swapped for one that was not,
+chosen from a hash of its position, which costs no random numbers at all. The test is by distance rather
+than by wall: keeping a window along each wall line still left pairs facing each other across a corner or a
+jog in the frontage, and a repeat reads just as plainly there. Anything already painted within 26 metres on
+a wall facing the same way is simply out. Of 2,068 pairs of fronts that close on the same facing, none now
+share a tile, against 118 repeats within four before; the whole scan costs 2.9 ms once at generation, and
+the city's signature — 572 lots, every prop and parking spot, every named place — is unchanged to the digit.
+
+The clock under the district name was dim grey with a drop shadow, which vanishes against a bright sky. It
+and the district name are now drawn with a contour all the way round, so they read over sky, sea or a white
+wall.
+
+## What it costs
+
+The simulation step costs 1.08 ms with seventy-one cars and a hundred and forty people, where it cost
+3.56 ms. Most of that was garbage: collision circles were an array of arrays built for every pair
+tested, the vehicle basis vectors came from getters that allocated on every read in physics, steering
+and collision, and several hundred street lamps were allocated as fresh light records every frame and
+then sorted with a comparator to pick the nearest thirty-two. The circles are written into a reusable
+flat buffer, the basis vectors are locals, the lamps come from a pool, and the nearest thirty-two are
+found by bounded insertion. Sampled profiling puts the garbage collector at under one per cent of the
+loop afterwards.
+
+Two thirds of the cars in a busy scene are more than ninety-five metres from the camera. Those update
+every third frame with three times the step, all on the same frame as each other so they still see one
+another consistently; anything the player drives, is chased by, or that is wrecked or airborne runs
+every frame, and people beyond sixty metres do the same except police, ragdolls and anyone a mission
+cares about. Two minutes of simulation with two thirds of the traffic on the reduced rate leaves no car
+inside a building, none stuck and none overlapping another.
+
+Each shadow cascade culls entities to its own box: a car eighty metres away cannot cast into the tight
+near cascade, and drawing it there cost a draw call and a skinned mesh for nothing. A street view costs
+207 draw calls and 661k triangles a frame, against 248 and 728k.
+
+Of that frame, the two shadow cascades packed into one 4096x2048 atlas take 82 draws and 306k triangles,
+and the camera's own pass takes 125 and 355k. Both the chunked city mesh and the entities are culled
+against each cascade's own frustum rather than the camera's, so what the shadow pass draws is close to
+what it needs; the remaining weight is the city itself, not objects that could be dropped.
+
+The lighting pass was the last place making garbage. Every lamp shaft, ground pool, shopfront wedge, wet
+streak and marker built its four corner points as fresh arrays, and a night street draws about a thousand
+of those quads a frame — four thousand short-lived arrays, sixty times a second. Because the quad is copied
+straight into the vertex buffer as it is passed, one set of scratch corners can be refilled and reused, and
+the two warm colours are now constants rather than rebuilt per quad. The rendered frame is unchanged: held
+against the previous build it differs by 61 pixels, where two runs of the same build differ by 8,317, since
+the rain is random.
+
+The game lowers its own render quality when frames get slow, and used to allow only two restores for the
+whole session. That made a few transient stalls permanent: five well-spaced hitches on a machine running
+at a hundred frames a second left it at the second-lowest setting, shadows off, with no way back. What
+stops it flipping between two settings is now a count of the restores that did not hold — a restore undone
+within half a minute was the wrong call, and two of those settle it — rather than a limit on restores as
+such. The same five hitches now end at full quality, a machine that genuinely cannot hold the setting
+still stops after two attempts, and the decision is a pure function the persistence suite drives directly
+with frame-time histories.
+
+The last of the array-of-arrays collision circles went with them. The hot car-to-car pass had already been
+moved onto a flat buffer, but a person walking past traffic and the player brushing a parked car still
+built three small arrays per car per frame, which at a hundred and forty people is most of a thousand a
+second. Both now read the same flat buffer, and the step went from 1.15 ms to 1.08. The ray cast and the
+water push still use the array form, which they call rarely.
+
 ## Light and colour
 
 The renderer lights in linear space. Textures and palette colours are authored in sRGB, so they are
@@ -275,9 +480,7 @@ Kenney models converted to flat-shaded vertex-coloured triangles by
 `tools/assets/import-glb.py` (sources and licence in
 `tools/assets/SOURCES.md`): a pickup (the RANCHER) and a motorcycle (the
 HORNET) that join the traffic in the suburbs, the east side and the docks,
-with their wheels on the game's wheel bones so they steer and spin; five
-small houses and a garage that replace some procedural buildings on
-suburban lots, scaled to the lot and turned to face the street; a fountain
+with their wheels on the game's wheel bones so they steer and spin; a fountain
 on its plaza in every park; and clusters of trees among the park's own.
 The trees, bushes, grass tufts and mounds come from the Nature Kit; the
 garbage truck, ambulance and fire engine from the Car Kit; a pickup and a
@@ -296,8 +499,33 @@ roughness map tiled to the metre scale each texture layer covers. Tiling a
 normal map down averages opposing slopes away, so the baker measures what
 survives and amplifies it back. The painters draw their own detail — windows,
 road markings, shop signs, slab joints — on top, recoloured toward the palette
-by a luminance-preserving blend so the mortar and grain of the photograph
-survive the recolour.
+with restrained photographic contrast so the mortar and grain survive without
+overpowering the building shapes.
+
+## Saving and regression checks
+
+Mission completion and the safehouse bed save to browser local storage. Bed
+saves restore the room and the time after sleeping. Collected package IDs,
+package weapon rewards, and modifications on the car parked at the safehouse
+survive reloads. Saves belong to the browser profile and page origin.
+
+Older saves remain readable. Old bed saves without a room identifier resume
+outside the safehouse. Package IDs and car upgrades that an older version
+never wrote cannot be recovered; the saved package total is retained (capped
+at twenty), and its weapon rewards are restored.
+
+Vehicle geometry checks need only Node: `node test/vehicle-geometry.js` checks
+window attachment, outward wheel faces, and body/glass damage seams. For visual
+inspection, `node tools/playtest/tests/vehicles.js` renders front, rear and
+damaged views of six vehicle types into `tools/playtest/pt/vehicles/`; add
+`--dist` to inspect the single-file build. These screenshots are for inspection,
+not pixel-baseline assertions.
+
+Run `node tools/playtest/tests/persistence.js` to check purchases and repeated
+save/load cycles; add `--dist` to test the single-file release. Like the other
+browser harnesses, it needs Playwright and Chromium or Chrome. Failures return
+a nonzero exit status. The mission and soak harnesses also assert their results;
+the mission harness uses teleportation and is not a normal-control playthrough.
 
 ## The police
 

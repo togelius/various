@@ -1,0 +1,1 @@
+{"game": "dot_puzzle_test", "bytes": 904, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 10, "h": 5, "solved": false, "len": 23, "iters": 100000, "time": 4.5588, "timeout": false, "actions": null}], "compile_time": 0.07990455627441406, "n_entries": 1}

@@ -302,7 +302,7 @@ const TEXDATA = {"layers":{"asphalt":["Asphalt025A",0.25],"road":["Asphalt022",0
 'use strict';
 const TEX = (() => {
   const S = 512, NS = 320; // colour maps are painted at 512; normal and roughness at 320, which is plenty for them
-  const layers = [], normals = []; const names = {}; let shopKinds = [];
+  const layers = [], normals = [], panes = []; const names = {}; let shopKinds = [];
   const photos = {}; let curLayer = null; // decoded photographic materials (js/texdata.js), and the layer being painted
   // Decode every baked material. Called before build(); without it the painters fall back to their drawn colours.
   function preload(onProgress) {
@@ -315,7 +315,7 @@ const TEX = (() => {
     }))).then(() => Object.keys(photos).length);
   }
   // The photographic base of the layer being painted: the material's colour map, blended toward the palette colour the
-  // painter asks for (a 'color' blend keeps the photo's luminance, so mortar and grain survive the recolour). The normal
+  // painter asks for (a restrained luminance blend keeps mortar and grain without overpowering the shapes). The normal
   // and roughness maps go to the parallel canvases at the same time. Returns false when the material is missing.
   function base(g, col, opts = {}) {
     const spec = typeof TEXDATA !== 'undefined' && curLayer && TEXDATA.layers[curLayer]; const im = spec && photos[spec[0]];
@@ -323,13 +323,13 @@ const TEX = (() => {
     g.drawImage(im.c, 0, 0, S, S);
     const amt = opts.amt !== undefined ? opts.amt : spec[1];
     if (col && amt > 0) {
-      // Recolour toward the palette colour while keeping the photo's own luminance, so mortar, grain and stains
-      // survive. This is a 'color' blend done by hand: the canvas blend mode is correct but far too slow here.
+      // Recolour toward the palette, compressing photographic contrast toward its luminance.
+      // Surface grain survives, but no longer competes as strongly with silhouettes and signage.
       const t = parseHex(col); const tl = 0.299 * t[0] + 0.587 * t[1] + 0.114 * t[2] || 1;
       const kr = t[0] / tl, kg = t[1] / tl, kb = t[2] / tl, inv = 1 - amt;
       const id = g.getImageData(0, 0, S, S), d = id.data;
       for (let i = 0; i < d.length; i += 4) {
-        const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        const l = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) * 0.65 + tl * 0.35;
         d[i] = inv * d[i] + amt * l * kr; d[i + 1] = inv * d[i + 1] + amt * l * kg; d[i + 2] = inv * d[i + 2] + amt * l * kb;
       }
       g.putImageData(id, 0, 0);
@@ -367,7 +367,7 @@ const TEX = (() => {
     g._n = ng; g._r = rg; g._touched = false; curLayer = name;
     painter(g, M.rng(layers.length * 7919 + 13));
     curLayer = null;
-    names[name] = layers.length; layers.push(g._out || finish(g, g._lit)); normals.push(packMaps(ng, rg, g._touched));
+    names[name] = layers.length; layers.push(g._out || finish(g, g._lit)); normals.push(packMaps(ng, rg, g._touched)); panes.push(g._panes || null);
   }
   // Bake the emissive rectangles into alpha and hand back raw ImageData.
   function finish(g, rects, base = 0) {
@@ -402,11 +402,13 @@ const TEX = (() => {
   }
   // A wall of windows: cols x rows panes with wall texture painted by `wall(g, r)` first.
   function windows(g, r, o) {
-    o.wall(g, r);
+    o.wall(g, r); g._panes = [o.cols, o.rows, o.wPad, o.hPad];
     const cw = S / o.cols, ch = S / o.rows;
     for (let j = 0; j < o.rows; j++) {
       if (o.band) { g.fillStyle = o.band; g.fillRect(0, j * ch, S, 6); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, j * ch + 6, S, 3); }
-      for (let i = 0; i < o.cols; i++) { const x = i * cw + cw * o.wPad, y = j * ch + ch * o.hPad, w = cw * (1 - 2 * o.wPad), h = ch * (1 - 2 * o.hPad); pane(g, r, x, y, w, h, o); }
+      for (let i = 0; i < o.cols; i++) { const x = i * cw + cw * o.wPad, y = j * ch + ch * o.hPad, w = cw * (1 - 2 * o.wPad), h = ch * (1 - 2 * o.hPad); pane(g, r, x, y, w, h, o);
+        // the reveal: a window sits back in the wall, so its head and one jamb are in shadow and the sill below catches the light
+        g.fillStyle = 'rgba(0,0,0,0.32)'; g.fillRect(x, y, w, Math.max(2, h * 0.11)); g.fillRect(x, y, Math.max(2, w * 0.07), h); g.fillStyle = 'rgba(255,255,255,0.16)'; g.fillRect(x - 2, y + h, w + 4, Math.max(2, h * 0.05)); g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(x - 2, y + h + Math.max(2, h * 0.05), w + 4, Math.max(2, h * 0.04)); }
     }
     if (o.pilasters) for (let i = 0; i <= o.cols; i++) { const x = i * cw - 8; g.fillStyle = 'rgba(255,255,255,0.14)'; g.fillRect(x, 0, 10, S); g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(x + 10, 0, 6, S); }
   }
@@ -454,7 +456,7 @@ const TEX = (() => {
     // ghost signs: faded painted advertising on a blank brick wall
     const GHOST = [['DRINK', 'GRIFT COLA'], ['OKAFOR & SONS', 'SHIPPING'], ['HOTEL', 'ROOMS $2'], ['MARROW', 'HARDWARE'], ['CIGARS', '5 CENTS']];
     add('ghost', (g, r) => { bricks(g, r, '#8a4a3a', 'rgba(230,220,200,0.5)'); streaks(g, r, 30, 0, S, 0, 200, 'rgba(0,0,0,0.1)'); const gs = GHOST[Math.floor(r() * GHOST.length)]; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(240,230,210,0.32)'; g.fillRect(40, 60, 432, 392); g.fillStyle = 'rgba(30,20,20,0.35)'; g.font = `bold 92px ${FONTS.heavy}`; let sz = 92; while (g.measureText(gs[0]).width > 400 && sz > 40) { sz -= 4; g.font = `bold ${sz}px ${FONTS.heavy}`; } g.fillText(gs[0], 256, 180); g.font = `bold 60px ${FONTS.serif}`; sz = 60; while (g.measureText(gs[1]).width > 400 && sz > 30) { sz -= 4; g.font = `bold ${sz}px ${FONTS.serif}`; } g.fillText(gs[1], 256, 330); g.fillStyle = 'rgba(200,40,40,0.25)'; g.fillRect(120, 400, 272, 20); grain(g, r, 20000, 0.06, 3); });
-    add('banner', (g, r) => { for (let i = 0; i < 4; i++) { const hue = Math.floor(r() * 360); g.fillStyle = `hsl(${hue},55%,40%)`; g.fillRect(i * 128, 0, 128, S); g.fillStyle = `hsl(${hue},60%,75%)`; g.fillRect(i * 128 + 20, 60, 88, 88); g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = `bold 34px ${FONTS.sans}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.save(); g.translate(i * 128 + 64, 330); g.rotate(-Math.PI / 2); g.fillText(['GRIFT CITY', 'MUSEUM', 'OPERA', 'MARKET DAYS'][i], 0, 0); g.restore(); } }); // four hanging banners for downtown flagpoles
+    add('banner', (g, r) => { for (let i = 0; i < 4; i++) { const hue = Math.floor(r() * 360); g.fillStyle = `hsl(${hue},42%,40%)`; g.fillRect(i * 128, 0, 128, S); g.fillStyle = `hsl(${hue},48%,75%)`; g.fillRect(i * 128 + 20, 60, 88, 88); g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = `bold 34px ${FONTS.sans}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.save(); g.translate(i * 128 + 64, 330); g.rotate(-Math.PI / 2); g.fillText(['GRIFT CITY', 'MUSEUM', 'OPERA', 'MARKET DAYS'][i], 0, 0); g.restore(); } }); // four hanging banners for downtown flagpoles
     add('painted', (g, r) => { windows(g, r, { cols: 4, rows: 4, wPad: 0.27, hPad: 0.24, wall: (g, r) => stucco(g, r, ['#c98a6a', '#d8c07a', '#8fb5a0', '#b58fa8'][Math.floor(r() * 4)]), frame: '#f3efe6', glassA: '#4e5d6b', glassB: '#3d4c5a', litFrac: 0.45, sill: true, sillCol: '#f3efe6' }); // shutters
       const cw = S / 4, ch = S / 4; for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { if (r() > 0.6) continue; const x = i * cw + cw * 0.27, y = j * ch + ch * 0.24, w = cw * 0.46, h = ch * 0.52; g.fillStyle = '#3d5a4a'; g.fillRect(x - 16, y, 12, h); g.fillRect(x + w + 4, y, 12, h); g.fillStyle = 'rgba(0,0,0,0.3)'; for (let k = 4; k < h; k += 6) { g.fillRect(x - 15, y + k, 10, 2); g.fillRect(x + w + 5, y + k, 10, 2); } } });
     // Shopfronts: one tile = 8 units (two shops), 4 tall. Sixteen kinds of shop, each with its own sign, window
@@ -482,12 +484,12 @@ const TEX = (() => {
     const usedNames = new Set(); const SIGN_ALT = { board: 'box', box: 'board', neon: 'board', stripes: 'board' };
     function shop(g, r, x0, kind) {
       const sp = { ...SHOPS[kind] }; if (r() < 0.3) sp.sign = SIGN_ALT[sp.sign]; const fresh = sp.names.filter(n => !usedNames.has(n)); const name = (fresh.length ? fresh : sp.names)[Math.floor(r() * (fresh.length ? fresh : sp.names).length)]; usedNames.add(name); const hue = (sp.hue + (r() - 0.5) * 40 + 360) % 360; const font = FONTS[sp.font];
-      const dark = `hsl(${hue},30%,14%)`, mid = `hsl(${hue},45%,34%)`, light = `hsl(${hue},60%,85%)`;
+      const dark = `hsl(${hue},30%,14%)`, mid = `hsl(${hue},34%,34%)`, light = `hsl(${hue},60%,85%)`;
       g.textAlign = 'center'; g.textBaseline = 'middle';
       // ---- sign band (14..90)
-      if (sp.sign === 'board') { g.fillStyle = mid; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = `hsl(${hue},45%,26%)`; g.fillRect(x0 + 6, 84, 244, 8); g.strokeStyle = light; g.lineWidth = 3; g.strokeRect(x0 + 14, 22, 228, 60); g.fillStyle = light; textFit(g, name, 216, 40, font); g.fillText(name, x0 + 128, 52); }
-      else if (sp.sign === 'box') { g.fillStyle = '#2a2a2e'; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = '#f4f2ea'; g.fillRect(x0 + 14, 22, 228, 60); g._lit.push([x0 + 14, 22, 228, 60]); g.fillStyle = `hsl(${hue},70%,38%)`; textFit(g, name, 216, 42, font); g.fillText(name, x0 + 128, 52); }
-      else if (sp.sign === 'neon') { g.fillStyle = '#15151a'; g.fillRect(x0 + 6, 14, 244, 76); const col = `hsl(${hue},95%,68%)`; g.shadowColor = col; g.shadowBlur = 18; g.fillStyle = col; textFit(g, name, 210, 44, font, 'italic bold'); g.fillText(name, x0 + 128, 52); g.shadowBlur = 0; g._lit.push([x0 + 30, 26, 196, 52]); g.strokeStyle = `hsl(${hue},80%,40%)`; g.lineWidth = 2; g.strokeRect(x0 + 12, 20, 232, 64); }
+      if (sp.sign === 'board') { g.fillStyle = mid; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = `hsl(${hue},34%,26%)`; g.fillRect(x0 + 6, 84, 244, 8); g.strokeStyle = light; g.lineWidth = 3; g.strokeRect(x0 + 14, 22, 228, 60); g.fillStyle = light; textFit(g, name, 216, 40, font); g.fillText(name, x0 + 128, 52); }
+      else if (sp.sign === 'box') { g.fillStyle = '#2a2a2e'; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = '#f4f2ea'; g.fillRect(x0 + 14, 22, 228, 60); g._lit.push([x0 + 14, 22, 228, 60]); g.fillStyle = `hsl(${hue},52%,38%)`; textFit(g, name, 216, 42, font); g.fillText(name, x0 + 128, 52); }
+      else if (sp.sign === 'neon') { g.fillStyle = '#15151a'; g.fillRect(x0 + 6, 14, 244, 76); const col = `hsl(${hue},78%,66%)`; g.shadowColor = col; g.shadowBlur = 18; g.fillStyle = col; textFit(g, name, 210, 44, font, 'italic bold'); g.fillText(name, x0 + 128, 52); g.shadowBlur = 0; g._lit.push([x0 + 30, 26, 196, 52]); g.strokeStyle = `hsl(${hue},58%,40%)`; g.lineWidth = 2; g.strokeRect(x0 + 12, 20, 232, 64); }
       else { /* stripes: an awning-style band with the name on it */ for (let k = 0; k < 12; k++) { g.fillStyle = k % 2 ? mid : '#f0ebe0'; g.fillRect(x0 + 6 + k * 20.3, 14, 20.3, 76); } g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(x0 + 20, 32, 216, 40); g.fillStyle = '#fff'; textFit(g, name, 200, 34, font); g.fillText(name, x0 + 128, 52); }
       // ---- awning (some kinds) and the frame around the window
       const awning = sp.sign !== 'stripes' && r() < 0.45; if (awning) { const ac = `hsl(${(hue + 180) % 360},50%,42%)`; g.fillStyle = ac; g.fillRect(x0 + 6, 96, 244, 34); g.fillStyle = 'rgba(255,255,255,0.18)'; for (let k = 0; k < 6; k++) g.fillRect(x0 + 6 + k * 40.6, 96, 20, 34); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x0 + 6, 128, 244, 6); }
@@ -536,7 +538,7 @@ const TEX = (() => {
         g.strokeStyle = ['#ff3b8d', '#37d4ff', '#7dff5a'][i]; g.lineWidth = 6; g.beginPath(); let gx = x0 + 30, gy = 300 + r() * 100; g.moveTo(gx, gy); for (let k = 0; k < 6; k++) { gx += 30; gy += (r() - 0.5) * 60; g.lineTo(gx, gy); } g.stroke();
         g.fillStyle = '#6a6560'; g.fillRect(x0 + 14, 486, 228, 12); } });
     add('roof', (g, r) => { if (!base(g, '#56534f')) { g.fillStyle = '#56534f'; g.fillRect(0, 0, S, S); noise(g, r, 80, 20000); grain(g, r, 20000, 0.05); } stains(g, r, 6, 'rgba(0,0,0,0.12)'); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, 0, S, 14); g.fillRect(0, 0, 14, S); for (let i = 0; i < 3; i++) { g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(r() * S, r() * S, 60 + r() * 100, 40 + r() * 60); } });
-    add('grass', (g, r) => { if (!base(g, '#4c7738')) { g.fillStyle = '#4c7738'; g.fillRect(0, 0, S, S); for (let i = 0; i < 30000; i++) { g.fillStyle = r() < 0.5 ? 'rgba(20,60,10,0.35)' : 'rgba(150,200,80,0.28)'; g.fillRect(r() * S, r() * S, 1, 2 + r() * 4); } } for (let i = 0; i < 12; i++) { g.fillStyle = 'rgba(90,70,40,0.25)'; g.beginPath(); g.ellipse(r() * S, r() * S, 10 + r() * 30, 6 + r() * 16, r() * 3, 0, 7); g.fill(); } });
+    add('grass', (g, r) => { if (!base(g, '#566e46')) { g.fillStyle = '#566e46'; g.fillRect(0, 0, S, S); for (let i = 0; i < 30000; i++) { g.fillStyle = r() < 0.5 ? 'rgba(20,60,10,0.35)' : 'rgba(150,200,80,0.28)'; g.fillRect(r() * S, r() * S, 1, 2 + r() * 4); } } for (let i = 0; i < 12; i++) { g.fillStyle = 'rgba(90,70,40,0.25)'; g.beginPath(); g.ellipse(r() * S, r() * S, 10 + r() * 30, 6 + r() * 16, r() * 3, 0, 7); g.fill(); } });
     add('parking', (g, r) => { if (!base(g, '#48484a')) { g.fillStyle = '#48484a'; g.fillRect(0, 0, S, S); noise(g, r, 60, 12000); cracks(g, r, 5); } stains(g, r, 8, 'rgba(0,0,0,0.25)'); g.fillStyle = '#d0d0c8'; for (let x = 0; x < S; x += 128) { g.fillRect(x, 0, 5, S * 0.45); g.fillRect(x, S * 0.55, 5, S * 0.45); } });
     add('water', (g, r) => { g.fillStyle = '#1e4862'; g.fillRect(0, 0, S, S); for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(170,215,240,${0.05 + r() * 0.16})`; g.fillRect(r() * S, r() * S, 16 + r() * 70, 1 + r() * 3); } for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(10,30,50,${0.1 + r() * 0.2})`; g.fillRect(r() * S, r() * S, 20 + r() * 60, 2 + r() * 3); } });
     add('metal', (g, r) => { if (!base(g, '#7c8088')) { g.fillStyle = '#7c8088'; g.fillRect(0, 0, S, S); } for (let y = 0; y < S; y += 4) { g.fillStyle = `rgba(0,0,0,${0.06 + r() * 0.12})`; g.fillRect(0, y, S, 2); } streaks(g, r, 30, 0, S, 0, 300, 'rgba(120,70,30,0.12)'); grain(g, r, 6000, 0.05); });
@@ -559,7 +561,7 @@ const TEX = (() => {
     add('manhole', (g, r) => { g.fillStyle = '#39393d'; g.fillRect(0, 0, S, S); g.fillStyle = '#2a2a2c'; g.beginPath(); g.arc(256, 256, 236, 0, 7); g.fill(); g.fillStyle = '#4a4a4e'; g.beginPath(); g.arc(256, 256, 220, 0, 7); g.fill(); g.strokeStyle = '#2a2a2c'; g.lineWidth = 10; for (let k = -4; k <= 4; k++) { g.beginPath(); g.moveTo(256 + k * 44, 60); g.lineTo(256 + k * 44, 452); g.stroke(); g.beginPath(); g.moveTo(60, 256 + k * 44); g.lineTo(452, 256 + k * 44); g.stroke(); } g.strokeStyle = '#1e1e20'; g.lineWidth = 14; g.beginPath(); g.arc(256, 256, 228, 0, 7); g.stroke(); grain(g, r, 6000, 0.08); });
     add('cone', (g, r) => { g.fillStyle = '#ff6a00'; g.fillRect(0, 0, S, S); g.fillStyle = '#fff'; g.fillRect(0, 160, S, 60); g.fillRect(0, 300, S, 60); });
     add('barrier', (g, r) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#ff6a00'; g.fillRect(i * 64, 0, 64, S); } });
-    return { color: layers, normal: normals };
+    return { color: layers, normal: normals, panes };
   }
   return { build, preload, names, S, NS, base, flatN, get layers() { return layers; }, get normals() { return normals; }, get shopKinds() { return shopKinds; } };
 })();
@@ -657,18 +659,18 @@ const MESH = (() => {
         // sidewall shoulder ring (slightly rounded look)
         for (const [x, nx] of [[x0, -1], [x1, 1]]) { const b2 = this.n; const rs = r * 0.86; this.vert(x, cy + Math.cos(a0) * rr, cz + Math.sin(a0) * rr, nx * 0.7, Math.cos(a0) * 0.7, Math.sin(a0) * 0.7, ...tyre, 0, 0, 0, bone); this.vert(x, cy + Math.cos(a1) * rr, cz + Math.sin(a1) * rr, nx * 0.7, Math.cos(a1) * 0.7, Math.sin(a1) * 0.7, ...tyre, 0, 0, 0, bone);
           this.vert(x, cy + Math.cos(a1) * rs, cz + Math.sin(a1) * rs, nx, 0, 0, ...tyre, 0, 0, 0, bone); this.vert(x, cy + Math.cos(a0) * rs, cz + Math.sin(a0) * rs, nx, 0, 0, ...tyre, 0, 0, 0, bone);
-          if (nx > 0) this.quad(b2, b2 + 3, b2 + 2, b2 + 1); else this.quad(b2, b2 + 1, b2 + 2, b2 + 3); }
+          if (nx > 0) this.quad(b2, b2 + 1, b2 + 2, b2 + 3); else this.quad(b2, b2 + 3, b2 + 2, b2 + 1); }
       }
       // rim: dark dish, five spokes, hub cap; the outer face gets the detail, the inner face a plain disc
       for (const [x, nx] of [[x0, -1], [x1, 1]]) {
         const rr = r * 0.86; const c = this.vert(x, cy, cz, nx, 0, 0, ...rimDk, 0, 0, 0, bone);
-        for (let k = 0; k < segs; k++) { const a0 = k / segs * M.TAU, a1 = (k + 1) / segs * M.TAU; const p0 = this.vert(x, cy + Math.cos(a0) * rr, cz + Math.sin(a0) * rr, nx, 0, 0, ...rimDk, 0, 0, 0, bone), p1 = this.vert(x, cy + Math.cos(a1) * rr, cz + Math.sin(a1) * rr, nx, 0, 0, ...rimDk, 0, 0, 0, bone); if (nx > 0) this.tri(c, p1, p0); else this.tri(c, p0, p1); }
+        for (let k = 0; k < segs; k++) { const a0 = k / segs * M.TAU, a1 = (k + 1) / segs * M.TAU; const p0 = this.vert(x, cy + Math.cos(a0) * rr, cz + Math.sin(a0) * rr, nx, 0, 0, ...rimDk, 0, 0, 0, bone), p1 = this.vert(x, cy + Math.cos(a1) * rr, cz + Math.sin(a1) * rr, nx, 0, 0, ...rimDk, 0, 0, 0, bone); if (nx > 0) this.tri(c, p0, p1); else this.tri(c, p1, p0); }
         const xo = x + nx * 0.012;
         for (let sp = 0; sp < 5; sp++) { const a = sp / 5 * M.TAU, hw = 0.13; const ax = Math.cos(a), az = Math.sin(a), px = -az, pz = ax; const r0 = r * 0.2, r1 = r * 0.8;
           const pts = [[xo, cy + ax * r0 + px * hw * r0, cz + az * r0 + pz * hw * r0], [xo, cy + ax * r1 + px * hw * 0.5, cz + az * r1 + pz * hw * 0.5], [xo, cy + ax * r1 - px * hw * 0.5, cz + az * r1 - pz * hw * 0.5], [xo, cy + ax * r0 - px * hw * r0, cz + az * r0 - pz * hw * r0]];
           this.polyOut(pts, rim, x - nx, cy, cz, 0, bone); }
         const hub = this.vert(xo + nx * 0.01, cy, cz, nx, 0, 0, ...rim, 0, 0, 0, bone); const hr = r * 0.24;
-        for (let k = 0; k < 10; k++) { const a0 = k / 10 * M.TAU, a1 = (k + 1) / 10 * M.TAU; const p0 = this.vert(xo + nx * 0.01, cy + Math.cos(a0) * hr, cz + Math.sin(a0) * hr, nx, 0, 0, ...rim, 0, 0, 0, bone), p1 = this.vert(xo + nx * 0.01, cy + Math.cos(a1) * hr, cz + Math.sin(a1) * hr, nx, 0, 0, ...rim, 0, 0, 0, bone); if (nx > 0) this.tri(hub, p1, p0); else this.tri(hub, p0, p1); }
+        for (let k = 0; k < 10; k++) { const a0 = k / 10 * M.TAU, a1 = (k + 1) / 10 * M.TAU; const p0 = this.vert(xo + nx * 0.01, cy + Math.cos(a0) * hr, cz + Math.sin(a0) * hr, nx, 0, 0, ...rim, 0, 0, 0, bone), p1 = this.vert(xo + nx * 0.01, cy + Math.cos(a1) * hr, cz + Math.sin(a1) * hr, nx, 0, 0, ...rim, 0, 0, 0, bone); if (nx > 0) this.tri(hub, p0, p1); else this.tri(hub, p1, p0); }
       }
       return this;
     }
@@ -809,7 +811,7 @@ const MESH = (() => {
     const half = L / 2, hw = W / 2;
     const lightBox = (x, y, z, w, h, colr, face, bone) => b.cbox(x, y, z, w, h, 0.08, colr, 0, { faces: face, bone });
     const ring = (z, y0, y1, halfW, rTop, rBot) => Builder.rrect(0, (y0 + y1) / 2, halfW, (y1 - y0) / 2, rBot, LOD ? 1 : 3, z, 'z', rTop);
-    const mirrors = (y, z) => { if (LOD) return; for (const sx of [1, -1]) { b.cbox(sx * (hw + 0.12), y, z, 0.16, 0.11, 0.2, bodyDk); b.cbox(sx * (hw + 0.04), y, z, 0.1, 0.04, 0.04, bodyDk); b.cbox(sx * (hw + 0.12), y, z - 0.101, 0.13, 0.08, 0.005, [0.75, 0.8, 0.85], 0, { faces: 32 }); } };
+    const mirrors = (y, z, mountHalfW = hw) => { if (LOD) return; for (const sx of [1, -1]) { b.cbox(sx * (mountHalfW + 0.12), y, z, 0.16, 0.11, 0.2, bodyDk); b.cbox(sx * (mountHalfW + 0.05), y, z, 0.16, 0.04, 0.04, bodyDk); b.cbox(sx * (mountHalfW + 0.12), y, z - 0.101, 0.13, 0.08, 0.005, [0.75, 0.8, 0.85], 0, { faces: 32 }); } };
     const plate = (z, face) => { if (LOD) return; b.cbox(0, floorY + 0.36, z, 0.52, 0.16, 0.02, [0.92, 0.92, 0.88], 0, { faces: face }); b.cbox(0, floorY + 0.36, z + (face === 16 ? -0.005 : 0.005), 0.56, 0.2, 0.02, dark, 0, { faces: face }); };
     const wheelArch = (ax, az) => { if (LOD) return; const sx = Math.sign(ax); const x = ax + sx * 0.006; for (let k = 0; k < 8; k++) { const a0 = k / 8 * Math.PI, a1 = (k + 1) / 8 * Math.PI; const r0 = wr + 0.05, r1 = wr + 0.11;
       b.polyOut([[x, wr + Math.sin(a0) * r0, az + Math.cos(a0) * r0], [x, wr + Math.sin(a1) * r0, az + Math.cos(a1) * r0], [x, wr + Math.sin(a1) * r1, az + Math.cos(a1) * r1], [x, wr + Math.sin(a0) * r1, az + Math.cos(a0) * r1]], bodyDk.map(c => c * 0.55), 0, wr, az); } };
@@ -817,7 +819,7 @@ const MESH = (() => {
     const bumper = (z, colr) => { const d = 0.22; b.roundedBox(-hw * 0.98, floorY + 0.02, z > 0 ? z - d / 2 : z - d / 2, W * 0.96, 0.32, d, 0.09, colr); };
     if (s.model) { assetVehicle(b, s, col); if (opts.dent > 0) dentBody(b, opts.dent * 0.5, opts.seed || 1); return { body: b, glass: gb }; }
     if (s.bike) { bikeMesh(b, s, col, LOD); if (opts.dent > 0) dentBody(b, opts.dent * 0.5, opts.seed || 1); return { body: b, glass: gb }; }
-    if (s.boat) { boatMesh(b, gb, s, col, LOD); if (opts.dent > 0) dentBody(b, opts.dent * 0.6, opts.seed || 1); return { body: b, glass: gb }; }
+    if (s.boat) { boatMesh(b, gb, s, col, LOD); if (opts.dent > 0) { dentBody(b, opts.dent * 0.6, opts.seed || 1); dentBody(gb, opts.dent * 0.6, opts.seed || 1); } return { body: b, glass: gb }; }
     if (s.bus) {
       b.roundedBox(-hw, floorY, -half, W, H - floorY, L, 0.16, body);
       // window band all round, front screen and a door
@@ -832,17 +834,23 @@ const MESH = (() => {
       b.cbox(0, H - 0.35, half + 0.02, W * 0.7, 0.35, 0.05, [0.95, 0.6, 0.1], 0, { faces: 16, bone: 7 });
       bumper(half + 0.02, dark); bumper(-half - 0.02 + 0.22, dark); mirrors(H * 0.72, half - 0.2); plate(-half - 0.012, 32);
     } else if (s.box) {
-      const cabL = L * 0.3, cabZ = half - cabL / 2;
+      const cabL = L * 0.3;
+      const cabBack = half - cabL * 0.9 - 0.1, cabFront = cabBack + cabL * 0.8;
+      const cabHalfW = hw * 0.94, cabBottom = cabinY - 0.05, cabTop = cabBottom + cabinH * 1.2;
       b.roundedBox(-hw, floorY, half - cabL, W, bodyH, cabL, 0.12, body); // lower cab
-      b.roundedBox(-hw * 0.94, cabinY - 0.05, half - cabL * 0.9 - 0.1, W * 0.94, cabinH * 1.2, cabL * 0.8, 0.14, body); // cab
-      gb.cbox(0, cabinY + cabinH * 0.7, half - cabL * 0.15, W * 0.86, cabinH * 0.6, cabL * 0.9, glass, 0, { faces: 3 | 16 });
-      b.cbox(0, cabinY + cabinH * 1.15, half - cabL * 0.15, W * 0.9, 0.12, 0.35, bodyDk); // sun visor
+      b.roundedBox(-cabHalfW, cabBottom, cabBack, cabHalfW * 2, cabTop - cabBottom, cabFront - cabBack, 0.14, body);
+      // Panes sit on the flat part of the actual cab, clear of its rounded corners.
+      // The old glass box was centred near the bumper and extended beyond the vehicle.
+      const winBottom = cabinY + cabinH * 0.4, winTop = cabTop - 0.22, gap = 0.012;
+      gb.box(-cabHalfW - gap, winBottom, cabBack + 0.2, (cabHalfW + gap) * 2, winTop - winBottom, cabFront - cabBack - 0.4, glass, 0, { faces: 3 });
+      gb.box(-cabHalfW + 0.2, winBottom, cabFront + gap, cabHalfW * 2 - 0.4, winTop - winBottom, 0, glass, 0, { faces: 16 });
+      b.cbox(0, cabTop - 0.12, cabFront + 0.06, W * 0.9, 0.12, 0.25, bodyDk); // sun visor
       b.roundedBox(-hw, floorY, -half, W, H - floorY, L - cabL - 0.3, 0.08, [0.85, 0.85, 0.82]); // cargo box
       for (let k = 1; k < 6; k++) b.cbox(0, floorY + (H - floorY) / 2, -half + k * (L - cabL - 0.3) / 6, W + 0.02, H - floorY - 0.2, 0.03, [0.72, 0.72, 0.7]); // box ribs
       b.cbox(0, floorY + (H - floorY) / 2, -half + (L - cabL - 0.3) / 2, W + 0.02, 0.06, L - cabL - 0.3, [0.6, 0.6, 0.6]);
       lightBox(W * 0.35, floorY + 0.5, half + 0.01, 0.35, 0.25, [1, 1, 0.9], 16, 5); lightBox(-W * 0.35, floorY + 0.5, half + 0.01, 0.35, 0.25, [1, 1, 0.9], 16, 5);
       lightBox(W * 0.4, floorY + 0.4, -half - 0.01, 0.3, 0.2, [1, 0.1, 0.1], 32, 6); lightBox(-W * 0.4, floorY + 0.4, -half - 0.01, 0.3, 0.2, [1, 0.1, 0.1], 32, 6);
-      grille(floorY + bodyH * 0.55, half + 0.01, W * 0.5, 0.35); bumper(half + 0.02, dark); mirrors(cabinY + cabinH * 0.5, half - 0.1); plate(half + 0.012, 16);
+      grille(floorY + bodyH * 0.55, half + 0.01, W * 0.5, 0.35); bumper(half + 0.02, dark); mirrors(cabinY + cabinH * 0.5, cabFront - 0.18, cabHalfW); plate(half + 0.012, 16);
       b.cyl(W * 0.3, floorY + bodyH * 0.6, half - cabL * 0.9, 0.07, floorY + bodyH * 0.6 + 1.3, chrome, 0, 8); // exhaust stack
       for (const sx of [1, -1]) b.cbox(sx * (hw - 0.3), floorY - 0.05, half - cabL * 0.5, 0.5, 0.06, 0.6, dark); // step
     } else if (s.armor || type === 'van') {
@@ -852,9 +860,11 @@ const MESH = (() => {
         ring(noseZ + 0.45, floorY, cabinY + 0.35, hw - 0.02, 0.16, 0.1), ring(half - 0.12, floorY, cabinY + 0.02, hw - 0.04, 0.12, 0.1), ring(half, floorY + 0.08, cabinY - 0.12, hw - 0.14, 0.1, 0.08)];
       b.loft(rs, body, 0, 0, { capStart: true, capEnd: true });
       // windscreen lies along the nose slope, side windows in the cab, rear doors seams
-      gb.polyOut([[hw * 0.9, cabinY + 0.35, noseZ + 0.46], [hw * 0.9, H - 0.08, noseZ + 0.01], [-hw * 0.9, H - 0.08, noseZ + 0.01], [-hw * 0.9, cabinY + 0.35, noseZ + 0.46]], glass, 0, cabinY, 0);
+      const screenBottom = cabinY + 0.4, screenTop = H - 0.15, screenHalfW = hw - 0.26;
+      const screenZ = y => noseZ + 0.45 * (H - 0.05 - y) / (H - 0.05 - cabinY - 0.35) + 0.012;
+      gb.polyOut([[screenHalfW, screenBottom, screenZ(screenBottom)], [screenHalfW, screenTop, screenZ(screenTop)], [-screenHalfW, screenTop, screenZ(screenTop)], [-screenHalfW, screenBottom, screenZ(screenBottom)]], glass, 0, cabinY, 0);
       gb.cbox(0, cabinY + (H - cabinY) * 0.5, noseZ - 0.7, W + 0.02, (H - cabinY) * 0.55, 1.1, glass, 0, { faces: 3 });
-      if (!s.armor) gb.cbox(0, cabinY + (H - cabinY) * 0.5, -half + 0.25, W * 0.7, (H - cabinY) * 0.5, 0.1, glass, 0, { faces: 32 });
+      if (!s.armor) gb.cbox(0, cabinY + (H - cabinY) * 0.5, -half - 0.012, W * 0.7, (H - cabinY) * 0.5, 0, glass, 0, { faces: 32 });
       for (const sx of [1, -1]) { b.cbox(sx * (hw + 0.006), (floorY + H) / 2, noseZ - 1.3, 0.01, (H - floorY) * 0.8, 0.05, dark, 0, { faces: sx > 0 ? 1 : 2 }); b.cbox(sx * (hw + 0.006), (floorY + H) / 2, -half + 0.05 + (L - 1.2) * 0.3, 0.01, (H - floorY) * 0.8, 0.05, dark, 0, { faces: sx > 0 ? 1 : 2 }); }
       b.cbox(0, (floorY + H) / 2, -half - 0.005, 0.03, (H - floorY) * 0.85, 0.02, dark, 0, { faces: 32 }); // rear door split
       lightBox(W * 0.36, cabinY - 0.05, half + 0.01, 0.4, 0.22, [1, 1, 0.92], 16, 5); lightBox(-W * 0.36, cabinY - 0.05, half + 0.01, 0.4, 0.22, [1, 1, 0.92], 16, 5);
@@ -879,7 +889,9 @@ const MESH = (() => {
       const ws = 0.55 * (s.sports ? 1.3 : 1), wsR = type === 'hatch' ? 0.25 : s.bed ? 0.1 : ws * 0.7; const roofY = cabinY + cabinH; const gw = cw / 2;
       const gr = [ring(c0 + ws, topY, topY + 0.015, gw - 0.03, 0.01, 0.01), ring(c0 + ws * 0.45, topY, topY + cabinH * 0.7, gw - 0.015, 0.1, 0.01), ring(c0, topY, roofY, gw, 0.14, 0.01), ring(c1, topY, roofY, gw, 0.14, 0.01),
         ring(c1 - wsR * 0.45, topY, topY + cabinH * (type === 'hatch' ? 0.85 : 0.72), gw - 0.015, 0.1, 0.01), ring(c1 - wsR, topY, topY + 0.015, gw - 0.03, 0.01, 0.01)];
-      b.loft(gr, roofCol, 0, 0, { pick: (n) => n[1] < -0.5 ? null : (n[1] > 0.55 ? b : gb) });
+      // Only the middle span is roof. Sloped windscreens can have upward normals too.
+      b.loft(gr, roofCol, 0, 0, { pick: (n, span) => n[1] < -0.5 ? null : (span === 2 && n[1] > 0.55 ? b : gb) });
+      for (let k = 0; k < gb.v.length; k += 13) { gb.v[k + 6] = glass[0]; gb.v[k + 7] = glass[1]; gb.v[k + 8] = glass[2]; }
       // pillars: outer strips in dark over the glass edges
       const pTop = roofY - 0.13; for (const sx of [1, -1]) { const x = sx * (gw + 0.008); b.polyOut([[x, topY, c0 + ws + 0.02], [x, pTop, c0 + ws * 0.22 + 0.02], [x, pTop, c0 + ws * 0.22 - 0.07], [x, topY, c0 + ws - 0.07]], bodyDk, 0, cabinY, c0); b.polyOut([[x, topY, c1 - wsR - 0.02], [x, pTop, c1 - wsR * 0.22 - 0.02], [x, pTop, c1 - wsR * 0.22 + 0.07], [x, topY, c1 - wsR + 0.07]], bodyDk, 0, cabinY, c1);
         if (s.seats > 2) b.cbox(x, (topY + pTop) / 2, (c0 + c1) / 2, 0.008, pTop - topY, 0.07, bodyDk); }
@@ -914,7 +926,7 @@ const MESH = (() => {
     // wheels
     const wz = half * (s.bus ? 0.7 : 0.62), wx = hw - 0.05;
     const ws_ = LOD ? 8 : 16; b.wheel(wx, wr, wz, wr, 0.3, 1, ws_); b.wheel(-wx, wr, wz, wr, 0.3, 2, ws_); b.wheel(wx, wr, -wz, wr, 0.3, 3, ws_); b.wheel(-wx, wr, -wz, wr, 0.3, 4, ws_);
-    if (opts.dent > 0) dentBody(b, opts.dent, opts.seed || 1);
+    if (opts.dent > 0) { dentBody(b, opts.dent, opts.seed || 1); dentBody(gb, opts.dent, opts.seed || 1); }
     return { body: b, glass: gb };
   }
   // Crumple: nudge body vertices (bone 0 only) by a hash of their position; the more dented, the further.
@@ -1000,7 +1012,8 @@ const MESH = (() => {
     const ball = (x, y, z, r, col, bone, segs = 6, rings = 2) => b.sphere(x, y, z, r, r, r, col, { segs: lod ? 4 : segs, rings: lod ? 1 : rings, bone });
     // legs hang from the hips (bones 4, 5): thigh, knee, shin, a shaped shoe
     for (const [sx, bone, shin] of [[0.11, 4, 7], [-0.11, 5, 8]]) {
-      b.cyl(sx, -legH * 0.5, 0, 0.078, 0.03, pants, 0, CS, bone, false, false, 0.102);
+      const trouserRing = (y, rx, rz) => Builder.rrect(sx, 0, rx, rz, Math.min(rx, rz) * 0.7, lod ? 1 : 2, y, 'y');
+      b.loft([trouserRing(-legH * 0.5, 0.082, 0.082), trouserRing(-0.25, 0.102, 0.108), trouserRing(0.03, 0.108, 0.116)], pants, 0, bone);
       ball(sx, -legH * 0.5, 0.005, 0.074, pants, bone, 7, 3);
       b.cyl(sx, -legH + 0.09, 0.015, 0.058, -legH * 0.5, pants, 0, CS, shin, false, true, 0.076);
       b.cyl(sx, -legH + 0.02, 0.012, 0.05, -legH + 0.1, skin, 0, 7, shin, false, false, 0.05); // ankle
@@ -1011,29 +1024,42 @@ const MESH = (() => {
     b.loft([rr(-0.04, 0.2, 0.125, 0.09), rr(0.1, 0.205, 0.13, 0.09), rr(0.13, 0.2, 0.125, 0.09)], pants, 0, 0, { capStart: true });
     b.loft([rr(0.09, 0.212, 0.137, 0.09), rr(0.13, 0.212, 0.137, 0.09)], [0.15, 0.1, 0.08], 0, 0, {}); b.cbox(0, 0.11, 0.135, 0.05, 0.035, 0.012, [0.75, 0.7, 0.4], 0, { bone: 0 }); // belt, buckle
     if (skirt) b.cyl(0, -0.34, 0, 0.27, 0.12, pants, 0, 12, 0, false, true, 0.2);
-    const chest = [rr(0.12, 0.2, 0.125, 0.09), rr(0.22, 0.195, 0.12, 0.09), rr(0.34, 0.205, 0.125, 0.1), rr(0.46, 0.228, 0.135, 0.11), rr(0.55, 0.25, 0.14, 0.12), rr(0.62, 0.24, 0.13, 0.12), rr(0.665, 0.17, 0.1, 0.09), rr(0.68, 0.09, 0.07, 0.06)];
-    b.loft(chest, top, 0, 0, { capEnd: true });
-    if (jacket) { // an open jacket: a shirt V with lapels, and the jacket's own hem line
-      b.polyOut([[-0.075, 0.64, 0.138], [0.075, 0.64, 0.138], [0.03, 0.2, 0.128], [-0.03, 0.2, 0.128]], shirt, 0, 0, -0.2); if (!lod) { b.polyOut([[-0.08, 0.65, 0.14], [-0.02, 0.6, 0.142], [0.0, 0.3, 0.135], [-0.045, 0.32, 0.133]], topDk, 0, 0, -0.2); b.polyOut([[0.08, 0.65, 0.14], [0.045, 0.32, 0.133], [0.0, 0.3, 0.135], [0.02, 0.6, 0.142]], topDk, 0, 0, -0.2); b.cbox(0, 0.13, 0, 0.415, 0.02, 0.26, topDk, 0, { bone: 0 }); for (const sx of [1, -1]) b.cbox(sx * 0.06, 0.62, 0.142, 0.07, 0.03, 0.004, shirt.map(c => c * 0.9), 0, { bone: 0 }); } }
-    else { b.cbox(0, torsoH * 0.95, 0.1, 0.13, 0.04, 0.06, topDk, 0, { bone: 0 }); if (!lod) for (let k = 0; k < 4; k++) b.cbox(0, 0.22 + k * 0.1, 0.136, 0.012, 0.012, 0.004, topDk, 0, { bone: 0 }); } // collar and buttons
+    // Jackets hang straight at the hip; shirts tuck into a narrower waist. Both meet the shoulder rig.
+    const chest = jacket
+      ? [rr(0.07, 0.225, 0.143, 0.10), rr(0.22, 0.218, 0.14, 0.10), rr(0.40, 0.232, 0.15, 0.11), rr(0.54, 0.27, 0.16, 0.12), rr(0.60, 0.273, 0.15, 0.12), rr(0.655, 0.18, 0.105, 0.09), rr(0.68, 0.09, 0.07, 0.06)]
+      : [rr(0.12, 0.195, 0.125, 0.09), rr(0.24, 0.185, 0.12, 0.09), rr(0.40, 0.218, 0.142, 0.11), rr(0.54, 0.255, 0.15, 0.12), rr(0.60, 0.263, 0.14, 0.12), rr(0.655, 0.17, 0.1, 0.09), rr(0.68, 0.09, 0.07, 0.06)];
+    b.loft(chest, top, 0, 0, { capStart: !!jacket, capEnd: true });
+    if (jacket) {
+      b.polyOut([[-0.10, 0.64, 0.176], [0.10, 0.64, 0.176], [0.03, 0.16, 0.176], [-0.03, 0.16, 0.176]], shirt, 0, 0, -0.2);
+      for (const side of [-1, 1]) {
+        b.polyOut([[side * 0.11, 0.655, 0.18], [side * 0.18, 0.52, 0.18], [side * 0.04, 0.28, 0.18], [side * 0.095, 0.50, 0.18]], topDk, 0, 0, -0.2);
+        if (!lod) b.cbox(side * 0.145, 0.24, 0.135, 0.09, 0.022, 0.024, topDk);
+      }
+      // A rounded hem and shoulder yoke remain visible from the gameplay camera behind the player.
+      b.loft([rr(0.075, 0.227, 0.145, 0.10), rr(0.10, 0.226, 0.145, 0.10)], topDk);
+      if (!lod) b.polyOut([[-0.20, 0.50, -0.157], [0.20, 0.50, -0.157], [0.18, 0.525, -0.16], [-0.18, 0.525, -0.16]], top.map(c => c * 0.88), 0, 0, 0);
+    } else {
+      b.loft([rr(0.646, 0.102, 0.081, 0.06), rr(0.682, 0.082, 0.072, 0.055)], topDk);
+      if (sleeves && !lod) for (let k = 0; k < 4; k++) b.cbox(0, 0.23 + k * 0.085, 0.147, 0.012, 0.012, 0.006, topDk);
+    }
     if (bag) { b.roundedBox(-0.32, torsoH * 0.15, -0.16, 0.1, 0.3, 0.22, 0.03, bag, 0, 0, { n: 1 }); b.tube([-0.27, 0.62, -0.02], [-0.27, 0.25, -0.1], 0.012, 0.012, bag.map(c => c * 0.7), 0, 0, 5); }
     b.cyl(0, torsoH - 0.03, 0, 0.056, torsoH + 0.07, skin, 0, 8, 0, false, false, 0.06); // neck
     // head (bone 1): skull, jaw, ears, eyes with irises, brows, nose, mouth (bone 11)
     b.sphere(0, headR * 1.08, -0.005, headR * 0.9, headR * 1.05, headR * 0.98, skin, { segs: SEG, rings: RNG, bone: 1 });
     b.sphere(0, headR * 0.72, 0.012, headR * 0.78, headR * 0.72, headR * 0.86, skin, { segs: SEG, rings: RNG, bone: 1 }); // jaw and cheeks
     const hairR = headR * 1.03; const style = beanie || (hat && !beanie) ? (hairStyle === 5 ? 5 : 0) : hairStyle;
-    if (style !== 5) { b.sphere(0, headR * 1.1, -0.012, hairR * 0.95, hairR * 1.1, hairR * 1.0, hair, { segs: SEG, rings: lod ? 2 : 4, lat0: style === 1 ? 0.2 : 0.3, lat1: 1, bone: 1 }); b.sphere(0, headR * 1.08, -0.012, hairR * 0.95, hairR * 1.1, hairR * 1.02, hair, { segs: 12, rings: 3, lat0: (longHair || style === 2) ? -0.55 : -0.05, lat1: 0.32, az0: Math.PI * 0.62, az1: Math.PI * 1.38, bone: 1 }); } // cap and the back of the head
+    if (style !== 5) { b.sphere(0, headR * 1.1, -0.012, hairR * 0.95, hairR * 1.1, hairR * 1.0, hair, { segs: SEG, rings: lod ? 2 : 4, lat0: style === 1 ? 0.2 : 0.3, lat1: 1, bone: 1 }); b.sphere(0, headR * 1.08, -0.012, hairR * 0.95, hairR * 1.1, hairR * 1.02, hair, { segs: 12, rings: 3, lat0: (longHair || style === 2) ? -0.55 : -0.05, lat1: 0.32, az0: Math.PI * 1.12, az1: Math.PI * 1.88, bone: 1 }); } // cap and the back of the head
     else b.sphere(0, headR * 1.1, -0.012, hairR * 0.92, hairR * 1.07, hairR * 0.97, skinDk.map(c => c * 0.9), { segs: 8, rings: 2, lat0: 0.75, lat1: 1, bone: 1 }); // bald: a little shine on top
     if (style === 1 && !lod) b.cbox(-0.03, headR * 1.62, headR * 0.86, 0.13, 0.05, 0.05, hair, 0, { bone: 1 }); // a fringe
-    if (longHair || style === 2) b.sphere(0, headR * 0.7, -0.03, hairR * 1.05, hairR * 1.4, hairR * 1.05, hair, { segs: 12, rings: 3, lat0: -0.7, lat1: -0.1, az0: Math.PI * 0.55, az1: Math.PI * 1.45, bone: 1 });
+    if (longHair || style === 2) b.sphere(0, headR * 0.7, -0.03, hairR * 1.05, hairR * 1.4, hairR * 1.05, hair, { segs: 12, rings: 3, lat0: -0.7, lat1: -0.1, az0: Math.PI * 1.05, az1: Math.PI * 1.95, bone: 1 });
     if (style === 3) { b.sphere(0, headR * 1.15, -headR * 0.95, 0.045, 0.04, 0.045, hair, { segs: 7, rings: 2, bone: 1 }); b.tube([0, headR * 1.1, -headR * 0.95], [0.02, headR * 0.3, -headR * 1.15], 0.03, 0.018, hair, 0, 1, 6); } // ponytail
     if (style === 4) b.sphere(0, headR * 1.7, -headR * 0.75, 0.055, 0.045, 0.055, hair, { segs: 8, rings: 3, bone: 1 }); // bun
     if (style === 6 && !lod) for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2; b.sphere(Math.cos(a) * headR * 0.75, headR * 1.65 + Math.sin(a * 2) * 0.01, -0.01 + Math.sin(a) * headR * 0.75, 0.05, 0.045, 0.05, hair, { segs: 6, rings: 2, bone: 1 }); } // curls
     if (style === 7) b.sphere(0, headR * 1.25, -0.02, hairR * 1.35, hairR * 1.35, hairR * 1.35, hair, { segs: SEG, rings: RNG, lat0: -0.15, lat1: 1, bone: 1 }); // afro
-    if (beard && !lod) b.sphere(0, headR * 0.66, 0.02, headR * 0.82, headR * 0.7, headR * 0.9, hair, { segs: 12, rings: 3, lat0: -1, lat1: 0.12, az0: -Math.PI * 0.42, az1: Math.PI * 0.42, bone: 1 });
-    if (!lod) { for (const sx of [0.05, -0.05]) { b.sphere(sx, headR * 1.15, headR * 0.8, 0.017, 0.013, 0.014, [0.95, 0.95, 0.94], { segs: 8, rings: 3, bone: 1 }); b.sphere(sx, headR * 1.15, headR * 0.865, 0.0085, 0.0085, 0.006, [0.12, 0.09, 0.07], { segs: 6, rings: 2, bone: 1 }); b.cbox(sx, headR * 1.215, headR * 0.83, 0.038, 0.008, 0.02, skinDk, 0, { bone: 1 }); b.cbox(sx, headR * 1.34, headR * 0.9, 0.055, 0.012, 0.015, hair.map(c => c * 0.8), 0, { bone: 1 }); } // eyes, irises, brows
+    if (beard && !lod) b.sphere(0, headR * 0.66, 0.02, headR * 0.82, headR * 0.7, headR * 0.9, hair, { segs: 12, rings: 3, lat0: -1, lat1: 0.12, az0: Math.PI * 0.08, az1: Math.PI * 0.92, bone: 1 });
+    if (!lod) { for (const sx of [0.05, -0.05]) { b.sphere(sx, headR * 1.15, headR * 0.8, 0.016, 0.010, 0.013, [0.78, 0.76, 0.70], { segs: 8, rings: 3, bone: 1 }); b.sphere(sx, headR * 1.15, headR * 0.865, 0.007, 0.007, 0.006, [0.12, 0.09, 0.07], { segs: 6, rings: 2, bone: 1 }); b.cbox(sx, headR * 1.215, headR * 0.83, 0.038, 0.008, 0.02, skinDk, 0, { bone: 1 }); b.cbox(sx, headR * 1.34, headR * 0.9, 0.042, 0.009, 0.012, hair.map(c => c * 0.8), 0, { bone: 1 }); } // eyes, irises, brows
       b.sphere(0, headR * 0.98, headR * 0.98, 0.02, 0.035, 0.028, skin.map(c => c * 0.95), { segs: 7, rings: 3, bone: 1 }); // nose
-      b.cbox(0, headR * 0.62, headR * 0.93, 0.07, 0.014, 0.02, [0.55, 0.25, 0.22], 0, { bone: 11 }); // mouth, on its own bone so it can open when the ped talks
+      b.cbox(0, headR * 0.62, headR * 0.93, 0.055, 0.009, 0.012, skin.map((c, i) => c * (i === 0 ? 0.65 : 0.48)), 0, { bone: 11 }); // mouth, on its own bone so it can open when the ped talks
       ball(headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); ball(-headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); } // ears
     if (glasses) { b.cbox(0, headR * 1.15, headR + 0.01, 0.2, 0.05, 0.02, [0.05, 0.05, 0.06], 0, { bone: 1 }); for (const sx of [0.11, -0.11]) b.cbox(sx, headR * 1.15, headR * 0.5, 0.01, 0.01, headR, [0.05, 0.05, 0.06], 0, { bone: 1 }); }
     if (hat && !beanie) { b.cyl(0, headR * 1.65, -0.01, hairR * 1.02, headR * 2.25, hat, 0, 12, 1, true, false, hairR * 0.9); const base = b.n; const bz = headR * 0.6; for (let k = 0; k <= 8; k++) { const a = -Math.PI / 2 + k / 8 * Math.PI; b.vert(Math.cos(a) * headR * 1.05, headR * 1.7, bz + Math.sin(a) * headR * 1.25, 0, 1, 0, ...hat, 0, 0, 0, 1); } const c = b.vert(0, headR * 1.7, bz, 0, 1, 0, ...hat, 0, 0, 0, 1); for (let k = 0; k < 8; k++) b.tri(base + k, base + k + 1, c); }
@@ -1041,11 +1067,13 @@ const MESH = (() => {
     // arms (bones 2, 3): a rounded shoulder, upper arm, elbow, forearm, a hand with a thumb
     const armL = 0.62;
     for (const [sx, bone, fore] of [[0.3, 2, 9], [-0.3, 3, 10]]) {
-      ball(sx * 0.97, 0.0, 0, 0.08, top, bone, 8, 3);
-      b.cyl(sx, -armL * 0.5, 0, 0.05, -0.02, top, 0, AS, bone, false, false, 0.066);
-      ball(sx, -armL * 0.5, 0.005, 0.05, sleeves ? top : skin, bone, 7, 3);
-      b.cyl(sx, -armL + 0.07, 0.01, 0.04, -armL * 0.5, sleeves ? top : skin, 0, AS, fore, false, false, 0.05);
-      if (sleeves) b.cyl(sx, -armL + 0.1, 0.01, 0.046, -armL + 0.16, topDk, 0, 8, fore, false, false, 0.046); // cuff
+      ball(sx * 0.97, -0.012, 0, jacket ? 0.099 : 0.09, top, bone, 8, 3);
+      const sleeveEnd = sleeves ? -armL * 0.5 : -0.18;
+      b.cyl(sx, sleeveEnd, 0, sleeves ? 0.065 : 0.075, -0.02, top, 0, AS, bone, false, true, jacket ? 0.092 : 0.081);
+      if (!sleeves) b.cyl(sx, -armL * 0.5, 0, 0.057, -0.17, skin, 0, AS, bone, false, false, 0.063);
+      ball(sx, -armL * 0.5, 0.005, 0.059, sleeves ? top : skin, bone, 7, 3);
+      b.cyl(sx, -armL + 0.07, 0.01, sleeves ? 0.049 : 0.042, -armL * 0.5, sleeves ? top : skin, 0, AS, fore, false, false, sleeves ? 0.066 : 0.057);
+      if (sleeves) b.cyl(sx, -armL + 0.1, 0.01, 0.052, -armL + 0.14, topDk, 0, 8, fore, false, false, 0.052); // cuff
       b.cyl(sx, -armL + 0.02, 0.01, 0.036, -armL + 0.11, skin, 0, 7, fore, false, false, 0.038); // wrist
       b.roundedBox(sx - 0.04, -armL - 0.03, -0.022, 0.08, 0.1, 0.05, 0.02, skin, 0, fore, { n: 1 }); if (!lod) b.roundedBox(sx + (sx > 0 ? -0.075 : 0.04), -armL + 0.0, -0.005, 0.035, 0.05, 0.04, 0.015, skin, 0, fore, { n: 1 }); // hand and thumb
     }
@@ -1251,6 +1279,7 @@ const CITY = (() => {
   const manholes = []; // road spots for the covers and their steam
   const solidProps = []; // {x,z,r,kind,idx}
   const parkedSpots = [];// {x,z,angle}
+  const shopfronts = []; // lit shop windows at night: {x, z, nx, nz, w, shut, h, tile}
   const ramps = [];      // {x0,z0,x1,z1,h,dir}
   const lights = [];     // traffic lights: {x,z,phase}
   let stunts = [];
@@ -1269,7 +1298,7 @@ const CITY = (() => {
     wb.floor(W0 - 2000, W0, 2000, W1 - W0, -1.6, wc, T.water, 24);
     wb.floor(W1, W0, 2000, W1 - W0, -1.6, wc, T.water, 24);
     // Island ground: grass ring with a sandy south beach
-    b.floor(W0, W0, W1 - W0, W1 - W0, -0.02, C, T.grass, 8);
+    grassField(b, W0, W0, W1 - W0, W1 - W0, -0.02, T.grass, 8, 22); // the island's ground, greener and drier in patches
     b.box(W0, -1.6, W0, W1 - W0, 1.58, W1 - W0, [0.55, 0.55, 0.5], T.sidewalk, { faces: 1 | 2 | 16 | 32, uvScale: 4 }); // seawall
     b.floor(W0, SIZE + HALF_ROAD + SW + 2, W1 - W0, SHORE - 2, 0.0, C, T.sand, 8);
     // Railing along the seawall
@@ -1413,6 +1442,16 @@ const CITY = (() => {
   // which shopfront tiles a district's ground floors are painted with (tools: see the SHOP_TILES list in textures.js; 9 is shuttered)
   const SHOP_POOL = { downtown: [1, 3, 6, 8, 10, 12, 16, 18, 3, 6], midtown: [1, 3, 4, 6, 7, 8, 0, 10, 12, 13, 14, 15, 16], northgate: [0, 2, 4, 5, 9, 11, 13, 17, 19, 20, 2, 5], westfield: [3, 7, 8, 14, 16, 17, 10, 1, 4], eastside: [2, 5, 4, 0, 9, 11, 13, 19, 20, 20, 18], southport: [5, 2, 0, 9, 11, 19, 20, 17, 3] };
   const MASONRY = ['brick', 'brick2', 'brick3', 'tenement', 'stone', 'painted', 'stucco2', 'loft'];
+  // Wall tints per district: cool greys downtown, warm brick browns midtown, dark reds up north, creams in the suburbs,
+  // ochres east, weathered greys and teals by the water. Saturation is low everywhere; accents come from signs and cars.
+  const WALL_TINTS = {
+    downtown: [[0.8, 0.82, 0.86], [0.7, 0.72, 0.76], [0.86, 0.85, 0.82], [0.64, 0.68, 0.74], [0.9, 0.9, 0.9]],
+    midtown: [[0.82, 0.74, 0.66], [0.74, 0.64, 0.57], [0.86, 0.81, 0.73], [0.68, 0.62, 0.58], [0.8, 0.78, 0.74]],
+    northgate: [[0.66, 0.54, 0.48], [0.74, 0.62, 0.54], [0.58, 0.51, 0.48], [0.8, 0.72, 0.64], [0.7, 0.66, 0.6]],
+    westfield: [[0.9, 0.87, 0.8], [0.85, 0.83, 0.77], [0.82, 0.8, 0.72], [0.88, 0.85, 0.82], [0.78, 0.8, 0.74]],
+    eastside: [[0.72, 0.62, 0.5], [0.64, 0.57, 0.5], [0.76, 0.7, 0.57], [0.6, 0.54, 0.5], [0.7, 0.66, 0.6]],
+    southport: [[0.68, 0.7, 0.7], [0.62, 0.66, 0.68], [0.74, 0.72, 0.68], [0.57, 0.6, 0.62], [0.66, 0.7, 0.66]],
+  };
   const FLOORS = { downtown: [14, 42], midtown: [6, 16], northgate: [3, 8], westfield: [2, 5], eastside: [2, 6], southport: [3, 7] };
 
   function addLot(block, x0, z0, x1, z1, h, kind = 'building') { const l = { x0, z0, x1, z1, h, kind }; lots.push(l); block.lots.push(l); if (kind !== 'wall' && curBuilder) groundAO(curBuilder, x0, z0, x1, z1); return l; }
@@ -1426,9 +1465,13 @@ const CITY = (() => {
     const T = TEX.names; const dist = block.kind;
     const m = rng.range(1.5, 3.5); const x0 = x + m, z0 = z + m, x1 = x + w - m, z1 = z + d - m; const W = x1 - x0, D = z1 - z0;
     const [fmin, fmax] = FLOORS[dist] || [3, 8];
-    const floors = rng.int(fmin, fmax); const fh = 3.2; const ground = 4.2;
+    // a skyline: heights climb toward the centre of downtown, and a few lots there carry landmark towers with stepped tops and spires
+    const cd = Math.hypot(block.i - (GRID - 1) / 2, block.j - (GRID - 1) / 2);
+    let floors = rng.int(fmin, fmax); if (dist === 'downtown') floors = Math.round(floors * (1 + 0.5 * Math.max(0, 1 - cd / 1.7)));
+    const landmark = dist === 'downtown' && cd < 1.3 && W > 15 && D > 15 && rng.chance(0.25); if (landmark) floors = Math.max(floors, 50);
+    const fh = 3.2; const ground = 4.2;
     const facade = rng.pick(FACADES[dist] || FACADES.midtown);
-    const tint = rng.chance(0.3) ? [rng.range(0.7, 1.05), rng.range(0.7, 1.05), rng.range(0.7, 1.05)] : [1, 1, 1].map(v => v * rng.range(0.75, 1.05));
+    const tint = rng.pick(WALL_TINTS[dist] || WALL_TINTS.midtown).map(v => v * rng.range(0.92, 1.08)); // each district keeps to a few muted wall colours
     const trim = tint.map(v => v * 0.82); const y = CURB;
     const commercial = rng.chance(dist === 'downtown' ? 0.6 : 0.75);
 
@@ -1442,11 +1485,40 @@ const CITY = (() => {
       const pool = SHOP_POOL[dist] || SHOP_POOL.midtown; const shopTile = T['shops' + rng.pick(pool)];
       b.box(x0, y, z0, W, ground, D, tint, shopTile, { faces: 1 | 2 | 16 | 32, uvScale: 8 });
       // the street side is painted in 8 m stretches, each a different pair of shops, so no two doors down a block match
-      { let last = -1; for (let t = 0; t < frontLen - 0.5; t += 8) { let k = rng.pick(pool); if (k === last) k = rng.pick(pool); last = k; shopTiles.push(k); const seg = Math.min(8, frontLen - t); const tl = T['shops' + k];
+      const outN = front === 'n' ? [0, -1] : front === 's' ? [0, 1] : front === 'w' ? [-1, 0] : [1, 0]; // the way this front faces the street
+      // The tile that is drawn keeps consuming the same random numbers and still drives the sidewalk props, so the
+      // seeded city is untouched; but painting it twice near itself puts the same pair of shop signs up twice, which
+      // is the thing you notice walking a block. What gets painted is therefore allowed to differ from what was
+      // drawn: anything already used within 26 m on a wall facing the same way is out, and the replacement comes
+      // from a hash of the position, so it costs no random numbers either. The test is by distance rather than by
+      // wall, because a frontage runs across several lots and a repeat shows up across a corner or a jog just as
+      // plainly as along one straight wall.
+      { const uniq = [...new Set(pool)]; let last = -1;
+        for (let t = 0; t < frontLen - 0.5; t += 8) { let k = rng.pick(pool); if (k === last) k = rng.pick(pool); last = k; shopTiles.push(k);
+        const seg = Math.min(8, frontLen - t);
+        const [fx2, fz2] = frontPt(t + seg / 2, 0.2);
+        const near = new Set();
+        for (let q = shopfronts.length - 1; q >= 0; q--) { const o = shopfronts[q];
+          if (o.nx !== outN[0] || o.nz !== outN[1]) continue;
+          const ddx = o.x - fx2, ddz = o.z - fz2; if (ddx * ddx + ddz * ddz < 26 * 26) near.add(o.tile); }
+        let kd = k;
+        if (near.has(kd)) { const hh = Math.abs(Math.sin(fx2 * 91.7 + fz2 * 47.3) * 43758.5453) % 1; const st = Math.floor(hh * uniq.length);
+          for (let i = 0; i < uniq.length; i++) { const c = uniq[(st + i) % uniq.length]; if (!near.has(c)) { kd = c; break; } } }
+        const tl = T['shops' + kd];
+        { const h = Math.abs(Math.sin(fx2 * 12.9898 + fz2 * 78.233) * 43758.5453) % 1; /* a hash of the position, so recording shopfronts consumes no city random numbers and leaves every other placement where it was */
+          shopfronts.push({ x: fx2, z: fz2, nx: outN[0], nz: outN[1], w: seg, shut: kd === 20, h, tile: kd }); }
         if (front === 'n') b.box(x0 + t, y, z0 - 0.03, seg, ground, 0.03, tint, tl, { faces: 32, uvScale: 8 }); else if (front === 's') b.box(x0 + t, y, z1, seg, ground, 0.03, tint, tl, { faces: 16, uvScale: 8 }); else if (front === 'w') b.box(x0 - 0.03, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 2, uvScale: 8 }); else b.box(x1, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 1, uvScale: 8 }); } }
       b.box(x0 - 0.3, y + ground - 0.35, z0 - 0.3, W + 0.6, 0.35, D + 0.6, trim, 0);
+      // Give the painted shop bays a shallow stone surround so the street catches light and shadow.
+      const surround = [0.62, 0.59, 0.52].map((v, i) => v * tint[i]);
+      for (let t = 0.12; t < frontLen; t += 4) {
+        const [px, pz] = frontPt(t, 0.10);
+        b.cbox(px, y + 1.55, pz, fz !== null ? 0.18 : 0.24, 3.1, fz !== null ? 0.24 : 0.18, surround);
+      }
+      const [sx, sz] = frontPt(frontLen / 2, 0.09);
+      b.cbox(sx, y + 0.22, sz, fz !== null ? frontLen : 0.22, 0.20, fz !== null ? 0.22 : frontLen, surround);
       // a real awning over the street side
-      if (rng.chance(0.5)) { const ac = [rng.range(0.4, 0.9), rng.range(0.2, 0.6), rng.range(0.2, 0.6)]; const aw = Math.min(W * 0.6, 7);
+      if (rng.chance(0.5)) { const ac = [rng.range(0.30, 0.56), rng.range(0.25, 0.42), rng.range(0.22, 0.34)]; const aw = Math.min(W * 0.6, 7);
         if (fz !== null) { const ax = x0 + (W - aw) / 2; const zz = front === 'n' ? z0 - 1.4 : z1; b.wedge(ax, y + 2.6, front === 'n' ? zz : zz + 0.0, aw, 0.5, 1.4, ac, 0); }
         else { const az = z0 + (D - aw) / 2; const xx = front === 'w' ? x0 - 1.4 : x1; b.box(xx, y + 2.6, az, 1.4, 0.35, aw, ac, 0); } }
       // planters by the door downtown
@@ -1476,8 +1548,34 @@ const CITY = (() => {
     const H = floors * fh;
     const facadeOpts = { faces: 1 | 2 | 16 | 32, uvScale: 1, uOff: rng.range(0, 1), vOff: 0 };
     facadeBox(b, x0, top, z0, W, H, D, tint, T[facade], facadeOpts);
-    // ledges every floor for the masonry styles, a cornice on top
-    if (facade !== 'glass' && facade !== 'glass2' && facade !== 'glass3' && facade !== 'metal' && facade !== 'warehouse') for (let k = (commercial ? 0 : 1); k < floors; k++) { const ly = top + k * fh; b.box(x0 - 0.12, ly, z0 - 0.12, W + 0.24, 0.14, D + 0.24, trim, 0, { faces: 1 | 2 | 4 | 16 | 32 }); }
+    // Stable architectural families: no new random draws, so saved city locations remain unchanged.
+    const family = Math.abs(Math.floor(x0 * 17 + z0 * 31)) % 3;
+    const masonry = MASONRY.includes(facade) || facade === 'deco';
+    const stone = [0.66, 0.63, 0.55].map((v, i) => v * tint[i]);
+    const frontBox = (t, yy, width, height, depth, off, color) => {
+      const [px, pz] = frontPt(t, off);
+      b.cbox(px, yy, pz, fz !== null ? width : depth, height, fz !== null ? depth : width, color);
+    };
+    // Masonry corners, rhythmic piers and layered cornices cast actual shadows on the facade.
+    if (masonry) {
+      const pierColor = family === 1 ? stone : trim.map(v => v * 0.75);
+      for (const t of [0.20, frontLen - 0.20]) frontBox(t, top + H / 2, 0.48, H, 0.32, 0.06, pierColor);
+      if (family === 0 && frontLen > 12) for (let t = 7; t < frontLen - 3; t += 7) frontBox(t, top + H / 2, 0.36, H, 0.28, 0.05, pierColor);
+      if (family === 1) for (let k = 0; k < Math.min(floors, 8); k++) for (const t of [0.24, frontLen - 0.24]) {
+        frontBox(t, top + k * fh + 0.50, 0.72, 0.38, 0.40, 0.08, stone);
+        frontBox(t, top + k * fh + 1.12, 0.50, 0.30, 0.36, 0.08, stone);
+      }
+      frontBox(frontLen / 2, top + H - 0.78, frontLen + 0.5, 0.18, 0.55, 0.12, stone);
+      if (family === 2) for (let t = 0.8; t < frontLen; t += 1.4) frontBox(t, top + H - 0.60, 0.30, 0.26, 0.48, 0.14, stone);
+    } else if (facade !== 'metal' && facade !== 'warehouse') {
+      // Office facades alternate strong vertical fins with broad horizontal spandrels.
+      if (family !== 1) for (let t = 0.25; t < frontLen; t += family === 0 ? 3.5 : 7) frontBox(t, top + H / 2, 0.18, H, 0.52, 0.15, [0.45, 0.49, 0.48]);
+      else for (let k = 2; k < floors; k += 3) frontBox(frontLen / 2, top + k * fh, frontLen, 0.50, 0.26, 0.08, [0.35, 0.39, 0.39]);
+    }
+    // Ledge spacing varies with the facade family instead of wrapping every building at every floor.
+    if (masonry || facade === 'concrete') for (let k = (commercial ? 0 : 1); k < floors; k += family === 0 ? 3 : family === 1 ? 2 : 1) { const ly = top + k * fh; b.box(x0 - 0.12, ly, z0 - 0.12, W + 0.24, 0.14, D + 0.24, trim, 0, { faces: 1 | 2 | 4 | 16 | 32 }); }
+    // a plinth at the foot of a residential facade (the roofline cornice is built below)
+    if (!commercial) b.box(x0 - 0.12, y, z0 - 0.12, W + 0.24, 0.9, D + 0.24, trim.map(v => v * 0.8));
     b.box(x0 - 0.35, top + H - 0.45, z0 - 0.35, W + 0.7, 0.45, D + 0.7, trim, 0);
     // balconies on the masonry fronts, window boxes on the painted ones, air conditioners on the side walls
     const bays = Math.floor(frontLen / 3.5);
@@ -1498,14 +1596,21 @@ const CITY = (() => {
     b.floor(x0, z0, W, D, top + H, tint.map(v => v * 0.9), T.roof, 8);
     roofDetails(b, x0, top + H, z0, W, D, tint, floors > 12);
     let totalH = top + H;
-    if (floors > 10 && rng.chance(0.5)) {
-      const s = rng.range(0.55, 0.8); const tw = W * s, td = D * s, tx = x0 + (W - tw) / 2, tz = z0 + (D - td) / 2, th = rng.int(4, floors) * fh;
+    if (floors > 10 && (landmark || rng.chance(0.5))) {
+      const s = landmark ? 0.72 : rng.range(0.55, 0.8); const tw = W * s, td = D * s, tx = x0 + (W - tw) / 2, tz = z0 + (D - td) / 2, th = rng.int(4, floors) * fh;
       facadeBox(b, tx, top + H, tz, tw, th, td, tint, T[facade], facadeOpts);
       if (facade !== 'glass') for (let k = 1; k < th / fh; k++) b.box(tx - 0.12, top + H + k * fh, tz - 0.12, tw + 0.24, 0.14, td + 0.24, trim, 0, { faces: 1 | 2 | 4 | 16 | 32 });
       b.box(tx - 0.35, top + H + th - 0.45, tz - 0.35, tw + 0.7, 0.45, td + 0.7, trim, 0);
       b.floor(tx, tz, tw, td, top + H + th, tint.map(v => v * 0.9), T.roof, 8);
       roofDetails(b, tx, top + H + th, tz, tw, td, tint, true);
       totalH = top + H + th;
+      if (landmark) { // a second, narrower tier and a spire with a beacon
+        const t2w = tw * 0.6, t2d = td * 0.6, t2x = tx + (tw - t2w) / 2, t2z = tz + (td - t2d) / 2, t2h = rng.int(5, 9) * fh;
+        facadeBox(b, t2x, totalH, t2z, t2w, t2h, t2d, tint, T[facade], facadeOpts); b.box(t2x - 0.35, totalH + t2h - 0.45, t2z - 0.35, t2w + 0.7, 0.45, t2d + 0.7, trim, 0);
+        b.floor(t2x, t2z, t2w, t2d, totalH + t2h, tint.map(v => v * 0.9), T.roof, 8); totalH += t2h;
+        const cx = t2x + t2w / 2, cz = t2z + t2d / 2; b.box(cx - 0.9, totalH, cz - 0.9, 1.8, 3, 1.8, trim); b.box(cx - 0.35, totalH + 3, cz - 0.35, 0.7, 14, 0.7, trim.map(v => v * 0.85)); b.box(cx - 0.12, totalH + 17, cz - 0.12, 0.24, 6, 0.24, [0.7, 0.7, 0.72]);
+        b.cbox(cx, totalH + 23.2, cz, 0.5, 0.5, 0.5, [1, 0.1, 0.1], 0, { bone: 0 }); addPlace('landmark', { x: cx, z: cz, h: totalH + 23, label: 'tower' });
+      }
     }
     if (rng.chance(0.2) && floors < 12) {
       const tile = T['bill' + rng.int(0, 5)]; const bw = Math.min(W - 2, 10), bh = bw * 0.6;
@@ -1551,14 +1656,40 @@ const CITY = (() => {
     const n = rng.int(1, 3);
     for (let k = 0; k < n; k++) { const aw = rng.range(1.5, 3), ad = rng.range(1.5, 3); const ax = x + rng.range(1, Math.max(1.1, w - aw - 1)), az = z + rng.range(1, Math.max(1.1, d - ad - 1)); b.box(ax, y, az, aw, rng.range(0.8, 1.6), ad, [0.6, 0.6, 0.62], T.metal, { uvScale: 2 }); b.box(ax + 0.2, y + 0.8, az + 0.2, aw - 0.4, 0.05, ad - 0.4, [0.25, 0.25, 0.27]); }
     for (let k = 0; k < rng.int(1, 4); k++) { const vx = x + rng.range(1, w - 1), vz = z + rng.range(1, d - 1); b.cyl(vx, y, vz, 0.25, rng.range(0.8, 1.6), [0.55, 0.55, 0.58], 0, 6); b.cyl(vx, y + 1.2, vz, 0.4, 1.35, [0.45, 0.45, 0.48], 0, 6); }
-    if (rng.chance(0.3) && w > 8 && d > 8) { const cx = x + rng.range(3, w - 3), cz = z + rng.range(3, d - 3); for (const [ox, oz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) b.cyl(cx + ox, y, cz + oz, 0.08, 2.5, [0.3, 0.3, 0.3], 0, 4); b.cyl(cx, y + 2.5, cz, 1.3, 4.3, [0.45, 0.35, 0.25], 0, 10, 0, true, true); b.cyl(cx, y + 4.3, cz, 1.4, 4.6, [0.35, 0.28, 0.2], 0, 10, 0, true, false, 0.4); }
+    if (rng.chance(tall ? 0.55 : 0.3) && w > 8 && d > 8) { const cx = x + rng.range(3, w - 3), cz = z + rng.range(3, d - 3); for (const [ox, oz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) b.cyl(cx + ox, y, cz + oz, 0.08, 2.5, [0.3, 0.3, 0.3], 0, 4); b.cyl(cx, y + 2.5, cz, 1.3, 4.3, [0.45, 0.35, 0.25], 0, 10, 0, true, true); b.cyl(cx, y + 4.3, cz, 1.4, 4.6, [0.35, 0.28, 0.2], 0, 10, 0, true, false, 0.4); }
     if (rng.chance(0.4) && w > 6 && d > 6) { const sx = x + rng.range(1, w - 3.5), sz = z + rng.range(1, d - 3.5); b.box(sx, y, sz, 2.4, 2.6, 2.8, tint.map(v => v * 0.8)); b.box(sx + 0.7, y, sz - 0.05, 1, 2.1, 0.1, [0.2, 0.15, 0.1]); } // roof access shed
     if (rng.chance(0.35)) { const dx = x + rng.range(1, w - 1), dz = z + rng.range(1, d - 1); b.cyl(dx, y, dz, 0.06, 1.2, [0.5, 0.5, 0.5], 0, 4); b.cyl(dx, y + 1.0, dz, 0.7, 1.15, [0.85, 0.85, 0.88], 0, 10, 0, true, true, 0.1); } // dish
     if (tall) { b.box(x + w / 2 - 0.1, y, z + d / 2 - 0.1, 0.2, 6, 0.2, [0.7, 0.7, 0.7]); b.cbox(x + w / 2, y + 6.1, z + d / 2, 0.3, 0.3, 0.3, [1, 0.1, 0.1], 0, { bone: 0 }); }
   }
+  // Grass laid as a grid whose colour varies smoothly across it: some of it greener, some dried out. The tint is a
+  // two-octave value noise of the world position sampled at each corner, so neighbouring cells agree along their shared
+  // edge and the field reads as ground rather than as tiles. It consumes no city random numbers.
+  const gHash = (i, j) => { const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - Math.floor(s); };
+  function gNoise(px, pz, cell) {
+    const fx = px / cell, fz = pz / cell; const i = Math.floor(fx), j = Math.floor(fz);
+    let u = fx - i, v = fz - j; u = u * u * (3 - 2 * u); v = v * v * (3 - 2 * v);
+    return (gHash(i, j) * (1 - u) + gHash(i + 1, j) * u) * (1 - v) + (gHash(i, j + 1) * (1 - u) + gHash(i + 1, j + 1) * u) * v;
+  }
+  function grassField(b, x, z, w, d, y, tile, uvScale, cell) {
+    const N = Math.max(2, Math.round(Math.max(w, d) / (cell || 6.4))), sw = w / N, sd = d / N;
+    const colAt = (px, pz) => { const n1 = gNoise(px, pz, 26), n2 = gNoise(px + 91, pz - 37, 9);
+      const k = 0.82 + n1 * 0.32 + n2 * 0.08; const dry = Math.max(0, n1 * 1.35 - 0.62);
+      return [k * (1 + dry * 0.5), k * (1 - dry * 0.05), k * (1 - dry * 0.42)]; };
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const x0 = x + i * sw, z0 = z + j * sd, x1 = x0 + sw, z1 = z0 + sd;
+      const u0 = (i * sw) / uvScale, v0 = (j * sd) / uvScale, u1 = ((i + 1) * sw) / uvScale, v1 = ((j + 1) * sd) / uvScale;
+      const c00 = colAt(x0, z0), c01 = colAt(x0, z1), c11 = colAt(x1, z1), c10 = colAt(x1, z0);
+      const base = b.n;
+      b.vert(x0, y, z0, 0, 1, 0, c00[0], c00[1], c00[2], u0, v0, tile, 0);
+      b.vert(x0, y, z1, 0, 1, 0, c01[0], c01[1], c01[2], u0, v1, tile, 0);
+      b.vert(x1, y, z1, 0, 1, 0, c11[0], c11[1], c11[2], u1, v1, tile, 0);
+      b.vert(x1, y, z0, 0, 1, 0, c10[0], c10[1], c10[2], u1, v0, tile, 0);
+      b.quad(base, base + 1, base + 2, base + 3);
+    }
+  }
   function buildPark(b, block) {
     const T = TEX.names; const { x, z } = block; const C = [1, 1, 1];
-    b.floor(x, z, BLOCK, BLOCK, CURB + 0.01, C, T.grass, 8);
+    grassField(b, x, z, BLOCK, BLOCK, CURB + 0.01, T.grass, 8);
     // paths in a cross
     b.floor(x + BLOCK / 2 - 2, z, 4, BLOCK, CURB + 0.02, [0.9, 0.9, 0.9], T.sidewalk, 8); b.floor(x, z + BLOCK / 2 - 2, BLOCK, 4, CURB + 0.02, [0.9, 0.9, 0.9], T.sidewalk, 8);
     // fountain on its plaza (an imported model), and a few imported tree clusters among the procedural trees
@@ -1822,7 +1953,7 @@ const CITY = (() => {
     return staticBuilder;
   }
 
-  return { GRID, BLOCK, ROAD, SW, PITCH, HALF_ROAD, LANE, CURB, SIZE, SHORE, lots, blocks, places, props, solidProps, parkedSpots, ramps, lights, get stunts() { return stunts; },
+  return { GRID, BLOCK, ROAD, SW, PITCH, HALF_ROAD, LANE, CURB, SIZE, SHORE, lots, blocks, places, props, solidProps, parkedSpots, shopfronts, ramps, lights, get stunts() { return stunts; },
     pier: { x0: pierX0, x1: pierX1, z1: pierZ1 }, marina, manholes, interiors, setInterior, get interiorRoom() { return interiorRoom; }, setRoof, get roofLot() { return roofLot; }, get roofAccess() { return roofAccess; }, roadNodes, roadEdges, walkNodes, generate, get water() { return waterBuilder; }, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
 })();
 
@@ -1838,7 +1969,7 @@ const RENDER = (() => {
   const identityBones = new Float32Array(16 * MAX_BONES); for (let i = 0; i < MAX_BONES; i++) identityBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
   const zeroEmis = new Float32Array(MAX_BONES);
   const cam = { x: 0, y: 20, z: 0, tx: 0, ty: 0, tz: 1, fov: 60 * Math.PI / 180, near: 0.3, far: 900 };
-  const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 , normalMaps: true, normalStrength: 1.0 , fogHeight: 30, fogSun: 0.7 , reflect: 1.7 , wet: 0 };
+  const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 , normalMaps: true, normalStrength: 0.6 , fogHeight: 30, fogSun: 0.7 , reflect: 1.7 , wet: 0 };
   const lights = { pos: new Float32Array(MAX_LIGHTS * 4), col: new Float32Array(MAX_LIGHTS * 3), n: 0 };
   const stats = { draws: 0, tris: 0 };
 
@@ -1864,7 +1995,7 @@ const RENDER = (() => {
   const FS = `
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in float vEmis;
     uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform sampler2DArray uNrm;
-    uniform float uNrmOn; uniform float uNrmStr;
+    uniform float uNrmOn; uniform float uNrmStr; uniform float uEmis; uniform vec4 uPanes[128]; uniform float uInterior;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
     uniform float uFogDensity; uniform float uFogHeight; uniform float uFogSun; uniform float uNightEmis;
     uniform mat4 uLightVP[2]; uniform float uCascadeFar; uniform float uWet;
@@ -1885,6 +2016,8 @@ const RENDER = (() => {
               + textureOffset(uShadow, p, ivec2(-1, 1)) + textureOffset(uShadow, p, ivec2(0, 1)) + textureOffset(uShadow, p, ivec2(1, 1));
       return s / 9.0;
     }
+    float hash13(vec3 p) { p = fract(p * 0.1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
+    float roomDepth(float t, float tz) { return clamp(t / max(tz, 0.01), 0.0, 1.0) * 0.5; }
     float shadowAt(vec3 n) {
       vec3 wp = vWorld + n * 0.06;
       float d = length(vWorld - uCamPos);
@@ -1903,15 +2036,18 @@ const RENDER = (() => {
     void main() {
       vec4 t = uTexOn > 0.5 ? texture(uTex, vec3(vUV, vTile)) : vec4(1.0);
       vec3 albedo = s2l(t.rgb) * s2l(vCol);
-      vec3 n = normalize(vNrm);
+      vec3 n = normalize(vNrm); vec3 nGeom = n;
+      vec3 dp1 = dFdx(vWorld), dp2 = dFdy(vWorld); vec2 duv1 = dFdx(vUV), duv2 = dFdy(vUV);
+      #ifdef STATIC
+      // grime: the foot of every wall is darker, as it is on any street
+      if (abs(n.y) < 0.5 && vWorld.y > -1.0) albedo *= 1.0 - 0.3 * (1.0 - smoothstep(0.1, 2.6, vWorld.y));
+      #endif
       // Normal and roughness from the parallel map. The tangent frame comes from the screen-space derivatives of world
       // position and UV (Mikkelsen's cotangent frame), so no tangents need storing on the mesh.
       float rough = 0.72;
       if (uNrmOn > 0.5 && uTexOn > 0.5) {
         vec4 nm = texture(uNrm, vec3(vUV, vTile));
         rough = nm.a;
-        vec3 dp1 = dFdx(vWorld), dp2 = dFdy(vWorld);
-        vec2 duv1 = dFdx(vUV), duv2 = dFdy(vUV);
         vec3 dp2perp = cross(dp2, n), dp1perp = cross(n, dp1);
         vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
         vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
@@ -1923,10 +2059,33 @@ const RENDER = (() => {
           n = normalize(mat3(T * inv, B * inv, n) * normalize(tn));
         }
       }
+      // Interior mapping: behind every window pane of a facade tile there is a virtual room, a box one pane wide and one
+      // storey tall and about three metres deep, intersected along the view ray in the wall's tangent frame. Its walls,
+      // floor and ceiling take a colour from a hash of the room's position, and a lit pane (the emissive mask) lights it.
+      // No geometry: the window pane's albedo becomes what you would see through it, and the glass reflection sits on top.
+      vec4 pg = uPanes[int(vTile + 0.5)];
+      if (uInterior > 0.5 && uTexOn > 0.5 && pg.x > 0.5 && abs(nGeom.y) < 0.5) {
+        vec2 cell = vec2(vUV.x * pg.x, vUV.y * pg.y); vec2 f = fract(cell);
+        if (f.x > pg.z && f.x < 1.0 - pg.z && f.y > pg.w && f.y < 1.0 - pg.w) {
+          vec3 dp2p = cross(dp2, nGeom), dp1p = cross(nGeom, dp1);
+          vec3 Th = normalize(dp2p * duv1.x + dp1p * duv2.x), Bh = normalize(dp2p * duv1.y + dp1p * duv2.y);
+          vec3 vd = normalize(vWorld - uCamPos); vec3 d = vec3(dot(vd, Th), dot(vd, Bh), min(dot(vd, nGeom), -0.05));
+          float W = 14.0 / pg.x, H = 12.8 / pg.y, D = 3.0; vec3 o = vec3(f.x * W, f.y * H, 0.0);
+          float tx = abs(d.x) < 1e-4 ? 1e9 : ((d.x > 0.0 ? W : 0.0) - o.x) / d.x, ty = abs(d.y) < 1e-4 ? 1e9 : ((d.y > 0.0 ? H : 0.0) - o.y) / d.y, tz = -D / d.z;
+          float tt = min(min(tx, ty), tz);
+          vec3 rid = vec3(floor(cell.x) + floor((vWorld.x + vWorld.z) / 14.0) * 53.0, floor(cell.y) + floor(vWorld.y / 12.8) * 17.0, vTile);
+          float h1 = hash13(rid), h2 = hash13(rid + 7.1), h3 = hash13(rid + 3.3);
+          vec3 wall = mix(vec3(0.82, 0.78, 0.7), vec3(0.62, 0.68, 0.74), h1); wall = mix(wall, vec3(0.78, 0.62, 0.5), h2 * 0.5);
+          vec3 hit = tt == tz ? wall * 0.72 : tt == tx ? wall * 0.88 : (d.y > 0.0 ? wall * vec3(0.42, 0.38, 0.34) : vec3(0.92, 0.9, 0.86));
+          if (tt == tz && h3 > 0.55) { vec3 hp = o + d * tt; float px = fract(hp.x / W * 2.0 + h1); if (px > 0.3 && px < 0.75 && hp.y > H * 0.45) hit *= 0.55; } // a cupboard or a picture on the back wall
+          float lit = t.a > 0.02 ? 1.0 : 0.0; float amb = 0.16 + 0.6 * lit * (0.6 + 0.4 * (1.0 - roomDepth(tt, tz)));
+          albedo = s2l(hit) * amb * s2l(vCol);
+        }
+      }
       if (uWater > 0.5) { n = normalize(n + vec3(sin(vWorld.x * 0.35 + uTime * 1.1) * 0.07 + sin(vWorld.z * 0.9 - uTime * 1.7) * 0.04, 0.0, cos(vWorld.z * 0.4 + uTime * 0.9) * 0.07 + cos(vWorld.x * 1.1 + uTime * 1.3) * 0.04)); }
       // Rain pools on anything facing the sky. The film darkens what is under it and reflects what is above.
       float wet = uWet > 0.0 ? smoothstep(0.45, 0.92, n.y) * uWet : 0.0;
-      if (wet > 0.0) { rough = mix(rough, 0.1, wet); albedo *= mix(1.0, 0.45, wet); }
+      if (wet > 0.0) { rough = mix(rough, 0.26, wet); albedo *= mix(1.0, 0.5, wet); }
       float ndl = max(dot(n, uSunDir), 0.0);
       float sh = (uShadowOn > 0.5 && ndl > 0.0) ? shadowAt(n) : 1.0;
       vec3 hemi = mix(uGroundCol, uSkyCol, n.y * 0.5 + 0.5);
@@ -1955,7 +2114,7 @@ const RENDER = (() => {
         // a lamp reflected in a wet street, which is most of what a city looks like in the rain at night
         if (uSpec > 0.0 && gloss > 0.4) col += uLightCols[i] * att * pow(max(dot(n, normalize(Ln + v)), 0.0), power) * uSpec * gloss * gloss * 1.6;
       }
-      col += mix(albedo, s2l(vec3(1.0, 0.87, 0.66)), 0.55) * t.a * uNightEmis * 3.4;
+      col += mix(albedo, s2l(vec3(1.0, 0.87, 0.66)), 0.15) * t.a * uNightEmis * uEmis;
       col += s2l(vCol) * vEmis;
       // Height fog: haze pools in the streets and thins with altitude, so the skyline stays crisp and the city gains depth.
       // Analytic integral of an exponential density along the view ray, then tinted toward the sun for aerial perspective.
@@ -2027,11 +2186,23 @@ const RENDER = (() => {
       float ao = 1.0 - occ / 10.0; o = vec4(vec3(ao), 1.0);
     }`;
   const AOBLUR_FS = `in vec2 vUV; uniform sampler2D uTex; uniform vec2 uTexel; out vec4 o; void main() { float s = 0.0; for (int x = -2; x <= 1; x++) for (int y = -2; y <= 1; y++) s += texture(uTex, vUV + vec2(float(x) + 0.5, float(y) + 0.5) * uTexel).r; o = vec4(vec3(s / 16.0), 1.0); }`;
-  const COMPOSITE_FS = `in vec2 vUV; uniform sampler2D uScene; uniform sampler2D uBloom; uniform sampler2D uAO; uniform float uAOAmt; uniform float uBloomAmt; uniform float uExposure; uniform float uHDR; uniform float uVignette; uniform float uSat; uniform vec3 uTint; out vec4 o;
+  const COMPOSITE_FS = `in vec2 vUV; uniform sampler2D uScene; uniform sampler2D uBloom; uniform sampler2D uAO; uniform sampler2D uDepth; uniform float uAOAmt; uniform float uBloomAmt; uniform float uExposure; uniform float uHDR; uniform float uVignette; uniform float uSat; uniform vec3 uTint; uniform vec2 uTexel; uniform vec2 uNF; uniform float uEdge; out vec4 o;
     vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+    float lin(vec2 uv) { float z = texture(uDepth, uv).r * 2.0 - 1.0; return 2.0 * uNF.x * uNF.y / (uNF.y + uNF.x - z * (uNF.y - uNF.x)); }
+    // Ink lines: a depth step (silhouette) or a change of depth slope (crease) between neighbouring pixels draws a dark
+    // line, thinner and fainter with distance, so every object reads as drawn rather than rendered.
+    float edge() {
+      float dc = lin(vUV); if (dc > 260.0) return 0.0;
+      float dl = lin(vUV - vec2(uTexel.x, 0.0)), dr = lin(vUV + vec2(uTexel.x, 0.0)), du = lin(vUV + vec2(0.0, uTexel.y)), dd = lin(vUV - vec2(0.0, uTexel.y));
+      // second difference of depth: zero across any flat surface however oblique, large at a silhouette step or a crease
+      float lap = max(abs(dl + dr - 2.0 * dc), abs(du + dd - 2.0 * dc)) / dc;
+      float e = smoothstep(0.004, 0.014, lap);
+      return e * (1.0 - smoothstep(70.0, 240.0, dc));
+    }
     void main() {
       float ao = mix(1.0, texture(uAO, vUV).r, uAOAmt); vec3 c = texture(uScene, vUV).rgb * ao + texture(uBloom, vUV).rgb * uBloomAmt;
       if (uHDR > 0.5) { c = aces(c * uExposure); c = pow(c, vec3(1.0 / 2.2)); }
+      if (uEdge > 0.0) c *= 1.0 - uEdge * edge(); // on the display-referred colour, so a line is a line at any exposure
       float l = dot(c, vec3(0.3, 0.55, 0.15)); c = mix(vec3(l), c, uSat) * uTint;
       vec2 d = vUV - 0.5; c *= 1.0 - uVignette * dot(d, d) * 2.2;
       o = vec4(c, 1.0);
@@ -2039,8 +2210,8 @@ const RENDER = (() => {
   const FLAT_VS = `in vec3 aPos; in vec4 aCol; uniform mat4 uVP; out vec4 vCol; void main() { gl_Position = uVP * vec4(aPos, 1.0); vCol = aCol; }`;
   const FLAT_FS = `in vec4 vCol; out vec4 o; void main() { vec3 c = vCol.rgb; o = vec4(c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878), vCol.a); }`;
 
-  let partVao, partBuf, flatVao, flatBuf, brightProg, blurProg, compProg, aoProg, aoBlurProg;
-  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.75, samples: 4, bloom: 0.35, exposure: 1.0, vignette: 0.3, sat: 1.12, tint: [1, 1, 1] };
+  let partVao, partBuf, flatVao, flatBuf, flatCap = 0, brightProg, blurProg, compProg, aoProg, aoBlurProg;
+  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.75, edges: 0.55, samples: 4, bloom: 0.18, exposure: 1.08, vignette: 0.18, sat: 0.96, tint: [1, 1, 1] };
   function makeDepthTarget(w, h) { const t = { w, h }; t.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo); t.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t.tex); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, w, h); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t.tex, 0); t.ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER, null); return t; }
   function makeTarget(w, h, samples, fmtOverride) {
     const fmt = fmtOverride || (post.hdr ? gl.RGBA16F : gl.RGBA8); const t = { w, h };
@@ -2075,6 +2246,8 @@ const RENDER = (() => {
     const colorLayers = textures.color || textures, normalLayers = textures.normal;
     texArray = GL.textureArray(colorLayers);
     if (normalLayers && normalLayers.length === colorLayers.length) nrmArray = GL.textureArray(normalLayers);
+    const pg = new Float32Array(128 * 4); (textures.panes || []).forEach((p, i) => { if (p && i < 128) pg.set(p, i * 4); });
+    for (const P of [litProg, instProg, litStaticProg]) { gl.useProgram(P.p); gl.uniform4fv(P.u.uPanes, pg); }
     const shadowSize = +(new URLSearchParams(location.search).get('shadow') || 0) || 2048; shadow = GL.shadowTarget(shadowSize * 2, shadowSize);
     // particle buffer: pos3 size1 col4 = 8 floats
     partVao = gl.createVertexArray(); gl.bindVertexArray(partVao); partBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, partBuf);
@@ -2084,7 +2257,7 @@ const RENDER = (() => {
     gl.enableVertexAttribArray(partProg.a.aCol); gl.vertexAttribPointer(partProg.a.aCol, 4, gl.FLOAT, false, 32, 16);
     // flat buffer: pos3 col4 = 7 floats
     flatVao = gl.createVertexArray(); gl.bindVertexArray(flatVao); flatBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, flatBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, 7 * 4 * 16384, gl.DYNAMIC_DRAW);
+    flatCap = 7 * 16384; gl.bufferData(gl.ARRAY_BUFFER, flatCap * 4, gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(flatProg.a.aPos); gl.vertexAttribPointer(flatProg.a.aPos, 3, gl.FLOAT, false, 28, 0);
     gl.enableVertexAttribArray(flatProg.a.aCol); gl.vertexAttribPointer(flatProg.a.aCol, 4, gl.FLOAT, false, 28, 12);
     gl.bindVertexArray(null);
@@ -2097,23 +2270,29 @@ const RENDER = (() => {
   }
 
   // ---- Time of day → environment
-  function setTimeOfDay(hours, rain = 0, fog = 0) {
+  function setTimeOfDay(hours, rain = 0, fog = 0, dt = 0) {
     const t = hours / 24; const sunAng = (t - 0.25) * M.TAU; // 6:00 sunrise at angle 0, noon at 90°
     const elev = Math.sin(sunAng), az = Math.cos(sunAng);
     let sx = az * 0.7, sy = elev, sz = -0.45 + 0.2 * az; let l = Math.hypot(sx, sy, sz); sx /= l; sy /= l; sz /= l;
     const day = M.clamp(elev * 4 + 0.15, 0, 1);          // 1 in daytime, 0 at night
-    const dusk = M.clamp(1 - Math.abs(elev) * 5, 0, 1);  // 1 near horizon
+    // The warm horizon light reaches further up the sky than the brightness falls off. Golden hour is the best light in
+    // the game and at a true scale it was a spike a few seconds wide; widening only the colour term lengthens it
+    // without darkening the afternoon.
+    const dusk = M.clamp(1 - Math.abs(elev) * 2.6, 0, 1);  // 1 near horizon
     const night = 1 - day;
     if (sy > 0.02) env.sunDir = [sx, sy, sz]; else env.sunDir = [-sx * 0.5, Math.max(0.35, -sy), -sz * 0.5]; // moon-ish from the other side
     const mix3 = (a, b, k) => [M.lerp(a[0], b[0], k), M.lerp(a[1], b[1], k), M.lerp(a[2], b[2], k)];
-    const sunDay = mix3([1.62, 1.5, 1.28], [1.45, 0.62, 0.24], dusk); const sunNight = [0.02, 0.025, 0.045];
+    const sunDay = mix3([1.72, 1.49, 1.17], [1.45, 0.62, 0.24], dusk); const sunNight = [0.02, 0.025, 0.045];
     env.sunCol = mix3(sunNight, sunDay.map(v => v * 1.0), day);
-    env.skyCol = mix3([0.03, 0.037, 0.07], mix3([0.36, 0.45, 0.62], [0.42, 0.26, 0.2], dusk), day);
-    env.groundCol = mix3([0.014, 0.016, 0.024], mix3([0.17, 0.165, 0.145], [0.2, 0.12, 0.09], dusk), day);
-    env.zenith = mix3([0.004, 0.006, 0.02], mix3([0.12, 0.3, 0.75], [0.15, 0.15, 0.4], dusk), day);
-    env.horizon = mix3([0.012, 0.014, 0.03], mix3([0.36, 0.47, 0.68], [0.9, 0.4, 0.2], dusk), day);
-    env.fogCol = mix3([0.01, 0.012, 0.024], mix3([0.33, 0.43, 0.62], [0.78, 0.4, 0.26], dusk), day);
+    env.skyCol = mix3([0.03, 0.037, 0.07], mix3([0.48, 0.50, 0.56], [0.42, 0.26, 0.2], dusk), day);
+    env.groundCol = mix3([0.014, 0.016, 0.024], mix3([0.23, 0.205, 0.175], [0.2, 0.12, 0.09], dusk), day);
+    env.zenith = mix3([0.004, 0.006, 0.02], mix3([0.20, 0.37, 0.53], [0.15, 0.15, 0.4], dusk), day);
+    env.horizon = mix3([0.012, 0.014, 0.03], mix3([0.64, 0.66, 0.65], [0.9, 0.4, 0.2], dusk), day);
+    env.fogCol = mix3([0.01, 0.012, 0.024], mix3([0.56, 0.59, 0.60], [0.78, 0.4, 0.26], dusk), day);
     env.fogDensity = M.lerp(0.0032, 0.0022, day); env.fogHeight = M.lerp(22, 34, day); env.fogSun = 0.7 * day;
+    // The city goes to bed: the lit-window mask dims through the small hours and comes back before dawn.
+    const late = hours >= 23 || hours < 5.5 ? M.lerp(1, 0.66, M.clamp(Math.min(hours >= 23 ? hours - 23 : hours + 1, 5.5 - hours + 1) / 2.5, 0, 1)) : 1;
+    env.emisStr = 1.8 * late;
     env.nightEmis = M.clamp(night * 1.3, 0, 1); env.daylight = day; env.starAlpha = M.clamp(night * 1.2 - 0.2, 0, 1) * (1 - rain); env.sunDisc = sy > 0.02 ? (1 - rain) : 0;
     if (rain > 0) { // overcast: grey it all down, thicken the fog
       const grey = c => { const l = c[0] * 0.3 + c[1] * 0.5 + c[2] * 0.2; return [M.lerp(c[0], l * 0.85, rain * 0.8), M.lerp(c[1], l * 0.88, rain * 0.8), M.lerp(c[2], l * 0.95, rain * 0.8)]; };
@@ -2121,7 +2300,9 @@ const RENDER = (() => {
       env.fogDensity = M.lerp(env.fogDensity, 0.0075, rain); env.fogHeight = M.lerp(env.fogHeight, 60, rain); env.fogSun *= (1 - rain);
     }
     if (fog > 0) { env.fogDensity = M.lerp(env.fogDensity, 0.016, fog); env.fogHeight = M.lerp(env.fogHeight, 90, fog); env.fogSun *= (1 - fog); env.fogCol = env.fogCol.map((v, i) => M.lerp(v, [0.62, 0.66, 0.72][i] * (0.15 + 0.85 * day), fog)); env.sunCol = env.sunCol.map(v => v * (1 - 0.6 * fog)); env.sunDisc *= (1 - fog); env.horizon = env.horizon.map((v, i) => M.lerp(v, env.fogCol[i], fog)); }
-    env.wet = Math.max(rain, (env.wet || 0) - 0.004); env.rain = rain; env.fog = fog; env.shadowOn = day > 0.15 && rain < 0.5 && fog < 0.6;
+    // The rain ramps away in about twelve seconds. The ground has to dry far slower than that, or wetness
+    // just tracks the rain and the streets are bone-dry the moment the sky clears; they should still be shining.
+    env.wet = Math.max(rain, (env.wet || 0) - dt * 0.012); env.rain = rain; env.fog = fog; env.shadowOn = day > 0.15 && rain < 0.5 && fog < 0.6;
   }
 
   function setCamera(x, y, z, tx, ty, tz, fov) { cam.x = x; cam.y = y; cam.z = z; cam.tx = tx; cam.ty = ty; cam.tz = tz; if (fov) cam.fov = fov; }
@@ -2153,11 +2334,22 @@ const RENDER = (() => {
     M.frustumPlanes(viewPlanes, vp);
     stats.draws = 0; stats.tris = 0;
   }
+  const selL = new Array(MAX_LIGHTS), selD = new Float64Array(MAX_LIGHTS);
   function setLights(list) {
-    // list: [{x,y,z,r,col:[r,g,b]}] — nearest MAX_LIGHTS to the camera target win
-    list.sort((a, b) => M.dist2(a.x, a.z, cam.tx, cam.tz) - M.dist2(b.x, b.z, cam.tx, cam.tz));
-    const n = Math.min(list.length, MAX_LIGHTS); lights.n = n;
-    for (let i = 0; i < n; i++) { const L = list[i]; lights.pos.set([L.x, L.y, L.z, L.r], i * 4); lights.col.set(L.col, i * 3); }
+    // The MAX_LIGHTS nearest the camera target win. A city block carries hundreds of street lamps, so this keeps a
+    // sorted shortlist by insertion rather than sorting the whole list with a comparator every frame.
+    const n0 = list.length; let m = 0;
+    for (let i = 0; i < n0; i++) {
+      const L = list[i]; const dx = L.x - cam.tx, dz = L.z - cam.tz; const d2 = dx * dx + dz * dz;
+      if (m === MAX_LIGHTS && d2 >= selD[m - 1]) continue;
+      let j = m < MAX_LIGHTS ? m : MAX_LIGHTS - 1;
+      while (j > 0 && selD[j - 1] > d2) { selD[j] = selD[j - 1]; selL[j] = selL[j - 1]; j--; }
+      selD[j] = d2; selL[j] = L; if (m < MAX_LIGHTS) m++;
+    }
+    lights.n = m;
+    for (let i = 0; i < m; i++) { const L = selL[i], o = i * 4, c = i * 3;
+      lights.pos[o] = L.x; lights.pos[o + 1] = L.y; lights.pos[o + 2] = L.z; lights.pos[o + 3] = L.r;
+      lights.col[c] = L.col[0]; lights.col[c + 1] = L.col[1]; lights.col[c + 2] = L.col[2]; }
   }
   function bindCommon(P, forShadow) {
     gl.useProgram(P.p);
@@ -2167,7 +2359,7 @@ const RENDER = (() => {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, texArray); gl.uniform1i(P.u.uTex, 0);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadow.tex); gl.uniform1i(P.u.uShadow, 1);
       gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D_ARRAY, nrmArray || texArray); gl.uniform1i(P.u.uNrm, 3);
-      gl.uniform1f(P.u.uNrmOn, nrmArray && env.normalMaps ? 1 : 0); gl.uniform1f(P.u.uNrmStr, env.normalStrength);
+      gl.uniform1f(P.u.uNrmOn, nrmArray && env.normalMaps ? 1 : 0); gl.uniform1f(P.u.uNrmStr, env.normalStrength); gl.uniform1f(P.u.uInterior, env.interiors === false ? 0 : 1); gl.uniform1f(P.u.uEmis, env.emisStr === undefined ? 1.8 : env.emisStr);
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
       gl.uniform3fv(P.u.uFogCol, env.fogCol); gl.uniform3f(P.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform1f(P.u.uFogDensity, env.fogDensity);
       gl.uniform1f(P.u.uFogHeight, env.fogHeight); gl.uniform1f(P.u.uFogSun, env.fogSun);
@@ -2183,7 +2375,7 @@ const RENDER = (() => {
     // statics: no bones in the vertex shader, and a chunked mesh draws only the cells inside the camera's (or the light's) frustum
     bindCommon(PS, forShadow); gl.uniformMatrix4fv(PS.u.uModel, false, identityBones.subarray(0, 16));
     const planes = forShadow ? cascadePlanes[shadowPass] : viewPlanes;
-    for (const m of scene.statics) { if (m.uvOff) gl.uniform2fv(PS.u.uUVOff, m.uvOff); const sp = m.water ? m.spec : (m.spec || 0.3) + (env.rain || 0) * 0.5; if (!forShadow) { gl.uniform1f(PS.u.uSpec, sp); gl.uniform1f(PS.u.uWater, m.water ? 1 : 0); }
+    for (const m of scene.statics) { if (m.uvOff) gl.uniform2fv(PS.u.uUVOff, m.uvOff); const sp = m.water ? m.spec : (m.spec || 0.3) + (env.wet || 0) * 0.5; if (!forShadow) { gl.uniform1f(PS.u.uSpec, sp); gl.uniform1f(PS.u.uWater, m.water ? 1 : 0); }
       if (m.chunks) { for (const ch of m.chunks) if (M.aabbInFrustum(planes, ch.min, ch.max)) { GL.drawRange(m, ch.first, ch.count); stats.draws++; stats.tris += ch.count / 3; } } else { GL.draw(m); stats.draws++; stats.tris += m.count / 3; }
       if (m.uvOff) gl.uniform2f(PS.u.uUVOff, 0, 0); if (!forShadow) { gl.uniform1f(PS.u.uSpec, 0); gl.uniform1f(PS.u.uWater, 0); } }
     bindCommon(P, forShadow);
@@ -2191,6 +2383,9 @@ const RENDER = (() => {
     let lastBones = null, lastSpec = 0;
     for (const e of scene.entities) {
       if (forShadow && e.noShadow) continue;
+      // Each shadow cascade only needs what falls inside its own box: a car eighty metres off cannot cast into the
+      // tight near cascade, and drawing it there was a draw call and a skinned mesh for nothing.
+      if (forShadow && !M.sphereInFrustum(planes, e.model[12], e.model[13], e.model[14], e.cullR || 6)) continue;
       gl.uniformMatrix4fv(P.u.uModel, false, e.model);
       if (e.bones) { gl.uniformMatrix4fv(P.u.uBones, false, e.bones); lastBones = e.bones; } else if (lastBones) { gl.uniformMatrix4fv(P.u.uBones, false, identityBones); lastBones = null; }
       if (!forShadow) { gl.uniform1fv(P.u.uBoneEmis, e.emis || zeroEmis); if ((e.spec || 0) !== lastSpec) { lastSpec = e.spec || 0; gl.uniform1f(P.u.uSpec, lastSpec); } }
@@ -2223,20 +2418,27 @@ const RENDER = (() => {
     if (post.enabled) ensureTargets(canvas.width, canvas.height);
     const usePost = post.enabled && post.msaa;
     gl.bindFramebuffer(gl.FRAMEBUFFER, usePost ? post.msaa.fbo : null); gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    // Under water there is no sky to draw: the buffer is cleared to the colour of the water instead, which is also
+    // what the fog fades everything into, so the whole frame is one body of water.
+    if (env.noSky) { const c = env.fogCol; gl.clearColor(c[0], c[1], c[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.clearColor(0, 0, 0, 1); }
+    else gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     // Sky
+    if (!env.noSky) {
     gl.useProgram(skyProg.p); gl.depthMask(false); gl.disable(gl.DEPTH_TEST);
     gl.uniformMatrix4fv(skyProg.u.uInvVP, false, invVP); gl.uniform3f(skyProg.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform3fv(skyProg.u.uSunDir, env.sunDir);
     gl.uniform3fv(skyProg.u.uZenith, env.zenith); gl.uniform3fv(skyProg.u.uHorizon, env.horizon); gl.uniform3fv(skyProg.u.uSunCol, env.sunCol); gl.uniform1f(skyProg.u.uStars, env.starAlpha); gl.uniform1f(skyProg.u.uSunDisc, env.sunDisc); gl.uniform1f(skyProg.u.uTime, time); gl.uniform1f(skyProg.u.uCloud, env.rain || 0); gl.uniform1f(skyProg.u.uHDR, post.hdr ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.depthMask(true); gl.enable(gl.DEPTH_TEST);
+    gl.depthMask(true); gl.enable(gl.DEPTH_TEST); }
     drawScene(scene, false);
     drawGlass(scene);
     // Flat FX (alpha blended triangles + lines), then particles
     gl.enable(gl.BLEND); gl.depthMask(false);
     if (scene.flat && scene.flat.count > 0) {
       gl.useProgram(flatProg.p); gl.uniformMatrix4fv(flatProg.u.uVP, false, vp);
-      gl.bindVertexArray(flatVao); gl.bindBuffer(gl.ARRAY_BUFFER, flatBuf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, scene.flat.data, 0, scene.flat.count * 7);
+      gl.bindVertexArray(flatVao); gl.bindBuffer(gl.ARRAY_BUFFER, flatBuf);
+      const flatNeed = scene.flat.count * 7;
+      if (flatNeed > flatCap) { flatCap = scene.flat.data.length; gl.bufferData(gl.ARRAY_BUFFER, flatCap * 4, gl.DYNAMIC_DRAW); }
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, scene.flat.data, 0, flatNeed);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       if (scene.flat.triCount) gl.drawArrays(gl.TRIANGLES, 0, scene.flat.triCount);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
@@ -2258,8 +2460,8 @@ const RENDER = (() => {
     // resolve MSAA into the scene texture
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, post.msaa.fbo); gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, post.scene.fbo);
     gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-    const aoOn = post.ao > 0 && post.depth && post.depth.ok;
-    if (aoOn) { gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, post.depth.fbo); gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.DEPTH_BUFFER_BIT, gl.NEAREST); }
+    const aoOn = post.ao > 0 && post.depth && post.depth.ok; const edgeOn = post.edges > 0 && post.depth && post.depth.ok;
+    if (aoOn || edgeOn) { gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, post.depth.fbo); gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.DEPTH_BUFFER_BIT, gl.NEAREST); }
     gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
     if (aoOn) {
       const aw = post.aoA.w, ah = post.aoA.h; gl.bindFramebuffer(gl.FRAMEBUFFER, post.aoA.fbo); gl.viewport(0, 0, aw, ah);
@@ -2283,6 +2485,7 @@ const RENDER = (() => {
     gl.useProgram(compProg.p); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, post.scene.tex); gl.uniform1i(compProg.u.uScene, 0);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, post.bloomA.tex); gl.uniform1i(compProg.u.uBloom, 1);
     gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, aoOn ? post.aoB.tex : post.bloomA.tex); gl.uniform1i(compProg.u.uAO, 2); gl.uniform1f(compProg.u.uAOAmt, aoOn ? post.ao : 0);
+    gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, edgeOn ? post.depth.tex : post.bloomA.tex); gl.uniform1i(compProg.u.uDepth, 3); const px = Math.max(1, Math.round((canvas.width / (canvas.clientWidth || canvas.width)) * 0.85)); gl.uniform2f(compProg.u.uTexel, px / w, px / h); gl.uniform2f(compProg.u.uNF, cam.near, cam.far); gl.uniform1f(compProg.u.uEdge, edgeOn ? post.edges : 0);
     gl.uniform1f(compProg.u.uBloomAmt, post.bloom); gl.uniform1f(compProg.u.uExposure, post.exposure); gl.uniform1f(compProg.u.uHDR, post.hdr ? 1 : 0); gl.uniform1f(compProg.u.uVignette, post.vignette); gl.uniform1f(compProg.u.uSat, post.sat); gl.uniform3fv(compProg.u.uTint, post.tint);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
@@ -2561,23 +2764,46 @@ const W = (() => {
   }
 
   // ---- Flat FX geometry (markers, headlight pools, tracers, shadows blobs)
-  const F = { data: new Float32Array(16384 * 7), tris: [], adds: [], lines: [], count: 0, triCount: 0, addCount: 0, lineCount: 0 };
+  const FX_VERTS = 24576; // the renderer grows its buffer to match, so this is the only place the size is set
+  const F = { data: new Float32Array(FX_VERTS * 7), tris: [], adds: [], lines: [], count: 0, triCount: 0, addCount: 0, lineCount: 0 };
   const fx = {
     tri(list, ax, ay, az, bx, by, bz, cx, cy, cz, r, g, b, a) { list.push(ax, ay, az, r, g, b, a, bx, by, bz, r, g, b, a, cx, cy, cz, r, g, b, a); },
     quad(list, p0, p1, p2, p3, col, a, a2) { const a3 = a2 === undefined ? a : a2; const r = col[0], g = col[1], b = col[2]; list.push(p0[0], p0[1], p0[2], r, g, b, a, p1[0], p1[1], p1[2], r, g, b, a, p2[0], p2[1], p2[2], r, g, b, a3, p0[0], p0[1], p0[2], r, g, b, a, p2[0], p2[1], p2[2], r, g, b, a3, p3[0], p3[1], p3[2], r, g, b, a3); },
     line(ax, ay, az, bx, by, bz, col, a, a2) { F.lines.push(ax, ay, az, col[0], col[1], col[2], a, bx, by, bz, col[0], col[1], col[2], a2 === undefined ? a : a2); },
     // Translucent cylinder marker with a base ring; alpha fades to zero at the top.
+    // A marker you are standing in has already done its job, and one across the city is sixty quads nobody can
+    // see: the minimap blip is what guides you from a distance. Both ends fade rather than pop.
     marker(x, z, r, h, col, pulse) {
+      const cam = RENDER.cam; const d = Math.hypot(x - cam.tx, z - cam.tz);
+      const fade = (0.3 + 0.7 * M.clamp((d - r - 0.6) / 2.2, 0, 1)) * M.clamp((78 - d) / 14, 0, 1);
+      if (fade <= 0.02) return;
       const y0 = CITY.groundY(x, z) + 0.02, segs = 20; const rr = r * (1 + 0.06 * Math.sin(pulse * 4));
       for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU; const x0 = x + Math.cos(a0) * rr, z0 = z + Math.sin(a0) * rr, x1 = x + Math.cos(a1) * rr, z1 = z + Math.sin(a1) * rr;
-        fx.quad(F.adds, [x0, y0, z0], [x1, y0, z1], [x1, y0 + h, z1], [x0, y0 + h, z0], col, 0.45, 0.0); fx.quad(F.adds, [x1, y0, z1], [x0, y0, z0], [x0, y0 + h, z0], [x1, y0 + h, z1], col, 0.45, 0.0);
-        fx.quad(F.adds, [x + Math.cos(a0) * rr * 0.6, y0, z + Math.sin(a0) * rr * 0.6], [x + Math.cos(a1) * rr * 0.6, y0, z + Math.sin(a1) * rr * 0.6], [x1, y0, z1], [x0, y0, z0], col, 0.0, 0.7); }
+        setQ(Q0, x0, y0, z0); setQ(Q1, x1, y0, z1); setQ(Q2, x1, y0 + h, z1); setQ(Q3, x0, y0 + h, z0);
+        fx.quad(F.adds, Q0, Q1, Q2, Q3, col, 0.45 * fade, 0.0); fx.quad(F.adds, Q1, Q0, Q3, Q2, col, 0.45 * fade, 0.0);
+        setQ(Q2, x + Math.cos(a0) * rr * 0.6, y0, z + Math.sin(a0) * rr * 0.6); setQ(Q3, x + Math.cos(a1) * rr * 0.6, y0, z + Math.sin(a1) * rr * 0.6);
+        fx.quad(F.adds, Q2, Q3, Q1, Q0, col, 0.0, 0.7 * fade); }
     },
     // Light pool on the ground in front of headlights.
     lightPool(x, z, fx_, fz, len, wid, col, a) { const y = CITY.groundY(x, z) + 0.03; const rx = -fz, rz = fx_; fx.quad(F.adds, [x + rx * wid * 0.25, y, z + rz * wid * 0.25], [x - rx * wid * 0.25, y, z - rz * wid * 0.25], [x + fx_ * len - rx * wid, y, z + fz * len - rz * wid], [x + fx_ * len + rx * wid, y, z + fz * len + rz * wid], col, a, 0); },
     blob(x, y, z, r, a) { const s = 6; for (let i = 0; i < s; i++) { const a0 = i / s * M.TAU, a1 = (i + 1) / s * M.TAU; fx.tri(F.tris, x, y, z, x + Math.cos(a1) * r, y, z + Math.sin(a1) * r, x + Math.cos(a0) * r, y, z + Math.sin(a0) * r, 0, 0, 0, a); } },
     begin() { F.tris.length = 0; F.adds.length = 0; F.lines.length = 0; },
-    end() { const all = F.tris.length + F.adds.length + F.lines.length; if (all / 7 > 16384) { F.adds.length = 0; F.lines.length = 0; } F.data.set(F.tris, 0); F.data.set(F.adds, F.tris.length); F.data.set(F.lines, F.tris.length + F.adds.length); F.triCount = F.tris.length / 7; F.addCount = F.adds.length / 7; F.lineCount = F.lines.length / 7; F.count = F.triCount + F.addCount + F.lineCount; },
+    // Overflow drops whatever does not fit from the end, a triangle at a time. Emptying the whole additive list
+    // instead puts out every lamp, shopfront and tracer in the frame at once, which is a far more visible fault
+    // than losing the last few effects behind them.
+    end() {
+      const CAP = F.data.length; let tl = F.tris.length, al = F.adds.length, ll = F.lines.length;
+      if (tl + al + ll > CAP) {
+        tl = Math.min(tl, Math.floor(CAP / 21) * 21);
+        al = Math.min(al, Math.floor((CAP - tl) / 21) * 21);
+        ll = Math.min(ll, Math.floor((CAP - tl - al) / 14) * 14);
+        const d = F.data;
+        for (let i = 0; i < tl; i++) d[i] = F.tris[i];
+        for (let i = 0; i < al; i++) d[tl + i] = F.adds[i];
+        for (let i = 0; i < ll; i++) d[tl + al + i] = F.lines[i];
+      } else { F.data.set(F.tris, 0); F.data.set(F.adds, tl); F.data.set(F.lines, tl + al); }
+      F.triCount = tl / 7; F.addCount = al / 7; F.lineCount = ll / 7; F.count = F.triCount + F.addCount + F.lineCount;
+    },
   };
 
   // ---- Decals: skid marks and blood pools, a ring buffer of flat quads that fade out
@@ -2736,22 +2962,98 @@ const W = (() => {
 
   // ---- Lights for the renderer
   // Faint additive cones under the lampposts at night, drawn into the flat FX buffer.
+  // A light on wet ground reflects in it, and the reflection is a streak running back toward whoever is looking:
+  // that smear of light down a wet road is most of what a city looks like in the rain at night.
+  // fx.quad reads its four corners straight into the buffer, so one set of scratch corners can be refilled and
+  // reused. At a dozen quads per light per frame these were the only garbage the lighting pass made.
+  const Q0 = [0, 0, 0], Q1 = [0, 0, 0], Q2 = [0, 0, 0], Q3 = [0, 0, 0];
+  const LAMP_COL = [1, 0.85, 0.55], SHOP_COL = [1, 0.82, 0.52];
+  const setQ = (q, x, y, z) => { q[0] = x; q[1] = y; q[2] = z; };
+  function wetStreak(hx, py, hz, camX, camZ, col, amt, wet) {
+    if (wet < 0.12 || amt <= 0 || RENDER.env.wetStreak === false) return;
+    const dx = camX - hx, dz = camZ - hz; const l = Math.hypot(dx, dz); if (l < 2) return;
+    const ux = dx / l, uz = dz / l, rx = -uz, rz = ux;
+    const len = Math.min(l * 0.8, 6 + wet * 7);
+    const SEG = 4, core = 0.13, flank = 0.5;
+    // Falls off along its length as the reflection scatters, and to nothing at the sides, so it has no edge anywhere.
+    const at = t => amt * wet * (1 - t) * (1 - t);
+    for (let i = 0; i < SEG; i++) {
+      const t0 = i / SEG, t1 = (i + 1) / SEG, a0 = at(t0), a1 = at(t1);
+      const s0 = len * t0, s1 = len * t1;
+      const x0 = hx + ux * s0, z0 = hz + uz * s0, x1 = hx + ux * s1, z1 = hz + uz * s1;
+      // widens slightly with distance, the way a scattered reflection spreads
+      const c0 = core * (1 + t0), c1 = core * (1 + t1), f0 = flank * (1 + t0 * 1.6), f1 = flank * (1 + t1 * 1.6);
+      setQ(Q0, x0 - rx * c0, py, z0 - rz * c0); setQ(Q1, x0 + rx * c0, py, z0 + rz * c0);
+      setQ(Q2, x1 + rx * c1, py, z1 + rz * c1); setQ(Q3, x1 - rx * c1, py, z1 - rz * c1);
+      fx.quad(F.adds, Q0, Q1, Q2, Q3, col, a0, a1);
+      for (let sgn = -1; sgn <= 1; sgn += 2) {
+        setQ(Q0, x0 + rx * c0 * sgn, py, z0 + rz * c0 * sgn); setQ(Q1, x1 + rx * c1 * sgn, py, z1 + rz * c1 * sgn);
+        setQ(Q2, x1 + rx * f1 * sgn, py, z1 + rz * f1 * sgn); setQ(Q3, x0 + rx * f0 * sgn, py, z0 + rz * f0 * sgn);
+        fx.quad(F.adds, Q0, Q1, Q2, Q3, col, (a0 + a1) * 0.5, 0);
+      }
+    }
+  }
   function lampCones(camX, camZ) {
-    const night = RENDER.env.nightEmis; if (night < 0.05) return; const rain = weather.rain;
+    const night = RENDER.env.nightEmis; if (night < 0.05) return; const rain = weather.rain; const wet = RENDER.env.wet || rain;
     let cones = 0;
     for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 > 60 * 60 || cones++ > 14) continue; const a = p.a || 0; const hx = p.x + Math.sin(a) * 1.6, hz = p.z + Math.cos(a) * 1.6; const y0 = CITY.groundY(hx, hz);
-      const al = 0.03 * night * (1 + rain * 1.5) * (1 - Math.sqrt(d2) / 60); const R = 2.6; const segs = 16;
-      for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU; fx.tri(F.adds, hx, 5.7, hz, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R, 1, 0.85, 0.55, al); fx.tri(F.adds, hx, 5.7, hz, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R, 1, 0.85, 0.55, al); }
+      const d = Math.sqrt(d2);
+      // The shaft of light in the air fades out as you walk up to the lamp: standing inside a cone of constant
+      // brightness put a hard-edged slab of light across half the screen.
+      const near = M.clamp((d - 3.5) / 7, 0, 1);
+      const al = 0.03 * night * (1 + rain * 1.5) * (1 - d / 60); const R = 2.6; const segs = 16;
+      // Each segment is a quad with the apex doubled, so the shaft is brightest at the lamp and fades to nothing at
+      // the ground rim rather than ending on a hard edge. Drawn both ways round so it reads from either side.
+      if (near > 0.01) { setQ(Q2, hx, 5.7, hz);
+        for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU;
+          setQ(Q0, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R); setQ(Q1, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R);
+          fx.quad(F.adds, Q2, Q2, Q1, Q0, LAMP_COL, al * near, 0);
+          fx.quad(F.adds, Q2, Q2, Q0, Q1, LAMP_COL, al * near, 0); } }
       // pool on the ground: a fan that fades to nothing at the rim, so there is no hard square of light
-      { const pr = R * 1.35, py = y0 + 0.03, col = [1, 0.85, 0.55], a0 = al * 2.2;
+      { const pr = R * 1.9, py = y0 + 0.03, a0 = al * (RENDER.env.lampPool === undefined ? 6.5 : RENDER.env.lampPool);
+        setQ(Q0, hx, py, hz); setQ(Q1, hx, py, hz);
         for (let i = 0; i < 16; i++) { const t0 = i / 16 * M.TAU, t1 = (i + 1) / 16 * M.TAU;
-          fx.quad(F.adds, [hx, py, hz], [hx, py, hz], [hx + Math.cos(t1) * pr, py, hz + Math.sin(t1) * pr], [hx + Math.cos(t0) * pr, py, hz + Math.sin(t0) * pr], col, a0, 0); } } }
+          setQ(Q2, hx + Math.cos(t1) * pr, py, hz + Math.sin(t1) * pr); setQ(Q3, hx + Math.cos(t0) * pr, py, hz + Math.sin(t0) * pr);
+          fx.quad(F.adds, Q0, Q1, Q2, Q3, LAMP_COL, a0, 0); }
+        wetStreak(hx, py, hz, camX, camZ, LAMP_COL, al * 5.0, wet); } }
+    shopGlow(camX, camZ, night, rain);
   }
+  // A lit shop window is the main source of light on a night street: each open front throws a warm wedge across the
+  // pavement that fades out at its edge, and carries a short-range light so people and cars passing it are lit too.
+  function shopGlow(camX, camZ, night, rain) {
+    if (RENDER.env.shopGlow === false) return;
+    // Shops keep hours: most are lit through the evening, a handful stay on all night.
+    const hr = state.time; const openFrac = hr >= 23 || hr < 5.5 ? 0.26 : hr >= 22 ? 0.5 : 0.76;
+    const cap = Math.max(2, Math.round(13 * openFrac / 0.76));
+    let n = 0;
+    for (const s of CITY.shopfronts) {
+      if (s.shut || s.h >= openFrac) continue;
+      const dx = s.x - camX, dz = s.z - camZ; const d2 = dx * dx + dz * dz;
+      if (d2 > 42 * 42 || n++ >= cap) continue;
+      const fade = 1 - Math.sqrt(d2) / 42; const y0 = CITY.groundY(s.x, s.z) + 0.03;
+      const len = 4.6, half = s.w * 0.42; const rx = -s.nz, rz = s.nx;
+      const a0 = 0.13 * night * fade * (1 + rain * 0.8);
+      // a wedge on the ground: bright at the glass, nothing at its far edge
+      setQ(Q0, s.x - rx * half, y0, s.z - rz * half); setQ(Q1, s.x + rx * half, y0, s.z + rz * half);
+      setQ(Q2, s.x + s.nx * len + rx * half * 1.5, y0, s.z + s.nz * len + rz * half * 1.5);
+      setQ(Q3, s.x + s.nx * len - rx * half * 1.5, y0, s.z + s.nz * len - rz * half * 1.5);
+      fx.quad(F.adds, Q0, Q1, Q2, Q3, SHOP_COL, a0, 0);
+      wetStreak(s.x + s.nx * 1.4, y0, s.z + s.nz * 1.4, camX, camZ, SHOP_COL, a0 * 2.0, RENDER.env.wet || rain);
+      if (d2 < 26 * 26 && dyn.length < 40) dyn.push({ x: s.x + s.nx * 1.2, y: 2.6, z: s.z + s.nz * 1.2, r: 9, col: [0.5 * night, 0.4 * night, 0.24 * night] });
+    }
+  }
+  // Street lamps come from a pool of reusable light records rather than a few hundred fresh objects every frame,
+  // and the list itself is reused.
+  const lampPool = []; const lightList = [];
   function collectLights(camX, camZ) {
-    const out = []; const night = RENDER.env.nightEmis;
-    if (night > 0.05) { for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 < 110 * 110) { const a = p.a || 0; out.push({ x: p.x + Math.sin(a) * 1.6, y: 5.6, z: p.z + Math.cos(a) * 1.6, r: 17, col: [0.42 * night, 0.33 * night, 0.19 * night] }); } } }
-    for (const d of dyn) out.push(d);
-    return out;
+    let n = 0; const night = RENDER.env.nightEmis;
+    if (night > 0.05) { const R2 = 110 * 110; const cr = 0.42 * night, cg = 0.33 * night, cb = 0.19 * night;
+      for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const dx = p.x - camX, dz = p.z - camZ; if (dx * dx + dz * dz > R2) continue;
+        let e = lampPool[n]; if (!e) lampPool[n] = e = { x: 0, y: 5.6, z: 0, r: 17, col: [0, 0, 0] };
+        const a = p.a || 0; e.x = p.x + Math.sin(a) * 1.6; e.z = p.z + Math.cos(a) * 1.6; e.col[0] = cr; e.col[1] = cg; e.col[2] = cb;
+        lightList[n++] = e; } }
+    for (const d of dyn) lightList[n++] = d;
+    lightList.length = n; return lightList;
   }
 
   // ---- Weather: clear spells and rain, a few game hours each
@@ -2785,16 +3087,18 @@ const W = (() => {
 const VEH = (() => {
   const SPECS = MESH.VEHICLES;
   const NAMES = { sedan: 'MERIDIAN', sports: 'FALCATA', hatch: 'GNAT', pickup: 'MULE', van: 'BOXER', taxi: 'CABCO', police: 'ENFORCER', truck: 'HAULER', bus: 'TRANSIT', muscle: 'BRAWLER', swat: 'BASTION', bike: 'VIPER', boat: 'SKIMMER', ktruck: 'RANCHER', kmoto: 'HORNET', kgarbage: 'SANITATION', kambulance: 'MEDIVAC', kfire: 'FIREBRAND' };
-  const PALETTE = [[0.85, 0.12, 0.1], [0.12, 0.22, 0.6], [0.92, 0.92, 0.9], [0.15, 0.15, 0.17], [0.62, 0.62, 0.66], [0.1, 0.48, 0.25], [0.9, 0.6, 0.12], [0.45, 0.12, 0.5], [0.7, 0.35, 0.15], [0.2, 0.6, 0.7], [0.55, 0.05, 0.1], [0.75, 0.75, 0.5], [0.2, 0.45, 0.35], [0.85, 0.85, 0.6], [0.3, 0.2, 0.4], [0.9, 0.35, 0.25], [0.75, 0.2, 0.35], [0.55, 0.6, 0.7], [0.15, 0.3, 0.45], [0.8, 0.55, 0.3], [0.35, 0.35, 0.4], [0.95, 0.85, 0.8]];
+  const PALETTE = [[0.696,0.185,0.171],[0.154,0.224,0.49],[0.919,0.919,0.905],[0.151,0.151,0.165],[0.621,0.621,0.649],[0.172,0.438,0.277],[0.82,0.61,0.274],[0.394,0.163,0.429],[0.62,0.375,0.235],[0.288,0.568,0.638],[0.447,0.097,0.132],[0.741,0.741,0.566],[0.249,0.424,0.354],[0.841,0.841,0.666],[0.286,0.216,0.356],[0.781,0.396,0.326],[0.639,0.254,0.359],[0.564,0.599,0.669],[0.187,0.292,0.397],[0.739,0.564,0.389],[0.352,0.352,0.387],[0.927,0.857,0.822]]; // desaturated a third toward grey: a street of cars is mostly muted
   const FIXED = { taxi: [1, 0.8, 0.1], police: [0.95, 0.95, 0.98], swat: [0.16, 0.18, 0.22], bus: [0.85, 0.55, 0.15] };
   const meshCache = {};
-  function colorOf(type, colIdx) { return colIdx === 'wreck' ? [0.07, 0.07, 0.07] : FIXED[type] || PALETTE[colIdx]; }
+  function colorOf(type, colIdx) { if (colIdx === 'wreck') return [0.07, 0.07, 0.07];
+    const c = FIXED[type] || PALETTE[colIdx], l = c[0] * .3 + c[1] * .59 + c[2] * .11;
+    return c.map(v => (v * .72 + l * .28) * .88 + .035); }
   function getMesh(type, colIdx) { const key = type + ':' + colIdx; if (!meshCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx)); meshCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return meshCache[key]; }
   const lodCache = {}; function getLod(type, colIdx) { const key = type + ':' + colIdx; if (!lodCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx), { lod: true }); lodCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return lodCache[key]; }
   function dentedMesh(type, colIdx, dent, seed) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed }); return { body: m.body.build(), glass: m.glass.build() }; }
   const TRAFFIC_TYPES = ['sedan', 'sedan', 'sedan', 'hatch', 'hatch', 'sports', 'pickup', 'van', 'taxi', 'taxi', 'muscle', 'truck', 'bus', 'ktruck', 'kmoto', 'kgarbage', 'kambulance', 'kfire'];
 
-  const tmpV = [0, 0, 0]; const TURN_R = 10; // radius of the arc traffic drives through a corner (m); long vehicles need more
+  const tmpV = [0, 0, 0]; const CIRC_A = new Float64Array(9), CIRC_B = new Float64Array(9); /* scratch for circlesInto */ const TURN_R = 10; // radius of the arc traffic drives through a corner (m); long vehicles need more
   const LEAN_SIGN = -1; // positive roll tips the body to the right, so leaning into a left turn (positive yaw) is negative
   class Vehicle {
     constructor(type, x, z, angle, opts = {}) {
@@ -2815,11 +3119,23 @@ const VEH = (() => {
     get fwd() { return [Math.sin(this.angle), Math.cos(this.angle)]; }
     get right() { return [-Math.cos(this.angle), Math.sin(this.angle)]; }
     circles() {
-      const s = this.spec, f = this.fwd, r = s.wid / 2 + 0.1; const L = s.len;
-      if (L > 6.5) return [[this.x + f[0] * L * 0.36, this.z + f[1] * L * 0.36, r], [this.x, this.z, r], [this.x - f[0] * L * 0.36, this.z - f[1] * L * 0.36, r]];
-      return [[this.x + f[0] * L * 0.26, this.z + f[1] * L * 0.26, r], [this.x - f[0] * L * 0.26, this.z - f[1] * L * 0.26, r]];
+      const s = this.spec, fx = Math.sin(this.angle), fz = Math.cos(this.angle), r = s.wid / 2 + 0.1; const L = s.len;
+      if (L > 6.5) return [[this.x + fx * L * 0.36, this.z + fz * L * 0.36, r], [this.x, this.z, r], [this.x - fx * L * 0.36, this.z - fz * L * 0.36, r]];
+      return [[this.x + fx * L * 0.26, this.z + fz * L * 0.26, r], [this.x - fx * L * 0.26, this.z - fz * L * 0.26, r]];
     }
-    local(px, pz) { const f = this.fwd, r = this.right; const dx = px - this.x, dz = pz - this.z; return [dx * f[0] + dz * f[1], dx * r[0] + dz * r[1]]; }
+    // The same circles written into a caller's flat [x, z, r, ...] buffer: the collision loops run this thousands of
+    // times a second and the array-of-arrays version was most of their cost in garbage alone.
+    circlesInto(out) {
+      const s = this.spec, fx = Math.sin(this.angle), fz = Math.cos(this.angle), r = s.wid / 2 + 0.1; const L = s.len;
+      if (L > 6.5) { const o = L * 0.36;
+        out[0] = this.x + fx * o; out[1] = this.z + fz * o; out[2] = r;
+        out[3] = this.x; out[4] = this.z; out[5] = r;
+        out[6] = this.x - fx * o; out[7] = this.z - fz * o; out[8] = r; return 3; }
+      const o = L * 0.26;
+      out[0] = this.x + fx * o; out[1] = this.z + fz * o; out[2] = r;
+      out[3] = this.x - fx * o; out[4] = this.z - fz * o; out[5] = r; return 2;
+    }
+    local(px, pz) { const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const dx = px - this.x, dz = pz - this.z; return [dx * sa + dz * ca, -dx * ca + dz * sa]; }
     get absSpeed() { return Math.hypot(this.vx, this.vz); }
 
     update(dt) {
@@ -2841,7 +3157,7 @@ const VEH = (() => {
       if (this.wrecked && this.fireT < 10) { this.fireT += dt; if (W.state.frame % 2 === 0) { W.FX.fire(this.x, this.y + 0.8, this.z, 1); if (W.state.frame % 4 === 0) W.FX.smoke(this.x, this.y + 1, this.z, 1, true); } }
     }
     physics(dt) {
-      const s = this.spec, c = this.controls; const f = this.fwd, r = this.right;
+      const s = this.spec, c = this.controls; const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const f = [sa, ca], r = [-ca, sa];
       let vF = this.vx * f[0] + this.vz * f[1], vL = this.vx * r[0] + this.vz * r[1];
       const top = s.top; const spd = Math.abs(vF);
       // steering: the wheel angle that full lock gives shrinks with speed, so a twitch at 150 km/h is not a spin
@@ -2909,7 +3225,7 @@ const VEH = (() => {
     collide(dt, water = false) {
       const s = this.spec; const f = this.fwd; const half = s.len / 2;
       // buildings & props: each circle (a boat has already been kept off the shore)
-      if (!water) for (const [cx, cz, r] of this.circles()) {
+      if (!water) for (let ci = 0, nci = this.circlesInto(CIRC_A); ci < nci; ci++) { const cx = CIRC_A[ci * 3], cz = CIRC_A[ci * 3 + 1], r = CIRC_A[ci * 3 + 2];
         const res = W.pushOut(cx, cz, r, { ignoreLow: this.y > 1.4 });
         if (res.hit) {
           const nx = res.hit[0], nz = res.hit[1];
@@ -2930,7 +3246,10 @@ const VEH = (() => {
       // other cars
       for (const o of W.cars) {
         if (o === this || o.removed) continue; if (M.dist2(this.x, this.z, o.x, o.z) > 144) continue;
-        for (const [ax, az, ar] of this.circles()) for (const [bx, bz, br] of o.circles()) {
+        const na = this.circlesInto(CIRC_A), nb = o.circlesInto(CIRC_B);
+        for (let ai = 0; ai < na; ai++) for (let bi = 0; bi < nb; bi++) {
+          const ax = CIRC_A[ai * 3], az = CIRC_A[ai * 3 + 1], ar = CIRC_A[ai * 3 + 2];
+          const bx = CIRC_B[bi * 3], bz = CIRC_B[bi * 3 + 1], br = CIRC_B[bi * 3 + 2];
           const dx = ax - bx, dz = az - bz; const rr = ar + br; const d2 = dx * dx + dz * dz; if (d2 >= rr * rr || d2 < 1e-6) continue;
           const d = Math.sqrt(d2), nx = dx / d, nz = dz / d, pen = rr - d;
           const mA = this.spec.mass, mB = o.spec.mass, tot = mA + mB;
@@ -2971,7 +3290,7 @@ const VEH = (() => {
     }
     // Boats: thrust against water drag, a rudder that needs way on, sideways slip, a hull that bobs and banks.
     boatPhysics(dt) {
-      const s = this.spec, c = this.controls; const f = this.fwd, r = this.right;
+      const s = this.spec, c = this.controls; const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const f = [sa, ca], r = [-ca, sa];
       let vF = this.vx * f[0] + this.vz * f[1], vL = this.vx * r[0] + this.vz * r[1]; const top = s.top;
       const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked');
       this.steer = M.approach(this.steer, M.clamp(c.steer, -1, 1), 4 * dt); this.steerAngle = this.steer * 0.5;
@@ -3066,7 +3385,7 @@ const VEH = (() => {
         if (light && remain < 14 && remain > 1) { const st = W.lightState(light, e.axis); if (st === 'red' || (st === 'yellow' && remain > 7)) { if (remain < 3.5) target = 0; else target = Math.min(target, Math.max(0, (remain - 3) * 1.5)); ai.atLight = true; } else ai.atLight = false; } else ai.atLight = false;
       }
       // obstacles ahead
-      const f = this.fwd, r = this.right; let blocked = false, blockSpeed = 99; const reach = 5 + Math.abs(this.speed) * 1.0;
+      const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const f = [sa, ca], r = [-ca, sa]; let blocked = false, blockSpeed = 99; const reach = 5 + Math.abs(this.speed) * 1.0;
       for (const o of W.cars) { if (o === this || o.removed) continue; const dx = o.x - this.x, dz = o.z - this.z; if (dx * dx + dz * dz > (reach + 8) * (reach + 8)) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; const half = o.spec.len / 2; if (lf > 0 && lf - half < reach && Math.abs(ll) < 2.4) { const os = o.vx * f[0] + o.vz * f[1]; const gap = lf - half - this.spec.len / 2; if (gap < 3) { target = 0; blocked = true; } else target = Math.min(target, Math.max(0, os + (gap - 3) * 0.8)); blockSpeed = Math.min(blockSpeed, Math.abs(os)); } }
       if (ai.mode !== 'flee') {
         for (const p of W.peds) { if (p.removed || p.inCar || p.state === 'dead') continue; const dx = p.x - this.x, dz = p.z - this.z; if (dx * dx + dz * dz > 400) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < reach + 2 && Math.abs(ll) < 1.8) { target = lf < 5 ? 0 : Math.min(target, 3); blocked = blocked || lf < 5; } }
@@ -3160,7 +3479,7 @@ const VEH = (() => {
       }
       if (this.damageFlash > 0) { for (let i = 0; i < 5; i++) e[i] = 0.25; }
       const far = !this.wrecked && this.dentLevel === 0 && M.dist2(this.x, this.z, RENDER.cam.tx, RENDER.cam.tz) > 85 * 85; const lod = far ? getLod(this.type, this.colIdx) : null;
-      return { mesh: lod ? lod.body : this.mesh, glass: lod ? lod.glass : this.meshes.glass, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.6 };
+      return { mesh: lod ? lod.body : this.mesh, glass: lod ? lod.glass : this.meshes.glass, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.25 };
     }
     headlightFX() { if (!this.lightsOn || this.wrecked) return; const f = this.fwd, r = this.right; const s = this.spec; const hx = this.x + f[0] * s.len * 0.5, hz = this.z + f[1] * s.len * 0.5; W.fx.lightPool(hx, hz, f[0], f[1], 16, 3.2, [1, 0.95, 0.75], 0.2); W.dyn.push({ x: hx + f[0] * 5, y: 1, z: hz + f[1] * 5, r: 13, col: [0.6, 0.56, 0.42] }); }
     remove() { this.removed = true; if (this.driver && this.driver !== PLAYER) { this.driver.removed = true; } for (const p of this.passengers) p.removed = true; }
@@ -3213,7 +3532,19 @@ const VEH = (() => {
   function spawnMarina() { CITY.marina.forEach((m, i) => { const b = spawn('boat', m.x, m.z, m.angle, { mode: 'parked', color: [2, 9, 6][i % 3] }); b.persistent = true; }); }
   function spawnParked() { for (const p of CITY.parkedSpots) { const type = p.type || TRAFFIC_TYPES[Math.floor(W.rng() * TRAFFIC_TYPES.length)]; if (type === 'bus' || type === 'truck') continue; spawn(type, p.x, p.z, p.angle, { mode: 'parked' }); } }
   function nearest(x, z, r, filter) { let best = null, bd = r * r; for (const c of W.cars) { if (c.removed || (filter && !filter(c))) continue; const d = M.dist2(c.x, c.z, x, z); if (d < bd) { bd = d; best = c; } } return best; }
-  function updateAll(dt, night) { for (const c of W.cars) { if (c.removed) continue; c.lightsOn = night && !c.wrecked && (c.driver !== null || c.ai.mode !== 'parked' || c.playerOwned) ; c.update(dt); } }
+  // Traffic far from the camera runs at a third of the rate with three times the step. All distant cars move on the
+  // same frame, so they still see each other consistently; anything the player is near, or involved in, runs every frame.
+  const FAR2 = 95 * 95;
+  function updateAll(dt, night) {
+    const cam = RENDER.cam; const cx = cam.tx, cz = cam.tz; const phase = W.state.frame % 3;
+    for (const c of W.cars) {
+      if (c.removed) continue;
+      c.lightsOn = night && !c.wrecked && (c.driver !== null || c.ai.mode !== 'parked' || c.playerOwned);
+      const dx = c.x - cx, dz = c.z - cz;
+      const far = dx * dx + dz * dz > FAR2 && c.driver !== PLAYER && !c.important && c.ai.mode !== 'chase' && !c.wrecked && !c.airborne;
+      if (far) { if (phase === 0) c.update(dt * 3); } else c.update(dt);
+    }
+  }
   return { Vehicle, SPECS, NAMES, PALETTE, TRAFFIC_TYPES, trafficTypeFor, trim, spawn, spawnTraffic, despawn, spawnParked, spawnMarina, nearest, updateAll, getMesh };
 })();
 
@@ -3234,6 +3565,7 @@ const PEDS = (() => {
   // district wardrobes: suits downtown, hi-vis and overalls on the east side, running gear in the leafy west, wool by the water
   const SUIT = () => ({ hairStyle: r0.pick([0, 1, 1, 3, 4, 5]), beard: r0.chance(0.15), skin: r0.pick(SKIN), shirt: [0.95, 0.95, 0.95], pants: r0.pick([[0.1, 0.1, 0.13], [0.2, 0.2, 0.3], [0.35, 0.3, 0.28]]), hair: r0.pick(HAIR), hat: null, jacket: r0.pick([[0.1, 0.1, 0.13], [0.2, 0.2, 0.3], [0.35, 0.3, 0.28], [0.15, 0.2, 0.35]]), sleeves: true, glasses: r0.chance(0.3), bag: r0.chance(0.4) ? [0.15, 0.1, 0.08] : null, skirt: r0.chance(0.3), longHair: r0.chance(0.3) });
   const WORK = () => ({ hairStyle: r0.pick([0, 5, 6, 1]), beard: r0.chance(0.35), skin: r0.pick(SKIN), shirt: r0.pick([[1, 0.6, 0.1], [0.95, 0.9, 0.2], [0.3, 0.35, 0.55], [0.4, 0.4, 0.42]]), pants: r0.pick([[0.3, 0.35, 0.55], [0.35, 0.3, 0.25], [0.2, 0.2, 0.22]]), hair: r0.pick(HAIR), hat: r0.chance(0.5) ? [0.95, 0.8, 0.15] : null, beanie: r0.chance(0.3), jacket: null, sleeves: r0.chance(0.6), glasses: false, bag: null, skirt: false, longHair: r0.chance(0.15) });
+  const CIRC = new Float64Array(9); // scratch for a car's collision circles, so walking past traffic allocates nothing
   const RUN = () => ({ hairStyle: r0.pick([0, 3, 4, 3]), skin: r0.pick(SKIN), shirt: r0.pick([[0.95, 0.3, 0.5], [0.2, 0.8, 0.9], [0.9, 0.9, 0.2], [0.98, 0.98, 0.98], [0.1, 0.1, 0.1]]), pants: r0.pick([[0.1, 0.1, 0.12], [0.2, 0.2, 0.5], [0.4, 0.4, 0.42]]), hair: r0.pick(HAIR), hat: r0.chance(0.4) ? r0.pick(CLOTH) : null, jacket: null, sleeves: false, glasses: r0.chance(0.4), bag: null, skirt: false, longHair: r0.chance(0.5) });
   const WOOL = () => ({ hairStyle: r0.pick([0, 5, 2]), beard: r0.chance(0.4), skin: r0.pick(SKIN), shirt: r0.pick([[0.35, 0.3, 0.28], [0.2, 0.25, 0.3], [0.5, 0.45, 0.35]]), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: null, beanie: r0.chance(0.7), jacket: r0.pick([[0.9, 0.65, 0.1], [0.2, 0.25, 0.3], [0.35, 0.3, 0.28]]), sleeves: true, glasses: false, bag: null, skirt: false, longHair: r0.chance(0.2) });
   const WARDROBE = { downtown: [], eastside: [], westfield: [], southport: [] }; for (let i = 0; i < 16; i++) { WARDROBE.downtown.push(SUIT()); WARDROBE.eastside.push(WORK()); WARDROBE.westfield.push(RUN()); WARDROBE.southport.push(WOOL()); }
@@ -3241,7 +3573,7 @@ const PEDS = (() => {
   const COP = { skin: [0.9, 0.75, 0.62], shirt: [0.2, 0.3, 0.6], pants: [0.15, 0.18, 0.3], hair: [0.1, 0.1, 0.1], hat: [0.15, 0.18, 0.35], jacket: null, sleeves: true, glasses: true };
   const SWAT = { skin: [0.85, 0.7, 0.6], shirt: [0.12, 0.12, 0.14], pants: [0.1, 0.1, 0.12], hair: [0.1, 0.1, 0.1], hat: [0.1, 0.1, 0.12], jacket: [0.2, 0.2, 0.22], sleeves: true, glasses: true };
   const GANG = { skin: [0.6, 0.42, 0.3], shirt: [0.55, 0.05, 0.1], pants: [0.12, 0.12, 0.12], hair: [0.08, 0.06, 0.06], hat: [0.5, 0.05, 0.1], jacket: [0.15, 0.15, 0.15], sleeves: true };
-  const PLAYER_LOOK = { skin: [0.9, 0.74, 0.62], shirt: [0.85, 0.85, 0.8], pants: [0.2, 0.2, 0.25], hair: [0.15, 0.1, 0.08], hat: null, jacket: [0.25, 0.14, 0.1], sleeves: true };
+  const PLAYER_LOOK = { skin: [0.9, 0.74, 0.62], shirt: [0.85, 0.85, 0.8], pants: [0.2, 0.2, 0.25], hair: [0.15, 0.1, 0.08], hat: null, jacket: [0.36, 0.25, 0.19], sleeves: true };
   const MARLA = { skin: [0.85, 0.65, 0.5], shirt: [0.9, 0.2, 0.4], pants: [0.1, 0.1, 0.12], hair: [0.05, 0.05, 0.05], hat: null, jacket: [0.1, 0.1, 0.12], sleeves: true };
   const OKAFOR = { skin: [0.42, 0.28, 0.2], shirt: [0.9, 0.85, 0.7], pants: [0.3, 0.3, 0.35], hair: [0.05, 0.05, 0.05], hat: [0.2, 0.25, 0.3], jacket: [0.85, 0.55, 0.1], sleeves: true };
   const CRANE = { skin: [0.92, 0.8, 0.7], shirt: [0.95, 0.95, 0.95], pants: [0.2, 0.2, 0.25], hair: [0.7, 0.7, 0.7], hat: null, jacket: [0.2, 0.2, 0.25], sleeves: true, glasses: true };
@@ -3395,7 +3727,7 @@ const PEDS = (() => {
       const g = CITY.groundY(this.x, this.z);
       if (this.airborne) { if (this.y <= g) { this.y = g; this.airborne = false; this.vy = 0; if (this.state === 'dead') { this.vx *= 0.3; this.vz *= 0.3; } } } else this.y = g;
       const res = W.pushOut(this.x, this.z, 0.4); this.x = res.x; this.z = res.z;
-      if (!ragdoll) for (const c of W.cars) { if (c.removed || M.dist2(c.x, c.z, this.x, this.z) > 49) continue; for (const [cx, cz, r] of c.circles()) { const dx = this.x - cx, dz = this.z - cz; const rr = r + 0.35; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); this.x = cx + dx / d * rr; this.z = cz + dz / d * rr; } } }
+      if (!ragdoll) for (const c of W.cars) { if (c.removed || M.dist2(c.x, c.z, this.x, this.z) > 49) continue; for (let ci = 0, nci = c.circlesInto(CIRC); ci < nci; ci++) { const cx = CIRC[ci * 3], cz = CIRC[ci * 3 + 1], r = CIRC[ci * 3 + 2]; const dx = this.x - cx, dz = this.z - cz; const rr = r + 0.35; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); this.x = cx + dx / d * rr; this.z = cz + dz / d * rr; } } }
       if (!ragdoll) { this.vx = 0; this.vz = 0; this.phase += dt * (this.speed > 0.05 ? M.TAU * this.speed / (1.2 + 0.24 * this.speed) : 0); }
     }
     // ---- Rig
@@ -3584,7 +3916,16 @@ const PEDS = (() => {
     if (W.rng() < 0.1 && !p.jog) { p.state = 'stand'; p.wanderT = 5 + W.rng() * 10; const lot = CITY.lotsNear(x, z, 6).find(l => l.kind !== 'wall'); if (lot) p.angle = Math.atan2(M.clamp(x, lot.x0, lot.x1) - x, M.clamp(z, lot.z0, lot.z1) - z); } // a look in a shop window
   }
   function despawn(px, pz) { let w = 0; for (const p of W.peds) { if (!p.removed && !p.important) { const d = M.dist(p.x, p.z, px, pz); if ((d > 170 && !p.inCar) || (p.state === 'dead' && (p.deadT > 25 || (d > 60 && p.deadT > 6)))) p.removed = true; } if (p.removed && p.onRemove) { p.onRemove(); p.onRemove = null; } if (!p.removed) W.peds[w++] = p; } W.peds.length = w; }
-  function updateAll(dt) { for (const p of W.peds) p.update(dt); }
+  // People far from the camera run at a third of the rate, on the same frame as each other.
+  const FAR2 = 62 * 62;
+  function updateAll(dt) {
+    const cam = RENDER.cam; const cx = cam.tx, cz = cam.tz; const phase = W.state.frame % 3;
+    for (const p of W.peds) {
+      if (p.removed || p.inCar || p.important || p.isCop || p.state === 'dead' || p.rag) { p.update(dt); continue; }
+      const dx = p.x - cx, dz = p.z - cz;
+      if (dx * dx + dz * dz > FAR2) { if (phase === 1) p.update(dt * 3); } else p.update(dt);
+    }
+  }
   return { Ped, heldEntity, spawn, spawnDriver, spawnCop, populate, trim, despawn, updateAll, buildRig, buildRigSeated, seatOf, seatedEntity, getMesh, makeRagdoll, stepRagdoll, ragdollBones, endRagdoll, looks, COP, SWAT, GANG, PLAYER_LOOK, MARLA, OKAFOR, CRANE };
 })();
 
@@ -3606,6 +3947,7 @@ const WEAPONS = {
 const WEAPON_ORDER = ['fist', 'bat', 'pistol', 'uzi', 'shotgun', 'rifle', 'rocket', 'grenade'];
 
 const PLAYER = (() => {
+  const CIRC = new Float64Array(9); // scratch for a car's collision circles, so walking into traffic allocates nothing
   const P = {
     x: 0, z: 0, y: 0, angle: 0, vx: 0, vz: 0, vy: 0, airborne: false, speed: 0, phase: 0, lying: 0, fallDir: 1,
     health: 100, armor: 0, money: 500, wanted: 0, weapons: { fist: Infinity }, weapon: 'fist', fireT: 0, weaponOut: false, aim: 0, recoil: 0, punchT: 0,
@@ -3617,7 +3959,7 @@ const PLAYER = (() => {
   const projectiles = []; const tracers = [];
   const tmp = M.create();
 
-  const OUTFITS = [{ name: 'Street', shirt: [0.85, 0.85, 0.8], jacket: [0.25, 0.14, 0.1], pants: [0.2, 0.2, 0.25] }, { name: 'Suit', shirt: [0.95, 0.95, 0.95], jacket: [0.1, 0.1, 0.13], pants: [0.1, 0.1, 0.13] }, { name: 'Tracksuit', shirt: [0.9, 0.9, 0.9], jacket: [0.12, 0.32, 0.7], pants: [0.12, 0.32, 0.7] }, { name: 'Leather', shirt: [0.3, 0.3, 0.32], jacket: [0.08, 0.07, 0.07], pants: [0.15, 0.1, 0.08] }, { name: 'Bowling shirt', shirt: [0.9, 0.45, 0.2], jacket: [0.95, 0.8, 0.3], pants: [0.25, 0.22, 0.2] }];
+  const OUTFITS = [{ name: 'Street', shirt: [0.85, 0.85, 0.8], jacket: [0.36, 0.25, 0.19], pants: [0.2, 0.2, 0.25] }, { name: 'Suit', shirt: [0.95, 0.95, 0.95], jacket: [0.1, 0.1, 0.13], pants: [0.1, 0.1, 0.13] }, { name: 'Tracksuit', shirt: [0.9, 0.9, 0.9], jacket: [0.12, 0.32, 0.7], pants: [0.12, 0.32, 0.7] }, { name: 'Leather', shirt: [0.3, 0.3, 0.32], jacket: [0.08, 0.07, 0.07], pants: [0.15, 0.1, 0.08] }, { name: 'Bowling shirt', shirt: [0.9, 0.45, 0.2], jacket: [0.95, 0.8, 0.3], pants: [0.25, 0.22, 0.2] }];
   function setOutfit(i) { const o = OUTFITS[i % OUTFITS.length]; P.outfit = i % OUTFITS.length; P.look.shirt = o.shirt; P.look.jacket = o.jacket; P.look.pants = o.pants; P.mesh = PEDS.getMesh(P.look); }
   function init(x, z, angle) { P.mesh = PEDS.getMesh(P.look); P.bones = new Float32Array(16 * RENDER.MAX_BONES); P.emis = new Float32Array(RENDER.MAX_BONES); P.model = M.create(); P.x = x; P.z = z; P.y = CITY.groundY(x, z); P.angle = angle; P.camYaw = angle; }
   function giveWeapon(key, ammo) { if (!(key in P.weapons)) { P.weapons[key] = 0; P.weapon = key; } if (WEAPONS[key].melee) P.weapons[key] = Infinity; else P.weapons[key] += ammo; P.weaponOut = !WEAPONS[P.weapon].melee || P.weapon === 'bat'; }
@@ -3793,7 +4135,7 @@ const PLAYER = (() => {
     else P.y = g;
     const res = W.pushOut(P.x, P.z, 0.42); P.x = res.x; P.z = res.z;
     // cars are solid
-    for (const c of W.cars) { if (c.removed || c === P.car) continue; if (M.dist2(c.x, c.z, P.x, P.z) > 64) continue; for (const [cx, cz, r] of c.circles()) { const dx = P.x - cx, dz = P.z - cz; const rr = r + 0.4; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); P.x = cx + dx / d * rr; P.z = cz + dz / d * rr; } } }
+    for (const c of W.cars) { if (c.removed || c === P.car) continue; if (M.dist2(c.x, c.z, P.x, P.z) > 64) continue; for (let ci = 0, nci = c.circlesInto(CIRC); ci < nci; ci++) { const cx = CIRC[ci * 3], cz = CIRC[ci * 3 + 1], r = CIRC[ci * 3 + 2]; const dx = P.x - cx, dz = P.z - cz; const rr = r + 0.4; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); P.x = cx + dx / d * rr; P.z = cz + dz / d * rr; } } }
     // ped bodies push a little
     for (const p of W.peds) { if (!p.alive || p.inCar) continue; const dx = P.x - p.x, dz = P.z - p.z; const d2 = dx * dx + dz * dz; if (d2 < 0.64 && d2 > 1e-6) { const d = Math.sqrt(d2); const push = (0.8 - d) * 0.5; P.x += dx / d * push; P.z += dz / d * push; p.x -= dx / d * push; p.z -= dz / d * push; } }
   }
@@ -4091,7 +4433,7 @@ const PICKUPS = (() => {
     const P = PLAYER.P; let w = 0;
     for (const p of W.pickups) {
       p.spin += dt * 2; p.t += dt;
-      if (p.taken) { if (p.respawn < 0) continue; if (p.t > p.respawn) { p.taken = false; p.t = 0; } W.pickups[w++] = p; continue; }
+      if (p.taken) { if (p.respawn < 0) { if (p.kind === 'package') W.pickups[w++] = p; continue; } if (p.t > p.respawn) { p.taken = false; p.t = 0; } W.pickups[w++] = p; continue; }
       if (p.life !== undefined && p.t > p.life) continue;
       const inCar = !!P.car; const r = inCar ? 2.2 : 1.3; if (p.kind === 'rampage' && MISSIONS.S.rampageDone[p.rampage.id]) continue;
       if (P.alive && M.dist2(P.x, P.z, p.x, p.z) < r * r && (!inCar || p.kind === 'cash' || p.kind === 'bribe' || p.kind === 'package')) {
@@ -4101,9 +4443,9 @@ const PICKUPS = (() => {
         else if (p.kind === 'armor') { P.armor = 100; AUDIO.play('pickup'); HUD.notify('Body armor'); }
         else if (p.kind === 'cash') { PLAYER.addMoney(p.amount, null); }
         else if (p.kind === 'bribe') { POLICE.bribe(); AUDIO.play('pickup'); HUD.notify('Police bribe'); }
-        else if (p.kind === 'package') { P.stats.packages++; PLAYER.addMoney(500, 'hidden package ' + P.stats.packages + '/20'); GAME.onPackage(P.stats.packages); }
+        else if (p.kind === 'package') { P.stats.packages = Math.min(20, P.stats.packages + 1); PLAYER.addMoney(500, 'hidden package ' + P.stats.packages + '/20'); GAME.onPackage(P.stats.packages); }
         else if (p.kind === 'rampage') { if (!MISSIONS.startRampage(p.rampage)) { p.taken = false; continue; } }
-        if (p.respawn < 0) continue;
+        if (p.respawn < 0) { if (p.kind === 'package') W.pickups[w++] = p; continue; }
       }
       W.pickups[w++] = p;
     }
@@ -4350,11 +4692,11 @@ const MISSIONS = (() => {
   // ---- Side jobs
   function startSide(kind, car) {
     if (kind === 'taxi') { S.side = { kind, car, fare: null, phase: 0, earned: 0, fares: 0, timer: 0 }; HUD.notify('TAXI: pick up the fare. F ends the shift.'); newFare(); }
-    else if (kind === 'vigilante') { S.side = { kind, car, level: 1, target: null, timer: 0 }; HUD.notify('VIGILANTE: take down the suspect.'); newSuspect(); }
+    else if (kind === 'vigilante') { S.side = { kind, car, level: 1, target: null, timer: 90 }; HUD.notify('VIGILANTE: take down the suspect.'); newSuspect(); }
   }
   function endSide(how) { if (!S.side) return; const s = S.side; if (s.kind === 'taxi') HUD.notify('Shift over. ' + s.fares + ' fares, $' + s.earned); else HUD.notify('Vigilante ended at level ' + s.level); if (s.fare && s.fare.alive) { s.fare.role = null; s.fare.important = false; if (s.fare.inCar) s.fare.exitCar(); } if (s.target) s.target.important = false; S.side = null; S.blip = null; S.objective = ''; }
   function newFare() { const s = S.side; const p = P(); let n; for (let t = 0; t < 30; t++) { n = CITY.walkNodes[Math.floor(W.rng() * CITY.walkNodes.length)]; const d = M.dist(n.x, n.z, p.x, p.z); if (d > 60 && d < 220) break; } s.fare = PEDS.spawn(n.x, n.z, { important: true, role: 'fare', stationary: true }); s.fare.faceTarget = p; s.phase = 0; let dest; for (let t = 0; t < 30; t++) { dest = CITY.walkNodes[Math.floor(W.rng() * CITY.walkNodes.length)]; const d = M.dist(dest.x, dest.z, n.x, n.z); if (d > 150 && d < 400) break; } s.dest = dest; s.timer = 40 + M.dist(dest.x, dest.z, n.x, n.z) * 0.14; }
-  function newSuspect() { const s = S.side; for (let t = 0; t < 20; t++) { const e = CITY.roadEdges[Math.floor(W.rng() * CITY.roadEdges.length)]; const L = CITY.laneLen(e); const sp = 10 + W.rng() * (L - 20); const [x, z] = CITY.lanePoint(e, 0, sp); const d = M.dist(x, z, P().x, P().z); if (d < 120 || d > 260) continue; const c = VEH.spawn(['sedan', 'muscle', 'sports', 'pickup'][s.level % 4], x, z, 0, { mode: 'flee' }); c.placeOnLane(e, 0, sp); c.ai.mode = 'flee'; c.scared = 1e9; c.ai.cruise = 16 + s.level * 1.5; c.important = true; const drv = PEDS.spawn(c.x, c.z, { look: PEDS.GANG, gang: true, hostile: true, weapon: 'pistol', important: true }); drv.inCar = c; c.driver = drv; drv.state = 'driving'; s.target = c; s.driver = drv; s.timer = 90; return; } }
+  function newSuspect() { const s = S.side; s.target = null; s.driver = null; for (let t = 0; t < 20; t++) { const e = CITY.roadEdges[Math.floor(W.rng() * CITY.roadEdges.length)]; const L = CITY.laneLen(e); const sp = 10 + W.rng() * (L - 20); const [x, z] = CITY.lanePoint(e, 0, sp); const d = M.dist(x, z, P().x, P().z); if (d < 120 || d > 260) continue; const c = VEH.spawn(['sedan', 'muscle', 'sports', 'pickup'][s.level % 4], x, z, 0, { mode: 'flee' }); c.placeOnLane(e, 0, sp); c.ai.mode = 'flee'; c.scared = 1e9; c.ai.cruise = 16 + s.level * 1.5; c.important = true; const drv = PEDS.spawn(c.x, c.z, { look: PEDS.GANG, gang: true, hostile: true, weapon: 'pistol', important: true }); drv.inCar = c; c.driver = drv; drv.state = 'driving'; s.target = c; s.driver = drv; s.timer = 90; return true; } return false; }
   function updateSide(dt) {
     const s = S.side, p = P(); if (!s) return;
     if (p.car !== s.car || s.car.wrecked) return endSide();
@@ -4364,8 +4706,12 @@ const MISSIONS = (() => {
       else { s.timer -= dt; blip(s.dest.x, s.dest.z, '#3df06a'); marker(s.dest.x, s.dest.z, 4, [0.3, 1, 0.4]); objective('Take the fare to the destination.  ' + fmt(s.timer)); if (s.timer <= 0) { f.exitCar(); f.important = false; f.role = null; HUD.notify('The fare got out. Too slow.'); return endSide(); }
         if (M.dist(s.dest.x, s.dest.z, s.car.x, s.car.z) < 9 && s.car.absSpeed < 1) { f.exitCar(); f.important = false; f.role = null; f.scare && (f.fear = 0); const pay = 60 + Math.floor(s.timer * 4); PLAYER.addMoney(pay, 'fare'); s.earned += pay; s.fares++; newFare(); } }
     } else {
-      const t = s.target; s.timer -= dt; blip(t.x, t.z, '#f5c542', t); objective('Take down the suspect. Level ' + s.level + '  ' + fmt(s.timer));
-      if (s.timer <= 0) { t.important = false; return endSide(); }
+      s.timer -= dt;
+      if (s.timer <= 0) { if (s.target) s.target.important = false; return endSide(); }
+      if (!s.target) newSuspect();
+      const t = s.target;
+      if (!t) { objective('Take down the suspect. Level ' + s.level + '  ' + fmt(s.timer)); return; }
+      blip(t.x, t.z, '#f5c542', t); objective('Take down the suspect. Level ' + s.level + '  ' + fmt(s.timer));
       if (t.wrecked || !s.driver.alive) { PLAYER.addMoney(400 * s.level, 'vigilante'); s.level++; t.important = false; POLICE.bribe(); newSuspect(); }
     }
   }
@@ -4373,7 +4719,7 @@ const MISSIONS = (() => {
   // ---- Shops, spray, safehouse
   const GUNS = [['bat', 150, 0], ['pistol', 250, 34], ['uzi', 650, 90], ['shotgun', 800, 24], ['rifle', 1800, 90], ['rocket', 6000, 3], ['grenade', 900, 6], ['armor', 400, 0]];
   // Shops are menus: a title, numbered items with prices, and an action each. The gun shop, the dealer and the properties all use it.
-  function gunMenu(g) { const p = P(); const disc = ECON.discount(); return { kind: 'guns', title: 'IRONMONGER', color: '#e0453b', x: g.x, z: g.z, hint: disc < 1 ? "Marla's friends pay 20% less" : '', items: GUNS.map(([k, base, ammo]) => { const price = Math.round(base * disc); return { label: k === 'armor' ? 'BODY ARMOR' : WEAPONS[k].name + (ammo ? ' (' + ammo + ')' : ''), price, enabled: p.money >= price, action: () => { PLAYER.addMoney(-price, null); if (k === 'armor') p.armor = 100; else PLAYER.giveWeapon(k, ammo); AUDIO.play('pickup'); } }; }) }; }
+  function gunMenu(g) { const p = P(); const disc = ECON.discount(); return { kind: 'guns', title: 'IRONMONGER', color: '#e0453b', x: g.x, z: g.z, hint: disc < 1 ? "Marla's friends pay 20% less" : '', items: GUNS.map(([k, base, ammo]) => { const price = Math.round(base * disc); return { label: k === 'armor' ? 'BODY ARMOR' : WEAPONS[k].name + (ammo ? ' (' + ammo + ')' : ''), price, get enabled() { return p.money >= price; }, action: () => { PLAYER.addMoney(-price, null); if (k === 'armor') p.armor = 100; else PLAYER.giveWeapon(k, ammo); AUDIO.play('pickup'); } }; }) }; }
   function openShop(menu) { if (S.shop) return; S.shop = menu; AUDIO.play('click'); }
   // ---- Interiors: walk into a front door and the room under the lot takes over; walk into its door to come back out.
   function enterInterior(room) { const p = P(); S.inside = room.key; S.doorT = 1.0; CITY.setInterior(room); p.x = room.door.x; p.z = room.door.z + 2.2; p.y = room.floorY; p.vx = p.vz = 0; p.angle = 0; p.camYaw = 0; p.camX = 0; p.camZ = 0; HUD.fade(0.6); AUDIO.play('door', p.x, p.z);
@@ -4383,7 +4729,7 @@ const MISSIONS = (() => {
   function exitInterior() { const room = CITY.interiors[S.inside]; if (!room) return; const p = P(); for (const q of S.roomPeds || []) q.remove(); S.roomPeds = []; closeShop(); S.inside = null; CITY.setInterior(null); p.x = room.outside.x; p.z = room.outside.z + 1.6; p.y = CITY.groundY(p.x, p.z); p.vx = p.vz = 0; p.angle = Math.PI; p.camYaw = Math.PI; p.camX = 0; p.camZ = 0; S.doorT = 1.5; HUD.fade(0.6); AUDIO.play('door', p.x, p.z); }
   const OUTFIT_PRICES = [0, 800, 400, 600, 250];
   function barMenu(room) { const p = P(); return { kind: 'bar', title: 'THE HALFWAY', color: '#5aa0ff', x: room.spots.counter.x, z: room.spots.counter.z, hint: p.drunk > 0 ? 'The room is moving. That is you.' : 'Digits pick, F or ESC leave the bar', items: [
-    { label: 'A whiskey', price: 25, enabled: p.money >= 25, action() { PLAYER.addMoney(-25, null); p.health = Math.min(100, p.health + 15); p.drunk = Math.min(60, (p.drunk || 0) + 25); AUDIO.play('pickup'); HUD.notify(p.drunk > 30 ? 'The bartender gives you a look.' : 'Smooth.'); } },
+    { label: 'A whiskey', price: 25, get enabled() { return p.money >= 25; }, action() { PLAYER.addMoney(-25, null); p.health = Math.min(100, p.health + 15); p.drunk = Math.min(60, (p.drunk || 0) + 25); AUDIO.play('pickup'); HUD.notify(p.drunk > 30 ? 'The bartender gives you a look.' : 'Smooth.'); } },
     { label: 'Ask around about a package', price: 100, enabled: p.money >= 100 && W.pickups.some(k => k.kind === 'package' && !k.taken), action() { PLAYER.addMoney(-100, null); let best = null, bd = 1e12; for (const k of W.pickups) { if (k.kind !== 'package' || k.taken) continue; const d = M.dist2(k.x, k.z, room.outside.x, room.outside.z); if (d < bd) { bd = d; best = k; } } if (best) { S.tip = { x: best.x, z: best.z, t: 120 }; HUD.notify('Bartender: "Someone left something in ' + CITY.districtName(best.x, best.z) + '. Look for the glow." (marked for two minutes)'); } closeShop(); } },
     { label: 'Buy the room a round', price: 500, enabled: p.money >= 500 && !(S.roundT > 0), action() { PLAYER.addMoney(-500, null); S.roundT = 600; ECON.S.rep.marla = Math.min(3, (ECON.S.rep.marla || 0) + 1); AUDIO.play('missionPass'); HUD.notify("The room cheers. Word of that gets back to Marla."); closeShop(); } },
     { label: 'Jukebox: next station', price: 0, enabled: true, action() { p.radio = (AUDIO.radioStation + 1) % AUDIO.STATIONS.length; AUDIO.setRadio(p.radio); HUD.notify('JUKEBOX: ' + AUDIO.STATIONS[p.radio]); } },
@@ -4397,12 +4743,12 @@ const MISSIONS = (() => {
     if (S.doorT <= 0 && M.dist2(p.x, p.z, room.door.x, room.door.z) < 1.2) { exitInterior(); return; }
     if (room.key === 'bar' && M.dist2(p.x, p.z, room.spots.counter.x, room.spots.counter.z) < 4) openShop(barMenu(room));
     if (room.key === 'safehouse') { if (M.dist2(p.x, p.z, room.spots.wardrobe.x, room.spots.wardrobe.z) < 2.5) openShop(wardrobeMenu(room));
-      const bed = room.spots.bed; if (M.dist2(p.x, p.z, bed.x, bed.z) < 2.2 && !(S.saveT > 0)) { S.saveT = 8; p.health = 100; POLICE.clear(); GAME.save(); W.state.time = (W.state.time + 6) % 24; HUD.fade(1.5); HUD.notify('Game saved. You slept until ' + W.clockString() + '.'); } } }
+      const bed = room.spots.bed; if (M.dist2(p.x, p.z, bed.x, bed.z) < 2.2 && !(S.saveT > 0)) { S.saveT = 8; p.health = 100; POLICE.clear(); W.state.time = (W.state.time + 6) % 24; const saved = GAME.save(); HUD.fade(1.5); if (saved) HUD.notify('Game saved. You slept until ' + W.clockString() + '.'); } } }
   function closeShop() { S.shop = null; }
   function updateShops(dt) {
     const p = P(); if (!p.alive) return; if (S.doorT > 0) S.doorT -= dt;
     if (S.shop) { objective(''); if (INPUT.hit('Escape') || INPUT.hit('KeyF') || M.dist2(p.x, p.z, S.shop.x, S.shop.z) > (S.shop.kind === 'dealer' ? 64 : 16)) { closeShop(); return; }
-      for (let i = 0; i < S.shop.items.length; i++) if (INPUT.hit('Digit' + (i + 1))) { const it = S.shop.items[i]; if (!it.enabled) { HUD.notify(it.price > p.money ? 'Not enough cash.' : "Can't do that now."); AUDIO.play('click'); } else if (it.action) it.action(); if (!S.shop) break; }
+      for (let i = 0; i < S.shop.items.length; i++) if (INPUT.hit('Digit' + (i + 1))) { const it = S.shop.items[i]; if (!it.enabled || it.price > p.money) { HUD.notify(it.price > p.money ? 'Not enough cash.' : "Can't do that now."); AUDIO.play('click'); } else if (it.action) it.action(); if (!S.shop) break; }
       return; }
     for (const g of CITY.places.guns) if (!p.car && M.dist2(p.x, p.z, g.x, g.z) < 4) { const hr = W.state.time; if (hr >= 23 || hr < 7) { if (!(S.closedT > 0)) { HUD.notify('IRONMONGER is closed. Opens at 7.'); S.closedT = 6; } } else openShop(gunMenu(g)); } if (S.closedT > 0) S.closedT -= dt;
     for (const sp of CITY.places.spray) if (p.car && M.dist2(p.car.x, p.car.z, sp.x, sp.z) < 16 && p.car.absSpeed < 1.5) { if (S.sprayT === undefined || S.sprayT <= 0) { if (p.money >= 100) { PLAYER.addMoney(-100, "Pay 'n' Spray"); p.car.colIdx = Math.floor(W.rng() * VEH.PALETTE.length); p.car.repair(); POLICE.clear(); HUD.fade(1.2); AUDIO.play('pickup'); S.sprayT = 6; } else if (!S.sprayWarn) { HUD.notify("Pay 'n' Spray costs $100."); S.sprayWarn = 4; } } }
@@ -4594,24 +4940,25 @@ const HUD = (() => {
   function fade(dur) { fadeT = dur; fadeDur = dur; }
   // Word-wrap a line to a pixel width at a font size (subtitles on narrow windows).
   function wrap(t, size, maxW) { g.font = `normal ${size}px ${FONT}`; const words = String(t).split(' '); const rows = []; let cur = ''; for (const w of words) { const test = cur ? cur + ' ' + w : w; if (g.measureText(test).width > maxW && cur) { rows.push(cur); cur = w; } else cur = test; } if (cur) rows.push(cur); return rows; }
-  function text(t, x, y, size, color = '#fff', align = 'left', weight = 'bold', shadow = true) { g.font = `${weight} ${size}px ${FONT}`; g.textAlign = align; g.textBaseline = 'middle'; if (shadow) { g.fillStyle = 'rgba(0,0,0,0.75)'; g.fillText(t, x + 2, y + 2); } g.fillStyle = color; g.fillText(t, x, y); }
+  function text(t, x, y, size, color = '#fff', align = 'left', weight = 'bold', shadow = true, outline = false) { g.font = `${weight} ${size}px ${FONT}`; g.textAlign = align; g.textBaseline = 'middle'; if (shadow) { g.fillStyle = 'rgba(0,0,0,0.75)'; g.fillText(t, x + 2, y + 2); } if (outline) { g.lineWidth = Math.max(2, size * 0.16); g.lineJoin = 'round'; g.strokeStyle = 'rgba(0,0,0,0.6)'; g.strokeText(t, x, y); } g.fillStyle = color; g.fillText(t, x, y); }
   function outlined(t, x, y, size, color, align = 'center') { g.font = `900 ${size}px ${DISPLAY}`; g.letterSpacing = '1px'; g.textAlign = align; g.textBaseline = 'middle'; g.lineWidth = Math.max(2, size * 0.1); g.strokeStyle = '#000'; g.lineJoin = 'round'; g.strokeText(t, x, y); g.fillStyle = color; g.fillText(t, x, y); }
 
   // ---- Radar map, painted once
   function buildMap() {
     const [b0, b1] = W.bounds; const size = b1 - b0; mapCanvas = document.createElement('canvas'); mapCanvas.width = mapCanvas.height = 1024; const m = mapCanvas.getContext('2d'); const s = 1024 / size; mapCanvas._s = s; mapCanvas._b0 = b0;
-    m.fillStyle = '#1b3a55'; m.fillRect(0, 0, 1024, 1024);
-    m.fillStyle = '#5f6b5a'; m.fillRect((-14 - b0) * s, (-14 - b0) * s, (CITY.SIZE + 28) * s, (CITY.SIZE + 28) * s);
-    for (const bl of CITY.blocks) { const col = bl.kind === 'park' ? '#4a7a3c' : (bl.kind === 'parking' || bl.kind === 'stunt') ? '#6d6d6d' : bl.kind === 'docks' ? '#7a6f55' : '#8d8d86'; m.fillStyle = col; m.fillRect((bl.x - 3 - b0) * s, (bl.z - 3 - b0) * s, 70 * s, 70 * s); m.fillStyle = 'rgba(0,0,0,0.25)'; for (const l of bl.lots) if (l.kind !== 'wall') m.fillRect((l.x0 - b0) * s, (l.z0 - b0) * s, (l.x1 - l.x0) * s, (l.z1 - l.z0) * s); }
-    m.fillStyle = '#d9d7cf'; for (let i = 0; i <= CITY.GRID; i++) { m.fillRect((i * CITY.PITCH - 7 - b0) * s, (-7 - b0) * s, 14 * s, (CITY.SIZE + 14) * s); m.fillRect((-7 - b0) * s, (i * CITY.PITCH - 7 - b0) * s, (CITY.SIZE + 14) * s, 14 * s); }
+    m.fillStyle = '#24383e'; m.fillRect(0, 0, 1024, 1024);
+    m.fillStyle = '#454b43'; m.fillRect((-14 - b0) * s, (-14 - b0) * s, (CITY.SIZE + 28) * s, (CITY.SIZE + 28) * s);
+    for (const bl of CITY.blocks) { const col = bl.kind === 'park' ? '#526451' : (bl.kind === 'parking' || bl.kind === 'stunt') ? '#6d6d6d' : bl.kind === 'docks' ? '#7a6f55' : '#686b60'; m.fillStyle = col; m.fillRect((bl.x - 3 - b0) * s, (bl.z - 3 - b0) * s, 70 * s, 70 * s); m.fillStyle = 'rgba(0,0,0,0.25)'; for (const l of bl.lots) if (l.kind !== 'wall') m.fillRect((l.x0 - b0) * s, (l.z0 - b0) * s, (l.x1 - l.x0) * s, (l.z1 - l.z0) * s); }
+    m.fillStyle = '#b7b6a6'; for (let i = 0; i <= CITY.GRID; i++) { m.fillRect((i * CITY.PITCH - 7 - b0) * s, (-7 - b0) * s, 14 * s, (CITY.SIZE + 14) * s); m.fillRect((-7 - b0) * s, (i * CITY.PITCH - 7 - b0) * s, (CITY.SIZE + 14) * s, 14 * s); }
     const icons = { safehouse: ['#ff70d0', 'S'], garage: ['#f5a623', 'V'], spray: ['#f5c542', 'P'], guns: ['#e0453b', 'G'], hospital: ['#ffffff', 'H'], police: ['#5aa0ff', 'P'], bank: ['#3df06a', '$'], tower: ['#a0a0ff', 'C'], docks: ['#c0a060', 'D'] };
     mapCanvas._icons = []; for (const k in icons) for (const p of (CITY.places[k] || [])) mapCanvas._icons.push({ x: p.x, z: p.z, col: icons[k][0], ch: icons[k][1], kind: k });
   }
   function drawMapIcons(scale, filter) { for (const ic of mapCanvas._icons) { if (filter && !filter(ic)) continue; g.fillStyle = ic.col; g.beginPath(); g.arc(ic.x, ic.z, 4 / scale, 0, 7); g.fill(); } }
+  function radarLayout(w, h) { const R = Math.min(82, w * 0.12); return { R, cx: R + 24, cy: h - R - 30 }; }
   function radar(P, cam) {
-    const R = Math.min(110, W_ * 0.14), cx = R + 24, cy = H_ - R - 24; const scale = 0.55; const yaw = W.state.camYaw;
+    const { R, cx, cy } = radarLayout(W_, H_); const scale = 0.55; const yaw = W.state.camYaw;
     g.save(); g.beginPath(); g.arc(cx, cy, R, 0, 7); g.clip();
-    g.fillStyle = '#1b3a55'; g.fillRect(cx - R, cy - R, 2 * R, 2 * R);
+    g.fillStyle = '#24383e'; g.fillRect(cx - R, cy - R, 2 * R, 2 * R);
     g.translate(cx, cy); g.rotate(yaw + Math.PI); g.scale(scale, scale); g.translate(-P.x, -P.z);
     const s = mapCanvas._s, b0 = mapCanvas._b0; g.drawImage(mapCanvas, 0, 0, 1024, 1024, b0, b0, 1024 / s, 1024 / s);
     drawMapIcons(scale, null);
@@ -4635,7 +4982,7 @@ const HUD = (() => {
     // north indicator
     { const a = yaw + Math.PI; const nx = cx + Math.sin(a) * (R + 12), ny = cy - Math.cos(a) * (R + 12); text('N', nx, ny, 12, '#fff', 'center'); }
     // health & armor bars beside the radar
-    const bx = cx + R + 12, by = cy + R - 14, bw = Math.min(170, W_ * 0.2);
+    const bx = cx + R + 12, by = cy + R - 14, bw = Math.min(112, W_ * 0.16);
     g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(bx - 2, by - 12, bw + 4, 14); g.fillStyle = P.health > 25 ? '#d8352f' : (Math.sin(W.state.elapsed * 10) > 0 ? '#ff6060' : '#802020'); g.fillRect(bx, by - 10, bw * M.clamp(P.health / 100, 0, 1), 10);
     if (P.armor > 0) { g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(bx - 2, by - 28, bw + 4, 14); g.fillStyle = '#c8c8d0'; g.fillRect(bx, by - 26, bw * M.clamp(P.armor / 100, 0, 1), 10); }
     if (P.car) { const kmh = Math.round(P.car.absSpeed * 3.6 * 1.6); text(kmh + ' km/h', bx, by - (P.armor > 0 ? 42 : 26), 14, '#ddd'); }
@@ -4674,17 +5021,18 @@ const HUD = (() => {
       text('SPACE to continue', W_ - 20, H_ - 18, 12, '#aaa', 'right', 'normal');
       if (fadeT > 0) drawFade(dt); return;
     }
+    const shade = g.createLinearGradient(0, 0, 0, 115); shade.addColorStop(0, 'rgba(16,25,29,0.55)'); shade.addColorStop(1, 'rgba(16,25,29,0)'); g.fillStyle = shade; g.fillRect(0, 0, W_, 115);
     radar(P, RENDER.cam);
     // top right: money, stars, weapon
     moneyAnim.shown = Math.abs(moneyAnim.target - moneyAnim.shown) < 2 ? moneyAnim.target : M.lerp(moneyAnim.shown, moneyAnim.target, Math.min(1, 6 * dt)); moneyAnim.target = P.money;
-    outlined('$' + Math.round(moneyAnim.shown).toString().padStart(8, '0'), W_ - 24, 34, 26, '#3df06a', 'right');
-    stars(P, W_ - 34, 70);
+    text('$' + Math.round(moneyAnim.shown).toLocaleString('en-US'), W_ - 28, 32, 24, '#eee5ce', 'right', '500');
+    if (P.wanted > 0) stars(P, W_ - 38, 65);
     weaponIcon(W_ - 60, 112, P.weapon); const ammo = P.weapons[P.weapon]; if (ammo !== Infinity) text(String(ammo), W_ - 100, 112, 18, '#fff', 'right');
     if (ECON.S.bounty > 0) text('BOUNTY  ' + '\u25cf'.repeat(ECON.S.bounty), W_ - 24, 150, 13, ECON.S.crew ? '#ff5040' : '#e0a040', 'right');
     text(WEAPONS[P.weapon].name, W_ - 24, 140, 12, '#ccc', 'right', 'normal');
     if (P.carNameT > 0 && P.car) text(P.lastCarName, W_ - 24, H_ - 40, 22, 'rgba(245,197,66,' + Math.min(1, P.carNameT) + ')', 'right');
     // top left: clock and district
-    text(W.clockString(), 24, 30, 22, '#fff'); text(CITY.districtName(P.x, P.z).toUpperCase(), 24, 54, 13, '#ccc', 'left', 'normal');
+    text(CITY.districtName(P.x, P.z).toUpperCase(), 28, 30, 17, '#eee5ce', 'left', '500', true, true); text(W.clockString(), 28, 53, 13, '#dfe6e3', 'left', 'normal', true, true);
     if (AUDIO.radioStation > 0 && P.car) text('♪ ' + AUDIO.STATIONS[AUDIO.radioStation], 24, 76, 12, '#ccc', 'left', 'normal');
     // notifications
     for (let i = notes.length - 1, k = 0; i >= 0; i--, k++) { const n = notes[i]; n.t -= dt; if (n.t <= 0) { notes.splice(i, 1); continue; } text(n.text, W_ / 2, 60 + k * 22, 15, 'rgba(255,255,255,' + Math.min(1, n.t) + ')', 'center'); }
@@ -4696,7 +5044,7 @@ const HUD = (() => {
     // help prompts
     if (INPUT.fallback && W.state.elapsed < 20) text('Pointer lock unavailable here: the mouse steers the camera without capture', W_ / 2, H_ - 40, 12, '#f5c542', 'center', 'normal');
     if (INPUT.hit('F1')) showControls = !showControls;
-    if (state === 'playing' && P.alive) text(hintLine(P), W_ / 2, H_ - 22, 12, 'rgba(210,210,210,0.85)', 'center', 'normal');
+    if (state === 'playing' && P.alive) text(W.state.elapsed < 30 || P.car || P.aim || MISSIONS.shop ? hintLine(P) : W.cars.some(c => !c.removed && !c.wrecked && M.dist2(c.x, c.z, P.x, P.z) < 30) ? 'F  ENTER VEHICLE   ·   F1  CONTROLS' : 'F1  CONTROLS', W_ / 2, H_ - 22, 12, 'rgba(210,210,210,0.85)', 'center', 'normal');
     if (showControls) drawControls();
     const cur = MISSIONS.S.current; if (cur && cur.data && cur.data.det !== undefined && !cur.data.alarm) { const w = 220, x = W_ / 2 - w / 2, y = 84; g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x - 2, y - 2, w + 4, 14); g.fillStyle = cur.data.det > 0.7 ? '#e0453b' : '#f5c542'; g.fillRect(x, y, w * cur.data.det, 10); text('DETECTION', W_ / 2, y - 6, 11, '#ddd', 'center', 'normal'); }
     // shop
@@ -4743,7 +5091,7 @@ const HUD = (() => {
     const P = PLAYER.P; g.fillStyle = 'rgba(0,0,0,0.7)'; g.fillRect(0, 0, W_, H_); outlined('PAUSED', W_ / 2, 80, 48, '#f5c542');
     const st = P.stats; const rows = [['Missions passed', st.missions + ' / ' + (MISSIONS.LIST.length + MISSIONS.LIST2.length + MISSIONS.PHONE.length)], ['Standing: Marla / Crane', ECON.S.rep.marla + ' / ' + ECON.S.rep.crane], ['Properties / stored cars', Object.keys(ECON.S.properties).length + ' / ' + ECON.S.owned.length], ['Unique stunts', (st.jumps || []).length + ' / ' + CITY.ramps.length], ['Cash earned', '$' + st.cash], ['Hidden packages', st.packages + ' / 20'], ['Cars stolen', st.carsStolen], ['People killed', st.kills], ['Distance travelled', (st.distance / 1000).toFixed(1) + ' km'], ['Insane stunts', st.stunts], ['Times wasted / busted', st.wasted + ' / ' + st.busted], ['Time of day', W.clockString()]];
     rows.forEach(([k, v], i) => { text(k, W_ / 2 - 60, 150 + i * 26, 15, '#bbb', 'right', 'normal'); text(String(v), W_ / 2 - 48, 150 + i * 26, 15, '#fff', 'left'); });
-    const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['A', 'auto quality', o.auto ? (GAME.auto.level ? 'on, stepped down ' + GAME.auto.level : 'on') : 'off'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', '']];
+    const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['E', 'ink lines', o.edges ? 'on' : 'off'], ['A', 'auto quality', o.auto ? (GAME.auto.level ? 'on, stepped down ' + GAME.auto.level : 'on') : 'off'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', '']];
     opts.forEach(([k, n, v], i) => { const y = 150 + i * 26; text(k, W_ / 2 + 200, y, 15, '#f5c542', 'right'); text(n, W_ / 2 + 212, y, 15, '#ccc', 'left', 'normal'); text(v, W_ / 2 + 360, y, 15, '#fff', 'left'); });
     text('ESC or click  resume', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
     if (GAME.fps) text(GAME.fps + ' fps' + (GAME.fps < 30 ? '  (slow: try P for a lower render scale, K for no shadows)' : ''), W_ / 2, H_ - 86, 13, GAME.fps < 30 ? '#f5a623' : '#888', 'center', 'normal');
@@ -4762,7 +5110,7 @@ const HUD = (() => {
   }
   // Where a run went: the big map with every sampled position burned in (tools/playtest/run.js writes it as heatmap.png).
   function heatmap(track) { resize(); g.clearRect(0, 0, W_, H_); drawBigMap(PLAYER.P, (scale) => { g.fillStyle = 'rgba(255,70,30,0.22)'; for (const [x, z] of track) { g.beginPath(); g.arc(x, z, 7 / scale, 0, 7); g.fill(); } g.fillStyle = '#fff'; g.beginPath(); g.arc(track[0][0], track[0][1], 5 / scale, 0, 7); g.fill(); }); text('positions sampled every 0.4 s of wall time; white dot is the start', W_ / 2, H_ - 14, 12, '#ccc', 'center', 'normal'); }
-  return { init, draw, loading, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, shake: (a) => PLAYER.shake(a) };
+  return { radarLayout, init, draw, loading, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, shake: (a) => PLAYER.shake(a) };
 })();
 
 </script>
@@ -4771,28 +5119,112 @@ const HUD = (() => {
 'use strict';
 const GAME = (() => {
   const quality = { shadows: true };
-  const options = { sensitivity: 1.0, invertY: false, bloom: true, resolution: 1.25, shadows: true, auto: true };
+  const options = { sensitivity: 1.0, invertY: false, bloom: true, resolution: 1.25, shadows: true, auto: true, edges: true };
   // Adaptive quality: when frames stay slow the renderer steps down (render scale, ambient occlusion, shadows, post) one
   // level at a time, and steps back up when there is headroom. A slow machine gets a game that runs at full speed.
-  const auto = { level: 0, ema: 16, slowT: 0, fastT: 0, told: false, warm: 0, raises: 0 };
+  const auto = { level: 0, ema: 16, slowT: 0, fastT: 0, told: false, warm: 0, badRaises: 0, sinceRaise: Infinity };
   const AUTO_LEVELS = 5, AO_STRENGTH = 0.75, STEP = 1 / 60, MAX_STEPS = 6;
   function loadOptions() { try { Object.assign(options, JSON.parse(localStorage.getItem('grift-city-options') || '{}')); } catch (e) { } applyOptions(); }
   function saveOptions() { try { localStorage.setItem('grift-city-options', JSON.stringify(options)); } catch (e) { } applyOptions(); }
-  function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 4; RENDER.post.enabled = options.bloom && L < 5; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
+  function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 4; RENDER.post.enabled = options.bloom && L < 5; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.55 : 0; RENDER.env.interiors = !/[?&]rooms=0/.test(location.search); RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
+  // The decision alone, with no side effects, so it can be driven directly by a test. Returns 'lower', 'raise'
+  // or null. What stops it oscillating is not a limit on how often quality may be restored -- that turned a few
+  // transient stalls into a permanent downgrade on a machine well able to run it -- but a count of the restores
+  // that did not hold: a raise undone within half a minute was the wrong call, and two of those settle it.
+  function autoStep(a, raw) {
+    const ms = Math.min(120, raw * 1000); a.ema += (ms - a.ema) * 0.06;
+    if (a.ema > 30) { a.slowT += raw; a.fastT = 0; } else if (a.ema < 17.5) { a.fastT += raw; a.slowT = 0; } else { a.slowT = 0; a.fastT = 0; }
+    a.sinceRaise += raw;
+    if (a.slowT > 2.5 && a.level < AUTO_LEVELS) {
+      if (a.sinceRaise < 30) a.badRaises++;
+      a.level++; a.slowT = 0; a.ema = 22; a.sinceRaise = Infinity; return 'lower';
+    }
+    if (a.fastT > 20 && a.level > 0 && a.badRaises < 2) { a.level--; a.fastT = 0; a.ema = 22; a.sinceRaise = 0; return 'raise'; }
+    return null;
+  }
   function autoQuality(raw) {
     if (!options.auto || window.__pt || state !== 'playing') return; auto.warm += raw; if (auto.warm < 4) return; // the first seconds after a load are shader warm-up, not a slow machine
-    const ms = Math.min(120, raw * 1000); auto.ema += (ms - auto.ema) * 0.06;
-    if (auto.ema > 30) { auto.slowT += raw; auto.fastT = 0; } else if (auto.ema < 17.5) { auto.fastT += raw; auto.slowT = 0; } else { auto.slowT = 0; auto.fastT = 0; }
-    if (auto.slowT > 2.5 && auto.level < AUTO_LEVELS) { auto.level++; auto.slowT = 0; auto.ema = 22; applyOptions(); if (!auto.told) { auto.told = true; HUD.notify('Slow frames: lowering render quality automatically (see the pause menu).'); } }
-    else if (auto.fastT > 20 && auto.level > 0 && auto.raises < 2) { auto.level--; auto.raises++; auto.fastT = 0; auto.ema = 22; applyOptions(); }
+    const act = autoStep(auto, raw);
+    if (!act) return;
+    applyOptions();
+    if (act === 'lower' && !auto.told) { auto.told = true; HUD.notify('Slow frames: lowering render quality automatically (see the pause menu).'); }
   }
   let canvas, hud, state = 'loading', last = 0, staticMesh = null, waterMesh = null, propList = [], started = false, accum = 0;
   const SAVE_KEY = 'grift-city-save-v1';
   function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } }
-  function save() { try { const P = PLAYER.P; const sh = CITY.place('safehouse'); let garage = null; for (const c of W.cars) if (!c.removed && !c.wrecked && c.playerOwned && M.dist(c.x, c.z, sh.x, sh.z) < 12) { garage = { type: c.type, color: c.colIdx, x: c.x, z: c.z, angle: c.angle }; break; } localStorage.setItem(SAVE_KEY, JSON.stringify({ outfit: P.outfit || 0, garage, econ: ECON.saveData(), flags: MISSIONS.S.flags, progress2: MISSIONS.S.progress2, phoneProgress: MISSIONS.S.phoneProgress, rampageDone: MISSIONS.S.rampageDone, x: P.x, z: P.z, money: P.money, health: P.health, armor: P.armor, weapons: Object.fromEntries(Object.entries(P.weapons).map(([k, v]) => [k, v === Infinity ? -1 : v])), weapon: P.weapon, stats: P.stats, progress: MISSIONS.S.progress, done: MISSIONS.S.done, time: W.state.time, packages: W.pickups.filter(p => p.kind === 'package' && p.taken).map(p => p.id) })); } catch (e) { } }
-  function load() { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (!s) return false; const P = PLAYER.P; P.x = s.x; P.z = s.z; P.money = s.money; P.health = s.health || 100; P.armor = s.armor || 0; if (s.outfit) PLAYER.setOutfit(s.outfit); P.weapons = Object.fromEntries(Object.entries(s.weapons).map(([k, v]) => [k, v === -1 ? Infinity : v])); P.weapon = s.weapon in P.weapons ? s.weapon : 'fist'; P.weaponOut = P.weapon !== 'fist'; Object.assign(P.stats, s.stats || {}); MISSIONS.S.progress = s.progress || 0; MISSIONS.S.done = s.done || {}; MISSIONS.S.progress2 = s.progress2 || 0; MISSIONS.S.phoneProgress = s.phoneProgress || 0; MISSIONS.S.rampageDone = s.rampageDone || {}; ECON.loadData(s.econ); MISSIONS.S.flags = s.flags || {}; if (!Array.isArray(P.stats.jumps)) P.stats.jumps = []; if (s.garage) { const c = VEH.spawn(s.garage.type, s.garage.x, s.garage.z, s.garage.angle, { mode: 'parked', color: s.garage.color }); c.playerOwned = true; } W.state.time = s.time ?? 9; for (const p of W.pickups) if (p.kind === 'package' && (s.packages || []).includes(p.id)) p.taken = true; return true; } catch (e) { return false; } }
+  function save() {
+    try {
+      const P = PLAYER.P, sh = CITY.place('safehouse');
+      let garage = null;
+      for (const c of W.cars) if (!c.removed && !c.wrecked && c.playerOwned && M.dist(c.x, c.z, sh.x, sh.z) < 12) {
+        garage = { type: c.type, color: c.colIdx, x: c.x, z: c.z, angle: c.angle, mods: { ...c.mods } };
+        break;
+      }
+      localStorage.setItem(SAVE_KEY, JSON.stringify({
+        version: 2, x: P.x, y: P.y, z: P.z, inside: MISSIONS.S.inside || null, roof: !!MISSIONS.S.roof,
+        outfit: P.outfit || 0, garage, econ: ECON.saveData(), flags: MISSIONS.S.flags,
+        progress2: MISSIONS.S.progress2, phoneProgress: MISSIONS.S.phoneProgress, rampageDone: MISSIONS.S.rampageDone,
+        money: P.money, health: P.health, armor: P.armor,
+        weapons: Object.fromEntries(Object.entries(P.weapons).map(([k, v]) => [k, v === Infinity ? -1 : v])),
+        weapon: P.weapon, stats: P.stats, progress: MISSIONS.S.progress, done: MISSIONS.S.done,
+        time: W.state.time, packages: W.pickups.filter(p => p.kind === 'package' && p.taken).map(p => p.id)
+      }));
+      return true;
+    } catch (e) { HUD.notify('Could not save the game.'); return false; }
+  }
+  function load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+      if (!s) return false;
+      const P = PLAYER.P;
+      if (!Number.isFinite(s.x) || !Number.isFinite(s.z) || !s.weapons || typeof s.weapons !== 'object') return false;
+      P.x = s.x; P.z = s.z; P.money = Math.max(0, s.money || 0); P.health = s.health || 100; P.armor = s.armor || 0;
+      PLAYER.setOutfit(s.outfit || 0);
+      P.weapons = Object.fromEntries(Object.entries(s.weapons).filter(([k]) => WEAPONS[k]).map(([k, v]) => [k, v === -1 ? Infinity : v]));
+      P.weapon = s.weapon in P.weapons ? s.weapon : 'fist'; P.weaponOut = P.weapon !== 'fist';
+      Object.assign(P.stats, s.stats || {});
+      P.stats.packages = M.clamp(P.stats.packages || 0, 0, 20);
+      if (!Array.isArray(P.stats.jumps)) P.stats.jumps = [];
+      MISSIONS.S.progress = s.progress || 0; MISSIONS.S.done = s.done || {};
+      MISSIONS.S.progress2 = s.progress2 || 0; MISSIONS.S.phoneProgress = s.phoneProgress || 0;
+      MISSIONS.S.rampageDone = s.rampageDone || {}; MISSIONS.S.flags = s.flags || {};
+      ECON.loadData(s.econ);
+      const room = s.inside && CITY.interiors[s.inside];
+      if (room) {
+        MISSIONS.enterInterior(room);
+        P.x = s.x; P.z = s.z; P.y = room.floorY;
+        MISSIONS.S.saveT = 8; // loading beside the bed must not immediately sleep and save again
+      } else if (s.roof && CITY.roofAccess) {
+        MISSIONS.S.roof = true; CITY.setRoof(CITY.roofAccess); P.y = Math.max(CITY.roofAccess.h, s.y || 0);
+      } else {
+        // Old bed saves lack an interior identifier. Resume outside rather than inside a solid building.
+        if (CITY.insideLot(P.x, P.z)) { const sh = CITY.place('safehouse'); P.x = sh.x + 6; P.z = sh.z + 1; }
+        P.y = CITY.groundY(P.x, P.z);
+      }
+      if (s.garage && VEH.SPECS[s.garage.type]) {
+        const c = VEH.spawn(s.garage.type, s.garage.x, s.garage.z, s.garage.angle, { mode: 'parked', color: s.garage.color });
+        c.playerOwned = true; c.mods = s.garage.mods || {}; ECON.applyMods(c);
+      }
+      W.state.time = s.time ?? 9;
+      for (const p of W.pickups) if (p.kind === 'package' && (s.packages || []).includes(p.id)) p.taken = true;
+      restorePackageRewards(P.stats.packages);
+      return true;
+    } catch (e) { return false; }
+  }
   function newGame() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { } location.reload(); }
-  function onPackage(n) { if (n % 5 === 0) { const s = CITY.place('safehouse'); const w = ['uzi', 'shotgun', 'rifle', 'rocket'][n / 5 - 1]; PICKUPS.add('weapon', s.x + 4, s.z - 4, { weapon: w, ammo: w === 'rocket' ? 4 : 60, respawn: 240 }); HUD.notify(WEAPONS[w].name + ' now spawns at the safehouse'); } }
+  const PACKAGE_WEAPONS = ['uzi', 'shotgun', 'rifle', 'rocket'];
+  function restorePackageRewards(n) {
+    const s = CITY.place('safehouse');
+    PACKAGE_WEAPONS.forEach((w, i) => {
+      if (n < (i + 1) * 5 || W.pickups.some(p => p.packageReward === w)) return;
+      PICKUPS.add('weapon', s.x + 4, s.z - 4, { weapon: w, ammo: w === 'rocket' ? 4 : 60, respawn: 240, packageReward: w });
+    });
+  }
+  function onPackage(n) {
+    restorePackageRewards(n);
+    const w = PACKAGE_WEAPONS[n / 5 - 1];
+    if (w) HUD.notify(WEAPONS[w].name + ' now spawns at the safehouse');
+  }
 
   function boot() {
     canvas = document.getElementById('gl'); hud = document.getElementById('hud'); HUD.init(hud); INPUT.init(canvas);
@@ -4847,6 +5279,7 @@ const GAME = (() => {
       if (INPUT.hit('KeyB')) { options.bloom = !options.bloom; saveOptions(); }
       if (INPUT.hit('KeyI')) { options.invertY = !options.invertY; saveOptions(); }
       if (INPUT.hit('KeyP')) { options.resolution = options.resolution >= 1.5 ? 0.75 : options.resolution >= 1.25 ? 1.5 : options.resolution >= 1.0 ? 1.25 : 1.0; saveOptions(); }
+      if (INPUT.hit('KeyE')) { options.edges = !options.edges; saveOptions(); }
       if (INPUT.hit('KeyA')) { options.auto = !options.auto; auto.level = 0; auto.slowT = auto.fastT = 0; saveOptions(); }
       if (INPUT.hit('BracketLeft')) { options.sensitivity = Math.max(0.3, +(options.sensitivity - 0.1).toFixed(1)); saveOptions(); }
       if (INPUT.hit('BracketRight')) { options.sensitivity = Math.min(3, +(options.sensitivity + 0.1).toFixed(1)); saveOptions(); }
@@ -4876,8 +5309,21 @@ const GAME = (() => {
       if (viewer) { window.claude.use('downloads').then(dl => { if (!dl) throw new Error('unavailable'); return fetch(url).then(r => r.blob()).then(blob => dl.save({ filename: name, data: blob })); }).then(() => { photo.savedT = 1.5; AUDIO.play('click'); }).catch(e => { if (!e || e.code !== 'declined') HUD.notify('Could not save the photo here.'); }); return; }
       const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); photo.savedT = 1.5; AUDIO.play('click'); } catch (e) { HUD.notify('Could not save the photo.'); } }
   // ---- Per-district colour grade: a tint and a saturation the composite pass blends toward as you cross the city
-  const GRADES = { downtown: [[0.94, 0.98, 1.07], 1.05], midtown: [[1, 1, 1], 1.1], northgate: [[1.05, 0.98, 0.9], 0.98], westfield: [[0.96, 1.04, 0.95], 1.14], eastside: [[1.07, 0.98, 0.88], 0.94], southport: [[0.98, 1.02, 1.05], 1.2], sea: [[0.95, 1.02, 1.08], 1.25], indoor: [[1.06, 0.98, 0.9], 1.0] };
-  function updateGrade(dt, px, pz) { const bl = CITY.blockAt(px, pz); const key = CITY.interiorRoom ? 'indoor' : bl ? CITY.district(bl.i, bl.j) : (W.onWater(px, pz) ? 'sea' : 'southport'); const g = GRADES[key] || GRADES.midtown; const k = Math.min(1, 0.6 * dt); const t = RENDER.post.tint; for (let i = 0; i < 3; i++) t[i] = M.lerp(t[i], g[0][i], k); RENDER.post.sat = M.lerp(RENDER.post.sat, g[1], k); }
+  const GRADES = { downtown: [[0.99, 1.0, 1.02], 0.96], midtown: [[1.02, 1.0, 0.97], 0.97], northgate: [[1.05, 0.98, 0.9], 0.98], westfield: [[0.99, 1.02, 0.96], 0.98], eastside: [[1.07, 0.98, 0.88], 0.94], southport: [[1.01, 1.02, 1.03], 0.98], sea: [[0.98, 1.02, 1.04], 1.0], indoor: [[1.06, 0.98, 0.9], 1.0], underwater: [[0.42, 0.74, 0.92], 0.66] };
+  let vigBase = -1;
+  function updateGrade(dt, px, pz) {
+    // Under the surface the picture turns green-blue, loses most of its colour and closes in at the edges, so falling
+    // in the sea reads as being in it rather than as the screen going dark.
+    if (vigBase < 0) vigBase = RENDER.post.vignette;
+    const under = RENDER.cam.y < W.WATER_Y - 0.05;
+    RENDER.post.vignette = M.lerp(RENDER.post.vignette, under ? 0.62 : vigBase, Math.min(1, 3 * dt));
+    if (under) { // dense uniform fog: the water surface is a single-sided plane, so without this you look out at the
+      // skyline from the sea bed. Everything past a few metres now fades into the green of the water.
+      const e = RENDER.env; e.fogDensity = 0.22; e.fogHeight = 1e5; e.fogSun = 0; e.fogCol = [0.04, 0.12, 0.15];
+      e.sunCol = [e.sunCol[0] * 0.35, e.sunCol[1] * 0.5, e.sunCol[2] * 0.55]; e.skyCol = [0.07, 0.2, 0.24]; e.groundCol = [0.02, 0.06, 0.08];
+      // the sky takes no fog, so it is painted the colour of the water instead: brighter overhead, darker below
+      e.zenith = [0.07, 0.2, 0.23]; e.horizon = [0.03, 0.1, 0.12]; e.starAlpha = 0; e.sunDisc = 0; }
+    const bl = CITY.blockAt(px, pz); const key = under ? 'underwater' : CITY.interiorRoom ? 'indoor' : bl ? CITY.district(bl.i, bl.j) : (W.onWater(px, pz) ? 'sea' : 'southport'); const g = GRADES[key] || GRADES.midtown; const k = Math.min(1, 0.6 * dt); const t = RENDER.post.tint; for (let i = 0; i < 3; i++) t[i] = M.lerp(t[i], g[0][i], k); RENDER.post.sat = M.lerp(RENDER.post.sat, g[1], k); }
   // Playtest bot hooks: a compact state snapshot and a road route to a point.
   window.__ptState = () => { const P = PLAYER.P; const c = P.car; const bp = MISSIONS.blipPos(); let nc = null, nd = 1e9; for (const v of W.cars) { if (v.removed || v.wrecked || v === c) continue; const d = M.dist(v.x, v.z, P.x, P.z); if (d < nd) { nd = d; nc = v; } }
     const tgt = bp && MISSIONS.S.blip && MISSIONS.S.blip.obj; const tc = tgt && tgt.spec ? tgt : null;
@@ -4904,6 +5350,9 @@ const GAME = (() => {
   window.__debugBoxes = [];
   window.__debugBox = (x, y, z, w, h, d, col, tile = 0, emis = 1) => { const b = new MESH.Builder(); b.box(x, y, z, w, h, d, col, tile, { uvScale: Math.max(w, d), uvScaleV: h }); const bones = new Float32Array(16 * RENDER.MAX_BONES); for (let i = 0; i < RENDER.MAX_BONES; i++) bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16); const em = new Float32Array(RENDER.MAX_BONES); em.fill(emis); const e = { mesh: b.build(), model: M.identity(M.create()), bones, emis: em }; window.__debugBoxes.push(e); return e; };
   window.__renderOnce = () => { if (PLAYER.updateCamera) for (let i = 0; i < 120; i++) PLAYER.updateCamera(1 / 60); /* let the chase camera settle on the new position */ renderWorld(1 / 60, false); HUD.draw(1 / 60, state); };
+  // the adaptive-quality decision, exposed so a test can drive it with a frame-time history
+  window.__autoStep = (a, raw) => autoStep(a, raw);
+  window.__autoState = () => ({ level: 0, ema: 16, slowT: 0, fastT: 0, told: false, warm: 99, badRaises: 0, sinceRaise: Infinity });
   window.__sim = (seconds, keys = []) => { window.__manual = true; for (const k of keys) window.dispatchEvent(new KeyboardEvent('keydown', { code: k })); for (let t = 0; t < seconds; t += 1 / 60) { step(1 / 60); INPUT.endFrame(); } for (const k of keys) window.dispatchEvent(new KeyboardEvent('keyup', { code: k })); };
   // Cheats, typed anywhere during play. Old habits.
   const CHEATS = {
@@ -4922,7 +5371,7 @@ const GAME = (() => {
   function checkCheats() { const t = INPUT.typed; for (const k in CHEATS) if (t.endsWith(k)) { INPUT.typed = ''; CHEATS[k](); AUDIO.play('cash'); } }
   function step(dt) {
     checkCheats();
-    W.frameBegin(); W.updateClock(dt); W.updateWeather(dt); RENDER.setTimeOfDay(W.state.time, W.weather.rain, W.weather.fog); const night = W.isNight();
+    W.frameBegin(); W.updateClock(dt); W.updateWeather(dt); RENDER.setTimeOfDay(W.state.time, W.weather.rain, W.weather.fog, dt); const night = W.isNight();
     const room = CITY.interiorRoom; if (room) { const e = RENDER.env; e.sunCol = e.sunCol.map(v => v * 0.08); e.skyCol = [0.34, 0.3, 0.26]; e.groundCol = [0.2, 0.17, 0.14]; e.fogDensity = 0; e.nightEmis = 1; for (const l of room.lights) W.dyn.push({ x: l.x, y: l.y, z: l.z, r: l.r * 1.3, col: l.col.map(v => v * 1.2) }); } // a room lit by its lamps, not the sun
     const dlg = !!MISSIONS.dialogue;
     MISSIONS.update(dt); ECON.update(dt);
@@ -4969,6 +5418,7 @@ const GAME = (() => {
     if (!RENDER.env.shadowOn) { for (const p of W.peds) if (!p.removed && !p.inCar && M.dist2(p.x, p.z, cam.tx, cam.tz) < 60 * 60) W.fx.blob(p.x, p.y + 0.02, p.z, 0.45, 0.35); if (!PLAYER.car && !title) W.fx.blob(PLAYER.x, PLAYER.y + 0.02, PLAYER.z, 0.45, 0.35); for (const c of W.cars) if (!c.removed && M.dist2(c.x, c.z, cam.tx, cam.tz) < 120 * 120) W.fx.blob(c.x, c.y + 0.02, c.z, c.spec.len * 0.45, 0.3); }
     W.fx.end();
     W.updateProps(cam.tx, cam.tz); scene.props = propList;
+    RENDER.env.noSky = cam.y < W.WATER_Y - 0.05; // tracked here rather than in the step, so it is right in every state
     RENDER.setLights(W.collectLights(cam.tx, cam.tz));
     RENDER.render(canvas, scene, W.state.elapsed);
   }

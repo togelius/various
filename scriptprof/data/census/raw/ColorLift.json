@@ -1,0 +1,1 @@
+{"game": "ColorLift", "bytes": 4628, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 38, "h": 19, "solved": false, "len": 9, "iters": 5156, "time": 5.0082, "timeout": true, "actions": null}], "compile_time": 0.11195135116577148, "n_entries": 1}

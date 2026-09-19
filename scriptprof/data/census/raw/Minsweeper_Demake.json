@@ -1,0 +1,1 @@
+{"game": "Minsweeper_Demake", "bytes": 5318, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 7, "h": 7, "solved": false, "len": 15, "iters": 72484, "time": 5.0018, "timeout": true, "actions": null}], "compile_time": 0.1155710220336914, "n_entries": 1}

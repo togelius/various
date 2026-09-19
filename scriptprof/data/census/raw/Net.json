@@ -1,0 +1,1 @@
+{"game": "Net", "bytes": 12649, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 13, "h": 77, "solved": false, "len": 8, "iters": 1382, "time": 5.0091, "timeout": true, "actions": null}], "compile_time": 0.11789584159851074, "n_entries": 1}

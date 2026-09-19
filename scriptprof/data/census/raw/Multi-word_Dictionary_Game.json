@@ -1,0 +1,1 @@
+{"game": "Multi-word_Dictionary_Game", "bytes": 1150, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 7, "solved": true, "len": 14, "iters": 15875, "time": 1.0869, "timeout": false, "actions": [1, 2, 3, 0, 1, 0, 0, 3, 2, 3, 3, 0, 1, 0], "replay_won": true}], "compile_time": 0.09825301170349121, "n_entries": 1}

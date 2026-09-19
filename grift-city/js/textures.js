@@ -3,7 +3,7 @@
 'use strict';
 const TEX = (() => {
   const S = 512, NS = 320; // colour maps are painted at 512; normal and roughness at 320, which is plenty for them
-  const layers = [], normals = []; const names = {}; let shopKinds = [];
+  const layers = [], normals = [], panes = []; const names = {}; let shopKinds = [];
   const photos = {}; let curLayer = null; // decoded photographic materials (js/texdata.js), and the layer being painted
   // Decode every baked material. Called before build(); without it the painters fall back to their drawn colours.
   function preload(onProgress) {
@@ -16,7 +16,7 @@ const TEX = (() => {
     }))).then(() => Object.keys(photos).length);
   }
   // The photographic base of the layer being painted: the material's colour map, blended toward the palette colour the
-  // painter asks for (a 'color' blend keeps the photo's luminance, so mortar and grain survive the recolour). The normal
+  // painter asks for (a restrained luminance blend keeps mortar and grain without overpowering the shapes). The normal
   // and roughness maps go to the parallel canvases at the same time. Returns false when the material is missing.
   function base(g, col, opts = {}) {
     const spec = typeof TEXDATA !== 'undefined' && curLayer && TEXDATA.layers[curLayer]; const im = spec && photos[spec[0]];
@@ -24,13 +24,13 @@ const TEX = (() => {
     g.drawImage(im.c, 0, 0, S, S);
     const amt = opts.amt !== undefined ? opts.amt : spec[1];
     if (col && amt > 0) {
-      // Recolour toward the palette colour while keeping the photo's own luminance, so mortar, grain and stains
-      // survive. This is a 'color' blend done by hand: the canvas blend mode is correct but far too slow here.
+      // Recolour toward the palette, compressing photographic contrast toward its luminance.
+      // Surface grain survives, but no longer competes as strongly with silhouettes and signage.
       const t = parseHex(col); const tl = 0.299 * t[0] + 0.587 * t[1] + 0.114 * t[2] || 1;
       const kr = t[0] / tl, kg = t[1] / tl, kb = t[2] / tl, inv = 1 - amt;
       const id = g.getImageData(0, 0, S, S), d = id.data;
       for (let i = 0; i < d.length; i += 4) {
-        const l = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        const l = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) * 0.65 + tl * 0.35;
         d[i] = inv * d[i] + amt * l * kr; d[i + 1] = inv * d[i + 1] + amt * l * kg; d[i + 2] = inv * d[i + 2] + amt * l * kb;
       }
       g.putImageData(id, 0, 0);
@@ -68,7 +68,7 @@ const TEX = (() => {
     g._n = ng; g._r = rg; g._touched = false; curLayer = name;
     painter(g, M.rng(layers.length * 7919 + 13));
     curLayer = null;
-    names[name] = layers.length; layers.push(g._out || finish(g, g._lit)); normals.push(packMaps(ng, rg, g._touched));
+    names[name] = layers.length; layers.push(g._out || finish(g, g._lit)); normals.push(packMaps(ng, rg, g._touched)); panes.push(g._panes || null);
   }
   // Bake the emissive rectangles into alpha and hand back raw ImageData.
   function finish(g, rects, base = 0) {
@@ -103,11 +103,13 @@ const TEX = (() => {
   }
   // A wall of windows: cols x rows panes with wall texture painted by `wall(g, r)` first.
   function windows(g, r, o) {
-    o.wall(g, r);
+    o.wall(g, r); g._panes = [o.cols, o.rows, o.wPad, o.hPad];
     const cw = S / o.cols, ch = S / o.rows;
     for (let j = 0; j < o.rows; j++) {
       if (o.band) { g.fillStyle = o.band; g.fillRect(0, j * ch, S, 6); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, j * ch + 6, S, 3); }
-      for (let i = 0; i < o.cols; i++) { const x = i * cw + cw * o.wPad, y = j * ch + ch * o.hPad, w = cw * (1 - 2 * o.wPad), h = ch * (1 - 2 * o.hPad); pane(g, r, x, y, w, h, o); }
+      for (let i = 0; i < o.cols; i++) { const x = i * cw + cw * o.wPad, y = j * ch + ch * o.hPad, w = cw * (1 - 2 * o.wPad), h = ch * (1 - 2 * o.hPad); pane(g, r, x, y, w, h, o);
+        // the reveal: a window sits back in the wall, so its head and one jamb are in shadow and the sill below catches the light
+        g.fillStyle = 'rgba(0,0,0,0.32)'; g.fillRect(x, y, w, Math.max(2, h * 0.11)); g.fillRect(x, y, Math.max(2, w * 0.07), h); g.fillStyle = 'rgba(255,255,255,0.16)'; g.fillRect(x - 2, y + h, w + 4, Math.max(2, h * 0.05)); g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(x - 2, y + h + Math.max(2, h * 0.05), w + 4, Math.max(2, h * 0.04)); }
     }
     if (o.pilasters) for (let i = 0; i <= o.cols; i++) { const x = i * cw - 8; g.fillStyle = 'rgba(255,255,255,0.14)'; g.fillRect(x, 0, 10, S); g.fillStyle = 'rgba(0,0,0,0.22)'; g.fillRect(x + 10, 0, 6, S); }
   }
@@ -155,7 +157,7 @@ const TEX = (() => {
     // ghost signs: faded painted advertising on a blank brick wall
     const GHOST = [['DRINK', 'GRIFT COLA'], ['OKAFOR & SONS', 'SHIPPING'], ['HOTEL', 'ROOMS $2'], ['MARROW', 'HARDWARE'], ['CIGARS', '5 CENTS']];
     add('ghost', (g, r) => { bricks(g, r, '#8a4a3a', 'rgba(230,220,200,0.5)'); streaks(g, r, 30, 0, S, 0, 200, 'rgba(0,0,0,0.1)'); const gs = GHOST[Math.floor(r() * GHOST.length)]; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = 'rgba(240,230,210,0.32)'; g.fillRect(40, 60, 432, 392); g.fillStyle = 'rgba(30,20,20,0.35)'; g.font = `bold 92px ${FONTS.heavy}`; let sz = 92; while (g.measureText(gs[0]).width > 400 && sz > 40) { sz -= 4; g.font = `bold ${sz}px ${FONTS.heavy}`; } g.fillText(gs[0], 256, 180); g.font = `bold 60px ${FONTS.serif}`; sz = 60; while (g.measureText(gs[1]).width > 400 && sz > 30) { sz -= 4; g.font = `bold ${sz}px ${FONTS.serif}`; } g.fillText(gs[1], 256, 330); g.fillStyle = 'rgba(200,40,40,0.25)'; g.fillRect(120, 400, 272, 20); grain(g, r, 20000, 0.06, 3); });
-    add('banner', (g, r) => { for (let i = 0; i < 4; i++) { const hue = Math.floor(r() * 360); g.fillStyle = `hsl(${hue},55%,40%)`; g.fillRect(i * 128, 0, 128, S); g.fillStyle = `hsl(${hue},60%,75%)`; g.fillRect(i * 128 + 20, 60, 88, 88); g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = `bold 34px ${FONTS.sans}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.save(); g.translate(i * 128 + 64, 330); g.rotate(-Math.PI / 2); g.fillText(['GRIFT CITY', 'MUSEUM', 'OPERA', 'MARKET DAYS'][i], 0, 0); g.restore(); } }); // four hanging banners for downtown flagpoles
+    add('banner', (g, r) => { for (let i = 0; i < 4; i++) { const hue = Math.floor(r() * 360); g.fillStyle = `hsl(${hue},42%,40%)`; g.fillRect(i * 128, 0, 128, S); g.fillStyle = `hsl(${hue},48%,75%)`; g.fillRect(i * 128 + 20, 60, 88, 88); g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = `bold 34px ${FONTS.sans}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.save(); g.translate(i * 128 + 64, 330); g.rotate(-Math.PI / 2); g.fillText(['GRIFT CITY', 'MUSEUM', 'OPERA', 'MARKET DAYS'][i], 0, 0); g.restore(); } }); // four hanging banners for downtown flagpoles
     add('painted', (g, r) => { windows(g, r, { cols: 4, rows: 4, wPad: 0.27, hPad: 0.24, wall: (g, r) => stucco(g, r, ['#c98a6a', '#d8c07a', '#8fb5a0', '#b58fa8'][Math.floor(r() * 4)]), frame: '#f3efe6', glassA: '#4e5d6b', glassB: '#3d4c5a', litFrac: 0.45, sill: true, sillCol: '#f3efe6' }); // shutters
       const cw = S / 4, ch = S / 4; for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { if (r() > 0.6) continue; const x = i * cw + cw * 0.27, y = j * ch + ch * 0.24, w = cw * 0.46, h = ch * 0.52; g.fillStyle = '#3d5a4a'; g.fillRect(x - 16, y, 12, h); g.fillRect(x + w + 4, y, 12, h); g.fillStyle = 'rgba(0,0,0,0.3)'; for (let k = 4; k < h; k += 6) { g.fillRect(x - 15, y + k, 10, 2); g.fillRect(x + w + 5, y + k, 10, 2); } } });
     // Shopfronts: one tile = 8 units (two shops), 4 tall. Sixteen kinds of shop, each with its own sign, window
@@ -183,12 +185,12 @@ const TEX = (() => {
     const usedNames = new Set(); const SIGN_ALT = { board: 'box', box: 'board', neon: 'board', stripes: 'board' };
     function shop(g, r, x0, kind) {
       const sp = { ...SHOPS[kind] }; if (r() < 0.3) sp.sign = SIGN_ALT[sp.sign]; const fresh = sp.names.filter(n => !usedNames.has(n)); const name = (fresh.length ? fresh : sp.names)[Math.floor(r() * (fresh.length ? fresh : sp.names).length)]; usedNames.add(name); const hue = (sp.hue + (r() - 0.5) * 40 + 360) % 360; const font = FONTS[sp.font];
-      const dark = `hsl(${hue},30%,14%)`, mid = `hsl(${hue},45%,34%)`, light = `hsl(${hue},60%,85%)`;
+      const dark = `hsl(${hue},30%,14%)`, mid = `hsl(${hue},34%,34%)`, light = `hsl(${hue},60%,85%)`;
       g.textAlign = 'center'; g.textBaseline = 'middle';
       // ---- sign band (14..90)
-      if (sp.sign === 'board') { g.fillStyle = mid; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = `hsl(${hue},45%,26%)`; g.fillRect(x0 + 6, 84, 244, 8); g.strokeStyle = light; g.lineWidth = 3; g.strokeRect(x0 + 14, 22, 228, 60); g.fillStyle = light; textFit(g, name, 216, 40, font); g.fillText(name, x0 + 128, 52); }
-      else if (sp.sign === 'box') { g.fillStyle = '#2a2a2e'; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = '#f4f2ea'; g.fillRect(x0 + 14, 22, 228, 60); g._lit.push([x0 + 14, 22, 228, 60]); g.fillStyle = `hsl(${hue},70%,38%)`; textFit(g, name, 216, 42, font); g.fillText(name, x0 + 128, 52); }
-      else if (sp.sign === 'neon') { g.fillStyle = '#15151a'; g.fillRect(x0 + 6, 14, 244, 76); const col = `hsl(${hue},95%,68%)`; g.shadowColor = col; g.shadowBlur = 18; g.fillStyle = col; textFit(g, name, 210, 44, font, 'italic bold'); g.fillText(name, x0 + 128, 52); g.shadowBlur = 0; g._lit.push([x0 + 30, 26, 196, 52]); g.strokeStyle = `hsl(${hue},80%,40%)`; g.lineWidth = 2; g.strokeRect(x0 + 12, 20, 232, 64); }
+      if (sp.sign === 'board') { g.fillStyle = mid; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = `hsl(${hue},34%,26%)`; g.fillRect(x0 + 6, 84, 244, 8); g.strokeStyle = light; g.lineWidth = 3; g.strokeRect(x0 + 14, 22, 228, 60); g.fillStyle = light; textFit(g, name, 216, 40, font); g.fillText(name, x0 + 128, 52); }
+      else if (sp.sign === 'box') { g.fillStyle = '#2a2a2e'; g.fillRect(x0 + 6, 14, 244, 76); g.fillStyle = '#f4f2ea'; g.fillRect(x0 + 14, 22, 228, 60); g._lit.push([x0 + 14, 22, 228, 60]); g.fillStyle = `hsl(${hue},52%,38%)`; textFit(g, name, 216, 42, font); g.fillText(name, x0 + 128, 52); }
+      else if (sp.sign === 'neon') { g.fillStyle = '#15151a'; g.fillRect(x0 + 6, 14, 244, 76); const col = `hsl(${hue},78%,66%)`; g.shadowColor = col; g.shadowBlur = 18; g.fillStyle = col; textFit(g, name, 210, 44, font, 'italic bold'); g.fillText(name, x0 + 128, 52); g.shadowBlur = 0; g._lit.push([x0 + 30, 26, 196, 52]); g.strokeStyle = `hsl(${hue},58%,40%)`; g.lineWidth = 2; g.strokeRect(x0 + 12, 20, 232, 64); }
       else { /* stripes: an awning-style band with the name on it */ for (let k = 0; k < 12; k++) { g.fillStyle = k % 2 ? mid : '#f0ebe0'; g.fillRect(x0 + 6 + k * 20.3, 14, 20.3, 76); } g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(x0 + 20, 32, 216, 40); g.fillStyle = '#fff'; textFit(g, name, 200, 34, font); g.fillText(name, x0 + 128, 52); }
       // ---- awning (some kinds) and the frame around the window
       const awning = sp.sign !== 'stripes' && r() < 0.45; if (awning) { const ac = `hsl(${(hue + 180) % 360},50%,42%)`; g.fillStyle = ac; g.fillRect(x0 + 6, 96, 244, 34); g.fillStyle = 'rgba(255,255,255,0.18)'; for (let k = 0; k < 6; k++) g.fillRect(x0 + 6 + k * 40.6, 96, 20, 34); g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(x0 + 6, 128, 244, 6); }
@@ -237,7 +239,7 @@ const TEX = (() => {
         g.strokeStyle = ['#ff3b8d', '#37d4ff', '#7dff5a'][i]; g.lineWidth = 6; g.beginPath(); let gx = x0 + 30, gy = 300 + r() * 100; g.moveTo(gx, gy); for (let k = 0; k < 6; k++) { gx += 30; gy += (r() - 0.5) * 60; g.lineTo(gx, gy); } g.stroke();
         g.fillStyle = '#6a6560'; g.fillRect(x0 + 14, 486, 228, 12); } });
     add('roof', (g, r) => { if (!base(g, '#56534f')) { g.fillStyle = '#56534f'; g.fillRect(0, 0, S, S); noise(g, r, 80, 20000); grain(g, r, 20000, 0.05); } stains(g, r, 6, 'rgba(0,0,0,0.12)'); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, 0, S, 14); g.fillRect(0, 0, 14, S); for (let i = 0; i < 3; i++) { g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(r() * S, r() * S, 60 + r() * 100, 40 + r() * 60); } });
-    add('grass', (g, r) => { if (!base(g, '#4c7738')) { g.fillStyle = '#4c7738'; g.fillRect(0, 0, S, S); for (let i = 0; i < 30000; i++) { g.fillStyle = r() < 0.5 ? 'rgba(20,60,10,0.35)' : 'rgba(150,200,80,0.28)'; g.fillRect(r() * S, r() * S, 1, 2 + r() * 4); } } for (let i = 0; i < 12; i++) { g.fillStyle = 'rgba(90,70,40,0.25)'; g.beginPath(); g.ellipse(r() * S, r() * S, 10 + r() * 30, 6 + r() * 16, r() * 3, 0, 7); g.fill(); } });
+    add('grass', (g, r) => { if (!base(g, '#566e46')) { g.fillStyle = '#566e46'; g.fillRect(0, 0, S, S); for (let i = 0; i < 30000; i++) { g.fillStyle = r() < 0.5 ? 'rgba(20,60,10,0.35)' : 'rgba(150,200,80,0.28)'; g.fillRect(r() * S, r() * S, 1, 2 + r() * 4); } } for (let i = 0; i < 12; i++) { g.fillStyle = 'rgba(90,70,40,0.25)'; g.beginPath(); g.ellipse(r() * S, r() * S, 10 + r() * 30, 6 + r() * 16, r() * 3, 0, 7); g.fill(); } });
     add('parking', (g, r) => { if (!base(g, '#48484a')) { g.fillStyle = '#48484a'; g.fillRect(0, 0, S, S); noise(g, r, 60, 12000); cracks(g, r, 5); } stains(g, r, 8, 'rgba(0,0,0,0.25)'); g.fillStyle = '#d0d0c8'; for (let x = 0; x < S; x += 128) { g.fillRect(x, 0, 5, S * 0.45); g.fillRect(x, S * 0.55, 5, S * 0.45); } });
     add('water', (g, r) => { g.fillStyle = '#1e4862'; g.fillRect(0, 0, S, S); for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(170,215,240,${0.05 + r() * 0.16})`; g.fillRect(r() * S, r() * S, 16 + r() * 70, 1 + r() * 3); } for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(10,30,50,${0.1 + r() * 0.2})`; g.fillRect(r() * S, r() * S, 20 + r() * 60, 2 + r() * 3); } });
     add('metal', (g, r) => { if (!base(g, '#7c8088')) { g.fillStyle = '#7c8088'; g.fillRect(0, 0, S, S); } for (let y = 0; y < S; y += 4) { g.fillStyle = `rgba(0,0,0,${0.06 + r() * 0.12})`; g.fillRect(0, y, S, 2); } streaks(g, r, 30, 0, S, 0, 300, 'rgba(120,70,30,0.12)'); grain(g, r, 6000, 0.05); });
@@ -260,7 +262,7 @@ const TEX = (() => {
     add('manhole', (g, r) => { g.fillStyle = '#39393d'; g.fillRect(0, 0, S, S); g.fillStyle = '#2a2a2c'; g.beginPath(); g.arc(256, 256, 236, 0, 7); g.fill(); g.fillStyle = '#4a4a4e'; g.beginPath(); g.arc(256, 256, 220, 0, 7); g.fill(); g.strokeStyle = '#2a2a2c'; g.lineWidth = 10; for (let k = -4; k <= 4; k++) { g.beginPath(); g.moveTo(256 + k * 44, 60); g.lineTo(256 + k * 44, 452); g.stroke(); g.beginPath(); g.moveTo(60, 256 + k * 44); g.lineTo(452, 256 + k * 44); g.stroke(); } g.strokeStyle = '#1e1e20'; g.lineWidth = 14; g.beginPath(); g.arc(256, 256, 228, 0, 7); g.stroke(); grain(g, r, 6000, 0.08); });
     add('cone', (g, r) => { g.fillStyle = '#ff6a00'; g.fillRect(0, 0, S, S); g.fillStyle = '#fff'; g.fillRect(0, 160, S, 60); g.fillRect(0, 300, S, 60); });
     add('barrier', (g, r) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#ff6a00'; g.fillRect(i * 64, 0, 64, S); } });
-    return { color: layers, normal: normals };
+    return { color: layers, normal: normals, panes };
   }
   return { build, preload, names, S, NS, base, flatN, get layers() { return layers; }, get normals() { return normals; }, get shopKinds() { return shopKinds; } };
 })();

@@ -1,0 +1,1 @@
+{"game": "legend of zokoban", "bytes": 3459, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 36, "h": 14, "solved": false, "len": 6, "iters": 7989, "time": 5.0264, "timeout": true, "actions": null}], "compile_time": 0.09768295288085938, "n_entries": 2}

@@ -1,0 +1,1 @@
+{"game": "PuzzleTech_0.73", "bytes": 9247, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 26, "h": 15, "solved": false, "len": 11, "iters": 10560, "time": 5.0482, "timeout": true, "actions": null}], "compile_time": 0.16411519050598145, "n_entries": 1}

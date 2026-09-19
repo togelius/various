@@ -1,0 +1,1 @@
+{"game": "Not_in_the_mood", "bytes": 10619, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 8, "h": 11, "solved": false, "len": 20, "iters": 14104, "time": 5.0577, "timeout": true, "actions": null}], "compile_time": 0.11684775352478027, "n_entries": 4}

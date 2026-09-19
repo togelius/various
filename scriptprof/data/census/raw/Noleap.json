@@ -1,0 +1,1 @@
+{"game": "Noleap", "bytes": 17941, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 45, "h": 36, "solved": false, "len": 27, "iters": 968, "time": 5.0414, "timeout": true, "actions": null}], "compile_time": 0.19278550148010254, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "Last_day_of_the_year", "bytes": 4327, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 9, "solved": false, "len": 14, "iters": 20778, "time": 5.0421, "timeout": true, "actions": null}], "compile_time": 0.09755468368530273, "n_entries": 5}

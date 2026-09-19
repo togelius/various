@@ -65,7 +65,7 @@ def census_one(path: Path, max_iters: int, timeout_ms: int) -> dict:
     for i in idxs:
         try:
             s = E.solve_level(eng, i, "bfs", max_iters=max_iters, timeout_ms=timeout_ms)
-            rec["levels"].append({
+            entry = {
                 "level": i,
                 "w": eng.width,
                 "h": eng.height,
@@ -75,7 +75,17 @@ def census_one(path: Path, max_iters: int, timeout_ms: int) -> dict:
                 "time": round(s.time, 4),
                 "timeout": s.timeout,
                 "actions": s.actions if s.solved else None,
-            })
+            }
+            if s.solved and s.actions:
+                # Validate the solver against the engine, as PuzzleJAX validates
+                # its JAX engine against NodeJS: replay the action list from a
+                # fresh level and check it really reaches a win. A mismatch means
+                # the search and the engine disagree about the game's semantics.
+                try:
+                    entry["replay_won"] = bool(E.replay(eng, i, s.actions)["won"])
+                except Exception as e:  # noqa: BLE001
+                    entry["replay_error"] = str(e)[:200]
+            rec["levels"].append(entry)
         except Exception as e:  # noqa: BLE001
             rec["levels"].append({"level": i, "error": str(e)[:300]})
     return rec
@@ -120,6 +130,7 @@ def summarize() -> None:
             "n_levels": len(lv),
             "n_solved": len(solved),
             "n_timeout": sum(1 for l in lv if l.get("timeout")),
+            "n_replay_mismatch": sum(1 for l in solved if l.get("replay_won") is False),
             "max_len": max((l["len"] for l in solved), default=0),
             "mean_len": round(sum(l["len"] for l in solved) / len(solved), 1) if solved else 0,
             "max_iters": max((l["iters"] for l in lv), default=0),

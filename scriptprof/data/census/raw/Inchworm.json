@@ -1,0 +1,1 @@
+{"game": "Inchworm", "bytes": 4391, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 11, "h": 8, "solved": true, "len": 21, "iters": 175, "time": 0.0659, "timeout": false, "actions": [1, 4, 1, 4, 3, 3, 1, 1, 4, 3, 3, 3, 3, 4, 3, 3, 4, 3, 4, 3, 3], "replay_won": true}], "compile_time": 0.11115908622741699, "n_entries": 2}

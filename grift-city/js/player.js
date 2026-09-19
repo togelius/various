@@ -14,6 +14,7 @@ const WEAPONS = {
 const WEAPON_ORDER = ['fist', 'bat', 'pistol', 'uzi', 'shotgun', 'rifle', 'rocket', 'grenade'];
 
 const PLAYER = (() => {
+  const CIRC = new Float64Array(9); // scratch for a car's collision circles, so walking into traffic allocates nothing
   const P = {
     x: 0, z: 0, y: 0, angle: 0, vx: 0, vz: 0, vy: 0, airborne: false, speed: 0, phase: 0, lying: 0, fallDir: 1,
     health: 100, armor: 0, money: 500, wanted: 0, weapons: { fist: Infinity }, weapon: 'fist', fireT: 0, weaponOut: false, aim: 0, recoil: 0, punchT: 0,
@@ -25,7 +26,7 @@ const PLAYER = (() => {
   const projectiles = []; const tracers = [];
   const tmp = M.create();
 
-  const OUTFITS = [{ name: 'Street', shirt: [0.85, 0.85, 0.8], jacket: [0.25, 0.14, 0.1], pants: [0.2, 0.2, 0.25] }, { name: 'Suit', shirt: [0.95, 0.95, 0.95], jacket: [0.1, 0.1, 0.13], pants: [0.1, 0.1, 0.13] }, { name: 'Tracksuit', shirt: [0.9, 0.9, 0.9], jacket: [0.12, 0.32, 0.7], pants: [0.12, 0.32, 0.7] }, { name: 'Leather', shirt: [0.3, 0.3, 0.32], jacket: [0.08, 0.07, 0.07], pants: [0.15, 0.1, 0.08] }, { name: 'Bowling shirt', shirt: [0.9, 0.45, 0.2], jacket: [0.95, 0.8, 0.3], pants: [0.25, 0.22, 0.2] }];
+  const OUTFITS = [{ name: 'Street', shirt: [0.85, 0.85, 0.8], jacket: [0.36, 0.25, 0.19], pants: [0.2, 0.2, 0.25] }, { name: 'Suit', shirt: [0.95, 0.95, 0.95], jacket: [0.1, 0.1, 0.13], pants: [0.1, 0.1, 0.13] }, { name: 'Tracksuit', shirt: [0.9, 0.9, 0.9], jacket: [0.12, 0.32, 0.7], pants: [0.12, 0.32, 0.7] }, { name: 'Leather', shirt: [0.3, 0.3, 0.32], jacket: [0.08, 0.07, 0.07], pants: [0.15, 0.1, 0.08] }, { name: 'Bowling shirt', shirt: [0.9, 0.45, 0.2], jacket: [0.95, 0.8, 0.3], pants: [0.25, 0.22, 0.2] }];
   function setOutfit(i) { const o = OUTFITS[i % OUTFITS.length]; P.outfit = i % OUTFITS.length; P.look.shirt = o.shirt; P.look.jacket = o.jacket; P.look.pants = o.pants; P.mesh = PEDS.getMesh(P.look); }
   function init(x, z, angle) { P.mesh = PEDS.getMesh(P.look); P.bones = new Float32Array(16 * RENDER.MAX_BONES); P.emis = new Float32Array(RENDER.MAX_BONES); P.model = M.create(); P.x = x; P.z = z; P.y = CITY.groundY(x, z); P.angle = angle; P.camYaw = angle; }
   function giveWeapon(key, ammo) { if (!(key in P.weapons)) { P.weapons[key] = 0; P.weapon = key; } if (WEAPONS[key].melee) P.weapons[key] = Infinity; else P.weapons[key] += ammo; P.weaponOut = !WEAPONS[P.weapon].melee || P.weapon === 'bat'; }
@@ -201,7 +202,7 @@ const PLAYER = (() => {
     else P.y = g;
     const res = W.pushOut(P.x, P.z, 0.42); P.x = res.x; P.z = res.z;
     // cars are solid
-    for (const c of W.cars) { if (c.removed || c === P.car) continue; if (M.dist2(c.x, c.z, P.x, P.z) > 64) continue; for (const [cx, cz, r] of c.circles()) { const dx = P.x - cx, dz = P.z - cz; const rr = r + 0.4; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); P.x = cx + dx / d * rr; P.z = cz + dz / d * rr; } } }
+    for (const c of W.cars) { if (c.removed || c === P.car) continue; if (M.dist2(c.x, c.z, P.x, P.z) > 64) continue; for (let ci = 0, nci = c.circlesInto(CIRC); ci < nci; ci++) { const cx = CIRC[ci * 3], cz = CIRC[ci * 3 + 1], r = CIRC[ci * 3 + 2]; const dx = P.x - cx, dz = P.z - cz; const rr = r + 0.4; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); P.x = cx + dx / d * rr; P.z = cz + dz / d * rr; } } }
     // ped bodies push a little
     for (const p of W.peds) { if (!p.alive || p.inCar) continue; const dx = P.x - p.x, dz = P.z - p.z; const d2 = dx * dx + dz * dz; if (d2 < 0.64 && d2 > 1e-6) { const d = Math.sqrt(d2); const push = (0.8 - d) * 0.5; P.x += dx / d * push; P.z += dz / d * push; p.x -= dx / d * push; p.z -= dz / d * push; } }
   }

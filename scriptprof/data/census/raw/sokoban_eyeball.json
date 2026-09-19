@@ -1,0 +1,1 @@
+{"game": "sokoban_eyeball", "bytes": 851, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 7, "solved": false, "len": 23, "iters": 506, "time": 0.0236, "timeout": false, "actions": null}], "compile_time": 0.07931947708129883, "n_entries": 1}

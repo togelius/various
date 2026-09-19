@@ -1,0 +1,1 @@
+{"game": "Lasers_[study]", "bytes": 18208, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 19, "h": 17, "solved": false, "len": 16, "iters": 200, "time": 0.2372, "timeout": false, "actions": null}], "compile_time": 0.3979337215423584, "n_entries": 2}

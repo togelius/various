@@ -1,0 +1,1 @@
+{"game": "Ice_Breaker", "bytes": 2283, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 15, "h": 15, "solved": false, "len": 10, "iters": 16835, "time": 5.0615, "timeout": true, "actions": null}], "compile_time": 0.09126901626586914, "n_entries": 1}

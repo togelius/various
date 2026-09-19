@@ -1,6 +1,8 @@
+const assert = require('node:assert/strict');
 const { launch } = require('../launch.js');
 (async () => {
   const b = await launch([]);
+  try {
   const p = await b.newPage({ viewport: { width: 640, height: 360 } });
   const errs = []; p.on('pageerror', e => errs.push(e.message + ' | ' + (e.stack || '').split('\n').slice(1, 3).join(' | '))); p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text().slice(0, 200)); });
   await p.goto('file://' + require('path').resolve(__dirname, '..', '..', '..', 'index.html') + '');
@@ -26,5 +28,8 @@ const { launch } = require('../launch.js');
   });
   for (const s of res) console.log(JSON.stringify(s));
   console.log('errors:', errs.length); for (const e of errs.slice(0, 10)) console.log('ERR', e);
-  await b.close();
-})();
+  assert.deepEqual(errs, [], 'no browser errors during the soak');
+  assert.equal(res.length, 6, 'all six simulation intervals completed');
+  for (const row of res) assert.ok([row.hp, row.money, ...row.pos].every(Number.isFinite), 'finite player state');
+  } finally { await b.close(); }
+})().catch(e => { console.error(e); process.exitCode = 1; });

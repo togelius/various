@@ -430,6 +430,39 @@ above), and the shipped set was scored without the structural half because
 PuzzleJAX tracing on evolved games is unaffordable. What it certifies is that
 they work, that a person can play them, and that nothing in them is dead.
 
+### Merged with a parallel line of work
+
+A second session had been working on the same project and pushed 15 commits to
+main while this branch ran. The two lines barely overlap in files -- different
+module names for the same ideas -- so only five files conflicted, all data or
+documentation. Kept both sides.
+
+What came across that this branch did not have, and should have:
+
+- **`again` ticks were not settled on replay.** A rule suffixed with `again`
+  asks for another turn, which is how PuzzleScript expresses gravity, sliding
+  and spreading. The C++ solvers settle those ticks; the raw `process_input`
+  binding does not, so anything replaying an action list outside a solver was
+  playing a different game. 304 of 952 corpus games use it. My random-play
+  floor in `prof.depth` and `prof.levelgen` did exactly that and now goes
+  through their `prof.engine.step`.
+- **`restore_level` leaked per-turn state**, so a win detected on one search
+  branch stayed visible on the next.
+- **The C++ solvers ignored their time budget** on slow games: a 1s cap could
+  run for 78s.
+
+Re-validated after merging. The archive still replays at 100% in the original
+JavaScript engine, and on a 30-game corpus sample the one solution that
+previously did not win there now does: 0 disagreements, down from 1. The four
+of their tests that failed before were a stale vendor build, not a merge
+problem; rebuilding the C++ extension against their patch fixes all four.
+85 tests pass.
+
+Two implementations of the grammatical mutation operator now sit side by side
+(`prof/mutations.py` and their `prof/grammar_mutate.py`), and two of the weak
+player (`prof/depth.py` and their `prof/players.py`). Picking one of each, on
+evidence, is a job for daylight.
+
 ### What I would do next, in order
 
 1. **Replicate the novelty comparison.** Three seeds per arm, same wall clock.

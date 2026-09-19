@@ -1,0 +1,1 @@
+{"game": "Fi_&_BOXES!!!", "bytes": 8308, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 11, "h": 7, "solved": false, "len": 8, "iters": 8856, "time": 5.0047, "timeout": true, "actions": null}], "compile_time": 0.11122560501098633, "n_entries": 7}

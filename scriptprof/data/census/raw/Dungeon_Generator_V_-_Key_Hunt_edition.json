@@ -1,0 +1,1 @@
+{"game": "Dungeon_Generator_V_-_Key_Hunt_edition", "bytes": 2632, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 20, "h": 20, "solved": false, "len": 14, "iters": 3342, "time": 5.0602, "timeout": true, "actions": null}], "compile_time": 0.0915980339050293, "n_entries": 1}

@@ -1,0 +1,1 @@
+{"game": "___Sixty-Five", "bytes": 22355, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 15, "h": 15, "solved": false, "len": 5, "iters": 581, "time": 5.061, "timeout": true, "actions": null}], "compile_time": 0.4228382110595703, "n_entries": 2}

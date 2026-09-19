@@ -1,0 +1,1 @@
+{"game": "Cuddlefish", "bytes": 1288, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 7, "h": 6, "solved": false, "len": 16, "iters": 21486, "time": 5.0695, "timeout": true, "actions": null}], "compile_time": 0.08396673202514648, "n_entries": 1}

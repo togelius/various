@@ -1,0 +1,1 @@
+{"game": "Puzzlescript_Chess_[WIP]", "bytes": 26560, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 16, "h": 10, "solved": false, "len": 13, "iters": 1498, "time": 5.0684, "timeout": true, "actions": null}], "compile_time": 0.3072080612182617, "n_entries": 9}

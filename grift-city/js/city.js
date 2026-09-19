@@ -49,6 +49,7 @@ const CITY = (() => {
   const manholes = []; // road spots for the covers and their steam
   const solidProps = []; // {x,z,r,kind,idx}
   const parkedSpots = [];// {x,z,angle}
+  const shopfronts = []; // lit shop windows at night: {x, z, nx, nz, w, shut, h, tile}
   const ramps = [];      // {x0,z0,x1,z1,h,dir}
   const lights = [];     // traffic lights: {x,z,phase}
   let stunts = [];
@@ -67,7 +68,7 @@ const CITY = (() => {
     wb.floor(W0 - 2000, W0, 2000, W1 - W0, -1.6, wc, T.water, 24);
     wb.floor(W1, W0, 2000, W1 - W0, -1.6, wc, T.water, 24);
     // Island ground: grass ring with a sandy south beach
-    b.floor(W0, W0, W1 - W0, W1 - W0, -0.02, C, T.grass, 8);
+    grassField(b, W0, W0, W1 - W0, W1 - W0, -0.02, T.grass, 8, 22); // the island's ground, greener and drier in patches
     b.box(W0, -1.6, W0, W1 - W0, 1.58, W1 - W0, [0.55, 0.55, 0.5], T.sidewalk, { faces: 1 | 2 | 16 | 32, uvScale: 4 }); // seawall
     b.floor(W0, SIZE + HALF_ROAD + SW + 2, W1 - W0, SHORE - 2, 0.0, C, T.sand, 8);
     // Railing along the seawall
@@ -211,6 +212,16 @@ const CITY = (() => {
   // which shopfront tiles a district's ground floors are painted with (tools: see the SHOP_TILES list in textures.js; 9 is shuttered)
   const SHOP_POOL = { downtown: [1, 3, 6, 8, 10, 12, 16, 18, 3, 6], midtown: [1, 3, 4, 6, 7, 8, 0, 10, 12, 13, 14, 15, 16], northgate: [0, 2, 4, 5, 9, 11, 13, 17, 19, 20, 2, 5], westfield: [3, 7, 8, 14, 16, 17, 10, 1, 4], eastside: [2, 5, 4, 0, 9, 11, 13, 19, 20, 20, 18], southport: [5, 2, 0, 9, 11, 19, 20, 17, 3] };
   const MASONRY = ['brick', 'brick2', 'brick3', 'tenement', 'stone', 'painted', 'stucco2', 'loft'];
+  // Wall tints per district: cool greys downtown, warm brick browns midtown, dark reds up north, creams in the suburbs,
+  // ochres east, weathered greys and teals by the water. Saturation is low everywhere; accents come from signs and cars.
+  const WALL_TINTS = {
+    downtown: [[0.8, 0.82, 0.86], [0.7, 0.72, 0.76], [0.86, 0.85, 0.82], [0.64, 0.68, 0.74], [0.9, 0.9, 0.9]],
+    midtown: [[0.82, 0.74, 0.66], [0.74, 0.64, 0.57], [0.86, 0.81, 0.73], [0.68, 0.62, 0.58], [0.8, 0.78, 0.74]],
+    northgate: [[0.66, 0.54, 0.48], [0.74, 0.62, 0.54], [0.58, 0.51, 0.48], [0.8, 0.72, 0.64], [0.7, 0.66, 0.6]],
+    westfield: [[0.9, 0.87, 0.8], [0.85, 0.83, 0.77], [0.82, 0.8, 0.72], [0.88, 0.85, 0.82], [0.78, 0.8, 0.74]],
+    eastside: [[0.72, 0.62, 0.5], [0.64, 0.57, 0.5], [0.76, 0.7, 0.57], [0.6, 0.54, 0.5], [0.7, 0.66, 0.6]],
+    southport: [[0.68, 0.7, 0.7], [0.62, 0.66, 0.68], [0.74, 0.72, 0.68], [0.57, 0.6, 0.62], [0.66, 0.7, 0.66]],
+  };
   const FLOORS = { downtown: [14, 42], midtown: [6, 16], northgate: [3, 8], westfield: [2, 5], eastside: [2, 6], southport: [3, 7] };
 
   function addLot(block, x0, z0, x1, z1, h, kind = 'building') { const l = { x0, z0, x1, z1, h, kind }; lots.push(l); block.lots.push(l); if (kind !== 'wall' && curBuilder) groundAO(curBuilder, x0, z0, x1, z1); return l; }
@@ -224,9 +235,13 @@ const CITY = (() => {
     const T = TEX.names; const dist = block.kind;
     const m = rng.range(1.5, 3.5); const x0 = x + m, z0 = z + m, x1 = x + w - m, z1 = z + d - m; const W = x1 - x0, D = z1 - z0;
     const [fmin, fmax] = FLOORS[dist] || [3, 8];
-    const floors = rng.int(fmin, fmax); const fh = 3.2; const ground = 4.2;
+    // a skyline: heights climb toward the centre of downtown, and a few lots there carry landmark towers with stepped tops and spires
+    const cd = Math.hypot(block.i - (GRID - 1) / 2, block.j - (GRID - 1) / 2);
+    let floors = rng.int(fmin, fmax); if (dist === 'downtown') floors = Math.round(floors * (1 + 0.5 * Math.max(0, 1 - cd / 1.7)));
+    const landmark = dist === 'downtown' && cd < 1.3 && W > 15 && D > 15 && rng.chance(0.25); if (landmark) floors = Math.max(floors, 50);
+    const fh = 3.2; const ground = 4.2;
     const facade = rng.pick(FACADES[dist] || FACADES.midtown);
-    const tint = rng.chance(0.3) ? [rng.range(0.7, 1.05), rng.range(0.7, 1.05), rng.range(0.7, 1.05)] : [1, 1, 1].map(v => v * rng.range(0.75, 1.05));
+    const tint = rng.pick(WALL_TINTS[dist] || WALL_TINTS.midtown).map(v => v * rng.range(0.92, 1.08)); // each district keeps to a few muted wall colours
     const trim = tint.map(v => v * 0.82); const y = CURB;
     const commercial = rng.chance(dist === 'downtown' ? 0.6 : 0.75);
 
@@ -240,11 +255,40 @@ const CITY = (() => {
       const pool = SHOP_POOL[dist] || SHOP_POOL.midtown; const shopTile = T['shops' + rng.pick(pool)];
       b.box(x0, y, z0, W, ground, D, tint, shopTile, { faces: 1 | 2 | 16 | 32, uvScale: 8 });
       // the street side is painted in 8 m stretches, each a different pair of shops, so no two doors down a block match
-      { let last = -1; for (let t = 0; t < frontLen - 0.5; t += 8) { let k = rng.pick(pool); if (k === last) k = rng.pick(pool); last = k; shopTiles.push(k); const seg = Math.min(8, frontLen - t); const tl = T['shops' + k];
+      const outN = front === 'n' ? [0, -1] : front === 's' ? [0, 1] : front === 'w' ? [-1, 0] : [1, 0]; // the way this front faces the street
+      // The tile that is drawn keeps consuming the same random numbers and still drives the sidewalk props, so the
+      // seeded city is untouched; but painting it twice near itself puts the same pair of shop signs up twice, which
+      // is the thing you notice walking a block. What gets painted is therefore allowed to differ from what was
+      // drawn: anything already used within 26 m on a wall facing the same way is out, and the replacement comes
+      // from a hash of the position, so it costs no random numbers either. The test is by distance rather than by
+      // wall, because a frontage runs across several lots and a repeat shows up across a corner or a jog just as
+      // plainly as along one straight wall.
+      { const uniq = [...new Set(pool)]; let last = -1;
+        for (let t = 0; t < frontLen - 0.5; t += 8) { let k = rng.pick(pool); if (k === last) k = rng.pick(pool); last = k; shopTiles.push(k);
+        const seg = Math.min(8, frontLen - t);
+        const [fx2, fz2] = frontPt(t + seg / 2, 0.2);
+        const near = new Set();
+        for (let q = shopfronts.length - 1; q >= 0; q--) { const o = shopfronts[q];
+          if (o.nx !== outN[0] || o.nz !== outN[1]) continue;
+          const ddx = o.x - fx2, ddz = o.z - fz2; if (ddx * ddx + ddz * ddz < 26 * 26) near.add(o.tile); }
+        let kd = k;
+        if (near.has(kd)) { const hh = Math.abs(Math.sin(fx2 * 91.7 + fz2 * 47.3) * 43758.5453) % 1; const st = Math.floor(hh * uniq.length);
+          for (let i = 0; i < uniq.length; i++) { const c = uniq[(st + i) % uniq.length]; if (!near.has(c)) { kd = c; break; } } }
+        const tl = T['shops' + kd];
+        { const h = Math.abs(Math.sin(fx2 * 12.9898 + fz2 * 78.233) * 43758.5453) % 1; /* a hash of the position, so recording shopfronts consumes no city random numbers and leaves every other placement where it was */
+          shopfronts.push({ x: fx2, z: fz2, nx: outN[0], nz: outN[1], w: seg, shut: kd === 20, h, tile: kd }); }
         if (front === 'n') b.box(x0 + t, y, z0 - 0.03, seg, ground, 0.03, tint, tl, { faces: 32, uvScale: 8 }); else if (front === 's') b.box(x0 + t, y, z1, seg, ground, 0.03, tint, tl, { faces: 16, uvScale: 8 }); else if (front === 'w') b.box(x0 - 0.03, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 2, uvScale: 8 }); else b.box(x1, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 1, uvScale: 8 }); } }
       b.box(x0 - 0.3, y + ground - 0.35, z0 - 0.3, W + 0.6, 0.35, D + 0.6, trim, 0);
+      // Give the painted shop bays a shallow stone surround so the street catches light and shadow.
+      const surround = [0.62, 0.59, 0.52].map((v, i) => v * tint[i]);
+      for (let t = 0.12; t < frontLen; t += 4) {
+        const [px, pz] = frontPt(t, 0.10);
+        b.cbox(px, y + 1.55, pz, fz !== null ? 0.18 : 0.24, 3.1, fz !== null ? 0.24 : 0.18, surround);
+      }
+      const [sx, sz] = frontPt(frontLen / 2, 0.09);
+      b.cbox(sx, y + 0.22, sz, fz !== null ? frontLen : 0.22, 0.20, fz !== null ? 0.22 : frontLen, surround);
       // a real awning over the street side
-      if (rng.chance(0.5)) { const ac = [rng.range(0.4, 0.9), rng.range(0.2, 0.6), rng.range(0.2, 0.6)]; const aw = Math.min(W * 0.6, 7);
+      if (rng.chance(0.5)) { const ac = [rng.range(0.30, 0.56), rng.range(0.25, 0.42), rng.range(0.22, 0.34)]; const aw = Math.min(W * 0.6, 7);
         if (fz !== null) { const ax = x0 + (W - aw) / 2; const zz = front === 'n' ? z0 - 1.4 : z1; b.wedge(ax, y + 2.6, front === 'n' ? zz : zz + 0.0, aw, 0.5, 1.4, ac, 0); }
         else { const az = z0 + (D - aw) / 2; const xx = front === 'w' ? x0 - 1.4 : x1; b.box(xx, y + 2.6, az, 1.4, 0.35, aw, ac, 0); } }
       // planters by the door downtown
@@ -274,8 +318,34 @@ const CITY = (() => {
     const H = floors * fh;
     const facadeOpts = { faces: 1 | 2 | 16 | 32, uvScale: 1, uOff: rng.range(0, 1), vOff: 0 };
     facadeBox(b, x0, top, z0, W, H, D, tint, T[facade], facadeOpts);
-    // ledges every floor for the masonry styles, a cornice on top
-    if (facade !== 'glass' && facade !== 'glass2' && facade !== 'glass3' && facade !== 'metal' && facade !== 'warehouse') for (let k = (commercial ? 0 : 1); k < floors; k++) { const ly = top + k * fh; b.box(x0 - 0.12, ly, z0 - 0.12, W + 0.24, 0.14, D + 0.24, trim, 0, { faces: 1 | 2 | 4 | 16 | 32 }); }
+    // Stable architectural families: no new random draws, so saved city locations remain unchanged.
+    const family = Math.abs(Math.floor(x0 * 17 + z0 * 31)) % 3;
+    const masonry = MASONRY.includes(facade) || facade === 'deco';
+    const stone = [0.66, 0.63, 0.55].map((v, i) => v * tint[i]);
+    const frontBox = (t, yy, width, height, depth, off, color) => {
+      const [px, pz] = frontPt(t, off);
+      b.cbox(px, yy, pz, fz !== null ? width : depth, height, fz !== null ? depth : width, color);
+    };
+    // Masonry corners, rhythmic piers and layered cornices cast actual shadows on the facade.
+    if (masonry) {
+      const pierColor = family === 1 ? stone : trim.map(v => v * 0.75);
+      for (const t of [0.20, frontLen - 0.20]) frontBox(t, top + H / 2, 0.48, H, 0.32, 0.06, pierColor);
+      if (family === 0 && frontLen > 12) for (let t = 7; t < frontLen - 3; t += 7) frontBox(t, top + H / 2, 0.36, H, 0.28, 0.05, pierColor);
+      if (family === 1) for (let k = 0; k < Math.min(floors, 8); k++) for (const t of [0.24, frontLen - 0.24]) {
+        frontBox(t, top + k * fh + 0.50, 0.72, 0.38, 0.40, 0.08, stone);
+        frontBox(t, top + k * fh + 1.12, 0.50, 0.30, 0.36, 0.08, stone);
+      }
+      frontBox(frontLen / 2, top + H - 0.78, frontLen + 0.5, 0.18, 0.55, 0.12, stone);
+      if (family === 2) for (let t = 0.8; t < frontLen; t += 1.4) frontBox(t, top + H - 0.60, 0.30, 0.26, 0.48, 0.14, stone);
+    } else if (facade !== 'metal' && facade !== 'warehouse') {
+      // Office facades alternate strong vertical fins with broad horizontal spandrels.
+      if (family !== 1) for (let t = 0.25; t < frontLen; t += family === 0 ? 3.5 : 7) frontBox(t, top + H / 2, 0.18, H, 0.52, 0.15, [0.45, 0.49, 0.48]);
+      else for (let k = 2; k < floors; k += 3) frontBox(frontLen / 2, top + k * fh, frontLen, 0.50, 0.26, 0.08, [0.35, 0.39, 0.39]);
+    }
+    // Ledge spacing varies with the facade family instead of wrapping every building at every floor.
+    if (masonry || facade === 'concrete') for (let k = (commercial ? 0 : 1); k < floors; k += family === 0 ? 3 : family === 1 ? 2 : 1) { const ly = top + k * fh; b.box(x0 - 0.12, ly, z0 - 0.12, W + 0.24, 0.14, D + 0.24, trim, 0, { faces: 1 | 2 | 4 | 16 | 32 }); }
+    // a plinth at the foot of a residential facade (the roofline cornice is built below)
+    if (!commercial) b.box(x0 - 0.12, y, z0 - 0.12, W + 0.24, 0.9, D + 0.24, trim.map(v => v * 0.8));
     b.box(x0 - 0.35, top + H - 0.45, z0 - 0.35, W + 0.7, 0.45, D + 0.7, trim, 0);
     // balconies on the masonry fronts, window boxes on the painted ones, air conditioners on the side walls
     const bays = Math.floor(frontLen / 3.5);
@@ -296,14 +366,21 @@ const CITY = (() => {
     b.floor(x0, z0, W, D, top + H, tint.map(v => v * 0.9), T.roof, 8);
     roofDetails(b, x0, top + H, z0, W, D, tint, floors > 12);
     let totalH = top + H;
-    if (floors > 10 && rng.chance(0.5)) {
-      const s = rng.range(0.55, 0.8); const tw = W * s, td = D * s, tx = x0 + (W - tw) / 2, tz = z0 + (D - td) / 2, th = rng.int(4, floors) * fh;
+    if (floors > 10 && (landmark || rng.chance(0.5))) {
+      const s = landmark ? 0.72 : rng.range(0.55, 0.8); const tw = W * s, td = D * s, tx = x0 + (W - tw) / 2, tz = z0 + (D - td) / 2, th = rng.int(4, floors) * fh;
       facadeBox(b, tx, top + H, tz, tw, th, td, tint, T[facade], facadeOpts);
       if (facade !== 'glass') for (let k = 1; k < th / fh; k++) b.box(tx - 0.12, top + H + k * fh, tz - 0.12, tw + 0.24, 0.14, td + 0.24, trim, 0, { faces: 1 | 2 | 4 | 16 | 32 });
       b.box(tx - 0.35, top + H + th - 0.45, tz - 0.35, tw + 0.7, 0.45, td + 0.7, trim, 0);
       b.floor(tx, tz, tw, td, top + H + th, tint.map(v => v * 0.9), T.roof, 8);
       roofDetails(b, tx, top + H + th, tz, tw, td, tint, true);
       totalH = top + H + th;
+      if (landmark) { // a second, narrower tier and a spire with a beacon
+        const t2w = tw * 0.6, t2d = td * 0.6, t2x = tx + (tw - t2w) / 2, t2z = tz + (td - t2d) / 2, t2h = rng.int(5, 9) * fh;
+        facadeBox(b, t2x, totalH, t2z, t2w, t2h, t2d, tint, T[facade], facadeOpts); b.box(t2x - 0.35, totalH + t2h - 0.45, t2z - 0.35, t2w + 0.7, 0.45, t2d + 0.7, trim, 0);
+        b.floor(t2x, t2z, t2w, t2d, totalH + t2h, tint.map(v => v * 0.9), T.roof, 8); totalH += t2h;
+        const cx = t2x + t2w / 2, cz = t2z + t2d / 2; b.box(cx - 0.9, totalH, cz - 0.9, 1.8, 3, 1.8, trim); b.box(cx - 0.35, totalH + 3, cz - 0.35, 0.7, 14, 0.7, trim.map(v => v * 0.85)); b.box(cx - 0.12, totalH + 17, cz - 0.12, 0.24, 6, 0.24, [0.7, 0.7, 0.72]);
+        b.cbox(cx, totalH + 23.2, cz, 0.5, 0.5, 0.5, [1, 0.1, 0.1], 0, { bone: 0 }); addPlace('landmark', { x: cx, z: cz, h: totalH + 23, label: 'tower' });
+      }
     }
     if (rng.chance(0.2) && floors < 12) {
       const tile = T['bill' + rng.int(0, 5)]; const bw = Math.min(W - 2, 10), bh = bw * 0.6;
@@ -349,14 +426,40 @@ const CITY = (() => {
     const n = rng.int(1, 3);
     for (let k = 0; k < n; k++) { const aw = rng.range(1.5, 3), ad = rng.range(1.5, 3); const ax = x + rng.range(1, Math.max(1.1, w - aw - 1)), az = z + rng.range(1, Math.max(1.1, d - ad - 1)); b.box(ax, y, az, aw, rng.range(0.8, 1.6), ad, [0.6, 0.6, 0.62], T.metal, { uvScale: 2 }); b.box(ax + 0.2, y + 0.8, az + 0.2, aw - 0.4, 0.05, ad - 0.4, [0.25, 0.25, 0.27]); }
     for (let k = 0; k < rng.int(1, 4); k++) { const vx = x + rng.range(1, w - 1), vz = z + rng.range(1, d - 1); b.cyl(vx, y, vz, 0.25, rng.range(0.8, 1.6), [0.55, 0.55, 0.58], 0, 6); b.cyl(vx, y + 1.2, vz, 0.4, 1.35, [0.45, 0.45, 0.48], 0, 6); }
-    if (rng.chance(0.3) && w > 8 && d > 8) { const cx = x + rng.range(3, w - 3), cz = z + rng.range(3, d - 3); for (const [ox, oz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) b.cyl(cx + ox, y, cz + oz, 0.08, 2.5, [0.3, 0.3, 0.3], 0, 4); b.cyl(cx, y + 2.5, cz, 1.3, 4.3, [0.45, 0.35, 0.25], 0, 10, 0, true, true); b.cyl(cx, y + 4.3, cz, 1.4, 4.6, [0.35, 0.28, 0.2], 0, 10, 0, true, false, 0.4); }
+    if (rng.chance(tall ? 0.55 : 0.3) && w > 8 && d > 8) { const cx = x + rng.range(3, w - 3), cz = z + rng.range(3, d - 3); for (const [ox, oz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) b.cyl(cx + ox, y, cz + oz, 0.08, 2.5, [0.3, 0.3, 0.3], 0, 4); b.cyl(cx, y + 2.5, cz, 1.3, 4.3, [0.45, 0.35, 0.25], 0, 10, 0, true, true); b.cyl(cx, y + 4.3, cz, 1.4, 4.6, [0.35, 0.28, 0.2], 0, 10, 0, true, false, 0.4); }
     if (rng.chance(0.4) && w > 6 && d > 6) { const sx = x + rng.range(1, w - 3.5), sz = z + rng.range(1, d - 3.5); b.box(sx, y, sz, 2.4, 2.6, 2.8, tint.map(v => v * 0.8)); b.box(sx + 0.7, y, sz - 0.05, 1, 2.1, 0.1, [0.2, 0.15, 0.1]); } // roof access shed
     if (rng.chance(0.35)) { const dx = x + rng.range(1, w - 1), dz = z + rng.range(1, d - 1); b.cyl(dx, y, dz, 0.06, 1.2, [0.5, 0.5, 0.5], 0, 4); b.cyl(dx, y + 1.0, dz, 0.7, 1.15, [0.85, 0.85, 0.88], 0, 10, 0, true, true, 0.1); } // dish
     if (tall) { b.box(x + w / 2 - 0.1, y, z + d / 2 - 0.1, 0.2, 6, 0.2, [0.7, 0.7, 0.7]); b.cbox(x + w / 2, y + 6.1, z + d / 2, 0.3, 0.3, 0.3, [1, 0.1, 0.1], 0, { bone: 0 }); }
   }
+  // Grass laid as a grid whose colour varies smoothly across it: some of it greener, some dried out. The tint is a
+  // two-octave value noise of the world position sampled at each corner, so neighbouring cells agree along their shared
+  // edge and the field reads as ground rather than as tiles. It consumes no city random numbers.
+  const gHash = (i, j) => { const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - Math.floor(s); };
+  function gNoise(px, pz, cell) {
+    const fx = px / cell, fz = pz / cell; const i = Math.floor(fx), j = Math.floor(fz);
+    let u = fx - i, v = fz - j; u = u * u * (3 - 2 * u); v = v * v * (3 - 2 * v);
+    return (gHash(i, j) * (1 - u) + gHash(i + 1, j) * u) * (1 - v) + (gHash(i, j + 1) * (1 - u) + gHash(i + 1, j + 1) * u) * v;
+  }
+  function grassField(b, x, z, w, d, y, tile, uvScale, cell) {
+    const N = Math.max(2, Math.round(Math.max(w, d) / (cell || 6.4))), sw = w / N, sd = d / N;
+    const colAt = (px, pz) => { const n1 = gNoise(px, pz, 26), n2 = gNoise(px + 91, pz - 37, 9);
+      const k = 0.82 + n1 * 0.32 + n2 * 0.08; const dry = Math.max(0, n1 * 1.35 - 0.62);
+      return [k * (1 + dry * 0.5), k * (1 - dry * 0.05), k * (1 - dry * 0.42)]; };
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const x0 = x + i * sw, z0 = z + j * sd, x1 = x0 + sw, z1 = z0 + sd;
+      const u0 = (i * sw) / uvScale, v0 = (j * sd) / uvScale, u1 = ((i + 1) * sw) / uvScale, v1 = ((j + 1) * sd) / uvScale;
+      const c00 = colAt(x0, z0), c01 = colAt(x0, z1), c11 = colAt(x1, z1), c10 = colAt(x1, z0);
+      const base = b.n;
+      b.vert(x0, y, z0, 0, 1, 0, c00[0], c00[1], c00[2], u0, v0, tile, 0);
+      b.vert(x0, y, z1, 0, 1, 0, c01[0], c01[1], c01[2], u0, v1, tile, 0);
+      b.vert(x1, y, z1, 0, 1, 0, c11[0], c11[1], c11[2], u1, v1, tile, 0);
+      b.vert(x1, y, z0, 0, 1, 0, c10[0], c10[1], c10[2], u1, v0, tile, 0);
+      b.quad(base, base + 1, base + 2, base + 3);
+    }
+  }
   function buildPark(b, block) {
     const T = TEX.names; const { x, z } = block; const C = [1, 1, 1];
-    b.floor(x, z, BLOCK, BLOCK, CURB + 0.01, C, T.grass, 8);
+    grassField(b, x, z, BLOCK, BLOCK, CURB + 0.01, T.grass, 8);
     // paths in a cross
     b.floor(x + BLOCK / 2 - 2, z, 4, BLOCK, CURB + 0.02, [0.9, 0.9, 0.9], T.sidewalk, 8); b.floor(x, z + BLOCK / 2 - 2, BLOCK, 4, CURB + 0.02, [0.9, 0.9, 0.9], T.sidewalk, 8);
     // fountain on its plaza (an imported model), and a few imported tree clusters among the procedural trees
@@ -620,6 +723,6 @@ const CITY = (() => {
     return staticBuilder;
   }
 
-  return { GRID, BLOCK, ROAD, SW, PITCH, HALF_ROAD, LANE, CURB, SIZE, SHORE, lots, blocks, places, props, solidProps, parkedSpots, ramps, lights, get stunts() { return stunts; },
+  return { GRID, BLOCK, ROAD, SW, PITCH, HALF_ROAD, LANE, CURB, SIZE, SHORE, lots, blocks, places, props, solidProps, parkedSpots, shopfronts, ramps, lights, get stunts() { return stunts; },
     pier: { x0: pierX0, x1: pierX1, z1: pierZ1 }, marina, manholes, interiors, setInterior, get interiorRoom() { return interiorRoom; }, setRoof, get roofLot() { return roofLot; }, get roofAccess() { return roofAccess; }, roadNodes, roadEdges, walkNodes, generate, get water() { return waterBuilder; }, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
 })();

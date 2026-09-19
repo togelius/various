@@ -1,0 +1,1 @@
+{"game": "Spider_Solitaire", "bytes": 9071, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 22, "h": 31, "solved": false, "len": 13, "iters": 1848, "time": 5.0056, "timeout": true, "actions": null}], "compile_time": 0.11470270156860352, "n_entries": 6}

@@ -1,0 +1,1 @@
+{"game": "Tempting_Fate", "bytes": 2560, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 28, "h": 22, "solved": false, "len": 28, "iters": 11566, "time": 5.0264, "timeout": true, "actions": null}], "compile_time": 0.09238982200622559, "n_entries": 1}

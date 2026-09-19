@@ -1,0 +1,1 @@
+{"game": "Battle-Mage", "bytes": 6824, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 21, "h": 21, "solved": false, "len": 6, "iters": 1952, "time": 5.0411, "timeout": true, "actions": null}], "compile_time": 0.11007308959960938, "n_entries": 3}

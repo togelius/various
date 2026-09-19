@@ -1,0 +1,1 @@
+{"game": "Uphill_Pathfinder", "bytes": 1901, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 19, "h": 8, "solved": false, "len": 19, "iters": 2068, "time": 5.0454, "timeout": true, "actions": null}], "compile_time": 0.09423494338989258, "n_entries": 1}

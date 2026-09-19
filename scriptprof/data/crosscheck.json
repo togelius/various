@@ -1,51 +1,25 @@
 [
  {
-  "game": "control_01_04_02_03",
+  "game": "Line_Force",
   "levels": [
    {
     "level": 0,
-    "js_level": 0,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   },
-   {
-    "level": 1,
     "js_level": 1,
     "cpp": "solved",
-    "len": 15,
+    "len": 25,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
+    "js_steps": 25,
     "js_error": ""
    }
   ]
  },
  {
-  "game": "control_01_05_02_02",
+  "game": "Hamiltwo",
   "levels": [
    {
     "level": 0,
-    "js_level": 0,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
+    "cpp": "unsolved"
    },
    {
     "level": 1,
@@ -56,10 +30,75 @@
     "js_won": true,
     "js_steps": 16,
     "js_error": ""
+   }
+  ]
+ },
+ {
+  "game": "Festive_Lights",
+  "levels": [
+   {
+    "level": 0,
+    "js_level": 0,
+    "cpp": "solved",
+    "len": 10,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 10,
+    "js_error": ""
    },
    {
-    "level": 2,
-    "js_level": 2,
+    "level": 1,
+    "js_level": 1,
+    "cpp": "solved",
+    "len": 12,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 12,
+    "js_error": ""
+   }
+  ]
+ },
+ {
+  "game": "Aerobatics",
+  "levels": [
+   {
+    "level": 0,
+    "js_level": 1,
+    "cpp": "solved",
+    "len": 8,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 8,
+    "js_error": ""
+   },
+   {
+    "level": 1,
+    "js_level": 3,
+    "cpp": "solved",
+    "len": 10,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 10,
+    "js_error": ""
+   }
+  ]
+ },
+ {
+  "game": "The_Growth_of_H'Ragh",
+  "levels": [
+   {
+    "level": 0,
+    "js_level": 0,
+    "cpp": "solved",
+    "len": 11,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 11,
+    "js_error": ""
+   },
+   {
+    "level": 1,
+    "js_level": 3,
     "cpp": "solved",
     "len": 16,
     "js_ok": true,
@@ -70,392 +109,210 @@
   ]
  },
  {
-  "game": "control_01_07_02_02",
+  "game": "Do_You_Want_to_Build_a_Snowman_",
+  "levels": [
+   {
+    "level": 0,
+    "js_level": 1,
+    "cpp": "solved",
+    "len": 28,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 28,
+    "js_error": ""
+   },
+   {
+    "level": 1,
+    "cpp": "unsolved"
+   }
+  ]
+ },
+ {
+  "game": "lovendpieces",
   "levels": [
    {
     "level": 0,
     "js_level": 0,
+    "cpp": "solved",
+    "len": 4,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 4,
+    "js_error": ""
+   },
+   {
+    "level": 1,
+    "js_level": 1,
     "cpp": "solved",
     "len": 14,
     "js_ok": true,
     "js_won": true,
     "js_steps": 14,
     "js_error": ""
-   },
+   }
+  ]
+ },
+ {
+  "game": "Miner_To_Miner_Empire",
+  "levels": [
    {
-    "level": 1,
-    "js_level": 1,
+    "level": 0,
+    "js_level": 2,
     "cpp": "solved",
-    "len": 16,
+    "len": 19,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 16,
+    "js_steps": 19,
     "js_error": ""
    },
    {
-    "level": 2,
-    "js_level": 2,
+    "level": 1,
+    "js_level": 5,
     "cpp": "solved",
-    "len": 17,
+    "len": 26,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 17,
+    "js_steps": 26,
     "js_error": ""
    }
   ]
  },
  {
-  "game": "control_01_07_02_03",
+  "game": "Heroes_of_Sokoban_and_Other_Tales__The_Rogue",
+  "levels": [
+   {
+    "level": 0,
+    "cpp": "unsolved"
+   },
+   {
+    "level": 1,
+    "js_level": 6,
+    "cpp": "solved",
+    "len": 12,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 12,
+    "js_error": ""
+   }
+  ]
+ },
+ {
+  "game": "ebony and ivory",
   "levels": [
    {
     "level": 0,
     "js_level": 0,
     "cpp": "solved",
-    "len": 14,
+    "len": 12,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 14,
-    "js_error": ""
-   },
-   {
-    "level": 1,
-    "js_level": 1,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 17,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 17,
+    "js_steps": 12,
     "js_error": ""
    }
   ]
  },
  {
-  "game": "control_02_04_02_02",
+  "game": "Tumblin'",
+  "levels": [
+   {
+    "level": 0,
+    "js_level": 2,
+    "cpp": "solved",
+    "len": 4,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 4,
+    "js_error": ""
+   },
+   {
+    "level": 1,
+    "js_level": 3,
+    "cpp": "solved",
+    "len": 7,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 7,
+    "js_error": ""
+   }
+  ]
+ },
+ {
+  "game": "coincounter",
   "levels": [
    {
     "level": 0,
     "js_level": 0,
     "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
+    "len": 9,
+    "js_ok": false,
+    "js_won": false,
+    "js_steps": null,
+    "js_error": "Cannot read properties of undefined (reading 'length')"
    },
    {
     "level": 1,
     "js_level": 1,
     "cpp": "solved",
-    "len": 17,
+    "len": 22,
+    "js_ok": false,
+    "js_won": false,
+    "js_steps": null,
+    "js_error": "Cannot read properties of undefined (reading 'length')"
+   }
+  ]
+ },
+ {
+  "game": "icecrates",
+  "levels": [
+   {
+    "level": 0,
+    "js_level": 1,
+    "cpp": "solved",
+    "len": 4,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 17,
+    "js_steps": 4,
     "js_error": ""
    },
    {
-    "level": 2,
-    "js_level": 2,
+    "level": 1,
+    "js_level": 3,
     "cpp": "solved",
-    "len": 17,
+    "len": 5,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 17,
+    "js_steps": 5,
     "js_error": ""
    }
   ]
  },
  {
-  "game": "control_02_04_02_03",
+  "game": "Connect_Four",
   "levels": [
    {
     "level": 0,
     "js_level": 0,
     "cpp": "solved",
-    "len": 15,
+    "len": 11,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 15,
+    "js_steps": 11,
     "js_error": ""
    },
    {
     "level": 1,
     "js_level": 1,
     "cpp": "solved",
-    "len": 15,
+    "len": 11,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
+    "js_steps": 11,
     "js_error": ""
    }
   ]
  },
  {
-  "game": "control_02_05_02_02",
-  "levels": [
-   {
-    "level": 0,
-    "js_level": 0,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   },
-   {
-    "level": 1,
-    "js_level": 1,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   }
-  ]
- },
- {
-  "game": "control_02_05_02_03",
-  "levels": [
-   {
-    "level": 0,
-    "js_level": 0,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   },
-   {
-    "level": 1,
-    "js_level": 1,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   }
-  ]
- },
- {
-  "game": "control_02_06_02_02",
-  "levels": [
-   {
-    "level": 0,
-    "js_level": 0,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 1,
-    "js_level": 1,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 17,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 17,
-    "js_error": ""
-   }
-  ]
- },
- {
-  "game": "control_02_06_02_03",
-  "levels": [
-   {
-    "level": 0,
-    "js_level": 0,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 1,
-    "js_level": 1,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   }
-  ]
- },
- {
-  "game": "control_03_04_02_03",
-  "levels": [
-   {
-    "level": 0,
-    "js_level": 0,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   },
-   {
-    "level": 1,
-    "js_level": 1,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   }
-  ]
- },
- {
-  "game": "control_03_04_03_03",
-  "levels": [
-   {
-    "level": 0,
-    "js_level": 0,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   },
-   {
-    "level": 1,
-    "js_level": 1,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   }
-  ]
- },
- {
-  "game": "control_03_05_02_03",
-  "levels": [
-   {
-    "level": 0,
-    "js_level": 0,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 1,
-    "js_level": 1,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   }
-  ]
- },
- {
-  "game": "control_03_06_02_03",
+  "game": "2D_Whale_World",
   "levels": [
    {
     "level": 0,
@@ -476,347 +333,341 @@
     "js_won": true,
     "js_steps": 19,
     "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 5,
-    "cpp": "solved",
-    "len": 61,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 61,
-    "js_error": ""
    }
   ]
  },
  {
-  "game": "control_03_07_03_03",
-  "levels": [
-   {
-    "level": 0,
-    "cpp": "unsolved"
-   }
-  ]
- },
- {
-  "game": "control_04_04_03_03",
+  "game": "The_Blob",
   "levels": [
    {
     "level": 0,
     "js_level": 0,
     "cpp": "solved",
-    "len": 15,
+    "len": 10,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 15,
+    "js_steps": 10,
     "js_error": ""
    },
    {
     "level": 1,
     "js_level": 1,
     "cpp": "solved",
-    "len": 15,
+    "len": 12,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 15,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 15,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 15,
+    "js_steps": 12,
     "js_error": ""
    }
   ]
  },
  {
-  "game": "control_04_05_02_03",
+  "game": "Every_Three_Steps_You_Hit_a_Wall_Out_of_Nowhere",
+  "levels": [
+   {
+    "level": 0,
+    "js_level": 0,
+    "cpp": "solved",
+    "len": 25,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 25,
+    "js_error": ""
+   },
+   {
+    "level": 1,
+    "cpp": "unsolved"
+   }
+  ]
+ },
+ {
+  "game": "Electric_Slide",
+  "levels": [
+   {
+    "level": 0,
+    "js_level": 0,
+    "cpp": "solved",
+    "len": 29,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 29,
+    "js_error": ""
+   },
+   {
+    "level": 1,
+    "js_level": 1,
+    "cpp": "solved",
+    "len": 56,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 56,
+    "js_error": ""
+   }
+  ]
+ },
+ {
+  "game": "naborciM",
   "levels": [
    {
     "level": 0,
     "js_level": 1,
     "cpp": "solved",
-    "len": 9,
+    "len": 87,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 9,
+    "js_steps": 87,
     "js_error": ""
    },
    {
     "level": 1,
     "js_level": 3,
     "cpp": "solved",
+    "len": 29,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 29,
+    "js_error": ""
+   }
+  ]
+ },
+ {
+  "game": "Atomix_demake",
+  "levels": [
+   {
+    "level": 0,
+    "js_level": 5,
+    "cpp": "solved",
+    "len": 37,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 37,
+    "js_error": ""
+   },
+   {
+    "level": 1,
+    "js_level": 7,
+    "cpp": "solved",
     "len": 19,
     "js_ok": true,
     "js_won": true,
     "js_steps": 19,
     "js_error": ""
-   },
+   }
+  ]
+ },
+ {
+  "game": "Five_Pulloban_Puzzles",
+  "levels": [
    {
-    "level": 2,
+    "level": 0,
+    "js_level": 1,
+    "cpp": "solved",
+    "len": 231,
+    "js_ok": false,
+    "js_won": false,
+    "js_steps": 0,
+    "js_error": "Cannot read properties of undefined (reading 'length')"
+   }
+  ]
+ },
+ {
+  "game": "Boolean_Bloom_0.37",
+  "levels": [
+   {
+    "level": 0,
     "js_level": 5,
     "cpp": "solved",
-    "len": 32,
+    "len": 3,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 32,
+    "js_steps": 3,
+    "js_error": ""
+   },
+   {
+    "level": 1,
+    "js_level": 7,
+    "cpp": "solved",
+    "len": 3,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 3,
     "js_error": ""
    }
   ]
  },
  {
-  "game": "control_04_05_03_03",
+  "game": "stick_candy_puzzle_saga",
+  "levels": [
+   {
+    "level": 0,
+    "js_level": 1,
+    "cpp": "solved",
+    "len": 20,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 20,
+    "js_error": ""
+   },
+   {
+    "level": 1,
+    "cpp": "unsolved"
+   }
+  ]
+ },
+ {
+  "game": "Veggie_Jam",
   "levels": [
    {
     "level": 0,
     "js_level": 0,
     "cpp": "solved",
-    "len": 16,
+    "len": 8,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 16,
+    "js_steps": 8,
+    "js_error": ""
+   },
+   {
+    "level": 1,
+    "js_level": 2,
+    "cpp": "solved",
+    "len": 12,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 12,
+    "js_error": ""
+   }
+  ]
+ },
+ {
+  "game": "Baguettes",
+  "levels": [
+   {
+    "level": 0,
+    "js_level": 0,
+    "cpp": "solved",
+    "len": 33,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 33,
+    "js_error": ""
+   },
+   {
+    "level": 1,
+    "cpp": "unsolved"
+   }
+  ]
+ },
+ {
+  "game": "Crafting_Table",
+  "levels": [
+   {
+    "level": 0,
+    "js_level": 0,
+    "cpp": "solved",
+    "len": 3,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 3,
     "js_error": ""
    },
    {
     "level": 1,
     "js_level": 1,
     "cpp": "solved",
-    "len": 16,
+    "len": 11,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
+    "js_steps": 11,
     "js_error": ""
    }
   ]
  },
  {
-  "game": "novel_01_05_02_02",
+  "game": "Puzzle_Game_Supreme_With_Cheese",
+  "levels": [
+   {
+    "level": 0,
+    "js_level": 1,
+    "cpp": "solved",
+    "len": 7,
+    "js_ok": false,
+    "js_won": false,
+    "js_steps": null,
+    "js_error": "Cannot read properties of undefined (reading 'length')"
+   },
+   {
+    "level": 1,
+    "js_level": 2,
+    "cpp": "solved",
+    "len": 3,
+    "js_ok": false,
+    "js_won": false,
+    "js_steps": null,
+    "js_error": "Cannot read properties of undefined (reading 'length')"
+   }
+  ]
+ },
+ {
+  "game": "Rocketman",
   "levels": [
    {
     "level": 0,
     "js_level": 0,
     "cpp": "solved",
-    "len": 16,
+    "len": 1,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 16,
+    "js_steps": 1,
     "js_error": ""
    },
    {
     "level": 1,
     "js_level": 1,
     "cpp": "solved",
+    "len": 4,
+    "js_ok": true,
+    "js_won": true,
+    "js_steps": 4,
+    "js_error": ""
+   }
+  ]
+ },
+ {
+  "game": "Together_Alone",
+  "levels": [
+   {
+    "level": 0,
+    "cpp": "unsolved"
+   },
+   {
+    "level": 1,
+    "js_level": 3,
+    "cpp": "solved",
     "len": 16,
     "js_ok": true,
     "js_won": true,
     "js_steps": 16,
     "js_error": ""
-   },
+   }
+  ]
+ },
+ {
+  "game": "Boats_Cars_&_Trains",
+  "levels": [
    {
-    "level": 2,
+    "level": 0,
     "js_level": 2,
     "cpp": "solved",
-    "len": 16,
+    "len": 8,
     "js_ok": true,
     "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   }
-  ]
- },
- {
-  "game": "novel_01_07_02_02",
-  "levels": [
-   {
-    "level": 0,
-    "js_level": 0,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
+    "js_steps": 8,
     "js_error": ""
    },
    {
     "level": 1,
-    "js_level": 1,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   }
-  ]
- },
- {
-  "game": "novel_02_04_03_02",
-  "levels": [
-   {
-    "level": 0,
-    "cpp": "unsolved"
-   },
-   {
-    "level": 1,
-    "cpp": "unsolved"
-   }
-  ]
- },
- {
-  "game": "novel_02_05_02_02",
-  "levels": [
-   {
-    "level": 0,
-    "js_level": 0,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 1,
-    "js_level": 1,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 17,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 17,
-    "js_error": ""
-   }
-  ]
- },
- {
-  "game": "novel_02_06_02_02",
-  "levels": [
-   {
-    "level": 0,
-    "js_level": 0,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 1,
-    "js_level": 1,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
-    "cpp": "solved",
-    "len": 17,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 17,
-    "js_error": ""
-   }
-  ]
- },
- {
-  "game": "novel_02_06_03_02",
-  "levels": [
-   {
-    "level": 0,
-    "cpp": "unsolved"
-   },
-   {
-    "level": 1,
-    "cpp": "unsolved"
-   }
-  ]
- },
- {
-  "game": "novel_02_06_03_03",
-  "levels": [
-   {
-    "level": 0,
-    "cpp": "unsolved"
-   },
-   {
-    "level": 1,
-    "cpp": "unsolved"
-   }
-  ]
- },
- {
-  "game": "novel_03_07_03_03",
-  "levels": [
-   {
-    "level": 0,
-    "cpp": "unsolved"
-   }
-  ]
- },
- {
-  "game": "novel_04_05_03_03",
-  "levels": [
-   {
-    "level": 0,
-    "js_level": 0,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 1,
-    "js_level": 1,
-    "cpp": "solved",
-    "len": 16,
-    "js_ok": true,
-    "js_won": true,
-    "js_steps": 16,
-    "js_error": ""
-   },
-   {
-    "level": 2,
-    "js_level": 2,
+    "js_level": 4,
     "cpp": "solved",
     "len": 16,
     "js_ok": true,

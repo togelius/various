@@ -1,0 +1,1 @@
+{"game": "Line_Force", "bytes": 2149, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 10, "solved": true, "len": 25, "iters": 17339, "time": 1.5341, "timeout": false, "actions": [1, 1, 2, 4, 4, 1, 1, 2, 2, 3, 4, 2, 1, 4, 4, 2, 3, 4, 2, 2, 2, 3, 3, 0, 4], "replay_won": true}], "compile_time": 0.08580493927001953, "n_entries": 3}

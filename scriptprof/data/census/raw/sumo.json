@@ -1,0 +1,1 @@
+{"game": "sumo", "bytes": 718, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 8, "h": 7, "solved": false, "len": 7, "iters": 60, "time": 0.0029, "timeout": false, "actions": null}], "compile_time": 0.07933235168457031, "n_entries": 1}

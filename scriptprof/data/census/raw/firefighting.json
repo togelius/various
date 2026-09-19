@@ -1,0 +1,1 @@
+{"game": "firefighting", "bytes": 3522, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 8, "h": 9, "solved": false, "len": 11, "iters": 23103, "time": 5.0615, "timeout": true, "actions": null}], "compile_time": 0.09105443954467773, "n_entries": 1}

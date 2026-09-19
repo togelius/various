@@ -1,0 +1,1 @@
+{"game": "Pong", "bytes": 3628, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 35, "h": 19, "solved": false, "len": 12, "iters": 169, "time": 0.0997, "timeout": false, "actions": null}], "compile_time": 0.0936734676361084, "n_entries": 1}

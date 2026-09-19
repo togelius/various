@@ -1,0 +1,1 @@
+{"game": "Runner_2", "bytes": 28780, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 79, "h": 28, "solved": false, "len": 1, "iters": 6, "time": 0.0285, "timeout": false, "actions": null}], "compile_time": 0.2660841941833496, "n_entries": 1}

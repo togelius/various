@@ -16,7 +16,7 @@ function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); con
   await page.goto('file://' + path.resolve(__dirname, '..', '..', '..', 'index.html') + '?shadow=512');
   await page.waitForFunction(() => window.__ready, null, { timeout: 240000 });
   await page.evaluate(() => { GAME.startPlay(); MISSIONS.S.dialogue = null; MISSIONS.S.progress = 1; MISSIONS.S.cooldown = 1e9; window.__manual = true; window.__pt = { paused: true }; // the frame loop is parked; every render is explicit
-    window.sim = (sec, keys) => { GAME.state = 'playing'; /* a screenshot can drop pointer lock, which auto-pauses */ return window.__sim(sec, keys); }; window.tp = (x, z, yaw) => { const P = PLAYER.P; P.x = x; P.z = z; P.vx = P.vz = 0; if (yaw !== undefined) { P.camYaw = yaw; P.angle = yaw; } };
+    window.sim = (sec, keys) => { GAME.state = 'playing'; /* a screenshot can drop pointer lock, which auto-pauses */ return window.__sim(sec, keys); }; window.tp = (x, z, yaw) => { const P = PLAYER.P; if (!P.alive) PLAYER.respawn(); if (P.rag) PEDS.endRagdoll(P); P.x = x; P.z = z; P.y = CITY.groundY(x, z); P.vx = P.vz = P.vy = 0; P.airborne = false; P.lying = P.knockT = P.hurtFlash = 0; if (!P.car) P.state = 'foot'; if (yaw !== undefined) { P.camYaw = yaw; P.angle = yaw; } };
     window.clearArea = (x, z, r) => { for (const c of W.cars) if (!c.removed && c !== PLAYER.car && M.dist(c.x, c.z, x, z) < r) c.removed = true; for (const p of W.peds) if (!p.inCar && M.dist(p.x, p.z, x, z) < r) p.removed = true; };
     // pixel helpers over the last decoded screenshot (window.__shot = ImageData)
     window.px = { load(b64) { return new Promise(res => { const img = new Image(); img.onload = () => { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0); window.__shot = g.getImageData(0, 0, c.width, c.height); res([c.width, c.height]); }; img.src = 'data:image/png;base64,' + b64; }); },
@@ -25,10 +25,10 @@ function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); con
       mean(rect) { const s = window.__shot; const [x0, y0, x1, y1] = rect; let sum = 0, n = 0; const d = s.data; for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = (y * s.width + x) * 4; sum += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; } return sum / n; } };
     window.COL = { magenta: (r, g, b) => r > 140 && b > 140 && g < 100, cyan: (r, g, b) => g > 140 && b > 140 && r < 100, red: (r, g, b) => r > 90 && g < r * 0.38 && b < r * 0.45, green: (r, g, b) => g > 90 && g > r + 60 && g > b + 60, blue: (r, g, b) => b > 90 && r < b * 0.5 && g < b * 0.45, yellow: (r, g, b) => r > 70 && g > r * 0.40 && g < r * 0.80 && b < g - 10, /* the card's orange quadrant, which may be in shade */ blip: (r, g, b) => Math.abs(r - 245) < 12 && Math.abs(g - 197) < 12 && Math.abs(b - 66) < 14 };
   });
-  async function shot(label) { await page.evaluate(() => { MISSIONS.S.dialogue = null; GAME.state = 'playing'; window.__renderOnce(); }); const buf = await page.screenshot({ timeout: 240000 }); fs.writeFileSync(path.join(OUT, `${String(shotN++).padStart(2, '0')}-${label}.png`), buf); return page.evaluate(b64 => window.px.load(b64), buf.toString('base64')); }
+  async function shot(label, hideHud = false) { await page.evaluate(() => { MISSIONS.S.dialogue = null; GAME.state = 'playing'; window.__renderOnce(); }); await page.evaluate(hide => { document.getElementById('hud').style.visibility = hide ? 'hidden' : ''; }, hideHud); const buf = await page.screenshot({ timeout: 240000 }); await page.evaluate(() => { document.getElementById('hud').style.visibility = ''; }); fs.writeFileSync(path.join(OUT, `${String(shotN++).padStart(2, '0')}-${label}.png`), buf); return page.evaluate(b64 => window.px.load(b64), buf.toString('base64')); }
   const ev = (fn, ...args) => page.evaluate(fn, ...args);
   const W = 960, H = 540; const clearBoxes = () => ev(() => { window.__debugBoxes.length = 0; });
-  const radarC = await ev(() => { const R = Math.min(110, innerWidth * 0.14); return { R, cx: R + 24, cy: innerHeight - R - 24 }; });
+  const radarC = await ev(() => { return HUD.radarLayout(innerWidth, innerHeight); });
   const dpr = await ev(() => devicePixelRatio);
 
   if (want('camera')) {
@@ -76,7 +76,18 @@ function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); con
       for (const [x, y, z] of corners) { const p = RENDER.project(x, y, z, c); if (!p) return null; ax0 = Math.min(ax0, p[0]); ay0 = Math.min(ay0, p[1]); ax1 = Math.max(ax1, p[0]); ay1 = Math.max(ay1, p[1]); }
       const ix = (ax1 - ax0) * 0.1, iy = (ay1 - ay0) * 0.1;
       return [Math.round((ax0 + ix) * dpr), Math.round((ay0 + iy) * dpr), Math.round((ax1 - ix) * dpr), Math.round((ay1 - iy) * dpr)]; }, [face, dpr]);
-    const q = await ev(m => ({ r: px.find(COL.red, m), g: px.find(COL.green, m), b: px.find(COL.blue, m), y: px.find(COL.yellow, m) }), mid);
+    // Accumulate all four quadrants in one pass, with independent coordinate sums.
+    const q = await ev(rect => {
+      const { data, width, height } = window.__shot;
+      const [x0, y0, x1, y1] = rect || [0, 0, width, height];
+      const stats = ['red', 'green', 'blue', 'yellow'].map(color => ({ color, n: 0, sx: 0, sy: 0 }));
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+        const i = (y * width + x) * 4;
+        for (const stat of stats) if (COL[stat.color](data[i], data[i + 1], data[i + 2])) { stat.n++; stat.sx += x; stat.sy += y; }
+      }
+      const [r, g, b, y] = stats.map(s => ({ n: s.n, x: s.n ? s.sx / s.n : -1, y: s.n ? s.sy / s.n : -1 }));
+      return { r, g, b, y };
+    }, mid);
     const ok = q.r.n > 200 && q.g.n > 200 && q.b.n > 200 && q.y.n > 200 && q.r.x < q.g.x - 20 && q.b.x < q.y.x - 20 && q.r.y < q.b.y - 20 && q.g.y < q.y.y - 20;
     check(`texture: ${face} face reads upright and unmirrored`, ok, { red: [Math.round(q.r.x), Math.round(q.r.y), q.r.n], green: [Math.round(q.g.x), Math.round(q.g.y), q.g.n], blue: [Math.round(q.b.x), Math.round(q.b.y), q.b.n], yellow: [Math.round(q.y.x), Math.round(q.y.y), q.y.n] });
   }
@@ -88,7 +99,7 @@ function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); con
   await ev(() => { if (!PLAYER.P.alive) PLAYER.respawn(); PLAYER.P.health = 100; W.state.time = 12.5; tp(300, 336, Math.PI); clearArea(300, 336, 40); sim(0.3); tp(300, 336, Math.PI); }); await shot('day');
   const day = await ev(r => px.mean(r), centre); await ev(() => { PLAYER.P.camPitch = 0.28; });
   // the sky: stand on the beach at the south edge and look out to sea, where nothing tall is in the way
-  await ev(() => { if (!PLAYER.P.alive) PLAYER.respawn(); PLAYER.P.health = 100; tp(420, 846, 0); clearArea(420, 846, 40); sim(0.3); tp(420, 846, 0); PLAYER.P.camPitch = 0.08; }); await shot('sky');
+  await ev(() => { if (!PLAYER.P.alive) PLAYER.respawn(); PLAYER.P.health = 100; tp(420, 846, 0); clearArea(420, 846, 40); sim(0.3); tp(420, 846, 0); PLAYER.P.camPitch = 0.08; }); await shot('sky', true); // exposure measures the renderer, not the HUD's top gradient
   const skyTop = await ev(r => px.mean(r), [Math.round(W * 0.3 * dpr), 0, Math.round(W * 0.7 * dpr), Math.round(20 * dpr)]);
   await ev(() => { W.state.time = 22.5; tp(300, 336, Math.PI); sim(0.3); tp(300, 336, Math.PI); }); await shot('night');
   const night = await ev(r => px.mean(r), centre);
@@ -99,9 +110,9 @@ function check(name, ok, detail) { results.push({ name, ok: !!ok, detail }); con
   if (want('hud')) {
   // ---- 6. HUD: health bar, radar disc and money are drawn where they belong
   await ev(() => { W.state.time = 12; sim(0.3); tp(300, 336, Math.PI); }); await shot('hud');
-  { const bar = await ev(r => px.find((R, G, B) => R > 170 && G < 90 && B < 90, r), [Math.round(250 * dpr), Math.round((H - 60) * dpr), Math.round(440 * dpr), Math.round((H - 30) * dpr)]);
+  { const bar = await ev(r => px.find((R, G, B) => R > 170 && G < 90 && B < 90, r), [Math.round((radarC.cx + radarC.R + 10) * dpr), Math.round((radarC.cy + radarC.R - 28) * dpr), Math.round((radarC.cx + radarC.R + 130) * dpr), Math.round((radarC.cy + radarC.R - 10) * dpr)]);
     check('hud: health bar is drawn beside the radar', bar.n > 200, { n: bar.n });
-    const money = await ev(r => px.find((R, G, B) => G > 180 && R < 140 && B < 140, r), [Math.round((W - 260) * dpr), 0, Math.round(W * dpr), Math.round(60 * dpr)]);
+    const money = await ev(r => px.find((R, G, B) => R > 210 && G > 195 && B > 165 && R > B + 12, r), [Math.round((W - 260) * dpr), 0, Math.round(W * dpr), Math.round(60 * dpr)]);
     check('hud: money counter is drawn top-right', money.n > 80, { n: money.n });
     const arrow = await ev(r => px.find((R, G, B) => R > 235 && G > 235 && B > 235, r), [Math.round((radarC.cx - 12) * dpr), Math.round((radarC.cy - 12) * dpr), Math.round((radarC.cx + 12) * dpr), Math.round((radarC.cy + 12) * dpr)]);
     check('hud: player arrow sits at the radar centre', arrow.n > 10, { n: arrow.n }); } }

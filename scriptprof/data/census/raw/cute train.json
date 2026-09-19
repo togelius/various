@@ -1,0 +1,1 @@
+{"game": "cute train", "bytes": 11670, "random": true, "compiled": true, "error": null, "levels": [{"level": 0, "w": 64, "h": 80, "solved": false, "len": 5, "iters": 370, "time": 5.0164, "timeout": true, "actions": null}], "compile_time": 0.17147040367126465, "n_entries": 2}

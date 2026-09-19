@@ -1,0 +1,1 @@
+{"game": "rigid_many_many2", "bytes": 3724, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 10, "solved": false, "len": 18, "iters": 47526, "time": 5.0093, "timeout": true, "actions": null}], "compile_time": 0.1231834888458252, "n_entries": 1}

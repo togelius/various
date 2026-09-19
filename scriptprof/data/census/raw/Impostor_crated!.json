@@ -1,0 +1,1 @@
+{"game": "Impostor_crated!", "bytes": 7955, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 35, "h": 14, "solved": false, "len": 17, "iters": 9485, "time": 5.0259, "timeout": true, "actions": null}], "compile_time": 0.10679864883422852, "n_entries": 2}

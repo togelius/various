@@ -154,7 +154,11 @@ def _play_from_start(eng, index: int, max_iters: int, timeout_ms: int,
     for _ in range(n_roll):
         eng.load_level(index)
         for _ in range(roll_steps):
-            eng.process_input(rng.randrange(5))
+            # E.step settles the `again` ticks a rule can ask for; the raw
+            # binding does not, and 304 of the 952 corpus games use `again`,
+            # so a random walk driven by process_input directly plays a
+            # different game from the one the solver searched
+            E.step(eng, rng.randrange(5))
             if eng.check_win():
                 wins += 1
                 break

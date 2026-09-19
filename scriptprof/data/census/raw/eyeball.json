@@ -1,0 +1,1 @@
+{"game": "eyeball", "bytes": 846, "random": false, "compiled": true, "error": null, "levels": [{"level": 0, "w": 9, "h": 7, "solved": false, "len": 22, "iters": 506, "time": 0.0264, "timeout": false, "actions": null}], "compile_time": 0.08409810066223145, "n_entries": 1}
