@@ -103,8 +103,34 @@ def solve_level(eng, level: int, algo: str = "bfs", max_iters: int = 100_000,
     )
 
 
+def js_level_indices(compiled: Compiled) -> list[int]:
+    """JavaScript-engine indices of the playable levels, in C++ order.
+
+    **Three engines, two index spaces.**  The original JavaScript engine
+    numbers message screens alongside levels, so COIN_COLLECTORS has 36
+    "levels" of which 26 are instruction screens.  The C++ port and PuzzleJAX
+    both drop messages and number the remainder contiguously, so for them the
+    same game has 10 levels and C++ level 0 is JavaScript level 6.
+
+    Verified rather than assumed: C++ solutions for levels 0, 1 and 2 of that
+    game replay to a win in PuzzleJAX at the *same* index, so those two agree
+    and only the JavaScript side needs translating.  Anything handing a level
+    number to ``tools/replay_cli.js`` must come through here first, because the
+    failure is silent -- a solution replayed on the wrong level simply does not
+    win, which reads as the engines disagreeing.
+    """
+    levels = compiled.state.get("levels") or []
+    return [i for i, lv in enumerate(levels)
+            if not (isinstance(lv, dict)
+                    and (lv.get("type") == "message" or "message" in lv))]
+
+
 def level_indices(compiled: Compiled) -> list[int]:
-    """Indices of playable levels (the engine also counts message screens)."""
+    """Playable level indices in the C++ engine's numbering.
+
+    Not the same as the JavaScript engine's numbering; see
+    :func:`js_level_indices`.
+    """
     eng = new_engine(compiled)
     out = []
     for i in range(compiled.n_levels):
