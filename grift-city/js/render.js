@@ -455,13 +455,17 @@ const RENDER = (() => {
     if (post.enabled) ensureTargets(canvas.width, canvas.height);
     const usePost = post.enabled && post.msaa;
     gl.bindFramebuffer(gl.FRAMEBUFFER, usePost ? post.msaa.fbo : null); gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    // Under water there is no sky to draw: the buffer is cleared to the colour of the water instead, which is also
+    // what the fog fades everything into, so the whole frame is one body of water.
+    if (env.noSky) { const c = env.fogCol; gl.clearColor(c[0], c[1], c[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.clearColor(0, 0, 0, 1); }
+    else gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     // Sky
+    if (!env.noSky) {
     gl.useProgram(skyProg.p); gl.depthMask(false); gl.disable(gl.DEPTH_TEST);
     gl.uniformMatrix4fv(skyProg.u.uInvVP, false, invVP); gl.uniform3f(skyProg.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform3fv(skyProg.u.uSunDir, env.sunDir);
     gl.uniform3fv(skyProg.u.uZenith, env.zenith); gl.uniform3fv(skyProg.u.uHorizon, env.horizon); gl.uniform3fv(skyProg.u.uSunCol, env.sunCol); gl.uniform1f(skyProg.u.uStars, env.starAlpha); gl.uniform1f(skyProg.u.uSunDisc, env.sunDisc); gl.uniform1f(skyProg.u.uTime, time); gl.uniform1f(skyProg.u.uCloud, env.rain || 0); gl.uniform1f(skyProg.u.uHDR, post.hdr ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.depthMask(true); gl.enable(gl.DEPTH_TEST);
+    gl.depthMask(true); gl.enable(gl.DEPTH_TEST); }
     drawScene(scene, false);
     drawGlass(scene);
     // Flat FX (alpha blended triangles + lines), then particles

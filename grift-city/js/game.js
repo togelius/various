@@ -177,8 +177,21 @@ const GAME = (() => {
       if (viewer) { window.claude.use('downloads').then(dl => { if (!dl) throw new Error('unavailable'); return fetch(url).then(r => r.blob()).then(blob => dl.save({ filename: name, data: blob })); }).then(() => { photo.savedT = 1.5; AUDIO.play('click'); }).catch(e => { if (!e || e.code !== 'declined') HUD.notify('Could not save the photo here.'); }); return; }
       const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); photo.savedT = 1.5; AUDIO.play('click'); } catch (e) { HUD.notify('Could not save the photo.'); } }
   // ---- Per-district colour grade: a tint and a saturation the composite pass blends toward as you cross the city
-  const GRADES = { downtown: [[0.99, 1.0, 1.02], 0.96], midtown: [[1.02, 1.0, 0.97], 0.97], northgate: [[1.05, 0.98, 0.9], 0.98], westfield: [[0.99, 1.02, 0.96], 0.98], eastside: [[1.07, 0.98, 0.88], 0.94], southport: [[1.01, 1.02, 1.03], 0.98], sea: [[0.98, 1.02, 1.04], 1.0], indoor: [[1.06, 0.98, 0.9], 1.0] };
-  function updateGrade(dt, px, pz) { const bl = CITY.blockAt(px, pz); const key = CITY.interiorRoom ? 'indoor' : bl ? CITY.district(bl.i, bl.j) : (W.onWater(px, pz) ? 'sea' : 'southport'); const g = GRADES[key] || GRADES.midtown; const k = Math.min(1, 0.6 * dt); const t = RENDER.post.tint; for (let i = 0; i < 3; i++) t[i] = M.lerp(t[i], g[0][i], k); RENDER.post.sat = M.lerp(RENDER.post.sat, g[1], k); }
+  const GRADES = { downtown: [[0.99, 1.0, 1.02], 0.96], midtown: [[1.02, 1.0, 0.97], 0.97], northgate: [[1.05, 0.98, 0.9], 0.98], westfield: [[0.99, 1.02, 0.96], 0.98], eastside: [[1.07, 0.98, 0.88], 0.94], southport: [[1.01, 1.02, 1.03], 0.98], sea: [[0.98, 1.02, 1.04], 1.0], indoor: [[1.06, 0.98, 0.9], 1.0], underwater: [[0.42, 0.74, 0.92], 0.66] };
+  let vigBase = -1;
+  function updateGrade(dt, px, pz) {
+    // Under the surface the picture turns green-blue, loses most of its colour and closes in at the edges, so falling
+    // in the sea reads as being in it rather than as the screen going dark.
+    if (vigBase < 0) vigBase = RENDER.post.vignette;
+    const under = RENDER.cam.y < W.WATER_Y - 0.05;
+    RENDER.post.vignette = M.lerp(RENDER.post.vignette, under ? 0.62 : vigBase, Math.min(1, 3 * dt));
+    if (under) { // dense uniform fog: the water surface is a single-sided plane, so without this you look out at the
+      // skyline from the sea bed. Everything past a few metres now fades into the green of the water.
+      const e = RENDER.env; e.fogDensity = 0.22; e.fogHeight = 1e5; e.fogSun = 0; e.fogCol = [0.04, 0.12, 0.15];
+      e.sunCol = [e.sunCol[0] * 0.35, e.sunCol[1] * 0.5, e.sunCol[2] * 0.55]; e.skyCol = [0.07, 0.2, 0.24]; e.groundCol = [0.02, 0.06, 0.08];
+      // the sky takes no fog, so it is painted the colour of the water instead: brighter overhead, darker below
+      e.zenith = [0.07, 0.2, 0.23]; e.horizon = [0.03, 0.1, 0.12]; e.starAlpha = 0; e.sunDisc = 0; }
+    const bl = CITY.blockAt(px, pz); const key = under ? 'underwater' : CITY.interiorRoom ? 'indoor' : bl ? CITY.district(bl.i, bl.j) : (W.onWater(px, pz) ? 'sea' : 'southport'); const g = GRADES[key] || GRADES.midtown; const k = Math.min(1, 0.6 * dt); const t = RENDER.post.tint; for (let i = 0; i < 3; i++) t[i] = M.lerp(t[i], g[0][i], k); RENDER.post.sat = M.lerp(RENDER.post.sat, g[1], k); }
   // Playtest bot hooks: a compact state snapshot and a road route to a point.
   window.__ptState = () => { const P = PLAYER.P; const c = P.car; const bp = MISSIONS.blipPos(); let nc = null, nd = 1e9; for (const v of W.cars) { if (v.removed || v.wrecked || v === c) continue; const d = M.dist(v.x, v.z, P.x, P.z); if (d < nd) { nd = d; nc = v; } }
     const tgt = bp && MISSIONS.S.blip && MISSIONS.S.blip.obj; const tc = tgt && tgt.spec ? tgt : null;
@@ -270,6 +283,7 @@ const GAME = (() => {
     if (!RENDER.env.shadowOn) { for (const p of W.peds) if (!p.removed && !p.inCar && M.dist2(p.x, p.z, cam.tx, cam.tz) < 60 * 60) W.fx.blob(p.x, p.y + 0.02, p.z, 0.45, 0.35); if (!PLAYER.car && !title) W.fx.blob(PLAYER.x, PLAYER.y + 0.02, PLAYER.z, 0.45, 0.35); for (const c of W.cars) if (!c.removed && M.dist2(c.x, c.z, cam.tx, cam.tz) < 120 * 120) W.fx.blob(c.x, c.y + 0.02, c.z, c.spec.len * 0.45, 0.3); }
     W.fx.end();
     W.updateProps(cam.tx, cam.tz); scene.props = propList;
+    RENDER.env.noSky = cam.y < W.WATER_Y - 0.05; // tracked here rather than in the step, so it is right in every state
     RENDER.setLights(W.collectLights(cam.tx, cam.tz));
     RENDER.render(canvas, scene, W.state.elapsed);
   }
