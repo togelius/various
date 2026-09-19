@@ -347,6 +347,25 @@ instead from a narrow core with flanking strips that fade out sideways, in four 
 length so the falloff is a curve. Held against a frame with the streaks switched off, it moves under
 one per cent of the pixels.
 
+The markers on the ground — the safehouse, the gun shops, the spray shops — were being built every frame
+for every one of them in the city, sixty quads each, whether or not any were within sight. They are now
+cut off at seventy-eight metres, which is where the minimap blip takes over as the thing guiding you;
+over a sample, ninety-three per cent of the markers asked for were never drawn, and the flat effects
+buffer went from a peak of 11,370 vertices on a rainy night street to 7,050. A marker also stops getting
+brighter as you walk into it, though it never disappears, so you can still tell you are standing in one.
+
+That buffer had a cliff in it. On overflow it emptied the whole additive list, which puts out every lamp,
+shopfront and tracer in the frame at once; and if the alpha-blended list alone exceeded the buffer, the
+copy into it threw outright. It now keeps whatever fits and drops the rest a triangle at a time, and the
+renderer sizes its own buffer from the one the game fills, so the capacity is set in a single place.
+
+The vigilante job had a hole in it. Wrecking a suspect pays you, raises the level and calls for another one,
+but placing one needs a lane between 120 and 260 metres away and gives up after twenty tries. When it gave
+up, the wrecked car stayed as the target, so the next frame saw a wrecked target and paid out again — and
+again, every frame. Forced to fail, three seconds of it gained 181 levels and $6,588,400. The target is now
+cleared before a new one is sought and checked before it is used, so placement simply retries; the same
+three seconds now gain one level and one payout. The mission suite forces the failure and asserts it.
+
 ## What it costs
 
 The simulation step costs 1.22 ms with sixty-eight cars and a hundred and forty people, where it cost

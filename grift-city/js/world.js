@@ -47,23 +47,44 @@ const W = (() => {
   }
 
   // ---- Flat FX geometry (markers, headlight pools, tracers, shadows blobs)
-  const F = { data: new Float32Array(16384 * 7), tris: [], adds: [], lines: [], count: 0, triCount: 0, addCount: 0, lineCount: 0 };
+  const FX_VERTS = 24576; // the renderer grows its buffer to match, so this is the only place the size is set
+  const F = { data: new Float32Array(FX_VERTS * 7), tris: [], adds: [], lines: [], count: 0, triCount: 0, addCount: 0, lineCount: 0 };
   const fx = {
     tri(list, ax, ay, az, bx, by, bz, cx, cy, cz, r, g, b, a) { list.push(ax, ay, az, r, g, b, a, bx, by, bz, r, g, b, a, cx, cy, cz, r, g, b, a); },
     quad(list, p0, p1, p2, p3, col, a, a2) { const a3 = a2 === undefined ? a : a2; const r = col[0], g = col[1], b = col[2]; list.push(p0[0], p0[1], p0[2], r, g, b, a, p1[0], p1[1], p1[2], r, g, b, a, p2[0], p2[1], p2[2], r, g, b, a3, p0[0], p0[1], p0[2], r, g, b, a, p2[0], p2[1], p2[2], r, g, b, a3, p3[0], p3[1], p3[2], r, g, b, a3); },
     line(ax, ay, az, bx, by, bz, col, a, a2) { F.lines.push(ax, ay, az, col[0], col[1], col[2], a, bx, by, bz, col[0], col[1], col[2], a2 === undefined ? a : a2); },
     // Translucent cylinder marker with a base ring; alpha fades to zero at the top.
+    // A marker you are standing in has already done its job, and one across the city is sixty quads nobody can
+    // see: the minimap blip is what guides you from a distance. Both ends fade rather than pop.
     marker(x, z, r, h, col, pulse) {
+      const cam = RENDER.cam; const d = Math.hypot(x - cam.tx, z - cam.tz);
+      const fade = (0.3 + 0.7 * M.clamp((d - r - 0.6) / 2.2, 0, 1)) * M.clamp((78 - d) / 14, 0, 1);
+      if (fade <= 0.02) return;
       const y0 = CITY.groundY(x, z) + 0.02, segs = 20; const rr = r * (1 + 0.06 * Math.sin(pulse * 4));
       for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU; const x0 = x + Math.cos(a0) * rr, z0 = z + Math.sin(a0) * rr, x1 = x + Math.cos(a1) * rr, z1 = z + Math.sin(a1) * rr;
-        fx.quad(F.adds, [x0, y0, z0], [x1, y0, z1], [x1, y0 + h, z1], [x0, y0 + h, z0], col, 0.45, 0.0); fx.quad(F.adds, [x1, y0, z1], [x0, y0, z0], [x0, y0 + h, z0], [x1, y0 + h, z1], col, 0.45, 0.0);
-        fx.quad(F.adds, [x + Math.cos(a0) * rr * 0.6, y0, z + Math.sin(a0) * rr * 0.6], [x + Math.cos(a1) * rr * 0.6, y0, z + Math.sin(a1) * rr * 0.6], [x1, y0, z1], [x0, y0, z0], col, 0.0, 0.7); }
+        fx.quad(F.adds, [x0, y0, z0], [x1, y0, z1], [x1, y0 + h, z1], [x0, y0 + h, z0], col, 0.45 * fade, 0.0); fx.quad(F.adds, [x1, y0, z1], [x0, y0, z0], [x0, y0 + h, z0], [x1, y0 + h, z1], col, 0.45 * fade, 0.0);
+        fx.quad(F.adds, [x + Math.cos(a0) * rr * 0.6, y0, z + Math.sin(a0) * rr * 0.6], [x + Math.cos(a1) * rr * 0.6, y0, z + Math.sin(a1) * rr * 0.6], [x1, y0, z1], [x0, y0, z0], col, 0.0, 0.7 * fade); }
     },
     // Light pool on the ground in front of headlights.
     lightPool(x, z, fx_, fz, len, wid, col, a) { const y = CITY.groundY(x, z) + 0.03; const rx = -fz, rz = fx_; fx.quad(F.adds, [x + rx * wid * 0.25, y, z + rz * wid * 0.25], [x - rx * wid * 0.25, y, z - rz * wid * 0.25], [x + fx_ * len - rx * wid, y, z + fz * len - rz * wid], [x + fx_ * len + rx * wid, y, z + fz * len + rz * wid], col, a, 0); },
     blob(x, y, z, r, a) { const s = 6; for (let i = 0; i < s; i++) { const a0 = i / s * M.TAU, a1 = (i + 1) / s * M.TAU; fx.tri(F.tris, x, y, z, x + Math.cos(a1) * r, y, z + Math.sin(a1) * r, x + Math.cos(a0) * r, y, z + Math.sin(a0) * r, 0, 0, 0, a); } },
     begin() { F.tris.length = 0; F.adds.length = 0; F.lines.length = 0; },
-    end() { const all = F.tris.length + F.adds.length + F.lines.length; if (all / 7 > 16384) { F.adds.length = 0; F.lines.length = 0; } F.data.set(F.tris, 0); F.data.set(F.adds, F.tris.length); F.data.set(F.lines, F.tris.length + F.adds.length); F.triCount = F.tris.length / 7; F.addCount = F.adds.length / 7; F.lineCount = F.lines.length / 7; F.count = F.triCount + F.addCount + F.lineCount; },
+    // Overflow drops whatever does not fit from the end, a triangle at a time. Emptying the whole additive list
+    // instead puts out every lamp, shopfront and tracer in the frame at once, which is a far more visible fault
+    // than losing the last few effects behind them.
+    end() {
+      const CAP = F.data.length; let tl = F.tris.length, al = F.adds.length, ll = F.lines.length;
+      if (tl + al + ll > CAP) {
+        tl = Math.min(tl, Math.floor(CAP / 21) * 21);
+        al = Math.min(al, Math.floor((CAP - tl) / 21) * 21);
+        ll = Math.min(ll, Math.floor((CAP - tl - al) / 14) * 14);
+        const d = F.data;
+        for (let i = 0; i < tl; i++) d[i] = F.tris[i];
+        for (let i = 0; i < al; i++) d[tl + i] = F.adds[i];
+        for (let i = 0; i < ll; i++) d[tl + al + i] = F.lines[i];
+      } else { F.data.set(F.tris, 0); F.data.set(F.adds, tl); F.data.set(F.lines, tl + al); }
+      F.triCount = tl / 7; F.addCount = al / 7; F.lineCount = ll / 7; F.count = F.triCount + F.addCount + F.lineCount;
+    },
   };
 
   // ---- Decals: skid marks and blood pools, a ring buffer of flat quads that fade out

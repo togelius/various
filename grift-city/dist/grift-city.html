@@ -2192,7 +2192,7 @@ const RENDER = (() => {
   const FLAT_VS = `in vec3 aPos; in vec4 aCol; uniform mat4 uVP; out vec4 vCol; void main() { gl_Position = uVP * vec4(aPos, 1.0); vCol = aCol; }`;
   const FLAT_FS = `in vec4 vCol; out vec4 o; void main() { vec3 c = vCol.rgb; o = vec4(c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878), vCol.a); }`;
 
-  let partVao, partBuf, flatVao, flatBuf, brightProg, blurProg, compProg, aoProg, aoBlurProg;
+  let partVao, partBuf, flatVao, flatBuf, flatCap = 0, brightProg, blurProg, compProg, aoProg, aoBlurProg;
   const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.75, edges: 0.55, samples: 4, bloom: 0.18, exposure: 1.08, vignette: 0.18, sat: 0.96, tint: [1, 1, 1] };
   function makeDepthTarget(w, h) { const t = { w, h }; t.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo); t.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t.tex); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, w, h); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t.tex, 0); t.ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER, null); return t; }
   function makeTarget(w, h, samples, fmtOverride) {
@@ -2239,7 +2239,7 @@ const RENDER = (() => {
     gl.enableVertexAttribArray(partProg.a.aCol); gl.vertexAttribPointer(partProg.a.aCol, 4, gl.FLOAT, false, 32, 16);
     // flat buffer: pos3 col4 = 7 floats
     flatVao = gl.createVertexArray(); gl.bindVertexArray(flatVao); flatBuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, flatBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, 7 * 4 * 16384, gl.DYNAMIC_DRAW);
+    flatCap = 7 * 16384; gl.bufferData(gl.ARRAY_BUFFER, flatCap * 4, gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(flatProg.a.aPos); gl.vertexAttribPointer(flatProg.a.aPos, 3, gl.FLOAT, false, 28, 0);
     gl.enableVertexAttribArray(flatProg.a.aCol); gl.vertexAttribPointer(flatProg.a.aCol, 4, gl.FLOAT, false, 28, 12);
     gl.bindVertexArray(null);
@@ -2417,7 +2417,10 @@ const RENDER = (() => {
     gl.enable(gl.BLEND); gl.depthMask(false);
     if (scene.flat && scene.flat.count > 0) {
       gl.useProgram(flatProg.p); gl.uniformMatrix4fv(flatProg.u.uVP, false, vp);
-      gl.bindVertexArray(flatVao); gl.bindBuffer(gl.ARRAY_BUFFER, flatBuf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, scene.flat.data, 0, scene.flat.count * 7);
+      gl.bindVertexArray(flatVao); gl.bindBuffer(gl.ARRAY_BUFFER, flatBuf);
+      const flatNeed = scene.flat.count * 7;
+      if (flatNeed > flatCap) { flatCap = scene.flat.data.length; gl.bufferData(gl.ARRAY_BUFFER, flatCap * 4, gl.DYNAMIC_DRAW); }
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, scene.flat.data, 0, flatNeed);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
       if (scene.flat.triCount) gl.drawArrays(gl.TRIANGLES, 0, scene.flat.triCount);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
@@ -2743,23 +2746,44 @@ const W = (() => {
   }
 
   // ---- Flat FX geometry (markers, headlight pools, tracers, shadows blobs)
-  const F = { data: new Float32Array(16384 * 7), tris: [], adds: [], lines: [], count: 0, triCount: 0, addCount: 0, lineCount: 0 };
+  const FX_VERTS = 24576; // the renderer grows its buffer to match, so this is the only place the size is set
+  const F = { data: new Float32Array(FX_VERTS * 7), tris: [], adds: [], lines: [], count: 0, triCount: 0, addCount: 0, lineCount: 0 };
   const fx = {
     tri(list, ax, ay, az, bx, by, bz, cx, cy, cz, r, g, b, a) { list.push(ax, ay, az, r, g, b, a, bx, by, bz, r, g, b, a, cx, cy, cz, r, g, b, a); },
     quad(list, p0, p1, p2, p3, col, a, a2) { const a3 = a2 === undefined ? a : a2; const r = col[0], g = col[1], b = col[2]; list.push(p0[0], p0[1], p0[2], r, g, b, a, p1[0], p1[1], p1[2], r, g, b, a, p2[0], p2[1], p2[2], r, g, b, a3, p0[0], p0[1], p0[2], r, g, b, a, p2[0], p2[1], p2[2], r, g, b, a3, p3[0], p3[1], p3[2], r, g, b, a3); },
     line(ax, ay, az, bx, by, bz, col, a, a2) { F.lines.push(ax, ay, az, col[0], col[1], col[2], a, bx, by, bz, col[0], col[1], col[2], a2 === undefined ? a : a2); },
     // Translucent cylinder marker with a base ring; alpha fades to zero at the top.
+    // A marker you are standing in has already done its job, and one across the city is sixty quads nobody can
+    // see: the minimap blip is what guides you from a distance. Both ends fade rather than pop.
     marker(x, z, r, h, col, pulse) {
+      const cam = RENDER.cam; const d = Math.hypot(x - cam.tx, z - cam.tz);
+      const fade = (0.3 + 0.7 * M.clamp((d - r - 0.6) / 2.2, 0, 1)) * M.clamp((78 - d) / 14, 0, 1);
+      if (fade <= 0.02) return;
       const y0 = CITY.groundY(x, z) + 0.02, segs = 20; const rr = r * (1 + 0.06 * Math.sin(pulse * 4));
       for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU; const x0 = x + Math.cos(a0) * rr, z0 = z + Math.sin(a0) * rr, x1 = x + Math.cos(a1) * rr, z1 = z + Math.sin(a1) * rr;
-        fx.quad(F.adds, [x0, y0, z0], [x1, y0, z1], [x1, y0 + h, z1], [x0, y0 + h, z0], col, 0.45, 0.0); fx.quad(F.adds, [x1, y0, z1], [x0, y0, z0], [x0, y0 + h, z0], [x1, y0 + h, z1], col, 0.45, 0.0);
-        fx.quad(F.adds, [x + Math.cos(a0) * rr * 0.6, y0, z + Math.sin(a0) * rr * 0.6], [x + Math.cos(a1) * rr * 0.6, y0, z + Math.sin(a1) * rr * 0.6], [x1, y0, z1], [x0, y0, z0], col, 0.0, 0.7); }
+        fx.quad(F.adds, [x0, y0, z0], [x1, y0, z1], [x1, y0 + h, z1], [x0, y0 + h, z0], col, 0.45 * fade, 0.0); fx.quad(F.adds, [x1, y0, z1], [x0, y0, z0], [x0, y0 + h, z0], [x1, y0 + h, z1], col, 0.45 * fade, 0.0);
+        fx.quad(F.adds, [x + Math.cos(a0) * rr * 0.6, y0, z + Math.sin(a0) * rr * 0.6], [x + Math.cos(a1) * rr * 0.6, y0, z + Math.sin(a1) * rr * 0.6], [x1, y0, z1], [x0, y0, z0], col, 0.0, 0.7 * fade); }
     },
     // Light pool on the ground in front of headlights.
     lightPool(x, z, fx_, fz, len, wid, col, a) { const y = CITY.groundY(x, z) + 0.03; const rx = -fz, rz = fx_; fx.quad(F.adds, [x + rx * wid * 0.25, y, z + rz * wid * 0.25], [x - rx * wid * 0.25, y, z - rz * wid * 0.25], [x + fx_ * len - rx * wid, y, z + fz * len - rz * wid], [x + fx_ * len + rx * wid, y, z + fz * len + rz * wid], col, a, 0); },
     blob(x, y, z, r, a) { const s = 6; for (let i = 0; i < s; i++) { const a0 = i / s * M.TAU, a1 = (i + 1) / s * M.TAU; fx.tri(F.tris, x, y, z, x + Math.cos(a1) * r, y, z + Math.sin(a1) * r, x + Math.cos(a0) * r, y, z + Math.sin(a0) * r, 0, 0, 0, a); } },
     begin() { F.tris.length = 0; F.adds.length = 0; F.lines.length = 0; },
-    end() { const all = F.tris.length + F.adds.length + F.lines.length; if (all / 7 > 16384) { F.adds.length = 0; F.lines.length = 0; } F.data.set(F.tris, 0); F.data.set(F.adds, F.tris.length); F.data.set(F.lines, F.tris.length + F.adds.length); F.triCount = F.tris.length / 7; F.addCount = F.adds.length / 7; F.lineCount = F.lines.length / 7; F.count = F.triCount + F.addCount + F.lineCount; },
+    // Overflow drops whatever does not fit from the end, a triangle at a time. Emptying the whole additive list
+    // instead puts out every lamp, shopfront and tracer in the frame at once, which is a far more visible fault
+    // than losing the last few effects behind them.
+    end() {
+      const CAP = F.data.length; let tl = F.tris.length, al = F.adds.length, ll = F.lines.length;
+      if (tl + al + ll > CAP) {
+        tl = Math.min(tl, Math.floor(CAP / 21) * 21);
+        al = Math.min(al, Math.floor((CAP - tl) / 21) * 21);
+        ll = Math.min(ll, Math.floor((CAP - tl - al) / 14) * 14);
+        const d = F.data;
+        for (let i = 0; i < tl; i++) d[i] = F.tris[i];
+        for (let i = 0; i < al; i++) d[tl + i] = F.adds[i];
+        for (let i = 0; i < ll; i++) d[tl + al + i] = F.lines[i];
+      } else { F.data.set(F.tris, 0); F.data.set(F.adds, tl); F.data.set(F.lines, tl + al); }
+      F.triCount = tl / 7; F.addCount = al / 7; F.lineCount = ll / 7; F.count = F.triCount + F.addCount + F.lineCount;
+    },
   };
 
   // ---- Decals: skid marks and blood pools, a ring buffer of flat quads that fade out
@@ -4634,11 +4658,11 @@ const MISSIONS = (() => {
   // ---- Side jobs
   function startSide(kind, car) {
     if (kind === 'taxi') { S.side = { kind, car, fare: null, phase: 0, earned: 0, fares: 0, timer: 0 }; HUD.notify('TAXI: pick up the fare. F ends the shift.'); newFare(); }
-    else if (kind === 'vigilante') { S.side = { kind, car, level: 1, target: null, timer: 0 }; HUD.notify('VIGILANTE: take down the suspect.'); newSuspect(); }
+    else if (kind === 'vigilante') { S.side = { kind, car, level: 1, target: null, timer: 90 }; HUD.notify('VIGILANTE: take down the suspect.'); newSuspect(); }
   }
   function endSide(how) { if (!S.side) return; const s = S.side; if (s.kind === 'taxi') HUD.notify('Shift over. ' + s.fares + ' fares, $' + s.earned); else HUD.notify('Vigilante ended at level ' + s.level); if (s.fare && s.fare.alive) { s.fare.role = null; s.fare.important = false; if (s.fare.inCar) s.fare.exitCar(); } if (s.target) s.target.important = false; S.side = null; S.blip = null; S.objective = ''; }
   function newFare() { const s = S.side; const p = P(); let n; for (let t = 0; t < 30; t++) { n = CITY.walkNodes[Math.floor(W.rng() * CITY.walkNodes.length)]; const d = M.dist(n.x, n.z, p.x, p.z); if (d > 60 && d < 220) break; } s.fare = PEDS.spawn(n.x, n.z, { important: true, role: 'fare', stationary: true }); s.fare.faceTarget = p; s.phase = 0; let dest; for (let t = 0; t < 30; t++) { dest = CITY.walkNodes[Math.floor(W.rng() * CITY.walkNodes.length)]; const d = M.dist(dest.x, dest.z, n.x, n.z); if (d > 150 && d < 400) break; } s.dest = dest; s.timer = 40 + M.dist(dest.x, dest.z, n.x, n.z) * 0.14; }
-  function newSuspect() { const s = S.side; for (let t = 0; t < 20; t++) { const e = CITY.roadEdges[Math.floor(W.rng() * CITY.roadEdges.length)]; const L = CITY.laneLen(e); const sp = 10 + W.rng() * (L - 20); const [x, z] = CITY.lanePoint(e, 0, sp); const d = M.dist(x, z, P().x, P().z); if (d < 120 || d > 260) continue; const c = VEH.spawn(['sedan', 'muscle', 'sports', 'pickup'][s.level % 4], x, z, 0, { mode: 'flee' }); c.placeOnLane(e, 0, sp); c.ai.mode = 'flee'; c.scared = 1e9; c.ai.cruise = 16 + s.level * 1.5; c.important = true; const drv = PEDS.spawn(c.x, c.z, { look: PEDS.GANG, gang: true, hostile: true, weapon: 'pistol', important: true }); drv.inCar = c; c.driver = drv; drv.state = 'driving'; s.target = c; s.driver = drv; s.timer = 90; return; } }
+  function newSuspect() { const s = S.side; s.target = null; s.driver = null; for (let t = 0; t < 20; t++) { const e = CITY.roadEdges[Math.floor(W.rng() * CITY.roadEdges.length)]; const L = CITY.laneLen(e); const sp = 10 + W.rng() * (L - 20); const [x, z] = CITY.lanePoint(e, 0, sp); const d = M.dist(x, z, P().x, P().z); if (d < 120 || d > 260) continue; const c = VEH.spawn(['sedan', 'muscle', 'sports', 'pickup'][s.level % 4], x, z, 0, { mode: 'flee' }); c.placeOnLane(e, 0, sp); c.ai.mode = 'flee'; c.scared = 1e9; c.ai.cruise = 16 + s.level * 1.5; c.important = true; const drv = PEDS.spawn(c.x, c.z, { look: PEDS.GANG, gang: true, hostile: true, weapon: 'pistol', important: true }); drv.inCar = c; c.driver = drv; drv.state = 'driving'; s.target = c; s.driver = drv; s.timer = 90; return true; } return false; }
   function updateSide(dt) {
     const s = S.side, p = P(); if (!s) return;
     if (p.car !== s.car || s.car.wrecked) return endSide();
@@ -4648,8 +4672,12 @@ const MISSIONS = (() => {
       else { s.timer -= dt; blip(s.dest.x, s.dest.z, '#3df06a'); marker(s.dest.x, s.dest.z, 4, [0.3, 1, 0.4]); objective('Take the fare to the destination.  ' + fmt(s.timer)); if (s.timer <= 0) { f.exitCar(); f.important = false; f.role = null; HUD.notify('The fare got out. Too slow.'); return endSide(); }
         if (M.dist(s.dest.x, s.dest.z, s.car.x, s.car.z) < 9 && s.car.absSpeed < 1) { f.exitCar(); f.important = false; f.role = null; f.scare && (f.fear = 0); const pay = 60 + Math.floor(s.timer * 4); PLAYER.addMoney(pay, 'fare'); s.earned += pay; s.fares++; newFare(); } }
     } else {
-      const t = s.target; s.timer -= dt; blip(t.x, t.z, '#f5c542', t); objective('Take down the suspect. Level ' + s.level + '  ' + fmt(s.timer));
-      if (s.timer <= 0) { t.important = false; return endSide(); }
+      s.timer -= dt;
+      if (s.timer <= 0) { if (s.target) s.target.important = false; return endSide(); }
+      if (!s.target) newSuspect();
+      const t = s.target;
+      if (!t) { objective('Take down the suspect. Level ' + s.level + '  ' + fmt(s.timer)); return; }
+      blip(t.x, t.z, '#f5c542', t); objective('Take down the suspect. Level ' + s.level + '  ' + fmt(s.timer));
       if (t.wrecked || !s.driver.alive) { PLAYER.addMoney(400 * s.level, 'vigilante'); s.level++; t.important = false; POLICE.bribe(); newSuspect(); }
     }
   }
