@@ -49,6 +49,7 @@ class Polished:
     fitness: float = 0.0
     novelty: float = 0.0
     regenerated: bool = False
+    coverage: float = -1.0            # fraction of rules that fire on a solution
     before: dict[str, Any] | None = None
     after: dict[str, Any] | None = None
     note: str = ""
@@ -114,15 +115,37 @@ def provenance(text: str, key: str, run: str, ops: list[str],
                  if not l.lower().startswith(("title ", "author "))]
     g.prelude = note + [f"title {parent_title} ({key})",
                         f"author ScriptProf, after {author}"] + g.prelude
+    # repair here as well as in the level installer, so a game that kept its
+    # original levels still gets vacuous win conditions and stranded objects
+    # cleaned before it ships
+    g.repair()
     return g.emit()
 
 
-def _quality_ok(d: dict[str, Any] | None) -> bool:
+def _quality_ok(rec: "Polished", min_coverage: float) -> bool:
+    """The bar a game has to clear to be shipped.
+
+    Rule coverage is the one that does the most work. Across the novelty run's
+    122 playable elites the mean was 0.58 -- nearly half the rules in a typical
+    archive game never fire on any solution path. That is precisely the failure
+    GAVEL reports (unused game components) and precisely what PuzzleScript
+    makes visible, and MAP-Elites will not fix it on its own: a bloated game
+    can be the best thing in a high-rule-count cell and still be mostly dead
+    code. Filtering here keeps the search free to explore and the output
+    honest.
+    """
+    d = rec.after
     if not d or d.get("error"):
         return False
     if d.get("analysed", 0) == 0 or d.get("solved", 0) < d.get("analysed", 0):
         return False
-    return d.get("random_win_frac", 1.0) <= 0.02
+    if d.get("random_win_frac", 1.0) > 0.02:
+        return False
+    if rec.coverage >= 0 and rec.coverage < min_coverage:
+        return False
+    if d.get("reliable_levels", 0) and d.get("fatal_frac", 0.0) > 0.8:
+        return False                      # every move loses: a guessing game
+    return True
 
 
 def polish_one(job) -> dict[str, Any]:
@@ -170,6 +193,12 @@ def polish_one(job) -> dict[str, Any]:
     except Exception as e:  # noqa: BLE001
         p.note = f"regen: {type(e).__name__}: {e}"[:100]
     p.after = best
+    try:
+        final = evaluate(best_text, max_levels=cfg["levels"], timeout_ms=4000)
+        if final.coverage and final.coverage.get("n_rules"):
+            p.coverage = final.coverage["n_fired"] / final.coverage["n_rules"]
+    except Exception:  # noqa: BLE001
+        pass
     p.seconds = time.time() - t0
     titled = provenance(best_text, key, run_name, p.ops, p.regenerated)
     # provenance rewrites the prelude, so make sure it still compiles
@@ -238,6 +267,8 @@ def main() -> None:
     ap.add_argument("--target-len", type=int, default=16)
     ap.add_argument("--min-len", type=int, default=6)
     ap.add_argument("--keep-levels", type=int, default=4)
+    ap.add_argument("--min-coverage", type=float, default=0.6,
+                    help="reject games where fewer than this fraction of rules fire")
     ap.add_argument("--no-structure", action="store_true")
     ap.add_argument("--structure-lines", type=int, default=220,
                     help="skip the PuzzleJAX half for games longer than this")
@@ -281,10 +312,10 @@ def main() -> None:
             d = rec.after or {}
             print(f"  [{i + 1}/{len(jobs)} {time.time() - t0:.0f}s] {rec.run}/{rec.key} "
                   f"regen={rec.regenerated} solved={d.get('solved', 0)}/{d.get('analysed', 0)} "
-                  f"rand={d.get('random_win_frac', 0):.2f} gini={d.get('fatal_gini', 0):.2f} "
-                  f"score={rec.score():.2f} {rec.note[:40]}", flush=True)
+                  f"cov={rec.coverage:.2f} rand={d.get('random_win_frac', 0):.2f} "
+                  f"score={rec.score():.2f} {rec.note[:36]}", flush=True)
 
-    keepers = [r for r in recs if _quality_ok(r.after)]
+    keepers = [r for r in recs if _quality_ok(r, a.min_coverage)]
     keepers.sort(key=lambda r: -r.score())
     for r in keepers:
         name = f"{r.run}_{r.key}"
@@ -306,15 +337,15 @@ def main() -> None:
          "considered": len(recs), "kept": len(keepers),
          "games": [asdict(r) | {"final_score": r.score()} for r in keepers]}, indent=1))
     n_regen = sum(1 for r in keepers if r.regenerated)
-    print(f"\n{len(keepers)}/{len(recs)} passed the bar "
-          f"(every level solvable, random play never wins); "
+    print(f"\n{len(keepers)}/{len(recs)} passed the bar (every level solvable, "
+          f"random play never wins, >={100 * a.min_coverage:.0f}% of rules fire); "
           f"{n_regen} kept regenerated levels")
     print(f"written to {out}")
     for r in keepers[:12]:
         d = r.after or {}
         print(f"  {r.score():.2f}  {r.run}/{r.key:14s} nov={r.novelty:.2f} "
-              f"gini={d.get('fatal_gini', 0):.2f} insight={d.get('insight', 0):.2f} "
-              f"{'+'.join(r.ops)[:50]}")
+              f"cov={r.coverage:.2f} insight={d.get('insight', 0):.2f} "
+              f"{'+'.join(r.ops)[:46]}")
 
 
 if __name__ == "__main__":
