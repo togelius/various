@@ -242,17 +242,19 @@ of its own budget.
 
 Two runs, identical but for the novelty bonus, compared at matched evaluation
 counts with the bonus subtracted back out so both are scored on the same
-objective. At 1836 evaluations each:
+objective. Final state, 4196 evaluations each:
 
 | | cells | playable | QD | beyond corpus |
 |---|---|---|---|---|
-| novelty weight 0.4 | 104 | 64 | 21.7 | 25 |
-| novelty weight 0.0 | 106 | 58 | 17.7 | 19 |
+| novelty weight 0.4 | 139 | 94 | 29.7 | 56 |
+| novelty weight 0.0 | 141 | 82 | 26.4 | 23 |
 
-Equal coverage, more playable elites, higher QD on the shared objective, and
-more games outside the human cloud. Rewarding distance from the corpus did not
-cost quality here. One run each and different seeds, so this is a reason to run
-replicates, not a result.
+Equal coverage, 15% more playable elites, higher QD on the shared objective,
+and 2.4x as many games outside the human cloud. Rewarding distance from the
+corpus did not cost quality here. The ordering held at every checkpoint from
+700 evaluations onward, which is more reassuring than the endpoint alone, but
+it is still one run per arm with different seeds and a mid-flight bug fix in
+both. A reason to run replicates, not a result.
 
 ### Does the depth metric see design? No. (the main negative result)
 
@@ -279,13 +281,26 @@ them is, on this evidence, mostly decoration.
 
 Three things are worth separating out of that.
 
-**The insight metric has no variance to work with.** It sits at 0.057 for
-humans and 0.062 for mutants because greedy best-first on the win-condition
-heuristic solves ~94% of what breadth-first search solves. A metric defined as
-"search succeeds where the weak player fails" is dead when the weak player
-almost never fails. That is a fixable problem and it is the highest-value fix
-available: put a learned policy in the slot, which is the co-evolution step
-`PLAN.md` already specifies.
+**The insight metric had no variance to work with, and that turned out to be a
+design error I could fix.** It sat at 0.057 for humans and 0.062 for mutants.
+Looking at why: across all 350 solved levels in the sweep, the "greedy" player
+failed **zero** times and found the optimal solution on 82% of them.
+
+That is not a weak player. The C++ `solve_gbfs` is greedy in its *ordering* and
+is still a complete search with an open list, so it always finds a solution
+eventually. A metric defined as "search succeeds where the weak player fails"
+cannot discriminate when the weak player never fails.
+
+`Level.hill_climb` is the player it should have been: look at the five
+successors, step to the best by heuristic, never revisit a state, give up when
+every neighbour is worse or seen. No backtracking, no open list, so a level
+needing a move away from the goal defeats it. On `sokoban_basic` it fails level
+0 and solves level 1, giving insight 1.00 and 0.00 for two levels of the same
+game where the old measure gave 0.00 for both.
+
+It is wired in but **not re-validated at scale** -- the calibration sweep above
+predates it, and rerunning it is the first thing to do next. The numbers in the
+table are the old player's.
 
 **The random-play floor leans the right way and is too weak to use.** Mutants
 are beaten by random play more often than their parents (0.220 against 0.156),
