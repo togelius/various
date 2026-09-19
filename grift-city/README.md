@@ -402,6 +402,14 @@ Each shadow cascade culls entities to its own box: a car eighty metres away cann
 near cascade, and drawing it there cost a draw call and a skinned mesh for nothing. A street view costs
 207 draw calls and 661k triangles a frame, against 248 and 728k.
 
+The lighting pass was the last place making garbage. Every lamp shaft, ground pool, shopfront wedge, wet
+streak and marker built its four corner points as fresh arrays, and a night street draws about a thousand
+of those quads a frame — four thousand short-lived arrays, sixty times a second. Because the quad is copied
+straight into the vertex buffer as it is passed, one set of scratch corners can be refilled and reused, and
+the two warm colours are now constants rather than rebuilt per quad. The rendered frame is unchanged: held
+against the previous build it differs by 61 pixels, where two runs of the same build differ by 8,317, since
+the rain is random.
+
 ## Light and colour
 
 The renderer lights in linear space. Textures and palette colours are authored in sRGB, so they are

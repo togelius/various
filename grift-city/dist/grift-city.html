@@ -2777,8 +2777,10 @@ const W = (() => {
       if (fade <= 0.02) return;
       const y0 = CITY.groundY(x, z) + 0.02, segs = 20; const rr = r * (1 + 0.06 * Math.sin(pulse * 4));
       for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU; const x0 = x + Math.cos(a0) * rr, z0 = z + Math.sin(a0) * rr, x1 = x + Math.cos(a1) * rr, z1 = z + Math.sin(a1) * rr;
-        fx.quad(F.adds, [x0, y0, z0], [x1, y0, z1], [x1, y0 + h, z1], [x0, y0 + h, z0], col, 0.45 * fade, 0.0); fx.quad(F.adds, [x1, y0, z1], [x0, y0, z0], [x0, y0 + h, z0], [x1, y0 + h, z1], col, 0.45 * fade, 0.0);
-        fx.quad(F.adds, [x + Math.cos(a0) * rr * 0.6, y0, z + Math.sin(a0) * rr * 0.6], [x + Math.cos(a1) * rr * 0.6, y0, z + Math.sin(a1) * rr * 0.6], [x1, y0, z1], [x0, y0, z0], col, 0.0, 0.7 * fade); }
+        setQ(Q0, x0, y0, z0); setQ(Q1, x1, y0, z1); setQ(Q2, x1, y0 + h, z1); setQ(Q3, x0, y0 + h, z0);
+        fx.quad(F.adds, Q0, Q1, Q2, Q3, col, 0.45 * fade, 0.0); fx.quad(F.adds, Q1, Q0, Q3, Q2, col, 0.45 * fade, 0.0);
+        setQ(Q2, x + Math.cos(a0) * rr * 0.6, y0, z + Math.sin(a0) * rr * 0.6); setQ(Q3, x + Math.cos(a1) * rr * 0.6, y0, z + Math.sin(a1) * rr * 0.6);
+        fx.quad(F.adds, Q2, Q3, Q1, Q0, col, 0.0, 0.7 * fade); }
     },
     // Light pool on the ground in front of headlights.
     lightPool(x, z, fx_, fz, len, wid, col, a) { const y = CITY.groundY(x, z) + 0.03; const rx = -fz, rz = fx_; fx.quad(F.adds, [x + rx * wid * 0.25, y, z + rz * wid * 0.25], [x - rx * wid * 0.25, y, z - rz * wid * 0.25], [x + fx_ * len - rx * wid, y, z + fz * len - rz * wid], [x + fx_ * len + rx * wid, y, z + fz * len + rz * wid], col, a, 0); },
@@ -2960,6 +2962,11 @@ const W = (() => {
   // Faint additive cones under the lampposts at night, drawn into the flat FX buffer.
   // A light on wet ground reflects in it, and the reflection is a streak running back toward whoever is looking:
   // that smear of light down a wet road is most of what a city looks like in the rain at night.
+  // fx.quad reads its four corners straight into the buffer, so one set of scratch corners can be refilled and
+  // reused. At a dozen quads per light per frame these were the only garbage the lighting pass made.
+  const Q0 = [0, 0, 0], Q1 = [0, 0, 0], Q2 = [0, 0, 0], Q3 = [0, 0, 0];
+  const LAMP_COL = [1, 0.85, 0.55], SHOP_COL = [1, 0.82, 0.52];
+  const setQ = (q, x, y, z) => { q[0] = x; q[1] = y; q[2] = z; };
   function wetStreak(hx, py, hz, camX, camZ, col, amt, wet) {
     if (wet < 0.12 || amt <= 0 || RENDER.env.wetStreak === false) return;
     const dx = camX - hx, dz = camZ - hz; const l = Math.hypot(dx, dz); if (l < 2) return;
@@ -2974,12 +2981,14 @@ const W = (() => {
       const x0 = hx + ux * s0, z0 = hz + uz * s0, x1 = hx + ux * s1, z1 = hz + uz * s1;
       // widens slightly with distance, the way a scattered reflection spreads
       const c0 = core * (1 + t0), c1 = core * (1 + t1), f0 = flank * (1 + t0 * 1.6), f1 = flank * (1 + t1 * 1.6);
-      fx.quad(F.adds, [x0 - rx * c0, py, z0 - rz * c0], [x0 + rx * c0, py, z0 + rz * c0],
-        [x1 + rx * c1, py, z1 + rz * c1], [x1 - rx * c1, py, z1 - rz * c1], col, a0, a1);
-      for (let sgn = -1; sgn <= 1; sgn += 2)
-        fx.quad(F.adds, [x0 + rx * c0 * sgn, py, z0 + rz * c0 * sgn], [x1 + rx * c1 * sgn, py, z1 + rz * c1 * sgn],
-          [x1 + rx * f1 * sgn, py, z1 + rz * f1 * sgn], [x0 + rx * f0 * sgn, py, z0 + rz * f0 * sgn],
-          col, (a0 + a1) * 0.5, 0);
+      setQ(Q0, x0 - rx * c0, py, z0 - rz * c0); setQ(Q1, x0 + rx * c0, py, z0 + rz * c0);
+      setQ(Q2, x1 + rx * c1, py, z1 + rz * c1); setQ(Q3, x1 - rx * c1, py, z1 - rz * c1);
+      fx.quad(F.adds, Q0, Q1, Q2, Q3, col, a0, a1);
+      for (let sgn = -1; sgn <= 1; sgn += 2) {
+        setQ(Q0, x0 + rx * c0 * sgn, py, z0 + rz * c0 * sgn); setQ(Q1, x1 + rx * c1 * sgn, py, z1 + rz * c1 * sgn);
+        setQ(Q2, x1 + rx * f1 * sgn, py, z1 + rz * f1 * sgn); setQ(Q3, x0 + rx * f0 * sgn, py, z0 + rz * f0 * sgn);
+        fx.quad(F.adds, Q0, Q1, Q2, Q3, col, (a0 + a1) * 0.5, 0);
+      }
     }
   }
   function lampCones(camX, camZ) {
@@ -2993,15 +3002,18 @@ const W = (() => {
       const al = 0.03 * night * (1 + rain * 1.5) * (1 - d / 60); const R = 2.6; const segs = 16;
       // Each segment is a quad with the apex doubled, so the shaft is brightest at the lamp and fades to nothing at
       // the ground rim rather than ending on a hard edge. Drawn both ways round so it reads from either side.
-      if (near > 0.01) for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU;
-        const p0 = [hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R], p1 = [hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R], ap = [hx, 5.7, hz];
-        fx.quad(F.adds, ap, ap, p1, p0, [1, 0.85, 0.55], al * near, 0);
-        fx.quad(F.adds, ap, ap, p0, p1, [1, 0.85, 0.55], al * near, 0); }
+      if (near > 0.01) { setQ(Q2, hx, 5.7, hz);
+        for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU;
+          setQ(Q0, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R); setQ(Q1, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R);
+          fx.quad(F.adds, Q2, Q2, Q1, Q0, LAMP_COL, al * near, 0);
+          fx.quad(F.adds, Q2, Q2, Q0, Q1, LAMP_COL, al * near, 0); } }
       // pool on the ground: a fan that fades to nothing at the rim, so there is no hard square of light
-      { const pr = R * 1.9, py = y0 + 0.03, col = [1, 0.85, 0.55], a0 = al * (RENDER.env.lampPool === undefined ? 6.5 : RENDER.env.lampPool);
+      { const pr = R * 1.9, py = y0 + 0.03, a0 = al * (RENDER.env.lampPool === undefined ? 6.5 : RENDER.env.lampPool);
+        setQ(Q0, hx, py, hz); setQ(Q1, hx, py, hz);
         for (let i = 0; i < 16; i++) { const t0 = i / 16 * M.TAU, t1 = (i + 1) / 16 * M.TAU;
-          fx.quad(F.adds, [hx, py, hz], [hx, py, hz], [hx + Math.cos(t1) * pr, py, hz + Math.sin(t1) * pr], [hx + Math.cos(t0) * pr, py, hz + Math.sin(t0) * pr], col, a0, 0); }
-        wetStreak(hx, py, hz, camX, camZ, col, al * 5.0, wet); } }
+          setQ(Q2, hx + Math.cos(t1) * pr, py, hz + Math.sin(t1) * pr); setQ(Q3, hx + Math.cos(t0) * pr, py, hz + Math.sin(t0) * pr);
+          fx.quad(F.adds, Q0, Q1, Q2, Q3, LAMP_COL, a0, 0); }
+        wetStreak(hx, py, hz, camX, camZ, LAMP_COL, al * 5.0, wet); } }
     shopGlow(camX, camZ, night, rain);
   }
   // A lit shop window is the main source of light on a night street: each open front throws a warm wedge across the
@@ -3017,12 +3029,13 @@ const W = (() => {
       if (d2 > 42 * 42 || n++ > 12) continue;
       const fade = 1 - Math.sqrt(d2) / 42; const y0 = CITY.groundY(s.x, s.z) + 0.03;
       const len = 4.6, half = s.w * 0.42; const rx = -s.nz, rz = s.nx;
-      const a0 = 0.13 * night * fade * (1 + rain * 0.8), col = [1, 0.82, 0.52];
+      const a0 = 0.13 * night * fade * (1 + rain * 0.8);
       // a wedge on the ground: bright at the glass, nothing at its far edge
-      fx.quad(F.adds, [s.x - rx * half, y0, s.z - rz * half], [s.x + rx * half, y0, s.z + rz * half],
-        [s.x + s.nx * len + rx * half * 1.5, y0, s.z + s.nz * len + rz * half * 1.5],
-        [s.x + s.nx * len - rx * half * 1.5, y0, s.z + s.nz * len - rz * half * 1.5], col, a0, 0);
-      wetStreak(s.x + s.nx * 1.4, y0, s.z + s.nz * 1.4, camX, camZ, col, a0 * 2.0, RENDER.env.wet || rain);
+      setQ(Q0, s.x - rx * half, y0, s.z - rz * half); setQ(Q1, s.x + rx * half, y0, s.z + rz * half);
+      setQ(Q2, s.x + s.nx * len + rx * half * 1.5, y0, s.z + s.nz * len + rz * half * 1.5);
+      setQ(Q3, s.x + s.nx * len - rx * half * 1.5, y0, s.z + s.nz * len - rz * half * 1.5);
+      fx.quad(F.adds, Q0, Q1, Q2, Q3, SHOP_COL, a0, 0);
+      wetStreak(s.x + s.nx * 1.4, y0, s.z + s.nz * 1.4, camX, camZ, SHOP_COL, a0 * 2.0, RENDER.env.wet || rain);
       if (d2 < 26 * 26 && dyn.length < 40) dyn.push({ x: s.x + s.nx * 1.2, y: 2.6, z: s.z + s.nz * 1.2, r: 9, col: [0.5 * night, 0.4 * night, 0.24 * night] });
     }
   }
