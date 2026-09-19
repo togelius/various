@@ -363,6 +363,15 @@ const PEDS = (() => {
     if (W.rng() < 0.1 && !p.jog) { p.state = 'stand'; p.wanderT = 5 + W.rng() * 10; const lot = CITY.lotsNear(x, z, 6).find(l => l.kind !== 'wall'); if (lot) p.angle = Math.atan2(M.clamp(x, lot.x0, lot.x1) - x, M.clamp(z, lot.z0, lot.z1) - z); } // a look in a shop window
   }
   function despawn(px, pz) { let w = 0; for (const p of W.peds) { if (!p.removed && !p.important) { const d = M.dist(p.x, p.z, px, pz); if ((d > 170 && !p.inCar) || (p.state === 'dead' && (p.deadT > 25 || (d > 60 && p.deadT > 6)))) p.removed = true; } if (p.removed && p.onRemove) { p.onRemove(); p.onRemove = null; } if (!p.removed) W.peds[w++] = p; } W.peds.length = w; }
-  function updateAll(dt) { for (const p of W.peds) p.update(dt); }
+  // People far from the camera run at a third of the rate, on the same frame as each other.
+  const FAR2 = 62 * 62;
+  function updateAll(dt) {
+    const cam = RENDER.cam; const cx = cam.tx, cz = cam.tz; const phase = W.state.frame % 3;
+    for (const p of W.peds) {
+      if (p.removed || p.inCar || p.important || p.isCop || p.state === 'dead' || p.rag) { p.update(dt); continue; }
+      const dx = p.x - cx, dz = p.z - cz;
+      if (dx * dx + dz * dz > FAR2) { if (phase === 1) p.update(dt * 3); } else p.update(dt);
+    }
+  }
   return { Ped, heldEntity, spawn, spawnDriver, spawnCop, populate, trim, despawn, updateAll, buildRig, buildRigSeated, seatOf, seatedEntity, getMesh, makeRagdoll, stepRagdoll, ragdollBones, endRagdoll, looks, COP, SWAT, GANG, PLAYER_LOOK, MARLA, OKAFOR, CRANE };
 })();

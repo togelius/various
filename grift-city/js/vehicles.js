@@ -448,6 +448,18 @@ const VEH = (() => {
   function spawnMarina() { CITY.marina.forEach((m, i) => { const b = spawn('boat', m.x, m.z, m.angle, { mode: 'parked', color: [2, 9, 6][i % 3] }); b.persistent = true; }); }
   function spawnParked() { for (const p of CITY.parkedSpots) { const type = p.type || TRAFFIC_TYPES[Math.floor(W.rng() * TRAFFIC_TYPES.length)]; if (type === 'bus' || type === 'truck') continue; spawn(type, p.x, p.z, p.angle, { mode: 'parked' }); } }
   function nearest(x, z, r, filter) { let best = null, bd = r * r; for (const c of W.cars) { if (c.removed || (filter && !filter(c))) continue; const d = M.dist2(c.x, c.z, x, z); if (d < bd) { bd = d; best = c; } } return best; }
-  function updateAll(dt, night) { for (const c of W.cars) { if (c.removed) continue; c.lightsOn = night && !c.wrecked && (c.driver !== null || c.ai.mode !== 'parked' || c.playerOwned) ; c.update(dt); } }
+  // Traffic far from the camera runs at a third of the rate with three times the step. All distant cars move on the
+  // same frame, so they still see each other consistently; anything the player is near, or involved in, runs every frame.
+  const FAR2 = 95 * 95;
+  function updateAll(dt, night) {
+    const cam = RENDER.cam; const cx = cam.tx, cz = cam.tz; const phase = W.state.frame % 3;
+    for (const c of W.cars) {
+      if (c.removed) continue;
+      c.lightsOn = night && !c.wrecked && (c.driver !== null || c.ai.mode !== 'parked' || c.playerOwned);
+      const dx = c.x - cx, dz = c.z - cz;
+      const far = dx * dx + dz * dz > FAR2 && c.driver !== PLAYER && !c.important && c.ai.mode !== 'chase' && !c.wrecked && !c.airborne;
+      if (far) { if (phase === 0) c.update(dt * 3); } else c.update(dt);
+    }
+  }
   return { Vehicle, SPECS, NAMES, PALETTE, TRAFFIC_TYPES, trafficTypeFor, trim, spawn, spawnTraffic, despawn, spawnParked, spawnMarina, nearest, updateAll, getMesh };
 })();
