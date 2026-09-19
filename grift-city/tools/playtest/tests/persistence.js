@@ -68,6 +68,19 @@ const { launch } = require('../launch.js');
     });
     await page.reload(); await ready();
     check('old bed saves recover outside and old over-counts are bounded', await page.evaluate(() => ({ insideBuilding: !!CITY.insideLot(PLAYER.x, PLAYER.z), count: PLAYER.P.stats.packages, cars: W.cars.filter(c => c.playerOwned).length })), { insideBuilding: false, count: 20, cars: 1 });
+    // Adaptive quality: transient stalls must not downgrade a capable machine for good, while a machine that
+    // cannot hold the higher setting still has to stop flipping between the two.
+    const autoq = await page.evaluate(() => {
+      const feed = (a, ms, seconds) => { const raw = ms / 1000; const acts = []; for (let t = 0; t < seconds; t += raw) { const r = window.__autoStep(a, raw); if (r) acts.push(r); } return acts; };
+      const run = (plan) => { const a = window.__autoState(); const log = []; for (const [ms, sec] of plan) log.push(...feed(a, ms, sec)); return { level: a.level, raises: log.filter(x => x === 'raise').length }; };
+      const stalls = []; for (let k = 0; k < 5; k++) { stalls.push([40, 6], [10, 90]); }
+      const flappy = []; for (let k = 0; k < 6; k++) { flappy.push([40, 6], [10, 22], [40, 6]); }
+      return { transient: run(stalls).level, recovered: run(stalls).raises >= 5,
+               oscillating: run(flappy).level, oscillatingRaises: run(flappy).raises,
+               fast: run([[9, 300]]).level, slow: run([[60, 300]]).level };
+    });
+    check('quality recovers fully from spaced-out stalls and settles when it cannot hold',
+      autoq, { transient: 0, recovered: true, oscillating: 5, oscillatingRaises: 2, fast: 0, slow: 5 });
     check('no browser exceptions', errors, []);
     console.log(`${checks} checks passed (${entry})`);
   } finally { await browser.close(); }

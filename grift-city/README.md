@@ -402,6 +402,11 @@ Each shadow cascade culls entities to its own box: a car eighty metres away cann
 near cascade, and drawing it there cost a draw call and a skinned mesh for nothing. A street view costs
 207 draw calls and 661k triangles a frame, against 248 and 728k.
 
+Of that frame, the two shadow cascades packed into one 4096x2048 atlas take 82 draws and 306k triangles,
+and the camera's own pass takes 125 and 355k. Both the chunked city mesh and the entities are culled
+against each cascade's own frustum rather than the camera's, so what the shadow pass draws is close to
+what it needs; the remaining weight is the city itself, not objects that could be dropped.
+
 The lighting pass was the last place making garbage. Every lamp shaft, ground pool, shopfront wedge, wet
 streak and marker built its four corner points as fresh arrays, and a night street draws about a thousand
 of those quads a frame — four thousand short-lived arrays, sixty times a second. Because the quad is copied
@@ -409,6 +414,15 @@ straight into the vertex buffer as it is passed, one set of scratch corners can 
 the two warm colours are now constants rather than rebuilt per quad. The rendered frame is unchanged: held
 against the previous build it differs by 61 pixels, where two runs of the same build differ by 8,317, since
 the rain is random.
+
+The game lowers its own render quality when frames get slow, and used to allow only two restores for the
+whole session. That made a few transient stalls permanent: five well-spaced hitches on a machine running
+at a hundred frames a second left it at the second-lowest setting, shadows off, with no way back. What
+stops it flipping between two settings is now a count of the restores that did not hold — a restore undone
+within half a minute was the wrong call, and two of those settle it — rather than a limit on restores as
+such. The same five hitches now end at full quality, a machine that genuinely cannot hold the setting
+still stops after two attempts, and the decision is a pure function the persistence suite drives directly
+with frame-time histories.
 
 ## Light and colour
 
