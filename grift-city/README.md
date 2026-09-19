@@ -382,7 +382,7 @@ wall.
 
 ## What it costs
 
-The simulation step costs 1.22 ms with sixty-eight cars and a hundred and forty people, where it cost
+The simulation step costs 1.08 ms with seventy-one cars and a hundred and forty people, where it cost
 3.56 ms. Most of that was garbage: collision circles were an array of arrays built for every pair
 tested, the vehicle basis vectors came from getters that allocated on every read in physics, steering
 and collision, and several hundred street lamps were allocated as fresh light records every frame and
@@ -423,6 +423,12 @@ within half a minute was the wrong call, and two of those settle it — rather t
 such. The same five hitches now end at full quality, a machine that genuinely cannot hold the setting
 still stops after two attempts, and the decision is a pure function the persistence suite drives directly
 with frame-time histories.
+
+The last of the array-of-arrays collision circles went with them. The hot car-to-car pass had already been
+moved onto a flat buffer, but a person walking past traffic and the player brushing a parked car still
+built three small arrays per car per frame, which at a hundred and forty people is most of a thousand a
+second. Both now read the same flat buffer, and the step went from 1.15 ms to 1.08. The ray cast and the
+water push still use the array form, which they call rarely.
 
 ## Light and colour
 
