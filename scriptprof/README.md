@@ -81,18 +81,62 @@ and solvers from the [PuzzleJAX / script-doctor](https://github.com/smearle/scri
 repository, vendored under `vendor/` by `tools/setup_vendor.sh` (which also
 applies `vendor-patches/` — rule-firing counters in the C++ engine).
 
+The loop is: mutate a game structurally, judge it cheaply, keep a diverse
+archive of the survivors, then finish the best of them with a solver in the
+loop and export them as things a person can play.
+
+### Making games
+
 | | |
 |---|---|
-| `prof/engine.py` | compile via Node (`tools/compile_cli.js`), C++ BFS / A* / GBFS, replay, rule coverage |
-| `prof/concepts.py` | static concept vector (text + compiled state), the descriptor space |
-| `prof/fitness.py` | hierarchical fitness: compiles, solvable, non-trivial, coverage, progression |
-| `prof/mutate.py` | LLM mutation operator through a local Ollama model, with compile-error repair |
-| `prof/evolve.py` | MAP-Elites over games, resumable archive under `data/evolve/` |
+| `prof/grammar.py` | PuzzleScript as a mutable structure; parse, edit, emit |
+| `prof/mutations.py` | 19 mechanic templates plus perturbation operators and crossover |
+| `prof/levelgen.py` | levels generated against a game's own rules, searched in batch |
+| `prof/mutate.py` | the older LLM operator, through a local Ollama model |
+
+### Judging them
+
+| | |
+|---|---|
+| `prof/engine.py` | compile via Node (`tools/compile_cli.js`), C++ BFS / A* / GBFS, coverage |
+| `prof/pjax.py` | in-memory PuzzleJAX: batched search, including from arbitrary states |
+| `prof/fitness.py` | tier 1: compiles, solvable, non-trivial, rule coverage, progression |
+| `prof/depth.py` | tier 2: random floor, insight gap, fatal-move structure, deadlock |
+| `prof/concepts.py` | static concept vector, the descriptor space |
+| `prof/novelty.py` | distance from the 904-game human corpus in concept space |
+
+### Searching and shipping
+
+| | |
+|---|---|
+| `prof/qd.py` | MAP-Elites over a four-axis archive, resumable, survives worker deaths |
+| `prof/polish.py` | regenerate an elite's levels, deep-score it, keep it if it improved |
+| `prof/standalone.py` | one self-contained HTML file per game, playable offline |
+| `prof/gallery.py` | the archive as a single page: levels, metrics, lineage, source |
+| `prof/render.py` | draw a level from its source, no engine needed |
+
+### Measuring the tools themselves
+
+| | |
+|---|---|
 | `prof/census.py` | corpus census: every scraped game compiled, every level searched |
+| `prof/roundtrip.py` | does parse-then-emit preserve compilation? (887 of 904) |
+| `prof/opstats.py` | per-operator compile rate and cost (96.6% at 864 us) |
+| `prof/bench.py` | PuzzleJAX against the C++ engine on the same work |
+| `prof/calibrate.py` | can the depth metrics tell a human game from a matched mutant? |
+| `prof/compare.py` | two QD runs at matched evaluation counts |
+| `prof/pool.py` | a process pool that survives the engine segfaulting |
 | `tests/` | `vendor/script-doctor/.venv/bin/python -m pytest -q tests` |
 
 ```sh
-tools/setup_vendor.sh                                    # once
-vendor/script-doctor/.venv/bin/python -m prof.census     # ~1 h on 10 cores
-vendor/script-doctor/.venv/bin/python -m prof.evolve --seeds sokoban_basic kettle --gens 10
+tools/setup_vendor.sh                                      # once
+V=vendor/script-doctor/.venv/bin/python
+
+$V -m prof.census                                          # ~1 h on 10 cores
+$V -m prof.qd --out data/evolve/run --iters 50000 --workers 8
+$V -m prof.polish --runs data/evolve/run --top 40          # -> data/archive/
+$V -m prof.gallery --run data/archive --play data/archive/play
 ```
+
+`NOTES.md` records what was measured and what it changed, including the places
+where the obvious approach turned out to be the slower one.
