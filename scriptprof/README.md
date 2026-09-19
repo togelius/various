@@ -112,6 +112,8 @@ loop and export them as things a person can play.
 | `prof/qd.py` | MAP-Elites over a four-axis archive, resumable, survives worker deaths |
 | `prof/polish.py` | regenerate an elite's levels, deep-score it, keep it if it improved |
 | `prof/standalone.py` | one self-contained HTML file per game, playable offline |
+| `prof/explorer.py` | one offline HTML file: play any archived game, touch-first |
+| `prof/lineage.py` | reconstructs real ancestry by replaying a run's log |
 | `prof/gallery.py` | the archive as a single page: levels, metrics, lineage, source |
 | `prof/render.py` | draw a level from its source, no engine needed |
 
@@ -136,7 +138,12 @@ $V -m prof.census                                          # ~1 h on 10 cores
 $V -m prof.qd --out data/evolve/run --iters 50000 --workers 8
 $V -m prof.polish --runs data/evolve/run --top 40          # -> data/archive/
 $V -m prof.gallery --run data/archive --play data/archive/play
+$V -m prof.explorer                                        # -> data/archive/explorer.html
 ```
+
+`data/archive/explorer.html` is the one to open on a tablet: the engine inlined
+once, all 27 games beside it, swipe or on-screen buttons, and each game's
+metrics and full mutation chain back to the human game it descends from.
 
 `NOTES.md` records what was measured and what it changed, including the places
 where the obvious approach turned out to be the slower one.
