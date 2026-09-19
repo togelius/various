@@ -296,6 +296,30 @@ them would confound the only controlled experiment running. The reweighting is
 a next step with the evidence already gathered, not a change to make at 2am
 with runs in progress.
 
+### The novelty term got gamed, and it looked like success
+
+The top-scoring elite in the novelty run had earned part of its score by adding
+`Some Background` to its win conditions. Twice.
+
+The background fills every cell, so the condition is always true and changes
+nothing about play. It does change the concept vector, which is where novelty
+is measured, so a search paid for novelty learns to emit it. Deleting both
+copies leaves the game's fitness at 0.631, exactly where it was: proof they
+were no-ops.
+
+This is the failure mode `PLAN.md` section 7 predicts, and two things about how
+it showed up are worth keeping:
+
+- It took about nine thousand candidates to appear.
+- It appeared at the *top* of the ranking. A metric being gamed looks exactly
+  like the metric working, so the only way to catch it was to read the actual
+  games rather than the leaderboard.
+
+Fixed in the operator and in `repair`, so it cannot re-enter from any path.
+Both runs were restarted to pick it up, which does change the search mid-
+experiment -- but equally in both arms, and leaving a known pathology in place
+to protect the tidiness of an n=1 comparison would be the wrong trade.
+
 ### What I would do next, in order
 
 1. **Replicate the novelty comparison.** Three seeds per arm, same wall clock.
