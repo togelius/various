@@ -8,6 +8,16 @@ Newest section last. Numbers here are measured on this machine (Apple silicon,
 
 ## 2026-09-18/19: PuzzleJAX, structural mutation, depth metrics, MAP-Elites
 
+> **A note on the census numbers below.** Every corpus figure in this log
+> (904 compiling games, 7667 levels, the novelty baseline) comes from the
+> census this branch ran. The parallel line of work later re-ran the census
+> against its fixed engine and got 926 compiling of 952, and that is the
+> version now in the repo. The re-run is the better one: it has the `again`
+> settling and the solver timeout fixes. The conclusions here do not turn on
+> the difference, but the specific numbers are from the older run, and the
+> novelty scores baked into `data/archive/index.json` were computed against
+> the older concept space.
+
 ### Where things stood
 
 The census had finished all 933 scraped games but the derived report and the
