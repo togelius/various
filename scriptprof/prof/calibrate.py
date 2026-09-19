@@ -25,7 +25,6 @@ import csv
 import json
 import random
 import time
-from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -37,14 +36,15 @@ SUMMARY = ROOT / "data" / "census" / "summary.csv"
 ROUNDTRIP = ROOT / "data" / "roundtrip.json"
 OUT = ROOT / "data" / "calibration.json"
 
-METRICS = ["insight", "fatal_frac", "fatal_gini", "key_moves",
-           "deadlock_frac", "random_win_frac"]
+METRICS = ["insight", "random_win_frac", "length", "iterations",
+           "fatal_frac", "fatal_gini", "key_moves", "deadlock_frac"]
+STRUCTURAL = {"fatal_frac", "fatal_gini", "key_moves", "deadlock_frac"}
 
 
-def _depth_dict(text: str, max_levels: int) -> dict[str, Any] | None:
+def _depth_dict(text: str, max_levels: int, structure: bool) -> dict[str, Any] | None:
     from prof.depth import analyse
 
-    d = analyse(text, max_levels=max_levels)
+    d = analyse(text, max_levels=max_levels, structure=structure)
     if d.error or d.solved == 0:
         return None
     return d.to_dict()
@@ -52,7 +52,7 @@ def _depth_dict(text: str, max_levels: int) -> dict[str, Any] | None:
 
 def pair(job) -> dict[str, Any]:
     """One human game and up to ``n_mutants`` matched, still-solvable mutants."""
-    name, n_mutants, max_levels, tries, seed = job
+    name, n_mutants, max_levels, tries, seed, structure = job
     from prof import engine as E
     from prof.fitness import evaluate
     from prof.grammar import Game
@@ -60,7 +60,7 @@ def pair(job) -> dict[str, Any]:
 
     rng = random.Random(seed)
     text = (GAMES / f"{name}.txt").read_text(encoding="utf-8", errors="replace")
-    base = _depth_dict(text, max_levels)
+    base = _depth_dict(text, max_levels, structure)
     if base is None:
         return {"game": name, "skip": "human game not measurable"}
     try:
@@ -83,7 +83,7 @@ def pair(job) -> dict[str, Any]:
             continue
         if ev.tier < 3:
             continue
-        d = _depth_dict(src, max_levels)
+        d = _depth_dict(src, max_levels, structure)
         if d is None:
             continue
         d["ops"] = ops
@@ -108,6 +108,15 @@ def corpus(n: int, rng: random.Random, max_rules: int = 60) -> list[str]:
     return names[:n]
 
 
+def _mean_level(d: dict[str, Any], attr: str) -> float:
+    xs = [l.get(attr, 0) for l in d.get("levels", []) if l.get("solved")]
+    return float(sum(xs) / len(xs)) if xs else 0.0
+
+
+def _value(d: dict[str, Any], m: str) -> float:
+    return _mean_level(d, m) if m in ("length", "iterations") else d.get(m, 0.0)
+
+
 def report(results: list[dict[str, Any]]) -> None:
     pairs = [r for r in results if "human" in r]
     skipped = [r for r in results if "skip" in r]
@@ -118,21 +127,32 @@ def report(results: list[dict[str, Any]]) -> None:
         for r in skipped[:8]:
             print(f"  {r['game'][:40]:42s} {r['skip']}")
         return
-    print(f"\n{'metric':18s} {'human':>9s} {'mutant':>9s} {'human higher':>13s}")
+    print(f"\n{'metric':18s} {'human':>9s} {'mutant':>9s} {'higher':>8s} {'pairs':>7s}")
     for m in METRICS:
-        hs, ms, wins, total = [], [], 0, 0
+        hs, ms, wins, total = [], [], 0.0, 0
         for r in pairs:
-            h = r["human"].get(m, 0.0)
+            h = _value(r["human"], m)
+            if m in STRUCTURAL and not r["human"].get("reliable_levels"):
+                continue          # the probe could not judge this human game
             hs.append(h)
             for mu in r["mutants"]:
-                v = mu.get(m, 0.0)
+                if m in STRUCTURAL and not mu.get("reliable_levels"):
+                    continue      # nor this mutant: an unmeasured tie is not a tie
+                v = _value(mu, m)
                 ms.append(v)
                 total += 1
                 wins += int(h > v) + 0.5 * int(h == v)
-        frac = wins / max(total, 1)
-        flag = "  <--" if abs(frac - 0.5) > 0.15 else ""
-        print(f"{m:18s} {np.mean(hs):9.3f} {np.mean(ms):9.3f} {100 * frac:12.0f}%{flag}")
+        if total == 0:
+            print(f"{m:18s} {'-':>9s} {'-':>9s} {'-':>8s} {0:7d}")
+            continue
+        frac = wins / total
+        # a rank statistic this far from even, on this few pairs, is still weak
+        flag = "  <--" if abs(frac - 0.5) > 0.15 and total >= 12 else ""
+        print(f"{m:18s} {np.mean(hs):9.3f} {np.mean(ms):9.3f} "
+              f"{100 * frac:7.0f}% {total:7d}{flag}")
     print("\n50% means the metric cannot tell a designed game from a mutant of it.")
+    print("Structural rows count only pairs where the survival probe re-solved both")
+    print("games' own solution paths; elsewhere the numbers would be unmeasured ties.")
 
     # which operators most often survive the solvability filter?
     ops: dict[str, int] = {}
@@ -153,26 +173,31 @@ def main() -> None:
     ap.add_argument("--mutants", type=int, default=3)
     ap.add_argument("--tries", type=int, default=14)
     ap.add_argument("--max-levels", type=int, default=2)
+    ap.add_argument("--structure", action="store_true",
+                    help="also measure the PuzzleJAX fatal-move fields (slow)")
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     rng = random.Random(a.seed)
     names = corpus(a.games, rng)
     print(f"{len(names)} candidate games, {a.workers} workers", flush=True)
-    jobs = [(n, a.mutants, a.max_levels, a.tries, a.seed + i) for i, n in enumerate(names)]
+    jobs = [(n, a.mutants, a.max_levels, a.tries, a.seed + i, a.structure)
+            for i, n in enumerate(names)]
+    from prof.pool import resilient_map
+
     results = []
     t0 = time.time()
-    with ProcessPoolExecutor(max_workers=a.workers) as ex:
-        futs = [ex.submit(pair, j) for j in jobs]
-        for i, f in enumerate(futs):
-            try:
-                r = f.result()
-            except Exception as e:  # noqa: BLE001
-                r = {"game": jobs[i][0], "skip": f"crash: {type(e).__name__}"}
-            results.append(r)
-            tag = "ok" if "human" in r else r.get("skip", "?")
-            print(f"  [{i + 1}/{len(jobs)} {time.time() - t0:.0f}s] "
-                  f"{r['game'][:40]:42s} {tag}", flush=True)
+    n_crash = 0
+    for i, r, reason in resilient_map(pair, jobs, a.workers):
+        if r is None:
+            r = {"game": jobs[i][0], "skip": f"crash: {reason}"}
+            n_crash += 1
+        results.append(r)
+        tag = "ok" if "human" in r else r.get("skip", "?")
+        print(f"  [{len(results)}/{len(jobs)} {time.time() - t0:.0f}s] "
+              f"{r['game'][:40]:42s} {tag}", flush=True)
+    if n_crash:
+        print(f"  ({n_crash} games crashed a worker; the pool was rebuilt each time)")
     OUT.write_text(json.dumps(results, indent=1))
     report(results)
     print(f"\nraw -> {OUT}")
