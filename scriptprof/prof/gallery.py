@@ -117,14 +117,63 @@ def metric_rows(e: dict[str, Any]) -> str:
     ]
     d = e.get("depth")
     if d:
+        if d.get("coverage", -1) >= 0:
+            rows.append(("rules that fire", f"{100 * d['coverage']:.0f}%"))
         rows += [
-            ("insight (deep)", f"{d.get('insight', 0):.2f}"),
-            ("fatal moves", f"{d.get('fatal_frac', 0):.2f}"),
-            ("danger concentration", f"{d.get('fatal_gini', 0):.2f}"),
+            ("insight (weak player)", f"{d.get('insight', 0):.2f}"),
             ("random play wins", f"{d.get('random_win_frac', 0):.3f}"),
         ]
+        if d.get("reliable_levels", 0):
+            rows += [("fatal moves", f"{d.get('fatal_frac', 0):.2f}"),
+                     ("danger concentration", f"{d.get('fatal_gini', 0):.2f}")]
     return "".join(f"<tr><td>{html.escape(k)}</td><td>{html.escape(v)}</td></tr>"
                    for k, v in rows)
+
+
+def _from_polished(run: Path):
+    """Read a finished ``prof.polish`` archive as if it were a MAP-Elites run.
+
+    The two directories hold the same thing in different shapes: the polished
+    archive is a flat ranked list with before/after measurements rather than a
+    grid of cells, so the gallery gets an adapter instead of a second renderer.
+    """
+    from prof.grammar import Game
+
+    idx = json.loads((run / "index.json").read_text())
+    elites = {}
+    for g in idx.get("games", []):
+        key = f"{g['run']}_{g['key']}"
+        after = g.get("after") or {}
+        src = run / "games" / f"{key}.txt"
+        n_rules = n_objs = 0
+        if src.exists():
+            try:
+                parsed = Game.parse(src.read_text(encoding="utf-8", errors="replace"))
+                n_rules = len(parsed.rules)
+                n_objs = len(parsed.objects)
+            except Exception:  # noqa: BLE001
+                pass
+        elites[key] = {
+            "cell": [0], "fitness": g.get("final_score", 0.0),
+            "tier": 3, "name": g.get("name", key), "ops": g.get("ops", []),
+            "novelty": g.get("novelty", 0.0), "iteration": 0,
+            "features": {
+                "n_rule_sources": n_rules, "n_objects": n_objs,
+                "mean_solution_len": _mean_len(after), "frac_solved": 1.0,
+            },
+            "depth": after | {"coverage": g.get("coverage", -1),
+                              "regenerated": g.get("regenerated", False)},
+            "summary": "", "parent": g.get("run"),
+        }
+    blob = {"elites": elites, "n_evaluated": idx.get("considered", 0),
+            "curated": True, "kept": idx.get("kept", len(elites))}
+    cfg = {"novelty_weight": "mixed", "seeds": idx.get("considered", 0)}
+    return blob, elites, [], cfg
+
+
+def _mean_len(after: dict[str, Any]) -> float:
+    lv = [l.get("length", 0) for l in after.get("levels", []) if l.get("solved")]
+    return sum(lv) / len(lv) if lv else 0.0
 
 
 def build(run: Path, top: int, shots: int, sort: str, out: Path,
@@ -132,12 +181,15 @@ def build(run: Path, top: int, shots: int, sort: str, out: Path,
     from prof.novelty import shared
     from prof.render import thumbnails
 
-    blob = json.loads((run / "archive.json").read_text())
-    elites: dict[str, Any] = blob["elites"]
-    axes = blob.get("axes", [])
-    cfg = {}
-    if (run / "config.json").exists():
-        cfg = json.loads((run / "config.json").read_text())
+    if (run / "index.json").exists() and not (run / "archive.json").exists():
+        blob, elites, axes, cfg = _from_polished(run)
+    else:
+        blob = json.loads((run / "archive.json").read_text())
+        elites = blob["elites"]
+        axes = blob.get("axes", [])
+        cfg = {}
+        if (run / "config.json").exists():
+            cfg = json.loads((run / "config.json").read_text())
 
     try:
         nov = shared()
@@ -210,24 +262,41 @@ def build(run: Path, top: int, shots: int, sort: str, out: Path,
     def stat(v, label):
         return f'<div class="stat"><b>{v}</b><span>{label}</span></div>'
 
+    if blob.get("curated"):
+        n_regen = sum(1 for e in elites.values()
+                      if (e.get("depth") or {}).get("regenerated"))
+        blurb = ("Games that passed the shipping bar: every probed level solvable, "
+                 "random play never wins, at least 60% of rules fire. Each was "
+                 "derived from a human-authored game; the source records which.")
+        stats = "".join([
+            stat(len(elites), "games shipped"),
+            stat(blob.get("n_evaluated", 0), "elites considered"),
+            stat(n_regen, "with regenerated levels"),
+            stat(n_nov, "beyond the corpus"),
+        ])
+    else:
+        blurb = (f"MAP-Elites over PuzzleScript. Novelty weight "
+                 f"{cfg.get('novelty_weight', '?')}, seeded from "
+                 f"{cfg.get('seeds', '?')} human games.")
+        stats = "".join([
+            stat(f"{len(elites)}/{total_cells}", "cells filled"),
+            stat(n_play, "fully playable"),
+            stat(n_nov, "beyond the corpus"),
+            stat(f"{qd:.0f}", "QD score"),
+            stat(f"{blob.get('n_evaluated', 0):,}", "candidates evaluated"),
+        ])
+
     page = f"""<!doctype html><meta charset="utf-8">
 <title>ScriptProf archive &middot; {html.escape(run.name)}</title>
 <style>{CSS}</style>
 <header>
   <h1>ScriptProf archive &middot; {html.escape(run.name)}</h1>
-  <div class="sub">MAP-Elites over PuzzleScript. Novelty weight
-    {cfg.get('novelty_weight', '?')}, seeded from {cfg.get('seeds', '?')} human games.</div>
-  <div class="stats">
-    {stat(f"{len(elites)}/{total_cells}", "cells filled")}
-    {stat(n_play, "fully playable")}
-    {stat(n_nov, "beyond the corpus")}
-    {stat(f"{qd:.0f}", "QD score")}
-    {stat(f"{blob.get('n_evaluated', 0):,}", "candidates evaluated")}
-  </div>
+  <div class="sub">{blurb}</div>
+  <div class="stats">{stats}</div>
   {maps}
 </header>
 <main>
-  <div class="sub" style="margin-bottom:14px">Showing {len(chosen)} elites sorted by
+  <div class="sub" style="margin-bottom:14px">Showing {len(chosen)} games sorted by
     {html.escape(sort)}. Green tags are mechanics injected by a template that the
     parent game did not have.</div>
   <div class="grid">{''.join(cards)}</div>

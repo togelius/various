@@ -9,3 +9,6 @@ data/census/raw/
 # Curated output goes to data/archive/ instead.
 data/evolve/
 logs/
+# the curated archive's standalone players are 474 kB each (the whole
+# PuzzleScript engine, inlined); regenerate with `python -m prof.standalone`
+data/archive/play/

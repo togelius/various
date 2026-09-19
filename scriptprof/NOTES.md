@@ -376,6 +376,14 @@ Both runs were restarted to pick it up, which does change the search mid-
 experiment -- but equally in both arms, and leaving a known pathology in place
 to protect the tidiness of an n=1 comparison would be the wrong trade.
 
+### Does the generated archive hold up in real PuzzleScript?
+
+Yes, on the sample checked. Every solution the C++ solver found for a
+*generated* game also wins when replayed in the original JavaScript engine
+(6 of 6 levels), against 95.7% for human corpus games. Small sample, but it is
+the check that matters most for the output: a generated game whose solution
+only works in the port is not a game.
+
 ### Two operational hazards, both of which cost an hour
 
 **Orphaned helper processes accumulate silently.** The vendored
@@ -391,6 +399,36 @@ The obvious cleanup -- "kill anything whose parent is pid 1" -- is wrong, and
 I ran it: a `nohup`ed job *also* has pid 1 as its parent, so the sweep killed
 the live polish run along with the orphans. Identify orphans by age or command
 line, not by parentage.
+
+### What came out: `data/archive/`
+
+27 games, from 60 archive elites put through the finishing pass. Each one:
+
+- compiles with the original PuzzleScript engine;
+- has every probed level solvable by breadth-first search;
+- is never won by random play;
+- has at least 60% of its rules firing on a solution path;
+- carries a provenance header naming the human game it descends from, its
+  author, and the chain of mutations that made it.
+
+20 of the 27 kept levels regenerated against their own rules rather than
+inherited from a parent. Four sit more than 1.1 corpus-spacings from their
+nearest human neighbours.
+
+**Every one of them was validated in the engine the language is defined by.**
+All 66 solved levels across the 27 games replay to a win in the original
+JavaScript engine, not just in the C++ port the search runs on.
+
+Alongside the sources: `play/` holds a self-contained HTML file per game that
+runs offline in a browser, and `gallery.html` shows all 27 with their levels
+rendered, their measurements, their lineage and their nearest human
+neighbours.
+
+What the bar does **not** certify is that these are good games. Nothing here
+measures fun, the depth metrics do not distinguish design from mutation (see
+above), and the shipped set was scored without the structural half because
+PuzzleJAX tracing on evolved games is unaffordable. What it certifies is that
+they work, that a person can play them, and that nothing in them is dead.
 
 ### What I would do next, in order
 
