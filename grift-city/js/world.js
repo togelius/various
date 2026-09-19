@@ -222,8 +222,32 @@ const W = (() => {
 
   // ---- Lights for the renderer
   // Faint additive cones under the lampposts at night, drawn into the flat FX buffer.
+  // A light on wet ground reflects in it, and the reflection is a streak running back toward whoever is looking:
+  // that smear of light down a wet road is most of what a city looks like in the rain at night.
+  function wetStreak(hx, py, hz, camX, camZ, col, amt, wet) {
+    if (wet < 0.12 || amt <= 0 || RENDER.env.wetStreak === false) return;
+    const dx = camX - hx, dz = camZ - hz; const l = Math.hypot(dx, dz); if (l < 2) return;
+    const ux = dx / l, uz = dz / l, rx = -uz, rz = ux;
+    const len = Math.min(l * 0.8, 6 + wet * 7);
+    const SEG = 4, core = 0.13, flank = 0.5;
+    // Falls off along its length as the reflection scatters, and to nothing at the sides, so it has no edge anywhere.
+    const at = t => amt * wet * (1 - t) * (1 - t);
+    for (let i = 0; i < SEG; i++) {
+      const t0 = i / SEG, t1 = (i + 1) / SEG, a0 = at(t0), a1 = at(t1);
+      const s0 = len * t0, s1 = len * t1;
+      const x0 = hx + ux * s0, z0 = hz + uz * s0, x1 = hx + ux * s1, z1 = hz + uz * s1;
+      // widens slightly with distance, the way a scattered reflection spreads
+      const c0 = core * (1 + t0), c1 = core * (1 + t1), f0 = flank * (1 + t0 * 1.6), f1 = flank * (1 + t1 * 1.6);
+      fx.quad(F.adds, [x0 - rx * c0, py, z0 - rz * c0], [x0 + rx * c0, py, z0 + rz * c0],
+        [x1 + rx * c1, py, z1 + rz * c1], [x1 - rx * c1, py, z1 - rz * c1], col, a0, a1);
+      for (let sgn = -1; sgn <= 1; sgn += 2)
+        fx.quad(F.adds, [x0 + rx * c0 * sgn, py, z0 + rz * c0 * sgn], [x1 + rx * c1 * sgn, py, z1 + rz * c1 * sgn],
+          [x1 + rx * f1 * sgn, py, z1 + rz * f1 * sgn], [x0 + rx * f0 * sgn, py, z0 + rz * f0 * sgn],
+          col, (a0 + a1) * 0.5, 0);
+    }
+  }
   function lampCones(camX, camZ) {
-    const night = RENDER.env.nightEmis; if (night < 0.05) return; const rain = weather.rain;
+    const night = RENDER.env.nightEmis; if (night < 0.05) return; const rain = weather.rain; const wet = RENDER.env.wet || rain;
     let cones = 0;
     for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 > 60 * 60 || cones++ > 14) continue; const a = p.a || 0; const hx = p.x + Math.sin(a) * 1.6, hz = p.z + Math.cos(a) * 1.6; const y0 = CITY.groundY(hx, hz);
       const d = Math.sqrt(d2);
@@ -240,7 +264,8 @@ const W = (() => {
       // pool on the ground: a fan that fades to nothing at the rim, so there is no hard square of light
       { const pr = R * 1.9, py = y0 + 0.03, col = [1, 0.85, 0.55], a0 = al * (RENDER.env.lampPool === undefined ? 6.5 : RENDER.env.lampPool);
         for (let i = 0; i < 16; i++) { const t0 = i / 16 * M.TAU, t1 = (i + 1) / 16 * M.TAU;
-          fx.quad(F.adds, [hx, py, hz], [hx, py, hz], [hx + Math.cos(t1) * pr, py, hz + Math.sin(t1) * pr], [hx + Math.cos(t0) * pr, py, hz + Math.sin(t0) * pr], col, a0, 0); } } }
+          fx.quad(F.adds, [hx, py, hz], [hx, py, hz], [hx + Math.cos(t1) * pr, py, hz + Math.sin(t1) * pr], [hx + Math.cos(t0) * pr, py, hz + Math.sin(t0) * pr], col, a0, 0); }
+        wetStreak(hx, py, hz, camX, camZ, col, al * 5.0, wet); } }
     shopGlow(camX, camZ, night, rain);
   }
   // A lit shop window is the main source of light on a night street: each open front throws a warm wedge across the
@@ -261,6 +286,7 @@ const W = (() => {
       fx.quad(F.adds, [s.x - rx * half, y0, s.z - rz * half], [s.x + rx * half, y0, s.z + rz * half],
         [s.x + s.nx * len + rx * half * 1.5, y0, s.z + s.nz * len + rz * half * 1.5],
         [s.x + s.nx * len - rx * half * 1.5, y0, s.z + s.nz * len - rz * half * 1.5], col, a0, 0);
+      wetStreak(s.x + s.nx * 1.4, y0, s.z + s.nz * 1.4, camX, camZ, col, a0 * 2.0, RENDER.env.wet || rain);
       if (d2 < 26 * 26 && dyn.length < 40) dyn.push({ x: s.x + s.nx * 1.2, y: 2.6, z: s.z + s.nz * 1.2, r: 9, col: [0.5 * night, 0.4 * night, 0.24 * night] });
     }
   }

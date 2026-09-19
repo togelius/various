@@ -236,7 +236,7 @@ const GAME = (() => {
   function checkCheats() { const t = INPUT.typed; for (const k in CHEATS) if (t.endsWith(k)) { INPUT.typed = ''; CHEATS[k](); AUDIO.play('cash'); } }
   function step(dt) {
     checkCheats();
-    W.frameBegin(); W.updateClock(dt); W.updateWeather(dt); RENDER.setTimeOfDay(W.state.time, W.weather.rain, W.weather.fog); const night = W.isNight();
+    W.frameBegin(); W.updateClock(dt); W.updateWeather(dt); RENDER.setTimeOfDay(W.state.time, W.weather.rain, W.weather.fog, dt); const night = W.isNight();
     const room = CITY.interiorRoom; if (room) { const e = RENDER.env; e.sunCol = e.sunCol.map(v => v * 0.08); e.skyCol = [0.34, 0.3, 0.26]; e.groundCol = [0.2, 0.17, 0.14]; e.fogDensity = 0; e.nightEmis = 1; for (const l of room.lights) W.dyn.push({ x: l.x, y: l.y, z: l.z, r: l.r * 1.3, col: l.col.map(v => v * 1.2) }); } // a room lit by its lamps, not the sun
     const dlg = !!MISSIONS.dialogue;
     MISSIONS.update(dt); ECON.update(dt);

@@ -327,6 +327,26 @@ cells agree along their shared edge; a park reads as ground rather than as one f
 laying it per cell with a single colour each reads as a checkerboard, which is why the corners are
 sampled rather than the cells.
 
+Rain leaves the streets wet, and they stay wet. The rain itself fades over about twelve seconds, and
+the wetness used to drain away faster than that, so it was pinned to the rainfall and the city was
+bone-dry the instant the sky cleared: the separate wetness value never did anything. It now dries over
+roughly eighty seconds, which buys a minute of shining streets under a clearing sky.
+
+That exposed a second problem. The wet surface shading had only ever been seen under a rainstorm's
+flat grey sky, and in clear daylight it drove the roughness almost to a mirror: the road turned pale,
+the asphalt grain went flat and the lane markings dissolved into it. Wet asphalt is a rough mirror,
+not glass, so it is now taken to a roughness of 0.26 rather than 0.1. The road keeps its grain and its
+markings, and still reads darker and cooler than a dry one, which is what rain actually does to it.
+
+A light on a wet street reflects in it, and that reflection is a streak running back toward whoever is
+looking. Each lamp and lit shopfront lays one down the ground toward the camera, fading along its
+length and to nothing at its sides. Getting the shape right took three attempts: a single quad of even
+brightness reads as a searchlight cast on the ground rather than as anything reflected in it, and
+narrowing and dimming it does not help, because the tell is the hard edge, not the width. It is built
+instead from a narrow core with flanking strips that fade out sideways, in four segments along its
+length so the falloff is a curve. Held against a frame with the streaks switched off, it moves under
+one per cent of the pixels.
+
 ## What it costs
 
 The simulation step costs 1.22 ms with sixty-eight cars and a hundred and forty people, where it cost
