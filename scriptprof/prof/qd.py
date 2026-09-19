@@ -349,8 +349,21 @@ def pick_parents(arch: Archive, n: int, rng: random.Random) -> list[str]:
 def run(arch: Archive, cfg: dict[str, Any], iters: int, workers: int,
         batch: int, rng: random.Random, log_path: Path,
         deep_every: int = 0, deep_n: int = 6, wall_s: float = 0.0) -> None:
+    """Drive the archive, surviving worker deaths.
+
+    The C++ engine segfaults on some inputs -- one game in the human corpus
+    does it, and mutants find their own ways -- and a hard worker death poisons
+    a ProcessPoolExecutor permanently: every pending and future task raises
+    BrokenProcessPool.  An overnight run therefore has to be able to lose a
+    pool and build another, so the batch is submitted as individual futures,
+    each failure is counted rather than propagated, and a broken pool is
+    replaced before the next batch.
+    """
+    from concurrent.futures import BrokenExecutor
+
     start = time.time()
     done = 0
+    crashes = 0
     stop = {"flag": False}
 
     def _sig(_s, _f):
@@ -361,7 +374,8 @@ def run(arch: Archive, cfg: dict[str, Any], iters: int, workers: int,
     signal.signal(signal.SIGTERM, _sig)
 
     logf = open(log_path, "a")
-    with ProcessPoolExecutor(max_workers=workers) as ex:
+    ex = ProcessPoolExecutor(max_workers=workers)
+    try:
         while done < iters and not stop["flag"]:
             if wall_s and time.time() - start > wall_s:
                 print(f"[wall clock {wall_s:.0f}s reached]", flush=True)
@@ -380,8 +394,22 @@ def run(arch: Archive, cfg: dict[str, Any], iters: int, workers: int,
                 jobs.append((arch.text(pk), pk, rng.randrange(1 << 30), cfg, mate))
             t0 = time.time()
             added = 0
-            for rec in ex.map(_worker, jobs):
+            lost = 0
+            try:
+                futs = [ex.submit(_worker, j) for j in jobs]
+            except BrokenExecutor:
+                ex = _restart(ex, workers)
+                crashes += 1
+                continue
+            for fut, job in zip(futs, jobs):
                 done += 1
+                try:
+                    rec = fut.result()
+                except Exception as e:  # noqa: BLE001 -- a dead worker is data
+                    lost += 1
+                    logf.write(json.dumps({
+                        "i": done, "crash": type(e).__name__, "parent": job[1]}) + "\n")
+                    continue
                 if not rec.get("ok"):
                     logf.write(json.dumps({"i": done, "fail": rec.get("why")}) + "\n")
                     continue
@@ -397,13 +425,34 @@ def run(arch: Archive, cfg: dict[str, Any], iters: int, workers: int,
                 }) + "\n")
             logf.flush()
             arch.save()
+            if lost:
+                crashes += 1
+                ex = _restart(ex, workers)
             rate = n / max(time.time() - t0, 1e-9)
-            print(f"[{done}/{iters} {time.time() - start:.0f}s {rate:.1f}/s +{added}] "
+            note = f" lost {lost}" if lost else ""
+            print(f"[{done}/{iters} {time.time() - start:.0f}s {rate:.1f}/s +{added}{note}] "
                   f"{arch.stats()}", flush=True)
             if deep_every and done % deep_every < batch:
-                deepen(arch, ex, deep_n, rng, cfg)
-    logf.close()
-    arch.save()
+                try:
+                    deepen(arch, ex, deep_n, rng, cfg)
+                except Exception as e:  # noqa: BLE001
+                    print(f"  deep failed: {type(e).__name__}", flush=True)
+                    ex = _restart(ex, workers)
+    finally:
+        logf.close()
+        arch.save()
+        ex.shutdown(wait=False, cancel_futures=True)
+    if crashes:
+        print(f"[recovered from {crashes} worker-pool failures]", flush=True)
+
+
+def _restart(ex: ProcessPoolExecutor, workers: int) -> ProcessPoolExecutor:
+    """Replace a pool whose workers died, discarding whatever was queued."""
+    try:
+        ex.shutdown(wait=False, cancel_futures=True)
+    except Exception:  # noqa: BLE001
+        pass
+    return ProcessPoolExecutor(max_workers=workers)
 
 
 def deepen(arch: Archive, ex: ProcessPoolExecutor, n: int, rng: random.Random,

@@ -1,0 +1,6134 @@
+<!doctype html><meta charset="utf-8">
+<title>ScriptProf archive &middot; novel</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin:0; background:#12131a; color:#e6e7ee;
+       font:14px/1.55 ui-sans-serif,-apple-system,Segoe UI,Roboto,sans-serif; }
+header { padding:28px 32px 18px; border-bottom:1px solid #262838; }
+h1 { margin:0 0 6px; font-size:20px; letter-spacing:.2px; }
+.sub { color:#8f93a8; font-size:13px; }
+.stats { display:flex; flex-wrap:wrap; gap:26px; margin-top:14px; }
+.stat b { display:block; font-size:19px; font-weight:600; }
+.stat span { color:#8f93a8; font-size:12px; text-transform:uppercase;
+             letter-spacing:.06em; }
+main { padding:22px 32px 60px; }
+.grid { display:grid; gap:16px;
+        grid-template-columns:repeat(auto-fill,minmax(310px,1fr)); }
+.card { background:#1a1c26; border:1px solid #262838; border-radius:10px;
+        padding:14px; }
+.card h2 { margin:0 0 2px; font-size:14px; font-weight:600; }
+.cell { color:#6f7390; }
+.key { color:#7b7fa0; font-size:12px; font-family:ui-monospace,monospace; }
+.shots { display:flex; gap:8px; margin:10px 0; flex-wrap:wrap;
+         align-items:flex-start; }
+.shots img { image-rendering:pixelated; border-radius:4px;
+             border:1px solid #2e3142; max-height:150px; }
+table.m { width:100%; border-collapse:collapse; margin:8px 0 6px; font-size:12.5px; }
+table.m td { padding:2px 0; }
+table.m td:first-child { color:#8f93a8; }
+table.m td:last-child { text-align:right; font-variant-numeric:tabular-nums; }
+.ops { color:#9aa0c0; font-size:12px; font-family:ui-monospace,monospace;
+       word-break:break-word; margin:6px 0; }
+.tag { display:inline-block; background:#232637; border-radius:4px;
+       padding:1px 6px; margin:2px 3px 2px 0; font-size:11.5px; color:#b9bedd; }
+.tag.new { background:#2b3a2c; color:#a8e6ab; }
+.tag.deep { background:#3a2f22; color:#f0cfa0; }
+details { margin-top:8px; }
+summary { cursor:pointer; color:#8f93a8; font-size:12.5px; }
+pre { background:#0e0f15; border:1px solid #262838; border-radius:6px;
+      padding:10px; overflow:auto; max-height:340px; font-size:11.5px;
+      line-height:1.45; }
+.near { color:#7b7fa0; font-size:11.5px; margin-top:4px; }
+.map { margin:18px 0 6px; }
+.map table { border-collapse:collapse; }
+.map td { width:15px; height:15px; border:1px solid #12131a; }
+.maplabel { color:#8f93a8; font-size:12px; margin:10px 0 4px; }
+</style>
+<header>
+  <h1>ScriptProf archive &middot; novel</h1>
+  <div class="sub">MAP-Elites over PuzzleScript. Novelty weight
+    0.4, seeded from 90 human games.</div>
+  <div class="stats">
+    <div class="stat"><b>88/1280</b><span>cells filled</span></div>
+    <div class="stat"><b>48</b><span>fully playable</span></div>
+    <div class="stat"><b>19</b><span>beyond the corpus</span></div>
+    <div class="stat"><b>20</b><span>QD score</span></div>
+    <div class="stat"><b>442</b><span>candidates evaluated</span></div>
+  </div>
+  <div class="maplabel">n_rule_sources (x) vs mean_solution_len (y)</div><div class="map"><table><tr><td style="background:#1a1c26" title="n_rule_sources=0 mean_solution_len=7"></td><td style="background:rgb(150,112,86)" title="n_rule_sources=1 mean_solution_len=7 f=0.60"></td><td style="background:rgb(115,91,92)" title="n_rule_sources=2 mean_solution_len=7 f=0.43"></td><td style="background:rgb(180,130,79)" title="n_rule_sources=3 mean_solution_len=7 f=0.75"></td><td style="background:rgb(131,101,89)" title="n_rule_sources=4 mean_solution_len=7 f=0.51"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=5 mean_solution_len=7 f=-0.33"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=6 mean_solution_len=7 f=-0.67"></td><td style="background:#1a1c26" title="n_rule_sources=7 mean_solution_len=7"></td></tr><tr><td style="background:#1a1c26" title="n_rule_sources=0 mean_solution_len=6"></td><td style="background:rgb(209,147,74)" title="n_rule_sources=1 mean_solution_len=6 f=0.90"></td><td style="background:rgb(172,125,81)" title="n_rule_sources=2 mean_solution_len=6 f=0.71"></td><td style="background:rgb(209,147,74)" title="n_rule_sources=3 mean_solution_len=6 f=0.90"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=4 mean_solution_len=6 f=-0.67"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=5 mean_solution_len=6 f=-0.33"></td><td style="background:rgb(116,91,92)" title="n_rule_sources=6 mean_solution_len=6 f=0.43"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=7 mean_solution_len=6 f=-0.67"></td></tr><tr><td style="background:#1a1c26" title="n_rule_sources=0 mean_solution_len=5"></td><td style="background:rgb(193,138,77)" title="n_rule_sources=1 mean_solution_len=5 f=0.82"></td><td style="background:rgb(153,114,85)" title="n_rule_sources=2 mean_solution_len=5 f=0.62"></td><td style="background:rgb(161,119,83)" title="n_rule_sources=3 mean_solution_len=5 f=0.66"></td><td style="background:rgb(197,140,76)" title="n_rule_sources=4 mean_solution_len=5 f=0.84"></td><td style="background:rgb(144,108,87)" title="n_rule_sources=5 mean_solution_len=5 f=0.57"></td><td style="background:rgb(160,118,83)" title="n_rule_sources=6 mean_solution_len=5 f=0.65"></td><td style="background:#1a1c26" title="n_rule_sources=7 mean_solution_len=5"></td></tr><tr><td style="background:#1a1c26" title="n_rule_sources=0 mean_solution_len=4"></td><td style="background:rgb(125,97,90)" title="n_rule_sources=1 mean_solution_len=4 f=0.48"></td><td style="background:rgb(118,93,92)" title="n_rule_sources=2 mean_solution_len=4 f=0.44"></td><td style="background:rgb(104,84,95)" title="n_rule_sources=3 mean_solution_len=4 f=0.37"></td><td style="background:rgb(119,93,92)" title="n_rule_sources=4 mean_solution_len=4 f=0.45"></td><td style="background:rgb(134,102,89)" title="n_rule_sources=5 mean_solution_len=4 f=0.52"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=6 mean_solution_len=4 f=-0.33"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=7 mean_solution_len=4 f=-0.33"></td></tr><tr><td style="background:#1a1c26" title="n_rule_sources=0 mean_solution_len=3"></td><td style="background:rgb(56,56,104)" title="n_rule_sources=1 mean_solution_len=3 f=0.13"></td><td style="background:rgb(79,69,100)" title="n_rule_sources=2 mean_solution_len=3 f=0.25"></td><td style="background:rgb(76,67,100)" title="n_rule_sources=3 mean_solution_len=3 f=0.23"></td><td style="background:rgb(96,80,96)" title="n_rule_sources=4 mean_solution_len=3 f=0.33"></td><td style="background:rgb(75,67,100)" title="n_rule_sources=5 mean_solution_len=3 f=0.23"></td><td style="background:rgb(85,73,98)" title="n_rule_sources=6 mean_solution_len=3 f=0.28"></td><td style="background:rgb(116,91,92)" title="n_rule_sources=7 mean_solution_len=3 f=0.43"></td></tr><tr><td style="background:#1a1c26" title="n_rule_sources=0 mean_solution_len=2"></td><td style="background:rgb(34,42,109)" title="n_rule_sources=1 mean_solution_len=2 f=0.02"></td><td style="background:rgb(48,51,106)" title="n_rule_sources=2 mean_solution_len=2 f=0.09"></td><td style="background:rgb(50,52,105)" title="n_rule_sources=3 mean_solution_len=2 f=0.10"></td><td style="background:rgb(37,44,108)" title="n_rule_sources=4 mean_solution_len=2 f=0.04"></td><td style="background:rgb(54,54,105)" title="n_rule_sources=5 mean_solution_len=2 f=0.12"></td><td style="background:#1a1c26" title="n_rule_sources=6 mean_solution_len=2"></td><td style="background:rgb(97,80,96)" title="n_rule_sources=7 mean_solution_len=2 f=0.34"></td></tr><tr><td style="background:#1a1c26" title="n_rule_sources=0 mean_solution_len=1"></td><td style="background:rgb(32,41,109)" title="n_rule_sources=1 mean_solution_len=1 f=0.01"></td><td style="background:rgb(35,43,108)" title="n_rule_sources=2 mean_solution_len=1 f=0.03"></td><td style="background:#1a1c26" title="n_rule_sources=3 mean_solution_len=1"></td><td style="background:#1a1c26" title="n_rule_sources=4 mean_solution_len=1"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=5 mean_solution_len=1 f=-0.33"></td><td style="background:#1a1c26" title="n_rule_sources=6 mean_solution_len=1"></td><td style="background:#1a1c26" title="n_rule_sources=7 mean_solution_len=1"></td></tr><tr><td style="background:rgb(30,40,110)" title="n_rule_sources=0 mean_solution_len=0 f=-3.00"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=1 mean_solution_len=0 f=-2.00"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=2 mean_solution_len=0 f=-2.00"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=3 mean_solution_len=0 f=-2.00"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=4 mean_solution_len=0 f=-2.00"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=5 mean_solution_len=0 f=-2.00"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=6 mean_solution_len=0 f=-2.00"></td><td style="background:rgb(30,40,110)" title="n_rule_sources=7 mean_solution_len=0 f=-2.00"></td></tr></table></div><div class="maplabel">n_objects (x) vs churn (y)</div><div class="map"><table><tr><td style="background:#1a1c26" title="n_objects=0 churn=3"></td><td style="background:rgb(30,40,110)" title="n_objects=1 churn=3 f=-2.00"></td><td style="background:rgb(209,147,74)" title="n_objects=2 churn=3 f=0.90"></td><td style="background:rgb(180,130,79)" title="n_objects=3 churn=3 f=0.75"></td><td style="background:rgb(160,118,83)" title="n_objects=4 churn=3 f=0.65"></td></tr><tr><td style="background:#1a1c26" title="n_objects=0 churn=2"></td><td style="background:rgb(132,101,89)" title="n_objects=1 churn=2 f=0.51"></td><td style="background:rgb(209,147,74)" title="n_objects=2 churn=2 f=0.90"></td><td style="background:rgb(137,104,88)" title="n_objects=3 churn=2 f=0.54"></td><td style="background:#1a1c26" title="n_objects=4 churn=2"></td></tr><tr><td style="background:#1a1c26" title="n_objects=0 churn=1"></td><td style="background:#1a1c26" title="n_objects=1 churn=1"></td><td style="background:#1a1c26" title="n_objects=2 churn=1"></td><td style="background:rgb(30,40,110)" title="n_objects=3 churn=1 f=-0.67"></td><td style="background:#1a1c26" title="n_objects=4 churn=1"></td></tr><tr><td style="background:rgb(30,40,110)" title="n_objects=0 churn=0 f=-3.00"></td><td style="background:#1a1c26" title="n_objects=1 churn=0"></td><td style="background:#1a1c26" title="n_objects=2 churn=0"></td><td style="background:#1a1c26" title="n_objects=3 churn=0"></td><td style="background:#1a1c26" title="n_objects=4 churn=0"></td></tr></table></div>
+</header>
+<main>
+  <div class="sub" style="margin-bottom:14px">Showing 12 elites sorted by
+    fitness. Green tags are mechanics injected by a template that the
+    parent game did not have.</div>
+  <div class="grid"><div class="card">
+  <h2>whaleworld</h2>
+  <div class="key">cell 03_06_02_03 &middot; iteration 0 </div>
+  <div class="shots"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeAAAAHCCAIAAAC40o3/AAAFiUlEQVR42u3YwW0CMRRFUf/ITdABgnJYuj4vUw6jdJAynCVhwS7fMw7nFGChNzNXFjF6AeCAPkwAINAACDSAQAMg0AACDYBAAyDQAAINgEADCDQAAg2AQAMINAACDSDQAAg0gEADINAACDSAQAMg0AACDYBAAyDQAAINgEADCDQAAg3wvmre0dHMy/8xug1wgwZAoAEEGgCBBhBoAAQaQKABEGgABBpAoAEQaACBBkCgARBoAIEGQKABBBoAgQYQaAAEGgCBBhBoAAQaQKABEGgABBpAoAEQaACBBmCamnn4sC/ThQlwgwZAoAEEGgCBBkCgAQQaAIEGEGgABBoAgQYQaAAEGkCgARBoAIEGQKABEGgAgQZAoAEEGgCBBkCgAQQaAIEGEGgABBpAoE0AINAACDTA+mrm4WHfX0bSuf1yTTq5bXeP7fE2twXfue65uUEDINAAAg2AQAMg0AACDYBAAwg0AAINgEADCDQAAg0g0AAINIBAAyDQAAg0gEADINAAAg2AQAMg0AACDYBAAwg0AAININAACDQAAg2wqJp5+LDvBG27G2Hxty48NtygAQQaAIEGEGgABBoAgQYQaAAEGkCgARBoAIEGQKABEGgAgQZAoAEEGgCBBkCgAQQaAIEGEGgABBpAoAEQaAAEGkCgARBoAIEGQKABeFYzDw/7Lm54N6askbZyW3Dl7rtzgwYQaAAEGkCgARBoAIEGQKABEGgAgQZAoAEEGgCBBkCgAQQaAIEGEGgABBpAoAEQaAAEGkCgARBoAIEGQKABEGgAgQZAoAEEGgCBBqCUUvOOHt28D9ESl15wj7zfHNaY80b7qN2gAQQaAIEGQKABBBoAgQYQaAAEGgCBBhBoAAQaQKABEGgAgQZAoAEQaACBBkCgAQQaAIEGQKABBBoAgQYQaAAEGgCBBhBoAAQaQKABEGgAgQZAoAEQaACBBkCgAQQaAIEGQKABBBoAgQYQaAAEGkCgARBoAAQaQKABEGgAgQZAoAEQaACBBkCgAQQaAIEGEGgABBoAgQYQaAAEGuCdVBMAxxFtvd88uhs0QPEXBwACDYBAAwg0AAININAACDQAAg0g0AAINIBAAyDQAAINgEADINAAAg2AQAMINAACDYBAAwg0AAININAACDSAQAMg0AAINIBAA/DXqgl45fPrO+nk2/lk3sWNBX9zuEEDINAAAg2AQAMg0AACDYBAAwg0AAININAACDQAAg0g0AAINIBAAyDQAAg0gEADINAAAg2AQAMINAACDYBAAwg0AAININAACDQAAg2wjmoCXrmdT0YAN2gABBpAoAEQaACBBkCgAQQaAIEGQKABBBoAgQYQaAAEGgCBBhBoAAQaQKABEGgABBpAoAEQaACBBkCgAQQaAIEGQKABBBoAgQYQaAD2UE2wvjABk/XLNenktm3mdYMGEGgABBpAoAEQaACBBkCgARBoAIEGQKABBBoAgQZAoAEEGgCBBhBoAAQaQKABEGgABBpAoAEQaACBBkCgARBoAIEGQKABBBoAgQaglBjdCLDrR9iGEeYsnXRuXkXdoAGKvzgAEGgAgQZAoAEEGgCBBkCgAQQaAIEGEGgABBoAgQYQaAAEGkCgARBoAIEGQKABEGgAgQZAoAEEGgCBBkCgAQQaAIEGEGgABBrgfVUTwN7CBLhBAwg0AAININAACDQAAg0g0AAINIBAAyDQAAINgEADINAAAg2AQAMINAACDYBAAwg0AAININAACDSAQAMg0AAINIBAAyDQAAINgEAD8CxGNwKAGzQAAg0g0AAINIBAAyDQAAg0gEADINAAAg2AQAMg0AACDYBAAwg0AAININAACDQAAg0g0AAINIBAAyDQAAg0gEADINAAAg2AQAMINACH8gPUVisfejQklgAAAABJRU5ErkJggg==" alt="level 0"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUoAAAEOCAIAAABggskoAAACxklEQVR42u3dsQ3CMBBA0TPyEjBBBOOkzHwuGQeUCVjDdIgOCcknxXpvgBSXfF26K70FMKWTEYC8AXkD8gbkDcgbkDfIG5A3IG9A3oC8AXmDvAF5A/IG5A3IG5A3yBuQNyBvQN6AvAF5A/IGeQPyBuQNZKhGkKNsZpDBxVvbG+QNyBuQNyBvQN6AvEHegLwBeQPyBuQNyBvkDcgbkDcgb0DegLwBeYO8AXkD8gbkDcgbkDfIG5A3IG8gXXFR8fh3PPsRJ+32qO0NyBuQN8gbkDcgb0DegLwBeYO8AXkD8gbkDcgbkDcgb5A3IG9A3oC8AXkD8gZ5A/IG5A3IG5A3IG+QNxAuhM55bTPc8Tz6J+32qO0Nfs4BeQPyBuQNyBuQN8gbkDcgb0DegLwBeYO8AXkD8gbkDcgbkDcgb5A3IG9A3oC8AXkD8gZ5A/IG5A3kquHaJuESa0x5e9T2Bj/ngLwBeQPyBuQNyBvkDcgbkDcgb0DegLxB3oC8AXkD8gbkDcgb5A3IG5A3IG9A3oC8AXmDvAF5A/IGwoXQmOdW47jLle16G/Tk7fnwBm1vQN6AvAF5A/IGeQPyBuQNyBuQNyBvkDcgb0DegLwBeQPyBuQN8gbkDcgbkDcgb0DeIG9A3oC8AXkD8gZ+Kb0Zwtc4tlFPvu+vQU9el7MX99Gb26O2N8gbkDcgb0DegLwBeYO8AXkD8gbkDcgbkDfIG5A3IG9A3oC8AXkD8gZ5A/IG5A3IG5A3IG+QNyBvQN5AsmoEOdblYgjY3oC8AXmDvAF5A/IG5A3IG5A3IG+QNyBvQN6AvAF5A/IGeQPyBuQNyBuQNyBvkDcgb0DegLwBeQPyBnkDMyq9GQLY3oC8AXkD8gbkDcgb5A3IG5A3IG9A3oC8Qd6AvAF5A/IG5A3IG+QNyBuQNyBvQN6AvAF5g7wBeQPyBuQN/O0NF2Ad6SeHQYUAAAAASUVORK5CYII=" alt="level 1"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAeAAAAGkCAIAAABmf2G4AAAFJ0lEQVR42u3Y0UkDQRCA4RvZYkTL8XHrm0fLSbADyxgfo2IQJHtkzu8rYFlmLz9DonID4A49GAGAQAMg0AACDYBAAwg0AAINgEADCDQAAg0g0AAINAACDSDQAAg0gEADINAAAg2AQAMg0AACDYBAAwg0AAINgEADCDQAAg0g0AAINMD/NTpeOqaHu6g0A7BBAyDQAAg0gEADINAAAg2AQAMINAACDYBAAwg0AAININAACDQAAg0g0AAINIBAAyDQAAINgEADINAAAg2AQAMINAACDYBAAwg0AAINcDDDCL6qZSfHqnOnV9vly0gzwAYNgEADCDQAAg0g0AAINIBAAyDQAAg0gEADINAAAg2AQAMg0AACDYBAAwg0AAININAACDQAAg0g0AAINIBAAyDQAAg0gEADINAAAg3AboYR9FdG8EmsOncue7/0atigAQQaAIEGEGgABBoAgQYQaAAEGkCgARBoAIEGQKABEGgAgQZAoAEEGgCBBkCgAQQaAIEGEGgABBpAoAEQaAAEGkCgARBoAIEGQKAB+GYYwV7KCJrPOQwXGzQAAg0g0AAINIBAAyDQAAINgEADINAAAg2AQAMINAACDYBAAwg0AAININAACDSAQAMg0AAINIBAAyDQAAINgEADINAAAg2AQAMINAB7GUbQXzS8c5nG5cbTN9xbpQ0aYPMXBwACDYBAAwg0AAININAACDQAAg0g0AAINIBAAyDQAAINgEADINAAAg2AQAMINAACDYBAAwg0AAININAACDSAQAMg0AAINIBAA3Brwwi4rtyZAwkbNAACDSDQAAg0AAININAACDSAQAMg0AACDYBAAyDQAAINgEADCDQAAg2AQAMINAACDSDQAAg0gEADINAACDSAQAMg0AACDYBAAyDQAAINgEADCDQAAg2AQAMINAACDSDQAAg0gEADINAACDSAQAMg0AACDYBAAyDQAAINgEADCDQAAg0g0AAINAACDSDQAAg0gEADINAACDSAQAPwV2Pd0TGNt7swgubKCGzQAAg0gEADINAACDSAQAMg0AACDYBAAyDQAAINgEADCDQAAg0g0AAINAACDSDQAAg0gEADINAACDSAQAMg0AACDYBAAwg0AAINgEAD9DR6Xru8nGkcSLS7cT49Lzp5nk8+CBs0gEADINAAAg2AQAMINAACDYBAAwg0AAININAACDQAAg0g0AAINIBAAyDQAAINgEADINAAAg2AQAMINAACDYBAAwg0AAININAACDQA2zZ6XjuWnVy+CfjVPJ8Wnfz69r7o5JdHGzQAAg0g0AAINAACDSDQAAg0gEADINAAAg2AQAMg0AACDYBAAwg0AAINgEADCDQAAg0g0AAINIBAAyDQAAg0gEADINAAAg2AQAMg0ACNRGXDS08PxzXV8Wfo2Xp/c2mDBtj8xQGAQAMg0AACDYBAAwg0AAINgEADCDQAAg0g0AAINIBAAyDQAAg0gEADINAAAg2AQAMg0AACDYBAAwg0AAININAACDQAAg0g0ADc2uh46UoPx89i+p6xQQMg0AACDYBAAyDQAAINgEADCDQAAg2AQAMINAACDSDQAAg0gEADINAACDSAQAMg0AACDYBAAyDQAAINgEADCDQAAg2AQAMINAACDXAAUWkIADZoAAQaQKABEGgAgQZAoAEQaACBBkCgAQQaAIEGQKABBBoAgQYQaAAEGkCgARBoAAQaQKABEGgAgQZAoAEQaACBBkCgAQQaAIEGEGgA7soHdAAqMSqMQisAAAAASUVORK5CYII=" alt="level 2"></div>
+  <table class="m"><tr><td>fitness</td><td>0.897</td></tr><tr><td>novelty</td><td>1.21</td></tr><tr><td>rules / objects</td><td>8 / 7</td></tr><tr><td>mean solution</td><td>38.0 moves</td></tr><tr><td>levels solved</td><td>100%</td></tr></table>
+  <div class="ops"><span class="tag">seed</span></div>
+  <div class="near">nearest human games: 2D_Whale_World, whaleworld, Dead_Grass</div>
+  <details><summary>source (260 lines)</summary><pre>title 2D Whale World
+author increpare
+homepage www.increpare.com
+
+background_color orange
+text_color darkblue
+
+color_palette mastersystem
+
+run_rules_on_level_start
+require_player_movement
+
+(
+    
+This game is a port of the Whale section of my puzzle game English Country Tune (www.englishcountrytune.com), in only 8 lines of code.
+
+)
+
+========
+OBJECTS
+========
+
+Background
+blue
+
+Void
+orange
+
+Player
+lightblue
+
+Whale
+brown
+00000
+00000
+00000
+00000
+00000
+
+Wall
+black
+00000
+0...0
+0...0
+0...0
+00000
+
+HBeam
+yellow
+.....
+.....
+0.0.0
+.....
+.....
+
+VBeam
+yellow
+..0..
+.....
+..0..
+.....
+..0..
+
+=======
+LEGEND
+=======
+
+Beam = HBeam or VBeam
+. = Background
+# = Wall
+P = Player
+W = Whale
+0 = Void
+
+=========
+SOUNDS
+=========
+
+whale destroy 62981708
+player move 69405107
+whale move 32823307
+endlevel 99636708
+restart 92555303
+startgame 60661308
+CloseMessage 123434
+ShowMessage 123434
+
+================
+COLLISIONLAYERS
+================
+
+Background
+void
+Player, Wall, Whale
+HBeam
+VBeam
+
+======
+RULES
+======
+
+(While we allow whales to move onto the void, player&#x27;s aren&#x27;t)
+[ &gt; player | void ] -&gt; [ player | void ] 
+
+(Beams detect motion)
+horizontal [ &gt; Player | VBeam ] -&gt; [ &gt; Player | &gt; VBeam ] 
+vertical [ &gt; Player | HBeam ] -&gt; [ &gt; Player | &gt; HBeam ] 
+
+(If beams detected motion, transfer that to the whales)
+[ Whale | ... | perpendicular Beam ] -&gt; [ perpendicular Whale | ... | perpendicular Beam ] 
+
+(Remove whales, if necessary)
+late [ Whale Void ] -&gt; [ Void ] 
+
+(Remove beams)
+[ Beam ] -&gt; [ ] 
+
+(Place HVeams and VBeams)
+late horizontal [ Whale | ... | ] -&gt; [ Whale | ... | HBeam ] 
+late vertical [ Whale | ... | ] -&gt; [ Whale | ... | VBeam ] 
+
+==============
+WINCONDITIONS
+==============
+
+no Whale
+
+=======
+LEVELS
+=======
+
+message Push a whale off to free it.
+
+0000000000000000
+0########0000000
+0.......#0000000
+0###.W..###00000
+0.........#00000
+0#####.##.###000
+0000#...#...#000
+0000#...#...#000
+0000#...#...###0
+0000#.P.#.....#0
+0000#...#.....#0
+0000#####...W##0
+0000000000....#0
+0000000000#####0
+0000000000000000
+
+message level 2 of 8
+
+00000000000
+0000####000
+000##..##00
+0###....##0
+0#.......#0
+0###.W.###0
+000#P...000
+000#####000
+00000000000
+
+message level 3 of 8
+
+0000000000000000
+00###00000000000
+00#.#####0000000
+00#.#...##000000
+00#......#000000
+00#..##.#######0
+00#..#........#0
+00#..#........#0
+0##..######...#0
+0#........#.W.#0
+0##.......#..P#0
+00######..#####0
+00000000..000000
+0000000000000000
+
+message level 4 of 8
+
+0000000000000000
+000000#########0
+0######.......#0
+0.............#0
+0.....#.#####.#0
+0######.#.....#0
+00000##.#...P.#0
+00000#........#0
+00000##.#.W...#0
+000000#.......#0
+000000###.#...#0
+00000000#######0
+0000000000000000
+
+message level 5 of 8
+
+00000000000000000
+0000############0
+0000#.#........#0
+0000#..........#0
+0####..###.....#0
+0......#.#.....#0
+0####..#W#.#W#.#0
+0..........#.#.#0
+0####.....P###.#0
+0...#.#........#0
+0##...##########0
+00#####0000000000
+00000000000000000
+
+message level 6 of 8
+
+00000000000000000
+000000000#.#.#.#0
+000000000#.#.#.#0
+000000000#.#.#.#0
+000000000#.....#0
+0000000###...###0
+0000000#.#...#000
+0000000#.#.#.#000
+0#######.#.#.#000
+0#...........#000
+0#.#.W...W...#000
+0#...........#000
+0#.....P.....#000
+0#...........#000
+0#############000
+00000000000000000
+
+message level 7 of 8
+
+000000000#000000
+00000####.####00
+0####.........#0
+0........#....#0
+0####....W....#0
+0000#.........#0
+0000#.#W.P.W#..#
+0####.........#0
+0........W....#0
+0####....#....#0
+00000#........#0
+000000########00
+0000000000000000
+
+message level 8 of 8
+
+00000000000
+0########00
+0#...#..#00
+0##.....000
+0#......#00
+0#..WW..##0
+0#..WW...#0
+0##...P.##0
+0#...#.##00
+0#######000
+00000000000
+
+message all the 2d whales are freed
+</pre></details>
+</div><div class="card">
+  <h2>Microban_I</h2>
+  <div class="key">cell 01_06_02_02 &middot; iteration 0 </div>
+  <div class="shots"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAADSCAIAAABsAn0iAAADoElEQVR42u3dIXIUQRSH8TdUDBfgBjFr4QCxuQAiCTIWYlZhQGMCVyBrEFhsLhCL4QZcADn4na3KbFf3bHfP73Oktiap4avXeXn97x52m00cz69XL/e+cvn3X+Sg1ydfv/0drfEiAHKAHCAHyIETMtxcvPYWFuDNz3d7X7n7dpflyffv7ws9WeUAOUAOkAPkwGm7lelsxdykxJPTZivlOpE5T1Y5YFkBOUAOkANmK2vg4eJJ5YBlBeQAOQBy4BjO0iYF5i/HPvkh6pqbqBywrIAcIAfIgWhwJ1gDufJPpR7c5NtQOUAOkAPkADlgJ1jUkis/1K18SXrQdu/fLb4NKXtYVkAOkAPkgJR91JMrn9WtbBM+0+TbkLKHZQXkADlADpitRDW58gZnK1L2sKyAHCAHQA5ENSn7JXPlhyYpKfTxNqTsYVkBOUAOkAMhZd9drnz3Y+McM5UDlhWQA+QAOSBlH/Xlym8e3T6jcoAcIAfIAXJAyr7GXPl0trLmm2VUDpAD5AA5QA5I2deD2YrKAXKAHCAHyIGQso+I+vaGlXsbIbcCywrIAXIA5EDUkrK/+lgqZT9cx4JnI8dqTwZQOWBZATlADpADJ+Vs+ltrZPpb/dWBLiPlVpRxt53xmTxdT/3TnzlvPtdzVA5YVkAOkAPkQG07wcrtPopZ96Q839GM45jle4+Thmr4PBTqRNJ6kzlPLvc/qHKAHCAHyAFyIDpN2X+/fSo0Wzm0Eyytfxk62AlW7mQAlQPkADlADpAD0WnKPm1PV8ZGLEtHs+aTAVQOWFZADpAD5MBpu5WC3cKfWDALP2cH1/OfGc+nv9bvdxAfzvO8jVxdj8oBcoAcIAfIgbATLPq/y37araSdPzZN/X+9LPUz2wkGywrIAXKAHHCXfazgLvty3UrapGnOzzw9wVjKHpYVkAPkADlgthLd3WVfW7cSZiuwrIAcIAfIgZCyD3fZZ7zJRcoelhWQAyAHyIGo+C77tJ1g0em98JHpxsYln6xywLICcoAcIAek7KOaSUq5XVUqB8gBcoAcADkgZV9nYj0anMioHCAHyAFygByQso8V3AuvcoAcIAfIAZADIWVfZWI95FZgWQE5QA6AHIhaUva97o9az5kDKgfIAXKAHCAHet0Jhmj8zAGVA+QAOUAOkAO9puzDRCbaPnNA5YBlBeQAOUAOmK2sgRbPHFA5QA6QA+QAORCdpuzD/KXxMwdUDpAD5AA5QA6clP/OXPOwfoW47wAAAABJRU5ErkJggg==" alt="level 0"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAADSCAIAAABsAn0iAAADf0lEQVR42u3dIXYTQRjA8S88DBfgBpi15QCxvUAFKVfgxcQXXRO4AllTgcX2ArUx3ACBRQaHyD7KZpiZzG5+P1kx9G3/b6fb2Y8s+q6L0317/eroK9c/fkUOVm5n5RcBfyEOxIE4EAc1LG6XV64C7hyIA3EgDsRBe14O/6LuDMLK7hyIA3EgDsRBOFvBnQNxIA7EgTggxp6thBMHK7tzYFtBHIgDcdDA00q5pVc3+yzr7Ip9h/NYuX/o3DmwrSAOxIE4CG+CneLt1/dHX1l/XmdZeftha+U/bh+v3DmwrSAOxIE4mOXTyvB/MM719lHa2YonkVNXHp6tmLLHtoI4EAfiwNnK83bLJ9e3Amcr2FYQB+JAHIQp+zjtr/c75yZVVi73E3TnwLaCOBAH4iAaexMs1++6uabsI9Nc+ajveV/qe467mNzVcOfAtoI4EAfiwJR9NPPu0+7x+O21Q590WVfHX9n+NGWPbQVxIA4QB9HIZ9mvkn4bH/N+VLnv+cvhkOWyHt4Nnl8+LiZ3Ndw5EAfiQByIgzBlH+2erUSkPb8sqr0J5mwF2wriQByIgzBlH61M2df8nkc9iSQ90Ziyx7aCOBAHiIP5Tdkf3kzwQn8PU/bYVhAH4gBxMPsp++HTynCqfdQ6/Zh5+fuklTdHX/l0bcoe2wriQBwgDmL2U/bnthl85d9PNOsJ/p8D7hyIA3EgDsTBeZ9Whr/Zxoi3hspp79kkEp5Nal6Ncj9Bdw7EgTgQB+LAlP3/S/tUlLR3unIxZY9tBXEgDhAHzz+t1PzHcj2bpE2pnPepZ4qnSO4ciANxIA7EQftvgkXS3+rrTqDcZ5pAKTVlX+5qlPsJunNgW0EciANxYMq+zG/1m2LzJqbssa24BIgDcSAOTNlHk7PwpuyxrbgEiANxIA5M2UfGd7rClL0pe2wriANxIA5M2Ufhc5O7mNwnzpuyx7aCOBAHiINL+Cz7cmc0U1zZZ9ljW0EciANxMNenlb7rotCU/c3ek0iFlfuHzpQ9thXEgTgQB85WTrJbPrm+FThbwbaCOBAH4iBM2Ue7U/aXvLIpe2wriANxIA7iYt4Ey/W7bmT6jEIrn2tldw5sK4gDcSAO5vomGO4ciANxgDgQB9HkZ9mH042Jr+zOgTgQB+JAHISzFdw5EAfiQByIA6LelH04ywhzK9hWEAeIA3GQ7Dd4HejebbrcdQAAAABJRU5ErkJggg==" alt="level 1"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQ4AAAC0CAIAAADq9VVVAAADw0lEQVR42u3dMW4TQRQG4H+RGy7ADWjcwgHS5gIUSShpkRsqmlDTBK4Qu0lBS5sLpE3DDShoKU2FhLwRskc7u57195UrebSa9a8Zjd6+7XKd5mzulgW/+v7i+c6V85+/B7mfuY58+eYx/PXMFICogKiAqICoQKu6m183O5dWX1eDDH3zvtbIV/evPLkRvP72trn/Rr2RrSogKiAqICogKtCsrqwGbNoTjH4NmPquGiOX1YC1eLq1z8hWFbABA1EBUQFRgZzYCdi01ICNY332YBKsKiAqICogKiAq0L5FGqzhKatoUid26Mjrk6nvsqqADRiICogKiArMWrdZ6iqfpnu/+y7AOCNbVcAGDEQFRAVEBZrVXZ15ozBN9373TqhVBUQFRAVEBUQFyIE1YHq/x3cBVI5ZVcAGDEQFRAVEBaIGLHq/x3cBrCqAqICogKiAqEADFrrKp/He755g9AEDGzAQFRAVEBUg03TCb7GrPP/avqz2t/uR5r4LYFUBGzAQFRAVEBWItyAzh67yRs5/T8C6y6JxNrtXvpy3910AqwqICogKiAqICkQn/Myhq7yRM8oJWFkN2LTfBbCqgKiAqICogKhA1IBlDl3lyRGfgEUNGNiAgaiAqACiAjmuTvhrVVizG7l/ljWU4/8ugFUFbMBAVEBUQFQgOuGP2Am/XrfzFrv315uNi4+POuFbVcAGDEQFRAVEBeItyEzQCb/em24tdu+vNxu37x50wreqgKiAqICogKhA5vgW5GCd8IvONPY5KWrxnlcNzkY9Lc6GVQVEBUQFRAVEBaIGLON1wq9X59Ni9/4Wa8B0wgcbMBAVQFRAVCA64Weabuctdu+vNxvRCd+qAjZgICogKiAqMAeLHP27b32Xj0Ud2ns/Wo94z7nujXw90MjLWs+rrOKrcDaGmmerCogKiAqICogKsGvRr34p0x+nXvXUUz4X/erDDO653hPsnxmW1YD1T9LqzXO92bCqgA0YiAqICogKRCf8jNdVPkUnRfucOK0avOd6T/B2ux3kT7a92L3Sfep0wgcbMBAVQFRAVCA64eeAd+iGqqd6auRjv+eKT/C+/wTLzsS60eZZJ3ywAQNRAVEBUQEyi0742at6KkfVob3ePY/5BLPP6VbRKZlO+GADBqICiAqIClTTbZbL0b4kaGQjtzuyVQVswEBUQFRAVCDeggSrCiAqICogKiAqkNPqhB91R0ae0chWFRAVEBUQFRAViBowsKoAogKiAqICogI5rU74UWVk5OgDBjZggKiAqICowOT+ALq6bkjvfBMVAAAAAElFTkSuQmCC" alt="level 2"></div>
+  <table class="m"><tr><td>fitness</td><td>0.897</td></tr><tr><td>novelty</td><td>0.67</td></tr><tr><td>rules / objects</td><td>1 / 5</td></tr><tr><td>mean solution</td><td>30.0 moves</td></tr><tr><td>levels solved</td><td>100%</td></tr></table>
+  <div class="ops"><span class="tag">seed</span></div>
+  <div class="near">nearest human games: Microban_I, Sokubunny_and_the_colored_Boxes, Pulling_Box_Sokoban</div>
+  <details><summary>source (1926 lines)</summary><pre>title Microban I
+author David W. Skinner
+homepage http://tiny.cc/davidskinner
+
+(
+David W. Skinner&#x27;s Microban I level-set, hopefully correctly transposed!
+A tiny extension of the mechanics in Puzzlescript&#x27;s Microban example, which did most of the hard work
+source: http://www.abelmartin.com/rj/sokobanJS/Skinner/David%20W.%20Skinner%20-%20Sokoban.htm
+)
+
+========
+OBJECTS
+========
+
+Background
+LIGHTGREEN GREEN
+11111
+01111
+11101
+11111
+10111
+
+
+Target
+DarkBlue
+.....
+.000.
+.0.0.
+.000.
+.....
+
+Wall
+BROWN DARKBROWN
+00010
+11111
+01000
+11111
+00010
+
+Player
+Black Orange White Blue
+.000.
+.111.
+22222
+.333.
+.3.3.
+
+Crate
+Orange Yellow
+00000
+0...0
+0...0
+0...0
+00000
+
+
+=======
+LEGEND
+=======
+
+. = Background
+# = Wall
+P = Player
+* = Crate
+@ = Crate and Target
+O = Target
+X = Player and Target
+
+=======
+SOUNDS
+=======
+
+Crate MOVE 36772507
+endlevel 83744503
+startgame 92244503
+
+================
+COLLISIONLAYERS
+================
+
+Background
+Target
+Player, Wall, Crate
+
+======
+RULES
+======
+
+[ &gt;  Player | Crate ] -&gt; [  &gt;  Player | &gt; Crate  ]
+
+==============
+WINCONDITIONS
+==============
+
+All Target on Crate
+
+=======
+LEVELS
+=======
+
+
+
+message level 1 of 155
+
+####..
+#.O#..
+#..###
+#@P..#
+#..*.#
+#..###
+####..
+
+message level 2 of 155
+
+######
+#....#
+#.#P.#
+#.*@.#
+#.O@.#
+#....#
+######
+
+message level 3 of 155
+
+..####...
+###..####
+#.....*.#
+#.#..#*.#
+#.O.O#P.#
+#########
+
+message level 4 of 155
+
+########
+#......#
+#.O@@*P#
+#......#
+#####..#
+....####
+
+message level 5 of 155
+
+.#######
+.#.....#
+.#.O*O.#
+##.*P*.#
+#..O*O.#
+#......#
+########
+
+message level 6 of 155
+
+######.#####
+#....###...#
+#.**.....#P#
+#.*.#OOO...#
+#...########
+#####.......
+
+message level 7 of 155
+
+#######
+#.....#
+#.O*O.#
+#.*O*.#
+#.O*O.#
+#.*O*.#
+#..P..#
+#######
+
+message level 8 of 155
+
+..######
+..#.OOP#
+..#.**.#
+..##.###
+...#.#..
+...#.#..
+####.#..
+#....##.
+#.#...#.
+#...#.#.
+###...#.
+..#####.
+
+message level 9 of 155
+
+#####.
+#O..##
+#P**.#
+##...#
+.##..#
+..##O#
+...###
+
+message level 10 of 155
+
+......#####
+......#O..#
+......#O#.#
+#######O#.#
+#.P.*.*.*.#
+#.#.#.#.###
+#.......#..
+#########..
+
+message level 11 of 155
+
+..######.
+..#....#.
+..#.##P##
+###.#.*.#
+#.OO#.*.#
+#.......#
+#..######
+####.....
+
+message level 12 of 155
+
+#####....
+#...##...
+#.*..#...
+##.*.####
+.###PO..#
+..#..O#.#
+..#.....#
+..#######
+
+message level 13 of 155
+
+####...
+#O.##..
+#OP.#..
+#O.*#..
+##*.###
+.#.*..#
+.#....#
+.#..###
+.####..
+
+message level 14 of 155
+
+#######
+#.....#
+#.#.#.#
+#O.*@P#
+#...###
+#####..
+
+message level 15 of 155
+
+.....###.
+######P##
+#....O@.#
+#...#...#
+#####*#.#
+....#...#
+....#####
+
+message level 16 of 155
+
+.####.....
+.#..####..
+.#.....##.
+##.##...#.
+#O.O#.P*##
+#...#.**.#
+#..O#....#
+##########
+
+message level 17 of 155
+
+#####.
+#.P.#.
+#OOO#.
+#***##
+#....#
+#....#
+######
+
+message level 18 of 155
+
+#######
+#.....#
+#O.O..#
+#.##.##
+#..*.#.
+###*.#.
+..#P.#.
+..#..#.
+..####.
+
+message level 19 of 155
+
+########
+#...OO.#
+#..P**.#
+#####.##
+...#..#.
+...#..#.
+...#..#.
+...####.
+
+message level 20 of 155
+
+#######..
+#.....###
+#..P**OO#
+####.##.#
+..#.....#
+..#..####
+..#..#...
+..####...
+
+message level 21 of 155
+
+####...
+#..####
+#.O.O.#
+#.**#P#
+##....#
+.######
+
+message level 22 of 155
+
+#####..
+#...###
+#O.O..#
+#...#.#
+##.#..#
+.#P**.#
+.#....#
+.#..###
+.####..
+
+message level 23 of 155
+
+#######
+#..@..#
+#.....#
+##.#.##
+.#*PO#.
+.#...#.
+.#####.
+
+message level 24 of 155
+
+#.#####
+..#...#
+###**P#
+#...###
+#.....#
+#.O.O.#
+#######
+
+message level 25 of 155
+
+.####..
+.#..###
+.#.**.#
+##OOO.#
+#..P*.#
+#...###
+#####..
+
+message level 26 of 155
+
+.#####
+.#.P.#
+.#...#
+###*.#
+#.OOO#
+#.**.#
+###..#
+..####
+
+message level 27 of 155
+
+######.
+#...O#.
+#.##.##
+#..**P#
+#.#...#
+#O..###
+#####..
+
+message level 28 of 155
+
+#####..
+#...#..
+#.P.#..
+#.**###
+##O.O.#
+.#....#
+.######
+
+message level 29 of 155
+
+.....#####.
+.....#...##
+.....#....#
+.######...#
+##.....#O.#
+#.*.*.P..##
+#.######O#.
+#........#.
+##########.
+
+message level 30 of 155
+
+####..
+#..###
+#.**.#
+#OOO.#
+#.P*.#
+#...##
+#####.
+
+message level 31 of 155
+
+..####.
+.##..#.
+##P*O##
+#.**..#
+#.O.O.#
+###...#
+..#####
+
+message level 32 of 155
+
+.####..
+##..###
+#.....#
+#O@@*P#
+#...###
+##..#..
+.####..
+
+message level 33 of 155
+
+#######
+#O.#..#
+#..*..#
+#O.*#P#
+#..*..#
+#O.#..#
+#######
+
+message level 34 of 155
+
+..####...
+###..####
+#.......#
+#P*@@@O.#
+#.......#
+#########
+
+message level 35 of 155
+
+..####.
+.##..#.
+.#O.*#.
+.#O*.#.
+.#O*.#.
+.#O*.#.
+.#O.*##
+.#...P#
+.##...#
+..#####
+
+message level 36 of 155
+
+####...........
+#..############
+#.*.*.*.*.*.P.#
+#.OOOOO.......#
+###############
+
+message level 37 of 155
+
+......###
+#####.#O#
+#...###O#
+#...*.#O#
+#.*..*..#
+#####P#.#
+....#...#
+....#####
+
+message level 38 of 155
+
+##########
+#........#
+#.##O###.#
+#.#.**.O.#
+#.O.P*##.#
+#####....#
+....######
+
+message level 39 of 155
+
+#####.....
+#...####..
+#.#.#.O#..
+#....*.###
+###.#*O..#
+#...#P...#
+#.#.######
+#...#.....
+#####.....
+
+message level 40 of 155
+
+.#####.
+.#...#.
+##...##
+#.***.#
+#.OXO.#
+#######
+
+message level 41 of 155
+
+#######.
+#.....#.
+#P***.##
+#..#OOO#
+##....##
+.######.
+
+message level 42 of 155
+
+...####
+...#..#
+...#P.#
+####*O#
+#...*O#
+#.#.*O#
+#....##
+######.
+
+message level 43 of 155
+
+.....####
+.....#.P#
+.....#..#
+######.O#
+#...*..O#
+#..**#.O#
+#....####
+###..#...
+..####...
+
+message level 44 of 155 &#x27;Duh!&#x27;
+
+#####
+#P*O#
+#####
+
+message level 45 of 155
+
+######
+#OOO.#
+#..*.#
+#.#*##
+#..*.#
+#..P.#
+######
+
+message level 46 of 155
+
+.######
+##....#
+#..##.#
+#.#.*.#
+#..@.O#
+##.#P##
+.#...#.
+.#####.
+
+message level 47 of 155
+
+..#######..
+###.....#..
+#.*.*...#..
+#.###.#####
+#.P.O.O...#
+#...###...#
+#####.#####
+
+message level 48 of 155
+
+######..
+#..P.#..
+#..#.##.
+#.O#..##
+#.O***.#
+#.O#...#
+####...#
+...#####
+
+message level 49 of 155
+
+######..
+#.P..#..
+#.*#.#..
+#.*..#..
+#.*.##..
+###.####
+.#..#..#
+.#OOO..#
+.#.....#
+.#######
+
+message level 50 of 155
+
+..####....
+###..#####
+#..*..POO#
+#.*....#.#
+###.####.#
+..#......#
+..########
+
+message level 51 of 155
+
+####....
+#..###..
+#....###
+#..*@P.#
+###.O#.#
+..#....#
+..######
+
+message level 52 of 155
+
+..####
+###.P#
+#..*.#
+#..@O#
+#..@O#
+#..*.#
+###..#
+..####
+
+message level 53 of 155
+
+.#####.
+##O.O##
+#.@.@.#
+#..#..#
+#.*.*.#
+##.P.##
+.#####.
+
+message level 54 of 155
+
+......######
+......#....#
+..#####.O..#
+###..###O..#
+#.*..*..O.##
+#.P**.#.O.#.
+##....#####.
+.######.....
+
+message level 55 of 155
+
+########..
+#.P.#..#..
+#......#..
+#####*.#..
+....#..###
+.##.#*.OO#
+.##.#..###
+....####..
+
+message level 56 of 155
+
+#####..
+#...###
+#..*..#
+##@.O.#
+.#...P#
+.######
+
+message level 57 of 155
+
+..####..
+..#..#..
+..#P.#..
+..#..#..
+###.####
+#....@.#
+#..*...#
+#####O.#
+....####
+
+message level 58 of 155
+
+####...
+#..####
+#O@*..#
+#.O*#.#
+##.P..#
+.#...##
+.#####.
+
+message level 59 of 155
+
+############.
+#..........#.
+#.#######.P##
+#.#.........#
+#.#..*...#..#
+#.**.#####..#
+###..#.#.OOO#
+..####.#....#
+.......######
+
+message level 60 of 155
+
+.#########
+.#.......#
+##P#####.#
+#..#...#.#
+#..#...*O#
+#..##*##O#
+##*##..#O#
+#...*..#O#
+#...#..###
+########..
+
+message level 61 of 155
+
+########.
+#......#.
+#.####.#.
+#.#OOOP#.
+#.###*###
+#.#.....#
+#..**.*.#
+####...##
+...#O###.
+...###...
+
+message level 62 of 155
+
+...##########
+####....##..#
+#..***OOOO*P#
+#......###..#
+#...####.####
+#####........
+
+message level 63 of 155
+
+#####...####.......
+#...#####.O#.......
+#.......*..########
+###..####.O*....P.#
+..#..#..#..####...#
+..####..####..#####
+
+message level 64 of 155
+
+.######...
+##....#...
+#...*.#...
+#..**.#...
+###.O#####
+..##O#.P.#
+...#O..*.#
+...#O.####
+...####...
+
+message level 65 of 155
+
+..######.
+..#....#.
+..#..*.#.
+.####*.#.
+##.*.*.#.
+#OOOO#.##
+#.....P.#
+##..#...#
+.########
+
+message level 66 of 155
+
+...###...
+...#P#...
+.###*###.
+##..O..##
+#..#.#..#
+#.#...#.#
+#.#...#.#
+#.#...#.#
+#..#.#..#
+##.*.*.##
+.##O.O##.
+..#...#..
+..#...#..
+..#####..
+
+message level 67 of 155
+
+#####..
+#...##.
+#.#..#.
+#P*@O##
+##..O.#
+.#.*#.#
+.##...#
+..#####
+
+message level 68 of 155
+
+.####.....
+.#..######
+##....*..#
+#.O#.*...#
+#.O#*#####
+#.OP.#....
+######....
+
+message level 69 of 155
+
+####..####.
+#..####..#.
+#..#..#..#.
+#..#....*##
+#..O.O#*..#
+#P.##.#.*.#
+#...O.#...#
+###########
+
+message level 70 of 155
+
+#####...
+#.P.####
+#......#
+#.*.**.#
+##*##..#
+#...####
+#.OO..#.
+##OO..#.
+.###..#.
+...####.
+
+message level 71 of 155
+
+###########..
+#.....#...###
+#.*P*.#.O..O#
+#.##.###.##.#
+#.#.......#.#
+#.#...#...#.#
+#.#########.#
+#...........#
+#############
+
+message level 72 of 155
+
+..####....
+.##..#####
+.#..*..P.#
+.#..*#...#
+####.#####
+#..#...#..
+#....*.#..
+#.OO#..#..
+#..O####..
+#..##.....
+####......
+
+message level 73 of 155
+
+####....
+#..#####
+#.**.*.#
+#......#
+##.##.##
+#OOO#P#.
+#.###.##
+#......#
+#..#...#
+########
+
+message level 74 of 155
+
+.####......
+.#..#######
+.#*.P#...O#
+##.#**...O#
+#..*..##OO#
+#...#.#####
+###...#....
+..#####....
+
+message level 75 of 155
+
+.#######..
+##.OOOO##.
+#...######
+#...*.*.P#
+###..*.*.#
+..###....#
+....######
+
+message level 76 of 155
+
+.#####....
+##...#....
+#....#####
+#..#O#...#
+#P.#O#.*.#
+#..#O#..##
+#....#..#.
+##..##**#.
+.##.....#.
+..#..####.
+..####....
+
+message level 77 of 155
+
+##########.
+#.P.OOOO.#.
+#...####*##
+##.#..*.*.#
+.#.*......#
+.#...######
+.#####.....
+
+message level 78 of 155
+
+.#######...
+##.....##..
+#..*.*..#..
+#.*.*.*.#..
+##.###.####
+.#P..OOOOO#
+.##.....###
+..#######..
+
+message level 79 of 155
+
+.#########
+.#....#..#
+##.*#*#..#
+#..O*OP..#
+#..O#....#
+##########
+
+message level 80 of 155
+
+####......
+#..#######
+#..O.##.O#
+#.*#....O#
+##.##.#.O#
+.#....#..#
+.####.#..#
+..#.P*.###
+..#.**.#..
+..#....#..
+..######..
+
+message level 81 of 155
+
+.#####
+.#...#
+.#.O.#
+##.@.#
+#..@##
+#..P##
+##.*.#
+.#...#
+.#####
+
+message level 82 of 155
+
+#####...
+#...###.
+#.O...##
+##@#*..#
+#.O#.*.#
+#.P##.##
+#.....#.
+#######.
+
+message level 83 of 155
+
+######..
+#....##.
+#.*.*.##
+##.**..#
+.#.#...#
+.#.##.##
+.#..O.O#
+.#.PO.O#
+.#..####
+.####...
+
+message level 84 of 155
+
+########....
+#..OOO.#....
+#..###.##...
+#..#.*..#...
+##.#P*..#...
+.#.#.*..#...
+.#.###.#####
+.#.........#
+.#...###...#
+.#####.#####
+
+message level 85 of 155
+
+.......####
+.#######..#
+.#.*......#
+.#...*.*..#
+.#.########
+##.#.O..#..
+#..#.#..#..
+#..P.O.##..
+##.#.#.#...
+.#...O.#...
+.#######...
+
+message level 86 of 155
+
+....####.
+..###..##
+.##.*...#
+##.*..#.#
+#.P#**..#
+#.OO..###
+#.OO###..
+#####....
+
+message level 87 of 155
+
+.....####
+######..#
+#.......#
+#..OOO.O#
+##*######
+#.*..#...
+#...*###.
+##..*..#.
+.##.P..#.
+..######.
+
+message level 88 of 155
+
+.....####..
+.#.###..#..
+.#.#....#..
+.#.#..#.#..
+.#.#*.#O#..
+.#.#..#.#.#
+.#.#*.#O#.#
+...#..#.#.#
+####*.#O#.#
+#.P.....#.#
+#...#..##.#
+########...
+
+message level 89 of 155
+
+##########
+#...##...#
+#.*..*P#.#
+####.#.*.#
+...#O#..##
+.#.#O#.*#.
+.#.#O...#.
+.#.#O...#.
+...######.
+
+message level 90 of 155
+
+.########.
+.#..P...#.
+.#.*..*.#.
+###.##.###
+#..*OO*..#
+#...OO...#
+##########
+
+message level 91 of 155
+
+###########
+#....O##..#
+#.**POO**.#
+#...##O...#
+###########
+
+message level 92 of 155
+
+..####.........
+..#..#....#####
+..#..#....#...#
+..#..######O#.#
+####..*....O..#
+#...**#.###O#.#
+#...#...#.#...#
+#########.#P.##
+..........#..#.
+..........####.
+
+message level 93 of 155
+
+.#########.
+##...#...##
+#....#....#
+#..*.#.*..#
+#...@O@...#
+####OPO####
+#...@O@...#
+#..*.#.*..#
+#....#....#
+##...#...##
+.#########.
+
+message level 94 of 155
+
+#########
+#.P.#...#
+#.*.*...#
+##*###.##
+#..OOO..#
+#...#...#
+######..#
+.....####
+
+message level 95 of 155
+
+########
+#P.....#
+#.O**O.#
+#.*OO*.#
+#.*OO*.#
+#.O**O.#
+#......#
+########
+
+message level 96 of 155
+
+..######...
+..#....#...
+..#....#...
+#####..#...
+#...#O#####
+#...*P*...#
+#####O#...#
+...##.##.##
+...#...*O#.
+...#...###.
+...#####...
+
+message level 97 of 155
+
+...####.......
+...#..########
+####.*.*OOOOO#
+#...*...######
+#P###.###.....
+#..*..#.......
+#.*.#.#.......
+##.#..#.......
+.#....#.......
+.######.......
+
+message level 98 of 155
+
+#####...........
+#...##.####.....
+#..*.###.O#.....
+#.*...*..O#.....
+##.*#####O#.####
+#.*..#.#.O###..#
+#....#.#.O#..P.#
+###..#.#.......#
+..####.##.....##
+........#######.
+
+message level 99 of 155
+
+...............#####..
+...............#...#..
+#######..#######.#.#..
+#.....#..#..#......#..
+#..P..####..#.....####
+#..#....OOOO##.####..#
+#....#####.##.**.*.*.#
+######...#...........#
+.........#..##########
+.........####.........
+
+message level 100 of 155
+
+#######.
+#.P#..#.
+#O*...#.
+#O.#.*##
+#O*#...#
+#O.#.*.#
+#..#...#
+########
+
+message level 101 of 155 &#x27;Lockdown&#x27;
+
+..#####......
+..#...#......
+..#.#.#######
+..#..@..#...#
+..##.##...#.#
+..#.....#@..#
+###.#.#.#.###
+#..@#*X...#..
+#.#...##.##..
+#...#..@..#..
+#######.#.#..
+......#...#..
+......#####..
+
+message level 102 of 155
+
+###########
+#OOOO#....#
+#..#...**.#
+#..P..##..#
+#.....##*.#
+######..*.#
+.....#....#
+.....######
+
+message level 103 of 155
+
+..#####.
+..#.O.##
+###.*..#
+#.O.*#P#
+#.#*.O.#
+#..*.###
+##.O.#..
+.#####..
+
+message level 104 of 155
+
+....#####
+#####...#
+#....*..#
+#..*#*#P#
+###.#...#
+..#.OOO.#
+..###..##
+....#..#.
+....####.
+
+message level 105 of 155
+
+.####.####.
+##..###..##
+#...#.#...#
+#..@O.O@..#
+###*...*###
+.#...P...#.
+###*...*###
+#..@O.O@..#
+#...#.#...#
+##..###..##
+.####.####.
+
+message level 106 of 155
+
+.########.
+.#......#.
+.#P...*.#.
+##.###*.#.
+#.OOOOO###
+#.*.*.*..#
+######.#.#
+.....#...#
+.....#####
+
+message level 107 of 155
+
+########
+#......#
+#.*@@@.#
+#.@..@.#
+#.@..@.#
+#.@@@O.#
+#.....P#
+########
+
+message level 108 of 155
+
+####.....#####.
+#..###...#...##
+#....#...#*.*.#
+#OO#.#####.#..#
+#..P....#.*.*.#
+#OO#.........##
+##...#########.
+.#####.........
+
+message level 109 of 155
+
+..#######
+#.#.....#
+#.#.#.#.#
+..#.P.*.#
+###.###.#
+#...###.#
+#.*..##O#
+##.*..#O#
+.##.*..O#
+#.##.*#O#
+##.##.#O#
+###.#...#
+###.#####
+
+message level 110 of 155
+
+..####...
+..#..#...
+..#.*####
+###O.O..#
+#.*.#.*.#
+#..O.O###
+####*.#..
+...#.P#..
+...####..
+
+message level 111 of 155
+
+######...
+#....####
+#....OOO#
+#....OOO#
+######..#
+..#..#..#
+..#.**.##
+..#.P*..#
+..#.**..#
+..##.*#.#
+...#....#
+...######
+
+message level 112 of 155
+
+.#####....
+##...####.
+#..***..#.
+#.#...*.#.
+#...*##.##
+###..#O..#
+..#..#...#
+.#####.###
+.#...#.##.
+.#.POOOO#.
+.#......#.
+.#...#..#.
+.########.
+
+message level 113 of 155
+
+...#####......
+..##...#......
+###..#.#......
+#....O.#......
+#..##.#####...
+#..O.O.#..##..
+#..#.P.*...###
+#####O.#..*..#
+....####..*..#
+.......##.*.##
+........#..##.
+........#..#..
+........####..
+
+message level 114 of 155
+
+######.....
+#....###...
+#..#.*.#...
+#..*.P.#...
+##.##.#####
+#..#OOOOOO#
+#.*.*.*.*.#
+##...######
+.#####.....
+
+message level 115 of 155
+
+....#####...
+#####...####
+#.....#....#
+#..#OOOOO..#
+##..##.#.###
+.#**P***.#..
+.#.....###..
+.#######....
+
+message level 116 of 155
+
+.....#####
+...###...#
+####OOOOO#
+#.P*****.#
+#.....#.##
+#####...#.
+....#####.
+
+message level 117 of 155
+
+.####.####.
+.#..###..##
+.#......P.#
+##OO###...#
+#......#..#
+#OOO#*..#.#
+#.##.**.*.#
+#..*....###
+####..###..
+...####....
+
+message level 118 of 155
+
+.#####....
+##...##...
+#..*..##..
+#.*.*..##.
+###*#.O.##
+..#.#.O..#
+.##.##O..#
+.#.P..O.##
+.#...#..#.
+.########.
+
+message level 119 of 155
+
+..######.
+..#....##
+.##.##..#
+.#.**.#.#
+.#.P*.#.#
+.#....#.#
+####.#..#
+#..OOO.##
+#.....##.
+#######..
+
+message level 120 of 155
+
+......####.
+#######..#.
+#.*......##
+#.*#####..#
+#..P#..#..#
+##.##OO...#
+#..#.OO####
+#.*..###...
+#.*###.....
+#..#.......
+####.......
+
+message level 121 of 155
+
+.######....
+.#.O..#....
+##*O#.#....
+#..@..#....
+#.OO###....
+##*.#.#####
+##.##.#...#
+#..####.#.#
+#...P.*.*.#
+##..#.....#
+.##########
+
+message level 122 of 155
+
+#####......
+#...###....
+#.#*..#....
+#.*...#....
+#.*.*.#....
+#.*#..#....
+#..P###....
+##.########
+#......OOO#
+#.........#
+########OO#
+.......####
+
+message level 123 of 155
+
+########.......
+#......#.......
+#.*.**.########
+#####.P##O.O..#
+....#*..#.O...#
+....#...#O.O.##
+....#*#.##.#.#.
+....#........#.
+....#..###..##.
+....#..#.####..
+....####.......
+
+message level 124 of 155
+
+##############
+#......#.....#
+#.*P**.#.O.OO#
+##.##.###.##.#
+.#.#.......#.#
+.#.#...#...#.#
+.#.#########.#
+.#...........#
+.#############
+
+message level 125 of 155
+
+......#####..
+......#...##.
+......#.*..#.
+########.#P##
+#.O..#.*.*..#
+#........*#.#
+#OOO#####...#
+#####...#####
+
+message level 126 of 155
+
+.###########
+##OOOOOOO..#
+#.*******P.#
+#...#.#.#.##
+#.#.#.....#.
+#...#######.
+#####.......
+
+message level 127 of 155
+
+##.####...
+####..####
+.#.*.*O..#
+##.#..O*.#
+#...##O###
+#..*..O.#.
+#.P.#...#.
+#..######.
+####......
+
+message level 128 of 155
+
+..#########
+###...#...#
+#.@.*.O.O.#
+#...*.##.##
+####@#...#.
+.#..P..###.
+.#...###...
+.#####.....
+
+message level 129 of 155
+
+..#########
+###.P.#...#
+#.@.*.@OO.#
+#...*.#...#
+####@#..###
+.#.....##..
+.#...###...
+.#####.....
+
+message level 130 of 155
+
+#####..#####
+#...####OO.#
+#.***......#
+#...*#..OO.#
+###.P#..##.#
+..#..##....#
+..##########
+
+message level 131 of 155
+
+#####..
+#...#..
+#.O.#..
+#OPO###
+##O#..#
+#..*..#
+#.*...#
+##**..#
+.#..###
+.#..#..
+.####..
+
+message level 132 of 155
+
+####......
+#.P###....
+#O@..#####
+#OO#**.*.#
+##.......#
+.#.#.##..#
+.#...#####
+.#####....
+
+message level 133 of 155
+
+.#######..
+.#..O.O###
+.#.O.O.O.#
+###.####.#
+#..P*..*.#
+#..**..*.#
+####...###
+...#####..
+
+message level 134 of 155
+
+........####
+#########..#
+#...##.*...#
+#..*...##..#
+###.#O.O#.##
+..#.#O.O#*##
+..#.#...#..#
+..#.P.*....#
+..#..#######
+..####......
+
+message level 135 of 155
+
+#######....
+#.....#####
+#.**#P##OO#
+#.#.......#
+#..*.#.#..#
+####.*..OO#
+...########
+
+message level 136 of 155
+
+.#######.
+.#.....#.
+##.###*##
+#O*...P.#
+#.OO.#*.#
+#O##..*.#
+#....####
+######...
+
+message level 137 of 155
+
+.......####..
+......##..###
+####..#..*..#
+#..####.*.*.#
+#...OO#.#*..#
+#..#...P..###
+##.#OO#.###..
+.#.##.#.#....
+.#......#....
+.########....
+
+message level 138 of 155
+
+..####......
+###..#......
+#....###....
+#.#.O.O#....
+#.P.OOO####.
+#.#.#.#...##
+#...#.**...#
+#####..*.*.#
+....##*.#.##
+.....#....#.
+.....######.
+
+message level 139 of 155
+
+.####...........
+##..####........
+#...OOO#........
+#...OOO#........
+#...#.##........
+#...#P.####.####
+#####.*...###..#
+....#..##*.*...#
+...###.....**..#
+...#.*..##...###
+...#....######..
+...######.......
+
+message level 140 of 155
+
+########.#####
+#..#...###...#
+#......##.*..#
+#O#.P.##.*..##
+#O#...#.*..##.
+#O#....*..##..
+#O.##.#####...
+##....#.......
+.######.......
+
+message level 141 of 155
+
+..########
+..#..#.O.#
+..#...O@O#
+..#..#.@.#
+####*##O##
+#......*.#
+#.*.##.*.#
+#...P#...#
+##########
+
+message level 142 of 155
+
+..####...
+..#..#...
+..#..####
+###*O*..#
+#..OPO..#
+#..*O*###
+####..#..
+...#..#..
+...####..
+
+message level 143 of 155
+
+####.....
+#..####..
+#.*...#..
+#.O#..#..
+#.*#.##..
+#.O..#...
+####.#...
+...#.#...
+.###.###.
+.#..*..#.
+##.#*#.##
+#.*.P.*.#
+#.OO#OO.#
+###...###
+..#####..
+
+message level 144 of 155
+
+...####.....
+.###..#####.
+.#.**.#...#.
+.#.*.O.O**##
+.#.OO.#O.*.#
+###.#@@.O..#
+#..O.@@#.###
+#.*.O#.OO.#.
+##**OPO.*.#.
+.#...#.**.#.
+.#####..###.
+.....####...
+
+message level 145 of 155
+
+...#####...
+...#.P.#...
+..##...##..
+###O***O###
+#..*OOO*..#
+#..*O#O*..#
+#..*OOO*..#
+###O***O###
+..##...##..
+...#...#...
+...#####...
+
+message level 146 of 155
+
+.#######.
+##..O..##
+#.O***O.#
+#.*O.O*.#
+#O*.P.*O#
+#.*O.O*.#
+#.O***O.#
+##..O..##
+.#######.
+
+message level 147 of 155
+
+.......#####
+########...#
+#O...O..P#O#
+#..###.....#
+##.*..#....#
+.#.*...#####
+.#.*#..#....
+.##.#..#....
+..#...##....
+..#####.....
+
+message level 148 of 155 &#x27;from (Original 18)&#x27;
+
+###########....
+#..O..#...#....
+#.#O..P...#....
+#..#OO#.#######
+##..##.**.*.*.#
+.##...........#
+..#############
+
+message level 149 of 155 &#x27;from (Boxxle 43)&#x27;
+
+.####.....
+##..###...
+#P*...#...
+###.*.#...
+.#..######
+.#..*OOOO#
+.#..#.####
+.##.#.#...
+.#.*#.#...
+.#....#...
+.#..###...
+.####.....
+
+message level 150 of 155 &#x27;from (Original 47)&#x27;
+
+.....####......
+.#####..#......
+.#.....*#######
+##.##.OO#..OOO#
+#.*.**#*..P...#
+#........###..#
+#######..#.####
+......####.....
+
+message level 151 of 155 &#x27;from (Original 47)&#x27;
+
+...####.....
+...#..#.....
+.###..#.....
+##..*.#.....
+#...#.#.....
+#.#**.######
+#.#...#...O#
+#..*..P...O#
+###..####OO#
+..####..####
+
+message level 152 of 155
+
+######.####....
+#.....#....#...
+#O##..#*##..#..
+#...#.....#..#.
+#*..#.###..#..#
+#.#......#..#.#
+#.#.####..#.#.#
+#O.P....*.@.O.#
+###############
+
+message level 153 of 155
+
+#############
+#O#.P#..#...#
+#O#**...#.*.#
+#O#..#.*#...#
+#O#.*#..#.*##
+#O#..#.*#..#.
+#O#.*#..#.*#.
+#OO..#.*...#.
+#OO..#..#..#.
+############.
+
+message level 154 of 155 &#x27;Take the long way home.&#x27;
+
+.############################
+.#..........................#
+.#.########################.#
+.#.#......................#.#
+.#.#.####################.#.#
+.#.#.#..................#.#.#
+.#.#.#.################.#.#.#
+.#.#.#.#..............#.#.#.#
+.#.#.#.#.############.#.#.#.#
+.#.#.#.#.#............#.#.#.#
+.#.#.#.#.#.############.#.#.#
+.#.#.#.#.#..............#.#.#
+.#.#.#.#.################.#.#
+.#.#.#.#..................#.#
+##*#.#.####################.#
+#O.P.#......................#
+#############################
+
+message level 155 of 155 &#x27;The Dungeon&#x27;
+
+....######...............####.
+#####@#..#################..##
+#...###......................#
+#........########..####..##..#
+###.####.....#..####..####..##
+#@#.#.O#.#.#.#.....#.....#...#
+#@#.#..#.....#.##..#.##..##..#
+###....###.###..#.##..#.##..##
+.#...#.#@#......#.....#.#....#
+.#...#.###..#####..####.#....#
+.#####...#####..#######.######
+.#...#.#.#@@#...............#.
+##.#.#...#@@#..#######..##..#.
+#....#########..#....#####.###
+#.#.............#.*........#@#
+#...#########..###.P#####..#@#
+#####.......####.####...######
+
+message congratulations!
+</pre></details>
+</div><div class="card">
+  <h2>04_05_02_03+shrink_h+command:again</h2>
+  <div class="key">cell 04_05_02_03 &middot; iteration 228 </div>
+  <div class="shots"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJYAAADSCAIAAAAnqq7PAAACjklEQVR42u3dQWrCQBSA4TfFTS9Q6BXcuPACbgteQOvx2hsIPUcWeoheoMt0nwiJYSYm8fuWUkT680IY8zB9r9dxv5+318YrH79/kYN3vvedX4KZk1BCJETCZ5dOu63/gilEQiSUEAl5nFX7zM0p5bze2RS6kCIhEkpIOCPFFCKhhEiIhETOM9JwJhmeI8WFFAklREJGk8ptNp03G/9fU4iEEiIhEtJl1b63jEyneZhCJJQQCZGQx242nd/9e00hEkqIhEhInjNS55+mEAmRUEIkZI6bTc5ITSESSoiESEifO9I5fuh9VRW6i/68Xhqv1PWQT5hS85XD4WgKkVBCJERCFrPZVO4z15fue8uI9kt1533s8WgKkVBCJERClrPZNObvTPW5/+z3N6YQCSVEQiRkOZtN5T7zrYPMad1/mkIXUiREQiS02TSFzaZyn7n9Hf2t50jrQc+RmkIklBAJkZDlbDa19496uTZf+IohO0qmEAmRUEIkxGZTv6c9++g+7azrNGjX3nOkSCghEiIhfrPJFCIhEiKhhNhswhQioYRIiIQ8z282lfqWfMzv302hCykSIiES2myajzS7O1tTiIQSIiESsuzNply/9WmzCRdSJJQQCbHZhCmUEAmREAmdkYbNJlOIhEgoIRJisynyf/9uswkJkRAJJcRmUy6Hcj/JefOX7U0hEiKhhEiIzSZMoYRIiIRIaLMpbDaZQiREQgmREJtNmEIJkRAJkdBm02R/s8kUIiESIqGE2Gxq2ldVoXvdyPSk6zLe2RS6kCIhEkrIzKXTbuu/YAqREAklREJiiZtN4fxzlHc2hS6kSIiEEhLOSDGFSCghEiIhMcXNpnDaGZ4jxYVUQiREQjr9Azm+8DdGhgOGAAAAAElFTkSuQmCC" alt="level 0"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAADSCAIAAABsAn0iAAADdUlEQVR42u3dMW7UQBSA4Weg4QJIe4EUTrFFLpAWiQs4yfG85AIrcY4UuOACSFyAKjIdQusIeS2P7Rl/X4nARJtfMxlmH1ud6jqu9+3Tx4tf+fzrd8zBk6998vl4jDTeBYgDcSAOxMGKqqf7O69C1l4PN1YObCuIA3EgDkr0Yfhv9W438nry+WDlwLaCOBAH4iDcrRDuVkAciANxIA5itbuVcJeR1ZPdrWBbQRyIA3FQ6mkl3aMfu27KHxv8oXbwW5qmmeUrTPdz/vDJX15eEv1d05485hxk5cC2gjgQB+Jg3dPK8KfWmOkWYHju6PspT66qEl7ohK9zsq/QyoFtBXEgDsRBqVP2rVf3v6/h9t+ZZuVAHIgDcSAOtn+3MvHf8zsv73Wv4ZL3JlYObCuIA3EgDvY8Zd8W+p6umOluZfvz+1YObCuIA3EgDkqdso/oE82tPD9n+Eo3D5Hb/L6VA3EgDsSBOCh1yr7/PuZupZpwxhn3nCnnqTdPS8meHBuf37dyYFtBHIgDcbCfz7IfczYZ93tYYn7fyoE4EAfiQByUOmX/MOrGwdkkNju/b+VAHIgDcSAOSp2yH75f6625lX6mz1tJd8bpdzu/b+XAtoI4EAfioNQp+1N9e/ErX2+n/BR9qi9/ij4fj75zVg7EgTgQB+KgdNXT/V12X/Tr4cZ37q/3P39YObCtIA7EgTgIU/axic9YH/4vvmHK3pQ9thXEgTgQB+FuJdythLsVbCsgDsSBOIiMp+wj2f2LuxVT9thWEAfiQBzs4bQy18T6kp+xPu3Jo85B5vetHIgDcSAOxMFWVE3TRG7vUArvMfNOMGwriANxIA7C/2AcG5z+DvP7puyxrSAOxIE4CHcr4W4l3K2AOBAH4kAcROF3K2F+35Q9thXEgThAHGzgtGJ+/1+PXZfqa65rKwe2FcSBOBAHTisbMTwdrPucUU8eHFb6fsqTq2q5V8PKgW0FcSAOxIHTSuxgfr81ZY9tBXEgDhAH7lZi8XuTMbr8Xg0rB+JAHIgDceC0EjuY329HvKfLlD22FcSBOBAH5H5ayXF+/zRpFj7dCcvKgTgQB+JAHMSOP28lRzl+RoyVA3EgDsSBOAh3KzuQ4/x+uidbORAH4kAciINwtxLuVqwciANxIA7EAeFuJcqa30/3ZCsHthXEgTgQB6v6A2AwVUXom6jHAAAAAElFTkSuQmCC" alt="level 1"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAWgAAAC0CAIAAAA2DCFiAAAD80lEQVR42u3dMU4bQRQG4H8DTS4QyRegcIotuAApkXIBO+R2EC5gKedwAQUXQMoFUqFNESmKbEuYlWeWsb+vROHJWYZfM9hvXnc3n+ftfn76uPGV61+/cwgqv5/Kq75PGV/Xa8+56cofAvBGggMQHIDgAAQHcAy6m6tLT4GdXmYXhSqfPT95vHYcgOAAEByA4AAEB9Ca8+1Pofvcvsp/rWallp1V13plOw5AcACCAxAcgOAAolcFolcFOw5AcACCAxAcgOAAyJ69KvEpfZWT1O1V8ROMuSqAowqA4AAEByA4gPfuvFzpQ806L/e3/eOoPG7yexqcKW/VvZ+1YccBCA5AcACCAxAcQNwAljbujyJu07LqJl0bdhyA4AAEByA4AMEBxA1gSVqYdY7J71bdtGvDjgMQHIDgAAQHIDiA6FWJroHoR4heFWvDjgMQHIDgAAQHIDgAUnVava6BTNSPcMpT1K26OmvDjgNwVAEEByA4AMEBxLT6Rtzf/2juNS8Wy5jP3k7lbeMmv+/zDsW3x4eNrwzDmFfYdVuvef7ZjgNwVAEEByA4AAQHcDjn23/1zYH6COrqRn3XMGllWlLuN2V4eP39kV3rcHj1vZjvX0q9ZjsOwFEFEByA4AAEBxA3gCUxNxxSdfJ7MuY9lH3+jWn1gKMKIDgAwQEgOIBU71WZug8F0kSvyrjflOVevU7diH6ocq/ZjgMQHIDgAAQHIDiA6FVJu3PDhwYrE5Pfs+u+r11zVYYRc1Xu5qbVA44qgOAABAeA4ABy4tPq0+BM+ZKzzh/94P77CS4KVV71/WHqbL3buOg3V91yOe7/vvWldew4AEcVQHAAggNAcAAxrT6NzZQv+Jwf9+l0yIhOhx3Pq8HKcWtZTKsHHFUAwQEIDgDBAcS0+ph1ntx6uFRfdXYcgOAABAcgOADBAUSvSkyrT3OzzuMCMEyrBxxVAMEBIDgAwQHEtPoczUz5cs/5tuK9WC1Wjl4V0+oBRxVAcACCA0BwADndafXlZsq36G4+T5m/nOdA/RFVK6/XnoYdB+CoAggOQHAACA6gjO7m6rJQ6ZfZhef7z9nzk4eAHQcgOAAEByA4AMEBxLT6mFafqeaGR+eFytUr23EAggMQHIDgAAQHEL0q0asSvSpgxwEIDkBwAIIDEBwAOeZp9TnZueHRZ6Fy9cp2HICjCiA4AMEBCA7gJHVmnbdeedX31jF2HIDgAAQHgOAABAeQlm8Aow43rWHHAQgOQHAACA5AcABpfFp99KFUqeymNew4AMEBCA4AwQEIDiB6VYheFew4AMEBCA4AwQEIDiBHP60+uk6qVNargh0HIDgAwQEgOADBAVTxB3L46zwhYFaYAAAAAElFTkSuQmCC" alt="level 2"></div>
+  <table class="m"><tr><td>fitness</td><td>0.836</td></tr><tr><td>novelty</td><td>1.76</td></tr><tr><td>rules / objects</td><td>23 / 10</td></tr><tr><td>mean solution</td><td>16.7 moves</td></tr><tr><td>levels solved</td><td>100%</td></tr></table>
+  <div class="ops"><span class="tag">shrink_h</span><span class="tag">command:again</span></div>
+  <div class="near">nearest human games: Transparency, Magnet_Jack, FACED</div>
+  <details><summary>source (269 lines)</summary><pre>title Transparency
+author pickten
+homepage www.puzzlescript.net
+run_rules_on_level_start
+color_palette 5
+
+=======
+OBJECTS
+=======
+
+Background
+darkgray darkgray
+11111
+01111
+11101
+11111
+10111
+
+
+Target
+yellow
+.....
+.000.
+.000.
+.000.
+.....
+
+Wall
+BROWN DARKBROWN
+00010
+11111
+01000
+11111
+00010
+
+FullPlayer
+white blue
+10001
+01.10
+0.1.0
+01.10
+10001
+
+TransPlayer
+white pink
+10001
+01.10
+0.1.0
+01.10
+10001
+
+Crate
+blue Yellow
+00000
+0...0
+0...0
+0...0
+00000
+
+
+InnerCrate
+pink Yellow
+00000
+0...0
+0...0
+0...0
+00000
+
+
+FallTurn
+transparent
+
+MoveTurn
+transparent
+
+LastTurn
+transparent
+
+======
+LEGEND
+======
+
+. = Background
+# = Wall
+P = FullPlayer
+* = Crate
+@ = Crate and Target
+8 = InnerCrate
+2 = InnerCrate and Target
+O = Target
+
+Player = FullPlayer or TransPlayer
+
+Thing = Crate or Wall or InnerCrate
+Anything = Thing or Player
+FThing = Crate or Wall or FullPlayer
+TThing = InnerCrate or Wall or TransPlayer
+
+FPThing = Crate or Wall
+TPThing = InnerCrate or Wall
+
+
+TType = FallTurn or MoveTurn or LastTurn
+
+Cratelike = Crate or InnerCrate
+
+======
+SOUNDS
+======
+
+Crate MOVE 36772507
+endlevel 83744503
+startgame 92244503
+
+===============
+COLLISIONLAYERS
+===============
+
+FallTurn
+MoveTurn
+LastTurn
+Background
+Target
+TransPlayer, InnerCrate
+FullPlayer, Wall, Crate
+
+=====
+RULES
+=====
+
+late [ TType ] -&gt; [  ]
+up [ up FullPlayer | Crate ] -&gt; [ up FullPlayer | up Crate ]
+up [ horizontal FullPlayer | Crate ] -&gt; [ horizontal FullPlayer | horizontal Crate ]
+[ &gt; FullPlayer | Crate ] -&gt; [ &gt; FullPlayer | &gt; Crate ]
+up [ up TransPlayer | InnerCrate ] -&gt; [ up TransPlayer | up InnerCrate ]
+up [ horizontal TransPlayer | InnerCrate ] -&gt; [ horizontal TransPlayer | horizontal InnerCrate ]
+[ &gt; TransPlayer | InnerCrate ] -&gt; [ &gt; TransPlayer | &gt; InnerCrate ]
+[ orthogonal Crate | stationary Crate ] -&gt; [ orthogonal Crate | orthogonal Crate ]
+[ orthogonal InnerCrate | stationary InnerCrate ] -&gt; [ orthogonal InnerCrate | orthogonal InnerCrate ]
+[ Player ] -&gt; [ Player FallTurn ]
+[ FallTurn ] [ moving Thing ] -&gt; [ MoveTurn ] [ moving Thing ]
+[ FallTurn ] [ stationary Cratelike ] -&gt; [ FallTurn ] [ down Cratelike ]
+[ &gt; FThing | stationary FThing ] -&gt; [ stationary FThing | stationary FThing ]
++ [ &gt; TThing | stationary TThing ] -&gt; [ stationary TThing | stationary TThing ]
++ [ FallTurn ] [ &gt; Cratelike Target ] -&gt; [ FallTurn ] [ stationary Cratelike Target ]
++ [ &gt; Cratelike | stationary Cratelike ] -&gt; [ stationary Cratelike | stationary Cratelike ]
++ [ FallTurn ] [ moving Crate | stationary Crate ] -&gt; [ FallTurn ] [ stationary Crate | stationary Crate ]
++ [ FallTurn ] [ moving InnerCrate | stationary InnerCrate ] -&gt; [ FallTurn ] [ stationary InnerCrate | stationary InnerCrate ] again
+[ TType no LastTurn ] -&gt; [ LastTurn ]
+[ moving AnyThing ] [ LastTurn ] -&gt; [ moving AnyThing ] [ MoveTurn ]
+[ action FullPlayer no TPThing ] -&gt; [ TransPlayer ]
+[ action TransPlayer no FPThing ] -&gt; [ FullPlayer ]
+[ TType no LastTurn ] -&gt; [  ] again
+
+=============
+WINCONDITIONS
+=============
+
+All Target on Cratelike
+
+======
+LEVELS
+======
+
+message level 1 of 10
+
+#####
+#....
+#.#P.
+#.*@.
+#.O@.
+#....
+#####
+
+message level 2 of 10
+
+#####.
+#O..##
+#P**.#
+##...#
+.##..#
+..##O#
+...###
+
+message level 3 of 10
+
+######.#####
+#....###...#
+#.**.....#P#
+#.*.#OOO...#
+#...########
+#####.......
+
+message level 4 of 10
+
+......#####
+......#O..#
+......#O#.#
+#######O#.#
+#.P.*.*.*.#
+#.#.#.#.###
+#.......#..
+#########..
+
+message level 5 of 10
+
+..######
+..#.OOP#
+..#.**.#
+..##.###
+...#.#..
+...#.#..
+####.#..
+#....##.
+#.#...#.
+#...#.#.
+###...#.
+..#####.
+
+message level 6 of 10
+
+..####...
+###..####
+#.....*.#
+#.#..#*.#
+#.O.O#P.#
+#########
+
+message level 7 of 10
+
+####..
+#.O#..
+#..###
+#2P*.#
+#..*.#
+#..###
+####..
+
+message level 8 of 10
+
+########
+#......#
+#.O2@*P#
+#......#
+#####..#
+....####
+
+message level 9 of 10
+
+.#######
+.#.....#
+.#.O8O.#
+##.*P*.#
+#..O*O.#
+#......#
+########
+
+message level 10 of 10
+
+#######
+#.....#
+#.O8O.#
+#.8O*.#
+#.O*O.#
+#.8O*.#
+#..P..#
+#######
+
+message congratulations!
+</pre></details>
+</div><div class="card">
+  <h2>blank</h2>
+  <div class="key">cell 01_05_02_02 &middot; iteration 0 </div>
+  <div class="shots"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAADSCAIAAABsAn0iAAADoElEQVR42u3dIXIUQRSH8TdUDBfgBjFr4QCxuQAiCTIWYlZhQGMCVyBrEFhsLhCL4QZcADn4na3KbFf3bHfP73Oktiap4avXeXn97x52m00cz69XL/e+cvn3X+Sg1ydfv/0drfEiAHKAHCAHyIETMtxcvPYWFuDNz3d7X7n7dpflyffv7ws9WeUAOUAOkAPkwGm7lelsxdykxJPTZivlOpE5T1Y5YFkBOUAOkANmK2vg4eJJ5YBlBeQAOQBy4BjO0iYF5i/HPvkh6pqbqBywrIAcIAfIgWhwJ1gDufJPpR7c5NtQOUAOkAPkADlgJ1jUkis/1K18SXrQdu/fLb4NKXtYVkAOkAPkgJR91JMrn9WtbBM+0+TbkLKHZQXkADlADpitRDW58gZnK1L2sKyAHCAHQA5ENSn7JXPlhyYpKfTxNqTsYVkBOUAOkAMhZd9drnz3Y+McM5UDlhWQA+QAOSBlH/Xlym8e3T6jcoAcIAfIAXJAyr7GXPl0trLmm2VUDpAD5AA5QA5I2deD2YrKAXKAHCAHyIGQso+I+vaGlXsbIbcCywrIAXIA5EDUkrK/+lgqZT9cx4JnI8dqTwZQOWBZATlADpADJ+Vs+ltrZPpb/dWBLiPlVpRxt53xmTxdT/3TnzlvPtdzVA5YVkAOkAPkQG07wcrtPopZ96Q839GM45jle4+Thmr4PBTqRNJ6kzlPLvc/qHKAHCAHyAFyIDpN2X+/fSo0Wzm0Eyytfxk62AlW7mQAlQPkADlADpAD0WnKPm1PV8ZGLEtHs+aTAVQOWFZADpAD5MBpu5WC3cKfWDALP2cH1/OfGc+nv9bvdxAfzvO8jVxdj8oBcoAcIAfIgbATLPq/y37araSdPzZN/X+9LPUz2wkGywrIAXKAHHCXfazgLvty3UrapGnOzzw9wVjKHpYVkAPkADlgthLd3WVfW7cSZiuwrIAcIAfIgZCyD3fZZ7zJRcoelhWQAyAHyIGo+C77tJ1g0em98JHpxsYln6xywLICcoAcIAek7KOaSUq5XVUqB8gBcoAcADkgZV9nYj0anMioHCAHyAFygByQso8V3AuvcoAcIAfIAZADIWVfZWI95FZgWQE5QA6AHIhaUva97o9az5kDKgfIAXKAHCAHet0Jhmj8zAGVA+QAOUAOkAO9puzDRCbaPnNA5YBlBeQAOUAOmK2sgRbPHFA5QA6QA+QAORCdpuzD/KXxMwdUDpAD5AA5QA6clP/OXPOwfoW47wAAAABJRU5ErkJggg==" alt="level 0"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAADSCAIAAABsAn0iAAADf0lEQVR42u3dIXYTQRjA8S88DBfgBpi15QCxvUAFKVfgxcQXXRO4AllTgcX2ArUx3ACBRQaHyD7KZpiZzG5+P1kx9G3/b6fb2Y8s+q6L0317/eroK9c/fkUOVm5n5RcBfyEOxIE4EAc1LG6XV64C7hyIA3EgDsRBe14O/6LuDMLK7hyIA3EgDsRBOFvBnQNxIA7EgTggxp6thBMHK7tzYFtBHIgDcdDA00q5pVc3+yzr7Ip9h/NYuX/o3DmwrSAOxIE4CG+CneLt1/dHX1l/XmdZeftha+U/bh+v3DmwrSAOxIE4mOXTyvB/MM719lHa2YonkVNXHp6tmLLHtoI4EAfiwNnK83bLJ9e3Amcr2FYQB+JAHIQp+zjtr/c75yZVVi73E3TnwLaCOBAH4iAaexMs1++6uabsI9Nc+ajveV/qe467mNzVcOfAtoI4EAfiwJR9NPPu0+7x+O21Q590WVfHX9n+NGWPbQVxIA4QB9HIZ9mvkn4bH/N+VLnv+cvhkOWyHt4Nnl8+LiZ3Ndw5EAfiQByIgzBlH+2erUSkPb8sqr0J5mwF2wriQByIgzBlH61M2df8nkc9iSQ90Ziyx7aCOBAHiIP5Tdkf3kzwQn8PU/bYVhAH4gBxMPsp++HTynCqfdQ6/Zh5+fuklTdHX/l0bcoe2wriQBwgDmL2U/bnthl85d9PNOsJ/p8D7hyIA3EgDsTBeZ9Whr/Zxoi3hspp79kkEp5Nal6Ncj9Bdw7EgTgQB+LAlP3/S/tUlLR3unIxZY9tBXEgDhAHzz+t1PzHcj2bpE2pnPepZ4qnSO4ciANxIA7EQftvgkXS3+rrTqDcZ5pAKTVlX+5qlPsJunNgW0EciANxYMq+zG/1m2LzJqbssa24BIgDcSAOTNlHk7PwpuyxrbgEiANxIA5M2UfGd7rClL0pe2wriANxIA5M2Ufhc5O7mNwnzpuyx7aCOBAHiINL+Cz7cmc0U1zZZ9ljW0EciANxMNenlb7rotCU/c3ek0iFlfuHzpQ9thXEgTgQB85WTrJbPrm+FThbwbaCOBAH4iBM2Ue7U/aXvLIpe2wriANxIA7iYt4Ey/W7bmT6jEIrn2tldw5sK4gDcSAO5vomGO4ciANxgDgQB9HkZ9mH042Jr+zOgTgQB+JAHISzFdw5EAfiQByIA6LelH04ywhzK9hWEAeIA3GQ7Dd4HejebbrcdQAAAABJRU5ErkJggg==" alt="level 1"></div>
+  <table class="m"><tr><td>fitness</td><td>0.820</td></tr><tr><td>novelty</td><td>0.28</td></tr><tr><td>rules / objects</td><td>1 / 5</td></tr><tr><td>mean solution</td><td>24.5 moves</td></tr><tr><td>levels solved</td><td>100%</td></tr></table>
+  <div class="ops"><span class="tag">seed</span></div>
+  <div class="near">nearest human games: blank, sokoban_basic_debug, sokoban_basic</div>
+  <details><summary>source (106 lines)</summary><pre>
+title Simple Block Pushing Game
+author David Skinner
+homepage www.puzzlescript.net
+
+========
+OBJECTS
+========
+
+Background
+lightgreen green
+11111
+01111
+11101
+11111
+10111
+
+Target
+darkblue
+.....
+.000.
+.0.0.
+.000.
+.....
+
+Wall
+brown darkbrown
+00010
+11111
+01000
+11111
+00010
+
+Player
+black orange white blue
+.000.
+.111.
+22222
+.333.
+.3.3.
+
+Crate
+orange
+00000
+0...0
+0...0
+0...0
+00000
+
+=======
+LEGEND
+=======
+
+. = Background
+# = Wall
+P = Player
+* = Crate
+@ = Crate and Target
+O = Target
+
+=======
+SOUNDS
+=======
+
+Crate move 36772507
+
+================
+COLLISIONLAYERS
+================
+
+Background
+Target
+Player, Wall, Crate
+
+======
+RULES
+======
+
+[ &gt; Player | Crate ] -&gt; [ &gt; Player | &gt; Crate ] 
+
+==============
+WINCONDITIONS
+==============
+
+all Target on Crate
+
+=======
+LEVELS
+=======
+
+####..
+#.O#..
+#..###
+#@P..#
+#..*.#
+#..###
+####..
+
+######
+#....#
+#.#P.#
+#.*@.#
+#.O@.#
+#....#
+######
+
+</pre></details>
+</div><div class="card">
+  <h2>01_06_02_02+duplicate+swap_object:player-&gt;Crate</h2>
+  <div class="key">cell 01_06_02_03 &middot; iteration 103 </div>
+  <div class="shots"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAADSCAIAAABsAn0iAAADoElEQVR42u3dIXIUQRSH8TdUDBfgBjFr4QCxuQAiCTIWYlZhQGMCVyBrEFhsLhCL4QZcADn4na3KbFf3bHfP73Oktiap4avXeXn97x52m00cz69XL/e+cvn3X+Sg1ydfv/0drfEiAHKAHCAHyIETMtxcvPYWFuDNz3d7X7n7dpflyffv7ws9WeUAOUAOkAPkwGm7lelsxdykxJPTZivlOpE5T1Y5YFkBOUAOkANmK2vg4eJJ5YBlBeQAOQBy4BjO0iYF5i/HPvkh6pqbqBywrIAcIAfIgWhwJ1gDufJPpR7c5NtQOUAOkAPkADlgJ1jUkis/1K18SXrQdu/fLb4NKXtYVkAOkAPkgJR91JMrn9WtbBM+0+TbkLKHZQXkADlADpitRDW58gZnK1L2sKyAHCAHQA5ENSn7JXPlhyYpKfTxNqTsYVkBOUAOkAMhZd9drnz3Y+McM5UDlhWQA+QAOSBlH/Xlym8e3T6jcoAcIAfIAXJAyr7GXPl0trLmm2VUDpAD5AA5QA5I2deD2YrKAXKAHCAHyIGQso+I+vaGlXsbIbcCywrIAXIA5EDUkrK/+lgqZT9cx4JnI8dqTwZQOWBZATlADpADJ+Vs+ltrZPpb/dWBLiPlVpRxt53xmTxdT/3TnzlvPtdzVA5YVkAOkAPkQG07wcrtPopZ96Q839GM45jle4+Thmr4PBTqRNJ6kzlPLvc/qHKAHCAHyAFyIDpN2X+/fSo0Wzm0Eyytfxk62AlW7mQAlQPkADlADpAD0WnKPm1PV8ZGLEtHs+aTAVQOWFZADpAD5MBpu5WC3cKfWDALP2cH1/OfGc+nv9bvdxAfzvO8jVxdj8oBcoAcIAfIgbATLPq/y37araSdPzZN/X+9LPUz2wkGywrIAXKAHHCXfazgLvty3UrapGnOzzw9wVjKHpYVkAPkADlgthLd3WVfW7cSZiuwrIAcIAfIgZCyD3fZZ7zJRcoelhWQAyAHyIGo+C77tJ1g0em98JHpxsYln6xywLICcoAcIAek7KOaSUq5XVUqB8gBcoAcADkgZV9nYj0anMioHCAHyAFygByQso8V3AuvcoAcIAfIAZADIWVfZWI95FZgWQE5QA6AHIhaUva97o9az5kDKgfIAXKAHCAHet0Jhmj8zAGVA+QAOUAOkAO9puzDRCbaPnNA5YBlBeQAOUAOmK2sgRbPHFA5QA6QA+QAORCdpuzD/KXxMwdUDpAD5AA5QA6clP/OXPOwfoW47wAAAABJRU5ErkJggg==" alt="level 0"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAADSCAIAAABsAn0iAAADf0lEQVR42u3dIXYTQRjA8S88DBfgBpi15QCxvUAFKVfgxcQXXRO4AllTgcX2ArUx3ACBRQaHyD7KZpiZzG5+P1kx9G3/b6fb2Y8s+q6L0317/eroK9c/fkUOVm5n5RcBfyEOxIE4EAc1LG6XV64C7hyIA3EgDsRBe14O/6LuDMLK7hyIA3EgDsRBOFvBnQNxIA7EgTggxp6thBMHK7tzYFtBHIgDcdDA00q5pVc3+yzr7Ip9h/NYuX/o3DmwrSAOxIE4CG+CneLt1/dHX1l/XmdZeftha+U/bh+v3DmwrSAOxIE4mOXTyvB/MM719lHa2YonkVNXHp6tmLLHtoI4EAfiwNnK83bLJ9e3Amcr2FYQB+JAHIQp+zjtr/c75yZVVi73E3TnwLaCOBAH4iAaexMs1++6uabsI9Nc+ajveV/qe467mNzVcOfAtoI4EAfiwJR9NPPu0+7x+O21Q590WVfHX9n+NGWPbQVxIA4QB9HIZ9mvkn4bH/N+VLnv+cvhkOWyHt4Nnl8+LiZ3Ndw5EAfiQByIgzBlH+2erUSkPb8sqr0J5mwF2wriQByIgzBlH61M2df8nkc9iSQ90Ziyx7aCOBAHiIP5Tdkf3kzwQn8PU/bYVhAH4gBxMPsp++HTynCqfdQ6/Zh5+fuklTdHX/l0bcoe2wriQBwgDmL2U/bnthl85d9PNOsJ/p8D7hyIA3EgDsTBeZ9Whr/Zxoi3hspp79kkEp5Nal6Ncj9Bdw7EgTgQB+LAlP3/S/tUlLR3unIxZY9tBXEgDhAHzz+t1PzHcj2bpE2pnPepZ4qnSO4ciANxIA7EQftvgkXS3+rrTqDcZ5pAKTVlX+5qlPsJunNgW0EciANxYMq+zG/1m2LzJqbssa24BIgDcSAOTNlHk7PwpuyxrbgEiANxIA5M2UfGd7rClL0pe2wriANxIA5M2Ufhc5O7mNwnzpuyx7aCOBAHiINL+Cz7cmc0U1zZZ9ljW0EciANxMNenlb7rotCU/c3ek0iFlfuHzpQ9thXEgTgQB85WTrJbPrm+FThbwbaCOBAH4iBM2Ue7U/aXvLIpe2wriANxIA7iYt4Ey/W7bmT6jEIrn2tldw5sK4gDcSAO5vomGO4ciANxgDgQB9HkZ9mH042Jr+zOgTgQB+JAHISzFdw5EAfiQByIA6LelH04ywhzK9hWEAeIA3GQ7Dd4HejebbrcdQAAAABJRU5ErkJggg==" alt="level 1"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQ4AAAC0CAIAAADq9VVVAAADw0lEQVR42u3dMW4TQRQG4H+RGy7ADWjcwgHS5gIUSShpkRsqmlDTBK4Qu0lBS5sLpE3DDShoKU2FhLwRskc7u57195UrebSa9a8Zjd6+7XKd5mzulgW/+v7i+c6V85+/B7mfuY58+eYx/PXMFICogKiAqICoQKu6m183O5dWX1eDDH3zvtbIV/evPLkRvP72trn/Rr2RrSogKiAqICogKtCsrqwGbNoTjH4NmPquGiOX1YC1eLq1z8hWFbABA1EBUQFRgZzYCdi01ICNY332YBKsKiAqICogKiAq0L5FGqzhKatoUid26Mjrk6nvsqqADRiICogKiArMWrdZ6iqfpnu/+y7AOCNbVcAGDEQFRAVEBZrVXZ15ozBN9373TqhVBUQFRAVEBUQFyIE1YHq/x3cBVI5ZVcAGDEQFRAVEBaIGLHq/x3cBrCqAqICogKiAqEADFrrKp/He755g9AEDGzAQFRAVEBUg03TCb7GrPP/avqz2t/uR5r4LYFUBGzAQFRAVEBWItyAzh67yRs5/T8C6y6JxNrtXvpy3910AqwqICogKiAqICkQn/Myhq7yRM8oJWFkN2LTfBbCqgKiAqICogKhA1IBlDl3lyRGfgEUNGNiAgaiAqACiAjmuTvhrVVizG7l/ljWU4/8ugFUFbMBAVEBUQFQgOuGP2Am/XrfzFrv315uNi4+POuFbVcAGDEQFRAVEBeItyEzQCb/em24tdu+vNxu37x50wreqgKiAqICogKhA5vgW5GCd8IvONPY5KWrxnlcNzkY9Lc6GVQVEBUQFRAVEBaIGLON1wq9X59Ni9/4Wa8B0wgcbMBAVQFRAVCA64Weabuctdu+vNxvRCd+qAjZgICogKiAqMAeLHP27b32Xj0Ud2ns/Wo94z7nujXw90MjLWs+rrOKrcDaGmmerCogKiAqICogKsGvRr34p0x+nXvXUUz4X/erDDO653hPsnxmW1YD1T9LqzXO92bCqgA0YiAqICogKRCf8jNdVPkUnRfucOK0avOd6T/B2ux3kT7a92L3Sfep0wgcbMBAVQFRAVCA64eeAd+iGqqd6auRjv+eKT/C+/wTLzsS60eZZJ3ywAQNRAVEBUQEyi0742at6KkfVob3ePY/5BLPP6VbRKZlO+GADBqICiAqIClTTbZbL0b4kaGQjtzuyVQVswEBUQFRAVCDeggSrCiAqICogKiAqkNPqhB91R0ae0chWFRAVEBUQFRAViBowsKoAogKiAqICogI5rU74UWVk5OgDBjZggKiAqICowOT+ALq6bkjvfBMVAAAAAElFTkSuQmCC" alt="level 2"></div>
+  <table class="m"><tr><td>fitness</td><td>0.767</td></tr><tr><td>novelty</td><td>0.68</td></tr><tr><td>rules / objects</td><td>2 / 5</td></tr><tr><td>mean solution</td><td>28.7 moves</td></tr><tr><td>levels solved</td><td>100%</td></tr></table>
+  <div class="ops"><span class="tag">duplicate+swap_object:player-&gt;Crate</span></div>
+  <div class="near">nearest human games: Microban_I, Sokubunny_and_the_colored_Boxes, Pulling_Box_Sokoban</div>
+  <details><summary>source (1918 lines)</summary><pre>title Microban I
+author David W. Skinner
+homepage http://tiny.cc/davidskinner
+
+=======
+OBJECTS
+=======
+
+Background
+LIGHTGREEN GREEN
+11111
+01111
+11101
+11111
+10111
+
+
+Target
+DarkBlue
+.....
+.000.
+.0.0.
+.000.
+.....
+
+Wall
+BROWN DARKBROWN
+00010
+11111
+01000
+11111
+00010
+
+Player
+Black Orange White Blue
+.000.
+.111.
+22222
+.333.
+.3.3.
+
+Crate
+Orange Yellow
+00000
+0...0
+0...0
+0...0
+00000
+
+======
+LEGEND
+======
+
+. = Background
+# = Wall
+P = Player
+* = Crate
+@ = Crate and Target
+O = Target
+X = Player and Target
+
+======
+SOUNDS
+======
+
+Crate MOVE 36772507
+endlevel 83744503
+startgame 92244503
+
+===============
+COLLISIONLAYERS
+===============
+
+Background
+Target
+Player, Wall, Crate
+
+=====
+RULES
+=====
+
+[ &gt; Player | Crate ] -&gt; [ &gt; Player | &gt; Crate ]
+[ &gt; Crate | Crate ] -&gt; [ &gt; Crate | &gt; Crate ]
+
+=============
+WINCONDITIONS
+=============
+
+All Target on Crate
+
+======
+LEVELS
+======
+
+message level 1 of 155
+
+####..
+#.O#..
+#..###
+#@P..#
+#..*.#
+#..###
+####..
+
+message level 2 of 155
+
+######
+#....#
+#.#P.#
+#.*@.#
+#.O@.#
+#....#
+######
+
+message level 3 of 155
+
+..####...
+###..####
+#.....*.#
+#.#..#*.#
+#.O.O#P.#
+#########
+
+message level 4 of 155
+
+########
+#......#
+#.O@@*P#
+#......#
+#####..#
+....####
+
+message level 5 of 155
+
+.#######
+.#.....#
+.#.O*O.#
+##.*P*.#
+#..O*O.#
+#......#
+########
+
+message level 6 of 155
+
+######.#####
+#....###...#
+#.**.....#P#
+#.*.#OOO...#
+#...########
+#####.......
+
+message level 7 of 155
+
+#######
+#.....#
+#.O*O.#
+#.*O*.#
+#.O*O.#
+#.*O*.#
+#..P..#
+#######
+
+message level 8 of 155
+
+..######
+..#.OOP#
+..#.**.#
+..##.###
+...#.#..
+...#.#..
+####.#..
+#....##.
+#.#...#.
+#...#.#.
+###...#.
+..#####.
+
+message level 9 of 155
+
+#####.
+#O..##
+#P**.#
+##...#
+.##..#
+..##O#
+...###
+
+message level 10 of 155
+
+......#####
+......#O..#
+......#O#.#
+#######O#.#
+#.P.*.*.*.#
+#.#.#.#.###
+#.......#..
+#########..
+
+message level 11 of 155
+
+..######.
+..#....#.
+..#.##P##
+###.#.*.#
+#.OO#.*.#
+#.......#
+#..######
+####.....
+
+message level 12 of 155
+
+#####....
+#...##...
+#.*..#...
+##.*.####
+.###PO..#
+..#..O#.#
+..#.....#
+..#######
+
+message level 13 of 155
+
+####...
+#O.##..
+#OP.#..
+#O.*#..
+##*.###
+.#.*..#
+.#....#
+.#..###
+.####..
+
+message level 14 of 155
+
+#######
+#.....#
+#.#.#.#
+#O.*@P#
+#...###
+#####..
+
+message level 15 of 155
+
+.....###.
+######P##
+#....O@.#
+#...#...#
+#####*#.#
+....#...#
+....#####
+
+message level 16 of 155
+
+.####.....
+.#..####..
+.#.....##.
+##.##...#.
+#O.O#.P*##
+#...#.**.#
+#..O#....#
+##########
+
+message level 17 of 155
+
+#####.
+#.P.#.
+#OOO#.
+#***##
+#....#
+#....#
+######
+
+message level 18 of 155
+
+#######
+#.....#
+#O.O..#
+#.##.##
+#..*.#.
+###*.#.
+..#P.#.
+..#..#.
+..####.
+
+message level 19 of 155
+
+########
+#...OO.#
+#..P**.#
+#####.##
+...#..#.
+...#..#.
+...#..#.
+...####.
+
+message level 20 of 155
+
+#######..
+#.....###
+#..P**OO#
+####.##.#
+..#.....#
+..#..####
+..#..#...
+..####...
+
+message level 21 of 155
+
+####...
+#..####
+#.O.O.#
+#.**#P#
+##....#
+.######
+
+message level 22 of 155
+
+#####..
+#...###
+#O.O..#
+#...#.#
+##.#..#
+.#P**.#
+.#....#
+.#..###
+.####..
+
+message level 23 of 155
+
+#######
+#..@..#
+#.....#
+##.#.##
+.#*PO#.
+.#...#.
+.#####.
+
+message level 24 of 155
+
+#.#####
+..#...#
+###**P#
+#...###
+#.....#
+#.O.O.#
+#######
+
+message level 25 of 155
+
+.####..
+.#..###
+.#.**.#
+##OOO.#
+#..P*.#
+#...###
+#####..
+
+message level 26 of 155
+
+.#####
+.#.P.#
+.#...#
+###*.#
+#.OOO#
+#.**.#
+###..#
+..####
+
+message level 27 of 155
+
+######.
+#...O#.
+#.##.##
+#..**P#
+#.#...#
+#O..###
+#####..
+
+message level 28 of 155
+
+#####..
+#...#..
+#.P.#..
+#.**###
+##O.O.#
+.#....#
+.######
+
+message level 29 of 155
+
+.....#####.
+.....#...##
+.....#....#
+.######...#
+##.....#O.#
+#.*.*.P..##
+#.######O#.
+#........#.
+##########.
+
+message level 30 of 155
+
+####..
+#..###
+#.**.#
+#OOO.#
+#.P*.#
+#...##
+#####.
+
+message level 31 of 155
+
+..####.
+.##..#.
+##P*O##
+#.**..#
+#.O.O.#
+###...#
+..#####
+
+message level 32 of 155
+
+.####..
+##..###
+#.....#
+#O@@*P#
+#...###
+##..#..
+.####..
+
+message level 33 of 155
+
+#######
+#O.#..#
+#..*..#
+#O.*#P#
+#..*..#
+#O.#..#
+#######
+
+message level 34 of 155
+
+..####...
+###..####
+#.......#
+#P*@@@O.#
+#.......#
+#########
+
+message level 35 of 155
+
+..####.
+.##..#.
+.#O.*#.
+.#O*.#.
+.#O*.#.
+.#O*.#.
+.#O.*##
+.#...P#
+.##...#
+..#####
+
+message level 36 of 155
+
+####...........
+#..############
+#.*.*.*.*.*.P.#
+#.OOOOO.......#
+###############
+
+message level 37 of 155
+
+......###
+#####.#O#
+#...###O#
+#...*.#O#
+#.*..*..#
+#####P#.#
+....#...#
+....#####
+
+message level 38 of 155
+
+##########
+#........#
+#.##O###.#
+#.#.**.O.#
+#.O.P*##.#
+#####....#
+....######
+
+message level 39 of 155
+
+#####.....
+#...####..
+#.#.#.O#..
+#....*.###
+###.#*O..#
+#...#P...#
+#.#.######
+#...#.....
+#####.....
+
+message level 40 of 155
+
+.#####.
+.#...#.
+##...##
+#.***.#
+#.OXO.#
+#######
+
+message level 41 of 155
+
+#######.
+#.....#.
+#P***.##
+#..#OOO#
+##....##
+.######.
+
+message level 42 of 155
+
+...####
+...#..#
+...#P.#
+####*O#
+#...*O#
+#.#.*O#
+#....##
+######.
+
+message level 43 of 155
+
+.....####
+.....#.P#
+.....#..#
+######.O#
+#...*..O#
+#..**#.O#
+#....####
+###..#...
+..####...
+
+message level 44 of 155 &#x27;Duh!&#x27;
+
+#####
+#P*O#
+#####
+
+message level 45 of 155
+
+######
+#OOO.#
+#..*.#
+#.#*##
+#..*.#
+#..P.#
+######
+
+message level 46 of 155
+
+.######
+##....#
+#..##.#
+#.#.*.#
+#..@.O#
+##.#P##
+.#...#.
+.#####.
+
+message level 47 of 155
+
+..#######..
+###.....#..
+#.*.*...#..
+#.###.#####
+#.P.O.O...#
+#...###...#
+#####.#####
+
+message level 48 of 155
+
+######..
+#..P.#..
+#..#.##.
+#.O#..##
+#.O***.#
+#.O#...#
+####...#
+...#####
+
+message level 49 of 155
+
+######..
+#.P..#..
+#.*#.#..
+#.*..#..
+#.*.##..
+###.####
+.#..#..#
+.#OOO..#
+.#.....#
+.#######
+
+message level 50 of 155
+
+..####....
+###..#####
+#..*..POO#
+#.*....#.#
+###.####.#
+..#......#
+..########
+
+message level 51 of 155
+
+####....
+#..###..
+#....###
+#..*@P.#
+###.O#.#
+..#....#
+..######
+
+message level 52 of 155
+
+..####
+###.P#
+#..*.#
+#..@O#
+#..@O#
+#..*.#
+###..#
+..####
+
+message level 53 of 155
+
+.#####.
+##O.O##
+#.@.@.#
+#..#..#
+#.*.*.#
+##.P.##
+.#####.
+
+message level 54 of 155
+
+......######
+......#....#
+..#####.O..#
+###..###O..#
+#.*..*..O.##
+#.P**.#.O.#.
+##....#####.
+.######.....
+
+message level 55 of 155
+
+########..
+#.P.#..#..
+#......#..
+#####*.#..
+....#..###
+.##.#*.OO#
+.##.#..###
+....####..
+
+message level 56 of 155
+
+#####..
+#...###
+#..*..#
+##@.O.#
+.#...P#
+.######
+
+message level 57 of 155
+
+..####..
+..#..#..
+..#P.#..
+..#..#..
+###.####
+#....@.#
+#..*...#
+#####O.#
+....####
+
+message level 58 of 155
+
+####...
+#..####
+#O@*..#
+#.O*#.#
+##.P..#
+.#...##
+.#####.
+
+message level 59 of 155
+
+############.
+#..........#.
+#.#######.P##
+#.#.........#
+#.#..*...#..#
+#.**.#####..#
+###..#.#.OOO#
+..####.#....#
+.......######
+
+message level 60 of 155
+
+.#########
+.#.......#
+##P#####.#
+#..#...#.#
+#..#...*O#
+#..##*##O#
+##*##..#O#
+#...*..#O#
+#...#..###
+########..
+
+message level 61 of 155
+
+########.
+#......#.
+#.####.#.
+#.#OOOP#.
+#.###*###
+#.#.....#
+#..**.*.#
+####...##
+...#O###.
+...###...
+
+message level 62 of 155
+
+...##########
+####....##..#
+#..***OOOO*P#
+#......###..#
+#...####.####
+#####........
+
+message level 63 of 155
+
+#####...####.......
+#...#####.O#.......
+#.......*..########
+###..####.O*....P.#
+..#..#..#..####...#
+..####..####..#####
+
+message level 64 of 155
+
+.######...
+##....#...
+#...*.#...
+#..**.#...
+###.O#####
+..##O#.P.#
+...#O..*.#
+...#O.####
+...####...
+
+message level 65 of 155
+
+..######.
+..#....#.
+..#..*.#.
+.####*.#.
+##.*.*.#.
+#OOOO#.##
+#.....P.#
+##..#...#
+.########
+
+message level 66 of 155
+
+...###...
+...#P#...
+.###*###.
+##..O..##
+#..#.#..#
+#.#...#.#
+#.#...#.#
+#.#...#.#
+#..#.#..#
+##.*.*.##
+.##O.O##.
+..#...#..
+..#...#..
+..#####..
+
+message level 67 of 155
+
+#####..
+#...##.
+#.#..#.
+#P*@O##
+##..O.#
+.#.*#.#
+.##...#
+..#####
+
+message level 68 of 155
+
+.####.....
+.#..######
+##....*..#
+#.O#.*...#
+#.O#*#####
+#.OP.#....
+######....
+
+message level 69 of 155
+
+####..####.
+#..####..#.
+#..#..#..#.
+#..#....*##
+#..O.O#*..#
+#P.##.#.*.#
+#...O.#...#
+###########
+
+message level 70 of 155
+
+#####...
+#.P.####
+#......#
+#.*.**.#
+##*##..#
+#...####
+#.OO..#.
+##OO..#.
+.###..#.
+...####.
+
+message level 71 of 155
+
+###########..
+#.....#...###
+#.*P*.#.O..O#
+#.##.###.##.#
+#.#.......#.#
+#.#...#...#.#
+#.#########.#
+#...........#
+#############
+
+message level 72 of 155
+
+..####....
+.##..#####
+.#..*..P.#
+.#..*#...#
+####.#####
+#..#...#..
+#....*.#..
+#.OO#..#..
+#..O####..
+#..##.....
+####......
+
+message level 73 of 155
+
+####....
+#..#####
+#.**.*.#
+#......#
+##.##.##
+#OOO#P#.
+#.###.##
+#......#
+#..#...#
+########
+
+message level 74 of 155
+
+.####......
+.#..#######
+.#*.P#...O#
+##.#**...O#
+#..*..##OO#
+#...#.#####
+###...#....
+..#####....
+
+message level 75 of 155
+
+.#######..
+##.OOOO##.
+#...######
+#...*.*.P#
+###..*.*.#
+..###....#
+....######
+
+message level 76 of 155
+
+.#####....
+##...#....
+#....#####
+#..#O#...#
+#P.#O#.*.#
+#..#O#..##
+#....#..#.
+##..##**#.
+.##.....#.
+..#..####.
+..####....
+
+message level 77 of 155
+
+##########.
+#.P.OOOO.#.
+#...####*##
+##.#..*.*.#
+.#.*......#
+.#...######
+.#####.....
+
+message level 78 of 155
+
+.#######...
+##.....##..
+#..*.*..#..
+#.*.*.*.#..
+##.###.####
+.#P..OOOOO#
+.##.....###
+..#######..
+
+message level 79 of 155
+
+.#########
+.#....#..#
+##.*#*#..#
+#..O*OP..#
+#..O#....#
+##########
+
+message level 80 of 155
+
+####......
+#..#######
+#..O.##.O#
+#.*#....O#
+##.##.#.O#
+.#....#..#
+.####.#..#
+..#.P*.###
+..#.**.#..
+..#....#..
+..######..
+
+message level 81 of 155
+
+.#####
+.#...#
+.#.O.#
+##.@.#
+#..@##
+#..P##
+##.*.#
+.#...#
+.#####
+
+message level 82 of 155
+
+#####...
+#...###.
+#.O...##
+##@#*..#
+#.O#.*.#
+#.P##.##
+#.....#.
+#######.
+
+message level 83 of 155
+
+######..
+#....##.
+#.*.*.##
+##.**..#
+.#.#...#
+.#.##.##
+.#..O.O#
+.#.PO.O#
+.#..####
+.####...
+
+message level 84 of 155
+
+########....
+#..OOO.#....
+#..###.##...
+#..#.*..#...
+##.#P*..#...
+.#.#.*..#...
+.#.###.#####
+.#.........#
+.#...###...#
+.#####.#####
+
+message level 85 of 155
+
+.......####
+.#######..#
+.#.*......#
+.#...*.*..#
+.#.########
+##.#.O..#..
+#..#.#..#..
+#..P.O.##..
+##.#.#.#...
+.#...O.#...
+.#######...
+
+message level 86 of 155
+
+....####.
+..###..##
+.##.*...#
+##.*..#.#
+#.P#**..#
+#.OO..###
+#.OO###..
+#####....
+
+message level 87 of 155
+
+.....####
+######..#
+#.......#
+#..OOO.O#
+##*######
+#.*..#...
+#...*###.
+##..*..#.
+.##.P..#.
+..######.
+
+message level 88 of 155
+
+.....####..
+.#.###..#..
+.#.#....#..
+.#.#..#.#..
+.#.#*.#O#..
+.#.#..#.#.#
+.#.#*.#O#.#
+...#..#.#.#
+####*.#O#.#
+#.P.....#.#
+#...#..##.#
+########...
+
+message level 89 of 155
+
+##########
+#...##...#
+#.*..*P#.#
+####.#.*.#
+...#O#..##
+.#.#O#.*#.
+.#.#O...#.
+.#.#O...#.
+...######.
+
+message level 90 of 155
+
+.########.
+.#..P...#.
+.#.*..*.#.
+###.##.###
+#..*OO*..#
+#...OO...#
+##########
+
+message level 91 of 155
+
+###########
+#....O##..#
+#.**POO**.#
+#...##O...#
+###########
+
+message level 92 of 155
+
+..####.........
+..#..#....#####
+..#..#....#...#
+..#..######O#.#
+####..*....O..#
+#...**#.###O#.#
+#...#...#.#...#
+#########.#P.##
+..........#..#.
+..........####.
+
+message level 93 of 155
+
+.#########.
+##...#...##
+#....#....#
+#..*.#.*..#
+#...@O@...#
+####OPO####
+#...@O@...#
+#..*.#.*..#
+#....#....#
+##...#...##
+.#########.
+
+message level 94 of 155
+
+#########
+#.P.#...#
+#.*.*...#
+##*###.##
+#..OOO..#
+#...#...#
+######..#
+.....####
+
+message level 95 of 155
+
+########
+#P.....#
+#.O**O.#
+#.*OO*.#
+#.*OO*.#
+#.O**O.#
+#......#
+########
+
+message level 96 of 155
+
+..######...
+..#....#...
+..#....#...
+#####..#...
+#...#O#####
+#...*P*...#
+#####O#...#
+...##.##.##
+...#...*O#.
+...#...###.
+...#####...
+
+message level 97 of 155
+
+...####.......
+...#..########
+####.*.*OOOOO#
+#...*...######
+#P###.###.....
+#..*..#.......
+#.*.#.#.......
+##.#..#.......
+.#....#.......
+.######.......
+
+message level 98 of 155
+
+#####...........
+#...##.####.....
+#..*.###.O#.....
+#.*...*..O#.....
+##.*#####O#.####
+#.*..#.#.O###..#
+#....#.#.O#..P.#
+###..#.#.......#
+..####.##.....##
+........#######.
+
+message level 99 of 155
+
+...............#####..
+...............#...#..
+#######..#######.#.#..
+#.....#..#..#......#..
+#..P..####..#.....####
+#..#....OOOO##.####..#
+#....#####.##.**.*.*.#
+######...#...........#
+.........#..##########
+.........####.........
+
+message level 100 of 155
+
+#######.
+#.P#..#.
+#O*...#.
+#O.#.*##
+#O*#...#
+#O.#.*.#
+#..#...#
+########
+
+message level 101 of 155 &#x27;Lockdown&#x27;
+
+..#####......
+..#...#......
+..#.#.#######
+..#..@..#...#
+..##.##...#.#
+..#.....#@..#
+###.#.#.#.###
+#..@#*X...#..
+#.#...##.##..
+#...#..@..#..
+#######.#.#..
+......#...#..
+......#####..
+
+message level 102 of 155
+
+###########
+#OOOO#....#
+#..#...**.#
+#..P..##..#
+#.....##*.#
+######..*.#
+.....#....#
+.....######
+
+message level 103 of 155
+
+..#####.
+..#.O.##
+###.*..#
+#.O.*#P#
+#.#*.O.#
+#..*.###
+##.O.#..
+.#####..
+
+message level 104 of 155
+
+....#####
+#####...#
+#....*..#
+#..*#*#P#
+###.#...#
+..#.OOO.#
+..###..##
+....#..#.
+....####.
+
+message level 105 of 155
+
+.####.####.
+##..###..##
+#...#.#...#
+#..@O.O@..#
+###*...*###
+.#...P...#.
+###*...*###
+#..@O.O@..#
+#...#.#...#
+##..###..##
+.####.####.
+
+message level 106 of 155
+
+.########.
+.#......#.
+.#P...*.#.
+##.###*.#.
+#.OOOOO###
+#.*.*.*..#
+######.#.#
+.....#...#
+.....#####
+
+message level 107 of 155
+
+########
+#......#
+#.*@@@.#
+#.@..@.#
+#.@..@.#
+#.@@@O.#
+#.....P#
+########
+
+message level 108 of 155
+
+####.....#####.
+#..###...#...##
+#....#...#*.*.#
+#OO#.#####.#..#
+#..P....#.*.*.#
+#OO#.........##
+##...#########.
+.#####.........
+
+message level 109 of 155
+
+..#######
+#.#.....#
+#.#.#.#.#
+..#.P.*.#
+###.###.#
+#...###.#
+#.*..##O#
+##.*..#O#
+.##.*..O#
+#.##.*#O#
+##.##.#O#
+###.#...#
+###.#####
+
+message level 110 of 155
+
+..####...
+..#..#...
+..#.*####
+###O.O..#
+#.*.#.*.#
+#..O.O###
+####*.#..
+...#.P#..
+...####..
+
+message level 111 of 155
+
+######...
+#....####
+#....OOO#
+#....OOO#
+######..#
+..#..#..#
+..#.**.##
+..#.P*..#
+..#.**..#
+..##.*#.#
+...#....#
+...######
+
+message level 112 of 155
+
+.#####....
+##...####.
+#..***..#.
+#.#...*.#.
+#...*##.##
+###..#O..#
+..#..#...#
+.#####.###
+.#...#.##.
+.#.POOOO#.
+.#......#.
+.#...#..#.
+.########.
+
+message level 113 of 155
+
+...#####......
+..##...#......
+###..#.#......
+#....O.#......
+#..##.#####...
+#..O.O.#..##..
+#..#.P.*...###
+#####O.#..*..#
+....####..*..#
+.......##.*.##
+........#..##.
+........#..#..
+........####..
+
+message level 114 of 155
+
+######.....
+#....###...
+#..#.*.#...
+#..*.P.#...
+##.##.#####
+#..#OOOOOO#
+#.*.*.*.*.#
+##...######
+.#####.....
+
+message level 115 of 155
+
+....#####...
+#####...####
+#.....#....#
+#..#OOOOO..#
+##..##.#.###
+.#**P***.#..
+.#.....###..
+.#######....
+
+message level 116 of 155
+
+.....#####
+...###...#
+####OOOOO#
+#.P*****.#
+#.....#.##
+#####...#.
+....#####.
+
+message level 117 of 155
+
+.####.####.
+.#..###..##
+.#......P.#
+##OO###...#
+#......#..#
+#OOO#*..#.#
+#.##.**.*.#
+#..*....###
+####..###..
+...####....
+
+message level 118 of 155
+
+.#####....
+##...##...
+#..*..##..
+#.*.*..##.
+###*#.O.##
+..#.#.O..#
+.##.##O..#
+.#.P..O.##
+.#...#..#.
+.########.
+
+message level 119 of 155
+
+..######.
+..#....##
+.##.##..#
+.#.**.#.#
+.#.P*.#.#
+.#....#.#
+####.#..#
+#..OOO.##
+#.....##.
+#######..
+
+message level 120 of 155
+
+......####.
+#######..#.
+#.*......##
+#.*#####..#
+#..P#..#..#
+##.##OO...#
+#..#.OO####
+#.*..###...
+#.*###.....
+#..#.......
+####.......
+
+message level 121 of 155
+
+.######....
+.#.O..#....
+##*O#.#....
+#..@..#....
+#.OO###....
+##*.#.#####
+##.##.#...#
+#..####.#.#
+#...P.*.*.#
+##..#.....#
+.##########
+
+message level 122 of 155
+
+#####......
+#...###....
+#.#*..#....
+#.*...#....
+#.*.*.#....
+#.*#..#....
+#..P###....
+##.########
+#......OOO#
+#.........#
+########OO#
+.......####
+
+message level 123 of 155
+
+########.......
+#......#.......
+#.*.**.########
+#####.P##O.O..#
+....#*..#.O...#
+....#...#O.O.##
+....#*#.##.#.#.
+....#........#.
+....#..###..##.
+....#..#.####..
+....####.......
+
+message level 124 of 155
+
+##############
+#......#.....#
+#.*P**.#.O.OO#
+##.##.###.##.#
+.#.#.......#.#
+.#.#...#...#.#
+.#.#########.#
+.#...........#
+.#############
+
+message level 125 of 155
+
+......#####..
+......#...##.
+......#.*..#.
+########.#P##
+#.O..#.*.*..#
+#........*#.#
+#OOO#####...#
+#####...#####
+
+message level 126 of 155
+
+.###########
+##OOOOOOO..#
+#.*******P.#
+#...#.#.#.##
+#.#.#.....#.
+#...#######.
+#####.......
+
+message level 127 of 155
+
+##.####...
+####..####
+.#.*.*O..#
+##.#..O*.#
+#...##O###
+#..*..O.#.
+#.P.#...#.
+#..######.
+####......
+
+message level 128 of 155
+
+..#########
+###...#...#
+#.@.*.O.O.#
+#...*.##.##
+####@#...#.
+.#..P..###.
+.#...###...
+.#####.....
+
+message level 129 of 155
+
+..#########
+###.P.#...#
+#.@.*.@OO.#
+#...*.#...#
+####@#..###
+.#.....##..
+.#...###...
+.#####.....
+
+message level 130 of 155
+
+#####..#####
+#...####OO.#
+#.***......#
+#...*#..OO.#
+###.P#..##.#
+..#..##....#
+..##########
+
+message level 131 of 155
+
+#####..
+#...#..
+#.O.#..
+#OPO###
+##O#..#
+#..*..#
+#.*...#
+##**..#
+.#..###
+.#..#..
+.####..
+
+message level 132 of 155
+
+####......
+#.P###....
+#O@..#####
+#OO#**.*.#
+##.......#
+.#.#.##..#
+.#...#####
+.#####....
+
+message level 133 of 155
+
+.#######..
+.#..O.O###
+.#.O.O.O.#
+###.####.#
+#..P*..*.#
+#..**..*.#
+####...###
+...#####..
+
+message level 134 of 155
+
+........####
+#########..#
+#...##.*...#
+#..*...##..#
+###.#O.O#.##
+..#.#O.O#*##
+..#.#...#..#
+..#.P.*....#
+..#..#######
+..####......
+
+message level 135 of 155
+
+#######....
+#.....#####
+#.**#P##OO#
+#.#.......#
+#..*.#.#..#
+####.*..OO#
+...########
+
+message level 136 of 155
+
+.#######.
+.#.....#.
+##.###*##
+#O*...P.#
+#.OO.#*.#
+#O##..*.#
+#....####
+######...
+
+message level 137 of 155
+
+.......####..
+......##..###
+####..#..*..#
+#..####.*.*.#
+#...OO#.#*..#
+#..#...P..###
+##.#OO#.###..
+.#.##.#.#....
+.#......#....
+.########....
+
+message level 138 of 155
+
+..####......
+###..#......
+#....###....
+#.#.O.O#....
+#.P.OOO####.
+#.#.#.#...##
+#...#.**...#
+#####..*.*.#
+....##*.#.##
+.....#....#.
+.....######.
+
+message level 139 of 155
+
+.####...........
+##..####........
+#...OOO#........
+#...OOO#........
+#...#.##........
+#...#P.####.####
+#####.*...###..#
+....#..##*.*...#
+...###.....**..#
+...#.*..##...###
+...#....######..
+...######.......
+
+message level 140 of 155
+
+########.#####
+#..#...###...#
+#......##.*..#
+#O#.P.##.*..##
+#O#...#.*..##.
+#O#....*..##..
+#O.##.#####...
+##....#.......
+.######.......
+
+message level 141 of 155
+
+..########
+..#..#.O.#
+..#...O@O#
+..#..#.@.#
+####*##O##
+#......*.#
+#.*.##.*.#
+#...P#...#
+##########
+
+message level 142 of 155
+
+..####...
+..#..#...
+..#..####
+###*O*..#
+#..OPO..#
+#..*O*###
+####..#..
+...#..#..
+...####..
+
+message level 143 of 155
+
+####.....
+#..####..
+#.*...#..
+#.O#..#..
+#.*#.##..
+#.O..#...
+####.#...
+...#.#...
+.###.###.
+.#..*..#.
+##.#*#.##
+#.*.P.*.#
+#.OO#OO.#
+###...###
+..#####..
+
+message level 144 of 155
+
+...####.....
+.###..#####.
+.#.**.#...#.
+.#.*.O.O**##
+.#.OO.#O.*.#
+###.#@@.O..#
+#..O.@@#.###
+#.*.O#.OO.#.
+##**OPO.*.#.
+.#...#.**.#.
+.#####..###.
+.....####...
+
+message level 145 of 155
+
+...#####...
+...#.P.#...
+..##...##..
+###O***O###
+#..*OOO*..#
+#..*O#O*..#
+#..*OOO*..#
+###O***O###
+..##...##..
+...#...#...
+...#####...
+
+message level 146 of 155
+
+.#######.
+##..O..##
+#.O***O.#
+#.*O.O*.#
+#O*.P.*O#
+#.*O.O*.#
+#.O***O.#
+##..O..##
+.#######.
+
+message level 147 of 155
+
+.......#####
+########...#
+#O...O..P#O#
+#..###.....#
+##.*..#....#
+.#.*...#####
+.#.*#..#....
+.##.#..#....
+..#...##....
+..#####.....
+
+message level 148 of 155 &#x27;from &#x27;
+
+###########....
+#..O..#...#....
+#.#O..P...#....
+#..#OO#.#######
+##..##.**.*.*.#
+.##...........#
+..#############
+
+message level 149 of 155 &#x27;from &#x27;
+
+.####.....
+##..###...
+#P*...#...
+###.*.#...
+.#..######
+.#..*OOOO#
+.#..#.####
+.##.#.#...
+.#.*#.#...
+.#....#...
+.#..###...
+.####.....
+
+message level 150 of 155 &#x27;from &#x27;
+
+.....####......
+.#####..#......
+.#.....*#######
+##.##.OO#..OOO#
+#.*.**#*..P...#
+#........###..#
+#######..#.####
+......####.....
+
+message level 151 of 155 &#x27;from &#x27;
+
+...####.....
+...#..#.....
+.###..#.....
+##..*.#.....
+#...#.#.....
+#.#**.######
+#.#...#...O#
+#..*..P...O#
+###..####OO#
+..####..####
+
+message level 152 of 155
+
+######.####....
+#.....#....#...
+#O##..#*##..#..
+#...#.....#..#.
+#*..#.###..#..#
+#.#......#..#.#
+#.#.####..#.#.#
+#O.P....*.@.O.#
+###############
+
+message level 153 of 155
+
+#############
+#O#.P#..#...#
+#O#**...#.*.#
+#O#..#.*#...#
+#O#.*#..#.*##
+#O#..#.*#..#.
+#O#.*#..#.*#.
+#OO..#.*...#.
+#OO..#..#..#.
+############.
+
+message level 154 of 155 &#x27;Take the long way home.&#x27;
+
+.############################
+.#..........................#
+.#.########################.#
+.#.#......................#.#
+.#.#.####################.#.#
+.#.#.#..................#.#.#
+.#.#.#.################.#.#.#
+.#.#.#.#..............#.#.#.#
+.#.#.#.#.############.#.#.#.#
+.#.#.#.#.#............#.#.#.#
+.#.#.#.#.#.############.#.#.#
+.#.#.#.#.#..............#.#.#
+.#.#.#.#.################.#.#
+.#.#.#.#..................#.#
+##*#.#.####################.#
+#O.P.#......................#
+#############################
+
+message level 155 of 155 &#x27;The Dungeon&#x27;
+
+....######...............####.
+#####@#..#################..##
+#...###......................#
+#........########..####..##..#
+###.####.....#..####..####..##
+#@#.#.O#.#.#.#.....#.....#...#
+#@#.#..#.....#.##..#.##..##..#
+###....###.###..#.##..#.##..##
+.#...#.#@#......#.....#.#....#
+.#...#.###..#####..####.#....#
+.#####...#####..#######.######
+.#...#.#.#@@#...............#.
+##.#.#...#@@#..#######..##..#.
+#....#########..#....#####.###
+#.#.............#.*........#@#
+#...#########..###.P#####..#@#
+#####.......####.####...######
+
+message congratulations!
+</pre></details>
+</div><div class="card">
+  <h2>Shroom_Party!</h2>
+  <div class="key">cell 03_07_03_03 &middot; iteration 0 </div>
+  <div class="shots"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAFeCAIAAAD8M3pVAAASHklEQVR42u3dsYtkR3oA8K9N5zqWMTg7C80xoGiNYRXsn3ChQLDcToMjR3Nc4MwXzMA5MUIc1xc4WRx0nwPB0FkHXrjIF5wGY0GDYfEK2Y4M9i0odjBOuz/cpa5+1dM1vb9f9pi3n96rrvooqvTVG61Wq1hze3u7fvnRRx+tX37zzTexr08//XT98uuvvy5ETjcPeaqGoRq+YJ+htJVQQp3MGPyjAODkSO4AkjsAkjsARzGazWax7+Zk2hl4+vRpqy2IIVum6b+bdPKCfe78NGz2k28roYTqfAyauQOEZRkAJHcAJHcAmhhdX1/Hvsv5DUsWy6EaPlWfL9hnKG0llFCPdwyauQOEZRkAJHcAJHcAmhiXF+yrKq9SqCiWhg452XLIU/X5gn2G0lZCCfV4x6CZO4BlGQAkdwAkdwDiIBWqQ7x586ZVqIuLiw4bq+EL9qlhs598W0HnY9DMHSAsywAguQMguQPQxGi1WsW+5VLJj778cv3y3z/51/XLP/39x4V/m27+3x9eR38fP1wul+uXH3zwwfrlt99+u3755MmT9ct3794V/tpJqMVi0aoznHxbCSVU52PQzB3AsgwAkjsAkjsAbYxms1nsvEJf3n68vLxcv/zNxx8XtkyTv/77jcu0zftgW6Zl8/l8/fLDDz8s3Pzdd98V/pp2UToJdXV11aoz3NzcnHZbCSVU52PQzB0gLMsAILkDILkDEIc48reqAird/J+/vdy9JDUGVKiWVb1CVajpdBr7VqlFcVOlk1DPnz9v1RlOvq2EEqrzMWjmDhCWZQCQ3AGQ3AFoYlxesK8q77zerDL9m78oHfmbdlBTheps9lHhocsPWT4kc0ioch1aufAsHfuZdBJqMpm06gwn31ZCCdX5GDRzBwjLMgBI7gBI7gDEISpUh0ih7u/vN/5Lo9Huf33x4kWHjXV3dxfbC8+i5hTQ8mcVjxUqVccNkY5HPr22EkqozsegmTtAWJYBQHIHQHIHoIlR+lppubyzfODkcrmM7Sdblvccqg7JFOpAoRaLhc7wqNuq4VNVFX4/xs7w9u2/lVLjl5uXn5X++uzzTzr8Bc3cASzLACC5AyC5A9DGOB0aGTUn4qZ/m3YG0q5C+RjM8iaDUA8TSmd47G3V8KlOvjN8z5bpZxVptM9f0MwdwLIMAJI7AJI7AG2M0wp9uQKqXC6VdgbKdVlpz6FMqIcJpTM89rZq+FTvW2eIqgrVzcsnz3r8Bc3cAcKyDACSOwCSOwBNjMsL9uUKqHRz+duAqS4rihsjiVAPE2oymegMj7qtGj7V6WeGz0atvvn87t15h7+gmTtAWJYBQHIHQHIHoInR9fV1q1jz+TwKB2xG7L7HUi7xEupAoZ4/f64zPOq2avhUDfXZGV6/fh3bt0y/J29ubqien593+AuauQOEZRkAJHcAJHcAmhitVqvY9xTQZLlcxvaTLcs7IWmTYbFYtHqqVNM1JNQPfvqD9cuf/epnhZt/+dNfFm5+tnzWqq3KB4oeq9njeuPqvzbPSP27+Hjz3uvSL7j6tMPO0DDUyQ+chi/YsLf3GarhL2jmDmBZBgDJHQDJHYA2xunQyCh+0K984GTaGUi7CuVjMNMmQ8Onahjq8leXsfOWabpMN/96/utWbdVns/8u/jxKu63Xhb+m3devv/7nDjuDgXOUFzz5UA2b3cwdwLIMAJI7AJI7AHGQI3+rKqDSzdPpNPYt4krSuZdDnqrqy5DlUH/48R9i5y3Tcv1qqlAd0lZpf6aTZr+8vNx7BzXXr7brog07Q8NQJz9wGr5gw97eZ6iGv6CZO0BYlgFAcgdAcgegiXF5wb5cAZVuLn8bMO05JOlUzMlk0uqpGr7g9ZPr2H6qbXkHNd387rxZWyWdNHsUt0z/JL4sXEbNRt+xOoOBc5QXbNjb+wzV8Bc0cwewLAOA5A6A5A5AHKRCdYj5fB7b67KS8h5LKtPqRGqr+/v7jaYcjXb/6/n5eau2Kn+h8VjN3rCtGnbRPp38wGn4gg17e5+hGv6CZu4AYVkGAMkdAMkdgCZGq9Vq/fr29jb2PXByuVzG9pMty3sOaZNhsVi0eqpU09XJC5ZPAT1WqJcvX+7eklUVqkIVQjXsVw1/QQPnKKEapj4zdwDLMgBI7gBI7gC0MZrNZrHv5mTakLm5uYntlVdR/OpgcnV11eqpkk5esFyldqxQr169ss/58KFSAWcnv+CQ/23hfRs4DUM1TH1m7gBhWQYAyR0AyR2AOMSRv1W7KOnm6XQa+xZxJencyyFPVfVlyAd7wbSp0kmoIceNVjWsUA8zcBq+oIFzlDE4pNnN3AHCsgwAkjsAkjsATYzLC/ZVZXjlMq1yXVY6FXMymbR6qj5fMOkkVGr2KBb3Vh0JK1Qh1OEGTsMXNHCOMgaHNLuZO4BlGQAkdwAkdwDiIBWqQ6STS1NdVtQckjmk0O5wGr5g+bOKxwp1dnZmSDy8u7u7Dn/Bi4sLA+fhQzVMfWbuAGFZBgDJHQDJHYAmRqvVKvatUkuWy2VsP9myvOeQNhkWi0WrpxpShne4FyyfAiqUUEcP1ecY7HM499lWZu4AlmUAkNwBkNwBaGM0m81i38X+dODkzc1NbK+8iuJXB5Orq6tWTxXFU0+P9YLlKjWhhDp6qD7HYJ/Duc+2MnMHCMsyAEjuAEjuAMQhjvytqoBKN0+n09i3di5J514OeaqqT6o+2Aum/RmhhOotVJ9jsM/h3GdbmbkDhGUZACR3ACR3AJoYlxfsyxVQ6eZydVy5xCsdsDmZTFo9VZ8vmAglVG+h+hyD8tXuoczcAcKyDACSOwCSOwBxiArVIebzeWwv8Yqas0lTxVcnGr5g+QuNQgl19FB9jsE+h3OfbWXmDhCWZQCQ3AGQ3AFoYrRardavb29vY98DJ5fLZWw/JLO81ZP2K16+fBn7fjmw/JCdhEo3d9Lsi8Wi1VP1+YLlc1yF6r8zGDi7hzJzB7AsA4DkDoDkDkAb47Tvl1QdOJk2GdIGRflEzbRfUf4PpU2GGLDPeaxQfTZ7w6fq8wWFeuydwcDZPZSZO4BlGQAkdwAkdwDiIEf+VlVApZun02nsWzuXDDlCs+oVOgnVZ7MPeao+XzBtiwn16DqDgbN7KDN3gLAsA4DkDoDkDkAT4/KCfdUxtuXPDKatniQdsDmZTGLfMq3yIZl9huqz2Yc8VZ8vmAj16DqDgbN7KDN3AMsyAEjuAEjuAMRBKlSHmM/nsb3EKynvZpydnZ12u19cXHTY7EMKgw+n4QuWP4wpVP+doc9+1WdbmbkDhGUZACR3ACR3AJoYrVar2LeQMlkul7H9kMzyVk/VeZsnEGqxWHTY7A2fakiB7qMIpdn9gp3/gmbuAJZlAJDcAZDcAWhjnA6NjJpjbNO/TZsMaYOifKJmeb/i9EL12ewNn+rkQ2l2v2DnL2jmDmBZBgDJHQDJHYA4yJG/VRVQ6ebpdBr7lncmafvi9EKlM0I7afaGT1X1ZcjHGEqz+wU7/wXN3AHCsgwAkjsAkjsATYzLC/blCqh0c/kzg2k3MkkHbCanF2oymXTY7A2fqmG/6jOUZvcLdv4LmrkDWJYBQHIHQHIHIA5SoTrEfD6P7SVeSXk3o/wBwxMIlUraOmn2hk918jS7X7DzX9DMHSAsywAguQMguQPQxGi1Wq1f397exr4HTqbqqU5CLZfL2H50Z3mPtOoU0KpQi8Wiwxds+FR9doY++1XDZi+rqm/sM9TJ/4INX9DMHcCyDACSOwCSOwBtjNP2RVJ14GSfodLWR9o2KZ/zWd5FGRKqzxc8+c5w8s3+9OnTwl/T7lwM2Oc8VigDZ/dQZu4AlmUAkNwBkNwBiIMc+VtVAVW+uZNQ0+k09i06TdKmypBQ6YzQTl6w4VP12Rn67FeHa/YqjzGUgVO42cwdICzLACC5AyC5A9DEuLxgX3UaZ5+hyh8/THukSTr2MxkSajKZdPiCDZ9Kv+qh2aOmvrF8umyfoQycws1m7gCWZQCQ3AGQ3AGIg1Sonp75fB7bC8+S8h5L+bOKVaFSSVsnL9jwqU5en83+5s2b0272i4sLA8fMHSAsywAguQMguQPwkMZD6sGqVNVWNQy1WCxaveDr16/XL/9p/ov1y+ejnxf+7egnb9cvv/jii1ZPVT6btLwJnP5a3heqavaG/arPUH02e7qseqqqM2+PFaq8oVrVVg1/wYbDuWEXNXMHsCwDgOQOgOQOQBvjtOcQNadxpn/79OnTwl/TzkAM2DKtCtXwBZO0g/q7+18UH+TnB3qqtOOU9oXKB5mmbaI+m73PUH02e8On6jNUn23VZxc1cwcIyzIASO4ASO4AxCGO/K2qgGpYv/pgoYa84OXl5frl/W+isKGatltHP9m4uWGzT6fT2Lc4MBlycunhmr3PUH02e8OnSluInYTqs63SU3XSRc3cAcKyDACSOwCSOwBNjMsL9lVHaKZQUVNbVT7ZsmGoIS9YtYOapPOBv73/YaunKn/dMe1lJenk0slk0mGz9xmqz2Zv+FRJJ6H6bKv0VJ10UTN3AMsyAEjuAEjuAMRBKlSHePPmTYdvWP7oYpXUVvf39xtNORrt/teGzT6fz2N7ZV0UjzlNm0hnZ2cdNnuf+mz2u7u7Vk9V/ojosUL12VZD6mbN3AGQ3AEkdwAkdwB6N1qtVrFvnWGyXC5j+yGZ5U2VqvM2q0K9fPky9v1Ya9XJw8cK1WezLxaLVv1qSCns4UL12exC6e1m7gCWZQCQ3AGQ3AFobDSbzWLfxf600XdzcxPbi7ii+FnFqKkHqwr16tWrx75lGjWlkp00+9XVVat+FcVjXY8Vqs/eLpTebuYOEJZlAJDcAZDcAYiDHvlbVQGVbp5Op7FvPVgUty+GhBpyGmdVaxwr1KNo9iH9quojkw8Wqs9mF0pvN3MHCMsyAEjuAEjuALQ1Li/YVxVSliu+yiVe6YDNZEioyWQSOxeAVZ232UmoR9HsQ/pVwy568r1dKL3dzB0gLMsAILkDILkDEAetUB0inT2bSryi5rzN8gcMq0KdnZ2d9k94d3fXYbMPKQx+FPrs7ULp7WbuAGFZBgDJHQDJHYC2RqvVKnYupCwfOLlcLmP7IZnl7Yu0X/H27dv1y/vN/9Dnm5d/lV5p8/LZs2etnqp8CqhQ65eLxaJVv6qq9X3PQx1uDGb/8t8bl3/2x4V7G45B/Wr3UGbuAJZlAJDcAZDcAWhjNJvNYt/F/nTg5M3NTWwv4oriBwyT33/11e7vUN5f/dH5eaunKlepCbXu6uqqVb+K4nnIQh1oDH6VxuB/bP5vDe/+pzQmN/dXz9uNQf1q91Bm7gBhWQYAyR0AyR2AOMSRv1UVUOnm6XQa+1Y/Jv/4+nXsvGVa9slmddyQp0pbPUIVQqVDUIf0q6qPTL7noRqOwdd/+w8b10+KR2cX91ef/eWP9auHD2XmDhCWZQCQ3AGQ3AFoYlxesC9XQKWby/WN5cKzdOznkB3Uz2uqLqueKhGqEGoymbTqVw276MmHOlxv/56S1OJ2a8On0q92D2XmDmBZBgDJHQDJHYA4SIXqEPP5PLYXnkXNHsvrzQrV+/uN40ZHo9Huf03HjQ55qvLHHoWK7ZWEPIyTH4P6lZk7gOQOgOQOgOQOwEMbrVar9evb29vY98DJ5XIZ24/uLG/WVZ0CKlT/oRaLRat+laryhHqfx6B+tXsoM3cAyzIASO4ASO4AtDGazWax72J/OnDy5uYmtpeWRfFznVFTpSZU/6Gurq5a9atEqPd5DOpXu4cycwcIyzIASO4ASO4AxCGO/K2qgEo3T6fT2LdKLYqbKkI9ulDpaNYh/arqI5PveaiTH4P61e6hzNwBwrIMAJI7AJI7AE2Mywv25QqodHO5Dq1ceJaO/UyEenShJpNJq37VsIuefKiTH4P61e6hzNwBLMsAILkDILkDEAepUB1iPp/H9sKzqDkFtPxZRaH6D5UqCXkYJz8G9SszdwDJHQDJHQDJHYDoa0O1qiCqTCihhBJKqAcLZeYOEJZlAJDcAZDcAWhitFqtwhaEUEIJJdRphTJzBwjLMgBI7gBI7gDE0Y/8LX/uTyihhBJKqGOFMnMHCMsyAEjuAEjuADQxTmvwSVrdT9VTt7e3sX05XyihhBJKqGOFMnMHsCwDgOQOgOQOQBujFy9eaAUAM3cAJHcAJHcAJHcA/h//B3X4p79R5/CAAAAAAElFTkSuQmCC" alt="level 0"></div>
+  <table class="m"><tr><td>fitness</td><td>0.754</td></tr><tr><td>novelty</td><td>1.01</td></tr><tr><td>rules / objects</td><td>7 / 11</td></tr><tr><td>mean solution</td><td>123.0 moves</td></tr><tr><td>levels solved</td><td>100%</td></tr></table>
+  <div class="ops"><span class="tag">seed</span></div>
+  <div class="near">nearest human games: Shroom_Party!, Castle_Duck!, sokoban_basic_zoomscreen</div>
+  <details><summary>source (183 lines)</summary><pre>title Shroom Party!
+author FunATuns
+homepage pzbros.blogspot.com
+zoomscreen 5x5
+
+========
+OBJECTS
+========
+
+Background1
+#363636 #454545 #242424
+01202
+21100
+02011
+21012
+20021
+
+
+
+
+
+Walltop
+gray lightgray darkgray #A3A3A3
+10300
+30013
+03003
+30130
+00000
+
+Wallbot
+gray lightgray darkgray #A3A3A3
+00130
+13000
+00003
+33010
+22222
+
+Player
+white black red darkred
+.232.
+22232
+23222
+32223
+.0101
+
+greenshroom
+green lightgreen white black  
+10010
+01001
+10100
+.000.
+.2323
+
+blueshroom
+blue #00AAFF white black
+00101
+10001
+10100
+.2323
+.222.
+
+orangeshroom
+orange lightbrown white black
+.100.
+.011.
+.010.
+01001
+.2323
+
+brownshroom
+brown #856100 white black
+01001
+.011.
+10001
+.101.
+.2323
+
+purpleshroom
+purple #6800D6 white black
+01.00
+11001
+.001.
+.100.
+.2323
+
+cyanshroom
+#00CFEB #00E1FF white black
+..0..
+.100.
+01100
+00011
+.2323
+
+Wallfake
+gray lightgray darkgray #A3A3A3
+10300
+30013
+03003
+30130
+00000
+
+
+
+
+
+=======
+LEGEND
+=======
+
+Background = background1
+	. = background1
+wall = Walltop or wallbot or wallfake
+	p = walltop
+    o = wallbot
+    ? = wallfake
+r = Player
+g = greenshroom
+b = blueshroom
+q = orangeshroom
+w = brownshroom
+t = purpleshroom
+c = cyanshroom
+shroom = r or g or b or q or w or t or c
+
+
+
+=======
+SOUNDS
+=======
+
+
+
+================
+COLLISIONLAYERS
+================
+
+Background
+shroom Wall
+
+======
+RULES
+======
+
+[g|r]-&gt;[&gt; g|r]
+[b|g]-&gt;[&gt; b|g]
+[q|b]-&gt;[&gt; q|b]
+[w|q]-&gt;[&gt; w|q]
+[t|w]-&gt;[&gt; t|w]
+[c|t]-&gt;[&gt; c|t]
+[r|g|b|q|w|t|c] [wallfake] -&gt; [r|g|b|q|w|t|c] []
+
+==============
+WINCONDITIONS
+==============
+no wallfake
+
+
+=======
+LEVELS
+=======
+Message The mushrooms want to throw a party! Help them form a dance line. 
+message But beware, 
+message only certain mushrooms follow certain mushrooms.
+
+poppooopooooooooooop
+pwoo...p...........p
+p......p...p.pp..b.?
+p.ppg..ptppp.pp....p
+p.pp...ooooo.op....p
+p.pp..........ppp.pp
+p.ooop.pp.....ppp.pp
+p....p.pppp.ppppp.pp
+ppp..p.pppp.pooop.pp
+poopqp.oppp.o...o.pp
+p..ooo..ppp.......pp
+p.r.....ppppp.c.pppp
+p.......ppppp...pppp
+oooooooooooooooooooo
+
+Message Thanks For playing! 
+
+
+
+</pre></details>
+</div><div class="card">
+  <h2>Broken_Leg_Sokoban</h2>
+  <div class="key">cell 02_06_02_02 &middot; iteration 0 </div>
+  <div class="shots"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAADSCAIAAABsAn0iAAADlElEQVR42u3dL5LUTBzH4W+oNVyAG2DGwgHW7gUQ+0diqTWjMIPGLFyBHYPAYrnA2jXcgAsgg59MFZlUOtNJnsexReWlhk91k7fnlzT7zSan+/nq5cFPrv78zRiWeuWbd8+ZmxcBcSAOxIE4OKPm9vKNT2ECb3/cHfzk/uv9KFd++PBQ6MpWDsSBOBAH4uC8dyvdsxXnJiWuPOxspdydSJ8rWzmwrSAOxIE4cLayBo+XT1YObCuIA3GAODjFxbCTAucvp175MXWdm1g5sK0gDsSBOMgMvwk2g7nyXakLz/LTsHIgDsSBOBAHvgmWWubKj92tfB50oe3Br+f4aZiyx7aCOBAH4sCUfeqZK+91t7Id8Htm+WmYsse2gjgQB+LA2UqqmSuf4dmKKXtsK4gDcYA4SDVT9lPOlR87SRliGZ+GKXtsK4gDcSAOYsp+cXPl++8bzzGzcmBbQRyIA3Fgyj71zZXf/vL2GSsH4kAciANxYMq+xrny7tnKmt8sY+VAHIgDcSAOTNnXw9mKlQNxIA7EgTiIKfsk9X03rNynEXMr2FYQB+IAcZBapuyvP5aasm9uMuGzkbPaJwNYObCtIA7EgTg4q4vuv1oz0v+rvz5ylzHkrSjtftvj94xz11P/6U+fT36s61g5sK0gDsSBOKjtm2Dlvn2UXu9J+f8dTdu2o/y3284NVfOpKXQnMuzepM+Vy/0NWjkQB+JAHIiDLHTK/tv7p0JnK8e+CTbs/qVZwDfByj0ZwMqBOBAH4kAcZKFT9sO+0zXijdjhjchu1/lJKn+ics76ZAArB7YVxIE4EAfxLvtqtK+LfdC/Y8oe2wriQBwgDrzLfsS7lWHPH+tO/X+5KvVn9k0wbCuIA3EgDrzLPit4l325u5VhZyt9/szdsxVT9thWEAfiQBw4W8ni3mVf291KnK1gW0EciANxEFP28S77Ed/kYsoe2wriAHEgDmLKPmt/43xGehekuxVsK4gDcSAOTNmn4pOUclcu930tKwfiQByIA3Fgyj4rmLIvd+Vys/ApdiJj5UAciANxIA5M2a+BsxVsK4gDcYA4iCn7rOuN8zG3gm0FcSAOxEFM2c/pW0zruXK5pxlYORAH4kAciIOlfhOMaZR7moGVA3EgDsSBOFjqlH2cm0xy5XJPM7ByYFtBHIgDceBshVT5NAMrB+JAHIgDcZCFTtnHKckkVy73NAMrB+JAHIgDcXBW/wCBofqcH1m8nAAAAABJRU5ErkJggg==" alt="level 0"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAADSCAIAAABsAn0iAAADg0lEQVR42u3dIXYTQRjA8S88DBfgBpi15QCxvUAFLVfgxcQHXRO4AllTgcX2ArUx3ACBRQaHyD7KZpiZzG5+Pxkxzdv+3062u1+z6LsuTvft9aujV65//IocrNzOyi8C/kIciANxIA5qWNwtrxwFnDkQB+JAHIiD9rwc/kXdPQgrO3MgDsSBOBAH4d4KzhyIA3EgDsQBMfbeSrjjYGVnDmwriANxIA4auFopt/TtzT7LOrti73AeK/cPnTMHthXEgTgQB+FJsFO8/fr+6JXV51WWlbcftlb+4+7xypkD2wriQByIg1lerQz/g3Gup4/S7q24Ejl15eG9FVP22FYQB+JAHLi38rzd8snxrcC9FWwriANxIA7ClH2c9tf7nfsmVVYu9xt05sC2gjgQB+IgGnsSLNdn3VxT9pFprnzUe96Xes+xickdDWcObCuIA3EgDkzZRzPPPu0ej59eO/RJh/X2+JXtT1P22FYQB+IAcRCNfJf9bdKn8THPR5V7z18OhyyH9fBucP3ycTG5o+HMgTgQB+JAHIQp+2j33kpE2vXLotqTYO6tYFtBHIgDcRCm7KOVKfua73nMlchmsxm8Eqbssa0gDhAH4iAub8r+8GaCB/p7mLLHtoI4EAeIg9lP2Q+vVoZT7aPW6cfMy98nrbw+euXTtSl7bCuIA3GAOIjZT9mf23rwyr+vaFYT/J8DzhyIA3EgDsTBea9Whp9sY8RTQ+W0d20SCdcmNY9Gud+gMwfiQByIA3Fgyv7/pX0rStozXbmYsse2gjgQB4iD569Wav6wXNcmaVMq573qmeJdJGcOxIE4EAfioP0nwSLpb/V1J1DuM02glJqyL3c0yv0GnTmwrSAOxIE4MGVf5lP9uti8iSl7bCsOAeJAHIgDU/bR5Cy8KXtsKw4B4kAciANT9pHxma4wZW/KHtsK4kAciANT9lH4vskmJveN86bssa0gDsQB4uASvsu+3D2aKa7su+yxrSAOxIE4mOvVSt91UWjK/mbvSqTCyv1DZ8oe2wriQByIA/dWTrJbPjm+Fbi3gm0FcSAOxEGYso92p+wveWVT9thWEAfiQBzExTwJluuzbmT6jkIrn2tlZw5sK4gDcSAO5vokGM4ciANxgDgQB9Hkd9mHuxsTX9mZA3EgDsSBOAj3VnDmQByIA3EgDoh6U/bhXkaYW8G2gjhAHIiDZL8BB/3qX1Y82WAAAAAASUVORK5CYII=" alt="level 1"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQ4AAAC0CAIAAADq9VVVAAAD0ElEQVR42u3dIZITQRQG4DdUDBfgBphdyR5gLRdAZLMSS8WswsRjUkgsCSJiLXYvsBazN0CsRQaHmEkVYeg3k558nyMFXanp/NVN1+s3TawiyXZ30eNffX/1svXJ25+/inwfIxv5f0Z+EcARRAVEBUQFRAVOUbN+Xrc+Wn5eFhl68fDG88WqAqICiAqICogKjK3pVwO2/vD3c7NuDZi6IyPXO7JVBUQFRAVEBUQF4sxOwEINGFYVQFRAVEBUQFSgDrPoVd91jH6VNuqXjBz6gIENGIgKICogKlDS7EC/+t2X1gfbGO4+4zFu3v0oMs4m7RsOOXK/Nw6MK28G856GVQVEBUQFRAVEBarVLK7ru6t4dX8bOd37S9W/DTlyjbdN82Yw72lYVUBUQFRAVEBUoFrN9qK+fvX9KohqPN2a6hsH8mYw72lYVUBUQFRAVEBUINSADWhz/WjmouYasLwZVAMGNmAgKiAqICpAx6zGfvWbs6nviom+cWBT4dOwqoANGIgKiAqICsSEbkFGoRODUt3OGcv+ddrP7iZr5Lzfs1UFbMBAVEBUQFSgWrPu//2jUOXPOddlTWPkKHRytd+W+TvHfJ+837NVBWzAQFRAVEBUIHTCD/3qpzZytwas2AnYfJ/0g/52eakTPtiAgaiAqICoADFUJ3z96mNytyBLnYAdGqffmVjT+nPe79mqAqICogKiAqICoRO+fvVnMHK/u4p9tU+3VqtV55PQCR9swEBUQFRAVIDQCX/qtrusGZx/zJrB5qm+p2FVARswEBUQFRAVCJ3wdcIfaeS8GZxH1i3IGp+GVQVswEBUQFRAVCB0wg+d8McZuVv1VGoGuzVgxfqAPdX3NKwqICogKiAqICoQOuGHTvjjWDxkzeDX948ndQI27tOwqoCogKiAqICoQOiErxP+SCPnzWAM2An/9J+GVQVswEBUQFRAVCB0wh+yE/4qjPyHdxnohA82YCAqICogKkCMdAvy6v42cqqnDp0mfeo10F3rz+vndXXfucYZzKuscwsSbMBAVEBUQFSAOOIWZLFO+L3ONMqdjdzFv584LSv8zjXOYN5zznsaVhUQFRAVEBUQFQg1YDFgJ/xVJNVTDXsL8tRrwGp8l4EaMLABA1EBUQFRAWKinfAPVU/Fid/XK/WdvctAJ3ywAQNRAVEBUQFipE74/RjZyKc5slUFbMBAVEBUQFQg3IIEqwogKiAqICogKhDn1Qk/1B0ZeUIjW1VAVEBUQFRAVCDUgIFVBRAVEBUQFRAViPPqhB+qjIwc+oCBDRggKiAqICowut/ZTGMmq9+nFQAAAABJRU5ErkJggg==" alt="level 2"></div>
+  <table class="m"><tr><td>fitness</td><td>0.713</td></tr><tr><td>novelty</td><td>0.51</td></tr><tr><td>rules / objects</td><td>5 / 6</td></tr><tr><td>mean solution</td><td>26.3 moves</td></tr><tr><td>levels solved</td><td>100%</td></tr></table>
+  <div class="ops"><span class="tag">seed</span></div>
+  <div class="near">nearest human games: Broken_Leg_Sokoban, Pulling_Box_Sokoban, Sokoban..._</div>
+  <details><summary>source (210 lines)</summary><pre>title Broken Leg Sokoban
+author Franklin P. Dyer
+
+========
+OBJECTS
+========
+
+Background
+LIGHTGREEN GREEN
+11111
+01111
+11101
+11111
+10111
+
+
+Target
+DarkBlue
+.....
+.000.
+.0.0.
+.000.
+.....
+
+Wall
+BROWN DARKBROWN
+00010
+11111
+01000
+11111
+00010
+
+PlayerUp
+Black Orange White Blue Gray
+.000.
+.000.
+22222
+.333.
+.4.3.
+
+PlayerDown
+Black Orange White Blue Gray
+.000.
+.111.
+22222
+.333.
+.3.4.
+
+Crate
+Orange Yellow
+00000
+0...0
+0...0
+0...0
+00000
+
+
+=======
+LEGEND
+=======
+
+. = Background
+# = Wall
+P = PlayerDown
+* = Crate
+@ = Crate and Target
+O = Target
+
+Player = PlayerUp or PlayerDown
+
+=======
+SOUNDS
+=======
+
+Crate MOVE 36772507
+endlevel 83744503
+startgame 92244503
+
+================
+COLLISIONLAYERS
+================
+
+Background
+Target
+Player, Wall, Crate
+
+======
+RULES
+======
+
+[ &gt;  Player | Crate ] -&gt; [  &gt;  Player | &gt; Crate  ]
+
+[UP Player] -&gt; [UP PlayerUp]
+[LEFT PlayerUp] -&gt; cancel
+[DOWN Player] -&gt; [DOWN PlayerDown]
+[RIGHT PlayerDOWN] -&gt; cancel
+
+
+==============
+WINCONDITIONS
+==============
+
+All Target on Crate
+
+=======
+LEVELS
+=======
+
+message Yes, I know I&#x27;ve already used this mechanic, I&#x27;m just applying it to a new set of levels.
+
+message level 1 of 9
+
+####..
+#.O#..
+#..###
+#@P..#
+#..*.#
+#...##
+#####.
+
+message level 2 of 9
+
+######
+#....#
+#.#P.#
+#.*@.#
+#.O@.#
+#....#
+######
+
+message level 3 of 9
+
+.########
+##...##.#
+#.....*P#
+#....#*.#
+#.O.O#..#
+#########
+
+message level 4 of 9
+
+.....###
+######.#
+#......#
+#.O@@*P#
+#......#
+#.###..#
+###.####
+
+message level 5 of 9
+
+.#######
+.#.....#
+.#.O*O.#
+##.*P*.#
+#..O*O.#
+#......#
+########
+
+message level 6 of 9
+
+...####.....
+####..######
+#......#...#
+#.**.....#P#
+#.*.#OOO...#
+#...#.######
+#...###.....
+#####.......
+
+message level 7 of 9
+
+#######
+#.....#
+#.O*O.#
+#.*O*.#
+#.O*O.#
+#.*O*.#
+#..P..#
+#######
+
+message level 8 of 9
+
+....###.
+..###.##
+..#.OOP#
+..#.**.#
+..#..###
+..##.#..
+...#.#..
+####.##.
+#.....#.
+#.#...#.
+#...#.#.
+#.#...#.
+###.###.
+..###...
+
+message level 9 of 9
+
+...###
+####.#
+#O...#
+#P**.#
+##...#
+.#...#
+.###O#
+...###
+
+message congratulations!
+</pre></details>
+</div><div class="card">
+  <h2>Line_of_Sight</h2>
+  <div class="key">cell 03_05_03_03 &middot; iteration 0 </div>
+  <div class="shots"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQ4AAADwCAIAAAB+PB0vAAAExElEQVR42u3dv07bbBQH4OOKpRtT7wBFygoXkBWpM5L5M3ZFLEwMNQNTF9JbaMLAwNKhKzfAihTRK+jQjh3TsZJNFdfYL7HzPGPk73wo8JOPXp33NJuPx/H/vr17W/pk/8fvaIPKKq9n5TcB1CAqICogKiAqsI6y48mubwG8VUBUQFRAVEBUYLi2qrMupoNUVtlbBTRgICogKiAqEGbAwFsFEBUQFRAVEBWIvs6AhVkglVW2Bww0YCAqICogKjAcWXeb8I8OHn2/pFZ4q4AGDEQFRAVEBSjZqp5lRUtTNNen16VPzj6ftfL/Ulnl//Gp0X917q0CGjAQFRAVEBWI4c6AtXXXrNkMmPMclV9UuYgaJ2DnDZ7xVgENGIgKiAqICoRN+BWzyYPvl3j9W5BmwEADBqICogKiAmETfnSzB2wWJppUjjW4F3nurQIaMBAVEBUQFQi3IKNvm/CL8gd5npc+GY1Gq8sURbI96r2s3EPz27F/CxI0YCAqICogKkCkugW5d3cS3Uz15It85TN1TsCqtk+3u5pEKsofLOeNfmFH5U+uf5r4+uv4ftdbBTRgICogKiAqQPR/E353J2BFo4GqOj/z8uOyq1/hZeamZPx7Bqytv2dvFRAVEBUQFRAVCDNgkW4T/rqdgDW9q9jsTCxzCzLMgIEGDEQFRAUQFYiN24RftVgsYtWZWPWZGL3mz/zM6VajU7JN3oTf3d+ztwpowEBUQFRAVCBswk+5CR/CJnzQgIGogKgAogIx4E34mzzjpHK4BQkaMBAVEBVAVCCGvwk/nBSpbBM+aMBAVEBUAFGBGPImfAgzYKABA1EBUQFEBWKzNuGrrLJN+KABA1EBUQFRASL5JvzDi6424WdPfnE9V5Q/yPM8Vv3bnc+UKcqFuvt79lYBDRiICogKiAqEW5AVXz6Ub0HeXI1XnpLVeWa6b3qq35XzRb7ymTonYFXf7796q4AGDEQFRAVEBYhUm/DrzIDVOe9qawbMGdT6VO7uBGzn9tYmfNCAgaiAqICoANH/GTC3IPvODBhowEBUAFEBUYEYxCb8aDQV1mx7mCmsvleuWiwWsepMrPrMe5vwQQMGogKiAqICRLpN+EcHj75fEpvf2oQPGjAQFRAVEBUgkt2C3Ls7CTNOKqetfHy/660CGjAQFRAVEBUgUm3CbzYD5jxH5ZdUrs6A2YQPGjAQFRAVEBUIM2CdzYDNJg++XxIzAwYaMBAVEBUQFSASbsKfhYkmlVNX3rcJHzRgICogKiAqQFlW/Wi5XJYfyrIGz0Th6+235U5nf3ZPYRM+aMBAVABRAVGBVLK2zruqz0x/TcOMU58rV0/Abq7K50uHF48Nnpnu24QPGjAQFUBUQFQgXvEErLXSl1k4g+pz5TozYHXOu9qaAbMJHzRgICogKoCoQHR2C7JWIbcgY/i3INuaAevuFqQZMNCAgaiAqICoAFHjBKw1RZjC6nXllHvA2vqZ7QEDDRiICogKiApQkc3HXZ0YNKOyyutZ2VsFNGAgKiAqICrQW9nxZNe3AN4qICogKiAqICowXFvVWRfTQSqr7K0CGjAQFRAVEBUIM2DgrQKICogKiAqICkRfZ8DCLJDKKtsDBhowEBUQFRAVGI4/LSYtZKL70uwAAAAASUVORK5CYII=" alt="level 0"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQ4AAADwCAIAAAB+PB0vAAAENUlEQVR42u3dMW4TURQF0DvIDRtgBzRuwwLcZgMUidkCSuOKAqegorFZQ0xBQUvLBmjTsAOKUFIONR6kTEYz4/njc8ooPCEnV//p6/2X6rBc5um+vXh+9JXLX3/SB5VVnmblZwFaEBUQFRAVEBWYomq9uvApgFMFRAVEBUQFRAXma9GcdTEdpLLKThXQgIGogKiAqEDMgIFTBRAVEBUQFRAVSKkzYDELpLLK9oCBBgxEBUQFRAXmo2p+qa7r42+qqg7fk215H0f9crAP+qdftjEcvizdgIEGDEQFRAVEBfhX1dd9V/N79r/3R1+5+XTTy39693Y3UOXmDdjnD8c3Klfv7jt8z/5yV9ynUWLl9fcLpwpowEBUQFRAVIA8dgPWW+nbKqXdurSZAWtz39XXDJjbradWbs6A2YQPGjAQFRAVEBWIV5B5/BVkq0IzfQXZ1wyYV5DjMAMGGjAQFRAVEBUgLW7AerNNcXNHY+4BM981RGV7wEADBqICogKiAjRUh+VQNwbXr+9T3L7664x2H0hswgcNGIgKICogKjCGar0a6tXYq69vUtq++uYNWH3o5yZt92DiKzbhgwYMEBUQFRAVyDRmwPraHN5tBuy0++pz5e8CxCZ8pwpowEBUQFRAVCBmwNq5W/1Icfvq//MKsu5nwdrWL1tswgcNGCAqICogKnAKi27zMG3mau4y3nRQm/muVjNg6fbnA2pTWBOpPNzvs1MFNGAgKiAqICoQm/BH3IQPsQkfNGAgKiAqgKhA5rwJ3/SUyvEKEjRgICogKoCoQOa8CT9uilS2CR80YCAqICqAqEDmvAkfYgYMNGAgKiAqgKhAzmsTvsoq24QPGjAQFRAVEBUgNuETm/DdgIEGDEQFRAVEBeIVZGzCVzk24TtVQFRAVEBUQFQgNuHHJnyVYxM+ICogKiAqICoQm/B9vsQmfNCAAaICogKiArEJPyaaVLYJHzRgICqAqICoQGzCL922wMqxCd+pAhowEBUQFRAViFeQsQk/He+p6kOnH9h14//8YJYsXkGCBgxEBUQFRAWITfinrly/r4f6Ed5WPufYhA8aMBAVEBUQFSA24Wd6ryC73YlVXkHGDBhowEBUQFQAUYHYhF/Cu8i0uN3qdEtmE749YKABA1EBUQFRAWITPvEXB5wqICogKiAqICpwJhbNu6xumnVMfKmcSUzWfez0rzZOFdCAgaiAqICoQGzCj034Kk+v8jYtbsA2Hb7HqQIaMBAVEBUQFYhN+LEJn0zyFaQZMNCAgaiAqICoQGzCj034KmfG7yI3ThXQgIGogKiAqEC8gswgN2DpaZ+YyipPobJTBTRgICogKiAqEK8gwakCiAqICogKiAqkjFeQpoNUVtmpAhowEBUQFRAViBkwcKoAogKiAqICogI59034MWWkcuwBAw0YICogKiAqcHJ/Ad03HchTB+xOAAAAAElFTkSuQmCC" alt="level 1"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQ4AAADwCAIAAAB+PB0vAAAFC0lEQVR42u3doW4cVxQG4H8qk7KgvkFkyYHOA5hGKo40tgNLo5Cggm5AUUncV6g3wCCkoNQvYBhLq/YJClpYOIWV9lrayXTueO/m++BqerR19te9ujr3TLc+Ocnn++2br7c+efHnP5mDyirvZ+WvAowgKiAqICogKrCPusuzU38FsKqAqICogKiAqMDhOip7XXQHqayyVQVswEBUQFRAVCB6wMCqAogKiAqICogKpNUesOgFUlllc8DABgxEBUQFRAUOR1dvEv7F/X2tb73yD8fSvw2rCogKiAqICogKNOuoPMvKTF00KQ7AhvWUyt3F9ifvX7/f+uTNz29m+b9QufXKD/lp0n/11qoCNmAgKiAqICqQw+0Bm+uu2fmnT7W+9LsuTopUfrDyKiNOwN5OeMaqAjZgICogKiAqEJPwC9e3d8Vnw7QvGbcgyeRbkHrAwAYMRAVEBUQFYhJ+6swBu86k061Jp2R6pVTO6LMsqwrYgIGogKiAqEBMws9Mk/BfLjcJv+/7rU+Oj493l1mtlusua7Fyg9Y3J94FCTZgICogKiAqQJa6Bfn846vU6erpN/3OZ8acgJWevH5SqxNplVrvBfhLx9d/Lm9PrSpgAwaiAqICogJkqUn403rAxpyN1DsBW01qqBrznYcfBu8FWKBy2QM21+/ZqgKiAqICogKiAtEDVrg+u6tUed9OwKbeVfRegPnpAQMbMBAVEBUQFSCPOgm/5rTzbZvNJrvOxMpncvyY39l7Af5/5Xq/Z6sK2ICBqICogKhATMJfchI+xCR8sAEDUQFRAUQFcsCT8L/kHieV4xYk2ICBqICoAKICOfxJ+HFSpLJJ+GADBqICogKICuSQJ+FD9ICBDRiICogKICqQL2sSvsoqm4QPNmAgKiAqICpAFp+Ef/59rUn43e/+4Rq32v6g7/vsenfnA2VW24Xq/Z6tKmADBqICogKiAnELsvDLd9u3ID/8eLLzlGzMM1cvdE+1Xbnf9DufGXMCVvrj9lerCtiAgaiAqICoAFlqEv6YHrAx511z9YA5g9qfyvVOwJ7e3JiEDzZgICogKiAqQNrvAXMLsnV6wMAGDEQFEBUQFchBTMLPpK6wadPDdGG1Xrm02Wyy60ysfOZbk/DBBgxEBUQFRAXIcpPwL17eN/fnGJ7G9P6mrW9MwgcbMBAVEBUQFSCL3YJ8/vFVWutEKk/ATO9vq/Ll7alVBWzAQFRAVEBUgCw1CX9aD9jjnrqM6QEzvX+fK5c9YCbhgw0YiAqICogKRA9YtR6w67O7tH8L0vT+tugBAxswEBUQFRAVII86B2z/+46WnAOmv6tGZXPAwAYMRAVEBUQFKHTlR8MwbD/UdROeycqft20VzwMvalWud6JrVQEbMBAVEBUQFWjW0VznXeUzV39fRY9Ty5WTWndCS8M6s5yklWdZ05R1rCpgAwaiAqICogLN6sqTq9lKv+viDKrlyvXeC5DzWr+6D8+exSR8sAEDUQFRAVEB8tm3IEcVcgsyh38Lcrb3AjxwC3KY5Qdc780OVhUQFRAVEBUQFcgBnYDNZhVdWE1XXnYO2DDix7n7GXPAwAYMRAVEBUQFyILvgsxM85dUVnkfKltVwAYMRAVEBUQFmtXVuzUGVhUQFUBUQFRAVGAPHJW9LrqDVFbZqgI2YCAqICogKhA9YGBVAUQFRAVEBUQF0moPWPQCqayyOWBgAwaiAqICogKH41+zAzKYa5TA3wAAAABJRU5ErkJggg==" alt="level 2"></div>
+  <table class="m"><tr><td>fitness</td><td>0.660</td></tr><tr><td>novelty</td><td>0.75</td></tr><tr><td>rules / objects</td><td>11 / 14</td></tr><tr><td>mean solution</td><td>24.3 moves</td></tr><tr><td>levels solved</td><td>100%</td></tr></table>
+  <div class="ops"><span class="tag">seed</span></div>
+  <div class="near">nearest human games: Line_of_Sight, L.A.S.E.R, One_Way_Street</div>
+  <details><summary>source (236 lines)</summary><pre>title Line of Sight
+author Joshua Minor
+homepage pixelverse.org
+run_rules_on_level_start 
+color_palette gameboycolour              
+
+========
+OBJECTS
+========
+
+Background 
+LIGHTGREEN GREEN
+11111
+01111
+11101
+11111    
+10111 
+
+
+Target 
+DarkBlue 
+..... 
+.000.
+.0.0.
+.000.
+.....     
+
+Wall     
+BROWN DARKBROWN     
+00010
+11111
+01000
+11111
+00010
+
+Human 
+Black Orange White Blue     
+.000.
+.111.
+22222
+.333.
+.3.3.
+
+Crate
+Orange brown
+00000
+01010
+00100
+01010
+00000
+
+Dirt 
+orange brown
+00100
+00000
+00010
+10000
+00000
+
+Player 
+white black
+.0.0.
+01010
+00000
+.000.
+11.11
+
+DeadPlayer 
+white black red
+.00.1
+02011
+.000.
+02001
+.00.1
+
+Rock 
+grey darkgrey
+.100.
+11000
+11000
+11000
+11101
+
+HGaze
+yellow
+.....
+.....
+.0.0.
+.....
+.....
+
+VGaze
+yellow
+.....
+..0..
+.....
+..0..
+.....
+
+UnbrushedSand 
+yellow orange
+00000
+01000
+00000
+00010
+00000
+
+HBrushedSand
+yellow orange
+00000
+01011
+00000
+11010
+00000
+
+VBrushedSand
+yellow orange
+01000
+01010
+00000
+01010
+00010
+
+=======
+LEGEND
+=======
+
+Obstacle = Wall or Crate or Human or Rock
+Gaze = VGaze or HGaze
+Sand = UnbrushedSand or HBrushedSand or VBrushedSand
+. = Background
+# = Wall
+P = Player
+* = Crate
+O = Target
+H = Human
+R = Rock
+S = UnbrushedSand
+
+=======
+SOUNDS
+=======
+
+Crate MOVE 36772507
+
+================
+COLLISIONLAYERS
+================
+
+Background
+Dirt, Sand
+Target
+Player, DeadPlayer, Wall, Crate, Rock, Human
+Gaze
+
+======
+RULES     
+======     
+
+(push &amp; pull crates)
+[ &gt; Player | Crate ] -&gt; [ &gt; Player | &gt; Crate ]
+[ &lt; Player | Crate ] -&gt; [ &lt; Player | &lt; Crate ]
+
+(kick a block)
+([ Action Player | Crate ] -&gt; [  Action  Player | &gt; Crate  ])
+
+(push a human)
+[ &gt; Crate | Human ] -&gt; [ &gt; Crate | &gt; Human ]
+
+(brush the sand as you walk on it)
+Horizontal [ UnbrushedSand &gt;  Player  ] -&gt; [ HBrushedSand &gt; Player ]
+Vertical [ UnbrushedSand &gt; Player ] -&gt; [ VBrushedSand &gt; Player ] 
+
+(remove all gaze)
+[ Gaze ] -&gt; []
+(compute gaze via line-of-sight - thanks @toph_wells)
+late Horizontal [ Human | no Obstacle no HGaze ] -&gt; [ Human | HGaze ]
+late Vertical [ Human | no Obstacle no VGaze ] -&gt; [ Human | VGaze ]
+late Horizontal [ HGaze | no Obstacle no HGaze ] -&gt; [ HGaze | HGaze ]
+late Vertical [ VGaze | no Obstacle no VGaze ] -&gt; [ VGaze | VGaze ]
+
+(don&#x27;t let the player move onto gaze)
+(we do this last, so we use the final gaze computation)
+late [ Player Gaze ] -&gt; cancel
+
+(if you&#x27;re seen, that human rushes over and kills you)
+(
+late [ Human | ... | Gaze | Player ] -&gt; [ | ... | Human | Player ]
+late [ Player Gaze ] -&gt; [ DeadPlayer Gaze ]
+)
+
+==============
+WINCONDITIONS
+==============
+
+All Player on Target
+No DeadPlayer
+
+=======     
+LEVELS
+=======
+
+message Don&#x27;t let them see you
+
+#########
+#.......o
+#.r.h...#
+#.......#
+#*.....r#
+#.......#
+p.....*.#
+#########
+
+(message Push &#x27;em)
+
+#########
+p..*....#
+#.*h....#
+#.......#
+#.......#
+#...h...#
+#.......o
+#########
+
+#########
+#h......o
+#.r.h...#
+#.......#
+#*.....r#
+#..*....#
+p.....*h#
+#########
+
+message Congratulations!
+
+
+</pre></details>
+</div><div class="card">
+  <h2>06_05_04_03+template:spread</h2>
+  <div class="key">cell 06_05_04_03 &middot; iteration 324 </div>
+  <div class="shots"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUoAAAEsCAIAAAAq5m0VAAADn0lEQVR42u3dsU3EQBRF0TfIVVABuRswNZCB6YVeWJFRAzSwORXQhglBbLIaGIPH58SsQd+6+quRhcs8jWnj8HpsdOV2fzP05MIIQN6AvAF5A/IGagxr/rJlqflUKW4T2N6AvEHegLwBeQPp8uQ8Z5yK152uA7Y3yBuQNyBvQN5Aujg5d04Otjcgb0DeIG9A3kB2fHLu/66A7Q3IG5A3yBuQN/DvFW/bzCpvNd2iLb491pxtb/DlHJA3IG9A3oC8AXmDvAF5A/IG5A3IG5A3yBuQNyBvQN6AvAF5A/IGeQPyBuQNyBuQNyBvkDcgb0DewOoGI4i3bZpzp3O2vcGXc0DegLwBeQPyBuQN8gbkDcgbkDcgb0DeIG9A3oC8AXkD8gbkDfIG5A3IG5A3IG9A3oC8Qd6AvAF5A/GG0I54j6c5296AvAF5g7wBeQPyBuQNyBuQNyBvkDcgb0DegLwBeQPyBnkD8gbkDcgbkDcgb5A3IG9A3oC8AXkD8gZ5A/GGUH5gnsZ4J6Y5296AvAF5g7wBeQPyBuQNyBuQN8jbCEDegLwBeQPyBuQNyBvkDcgbkDcgb0DegLxB3oC8AXkD8gbkDcgb5A3EG0KJ93ias+0NyBuQNyBvQN4gb0DegLwBeQPyBuQN8gbkDcgbkDcgb0DeIG9A3oC8AXkD8gbkDfI2ApA3IG9A3oC8AXkDX5R5Ghtd+vHl+7saS/n+M8uSip+5vx7dObC9Qd6AvAF5A/IG2hjaXfqcM/A81Zylz5MbB7Y3yBuQNyBvQN5ANndyfs45ebk7+VTOeebcjQPbG+QNyBuQNyBvIF0+c356Tp5bz5yD7Q3IG+QNyBuQN5CdPHP+e//n3I0D2xvkDcgbkDcgbyCbe0MoYHsD8gbkDcgb5A3IG5A3IG9A3oC8Qd6AvAF5A/IG5A3IG+QNyBuQNyBvQN6AvEHegLwBeQPyBuQNyBuQN+zA0O7Sh+nY6tIPbtyn57f3Rle+ubrc3N/cTrtp2N6AvAF5g7wBeQPZzcl5H5al5lOlmIZp/P00bG/w5RyQNyBvQN5AnJyv4vTks+4E1TRMw/YG5A3IG+QNyBuIk/Ps90lj0zAN2xuQNyBvkDcgbyBOztPnU8SmwVamYXuDL+eAvAF5A/IGqpR5Gk0BbG9A3oC8AXkD8gbkDfIG5A3IG5A3IG9A3iBvQN6AvAF5A/IG5A3yBuQNyBuQNyBvQN6AvEHegLwBeQPyBmp9AOdRYeaGEHGtAAAAAElFTkSuQmCC" alt="level 0"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAcIAAADSCAIAAABW21c9AAAC1UlEQVR42u3csW0CMRSAYTvyFExA7wW8ABVNCg/AGBnm2hMr3ALXMwFrkC5NokicMMLm+3qs0wP9esiCWEsOAGz1YQQAMgogowAyCiCjAMgogIwCyCiAjAIgowAyCiCjADIKgIwCyCiAjALIKAAyCiCjADIKIKMAMgqAjALIKICMAsgoADIKIKMAMgowsmQEPN+0rIbwY75cDeEJjvudbRTAl3oAGQVARgFkFEBGAWQUQEYBkFEAGQWQUQAZBUBGAWQUQEYBZBQAGQWQUQAZBZBRAGQUQEYBZBRARgGQUQAZBZBRABkFkFEA7peMgJHUkhudPC1ro5PPp4M3ruvPhm0UQEYBZBRARgFkFAAZBZBRABkFkFEAZBRARgFkFEBGAZBRABkFkFEAGQVARgFkFEBGAWQUQEYBkFEAGQWQUQAZBUBGAWQUQEYBhpaMgJFMy2oI2EYBZBRARgGQUQAZBZBRABkFQEYBZBRARgFkFAAZBZBRABkFkFEAGQVARgFkFEBGAWQUABkFkFEAGQWQUQBkFEBGAWQUQEYBkFGAx0lGwEhqyY1OnpbVeLGNAsgogIwCyCgAMgogowAyCiCjADIKgIwCyCiAjALIKAAyCiCjADIKIKMAyCiAjALIKICMAiCjADIKIKMAMgogowDIKICMAsgowPuJ4avV0fPntdHJx/2uu0HPl/6m0eMz96iWbAi2UQAZBUBGAWQUQEYB3kkygv/dblteFaNnBtsoADIKIKMAMgogowAEN/UP8ftGe9vNuGcG2ygAMgogowAyCiCjAMFNPaHVL9Y9M9hGAZBRABkFkFEAGQUghOCmPoz4n/D+xx5sowAyCiCjAMgogIwCvLBYSzYFANsogIwCyCiAjAIgowAyCiCjADIKgIwCyCiAjALIKAAyCiCjADIKIKMAyCiAjALIKICMAsgoADIKIKMAMgogowDIKICMAsgogIwC8Jdv37gotFWgr8YAAAAASUVORK5CYII=" alt="level 1"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPAAAAFoCAIAAADmdeFfAAADr0lEQVR42u3dsW3CQBiG4c8RU2SC9F7AC1CgtB6AMTIGA7hFLliABeiZgDWcAUwaRwf4eJ4+CF1e/TqfrKPpuzZwz3C+FPrkctV9+LdRE0EjaBA0CBoEjaBB0CBoEDQIGkGDoEHQIGgQNIIGQYOgQdAgaAQNggZBg6BB0AgaBA2Chv/aWAL+crzeCn3yuN+a0CBoBA2CBkGDoEHQCBoEDYIGQYOgETQIGgQNggZBI2gQNAgaBA2CRtAgaBA0CBpBWwIEDYKGrPn20d3hZH0xoUHQIGgEDYIGQYOgETQIGgQNggZBI2gQNAgaBA2CRtAgaBA0CBoEjaBB0CBoEDQIGkGDoCE13j5azrjf+s9hQiNoEDQIGgQNgkbQIGgQNAgaBI2gQdAgaBA0CBpBg6BB0CBoBA2CBkGDoEHQCBoEDYIGQUOed/vo99en9eWuvmtNaBA0ggZBg6AhfmPlnmla8ldNI4Da1tmExpYDBA2CBkETpxzVmT9ZL3tCZ13rbEJjywGCBkGDoIlTjnjrgBrW2YTGlgMEDYIGQROnHKntjQLec51NaGw5QNAgaBA0ccoRd1cmyXC++M4P+M4mNAgaQYOgQdAgaBA0ggZBg6BB0CBoBA2CBkGDoEHQCBoEDYIGQYOgETQIGgQNggZBI2gQNMTtoxUpd0coJjSCBkGDoEHQkMQpxxNNU/xmrgkNgkbQIGgQNMQpR43mJxjLTkJMaBA0CBoEDYImTjnI+t7uwIRG0CBoEDQIGpI45cgrvbmBCQ2CRtAgaBA0xCnHy+u7Nu41NaFB0AgaBA2CBkGDoBE0CBoEDYIGQSNoEDQIGgQNgkbQIGgQNAgaBI2gQdAgaBA0CBpBg6DhoRq3YpKK7mI1obHlAEGDoEHQxG+srNw0xW+5WmcTGlsOEDQIGgRNnHLUaP5kvewJnXWtswmNLQcIGgQNgiZOOeKtA2pYZxMaWw4QNAgaBE2ccqS2Nwp4z3U2obHlAEGDoEHQuH0U5naHU6FPHvdbExoEjaBB0CBoEDQIGkGDoEHQIGgQNIIGQYOgQdAgaAQNggZBg6BB0AgaBA2CBkEjaEuAoEHQUN5m6C6lPvtnfctxvN40YUKDoEHQIGgEDYIGQYOgQdAIGgQNggZBg6ARNAgaBA2CBkEjaBA0CBoEDYJG0CBoEDQIGkFDLZq+a60CJjQIGgQNgkbQIGgQNAgaBI2gQdAgaBA0CBpBg6BB0CBoEDSCBkGDoEHQIGgEDYIGQYOgQdDU6BcgikYAszAp0wAAAABJRU5ErkJggg==" alt="level 2"></div>
+  <table class="m"><tr><td>fitness</td><td>0.655</td></tr><tr><td>novelty</td><td>1.22</td></tr><tr><td>rules / objects</td><td>96 / 33</td></tr><tr><td>mean solution</td><td>25.0 moves</td></tr><tr><td>levels solved</td><td>100%</td></tr></table>
+  <div class="ops"><span class="tag new">template:spread</span></div>
+  <div class="near">nearest human games: Coin_Counter, coincounter, Gingham</div>
+  <details><summary>source (444 lines)</summary><pre>title Coin Counter
+verbose_logging
+run_rules_on_level_start
+
+=======
+OBJECTS
+=======
+
+Background
+lightblue
+
+wall
+darkbrown
+
+t
+transparent
+
+tl
+transparent
+
+tr
+transparent
+
+m
+transparent
+
+bl
+transparent
+
+br
+transparent
+
+b
+transparent
+
+corner
+transparent
+
+on
+blue
+
+off
+darkbrown
+
+one 1
+transparent
+
+two 2
+transparent
+
+three 3
+transparent
+
+four 4
+transparent
+
+five 5
+transparent
+
+six 6
+transparent
+
+seven 7
+transparent
+
+eight 8
+transparent
+
+nine 9
+transparent
+
+zero 0
+transparent
+
+player
+green
+
+coin
+#ff0
+.....
+.000.
+.0.0.
+.000.
+.....
+
+ending
+transparent
+
+tens
+transparent
+
+carry
+transparent
+
+fiver
+#ff0
+..0..
+.000.
+00.00
+.000.
+..0..
+
+star
+#ff0 yellow orange
+0.0.0
+.121.
+02.20
+.121.
+0.0.0
+
+hund
+transparent
+
+won
+transparent
+
+last
+transparent
+
+fakecoin
+#ff0
+.....
+.000.
+.0.0.
+.000.
+.....
+
+======
+LEGEND
+======
+
+c = corner
+l = tl
+r = tr
+w = bl
+e = br
+seg = t or l or r or m or w or e or b
+num = zero or one or two or three or four or five or six or seven or eight or nine
+p = player
+k = coin
+. = background
+x = wall
+
+! = t and coin
+@ = l and coin
+# = r and coin
+$ = m and coin
+% = w and coin
+^ = e and coin
+&amp; = b and coin
+* = c and coin
+
+{ = t and fiver
+} = l and fiver
+; = r and fiver
+: = m and fiver
+&#x27; = w and fiver
+&quot; = e and fiver
+, = b and fiver
+/ = c and fiver
+
+f = fiver
+
+? = tens and wall
+
+- = fakecoin
+
+j = star
+` = hund
+z = ending
+~ = last
+
+======
+SOUNDS
+======
+
+
+
+===============
+COLLISIONLAYERS
+===============
+
+Background
+seg
+corner
+num
+on
+off
+coin, fiver
+star
+player, wall
+ending
+tens
+carry
+won
+hund
+last
+fakecoin
+
+=====
+RULES
+=====
+
+[ last ] [ action player ] -&gt; win
+[ last ] [ moving player ] -&gt; win
+up [ tens | no tens ] -&gt; [ tens | tens ]
+down [ tens | no tens ] -&gt; [ tens | tens ]
+[ &gt; player | off ] -&gt; [ stationary player | off ]
+late [ player off ] -&gt; [ off ]
+late [ player coin ] -&gt; again
+late [ player fiver ] -&gt; again
+late [ player star ] -&gt; again
+[ player coin ] [ zero no tens ] -&gt; [ player ] [ one ]
+[ player coin ] [ one no tens ] -&gt; [ player ] [ two ]
+[ player coin ] [ two no tens ] -&gt; [ player ] [ three ]
+[ player coin ] [ three no tens ] -&gt; [ player ] [ four ]
+[ player coin ] [ four no tens ] -&gt; [ player ] [ five ]
+[ player coin ] [ five no tens ] -&gt; [ player ] [ six ]
+[ player coin ] [ six no tens ] -&gt; [ player ] [ seven ]
+[ player coin ] [ seven no tens ] -&gt; [ player ] [ eight ]
+[ player coin ] [ eight no tens ] -&gt; [ player ] [ nine ]
+[ player coin ] [ nine no tens ] -&gt; [ player ] [ zero carry ]
+[ player fiver ] [ zero no tens ] -&gt; [ player ] [ five ]
+[ player fiver ] [ one no tens ] -&gt; [ player ] [ six ]
+[ player fiver ] [ two no tens ] -&gt; [ player ] [ seven ]
+random [ hund | no hund no won ] -&gt; [ hund | hund ]
+[ player fiver ] [ three no tens ] -&gt; [ player ] [ eight ]
+[ player fiver ] [ four no tens ] -&gt; [ player ] [ nine ]
+[ player fiver ] [ five no tens ] -&gt; [ player ] [ zero carry ]
+[ player fiver ] [ six no tens ] -&gt; [ player ] [ one carry ]
+[ player fiver ] [ seven no tens ] -&gt; [ player ] [ two carry ]
+[ player fiver ] [ eight no tens ] -&gt; [ player ] [ three carry ]
+[ player fiver ] [ nine no tens ] -&gt; [ player ] [ four carry ]
+[ carry no tens ] [ zero tens ] -&gt; [  ] [ one tens ]
+[ carry no tens ] [ one tens ] -&gt; [  ] [ two tens ]
+[ carry no tens ] [ two tens ] -&gt; [  ] [ three tens ]
+[ carry no tens ] [ three tens ] -&gt; [  ] [ four tens ]
+[ carry no tens ] [ four tens ] -&gt; [  ] [ five tens ]
+[ carry no tens ] [ five tens ] -&gt; [  ] [ six tens ]
+[ carry no tens ] [ six tens ] -&gt; [  ] [ seven tens ]
+[ carry no tens ] [ seven tens ] -&gt; [  ] [ eight tens ]
+[ carry no tens ] [ eight tens ] -&gt; [  ] [ nine tens ]
+[ carry no tens ] [ nine tens ] -&gt; [  ] [ zero tens carry ]
+[ hund ] -&gt; [ hund off ]
+[ tens carry ] [ hund off ] -&gt; [ tens carry ] [ hund on ]
+[ player won ] -&gt; win
+[ star player ] [ tens carry ] -&gt; [ player won ] [ tens no carry ] again
+late [ br | ... | player ] -&gt; [ &gt; br | ... | player ]
+[ carry no tens ] -&gt; [  ]
+[ seg no on ] -&gt; [ seg on ]
+[ seg off ] -&gt; [ seg ]
+[ m no tens ] [ zero no tens ] -&gt; [ m off ] [ zero ]
+[ l no tens ] [ one no tens ] -&gt; [ l off ] [ one ]
+[ w no tens ] [ one no tens ] -&gt; [ w off ] [ one ]
+[ m no tens ] [ one no tens ] -&gt; [ m off ] [ one ]
+[ t no tens ] [ one no tens ] -&gt; [ t off ] [ one ]
+[ b no tens ] [ one no tens ] -&gt; [ b off ] [ one ]
+[ l no tens ] [ two no tens ] -&gt; [ l off ] [ two ]
+[ e no tens ] [ two no tens ] -&gt; [ e off ] [ two ]
+[ l no tens ] [ three no tens ] -&gt; [ l off ] [ three ]
+[ w no tens ] [ three no tens ] -&gt; [ w off ] [ three ]
+[ b no tens ] [ four no tens ] -&gt; [ b off ] [ four ]
+[ w no tens ] [ four no tens ] -&gt; [ w off ] [ four ]
+[ t no tens ] [ four no tens ] -&gt; [ t off ] [ four ]
+[ r no tens ] [ five no tens ] -&gt; [ r off ] [ five ]
+[ w no tens ] [ five no tens ] -&gt; [ w off ] [ five ]
+[ r no tens ] [ six no tens ] -&gt; [ r off ] [ six ]
+[ l no tens ] [ seven no tens ] -&gt; [ l off ] [ seven ]
+[ w no tens ] [ seven no tens ] -&gt; [ w off ] [ seven ]
+[ m no tens ] [ seven no tens ] -&gt; [ m off ] [ seven ]
+[ b no tens ] [ seven no tens ] -&gt; [ b off ] [ seven ]
+[ w no tens ] [ nine no tens ] -&gt; [ w off ] [ nine ]
+[ seg tens ] [ zero tens ] -&gt; [ seg off tens ] [ zero tens ]
+[ l tens ] [ one tens ] -&gt; [ l off tens ] [ one tens ]
+[ w tens ] [ one tens ] -&gt; [ w off tens ] [ one tens ]
+[ m tens ] [ one tens ] -&gt; [ m off tens ] [ one tens ]
+[ t tens ] [ one tens ] -&gt; [ t off tens ] [ one tens ]
+[ b tens ] [ one tens ] -&gt; [ b off tens ] [ one tens ]
+[ l tens ] [ two tens ] -&gt; [ l off tens ] [ two tens ]
+[ e tens ] [ two tens ] -&gt; [ e off tens ] [ two tens ]
+[ l tens ] [ three tens ] -&gt; [ l off tens ] [ three tens ]
+[ w tens ] [ three tens ] -&gt; [ w off tens ] [ three tens ]
+[ b tens ] [ four tens ] -&gt; [ b off tens ] [ four tens ]
+[ w tens ] [ four tens ] -&gt; [ w off tens ] [ four tens ]
+[ t tens ] [ four tens ] -&gt; [ t off tens ] [ four tens ]
+[ r tens ] [ five tens ] -&gt; [ r off tens ] [ five tens ]
+[ w tens ] [ five tens ] -&gt; [ w off tens ] [ five tens ]
+[ r tens ] [ six tens ] -&gt; [ r off tens ] [ six tens ]
+[ l tens ] [ seven tens ] -&gt; [ l off tens ] [ seven tens ]
+[ w tens ] [ seven tens ] -&gt; [ w off tens ] [ seven tens ]
+[ m tens ] [ seven tens ] -&gt; [ m off tens ] [ seven tens ]
+[ b tens ] [ seven tens ] -&gt; [ b off tens ] [ seven tens ]
+[ w tens ] [ nine tens ] -&gt; [ w off tens ] [ nine tens ]
+[ hund on ] [ seg off ] -&gt; [ hund on ] [ seg on ]
+[ hund on ] [ m on ] -&gt; [ hund on ] [ m off ]
+[ on off ] -&gt; [ off ]
+[ corner no off ] -&gt; [ corner off ]
+[ corner on ] -&gt; [ corner ]
+[ corner off | seg on ] -&gt; [ corner on | seg on ]
+
+=============
+WINCONDITIONS
+=============
+
+no coin
+no fiver
+all ending on player
+
+======
+LEVELS
+======
+
+x-xxxxxxxxx
+xxxctcxctcx
+xxxlxrxlxrx
+xxxcmcxcmcx
+xxxwxexwxex
+xxxcbcxcbcx
+xjx???xxxxx
+xxxxxxxxxxx
+xp0k0.k..kz
+xxxxxxxxxxx
+
+xxxxxxxxxxxxxxx
+xxxxxxxctc....z
+xxxxxxxlxrxxxxx
+xxxxxxxcmcxxxxx
+xxxxxxxwxexxxxx
+p.3k.k.cbcxxxxx
+xxxxxxxxxxxxxxx
+
+xxxxxxzx
+x?xxxx.x
+x......x
+x.xxxxxx
+xckctckx
+xrxlxrxx
+xcxc$cxx
+xexwxexx
+xckcbckx
+xxxxxx.x
+p05....x
+xxxxxxxx
+
+
+x?xxxx?zx
+xxxxxxx0x
+xcx*!*x.x
+xrxlxrx.x
+xcx*$*x.x
+xexwxex.x
+xcx*&amp;*1px
+xxxxxxx.x
+
+xx???xxxx?x
+z.ctc.c!c.x
+x.lxrx@x#.x
+x.cmcxc$c.x
+x9wxexwx^1x
+x.cbc.cbc.x
+xxxxxxxxxpx
+
+x????xxxxxx
+z.ctcfctc.p
+x.lxrxlx#.x
+x.cmcxcm*.x
+x2wxexwx^4x
+x.cbcfcbc.x
+xxxxxxxxxxx
+
+x????xxxxx
+xctc3ctcxx
+x@xrx}xrxx
+xc$cxc:c7p
+xwx^xwx&quot;.x
+xc&amp;cxc,c.x
+xxxxxxxxzx
+
+x????xxxpx
+xctc6ctc.x
+x}x;x@x#.x
+xcmcxc$c1x
+x&#x27;x&quot;xwx^.x
+xc,c.c&amp;c.x
+xxxxxxxxzx
+
+xx???xxxxpx
+x..k91.k..x
+x.ctcxctc.x
+xklxrxlxrkx
+x.cmcxcmc.x
+xkwxexwxekx
+x.cbcxcbc.x
+x..k...k..x
+xzxxxxxxxxx
+
+
+
+xpxxxxxxxxx
+xkxxxxxxxxx
+x`xctcxctcx
+x`xlxrxlxrx
+x`xcmcxcmcx
+x`xwxexwxex
+x`xcbcxcbcx
+xjx???xxxxx
+xxxxxxxxxxx
+x.9.9.....z
+xxxxxxxxxxx
+
+xxx???xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+xxx???xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+xxx???.ctcxxxxxxxxxxxxxxxxxxxxxxxx
+xxx???xlxrxxxxxxxxxxxxxxxxxxxxxxxx
+xxx???xcmc..z.xxx.ctc..z.xxx.ctc.x
+xxx???xwxe.xx.xxxxlxr.xx.xxxxlxr.x
+xxx???xcbc.xx.xxxxcmc.xx.xxxxcmc.x
+xxx???xxxxzxx.xxxxwxe.xx.xxxxwxe.x
+xxx???xxxx.xx.xxx.cbc.xx.xxx.cbc.x
+xxxctc.ctc.xxxxxxxxxxzxxxxxxxxxx.x
+xxxl?rxlxr.xxxxxxxxxxxxxxxxxxxxxzx
+xxxcmcxcmc.xxxxxxxxxxxxxxxxxxxxx.x
+xxxw?exwxe.xxxxxx.....xxxxxxctcx.x
+xxxcbc.cbc.xxxx..xxxxx..xxxxlxrx.x
+xxx???xxxxzxxx.xxxxxxxxx.xxxcmcx.x
+xxx???xxxx.xxx.xx.xxx.xx.xxxwxex.x
+x..........xx.xxx.xxx.xxx.xxcbc..x
+x.xxx?xctc.xx.xxx.x.x.xxx.xxxxxx.x
+x.x?x?xlxr.xx.xxxxx~xxxxx.xxxxxxzx
+x.xxx?xcmc.xx.xx..xxx..xx.xxxxxx.x
+x.x?x?xwxe.xx.xx.......xx.x......x
+x.xxx?xcbc.xx..xx.....xx.xx.xxxxxx
+x..........xxx.xxx...xxx.xxx.ctc.x
+xzx???xxxxxxxxx..xxxxx..xxxxxlxrxx
+x.x???xxxxxxxxxxx.....xxxxxxxcmcxx
+xxxctcxctcxxxxxxxxxxxxxxxxxxxwxexx
+xxxl?rxlxrxxxxxxxxxxxxxxxxxx.cbc.x
+xxxcmcxcmcxxxxxxxxxxxxxxxxxxxxxx.x
+xxxw?exwxexxxxxxxxctc....z.......x
+xxxcbcxcbcxxxxxxxxlxrxxxxxxxxxxxxx
+xpx???xxxxxxxxxxxxcmcxxxxxxxxxxxxx
+xxx???xxxxxxxxxxxxwxexxxxxxxxxxxxx
+0...0.....z.......cbcxxxxxxxxxxxxx
+xxx???xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+</pre></details>
+</div><div class="card">
+  <h2>01_05_02_02+xover_rule:0obj</h2>
+  <div class="key">cell 01_05_02_03 &middot; iteration 52 </div>
+  <div class="shots"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAADSCAIAAABsAn0iAAADoElEQVR42u3dIXIUQRSH8TdUDBfgBjFr4QCxuQAiCTIWYlZhQGMCVyBrEFhsLhCL4QZcADn4na3KbFf3bHfP73Oktiap4avXeXn97x52m00cz69XL/e+cvn3X+Sg1ydfv/0drfEiAHKAHCAHyIETMtxcvPYWFuDNz3d7X7n7dpflyffv7ws9WeUAOUAOkAPkwGm7lelsxdykxJPTZivlOpE5T1Y5YFkBOUAOkANmK2vg4eJJ5YBlBeQAOQBy4BjO0iYF5i/HPvkh6pqbqBywrIAcIAfIgWhwJ1gDufJPpR7c5NtQOUAOkAPkADlgJ1jUkis/1K18SXrQdu/fLb4NKXtYVkAOkAPkgJR91JMrn9WtbBM+0+TbkLKHZQXkADlADpitRDW58gZnK1L2sKyAHCAHQA5ENSn7JXPlhyYpKfTxNqTsYVkBOUAOkAMhZd9drnz3Y+McM5UDlhWQA+QAOSBlH/Xlym8e3T6jcoAcIAfIAXJAyr7GXPl0trLmm2VUDpAD5AA5QA5I2deD2YrKAXKAHCAHyIGQso+I+vaGlXsbIbcCywrIAXIA5EDUkrK/+lgqZT9cx4JnI8dqTwZQOWBZATlADpADJ+Vs+ltrZPpb/dWBLiPlVpRxt53xmTxdT/3TnzlvPtdzVA5YVkAOkAPkQG07wcrtPopZ96Q839GM45jle4+Thmr4PBTqRNJ6kzlPLvc/qHKAHCAHyAFyIDpN2X+/fSo0Wzm0Eyytfxk62AlW7mQAlQPkADlADpAD0WnKPm1PV8ZGLEtHs+aTAVQOWFZADpAD5MBpu5WC3cKfWDALP2cH1/OfGc+nv9bvdxAfzvO8jVxdj8oBcoAcIAfIgbATLPq/y37araSdPzZN/X+9LPUz2wkGywrIAXKAHHCXfazgLvty3UrapGnOzzw9wVjKHpYVkAPkADlgthLd3WVfW7cSZiuwrIAcIAfIgZCyD3fZZ7zJRcoelhWQAyAHyIGo+C77tJ1g0em98JHpxsYln6xywLICcoAcIAek7KOaSUq5XVUqB8gBcoAcADkgZV9nYj0anMioHCAHyAFygByQso8V3AuvcoAcIAfIAZADIWVfZWI95FZgWQE5QA6AHIhaUva97o9az5kDKgfIAXKAHCAHet0Jhmj8zAGVA+QAOUAOkAO9puzDRCbaPnNA5YBlBeQAOUAOmK2sgRbPHFA5QA6QA+QAORCdpuzD/KXxMwdUDpAD5AA5QA6clP/OXPOwfoW47wAAAABJRU5ErkJggg==" alt="level 0"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAADSCAIAAABsAn0iAAADf0lEQVR42u3dIXYTQRjA8S88DBfgBpi15QCxvUAFKVfgxcQXXRO4AllTgcX2ArUx3ACBRQaHyD7KZpiZzG5+P1kx9G3/b6fb2Y8s+q6L0317/eroK9c/fkUOVm5n5RcBfyEOxIE4EAc1LG6XV64C7hyIA3EgDsRBe14O/6LuDMLK7hyIA3EgDsRBOFvBnQNxIA7EgTggxp6thBMHK7tzYFtBHIgDcdDA00q5pVc3+yzr7Ip9h/NYuX/o3DmwrSAOxIE4CG+CneLt1/dHX1l/XmdZeftha+U/bh+v3DmwrSAOxIE4mOXTyvB/MM719lHa2YonkVNXHp6tmLLHtoI4EAfiwNnK83bLJ9e3Amcr2FYQB+JAHIQp+zjtr/c75yZVVi73E3TnwLaCOBAH4iAaexMs1++6uabsI9Nc+ajveV/qe467mNzVcOfAtoI4EAfiwJR9NPPu0+7x+O21Q590WVfHX9n+NGWPbQVxIA4QB9HIZ9mvkn4bH/N+VLnv+cvhkOWyHt4Nnl8+LiZ3Ndw5EAfiQByIgzBlH+2erUSkPb8sqr0J5mwF2wriQByIgzBlH61M2df8nkc9iSQ90Ziyx7aCOBAHiIP5Tdkf3kzwQn8PU/bYVhAH4gBxMPsp++HTynCqfdQ6/Zh5+fuklTdHX/l0bcoe2wriQBwgDmL2U/bnthl85d9PNOsJ/p8D7hyIA3EgDsTBeZ9Whr/Zxoi3hspp79kkEp5Nal6Ncj9Bdw7EgTgQB+LAlP3/S/tUlLR3unIxZY9tBXEgDhAHzz+t1PzHcj2bpE2pnPepZ4qnSO4ciANxIA7EQftvgkXS3+rrTqDcZ5pAKTVlX+5qlPsJunNgW0EciANxYMq+zG/1m2LzJqbssa24BIgDcSAOTNlHk7PwpuyxrbgEiANxIA5M2UfGd7rClL0pe2wriANxIA5M2Ufhc5O7mNwnzpuyx7aCOBAHiINL+Cz7cmc0U1zZZ9ljW0EciANxMNenlb7rotCU/c3ek0iFlfuHzpQ9thXEgTgQB85WTrJbPrm+FThbwbaCOBAH4iBM2Ue7U/aXvLIpe2wriANxIA7iYt4Ey/W7bmT6jEIrn2tldw5sK4gDcSAO5vomGO4ciANxgDgQB9HkZ9mH042Jr+zOgTgQB+JAHISzFdw5EAfiQByIA6LelH04ywhzK9hWEAeIA3GQ7Dd4HejebbrcdQAAAABJRU5ErkJggg==" alt="level 1"></div>
+  <table class="m"><tr><td>fitness</td><td>0.644</td></tr><tr><td>novelty</td><td>0.34</td></tr><tr><td>rules / objects</td><td>2 / 5</td></tr><tr><td>mean solution</td><td>24.5 moves</td></tr><tr><td>levels solved</td><td>100%</td></tr></table>
+  <div class="ops"><span class="tag">xover_rule:0obj</span></div>
+  <div class="near">nearest human games: blank, sokoban_basic_debug, sokoban_basic</div>
+  <details><summary>source (105 lines)</summary><pre>title Simple Block Pushing Game
+author David Skinner
+homepage www.puzzlescript.net
+
+=======
+OBJECTS
+=======
+
+Background
+lightgreen green
+11111
+01111
+11101
+11111
+10111
+
+Target
+darkblue
+.....
+.000.
+.0.0.
+.000.
+.....
+
+Wall
+brown darkbrown
+00010
+11111
+01000
+11111
+00010
+
+Player
+black orange white blue
+.000.
+.111.
+22222
+.333.
+.3.3.
+
+Crate
+orange
+00000
+0...0
+0...0
+0...0
+00000
+
+======
+LEGEND
+======
+
+. = Background
+# = Wall
+P = Player
+* = Crate
+@ = Crate and Target
+O = Target
+
+======
+SOUNDS
+======
+
+Crate move 36772507
+
+===============
+COLLISIONLAYERS
+===============
+
+Background
+Target
+Player, Wall, Crate
+
+=====
+RULES
+=====
+
+[ &gt; Player | Crate ] -&gt; [ &gt; Player | &gt; Crate ]
+[ &gt; Player | Crate ] -&gt; [ &gt; Player | &gt; Crate ]
+
+=============
+WINCONDITIONS
+=============
+
+all Target on Crate
+
+======
+LEVELS
+======
+
+####..
+#.O#..
+#..###
+#@P..#
+#..*.#
+#..###
+####..
+
+######
+#....#
+#.#P.#
+#.*@.#
+#.O@.#
+#....#
+######
+</pre></details>
+</div><div class="card">
+  <h2>Stickyban</h2>
+  <div class="key">cell 03_05_02_03 &middot; iteration 0 </div>
+  <div class="shots"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAADSCAIAAABsAn0iAAADe0lEQVR42u3dMW4TQQCG0d+I0ogDhJYgIVG5yiFcINEgN+EMVmoWWkjOQBNBkau4QooENRdAchuFimZ3ke2Rx9k175UrGIH5tJNldjyTy/k0u/v+c9268uq0ZBwjD3nkR4F/EAfiQByIg0OYnL/wIeDOgTgQB+JAHAzQ4+7/qFuDMLI7B+JAHIgDcRBrK7hzIA7EgTgQB2TbtZVYcTCyOwemFcSBOBAHA3haqTf0crYu+W2z7qX1fv5ADzry/fN9fa7tka++Td05MK0gDsSBOIg3wXb6qfriaevKza/fexn5zbPxjdx9Wpksisa5bl9599GdA9MK4kAciIPYZb+TZdHP+ds8L9yMcOR66v0LunMgDsSBOBAHOdK1lS9vfbyxtoJpBXGAOBAHGeIu+/URvMFV8d2w61RaW7HLHtMK4kAciAO77HdV7/2ofY18uer85L+6a104S8mbV1erDOo7wdw5EAfiQByIg9hlP6r1jvOvknDnQByIA3EgDmKX/QD3wtf7NOIse0wriANxgDiIXfaxtuLOgTgQB+JAHMQu+xzVLvuan0acZY9pBXEgDhAHx7/LvmlfeP3ypH0lJxuHWdzeti/Na/3dl7N1yW+bZeMzYM83A7hzYFpBHIgDcRBvguVBdtl3n1bKvg24e+LJGD+Nem+vuXMgDsSBOBAHscs+u73T1XQeVz4s9vLQkyenn0f3aTjLHtMK4kAciINYW8lgdtk32fj8st0wzcHWVup9GtZWMK0gDsSBOIhd9hnuLvsm77sPYp0r9xsfe8b4aTjLHtMK4kAciAO77DPgXfZ9zyZFv2ZV6+/esxd+dde6cJaps+wxrSAOxIE4wFn2cd6KOwfiQByIA3EQu+ydZR9n2WNaQRyIA8RBnGUfayvuHIgDcSAOxEHsso+z7J1lj2kFxIE4EAd22dcfud6J80VfsdznR+cs+7mz7DGtIA7EgTiIN8Fy7Lvs643c97TyqWigixzqjBh3DsSBOBAH4iB22Q9ml329kcueRLZ5onGWPaYVxIE4EAextpLj32VfURNrK5hWEAfiAHEQu+xH8W5Yz0pKnGWPaQVxIA7EAX9NyvZo/8+nkMR3goE4EAfiQByM/E0w3DkQB+IAcSAOMshd9rG6EWfZY1pBHCAOxEGsreDOgTgQB+JAHMQue2sZsW8F0wqIA3EgDmr7A4EFzVRsEJJHAAAAAElFTkSuQmCC" alt="level 0"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAADSCAIAAABsAn0iAAADr0lEQVR42u3dwWoTURSH8VNxWfEB6rYtCK7yHEGECko3fQZD1sZ1zTt0U9xk53N0JRSqW19AGHAZ95lKksuc6Z3J71sOzSGZ+bgnkzP/3qPl9Dj258fPZuPIm7OSOirXXPlZAP+BHCAHyAFyoA+Ors6dBFg5QA6QA+QAOVAhz9u/qJtBqGzlADlADpAD5ECYrcDKAXKAHCAHyAHErrOVMHFQ2coBbQXkADlADlRwt5JXejZpSl42aR9q1Vl09BYfmqwP/9DRe97hbCzvjsPKAW0F5AA5QA6M8W6l/Rt7dPRb/cXblxtHVr//pH2Q66JXzXurfPEq62zkXUErB7QVkAPkADkw1pT9rOjbeHff6ucd3Xd0U3mVdjbyrqCVA+QAOUAOkAP1z1YKf72flLyou/nLddQ1x8k6G3lX0MoBcoAcIAfIgfGm7Jvenoba7Zmuuip3dTbyrqCVA9oKyAFygBwYa8o+0uYmy2nW9/PZ97Tc/WLzwLvXJ5tH4mRrmcv7+81DUysHtBWQA+QAORD2W9mLZp41Sbn6lvWebx6it/z++rbogl22zsa5lQPaCsgBcoAcCCn7qCNln/eed/ufxiUp+0VruPLlMroY0cSLs69S9tBWQA6QA+RAmK3sw83HrMrjmK0sirZgab/KbAXaCsgBcoAcCCn7qCVln/ieH5mtzNOCLJ/bN4+tI+ut0xUpe2grIAfIAXJAyj6qSdl/+tBVFr5pVc767Ee/Yod7k6K/ubNyQFsBOUAOkAPhSbBKUvbr0+3Z853q3Jak2ssqv/87vP85YOUAOUAOkAPkQEjZRz97sjwl9rKHtgJygBwAOWAv+zFhL3toKyAHyAFywGwlBr6XfdneJU9b2V720FZADpADIAfGl7J/LLEeSYmY+s+GlQPkADlADpADIWUftaTsE2c0p1L2Vg6QA+QAOUAOhJR98Z3IaoD5fSl7aCsgB8gBkANxAHvZ55E3W8l7es1sBdoKyAFygBwIKfuoN2U/xPy+lD20FZAD5ADIgfGl7GOA+X0pe2grIAfIAZADUvaHVtmTYNBWQA6QA+TAWO9WltO0lP2kcSfSQ+XlnZQ9tBWQA+QAOWC2EqNP2Q8RsxVoKyAHyAFyIKTs4xBT9vVXlrKHtgJygBwgB+JgngTr7m4lVB50ZSsHtBWQA+QAOTDWJ8Fg5QA5QA6AHCAHosq97MN0Y+CVrRwgB8gBcoAcCLMVWDlADpAD5AA5gOgzZR8qh9wKtBWQAyAHyIFC/gGSwtrGESvDuAAAAABJRU5ErkJggg==" alt="level 1"><img src="data:image/png;base64,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" alt="level 2"></div>
+  <table class="m"><tr><td>fitness</td><td>0.626</td></tr><tr><td>novelty</td><td>0.68</td></tr><tr><td>rules / objects</td><td>9 / 6</td></tr><tr><td>mean solution</td><td>18.0 moves</td></tr><tr><td>levels solved</td><td>100%</td></tr></table>
+  <div class="ops"><span class="tag">seed</span></div>
+  <div class="near">nearest human games: Stickyban, Remote_Control_Sokoban, Escaping_Limbo</div>
+  <details><summary>source (172 lines)</summary><pre>title Stickyban
+author Connorses / Loneship Games
+homepage www.puzzlescript.net
+text_color #5F259F
+========
+OBJECTS
+========
+
+Background
+#549c0f GREEN
+11111
+01111
+11101
+11111
+10111
+
+
+Target
+DarkBlue
+.....
+.000.
+.0.0.
+.000.
+.....
+
+Wall
+#8d4d0c #602700
+00010
+11111
+01000
+11111
+00010
+
+Player
+brown Orange purple Blue
+.000.
+.111.
+22222
+.222.
+.3.3.
+
+Crate
+Orange Yellow
+00000
+0...0
+0...0
+0...0
+00000
+
+wallHit
+transparent
+
+=======
+LEGEND
+=======
+
+. = Background
+# = Wall
+P = Player
+* = Crate
+@ = Crate and Target
+O = Target
+
+
+=======
+SOUNDS
+=======
+
+Crate MOVE 36772507
+
+================
+COLLISIONLAYERS
+================
+
+Background
+Target
+Player, Wall, Crate
+wallHit
+
+======
+RULES
+======
+[&gt; player|wall] -&gt; cancel
+[ moving Player | Crate ] -&gt; [ moving Player | moving Crate ]
+[ moving Crate | Crate ] -&gt; [ moving Crate | moving Crate ]
+
+[ &gt; Crate | Wall ] -&gt; [ Crate wallHit | Wall ]
+[ Crate wallHit | Crate ] -&gt; [ Crate wallHit | Crate wallHit ]
+[ moving Crate wallHit ] -&gt; [ Crate wallHit ]
+[ &gt; player | wallHit ] -&gt; cancel
+
+
+late [ Crate wallHit ] -&gt; [ Crate ]
+late [ wallHit ] -&gt; []
+
+==============
+WINCONDITIONS
+==============
+
+All Target on Crate
+
+=======
+LEVELS
+=======
+######
+#...*#
+#..###
+#.p#.#
+#..###
+#...o#
+######
+
+######
+#.oo.#
+#.#op#
+#.**.#
+#..*.#
+#....#
+######
+
+#########
+#...*...#
+#..###..#
+#.*.....#
+#.p.oo..#
+#.*.oo..#
+#.......#
+#..###..#
+#...*...#
+#########
+
+####..
+#.O#..
+#.O###
+#*P..#
+#..*.#
+#..###
+####..
+
+#######
+#..o..#
+#.po*.#
+##.o..#
+####*.#
+##*...#
+#######
+
+###########
+#..##.....#
+#..##....p#
+#..#o....*#
+#*.#.#....#
+#...*.o...#
+#..#*..####
+#..**.#####
+#..#..#####
+#.........#
+#.........#
+###########
+
+########
+#.....p#
+#.#...*#
+#.*....#
+#......#
+##.###.#
+.#.###.#
+.#*....#
+.#.#####
+.#.....#
+.#*...o#
+.#######</pre></details>
+</div><div class="card">
+  <h2>02_05_02_03+template:pull</h2>
+  <div class="key">cell 02_05_02_03 &middot; iteration 269 </div>
+  <div class="shots"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAANIAAADSCAIAAACw+wkVAAACiklEQVR42u3dMU7rQBRA0RdEl61kWAe9F8SwIPdZB5OtpKejwEhYJs947HPKSN98OVfPGjkeRwAAAAAAAAAAAAAAAAAAAAAAAJDrlHfo1lrSkcdx9M19GYYh6cillKQjP/naWJ/skB2yA9mxH89r/rFSrotWxK9Jq7k5K+Iej5x3nk07XGRBdsgOZMfRVrJTtd4nn5x9K7s/z6YdskN2IDtkBz2vZK1bj3ieTTtkh+xAdsgOwnOy4TnZ8JwsyA7ZgeyQHeGerPVmD+vNHs+zaYfskB3IDtlBL78uti9TdL7/lWmHiyzIDtmB7PCcLHHI/a9MO2SH7EB2yA6sZO3LZNqB7JAdyA7ZYSUbXT3R2eOR897fuv0nZ007ZIfsQHbIDtyT3T77X5l2yA7ZgeyQHdjxaZ0jv9W64MjvM/5Vj2fDtMNFFmSH7EB2uCeb5/Lx/V2ot5fHvN/2NnlP7iXtvaumHcgO2YHskB0cZyX7qHXrD2tk61bTDtmB7JAdyI7/dIrEnXir8xt976VcTTtcZEF2yA5kR7gnu23LnjCNne741Foz7XCRBdkhO5Addnzqbo+jUq5Jb9jp8Wws+2X19Mli0w4XWWQHskN24J5srPqb2/vkk/Nhz8Z0l+Y5uz2bdrjIIjuQHbIDK9l1V7JnJ+GPbyky7XCRRXYgO2QHYcen8JxsT2fDtMNFFtmB7JAdxMHuyVpvrqOkvW/ItMNFFtmB7JAd2PGpjEvWXG1ou9yXKe/Iph0usiA7ZAeywz3ZPDXqr59g2iE7kB2yA9lhJbvllSymHbID2SE7kB1WsrGZ36/O+Z3w1v7PPR7ZtMNFFmSH7EB2AAAAAAAAAAAAAAAAAAAAAAAAcACfE5mn/ygBNYMAAAAASUVORK5CYII=" alt="level 0"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAANIAAADSCAIAAACw+wkVAAAC0ElEQVR42u3dMW7qQBRA0ecoHVthso70XhDDguhZR8xW6NPjIo6TZ2bwOSXS90fO1VhPtoch0kzTlHTkUkrQszenANkhO5AdsoP13rf8z46rJtBb2kSM1Q7ZgeyQHcgOk+xvnWt9+OQ0+wSrHcgO2YHskB20M8maW612IDtkB7JDdtDyJOs5Yax2yA7ZgeyQHfzZEB3u+HS5XJKOPI5jd985T027Y261w0UW2YHskB1EJ/dkS7mumog/kybQJdNluazZpWoapyd+57wjW+1wkQXZITuQHd6TrfU+++TQ+CmrUX/8BKsdsgPZITtkB687yR66O2XmVqsdsgPZITuQHfuZZJc8JxyNvYW65Dnh1r5z++/kWu2QHbID2SE7aHOS7XGPox6/s9UOZIfsQHbIDpNsnh73OHJkqx0usiA7ZAeyQ3YgO2SH7EB2yA5kh+xAdsgOZIfs2I0hEvclrs5v1/L+glY7XGSRHcgO2UF0+ys8seH7tvGiOz7lnQ2TLC6yIDtkB7LDJJu3E1Ep18j5VaDTqmnuvOBf9Xg2rHa4yILskB3IDvdkI/HJ2Pvsk8O/HPk2Pf7C7LGU3Z4Nqx0usiA7ZIfswCT7f7Nb1qTW/ty65dmw2uEiC7JDdsgOXnuSzXsLNe/J2HPau6I9ng2rHS6yIDtkB7LDPdn97MvkbFjtkB2yA9khO7DjkyNvf2SrHS6yIDtkB7LDPdkeHb8e35O9fUxOi9UO2YHskB2yA5Nss8ytVjtkB7JDdiA7nmqIxP1yq/Mbfe//XK12uMiC7JAdyI5wTzae9r5t2EvKaofsQHbIDmSHSbaZHZ9KuUbOr9XY8clqh4ssyA7ZgexwTzY2ejL2Pvvk4O9ttUN2IDtkB7LDJNvwJGtutdqB7JAdsgPZYZKNZt9CXfKccGvfuccjW+1wkQXZITuQHQAAAAAAAAAAAAAAAAAAAAAAAOzAN5zcshvQLotmAAAAAElFTkSuQmCC" alt="level 1"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAANIAAADSCAIAAACw+wkVAAACyElEQVR42u3dsW3rMBRA0ecgnVcxM0d6DWR5IPWZI/Qq6dObQCIopkJS55QuBH//i0cQkphTdCjnXOnKKSXfeYfv/BKwO9khO2QHsmMcr2P8My6bdnP3ajs13/nn72zaYZFFdiA7ZAd2sqXbPD98ci0+8Z3/6zubdlhkkR3IDtmBnWyp/T3gkb+zaYdFFtmB7JAd2Mn+7zO3vrNph0UWZIfskB3s6FTv0nOHdxinaap05WVZuvs16v0PmnZYZJEdyA7ZQXRyT3bbPnHNHrDeldOy5YyjPOUhfw3TDossyA7ZgezwdHGP5ph//QTTDtmB7JAdsgM72ZZ3sph2yA5kh+yQHYy6k633/Gq9K695Tvg4v4Zph0UWZIfsQHbIDtmB7JAdyA7ZQTjx6bknPqWPDVfO+d2JT6YdFllk5ydAdsgOvCcbrfxtmq/ik7OfxbRDdiA7ZIfswE624Z2sfatph+xAdsgOZIcTn9q98prnhJ34ZNphkQXZITtkB+7JEpXfPo5Vd59n0w6LLMgO2YHscOJT9HbG0SWlDVe+5zzkKVWmHRZZkB2yA9nhnmw9l8/HHej97Tl/GfZW3Km8Vrt3GYOeUmXaITtkB7JDdmAnW3rWvrXU/r61/VOqTDtkh+xAdsgOnPhU78prnhM+zilVph0WWZAdsgPZ0YBTvUvnDveAhBOfsMiC7JAdyI5wTzZ2OImox7OkeryyaYdFFmSH7EB2eE+2tZOIMO2QHcgO2YHssJPt6yQiTDtkB7JDdiA7wnuy4T3Z8J6saYdFFtmB7JAdRA/3ZO0348/vro76O5t2yA7ZgeyQHfTydLHTk6Lz869MOyyyIDtkB7LDe7LEIc+/Mu2QHbID2SE7sJMdZSd7Nu1AdsgOZIfsoKmdbL3nV3u88prnhEd9c9a0Q3bIDmSH7AAAAAAAAAAAAAAAAAAAAAAAAICGfQNAUNGh///sugAAAABJRU5ErkJggg==" alt="level 2"></div>
+  <table class="m"><tr><td>fitness</td><td>0.620</td></tr><tr><td>novelty</td><td>0.58</td></tr><tr><td>rules / objects</td><td>6 / 8</td></tr><tr><td>mean solution</td><td>17.7 moves</td></tr><tr><td>levels solved</td><td>100%</td></tr></table>
+  <div class="ops"><span class="tag new">template:pull</span></div>
+  <div class="near">nearest human games: lunar_lockout, I_Only_Play_REAL_Multiban, Soko-bine</div>
+  <details><summary>source (144 lines)</summary><pre>title Lunar Lockout
+homepage http://bit.ly/WMmQrq
+
+=======
+OBJECTS
+=======
+
+Background
+Black
+
+Square
+LightGray Gray
+11111
+10001
+10001
+10001
+11111
+
+Space
+Black
+
+Target
+Red
+.....
+.000.
+.0.0.
+.000.
+.....
+
+Soldier
+DarkBlue LightGray Gray
+11111
+10001
+10201
+10001
+11111
+
+Captain
+Green LightGray Gray
+11111
+10001
+10201
+10001
+11111
+
+Player
+Orange
+.....
+.....
+..0..
+.....
+.....
+
+======
+LEGEND
+======
+
+Pawn = Soldier or Captain
+Block = Pawn
+
+@ = Space
+_ = Square
+P = Square and Player
+* = Square and Target
+O = Soldier
+$ = Soldier and Target
+C = Captain
+
+======
+SOUNDS
+======
+
+
+
+===============
+COLLISIONLAYERS
+===============
+
+Background
+Space, Square
+Target
+Pawn, Captain
+Player
+
+=====
+RULES
+=====
+
+[ &gt; Player | Space ] -&gt; [ Player | Space ]
+[ &gt; Player Pawn ] -&gt; [ Player &gt; Pawn ]
+[ Square | &gt; Player ] -&gt; [ &gt; Square | &gt; Player ]
+[ &gt; Pawn | Block ] -&gt; [ Pawn | Block ]
+[ &gt; Pawn | Square ] -&gt; [ Square | &gt; Pawn ]
+[ &gt; Pawn | Space ] -&gt; [ Square | Space ]
+
+=============
+WINCONDITIONS
+=============
+
+some Captain on Target
+
+======
+LEVELS
+======
+
+message challenge 4
+
+@@@@@@@
+@O___O@
+@___O_@
+@_P*__@
+@__O__$
+@_C___@
+@@@@@@@
+
+message challenge 16
+
+@$@@@@@
+@O_C__@
+@_____@
+@_O*_O@
+@__P__@
+@_O___@
+@@@@@@@
+
+message challenge 21
+
+@@$@$@$
+@__C__@
+@__O__@
+@_P$_O@
+@O____@
+@___O_@
+@@@@@@@
+
+message challenge 37
+
+@@@@$@@
+@O__OO@
+@_____@
+@_P*__@
+@O__C_@
+@_____@
+@@$@@@@
+</pre></details>
+</div></div>
+</main>
