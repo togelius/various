@@ -1279,6 +1279,7 @@ const CITY = (() => {
   const manholes = []; // road spots for the covers and their steam
   const solidProps = []; // {x,z,r,kind,idx}
   const parkedSpots = [];// {x,z,angle}
+  const shopfronts = []; // lit shop windows at night: {x, z, nx, nz, w, shut, open}
   const ramps = [];      // {x0,z0,x1,z1,h,dir}
   const lights = [];     // traffic lights: {x,z,phase}
   let stunts = [];
@@ -1484,7 +1485,10 @@ const CITY = (() => {
       const pool = SHOP_POOL[dist] || SHOP_POOL.midtown; const shopTile = T['shops' + rng.pick(pool)];
       b.box(x0, y, z0, W, ground, D, tint, shopTile, { faces: 1 | 2 | 16 | 32, uvScale: 8 });
       // the street side is painted in 8 m stretches, each a different pair of shops, so no two doors down a block match
+      const outN = front === 'n' ? [0, -1] : front === 's' ? [0, 1] : front === 'w' ? [-1, 0] : [1, 0]; // the way this front faces the street
       { let last = -1; for (let t = 0; t < frontLen - 0.5; t += 8) { let k = rng.pick(pool); if (k === last) k = rng.pick(pool); last = k; shopTiles.push(k); const seg = Math.min(8, frontLen - t); const tl = T['shops' + k];
+        { const [fx2, fz2] = frontPt(t + seg / 2, 0.2); const h = Math.abs(Math.sin(fx2 * 12.9898 + fz2 * 78.233) * 43758.5453) % 1; /* a hash of the position, so recording shopfronts consumes no city random numbers and leaves every other placement where it was */
+          shopfronts.push({ x: fx2, z: fz2, nx: outN[0], nz: outN[1], w: seg, shut: k === 20, open: h < 0.72 }); }
         if (front === 'n') b.box(x0 + t, y, z0 - 0.03, seg, ground, 0.03, tint, tl, { faces: 32, uvScale: 8 }); else if (front === 's') b.box(x0 + t, y, z1, seg, ground, 0.03, tint, tl, { faces: 16, uvScale: 8 }); else if (front === 'w') b.box(x0 - 0.03, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 2, uvScale: 8 }); else b.box(x1, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 1, uvScale: 8 }); } }
       b.box(x0 - 0.3, y + ground - 0.35, z0 - 0.3, W + 0.6, 0.35, D + 0.6, trim, 0);
       // Give the painted shop bays a shallow stone surround so the street catches light and shadow.
@@ -1905,7 +1909,7 @@ const CITY = (() => {
     return staticBuilder;
   }
 
-  return { GRID, BLOCK, ROAD, SW, PITCH, HALF_ROAD, LANE, CURB, SIZE, SHORE, lots, blocks, places, props, solidProps, parkedSpots, ramps, lights, get stunts() { return stunts; },
+  return { GRID, BLOCK, ROAD, SW, PITCH, HALF_ROAD, LANE, CURB, SIZE, SHORE, lots, blocks, places, props, solidProps, parkedSpots, shopfronts, ramps, lights, get stunts() { return stunts; },
     pier: { x0: pierX0, x1: pierX1, z1: pierZ1 }, marina, manholes, interiors, setInterior, get interiorRoom() { return interiorRoom; }, setRoof, get roofLot() { return roofLot; }, get roofAccess() { return roofAccess; }, roadNodes, roadEdges, walkNodes, generate, get water() { return waterBuilder; }, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
 })();
 
@@ -1947,7 +1951,7 @@ const RENDER = (() => {
   const FS = `
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in float vEmis;
     uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform sampler2DArray uNrm;
-    uniform float uNrmOn; uniform float uNrmStr; uniform vec4 uPanes[128]; uniform float uInterior;
+    uniform float uNrmOn; uniform float uNrmStr; uniform float uEmis; uniform vec4 uPanes[128]; uniform float uInterior;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
     uniform float uFogDensity; uniform float uFogHeight; uniform float uFogSun; uniform float uNightEmis;
     uniform mat4 uLightVP[2]; uniform float uCascadeFar; uniform float uWet;
@@ -2066,7 +2070,7 @@ const RENDER = (() => {
         // a lamp reflected in a wet street, which is most of what a city looks like in the rain at night
         if (uSpec > 0.0 && gloss > 0.4) col += uLightCols[i] * att * pow(max(dot(n, normalize(Ln + v)), 0.0), power) * uSpec * gloss * gloss * 1.6;
       }
-      col += mix(albedo, s2l(vec3(1.0, 0.87, 0.66)), 0.15) * t.a * uNightEmis * 1.8;
+      col += mix(albedo, s2l(vec3(1.0, 0.87, 0.66)), 0.15) * t.a * uNightEmis * uEmis;
       col += s2l(vCol) * vEmis;
       // Height fog: haze pools in the streets and thins with altitude, so the skyline stays crisp and the city gains depth.
       // Analytic integral of an exponential density along the view ray, then tinted toward the sun for aerial perspective.
@@ -2278,11 +2282,22 @@ const RENDER = (() => {
     M.frustumPlanes(viewPlanes, vp);
     stats.draws = 0; stats.tris = 0;
   }
+  const selL = new Array(MAX_LIGHTS), selD = new Float64Array(MAX_LIGHTS);
   function setLights(list) {
-    // list: [{x,y,z,r,col:[r,g,b]}] — nearest MAX_LIGHTS to the camera target win
-    list.sort((a, b) => M.dist2(a.x, a.z, cam.tx, cam.tz) - M.dist2(b.x, b.z, cam.tx, cam.tz));
-    const n = Math.min(list.length, MAX_LIGHTS); lights.n = n;
-    for (let i = 0; i < n; i++) { const L = list[i]; lights.pos.set([L.x, L.y, L.z, L.r], i * 4); lights.col.set(L.col, i * 3); }
+    // The MAX_LIGHTS nearest the camera target win. A city block carries hundreds of street lamps, so this keeps a
+    // sorted shortlist by insertion rather than sorting the whole list with a comparator every frame.
+    const n0 = list.length; let m = 0;
+    for (let i = 0; i < n0; i++) {
+      const L = list[i]; const dx = L.x - cam.tx, dz = L.z - cam.tz; const d2 = dx * dx + dz * dz;
+      if (m === MAX_LIGHTS && d2 >= selD[m - 1]) continue;
+      let j = m < MAX_LIGHTS ? m : MAX_LIGHTS - 1;
+      while (j > 0 && selD[j - 1] > d2) { selD[j] = selD[j - 1]; selL[j] = selL[j - 1]; j--; }
+      selD[j] = d2; selL[j] = L; if (m < MAX_LIGHTS) m++;
+    }
+    lights.n = m;
+    for (let i = 0; i < m; i++) { const L = selL[i], o = i * 4, c = i * 3;
+      lights.pos[o] = L.x; lights.pos[o + 1] = L.y; lights.pos[o + 2] = L.z; lights.pos[o + 3] = L.r;
+      lights.col[c] = L.col[0]; lights.col[c + 1] = L.col[1]; lights.col[c + 2] = L.col[2]; }
   }
   function bindCommon(P, forShadow) {
     gl.useProgram(P.p);
@@ -2292,7 +2307,7 @@ const RENDER = (() => {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, texArray); gl.uniform1i(P.u.uTex, 0);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadow.tex); gl.uniform1i(P.u.uShadow, 1);
       gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D_ARRAY, nrmArray || texArray); gl.uniform1i(P.u.uNrm, 3);
-      gl.uniform1f(P.u.uNrmOn, nrmArray && env.normalMaps ? 1 : 0); gl.uniform1f(P.u.uNrmStr, env.normalStrength); gl.uniform1f(P.u.uInterior, env.interiors === false ? 0 : 1);
+      gl.uniform1f(P.u.uNrmOn, nrmArray && env.normalMaps ? 1 : 0); gl.uniform1f(P.u.uNrmStr, env.normalStrength); gl.uniform1f(P.u.uInterior, env.interiors === false ? 0 : 1); gl.uniform1f(P.u.uEmis, env.emisStr === undefined ? 1.8 : env.emisStr);
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
       gl.uniform3fv(P.u.uFogCol, env.fogCol); gl.uniform3f(P.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform1f(P.u.uFogDensity, env.fogDensity);
       gl.uniform1f(P.u.uFogHeight, env.fogHeight); gl.uniform1f(P.u.uFogSun, env.fogSun);
@@ -2316,6 +2331,9 @@ const RENDER = (() => {
     let lastBones = null, lastSpec = 0;
     for (const e of scene.entities) {
       if (forShadow && e.noShadow) continue;
+      // Each shadow cascade only needs what falls inside its own box: a car eighty metres off cannot cast into the
+      // tight near cascade, and drawing it there was a draw call and a skinned mesh for nothing.
+      if (forShadow && !M.sphereInFrustum(planes, e.model[12], e.model[13], e.model[14], e.cullR || 6)) continue;
       gl.uniformMatrix4fv(P.u.uModel, false, e.model);
       if (e.bones) { gl.uniformMatrix4fv(P.u.uBones, false, e.bones); lastBones = e.bones; } else if (lastBones) { gl.uniformMatrix4fv(P.u.uBones, false, identityBones); lastBones = null; }
       if (!forShadow) { gl.uniform1fv(P.u.uBoneEmis, e.emis || zeroEmis); if ((e.spec || 0) !== lastSpec) { lastSpec = e.spec || 0; gl.uniform1f(P.u.uSpec, lastSpec); } }
@@ -2866,18 +2884,54 @@ const W = (() => {
     const night = RENDER.env.nightEmis; if (night < 0.05) return; const rain = weather.rain;
     let cones = 0;
     for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 > 60 * 60 || cones++ > 14) continue; const a = p.a || 0; const hx = p.x + Math.sin(a) * 1.6, hz = p.z + Math.cos(a) * 1.6; const y0 = CITY.groundY(hx, hz);
-      const al = 0.03 * night * (1 + rain * 1.5) * (1 - Math.sqrt(d2) / 60); const R = 2.6; const segs = 16;
-      for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU; fx.tri(F.adds, hx, 5.7, hz, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R, 1, 0.85, 0.55, al); fx.tri(F.adds, hx, 5.7, hz, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R, 1, 0.85, 0.55, al); }
+      const d = Math.sqrt(d2);
+      // The shaft of light in the air fades out as you walk up to the lamp: standing inside a cone of constant
+      // brightness put a hard-edged slab of light across half the screen.
+      const near = M.clamp((d - 3.5) / 7, 0, 1);
+      const al = 0.03 * night * (1 + rain * 1.5) * (1 - d / 60); const R = 2.6; const segs = 16;
+      // Each segment is a quad with the apex doubled, so the shaft is brightest at the lamp and fades to nothing at
+      // the ground rim rather than ending on a hard edge. Drawn both ways round so it reads from either side.
+      if (near > 0.01) for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU;
+        const p0 = [hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R], p1 = [hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R], ap = [hx, 5.7, hz];
+        fx.quad(F.adds, ap, ap, p1, p0, [1, 0.85, 0.55], al * near, 0);
+        fx.quad(F.adds, ap, ap, p0, p1, [1, 0.85, 0.55], al * near, 0); }
       // pool on the ground: a fan that fades to nothing at the rim, so there is no hard square of light
-      { const pr = R * 1.35, py = y0 + 0.03, col = [1, 0.85, 0.55], a0 = al * 2.2;
+      { const pr = R * 1.9, py = y0 + 0.03, col = [1, 0.85, 0.55], a0 = al * (RENDER.env.lampPool === undefined ? 6.5 : RENDER.env.lampPool);
         for (let i = 0; i < 16; i++) { const t0 = i / 16 * M.TAU, t1 = (i + 1) / 16 * M.TAU;
           fx.quad(F.adds, [hx, py, hz], [hx, py, hz], [hx + Math.cos(t1) * pr, py, hz + Math.sin(t1) * pr], [hx + Math.cos(t0) * pr, py, hz + Math.sin(t0) * pr], col, a0, 0); } } }
+    shopGlow(camX, camZ, night, rain);
   }
+  // A lit shop window is the main source of light on a night street: each open front throws a warm wedge across the
+  // pavement that fades out at its edge, and carries a short-range light so people and cars passing it are lit too.
+  function shopGlow(camX, camZ, night, rain) {
+    if (RENDER.env.shopGlow === false) return;
+    let n = 0;
+    for (const s of CITY.shopfronts) {
+      if (s.shut || !s.open) continue;
+      const dx = s.x - camX, dz = s.z - camZ; const d2 = dx * dx + dz * dz;
+      if (d2 > 42 * 42 || n++ > 12) continue;
+      const fade = 1 - Math.sqrt(d2) / 42; const y0 = CITY.groundY(s.x, s.z) + 0.03;
+      const len = 4.6, half = s.w * 0.42; const rx = -s.nz, rz = s.nx;
+      const a0 = 0.13 * night * fade * (1 + rain * 0.8), col = [1, 0.82, 0.52];
+      // a wedge on the ground: bright at the glass, nothing at its far edge
+      fx.quad(F.adds, [s.x - rx * half, y0, s.z - rz * half], [s.x + rx * half, y0, s.z + rz * half],
+        [s.x + s.nx * len + rx * half * 1.5, y0, s.z + s.nz * len + rz * half * 1.5],
+        [s.x + s.nx * len - rx * half * 1.5, y0, s.z + s.nz * len - rz * half * 1.5], col, a0, 0);
+      if (d2 < 26 * 26 && dyn.length < 40) dyn.push({ x: s.x + s.nx * 1.2, y: 2.6, z: s.z + s.nz * 1.2, r: 9, col: [0.5 * night, 0.4 * night, 0.24 * night] });
+    }
+  }
+  // Street lamps come from a pool of reusable light records rather than a few hundred fresh objects every frame,
+  // and the list itself is reused.
+  const lampPool = []; const lightList = [];
   function collectLights(camX, camZ) {
-    const out = []; const night = RENDER.env.nightEmis;
-    if (night > 0.05) { for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 < 110 * 110) { const a = p.a || 0; out.push({ x: p.x + Math.sin(a) * 1.6, y: 5.6, z: p.z + Math.cos(a) * 1.6, r: 17, col: [0.42 * night, 0.33 * night, 0.19 * night] }); } } }
-    for (const d of dyn) out.push(d);
-    return out;
+    let n = 0; const night = RENDER.env.nightEmis;
+    if (night > 0.05) { const R2 = 110 * 110; const cr = 0.42 * night, cg = 0.33 * night, cb = 0.19 * night;
+      for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const dx = p.x - camX, dz = p.z - camZ; if (dx * dx + dz * dz > R2) continue;
+        let e = lampPool[n]; if (!e) lampPool[n] = e = { x: 0, y: 5.6, z: 0, r: 17, col: [0, 0, 0] };
+        const a = p.a || 0; e.x = p.x + Math.sin(a) * 1.6; e.z = p.z + Math.cos(a) * 1.6; e.col[0] = cr; e.col[1] = cg; e.col[2] = cb;
+        lightList[n++] = e; } }
+    for (const d of dyn) lightList[n++] = d;
+    lightList.length = n; return lightList;
   }
 
   // ---- Weather: clear spells and rain, a few game hours each
@@ -2922,7 +2976,7 @@ const VEH = (() => {
   function dentedMesh(type, colIdx, dent, seed) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed }); return { body: m.body.build(), glass: m.glass.build() }; }
   const TRAFFIC_TYPES = ['sedan', 'sedan', 'sedan', 'hatch', 'hatch', 'sports', 'pickup', 'van', 'taxi', 'taxi', 'muscle', 'truck', 'bus', 'ktruck', 'kmoto', 'kgarbage', 'kambulance', 'kfire'];
 
-  const tmpV = [0, 0, 0]; const TURN_R = 10; // radius of the arc traffic drives through a corner (m); long vehicles need more
+  const tmpV = [0, 0, 0]; const CIRC_A = new Float64Array(9), CIRC_B = new Float64Array(9); /* scratch for circlesInto */ const TURN_R = 10; // radius of the arc traffic drives through a corner (m); long vehicles need more
   const LEAN_SIGN = -1; // positive roll tips the body to the right, so leaning into a left turn (positive yaw) is negative
   class Vehicle {
     constructor(type, x, z, angle, opts = {}) {
@@ -2943,11 +2997,23 @@ const VEH = (() => {
     get fwd() { return [Math.sin(this.angle), Math.cos(this.angle)]; }
     get right() { return [-Math.cos(this.angle), Math.sin(this.angle)]; }
     circles() {
-      const s = this.spec, f = this.fwd, r = s.wid / 2 + 0.1; const L = s.len;
-      if (L > 6.5) return [[this.x + f[0] * L * 0.36, this.z + f[1] * L * 0.36, r], [this.x, this.z, r], [this.x - f[0] * L * 0.36, this.z - f[1] * L * 0.36, r]];
-      return [[this.x + f[0] * L * 0.26, this.z + f[1] * L * 0.26, r], [this.x - f[0] * L * 0.26, this.z - f[1] * L * 0.26, r]];
+      const s = this.spec, fx = Math.sin(this.angle), fz = Math.cos(this.angle), r = s.wid / 2 + 0.1; const L = s.len;
+      if (L > 6.5) return [[this.x + fx * L * 0.36, this.z + fz * L * 0.36, r], [this.x, this.z, r], [this.x - fx * L * 0.36, this.z - fz * L * 0.36, r]];
+      return [[this.x + fx * L * 0.26, this.z + fz * L * 0.26, r], [this.x - fx * L * 0.26, this.z - fz * L * 0.26, r]];
     }
-    local(px, pz) { const f = this.fwd, r = this.right; const dx = px - this.x, dz = pz - this.z; return [dx * f[0] + dz * f[1], dx * r[0] + dz * r[1]]; }
+    // The same circles written into a caller's flat [x, z, r, ...] buffer: the collision loops run this thousands of
+    // times a second and the array-of-arrays version was most of their cost in garbage alone.
+    circlesInto(out) {
+      const s = this.spec, fx = Math.sin(this.angle), fz = Math.cos(this.angle), r = s.wid / 2 + 0.1; const L = s.len;
+      if (L > 6.5) { const o = L * 0.36;
+        out[0] = this.x + fx * o; out[1] = this.z + fz * o; out[2] = r;
+        out[3] = this.x; out[4] = this.z; out[5] = r;
+        out[6] = this.x - fx * o; out[7] = this.z - fz * o; out[8] = r; return 3; }
+      const o = L * 0.26;
+      out[0] = this.x + fx * o; out[1] = this.z + fz * o; out[2] = r;
+      out[3] = this.x - fx * o; out[4] = this.z - fz * o; out[5] = r; return 2;
+    }
+    local(px, pz) { const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const dx = px - this.x, dz = pz - this.z; return [dx * sa + dz * ca, -dx * ca + dz * sa]; }
     get absSpeed() { return Math.hypot(this.vx, this.vz); }
 
     update(dt) {
@@ -2969,7 +3035,7 @@ const VEH = (() => {
       if (this.wrecked && this.fireT < 10) { this.fireT += dt; if (W.state.frame % 2 === 0) { W.FX.fire(this.x, this.y + 0.8, this.z, 1); if (W.state.frame % 4 === 0) W.FX.smoke(this.x, this.y + 1, this.z, 1, true); } }
     }
     physics(dt) {
-      const s = this.spec, c = this.controls; const f = this.fwd, r = this.right;
+      const s = this.spec, c = this.controls; const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const f = [sa, ca], r = [-ca, sa];
       let vF = this.vx * f[0] + this.vz * f[1], vL = this.vx * r[0] + this.vz * r[1];
       const top = s.top; const spd = Math.abs(vF);
       // steering: the wheel angle that full lock gives shrinks with speed, so a twitch at 150 km/h is not a spin
@@ -3037,7 +3103,7 @@ const VEH = (() => {
     collide(dt, water = false) {
       const s = this.spec; const f = this.fwd; const half = s.len / 2;
       // buildings & props: each circle (a boat has already been kept off the shore)
-      if (!water) for (const [cx, cz, r] of this.circles()) {
+      if (!water) for (let ci = 0, nci = this.circlesInto(CIRC_A); ci < nci; ci++) { const cx = CIRC_A[ci * 3], cz = CIRC_A[ci * 3 + 1], r = CIRC_A[ci * 3 + 2];
         const res = W.pushOut(cx, cz, r, { ignoreLow: this.y > 1.4 });
         if (res.hit) {
           const nx = res.hit[0], nz = res.hit[1];
@@ -3058,7 +3124,10 @@ const VEH = (() => {
       // other cars
       for (const o of W.cars) {
         if (o === this || o.removed) continue; if (M.dist2(this.x, this.z, o.x, o.z) > 144) continue;
-        for (const [ax, az, ar] of this.circles()) for (const [bx, bz, br] of o.circles()) {
+        const na = this.circlesInto(CIRC_A), nb = o.circlesInto(CIRC_B);
+        for (let ai = 0; ai < na; ai++) for (let bi = 0; bi < nb; bi++) {
+          const ax = CIRC_A[ai * 3], az = CIRC_A[ai * 3 + 1], ar = CIRC_A[ai * 3 + 2];
+          const bx = CIRC_B[bi * 3], bz = CIRC_B[bi * 3 + 1], br = CIRC_B[bi * 3 + 2];
           const dx = ax - bx, dz = az - bz; const rr = ar + br; const d2 = dx * dx + dz * dz; if (d2 >= rr * rr || d2 < 1e-6) continue;
           const d = Math.sqrt(d2), nx = dx / d, nz = dz / d, pen = rr - d;
           const mA = this.spec.mass, mB = o.spec.mass, tot = mA + mB;
@@ -3099,7 +3168,7 @@ const VEH = (() => {
     }
     // Boats: thrust against water drag, a rudder that needs way on, sideways slip, a hull that bobs and banks.
     boatPhysics(dt) {
-      const s = this.spec, c = this.controls; const f = this.fwd, r = this.right;
+      const s = this.spec, c = this.controls; const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const f = [sa, ca], r = [-ca, sa];
       let vF = this.vx * f[0] + this.vz * f[1], vL = this.vx * r[0] + this.vz * r[1]; const top = s.top;
       const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked');
       this.steer = M.approach(this.steer, M.clamp(c.steer, -1, 1), 4 * dt); this.steerAngle = this.steer * 0.5;
@@ -3194,7 +3263,7 @@ const VEH = (() => {
         if (light && remain < 14 && remain > 1) { const st = W.lightState(light, e.axis); if (st === 'red' || (st === 'yellow' && remain > 7)) { if (remain < 3.5) target = 0; else target = Math.min(target, Math.max(0, (remain - 3) * 1.5)); ai.atLight = true; } else ai.atLight = false; } else ai.atLight = false;
       }
       // obstacles ahead
-      const f = this.fwd, r = this.right; let blocked = false, blockSpeed = 99; const reach = 5 + Math.abs(this.speed) * 1.0;
+      const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const f = [sa, ca], r = [-ca, sa]; let blocked = false, blockSpeed = 99; const reach = 5 + Math.abs(this.speed) * 1.0;
       for (const o of W.cars) { if (o === this || o.removed) continue; const dx = o.x - this.x, dz = o.z - this.z; if (dx * dx + dz * dz > (reach + 8) * (reach + 8)) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; const half = o.spec.len / 2; if (lf > 0 && lf - half < reach && Math.abs(ll) < 2.4) { const os = o.vx * f[0] + o.vz * f[1]; const gap = lf - half - this.spec.len / 2; if (gap < 3) { target = 0; blocked = true; } else target = Math.min(target, Math.max(0, os + (gap - 3) * 0.8)); blockSpeed = Math.min(blockSpeed, Math.abs(os)); } }
       if (ai.mode !== 'flee') {
         for (const p of W.peds) { if (p.removed || p.inCar || p.state === 'dead') continue; const dx = p.x - this.x, dz = p.z - this.z; if (dx * dx + dz * dz > 400) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < reach + 2 && Math.abs(ll) < 1.8) { target = lf < 5 ? 0 : Math.min(target, 3); blocked = blocked || lf < 5; } }

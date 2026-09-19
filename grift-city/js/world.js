@@ -226,18 +226,54 @@ const W = (() => {
     const night = RENDER.env.nightEmis; if (night < 0.05) return; const rain = weather.rain;
     let cones = 0;
     for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 > 60 * 60 || cones++ > 14) continue; const a = p.a || 0; const hx = p.x + Math.sin(a) * 1.6, hz = p.z + Math.cos(a) * 1.6; const y0 = CITY.groundY(hx, hz);
-      const al = 0.03 * night * (1 + rain * 1.5) * (1 - Math.sqrt(d2) / 60); const R = 2.6; const segs = 16;
-      for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU; fx.tri(F.adds, hx, 5.7, hz, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R, 1, 0.85, 0.55, al); fx.tri(F.adds, hx, 5.7, hz, hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R, hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R, 1, 0.85, 0.55, al); }
+      const d = Math.sqrt(d2);
+      // The shaft of light in the air fades out as you walk up to the lamp: standing inside a cone of constant
+      // brightness put a hard-edged slab of light across half the screen.
+      const near = M.clamp((d - 3.5) / 7, 0, 1);
+      const al = 0.03 * night * (1 + rain * 1.5) * (1 - d / 60); const R = 2.6; const segs = 16;
+      // Each segment is a quad with the apex doubled, so the shaft is brightest at the lamp and fades to nothing at
+      // the ground rim rather than ending on a hard edge. Drawn both ways round so it reads from either side.
+      if (near > 0.01) for (let i = 0; i < segs; i++) { const a0 = i / segs * M.TAU, a1 = (i + 1) / segs * M.TAU;
+        const p0 = [hx + Math.cos(a0) * R, y0 + 0.05, hz + Math.sin(a0) * R], p1 = [hx + Math.cos(a1) * R, y0 + 0.05, hz + Math.sin(a1) * R], ap = [hx, 5.7, hz];
+        fx.quad(F.adds, ap, ap, p1, p0, [1, 0.85, 0.55], al * near, 0);
+        fx.quad(F.adds, ap, ap, p0, p1, [1, 0.85, 0.55], al * near, 0); }
       // pool on the ground: a fan that fades to nothing at the rim, so there is no hard square of light
-      { const pr = R * 1.35, py = y0 + 0.03, col = [1, 0.85, 0.55], a0 = al * 2.2;
+      { const pr = R * 1.9, py = y0 + 0.03, col = [1, 0.85, 0.55], a0 = al * (RENDER.env.lampPool === undefined ? 6.5 : RENDER.env.lampPool);
         for (let i = 0; i < 16; i++) { const t0 = i / 16 * M.TAU, t1 = (i + 1) / 16 * M.TAU;
           fx.quad(F.adds, [hx, py, hz], [hx, py, hz], [hx + Math.cos(t1) * pr, py, hz + Math.sin(t1) * pr], [hx + Math.cos(t0) * pr, py, hz + Math.sin(t0) * pr], col, a0, 0); } } }
+    shopGlow(camX, camZ, night, rain);
   }
+  // A lit shop window is the main source of light on a night street: each open front throws a warm wedge across the
+  // pavement that fades out at its edge, and carries a short-range light so people and cars passing it are lit too.
+  function shopGlow(camX, camZ, night, rain) {
+    if (RENDER.env.shopGlow === false) return;
+    let n = 0;
+    for (const s of CITY.shopfronts) {
+      if (s.shut || !s.open) continue;
+      const dx = s.x - camX, dz = s.z - camZ; const d2 = dx * dx + dz * dz;
+      if (d2 > 42 * 42 || n++ > 12) continue;
+      const fade = 1 - Math.sqrt(d2) / 42; const y0 = CITY.groundY(s.x, s.z) + 0.03;
+      const len = 4.6, half = s.w * 0.42; const rx = -s.nz, rz = s.nx;
+      const a0 = 0.13 * night * fade * (1 + rain * 0.8), col = [1, 0.82, 0.52];
+      // a wedge on the ground: bright at the glass, nothing at its far edge
+      fx.quad(F.adds, [s.x - rx * half, y0, s.z - rz * half], [s.x + rx * half, y0, s.z + rz * half],
+        [s.x + s.nx * len + rx * half * 1.5, y0, s.z + s.nz * len + rz * half * 1.5],
+        [s.x + s.nx * len - rx * half * 1.5, y0, s.z + s.nz * len - rz * half * 1.5], col, a0, 0);
+      if (d2 < 26 * 26 && dyn.length < 40) dyn.push({ x: s.x + s.nx * 1.2, y: 2.6, z: s.z + s.nz * 1.2, r: 9, col: [0.5 * night, 0.4 * night, 0.24 * night] });
+    }
+  }
+  // Street lamps come from a pool of reusable light records rather than a few hundred fresh objects every frame,
+  // and the list itself is reused.
+  const lampPool = []; const lightList = [];
   function collectLights(camX, camZ) {
-    const out = []; const night = RENDER.env.nightEmis;
-    if (night > 0.05) { for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 < 110 * 110) { const a = p.a || 0; out.push({ x: p.x + Math.sin(a) * 1.6, y: 5.6, z: p.z + Math.cos(a) * 1.6, r: 17, col: [0.42 * night, 0.33 * night, 0.19 * night] }); } } }
-    for (const d of dyn) out.push(d);
-    return out;
+    let n = 0; const night = RENDER.env.nightEmis;
+    if (night > 0.05) { const R2 = 110 * 110; const cr = 0.42 * night, cg = 0.33 * night, cb = 0.19 * night;
+      for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const dx = p.x - camX, dz = p.z - camZ; if (dx * dx + dz * dz > R2) continue;
+        let e = lampPool[n]; if (!e) lampPool[n] = e = { x: 0, y: 5.6, z: 0, r: 17, col: [0, 0, 0] };
+        const a = p.a || 0; e.x = p.x + Math.sin(a) * 1.6; e.z = p.z + Math.cos(a) * 1.6; e.col[0] = cr; e.col[1] = cg; e.col[2] = cb;
+        lightList[n++] = e; } }
+    for (const d of dyn) lightList[n++] = d;
+    lightList.length = n; return lightList;
   }
 
   // ---- Weather: clear spells and rain, a few game hours each

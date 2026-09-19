@@ -49,6 +49,7 @@ const CITY = (() => {
   const manholes = []; // road spots for the covers and their steam
   const solidProps = []; // {x,z,r,kind,idx}
   const parkedSpots = [];// {x,z,angle}
+  const shopfronts = []; // lit shop windows at night: {x, z, nx, nz, w, shut, open}
   const ramps = [];      // {x0,z0,x1,z1,h,dir}
   const lights = [];     // traffic lights: {x,z,phase}
   let stunts = [];
@@ -254,7 +255,10 @@ const CITY = (() => {
       const pool = SHOP_POOL[dist] || SHOP_POOL.midtown; const shopTile = T['shops' + rng.pick(pool)];
       b.box(x0, y, z0, W, ground, D, tint, shopTile, { faces: 1 | 2 | 16 | 32, uvScale: 8 });
       // the street side is painted in 8 m stretches, each a different pair of shops, so no two doors down a block match
+      const outN = front === 'n' ? [0, -1] : front === 's' ? [0, 1] : front === 'w' ? [-1, 0] : [1, 0]; // the way this front faces the street
       { let last = -1; for (let t = 0; t < frontLen - 0.5; t += 8) { let k = rng.pick(pool); if (k === last) k = rng.pick(pool); last = k; shopTiles.push(k); const seg = Math.min(8, frontLen - t); const tl = T['shops' + k];
+        { const [fx2, fz2] = frontPt(t + seg / 2, 0.2); const h = Math.abs(Math.sin(fx2 * 12.9898 + fz2 * 78.233) * 43758.5453) % 1; /* a hash of the position, so recording shopfronts consumes no city random numbers and leaves every other placement where it was */
+          shopfronts.push({ x: fx2, z: fz2, nx: outN[0], nz: outN[1], w: seg, shut: k === 20, open: h < 0.72 }); }
         if (front === 'n') b.box(x0 + t, y, z0 - 0.03, seg, ground, 0.03, tint, tl, { faces: 32, uvScale: 8 }); else if (front === 's') b.box(x0 + t, y, z1, seg, ground, 0.03, tint, tl, { faces: 16, uvScale: 8 }); else if (front === 'w') b.box(x0 - 0.03, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 2, uvScale: 8 }); else b.box(x1, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 1, uvScale: 8 }); } }
       b.box(x0 - 0.3, y + ground - 0.35, z0 - 0.3, W + 0.6, 0.35, D + 0.6, trim, 0);
       // Give the painted shop bays a shallow stone surround so the street catches light and shadow.
@@ -675,6 +679,6 @@ const CITY = (() => {
     return staticBuilder;
   }
 
-  return { GRID, BLOCK, ROAD, SW, PITCH, HALF_ROAD, LANE, CURB, SIZE, SHORE, lots, blocks, places, props, solidProps, parkedSpots, ramps, lights, get stunts() { return stunts; },
+  return { GRID, BLOCK, ROAD, SW, PITCH, HALF_ROAD, LANE, CURB, SIZE, SHORE, lots, blocks, places, props, solidProps, parkedSpots, shopfronts, ramps, lights, get stunts() { return stunts; },
     pier: { x0: pierX0, x1: pierX1, z1: pierZ1 }, marina, manholes, interiors, setInterior, get interiorRoom() { return interiorRoom; }, setRoof, get roofLot() { return roofLot; }, get roofAccess() { return roofAccess; }, roadNodes, roadEdges, walkNodes, generate, get water() { return waterBuilder; }, groundY, blockAt, lotsNear, insideLot, onRoad, nearestLane, nearestWalkNode, lanePoint, laneLen, place, nearestPlace, district, districtName, blockOrigin, outerBound, rng };
 })();

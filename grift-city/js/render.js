@@ -34,7 +34,7 @@ const RENDER = (() => {
   const FS = `
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in float vEmis;
     uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform sampler2DArray uNrm;
-    uniform float uNrmOn; uniform float uNrmStr; uniform vec4 uPanes[128]; uniform float uInterior;
+    uniform float uNrmOn; uniform float uNrmStr; uniform float uEmis; uniform vec4 uPanes[128]; uniform float uInterior;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
     uniform float uFogDensity; uniform float uFogHeight; uniform float uFogSun; uniform float uNightEmis;
     uniform mat4 uLightVP[2]; uniform float uCascadeFar; uniform float uWet;
@@ -153,7 +153,7 @@ const RENDER = (() => {
         // a lamp reflected in a wet street, which is most of what a city looks like in the rain at night
         if (uSpec > 0.0 && gloss > 0.4) col += uLightCols[i] * att * pow(max(dot(n, normalize(Ln + v)), 0.0), power) * uSpec * gloss * gloss * 1.6;
       }
-      col += mix(albedo, s2l(vec3(1.0, 0.87, 0.66)), 0.15) * t.a * uNightEmis * 1.8;
+      col += mix(albedo, s2l(vec3(1.0, 0.87, 0.66)), 0.15) * t.a * uNightEmis * uEmis;
       col += s2l(vCol) * vEmis;
       // Height fog: haze pools in the streets and thins with altitude, so the skyline stays crisp and the city gains depth.
       // Analytic integral of an exponential density along the view ray, then tinted toward the sun for aerial perspective.
@@ -365,11 +365,22 @@ const RENDER = (() => {
     M.frustumPlanes(viewPlanes, vp);
     stats.draws = 0; stats.tris = 0;
   }
+  const selL = new Array(MAX_LIGHTS), selD = new Float64Array(MAX_LIGHTS);
   function setLights(list) {
-    // list: [{x,y,z,r,col:[r,g,b]}] — nearest MAX_LIGHTS to the camera target win
-    list.sort((a, b) => M.dist2(a.x, a.z, cam.tx, cam.tz) - M.dist2(b.x, b.z, cam.tx, cam.tz));
-    const n = Math.min(list.length, MAX_LIGHTS); lights.n = n;
-    for (let i = 0; i < n; i++) { const L = list[i]; lights.pos.set([L.x, L.y, L.z, L.r], i * 4); lights.col.set(L.col, i * 3); }
+    // The MAX_LIGHTS nearest the camera target win. A city block carries hundreds of street lamps, so this keeps a
+    // sorted shortlist by insertion rather than sorting the whole list with a comparator every frame.
+    const n0 = list.length; let m = 0;
+    for (let i = 0; i < n0; i++) {
+      const L = list[i]; const dx = L.x - cam.tx, dz = L.z - cam.tz; const d2 = dx * dx + dz * dz;
+      if (m === MAX_LIGHTS && d2 >= selD[m - 1]) continue;
+      let j = m < MAX_LIGHTS ? m : MAX_LIGHTS - 1;
+      while (j > 0 && selD[j - 1] > d2) { selD[j] = selD[j - 1]; selL[j] = selL[j - 1]; j--; }
+      selD[j] = d2; selL[j] = L; if (m < MAX_LIGHTS) m++;
+    }
+    lights.n = m;
+    for (let i = 0; i < m; i++) { const L = selL[i], o = i * 4, c = i * 3;
+      lights.pos[o] = L.x; lights.pos[o + 1] = L.y; lights.pos[o + 2] = L.z; lights.pos[o + 3] = L.r;
+      lights.col[c] = L.col[0]; lights.col[c + 1] = L.col[1]; lights.col[c + 2] = L.col[2]; }
   }
   function bindCommon(P, forShadow) {
     gl.useProgram(P.p);
@@ -379,7 +390,7 @@ const RENDER = (() => {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, texArray); gl.uniform1i(P.u.uTex, 0);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadow.tex); gl.uniform1i(P.u.uShadow, 1);
       gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D_ARRAY, nrmArray || texArray); gl.uniform1i(P.u.uNrm, 3);
-      gl.uniform1f(P.u.uNrmOn, nrmArray && env.normalMaps ? 1 : 0); gl.uniform1f(P.u.uNrmStr, env.normalStrength); gl.uniform1f(P.u.uInterior, env.interiors === false ? 0 : 1);
+      gl.uniform1f(P.u.uNrmOn, nrmArray && env.normalMaps ? 1 : 0); gl.uniform1f(P.u.uNrmStr, env.normalStrength); gl.uniform1f(P.u.uInterior, env.interiors === false ? 0 : 1); gl.uniform1f(P.u.uEmis, env.emisStr === undefined ? 1.8 : env.emisStr);
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
       gl.uniform3fv(P.u.uFogCol, env.fogCol); gl.uniform3f(P.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform1f(P.u.uFogDensity, env.fogDensity);
       gl.uniform1f(P.u.uFogHeight, env.fogHeight); gl.uniform1f(P.u.uFogSun, env.fogSun);
@@ -403,6 +414,9 @@ const RENDER = (() => {
     let lastBones = null, lastSpec = 0;
     for (const e of scene.entities) {
       if (forShadow && e.noShadow) continue;
+      // Each shadow cascade only needs what falls inside its own box: a car eighty metres off cannot cast into the
+      // tight near cascade, and drawing it there was a draw call and a skinned mesh for nothing.
+      if (forShadow && !M.sphereInFrustum(planes, e.model[12], e.model[13], e.model[14], e.cullR || 6)) continue;
       gl.uniformMatrix4fv(P.u.uModel, false, e.model);
       if (e.bones) { gl.uniformMatrix4fv(P.u.uBones, false, e.bones); lastBones = e.bones; } else if (lastBones) { gl.uniformMatrix4fv(P.u.uBones, false, identityBones); lastBones = null; }
       if (!forShadow) { gl.uniform1fv(P.u.uBoneEmis, e.emis || zeroEmis); if ((e.spec || 0) !== lastSpec) { lastSpec = e.spec || 0; gl.uniform1f(P.u.uSpec, lastSpec); } }
