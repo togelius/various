@@ -110,7 +110,7 @@ const GAME = (() => {
   }
 
   function boot() {
-    canvas = document.getElementById('gl'); hud = document.getElementById('hud'); HUD.init(hud); INPUT.init(canvas);
+    canvas = document.getElementById('gl'); hud = document.getElementById('hud'); HUD.init(hud); INPUT.init(canvas); TOUCH.init(canvas);
     const T = window.__bootTimes = {}; let t0 = performance.now(); const mark = k => { T[k] = Math.round(performance.now() - t0); t0 = performance.now(); };
     HUD.loading('loading materials…', 0);
     TEX.preload(p => HUD.loading('loading materials…', p)).then(n => { mark('materials'); T.materials_n = n; HUD.loading('building the city…'); setTimeout(() => build(mark), 30); });
@@ -128,8 +128,8 @@ const GAME = (() => {
     for (let i = 0; i < 40; i++) { VEH.spawnTraffic(PLAYER.x, PLAYER.z, PLAYER.P.camYaw + Math.PI, 26); PEDS.populate(PLAYER.x, PLAYER.z, PLAYER.P.camYaw + Math.PI, 40); }
     state = 'title';
     INPUT.onLockLost = () => { if (state === 'playing' && !MISSIONS.shop) { state = 'paused'; INPUT.releaseLock(); } };
-    document.addEventListener('mousedown', () => { if (state === 'title') startPlay(); }, { once: false });
-    window.addEventListener('keydown', e => { if (state === 'title' && e.code === 'KeyN') newGame(); });
+    document.addEventListener('mousedown', () => { if (state === 'title' && !TOUCH.active) startPlay(); }, { once: false });
+
     window.__ready = true;
     mark('rest'); console.log('boot', JSON.stringify(window.__bootTimes));
     last = performance.now(); requestAnimationFrame(frame);
@@ -150,7 +150,7 @@ const GAME = (() => {
       if (INPUT.hit('Escape') && state === 'playing') { /* bot never pauses */ }
       INPUT.endFrame(); return;
     }
-    if (state === 'title') { RENDER.setTimeOfDay(W.state.time, W.weather.rain); titleCamera(now / 1000); renderWorld(dt, true); HUD.draw(dt, 'title'); INPUT.endFrame(); return; }
+    if (state === 'title') { if (INPUT.hit('KeyN')) { newGame(); INPUT.endFrame(); return; } RENDER.setTimeOfDay(W.state.time, W.weather.rain); titleCamera(now / 1000); renderWorld(dt, true); HUD.draw(dt, 'title'); INPUT.endFrame(); return; }
     if (INPUT.hit('Escape')) { if (MISSIONS.shop) { } else if (state === 'playing') { state = 'paused'; INPUT.releaseLock(); } else if (state === 'paused') { state = 'playing'; INPUT.requestLock(); } }
     if (INPUT.hit('Tab')) { if (state === 'playing') state = 'map'; else if (state === 'map') state = 'playing'; }
     if (INPUT.hit('KeyP') && state === 'playing' && !MISSIONS.shop) { state = 'photo'; const c = RENDER.cam; const d = Math.hypot(c.tx - c.x, c.ty - c.y, c.tz - c.z) || 1; photo = { x: c.x, y: c.y, z: c.z, yaw: Math.atan2(c.tx - c.x, c.tz - c.z), pitch: Math.asin((c.ty - c.y) / d), fov: 55, shot: false, savedT: 0 }; INPUT.requestLock(); }

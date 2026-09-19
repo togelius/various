@@ -1,4 +1,7 @@
 html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; font-family: "Helvetica Neue", Arial, sans-serif; }
+/* a finger on the screen drives the game, so the browser must not read it as a scroll, a pinch or a selection */
+html, body, #stage, #gl, #hud { touch-action: none; -ms-touch-action: none; overscroll-behavior: none; }
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 #stage { position: fixed; inset: 0; }
 #gl, #hud { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #hud { pointer-events: none; }

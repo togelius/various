@@ -2,10 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
 <title>GRIFT CITY</title>
 <style>
 html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; font-family: "Helvetica Neue", Arial, sans-serif; }
+/* a finger on the screen drives the game, so the browser must not read it as a scroll, a pinch or a selection */
+html, body, #stage, #gl, #hud { touch-action: none; -ms-touch-action: none; overscroll-behavior: none; }
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 #stage { position: fixed; inset: 0; }
 #gl, #hud { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #hud { pointer-events: none; }
@@ -2677,6 +2683,11 @@ const INPUT = (() => {
   const keys = {}, pressed = {}, mouse = { dx: 0, dy: 0, buttons: 0, wheel: 0, clicked: 0, rclicked: 0 };
   let locked = false, canvas = null, wantLock = false, fallback = false;
   const pad = { lx: 0, ly: 0, rx: 0, ry: 0, lt: 0, rt: 0, buttons: [], pressed: [], active: false };
+  // An on-screen control layer stands in for a gamepad and can press keys, so nothing downstream needs to know
+  // whether a finger or a keyboard is driving it.
+  let virtualMouse = 0, lastVirtualMouse = 0;
+  function tapKey(code) { pressed[code] = true; }
+  function holdKey(code, on) { if (on) { if (!keys[code]) pressed[code] = true; keys[code] = true; } else keys[code] = false; }
   function init(c) {
     canvas = c;
     window.addEventListener('keydown', e => { let code = e.code; if (!code || (e.key === 'Shift' && code !== 'ShiftLeft' && code !== 'ShiftRight')) code = e.key === 'Shift' ? 'ShiftLeft' : code; if (!keys[code]) pressed[code] = true; keys[code] = true; if (e.key && e.key.length === 1) { api.typed = (api.typed + e.key.toUpperCase()).slice(-12); } if (['Space', 'Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyF', 'F1', 'AltLeft', 'AltRight'].includes(e.code) || e.code.startsWith('Digit')) e.preventDefault(); });
@@ -2690,12 +2701,22 @@ const INPUT = (() => {
     document.addEventListener('wheel', e => { mouse.wheel += Math.sign(e.deltaY); }, { passive: true });
     document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === canvas; document.body.classList.toggle('locked', locked); if (!locked && wantLock && api.onLockLost) api.onLockLost(); });
   }
-  function requestLock() { wantLock = true; if (canvas && document.pointerLockElement !== canvas) { try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => { fallback = true; }); } catch (e) { fallback = true; } } }
+  function requestLock() { if (api.touch) return; wantLock = true; if (canvas && document.pointerLockElement !== canvas) { try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => { fallback = true; }); } catch (e) { fallback = true; } } }
   function releaseLock() { wantLock = false; if (document.pointerLockElement) document.exitPointerLock(); }
   function pollPad() {
     const gps = navigator.getGamepads ? navigator.getGamepads() : []; let g = null; for (const p of gps) if (p && p.connected) { g = p; break; }
-    pad.active = !!g; if (!g) return;
-    const dz = v => Math.abs(v) < 0.15 ? 0 : v;
+    const v = !g && api.virtualPad ? api.virtualPad() : null;
+    pad.active = !!g || !!v;
+    // the touch layer's buttons ride along with the real ones, clearing only the bits it set itself
+    const vm = v ? (v.mouseButtons || 0) : 0; mouse.buttons = (mouse.buttons & ~lastVirtualMouse) | vm; lastVirtualMouse = vm;
+    if (v) {
+      pad.lx = v.lx || 0; pad.ly = v.ly || 0; pad.rx = v.rx || 0; pad.ry = v.ry || 0; pad.lt = v.lt || 0; pad.rt = v.rt || 0;
+      const b = v.buttons || [];
+      for (let i = 0; i < 16; i++) { const d = !!b[i]; pad.pressed[i] = d && !pad.buttons[i]; pad.buttons[i] = d; }
+      return;
+    }
+    if (!g) { pad.lx = pad.ly = pad.rx = pad.ry = pad.lt = pad.rt = 0; for (let i = 0; i < pad.buttons.length; i++) { pad.pressed[i] = false; pad.buttons[i] = false; } return; }
+    const dz = v2 => Math.abs(v2) < 0.15 ? 0 : v2;
     pad.lx = dz(g.axes[0] || 0); pad.ly = dz(g.axes[1] || 0); pad.rx = dz(g.axes[2] || 0); pad.ry = dz(g.axes[3] || 0);
     pad.lt = g.buttons[6] ? g.buttons[6].value : 0; pad.rt = g.buttons[7] ? g.buttons[7].value : 0;
     for (let i = 0; i < g.buttons.length; i++) { const down = g.buttons[i].pressed; pad.pressed[i] = down && !pad.buttons[i]; pad.buttons[i] = down; }
@@ -2709,7 +2730,257 @@ const INPUT = (() => {
   // For recordings: the whole input state of a frame as plain data, and back.
   function snapshot() { const k = [], p = []; for (const c in keys) if (keys[c]) k.push(c); for (const c in pressed) if (pressed[c]) p.push(c); return { k, p, m: [mouse.dx, mouse.dy, mouse.buttons, mouse.wheel, mouse.clicked, mouse.rclicked] }; }
   function restore(s) { for (const c in keys) keys[c] = false; for (const c of s.k) keys[c] = true; for (const c in pressed) pressed[c] = false; for (const c of s.p) pressed[c] = true; [mouse.dx, mouse.dy, mouse.buttons, mouse.wheel, mouse.clicked, mouse.rclicked] = s.m; }
-  const api = { init, down, hit, mouse, pad, pollPad, endFrame, consumeEdges, snapshot, restore, requestLock, releaseLock, get locked() { return locked || fallback; }, get fallback() { return fallback; }, onLockLost: null, typed: '' };
+  const api = { init, down, hit, mouse, pad, pollPad, endFrame, consumeEdges, snapshot, restore, requestLock, releaseLock, tapKey, holdKey, virtualPad: null, touch: false, get locked() { return locked || fallback; }, get fallback() { return fallback; }, onLockLost: null, typed: '' };
+  return api;
+})();
+
+</script>
+<script>
+// GRIFT CITY — on-screen controls for a touchscreen, laid out the way the phone ports of these games are:
+// a floating stick under the left thumb, a cluster of buttons under the right, and a drag anywhere else on
+// the right half to look around. Everything it does goes through INPUT's virtual gamepad and its virtual key
+// presses, so no other module has to know whether a finger or a keyboard is driving the game.
+'use strict';
+const TOUCH = (() => {
+  let active = false, forced = null, sawMouse = false;
+  const pts = new Map();        // pointerId -> what that finger is doing
+  let stick = null;             // the movement (or steering) stick: { id, cx, cy, nx, ny }
+  let look = null;              // the finger dragging the camera: { id, x, y }
+  const held = new Set();       // button ids currently under a finger
+  const vkeys = new Set();      // keys this layer is holding down, so it never releases one the player is holding
+  const vhold = (code, on) => { if (on) { vkeys.add(code); INPUT.holdKey(code, true); } else if (vkeys.has(code)) { vkeys.delete(code); INPUT.holdKey(code, false); } };
+  let hudCv = null, lastL = null;
+  const LOOK_GAIN = 2.1;        // a drag of the screen turns about as far as the same sweep of a mouse would
+  const SPRINT_AT = 0.82;       // push the stick to its rim and you run, so running needs no button of its own
+
+  // The other modules are top-level `const`s, which are global bindings but not properties of `window`, and
+  // GAME is still being built when the loading screen first draws. Reaching them by name behind a guard is the
+  // only way to read them from here that is correct in both respects.
+  const safe = (fn, dflt) => { try { const v = fn(); return v === undefined ? dflt : v; } catch (e) { return dflt; } };
+  const ply = () => safe(() => PLAYER.P, null);
+  const gState = () => safe(() => GAME.state, 'loading');
+
+  // ---- what kind of device this is
+  function sense() {
+    if (forced !== null) return forced;
+    if (sawMouse) return false;
+    const mm = window.matchMedia;
+    const coarse = mm && matchMedia('(pointer: coarse)').matches;
+    const fine = mm && matchMedia('(pointer: fine)').matches;
+    return !!(navigator.maxTouchPoints > 0 && coarse && !fine);
+  }
+  function setActive(v) { if (active === v) return; active = v; INPUT.touch = v; if (v) INPUT.releaseLock(); }
+
+  // ---- layout. One function decides where everything is, so drawing and hit-testing can never disagree.
+  function metrics() {
+    const W = (hudCv && hudCv.clientWidth) || window.innerWidth || 960;
+    const H = (hudCv && hudCv.clientHeight) || window.innerHeight || 540;
+    const u = Math.max(34, Math.min(62, Math.min(W, H) * 0.085));
+    return { W, H, u };
+  }
+  function layout() {
+    const { W, H, u } = metrics();
+    const P = ply();
+    const car = P && P.car;
+    const m = u * 1.3, bx = W - m, by = H - m;
+    const B = [];
+    const add = (id, x, y, r, label, tap) => B.push({ id, x, y, r, label, tap: !!tap });
+    if (car) {
+      add('gas', bx, by, u * 1.02, 'GAS');
+      add('brake', bx - u * 2.45, by + u * 0.04, u * 0.76, 'BRAKE');
+      add('hand', bx + u * 0.04, by - u * 2.45, u * 0.7, 'HAND');
+      add('exit', bx - u * 1.92, by - u * 1.92, u * 0.7, 'EXIT', true);
+      add('horn', bx - u * 4.05, by - u * 0.15, u * 0.56, 'HORN');
+      const wp = P.weapon;
+      if ((wp === 'pistol' || wp === 'uzi') && P.weapons[wp] > 0) add('shoot', bx - u * 3.55, by - u * 2.85, u * 0.6, 'SHOOT');
+      add('radio', bx - u * 5.25, by - u * 1.45, u * 0.48, 'RADIO', true);
+      if (car.type === 'police' || car.type === 'swat') add('siren', bx - u * 5.25, by - u * 2.75, u * 0.48, 'SIREN', true);
+    } else {
+      add('fire', bx, by, u * 1.02, 'FIRE');
+      add('aim', bx - u * 2.45, by + u * 0.04, u * 0.76, 'AIM');
+      add('jump', bx + u * 0.04, by - u * 2.45, u * 0.7, 'JUMP', true);
+      add('enter', bx - u * 1.92, by - u * 1.92, u * 0.7, 'ENTER', true);
+      add('weapon', bx - u * 4.05, by - u * 0.15, u * 0.56, 'WEAP', true);
+    }
+    add('map', W - u * 5.9, u * 0.95, u * 0.5, 'MAP', true);
+    add('pause', W - u * 4.45, u * 0.95, u * 0.5, 'II', true);
+    if (canFull()) add('full', W - u * 7.35, u * 0.95, u * 0.5, 'FULL', true);
+    const L = { W, H, u, car: !!car, buttons: B,
+      home: { x: Math.max(u * 2.3, W * 0.15), y: H - u * 2.5, r: u * 1.35 },
+      zone: { x1: W * 0.47, y0: H * 0.26 } };
+    lastL = L; return L;
+  }
+  const canFull = () => !!((document.fullscreenEnabled && document.documentElement.requestFullscreen)
+    || (document.webkitFullscreenEnabled && document.documentElement.webkitRequestFullscreen));
+  function toggleFull() {
+    const d = document, el = d.documentElement;
+    try {
+      if (d.fullscreenElement || d.webkitFullscreenElement) (d.exitFullscreen || d.webkitExitFullscreen).call(d);
+      else (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+    } catch (e) { }
+  }
+  function buttonAt(x, y, L) {
+    for (let i = L.buttons.length - 1; i >= 0; i--) { const b = L.buttons[i];
+      const dx = x - b.x, dy = y - b.y, r = b.r * 1.3; if (dx * dx + dy * dy <= r * r) return b; }
+    return null;
+  }
+  // A tappable strip the HUD published this frame (a shop line, a pause option, a map to close).
+  function zoneAt(x, y) {
+    const z = safe(() => HUD.zones, null); if (!z) return null;
+    for (let i = z.length - 1; i >= 0; i--) { const q = z[i]; if (x >= q.x && x <= q.x + q.w && y >= q.y && y <= q.y + q.h) return q; }
+    return null;
+  }
+
+  // ---- what the game is asking of the player right now
+  function mode(st) {
+    st = st || gState();
+    if (st === 'title') return 'title';
+    if (st === 'loading') return 'loading';
+    if (st !== 'playing') return st;             // paused, map, photo
+    if (safe(() => MISSIONS.dialogue, null)) return 'dialogue';
+    if (safe(() => MISSIONS.shop, null)) return 'shop';
+    return 'play';
+  }
+
+  function onDown(e) {
+    if (e.pointerType === 'mouse') { sawMouse = true; if (forced === null) setActive(false); return; }
+    setActive(sense() || forced === true || forced === null);
+    if (!active) return;
+    e.preventDefault();
+    const x = e.clientX, y = e.clientY, id = e.pointerId, md = mode();
+    if (md === 'loading') { pts.set(id, { role: 'none' }); return; }
+    const z = zoneAt(x, y);
+    if (z) { INPUT.tapKey(z.key); pts.set(id, { role: 'zone' }); return; }
+    if (md === 'title') { safe(() => GAME.startPlay(), null); pts.set(id, { role: 'none' }); return; }
+    const L = layout();
+    if (md === 'dialogue') { INPUT.tapKey('Space'); pts.set(id, { role: 'none' }); return; }
+    if (md === 'map') { INPUT.tapKey('Tab'); pts.set(id, { role: 'none' }); return; }
+    if (md === 'paused') { INPUT.tapKey('Escape'); pts.set(id, { role: 'none' }); return; }
+    const b = buttonAt(x, y, L);
+    if (b) {
+      pts.set(id, { role: 'btn', btn: b.id }); held.add(b.id);
+      if (b.tap) fireTap(b.id);
+      return;
+    }
+    if (md === 'shop') { pts.set(id, { role: 'none' }); return; }
+    if (x < L.zone.x1 && y > L.zone.y0 && !stick) {
+      stick = { id, cx: x, cy: y, nx: 0, ny: 0 }; pts.set(id, { role: 'stick' }); return;
+    }
+    if (x >= L.zone.x1 && !look) { look = { id, x, y }; pts.set(id, { role: 'look' }); return; }
+    pts.set(id, { role: 'none' });
+  }
+  function fireTap(id) {
+    if (id === 'jump') INPUT.tapKey('Space');
+    else if (id === 'enter' || id === 'exit') INPUT.tapKey('KeyF');
+    else if (id === 'weapon') INPUT.tapKey('KeyE');
+    else if (id === 'radio') INPUT.tapKey('KeyR');
+    else if (id === 'siren') INPUT.tapKey('KeyL');
+    else if (id === 'pause') INPUT.tapKey('Escape');
+    else if (id === 'map') INPUT.tapKey('Tab');
+    else if (id === 'full') toggleFull();
+  }
+  function onMove(e) {
+    if (!active || e.pointerType === 'mouse') return;
+    const p = pts.get(e.pointerId); if (!p) return;
+    e.preventDefault();
+    const x = e.clientX, y = e.clientY;
+    if (p.role === 'stick' && stick && stick.id === e.pointerId) {
+      const L = lastL || layout(); const R = L.home.r;
+      let dx = x - stick.cx, dy = y - stick.cy; const d = Math.hypot(dx, dy);
+      if (d > R) { dx = dx / d * R; dy = dy / d * R; }
+      stick.nx = dx / R; stick.ny = dy / R; stick.x = stick.cx + dx; stick.y = stick.cy + dy;
+    } else if (p.role === 'look' && look && look.id === e.pointerId) {
+      INPUT.mouse.dx += (x - look.x) * LOOK_GAIN; INPUT.mouse.dy += (y - look.y) * LOOK_GAIN;
+      look.x = x; look.y = y;
+    }
+  }
+  function onUp(e) {
+    const p = pts.get(e.pointerId); pts.delete(e.pointerId);
+    if (!p) return;
+    if (p.role === 'btn') held.delete(p.btn);
+    if (p.role === 'stick' && stick && stick.id === e.pointerId) stick = null;
+    if (p.role === 'look' && look && look.id === e.pointerId) look = null;
+  }
+
+  // ---- the gamepad INPUT sees. Called once a frame from INPUT.pollPad, which is also where the buttons that
+  // are really keys (handbrake, horn, sprint) get synced.
+  function virtualPad() {
+    if (!active) return null;
+    const P = ply(); const inCar = !!(P && P.car);
+    const on = id => held.has(id);
+    let lx = stick ? stick.nx : 0, ly = stick ? stick.ny : 0;
+    let lt = 0, rt = 0, mouseButtons = 0;
+    if (inCar) {
+      rt = on('gas') ? 1 : 0; lt = on('brake') ? 1 : 0; ly = 0;
+      vhold('Space', on('hand')); vhold('KeyH', on('horn')); vhold('ShiftLeft', false);
+      if (on('shoot')) mouseButtons |= 1;
+    } else {
+      rt = on('fire') ? 1 : 0; lt = on('aim') ? 1 : 0;
+      vhold('Space', false); vhold('KeyH', false);
+      vhold('ShiftLeft', Math.hypot(lx, ly) > SPRINT_AT);
+      if (on('fire')) mouseButtons |= 1;
+      if (on('aim')) mouseButtons |= 2;
+    }
+    return { lx, ly, rx: 0, ry: 0, lt, rt, buttons: [], mouseButtons };
+  }
+
+  // ---- drawing
+  function ring(g, x, y, r, fill, stroke, w) {
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2);
+    if (fill) { g.fillStyle = fill; g.fill(); }
+    if (stroke) { g.strokeStyle = stroke; g.lineWidth = w || 2; g.stroke(); }
+  }
+  function draw(g, W, H, state) {
+    if (!active) return;
+    const md = mode(state);
+    if (md === 'title' || md === 'loading') return;
+    const L = layout();
+    if (H > W) { // portrait: the cluster runs off the bottom and the stick has nowhere to go
+      g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, H / 2 - 40, W, 80);
+      g.font = 'bold 18px "Helvetica Neue", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = '#f5c542'; g.fillText('Turn the device sideways to play', W / 2, H / 2);
+      return;
+    }
+    const playing = md === 'play';
+    for (const b of L.buttons) {
+      const isTop = b.id === 'map' || b.id === 'pause' || b.id === 'full';
+      if (!playing && !isTop) continue;
+      if (!playing && md !== 'paused' && md !== 'map' && md !== 'shop') continue;
+      const down = held.has(b.id);
+      ring(g, b.x, b.y, b.r, down ? 'rgba(245,197,66,0.30)' : 'rgba(10,14,18,0.34)', down ? 'rgba(245,197,66,0.9)' : 'rgba(255,255,255,0.5)', b.r > 30 ? 2.5 : 2);
+      g.font = `bold ${Math.max(10, Math.round(b.r * (b.label.length > 4 ? 0.34 : 0.42)))}px "Helvetica Neue", Arial, sans-serif`;
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = down ? '#fff' : 'rgba(255,255,255,0.82)';
+      g.fillText(b.label, b.x, b.y);
+    }
+    if (!playing) return;
+    // the stick: a faint home ring until a thumb lands, then it follows the thumb
+    const h = L.home;
+    if (stick) {
+      ring(g, stick.cx, stick.cy, h.r, 'rgba(10,14,18,0.28)', 'rgba(255,255,255,0.4)', 2);
+      ring(g, stick.x, stick.y, h.r * 0.42, 'rgba(245,197,66,0.55)', 'rgba(255,255,255,0.8)', 2);
+    } else {
+      ring(g, h.x, h.y, h.r, 'rgba(10,14,18,0.16)', 'rgba(255,255,255,0.22)', 2);
+      ring(g, h.x, h.y, h.r * 0.42, 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0.26)', 2);
+    }
+  }
+
+  function init(canvas) {
+    hudCv = document.getElementById('hud') || canvas;
+    const q = /[?&]touch=([01])/.exec(location.search); if (q) forced = q[1] === '1';  // ?touch=1 forces the pad on, ?touch=0 off
+    setActive(sense());
+    INPUT.virtualPad = virtualPad;
+    const o = { passive: false, capture: true };
+    window.addEventListener('pointerdown', onDown, o);
+    window.addEventListener('pointermove', onMove, o);
+    window.addEventListener('pointerup', onUp, o);
+    window.addEventListener('pointercancel', onUp, o);
+    window.addEventListener('contextmenu', e => { if (active) e.preventDefault(); });
+    // a sideways turn changes every button's home
+    window.addEventListener('orientationchange', () => { stick = null; look = null; held.clear(); });
+  }
+  const api = { init, draw, get active() { return active; }, layout,
+    force(v) { forced = v; setActive(v === null ? sense() : v); } };
   return api;
 })();
 
@@ -4928,7 +5199,9 @@ const AMBIENT = (() => {
 // GRIFT CITY — the 2D overlay: radar, money, health, wanted stars, weapon, objectives, dialogue, menus.
 'use strict';
 const HUD = (() => {
-  let cv, g, W_, H_, mapCanvas = null; const notes = []; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
+  let cv, g, W_, H_, mapCanvas = null; const notes = [];
+  // Strips the touch layer can tap, rebuilt every frame: {x, y, w, h, key} where key is the key it stands for.
+  const zones = []; const zone = (x, y, w, h, key) => { if (TOUCH.active) zones.push({ x, y, w, h, key }); }; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
   const FONT = '"Helvetica Neue", Arial, sans-serif'; const DISPLAY = 'Impact, "Arial Black", "Helvetica Neue", sans-serif';
   function init(canvas) { cv = canvas; g = cv.getContext('2d'); }
   function resize() { const dpr = Math.min(window.devicePixelRatio || 1, 1.5); /* a full-retina overlay costs more to composite than its text is worth */ const w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } W_ = cv.clientWidth; H_ = cv.clientHeight; g.setTransform(dpr, 0, 0, dpr, 0, 0); }
@@ -4954,7 +5227,9 @@ const HUD = (() => {
     mapCanvas._icons = []; for (const k in icons) for (const p of (CITY.places[k] || [])) mapCanvas._icons.push({ x: p.x, z: p.z, col: icons[k][0], ch: icons[k][1], kind: k });
   }
   function drawMapIcons(scale, filter) { for (const ic of mapCanvas._icons) { if (filter && !filter(ic)) continue; g.fillStyle = ic.col; g.beginPath(); g.arc(ic.x, ic.z, 4 / scale, 0, 7); g.fill(); } }
-  function radarLayout(w, h) { const R = Math.min(82, w * 0.12); return { R, cx: R + 24, cy: h - R - 30 }; }
+  // On a touchscreen the bottom-left corner belongs to the thumb that moves you, so the radar goes up to the
+  // top-left and the district and clock shift out from under it.
+  function radarLayout(w, h) { const R = Math.min(82, w * 0.12); return TOUCH.active ? { R, cx: R + 18, cy: R + 18 } : { R, cx: R + 24, cy: h - R - 30 }; }
   function radar(P, cam) {
     const { R, cx, cy } = radarLayout(W_, H_); const scale = 0.55; const yaw = W.state.camYaw;
     g.save(); g.beginPath(); g.arc(cx, cy, R, 0, 7); g.clip();
@@ -4982,7 +5257,7 @@ const HUD = (() => {
     // north indicator
     { const a = yaw + Math.PI; const nx = cx + Math.sin(a) * (R + 12), ny = cy - Math.cos(a) * (R + 12); text('N', nx, ny, 12, '#fff', 'center'); }
     // health & armor bars beside the radar
-    const bx = cx + R + 12, by = cy + R - 14, bw = Math.min(112, W_ * 0.16);
+    const bx = TOUCH.active ? cx - R : cx + R + 12, by = TOUCH.active ? cy + R + 30 : cy + R - 14, bw = Math.min(112, W_ * 0.16);
     g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(bx - 2, by - 12, bw + 4, 14); g.fillStyle = P.health > 25 ? '#d8352f' : (Math.sin(W.state.elapsed * 10) > 0 ? '#ff6060' : '#802020'); g.fillRect(bx, by - 10, bw * M.clamp(P.health / 100, 0, 1), 10);
     if (P.armor > 0) { g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(bx - 2, by - 28, bw + 4, 14); g.fillStyle = '#c8c8d0'; g.fillRect(bx, by - 26, bw * M.clamp(P.armor / 100, 0, 1), 10); }
     if (P.car) { const kmh = Math.round(P.car.absSpeed * 3.6 * 1.6); text(kmh + ' km/h', bx, by - (P.armor > 0 ? 42 : 26), 14, '#ddd'); }
@@ -5005,7 +5280,7 @@ const HUD = (() => {
   function stars(P, x, y) { for (let i = 0; i < 5; i++) { const lit = i < P.wanted; const flash = starFlash > 0 && lit && Math.sin(W.state.elapsed * 20) > 0; text('★', x - i * 24, y, 24, lit ? (flash ? '#fff' : '#f5c542') : 'rgba(255,255,255,0.18)', 'center'); } }
 
   function draw(dt, state, photo) {
-    resize(); g.clearRect(0, 0, W_, H_); const P = PLAYER.P;
+    resize(); g.clearRect(0, 0, W_, H_); zones.length = 0; const P = PLAYER.P;
     if (state === 'title') return drawTitle();
     if (state === 'photo') { text('PHOTO MODE  ·  WASD/QE fly  ·  SHIFT fast  ·  wheel zoom  ·  click or ENTER saves a picture  ·  P back', W_ / 2, H_ - 18, 13, 'rgba(255,255,255,0.75)', 'center', 'normal'); if (photo && photo.savedT > 0) text('SAVED', W_ / 2, H_ / 2, 28, '#f5c542', 'center'); return; }
     if (state === 'loading') return drawLoading();
@@ -5018,7 +5293,7 @@ const HUD = (() => {
     if (dlg) { // letterbox + subtitles
       g.fillStyle = '#000'; g.fillRect(0, 0, W_, H_ * 0.12); g.fillRect(0, H_ * 0.88, W_, H_ * 0.12);
       const line = dlg.lines[dlg.i]; if (line) { const rows = wrap(line[1], 20, W_ * 0.84); const y0 = H_ * 0.8 - (rows.length - 1) * 12; if (line[0]) text(line[0], W_ / 2, y0 - 26, 16, '#f5c542', 'center'); rows.forEach((r, i) => text(r, W_ / 2, y0 + i * 24, 20, '#fff', 'center', 'normal')); }
-      text('SPACE to continue', W_ - 20, H_ - 18, 12, '#aaa', 'right', 'normal');
+      text(TOUCH.active ? 'TAP to continue' : 'SPACE to continue', W_ - 20, H_ - 18, 12, '#aaa', 'right', 'normal');
       if (fadeT > 0) drawFade(dt); return;
     }
     const shade = g.createLinearGradient(0, 0, 0, 115); shade.addColorStop(0, 'rgba(16,25,29,0.55)'); shade.addColorStop(1, 'rgba(16,25,29,0)'); g.fillStyle = shade; g.fillRect(0, 0, W_, 115);
@@ -5032,10 +5307,11 @@ const HUD = (() => {
     text(WEAPONS[P.weapon].name, W_ - 24, 140, 12, '#ccc', 'right', 'normal');
     if (P.carNameT > 0 && P.car) text(P.lastCarName, W_ - 24, H_ - 40, 22, 'rgba(245,197,66,' + Math.min(1, P.carNameT) + ')', 'right');
     // top left: clock and district
-    text(CITY.districtName(P.x, P.z).toUpperCase(), 28, 30, 17, '#eee5ce', 'left', '500', true, true); text(W.clockString(), 28, 53, 13, '#dfe6e3', 'left', 'normal', true, true);
-    if (AUDIO.radioStation > 0 && P.car) text('♪ ' + AUDIO.STATIONS[AUDIO.radioStation], 24, 76, 12, '#ccc', 'left', 'normal');
+    const lx = TOUCH.active ? radarLayout(W_, H_).R * 2 + 32 : 28;
+    text(CITY.districtName(P.x, P.z).toUpperCase(), lx, 30, 17, '#eee5ce', 'left', '500', true, true); text(W.clockString(), lx, 53, 13, '#dfe6e3', 'left', 'normal', true, true);
+    if (AUDIO.radioStation > 0 && P.car) text('♪ ' + AUDIO.STATIONS[AUDIO.radioStation], lx - 4, 76, 12, '#ccc', 'left', 'normal');
     // notifications
-    for (let i = notes.length - 1, k = 0; i >= 0; i--, k++) { const n = notes[i]; n.t -= dt; if (n.t <= 0) { notes.splice(i, 1); continue; } text(n.text, W_ / 2, 60 + k * 22, 15, 'rgba(255,255,255,' + Math.min(1, n.t) + ')', 'center'); }
+    for (let i = notes.length - 1, k = 0; i >= 0; i--, k++) { const n = notes[i]; n.t -= dt; if (n.t <= 0) { notes.splice(i, 1); continue; } text(n.text, W_ / 2, (TOUCH.active ? 112 : 60) + k * 22, 15, 'rgba(255,255,255,' + Math.min(1, n.t) + ')', 'center'); }
     // objective
     const obj = MISSIONS.objective; if (obj) { g.font = `bold 16px ${FONT}`; const tw = g.measureText(obj).width; g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(W_ / 2 - tw / 2 - 14, H_ - 66, tw + 28, 30); text(obj, W_ / 2, H_ - 51, 16, '#f5e9c0', 'center'); }
     // crosshair
@@ -5049,21 +5325,32 @@ const HUD = (() => {
     const cur = MISSIONS.S.current; if (cur && cur.data && cur.data.det !== undefined && !cur.data.alarm) { const w = 220, x = W_ / 2 - w / 2, y = 84; g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x - 2, y - 2, w + 4, 14); g.fillStyle = cur.data.det > 0.7 ? '#e0453b' : '#f5c542'; g.fillRect(x, y, w * cur.data.det, 10); text('DETECTION', W_ / 2, y - 6, 11, '#ddd', 'center', 'normal'); }
     // shop
     const shop = MISSIONS.shop; if (shop) { const n = shop.items.length; const hh = 90 + n * 28; const x = W_ / 2 - 190, y = H_ / 2 - hh / 2; g.fillStyle = 'rgba(0,0,0,0.85)'; g.fillRect(x, y, 380, hh); text(shop.title, x + 190, y + 26, 22, shop.color || '#fff', 'center');
-      shop.items.forEach((it, i) => { text((i + 1) + '.  ' + it.label, x + 20, y + 62 + i * 28, 15, it.enabled ? '#fff' : '#777'); if (it.price) text('$' + it.price, x + 360, y + 62 + i * 28, 15, it.enabled ? '#3df06a' : '#777', 'right'); });
-      if (shop.hint) text(shop.hint, x + 190, y + hh - 38, 12, '#ccc', 'center', 'normal'); text('ESC to leave', x + 190, y + hh - 16, 12, '#aaa', 'center', 'normal'); }
+      shop.items.forEach((it, i) => { zone(x + 8, y + 50 + i * 28, 364, 26, 'Digit' + (i + 1)); text((i + 1) + '.  ' + it.label, x + 20, y + 62 + i * 28, 15, it.enabled ? '#fff' : '#777'); if (it.price) text('$' + it.price, x + 360, y + 62 + i * 28, 15, it.enabled ? '#3df06a' : '#777', 'right'); });
+      if (shop.hint) text(shop.hint, x + 190, y + hh - 38, 12, '#ccc', 'center', 'normal');
+      zone(x + 120, y + hh - 28, 140, 26, 'Escape'); text(TOUCH.active ? 'TAP a line  ·  LEAVE' : 'ESC to leave', x + 190, y + hh - 16, 12, '#aaa', 'center', 'normal'); }
     if (big) { big.t -= dt; const a = Math.min(1, big.t / 0.5, (big.max - big.t) * 3 + 0.05); g.globalAlpha = M.clamp(a, 0, 1); outlined(big.text, W_ / 2, H_ * 0.4, big.text.length > 3 ? 54 : 110, big.color); g.globalAlpha = 1; if (big.t <= 0) big = null; }
     if (P.state === 'busted' || P.state === 'dead') { g.fillStyle = 'rgba(0,0,0,' + M.clamp((P.deadT - 2) / 2.5, 0, 0.9) + ')'; g.fillRect(0, 0, W_, H_); }
     if (starFlash > 0) starFlash -= dt;
     if (fadeT > 0) drawFade(dt);
     if (state === 'paused') drawPause(); if (state === 'map') drawBigMap(P);
+    TOUCH.draw(g, W_, H_, state);
   }
   function drawFade(dt) { fadeT -= dt; const a = Math.sin(Math.PI * M.clamp(fadeT / fadeDur, 0, 1)); g.fillStyle = 'rgba(0,0,0,' + a + ')'; g.fillRect(0, 0, W_, H_); }
   function drawTitle() {
     g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, 0, W_, H_);
     outlined('GRIFT CITY', W_ / 2, H_ * 0.3, Math.min(110, W_ * 0.14), '#f5c542'); text('an open-world crime game, one folder of JavaScript', W_ / 2, H_ * 0.3 + 60, 16, '#ddd', 'center', 'normal');
-    const blink = Math.sin(performance.now() / 300) > -0.3; if (blink) text(GAME.hasSave() ? 'CLICK to continue     ·     N for a new game' : 'CLICK to play', W_ / 2, H_ * 0.58, 22, '#fff', 'center');
+    const tap = TOUCH.active;
+    const blink = Math.sin(performance.now() / 300) > -0.3; if (blink) text(tap ? (GAME.hasSave() ? 'TAP to continue' : 'TAP to play') : (GAME.hasSave() ? 'CLICK to continue     ·     N for a new game' : 'CLICK to play'), W_ / 2, H_ * 0.58, 22, '#fff', 'center');
     const lines = ['WASD / arrows  move · drive', 'Mouse  look and aim · left button  attack · right button  aim', 'SHIFT  sprint · SPACE  jump / handbrake · F  enter / leave car', 'Scroll, Q / E, 1–8  weapons · R  radio · H  horn · L  siren · T  taxi / vigilante job', 'TAB  map · ESC  pause · M  mute'];
-    lines.forEach((l, i) => text(l, W_ / 2, H_ * 0.7 + i * 22, 14, '#bbb', 'center', 'normal'));
+    if (tap && GAME.hasSave()) {
+      const bw = 190, bh = 44, bxx = W_ / 2 - bw / 2, byy = H_ * 0.58 + 34;
+      g.fillStyle = 'rgba(10,14,18,0.6)'; g.fillRect(bxx, byy, bw, bh);
+      g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = 2; g.strokeRect(bxx, byy, bw, bh);
+      text('NEW GAME', W_ / 2, byy + bh / 2, 17, '#fff', 'center');
+      zone(bxx, byy, bw, bh, 'KeyN');
+    }
+    const touchLines = ['Left thumb  a stick appears where you touch: walk, run at the rim, steer', 'Right thumb  drag to look · the buttons fire, aim, jump and get you in and out', 'In a car  GAS and BRAKE on the right, HAND for the handbrake, EXIT to get out', 'Top right  the map, and the pause menu for options'];
+    (tap ? touchLines : lines).forEach((l, i) => text(l, W_ / 2, H_ * 0.7 + i * 22, 14, '#bbb', 'center', 'normal'));
   }
   let loadNote = 'building the city…', loadFrac = -1;
   function loading(note, frac) { loadNote = note; loadFrac = frac === undefined ? -1 : frac; draw(0, 'loading'); }
@@ -5073,8 +5360,13 @@ const HUD = (() => {
   let showControls = false, hitT = 0, hitKill = false;
   function hitMark(kill) { hitT = 0.2; hitKill = !!kill; }
   function hintLine(P) {
-    if (MISSIONS.shop) return 'DIGITS pick · F or ESC leave';
-    if (MISSIONS.dialogue) return 'SPACE next line';
+    if (MISSIONS.shop) return TOUCH.active ? 'TAP a line to buy · LEAVE to go' : 'DIGITS pick · F or ESC leave';
+    if (MISSIONS.dialogue) return TOUCH.active ? 'TAP for the next line' : 'SPACE next line';
+    if (TOUCH.active) {
+      const cc = P.car;
+      if (cc) return 'GAS · BRAKE · HAND handbrake · EXIT · stick steers · drag to look';
+      return 'stick to walk, push it to the rim to run · drag the right side to look';
+    }
     const c = P.car;
     if (c) { if (c.spec.boat) return 'W/S throttle · A/D rudder · F get out near land · F1 all controls'; if (c.spec.bike) return 'W/S throttle · A/D lean · SPACE brake slide · F get off · LMB drive-by · F1 all controls';
       return 'W/S drive · A/D steer · SPACE handbrake · F get out · H horn' + (c.type === 'police' || c.type === 'swat' ? ' · L siren' : '') + ' · R radio · LMB drive-by · F1 all controls'; }
@@ -5092,10 +5384,11 @@ const HUD = (() => {
     const st = P.stats; const rows = [['Missions passed', st.missions + ' / ' + (MISSIONS.LIST.length + MISSIONS.LIST2.length + MISSIONS.PHONE.length)], ['Standing: Marla / Crane', ECON.S.rep.marla + ' / ' + ECON.S.rep.crane], ['Properties / stored cars', Object.keys(ECON.S.properties).length + ' / ' + ECON.S.owned.length], ['Unique stunts', (st.jumps || []).length + ' / ' + CITY.ramps.length], ['Cash earned', '$' + st.cash], ['Hidden packages', st.packages + ' / 20'], ['Cars stolen', st.carsStolen], ['People killed', st.kills], ['Distance travelled', (st.distance / 1000).toFixed(1) + ' km'], ['Insane stunts', st.stunts], ['Times wasted / busted', st.wasted + ' / ' + st.busted], ['Time of day', W.clockString()]];
     rows.forEach(([k, v], i) => { text(k, W_ / 2 - 60, 150 + i * 26, 15, '#bbb', 'right', 'normal'); text(String(v), W_ / 2 - 48, 150 + i * 26, 15, '#fff', 'left'); });
     const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['E', 'ink lines', o.edges ? 'on' : 'off'], ['A', 'auto quality', o.auto ? (GAME.auto.level ? 'on, stepped down ' + GAME.auto.level : 'on') : 'off'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', '']];
-    opts.forEach(([k, n, v], i) => { const y = 150 + i * 26; text(k, W_ / 2 + 200, y, 15, '#f5c542', 'right'); text(n, W_ / 2 + 212, y, 15, '#ccc', 'left', 'normal'); text(v, W_ / 2 + 360, y, 15, '#fff', 'left'); });
-    text('ESC or click  resume', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
+    const OPTKEY = ['BracketRight', 'KeyI', 'KeyK', 'KeyB', 'KeyE', 'KeyP', 'KeyA'];
+    opts.forEach(([k, n, v], i) => { const y = 150 + i * 26; if (OPTKEY[i]) zone(W_ / 2 + 150, y - 13, 280, 26, OPTKEY[i]); text(k, W_ / 2 + 200, y, 15, '#f5c542', 'right'); text(n, W_ / 2 + 212, y, 15, '#ccc', 'left', 'normal'); text(v, W_ / 2 + 360, y, 15, '#fff', 'left'); });
+    text(TOUCH.active ? 'TAP anywhere to resume  ·  tap an option to change it' : 'ESC or click  resume', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
     if (GAME.fps) text(GAME.fps + ' fps' + (GAME.fps < 30 ? '  (slow: try P for a lower render scale, K for no shadows)' : ''), W_ / 2, H_ - 86, 13, GAME.fps < 30 ? '#f5a623' : '#888', 'center', 'normal');
-    text('F1 shows every control', W_ / 2, H_ - 34, 12, '#888', 'center', 'normal');
+    if (!TOUCH.active) text('F1 shows every control', W_ / 2, H_ - 34, 12, '#888', 'center', 'normal');
   }
   function drawBigMap(P, overlay = null) {
     g.fillStyle = 'rgba(0,0,0,0.8)'; g.fillRect(0, 0, W_, H_); const size = Math.min(W_, H_) - 60; const scale = size / (1024 / mapCanvas._s); const ox = (W_ - size) / 2, oy = (H_ - size) / 2;
@@ -5106,11 +5399,11 @@ const HUD = (() => {
     g.save(); g.translate(P.x, P.z); g.rotate(-(P.car ? P.car.angle : P.angle) + Math.PI); g.fillStyle = '#fff'; g.strokeStyle = '#000'; g.lineWidth = 2 / scale; g.beginPath(); g.moveTo(0, -12 / scale); g.lineTo(8 / scale, 9 / scale); g.lineTo(0, 4 / scale); g.lineTo(-8 / scale, 9 / scale); g.closePath(); g.fill(); g.stroke(); g.restore(); g.restore();
     const legend = [['#ff70d0', 'Safehouse'], ['#f5a623', 'Voss Motors'], ['#3bb8ff', 'Pier 9 jobs'], ['#ff7020', 'Rampage'], ['#f5c542', "Pay 'n' Spray"], ['#e0453b', 'Ironmonger'], ['#ffffff', 'Hospital'], ['#5aa0ff', 'Police'], ['#3df06a', 'Bank'], ['#a0a0ff', 'Crane Holdings'], ['#c0a060', 'Pier 9']];
     legend.forEach(([c, n], i) => { g.fillStyle = c; g.beginPath(); g.arc(24, 30 + i * 22, 5, 0, 7); g.fill(); text(n, 36, 30 + i * 22, 13, '#ddd', 'left', 'normal'); });
-    text('TAB to close', W_ / 2, H_ - 16, 13, '#aaa', 'center', 'normal');
+    zone(W_ / 2 - 90, H_ - 30, 180, 28, 'Tab'); text(TOUCH.active ? 'TAP to close' : 'TAB to close', W_ / 2, H_ - 16, 13, '#aaa', 'center', 'normal');
   }
   // Where a run went: the big map with every sampled position burned in (tools/playtest/run.js writes it as heatmap.png).
   function heatmap(track) { resize(); g.clearRect(0, 0, W_, H_); drawBigMap(PLAYER.P, (scale) => { g.fillStyle = 'rgba(255,70,30,0.22)'; for (const [x, z] of track) { g.beginPath(); g.arc(x, z, 7 / scale, 0, 7); g.fill(); } g.fillStyle = '#fff'; g.beginPath(); g.arc(track[0][0], track[0][1], 5 / scale, 0, 7); g.fill(); }); text('positions sampled every 0.4 s of wall time; white dot is the start', W_ / 2, H_ - 14, 12, '#ccc', 'center', 'normal'); }
-  return { radarLayout, init, draw, loading, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, shake: (a) => PLAYER.shake(a) };
+  return { radarLayout, init, draw, loading, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, zones, shake: (a) => PLAYER.shake(a) };
 })();
 
 </script>
@@ -5227,7 +5520,7 @@ const GAME = (() => {
   }
 
   function boot() {
-    canvas = document.getElementById('gl'); hud = document.getElementById('hud'); HUD.init(hud); INPUT.init(canvas);
+    canvas = document.getElementById('gl'); hud = document.getElementById('hud'); HUD.init(hud); INPUT.init(canvas); TOUCH.init(canvas);
     const T = window.__bootTimes = {}; let t0 = performance.now(); const mark = k => { T[k] = Math.round(performance.now() - t0); t0 = performance.now(); };
     HUD.loading('loading materials…', 0);
     TEX.preload(p => HUD.loading('loading materials…', p)).then(n => { mark('materials'); T.materials_n = n; HUD.loading('building the city…'); setTimeout(() => build(mark), 30); });
@@ -5245,8 +5538,8 @@ const GAME = (() => {
     for (let i = 0; i < 40; i++) { VEH.spawnTraffic(PLAYER.x, PLAYER.z, PLAYER.P.camYaw + Math.PI, 26); PEDS.populate(PLAYER.x, PLAYER.z, PLAYER.P.camYaw + Math.PI, 40); }
     state = 'title';
     INPUT.onLockLost = () => { if (state === 'playing' && !MISSIONS.shop) { state = 'paused'; INPUT.releaseLock(); } };
-    document.addEventListener('mousedown', () => { if (state === 'title') startPlay(); }, { once: false });
-    window.addEventListener('keydown', e => { if (state === 'title' && e.code === 'KeyN') newGame(); });
+    document.addEventListener('mousedown', () => { if (state === 'title' && !TOUCH.active) startPlay(); }, { once: false });
+
     window.__ready = true;
     mark('rest'); console.log('boot', JSON.stringify(window.__bootTimes));
     last = performance.now(); requestAnimationFrame(frame);
@@ -5267,7 +5560,7 @@ const GAME = (() => {
       if (INPUT.hit('Escape') && state === 'playing') { /* bot never pauses */ }
       INPUT.endFrame(); return;
     }
-    if (state === 'title') { RENDER.setTimeOfDay(W.state.time, W.weather.rain); titleCamera(now / 1000); renderWorld(dt, true); HUD.draw(dt, 'title'); INPUT.endFrame(); return; }
+    if (state === 'title') { if (INPUT.hit('KeyN')) { newGame(); INPUT.endFrame(); return; } RENDER.setTimeOfDay(W.state.time, W.weather.rain); titleCamera(now / 1000); renderWorld(dt, true); HUD.draw(dt, 'title'); INPUT.endFrame(); return; }
     if (INPUT.hit('Escape')) { if (MISSIONS.shop) { } else if (state === 'playing') { state = 'paused'; INPUT.releaseLock(); } else if (state === 'paused') { state = 'playing'; INPUT.requestLock(); } }
     if (INPUT.hit('Tab')) { if (state === 'playing') state = 'map'; else if (state === 'map') state = 'playing'; }
     if (INPUT.hit('KeyP') && state === 'playing' && !MISSIONS.shop) { state = 'photo'; const c = RENDER.cam; const d = Math.hypot(c.tx - c.x, c.ty - c.y, c.tz - c.z) || 1; photo = { x: c.x, y: c.y, z: c.z, yaw: Math.atan2(c.tx - c.x, c.tz - c.z), pitch: Math.asin((c.ty - c.y) / d), fov: 55, shot: false, savedT: 0 }; INPUT.requestLock(); }
