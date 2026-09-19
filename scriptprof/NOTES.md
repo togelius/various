@@ -20,9 +20,11 @@ language model served by Ollama, at roughly a minute per mutation. That is the
 binding constraint on everything else: if a mutation costs sixty seconds and an
 evaluation costs five, making evaluation faster buys nothing.
 
-### What PuzzleJAX is actually good for
+### First PuzzleJAX measurements
 
-Measured before building on it, because the answer decides the architecture.
+Taken before building on it, because the answer decides the architecture.
+(Superseded in part by the end-to-end benchmark further down, which is the
+number to trust; these are per-state rates on a warm compilation.)
 
 | | trace/compile | throughput |
 |---|---|---|
@@ -31,20 +33,8 @@ Measured before building on it, because the answer decides the architecture.
 | PuzzleJAX, larger board (8x13x15) | 6.3 s | 9.6k states/s |
 
 So PuzzleJAX is about 3.5x faster per state on small games and *slower* than
-the C++ engine on large ones, and every game pays 2-10 s of tracing. For plain
-breadth-first search from a level's start, it is not a win on CPU. Break-even
-against the C++ engine is around 120k states.
-
-The decisive advantage is elsewhere, and it is large:
-
-- **Batched rollouts.** 512 parallel 80-step random playouts in one scan call.
-- **Many levels at once.** `vmap` over `PJParams.level` runs 256 *different*
-  levels through one compiled step function at 79k level-steps/s. One trace,
-  many levels. This is what makes solver-in-the-loop level generation possible.
-- **Search from arbitrary states.** The C++ engine searches from a level's
-  start. PuzzleJAX can take a hundred arbitrary states and sweep them all
-  breadth-first together, which is what the deadlock and fatal-move metrics
-  need and what nothing else here can do.
+the C++ engine on large ones, and every game pays 2-10 s of tracing. Even
+taken at face value, break-even against the C++ engine is around 120k states.
 
 One thing dominates all tuning: **every jitted call must use the same batch
 shape**. A ragged frontier chunk retraces the step function, and tracing costs
@@ -157,16 +147,155 @@ Same seeds, same operators, same descriptors. The question is whether rewarding
 distance from the human corpus produces archives that are further from it
 without being worse, or just produces junk.
 
-### Open questions
+### What PuzzleJAX is good for, measured rather than assumed
+
+The premise was that PuzzleJAX speeds things up. Benchmarked against the honest
+alternative -- the C++ engine with all candidate levels compiled into *one*
+game, so its compile cost is paid once -- the answer is narrower than that.
+
+`prof.bench`, 64 candidate Sokoban levels, 7x7:
+
+| method | seconds | levels/s | solved |
+|---|---|---|---|
+| PuzzleJAX batched, cold | 16.3 | 3.9 | 11 |
+| PuzzleJAX batched, warm | 11.2 | 5.7 | 11 |
+| C++, one game, serial | 5.4 | 12.0 | 22 |
+
+A batch is only as fast as its slowest member. Every level in the frontier runs
+to the same depth, while the C++ solver drops each level the moment it wins, so
+a population where most levels solve in six moves still pays for twenty-six.
+Batching would win that back on a GPU, where a layer is one kernel rather than
+many; on this CPU it does not.
+
+Worse, and this is the finding that actually constrains the design: **PuzzleJAX
+unrolls every rule into the traced graph, so its cost scales with rule count
+and the C++ engine's does not.**
+
+| | trace | throughput |
+|---|---|---|
+| `sokoban_basic`, 1 rule | 1.8 s | 170k states/s |
+| an evolved descendant, 25 rules | 166 s | 456 states/s |
+
+Evolution adds rules. So the JAX path is least affordable exactly where the
+search spends its time. Structural analysis is now gated on rule count, which
+took one evolved game from 229 s to 3.7 s.
+
+What remains PuzzleJAX-only, and is worth the tax where it applies:
+
+- **Search from arbitrary states.** The C++ engine searches from a level's
+  start. Taking a hundred arbitrary states and sweeping them breadth-first
+  together, each tagged with the root it came from, is what the fatal-move and
+  deadlock metrics need and nothing else here can do.
+- **Many levels through one compilation.** `vmap` over `PJParams.level` runs
+  256 different levels at 79k level-steps/s off a single trace.
+
+So the split is: C++ for anything that starts at a level's start, PuzzleJAX for
+anything that does not, and a rule-count gate in front of the second.
+
+### Three silent bugs
+
+All three produced plausible numbers rather than errors, which is why each cost
+an hour.
+
+**The engines number actions differently.** The C++ port follows the JavaScript
+engine (up, left, down, right, action); PuzzleJAX uses (left, down, right, up,
+action). A solution found by one and replayed in the other does something else
+and never wins. Downstream this read as "every alternative move on the solution
+path is fatal" -- on every game measured. The fix is five characters of lookup
+table; finding it took a direct replay test.
+
+**Levels of one game need not share a state shape.** PuzzleJAX pads a level to
+the board only when it already fits, so a game can hold a 9x9 level and a 10x10
+one. Keying the compiled-expander cache on board dimensions handed the second
+level's states to the first level's compiled function, failing inside XLA with
+an error naming neither.
+
+**`background_char` returned the commonest tile.** In a Sokoban that is the
+wall, because the border is solid, so every generated level came out a brick.
+It resolves the bottom-collision-layer symbol now.
+
+### The fatal-move metric was measuring its own budget
+
+First real numbers out of the structural half said 98-100% of alternatives are
+fatal on evolved games. That is an artefact, not a finding. Fatality is decided
+by a capped breadth-first probe, and on a game with wide branching the cap
+prunes away wins that exist.
+
+The check is cheap and decisive. States on the optimal path are known to be
+winnable inside the horizon -- that is how the probed positions were chosen --
+so probe those too and see whether the search re-finds what it was handed.
+
+| | path re-solved | verdict |
+|---|---|---|
+| `sokoban_basic` | 100% | trustworthy: 5% fatal, Gini 0.86 |
+| 25-rule evolved child | 9-18% | pruning, reported as unmeasured |
+
+Levels failing the check now report the fatal fields as unmeasured rather than
+as findings, and aggregation skips them. Checking the path first also lets the
+probe bail before doing five times the work on a game it cannot judge.
+
+The lesson generalises: any metric defined by a bounded search needs a case
+where the answer is known in advance, or it will confidently report the shape
+of its own budget.
+
+### Does novelty pressure help? (n=1, so: suggestive)
+
+Two runs, identical but for the novelty bonus, compared at matched evaluation
+counts with the bonus subtracted back out so both are scored on the same
+objective. At 1836 evaluations each:
+
+| | cells | playable | QD | beyond corpus |
+|---|---|---|---|---|
+| novelty weight 0.4 | 104 | 64 | 21.7 | 25 |
+| novelty weight 0.0 | 106 | 58 | 17.7 | 19 |
+
+Equal coverage, more playable elites, higher QD on the shared objective, and
+more games outside the human cloud. Rewarding distance from the corpus did not
+cost quality here. One run each and different seeds, so this is a reason to run
+replicates, not a result.
+
+### Does the depth metric see design? (not yet answerable)
+
+The first validation sweep returned 4 usable pairs out of 36 games, because 31
+inherited a process pool poisoned by the one game that segfaulted the C++
+engine. Every metric landed at 50-58%, which on n=4 is noise. Rerunning with
+`prof.pool` and 60 games.
+
+### What I would do next, in order
+
+1. **Replicate the novelty comparison.** Three seeds per arm, same wall clock.
+   One run each is not a result, and the effect is the only steer we have on
+   how hard to push away from the corpus.
+2. **Get a GPU.** Every disappointing PuzzleJAX number here is a CPU number.
+   The batched primitives are written and tested; on a GPU the layer expansion
+   is one kernel and the level-vmap is free, which is where the design was
+   supposed to pay off. Worth measuring before concluding anything about the
+   approach rather than the machine.
+3. **A better weak player than greedy-on-Manhattan.** The insight metric is
+   only as good as the player it beats, and PuzzleJAX's built-in heuristic is
+   a distance aggregate over win conditions, so it is close to uninformative
+   exactly where puzzles are most abstract. A small learned policy in that
+   slot is the co-evolution step in `PLAN.md` and would sharpen the metric
+   most where it is weakest now.
+4. **Let the level generator drive rule design.** It currently polishes a game
+   after the fact. A mutation operator that proposes a rule *and* the level
+   that shows it off would stop the search from filling the archive with
+   mechanics that never fire.
+
+### Open questions and known holes
 
 - No itch.io or rating metadata is vendored, so there is no external signal to
-  validate the depth metrics against. The substitute experiment: at matched
-  solvability and solution length, do human games score differently from random
-  mutants? If the metrics cannot tell those apart they are measuring nothing.
+  validate the depth metrics against. The substitute is the matched-mutant
+  sweep above.
 - 17 corpus games still fail the round trip. They are excluded from seeding.
 - One game (`FROWN_INVERSION_SQUAD`) segfaults the C++ engine, and 16 exceed
-  the wall-clock cap. Not chased.
-- PuzzleJAX's `gbfs` uses the engine's built-in heuristic, which is a
-  Manhattan-distance aggregate over win conditions. For games whose win
-  condition is not spatial it is close to uninformative, which weakens the
-  insight metric exactly where puzzles are most abstract.
+  the wall-clock cap. Not chased; `prof.pool` makes them survivable rather
+  than fixed.
+- The structural metrics only apply to games under the rule-count gate, which
+  is a minority of what evolution produces. Their coverage is reported
+  (`reliable_levels`) rather than papered over, but it is a real limit on how
+  much of the archive can be judged on depth.
+- MAP-Elites descriptors are three size axes and one mechanic axis. Three of
+  four being size measures means the archive spreads mostly by scale, which is
+  not the diversity anyone wants. A learned descriptor over the corpus would
+  be better and is `PLAN.md` WP2.
