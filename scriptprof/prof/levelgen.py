@@ -70,20 +70,34 @@ class LevelGen:
         self.bg = self.struct.background_char()
         if self.bg not in self.alphabet:
             self.bg = self.alphabet[0]
-        probe = self.struct.copy()
-        probe.levels = [Level([self.bg * width for _ in range(height)])]
-        probe.touch("LEVELS")
-        self.game = pjax.PJGame.from_text(probe.emit(), max_steps=max_steps)
-        self.env = self.game.env
+        self._max_steps = max_steps
+        self._game = None
         self.key = jax.random.PRNGKey(0)
         self._expand = {}
         self._reset = None
         self._roll = {}
-        # which characters the environment will actually accept
-        self.alphabet = [c for c in self.alphabet
-                         if c.lower() in getattr(self.env, "chars_to_idxs", {c.lower(): 0})]
         self.player_chars = self._player_chars()
         self._freq = self.census()
+
+    # The PuzzleJAX environment costs two to ten seconds to trace and is only
+    # needed by the JAX backend, which prof.bench showed to be the slower of
+    # the two for this job.  Build it on demand so the C++ path never pays.
+    @property
+    def game(self):
+        if self._game is None:
+            probe = self.struct.copy()
+            probe.levels = [Level([self.bg * self.width for _ in range(self.height)])]
+            probe.touch("LEVELS")
+            self._game = pjax.PJGame.from_text(probe.emit(), max_steps=self._max_steps)
+            self.alphabet = [c for c in self.alphabet
+                             if c.lower() in getattr(self._game.env, "chars_to_idxs",
+                                                     {c.lower(): 0})]
+            self.player_chars = self._player_chars()
+        return self._game
+
+    @property
+    def env(self):
+        return self.game.env
 
     def _alphabet(self) -> list[str]:
         return sorted(self.struct.level_alphabet())

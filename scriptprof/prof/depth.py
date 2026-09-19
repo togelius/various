@@ -79,6 +79,8 @@ class LevelDepth:
     deadlock_frac: float = -1.0    # random-walk endpoints with no win left; -1 unmeasured
     probed: int = 0                # path states the horizon could actually judge
     endgame_only: bool = False     # the path is longer than the horizon
+    path_alive: float = -1.0       # sanity check: path states the probe re-solves
+    reliable: bool = False         # the fatal numbers passed that check
     seconds: float = 0.0
     note: str = ""
 
@@ -148,7 +150,8 @@ def _play_from_start(eng, index: int, max_iters: int, timeout_ms: int,
 # --------------------------------------------------------------------------
 
 def _fatal_structure(lv, actions: list[int], survive_depth: int, path_cap: int,
-                     n_walks: int, walk_len: int, seed: int, d: LevelDepth) -> None:
+                     n_walks: int, walk_len: int, seed: int, d: LevelDepth,
+                     cap: int = 6144, timeout_s: float = 20.0) -> None:
     """Fill in the fatal-move and deadlock fields using batched PuzzleJAX.
 
     A sibling state counts as fatal when no win is reachable from it inside
@@ -177,12 +180,31 @@ def _fatal_structure(lv, actions: list[int], survive_depth: int, path_cap: int,
     states = lv.path_states(jax_actions)
     sel = np.asarray(keep, dtype=np.int64)
     probe = jax.tree.map(lambda x: x[sel], states)
+    # The states on the optimal path are known to be winnable inside the
+    # horizon -- that is how `keep` was chosen.  Probing them alongside their
+    # siblings costs one extra root each and turns "every move is fatal" from
+    # an unfalsifiable reading into a testable one: if the search cannot
+    # re-find the win it was handed, the frontier cap pruned it, and the
+    # sibling verdicts are pruning artefacts too.
+    n = len(sel)
+    path_alive = lv.survival(probe, max_depth=survive_depth, cap=cap,
+                             timeout_s=timeout_s, seed=seed)
+    d.path_alive = float(path_alive.mean())
+    d.reliable = d.path_alive >= 0.95
+    if not d.reliable:
+        # Checking the path first costs a fifth of the full probe and saves the
+        # rest, which matters because games with a big branching factor -- the
+        # ones evolution produces most of -- fail here almost every time.
+        d.note = (d.note + " | " if d.note else "") + \
+            f"fatal unreliable: horizon re-solved only {100 * d.path_alive:.0f}% of the path"
+        d.probed = 0
+        return
     succ = lv.successors(probe)
-    alive = lv.survival(succ, max_depth=survive_depth, cap=8192, seed=seed)
-    alive = alive.reshape(len(sel), pjax.N_ACTIONS)
+    alive = lv.survival(succ, max_depth=survive_depth, cap=cap,
+                        timeout_s=timeout_s, seed=seed).reshape(n, pjax.N_ACTIONS)
     taken = np.asarray([jax_actions[i] for i in keep])
     mask = np.ones_like(alive, dtype=bool)
-    mask[np.arange(len(sel)), taken] = False
+    mask[np.arange(n), taken] = False
     per_state = ((~alive) & mask).sum(axis=1)
     d.fatal_frac = float(per_state.mean() / 4.0)
     d.key_moves = int((per_state >= 3).sum())
@@ -196,7 +218,8 @@ def _fatal_structure(lv, actions: list[int], survive_depth: int, path_cap: int,
     if not d.endgame_only:
         ends = _walk_endpoints(lv, n_walks, min(walk_len, max(2, survive_depth // 2)), seed)
         if ends is not None:
-            surv = lv.survival(ends, max_depth=survive_depth, cap=8192, seed=seed + 1)
+            surv = lv.survival(ends, max_depth=survive_depth, cap=cap,
+                               timeout_s=timeout_s, seed=seed + 1)
             d.deadlock_frac = float(1.0 - surv.mean())
 
 
@@ -244,16 +267,27 @@ class GameDepth:
     analysed: int = 0
     solved: int = 0
     structured: int = 0            # levels the PuzzleJAX half could also judge
+    rules: int = 0
+    structure_skipped: bool = False   # too many rules to trace in PuzzleJAX
     levels: list[LevelDepth] = field(default_factory=list)
     seconds: float = 0.0
     error: str = ""
 
+    STRUCTURAL = {"fatal_frac", "key_moves", "free_moves", "fatal_gini"}
+
     def agg(self, attr: str, only_solved: bool = True) -> float:
-        xs = [getattr(l, attr) for l in self.levels
-              if (l.solved or not only_solved) and not l.note.startswith("won before")]
+        levels = [l for l in self.levels
+                  if (l.solved or not only_solved) and not l.note.startswith("won before")]
+        if attr in self.STRUCTURAL:
+            levels = [l for l in levels if l.reliable]
+        xs = [getattr(l, attr) for l in levels]
         if attr == "deadlock_frac":
             xs = [x for x in xs if x is not None and x >= 0]
         return float(np.mean(xs)) if xs else 0.0
+
+    @property
+    def reliable_levels(self) -> int:
+        return sum(1 for l in self.levels if l.reliable)
 
     def summary(self) -> str:
         if self.error:
@@ -261,20 +295,24 @@ class GameDepth:
         return (f"{self.solved}/{self.analysed} solved  insight={self.agg('insight'):.2f} "
                 f"fatal={self.agg('fatal_frac'):.2f} gini={self.agg('fatal_gini'):.2f} "
                 f"key={self.agg('key_moves'):.1f} rand={self.agg('random_win_frac', False):.3f} "
+                f"rel={self.reliable_levels}/{self.analysed} "
                 f"{self.seconds:.1f}s")
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         for m in ("insight", "fatal_frac", "deadlock_frac", "key_moves", "fatal_gini"):
             d[m] = self.agg(m)
+        d["reliable_levels"] = self.reliable_levels
         d["random_win_frac"] = self.agg("random_win_frac", only_solved=False)
         return d
 
 
 def analyse(text: str, max_levels: int = 4, max_iters: int = 120_000,
             timeout_ms: int = 5000, survive_depth: int = 14, path_cap: int = 40,
-            n_roll: int = 60, roll_steps: int = 60, n_walks: int = 96,
-            walk_len: int = 12, seed: int = 0, structure: bool = True) -> GameDepth:
+            n_roll: int = 60, roll_steps: int = 60, n_walks: int = 64,
+            walk_len: int = 12, seed: int = 0, structure: bool = True,
+            cap: int = 6144, structure_timeout_s: float = 20.0,
+            max_rules_for_structure: int = 16) -> GameDepth:
     """Depth profile of a game over its first few levels.
 
     Set ``structure=False`` to skip the PuzzleJAX half, which is most of the
@@ -307,16 +345,32 @@ def analyse(text: str, max_levels: int = 4, max_iters: int = 120_000,
         except Exception as e:  # noqa: BLE001
             plays.append((i, {"note": f"{type(e).__name__}: {e}"[:110]}))
 
-    # The PuzzleJAX environment costs seconds to trace, so build it once, and
-    # only when some level actually has a solution path to walk along.
+    # PuzzleJAX unrolls every rule into the traced graph, so its cost scales
+    # with rule count in a way the C++ engine's does not.  Measured on this
+    # CPU: sokoban_basic (5 rules) traces in 1.8s and then runs at 170k
+    # states/s; a 30-rule evolved descendant of it traces for 166s and then
+    # runs at 456.  Evolution adds rules, so the structural half has to be
+    # gated on rule count or it swallows the whole budget on the games it can
+    # say least about.
     pj = None
+    n_rules = 0
     if structure and any(p.get("solved") for _, p in plays):
         try:
-            from prof import pjax
+            from prof.grammar import Game
 
-            pj = pjax.PJGame.from_text(text)
+            n_rules = sum(1 for r in Game.parse(text).rules if r.parsed)
         except Exception:  # noqa: BLE001
-            pj = None
+            n_rules = 10 ** 6
+        if n_rules <= max_rules_for_structure:
+            try:
+                from prof import pjax
+
+                pj = pjax.PJGame.from_text(text)
+            except Exception:  # noqa: BLE001
+                pj = None
+    out.rules = n_rules
+    out.structure_skipped = bool(structure and pj is None
+                                 and n_rules > max_rules_for_structure)
 
     for i, p in plays:
         d = LevelDepth(level=i)
@@ -332,7 +386,8 @@ def analyse(text: str, max_levels: int = 4, max_iters: int = 120_000,
             t1 = time.time()
             try:
                 _fatal_structure(pj.level(i), actions, survive_depth, path_cap,
-                                 n_walks, walk_len, seed, d)
+                                 n_walks, walk_len, seed, d, cap=cap,
+                                 timeout_s=structure_timeout_s)
                 out.structured += 1
             except Exception as e:  # noqa: BLE001
                 d.note = (d.note + " | " if d.note else "") + \

@@ -390,14 +390,22 @@ class Level:
             out.append(_to_np(st))
         return jax.tree.map(lambda *xs: np.stack(xs), *out)
 
-    def successors(self, states_np, batch: int = 512):
-        """All five successors of each of a batch of states, flattened."""
+    def successors(self, states_np, batch: int = 512, deadline: float | None = None):
+        """All five successors of each of a batch of states, flattened.
+
+        ``deadline`` stops after the chunk that crosses it and returns what was
+        expanded so far.  A layer of a wide frontier on a rule-heavy game can
+        take minutes, so a timeout checked only between layers does not bound
+        anything; this is where the clock has to be read.
+        """
         n = jax.tree.leaves(states_np)[0].shape[0]
         parts = []
         for lo in range(0, n, batch):
             hi = min(lo + batch, n)
             parts.append(self._step_batch(
                 jax.tree.map(lambda x: x[lo:hi], states_np), hi - lo, batch))
+            if deadline is not None and time.time() > deadline and hi < n:
+                break
         return (parts[0] if len(parts) == 1
                 else jax.tree.map(lambda *xs: np.concatenate(xs, axis=0), *parts))
 
@@ -432,9 +440,10 @@ class Level:
             n = tags.size
             if n == 0 or time.time() - t0 > timeout_s:
                 break
-            flat = self.successors(frontier, batch=batch)
+            flat = self.successors(frontier, batch=batch, deadline=t0 + timeout_s)
+            n_done = int(jax.tree.leaves(flat)[0].shape[0]) // N_ACTIONS
             wins = flat.win.reshape(-1)
-            child_tags = np.repeat(tags, N_ACTIONS)
+            child_tags = np.repeat(tags[:n_done], N_ACTIONS)
             if wins.any():
                 alive[np.unique(child_tags[wins])] = True
             keep = ~np.isin(child_tags, np.flatnonzero(alive))

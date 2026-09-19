@@ -1,0 +1,949 @@
+[
+ {
+  "game": "Escape_the_Void_Full_",
+  "skip": "no matched mutant found"
+ },
+ {
+  "game": "LA_CASE_DE_CANIMI_YE_PAPEL",
+  "human": {
+   "n_levels": 10,
+   "analysed": 2,
+   "solved": 2,
+   "structured": 2,
+   "levels": [
+    {
+     "level": 0,
+     "solved": true,
+     "length": 7,
+     "iterations": 62,
+     "random_win_frac": 0.9666666666666667,
+     "greedy_solved": true,
+     "greedy_length": 7,
+     "fatal_frac": 0.8214285714285714,
+     "key_moves": 5,
+     "free_moves": 0,
+     "fatal_gini": 0.16149068322981366,
+     "deadlock_frac": 0.9270833333333334,
+     "probed": 7,
+     "endgame_only": false,
+     "seconds": 143.853374004364,
+     "note": ""
+    },
+    {
+     "level": 1,
+     "solved": true,
+     "length": 12,
+     "iterations": 686,
+     "random_win_frac": 0.016666666666666666,
+     "greedy_solved": true,
+     "greedy_length": 12,
+     "fatal_frac": 0.8958333333333334,
+     "key_moves": 11,
+     "free_moves": 1,
+     "fatal_gini": 0.10271317829457365,
+     "deadlock_frac": 0.9270833333333334,
+     "probed": 12,
+     "endgame_only": false,
+     "seconds": 26.530500173568726,
+     "note": ""
+    }
+   ],
+   "seconds": 174.893541097641,
+   "error": "",
+   "insight": 0.0,
+   "fatal_frac": 0.8586309523809523,
+   "deadlock_frac": 0.9270833333333334,
+   "key_moves": 8.0,
+   "fatal_gini": 0.13210193076219365,
+   "random_win_frac": 0.4916666666666667
+  },
+  "mutants": [
+   {
+    "n_levels": 10,
+    "analysed": 2,
+    "solved": 2,
+    "structured": 2,
+    "levels": [
+     {
+      "level": 0,
+      "solved": true,
+      "length": 7,
+      "iterations": 62,
+      "random_win_frac": 0.9666666666666667,
+      "greedy_solved": true,
+      "greedy_length": 7,
+      "fatal_frac": 0.8214285714285714,
+      "key_moves": 5,
+      "free_moves": 0,
+      "fatal_gini": 0.16149068322981366,
+      "deadlock_frac": 0.9270833333333334,
+      "probed": 7,
+      "endgame_only": false,
+      "seconds": 181.37032532691956,
+      "note": ""
+     },
+     {
+      "level": 1,
+      "solved": true,
+      "length": 12,
+      "iterations": 686,
+      "random_win_frac": 0.016666666666666666,
+      "greedy_solved": true,
+      "greedy_length": 12,
+      "fatal_frac": 0.8958333333333334,
+      "key_moves": 11,
+      "free_moves": 1,
+      "fatal_gini": 0.10271317829457365,
+      "deadlock_frac": 0.75,
+      "probed": 12,
+      "endgame_only": false,
+      "seconds": 34.89879488945007,
+      "note": ""
+     }
+    ],
+    "seconds": 217.02832317352295,
+    "error": "",
+    "insight": 0.0,
+    "fatal_frac": 0.8586309523809523,
+    "deadlock_frac": 0.8385416666666667,
+    "key_moves": 8.0,
+    "fatal_gini": 0.13210193076219365,
+    "random_win_frac": 0.4916666666666667,
+    "ops": [
+     "template:crush",
+     "widen:BackgroundLeft"
+    ]
+   },
+   {
+    "n_levels": 10,
+    "analysed": 2,
+    "solved": 2,
+    "structured": 2,
+    "levels": [
+     {
+      "level": 0,
+      "solved": true,
+      "length": 7,
+      "iterations": 62,
+      "random_win_frac": 0.9666666666666667,
+      "greedy_solved": true,
+      "greedy_length": 7,
+      "fatal_frac": 0.8214285714285714,
+      "key_moves": 5,
+      "free_moves": 0,
+      "fatal_gini": 0.16149068322981366,
+      "deadlock_frac": 0.9270833333333334,
+      "probed": 7,
+      "endgame_only": false,
+      "seconds": 168.40312099456787,
+      "note": ""
+     },
+     {
+      "level": 1,
+      "solved": true,
+      "length": 12,
+      "iterations": 686,
+      "random_win_frac": 0.016666666666666666,
+      "greedy_solved": true,
+      "greedy_length": 12,
+      "fatal_frac": 0.8958333333333334,
+      "key_moves": 11,
+      "free_moves": 1,
+      "fatal_gini": 0.10271317829457365,
+      "deadlock_frac": 0.75,
+      "probed": 12,
+      "endgame_only": false,
+      "seconds": 34.13841390609741,
+      "note": ""
+     }
+    ],
+    "seconds": 203.69666004180908,
+    "error": "",
+    "insight": 0.0,
+    "fatal_frac": 0.8586309523809523,
+    "deadlock_frac": 0.8385416666666667,
+    "key_moves": 8.0,
+    "fatal_gini": 0.13210193076219365,
+    "random_win_frac": 0.4916666666666667,
+    "ops": [
+     "negate:Background1"
+    ]
+   },
+   {
+    "n_levels": 10,
+    "analysed": 2,
+    "solved": 2,
+    "structured": 2,
+    "levels": [
+     {
+      "level": 0,
+      "solved": true,
+      "length": 7,
+      "iterations": 62,
+      "random_win_frac": 0.9666666666666667,
+      "greedy_solved": true,
+      "greedy_length": 7,
+      "fatal_frac": 0.8214285714285714,
+      "key_moves": 5,
+      "free_moves": 0,
+      "fatal_gini": 0.16149068322981366,
+      "deadlock_frac": 0.75,
+      "probed": 7,
+      "endgame_only": false,
+      "seconds": 166.98895907402039,
+      "note": ""
+     },
+     {
+      "level": 1,
+      "solved": true,
+      "length": 12,
+      "iterations": 686,
+      "random_win_frac": 0.016666666666666666,
+      "greedy_solved": true,
+      "greedy_length": 13,
+      "fatal_frac": 0.8958333333333334,
+      "key_moves": 11,
+      "free_moves": 1,
+      "fatal_gini": 0.10271317829457365,
+      "deadlock_frac": 0.9270833333333334,
+      "probed": 12,
+      "endgame_only": false,
+      "seconds": 26.185513019561768,
+      "note": ""
+     }
+    ],
+    "seconds": 193.93253111839294,
+    "error": "",
+    "insight": 0.041666666666666664,
+    "fatal_frac": 0.8586309523809523,
+    "deadlock_frac": 0.8385416666666667,
+    "key_moves": 8.0,
+    "fatal_gini": 0.13210193076219365,
+    "random_win_frac": 0.4916666666666667,
+    "ops": [
+     "swap_object:friend->Mine",
+     "template:pull"
+    ]
+   }
+  ]
+ },
+ {
+  "game": "Line_Force",
+  "human": {
+   "n_levels": 1,
+   "analysed": 1,
+   "solved": 1,
+   "structured": 1,
+   "levels": [
+    {
+     "level": 0,
+     "solved": true,
+     "length": 25,
+     "iterations": 17339,
+     "random_win_frac": 0.0,
+     "greedy_solved": true,
+     "greedy_length": 62,
+     "fatal_frac": 0.4423076923076923,
+     "key_moves": 6,
+     "free_moves": 7,
+     "fatal_gini": 0.5551839464882943,
+     "deadlock_frac": -1.0,
+     "probed": 13,
+     "endgame_only": true,
+     "seconds": 36.74330401420593,
+     "note": ""
+    }
+   ],
+   "seconds": 39.57862114906311,
+   "error": "",
+   "insight": 0.5,
+   "fatal_frac": 0.4423076923076923,
+   "deadlock_frac": 0.0,
+   "key_moves": 6.0,
+   "fatal_gini": 0.5551839464882943,
+   "random_win_frac": 0.0
+  },
+  "mutants": [
+   {
+    "n_levels": 1,
+    "analysed": 1,
+    "solved": 1,
+    "structured": 1,
+    "levels": [
+     {
+      "level": 0,
+      "solved": true,
+      "length": 25,
+      "iterations": 17339,
+      "random_win_frac": 0.0,
+      "greedy_solved": true,
+      "greedy_length": 64,
+      "fatal_frac": 0.4423076923076923,
+      "key_moves": 6,
+      "free_moves": 7,
+      "fatal_gini": 0.5551839464882943,
+      "deadlock_frac": -1.0,
+      "probed": 13,
+      "endgame_only": true,
+      "seconds": 34.71923899650574,
+      "note": ""
+     }
+    ],
+    "seconds": 37.4906268119812,
+    "error": "",
+    "insight": 0.5,
+    "fatal_frac": 0.4423076923076923,
+    "deadlock_frac": 0.0,
+    "key_moves": 6.0,
+    "fatal_gini": 0.5551839464882943,
+    "random_win_frac": 0.0,
+    "ops": [
+     "grow_h"
+    ]
+   },
+   {
+    "n_levels": 1,
+    "analysed": 1,
+    "solved": 1,
+    "structured": 1,
+    "levels": [
+     {
+      "level": 0,
+      "solved": true,
+      "length": 25,
+      "iterations": 17339,
+      "random_win_frac": 0.0,
+      "greedy_solved": true,
+      "greedy_length": 64,
+      "fatal_frac": 0.4423076923076923,
+      "key_moves": 6,
+      "free_moves": 7,
+      "fatal_gini": 0.5551839464882943,
+      "deadlock_frac": -1.0,
+      "probed": 13,
+      "endgame_only": true,
+      "seconds": 36.974854707717896,
+      "note": ""
+     }
+    ],
+    "seconds": 39.72135877609253,
+    "error": "",
+    "insight": 0.5,
+    "fatal_frac": 0.4423076923076923,
+    "deadlock_frac": 0.0,
+    "key_moves": 6.0,
+    "fatal_gini": 0.5551839464882943,
+    "random_win_frac": 0.0,
+    "ops": [
+     "add_win:Some Target"
+    ]
+   },
+   {
+    "n_levels": 1,
+    "analysed": 1,
+    "solved": 1,
+    "structured": 1,
+    "levels": [
+     {
+      "level": 0,
+      "solved": true,
+      "length": 1,
+      "iterations": 0,
+      "random_win_frac": 0.8833333333333333,
+      "greedy_solved": true,
+      "greedy_length": 1,
+      "fatal_frac": 0.0,
+      "key_moves": 0,
+      "free_moves": 1,
+      "fatal_gini": 0.0,
+      "deadlock_frac": 0.0,
+      "probed": 1,
+      "endgame_only": false,
+      "seconds": 44.49111795425415,
+      "note": ""
+     }
+    ],
+    "seconds": 44.73646831512451,
+    "error": "",
+    "insight": 0.0,
+    "fatal_frac": 0.0,
+    "deadlock_frac": 0.0,
+    "key_moves": 0.0,
+    "fatal_gini": 0.0,
+    "random_win_frac": 0.8833333333333333,
+    "ops": [
+     "win_quant:Some",
+     "widen:Target"
+    ]
+   }
+  ]
+ },
+ {
+  "game": "Tumblin'",
+  "human": {
+   "n_levels": 6,
+   "analysed": 2,
+   "solved": 2,
+   "structured": 1,
+   "levels": [
+    {
+     "level": 0,
+     "solved": true,
+     "length": 4,
+     "iterations": 23,
+     "random_win_frac": 0.0,
+     "greedy_solved": true,
+     "greedy_length": 4,
+     "fatal_frac": 0.25,
+     "key_moves": 0,
+     "free_moves": 2,
+     "fatal_gini": 0.5,
+     "deadlock_frac": 0.71875,
+     "probed": 4,
+     "endgame_only": false,
+     "seconds": 51.20697617530823,
+     "note": ""
+    },
+    {
+     "level": 1,
+     "solved": true,
+     "length": 7,
+     "iterations": 33,
+     "random_win_frac": 0.03333333333333333,
+     "greedy_solved": true,
+     "greedy_length": 8,
+     "fatal_frac": 0.17857142857142858,
+     "key_moves": 1,
+     "free_moves": 5,
+     "fatal_gini": 0.8,
+     "deadlock_frac": -1.0,
+     "probed": 7,
+     "endgame_only": false,
+     "seconds": 47.49418497085571,
+     "note": "structure: TypeError"
+    }
+   ],
+   "seconds": 99.18758201599121,
+   "error": "",
+   "insight": 0.07142857142857142,
+   "fatal_frac": 0.2142857142857143,
+   "deadlock_frac": 0.71875,
+   "key_moves": 0.5,
+   "fatal_gini": 0.65,
+   "random_win_frac": 0.016666666666666666
+  },
+  "mutants": [
+   {
+    "n_levels": 6,
+    "analysed": 2,
+    "solved": 2,
+    "structured": 1,
+    "levels": [
+     {
+      "level": 0,
+      "solved": true,
+      "length": 4,
+      "iterations": 23,
+      "random_win_frac": 0.0,
+      "greedy_solved": true,
+      "greedy_length": 4,
+      "fatal_frac": 0.25,
+      "key_moves": 0,
+      "free_moves": 2,
+      "fatal_gini": 0.5,
+      "deadlock_frac": 0.71875,
+      "probed": 4,
+      "endgame_only": false,
+      "seconds": 55.01180076599121,
+      "note": ""
+     },
+     {
+      "level": 1,
+      "solved": true,
+      "length": 7,
+      "iterations": 33,
+      "random_win_frac": 0.03333333333333333,
+      "greedy_solved": true,
+      "greedy_length": 8,
+      "fatal_frac": 0.17857142857142858,
+      "key_moves": 1,
+      "free_moves": 5,
+      "fatal_gini": 0.8,
+      "deadlock_frac": -1.0,
+      "probed": 7,
+      "endgame_only": false,
+      "seconds": 42.09782791137695,
+      "note": "structure: TypeError"
+     }
+    ],
+    "seconds": 97.6549129486084,
+    "error": "",
+    "insight": 0.07142857142857142,
+    "fatal_frac": 0.2142857142857143,
+    "deadlock_frac": 0.71875,
+    "key_moves": 0.5,
+    "fatal_gini": 0.65,
+    "random_win_frac": 0.016666666666666666,
+    "ops": [
+     "remove_win"
+    ]
+   },
+   {
+    "n_levels": 6,
+    "analysed": 2,
+    "solved": 2,
+    "structured": 1,
+    "levels": [
+     {
+      "level": 0,
+      "solved": true,
+      "length": 4,
+      "iterations": 23,
+      "random_win_frac": 0.0,
+      "greedy_solved": true,
+      "greedy_length": 4,
+      "fatal_frac": 0.25,
+      "key_moves": 0,
+      "free_moves": 2,
+      "fatal_gini": 0.5,
+      "deadlock_frac": 0.71875,
+      "probed": 4,
+      "endgame_only": false,
+      "seconds": 54.9631450176239,
+      "note": ""
+     },
+     {
+      "level": 1,
+      "solved": true,
+      "length": 7,
+      "iterations": 33,
+      "random_win_frac": 0.03333333333333333,
+      "greedy_solved": true,
+      "greedy_length": 8,
+      "fatal_frac": 0.17857142857142858,
+      "key_moves": 1,
+      "free_moves": 5,
+      "fatal_gini": 0.8,
+      "deadlock_frac": -1.0,
+      "probed": 7,
+      "endgame_only": false,
+      "seconds": 40.24931788444519,
+      "note": "structure: TypeError"
+     }
+    ],
+    "seconds": 97.81668663024902,
+    "error": "",
+    "insight": 0.07142857142857142,
+    "fatal_frac": 0.2142857142857143,
+    "deadlock_frac": 0.71875,
+    "key_moves": 0.5,
+    "fatal_gini": 0.65,
+    "random_win_frac": 0.016666666666666666,
+    "ops": [
+     "add_win:All ActionFlag on Background"
+    ]
+   },
+   {
+    "n_levels": 6,
+    "analysed": 2,
+    "solved": 2,
+    "structured": 1,
+    "levels": [
+     {
+      "level": 0,
+      "solved": true,
+      "length": 4,
+      "iterations": 23,
+      "random_win_frac": 0.0,
+      "greedy_solved": true,
+      "greedy_length": 4,
+      "fatal_frac": 0.25,
+      "key_moves": 0,
+      "free_moves": 2,
+      "fatal_gini": 0.5,
+      "deadlock_frac": 0.71875,
+      "probed": 4,
+      "endgame_only": false,
+      "seconds": 58.34388470649719,
+      "note": ""
+     },
+     {
+      "level": 1,
+      "solved": true,
+      "length": 7,
+      "iterations": 33,
+      "random_win_frac": 0.03333333333333333,
+      "greedy_solved": true,
+      "greedy_length": 8,
+      "fatal_frac": 0.17857142857142858,
+      "key_moves": 1,
+      "free_moves": 5,
+      "fatal_gini": 0.8,
+      "deadlock_frac": -1.0,
+      "probed": 7,
+      "endgame_only": false,
+      "seconds": 44.524296045303345,
+      "note": "structure: TypeError"
+     }
+    ],
+    "seconds": 103.33129000663757,
+    "error": "",
+    "insight": 0.07142857142857142,
+    "fatal_frac": 0.2142857142857143,
+    "deadlock_frac": 0.71875,
+    "key_moves": 0.5,
+    "fatal_gini": 0.65,
+    "random_win_frac": 0.016666666666666666,
+    "ops": [
+     "template:trail"
+    ]
+   }
+  ]
+ },
+ {
+  "game": "Racist_Dogs",
+  "human": {
+   "n_levels": 3,
+   "analysed": 2,
+   "solved": 2,
+   "structured": 2,
+   "levels": [
+    {
+     "level": 0,
+     "solved": true,
+     "length": 3,
+     "iterations": 3,
+     "random_win_frac": 0.23333333333333334,
+     "greedy_solved": true,
+     "greedy_length": 3,
+     "fatal_frac": 0.0,
+     "key_moves": 0,
+     "free_moves": 3,
+     "fatal_gini": 0.0,
+     "deadlock_frac": 0.1875,
+     "probed": 3,
+     "endgame_only": false,
+     "seconds": 31.38255000114441,
+     "note": ""
+    },
+    {
+     "level": 1,
+     "solved": true,
+     "length": 15,
+     "iterations": 1355,
+     "random_win_frac": 0.0,
+     "greedy_solved": true,
+     "greedy_length": 31,
+     "fatal_frac": 0.038461538461538464,
+     "key_moves": 0,
+     "free_moves": 11,
+     "fatal_gini": 0.8461538461538461,
+     "deadlock_frac": -1.0,
+     "probed": 13,
+     "endgame_only": true,
+     "seconds": 27.238768100738525,
+     "note": ""
+    }
+   ],
+   "seconds": 58.97810506820679,
+   "error": "",
+   "insight": 0.25,
+   "fatal_frac": 0.019230769230769232,
+   "deadlock_frac": 0.1875,
+   "key_moves": 0.0,
+   "fatal_gini": 0.4230769230769231,
+   "random_win_frac": 0.11666666666666667
+  },
+  "mutants": [
+   {
+    "n_levels": 3,
+    "analysed": 2,
+    "solved": 2,
+    "structured": 2,
+    "levels": [
+     {
+      "level": 0,
+      "solved": true,
+      "length": 4,
+      "iterations": 7,
+      "random_win_frac": 0.2,
+      "greedy_solved": true,
+      "greedy_length": 4,
+      "fatal_frac": 0.0,
+      "key_moves": 0,
+      "free_moves": 4,
+      "fatal_gini": 0.0,
+      "deadlock_frac": 0.1875,
+      "probed": 4,
+      "endgame_only": false,
+      "seconds": 35.28278112411499,
+      "note": ""
+     },
+     {
+      "level": 1,
+      "solved": true,
+      "length": 15,
+      "iterations": 1314,
+      "random_win_frac": 0.0,
+      "greedy_solved": true,
+      "greedy_length": 31,
+      "fatal_frac": 0.038461538461538464,
+      "key_moves": 0,
+      "free_moves": 11,
+      "fatal_gini": 0.8461538461538461,
+      "deadlock_frac": -1.0,
+      "probed": 13,
+      "endgame_only": true,
+      "seconds": 29.657463788986206,
+      "note": ""
+     }
+    ],
+    "seconds": 65.26292204856873,
+    "error": "",
+    "insight": 0.25,
+    "fatal_frac": 0.019230769230769232,
+    "deadlock_frac": 0.1875,
+    "key_moves": 0.0,
+    "fatal_gini": 0.4230769230769231,
+    "random_win_frac": 0.1,
+    "ops": [
+     "unlate"
+    ]
+   },
+   {
+    "n_levels": 3,
+    "analysed": 2,
+    "solved": 2,
+    "structured": 2,
+    "levels": [
+     {
+      "level": 0,
+      "solved": true,
+      "length": 3,
+      "iterations": 3,
+      "random_win_frac": 0.23333333333333334,
+      "greedy_solved": true,
+      "greedy_length": 3,
+      "fatal_frac": 0.0,
+      "key_moves": 0,
+      "free_moves": 3,
+      "fatal_gini": 0.0,
+      "deadlock_frac": 0.1875,
+      "probed": 3,
+      "endgame_only": false,
+      "seconds": 33.772176027297974,
+      "note": ""
+     },
+     {
+      "level": 1,
+      "solved": true,
+      "length": 15,
+      "iterations": 1355,
+      "random_win_frac": 0.0,
+      "greedy_solved": true,
+      "greedy_length": 31,
+      "fatal_frac": 0.07692307692307693,
+      "key_moves": 0,
+      "free_moves": 10,
+      "fatal_gini": 0.8076923076923077,
+      "deadlock_frac": -1.0,
+      "probed": 13,
+      "endgame_only": true,
+      "seconds": 35.68969488143921,
+      "note": ""
+     }
+    ],
+    "seconds": 69.79505205154419,
+    "error": "",
+    "insight": 0.25,
+    "fatal_frac": 0.038461538461538464,
+    "deadlock_frac": 0.1875,
+    "key_moves": 0.0,
+    "fatal_gini": 0.40384615384615385,
+    "random_win_frac": 0.11666666666666667,
+    "ops": [
+     "command:again"
+    ]
+   },
+   {
+    "n_levels": 3,
+    "analysed": 2,
+    "solved": 2,
+    "structured": 2,
+    "levels": [
+     {
+      "level": 0,
+      "solved": true,
+      "length": 3,
+      "iterations": 3,
+      "random_win_frac": 0.23333333333333334,
+      "greedy_solved": true,
+      "greedy_length": 3,
+      "fatal_frac": 0.0,
+      "key_moves": 0,
+      "free_moves": 3,
+      "fatal_gini": 0.0,
+      "deadlock_frac": 0.20833333333333337,
+      "probed": 3,
+      "endgame_only": false,
+      "seconds": 55.089661836624146,
+      "note": ""
+     },
+     {
+      "level": 1,
+      "solved": true,
+      "length": 15,
+      "iterations": 1851,
+      "random_win_frac": 0.0,
+      "greedy_solved": true,
+      "greedy_length": 31,
+      "fatal_frac": 0.038461538461538464,
+      "key_moves": 0,
+      "free_moves": 11,
+      "fatal_gini": 0.8461538461538461,
+      "deadlock_frac": -1.0,
+      "probed": 13,
+      "endgame_only": true,
+      "seconds": 43.455766677856445,
+      "note": ""
+     }
+    ],
+    "seconds": 99.38999104499817,
+    "error": "",
+    "insight": 0.25,
+    "fatal_frac": 0.019230769230769232,
+    "deadlock_frac": 0.20833333333333337,
+    "key_moves": 0.0,
+    "fatal_gini": 0.4230769230769231,
+    "random_win_frac": 0.11666666666666667,
+    "ops": [
+     "duplicate+swap_object:blackdog->WhiteDog"
+    ]
+   }
+  ]
+ },
+ {
+  "game": "Castle_Monk",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Little_Girl,_Big_World",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "sokoban_match3",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Metamorph",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Find_Girlfriend!",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "slidings",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Stick-with-it_mazes",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Deltarune_block_pushing_game",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Saute_Mouton",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Detroit__Become_Immense",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "blank",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Loup-Mouton-Chou",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Time-reversed_Microban",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Fruit_Ghost",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Laser",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "LameLightsOut",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Sokoban_Dungeon",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Tele",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Animal_Cascade",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "~~_PWARE_SKEG_v1.1_~~",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Darkness_Sokoban",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "_Fishman",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "RAFTURE_2__SALVATION",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Abel's_Werehouse",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Cyberpunk_2020",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Rob's_first_game",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "It_Is_Pitch_Black",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Deserted_Island",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Sponge_Game",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Space_Shoot-em-puzzle",
+  "skip": "crash: BrokenProcessPool"
+ },
+ {
+  "game": "Step-over_sequence_mazes_[2021]",
+  "skip": "crash: BrokenProcessPool"
+ }
+]
