@@ -190,18 +190,11 @@ def _novelty():
 def evaluate_text(text: str, max_levels: int, timeout_ms: int,
                   max_iters: int, novelty_weight: float = 0.4) -> dict[str, Any]:
     """Tier-1 fitness: compile, solve, cover, progress.  No JAX."""
-    from prof import engine as E
     from prof.concepts import concepts
     from prof.fitness import evaluate
 
     ev = evaluate(text, max_iters=max_iters, timeout_ms=timeout_ms, max_levels=max_levels)
-    state = None
-    if ev.compiled:
-        try:
-            state = E.compile_text(text).state
-        except Exception:  # noqa: BLE001
-            state = None
-    feats = concepts(text, state)
+    feats = concepts(text, ev.state)
     feats["mean_solution_len"] = (sum(ev.lengths) / len(ev.lengths)) if ev.lengths else 0.0
     feats["max_solution_len"] = max(ev.lengths, default=0)
     feats["mean_search_iters"] = (sum(ev.iters) / len(ev.iters)) if ev.iters else 0.0

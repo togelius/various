@@ -38,6 +38,10 @@ class Evaluation:
     iters: list[int] = field(default_factory=list)
     coverage: dict[str, Any] | None = None
     factors: dict[str, float] = field(default_factory=dict)
+    # the compiled state, kept so callers that need concepts do not recompile:
+    # compiling shells out to node, and doing it twice per candidate was a
+    # third of the evolutionary loop's wall clock
+    state: dict[str, Any] | None = None
 
     def summary(self) -> str:
         f = " ".join(f"{k}={v:.2f}" for k, v in self.factors.items())
@@ -74,12 +78,15 @@ def evaluate(text: str, max_iters: int = 100_000, timeout_ms: int = 5_000,
         eng = E.new_engine(c)
         idxs = E.level_indices(c)
     except Exception as e:  # noqa: BLE001
-        return Evaluation(fitness=-3.0, tier=0, reason=f"engine: {str(e)[:120]}", compiled=True)
+        return Evaluation(fitness=-3.0, tier=0, reason=f"engine: {str(e)[:120]}",
+                          compiled=True, state=c.state)
     if max_levels:
         idxs = idxs[:max_levels]
     if not idxs:
-        return Evaluation(fitness=-3.0, tier=0, reason="no playable levels", compiled=True)
-    ev = Evaluation(fitness=-2.0, tier=1, reason="", compiled=True, n_levels=len(idxs))
+        return Evaluation(fitness=-3.0, tier=0, reason="no playable levels",
+                          compiled=True, state=c.state)
+    ev = Evaluation(fitness=-2.0, tier=1, reason="", compiled=True, n_levels=len(idxs),
+                    state=c.state)
     for i in idxs:
         eng.load_level(i)
         if eng.check_win():  # won before any move: degenerate level (e.g. no targets)

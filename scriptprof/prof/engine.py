@@ -40,8 +40,14 @@ class Compiled:
         return json.dumps(self.state)
 
 
-def compile_text(text: str, timeout: float = 60.0) -> Compiled:
-    """Compile PuzzleScript source with the original JS engine."""
+def compile_text(text: str, timeout: float = 20.0) -> Compiled:
+    """Compile PuzzleScript source with the original JS engine.
+
+    The default timeout is generous rather than tuned: a real game compiles in
+    under a fifth of a second, so anything near the limit is a mutant that has
+    found a pathological case, and an evolutionary loop cannot afford to wait a
+    minute for each of those.
+    """
     proc = subprocess.run(
         ["node", str(COMPILE_CLI), str(ENGINE_JS)],
         input=text.encode("utf-8"),
