@@ -276,14 +276,21 @@ class LevelGen:
 
     # -- the C++ backend, which on this machine is the faster one ----------
 
-    def solve_batch_cpp(self, cands: list[Candidate], max_iters: int = 120_000,
-                        timeout_ms: int = 3000) -> None:
+    def solve_batch_cpp(self, cands: list[Candidate], max_iters: int = 25_000,
+                        timeout_ms: int = 700) -> None:
         """Same job as :meth:`solve_batch`, through the original engine.
 
         Measured on this CPU (``prof.bench``, 64 candidate Sokoban levels):
         12 levels/s here against 5.7 for the batched PuzzleJAX version, and it
         finds twice as many solutions because it searches each level to
         exhaustion rather than to a shared depth cap.
+
+        The per-candidate budget is deliberately small.  Generation is looking
+        for levels of a target length, so a candidate whose solution the solver
+        cannot find in a fraction of a second is not a candidate worth keeping,
+        and a generous budget just means paying it once per rejected level: at
+        three seconds a piece, one population of 72 over five generations is
+        eighteen minutes of timeouts for a single game.
 
         The reason is not that batching fails -- PuzzleJAX really does expand
         150k states/s -- but that a batch is only as fast as its slowest
@@ -470,7 +477,9 @@ class LevelGen:
     def run(self, pop: int = 96, generations: int = 10, target_len: int = 16,
             min_len: int = 5, max_depth: int = 0, keep: int = 16,
             seed: int = 0, verbose: bool = True,
-            use_seeds: bool = True, backend: str = "cpp") -> list[Candidate]:
+            use_seeds: bool = True, backend: str = "cpp",
+            solve_iters: int = 25_000, solve_timeout_ms: int = 700
+            ) -> list[Candidate]:
         """Batched hill climb toward levels with a target solution length."""
         rng = random.Random(seed)
         max_depth = max_depth or target_len + 8
@@ -485,7 +494,8 @@ class LevelGen:
             else:
                 batch = [self.sample(rng) for _ in range(pop)]
             if backend == "cpp":
-                self.solve_batch_cpp(batch)
+                self.solve_batch_cpp(batch, max_iters=solve_iters,
+                                     timeout_ms=solve_timeout_ms)
                 solvable = [c for c in batch if c.win_depth >= min_len]
                 if solvable:
                     self.random_batch_cpp(solvable)

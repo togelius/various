@@ -175,7 +175,9 @@ def polish_one(job) -> dict[str, Any]:
         gen = LevelGen(text, height=cfg["height"], width=cfg["width"])
         cands = gen.run(pop=cfg["pop"], generations=cfg["gens"],
                         target_len=cfg["target_len"], min_len=cfg["min_len"],
-                        seed=cfg["seed"], verbose=False, backend="cpp")
+                        seed=cfg["seed"], verbose=False, backend="cpp",
+                        solve_iters=cfg["gen_iters"],
+                        solve_timeout_ms=cfg["gen_timeout_ms"])
         candidate = gen.install(cands, n=cfg["keep_levels"])
         ev = evaluate(candidate, max_levels=cfg["levels"], timeout_ms=4000)
         if ev.tier >= 3:
@@ -281,6 +283,8 @@ def main() -> None:
     ap.add_argument("--max-lines", type=int, default=400)
     ap.add_argument("--max-rules", type=int, default=120)
     ap.add_argument("--timeout-ms", type=int, default=3000)
+    ap.add_argument("--gen-iters", type=int, default=25_000)
+    ap.add_argument("--gen-timeout-ms", type=int, default=700)
     ap.add_argument("--max-iters", type=int, default=80_000)
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
@@ -295,6 +299,7 @@ def main() -> None:
            "width": a.width, "target_len": a.target_len, "min_len": a.min_len,
            "keep_levels": a.keep_levels, "seed": a.seed,
            "structure": not a.no_structure, "structure_lines": a.structure_lines,
+           "gen_iters": a.gen_iters, "gen_timeout_ms": a.gen_timeout_ms,
            "timeout_ms": a.timeout_ms, "max_iters": a.max_iters}
     jobs = [(k, r, t, m, cfg) for k, r, t, m in jobs_raw]
 

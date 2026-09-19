@@ -71,6 +71,20 @@ def resilient_map(fn: Callable, jobs: list[Any], workers: int,
 
 
 def _restart(ex: ProcessPoolExecutor, workers: int) -> ProcessPoolExecutor:
+    """Replace a broken pool, and actually stop the one being replaced.
+
+    ``shutdown(wait=False)`` returns immediately but leaves any worker that is
+    mid-task running, and a worker of a *broken* pool has nowhere to send its
+    result, so it runs to completion and then lingers. Rebuilding a few times
+    over a long job leaves several stale pools' worth of processes competing
+    for the same cores: eighteen workers for a pool of eight, most of them
+    computing results nobody will read.
+    """
+    for proc in list(getattr(ex, "_processes", {}) or {}).values():
+        try:
+            proc.terminate()
+        except Exception:  # noqa: BLE001
+            pass
     try:
         ex.shutdown(wait=False, cancel_futures=True)
     except Exception:  # noqa: BLE001
