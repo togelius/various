@@ -398,6 +398,8 @@ def op_add_negation(g: Game, rng: random.Random) -> str | None:
     rule = rng.choice(cands)
     pat = rng.choice(rule.lhs)
     cell = rng.choice(pat.cells)
+    if "..." in cell.tokens:
+        return None      # "You can't have anything in with an ellipsis."
     present = {o.lower() for o in cell.objects()}
     r = roles_of(g)
     pool = [o.name for o in g.objects if o.name.lower() not in present]

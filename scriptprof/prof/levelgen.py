@@ -402,8 +402,16 @@ class LevelGen:
                 rows.append(self.bg * self.width)
             rows = ["".join(ch if ch in self.alphabet else self.bg for ch in r)
                     for r in rows]
-            out.append(self._place_player(rows, rng) if self.player_chars
-                       else Candidate(rows))
+            # The player stays where the designer put it.  An earlier version
+            # routed seeds through _place_player, which erases the player and
+            # drops it at a uniformly random cell -- usually inside a wall --
+            # so the layouts meant to give the hill climb a working start were
+            # mostly broken. Only add a player if cropping removed the last one.
+            if self.player_chars and not any(p in r for r in rows
+                                             for p in self.player_chars):
+                out.append(self._place_player(rows, rng))
+            else:
+                out.append(Candidate(rows))
             if len(out) >= n:
                 break
         return out

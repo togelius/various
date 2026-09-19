@@ -14,7 +14,10 @@ evaluations.  Reported per run:
 ``QD``          sum of positive fitness over cells, the standard QD score, with
                 the novelty bonus subtracted back out so both runs are scored
                 on the same objective -- otherwise the run that was *paid* for
-                novelty wins by definition rather than by searching better
+                novelty wins by definition rather than by searching better.
+                Each cell holds the base score of whichever candidate the live
+                archive actually accepted, not the best base score ever seen
+                there, which would be a number no occupant ever had
 ``beyond``      cells whose elite sits more than 1.1 corpus-spacings from its
                 nearest human neighbours
 
@@ -73,13 +76,16 @@ def trajectory(run: Path) -> list[dict[str, Any]]:
             n += 1
             cell = rec.get("cell")
             if cell:
-                # selection used the bonused fitness, so an entry that took a
-                # cell took it; the score recorded here is the shared objective
-                f = base_fitness(rec, weight)
-                if cell not in best or f > best[cell]:
-                    best[cell] = f
-                    tier[cell] = int(rec.get("tier", 0))
-                    nov[cell] = float(rec.get("novelty", 0.0))
+                # The live archive replaced the incumbent because the *bonused*
+                # fitness was higher, so the replay has to follow that decision
+                # and then score the winner on the shared objective. Keeping
+                # the running maximum of the base score instead would let a
+                # cell hold a value no occupant ever had, and would do it only
+                # in the run that gets a bonus -- inflating exactly the arm this
+                # comparison exists to keep honest.
+                best[cell] = base_fitness(rec, weight)
+                tier[cell] = int(rec.get("tier", 0))
+                nov[cell] = float(rec.get("novelty", 0.0))
             out.append({
                 "n": n,
                 "cells": len(best),

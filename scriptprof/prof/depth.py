@@ -388,7 +388,9 @@ def analyse(text: str, max_levels: int = 4, max_iters: int = 120_000,
                 _fatal_structure(pj.level(i), actions, survive_depth, path_cap,
                                  n_walks, walk_len, seed, d, cap=cap,
                                  timeout_s=structure_timeout_s)
-                out.structured += 1
+                # only count a level the probe could actually judge: the
+                # horizon and reliability bails both return without raising
+                out.structured += int(d.reliable and d.probed > 0)
             except Exception as e:  # noqa: BLE001
                 d.note = (d.note + " | " if d.note else "") + \
                     f"structure: {type(e).__name__}"[:60]

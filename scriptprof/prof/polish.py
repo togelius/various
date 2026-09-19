@@ -31,7 +31,6 @@ import json
 import random
 import shutil
 import time
-from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -182,12 +181,19 @@ def polish_one(job) -> dict[str, Any]:
         if ev.tier >= 3:
             after = analyse(candidate, max_levels=cfg["levels"], structure=structure,
                             timeout_ms=cfg["timeout_ms"], max_iters=cfg["max_iters"])
-            # only adopt regenerated levels if they are actually better play
-            if (after.solved >= before.solved
+            # Only adopt regenerated levels if they are actually better play
+            # AND actually different.  LevelGen.install returns the game
+            # unchanged when nothing solvable was found, and comparing that
+            # against itself always passes, so every total generation failure
+            # was being recorded as a success.
+            changed = candidate.strip() != text.strip()
+            if (changed and after.solved >= before.solved
                     and after.agg("random_win_frac", False)
                     <= before.agg("random_win_frac", False)):
                 best_text, best = candidate, after.to_dict()
                 p.regenerated = True
+            elif not changed:
+                p.note = (p.note + " | " if p.note else "") + "regen found nothing"
         else:
             p.note = f"regen not playable (tier {ev.tier})"
     except Exception as e:  # noqa: BLE001
@@ -298,22 +304,22 @@ def main() -> None:
     recs: list[Polished] = []
     texts: dict[str, str] = {}
     t0 = time.time()
-    with ProcessPoolExecutor(max_workers=a.workers) as ex:
-        futs = [ex.submit(polish_one, j) for j in jobs]
-        for i, f in enumerate(futs):
-            try:
-                res = f.result()
-            except Exception as e:  # noqa: BLE001
-                print(f"  [{i + 1}/{len(jobs)}] crashed: {type(e).__name__}", flush=True)
-                continue
-            rec = Polished(**res["rec"])
-            recs.append(rec)
-            texts[f"{rec.run}_{rec.key}"] = res["text"]
-            d = rec.after or {}
-            print(f"  [{i + 1}/{len(jobs)} {time.time() - t0:.0f}s] {rec.run}/{rec.key} "
-                  f"regen={rec.regenerated} solved={d.get('solved', 0)}/{d.get('analysed', 0)} "
-                  f"cov={rec.coverage:.2f} rand={d.get('random_win_frac', 0):.2f} "
-                  f"score={rec.score():.2f} {rec.note[:36]}", flush=True)
+    from prof.pool import resilient_map
+
+    n_crash = 0
+    for i, res, reason in resilient_map(polish_one, jobs, a.workers):
+        if res is None:
+            n_crash += 1
+            print(f"  [{i + 1}/{len(jobs)}] crashed: {reason}", flush=True)
+            continue
+        rec = Polished(**res["rec"])
+        recs.append(rec)
+        texts[f"{rec.run}_{rec.key}"] = res["text"]
+        d = rec.after or {}
+        print(f"  [{i + 1}/{len(jobs)} {time.time() - t0:.0f}s] {rec.run}/{rec.key} "
+              f"regen={rec.regenerated} solved={d.get('solved', 0)}/{d.get('analysed', 0)} "
+              f"cov={rec.coverage:.2f} rand={d.get('random_win_frac', 0):.2f} "
+              f"score={rec.score():.2f} {rec.note[:36]}", flush=True)
 
     keepers = [r for r in recs if _quality_ok(r, a.min_coverage)]
     keepers.sort(key=lambda r: -r.score())

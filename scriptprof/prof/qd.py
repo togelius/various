@@ -275,7 +275,9 @@ def _worker(job) -> dict[str, Any]:
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "why": f"parse parent: {type(e).__name__}"}
     try:
-        if cross_text is not None and rng.random() < cfg["p_cross"]:
+        # the caller already rolled p_cross to decide whether to send a mate;
+        # rolling it again here made the real crossover rate p_cross squared
+        if cross_text is not None:
             other = Game.parse(cross_text)
             child, ops = crossover(parent, other, rng)
         else:

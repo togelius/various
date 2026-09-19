@@ -359,8 +359,15 @@ class Game:
         Single-character *object* names count as well as legend symbols: a
         game like 2048 names its tiles ``1``..``9`` and writes them straight
         into the level art with no legend entry at all.
+
+        Symbols defined with ``or`` do not count.  The compiler rejects them in
+        a map outright ("defined using OR, and therefore ambiguous"), and one
+        such character placed in one candidate level fails the compile for a
+        whole generated population at once, since the level generator compiles
+        its candidates as levels of a single game.
         """
-        chars = {l.sym for l in self.legend if len(l.sym) == 1}
+        chars = {l.sym for l in self.legend
+                 if len(l.sym) == 1 and l.join.lower() != "or"}
         for o in self.objects:
             if len(o.name) == 1:
                 chars.add(o.name)
@@ -422,7 +429,18 @@ class Game:
         Mutations are written so they do not break these, but composition and
         level surgery can still leave an object out of a layer or a character
         out of the legend, so every operator ends here.
+
+        Every fix marks its section dirty.  It has to: :meth:`emit` reproduces
+        a clean section from the original source, so a repair to a section
+        nothing marked is computed and then thrown away -- the shipped file
+        still has the stranded object and still fails to compile.
         """
+        before = {
+            "LEGEND": [l.emit() for l in self.legend],
+            "COLLISIONLAYERS": [list(x) for x in self.layers],
+            "RULES": [r.emit() for r in self.rules],
+            "LEVELS": [l.emit() for l in self.levels],
+        }
         names = {o.name.lower() for o in self.objects}
         # 1. legend entries may only mention declared objects or earlier legends
         known = set(names)
@@ -497,6 +515,15 @@ class Game:
             if rows and w:
                 fixed.append(Level(rows))
         self.levels = fixed
+        after = {
+            "LEGEND": [l.emit() for l in self.legend],
+            "COLLISIONLAYERS": [list(x) for x in self.layers],
+            "RULES": [r.emit() for r in self.rules],
+            "LEVELS": [l.emit() for l in self.levels],
+        }
+        for section, old in before.items():
+            if after[section] != old:
+                self.dirty.add(section)
         return self
 
     def copy(self) -> "Game":
