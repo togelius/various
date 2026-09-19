@@ -314,7 +314,10 @@ const RENDER = (() => {
     const elev = Math.sin(sunAng), az = Math.cos(sunAng);
     let sx = az * 0.7, sy = elev, sz = -0.45 + 0.2 * az; let l = Math.hypot(sx, sy, sz); sx /= l; sy /= l; sz /= l;
     const day = M.clamp(elev * 4 + 0.15, 0, 1);          // 1 in daytime, 0 at night
-    const dusk = M.clamp(1 - Math.abs(elev) * 5, 0, 1);  // 1 near horizon
+    // The warm horizon light reaches further up the sky than the brightness falls off. Golden hour is the best light in
+    // the game and at a true scale it was a spike a few seconds wide; widening only the colour term lengthens it
+    // without darkening the afternoon.
+    const dusk = M.clamp(1 - Math.abs(elev) * 2.6, 0, 1);  // 1 near horizon
     const night = 1 - day;
     if (sy > 0.02) env.sunDir = [sx, sy, sz]; else env.sunDir = [-sx * 0.5, Math.max(0.35, -sy), -sz * 0.5]; // moon-ish from the other side
     const mix3 = (a, b, k) => [M.lerp(a[0], b[0], k), M.lerp(a[1], b[1], k), M.lerp(a[2], b[2], k)];
@@ -326,6 +329,9 @@ const RENDER = (() => {
     env.horizon = mix3([0.012, 0.014, 0.03], mix3([0.64, 0.66, 0.65], [0.9, 0.4, 0.2], dusk), day);
     env.fogCol = mix3([0.01, 0.012, 0.024], mix3([0.56, 0.59, 0.60], [0.78, 0.4, 0.26], dusk), day);
     env.fogDensity = M.lerp(0.0032, 0.0022, day); env.fogHeight = M.lerp(22, 34, day); env.fogSun = 0.7 * day;
+    // The city goes to bed: the lit-window mask dims through the small hours and comes back before dawn.
+    const late = hours >= 23 || hours < 5.5 ? M.lerp(1, 0.66, M.clamp(Math.min(hours >= 23 ? hours - 23 : hours + 1, 5.5 - hours + 1) / 2.5, 0, 1)) : 1;
+    env.emisStr = 1.8 * late;
     env.nightEmis = M.clamp(night * 1.3, 0, 1); env.daylight = day; env.starAlpha = M.clamp(night * 1.2 - 0.2, 0, 1) * (1 - rain); env.sunDisc = sy > 0.02 ? (1 - rain) : 0;
     if (rain > 0) { // overcast: grey it all down, thicken the fog
       const grey = c => { const l = c[0] * 0.3 + c[1] * 0.5 + c[2] * 0.2; return [M.lerp(c[0], l * 0.85, rain * 0.8), M.lerp(c[1], l * 0.88, rain * 0.8), M.lerp(c[2], l * 0.95, rain * 0.8)]; };
