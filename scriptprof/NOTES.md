@@ -261,6 +261,41 @@ inherited a process pool poisoned by the one game that segfaulted the C++
 engine. Every metric landed at 50-58%, which on n=4 is noise. Rerunning with
 `prof.pool` and 60 games.
 
+### Which operators earn their place
+
+`prof.opstats --from-run` reads a finished run's log and asks, per operator,
+how often its children took an archive cell. 10047 applications from the
+novelty run; 14% took a cell overall.
+
+| operator | tried | took a cell | playable | mean fitness |
+|---|---|---|---|---|
+| `command` (append win/again/cancel) | 296 | 25% | 47% | 0.31 |
+| `negate` (add a `no X` guard) | 292 | 24% | 58% | 0.40 |
+| `add_win` | 447 | 23% | 53% | 0.41 |
+| `template` (inject a mechanic) | 1436 | 15% | 55% | 0.35 |
+| `add_object` | 952 | 14% | 42% | 0.29 |
+| `swap_object` | 837 | 8% | 44% | 0.35 |
+| `remove_object` | 323 | 8% | 27% | 0.23 |
+
+Two readings, and they matter differently.
+
+"Took a cell" partly measures how far an operator moves the descriptor vector,
+and three of four descriptor axes are size measures, so anything that changes
+rule or object count fills cells cheaply. That is coverage, not quality. The
+mean-fitness column is the quality reading, and on both together `negate` and
+`add_win` are the clear wins while `remove_object` is the clear loss: it is
+destructive, and a quarter of its children are still playable.
+
+The templates sit in the middle at 15% and 55% playable. Middling is fine for
+them -- they are the only operator that adds a mechanic the game did not have,
+so their job is reach, not hit rate.
+
+I have **not** reweighted the operators on this. Both arms of the novelty
+comparison are mid-flight and changing the operator distribution underneath
+them would confound the only controlled experiment running. The reweighting is
+a next step with the evidence already gathered, not a change to make at 2am
+with runs in progress.
+
 ### What I would do next, in order
 
 1. **Replicate the novelty comparison.** Three seeds per arm, same wall clock.

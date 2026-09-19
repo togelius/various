@@ -1,11 +1,21 @@
-"""How often does each mutation operator produce a game that compiles?
+"""What is each mutation operator actually worth?
 
-The point of a structural operator is that it costs nothing to try, so the
-interesting number is not "does it always work" but "what does a working edit
-cost".  This measures both, per operator, over a sample of the human corpus,
-and prints the throughput the evolutionary loop can expect.
+Two different questions, and an operator can do well on the first while being
+useless on the second.
+
+**Does it compile?**  Measured by mutating a sample of the human corpus.  The
+point of a structural operator is that it costs nothing to try, so the
+interesting number is not a perfect hit rate but what a working edit costs.
 
     .venv/bin/python -m prof.opstats --games 40 --per-game 20
+
+**Does it earn a cell?**  Measured from a finished run's log: of the children
+carrying this operator, how many took an archive cell, and how many of those
+were still playable when they did.  Compiling is cheap and common; taking a
+cell away from an incumbent is the thing the search actually needs, and the
+two rankings do not agree.
+
+    .venv/bin/python -m prof.opstats --from-run data/evolve/novel
 """
 from __future__ import annotations
 
@@ -56,13 +66,64 @@ def trial(args) -> list[tuple[str, bool, float, str]]:
     return out
 
 
+def from_run(run: Path, top: int = 30) -> None:
+    """Per-operator yield, read out of a run's log."""
+    tried: dict[str, int] = defaultdict(int)
+    added: dict[str, int] = defaultdict(int)
+    playable: dict[str, int] = defaultdict(int)
+    fitness: dict[str, list[float]] = defaultdict(list)
+    log = run / "log.jsonl"
+    if not log.exists():
+        print(f"no log at {log}")
+        return
+    with log.open() as fh:
+        for line in fh:
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            ops = rec.get("ops")
+            if not ops:
+                continue
+            for o in ops:
+                k = o.split(":")[0]
+                tried[k] += 1
+                if rec.get("cell"):
+                    added[k] += 1
+                if int(rec.get("tier", 0)) >= 3:
+                    playable[k] += 1
+                    fitness[k].append(float(rec.get("fitness", 0.0)))
+    if not tried:
+        print("no operator records in the log")
+        return
+    total_t = sum(tried.values())
+    total_a = sum(added.values())
+    print(f"{run.name}: {total_t} operator applications, "
+          f"{total_a} took a cell ({100 * total_a / total_t:.0f}%)\n")
+    print(f"{'operator':22s} {'tried':>7s} {'took a cell':>12s} {'playable':>10s} {'mean f':>8s}")
+    for k in sorted(tried, key=lambda k: -(added[k] / max(tried[k], 1))):
+        if tried[k] < 5:
+            continue
+        mf = sum(fitness[k]) / len(fitness[k]) if fitness[k] else float("nan")
+        print(f"{k:22s} {tried[k]:7d} {100 * added[k] / tried[k]:11.0f}% "
+              f"{100 * playable[k] / tried[k]:9.0f}% {mf:8.2f}")
+    print("\nSorted by the rate at which the operator's children take a cell,"
+          "\nwhich is what moves the archive; compiling is cheap and common.")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--from-run", default=None,
+                    help="read per-operator yield from a finished run's log")
     ap.add_argument("--games", type=int, default=40)
     ap.add_argument("--per-game", type=int, default=20)
     ap.add_argument("--workers", type=int, default=9)
     ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
+    if a.from_run:
+        run = Path(a.from_run) if Path(a.from_run).is_absolute() else ROOT / a.from_run
+        from_run(run)
+        return
     names = [r["game"] for r in csv.DictReader(SUMMARY.open())
              if r["compiled"] == "1" and int(r["n_solved"]) > 0]
     rng = random.Random(a.seed)
