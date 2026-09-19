@@ -106,6 +106,48 @@ class Elite:
     depth: dict[str, Any] | None = None
 
 
+class RunLock:
+    """A stale-tolerant lock so two processes cannot share a run directory.
+
+    Restarting a run before the old process has finished its graceful stop
+    leaves both writing the same archive, and the loser's cells are silently
+    lost on the next save.  That happened twice overnight before this existed.
+    """
+
+    def __init__(self, out: Path):
+        self.path = out / "RUNNING"
+        self.pid = os.getpid()
+
+    def acquire(self) -> None:
+        if self.path.exists():
+            try:
+                other = int(self.path.read_text().split()[0])
+            except Exception:  # noqa: BLE001
+                other = -1
+            if other > 0 and other != self.pid and _alive(other):
+                raise SystemExit(
+                    f"{self.path.parent} is already being written by pid {other}. "
+                    f"Stop it first, or pass a different --out.")
+        self.path.write_text(f"{self.pid} {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+    def release(self) -> None:
+        try:
+            if self.path.exists() and self.path.read_text().split()[0] == str(self.pid):
+                self.path.unlink()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 class Archive:
     def __init__(self, out: Path, axes: list[Axis]):
         self.out = out
@@ -500,14 +542,19 @@ def main() -> None:
            "novelty_weight": a.novelty_weight}
     (out / "config.json").write_text(json.dumps({**cfg, **vars(a)}, indent=1))
     rng = random.Random(a.seed)
+    lock = RunLock(out)
+    lock.acquire()
     arch = Archive(out, PRESETS[a.axes])
     if not arch.elites:
         names = a.seed_names or seed_names(a.seeds, rng)
         seed_archive(arch, names, cfg, a.workers)
     else:
         print(f"resuming: {arch.stats()}", flush=True)
-    run(arch, cfg, a.iters, a.workers, a.batch, rng, out / "log.jsonl",
-        deep_every=a.deep_every, deep_n=a.deep_n, wall_s=a.wall_s)
+    try:
+        run(arch, cfg, a.iters, a.workers, a.batch, rng, out / "log.jsonl",
+            deep_every=a.deep_every, deep_n=a.deep_n, wall_s=a.wall_s)
+    finally:
+        lock.release()
     print(f"done: {arch.stats()}", flush=True)
 
 

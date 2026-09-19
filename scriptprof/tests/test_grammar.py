@@ -154,3 +154,36 @@ def test_repair_makes_levels_rectangular():
     for lv in g.levels:
         if not lv.is_message:
             assert len({len(r) for r in lv.rows}) == 1
+
+
+# -- run safety ------------------------------------------------------------
+
+def test_run_lock_rejects_a_second_live_writer(tmp_path):
+    """Two processes on one archive silently lose the loser's cells."""
+    import os
+
+    from prof.qd import RunLock
+
+    a = RunLock(tmp_path)
+    a.acquire()
+    assert (tmp_path / "RUNNING").exists()
+
+    b = RunLock(tmp_path)
+    b.pid = a.pid + 1 if a.pid + 1 != os.getpid() else a.pid + 2
+    with pytest.raises(SystemExit):
+        b.acquire()
+
+    a.release()
+    assert not (tmp_path / "RUNNING").exists()
+    b.acquire()          # the lock is free once the holder lets go
+    b.release()
+
+
+def test_run_lock_ignores_a_dead_holder(tmp_path):
+    from prof.qd import RunLock
+
+    (tmp_path / "RUNNING").write_text("999999 stale\n")
+    lock = RunLock(tmp_path)
+    lock.acquire()       # must not block on a pid that no longer exists
+    assert (tmp_path / "RUNNING").read_text().startswith(str(lock.pid))
+    lock.release()
