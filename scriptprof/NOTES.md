@@ -376,6 +376,22 @@ Both runs were restarted to pick it up, which does change the search mid-
 experiment -- but equally in both arms, and leaving a known pathology in place
 to protect the tidiness of an n=1 comparison would be the wrong trade.
 
+### Two operational hazards, both of which cost an hour
+
+**Orphaned helper processes accumulate silently.** The vendored
+Python-to-JavaScript bridge spawns a `node` process per Python process, and it
+survives the death of the process that started it. Across a night of pool
+restarts, 124 of them were holding 3.7 GB. Separately, `kill -9` on a
+multiprocessing parent leaves its workers running: 36 orphans, 1.9 GB, two of
+them at 60% CPU doing nothing. Neither shows up as a failure; both just make
+everything slower, and `uptime` reports a load average of 120 that is mostly
+idle processes.
+
+The obvious cleanup -- "kill anything whose parent is pid 1" -- is wrong, and
+I ran it: a `nohup`ed job *also* has pid 1 as its parent, so the sweep killed
+the live polish run along with the orphans. Identify orphans by age or command
+line, not by parentage.
+
 ### What I would do next, in order
 
 1. **Replicate the novelty comparison.** Three seeds per arm, same wall clock.
