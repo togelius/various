@@ -574,19 +574,32 @@ def op_change_win(g: Game, rng: random.Random) -> str | None:
 
 
 def op_add_win(g: Game, rng: random.Random) -> str | None:
+    """Add a win condition that is not trivially already true.
+
+    The background fills every cell, so a condition naming it is a no-op that
+    still moves the concept vector -- free novelty for no design. Excluded
+    here as well as in ``repair`` so the operator does not waste its turn.
+    """
     r = roles_of(g)
-    a = r.any_of(rng, r.movable, r.other, r.solid)
+    bg = g._background_objects()
+    pool = [x for x in r.movable + r.other + r.solid if x.lower() not in bg]
+    a = r.any_of(rng, pool)
     if not a:
         return None
-    if rng.random() < 0.6 and r.floor:
-        b = r.distinct_layer(rng, a, r.floor)
+    targets = [x for x in r.floor if x.lower() not in bg]
+    if rng.random() < 0.6 and targets:
+        b = r.distinct_layer(rng, a, targets)
         if not b:
             return None
-        g.wins.append(Win("All", a, b))
+        candidate = Win("All", a, b)
     else:
-        g.wins.append(Win(rng.choice(["No", "Some"]), a, None))
+        candidate = Win(rng.choice(["No", "Some"]), a, None)
+    existing = {w.emit().strip().lower() for w in g.wins}
+    if candidate.emit().strip().lower() in existing:
+        return None
+    g.wins.append(candidate)
     g.touch("WINCONDITIONS")
-    return f"add_win:{g.wins[-1].emit()}"
+    return f"add_win:{candidate.emit()}"
 
 
 def op_remove_win(g: Game, rng: random.Random) -> str | None:

@@ -187,3 +187,37 @@ def test_run_lock_ignores_a_dead_holder(tmp_path):
     lock.acquire()       # must not block on a pid that no longer exists
     assert (tmp_path / "RUNNING").read_text().startswith(str(lock.pid))
     lock.release()
+
+
+def test_repair_drops_vacuous_and_duplicate_win_conditions():
+    """Free novelty for no design: a win condition naming the background.
+
+    PuzzleScript's background fills every cell, so "Some Background" is always
+    true and "All X on Background" is true for any X. Both are no-ops, and both
+    still move the concept vector, so a search with a novelty term learns to
+    emit them. The novelty run did exactly that before this existed.
+    """
+    g = Game.parse(SOKOBAN.read_text(encoding="utf-8"))
+    bg_obj = next(o.name for o in g.objects if "background" in o.name.lower())
+    real = g.wins[0].emit()
+    from prof.grammar import Win
+
+    g.wins += [Win("Some", bg_obj), Win("All", "Crate", bg_obj), g.wins[0]]
+    g.touch("WINCONDITIONS")
+    g.repair()
+    kept = [w.emit() for w in g.wins]
+    assert kept == [real], kept
+
+
+def test_add_win_never_names_the_background():
+    g = Game.parse(SOKOBAN.read_text(encoding="utf-8"))
+    from prof.mutations import op_add_win
+
+    bg = g._background_objects()
+    for seed in range(60):
+        h = g.copy()
+        if op_add_win(h, random.Random(seed)) is None:
+            continue
+        w = h.wins[-1]
+        assert w.a.lower() not in bg
+        assert w.b is None or w.b.lower() not in bg

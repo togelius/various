@@ -342,6 +342,17 @@ class Game:
                 out.append(o.synonym)
         return sorted(set(out))
 
+    def _background_objects(self) -> set[str]:
+        """Objects that occupy every cell, so testing for them proves nothing."""
+        lo = self.layer_of()
+        out = {o.name.lower() for o in self.objects
+               if "background" in o.name.lower()}
+        bg_char = self.background_char()
+        for member in self.all_symbols().get(bg_char.lower(), []):
+            out.add(member.lower())
+        out |= {n for n, layer in lo.items() if layer == 0 and n in out}
+        return out
+
     def level_alphabet(self) -> set[str]:
         """Every character that may legally appear in a level.
 
@@ -442,9 +453,34 @@ class Game:
         table = self.all_symbols()
         self.rules = [r for r in self.rules
                       if r.raw is not None or r.objects() <= set(table)]
-        # 4. win conditions likewise
-        self.wins = [w for w in self.wins if w.raw is not None or (
-            w.a.lower() in table and (w.b is None or w.b.lower() in table))]
+        # 4. win conditions: resolvable, not duplicated, not vacuous
+        #
+        # PuzzleScript's background fills every cell of every level, so
+        # "Some Background" is always true and "All X on Background" is true
+        # for any X. Both are no-ops that a mutation operator will happily
+        # generate, and both still shift the concept vector, so a search with a
+        # novelty term learns to emit them. Dropping them here is the cheapest
+        # place to close that.
+        before_wins = [w.emit() for w in self.wins]
+        bg = self._background_objects()
+        kept_wins: list[Win] = []
+        seen_wins: set[str] = set()
+        for w in self.wins:
+            if w.raw is None:
+                if w.a.lower() not in table or (w.b is not None and w.b.lower() not in table):
+                    continue
+                if w.b is not None and w.b.lower() in bg:
+                    continue                       # "All X on Background"
+                if w.b is None and w.quant.lower() in ("some", "any") and w.a.lower() in bg:
+                    continue                       # "Some Background"
+            key = w.emit().strip().lower()
+            if key in seen_wins:
+                continue
+            seen_wins.add(key)
+            kept_wins.append(w)
+        self.wins = kept_wins
+        if [w.emit() for w in self.wins] != before_wins:
+            self.dirty.add("WINCONDITIONS")
         # 5. levels are rectangular and use known characters
         chars = self.level_alphabet()
         bg = self.background_char()
