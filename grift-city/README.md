@@ -301,9 +301,18 @@ often.
 A lit shop window is what a real street is lit by, so each open front throws a warm wedge across the
 pavement that fades out at its edge and carries a short-range light, and the fronts are recorded
 during generation from a hash of their position so the seeded layout is untouched. Shops keep hours:
-most go dark after eleven and a handful stay lit all night. The lit-window mask dims through the small
-hours and comes back before dawn, so half seven in the evening no longer looks the same as two in the
-morning.
+most go dark after eleven and a handful stay lit all night. Those hours drive the spill on the pavement
+and the short-range light; the lit windows themselves are one mask over the whole city, which dims
+through the small hours and comes back before dawn, because the static mesh carries a single emissive
+term rather than one per building.
+
+Closing time nearly did nothing on the streets where it should show most. Only thirteen fronts are lit
+at once, for cost, and where more than that are in range -- the busiest block has twenty-four within the
+glow radius and twenty-one open of an evening -- every shop that closed was simply replaced by one
+further along, so the count stayed pinned at thirteen from eight in the evening until well past
+midnight. The limit now scales with the hour, so that block goes from thirteen lit fronts to nine at
+half ten and four at two, and its pavement drops thirteen per cent in brightness across the night
+instead of holding steady.
 
 The street lamps used to throw a cone of constant brightness, which put a hard-edged slab of light
 across half the screen when you stood near one. The shaft now fades to nothing at the ground rim and

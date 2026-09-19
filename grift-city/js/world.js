@@ -307,11 +307,12 @@ const W = (() => {
     if (RENDER.env.shopGlow === false) return;
     // Shops keep hours: most are lit through the evening, a handful stay on all night.
     const hr = state.time; const openFrac = hr >= 23 || hr < 5.5 ? 0.26 : hr >= 22 ? 0.5 : 0.76;
+    const cap = Math.max(2, Math.round(13 * openFrac / 0.76));
     let n = 0;
     for (const s of CITY.shopfronts) {
       if (s.shut || s.h >= openFrac) continue;
       const dx = s.x - camX, dz = s.z - camZ; const d2 = dx * dx + dz * dz;
-      if (d2 > 42 * 42 || n++ > 12) continue;
+      if (d2 > 42 * 42 || n++ >= cap) continue;
       const fade = 1 - Math.sqrt(d2) / 42; const y0 = CITY.groundY(s.x, s.z) + 0.03;
       const len = 4.6, half = s.w * 0.42; const rx = -s.nz, rz = s.nx;
       const a0 = 0.13 * night * fade * (1 + rain * 0.8);
