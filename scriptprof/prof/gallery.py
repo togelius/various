@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -61,6 +62,10 @@ pre { background:#0e0f15; border:1px solid #262838; border-radius:6px;
       padding:10px; overflow:auto; max-height:340px; font-size:11.5px;
       line-height:1.45; }
 .near { color:#7b7fa0; font-size:11.5px; margin-top:4px; }
+a.play { display:inline-block; margin-top:8px; padding:5px 12px; border-radius:6px;
+         background:#2f4a33; color:#c8f0cc; text-decoration:none; font-size:12.5px;
+         font-weight:600; }
+a.play:hover { background:#3a5c3f; }
 .map { margin:18px 0 6px; }
 .map table { border-collapse:collapse; }
 .map td { width:15px; height:15px; border:1px solid #12131a; }
@@ -123,7 +128,7 @@ def metric_rows(e: dict[str, Any]) -> str:
 
 
 def build(run: Path, top: int, shots: int, sort: str, out: Path,
-          show_source: bool = True) -> Path:
+          show_source: bool = True, play_dir: Path | None = None) -> Path:
     from prof.novelty import shared
     from prof.render import thumbnails
 
@@ -171,11 +176,19 @@ def build(run: Path, top: int, shots: int, sort: str, out: Path,
         deep = '<span class="tag deep">deep-scored</span>' if e.get("depth") else ""
         src_block = (f"<details><summary>source ({len(source.splitlines())} lines)</summary>"
                      f"<pre>{html.escape(source)}</pre></details>") if show_source else ""
+        play = ""
+        if (run / "play" / f"{k}.html").exists():
+            play = f'<a class="play" href="play/{k}.html">play</a>'
+        elif play_dir is not None and (play_dir / f"{k}.html").exists():
+            rel = os.path.relpath(play_dir / f"{k}.html", out.parent)
+            play = f'<a class="play" href="{rel}">play</a>'
+        
         cards.append(f"""<div class="card">
   <h2>{html.escape(e.get('name', k))[:70]}</h2>
   <div class="key">cell {html.escape(k)} &middot; iteration {e.get('iteration', 0)} {deep}</div>
   <div class="shots">{img_html or '<span class="key">no renderable level</span>'}</div>
   <table class="m">{metric_rows(e)}</table>
+  {play}
   <div class="ops">{tags or '<span class="key">seed</span>'}</div>
   {f'<div class="near">nearest human games: {html.escape(near)}</div>' if near else ''}
   {src_block}
@@ -230,10 +243,15 @@ def main() -> None:
     ap.add_argument("--top", type=int, default=60)
     ap.add_argument("--shots", type=int, default=3)
     ap.add_argument("--sort", default="fitness", choices=["fitness", "novelty", "insight"])
+    ap.add_argument("--play", default=None,
+                    help="directory of standalone HTML players to link to")
     a = ap.parse_args()
     run = Path(a.run) if Path(a.run).is_absolute() else ROOT / a.run
     out = Path(a.out) if a.out else run / "gallery.html"
-    p = build(run, a.top, a.shots, a.sort, out)
+    play = None
+    if a.play:
+        play = Path(a.play) if Path(a.play).is_absolute() else ROOT / a.play
+    p = build(run, a.top, a.shots, a.sort, out, play_dir=play)
     print(f"wrote {p} ({p.stat().st_size / 1024:.0f} kB)")
 
 
