@@ -13,7 +13,7 @@ const HUD = (() => {
   function fade(dur) { fadeT = dur; fadeDur = dur; }
   // Word-wrap a line to a pixel width at a font size (subtitles on narrow windows).
   function wrap(t, size, maxW) { g.font = `normal ${size}px ${FONT}`; const words = String(t).split(' '); const rows = []; let cur = ''; for (const w of words) { const test = cur ? cur + ' ' + w : w; if (g.measureText(test).width > maxW && cur) { rows.push(cur); cur = w; } else cur = test; } if (cur) rows.push(cur); return rows; }
-  function text(t, x, y, size, color = '#fff', align = 'left', weight = 'bold', shadow = true) { g.font = `${weight} ${size}px ${FONT}`; g.textAlign = align; g.textBaseline = 'middle'; if (shadow) { g.fillStyle = 'rgba(0,0,0,0.75)'; g.fillText(t, x + 2, y + 2); } g.fillStyle = color; g.fillText(t, x, y); }
+  function text(t, x, y, size, color = '#fff', align = 'left', weight = 'bold', shadow = true, outline = false) { g.font = `${weight} ${size}px ${FONT}`; g.textAlign = align; g.textBaseline = 'middle'; if (shadow) { g.fillStyle = 'rgba(0,0,0,0.75)'; g.fillText(t, x + 2, y + 2); } if (outline) { g.lineWidth = Math.max(2, size * 0.16); g.lineJoin = 'round'; g.strokeStyle = 'rgba(0,0,0,0.6)'; g.strokeText(t, x, y); } g.fillStyle = color; g.fillText(t, x, y); }
   function outlined(t, x, y, size, color, align = 'center') { g.font = `900 ${size}px ${DISPLAY}`; g.letterSpacing = '1px'; g.textAlign = align; g.textBaseline = 'middle'; g.lineWidth = Math.max(2, size * 0.1); g.strokeStyle = '#000'; g.lineJoin = 'round'; g.strokeText(t, x, y); g.fillStyle = color; g.fillText(t, x, y); }
 
   // ---- Radar map, painted once
@@ -105,7 +105,7 @@ const HUD = (() => {
     text(WEAPONS[P.weapon].name, W_ - 24, 140, 12, '#ccc', 'right', 'normal');
     if (P.carNameT > 0 && P.car) text(P.lastCarName, W_ - 24, H_ - 40, 22, 'rgba(245,197,66,' + Math.min(1, P.carNameT) + ')', 'right');
     // top left: clock and district
-    text(CITY.districtName(P.x, P.z).toUpperCase(), 28, 30, 17, '#eee5ce', 'left', '500'); text(W.clockString(), 28, 53, 13, '#bfc8c6', 'left', 'normal');
+    text(CITY.districtName(P.x, P.z).toUpperCase(), 28, 30, 17, '#eee5ce', 'left', '500', true, true); text(W.clockString(), 28, 53, 13, '#dfe6e3', 'left', 'normal', true, true);
     if (AUDIO.radioStation > 0 && P.car) text('♪ ' + AUDIO.STATIONS[AUDIO.radioStation], 24, 76, 12, '#ccc', 'left', 'normal');
     // notifications
     for (let i = notes.length - 1, k = 0; i >= 0; i--, k++) { const n = notes[i]; n.t -= dt; if (n.t <= 0) { notes.splice(i, 1); continue; } text(n.text, W_ / 2, 60 + k * 22, 15, 'rgba(255,255,255,' + Math.min(1, n.t) + ')', 'center'); }

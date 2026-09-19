@@ -49,7 +49,10 @@ const CITY = (() => {
   const manholes = []; // road spots for the covers and their steam
   const solidProps = []; // {x,z,r,kind,idx}
   const parkedSpots = [];// {x,z,angle}
-  const shopfronts = []; // lit shop windows at night: {x, z, nx, nz, w, shut, open}
+  const shopfronts = []; // lit shop windows at night: {x, z, nx, nz, w, shut, h, tile}
+  // Which shop tiles were painted recently along each street-facing wall line, so a frontage that runs across
+  // several lots does not put the same pair of signs up twice. Positional only: it consumes no random numbers.
+  const wallRecent = new Map();
   const ramps = [];      // {x0,z0,x1,z1,h,dir}
   const lights = [];     // traffic lights: {x,z,phase}
   let stunts = [];
@@ -256,9 +259,21 @@ const CITY = (() => {
       b.box(x0, y, z0, W, ground, D, tint, shopTile, { faces: 1 | 2 | 16 | 32, uvScale: 8 });
       // the street side is painted in 8 m stretches, each a different pair of shops, so no two doors down a block match
       const outN = front === 'n' ? [0, -1] : front === 's' ? [0, 1] : front === 'w' ? [-1, 0] : [1, 0]; // the way this front faces the street
-      { let last = -1; for (let t = 0; t < frontLen - 0.5; t += 8) { let k = rng.pick(pool); if (k === last) k = rng.pick(pool); last = k; shopTiles.push(k); const seg = Math.min(8, frontLen - t); const tl = T['shops' + k];
+      // The tile that is drawn keeps consuming the same random numbers and still drives the sidewalk props, so the
+      // seeded city is untouched; but painting it twice down one wall puts the same pair of shop signs up twice,
+      // which is the thing you notice walking a block. What gets painted is therefore allowed to differ from what
+      // was drawn, chosen from a hash of the position so it costs no random numbers either.
+      { const uniq = [...new Set(pool)]; let last = -1;
+        const wallKey = front + ':' + ((front === 'n' || front === 's') ? (front === 'n' ? z0 : z1) : (front === 'w' ? x0 : x1)).toFixed(1);
+        let recent = wallRecent.get(wallKey); if (!recent) { recent = []; wallRecent.set(wallKey, recent); }
+        for (let t = 0; t < frontLen - 0.5; t += 8) { let k = rng.pick(pool); if (k === last) k = rng.pick(pool); last = k; shopTiles.push(k);
+        let kd = k;
+        if (recent.indexOf(kd) >= 0) { const hh = Math.abs(Math.sin(t * 91.7 + x0 * 13.1 + z0 * 47.3) * 43758.5453) % 1; const st = Math.floor(hh * uniq.length);
+          for (let i = 0; i < uniq.length; i++) { const c = uniq[(st + i) % uniq.length]; if (recent.indexOf(c) < 0) { kd = c; break; } } }
+        recent.push(kd); if (recent.length > 4) recent.shift();
+        const seg = Math.min(8, frontLen - t); const tl = T['shops' + kd];
         { const [fx2, fz2] = frontPt(t + seg / 2, 0.2); const h = Math.abs(Math.sin(fx2 * 12.9898 + fz2 * 78.233) * 43758.5453) % 1; /* a hash of the position, so recording shopfronts consumes no city random numbers and leaves every other placement where it was */
-          shopfronts.push({ x: fx2, z: fz2, nx: outN[0], nz: outN[1], w: seg, shut: k === 20, h }); }
+          shopfronts.push({ x: fx2, z: fz2, nx: outN[0], nz: outN[1], w: seg, shut: kd === 20, h, tile: kd }); }
         if (front === 'n') b.box(x0 + t, y, z0 - 0.03, seg, ground, 0.03, tint, tl, { faces: 32, uvScale: 8 }); else if (front === 's') b.box(x0 + t, y, z1, seg, ground, 0.03, tint, tl, { faces: 16, uvScale: 8 }); else if (front === 'w') b.box(x0 - 0.03, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 2, uvScale: 8 }); else b.box(x1, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 1, uvScale: 8 }); } }
       b.box(x0 - 0.3, y + ground - 0.35, z0 - 0.3, W + 0.6, 0.35, D + 0.6, trim, 0);
       // Give the painted shop bays a shallow stone surround so the street catches light and shadow.
@@ -692,6 +707,7 @@ const CITY = (() => {
 
   let staticBuilder = null, waterBuilder = null;
   function generate() {
+    wallRecent.clear();
     staticBuilder = buildStatic();
     buildRoads(); buildWalks();
     for (const p of props.lamppost) solidProps.push({ x: p.x, z: p.z, r: 0.2, kind: 'lamppost', ref: p });

@@ -366,6 +366,20 @@ again, every frame. Forced to fail, three seconds of it gained 181 levels and $6
 cleared before a new one is sought and checked before it is used, so placement simply retries; the same
 three seconds now gain one level and one payout. The mission suite forces the failure and asserts it.
 
+Shop names never repeated — each of the sixteen kinds hands out its names once and the tiles are baked with
+no name used twice — but the tiles themselves did, and a tile carries two shops, so a wall could read QUICK
+STOP, CHECKS CASHED, QUICK STOP. The obvious fix, drawing tiles without replacement, changes how many random
+numbers generation spends and so shifts every building, prop and parking space after it. So the draw is left
+exactly as it was, and still decides the sidewalk trade outside, while what is actually painted may differ
+from what was drawn: a tile already used in the last four along that wall is swapped for one that was not,
+chosen from a hash of its position, which costs no random numbers at all. The window follows the wall line
+rather than the lot, because a frontage runs across several. Repeats within four fell from 118 to none, and
+the city's signature — 572 lots, every prop and parking spot, every named place — is unchanged to the digit.
+
+The clock under the district name was dim grey with a drop shadow, which vanishes against a bright sky. It
+and the district name are now drawn with a contour all the way round, so they read over sky, sea or a white
+wall.
+
 ## What it costs
 
 The simulation step costs 1.22 ms with sixty-eight cars and a hundred and forty people, where it cost
