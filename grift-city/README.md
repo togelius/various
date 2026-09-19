@@ -372,8 +372,11 @@ STOP, CHECKS CASHED, QUICK STOP. The obvious fix, drawing tiles without replacem
 numbers generation spends and so shifts every building, prop and parking space after it. So the draw is left
 exactly as it was, and still decides the sidewalk trade outside, while what is actually painted may differ
 from what was drawn: a tile already used in the last four along that wall is swapped for one that was not,
-chosen from a hash of its position, which costs no random numbers at all. The window follows the wall line
-rather than the lot, because a frontage runs across several. Repeats within four fell from 118 to none, and
+chosen from a hash of its position, which costs no random numbers at all. The test is by distance rather
+than by wall: keeping a window along each wall line still left pairs facing each other across a corner or a
+jog in the frontage, and a repeat reads just as plainly there. Anything already painted within 26 metres on
+a wall facing the same way is simply out. Of 2,068 pairs of fronts that close on the same facing, none now
+share a tile, against 118 repeats within four before; the whole scan costs 2.9 ms once at generation, and
 the city's signature — 572 lots, every prop and parking spot, every named place — is unchanged to the digit.
 
 The clock under the district name was dim grey with a drop shadow, which vanishes against a bright sky. It
