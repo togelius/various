@@ -1,0 +1,118 @@
+{
+ "retile": {
+  "n": 43,
+  "ok": 42
+ },
+ "shrink_v": {
+  "n": 11,
+  "ok": 11
+ },
+ "shift": {
+  "n": 20,
+  "ok": 20
+ },
+ "remove_object": {
+  "n": 21,
+  "ok": 20
+ },
+ "remove_level": {
+  "n": 17,
+  "ok": 15
+ },
+ "late": {
+  "n": 21,
+  "ok": 20
+ },
+ "add_level": {
+  "n": 22,
+  "ok": 22
+ },
+ "template": {
+  "n": 137,
+  "ok": 131
+ },
+ "place": {
+  "n": 49,
+  "ok": 48
+ },
+ "flip_force": {
+  "n": 12,
+  "ok": 12
+ },
+ "add_object": {
+  "n": 77,
+  "ok": 70
+ },
+ "negate": {
+  "n": 24,
+  "ok": 24
+ },
+ "command": {
+  "n": 19,
+  "ok": 19
+ },
+ "win_retarget": {
+  "n": 17,
+  "ok": 17
+ },
+ "grow_v": {
+  "n": 16,
+  "ok": 16
+ },
+ "shrink_h": {
+  "n": 14,
+  "ok": 14
+ },
+ "swap_object": {
+  "n": 79,
+  "ok": 75
+ },
+ "add_win": {
+  "n": 29,
+  "ok": 29
+ },
+ "unlate": {
+  "n": 5,
+  "ok": 5
+ },
+ "delete_rule": {
+  "n": 34,
+  "ok": 34
+ },
+ "rule_direction": {
+  "n": 23,
+  "ok": 23
+ },
+ "widen": {
+  "n": 30,
+  "ok": 30
+ },
+ "swap_tiles": {
+  "n": 15,
+  "ok": 12
+ },
+ "duplicate+swap_object": {
+  "n": 31,
+  "ok": 31
+ },
+ "win_quant": {
+  "n": 10,
+  "ok": 10
+ },
+ "grow_h": {
+  "n": 11,
+  "ok": 10
+ },
+ "win_swap": {
+  "n": 7,
+  "ok": 7
+ },
+ "remove_win": {
+  "n": 5,
+  "ok": 5
+ },
+ "duplicate": {
+  "n": 1,
+  "ok": 1
+ }
+}

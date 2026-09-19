@@ -373,6 +373,81 @@ class Level:
         r.seconds = time.time() - t0
         return r
 
+    # -- multi-root reachability ------------------------------------------
+
+    def path_states(self, actions: list[int]):
+        """The states visited by following ``actions`` from the start."""
+        env, params, rng = self.game.env, self.params, self.key
+        st = jax.tree.map(jnp.asarray, self.init_state)
+        out = [self.init_state]
+        for a in actions:
+            _, st, _, _, _ = env.step_env(rng, st, int(a), params)
+            out.append(_to_np(st))
+        return jax.tree.map(lambda *xs: np.stack(xs), *out)
+
+    def successors(self, states_np, batch: int = 512):
+        """All five successors of each of a batch of states, flattened."""
+        n = jax.tree.leaves(states_np)[0].shape[0]
+        parts = []
+        for lo in range(0, n, batch):
+            hi = min(lo + batch, n)
+            parts.append(self._step_batch(
+                jax.tree.map(lambda x: x[lo:hi], states_np), hi - lo, batch))
+        return (parts[0] if len(parts) == 1
+                else jax.tree.map(lambda *xs: np.concatenate(xs, axis=0), *parts))
+
+    def survival(self, roots_np, max_depth: int = 14, batch: int = 512,
+                 cap: int = 6144, timeout_s: float = 8.0, seed: int = 0) -> np.ndarray:
+        """For each root state, is a win still reachable within ``max_depth``?
+
+        One breadth-first sweep carrying every root at once, with each frontier
+        state tagged by the root it descends from.  Running the roots together
+        is the whole point: a hundred separate bounded searches would each pay
+        their own dispatch and their own ragged batches, while this is a single
+        stream of full-width jitted calls.
+
+        The frontier is capped, so a ``False`` means "no win found within the
+        budget" rather than a proof of deadlock.  It is a lower bound on
+        survival, and the bound is what the deadlock and key-move metrics in
+        ``prof.depth`` are built from.
+        """
+        rng = np.random.default_rng(seed)
+        n_roots = int(jax.tree.leaves(roots_np)[0].shape[0])
+        alive = np.zeros(n_roots, dtype=bool)
+        alive |= np.asarray(roots_np.win).reshape(-1)
+        live = ~alive
+        if not live.any():
+            return alive
+        idx = np.flatnonzero(live)
+        frontier = jax.tree.map(lambda x: x[idx], roots_np)
+        tags = idx.copy()
+        seen: set[tuple[int, int]] = set()
+        t0 = time.time()
+        for _ in range(max_depth):
+            n = tags.size
+            if n == 0 or time.time() - t0 > timeout_s:
+                break
+            flat = self.successors(frontier, batch=batch)
+            wins = flat.win.reshape(-1)
+            child_tags = np.repeat(tags, N_ACTIONS)
+            if wins.any():
+                alive[np.unique(child_tags[wins])] = True
+            keep = ~np.isin(child_tags, np.flatnonzero(alive))
+            if not keep.any():
+                break
+            h = _hash_levels(flat.multihot_level)
+            pairs = list(zip(h.tolist(), child_tags.tolist()))
+            fresh = [i for i in np.flatnonzero(keep).tolist() if pairs[i] not in seen]
+            if not fresh:
+                break
+            seen.update(pairs[i] for i in fresh)
+            sel = np.asarray(fresh, dtype=np.int64)
+            if sel.size > cap:
+                sel = np.sort(rng.choice(sel, cap, replace=False))
+            frontier = jax.tree.map(lambda x: x[sel], flat)
+            tags = child_tags[sel]
+        return alive
+
     def replay(self, actions: list[int]) -> dict[str, Any]:
         """Run a fixed action sequence, reporting where it first wins."""
         if not actions:
@@ -398,8 +473,10 @@ class Level:
 
             def f(s, a):
                 _, ns, _, _, _ = env.step_env(k, s, a, params)
-                # freeze on win so a later move cannot undo it
-                s2 = jax.tree.map(lambda x, y: jnp.where(s.win, x, y), s, ns)
+                # freeze on win so a later move cannot undo it; the cast keeps
+                # every carry leaf at its own dtype, which scan requires
+                s2 = jax.tree.map(
+                    lambda x, y: jnp.where(s.win, x, y).astype(jnp.asarray(x).dtype), s, ns)
                 return s2, (s2.win, s2.heuristic)
 
             _, out = jax.lax.scan(f, st, actions)
