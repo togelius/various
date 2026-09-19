@@ -169,19 +169,21 @@ Player, Cursor
 RULES
 =====
 
-[ Player | Player | Cursor ] -> [ > Player | > Player |  ]
+random [ P2 | no P2 no Background ] -> [ P2 | P2 ]
+late [ Player | Player | Cursor ] -> [ > Player | > Player |  ]
+[ > hBar | no hBar no Cursor ] -> [ hBar | hBar ]
 [ > Player | > Player | Wall ] -> cancel
 [ > Player | > Player | no Wall |  ] -> [ > Player | > Player |  | Cursor ] again
 late [ Player Target | Player Target ] -> [ Player | Player ]
-late [ Cursor Edge ] -> [ Edge ]
-late [ T1 | ... | Background ] -> [ > T1 | ... | Background ]
-late [ Cursor Bar ] -> [ Bar ]
+[ Cursor Bar ] -> [ Bar ]
 
 =============
 WINCONDITIONS
 =============
 
 No Target
+All T4 on Background
+All Cursor on Background
 
 ======
 LEVELS
@@ -226,39 +228,6 @@ oooooooooooooooooooooooooooooooo
 
 Message Maze 2 of 3
 
-oooooooooooooooooooooooooooooooo
-oab!..!..x..!..oo..!..!..x..!..o
-ocd!..!..x..!..oo..!..!..x..!..o
-oxxx--+--x--xxxoo--+--+--xxxx--o
-o..x..!..!..!......!..!..!..!..o
-o..x..!..!..!......!..!..!..!..o
-o--x--xxxx--x--ooxxx--+--x--xxxo
-o..!..!..!..x......!..!..x..!..o
-o..!..!..!..x......!..!..x..!..o
-o--x--+--+--x--oo--+--xxxx--+--o
-o..x..!..!..!......!..!..!..!..o
-o..x..!..!..!......!..!..!..!..o
-o--x--+--+--xxxoo--+--xxxx--+--o
-o..!..!..!..!12oo..!..!..!..!..o
-o..!..!..!..!34oo..!..!..!..!..o
-oooo..o..o..oooooooo..o..o..oooo
-oooo..o..o..oooooooo..o..o..oooo
-o..!..!..!..!..oo..x..x..!..!..o
-o..!..!..!..!..oo..x..x..!..!..o
-o--+--+--xxxx--oo--x--x--+--+--o
-o..!..!..!..!......x..!..!..!..o
-o..!..!..!..!......x..!..!..!..o
-o--xxxx--x--+--oo--x--+--xxxx--o
-o..x..!..x..!......!..!..!..x..o
-o..x..!..x..!......!..!..!..x..o
-oxxx--x--x--x--oo--+--xxxx--x--o
-o..!..x..!..x......!..x..!..!..o
-o..!..x..!..x......!..x..!..!..o
-o--+--x--+--xxxoo--+--x--+--xxxo
-o..!..!..!..!..oo..!..!..!..!..o
-o..!..!..!..!..oo..!..!..!..!..o
-oooooooooooooooooooooooooooooooo
-
 Message Maze 3 of 3
 
 oooooooooooooooooooooooooooooooo
@@ -293,38 +262,5 @@ o--+--x--+--x--oo--+--xxxx--x--o
 o..!..!..!..x..oo..!..!..!..x..o
 o..!..!..!..x..oo..!..!..!..x..o
 oooooooooooooooooooooooooooooooo
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 MESSAGE Thank you for playing! :)

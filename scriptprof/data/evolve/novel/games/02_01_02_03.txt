@@ -46,6 +46,30 @@ orange
 0...0
 00000
 
+Mirror
+black
+00000
+0...0
+0...0
+0...0
+00000
+
+Relay
+grey yellow darkblue
+00000
+00000
+00000
+00000
+00000
+
+Spark
+darkgrey
+00000
+0...0
+0...0
+0...0
+00000
+
 ======
 LEGEND
 ======
@@ -56,6 +80,9 @@ P = Player
 * = Crate
 @ = Crate and Target
 O = Target
+a = Mirror
+b = Relay
+c = Spark
 
 ======
 SOUNDS
@@ -68,40 +95,40 @@ COLLISIONLAYERS
 ===============
 
 Background
-Target
+Target, Relay
 Player, Wall, Crate
+Mirror
+Spark
 
 =====
 RULES
 =====
 
-left [ Crate | no Crate no Target ] -> [  | Crate ]
-[ > Player | Background ] -> [ > Player |  ]
-late [ no Background ] [ Target ] -> [  ] [  ]
-[ > Player | Crate ] -> [ > Player | > Crate ]
+[ Player | Wall ] -> [ Player | Crate ]
+[ Player | Target ] -> [ Player | Relay ]
+random [ Relay | no Relay no Wall ] -> [ Relay | Relay ]
 
 =============
 WINCONDITIONS
 =============
 
-all Target on Crate
+No Target on Crate
 
 ======
 LEVELS
 ======
 
-####..
-#.O#..
-#..###
-#@P..#
-#..*.#
-#..###
-####..
-
-######
-#....#
+#b####
+#...c#
 #.#P.#
+#.*@P#
+#.O@c#
+#...c#
+
+#b####
+#.c..#
+#.aP##
 #.*@.#
 #.O@.#
-#....#
-######
+#cc..#
+#O#.b#

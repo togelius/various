@@ -3,9 +3,9 @@ author Jim Palmeri
 homepage www.puzzlescript.net
 again_interval .1
 
-========
+=======
 OBJECTS
-========
+=======
 
 Background
 #999999 #aaaaaa
@@ -255,9 +255,9 @@ Purple YELLOW BLACK
 .222.
 .2.2.
 
-=======
+======
 LEGEND
-=======
+======
 
 . = Background
 P = Player
@@ -294,13 +294,15 @@ CandyF = CandyR or CandyG or CandyB or CandyI
 
 Enemy = NinjaR or NinjaG or NinjaB or NinjaI
 
-=======
+======
 SOUNDS
-=======
+======
 
-================
+
+
+===============
 COLLISIONLAYERS
-================
+===============
 
 Background
 ClearMarker
@@ -309,56 +311,44 @@ Drop1, Drop2, Drop3, Drop4
 ArrowL, ArrowU, ArrowD, ArrowR
 Player, Wall, CandyR, CandyG, CandyB, CandyI, ScrollLeft, ScrollRight, ScrollTop, ScrollBottom, Candy0, Candy1, Candy2, Candy3, Candy4, Candy5, NinjaR, NinjaG, NinjaB, NinjaI
 
-======
+=====
 RULES
-======
+=====
 
-(Candy clear animation)
-[ Candy5 ] -> [ ] again
+[ action Player ] [ Candy0 ] -> [ Player ] [ ScrollTop ]
+[ action Player ] [ ScrollTop ] -> [ Player ] [ Candy0 ]
+[ Candy5 ] -> [  ] again
 [ Candy4 ] -> [ Candy5 ] again
 [ Candy3 ] -> [ Candy4 ] again
 [ Candy2 ] -> [ Candy3 ] again
 [ Candy1 ] -> [ Candy2 ] again
 [ Candy0 ] -> [ Candy1 ] again
-
-(Mark 3 candies in a line for destruction)
 [ ScrollBG CandyR | ScrollBG CandyR | ScrollBG CandyR ] -> [ ScrollBG ClearMarker CandyR | ScrollBG ClearMarker CandyR | ScrollBG ClearMarker CandyR ]
 [ ScrollBG CandyG | ScrollBG CandyG | ScrollBG CandyG ] -> [ ScrollBG ClearMarker CandyG | ScrollBG ClearMarker CandyG | ScrollBG ClearMarker CandyG ]
 [ ScrollBG CandyB | ScrollBG CandyB | ScrollBG CandyB ] -> [ ScrollBG ClearMarker CandyB | ScrollBG ClearMarker CandyB | ScrollBG ClearMarker CandyB ]
 [ ScrollBG CandyI | ScrollBG CandyI | ScrollBG CandyI ] -> [ ScrollBG ClearMarker CandyI | ScrollBG ClearMarker CandyI | ScrollBG ClearMarker CandyI ]
-
-(Check to see if enemies can be destroyed)
 [ ScrollBG ClearMarker CandyR ] [ Player | ... | NinjaR ] -> [ ScrollBG ClearMarker CandyR ] [ Player | ... | NinjaR ClearMarker ]
 [ ScrollBG ClearMarker CandyB ] [ Player | ... | NinjaB ] -> [ ScrollBG ClearMarker CandyB ] [ Player | ... | NinjaB ClearMarker ]
 [ ScrollBG ClearMarker CandyG ] [ Player | ... | NinjaG ] -> [ ScrollBG ClearMarker CandyG ] [ Player | ... | NinjaG ClearMarker ]
 [ ScrollBG ClearMarker CandyI ] [ Player | ... | NinjaI ] -> [ ScrollBG ClearMarker CandyI ] [ Player | ... | NinjaI ClearMarker ]
-
-(Destroy marked candies)
 [ ScrollBG ClearMarker Candy ] -> [ ScrollBG Candy0 ] again
-
-(Destroy marked enemies)
 [ ClearMarker Enemy ] -> [ Candy0 ]
-
-(Make candies fall)
 down [ CandyF ScrollBG | no Candy ScrollBG ] -> [ ScrollBG | CandyF ScrollBG ] again
+left [ Action Player | Candy ] [ Drop1 no Candy ] -> [ Action Player |  ] [ Candy Drop1 ] again
+up [ Action Player | Candy ] [ Drop2 no Candy ] -> [ Action Player |  ] [ Candy Drop2 ] again
+down [ Action Player | Candy ] [ Drop3 no Candy ] -> [ Action Player |  ] [ Candy Drop3 ] again
+right [ Action Player | Candy ] [ Drop4 no Candy ] -> [ Action Player |  ] [ Candy Drop4 ] again
 
-(Add candies to candy scroll)
-left [ Action Player | Candy ] [ Drop1 no Candy ] -> [ Action Player | ] [ Candy Drop1 ] again
-up [ Action Player | Candy ] [ Drop2 no Candy ] -> [ Action Player | ] [ Candy Drop2 ] again
-down [ Action Player | Candy ] [ Drop3 no Candy ] -> [ Action Player | ] [ Candy Drop3 ] again
-right [ Action Player | Candy ] [ Drop4 no Candy ] -> [ Action Player | ] [ Candy Drop4 ] again
-
-
-==============
+=============
 WINCONDITIONS
-==============
+=============
 
 No Candy
 No Enemy
 
-=======
+======
 LEVELS
-=======
+======
 
 message This is a game made in two days for #candyjam. Enjoy!
 

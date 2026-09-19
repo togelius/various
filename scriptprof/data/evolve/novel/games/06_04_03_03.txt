@@ -264,149 +264,84 @@ BlackTile
 RULES
 =====
 
-[> player] [ FrameRider ] -> [ player ] [> FrameRider]
-
-
-
-[> player] [ collected ]  -> [ player ] [> collected ]
-
-[> Player] [5] -> [Player] [> 5]
-[> Player] [8] -> [Player] [> 8]
-[> Player] [2] -> [Player] [> 2]
-[> Player] [4] -> [Player] [> 4]
-[> Player] [6] -> [Player] [> 6]
-[> Player] [7] -> [Player] [> 7]
-[> Player] [9] -> [Player] [> 9]
-[> Player] [1] -> [Player] [> 1]
-[> Player] [3] -> [Player] [> 3]
-
-
-UP    [> collected] -> [8]
-DOWN  [> collected] -> [2]
-LEFT  [> collected] -> [4]
-RIGHT [> collected] -> [6]
-
-UP    [> 5] -> [8]
-DOWN  [> 5] -> [2]
-LEFT  [> 5] -> [4]
-RIGHT [> 5] -> [6]
-
-
-DOWN  [> 8] -> [5]
-UP    [> 2] -> [5]
-LEFT  [> 6] -> [5]
-RIGHT [> 4] -> [5]
-
-
-late [5 frame] -> [ collected frame ]
-
-
-LEFT  [> 8] -> [7]
-RIGHT [> 8] -> [9]
-
-LEFT  [> 2] -> [1]
-RIGHT [> 2] -> [3]
-
-UP    [> 4] -> [7]
-DOWN  [> 4] -> [1]
-
-UP    [> 6] -> [9]
-DOWN  [> 6] -> [3]
-
-
-LEFT  [> 9] -> [8]
-RIGHT [> 7] -> [8]
-
-LEFT  [> 3] -> [2]
-RIGHT [> 1] -> [2]
-
-UP    [> 1] -> [4]
-DOWN  [> 7] -> [4]
-
-UP    [> 3] -> [6]
-DOWN  [> 9] -> [6]
-
-
-[> FirmMover | Barrier ] -> [ FirmMover | Barrier ]
-[> FirmMover Barrier ] -> [ FirmMover Barrier ]
-
-
-
-[> FluxMover Barrier | Barrier ] -> [ FluxMover Barrier | Barrier ] sfx1
-[> FluxMover | object Barrier ] -> [ FluxMover | object Barrier ] sfx1
-
-
-[> ooze | crate ] -> [ ooze | crate ]
-
-
-DOWN  [> 2| no Barrier ] -> [|8 ]
-UP    [> 8| no Barrier ] -> [|2 ]
-LEFT  [> 4| no Barrier ] -> [|6 ]
-RIGHT [> 6| no Barrier ] -> [|4 ]
-
-
-UP    [> 7| no Barrier ] -> [|1]
-LEFT  [> 7| no Barrier ] -> [|9]
-
-UP    [> 9| no Barrier ] -> [|3]
-RIGHT [> 9| no Barrier ] -> [|7]
-
-DOWN  [> 3| no Barrier ] -> [|9]
-RIGHT [> 3| no Barrier ] -> [|1]
-
-DOWN  [> 1| no Barrier ] -> [|7]
-LEFT  [> 1| no Barrier ] -> [|3]
-
-
-[action player] [ ooze F_Frame ]  -> [player] [ action FluxFrame  ]
-[action player] [ ooze E_Frame ]  -> [player] [ action EarthFrame ]
-[action player] [ ooze A_Frame ]  -> [player] [ action AirFrame   ]
-
-[action player] [ FluxFrame  ]    -> [player] [ action collected action F_Frame ]
-[action player] [ EarthFrame ]    -> [player] [ action collected action E_Frame ]
-[action player] [ AirFrame   ]    -> [player] [ action collected action A_Frame ]
-
-
-
-
-
-
+[ > player ] [ FrameRider ] -> [ player ] [ > FrameRider ]
+[ > player ] [ collected ] -> [ player ] [ > collected ]
+[ > Player ] [ 5 ] -> [ Player ] [ > 5 ]
+[ > Player ] [ 8 ] -> [ Player ] [ > 8 ]
+[ > Player ] [ 2 ] -> [ Player ] [ > 2 ]
+[ > Player ] [ 4 ] -> [ Player ] [ > 4 ]
+[ > Player ] [ 6 ] -> [ Player ] [ > 6 ]
+[ > Player ] [ 7 ] -> [ Player ] [ > 7 ]
+[ > Player ] [ 9 ] -> [ Player ] [ > 9 ]
+[ > Player ] [ 1 ] -> [ Player ] [ > 1 ]
+[ > Player ] [ 3 ] -> [ Player ] [ > 3 ]
+UP [ > collected ] -> [ 8 ]
+DOWN [ > collected ] -> [ 2 ]
+LEFT [ > collected ] -> [ 4 ]
+RIGHT [ > collected ] -> [ 6 ]
+UP [ > 5 ] -> [ 8 ]
+DOWN [ > 5 ] -> [ 2 ]
+LEFT [ > 5 ] -> [ 4 ]
+RIGHT [ > 5 ] -> [ 6 ]
+DOWN [ > 8 ] -> [ 5 ]
+UP [ > 2 ] -> [ 5 ]
+LEFT [ > 6 ] -> [ 5 ]
+RIGHT [ > 4 ] -> [ 5 ]
+late [ 5 frame ] -> [ collected frame ]
+LEFT [ > 8 ] -> [ 7 ]
+RIGHT [ > 8 ] -> [ 9 ]
+LEFT [ > 2 ] -> [ 1 ]
+RIGHT [ > 2 ] -> [ 3 ]
+UP [ > 4 ] -> [ 7 ]
+DOWN [ > 4 ] -> [ 1 ]
+UP [ > 6 ] -> [ 9 ]
+DOWN [ > 6 ] -> [ 3 ]
+LEFT [ > 9 ] -> [ 8 ]
+RIGHT [ > 7 ] -> [ 8 ]
+LEFT [ > 3 ] -> [ 2 ]
+RIGHT [ > 1 ] -> [ 2 ]
+UP [ > 1 ] -> [ 4 ]
+DOWN [ > 7 ] -> [ 4 ]
+UP [ > 3 ] -> [ 6 ]
+DOWN [ > 9 ] -> [ 6 ]
+[ > FirmMover | Barrier ] -> [ FirmMover | Barrier ]
+[ > FirmMover Barrier ] -> [ FirmMover Barrier ]
+[ > FluxMover Barrier | Barrier ] -> [ FluxMover Barrier | Barrier ] sfx1
+[ > FluxMover | object Barrier ] -> [ FluxMover | object Barrier ] sfx1
+[ > AirFrame | Target ] -> [ > AirFrame |  ]
+[ > ooze | crate ] -> [ ooze | crate ]
+DOWN [ > 2 | no Barrier ] -> [  | 8 ]
+UP [ > 8 | no Barrier ] -> [  | 2 ]
+LEFT [ > 4 | no Barrier ] -> [  | 6 ]
+RIGHT [ > 6 | no Barrier ] -> [  | 4 ]
+UP [ > 7 | no Barrier ] -> [  | 1 ]
+LEFT [ > 7 | no Barrier ] -> [  | 9 ]
+UP [ > 9 | no Barrier ] -> [  | 3 ]
+RIGHT [ > 9 | no Barrier ] -> [  | 7 ]
+DOWN [ > 3 | no Barrier ] -> [  | 9 ]
+RIGHT [ > 3 | no Barrier ] -> [  | 1 ]
+[ action player ] [ ooze F_Frame ] -> [ player ] [ action FluxFrame ]
+[ action player ] [ ooze E_Frame ] -> [ player ] [ action EarthFrame ]
+[ action player ] [ ooze A_Frame ] -> [ player ] [ action AirFrame ]
+[ action player ] [ FluxFrame ] -> [ player ] [ action collected action F_Frame ]
+[ action player ] [ EarthFrame ] -> [ player ] [ action collected action E_Frame ]
+[ action player ] [ AirFrame ] -> [ player ] [ action collected action A_Frame ]
 [ action FluxFrame ] [ WhiteTile ] -> [ action FluxFrame ] [ action 5 ]
-[ action FluxFrame ] [ BlackTile ] -> [ action FluxFrame ] [ action 6 ]
+[ action E_Frame ] [ BlackTile ] -> [ action E_Frame ] [ action 6 ]
 [ action FluxFrame ] -> [ FluxFrame ]
-
-
 [ action collected action F_Frame ] [ WhiteTile ] -> [ action collected action F_Frame ] [ action 5 ]
 [ action collected action F_Frame ] [ BlackTile ] -> [ action collected action F_Frame ] [ action 6 ]
-
 [ action 5 ] -> [ BlackTile ]
 [ action 6 ] -> [ WhiteTile ]
-
 [ action collected action F_frame ] -> [ collected F_frame ]
-
-
-
-
-[ > EarthFrame | object ]             -> [ > EarthFrame | > object ]
-[ < EarthFrame | object ]             -> [ < EarthFrame | < object ]
+[ > E_Frame | object ] -> [ > E_Frame | > object ]
+[ < EarthFrame | object ] -> [ < EarthFrame | < object ]
 [ > EarthFrame | > object | Barrier ] -> [ EarthFrame | object | Barrier ]
-
-
-
-
-
-
-[ > FluxFrame | object ]             -> [ > FluxFrame | > object ]
+[ > FluxFrame | object ] -> [ > FluxFrame | > object ]
 [ > FluxFrame | > object | Barrier ] -> [ FluxFrame | object | Barrier ]
-
-
 [ no object | ^ AirFrame | object ] -> [ no object | ^ AirFrame | < object ]
 [ no object | v AirFrame | object ] -> [ no object | v AirFrame | < object ]
-
-
 [ ClosedDrain ] -> [ OpenDrain ]
-
-
 late [ OpenDrain ] [ target no crate ] -> [ ClosedDrain ] [ target no crate ]
 
 =============
@@ -421,47 +356,52 @@ LEVELS
 
 message 1.
 
-##p#p
-p.D.#
-#.*.p
+
+####p
+#.D.#
+#.*.#
 #.o.#
 #####
 
 message 2.
 
+
 ...###.p
-##pp####
-#A.c.#.#
-#o.*..p#
+########
+#A.c.d.#
+#o.*..##
 #######.
 ........
 
 message 3.
 
+
 ...###.p
 ####E###
-#A.#.#.#
-#o.*..#p
+#A.#.d.#
+#o.*..##
 #######.
 ........
 
 message 4.
 
-#########p####p
+
+##############p
 #E.############
 #.*.*#o########
 ##...#.#..#.]##
 #.*.x.A...*..##
-pE.#c.#########
+#E.#c.#########
 ###############
 
 message 5.
+
 
 ###.###..##p
 .&#.#o..##]#
 .@.##.A..cx#
 #####...####
-...##p~..p##
+...###~..###
 
 message 6.
 
@@ -472,8 +412,8 @@ message 6.
 ........].
 ..........
 ..###.###p
-.###Eo##p#
-.###.#p###
+.###Eo####
+.###.#####
 #.#.c..cx#
 #.#..##.cA
 ####.##..#

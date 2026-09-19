@@ -46,14 +46,6 @@ green lightgreen #550044
 .000.
 2.2.2
 
-EarthFrame
-green lightgreen darkbrown
-.222.
-20002
-20102
-20002
-.222.
-
 AirFrame
 green lightgreen blue
 .2.2.
@@ -204,9 +196,9 @@ x = target
 % = target and BlackTile
 + = collected and F_Frame and BlackTile
 Frame = F_Frame or A_Frame
-FrameRider = FluxFrame or EarthFrame or AirFrame
+FrameRider = FluxFrame or AirFrame
 ooze = 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or collected
-FirmMover = 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or EarthFrame or AirFrame
+FirmMover = 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or AirFrame
 FluxMover = FluxFrame
 Barrier = BlackTile
 object = crate or frame
@@ -229,7 +221,7 @@ OpenDrain, ClosedDrain, target
 collected, player
 crate
 BlackTile
-FluxFrame, EarthFrame, AirFrame, F_Frame, A_Frame
+FluxFrame, AirFrame, F_Frame, A_Frame
 
 =====
 RULES
@@ -248,13 +240,14 @@ RULES
 [ > Player ] [ 3 ] -> [ Player ] [ > 3 ]
 UP [ > collected ] -> [ 8 ]
 DOWN [ > collected ] -> [ 2 ]
+[ > Player | collected ] -> [ collected | Player ]
 LEFT [ > collected ] -> [ 4 ]
 RIGHT [ > collected ] -> [ 6 ]
 UP [ > 5 ] -> [ 8 ]
 DOWN [ > 5 ] -> [ 2 ]
 LEFT [ > 5 ] -> [ 4 ]
 RIGHT [ > 5 ] -> [ 6 ]
-DOWN [ > 8 ] -> [ 5 ]
+DOWN [ v 8 ] -> [ 5 ]
 UP [ > 2 ] -> [ 5 ]
 LEFT [ > 6 ] -> [ 5 ]
 RIGHT [ > 4 ] -> [ 5 ]
@@ -304,9 +297,6 @@ LEFT [ > 1 | no Barrier ] -> [  | 3 ]
 [ action 5 ] -> [ BlackTile ]
 [ action 6 ] -> [ WhiteTile ]
 [ action collected action F_frame ] -> [ collected F_frame ]
-[ > EarthFrame | object ] -> [ > EarthFrame | > object ]
-[ < EarthFrame | object ] -> [ < EarthFrame | < object ]
-[ > EarthFrame | > object | Barrier ] -> [ EarthFrame | object | Barrier ]
 [ > FluxFrame | object ] -> [ > FluxFrame | > object ]
 [ > FluxFrame | > object | Barrier ] -> [ FluxFrame | object | Barrier ]
 [ no object | ^ AirFrame | object ] -> [ no object | ^ AirFrame | < object ]

@@ -78,7 +78,7 @@ RULES
 =====
 
 [ Zombie | ... | Wall ] -> [ ^ Zombie | ... | Wall ]
-[ > Zombie | Wall ] -> [ < Zombie | Wall ]
+[ Zombie | ... | Wall ] -> [ ^ Zombie | ... | Wall ]
 [ > Zombie | Wall ] -> [ < Zombie | Wall ]
 [ > Zombie | Player ] -> [ Zombie | Zombie ] message You got bitten! You're a zombie now. Press r to restart!
 

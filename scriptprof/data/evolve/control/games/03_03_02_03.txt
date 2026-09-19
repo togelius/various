@@ -77,7 +77,7 @@ PlayerUp, PlayerDown
 RULES
 =====
 
-[ > Player | Crate ] -> [ > Player | > Crate ]
+[ > Player | Crate | Target | Target ] -> [ > Player | > Crate | Target | Target ]
 [ UP Player ] -> [ UP PlayerUp ]
 [ LEFT PlayerUp ] -> cancel
 [ Target | > PlayerDown ] -> [ > Target | > PlayerDown ]
@@ -161,7 +161,7 @@ message level 7 of 9
 
 *******
 *.....*
-*.O*O.*
+O.**O.*
 *.*O*.*
 *.O*O.*
 *.*O*.*

@@ -114,7 +114,7 @@ RULES
 [ up RPolice ] -> [ RPolice ]
 [ down RPolice ] -> [ RPolice ]
 [ left RPolice ] -> [ RPolice ]
-[ down UPolice ] -> [ UPolice ]
+up [ down UPolice ] -> [ UPolice ]
 [ left UPolice ] -> [ UPolice ]
 [ right UPolice ] -> [ UPolice ]
 [ up LPolice ] -> [ LPolice ]
@@ -124,7 +124,6 @@ RULES
 [ left DPolice ] -> [ DPolice ]
 [ > Crate | UPolice ] -> [ > Crate |  ]
 late [ no UPolice ] [ Target ] -> [  ] [  ]
-[ right DPolice ] -> [ DPolice ]
 [ > Player | Crate ] -> [ > Player | > Crate ]
 [ > Crate | Crate ] -> [ > Crate | > Crate ]
 

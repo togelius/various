@@ -89,10 +89,9 @@ RULES
 
 [ > Player | Crate ] -> [ > Player | > Crate ]
 [ UP Player ] -> [ UP PlayerUp ]
-[ LEFT PlayerDown ] -> cancel
+[ LEFT PlayerUp ] -> cancel
 [ DOWN Player ] -> [ DOWN PlayerDown ]
-[ DOWN Player ] -> [ DOWN PlayerDown ]
-[ RIGHT PlayerDOWN ] -> cancel
+[ RIGHT PlayerDOWN no Target ] -> cancel
 
 =============
 WINCONDITIONS

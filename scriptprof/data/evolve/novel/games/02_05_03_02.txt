@@ -181,6 +181,9 @@ WINCONDITIONS
 =============
 
 No Target
+Some P1
+All Cell on Background
+All vBar on Background
 
 ======
 LEVELS
@@ -294,3 +297,36 @@ o..!..!..!..x..oo..!..!..!..x..o
 oooooooooooooooooooooooooooooooo
 
 MESSAGE Thank you for playing! :)
+
+oooooooooooooooooooooooooooooooo
+oab!..!..x..!..oo..!..!..x..!..o
+ocd!..!..x..!..oo..!..!..x..!..o
+oxxx--+--x--xxxoo--+--+--xxxx--o
+o..x..!..!..!......!..!..!..!..o
+o..x..!..!..!......!..!..!..!..o
+o--x--xxxx--x--ooxxx--+--x--xxxo
+o..!..!..!..x......!..!..x..!..o
+o..!..!..!..x......!..!..x..!..o
+o--x--+--+--x--oo--+--xxxx--+--o
+o..x..!..!..!......!..!..!..!..o
+o..x..!..!..!......!..!..!..!..o
+o--x--+--+--xxxoo--+--xxxx--+--o
+o..!..!..!..!12oo..!..!..!..!..o
+o..!..!..!..!34oo..!..!..!..!..o
+oooo..o..o..oooooooo..o..o..oooo
+oooo..o..o..oooooooo..o..o..oooo
+o..!..!..!..!..oo..x..x..!..!..o
+o..!..!..!..!..oo..x..x..!..!..o
+o--+--+--xxxx--oo--x--x--+--+--o
+o..!..!..!..!......x..!..!..!..o
+o..!..!..!..!......x..!..!..!..o
+o--xxxx--x--+--oo--x--+--xxxx--o
+o..x..!..x..!......!..!..!..x..o
+o..x..!..x..!......!..!..!..x..o
+oxxd--x--x--x--oo--+--xxxx--x--o
+o..!..x..!..x......!..x..!..!..o
+o..!..x..!..x......!..x..!..!..o
+o--+--x--+--xxxoo--+--x--+--xxxo
+o..!..!..!..!..oo..!..!..!..!..o
+o..!..!..!..!..oo..!..!..!..!..o
+oooooooooooooooooooooooooooooooo

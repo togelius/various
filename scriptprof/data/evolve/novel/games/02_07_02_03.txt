@@ -9,7 +9,6 @@ OBJECTS
 Background
 GREEN
 
-
 Target
 orange
 .....
@@ -42,6 +41,14 @@ DarkBlue
 0...0
 00000
 
+Echo
+brown
+0...0
+.0.0.
+..0..
+.0.0.
+0...0
+
 ======
 LEGEND
 ======
@@ -52,6 +59,7 @@ P = Player
 O = Crate
 @ = Crate and Target
 * = Target
+a = Echo
 
 ======
 SOUNDS
@@ -68,20 +76,22 @@ COLLISIONLAYERS
 Background
 Target
 Player, Wall, Crate
+Echo
 
 =====
 RULES
 =====
 
+[ > Target | Target ] -> [ > Target | > Target ]
 [ no Wall no Player no Crate | > Player | Crate ] -> [ Player | Crate |  ]
-[ action Player ] [ Crate ] -> [ Player ] [ Wall ]
-[ action Player ] [ Wall ] -> [ Player ] [ Crate ]
+late [ Wall | ... | Player ] -> [ > Wall | ... | Player ]
 
 =============
 WINCONDITIONS
 =============
 
 All Target on Crate
+Some Target
 
 ======
 LEVELS
@@ -89,76 +99,76 @@ LEVELS
 
 message level 10 of 10
 
-......#####
-......#O..#
+a.....#####
+....a.#O..#
 ......#O#.#
 #######O#.#
-#.P.*.*.*.#
+#.P.*.*.*a#
 #.#.#.#.###
 #.......#..
-#########..
+####O####..
 
 message level 9 of 10
 
-#####.
-#O..##
+####O.
+#O..O#
 #P**.#
 ##...#
-.##..#
+a##..#
 ..##O#
 ...###
 
 message level 8 of 10
 
-..######
+.a######
 ..#.OOP#
 ..#.**.#
-..##.###
+..#O.###
 ...#.#..
 ...#.#..
 ####.#..
-#....##.
-#.#...#.
+#..a.##.
+#a#...#.
 #...#.#.
 ###...#.
-..#####.
+..###O#.
 
 message level 7 of 10
 
 #######
-#.....#
+#..a..#
 #.O*O.#
 #.*O*.#
-#.O*O.#
-#.*O*.#
-#..P..#
-#######
+#.O*O.O
+#.*O*.O
+#..P.a#
+###O###
 
 message level 6 of 10
 
 ######.#####
-#....###...#
-#.**.....#P#
+#....###a..#
+#.**.a.a.#P#
 #.*.#OOO...#
-#...########
+#...##O###O#
 #####.......
 
 message level 5 of 10
 
-.#######
+.O######
 .#.....#
 .#.O*O.#
 ##.*P*.#
-#..O*O.#
+#..O*Oa#
 #......#
 ########
 
 message level 4 of 10
 
-########
-#......#
+##O#####
+#....a.#
 #.O@@*P#
-#......#
+#a...a.#
 #####..#
 ....####
 
@@ -168,25 +178,25 @@ message level 3 of 10
 ###..####
 #.....*.#
 #.#..#*.#
-#.O.O#P.#
-#########
+#.OaO#P.#
+########O
 
 message level 2 of 10
 
-######
-#....#
+##O###
+Oa..a#
 #.#P.#
 #.*@.#
 #.O@.#
-#....#
+#...a#
 ######
 
 message level 1 of 10
 
 ####..
-#.O#..
-#..###
+#.OO..
+#aa###
 #@P..#
-#..*.#
+O..*aO
 #..###
 ####..

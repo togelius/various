@@ -1,12 +1,13 @@
-title Broken Leg Sokoban
-author Franklin P. Dyer
+title Simple Block Pushing Game
+author David Skinner
+homepage www.puzzlescript.net
 
 =======
 OBJECTS
 =======
 
 Background
-LIGHTGREEN GREEN
+lightgreen green
 11111
 01111
 11101
@@ -14,185 +15,101 @@ LIGHTGREEN GREEN
 10111
 
 Target
-DarkBlue
+darkblue
 .....
 .000.
 .0.0.
 .000.
 .....
 
-PlayerUp
-Black Orange White Blue Gray
-.000.
-.000.
-22222
-.333.
-.4.3.
+Wall
+brown darkbrown
+00010
+11111
+01000
+11111
+00010
 
-PlayerDown
-Black Orange White Blue Gray
+Player
+black orange white blue
 .000.
 .111.
 22222
 .333.
-.3.4.
+.3.3.
 
 Crate
-Orange Yellow
+orange
 00000
 0...0
 0...0
 0...0
 00000
+
+Echo
+blue
+..0..
+.000.
+00000
+.000.
+..0..
 
 ======
 LEGEND
 ======
 
 . = Background
-P = PlayerDown
+# = Wall
+P = Player
 * = Crate
 @ = Crate and Target
 O = Target
-Player = PlayerUp or PlayerDown
+a = Echo
 
 ======
 SOUNDS
 ======
 
-Crate MOVE 36772507
-endlevel 83744503
-startgame 92244503
+Crate move 36772507
 
 ===============
 COLLISIONLAYERS
 ===============
 
 Background
-Target
-Crate
-PlayerUp, PlayerDown
+Target, Echo
+Player, Wall, Crate
 
 =====
 RULES
 =====
 
-[ > Player | Crate ] -> [ > Player | > Crate ]
-[ UP Player ] -> [ UP PlayerUp ]
-[ LEFT PlayerUp ] -> cancel
-[ Target | > PlayerDown ] -> [ > Target | > PlayerDown ]
-[ DOWN Player ] -> [ DOWN PlayerDown ]
-[ RIGHT PlayerDOWN ] -> cancel
+[ Crate | > Player ] -> [ > Crate | > Player ]
+[ > Crate | Target ] -> [ > Crate | > Target ]
+[ > Crate | Crate ] -> [ > Crate | ^ Crate ]
 
 =============
 WINCONDITIONS
 =============
 
-All Target on Crate
+No Target on Crate
 
 ======
 LEVELS
 ======
 
-message Yes, I know I've already used this mechanic, I'm just applying it to a new set of levels.
+####..
+#.O#a.
+#a.###
+#@P..#
+#..*.#
+#..###
+####..
 
-message level 1 of 9
-
-****..
-*.O*..
-*..***
-*@P..*
-*..*.*
-*...**
-*****.
-
-message level 2 of 9
-
-******
-*....*
-*.*P.*
-*.*@.*
-*.O@.*
-*....*
-******
-
-message level 3 of 9
-
-.*******.
-**...**.*
-*.....*P*
-*....**.*
-*.O.O*..*
-*********
-
-message level 4 of 9
-
-.....***
-******.*
-*......*
-*.O@@*P*
-*......*
-*.***..*
-***.****
-
-message level 5 of 9
-
-.*******
-.*.....*
-.*.O*O.*
-**.*P*.*
-*..O*O.*
-*......*
-********
-
-message level 6 of 9
-
-...****.....
-****..******
-*......*...*
-*.**.....*P*
-*.*.*OOO...*
-*...*.******
-*...***.....
-*****.......
-
-message level 7 of 9
-
-*******
-*.....*
-*.O*O.*
-*.*O*.*
-*.O*O.*
-*.*O*.*
-*..P..*
-*******
-
-message level 8 of 9
-
-....***.
-..***.**
-..*.OOP*
-..*.**.*
-..*..***
-..**.*..
-...*.*..
-****.**.
-*.....*.
-*.*...*.
-*...*.*.
-*.*...*.
-***.***.
-..***...
-
-message level 9 of 9
-
-...***
-****.*
-*O...*
-*P**.*
-**...*
-.*...*
-.***O*
-...***
-
-message congratulations!
+######
+#a.a.#
+#.#P.#
+#.*@.#
+#aO@.#
+#....#
+######

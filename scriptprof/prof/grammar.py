@@ -358,7 +358,29 @@ class Game:
         return chars
 
     def background_char(self) -> str:
-        """The legend character that stands for the most common floor tile."""
+        """The legend character that stands for empty floor.
+
+        Not the commonest character: in a Sokoban the commonest character is
+        the wall, because the border is solid, and treating walls as floor
+        makes every generated level a brick.  The right answer is the symbol
+        that resolves to an object on the bottom collision layer, which is
+        where PuzzleScript keeps the background by convention and where the
+        engine's own background mask looks for it.
+        """
+        table = self.all_symbols()
+        lo = self.layer_of()
+        named = {o.name.lower() for o in self.objects if "background" in o.name.lower()}
+        best: str | None = None
+        for ch in sorted(self.level_alphabet()):
+            members = [m.lower() for m in table.get(ch.lower(), [])]
+            if not members or len(members) > 1:
+                continue
+            if members[0] in named:
+                return ch
+            if best is None and lo.get(members[0], 99) == 0:
+                best = ch
+        if best is not None:
+            return best
         counts: dict[str, int] = {}
         for l in self.levels:
             if l.is_message:

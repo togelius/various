@@ -80,9 +80,8 @@ Player, Wall, Fruit, Crate
 RULES
 =====
 
-[ > Player | Fruit ] -> [ > Player | > Fruit ]
+late [ Crate | Fruit ] -> [  |  ]
 [ > Player | Crate ] -> [ > Player | > Crate ]
-[ > Player | Player ] -> [ > Player | > Player ]
 [ > Player |  ] -> [ > Player | NO Fruit ]
 
 =============
@@ -100,7 +99,7 @@ message collect all the pills
 message Wake up Ridlaa time to take your pills
 
 #######
-#.P..F#
+#FP.FF#
 #.....#
 ###C#..
 #....#.
@@ -109,10 +108,10 @@ message Wake up Ridlaa time to take your pills
 
 message You look kinda ill but I'm feeling them skills
 
-P#####.
+P#####F
 ...#...
-...#...
-.F.#.F.
+...#..F
+.F.#.FF
 ...#...
 ...C...
 .#####.
@@ -120,7 +119,7 @@ P#####.
 message Raise it up raise it up
 
 ####...
-#...#..
+#..F#..
 #.F..#.
 #.....#
 #..F..#
@@ -130,18 +129,18 @@ message Raise it up raise it up
 message Waiting for the aliens with bright lights n beams
 
 ..#...P
-..C....
+.FC....
 ..#.F..
-..#....
+F.#....
 ..#.F..
 ..#....
 F.#####
 
 message We all killing one another, there's no I in team
 
-...#...
-..#P#..
-.#...#.
+...#..F
+.F#P#..
+.#.F.#.
 ###C###
 #F....#
 #.....#
@@ -150,8 +149,8 @@ message We all killing one another, there's no I in team
 message Beam me up scotty n don't forget my hottie
 
 P..C...
-..#.#..
-.#...#.
+..#F#..
+.#..F#F
 ###C###
 #.....#
 #.....#
@@ -163,8 +162,16 @@ message A token of my life just trying to break free
 #.P...#.#####.#...#...C.......#.#....#.#..
 #....C....#...#.F..#..#......#...#..#...#.
 #####..F..C...#.....#.#.F...###C##.#######
-#....#....#...#.....#.#.....#....#.C.....#
+#....#....#...#.....#.#F....#....#.C.....#
 #.....#.#####.####C#..C.....#.F..#.#..F..#
-#......#..............#####.#....#.#.....#
+#F.....#..........F...#####.#....#.#.....#
 
 message You won!
+
+P##.##F
+...#...
+#..#F.F
+.F.#..F
+.#.#...
+...C...
+.###.#.

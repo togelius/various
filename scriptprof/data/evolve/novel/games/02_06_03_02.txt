@@ -4,15 +4,15 @@ homepage http://www.clickmazes.com
 again_interval 0.05
 flickscreen 16x16
 
-========
+=======
 OBJECTS
-========
+=======
 
 Background
 white
 
 Edge
-darkgrey 
+darkgrey
 00000
 00000
 00000
@@ -92,7 +92,7 @@ blue
 .....
 .....
 
-vBar 
+vBar
 #f0f0f0
 ..0..
 ..0..
@@ -100,7 +100,7 @@ vBar
 ..0..
 ..0..
 
-hBar 
+hBar
 #f0f0f0
 .....
 .....
@@ -108,7 +108,7 @@ hBar
 .....
 .....
 
-xBar 
+xBar
 #f0f0f0
 ..0..
 ..0..
@@ -127,9 +127,9 @@ white
 Cursor
 transparent
 
-=======
+======
 LEGEND
-=======
+======
 
 . = Cell
 x = Bar
@@ -150,40 +150,40 @@ Target = T1 or T2 or T3 or T4
 Grid = Cell or Wall or vBar or hBar or xBar
 Player = P1 or P2 or P3 or P4
 
-=======
+======
 SOUNDS
-=======
+======
 
-================
+
+
+===============
 COLLISIONLAYERS
-================
+===============
 
 Background
 Grid
 Target
 Player, Cursor
 
-======
+=====
 RULES
-======
+=====
 
-[ Player | Player | Cursor ] -> [ > Player | > Player | ]
-
+late [ Player | Player | Cursor ] -> [ > Player | > Player |  ]
 [ > Player | > Player | Wall ] -> cancel
-[ > Player | > Player | no Wall | ] -> [ > Player | > Player | | Cursor ] again
-late [Player Target | Player Target] -> [Player | Player] 
-late [ Cursor Edge ] -> [ Edge ]
-late [ Cursor Bar ] -> [ Bar ]
+[ > Player | > Player | no Wall |  ] -> [ > Player | > Player |  | Cursor ] again
+late [ Player Target | Player Target ] -> [ Player | Player ]
+[ Cursor Bar ] -> [ Bar ]
 
-==============
+=============
 WINCONDITIONS
-==============
+=============
 
 No Target
 
-=======
+======
 LEVELS
-=======
+======
 
 Message To the blue target
 
@@ -224,39 +224,6 @@ oooooooooooooooooooooooooooooooo
 
 Message Maze 2 of 3
 
-oooooooooooooooooooooooooooooooo
-oab!..!..x..!..oo..!..!..x..!..o
-ocd!..!..x..!..oo..!..!..x..!..o
-oxxx--+--x--xxxoo--+--+--xxxx--o
-o..x..!..!..!......!..!..!..!..o
-o..x..!..!..!......!..!..!..!..o
-o--x--xxxx--x--ooxxx--+--x--xxxo
-o..!..!..!..x......!..!..x..!..o
-o..!..!..!..x......!..!..x..!..o
-o--x--+--+--x--oo--+--xxxx--+--o
-o..x..!..!..!......!..!..!..!..o
-o..x..!..!..!......!..!..!..!..o
-o--x--+--+--xxxoo--+--xxxx--+--o
-o..!..!..!..!12oo..!..!..!..!..o
-o..!..!..!..!34oo..!..!..!..!..o
-oooo..o..o..oooooooo..o..o..oooo
-oooo..o..o..oooooooo..o..o..oooo
-o..!..!..!..!..oo..x..x..!..!..o
-o..!..!..!..!..oo..x..x..!..!..o
-o--+--+--xxxx--oo--x--x--+--+--o
-o..!..!..!..!......x..!..!..!..o
-o..!..!..!..!......x..!..!..!..o
-o--xxxx--x--+--oo--x--+--xxxx--o
-o..x..!..x..!......!..!..!..x..o
-o..x..!..x..!......!..!..!..x..o
-oxxx--x--x--x--oo--+--xxxx--x--o
-o..!..x..!..x......!..x..!..!..o
-o..!..x..!..x......!..x..!..!..o
-o--+--x--+--xxxoo--+--x--+--xxxo
-o..!..!..!..!..oo..!..!..!..!..o
-o..!..!..!..!..oo..!..!..!..!..o
-oooooooooooooooooooooooooooooooo
-
 Message Maze 3 of 3
 
 oooooooooooooooooooooooooooooooo
@@ -292,41 +259,4 @@ o..!..!..!..x..oo..!..!..!..x..o
 o..!..!..!..x..oo..!..!..!..x..o
 oooooooooooooooooooooooooooooooo
 
-(oooooooooooooooooooooooooooooooo
-oab!..!..!..!..oo..!..!..!..!12o
-ocd!..!..!..!..oo..!..!..!..!34o
-o--+--+--+--+--oo--+--+--+--+--o
-o..!..!..!..!......!..!..!..!..o
-o..!..!..!..!......!..!..!..!..o
-o--+--+--+--+--oo--+--+--+--+--o
-o..!..!..!..!..oo..!..!..!..!..o
-o..!..!..!..!..oo..!..!..!..!..o
-o--+--+--+--+--oo--+--+--+--+--o
-o..!..!..!..!......!..!..!..!..o
-o..!..!..!..!......!..!..!..!..o
-o--+--+--+--+--oo--+--+--+--+--o
-o..!..!..!..!..oo..!..!..!..!..o
-o..!..!..!..!..oo..!..!..!..!..o
-oooo..oooo..oooooooo..ooox..oooo
-oooo..oooo..oooooooo..oooo..oooo
-o..!..!..!..!..oo..!..!..!..!..o
-o..!..!..!..!..oo..!..!..!..!..o
-o--+--+--+--+--oo--+--+--+--+--o
-o..!..!..!..!......!..!..!..!..o
-o..!..!..!..!......!..!..!..!..o
-o--+--+--+--+--oo--+--+--+--+--o
-o..!..!..!..!..oo..!..!..!..!..o
-o..!..!..!..!..oo..!..!..!..!..o
-o--+--+--+--+--oo--+--+--+--+--o
-o..!..!..!..!......!..!..!..!..o
-o..!..!..!..!......!..!..!..!..o
-o--+--+--+--+--oo--+--+--+--+--o
-o..!..!..!..!..oo..!..!..!..!..o
-o..!..!..!..!..oo..!..!..!..!..o
-oooooooooooooooooooooooooooooooo)
-
 MESSAGE Thank you for playing! :)
-
-
-
-

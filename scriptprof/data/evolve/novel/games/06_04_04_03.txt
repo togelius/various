@@ -1,745 +1,450 @@
-title Snakey Jakey
-author Ethan Clark
-
-noaction
+title Coin Counter
+verbose_logging
 run_rules_on_level_start
-throttle_movement
-key_repeat_interval 0.15
-========
-OBJECTS
-========
 
-(Background
-#444444)
+=======
+OBJECTS
+=======
 
 Background
-#ff8800 #ee7700
-11111
-10000
-10000
-10000
-10000
-
-apple
-red
-.....
-.000.
-.000.
-.000.
-.....
+lightblue
 
 wall
-black #111111
-00000
-01010
-00000
-01010
-00000
+darkbrown
 
-snakeH
-#08bd08 red
-(#00aa00 red)
-.....
-.000.
-.101.
-.000.
-.....
+t
+transparent
 
-snakeL
-#00aa00
-.....
-0000.
-0000.
-0000.
-.....
+tl
+transparent
 
-snakeR
-#00aa00
-.....
-.0000
-.0000
-.0000
-.....
+tr
+transparent
 
-snakeU
-#00aa00
-.000.
-.000.
-.000.
-.000.
-.....
+m
+transparent
 
-snakeD
-#00aa00
-.....
-.000.
-.000.
-.000.
-.000.
+bl
+transparent
 
-snakeDisconnect
-#00aa00
-.....
-.000.
-.000.
-.000.
-.....
+br
+transparent
 
+b
+transparent
 
-vis_snakeL
-#00aa00
-.....
-0000.
-0000.
-0000.
-.....
+corner
+transparent
 
-vis_snakeR
-#00aa00
-.....
-.0000
-.0000
-.0000
-.....
+on
+blue
 
+off
+darkbrown
 
-vis_snakeU
-#00aa00
+one 1
+transparent
+
+two 2
+transparent
+
+three 3
+transparent
+
+four 4
+transparent
+
+five 5
+transparent
+
+six 6
+transparent
+
+seven 7
+transparent
+
+eight 8
+transparent
+
+nine 9
+transparent
+
+zero 0
+transparent
+
+player
+green
+
+coin
+#ff0
+.....
 .000.
-.000.
-.000.
+.0.0.
 .000.
 .....
 
-vis_snakeD
-#00aa00
-.....
-.000.
-.000.
-.000.
-.000.
+ending
+transparent
 
-vis_snakeDestroy
-green darkred
-.....
-.010.
-.101.
-.101.
-.....
+tens
+transparent
 
-hole
-gray
+carry
+transparent
 
-spike
-darkred
-.....
+fiver
+#ff0
 ..0..
-.0.0.
-.0.0.
-.....
-
-vis_spike
-darkred
-.....
+.000.
+00.00
+.000.
 ..0..
+
+star
+#ff0 yellow orange
+0.0.0
+.121.
+02.20
+.121.
+0.0.0
+
+hund
+transparent
+
+won
+transparent
+
+last
+transparent
+
+fakecoin
+#ff0
+.....
+.000.
 .0.0.
-.0.0.
+.000.
 .....
 
-snakePlatform
-green gray
-10001
-00000
-00000
-00000
-10001
-
-alive
-transparent
-
-eatApple
-transparent
-
-pushSelf
-transparent
-
-connected
-transparent
-
-makeU
-transparent
-
-makeD
-transparent
-
-makeL
-transparent
-
-makeR
-transparent
-
-=======
+======
 LEGEND
-=======
-. = Background
-s = snakeH 
-a = apple
-h = hole
-w = wall
-x = apple and hole
-# = spike
+======
 
-l = snakeL
-r = snakeR
-u = snakeU
-d = snakeD
-, = snakeDisconnect
+c = corner
+l = tl
+r = tr
+w = bl
+e = br
+seg = t or l or r or m or w or e or b
+num = zero or one or two or three or four or five or six or seven or eight or nine
+p = player
+k = coin
+. = background
+x = wall
 
-! = snakeL and hole
-@ = snakeR and hole
-% = snakeU and hole
-$ = snakeD and hole
-; = snakeDisconnect and hole
+! = t and coin
+@ = l and coin
+# = r and coin
+$ = m and coin
+% = w and coin
+^ = e and coin
+& = b and coin
+* = c and coin
 
-snakeBody = snakeR or snakeL or snakeU or snakeD or snakeDisconnect
+{ = t and fiver
+} = l and fiver
+; = r and fiver
+: = m and fiver
+' = w and fiver
+" = e and fiver
+, = b and fiver
+/ = c and fiver
 
-snakeVisual = vis_snakeL or vis_snakeR or vis_snakeU or vis_snakeD or vis_snakeDestroy
+f = fiver
 
-player = snakeH
+? = tens and wall
 
-snake = snakeBody or snakeH
+- = fakecoin
 
-solid = apple or snakeBody
+j = star
+` = hund
+z = ending
+~ = last
 
-=======
+======
 SOUNDS
-=======
+======
 
-sfx0 30887707
-sfx1 34443707
 
-================
+
+===============
 COLLISIONLAYERS
-================
+===============
+
 Background
-snakePlatform,hole,spike,wall
-snakeBody
-snakeVisual
-snakeH
-apple
-vis_spike
+seg
+corner
+num
+on
+off
+coin, fiver
+star
+player, wall
+ending
+tens
+carry
+won
+hund
+last
+fakecoin
 
-alive
-eatApple
-connected
-pushSelf
-
-makeU
-makeD
-makeL
-makeR
-
-======
+=====
 RULES
+=====
+
+[ last ] [ action player ] -> win
+[ last ] [ moving player ] -> win
+up [ tens | no tens ] -> [ tens | tens ]
+down [ tens | no tens ] -> [ tens | tens ]
+[ > player | off ] -> [ stationary player | off ]
+late [ player off ] -> [ off ]
+late [ player coin ] -> again
+late [ player fiver ] -> again
+late [ player star ] -> again
+[ player coin ] [ zero no tens ] -> [ player ] [ one ]
+[ player coin ] [ one no tens ] -> [ player ] [ two ]
+[ player coin ] [ two no tens ] -> [ player ] [ three ]
+[ player coin ] [ three no tens ] -> [ player ] [ four ]
+[ player coin ] [ four no tens ] -> [ player ] [ five ]
+[ player coin ] [ five no tens ] -> [ player ] [ six ]
+[ player coin ] [ six no tens ] -> [ player ] [ seven ]
+[ player coin ] [ seven no tens ] -> [ player ] [ eight ]
+[ player coin ] [ eight no tens ] -> [ player ] [ nine ]
+[ player coin ] [ nine no tens ] -> [ player ] [ zero carry ]
+[ player fiver ] [ zero no tens ] -> [ player ] [ five ]
+[ player fiver ] [ one no tens ] -> [ player ] [ six ]
+[ player fiver ] [ two no tens ] -> [ player ] [ seven ]
+random [ carry | no carry no won ] -> [ carry | carry ]
+[ player fiver ] [ three no tens ] -> [ player ] [ eight ]
+[ player fiver ] [ four no tens ] -> [ player ] [ nine ]
+late [ player eight ] -> restart
+[ player fiver ] [ five no tens ] -> [ player ] [ zero carry ]
+[ player fiver ] [ six no tens ] -> [ player ] [ one carry ]
+[ player fiver ] [ seven no tens ] -> [ player ] [ two carry ]
+[ player fiver ] [ eight no tens ] -> [ player ] [ three carry ]
+[ player fiver ] [ nine no tens ] -> [ player ] [ four carry ]
+[ carry no tens ] [ zero tens ] -> [  ] [ one tens ]
+[ carry no tens ] [ one tens ] -> [  ] [ two tens ]
+[ carry no tens ] [ two tens ] -> [  ] [ three tens ]
+[ carry no tens ] [ three tens ] -> [  ] [ four tens ]
+[ carry no tens ] [ four tens ] -> [  ] [ five tens ]
+[ carry no tens ] [ five tens ] -> [  ] [ six tens ]
+[ carry no tens ] [ six tens ] -> [  ] [ seven tens ]
+[ carry no tens ] [ seven tens ] -> [  ] [ eight tens ]
+[ carry no tens ] [ eight tens ] -> [  ] [ nine tens ]
+[ carry no tens ] [ nine tens ] -> [  ] [ zero tens carry ]
+right [ three | no three no on ] -> [  | three ]
+[ hund ] -> [ hund off ]
+[ tens carry ] [ hund off ] -> [ tens carry ] [ hund on ]
+[ player won ] -> win
+[ star player ] [ tens carry ] -> [ player won ] [ tens no carry ] again
+late [ br | ... | player ] -> [ > br | ... | player ]
+[ carry no tens ] -> [  ]
+[ seg no on ] -> [ seg on ]
+[ seg off ] -> [ seg ]
+[ m no tens ] [ zero no tens ] -> [ m off ] [ zero ]
+[ l no tens ] [ one no tens ] -> [ l off ] [ one ]
+[ w no tens ] [ one no tens ] -> [ w off ] [ one ]
+[ m no tens ] [ one no tens ] -> [ m off ] [ one ]
+[ t no tens ] [ one no tens ] -> [ t off ] [ one ]
+[ b no tens ] [ one no tens ] -> [ b off ] [ one ]
+[ l no tens ] [ two no tens ] -> [ l off ] [ two ]
+[ e no tens ] [ two no tens ] -> [ e off ] [ two ]
+[ l no tens ] [ three no tens ] -> [ l off ] [ three ]
+[ w no tens ] [ three no tens ] -> [ w off ] [ three ]
+[ b no tens ] [ four no tens ] -> [ b off ] [ four ]
+[ w no tens ] [ four no tens ] -> [ w off ] [ four ]
+late [ four | five ] -> [  |  ]
+[ t no tens ] [ four no tens ] -> [ t off ] [ four ]
+[ r no tens ] [ five no tens ] -> [ r off ] [ five ]
+[ w no tens ] [ five no tens ] -> [ w off ] [ five ]
+[ r no tens ] [ six no tens ] -> [ r off ] [ six ]
+[ l no tens ] [ seven no tens ] -> [ l off ] [ seven ]
+[ w no tens ] [ seven no tens ] -> [ w off ] [ seven ]
+[ m no tens ] [ seven no tens ] -> [ m off ] [ seven ]
+[ b no tens ] [ seven no tens ] -> [ b off ] [ seven ]
+[ w no tens ] [ nine no tens ] -> [ w off ] [ nine ]
+[ seg tens ] [ zero tens ] -> [ seg off tens ] [ zero tens ]
+[ l t ] [ one t ] -> [ l off t ] [ one t ]
+[ w tens ] [ one tens ] -> [ w off tens ] [ one tens ]
+[ m tens ] [ one tens ] -> [ m off tens ] [ one tens ]
+[ t tens ] [ one tens ] -> [ t off tens ] [ one tens ]
+[ b tens ] [ one tens ] -> [ b off tens ] [ one tens ]
+[ l tens ] [ two tens ] -> [ l off tens ] [ two tens ]
+[ e tens ] [ two tens ] -> [ e off tens ] [ two tens ]
+[ l tens ] [ three tens ] -> [ l off tens ] [ three tens ]
+[ w tens ] [ three tens ] -> [ w off tens ] [ three tens ]
+[ b tens ] [ four tens ] -> [ b off tens ] [ four tens ]
+[ action player ] [ tl ] -> [ player ] [ two ]
+[ action player ] [ two ] -> [ player ] [ tl ]
+[ w tens ] [ four tens ] -> [ w off tens ] [ four tens ]
+[ t tens ] [ four tens ] -> [ t off tens ] [ four tens ]
+[ r tens ] [ five tens ] -> [ r off tens ] [ five tens ]
+[ w tens ] [ five tens ] -> [ w off tens ] [ five tens ]
+[ r tens ] [ six tens ] -> [ r off tens ] [ six tens ]
+[ l tens ] [ seven tens ] -> [ l off tens ] [ seven tens ]
+[ w tens ] [ seven tens ] -> [ w off tens ] [ seven tens ]
+[ m tens ] [ seven tens ] -> [ m off tens ] [ seven tens ]
+[ b tens ] [ seven tens ] -> [ b off tens ] [ seven tens ]
+[ w tens ] [ nine tens ] -> [ w off tens ] [ nine tens ]
+[ hund on ] [ seg off ] -> [ hund on ] [ seg on ]
+[ hund on ] [ m on ] -> [ hund on ] [ m off ]
+[ on off ] -> [ off ]
+[ corner no off ] -> [ corner off ]
+[ corner on ] -> [ corner ]
+[ corner off | seg on ] -> [ corner on | seg on ]
+
+=============
+WINCONDITIONS
+=============
+
+no coin
+no fiver
+all ending on player
+No eight
+All hund on Background
+No six
+All three on Background
+
+======
+LEVELS
 ======
 
-[alive] -> []
-[eatApple] -> []
-[connected] -> []
-[pushSelf] -> []
-
-[snakeVisual] -> []
-[vis_spike] -> []
-(can't go backwards)
-right [> player | SnakeL] -> cancel
-left [> player | SnakeR] -> cancel
-up [> player | SnakeD] -> cancel
-down [> player | SnakeU] -> cancel
-
-(don't move player into screen edge)
-[> player] -> [> player connected]
-[> player| ] -> [> player no connected | ]
-[player connected] -> cancel
-
-(have player push self)
-[> player | snakeBody] -> [> player > pushSelf | > snakeBody > pushSelf] sfx1
-
-([> player pushSelf | snakeBody] -> [> player pushSelf | > snakeBody pushSelf])
-
-([snakeBody pushSelf | snakeBody] -> [snakeBody pushSelf | snakeBody])
-left [snakeL | moving player pushSelf] -> [moving snakeL | moving player pushSelf]
-right [snakeR | moving player pushSelf] -> [moving snakeR | moving player pushSelf]
-up [snakeU | moving player pushSelf] -> [moving snakeU | moving player pushSelf]
-down [snakeD | moving player pushSelf] -> [moving snakeD | moving player pushSelf]
-
-left [moving snakeL | snakeBody] -> [moving snakeL | moving snakeBody]
-+right [moving snakeR | snakeBody] -> [moving snakeR | moving snakeBody]
-+up [moving snakeU | snakeBody] -> [moving snakeU | moving snakeBody]
-+down [moving snakeD | snakeBody] -> [moving snakeD | moving snakeBody]
-+left [snakeL | moving snakeBody] -> [moving snakeL | moving snakeBody]
-+right [snakeR | moving snakeBody] -> [moving snakeR | moving snakeBody]
-+up [snakeU | moving snakeBody] -> [moving snakeU | moving snakeBody]
-+down [snakeD | moving snakeBody] -> [moving snakeD | moving snakeBody]
-+ [> solid | solid] -> [> solid | > solid]
-
-[moving snakeBody pushSelf] -> [moving snakeBody moving pushSelf]
-
-(create new tail part)
-[left player no pushSelf] -> [left player makeL]
-[right player no pushSelf] -> [right player makeR]
-[up player no pushSelf] -> [up player makeU]
-[down player no pushSelf] -> [down player makeD]
-
-
-(don't move body into screen edge)
-[> solid] -> [> solid connected]
-[> solid| ] -> [> solid no connected | ]
-[solid connected] -> cancel
-
-(we can't handle movement this complex :/ 
-[> snakeBody | player] -> cancel)
-
-([> snakeBody | solid] -> [> snakeBody | > solid])
-[> solid | solid] -> [> solid | > solid]
-
-late [player hole] -> cancel
-late [player snakeBody] -> cancel
-late [player spike] -> cancel
-late [player wall] -> cancel
-
-(repropogate the flag)
-late [snake pushSelf | snake] -> [snake pushSelf | snake pushSelf]
-
-(make snake parts)
-late [makeL] -> [snakeL]
-late [makeR] -> [snakeR]
-late [makeU] -> [snakeU]
-late [makeD] -> [snakeD]
-
-(see if apple eaten)
-late [player apple] -> [player eatApple] sfx0
-late [snakeBody | eatApple] -> [snakeBody eatApple | eatApple]
-
-(spikes destroy snake)
-late [snakeBody spike] -> [vis_snakeDestroy spike]
-
-late left [snakeL | ] -> [snakeL | alive]
-+late right [snakeR | ] -> [snakeR | alive]
-+late up [snakeU | ] -> [snakeU | alive]
-+late down [snakeD | ] -> [snakeD | alive]
-
-(see which parts of snake are connected to head)
-late [snakeH] -> [snakeH connected]
-late left [snakeL | connected] -> [snakeL connected | connected]
-+late right [snakeR | connected] -> [snakeR connected | connected]
-+late up [snakeU | connected] -> [snakeU connected | connected]
-+late down [snakeD | connected] -> [snakeD connected | connected]
-
-(shrink snake, if needed)
-late left [snakeL | snakeBody] -> [snakeL | snakeBody alive]
-+late right [snakeR | snakeBody] -> [snakeR | snakeBody alive]
-+late up [snakeU | snakeBody] -> [snakeU | snakeBody alive]
-+late down [snakeD | snakeBody] -> [snakeD | snakeBody alive]
-
-late [no alive no eatApple no pushSelf connected snakeBody] -> []
-
-(handle disconnected snake parts)
-late left [snakeL | no snakeH no snakeBody] -> [snakeDisconnect | ]
-late right [snakeR | no snakeH no snakeBody] -> [snakeDisconnect | ]
-late up [snakeU | no snakeH no snakeBody] -> [snakeDisconnect | ]
-late down [snakeD | no snakeH no snakeBody] -> [snakeDisconnect | ]
-
-(collision check)
-
-late [apple snakeBody] -> cancel
-late [snakeBody wall] -> cancel
-
-(make snakebodies fall into the ground)
-late [connected] -> []
-late [snakeH] -> [snakeH connected]
-late [snakeBody no hole] -> [snakeBody connected]
-
-left late [snakeL connected | snake] -> [snakeL connected | snake connected]
-+right late [snakeR connected | snake] -> [snakeR connected | snake connected]
-+up late [snakeU connected | snake] -> [snakeU connected | snake connected]
-+down late [snakeD connected | snake] -> [snakeD connected | snake connected]
-+left late [snakeL | snake connected] -> [snakeL connected | snake connected]
-+right late [snakeR | snake connected] -> [snakeR connected | snake connected]
-+up late [snakeU | snake connected] -> [snakeU connected | snake connected]
-+down late [snakeD | snake connected] -> [snakeD connected | snake connected]
-
-
-late [snakeBody no connected] -> [snakePlatform no hole]
-
-
-(make visuals)
-late left [snakeL | snakeBody] -> [snakeL | snakeBody vis_snakeR]
-late right [snakeR | snakeBody] -> [snakeR | snakeBody vis_snakeL]
-late up [snakeU | snakeBody] -> [snakeU | snakeBody vis_snakeD]
-late down [snakeD | snakeBody] -> [snakeD | snakeBody vis_snakeU]
-
-(make visual connection from head)
-late right [player | snakeL] -> [player vis_snakeR | snakeL]
-late left [player | snakeR] -> [player vis_snakeL | snakeR]
-late up [player | snakeD] -> [player vis_snakeU | snakeD]
-late down [player | snakeU] -> [player vis_snakeD | snakeU]
-right [> player | ] -> [> player | vis_snakeL]
-up [> player | ] -> [> player | vis_snakeD]
-down [> player | ] -> [> player | vis_snakeU]
-left [> player | ] -> [> player | vis_snakeR]
-
-(make vis_spike)
-late [spike apple] -> [spike apple vis_spike]
-
-
-(late [snakeVisual] -> [])
-
-==============
-WINCONDITIONS
-==============
-
-no apple
-
-=======
-LEVELS
-=======
-
-(part 1)
-message Part 1: Beginnings
-
-hhhhhhhhhh
-h........h
-h.s.aaaaah
-h........h
-hhhhhhhhhh
-
-hhhhhhhhh
-ha......h
-h.aaaa.ah
-h....a.ah
-ha.aaaaah
-h..a.a..h
-ha.aaa..h
-h......sh
-hhhhhhhhh
-
-hhhhhhhhh
-hhhhaaahh
-hhhhahahh
-hhs..aahh
-hhhh.hhhh
-hha..hhhh
-hhhhhhhhh
-
-hhhhhhhh
-hhhaaahh
-hhh.hahh
-hs.aaahh
-hhh.hxhh
-hh..h.hh
-hh.hh.hh
-hh....hh
-hhhhhhhh
-
-hhhhhhh
-haaaaah
-hahahah
-haaaaah
-hahahah
-hsaaaah
-hhhhhhh
-
-hhhhhhh
-h..aash
-hxhahhh
-h..aa.h
-h.hah.h
-h.aa..h
-hhhhhhh
-
-hhhhhhh
-hh.shhh
-haa.hhh
-hahhhhh
-haaahhh
-hahahhh
-haaahhh
-h.hhhah
-h.....h
-hhhhhhh
-
-hhhhhhhhhhh
-h...hhh...h
-h.s...aaa.h
-h...hxh...h
-hhhhhhhhhhh
-
-hhhhhhhhh
-h.......h
-h.hhhhh.h
-h.hhhhh.h
-h.hhhhh.h
-h.hhhhh.h
-h.hhhhxhh
-h.saaahhh
-h.aaaahhh
-hhhhhhhhh
-
-hhhhhhhh
-h..ahx.h
-hs.ahx.h
-h..ahh.h
-h..ahx.h
-h.hhhh.h
-h......h
-hhhhhhhh
-
-(part 2: walls)
-message Part 2: Walls
-
-hhhhhhhhh
-h.......h
-h...w...h
-h...w...h
-h.s.w.a.h
-h...w...h
-h...w...h
-h.......h
-hhhhhhhhh
-
-hhhhhhhhhhh
-hhaahhhhhhh
-hhaahhhhhhh
-hhh.hhhwwwh
-hww..s.aawh
-hw..hhwaawh
-hwaawhwwwwh
-hwwwwhhhhhh
-hhhhhhhhhhh
-
-hhhhhhhhh
-haaawaaah
-haaawaaah
-hhhawahhh
-h...w...h
-h...s...h
-hhhhhhhhh
-
-(part 3: snake bodies)
-message Part 3: Rigidbodies
-
-hhhhhhhhh
-h.......h
-h...,...h
-h.s.u.a.h
-h...u...h
-h.......h
-hhhhhhhhh
-
-hhhhhhhh
-hhhhhhah
-hhhhhhhh
-h...,hhh
-h.s.uhhh
-h...uhhh
-h....hhh
-hhhhhhhh
-
-hhhhhhh
-h...hhh
-h...hhh
-h.,sx.h
-h...hhh
-h...hhh
-hhhhhhh
-
-hhhhhhhhhhh
-h.....hhhhh
-h..s..hhhhh
-h..,..hhhhh
-h.rrd.hhhhh
-h.uad.hhhhh
-h.ull.hhhhh
-h.....hhhhh
-hhhhhhhhhhh
-
-hhhhhhhhhhh
-h.........h
-h.,.hhhhh.h
-h.a.hhhhh.h
-h.a.hhxhh.h
-h.a.hhhhh.h
-h.s.hhhhh.h
-hhhhhhhhhhh
-
-hhhhhhhhhhhh
-hhh.....hhhh
-hhh.....hhhh
-hhh.....hhhh
-hhx.....x..h
-hhh.d.,.h..h
-h.h.rru.h.hh
-h....a....hh
-hhhhhshhhhhh
-hhhhhhhhhhhh
-
-hhhhhhhhhhh
-hhhhhxhhhhh
-h.........h
-h..r,..r,.h
-h..u...u..h
-h.ru..ru..h
-h....s....h
-hhhhhhhhhhh
-
-hhhhhhhhhhhh
-hhhh$!!!!!!h
-hhh$!hhhhh%h
-h;!!hhaaahuh
-hha;!hsaahdh
-hhhh%hwwwh$h
-hhhh%!!!!!!h
-hhhhhhhhhhhh
-
-(part 4: spikes)
-message Part 4: Spikes
-
-hhhhhhhhh
-h......ah
-h.......h
-h...aa..h
-h.s.#a..h
-h...aa..h
-h.......h
-h......ah
-hhhhhhhhh
-
-hhhhhhhh
-hhhwaaah
-hhhwahah
-hs..aaah
-hhhh.#hh
-hhhh.hhh
-hhhh..ah
-hhhhhhhh
-
-hhhhhhhhhh
-hsaaa#h..h
-haaaa#h..h
-haaaa#h.hh
-haaa,....h
-hhhhh#hhhh
-hhhhh#hhah
-hhhhhhhhhh
-
-hhhhhhhhhhhhh
-h........hhhh
-h.wwwwwhxhhhh
-h.w.aaah.hhhh
-h.wsaa.....#h
-h.w.aaah.h.hh
-h.wwwwwhxh.hh
-h..........hh
-hhhhhhhhhhhhh
-
-hhhhhhhhhhhhh
-hhhh.....waah
-haaa.....w..h
-hahh..#....wh
-hash.....w..h
-hhhh.....waah
-hhhhhhhhhhhhh
-
-hhhhhhhhhhh
-h.......w.h
-h..aaa..w.h
-h.s.#a..wah
-h..aaa..w.h
-h.......w.h
-hhhhhhhhhhh
-
-(part 5: advanced)
-message Part 5: Advanced
-
-hhhhhhhhhhhh
-hhhhhhhhhhhh
-hhhhhhhhhhah
-hhhhhhhhhhhh
-hhhhhhhhhhhh
-h......hhhhh
-h..aaa.hhhhh
-h.sa#a.hhhhh
-h..aaa.hhhhh
-h......hhhhh
-hhhhhhhhhhhh
-
-hhhhhhhhhh
-h........h
-h..hhhhh.h
-h..hhhhh.h
-h..hhhhhhh
-h..hhhhhhh
-h..hhhhxhh
-h..saaahhh
-h..aaaahhh
-h......hhh
-h......hhh
-hhhhhhhhhh
-
-hhhhhhhhhh
-hsaaa#h..h
-haaaa#h..h
-haaaa#h.hh
-haaa,....h
-hhhhh#hhhh
-hhhhh#hhhh
-hhhhh#hhhh
-hhhhh#hhah
-hhhhhhhhhh
-
-hhhhhhhhh
-h..hhaaah
-h.h@,aaah
-h.h%hhhhh
-h.hhhhhhh
-h..h....h
-h.aaaas.h
-h.......h
-h.......h
-hhhhhhhhh
-
-hhhhhhhhhh
-hhhh.ahhhh
-hhhhhhhhhh
-h...@,hhhh
-h.hh%hhhhh
-h...#...hh
-h..a.a..hh
-h..a.a..hh
-h...s...hh
-hhhhhhhhhh
-
-message Congragulations! You did it!
-
-
-(maybe?? levels)
-
-(hhhhhhh
-haaaaah
-haxxxah
-haaaaah
-haxxxah
-hsaaaah
-hhhhhhh)
-
-(level graveyard)
-
-(hhhhhhh
-h..s..h
-hw....h
-h..h;hh
-h..hxhh
-h.,...h
-h.....h
-hhhhhhh)
-
+x-xxxxxxxxx
+xxxctcxctcx
+xxxlxrxlxrx
+xxxcmcxcmcx
+xxxwxexwxex
+xxxcbcxcbcx
+xjx???xxxxx
+xxxxxxxxxxx
+xp0k0.kp.kz
+xxxxxxxxxxx
+
+xxxxxxxxxxxxxxx
+xxxxxxxctc..p.z
+xxxxxxxlxrxxxxx
+xxxxxxxcmcxxxxx
+xxxxxxxwxexxxxx
+p.3kpkpcbcxxxxx
+xxxxxxxxxxxxxxx
+
+xxxxxxzx
+x?xxxx.x
+x.....px
+x.xxxxxx
+xckctckx
+xrxlxrxx
+xcxc$cxx
+xexwxexx
+xckcbckx
+xxxxxx.x
+p05p...x
+xxxxxxxx
+
+x?xxxx?zx
+xxxxxxx0x
+xcx*!*x.x
+xrxlxrx.x
+xcx*$*x.x
+xexwxexpx
+xcx*&*1px
+xxxxxxx.x
+
+xx???xxxx?xx
+z.ctc.c!c.xx
+xplxrx@x#pxx
+x.cmcxc$c.xx
+x9wxexwx^1xx
+x.cbcpcbc.xx
+xxxxxxxxxpxx
+
+x????xxxxxx
+z.ctcfctc.p
+xplxrxlx#.x
+x.cmcxcm*.x
+x2wxexwx^4x
+x.cbcfcbc.x
+xxxxxxxxxxx
+
+x????xxxxx
+xctc3ctcxx
+x@xrx}xrxx
+xc$cxc:c7p
+xwx^xwx"px
+xc&cxc,cpx
+xxxxxxxxzx
+
+x????xxxpx
+xctc6ctc.x
+x}x;x@x#.x
+xcmcxc$c1x
+x'x"xwx^px
+xc,c.c&cpx
+xxxxxxxxzx
+
+xx???xxxxpx
+x..k91.k..x
+x.ctcxctc.x
+xklxrxlxrkx
+x.cmcxcmc.x
+xkwxexwxekx
+x.cbcxcbc.x
+x..k.p.k.px
+xzxx&xxxxxx
+
+xpxxxxxxxxx
+xkxxxxxxxxx
+x`xctcxctcx
+x`xlxrxlxrx
+x`xcmcxcmcx
+x`xwxexwxex
+x`xcbcxcbcx
+xjx???xxxxx
+xxxxxxxxxxx
+xp9.9..pp.z
+xxxxxxxxxxx
+
+xxx???xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+xxx???xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+xxx???.ctcxxxxxxxxxxxxxxxxxxxxxxxx
+xxx???xlxrxxxxxxxxxxxxxxxxxxxxxxxx
+xxx???xcmc..z.xxx.ctc..z.xxx.ctc.x
+xxx???xwxe.xx.xxxxlxr.xx.xxxxlxr.x
+xxx???xcbc.xx.xxxxcmc.xx.xxxxcmc.x
+xxx???xxxxzxx.xxxxwxe.xx.xxxxwxe.x
+xxx???xxxx.xx.xxx.cbc.xx.xxx.cbc.x
+xxxctc.ctc.xxxxxxxxxxzxxxxxxxxxx.x
+xxxl?rxlxr.xxxxxxxxxxxxxxxxxxxxxzx
+xxxcmcxcmc.xxxxxxxxxxxxxxxxxxxxx.x
+xxxw?exwxe.xxxxxx.....xxxxxxctcx.x
+xxxcbc.cbc.xxxx..xxxxx..xxxxlxrx.x
+xxx???xxxxzxxx.xxxxxxxxx.xxxcmcx.x
+xxx???xxxx.xxx.xx.xxx.xx.xxxwxex.x
+x..........xx.xxx.xxx.xxx.xxcbc..x
+x.xxx?xctc.xx.xxx.x.x.xxx.xxxxxx.x
+x.x?x?xlxr.xx.xxxxx~xxxxx.xxxxxxzx
+xpxxx?xcmc.xx.xx..xxx..xx.xxxxxx.x
+x.x?x?xwxe.xx.xx......pxx.x......x
+x.xxx?xcbc.xx..xx.....xx.xx.xxxxxx
+x..........xxx.xxx...xxx.xxx.ctc.x
+xzx???xxxxxxxxx..xxxxx..xxxxxlxrxx
+x.x???xxxxxxxxxxx.....xxxxxxxcmcxx
+xxxctcxctcxxxxxxxxxxxxxxxxxxxwxexx
+xxxl?rxlxrxxxxxxxxxxxxxxxxxx.cbc.x
+xxxcmcxcmcxxxxxxxxxxxxxxxxxxxxxx.x
+xxxw?exwxexxxxxxxxctc....zp......x
+xxxcbcxcbcxxxxxxxxlxrxxxxxxxxxxxxx
+xpx???xxxxxxxxxxxxcmcxxxxxxxxxxxxx
+xxx???xxxxxxxxxxxxwxexxxxxxxxxxxxx
+0...0.....z.......cbcxxxxxxxxxxxxx
+xxx???xxxxxxxxxxxxxxxxxxxxxxxxxxxx

@@ -99,6 +99,22 @@ darkgrey
 .000.
 .....
 
+Husk
+orange purple
+..0..
+.000.
+00000
+.000.
+..0..
+
+Rust
+darkgreen black gray
+.000.
+00000
+00000
+00000
+.000.
+
 ======
 LEGEND
 ======
@@ -111,6 +127,8 @@ playera = player and a
 p = player
 e = enemy1
 d = Spark
+f = Husk
+g = Rust
 
 ======
 SOUNDS
@@ -133,34 +151,44 @@ a
 b, block1
 c, Spark
 Enemy1, s1, s2, s3, s4
+Husk
+Rust
 
 =====
 RULES
 =====
 
 [ s ] -> [  ]
+late [ s2 | ... | player ] -> [ > s2 | ... | player ]
+late [ s2 | ... | player ] -> [ > s2 | ... | player ]
+late [ s4 | ... | player ] -> [ > s4 | ... | player ]
 [ a ] -> [  ]
-[ block1 ] -> [  ]
 up [ > player |  | enemy1 ] -> [  | playera | s1 ]
 up [ > player |  | enemy1 ] -> [  | playera | s1 ]
 right [ > player |  | enemy1 ] -> [  | playera | s2 ] restart
 down [ > player |  | enemy1 ] -> [  | playera | s3 ]
 left [ > player |  | enemy1 ] -> [  | playera | s4 ]
+[ > player | s3 ] -> [ > player | > s3 ]
+[ > player | s1 ] -> [ s1 | player ]
 up [ > player | enemy ] -> [ playera | s1 ]
-right [ > player | enemy ] -> [ playera | s2 ]
+right [ > player | enemy ] -> [ player | s2 ]
 down [ > player | enemy ] -> [ playera | s3 ]
 left [ > player | enemy ] -> [ playera | s4 ]
-[ > player | no enemy ] -> [  | player ] sfx1
+[ > player no s4 | no enemy ] -> [  | player ] sfx1
 [ player | ... | no b ] -> [ player | ... | b ]
 horizontal [ enemy no c | ... | b ] -> [ > enemy > c | ... | b ]
+late [ s4 | s3 ] -> [  |  ]
 vertical [ enemy no c | ... | b ] -> [ > enemy > c | ... | b ]
 [ enemy | ... | player ] -> [ > enemy > c | ... | player ]
 [ moving enemy | player ] -> [ stationary enemy | player ]
+random [ Rust | no Rust no block1 ] -> [ Rust | Rust ]
+[ moving enemy | player ] -> [ stationary enemy | player ]
 late [ enemy no a | player no block1 ] -> [ enemy a | player block1 ]
-late up [ enemy no a | player block1 ] -> [ enemy | s1 ] sfx0
+late up [ enemy no a | player b ] -> [ enemy | s1 ] sfx0
+random [ s4 | no s4 no Husk ] -> [ s4 | s4 ]
 late right [ enemy no a | player block1 ] -> [ enemy | s2 ] sfx0
 down [ > player | s1 ] -> cancel
-late down [ enemy no a | player block1 ] -> [ enemy | s3 ] sfx0
+late down [ enemy no a no s2 | player block1 ] -> [ enemy | s3 ] sfx0
 late left [ enemy no a | player block1 ] -> [ enemy | s4 ] sfx0
 late up [ enemy | playera ] -> [ enemy | s1 ] sfx0
 late right [ s4 | playera ] -> [ s4 | s2 ] sfx0
@@ -174,6 +202,7 @@ WINCONDITIONS
 =============
 
 no enemy
+No a
 
 ======
 LEVELS
@@ -183,88 +212,100 @@ Message A truly skilled duelist will not allow the fight to last for more than a
 
 Message It happens so fast, you can barely see it.
 
-...
+.f.
 de.
-...
-...
-...
 .p.
 ...
+g.f
+.p.
+gf.
 
 Message You can block an attack from a single opponent.
 
-......e
-dp.e...
-.....e.
+.g.g.fe
+dp.e.p.
+p...ge.
 
 Message Do not allow them to flank you.
 
 ..d..
-d....
-.ep.e
-.....
-....d
+dp.g.
+pep.e
+.f...
+..g.d
 
 Message You cannot block multiple attacks!
 
-.d.....
-.e..d..
-.e.....
-.......
+.d.g...
+.ef.d..
+.e....f
+.....g.
 ....e..
 ....e..
-.......
+.g.....
 ...e...
 ...e...
 .......
 ...p...
-.......
+......p
 .......
 
 Message Watch carefully, your opponent, and anticipate his every move.
 
 e...
-....
-d...
-...p
-e...
+.p.g
+d..g
+g..p
+e.ff
 
-.....
-.e.dd
+p.f.g
+ge.dd
 ...pe
 .e...
-..d..
+..dp.
 
-e.d...e
-..e....
-.e.....
-.d.p.e.
-.......
-.......
+e.d..fe
+..ep...
+.e..gg.
+.dppge.
+.....p.
+....f..
 e.....e
 
-.......
-...e...
+f......
+.p.eg..
 .......
 .a.....
-ee..d..
-...p.ee
-.......
+ee.gdp.
+g..p.ee
+....f..
 
 ....e....
 .........
-e...d...e
+eg..dp..e
 .........
-....p....
+f...p...f
 .........
 e.......e
-d........
-....e.d..
+d.p......
+f...e.d..
 
+.g.
+dep
+..f
 ...
-de.
 ...
-...
-...
-.p.
+.pg
 b..
+
+f......
+...eg..
+....pp.
+.a...b.
+ee.g...
+g..pp.e
+....f..
+
+.d.gefe
+.p.g...
+p...ge.

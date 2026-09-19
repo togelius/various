@@ -131,7 +131,7 @@ RULES
 late [ TType ] -> [  ]
 up [ up FullPlayer | Crate ] -> [ up FullPlayer | up Crate ]
 up [ horizontal FullPlayer | Crate ] -> [ horizontal FullPlayer | horizontal Crate ]
-[ > FullPlayer | Crate ] -> [ > FullPlayer | > Crate ]
+[ > FullPlayer | Crate ] -> [ > FullPlayer | v Crate ]
 up [ up TransPlayer | InnerCrate ] -> [ up TransPlayer | up InnerCrate ]
 up [ horizontal TransPlayer | InnerCrate ] -> [ horizontal TransPlayer | horizontal InnerCrate ]
 [ > TransPlayer | InnerCrate ] -> [ > TransPlayer | > InnerCrate ]
@@ -142,21 +142,24 @@ up [ horizontal TransPlayer | InnerCrate ] -> [ horizontal TransPlayer | horizon
 [ FallTurn ] [ stationary Cratelike ] -> [ FallTurn ] [ down Cratelike ]
 [ > FThing | stationary FThing ] -> [ stationary FThing | stationary FThing ]
 + [ > TThing | stationary TThing ] -> [ stationary TThing | stationary TThing ]
+late [ TransPlayer FallTurn ] -> restart
 + [ FallTurn ] [ > Cratelike Target ] -> [ FallTurn ] [ stationary Cratelike Target ]
 + [ > Cratelike | stationary Cratelike ] -> [ stationary Cratelike | stationary Cratelike ]
 + [ FallTurn ] [ moving Crate | stationary Crate ] -> [ FallTurn ] [ stationary Crate | stationary Crate ]
-+ [ FallTurn ] [ moving InnerCrate | stationary InnerCrate ] -> [ FallTurn ] [ stationary InnerCrate | stationary InnerCrate ] again
++ [ FallTurn ] [ moving InnerCrate | stationary InnerCrate no LastTurn ] -> [ FallTurn ] [ stationary InnerCrate | stationary InnerCrate ] again
 [ TType no LastTurn ] -> [ LastTurn ]
 [ moving AnyThing ] [ LastTurn ] -> [ moving AnyThing ] [ MoveTurn ]
-[ action FullPlayer no TPThing ] -> [ TransPlayer ]
+[ action Crate no TPThing ] -> [ TransPlayer ]
+late [ FullPlayer FallTurn ] -> restart
 [ action TransPlayer no FPThing ] -> [ FullPlayer ]
-[ TType no LastTurn ] -> [  ] again
 
 =============
 WINCONDITIONS
 =============
 
 All Target on Cratelike
+Some Background
+All LastTurn on FallTurn
 
 ======
 LEVELS
@@ -164,13 +167,13 @@ LEVELS
 
 message level 1 of 10
 
-#####
-#....
-#.#P.
-#.*@.
-#.O@.
-#....
-#####
+####
+#...
+#.#P
+#.*@
+#.O@
+#...
+####
 
 message level 2 of 10
 
@@ -224,7 +227,6 @@ message level 6 of 10
 #.....*.#
 #.#..#*.#
 #.O.O#P.#
-#########
 
 message level 7 of 10
 
@@ -248,7 +250,7 @@ message level 8 of 10
 message level 9 of 10
 
 .#######
-.#.....#
+#......#
 .#.O8O.#
 ##.*P*.#
 #..O*O.#
@@ -267,3 +269,11 @@ message level 10 of 10
 #######
 
 message congratulations!
+
+####
+#.#@
+#.#P
+#.*@
+#.O.
+....
+####

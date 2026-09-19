@@ -85,7 +85,7 @@ Mirror
 RULES
 =====
 
-[ > Crate | Crate ] -> [ > Crate | > Crate ]
+late [ Target | ... | Player ] -> [ > Target | ... | Player ]
 [ > Player | Crate ] -> [ > Player | > Crate ]
 
 =============
@@ -98,14 +98,6 @@ No Target on Crate
 LEVELS
 ======
 
-####..
-a.O#..
-#..###
-#@P..a
-#..*.#
-a..###
-####..
-
 ######
 #....#
 #.#P.#
@@ -113,3 +105,11 @@ a..###
 #.O@.#
 #....#
 #a####
+
+.#####
+#...##
+#.#P..
+#.*@.#
+#.O@.#
+#.#..#
+#a#P##

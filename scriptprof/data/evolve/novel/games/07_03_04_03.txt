@@ -385,6 +385,30 @@ lightred red green
 00000
 .000.
 
+Prism
+lightblue lightgray green
+0.0.0
+.0.0.
+0.0.0
+.0.0.
+0.0.0
+
+Thorn
+purple lightgray
+..0..
+.000.
+00000
+.000.
+..0..
+
+Shard
+lightbrown white
+..0..
+.000.
+00000
+.000.
+..0..
+
 ======
 LEGEND
 ======
@@ -412,6 +436,9 @@ c = KeyCarry
 d = PlayerGravity
 e = PlayerJumpL
 g = Echo
+h = Prism
+i = Thorn
+j = Shard
 
 ======
 SOUNDS
@@ -443,11 +470,11 @@ r2
 l3
 u3
 u4
-d4
-u6
+d4, Shard
+u6, Thorn
 d6
 d7
-r7
+r7, Prism
 l8
 r8
 l9
@@ -516,7 +543,8 @@ right [ r2 | no u3 ] -> [ r2 | u3 ]
 left [ l3 | no l2 ] -> [ l3 | l2 ]
 up [ u3 | no u6 ] -> [ u3 | u6 ]
 up [ u4 | no r7 ] -> [ u4 | r7 ]
-down [ d4 | no r1 ] -> [ d4 | r1 ]
+late [ PlayerJumpL background ] -> restart
+down [ d4 no u4 | no r1 ] -> [ d4 | r1 ]
 up [ u6 | no l9 ] -> [ u6 | l9 ]
 down [ d6 | no l3 ] -> [ d6 | l3 ]
 down [ d7 | no d4 ] -> [ d7 | d4 ]
@@ -679,6 +707,7 @@ right [ r2 door2 no f2 ] -> [ right door3 f3 ]
 left [ l3 door3 no f3 ] -> [ left door2 f2 ]
 up [ u3 door3 no f3 ] -> [ up door6 f6 ]
 up [ u4 door4 no f4 ] -> [ up door7 f7 ]
+late [ PlayerGravity no background ] -> [ PlayerGravity background ]
 down [ d4 door4 no f4 ] -> [ down door1 f1 ]
 up [ u6 door6 no f6 ] -> [ up door9 f9 ]
 down [ d6 door6 no f6 ] -> [ down door3 f3 ]
@@ -715,6 +744,7 @@ late [ door3 door6 ] -> cancel
 late [ door3 door7 ] -> cancel
 late [ door3 door8 ] -> cancel
 late [ door3 door9 ] -> cancel
+late [ f8 no background ] -> [ f8 background ]
 late [ door4 door1 ] -> cancel
 late [ door4 door2 ] -> cancel
 late [ door4 door3 ] -> cancel
@@ -778,82 +808,92 @@ LEVELS
 
 message You can push boxes...
 
-#####a###
-#.......#
-#@.bbtt.#
-g.......g
+#####ahh#
+#....ii.#
+#@.bbttj#
+g.j.j.i.g
 a########
 
 message ...doors can push boxes...
 
 g########
 #@.7bbtta
-#...56..#
-#...2...#
-#########
+#ij.56.i#
+h.ji2..j#
+#####hh##
 
 message ...boxes can push doors...
 
 #a######
-#......g
+#i.i...g
 #@b..9t#
 #..45..#
-#.b..3t#
-#......#
-########
+#.bj.3t#
+hjj....#
+###h#h##
 
 message ...and doors can push other doors. Good luck!
 
-##aa#####
-#.......#
-#..7....#
+##aa##h#h
+#.....j.#
+#..7.i..#
 #@.b556t#
-#...22..#
-#.......a
-g#######g
+#...22.i#
+#.i..j..a
+g##h####g
 
 a########
-##..5..##
-#.b1.3t.#
-a@......#
-#.b7.9t.#
-##.f5..#a
-#g#######
+h#..5i.##
+#.b1j3t.#
+a@j...j.#
+#ib7.9t.#
+##.f5i.#a
+hg#######
 
-####g####
-#..tb9..#
-#@.45...#
-#..tb3..#
-####g#ag#
+####g##h
+#..tb9..
+#@j45.i.
+#..tb3.j
+###hg#ag
 
-#########
+##h###h##
 #...@...#
 #.b...b.#
-#.8...8.#
+#.8..j8.#
 #.54565.#
-g.t3.1t.#
-####a####
+g.t3.1ti#
+####a###h
 
 ##g####a#
 #...@...g
 #..bbb..#
-#...9.9.#
+#.i.9.9.#
 g.4545..#
-#..ttt..#
-#########
+#i.tttj.#
+###h#####
 
-####ag###
+###hagh##
 #.......#
 #..7t9..#
-#7t.5.t9#
-#.5...5.#
+#7tj5.t9#
+#.5i..5.#
 g1b.5.b3#
-#..1b3..#
-#...@...#
-#####a###
+#..1b3.i#
+#j..@...#
+###h#a###
 
 ####a#######g#
-#t.7.7.7.7.b.a
-#...5.5.5.5..#
-#@b.2.2.2.2.t#
-#######g###g##
+#t.7.7i7.7ib.a
+#j..5.5j5.5.i#
+#@b.2.2.2.2.th
+h####h#g###g##
+
+###hagh##
+#..j....#
+#g.7t9i.#
+#7t.5bt9#
+#.5...5.#
+j1..5.b3#
+#..1b3..#
+#...@.i.#
+###h#a###

@@ -1,236 +1,334 @@
-title Line of Sight
-author Joshua Minor
-homepage pixelverse.org
-run_rules_on_level_start 
-color_palette gameboycolour              
+title Four-room tilt mazes
+author Andrea Gilbert
+homepage http://www.clickmazes.com
+again_interval 0.05
+flickscreen 16x16
 
-========
+=======
 OBJECTS
-========
-
-Background 
-LIGHTGREEN GREEN
-11111
-01111
-11101
-11111    
-10111 
-
-
-Target 
-DarkBlue 
-..... 
-.000.
-.0.0.
-.000.
-.....     
-
-Wall     
-BROWN DARKBROWN     
-00010
-11111
-01000
-11111
-00010
-
-Human 
-Black Orange White Blue     
-.000.
-.111.
-22222
-.333.
-.3.3.
-
-Crate
-Orange brown
-00000
-01010
-00100
-01010
-00000
-
-Dirt 
-orange brown
-00100
-00000
-00010
-10000
-00000
-
-Player 
-white black
-.0.0.
-01010
-00000
-.000.
-11.11
-
-DeadPlayer 
-white black red
-.00.1
-02011
-.000.
-02001
-.00.1
-
-Rock 
-grey darkgrey
-.100.
-11000
-11000
-11000
-11101
-
-HGaze
-yellow
-.....
-.....
-.0.0.
-.....
-.....
-
-VGaze
-yellow
-.....
-..0..
-.....
-..0..
-.....
-
-UnbrushedSand 
-yellow orange
-00000
-01000
-00000
-00010
-00000
-
-HBrushedSand
-yellow orange
-00000
-01011
-00000
-11010
-00000
-
-VBrushedSand
-yellow orange
-01000
-01010
-00000
-01010
-00010
-
 =======
-LEGEND
-=======
-
-Obstacle = Wall or Crate or Human or Rock
-Gaze = VGaze or HGaze
-Sand = UnbrushedSand or HBrushedSand or VBrushedSand
-. = Background
-# = Wall
-P = Player
-* = Crate
-O = Target
-H = Human
-R = Rock
-S = UnbrushedSand
-
-=======
-SOUNDS
-=======
-
-Crate MOVE 36772507
-
-================
-COLLISIONLAYERS
-================
 
 Background
-Dirt, Sand
-Target
-Player, DeadPlayer, Wall, Crate, Rock, Human
-Gaze
+white
+
+Edge
+darkgrey
+00000
+00000
+00000
+00000
+00000
+
+Bar
+darkgrey
+00000
+00000
+00000
+00000
+00000
+
+P1
+red #ff4040 #990000
+...20
+.2200
+.2000
+22001
+22001
+
+P2
+red #ff4040 #ff8080
+00...
+0000.
+1100.
+12100
+11100
+
+P3
+red #990000 #660000
+21000
+21100
+.1110
+.2111
+...22
+
+P4
+red #ff4040 #990000
+11000
+00002
+0002.
+2222.
+22...
+
+
+T1
+blue
+.....
+.....
+.....
+...00
+...00
+
+T2
+blue
+.....
+.....
+.....
+00...
+00...
+
+T3
+blue
+...00
+...00
+.....
+.....
+.....
+
+T4
+blue
+00...
+00...
+.....
+.....
+.....
+
+vBar
+#f0f0f0
+..0..
+..0..
+..0..
+..0..
+..0..
+
+hBar
+#f0f0f0
+.....
+.....
+00000
+.....
+.....
+
+xBar
+#f0f0f0
+..0..
+..0..
+00000
+..0..
+..0..
+
+Cell
+white
+00000
+00000
+00000
+00000
+00000
+
+Cursor
+transparent
 
 ======
-RULES     
-======     
+LEGEND
+======
 
-(push & pull crates)
-[ > Player | Crate ] -> [ > Player | > Crate ]
-[ < Player | Crate ] -> [ < Player | < Crate ]
+. = Cell
+x = Bar
+o = Edge
+! = vBar
+- = hBar
++ = xBar
+1 = T1
+2 = T2
+3 = T3
+4 = T4
+a = P1
+b = P2
+c = P3
+d = P4
+Wall = Bar or Edge
+Target = T1 or T2 or T3 or T4
+Grid = Cell or Wall or vBar or hBar or xBar
+Player = P1 or P2 or P3 or P4
 
-(kick a block)
-([ Action Player | Crate ] -> [  Action  Player | > Crate  ])
+======
+SOUNDS
+======
 
-(push a human)
-[ > Crate | Human ] -> [ > Crate | > Human ]
 
-(brush the sand as you walk on it)
-Horizontal [ UnbrushedSand >  Player  ] -> [ HBrushedSand > Player ]
-Vertical [ UnbrushedSand > Player ] -> [ VBrushedSand > Player ] 
 
-(remove all gaze)
-[ Gaze ] -> []
-(compute gaze via line-of-sight - thanks @toph_wells)
-late Horizontal [ Human | no Obstacle no HGaze ] -> [ Human | HGaze ]
-late Vertical [ Human | no Obstacle no VGaze ] -> [ Human | VGaze ]
-late Horizontal [ HGaze | no Obstacle no HGaze ] -> [ HGaze | HGaze ]
-late Vertical [ VGaze | no Obstacle no VGaze ] -> [ VGaze | VGaze ]
+===============
+COLLISIONLAYERS
+===============
 
-(don't let the player move onto gaze)
-(we do this last, so we use the final gaze computation)
-late [ Player Gaze ] -> cancel
+Background
+Grid
+Target
+Player, Cursor
 
-(if you're seen, that human rushes over and kills you)
-(
-late [ Human | ... | Gaze | Player ] -> [ | ... | Human | Player ]
-late [ Player Gaze ] -> [ DeadPlayer Gaze ]
-)
+=====
+RULES
+=====
 
-==============
+[ Player | Player | Cursor ] -> [ > Player | > Player |  ]
+[ > Player | > Player | Wall ] -> cancel
+[ > Player | > Player | no Edge |  ] -> [ > Player | > Player |  | Cursor ] again
+late [ Player P2 | Player P2 ] -> [ Player | Player ]
+late [ Player Target | Player Target ] -> [ Player | Player ]
+late [ Cursor Edge ] -> [ Edge ]
+late [ Cursor Bar ] -> [ Bar ]
+late [ Cursor Bar ] -> [ Bar ]
+
+=============
 WINCONDITIONS
-==============
+=============
 
-All Player on Target
-No DeadPlayer
+No Target
+Some P1
+All Cell on Background
+All vBar on Background
 
-=======     
+======
 LEVELS
-=======
+======
 
-message Don't let them see you
+Message To the blue target
 
-#########
-#.......o
-#.r.h...#
-#.......#
-#*.....r#
-#.......#
-p.....*.#
-#########
+Message Maze 1 of 3
 
-(message Push 'em)
+oooooooooooooooooooooooooooooooo
+oab!..x..!..!..oo..!..!..x..!12o
+ocd!..x..!..!..oo..!..!..x..!34o
+oxxx--x--x--+--ooxxx--+--x--xxxo
+o..x..!..x..!......!..!..!..!..o
+o..x..!..x..!......!..!..!..!..o
+o--+--+--xxxx--oo--xxxx--+--x--o
+o..!..!..!..x..oo..!..!..!..x..o
+o..!..!..!..x..oo..!..!..!..x..o
+o--xxxx--x--x--ooxxx--x--xxxx--o
+o..!..!..x..!......x..x..!..x..o
+o..!..!..x..!......x..x..!..x..o
+o--x--xxxx--+--oo--x--x--+--x--o
+o..x..!..!..!..oo..!..!..!..!..o
+o..x..!..!..!..oo..!..!..!..!..o
+oooo..oooo..oooooooo..oooo..oooo
+oooo..oooo..oooooooo..oooo..oooo
+o..!..!..!..!..oo..!..!..!..!..o
+o..!..!..!..!..oo..!..!..!..!..o
+o--xxxx--+--+--oo--+--+--x--xxxo
+o..x..!..!..!......!..!..x..!..o
+o..x..!..!..!......!..!..x..!..o
+o--x--+--xxxx--ooxxx--+--xxxx--o
+o..!..!..x..!..oo..x..!..!..!..o
+o..!..!..x..!..oo..x..!..!..!..o
+oxxx--+--x--xxxoo--x--+--+--x--o
+o..!..!..!..!......!..!..!..x..o
+o..!..!..!..!......!..!..!..x..o
+o--x--xxxx--xxxoo--+--x--+--x--o
+o..x..!..!..!..oo..!..x..!..!..o
+o..x..!..!..!..oo..!..x..!..!..o
+oooooooooooooooooooooooooooooooo
 
-#########
-p..*....#
-#.*h....#
-#.......#
-#.......#
-#...h...#
-#.......o
-#########
+Message Maze 2 of 3
 
-#########
-#h......o
-#.r.h...#
-#.......#
-#*.....r#
-#..*....#
-p.....*h#
-#########
+oooooooooooooooooooooooooooooooo
+oab!..!..x..!..oo..!..!..x..!..o
+ocd!..!..x..!..oo..!..!..x..!..o
+oxxx--+--x--xxxoo--+--+--xxxx--o
+o..x..!..!..!......!..!..!..!..o
+o..x..!..!..!......!..!..!..!..o
+o--x--xxxx--x--ooxxx--+--x--xxxo
+o..!..!..!..x......!..!..x..!..o
+o..!..!..!..x......!..!..x..!..o
+o--x--+--+--x--oo--+--xxxx--+--o
+o..x..!..!..!......!..!..!..!..o
+o..x..!..!..!......!..!..!..!..o
+o--x--+--+--xxxoo--+--xxxx--+--o
+o..!..!..!..!12oo..!..!..!..!..o
+o..!..!..!..!34oo..!..!..!..!..o
+oooo..o..o..oooooooo..o..o..oooo
+oooo..o..o..oooooooo..o..o..oooo
+o..!..!..!..!..oo..x..x..!..!..o
+o..!..!..!..!..oo..x..x..!..!..o
+o--+--+--xxxx--oo--x--x--+--+--o
+o..!..!..!..!......x..!..!..!..o
+o..!..!..!..!......x..!..!..!..o
+o--xxxx--x--+--oo--x--+--xxxx--o
+o..x..!..x..!......!..!..!..x..o
+o..x..!..x..!......!..!..!..x..o
+oxxx--x--x--x--oo--+--xxxx--x--o
+o..!..x..!..x......!..x..!..!..o
+o..!..x..!..x......!..x..!..!..o
+o--+--x--+--xxxoo--+--x--+--xxxo
+o..!..!..!..!..oo..!..!..!..!..o
+o..!..!..!..!..oo..!..!..!..!..o
+oooooooooooooooooooooooooooooooo
 
-message Congratulations!
+Message Maze 3 of 3
 
+oooooooooooooooooooooooooooooooo.
+o..x..!..!..!..oo..!..x..!..!..o.
+o..x..!..!..!..oo..!..x..!..!..o.
+o--xxxx--+--+--oo--+--x--xxxx--o.
+o..!..!..!..!......!..!..!..!..o.
+o..!..!..!..!......!..!..!..!..o.
+o--+--xxxx--+--oo--xxxx--+--xxxo.
+o..!..!..!..!....o.x..!..!..x..o.
+o..!..!..!..!......x..!..!..x..o.
+oxxx--+--+--+--oo--x--+--x--x--o.
+o..!..!..!..!......!..!..x..!..o.
+o..!..!..!..!......!..!..x..!..o.
+o--+--x--+--xxxoo--+--+--x--+--o.
+o..!..x..!..!aboo..!..!..!..!..o.
+o..!..x..!..!cdoo..!..!..!..!..o.
+oooo..o..o..oooooooo..o..o..oooo.
+oooo..o..o..oooooooo..o..o..oooo.
+o..!..!..!..!..oo12!..!..!..!..o.
+o..!..!..!..!..oo34!..!..!..!..o.
+o--+--xxxx--+--ooxxx--x--xxxx--o.
+o..!..!..!..!......!..x..!..x..o.
+o..!..!..!..!......!..x..!..x..o.
+o--xxxx--+--+--ooxxx--x--+--x--o.
+o..x..!..!..!......x..!..!..!..o.
+o..x..!..!..!......x..!..!..!..o.
+oxxx--xxxx--+--oo--x--+--+--xxxo.
+o..!..x..!..!......!..!..!..!..o.
+o..!..x..!..!......!..!..!..!..o.
+o--+--x--+--x--oo--+--xxxx--x--o.
+o..!..!..!..x..oo..!..!..!..x..o.
+o..!..!..!..x..oo..!..!..!..x..o.
+oooooooooooooooooooooooooooooooo.
 
+MESSAGE Thank you for playing! :)
+
+oooooooooooooooooooooooooooooooo
+oab!..!..x..!..oo..!..!..x..!..o
+ocd!..!..x..!..oo..!..!..x..!..o
+oxxx--+--x--xxxoo--+--+--xxxx--o
+o..x..!..!..!......!..!..!..!..o
+o..x..!..!..!......!..!..!..!..o
+o--x--xxxx--x--ooxxx--+--x--xxxo
+o..!..!..!..x......!..!..x..!..o
+o..!..!..!..x......!..!..x..!..o
+o--x--+--+--x--oo--+--xxxx--+--o
+o..x..!..!..!......!..!..!..!..o
+o..x..!..!..!......!..!..!..!..o
+o--x--+--+--xxxoo--+--xxxx--+--o
+o..!..!..!..!12oo..!..!..!..!..o
+o..!..!..!..!34oo..!..!..!..!..o
+oooo..o..o..oooooooo..o..o..oooo
+oooo..o..o..oooooooo..o..o..oooo
+o..!..!..!..!..oo..x..x..!..!..o
+o..!..!..!..!..oo..x..x..!..!..o
+o--+--+--xxxx--oo--x--x--+--+--o
+o..!..!..!..!......x..!..!..!..o
+o..!..!..!..!......x..!..!..!..o
+o--xxxx--x--+--oo--x--+--xxxx--o
+o..x..!..x..!......!..!..!..x..o
+o..x..!..x..!......!..!..!..x..o
+oxxd--x--x--x--oo--+--xxxx--x--o
+o..!..x..!..x......!..x..!..!..o
+o..!..x..!..x......!..x..!..!..o
+o--+--x--+--xxxoo--+--x--+--xxxo
+o..!..!..!..!..oo..!..!..!..!..o
+o..!..!..!..!..oo..!..!..!..!..o
+oooooooooooooooooooooooooooooooo

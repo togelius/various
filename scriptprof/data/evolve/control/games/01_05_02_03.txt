@@ -1,5 +1,5 @@
-title Match 3 Block Push
-author increpare
+title Simple Block Pushing Game
+author David Skinner
 homepage www.puzzlescript.net
 
 =======
@@ -13,7 +13,6 @@ lightgreen green
 11101
 11111
 10111
-
 
 Target
 darkblue
@@ -40,7 +39,7 @@ black orange white blue
 .3.3.
 
 Crate
-orange yellow
+orange
 00000
 0...0
 0...0
@@ -62,7 +61,7 @@ O = Target
 SOUNDS
 ======
 
-Crate MOVE 36772507
+Crate move 36772507
 
 ===============
 COLLISIONLAYERS
@@ -76,32 +75,31 @@ Player, Wall, Crate
 RULES
 =====
 
+[ > Target | Target ] -> [ > Target | > Target ]
 [ > Player | Crate ] -> [ > Player | > Crate ]
-[ Crate | Crate | Crate ] -> [  |  |  ]
 
 =============
 WINCONDITIONS
 =============
 
-all Crate on Target
+all Target on Crate
 
 ======
 LEVELS
 ======
 
-#########
-#.......#
-#.*.*.@.#
-#.P...O.#
-#...*.*.#
-#.......#
-#########
+####..
+#.O#..
+#..###
+#@P..#
+#..*.#
+#..###
+####..
 
-.#######.
-.#.....#.
-.#O##..##
-##.##.*.#
-#.*..**.#
-#.OOO.#.#
-#.P.....#
-#########
+######
+#....#
+#.#P.#
+#.*@.#
+#.O@.#
+#....#
+######

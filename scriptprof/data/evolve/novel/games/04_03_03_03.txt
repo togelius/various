@@ -1,459 +1,287 @@
-title FACED
-author Daniel Haazen
-homepage www.sheepolution.com
+title 2D Whale World
+author increpare
+homepage www.increpare.com
+background_color orange
+text_color darkblue
+color_palette mastersystem
 run_rules_on_level_start
+require_player_movement
 
 =======
 OBJECTS
 =======
 
 Background
-BLACK
-00000
-00000
-00000
-00000
-00000
+blue
 
+Void
+orange
 
 Player
-#2491FF black
+lightblue
+
+Whale
+brown
 00000
-01010
 00000
-01110
+00000
+00000
 00000
 
-Pulling
+Wall
+black
+00000
+0...0
+0...0
+0...0
+00000
+
+HBeam
 yellow
 .....
-.0.0.
 .....
-.000.
-.....
-
-Yellow
-#EBB000
-00000
-00000
-00000
-00000
-00000
-
-Red
-#FF5454
-00000
 0.0.0
-00000
-0...0
-00000
-
-Green
-#009900
-00000
-0.0.0
-00000
-0...0
-00000
-
-
-Purple
-#C500FF
-00000
-0.0.0
-00000
-0...0
-00000
-
-Grey
-#646464
-00000
-0.0.0
-00000
-0...0
-00000
-
-Orange
-#FF8A24
-00000
-0.0.0
-00000
-0...0
-00000
-
-
-Red2
-#FF5454
 .....
-.0.0.
 .....
+
+VBeam
+yellow
+..0..
+.....
+..0..
+.....
+..0..
+
+Quill
+lightred
+.....
+.000.
+.000.
 .000.
 .....
 
-
-Green2
-#009900
-.....
-.0.0.
-.....
+Vent
+darkblue brown
+..0..
 .000.
-.....
-
-Purple2
-#C500FF
-.....
-.0.0.
-.....
+00000
 .000.
-.....
+..0..
 
-Grey2
-#646464
-.....
+Moss
+darkgrey brown darkblue
+0...0
 .0.0.
-.....
-.000.
-.....
+..0..
+.0.0.
+0...0
 
-Orange2
-#FF8A24
-.....
-.0.0.
-.....
-.000.
-.....
+Gate
+lightgreen
+00000
+00000
+00000
+00000
+00000
+
+Prism
+orange brown
+11111
+10001
+10101
+10001
+11111
 
 ======
 LEGEND
 ======
 
+Beam = HBeam or VBeam
 . = Background
-# = Yellow
-@ = Player and Yellow
-P = Purple
-R = Red
-G = Green
-E = Grey
-O = Orange
-
-
-FACE1 = Purple or Red or Green or Grey or Orange
-FACE2 = Purple2 or Red2 or Green2 or Grey2 or Orange2
-FACE = face1 or face2
+# = Wall
+P = Player
+W = Whale
+0 = Void
+a = Quill
+b = Vent
+c = Moss
+d = Gate
+e = Prism
 
 ======
 SOUNDS
 ======
 
-Face1 move 30027107
-sfx1 7798903
-
-Endlevel 29861900
+whale destroy 62981708
+player move 69405107
+whale move 32823307
+endlevel 99636708
+restart 92555303
+startgame 60661308
+CloseMessage 123434
+ShowMessage 123434
 
 ===============
 COLLISIONLAYERS
 ===============
 
 Background
-Yellow
-Face2
-Player face1
-pulling
+void
+Player, Wall, Whale, Gate
+HBeam, Vent
+VBeam
+Quill
+Moss
+Prism
 
 =====
 RULES
 =====
 
-[ action player no pulling no Red2 ] -> [ player pulling ]
-[ action player pulling ] -> [ player ]
-late [ Green | ... | Player ] -> [ > Green | ... | Player ]
-[ > Player | Red ] -> [ > Player | > Red ]
-[ > Player | Green ] -> [ > Player | > Green ]
-[ < Player pulling | Purple ] -> [ < Player | < Purple ]
-[ > Player no Yellow no pulling | Orange ] -> [ Orange | Player ] sfx1
-[ < Player pulling | Red ] -> [ < Player | < Red ]
-[ > Player pulling ] -> [ > Player ]
-[ > Face1 | Yellow ] -> [ Face1 | Yellow ]
-[ > Face1 | Face1 ] -> [ Face1 | Face1 ]
-[ Face2 ] -> [  ]
-[ Purple |  |  |  |  |  |  |  ] -> [ Purple |  |  |  |  |  |  | Purple2 ]
-[ Red |  |  |  |  |  |  |  ] -> [ Red |  |  |  |  |  |  | Red2 ]
-[ Green |  |  |  |  |  |  |  ] -> [ Green |  |  |  |  |  |  | Green2 ]
-[ Grey |  |  |  |  |  |  |  ] -> [ Grey |  |  |  |  |  |  | Grey2 ]
-[ Orange |  |  |  |  |  |  |  ] -> [ Orange |  |  |  |  |  |  | Orange2 ]
-[ orthogonal Face1 |  |  |  |  |  |  | Face2 ] -> [ orthogonal Face1 |  |  |  |  |  |  | orthogonal Face2 ]
+[ > player | void ] -> [ player | void ]
+[ > VBeam | Wall ] -> [ > VBeam |  ]
+horizontal [ > Player | VBeam ] -> [ > Player | > VBeam ]
+vertical [ Wall | > Player | HBeam ] -> [ Wall | > Player | > HBeam ]
+[ Whale | ... | perpendicular Beam | Wall | Player ] -> [ perpendicular Whale | ... | perpendicular Beam | Wall | Player ]
+late horizontal [ Whale | ... | HBeam ] -> [ Whale | ... |  ]
+[ Player | ... | perpendicular Beam | Wall ] -> [ perpendicular Player | ... | perpendicular Beam | Wall ]
+[ Whale Void ] -> [ Void ]
+right [ Beam no Moss ] -> [  ]
+late horizontal [ Whale | ... |  ] -> [ Whale | ... | HBeam ]
+random [ Wall | no Wall no Void ] -> [ Wall | Wall ]
+late [ HBeam | ... | Player ] -> [ > HBeam | ... | Player ]
+random [ HBeam | no HBeam no Whale ] -> [ HBeam | HBeam ]
+[ > Player | Whale ] -> [ > Player |  ]
+vertical [ Whale | ... |  ] -> [ Whale | ... | VBeam ]
 
 =============
 WINCONDITIONS
 =============
 
-No Face1 on face2
+no Whale
+All Wall on Background
+All Quill on Background
 
 ======
 LEVELS
 ======
 
-Message Push the blocks so that they don't overlay with the blocks of the opposite side
+message Push a whale off to free it.
 
-##############
-#.....##.....#
-#.r..r##.....#
-#..r..@#r.r..#
-#.....##.....#
-#..r..##..r.r#
-##############
+0000000000000a00
+0########0P00000
+0.......#0000000
+0###.W..###0000a
+0...c...e.#00000
+0#####.##.###00P
+0000#...#d..#000
+0000#d..#...#000
+0000#...#...###0
+0000#.P.#.c...#0
+0000#...#.....#0
+0000#####..bW##0
+0000a00000.bd.#0
+0000000000#####0
+0000000000000000
 
-Message Green can be pushed
+message level 2 of 8
 
-##############
-#.....##.....#
-#.....##.....#
-#..G..@#..G..#
-#.....##.....#
-#.....##.....#
-##############
+message level 3 of 8
 
-Message Purple can be pulled
+0000000000000000
+00###00000000000
+00#.#####0000000
+00#.#...##00a000
+00#..d...#000000
+00#..##c#######0
+00#..#b....b..#0
+00#..#....e...#0
+0##..######...#0
+0#........#dW.#a
+0##c......#.bP#0
+00######c.#####0
+00000000..00000P
+0000000000000000
 
-##############
-#.....##.....#
-#.....##.....#
-#..P..@#..P..#
-#.....##.....#
-#.....##.....#
-##############
+message level 4 of 8
 
-Message Red can do both
+0000000000000000
+P00000#########0
+0######.b.....#0
+0.............#0
+0.....#.#####.#0
+0######.#ec...#0
+00000##.#...P.#0
+0a000#....eb..#0
+00000##.#.W...#0
+000000#.......#0
+0P0000###.#ed.#0
+00000000#######0
+000000P0a0000000
 
-##############
-#.....##.....#
-#.....##.....#
-#..R..@#..R..#
-#.....##.....#
-#.....##.....#
-##############
+message level 5 of 8
 
-Message You can switch positions with orange
+00000000000000000.
+0000############0.
+0000#.#...b....#0.
+0000#..........#0.
+0####bd###.....#0.
+0......#.#.....#0.
+0####..#W#.#W#.#0.
+0..........#d#c#0.
+0####...d.P###.#0.
+0...#.#..e.....#0.
+0##...##########0.
+00#####0000000000.
+0000000P000a0P000e
 
-##############
-#.....##.....#
-#.....##.....#
-#..O..@#..O..#
-#.....##.....#
-#.....##.....#
-##############
+message level 6 of 8
 
-Message You can't move gray
+00000000000000000
+000000000#.#.#.#0
+000000000#.#.#.#0
+000000000#.#.#.#0
+000000000#.....#0
+0000000###...###0
+000000a#.#c..#000
+0000000#.#.#.#0aP
+0#######.#.#e#000
+0#.e......b.b#000
+0#.#.W.c.W.c.#000
+0#.....d.....#000
+0#.....P.....#000
+P#.......d...#000
+0#############000
+0000000000000000P
 
-##############
-#.....##.....#
-#..e..##.e.e.#
-#..pe.@#.eo..#
-#..e..##.e.e.#
-#.....##.....#
-##############
+message level 7 of 8
 
-Message Sometimes You'll need to move squares on both sides
+000000000#000000
+00000####.####00
+0####...d.....#0
+0........#....#0
+0####..b.W.b..#0
+0000#.....c...#0
+0000#.#W.P.W#..#
+0####.........#0
+0.....c..W.d..#0
+0####....#.e..#0
+00000#...c....#0
+00000a########00
+0000000000000P00
 
-##############
-#.....##.....#
-#.r.rp##.o.eg#
-#.....@#..e.e#
-#.eg..##.pe..#
-#.....##..o..#
-##############
+message level 8 of 8
 
-Message Z to undo - R to restart level
+00000000000
+0########00
+0#b..#..#00
+0##.c.be000
+0#.d..ee#00
+0#..WW..##0
+0#..WWd..#0
+a##..dP.##0
+0#.b.#.##00
+0#######000
+a000000000P
 
-##############
-#p.p.o##ggrr.#
-#rr..p##..og.#
-#o...p@#....p#
-#or.rr##.op..#
-#..p..##o..po#
-##############
-
-
-Message Level 9
-
-##############
-#.r...##.o.op#
-#..r.r##.rrr.#
-#ogpgp@#g.r..#
-#g...g##..o.o#
-#r..pr##..rg.#
-##############
-
-Message Level 10
-
-##############
-#..gro##.g..r#
-#r.g..##..rp.#
-#er.r.@#..ep.#
-#op...##..gpg#
-#p.o.e##o.e.r#
-##############
-
-Message Level 11
-
-##############
-#p.e.e##p.gp.#
-#e.gp.##.pp.o#
-#..o..@#....p#
-#.rp..##..gor#
-#.oror##r..o.#
-##############
-
-Message Level 12
-
-##############
-#.r.rp##r.p..#
-#p..gp##p.rpo#
-#.pp..@#.or..#
-#.erg.##.pog.#
-#...pr##.r...#
-##############
-
-Message Level 13
-
-##############
-#epo.r##r.ep.#
-#g..pr##rg...#
-#.p.o.@#....r#
-#g..re##.rgpp#
-#o....##.o..o#
-##############
-
-Message Level 14
-
-##############
-#eg.o.##...g.#
-#..g..##e..r.#
-#rgre.@#....g#
-#pe.go##.p.op#
-#...g.##eerpr#
-##############
-
-Message Level 15
-
-##############
-#e.o.o##....e#
-#gr...##e....#
-#e....@#.rgrr#
-#..orp##gp.re#
-#.eope##.p.e.#
-##############
-
-Message Level 16
-
-##############
-#.r.p.##rg...#
-#op..p##p..r.#
-#roop.@#....p#
-#..ro.##ppop.#
-#..r.p##pg.r.#
-##############
-
-Message Level 17
-
-
-##############
-#ogppo##.or..#
-#pr.g.##g..pr#
-#p.o..@#.r..r#
-#.....##.g..r#
-#p.g.r##.o.rg#
-##############
-
-Message Level 18
-
-##############
-#rrr.r##..p..#
-#..p.g##oog..#
-#.g.p.@#opg..#
-#.g...##g...o#
-#orpp.##.g.og#
-##############
-
-Message Level 19
-
-##############
-#op...##...gp#
-#p..po##.eo..#
-#...p.@#..o..#
-#..pre##e.o..#
-#.egrp##rggeo#
-##############
-
-Message Level 20
-
-##############
-#..eg.##.g.r.#
-#o.pgp##er.ro#
-#p..o.@#....g#
-#r.g..##per..#
-#.oop.##.ge..#
-##############
-
-Message Level 21
-
-##############
-#eeg..##.rrog#
-#.eg..##.o.e.#
-#..pg.@#.pr..#
-#peg.p##..ogr#
-#p.g..##..g..#
-##############
-
-Message Level 22
-
-##############
-#.er.r##.rrer#
-#.gg.e##...e.#
-#...er@#..o.p#
-#o.g.p##.o.p.#
-#p..e.##.orp.#
-##############
-
-Message Level 23
-
-##############
-#....p##.o..g#
-#.p.o.##.ep..#
-#g.p.e@#ep..p#
-#.egeg##.pgr.#
-#pp.r.##...ep#
-##############
-
-Message Level 24
-
-##############
-#.g...##pgo..#
-#gp.g.##e...e#
-#..oo.@#...r.#
-#..rrr##..g.e#
-#oog.e##poo.r#
-##############
-
-Message Level 25
-
-##############
-#...e.##..g..#
-#..pog##...gg#
-#.pggg@#.rg.g#
-#rgop.##.pr.r#
-#p....##g..gr#
-##############
-
-Message THE LAST LEVEL
-
-##############
-#...rg##g...r#
-#og.oe##.e.po#
-#e..g.@#..gor#
-#p.r..##g..o.#
-#ge.e.##r...p#
-##############
-
-message CONGRATULATIONS! YOU BEAT THE GAME!
-message THANKS FOR PLAYING!
+message all the 2d whales are freed

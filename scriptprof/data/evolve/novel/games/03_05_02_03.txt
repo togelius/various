@@ -1,13 +1,12 @@
-title Stickyban
-author Connorses / Loneship Games
-homepage www.puzzlescript.net
-text_color #5F259F
-========
+title Broken Leg Sokoban
+author Franklin P. Dyer
+
+=======
 OBJECTS
-========
+=======
 
 Background
-#549c0f GREEN
+LIGHTGREEN GREEN
 11111
 01111
 11101
@@ -24,20 +23,28 @@ DarkBlue
 .....
 
 Wall
-#8d4d0c #602700
+BROWN DARKBROWN
 00010
 11111
 01000
 11111
 00010
 
-Player
-brown Orange purple Blue
+PlayerUp
+Black Orange White Blue Gray
+.000.
+.000.
+22222
+.333.
+.4.3.
+
+PlayerDown
+Black Orange White Blue Gray
 .000.
 .111.
 22222
-.222.
-.3.3.
+.333.
+.3.4.
 
 Crate
 Orange Yellow
@@ -47,126 +54,148 @@ Orange Yellow
 0...0
 00000
 
-wallHit
-transparent
-
-=======
+======
 LEGEND
-=======
+======
 
 . = Background
 # = Wall
-P = Player
+P = PlayerDown
 * = Crate
 @ = Crate and Target
 O = Target
 
+Player = PlayerUp or PlayerDown
 
-=======
+======
 SOUNDS
-=======
+======
 
 Crate MOVE 36772507
+endlevel 83744503
+startgame 92244503
 
-================
+===============
 COLLISIONLAYERS
-================
+===============
 
 Background
 Target
 Player, Wall, Crate
-wallHit
 
-======
+=====
 RULES
-======
-[> player|wall] -> cancel
-[ moving Player | Crate ] -> [ moving Player | moving Crate ]
-[ moving Crate | Crate ] -> [ moving Crate | moving Crate ]
+=====
 
-[ > Crate | Wall ] -> [ Crate wallHit | Wall ]
-[ Crate wallHit | Crate ] -> [ Crate wallHit | Crate wallHit ]
-[ moving Crate wallHit ] -> [ Crate wallHit ]
-[ > player | wallHit ] -> cancel
+[ > PlayerDown | Crate ] -> [ > PlayerDown | > Crate ]
+[ > Player | Crate ] -> [ > Player | > Crate ]
+[ UP Player ] -> [ UP PlayerUp ]
+[ LEFT PlayerUp ] -> cancel
+[ DOWN Player ] -> [ DOWN PlayerDown ]
+[ action PlayerDown ] [ Crate ] -> [ PlayerDown ] [ Wall ]
+[ action PlayerDown ] [ Wall ] -> [ PlayerDown ] [ Crate ]
+[ RIGHT PlayerDOWN no Target ] -> cancel
 
-
-late [ Crate wallHit ] -> [ Crate ]
-late [ wallHit ] -> []
-
-==============
+=============
 WINCONDITIONS
-==============
+=============
 
 All Target on Crate
 
-=======
+======
 LEVELS
-=======
-######
-#...*#
-#..###
-#.p#.#
-#..###
-#...o#
-######
+======
 
-######
-#.oo.#
-#.#op#
-#.**.#
-#..*.#
-#....#
-######
+message Yes, I know I've already used this mechanic, I'm just applying it to a new set of levels.
 
-#########
-#...*...#
-#..###..#
-#.*.....#
-#.p.oo..#
-#.*.oo..#
-#.......#
-#..###..#
-#...*...#
-#########
+message level 1 of 9
 
 ####..
 #.O#..
-#.O###
-#*P..#
-#..*.#
 #..###
-####..
+#@P..#
+#..*.#
+#...##
+#####.
 
-#######
-#..o..#
-#.po*.#
-##.o..#
-####*.#
-##*...#
-#######
+message level 2 of 9
 
-###########
-#..##.....#
-#..##....p#
-#..#o....*#
-#*.#.#....#
-#...*.o...#
-#..#*..####
-#..**.#####
-#..#..#####
-#.........#
-#.........#
-###########
+######
+#....#
+#.#P.#
+#.*@.#
+#.O@.#
+#....#
+######
 
-########
-#.....p#
-#.#...*#
-#.*....#
+message level 3 of 9
+
+.########
+##...##.#
+#.....*P#
+#....#*.#
+#.O.O#..#
+#########
+
+message level 4 of 9
+
+.....###
+######.#
 #......#
-##.###.#
-.#.###.#
-.#*....#
-.#.#####
-.#.....#
-.#*...o#
+#.O@@*P#
+#......#
+#.###..#
+###.####
+
+message level 5 of 9
+
 .#######
+.#.....#
+.#.O*O.#
+##.*P*.#
+#..O*O.#
+#......#
+########
+
+message level 6 of 9
+
+message level 7 of 9
+
+#######
+#.....#
+#.O*O.#
+#.*O*.#
+#.O*O.#
+#.*O*.#
+#..P..#
+#######
+
+message level 8 of 9
+
+....###.
+..###.##
+..#.OOP#
+..#.**.#
+..#..###
+..##.#..
+...#.#..
+####.##.
+#.....#.
+#.#...#.
+#...#.#.
+#.#...#.
+###.###.
+..###...
+
+message level 9 of 9
+
+...###
+####.#
+#O...#
+#P**.#
+##...#
+.#...#
+.###O#
+...###
+
+message congratulations!

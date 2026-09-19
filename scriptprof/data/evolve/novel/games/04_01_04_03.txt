@@ -1,0 +1,373 @@
+title Four-room tilt mazes
+author Andrea Gilbert
+homepage http://www.clickmazes.com
+again_interval 0.05
+flickscreen 16x16
+
+=======
+OBJECTS
+=======
+
+Background
+white
+
+Edge
+darkgrey
+00000
+00000
+00000
+00000
+00000
+
+Bar
+darkgrey
+00000
+00000
+00000
+00000
+00000
+
+P1
+red #ff4040 #990000
+...20
+.2200
+.2000
+22001
+22001
+
+P2
+red #ff4040 #ff8080
+00...
+0000.
+1100.
+12100
+11100
+
+P3
+red #990000 #660000
+21000
+21100
+.1110
+.2111
+...22
+
+P4
+red #ff4040 #990000
+11000
+00002
+0002.
+2222.
+22...
+
+T1
+blue
+.....
+.....
+.....
+...00
+...00
+
+T2
+blue
+.....
+.....
+.....
+00...
+00...
+
+T3
+blue
+...00
+...00
+.....
+.....
+.....
+
+T4
+blue
+00...
+00...
+.....
+.....
+.....
+
+vBar
+#f0f0f0
+..0..
+..0..
+..0..
+..0..
+..0..
+
+hBar
+#f0f0f0
+.....
+.....
+00000
+.....
+.....
+
+xBar
+#f0f0f0
+..0..
+..0..
+00000
+..0..
+..0..
+
+Cell
+white
+00000
+00000
+00000
+00000
+00000
+
+Cursor
+transparent
+
+Spark
+purple grey
+0.0.0
+.0.0.
+0.0.0
+.0.0.
+0.0.0
+
+cover
+black darkgrey
+.....
+.000.
+.010.
+.000.
+.....
+
+Cinder
+lightgrey darkblue
+0...0
+.0.0.
+..0..
+.0.0.
+0...0
+
+Gate
+darkgray darkbrown pink
+0...0
+.0.0.
+..0..
+.0.0.
+0...0
+
+Anchor
+darkgrey
+00000
+0...0
+0...0
+0...0
+00000
+
+BrokenCrate
+Orange Yellow Brown Red Pink Black
+55555
+34343
+01230
+01130
+00434
+
+Crate
+Orange Yellow Brown
+00000
+01110
+01210
+01110
+00000
+
+MoveUp
+Blue
+.....
+.....
+.....
+.....
+.....
+
+Vine
+lightred
+.000.
+00000
+00000
+00000
+.000.
+
+Echo
+pink darkred
+0...0
+.0.0.
+..0..
+.0.0.
+0...0
+
+Rust
+darkred white lightgreen
+.....
+.000.
+.010.
+.000.
+.....
+
+======
+LEGEND
+======
+
+. = Cell
+x = Bar
+o = Edge
+! = vBar
+- = hBar
++ = xBar
+1 = T1
+2 = T2
+3 = T3
+4 = T4
+a = P1
+b = P2
+c = P3
+d = P4
+Wall = Bar or Edge
+Target = T1 or T2 or T3 or T4
+Grid = Cell or Wall or vBar or hBar or xBar
+Player = P1 or P2 or P3 or P4
+e = Spark
+f = cover
+g = Cinder
+h = Gate
+i = Anchor
+j = BrokenCrate
+k = Crate
+l = MoveUp
+m = Vine
+n = Echo
+p = Rust
+
+======
+SOUNDS
+======
+
+
+
+===============
+COLLISIONLAYERS
+===============
+
+Background
+Cursor, Spark, Anchor, Rust
+Edge, Bar, P1, P2, P3, P4, T1, T2, T3, T4, vBar, hBar, xBar, Cell, Cinder
+cover, BrokenCrate, Vine
+Gate
+Crate, MoveUp, Echo
+
+=====
+RULES
+=====
+
+[ Player | Player | Cursor | Background ] -> [ > Player | > Player |  | Background ]
+[ > Player | > Player | P4 no Vine ] -> cancel
+[ > Background | hBar ] -> [ > Background |  ]
+random [ T3 | no T3 no Cinder ] -> [ T3 | T3 ]
+Late Up [ Crate MoveUp | Crate ] -> [ BrokenCrate | BrokenCrate ]
+late [ Background no Bar ] -> [ Background Bar ]
+[ > Player | > Player no Spark | no Wall |  ] -> [ > Player | > Player |  | Cursor ] again
+[ > Background | Background ] -> [ > Background |  ]
+late [ no Background ] [ T2 ] -> [  ] [  ]
+right [ T2 | no T2 no Cursor ] -> [  | T2 ]
+[ > Background | Cursor ] -> [ Cursor | Background ]
+late [ Bar Edge ] -> [ Edge ] restart
+[ > Background | P1 ] -> cancel
+random [ Cinder | no Cinder no vBar | Spark ] -> [ Cinder | Cinder | Spark ]
+right [ cover ] -> [  ]
+late [ Cursor Bar ] -> [ Bar ]
+
+=============
+WINCONDITIONS
+=============
+
+No Target
+No BrokenCrate
+
+======
+LEVELS
+======
+
+Message To the blue target
+
+Message Maze 1 of 3
+
+Message Maze 2 of 3
+
+oooooooooooooooooooooooooooooooo
+oab!..!e.x..!..oo..!..!..x..!..o
+ocd!..!..x..!..oo..!..!..x..!..o
+oxxx--+--x--xxxoo--+--+--xxxx--o
+o..x..!..!..!.....i!m.!..!..!..o
+o..x..!..!.e!......!..!..!..!..o
+o--x--xxxx--x--ooxxx--+--x--xxxo
+o..!..!..!..x......!..!..x..!..o
+o..!..!..!..x......!..!..x..!..o
+o--x--+--+--x--oo--+--xxxx--+--o
+o..x..!..!g.!......!..!n.!..!..o
+o..x..!..!..!......!..!..!..!..o
+o--x--+--+--xxxoo--+--xxxx--+--o
+o..!..!..!..!12oo..!..!..!..!..o
+o..!..!..!..!34oo..!..!..!..!..o
+oooo..o..o.poooooooo..o.no..oooo
+oooo..o..o..oooooooo..o..o..oooo
+o..!..!..!..!..oo..x..x..!..!..o
+o..!..!..!..!..oo..xh.x..!..!..o
+o--+--+--xxxx--oo--x--x--+--+--o
+o..!..!p.!..!......x..!..!..!..o
+o..!..!..!..!......x..!.p!..!i.o
+o--xxxx--x--+--oo--x--+--xxxx--o
+o..x..!..x..!......!..!..!..x..o
+o..x..!..x..!......!..!..!..x..o
+oxxx--x--x--x--oo--+--xxxx--x--o
+o..!..x..!..x......!..x..!..!..o
+o..!..x..!..x......!.gx..!..!..o
+o--+--x--+--xxxoo--+--x--+--xxxo
+o..!..!..!..!..oo..!..!..!..!..o
+o..!..!..!..!..oo..!..!..!..!..o
+oooooooooooooooooooooooooooooooo
+
+Message Maze 3 of 3
+
+oooooooooooooooooooooooooooooooo
+o..x..!..!..!..oon.!..x..!..!..o
+o..x..!..!..!..oo..!..x..!..!..o
+o--xxxx--+--+--oo--+--x--xxxx--o
+o..!..!..!..!......!..!..!..!..o
+o..!..!..!..!......!..!..!..!..o
+o--+--xxxx--+--oo--xxxx--+--xxxo
+o..!..!..!..!......x..!..!..x..o
+o..!..!..!..!......x..!..!..x..o
+oxxx--+--+--+--oo--x--+--x--x--o
+o..!..!..!..!......!..!..x..!..o
+o..!..!.m!..!......!..!.px..!..o
+o--+--x--+--xxxoo--+--+--x--+--o
+o..!..x..!..!aboo..!..!..!..!..o
+oe.!..x..!..!cdoo..!.n!..!..!.po
+oooo..o..o..oooooooo..o..o..oooo
+oooo..o..o..oooooooo..o..o..oooo
+o..!..!..!..!..oo12!..!..!..!..o
+o..!..!..!..!..oo34!..!..!..!..o
+o--+--xxxx--+--ooxxx--x--xxxx--o
+o..!..!.i!..!......!..x..!..xp.o
+o..!..!..!.e!......!..x..!.gx..o
+o--xxxx--+--+--ooxxx--x--+--x--o
+o..x..!..!..!......x..!.e!..!..o
+o..x..!..!.a!......x..!..!..!..o
+oxxx--xxxx--+--oo--x--+--+--xxxo
+o..!..x..!..!......!..!i.!..!..o
+oh.!..x..!..!......!..!..!..!..o
+o--+--x--+--x--oo--+--xxxx--x--o
+o..!..!..!..x..oo..!..!i.!..x..o
+o..!..!..!..x..oo..!..!..!..x..o
+
+MESSAGE Thank you for playing! :)

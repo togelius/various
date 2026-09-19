@@ -1,0 +1,88 @@
+title Match 3 Block Push
+author increpare
+homepage www.puzzlescript.net
+
+=======
+OBJECTS
+=======
+
+Background
+lightgreen green
+11111
+01111
+11101
+11111
+10111
+
+Target
+darkblue
+.....
+.000.
+.0.0.
+.000.
+.....
+
+Player
+black orange white blue
+.000.
+.111.
+22222
+.333.
+.3.3.
+
+Crate
+orange yellow
+00000
+0...0
+0...0
+0...0
+00000
+
+======
+LEGEND
+======
+
+. = Background
+P = Player
+* = Crate
+@ = Crate and Target
+O = Target
+
+======
+SOUNDS
+======
+
+Crate MOVE 36772507
+
+===============
+COLLISIONLAYERS
+===============
+
+Background
+Target
+Player, Crate
+
+=====
+RULES
+=====
+
+[ > Player | Crate ] -> [ > Player | > Crate ]
+[ Crate | Crate | Crate ] -> [  |  |  ]
+
+=============
+WINCONDITIONS
+=============
+
+all Crate on Target
+
+======
+LEVELS
+======
+
+*********
+*.......*
+*.*.*.@.*
+*.P...O.*
+*...*.*.*
+*.......*
+*********

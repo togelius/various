@@ -1,253 +1,274 @@
-title It Dies In The Light
-author Christopher Wells
-homepage www.tophwells.com
-
-noaction
+title Transparency
+author pickten
+homepage www.puzzlescript.net
 run_rules_on_level_start
-again_interval 0.05
+color_palette 5
 
-========
+=======
 OBJECTS
-========
+=======
 
-BackgroundNeutral
-LIGHTGray Gray
-11011
-10101
-01110
-10101     
-11011   
+Background
+darkgray darkgray
+11111
+01111
+11101
+11111
+10111
 
-BackgroundDark
-Black
+Target
+yellow
+.....
+.000.
+.000.
+.000.
+.....
 
-Wall     
-Lightblue Blue
+Wall
+BROWN DARKBROWN
 00010
 11111
 01000
 11111
 00010
 
-LivePlayer 
-Black LightRed White Blue     
-.000.
-.111.
-12321
-.232.
-.222.
+FullPlayer
+white blue
+10001
+01.10
+0.1.0
+01.10
+10001
 
-Corpse
-LightGrey
-.000.
-.0.0.
-0.0.0
-..0..
-.0.0.
+TransPlayer
+white pink
+10001
+01.10
+0.1.0
+01.10
+10001
 
 Crate
-Orange LightBrown Brown
+blue Yellow
+00000
+0...0
+0...0
+0...0
+00000
+
+FallTurn
+transparent
+
+MoveTurn
+transparent
+
+LastTurn
+transparent
+
+BallA
+#999999 #777777 #444444
+.112.
+10012
+10012
+21122
 .222.
-21012
-20102
-21012
+
+BallB
+#999999 #777777 #444444
+.112.
+10012
+10012
+21122
 .222.
 
-GoldCrate
-White Yellow Orange
+BallC
+#999999 #777777 #444444
+.112.
+10012
+10012
+21122
 .222.
-21012
-20002
-21012
-.222.
-
-GlassCrate
-White
-.000.
-0...0
-0...0
-0...0
-.000.
-
-Prism
-LightBlue White
-.000.
-00110
-00010
-00000
-.000.
-
-ActivePrism
-LightBlue White Yellow
-.000.
-02120
-01110
-02120
-.000.
-
-Glass
-White
-00000
-0...0
-0...0
-0...0
-00000
-
-BeamVert
-White Yellow
-.101.
-.101.
-.101.
-.101.
-.101.
-
-BeamHor
-White Yellow
-.....
-11111
-00000
-11111
-.....
-
-BeamCross
-White Yellow
-.101.
-11011
-00000
-11011
-.101.
-
-Shadow
-Purple
-0.0.0
-.0.0.
-0.0.0
-.0.0.
-0.0.0
-
-TempShadow
-Purple
-0.0.0
-.0.0.
-0.0.0
-.0.0.
-0.0.0
-
-=======
-LEGEND
-=======
-
-. = BackgroundNeutral
-# = Wall
-P = LivePlayer
-C = Crate
-G = GoldCrate
-S = Shadow
-X = Prism
-O = Glass
-
-Background = BackgroundNeutral or BackgroundDark
-Player = LivePlayer or Corpse
-Light = BeamVert or BeamHor or BeamCross
-Hlight = BeamHor or BeamCross
-Vlight = BeamVert or BeamCross
-Opaque = Player or Crate or Wall or GoldCrate
-Pushable = Crate or GoldCrate or Prism or GlassCrate
-
-
-=======
-SOUNDS
-=======
-
-SFX0 93002904
-
-================
-COLLISIONLAYERS
-================
-
-Background
-BeamVert, BeamHor, BeamCross, Shadow, TempShadow
-Player, Corpse, Wall, Crate, GoldCrate, GlassCrate, Prism, ActivePrism, Glass
 
 ======
-RULES     
-======     
+LEGEND
+======
 
-[> Corpse] -> RESTART
-[Light] -> []
-[ActivePrism] -> [Prism]
-[ >  Player | Pushable ] -> [  >  Player | > Pushable  ]
-late HORIZONTAL [GoldCrate|no Opaque no Light] -> [GoldCrate | BeamHor]
-late VERTICAL [GoldCrate|no Opaque no Light] -> [GoldCrate | BeamVert]
-late VERTICAL [GoldCrate|no Opaque BeamHor] -> [GoldCrate | BeamCross]
-late HORIZONTAL [Hlight|no Opaque no Light] -> [Hlight|BeamHor]
-+ late HORIZONTAL [Hlight|no Opaque BeamVert] -> [Hlight|BeamCross]
-+ late VERTICAL [Vlight|no Opaque no Light] -> [Vlight|BeamVert]
-+ late VERTICAL [Vlight|no Opaque BeamHor] -> [Vlight|BeamCross]
-+ late [Light Prism] ->[BeamCross ActivePrism]
-late [Shadow Pushable] -> [Pushable]
-late [TempShadow] -> [Shadow]
-late [Shadow | no Light no Wall no Pushable no Glass no Shadow] -> [shadow | Tempshadow] again
-late [Shadow] -> [Shadow BackgroundDark]
-late [TempShadow] -> [TempShadow BackgroundDark]
-late [no Shadow no TempShadow] -> [no Shadow BackgroundNeutral]
-late [Shadow Player] -> [Shadow Corpse]
+. = Background
+# = Wall
+P = FullPlayer
+* = Crate
+@ = Crate and Target
+2 = Target
+O = Target
+Player = FullPlayer or TransPlayer
+Thing = Crate or Wall
+Anything = Thing or Player
+FThing = Crate or Wall or FullPlayer
+TThing = Wall or TransPlayer
+FPThing = Crate or Wall
+TPThing = Wall
+TType = FallTurn or MoveTurn or LastTurn
+Cratelike = Crate
+a = BallA
+b = BallB
+c = BallC
 
-==============
+======
+SOUNDS
+======
+
+Crate MOVE 36772507
+endlevel 83744503
+startgame 92244503
+
+===============
+COLLISIONLAYERS
+===============
+
+FallTurn
+MoveTurn
+LastTurn, BallA, BallB, BallC
+Background
+Target
+TransPlayer
+FullPlayer, Wall, Crate
+
+=====
+RULES
+=====
+
+late [ TType ] -> [  ]
+up [ up FullPlayer | Crate ] -> [ up FullPlayer | up Crate ]
+up [ horizontal FullPlayer | Crate ] -> [ horizontal FullPlayer | horizontal Crate ]
+[ Target | > FullPlayer | Crate ] -> [ Target | > FullPlayer | > Crate ]
+[ orthogonal Crate | stationary Crate ] -> [ orthogonal Crate | orthogonal Crate ]
+[ Player ] -> [ Player FallTurn ]
+[ FallTurn ] [ moving Thing ] -> [ MoveTurn ] [ moving Thing ]
+[ Action Player ] [ BallA ] [ BallB ] [ BallC ] -> [ BallC ] [ Player ] [ BallA ] [ BallB ]
+[ FallTurn ] [ stationary Cratelike ] -> [ FallTurn ] [ down Cratelike ]
+[ > FThing | stationary FThing ] -> [ stationary FThing | stationary FThing ]
++ [ > TThing | stationary TThing ] -> [ stationary TThing | stationary TThing ] restart
++ [ FallTurn ] [ > Cratelike Target ] -> [ FallTurn ] [ stationary Cratelike Target ]
++ [ > Cratelike | stationary Cratelike ] -> [ stationary Cratelike | stationary Cratelike ]
++ [ FallTurn ] [ moving Crate | stationary Crate ] -> [ FallTurn ] [ stationary Crate | stationary Crate ]
+[ TType no LastTurn ] -> [ LastTurn ]
+[ moving AnyThing ] [ LastTurn ] -> [ moving AnyThing ] [ MoveTurn ]
+[ action FullPlayer no TPThing ] -> [ TransPlayer ]
+[ action TransPlayer no FPThing ] -> [ FullPlayer ]
+[ TType no LastTurn ] -> [  ] again
+
+=============
 WINCONDITIONS
-==============
+=============
 
-no Shadow
+All Target on Cratelike
 
-=======     
+======
 LEVELS
-=======
+======
 
-......####.
-..#####ss#.
-###ssssss#.
-#..ssscss##
-#..#s#s#ss#
-#.g#s#ssss#
-#p.#s#ssss#
-#..css#sss#
-###########
+message level 1 of 10
 
-........########.
-........#...#.C#.
-...######...GC.##
-...#..CsssssO.C.#
-...#P.Csss#sO.CC#
-...#..Csss#sO#..#
-########ss#s....#
-#ssssssOss#s#####
-#sssssssss###....
-#########s#......
-........###......
+######
+#...@#
+#.#P.#
+#@*@.#
+#.O@.#
+#....#
+######
 
-##########
-###G#G#G##
-##P......#
-#G.......#
-##..C....#
-#G.......#
-##..C....#
-#G.......#
-##......S#
-##########
+message level 2 of 10
 
-........########
-........#......#
-#########..#o#.#
-#........gooxo.#
-#g#####c#.sso#s#
-#.ssssss#.ss.ss#
-##soooss#.ss##s#
-##c.p.c###ss#ss#
-##.....#ssss#ss#
-#...g.......#ss#
-#########.xx#ss#
-........##sssss#
-.........#######
+#####.
+#O..##
+#P**.#
+##.@.#
+.##..#
+..##O#
+...###
 
-MESSAGE Earth is safe once again.
+message level 3 of 10
+
+######.#####
+#....###...#
+#.**....@#P#
+#.*.#OOO...#
+#...########
+#####.......
+
+message level 4 of 10
+
+......#####
+......#O..#
+@.....#O#.#
+#######O#.#
+#.P.*.*.*.#
+#.#.#.#.###
+#.......#..
+#########..
+
+message level 5 of 10
+
+..######
+..#.OOP#
+..#.**.#
+..##.###
+...#.#..
+...#.#..
+####.#..
+#....##.
+#.#...#.
+#...#.#@
+###...#.
+..#####.
+
+message level 6 of 10
+
+..####...
+###@@####
+#@....*.#
+#.#..#*.#
+#.O.O#P.#
+#########
+
+message level 7 of 10
+
+####..
+#.O#..
+#..###
+#2P*.#
+#..*.#
+#.@###
+####..
+
+message level 8 of 10
+
+########
+#......#
+#@O2@*P#
+#......#
+#####..#
+....####
+
+message level 9 of 10
+
+.#######
+.#.....#
+.#.O#O.#
+##.*P*.#
+#..O*O.#
+#.....@#
+########
+
+message level 10 of 10
+
+#######
+#.....#
+#.O#O.#
+#.#O*.#
+#.O*O@#
+#.#O*.#
+#..P..#
+#######
+
+message congratulations!

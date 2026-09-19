@@ -1,24 +1,15 @@
 title 2D Whale World
 author increpare
 homepage www.increpare.com
-
 background_color orange
 text_color darkblue
-
 color_palette mastersystem
-
 run_rules_on_level_start
 require_player_movement
 
-(
-    
-This game is a port of the Whale section of my puzzle game English Country Tune (www.englishcountrytune.com), in only 8 lines of code.
-
-)
-
-========
+=======
 OBJECTS
-========
+=======
 
 Background
 blue
@@ -61,9 +52,9 @@ yellow
 .....
 ..0..
 
-=======
+======
 LEGEND
-=======
+======
 
 Beam = HBeam or VBeam
 . = Background
@@ -72,9 +63,9 @@ P = Player
 W = Whale
 0 = Void
 
-=========
+======
 SOUNDS
-=========
+======
 
 whale destroy 62981708
 player move 69405107
@@ -85,9 +76,9 @@ startgame 60661308
 CloseMessage 123434
 ShowMessage 123434
 
-================
+===============
 COLLISIONLAYERS
-================
+===============
 
 Background
 void
@@ -95,61 +86,51 @@ Player, Wall, Whale
 HBeam
 VBeam
 
-======
+=====
 RULES
-======
+=====
 
-(While we allow whales to move onto the void, player's aren't)
-[ > player | void ] -> [ player | void ] 
+[ > player | void ] -> [ player | void ] again
+horizontal [ > Player | VBeam ] -> [ > Player | > VBeam ] again
+vertical [ > Player | HBeam ] -> [ > Player | > HBeam ]
+[ Whale | ... | perpendicular Beam ] -> [ perpendicular Whale | ... | perpendicular Beam ]
+late [ Whale Void ] -> [ Void ]
+[ Beam ] -> [  ]
+late horizontal [ Whale | ... |  ] -> [ Whale | ... | HBeam ]
+late vertical [ Whale | ... |  ] -> [ Whale | ... | VBeam ]
 
-(Beams detect motion)
-horizontal [ > Player | VBeam ] -> [ > Player | > VBeam ] 
-vertical [ > Player | HBeam ] -> [ > Player | > HBeam ] 
-
-(If beams detected motion, transfer that to the whales)
-[ Whale | ... | perpendicular Beam ] -> [ perpendicular Whale | ... | perpendicular Beam ] 
-
-(Remove whales, if necessary)
-late [ Whale Void ] -> [ Void ] 
-
-(Remove beams)
-[ Beam ] -> [ ] 
-
-(Place HVeams and VBeams)
-late horizontal [ Whale | ... | ] -> [ Whale | ... | HBeam ] 
-late vertical [ Whale | ... | ] -> [ Whale | ... | VBeam ] 
-
-==============
+=============
 WINCONDITIONS
-==============
+=============
 
 no Whale
+All Void on Background
 
-=======
+======
 LEVELS
-=======
+======
 
 message Push a whale off to free it.
 
-0000000000000000
-0########0000000
-0.......#0000000
-0###.W..###00000
-0.........#00000
-0#####.##.###000
-0000#...#...#000
-0000#...#...#000
-0000#...#...###0
-0000#.P.#.....#0
-0000#...#.....#0
-0000#####...W##0
-0000000000....#0
-0000000000#####0
-0000000000000000
+000000000000000
+0########000000
+0.......#000000
+0###.W..###0000
+0.........#0000
+0#####.##.###00
+0000#...#...#00
+0000#...#...#00
+0000#...#...###
+0000#.P.#.....#
+0000#...#.....#
+0000#####...W##
+0000000000....#
+0000000000#####
+000000000000000
 
 message level 2 of 8
 
-00000000000
+000000000#0
 0000####000
 000##..##00
 0###....##0
@@ -258,3 +239,17 @@ message level 8 of 8
 00000000000
 
 message all the 2d whales are freed
+
+00000000000000000
+0000############0
+0000#.#........#0
+0000#.....#....#0
+0####..###.....#0
+0......#.#0....#0
+.####..#W#.#W#.#0
+0.........##.#.#0
+0####..0..P###.#0
+0...#.#........#0
+0P#...##########0
+00#####00.0000000
+00000000000000000

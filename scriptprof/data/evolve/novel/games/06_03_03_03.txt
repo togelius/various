@@ -54,6 +54,7 @@ green lightgreen darkbrown
 20002
 .222.
 
+
 AirFrame
 green lightgreen blue
 .2.2.
@@ -77,6 +78,17 @@ darkgrey white brown
 2...2
 2...2
 .222.
+
+A_Frame
+darkgrey white lightblue
+.2.2.
+2...2
+.....
+2...2
+.2.2.
+
+
+
 
 WhiteTile
 #EEEEEE
@@ -166,6 +178,14 @@ lightgreen green
 .1101
 ..110
 
+1
+lightgreen green
+.....
+.1...
+1....
+111..
+0111.
+
 Player
 white
 .....
@@ -180,28 +200,46 @@ LEGEND
 p = Player and BlackTile
 Background = WhiteTile
 o = collected
+
 # = BlackTile
 . = WhiteTile
+
+
 F = F_Frame
 ~ = F_Frame and BlackTile
+
 E = E_Frame
 & = E_Frame and BlackTile
-@ = BlackTile
+
+A = A_Frame
+@ = A_Frame and BlackTile
+
+
+
 c = crate
 k = crate and BlackTile
 * = crate and target
+
 D = OpenDrain
 ] = ClosedDrain
+
 x = target
 % = target and BlackTile
+
+
 + = collected and F_Frame and BlackTile
-Frame = F_Frame or E_Frame
+
+
+Frame = F_Frame or E_Frame or A_Frame
 FrameRider = FluxFrame or EarthFrame or AirFrame
-ooze = 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or collected
-FirmMover = 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or EarthFrame or AirFrame
+ooze = 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or collected
+FirmMover = 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or EarthFrame or AirFrame
 FluxMover = FluxFrame
 Barrier = BlackTile
 object = crate or frame
+
+
+
 goal = target or OpenDrain
 keys = ooze or crate
 
@@ -217,11 +255,10 @@ COLLISIONLAYERS
 
 WhiteTile
 OpenDrain, ClosedDrain, target
-5, 4, 6, 8, 2, 7, 9, 3
+5, 4, 6, 8, 2, 7, 9, 3, 1
 collected, player
-crate
+Frame, FrameRider, crate
 BlackTile
-FluxFrame, EarthFrame, AirFrame, F_Frame, E_Frame
 
 =====
 RULES
@@ -234,8 +271,9 @@ RULES
 [ > Player ] [ 2 ] -> [ Player ] [ > 2 ]
 [ > Player ] [ 4 ] -> [ Player ] [ > 4 ]
 [ > Player ] [ 6 ] -> [ Player ] [ > 6 ]
-[ > Player ] [ 7 ] -> [ Player ] [ > 7 ]
+late [ > Player ] [ 7 ] -> [ Player ] [ > 7 ]
 [ > Player ] [ 9 ] -> [ Player ] [ > 9 ]
+[ > Player ] [ 1 ] -> [ Player ] [ > 1 ]
 [ > Player ] [ 3 ] -> [ Player ] [ > 3 ]
 UP [ > collected ] -> [ 8 ]
 DOWN [ > collected ] -> [ 2 ]
@@ -252,33 +290,44 @@ RIGHT [ > 4 ] -> [ 5 ]
 late [ 5 frame ] -> [ collected frame ]
 LEFT [ > 8 ] -> [ 7 ]
 RIGHT [ > 8 ] -> [ 9 ]
+LEFT [ > 2 ] -> [ 1 ]
 RIGHT [ > 2 ] -> [ 3 ]
 UP [ > 4 ] -> [ 7 ]
+DOWN [ > 4 ] -> [ 1 ]
 UP [ > 6 ] -> [ 9 ]
 DOWN [ > 6 ] -> [ 3 ]
 LEFT [ > 9 ] -> [ 8 ]
 RIGHT [ > 7 ] -> [ 8 ]
 LEFT [ > 3 ] -> [ 2 ]
+RIGHT [ > 1 ] -> [ 2 ]
+UP [ > 1 ] -> [ 4 ]
 DOWN [ > 7 ] -> [ 4 ]
 UP [ > 3 ] -> [ 6 ]
 DOWN [ > 9 ] -> [ 6 ]
 [ > FirmMover | Barrier ] -> [ FirmMover | Barrier ]
 [ > FirmMover Barrier ] -> [ FirmMover Barrier ]
-[ > FluxMover Barrier | Barrier ] -> [ FluxMover Barrier | Barrier ] sfx1
+[ > FluxMover BlackTile | BlackTile ] -> [ FluxMover BlackTile | BlackTile ] sfx1
 [ > FluxMover | object Barrier ] -> [ FluxMover | object Barrier ] sfx1
 [ > ooze | crate ] -> [ ooze | crate ]
 DOWN [ > 2 | no Barrier ] -> [  | 8 ]
 UP [ > 8 | no Barrier ] -> [  | 2 ]
 LEFT [ > 4 | no Barrier ] -> [  | 6 ]
+LEFT [ > 4 | no Barrier ] -> [  | 6 ]
 RIGHT [ > 6 | no Barrier ] -> [  | 4 ]
+UP [ > 7 | no Barrier ] -> [  | 1 ]
 LEFT [ > 7 | no Barrier ] -> [  | 9 ]
 UP [ > 9 | no Barrier ] -> [  | 3 ]
 RIGHT [ > 9 | no Barrier ] -> [  | 7 ]
 DOWN [ > 3 | no Barrier ] -> [  | 9 ]
+RIGHT [ > 3 | no Barrier ] -> [  | 1 ]
+DOWN [ > 1 | no Barrier ] -> [  | 7 ]
+LEFT [ > 1 | no Barrier ] -> [  | 3 ]
 [ action player ] [ ooze F_Frame ] -> [ player ] [ action FluxFrame ]
 [ action player ] [ ooze E_Frame ] -> [ player ] [ action EarthFrame ]
+[ action player ] [ ooze A_Frame ] -> [ player ] [ action AirFrame ]
 [ action player ] [ FluxFrame ] -> [ player ] [ action collected action F_Frame ]
 [ action player ] [ EarthFrame ] -> [ player ] [ action collected action E_Frame ]
+[ action player ] [ AirFrame ] -> [ player ] [ action collected action A_Frame ]
 [ action FluxFrame ] [ WhiteTile ] -> [ action FluxFrame ] [ action 5 ]
 [ action FluxFrame ] [ BlackTile ] -> [ action FluxFrame ] [ action 6 ]
 [ action FluxFrame ] -> [ FluxFrame ]
@@ -290,12 +339,13 @@ DOWN [ > 3 | no Barrier ] -> [  | 9 ]
 [ > EarthFrame | object ] -> [ > EarthFrame | > object ]
 [ < EarthFrame | object ] -> [ < EarthFrame | < object ]
 [ > EarthFrame | > object | Barrier ] -> [ EarthFrame | object | Barrier ]
-[ > FluxFrame | object ] -> [ > FluxFrame | > object ]
+random [ 9 | no 9 no BlackTile ] -> [ 9 | 9 ]
+[ > FluxFrame | Crate ] -> [ > FluxFrame | > Crate ]
 [ > FluxFrame | > object | Barrier ] -> [ FluxFrame | object | Barrier ]
 [ no object | ^ AirFrame | object ] -> [ no object | ^ AirFrame | < object ]
 [ no object | v AirFrame | object ] -> [ no object | v AirFrame | < object ]
 [ ClosedDrain ] -> [ OpenDrain ]
-late [ OpenDrain ] [ target no crate ] -> [ ClosedDrain ] [ target no crate ]
+left late [ OpenDrain ] [ target no crate ] -> [ ClosedDrain ] [ target no crate ]
 
 =============
 WINCONDITIONS
@@ -309,6 +359,7 @@ LEVELS
 
 message 1.
 
+
 ####p
 #.D.#
 #.*.#
@@ -317,37 +368,41 @@ message 1.
 
 message 2.
 
+
 ...###.p
 ########
-##.c.#.#
+#A.c.d.#
 #o.*..##
 #######.
 ........
 
 message 3.
 
+
 ...###.p
 ####E###
-##.#.#.#
+#A.#.d.#
 #o.*..##
 #######.
 ........
 
 message 4.
 
+
 ##############p
 #E.############
 #.*.*#o########
 ##...#.#..#.]##
-#.*.x.#...*..##
+#.*.x.A...*..##
 #E.#c.#########
 ###############
 
 message 5.
 
+
 ###.###..##p
 .&#.#o..##]#
-.@.##.#..cx#
+.@.##.A..cx#
 #####...####
 ...###~..###
 
@@ -363,7 +418,7 @@ message 6.
 .###Eo####
 .###.#####
 #.#.c..cx#
-#.#..##.c#
+#.#..##.cA
 ####.##..#
 ##~..#####
 #######..#

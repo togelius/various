@@ -3,3 +3,9 @@ vendor/
 __pycache__/
 *.pyc
 data/census/raw/
+
+# Live evolutionary runs: the archive and its games rewrite every batch, so
+# committing them buries source changes in thousands of lines of churn.
+# Curated output goes to data/archive/ instead.
+data/evolve/
+logs/

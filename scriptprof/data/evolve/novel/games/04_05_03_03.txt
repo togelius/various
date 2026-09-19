@@ -1,167 +1,93 @@
-title Hill Buddies
-author Anonymous
+title Transparency
+author pickten
+homepage www.puzzlescript.net
+run_rules_on_level_start
+color_palette 5
 
 =======
 OBJECTS
 =======
 
-Wall
-black
-
 Background
-darkbrown
-
-
-Sky
-lightblue
-
-DownHillR
-darkbrown lightblue
+darkgray darkgray
 11111
 01111
-00111
-00011
-00001
-
-DownHillL
-darkbrown lightblue
+11101
 11111
-11110
-11100
-11000
-10000
+10111
 
-Player
-Red
-..000
-.0...
-0....
-0....
+Target
+yellow
+.....
+.000.
+.000.
+.000.
+.....
+
+Wall
+BROWN DARKBROWN
+00010
+11111
+01000
+11111
+00010
+
+FullPlayer
+white blue
+10001
+01.10
+0.1.0
+01.10
+10001
+
+TransPlayer
+white pink
+10001
+01.10
+0.1.0
+01.10
+10001
+
+Crate
+blue Yellow
+00000
 0...0
+0...0
+0...0
+00000
 
-Player2
-Red
-00...
-..0..
-...0.
-...0.
-...0.
+InnerCrate
+pink Yellow
+00000
+0...0
+0...0
+0...0
+00000
 
-Player3
-Red
-...0.
-...0.
-..0..
-00...
-.....
+FallTurn
+transparent
 
-Player4
-Red
-0....
-0....
-.0...
-..000
-.....
+MoveTurn
+transparent
 
-Character
-blue pink lightblue
+LastTurn
+transparent
+
+Vent
+darkgreen
+0.0.0
+.0.0.
+0.0.0
+.0.0.
+0.0.0
+
+PlayerUp
+Black Orange White Blue Gray
+.000.
+.000.
 22222
-22222
-22221
-22220
-22220
-
-
-Character1
-blue pink lightblue
-22222
-22222
-22212
-22202
-22202
-
-Character2
-blue pink lightblue
-22222
-22222
-22122
-22022
-22022
-
-Character3
-blue pink lightblue
-22222
-22222
-21222
-20222
-20222
-
-Character4
-blue pink lightblue
-22222
-22222
-12222
-02222
-02222
-
-CharR0
-darkbrown lightblue blue pink
-11111
-01111
-00113
-00012
-00002
-
-CharR1
-darkbrown lightblue blue pink
-11111
-01131
-00121
-00021
-00001
-
-CharR2
-darkbrown lightblue blue pink
-11311
-01211
-00211
-00011
-00001
-
-
-CharR3
-darkbrown lightblue blue
-12111
-02111
-00111
-00011
-00001
-
-
-SkyR3
-blue pink lightblue
-22222
-22222
-22222
-22222
-21222
-
-CharR4
-darkbrown lightblue blue
-21111
-01111
-00111
-00011
-00001
-
-
-SkyR4
-blue pink lightblue
-22222
-22222
-22222
-12222
-02222
+.333.
+.4.3.
 
 ======
 LEGEND
@@ -169,101 +95,194 @@ LEGEND
 
 . = Background
 # = Wall
-S = Sky
-
-p = Player
-q = Player2
-d = Player3
-b = Player4
-
-I = Character
-1 = Character1
-2 = Character2
-3 = Character3
-4 = Character4
-
-5 = CharR0
-6 = CharR1
-7 = CharR2
-8 = CharR3
-e = SkyR3
-9 = CharR4
-n = SkyR4
-
-r = DownHillR
-l = DownHillL
+P = FullPlayer
+* = Crate
+@ = Crate and Target
+8 = InnerCrate
+2 = InnerCrate and Target
+O = Target
+Player = FullPlayer or TransPlayer
+Thing = Crate or Wall or InnerCrate
+Anything = Thing or Player
+FThing = Crate or Wall or FullPlayer
+TThing = InnerCrate or Wall or TransPlayer
+FPThing = Crate or Wall
+TPThing = InnerCrate or Wall
+TType = FallTurn or MoveTurn or LastTurn
+Cratelike = Crate or InnerCrate
+a = Vent
+b = PlayerUp
 
 ======
 SOUNDS
 ======
 
-
+Crate MOVE 36772507
+endlevel 83744503
+startgame 92244503
 
 ===============
 COLLISIONLAYERS
 ===============
 
-Background
-
-Sky, Wall, DownHillR, DownHillL
-Character, Character1, Character2, Character3, Character4
-CharR0, CharR1, CharR2, CharR3, SkyR3, CharR4, SkyR4
-Player,Player2, Player3, Player4
+FallTurn
+MoveTurn
+LastTurn
+Background, PlayerUp
+Target, Vent
+TransPlayer, InnerCrate
+FullPlayer, Wall, Crate
 
 =====
 RULES
 =====
 
-[ moving Player | stationary Player2 ] -> [ moving Player | moving Player2 ]
-[ moving Player2 | stationary Player3 ] -> [ moving Player2 | moving Player3 ]
-[ moving Player | stationary Player4 ] -> [ moving Player | moving Player4 ]
-[ CharR4 ] -> [ DownHillR ]
-left [ SkyR4 | DownHillR ] -> [ Sky | CharR0 ]
-left [ Player4 | SkyR4 | Sky ] -> [ Player4 | Sky | Character ]
-[ SkyR4 ] -> [ Sky ]
-up [ CharR4 | Wall ] -> [ DownHillR | Wall ]
-up [ CharR2 | Wall ] -> [ CharR3 | Wall ]
-up [ CharR3 no Character | SkyR3 ] -> [ CharR4 | SkyR4 ]
-up [ CharR2 | Sky ] -> [ CharR3 | SkyR3 ]
-[ CharR1 ] -> [ CharR2 ]
-[ CharR0 ] -> [ CharR1 ]
-[ Character4 | DownHillR ] -> [ Character | CharR0 ]
-left [ Character4 | Sky ] -> [ Character | Character ]
-left [ Character4 | Character4 ] -> [ Character | Character ]
-[ Character3 ] -> [ Character4 ]
-[ Character2 ] -> [ Character3 ]
-[ Character1 ] -> [ Character2 ]
-[ Character ] -> [ Character1 ]
+late [ PlayerUp Background ] -> restart
+late [ TType ] -> [  ]
+up [ up FullPlayer | Crate ] -> [ up FullPlayer | up Crate ]
+down [ horizontal FullPlayer | Crate ] -> [ horizontal FullPlayer | horizontal Crate ]
+[ > FullPlayer | Crate ] -> [ > FullPlayer | v Crate ]
+up [ up TransPlayer | InnerCrate ] -> [ up TransPlayer | up InnerCrate ]
+up [ horizontal TransPlayer | InnerCrate ] -> [ horizontal TransPlayer | horizontal InnerCrate ] win
+[ > TransPlayer | InnerCrate ] -> [ > TransPlayer | > InnerCrate ]
+[ orthogonal Crate | stationary Crate ] -> [ orthogonal Crate | orthogonal Crate ]
+[ orthogonal InnerCrate | stationary InnerCrate ] -> [ orthogonal InnerCrate | orthogonal InnerCrate ]
+[ Player ] -> [ Player FallTurn ]
+[ > InnerCrate | MoveTurn ] -> [ > InnerCrate |  ]
+[ FallTurn ] [ moving Thing ] -> [ MoveTurn ] [ moving Thing ]
+[ FallTurn ] [ stationary Cratelike ] -> [ FallTurn ] [ down Cratelike ]
+[ > FThing | stationary FThing ] -> [ stationary FThing | stationary FThing ]
++ [ > TThing | stationary TThing ] -> [ stationary TThing | stationary TThing ]
++ [ FallTurn ] [ > Cratelike Target ] -> [ FallTurn ] [ stationary Cratelike Target ]
++ [ > Cratelike | stationary Cratelike ] -> [ stationary Cratelike | stationary Cratelike ]
++ [ FallTurn ] [ moving Crate | stationary Crate ] -> [ FallTurn ] [ stationary Crate | stationary Crate ]
++ [ FallTurn ] [ moving InnerCrate | stationary InnerCrate no LastTurn ] -> [ FallTurn ] [ stationary InnerCrate | stationary InnerCrate ] again
+[ TType no LastTurn ] -> [ LastTurn ]
+[ moving AnyThing ] [ LastTurn ] -> [ moving AnyThing ] [ MoveTurn ]
+[ action FullPlayer no TPThing ] -> [ TransPlayer ] cancel
+late [ FullPlayer FallTurn ] -> restart
+[ action TransPlayer no FPThing ] -> [ FullPlayer ]
 
 =============
 WINCONDITIONS
 =============
 
-All Player on CharR0
+All Target on Cratelike
+Some Background
+All LastTurn on FallTurn
 
 ======
 LEVELS
 ======
 
-##########################
-.rssssssssssssssssssssssss
-..rsssssssssssssssssssssss
-.....rssssssssssssssssssss
-......rsssssssssssssssssss
-...........rssssssssssssss
-............rsssssssssssss
-..............rsssssssssss
-...............rssssssssss
-.........pq.....rsssssssss
-.........bd......rssssssss
-...................rssssss
-.....................rssss
-.......................rss
-........................rI
-..........................
-..........................
-..........................
-..........................
-..........................
+message level 1 of 10
 
-message "You Found Waldo!"
+####
+#...
+#.#P
+.a*@
+#.O@
+##..
+####
+
+message level 2 of 10
+
+#####a
+#O.a##
+#P**.#
+##a..#
+.##..#
+..##O#
+...###
+
+message level 3 of 10
+
+######.#####
+#....###...#
+#.**.....#P#
+#.*.#OOO.a.#
+#...########
+#####......a
+
+message level 4 of 10
+
+......#####
+.aa...#O..#
+......#O#.#
+#######O#.#
+#.P.*.*.*.#
+#.#.#.#.###
+#.......#..
+#########..
+
+message level 5 of 10
+
+..######
+..#.OOP#
+..#.**.#
+..##.###
+...#.#..
+...#.#..
+####a#..
+#....##.
+#.#.a.#.
+#..a#.#.
+###...#.
+..#####.
+
+message level 6 of 10
+
+..####...
+###..####
+#..a..*.#
+#.#..#*a#
+#aO.O#P.#
+
+message level 7 of 10
+
+####a.
+#.O#.a
+#..###
+#2P*.#
+#..*.#
+#..###
+####..
+
+message level 8 of 10
+
+#######
+#a...a.
+#.O2@*P
+#..a...
+#####..
+....###
+
+message level 9 of 10
+
+.#######
+#...a..#
+.#.O8O.#
+##.*P*.#
+#.aO*O.#
+#a.....#
+########
+
+message level 10 of 10
+
+#######
+#....a#
+#.O8O.#
+#a8O*a#
+#.O*O.#
+#.8O*.#
+#..P..#
+#######
+
+message congratulations!
+
+.######a#
+##...##.#
+#.....*P#
+#....#*.#
+a.O.Oa..#
+#########

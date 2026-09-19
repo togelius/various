@@ -276,7 +276,7 @@ RULES
 [ > Player ] [ 1 ] -> [ Player ] [ > 1 ]
 [ > Player ] [ 3 ] -> [ Player ] [ > 3 ]
 UP [ > collected ] -> [ 8 ]
-DOWN [ > collected ] -> [ 2 ]
+DOWN [ v collected ] -> [ 2 ]
 LEFT [ > collected ] -> [ 4 ]
 RIGHT [ > collected ] -> [ 6 ]
 UP [ > 5 ] -> [ 8 ]

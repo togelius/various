@@ -169,11 +169,11 @@ Player, Cursor
 RULES
 =====
 
-[ Player | Player | Cursor ] -> [ > Player | > Player |  ]
+right [ P3 | no P3 no Cursor ] -> [  | P3 ]
+late [ Player | Player | Cursor ] -> [ > Player | > Player |  ]
+[ > Player | > Player | Wall ] -> cancel
 [ > Player | > Player | no Wall |  ] -> [ > Player | > Player |  | Cursor ] again
 late [ Player Target | Player Target ] -> [ Player | Player ]
-[ > Background | P1 ] -> [ > Background |  ]
-late [ no P1 ] [ Cursor ] -> [  ] [  ]
 late [ Cursor Edge ] -> [ Edge ]
 
 =============

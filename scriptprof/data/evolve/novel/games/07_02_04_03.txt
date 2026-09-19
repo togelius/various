@@ -356,10 +356,11 @@ startloop
 [ > d1 | stationary d6 ] -> [ d1 | d6 ]
 [ > d2 | stationary d1 ] -> [ d2 | d1 ]
 [ > d2 | stationary d2 ] -> [ exhaust | d3 ] sfx0
-[ > d2 | stationary d3 ] -> [ d2 | d3 ]
+[ > d2 | stationary poison ] -> [ d2 | poison ]
 [ > d2 | stationary d4 ] -> [ d2 | d4 ]
 [ > d2 | stationary d5 ] -> [ d2 | d5 ]
 [ > d2 | stationary d6 ] -> [ d2 | d6 ]
+[ > d3 | stationary d1 ] -> [ d3 | d1 ]
 [ > d3 | stationary d1 ] -> [ d3 | d1 ]
 [ > d3 | stationary d2 ] -> [ d3 | d2 ]
 [ > d3 | stationary d3 ] -> [ exhaust | d4 ] sfx0
@@ -387,7 +388,9 @@ startloop
 [ > d6 | stationary d6 ] -> [ exhaust |  ] sfx0
 [ > dig | stationary eraser ] -> [  |  ] sfx0
 [ > eraser | stationary dig ] -> [  |  ] sfx0
+[ background | d4 ] -> [ background | d3 ]
 [ > d1 | stationary minus ] -> [  |  ] sfx0
+down [ > background | l0 ] -> cancel
 [ > d2 | stationary minus ] -> [  | d1 ] sfx0
 [ > d3 | stationary minus ] -> [  | d2 ] sfx0
 [ > d4 | stationary minus ] -> [  | d3 ] sfx0
@@ -429,7 +432,7 @@ startloop
 [ > special | stationary special ] -> [ special | special ]
 [ > d1 | g2 no object no exhaust ] -> [ d1 | g2 ]
 [ > d1 | g3 no object no exhaust ] -> [ d1 | g3 ]
-[ > d1 | g4 no object no exhaust ] -> [ d1 | g4 ]
+[ > d1 | g4 no object no exhaust ] -> [ d1 | g4 ] restart
 [ > d1 | g5 no object no exhaust ] -> [ d1 | g5 ]
 [ > d1 | g6 no object no exhaust ] -> [ d1 | g6 ]
 [ > d2 | g1 no object no exhaust ] -> [ d2 | g1 ]
@@ -442,7 +445,7 @@ startloop
 [ > d3 | g4 no object no exhaust ] -> [ d3 | g4 ]
 [ > d3 | g5 no object no exhaust ] -> [ d3 | g5 ]
 [ > d3 | g6 no object no exhaust ] -> [ d3 | g6 ]
-[ > d4 | g1 no object no exhaust ] -> [ d4 | g1 ]
+[ > d4 | g1 no object no exhaust ] -> [ d4 | g1 ] win
 [ > d4 | g2 no object no exhaust ] -> [ d4 | g2 ]
 [ > d4 | g3 no object no exhaust ] -> [ d4 | g3 ]
 [ > d4 | l6 no object no exhaust ] -> [ d4 | l6 ]
@@ -468,7 +471,7 @@ WINCONDITIONS
 all dig on target
 all target on dig
 no corpse
-No corpse
+Some corpse
 Some d6
 
 ======
@@ -620,16 +623,6 @@ y.#.r.#f#
 12###y###
 
 message If you toyed enough with the previous one, you will find that the gates aren't that strict...
-
-####y####
-#w#.....#
-#a...q..#
-#.#######
-#...z...#
-#######.#
-#..q...a#
-#.....#e#
-13#######
 
 message You can let trailing blocks of whatever numbers pass a gate!
 

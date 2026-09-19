@@ -75,8 +75,8 @@ RULES
 =====
 
 [ > Player | ... | Cheese ] -> [  | ... | Player ]
+[ Player ] -> [ > Player ]
 [ > Player ] -> [ Player ]
-late [ Player no Background ] -> [ Player Background ]
 
 =============
 WINCONDITIONS

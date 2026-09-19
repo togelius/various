@@ -1,51 +1,56 @@
-title Mars Attacks
-homepage https://soundcloud.com/ridlaa
-text_color green
+title Broken Leg Sokoban
+author Franklin P. Dyer
 
 =======
 OBJECTS
 =======
 
 Background
-Black darkblue
-00100
-00000
-00010
-10000
-00000
+LIGHTGREEN GREEN
+11111
+01111
+11101
+11111
+10111
 
+Target
+DarkBlue
+.....
+.000.
+.0.0.
+.000.
+.....
+
+PlayerUp
+Black Orange White Blue Gray
+.000.
+.000.
+22222
+.333.
+.4.3.
+
+PlayerDown
+Black Orange White Blue Gray
+.000.
+.111.
+22222
+.333.
+.3.4.
 
 Crate
-lightbrown brown darkbrown
-10000
-21110
-21110
-21110
-22221
+Orange Yellow
+00000
+0...0
+0...0
+0...0
+00000
 
-
-Wall
-Green Darkgreen lightgreen
-02222
-10002
-10002
-10002
-11110
-
-Player
-lightgreenBlack
-.000.
-01010
-01010
-.000.
-..0..
-
-Fruit
-White gray
+Echo
+lightred red green
 .000.
 00000
-00010
-00010
+00000
+00000
 .000.
 
 ======
@@ -53,117 +58,150 @@ LEGEND
 ======
 
 . = Background
-# = Wall
-P = Player
-F = Fruit
-C = Crate
+P = PlayerDown
+* = Crate
+@ = Crate and Target
+O = Target
+Player = PlayerUp or PlayerDown
+a = Echo
 
 ======
 SOUNDS
 ======
 
-Fruit destroy 66959100
-startgame 82125102
-endgame 70589308
-Crate move 47385307
-closemessage 83916906
+Crate MOVE 36772507
+endlevel 83744503
+startgame 92244503
 
 ===============
 COLLISIONLAYERS
 ===============
 
 Background
-
-Player, Wall, Fruit, Crate
+Target
+Crate, Echo
+PlayerUp, PlayerDown
 
 =====
 RULES
 =====
 
 [ > Player | Crate ] -> [ > Player | > Crate ]
-[ > Player | Player ] -> [ > Player | > Player ]
-[ > Player |  ] -> [ > Player | NO Fruit ]
+[ UP Player ] -> [ UP PlayerUp ]
+[ LEFT PlayerUp ] -> cancel
+[ DOWN Player ] -> [ DOWN PlayerDown ]
+down [ RIGHT PlayerDOWN ] -> cancel
+[ PlayerUp | Echo ] -> [ PlayerUp | Crate ]
 
 =============
 WINCONDITIONS
 =============
 
-No fruit
+All Target on Crate
 
 ======
 LEVELS
 ======
 
-message collect all the pills
+message Yes, I know I've already used this mechanic, I'm just applying it to a new set of levels.
 
-message Wake up Ridlaa time to take your pills
+message level 1 of 9
 
-#######
-#.P..F#
-#.....#
-###C#..
-#....#P
-#..PF.#
-#.....#
+*a**..
+*.O*..
+*..***
+*@P..*
+*..*.a
+*...**
+*****.
 
-message You look kinda ill but I'm feeling them skills
+message level 2 of 9
 
-P#####.
-...#...
-...#...
-.F.#.FP
-...#P..
-...C...
-.#####.
+***a**
+*....*
+*.*P.*
+*.*@.*
+*.O@.*
+*....*
+******
 
-message Raise it up raise it up
+message level 3 of 9
 
-####...
-#...#..
-#.F..#.
-#.....#
-#..F.P#
-#F...C.
-#####.P
+.********
+**...**.*
+a.....*P*
+*....**.*
+*.O.O*..*
+***a*****
 
-message Waiting for the aliens with bright lights n beams
+message level 4 of 9
 
-..#...P
-P.C...P
-..#.F..
-..#....
-..#.F..
-..#P...
-F.#####
+.....***
+**a***.*
+*......*
+*.O@@*P*
+*......*
+*.***..*
+a**.a***
 
-message We all killing one another, there's no I in team
+message level 5 of 9
 
-...#...
-..#P#..
-.#.P.#.
-###C###
-#F.P..#
-#.....#
-#....F#
+.****a**
+.*.....*
+.*.O*O.*
+**.*P*.*
+*..O*O.*
+*......*
+*a*a****
 
-message Beam me up scotty n don't forget my hottie
+message level 6 of 9
 
-P..C...
-..#.#..
-.#.P.#P
-###C###
-#.....#
-#.....#
-#F...F#
+...****.....
+****..******
+*......*...*
+*.**.....*P*
+*.*.*OOO...*
+*...*.******
+*...**a.....
+*****.......
 
-message A token of my life just trying to break free
+message level 7 of 9
 
-#######.......####....#........C......#...
-#.P...#.#####.#...#...C.......#.#....#.#..
-#....C....#...#.F..#..#.P....#...#..#...#.
-#####..FP.C...#.....#.#.F...###C##.#######
-#....#....#...#.....#.#.....#....#.C.....#
-#.....#.#####.####C#..C.....#.F..#.#..F..#
-#......#..............#####.#...P#.#.....#
+**a****
+*.....*
+a.O*O.*
+*.*O*.*
+*.O*O.a
+*.*O*.*
+*..P..*
+*******
 
-message You won!
+message level 8 of 9
+
+....***.
+..***.**
+..a.OOP*
+..*.**.*
+..*..***
+..**.*..
+...*.*..
+****.**.
+*.....*.
+*.*...*.
+*...a.*.
+*.*...*.
+***.***.
+..***...
+
+message level 9 of 9
+
+...***
+**a*.*
+*O...*
+*P**.*
+a*...a
+.*...*
+.***O*
+...***
+
+message congratulations!

@@ -283,11 +283,9 @@ DOWN [ > 9 ] -> [ 6 ]
 DOWN [ > 2 | no Barrier ] -> [  | 8 ]
 UP [ > 8 | no Barrier ] -> [  | 2 ]
 LEFT [ > 4 | no Barrier ] -> [  | 6 ]
-RIGHT [ > 6 | no Barrier ] -> [  | 4 ]
 late UP [ > 7 | no Barrier ] -> [  | 1 ]
 LEFT [ > 7 | no Barrier ] -> [  | 9 ]
 UP [ > 9 | no Barrier ] -> [  | 3 ]
-RIGHT [ > 9 | no Barrier ] -> [  | 7 ]
 DOWN [ > 3 | no Barrier ] -> [  | 9 ] win
 RIGHT [ > 3 | no Barrier ] -> [  | 1 ]
 DOWN [ > 1 | no Barrier ] -> [  | 7 ]
@@ -384,3 +382,9 @@ message 6.
 ####.##..#
 ##~..#####
 #######..#
+
+####p
+#.#.#
+o.*.#
+#.##.
+9####

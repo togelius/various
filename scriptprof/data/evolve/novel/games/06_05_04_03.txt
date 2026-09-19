@@ -223,7 +223,7 @@ late [ player star ] -> again
 [ player fiver ] [ zero no tens ] -> [ player ] [ five ]
 [ player fiver ] [ one no tens ] -> [ player ] [ six ]
 [ player fiver ] [ two no tens ] -> [ player ] [ seven ]
-random [ hund | no hund no won ] -> [ hund | hund ]
+random [ carry | no carry no won ] -> [ carry | carry ]
 [ player fiver ] [ three no tens ] -> [ player ] [ eight ]
 [ player fiver ] [ four no tens ] -> [ player ] [ nine ]
 [ player fiver ] [ five no tens ] -> [ player ] [ zero carry ]
@@ -241,6 +241,7 @@ random [ hund | no hund no won ] -> [ hund | hund ]
 [ carry no tens ] [ seven tens ] -> [  ] [ eight tens ]
 [ carry no tens ] [ eight tens ] -> [  ] [ nine tens ]
 [ carry no tens ] [ nine tens ] -> [  ] [ zero tens carry ]
+right [ three | no three no on ] -> [  | three ]
 [ hund ] -> [ hund off ]
 [ tens carry ] [ hund off ] -> [ tens carry ] [ hund on ]
 [ player won ] -> win
@@ -272,7 +273,7 @@ late [ four | five ] -> [  |  ]
 [ b no tens ] [ seven no tens ] -> [ b off ] [ seven ]
 [ w no tens ] [ nine no tens ] -> [ w off ] [ nine ]
 [ seg tens ] [ zero tens ] -> [ seg off tens ] [ zero tens ]
-[ l tens ] [ one tens ] -> [ l off tens ] [ one tens ]
+[ l t ] [ one t ] -> [ l off t ] [ one t ]
 [ w tens ] [ one tens ] -> [ w off tens ] [ one tens ]
 [ m tens ] [ one tens ] -> [ m off tens ] [ one tens ]
 [ t tens ] [ one tens ] -> [ t off tens ] [ one tens ]
@@ -308,6 +309,7 @@ no fiver
 all ending on player
 No eight
 All hund on Background
+No six
 
 ======
 LEVELS
@@ -345,7 +347,6 @@ xxxxxx.x
 p05....x
 xxxxxxxx
 
-
 x?xxxx?zx
 xxxxxxx0x
 xcx*!*x.x
@@ -355,13 +356,13 @@ xexwxex.x
 xcx*&*1px
 xxxxxxx.x
 
-xx???xxxx?x
-z.ctc.c!c.x
-x.lxrx@x#.x
-x.cmcxc$c.x
-x9wxexwx^1x
-x.cbc.cbc.x
-xxxxxxxxxpx
+xx???xxxx?xx
+z.ctc.c!c.xx
+x.lxrx@x#.xx
+x.cmcxc$c.xx
+x9wxexwx^1xx
+x.cbc.cbc.xx
+xxxxxxxxxpxx
 
 x????xxxxxx
 z.ctcfctc.p
@@ -396,8 +397,6 @@ xkwxexwxekx
 x.cbcxcbc.x
 x..k...k..x
 xzxxxxxxxxx
-
-
 
 xpxxxxxxxxx
 xkxxxxxxxxx

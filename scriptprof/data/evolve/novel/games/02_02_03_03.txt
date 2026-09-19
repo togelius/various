@@ -122,7 +122,7 @@ Root, GrowthRoot, StuntedRoot, Fertilizer, UsedFertilizer
 RULES
 =====
 
-late [ > Player | Fertilizer | no Solid ] -> [ Root | > Player Fertilizer |  ]
+late [ Rock | > Player | Fertilizer | no Solid ] -> [ Rock | Root | > Player Fertilizer |  ]
 [ > Player | Fertilizer | Solid ] -> [ Root | Player UsedFertilizer | Solid ]
 [ > Player | no Solid ] -> [ Root | Player ]
 late [ Root Fertilizer ] -> [ GrowthRoot ]
@@ -133,6 +133,7 @@ WINCONDITIONS
 =============
 
 Any Player on Goal
+All Rock on Background
 
 ======
 LEVELS

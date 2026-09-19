@@ -9,6 +9,7 @@ OBJECTS
 Background
 GREEN
 
+
 Target
 orange
 .....
@@ -41,14 +42,6 @@ DarkBlue
 0...0
 00000
 
-DeadPlayer
-#ffe02c #ffc700 #c87700
-.112.
-10012
-10012
-21122
-.222.
-
 ======
 LEGEND
 ======
@@ -59,7 +52,6 @@ P = Player
 O = Crate
 @ = Crate and Target
 * = Target
-a = DeadPlayer
 
 ======
 SOUNDS
@@ -75,14 +67,14 @@ COLLISIONLAYERS
 
 Background
 Target
-Player, Wall, Crate, DeadPlayer
+Player, Wall, Crate
 
 =====
 RULES
 =====
 
-[ DeadPlayer ] -> [ DeadPlayer ] sfx2
 [ no Wall no Player no Crate | > Player | Crate ] -> [ Player | Crate |  ]
+late [ Wall | ... | Player ] -> [ > Wall | ... | Player ]
 
 =============
 WINCONDITIONS
@@ -103,12 +95,12 @@ message level 10 of 10
 #.P.*.*.*.#
 #.#.#.#.###
 #.......#..
-#########..
+####O####..
 
 message level 9 of 10
 
-#####.
-#O..##
+####O.
+#O..O#
 #P**.#
 ##...#
 .##..#
@@ -120,7 +112,7 @@ message level 8 of 10
 ..######
 ..#.OOP#
 ..#.**.#
-..##.###
+..#O.###
 ...#.#..
 ...#.#..
 ####.#..
@@ -128,7 +120,7 @@ message level 8 of 10
 #.#...#.
 #...#.#.
 ###...#.
-..#####.
+..###O#.
 
 message level 7 of 10
 
@@ -136,10 +128,10 @@ message level 7 of 10
 #.....#
 #.O*O.#
 #.*O*.#
-#.O*O.#
-#.*O*.#
+#.O*O.O
+#.*O*.O
 #..P..#
-#######
+###O###
 
 message level 6 of 10
 
@@ -147,12 +139,12 @@ message level 6 of 10
 #....###...#
 #.**.....#P#
 #.*.#OOO...#
-#...########
+#...##O###O#
 #####.......
 
 message level 5 of 10
 
-.#######
+.O######
 .#.....#
 .#.O*O.#
 ##.*P*.#
@@ -162,7 +154,7 @@ message level 5 of 10
 
 message level 4 of 10
 
-########
+##O#####
 #......#
 #.O@@*P#
 #......#
@@ -176,12 +168,12 @@ message level 3 of 10
 #.....*.#
 #.#..#*.#
 #.O.O#P.#
-#########
+########O
 
 message level 2 of 10
 
-######
-#....#
+##O###
+O....#
 #.#P.#
 #.*@.#
 #.O@.#
@@ -191,9 +183,9 @@ message level 2 of 10
 message level 1 of 10
 
 ####..
-#.O#..
+#.OO..
 #..###
 #@P..#
-#..*.#
+O..*.O
 #..###
 ####..

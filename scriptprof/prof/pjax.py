@@ -170,10 +170,15 @@ class Level:
     def _expander(self, batch: int):
         """``(batch states) -> (batch, 5) successors``, jitted per batch size.
 
-        Cached on the *game* so every level of a game with a common board
-        shape reuses one compilation.
+        Cached on the *game* and keyed by this level's own state shape, so
+        levels that really do share a shape share a compilation.  Keying on the
+        environment's board dimensions instead looks equivalent and is not:
+        PuzzleJAX pads a level to the board only when it already fits, so one
+        game can hold a 9x9 level and a 10x10 one, and handing the second
+        level's states to the first level's compiled function fails inside XLA
+        with an error that names neither.
         """
-        key = (self.game._shape_key(self.index), batch)
+        key = (self.shape, batch)
         f = self.game._expand_cache.get(key)
         if f is not None:
             return f
@@ -519,10 +524,6 @@ class PJGame:
     @classmethod
     def from_text(cls, text: str, **kw) -> "PJGame":
         return cls(parse(text), **kw)
-
-    def _shape_key(self, level_i: int):
-        """Levels that pad to the same board share a compiled step function."""
-        return (int(self.env._board_height), int(self.env._board_width))
 
     @property
     def n_levels(self) -> int:

@@ -1,213 +1,283 @@
-title Circulando
-author Marcos Donnantuoni
-homepage https://marcosd.itch.io
+title Transparency
+author pickten
+homepage www.puzzlescript.net
+run_rules_on_level_start
+color_palette 5
 
-========
-objects
-========
+=======
+OBJECTS
+=======
 
-background
-gray
+Background
+darkgray darkgray
+11111
+01111
+11101
+11111
+10111
 
-target
-darkblue
-.....
-.000.
-.0.0.
-.000.
-.....
-
-wall
-brown
-
-player
+Target
 yellow
 .....
-..0..
 .000.
+.000.
+.000.
+.....
+
+Wall
+BROWN DARKBROWN
+00010
+11111
+01000
+11111
+00010
+
+FullPlayer
+white blue
+10001
+01.10
+0.1.0
+01.10
+10001
+
+TransPlayer
+white pink
+10001
+01.10
+0.1.0
+01.10
+10001
+
+Crate
+blue Yellow
+00000
+0...0
+0...0
+0...0
+00000
+
+InnerCrate
+pink Yellow
+00000
+0...0
+0...0
+0...0
+00000
+
+FallTurn
+transparent
+
+MoveTurn
+transparent
+
+LastTurn
+transparent
+
+Vent
+darkgreen
+0.0.0
 .0.0.
-.....
+0.0.0
+.0.0.
+0.0.0
 
-crate
-orange yellow
+Drift
+darkgrey
 00000
-0...0
-0...0
-0...0
 00000
-
-m1
-lightgray
-.....
-..0..
-..0..
-.....
-.....
-
-m2
-lightgray
-.....
-.....
-.00..
-.....
-.....
-
-m3
-lightgray
-.....
-.....
-.00..
-.....
-.....
-
-m4
-lightgray
-.....
-..0..
-..0..
-.....
-.....
-
-m6
-lightgray
-.....
-.....
-..0..
-..0..
-.....
-
-m7
-lightgray
-.....
-.....
-..00.
-.....
-.....
-
-m8
-lightgray
-.....
-.....
-..00.
-.....
-.....
-
-m9
-lightgray
-.....
-.....
-..0..
-..0..
-.....
-
-=======
-legend
-=======
-
-. = background
-# = wall
-p = player
-* = crate
-@ = crate and target
-o = target
-mark = m1 or m2 or m3 or m4 or m6 or m7 or m8 or m9
-obst = wall or player
-
-=======
-sounds
-=======
-
-crate move 92970108
-cancel 76474702
-
-
-================
-collisionlayers
-================
-
-background
-target
-player, wall, crate
-mark
+00000
+00000
+00000
 
 ======
-rules
+LEGEND
 ======
 
-[ > player | crate ] -> cancel
-[ > player | wall  ] -> cancel
+. = Background
+# = Wall
+P = FullPlayer
+* = Crate
+@ = Crate and Target
+8 = InnerCrate
+2 = InnerCrate and Target
+O = Target
+Player = FullPlayer or TransPlayer
+Thing = Crate or Wall or InnerCrate
+Anything = Thing or Player
+FThing = Crate or Wall or FullPlayer
+TThing = InnerCrate or Wall or TransPlayer
+FPThing = Crate or Wall
+TPThing = InnerCrate or Wall
+TType = FallTurn or MoveTurn or LastTurn
+Cratelike = Crate or InnerCrate
+a = Vent
+b = Drift
 
-[ mark ] -> [ ]
+======
+SOUNDS
+======
 
-left  [ action player | ] -> [ action player | m4 ]
-right [ action player | ] -> [ action player | m6 ]
-up    [ action player | ] -> [ action player | m8 ]
-down  [ action player | ] -> [ action player | m2 ]
+Crate MOVE 36772507
+endlevel 83744503
+startgame 92244503
 
-up    [ m4 | ] -> [ m4 | m7 ]
-up    [ m6 | ] -> [ m6 | m9 ]
-down  [ m4 | ] -> [ m4 | m1 ]
-down  [ m6 | ] -> [ m6 | m3 ]
+===============
+COLLISIONLAYERS
+===============
 
-up    [ crate m1 | obst ] -> cancel
-left  [ crate m2 | obst ] -> cancel
-left  [ crate m3 | obst ] -> cancel
-up    [ crate m4 | obst ] -> cancel
-down  [ crate m6 | obst ] -> cancel
-right [ crate m7 | obst ] -> cancel
-right [ crate m8 | obst ] -> cancel
-down  [ crate m9 | obst ] -> cancel
+FallTurn
+MoveTurn
+LastTurn
+Background
+Target, Vent
+TransPlayer, InnerCrate
+FullPlayer, Wall, Crate
+Drift
 
-[ crate m1 ] -> [ up    crate m1 ]
-[ crate m2 ] -> [ left  crate m2 ]
-[ crate m3 ] -> [ left  crate m3 ]
-[ crate m4 ] -> [ up    crate m4 ]
-[ crate m6 ] -> [ down  crate m6 ]
-[ crate m7 ] -> [ right crate m7 ]
-[ crate m8 ] -> [ right crate m8 ]
-[ crate m9 ] -> [ down  crate m9 ]
+=====
+RULES
+=====
 
-==============
-winconditions
-==============
+right [ > FullPlayer | FallTurn ] -> cancel
+late [ TType ] -> [  ]
+up [ up FullPlayer | Crate ] -> [ up FullPlayer | up Crate ]
+up [ horizontal FullPlayer | Crate ] -> [ horizontal FullPlayer | horizontal Crate ]
+[ > FullPlayer | Crate ] -> [ > FullPlayer | v Crate ]
+up [ up TransPlayer | InnerCrate ] -> [ up TransPlayer | up InnerCrate ]
+up [ horizontal TransPlayer | InnerCrate ] -> [ horizontal TransPlayer | horizontal InnerCrate ]
+[ > TransPlayer | InnerCrate ] -> [ > TransPlayer | > InnerCrate ]
+[ orthogonal Crate | stationary Crate ] -> [ orthogonal Crate | orthogonal Crate ]
+[ orthogonal InnerCrate | stationary InnerCrate ] -> [ orthogonal InnerCrate | orthogonal InnerCrate ]
+[ Player ] -> [ Player FallTurn ]
+[ > TransPlayer | FallTurn ] -> [ > TransPlayer |  ]
+late [ no FallTurn ] [ LastTurn ] -> [  ] [  ] cancel
+[ > InnerCrate | MoveTurn ] -> [ > InnerCrate |  ]
+[ FallTurn ] [ moving Thing ] -> [ MoveTurn ] [ moving Thing ]
+late [ FallTurn ] [ stationary Cratelike ] -> [ FallTurn ] [ down Cratelike ]
+[ > FThing | stationary FThing ] -> [ stationary FThing | stationary FThing ]
++ [ > TThing | stationary TThing ] -> [ stationary TThing | stationary TThing ]
++ [ FallTurn ] [ > Cratelike Target ] -> [ FallTurn ] [ stationary Cratelike Target ]
++ [ > Cratelike | stationary Cratelike ] -> [ stationary Cratelike | stationary Cratelike ]
++ [ FallTurn ] [ moving Crate | stationary Crate ] -> [ FallTurn ] [ stationary Crate | stationary Crate ]
++ [ FallTurn ] [ moving InnerCrate | stationary InnerCrate no LastTurn ] -> [ FallTurn ] [ stationary InnerCrate | stationary InnerCrate ] again
+[ TType no LastTurn ] -> [ LastTurn ]
+[ moving AnyThing ] [ LastTurn ] -> [ moving AnyThing ] [ MoveTurn ]
+[ action FullPlayer no TPThing ] -> [ TransPlayer ] cancel
+late [ FullPlayer FallTurn ] -> restart
+[ action TransPlayer no FPThing ] -> [ FullPlayer ]
 
-all target on crate
-all crate on target
+=============
+WINCONDITIONS
+=============
 
-=======
-levels
-=======
+All Target on Cratelike
+Some Background
+All LastTurn on FallTurn
 
-message Press X to engage circling
+======
+LEVELS
+======
 
-message 1 of 3
+message level 1 of 10
+
+####
+#.@@
+#b#P
+*a*@
+#bO@
+##b.
+####
+
+message level 2 of 10
+
+#####a
+#O.a##
+#P**.#
+##ab.#
+.##b.#
+@.##O#
+.*.###
+
+message level 3 of 10
+
+######.#####
+#.*.b###..@#
+#.**....*#P#
+#.*.#OOO.a.#
+#.@.########
+#####....b.a
+
+message level 4 of 10
+
+.b....#####
+.aa...#O..#
+*.....#O#.#
+#######O#.#
+#bP.*.***.#
+#.#.#.#.###
+#.......#..
+#########.@
+
+message level 5 of 10
+
+..######
+b.#.OOP#
+.*#b**.#
+..##.###
+...#.#.@
+...#@#.@
+####a#..
+#*b..##.
+#.#.a.#.
+#..a#.#.
+###...#.
+..#####.
+
+message level 6 of 10
+
+..####..b
+###..####
+#.ba@.*.#
+#b#.*#*a#
+#aO.O#P.#
+
+message level 7 of 10
+
+####a@
+#bO#.a
+#*.###
+#2P*@#
+#..**#
+#..###
+####..
+
+message level 8 of 10
+
+########
+#a.@.a.#
+#.O2@*P#
+#b.a@b.#
+#####..#
+.b**####
+
+message level 9 of 10
+
+.#######
+#.@.a.*#
+.#.O8O.#
+##.*P*.#
+#.aO*Ob#
+#a.....#
+
+message level 10 of 10
 
 #######
-#.***.#
-#.....#
-#..p..#
-#.....#
-#.ooo.#
+#...ba#
+#.O8Ob#
+#a8O*a#
+#bO*O*#
+#.8O**#
+#@.P..#
 #######
 
-message 2 of 3
-
-#######
-#**.**#
-#*.p.*#
-#..#..#
-#o...o#
-#oo.oo#
-#######
-
-message 3 of 3
-
-#######
-#*****#
-#.....#
-##.p.##
-#.....#
-#ooooo#
-#######
-
-
+message congratulations!

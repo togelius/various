@@ -1,16 +1,13 @@
 title Memory path
 author Le Slo
 homepage www.puzzlescript.net
-
 background_color #4d4d00
 text_color #dbdb00
 noaction
 
-
-
-========
+=======
 OBJECTS
-========
+=======
 
 background
 #292900
@@ -132,9 +129,9 @@ transparent
 pushed
 transparent
 
-=======
+======
 LEGEND
-=======
+======
 
 . = Background
 # = Wall
@@ -156,10 +153,11 @@ CratesNoMove = crate or CrateUpCh or CrateLeftCh or CrateDownCh or CrateRightCh
 cratesMove = CrateUp or CrateLeft or CrateDown or CrateRight
 crates = CratesNoMove or cratesMove
 collision = crates or player or wall
-collisionL = crates or player or wall 
-=======
+collisionL = crates or player or wall
+
+======
 SOUNDS
-=======
+======
 
 sfx0 91405500
 
@@ -169,9 +167,9 @@ startlevel 20530308
 
 player cantmove 57023704
 
-================
+===============
 COLLISIONLAYERS
-================
+===============
 
 Background
 pushed
@@ -180,91 +178,54 @@ Target
 crateWall
 Player, Wall, Crates, collisionL
 
-======
+=====
 RULES
-======
+=====
 
-[> Player | crates] -> [ > player| crates > pushed]
+[ > Player | crates ] -> [ > player | crates > pushed ]
 startLoop
-[> pushed | crates] -> [ > pushed| crates > pushed]
-
+[ > pushed | crates ] -> [ > pushed | crates > pushed ]
 endLoop
-
-
-[CrateUpCh] -> [CrateUp charged]
-[CrateLeftCh] -> [CrateLeft charged]
-[CrateDownCh] -> [CrateDown charged]
-[CrateRightCh] -> [CrateRight charged]
-
-up [CrateUp no charged no pushed| no collision] -> [ > CrateUpCh | no collision]
-left [CrateLeft no charged no pushed| no collision] -> [ > CrateLeftCh | no collision]
-down [CrateDown no charged no pushed| no collision] -> [ > CrateDownCh | no collision]
-right [CrateRight no charged no pushed| no collision] -> [ > CrateRightCh | no collision]
-
-up [CrateUp no charged no pushed| collision] -> [ Crate | collision ]
-left [CrateLeft no charged no pushed| collision] -> [ Crate | collision ]
-down [CrateDown no charged no pushed| collision] -> [ Crate | collision ]
-right [CrateRight no charged no pushed| collision] -> [ Crate | collision ]
-
-[ > player | crateWall] -> [ player | crateWall]
-
-[> Player | no crates no wall] -> [ | player]
-
-down [ >  Player | Crates | ] -> [  >  Player | > cratedownCh | ] sfx0
-up [ >  Player | Crates | ] -> [  >  Player | > crateupCh | ] sfx0
-left [ >  Player | Crates | ] -> [  >  Player | > crateleftCh | ] sfx0
-right [ >  Player | Crates | ] -> [  >  Player | > craterightCh | ] sfx0
-
+[ CrateUpCh ] -> [ CrateUp charged ]
+[ CrateLeftCh ] -> [ CrateLeft charged ]
+[ CrateDownCh ] -> [ CrateDown charged ]
+[ CrateRightCh ] -> [ CrateRight charged ]
+up [ CrateUp no charged no pushed | no collision ] -> [ > CrateUpCh | no collision ]
+left [ CrateLeft no charged no pushed | no collision ] -> [ > CrateLeftCh | no collision ]
+down [ CrateDown no charged no pushed | no collision ] -> [ > CrateDownCh | no collision ]
+right [ CrateRight no charged no pushed | no collision ] -> [ > CrateRightCh | no collision ]
+up [ CrateUp no charged no pushed | collision ] -> [ Crate | collision ]
+left [ CrateLeft no charged no pushed | collision ] -> [ Crate | collision ]
+down [ CrateDown no charged no pushed | collision ] -> [ Crate | collision ]
+right [ CrateRight no charged no pushed | collision ] -> [ Crate | collision ]
+[ > Player | no crates no wall ] -> [  | player ]
+down [ > Player | Crates |  ] -> [ > Player | > cratedownCh |  ] sfx0
+up [ > Player | Crates |  ] -> [ > Player | > crateupCh |  ] sfx0
+left [ > Player | Crates |  ] -> [ > Player | > crateleftCh |  ] sfx0
+right [ > Player | Crates |  ] -> [ > Player | > craterightCh |  ] sfx0
 startLoop
-
-[ > crates | CrateUpCh	] -> [ > crates | > CrateUpCh	]
-[ > crates | CrateLeftCh	] -> [ > crates | > CrateLeftCh	]
-[ > crates | CrateDownCh	] -> [ > crates | > CrateDownCh	]
-[ > crates | CrateRightCh	] -> [ > crates | > CrateRightCh]
-
-
-[ > crates | CrateUp	] -> [ > crates | > CrateUpCh	]
-[ > crates | CrateLeft	] -> [ > crates | > CrateLeftCh	]
-[ > crates | CrateDown	] -> [ > crates | > CrateDownCh	]
-[ > crates | CrateRight	] -> [ > crates | > CrateRightCh]
-[ > crates | Crate] -> [ > crates | > Crate]
-
-
-
-
+[ > crates | CrateUpCh ] -> [ > crates | > CrateUpCh ]
+[ > crates | CrateLeftCh ] -> [ > crates | > CrateLeftCh ]
+[ > crates | CrateDownCh ] -> [ > crates | > CrateDownCh ]
+[ > crates | CrateRightCh ] -> [ > crates | > CrateRightCh ]
+[ > crates | CrateUp ] -> [ > crates | > CrateUpCh ]
+[ > crates | CrateLeft ] -> [ > crates | > CrateLeftCh ]
+[ > crates | CrateDown ] -> [ > crates | > CrateDownCh ]
+[ > crates | CrateRight ] -> [ > crates | > CrateRightCh ]
+[ > crates | Crate ] -> [ > crates | > Crate ]
 endLoop
+[ charged ] -> [  ]
+[ pushed ] -> [  ]
 
-[charged] -> []
-[pushed] -> []
-
-
-==============
+=============
 WINCONDITIONS
-==============
+=============
 
 All Target on Crate
 
-=======
+======
 LEVELS
-=======
-
-(debug
-
-#########
-#.......#
-#p*lruj.#
-#.......#
-#p*llll.#
-#..o....#
-#p*rrrr.#
-#.......#
-#p*uuuu.#
-#.......#
-#p*jjjj.#
-#.......#
-#p*ru...#
-#.......#
-#########)
+======
 
 message >... .... ....
 
@@ -393,6 +354,3 @@ message >>>> >>>> >>>>
 #o.######
 ##.######
 #########
-
-
-

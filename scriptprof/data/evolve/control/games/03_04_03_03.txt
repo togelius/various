@@ -1,172 +1,176 @@
-title Eyes On You
-author whoever
-homepage crouton.net
+title Cold Feet Sokoban
+author Franklin P. Dyer
+again_interval 0.1
 
-========
+=======
 OBJECTS
-========
+=======
 
-Background
-LIGHTGREEN GREEN
-11111
-01111
-11101
-11111
-10111
+Background .
+Gray Lightgray
+00010
+00000
+01000
+00000
+00001
 
-
-TargetNeutral
-#0a0a0a
-.....
-.000.
-.0.0.
-.000.
-.....
-
-TargetTowards
-Orange
-.....
-.000.
-.0.0.
-.000.
-.....
-
-TargetAway
-Blue
-.....
-.000.
-.0.0.
-.000.
-.....
-
-Wall
-BROWN DARKBROWN
+Wall /
+Darkgray Black
 00010
 11111
 01000
 11111
 00010
 
-Player
-Black Red Blue
+Player @
+Brown #d2b48c #6666ff Darkblue Purple
 .000.
-.020.
+.111.
+42224
+.333.
+.3.3.
+
+PlayerUp
+Brown #d2b48c #6666ff Darkblue Purple
+.000.
+.000.
+.222.
+.333.
+.3.3.
+
+PlayerDown
+Brown #d2b48c #6666ff Darkblue Purple
+.000.
+.111.
+.424.
+.333.
+.3.3.
+
+PlayerLeft
+Brown #d2b48c #6666ff Darkblue Purple
+.000.
+.110.
+4222.
+.333.
+..3..
+
+PlayerRight
+Brown #d2b48c #6666ff Darkblue Purple
+.000.
+.011.
+.2224
+.333.
+..3..
+
+Ice a
+Lightblue White
+00010
+00000
+01000
+00000
+00001
+
+Crate b
+Orange
+00000
+0...0
+0...0
+0...0
+00000
+
+Target c
+Darkblue
 .....
-00000
-01010
-
-PlayerDecoy
-Black Orange White Blue
 .000.
-.202.
-...0.
-00000
-01010
-
-EyeballAway
-White lightBlue lightRed
+.0.0.
 .000.
-00100
-01110
-20102
-.202.
+.....
 
-EyeballTowards
-White orange Red
-.000.
-00100
-01110
-20102
-.202.
-
-PlayerDoor
-Yellow Black
-10001
-10101
-11111
+Relay
+darkblue lightgreen gray
 00000
-01010
+0...0
+0...0
+0...0
+00000
 
-EyeballDoor
-Yellow Black
-10001
-00100
-01110
-00100
-10001
-=======
+======
 LEGEND
-=======
+======
 
-. = Background
-: = TargetNeutral
-% = TargetTowards
-$ = TargetAway
-Target = TargetNeutral or TargetTowards or TargetAway
-# = Wall
-P = Player
-Q = PlayerDecoy
-O = EyeballTowards
-i = EyeballAway
-Eyeball = EyeballAway or EyeballTowards
-G = PlayerDoor
-H = EyeballDoor
+& = Crate and Target
+Solid = Wall
+Mover = PlayerUp or PlayerDown or PlayerLeft or PlayerRight
+d = Relay
 
-=======
+======
 SOUNDS
-=======
+======
 
-SFX0 67117309
+Mover Create 87812508
+Crate Move 30575307
+Endlevel 5530903
 
-================
+===============
 COLLISIONLAYERS
-================
+===============
 
 Background
-Target
-Player, Wall, EyeballTowards, EyeballAway, PlayerDecoy, PlayerDoor, EyeballDoor
-======
+Ice
+Target, Relay
+Wall, Player, PlayerUp, PlayerDown, PlayerLeft, PlayerRight, Crate
+
+=====
 RULES
-======
-[ EyeballTowards | ... | PlayerDecoy ] -> [ > EyeballTowards | ... | PlayerDecoy ] SFX0
-[ EyeballAway | ... | PlayerDecoy ] -> [ < EyeballAway | ... | PlayerDecoy ] SFX0
-[ EyeballTowards | ... | Player ] -> [ > EyeballTowards | ... | Player ] SFX0
-[ EyeballAway | ... | Player ] -> [ < EyeballAway | ... | Player ] SFX0
-[ > Player | PlayerDecoy ] -> [ Player | > PlayerDecoy ] SFX0
-[ > Player | PlayerDoor | ] -> [ | PlayerDoor | Player ] SFX0
-[ > Eyeball | EyeballDoor | ] -> [ | EyeballDoor | Eyeball ] SFX0
-==============
+=====
+
+[ > Player | Crate ] -> [ > Player | > Crate ]
+[ Player No Ice ] -> [ Player Ice ]
+RIGHT [ > Player | Ice ] -> [ PlayerRight Ice | Ice ]
+LEFT [ > Player | Ice ] -> [ PlayerLeft Ice | Ice ]
+DOWN [ > Player | Ice ] -> [ PlayerDown Ice | Ice ]
+UP [ > Player | Ice ] -> [ PlayerUp Ice | Ice ]
+startloop
+[ PlayerUp Ice ] -> [ UP PlayerUp Ice ] again
+[ PlayerDown Ice ] -> [ DOWN PlayerDown Ice ] again
+[ > Mover | Solid ] -> [ Player | Solid ]
+[ action PlayerRight ] [ Relay ] -> [ PlayerRight ] [ Target ]
+[ action PlayerRight ] [ Target ] -> [ PlayerRight ] [ Relay ]
+[ > Mover | Crate ] -> [ Player | > Crate ]
+[ Mover No Ice ] -> [ Player ]
+endloop
+
+=============
 WINCONDITIONS
-==============
+=============
 
-all TargetNeutral on Eyeball 
-all TargetTowards on EyeballTowards
-all TargetAway on EyeballAway
+All Target on Crate
 
-=======
+======
 LEVELS
-=======
+======
 
-message Try to get all eyeballs on targets!
+message Level 1 of 3
 
-#########
-#.......#
-#.......#
-#...#.P.#
-#.O###..#
-#.......#
-#...##..#
-#...:...#
-#########
+//////
+/..../
+d./@./
+/.b&./
+/.c&./
+/..../
+//////
 
-message Blue eyeballs are afraid of you. 
-###########
-#.........#
-#.........#
-#..P.#....#
-#...###i..#
-#.........#
-#....##...#
-#....:....#
-#.........#
-###########
+message Level 2 of 3
+
+message Level 3 of 3
+
+/////.
+/.c///
+/..///
+/&..@/
+a..b./
+/../d/
+/..///
+//////
+
+message Congratulations! You win!

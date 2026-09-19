@@ -1,14 +1,15 @@
-title Directioban
-author Franklin P. Dyer
-color_palette gameboycolour
-text_color Orange
+title Transparency
+author pickten
+homepage www.puzzlescript.net
+run_rules_on_level_start
+color_palette 5
 
-========
+=======
 OBJECTS
-========
+=======
 
 Background
-LIGHTGREEN GREEN
+darkgray darkgray
 11111
 01111
 11101
@@ -17,10 +18,10 @@ LIGHTGREEN GREEN
 
 
 Target
-DarkBlue
+yellow
 .....
 .000.
-.0.0.
+.000.
 .000.
 .....
 
@@ -32,152 +33,240 @@ BROWN DARKBROWN
 11111
 00010
 
-Player
-Black Orange White Blue
-.000.
-.111.
-22222
-.333.
-.3.3.
+FullPlayer
+white blue
+10001
+01.10
+0.1.0
+01.10
+10001
 
-Crate1
-Orange
-00000
-0.0.0
-0.0.0
-0.0.0
-00000
+TransPlayer
+white pink
+10001
+01.10
+0.1.0
+01.10
+10001
 
-Crate2
-Orange
-00000
-0...0
-00000
-0...0
-00000
-
-Crate3
-Orange
+Crate
+blue Yellow
 00000
 0...0
 0...0
 0...0
 00000
 
-Crate4
-Orange
+
+InnerCrate
+pink Yellow
 00000
-0.0.0
-00000
-0.0.0
+0...0
+0...0
+0...0
 00000
 
-=======
+
+FallTurn
+transparent
+
+MoveTurn
+transparent
+
+LastTurn
+transparent
+
+======
 LEGEND
-=======
-
-Crate = Crate1 or Crate2 or Crate3 or Crate4
+======
 
 . = Background
-x = Wall
-P = Player
-1 = Crate1
-2 = Crate2
-3 = Crate3
-4 = Crate4
+# = Wall
+P = FullPlayer
+* = Crate
+@ = Crate and Target
+8 = InnerCrate
+2 = InnerCrate and Target
 O = Target
 
+Player = FullPlayer or TransPlayer
 
-=======
+Thing = Crate or Wall or InnerCrate
+Anything = Thing or Player
+FThing = Crate or Wall or FullPlayer
+TThing = InnerCrate or Wall or TransPlayer
+
+FPThing = Crate or Wall
+TPThing = InnerCrate or Wall
+
+
+TType = FallTurn or MoveTurn or LastTurn
+
+Cratelike = Crate or InnerCrate
+
+======
 SOUNDS
-=======
+======
 
 Crate MOVE 36772507
+endlevel 83744503
+startgame 92244503
 
-================
+===============
 COLLISIONLAYERS
-================
+===============
 
+FallTurn
+MoveTurn
+LastTurn
 Background
 Target
-Player, Wall, Crate
+TransPlayer, InnerCrate
+FullPlayer, Wall, Crate
 
-======
+=====
 RULES
+=====
+
+late [ TType ] -> [  ]
+up [ up FullPlayer | Crate ] -> [ up FullPlayer | up Crate ]
+up [ horizontal FullPlayer | Crate ] -> [ horizontal FullPlayer | horizontal Crate ]
+[ > FullPlayer | Crate ] -> [ > FullPlayer | v Crate ]
+up [ up TransPlayer | InnerCrate ] -> [ up TransPlayer | up InnerCrate ]
+up [ horizontal TransPlayer | InnerCrate ] -> [ horizontal TransPlayer | horizontal InnerCrate ]
+[ > TransPlayer | InnerCrate ] -> [ > TransPlayer | > InnerCrate ]
+[ orthogonal Crate | stationary Crate ] -> [ orthogonal Crate | orthogonal Crate ]
+[ orthogonal InnerCrate | stationary InnerCrate ] -> [ orthogonal InnerCrate | orthogonal InnerCrate ]
+[ Player ] -> [ Player FallTurn ]
+[ FallTurn ] [ moving Thing ] -> [ MoveTurn ] [ moving Thing ]
+[ FallTurn ] [ stationary Cratelike ] -> [ FallTurn ] [ down Cratelike ]
+[ > FThing | stationary FThing ] -> [ stationary FThing | stationary FThing ]
++ [ > TThing | stationary TThing ] -> [ stationary TThing | stationary TThing ]
++ [ FallTurn ] [ > Cratelike Target ] -> [ FallTurn ] [ stationary Cratelike Target ]
++ [ > Cratelike | stationary Cratelike ] -> [ stationary Cratelike | stationary Cratelike ]
++ [ FallTurn ] [ moving Crate | stationary Crate ] -> [ FallTurn ] [ stationary Crate | stationary Crate ]
++ [ FallTurn ] [ moving InnerCrate | stationary InnerCrate no LastTurn ] -> [ FallTurn ] [ stationary InnerCrate | stationary InnerCrate ] again
+[ TType no LastTurn ] -> [ LastTurn ]
+[ moving AnyThing ] [ LastTurn ] -> [ moving AnyThing ] [ MoveTurn ]
+[ action FullPlayer no TPThing ] -> [ TransPlayer ]
+late [ FullPlayer FallTurn ] -> restart
+[ action TransPlayer no FPThing ] -> [ FullPlayer ]
+[ TType no LastTurn ] -> [  ] again
+
+=============
+WINCONDITIONS
+=============
+
+All Target on Cratelike
+Some Background
+All LastTurn on FallTurn
+No LastTurn
+
+======
+LEVELS
 ======
 
-[ > Player | Wall ] -> [ Player | Wall ]
-VERTICAL [ > Player | Crate1 ] -> [  > Player | > Crate1  ]
-VERTICAL [ < Player | Crate1 ] -> [  < Player | < Crate1  ]
-VERTICAL [ > Crate | Crate1 ] -> [  > Crate | > Crate1  ]
-HORIZONTAL [ > Player | Crate2 ] -> [  > Player | > Crate2  ]
-HORIZONTAL [ < Player | Crate2 ] -> [  < Player | < Crate2  ]
-HORIZONTAL [ > Crate | Crate2 ] -> [  > Crate | > Crate2  ]
-[ > Player | Crate3 ] -> [  > Player | > Crate3  ]
-[ > Crate | Crate3 ] -> [  > Crate | > Crate3  ]
-[ ^ Player |...| Crate4 ] -> [ ^ Player |...| ^ Crate4  ]
-[ v Player |...| Crate4 ] -> [ v Player |...| v Crate4  ]
-[ ^ Player | Crate4 ] -> [ ^ Player | ^ Crate4  ]
-[ v Player | Crate4 ] -> [ v Player | v Crate4  ]
-[ > Crate | Crate4 ] -> [  > Crate | > Crate4  ]
+message level 1 of 10
 
-==============
-WINCONDITIONS
-==============
+#####
+#....
+#.#P*
+#.*@.
+#.O@.
+#....
+#####
 
-All Target on Crate
+message level 2 of 10
 
-=======
-LEVELS
-=======
+#####.
+#O.*##
+#P**.#
+##.*.#
+.##..#
+..##O#
+...###
 
+message level 3 of 10
 
+######.#####
+#....###...#
+#.**.....#P#
+#.*.#OOO.*.#
+#...########
+#####.......
 
-xxxxxxx
-xo.ooox
-x3x.x3x
-x..3..x
-x.3p3.x
-x....ox
-xxxxxxx
+message level 4 of 10
 
-xxxxxxx
-x..xoox
-x..x.4x
-x..x..x
-x..x4.x
-xp.x..x
-xxxxxxx
+......#####
+......#O..#
+.*....#O#.#
+#######O#.#
+#.P.*.*.*.#
+#.#.#.#.###
+#.......#..
+#########..
 
-xxxxxxx
-x4..oxx
-x.4..ox
-xxxxxxx
-xo.3.px
-xo.3..x
-xxxxxxx
+message level 5 of 10
 
-xxxxxxx
-xo3.pox
-x.o...x
-x1xo33x
-x..1x.x
-xo.2.ox
-xxxxxxx
+..######
+..#.OOP#
+..#.**.#
+..##.###
+...#*#..
+...#.#..
+####.#..
+#....##.
+#.#...#.
+#...#.#.
+###...#.
+..#####.
 
-xxxxxxx
-x.....x
-x.....x
-x.....x
-x.....x
-x.....x
-xxxxxxx
+message level 6 of 10
 
-xxxxxxx
-x.....x
-x.....x
-x.....x
-x.....x
-x.....x
-xxxxxxx
+..####...
+###..####
+#.....**#
+#.#..#*.#
+#.O.O#P.#
 
+message level 7 of 10
+
+####..
+#.O#..
+#..###
+#2P*.#
+#..*.#
+#.*###
+####..
+
+message level 8 of 10
+
+########
+#....*.#
+#.O2@*P#
+#..*...#
+#####..#
+..*.####
+
+message level 9 of 10
+
+.#######
+#......#
+.#.O8O.#
+##.*P**#
+#*.O*O.#
+#......#
+########
+
+message level 10 of 10
+
+#######
+#....*#
+#.O8O.#
+#.8O*.#
+#.O*O.#
+#.8O*.#
+#.*P..#
+#######
+
+message congratulations!

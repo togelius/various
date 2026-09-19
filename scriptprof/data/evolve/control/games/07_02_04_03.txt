@@ -444,7 +444,6 @@ startloop
 [ > d4 | g6 no object no exhaust ] -> [ d4 | g6 ]
 [ > d5 | g1 no object no exhaust ] -> [ d5 | g1 ]
 [ > d5 | g2 no object no exhaust ] -> [ d5 | g2 ]
-[ > d5 | g3 no object no exhaust ] -> [ d5 | g3 ]
 [ > d5 | g4 no object no exhaust ] -> [ d5 | g4 ]
 [ > d5 | g6 no object no exhaust ] -> [ d5 | g6 ]
 [ > d6 | g1 no object no exhaust ] -> [ d6 | g1 ]
@@ -470,7 +469,7 @@ LEVELS
 
 message Have you played the original 12345?
 
-#########
+######;##
 #.......#
 #.qwert.#
 #...z...#
@@ -483,20 +482,20 @@ message Have you played the original 12345?
 message You haven't? Go play it; google "12345 chaotic_iak".
 
 #########
-#q.q..###
+;q.q..###
 #####.###
 #w.w...##
 ######.##
 #e.e....#
-#######.#
+;######.#
 #zzz....#
 02#######
 
 message Yes, same-numbered blocks merge and increase in value. Doesn't last long though...
 
-#########
+####;####
 #r.r..###
-#####.###
+####;.###
 #t.t...##
 ######.##
 #y.y....#
@@ -510,9 +509,9 @@ message All the blocks must go to the targets! The thing I haven't told you is t
 #r.r..###
 #####.###
 #t.t...##
-######.##
+##;###.##
 #y.y....#
-#######.#
+######;.#
 #zzz....#
 04#######
 
@@ -522,10 +521,10 @@ message So what happens if there are no targets?
 #..q....#
 #.....t.#
 #w......#
-#...y...#
+;...y...#
 #......e#
 #.r.....#
-#....q..#
+#....q..;
 05#######
 
 message You think well. That will prove useful for the rest of the game.
@@ -533,21 +532,21 @@ message You think well. That will prove useful for the rest of the game.
 #########
 #.......#
 #.t...t.#
-####z...#
+###;z...#
 #..r.r..#
-#...z####
+;...z####
 #.t...t.#
 #.......#
-06#######
+06###;###
 
 message At this moment, clear levels  are easy compared to target levels. Try to figure out why.
 
-#########
+#;;######
 #.qeeeee#
 #qqe.e.e#
 #.qe...e#
 #.q.....#
-#qqqw..w#
+#qqqw..w;
 #..w.w.w#
 #..w..ww#
 07#######
@@ -556,18 +555,18 @@ message Yes, literally any reasonable move wins, except for certain cases where 
 
 #########
 #.......#
-#.......#
+#.......;
 #.qwe...#
 #.ert.t.#
 #.rqe...#
 #.......#
 #.......#
-08#######
+08#;;####
 
 message But target levels get boring too...do they?
 
-#########
-#.#.#qq.#
+#######;#
+;.#.#qq.#
 #q#...###
 #q.zz...#
 ##.zzz.##
@@ -582,8 +581,8 @@ message Well, if you find a level boring, press X twice before moving to skip it
 #q.e#r.w#
 #.zq#.z.#
 #w.r#qqe#
-#########
-#qwq#q.w#
+#;#######
+#qwq;q.w#
 #.z.#qz.#
 #r.e#e.r#
 10#######
@@ -598,7 +597,7 @@ message Oh ho, what is this?
 #...#...#
 #.w...e.#
 #.......#
-11#######
+11####;##
 
 message A block can only pass through a "gate" of the same number.
 
@@ -607,14 +606,14 @@ message A block can only pass through a "gate" of the same number.
 #..#d#..#
 #.#.r.#f#
 #.s...s.#
-#a#.z.#.#
+#a;.z.#.#
 #..#g#..#
 #q...f.w#
-12#######
+12###;###
 
 message If you toyed enough with the previous one, you will find that the gates aren't that strict...
 
-#########
+###;#####
 #w#.....#
 #a...q..#
 #.#######
@@ -626,10 +625,10 @@ message If you toyed enough with the previous one, you will find that the gates 
 
 message You can let trailing blocks of whatever numbers pass a gate!
 
-#########
+######;##
 #w#e#r#t#
 #a#a#a#a#
-#.......#
+#.......;
 ##.#q#.##
 #.......#
 #s#d#f#g#
@@ -639,21 +638,21 @@ message You can let trailing blocks of whatever numbers pass a gate!
 message Feels like smuggling illegal goods.
 
 #########
-#..#y#..#
+#..#y;..#
 #...g...#
-#.q.w.q.#
+;.q.w.q.#
 #..e.e..#
 #.w.e.w.#
-#..e.e..#
+#..e.e..;
 #.q.w.q.#
 15#######
 
 message Thus let's make a redo of Level 11.
 
 #########
-#.......#
+;.......#
 #.w.z.q.#
-#...#...#
+#...;...#
 ##f###s##
 #...#...#
 #.q...e.#
@@ -662,31 +661,31 @@ message Thus let's make a redo of Level 11.
 
 message If you know what to expect, this isn't that hard...
 
-#########
+##;######
 #.......#
 #.q.q.q.#
 #...#####
 #.w.asdz#
-#...#####
+#...##;#;
 #.q.q.q.#
 #.......#
 17#######
 
 message But this one might be pretty hard.
 
-#########
+#;#######
 #...#...#
 #.q.d.q.#
 #...#z..#
 ##a###f##
-#...#...#
+#...;...#
 #.e.s.w.#
-#...#...#
+;...#...#
 18#######
 
 message Which naturally becomes even harder.
 
-#########
+########;
 #qd.s.fe#
 #a#f#f#s#
 #.fzs.s.#
@@ -698,7 +697,7 @@ message Which naturally becomes even harder.
 
 message With a little help...
 
-#########
+##;#####;
 #.....g.#
 #....#q##
 #..q.####
@@ -710,10 +709,10 @@ message With a little help...
 
 message Long time friend, the eraser! Or the zero block. Just see how it looks like.
 
-#########
-#.......#
+#######;#
+;.......#
 #.#qqq#.#
-#.q../q.#
+;.q../q.#
 #.q.w.q.#
 #.qw..q.#
 #.#qqq#.#
@@ -722,21 +721,21 @@ message Long time friend, the eraser! Or the zero block. Just see how it looks l
 
 message No, erasers can't get through gates.
 
-#########
+####;####
 #...#...#
 #.q.#./.#
 #...#...#
 #q.qs...#
-#...#...#
+#...;...#
 #.q.#...#
 #...#...#
-22#######
+22####;##
 
 message And yes, erasers can be smuggled too.
 
 #########
-#.#...#.#
-#.#.q.#.#
+#.;...#.;
+;.#.q.#.#
 #yd...a/#
 #.#.z.#.#
 #ef...sq#
@@ -746,7 +745,7 @@ message And yes, erasers can be smuggled too.
 
 message Erasers don't annihilate each other. Neither do they need to be used.
 
-#########
+#;######;
 #.......#
 #..e/e..#
 #.r./.r.#
@@ -754,13 +753,13 @@ message Erasers don't annihilate each other. Neither do they need to be used.
 #.r.e.r.#
 #..ere..#
 #.......#
-24#######
+24##;####
 
 message Remember one-way streets in level 20?
 
-#########
+###;#####
 #e#...sq#
-#a...#.##
+;a...#.##
 #.#rge..#
 #..#/#..#
 #..e#w#.#
@@ -771,7 +770,7 @@ message Remember one-way streets in level 20?
 message Plus and minus, also old friends!
 
 #########
-#..-.#.-#
+;..-.#.-#
 #.t.h...#
 #+.#.+..#
 #########
@@ -784,13 +783,13 @@ message Which means you got to learn when to raise and when to lay low.
 
 #########
 #+#qrq#-#
-#a#wew#d#
+#a#wew;d#
 #..ere..#
 #.#wew#.#
 #.#qrq#.#
 #.#####.#
-#.......#
-27#######
+#.......;
+27#####;#
 
 message Life is harsh.
 
@@ -798,7 +797,7 @@ message Life is harsh.
 #...#...#
 #.+.#.t.#
 #...#e.e#
-#...f...#
+#...f...;
 #q.q#...#
 #.w.#.e.#
 #...#...#

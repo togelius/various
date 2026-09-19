@@ -1,172 +1,297 @@
-title Eyes On You
-author whoever
-homepage crouton.net
+title Four-room tilt mazes
+author Andrea Gilbert
+homepage http://www.clickmazes.com
+again_interval 0.05
+flickscreen 16x16
 
-========
+=======
 OBJECTS
-========
+=======
 
 Background
-LIGHTGREEN GREEN
-11111
-01111
-11101
-11111
-10111
+white
+
+Edge
+darkgrey
+00000
+00000
+00000
+00000
+00000
+
+Bar
+darkgrey
+00000
+00000
+00000
+00000
+00000
+
+P1
+red #ff4040 #990000
+...20
+.2200
+.2000
+22001
+22001
+
+P2
+red #ff4040 #ff8080
+00...
+0000.
+1100.
+12100
+11100
+
+P3
+red #990000 #660000
+21000
+21100
+.1110
+.2111
+...22
+
+P4
+red #ff4040 #990000
+11000
+00002
+0002.
+2222.
+22...
 
 
-TargetNeutral
-#0a0a0a
+T1
+blue
 .....
-.000.
-.0.0.
-.000.
+.....
+.....
+...00
+...00
+
+T2
+blue
+.....
+.....
+.....
+00...
+00...
+
+T3
+blue
+...00
+...00
+.....
+.....
 .....
 
-TargetTowards
-Orange
+T4
+blue
+00...
+00...
 .....
-.000.
-.0.0.
-.000.
 .....
-
-TargetAway
-Blue
-.....
-.000.
-.0.0.
-.000.
 .....
 
-Wall
-BROWN DARKBROWN
-00010
-11111
-01000
-11111
-00010
+vBar
+#f0f0f0
+..0..
+..0..
+..0..
+..0..
+..0..
 
-Player
-Black Red Blue
-.000.
-.020.
+hBar
+#f0f0f0
+.....
 .....
 00000
-01010
+.....
+.....
 
-PlayerDecoy
-Black Orange White Blue
-.000.
-.202.
-...0.
+xBar
+#f0f0f0
+..0..
+..0..
 00000
-01010
+..0..
+..0..
 
-EyeballAway
-White lightBlue lightRed
-.000.
-00100
-01110
-20102
-.202.
-
-EyeballTowards
-White orange Red
-.000.
-00100
-01110
-20102
-.202.
-
-PlayerDoor
-Yellow Black
-10001
-10101
-11111
+Cell
+white
 00000
-01010
+00000
+00000
+00000
+00000
 
-EyeballDoor
-Yellow Black
-10001
-00100
-01110
-00100
-10001
-=======
+Cursor
+transparent
+
+======
 LEGEND
-=======
+======
 
-. = Background
-: = TargetNeutral
-% = TargetTowards
-$ = TargetAway
-Target = TargetNeutral or TargetTowards or TargetAway
-# = Wall
-P = Player
-Q = PlayerDecoy
-O = EyeballTowards
-i = EyeballAway
-Eyeball = EyeballAway or EyeballTowards
-G = PlayerDoor
-H = EyeballDoor
+. = Cell
+x = Bar
+o = Edge
+! = vBar
+- = hBar
++ = xBar
+1 = T1
+2 = T2
+3 = T3
+4 = T4
+a = P1
+b = P2
+c = P3
+d = P4
+Wall = Bar or Edge
+Target = T1 or T2 or T3 or T4
+Grid = Cell or Wall or vBar or hBar or xBar
+Player = P1 or P2 or P3 or P4
 
-=======
+======
 SOUNDS
-=======
+======
 
-SFX0 67117309
 
-================
+
+===============
 COLLISIONLAYERS
-================
+===============
 
 Background
+Grid
 Target
-Player, Wall, EyeballTowards, EyeballAway, PlayerDecoy, PlayerDoor, EyeballDoor
-======
+Player, Cursor
+
+=====
 RULES
-======
-[ EyeballTowards | ... | PlayerDecoy ] -> [ > EyeballTowards | ... | PlayerDecoy ] SFX0
-[ EyeballAway | ... | PlayerDecoy ] -> [ < EyeballAway | ... | PlayerDecoy ] SFX0
-[ EyeballTowards | ... | Player ] -> [ > EyeballTowards | ... | Player ] SFX0
-[ EyeballAway | ... | Player ] -> [ < EyeballAway | ... | Player ] SFX0
-[ > Player | PlayerDecoy ] -> [ Player | > PlayerDecoy ] SFX0
-[ > Player | PlayerDoor | ] -> [ | PlayerDoor | Player ] SFX0
-[ > Eyeball | EyeballDoor | ] -> [ | EyeballDoor | Eyeball ] SFX0
-==============
+=====
+
+[ Player | Player | Cursor ] -> [ > Player | > Player |  ]
+[ > Player | > Player | Wall ] -> cancel
+[ > Player | > Player | no Wall |  ] -> [ > Player | > Player |  | Cursor ] again
+late [ Player Target | Player Target ] -> [ Player | Player ]
+late [ Cursor Edge ] -> [ Edge ]
+late [ Cursor Bar ] -> [ Bar ]
+late [ T2 | ... | Background ] -> [ > T2 | ... | Background ]
+
+=============
 WINCONDITIONS
-==============
+=============
 
-all TargetNeutral on Eyeball 
-all TargetTowards on EyeballTowards
-all TargetAway on EyeballAway
+No Target
 
-=======
+======
 LEVELS
-=======
+======
 
-message Try to get all eyeballs on targets!
+Message To the blue target
 
-#########
-#.......#
-#.......#
-#...#.P.#
-#.O###..#
-#.......#
-#...##..#
-#...:...#
-#########
+Message Maze 1 of 3
 
-message Blue eyeballs are afraid of you. 
-###########
-#.........#
-#.........#
-#..P.#....#
-#...###i..#
-#.........#
-#....##...#
-#....:....#
-#.........#
-###########
+oooooooooooooooooooooooooooooooo
+oab!..x..!..!..oo..!..!..x..!12o
+ocd!..x..!..!..oo..!..!..x..!34o
+oxxx--x--x--+--ooxxx--+--x--xxxo
+o..x..!..x..!......!..!..!..!..o
+o..x..!..x..!...o..!..!..!..!..o
+o--+--+--xxxx--oo--xxxx--+--x--o
+o..!..!..!..x..oo..!..!..!..x..o
+o..!..!..!..x..oo..!..!..!..x..o
+o--xxxx--x--x--ooxxx--x--xxxx--o
+o..!..!..x..!......x..x..!..x..o
+o..!..!..x..!......x..x..!..x.oo
+o--x--xxxx--+--oo--x--x--+--x--o
+o..x..!..!..!..oo..!..!..!..!..o
+o..x..!..!..!..oo..!..!..!..!..o
+oooo..oooo..oooooooo..oooo..oooo
+oooo..oooo..oooooooo..oooo..oooo
+o..!..!..!..!..oo..!..!..!..!..o
+o..!..!..!..!..oo..!..!.o!..!..o
+o--xxxx--+--+--oo--+--+--x--xxxo
+o..x..!..!..!......!..!..x..!..o
+o..x..!..!..!......!..!..x..!..o
+o--x--+--xxxx--ooxxx--+--xxxx--o
+o..!..!..x..!..oo..x..!..!..!..o
+o..!..!..x..!..oo..x..!..!..!..o
+oxxx--+--x--xxxoo--x--+--+--x--o
+o..!..!..!..!......!..!..!..x..o
+o..!..!..!..!......!..!..!..x..o
+o--x--xxxx--xxxoo--+--x--+--x--o
+o..x..!..!..!..oo..!..x..!..!..o
+o..x..!..!..!..oo..!..x..!..!..o
+oooooooooooooooooooooooooooooooo
+
+Message Maze 2 of 3
+
+oooooooooooooooooooooooooooooooo
+oab!..!..x..!..oo..!..!..x..!..o
+ocd!..!..x..!..oo..!..!..x..!..o
+oxxx--+--x--xxxoo--+--+--xxxx--o
+o..x..!..!..!......!..!..!..!..o
+o..x..!..!..!......!..!..!..!..o
+o--x--xxxx--x--ooxxx--+--x--xxxo
+o..!o.!..!..x......!..!..x..!o.o
+o..!..!..!..x......!..!..x..!..o
+o--x--+--+--x--oo--+--xxxx--+--o
+o..x..!..!..!......!..!..!..!..o
+o..x..!..!..!......!..!..!..!..o
+o--x--+--+--xxxoo--+--xxxx--+--o
+o..!..!..!..!12oo..!..!..!..!..o
+o..!..!..!..!34oo..!..!..!..!..o
+oooo..o..o..oooooooo..o..o..oooo
+oooo..o..o..oooooooo..o..o..oooo
+o..!..!..!..!..ooo.x..x..!..!..o
+o..!..!..!..!..oo..x..x..!..!..o
+o--+--+--xxxx--oo--x--x--+--+--o
+o..!..!..!..!......x..!..!..!..o
+o..!..!..!..!......x..!..!..!..o
+o--xxxx--x--+--oo--x--+--xxxx--o
+o..x..!..x..!......!..!..!..x..o
+o..x..!..x..!......!..!..!..x..o
+oxxx--x--x--x--oo--+--xxxx--x--o
+o..!..x..!..x......!..x..!..!..o
+o..!..x..!..x......!..x..!..!..o
+o--+--x--+--xxxoo--+--x--+--xxxo
+o..!..!..!..!..oo..!..!..!..!..o
+o..!..!..!..!..oo..!..!..!..!..o
+oooooooooooooooooooooooooooooooo
+
+Message Maze 3 of 3
+
+oooooooooooooooooooooooooooooooo
+o..x..!..!..!..oo..!..x..!..!..o
+oo.x..!..!..!..oo..!..x..!..!..o
+o--xxxx--+--+--oo--+--x--xxxx--o
+o..!..!..!..!......!..!..!..!..o
+o..!..!..!..!......!..!..!..!..o
+o--+--xxxx--+--oo--xxxx--+--xxxo
+o..!..!..!..!......x..!..!..x..o
+o..!..!..!..!......x..!..!..x..o
+oxxx--+--+--+--oo--x--+--x--x--o
+o..!..!..!..!......!..!..x..!..o
+o..!..!..!..!......!..!..x..!..o
+o--+--x--+--xxxoo--+--+--x--+--o
+o..!..x..!..!aboo..!..!..!..!..o
+o..!..x..!..!cdoo..!..!..!..!..o
+oooo..o..o..oooooooo..o..o..oooo
+oooo..o..o..oooooooo..o..o..ooo.
+o..!..!..!..!..oo12!..!..!..!..o
+o..!.o!..!..!..oo34!..!..!..!..o
+o--+--xxxx--+--ooxxx--x--xxxx--o
+o..!..!..!..!......!..x..!..x..o
+o..!..!..!..!......!..x..!..x..o
+o--xxxx--+--+--ooxxx--x--+--x--o
+o..x..!..!..!......x..!..!..!..o
+o..x..!..!..!......x..!..!..!..o
+oxxx--xxxx--+--oo--x--+--+--xxxo
+o..!..x..!..!......!..!..!..!..o
+o..!..x..!..!......!..!..!..!..o
+o--+--x--+--x--oo--+--xxxx--x--o
+o..!..!..!..x..oo..!..!..!..x..o
+o..!..!..!..x..oo..!..!..!..x..o
+oooooooooooooooooooooooooooooooo
+
+MESSAGE Thank you for playing! :)

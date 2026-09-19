@@ -102,6 +102,7 @@ random [ Crate | no Crate no Wall ] -> [ Crate | Crate ]
 [ DOWN Player ] -> [ DOWN PlayerDown ]
 down [ RIGHT PlayerDOWN ] -> cancel
 [ PlayerUp | Echo ] -> [ PlayerUp | Crate ]
+[ > Crate | Wall ] -> [ > Crate |  ]
 
 =============
 WINCONDITIONS
@@ -137,12 +138,12 @@ message level 2 of 9
 
 message level 3 of 9
 
-.########
-##...##.#
-a.....*P#
-#....#*.#
-#.O.O#..#
-###a#####
+.#######
+##...##.
+a.....*P
+#....#*.
+#.O.O#..
+###a####
 
 message level 4 of 9
 

@@ -2,12 +2,9 @@ title SHELL CASE
 author arrogant.gamer
 homepage www.arrogantgamer.com
 
-========
+=======
 OBJECTS
-========
-
-( Floor Colour: #443333 )
-( Lowered Wall: #888888 )
+=======
 
 Crate
 grey lightgrey
@@ -49,7 +46,7 @@ green lightgreen #550044
 .000.
 2.2.2
 
-EarthFrame (pusher)
+EarthFrame
 green lightgreen darkbrown
 .222.
 20002
@@ -90,8 +87,8 @@ darkgrey white lightblue
 2...2
 .2.2.
 
-( EW -- east west )
-( NS -- east west )
+
+
 
 WhiteTile
 #EEEEEE
@@ -196,19 +193,18 @@ white
 .....
 .....
 
-=======
+======
 LEGEND
-=======
+======
 
-( basic stuff)
 p = Player and BlackTile
 Background = WhiteTile
-o = collected (the player starts here)
+o = collected
 
 # = BlackTile
 . = WhiteTile
 
-( frames )
+
 F = F_Frame
 ~ = F_Frame and BlackTile
 
@@ -218,7 +214,7 @@ E = E_Frame
 A = A_Frame
 @ = A_Frame and BlackTile
 
-( objects )
+
 
 c = crate
 k = crate and BlackTile
@@ -230,10 +226,10 @@ D = OpenDrain
 x = target
 % = target and BlackTile
 
-( useful aggregates )
+
 + = collected and F_Frame and BlackTile
 
-( types )
+
 Frame = F_Frame or E_Frame or A_Frame
 FrameRider = FluxFrame or EarthFrame or AirFrame
 ooze = 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or collected
@@ -242,20 +238,20 @@ FluxMover = FluxFrame
 Barrier = BlackTile
 object = crate or frame
 
-( conditions )
+
 
 goal = target or OpenDrain
 keys = ooze or crate
 
-=======
+======
 SOUNDS
-=======
+======
 
 sfx1 96691504
 
-================
+===============
 COLLISIONLAYERS
-================
+===============
 
 WhiteTile
 OpenDrain, ClosedDrain, target
@@ -264,174 +260,103 @@ collected, player
 Frame, FrameRider, crate
 BlackTile
 
-======
+=====
 RULES
-======
+=====
 
-( movement for frame riders )
-[> player] [ FrameRider ] -> [ player ] [> FrameRider]
-
-
-( movement of the goo )
-[> player] [ collected ]  -> [ player ] [> collected ]
-
-[> Player] [5] -> [Player] [> 5]
-[> Player] [8] -> [Player] [> 8]
-[> Player] [2] -> [Player] [> 2]
-[> Player] [4] -> [Player] [> 4]
-[> Player] [6] -> [Player] [> 6]
-[> Player] [7] -> [Player] [> 7]
-[> Player] [9] -> [Player] [> 9]
-[> Player] [1] -> [Player] [> 1]
-[> Player] [3] -> [Player] [> 3]
-
-( center to edges )
-UP    [> collected] -> [8]
-DOWN  [> collected] -> [2]
-LEFT  [> collected] -> [4]
-RIGHT [> collected] -> [6]
-
-UP    [> 5] -> [8]
-DOWN  [> 5] -> [2]
-LEFT  [> 5] -> [4]
-RIGHT [> 5] -> [6]
-
-( edges to center ) 
-DOWN  [> 8] -> [5]
-UP    [> 2] -> [5]
-LEFT  [> 6] -> [5]
-RIGHT [> 4] -> [5]
-
-( getting the goo into the frame feels goooood )
-late [5 frame] -> [ collected frame ]
-
-( center to corners )
-LEFT  [> 8] -> [7]
-RIGHT [> 8] -> [9]
-
-LEFT  [> 2] -> [1]
-RIGHT [> 2] -> [3]
-
-UP    [> 4] -> [7]
-DOWN  [> 4] -> [1]
-
-UP    [> 6] -> [9]
-DOWN  [> 6] -> [3]
-
-( corners to center )
-LEFT  [> 9] -> [8]
-RIGHT [> 7] -> [8]
-
-LEFT  [> 3] -> [2]
-RIGHT [> 1] -> [2]
-
-UP    [> 1] -> [4]
-DOWN  [> 7] -> [4]
-
-UP    [> 3] -> [6]
-DOWN  [> 9] -> [6]
-
-( FirmMovers can't move through or out of the flux )
-[> FirmMover | Barrier ] -> [ FirmMover | Barrier ]
-[> FirmMover Barrier ] -> [ FirmMover Barrier ]
-
-( FluxFrame can move into the flux or out of it, but can only move freely in the flux )
-( FluxFrame con only move into empty spaces outside the flux: it cannot push )
-[> FluxMover Barrier | Barrier ] -> [ FluxMover Barrier | Barrier ] sfx1
-[> FluxMover | object Barrier ] -> [ FluxMover | object Barrier ] sfx1
-
-( ooze can't push crates )
-[> ooze | crate ] -> [ ooze | crate ]
-
-(exit from edges )
-DOWN  [> 2| no Barrier ] -> [|8 ]
-UP    [> 8| no Barrier ] -> [|2 ]
-LEFT  [> 4| no Barrier ] -> [|6 ]
-RIGHT [> 6| no Barrier ] -> [|4 ]
-
-(exit from corners )
-UP    [> 7| no Barrier ] -> [|1]
-LEFT  [> 7| no Barrier ] -> [|9]
-
-UP    [> 9| no Barrier ] -> [|3]
-RIGHT [> 9| no Barrier ] -> [|7]
-
-DOWN  [> 3| no Barrier ] -> [|9]
-RIGHT [> 3| no Barrier ] -> [|1]
-
-DOWN  [> 1| no Barrier ] -> [|7]
-LEFT  [> 1| no Barrier ] -> [|3]
-
-( mounting and dismounting )
-[action player] [ ooze F_Frame ]  -> [player] [ action FluxFrame  ]
-[action player] [ ooze E_Frame ]  -> [player] [ action EarthFrame ]
-[action player] [ ooze A_Frame ]  -> [player] [ action AirFrame   ]
-
-[action player] [ FluxFrame  ]    -> [player] [ action collected action F_Frame ]
-[action player] [ EarthFrame ]    -> [player] [ action collected action E_Frame ]
-[action player] [ AirFrame   ]    -> [player] [ action collected action A_Frame ]
-
-( mount/dismount actions )
-
-( upon mount or dismount juxtapose flips the flux )
-
-( on mount, mark flux for flip ) 
+[ > player ] [ FrameRider ] -> [ player ] [ > FrameRider ]
+[ > player ] [ collected ] -> [ player ] [ > collected ]
+[ > Player ] [ 5 ] -> [ Player ] [ > 5 ]
+[ > Player ] [ 8 ] -> [ Player ] [ > 8 ]
+[ > Player ] [ 2 ] -> [ Player ] [ > 2 ]
+[ > Player ] [ 4 ] -> [ Player ] [ > 4 ]
+[ > Player ] [ 6 ] -> [ Player ] [ > 6 ]
+[ > Player ] [ 7 ] -> [ Player ] [ > 7 ]
+[ > Player ] [ 9 ] -> [ Player ] [ > 9 ]
+[ > Player ] [ 1 ] -> [ Player ] [ > 1 ]
+[ > Player ] [ 3 ] -> [ Player ] [ > 3 ]
+UP [ > collected ] -> [ 8 ]
+DOWN [ > collected ] -> [ 2 ]
+LEFT [ > collected ] -> [ 4 ]
+RIGHT [ > collected ] -> [ 6 ]
+UP [ > 5 ] -> [ 8 ]
+DOWN [ > 5 ] -> [ 2 ]
+LEFT [ > 5 ] -> [ 4 ]
+RIGHT [ > 5 ] -> [ 6 ]
+DOWN [ > 8 ] -> [ 5 ]
+UP [ > 2 ] -> [ 5 ]
+LEFT [ > 6 ] -> [ 5 ]
+RIGHT [ > 4 ] -> [ 5 ]
+late [ 5 frame ] -> [ collected frame ]
+LEFT [ > 8 ] -> [ 7 ]
+RIGHT [ > 8 ] -> [ 9 ]
+LEFT [ > 2 ] -> [ 1 ]
+RIGHT [ > 2 ] -> [ 3 ]
+UP [ > 4 ] -> [ 7 ]
+DOWN [ > 4 ] -> [ 1 ]
+UP [ > 6 ] -> [ 9 ]
+DOWN [ > 6 ] -> [ 3 ]
+LEFT [ > 9 ] -> [ 8 ]
+RIGHT [ > 7 ] -> [ 8 ]
+LEFT [ > 3 ] -> [ 2 ]
+RIGHT [ > 1 ] -> [ 2 ]
+UP [ > 1 ] -> [ 4 ]
+DOWN [ > 7 ] -> [ 4 ]
+UP [ > 3 ] -> [ 6 ]
+DOWN [ > 9 ] -> [ 6 ]
+[ > FirmMover | Barrier ] -> [ FirmMover | Barrier ]
+[ > FirmMover Barrier ] -> [ FirmMover Barrier ]
+[ > FluxMover Barrier | Barrier ] -> [ FluxMover Barrier | Barrier ] sfx1
+[ > FluxMover | object Barrier ] -> [ FluxMover | object Barrier ] sfx1
+[ > ooze | crate ] -> [ ooze | crate ]
+DOWN [ > 2 | no Barrier ] -> [  | 8 ]
+UP [ > 8 | no Barrier ] -> [  | 2 ]
+LEFT [ > 4 | no Barrier ] -> [  | 6 ]
+RIGHT [ > 6 | no Barrier ] -> [  | 4 ]
+UP [ > 7 | no Barrier ] -> [  | 1 ]
+LEFT [ > 7 | no Barrier ] -> [  | 9 ]
+UP [ > 9 | no Barrier ] -> [  | 3 ]
+RIGHT [ > 9 | no Barrier ] -> [  | 7 ]
+DOWN [ > 3 | no Barrier ] -> [  | 9 ]
+RIGHT [ > 3 | no Barrier ] -> [  | 1 ]
+DOWN [ > 1 | no Barrier ] -> [  | 7 ]
+late LEFT [ > 1 | no Barrier ] -> [  | 3 ]
+[ action player ] [ ooze F_Frame ] -> [ player ] [ action FluxFrame ]
+[ action player ] [ ooze E_Frame ] -> [ player ] [ action EarthFrame ]
+[ action player ] [ ooze A_Frame ] -> [ player ] [ action AirFrame ]
+[ action player ] [ FluxFrame ] -> [ player ] [ action collected action F_Frame ]
+[ action player ] [ EarthFrame ] -> [ player ] [ action collected action E_Frame ]
+[ action player ] [ AirFrame ] -> [ player ] [ action collected action A_Frame ]
 [ action FluxFrame ] [ WhiteTile ] -> [ action FluxFrame ] [ action 5 ]
 [ action FluxFrame ] [ BlackTile ] -> [ action FluxFrame ] [ action 6 ]
 [ action FluxFrame ] -> [ FluxFrame ]
-
-( on dismount, mark flux for flip ) 
 [ action collected action F_Frame ] [ WhiteTile ] -> [ action collected action F_Frame ] [ action 5 ]
 [ action collected action F_Frame ] [ BlackTile ] -> [ action collected action F_Frame ] [ action 6 ]
-
 [ action 5 ] -> [ BlackTile ]
 [ action 6 ] -> [ WhiteTile ]
-
 [ action collected action F_frame ] -> [ collected F_frame ]
-
-( frames can push crates )
-
-( EarthFrames can push crates, but it is sticky )
-[ > EarthFrame | object ]             -> [ > EarthFrame | > object ]
-[ < EarthFrame | object ]             -> [ < EarthFrame | < object ]
+[ > EarthFrame | object ] -> [ > EarthFrame | > object ]
+[ < EarthFrame | object ] -> [ < EarthFrame | < object ]
 [ > EarthFrame | > object | Barrier ] -> [ EarthFrame | object | Barrier ]
-
-( EarthFrame can move objects at a distance... this is in for a test )
-([ > EarthFrame | | object ]             -> [ > EarthFrame | | > object ]
-[ > EarthFrame | | > object | Barrier ] -> [ > EarthFrame | | object | Barrier ])
-
-( FluxFrame can push crates in the flux )
-[ > FluxFrame | object ]             -> [ > FluxFrame | > object ]
+[ > FluxFrame | object ] -> [ > FluxFrame | > object ]
 [ > FluxFrame | > object | Barrier ] -> [ FluxFrame | object | Barrier ]
-
-( AirFrame moves in mysterious ways )
 [ no object | ^ AirFrame | object ] -> [ no object | ^ AirFrame | < object ]
 [ no object | v AirFrame | object ] -> [ no object | v AirFrame | < object ]
-
-( assume drain is open )
 [ ClosedDrain ] -> [ OpenDrain ]
-
-( close it if any crates are not on their targets )
 late [ OpenDrain ] [ target no crate ] -> [ ClosedDrain ] [ target no crate ]
 
-==============
+=============
 WINCONDITIONS
-==============
+=============
 
 some ooze on OpenDrain
 
-=======
+======
 LEVELS
-=======
-
-( TODO I want to use flickscreen: 
-  - need the player to follow the slime
-  - need to decide on a good screen size
-  - need to decide whether it adds anything to the game )
-
+======
 
 message 1.
-( an ooze can't SOKOBAN )
+
 
 ####p
 #.D.#
@@ -440,7 +365,7 @@ message 1.
 #####
 
 message 2.
-( crates on targets unlock drains )
+
 
 ...###.p
 ########
@@ -450,7 +375,7 @@ message 2.
 ........
 
 message 3.
-( this is challenging: use air and earth in tight concert )
+
 
 ...###.p
 ####E###
@@ -460,7 +385,7 @@ message 3.
 ........
 
 message 4.
-( two stage puzzle )
+
 
 ##############p
 #E.############
@@ -471,7 +396,7 @@ message 4.
 ###############
 
 message 5.
-( discover the FluxFrame, then extrude the EarthFrame )
+
 
 ###.###..##p
 .&#.#o..##]#

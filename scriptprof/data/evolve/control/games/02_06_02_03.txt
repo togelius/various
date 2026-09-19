@@ -90,9 +90,9 @@ RULES
 [ > Player | Crate ] -> [ > Player | > Crate ]
 [ UP Player ] -> [ UP PlayerUp ]
 [ LEFT PlayerUp ] -> cancel
-[ Target | > PlayerDown ] -> [ > Target | > PlayerDown ]
 [ DOWN Player ] -> [ DOWN PlayerDown ]
 [ RIGHT PlayerDOWN ] -> cancel
+[ > Crate | Target ] -> [ > Crate |  ]
 
 =============
 WINCONDITIONS
@@ -112,15 +112,15 @@ message level 1 of 9
 #.O#..
 #..###
 #@P..#
-#..*.*
+#..*.#
 #...##
 #####.
 
 message level 2 of 9
 
-######
+#.####
 #....#
-#.#P.#
+#.#P##
 #.*@.#
 #.O@.#
 #....#

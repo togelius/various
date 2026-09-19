@@ -1,25 +1,26 @@
-title Gravity Sokoban
-author Franklin P. Dyer
-run_rules_on_level_start on
+title Transparency
+author pickten
+homepage www.puzzlescript.net
+run_rules_on_level_start
+color_palette 5
 
 =======
 OBJECTS
 =======
 
 Background
-LIGHTGREEN GREEN
+darkgray darkgray
 11111
 01111
 11101
 11111
 10111
 
-
 Target
-DarkBlue
+yellow
 .....
 .000.
-.0.0.
+.000.
 .000.
 .....
 
@@ -31,85 +32,54 @@ BROWN DARKBROWN
 11111
 00010
 
-PlayerGround
-Black #d2b48c White Blue
-.000.
-.111.
-22222
-.333.
-.3.3.
-
-PlayerJump1
-Black #d2b48c White Blue
-.000.
-.111.
-22222
-.333.
-3...3
-
-PlayerJump2
-Black #d2b48c White Blue
-.000.
-.111.
-22222
-.333.
-3...3
-
-BoxJump1
-Black #d2b48c White Blue Orange
-.000.
-.1444
-22424
-.3444
-3...3
-
-BoxJump2
-Black #d2b48c White Blue ORange
-.000.
-.1444
-22424
-.3444
-3...3
-
-Playerbox
-Black #d2b48c White Blue Orange
-.000.
-.1444
-22424
-.3444
-.3.3.
-
-DropBox
-Black #d2b48c White Blue Orange
-.000.
-.444.
-24242
-.444.
-.3.3.
-
-Pickup
-Black #d2b48c White Blue
-.000.
-.111.
-.222.
-23332
-.3.3.
-
-Box
-Orange Yellow
-00000
-0...0
-0...0
-0...0
-00000
-
-Socket
-Orange Darkblue
-00000
-01110
+FullPlayer
+white blue
+10001
 01.10
-01110
+0.1.0
+01.10
+10001
+
+TransPlayer
+white pink
+10001
+01.10
+0.1.0
+01.10
+10001
+
+Crate
+blue Yellow
 00000
+0...0
+0...0
+0...0
+00000
+
+InnerCrate
+pink Yellow
+00000
+0...0
+0...0
+0...0
+00000
+
+FallTurn
+transparent
+
+MoveTurn
+transparent
+
+LastTurn
+transparent
+
+Thorn
+darkbrown darkgreen red
+.....
+.000.
+.010.
+.000.
+.....
 
 ======
 LEGEND
@@ -117,22 +87,28 @@ LEGEND
 
 . = Background
 # = Wall
-P = PlayerGround
-* = Box
-@ = Socket
+P = FullPlayer
+* = Crate
+@ = Crate and Target
+8 = InnerCrate
+2 = InnerCrate and Target
 O = Target
-
-JumpingPlayer = PlayerJump1 or PlayerJump2
-BoxJump = Boxjump1 or Boxjump2
-Player = PlayerGround or PlayerJump1 or PlayerJump2 or PlayerBox or Dropbox or Pickup or BoxJump1 or BoxJump2
-Canfall = Box or PlayerGround or PlayerBox or Dropbox or Pickup
-Obstacle = Box or Wall or Player or Socket
+Player = FullPlayer or TransPlayer
+Thing = Crate or Wall or InnerCrate
+Anything = Thing or Player
+FThing = Crate or Wall or FullPlayer
+TThing = InnerCrate or Wall or TransPlayer
+FPThing = Crate or Wall
+TPThing = InnerCrate or Wall
+TType = FallTurn or MoveTurn or LastTurn
+Cratelike = Crate or InnerCrate
+a = Thorn
 
 ======
 SOUNDS
 ======
 
-Box MOVE 36772507
+Crate MOVE 36772507
 endlevel 83744503
 startgame 92244503
 
@@ -140,44 +116,54 @@ startgame 92244503
 COLLISIONLAYERS
 ===============
 
+FallTurn
+MoveTurn
+LastTurn
 Background
 Target
-Player, Wall, Box, Socket
+TransPlayer, InnerCrate
+FullPlayer, Wall, Crate
+Thorn
 
 =====
 RULES
 =====
 
-LATE [ Box Target ] -> [ Socket ]
-LATE [ Box Target ] -> [ Socket ]
-[ > Player | Wall ] -> [ > Player | > Wall ]
-UP [ Up PlayerGround | No Obstacle ] -> [ Up PlayerJump2 |  ]
-DOWN [ Up JumpingPlayer | no Obstacle ] -> [ JumpingPlayer |  ]
-HORIZONTAL [ > PlayerJump1 | NO Obstacle ] -> [  | PlayerGround ]
-HORIZONTAL [ > PlayerJump2 | NO Obstacle ] -> [  | PlayerJump1 ]
-LATE DOWN [ PlayerGround | NO Obstacle ] -> [  | playerground ]
-LATE DOWN [ JumpingPlayer | Obstacle ] -> [ PlayerGround | Obstacle ]
-UP [ Up PlayerBox | No Obstacle ] -> [ Up BoxJump2 |  ]
-DOWN [ Up boxjump | no Obstacle ] -> [ boxjump |  ]
-DOWN [ Up boxJump2 | no Obstacle ] -> [ boxJump2 |  ]
-HORIZONTAL [ > boxJump1 | NO Obstacle ] -> [  | Playerbox ]
-HORIZONTAL [ > boxJump2 | NO Obstacle ] -> [  | boxJump1 ]
-LATE DOWN [ playerbox | NO Obstacle ] -> [  | playerbox ]
-LATE DOWN [ boxjump | Obstacle ] -> [ playerbox | Obstacle ]
-[ Action PlayerGround ] -> [ Pickup ]
-[ > Pickup | Wall ] -> [ Playerbox |  ]
-[ > Pickup | Socket ] -> [ Playerbox | Target ]
-[ Action PlayerBox ] -> [ Dropbox ]
-[ > Dropbox | No Obstacle ] -> [ PlayerGround | Box ]
-DOWN [ No Obstacle | DOWN Dropbox | Obstacle ] -> [ PlayerGround | Box | Obstacle ]
-[ > Dropbox | Obstacle ] -> [ Dropbox | Obstacle ]
-[ Stationary CanFall ] -> [ Down CanFall ] again
+late [ TType ] -> [  ]
+up [ up FullPlayer | Crate ] -> [ up FullPlayer | up Crate ]
+up [ horizontal FullPlayer | Crate ] -> [ horizontal FullPlayer | horizontal Crate ]
+[ > FullPlayer | Crate ] -> [ > FullPlayer | v Crate ]
+up [ up TransPlayer | InnerCrate ] -> [ up TransPlayer | up InnerCrate ]
+up [ horizontal TransPlayer | InnerCrate ] -> [ horizontal TransPlayer | horizontal InnerCrate ]
+[ > TransPlayer | InnerCrate ] -> [ > TransPlayer | > InnerCrate ]
+[ orthogonal Crate | stationary Crate ] -> [ orthogonal Crate | orthogonal Crate ]
+[ orthogonal InnerCrate | stationary InnerCrate ] -> [ orthogonal InnerCrate | orthogonal InnerCrate ]
+[ Player ] -> [ Player FallTurn ]
+[ FallTurn ] [ moving Thing ] -> [ MoveTurn ] [ moving Thing ]
+[ > InnerCrate | no InnerCrate no Wall ] -> [ InnerCrate | InnerCrate ]
+[ FallTurn ] [ stationary Cratelike ] -> [ FallTurn ] [ down Cratelike ]
+[ > FThing | stationary FThing ] -> [ stationary FThing | stationary FThing ]
++ [ > TThing | stationary TThing ] -> [ stationary TThing | stationary TThing ]
++ [ FallTurn ] [ > Cratelike Target ] -> [ FallTurn ] [ stationary Cratelike Target ]
++ [ > Cratelike | stationary Cratelike ] -> [ stationary Cratelike | stationary Cratelike ]
++ [ FallTurn ] [ moving Crate | stationary Crate ] -> [ FallTurn ] [ stationary Crate | stationary Crate ]
++ [ FallTurn ] [ moving InnerCrate | stationary InnerCrate no LastTurn ] -> [ FallTurn ] [ stationary InnerCrate | stationary InnerCrate ] again
+[ TType no LastTurn ] -> [ LastTurn ]
+[ moving AnyThing ] [ LastTurn ] -> [ moving AnyThing ] [ MoveTurn ]
+[ action FullPlayer no TPThing ] -> [ TransPlayer ]
+late [ FullPlayer FallTurn ] -> restart
+[ action TransPlayer no FPThing ] -> [ FullPlayer ]
+[ TType no LastTurn ] -> [  ] again
 
 =============
 WINCONDITIONS
 =============
 
-All Target on Box
+All Target on Cratelike
+Some Background
+All LastTurn on FallTurn
+No LastTurn
+All MoveTurn on FallTurn
 
 ======
 LEVELS
@@ -185,113 +171,105 @@ LEVELS
 
 message level 1 of 10
 
-#####.
-#.O.#.
-#*.*##
-#@P.*#
-#****#
-#**###
-####..
+#####
+#..a.
+#.#P*
+#.*@.
+#.O@.
+#....
+#####
 
 message level 2 of 10
 
-######
-#....#
-#.#P.#
-#..O.#
-#.OO.#
-#.***#
-######
+#####.
+#O.*##
+#P**.#
+##a*.#
+a##..#
+..##O#
+..a###
 
 message level 3 of 10
-
-..####...
-###..####
-#....**.#
-#.#..#*.#
-#.O.O#P.#
-#########
-
-message level 4 of 10
-
-########
-#......#
-#.O@@*P#
-#......#
-#####..#
-....####
-
-message level 5 of 10
-
-.#######
-.#.....#
-.#.O*O.#
-##.*P*.#
-#..O*O*#
-#.....*#
-########
-
-message level 6 of 10
 
 ######.#####
 #....###...#
 #.**.....#P#
-#.*.#OOO...#
-#...########
-#####.......
+#.*.#OOO.*.#
+#..a########
+#####....a..
 
-message level 7 of 10
+message level 4 of 10
 
-#######
-#.....#
-#.O*O.#
-#.*O*.#
-#.O*O.#
-#.*O*.#
-#..P..#
-#######
+......#####
+......#O..#
+.*....#O#.#
+#######O#.#
+#.P.*.*.*.#
+#.#.#.#.###
+#.......#a.
+#########..
 
-message level 8 of 10
+message level 5 of 10
 
 ..######
 ..#.OOP#
-..#**..#
-..##*###
+..#.**a#
+a.##.###
 ...#*#..
-...#*#..
+...#.#..
 ####.#..
-#..**##.
-#.#**.#.
-#..*#.#.
-###**.#.
+#....##.
+#.#...#.
+#...#.#.
+###...#.
 ..#####.
+
+message level 6 of 10
+
+..####...
+###a.####
+#..a..**#
+#.#a.#*.#
+#.O.O#P.#
+
+message level 7 of 10
+
+####..
+#.O#a.
+#..###
+#2P*.#
+#..*.#
+#a*###
+####..
+
+message level 8 of 10
+
+########
+#....*a#
+#.O2@*P#
+#..*...#
+#####a.#
+a.*.####
 
 message level 9 of 10
 
-#####.
-#O..##
-#P**.#
-##...#
-.##..#
-..##O#
-...###
+.#######
+#...a..#
+.#.O8O.#
+##.*P**#
+#*aO*O.#
+#...a..#
+########
 
 message level 10 of 10
 
-......#####
-....###O..#
-....#..O.*#
-#####..O**#
-#.P.*.*.#.#
-#.#.#.#*###
-#*.*.*..#..
-#########..
+#######
+#....*#
+#aO8Oa#
+#.8O*a#
+#.O*O.#
+#.8O*.#
+#.*P..#
+#######
 
 message congratulations!
-
-######.#
-#.....##
-#.O@@*P#
-#....O.#
-#####.O#
-....####

@@ -1,265 +1,274 @@
-title Hill Buddies
-author Anonymous
+title Transparency
+author pickten
+homepage www.puzzlescript.net
+run_rules_on_level_start
+color_palette 5
 
-========
+=======
 OBJECTS
-========
+=======
+
+Background
+darkgray darkgray
+11111
+01111
+11101
+11111
+10111
+
+Target
+yellow
+.....
+.000.
+.000.
+.000.
+.....
+
 Wall
-black
-
-Background
-darkbrown
-
-
-Sky
-lightblue
-
-DownHillR
-darkbrown lightblue
+BROWN DARKBROWN
+00010
 11111
-01111
-00111
-00011
-00001
-
-DownHillL
-darkbrown lightblue
+01000
 11111
-11110
-11100
-11000
-10000
+00010
 
-Player
-Red
-..000
-.0...
-0....
-0....
+FullPlayer
+white blue
+10001
+01.10
+0.1.0
+01.10
+10001
+
+TransPlayer
+white pink
+10001
+01.10
+0.1.0
+01.10
+10001
+
+Crate
+blue Yellow
+00000
 0...0
+0...0
+0...0
+00000
 
-Player2
-Red
-00...
-..0..
-...0.
-...0.
-...0.
+FallTurn
+transparent
 
-Player3
-Red
-...0.
-...0.
-..0..
-00...
-.....
+MoveTurn
+transparent
 
-Player4
-Red
-0....
-0....
-.0...
-..000
-.....
+LastTurn
+transparent
 
-Character
-blue pink lightblue
-22222
-22222
-22221
-22220
-22220
+BallA
+#999999 #777777 #444444
+.112.
+10012
+10012
+21122
+.222.
 
+BallB
+#999999 #777777 #444444
+.112.
+10012
+10012
+21122
+.222.
 
-Character1
-blue pink lightblue
-22222
-22222
-22212
-22202
-22202
-
-Character2
-blue pink lightblue
-22222
-22222
-22122
-22022
-22022
-
-Character3
-blue pink lightblue
-22222
-22222
-21222
-20222
-20222
-
-Character4
-blue pink lightblue
-22222
-22222
-12222
-02222
-02222
-
-CharR0
-darkbrown lightblue blue pink 
-11111
-01111
-00113
-00012
-00002
-
-CharR1
-darkbrown lightblue blue pink 
-11111
-01131
-00121
-00021
-00001
-
-CharR2
-darkbrown lightblue blue pink 
-11311
-01211
-00211
-00011
-00001
-
-
-CharR3
-darkbrown lightblue blue
-12111
-02111
-00111
-00011
-00001
-
-
-SkyR3
-blue pink lightblue
-22222
-22222
-22222
-22222
-21222
-
-CharR4
-darkbrown lightblue blue
-21111
-01111
-00111
-00011
-00001
-
-
-SkyR4
-blue pink lightblue
-22222
-22222
-22222
-12222
-02222
-
-
-=======
-LEGEND
-=======
-. = Background
-# = Wall
-S = Sky
-
-p = Player
-q = Player2
-d = Player3
-b = Player4
-
-I = Character
-1 = Character1
-2 = Character2
-3 = Character3
-4 = Character4
-
-5 = CharR0
-6 = CharR1
-7 = CharR2
-8 = CharR3
-e = SkyR3
-9 = CharR4
-n = SkyR4
-
-r = DownHillR
-l = DownHillL
-
-=======
-SOUNDS
-=======
-
-
-================
-COLLISIONLAYERS
-================
-Background
-
-Sky, Wall, DownHillR, DownHillL
-Character, Character1, Character2, Character3, Character4
-CharR0, CharR1, CharR2, CharR3, SkyR3, CharR4, SkyR4
-Player,Player2, Player3, Player4
+BallC
+#999999 #777777 #444444
+.112.
+10012
+10012
+21122
+.222.
 
 ======
-RULES     
-======      
-[ moving Player | stationary Player2 ] -> [ moving Player | moving Player2 ]
-[ moving Player2 | stationary Player3 ] -> [ moving Player2 | moving Player3 ]
-[ moving Player | stationary Player4 ] -> [ moving Player | moving Player4 ]
+LEGEND
+======
 
-[CharR4] -> [DownHillR]
-left [SkyR4|DownHillR] -> [Sky|CharR0]
-left [SkyR4|Sky] -> [Sky|Character]
-[SkyR4] -> [Sky]
-up [CharR4|Wall] -> [DownHillR|Wall]
-up [CharR3|Wall] -> [CharR4|Wall] 
-up [CharR2|Wall] -> [CharR3|Wall]
-up [CharR3|SkyR3] -> [CharR4|SkyR4] 
-up [CharR2|Sky] -> [CharR3|SkyR3]
-[CharR1] -> [CharR2] 
-[CharR0] -> [CharR1] 
-[Character4 | DownHillR] -> [Character | CharR0]
-left [Character4 | Sky] -> [Character | Character] 
-left [Character4 | Character4] -> [Character | Character] 
-[Character3] -> [Character4]
-[Character2] -> [Character3]
-[Character1] -> [Character2]
-[Character] -> [Character1]
+. = Background
+# = Wall
+P = FullPlayer
+* = Crate
+@ = Crate and Target
+2 = Target
+O = Target
+Player = FullPlayer or TransPlayer
+Thing = Crate or Wall
+Anything = Thing or Player
+FThing = Crate or Wall or FullPlayer
+TThing = Wall or TransPlayer
+FPThing = Crate or Wall
+TPThing = Wall
+TType = FallTurn or MoveTurn or LastTurn
+Cratelike = Crate
+a = BallA
+b = BallB
+c = BallC
 
-==============
+======
+SOUNDS
+======
+
+Crate MOVE 36772507
+endlevel 83744503
+startgame 92244503
+
+===============
+COLLISIONLAYERS
+===============
+
+FallTurn
+MoveTurn
+LastTurn, BallA, BallB, BallC
+Background
+Target
+TransPlayer
+FullPlayer, Wall, Crate
+
+=====
+RULES
+=====
+
+late [ TType ] -> [  ]
+up [ up FullPlayer | Crate ] -> [ up FullPlayer | up Crate ]
+up [ horizontal FullPlayer | Crate ] -> [ horizontal FullPlayer | horizontal Crate ]
+[ Target | > FullPlayer | Crate ] -> [ Target | > FullPlayer | > Crate ]
+[ orthogonal Crate | stationary Crate ] -> [ orthogonal Crate | orthogonal Crate ]
+[ Player ] -> [ Player FallTurn ]
+[ FallTurn ] [ moving Thing ] -> [ MoveTurn ] [ moving Thing ]
+[ Action Player ] [ BallA ] [ BallB ] [ BallC ] -> [ BallC ] [ Player ] [ BallA ] [ BallB ]
+[ FallTurn ] [ stationary Cratelike ] -> [ FallTurn ] [ down Cratelike ]
+[ > FThing | stationary FThing ] -> [ stationary FThing | stationary FThing ]
++ [ > TThing | stationary TThing ] -> [ stationary TThing | stationary TThing ] restart
++ [ FallTurn ] [ > Cratelike Target ] -> [ FallTurn ] [ stationary Cratelike Target ]
++ [ > Cratelike | stationary Cratelike ] -> [ stationary Cratelike | stationary Cratelike ]
++ [ FallTurn ] [ moving Crate | stationary Crate ] -> [ FallTurn ] [ stationary Crate | stationary Crate ]
+[ TType no LastTurn ] -> [ LastTurn ]
+[ moving AnyThing ] [ LastTurn ] -> [ moving AnyThing ] [ MoveTurn ]
+[ action FullPlayer no TPThing ] -> [ TransPlayer ]
+[ action TransPlayer no FPThing ] -> [ FullPlayer ]
+[ TType no LastTurn ] -> [  ] again
+
+=============
 WINCONDITIONS
-==============
-All Player on CharR0
+=============
 
-=======     
+All Target on Cratelike
+
+======
 LEVELS
-=======
-##########################
-.rssssssssssssssssssssssss
-..rsssssssssssssssssssssss
-.....rssssssssssssssssssss
-......rsssssssssssssssssss
-...........rssssssssssssss
-............rsssssssssssss
-..............rsssssssssss
-...............rssssssssss
-.........pq.....rsssssssss
-.........bd......rssssssss
-...................rssssss
-.....................rssss
-.......................rss
-........................rI
-..........................
-..........................
-..........................
-..........................
-..........................
+======
 
-message "You Found Waldo!"
+message level 1 of 10
+
+######
+#....#
+#.#P.#
+#.*@.#
+#.O@.#
+#....#
+######
+
+message level 2 of 10
+
+#####.
+#O..##
+#P**.#
+##...#
+.##..#
+..##O#
+...###
+
+message level 3 of 10
+
+######.#####
+#....###...#
+#.**.....#P#
+#.*.#OOO...#
+#...########
+#####.......
+
+message level 4 of 10
+
+......#####
+......#O..#
+......#O#.#
+#######O#.#
+#.P.*.*.*.#
+#.#.#.#.###
+#.......#..
+#########..
+
+message level 5 of 10
+
+..######
+..#.OOP#
+..#.**.#
+..##.###
+...#.#..
+...#.#..
+####.#..
+#....##.
+#.#...#.
+#...#.#.
+###...#.
+..#####.
+
+message level 6 of 10
+
+..####...
+###..####
+#.....*.#
+#.#..#*.#
+#.O.O#P.#
+#########
+
+message level 7 of 10
+
+####..
+#.O#..
+#..###
+#2P*.#
+#..*.#
+#..###
+####..
+
+message level 8 of 10
+
+########
+#......#
+#.O2@*P#
+#......#
+#####..#
+....####
+
+message level 9 of 10
+
+.#######
+.#.....#
+.#.O#O.#
+##.*P*.#
+#..O*O.#
+#......#
+########
+
+message level 10 of 10
+
+#######
+#.....#
+#.O#O.#
+#.#O*.#
+#.O*O.#
+#.#O*.#
+#..P..#
+#######
+
+message congratulations!

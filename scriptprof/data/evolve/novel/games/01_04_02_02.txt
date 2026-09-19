@@ -46,6 +46,14 @@ orange
 0...0
 00000
 
+Mirror
+black
+00000
+0...0
+0...0
+0...0
+00000
+
 ======
 LEGEND
 ======
@@ -56,6 +64,7 @@ P = Player
 * = Crate
 @ = Crate and Target
 O = Target
+a = Mirror
 
 ======
 SOUNDS
@@ -70,35 +79,28 @@ COLLISIONLAYERS
 Background
 Target
 Player, Wall, Crate
+Mirror
 
 =====
 RULES
 =====
 
-[ > Player | Crate ] -> [ > Player | v Crate ]
+[ > Player | Crate ] -> [ > Player | > Crate ]
 
 =============
 WINCONDITIONS
 =============
 
-all Target on Crate
+All Target on Crate
 
 ======
 LEVELS
 ======
 
-####..
-#.O#..
-#..###
-#@P..#
-#..*.#
-#..###
-####..
-
-######
-#....#
-#.#P.#
+.#####
+#...##
+#.#P..
 #.*@.#
 #.O@.#
-#....#
-######
+#.#..#
+#a#P##

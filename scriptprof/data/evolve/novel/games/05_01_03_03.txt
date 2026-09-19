@@ -1,394 +1,303 @@
-Title Spacekoban
-Author Connorses [Loneship Games]
-background_color #00001F
-again_interval 0.12
+Title Blind Ninja
+Author Connorses
+background_color black
+text_color red
+noundo
 
 =======
 OBJECTS
 =======
 
 background
-grey lightgrey
-10001
-00000
-00000
-00000
-10001
+brown
 
 player
-white darkbrown
+black grey
 .000.
-.010.
-00000
+.111.
+1000.
+.0.0.
+.....
+
+Enemy1
+black white
+.000.
+.101.
 .000.
 .0.0.
-
-wall
-black
-
-crate
-red pink
-.....
-.000.
-.010.
-.000.
 .....
 
-target
+s1
+white
+.00..
+.000.
+0..0.
+....0
+.....
+
+s2
+white
+..0..
+...0.
+...00
+..000
+.0...
+
+s3
+white
+.....
+0....
+.0..0
+.000.
+.00..
+
+s4
+white
+...0.
+.00..
+00...
+00...
+..0..
+
+a
 red
-00.00
+.....
+.....
+.....
+.....
+.....
+
+b
+green
+.....
+.....
+..0..
+.....
+.....
+
+c
+yellow
+.....
+.....
+.0.0.
+.....
+.....
+
+block1
+lightblue
+.0.0.
 0...0
 .....
 0...0
-00.00
+.0.0.
 
-ladder
+Spark
 darkgrey
 .....
-00000
-.....
-00000
-.....
-
-beam
-blue
-.....
-..0..
-.0.0.
-..0..
-.....
-
-exit
-yellow
-00000
-0...0
-0...0
-0...0
-00000
-
-cover
-black darkgrey
-.....
 .000.
-.010.
+.000.
 .000.
 .....
 
-u
-transparent
-.....
+Husk
+orange purple
 ..0..
-.....
-.....
-.....
-d
-transparent
-.....
-.....
-.....
+.000.
+00000
+.000.
 ..0..
-.....
-l
-transparent
-.....
-.....
-.0...
-.....
-.....
-r
-transparent
-.....
-.....
-...0.
-.....
-.....
+
+Rust
+darkgreen black gray
+.000.
+00000
+00000
+00000
+.000.
 
 ======
 LEGEND
 ======
 
+enemy = enemy1
+enemyc = enemy and c
+s = s1 or s2 or s3 or s4
+playera = player and a
 . = background
-p = player and background
-# = wall
-* = crate
-" = ladder
-: = player and ladder
-o = target
-@ = crate and target
-% = beam
-& = crate and beam
-! = beam and target
-$ = crate and ladder
-] = player and target
-e = exit and cover
-
-obj = player or crate
-dir = U or D or L or R
-solid = wall or cover
+p = player
+e = enemy1
+d = Spark
+f = Husk
+g = Rust
 
 ======
 SOUNDS
 ======
 
+sfx0 48771506
+sfx1 86111107
 
+
+s1 create 95730307
+block1 create 59837900
 
 ===============
 COLLISIONLAYERS
 ===============
 
 background
-target
-ladder, exit
-player, wall, crate, cover
-beam
-u,d,l,r
+player
+a
+b, block1
+c, Spark
+Enemy1, s1, s2, s3, s4
+Husk
+Rust
 
 =====
 RULES
 =====
 
-[ cover ] -> [  ]
-[ exit ] [ crate no target ] -> [ exit cover ] [ crate ]
-[ < player no ladder | no solid no crate ] -> [ player |  ]
-up [ < player | solid ] -> [ player D | solid ] again
-down [ < player | solid ] -> [ player U | solid ] again
-left [ < player | solid ] -> [ player R | solid ] again
-right [ < player | solid ] -> [ player L | solid ] again
-[ up player ladder ] -> [ player U ladder ]
-[ down player ladder ] -> [ player D ladder ]
-[ left player ladder ] -> [ player L ladder ]
-[ right player ladder ] -> [ player R ladder ]
-up [ < player | crate ] -> [ player D | crate U ] again
-random [ l | no l no player ] -> [ l | l ]
-down [ < player | crate ] -> [ player U | crate D ] again
-left [ < player | crate ] -> [ player R | crate L ] again
-right [ < player | crate ] -> [ player L | crate R ] again
-up [ obj U | obj ] -> [ obj U | obj U ]
-down [ obj D | obj ] -> [ obj D | obj D ]
-left [ obj L | obj ] -> [ obj L | obj L ]
-right [ obj R | obj ] -> [ obj R | obj R ]
-[ obj U ] -> [ up obj up U ] again
-[ obj D ] -> [ down obj down D ] again
-[ obj L ] -> [ left obj left L ] again
-[ obj R ] -> [ right obj right R ] again
-[ > dir | solid ] -> [  | solid ]
-late [ player dir ladder ] -> [ player ladder ]
-late [ obj dir beam ] -> [ obj beam ]
+[ s ] -> [  ]
+late [ s2 | ... | player ] -> [ > s2 | ... | player ] cancel
+late [ s4 | ... | player ] -> [ > s4 | ... | player ]
+late [ s4 | ... | player ] -> [ > s4 | ... | player ]
+[ a ] -> [  ]
+[ block1 ] -> [  ]
+up [ > player |  | enemy1 ] -> [  | playera | s1 ]
+up [ > player |  | enemy1 ] -> [  | playera | s1 ]
+right [ > player |  | enemy1 ] -> [  | playera | s2 ] restart
+down [ > player |  | enemy1 ] -> [  | playera | s3 ]
+left [ > player |  | enemy1 ] -> [  | playera | s4 ]
+[ > player | s3 ] -> [ > player | > s3 ]
+up [ > player | enemy ] -> [ playera | s1 ]
+right [ > player | enemy ] -> [ player | s2 ]
+down [ > player | enemy ] -> [ playera | s3 ]
+left [ > player | enemy ] -> [ playera | s4 ]
+[ > player | no enemy ] -> [  | player ] sfx1
+[ player | ... | no b ] -> [ player | ... | b ]
+horizontal [ enemy no c | ... | b ] -> [ > enemy > c | ... | b ]
+late [ Rust | s4 | s3 ] -> [ Rust |  |  ]
+vertical [ enemy no c no s1 | ... | b ] -> [ > enemy > c | ... | b ]
+[ enemy | ... | player ] -> [ > enemy > c | ... | player ]
+[ moving enemy | player ] -> [ stationary enemy | player ] win
+[ moving s1 | player ] -> [ stationary s1 | player ]
+late [ enemy no a | player no block1 ] -> [ enemy a | player block1 ]
+late up [ enemy no a | player block1 ] -> [ enemy | s1 ] sfx0
+random [ s4 | no s4 no Husk ] -> [ s4 | s4 ]
+late right [ enemy no a | player block1 ] -> [ enemy | s2 ] sfx0
+down [ > player | s1 ] -> cancel
+late down [ enemy no a no s4 | player block1 ] -> [ enemy | s3 ] sfx0
+late left [ enemy no a | player block1 ] -> [ enemy | s4 ] sfx0
+late up [ enemy | playera ] -> [ enemy | s1 ] sfx0
+late right [ s4 | playera ] -> [ s4 | s2 ] sfx0
+late down [ enemy | playera ] -> [ enemy | s3 ] sfx0
+late left [ enemy | playera ] -> [ enemy | s4 ] sfx0
+late left [ enemy | playera ] -> [ enemy | s4 ] sfx0
+late [ b ] -> [  ]
+[ c ] -> [  ]
 
 =============
 WINCONDITIONS
 =============
 
-all crate on target
-all exit on player
-no dir
+no enemy
+No c
 
 ======
 LEVELS
 ======
 
-###########
-###########
-#######.###
-#........##
-#p....*..o#
-#........##
-#######.###
-###########
-###########
+Message A truly skilled duelist will not allow the fight to last for more than a single stroke.
 
-#########
-####o####
-###...###
-##..*..##
-#.......#
-##.....##
-##..p..##
-##..*..##
-##.....##
-##.....##
-##.....##
-##..o..##
-#########
+Message It happens so fast, you can barely see it.
 
-############
-###..#.....#
-###........#
-###........#
-#oo@.*p*...#
-############
-###.......##
-############
+.f.
+de.
+...
+...
+g.f
+.p.
+fg.
 
-#########
-##.o#####
-#...#####
-#*#.#####
-#o#.*.###
-###p..###
-#########
-#########
+Message You can block an attack from a single opponent.
 
-########
-#o.*p..#
-#......#
-#......#
-#.#o***#
-#.....o#
-#...o.##
-########
+.g.g.fe
+dp.e...
+....geg
 
-#########
-#...#####
-#..*#####
-#..*#...#
-#p.....o#
-######.o#
-#########
-#########
+Message Do not allow them to flank you.
 
-###########
-#o.......##
-#.....o..##
-#o.......##
-#.....@.###
-#....#*..##
-#ooo@@***.#
-#.....*...#
-#.....*...#
-#.........#
-######...p#
-#######..##
-###########
+..d..
+d..g.
+.ep.e
+.f...
+..g.d
 
-##########
-###o*..###
-##.....###
-##...#*###
-####*#..##
-####]*..##
-######oo##
-##########
-##########
+Message You cannot block multiple attacks!
 
-##:############################
-##"""##########################
-####"##########################
-#..............................
-#o.**......................."..
-#...o..........................
-###############################
-###############################
-###############################
+.d.g...
+.ef.d..
+.e....f
+.....g.
+....e..
+....e..
+.g.....
+...e...
+...e...
+.......
+...p...
+.......
+.......
 
-###########
-##..o....##
-#.........#
-#...*.....#
-#o.*"$.".o#
-#.........#
-#...p.....#
-#...*.."..#
-#......*..#
-##o.....o##
-###########
+Message Watch carefully, your opponent, and anticipate his every move.
 
-##########
-#..#o@p..#
-#........#
-#...*....#
-#o*.....*#
-#...".".o#
-##########
+e...
+...g
+d..g
+g..p
+e.ff
 
-##########
-##oo..*..#
-##o*...#.#
-###.*....#
-###...".p#
-###."..###
-##########
+..f.g
+ge.dd
+...pe
+.e...
+..d..
 
-#############
-#############
-#...........#
-#...........#
-#.!..*p...%.#
-#...........#
-#...........#
-#############
-#############
+f......
+...eg..
+.......
+.a.....
+ee.gd..
+g..p.ee
+....f..
 
-###########
-###########
-#.........#
-#.........#
-#.!.*p*"!.#
-#.........#
-#.........#
-###########
-###########
+....e....
+.........
+eg..d...e
+.........
+f...p...f
+.........
+e.......e
+d........
+f...e.d..
 
-########
-#.o..."#
-##.#.."#
-#..#.#"#
-#o.%.$:#
-##.#.."#
-#....."#
-#....$"#
-#""""""#
-########
+.g.
+de.
+..f
+...
+...
+.pg
+b..
 
-#############
-#############
-#############
-#############
-#p....*.%%!.#
-#############
-#############
-#############
-#############
+f......
+...eg..
+.......
+.a...b.
+ee.g...
+g..p..e
+....f..
 
-##########
-##.....o##
-#.......o#
-#..:"""..#
-#.."**"..#
-#.."**"..#
-#..""""..#
-#o...%...#
-##o.....##
-##########
-
-###########
-#.*.*.!..o#
-#.....%...#
-#".:..%...#
-#.....%...#
-#.*.*.!..o#
-###########
-
-############
-#####o######
-#...""*..o##
-#.........##
-#....*.#####
-#o...%....##
-#..#*..:""##
-#.%.o..*$".#
-##..#o..%#.#
-########...#
-############
-
-###########
-#######"""#
-#"""""""""#
-#:...*..""#
-#"....#...#
-#"..*##*..#
-#"...#....#
-#"..$...oo#
-########!!#
-########..#
-###########
+.d.gefe
+.p.g...
+....ge.

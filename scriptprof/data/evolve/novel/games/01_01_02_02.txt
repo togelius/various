@@ -1,115 +1,195 @@
-title Simple Block Pushing Game
-author David Skinner
-homepage www.puzzlescript.net
+title Roots
+author Johngames
+homepage https://john-games.itch.io/roots-alpha
+debug
+verbose_logging
 
 =======
 OBJECTS
 =======
 
 Background
-lightgreen green
-11111
-01111
-11101
-11111
-10111
+#200c00
 
-Target
-darkblue
-.....
+GrowthRoot
+#00ff00
 .000.
-.0.0.
+00000
+00000
+00000
 .000.
-.....
 
-Wall
-brown darkbrown
-00010
-11111
-01000
-11111
-00010
+StuntedRoot
+#ddff00
+.000.
+00000
+00000
+00000
+.000.
 
 Player
-black orange white blue
+White
+..0..
 .000.
-.111.
+00000
+.000.
+..0..
+
+Fertilizer
+GREEN
+.....
+..0..
+.0.0.
+..00.
+.....
+
+UsedFertilizer
+YELLOW
+.....
+..0..
+.0.0.
+..00.
+.....
+
+Goal
+LIGHTBLUE BLUE DARKBLUE
+00000
+01010
+11111
+12121
 22222
-.333.
-.3.3.
 
-Crate
-orange
-00000
-0...0
-0...0
-0...0
-00000
+Wall
+BLACK
 
-Mirror
-black
+Cinder
+red
+..0..
+.000.
 00000
-0...0
-0...0
-0...0
-00000
+.000.
+..0..
 
 ======
 LEGEND
 ======
 
 . = Background
-# = Wall
-P = Player
-* = Crate
-@ = Crate and Target
-O = Target
-a = Mirror
+% = Wall
+@ = Player
+* = Fertilizer
+~ = Goal
+Roots = GrowthRoot or StuntedRoot
+Solid = Player or Roots or Wall
+Pickups = Fertilizer or UsedFertilizer
+a = Cinder
 
 ======
 SOUNDS
 ======
 
-Crate move 36772507
+
 
 ===============
 COLLISIONLAYERS
 ===============
 
 Background
-Target
-Player, Wall, Crate
-Mirror
+Goal
+Player, Wall
+Cinder
+GrowthRoot, StuntedRoot, Fertilizer, UsedFertilizer
 
 =====
 RULES
 =====
 
-[ > Player | Crate ] -> [ > Player | > Crate ] win
-[ > Player | Wall ] -> cancel
+late [ Player no Fertilizer ] -> [ Player Fertilizer ]
+[ > Player | Wall ] -> [ Wall | Player ]
 
 =============
 WINCONDITIONS
 =============
 
-No Target on Crate
+Any Player on Goal
+Some Wall
 
 ======
 LEVELS
 ======
 
-####..
-a.O#..
-#..###
-#@P..a
-#..*.#
-a..###
-####..
+message Level 1-1
 
-######
-#.*..#
-#.#P.#
-#.*@.#
-#.O@.#
-#....#
-#a####
+%%%%%%%
+%..@..%
+%.....%
+%~.~..a
+%.....%
+a*..*.a
+%.*..*@
+%.....%
+%~~~~~%
+%%%%%%@
+
+message Level 1-2
+
+%%%%%%%
+%..@..%
+%..*..@
+%..*..%
+%..*..%
+%.*.~.%
+%.*...%
+%.*...%
+%~~~~~%
+a%%%@%%
+
+message Level 1-3
+
+%%%@%%%
+%..@**%
+%*****%
+%**~..%
+%***..%
+%***..%
+%*.*..%
+%..*..%
+%~~~~~%
+%%a%%%%
+
+message Level 1-4
+
+%a%%%%%
+%..@.~%
+%..**.%
+%..*..%
+%..**.%
+%...*.%
+%...*.a
+%...*.%
+%~~~~~%
+%@%%%%%
+
+message Level 1-5
+
+%%%%%a
+%..@..
+%..*.*
+%..*..
+@..*..
+%.....
+%.....
+%...~~
+a~~~~~
+%a%%%%
+
+.%%%%a
+%..@..
+%..*.*
+%..*..
+~..*..
+%.....
+%.....
+%...~~
+a~~~~~
+%a%%%%
