@@ -71,6 +71,8 @@ class LevelDepth:
     random_win_frac: float = 0.0
     greedy_solved: bool = False
     greedy_length: int = 0
+    hill_won: bool | None = None   # committing policy; None if not measured
+    hill_steps: int = 0
     # shape of the space around the solution
     fatal_frac: float = 0.0        # mean fraction of moves that lose, over the path
     key_moves: int = 0             # path states where >=3 of 4 alternatives lose
@@ -86,14 +88,29 @@ class LevelDepth:
 
     @property
     def insight(self) -> float:
-        """1.0 when search solves it and the greedy player does not."""
+        """Search solves it; does a player that cannot backtrack?
+
+        Measured against ``Level.hill_climb`` where PuzzleJAX could be built
+        for the game, and against the C++ greedy solver otherwise. The
+        distinction matters: the C++ "greedy" solver is greedy only in its
+        ordering and is still a complete search, and across 350 solved levels
+        it failed zero times, so the fallback carries almost no signal and is
+        capped accordingly.
+        """
         if not self.solved:
             return 0.0
+        if self.hill_won is not None:
+            return 0.0 if self.hill_won else 1.0
         if not self.greedy_solved:
             return 1.0
         if self.length and self.greedy_length > self.length:
             return min(0.5, (self.greedy_length - self.length) / max(self.length, 1))
         return 0.0
+
+    @property
+    def insight_measured(self) -> bool:
+        """True only where the committing player actually ran."""
+        return self.hill_won is not None
 
 
 def _gini(x: np.ndarray) -> float:
@@ -274,12 +291,16 @@ class GameDepth:
     error: str = ""
 
     STRUCTURAL = {"fatal_frac", "key_moves", "free_moves", "fatal_gini"}
+    POLICY = {"insight"}
 
     def agg(self, attr: str, only_solved: bool = True) -> float:
         levels = [l for l in self.levels
                   if (l.solved or not only_solved) and not l.note.startswith("won before")]
         if attr in self.STRUCTURAL:
             levels = [l for l in levels if l.reliable]
+        if attr in self.POLICY:
+            measured = [l for l in levels if l.insight_measured]
+            levels = measured or levels
         xs = [getattr(l, attr) for l in levels]
         if attr == "deadlock_frac":
             xs = [x for x in xs if x is not None and x >= 0]
@@ -303,6 +324,7 @@ class GameDepth:
         for m in ("insight", "fatal_frac", "deadlock_frac", "key_moves", "fatal_gini"):
             d[m] = self.agg(m)
         d["reliable_levels"] = self.reliable_levels
+        d["insight_measured"] = sum(1 for l in self.levels if l.insight_measured)
         d["random_win_frac"] = self.agg("random_win_frac", only_solved=False)
         return d
 
@@ -385,7 +407,14 @@ def analyse(text: str, max_levels: int = 4, max_iters: int = 120_000,
         if d.solved and pj is not None:
             t1 = time.time()
             try:
-                _fatal_structure(pj.level(i), actions, survive_depth, path_cap,
+                lv = pj.level(i)
+                try:
+                    hc = lv.hill_climb(seed=seed, timeout_s=structure_timeout_s)
+                    d.hill_won = bool(hc["won"])
+                    d.hill_steps = int(hc["steps"])
+                except Exception:  # noqa: BLE001
+                    d.hill_won = None
+                _fatal_structure(lv, actions, survive_depth, path_cap,
                                  n_walks, walk_len, seed, d, cap=cap,
                                  timeout_s=structure_timeout_s)
                 # only count a level the probe could actually judge: the

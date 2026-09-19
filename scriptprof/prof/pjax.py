@@ -462,6 +462,62 @@ class Level:
             tags = child_tags[sel]
         return alive
 
+    def hill_climb(self, max_steps: int = 150, restarts: int = 8,
+                   seed: int = 0, timeout_s: float = 20.0) -> dict[str, Any]:
+        """A player that commits to moves and never takes one back.
+
+        The weak player this was supposed to be all along.  ``gbfs`` is greedy
+        in its *ordering* but is still a complete search with an open list:
+        across 350 solved levels it failed exactly zero times and matched the
+        optimal solution on 82% of them, which is why the insight metric built
+        on it had no variance to work with.
+
+        This one walks instead.  Look at the five successors, step to the best
+        by PuzzleJAX's win-condition heuristic, never revisit a state, and give
+        up when every neighbour is worse or already seen.  No backtracking, no
+        open list, so a level needing a move away from the goal defeats it --
+        which is what "needs an idea" was meant to mean.
+
+        All restarts run as one batch: they differ only in how ties are broken,
+        and stepping them together turns R sequential walks into one stream of
+        batched calls sharing a single compilation.
+        """
+        rng = np.random.default_rng(seed)
+        R = max(1, restarts)
+        state = jax.tree.map(lambda x: np.repeat(x[None], R, axis=0), self.init_state)
+        seen = [set(_hash_levels(self.init_state.multihot_level[None]).tolist())
+                for _ in range(R)]
+        alive = np.ones(R, dtype=bool)
+        t0 = time.time()
+        for step in range(max_steps):
+            if not alive.any() or time.time() - t0 > timeout_s:
+                break
+            flat = self._step_batch(state, R, R)
+            wins = flat.win.reshape(R, N_ACTIONS)
+            heur = flat.heuristic.reshape(R, N_ACTIONS).astype(np.float64)
+            hashes = _hash_levels(flat.multihot_level).reshape(R, N_ACTIONS)
+            if (wins & alive[:, None]).any():
+                return {"won": True, "steps": step + 1, "walkers": R,
+                        "stuck": int((~alive).sum())}
+            pick = np.zeros(R, dtype=np.int64)
+            for r in range(R):
+                if not alive[r]:
+                    continue
+                fresh = [a for a in range(N_ACTIONS) if int(hashes[r, a]) not in seen[r]]
+                if not fresh:
+                    alive[r] = False           # every neighbour already visited
+                    continue
+                scores = heur[r, fresh] + rng.uniform(0, 1e-6, len(fresh))
+                a = int(fresh[int(np.argmax(scores))])
+                pick[r] = r * N_ACTIONS + a
+                seen[r].add(int(hashes[r, a]))
+            if not alive.any():
+                break
+            keep = np.where(alive, pick, np.arange(R) * N_ACTIONS)
+            state = jax.tree.map(lambda x: x[keep], flat)
+        return {"won": False, "steps": max_steps, "walkers": R,
+                "stuck": int((~alive).sum())}
+
     def replay(self, actions: list[int]) -> dict[str, Any]:
         """Run a fixed action sequence, reporting where it first wins."""
         if not actions:
