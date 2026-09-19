@@ -296,6 +296,59 @@ its head and one jamb in shadow and a lit sill below, and the static shader dark
 of every wall over the first two and a half metres, the grime any street has. Residential buildings gained a plinth at the base, and tall buildings carry a water tank more
 often.
 
+## Night, and the hours either side of it
+
+A lit shop window is what a real street is lit by, so each open front throws a warm wedge across the
+pavement that fades out at its edge and carries a short-range light, and the fronts are recorded
+during generation from a hash of their position so the seeded layout is untouched. Shops keep hours:
+most go dark after eleven and a handful stay lit all night. The lit-window mask dims through the small
+hours and comes back before dawn, so half seven in the evening no longer looks the same as two in the
+morning.
+
+The street lamps used to throw a cone of constant brightness, which put a hard-edged slab of light
+across half the screen when you stood near one. The shaft now fades to nothing at the ground rim and
+fades out as you walk up to it, and the pool underneath is strong enough to actually light the
+pavement.
+
+Measuring the same street through the day showed the best light in the game was a spike a few seconds
+wide: colour saturation ran 0.13 at noon, reached 0.31 at six in the evening, and was full night by
+twenty past. The brightness curve was right, so only the warm horizon term was widened; midday and the
+afternoon are exactly as bright as before, and the golden hour now covers the evening rather than a
+moment of it.
+
+Under the water the picture turns green-blue and loses most of its colour, the edges close in, the fog
+goes dense and uniform, and the sky is not drawn at all: the buffer is cleared to the colour of the
+water, which is what the fog fades into, so the whole frame is one body of water. The sea is a
+single-sided plane, and without this you looked out at the skyline from the sea bed.
+
+Grass is laid as a grid whose colour varies smoothly across it, some of it greener and some dried out.
+The tint is a two-octave value noise of the world position sampled at each corner, so neighbouring
+cells agree along their shared edge; a park reads as ground rather than as one flat sheet of green, and
+laying it per cell with a single colour each reads as a checkerboard, which is why the corners are
+sampled rather than the cells.
+
+## What it costs
+
+The simulation step costs 1.22 ms with sixty-eight cars and a hundred and forty people, where it cost
+3.56 ms. Most of that was garbage: collision circles were an array of arrays built for every pair
+tested, the vehicle basis vectors came from getters that allocated on every read in physics, steering
+and collision, and several hundred street lamps were allocated as fresh light records every frame and
+then sorted with a comparator to pick the nearest thirty-two. The circles are written into a reusable
+flat buffer, the basis vectors are locals, the lamps come from a pool, and the nearest thirty-two are
+found by bounded insertion. Sampled profiling puts the garbage collector at under one per cent of the
+loop afterwards.
+
+Two thirds of the cars in a busy scene are more than ninety-five metres from the camera. Those update
+every third frame with three times the step, all on the same frame as each other so they still see one
+another consistently; anything the player drives, is chased by, or that is wrecked or airborne runs
+every frame, and people beyond sixty metres do the same except police, ragdolls and anyone a mission
+cares about. Two minutes of simulation with two thirds of the traffic on the reduced rate leaves no car
+inside a building, none stuck and none overlapping another.
+
+Each shadow cascade culls entities to its own box: a car eighty metres away cannot cast into the tight
+near cascade, and drawing it there cost a draw call and a skinned mesh for nothing. A street view costs
+207 draw calls and 661k triangles a frame, against 248 and 728k.
+
 ## Light and colour
 
 The renderer lights in linear space. Textures and palette colours are authored in sRGB, so they are

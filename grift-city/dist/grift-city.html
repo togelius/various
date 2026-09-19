@@ -1298,7 +1298,7 @@ const CITY = (() => {
     wb.floor(W0 - 2000, W0, 2000, W1 - W0, -1.6, wc, T.water, 24);
     wb.floor(W1, W0, 2000, W1 - W0, -1.6, wc, T.water, 24);
     // Island ground: grass ring with a sandy south beach
-    b.floor(W0, W0, W1 - W0, W1 - W0, -0.02, C, T.grass, 8);
+    grassField(b, W0, W0, W1 - W0, W1 - W0, -0.02, T.grass, 8, 22); // the island's ground, greener and drier in patches
     b.box(W0, -1.6, W0, W1 - W0, 1.58, W1 - W0, [0.55, 0.55, 0.5], T.sidewalk, { faces: 1 | 2 | 16 | 32, uvScale: 4 }); // seawall
     b.floor(W0, SIZE + HALF_ROAD + SW + 2, W1 - W0, SHORE - 2, 0.0, C, T.sand, 8);
     // Railing along the seawall
@@ -1643,9 +1643,35 @@ const CITY = (() => {
     if (rng.chance(0.35)) { const dx = x + rng.range(1, w - 1), dz = z + rng.range(1, d - 1); b.cyl(dx, y, dz, 0.06, 1.2, [0.5, 0.5, 0.5], 0, 4); b.cyl(dx, y + 1.0, dz, 0.7, 1.15, [0.85, 0.85, 0.88], 0, 10, 0, true, true, 0.1); } // dish
     if (tall) { b.box(x + w / 2 - 0.1, y, z + d / 2 - 0.1, 0.2, 6, 0.2, [0.7, 0.7, 0.7]); b.cbox(x + w / 2, y + 6.1, z + d / 2, 0.3, 0.3, 0.3, [1, 0.1, 0.1], 0, { bone: 0 }); }
   }
+  // Grass laid as a grid whose colour varies smoothly across it: some of it greener, some dried out. The tint is a
+  // two-octave value noise of the world position sampled at each corner, so neighbouring cells agree along their shared
+  // edge and the field reads as ground rather than as tiles. It consumes no city random numbers.
+  const gHash = (i, j) => { const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - Math.floor(s); };
+  function gNoise(px, pz, cell) {
+    const fx = px / cell, fz = pz / cell; const i = Math.floor(fx), j = Math.floor(fz);
+    let u = fx - i, v = fz - j; u = u * u * (3 - 2 * u); v = v * v * (3 - 2 * v);
+    return (gHash(i, j) * (1 - u) + gHash(i + 1, j) * u) * (1 - v) + (gHash(i, j + 1) * (1 - u) + gHash(i + 1, j + 1) * u) * v;
+  }
+  function grassField(b, x, z, w, d, y, tile, uvScale, cell) {
+    const N = Math.max(2, Math.round(Math.max(w, d) / (cell || 6.4))), sw = w / N, sd = d / N;
+    const colAt = (px, pz) => { const n1 = gNoise(px, pz, 26), n2 = gNoise(px + 91, pz - 37, 9);
+      const k = 0.82 + n1 * 0.32 + n2 * 0.08; const dry = Math.max(0, n1 * 1.35 - 0.62);
+      return [k * (1 + dry * 0.5), k * (1 - dry * 0.05), k * (1 - dry * 0.42)]; };
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+      const x0 = x + i * sw, z0 = z + j * sd, x1 = x0 + sw, z1 = z0 + sd;
+      const u0 = (i * sw) / uvScale, v0 = (j * sd) / uvScale, u1 = ((i + 1) * sw) / uvScale, v1 = ((j + 1) * sd) / uvScale;
+      const c00 = colAt(x0, z0), c01 = colAt(x0, z1), c11 = colAt(x1, z1), c10 = colAt(x1, z0);
+      const base = b.n;
+      b.vert(x0, y, z0, 0, 1, 0, c00[0], c00[1], c00[2], u0, v0, tile, 0);
+      b.vert(x0, y, z1, 0, 1, 0, c01[0], c01[1], c01[2], u0, v1, tile, 0);
+      b.vert(x1, y, z1, 0, 1, 0, c11[0], c11[1], c11[2], u1, v1, tile, 0);
+      b.vert(x1, y, z0, 0, 1, 0, c10[0], c10[1], c10[2], u1, v0, tile, 0);
+      b.quad(base, base + 1, base + 2, base + 3);
+    }
+  }
   function buildPark(b, block) {
     const T = TEX.names; const { x, z } = block; const C = [1, 1, 1];
-    b.floor(x, z, BLOCK, BLOCK, CURB + 0.01, C, T.grass, 8);
+    grassField(b, x, z, BLOCK, BLOCK, CURB + 0.01, T.grass, 8);
     // paths in a cross
     b.floor(x + BLOCK / 2 - 2, z, 4, BLOCK, CURB + 0.02, [0.9, 0.9, 0.9], T.sidewalk, 8); b.floor(x, z + BLOCK / 2 - 2, BLOCK, 4, CURB + 0.02, [0.9, 0.9, 0.9], T.sidewalk, 8);
     // fountain on its plaza (an imported model), and a few imported tree clusters among the procedural trees
