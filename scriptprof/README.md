@@ -116,6 +116,7 @@ loop and export them as things a person can play.
 | `prof/polish.py` | regenerate an elite's levels, deep-score it, keep it if it improved |
 | `prof/standalone.py` | one self-contained HTML file per game, playable offline |
 | `prof/explorer.py` | one offline HTML file: play any archived game, touch-first |
+| `prof/explain.py` | what a game does, in English, read off its own rules |
 | `prof/lineage.py` | reconstructs real ancestry by replaying a run's log |
 | `prof/gallery.py` | the archive as a single page: levels, metrics, lineage, source |
 | `prof/render.py` | draw a level from its source, no engine needed |

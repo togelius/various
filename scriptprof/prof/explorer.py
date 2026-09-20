@@ -83,6 +83,7 @@ def _ancestor(source: str) -> tuple[str, str]:
 
 
 def collect(archive: Path, shots: int, cell_px: int, scale: int) -> list[dict[str, Any]]:
+    from prof.explain import describe_op, explain
     from prof.grammar import Game
     from prof.lineage import Lineage, describe
     from prof.novelty import shared
@@ -122,6 +123,9 @@ def collect(archive: Path, shots: int, cell_px: int, scale: int) -> list[dict[st
             except Exception:  # noqa: BLE001
                 nearest = []
         chain = describe(tree.chain(run, key))
+        for step in chain:
+            step["english"] = [describe_op(o) for o in step.get("ops", [])]
+        info = explain(source)
         games.append({
             "id": f"{run}_{key}",
             "run": run, "cell": key,
@@ -142,6 +146,8 @@ def collect(archive: Path, shots: int, cell_px: int, scale: int) -> list[dict[st
             },
             "lineage": chain,
             "nearest": nearest,
+            "explain": {k: info.get(k) for k in
+                        ("headline", "goal", "mechanics", "quirks", "counts")},
         })
     games.sort(key=lambda g: -g["metrics"]["score"])
     return games, tree.summary()
@@ -233,6 +239,20 @@ ol.chain .gen{color:var(--dim);font-size:11.5px;font-variant-numeric:tabular-num
 pre{background:#0b0c11;border:1px solid var(--line);border-radius:8px;padding:10px;
   overflow:auto;font-size:11.5px;line-height:1.45;max-height:60vh}
 .note{color:var(--dim);font-size:12.5px;margin:2px 0 12px}
+.lede{font-size:15.5px;line-height:1.55;margin:2px 0 12px}
+ul.quirks{margin:0 0 14px;padding-left:18px;color:#d8c9a0;font-size:13px}
+ul.quirks li{margin:3px 0}
+ul.mech{list-style:none;margin:0;padding:0}
+ul.mech li{padding:9px 0 9px 12px;border-left:2px solid #2b3040;margin:0 0 2px}
+ul.mech li.named{border-left-color:var(--accent)}
+ul.mech .says{display:block;font-size:14px}
+ul.mech code{display:block;margin-top:4px;color:#8992b5;font-size:11.5px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-word}
+.english{color:#9aa0c0;font-size:12.5px;margin-top:3px}
+/* the goal on a card is a scanning aid, so it gets exactly one line */
+.card .m{display:block}
+.card .blurb{display:block;color:#7b7fa0;font-size:11.5px;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #err{color:#ff8c8c;font-size:12.5px;padding:0 16px;min-height:0}
 @media (max-width:900px){
   #app{grid-template-columns:1fr}
@@ -285,6 +305,7 @@ function renderList(){
         <span class="n">${esc(g.title)}</span><br>
         <span class="m">${esc(g.run)} &middot; score ${g.metrics.score}
           &middot; nov ${g.metrics.novelty} &middot; ${g.lineage.length} gen</span>
+        <span class="blurb">${esc((g.explain && g.explain.goal) || "")}</span>
       </span>
     </button>`).join("") ||
     '<p class="note" style="padding:10px">Nothing matches that.</p>';
@@ -298,6 +319,21 @@ function show(id){
   $("#dsub").textContent =
     `after ${g.ancestor} by ${g.ancestorAuthor} \u00b7 ${g.run} run, cell ${g.cell}`;
   const m = g.metrics;
+  const ex = g.explain || {};
+  $("#pane-plays").innerHTML = `
+    <p class="lede">${esc(ex.headline || "")}</p>
+    ${(ex.quirks || []).length ? `<ul class="quirks">${ex.quirks.map(q =>
+      `<li>${esc(q)}</li>`).join("")}</ul>` : ""}
+    <p class="note">Every line below is read off this game's own rules, not
+      written about it. A rule the reader recognises as a known mechanic is
+      marked; the rest get a literal reading of what the rule rewrites.</p>
+    <ul class="mech">${(ex.mechanics || []).map(m => `
+      <li class="${m.named ? "named" : ""}">
+        <span class="says">${esc(m.says)}</span>
+        <code>${esc(m.rule)}</code>
+      </li>`).join("")}</ul>
+    ${ex.counts ? `<p class="note">${ex.counts.named} of ${ex.counts.rules} rules
+      matched a named mechanic; ${ex.counts.understood} parsed.</p>` : ""}`;
   $("#pane-metrics").innerHTML = `
     <p class="note">Measured by the pipeline that produced it. "Rules that fire" is
       the fraction of this game's rules that actually do something on a solution
@@ -323,8 +359,13 @@ function show(id){
       <li><span class="gen">${i===0?"this game":"parent &times;"+i} &middot;
         cell ${esc(s.cell)} &middot; fitness ${s.fitness}</span><br>
         ${s.seed ? `<span class="tag seed">seeded from ${esc(s.seed)}</span>`
-                 : fmtOps(s.ops)}</li>`).join("")}</ol>`;
+                 : fmtOps(s.ops)}
+        ${(s.english || []).length ? `<div class="english">${
+           esc(s.english.join("; "))}</div>` : ""}</li>`).join("")}</ol>`;
   $("#pane-source").innerHTML = `<pre>${esc(g.source)}</pre>`;
+  document.querySelectorAll("#tabs button").forEach((x, i) =>
+    x.setAttribute("aria-selected", i === 0));
+  document.querySelectorAll(".pane").forEach((p, i) => p.classList.toggle("on", i === 0));
   renderList();
   play(g);
 }
@@ -459,12 +500,14 @@ try { muteAudio(); } catch(e){}
     </div>
     <div id="err"></div>
     <div id="tabs">
-      <button data-pane="metrics" aria-selected="true">metrics</button>
+      <button data-pane="plays" aria-selected="true">how it plays</button>
+      <button data-pane="metrics" aria-selected="false">metrics</button>
       <button data-pane="lineage" aria-selected="false">lineage</button>
       <button data-pane="source" aria-selected="false">source</button>
     </div>
     <div id="panes">
-      <div class="pane on" id="pane-metrics"></div>
+      <div class="pane on" id="pane-plays"></div>
+      <div class="pane" id="pane-metrics"></div>
       <div class="pane" id="pane-lineage"></div>
       <div class="pane" id="pane-source"></div>
     </div>

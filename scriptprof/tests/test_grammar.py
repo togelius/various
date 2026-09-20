@@ -221,3 +221,72 @@ def test_add_win_never_names_the_background():
         w = h.wins[-1]
         assert w.a.lower() not in bg
         assert w.b is None or w.b.lower() not in bg
+
+
+# -- explanations ----------------------------------------------------------
+
+def test_sokoban_is_described_as_pushing():
+    """The explainer must read a known mechanic correctly, or it reads nothing."""
+    from prof.explain import explain
+
+    info = explain(SOKOBAN.read_text(encoding="utf-8"))
+    assert "push" in info["mechanics"][0]["says"].lower()
+    assert info["mechanics"][0]["named"]
+    assert "every target is on a crate" in info["goal"].lower()
+
+
+def test_a_rule_that_only_changes_motion_is_not_read_as_a_trade():
+    """Two cells holding the same object are changing motion, not swapping.
+
+    `[ > X | stationary X ] -> [ stationary X | stationary X ]` stops a slide.
+    Reading it as "X and X trade places" is both wrong and meaningless.
+    """
+    from prof.grammar import _parse_rule_line
+    from prof.explain import describe_rule
+
+    says = describe_rule(_parse_rule_line(
+        "[ > FThing | stationary FThing ] -> [ stationary FThing | stationary FThing ]"))
+    assert "trade places" not in says
+    assert "stops" in says
+
+
+def test_direction_restrictions_survive_into_the_description():
+    """A rule that only fires when moving up means something different."""
+    from prof.grammar import _parse_rule_line
+    from prof.explain import describe_rule
+
+    says = describe_rule(_parse_rule_line(
+        "up [ up Player | Crate ] -> [ up Player | up Crate ]"))
+    assert "up" in says.lower()
+
+
+def test_motion_modifiers_are_never_silently_dropped():
+    """`horizontal` was missing from the motion table, so two different rules
+    described identically and the constraint vanished from the reading."""
+    from prof.grammar import _parse_rule_line
+    from prof.explain import describe_rule
+
+    a = describe_rule(_parse_rule_line("[ horizontal P | Crate ] -> [ horizontal P | Crate ]"))
+    b = describe_rule(_parse_rule_line("[ vertical P | Crate ] -> [ vertical P | Crate ]"))
+    assert a != b
+
+
+def test_an_unparsed_rule_says_so_rather_than_inventing():
+    from prof.grammar import Rule
+    from prof.explain import describe_rule
+
+    says = describe_rule(Rule([], [], [], [], raw="some syntax we do not read"))
+    assert "does not parse" in says
+
+
+def test_every_archived_game_can_be_explained():
+    from prof.explain import explain
+
+    archive = ROOT / "data" / "archive" / "games"
+    if not archive.exists():
+        pytest.skip("no curated archive in this checkout")
+    for path in sorted(archive.glob("*.txt")):
+        info = explain(path.read_text(encoding="utf-8", errors="replace"))
+        assert "error" not in info, f"{path.name}: {info.get('error')}"
+        assert info["goal"]
+        assert info["mechanics"]
