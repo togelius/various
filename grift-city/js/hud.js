@@ -1,7 +1,9 @@
 // GRIFT CITY — the 2D overlay: radar, money, health, wanted stars, weapon, objectives, dialogue, menus.
 'use strict';
 const HUD = (() => {
-  let cv, g, W_, H_, mapCanvas = null; const notes = []; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
+  let cv, g, W_, H_, mapCanvas = null; const notes = [];
+  // Strips the touch layer can tap, rebuilt every frame: {x, y, w, h, key} where key is the key it stands for.
+  const zones = []; const zone = (x, y, w, h, key) => { if (TOUCH.active) zones.push({ x, y, w, h, key }); }; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
   const FONT = '"Helvetica Neue", Arial, sans-serif'; const DISPLAY = 'Impact, "Arial Black", "Helvetica Neue", sans-serif';
   function init(canvas) { cv = canvas; g = cv.getContext('2d'); }
   function resize() { const dpr = Math.min(window.devicePixelRatio || 1, 1.5); /* a full-retina overlay costs more to composite than its text is worth */ const w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } W_ = cv.clientWidth; H_ = cv.clientHeight; g.setTransform(dpr, 0, 0, dpr, 0, 0); }
@@ -27,7 +29,9 @@ const HUD = (() => {
     mapCanvas._icons = []; for (const k in icons) for (const p of (CITY.places[k] || [])) mapCanvas._icons.push({ x: p.x, z: p.z, col: icons[k][0], ch: icons[k][1], kind: k });
   }
   function drawMapIcons(scale, filter) { for (const ic of mapCanvas._icons) { if (filter && !filter(ic)) continue; g.fillStyle = ic.col; g.beginPath(); g.arc(ic.x, ic.z, 4 / scale, 0, 7); g.fill(); } }
-  function radarLayout(w, h) { const R = Math.min(82, w * 0.12); return { R, cx: R + 24, cy: h - R - 30 }; }
+  // On a touchscreen the bottom-left corner belongs to the thumb that moves you, so the radar goes up to the
+  // top-left and the district and clock shift out from under it.
+  function radarLayout(w, h) { const R = Math.min(82, w * 0.12); return TOUCH.active ? { R, cx: R + 18, cy: R + 18 } : { R, cx: R + 24, cy: h - R - 30 }; }
   function radar(P, cam) {
     const { R, cx, cy } = radarLayout(W_, H_); const scale = 0.55; const yaw = W.state.camYaw;
     g.save(); g.beginPath(); g.arc(cx, cy, R, 0, 7); g.clip();
@@ -55,7 +59,7 @@ const HUD = (() => {
     // north indicator
     { const a = yaw + Math.PI; const nx = cx + Math.sin(a) * (R + 12), ny = cy - Math.cos(a) * (R + 12); text('N', nx, ny, 12, '#fff', 'center'); }
     // health & armor bars beside the radar
-    const bx = cx + R + 12, by = cy + R - 14, bw = Math.min(112, W_ * 0.16);
+    const bx = TOUCH.active ? cx - R : cx + R + 12, by = TOUCH.active ? cy + R + 30 : cy + R - 14, bw = Math.min(112, W_ * 0.16);
     g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(bx - 2, by - 12, bw + 4, 14); g.fillStyle = P.health > 25 ? '#d8352f' : (Math.sin(W.state.elapsed * 10) > 0 ? '#ff6060' : '#802020'); g.fillRect(bx, by - 10, bw * M.clamp(P.health / 100, 0, 1), 10);
     if (P.armor > 0) { g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(bx - 2, by - 28, bw + 4, 14); g.fillStyle = '#c8c8d0'; g.fillRect(bx, by - 26, bw * M.clamp(P.armor / 100, 0, 1), 10); }
     if (P.car) { const kmh = Math.round(P.car.absSpeed * 3.6 * 1.6); text(kmh + ' km/h', bx, by - (P.armor > 0 ? 42 : 26), 14, '#ddd'); }
@@ -78,7 +82,7 @@ const HUD = (() => {
   function stars(P, x, y) { for (let i = 0; i < 5; i++) { const lit = i < P.wanted; const flash = starFlash > 0 && lit && Math.sin(W.state.elapsed * 20) > 0; text('★', x - i * 24, y, 24, lit ? (flash ? '#fff' : '#f5c542') : 'rgba(255,255,255,0.18)', 'center'); } }
 
   function draw(dt, state, photo) {
-    resize(); g.clearRect(0, 0, W_, H_); const P = PLAYER.P;
+    resize(); g.clearRect(0, 0, W_, H_); zones.length = 0; const P = PLAYER.P;
     if (state === 'title') return drawTitle();
     if (state === 'photo') { text('PHOTO MODE  ·  WASD/QE fly  ·  SHIFT fast  ·  wheel zoom  ·  click or ENTER saves a picture  ·  P back', W_ / 2, H_ - 18, 13, 'rgba(255,255,255,0.75)', 'center', 'normal'); if (photo && photo.savedT > 0) text('SAVED', W_ / 2, H_ / 2, 28, '#f5c542', 'center'); return; }
     if (state === 'loading') return drawLoading();
@@ -91,7 +95,7 @@ const HUD = (() => {
     if (dlg) { // letterbox + subtitles
       g.fillStyle = '#000'; g.fillRect(0, 0, W_, H_ * 0.12); g.fillRect(0, H_ * 0.88, W_, H_ * 0.12);
       const line = dlg.lines[dlg.i]; if (line) { const rows = wrap(line[1], 20, W_ * 0.84); const y0 = H_ * 0.8 - (rows.length - 1) * 12; if (line[0]) text(line[0], W_ / 2, y0 - 26, 16, '#f5c542', 'center'); rows.forEach((r, i) => text(r, W_ / 2, y0 + i * 24, 20, '#fff', 'center', 'normal')); }
-      text('SPACE to continue', W_ - 20, H_ - 18, 12, '#aaa', 'right', 'normal');
+      text(TOUCH.active ? 'TAP to continue' : 'SPACE to continue', W_ - 20, H_ - 18, 12, '#aaa', 'right', 'normal');
       if (fadeT > 0) drawFade(dt); return;
     }
     const shade = g.createLinearGradient(0, 0, 0, 115); shade.addColorStop(0, 'rgba(16,25,29,0.55)'); shade.addColorStop(1, 'rgba(16,25,29,0)'); g.fillStyle = shade; g.fillRect(0, 0, W_, 115);
@@ -105,10 +109,11 @@ const HUD = (() => {
     text(WEAPONS[P.weapon].name, W_ - 24, 140, 12, '#ccc', 'right', 'normal');
     if (P.carNameT > 0 && P.car) text(P.lastCarName, W_ - 24, H_ - 40, 22, 'rgba(245,197,66,' + Math.min(1, P.carNameT) + ')', 'right');
     // top left: clock and district
-    text(CITY.districtName(P.x, P.z).toUpperCase(), 28, 30, 17, '#eee5ce', 'left', '500', true, true); text(W.clockString(), 28, 53, 13, '#dfe6e3', 'left', 'normal', true, true);
-    if (AUDIO.radioStation > 0 && P.car) text('♪ ' + AUDIO.STATIONS[AUDIO.radioStation], 24, 76, 12, '#ccc', 'left', 'normal');
+    const lx = TOUCH.active ? radarLayout(W_, H_).R * 2 + 32 : 28;
+    text(CITY.districtName(P.x, P.z).toUpperCase(), lx, 30, 17, '#eee5ce', 'left', '500', true, true); text(W.clockString(), lx, 53, 13, '#dfe6e3', 'left', 'normal', true, true);
+    if (AUDIO.radioStation > 0 && P.car) text('♪ ' + AUDIO.STATIONS[AUDIO.radioStation], lx - 4, 76, 12, '#ccc', 'left', 'normal');
     // notifications
-    for (let i = notes.length - 1, k = 0; i >= 0; i--, k++) { const n = notes[i]; n.t -= dt; if (n.t <= 0) { notes.splice(i, 1); continue; } text(n.text, W_ / 2, 60 + k * 22, 15, 'rgba(255,255,255,' + Math.min(1, n.t) + ')', 'center'); }
+    for (let i = notes.length - 1, k = 0; i >= 0; i--, k++) { const n = notes[i]; n.t -= dt; if (n.t <= 0) { notes.splice(i, 1); continue; } text(n.text, W_ / 2, (TOUCH.active ? 112 : 60) + k * 22, 15, 'rgba(255,255,255,' + Math.min(1, n.t) + ')', 'center'); }
     // objective
     const obj = MISSIONS.objective; if (obj) { g.font = `bold 16px ${FONT}`; const tw = g.measureText(obj).width; g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(W_ / 2 - tw / 2 - 14, H_ - 66, tw + 28, 30); text(obj, W_ / 2, H_ - 51, 16, '#f5e9c0', 'center'); }
     // crosshair
@@ -122,21 +127,32 @@ const HUD = (() => {
     const cur = MISSIONS.S.current; if (cur && cur.data && cur.data.det !== undefined && !cur.data.alarm) { const w = 220, x = W_ / 2 - w / 2, y = 84; g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(x - 2, y - 2, w + 4, 14); g.fillStyle = cur.data.det > 0.7 ? '#e0453b' : '#f5c542'; g.fillRect(x, y, w * cur.data.det, 10); text('DETECTION', W_ / 2, y - 6, 11, '#ddd', 'center', 'normal'); }
     // shop
     const shop = MISSIONS.shop; if (shop) { const n = shop.items.length; const hh = 90 + n * 28; const x = W_ / 2 - 190, y = H_ / 2 - hh / 2; g.fillStyle = 'rgba(0,0,0,0.85)'; g.fillRect(x, y, 380, hh); text(shop.title, x + 190, y + 26, 22, shop.color || '#fff', 'center');
-      shop.items.forEach((it, i) => { text((i + 1) + '.  ' + it.label, x + 20, y + 62 + i * 28, 15, it.enabled ? '#fff' : '#777'); if (it.price) text('$' + it.price, x + 360, y + 62 + i * 28, 15, it.enabled ? '#3df06a' : '#777', 'right'); });
-      if (shop.hint) text(shop.hint, x + 190, y + hh - 38, 12, '#ccc', 'center', 'normal'); text('ESC to leave', x + 190, y + hh - 16, 12, '#aaa', 'center', 'normal'); }
+      shop.items.forEach((it, i) => { zone(x + 8, y + 50 + i * 28, 364, 26, 'Digit' + (i + 1)); text((i + 1) + '.  ' + it.label, x + 20, y + 62 + i * 28, 15, it.enabled ? '#fff' : '#777'); if (it.price) text('$' + it.price, x + 360, y + 62 + i * 28, 15, it.enabled ? '#3df06a' : '#777', 'right'); });
+      if (shop.hint) text(shop.hint, x + 190, y + hh - 38, 12, '#ccc', 'center', 'normal');
+      zone(x + 120, y + hh - 28, 140, 26, 'Escape'); text(TOUCH.active ? 'TAP a line  ·  LEAVE' : 'ESC to leave', x + 190, y + hh - 16, 12, '#aaa', 'center', 'normal'); }
     if (big) { big.t -= dt; const a = Math.min(1, big.t / 0.5, (big.max - big.t) * 3 + 0.05); g.globalAlpha = M.clamp(a, 0, 1); outlined(big.text, W_ / 2, H_ * 0.4, big.text.length > 3 ? 54 : 110, big.color); g.globalAlpha = 1; if (big.t <= 0) big = null; }
     if (P.state === 'busted' || P.state === 'dead') { g.fillStyle = 'rgba(0,0,0,' + M.clamp((P.deadT - 2) / 2.5, 0, 0.9) + ')'; g.fillRect(0, 0, W_, H_); }
     if (starFlash > 0) starFlash -= dt;
     if (fadeT > 0) drawFade(dt);
     if (state === 'paused') drawPause(); if (state === 'map') drawBigMap(P);
+    TOUCH.draw(g, W_, H_, state);
   }
   function drawFade(dt) { fadeT -= dt; const a = Math.sin(Math.PI * M.clamp(fadeT / fadeDur, 0, 1)); g.fillStyle = 'rgba(0,0,0,' + a + ')'; g.fillRect(0, 0, W_, H_); }
   function drawTitle() {
     g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, 0, W_, H_);
     outlined('GRIFT CITY', W_ / 2, H_ * 0.3, Math.min(110, W_ * 0.14), '#f5c542'); text('an open-world crime game, one folder of JavaScript', W_ / 2, H_ * 0.3 + 60, 16, '#ddd', 'center', 'normal');
-    const blink = Math.sin(performance.now() / 300) > -0.3; if (blink) text(GAME.hasSave() ? 'CLICK to continue     ·     N for a new game' : 'CLICK to play', W_ / 2, H_ * 0.58, 22, '#fff', 'center');
+    const tap = TOUCH.active;
+    const blink = Math.sin(performance.now() / 300) > -0.3; if (blink) text(tap ? (GAME.hasSave() ? 'TAP to continue' : 'TAP to play') : (GAME.hasSave() ? 'CLICK to continue     ·     N for a new game' : 'CLICK to play'), W_ / 2, H_ * 0.58, 22, '#fff', 'center');
     const lines = ['WASD / arrows  move · drive', 'Mouse  look and aim · left button  attack · right button  aim', 'SHIFT  sprint · SPACE  jump / handbrake · F  enter / leave car', 'Scroll, Q / E, 1–8  weapons · R  radio · H  horn · L  siren · T  taxi / vigilante job', 'TAB  map · ESC  pause · M  mute'];
-    lines.forEach((l, i) => text(l, W_ / 2, H_ * 0.7 + i * 22, 14, '#bbb', 'center', 'normal'));
+    if (tap && GAME.hasSave()) {
+      const bw = 190, bh = 44, bxx = W_ / 2 - bw / 2, byy = H_ * 0.58 + 34;
+      g.fillStyle = 'rgba(10,14,18,0.6)'; g.fillRect(bxx, byy, bw, bh);
+      g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = 2; g.strokeRect(bxx, byy, bw, bh);
+      text('NEW GAME', W_ / 2, byy + bh / 2, 17, '#fff', 'center');
+      zone(bxx, byy, bw, bh, 'KeyN');
+    }
+    const touchLines = ['Left thumb  a stick appears where you touch: walk, run at the rim, steer', 'Right thumb  drag to look · the buttons fire, aim, jump and get you in and out', 'In a car  GAS and BRAKE on the right, HAND for the handbrake, EXIT to get out', 'Top right  the map, and the pause menu for options'];
+    (tap ? touchLines : lines).forEach((l, i) => text(l, W_ / 2, H_ * 0.7 + i * 22, 14, '#bbb', 'center', 'normal'));
   }
   let loadNote = 'building the city…', loadFrac = -1;
   function loading(note, frac) { loadNote = note; loadFrac = frac === undefined ? -1 : frac; draw(0, 'loading'); }
@@ -146,8 +162,13 @@ const HUD = (() => {
   let showControls = false, hitT = 0, hitKill = false;
   function hitMark(kill) { hitT = 0.2; hitKill = !!kill; }
   function hintLine(P) {
-    if (MISSIONS.shop) return 'DIGITS pick · F or ESC leave';
-    if (MISSIONS.dialogue) return 'SPACE next line';
+    if (MISSIONS.shop) return TOUCH.active ? 'TAP a line to buy · LEAVE to go' : 'DIGITS pick · F or ESC leave';
+    if (MISSIONS.dialogue) return TOUCH.active ? 'TAP for the next line' : 'SPACE next line';
+    if (TOUCH.active) {
+      const cc = P.car;
+      if (cc) return 'GAS · BRAKE · HAND handbrake · EXIT · stick steers · drag to look';
+      return 'stick to walk, push it to the rim to run · drag the right side to look';
+    }
     const c = P.car;
     if (c) { if (c.spec.boat) return 'W/S throttle · A/D rudder · F get out near land · F1 all controls'; if (c.spec.bike) return 'W/S throttle · A/D lean · SPACE brake slide · F get off · LMB drive-by · F1 all controls';
       return 'W/S drive · A/D steer · SPACE handbrake · F get out · H horn' + (c.type === 'police' || c.type === 'swat' ? ' · L siren' : '') + ' · R radio · LMB drive-by · F1 all controls'; }
@@ -165,10 +186,11 @@ const HUD = (() => {
     const st = P.stats; const rows = [['Missions passed', st.missions + ' / ' + (MISSIONS.LIST.length + MISSIONS.LIST2.length + MISSIONS.PHONE.length)], ['Standing: Marla / Crane', ECON.S.rep.marla + ' / ' + ECON.S.rep.crane], ['Properties / stored cars', Object.keys(ECON.S.properties).length + ' / ' + ECON.S.owned.length], ['Unique stunts', (st.jumps || []).length + ' / ' + CITY.ramps.length], ['Cash earned', '$' + st.cash], ['Hidden packages', st.packages + ' / 20'], ['Cars stolen', st.carsStolen], ['People killed', st.kills], ['Distance travelled', (st.distance / 1000).toFixed(1) + ' km'], ['Insane stunts', st.stunts], ['Times wasted / busted', st.wasted + ' / ' + st.busted], ['Time of day', W.clockString()]];
     rows.forEach(([k, v], i) => { text(k, W_ / 2 - 60, 150 + i * 26, 15, '#bbb', 'right', 'normal'); text(String(v), W_ / 2 - 48, 150 + i * 26, 15, '#fff', 'left'); });
     const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['E', 'ink lines', o.edges ? 'on' : 'off'], ['A', 'auto quality', o.auto ? (GAME.auto.level ? 'on, stepped down ' + GAME.auto.level : 'on') : 'off'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', '']];
-    opts.forEach(([k, n, v], i) => { const y = 150 + i * 26; text(k, W_ / 2 + 200, y, 15, '#f5c542', 'right'); text(n, W_ / 2 + 212, y, 15, '#ccc', 'left', 'normal'); text(v, W_ / 2 + 360, y, 15, '#fff', 'left'); });
-    text('ESC or click  resume', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
+    const OPTKEY = ['BracketRight', 'KeyI', 'KeyK', 'KeyB', 'KeyE', 'KeyP', 'KeyA'];
+    opts.forEach(([k, n, v], i) => { const y = 150 + i * 26; if (OPTKEY[i]) zone(W_ / 2 + 150, y - 13, 280, 26, OPTKEY[i]); text(k, W_ / 2 + 200, y, 15, '#f5c542', 'right'); text(n, W_ / 2 + 212, y, 15, '#ccc', 'left', 'normal'); text(v, W_ / 2 + 360, y, 15, '#fff', 'left'); });
+    text(TOUCH.active ? 'TAP anywhere to resume  ·  tap an option to change it' : 'ESC or click  resume', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
     if (GAME.fps) text(GAME.fps + ' fps' + (GAME.fps < 30 ? '  (slow: try P for a lower render scale, K for no shadows)' : ''), W_ / 2, H_ - 86, 13, GAME.fps < 30 ? '#f5a623' : '#888', 'center', 'normal');
-    text('F1 shows every control', W_ / 2, H_ - 34, 12, '#888', 'center', 'normal');
+    if (!TOUCH.active) text('F1 shows every control', W_ / 2, H_ - 34, 12, '#888', 'center', 'normal');
   }
   function drawBigMap(P, overlay = null) {
     g.fillStyle = 'rgba(0,0,0,0.8)'; g.fillRect(0, 0, W_, H_); const size = Math.min(W_, H_) - 60; const scale = size / (1024 / mapCanvas._s); const ox = (W_ - size) / 2, oy = (H_ - size) / 2;
@@ -179,9 +201,9 @@ const HUD = (() => {
     g.save(); g.translate(P.x, P.z); g.rotate(-(P.car ? P.car.angle : P.angle) + Math.PI); g.fillStyle = '#fff'; g.strokeStyle = '#000'; g.lineWidth = 2 / scale; g.beginPath(); g.moveTo(0, -12 / scale); g.lineTo(8 / scale, 9 / scale); g.lineTo(0, 4 / scale); g.lineTo(-8 / scale, 9 / scale); g.closePath(); g.fill(); g.stroke(); g.restore(); g.restore();
     const legend = [['#ff70d0', 'Safehouse'], ['#f5a623', 'Voss Motors'], ['#3bb8ff', 'Pier 9 jobs'], ['#ff7020', 'Rampage'], ['#f5c542', "Pay 'n' Spray"], ['#e0453b', 'Ironmonger'], ['#ffffff', 'Hospital'], ['#5aa0ff', 'Police'], ['#3df06a', 'Bank'], ['#a0a0ff', 'Crane Holdings'], ['#c0a060', 'Pier 9']];
     legend.forEach(([c, n], i) => { g.fillStyle = c; g.beginPath(); g.arc(24, 30 + i * 22, 5, 0, 7); g.fill(); text(n, 36, 30 + i * 22, 13, '#ddd', 'left', 'normal'); });
-    text('TAB to close', W_ / 2, H_ - 16, 13, '#aaa', 'center', 'normal');
+    zone(W_ / 2 - 90, H_ - 30, 180, 28, 'Tab'); text(TOUCH.active ? 'TAP to close' : 'TAB to close', W_ / 2, H_ - 16, 13, '#aaa', 'center', 'normal');
   }
   // Where a run went: the big map with every sampled position burned in (tools/playtest/run.js writes it as heatmap.png).
   function heatmap(track) { resize(); g.clearRect(0, 0, W_, H_); drawBigMap(PLAYER.P, (scale) => { g.fillStyle = 'rgba(255,70,30,0.22)'; for (const [x, z] of track) { g.beginPath(); g.arc(x, z, 7 / scale, 0, 7); g.fill(); } g.fillStyle = '#fff'; g.beginPath(); g.arc(track[0][0], track[0][1], 5 / scale, 0, 7); g.fill(); }); text('positions sampled every 0.4 s of wall time; white dot is the start', W_ / 2, H_ - 14, 12, '#ccc', 'center', 'normal'); }
-  return { radarLayout, init, draw, loading, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, shake: (a) => PLAYER.shake(a) };
+  return { radarLayout, init, draw, loading, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, zones, shake: (a) => PLAYER.shake(a) };
 })();

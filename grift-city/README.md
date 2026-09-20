@@ -86,6 +86,29 @@ and drive at full speed, only with fewer pictures of it.
 Old habits: type `BIGBANK`, `KEVLAR`, `ARSENAL`, `COOLOFF`, `HOTHEAD`,
 `NIGHTFALL`, `SUNRISE`, `DOWNPOUR`, `CLEARSKY`, `FALCATA` or `BASTION` during play.
 
+## On a tablet
+
+On a touchscreen the game puts its own controls on the glass, laid out the way the phone ports of these
+games are. A stick appears wherever your left thumb lands in the lower left: walk with it, push it to the
+rim and you run, so running needs no button of its own. Your right thumb drags anywhere on that half of
+the screen to look around, and the cluster in the corner is FIRE, AIM, JUMP and ENTER on foot, GAS, BRAKE,
+HAND for the handbrake and EXIT in a car, with HORN, RADIO, SIREN and a SHOOT button for drive-bys when
+they apply. The radar moves from the bottom-left corner to the top-left, because on a tablet that corner
+belongs to the thumb that moves you.
+
+The menus have no keyboard to pick from, so they are tappable: a line in a shop buys it, an option in the
+pause menu changes it, a tap anywhere on the pause screen resumes, and the title screen gets a NEW GAME
+button where the desktop tells you to press N.
+
+None of this is a second set of controls in the game's own code. The touch layer stands in for a gamepad
+and presses keys, so `PLAYER` and `MISSIONS` cannot tell a finger from a keyboard and there is only one
+path to test. It turns itself on when the device has a coarse pointer and no fine one, and, whatever it
+guessed at load, the first finger on the glass turns it on and the first mouse movement turns it off, so a
+tablet with a keyboard folded round it works either way round. `?touch=1` forces it on, `?touch=0` off.
+
+Portrait says to turn the device sideways rather than cramming the cluster into a corner it does not fit.
+
+
 ## The city
 
 Six districts on one island, joined by four-lane roads with working traffic
