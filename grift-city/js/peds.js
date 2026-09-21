@@ -73,7 +73,7 @@ const PEDS = (() => {
     }
     // ---- AI
     update(dt) {
-      if (this.removed) return; this.recoil = Math.max(0, (this.recoil || 0) - dt * 3); this.punchT = Math.max(0, (this.punchT || 0) - dt); this.stateT += dt; if (this.shoutT > 0) this.shoutT -= dt; if (this.hitT > 0) this.hitT -= dt; if (this.attackCooldown > 0) this.attackCooldown -= dt;
+      if (this.removed) return; this.gesturePulse = Math.max(0,(this.gesturePulse || 0)-dt); this.recoil = Math.max(0, (this.recoil || 0) - dt * 3); this.punchT = Math.max(0, (this.punchT || 0) - dt); this.stateT += dt; if (this.shoutT > 0) this.shoutT -= dt; if (this.hitT > 0) this.hitT -= dt; if (this.attackCooldown > 0) this.attackCooldown -= dt;
       if (this.inCar) { this.x = this.inCar.x; this.z = this.inCar.z; this.y = this.inCar.y; return; }
       if (this.flinchT > 0) this.flinchT -= dt; if (this.kickT > 0) this.kickT -= dt;
       if (this.rag) { stepRagdoll(this, dt); if (this.state !== 'dead' && this.knockT > 0) { this.knockT -= dt; if (this.knockT <= 0) { endRagdoll(this); this.state = this.gotoTarget && this.gotoResume ? 'goto' : (this.fear > 0 ? 'flee' : 'walk'); this.lying = 0; } return; } }
@@ -98,7 +98,7 @@ const PEDS = (() => {
         this.moveToward(this.x + ax * 5, this.z + az * 5, 5.5, dt); return;
       }
       if (this.state === 'sit') { this.speed = 0; return; }
-      if (this.state === 'chat') { this.speed = 0; if (this.partner && this.partner.alive) { this.faceTo(this.partner.x, this.partner.z, dt); this.gestureT -= dt; if (this.gestureT <= 0) { this.gestureT = 1.5 + W.rng() * 4; this.punchT = 0.5; } } else this.state = 'walk'; return; }
+      if (this.state === 'chat') { this.speed = 0; if (this.partner && this.partner.alive) { this.faceTo(this.partner.x, this.partner.z, dt); this.gestureT -= dt; if (this.gestureT <= 0) { this.gestureT = 1.5 + W.rng() * 4; this.gesturePulse = 1.25; } } else this.state = 'walk'; return; }
       if (this.stationary) { this.speed = 0; if (this.faceTarget) this.faceTo(this.faceTarget.x, this.faceTarget.z, dt); return; }
       if (this.state === 'stand') { this.speed = 0; this.wanderT -= dt; if (this.wanderT <= 0) this.state = 'walk'; return; }
       if (!this.node) this.node = CITY.nearestWalkNode(this.x, this.z);
@@ -217,6 +217,10 @@ const PEDS = (() => {
     const bob = Math.abs(Math.cos(ph)) * (0.035 + 0.04 * run) * walk;
     const aim = p.aim || 0; const punch = p.punchT > 0 ? Math.sin(Math.min(1, p.punchT / 0.3) * Math.PI) : 0;
     const t = W.state.elapsed + (p.phase % 7); const idle = 1 - walk; const breath = Math.sin(t * 1.6) * idle;
+    const speaking = talkOpen(p);
+    const gesture = !aim && !p.weaponOut && !p.item && !walk ? Math.max(
+      p.gesturePulse > 0 ? Math.sin(Math.PI*Math.min(1,p.gesturePulse/1.25)) : 0,
+      speaking > 0 ? Math.max(0,Math.sin(t*2.1))*.55 : 0) : 0;
     const hip = LEG_H + bob - lying * (LEG_H - 0.25) - (0.08 + 0.05 * run) * walk * 0.35; // knees bend, so the pelvis rides a little lower when moving
     const flinch = p.flinchT > 0 ? Math.sin(Math.min(1, p.flinchT / 0.35) * Math.PI) : 0; const kick = p.kickT > 0 ? Math.sin(Math.min(1, p.kickT / 0.35) * Math.PI) : 0;
     const lean = run * 0.2 + walk * 0.04 + (p.recoil || 0) * -0.5 - flinch * 0.35 + kick * 0.15;
@@ -225,18 +229,18 @@ const PEDS = (() => {
     // torso: lean, hip sway and a counter-twist against the leg swing; breathing when standing
     bone(bones, 0, sway * 0.02, hip + breath * 0.006, 0, -sway * 0.09 + Math.sin(t * 0.7) * 0.02 * idle, lean, sway * 0.05 + breath * 0.008);
     // head: rides on the torso and cancels most of the twist so it keeps looking where the ped goes
-    torsoChild(bones,16,0,TORSO_H+.03,(aim ? 0 : (p.headYaw||0))+sway*.07,-lean*.7+(aim?0:Math.sin(t*.9)*.02*idle),-sway*.03);
+    torsoChild(bones,16,0,TORSO_H+.03,(aim ? 0 : (p.headYaw||0))+sway*.07,-lean*.7+(aim?0:Math.sin(t*.9)*.02*idle)+speaking*.018,-sway*.03);
     // upper arms: pivot at the shoulders, swing opposite to the legs, held out a little at a run
     const hold = !aim && p.item && (p.item === 'umbrella' || p.item === 'phone') ? p.item : null;
     const reloading = p.reloadT > 0 ? Math.sin(Math.PI * (1-p.reloadT/p.reloadDuration)) : 0;
     const armPitchL = (reloading ? -1.1 : aim ? -0.4 : swing * 0.85 - 0.45 * run) - flinch * 1.1 - kick * 0.5, armPitchR = hold === 'umbrella' ? -2.1 : hold === 'phone' ? -2.3 : (reloading ? -.8 : aim ? -Math.PI / 2 + 0.05 + (p.camPitch || 0) + (p.recoil || 0) * 2 : -swing * 0.85 - 0.45 * run - punch * 1.4) - flinch * 0.9 + kick * 0.6;
     const armRoll = 0.06 + run * 0.3 + Math.sin(t * 1.1) * 0.015 * idle;
-    torsoChild(bones,32,.26,SHOULDER,0,armPitchL,armRoll+(aim?.12:0),.26);
+    torsoChild(bones,32,.26,SHOULDER,gesture*.2,armPitchL-gesture*.35,armRoll+(aim?.12:0)+gesture*.16,.26);
     torsoChild(bones,48,-.26,SHOULDER,aim?-.15:0,armPitchR,-armRoll,-.26);
     // forearms: elbows fold on the forward swing, stay bent at a run, straight when aiming
     const elbowL = aim ? -0.05 : -(0.22 + 0.35 * Math.max(0, Math.sin(ph)) * walk + 0.8 * run);
     const elbowR = hold === 'phone' ? -2.3 : hold === 'umbrella' ? -0.3 : aim ? 0 : -(0.22 + 0.35 * Math.max(0, -Math.sin(ph)) * walk + 0.8 * run + punch * 0.6);
-    jointBone(bones, 144, 32, 0.26, ELBOW_Y, 0, elbowL); jointBone(bones, 160, 48, -0.26, ELBOW_Y, 0, elbowR);
+    jointBone(bones, 144, 32, 0.26, ELBOW_Y, 0, elbowL-gesture*.95); jointBone(bones, 160, 48, -0.26, ELBOW_Y, 0, elbowR);
     // thighs: pivot at the hips; knees fold while the foot swings through and straighten for the strike
     bone(bones, 64, sway * 0.02, hip, 0, 0, p.airborne ? -.45 : -swing * .95 * Math.abs(Math.cos(direction)) + kick * .3, swing * Math.sin(direction) * .65); bone(bones, 80, sway * 0.02, hip, 0, 0, p.airborne ? .25 : swing * .95 * Math.abs(Math.cos(direction)) - kick * 1.5, -swing * Math.sin(direction) * .65); // a kick swings the right leg up
     const kneeL = (0.08 + (0.75 + 0.55 * run) * Math.max(0, Math.cos(ph))) * walk + 0.04 * idle;

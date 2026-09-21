@@ -59,8 +59,8 @@ function checkJoints(b) {
  near(at(b.subarray(0,16),0,.68,0),at(b.subarray(16,32),0,0,0),'neck must remain attached');
  assert(Array.from(b).every(Number.isFinite));rigChecks++;
 }
-for(const speed of [0,1.5,3.3,6]) for(const phase of [0,.7,1.6,3.2,4.8]) for(const aim of [0,1]) {
- const p={x:0,y:0,z:0,angle:.2,phase,speed,aim,state:'foot',vx:1,vz:1,camPitch:.3};
+for(const gesturePulse of [0,.6]) for(const speed of [0,1.5,3.3,6]) for(const phase of [0,.7,1.6,3.2,4.8]) for(const aim of [0,1]) {
+ const p={x:0,y:0,z:0,angle:.2,phase,speed,aim,gesturePulse,state:'foot',vx:1,vz:1,camPitch:.3};
  const bones=new Float32Array(192),model=math.create();peds.buildRig(p,model,bones);checkJoints(bones);
 }
 for(const driving of [false,true]) for(const bike of [false,true]) {
