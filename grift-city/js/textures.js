@@ -264,6 +264,17 @@ const TEX = (() => {
     add('barrier', (g, r) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#ff6a00'; g.fillRect(i * 64, 0, 64, S); } });
     // Purpose-painted landmark panel: compensate for the wide physical sign so type keeps its proportions.
     add('vossSign', g => { g.fillStyle='#163b3e'; g.fillRect(0,0,S,S); g.fillStyle='#eec778'; g.fillRect(12,20,488,12); g.fillRect(12,480,488,12); g.save(); g.scale(1,6.67); g.font='900 58px Impact, Arial Black, sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('VOSS MOTORS',256,38.4,470); g.restore(); g._lit.push([0,0,S,S]); });
+    // Neutral paint multiplies each character's skin tone. Fine features stay flush with the face.
+    add('face', g => {
+      g.fillStyle='#fff'; g.fillRect(0,0,S,S); g.lineCap='round';
+      for(const x of [220,292]) {
+        g.fillStyle='#e5ddd6'; g.beginPath(); g.ellipse(x,226,14,8,0,0,Math.PI*2); g.fill();
+        g.fillStyle='#fffdf2'; g.beginPath(); g.moveTo(x-12,229); g.quadraticCurveTo(x,219,x+12,229); g.quadraticCurveTo(x,235,x-12,229); g.fill();
+        g.fillStyle='#393c34'; g.beginPath(); g.ellipse(x,228,4,6,0,0,Math.PI*2); g.fill();
+        g.strokeStyle='#77635b'; g.lineWidth=2.5; g.beginPath(); g.moveTo(x-12,229); g.quadraticCurveTo(x,219,x+12,229); g.stroke();
+        g.strokeStyle='#63514a'; g.lineWidth=5; g.beginPath(); g.moveTo(x-13,201); g.quadraticCurveTo(x,194,x+12,200); g.stroke();
+      }
+    });
     return { color: layers, normal: normals, panes };
   }
   return { build, preload, names, S, NS, base, flatN, get layers() { return layers; }, get normals() { return normals; }, get shopKinds() { return shopKinds; } };

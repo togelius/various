@@ -3,7 +3,7 @@
 'use strict';
 const PEDS = (() => {
   const SKIN = [[0.95, 0.8, 0.68], [0.85, 0.65, 0.5], [0.6, 0.42, 0.3], [0.42, 0.28, 0.2], [0.9, 0.75, 0.62]];
-  const CLOTH = [[0.8, 0.2, 0.2], [0.2, 0.3, 0.7], [0.9, 0.9, 0.85], [0.15, 0.15, 0.15], [0.3, 0.6, 0.3], [0.9, 0.7, 0.2], [0.6, 0.3, 0.6], [0.4, 0.4, 0.45], [0.95, 0.5, 0.2], [0.2, 0.7, 0.75], [0.95, 0.75, 0.8], [0.55, 0.75, 0.95], [0.35, 0.25, 0.2], [0.75, 0.85, 0.6], [0.5, 0.1, 0.15], [0.98, 0.95, 0.6], [0.25, 0.45, 0.55], [0.7, 0.7, 0.72], [0.1, 0.35, 0.25], [1, 0.6, 0.1]];
+  const CLOTH = [[0.8, 0.2, 0.2], [0.2, 0.3, 0.7], [0.9, 0.9, 0.85], [0.15, 0.15, 0.15], [0.26, 0.6, 0.3], [0.9, 0.7, 0.2], [0.6, 0.3, 0.6], [0.4, 0.4, 0.45], [0.95, 0.5, 0.2], [0.2, 0.7, 0.75], [0.95, 0.75, 0.8], [0.55, 0.75, 0.95], [0.35, 0.25, 0.2], [0.75, 0.85, 0.6], [0.5, 0.1, 0.15], [0.98, 0.95, 0.6], [0.25, 0.45, 0.55], [0.7, 0.7, 0.72], [0.1, 0.35, 0.25], [1, 0.6, 0.1]];
   const PANTS = [[0.2, 0.25, 0.4], [0.15, 0.15, 0.15], [0.45, 0.4, 0.35], [0.3, 0.3, 0.35], [0.55, 0.5, 0.42], [0.25, 0.3, 0.45], [0.38, 0.33, 0.28], [0.2, 0.22, 0.24]];
   for (const c of CLOTH) { const g = (c[0] + c[1] + c[2]) / 3; for (let i = 0; i < 3; i++) c[i] = c[i] * 0.72 + g * 0.28; } // fabric, not paint
   const HAIR = [[0.1, 0.08, 0.06], [0.35, 0.22, 0.1], [0.75, 0.6, 0.3], [0.5, 0.5, 0.5], [0.6, 0.15, 0.1]];
@@ -18,11 +18,12 @@ const PEDS = (() => {
   const WOOL = () => ({ hairStyle: r0.pick([0, 5, 2]), beard: r0.chance(0.4), skin: r0.pick(SKIN), shirt: r0.pick([[0.35, 0.3, 0.28], [0.2, 0.25, 0.3], [0.5, 0.45, 0.35]]), pants: r0.pick(PANTS), hair: r0.pick(HAIR), hat: null, beanie: r0.chance(0.7), jacket: r0.pick([[0.9, 0.65, 0.1], [0.2, 0.25, 0.3], [0.35, 0.3, 0.28]]), sleeves: true, glasses: false, bag: null, skirt: false, longHair: r0.chance(0.2) });
   const WARDROBE = { downtown: [], eastside: [], westfield: [], southport: [] }; for (let i = 0; i < 16; i++) { WARDROBE.downtown.push(SUIT()); WARDROBE.eastside.push(WORK()); WARDROBE.westfield.push(RUN()); WARDROBE.southport.push(WOOL()); }
   const VENDOR = { skin: [0.85, 0.65, 0.5], shirt: [0.95, 0.95, 0.9], pants: [0.2, 0.2, 0.22], hair: [0.2, 0.15, 0.1], hat: [0.95, 0.95, 0.9], jacket: null, sleeves: false, glasses: false, bag: null, skirt: false, longHair: false };
-  const COP = { skin: [0.9, 0.75, 0.62], shirt: [0.2, 0.3, 0.6], pants: [0.15, 0.18, 0.3], hair: [0.1, 0.1, 0.1], hat: [0.15, 0.18, 0.35], jacket: null, sleeves: true, glasses: true };
+  const COP = { badge: true, skin: [0.9, 0.75, 0.62], shirt: [0.2, 0.3, 0.6], pants: [0.15, 0.18, 0.3], hair: [0.1, 0.1, 0.1], hat: [0.15, 0.18, 0.35], jacket: null, sleeves: true, glasses: true };
   const SWAT = { skin: [0.85, 0.7, 0.6], shirt: [0.12, 0.12, 0.14], pants: [0.1, 0.1, 0.12], hair: [0.1, 0.1, 0.1], hat: [0.1, 0.1, 0.12], jacket: [0.2, 0.2, 0.22], sleeves: true, glasses: true };
   const GANG = { skin: [0.6, 0.42, 0.3], shirt: [0.55, 0.05, 0.1], pants: [0.12, 0.12, 0.12], hair: [0.08, 0.06, 0.06], hat: [0.5, 0.05, 0.1], jacket: [0.15, 0.15, 0.15], sleeves: true };
-  const PLAYER_LOOK = { skin: [0.9, 0.74, 0.62], shirt: [0.85, 0.85, 0.8], pants: [0.2, 0.2, 0.25], hair: [0.15, 0.1, 0.08], hat: null, jacket: [0.36, 0.25, 0.19], sleeves: true };
-  const MARLA = { skin: [0.85, 0.65, 0.5], shirt: [0.9, 0.2, 0.4], pants: [0.1, 0.1, 0.12], hair: [0.05, 0.05, 0.05], hat: null, jacket: [0.1, 0.1, 0.12], sleeves: true };
+  const PLAYER_LOOK = { hairStyle: 1, stubble: true, chain: true, shoes: [.13,.095,.07], skin: [0.9, 0.74, 0.62], shirt: [0.85, 0.85, 0.8], pants: [0.2, 0.2, 0.25], hair: [0.15, 0.1, 0.08], hat: null, jacket: [0.36, 0.25, 0.19], sleeves: true };
+  const MARLA = { tailored: true, hairStyle: 4, earrings: true, chain: true, shoes: [.075,.06,.07], skin: [0.85, 0.65, 0.5], shirt: [.77,.49,.30], pants: [.12,.17,.19], hair: [0.05, 0.05, 0.05], hat: null, jacket: [.13,.27,.29], sleeves: true };
+  const DEBTOR = { skin: [.87,.66,.49], shirt: [.60,.28,.20], pants: [.62,.55,.41], hair: [.28,.17,.095], hairStyle: 3, glasses: true, sleeves: false, pattern: 'stripe', build: 'stocky', shoes: [.76,.73,.65], chain: true };
   const OKAFOR = { skin: [0.42, 0.28, 0.2], shirt: [0.9, 0.85, 0.7], pants: [0.3, 0.3, 0.35], hair: [0.05, 0.05, 0.05], hat: [0.2, 0.25, 0.3], jacket: [0.85, 0.55, 0.1], sleeves: true };
   const CRANE = { skin: [0.92, 0.8, 0.7], shirt: [0.95, 0.95, 0.95], pants: [0.2, 0.2, 0.25], hair: [0.7, 0.7, 0.7], hat: null, jacket: [0.2, 0.2, 0.25], sleeves: true, glasses: true };
   function getMesh(look, lod = false) { const key = (lod ? 'L' : 'H') + JSON.stringify(look); if (!meshCache[key]) meshCache[key] = MESH.pedMesh(look, lod).build(); return meshCache[key]; }
@@ -200,6 +201,10 @@ const PEDS = (() => {
   // How far open the mouth is: shouting peds and the giver whose line is on screen move their lips
   function talkOpen(p) { const dlg = typeof MISSIONS !== 'undefined' && MISSIONS.dialogue; const talking = (p.shoutT || 0) > 0 || (dlg && dlg.focus === p && dlg.lines[dlg.i] && dlg.lines[dlg.i][0] === p.name); if (!talking) return 0; const t = W.state.elapsed + (p.bob || 0); return Math.max(0, Math.sin(t * 17) * 0.6 + Math.sin(t * 29) * 0.5); }
   function jointBone(out, off, parentOff, jx, jy, jz, pitch) { M.trsEuler(jt1, jx, jy, jz, 0, pitch, 0); M.trs(jt2, -jx, -jy, -jz, 0); M.multiply(jt3, jt1, jt2); M.multiply(jt1, out.subarray(parentOff, parentOff + 16), jt3); out.set(jt1, off); }
+  function torsoChild(out, off, x, y, yaw, pitch, roll, anchorX = 0) {
+    M.trsEuler(jt1,x,y,0,yaw,pitch,roll); M.trs(jt2,-anchorX,0,0,0);
+    M.multiply(jt3,jt1,jt2); M.multiply(jt1,out.subarray(0,16),jt3); out.set(jt1,off);
+  }
   const KNEE_Y = -LEG_H * 0.5, ELBOW_Y = -0.31;
   // Animates the rig from the ped's state. Also used by the player. The walk is a two-beat cycle: the thigh swings,
   // the knee folds while the foot is in the air and straightens for the heel strike, the pelvis sways and counter-
@@ -220,18 +225,18 @@ const PEDS = (() => {
     // torso: lean, hip sway and a counter-twist against the leg swing; breathing when standing
     bone(bones, 0, sway * 0.02, hip + breath * 0.006, 0, -sway * 0.09 + Math.sin(t * 0.7) * 0.02 * idle, lean, sway * 0.05 + breath * 0.008);
     // head: rides on the torso and cancels most of the twist so it keeps looking where the ped goes
-    bone(bones, 16, sway * 0.02, hip + TORSO_H + 0.03 + breath * 0.006, lean * 0.2, (aim ? 0 : (p.headYaw || 0)) + sway * 0.07, lean * 0.5 + (aim ? 0 : Math.sin(ph * 0.5) * 0.03 + Math.sin(t * 0.9) * 0.02 * idle), -sway * 0.03);
+    torsoChild(bones,16,0,TORSO_H+.03,(aim ? 0 : (p.headYaw||0))+sway*.07,-lean*.7+(aim?0:Math.sin(t*.9)*.02*idle),-sway*.03);
     // upper arms: pivot at the shoulders, swing opposite to the legs, held out a little at a run
     const hold = !aim && p.item && (p.item === 'umbrella' || p.item === 'phone') ? p.item : null;
     const reloading = p.reloadT > 0 ? Math.sin(Math.PI * (1-p.reloadT/p.reloadDuration)) : 0;
     const armPitchL = (reloading ? -1.1 : aim ? -0.4 : swing * 0.85 - 0.45 * run) - flinch * 1.1 - kick * 0.5, armPitchR = hold === 'umbrella' ? -2.1 : hold === 'phone' ? -2.3 : (reloading ? -.8 : aim ? -Math.PI / 2 + 0.05 + (p.camPitch || 0) + (p.recoil || 0) * 2 : -swing * 0.85 - 0.45 * run - punch * 1.4) - flinch * 0.9 + kick * 0.6;
     const armRoll = 0.06 + run * 0.3 + Math.sin(t * 1.1) * 0.015 * idle;
-    bone(bones, 32, sway * 0.02, hip + SHOULDER + breath * 0.006, 0, 0, armPitchL, armRoll + (aim ? 0.12 : 0));
-    bone(bones, 48, sway * 0.02, hip + SHOULDER + breath * 0.006, 0, aim ? -0.15 : 0, armPitchR, -armRoll);
+    torsoChild(bones,32,.26,SHOULDER,0,armPitchL,armRoll+(aim?.12:0),.26);
+    torsoChild(bones,48,-.26,SHOULDER,aim?-.15:0,armPitchR,-armRoll,-.26);
     // forearms: elbows fold on the forward swing, stay bent at a run, straight when aiming
     const elbowL = aim ? -0.05 : -(0.22 + 0.35 * Math.max(0, Math.sin(ph)) * walk + 0.8 * run);
     const elbowR = hold === 'phone' ? -2.3 : hold === 'umbrella' ? -0.3 : aim ? 0 : -(0.22 + 0.35 * Math.max(0, -Math.sin(ph)) * walk + 0.8 * run + punch * 0.6);
-    jointBone(bones, 144, 32, 0.3, ELBOW_Y, 0, elbowL); jointBone(bones, 160, 48, -0.3, ELBOW_Y, 0, elbowR);
+    jointBone(bones, 144, 32, 0.26, ELBOW_Y, 0, elbowL); jointBone(bones, 160, 48, -0.26, ELBOW_Y, 0, elbowR);
     // thighs: pivot at the hips; knees fold while the foot swings through and straighten for the strike
     bone(bones, 64, sway * 0.02, hip, 0, 0, p.airborne ? -.45 : -swing * .95 * Math.abs(Math.cos(direction)) + kick * .3, swing * Math.sin(direction) * .65); bone(bones, 80, sway * 0.02, hip, 0, 0, p.airborne ? .25 : swing * .95 * Math.abs(Math.cos(direction)) - kick * 1.5, -swing * Math.sin(direction) * .65); // a kick swings the right leg up
     const kneeL = (0.08 + (0.75 + 0.55 * run) * Math.max(0, Math.cos(ph))) * walk + 0.04 * idle;
@@ -247,15 +252,15 @@ const PEDS = (() => {
   function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1, bike = false) {
     M.trs(seatLocal, lx, ly, lz, yaw, (p.sx || 1) * fit, (p.sy || 1) * fit, (p.sx || 1) * fit); M.multiply(model, carModel, seatLocal);
     if (bike) { // astride: torso forward over the tank, arms out to the bars, knees bent down to the pegs
-      const hip = 0.02, lean = 0.32; bone(bones, 0, 0, hip, 0, 0, lean, 0); bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, -0.1, 0);
-      bone(bones, 32, 0, hip + SHOULDER, 0, 0.35, -1.05, 0.2); bone(bones, 48, 0, hip + SHOULDER, 0, -0.35, -1.05, -0.2); jointBone(bones, 144, 32, 0.3, ELBOW_Y, 0, -0.45); jointBone(bones, 160, 48, -0.3, ELBOW_Y, 0, -0.45);
+      const hip = 0.02, lean = 0.32; bone(bones, 0, 0, hip, 0, 0, lean, 0); torsoChild(bones,16,0,TORSO_H+.03,headYaw,-.35,0);
+      torsoChild(bones,32,.26,SHOULDER,.35,-1.05,.2,.26); torsoChild(bones,48,-.26,SHOULDER,-.35,-1.05,-.2,-.26); jointBone(bones, 144, 32, 0.26, ELBOW_Y, 0, -0.45); jointBone(bones, 160, 48, -0.26, ELBOW_Y, 0, -0.45);
       bone(bones, 64, 0, hip, 0, 0, -0.95, 0.28); bone(bones, 80, 0, hip, 0, 0, -0.95, -0.28); jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, 1.45); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, 1.45);
       bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001); mouthBone(bones, talkOpen(p)); return; }
     const hip = 0.02; const lean = driving ? 0.12 : 0.05;
     bone(bones, 0, 0, hip, 0, 0, lean, 0);
-    bone(bones, 16, 0, hip + TORSO_H + 0.03, 0, headYaw, lean * 0.5, 0);
-    const armP = driving ? -0.9 : -0.35; bone(bones, 32, 0, hip + SHOULDER, 0, driving ? 0.25 : 0, armP, driving ? 0.15 : 0.05); bone(bones, 48, 0, hip + SHOULDER, 0, driving ? -0.25 : 0, armP, driving ? -0.15 : -0.05);
-    jointBone(bones, 144, 32, 0.3, ELBOW_Y, 0, driving ? -0.7 : -0.5); jointBone(bones, 160, 48, -0.3, ELBOW_Y, 0, driving ? -0.7 : -0.5);
+    torsoChild(bones,16,0,TORSO_H+.03,headYaw,-lean*.7,0);
+    const armP = driving ? -0.9 : -0.35; torsoChild(bones,32,.26,SHOULDER,driving?.25:0,armP,driving?.15:.05,.26); torsoChild(bones,48,-.26,SHOULDER,driving?-.25:0,armP,driving?-.15:-.05,-.26);
+    jointBone(bones, 144, 32, 0.26, ELBOW_Y, 0, driving ? -0.7 : -0.5); jointBone(bones, 160, 48, -0.26, ELBOW_Y, 0, driving ? -0.7 : -0.5);
     bone(bones, 64, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0); bone(bones, 80, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0);
     jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, Math.PI / 2 - 0.35); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, Math.PI / 2 - 0.35);
     bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
@@ -264,7 +269,7 @@ const PEDS = (() => {
   // ---- Ragdoll: sixteen verlet joints with bone-length and bracing constraints, ground contact and building push-out.
   // Bones are refitted to the joint pairs every frame, using the shoulders as a twist reference so nothing spins on its axis.
   const RJ = { pelvis: 0, chest: 1, neck: 2, head: 3, shL: 4, shR: 5, elL: 6, elR: 7, haL: 8, haR: 9, hipL: 10, hipR: 11, knL: 12, knR: 13, ftL: 14, ftR: 15 };
-  const RAG_REST = [[0, 0, 0], [0, 0.55, 0], [0, 0.68, 0], [0, 0.9, 0], [0.3, 0.6, 0], [-0.3, 0.6, 0], [0.3, 0.29, 0], [-0.3, 0.29, 0], [0.3, -0.02, 0], [-0.3, -0.02, 0], [0.11, 0, 0], [-0.11, 0, 0], [0.11, -0.425, 0], [-0.11, -0.425, 0], [0.11, -0.8, 0.05], [-0.11, -0.8, 0.05]]; // relative to the pelvis
+  const RAG_REST = [[0, 0, 0], [0, 0.55, 0], [0, 0.68, 0], [0, 0.9, 0], [0.26, 0.6, 0], [-0.26, 0.6, 0], [0.26, 0.29, 0], [-0.26, 0.29, 0], [0.26, -0.02, 0], [-0.26, -0.02, 0], [0.11, 0, 0], [-0.11, 0, 0], [0.11, -0.425, 0], [-0.11, -0.425, 0], [0.11, -0.8, 0.05], [-0.11, -0.8, 0.05]]; // relative to the pelvis
   const RAG_LINKS = [[0, 1], [1, 2], [2, 3], [1, 4], [1, 5], [4, 5], [4, 6], [5, 7], [6, 8], [7, 9], [0, 10], [0, 11], [10, 11], [10, 12], [11, 13], [12, 14], [13, 15],
     [0, 4], [0, 5], [10, 1], [11, 1], [4, 2], [5, 2], [10, 5], [11, 4], [0, 2]].map(([a, b]) => [a, b, M.dist(RAG_REST[a][0], RAG_REST[a][1], RAG_REST[b][0], RAG_REST[b][1]) ** 2 + (RAG_REST[a][2] - RAG_REST[b][2]) ** 2].map((v, i) => i === 2 ? Math.sqrt(v) : v));
   function makeRagdoll(p, vx, vy, vz) {
@@ -301,8 +306,8 @@ const PEDS = (() => {
     const shL = P[RJ.shL], shR = P[RJ.shR]; let rx = shL.x - shR.x, ry = shL.y - shR.y, rz = shL.z - shR.z; const rl = Math.hypot(rx, ry, rz) || 1; rx /= rl; ry /= rl; rz /= rl;
     fitBone(p.bones, 0, P[RJ.pelvis], P[RJ.chest], 0, 0, 0, rx, ry, rz, false, sc);
     fitBone(p.bones, 16, P[RJ.neck], P[RJ.head], 0, 0, 0, rx, ry, rz, false, sc);
-    fitBone(p.bones, 32, shL, P[RJ.elL], 0.3, 0, 0, rx, ry, rz, true, sc); fitBone(p.bones, 48, shR, P[RJ.elR], -0.3, 0, 0, rx, ry, rz, true, sc);
-    fitBone(p.bones, 144, P[RJ.elL], P[RJ.haL], 0.3, -0.31, 0, rx, ry, rz, true, sc); fitBone(p.bones, 160, P[RJ.elR], P[RJ.haR], -0.3, -0.31, 0, rx, ry, rz, true, sc);
+    fitBone(p.bones, 32, shL, P[RJ.elL], 0.26, 0, 0, rx, ry, rz, true, sc); fitBone(p.bones, 48, shR, P[RJ.elR], -0.26, 0, 0, rx, ry, rz, true, sc);
+    fitBone(p.bones, 144, P[RJ.elL], P[RJ.haL], 0.26, -0.31, 0, rx, ry, rz, true, sc); fitBone(p.bones, 160, P[RJ.elR], P[RJ.haR], -0.26, -0.31, 0, rx, ry, rz, true, sc);
     fitBone(p.bones, 64, P[RJ.hipL], P[RJ.knL], 0.11, 0, 0, rx, ry, rz, true, sc); fitBone(p.bones, 80, P[RJ.hipR], P[RJ.knR], -0.11, 0, 0, rx, ry, rz, true, sc);
     fitBone(p.bones, 112, P[RJ.knL], P[RJ.ftL], 0.11, -0.425, 0, rx, ry, rz, true, sc); fitBone(p.bones, 128, P[RJ.knR], P[RJ.ftR], -0.11, -0.425, 0, rx, ry, rz, true, sc);
     bone(p.bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
@@ -374,5 +379,5 @@ const PEDS = (() => {
       if (dx * dx + dz * dz > FAR2) { if (phase === 1) p.update(dt * 3); } else p.update(dt);
     }
   }
-  return { Ped, heldEntity, spawn, spawnDriver, spawnCop, populate, trim, despawn, updateAll, buildRig, buildRigSeated, seatOf, seatedEntity, getMesh, makeRagdoll, stepRagdoll, ragdollBones, endRagdoll, looks, COP, SWAT, GANG, PLAYER_LOOK, MARLA, OKAFOR, CRANE };
+  return { Ped, heldEntity, spawn, spawnDriver, spawnCop, populate, trim, despawn, updateAll, buildRig, buildRigSeated, seatOf, seatedEntity, getMesh, makeRagdoll, stepRagdoll, ragdollBones, endRagdoll, looks, COP, SWAT, GANG, PLAYER_LOOK, MARLA, DEBTOR, OKAFOR, CRANE };
 })();

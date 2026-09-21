@@ -428,10 +428,11 @@ const MESH = (() => {
 
   // ---- Pedestrians. Bones: 0 pelvis/torso, 1 head, 2/3 upper arms, 4/5 thighs, 6 weapon, 7/8 shins, 9/10 forearms.
   // Limbs are tapered cylinders with ball joints, the torso is a lofted body, the head an ellipsoid with a hair cap.
-  const MOUTH_POS = [0, 0.14 * 0.62, 0.14 * 0.93]; // where the mouth sits in head-bone space
+  const MOUTH_POS = [0, .094, .125]; // where the mouth sits in head-bone space
   function pedMesh(look, lod = false) {
-    const b = new Builder(); const SEG = lod ? 6 : 14, RNG = lod ? 3 : 7, CS = lod ? 5 : 10, AS = lod ? 5 : 9; const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket || Math.random() < 0.5, glasses = false, bag = null, skirt = false, longHair = false, beanie = false, hairStyle = 0, beard = false } = look;
-    const legH = 0.85, torsoH = 0.65, headR = 0.14;
+    const b = new Builder(); const SEG = lod ? 6 : 14, RNG = lod ? 3 : 7, CS = lod ? 5 : 10, AS = lod ? 5 : 9; const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket, glasses = false, bag = null, skirt = false, longHair = false, beanie = false, hairStyle = 0, beard = false } = look;
+    const legH = 0.85, torsoH = 0.65, headR = 0.15;
+    const tailored = look.tailored || false, broad = look.build === 'stocky';
     const skinDk = skin.map(c => c * 0.82), top = jacket || shirt, topDk = top.map(c => c * 0.78);
     const ball = (x, y, z, r, col, bone, segs = 6, rings = 2) => b.sphere(x, y, z, r, r, r, col, { segs: lod ? 4 : segs, rings: lod ? 1 : rings, bone });
     // legs hang from the hips (bones 4, 5): thigh, knee, shin, a shaped shoe
@@ -439,7 +440,7 @@ const MESH = (() => {
       const trouserRing = (y, rx, rz) => Builder.rrect(sx, 0, rx, rz, Math.min(rx, rz) * 0.7, lod ? 1 : 2, y, 'y');
       b.loft([trouserRing(-legH * 0.5, 0.082, 0.082), trouserRing(-0.25, 0.102, 0.108), trouserRing(0.03, 0.108, 0.116)], pants, 0, bone);
       ball(sx, -legH * 0.5, 0.005, 0.074, pants, bone, 7, 3);
-      b.cyl(sx, -legH + 0.09, 0.015, 0.058, -legH * 0.5, pants, 0, CS, shin, false, true, 0.076);
+      b.loft([trouserRing(-legH+.08,.061,.065),trouserRing(-.63,.071,.074),trouserRing(-legH*.5,.081,.082)],pants,0,shin,{capEnd:true});
       b.cyl(sx, -legH + 0.02, 0.012, 0.05, -legH + 0.1, skin, 0, 7, shin, false, false, 0.05); // ankle
       b.roundedBox(sx - 0.075, -legH + 0.02, -0.08, 0.15, 0.09, 0.27, 0.04, shoes, 0, shin, { n: lod ? 1 : 2 }); b.box(sx - 0.078, -legH - 0.01, -0.085, 0.156, 0.03, 0.28, shoes.map(c => c * 0.6), 0, { bone: shin }); // upper and sole
     }
@@ -450,50 +451,85 @@ const MESH = (() => {
     if (skirt) b.cyl(0, -0.34, 0, 0.27, 0.12, pants, 0, 12, 0, false, true, 0.2);
     // Jackets hang straight at the hip; shirts tuck into a narrower waist. Both meet the shoulder rig.
     const chest = jacket
-      ? [rr(0.07, 0.225, 0.143, 0.10), rr(0.22, 0.218, 0.14, 0.10), rr(0.40, 0.232, 0.15, 0.11), rr(0.54, 0.27, 0.16, 0.12), rr(0.60, 0.273, 0.15, 0.12), rr(0.655, 0.18, 0.105, 0.09), rr(0.68, 0.09, 0.07, 0.06)]
-      : [rr(0.12, 0.195, 0.125, 0.09), rr(0.24, 0.185, 0.12, 0.09), rr(0.40, 0.218, 0.142, 0.11), rr(0.54, 0.255, 0.15, 0.12), rr(0.60, 0.263, 0.14, 0.12), rr(0.655, 0.17, 0.1, 0.09), rr(0.68, 0.09, 0.07, 0.06)];
+      ? [rr(.07,.205,.135,.085),rr(.22,tailored?.178:.20,.126,.085),rr(.42,.217,.143,.1),rr(.54,.242,.14,.11),rr(.59,.236,.127,.105),rr(.64,.17,.09,.075),rr(.665,.076,.066,.05)]
+      : [rr(.12,.185,.12,.08),rr(.25,.177,.116,.08),rr(.42,.208,.138,.1),rr(.54,.23,.132,.10),rr(.59,.228,.123,.105),rr(.64,.16,.085,.07),rr(.665,.075,.062,.05)];
     b.loft(chest, top, 0, 0, { capStart: !!jacket, capEnd: true });
     if (jacket) {
-      b.polyOut([[-0.10, 0.64, 0.176], [0.10, 0.64, 0.176], [0.03, 0.16, 0.176], [-0.03, 0.16, 0.176]], shirt, 0, 0, -0.2);
-      for (const side of [-1, 1]) {
-        b.polyOut([[side * 0.11, 0.655, 0.18], [side * 0.18, 0.52, 0.18], [side * 0.04, 0.28, 0.18], [side * 0.095, 0.50, 0.18]], topDk, 0, 0, -0.2);
-        if (!lod) b.cbox(side * 0.145, 0.24, 0.135, 0.09, 0.022, 0.024, topDk);
+      const front = [[.12,.139,.044],[.22,.131,.050],[.42,.148,.059],[.54,.145,.065],[.59,.132,.062],[.64,.095,.046]];
+      for(let i=0;i<front.length-1;i++) { const [y,z,w]=front[i], [y2,z2,w2]=front[i+1]; b.polyOut([[-w,y,z],[w,y,z],[w2,y2,z2],[-w2,y2,z2]],shirt,0,0,-.2); }
+      for (const side of [-1,1]) {
+        const lapel=[[.39,.151,.06,.067],[.54,.150,.065,.125],[.59,.137,.062,.10],[.64,.100,.046,.073]];
+        for(let i=0;i<lapel.length-1;i++) { const [y,z,a,bw]=lapel[i], [y2,z2,a2,b2]=lapel[i+1]; b.polyOut([[side*a,y,z],[side*bw,y,z],[side*b2,y2,z2],[side*a2,y2,z2]],top.map(c=>c*.87),0,0,-.2); }
+        if (!lod) {
+          b.tube([side*.11,.26,.126],[side*.185,.29,.12],.007,.007,topDk,0,0,4);
+          b.tube([side*.13,.50,-.139],[side*.19,.49,-.13],.003,.003,top.map(c=>c*1.13),0,0,4);
+        }
       }
-      // A rounded hem and shoulder yoke remain visible from the gameplay camera behind the player.
-      b.loft([rr(0.075, 0.227, 0.145, 0.10), rr(0.10, 0.226, 0.145, 0.10)], topDk);
-      if (!lod) b.polyOut([[-0.20, 0.50, -0.157], [0.20, 0.50, -0.157], [0.18, 0.525, -0.16], [-0.18, 0.525, -0.16]], top.map(c => c * 0.88), 0, 0, 0);
+      b.loft([rr(.075,.207,.138,.09),rr(.1,.207,.138,.09)],topDk);
+      if (!lod) {
+        b.polyOut([[-.19,.47,-.145],[.19,.47,-.145],[.17,.49,-.144],[-.17,.49,-.144]],top.map(c=>c*.88),0,0,0);
+        for (const side of [-1,1]) b.tube([side*.155,.12,-.102],[side*.175,.43,-.105],.003,.003,topDk,0,0,4);
+      }
     } else {
-      b.loft([rr(0.646, 0.102, 0.081, 0.06), rr(0.682, 0.082, 0.072, 0.055)], topDk);
-      if (sleeves && !lod) for (let k = 0; k < 4; k++) b.cbox(0, 0.23 + k * 0.085, 0.147, 0.012, 0.012, 0.006, topDk);
+      b.loft([rr(.645,.082,.069,.052),rr(.675,.075,.063,.048)],topDk);
+      if (sleeves && !lod) for(let k=0;k<4;k++) b.cbox(0,.24+k*.082,.142,.009,.009,.006,topDk);
+      if (look.pattern === 'stripe') for(let i=0;i<4;i++) {
+        const y=.24+i*.066;
+        const profile=h=>{const t=Math.max(0,(h-.25)/.17); return rr(h,.177+Math.min(1,t)*.031+.003,.116+Math.min(1,t)*.022+.003,.085);};
+        b.loft([profile(y),profile(y+.014)],shirt.map(c=>Math.min(1,c*1.2+.06)));
+      }
     }
+    if (look.chain && !lod) { for(const side of [-1,1]) { b.tube([side*.045,.63,.115],[side*.033,.55,.155],.0025,.0025,[.8,.64,.3],0,0,5); b.tube([side*.033,.55,.155],[0,.505,.157],.0025,.0025,[.8,.64,.3],0,0,5); } b.cbox(0,.499,.159,.012,.018,.005,[.8,.64,.3]); }
+    if (look.badge && !lod) b.sphere(.11,.49,.14,.018,.025,.008,[.82,.72,.4],{segs:6,rings:2,bone:0});
     if (bag) { b.roundedBox(-0.32, torsoH * 0.15, -0.16, 0.1, 0.3, 0.22, 0.03, bag, 0, 0, { n: 1 }); b.tube([-0.27, 0.62, -0.02], [-0.27, 0.25, -0.1], 0.012, 0.012, bag.map(c => c * 0.7), 0, 0, 5); }
     b.cyl(0, torsoH - 0.03, 0, 0.056, torsoH + 0.07, skin, 0, 8, 0, false, false, 0.06); // neck
-    // head (bone 1): skull, jaw, ears, eyes with irises, brows, nose, mouth (bone 11)
-    b.sphere(0, headR * 1.08, -0.005, headR * 0.9, headR * 1.05, headR * 0.98, skin, { segs: SEG, rings: RNG, bone: 1 });
-    b.sphere(0, headR * 0.72, 0.012, headR * 0.78, headR * 0.72, headR * 0.86, skin, { segs: SEG, rings: RNG, bone: 1 }); // jaw and cheeks
+    // One sculpted skull: chin, jaw, cheeks, brow and crown share a continuous surface.
+    const faceRing = (y,rx,rz,zc) => Array.from({length:SEG},(_,i)=>{const a=i/SEG*Math.PI*2;return [Math.cos(a)*rx,y,zc+Math.sin(a)*rz];});
+    const jaw = tailored ? .92 : broad ? 1.1 : 1; const faceStart = b.v.length, faceIndexStart = b.i.length;
+    b.loft([faceRing(.024,.047,.056,.025),faceRing(.059,.085*jaw,.083,.016),faceRing(.11,.116*jaw,.104,.002),faceRing(.178,.131,.111,-.004),faceRing(.24,.125,.11,-.01),faceRing(.285,.102,.09,-.014),faceRing(.315,.045,.041,-.018)],skin,0,1,{capStart:true,capEnd:true});
+    // Cylindrical face coordinates keep painted lids and brows on the skin, including the distant LOD.
+    for (let i=faceStart;i<b.v.length;i+=13) {
+      b.v[i+9] = Math.atan2(b.v[i], b.v[i+2]) / (Math.PI*2) + .5;
+      b.v[i+10] = 1-b.v[i+1]/.33; b.v[i+11] = TEX.names.face || 0;
+    }
+    // Unwrap seam-crossing faces at the back, never interpolate the face paint across the skull.
+    for(let i=faceIndexStart;i<b.i.length;i+=3) {
+      const ids=b.i.slice(i,i+3).map(v=>v*13); const us=ids.map(v=>b.v[v+9]);
+      if(Math.max(...us)-Math.min(...us)>.5) for(const id of ids) b.v[id+11]=0;
+    }
     const hairR = headR * 1.03; const style = beanie || (hat && !beanie) ? (hairStyle === 5 ? 5 : 0) : hairStyle;
     if (style !== 5) { b.sphere(0, headR * 1.1, -0.012, hairR * 0.95, hairR * 1.1, hairR * 1.0, hair, { segs: SEG, rings: lod ? 2 : 4, lat0: style === 1 ? 0.2 : 0.3, lat1: 1, bone: 1 }); b.sphere(0, headR * 1.08, -0.012, hairR * 0.95, hairR * 1.1, hairR * 1.02, hair, { segs: 12, rings: 3, lat0: (longHair || style === 2) ? -0.55 : -0.05, lat1: 0.32, az0: Math.PI * 1.12, az1: Math.PI * 1.88, bone: 1 }); } // cap and the back of the head
     else b.sphere(0, headR * 1.1, -0.012, hairR * 0.92, hairR * 1.07, hairR * 0.97, skinDk.map(c => c * 0.9), { segs: 8, rings: 2, lat0: 0.75, lat1: 1, bone: 1 }); // bald: a little shine on top
-    if (style === 1 && !lod) b.cbox(-0.03, headR * 1.62, headR * 0.86, 0.13, 0.05, 0.05, hair, 0, { bone: 1 }); // a fringe
+    if (style === 1 && !lod) { b.sphere(-.038,.265,.072,.084,.046,.047,hair,{segs:12,rings:4,bone:1}); b.sphere(.065,.259,.063,.045,.039,.041,hair,{segs:10,rings:3,bone:1}); } // a fringe
     if (longHair || style === 2) b.sphere(0, headR * 0.7, -0.03, hairR * 1.05, hairR * 1.4, hairR * 1.05, hair, { segs: 12, rings: 3, lat0: -0.7, lat1: -0.1, az0: Math.PI * 1.05, az1: Math.PI * 1.95, bone: 1 });
     if (style === 3) { b.sphere(0, headR * 1.15, -headR * 0.95, 0.045, 0.04, 0.045, hair, { segs: 7, rings: 2, bone: 1 }); b.tube([0, headR * 1.1, -headR * 0.95], [0.02, headR * 0.3, -headR * 1.15], 0.03, 0.018, hair, 0, 1, 6); } // ponytail
     if (style === 4) b.sphere(0, headR * 1.7, -headR * 0.75, 0.055, 0.045, 0.055, hair, { segs: 8, rings: 3, bone: 1 }); // bun
     if (style === 6 && !lod) for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2; b.sphere(Math.cos(a) * headR * 0.75, headR * 1.65 + Math.sin(a * 2) * 0.01, -0.01 + Math.sin(a) * headR * 0.75, 0.05, 0.045, 0.05, hair, { segs: 6, rings: 2, bone: 1 }); } // curls
     if (style === 7) b.sphere(0, headR * 1.25, -0.02, hairR * 1.35, hairR * 1.35, hairR * 1.35, hair, { segs: SEG, rings: RNG, lat0: -0.15, lat1: 1, bone: 1 }); // afro
     if (beard && !lod) b.sphere(0, headR * 0.66, 0.02, headR * 0.82, headR * 0.7, headR * 0.9, hair, { segs: 12, rings: 3, lat0: -1, lat1: 0.12, az0: Math.PI * 0.08, az1: Math.PI * 0.92, bone: 1 });
-    if (!lod) { for (const sx of [0.05, -0.05]) { b.sphere(sx, headR * 1.15, headR * 0.8, 0.016, 0.010, 0.013, [0.78, 0.76, 0.70], { segs: 8, rings: 3, bone: 1 }); b.sphere(sx, headR * 1.15, headR * 0.865, 0.007, 0.007, 0.006, [0.12, 0.09, 0.07], { segs: 6, rings: 2, bone: 1 }); b.cbox(sx, headR * 1.215, headR * 0.83, 0.038, 0.008, 0.02, skinDk, 0, { bone: 1 }); b.cbox(sx, headR * 1.34, headR * 0.9, 0.042, 0.009, 0.012, hair.map(c => c * 0.8), 0, { bone: 1 }); } // eyes, irises, brows
-      b.sphere(0, headR * 0.98, headR * 0.98, 0.02, 0.035, 0.028, skin.map(c => c * 0.95), { segs: 7, rings: 3, bone: 1 }); // nose
-      b.cbox(0, headR * 0.62, headR * 0.93, 0.055, 0.009, 0.012, skin.map((c, i) => c * (i === 0 ? 0.65 : 0.48)), 0, { bone: 11 }); // mouth, on its own bone so it can open when the ped talks
-      ball(headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); ball(-headR * 0.93, headR * 1.05, 0, 0.03, skinDk, 1, 5, 2); } // ears
-    if (glasses) { b.cbox(0, headR * 1.15, headR + 0.01, 0.2, 0.05, 0.02, [0.05, 0.05, 0.06], 0, { bone: 1 }); for (const sx of [0.11, -0.11]) b.cbox(sx, headR * 1.15, headR * 0.5, 0.01, 0.01, headR, [0.05, 0.05, 0.06], 0, { bone: 1 }); }
+    if (!lod) {
+      for (const sx of [-.049,.049]) {
+        b.sphere(Math.sign(sx)*.129,.166,-.004,.019,.033,.022,skin,{segs:8,rings:3,bone:1});
+        b.sphere(Math.sign(sx)*.14,.164,.004,.007,.018,.01,skinDk,{segs:6,rings:2,bone:1});
+        if (look.earrings) b.sphere(Math.sign(sx)*.138,.129,.0,.009,.011,.009,[.88,.69,.32],{segs:7,rings:3,bone:1});
+      }
+      b.sphere(0,.146,.102,.017,.026,.033,skin,{segs:12,rings:6,bone:1});
+      b.cbox(0,.094,.125,.045,.005,.008,skin.map((c,i)=>c*(i===0?.64:.46)),0,{bone:11});
+
+      if (look.stubble) for(let i=faceStart;i<b.v.length;i+=13) { if(b.v[i+12]===1 && b.v[i+11]===(TEX.names.face||0) && b.v[i+1]<.11) for(let k=0;k<3;k++) b.v[i+6+k]*=.87; }
+    }
+    if (glasses) {
+      for(const side of [-1,1]) { b.roundedBox(side*.051-.040,.157,.115,.080,.043,.012,.009,[.045,.055,.059],0,1,{n:2}); b.tube([side*.087,.18,.12],[side*.127,.18,-.015],.005,.005,[.065,.06,.055],0,1,5); }
+      b.tube([-.015,.178,.125],[.015,.178,.125],.004,.004,[.12,.105,.085],0,1,5);
+    }
     if (hat && !beanie) { b.cyl(0, headR * 1.65, -0.01, hairR * 1.02, headR * 2.25, hat, 0, 12, 1, true, false, hairR * 0.9); const base = b.n; const bz = headR * 0.6; for (let k = 0; k <= 8; k++) { const a = -Math.PI / 2 + k / 8 * Math.PI; b.vert(Math.cos(a) * headR * 1.05, headR * 1.7, bz + Math.sin(a) * headR * 1.25, 0, 1, 0, ...hat, 0, 0, 0, 1); } const c = b.vert(0, headR * 1.7, bz, 0, 1, 0, ...hat, 0, 0, 0, 1); for (let k = 0; k < 8; k++) b.tri(base + k, base + k + 1, c); }
     if (hat && beanie) b.sphere(0, headR * 1.0, -0.01, hairR * 1.05, hairR * 1.3, hairR * 1.08, hat, { segs: 12, rings: 4, lat0: 0.05, lat1: 1, bone: 1 });
     // arms (bones 2, 3): a rounded shoulder, upper arm, elbow, forearm, a hand with a thumb
     const armL = 0.62;
-    for (const [sx, bone, fore] of [[0.3, 2, 9], [-0.3, 3, 10]]) {
-      ball(sx * 0.97, -0.012, 0, jacket ? 0.099 : 0.09, top, bone, 8, 3);
-      const sleeveEnd = sleeves ? -armL * 0.5 : -0.18;
-      b.cyl(sx, sleeveEnd, 0, sleeves ? 0.065 : 0.075, -0.02, top, 0, AS, bone, false, true, jacket ? 0.092 : 0.081);
+    for (const [sx, bone, fore] of [[0.26, 2, 9], [-0.26, 3, 10]]) {
+      const sleeveEnd = sleeves ? -armL*.5 : -.18;
+      const ar = (y,rx,rz,xc=sx) => Builder.rrect(xc,0,rx,rz,Math.min(rx,rz)*.8,lod?1:3,y,'y');
+      b.loft([ar(sleeveEnd,.061,.066),ar(-.16,.074,.079),ar(-.045,.085,.087,sx*.94),ar(.015,.072,.071,sx*.90),ar(.042,.037,.043,sx*.87)],top,0,bone,{capStart:true,capEnd:true});
       if (!sleeves) b.cyl(sx, -armL * 0.5, 0, 0.057, -0.17, skin, 0, AS, bone, false, false, 0.063);
       ball(sx, -armL * 0.5, 0.005, 0.059, sleeves ? top : skin, bone, 7, 3);
       b.cyl(sx, -armL + 0.07, 0.01, sleeves ? 0.049 : 0.042, -armL * 0.5, sleeves ? top : skin, 0, AS, fore, false, false, sleeves ? 0.066 : 0.057);
@@ -501,6 +537,7 @@ const MESH = (() => {
       b.cyl(sx, -armL + 0.02, 0.01, 0.036, -armL + 0.11, skin, 0, 7, fore, false, false, 0.038); // wrist
       b.roundedBox(sx - 0.04, -armL - 0.03, -0.022, 0.08, 0.1, 0.05, 0.02, skin, 0, fore, { n: 1 }); if (!lod) b.roundedBox(sx + (sx > 0 ? -0.075 : 0.04), -armL + 0.0, -0.005, 0.035, 0.05, 0.04, 0.015, skin, 0, fore, { n: 1 }); // hand and thumb
     }
+    if (broad) for (let i=0;i<b.v.length;i+=13) { if (b.v[i+12] === 0) { b.v[i]*=1.08; b.v[i+2]*=1.12; } }
     return b;
   }
 
@@ -594,7 +631,7 @@ const MESH = (() => {
   function pickupBox() { const b = new Builder(); b.cbox(0, 0.6, 0, 0.7, 0.7, 0.7, [1, 1, 1], 0, { bone: 0 }); return b; }
   // Pickup models, origin on the ground, about half a metre tall.
   // Held weapons: built around the hand with the barrel along +z, drawn as a second entity on the right forearm.
-  const HAND = [-0.3, -0.6, 0.1]; // where the right hand sits in the rest pose (arm hanging), for the forearm bone to carry
+  const HAND = [-0.26, -0.6, 0.1]; // where the right hand sits in the rest pose (arm hanging), for the forearm bone to carry
   const heldCache = {};
   function heldMesh(key) {
     if (heldCache[key]) return heldCache[key];
