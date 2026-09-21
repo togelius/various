@@ -92,8 +92,10 @@ reported as an unfit game with the signal or timeout recorded. This costs a
 few seconds per candidate against a fraction of one; `--in-process` restores
 the faster behaviour where the caller knows the input is safe.
 
-The underlying `again` loop in the C++ is still uncapped. Capping it upstream
-would be worth doing, and would let trusted callers stay in-process.
+The `again` settle loop in the C++ solver is capped at 1000 ticks, the same
+limit `prof.engine.step` uses, so a search and a replay of it stop together.
+Trusted callers can evaluate in-process without a rule that never settles
+taking the process with it. A game that segfaults the engine still cannot.
 
 ## A grammatical mutation operator is a strong baseline
 
@@ -199,11 +201,10 @@ which is mild evidence the concept vector captures the right things.
    internally consistent but nothing is yet checked against whether people
    enjoy the games. That is WP2's real deliverable and it needs the itch.io
    metadata and a designer panel.
-2. **Cap the `again` loop in the C++ engine** so trusted callers can evaluate
-   in-process and get the throughput back.
-3. **Run the operator comparison.** Grammatical versus Ollama versus a
+2. **Run the operator comparison.** Grammatical versus Ollama versus a
    frontier model, same seeds, same budget, measured on archive coverage
    rather than compile rate.
-4. **Upstream the engine fixes.** All four replay bugs and the timeout bug
-   are in the vendored PuzzleJAX code, not in anything specific to this
-   project. They affect anyone using its solvers to validate solutions.
+3. **Upstream the engine fixes.** The four replay bugs, the timeout bug, and
+   the `again` cap are in the vendored PuzzleJAX code, not in anything
+   specific to this project. They affect anyone using its solvers to validate
+   solutions.

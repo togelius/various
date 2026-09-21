@@ -90,7 +90,7 @@ loop and export them as things a person can play.
 | | |
 |---|---|
 | `prof/grammar.py` | PuzzleScript as a mutable structure; parse, edit, emit |
-| `prof/mutations.py` | 19 mechanic templates plus perturbation operators and crossover |
+| `prof/mutations.py` | 19 mechanic templates, a staged variant that brings the level with the rule, perturbation operators and crossover |
 | `prof/levelgen.py` | levels generated against a game's own rules, searched in batch |
 | `prof/grammar_mutate.py` | a second structural operator, developed in parallel |
 | `prof/mutate.py` | the older LLM operator, through a local Ollama model |

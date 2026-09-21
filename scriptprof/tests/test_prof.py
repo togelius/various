@@ -156,6 +156,33 @@ def test_isolated_evaluation_matches_in_process():
     assert abs(a.fitness - b.fitness) < 1e-9
 
 
+def test_an_again_loop_cannot_hang_a_search():
+    """A rule that keeps requesting another turn used to spin inside one expansion.
+
+    The solver only checks its timeout between expansions, so the settle loop
+    has its own cap. These two rules oscillate and never win; the search has
+    to come back.
+    """
+    import time
+
+    from prof.grammar import Game, Level, Win, _parse_rule_line
+
+    g = Game.parse(SOKOBAN.read_text(encoding="utf-8"))
+    g.rules = [
+        _parse_rule_line("[ Player ] -> [ Player Target ] again"),
+        _parse_rule_line("[ Player Target ] -> [ Player ] again"),
+    ]
+    g.wins = [Win("No", "Background")]  # false in every cell, so the loop never stops on a win
+    g.levels = [Level(["P."])]
+    g.touch("RULES", "WINCONDITIONS", "LEVELS")
+    compiled = E.compile_text(g.emit(), timeout=20)
+    eng = E.new_engine(compiled)
+    t0 = time.time()
+    result = E.solve_level(eng, 0, "bfs", max_iters=20, timeout_ms=1000)
+    assert time.time() - t0 < 5, "again loop was not capped"
+    assert not result.solved
+
+
 def test_isolated_evaluation_survives_a_game_that_kills_the_engine():
     """A mutant that crashes or hangs the engine must cost one candidate, not the run.
 

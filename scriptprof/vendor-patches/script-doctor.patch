@@ -113,7 +113,7 @@ index c8e72e8..77a1014 100644
  
      // Scratch BitVecs (to avoid repeated allocation in hot paths)
 diff --git a/puzzlescript_cpp/src/solver.cpp b/puzzlescript_cpp/src/solver.cpp
-index be08cc4..6be2074 100644
+index be08cc4..1b1aed5 100644
 --- a/puzzlescript_cpp/src/solver.cpp
 +++ b/puzzlescript_cpp/src/solver.cpp
 @@ -66,6 +66,57 @@ double elapsedSeconds(const Clock::time_point& start) {
@@ -174,7 +174,21 @@ index be08cc4..6be2074 100644
  bool timedOut(const Clock::time_point& start, int timeoutMs) {
      if (timeoutMs <= 0) {
          return false;
-@@ -133,6 +184,21 @@ std::vector<int> reconstructSolution(
+@@ -86,8 +137,12 @@ std::vector<int> actionsForEngine(const Engine& engine) {
+ }
+ 
+ bool processInputSearch(Engine& engine, int action) {
++    // scriptprof: a rule that keeps issuing `again` never settles, and this
++    // loop runs inside a single expansion, where the solver's timeout is not
++    // consulted. Cap it at the same 1000 ticks as prof.engine.step, so a
++    // search and a replay of it stop at the same place.
+     bool changed = engine.processInput(action);
+-    while (engine.isAgaining()) {
++    for (int i = 0; i < 1000 && engine.isAgaining(); ++i) {
+         changed = engine.processInput(-1) || changed;
+     }
+     return changed;
+@@ -133,6 +188,21 @@ std::vector<int> reconstructSolution(
      return actions;
  }
  
@@ -196,7 +210,7 @@ index be08cc4..6be2074 100644
  int selectMCTSChild(const std::vector<MCTSNode>& nodes, int nodeIndex, double explorationConstant) {
      const MCTSNode& node = nodes[nodeIndex];
      double bestScore = -std::numeric_limits<double>::infinity();
-@@ -262,8 +328,9 @@ RandomRolloutResult randomRolloutRaw(Engine& engine, int maxIters, int timeoutMs
+@@ -262,8 +332,9 @@ RandomRolloutResult randomRolloutRaw(Engine& engine, int maxIters, int timeoutMs
      std::mt19937 rng(std::random_device{}());
      std::uniform_int_distribution<int> actionDist(0, actionCount(engine) - 1);
  
@@ -207,7 +221,7 @@ index be08cc4..6be2074 100644
              result.iterations = i;
              result.time = elapsedSeconds(start);
              result.timeout = true;
-@@ -323,6 +390,12 @@ SolverResult solveRandom(Engine& engine, int maxLength, int maxIters, int timeou
+@@ -323,6 +394,12 @@ SolverResult solveRandom(Engine& engine, int maxLength, int maxIters, int timeou
  SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
      const auto start = Clock::now();
      const LevelBackup initialState = engine.backupLevel();
@@ -220,7 +234,7 @@ index be08cc4..6be2074 100644
      std::queue<LevelBackup> frontier;
      std::unordered_map<StateVec, ParentInfo, StateVecHash> parents;
      frontier.push(initialState);
-@@ -332,9 +405,10 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
+@@ -332,9 +409,10 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
      LevelBackup bestState = initialState;
      double bestScore = engine.getScore();
      int iterations = 0;
@@ -232,7 +246,7 @@ index be08cc4..6be2074 100644
              return makeSolverResult(engine, false, bestActions, iterations, start, bestScore, bestState, true);
          }
  
-@@ -344,6 +418,28 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
+@@ -344,6 +422,28 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
          for (int action : actionsForEngine(engine)) {
              engine.restoreLevel(parentState);
              const bool changed = processInputSearch(engine, action);
@@ -261,7 +275,7 @@ index be08cc4..6be2074 100644
              if (!changed) {
                  continue;
              }
-@@ -379,6 +475,12 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
+@@ -379,6 +479,12 @@ SolverResult solveBFS(Engine& engine, int maxIters, int timeoutMs) {
  SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
      const auto start = Clock::now();
      const LevelBackup initialState = engine.backupLevel();
@@ -274,7 +288,7 @@ index be08cc4..6be2074 100644
      std::priority_queue<PriorityNode, std::vector<PriorityNode>, AStarComparator> frontier;
      std::unordered_map<StateVec, ParentInfo, StateVecHash> parents;
      parents.emplace(initialState.dat, ParentInfo{initialState.dat, -1});
-@@ -387,10 +489,11 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
+@@ -387,10 +493,11 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
      LevelBackup bestState = initialState;
      double bestScore = engine.getScore();
      int totalIters = 0;
@@ -287,7 +301,7 @@ index be08cc4..6be2074 100644
              return makeSolverResult(
                  engine,
                  false,
-@@ -411,6 +514,28 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
+@@ -411,6 +518,28 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
          for (int action : actions) {
              engine.restoreLevel(current.state);
              const bool changed = processInputSearch(engine, action);
@@ -316,7 +330,7 @@ index be08cc4..6be2074 100644
              if (!changed) {
                  continue;
              }
-@@ -461,6 +586,12 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
+@@ -461,6 +590,12 @@ SolverResult solveAStar(Engine& engine, int maxIters, int timeoutMs) {
  SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
      const auto start = Clock::now();
      const LevelBackup initialState = engine.backupLevel();
@@ -329,7 +343,7 @@ index be08cc4..6be2074 100644
      std::priority_queue<PriorityNode, std::vector<PriorityNode>, GBFSComparator> frontier;
      std::unordered_map<StateVec, ParentInfo, StateVecHash> parents;
      parents.emplace(initialState.dat, ParentInfo{initialState.dat, -1});
-@@ -469,10 +600,11 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
+@@ -469,10 +604,11 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
      LevelBackup bestState = initialState;
      double bestScore = engine.getScore();
      int totalIters = 0;
@@ -342,7 +356,7 @@ index be08cc4..6be2074 100644
              return makeSolverResult(
                  engine,
                  false,
-@@ -493,6 +625,28 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
+@@ -493,6 +629,28 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
          for (int action : actions) {
              engine.restoreLevel(current.state);
              const bool changed = processInputSearch(engine, action);
@@ -371,7 +385,7 @@ index be08cc4..6be2074 100644
              if (!changed) {
                  continue;
              }
-@@ -543,6 +697,12 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
+@@ -543,6 +701,12 @@ SolverResult solveGBFS(Engine& engine, int maxIters, int timeoutMs) {
  SolverResult solveMCTS(Engine& engine, const MCTSOptions& options) {
      const auto start = Clock::now();
      const LevelBackup initialState = engine.backupLevel();

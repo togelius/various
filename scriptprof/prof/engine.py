@@ -165,7 +165,7 @@ def step(eng, action: int) -> bool:
     use `again` in a rule, so this is the common case, not an edge case.
     """
     changed = bool(eng.process_input(action))
-    for _ in range(1000):  # a rule looping forever would otherwise hang here
+    for _ in range(1000):  # same cap as processInputSearch in the C++ solver
         if not eng.againing:
             break
         changed = bool(eng.process_input(TICK)) or changed

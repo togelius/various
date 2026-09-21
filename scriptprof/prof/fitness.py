@@ -140,11 +140,13 @@ def evaluate(text: str, max_iters: int = 100_000, timeout_ms: int = 5_000,
 #
 # The C++ engine is not safe to run in the evaluation loop's own process. Some
 # corpus games segfault it outright (1D_Rubik's_Cube dies inside load_level),
-# and a rule that keeps issuing `again` spins forever inside a single expansion
-# where no solver timeout can reach it. Either one kills a MAP-Elites run that
-# may have been going for hours, and a mutation operator is far more likely to
-# produce such a game than a human designer is. So candidates are evaluated in
-# a child process with a wall-clock cap, and a child that dies or overruns is
+# A rule that keeps issuing `again` used to spin forever inside a single
+# expansion, where no solver timeout could reach it. That settle loop is now
+# capped. A segfault still kills the process, and either failure would take
+# down a MAP-Elites run that may have been going for hours. A mutation operator
+# is far more likely to produce such a game than a human designer is. So
+# candidates are evaluated in a child process with a wall-clock cap, and a
+# child that dies or overruns is
 # reported as an unfit game rather than taken down the parent with it.
 
 _JSON_FIELDS = ("fitness", "tier", "reason", "compiled", "n_levels", "n_solved",

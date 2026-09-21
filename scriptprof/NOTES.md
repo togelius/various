@@ -511,3 +511,24 @@ evidence, is a job for daylight.
   four being size measures means the archive spreads mostly by scale, which is
   not the diversity anyone wants. A learned descriptor over the corpus would
   be better and is `PLAN.md` WP2.
+
+---
+
+## 2026-09-21: again cap, operator weights, a rule that brings its own level
+
+The settle loop in `processInputSearch` now stops at 1000 ticks, the same cap
+`prof.engine.step` already used. A rule that oscillates under `again` returns
+from a search instead of spinning inside one expansion, where the solver's
+timeout is not consulted. The segfault in `1D_Rubik's_Cube` is unchanged, so
+candidates stay in a child process.
+
+Operator weights now follow the novelty run's mean fitness rather than an even
+prior. `negate` and `add_win` are up, `remove_object` and `add_object` are
+down. A new operator, `stage`, appends a mechanic only together with a level
+that contains its pattern and is not already won; one move to the right fires
+a staged pull on Sokoban. Bare `template` stays, at a lower weight, for reach
+onto inherited levels.
+
+This changes the operator distribution, so a replication of the novelty
+comparison has to pin the old weights or it is a different experiment. The
+n=1 result in the section above stands as it was measured.

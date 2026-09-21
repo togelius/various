@@ -28,8 +28,8 @@ import random
 from dataclasses import dataclass
 from typing import Callable
 
-from prof.grammar import (ABS_DIRECTIONS, COLORS, Cell, Game, Legend, Level, Obj,
-                          Pattern, Rule, Win)
+from prof.grammar import (ABS_DIRECTIONS, COLORS, MODIFIERS, Cell, Game, Legend,
+                          Level, Obj, Pattern, Rule, Win)
 
 # --------------------------------------------------------------------------
 # reading roles out of a game
@@ -330,6 +330,220 @@ def op_add_template_rule(g: Game, rng: random.Random) -> str | None:
     g.rules[at:at] = rules
     g.touch("RULES")
     return f"template:{name}"
+
+
+def _positive_objects(cell: Cell) -> list[str]:
+    """Objects a cell actually contains. ``no X`` names something absent."""
+    out: list[str] = []
+    neg = False
+    for tok in cell.tokens:
+        low = tok.lower()
+        if low == "no":
+            neg = True
+            continue
+        if low in MODIFIERS:
+            neg = False
+            continue
+        if not neg:
+            out.append(tok)
+        neg = False
+    return out
+
+
+def _is_gap(cell: Cell) -> bool:
+    return "..." in cell.tokens and not _positive_objects(cell)
+
+
+def _axis(prefixes: list[str]) -> tuple[int, int]:
+    """How a rule's left-to-right pattern sits on the board.
+
+    An unprefixed rule is tried in every direction, so laying it out facing
+    right is enough for one of those tries to see it. A direction prefix is
+    the rightward pattern rotated to face that way: ``down`` reads top to
+    bottom, which is how gravity is written.
+    """
+    p = {x.lower() for x in prefixes}
+    if "up" in p:
+        return (-1, 0)
+    if "down" in p or "vertical" in p:
+        return (1, 0)
+    if "left" in p:
+        return (0, -1)
+    return (0, 1)
+
+
+def _char_for(g: Game, names: list[str]) -> str | None:
+    """A single level character for exactly these objects, or the floor."""
+    if not names:
+        return g.background_char() or None
+    want = sorted(n.lower() for n in names)
+    if len(want) == 1:
+        for obj in g.objects:
+            if obj.name.lower() != want[0]:
+                continue
+            if len(obj.name) == 1:
+                return obj.name
+            if obj.synonym and len(obj.synonym) == 1:
+                return obj.synonym
+    for leg in g.legend:
+        if len(leg.sym) != 1 or leg.join.lower() == "or":
+            continue
+        members = sorted(m.lower() for m in leg.members)
+        if members != want:
+            continue
+        if len(want) == 1 or leg.join.lower() == "and":
+            return leg.sym
+    return None
+
+
+def _occupied(placed: dict[tuple[int, int], list[str]], name: str) -> bool:
+    low = name.lower()
+    return any(low in {o.lower() for o in objs} for objs in placed.values())
+
+
+def _add_cell(g: Game, placed: dict[tuple[int, int], list[str]],
+              names: list[str]) -> bool:
+    """Park ``names`` on a fresh cell. Fails when no character can spell them."""
+    if _char_for(g, names) is None:
+        return False
+    spot = (max(r for r, _ in placed) + 2, 1)
+    while spot in placed:
+        spot = (spot[0] + 1, spot[1])
+    placed[spot] = list(names)
+    return True
+
+
+def _not_already_won(g: Game, placed: dict[tuple[int, int], list[str]]) -> bool:
+    """Make the level fail every win condition, or give up.
+
+    PuzzleScript treats ``All`` and ``No`` as true when nothing matches, so a
+    level that simply doesn't contain the target object is already won. A
+    staged level that starts won is the degenerate case the fitness function
+    throws out, and it teaches the search nothing about the new rule.
+    """
+    def sets() -> list[set[str]]:
+        return [{o.lower() for o in objs} for objs in placed.values()]
+
+    for w in g.wins:
+        if w.raw is not None:
+            continue
+        a = w.a.lower()
+        b = w.b.lower() if w.b else None
+        quant = w.quant.lower()
+        cells = sets()
+
+        def has(pred) -> bool:
+            return any(pred(s) for s in cells)
+
+        if quant == "no":
+            if b is None:
+                if not has(lambda s: a in s) and not _add_cell(g, placed, [w.a]):
+                    return False
+            elif not has(lambda s: a in s and b in s):
+                if not _add_cell(g, placed, [w.a, w.b]):
+                    return False
+        elif quant in ("some", "any"):
+            met = has(lambda s: a in s and (b is None or b in s))
+            if met:
+                return False
+        elif quant == "all":
+            if b is None:
+                return False
+            if not has(lambda s: a in s and b not in s):
+                if not _add_cell(g, placed, [w.a]):
+                    return False
+    return True
+
+
+def stage_for(g: Game, rules: list[Rule]) -> Level | None:
+    """A small level on which ``rules`` can match, and which is not already won.
+
+    The pattern is laid out in the rule's own direction, one bracket-group per
+    band so two groups don't land on the same cell. ``no X`` is an empty cell.
+    An ellipsis is one cell of floor between its neighbours.
+    """
+    if not g.background_char():
+        return None
+    placed: dict[tuple[int, int], list[str]] = {}
+    band = 0
+    for rule in rules:
+        if not rule.parsed or not rule.lhs:
+            continue
+        dr, dc = _axis(rule.prefixes)
+        pr, pc = (dc, dr) if (dr, dc) != (0, 0) else (1, 0)
+        for pattern in rule.lhs:
+            r, c = pr * band * 3, pc * band * 3
+            band += 1
+            for cell in pattern.cells:
+                if _is_gap(cell):
+                    placed.setdefault((r, c), [])
+                    r += dr
+                    c += dc
+                    continue
+                objs = _positive_objects(cell)
+                key = (r, c)
+                if key in placed and objs and placed[key] != objs:
+                    return None
+                if objs:
+                    placed[key] = objs
+                else:
+                    placed.setdefault(key, [])
+                r += dr
+                c += dc
+    if not any(objs for objs in placed.values()):
+        return None
+    min_r = min(r for r, _ in placed)
+    min_c = min(c for _, c in placed)
+    placed = {(r - min_r + 1, c - min_c + 1): v for (r, c), v in placed.items()}
+    players = roles_of(g).player
+    if players and not any(_occupied(placed, p) for p in players):
+        if not _add_cell(g, placed, [players[0]]):
+            return None
+    if not _not_already_won(g, placed):
+        return None
+    height = max(r for r, _ in placed) + 2
+    width = max(c for _, c in placed) + 2
+    rows = []
+    for r in range(height):
+        chars = []
+        for c in range(width):
+            ch = _char_for(g, placed.get((r, c), []))
+            if ch is None:
+                return None
+            chars.append(ch)
+        rows.append("".join(chars))
+    return Level(rows)
+
+
+def op_stage_template(g: Game, rng: random.Random) -> str | None:
+    """Add a mechanic and a level that contains what the mechanic needs.
+
+    A template dropped onto an inherited level often never fires: the new rule
+    is real and the board has nothing for it to match. This operator only
+    keeps the rule when it can also write a level where the pattern occurs
+    and the level is not already won. The game is left untouched until both
+    exist, so a failed attempt does not leak a rule into the next try.
+    """
+    from prof.grammar import _parse_rule_line
+
+    roles = roles_of(g)
+    names = list(TEMPLATES)
+    rng.shuffle(names)
+    for name in names:
+        lines = TEMPLATES[name](g, roles, rng)
+        if not lines:
+            continue
+        rules = [_parse_rule_line(ln) for ln in lines]
+        if any(not ru.parsed for ru in rules):
+            continue
+        level = stage_for(g, rules)
+        if level is None:
+            continue
+        g.rules.extend(rules)
+        g.levels.append(level)
+        g.touch("RULES", "LEVELS")
+        return f"stage:{name}"
+    return None
 
 
 def op_swap_rule_object(g: Game, rng: random.Random) -> str | None:
@@ -746,20 +960,28 @@ def op_keep_one_level(g: Game, rng: random.Random) -> str | None:
 # dispatch
 # --------------------------------------------------------------------------
 
+# Weights from the novelty run (NOTES.md, 10047 applications). The quality
+# reading is mean fitness of children that took a cell, not the cell-take
+# rate: three of four archive axes measure size, so an edit that changes a
+# count fills cells cheaply. negate 0.40 and add_win 0.41 were the clear
+# wins; remove_object 0.23 was the clear loss. Templates stay in the set for
+# reach. stage is the path that brings a new mechanic in with a level it can
+# actually meet.
 OPERATORS: list[tuple[Callable[[Game, random.Random], str | None], float]] = [
-    (op_add_template_rule, 5.0),
-    (op_swap_rule_object, 3.0),
+    (op_stage_template, 4.0),
+    (op_add_template_rule, 2.0),
+    (op_swap_rule_object, 2.0),
     (op_change_direction, 2.0),
     (op_toggle_late, 1.0),
-    (op_add_negation, 1.5),
+    (op_add_negation, 3.0),
     (op_duplicate_rule, 1.5),
-    (op_delete_rule, 1.5),
-    (op_add_command, 1.0),
+    (op_delete_rule, 1.0),
+    (op_add_command, 1.5),
     (op_widen_rule, 1.5),
-    (op_add_object, 3.0),
-    (op_remove_object, 1.0),
+    (op_add_object, 1.5),
+    (op_remove_object, 0.4),
     (op_change_win, 2.0),
-    (op_add_win, 1.5),
+    (op_add_win, 3.0),
     (op_remove_win, 0.7),
     (op_place_char, 2.0),
     (op_perturb_level, 3.0),

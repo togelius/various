@@ -17,7 +17,8 @@ import pytest  # noqa: E402
 
 from prof import engine as E  # noqa: E402
 from prof.grammar import Game, Level, strip_comments  # noqa: E402
-from prof.mutations import TEMPLATES, crossover, mutate, roles_of  # noqa: E402
+from prof.mutations import (TEMPLATES, crossover, mutate, op_stage_template,  # noqa: E402
+                          roles_of, stage_for)
 
 GAMES = ROOT / "vendor" / "script-doctor" / "data" / "scraped_games"
 SOKOBAN = GAMES / "sokoban_basic.txt"
@@ -109,6 +110,72 @@ def test_mutations_compile_most_of_the_time():
         except E.CompileError:
             pass
     assert ok >= int(0.8 * trials), f"only {ok}/{trials} children compiled"
+
+
+def test_a_staged_pull_fires_and_the_level_is_not_already_won():
+    """A new rule with nothing for it to match is a dead mechanic.
+
+    The staged level lays the pattern out so one move fires it, and it is not
+    already won: PuzzleScript counts a vacuous ``All`` as true.
+    """
+    from prof.grammar import _parse_rule_line
+
+    parent = Game.parse(SOKOBAN.read_text(encoding="utf-8"))
+    rule = _parse_rule_line("[ Crate | > Player ] -> [ > Crate | > Player ]")
+    level = stage_for(parent, [rule])
+    assert level is not None
+    row = next(r for r in level.rows if "P" in r and "*" in r)
+    assert row.index("*") + 1 == row.index("P")
+    child = parent.copy()
+    child.rules.append(rule)
+    child.levels.append(level)
+    child.touch("RULES", "LEVELS")
+    text = child.emit()
+    compiled = E.compile_text(text, timeout=20)
+    idx = E.level_indices(compiled)[-1]
+    eng = E.new_engine(compiled)
+    eng.load_level(idx)
+    assert not eng.check_win(), "staged level is won before a move"
+    eng._engine.reset_rule_fire_counts()
+    E.step(eng, 3)  # right
+    fired = E.rule_fire_counts(eng)
+    staged = [ln for ln, src in E.rule_source_lines(text).items()
+              if src.lower().startswith("[ crate |")]
+    assert staged and any(fired.get(i, 0) > 0 for i in staged), fired
+
+
+def test_stage_template_adds_a_level_and_leaves_the_parent():
+    parent = Game.parse(SOKOBAN.read_text(encoding="utf-8"))
+    before = parent.emit()
+    child, ops = None, None
+    for seed in range(20):
+        trial = parent.copy()
+        name = op_stage_template(trial, random.Random(seed))
+        if name:
+            child, ops = trial, name
+            break
+    assert child is not None
+    assert ops.startswith("stage:")
+    assert len(child.levels) == len(parent.levels) + 1
+    assert parent.emit() == before
+    E.compile_text(child.emit(), timeout=20)
+
+
+def test_stage_for_orients_a_downward_rule():
+    parent = Game.parse(SOKOBAN.read_text(encoding="utf-8"))
+    from prof.grammar import _parse_rule_line
+    rule = _parse_rule_line("down [ Crate | no Crate no Wall ] -> [ | Crate ]")
+    level = stage_for(parent, [rule])
+    assert level is not None
+    col = None
+    crate_row = None
+    for r, row in enumerate(level.rows):
+        if "*" in row:
+            crate_row, col = r, row.index("*")
+            break
+    assert crate_row is not None
+    below = level.rows[crate_row + 1][col]
+    assert below == ".", below
 
 
 def test_mutation_leaves_the_parent_alone():
