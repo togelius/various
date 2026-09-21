@@ -32,12 +32,36 @@ const HUD = (() => {
   // On a touchscreen the bottom-left corner belongs to the thumb that moves you, so the radar goes up to the
   // top-left and the district and clock shift out from under it.
   function radarLayout(w, h) { const R = Math.min(82, w * 0.12); return TOUCH.active ? { R, cx: R + 18, cy: R + 18 } : { R, cx: R + 24, cy: h - R - 30 }; }
+  let routeCache = { key: '', points: [] };
+  function route(P, bp) {
+    if (!bp || !P.car || P.car.spec.boat || M.dist(P.x,P.z,bp.x,bp.z) < 20) return [];
+    const nearest = (x,z) => CITY.roadNodes.reduce((a,b) => M.dist2(a.x,a.z,x,z) < M.dist2(b.x,b.z,x,z) ? a : b);
+    if (!CITY.roadNodes.length) return [];
+    const start = nearest(P.x,P.z), end = nearest(bp.x,bp.z), key = [start.i,start.j,end.i,end.j].join(',');
+    if (routeCache.key !== key) {
+      const prev = new Map([[start,null]]), queue = [start];
+      for (let i = 0; i < queue.length; i++) { const n = queue[i]; if (n === end) break; for (const e of n.out) if (!prev.has(e.to)) { prev.set(e.to,n); queue.push(e.to); } }
+      const points = []; if (prev.has(end)) for (let n=end; n; n=prev.get(n)) points.unshift([n.x,n.z]);
+      routeCache = { key, points };
+    }
+    return routeCache.points;
+  }
+  function routeLine(P, scale) {
+    const bp = MISSIONS.blipPos(), pts = route(P,bp); if (!pts.length) return;
+    g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath();
+    pts.forEach(([x,z],i) => i ? g.lineTo(x,z) : g.moveTo(x,z));
+    g.strokeStyle = 'rgba(15,26,31,.9)'; g.lineWidth = 7/scale; g.stroke();
+    g.strokeStyle = '#f5ce68'; g.lineWidth = 3/scale; g.stroke();
+    // The dotted final approach is deliberately distinct from the road route.
+    const last = pts[pts.length-1]; g.setLineDash([4/scale,5/scale]); g.beginPath(); g.moveTo(last[0],last[1]); g.lineTo(bp.x,bp.z); g.stroke(); g.setLineDash([]);
+  }
   function radar(P, cam) {
     const { R, cx, cy } = radarLayout(W_, H_); const scale = 0.55; const yaw = W.state.camYaw;
     g.save(); g.beginPath(); g.arc(cx, cy, R, 0, 7); g.clip();
     g.fillStyle = '#24383e'; g.fillRect(cx - R, cy - R, 2 * R, 2 * R);
     g.translate(cx, cy); g.rotate(yaw + Math.PI); g.scale(scale, scale); g.translate(-P.x, -P.z);
     const s = mapCanvas._s, b0 = mapCanvas._b0; g.drawImage(mapCanvas, 0, 0, 1024, 1024, b0, b0, 1024 / s, 1024 / s);
+    routeLine(P, scale);
     drawMapIcons(scale, null);
     // blips
     if (P.wanted > 0 && POLICE.S.seenT > 2 && POLICE.S.lastSeen) { const ls = POLICE.S.lastSeen; const rr = Math.min(120, 12 + POLICE.S.seenT * 6); g.fillStyle = 'rgba(90,160,255,0.18)'; g.beginPath(); g.arc(ls[0], ls[1], rr, 0, 7); g.fill(); g.strokeStyle = 'rgba(90,160,255,0.5)'; g.lineWidth = 1.5 / scale; g.stroke(); } // where the police think you are
@@ -103,8 +127,12 @@ const HUD = (() => {
     // top right: money, stars, weapon
     moneyAnim.shown = Math.abs(moneyAnim.target - moneyAnim.shown) < 2 ? moneyAnim.target : M.lerp(moneyAnim.shown, moneyAnim.target, Math.min(1, 6 * dt)); moneyAnim.target = P.money;
     text('$' + Math.round(moneyAnim.shown).toLocaleString('en-US'), W_ - 28, 32, 24, '#eee5ce', 'right', '500');
-    if (P.wanted > 0) stars(P, W_ - 38, 65);
-    weaponIcon(W_ - 60, 112, P.weapon); const ammo = P.weapons[P.weapon]; if (ammo !== Infinity) text(String(ammo), W_ - 100, 112, 18, '#fff', 'right');
+    if (P.wanted > 0) {
+      stars(P, W_ - 38, 65); const searching = POLICE.S.seenT > 2.5;
+      text(searching ? 'SEARCHING · stay out of sight' : 'PURSUIT · break line of sight', W_-24, 88, 11, searching ? '#84cbe0' : '#ff947e', 'right', '500');
+      if (searching) { const progress = M.clamp((POLICE.S.seenT-2.5)/(10+P.wanted*7-2.5),0,1); g.fillStyle = '#263e46'; g.fillRect(W_-188,98,164,2); g.fillStyle = '#84cbe0'; g.fillRect(W_-188,98,164*progress,2); }
+    }
+    weaponIcon(W_ - 60, 112, P.weapon); const ammo = P.weapons[P.weapon]; if (ammo !== Infinity) { const mag = PLAYER.magazine(); text(WEAPONS[P.weapon].projectile ? String(ammo) : mag + ' / ' + Math.max(0,ammo-mag), W_ - 100, 117, 18, '#fff', 'right'); }
     if (ECON.S.bounty > 0) text('BOUNTY  ' + '\u25cf'.repeat(ECON.S.bounty), W_ - 24, 150, 13, ECON.S.crew ? '#ff5040' : '#e0a040', 'right');
     text(WEAPONS[P.weapon].name, W_ - 24, 140, 12, '#ccc', 'right', 'normal');
     if (P.carNameT > 0 && P.car) text(P.lastCarName, W_ - 24, H_ - 40, 22, 'rgba(245,197,66,' + Math.min(1, P.carNameT) + ')', 'right');
@@ -114,8 +142,21 @@ const HUD = (() => {
     if (AUDIO.radioStation > 0 && P.car) text('♪ ' + AUDIO.STATIONS[AUDIO.radioStation], lx - 4, 76, 12, '#ccc', 'left', 'normal');
     // notifications
     for (let i = notes.length - 1, k = 0; i >= 0; i--, k++) { const n = notes[i]; n.t -= dt; if (n.t <= 0) { notes.splice(i, 1); continue; } text(n.text, W_ / 2, (TOUCH.active ? 112 : 60) + k * 22, 15, 'rgba(255,255,255,' + Math.min(1, n.t) + ')', 'center'); }
+    if (P.reloadT > 0) { text('RELOADING', W_/2,H_/2+42,11,'#f5ce68','center','500'); g.fillStyle='#20343d'; g.fillRect(W_/2-40,H_/2+54,80,3); g.fillStyle='#f5ce68'; g.fillRect(W_/2-40,H_/2+54,80*(1-P.reloadT/P.reloadDuration),3); }
+    else if (!P.car && WEAPONS[P.weapon].clip && !WEAPONS[P.weapon].projectile && PLAYER.magazine() === 0 && P.weapons[P.weapon] > 0) text('R · RELOAD',W_/2,H_/2+42,12,'#f5ce68','center');
+    zone(W_-200,103,176,48,'KeyR');
     // objective
-    const obj = MISSIONS.objective; if (obj) { g.font = `bold 16px ${FONT}`; const tw = g.measureText(obj).width; g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(W_ / 2 - tw / 2 - 14, H_ - 66, tw + 28, 30); text(obj, W_ / 2, H_ - 51, 16, '#f5e9c0', 'center'); }
+    const obj = MISSIONS.objective;
+    if (obj) {
+      const width = Math.min(540, W_-40), rows = wrap(obj,15,width-38), height = 45+rows.length*21;
+      const x = (W_-width)/2, y = TOUCH.active ? H_-height-172 : H_-height-78;
+      g.fillStyle = 'rgba(12,24,29,.9)'; g.fillRect(x,y,width,height); g.fillStyle = '#f5ce68'; g.fillRect(x,y,3,height);
+      const bp = MISSIONS.blipPos(), distance = bp ? Math.round(M.dist(P.x,P.z,bp.x,bp.z)) : null;
+      text(MISSIONS.S.retry ? 'JOB AVAILABLE · Y TO RETRY' : MISSIONS.S.current ? MISSIONS.S.current.name : 'ON THE STREETS',x+18,y+18,10,'#f5ce68','left','600',false);
+      if (distance !== null) text(distance+' m',x+width-18,y+18,11,'#b5c9c9','right','500',false);
+      rows.forEach((line,i) => text(line,x+18,y+43+i*21,15,'#f2efdf','left','normal',false));
+      if (MISSIONS.S.retry) zone(x,y,width,height,'KeyY');
+    }
     // crosshair
     if (P.aim || (P.car && (INPUT.mouse.buttons & 1))) { const lock = !!P.aimTarget; const col = lock ? '#ff5a4a' : '#fff'; g.strokeStyle = col; g.lineWidth = 2; const r = lock ? 9 : 12; g.beginPath(); g.arc(W_ / 2, H_ / 2, r, 0, 7); g.stroke(); g.beginPath(); for (const [sx, sy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { g.moveTo(W_ / 2 + sx * (r + 3), H_ / 2 + sy * (r + 3)); g.lineTo(W_ / 2 + sx * (r + 10), H_ / 2 + sy * (r + 10)); } g.stroke(); g.fillStyle = col; g.fillRect(W_ / 2 - 1.5, H_ / 2 - 1.5, 3, 3); }
     if (hitT > 0) { hitT -= dt; const k = hitT / 0.2; g.strokeStyle = hitKill ? `rgba(255,60,40,${k})` : `rgba(255,255,255,${k})`; g.lineWidth = 2.5; const r0 = 6 + (1 - k) * 6, r1 = r0 + 7; g.beginPath(); for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { g.moveTo(W_ / 2 + sx * r0, H_ / 2 + sy * r0); g.lineTo(W_ / 2 + sx * r1, H_ / 2 + sy * r1); } g.stroke(); }
@@ -139,11 +180,14 @@ const HUD = (() => {
   }
   function drawFade(dt) { fadeT -= dt; const a = Math.sin(Math.PI * M.clamp(fadeT / fadeDur, 0, 1)); g.fillStyle = 'rgba(0,0,0,' + a + ')'; g.fillRect(0, 0, W_, H_); }
   function drawTitle() {
-    g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(0, 0, W_, H_);
-    outlined('GRIFT CITY', W_ / 2, H_ * 0.3, Math.min(110, W_ * 0.14), '#f5c542'); text('an open-world crime game, one folder of JavaScript', W_ / 2, H_ * 0.3 + 60, 16, '#ddd', 'center', 'normal');
+    const wash = g.createLinearGradient(0,0,W_,H_); wash.addColorStop(0,'rgba(6,25,32,.9)'); wash.addColorStop(.6,'rgba(9,29,34,.38)'); wash.addColorStop(1,'rgba(8,19,26,.8)'); g.fillStyle=wash; g.fillRect(0,0,W_,H_);
+    g.fillStyle='#f5ce68'; g.fillRect(W_*.1,H_*.18,44,3);
+    text('WELCOME TO THE WRONG SIDE OF PARADISE',W_*.1,H_*.18+24,Math.min(12,W_*.018),'#c4d5d3','left','500',false);
+    outlined('GRIFT CITY', W_*.1, H_*.32, Math.min(112,W_*.13),'#f5ce68','left'); text('A stolen car. A second chance. A city that remembers.',W_*.1,H_*.32+65,Math.min(16,W_*.022),'#e3e9dd','left','normal',false);
+    g.fillStyle='rgba(10,25,31,.8)'; g.fillRect(W_*.1,H_*.54,W_*.8,76); g.strokeStyle='rgba(245,206,104,.6)'; g.lineWidth=1; g.strokeRect(W_*.1,H_*.54,W_*.8,76);
     const tap = TOUCH.active;
-    const blink = Math.sin(performance.now() / 300) > -0.3; if (blink) text(tap ? (GAME.hasSave() ? 'TAP to continue' : 'TAP to play') : (GAME.hasSave() ? 'CLICK to continue     ·     N for a new game' : 'CLICK to play'), W_ / 2, H_ * 0.58, 22, '#fff', 'center');
-    const lines = ['WASD / arrows  move · drive', 'Mouse  look and aim · left button  attack · right button  aim', 'SHIFT  sprint · SPACE  jump / handbrake · F  enter / leave car', 'Scroll, Q / E, 1–8  weapons · R  radio · H  horn · L  siren · T  taxi / vigilante job', 'TAB  map · ESC  pause · M  mute'];
+    const blink = true; if (blink) text(tap ? (GAME.hasSave() ? 'TAP to continue' : 'TAP to play') : (GAME.hasSave() ? 'CLICK to continue     ·     N for a new game' : 'CLICK to play'), W_ / 2, H_ * .54 + 38, 22, '#fff', 'center');
+    const lines = ['WASD / arrows  move · drive', 'Mouse  look and aim · left button  attack · right button  aim', 'SHIFT  sprint · SPACE  jump / handbrake · F  enter / leave car', 'Scroll, Q / E, 1–8  weapons · R  reload / radio · H  horn · L  siren · T  taxi / vigilante job', 'TAB  map · ESC  pause · M  mute'];
     if (tap && GAME.hasSave()) {
       const bw = 190, bh = 44, bxx = W_ / 2 - bw / 2, byy = H_ * 0.58 + 34;
       g.fillStyle = 'rgba(10,14,18,0.6)'; g.fillRect(bxx, byy, bw, bh);
@@ -169,13 +213,14 @@ const HUD = (() => {
       if (cc) return 'GAS · BRAKE · HAND handbrake · EXIT · stick steers · drag to look';
       return 'stick to walk, push it to the rim to run · drag the right side to look';
     }
+    if (P.state === 'entering') return 'Getting in · F or move to cancel';
     const c = P.car;
     if (c) { if (c.spec.boat) return 'W/S throttle · A/D rudder · F get out near land · F1 all controls'; if (c.spec.bike) return 'W/S throttle · A/D lean · SPACE brake slide · F get off · LMB drive-by · F1 all controls';
       return 'W/S drive · A/D steer · SPACE handbrake · F get out · H horn' + (c.type === 'police' || c.type === 'swat' ? ' · L siren' : '') + ' · R radio · LMB drive-by · F1 all controls'; }
-    const near = W.cars.some(v => !v.removed && !v.wrecked && M.dist2(v.x, v.z, P.x, P.z) < 30);
-    return (near ? 'F get in · ' : '') + 'WASD move · SHIFT run · SPACE jump · CLICK attack · ALT or C aim · WHEEL weapon · TAB map · F1 all controls';
+    const near = PLAYER.entryCandidate();
+    return (near ? 'F '+(near.car.locked ? 'locked' : near.car.name)+' · ' : '') + 'WASD move · SHIFT run · SPACE jump · CLICK attack · ALT or C aim · WHEEL weapon · R reload · TAB map · F1 all controls';
   }
-  const CONTROLS = [['ON FOOT', [['W A S D', 'move'], ['mouse', 'look'], ['SHIFT', 'run'], ['SPACE', 'jump'], ['CLICK / CTRL', 'attack or fire'], ['ALT (Option) / C', 'aim (or right-click, two-finger click on a trackpad)'], ['WHEEL / 1-9', 'change weapon'], ['F', 'get in a car, boat or bike'], ['Y', 'retry a failed mission']]],
+  const CONTROLS = [['ON FOOT', [['W A S D', 'move'], ['mouse', 'look'], ['SHIFT', 'run'], ['SPACE', 'jump'], ['CLICK / CTRL', 'attack or fire'], ['ALT (Option) / C', 'aim (or right-click, two-finger click on a trackpad)'], ['WHEEL / 1-9', 'change weapon'], ['F', 'get in a car, boat or bike'], ['R', 'reload'], ['Y', 'retry a failed mission']]],
     ['DRIVING', [['W / S', 'accelerate / brake, reverse'], ['A / D', 'steer'], ['SPACE', 'handbrake'], ['F', 'get out'], ['H', 'horn'], ['L', 'siren (police cars)'], ['R', 'next radio station'], ['LMB', 'drive-by with a pistol or SMG']]],
     ['CITY', [['T', 'start or stop a side job in a taxi or police car'], ['walk in', 'shops, the bar, the safehouse, elevators'], ['DIGITS', 'pick from a menu'], ['P', 'photo mode'], ['TAB', 'map'], ['ESC', 'pause and options'], ['F1', 'this sheet']]]];
   function drawControls() { g.fillStyle = 'rgba(0,0,0,0.78)'; g.fillRect(0, 0, W_, H_); outlined('CONTROLS', W_ / 2, 60, 40, '#f5c542'); const colW = Math.min(300, W_ / 3.2); const x0 = W_ / 2 - colW * 1.5;
@@ -195,6 +240,7 @@ const HUD = (() => {
   function drawBigMap(P, overlay = null) {
     g.fillStyle = 'rgba(0,0,0,0.8)'; g.fillRect(0, 0, W_, H_); const size = Math.min(W_, H_) - 60; const scale = size / (1024 / mapCanvas._s); const ox = (W_ - size) / 2, oy = (H_ - size) / 2;
     g.save(); g.translate(ox, oy); g.scale(scale, scale); g.translate(-mapCanvas._b0, -mapCanvas._b0); g.drawImage(mapCanvas, 0, 0, 1024, 1024, mapCanvas._b0, mapCanvas._b0, 1024 / mapCanvas._s, 1024 / mapCanvas._s);
+    routeLine(PLAYER.P, scale);
     drawMapIcons(scale * 0.6, null); for (const bp of MISSIONS.allBlips()) { g.fillStyle = bp.col; g.beginPath(); g.arc(bp.x, bp.z, 8 / scale, 0, 7); g.fill(); }
     for (const p of W.pickups) if (!p.taken && p.kind === 'package' && false) { g.fillStyle = '#ffb060'; g.beginPath(); g.arc(p.x, p.z, 4 / scale, 0, 7); g.fill(); }
     if (overlay) overlay(scale);

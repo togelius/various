@@ -160,18 +160,59 @@ const W = (() => {
     for (let s = 0; s <= steps; s++) { const px = ax + dx * s / steps, pz = az + dz * s / steps; for (const l of CITY.lotsNear(px, pz, 25)) { if (seen.has(l) || l.h < 1.5) continue; seen.add(l); if (M.rayAABB2(ax, az, dx, dz, l.x0, l.z0, l.x1, l.z1) >= 0) return false; } }
     return true;
   }
-  // Bullet ray: returns nearest hit {t, x, z, kind:'lot'|'car'|'ped'|'prop'|'heli'|'none', obj}
-  function raycast(ox, oz, dx, dz, maxDist, ignore = null, oy = 1.2) {
-    let best = { t: 1, kind: 'none' }; const ex = dx * maxDist, ez = dz * maxDist;
-    const seen = new Set();
-    const steps = Math.ceil(maxDist / 40) + 1;
-    for (let s = 0; s <= steps; s++) { const px = ox + ex * s / steps, pz = oz + ez * s / steps; for (const l of CITY.lotsNear(px, pz, 25)) { if (seen.has(l)) continue; seen.add(l); if (l.h < oy) continue; const t = M.rayAABB2(ox, oz, ex, ez, l.x0, l.z0, l.x1, l.z1); if (t >= 0 && t < best.t) best = { t, kind: 'lot', obj: l }; } }
-    for (const c of cars) { if (c === ignore || c.removed) continue; for (const [cx, cz, r] of c.circles()) { const t = M.rayCircle2(ox, oz, ex, ez, cx, cz, r); if (t >= 0 && t < best.t) best = { t, kind: 'car', obj: c }; } }
-    for (const p of peds) { if (p === ignore || p.removed || p.state === 'dead' || p.inCar) continue; const t = M.rayCircle2(ox, oz, ex, ez, p.x, p.z, 0.5); if (t >= 0 && t < best.t) best = { t, kind: 'ped', obj: p }; }
-    { const seenP = new Set(); for (let s2 = 0; s2 <= steps; s2++) { const px = ox + ex * s2 / steps, pz = oz + ez * s2 / steps; for (const p of propsNear(px, pz)) { if (p.down || p.r < 0.3 || seenP.has(p)) continue; seenP.add(p); const t = M.rayCircle2(ox, oz, ex, ez, p.x, p.z, p.r); if (t >= 0 && t < best.t) best = { t, kind: 'prop', obj: p }; } } }
-    if (heli && heli !== ignore && !heli.dead) { const t = M.rayCircle2(ox, oz, ex, ez, heli.x, heli.z, 3.5); if (t >= 0 && t < best.t && Math.abs(heli.y - oy) < 6) best = { t, kind: 'heli', obj: heli }; }
-    best.x = ox + ex * best.t; best.z = oz + ez * best.t; best.dist = best.t * maxDist; return best;
+  // Slab intersection of a finite 3D segment. Returns its first contact, including an origin inside.
+  function rayBox(ox, oy, oz, ex, ey, ez, x0, y0, z0, x1, y1, z1) {
+    let lo = 0, hi = 1;
+    for (const [o, d, a, b] of [[ox, ex, x0, x1], [oy, ey, y0, y1], [oz, ez, z0, z1]]) {
+      if (Math.abs(d) < 1e-9) { if (o < a || o > b) return -1; continue; }
+      let u = (a - o) / d, v = (b - o) / d; if (u > v) [u, v] = [v, u];
+      lo = Math.max(lo, u); hi = Math.min(hi, v); if (lo > hi) return -1;
+    }
+    return lo;
   }
+  function raycast3(ox, oy, oz, dx, dy, dz, maxDist, ignore = null, sceneryOnly = false) {
+    const len = Math.hypot(dx, dy, dz) || 1, ex = dx / len * maxDist, ey = dy / len * maxDist, ez = dz / len * maxDist;
+    let best = { t: 1, kind: 'none', obj: null };
+    const box = (kind, obj, x0, y0, z0, x1, y1, z1) => {
+      const t = rayBox(ox, oy, oz, ex, ey, ez, x0, y0, z0, x1, y1, z1);
+      if (t >= 0 && t < best.t) best = { t, kind, obj };
+    };
+    const room = CITY.interiorRoom && oy < -10 ? CITY.interiorRoom : null;
+    const seen = new Set(), steps = Math.ceil(maxDist / 20) + 1;
+    for (let i = 0; i <= steps; i++) {
+      const x = ox + ex * i / steps, z = oz + ez * i / steps;
+      for (const l of (room ? room.walls : CITY.lotsNear(x, z, 25))) {
+        if (seen.has(l)) continue; seen.add(l);
+        box('lot', l, l.x0, room ? room.floorY : 0, l.z0, l.x1, l.h, l.z1);
+      }
+      if (!room) for (const p of propsNear(x, z)) {
+        if (p.down || p.r < .3 || seen.has(p)) continue; seen.add(p);
+        const heights = { tree: 5, palm: 7, lamppost: 6, trafficLight: 5, hedge: 1.5, busShelter: 2.6, dumpster: 1.4, bench: .8, bollard: .9 };
+        const y = CITY.groundY(p.x, p.z);
+        box('prop', p, p.x-p.r, y, p.z-p.r, p.x+p.r, y+(heights[p.kind] || 1.2), p.z+p.r);
+      }
+    }
+    if (!sceneryOnly) {
+      for (const c of cars) {
+        if (c === ignore || c.removed) continue;
+        // Transform into the car's frame: long vehicles must not have circular, oversized hitboxes.
+        const f = c.fwd, r = c.right, x = ox-c.x, z = oz-c.z;
+        const t = rayBox(x*r[0]+z*r[1], oy, x*f[0]+z*f[1], ex*r[0]+ez*r[1], ey, ex*f[0]+ez*f[1],
+          -c.spec.wid/2, c.y || 0, -c.spec.len/2, c.spec.wid/2, (c.y || 0)+(c.spec.hgt || 1.6), c.spec.len/2);
+        if (t >= 0 && t < best.t) best = { t, kind: 'car', obj: c };
+      }
+      for (const p of peds) if (p !== ignore && !p.removed && p.alive && !p.inCar) {
+        const y = p.y || 0; box('ped', p, p.x-.35, y+.1, p.z-.35, p.x+.35, y+(p.lying > .5 ? .6 : 1.8), p.z+.35);
+      }
+      if (heli && heli !== ignore && !heli.dead) box('heli', heli, heli.x-3.5, heli.y-1.8, heli.z-3.5, heli.x+3.5, heli.y+2, heli.z+3.5);
+    }
+    // Ground plane (indoor floors are at a different elevation).
+    const floor = room ? room.floorY : 0;
+    if (ey < 0) { const t = (floor-oy)/ey; if (t >= 0 && t < best.t) best = { t, kind: 'ground', obj: null }; }
+    return { ...best, x: ox+ex*best.t, y: oy+ey*best.t, z: oz+ez*best.t, dist: maxDist*best.t };
+  }
+  function raycast(ox, oz, dx, dz, maxDist, ignore = null, oy = 1.2) { return raycast3(ox, oy, oz, dx, 0, dz, maxDist, ignore); }
+  function sight3(ax, ay, az, bx, by, bz) { const d = Math.hypot(bx-ax, by-ay, bz-az); return raycast3(ax, ay, az, bx-ax, by-ay, bz-az, d, null, true).kind === 'none'; }
   function carsNear(x, z, r) { const out = []; const r2 = r * r; for (const c of cars) if (!c.removed && M.dist2(x, z, c.x, c.z) < r2) out.push(c); return out; }
   function pedsNear(x, z, r) { const out = []; const r2 = r * r; for (const p of peds) if (!p.removed && M.dist2(x, z, p.x, p.z) < r2) out.push(p); return out; }
   // noises is cleared every frame (peds read it after the player has fired); heard keeps the last half second for mission scripts that run before the player update
@@ -360,5 +401,5 @@ const W = (() => {
   function frameBegin() { dyn.length = 0; state.shots.length = 0; state.noises.length = 0; if (state.heard.length && state.elapsed - state.heard[0].t > 0.5) state.heard = state.heard.filter(n => state.elapsed - n.t <= 0.5); }
   function updateExplosions(dt) { let w = 0; for (const e of explosions) { e.t += dt; if (e.t < 0.6) { dyn.push({ x: e.x, y: e.y + 1, z: e.z, r: 30 * e.big, col: [3 * (1 - e.t), 1.5 * (1 - e.t), 0.3] }); explosions[w++] = e; } } explosions.length = w; }
 
-  return { weather, updateWeather, bustle, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds, seed, PROP_TYPES, WATER_Y, pushOutWater, nearestLand, onWater };
+  return { weather, updateWeather, bustle, lampCones, decal, drawDecals, cars, peds, pickups, blips, get heli() { return heli; }, set heli(h) { heli = h; }, dyn, rng, state, P, F, FX, fx, particle, updateParticles, pushOut, solidPropsNear, los, raycast, raycast3, rayBox, sight3, carsNear, pedsNear, noise, initProps, updateProps, propMeshes, get lampHeads() { return lampHeads; }, get tlHeads() { return tlHeads; }, knockProp, updateKnocked, updateLights, lightState, lightFor, indexLights, collectLights, updateClock, clockString, isNight, frameBegin, updateExplosions, bounds, seed, PROP_TYPES, WATER_Y, pushOutWater, nearestLand, onWater };
 })();

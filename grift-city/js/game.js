@@ -6,10 +6,10 @@ const GAME = (() => {
   // Adaptive quality: when frames stay slow the renderer steps down (render scale, ambient occlusion, shadows, post) one
   // level at a time, and steps back up when there is headroom. A slow machine gets a game that runs at full speed.
   const auto = { level: 0, ema: 16, slowT: 0, fastT: 0, told: false, warm: 0, badRaises: 0, sinceRaise: Infinity };
-  const AUTO_LEVELS = 5, AO_STRENGTH = 0.75, STEP = 1 / 60, MAX_STEPS = 6;
+  const AUTO_LEVELS = 5, AO_STRENGTH = 0.65, STEP = 1 / 60, MAX_STEPS = 6;
   function loadOptions() { try { Object.assign(options, JSON.parse(localStorage.getItem('grift-city-options') || '{}')); } catch (e) { } applyOptions(); }
   function saveOptions() { try { localStorage.setItem('grift-city-options', JSON.stringify(options)); } catch (e) { } applyOptions(); }
-  function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 4; RENDER.post.enabled = options.bloom && L < 5; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.55 : 0; RENDER.env.interiors = !/[?&]rooms=0/.test(location.search); RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
+  function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 4; RENDER.post.enabled = options.bloom && L < 5; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.4 : 0; RENDER.env.interiors = !/[?&]rooms=0/.test(location.search); RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
   // The decision alone, with no side effects, so it can be driven directly by a test. Returns 'lower', 'raise'
   // or null. What stops it oscillating is not a limit on how often quality may be restored -- that turned a few
   // transient stalls into a permanent downgrade on a machine well able to run it -- but a count of the restores
@@ -48,6 +48,7 @@ const GAME = (() => {
         outfit: P.outfit || 0, garage, econ: ECON.saveData(), flags: MISSIONS.S.flags,
         progress2: MISSIONS.S.progress2, phoneProgress: MISSIONS.S.phoneProgress, rampageDone: MISSIONS.S.rampageDone,
         money: P.money, health: P.health, armor: P.armor,
+        magazines: P.magazines,
         weapons: Object.fromEntries(Object.entries(P.weapons).map(([k, v]) => [k, v === Infinity ? -1 : v])),
         weapon: P.weapon, stats: P.stats, progress: MISSIONS.S.progress, done: MISSIONS.S.done,
         time: W.state.time, packages: W.pickups.filter(p => p.kind === 'package' && p.taken).map(p => p.id)
@@ -64,6 +65,7 @@ const GAME = (() => {
       P.x = s.x; P.z = s.z; P.money = Math.max(0, s.money || 0); P.health = s.health || 100; P.armor = s.armor || 0;
       PLAYER.setOutfit(s.outfit || 0);
       P.weapons = Object.fromEntries(Object.entries(s.weapons).filter(([k]) => WEAPONS[k]).map(([k, v]) => [k, v === -1 ? Infinity : v]));
+      P.magazines = Object.fromEntries(Object.entries(s.magazines || {}).filter(([k,v]) => WEAPONS[k] && Number.isFinite(v) && v >= 0).map(([k,v]) => [k, Math.min(v, WEAPONS[k].clip || 0)])); P.reloadT = 0; P.reloadWeapon = null;
       P.weapon = s.weapon in P.weapons ? s.weapon : 'fist'; P.weaponOut = P.weapon !== 'fist';
       Object.assign(P.stats, s.stats || {});
       P.stats.packages = M.clamp(P.stats.packages || 0, 0, 20);

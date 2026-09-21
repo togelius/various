@@ -250,7 +250,7 @@ const RENDER = (() => {
   const FLAT_FS = `in vec4 vCol; out vec4 o; void main() { vec3 c = vCol.rgb; o = vec4(c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878), vCol.a); }`;
 
   let partVao, partBuf, flatVao, flatBuf, flatCap = 0, brightProg, blurProg, compProg, aoProg, aoBlurProg;
-  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.75, edges: 0.55, samples: 4, bloom: 0.18, exposure: 1.08, vignette: 0.18, sat: 0.96, tint: [1, 1, 1] };
+  const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.65, edges: 0.4, samples: 4, bloom: 0.18, exposure: 1.12, vignette: 0.14, sat: 1.07, tint: [1.02, 1.01, 0.98] };
   function makeDepthTarget(w, h) { const t = { w, h }; t.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo); t.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t.tex); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, w, h); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t.tex, 0); t.ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER, null); return t; }
   function makeTarget(w, h, samples, fmtOverride) {
     const fmt = fmtOverride || (post.hdr ? gl.RGBA16F : gl.RGBA8); const t = { w, h };

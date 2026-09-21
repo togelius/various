@@ -17,7 +17,7 @@ const PLAYER = (() => {
   const CIRC = new Float64Array(9); // scratch for a car's collision circles, so walking into traffic allocates nothing
   const P = {
     x: 0, z: 0, y: 0, angle: 0, vx: 0, vz: 0, vy: 0, airborne: false, speed: 0, phase: 0, lying: 0, fallDir: 1,
-    health: 100, armor: 0, money: 500, wanted: 0, weapons: { fist: Infinity }, weapon: 'fist', fireT: 0, weaponOut: false, aim: 0, recoil: 0, punchT: 0,
+    health: 100, armor: 0, money: 500, wanted: 0, weapons: { fist: Infinity }, weapon: 'fist', magazines: {}, reloadT: 0, reloadDuration: 0, reloadWeapon: null, fireT: 0, weaponOut: false, aim: 0, recoil: 0, punchT: 0,
     car: null, state: 'foot', stateT: 0, alive: true, deadT: 0, look: PEDS.PLAYER_LOOK, mesh: null, bones: null, emis: null, model: null,
     camYaw: 0, camPitch: 0.28, camYawOff: 0, camIdle: 0, camX: 0, camY: 0, camZ: 0, camDist: 5.4, fov: 62,
     stats: { kills: 0, carsStolen: 0, missions: 0, distance: 0, packages: 0, stunts: 0, busted: 0, wasted: 0, cash: 0, jumps: [] },
@@ -32,6 +32,26 @@ const PLAYER = (() => {
   function giveWeapon(key, ammo) { if (!(key in P.weapons)) { P.weapons[key] = 0; P.weapon = key; } if (WEAPONS[key].melee) P.weapons[key] = Infinity; else P.weapons[key] += ammo; P.weaponOut = !WEAPONS[P.weapon].melee || P.weapon === 'bat'; }
   function addMoney(n, why) { P.money += n; if (n > 0) P.stats.cash += n; HUD.money(n, why); if (n > 0) AUDIO.play('cash'); }
   function cycleWeapon(dir) { const have = WEAPON_ORDER.filter(k => k in P.weapons && (P.weapons[k] > 0)); if (!have.length) return; let i = have.indexOf(P.weapon); i = (i + dir + have.length) % have.length; P.weapon = have[i]; P.weaponOut = P.weapon !== 'fist'; AUDIO.play('click'); }
+
+  function magazine(key = P.weapon) {
+    const wp = WEAPONS[key]; if (!wp.clip || wp.projectile) return P.weapons[key] || 0;
+    if (P.magazines[key] === undefined) P.magazines[key] = Math.min(wp.clip, P.weapons[key] || 0);
+    return P.magazines[key] = Math.min(P.magazines[key], P.weapons[key] || 0);
+  }
+  function reload() {
+    const wp = WEAPONS[P.weapon];
+    if (!wp.clip || wp.projectile || P.reloadT > 0 || magazine() >= Math.min(wp.clip, P.weapons[P.weapon] || 0)) return false;
+    P.reloadWeapon = P.weapon; P.reloadDuration = wp === WEAPONS.shotgun ? 2.2 : wp === WEAPONS.rifle ? 1.8 : 1.35;
+    P.reloadT = P.reloadDuration; AUDIO.play('reload'); return true;
+  }
+  function updateWeapon(dt) {
+    P.recoil = Math.max(0, P.recoil-dt*3); P.punchT = Math.max(0, P.punchT-dt);
+    if (P.reloadT > 0) {
+      if (P.reloadWeapon !== P.weapon || !P.alive) { P.reloadT = 0; P.reloadWeapon = null; return; }
+      P.reloadT = Math.max(0, P.reloadT-dt);
+      if (P.reloadT === 0) { P.magazines[P.weapon] = Math.min(WEAPONS[P.weapon].clip, P.weapons[P.weapon] || 0); P.reloadWeapon = null; }
+    }
+  }
 
   // camera shake: a knock the camera takes and lets go of over a third of a second
   function shake(a) { P.shake = Math.max(P.shake || 0, a); }
@@ -61,21 +81,21 @@ const PLAYER = (() => {
   }
 
   // ---- Shooting (shared with NPCs)
-  function fireBullet(shooter, x, z, y, angle, wp, dmgScale = 1, ignore = null) {
+  function fireBullet(shooter, x, z, y, angle, wp, dmgScale = 1, ignore = null, pitch = 0) {
     const n = wp.pellets || 1; const shooterIsPlayer = shooter === PLAYER || shooter === P; if (shooterIsPlayer) shooter = PLAYER;
     for (let i = 0; i < n; i++) {
-      const a = angle + (W.rng() - 0.5) * 2 * (wp.spread || 0) * (shooterIsPlayer && P.car ? 2 : 1); const dx = Math.sin(a), dz = Math.cos(a);
-      const hit = W.raycast(x, z, dx, dz, wp.range, ignore || (shooterIsPlayer ? P.car : shooter), y);
-      let hx = hit.x, hz = hit.z, hy = y;
+      const a = angle + (W.rng() - 0.5) * 2 * (wp.spread || 0) * (shooterIsPlayer && P.car ? 2 : 1); const tilt = pitch + (W.rng() - .5) * (wp.spread || 0); const dx = Math.sin(a) * Math.cos(tilt), dz = Math.cos(a) * Math.cos(tilt), dy = Math.sin(tilt);
+      const hit = W.raycast3(x, y, z, dx, dy, dz, wp.range, ignore || (shooterIsPlayer ? P.car : shooter));
+      let hx = hit.x, hz = hit.z, hy = hit.y;
       // player check for NPC shooters
-      if (!shooterIsPlayer && P.alive) { const pr = P.car ? 1.6 : 0.55; const t = M.rayCircle2(x, z, dx * wp.range, dz * wp.range, P.x, P.z, pr); if (t >= 0 && t < hit.t) { hit.kind = P.car ? 'playercar' : 'player'; hit.t = t; hx = x + dx * wp.range * t; hz = z + dz * wp.range * t; } }
+      if (!shooterIsPlayer && P.alive) { const pr = P.car ? 1.6 : 0.55; const t = W.rayBox(x, y, z, dx * wp.range, dy * wp.range, dz * wp.range, P.x-pr, P.y, P.z-pr, P.x+pr, P.y+1.8, P.z+pr); if (t >= 0 && t < hit.t) { hit.kind = P.car ? 'playercar' : 'player'; hit.t = t; hx = x + dx * wp.range * t; hz = z + dz * wp.range * t; hy = y + dy * wp.range * t; } }
       if (hit.kind === 'ped') { const was = hit.obj.alive; hit.obj.damage(wp.dmg * dmgScale, shooter, [dx, dz]); if (shooterIsPlayer) HUD.hitMark(was && !hit.obj.alive); }
       else if (hit.kind === 'car') { hit.obj.damage(wp.dmg * (wp.carDmg || 2) * dmgScale, shooter); if (shooterIsPlayer) HUD.hitMark(false); W.FX.spark(hx, 0.9, hz, 4); if (W.rng() < 0.3) W.FX.glass(hx, 1.2, hz, 4); if (hit.obj.driver && hit.obj.driver !== PLAYER && hit.obj.ai.mode === 'traffic') { hit.obj.scared = 6; hit.obj.ai.mode = 'flee'; } if (hit.obj.driver === PLAYER) hurt(wp.dmg * 0.25 * dmgScale, 'shot', shooter); }
       else if (hit.kind === 'player') { hurt(wp.dmg * dmgScale * 0.45, 'shot', shooter); W.FX.blood(P.x, 1.2, P.z, 4, [dx, dz]); }
       else if (hit.kind === 'playercar') { if (P.car) { P.car.damage(wp.dmg * 1.5 * dmgScale, shooter); W.FX.spark(hx, 0.9, hz, 3); if (W.rng() < 0.2) hurt(wp.dmg * 0.2 * dmgScale, 'shot', shooter); } }
       else if (hit.kind === 'heli') { hit.obj.damage(wp.dmg * dmgScale * 1.2, shooter); W.FX.spark(hx, hit.obj.y, hz, 4); hy = hit.obj.y; }
-      else if (hit.kind === 'lot') { W.FX.dust(hx, y, hz, 3); }
-      else if (hit.kind === 'prop') { W.FX.spark(hx, y, hz, 4); }
+      else if (hit.kind === 'lot' || hit.kind === 'ground') { W.FX.dust(hx, hy, hz, 3); }
+      else if (hit.kind === 'prop') { W.FX.spark(hx, hy, hz, 4); }
       tracers.push({ x0: x + dx * 0.6, z0: z + dz * 0.6, y0: y, x1: hx, z1: hz, y1: hy, life: 0.05 });
     }
     W.FX.muzzle(x, y, z, Math.sin(angle), Math.cos(angle)); AUDIO.play(wp.sound || 'pistol', x, z); W.noise(x, z, 70, 'shot');
@@ -85,11 +105,11 @@ const PLAYER = (() => {
   function updateProjectiles(dt) {
     let w = 0;
     for (const p of projectiles) {
-      p.life -= dt; const ox = p.x, oz = p.z;
+      p.life -= dt; const ox = p.x, oy = p.y, oz = p.z;
       if (p.kind === 'grenade') { p.vy -= 20 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; const g = CITY.groundY(p.x, p.z); if (p.y < g + 0.15) { p.y = g + 0.15; p.vy = -p.vy * 0.35; p.vx *= 0.7; p.vz *= 0.7; } const res = W.pushOut(p.x, p.z, 0.2); if (res.hit) { p.x = res.x; p.z = res.z; p.vx = -p.vx * 0.5; p.vz = -p.vz * 0.5; } if (p.life <= 0) { explodeAt(p.x, p.y, p.z, 1, PLAYER); continue; } }
       else { p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; if (W.state.frame % 2 === 0) W.FX.smoke(p.x, p.y, p.z, 1); W.dyn.push({ x: p.x, y: p.y, z: p.z, r: 10, col: [1, 0.6, 0.2] });
-        const dx = p.x - ox, dz = p.z - oz; const len = Math.hypot(dx, dz); let boom = p.life <= 0 || p.y < CITY.groundY(p.x, p.z);
-        if (!boom && len > 0) { const hit = W.raycast(ox, oz, dx / len, dz / len, len, P.car, p.y); if (hit.kind !== 'none' && hit.kind !== 'lot' || (hit.kind === 'lot' && p.y < hit.obj.h)) boom = true; }
+        const dx = p.x - ox, dy = p.y - oy, dz = p.z - oz; const len = Math.hypot(dx, dy, dz); let boom = p.life <= 0 || p.y < CITY.groundY(p.x, p.z);
+        if (!boom && len > 0) { const hit = W.raycast3(ox, oy, oz, dx, dy, dz, len, P.car); if (hit.kind !== 'none') { boom = true; p.x = hit.x; p.y = hit.y; p.z = hit.z; } }
         if (!boom && W.heli && !W.heli.dead && M.dist(p.x, p.z, W.heli.x, W.heli.z) < 4 && Math.abs(p.y - W.heli.y) < 3) { boom = true; W.heli.damage(600, PLAYER); }
         if (boom) { explodeAt(p.x, p.y, p.z, 1.3, PLAYER); continue; } }
       projectiles[w++] = p;
@@ -114,7 +134,7 @@ const PLAYER = (() => {
   // Auto-aim: the nearest target within a cone of the crosshair, measured from the crosshair line. P.aimTarget shows the lock.
   function aimAngle(cone = P.aim ? 0.2 : 0.14) {
     const base = P.camYaw; let best = base, bd = cone; const [cx, cz] = aimOrigin(); let target = null;
-    const consider = (x, z, bonus, obj) => { const d = M.dist(x, z, cx, cz); if (d > 60 || d < 0.8) return; const a = Math.atan2(x - cx, z - cz); const da = Math.abs(M.angleTo(base, a)) - bonus; if (da < bd && W.los(cx, cz, x, z)) { bd = da; best = a; target = obj; } };
+    const consider = (x, z, bonus, obj) => { const d = M.dist(x, z, cx, cz); if (d > 60 || d < 0.8) return; const ty = obj === W.heli ? obj.y : (obj.y || 0)+1.2; if (Math.abs(Math.atan2(ty-(P.y+1.45),d)+P.camPitch) > .18 || !W.sight3(P.x,P.y+1.35,P.z,x,ty,z)) return; const a = Math.atan2(x - cx, z - cz); const da = Math.abs(M.angleTo(base, a)) - bonus; if (da < bd && W.los(cx, cz, x, z)) { bd = da; best = a; target = obj; } };
     for (const p of W.peds) if (p.alive && !p.inCar) consider(p.x, p.z, p.isCop || p.hostile || p.isGang ? 0.04 : 0, p);
     if (W.heli && !W.heli.dead) consider(W.heli.x, W.heli.z, 0.05, W.heli);
     P.aimTarget = target; return best;
@@ -122,7 +142,7 @@ const PLAYER = (() => {
 
   // ---- Update
   function update(dt) {
-    P.stateT += dt; if (P.drunk > 0) P.drunk -= dt; if (P.kickT > 0) P.kickT -= dt; if (P.flinchT > 0) P.flinchT -= dt; if (P.hurtFlash > 0) P.hurtFlash -= dt; if (P.invuln > 0) P.invuln -= dt; if (P.fireT > 0) P.fireT -= dt; if (P.carNameT > 0) P.carNameT -= dt;
+    updateWeapon(dt); P.stateT += dt; if (P.drunk > 0) P.drunk -= dt; if (P.kickT > 0) P.kickT -= dt; if (P.flinchT > 0) P.flinchT -= dt; if (P.hurtFlash > 0) P.hurtFlash -= dt; if (P.invuln > 0) P.invuln -= dt; if (P.fireT > 0) P.fireT -= dt; if (P.carNameT > 0) P.carNameT -= dt;
     const m = INPUT.mouse, pad = INPUT.pad;
     // camera look
     P.camIdle += dt; if (INPUT.locked || pad.active) { const sens = 0.0022 * GAME.options.sensitivity * (P.aim ? (P.aimTarget ? 0.5 : 0.78) : 1); const inv = GAME.options.invertY ? -1 : 1; P.camYaw -= m.dx * sens + pad.rx * 2.5 * dt;
@@ -167,7 +187,7 @@ const PLAYER = (() => {
     if (INPUT.hit('KeyF') || pad.pressed[2]) tryEnterCar();
     // attack
     if (firing && P.fireT <= 0) attack(wp);
-    if (INPUT.hit('KeyR') && !wp.melee) AUDIO.play('reload');
+    if (INPUT.hit('KeyR')) reload();
     moveBody(dt, false);
     P.speed = Math.hypot(P.vx, P.vz); P.phase += dt * (P.speed > 0.05 ? M.TAU * P.speed / (1.2 + 0.24 * P.speed) : 0); // the stride lengthens with speed, so feet stop sliding
     P.stats.distance += P.speed * dt;
@@ -185,12 +205,20 @@ const PLAYER = (() => {
       if (!hitSomething) for (const c of W.cars) { if (c.removed) continue; const [lf, ll] = c.local(P.x, P.z); if (Math.abs(lf) < c.spec.len / 2 + wp.range && Math.abs(ll) < c.spec.wid / 2 + wp.range) { c.damage(wp.dmg * 1.5, PLAYER); W.FX.glass(P.x + f[0] * 0.8, 1.2, P.z + f[1] * 0.8, 5); AUDIO.play('crash', P.x, P.z, 0.3); if (c.driver && c.driver !== P && c.ai.mode === 'traffic') { c.scared = 6; c.ai.mode = 'flee'; } if (c.ai.mode === 'parked' && !c.playerOwned) POLICE.crime('vandal', P.x, P.z, null); break; } }
       return;
     }
+    if (P.reloadT > 0) return;
+    if (!wp.projectile && wp.clip && magazine() <= 0 && P.weapons[P.weapon] > 0) { reload(); return; }
     if (P.weapons[P.weapon] <= 0) { AUDIO.play('click'); P.fireT = 0.3; return; }
-    P.fireT = wp.rate; P.weapons[P.weapon]--; P.recoil = 0.12; P.angle = P.camYaw;
-    const y = 1.35; const ang = aimAngle(); const [ox, oz] = aimOrigin();
+    P.fireT = wp.rate; P.weapons[P.weapon]--; if (!wp.projectile && wp.clip) P.magazines[P.weapon]--; P.recoil = 0.12; P.angle = P.camYaw;
+    const y = P.y + 1.35; const ang = aimAngle();
     if (wp.projectile) { const pitch = -P.camPitch * 0.6 + (wp.projectile === 'grenade' ? 0.45 : 0.05); launchProjectile(wp.projectile, P.x + Math.sin(ang) * 0.8, y, P.z + Math.cos(ang) * 0.8, ang, pitch, wp.projectile === 'grenade' ? 14 : 45); AUDIO.play(wp.sound || 'click', P.x, P.z); }
-    else fireBullet(PLAYER, ox, oz, y, ang, wp, 1);
-    if (P.weapons[P.weapon] <= 0) { P.weapons[P.weapon] = 0; setTimeout(() => cycleWeapon(-1), 300); }
+    else {
+      // Aim from the rendered camera; fire from the body so cover beside the muzzle still blocks shots.
+      const cam = RENDER.cam, dx = cam.tx-cam.x, dy = cam.ty-cam.y, dz = cam.tz-cam.z;
+      const hit = W.raycast3(cam.x, cam.y, cam.z, dx, dy, dz, wp.range + 8, P.car);
+      const ax = hit.x-P.x, ay = hit.y-y, az = hit.z-P.z;
+      fireBullet(PLAYER, P.x, P.z, y, Math.atan2(ax, az), wp, 1, null, Math.atan2(ay, Math.hypot(ax, az)));
+    }
+    if (P.weapons[P.weapon] <= 0) P.weapons[P.weapon] = 0;
   }
   function moveBody(dt, ragdoll) {
     if (P.airborne) { P.vy -= 22 * dt; P.y += P.vy * dt; if (ragdoll) { P.vx *= Math.max(0, 1 - 0.5 * dt); P.vz *= Math.max(0, 1 - 0.5 * dt); } }
@@ -207,20 +235,32 @@ const PLAYER = (() => {
     for (const p of W.peds) { if (!p.alive || p.inCar) continue; const dx = P.x - p.x, dz = P.z - p.z; const d2 = dx * dx + dz * dz; if (d2 < 0.64 && d2 > 1e-6) { const d = Math.sqrt(d2); const push = (0.8 - d) * 0.5; P.x += dx / d * push; P.z += dz / d * push; p.x -= dx / d * push; p.z -= dz / d * push; } }
   }
   // ---- Cars
+  function entryCandidate() {
+    let best = null, score = 4.3; const want = MISSIONS.S.blip && MISSIONS.S.blip.obj;
+    for (const c of W.cars) {
+      if (c.removed || c.wrecked || c.absSpeed >= 4 || Math.abs((c.y || 0)-P.y) > 1.6) continue;
+      for (const side of [-1,1]) {
+        const r=c.right, x=c.x+r[0]*side*(c.spec.wid/2+.6), z=c.z+r[1]*side*(c.spec.wid/2+.6);
+        const distance=M.dist(P.x,P.z,x,z), rank=distance-(c===want?.3:0);
+        if (distance > 4 || rank >= score || !W.sight3(P.x,P.y+1,P.z,x,P.y+1,z)) continue;
+        const q=W.pushOut(x,z,.42); if (Math.hypot(q.x-x,q.z-z) > .2) continue;
+        score=rank; best={car:c,side,distance};
+      }
+    }
+    return best;
+  }
   function tryEnterCar() {
-    let best = null, bd = 5.5;
-    const want = MISSIONS.S.blip && MISSIONS.S.blip.obj; // the mission's car wins a tie with the one you just left
-    for (const c of W.cars) { if (c.removed || c.wrecked) continue; let d = M.dist(c.x, c.z, P.x, P.z) - c.spec.len * 0.25; if (c === want) d -= 1.5; if (d < bd) { bd = d; best = c; } }
-    if (!best) return; if (best.locked) { HUD.notify('This car is locked.'); return; }
-    P.state = 'entering'; P.stateT = 0; P.targetCar = best; P.aim = 0;
-    const r = best.right; P.doorSide = ((P.x - best.x) * r[0] + (P.z - best.z) * r[1]) > 0 ? 1 : -1; // use whichever door is nearer
+    const target=entryCandidate(); if (!target) return;
+    if (target.car.locked) { HUD.notify('This car is locked.'); return; }
+    P.state='entering'; P.stateT=0; P.targetCar=target.car; P.aim=0; P.doorSide=target.side;
   }
   function updateEntering(dt) {
-    const c = P.targetCar; if (!c || c.removed || c.wrecked) { P.state = 'foot'; return; }
+    const cancel = P.stateT > .08 && (INPUT.hit('KeyF') || INPUT.hit('Space') || INPUT.pad.pressed[2] || ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].some(k => INPUT.hit(k)));
+    const c = P.targetCar; if (cancel || !c || c.removed || c.wrecked) { P.state = 'foot'; P.vx = P.vz = 0; P.targetCar = null; return; }
     const r = c.right; const side = P.doorSide || -1; const doorX = c.x + r[0] * side * (c.spec.wid / 2 + 0.6), doorZ = c.z + r[1] * side * (c.spec.wid / 2 + 0.6);
     const d = M.dist(P.x, P.z, doorX, doorZ);
     if (d > 0.5 && P.stateT < 2.2 && c.absSpeed < 4) { const s = 4.5; P.vx = (doorX - P.x) / d * s; P.vz = (doorZ - P.z) / d * s; P.angle += M.angleTo(P.angle, Math.atan2(doorX - P.x, doorZ - P.z)) * Math.min(1, 12 * dt); moveBody(dt, false); P.speed = s; P.phase += dt * 7; return; }
-    if (d > 2.5 || c.absSpeed >= 4) { P.state = 'foot'; P.vx = P.vz = 0; return; }
+    if (d > 1.1 || c.absSpeed >= 4) { P.state = 'foot'; P.vx = P.vz = 0; return; }
     // get in
     P.speed = 0; P.vx = P.vz = 0; AUDIO.play('door', P.x, P.z);
     if (c.driver && c.driver !== PLAYER) { const d0 = c.driver; d0.exitCar(); d0.x = c.x + r[0] * (c.spec.wid / 2 + 1.0); d0.z = c.z + r[1] * (c.spec.wid / 2 + 1.0); d0.knockT = 1.5; d0.state = 'knocked'; d0.launch(r[0] * 2, 2, r[1] * 2); d0.fear = 8; d0.threat = [c.x, c.z]; if (d0.isCop) { d0.hostile = true; POLICE.crime('cop', c.x, c.z, d0); } else { if (W.rng() < 0.5) d0.say(W.rng() < 0.5 ? 'My car!' : 'Hey! Thief!'); POLICE.crime('jack', c.x, c.z, null); } P.stats.carsStolen++; }
@@ -235,7 +275,13 @@ const PLAYER = (() => {
   function exitCar() {
     const c = P.car; if (!c) return false; const r = c.right; const spd = c.absSpeed;
     if (c.spec.boat) { const land = W.nearestLand(c.x, c.z); if (!land || land.d > 5.5) { if (P.alive) HUD.notify("You can't swim. Bring the boat to the shore or the pier."); return false; } P.x = land.x; P.z = land.z; }
-    else { P.x = c.x - r[0] * (c.spec.wid / 2 + 0.9); P.z = c.z - r[1] * (c.spec.wid / 2 + 0.9); }
+    else {
+      const f = c.fwd, spots = [-1, 1].map(side => [c.x+r[0]*side*(c.spec.wid/2+.9), c.z+r[1]*side*(c.spec.wid/2+.9)]);
+      spots.push([c.x-f[0]*(c.spec.len/2+1), c.z-f[1]*(c.spec.len/2+1)]);
+      const safe = spots.find(([x,z]) => { const q = W.pushOut(x,z,.42); return Math.hypot(q.x-x,q.z-z) < .15 && Math.abs(CITY.groundY(x,z)-c.y) < 1.5 && !W.cars.some(other => other !== c && !other.removed && other.circles().some(([cx,cz,cr]) => M.dist(x,z,cx,cz) < cr+.42)); });
+      if (!safe) { HUD.notify('Doors blocked. Move the car to make room.'); return false; }
+      [P.x,P.z] = safe;
+    }
     P.y = CITY.groundY(P.x, P.z); P.angle = c.angle; P.camYaw = c.angle; P.vx = 0; P.vz = 0;
     c.driver = null; c.ai.mode = 'parked'; c.controls.throttle = 0; c.controls.brake = spd > 4 ? 0 : 1; c.controls.handbrake = 0; c.siren = false; P.car = null; P.state = 'foot'; AUDIO.play('door', P.x, P.z);
     if (spd > 7) { knock(c.vx * 0.5, 3, c.vz * 0.5); hurt(spd * 1.5, 'fall', null); }
@@ -251,7 +297,7 @@ const PLAYER = (() => {
     if (INPUT.down('KeyW') || INPUT.down('ArrowUp')) iz += 1; if (INPUT.down('KeyS') || INPUT.down('ArrowDown')) iz -= 1; if (INPUT.down('KeyD') || INPUT.down('ArrowRight')) ix += 1; if (INPUT.down('KeyA') || INPUT.down('ArrowLeft')) ix -= 1;
     if (pad.active) { ix = M.clamp(ix + pad.lx, -1, 1); iz = M.clamp(iz - pad.ly, -1, 1); }
     const ctl = c.controls;
-    const fwdIn = Math.max(0, iz) + pad.rt, backIn = Math.max(0, -iz) + pad.lt;
+    const fwdIn = Math.min(1, Math.max(0, iz) + pad.rt), backIn = Math.min(1, Math.max(0, -iz) + pad.lt);
     if (fwdIn > 0) { if (c.speed < -0.5) { ctl.throttle = 0; ctl.brake = fwdIn; ctl.reverse = false; } else { ctl.throttle = fwdIn; ctl.brake = 0; } }
     else if (backIn > 0) { ctl.throttle = 0; ctl.brake = backIn; ctl.reverse = true; }
     else { ctl.throttle = 0; ctl.brake = 0; ctl.reverse = false; }
@@ -262,7 +308,7 @@ const PLAYER = (() => {
     if (INPUT.hit('KeyF') || pad.pressed[2]) { if (exitCar()) return; }
     // drive-by shooting with a one-handed weapon
     const wp = WEAPONS[P.weapon]; const firing = (INPUT.mouse.buttons & 1) || INPUT.down('ControlLeft');
-    if (firing && P.fireT <= 0 && (P.weapon === 'pistol' || P.weapon === 'uzi') && P.weapons[P.weapon] > 0) { P.fireT = wp.rate * 1.2; P.weapons[P.weapon]--; fireBullet(PLAYER, c.x + c.fwd[0] * 0.5, c.z + c.fwd[1] * 0.5, 1.2, aimAngle(), wp, 1, c); }
+    if (firing && P.reloadT <= 0 && P.fireT <= 0 && (P.weapon === 'pistol' || P.weapon === 'uzi') && P.weapons[P.weapon] > 0) { if (magazine() <= 0) { reload(); return; } P.fireT = wp.rate * 1.2; P.magazines[P.weapon]--; P.weapons[P.weapon]--; fireBullet(PLAYER, c.x + c.fwd[0] * 0.5, c.z + c.fwd[1] * 0.5, c.y + 1.2, aimAngle(), wp, 1, c); }
     P.stats.distance += c.absSpeed * dt;
     // stunt jumps (the stunt camera lets go a moment after the landing)
     if (P.stuntCam && !c.airborne) { P.stuntCam.t += dt; if (P.stuntCam.t > 1.4) P.stuntCam = null; }
@@ -309,11 +355,11 @@ const PLAYER = (() => {
     if (best < 1) { cx = tx + dx * best * 0.92; cz = tz + dz * best * 0.92; cy = ty + (cy - ty) * best * 0.92; }
     const gy = CITY.groundY(cx, cz) + 0.5; if (cy < gy) cy = gy;
     // smoothing
-    const k = Math.min(1, (P.car ? 16 : 28) * dt);
+    const k = best < 1 ? 1 : 1 - Math.exp(-(P.car ? 12 : 22) * dt);
     if (P.camX === 0 && P.camZ === 0) { P.camX = cx; P.camY = cy; P.camZ = cz; }
     P.camX = M.lerp(P.camX, cx, k); P.camY = M.lerp(P.camY, cy, k); P.camZ = M.lerp(P.camZ, cz, k);
     if (P.shake > 0) { const s = P.shake * 0.25; P.camX += (Math.random() - 0.5) * s; P.camY += (Math.random() - 0.5) * s; P.camZ += (Math.random() - 0.5) * s; P.shake = Math.max(0, P.shake - 3 * dt); }
-    P.fov = M.lerp(P.fov, fov, Math.min(1, 4 * dt));
+    P.fov = M.lerp(P.fov, fov, 1 - Math.exp(-4 * dt));
     RENDER.setCamera(P.camX, P.camY, P.camZ, tx, ty, tz, P.fov * Math.PI / 180);
     W.state.camYaw = yaw;
   }
@@ -324,6 +370,6 @@ const PLAYER = (() => {
   let gm = null, rm = null;
   const GRENADE_MESH = () => gm || (gm = new MESH.Builder().cbox(0, 0, 0, 0.3, 0.35, 0.3, [0.2, 0.3, 0.2]).build());
   const ROCKET_MESH = () => rm || (rm = new MESH.Builder().cbox(0, 0, 0, 0.18, 0.18, 0.9, [0.4, 0.4, 0.42]).cbox(0, 0, 0.5, 0.12, 0.12, 0.2, [0.9, 0.2, 0.1]).build());
-  return { P, OUTFITS, setOutfit, init, update, updateCamera, heldEntity, shake, giveWeapon, addMoney, hurt, knock, die, bust, respawn, fireBullet, explodeAt, updateProjectiles, entity, drawFX, projectileEntities, exitCar,
+  return { P, entryCandidate, magazine, reload, updateWeapon, OUTFITS, setOutfit, init, update, updateCamera, heldEntity, shake, giveWeapon, addMoney, hurt, knock, die, bust, respawn, fireBullet, explodeAt, updateProjectiles, entity, drawFX, projectileEntities, exitCar,
     get x() { return P.x; }, get z() { return P.z; }, get y() { return P.y; }, get car() { return P.car; }, get alive() { return P.alive; }, get wanted() { return P.wanted; }, set wanted(v) { P.wanted = v; }, get stats() { return P.stats; }, get health() { return P.health; }, get money() { return P.money; }, get weapons() { return P.weapons; }, get weapon() { return P.weapon; } };
 })();

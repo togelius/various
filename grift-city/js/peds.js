@@ -72,7 +72,7 @@ const PEDS = (() => {
     }
     // ---- AI
     update(dt) {
-      if (this.removed) return; this.stateT += dt; if (this.shoutT > 0) this.shoutT -= dt; if (this.hitT > 0) this.hitT -= dt; if (this.attackCooldown > 0) this.attackCooldown -= dt;
+      if (this.removed) return; this.recoil = Math.max(0, (this.recoil || 0) - dt * 3); this.punchT = Math.max(0, (this.punchT || 0) - dt); this.stateT += dt; if (this.shoutT > 0) this.shoutT -= dt; if (this.hitT > 0) this.hitT -= dt; if (this.attackCooldown > 0) this.attackCooldown -= dt;
       if (this.inCar) { this.x = this.inCar.x; this.z = this.inCar.z; this.y = this.inCar.y; return; }
       if (this.flinchT > 0) this.flinchT -= dt; if (this.kickT > 0) this.kickT -= dt;
       if (this.rag) { stepRagdoll(this, dt); if (this.state !== 'dead' && this.knockT > 0) { this.knockT -= dt; if (this.knockT <= 0) { endRagdoll(this); this.state = this.gotoTarget && this.gotoResume ? 'goto' : (this.fear > 0 ? 'flee' : 'walk'); this.lying = 0; } return; } }
@@ -140,11 +140,11 @@ const PEDS = (() => {
     aiCop(dt) {
       const p = PLAYER; const d = M.dist(this.x, this.z, p.x, p.z);
       if (this.alerted > 0) this.alerted -= dt;
-      const want = p.wanted; const canSee = d < 70 && W.los(this.x, this.z, p.x, p.z);
+      const want = p.wanted; const canSee = d < 70 && W.sight3(this.x, this.y+1.5, this.z, p.x, p.P.y+1.2, p.z);
       if (want <= 0 || !p.alive) { this.aim = 0; if (this.patrol) this.aiCivilian(dt); else { this.speed = 0; if (this.car && !this.inCar && d > 10) { /* return to car */ this.moveToward(this.car.x, this.car.z, 2, dt); if (M.dist(this.x, this.z, this.car.x, this.car.z) < 2.5 && !this.car.driver) { this.inCar = this.car; this.car.driver = this; this.car.ai.mode = 'traffic'; this.car.ai.edge = null; this.car.siren = false; } } } return; }
       if (canSee) POLICE.seen(this);
-      if (!canSee && !this.alerted) { // head toward last known position
-        if (POLICE.lastSeen) { const ls = POLICE.lastSeen; if (M.dist(this.x, this.z, ls[0], ls[1]) > 3) this.moveToward(ls[0], ls[1], 5.5, dt); else this.speed = 0; } this.aim = 0; return;
+      if (!canSee) { // head toward last known position
+        if (POLICE.lastSeen) { const ls = POLICE.pursuitPoint(); if (M.dist(this.x, this.z, ls[0], ls[1]) > 3) this.moveToward(ls[0], ls[1], 5.5, dt); else this.speed = 0; } this.aim = 0; return;
       }
       // arrest if close and player is slow / on foot
       if (d < 1.7 && (!p.car || p.car.absSpeed < 1.5) && p.alive) { this.speed = 0; this.faceTo(p.x, p.z, dt); this.aim = 1; POLICE.arrestProgress(dt, this); return; }
@@ -158,7 +158,7 @@ const PEDS = (() => {
       this.ammoT = wp.rate * (this.isSwat ? 1.5 : 3.0) + W.rng() * 0.5;
       const tx = target.x, tz = target.z; const d = M.dist(this.x, this.z, tx, tz); const acc = this.isSwat ? 0.14 : this.isCop ? 0.3 : 0.22;
       const ang = Math.atan2(tx - this.x, tz - this.z) + (W.rng() - 0.5) * acc * (1 + d / 20);
-      PLAYER.fireBullet(this, this.x, this.z, 1.3, ang, wp, 0.7);
+      PLAYER.fireBullet(this, this.x, this.z, this.y + 1.3, ang, wp, 0.7, null, Math.atan2((target.P ? target.P.y : target.y || 0) + 1.1 - (this.y + 1.3), Math.max(1, M.dist(this.x, this.z, target.x, target.z))));
       this.weaponOut = true; this.recoil = 0.12;
     }
     moveToward(tx, tz, speed, dt) {
@@ -207,7 +207,8 @@ const PEDS = (() => {
   function buildRig(p, model, bones) {
     const lying = p.lying || 0; const dead = p.state === 'dead';
     const spd = p.speed || 0; const walk = Math.min(1, spd / 1.2); const run = M.clamp((spd - 3) / 3, 0, 1);
-    const ph = p.phase; const amp = 0.45 + 0.6 * run; const swing = Math.sin(ph) * amp * walk;
+    const direction = p.aim && spd > .1 ? M.angleTo(p.angle, Math.atan2(p.vx || 0, p.vz || 0)) : 0;
+    const ph = p.phase * (Math.cos(direction) < -.2 ? -1 : 1); const amp = 0.45 + 0.6 * run; const swing = Math.sin(ph) * amp * walk;
     const bob = Math.abs(Math.cos(ph)) * (0.035 + 0.04 * run) * walk;
     const aim = p.aim || 0; const punch = p.punchT > 0 ? Math.sin(Math.min(1, p.punchT / 0.3) * Math.PI) : 0;
     const t = W.state.elapsed + (p.phase % 7); const idle = 1 - walk; const breath = Math.sin(t * 1.6) * idle;
@@ -222,7 +223,8 @@ const PEDS = (() => {
     bone(bones, 16, sway * 0.02, hip + TORSO_H + 0.03 + breath * 0.006, lean * 0.2, (aim ? 0 : (p.headYaw || 0)) + sway * 0.07, lean * 0.5 + (aim ? 0 : Math.sin(ph * 0.5) * 0.03 + Math.sin(t * 0.9) * 0.02 * idle), -sway * 0.03);
     // upper arms: pivot at the shoulders, swing opposite to the legs, held out a little at a run
     const hold = !aim && p.item && (p.item === 'umbrella' || p.item === 'phone') ? p.item : null;
-    const armPitchL = (aim ? -0.4 : swing * 0.85 - 0.45 * run) - flinch * 1.1 - kick * 0.5, armPitchR = hold === 'umbrella' ? -2.1 : hold === 'phone' ? -2.3 : (aim ? -Math.PI / 2 + 0.05 + (p.recoil || 0) * 2 : -swing * 0.85 - 0.45 * run - punch * 1.4) - flinch * 0.9 + kick * 0.6;
+    const reloading = p.reloadT > 0 ? Math.sin(Math.PI * (1-p.reloadT/p.reloadDuration)) : 0;
+    const armPitchL = (reloading ? -1.1 : aim ? -0.4 : swing * 0.85 - 0.45 * run) - flinch * 1.1 - kick * 0.5, armPitchR = hold === 'umbrella' ? -2.1 : hold === 'phone' ? -2.3 : (reloading ? -.8 : aim ? -Math.PI / 2 + 0.05 + (p.camPitch || 0) + (p.recoil || 0) * 2 : -swing * 0.85 - 0.45 * run - punch * 1.4) - flinch * 0.9 + kick * 0.6;
     const armRoll = 0.06 + run * 0.3 + Math.sin(t * 1.1) * 0.015 * idle;
     bone(bones, 32, sway * 0.02, hip + SHOULDER + breath * 0.006, 0, 0, armPitchL, armRoll + (aim ? 0.12 : 0));
     bone(bones, 48, sway * 0.02, hip + SHOULDER + breath * 0.006, 0, aim ? -0.15 : 0, armPitchR, -armRoll);
@@ -231,15 +233,13 @@ const PEDS = (() => {
     const elbowR = hold === 'phone' ? -2.3 : hold === 'umbrella' ? -0.3 : aim ? 0 : -(0.22 + 0.35 * Math.max(0, -Math.sin(ph)) * walk + 0.8 * run + punch * 0.6);
     jointBone(bones, 144, 32, 0.3, ELBOW_Y, 0, elbowL); jointBone(bones, 160, 48, -0.3, ELBOW_Y, 0, elbowR);
     // thighs: pivot at the hips; knees fold while the foot swings through and straighten for the strike
-    bone(bones, 64, sway * 0.02, hip, 0, 0, -swing * 0.95 + kick * 0.3, 0); bone(bones, 80, sway * 0.02, hip, 0, 0, swing * 0.95 - kick * 1.5, 0); // a kick swings the right leg up
+    bone(bones, 64, sway * 0.02, hip, 0, 0, p.airborne ? -.45 : -swing * .95 * Math.abs(Math.cos(direction)) + kick * .3, swing * Math.sin(direction) * .65); bone(bones, 80, sway * 0.02, hip, 0, 0, p.airborne ? .25 : swing * .95 * Math.abs(Math.cos(direction)) - kick * 1.5, -swing * Math.sin(direction) * .65); // a kick swings the right leg up
     const kneeL = (0.08 + (0.75 + 0.55 * run) * Math.max(0, Math.cos(ph))) * walk + 0.04 * idle;
     const kneeR = (0.08 + (0.75 + 0.55 * run) * Math.max(0, -Math.cos(ph))) * walk + 0.04 * idle;
     jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, dead ? 0 : kneeL); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, dead ? 0 : kneeR);
     // weapon: follows the right forearm, hidden when unarmed
     if (p.weaponOut && !dead) bones.set(bones.subarray(160, 176), 96); else bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
     mouthBone(bones, talkOpen(p));
-    if (p.recoil > 0) p.recoil = Math.max(0, p.recoil - 0.016 * 3);
-    if (p.punchT > 0) p.punchT -= 0.016;
   }
 
   // Seated pose inside a car (or on a bench): hips at the seat, thighs forward, shins down, hands on the wheel.

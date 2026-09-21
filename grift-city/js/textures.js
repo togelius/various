@@ -262,6 +262,8 @@ const TEX = (() => {
     add('manhole', (g, r) => { g.fillStyle = '#39393d'; g.fillRect(0, 0, S, S); g.fillStyle = '#2a2a2c'; g.beginPath(); g.arc(256, 256, 236, 0, 7); g.fill(); g.fillStyle = '#4a4a4e'; g.beginPath(); g.arc(256, 256, 220, 0, 7); g.fill(); g.strokeStyle = '#2a2a2c'; g.lineWidth = 10; for (let k = -4; k <= 4; k++) { g.beginPath(); g.moveTo(256 + k * 44, 60); g.lineTo(256 + k * 44, 452); g.stroke(); g.beginPath(); g.moveTo(60, 256 + k * 44); g.lineTo(452, 256 + k * 44); g.stroke(); } g.strokeStyle = '#1e1e20'; g.lineWidth = 14; g.beginPath(); g.arc(256, 256, 228, 0, 7); g.stroke(); grain(g, r, 6000, 0.08); });
     add('cone', (g, r) => { g.fillStyle = '#ff6a00'; g.fillRect(0, 0, S, S); g.fillStyle = '#fff'; g.fillRect(0, 160, S, 60); g.fillRect(0, 300, S, 60); });
     add('barrier', (g, r) => { for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? '#ffffff' : '#ff6a00'; g.fillRect(i * 64, 0, 64, S); } });
+    // Purpose-painted landmark panel: compensate for the wide physical sign so type keeps its proportions.
+    add('vossSign', g => { g.fillStyle='#163b3e'; g.fillRect(0,0,S,S); g.fillStyle='#eec778'; g.fillRect(12,20,488,12); g.fillRect(12,480,488,12); g.save(); g.scale(1,6.67); g.font='900 58px Impact, Arial Black, sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('VOSS MOTORS',256,38.4,470); g.restore(); g._lit.push([0,0,S,S]); });
     return { color: layers, normal: normals, panes };
   }
   return { build, preload, names, S, NS, base, flatN, get layers() { return layers; }, get normals() { return normals; }, get shopKinds() { return shopKinds; } };

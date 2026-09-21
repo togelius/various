@@ -10,28 +10,32 @@ const POLICE = (() => {
     // rapid fire is one crime, not forty
     if (COOLDOWN[kind]) { const now = W.state.elapsed; if (lastCrime[kind] !== undefined && now - lastCrime[kind] < COOLDOWN[kind]) return; lastCrime[kind] = now; }
     let h = HEAT[kind] || 0.2;
-    const copsNear = W.peds.some(p => p.isCop && p.alive && M.dist2(p.x, p.z, x, z) < 70 * 70) || W.cars.some(c => !c.removed && c.driver && c.driver.isCop && M.dist2(c.x, c.z, x, z) < 70 * 70);
-    const witnesses = W.pedsNear(x, z, 30).filter(p => p.alive && !p.inCar).length;
+    const visible = (p) => W.sight3(p.x, (p.y || 0)+1.5, p.z, x, P.y+1.2, z);
+    const copsNear = W.peds.some(p => p.isCop && p.alive && M.dist2(p.x, p.z, x, z) < 70 * 70 && visible(p)) || W.cars.some(c => !c.removed && c.driver && c.driver.isCop && M.dist2(c.x, c.z, x, z) < 70 * 70 && visible(c));
+    const witnesses = W.pedsNear(x, z, 30).filter(p => p.alive && p !== victim && !p.inCar && visible(p)).length;
     if (!copsNear && witnesses === 0 && P.wanted === 0 && kind !== 'copkill' && kind !== 'cop') h *= 0.25;
     if (copsNear) h *= 1.4;
     if (kind === 'shoot' && P.wanted === 0 && !copsNear) h = witnesses > 0 ? 0.06 : 0.02;
     h *= 1 / (1 + S.heat * 0.6); // each star is harder to earn than the last
     h = Math.min(h, 1.0); // no single crime jumps more than one star
-    const before = stars(); S.heat = Math.min(5.99, S.heat + h); S.seenT = 0; S.lastSeen = [P.x, P.z];
+    const before = stars(); S.heat = Math.min(5.99, S.heat + h);
+    if (copsNear) seen();
+    else if (witnesses > 0) { S.lastSeen = [x, z]; S.seenT = Math.max(3, Math.min(S.seenT, 6)); S.search = null; }
+    // An unwitnessed shot may raise suspicion, but it cannot refresh a visual pursuit.
     if (stars() > before) { AUDIO.play('star'); HUD.flashStars(); if (before === 0) S.spawnT = 0; }
     P.wanted = stars();
   }
-  function seen(cop) { S.seenT = 0; S.lastSeen = [PLAYER.x, PLAYER.z]; }
+  function seen(cop) { S.seenT = 0; S.lastSeen = [PLAYER.x, PLAYER.z]; S.search = null; }
   // Where a pursuing unit should head: the player while they are in sight, otherwise a search pattern around the last sighting.
-  function pursuitPoint() { const P = PLAYER.P; if (S.seenT < 2.5 || !S.lastSeen) return [P.x + (P.car ? P.car.vx * 0.6 : 0), P.z + (P.car ? P.car.vz * 0.6 : 0)]; if (!S.search || S.searchT <= 0) { const a = W.rng() * M.TAU, r = 20 + Math.min(80, S.seenT * 5) * W.rng(); S.search = [S.lastSeen[0] + Math.sin(a) * r, S.lastSeen[1] + Math.cos(a) * r]; S.searchT = 6; } return S.search; }
+  function pursuitPoint() { const P = PLAYER.P; if (!S.lastSeen) return [CITY.SIZE / 2, CITY.SIZE / 2]; if (S.seenT < 2.5) return S.lastSeen; if (!S.search || S.searchT <= 0) { const a = W.rng() * M.TAU, r = 20 + Math.min(80, S.seenT * 5) * W.rng(); S.search = [S.lastSeen[0] + Math.sin(a) * r, S.lastSeen[1] + Math.cos(a) * r]; S.searchT = 6; } return S.search; }
   function arrestProgress(dt, cop) { S.arrestT += dt; S.arresting = true; if (S.arrestT > 0.7) PLAYER.bust(); }
-  function clear() { S.heat = 0; PLAYER.P.wanted = 0; S.seenT = 99; for (const c of W.cars) if (!c.removed && c.driver && c.driver.isCop && c.ai.mode === 'chase') { c.ai.mode = 'traffic'; c.ai.edge = null; c.siren = false; } if (W.heli) W.heli.leaving = true; }
+  function clear() { S.heat = 0; PLAYER.P.wanted = 0; S.seenT = 99; S.lastSeen = null; S.search = null; for (const c of W.cars) if (!c.removed && c.driver && c.driver.isCop && c.ai.mode === 'chase') { c.ai.mode = 'traffic'; c.ai.edge = null; c.siren = false; } if (W.heli) W.heli.leaving = true; }
   function setStars(n) { S.heat = Math.max(S.heat, n); PLAYER.P.wanted = stars(); S.seenT = 0; S.lastSeen = [PLAYER.x, PLAYER.z]; S.spawnT = 0; }
   function bribe() { S.heat = Math.max(0, S.heat - 1); PLAYER.P.wanted = stars(); }
 
   function counts() { let foot = 0, cars = 0, swat = 0; for (const p of W.peds) if (p.alive && p.isCop && !p.inCar) foot++; for (const c of W.cars) if (!c.removed && !c.wrecked && (c.type === 'police' || c.type === 'swat') && c.ai.mode === 'chase') { cars++; if (c.type === 'swat') swat++; } return { foot, cars, swat }; }
   function laneSpotAway(minD, maxD, ahead) {
-    const P = PLAYER.P; const cands = [];
+    const P = S.seenT > 2.5 && S.lastSeen ? { x: S.lastSeen[0], z: S.lastSeen[1], car: null } : PLAYER.P; const cands = [];
     for (const e of CITY.roadEdges) { const mx = (e.from.x + e.to.x) / 2, mz = (e.from.z + e.to.z) / 2; const d = M.dist(mx, mz, P.x, P.z); if (d < minD - 40 || d > maxD + 40) continue; cands.push(e); }
     for (let t = 0; t < 30 && cands.length; t++) {
       const e = cands[Math.floor(W.rng() * cands.length)]; const L = CITY.laneLen(e); const s = 5 + W.rng() * (L - 10); const lane = W.rng() < 0.5 ? 0 : 1; const [x, z] = CITY.lanePoint(e, lane, s); const d = M.dist(x, z, P.x, P.z);
@@ -49,7 +53,7 @@ const POLICE = (() => {
     return c;
   }
   function spawnFoot() {
-    const P = PLAYER.P; const cands = CITY.walkNodes.filter(n => { const d = M.dist(n.x, n.z, P.x, P.z); return d > 35 && d < 75; }); if (!cands.length) return;
+    const P = S.seenT > 2.5 && S.lastSeen ? { x: S.lastSeen[0], z: S.lastSeen[1], wanted: PLAYER.wanted } : PLAYER.P; const cands = CITY.walkNodes.filter(n => { const d = M.dist(n.x, n.z, P.x, P.z); return d > 35 && d < 75; }); if (!cands.length) return;
     for (let t = 0; t < 10; t++) { const n = cands[Math.floor(W.rng() * cands.length)]; const d = M.dist(n.x, n.z, P.x, P.z); if (W.los(n.x, n.z, P.x, P.z) && d < 50 && t < 8) continue; const p = PEDS.spawnCop(n.x, n.z, { weapon: P.wanted >= 3 ? 'shotgun' : 'pistol' }); p.alerted = 10; return p; }
   }
   function spawnRoadblock() {
@@ -79,18 +83,20 @@ const POLICE = (() => {
     h.rotor += dt * 40;
     const want = P.wanted >= 4 && P.alive && !h.leaving; const targetY = want ? 30 : 80;
     if (!want) { h.leaving = true; }
-    // orbit the player
-    h.orbit += dt * 0.35; const R = 26; const tx = P.x + Math.sin(h.orbit) * R, tz = P.z + Math.cos(h.orbit) * R;
+    // Search the last reported area; buildings interrupt the helicopter's view too.
+    const canSee = want && M.dist(h.x, h.z, P.x, P.z) < 95 && W.sight3(h.x,h.y,h.z,P.x,P.y+1.1,P.z);
+    if (canSee) seen(h);
+    const focus = S.lastSeen || [h.x,h.z];
+    h.orbit += dt * 0.35; const R = 26; const tx = focus[0] + Math.sin(h.orbit) * R, tz = focus[1] + Math.cos(h.orbit) * R;
     const dx = (h.leaving ? h.x + Math.sin(h.angle) * 100 : tx) - h.x, dz = (h.leaving ? h.z + Math.cos(h.angle) * 100 : tz) - h.z; const d = Math.hypot(dx, dz) || 1;
     const sp = Math.min(38, d * 0.9); h.vx = M.lerp(h.vx, dx / d * sp, dt * 1.5); h.vz = M.lerp(h.vz, dz / d * sp, dt * 1.5); h.x += h.vx * dt; h.z += h.vz * dt; h.y = M.lerp(h.y, targetY, dt * 0.8);
-    const faceA = Math.atan2(P.x - h.x, P.z - h.z); h.angle += M.angleTo(h.angle, h.leaving ? h.angle : faceA) * Math.min(1, 2 * dt);
+    const faceA = Math.atan2(focus[0] - h.x, focus[1] - h.z); h.angle += M.angleTo(h.angle, h.leaving ? h.angle : faceA) * Math.min(1, 2 * dt);
     h.tilt = M.lerp(h.tilt, Math.hypot(h.vx, h.vz) * 0.006, dt * 2);
     if (h.leaving && M.dist(h.x, h.z, P.x, P.z) > 300) { h.removed = true; W.heli = null; AUDIO.heliVolume(0); return; }
     AUDIO.heliVolume(M.clamp(1 - M.dist(h.x, h.z, P.x, P.z) / 180, 0, 1));
     // searchlight
-    if (want) { W.dyn.push({ x: P.x, y: 3, z: P.z, r: 14, col: [1.2, 1.2, 1.0] }); W.fx.quad(W.F.adds, [h.x, h.y - 1, h.z], [h.x + 0.5, h.y - 1, h.z], [P.x + 4, CITY.groundY(P.x, P.z) + 0.1, P.z + 4], [P.x - 4, CITY.groundY(P.x, P.z) + 0.1, P.z - 4], [1, 1, 0.9], 0.12, 0.02); W.fx.quad(W.F.adds, [h.x, h.y - 1, h.z], [h.x, h.y - 1, h.z + 0.5], [P.x - 4, CITY.groundY(P.x, P.z) + 0.1, P.z + 4], [P.x + 4, CITY.groundY(P.x, P.z) + 0.1, P.z - 4], [1, 1, 0.9], 0.12, 0.02);
-      POLICE.seen(null);
-      h.gunT -= dt; if (h.gunT <= 0 && M.dist(h.x, h.z, P.x, P.z) < 60) { h.gunT = 0.14; if (W.rng() < 0.7) { const ang = Math.atan2(P.x - h.x, P.z - h.z) + (W.rng() - 0.5) * 0.25; PLAYER.fireBullet(h, h.x, h.z, h.y, ang, WEAPONS.rifle, 0.5, h); } if (W.rng() < 0.12) h.gunT = 1.6; } }
+    if (want) { W.dyn.push({ x: focus[0], y: 3, z: focus[1], r: 14, col: [1.2, 1.2, 1.0] }); W.fx.quad(W.F.adds, [h.x, h.y - 1, h.z], [h.x + 0.5, h.y - 1, h.z], [focus[0] + 4, CITY.groundY(focus[0], focus[1]) + 0.1, focus[1] + 4], [focus[0] - 4, CITY.groundY(focus[0], focus[1]) + 0.1, focus[1] - 4], [1, 1, 0.9], 0.12, 0.02); W.fx.quad(W.F.adds, [h.x, h.y - 1, h.z], [h.x, h.y - 1, h.z + 0.5], [focus[0] - 4, CITY.groundY(focus[0], focus[1]) + 0.1, focus[1] + 4], [focus[0] + 4, CITY.groundY(focus[0], focus[1]) + 0.1, focus[1] - 4], [1, 1, 0.9], 0.12, 0.02);
+      h.gunT -= dt; if (canSee && h.gunT <= 0 && M.dist(h.x, h.z, focus[0], focus[1]) < 60) { h.gunT = 0.14; if (W.rng() < 0.7) { const ang = Math.atan2(focus[0] - h.x, focus[1] - h.z) + (W.rng() - 0.5) * 0.25; PLAYER.fireBullet(h, h.x, h.z, h.y, ang, WEAPONS.rifle, 0.5, h, Math.atan2(P.y+1.1-h.y, Math.max(1,M.dist(h.x,h.z,P.x,P.z)))); } if (W.rng() < 0.12) h.gunT = 1.6; } }
   }
   function heliEntity() { const h = W.heli; if (!h || h.removed) return null; M.trsEuler(h.model, h.x, h.y, h.z, h.angle, h.tilt, h.roll); M.trs(tmpB, 0, 0, 0, h.rotor); h.bones.set(tmpB, 16); M.trsEuler(tmpB, 0, 2.2, -4.4, 0, 0, 0); // tail rotor spins about x
     const c = Math.cos(h.rotor * 1.5), s = Math.sin(h.rotor * 1.5); h.bones.set([1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 2.2 - (c * 2.2 - s * -4.4), -4.4 - (s * 2.2 + c * -4.4), 1], 32);
@@ -105,16 +111,16 @@ const POLICE = (() => {
       const bl = CITY.blockAt(P.x, P.z); const sh = CITY.place('safehouse'); if (S.seenT > 3 && ((bl && bl.kind === 'parking') || M.dist2(P.x, P.z, sh.x, sh.z) < 18 * 18)) S.seenT += dt;
       // cop cars see the player too
       const see = 70 * (1 - 0.55 * (W.weather.fog || 0)) * (W.isNight() ? 0.8 : 1); // fog and darkness shorten the police's sight
-      for (const c of W.cars) if (!c.removed && c.ai.mode === 'chase' && M.dist2(c.x, c.z, P.x, P.z) < see * see && W.los(c.x, c.z, P.x, P.z)) { S.seenT = 0; S.lastSeen = [P.x, P.z]; break; }
+      for (const c of W.cars) if (!c.removed && c.ai.mode === 'chase' && c.driver && c.driver.isCop && M.dist2(c.x, c.z, P.x, P.z) < see * see && W.sight3(c.x, c.y+1.5, c.z, P.x, P.y+1.2, P.z)) { seen(c.driver); break; }
       const evade = 10 + w * 7;
       if (S.seenT > evade) { S.heat = Math.max(0, Math.floor(S.heat) - 1 + 0.9); S.seenT = evade * 0.55; if (stars() === 0) { S.heat = 0; HUD.notify('You lost the cops.'); clear(); } }
       // spawning
       const cnt = counts(); S.spawnT -= dt; S.footT -= dt; S.roadblockT -= dt;
       const wantCars = [0, 0, 2, 3, 4, 5][w], wantFoot = [0, 2, 3, 4, 4, 5][w], wantSwat = [0, 0, 0, 0, 1, 2][w];
-      if (S.spawnT <= 0) { const bl = CITY.blockAt(P.x, P.z); const d = bl ? CITY.district(bl.i, bl.j) : 'midtown'; const resp = { downtown: 0.7, midtown: 0.9, westfield: 1.1, northgate: 1.2, southport: 1.3, eastside: 1.6 }[d] || 1; /* the precincts are downtown; the east side waits */ S.spawnT = (w >= 3 ? 6 : 10) * resp * (1 + 0.5 * (W.weather.fog || 0)); if (cnt.cars < wantCars) spawnCar(false); else if (cnt.swat < wantSwat) spawnCar(true); }
-      if (S.footT <= 0) { S.footT = 5; if (cnt.foot < wantFoot && (!P.car || P.car.absSpeed < 6)) spawnFoot(); }
-      if (w >= 3 && S.roadblockT <= 0 && P.car && P.car.absSpeed > 8) { S.roadblockT = w >= 4 ? 18 : 28; spawnRoadblock(); }
-      if (w >= 4 && !W.heli) { S.heliT -= dt; if (S.heliT <= 0) { spawnHeli(); S.heliT = 40; } }
+      if (S.lastSeen && S.spawnT <= 0) { const bl = CITY.blockAt(P.x, P.z); const d = bl ? CITY.district(bl.i, bl.j) : 'midtown'; const resp = { downtown: 0.7, midtown: 0.9, westfield: 1.1, northgate: 1.2, southport: 1.3, eastside: 1.6 }[d] || 1; /* the precincts are downtown; the east side waits */ S.spawnT = (w >= 3 ? 6 : 10) * resp * (1 + 0.5 * (W.weather.fog || 0)); if (cnt.cars < wantCars) spawnCar(false); else if (cnt.swat < wantSwat) spawnCar(true); }
+      if (S.lastSeen && S.footT <= 0) { S.footT = 5; if (cnt.foot < wantFoot && (!P.car || P.car.absSpeed < 6)) spawnFoot(); }
+      if (S.seenT < 2.5 && w >= 3 && S.roadblockT <= 0 && P.car && P.car.absSpeed > 8) { S.roadblockT = w >= 4 ? 18 : 28; spawnRoadblock(); }
+      if (S.lastSeen && w >= 4 && !W.heli) { S.heliT -= dt; if (S.heliT <= 0) { spawnHeli(); S.heliT = 40; } }
       // cops leaving cars near the player
       for (const c of W.cars) {
         if (c.removed || c.wrecked || c.ai.mode !== 'chase' || !c.driver || c.driver === PLAYER) continue;

@@ -55,6 +55,7 @@ const VEH = (() => {
     get absSpeed() { return Math.hypot(this.vx, this.vz); }
 
     update(dt) {
+      if (this.siren) this.sirenPhase += dt * 15;
       if (this.removed) return; this.age += dt; if (this.damageFlash > 0) this.damageFlash -= dt;
       if (!this.wrecked) { if (this.ai.mode === 'traffic' || this.ai.mode === 'flee') this.aiTraffic(dt); else if (this.ai.mode === 'chase') this.aiChase(dt); else if (this.ai.mode === 'parked' && !this.driver) { this.controls.throttle = 0; this.controls.brake = this.absSpeed > 0.2 ? 0.5 : 0; this.controls.steer = 0; } else if (this.ai.mode === 'route') this.aiRoute(dt); }
       else { this.controls.throttle = 0; this.controls.brake = 1; this.controls.steer = 0; }
@@ -82,7 +83,7 @@ const VEH = (() => {
       // tyre model: a bicycle with a front and a rear axle, lateral force from slip angle up to a friction limit
       const Lw = s.len * 0.58, bF = Lw * 0.5, bR = Lw * 0.5; const mu = 13 * s.grip; // total lateral grip, m/s^2
       const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked');
-      const wet = 1 - 0.3 * (W.weather ? W.weather.rain : 0); // rain takes almost a third of the grip
+      const wet = 1 - 0.3 * (RENDER.env.wet || 0); // rain takes almost a third of the grip
       let muF = mu * 0.5 * wet * this.dmg.front, muR = mu * 0.5 * wet * this.dmg.rear; if (c.handbrake) muR *= 0.32; if (c.brake > 0.6 && vF > 4) muF *= 0.75; // locked rears slide, hard braking dulls the front
       const Cf = muF / 0.11, Cr = muR / 0.1; // cornering stiffness: the front saturates at a slightly larger slip than the rear, so the car understeers gently
       let wheelspin = 0;
@@ -391,7 +392,7 @@ const VEH = (() => {
       if (!this.wrecked) {
         e[5] = this.lightsOn ? 1.0 : 0; e[6] = this.brakeLights ? 1.3 : (this.lightsOn ? 0.45 : 0);
         e[7] = night ? 1.2 : 0.2;
-        if (this.siren) { this.sirenPhase += 0.25; const ph = Math.floor(this.sirenPhase) % 2; e[8] = ph ? 1.6 : 0.1; e[9] = ph ? 0.1 : 1.6; const k = 0.15 + 0.6 * RENDER.env.nightEmis; W.dyn.push({ x: this.x, y: this.y + 2, z: this.z, r: 16, col: ph ? [1.2 * k, 0.15 * k, 0.15 * k] : [0.15 * k, 0.3 * k, 1.2 * k] }); }
+        if (this.siren) { const ph = Math.floor(this.sirenPhase) % 2; e[8] = ph ? 1.6 : 0.1; e[9] = ph ? 0.1 : 1.6; const k = 0.15 + 0.6 * RENDER.env.nightEmis; W.dyn.push({ x: this.x, y: this.y + 2, z: this.z, r: 16, col: ph ? [1.2 * k, 0.15 * k, 0.15 * k] : [0.15 * k, 0.3 * k, 1.2 * k] }); }
       }
       if (this.damageFlash > 0) { for (let i = 0; i < 5; i++) e[i] = 0.25; }
       const far = !this.wrecked && this.dentLevel === 0 && M.dist2(this.x, this.z, RENDER.cam.tx, RENDER.cam.tz) > 85 * 85; const lod = far ? getLod(this.type, this.colIdx) : null;

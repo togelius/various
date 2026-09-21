@@ -15,6 +15,48 @@ around one file; `python3 tools/build-single.py` regenerates it.
 ![Northgate at night, headlights on](screenshots/night.jpg)
 ![Four stars in Downtown](screenshots/chase.jpg)
 
+## Gameplay polish (September 2026)
+
+The mission panel now wraps long objectives and shows destination distance. In a car,
+the radar and map show a road route; the dotted final segment marks the approach off
+the road. Voss Motors has its own teal-and-gold service facade and readable sign.
+
+Gunfire uses the rendered camera's 3D aim and checks cover from the player's body.
+Bullets respect height, roofs, indoor walls and vehicle dimensions. **R reloads on
+foot**; the ammo display is magazine / reserve. Empty magazines reload automatically
+when firing, switching weapons cancels the reload, and magazine contents are saved.
+R still changes the radio in a car; drive-by weapons reload automatically.
+
+Police distinguish pursuit from searching. Unwitnessed shots do not reveal your
+position, officers search the last report, and buildings can hide you from the
+helicopter. The search bar shows progress toward losing the next wanted star.
+
+Vehicle entry chooses a reachable nearby door. Press F again, jump, or start moving
+to cancel the approach. Exiting checks both sides and behind the car. Recoil, punches
+and sirens advance with simulation time; aiming includes sideways/backward steps,
+jump poses and a reload pose. Wet-road grip follows lingering surface wetness.
+
+Repo Man gives you a short warning before the debtor runs. Block him for two seconds
+or reduce the Falcata below 65% condition to make him surrender. Return it at low
+speed for $1,000 plus up to $600 for its condition; killing the debtor still pays
+only $500. Failed missions retain **Y to retry**, skip repeated dialogue, and retain
+existing checkpoint support. On touchscreens, tap the retry panel or weapon area to
+retry or reload.
+
+Regression checks (no dependencies):
+
+```sh
+node test/gameplay-polish.js
+node test/character-geometry.js
+node test/vehicle-geometry.js
+```
+
+For a repeatable visual rehearsal, serve this folder and open
+`test/polish-scenes.html`. Its visible buttons exercise driving, shooting, vehicle
+entry, Repo Man and retry using the real simulation, without saving progress. Rehearsals start muted; add `?mute=1` to a normal
+game URL for a quiet launch (M still toggles sound).
+Rebuild the standalone game with `python3 tools/build-single.py` after source edits.
+
 ## What it is
 
 A third-person open-world game in the shape of the early 3D crime games: you

@@ -543,8 +543,17 @@ const CITY = (() => {
         addPlace('bar', { x: front.x, z: front.z, label: sp.label, angle: 0 }); specialLots.bar = { x0, z0, x1, z1, door: front };
         break;
       case 'garage':
-        h = 6; b.box(x0, y, z0, W, h, D, [0.85, 0.85, 0.85], T.garage, { uvScale: 12 }); b.box(x0 - 0.2, y + h, z0 - 0.2, W + 0.4, 0.5, D + 0.4, [0.35, 0.35, 0.38]);
-        signBox(b, x0 + W / 2, y + h + 1.2, z0 + 0.3, Math.min(W - 2, 12), 1.8, [0.9, 0.2, 0.15]);
+        h = 6; b.box(x0, y, z0, W, h, D, [0.48, 0.65, 0.61], T.garage, { uvScale: 12 }); b.box(x0 - 0.2, y + h, z0 - 0.2, W + 0.4, 0.5, D + 0.4, [0.35, 0.35, 0.38]);
+        b.cbox(x0+W/2,y+h+1.2,z0+.3,12.3,2.1,.4,[.08,.19,.2]);
+        b.cbox(x0+W/2,y+h+1.2,z0+.04,12,1.8,.08,[1,1,1],T.vossSign,{faces:32,uvScale:12,uvScaleV:1.8});
+        b.box(x0-.35,y+4.5,z0-.55,W+.7,1.1,.65,[.08,.25,.27]);
+        b.box(x0-.5,y+4.25,z0-2.3,W+1,.22,2.5,[.94,.68,.29]);
+        for (let k=0;k<3;k++) { const bx=x0+2+k*(W-5)/3, bw=(W-5)/3-1;
+          b.box(bx,y,z0-.09,bw,3.9,.12,[.12,.17,.18]);
+          b.box(bx-.16,y,z0-.2,.16,4.1,.2,[.94,.68,.29]); b.box(bx+bw,y,z0-.2,.16,4.1,.2,[.94,.68,.29]);
+          for (let j=1;j<9;j++) b.box(bx,y+j*.43,z0-.23,bw,.035,.035,[.38,.46,.44]);
+          b.box(bx+.25,y+3.7,z0-.28,bw-.5,.1,.12,[1,.89,.64]);
+        }
         addPlace('garage', { x: front.x, z: front.z, label: sp.label, angle: 0 });
         addPlace('mission', { x: front.x - 6, z: front.z, label: 'MARLA', angle: 0 });
         break;

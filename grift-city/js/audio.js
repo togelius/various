@@ -4,7 +4,7 @@
 'use strict';
 const AUDIO = (() => {
   let ctx = null, master, comp, sfxBus, musicBus, revBus, engineNodes = null, sirenNodes = null, screechNodes = null, ambient = null, noiseBuf = null, analyser = null;
-  let muted = false, radioStation = 0, radioTimer = 0, radioBeat = 0, radioOn = false, birdT = 3, gullT = 5;
+  let muted = new URLSearchParams(location.search).get('mute') === '1', radioStation = 0, radioTimer = 0, radioBeat = 0, radioOn = false, birdT = 3, gullT = 5;
   const STATIONS = ['OFF', 'NEON FM', 'GRIFT BEATS', 'STATIC 91.1'];
   function ensure() {
     if (ctx) return true;
