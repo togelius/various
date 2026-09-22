@@ -746,11 +746,12 @@ const CITY = (() => {
   function nearestWalkNode(x, z) { let best = null, bd = 1e9; for (const n of walkNodes) { const d = M.dist2(x, z, n.x, n.z); if (d < bd) { bd = d; best = n; } } return best; }
   function place(kind, idx = 0) { return places[kind] ? places[kind][idx] : null; }
   function nearestPlace(kind, x, z) { let best = null, bd = 1e9; for (const p of (places[kind] || [])) { const d = M.dist2(x, z, p.x, p.z); if (d < bd) { bd = d; best = p; } } return best; }
-  function districtName(x, z) { const bl = blockAt(x, z); if(bl && bl.quarter)return bl.quarter; const i = bl ? bl.i : Math.round(x / PITCH), j = bl ? bl.j : Math.round(z / PITCH); return { downtown: 'Downtown', midtown: 'Midtown', westfield: 'Westfield', northgate: 'Northgate', eastside: 'Eastside', southport: 'Southport' }[district(M.clamp(i, 0, GRID - 1), M.clamp(j, 0, GRID - 1))]; }
+  function districtName(x, z) { const bl = blockAt(x, z); if(bl && bl.quarter)return bl.quarter; if(blocks.some(b=>b.quarter&&x>=b.x-10&&x<=b.x+BLOCK+10&&z>=b.z-10&&z<=b.z+BLOCK+10))return 'Foundry Quarter'; const i = bl ? bl.i : Math.round(x / PITCH), j = bl ? bl.j : Math.round(z / PITCH); return { downtown: 'Downtown', midtown: 'Midtown', westfield: 'Westfield', northgate: 'Northgate', eastside: 'Eastside', southport: 'Southport' }[district(M.clamp(i, 0, GRID - 1), M.clamp(j, 0, GRID - 1))]; }
 
   let staticBuilder = null, waterBuilder = null;
   function generate() {
     staticBuilder = buildStatic();
+    if(typeof STREETS!=='undefined')STREETS.clearFurniture(props,solidProps);
     buildRoads(); buildWalks(); if(typeof STREETS !== 'undefined') STREETS.connect(walkNodes);
     for (const p of props.lamppost) solidProps.push({ x: p.x, z: p.z, r: 0.2, kind: 'lamppost', ref: p });
     for (const p of props.trafficLight) solidProps.push({ x: p.x, z: p.z, r: 0.2, kind: 'trafficLight', ref: p });

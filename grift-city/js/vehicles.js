@@ -253,20 +253,21 @@ const VEH = (() => {
         this.syncCondition();this.refreshDamageMesh();
       }
       const hf=this.health/this.maxHealth,lvl=hf<.3?2:hf<.65?1:0;
-      if(!contact&&lvl>this.dentLevel&&this.health>0){this.dentLevel=lvl;this.replaceMeshes(dentedMesh(this.type,this.colIdx,lvl*.5,this.dentSeed));}
+      if(!contact&&lvl>this.dentLevel&&this.health>0){this.dentLevel=lvl;this.replaceMeshes(dentedMesh(this.type,this.colIdx,lvl*.5,this.dentSeed,this.condition));}
       if(this.ai.mode==='traffic'&&amount>30){this.scared=6;this.ai.mode='flee';}
       if(this.health<=0){if(contact&&!this.bigBoom)this.disable();else this.explode();}
     }
-    replaceMeshes(next,owned=true){if(this.privateMeshes&&typeof GL!=='undefined'){const gl=GL.gl;for(const m of [this.meshes.body,this.meshes.glass])if(m?.vao){gl.deleteVertexArray(m.vao);gl.deleteBuffer(m.vbo);gl.deleteBuffer(m.ibo);}}this.meshes=next;this.mesh=next.body;this.privateMeshes=owned;}
-    refreshDamageMesh(){const c=this.condition,key=c.panels.map(v=>Math.floor((1-v)*3)).join('')+c.glass.map(v=>v<=0?1:0).join('');if(this.damageMeshKey===key)return;this.damageMeshKey=key;this.replaceMeshes(dentedMesh(this.type,this.colIdx,0,this.dentSeed,c));}
+    releaseMeshes(){if(this.privateMeshes&&typeof GL!=='undefined'){const gl=GL.gl;for(const m of [this.meshes.body,this.meshes.glass])if(m?.vao){gl.deleteVertexArray(m.vao);gl.deleteBuffer(m.vbo);gl.deleteBuffer(m.ibo);}}this.privateMeshes=false;}
+    replaceMeshes(next,owned=true){this.releaseMeshes();this.meshes=next;this.mesh=next.body;this.privateMeshes=owned;}
+    refreshDamageMesh(){const c=this.condition,key=c.panels.map(v=>Math.floor((1-v)*3)).join('')+c.glass.map(v=>v<=0?1:0).join('');if(this.damageMeshKey===key)return;this.damageMeshKey=key;this.replaceMeshes(dentedMesh(this.type,this.colIdx,this.dentLevel*.5,this.dentSeed,c));}
     syncCondition(){const c=this.condition;this.dmg.front=.45+.55*Math.min(c.tyres[0],c.tyres[1]);this.dmg.rear=.45+.55*Math.min(c.tyres[2],c.tyres[3]);this.dmg.pull=(c.tyres[1]-c.tyres[0])*.065+(c.panels[3]-c.panels[2])*.035;this.dmg.burst=c.tyres.slice(0,2).includes(0)?'front':c.tyres.slice(2).includes(0)?'rear':null;}
     disable(){if(this.wrecked)return;this.disabled=true;this.wrecked=true;this.health=0;this.condition.engine=0;this.controls.throttle=0;this.siren=false;this.lightsOn=false;if(this.driver===PLAYER)HUD.notify('Engine disabled. Find another ride.');else if(this.driver){this.driver.exitCar();}for(const p of this.passengers.slice())p.exitCar();}
     saveCondition(){return {health:this.health,condition:JSON.parse(JSON.stringify(this.condition)),dentSeed:this.dentSeed,dentLevel:this.dentLevel,identity:this.identity,disabled:this.disabled};}
     loadCondition(data){if(!data)return;this.health=M.clamp(Number(data.health)||0,0,this.maxHealth);this.dentSeed=data.dentSeed||this.dentSeed;this.dentLevel=M.clamp(data.dentLevel||0,0,2);if(data.identity)this.identity=data.identity;
-      const c=data.condition||{};for(const k of ['engine','cooling','temperature'])if(Number.isFinite(c[k]))this.condition[k]=M.clamp(c[k],0,1);for(const k of ['panels','glass','tyres'])if(Array.isArray(c[k])&&c[k].length===4)this.condition[k]=c[k].map(v=>Number.isFinite(v)?M.clamp(v,0,1):1);this.syncCondition();this.refreshDamageMesh();if(this.dentLevel){this.replaceMeshes(dentedMesh(this.type,this.colIdx,this.dentLevel*.5,this.dentSeed));}if(data.disabled||this.health<=0)this.disable();}
+      const c=data.condition||{};for(const k of ['engine','cooling','temperature'])if(Number.isFinite(c[k]))this.condition[k]=M.clamp(c[k],0,1);for(const k of ['panels','glass','tyres'])if(Array.isArray(c[k])&&c[k].length===4)this.condition[k]=c[k].map(v=>Number.isFinite(v)?M.clamp(v,0,1):1);this.syncCondition();this.damageMeshKey=null;this.refreshDamageMesh();if(data.disabled||this.health<=0)this.disable();}
     repair(){this.health=this.maxHealth;this.dentLevel=0;this.replaceMeshes(getMesh(this.type,this.colIdx),false);this.condition=condition();this.damageMeshKey=null;this.tyreTold=[];this.dmg={pull:0,front:1,rear:1,burst:null};this.fireT=0;this.disabled=this.wrecked=this.burning=this.burned=false;}
     explode() {
-      if (this.burned) return; this.burned=true; this.wrecked = true; this.health = 0; this.fireT = 0; this.meshes = dentedMesh(this.type, 'wreck', 1.0, this.dentSeed); this.mesh = this.meshes.body; this.siren = false; this.lightsOn = false;
+      if (this.burned) return; this.burned=true; this.wrecked = true; this.health = 0; this.fireT = 0; this.replaceMeshes(dentedMesh(this.type, 'wreck', 1.0, this.dentSeed)); this.siren = false; this.lightsOn = false;
       const big = this.bigBoom ? 3 : 1; W.FX.explosion(this.x, this.y + 0.5, this.z, (this.spec.len > 6 ? 1.6 : 1) * big); AUDIO.play('explosion', this.x, this.z); W.noise(this.x, this.z, 120 * big, 'explosion'); if (this.bigBoom) { for (let k = 0; k < 6; k++) setTimeout(() => W.FX.explosion(this.x + (W.rng() - 0.5) * 16, this.y + 1, this.z + (W.rng() - 0.5) * 16, 1.4), 150 + k * 120); PLAYER.shake(1); }
       this.vy = 4; this.airborne = true; this.y += 0.05;
       const killer = this.lastHitBy;
@@ -310,6 +311,7 @@ const VEH = (() => {
       c.steer = M.clamp(delta / lock - (this.yawRate || 0) * 0.1, -1, 1);
       // target speed
       let target = (ai.mode === 'flee' ? (ai.fleeSpeed || 24) : ai.cruise) * (1 - 0.25 * (W.weather ? W.weather.rain : 0)); // everyone slows down in the wet
+      if(typeof STREETLIFE!=='undefined'&&ai.mode==='traffic')target*=1-STREETLIFE.risk(this.x,this.z)*.55;
       // a fleeing mission driver who is tailed closely for long enough loses their nerve, pulls over and runs
       if (ai.missionFlee && this.driver && this.driver !== PLAYER) {
         const close = PLAYER && PLAYER.alive && PLAYER.car && M.dist(PLAYER.x, PLAYER.z, this.x, this.z) < 16;
@@ -426,7 +428,7 @@ const VEH = (() => {
       return { mesh: lod ? lod.body : this.mesh, glass: lod ? lod.glass : this.meshes.glass, model: this.model, bones: this.bones, emis: e, spec: this.wrecked ? 0 : 0.25 };
     }
     headlightFX() { if (!this.lightsOn || this.wrecked) return; const f = this.fwd, r = this.right; const s = this.spec; const hx = this.x + f[0] * s.len * 0.5, hz = this.z + f[1] * s.len * 0.5; W.fx.lightPool(hx, hz, f[0], f[1], 16, 3.2, [1, 0.95, 0.75], 0.2); W.dyn.push({ x:hx+f[0]*.15, y:this.y+.8, z:hz+f[1]*.15, r:28, col:[2.8,2.5,1.9], dir:[f[0],-.10,f[1]], cone:.72, priority:this.driver===PLAYER?5:1 }); }
-    remove() { this.removed = true; if (this.driver && this.driver !== PLAYER) { this.driver.removed = true; } for (const p of this.passengers) p.removed = true; }
+    remove() { this.releaseMeshes(); this.removed = true; if (this.driver && this.driver !== PLAYER) { this.driver.removed = true; } for (const p of this.passengers) p.removed = true; }
   }
   // Bone matrix rotating a wheel around its own axle: T(p) * Ry(yaw) * Rx(rot) * T(-p)
   function wheelBone(out, off, px, py, pz, yaw, rot, scale = 1) {
@@ -455,7 +457,7 @@ const VEH = (() => {
     let count = 0; for (const c of W.cars) if (!c.removed && c.ai.mode === 'traffic') count++;
     if (count <= want + 2) return; let best = null, bd = 0;
     for (const c of W.cars) { if (c.removed || c.ai.mode !== 'traffic' || c.important || c.driver === PLAYER || c.playerOwned) continue; const d = M.dist(c.x, c.z, px, pz); if (d < 60) continue; const ang = Math.atan2(c.x - px, c.z - pz); if (d < 160 && Math.abs(M.angleTo(camYaw, ang)) < 1.0) continue; if (d > bd) { bd = d; best = c; } }
-    if (best) { if (best.driver) best.driver.remove(); for (const q of best.passengers) q.remove(); best.removed = true; }
+    if (best) { if (best.driver) best.driver.remove(); for (const q of best.passengers) q.remove(); best.remove(); }
   }
   function spawnTraffic(px, pz, camYaw, wantCount) {
     let count = 0; for (const c of W.cars) if (!c.removed && c.ai.mode === 'traffic') count++;

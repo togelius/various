@@ -7,6 +7,8 @@ vm.runInContext(`
 MESH.Builder.prototype.build=()=>({});CITY.generate();
 assert.equal(CITY.blocks.filter(b=>b.quarter).length,10);
 assert.equal(CITY.blocks.filter(b=>b.authored).length,7);
+for(let z=252;z<293;z+=.5)assert.ok(!CITY.solidProps.some(p=>M.dist(p.x,p.z,210,z)<p.r+1),'Lantern Lane entrance and lane remain free of sidewalk furniture');
+assert.equal(CITY.districtName(210,252),'Foundry Quarter');
 assert.equal(CITY.groundY(294,462,.15),.15,'walk underneath deck');
 assert.equal(CITY.groundY(294,462,3.8),3.8,'walk on deck');
 assert.equal(W.pushOut(294,462,.42,{y:.15}).hit,null,'underside clear');

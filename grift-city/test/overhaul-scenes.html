@@ -1,0 +1,76 @@
+<!doctype html><html lang="en"><head><base href="../"><meta name="viewport" content="width=device-width,initial-scale=1"><meta charset="utf-8"><title>Grift City · overhaul rehearsal</title>
+<link rel="stylesheet" href="css/style.css">
+</head><body><div id="stage"><canvas id="gl"></canvas><canvas id="hud"></canvas></div>
+<script src="js/math.js?v=coastal-release-1"></script>
+<script src="js/gl.js?v=coastal-release-1"></script>
+<script src="js/texdata.js?v=coastal-release-1"></script>
+<script src="js/textures.js?v=coastal-release-1"></script>
+<script src="js/assets.js?v=coastal-release-1"></script>
+<script src="js/meshes.js?v=coastal-release-1"></script>
+<script src="js/streets.js?v=coastal-release-1"></script>
+<script src="js/city.js?v=coastal-release-1"></script>
+<script src="js/render.js?v=coastal-release-1"></script>
+<script src="js/audio.js?v=coastal-release-1"></script>
+<script src="js/input.js?v=coastal-release-1"></script>
+<script src="js/touch.js?v=coastal-release-1"></script>
+<script src="js/world.js?v=coastal-release-1"></script>
+<script src="js/vehicles.js?v=coastal-release-1"></script>
+<script src="js/tactics.js?v=coastal-release-1"></script>
+<script src="js/peds.js?v=coastal-release-1"></script>
+<script src="js/player.js?v=coastal-release-1"></script>
+<script src="js/police.js?v=coastal-release-1"></script>
+<script src="js/missions.js?v=coastal-release-1"></script>
+<script src="js/economy.js?v=coastal-release-1"></script>
+<script src="js/ambient.js?v=coastal-release-1"></script>
+<script src="js/streetlife.js?v=coastal-release-1"></script>
+<script src="js/navigation.js?v=coastal-release-1"></script>
+<script src="js/hud.js?v=coastal-release-1"></script>
+<script src="js/settings.js?v=coastal-release-1"></script>
+<script src="js/game.js?v=coastal-release-1"></script>
+<style>#review{position:fixed;right:8px;top:120px;width:270px;max-height:calc(100vh - 150px);overflow:auto;background:#10252fee;color:white;padding:10px;z-index:30;font:12px system-ui}button,select{margin:3px;padding:4px}pre{white-space:pre-wrap;font-size:11px}#toggle{position:fixed;right:8px;top:86px;z-index:40}</style>
+<button id="toggle">Hide review controls</button><aside id="review"><b>REVIEW · MUTED · SAVES DISABLED</b>
+<div id="controls"></div><pre id="metrics">Loading</pre></aside>
+<script>
+window.__manual=true;
+const C=document.querySelector('#controls'), metrics=document.querySelector('#metrics');
+let capture=[],recording=false;
+function stamp(){const p=PLAYER.P,c=p.car;metrics.textContent=JSON.stringify({muted:AUDIO.muted,state:p.state,pos:[p.x,p.y,p.z].map(x=>+x.toFixed(2)),speed:c?+c.absSpeed.toFixed(2):+p.speed.toFixed(2),car:c?{type:c.type,health:Math.round(c.health/c.maxHealth*100),slipR:+(c.slipR||0).toFixed(2),yaw:+(c.yawRate||0).toFixed(2)}:null,health:Math.round(p.health),wanted:p.wanted,streetlife:{incidents:STREETLIFE.incidents.length,shutters:CITY.shopfronts.filter(s=>s.shut).length,queues:STREETLIFE.queues.reduce((n,q)=>n+q.people.length,0),deliveries:STREETLIFE.deliveries.length},police:{seen:+POLICE.S.seenT.toFixed(1),reports:POLICE.reports.length},tactics:W.peds.filter(q=>q.tactics).map(q=>({role:q.tactics.role,suppression:+(q.suppression||0).toFixed(2),reload:+(q.reloadT||0).toFixed(1)})).slice(0,6),time:W.clockString(),fps:GAME.fps,auto:GAME.auto.level,draws:RENDER.stats.draws,tris:RENDER.stats.tris,cars:W.cars.length,peds:W.peds.length,frames:summary()},null,2);}
+function summary(){if(!capture.length)return null;const a=capture.slice().sort((a,b)=>a-b);return {n:a.length,p50:+a[Math.floor(a.length*.5)].toFixed(1),p95:+a[Math.floor(a.length*.95)].toFixed(1),p99:+a[Math.floor(a.length*.99)].toFixed(1)};}
+let last=0;function frame(t){if(recording&&last)capture.push(t-last);last=t;requestAnimationFrame(frame);}requestAnimationFrame(frame);
+function render(){window.__renderOnce();stamp();}
+function reset(){GAME.save=()=>false;GAME.state='playing';INPUT.releaseLock();INPUT.onLockLost=()=>{};window.__manual=true;if(!AUDIO.muted)AUDIO.toggleMute();const p=PLAYER.P;if(p.car){p.car.driver=null;p.car.ai.mode='parked';}Object.assign(p,{car:null,alive:true,health:100,state:'foot',invuln:100,lying:0,vx:0,vy:0,vz:0,airborne:false,aim:0,weapon:'fist',rag:null,camX:0,camZ:0,camPitch:.18});MISSIONS.cleanup();Object.assign(MISSIONS.S,{current:null,dialogue:null,retry:null,cooldown:999,shop:null,objective:'',blip:null});POLICE.clear();HUD.clearBig();return p;}
+function place(kind){const p=reset(),g=CITY.place(kind)||CITY.nearestPlace(kind,p.x,p.z);p.x=g.x+5;p.z=g.z-10;p.y=CITY.groundY(p.x,p.z);p.angle=p.camYaw=0;window.__sim(.1);render();}
+function button(label,fn){const b=document.createElement('button');b.textContent=label;b.disabled=true;b.onclick=()=>{try{fn();}catch(e){metrics.textContent=e.stack;}};C.append(b);}
+function step(t,keys=[]){GAME.state='playing';window.__sim(t,keys);render();}
+function live(t,keys=[]){GAME.state='playing';INPUT.releaseLock();capture=[];recording=true;window.__manual=false;keys.forEach(k=>INPUT.holdKey(k,true));setTimeout(()=>{keys.forEach(k=>INPUT.holdKey(k,false));window.__manual=true;recording=false;render();},t*1000);}
+function car(type){const p=reset(),c=VEH.spawn(type,3*CITY.PITCH+5.25,2*CITY.PITCH+24,0,{color:0});c.driver=PLAYER;c.ai.mode='player';p.car=c;p.state='car';p.x=c.x;p.z=c.z;p.y=c.y;p.camYaw=c.angle;render();}
+for(const k of ['garage','safehouse','docks','park'])button(k,()=>place(k));
+for(const [label,x,y,z,a] of [['Foundry',290,.15,291,0],['Diner',210,.15,252,0],['Under deck',266,.15,463,Math.PI/2],['On deck',293,3.8,460,0],['Ramp foot',314,.15,430,0],['Vault wall',299,.15,298,0]])button(label,()=>{const p=reset();Object.assign(p,{x,y,z,camYaw:a,angle:a});render();});
+button('Ramp car',()=>{car('sedan');const c=PLAYER.P.car;Object.assign(c,{x:314,z:429,y:.15,angle:0});Object.assign(PLAYER.P,{x:c.x,z:c.z,y:c.y,camYaw:0});render();});
+button('Entry pose',()=>{const p=reset(),c=VEH.spawn('sedan',314,429,0,{color:0});p.x=315.55;p.z=429;p.y=.15;p.camYaw=-Math.PI/2;step(.5,['KeyF']);});
+button('Entry finish',()=>step(1));
+button('Damaged car',()=>{car('sedan');const c=PLAYER.P.car;c.damage(90,null,{x:c.x+1,y:c.y+.3,z:c.z+1.4,kind:'bullet'});c.damage(240,null,{x:c.x,y:c.y+.7,z:c.z+2.2,kind:'impact'});render();});
+button('Forward .5s',()=>step(.5,['KeyW']));
+button('Midday',()=>{W.state.time=12;W.weather.rain=0;W.weather.target=0;step(.1)});
+button('Dusk',()=>{W.state.time=18.5;W.weather.rain=0;W.weather.target=0;step(.1)});
+button('Night',()=>{W.state.time=22;step(.1)});
+button('Rain',()=>{W.weather.rain=1;W.weather.target=1;RENDER.env.wet=1;step(.1)});
+button('Turn camera left',()=>{PLAYER.P.camYaw+=Math.PI/4;render()});
+button('Turn camera right',()=>{PLAYER.P.camYaw-=Math.PI/4;render()});
+button('Look down',()=>{PLAYER.P.camPitch=Math.min(1,PLAYER.P.camPitch+.15);render()});
+button('Look up',()=>{PLAYER.P.camPitch=Math.max(-.3,PLAYER.P.camPitch-.15);render()});
+button('Walk 2s',()=>step(2,['KeyW']));button('Sprint 2s',()=>step(2,['KeyW','ShiftLeft']));
+button('Jump 0.25s',()=>step(.25,['Space','KeyW']));button('Settle .5s',()=>step(.5));
+button('Enter exit',()=>step(.1,['KeyF']));
+button('Falcata',()=>car('sports'));button('Meridian',()=>car('sedan'));button('Mule',()=>car('pickup'));
+button('Drive 8s',()=>live(8,['KeyW']));button('Turn left 1s',()=>step(1,['KeyW','KeyA']));button('Turn right 1s',()=>step(1,['KeyW','KeyD']));button('Brake 2s',()=>step(2,['KeyS']));button('Handbrake left .5s',()=>step(.5,['KeyA','Space']));
+button('Pistol',()=>{PLAYER.giveWeapon('pistol',150);PLAYER.P.weapon='pistol';step(.1,['KeyC'])});
+button('Fire 1s',()=>step(1,['KeyC','ControlLeft']));button('Aim strafe 1s',()=>step(1,['KeyC','KeyD']));button('Reload .5s',()=>step(.5,['KeyR']));
+button('Combat encounter',()=>{const p=reset();W.cars.length=0;W.peds.length=0;p.x=3*CITY.PITCH;p.z=4*CITY.PITCH;p.y=0;p.camYaw=0;p.camPitch=0;W.state.time=16;W.weather.rain=0;W.weather.target=0;RENDER.env.wet=0;PLAYER.giveWeapon('pistol',100);p.weapon='pistol';p.magazines.pistol=17;p.invuln=0;for(const [dx,dz] of [[0,16],[4,22],[-4,25]]){const e=PEDS.spawn(p.x+dx,p.z+dz,{look:PEDS.GANG,gang:true,hostile:true,weapon:'pistol',health:60});e.important=true;}step(.1,['KeyC']);});
+button('Foundry fight',()=>{const p=reset();W.cars.length=0;W.peds.length=0;Object.assign(p,{x:299,z:286,y:.15,camYaw:0,camPitch:0,invuln:0});PLAYER.giveWeapon('pistol',150);p.weapon='pistol';for(const [x,z] of [[299,303],[292,306],[301,316]]){const q=PEDS.spawn(x,z,{look:PEDS.GANG,gang:true,hostile:true,weapon:'pistol'});q.important=true;}step(.1,['KeyC']);});
+button('Two stars',()=>{POLICE.setStars(2);step(.1)});button('Four stars',()=>{POLICE.setStars(4);step(.1)});button('Clear heat',()=>{POLICE.clear();step(.1)});
+button('Live idle 10s',()=>live(10));button('Walk live 4s',()=>live(4,['KeyW']));button('Pause / settings',()=>{GAME.state='paused';render()});button('Touch controls',()=>{TOUCH.force(!TOUCH.active);render()});button('Map',()=>{GAME.state=GAME.state==='map'?'playing':'map';render()});button('Refresh stats',()=>stamp());
+document.querySelector('#toggle').onclick=()=>{const r=document.querySelector('#review');r.hidden=!r.hidden;document.querySelector('#toggle').textContent=r.hidden?'Show review controls':'Hide review controls';};
+window.addEventListener('load',()=>{const ready=setInterval(()=>{if(!window.__ready)return;clearInterval(ready);GAME.save=()=>false;if(!AUDIO.muted)AUDIO.toggleMute();place('garage');C.querySelectorAll('button').forEach(b=>b.disabled=false);},100);});
+</script>
+</body></html>

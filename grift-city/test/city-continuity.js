@@ -1,0 +1,12 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path'),noop=()=>{};const saved=new Map();
+const ctx=vm.createContext({console,assert,URLSearchParams,location:{search:'?seed=42&mute=1'},localStorage:{getItem:k=>saved.get(k),setItem:(k,v)=>saved.set(k,v)},TEX:{names:{},shopKinds:[]},RENDER:{MAX_BONES:14,env:{wet:0},cam:{},setCamera:noop},GAME:{options:{}},AUDIO:{play:noop},HUD:{notify:noop,mapRect:{x:10,y:10,size:800,scale:1,b0:0,uiScale:1}},MISSIONS:{S:{},dialogue:null},POLICE:{crime:noop}});
+for(const n of ['math','assets','meshes','streets','city','world','input','vehicles','peds','player','streetlife','navigation','settings'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../js',n+'.js'),'utf8'),ctx,{filename:n+'.js'});
+vm.runInContext(`
+MESH.Builder.prototype.build=MESH.Builder.prototype.buildInstanced=()=>({});CITY.generate();const p=PLAYER.P;Object.assign(p,{x:299,y:.15,z:286});
+STREETLIFE.record('shot',190,263);STREETLIFE.update(.5);assert.ok(CITY.shopfronts.some(s=>s.shut&&s.shutter>0),'shops close near violence');assert.ok(STREETLIFE.risk(190,263)>.9);const snapshot=JSON.parse(JSON.stringify(STREETLIFE.save()));STREETLIFE.incidents.length=0;STREETLIFE.load(snapshot);assert.equal(STREETLIFE.incidents.length,1);STREETLIFE.update(110);assert.equal(STREETLIFE.incidents.length,0,'local alert eventually clears');assert.ok(CITY.shopfronts.every(s=>s.shut===s.originallyShut),'shops return to their original open or closed state');
+const gate=STREETS.objects.find(o=>o.gate);gate.down=true;const data=STREETLIFE.save();gate.down=false;STREETLIFE.load(data);assert.ok(gate.down,'broken gate survives save');
+NAV.set({x:314,z:461,y:3.8,label:'Switchback Deck'});assert.equal(NAV.waypoint.label,'Switchback Deck');assert.ok(NAV.route(p,NAV.waypoint).length>2,'route preview exists');NAV.mapClick(262,346);assert.equal(NAV.waypoint.x,252);assert.equal(NAV.waypoint.z,336);NAV.mapClick(20,20,2);assert.equal(NAV.waypoint,null);assert.ok(NAV.destinations().some(p=>p.label==='Lantern Diner'));
+SETTINGS.sanitize(GAME.options);assert.equal(GAME.options.masterVolume,.8);assert.equal(GAME.options.quietMix,false);GAME.options.musicVolume=8;SETTINGS.sanitize(GAME.options);assert.equal(GAME.options.musicVolume,1);
+console.log('City continuity: incident persistence/expiry, shutters, broken gates, destination selection, route previews and mix settings passed');
+`,ctx);

@@ -63,6 +63,7 @@ const TOUCH = (() => {
       add('jump', bx + u * 0.04, by - u * 2.45, u * 0.7, 'JUMP', true);
       add('enter', bx - u * 1.92, by - u * 1.92, u * 0.7, 'ENTER', true);
       if (safe(()=>MISSIONS.S.current && MISSIONS.S.current.id===1 && !MISSIONS.S.current.strand && !MISSIONS.S.current.data.fled && !MISSIONS.S.current.data.surrendered,false)) add('talk',bx-u*3.55,by-u*2.85,u*.6,'TALK');
+      add('crouch',bx-u*3.75,by-u*1.6,u*.48,'CROUCH',true);add('evade',bx-u*3.65,by-u*3.4,u*.48,'EVADE',true);add('shoulder',bx-u*1.9,by-u*3.5,u*.44,'SIDE',true);add('reload',bx-u*5.0,by-u*2.7,u*.45,'LOAD',true);
       add('weapon', bx - u * 4.05, by - u * 0.15, u * 0.56, 'WEAP', true);
     }
     add('map', W - u * 5.9, u * 0.95, u * 0.5, 'MAP', true);
@@ -106,7 +107,7 @@ const TOUCH = (() => {
   }
 
   function onDown(e) {
-    if (e.target.closest && e.target.closest('#settings')) return;
+    if (e.target.closest && e.target.closest('#settings,#map-nav')) return;
     if (e.pointerType === 'mouse') { sawMouse = true; if (forced === null) setActive(false); return; }
     setActive(sense() || forced === true || forced === null);
     if (!active) return;
@@ -118,7 +119,7 @@ const TOUCH = (() => {
     if (md === 'title') { safe(() => GAME.startPlay(), null); pts.set(id, { role: 'none' }); return; }
     const L = layout();
     if (md === 'dialogue') { INPUT.tapKey('Space'); pts.set(id, { role: 'none' }); return; }
-    if (md === 'map') { INPUT.tapKey('Tab'); pts.set(id, { role: 'none' }); return; }
+    if (md === 'map') { NAV.mapClick(x,y); pts.set(id, { role: 'none' }); return; }
     if (md === 'paused') { INPUT.tapKey('Escape'); pts.set(id, { role: 'none' }); return; }
     const b = buttonAt(x, y, L);
     if (b) {
@@ -136,6 +137,7 @@ const TOUCH = (() => {
   function fireTap(id) {
     if (id === 'jump') INPUT.tapKey('Space');
     else if (id === 'enter' || id === 'exit') INPUT.tapKey('KeyF');
+    else if (['crouch','evade','shoulder','reload'].includes(id))INPUT.tapKey({crouch:'KeyZ',evade:'KeyX',shoulder:'KeyV',reload:'KeyR'}[id]);
     else if (id === 'weapon') INPUT.tapKey('KeyE');
     else if (id === 'radio') INPUT.tapKey('KeyR');
     else if (id === 'siren') INPUT.tapKey('KeyL');

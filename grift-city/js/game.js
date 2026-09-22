@@ -9,7 +9,7 @@ const GAME = (() => {
   const AUTO_LEVELS = 5, AO_STRENGTH = 0.65, STEP = 1 / 60, MAX_STEPS = 6;
   function loadOptions() { try { Object.assign(options, JSON.parse(localStorage.getItem('grift-city-options') || '{}')); } catch (e) { } SETTINGS.sanitize(options); applyOptions(); }
   function saveOptions() { try { localStorage.setItem('grift-city-options', JSON.stringify(options)); } catch (e) { } SETTINGS.sanitize(options); applyOptions(); }
-  function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 5; RENDER.post.enabled = options.bloom && L < 4; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.4 : 0; RENDER.env.interiors = !/[?&]rooms=0/.test(location.search); RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
+  function applyOptions() { AUDIO.setMix(options);const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 5; RENDER.post.enabled = options.bloom && L < 4; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.4 : 0; RENDER.env.interiors = !/[?&]rooms=0/.test(location.search); RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
   // The decision alone, with no side effects, so it can be driven directly by a test. Returns 'lower', 'raise'
   // or null. What stops it oscillating is not a limit on how often quality may be restored -- that turned a few
   // transient stalls into a permanent downgrade on a machine well able to run it -- but a count of the restores
@@ -48,7 +48,7 @@ const GAME = (() => {
       }
       localStorage.setItem(SAVE_KEY, JSON.stringify({
         version: 2, x: P.x, y: P.y, z: P.z, inside: MISSIONS.S.inside || null, roof: !!MISSIONS.S.roof,
-        outfit: P.outfit || 0, garage, econ: ECON.saveData(), flags: MISSIONS.S.flags,
+        outfit: P.outfit || 0, garage,streetlife:STREETLIFE.save(), econ: ECON.saveData(), flags: MISSIONS.S.flags,
         progress2: MISSIONS.S.progress2, phoneProgress: MISSIONS.S.phoneProgress, rampageDone: MISSIONS.S.rampageDone,
         money: P.money, health: P.health, armor: P.armor,
         magazines: P.magazines,
@@ -76,7 +76,7 @@ const GAME = (() => {
       MISSIONS.S.progress = s.progress || 0; MISSIONS.S.done = s.done || {};
       MISSIONS.S.progress2 = s.progress2 || 0; MISSIONS.S.phoneProgress = s.phoneProgress || 0;
       MISSIONS.S.rampageDone = s.rampageDone || {}; MISSIONS.S.flags = s.flags || {};
-      ECON.loadData(s.econ);
+      ECON.loadData(s.econ);STREETLIFE.load(s.streetlife);
       const room = s.inside && CITY.interiors[s.inside];
       if (room) {
         MISSIONS.enterInterior(room);
@@ -136,6 +136,7 @@ const GAME = (() => {
     for (let i = 0; i < 40; i++) { VEH.spawnTraffic(PLAYER.x, PLAYER.z, PLAYER.P.camYaw + Math.PI, 26); PEDS.populate(PLAYER.x, PLAYER.z, PLAYER.P.camYaw + Math.PI, 40); }
     state = 'title';
     INPUT.onLockLost = () => { if (state === 'playing' && !MISSIONS.shop) { state = 'paused'; INPUT.releaseLock(); } };
+    document.addEventListener('pointerdown',e=>{if(state==='map'&&!TOUCH.active&&!e.target.closest('#map-nav'))NAV.mapClick(e.clientX,e.clientY,e.button);});
     document.addEventListener('mousedown', e => { if (state !== 'title' || TOUCH.active) return; const r = HUD.newGameRect; if (r && e.clientX >= r.x && e.clientX <= r.x + r.w && e.clientY >= r.y && e.clientY <= r.y + r.h) { INPUT.tapKey('KeyN'); return; } startPlay(); }, { once: false });
 
     window.__ready = true;
@@ -160,8 +161,8 @@ const GAME = (() => {
     }
     wipeT = Math.max(0, wipeT - dt);
     if (state === 'title') { if (INPUT.hit('KeyN')) askNewGame(); RENDER.setTimeOfDay(W.state.time, W.weather.rain); titleCamera(now / 1000); renderWorld(dt, true); HUD.draw(dt, 'title'); INPUT.endFrame(); return; }
-    if (INPUT.hit('Escape')) { if (MISSIONS.shop) { } else if (state === 'playing') { state = 'paused'; INPUT.releaseLock(); } else if (state === 'paused') { state = 'playing'; INPUT.requestLock(); } }
-    if (INPUT.hit('Tab')) { if (state === 'playing') state = 'map'; else if (state === 'map') state = 'playing'; }
+    if (INPUT.hit('Escape')) { if (MISSIONS.shop) { } else if (state === 'playing') { state = 'paused'; INPUT.releaseLock(); } else if (state === 'paused') { state = 'playing'; INPUT.requestLock(); } else if(state==='map'){state='playing';INPUT.releaseAll();} }
+    if (INPUT.hit('Tab')) { if (state === 'playing') {state = 'map';INPUT.releaseLock();} else if (state === 'map') state = 'playing'; }
     if (INPUT.hit('KeyP') && state === 'playing' && !MISSIONS.shop) { state = 'photo'; const c = RENDER.cam; const d = Math.hypot(c.tx - c.x, c.ty - c.y, c.tz - c.z) || 1; photo = { x: c.x, y: c.y, z: c.z, yaw: Math.atan2(c.tx - c.x, c.tz - c.z), pitch: Math.asin((c.ty - c.y) / d), fov: 55, shot: false, savedT: 0 }; INPUT.requestLock(); }
     else if (state === 'photo' && (INPUT.hit('KeyP') || INPUT.hit('Escape'))) { state = 'playing'; }
     if (state === 'photo') updatePhoto(dt);
@@ -259,7 +260,7 @@ const GAME = (() => {
     if (!dlg) PLAYER.update(dt); else { PLAYER.P.aim = 0; PLAYER.P.vx = PLAYER.P.vz = 0; if (PLAYER.car) { PLAYER.car.controls.throttle = 0; PLAYER.car.controls.brake = 1; } PLAYER.updateCamera(dt); }
     PLAYER.updateProjectiles(dt);
     VEH.updateAll(dt, night); PEDS.updateAll(dt); POLICE.update(dt); PICKUPS.update(dt);
-    W.updateLights(dt); W.updateKnocked(dt); W.updateExplosions(dt); W.updateParticles(dt); AMBIENT.update(dt, PLAYER.x, PLAYER.z);
+    W.updateLights(dt); W.updateKnocked(dt); W.updateExplosions(dt); W.updateParticles(dt); AMBIENT.update(dt, PLAYER.x, PLAYER.z);STREETLIFE.update(dt);
     // population management
     const px = PLAYER.x, pz = PLAYER.z, yaw = W.state.camYaw;
     const busy = W.bustle(W.state.time); // rush hours fill the streets, the small hours empty them
@@ -293,7 +294,7 @@ const GAME = (() => {
     const pe = PLAYER.entity(); if (pe && !title) { scene.entities.push(pe); const h = PLAYER.heldEntity(); if (h) scene.entities.push(h); }
     if(typeof STREETS !== 'undefined') scene.entities.push(...STREETS.entities());
     for (const e of PLAYER.projectileEntities()) scene.entities.push(e);
-    for (const e of PICKUPS.entities(cam.tx, cam.tz)) scene.entities.push(e); AMBIENT.entities(scene.entities);
+    for (const e of PICKUPS.entities(cam.tx, cam.tz)) scene.entities.push(e); AMBIENT.entities(scene.entities);STREETLIFE.entities(scene.entities);
     const he = POLICE.heliEntity(); if (he) scene.entities.push(he);
     if (!title) { MISSIONS.markersFX(W.state.elapsed); ECON.markersFX(W.state.elapsed); PLAYER.drawFX(); }
     // soft blob shadows under peds at night (sun shadows are off)

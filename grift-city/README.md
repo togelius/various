@@ -15,15 +15,42 @@ around one file; `python3 tools/build-single.py` regenerates it.
 ![Northgate at night, headlights on](screenshots/night.jpg)
 ![Four stars in Downtown](screenshots/chase.jpg)
 
-## Coastal getaway overhaul (in progress)
+## Coastal getaway overhaul (September 2026)
 
-The implementation milestones and validation record are in [DEVELOPMENT.md](DEVELOPMENT.md).
-**Esc** opens a keyboard- and touch-accessible settings panel with key remapping,
-separate aim sensitivity, optional mouse/controller assistance, camera motion controls,
-and HUD scaling. **Z** toggles crouch, **X** evades with a recovery period, and **V**
-switches the aiming shoulder. Movement animation now follows collision-resolved velocity.
-The camera checks walls, props and vehicles around its near plane; speed uses metres/second
-converted directly to km/h. Sound can always be disabled at launch with `?mute=1`.
+Grift City now has a connected ten-block **Foundry Quarter**, including Lantern Lane,
+Laundry Court, Signal Market, the Old Foundry and a parking deck you can drive onto
+or pass underneath. Small-car clearances, foot passages, low cover, vaults and
+breakable gates make route choice matter. Procedural street furniture leaves those
+routes clear.
+
+The overhaul also adds weighted character joints and richer transitions, animated
+car doors, distinct sedan/sports/utility handling, local tyre/glass/body/engine damage,
+readable coastal night lighting, directional headlights and cached local reflections.
+Enemies use cover, suppression, reloads and complementary roles. Witness phone calls
+create delayed reports; police remember vehicle descriptions and search separate sectors.
+Nearby violence closes shutters, crashes draw attention, queues scatter and reform,
+and a delivery van temporarily obstructs a lane. Local incidents, broken gates and
+vehicle condition survive saves.
+
+**Tab** opens the map: choose a destination or click/tap to set a waypoint; **Esc**
+closes it. Route previews use roads and passages appropriate to your vehicle.
+**Esc** in play opens native keyboard/touch settings with remapping, separate aim
+sensitivity and assistance, steering assistance, camera motion controls, HUD scaling,
+quality controls, five audio levels and quiet dynamic range. **Z** crouches, **X**
+evades with recovery, **V** switches shoulders, and **Space** vaults a suitable low wall.
+Sound can always be disabled at launch with `?mute=1`; **M** toggles persistent mute.
+
+Run all dependency-free regression checks and rebuild the standalone release:
+
+```sh
+./tools/check-overhaul.sh
+```
+
+Serve this folder and open `test/overhaul-scenes.html?mute=1&seed=42` for repeatable
+street, ramp, entry, driving, combat, pursuit, weather, map and touch rehearsals.
+The visible controls run the real game, disable gameplay saves and report frame intervals.
+The older `test/polish-scenes.html` still provides mission/retry rehearsals.
+See [DEVELOPMENT.md](DEVELOPMENT.md) for milestones, results and evaluation limits.
 
 ## Gameplay polish (September 2026)
 
@@ -100,7 +127,8 @@ and regeneration tools.
 | Attack / fire         | left mouse button                          |
 | Aim                   | right mouse button, two-finger click, or hold Option/Alt or `C` |
 | Sprint                | `Shift`                                    |
-| Jump / handbrake      | `Space`                                    |
+| Jump / vault / handbrake | `Space`                                    |
+| Crouch / evade / shoulder | `Z` / `X` / `V`                          |
 | Enter or leave a car  | `F`                                        |
 | Weapons               | scroll wheel, `Q` / `E`, or `1`–`8`        |
 | Radio / horn / siren  | `R` / `H` / `L`                            |
@@ -113,7 +141,7 @@ and regeneration tools.
 
 Gamepads work: left stick moves, right stick looks, triggers fire and aim
 (on foot) or drive (in a car), A sprints or handbrakes, B jumps, X enters
-cars, bumpers change weapon.
+cars, bumpers change weapon. Stick clicks crouch and evade; D-pad left switches shoulders.
 
 Yellow markers are jobs. Walk into the one outside VOSS MOTORS to meet
 Marla; the blue one at PIER 9 is Okafor, once you have done enough for

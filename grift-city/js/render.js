@@ -429,7 +429,7 @@ const RENDER = (() => {
   const probeCache=new Map(); let probe=null;
   function updateProbe() {
     const size=16, x=cam.tx, z=cam.tz, py=cam.ty< -10?cam.ty:2;
-    const key=[Math.floor(x/24),Math.floor(z/24),Math.floor(py/8),Math.floor((env.hours||9)*2),Math.round((env.rain||0)*3)].join(':');
+    const key=[Math.floor(x/24),Math.floor(z/24),Math.floor(py/8),Math.floor((env.hours??9)*2),Math.round((env.rain||0)*3)].join(':');
     if(probeCache.has(key)) { probe=probeCache.get(key); return; }
     const lots=CITY.lotsNear(x,z,100), texture=gl.createTexture();
     gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP,texture);

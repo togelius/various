@@ -118,6 +118,21 @@ const STREETS = (() => {
     }
     return true;
   }
+  // Procedural sidewalk furniture must leave the authored entrances open.
+  function clearFurniture(props,solids) {
+    const crosses=(p,r=0)=>paths.some(path=>path.points.slice(1).some((v,i)=>{
+      const a=path.points[i];if((a[2]||0)>1&&(v[2]||0)>1)return false;
+      const dx=v[0]-a[0],dz=v[1]-a[1],t=M.clamp(((p.x-a[0])*dx+(p.z-a[1])*dz)/(dx*dx+dz*dz),0,1);
+      return M.dist(p.x,p.z,a[0]+dx*t,a[1]+dz*t)<path.width/2+r+.15;
+    }));
+    const removedShelters=[];
+    const radii={busShelter:2.7,bench:1.2,cafeSet:1.3,hotdogCart:1,tree:.55,roundTree:.55,treeTall:.55,treeFat:.55,palm:.55,hedge:.7,barrier:1};
+    for(const [kind,list] of Object.entries(props)) {
+      if(['pigeon','gull','trafficLight','payphone'].includes(kind))continue;
+      for(let i=list.length-1;i>=0;i--)if(crosses(list[i],radii[kind]||.35)){if(kind==='busShelter')removedShelters.push(list[i]);list.splice(i,1);}
+    }
+    for(let i=solids.length-1;i>=0;i--)if(crosses(solids[i],solids[i].r)||solids[i].kind==='shelter'&&removedShelters.some(p=>M.dist(p.x,p.z,solids[i].x,solids[i].z)<3))solids.splice(i,1);
+  }
   function connect(walkNodes) {
     walkGraph=walkNodes;
     const add=(x,z,y)=>{const n={x,z,y,links:[]};nodes.push(n);return n;};
@@ -162,5 +177,5 @@ const STREETS = (() => {
       out.push({mesh:o.mesh,model:o.model});
     }return out;
   }
-  return {BLOCKS,objects,surfaces,paths,landmarks,nodes,has,ground,height,ceiling,raySurface,build,connect,navigation,breakObject,entities};
+  return {BLOCKS,objects,surfaces,paths,landmarks,nodes,has,ground,height,ceiling,raySurface,build,clearFurniture,connect,navigation,breakObject,entities};
 })();

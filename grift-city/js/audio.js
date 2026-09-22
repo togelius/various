@@ -5,21 +5,24 @@
 const AUDIO = (() => {
   let ctx = null, master, comp, sfxBus, musicBus, revBus, engineNodes = null, sirenNodes = null, screechNodes = null, ambient = null, noiseBuf = null, analyser = null;
   let muted = new URLSearchParams(location.search).get('mute') === '1', radioStation = 0, radioTimer = 0, radioBeat = 0, radioOn = false, birdT = 3, gullT = 5;
+  const mix={masterVolume:.8,sfxVolume:1,vehicleVolume:.85,ambientVolume:.65,musicVolume:.7,quietMix:false};let vehicleBus,ambientBus,radioMaster,activeDest=null;const voices=[];
+  try{if(new URLSearchParams(location.search).get('mute')!=='1')muted=localStorage.getItem('grift-city-muted')==='1';}catch(e){}
+  function setMix(o){for(const k of Object.keys(mix))if(o[k]!==undefined)mix[k]=o[k];if(!ctx)return;const t=now();master.gain.setTargetAtTime(muted?0:mix.masterVolume,t,.05);sfxBus.gain.setTargetAtTime(mix.sfxVolume,t,.05);vehicleBus.gain.setTargetAtTime(mix.vehicleVolume,t,.05);ambientBus.gain.setTargetAtTime(mix.ambientVolume,t,.05);radioMaster.gain.setTargetAtTime(mix.musicVolume,t,.05);comp.threshold.value=mix.quietMix?-27:-16;comp.ratio.value=mix.quietMix?8:4;}
   const STATIONS = ['OFF', 'NEON FM', 'GRIFT BEATS', 'STATIC 91.1'];
   function ensure() {
     if (ctx) return true;
     try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return false; }
     comp = ctx.createDynamicsCompressor(); comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.18;
-    master = ctx.createGain(); master.gain.value = muted ? 0 : 0.8; comp.connect(master); master.connect(ctx.destination);
+    master = ctx.createGain(); master.gain.value = muted ? 0 : mix.masterVolume; comp.connect(master); master.connect(ctx.destination);
     analyser = ctx.createAnalyser(); analyser.fftSize = 1024; master.connect(analyser);
-    sfxBus = ctx.createGain(); sfxBus.gain.value = 1; sfxBus.connect(comp);
-    musicBus = ctx.createGain(); musicBus.gain.value = 0.0; const mHi = ctx.createBiquadFilter(); mHi.type = 'highpass'; mHi.frequency.value = 110; const mLo = ctx.createBiquadFilter(); mLo.type = 'lowpass'; mLo.frequency.value = 7000; musicBus.connect(mHi); mHi.connect(mLo); mLo.connect(comp); // a car radio has no sub and no air
+    sfxBus = ctx.createGain(); sfxBus.gain.value = mix.sfxVolume; sfxBus.connect(comp);vehicleBus=ctx.createGain();vehicleBus.gain.value=mix.vehicleVolume;vehicleBus.connect(comp);ambientBus=ctx.createGain();ambientBus.gain.value=mix.ambientVolume;ambientBus.connect(comp);radioMaster=ctx.createGain();radioMaster.gain.value=mix.musicVolume;radioMaster.connect(comp);
+    musicBus = ctx.createGain(); musicBus.gain.value = 0.0; const mHi = ctx.createBiquadFilter(); mHi.type = 'highpass'; mHi.frequency.value = 110; const mLo = ctx.createBiquadFilter(); mLo.type = 'lowpass'; mLo.frequency.value = 7000; musicBus.connect(mHi); mHi.connect(mLo); mLo.connect(radioMaster); // a car radio has no sub and no air
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     // reverb: a stereo impulse of decaying noise, fed from a send on the sound bus
     const irLen = Math.floor(ctx.sampleRate * 1.7); const ir = ctx.createBuffer(2, irLen, ctx.sampleRate); for (let ch = 0; ch < 2; ch++) { const o = ir.getChannelData(ch); let lp = 0; for (let i = 0; i < irLen; i++) { const t = i / irLen; const w = (Math.random() * 2 - 1); lp += (w - lp) * 0.25; o[i] = lp * Math.pow(1 - t, 2.6) * (i < 200 ? i / 200 : 1); } }
     const conv = ctx.createConvolver(); conv.buffer = ir; revBus = ctx.createGain(); revBus.gain.value = 0.22; sfxBus.connect(revBus); revBus.connect(conv); conv.connect(comp);
-    const mrev = ctx.createGain(); mrev.gain.value = 0.12; mLo.connect(mrev); mrev.connect(conv);
-    buildEngine(); buildSiren(); buildScreech(); buildAmbient();
+    const mrev = ctx.createGain(); mrev.gain.value = 0.12; radioMaster.connect(mrev); mrev.connect(conv);
+    buildEngine(); buildSiren(); buildScreech(); buildAmbient(); setMix(mix);
     return true;
   }
   function resume() { if (ensure() && ctx.state === 'suspended') ctx.resume(); }
@@ -30,16 +33,16 @@ const AUDIO = (() => {
     const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; src.playbackRate.value = 0.8 + Math.random() * 0.4;
     const f = ctx.createBiquadFilter(); f.type = filterType; f.frequency.setValueAtTime(freq, now()); if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, now() + dur); f.Q.value = q;
     const g = ctx.createGain(); env(g, vol, attack, decay || dur);
-    src.connect(f); f.connect(g); g.connect(dest || sfxBus); src.start(); src.stop(now() + attack + (decay || dur) + 0.05); return { src, f, g };
+    src.connect(f); f.connect(g); g.connect(dest || activeDest || sfxBus); src.start(); src.stop(now() + attack + (decay || dur) + 0.05); return { src, f, g };
   }
   function tone(freq, dur, vol, type = 'sine', slideTo = null, dest = null, attack = 0.005, detune = 0) {
     const o = ctx.createOscillator(); o.type = type; o.detune.value = detune; o.frequency.setValueAtTime(freq, now()); if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, now() + dur);
     const g = ctx.createGain(); env(g, vol, attack, dur);
-    o.connect(g); g.connect(dest || sfxBus); o.start(); o.stop(now() + attack + dur + 0.05); return o;
+    o.connect(g); g.connect(dest || activeDest || sfxBus); o.start(); o.stop(now() + attack + dur + 0.05); return o;
   }
   // a bell: a sine with two decaying partials, for the interface
   function bell(freq, dur, vol, dest = null) { tone(freq, dur, vol, 'sine', null, dest, 0.003); tone(freq * 2.5, dur * 0.45, vol * 0.25, 'sine', null, dest, 0.002); tone(freq * 4.1, dur * 0.25, vol * 0.1, 'sine', null, dest, 0.002); }
-  const later = (ms, f) => setTimeout(() => { if (ctx && !muted) f(); }, ms);
+  const later = (ms, f) => { const dest=activeDest; return setTimeout(() => { if (ctx && !muted) { const old=activeDest; activeDest=dest; try { f(); } finally { activeDest=old; } } }, ms); };
   // Distance attenuation helper for world sounds: vol scaled by distance to the listener.
   let lx = 0, lz = 0; function listener(x, z) { lx = x; lz = z; }
   const att = (x, z, range) => { if (x === undefined) return 1; const d = M.dist(x, z, lx, lz); return M.clamp(1 - d / range, 0, 1) ** 1.5; };
@@ -84,12 +87,14 @@ const AUDIO = (() => {
     heli(x, z, on) { /* handled by ambient loop */ },
   };
   // a lowpassed bus for the harsher waveforms (horns, screams, fail stings) so they stop sounding like a chip
-  const hornBuses = {}; function hornBus(cut = 1300) { if (hornBuses[cut]) return hornBuses[cut]; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; f.Q.value = 0.7; f.connect(sfxBus); hornBuses[cut] = f; return f; }
-  function play(name, x, z, ...rest) { if (!ctx || muted) return; try { SFX[name](x, z, ...rest); } catch (e) { } }
+  const hornBuses = {}; function hornBus(cut = 1300) { if (!activeDest && hornBuses[cut]) return hornBuses[cut]; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; f.Q.value = 0.7; f.connect(activeDest || sfxBus); if(activeDest)setTimeout(()=>f.disconnect(),4000);else hornBuses[cut] = f; return f; }
+  function play(name,x,z,...rest){if(!ctx||muted)return;const t=now();while(voices.length&&voices[0]<t)voices.shift();if(voices.length>=32)return;
+    let filter,pan;try{if(Number.isFinite(x)&&Number.isFinite(z)){filter=ctx.createBiquadFilter();filter.type='lowpass';const p=typeof PLAYER!=='undefined'?PLAYER.P:null,blocked=p&&M.dist(x,z,lx,lz)>3&&!W.sight3(lx,p.y+1.4,lz,x,p.y+1,z,[p.car]);filter.frequency.value=blocked?1300:13000;pan=ctx.createStereoPanner();const a=Math.atan2(x-lx,z-lz)-(p?.camYaw||0);pan.pan.value=-Math.sin(a)*.8;filter.connect(pan);pan.connect(['chirp','gull','flap'].includes(name)?ambientBus:['horn','door','crash','bump'].includes(name)?vehicleBus:sfxBus);activeDest=filter;setTimeout(()=>{filter.disconnect();pan.disconnect();},4000);}voices.push(t+.3);SFX[name]?.(x,z,...rest);}finally{activeDest=null;}}
+
 
   // ---- Engine: two detuned saws and a sub through a soft clipper and a resonant lowpass, plus an exhaust noise pulsed at the firing rate.
   function buildEngine() {
-    const g = ctx.createGain(); g.gain.value = 0; g.connect(sfxBus);
+    const g = ctx.createGain(); g.gain.value = 0; g.connect(vehicleBus);
     const o1 = ctx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 60; const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = 60.4; const o3 = ctx.createOscillator(); o3.type = 'triangle'; o3.frequency.value = 30;
     const shaper = ctx.createWaveShaper(); const curve = new Float32Array(256); for (let i = 0; i < 256; i++) { const x = i / 127.5 - 1; curve[i] = Math.tanh(x * 2.2); } shaper.curve = curve;
     const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 400; f.Q.value = 3;
@@ -107,19 +112,19 @@ const AUDIO = (() => {
     const base = (38 + r * 150) * K; e.o1.frequency.setTargetAtTime(base, t, 0.05); e.o2.frequency.setTargetAtTime(base * 1.007, t, 0.05); e.o3.frequency.setTargetAtTime(base * 0.5, t, 0.05); e.lfo.frequency.setTargetAtTime(base * 0.5, t, 0.05);
     e.f.frequency.setTargetAtTime(240 + r * 1100 + load * 500, t, 0.08); e.ng.gain.setTargetAtTime(0.25 + load * 0.35, t, 0.1); e.nf.frequency.setTargetAtTime(140 + r * 260, t, 0.1); }
   function buildSiren() {
-    const g = ctx.createGain(); g.gain.value = 0; g.connect(sfxBus); const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = 700; const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = 700; const g2 = ctx.createGain(); g2.gain.value = 0.35;
+    const g = ctx.createGain(); g.gain.value = 0; g.connect(vehicleBus); const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = 700; const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.frequency.value = 700; const g2 = ctx.createGain(); g2.gain.value = 0.35;
     const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 2400; f.Q.value = 0.8; o.connect(f); o2.connect(g2); g2.connect(f); f.connect(g); o.start(); o2.start(); sirenNodes = { g, o, o2, phase: 0 };
   }
   function siren(vol, dt, pitch = 1) { if (!ctx) return; const s = sirenNodes; s.phase += dt; const w = 0.5 + 0.5 * Math.sin(s.phase / 1.15 * M.TAU); const f = (620 + 360 * Math.pow(w, 1.4)) * pitch; s.o.frequency.setTargetAtTime(f, now(), 0.03); s.o2.frequency.setTargetAtTime(f * 1.003, now(), 0.03); s.g.gain.setTargetAtTime(vol * 0.11, now(), 0.1); }
-  function buildScreech() { const g = ctx.createGain(); g.gain.value = 0; g.connect(sfxBus); const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2200; f.Q.value = 8; const f2 = ctx.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 3300; f2.Q.value = 10; const g2 = ctx.createGain(); g2.gain.value = 0.5; src.connect(f); f.connect(g); src.connect(f2); f2.connect(g2); g2.connect(g); src.start(); screechNodes = { g, f }; }
+  function buildScreech() { const g = ctx.createGain(); g.gain.value = 0; g.connect(vehicleBus); const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 2200; f.Q.value = 8; const f2 = ctx.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 3300; f2.Q.value = 10; const g2 = ctx.createGain(); g2.gain.value = 0.5; src.connect(f); f.connect(g); src.connect(f2); f2.connect(g2); g2.connect(g); src.start(); screechNodes = { g, f }; }
   function screech(vol) { if (!ctx) return; screechNodes.g.gain.setTargetAtTime(vol * 0.22, now(), 0.05); screechNodes.f.frequency.setTargetAtTime(1700 + vol * 900, now(), 0.1); }
   function buildAmbient() {
-    const g = ctx.createGain(); g.gain.value = 0.05; g.connect(sfxBus); const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 180; src.connect(f); f.connect(g); src.start();
+    const g = ctx.createGain(); g.gain.value = 0.05; g.connect(ambientBus); const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 180; src.connect(f); f.connect(g); src.start();
     // wind: a slow-breathing band of air
-    const wg = ctx.createGain(); wg.gain.value = 0.02; wg.connect(sfxBus); const ws = ctx.createBufferSource(); ws.buffer = noiseBuf; ws.loop = true; const wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 520; wf.Q.value = 0.5; const wl = ctx.createOscillator(); wl.frequency.value = 0.08; const wlg = ctx.createGain(); wlg.gain.value = 0.012; wl.connect(wlg); wlg.connect(wg.gain); ws.connect(wf); wf.connect(wg); ws.start(); wl.start();
+    const wg = ctx.createGain(); wg.gain.value = 0.02; wg.connect(ambientBus); const ws = ctx.createBufferSource(); ws.buffer = noiseBuf; ws.loop = true; const wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 520; wf.Q.value = 0.5; const wl = ctx.createOscillator(); wl.frequency.value = 0.08; const wlg = ctx.createGain(); wlg.gain.value = 0.012; wl.connect(wlg); wlg.connect(wg.gain); ws.connect(wf); wf.connect(wg); ws.start(); wl.start();
     // helicopter rotor: pulsed low noise
-    const hg = ctx.createGain(); hg.gain.value = 0; hg.connect(sfxBus); const hs = ctx.createBufferSource(); hs.buffer = noiseBuf; hs.loop = true; const hf = ctx.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 220; const lfo = ctx.createOscillator(); lfo.frequency.value = 13; const lg = ctx.createGain(); lg.gain.value = 0.5; lfo.connect(lg); lg.connect(hg.gain); hs.connect(hf); hf.connect(hg); hs.start(); lfo.start();
-    const rg = ctx.createGain(); rg.gain.value = 0; rg.connect(sfxBus); const rs = ctx.createBufferSource(); rs.buffer = noiseBuf; rs.loop = true; const rf = ctx.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 3200; rf.Q.value = 0.4; rs.connect(rf); rf.connect(rg); rs.start();
+    const hg = ctx.createGain(); hg.gain.value = 0; hg.connect(ambientBus); const hs = ctx.createBufferSource(); hs.buffer = noiseBuf; hs.loop = true; const hf = ctx.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 220; const lfo = ctx.createOscillator(); lfo.frequency.value = 13; const lg = ctx.createGain(); lg.gain.value = 0.5; lfo.connect(lg); lg.connect(hg.gain); hs.connect(hf); hf.connect(hg); hs.start(); lfo.start();
+    const rg = ctx.createGain(); rg.gain.value = 0; rg.connect(ambientBus); const rs = ctx.createBufferSource(); rs.buffer = noiseBuf; rs.loop = true; const rf = ctx.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 3200; rf.Q.value = 0.4; rs.connect(rf); rf.connect(rg); rs.start();
     ambient = { g, hg, rg, f, wg };
   }
   function traffic(v) { if (!ctx) return; ambient.g.gain.setTargetAtTime(0.03 + v * 0.06, now(), 0.8); ambient.f.frequency.setTargetAtTime(150 + v * 120, now(), 0.8); }
@@ -163,8 +168,8 @@ const AUDIO = (() => {
       }
     }
   }
-  function toggleMute() { muted = !muted; if (ctx) master.gain.setTargetAtTime(muted ? 0 : 0.8, now(), 0.05); return muted; }
+  function toggleMute() { muted = !muted;try{localStorage.setItem('grift-city-muted',muted?'1':'0');}catch(e){} if (ctx) master.gain.setTargetAtTime(muted ? 0 : mix.masterVolume, now(), 0.05); return muted; }
   // for the test harness: the loudest sample on the mix over the last analyser window
   function peak() { if (!analyser) return 0; const d = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(d); let m = 0; for (let i = 0; i < d.length; i++) m = Math.max(m, Math.abs(d[i])); return m; }
-  return { ensure, resume, play, engine, siren, screech, heliVolume, rain, traffic, ambientTick, radioTick, setRadio, get radioStation() { return radioStation; }, STATIONS, toggleMute, get muted() { return muted; }, listener, peak, get ready() { return !!ctx; } };
+  return { setMix,ensure, resume, play, engine, siren, screech, heliVolume, rain, traffic, ambientTick, radioTick, setRadio, get radioStation() { return radioStation; }, STATIONS, toggleMute, get muted() { return muted; }, listener, peak, get ready() { return !!ctx; } };
 })();
