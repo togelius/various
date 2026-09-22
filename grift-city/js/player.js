@@ -93,9 +93,9 @@ const PLAYER = (() => {
       // player check for NPC shooters
       if (!shooterIsPlayer && P.alive) { const pr = P.car ? 1.6 : 0.55; const t = W.rayBox(x, y, z, dx * wp.range, dy * wp.range, dz * wp.range, P.x-pr, P.y, P.z-pr, P.x+pr, P.y+1.8-P.crouch*.5, P.z+pr); if (t >= 0 && t < hit.t) { hit.kind = P.car ? 'playercar' : 'player'; hit.t = t; hx = x + dx * wp.range * t; hz = z + dz * wp.range * t; hy = y + dy * wp.range * t; } }
       if (hit.kind === 'ped') { const was = hit.obj.alive; hit.obj.damage(wp.dmg * dmgScale, shooter, [dx, dz]); if (shooterIsPlayer) HUD.hitMark(was && !hit.obj.alive); }
-      else if (hit.kind === 'car') { hit.obj.damage(wp.dmg * (wp.carDmg || 2) * dmgScale, shooter); if (shooterIsPlayer) HUD.hitMark(false); W.FX.spark(hx, 0.9, hz, 4); if (W.rng() < 0.3) W.FX.glass(hx, 1.2, hz, 4); if (hit.obj.driver && hit.obj.driver !== PLAYER && hit.obj.ai.mode === 'traffic') { hit.obj.scared = 6; hit.obj.ai.mode = 'flee'; } if (hit.obj.driver === PLAYER) hurt(wp.dmg * 0.25 * dmgScale, 'shot', shooter); }
+      else if (hit.kind === 'car') { hit.obj.damage(wp.dmg * (wp.carDmg || 2) * dmgScale, shooter,{x:hx,y:hy,z:hz,kind:'bullet'}); if (shooterIsPlayer) HUD.hitMark(false); W.FX.spark(hx, 0.9, hz, 4); if (W.rng() < 0.3) W.FX.glass(hx, 1.2, hz, 4); if (hit.obj.driver && hit.obj.driver !== PLAYER && hit.obj.ai.mode === 'traffic') { hit.obj.scared = 6; hit.obj.ai.mode = 'flee'; } if (hit.obj.driver === PLAYER) hurt(wp.dmg * 0.25 * dmgScale, 'shot', shooter); }
       else if (hit.kind === 'player') { hurt(wp.dmg * dmgScale * 0.45, 'shot', shooter); W.FX.blood(P.x, 1.2, P.z, 4, [dx, dz]); }
-      else if (hit.kind === 'playercar') { if (P.car) { P.car.damage(wp.dmg * 1.5 * dmgScale, shooter); W.FX.spark(hx, 0.9, hz, 3); if (W.rng() < 0.2) hurt(wp.dmg * 0.2 * dmgScale, 'shot', shooter); } }
+      else if (hit.kind === 'playercar') { if (P.car) { P.car.damage(wp.dmg * 1.5 * dmgScale, shooter,{x:hx,y:hy,z:hz,kind:'bullet'}); W.FX.spark(hx, 0.9, hz, 3); if (W.rng() < 0.2) hurt(wp.dmg * 0.2 * dmgScale, 'shot', shooter); } }
       else if (hit.kind === 'heli') { hit.obj.damage(wp.dmg * dmgScale * 1.2, shooter); W.FX.spark(hx, hit.obj.y, hz, 4); hy = hit.obj.y; }
       else if (hit.kind === 'lot' || hit.kind === 'ground') { W.FX.dust(hx, hy, hz, 3); }
       else if (hit.kind === 'prop') { W.FX.spark(hx, hy, hz, 4); }
@@ -168,6 +168,8 @@ const PLAYER = (() => {
     const l = Math.hypot(ix, iz); if (l > 1) { ix /= l; iz /= l; } return [ix, iz];
   }
   function updateOnFoot(dt) {
+    if(P.exitDoor){P.exitDoor.t-=dt;if(P.exitDoor.t<=0){P.exitDoor.car.doorTarget[P.exitDoor.index]=0;P.exitDoor=null;}}
+    if(P.exitPose){P.exitPose.t-=dt;if(P.exitPose.t<=0)P.exitPose=null;}
     const speedBefore=P.speed, angleBefore=P.angle;
     const [ix, iz] = inputMove(); const pad = INPUT.pad; const wp = WEAPONS[P.weapon];
     const sprint = INPUT.down('ShiftLeft') || INPUT.down('ShiftRight') || pad.buttons[0];
@@ -287,17 +289,20 @@ const PLAYER = (() => {
   function tryEnterCar() {
     const target=entryCandidate(); if (!target) return;
     if (target.car.locked) { HUD.notify('This car is locked.'); return; }
-    P.state='entering'; P.stateT=0; P.doorReach=0; P.targetCar=target.car; P.aim=0; P.doorSide=target.side;
+    P.state='entering'; P.stateT=0; P.doorReach=0; P.targetCar=target.car; P.aim=0; P.doorSide=target.side;P.enterFrom=null;
   }
   function updateEntering(dt) {
     const cancel = P.stateT > .08 && (INPUT.hit('KeyF') || INPUT.hit('Space') || INPUT.pad.pressed[2] || ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].some(k => INPUT.hit(k)));
-    const c = P.targetCar; if (cancel || !c || c.removed || c.wrecked) { P.state = 'foot'; P.vx = P.vz = 0; P.targetCar = null; return; }
+    const c = P.targetCar; if (cancel || !c || c.removed || c.wrecked) { if(c?.doorTarget)c.doorTarget.fill(0);if(P.enterFrom){[P.x,P.y,P.z]=P.enterFrom;P.enterFrom=null;}P.entryPose=0; P.state = 'foot'; P.vx = P.vz = 0; P.targetCar = null; return; }
     const r = c.right; const side = P.doorSide || -1; const doorX = c.x + r[0] * side * (c.spec.wid / 2 + 0.6), doorZ = c.z + r[1] * side * (c.spec.wid / 2 + 0.6);
     const d = M.dist(P.x, P.z, doorX, doorZ);
-    if (d > 0.5 && P.stateT < 2.2 && c.absSpeed < 4) { const s = 4.5; P.vx = (doorX - P.x) / d * s; P.vz = (doorZ - P.z) / d * s; P.angle += M.angleTo(P.angle, Math.atan2(doorX - P.x, doorZ - P.z)) * Math.min(1, 12 * dt); moveBody(dt, false); P.speed = s; P.phase += dt * 7; return; }
-    if (d > 1.1 || c.absSpeed >= 4) { P.state = 'foot'; P.vx = P.vz = 0; return; }
+    if (!P.enterFrom && d > 0.5 && P.stateT < 2.2 && c.absSpeed < 4) { const s = 4.5; P.vx = (doorX - P.x) / d * s; P.vz = (doorZ - P.z) / d * s; P.angle += M.angleTo(P.angle, Math.atan2(doorX - P.x, doorZ - P.z)) * Math.min(1, 12 * dt); moveBody(dt, false); P.speed = s; P.phase += dt * 7; return; }
+    if ((!P.enterFrom && d > 1.1) || c.absSpeed >= 4) { P.state = 'foot'; P.vx = P.vz = 0; return; }
     // get in
-    P.speed = 0; P.vx = P.vz = 0; P.angle += M.angleTo(P.angle,Math.atan2(c.x-P.x,c.z-P.z))*Math.min(1,dt*14); P.doorReach=(P.doorReach||0)+dt; if(P.doorReach<.32) return; AUDIO.play('door', P.x, P.z);
+    P.speed = 0; P.vx = P.vz = 0; P.angle += M.angleTo(P.angle,Math.atan2(c.x-P.x,c.z-P.z))*Math.min(1,dt*14); P.doorReach=(P.doorReach||0)+dt;
+    if(!P.enterFrom)P.enterFrom=[P.x,P.y,P.z];const di=side<0?0:1;if(c.doorTarget)c.doorTarget[di]=1;
+    const u=M.clamp((P.doorReach-.28)/.62,0,1),ease=u*u*(3-2*u);P.entryPose=Math.sin(u*Math.PI*.8);P.x=M.lerp(P.enterFrom[0],c.x+r[0]*side*c.spec.wid*.2,ease);P.z=M.lerp(P.enterFrom[2],c.z,ease);P.y=c.y-.25*ease;
+    if(P.doorReach<.9)return;if(c.doorTarget)c.doorTarget[di]=0;P.enterFrom=null;P.entryPose=0;AUDIO.play('door',P.x,P.z);
     if (c.driver && c.driver !== PLAYER) { const d0 = c.driver; d0.exitCar(); d0.x = c.x + r[0] * (c.spec.wid / 2 + 1.0); d0.z = c.z + r[1] * (c.spec.wid / 2 + 1.0); d0.knockT = 1.5; d0.state = 'knocked'; d0.launch(r[0] * 2, 2, r[1] * 2); d0.fear = 8; d0.threat = [c.x, c.z]; if (d0.isCop) { d0.hostile = true; POLICE.crime('cop', c.x, c.z, d0); } else { if (W.rng() < 0.5) d0.say(W.rng() < 0.5 ? 'My car!' : 'Hey! Thief!'); POLICE.crime('jack', c.x, c.z, null); } P.stats.carsStolen++; }
     else if (!c.playerOwned && c.ai.mode !== 'parked') P.stats.carsStolen++;
     for (const px of c.passengers.slice()) if (px.role !== 'crew') { px.exitCar(); px.scare(c.x, c.z); }
@@ -318,7 +323,7 @@ const PLAYER = (() => {
       [P.x,P.z] = safe;
     }
     P.y = CITY.groundY(P.x, P.z, P.y); P.angle = c.angle; P.camYaw = c.angle; P.vx = 0; P.vz = 0;
-    c.driver = null; c.ai.mode = 'parked'; c.controls.throttle = 0; c.controls.brake = spd > 4 ? 0 : 1; c.controls.handbrake = 0; c.siren = false; P.car = null; P.state = 'foot'; AUDIO.play('door', P.x, P.z);
+    c.driver = null; c.ai.mode = 'parked'; c.controls.throttle = 0; c.controls.brake = spd > 4 ? 0 : 1; c.controls.handbrake = 0; c.siren = false; P.car = null; P.state = 'foot'; if(spd<3&&!c.spec.boat&&!c.spec.bike){const di=((P.x-c.x)*r[0]+(P.z-c.z)*r[1])<0?0:1;if(c.doorTarget){c.doorTarget[di]=1;P.exitDoor={car:c,index:di,t:.65};}P.exitPose={from:[c.x,c.y-.25,c.z],to:[P.x,P.y,P.z],t:.65};} AUDIO.play('door', P.x, P.z);
     if (spd > 7) { knock(c.vx * 0.5, 3, c.vz * 0.5); hurt(spd * 1.5, 'fall', null); }
     P.weaponOut = P.weapon !== 'fist';
     MISSIONS.onExitCar(c); return true;
@@ -389,7 +394,7 @@ const PLAYER = (() => {
     for (const l of (room && ty < -10 ? room.walls : CITY.lotsNear(tx, tz, dist + 2))) { if (l.h < cy - 0.3 && l.h < ty) continue; const t = M.rayAABB2(tx, tz, dx, dz, l.x0 - 0.3, l.z0 - 0.3, l.x1 + 0.3, l.z1 + 0.3); if (t >= 0 && t < best) { const hy = ty + (cy - ty) * t; if (hy < l.h + 0.3) best = t; } }
     const length=Math.hypot(dx,cy-ty,dz);
     for (const [ox,oy,oz] of [[0,0,0],[.22,0,0],[-.22,0,0],[0,.18,.22],[0,-.18,-.22]]) {
-      const hit=W.raycast3(tx+ox,ty+oy,tz+oz,dx,cy-ty,dz,length,P.car,'camera');
+      const hit=W.raycast3(tx+ox,ty+oy,tz+oz,dx,cy-ty,dz,length,P.car||(P.state==='entering'?P.targetCar:null)||P.exitDoor?.car,'camera');
       if (hit.kind!=='none') best=Math.min(best,Math.max(.04,(hit.dist-.12)/length));
     }
     if (best < 1) { cx = tx + dx * best * 0.92; cz = tz + dz * best * 0.92; cy = ty + (cy - ty) * best * 0.92; }

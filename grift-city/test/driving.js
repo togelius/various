@@ -1,0 +1,22 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path'),noop=()=>{};
+const ctx=vm.createContext({console,assert,URLSearchParams,location:{search:'?seed=42'},TEX:{names:{}},RENDER:{MAX_BONES:14,cam:{},env:{wet:0}},GAME:{options:{steeringAssist:.35}},AUDIO:{play:noop},HUD:{notify:noop},POLICE:{crime:noop},MISSIONS:{rampageKill:noop},PLAYER:{shake:noop,alive:false}});
+for(const n of ['math','meshes','city','world','vehicles'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../js',n+'.js'),'utf8'),ctx,{filename:n+'.js'});
+vm.runInContext(`
+MESH.Builder.prototype.build=()=>({});CITY.groundY=()=>0;W.pushOut=(x,z)=>({x,z});
+const spawn=type=>{W.cars.length=0;const c=VEH.spawn(type,300,300,0);c.driver=PLAYER;c.ai.mode='player';return c;};
+const run=(c,t,fps=60)=>{for(let i=0;i<t*fps;i++)c.physics(1/fps);};
+const stats=[];
+for(const type of ['sedan','sports','pickup']) {const c=spawn(type);c.controls.throttle=1;run(c,8);const speed=c.absSpeed;assert.ok(speed>14);c.controls.throttle=0;c.controls.steer=.7;run(c,2);assert.ok(Number.isFinite(c.angle));stats.push({type,speed:+speed.toFixed(2),turn:+c.angle.toFixed(2)});}
+assert.ok(stats[1].speed>stats[0].speed+3,'sports acceleration distinct');assert.ok(stats[2].speed<stats[0].speed,'utility momentum/acceleration distinct');
+const stop=wet=>{RENDER.env.wet=wet;const c=spawn('sedan');c.vz=20;c.controls.brake=1;c.controls.reverse=false;let i=0;while(c.absSpeed>.2&&i++<600)c.physics(1/60);return c.z-300;};
+const dry=stop(0),wet=stop(1);assert.ok(wet>dry*1.2,'wet braking distance longer');RENDER.env.wet=0;
+const speeds=[];for(const fps of [30,60,120]){const c=spawn('sports');c.controls.throttle=1;run(c,4,fps);speeds.push(c.absSpeed);}assert.ok(Math.max(...speeds)-Math.min(...speeds)<.4,'frame-rate stable acceleration');
+const c=spawn('sedan');c.damage(120,PLAYER,{x:301,y:.3,z:301.4,kind:'bullet'});assert.equal(c.condition.tyres[0],0);assert.equal(c.condition.tyres.filter(t=>t===0).length,1);assert.ok(c.dmg.front<.6);assert.equal(c.condition.engine,1,'tyre hit does not damage engine');
+c.damage(300,PLAYER,{x:300,y:.7,z:302.2,kind:'impact'});assert.ok(c.condition.engine<1&&c.condition.cooling<c.condition.engine);
+c.damage(100,PLAYER,{x:301,y:1.2,z:300,kind:'bullet'});assert.equal(c.condition.glass[2],0);
+const saved=JSON.parse(JSON.stringify(c.saveCondition())),copy=spawn('sedan');copy.loadCondition(saved);assert.deepEqual(copy.condition,c.condition);assert.equal(copy.health,c.health);copy.repair();assert.equal(copy.condition.tyres[0],1);assert.equal(copy.dmg.pull,0);
+c.damage(2000,null,{x:300,y:.7,z:302,kind:'impact'});assert.ok(c.disabled&&c.wrecked&&!c.burned,'collision disables without explosion');
+const meshes=MESH.carMesh('sedan',[.4,.2,.1]);assert.ok(meshes.body.v.some((v,i)=>i%13===12&&v===11));assert.ok(meshes.glass.v.some((v,i)=>i%13===12&&v===12),'door windows move with panels');
+console.log('Driving: '+JSON.stringify(stats)+'; dry/wet stop '+dry.toFixed(1)+'/'+wet.toFixed(1)+' m; rates, local damage, persistence, repair, disable and doors passed');
+`,ctx);

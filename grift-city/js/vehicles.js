@@ -11,15 +11,20 @@ const VEH = (() => {
     return c.map(v => (v * .72 + l * .28) * .88 + .035); }
   function getMesh(type, colIdx) { const key = type + ':' + colIdx; if (!meshCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx)); meshCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return meshCache[key]; }
   const lodCache = {}; function getLod(type, colIdx) { const key = type + ':' + colIdx; if (!lodCache[key]) { const m = MESH.carMesh(type, colorOf(type, colIdx), { lod: true }); lodCache[key] = { body: m.body.build(), glass: m.glass.build() }; } return lodCache[key]; }
-  function dentedMesh(type, colIdx, dent, seed) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed }); return { body: m.body.build(), glass: m.glass.build() }; }
+  function dentedMesh(type, colIdx, dent, seed, condition) { const m = MESH.carMesh(type, colorOf(type, colIdx), { dent, seed,condition }); return { body: m.body.build(), glass: m.glass.build() }; }
   const TRAFFIC_TYPES = ['sedan', 'sedan', 'sedan', 'hatch', 'hatch', 'sports', 'pickup', 'van', 'taxi', 'taxi', 'muscle', 'truck', 'bus', 'ktruck', 'kmoto', 'kgarbage', 'kambulance', 'kfire'];
 
   const tmpV = [0, 0, 0]; const CIRC_A = new Float64Array(9), CIRC_B = new Float64Array(9); /* scratch for circlesInto */ const TURN_R = 10; // radius of the arc traffic drives through a corner (m); long vehicles need more
   const LEAN_SIGN = -1; // positive roll tips the body to the right, so leaning into a left turn (positive yaw) is negative
+  const HANDLING={sedan:{response:5.2,steer:.60,front:.48,rear:.52,stiffF:.13,stiffR:.095,inertia:.30,damping:1.9,brake:1,drive:1.1},sports:{response:7.4,steer:.66,front:.53,rear:.47,stiffF:.10,stiffR:.14,inertia:.25,damping:1.35,brake:1.12,drive:1.6},utility:{response:3.6,steer:.57,front:.46,rear:.54,stiffF:.15,stiffR:.12,inertia:.39,damping:1.5,brake:.85,drive:1.05}};
+  const handling=s=>s.sports||s.top>=33?HANDLING.sports:s.mass>=1.3?HANDLING.utility:HANDLING.sedan;
+  const condition=()=>({engine:1,cooling:1,temperature:0,panels:[1,1,1,1],glass:[1,1,1,1],tyres:[1,1,1,1]});
+  let nextIdentity=1;
   class Vehicle {
     constructor(type, x, z, angle, opts = {}) {
       this.type = type; this.spec = SPECS[type]; this.name = NAMES[type];
       this.x = x; this.z = z; this.y = this.spec.boat ? W.WATER_Y + 0.55 : CITY.groundY(x, z); this.vy = 0; this.bob = W.rng() * 6; this.sinkT = 0; this.angle = angle; this.vx = 0; this.vz = 0; this.speed = 0; this.lat = 0;
+      this.identity=opts.identity||nextIdentity++;this.condition=condition();this.doors=[0,0];this.doorTarget=[0,0];this.disabled=false;this.burned=false;
       this.steer = 0; this.controls = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
       this.colIdx = opts.color !== undefined ? opts.color : Math.floor(W.rng() * PALETTE.length); this.meshes = getMesh(type, this.colIdx); this.mesh = this.meshes.body; this.dentLevel = 0; this.dentSeed = Math.floor(W.rng() * 1e6);
       this.maxHealth = this.spec.armor ? 2600 : 1000 * this.spec.mass; this.health = this.maxHealth; this.wrecked = false; this.fireT = 0;
@@ -66,32 +71,37 @@ const VEH = (() => {
       if (this.spec.boat && this.wrecked) { this.sinkT += dt; if (this.sinkT > 9 && this.driver !== PLAYER) this.remove(); }
       if (this.scared > 0) this.scared -= dt;
       if (this.horn > 0) this.horn -= dt;
+      for(let k=0;k<2;k++)this.doors[k]=M.approach(this.doors[k],this.doorTarget[k],dt*3.5);
+      if(!this.wrecked){const c=this.condition; c.temperature=M.clamp(c.temperature+dt*((1-c.cooling)*Math.abs(this.controls.throttle)*.10-.018),0,1);if(c.temperature>.8)c.engine=Math.max(0,c.engine-dt*.025);if(c.engine<=0)this.disable();}
       // fire & smoke
       const hf = this.health / this.maxHealth;
-      if (!this.wrecked && hf < 0.35 && W.state.frame % 3 === 0) { const f = this.fwd; W.FX.smoke(this.x + f[0] * this.spec.len * 0.4, this.y + 1, this.z + f[1] * this.spec.len * 0.4, 1, hf < 0.15); }
-      if (!this.wrecked && hf < 0.25 && this.driver && this.driver !== PLAYER && !this.driver.isCop && this.ai.mode !== 'chase' && this.absSpeed < 6) { const d = this.driver; d.exitCar(); d.state = 'flee'; d.fear = 12; d.threat = [this.x, this.z]; d.say(W.rng() < 0.5 ? "It's going to blow!" : 'Get away from it!'); this.ai.mode = 'parked'; for (const q of this.passengers.slice()) { q.exitCar(); q.scare(this.x, this.z); } }
-      if (!this.wrecked && hf < 0.12) { if (this.fireT === 0 && this.driver === PLAYER) HUD.notify("The engine's on fire. Get out!"); this.fireT += dt; const f = this.fwd; if (W.state.frame % 2 === 0) W.FX.fire(this.x + f[0] * this.spec.len * 0.4, this.y + 1, this.z + f[1] * this.spec.len * 0.4, 1); if (this.fireT > 5) this.explode(); }
-      if (this.wrecked && this.fireT < 10) { this.fireT += dt; if (W.state.frame % 2 === 0) { W.FX.fire(this.x, this.y + 0.8, this.z, 1); if (W.state.frame % 4 === 0) W.FX.smoke(this.x, this.y + 1, this.z, 1, true); } }
+      if (!this.wrecked && (this.condition.engine<.4||this.condition.cooling<.3) && W.state.frame % 3 === 0) { const f = this.fwd; W.FX.smoke(this.x + f[0] * this.spec.len * 0.4, this.y + 1, this.z + f[1] * this.spec.len * 0.4, 1, hf < 0.15); }
+      if (!this.wrecked && hf < 0.25 && this.driver && this.driver !== PLAYER && !this.driver.isCop && this.ai.mode !== 'chase' && this.absSpeed < 6) { const d = this.driver; d.exitCar(); d.state = 'flee'; d.fear = 12; d.threat = [this.x, this.z]; d.say(W.rng() < 0.5 ? "It won't make it!" : 'I need another ride!'); this.ai.mode = 'parked'; for (const q of this.passengers.slice()) { q.exitCar(); q.scare(this.x, this.z); } }
+      if (!this.wrecked && this.burning) { if (this.fireT === 0 && this.driver === PLAYER) HUD.notify("The engine's on fire. Get out!"); this.fireT += dt; const f = this.fwd; if (W.state.frame % 2 === 0) W.FX.fire(this.x + f[0] * this.spec.len * 0.4, this.y + 1, this.z + f[1] * this.spec.len * 0.4, 1); if (this.fireT > 5) this.explode(); }
+      if (this.wrecked && this.burned && this.fireT < 10) { this.fireT += dt; if (W.state.frame % 2 === 0) { W.FX.fire(this.x, this.y + 0.8, this.z, 1); if (W.state.frame % 4 === 0) W.FX.smoke(this.x, this.y + 1, this.z, 1, true); } }
     }
     physics(dt) {
       const s = this.spec, c = this.controls; const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const f = [sa, ca], r = [-ca, sa];
       let vF = this.vx * f[0] + this.vz * f[1], vL = this.vx * r[0] + this.vz * r[1];
-      const top = s.top; const spd = Math.abs(vF);
+      const tune=handling(s); const top = s.top; const spd = Math.abs(vF);
       // steering: the wheel angle that full lock gives shrinks with speed, so a twitch at 150 km/h is not a spin
-      this.steer = M.approach(this.steer, M.clamp(c.steer, -1, 1), 6 * dt);
-      const maxSteer = 0.62 / (1 + spd / 13); const delta = this.steer * maxSteer + this.dmg.pull * Math.min(1, spd / 8); this.steerAngle = delta;
+      this.steer = M.approach(this.steer, M.clamp(c.steer, -1, 1), tune.response * dt);
+      const maxSteer = tune.steer / (1 + spd / 13);
+      const assist=this.driver===PLAYER?(GAME.options?.steeringAssist??.35):0;
+      const counter=M.clamp(-Math.atan2(vL,Math.max(spd,3))*.35,-.09,.09)*assist*Math.min(1,spd/10);
+      const delta = this.steer * maxSteer + counter + this.dmg.pull * Math.min(1, spd / 8); this.steerAngle = delta;
       // tyre model: a bicycle with a front and a rear axle, lateral force from slip angle up to a friction limit
       const Lw = s.len * 0.58, bF = Lw * 0.5, bR = Lw * 0.5; const mu = 13 * s.grip; // total lateral grip, m/s^2
       const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked');
       const wet = 1 - 0.3 * (RENDER.env.wet || 0); // rain takes almost a third of the grip
-      let muF = mu * 0.5 * wet * this.dmg.front, muR = mu * 0.5 * wet * this.dmg.rear; if (c.handbrake) muR *= 0.32; if (c.brake > 0.6 && vF > 4) muF *= 0.75; // locked rears slide, hard braking dulls the front
-      const Cf = muF / 0.11, Cr = muR / 0.1; // cornering stiffness: the front saturates at a slightly larger slip than the rear, so the car understeers gently
+      let muF = mu * tune.front * wet * this.dmg.front, muR = mu * tune.rear * wet * this.dmg.rear; if (c.handbrake) muR *= 0.32; if (c.brake > 0.6 && vF > 4) muF *= 0.75; // locked rears slide, hard braking dulls the front
+      const Cf = muF / tune.stiffF, Cr = muR / tune.stiffR; // cornering stiffness: the front saturates at a slightly larger slip than the rear, so the car understeers gently
       let wheelspin = 0;
       // engine and brakes as longitudinal accelerations; the driven rear axle only gets what the friction circle leaves
       let aLong = 0;
       if (live && !this.airborne) {
-        if (c.throttle > 0) { const k = Math.max(0.15, 1 - Math.max(0, vF) / top); const want = s.accel * k * c.throttle; const latUse = Math.min(1, Math.abs(this.latForceR || 0) / muR); const avail = muR * 1.1 * Math.sqrt(Math.max(0.05, 1 - latUse * latUse)); aLong += Math.min(want, avail); if (want > avail * 1.15 && spd < 12) wheelspin = 1; }
-        if (c.brake > 0) { if (vF > 0.3) aLong -= Math.min(s.brake, mu * 0.9) * c.brake; else if (c.reverse === false) aLong += Math.min(s.brake * c.brake, -vF / dt); /* forward pedal while rolling backwards: stop, don't reverse harder */ else if (vF > -top * 0.35) aLong -= s.accel * 0.6 * c.brake; }
+        if (c.throttle > 0) { const k = Math.max(0.15, 1 - Math.max(0, vF) / top); const want = s.accel * k * c.throttle * (.18+.82*this.condition.engine); const latUse = Math.min(1, Math.abs(this.latForceR || 0) / muR); const avail = muR * tune.drive * Math.sqrt(Math.max(0.05, 1 - latUse * latUse)); aLong += Math.min(want, avail); if (want > avail * 1.15 && spd < 12) wheelspin = 1; }
+        if (c.brake > 0) { if (vF > 0.3) aLong -= Math.min(s.brake, mu * .9 * wet * tune.brake) * c.brake; else if (c.reverse === false) aLong += Math.min(s.brake * c.brake, -vF / dt); /* forward pedal while rolling backwards: stop, don't reverse harder */ else if (vF > -top * 0.35) aLong -= s.accel * 0.6 * c.brake; }
       }
       if (!this.airborne) { aLong -= Math.sign(vF) * Math.min(Math.abs(vF) / dt, 1.2 + (c.handbrake ? 6 : 0)); aLong -= vF * Math.abs(vF) * 0.0035; }
       let yawR = this.yawRate || 0;
@@ -103,12 +113,12 @@ const VEH = (() => {
         // slip angles and lateral forces (m/s^2 at the centre of mass)
         const af = Math.atan2(vL + yawR * bF, v) - delta * Math.sign(vF || 1), ar = Math.atan2(vL - yawR * bR, v);
         let Ff = -M.clamp(Cf * af, -muF, muF), Fr = -M.clamp(Cr * ar, -muR, muR); if (wheelspin) Fr *= 0.55; // spinning tyres have little sideways bite
-        const aLat = Ff + Fr, yawAcc = (Ff * bF - Fr * bR) / (0.28 * Lw * Lw);
+        const aLat = Ff + Fr, yawAcc = (Ff * bF - Fr * bR) / (tune.inertia * Lw * Lw);
         // dynamic response, blended with a plain kinematic turn below walking pace where slip angles mean little
         const w = M.clamp((Math.abs(vF) - 2.0) / 3.0, 0, 1);
         const kinYaw = vF / Lw * Math.tan(delta);
         vL += aLat * h * w; vL -= yawR * vF * h * w; vL -= vL * Math.min(1, 10 * h) * (1 - w);
-        yawR += yawAcc * h * w; yawR = yawR * w + kinYaw * (1 - w); yawR -= yawR * Math.min(1, 1.5 * h);
+        yawR += yawAcc * h * w; yawR = yawR * w + kinYaw * (1 - w); yawR -= yawR * Math.min(1, tune.damping * h);
         this.latForceR = Fr; this.slipF = af; this.slipR = ar; this.latAcc = aLat;
       }
       if (!this.airborne) this.angle += yawR * dt;
@@ -129,7 +139,7 @@ const VEH = (() => {
       }
       // cosmetic body pitch and roll
       const accF = (vF - (this.prevVF === undefined ? vF : this.prevVF)) / dt; this.prevVF = vF; const accL = (this.latForceR || 0) * 2;
-      this.pitch = M.lerp(this.pitch, this.airborne ? -Math.atan2(this.vy, Math.max(Math.abs(vF), 3)) * 0.5 : M.clamp(-accF * 0.006, -0.06, 0.06), 6 * dt); // squat under power, dive under braking
+      this.pitch = M.lerp(this.pitch, this.airborne ? -Math.atan2(this.vy, Math.max(Math.abs(vF), 3)) * 0.5 : -Math.atan2(this.slopeVy||0,Math.max(Math.abs(vF),3))*.85+M.clamp(-accF * .006, -.06, .06), Math.min(1,6 * dt)); // squat under power, dive under braking
       if (s.bike) this.roll = M.lerp(this.roll, this.airborne ? 0 : M.clamp(LEAN_SIGN * Math.atan2(this.latAcc || 0, 9.81) * 1.15, -0.62, 0.62), 8 * dt); // a rider leans into the corner
       else this.roll = M.lerp(this.roll, M.clamp(accL * 0.012, -0.12, 0.12), 6 * dt);
       this.wheelRot += vF / s.wheelR * dt;
@@ -156,7 +166,7 @@ const VEH = (() => {
             const front = (cx - this.x) * f[0] + (cz - this.z) * f[1] > 0; const side = (nx * f[1] - nz * f[0]); // which side the wall is on
             this.angle += (front ? -1 : 1) * Math.sign(side || 1) * Math.min(impact * 0.03, 0.15) * (this.speed < 0 ? -1 : 1);
             if (impact > 3 && this.driver === PLAYER) PLAYER.shake(Math.min(1, impact / 10));
-            if (impact > 3) { this.damage(impact * impact * 0.35, null); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; if (s.bike && impact > 6.5) this.throwRider(impact); }
+            if (impact > 3) { this.damage(impact * impact * .35,null,{x:cx-nx*r,y:this.y+.7,z:cz-nz*r,kind:'impact'}); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; if (s.bike && impact > 6.5) this.throwRider(impact); }
           }
         }
       }
@@ -181,7 +191,7 @@ const VEH = (() => {
             this.angle += M.clamp(offA * impact * 0.01, -0.2, 0.2) * (mB / tot); o.angle -= M.clamp(offB * impact * 0.01, -0.2, 0.2) * (mA / tot);
             if (impact > 2.5) {
               if (this.driver === PLAYER || o.driver === PLAYER) PLAYER.shake(Math.min(1, impact / 9));
-              const dmg = impact * impact * 0.4; this.damage(dmg * (mB / mA), o); o.damage(dmg * (mA / mB), this);
+              const dmg = impact * impact * 0.4; this.damage(dmg*(mB/mA),o,{x:ax-nx*ar,y:this.y+.7,z:az-nz*ar,kind:'impact'}); o.damage(dmg*(mA/mB),this,{x:bx+nx*br,y:o.y+.7,z:bz+nz*br,kind:'impact'});
               AUDIO.play('crash', ax, az, impact / 10); W.FX.spark(ax - nx * ar, 0.7, az - nz * ar, Math.min(14, impact * 2)); if (impact > 7) W.FX.glass(ax, 1.2, az, 8);
               if (o.ai.mode === 'traffic' && !o.driverIsPlayer()) { o.scared = 4; o.ai.mode = 'flee'; o.fleeFrom = this; } if (this.ai.mode === 'traffic' && !this.driverIsPlayer()) { this.ai.honk = 1; }
               if (impact > 5) { if (this.spec.bike) this.throwRider(impact); if (o.spec.bike) o.throwRider(impact); }
@@ -231,19 +241,32 @@ const VEH = (() => {
         if (vn < 0) { const impact = -vn; this.vx -= vn * nx * 1.1; this.vz -= vn * nz * 1.1; this.vx *= 0.85; this.vz *= 0.85; if (impact > 3 && !res.hit.edge) { this.damage(impact * impact * 0.3, null); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.dust(cx, W.WATER_Y + 0.3, cz, 6); this.ai.stuck += 0.5; } if (res.hit.edge && this.driver === PLAYER) HUD.notify('Open water. Turn back.'); } } }
       this.collide(dt, true);
     }
-    damage(amount, source) {
-      if (this.wrecked) return; amount *= this.damageScale || 1; this.health -= amount; this.damageFlash = 0.15; if (source && source !== this) this.lastHitBy = source;
-      const hf = this.health / this.maxHealth; const lvl = hf < 0.3 ? 2 : hf < 0.65 ? 1 : 0;
-      if (lvl > this.dentLevel && this.health > 0) { this.dentLevel = lvl; this.meshes = dentedMesh(this.type, this.colIdx, lvl * 0.5, this.dentSeed); this.mesh = this.meshes.body;
-        // handling consequences: a heavy hit can bend the steering, a heavier one bursts a tyre
-        if (lvl === 1 && W.rng() < 0.4) this.dmg.pull = (W.rng() < 0.5 ? 1 : -1) * (0.03 + W.rng() * 0.05);
-        if (lvl === 2 && !this.dmg.burst && W.rng() < 0.65) { this.dmg.burst = W.rng() < 0.5 ? 'front' : 'rear'; if (this.dmg.burst === 'front') { this.dmg.front = 0.55; this.dmg.pull += (W.rng() < 0.5 ? 1 : -1) * 0.06; } else this.dmg.rear = 0.6; AUDIO.play('hit', this.x, this.z); if (this.driver === PLAYER) HUD.notify(this.dmg.burst === 'front' ? 'Front tyre blown. It pulls.' : 'Rear tyre blown. Easy on the throttle.'); } }
-      if (this.ai.mode === 'traffic' && amount > 30) { this.scared = 6; this.ai.mode = 'flee'; }
-      if (this.health <= 0) this.explode();
+    damage(amount, source, contact=null) {
+      if(this.wrecked)return;amount*=this.damageScale||1;this.health-=amount;this.damageFlash=.15;if(source&&source!==this)this.lastHitBy=source;
+      const q=this.condition, spec=this.spec;
+      if(contact){const [f,r]=this.local(contact.x,contact.z),y=contact.y-this.y,front=f>0,side=r<0?0:1;
+        const region=Math.abs(f)>spec.len*.28?(front?0:1):(r<0?2:3);q.panels[region]=Math.max(0,q.panels[region]-amount/this.maxHealth*2.4);
+        const wheel=(front?0:2)+side;
+        if(y<spec.wheelR*1.8&&Math.abs(r)>spec.wid*.32&&Math.abs(Math.abs(f)-spec.len*.31)<.65){q.tyres[wheel]=Math.max(0,q.tyres[wheel]-amount/110);if(q.tyres[wheel]===0&&!this.tyreTold?.[wheel]){(this.tyreTold??=[])[wheel]=true;AUDIO.play('hit',this.x,this.z);if(this.driver===PLAYER)HUD.notify((front?'Front':'Rear')+' tyre punctured.');}}
+        if(y>spec.hgt*.55&&Math.abs(f)<spec.len*.35){q.glass[region]=Math.max(0,q.glass[region]-amount/80);W.FX.glass(contact.x,contact.y,contact.z,3);}
+        if(front&&f>spec.len*.25&&Math.abs(r)<spec.wid*.32&&y>spec.wheelR*.7&&y<spec.hgt*.75){q.engine=Math.max(0,q.engine-amount/this.maxHealth*.95);q.cooling=Math.max(0,q.cooling-amount/this.maxHealth*1.65);}
+        this.syncCondition();this.refreshDamageMesh();
+      }
+      const hf=this.health/this.maxHealth,lvl=hf<.3?2:hf<.65?1:0;
+      if(!contact&&lvl>this.dentLevel&&this.health>0){this.dentLevel=lvl;this.replaceMeshes(dentedMesh(this.type,this.colIdx,lvl*.5,this.dentSeed));}
+      if(this.ai.mode==='traffic'&&amount>30){this.scared=6;this.ai.mode='flee';}
+      if(this.health<=0){if(contact&&!this.bigBoom)this.disable();else this.explode();}
     }
-    repair() { this.health = this.maxHealth; this.dentLevel = 0; this.meshes = getMesh(this.type, this.colIdx); this.mesh = this.meshes.body; this.dmg = { pull: 0, front: 1, rear: 1, burst: null }; this.fireT = 0; }
+    replaceMeshes(next,owned=true){if(this.privateMeshes&&typeof GL!=='undefined'){const gl=GL.gl;for(const m of [this.meshes.body,this.meshes.glass])if(m?.vao){gl.deleteVertexArray(m.vao);gl.deleteBuffer(m.vbo);gl.deleteBuffer(m.ibo);}}this.meshes=next;this.mesh=next.body;this.privateMeshes=owned;}
+    refreshDamageMesh(){const c=this.condition,key=c.panels.map(v=>Math.floor((1-v)*3)).join('')+c.glass.map(v=>v<=0?1:0).join('');if(this.damageMeshKey===key)return;this.damageMeshKey=key;this.replaceMeshes(dentedMesh(this.type,this.colIdx,0,this.dentSeed,c));}
+    syncCondition(){const c=this.condition;this.dmg.front=.45+.55*Math.min(c.tyres[0],c.tyres[1]);this.dmg.rear=.45+.55*Math.min(c.tyres[2],c.tyres[3]);this.dmg.pull=(c.tyres[1]-c.tyres[0])*.065+(c.panels[3]-c.panels[2])*.035;this.dmg.burst=c.tyres.slice(0,2).includes(0)?'front':c.tyres.slice(2).includes(0)?'rear':null;}
+    disable(){if(this.wrecked)return;this.disabled=true;this.wrecked=true;this.health=0;this.condition.engine=0;this.controls.throttle=0;this.siren=false;this.lightsOn=false;if(this.driver===PLAYER)HUD.notify('Engine disabled. Find another ride.');else if(this.driver){this.driver.exitCar();}for(const p of this.passengers.slice())p.exitCar();}
+    saveCondition(){return {health:this.health,condition:JSON.parse(JSON.stringify(this.condition)),dentSeed:this.dentSeed,dentLevel:this.dentLevel,identity:this.identity,disabled:this.disabled};}
+    loadCondition(data){if(!data)return;this.health=M.clamp(Number(data.health)||0,0,this.maxHealth);this.dentSeed=data.dentSeed||this.dentSeed;this.dentLevel=M.clamp(data.dentLevel||0,0,2);if(data.identity)this.identity=data.identity;
+      const c=data.condition||{};for(const k of ['engine','cooling','temperature'])if(Number.isFinite(c[k]))this.condition[k]=M.clamp(c[k],0,1);for(const k of ['panels','glass','tyres'])if(Array.isArray(c[k])&&c[k].length===4)this.condition[k]=c[k].map(v=>Number.isFinite(v)?M.clamp(v,0,1):1);this.syncCondition();this.refreshDamageMesh();if(this.dentLevel){this.replaceMeshes(dentedMesh(this.type,this.colIdx,this.dentLevel*.5,this.dentSeed));}if(data.disabled||this.health<=0)this.disable();}
+    repair(){this.health=this.maxHealth;this.dentLevel=0;this.replaceMeshes(getMesh(this.type,this.colIdx),false);this.condition=condition();this.damageMeshKey=null;this.tyreTold=[];this.dmg={pull:0,front:1,rear:1,burst:null};this.fireT=0;this.disabled=this.wrecked=this.burning=this.burned=false;}
     explode() {
-      if (this.wrecked) return; this.wrecked = true; this.health = 0; this.fireT = 0; this.meshes = dentedMesh(this.type, 'wreck', 1.0, this.dentSeed); this.mesh = this.meshes.body; this.siren = false; this.lightsOn = false;
+      if (this.burned) return; this.burned=true; this.wrecked = true; this.health = 0; this.fireT = 0; this.meshes = dentedMesh(this.type, 'wreck', 1.0, this.dentSeed); this.mesh = this.meshes.body; this.siren = false; this.lightsOn = false;
       const big = this.bigBoom ? 3 : 1; W.FX.explosion(this.x, this.y + 0.5, this.z, (this.spec.len > 6 ? 1.6 : 1) * big); AUDIO.play('explosion', this.x, this.z); W.noise(this.x, this.z, 120 * big, 'explosion'); if (this.bigBoom) { for (let k = 0; k < 6; k++) setTimeout(() => W.FX.explosion(this.x + (W.rng() - 0.5) * 16, this.y + 1, this.z + (W.rng() - 0.5) * 16, 1.4), 150 + k * 120); PLAYER.shake(1); }
       this.vy = 4; this.airborne = true; this.y += 0.05;
       const killer = this.lastHitBy;
@@ -385,9 +408,10 @@ const VEH = (() => {
       M.trsEuler(this.model, this.x, this.y + (this.wrecked ? -0.12 : 0), this.z, this.angle, this.pitch, this.roll);
       const wz = half * (s.bus ? 0.7 : 0.62), wx = s.wid / 2 - 0.05;
       const bx = s.track !== undefined ? s.track : s.bike ? 0 : wx; const wzF = s.axleF !== undefined ? s.axleF : wz, wzR = s.axleR !== undefined ? s.axleR : -wz; // imported models carry their own axle positions
+      const door=MESH.doorSpec(s);if(door)for(let k=0;k<2;k++){const sign=k===0?1:-1;wheelBone(this.bones,(11+k)*16,sign*door.x,0,door.front,-sign*this.doors[k]*1.12,0);}
       const wheels = [[bx, wr, wzF, true], [-bx, wr, wzF, true], [bx, wr, wzR, false], [-bx, wr, wzR, false]];
       if (s.bike) wheelBone(this.bones, 10 * 16, 0, wr, wzF, this.steerAngle || 0, 0);
-      if (!s.boat) for (let i = 0; i < 4; i++) { const [px, py, pz, front] = wheels[i]; const flat = this.dmg.burst === (front ? 'front' : 'rear') && (i % 2 === 0); wheelBone(this.bones, (i + 1) * 16, px, flat ? py - wr * 0.18 : py, pz, front ? (this.steerAngle || 0) : 0, this.wheelRot, flat ? 0.82 : 1); }
+      if (!s.boat) for (let i = 0; i < 4; i++) { const [px, py, pz, front] = wheels[i]; const flat = this.condition.tyres[i]<=0; wheelBone(this.bones, (i + 1) * 16, px, flat ? py - wr * 0.18 : py, pz, front ? (this.steerAngle || 0) : 0, this.wheelRot, flat ? 0.82 : 1); }
       const e = this.emis; e.fill(0);
       if (!this.wrecked) {
         e[5] = this.lightsOn ? 1.0 : 0; e[6] = this.brakeLights ? 1.3 : (this.lightsOn ? 0.45 : 0);

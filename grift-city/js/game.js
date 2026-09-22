@@ -43,7 +43,7 @@ const GAME = (() => {
       const P = PLAYER.P, sh = CITY.place('safehouse');
       let garage = null;
       for (const c of W.cars) if (!c.removed && !c.wrecked && c.playerOwned && M.dist(c.x, c.z, sh.x, sh.z) < 12) {
-        garage = { type: c.type, color: c.colIdx, x: c.x, z: c.z, angle: c.angle, mods: { ...c.mods } };
+        garage = { type: c.type, color: c.colIdx, x: c.x, z: c.z, angle: c.angle, condition:c.saveCondition(), mods: { ...c.mods } };
         break;
       }
       localStorage.setItem(SAVE_KEY, JSON.stringify({
@@ -87,11 +87,11 @@ const GAME = (() => {
       } else {
         // Old bed saves lack an interior identifier. Resume outside rather than inside a solid building.
         if (CITY.insideLot(P.x, P.z)) { const sh = CITY.place('safehouse'); P.x = sh.x + 6; P.z = sh.z + 1; }
-        P.y = CITY.groundY(P.x, P.z);
+        P.y = CITY.groundY(P.x, P.z,Number.isFinite(s.y)?s.y:0);
       }
       if (s.garage && VEH.SPECS[s.garage.type]) {
         const c = VEH.spawn(s.garage.type, s.garage.x, s.garage.z, s.garage.angle, { mode: 'parked', color: s.garage.color });
-        c.playerOwned = true; c.mods = s.garage.mods || {}; ECON.applyMods(c);
+        c.playerOwned = true; c.mods = s.garage.mods || {}; ECON.applyMods(c);c.loadCondition(s.garage.condition);
       }
       W.state.time = s.time ?? 9;
       for (const p of W.pickups) if (p.kind === 'package' && (s.packages || []).includes(p.id)) p.taken = true;

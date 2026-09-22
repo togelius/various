@@ -227,6 +227,23 @@ const MESH = (() => {
   // Returns { body, glass } builders. opts.dent (0..1) crumples the body, opts.seed varies the dents.
   // Bodies are lofted from rounded cross-sections so the panels curve; the greenhouse is one surface whose
   // roof quads go to the body and whose side/front/back quads go to the translucent glass builder.
+  function doorSpec(s){if(s.bike||s.boat)return null;const front=s.len/2-s.cabin[0]*s.len-s.hood*.5,back=s.len/2-s.cabin[1]*s.len-s.hood*.5;return {front,back:front-M.clamp((front-back)*.7,1,1.5),x:s.wid*.47,y:s.wheelR*.9+.12};}
+  // Clip triangles at the door seams before assigning a rigid door bone. The remaining
+  // shell stays closed around the opening, with no stretching across the hinge.
+  function rigDoors(builder,s){const d=doorSpec(s);if(!d)return;const out=new Builder();
+    const emit=(poly,bone)=>{if(poly.length<3)return;const first=out.n;for(const v of poly){const q=v.slice();if(bone)q[12]=bone;out.vert(...q);}for(let k=1;k+1<poly.length;k++)out.tri(first,first+k,first+k+1);if(bone){const back=out.n;for(const v of poly.slice().reverse()){const q=v.slice();q[12]=bone;for(let k=3;k<6;k++)q[k]*=-1;for(let k=6;k<9;k++)q[k]*=.58;out.vert(...q);}for(let k=1;k+1<poly.length;k++)out.tri(back,back+k,back+k+1);}};
+    const split=(poly,axis,limit,sign)=>{const yes=[],no=[];for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],da=(a[axis]-limit)*sign,db=(b[axis]-limit)*sign;(da>=0?yes:no).push(a);if((da>=0)!==(db>=0)){const t=da/(da-db),v=a.map((q,k)=>q+(b[k]-q)*t);yes.push(v);no.push(v);}}return [yes,no];};
+    for(let i=0;i<builder.i.length;i+=3){let poly=builder.i.slice(i,i+3).map(k=>builder.v.slice(k*13,k*13+13));const nx=poly.reduce((n,v)=>n+v[3],0)/3;
+      if(poly[0][12]!==0||Math.abs(nx)<.45){emit(poly);continue;}const side=nx>0?1:-1;
+      for(const [axis,limit,sign] of [[0,side*s.wid*.32,side],[2,d.back,1],[2,d.front,-1],[1,d.y,1]]){const [inside,outside]=split(poly,axis,limit,sign);emit(outside);poly=inside;if(!poly.length)break;}
+      emit(poly,side>0?11:12);
+    }
+    builder.v=out.v;builder.i=out.i;builder.n=out.n;
+  }
+  function localizedDamage(b,g,s,c,seed){if(!c)return;const region=(x,z)=>Math.abs(z)>s.len*.28?(z>0?0:1):(x>0?2:3);
+    for(const mesh of [b,g])for(let k=0;k<mesh.v.length;k+=13){const b=mesh;if(b.v[k+12]!==0&&b.v[k+12]<11)continue;const x=b.v[k],z=b.v[k+2],damage=1-c.panels[region(x,z)];const f=damage*.16*(.7+.3*Math.sin(x*19+z*13+seed));b.v[k]*=1-f*.25;b.v[k+2]*=1-f*.22;for(let a=6;a<9;a++)b.v[k+a]*=1-damage*.18;}
+    g.i=g.i.filter((_,i,all)=>{const a=Math.floor(i/3)*3,ids=all.slice(a,a+3);const x=ids.reduce((n,id)=>n+g.v[id*13],0)/3,z=ids.reduce((n,id)=>n+g.v[id*13+2],0)/3;return c.glass[region(x,z)]>0;});
+  }
   function carMesh(type, col, opts = {}) {
     const s = VEHICLES[type], b = new Builder(), gb = new Builder(); const L = s.len, W = s.wid, H = s.hgt, wr = s.wheelR; const LOD = !!opts.lod; // distant version: coarser rings, no trim
     const dark = [0.12, 0.13, 0.15], glass = [0.28, 0.38, 0.48], chrome = [0.8, 0.82, 0.85], rubber = [0.08, 0.08, 0.09]; // tinted glass so the cabin reads as a shape
@@ -241,7 +258,7 @@ const MESH = (() => {
       b.polyOut([[x, wr + Math.sin(a0) * r0, az + Math.cos(a0) * r0], [x, wr + Math.sin(a1) * r0, az + Math.cos(a1) * r0], [x, wr + Math.sin(a1) * r1, az + Math.cos(a1) * r1], [x, wr + Math.sin(a0) * r1, az + Math.cos(a0) * r1]], bodyDk.map(c => c * 0.55), 0, wr, az); } };
     const grille = (y, z, w, h) => { b.cbox(0, y, z, w, h, 0.06, dark, 0, { faces: 16 }); if (!LOD) for (let k = 0; k < 3; k++) b.cbox(0, y - h / 2 + (k + 0.5) * h / 3, z + 0.01, w, 0.02, 0.04, chrome, 0, { faces: 16 }); };
     const bumper = (z, colr) => { const d = 0.22; b.roundedBox(-hw * 0.98, floorY + 0.02, z > 0 ? z - d / 2 : z - d / 2, W * 0.96, 0.32, d, 0.09, colr); };
-    if (s.model) { assetVehicle(b, s, col); if (opts.dent > 0) dentBody(b, opts.dent * 0.5, opts.seed || 1); return { body: b, glass: gb }; }
+    if (s.model) { assetVehicle(b, s, col);rigDoors(b,s);localizedDamage(b,gb,s,opts.condition,opts.seed||1); if (opts.dent > 0) dentBody(b, opts.dent * 0.5, opts.seed || 1); return { body: b, glass: gb }; }
     if (s.bike) { bikeMesh(b, s, col, LOD); if (opts.dent > 0) dentBody(b, opts.dent * 0.5, opts.seed || 1); return { body: b, glass: gb }; }
     if (s.boat) { boatMesh(b, gb, s, col, LOD); if (opts.dent > 0) { dentBody(b, opts.dent * 0.6, opts.seed || 1); dentBody(gb, opts.dent * 0.6, opts.seed || 1); } return { body: b, glass: gb }; }
     if (s.bus) {
@@ -350,6 +367,7 @@ const MESH = (() => {
     // wheels
     const wz = half * (s.bus ? 0.7 : 0.62), wx = hw - 0.05;
     const ws_ = LOD ? 8 : 16; b.wheel(wx, wr, wz, wr, 0.3, 1, ws_); b.wheel(-wx, wr, wz, wr, 0.3, 2, ws_); b.wheel(wx, wr, -wz, wr, 0.3, 3, ws_); b.wheel(-wx, wr, -wz, wr, 0.3, 4, ws_);
+    rigDoors(b,s);rigDoors(gb,s);localizedDamage(b,gb,s,opts.condition,opts.seed||1);
     if (opts.dent > 0) { dentBody(b, opts.dent, opts.seed || 1); dentBody(gb, opts.dent, opts.seed || 1); }
     return { body: b, glass: gb };
   }
@@ -417,7 +435,7 @@ const MESH = (() => {
     const v = b.v; const r = M.rng(seed * 7919);
     const hash = (x, y, z) => { const t = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719 + seed) * 43758.5453; return t - Math.floor(t); };
     for (let k = 0; k < v.length; k += 13) {
-      if (v[k + 12] !== 0) continue; const x = v[k], y = v[k + 1], z = v[k + 2];
+      if (v[k + 12] !== 0 && v[k + 12] < 11) continue; const x = v[k], y = v[k + 1], z = v[k + 2];
       const q = Math.round(x * 4) + ',' + Math.round(y * 4) + ',' + Math.round(z * 4); // shared corners move together
       const h1 = hash(Math.round(x * 4), Math.round(y * 4), Math.round(z * 4)), h2 = hash(Math.round(z * 4), Math.round(x * 4), Math.round(y * 4)), h3 = hash(Math.round(y * 4), Math.round(z * 4), Math.round(x * 4));
       const k2 = amount * 0.16 * (0.4 + h3);
@@ -720,5 +738,5 @@ const MESH = (() => {
     b.cbox(0, 0.75, 1.5, 0.5, 0.3, 0.5, [1, 1, 0.9], 0, { bone: 3 });
     return b;
   }
-  return { Builder, shippingContainer, VEHICLES, MOUTH_POS, HAND, heldMesh, carMesh, seatHeight, seatFit, dentBody, pedMesh, PICKUP_MODELS, assetInto, assetBounds, treeFat, treeTall, pine, pineSmall, bush, rock, tuft, dumpster, mailbox, meter, newsbox, busShelter, cone, barrier, hedge, roundTree, palm, umbrella, streetSign, payphone, hotdogCart, pigeon, gull, plane, cafeSet, crates, sandwichBoard, vending, barberPole, bikeRack, flowerBucket, tireStack, barrel, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
+  return { Builder, doorSpec, shippingContainer, VEHICLES, MOUTH_POS, HAND, heldMesh, carMesh, seatHeight, seatFit, dentBody, pedMesh, PICKUP_MODELS, assetInto, assetBounds, treeFat, treeTall, pine, pineSmall, bush, rock, tuft, dumpster, mailbox, meter, newsbox, busShelter, cone, barrier, hedge, roundTree, palm, umbrella, streetSign, payphone, hotdogCart, pigeon, gull, plane, cafeSet, crates, sandwichBoard, vending, barberPole, bikeRack, flowerBucket, tireStack, barrel, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
 })();

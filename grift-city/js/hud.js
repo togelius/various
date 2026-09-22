@@ -86,7 +86,7 @@ const HUD = (() => {
     const bx = TOUCH.active ? cx - R : cx + R + 12, by = TOUCH.active ? cy + R + 30 : cy + R - 14, bw = Math.min(112, W_ * 0.16);
     g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(bx - 2, by - 12, bw + 4, 14); g.fillStyle = P.health > 25 ? '#d8352f' : (Math.sin(W.state.elapsed * 10) > 0 ? '#ff6060' : '#802020'); g.fillRect(bx, by - 10, bw * M.clamp(P.health / 100, 0, 1), 10);
     if (P.armor > 0) { g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(bx - 2, by - 28, bw + 4, 14); g.fillStyle = '#c8c8d0'; g.fillRect(bx, by - 26, bw * M.clamp(P.armor / 100, 0, 1), 10); }
-    if (P.car) { const kmh = Math.round(P.car.absSpeed * 3.6); text(kmh + ' km/h', bx, by - (P.armor > 0 ? 42 : 26), 14, '#ddd'); }
+    if (P.car) { const kmh = Math.round(P.car.absSpeed * 3.6); text(kmh + ' km/h', bx, by - (P.armor > 0 ? 42 : 26), 14, '#ddd');const q=P.car.condition;if(q){const alerts=[];if(q.engine<.35)alerts.push('ENGINE');if(q.temperature>.65)alerts.push('OVERHEATING');else if(q.cooling<.4)alerts.push('COOLANT');if(q.tyres.some(t=>t<=0))alerts.push('FLAT TYRE');if(alerts.length)text(alerts.join(' · '),bx,by-62,11,'#f3bd73');} }
   }
   function weaponIcon(x, y, key) {
     g.save(); g.translate(x, y); g.fillStyle = '#fff'; g.strokeStyle = '#000'; g.lineWidth = 2;

@@ -244,12 +244,13 @@ const PEDS = (() => {
     const gesture = !aim && !p.weaponOut && !p.item && !walk ? Math.max(
       p.gesturePulse > 0 ? Math.sin(Math.PI*Math.min(1,p.gesturePulse/1.25)) : 0,
       speaking > 0 ? Math.max(0,Math.sin(t*2.1))*.55 : 0) : 0;
-    const hip = LEG_H - (p.vaultPose||0)*.2 - (.075 + .06 * r + .03 * s) * walk + bob - lying * (LEG_H - .25) - (p.landing||0)*.09 - (p.crouch||0)*.43 - (p.evadeT>0?.12:0); // knees stay soft when moving, more so at a run
+    const hip = LEG_H - (p.entryPose||0)*.3 - (p.vaultPose||0)*.2 - (.075 + .06 * r + .03 * s) * walk + bob - lying * (LEG_H - .25) - (p.landing||0)*.09 - (p.crouch||0)*.43 - (p.evadeT>0?.12:0); // knees stay soft when moving, more so at a run
     const flinch = p.flinchT > 0 ? Math.sin(Math.min(1, p.flinchT / 0.35) * Math.PI) : 0; const kick = p.kickT > 0 ? Math.sin(Math.min(1, p.kickT / 0.35) * Math.PI) : 0;
-    const lean = (p.vaultPose||0)*.5 + (p.accelLean||0) + (p.crouch||0)*.22 + (p.brace||0)*.14 + (p.evadeT>0?.22:0) + 0.03 * walk + 0.1 * r + 0.1 * s + (p.recoil || 0) * -0.5 - flinch * 0.35 + kick * 0.15;
+    const lean = (p.entryPose||0)*.8 + (p.exitPose?Math.sin(Math.PI*M.clamp(p.exitPose.t/.65,0,1))*.65:0) + (p.vaultPose||0)*.5 + (p.accelLean||0) + (p.crouch||0)*.22 + (p.brace||0)*.14 + (p.evadeT>0?.22:0) + 0.03 * walk + 0.1 * r + 0.1 * s + (p.recoil || 0) * -0.5 - flinch * 0.35 + kick * 0.15;
     const twist = fL * (0.07 + 0.05 * r) * (1 - aim); // shoulders turn against the stepping leg
     const px = lat * 0.015;
-    M.trsEuler(model, p.x, p.y, p.z, p.angle, lying * (dead ? -Math.PI / 2 * p.fallDir : -Math.PI / 2), 0, p.sx || 1, p.sy || 1, p.sx || 1);
+    const exit=p.exitPose,u=exit?1-M.clamp(exit.t/.65,0,1):1,ease=u*u*(3-2*u);
+    M.trsEuler(model, exit?M.lerp(exit.from[0],p.x,ease):p.x,exit?M.lerp(exit.from[1],p.y,ease):p.y,exit?M.lerp(exit.from[2],p.z,ease):p.z, p.angle, lying * (dead ? -Math.PI / 2 * p.fallDir : -Math.PI / 2), 0, p.sx || 1, p.sy || 1, p.sx || 1);
     // torso: lean, counter-twist, a touch of hip sway; breathing when standing
     bone(bones, 0, px, hip + breath * 0.006, 0, twist + Math.sin(t * 0.7) * 0.02 * idle, lean+(p.landing||0)*.06, lat * 0.02 + breath * 0.008 + (p.turnLean||0));
     // head: rides on the torso and cancels the twist so it keeps looking where the ped goes
