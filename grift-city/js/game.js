@@ -35,6 +35,9 @@ const GAME = (() => {
   let canvas, hud, state = 'loading', last = 0, staticMesh = null, waterMesh = null, propList = [], started = false, accum = 0;
   const SAVE_KEY = 'grift-city-save-v1';
   function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } }
+  // What CONTINUE will load, for the title screen: the clock, cash and missions of the last save.
+  let infoRaw = null, infoVal = null;
+  function saveInfo() { try { const raw = localStorage.getItem(SAVE_KEY); if (raw === infoRaw) return infoVal; infoRaw = raw; infoVal = null; const s = JSON.parse(raw); if (!s) return null; const h = Math.floor(s.time ?? 9), m = Math.floor(((s.time ?? 9) - h) * 60); return (infoVal = { clock: (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m, money: Math.max(0, s.money || 0) | 0, missions: (s.stats && s.stats.missions) || 0 }); } catch (e) { return null; } }
   function save() {
     try {
       const P = PLAYER.P, sh = CITY.place('safehouse');
@@ -62,7 +65,7 @@ const GAME = (() => {
       if (!s) return false;
       const P = PLAYER.P;
       if (!Number.isFinite(s.x) || !Number.isFinite(s.z) || !s.weapons || typeof s.weapons !== 'object') return false;
-      P.x = s.x; P.z = s.z; P.money = Math.max(0, s.money || 0); P.health = s.health || 100; P.armor = s.armor || 0;
+      P.x = s.x; P.z = s.z; P.money = Math.max(0, s.money || 0); P.health = 100; P.armor = s.armor || 0; // a loaded game starts rested, whatever state the autosave caught you in
       PLAYER.setOutfit(s.outfit || 0);
       P.weapons = Object.fromEntries(Object.entries(s.weapons).filter(([k]) => WEAPONS[k]).map(([k, v]) => [k, v === -1 ? Infinity : v]));
       P.magazines = Object.fromEntries(Object.entries(s.magazines || {}).filter(([k,v]) => WEAPONS[k] && Number.isFinite(v) && v >= 0).map(([k,v]) => [k, Math.min(v, WEAPONS[k].clip || 0)])); P.reloadT = 0; P.reloadWeapon = null;
@@ -97,6 +100,9 @@ const GAME = (() => {
     } catch (e) { return false; }
   }
   function newGame() { try { localStorage.removeItem(SAVE_KEY); } catch (e) { } location.reload(); }
+  // Erasing a save takes two presses within a few seconds, so a stray tap on NEW GAME cannot wipe hours of play.
+  let wipeT = 0;
+  function askNewGame() { if (!hasSave() || wipeT > 0) newGame(); else wipeT = 4; }
   const PACKAGE_WEAPONS = ['uzi', 'shotgun', 'rifle', 'rocket'];
   function restorePackageRewards(n) {
     const s = CITY.place('safehouse');
@@ -130,7 +136,7 @@ const GAME = (() => {
     for (let i = 0; i < 40; i++) { VEH.spawnTraffic(PLAYER.x, PLAYER.z, PLAYER.P.camYaw + Math.PI, 26); PEDS.populate(PLAYER.x, PLAYER.z, PLAYER.P.camYaw + Math.PI, 40); }
     state = 'title';
     INPUT.onLockLost = () => { if (state === 'playing' && !MISSIONS.shop) { state = 'paused'; INPUT.releaseLock(); } };
-    document.addEventListener('mousedown', () => { if (state === 'title' && !TOUCH.active) startPlay(); }, { once: false });
+    document.addEventListener('mousedown', e => { if (state !== 'title' || TOUCH.active) return; const r = HUD.newGameRect; if (r && e.clientX >= r.x && e.clientX <= r.x + r.w && e.clientY >= r.y && e.clientY <= r.y + r.h) { INPUT.tapKey('KeyN'); return; } startPlay(); }, { once: false });
 
     window.__ready = true;
     mark('rest'); console.log('boot', JSON.stringify(window.__bootTimes));
@@ -152,7 +158,8 @@ const GAME = (() => {
       if (INPUT.hit('Escape') && state === 'playing') { /* bot never pauses */ }
       INPUT.endFrame(); return;
     }
-    if (state === 'title') { if (INPUT.hit('KeyN')) { newGame(); INPUT.endFrame(); return; } RENDER.setTimeOfDay(W.state.time, W.weather.rain); titleCamera(now / 1000); renderWorld(dt, true); HUD.draw(dt, 'title'); INPUT.endFrame(); return; }
+    wipeT = Math.max(0, wipeT - dt);
+    if (state === 'title') { if (INPUT.hit('KeyN')) askNewGame(); RENDER.setTimeOfDay(W.state.time, W.weather.rain); titleCamera(now / 1000); renderWorld(dt, true); HUD.draw(dt, 'title'); INPUT.endFrame(); return; }
     if (INPUT.hit('Escape')) { if (MISSIONS.shop) { } else if (state === 'playing') { state = 'paused'; INPUT.releaseLock(); } else if (state === 'paused') { state = 'playing'; INPUT.requestLock(); } }
     if (INPUT.hit('Tab')) { if (state === 'playing') state = 'map'; else if (state === 'map') state = 'playing'; }
     if (INPUT.hit('KeyP') && state === 'playing' && !MISSIONS.shop) { state = 'photo'; const c = RENDER.cam; const d = Math.hypot(c.tx - c.x, c.ty - c.y, c.tz - c.z) || 1; photo = { x: c.x, y: c.y, z: c.z, yaw: Math.atan2(c.tx - c.x, c.tz - c.z), pitch: Math.asin((c.ty - c.y) / d), fov: 55, shot: false, savedT: 0 }; INPUT.requestLock(); }
@@ -169,7 +176,7 @@ const GAME = (() => {
       if (INPUT.hit('BracketLeft')) { options.sensitivity = Math.max(0.3, +(options.sensitivity - 0.1).toFixed(1)); saveOptions(); }
       if (INPUT.hit('BracketRight')) { options.sensitivity = Math.min(3, +(options.sensitivity + 0.1).toFixed(1)); saveOptions(); }
     }
-    if (state === 'paused' && INPUT.hit('KeyN')) newGame();
+    if (state === 'paused' && INPUT.hit('KeyN')) askNewGame();
     if (state === 'playing' && !INPUT.locked && INPUT.mouse.clicked) INPUT.requestLock();
     if (state === 'paused' && INPUT.mouse.clicked) { state = 'playing'; INPUT.requestLock(); }
     // the world advances in steps no longer than a 60 Hz frame: a slow frame is simulated as several small steps rather
@@ -308,5 +315,5 @@ const GAME = (() => {
     RENDER.render(canvas, scene, W.state.elapsed);
   }
   window.addEventListener('load', boot);
-  return { quality, options, auto, save, load, hasSave, newGame, onPackage, get state() { return state; }, set state(s) { state = s; }, get fps() { return fps; }, startPlay };
+  return { quality, options, auto, save, load, hasSave, saveInfo, newGame, onPackage, get wipeArmed() { return wipeT > 0; }, get state() { return state; }, set state(s) { state = s; }, get fps() { return fps; }, startPlay };
 })();

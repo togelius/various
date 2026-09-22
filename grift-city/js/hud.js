@@ -3,7 +3,7 @@
 const HUD = (() => {
   let cv, g, W_, H_, mapCanvas = null; const notes = [];
   // Strips the touch layer can tap, rebuilt every frame: {x, y, w, h, key} where key is the key it stands for.
-  const zones = []; const zone = (x, y, w, h, key) => { if (TOUCH.active) zones.push({ x, y, w, h, key }); }; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
+  let newGameRect = null; const zones = []; const zone = (x, y, w, h, key) => { if (TOUCH.active) zones.push({ x, y, w, h, key }); }; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
   const FONT = '"Helvetica Neue", Arial, sans-serif'; const DISPLAY = 'Impact, "Arial Black", "Helvetica Neue", sans-serif';
   function init(canvas) { cv = canvas; g = cv.getContext('2d'); }
   function resize() { const dpr = Math.min(window.devicePixelRatio || 1, 1.5); /* a full-retina overlay costs more to composite than its text is worth */ const w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } W_ = cv.clientWidth; H_ = cv.clientHeight; g.setTransform(dpr, 0, 0, dpr, 0, 0); }
@@ -185,18 +185,20 @@ const HUD = (() => {
     text('WELCOME TO THE WRONG SIDE OF PARADISE',W_*.1,H_*.18+24,Math.min(12,W_*.018),'#c4d5d3','left','500',false);
     outlined('GRIFT CITY', W_*.1, H_*.32, Math.min(112,W_*.13),'#f5ce68','left'); text('A stolen car. A second chance. A city that remembers.',W_*.1,H_*.32+65,Math.min(16,W_*.022),'#e3e9dd','left','normal',false);
     g.fillStyle='rgba(10,25,31,.8)'; g.fillRect(W_*.1,H_*.54,W_*.8,76); g.strokeStyle='rgba(245,206,104,.6)'; g.lineWidth=1; g.strokeRect(W_*.1,H_*.54,W_*.8,76);
-    const tap = TOUCH.active;
-    const blink = true; if (blink) text(tap ? (GAME.hasSave() ? 'TAP to continue' : 'TAP to play') : (GAME.hasSave() ? 'CLICK to continue     ·     N for a new game' : 'CLICK to play'), W_ / 2, H_ * .54 + 38, 22, '#fff', 'center');
+    const tap = TOUCH.active, info = GAME.saveInfo(), armed = GAME.wipeArmed;
+    text(tap ? (info ? 'TAP to continue' : 'TAP to play') : (info ? 'CLICK to continue' : 'CLICK to play'), W_ / 2, H_ * .54 + (info ? 28 : 38), 22, '#fff', 'center');
+    if (info) text('saved at ' + info.clock + '  ·  $' + info.money.toLocaleString() + '  ·  ' + info.missions + (info.missions === 1 ? ' mission' : ' missions') + ' passed', W_ / 2, H_ * .54 + 54, 14, '#c4d5d3', 'center', 'normal');
+    newGameRect = null;
     const lines = ['WASD / arrows  move · drive', 'Mouse  look and aim · left button  attack · right button  aim', 'SHIFT  sprint · SPACE  jump / handbrake · F  enter / leave car', 'Scroll, Q / E, 1–8  weapons · R  reload / radio · H  horn · L  siren · T  taxi / vigilante job', 'TAB  map · ESC  pause · M  mute'];
-    if (tap && GAME.hasSave()) {
-      const bw = 190, bh = 44, bxx = W_ / 2 - bw / 2, byy = H_ * 0.58 + 34;
-      g.fillStyle = 'rgba(10,14,18,0.6)'; g.fillRect(bxx, byy, bw, bh);
-      g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = 2; g.strokeRect(bxx, byy, bw, bh);
-      text('NEW GAME', W_ / 2, byy + bh / 2, 17, '#fff', 'center');
-      zone(bxx, byy, bw, bh, 'KeyN');
+    if (info) { // a real button, for the mouse as well as a finger; the first press arms it, the second erases the save
+      const bw = armed ? 350 : 190, bh = 40, bxx = W_ / 2 - bw / 2, byy = H_ * .54 + 86;
+      g.fillStyle = armed ? 'rgba(120,20,20,0.85)' : 'rgba(10,14,18,0.6)'; g.fillRect(bxx, byy, bw, bh);
+      g.strokeStyle = armed ? 'rgba(255,140,120,0.9)' : 'rgba(255,255,255,0.5)'; g.lineWidth = 2; g.strokeRect(bxx, byy, bw, bh);
+      text(armed ? (tap ? 'TAP AGAIN to erase the save' : 'CLICK AGAIN or N to erase the save') : (tap ? 'NEW GAME' : 'NEW GAME  (N)'), W_ / 2, byy + bh / 2, armed ? 15 : 17, '#fff', 'center');
+      newGameRect = { x: bxx, y: byy, w: bw, h: bh }; zone(bxx, byy, bw, bh, 'KeyN');
     }
     const touchLines = ['Left thumb  a stick appears where you touch: walk, run at the rim, steer', 'Right thumb  drag to look · the buttons fire, aim, jump and get you in and out', 'In a car  GAS and BRAKE on the right, HAND for the handbrake, EXIT to get out', 'Top right  the map, and the pause menu for options'];
-    (tap ? touchLines : lines).forEach((l, i) => text(l, W_ / 2, H_ * 0.7 + i * 22, 14, '#bbb', 'center', 'normal'));
+    (tap ? touchLines : lines).forEach((l, i) => text(l, W_ / 2, H_ * .54 + (info ? 150 : 100) + i * 22, 14, '#bbb', 'center', 'normal'));
   }
   let loadNote = 'building the city…', loadFrac = -1;
   function loading(note, frac) { loadNote = note; loadFrac = frac === undefined ? -1 : frac; draw(0, 'loading'); }
@@ -230,7 +232,7 @@ const HUD = (() => {
     const P = PLAYER.P; g.fillStyle = 'rgba(0,0,0,0.7)'; g.fillRect(0, 0, W_, H_); outlined('PAUSED', W_ / 2, 80, 48, '#f5c542');
     const st = P.stats; const rows = [['Missions passed', st.missions + ' / ' + (MISSIONS.LIST.length + MISSIONS.LIST2.length + MISSIONS.PHONE.length)], ['Standing: Marla / Crane', ECON.S.rep.marla + ' / ' + ECON.S.rep.crane], ['Properties / stored cars', Object.keys(ECON.S.properties).length + ' / ' + ECON.S.owned.length], ['Unique stunts', (st.jumps || []).length + ' / ' + CITY.ramps.length], ['Cash earned', '$' + st.cash], ['Hidden packages', st.packages + ' / 20'], ['Cars stolen', st.carsStolen], ['People killed', st.kills], ['Distance travelled', (st.distance / 1000).toFixed(1) + ' km'], ['Insane stunts', st.stunts], ['Times wasted / busted', st.wasted + ' / ' + st.busted], ['Time of day', W.clockString()]];
     rows.forEach(([k, v], i) => { text(k, W_ / 2 - 60, 150 + i * 26, 15, '#bbb', 'right', 'normal'); text(String(v), W_ / 2 - 48, 150 + i * 26, 15, '#fff', 'left'); });
-    const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['E', 'ink lines', o.edges ? 'on' : 'off'], ['A', 'auto quality', o.auto ? (GAME.auto.level ? 'on, stepped down ' + GAME.auto.level : 'on') : 'off'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', '']];
+    const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['E', 'ink lines', o.edges ? 'on' : 'off'], ['A', 'auto quality', o.auto ? (GAME.auto.level ? 'on, stepped down ' + GAME.auto.level : 'on') : 'off'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', GAME.wipeArmed ? 'press N again to erase the save' : '']];
     const OPTKEY = ['BracketRight', 'KeyI', 'KeyK', 'KeyB', 'KeyE', 'KeyP', 'KeyA'];
     opts.forEach(([k, n, v], i) => { const y = 150 + i * 26; if (OPTKEY[i]) zone(W_ / 2 + 150, y - 13, 280, 26, OPTKEY[i]); text(k, W_ / 2 + 200, y, 15, '#f5c542', 'right'); text(n, W_ / 2 + 212, y, 15, '#ccc', 'left', 'normal'); text(v, W_ / 2 + 360, y, 15, '#fff', 'left'); });
     text(TOUCH.active ? 'TAP anywhere to resume  ·  tap an option to change it' : 'ESC or click  resume', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
@@ -251,5 +253,5 @@ const HUD = (() => {
   }
   // Where a run went: the big map with every sampled position burned in (tools/playtest/run.js writes it as heatmap.png).
   function heatmap(track) { resize(); g.clearRect(0, 0, W_, H_); drawBigMap(PLAYER.P, (scale) => { g.fillStyle = 'rgba(255,70,30,0.22)'; for (const [x, z] of track) { g.beginPath(); g.arc(x, z, 7 / scale, 0, 7); g.fill(); } g.fillStyle = '#fff'; g.beginPath(); g.arc(track[0][0], track[0][1], 5 / scale, 0, 7); g.fill(); }); text('positions sampled every 0.4 s of wall time; white dot is the start', W_ / 2, H_ - 14, 12, '#ccc', 'center', 'normal'); }
-  return { radarLayout, init, draw, loading, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, zones, shake: (a) => PLAYER.shake(a) };
+  return { radarLayout, init, draw, loading, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, zones, get newGameRect() { return newGameRect; }, shake: (a) => PLAYER.shake(a) };
 })();
