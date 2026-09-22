@@ -2,13 +2,13 @@
 'use strict';
 const GAME = (() => {
   const quality = { shadows: true };
-  const options = { sensitivity: 1.0, invertY: false, bloom: true, resolution: 1.25, shadows: true, auto: true, edges: true };
+  const options = { ...SETTINGS.defaults, bindings: {} };
   // Adaptive quality: when frames stay slow the renderer steps down (render scale, ambient occlusion, shadows, post) one
   // level at a time, and steps back up when there is headroom. A slow machine gets a game that runs at full speed.
   const auto = { level: 0, ema: 16, slowT: 0, fastT: 0, told: false, warm: 0, badRaises: 0, sinceRaise: Infinity };
   const AUTO_LEVELS = 5, AO_STRENGTH = 0.65, STEP = 1 / 60, MAX_STEPS = 6;
-  function loadOptions() { try { Object.assign(options, JSON.parse(localStorage.getItem('grift-city-options') || '{}')); } catch (e) { } applyOptions(); }
-  function saveOptions() { try { localStorage.setItem('grift-city-options', JSON.stringify(options)); } catch (e) { } applyOptions(); }
+  function loadOptions() { try { Object.assign(options, JSON.parse(localStorage.getItem('grift-city-options') || '{}')); } catch (e) { } SETTINGS.sanitize(options); applyOptions(); }
+  function saveOptions() { try { localStorage.setItem('grift-city-options', JSON.stringify(options)); } catch (e) { } SETTINGS.sanitize(options); applyOptions(); }
   function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 5; RENDER.post.enabled = options.bloom && L < 4; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.4 : 0; RENDER.env.interiors = !/[?&]rooms=0/.test(location.search); RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
   // The decision alone, with no side effects, so it can be driven directly by a test. Returns 'lower', 'raise'
   // or null. What stops it oscillating is not a limit on how often quality may be restored -- that turned a few
@@ -165,20 +165,9 @@ const GAME = (() => {
     if (INPUT.hit('KeyP') && state === 'playing' && !MISSIONS.shop) { state = 'photo'; const c = RENDER.cam; const d = Math.hypot(c.tx - c.x, c.ty - c.y, c.tz - c.z) || 1; photo = { x: c.x, y: c.y, z: c.z, yaw: Math.atan2(c.tx - c.x, c.tz - c.z), pitch: Math.asin((c.ty - c.y) / d), fov: 55, shot: false, savedT: 0 }; INPUT.requestLock(); }
     else if (state === 'photo' && (INPUT.hit('KeyP') || INPUT.hit('Escape'))) { state = 'playing'; }
     if (state === 'photo') updatePhoto(dt);
-    if (INPUT.hit('KeyM')) AUDIO.toggleMute();
-    if (state === 'paused') {
-      if (INPUT.hit('KeyK')) { options.shadows = !options.shadows; saveOptions(); }
-      if (INPUT.hit('KeyB')) { options.bloom = !options.bloom; saveOptions(); }
-      if (INPUT.hit('KeyI')) { options.invertY = !options.invertY; saveOptions(); }
-      if (INPUT.hit('KeyP')) { options.resolution = options.resolution >= 1.5 ? 0.75 : options.resolution >= 1.25 ? 1.5 : options.resolution >= 1.0 ? 1.25 : 1.0; saveOptions(); }
-      if (INPUT.hit('KeyE')) { options.edges = !options.edges; saveOptions(); }
-      if (INPUT.hit('KeyA')) { options.auto = !options.auto; auto.level = 0; auto.slowT = auto.fastT = 0; saveOptions(); }
-      if (INPUT.hit('BracketLeft')) { options.sensitivity = Math.max(0.3, +(options.sensitivity - 0.1).toFixed(1)); saveOptions(); }
-      if (INPUT.hit('BracketRight')) { options.sensitivity = Math.min(3, +(options.sensitivity + 0.1).toFixed(1)); saveOptions(); }
-    }
-    if (state === 'paused' && INPUT.hit('KeyN')) askNewGame();
+    if (state === 'playing' && INPUT.hit('KeyM')) AUDIO.toggleMute();
+    SETTINGS.sync(state);
     if (state === 'playing' && !INPUT.locked && INPUT.mouse.clicked) INPUT.requestLock();
-    if (state === 'paused' && INPUT.mouse.clicked) { state = 'playing'; INPUT.requestLock(); }
     // the world advances in steps no longer than a 60 Hz frame: a slow frame is simulated as several small steps rather
     // than one big one, so the game keeps real-time pace down to ten frames a second and the physics never sees a jump
     if (state === 'playing' && !window.__manual) { const n = Math.min(MAX_STEPS, Math.max(1, Math.ceil(dt / STEP - 1e-6))); const h = dt / n; for (let i = 0; i < n; i++) { step(h); if (i < n - 1) INPUT.consumeEdges(); } }
@@ -315,5 +304,5 @@ const GAME = (() => {
     RENDER.render(canvas, scene, W.state.elapsed);
   }
   window.addEventListener('load', boot);
-  return { quality, options, auto, save, load, hasSave, saveInfo, newGame, onPackage, get wipeArmed() { return wipeT > 0; }, get state() { return state; }, set state(s) { state = s; }, get fps() { return fps; }, startPlay };
+  return { quality, options, auto, saveOptions, save, load, hasSave, saveInfo, askNewGame, newGame, onPackage, get wipeArmed() { return wipeT > 0; }, get state() { return state; }, set state(s) { state = s; }, get fps() { return fps; }, startPlay };
 })();

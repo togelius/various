@@ -1,0 +1,26 @@
+# Coastal getaway overhaul
+
+Implementation of the September 2026 look, feel and gameplay review. Mission scripts and campaign content are retained. Work is on `main`; each completed milestone is tested, committed and pushed.
+
+## Milestones
+
+- [x] 1. Embodied controls: collision-aware locomotion, crouch/evasion, camera sweeps and shoulders, accessible settings and remapping.
+- [ ] 2. Presentation: character deformation and poses, coastal material rules, night readability, directional practical light, varied wetness and reflections.
+- [ ] 3. Playable streets: ten connected authored blocks, shared cover/vault/destructible definitions, parking deck and multi-level queries/navigation.
+- [ ] 4. Driving: three handling identities, physical speed/feedback, localized damage, visible entry/exit, persistent vehicle condition.
+- [ ] 5. Decisions: tactical cover/flanking/suppression, weapon feedback, witness reports, vehicle identification and distributed searches.
+- [ ] 6. City continuity and release: persistent local incidents, map icons/waypoints/routes, interaction feedback, audio mix controls, repeatable scenarios and distribution build.
+
+## Quality gates
+
+Run the relevant deterministic suites for each milestone. Exercise the running game with `?mute=1`, including daylight/rainy night, blocked movement, camera corners, vehicle transitions, wet braking, combat and pursuit. Rebuild the single-file distribution at release. Record checks and limitations here; do not claim listening tests, mobile hardware performance or a complete campaign playthrough without performing them.
+
+## Visual rules
+
+World units are metres. Grounded stylization: warm weathered masonry, salt-grey concrete, oxidized teal metal, muted body paint and small amber practical lights. Rubber and cloth stay rough; metal and glass carry localized highlights. Large forms and first-storey recesses precede tiny detail. Use bevels on handled objects and broad panels, consistent human/door/car scale, restrained particle size, and clear foreground silhouettes in darkness. Geometry that communicates cover, passage, elevation or breakability must share its gameplay definition.
+
+## Validation log
+
+Baseline: existing gameplay, character and vehicle suites pass at `949cc38`. Review screenshots and frame samples were taken with audio muted.
+
+Milestone 1: added deterministic control-foundation coverage (30/60/120 Hz wall contact, crouch, evade recovery, shoulder switching, remapping and camera vehicle collision). Existing gameplay, character and vehicle suites pass. Muted browser verification confirmed wall speed 0, native settings changes, binding swap and resume. The pause panel scrolls at 1280×720; UI and touch use separate coordinate scales.

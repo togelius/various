@@ -192,7 +192,7 @@ const W = (() => {
         box('prop', p, p.x-p.r, y, p.z-p.r, p.x+p.r, y+(heights[p.kind] || 1.2), p.z+p.r);
       }
     }
-    if (!sceneryOnly) {
+    if (!sceneryOnly || sceneryOnly === 'camera') {
       for (const c of cars) {
         if (c === ignore || c.removed) continue;
         // Transform into the car's frame: long vehicles must not have circular, oversized hitboxes.
@@ -201,10 +201,10 @@ const W = (() => {
           -c.spec.wid/2, c.y || 0, -c.spec.len/2, c.spec.wid/2, (c.y || 0)+(c.spec.hgt || 1.6), c.spec.len/2);
         if (t >= 0 && t < best.t) best = { t, kind: 'car', obj: c };
       }
-      for (const p of peds) if (p !== ignore && !p.removed && p.alive && !p.inCar) {
+      for (const p of peds) if (!sceneryOnly && p !== ignore && !p.removed && p.alive && !p.inCar) {
         const y = p.y || 0; box('ped', p, p.x-.35, y+.1, p.z-.35, p.x+.35, y+(p.lying > .5 ? .6 : 1.8), p.z+.35);
       }
-      if (heli && heli !== ignore && !heli.dead) box('heli', heli, heli.x-3.5, heli.y-1.8, heli.z-3.5, heli.x+3.5, heli.y+2, heli.z+3.5);
+      if (!sceneryOnly && heli && heli !== ignore && !heli.dead) box('heli', heli, heli.x-3.5, heli.y-1.8, heli.z-3.5, heli.x+3.5, heli.y+2, heli.z+3.5);
     }
     // Ground plane (indoor floors are at a different elevation).
     const floor = room ? room.floorY : 0;

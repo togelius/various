@@ -15,6 +15,16 @@ around one file; `python3 tools/build-single.py` regenerates it.
 ![Northgate at night, headlights on](screenshots/night.jpg)
 ![Four stars in Downtown](screenshots/chase.jpg)
 
+## Coastal getaway overhaul (in progress)
+
+The implementation milestones and validation record are in [DEVELOPMENT.md](DEVELOPMENT.md).
+**Esc** opens a keyboard- and touch-accessible settings panel with key remapping,
+separate aim sensitivity, optional mouse/controller assistance, camera motion controls,
+and HUD scaling. **Z** toggles crouch, **X** evades with a recovery period, and **V**
+switches the aiming shoulder. Movement animation now follows collision-resolved velocity.
+The camera checks walls, props and vehicles around its near plane; speed uses metres/second
+converted directly to km/h. Sound can always be disabled at launch with `?mute=1`.
+
 ## Gameplay polish (September 2026)
 
 The mission panel now wraps long objectives and shows destination distance. In a car,

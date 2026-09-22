@@ -7,7 +7,7 @@ const INPUT = (() => {
   // An on-screen control layer stands in for a gamepad and can press keys, so nothing downstream needs to know
   // whether a finger or a keyboard is driving it.
   let virtualMouse = 0, lastVirtualMouse = 0;
-  function tapKey(code) { pressed[code] = true; }
+  function tapKey(code) { pressed[physical(code)] = true; }
   function holdKey(code, on) { if (on) { if (!keys[code]) pressed[code] = true; keys[code] = true; } else keys[code] = false; }
   function init(c) {
     canvas = c;
@@ -42,8 +42,11 @@ const INPUT = (() => {
     pad.lt = g.buttons[6] ? g.buttons[6].value : 0; pad.rt = g.buttons[7] ? g.buttons[7].value : 0;
     for (let i = 0; i < g.buttons.length; i++) { const down = g.buttons[i].pressed; pad.pressed[i] = down && !pad.buttons[i]; pad.buttons[i] = down; }
   }
-  const down = code => !!keys[code];
-  const hit = code => !!pressed[code];
+  const physical = code => typeof GAME !== 'undefined' && GAME.state === 'playing' ? (GAME.options.bindings?.[code] || code) : code;
+  const down = code => !!keys[physical(code)];
+  const hit = code => !!pressed[physical(code)];
+  function releaseAll() { for (const k in keys) keys[k]=false; consumeEdges(); mouse.buttons=0; }
+  function label(code) { return SETTINGS.keyName(physical(code)); }
   // The per-frame edges (key presses, clicks, mouse motion, wheel) are consumed by the first simulation step of a frame;
   // held keys and buttons stay for the following sub-steps.
   function consumeEdges() { for (const k in pressed) pressed[k] = false; mouse.dx = 0; mouse.dy = 0; mouse.wheel = 0; mouse.clicked = 0; mouse.rclicked = 0; for (let i = 0; i < pad.pressed.length; i++) pad.pressed[i] = false; }
@@ -51,6 +54,6 @@ const INPUT = (() => {
   // For recordings: the whole input state of a frame as plain data, and back.
   function snapshot() { const k = [], p = []; for (const c in keys) if (keys[c]) k.push(c); for (const c in pressed) if (pressed[c]) p.push(c); return { k, p, m: [mouse.dx, mouse.dy, mouse.buttons, mouse.wheel, mouse.clicked, mouse.rclicked] }; }
   function restore(s) { for (const c in keys) keys[c] = false; for (const c of s.k) keys[c] = true; for (const c in pressed) pressed[c] = false; for (const c of s.p) pressed[c] = true; [mouse.dx, mouse.dy, mouse.buttons, mouse.wheel, mouse.clicked, mouse.rclicked] = s.m; }
-  const api = { init, down, hit, mouse, pad, pollPad, endFrame, consumeEdges, snapshot, restore, requestLock, releaseLock, tapKey, holdKey, virtualPad: null, touch: false, get locked() { return locked || fallback; }, get fallback() { return fallback; }, onLockLost: null, typed: '' };
+  const api = { physical, init, down, hit, releaseAll, label, mouse, pad, pollPad, endFrame, consumeEdges, snapshot, restore, requestLock, releaseLock, tapKey, holdKey, virtualPad: null, touch: false, get locked() { return locked || fallback; }, get fallback() { return fallback; }, onLockLost: null, typed: '' };
   return api;
 })();

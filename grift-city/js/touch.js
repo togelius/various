@@ -10,7 +10,7 @@ const TOUCH = (() => {
   let look = null;              // the finger dragging the camera: { id, x, y }
   const held = new Set();       // button ids currently under a finger
   const vkeys = new Set();      // keys this layer is holding down, so it never releases one the player is holding
-  const vhold = (code, on) => { if (on) { vkeys.add(code); INPUT.holdKey(code, true); } else if (vkeys.has(code)) { vkeys.delete(code); INPUT.holdKey(code, false); } };
+  const vhold = (code, on) => { code=INPUT.physical(code); if (on) { vkeys.add(code); INPUT.holdKey(code, true); } else if (vkeys.has(code)) { vkeys.delete(code); INPUT.holdKey(code, false); } };
   let hudCv = null, lastL = null;
   const LOOK_GAIN = 2.1;        // a drag of the screen turns about as far as the same sweep of a mouse would
   const SPRINT_AT = 0.82;       // push the stick to its rim and you run, so running needs no button of its own
@@ -106,6 +106,7 @@ const TOUCH = (() => {
   }
 
   function onDown(e) {
+    if (e.target.closest && e.target.closest('#settings')) return;
     if (e.pointerType === 'mouse') { sawMouse = true; if (forced === null) setActive(false); return; }
     setActive(sense() || forced === true || forced === null);
     if (!active) return;

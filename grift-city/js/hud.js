@@ -1,12 +1,12 @@
 // GRIFT CITY — the 2D overlay: radar, money, health, wanted stars, weapon, objectives, dialogue, menus.
 'use strict';
 const HUD = (() => {
-  let cv, g, W_, H_, mapCanvas = null; const notes = [];
+  let cv, g, W_, H_, uiScale=1, mapCanvas = null; const notes = [];
   // Strips the touch layer can tap, rebuilt every frame: {x, y, w, h, key} where key is the key it stands for.
-  let newGameRect = null; const zones = []; const zone = (x, y, w, h, key) => { if (TOUCH.active) zones.push({ x, y, w, h, key }); }; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
+  let newGameRect = null; const zones = []; const zone = (x, y, w, h, key) => { if (TOUCH.active) zones.push({ x:x*uiScale, y:y*uiScale, w:w*uiScale, h:h*uiScale, key }); }; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
   const FONT = '"Helvetica Neue", Arial, sans-serif'; const DISPLAY = 'Impact, "Arial Black", "Helvetica Neue", sans-serif';
   function init(canvas) { cv = canvas; g = cv.getContext('2d'); }
-  function resize() { const dpr = Math.min(window.devicePixelRatio || 1, 1.5); /* a full-retina overlay costs more to composite than its text is worth */ const w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } W_ = cv.clientWidth; H_ = cv.clientHeight; g.setTransform(dpr, 0, 0, dpr, 0, 0); }
+  function resize() { const dpr = Math.min(window.devicePixelRatio || 1, 1.5); /* a full-retina overlay costs more to composite than its text is worth */ const w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } uiScale=1; try { uiScale=GAME.options.hudScale || 1; } catch(e) {} W_ = cv.clientWidth/uiScale; H_ = cv.clientHeight/uiScale; g.setTransform(dpr*uiScale, 0, 0, dpr*uiScale, 0, 0); }
   function notify(text) { notes.push({ text, t: 4 }); if (notes.length > 4) notes.shift(); }
   function money(n, why) { moneyAnim.target = PLAYER.money; if (why) notify((n >= 0 ? '+$' : '-$') + Math.abs(n) + '  ' + why); }
   function bigText(text, color, dur = 3) { big = { text, color, t: dur, max: dur }; }
@@ -86,7 +86,7 @@ const HUD = (() => {
     const bx = TOUCH.active ? cx - R : cx + R + 12, by = TOUCH.active ? cy + R + 30 : cy + R - 14, bw = Math.min(112, W_ * 0.16);
     g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(bx - 2, by - 12, bw + 4, 14); g.fillStyle = P.health > 25 ? '#d8352f' : (Math.sin(W.state.elapsed * 10) > 0 ? '#ff6060' : '#802020'); g.fillRect(bx, by - 10, bw * M.clamp(P.health / 100, 0, 1), 10);
     if (P.armor > 0) { g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(bx - 2, by - 28, bw + 4, 14); g.fillStyle = '#c8c8d0'; g.fillRect(bx, by - 26, bw * M.clamp(P.armor / 100, 0, 1), 10); }
-    if (P.car) { const kmh = Math.round(P.car.absSpeed * 3.6 * 1.6); text(kmh + ' km/h', bx, by - (P.armor > 0 ? 42 : 26), 14, '#ddd'); }
+    if (P.car) { const kmh = Math.round(P.car.absSpeed * 3.6); text(kmh + ' km/h', bx, by - (P.armor > 0 ? 42 : 26), 14, '#ddd'); }
   }
   function weaponIcon(x, y, key) {
     g.save(); g.translate(x, y); g.fillStyle = '#fff'; g.strokeStyle = '#000'; g.lineWidth = 2;
@@ -112,7 +112,7 @@ const HUD = (() => {
     if (state === 'loading') return drawLoading();
     if (!mapCanvas) buildMap();
     // world labels: ped shouts, car name
-    for (const p of W.peds) if (p.shoutT > 0 && p.alive) { const s = RENDER.project(p.x, p.y + 2.1, p.z, cv); if (s && s[2] < 40) text(p.shout, s[0], s[1], 13, '#fff', 'center', 'normal'); }
+    for (const p of W.peds) if (p.shoutT > 0 && p.alive) { const s = RENDER.project(p.x, p.y + 2.1, p.z, cv); if (s && s[2] < 40) text(p.shout, s[0]/uiScale, s[1]/uiScale, 13, '#fff', 'center', 'normal'); }
     if (P.hurtFlash > 0) { const gr = g.createRadialGradient(W_ / 2, H_ / 2, H_ * 0.3, W_ / 2, H_ / 2, H_ * 0.8); gr.addColorStop(0, 'rgba(180,0,0,0)'); gr.addColorStop(1, `rgba(180,0,0,${P.hurtFlash * 1.2})`); g.fillStyle = gr; g.fillRect(0, 0, W_, H_); }
     if (P.health <= 25 && P.alive) { const gr = g.createRadialGradient(W_ / 2, H_ / 2, H_ * 0.4, W_ / 2, H_ / 2, H_ * 0.85); gr.addColorStop(0, 'rgba(120,0,0,0)'); gr.addColorStop(1, `rgba(120,0,0,${0.25 + 0.2 * Math.sin(W.state.elapsed * 6)})`); g.fillStyle = gr; g.fillRect(0, 0, W_, H_); }
     const dlg = MISSIONS.dialogue;
@@ -161,7 +161,8 @@ const HUD = (() => {
     if (P.aim || (P.car && (INPUT.mouse.buttons & 1))) { const lock = !!P.aimTarget; const col = lock ? '#ff5a4a' : '#fff'; g.strokeStyle = col; g.lineWidth = 2; const r = lock ? 9 : 12; g.beginPath(); g.arc(W_ / 2, H_ / 2, r, 0, 7); g.stroke(); g.beginPath(); for (const [sx, sy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { g.moveTo(W_ / 2 + sx * (r + 3), H_ / 2 + sy * (r + 3)); g.lineTo(W_ / 2 + sx * (r + 10), H_ / 2 + sy * (r + 10)); } g.stroke(); g.fillStyle = col; g.fillRect(W_ / 2 - 1.5, H_ / 2 - 1.5, 3, 3); }
     if (hitT > 0) { hitT -= dt; const k = hitT / 0.2; g.strokeStyle = hitKill ? `rgba(255,60,40,${k})` : `rgba(255,255,255,${k})`; g.lineWidth = 2.5; const r0 = 6 + (1 - k) * 6, r1 = r0 + 7; g.beginPath(); for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { g.moveTo(W_ / 2 + sx * r0, H_ / 2 + sy * r0); g.lineTo(W_ / 2 + sx * r1, H_ / 2 + sy * r1); } g.stroke(); }
     // help prompts
-    if (INPUT.fallback && W.state.elapsed < 20) text('Pointer lock unavailable here: the mouse steers the camera without capture', W_ / 2, H_ - 40, 12, '#f5c542', 'center', 'normal');
+    if (INPUT.hit('Backquote')) P.dismissLookHint=true;
+    if (INPUT.fallback && !P.dismissLookHint && W.state.elapsed < 20) text('Mouse look is active without capture · ` dismisses this hint', W_ / 2, H_ - 40, 12, '#f5c542', 'center', 'normal');
     if (INPUT.hit('F1')) showControls = !showControls;
     if (state === 'playing' && P.alive) text(W.state.elapsed < 30 || P.car || P.aim || MISSIONS.shop ? hintLine(P) : W.cars.some(c => !c.removed && !c.wrecked && M.dist2(c.x, c.z, P.x, P.z) < 30) ? 'F  ENTER VEHICLE   ·   F1  CONTROLS' : 'F1  CONTROLS', W_ / 2, H_ - 22, 12, 'rgba(210,210,210,0.85)', 'center', 'normal');
     if (showControls) drawControls();
@@ -176,7 +177,7 @@ const HUD = (() => {
     if (starFlash > 0) starFlash -= dt;
     if (fadeT > 0) drawFade(dt);
     if (state === 'paused') drawPause(); if (state === 'map') drawBigMap(P);
-    TOUCH.draw(g, W_, H_, state);
+    g.save(); g.scale(1/uiScale,1/uiScale); TOUCH.draw(g, cv.clientWidth, cv.clientHeight, state); g.restore();
   }
   function drawFade(dt) { fadeT -= dt; const a = Math.sin(Math.PI * M.clamp(fadeT / fadeDur, 0, 1)); g.fillStyle = 'rgba(0,0,0,' + a + ')'; g.fillRect(0, 0, W_, H_); }
   function drawTitle() {
@@ -195,7 +196,7 @@ const HUD = (() => {
       g.fillStyle = armed ? 'rgba(120,20,20,0.85)' : 'rgba(10,14,18,0.6)'; g.fillRect(bxx, byy, bw, bh);
       g.strokeStyle = armed ? 'rgba(255,140,120,0.9)' : 'rgba(255,255,255,0.5)'; g.lineWidth = 2; g.strokeRect(bxx, byy, bw, bh);
       text(armed ? (tap ? 'TAP AGAIN to erase the save' : 'CLICK AGAIN or N to erase the save') : (tap ? 'NEW GAME' : 'NEW GAME  (N)'), W_ / 2, byy + bh / 2, armed ? 15 : 17, '#fff', 'center');
-      newGameRect = { x: bxx, y: byy, w: bw, h: bh }; zone(bxx, byy, bw, bh, 'KeyN');
+      newGameRect = { x: bxx*uiScale, y: byy*uiScale, w: bw*uiScale, h: bh*uiScale }; zone(bxx, byy, bw, bh, 'KeyN');
     }
     const touchLines = ['Left thumb  a stick appears where you touch: walk, run at the rim, steer', 'Right thumb  drag to look · the buttons fire, aim, jump and get you in and out', 'In a car  GAS and BRAKE on the right, HAND for the handbrake, EXIT to get out', 'Top right  the map, and the pause menu for options'];
     (tap ? touchLines : lines).forEach((l, i) => text(l, W_ / 2, H_ * .54 + (info ? 150 : 100) + i * 22, 14, '#bbb', 'center', 'normal'));
@@ -220,7 +221,7 @@ const HUD = (() => {
     if (c) { if (c.spec.boat) return 'W/S throttle · A/D rudder · F get out near land · F1 all controls'; if (c.spec.bike) return 'W/S throttle · A/D lean · SPACE brake slide · F get off · LMB drive-by · F1 all controls';
       return 'W/S drive · A/D steer · SPACE handbrake · F get out · H horn' + (c.type === 'police' || c.type === 'swat' ? ' · L siren' : '') + ' · R radio · LMB drive-by · F1 all controls'; }
     const near = PLAYER.entryCandidate();
-    return (near ? 'F '+(near.car.locked ? 'locked' : near.car.name)+' · ' : '') + 'WASD move · SHIFT run · SPACE jump · CLICK attack · ALT or C aim · WHEEL weapon · R reload · TAB map · F1 all controls';
+    return (near ? 'F '+(near.car.locked ? 'locked' : near.car.name)+' · ' : '') + `${INPUT.label('Space')} jump/vault · ${INPUT.label('KeyZ')} crouch · ${INPUT.label('KeyX')} evade · ${INPUT.label('KeyV')} shoulder · ${INPUT.label('KeyR')} reload · TAB map · F1 controls`;
   }
   const CONTROLS = [['ON FOOT', [['W A S D', 'move'], ['mouse', 'look'], ['SHIFT', 'run'], ['SPACE', 'jump'], ['CLICK / CTRL', 'attack or fire'], ['ALT (Option) / C', 'aim (or right-click, two-finger click on a trackpad)'], ['WHEEL / 1-9', 'change weapon'], ['F', 'get in a car, boat or bike'], ['R', 'reload'], ['G (hold)', 'talk to the debtor, empty-handed'], ['Y', 'retry a failed mission']]],
     ['DRIVING', [['W / S', 'accelerate / brake, reverse'], ['A / D', 'steer'], ['SPACE', 'handbrake'], ['F', 'get out'], ['H', 'horn'], ['L', 'siren (police cars)'], ['R', 'next radio station'], ['LMB', 'drive-by with a pistol or SMG']]],
@@ -228,17 +229,7 @@ const HUD = (() => {
   function drawControls() { g.fillStyle = 'rgba(0,0,0,0.78)'; g.fillRect(0, 0, W_, H_); outlined('CONTROLS', W_ / 2, 60, 40, '#f5c542'); const colW = Math.min(300, W_ / 3.2); const x0 = W_ / 2 - colW * 1.5;
     CONTROLS.forEach(([title, rows], c) => { const cx = x0 + c * colW; text(title, cx + colW / 2, 120, 16, '#f5c542', 'center'); rows.forEach(([k, d], i) => { text(k, cx + colW * 0.42, 154 + i * 26, 14, '#fff', 'right'); text(d, cx + colW * 0.48, 154 + i * 26, 13, '#ccc', 'left', 'normal'); }); });
     text('F1 to close', W_ / 2, H_ - 40, 14, '#aaa', 'center', 'normal'); }
-  function drawPause() {
-    const P = PLAYER.P; g.fillStyle = 'rgba(0,0,0,0.7)'; g.fillRect(0, 0, W_, H_); outlined('PAUSED', W_ / 2, 80, 48, '#f5c542');
-    const st = P.stats; const rows = [['Missions passed', st.missions + ' / ' + (MISSIONS.LIST.length + MISSIONS.LIST2.length + MISSIONS.PHONE.length)], ['Standing: Marla / Crane', ECON.S.rep.marla + ' / ' + ECON.S.rep.crane], ['Properties / stored cars', Object.keys(ECON.S.properties).length + ' / ' + ECON.S.owned.length], ['Unique stunts', (st.jumps || []).length + ' / ' + CITY.ramps.length], ['Cash earned', '$' + st.cash], ['Hidden packages', st.packages + ' / 20'], ['Cars stolen', st.carsStolen], ['People killed', st.kills], ['Distance travelled', (st.distance / 1000).toFixed(1) + ' km'], ['Insane stunts', st.stunts], ['Times wasted / busted', st.wasted + ' / ' + st.busted], ['Time of day', W.clockString()]];
-    rows.forEach(([k, v], i) => { text(k, W_ / 2 - 60, 150 + i * 26, 15, '#bbb', 'right', 'normal'); text(String(v), W_ / 2 - 48, 150 + i * 26, 15, '#fff', 'left'); });
-    const o = GAME.options; const opts = [['[ ]', 'mouse sensitivity', o.sensitivity.toFixed(1)], ['I', 'invert look', o.invertY ? 'on' : 'off'], ['K', 'shadows', o.shadows ? 'on' : 'off'], ['B', 'bloom & post', o.bloom ? 'on' : 'off'], ['P', 'render scale', o.resolution + 'x'], ['E', 'ink lines', o.edges ? 'on' : 'off'], ['A', 'auto quality', o.auto ? (GAME.auto.level ? 'on, stepped down ' + GAME.auto.level : 'on') : 'off'], ['M', 'sound', AUDIO.muted ? 'muted' : 'on'], ['N', 'new game', GAME.wipeArmed ? 'press N again to erase the save' : '']];
-    const OPTKEY = ['BracketRight', 'KeyI', 'KeyK', 'KeyB', 'KeyE', 'KeyP', 'KeyA'];
-    opts.forEach(([k, n, v], i) => { const y = 150 + i * 26; if (OPTKEY[i]) zone(W_ / 2 + 150, y - 13, 280, 26, OPTKEY[i]); text(k, W_ / 2 + 200, y, 15, '#f5c542', 'right'); text(n, W_ / 2 + 212, y, 15, '#ccc', 'left', 'normal'); text(v, W_ / 2 + 360, y, 15, '#fff', 'left'); });
-    text(TOUCH.active ? 'TAP anywhere to resume  ·  tap an option to change it' : 'ESC or click  resume', W_ / 2, H_ - 60, 14, '#ccc', 'center', 'normal');
-    if (GAME.fps) text(GAME.fps + ' fps' + (GAME.fps < 30 ? '  (slow: try P for a lower render scale, K for no shadows)' : ''), W_ / 2, H_ - 86, 13, GAME.fps < 30 ? '#f5a623' : '#888', 'center', 'normal');
-    if (!TOUCH.active) text('F1 shows every control', W_ / 2, H_ - 34, 12, '#888', 'center', 'normal');
-  }
+  function drawPause() { g.fillStyle='rgba(5,13,18,.65)'; g.fillRect(0,0,W_,H_); }
   function drawBigMap(P, overlay = null) {
     g.fillStyle = 'rgba(0,0,0,0.8)'; g.fillRect(0, 0, W_, H_); const size = Math.min(W_, H_) - 60; const scale = size / (1024 / mapCanvas._s); const ox = (W_ - size) / 2, oy = (H_ - size) / 2;
     g.save(); g.translate(ox, oy); g.scale(scale, scale); g.translate(-mapCanvas._b0, -mapCanvas._b0); g.drawImage(mapCanvas, 0, 0, 1024, 1024, mapCanvas._b0, mapCanvas._b0, 1024 / mapCanvas._s, 1024 / mapCanvas._s);
