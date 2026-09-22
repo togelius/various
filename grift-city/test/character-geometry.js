@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const ctx = vm.createContext({ TEX: { names: {face: 71} }, RENDER: {MAX_BONES: 12}, W: {state: {elapsed: 1}} });
+const ctx = vm.createContext({ TEX: { names: {face: 71} }, RENDER: {MAX_BONES: 14}, W: {state: {elapsed: 1}} });
 for (const file of ['math.js', 'meshes.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '../js', file), 'utf8'), ctx);
 const mesh = vm.runInContext('MESH', ctx);
 const look = { skin: [.9,.7,.5], shirt: [.8,.8,.7], pants: [.2,.2,.3], hair: [.11,.07,.03], sleeves: true };
@@ -61,9 +61,18 @@ function checkJoints(b) {
 }
 for(const gesturePulse of [0,.6]) for(const speed of [0,1.5,3.3,6]) for(const phase of [0,.7,1.6,3.2,4.8]) for(const aim of [0,1]) {
  const p={x:0,y:0,z:0,angle:.2,phase,speed,aim,gesturePulse,state:'foot',vx:1,vz:1,camPitch:.3};
- const bones=new Float32Array(192),model=math.create();peds.buildRig(p,model,bones);checkJoints(bones);
+ const bones=new Float32Array(224),model=math.create();peds.buildRig(p,model,bones);checkJoints(bones);
 }
 for(const driving of [false,true]) for(const bike of [false,true]) {
- const bones=new Float32Array(192);peds.buildRigSeated({},math.create(),bones,math.identity(math.create()),0,0,0,0,driving,.3,1,bike);checkJoints(bones);
+ const bones=new Float32Array(224);peds.buildRigSeated({},math.create(),bones,math.identity(math.create()),0,0,0,0,driving,.3,1,bike);checkJoints(bones);
 }
 console.log(`${rigChecks} animated rig cases passed; deterministic meshes and face UV seams passed`);
+
+// A planted shoe stays level and at street height throughout its stance, across walk/run speeds.
+for(const speed of [1.5,3.3,6.8]) for(const cycle of [.04,.15,.25,.4,.49]) {
+ const b=new Float32Array(224);peds.buildRig({x:0,y:0,z:0,angle:0,phase:cycle*Math.PI*2,speed,state:'walk'},math.create(),b);
+ const shoe=b.subarray(192,208);const a=at(shoe,.11,-.86,0),toe=at(shoe,.11,-.86,.15);
+ assert(Math.abs(a[1])<.025,'stance sole must stay within 2.5 cm of the pavement');
+ assert(Math.abs(a[1]-toe[1])<1e-6,'stance shoe must stay level');
+}
+console.log('15 planted-foot stance cases passed');

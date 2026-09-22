@@ -62,6 +62,7 @@ const TOUCH = (() => {
       add('aim', bx - u * 2.45, by + u * 0.04, u * 0.76, 'AIM');
       add('jump', bx + u * 0.04, by - u * 2.45, u * 0.7, 'JUMP', true);
       add('enter', bx - u * 1.92, by - u * 1.92, u * 0.7, 'ENTER', true);
+      if (safe(()=>MISSIONS.S.current && MISSIONS.S.current.id===1 && !MISSIONS.S.current.strand && !MISSIONS.S.current.data.fled && !MISSIONS.S.current.data.surrendered,false)) add('talk',bx-u*3.55,by-u*2.85,u*.6,'TALK');
       add('weapon', bx - u * 4.05, by - u * 0.15, u * 0.56, 'WEAP', true);
     }
     add('map', W - u * 5.9, u * 0.95, u * 0.5, 'MAP', true);
@@ -174,11 +175,11 @@ const TOUCH = (() => {
     let lt = 0, rt = 0, mouseButtons = 0;
     if (inCar) {
       rt = on('gas') ? 1 : 0; lt = on('brake') ? 1 : 0; ly = 0;
-      vhold('Space', on('hand')); vhold('KeyH', on('horn')); vhold('ShiftLeft', false);
+      vhold('KeyG',false); vhold('Space', on('hand')); vhold('KeyH', on('horn')); vhold('ShiftLeft', false);
       if (on('shoot')) mouseButtons |= 1;
     } else {
       rt = on('fire') ? 1 : 0; lt = on('aim') ? 1 : 0;
-      vhold('Space', false); vhold('KeyH', false);
+      vhold('KeyG',on('talk')); vhold('Space', false); vhold('KeyH', false);
       vhold('ShiftLeft', Math.hypot(lx, ly) > SPRINT_AT);
       if (on('fire')) mouseButtons |= 1;
       if (on('aim')) mouseButtons |= 2;

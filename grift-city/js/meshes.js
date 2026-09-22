@@ -442,7 +442,7 @@ const MESH = (() => {
       ball(sx, -legH * 0.5, 0.005, 0.074, pants, bone, 7, 3);
       b.loft([trouserRing(-legH+.08,.061,.065),trouserRing(-.63,.071,.074),trouserRing(-legH*.5,.081,.082)],pants,0,shin,{capEnd:true});
       b.cyl(sx, -legH + 0.02, 0.012, 0.05, -legH + 0.1, skin, 0, 7, shin, false, false, 0.05); // ankle
-      b.roundedBox(sx - 0.075, -legH + 0.02, -0.08, 0.15, 0.09, 0.27, 0.04, shoes, 0, shin, { n: lod ? 1 : 2 }); b.box(sx - 0.078, -legH - 0.01, -0.085, 0.156, 0.03, 0.28, shoes.map(c => c * 0.6), 0, { bone: shin }); // upper and sole
+      b.roundedBox(sx - 0.075, -legH + 0.02, -0.08, 0.15, 0.09, 0.27, 0.04, shoes, 0, shin === 7 ? 12 : 13, { n: lod ? 1 : 2 }); b.box(sx - 0.078, -legH - 0.01, -0.085, 0.156, 0.03, 0.28, shoes.map(c => c * 0.6), 0, { bone: shin === 7 ? 12 : 13 }); // upper and sole
     }
     // torso (bone 0): pants top, belt, a chest lofted from rounded sections that narrow at the waist and slope at the shoulders
     const rr = (y, hw, hd, r) => Builder.rrect(0, 0, hw, hd, r, lod ? 2 : 4, y, 'y');

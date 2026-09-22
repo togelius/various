@@ -4,7 +4,7 @@ const statusEl = document.querySelector('#qa-status');
 if (!AUDIO.muted) AUDIO.toggleMute();
 window.addEventListener('error', e => { statusEl.textContent = 'ERROR: '+e.message; });
 function status() {
-  const p=PLAYER.P; statusEl.textContent=JSON.stringify({signTile:TEX.names.vossSign,textures:TEX.layers.length,state:p.state,health:Math.round(p.health),ammo:p.weapons[p.weapon],magazine:PLAYER.magazine(),reload:+p.reloadT.toFixed(2),mission:MISSIONS.S.current && MISSIONS.S.current.name,objective:MISSIONS.objective},null,2);
+  const p=PLAYER.P; statusEl.textContent=JSON.stringify({signTile:TEX.names.vossSign,textures:TEX.layers.length,repo:MISSIONS.S.current && MISSIONS.S.current.id===1 ? {method:MISSIONS.S.current.data.method,notice:MISSIONS.S.current.data.notice,talk:MISSIONS.S.current.data.talk,fled:MISSIONS.S.current.data.fled}:null,state:p.state,health:Math.round(p.health),ammo:p.weapons[p.weapon],magazine:PLAYER.magazine(),reload:+p.reloadT.toFixed(2),mission:MISSIONS.S.current && MISSIONS.S.current.name,objective:MISSIONS.objective},null,2);
 }
 function prepare() {
   if (!window.__ready) throw new Error('The city is still loading.');
@@ -28,3 +28,8 @@ document.querySelectorAll('[data-step]').forEach(button=>button.addEventListener
 document.querySelector('#search').onclick=()=>{POLICE.setStars(2);POLICE.S.seenT=10;render();};
 document.querySelector('#retry').onclick=()=>{if(MISSIONS.S.current)MISSIONS.onPlayerDown('wasted');else window.__sim(.1,['KeyY']);render();};
 document.querySelector('#touch').onclick=()=>{TOUCH.force(!TOUCH.active);render();};
+
+document.querySelector('#approach').onclick=()=>{const d=MISSIONS.S.current&&MISSIONS.S.current.data;if(!d||!d.owner)return;const p=PLAYER.P;p.weapon='fist';p.weaponOut=false;p.aim=0;p.x=d.owner.x;p.z=d.owner.z+2;p.y=CITY.groundY(p.x,p.z);p.angle=p.camYaw=Math.PI;p.vx=p.vz=0;p.speed=0;d.owner.angle=0;d.owner.faceTarget=p;render();};
+document.querySelector('#threaten').onclick=()=>{PLAYER.giveWeapon('pistol',51);PLAYER.P.weapon='pistol';window.__sim(2,['KeyC']);render();};
+document.querySelector('#car-door').onclick=()=>{const d=MISSIONS.S.current&&MISSIONS.S.current.data;if(!d||!d.car)return;const c=d.car,p=PLAYER.P;p.x=c.x+c.right[0]*(c.spec.wid/2+.7);p.z=c.z+c.right[1]*(c.spec.wid/2+.7);p.y=CITY.groundY(p.x,p.z);p.angle=p.camYaw=Math.atan2(c.x-p.x,c.z-p.z);render();};
+document.querySelector('#audit').onclick=()=>{try{prepare();const lines=runCampaignAudit();HUD.clearBig();statusEl.textContent=lines.join('\n');window.__renderOnce();}catch(e){statusEl.textContent=e.stack;}};

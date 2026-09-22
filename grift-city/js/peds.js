@@ -177,7 +177,7 @@ const PEDS = (() => {
       if (this.airborne) { if (this.y <= g) { this.y = g; this.airborne = false; this.vy = 0; if (this.state === 'dead') { this.vx *= 0.3; this.vz *= 0.3; } } } else this.y = g;
       const res = W.pushOut(this.x, this.z, 0.4); this.x = res.x; this.z = res.z;
       if (!ragdoll) for (const c of W.cars) { if (c.removed || M.dist2(c.x, c.z, this.x, this.z) > 49) continue; for (let ci = 0, nci = c.circlesInto(CIRC); ci < nci; ci++) { const cx = CIRC[ci * 3], cz = CIRC[ci * 3 + 1], r = CIRC[ci * 3 + 2]; const dx = this.x - cx, dz = this.z - cz; const rr = r + 0.35; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); this.x = cx + dx / d * rr; this.z = cz + dz / d * rr; } } }
-      if (!ragdoll) { this.vx = 0; this.vz = 0; this.phase += dt * (this.speed > 0.05 ? M.TAU * this.speed / (1.2 + 0.24 * this.speed) : 0); }
+      if (!ragdoll) { this.vx = 0; this.vz = 0; this.phase += dt * (this.speed > 0.05 ? M.TAU * this.speed / (1.0 + 0.12 * this.speed) : 0); }
     }
     // ---- Rig
     heldEntity() { return heldEntity(this); }
@@ -197,7 +197,7 @@ const PEDS = (() => {
     if (!p.heldModel) p.heldModel = M.create(); M.multiply(heldTmp, p.model, p.bones.subarray(160, 176)); M.trs(heldHand, MESH.HAND[0], MESH.HAND[1], MESH.HAND[2], 0); M.multiply(p.heldModel, heldTmp, heldHand); return { mesh, model: p.heldModel, bones: heldBones, emis: heldEmis }; }
   // Bone 11 carries the mouth: the head bone with a vertical stretch about the mouth's own position, so a talking ped's lips move.
   const mtmp1 = M.create(), mtmp2 = M.create(), mtmp3 = M.create();
-  function mouthBone(out, open) { const [mx, my, mz] = MESH.MOUTH_POS; M.trs(mtmp1, mx, my, mz, 0, 1, 1 + open * 5, 1); M.trs(mtmp2, -mx, -my, -mz, 0); M.multiply(mtmp3, mtmp1, mtmp2); M.multiply(mtmp1, out.subarray(16, 32), mtmp3); out.set(mtmp1, 176); }
+  function mouthBone(out, open) { out.set(out.subarray(112,128),192); out.set(out.subarray(128,144),208); const [mx, my, mz] = MESH.MOUTH_POS; M.trs(mtmp1, mx, my, mz, 0, 1, 1 + open * 5, 1); M.trs(mtmp2, -mx, -my, -mz, 0); M.multiply(mtmp3, mtmp1, mtmp2); M.multiply(mtmp1, out.subarray(16, 32), mtmp3); out.set(mtmp1, 176); }
   // How far open the mouth is: shouting peds and the giver whose line is on screen move their lips
   function talkOpen(p) { const dlg = typeof MISSIONS !== 'undefined' && MISSIONS.dialogue; const talking = (p.shoutT || 0) > 0 || (dlg && dlg.focus === p && dlg.lines[dlg.i] && dlg.lines[dlg.i][0] === p.name); if (!talking) return 0; const t = W.state.elapsed + (p.bob || 0); return Math.max(0, Math.sin(t * 17) * 0.6 + Math.sin(t * 29) * 0.5); }
   function jointBone(out, off, parentOff, jx, jy, jz, pitch) { M.trsEuler(jt1, jx, jy, jz, 0, pitch, 0); M.trs(jt2, -jx, -jy, -jz, 0); M.multiply(jt3, jt1, jt2); M.multiply(jt1, out.subarray(parentOff, parentOff + 16), jt3); out.set(jt1, off); }
@@ -221,22 +221,23 @@ const PEDS = (() => {
     const gesture = !aim && !p.weaponOut && !p.item && !walk ? Math.max(
       p.gesturePulse > 0 ? Math.sin(Math.PI*Math.min(1,p.gesturePulse/1.25)) : 0,
       speaking > 0 ? Math.max(0,Math.sin(t*2.1))*.55 : 0) : 0;
-    const hip = LEG_H + bob - lying * (LEG_H - 0.25) - (0.08 + 0.05 * run) * walk * 0.35; // knees bend, so the pelvis rides a little lower when moving
+    const hip = LEG_H - (.08 + run*.05)*walk + bob*.25 - lying * (LEG_H - .25) - (p.landing||0)*.09; // knees bend, so the pelvis rides a little lower when moving
     const flinch = p.flinchT > 0 ? Math.sin(Math.min(1, p.flinchT / 0.35) * Math.PI) : 0; const kick = p.kickT > 0 ? Math.sin(Math.min(1, p.kickT / 0.35) * Math.PI) : 0;
     const lean = run * 0.2 + walk * 0.04 + (p.recoil || 0) * -0.5 - flinch * 0.35 + kick * 0.15;
     const sway = Math.sin(ph) * walk; // pelvis moves over the planted foot
     M.trsEuler(model, p.x, p.y, p.z, p.angle, lying * (dead ? -Math.PI / 2 * p.fallDir : -Math.PI / 2), 0, p.sx || 1, p.sy || 1, p.sx || 1);
     // torso: lean, hip sway and a counter-twist against the leg swing; breathing when standing
-    bone(bones, 0, sway * 0.02, hip + breath * 0.006, 0, -sway * 0.09 + Math.sin(t * 0.7) * 0.02 * idle, lean, sway * 0.05 + breath * 0.008);
+    bone(bones, 0, sway * 0.02, hip + breath * 0.006, 0, -sway * 0.09 + Math.sin(t * 0.7) * 0.02 * idle, lean+(p.landing||0)*.06, sway * 0.05 + breath * 0.008 + (p.turnLean||0));
     // head: rides on the torso and cancels most of the twist so it keeps looking where the ped goes
     torsoChild(bones,16,0,TORSO_H+.03,(aim ? 0 : (p.headYaw||0))+sway*.07,-lean*.7+(aim?0:Math.sin(t*.9)*.02*idle)+speaking*.018,-sway*.03);
     // upper arms: pivot at the shoulders, swing opposite to the legs, held out a little at a run
     const hold = !aim && p.item && (p.item === 'umbrella' || p.item === 'phone') ? p.item : null;
     const reloading = p.reloadT > 0 ? Math.sin(Math.PI * (1-p.reloadT/p.reloadDuration)) : 0;
+    const reaching=p.state==='entering'?Math.sin(Math.min(1,(p.doorReach||0)/.32)*Math.PI*.7):0;
     const armPitchL = (reloading ? -1.1 : aim ? -0.4 : swing * 0.85 - 0.45 * run) - flinch * 1.1 - kick * 0.5, armPitchR = hold === 'umbrella' ? -2.1 : hold === 'phone' ? -2.3 : (reloading ? -.8 : aim ? -Math.PI / 2 + 0.05 + (p.camPitch || 0) + (p.recoil || 0) * 2 : -swing * 0.85 - 0.45 * run - punch * 1.4) - flinch * 0.9 + kick * 0.6;
     const armRoll = 0.06 + run * 0.3 + Math.sin(t * 1.1) * 0.015 * idle;
     torsoChild(bones,32,.26,SHOULDER,gesture*.2,armPitchL-gesture*.35,armRoll+(aim?.12:0)+gesture*.16,.26);
-    torsoChild(bones,48,-.26,SHOULDER,aim?-.15:0,armPitchR,-armRoll,-.26);
+    torsoChild(bones,48,-.26,SHOULDER,aim?-.15:0,armPitchR-reaching*1.2,-armRoll,-.26);
     // forearms: elbows fold on the forward swing, stay bent at a run, straight when aiming
     const elbowL = aim ? -0.05 : -(0.22 + 0.35 * Math.max(0, Math.sin(ph)) * walk + 0.8 * run);
     const elbowR = hold === 'phone' ? -2.3 : hold === 'umbrella' ? -0.3 : aim ? 0 : -(0.22 + 0.35 * Math.max(0, -Math.sin(ph)) * walk + 0.8 * run + punch * 0.6);
@@ -248,7 +249,25 @@ const PEDS = (() => {
     jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, dead ? 0 : kneeL); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, dead ? 0 : kneeR);
     // weapon: follows the right forearm, hidden when unarmed
     if (p.weaponOut && !dead) bones.set(bones.subarray(160, 176), 96); else bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
-    mouthBone(bones, talkOpen(p));
+    mouthBone(bones, speaking);
+    if (!p.airborne && !lying && !kick) {
+      // During stance the foot moves backwards at ground speed; the swing clears the pavement.
+      // Two-link IK bends the knee toward the target, while a separate ankle keeps the shoe flat.
+      for (const [off,shin,foot,sx,phase] of [[64,112,192,.11,ph],[80,128,208,-.11,ph+Math.PI]]) {
+        const cycle=((phase/M.TAU)%1+1)%1, stance=.52;
+        const stride=(1+.12*spd)*walk, reach=stride*stance/2;
+        const swingT=M.clamp((cycle-stance)/(1-stance),0,1);
+        const z=cycle<stance ? reach*(1-2*cycle/stance) : -reach+2*reach*(swingT*swingT*(3-2*swingT));
+        const lift=cycle<stance?0:Math.sin(swingT*Math.PI)*(.12+.10*run)*walk;
+        const targetY=.06+lift-hip, targetZ=z*Math.cos(direction);
+        const l1=.425,l2=.375,dist=M.clamp(Math.hypot(targetY,targetZ),.1,l1+l2-.001);
+        const knee=Math.acos(M.clamp((dist*dist-l1*l1-l2*l2)/(2*l1*l2),-1,1));
+        const pitch=Math.atan2(-targetZ,-targetY)-Math.atan2(l2*Math.sin(knee),l1+l2*Math.cos(knee));
+        bone(bones,off,sway*.02,hip,0,0,pitch,-z*Math.sin(direction)*.6);
+        jointBone(bones,shin,off,sx,KNEE_Y,0,knee);
+        jointBone(bones,foot,shin,sx,-.8,0,-pitch-knee);
+      }
+    }
   }
 
   // Seated pose inside a car (or on a bench): hips at the seat, thighs forward, shins down, hands on the wheel.

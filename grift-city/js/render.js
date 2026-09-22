@@ -3,7 +3,7 @@
 'use strict';
 const RENDER = (() => {
   let gl, litProg, instProg, shadowProg, shadowInstProg, litStaticProg, shadowStaticProg, skyProg, partProg, flatProg, texArray, nrmArray, shadow;
-  const MAX_LIGHTS = 32, MAX_BONES = 12;
+  const MAX_LIGHTS = 32, MAX_BONES = 14;
   const proj = M.create(), view = M.create(), vp = M.create(), invVP = M.create(), invProj = M.create(), lightView = M.create(), lightProj = M.create();
   const identityBones = new Float32Array(16 * MAX_BONES); for (let i = 0; i < MAX_BONES; i++) identityBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
   const zeroEmis = new Float32Array(MAX_BONES);

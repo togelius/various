@@ -96,21 +96,45 @@ const MISSIONS = (() => {
       start(d) { const g = place('mission'); blip(g.x, g.z); objective('Go to Voss Motors in Midtown.'); },
       update(d, dt) { const g = place('mission'); if (near(g.x, g.z, 4)) pass(200, 'Marla is waiting inside the yellow marker.'); } },
     { id: 1, name: 'REPO MAN',
-      intro: [['MARLA', 'So you drive. Everybody drives. Question is whether you can drive with somebody screaming at you.'], ['MARLA', "A customer stopped paying on a red Falcata. It's parked outside a bar in Northgate. He's a coward: he'll run."], ['MARLA', "Don't let him. Bring the car back here. Try not to scratch it."]],
+      intro: [['MARLA', 'So you drive. Everybody drives. Question is whether you can drive with somebody screaming at you.'], ['MARLA', "A customer stopped paying on a red Falcata. It's parked outside a bar in Northgate. You can talk him round. Spook him and he'll run."], ['MARLA', "Go calmly, empty-handed, and hold G to talk. Or get creative. Bring the car back clean."]],
       start(d) { const s = laneSpot(4, 1, 1, 0, 30, 1); d.car = spawnCar('sports', s.x, s.z, s.angle, { color: 0 }); d.owner = spawnPed(s.x - 3, s.z + 3, { look: PEDS.DEBTOR, role: 'target', stationary: true, name: 'DEBTOR' }); d.owner.faceTarget = d.car; d.owner.health = 50; d.fled = false; blip(d.car.x, d.car.z, '#f5c542', d.car); objective('Get the red Falcata in Northgate.'); },
       update(d, dt) { const c = d.car, o = d.owner;
         if (c.wrecked) return fail('You destroyed the Falcata.');
         const condition = Math.round(M.clamp(c.health / c.maxHealth, 0, 1) * 100);
-        if (!d.fled && o.alive && !o.inCar && c.driver !== PLAYER && near(o.x, o.z, 18) && W.los(o.x,o.z,P().x,P().z)) {
-          d.notice = (d.notice || 0) + dt; objective('He spotted you. Get to the Falcata!');
-          if (!d.warned) { d.warned = true; o.say("Hey. You work for Marla?"); }
-          if (d.notice > 2.5) { d.fled = true; o.say("You'll never take her!"); o.fleeInCar(c, 15); }
+        const p = P(), distance = M.dist(p.x,p.z,o.x,o.z);
+        if (!d.fled && !d.surrendered && o.alive && !o.inCar && c.driver !== PLAYER) {
+          const visible = distance < 18 && W.los(o.x,o.z,p.x,p.z);
+          const facing = ((p.x-o.x)*Math.sin(o.angle)+(p.z-o.z)*Math.cos(o.angle))/(distance||1) > .15;
+          const close = visible && distance < 3.6 && !p.car;
+          const calm = close && p.weapon === 'fist' && p.speed < .6;
+          const talk = calm && (INPUT.down('KeyG') || INPUT.pad.buttons[3]);
+          const threat = visible && distance < 9 && !p.car && p.aim && p.weaponOut && p.weapon !== 'fist' && p.weapon !== 'camera' && Math.abs(M.angleTo(p.angle,Math.atan2(o.x-p.x,o.z-p.z))) < .3;
+          const noise = W.state.heard.some(n=>M.dist(n.x,n.z,o.x,o.z)<Math.min(n.r,25));
+          d.notice = M.clamp((d.notice||0) + (talk || threat ? 0 : visible && (facing || distance<4 || p.speed>4.5) ? dt*(p.speed>4.5?.7:.14) : -dt*.2),0,1);
+          d.talk = talk ? (d.talk||0)+dt : Math.max(0,(d.talk||0)-dt*2);
+          d.threat = threat ? (d.threat||0)+dt : 0;
+          if (talk || threat) { o.faceTarget=p; o.gesturePulse=.6; }
+          if (noise || o.health < 50) d.notice=1;
+          if (!d.warned && d.notice>.25) { d.warned=true; o.say("You work for Marla? Stay away from my car."); }
+          const talkKey = typeof TOUCH !== 'undefined' && TOUCH.active ? 'TALK' : INPUT.pad.active ? 'Y' : 'G';
+          if (d.notice<1 && (d.talk>=2.5 || d.threat>=1.6)) {
+            d.surrendered=true; d.method=d.talk>=2.5?'negotiated':'intimidated'; o.faceTarget=p;
+            o.say(d.method==='negotiated'?"Tell Marla I need more time. Take the keys.":"Easy! It's not worth dying for. Take it.");
+            HUD.notify(d.method==='negotiated'?'Keys handed over. Bring the Falcata home.':'He surrendered. Lower your weapon and take the car.');
+          } else if (d.notice>=1) { d.fled=true; d.method='chase'; o.say("You'll never take her!"); o.fleeInCar(c,15); }
+          else if (threat) objective('Keep your aim on the debtor · surrender '+Math.round(d.threat/1.6*100)+'%');
+          else if (talk) objective('Talking him down · '+Math.round(d.talk/2.5*100)+'% · keep holding '+talkKey);
+          else if (close && p.weapon==='fist') objective('Stop and hold '+talkKey+' to negotiate. Or take the Falcata.');
+          else if (visible && d.notice>.1) objective('Debtor suspicion '+Math.round(d.notice*100)+'% · approach calmly, threaten him, or slip away.');
+          else objective('Recover the Falcata · talk to the debtor, intimidate him, or take it unseen.');
         }
+        if (c.driver === PLAYER && !d.method) { d.method=d.fled?'chase':d.surrendered?'intimidated':'unnoticed'; if(o.alive && !d.fled) o.say("Wait—my car!"); }
+        if (d.surrendered && c.driver !== PLAYER) objective('The keys are yours. Take the Falcata to Voss Motors.');
         if (d.fled && !d.surrendered && o.alive && o.inCar === c && (condition < 65 || (c.absSpeed < 1.5 && near(c.x,c.z,12) && (d.blocked = (d.blocked || 0)+dt) > 2))) {
           d.surrendered = true; o.exitCar(); o.gotoTarget = null; o.gotoResume = null; o.bailed = true; o.stationary = false; o.role = null; o.scare(P().x,P().z); o.say("Fine! Take the keys!"); c.ai.mode = 'parked'; c.scared = 0; c.controls.throttle = 0; c.controls.brake = 1;
           HUD.notify('The debtor gave up. Take the Falcata.');
-        } else if (c.absSpeed >= 1.5) d.blocked = 0;
-        if (c.driver === PLAYER) { const g = place('garage'); blip(g.x, g.z); objective('Voss Motors · condition ' + condition + '% · bonus $' + Math.round(condition * 6)); if (near(g.x, g.z, 7) && c.absSpeed < 2 && PLAYER.exitCar()) { c.locked = true; c.important = false; if (!o.alive) { S.flags.debtorDead = true; ECON.S.rep.marla -= 1; pass(500, 'Marla: "I said bring the car. I did not say bring me a funeral."'); } else pass(1000 + Math.round(condition * 6), condition > 90 ? 'Marla: "Now that is how you bring a car home."' : 'Marla: "Still drives. The bodywork comes out of your bonus."'); } }
+        } else if (c.absSpeed >= 1.5 || !near(c.x,c.z,12)) d.blocked = 0;
+        if (c.driver === PLAYER) { const g = place('garage'); blip(g.x, g.z); objective('Voss Motors · condition ' + condition + '% · bonus $' + Math.round(condition * 6)); if (near(g.x, g.z, 7) && c.absSpeed < 2 && PLAYER.exitCar()) { c.locked = true; c.important = false; if (!o.alive) { S.flags.debtorDead = true; ECON.S.rep.marla -= 1; pass(500, 'Marla: "I said bring the car. I did not say bring me a funeral."'); } else { S.flags.repoMethod=d.method||'chase'; pass(1000 + Math.round(condition * 6), condition > 90 ? 'Marla: "Now that is how you bring a car home."' : 'Marla: "Still drives. The bodywork comes out of your bonus."'); } } }
         else if (d.fled) objective(d.surrendered ? 'Take the Falcata. The keys are yours.' : 'Block the Falcata or damage it to make him surrender.'); } },
     { id: 2, name: 'SPECIAL DELIVERY',
       intro: [['MARLA', "There's a Boxer van round the side with a crate in the back. The crate goes to Pier 9 in Southport."], ['MARLA', "Three minutes. And the crate doesn't like potholes, so keep the van in one piece."], ['MARLA', "Some of Crane's boys may take an interest. Don't stop to chat."]],
@@ -121,7 +145,7 @@ const MISSIONS = (() => {
         const k = place('docks'); const dist = M.dist(P().x, P().z, k.x, k.z);
         if (d.phase === 1 && P().car === d.van) objective((dist < 40 ? 'Stop the van in the marker at Pier 9.  ' : 'Deliver the crate to Pier 9 in Southport.  ') + fmt(S.timer));
         if (d.phase === 1 && dist < 260 && !d.ambush) { d.ambush = true; checkpoint(dd => { const g0 = laneSpot(6, 6, 0, 1, 20, 0); dd.van = spawnCar('van', g0.x, g0.z, g0.angle, { color: 2, health: 900 }); dd.phase = 1; dd.ambush = true; S.timer = 110; P().x = dd.van.x - dd.van.right[0] * 2; P().z = dd.van.z - dd.van.right[1] * 2; const k = place('docks'); blip(k.x, k.z); objective('Deliver the crate to Pier 9 in Southport.'); }); for (let i = 0; i < 2; i++) { const s = laneSpot(6 + i, 7, 0, 1, 20, i); const c = spawnCar('muscle', s.x, s.z, s.angle, { mode: 'chase', color: 10 }); c.ai.mode = 'chase'; const p = PEDS.spawn(c.x, c.z, { look: PEDS.GANG, gang: true, hostile: true, weapon: 'uzi', important: true }); p.inCar = c; c.driver = p; S.spawned.push(p); } HUD.notify("Crane's crew are on you!"); }
-        if (P().car === d.van && dist < 9 && d.van.absSpeed < 3) { PLAYER.exitCar(); d.van.important = false; pass(1500, 'Marla: "Pier 9 says thank you. In their way."'); } } },
+        if (P().car === d.van && dist < 9 && d.van.absSpeed < 3 && PLAYER.exitCar()) { d.van.important = false; pass(1500, 'Marla: "Pier 9 says thank you. In their way."'); } } },
     { id: 3, name: 'COLLECTIONS',
       intro: [['MARLA', "Take this. You'll want it."], ['MARLA', 'A man named Teddy Lark owes me eight thousand dollars and thinks Southport is far enough away.'], ['MARLA', 'Go to his bar. Explain the situation. Bring me the money.']],
       start(d) { PLAYER.giveWeapon('pistol', 60); const [bx, bz] = CITY.blockOrigin(5, 8); const x = bx + 32, z = bz - 4.5; d.spot = [x, z];
@@ -156,8 +180,8 @@ const MISSIONS = (() => {
         if (!d.started) { if (P().car && near(d.startPt[0], d.startPt[1], 12)) { d.started = true; d.count = 3.99; } return; }
         if (d.count > 0) { d.count -= dt; const n = Math.ceil(d.count); HUD.big(n > 0 ? String(n) : 'GO!', '#f5c542', 0.5); if (d.count <= 0) { for (const r of d.rivals) r.ai.mode = 'route'; AUDIO.play('checkpoint'); } return; }
         if (!P().car) objective('Get back in a car!');
-        const cp = d.route[d.cp]; blip(cp[0], cp[1], '#3df06a'); marker(cp[0], cp[1], 5, [0.3, 1, 0.4]);
-        if (near(cp[0], cp[1], 8)) { d.cp++; AUDIO.play('checkpoint'); if (d.cp >= d.route.length) { d.cp = 0; d.lap++; if (d.lap >= d.laps) { for (const r of d.rivals) r.ai.mode = 'traffic'; return pass(3000, 'You won the purse. The kids are furious.'); } HUD.big('LAP ' + (d.lap + 1), '#f5c542', 1.5); if (d.lap === d.laps - 1) checkpoint(dd => { dd.started = true; dd.count = 0; dd.lap = dd.laps - 1; dd.cp = 0; const st = dd.route[dd.route.length - 1]; PLAYER.exitCar(); dd.car.x = st[0]; dd.car.z = st[1]; dd.car.vx = dd.car.vz = 0; P().x = dd.car.x - dd.car.right[0] * 2; P().z = dd.car.z - dd.car.right[1] * 2; for (const r of dd.rivals) { r.rivalLap = dd.laps - 1; r.rivalCp = 0; r.x = st[0] + (W.rng() - 0.5) * 6; r.z = st[1] - 8; r.ai.mode = 'route'; r.ai.routeIdx = 0; } }); } }
+        S.markers.length=0; const cp = d.route[d.cp]; blip(cp[0], cp[1], '#3df06a'); marker(cp[0], cp[1], 5, [0.3, 1, 0.4]);
+        if (P().car && near(cp[0], cp[1], 8)) { d.cp++; AUDIO.play('checkpoint'); if (d.cp >= d.route.length) { d.cp = 0; d.lap++; if (d.lap >= d.laps) { for (const r of d.rivals) r.ai.mode = 'traffic'; return pass(3000, 'You won the purse. The kids are furious.'); } HUD.big('LAP ' + (d.lap + 1), '#f5c542', 1.5); if (d.lap === d.laps - 1) checkpoint(dd => { dd.started = true; dd.count = 0; dd.lap = dd.laps - 1; dd.cp = 0; const st = dd.route[dd.route.length - 1]; PLAYER.exitCar(); dd.car.x = st[0]; dd.car.z = st[1]; dd.car.vx = dd.car.vz = 0; P().x = dd.car.x - dd.car.right[0] * 2; P().z = dd.car.z - dd.car.right[1] * 2; for (const r of dd.rivals) { r.rivalLap = dd.laps - 1; r.rivalCp = 0; r.x = st[0] + (W.rng() - 0.5) * 6; r.z = st[1] - 8; r.ai.mode = 'route'; r.ai.routeIdx = 0; } }); } }
         let pos = 1; for (const r of d.rivals) { if (r.wrecked) continue; const rp = d.route[r.rivalCp]; if (M.dist(r.x, r.z, rp[0], rp[1]) < 10) { r.rivalCp++; if (r.rivalCp >= d.route.length) { r.rivalCp = 0; r.rivalLap++; if (r.rivalLap >= d.laps) return fail('You lost the race.'); } } if (r.rivalLap * 100 + r.rivalCp > d.lap * 100 + d.cp) pos++; }
         objective('Race! Lap ' + (d.lap + 1) + '/' + d.laps + '   Position ' + pos + '/4'); } },
     { id: 6, name: 'HOT PROPERTY',
@@ -169,10 +193,10 @@ const MISSIONS = (() => {
       intro: [['MARLA', 'Bank job. First Grift Bank, Downtown. Two of my people ride with you.'], ['MARLA', 'Get them to the door. Hold the street while they work. Sixty seconds, maybe more, the cops will come in force.'], ['MARLA', 'Then get everyone back to the safehouse. Everyone. I do not replace people easily.']],
       start(d) { const g = place('mission'); d.crew = []; for (let i = 0; i < 2; i++) { const c = spawnPed(g.x + 3 + i * 2, g.z + 1, { role: 'crew', weapon: 'uzi', health: 160 }); c.weaponOut = true; c.look = PEDS.SWAT; c.mesh = PEDS.getMesh(PEDS.SWAT); d.crew.push(c); } PLAYER.giveWeapon('uzi', 120); if (P().armor < 100) P().armor = 100; d.phase = 0; const b = place('bank'); blip(b.x, b.z); objective('Take the crew to First Grift Bank.'); },
       update(d, dt) { const b = place('bank'); const alive = d.crew.filter(c => c.alive);
-        if (!alive.length) return fail('The whole crew is dead.');
+        if (alive.length !== d.crew.length) return fail('A crew member died. Marla needs everyone back.');
         if (d.phase === 0) { if (near(b.x, b.z, 12) && alive.every(c => M.dist(c.x, c.z, b.x, b.z) < 18)) { d.phase = 1; S.timer = 60; for (const c of alive) { if (c.inCar) c.exitCar(); c.role = 'crewwork'; c.stationary = true; c.x = b.x + (W.rng() - 0.5) * 3; c.z = b.z + 1.5; } POLICE.setStars(3); objective('Hold the street while the crew works.'); } else if (P().car && alive.some(c => !c.inCar)) objective('Wait for the crew to get in.'); }
         else if (d.phase === 1) { objective('Hold the street while the crew works.  ' + fmt(S.timer)); if (S.timer < 30 && P().wanted < 4) POLICE.setStars(4); for (const c of alive) { c.state = 'walk'; c.speed = 0; } if (S.timer <= 0) { d.phase = 2; S.timer = -1; for (const c of alive) { c.role = 'crew'; c.stationary = false; } const s = place('safehouse'); blip(s.x, s.z); objective('Get the crew back to the safehouse!'); PLAYER.addMoney(0, null); } }
-        else if (d.phase === 2) { const s = place('safehouse'); if (near(s.x, s.z, 8) && alive.every(c => M.dist(c.x, c.z, s.x, s.z) < 14 || c.inCar)) { for (const c of alive) if (c.inCar) c.exitCar(); POLICE.clear(); pass(10000, 'Marla: "Everyone. Good."'); } else if (P().car && alive.some(c => !c.inCar)) objective('Wait for the crew to get in the car.'); else objective('Get the crew back to the safehouse!'); } } },
+        else if (d.phase === 2) { const s = place('safehouse'); if (near(s.x, s.z, 8) && alive.every(c => M.dist(c.x, c.z, s.x, s.z) < 14 || (P().car && c.inCar === P().car))) { for (const c of alive) if (c.inCar) c.exitCar(); POLICE.clear(); pass(10000, 'Marla: "Everyone. Good."'); } else if (P().car && alive.some(c => !c.inCar)) objective('Wait for the crew to get in the car.'); else objective('Get the crew back to the safehouse!'); } } },
     { id: 8, name: 'CRANE',
       intro: [['MARLA', 'Crane knows it was us. He is leaving town at dawn from his tower, with everything he has left.'], ['MARLA', 'He has an armoured Bastion and a small army in the plaza. Make sure the Bastion never reaches the bridge.'], ['MARLA', 'After that, every cop in Grift City will want you. Get to the safehouse and we will talk about the future.']],
       start(d) { const t = place('tower'); PLAYER.giveWeapon('rifle', 150); PLAYER.giveWeapon('rocket', 4); d.guards = []; for (let i = 0; i < 8; i++) { const a = i / 8 * M.TAU; const [gx, gz] = sideOf(t.x + Math.sin(a) * 10, t.z + Math.cos(a) * 6 - 2); const g = spawnPed(gx, gz, { look: PEDS.GANG, gang: true, stationary: true, weapon: ['rifle', 'uzi', 'shotgun', 'pistol'][i % 4], health: 110 }); g.faceTarget = PLAYER.P; d.guards.push(g); }
@@ -191,7 +215,7 @@ const MISSIONS = (() => {
       start(d) { const [bx, bz] = CITY.blockOrigin(8, 3); const x = bx + 30, z = bz + 40; d.truck = spawnCar('truck', x, z, Math.PI / 2, { color: 2, health: 3000 }); d.truck.locked = false; for (let i = 0; i < 4; i++) spawnGang(x - 8 + i * 5, z - 6, i % 2 ? 'uzi' : 'pistol', { stationary: true }); d.phase = 0; blip(x, z, '#f5c542', d.truck); objective('Get the Hauler from the Eastside warehouse yard.'); },
       update(d, dt) { if (d.truck.wrecked) return fail('The Hauler is scrap.'); if (d.phase === 0 && near(d.truck.x, d.truck.z, 30)) { d.phase = 1; for (const e of S.spawned) if (e.isGang) e.hostile = true; }
         if (d.phase < 2 && P().car === d.truck) { d.phase = 2; const k = place('docks'); blip(k.x, k.z); objective('Take the Hauler to Pier 9.'); for (let i = 0; i < 2; i++) { const sp = laneSpot(8, 4 + i, -1, 0, 20, i); const c = spawnCar('pickup', sp.x, sp.z, sp.angle, { mode: 'chase', color: 3 }); c.ai.mode = 'chase'; const drv = spawnGang(c.x, c.z, 'pistol', { hostile: true }); drv.inCar = c; c.driver = drv; drv.state = 'driving'; const g = spawnGang(c.x, c.z, 'uzi', { hostile: true }); g.enterCar(c); } HUD.notify("Crane's crew want their truck back."); }
-        if (d.phase === 2) { const k = place('docks'); if (P().car === d.truck && near(k.x, k.z, 14) && d.truck.absSpeed < 2) { PLAYER.exitCar(); d.truck.locked = true; d.truck.important = false; pass(3000, 'Okafor: "Every panel dented. Still mine."'); } else if (P().car !== d.truck) objective('Get back in the Hauler!'); } } },
+        if (d.phase === 2) { const k = place('docks'); if (P().car === d.truck && near(k.x, k.z, 14) && d.truck.absSpeed < 2 && PLAYER.exitCar()) { d.truck.locked = true; d.truck.important = false; pass(3000, 'Okafor: "Every panel dented. Still mine."'); } else if (P().car !== d.truck) objective('Get back in the Hauler!'); } } },
     { id: 1, strand: 2, name: 'THE WAREHOUSE', intro: [['OKAFOR', "They're coming tonight, in numbers, to burn the pier."], ['OKAFOR', 'Two of my dockers will stand with you. Keep them alive and keep the gate. Three waves, I hear.'], ['OKAFOR', 'Take the shotgun by the crane.']],
       start(d) { const k = place('docks'); PLAYER.giveWeapon('shotgun', 40); d.workers = []; for (let i = 0; i < 2; i++) { const w = spawnPed(k.x + 8 + i * 4, k.z + 10, { role: 'crew', weapon: 'shotgun', health: 140 }); w.weaponOut = true; d.workers.push(w); } d.wave = 0; d.waveT = 6; d.attackers = []; blip(k.x, k.z); objective('Get to Pier 9 and hold the gate.'); d.phase = 0; },
       update(d, dt) { const k = place('docks'); const alive = d.workers.filter(w => w.alive); if (!alive.length) return fail('The dockers are dead.');

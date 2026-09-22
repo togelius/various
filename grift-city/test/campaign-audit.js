@@ -1,0 +1,75 @@
+// Assisted progression audit: real mission code and actors; travel/combat outcomes are controlled.
+// This checks campaign logic, not driving difficulty or a human-speed combat playthrough.
+function runCampaignAudit() {
+ const log=[],p=PLAYER.P,S=MISSIONS.S, check=(v,m)=>{if(!v)throw Error(m);};
+ const at=(x,z)=>{p.x=x;p.z=z;p.y=CITY.groundY(x,z);p.vx=p.vz=0;};
+ const place=k=>{const q=CITY.place(k);at(q.x,q.z);};
+ const enter=c=>{p.car=c;c.driver=PLAYER;c.ai.mode='player';p.state='car';at(c.x,c.z);MISSIONS.onEnterCar(c);};
+ const park=k=>{const q=CITY.place(k),c=p.car;c.x=q.x;c.z=q.z;c.vx=c.vz=0;at(q.x,q.z);};
+ const leave=()=>{if(p.car){p.car.driver=null;p.car=null;}p.state='foot';};
+ const dead=q=>{q.state='dead';q.health=0;};
+ const wreck=c=>{c.wrecked=true;c.health=0;};
+ const start=m=>{leave();MISSIONS.cleanup();W.cars.length=0;W.peds.length=0;W.pickups.length=0;W.state.heard.length=0;POLICE.clear();S.current=null;S.retry=null;S.cp=null;S.dialogue=null;S.cooldown=0;S.skipIntro=true;p.health=100;p.alive=true;p.weapon='fist';p.weaponOut=false;p.aim=0;p.speed=0;at(-100,-100);MISSIONS.start(m);check(S.current===m,m.name+' did not start');return m.data;};
+ const update=(m,dt=.016)=>{m.update(m.data,dt);};
+ const expectedRewards=[200,1600,1500,2500,2500,3000,4000,10000,25000,3000,4000,5000,5000,8000,5000,3500,6000,8000,1500,2500,4000,6000]; let rewardIndex=0, beforeMoney=0;
+ const passed=m=>{check(p.money-beforeMoney===expectedRewards[rewardIndex++],m.name+' payout mismatch: '+(p.money-beforeMoney));check(S.current===null,m.name+' did not finish: '+MISSIONS.objective);check(p.stats.missions>0,'mission counter');log.push(m.name+' — passed');S.dialogue=null;};
+ for(const m of MISSIONS.LIST) {
+  const d=start(m);beforeMoney=p.money;
+  switch(m.id) {
+   case 0: place('mission');update(m);break;
+   case 1: d.method='unnoticed';enter(d.car);park('garage');update(m);break;
+   case 2: enter(d.van);park('docks');update(m);break;
+   case 3: at(...d.spot);update(m);d.goons.forEach(dead);update(m);dead(d.teddy);update(m);check(d.cash,'Teddy must drop the collection');p.money+=d.cash.amount;d.cash.taken=true;update(m);place('mission');update(m);break;
+   case 4: for(const type of ['taxi','police','bus']){const q=CITY.place('garage'),c=VEH.spawn(type,q.x,q.z,0);m.onExitCar(c);}update(m);break;
+   case 5: enter(d.car);at(...d.startPt);update(m);update(m,4.1);for(let i=0;i<d.route.length*d.laps;i++){at(...d.route[d.cp]);update(m);}break;
+   case 6: d.trucks.forEach(wreck);update(m);POLICE.clear();update(m);break;
+   case 7: place('bank');d.crew.forEach(c=>{c.x=p.x;c.z=p.z;});update(m);S.timer=0;update(m);place('safehouse');d.crew.forEach(c=>{c.x=p.x;c.z=p.z;});update(m);break;
+   case 8: place('tower');update(m);dead(d.crane);update(m);place('safehouse');update(m);break;
+  }
+  passed(m);
+ }
+ for(const m of MISSIONS.LIST2) {
+  const d=start(m);beforeMoney=p.money;
+  switch(m.id) {
+   case 0: enter(d.truck);update(m);park('docks');update(m);break;
+   case 1: place('docks');update(m);for(let i=0;i<3;i++){update(m,41);d.attackers.forEach(dead);}update(m);break;
+   case 2: d.cars.forEach(wreck);update(m);break;
+   case 3: at(d.van.x+35,d.van.z);update(m);d.van.ai.onRouteEnd();update(m);d.guards.filter(Boolean).forEach(dead);update(m);break;
+   case 4: enter(VEH.spawn('sedan',d.truck.x+10,d.truck.z,0));update(m);d.truck.ai.onRouteEnd();update(m);break;
+   case 5: at(d.hut.x,d.hut.z);update(m);place('mission2');update(m);break;
+   case 6: for(const q of d.subjects){at(q.x,q.z-12);m.onPhoto(d,q.x,q.z);}place('mission2');update(m);break;
+   case 7: wreck(d.tanker);d.cars.forEach(wreck);place('mission2');update(m);break;
+   case 8: enter(d.boat);wreck(d.launch);update(m);leave();place('mission2');update(m);break;
+  }
+  passed(m);
+ }
+ for(const m of MISSIONS.PHONE) {const d=start(m);beforeMoney=p.money;if(d.t)dead(d.t);else dead(d.d);update(m);passed(m);}
+ check(S.progress===9,'Marla campaign unlock progression');check(S.progress2===9,'Okafor campaign unlock progression');check(S.phoneProgress===4,'phone campaign unlock progression');
+ // Failure must offer the same job again; every scripted job supports a death/failure retry.
+ for(const m of [...MISSIONS.LIST,...MISSIONS.LIST2,...MISSIONS.PHONE]) {
+  start(m);const oldData=m.data;MISSIONS.onPlayerDown('wasted');check(!S.current && S.retry.m===m,m.name+' failure did not retain retry');
+  const oldHit=INPUT.hit;INPUT.hit=k=>k==='KeyY';try{MISSIONS.update(.016);}finally{INPUT.hit=oldHit;}
+  check(S.current===m && m.data!==oldData && !S.dialogue,m.name+' retry must recreate the job without replaying the intro');
+ }
+ log.push('22 actual failure/retry transitions — passed');
+ const repo=MISSIONS.LIST[1];
+ for(const method of ['negotiated','intimidated','unnoticed','chase','noise']) {
+  const d=start(repo),o=d.owner;at(o.x,o.z+(method==='unnoticed'?-8:2));o.angle=0;p.angle=Math.PI;
+  if(method==='intimidated'){p.weapon='pistol';p.weaponOut=true;p.aim=1;}
+  const oldDown=INPUT.down;INPUT.down=k=>k==='KeyG'&&method==='negotiated';
+  if(method==='noise')W.state.heard.push({x:p.x,z:p.z,r:30});
+  try{for(let i=0;i<(method==='chase'?80:30);i++)update(repo,.1);}finally{INPUT.down=oldDown;}
+  if(method==='unnoticed')check(!d.fled && !d.notice,'unseen approach must not reveal the player');
+  else if(method==='chase'||method==='noise')check(d.fled,'provoked debtor must flee');
+  else check(d.surrendered && d.method===method,method+' must surrender');
+ }
+ log.push('5 repo approaches — passed');
+ // A racer on foot cannot collect checkpoints, and markers cannot accumulate every frame.
+ {const m=MISSIONS.LIST[5],d=start(m);d.started=true;d.count=0;at(...d.route[0]);for(let i=0;i<120;i++)update(m);check(d.cp===0,'race on foot');check(S.markers.length===1,'race marker leak');}
+ // Mission handover must wait until an exit is possible.
+ for(const m of [MISSIONS.LIST[2],MISSIONS.LIST2[0]]){const d=start(m);enter(d.van||d.truck);update(m);park('docks');const oldExit=PLAYER.exitCar;PLAYER.exitCar=()=>false;try{update(m);}finally{PLAYER.exitCar=oldExit;}check(S.current===m,'blocked exit must defer delivery');}
+ {const m=MISSIONS.LIST[7],d=start(m);dead(d.crew[0]);update(m);check(!S.current && S.retry.m===m,'bank job must require every crew member');}
+ log.push('Race, delivery and crew regressions — passed');
+ return log;
+}
+if(typeof module!=='undefined')module.exports=runCampaignAudit;

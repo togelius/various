@@ -142,7 +142,7 @@ const PLAYER = (() => {
 
   // ---- Update
   function update(dt) {
-    updateWeapon(dt); P.stateT += dt; if (P.drunk > 0) P.drunk -= dt; if (P.kickT > 0) P.kickT -= dt; if (P.flinchT > 0) P.flinchT -= dt; if (P.hurtFlash > 0) P.hurtFlash -= dt; if (P.invuln > 0) P.invuln -= dt; if (P.fireT > 0) P.fireT -= dt; if (P.carNameT > 0) P.carNameT -= dt;
+    updateWeapon(dt); P.landing=Math.max(0,(P.landing||0)-dt*4); P.turnLean=(P.turnLean||0)*Math.exp(-dt*8); P.stateT += dt; if (P.drunk > 0) P.drunk -= dt; if (P.kickT > 0) P.kickT -= dt; if (P.flinchT > 0) P.flinchT -= dt; if (P.hurtFlash > 0) P.hurtFlash -= dt; if (P.invuln > 0) P.invuln -= dt; if (P.fireT > 0) P.fireT -= dt; if (P.carNameT > 0) P.carNameT -= dt;
     const m = INPUT.mouse, pad = INPUT.pad;
     // camera look
     P.camIdle += dt; if (INPUT.locked || pad.active) { const sens = 0.0022 * GAME.options.sensitivity * (P.aim ? (P.aimTarget ? 0.5 : 0.78) : 1); const inv = GAME.options.invertY ? -1 : 1; P.camYaw -= m.dx * sens + pad.rx * 2.5 * dt;
@@ -180,7 +180,7 @@ const PLAYER = (() => {
     if (P.aim) aimAngle(0.16); else P.aimTarget = null; // keep the lock indicator honest even when the mouse is still
     // facing
     if (P.aim) P.angle += M.angleTo(P.angle, P.camYaw) * Math.min(1, 18 * dt);
-    else if (moving) { const desired = Math.atan2(mx, mz); P.angle += M.angleTo(P.angle, desired) * Math.min(1, 14 * dt); }
+    else if (moving) { const desired = Math.atan2(mx, mz); P.turnLean=M.lerp(P.turnLean,M.clamp(M.angleTo(P.angle,desired)*P.speed*.06,-.15,.15),1-Math.exp(-dt*9)); P.angle += M.angleTo(P.angle, desired) * Math.min(1, 14 * dt); }
     // jump
     if ((INPUT.hit('Space') || pad.pressed[1]) && !P.airborne) { P.vy = 6.5; P.airborne = true; }
     // enter car
@@ -189,7 +189,7 @@ const PLAYER = (() => {
     if (firing && P.fireT <= 0) attack(wp);
     if (INPUT.hit('KeyR')) reload();
     moveBody(dt, false);
-    P.speed = Math.hypot(P.vx, P.vz); P.phase += dt * (P.speed > 0.05 ? M.TAU * P.speed / (1.2 + 0.24 * P.speed) : 0); // the stride lengthens with speed, so feet stop sliding
+    P.speed = Math.hypot(P.vx, P.vz); P.phase += dt * (P.speed > 0.05 ? M.TAU * P.speed / (1.0 + 0.12 * P.speed) : 0); // the stride lengthens with speed, so feet stop sliding
     P.stats.distance += P.speed * dt;
     { const st = Math.floor(P.phase / Math.PI); if (st !== P.lastStep && P.speed > 0.6 && !P.airborne) { P.lastStep = st; AUDIO.play('step', P.x, P.z, !CITY.interiorRoom); } } // a footfall each half stride
     // hit by cars
@@ -225,7 +225,7 @@ const PLAYER = (() => {
     else if (ragdoll) { P.vx *= Math.max(0, 1 - 6 * dt); P.vz *= Math.max(0, 1 - 6 * dt); }
     P.x += P.vx * dt; P.z += P.vz * dt;
     const g = CITY.groundY(P.x, P.z);
-    if (P.airborne) { if (P.y <= g) { const vy = P.vy; P.y = g; P.airborne = false; P.vy = 0; if (ragdoll) { P.vx *= 0.3; P.vz *= 0.3; } if (vy < -12 && P.alive) { hurt((-vy - 10) * 7, 'fall', null); if (P.alive && vy < -16) { knock(P.vx * 0.2, 2, P.vz * 0.2); } } } }
+    if (P.airborne) { if (P.y <= g) { const vy = P.vy; P.landing=M.clamp(-vy/9,0,1); P.y = g; P.airborne = false; P.vy = 0; if (ragdoll) { P.vx *= 0.3; P.vz *= 0.3; } if (vy < -12 && P.alive) { hurt((-vy - 10) * 7, 'fall', null); if (P.alive && vy < -16) { knock(P.vx * 0.2, 2, P.vz * 0.2); } } } }
     else if (P.y > g + 0.6) { P.airborne = true; P.vy = 0; } // walked off an edge: fall rather than snap
     else P.y = g;
     const res = W.pushOut(P.x, P.z, 0.42); P.x = res.x; P.z = res.z;
@@ -252,7 +252,7 @@ const PLAYER = (() => {
   function tryEnterCar() {
     const target=entryCandidate(); if (!target) return;
     if (target.car.locked) { HUD.notify('This car is locked.'); return; }
-    P.state='entering'; P.stateT=0; P.targetCar=target.car; P.aim=0; P.doorSide=target.side;
+    P.state='entering'; P.stateT=0; P.doorReach=0; P.targetCar=target.car; P.aim=0; P.doorSide=target.side;
   }
   function updateEntering(dt) {
     const cancel = P.stateT > .08 && (INPUT.hit('KeyF') || INPUT.hit('Space') || INPUT.pad.pressed[2] || ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].some(k => INPUT.hit(k)));
@@ -262,7 +262,7 @@ const PLAYER = (() => {
     if (d > 0.5 && P.stateT < 2.2 && c.absSpeed < 4) { const s = 4.5; P.vx = (doorX - P.x) / d * s; P.vz = (doorZ - P.z) / d * s; P.angle += M.angleTo(P.angle, Math.atan2(doorX - P.x, doorZ - P.z)) * Math.min(1, 12 * dt); moveBody(dt, false); P.speed = s; P.phase += dt * 7; return; }
     if (d > 1.1 || c.absSpeed >= 4) { P.state = 'foot'; P.vx = P.vz = 0; return; }
     // get in
-    P.speed = 0; P.vx = P.vz = 0; AUDIO.play('door', P.x, P.z);
+    P.speed = 0; P.vx = P.vz = 0; P.angle += M.angleTo(P.angle,Math.atan2(c.x-P.x,c.z-P.z))*Math.min(1,dt*14); P.doorReach=(P.doorReach||0)+dt; if(P.doorReach<.32) return; AUDIO.play('door', P.x, P.z);
     if (c.driver && c.driver !== PLAYER) { const d0 = c.driver; d0.exitCar(); d0.x = c.x + r[0] * (c.spec.wid / 2 + 1.0); d0.z = c.z + r[1] * (c.spec.wid / 2 + 1.0); d0.knockT = 1.5; d0.state = 'knocked'; d0.launch(r[0] * 2, 2, r[1] * 2); d0.fear = 8; d0.threat = [c.x, c.z]; if (d0.isCop) { d0.hostile = true; POLICE.crime('cop', c.x, c.z, d0); } else { if (W.rng() < 0.5) d0.say(W.rng() < 0.5 ? 'My car!' : 'Hey! Thief!'); POLICE.crime('jack', c.x, c.z, null); } P.stats.carsStolen++; }
     else if (!c.playerOwned && c.ai.mode !== 'parked') P.stats.carsStolen++;
     for (const px of c.passengers.slice()) if (px.role !== 'crew') { px.exitCar(); px.scare(c.x, c.z); }
