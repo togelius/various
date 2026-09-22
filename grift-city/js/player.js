@@ -46,6 +46,7 @@ const PLAYER = (() => {
     P.reloadT = P.reloadDuration; AUDIO.play('reload'); return true;
   }
   function updateWeapon(dt) {
+    P.kickPitch=(P.kickPitch||0)*Math.exp(-dt*9);P.kickYaw=(P.kickYaw||0)*Math.exp(-dt*11);P.bloom=Math.max(0,(P.bloom||0)-dt*1.8);if(P.fireT<=0)P.shotRest=(P.shotRest||0)+dt;else P.shotRest=0;if(P.shotRest>.4)P.shotSequence=0;
     P.recoil = Math.max(0, P.recoil-dt*3); P.punchT = Math.max(0, P.punchT-dt);
     if (P.reloadT > 0) {
       if (P.reloadWeapon !== P.weapon || !P.alive) { P.reloadT = 0; P.reloadWeapon = null; return; }
@@ -61,7 +62,7 @@ const PLAYER = (() => {
   function hurt(amount, how, source) {
     if (!P.alive || P.invuln > 0) return; if (how === 'melee' && P.car) return;
     let a = amount; if (P.armor > 0) { const ab = Math.min(P.armor, a * 0.7); P.armor -= ab; a -= ab; }
-    P.health -= a; P.hurtFlash = 0.4; shake(Math.min(1, a / 35)); if (how === 'shot' && W.rng() < 0.5) AUDIO.play('hit', P.x, P.z);
+    P.health -= a; P.hurtFlash = 0.4;if(source&&Number.isFinite(source.x)){P.damageDirection=Math.atan2(source.x-P.x,source.z-P.z);P.damageDirectionT=.85;} shake(Math.min(1, a / 35)); if (how === 'shot' && W.rng() < 0.5) AUDIO.play('hit', P.x, P.z);
     if (P.health <= 0) die(source);
   }
   function knock(vx, vy, vz) { if (P.car || !P.alive) return; P.vx += vx; P.vz += vz; P.vy = Math.max(P.vy, vy); P.airborne = true; P.knockT = 1.6; P.state = 'knocked'; P.lying = 0; }
@@ -87,18 +88,19 @@ const PLAYER = (() => {
   function fireBullet(shooter, x, z, y, angle, wp, dmgScale = 1, ignore = null, pitch = 0) {
     const n = wp.pellets || 1; const shooterIsPlayer = shooter === PLAYER || shooter === P; if (shooterIsPlayer) shooter = PLAYER;
     for (let i = 0; i < n; i++) {
-      const a = angle + (W.rng() - 0.5) * 2 * (wp.spread || 0) * (shooterIsPlayer && P.car ? 2 : 1); const tilt = pitch + (W.rng() - .5) * (wp.spread || 0); const dx = Math.sin(a) * Math.cos(tilt), dz = Math.cos(a) * Math.cos(tilt), dy = Math.sin(tilt);
+      const spread=(wp.spread||0)*(shooterIsPlayer?(P.car?2:(1+P.speed*.16+(P.bloom||0))*(P.crouched?.65:1)):1);const a = angle + (W.rng() - .5)*2*spread; const tilt = pitch + (W.rng() - .5)*spread; const dx = Math.sin(a) * Math.cos(tilt), dz = Math.cos(a) * Math.cos(tilt), dy = Math.sin(tilt);
       const hit = W.raycast3(x, y, z, dx, dy, dz, wp.range, ignore || (shooterIsPlayer ? P.car : shooter));
       let hx = hit.x, hz = hit.z, hy = hit.y;
       // player check for NPC shooters
-      if (!shooterIsPlayer && P.alive) { const pr = P.car ? 1.6 : 0.55; const t = W.rayBox(x, y, z, dx * wp.range, dy * wp.range, dz * wp.range, P.x-pr, P.y, P.z-pr, P.x+pr, P.y+1.8-P.crouch*.5, P.z+pr); if (t >= 0 && t < hit.t) { hit.kind = P.car ? 'playercar' : 'player'; hit.t = t; hx = x + dx * wp.range * t; hz = z + dz * wp.range * t; hy = y + dy * wp.range * t; } }
+      if (!shooterIsPlayer && P.alive && !P.car) { const pr = P.car ? 1.6 : 0.55; const t = W.rayBox(x, y, z, dx * wp.range, dy * wp.range, dz * wp.range, P.x-pr, P.y, P.z-pr, P.x+pr, P.y+1.8-P.crouch*.5, P.z+pr); if (t >= 0 && t < hit.t) { hit.kind = P.car ? 'playercar' : 'player'; hit.t = t; hx = x + dx * wp.range * t; hz = z + dz * wp.range * t; hy = y + dy * wp.range * t; } }
       if (hit.kind === 'ped') { const was = hit.obj.alive; hit.obj.damage(wp.dmg * dmgScale, shooter, [dx, dz]); if (shooterIsPlayer) HUD.hitMark(was && !hit.obj.alive); }
       else if (hit.kind === 'car') { hit.obj.damage(wp.dmg * (wp.carDmg || 2) * dmgScale, shooter,{x:hx,y:hy,z:hz,kind:'bullet'}); if (shooterIsPlayer) HUD.hitMark(false); W.FX.spark(hx, 0.9, hz, 4); if (W.rng() < 0.3) W.FX.glass(hx, 1.2, hz, 4); if (hit.obj.driver && hit.obj.driver !== PLAYER && hit.obj.ai.mode === 'traffic') { hit.obj.scared = 6; hit.obj.ai.mode = 'flee'; } if (hit.obj.driver === PLAYER) hurt(wp.dmg * 0.25 * dmgScale, 'shot', shooter); }
       else if (hit.kind === 'player') { hurt(wp.dmg * dmgScale * 0.45, 'shot', shooter); W.FX.blood(P.x, 1.2, P.z, 4, [dx, dz]); }
       else if (hit.kind === 'playercar') { if (P.car) { P.car.damage(wp.dmg * 1.5 * dmgScale, shooter,{x:hx,y:hy,z:hz,kind:'bullet'}); W.FX.spark(hx, 0.9, hz, 3); if (W.rng() < 0.2) hurt(wp.dmg * 0.2 * dmgScale, 'shot', shooter); } }
       else if (hit.kind === 'heli') { hit.obj.damage(wp.dmg * dmgScale * 1.2, shooter); W.FX.spark(hx, hit.obj.y, hz, 4); hy = hit.obj.y; }
-      else if (hit.kind === 'lot' || hit.kind === 'ground') { W.FX.dust(hx, hy, hz, 3); }
+      else if (hit.kind === 'lot' || hit.kind === 'ground') { if(hit.obj?.destructible){hit.obj.strength-=wp.dmg*.3;if(hit.obj.strength<=0)STREETS.breakObject(hit.obj,{driver:shooter});} W.FX.dust(hx, hy, hz, 3); }
       else if (hit.kind === 'prop') { W.FX.spark(hx, hy, hz, 4); }
+      if(typeof TACTICS!=='undefined')TACTICS.nearShot(shooter,x,y,z,hx,hy,hz);
       tracers.push({ x0: x + dx * 0.6, z0: z + dz * 0.6, y0: y, x1: hx, z1: hz, y1: hy, life: 0.05 });
     }
     W.FX.muzzle(x, y, z, Math.sin(angle), Math.cos(angle)); AUDIO.play(wp.sound || 'pistol', x, z); W.noise(x, z, 70, 'shot');
@@ -222,7 +224,7 @@ const PLAYER = (() => {
     if (P.reloadT > 0) return;
     if (!wp.projectile && wp.clip && magazine() <= 0 && P.weapons[P.weapon] > 0) { reload(); return; }
     if (P.weapons[P.weapon] <= 0) { AUDIO.play('click'); P.fireT = 0.3; return; }
-    P.fireT = wp.rate; P.weapons[P.weapon]--; if (!wp.projectile && wp.clip) P.magazines[P.weapon]--; P.recoil = 0.12; P.angle = P.camYaw;
+    P.fireT = wp.rate; P.weapons[P.weapon]--; if (!wp.projectile && wp.clip) P.magazines[P.weapon]--; P.recoil = .12;const pattern=[-.25,.12,.4,.2,-.3,-.45,.1,.35],kick=P.weapon==='shotgun'?.05:P.weapon==='rifle'?.015:.028;P.shotSequence=(P.shotSequence||0)+1;P.kickPitch=(P.kickPitch||0)-kick;P.kickYaw=(P.kickYaw||0)+pattern[P.shotSequence%pattern.length]*kick*.6;P.bloom=Math.min(.8,(P.bloom||0)+(P.weapon==='rifle'?.13:.2));P.angle = P.camYaw;
     const y = P.y + 1.35 - P.crouch*.43; const ang = aimAngle();
     if (wp.projectile) { const pitch = -P.camPitch * 0.6 + (wp.projectile === 'grenade' ? 0.45 : 0.05); launchProjectile(wp.projectile, P.x + Math.sin(ang) * 0.8, y, P.z + Math.cos(ang) * 0.8, ang, pitch, wp.projectile === 'grenade' ? 14 : 45); AUDIO.play(wp.sound || 'click', P.x, P.z); }
     else {
@@ -382,7 +384,7 @@ const PLAYER = (() => {
       else { P.camYawOff = M.angleTo(behind, P.camYaw); }
       yaw = P.camYaw; pitch = M.clamp(P.camPitch, 0.1, 0.9); dist = 6.0 + c.spec.len * 0.3 + spd * 0.05; const la = Math.min(3, spd * 0.12); tx = c.x + c.vx / (spd || 1) * la; ty = c.y + 1.2; tz = c.z + c.vz / (spd || 1) * la; fov = 60 + spd * 0.32 * option('speedFov',.8);
     } else {
-      yaw = P.camYaw; pitch = P.camPitch; dist = P.aim ? 2.4 : P.camDist + (P.sprinting ? 0.6 : 0); tx = P.x; ty = P.y + 1.45 - P.crouch*.43 + (P.sprinting ? Math.cos(2 * P.phase) * 0.015 * option('cameraShake',.65) : 0); tz = P.z; fov = P.aim ? 50 : 62 + (P.sprinting ? 6 * option('speedFov',.8) : 0);
+      yaw = P.camYaw+(P.kickYaw||0); pitch = P.camPitch+(P.kickPitch||0); dist = P.aim ? 2.4 : P.camDist + (P.sprinting ? 0.6 : 0); tx = P.x; ty = P.y + 1.45 - P.crouch*.43 + (P.sprinting ? Math.cos(2 * P.phase) * 0.015 * option('cameraShake',.65) : 0); tz = P.z; fov = P.aim ? 50 : 62 + (P.sprinting ? 6 * option('speedFov',.8) : 0);
       if (P.aim) { const r = [-Math.cos(yaw), Math.sin(yaw)]; const shoulder = W.raycast3(P.x,ty,P.z,r[0]*P.shoulder,0,r[1]*P.shoulder,.65,P.car,true); const offset=Math.max(0,Math.min(.55,shoulder.dist-.12)); tx += r[0] * offset * P.shoulder; tz += r[1] * offset * P.shoulder; }
       if (!P.alive) { dist = 6; pitch = 0.9; }
     }
@@ -391,7 +393,7 @@ const PLAYER = (() => {
     // collision with buildings (or the room's walls indoors): shorten the boom
     const dx = cx - tx, dz = cz - tz; let best = 1;
     const room = CITY.interiorRoom; if (room && ty < -10) { cy = Math.min(cy, room.floorY + 3.0); }
-    for (const l of (room && ty < -10 ? room.walls : CITY.lotsNear(tx, tz, dist + 2))) { if (l.h < cy - 0.3 && l.h < ty) continue; const t = M.rayAABB2(tx, tz, dx, dz, l.x0 - 0.3, l.z0 - 0.3, l.x1 + 0.3, l.z1 + 0.3); if (t >= 0 && t < best) { const hy = ty + (cy - ty) * t; if (hy < l.h + 0.3) best = t; } }
+    for (const l of (room && ty < -10 ? room.walls : CITY.lotsNear(tx, tz, dist + 2))) { if (l.down||l.passage||(l.h < cy - 0.3 && l.h < ty)) continue; const t = M.rayAABB2(tx, tz, dx, dz, l.x0 - 0.3, l.z0 - 0.3, l.x1 + 0.3, l.z1 + 0.3); if (t >= 0 && t < best) { const hy = ty + (cy - ty) * t; if (hy < l.h + .3 && hy>(l.y0||0)-.3) best = t; } }
     const length=Math.hypot(dx,cy-ty,dz);
     for (const [ox,oy,oz] of [[0,0,0],[.22,0,0],[-.22,0,0],[0,.18,.22],[0,-.18,-.22]]) {
       const hit=W.raycast3(tx+ox,ty+oy,tz+oz,dx,cy-ty,dz,length,P.car||(P.state==='entering'?P.targetCar:null)||P.exitDoor?.car,'camera');

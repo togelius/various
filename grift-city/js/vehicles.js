@@ -24,7 +24,7 @@ const VEH = (() => {
     constructor(type, x, z, angle, opts = {}) {
       this.type = type; this.spec = SPECS[type]; this.name = NAMES[type];
       this.x = x; this.z = z; this.y = this.spec.boat ? W.WATER_Y + 0.55 : CITY.groundY(x, z); this.vy = 0; this.bob = W.rng() * 6; this.sinkT = 0; this.angle = angle; this.vx = 0; this.vz = 0; this.speed = 0; this.lat = 0;
-      this.identity=opts.identity||nextIdentity++;this.condition=condition();this.doors=[0,0];this.doorTarget=[0,0];this.disabled=false;this.burned=false;
+      this.identity=opts.identity||Date.now().toString(36)+'-'+nextIdentity++;this.condition=condition();this.doors=[0,0];this.doorTarget=[0,0];this.disabled=false;this.burned=false;
       this.steer = 0; this.controls = { throttle: 0, brake: 0, steer: 0, handbrake: 0 };
       this.colIdx = opts.color !== undefined ? opts.color : Math.floor(W.rng() * PALETTE.length); this.meshes = getMesh(type, this.colIdx); this.mesh = this.meshes.body; this.dentLevel = 0; this.dentSeed = Math.floor(W.rng() * 1e6);
       this.maxHealth = this.spec.armor ? 2600 : 1000 * this.spec.mass; this.health = this.maxHealth; this.wrecked = false; this.fireT = 0;
@@ -376,9 +376,12 @@ const VEH = (() => {
       // drive-by: armed passengers lean out and shoot
       this.fireT = (this.fireT || 0) - dt;
       if (this.fireT <= 0 && t === PLAYER && PLAYER.alive) { const shooters = this.passengers.filter(q => q.alive && q.weapon && (q.hostile || q.isGang || (q.isCop && PLAYER.wanted >= 4))); const d = M.dist(this.x, this.z, t.x, t.z);
-        if (shooters.length && d < 45 && W.los(this.x, this.z, t.x, t.z)) { this.fireT = 0.9 / shooters.length; const q = shooters[0]; const ang = Math.atan2(t.x - this.x, t.z - this.z) + (W.rng() - 0.5) * 0.3; PLAYER.fireBullet(q, this.x + this.right[0] * 0.8, this.z + this.right[1] * 0.8, 1.3, ang, WEAPONS[q.weapon === 'rifle' ? 'rifle' : 'pistol'], 0.5, this); } else this.fireT = 0.3; }
+        if (shooters.length && d < 45 && (!this.driver?.isCop||POLICE.observe(this)) && W.sight3(this.x,this.y+1.5,this.z,t.x,t.P.y+1.2,t.z,[this,t.car])) { this.fireT = 0.9 / shooters.length; const q = shooters[0]; const ang = Math.atan2(t.x - this.x, t.z - this.z) + (W.rng() - 0.5) * 0.3; PLAYER.fireBullet(q, this.x + this.right[0] * 0.8, this.z + this.right[1] * 0.8, 1.3, ang, WEAPONS[q.weapon === 'rifle' ? 'rifle' : 'pistol'], 0.5, this); } else this.fireT = 0.3; }
       const tv = t.car ? [t.car.vx, t.car.vz] : [0, 0]; let px = t.x + tv[0] * 0.6, pz = t.z + tv[1] * 0.6;
-      if (t === PLAYER && this.driver && this.driver.isCop) { const pp = POLICE.pursuitPoint(); px = pp[0]; pz = pp[1]; } // cops only know where they last saw you
+      if (t === PLAYER && this.driver && this.driver.isCop) { const pp = POLICE.pursuitPoint(this); px = pp[0]; pz = pp[1]; } // cops only know where they last saw you
+      const targetY=t===PLAYER&&this.driver?.isCop?(POLICE.S.lastY||0):(t.P?.y||t.y||0);
+      if(typeof STREETS!=='undefined'&&(Math.abs(targetY-this.y)>1||ai.surfacePath?.length)){ai.surfaceT=(ai.surfaceT||0)-dt;if(ai.surfaceT<=0){ai.surfacePath=STREETS.navigation(this,{x:px,z:pz,y:targetY},this.spec.wid);ai.surfaceT=2;}
+        while(ai.surfacePath?.length&&M.dist(this.x,this.z,ai.surfacePath[0].x,ai.surfacePath[0].z)<3&&Math.abs(this.y-ai.surfacePath[0].y)<.8)ai.surfacePath.shift();if(ai.surfacePath?.length){px=ai.surfacePath[0].x;pz=ai.surfacePath[0].z;}}
       const d = M.dist(this.x, this.z, px, pz); const desired = Math.atan2(px - this.x, pz - this.z); const da = M.angleTo(this.angle, desired);
       c.handbrake = 0;
       if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.steer = M.clamp(-da * 2, -1, 1); return; }

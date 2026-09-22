@@ -20,6 +20,7 @@ assert.equal(W.pushOut(x,z,.84,{vehicle:{spec:{wid:1.85}},y:.15}).hit,null,'comp
 assert.ok(W.pushOut(x,z,.84,{vehicle:{spec:{wid:2.1}},y:.15}).hit,'wide vehicle blocked');
 const path=STREETS.navigation({x:262,y:.15,z:463},{x:314,y:3.8,z:461});
 assert.ok(path.length>4 && path.some(n=>n.y===3.8),'underpass to deck uses ramp network');
+assert.ok(STREETS.navigation({x:252,z:420,y:0},{x:314,z:461,y:3.8},2).some(n=>n.y===3.8),'car graph connects road and upper deck');
 const gate=STREETS.objects.find(o=>o.gate),gx=(gate.x0+gate.x1)/2,gz=(gate.z0+gate.z1)/2;
 assert.ok(W.pushOut(gx,gz,.4).hit,'intact gate solid');
 W.pushOut(gx,gz,.8,{vehicle:{spec:{wid:1.8,mass:1},absSpeed:10,vx:0,vz:10},y:.15});

@@ -157,9 +157,12 @@ const HUD = (() => {
       rows.forEach((line,i) => text(line,x+18,y+43+i*21,15,'#f2efdf','left','normal',false));
       if (MISSIONS.S.retry) zone(x,y,width,height,'KeyY');
     }
+    if(P.damageDirectionT>0){P.damageDirectionT=Math.max(0,P.damageDirectionT-dt);const a=M.angleTo(P.camYaw,P.damageDirection),cx=W_/2+Math.sin(a)*100,cy=H_/2-Math.cos(a)*100;g.save();g.translate(cx,cy);g.rotate(a);g.fillStyle=`rgba(244,107,83,${P.damageDirectionT})`;g.beginPath();g.moveTo(0,-10);g.lineTo(-7,5);g.lineTo(7,5);g.fill();g.restore();}
     // crosshair
-    if (P.aim || (P.car && (INPUT.mouse.buttons & 1))) { const lock = !!P.aimTarget; const col = lock ? '#ff5a4a' : '#fff'; g.strokeStyle = col; g.lineWidth = 2; const r = lock ? 9 : 12; g.beginPath(); g.arc(W_ / 2, H_ / 2, r, 0, 7); g.stroke(); g.beginPath(); for (const [sx, sy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { g.moveTo(W_ / 2 + sx * (r + 3), H_ / 2 + sy * (r + 3)); g.lineTo(W_ / 2 + sx * (r + 10), H_ / 2 + sy * (r + 10)); } g.stroke(); g.fillStyle = col; g.fillRect(W_ / 2 - 1.5, H_ / 2 - 1.5, 3, 3); }
+    if (P.aim || (P.car && (INPUT.mouse.buttons & 1))) { const lock = !!P.aimTarget; const col = lock ? '#ff5a4a' : '#fff'; g.strokeStyle = col; g.lineWidth = 2; const r = (lock ? 7 : 9)+(P.bloom||0)*13+P.speed*1.3; g.beginPath(); g.arc(W_ / 2, H_ / 2, r, 0, 7); g.stroke(); g.beginPath(); for (const [sx, sy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { g.moveTo(W_ / 2 + sx * (r + 3), H_ / 2 + sy * (r + 3)); g.lineTo(W_ / 2 + sx * (r + 10), H_ / 2 + sy * (r + 10)); } g.stroke(); g.fillStyle = col; g.fillRect(W_ / 2 - 1.5, H_ / 2 - 1.5, 3, 3); }
     if (hitT > 0) { hitT -= dt; const k = hitT / 0.2; g.strokeStyle = hitKill ? `rgba(255,60,40,${k})` : `rgba(255,255,255,${k})`; g.lineWidth = 2.5; const r0 = 6 + (1 - k) * 6, r1 = r0 + 7; g.beginPath(); for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { g.moveTo(W_ / 2 + sx * r0, H_ / 2 + sy * r0); g.lineTo(W_ / 2 + sx * r1, H_ / 2 + sy * r1); } g.stroke(); }
+    if(POLICE.reports?.length)text('WITNESS CALLING · '+Math.ceil(Math.min(...POLICE.reports.map(r=>r.left)))+'s',W_-24,102,11,'#f3bd73','right');
+    else if(P.wanted>0){const known=POLICE.S.description,c=P.car;const line=POLICE.S.seenT<2.5?'IDENTIFIED':c&&known&&c.identity!==known.vehicle?'VEHICLE UNKNOWN · KEEP DISTANCE':'SEARCHING LAST REPORTED AREA';text(line,W_-24,102,10,'#d4b984','right');}
     // help prompts
     if (INPUT.hit('Backquote')) P.dismissLookHint=true;
     if (INPUT.fallback && !P.dismissLookHint && W.state.elapsed < 20) text('Mouse look is active without capture · ` dismisses this hint', W_ / 2, H_ - 40, 12, '#f5c542', 'center', 'normal');

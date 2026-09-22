@@ -74,6 +74,7 @@ const PEDS = (() => {
     // ---- AI
     update(dt) {
       if (this.removed) return; this.gesturePulse = Math.max(0,(this.gesturePulse || 0)-dt); this.recoil = Math.max(0, (this.recoil || 0) - dt * 3); this.punchT = Math.max(0, (this.punchT || 0) - dt); this.stateT += dt; if (this.shoutT > 0) this.shoutT -= dt; if (this.hitT > 0) this.hitT -= dt; if (this.attackCooldown > 0) this.attackCooldown -= dt;
+      if(this.reloadT>0){this.reloadT=Math.max(0,this.reloadT-dt);if(this.reloadT===0)this.tacticalAmmo=WEAPONS[this.weapon]?.clip||8;}
       if (this.inCar) { this.x = this.inCar.x; this.z = this.inCar.z; this.y = this.inCar.y; return; }
       if (this.flinchT > 0) this.flinchT -= dt; if (this.kickT > 0) this.kickT -= dt;
       if (this.rag) { stepRagdoll(this, dt); if (this.state !== 'dead' && this.knockT > 0) { this.knockT -= dt; if (this.knockT <= 0) { endRagdoll(this); this.state = this.gotoTarget && this.gotoResume ? 'goto' : (this.fear > 0 ? 'flee' : 'walk'); this.lying = 0; } return; } }
@@ -81,7 +82,7 @@ const PEDS = (() => {
       if (this.knockT > 0) { this.knockT -= dt; this.lying = Math.min(1, this.lying + dt * 4); this.moveBody(dt, true); if (this.knockT <= 0) { this.state = this.gotoTarget && this.gotoResume ? 'goto' : (this.fear > 0 ? 'flee' : 'walk'); this.lying = 0; } return; }
       if (this.lying > 0) this.lying = Math.max(0, this.lying - dt * 3);
       // hear gunfire
-      for (const n of W.state.noises) { if (M.dist2(n.x, n.z, this.x, this.z) < n.r * n.r) { if (this.isCop) { this.alerted = 8; } else this.scare(n.x, n.z); } }
+      for (const n of W.state.noises) { if (M.dist2(n.x, n.z, this.x, this.z) < n.r * n.r) { if (this.isCop) { this.alerted = 8;this.heardPos={x:n.x,z:n.z}; } else this.scare(n.x, n.z); } }
       if (this.state === 'goto') { let [gx, gz] = this.gotoTarget; // steer around buildings with a probe
         const dx = gx - this.x, dz = gz - this.z, dl = Math.hypot(dx, dz) || 1; const probe = W.pushOut(this.x + dx / dl * 2.2, this.z + dz / dl * 2.2, 0.5, { noProps: true });
         if (probe.hit && dl > 2.5) { if (this.sideStep === undefined) this.sideStep = W.rng() < 0.5 ? 1 : -1; gx = this.x + (dx / dl * 0.3 - dz / dl * this.sideStep) * 4; gz = this.z + (dz / dl * 0.3 + dx / dl * this.sideStep) * 4; } else if (!probe.hit) this.sideStep = undefined;
@@ -129,7 +130,8 @@ const PEDS = (() => {
       if (this.state === 'flee') { this.aiCivilian(dt); return; }
       if (!this.hostile) { if (this.isGang && d < 14 && p.alive && (W.state.noises.length || p.wanted > 0) && W.rng() < 0.01) this.hostile = true; if (this.isGang && ECON.craneHostile() && d < 22 && p.alive && W.los(this.x, this.z, p.x, p.z) && W.rng() < 0.03) { this.hostile = true; this.say("That's the one who crossed Crane!"); } if (this.stationary) { this.speed = 0; if (d < 10) this.faceTo(p.x, p.z, dt); } else this.aiCivilian(dt); return; }
       if (!p.alive) { this.aim = 0; this.speed = 0; return; }
-      const canSee = d < 60 && W.los(this.x, this.z, p.x, p.z);
+      const canSee = d < 60 && W.sight3(this.x,this.y+1.5,this.z,p.x,p.P.y+1.1,p.z,[p.car]);
+      if(this.weapon&&typeof TACTICS!=='undefined'){TACTICS.step(this,p,dt,canSee);return;}
       if (this.weapon) {
         if (canSee && d < 28) { this.speed = 0; this.faceTo(p.x, p.z, dt); this.aim = 1; this.fireAt(p, dt); if (d < 6 && !p.car) this.moveToward(this.x + (this.x - p.x), this.z + (this.z - p.z), 2, dt); }
         else { this.aim = 0; if (d < 90) this.moveToward(p.x, p.z, 5.5, dt, p.P.y); else this.speed = 0; }
@@ -141,11 +143,12 @@ const PEDS = (() => {
     aiCop(dt) {
       const p = PLAYER; const d = M.dist(this.x, this.z, p.x, p.z);
       if (this.alerted > 0) this.alerted -= dt;
-      const want = p.wanted; const canSee = d < 70 && W.sight3(this.x, this.y+1.5, this.z, p.x, p.P.y+1.2, p.z);
-      if (want <= 0 || !p.alive) { this.aim = 0; if (this.patrol) this.aiCivilian(dt); else { this.speed = 0; if (this.car && !this.inCar && d > 10) { /* return to car */ this.moveToward(this.car.x, this.car.z, 2, dt); if (M.dist(this.x, this.z, this.car.x, this.car.z) < 2.5 && !this.car.driver) { this.inCar = this.car; this.car.driver = this; this.car.ai.mode = 'traffic'; this.car.ai.edge = null; this.car.siren = false; } } } return; }
+      const want = p.wanted; const canSee = want>0 && POLICE.observe(this);
+      if (want <= 0 || !p.alive) { this.aim = 0;if(want<=0&&this.alerted>0&&this.heardPos){this.moveToward(this.heardPos.x,this.heardPos.z,2.8,dt);return;} if (this.patrol) this.aiCivilian(dt); else { this.speed = 0; if (this.car && !this.inCar && d > 10) { /* return to car */ this.moveToward(this.car.x, this.car.z, 2, dt); if (M.dist(this.x, this.z, this.car.x, this.car.z) < 2.5 && !this.car.driver) { this.inCar = this.car; this.car.driver = this; this.car.ai.mode = 'traffic'; this.car.ai.edge = null; this.car.siren = false; } } } return; }
+      if(want>=2&&d>1.7&&typeof TACTICS!=='undefined'){TACTICS.step(this,p,dt,canSee);return;}
       if (canSee) POLICE.seen(this);
       if (!canSee) { // head toward last known position
-        if (POLICE.lastSeen) { const ls = POLICE.pursuitPoint(); if (M.dist(this.x, this.z, ls[0], ls[1]) > 3) this.moveToward(ls[0], ls[1], 5.5, dt); else this.speed = 0; } this.aim = 0; return;
+        if (POLICE.lastSeen) { const ls = POLICE.pursuitPoint(this); if (M.dist(this.x, this.z, ls[0], ls[1]) > 3) this.moveToward(ls[0], ls[1], 5.5, dt); else this.speed = 0; } this.aim = 0; return;
       }
       // arrest if close and player is slow / on foot
       if (d < 1.7 && (!p.car || p.car.absSpeed < 1.5) && p.alive) { this.speed = 0; this.faceTo(p.x, p.z, dt); this.aim = 1; POLICE.arrestProgress(dt, this); return; }
@@ -155,12 +158,15 @@ const PEDS = (() => {
       else { this.aim = want >= 2 ? 1 : 0; this.moveToward(p.x, p.z, 6, dt, p.P.y); }
     }
     fireAt(target, dt) {
-      const wp = WEAPONS[this.weapon]; if (!wp) return; this.ammoT -= dt; if (this.ammoT > 0) return;
+      const wp = WEAPONS[this.weapon]; if (!wp) return;
+      if(this.tacticalAmmo===undefined)this.tacticalAmmo=wp.clip||8;
+      if(this.reloadT>0)return;if(this.tacticalAmmo<=0){this.reloadT=this.reloadDuration=1.8;this.say('Reloading!');return;}
+      this.ammoT -= dt; if (this.ammoT > 0) return;
       this.ammoT = wp.rate * (this.isSwat ? 1.5 : 3.0) + W.rng() * 0.5;
-      const tx = target.x, tz = target.z; const d = M.dist(this.x, this.z, tx, tz); const acc = this.isSwat ? 0.14 : this.isCop ? 0.3 : 0.22;
-      const ang = Math.atan2(tx - this.x, tz - this.z) + (W.rng() - 0.5) * acc * (1 + d / 20);
+      const tx = target.x, tz = target.z; const d = M.dist(this.x, this.z, tx, tz); const acc = (this.isSwat ? .035 : this.isCop ? .08 : .075)*(1+(this.suppression||0)*1.7);
+      const ang = Math.atan2(tx - this.x, tz - this.z) + (W.rng() - 0.5) * acc * (1 + d / 35);
       PLAYER.fireBullet(this, this.x, this.z, this.y + 1.3, ang, wp, 0.7, null, Math.atan2((target.P ? target.P.y : target.y || 0) + 1.1 - (this.y + 1.3), Math.max(1, M.dist(this.x, this.z, target.x, target.z))));
-      this.weaponOut = true; this.recoil = 0.12;
+      this.tacticalAmmo--;this.weaponOut = true; this.recoil = 0.12;
     }
     moveToward(tx, tz, speed, dt, targetY) {
       if(typeof STREETS!=='undefined' && targetY!==undefined && (Math.abs(targetY-this.y)>.8 || this.surfacePath?.length)) {

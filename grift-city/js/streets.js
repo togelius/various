@@ -3,7 +3,7 @@
 'use strict';
 const STREETS = (() => {
   const BLOCKS = [[1,3],[2,3],[3,3],[4,3],[1,4],[2,4],[3,4],[1,5],[2,5],[3,5]];
-  const objects=[], surfaces=[], paths=[], landmarks=[], nodes=[];let walkGraph=[];
+  const objects=[], surfaces=[], paths=[], landmarks=[], nodes=[];let walkGraph=[],driveGraph=[];
   const has=(i,j)=>BLOCKS.some(b=>b[0]===i&&b[1]===j);
   const contains=(s,x,z)=>x>=s.x0&&x<=s.x1&&z>=s.z0&&z<=s.z1;
   const height=(s,x,z)=>s.y+(s.slopeZ||0)*(z-s.z0)+(s.slopeX||0)*(x-s.x0);
@@ -133,10 +133,17 @@ const STREETS = (() => {
       const near=sidewalk.filter(v=>Math.abs((v.y||.15)-n.y)<.4).sort((a,b)=>M.dist2(a.x,a.z,n.x,n.z)-M.dist2(b.x,b.z,n.x,n.z))[0];
       if(near&&M.dist(near.x,near.z,n.x,n.z)<50){near.links.push({to:n.walk,cross:true});n.walk.links.push({to:near,cross:true});}
     }
+    // Join authored vehicle passages to road-centre segments without changing ambient lane traffic.
+    driveGraph=nodes.slice();const road=new Map();for(const n of CITY.roadNodes){const q={x:n.x,z:n.z,y:0,links:[]};road.set(n,q);driveGraph.push(q);}
+    for(const n of CITY.roadNodes)for(const e of n.out)link(road.get(n),road.get(e.to),6.5,'both');
+    for(const n of nodes.filter(n=>n.links.length===1&&n.y<.5&&n.links[0].mode!=='foot')){let best=null;
+      for(const e of CITY.roadEdges){const dx=e.to.x-e.from.x,dz=e.to.z-e.from.z,t=M.clamp(((n.x-e.from.x)*dx+(n.z-e.from.z)*dz)/(dx*dx+dz*dz),0,1),x=e.from.x+dx*t,z=e.from.z+dz*t,d=M.dist(x,z,n.x,n.z);if(!best||d<best.d)best={e,x,z,d};}
+      if(best&&best.d<15){const q={x:best.x,z:best.z,y:0,links:[]};driveGraph.push(q);link(n,q,6.5,'both');link(q,road.get(best.e.from),6.5,'both');link(q,road.get(best.e.to),6.5,'both');}
+    }
   }
 
   function navigation(from,to,width=0) {
-    const graph=width?nodes:walkGraph;
+    const graph=width?driveGraph.filter(n=>n.links.some(e=>e.mode!=='foot'&&e.width>=width)):walkGraph;
     const nearest=p=>graph.reduce((best,n)=>!best||Math.hypot(n.x-p.x,n.z-p.z,((n.y??.15)-(p.y??.15))*12)<Math.hypot(best.x-p.x,best.z-p.z,((best.y??.15)-(p.y??.15))*12)?n:best,null);
     const start=nearest(from),goal=nearest(to);if(!start||!goal||Math.max(M.dist(start.x,start.z,from.x,from.z),M.dist(goal.x,goal.z,to.x,to.z))>90)return [];
     const dist=new Map([[start,0]]),prev=new Map(),open=[start],done=new Set();

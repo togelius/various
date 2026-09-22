@@ -197,7 +197,7 @@ const W = (() => {
     }
     if (!sceneryOnly || sceneryOnly === 'camera') {
       for (const c of cars) {
-        if (c === ignore || c.removed) continue;
+        if (c === ignore || (Array.isArray(ignore)&&ignore.includes(c)) || c.removed) continue;
         // Transform into the car's frame: long vehicles must not have circular, oversized hitboxes.
         const f = c.fwd, r = c.right, x = ox-c.x, z = oz-c.z;
         const t = rayBox(x*r[0]+z*r[1], oy, x*f[0]+z*f[1], ex*r[0]+ez*r[1], ey, ex*f[0]+ez*f[1],
@@ -205,7 +205,7 @@ const W = (() => {
         if (t >= 0 && t < best.t) best = { t, kind: 'car', obj: c };
       }
       for (const p of peds) if (!sceneryOnly && p !== ignore && !p.removed && p.alive && !p.inCar) {
-        const y = p.y || 0; box('ped', p, p.x-.35, y+.1, p.z-.35, p.x+.35, y+(p.lying > .5 ? .6 : 1.8), p.z+.35);
+        const y = p.y || 0; box('ped', p, p.x-.35, y+.1, p.z-.35, p.x+.35, y+(p.lying > .5 ? .6 : 1.8-(p.crouch||0)*.5), p.z+.35);
       }
       if (!sceneryOnly && heli && heli !== ignore && !heli.dead) box('heli', heli, heli.x-3.5, heli.y-1.8, heli.z-3.5, heli.x+3.5, heli.y+2, heli.z+3.5);
     }
@@ -216,7 +216,7 @@ const W = (() => {
     return { ...best, x: ox+ex*best.t, y: oy+ey*best.t, z: oz+ez*best.t, dist: maxDist*best.t };
   }
   function raycast(ox, oz, dx, dz, maxDist, ignore = null, oy = 1.2) { return raycast3(ox, oy, oz, dx, 0, dz, maxDist, ignore); }
-  function sight3(ax, ay, az, bx, by, bz) { const d = Math.hypot(bx-ax, by-ay, bz-az); return raycast3(ax, ay, az, bx-ax, by-ay, bz-az, d, null, true).kind === 'none'; }
+  function sight3(ax, ay, az, bx, by, bz, ignore=[]) { const d = Math.hypot(bx-ax, by-ay, bz-az); return raycast3(ax, ay, az, bx-ax, by-ay, bz-az, d, ignore, 'camera').kind === 'none'; }
   function carsNear(x, z, r) { const out = []; const r2 = r * r; for (const c of cars) if (!c.removed && M.dist2(x, z, c.x, c.z) < r2) out.push(c); return out; }
   function pedsNear(x, z, r) { const out = []; const r2 = r * r; for (const p of peds) if (!p.removed && M.dist2(x, z, p.x, p.z) < r2) out.push(p); return out; }
   // noises is cleared every frame (peds read it after the player has fired); heard keeps the last half second for mission scripts that run before the player update
