@@ -291,6 +291,7 @@ const GAME = (() => {
       const pe = p.entity(); pe.noShadow = d2 > 70 * 70 || !RENDER.inLight(p.x, p.y + 1, p.z, 1.6); scene.entities.push(pe); const h = p.heldEntity(); if (h) { h.noShadow = pe.noShadow; scene.entities.push(h); } }
     for (const e of window.__debugBoxes) scene.entities.push(e);
     const pe = PLAYER.entity(); if (pe && !title) { scene.entities.push(pe); const h = PLAYER.heldEntity(); if (h) scene.entities.push(h); }
+    if(typeof STREETS !== 'undefined') scene.entities.push(...STREETS.entities());
     for (const e of PLAYER.projectileEntities()) scene.entities.push(e);
     for (const e of PICKUPS.entities(cam.tx, cam.tz)) scene.entities.push(e); AMBIENT.entities(scene.entities);
     const he = POLICE.heliEntity(); if (he) scene.entities.push(he);

@@ -125,18 +125,21 @@ const W = (() => {
     const roof = CITY.roofLot; if (roof && x > roof.x0 - 1 && x < roof.x1 + 1 && z > roof.z0 - 1 && z < roof.z1 + 1) { lots = lots.filter(l => !(l.x0 <= x && l.x1 >= x && l.z0 <= z && l.z1 >= z)).concat(roof.walls); opts = { ...opts, noProps: true, indoor: true }; }
     for (let pass = 0; pass < 3; pass++) { let moved = false; // a push out of one lot can land inside a neighbour; settle in a few passes
     for (const l of lots) {
+      if ((l.kind==='deck' && (opts.y??0)>=l.h-.3) || l.down || (l.passage && (!opts.vehicle || opts.vehicle.spec.wid<=l.maxWidth))) continue;
+      if (!opts.indoor && ((opts.y??0)>=l.h-.02 || (opts.y??0)+(opts.height??1.8)<=(l.y0||0)+.02)) continue;
       if (opts.ignoreLow && l.h < 1.2) continue;
       const cx = M.clamp(x, l.x0, l.x1), cz = M.clamp(z, l.z0, l.z1); let dx = x - cx, dz = z - cz; const d2 = dx * dx + dz * dz;
       if (d2 >= r * r) continue;
+      if(l.destructible && opts.vehicle && opts.vehicle.spec.mass*opts.vehicle.absSpeed**2>l.strength && STREETS.breakObject(l,opts.vehicle)) {opts.vehicle.vx*=.82;opts.vehicle.vz*=.82;continue;}
       if (d2 < 1e-8) { // inside: push out via the nearest face
         const dl = x - l.x0, dr = l.x1 - x, dt = z - l.z0, db = l.z1 - z; const m = Math.min(dl, dr, dt, db);
         if (m === dl) { x = l.x0 - r; hit = [-1, 0]; } else if (m === dr) { x = l.x1 + r; hit = [1, 0]; } else if (m === dt) { z = l.z0 - r; hit = [0, -1]; } else { z = l.z1 + r; hit = [0, 1]; }
       } else { const d = Math.sqrt(d2); dx /= d; dz /= d; x = cx + dx * r; z = cz + dz * r; hit = [dx, dz]; }
-      moved = true;
+      hit.lot=l; moved = true;
     }
     if (!moved) break; }
     if (!opts.noProps) for (const p of propsNear(x, z)) {
-      if (p.down) continue; const rr = r + p.r; const dx = x - p.x, dz = z - p.z; const d2 = dx * dx + dz * dz; if (d2 >= rr * rr || d2 < 1e-8) continue;
+      if (p.down || (opts.y??0)>CITY.groundY(p.x,p.z)+2.8) continue; const rr = r + p.r; const dx = x - p.x, dz = z - p.z; const d2 = dx * dx + dz * dz; if (d2 >= rr * rr || d2 < 1e-8) continue;
       const d = Math.sqrt(d2); x = p.x + dx / d * rr; z = p.z + dz / d * rr; hit = [dx / d, dz / d]; hit.prop = p;
     }
     if (opts.indoor) return { x, z, hit };
@@ -182,8 +185,8 @@ const W = (() => {
     for (let i = 0; i <= steps; i++) {
       const x = ox + ex * i / steps, z = oz + ez * i / steps;
       for (const l of (room ? room.walls : CITY.lotsNear(x, z, 25))) {
-        if (seen.has(l)) continue; seen.add(l);
-        box('lot', l, l.x0, room ? room.floorY : 0, l.z0, l.x1, l.h, l.z1);
+        if (l.down || l.passage || seen.has(l)) continue; seen.add(l);
+        box('lot', l, l.x0, room ? room.floorY : (l.y0||0), l.z0, l.x1, l.h, l.z1);
       }
       if (!room) for (const p of propsNear(x, z)) {
         if (p.down || p.r < .3 || seen.has(p)) continue; seen.add(p);
@@ -206,6 +209,7 @@ const W = (() => {
       }
       if (!sceneryOnly && heli && heli !== ignore && !heli.dead) box('heli', heli, heli.x-3.5, heli.y-1.8, heli.z-3.5, heli.x+3.5, heli.y+2, heli.z+3.5);
     }
+    if(!room && typeof STREETS !== 'undefined') {const t=STREETS.raySurface(ox,oy,oz,ex,ey,ez);if(t<best.t)best={t,kind:'ground',obj:null};}
     // Ground plane (indoor floors are at a different elevation).
     const floor = room ? room.floorY : 0;
     if (ey < 0) { const t = (floor-oy)/ey; if (t >= 0 && t < best.t) best = { t, kind: 'ground', obj: null }; }

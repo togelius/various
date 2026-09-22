@@ -176,6 +176,7 @@ const CITY = (() => {
     if (dist0 === 'westfield') { for (let k = 4; k < BLOCK - 4; k += 3.2) if (rng.chance(0.8)) props.hedge.push({ x: bx + BLOCK + SW - 1.0, z: bz + k, a: Math.PI / 2 }); }
     if (dist0 === 'eastside' || dist0 === 'southport') { // power poles and wires along the west edge
       let prev = null; for (let k = 2; k < BLOCK; k += 16) { const px = bx - SW + 0.5, pz = bz + k; b.cyl(px, CURB, pz, 0.14, 8, [0.4, 0.3, 0.2], 0, 6); b.cbox(px, CURB + 7.6, pz, 1.6, 0.1, 0.1, [0.4, 0.3, 0.2]); if (prev) for (const ox of [-0.7, 0.7]) b.box(px + ox - 0.015, CURB + 7.55, prev, 0.03, 0.03, pz - prev, [0.1, 0.1, 0.1]); prev = pz; solidProps.push({ x: px, z: pz, r: 0.2, kind: 'pole' }); } }
+    if (typeof STREETS !== 'undefined' && STREETS.build(b,block,{addLot,addPlace,props,parkedSpots,shopfronts,T})) return;
     const kind = block.kind;
     if (kind === 'park') return buildPark(b, block);
     if (kind === 'parking') return buildParking(b, block, false);
@@ -706,9 +707,10 @@ const CITY = (() => {
   }
 
   // ---- Queries
-  function groundY(x, z) {
+  function groundY(x, z, yHint=0) {
     if (roofLot && x > roofLot.x0 && x < roofLot.x1 && z > roofLot.z0 && z < roofLot.z1) return roofLot.h;
     if (interiorRoom && x > interiorRoom.x0 - 8 && x < interiorRoom.x1 + 8 && z > interiorRoom.z0 - 8 && z < interiorRoom.z1 + 8) return interiorRoom.floorY;
+    if (typeof STREETS !== 'undefined') { const h=STREETS.ground(x,z,yHint); if (h>CURB) return h; }
     // ramps
     for (const r of ramps) if (x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1) { const t = r.dir === 'n' ? (r.z1 - z) / (r.z1 - r.z0) : (z - r.z0) / (r.z1 - r.z0); return CURB + t * r.h; }
     const gx = (x - HALF_ROAD) / PITCH, gz = (z - HALF_ROAD) / PITCH; // block slab spans [i*PITCH+7, (i+1)*PITCH-7]
@@ -729,7 +731,7 @@ const CITY = (() => {
     for (let i = Math.floor((x - r) / LG); i <= Math.floor((x + r) / LG); i++) for (let j = Math.floor((z - r) / LG); j <= Math.floor((z + r) / LG); j++) { const c = lotGrid.get((i + 16) * 4096 + j + 16); if (c) for (const l of c) if (l._s !== lotStamp) { l._s = lotStamp; lotOut.push(l); } }
     return lotOut;
   }
-  function insideLot(x, z) { for (const l of lotsNear(x, z, 0.5)) if (x > l.x0 && x < l.x1 && z > l.z0 && z < l.z1) return l; return null; }
+  function insideLot(x, z) { for (const l of lotsNear(x, z, 0.5)) if (!l.down && !l.passage && !(l.y0>1.8) && x > l.x0 && x < l.x1 && z > l.z0 && z < l.z1) return l; return null; }
   function onRoad(x, z) { return groundY(x, z) === 0 && x > -HALF_ROAD && x < SIZE + HALF_ROAD && z > -HALF_ROAD && z < SIZE + HALF_ROAD; }
   // Nearest lane point to (x,z) heading roughly along (fx,fz). Returns {e, k, s}.
   function nearestLane(x, z, fx = 0, fz = 0) {
@@ -744,12 +746,12 @@ const CITY = (() => {
   function nearestWalkNode(x, z) { let best = null, bd = 1e9; for (const n of walkNodes) { const d = M.dist2(x, z, n.x, n.z); if (d < bd) { bd = d; best = n; } } return best; }
   function place(kind, idx = 0) { return places[kind] ? places[kind][idx] : null; }
   function nearestPlace(kind, x, z) { let best = null, bd = 1e9; for (const p of (places[kind] || [])) { const d = M.dist2(x, z, p.x, p.z); if (d < bd) { bd = d; best = p; } } return best; }
-  function districtName(x, z) { const bl = blockAt(x, z); const i = bl ? bl.i : Math.round(x / PITCH), j = bl ? bl.j : Math.round(z / PITCH); return { downtown: 'Downtown', midtown: 'Midtown', westfield: 'Westfield', northgate: 'Northgate', eastside: 'Eastside', southport: 'Southport' }[district(M.clamp(i, 0, GRID - 1), M.clamp(j, 0, GRID - 1))]; }
+  function districtName(x, z) { const bl = blockAt(x, z); if(bl && bl.quarter)return bl.quarter; const i = bl ? bl.i : Math.round(x / PITCH), j = bl ? bl.j : Math.round(z / PITCH); return { downtown: 'Downtown', midtown: 'Midtown', westfield: 'Westfield', northgate: 'Northgate', eastside: 'Eastside', southport: 'Southport' }[district(M.clamp(i, 0, GRID - 1), M.clamp(j, 0, GRID - 1))]; }
 
   let staticBuilder = null, waterBuilder = null;
   function generate() {
     staticBuilder = buildStatic();
-    buildRoads(); buildWalks();
+    buildRoads(); buildWalks(); if(typeof STREETS !== 'undefined') STREETS.connect(walkNodes);
     for (const p of props.lamppost) solidProps.push({ x: p.x, z: p.z, r: 0.2, kind: 'lamppost', ref: p });
     for (const p of props.trafficLight) solidProps.push({ x: p.x, z: p.z, r: 0.2, kind: 'trafficLight', ref: p });
     for (const p of props.hydrant) solidProps.push({ x: p.x, z: p.z, r: 0.25, kind: 'hydrant', ref: p });

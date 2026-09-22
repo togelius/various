@@ -108,7 +108,7 @@ const PEDS = (() => {
       // step aside for the player and other peds
       let ox = 0, oz = 0;
       if (PLAYER.alive && !PLAYER.car) { const dx = this.x - PLAYER.x, dz = this.z - PLAYER.z; const dd = dx * dx + dz * dz; if (dd < 2.2) { const l = Math.sqrt(dd) || 1; ox += dx / l * 1.5; oz += dz / l * 1.5; } }
-      this.moveToward(t.x + ox, t.z + oz, this.walkSpeed, dt);
+      this.moveToward(t.x + ox, t.z + oz, this.walkSpeed, dt, t.y??.15);
     }
     pickNext() {
       const links = this.node.links.filter(l => l.to !== this.prevNode); const pool = links.length ? links : this.node.links;
@@ -118,12 +118,12 @@ const PEDS = (() => {
     }
     aiCrew(dt) { // follows the player, fights back
       const p = PLAYER; if (p.car && !this.inCar) { if (M.dist(this.x, this.z, p.car.x, p.car.z) < 4) { this.enterCar(p.car); return; } this.moveToward(p.car.x, p.car.z, 5.5, dt); return; }
-      const d = M.dist(this.x, this.z, p.x, p.z); if (d > 3.5) this.moveToward(p.x, p.z, d > 12 ? 6 : 4, dt); else { this.speed = 0; this.faceTo(p.x, p.z, dt); }
+      const d = M.dist(this.x, this.z, p.x, p.z); if (d > 3.5) this.moveToward(p.x, p.z, d > 12 ? 6 : 4, dt, p.P.y); else { this.speed = 0; this.faceTo(p.x, p.z, dt); }
       // shoot hostiles
       if (this.weapon) { let best = null, bd = 30 * 30; for (const o of W.peds) { if (o === this || !o.alive || o.inCar || !(o.isCop || o.hostile || o.isGang)) continue; const dd = M.dist2(o.x, o.z, this.x, this.z); if (dd < bd) { bd = dd; best = o; } } if (best && W.los(this.x, this.z, best.x, best.z)) { this.faceTo(best.x, best.z, dt); this.aim = 1; this.fireAt(best, dt); } else this.aim = 0; }
     }
     enterCar(car) { if (car.passengers.length >= car.spec.seats - 1) return; this.inCar = car; car.passengers.push(this); }
-    exitCar() { const c = this.inCar; if (!c) return; const i = c.passengers.indexOf(this); if (i >= 0) c.passengers.splice(i, 1); if (c.driver === this) c.driver = null; this.inCar = null; const r = c.right; this.x = c.x - r[0] * (c.spec.wid / 2 + 0.8); this.z = c.z - r[1] * (c.spec.wid / 2 + 0.8); this.y = CITY.groundY(this.x, this.z); this.vx = this.vz = 0; }
+    exitCar() { const c = this.inCar; if (!c) return; const i = c.passengers.indexOf(this); if (i >= 0) c.passengers.splice(i, 1); if (c.driver === this) c.driver = null; this.inCar = null; const r = c.right; this.x = c.x - r[0] * (c.spec.wid / 2 + 0.8); this.z = c.z - r[1] * (c.spec.wid / 2 + 0.8); this.y = CITY.groundY(this.x, this.z, this.y); this.vx = this.vz = 0; }
     aiHostile(dt) { // gang members / mission targets: attack the player when hostile, otherwise loiter
       const p = PLAYER; const d = M.dist(this.x, this.z, p.x, p.z);
       if (this.state === 'flee') { this.aiCivilian(dt); return; }
@@ -132,9 +132,9 @@ const PEDS = (() => {
       const canSee = d < 60 && W.los(this.x, this.z, p.x, p.z);
       if (this.weapon) {
         if (canSee && d < 28) { this.speed = 0; this.faceTo(p.x, p.z, dt); this.aim = 1; this.fireAt(p, dt); if (d < 6 && !p.car) this.moveToward(this.x + (this.x - p.x), this.z + (this.z - p.z), 2, dt); }
-        else { this.aim = 0; if (d < 90) this.moveToward(p.x, p.z, 5.5, dt); else this.speed = 0; }
+        else { this.aim = 0; if (d < 90) this.moveToward(p.x, p.z, 5.5, dt, p.P.y); else this.speed = 0; }
       } else { // melee
-        if (d > 1.6) { this.aim = 0; if (d < 80) this.moveToward(p.x, p.z, 5.5, dt); else this.speed = 0; }
+        if (d > 1.6) { this.aim = 0; if (d < 80) this.moveToward(p.x, p.z, 5.5, dt, p.P.y); else this.speed = 0; }
         else { this.speed = 0; this.faceTo(p.x, p.z, dt); if (this.attackCooldown <= 0 && !p.car) { this.attackCooldown = 0.9; this.punchT = 0.3; p.hurt(8, 'melee', this); AUDIO.play('punch', this.x, this.z); } }
       }
     }
@@ -149,10 +149,10 @@ const PEDS = (() => {
       }
       // arrest if close and player is slow / on foot
       if (d < 1.7 && (!p.car || p.car.absSpeed < 1.5) && p.alive) { this.speed = 0; this.faceTo(p.x, p.z, dt); this.aim = 1; POLICE.arrestProgress(dt, this); return; }
-      if (p.car && p.car.absSpeed < 2 && d < 3.5) { this.moveToward(p.x, p.z, 5.5, dt); this.aim = 0; return; }
+      if (p.car && p.car.absSpeed < 2 && d < 3.5) { this.moveToward(p.x, p.z, 5.5, dt, p.P.y); this.aim = 0; return; }
       const shootRange = this.isSwat ? 40 : 26;
-      if (canSee && d < shootRange && (want >= 2 || p.car || this.isSwat)) { this.aim = 1; this.faceTo(p.x, p.z, dt); if (d > 9 || p.car) this.moveToward(p.x, p.z, 3.5, dt); else this.speed = 0; this.fireAt(p, dt); }
-      else { this.aim = want >= 2 ? 1 : 0; this.moveToward(p.x, p.z, 6, dt); }
+      if (canSee && d < shootRange && (want >= 2 || p.car || this.isSwat)) { this.aim = 1; this.faceTo(p.x, p.z, dt); if (d > 9 || p.car) this.moveToward(p.x, p.z, 3.5, dt, p.P.y); else this.speed = 0; this.fireAt(p, dt); }
+      else { this.aim = want >= 2 ? 1 : 0; this.moveToward(p.x, p.z, 6, dt, p.P.y); }
     }
     fireAt(target, dt) {
       const wp = WEAPONS[this.weapon]; if (!wp) return; this.ammoT -= dt; if (this.ammoT > 0) return;
@@ -162,7 +162,14 @@ const PEDS = (() => {
       PLAYER.fireBullet(this, this.x, this.z, this.y + 1.3, ang, wp, 0.7, null, Math.atan2((target.P ? target.P.y : target.y || 0) + 1.1 - (this.y + 1.3), Math.max(1, M.dist(this.x, this.z, target.x, target.z))));
       this.weaponOut = true; this.recoil = 0.12;
     }
-    moveToward(tx, tz, speed, dt) {
+    moveToward(tx, tz, speed, dt, targetY) {
+      if(typeof STREETS!=='undefined' && targetY!==undefined && (Math.abs(targetY-this.y)>.8 || this.surfacePath?.length)) {
+        this.pathT=(this.pathT||0)-dt;
+        if(this.pathT<=0){this.surfacePath=STREETS.navigation(this,{x:tx,z:tz,y:targetY});this.pathT=2;}
+        const path=this.surfacePath;
+        while(path?.length && M.dist(this.x,this.z,path[0].x,path[0].z)<1 && Math.abs(this.y-(path[0].y??.15))<.75)path.shift();
+        if(path?.length){tx=path[0].x;tz=path[0].z;}
+      }
       const dx = tx - this.x, dz = tz - this.z; const d = Math.hypot(dx, dz); if (d < 0.05) { this.speed = 0; return; }
       const desired = Math.atan2(dx, dz); this.angle += M.clamp(M.angleTo(this.angle, desired), -1, 1) * Math.min(1, 10 * dt);
       this.speed = M.lerp(this.speed, speed, Math.min(1, 6 * dt));
@@ -173,10 +180,10 @@ const PEDS = (() => {
       if (ragdoll || this.airborne) { const drag = ragdoll && !this.airborne ? 6 : 0.5; this.vx -= this.vx * Math.min(1, drag * dt); this.vz -= this.vz * Math.min(1, drag * dt); if (this.airborne) { this.vy -= 22 * dt; this.y += this.vy * dt; } }
       else { this.speed = Math.hypot(this.vx, this.vz); }
       this.x += this.vx * dt; this.z += this.vz * dt;
-      const g = CITY.groundY(this.x, this.z);
+      const g = CITY.groundY(this.x, this.z, this.y);
       if (this.airborne) { if (this.y <= g) { this.y = g; this.airborne = false; this.vy = 0; if (this.state === 'dead') { this.vx *= 0.3; this.vz *= 0.3; } } } else this.y = g;
-      const res = W.pushOut(this.x, this.z, 0.4); this.x = res.x; this.z = res.z;
-      if (!ragdoll) for (const c of W.cars) { if (c.removed || M.dist2(c.x, c.z, this.x, this.z) > 49) continue; for (let ci = 0, nci = c.circlesInto(CIRC); ci < nci; ci++) { const cx = CIRC[ci * 3], cz = CIRC[ci * 3 + 1], r = CIRC[ci * 3 + 2]; const dx = this.x - cx, dz = this.z - cz; const rr = r + 0.35; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); this.x = cx + dx / d * rr; this.z = cz + dz / d * rr; } } }
+      const res = W.pushOut(this.x, this.z, 0.4,{y:this.y,height:1.8}); this.x = res.x; this.z = res.z;
+      if (!ragdoll) for (const c of W.cars) { if (c.removed || this.y>=c.y+c.spec.hgt || this.y+1.7<=c.y || M.dist2(c.x, c.z, this.x, this.z) > 49) continue; for (let ci = 0, nci = c.circlesInto(CIRC); ci < nci; ci++) { const cx = CIRC[ci * 3], cz = CIRC[ci * 3 + 1], r = CIRC[ci * 3 + 2]; const dx = this.x - cx, dz = this.z - cz; const rr = r + 0.35; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); this.x = cx + dx / d * rr; this.z = cz + dz / d * rr; } } }
       if (!ragdoll) { this.vx = 0; this.vz = 0; this.phase += dt * M.TAU * cadence(this.speed); }
     }
     // ---- Rig
@@ -237,9 +244,9 @@ const PEDS = (() => {
     const gesture = !aim && !p.weaponOut && !p.item && !walk ? Math.max(
       p.gesturePulse > 0 ? Math.sin(Math.PI*Math.min(1,p.gesturePulse/1.25)) : 0,
       speaking > 0 ? Math.max(0,Math.sin(t*2.1))*.55 : 0) : 0;
-    const hip = LEG_H - (.075 + .06 * r + .03 * s) * walk + bob - lying * (LEG_H - .25) - (p.landing||0)*.09 - (p.crouch||0)*.43 - (p.evadeT>0?.12:0); // knees stay soft when moving, more so at a run
+    const hip = LEG_H - (p.vaultPose||0)*.2 - (.075 + .06 * r + .03 * s) * walk + bob - lying * (LEG_H - .25) - (p.landing||0)*.09 - (p.crouch||0)*.43 - (p.evadeT>0?.12:0); // knees stay soft when moving, more so at a run
     const flinch = p.flinchT > 0 ? Math.sin(Math.min(1, p.flinchT / 0.35) * Math.PI) : 0; const kick = p.kickT > 0 ? Math.sin(Math.min(1, p.kickT / 0.35) * Math.PI) : 0;
-    const lean = (p.accelLean||0) + (p.crouch||0)*.22 + (p.brace||0)*.14 + (p.evadeT>0?.22:0) + 0.03 * walk + 0.1 * r + 0.1 * s + (p.recoil || 0) * -0.5 - flinch * 0.35 + kick * 0.15;
+    const lean = (p.vaultPose||0)*.5 + (p.accelLean||0) + (p.crouch||0)*.22 + (p.brace||0)*.14 + (p.evadeT>0?.22:0) + 0.03 * walk + 0.1 * r + 0.1 * s + (p.recoil || 0) * -0.5 - flinch * 0.35 + kick * 0.15;
     const twist = fL * (0.07 + 0.05 * r) * (1 - aim); // shoulders turn against the stepping leg
     const px = lat * 0.015;
     M.trsEuler(model, p.x, p.y, p.z, p.angle, lying * (dead ? -Math.PI / 2 * p.fallDir : -Math.PI / 2), 0, p.sx || 1, p.sy || 1, p.sx || 1);
@@ -255,8 +262,8 @@ const PEDS = (() => {
     const armBias = (0.04 + 0.1 * r + 0.04 * s) * walk, armAmp = 0.28 + 0.3 * r + 0.3 * s;
     const armPitchL = (reloading ? pose[0] : aim ? -0.4 : armBias + armAmp * fL) - flinch * 1.1 - kick * 0.5, armPitchR = hold === 'umbrella' ? -2.1 : hold === 'phone' ? -2.3 : (reloading ? pose[1] : aim ? -Math.PI / 2 + 0.05 + (p.camPitch || 0) + (p.recoil || 0) * 2 : armBias - armAmp * fL - punch * 1.4) - flinch * 0.9 + kick * 0.6;
     const armRoll = 0.07 + 0.05 * r + Math.sin(t * 1.1) * 0.015 * idle;
-    torsoChild(bones,32,.26,SHOULDER,gesture*.2,armPitchL-gesture*.35,armRoll+(aim?.12:0)+gesture*.16,.26);
-    torsoChild(bones,48,-.26,SHOULDER,aim?-.15:0,armPitchR-reaching*1.2,-armRoll,-.26);
+    torsoChild(bones,32,.26,SHOULDER,gesture*.2,armPitchL-gesture*.35-(p.vaultPose||0)*1.1,armRoll+(aim?.12:0)+gesture*.16,.26);
+    torsoChild(bones,48,-.26,SHOULDER,aim?-.15:0,armPitchR-reaching*1.2-(p.vaultPose||0)*1.3,-armRoll,-.26);
     // forearms: soft at a walk, folding a little as the arm comes forward; about a right angle at a run
     const elbowBase = 0.16 + 1.1 * r + 0.1 * s, elbowSwing = 0.22 + 0.2 * r;
     const elbowL = reloading ? pose[2] : aim ? -0.05 : -(elbowBase + elbowSwing * Math.max(0, -fL));
@@ -266,7 +273,7 @@ const PEDS = (() => {
     bone(bones, 64, px, hip, 0, 0, p.airborne ? -.45 : -swing * .95 * Math.abs(Math.cos(direction)) + kick * .3, swing * Math.sin(direction) * .65); bone(bones, 80, px, hip, 0, 0, p.airborne ? .25 : swing * .95 * Math.abs(Math.cos(direction)) - kick * 1.5, -swing * Math.sin(direction) * .65); // a kick swings the right leg up
     const kneeL = (0.08 + 0.75 * Math.max(0, -fL)) * walk + 0.04 * idle;
     const kneeR = (0.08 + 0.75 * Math.max(0, fL)) * walk + 0.04 * idle;
-    jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, dead ? 0 : kneeL); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, dead ? 0 : kneeR);
+    jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, dead ? 0 : kneeL+(p.vaultPose||0)*1.3); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, dead ? 0 : kneeR+(p.vaultPose||0)*1.0);
     // weapon: follows the right forearm, hidden when unarmed
     if (p.weaponOut && !dead) bones.set(bones.subarray(160, 176), 96); else bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
     mouthBone(bones, speaking);
@@ -330,7 +337,7 @@ const PEDS = (() => {
     for (const q of rag.pts) { const vx = (q.x - q.px) * 0.985, vy = (q.y - q.py) * 0.985, vz = (q.z - q.pz) * 0.985; q.px = q.x; q.py = q.y; q.pz = q.z; q.x += vx; q.y += vy - 22 * h * h; q.z += vz; motion += Math.abs(vx) + Math.abs(vy) + Math.abs(vz); }
     for (let it = 0; it < 4; it++) {
       for (const [a, b, len] of RAG_LINKS) { const A = rag.pts[a], B = rag.pts[b]; let dx = B.x - A.x, dy = B.y - A.y, dz = B.z - A.z; const d = Math.hypot(dx, dy, dz) || 1e-4; const k = (d - len) / d * 0.5; dx *= k; dy *= k; dz *= k; A.x += dx; A.y += dy; A.z += dz; B.x -= dx; B.y -= dy; B.z -= dz; }
-      for (const q of rag.pts) { const g = CITY.groundY(q.x, q.z) + 0.1; if (q.y < g) { q.y = g; q.px += (q.x - q.px) * 0.55; q.pz += (q.z - q.pz) * 0.55; /* friction */ } const res = W.pushOut(q.x, q.z, 0.12, { noProps: true }); if (res.hit) { q.x = res.x; q.z = res.z; } }
+      for (const q of rag.pts) { const g = CITY.groundY(q.x, q.z,q.y) + 0.1; if (q.y < g) { q.y = g; q.px += (q.x - q.px) * 0.55; q.pz += (q.z - q.pz) * 0.55; /* friction */ } const res = W.pushOut(q.x, q.z, 0.12, { noProps: true,y:q.y,height:.2 }); if (res.hit) { q.x = res.x; q.z = res.z; } }
     }
     const pv = rag.pts[RJ.pelvis]; p.x = pv.x; p.z = pv.z; p.y = CITY.groundY(p.x, p.z); p.vx = (pv.x - pv.px) / h; p.vz = (pv.z - pv.pz) / h; p.airborne = pv.y > p.y + 0.35;
     const fwd = rag.pts[RJ.chest]; p.angle = Math.atan2(fwd.x - pv.x, fwd.z - pv.z) || p.angle;

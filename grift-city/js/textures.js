@@ -265,6 +265,7 @@ const TEX = (() => {
     // Purpose-painted landmark panel: compensate for the wide physical sign so type keeps its proportions.
     add('vossSign', g => { g.fillStyle='#163b3e'; g.fillRect(0,0,S,S); g.fillStyle='#eec778'; g.fillRect(12,20,488,12); g.fillRect(12,480,488,12); g.save(); g.scale(1,6.67); g.font='900 58px Impact, Arial Black, sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('VOSS MOTORS',256,38.4,470); g.restore(); g._lit.push([0,0,S,S]); });
     // Neutral paint multiplies each character's skin tone. Fine features stay flush with the face.
+    for(const [key,label,bg] of [['foundryDiner','LANTERN DINER','#25575a'],['foundryWorks','OLD FOUNDRY','#473b32'],['foundryDeck','SWITCHBACK PARKING','#27444a'],['foundryPassage','COMPACT CARS','#5b5032'],['foundryMarket','SIGNAL MARKET','#315c57']]) add(key,g=>{g.fillStyle=bg;g.fillRect(0,0,S,S);g.fillStyle='#e6d3a2';g.fillRect(10,14,492,9);g.fillRect(10,489,492,9);g.save();g.scale(1,5);g.font='800 45px Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(label,256,51.2,474);g.restore();g._lit.push([0,0,S,S]);});
     add('face', g => {
       g.fillStyle='#fff'; g.fillRect(0,0,S,S); g.lineCap='round';
       for(const x of [220,292]) {

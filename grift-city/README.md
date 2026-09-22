@@ -846,3 +846,5 @@ browser rehearsals. The route buttons simulate actual AI driving for Tailgate
 and Harbor Night while repositioning the observer and suppressing escort damage.
 `test/character-studio.html?mute=1` previews the production models and poses.
 Rebuild the standalone file with `python3 tools/build-single.py`.
+
+The Foundry Quarter spans ten blocks around Voss Motors: Lantern Lane, Laundry Court, Old Foundry and Switchback Deck offer narrow escapes, breakable timber gates and two levels of travel. Space vaults nearby low cover when the landing is clear; otherwise it jumps.

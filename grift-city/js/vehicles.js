@@ -35,14 +35,14 @@ const VEH = (() => {
     get fwd() { return [Math.sin(this.angle), Math.cos(this.angle)]; }
     get right() { return [-Math.cos(this.angle), Math.sin(this.angle)]; }
     circles() {
-      const s = this.spec, fx = Math.sin(this.angle), fz = Math.cos(this.angle), r = s.wid / 2 + 0.1; const L = s.len;
+      const s = this.spec, fx = Math.sin(this.angle), fz = Math.cos(this.angle), r = s.wid / 2 - 0.02; const L = s.len;
       if (L > 6.5) return [[this.x + fx * L * 0.36, this.z + fz * L * 0.36, r], [this.x, this.z, r], [this.x - fx * L * 0.36, this.z - fz * L * 0.36, r]];
       return [[this.x + fx * L * 0.26, this.z + fz * L * 0.26, r], [this.x - fx * L * 0.26, this.z - fz * L * 0.26, r]];
     }
     // The same circles written into a caller's flat [x, z, r, ...] buffer: the collision loops run this thousands of
     // times a second and the array-of-arrays version was most of their cost in garbage alone.
     circlesInto(out) {
-      const s = this.spec, fx = Math.sin(this.angle), fz = Math.cos(this.angle), r = s.wid / 2 + 0.1; const L = s.len;
+      const s = this.spec, fx = Math.sin(this.angle), fz = Math.cos(this.angle), r = s.wid / 2 - 0.02; const L = s.len;
       if (L > 6.5) { const o = L * 0.36;
         out[0] = this.x + fx * o; out[1] = this.z + fz * o; out[2] = r;
         out[3] = this.x; out[4] = this.z; out[5] = r;
@@ -118,7 +118,7 @@ const VEH = (() => {
       this.vx = nf[0] * vF + nr[0] * vL; this.vz = nf[1] * vF + nr[1] * vL; this.speed = vF; this.lat = vL;
       this.x += this.vx * dt; this.z += this.vz * dt;
       // vertical
-      const g = CITY.groundY(this.x, this.z);
+      const g = CITY.groundY(this.x, this.z, this.y);
       if (this.airborne) {
         this.vy -= 22 * dt; this.y += this.vy * dt; this.airT += dt;
         if (this.y <= g) { this.y = g; const impact = -this.vy; this.airborne = false; this.vy = 0; if (impact > 9) { this.damage(impact * 6, null); AUDIO.play('crash', this.x, this.z, impact / 15); W.FX.dust(this.x, g, this.z, 10); } this.landed = this.airT; this.airT = 0; }
@@ -143,7 +143,7 @@ const VEH = (() => {
       const s = this.spec; const f = this.fwd; const half = s.len / 2;
       // buildings & props: each circle (a boat has already been kept off the shore)
       if (!water) for (let ci = 0, nci = this.circlesInto(CIRC_A); ci < nci; ci++) { const cx = CIRC_A[ci * 3], cz = CIRC_A[ci * 3 + 1], r = CIRC_A[ci * 3 + 2];
-        const res = W.pushOut(cx, cz, r, { ignoreLow: this.y > 1.4 });
+        const res = W.pushOut(cx, cz, r, {y:this.airborne?this.y:Math.max(this.y,CITY.groundY(cx,cz,this.y+.35)),height:s.hgt,vehicle:this});
         if (res.hit) {
           const nx = res.hit[0], nz = res.hit[1];
           if (res.hit.prop) { const p = res.hit.prop; const spd = this.absSpeed; if ((p.kind === 'lamppost' || p.kind === 'hydrant' || p.kind === 'bin' || p.kind === 'trafficLight' || p.kind === 'bollard' || p.kind === 'cone' || p.kind === 'barrier' || p.kind === 'newsbox' || p.kind === 'mailbox' || p.kind === 'meter') && spd > (p.kind === 'cone' ? 1 : 3)) { W.knockProp(p, this.vx / spd, this.vz / spd); this.vx *= 0.8; this.vz *= 0.8; this.damage(spd * 2, null); AUDIO.play('bump', this.x, this.z); if (p.kind === 'hydrant') { for (let i = 0; i < 40; i++) W.particle(p.x, 0.5, p.z, (W.rng() - 0.5) * 2, 8 + W.rng() * 6, (W.rng() - 0.5) * 2, 1.2, 0.5, [0.7, 0.85, 1], 0.8, { grav: 12, grow: 1 }); p.ref.hydrantT = 30; } continue; } }
@@ -162,7 +162,7 @@ const VEH = (() => {
       }
       // other cars
       for (const o of W.cars) {
-        if (o === this || o.removed) continue; if (M.dist2(this.x, this.z, o.x, o.z) > 144) continue;
+        if (o === this || o.removed || this.y>=o.y+o.spec.hgt || this.y+s.hgt<=o.y) continue; if (M.dist2(this.x, this.z, o.x, o.z) > 144) continue;
         const na = this.circlesInto(CIRC_A), nb = o.circlesInto(CIRC_B);
         for (let ai = 0; ai < na; ai++) for (let bi = 0; bi < nb; bi++) {
           const ax = CIRC_A[ai * 3], az = CIRC_A[ai * 3 + 1], ar = CIRC_A[ai * 3 + 2];
@@ -193,7 +193,7 @@ const VEH = (() => {
       // pedestrians
       const spd = this.absSpeed;
       if (spd > 1.5 && !water) for (const p of W.peds) {
-        if (p.removed || p.inCar || p.state === 'dead') continue; if (M.dist2(this.x, this.z, p.x, p.z) > (half + 2) * (half + 2)) continue;
+        if (p.removed || p.inCar || p.state === 'dead' || p.y>=this.y+s.hgt || p.y+1.7<=this.y) continue; if (M.dist2(this.x, this.z, p.x, p.z) > (half + 2) * (half + 2)) continue;
         const [lf, ll] = this.local(p.x, p.z); if (Math.abs(lf) < half + 0.4 && Math.abs(ll) < s.wid / 2 + 0.35) { p.hitByCar(this, spd); }
       }
     }
@@ -303,9 +303,9 @@ const VEH = (() => {
       }
       // obstacles ahead
       const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const f = [sa, ca], r = [-ca, sa]; let blocked = false, blockSpeed = 99; const reach = 5 + Math.abs(this.speed) * 1.0;
-      for (const o of W.cars) { if (o === this || o.removed) continue; const dx = o.x - this.x, dz = o.z - this.z; if (dx * dx + dz * dz > (reach + 8) * (reach + 8)) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; const half = o.spec.len / 2; if (lf > 0 && lf - half < reach && Math.abs(ll) < 2.4) { const os = o.vx * f[0] + o.vz * f[1]; const gap = lf - half - this.spec.len / 2; if (gap < 3) { target = 0; blocked = true; } else target = Math.min(target, Math.max(0, os + (gap - 3) * 0.8)); blockSpeed = Math.min(blockSpeed, Math.abs(os)); } }
+      for (const o of W.cars) { if (o === this || o.removed || this.y>=o.y+o.spec.hgt || this.y+s.hgt<=o.y) continue; const dx = o.x - this.x, dz = o.z - this.z; if (dx * dx + dz * dz > (reach + 8) * (reach + 8)) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; const half = o.spec.len / 2; if (lf > 0 && lf - half < reach && Math.abs(ll) < 2.4) { const os = o.vx * f[0] + o.vz * f[1]; const gap = lf - half - this.spec.len / 2; if (gap < 3) { target = 0; blocked = true; } else target = Math.min(target, Math.max(0, os + (gap - 3) * 0.8)); blockSpeed = Math.min(blockSpeed, Math.abs(os)); } }
       if (ai.mode !== 'flee') {
-        for (const p of W.peds) { if (p.removed || p.inCar || p.state === 'dead') continue; const dx = p.x - this.x, dz = p.z - this.z; if (dx * dx + dz * dz > 400) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < reach + 2 && Math.abs(ll) < 1.8) { target = lf < 5 ? 0 : Math.min(target, 3); blocked = blocked || lf < 5; } }
+        for (const p of W.peds) { if (p.removed || p.inCar || p.state === 'dead' || p.y>=this.y+s.hgt || p.y+1.7<=this.y) continue; const dx = p.x - this.x, dz = p.z - this.z; if (dx * dx + dz * dz > 400) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < reach + 2 && Math.abs(ll) < 1.8) { target = lf < 5 ? 0 : Math.min(target, 3); blocked = blocked || lf < 5; } }
         if (PLAYER && PLAYER.alive && !PLAYER.car) { const dx = PLAYER.x - this.x, dz = PLAYER.z - this.z; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < reach + 2 && Math.abs(ll) < 1.8) { target = lf < 5 ? 0 : Math.min(target, 3); if (lf < 5) { blocked = true; if (ai.honk <= 0 && W.rng() < 0.02) { ai.honk = 3; this.horn = 0.6; AUDIO.play('horn', this.x, this.z, 0.6); } } } }
       }
       // throttle / brake
@@ -366,7 +366,7 @@ const VEH = (() => {
       else { c.throttle = Math.abs(da) > 1.2 ? 0.5 : 1; c.brake = 0; if (Math.abs(da) > 0.7 && this.speed > 10) { c.throttle = 0; c.brake = 0.4; } if (Math.abs(da) > 1.0 && this.speed > 8) c.handbrake = 1; }
       if (this.speed < 0.6 && c.throttle > 0.5) { ai.stuck += dt; if (ai.stuck > 1.4) { ai.reverseT = 1.2; ai.stuck = 0; } } else ai.stuck = Math.max(0, ai.stuck - dt);
       // avoid piling into a car directly ahead when far from the target
-      if (d > 12) { const f = this.fwd, r = this.right; for (const o of W.cars) { if (o === this || o.removed) continue; const dx = o.x - this.x, dz = o.z - this.z; if (dx * dx + dz * dz > 100) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < 7 && Math.abs(ll) < 2.2) { c.steer += ll > 0 ? -0.8 : 0.8; c.throttle *= 0.6; } } }
+      if (d > 12) { const f = this.fwd, r = this.right; for (const o of W.cars) { if (o === this || o.removed || this.y>=o.y+o.spec.hgt || this.y+s.hgt<=o.y) continue; const dx = o.x - this.x, dz = o.z - this.z; if (dx * dx + dz * dz > 100) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < 7 && Math.abs(ll) < 2.2) { c.steer += ll > 0 ? -0.8 : 0.8; c.throttle *= 0.6; } } }
     }
     // ---- AI: follow a list of waypoints (race rivals, mission cars)
     aiRoute(dt) {
