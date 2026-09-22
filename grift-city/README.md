@@ -507,6 +507,42 @@ built three small arrays per car per frame, which at a hundred and forty people 
 second. Both now read the same flat buffer, and the step went from 1.15 ms to 1.08. The ray cast and the
 water push still use the array form, which they call rarely.
 
+## Why it looked grey, and what changed
+
+Five things were doing most of the damage, and none of them was the polygon count.
+
+The paving was a play mat. Each slab was given a tint with its red, green and blue picked independently as
+full or nothing, so slabs came out magenta, cyan, green and yellow, and once tone-mapped and graded the
+bottom half of nearly every frame was mint, lilac and pink squares. Slabs now vary only in shade.
+
+The sun stood almost overhead all day, within 25 degrees of vertical from nine till three, which lights
+every wall in a street alike and makes noon look overcast. Its path is flattened so it rakes across the
+city at 30 to 45 degrees: one face of each block in sun and the other in shade, shadows reaching across the
+road. Only the direction changed; brightness and colour still follow the true height of the sun.
+
+Every district's grade took colour *out* of the picture, at 0.94 to 0.98 saturation, and there was no
+contrast curve. The grade is now a gentle S-curve with sunlit tones leaning warm and shade leaning slightly
+cool, saturation a little above neutral, a warmer and stronger sun, a real blue sky with a bluish haze,
+and more light thrown back into shade so a street in shadow is still bright rather than murky. A first
+pass pushed the shade to navy; it was measured and pulled back until the road in shade sat within a
+couple of points of neutral.
+
+A corner lot shows the street two faces, and the second carried a single shopfront tile repeated its
+whole length: BOUTIQUE, PHONES UNLOCKED, BOUTIQUE, PHONES UNLOCKED down an entire block. Every side of a
+commercial lot that stands on the edge of its block now gets its own run of fronts, 808 of them across
+the city, chosen from a hash of the position so the seeded layout is identical to the digit. Road and
+paving cracks, drawn at 35 to 50 per cent black, read as ink scribbles in the foreground and are now
+hairlines; the hard-edged road patches that looked like holes are faint.
+
+The last one is a bug, and probably the one anyone on a tablet saw. When the game lowers its quality
+enough to switch post-processing off, the scene is drawn straight to the screen, but the shaders were
+still told to write HDR because the GPU was capable of it. They wrote raw linear light with no curve and
+no gamma, and the whole game came out dark, crushed and grey. The shaders are now told where they are
+actually drawing, and the direct path runs the same exposure, filmic curve and grade as the full one,
+from one shared piece of shader code so the two cannot drift apart. The fallback order also changed:
+post-processing goes before the shadows, since losing post now costs bloom and occlusion while losing
+the shadows costs the whole sense of a sunny street.
+
 ## Light and colour
 
 The renderer lights in linear space. Textures and palette colours are authored in sRGB, so they are

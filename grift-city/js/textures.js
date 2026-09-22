@@ -120,22 +120,22 @@ const TEX = (() => {
   function build() {
     const FONTS = { sans: '"Helvetica Neue", Arial, sans-serif', serif: 'Georgia, "Times New Roman", serif', slab: '"Courier New", monospace', script: '"Brush Script MT", "Comic Sans MS", cursive', heavy: 'Impact, "Arial Black", sans-serif' };
     add('white', g => { g.fillStyle = '#fff'; g.fillRect(0, 0, S, S); });
-    add('asphalt', (g, r) => { if (!base(g, '#39393d')) { g.fillStyle = '#39393d'; g.fillRect(0, 0, S, S); noise(g, r, 70, 14000); grain(g, r, 20000, 0.05); } cracks(g, r, 5); stains(g, r, 6, 'rgba(0,0,0,0.15)'); for (let i = 0; i < 3; i++) { g.fillStyle = `rgba(${20 + r() * 20},${20 + r() * 20},${22 + r() * 20},0.5)`; g.fillRect(r() * S, r() * S, 40 + r() * 120, 30 + r() * 90); } });
+    add('asphalt', (g, r) => { if (!base(g, '#39393d')) { g.fillStyle = '#39393d'; g.fillRect(0, 0, S, S); noise(g, r, 70, 14000); grain(g, r, 20000, 0.05); } cracks(g, r, 5, 'rgba(0,0,0,0.18)'); stains(g, r, 6, 'rgba(0,0,0,0.08)'); for (let i = 0; i < 3; i++) { const v = 20 + r() * 20; g.fillStyle = `rgba(${v},${v},${v + 2},0.14)`; g.fillRect(r() * S, r() * S, 40 + r() * 120, 30 + r() * 90); } });
     // Road: u across the full 14 units, v along (one tile = 16 units). Gutters, lanes, centre line, wear.
     add('road', (g, r) => {
       if (!base(g, '#37373b')) { g.fillStyle = '#37373b'; g.fillRect(0, 0, S, S); noise(g, r, 60, 12000); grain(g, r, 16000, 0.05); }
       for (const lc of [0.125, 0.375, 0.625, 0.875]) { g.fillStyle = 'rgba(0,0,0,0.13)'; g.fillRect((lc - 0.06) * S, 0, 0.12 * S, S); }
-      cracks(g, r, 4, 'rgba(0,0,0,0.4)'); stains(g, r, 4, 'rgba(0,0,0,0.14)');
-      for (let i = 0; i < 2; i++) { g.fillStyle = 'rgba(25,25,28,0.45)'; g.fillRect(r() * S, r() * S, 30 + r() * 60, 60 + r() * 120); }
+      cracks(g, r, 4, 'rgba(0,0,0,0.16)'); stains(g, r, 4, 'rgba(0,0,0,0.07)');
+      for (let i = 0; i < 2; i++) { g.fillStyle = 'rgba(25,25,28,0.13)'; g.fillRect(r() * S, r() * S, 30 + r() * 60, 60 + r() * 120); }
       g.fillStyle = '#c9a227'; g.fillRect(S * 0.5 - 6, 0, 4, S); g.fillRect(S * 0.5 + 2, 0, 4, S); grain(g, r, 1500, 0.15, 2);
       g.fillStyle = '#d8d8d0'; for (let y = 0; y < S; y += 128) { g.fillRect(S * 0.25 - 2, y, 4, 56); g.fillRect(S * 0.75 - 2, y, 4, 56); }
       g.fillStyle = '#2a2a2d'; g.fillRect(0, 0, 10, S); g.fillRect(S - 10, 0, 10, S); g.fillStyle = 'rgba(255,255,255,0.08)'; g.fillRect(10, 0, 3, S); g.fillRect(S - 13, 0, 3, S);
     });
     add('sidewalk', (g, r) => {
       if (!base(g, '#8e8b85')) { g.fillStyle = '#8e8b85'; g.fillRect(0, 0, S, S); grain(g, r, 30000, 0.06, 2); }
-      for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { g.fillStyle = `rgba(${r() < 0.5 ? 0 : 255},${r() < 0.5 ? 0 : 255},${r() < 0.5 ? 0 : 255},${r() * 0.06})`; g.fillRect(i * 128, j * 128, 128, 128); }
+      for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { const v = r() < 0.5 ? 0 : 255; g.fillStyle = `rgba(${v},${v},${v},${0.02 + r() * 0.07})`; g.fillRect(i * 128, j * 128, 128, 128); }
       g.strokeStyle = 'rgba(30,30,30,0.5)'; g.lineWidth = 3; for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * 128, 0); g.lineTo(i * 128, S); g.stroke(); g.beginPath(); g.moveTo(0, i * 128); g.lineTo(S, i * 128); g.stroke(); }
-      cracks(g, r, 4, 'rgba(0,0,0,0.35)'); stains(g, r, 10, 'rgba(0,0,0,0.1)');
+      cracks(g, r, 4, 'rgba(0,0,0,0.16)'); stains(g, r, 10, 'rgba(0,0,0,0.06)');
       for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(20,20,20,0.35)'; g.beginPath(); g.arc(r() * S, r() * S, 2 + r() * 3, 0, 7); g.fill(); } // gum
     });
     const glassA = '#3e566b', glassB = '#2d4256', dark = '#2a2f36';

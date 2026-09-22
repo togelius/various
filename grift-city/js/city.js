@@ -278,6 +278,35 @@ const CITY = (() => {
         { const h = Math.abs(Math.sin(fx2 * 12.9898 + fz2 * 78.233) * 43758.5453) % 1; /* a hash of the position, so recording shopfronts consumes no city random numbers and leaves every other placement where it was */
           shopfronts.push({ x: fx2, z: fz2, nx: outN[0], nz: outN[1], w: seg, shut: kd === 20, h, tile: kd }); }
         if (front === 'n') b.box(x0 + t, y, z0 - 0.03, seg, ground, 0.03, tint, tl, { faces: 32, uvScale: 8 }); else if (front === 's') b.box(x0 + t, y, z1, seg, ground, 0.03, tint, tl, { faces: 16, uvScale: 8 }); else if (front === 'w') b.box(x0 - 0.03, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 2, uvScale: 8 }); else b.box(x1, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 1, uvScale: 8 }); } }
+      // A corner lot shows the street two faces, and the second one carried a single tile repeated its whole length:
+      // the same two shops over and over down a block. Every side that stands on the edge of the block now gets its own
+      // run of fronts, picked from a hash of the position so the seeded city does not move.
+      { const [obx, obz] = blockOrigin(block.i, block.j); const uniq = [...new Set(pool)]; const sides = [];
+        if (z - obz < 0.5 && front !== 'n') sides.push('n');
+        if (obz + BLOCK - (z + d) < 0.5 && front !== 's') sides.push('s');
+        if (x - obx < 0.5 && front !== 'w') sides.push('w');
+        if (obx + BLOCK - (x + w) < 0.5 && front !== 'e') sides.push('e');
+        for (const sd of sides) {
+          const len = (sd === 'n' || sd === 's') ? W : D;
+          const nrm = sd === 'n' ? [0, -1] : sd === 's' ? [0, 1] : sd === 'w' ? [-1, 0] : [1, 0];
+          const at = (t, off) => sd === 'n' ? [x0 + t, z0 - off] : sd === 's' ? [x0 + t, z1 + off] : sd === 'w' ? [x0 - off, z0 + t] : [x1 + off, z0 + t];
+          for (let t = 0; t < len - 0.5; t += 8) {
+            const seg = Math.min(8, len - t); const [px2, pz2] = at(t + seg / 2, 0.2);
+            const near = new Set();
+            for (let q = shopfronts.length - 1; q >= 0; q--) { const o = shopfronts[q]; if (o.nx !== nrm[0] || o.nz !== nrm[1]) continue;
+              const ddx = o.x - px2, ddz = o.z - pz2; if (ddx * ddx + ddz * ddz < 26 * 26) near.add(o.tile); }
+            const st = Math.floor((Math.abs(Math.sin(px2 * 37.1 + pz2 * 17.9) * 43758.5453) % 1) * uniq.length);
+            let kd = uniq[st]; for (let i = 0; i < uniq.length; i++) { const c = uniq[(st + i) % uniq.length]; if (!near.has(c)) { kd = c; break; } }
+            const h = Math.abs(Math.sin(px2 * 12.9898 + pz2 * 78.233) * 43758.5453) % 1;
+            shopfronts.push({ x: px2, z: pz2, nx: nrm[0], nz: nrm[1], w: seg, shut: kd === 20, h, tile: kd });
+            const tl = T['shops' + kd];
+            if (sd === 'n') b.box(x0 + t, y, z0 - 0.03, seg, ground, 0.03, tint, tl, { faces: 32, uvScale: 8 });
+            else if (sd === 's') b.box(x0 + t, y, z1, seg, ground, 0.03, tint, tl, { faces: 16, uvScale: 8 });
+            else if (sd === 'w') b.box(x0 - 0.03, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 2, uvScale: 8 });
+            else b.box(x1, y, z0 + t, 0.03, ground, seg, tint, tl, { faces: 1, uvScale: 8 });
+          }
+        }
+      }
       b.box(x0 - 0.3, y + ground - 0.35, z0 - 0.3, W + 0.6, 0.35, D + 0.6, trim, 0);
       // Give the painted shop bays a shallow stone surround so the street catches light and shadow.
       const surround = [0.62, 0.59, 0.52].map((v, i) => v * tint[i]);

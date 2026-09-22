@@ -9,7 +9,7 @@ const GAME = (() => {
   const AUTO_LEVELS = 5, AO_STRENGTH = 0.65, STEP = 1 / 60, MAX_STEPS = 6;
   function loadOptions() { try { Object.assign(options, JSON.parse(localStorage.getItem('grift-city-options') || '{}')); } catch (e) { } applyOptions(); }
   function saveOptions() { try { localStorage.setItem('grift-city-options', JSON.stringify(options)); } catch (e) { } applyOptions(); }
-  function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 4; RENDER.post.enabled = options.bloom && L < 5; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.4 : 0; RENDER.env.interiors = !/[?&]rooms=0/.test(location.search); RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
+  function applyOptions() { const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 5; RENDER.post.enabled = options.bloom && L < 4; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.4 : 0; RENDER.env.interiors = !/[?&]rooms=0/.test(location.search); RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
   // The decision alone, with no side effects, so it can be driven directly by a test. Returns 'lower', 'raise'
   // or null. What stops it oscillating is not a limit on how often quality may be restored -- that turned a few
   // transient stalls into a permanent downgrade on a machine well able to run it -- but a count of the restores
@@ -194,7 +194,7 @@ const GAME = (() => {
       if (viewer) { window.claude.use('downloads').then(dl => { if (!dl) throw new Error('unavailable'); return fetch(url).then(r => r.blob()).then(blob => dl.save({ filename: name, data: blob })); }).then(() => { photo.savedT = 1.5; AUDIO.play('click'); }).catch(e => { if (!e || e.code !== 'declined') HUD.notify('Could not save the photo here.'); }); return; }
       const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); photo.savedT = 1.5; AUDIO.play('click'); } catch (e) { HUD.notify('Could not save the photo.'); } }
   // ---- Per-district colour grade: a tint and a saturation the composite pass blends toward as you cross the city
-  const GRADES = { downtown: [[0.99, 1.0, 1.02], 0.96], midtown: [[1.02, 1.0, 0.97], 0.97], northgate: [[1.05, 0.98, 0.9], 0.98], westfield: [[0.99, 1.02, 0.96], 0.98], eastside: [[1.07, 0.98, 0.88], 0.94], southport: [[1.01, 1.02, 1.03], 0.98], sea: [[0.98, 1.02, 1.04], 1.0], indoor: [[1.06, 0.98, 0.9], 1.0], underwater: [[0.42, 0.74, 0.92], 0.66] };
+  const GRADES = { downtown: [[1.0, 1.0, 1.0], 1.08], midtown: [[1.02, 1.0, 0.97], 1.1], northgate: [[1.04, 0.99, 0.93], 1.1], westfield: [[1.0, 1.02, 0.97], 1.1], eastside: [[1.05, 0.99, 0.91], 1.07], southport: [[1.0, 1.01, 1.02], 1.1], sea: [[0.98, 1.02, 1.04], 1.12], indoor: [[1.05, 0.99, 0.92], 1.08], underwater: [[0.42, 0.74, 0.92], 0.66] };
   let vigBase = -1;
   function updateGrade(dt, px, pz) {
     // Under the surface the picture turns green-blue, loses most of its colour and closes in at the edges, so falling

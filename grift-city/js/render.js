@@ -31,7 +31,21 @@ const RENDER = (() => {
       vUV = aUV + uUVOff; vTile = aTile;
       gl_Position = uVP * w;
     }`;
-  const FS = `
+  // How linear light becomes a picture: exposure, a filmic curve, gamma, then the grade (a gentle S-curve, warm light
+  // against cool shade, saturation and a district tint). The composite pass uses the grade after its ink lines; with
+  // post-processing off, the scene and sky shaders apply the whole of it themselves, so the two paths look the same.
+  const DISPLAY_GLSL = `
+    uniform float uExposure; uniform float uSat; uniform vec3 uTint;
+    vec3 acesFilm(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+    vec3 gradeDisplay(vec3 c) {
+      c = clamp(c, 0.0, 1.0); c = mix(c, c * c * (3.0 - 2.0 * c), 0.32);
+      float l = dot(c, vec3(0.3, 0.55, 0.15));
+      c *= mix(vec3(0.985, 1.0, 1.02), vec3(1.045, 1.0, 0.94), smoothstep(0.12, 0.7, l));
+      l = dot(c, vec3(0.3, 0.55, 0.15)); return mix(vec3(l), c, uSat) * uTint;
+    }
+    vec3 toDisplay(vec3 lin) { return gradeDisplay(pow(acesFilm(max(lin, 0.0) * uExposure), vec3(1.0 / 2.2))); }
+  `;
+  const FS = DISPLAY_GLSL + `
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in float vEmis;
     uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform sampler2DArray uNrm;
     uniform float uNrmOn; uniform float uNrmStr; uniform float uEmis; uniform vec4 uPanes[128]; uniform float uInterior;
@@ -168,12 +182,11 @@ const RENDER = (() => {
       vec3 fogC = mix(fogL, fogL * 0.6 + uSunCol * 0.7, sunAmt * uFogSun);
       col = mix(col, fogC, clamp(f, 0.0, 1.0));
       if (uHDR > 0.5) { o = vec4(col, uAlpha); return; }
-      col = col / (1.0 + col * 0.35);
-      o = vec4(pow(max(col, 0.0), vec3(1.0 / 2.2)), uAlpha);
+      o = vec4(toDisplay(col), uAlpha);
     }`;
   const SHADOW_FS = `out vec4 o; void main() { o = vec4(1.0); }`;
   const SKY_VS = `const vec2 v[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0)); out vec2 vNdc; void main() { vNdc = v[gl_VertexID]; gl_Position = vec4(v[gl_VertexID], 0.9999, 1.0); }`;
-  const SKY_FS = `
+  const SKY_FS = DISPLAY_GLSL + `
     in vec2 vNdc; uniform mat4 uInvVP; uniform vec3 uCamPos; uniform vec3 uSunDir; uniform vec3 uZenith; uniform vec3 uHorizon; uniform vec3 uSunCol; uniform float uStars; uniform float uSunDisc; uniform float uTime; uniform float uCloud; uniform float uHDR;
     out vec4 o;
     float hash(vec3 p) { p = fract(p * 0.3183099 + vec3(0.1, 0.2, 0.3)); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -198,11 +211,11 @@ const RENDER = (() => {
       // low haze band near horizon at night
       col = mix(col, uHorizon, (1.0 - h) * 0.15);
       if (uHDR > 0.5) { o = vec4(col, 1.0); return; }
-      o = vec4(pow(col, vec3(1.0 / 1.25)), 1.0);
+      o = vec4(toDisplay(col), 1.0);
     }`;
   const PART_VS = `in vec3 aPos; in float aSize; in vec4 aCol; uniform mat4 uVP; uniform vec3 uCamPos; uniform float uScale; out vec4 vCol;
     void main() { gl_Position = uVP * vec4(aPos, 1.0); float d = max(gl_Position.w, 0.1); gl_PointSize = clamp(aSize * uScale / d, 1.0, 256.0); vCol = aCol; }`;
-  const PART_FS = `in vec4 vCol; out vec4 o; void main() { vec2 c = gl_PointCoord * 2.0 - 1.0; float r = dot(c, c); if (r > 1.0) discard; float a = smoothstep(1.0, 0.2, r); vec3 k = vCol.rgb; o = vec4(k * (k * (k * 0.305306011 + 0.682171111) + 0.012522878), vCol.a * a); }`;
+  const PART_FS = `in vec4 vCol; uniform float uLin; out vec4 o; void main() { vec2 c = gl_PointCoord * 2.0 - 1.0; float r = dot(c, c); if (r > 1.0) discard; float a = smoothstep(1.0, 0.2, r); vec3 k = vCol.rgb; o = vec4(mix(k, k * (k * (k * 0.305306011 + 0.682171111) + 0.012522878), uLin), vCol.a * a); }`;
   const QUAD_VS = `const vec2 v[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0)); out vec2 vUV; void main() { vUV = v[gl_VertexID] * 0.5 + 0.5; gl_Position = vec4(v[gl_VertexID], 0.0, 1.0); }`;
   const BRIGHT_FS = `in vec2 vUV; uniform sampler2D uTex; uniform float uThreshold; out vec4 o; void main() { vec3 c = texture(uTex, vUV).rgb; float l = dot(c, vec3(0.3, 0.55, 0.15)); float k = max(l - uThreshold, 0.0) / max(l, 1e-3); o = vec4(c * k, 1.0); }`;
   const BLUR_FS = `in vec2 vUV; uniform sampler2D uTex; uniform vec2 uDir; out vec4 o;
@@ -225,8 +238,7 @@ const RENDER = (() => {
       float ao = 1.0 - occ / 10.0; o = vec4(vec3(ao), 1.0);
     }`;
   const AOBLUR_FS = `in vec2 vUV; uniform sampler2D uTex; uniform vec2 uTexel; out vec4 o; void main() { float s = 0.0; for (int x = -2; x <= 1; x++) for (int y = -2; y <= 1; y++) s += texture(uTex, vUV + vec2(float(x) + 0.5, float(y) + 0.5) * uTexel).r; o = vec4(vec3(s / 16.0), 1.0); }`;
-  const COMPOSITE_FS = `in vec2 vUV; uniform sampler2D uScene; uniform sampler2D uBloom; uniform sampler2D uAO; uniform sampler2D uDepth; uniform float uAOAmt; uniform float uBloomAmt; uniform float uExposure; uniform float uHDR; uniform float uVignette; uniform float uSat; uniform vec3 uTint; uniform vec2 uTexel; uniform vec2 uNF; uniform float uEdge; out vec4 o;
-    vec3 aces(vec3 x) { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }
+  const COMPOSITE_FS = DISPLAY_GLSL + `in vec2 vUV; uniform sampler2D uScene; uniform sampler2D uBloom; uniform sampler2D uAO; uniform sampler2D uDepth; uniform float uAOAmt; uniform float uBloomAmt; uniform float uHDR; uniform float uVignette; uniform vec2 uTexel; uniform vec2 uNF; uniform float uEdge; out vec4 o;
     float lin(vec2 uv) { float z = texture(uDepth, uv).r * 2.0 - 1.0; return 2.0 * uNF.x * uNF.y / (uNF.y + uNF.x - z * (uNF.y - uNF.x)); }
     // Ink lines: a depth step (silhouette) or a change of depth slope (crease) between neighbouring pixels draws a dark
     // line, thinner and fainter with distance, so every object reads as drawn rather than rendered.
@@ -240,15 +252,16 @@ const RENDER = (() => {
     }
     void main() {
       float ao = mix(1.0, texture(uAO, vUV).r, uAOAmt); vec3 c = texture(uScene, vUV).rgb * ao + texture(uBloom, vUV).rgb * uBloomAmt;
-      if (uHDR > 0.5) { c = aces(c * uExposure); c = pow(c, vec3(1.0 / 2.2)); }
+      if (uHDR > 0.5) { c = acesFilm(c * uExposure); c = pow(c, vec3(1.0 / 2.2)); }
       if (uEdge > 0.0) c *= 1.0 - uEdge * edge(); // on the display-referred colour, so a line is a line at any exposure
-      float l = dot(c, vec3(0.3, 0.55, 0.15)); c = mix(vec3(l), c, uSat) * uTint;
+      c = gradeDisplay(c); // warm light against cool shade: most of what makes a street read as sunny rather than merely bright
       vec2 d = vUV - 0.5; c *= 1.0 - uVignette * dot(d, d) * 2.2;
       o = vec4(c, 1.0);
     }`;
   const FLAT_VS = `in vec3 aPos; in vec4 aCol; uniform mat4 uVP; out vec4 vCol; void main() { gl_Position = uVP * vec4(aPos, 1.0); vCol = aCol; }`;
-  const FLAT_FS = `in vec4 vCol; out vec4 o; void main() { vec3 c = vCol.rgb; o = vec4(c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878), vCol.a); }`;
+  const FLAT_FS = `in vec4 vCol; uniform float uLin; out vec4 o; void main() { vec3 c = vCol.rgb; o = vec4(mix(c, c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878), uLin), vCol.a); }`;
 
+  let hdrOut = false; // whether this frame's shaders write into the HDR buffer, as opposed to straight to the screen
   let partVao, partBuf, flatVao, flatBuf, flatCap = 0, brightProg, blurProg, compProg, aoProg, aoBlurProg;
   const post = { enabled: true, hdr: false, w: 0, h: 0, msaa: null, scene: null, bloomA: null, bloomB: null, depth: null, aoA: null, aoB: null, ao: 0.65, edges: 0.4, samples: 4, bloom: 0.18, exposure: 1.12, vignette: 0.14, sat: 1.07, tint: [1.02, 1.01, 0.98] };
   function makeDepthTarget(w, h) { const t = { w, h }; t.fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo); t.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t.tex); gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, w, h); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, t.tex, 0); t.ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE; gl.bindFramebuffer(gl.FRAMEBUFFER, null); return t; }
@@ -312,7 +325,7 @@ const RENDER = (() => {
   function setTimeOfDay(hours, rain = 0, fog = 0, dt = 0) {
     const t = hours / 24; const sunAng = (t - 0.25) * M.TAU; // 6:00 sunrise at angle 0, noon at 90°
     const elev = Math.sin(sunAng), az = Math.cos(sunAng);
-    let sx = az * 0.7, sy = elev, sz = -0.45 + 0.2 * az; let l = Math.hypot(sx, sy, sz); sx /= l; sy /= l; sz /= l;
+    let sx = az * 0.72, sy = elev * 0.72, sz = -0.78 + 0.2 * az; let l = Math.hypot(sx, sy, sz); sx /= l; sy /= l; sz /= l;
     const day = M.clamp(elev * 4 + 0.15, 0, 1);          // 1 in daytime, 0 at night
     // The warm horizon light reaches further up the sky than the brightness falls off. Golden hour is the best light in
     // the game and at a true scale it was a spike a few seconds wide; widening only the colour term lengthens it
@@ -321,13 +334,13 @@ const RENDER = (() => {
     const night = 1 - day;
     if (sy > 0.02) env.sunDir = [sx, sy, sz]; else env.sunDir = [-sx * 0.5, Math.max(0.35, -sy), -sz * 0.5]; // moon-ish from the other side
     const mix3 = (a, b, k) => [M.lerp(a[0], b[0], k), M.lerp(a[1], b[1], k), M.lerp(a[2], b[2], k)];
-    const sunDay = mix3([1.72, 1.49, 1.17], [1.45, 0.62, 0.24], dusk); const sunNight = [0.02, 0.025, 0.045];
+    const sunDay = mix3([1.98, 1.66, 1.22], [1.5, 0.64, 0.24], dusk); const sunNight = [0.02, 0.025, 0.045];
     env.sunCol = mix3(sunNight, sunDay.map(v => v * 1.0), day);
-    env.skyCol = mix3([0.03, 0.037, 0.07], mix3([0.48, 0.50, 0.56], [0.42, 0.26, 0.2], dusk), day);
-    env.groundCol = mix3([0.014, 0.016, 0.024], mix3([0.23, 0.205, 0.175], [0.2, 0.12, 0.09], dusk), day);
-    env.zenith = mix3([0.004, 0.006, 0.02], mix3([0.20, 0.37, 0.53], [0.15, 0.15, 0.4], dusk), day);
-    env.horizon = mix3([0.012, 0.014, 0.03], mix3([0.64, 0.66, 0.65], [0.9, 0.4, 0.2], dusk), day);
-    env.fogCol = mix3([0.01, 0.012, 0.024], mix3([0.56, 0.59, 0.60], [0.78, 0.4, 0.26], dusk), day);
+    env.skyCol = mix3([0.03, 0.037, 0.07], mix3([0.5, 0.53, 0.58], [0.42, 0.28, 0.26], dusk), day); // skylight is blue, so shade reads cool against warm sun
+    env.groundCol = mix3([0.014, 0.016, 0.024], mix3([0.31, 0.27, 0.22], [0.24, 0.15, 0.11], dusk), day); // light thrown back up off sunlit pavement and walls: the street in shade is still bright
+    env.zenith = mix3([0.004, 0.006, 0.02], mix3([0.13, 0.33, 0.64], [0.15, 0.15, 0.4], dusk), day);
+    env.horizon = mix3([0.012, 0.014, 0.03], mix3([0.66, 0.74, 0.82], [0.9, 0.4, 0.2], dusk), day);
+    env.fogCol = mix3([0.01, 0.012, 0.024], mix3([0.6, 0.65, 0.71], [0.78, 0.4, 0.26], dusk), day);
     env.fogDensity = M.lerp(0.0032, 0.0022, day); env.fogHeight = M.lerp(22, 34, day); env.fogSun = 0.7 * day;
     // The city goes to bed: the lit-window mask dims through the small hours and comes back before dawn.
     const late = hours >= 23 || hours < 5.5 ? M.lerp(1, 0.66, M.clamp(Math.min(hours >= 23 ? hours - 23 : hours + 1, 5.5 - hours + 1) / 2.5, 0, 1)) : 1;
@@ -403,7 +416,7 @@ const RENDER = (() => {
       gl.uniform3fv(P.u.uFogCol, env.fogCol); gl.uniform3f(P.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform1f(P.u.uFogDensity, env.fogDensity);
       gl.uniform1f(P.u.uFogHeight, env.fogHeight); gl.uniform1f(P.u.uFogSun, env.fogSun);
       gl.uniform3fv(P.u.uZenith, env.zenith); gl.uniform3fv(P.u.uHorizon, env.horizon); gl.uniform1f(P.u.uReflect, env.reflect); gl.uniform1f(P.u.uWet, env.wet);
-      gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uHDR, post.hdr ? 1 : 0); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uWater, 0); gl.uniform1f(P.u.uTime, env.time || 0);
+      gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uHDR, hdrOut ? 1 : 0); gl.uniform1f(P.u.uExposure, post.exposure); gl.uniform1f(P.u.uSat, post.sat); gl.uniform3fv(P.u.uTint, post.tint); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uWater, 0); gl.uniform1f(P.u.uTime, env.time || 0);
       gl.uniform4fv(P.u.uLights, lights.pos); gl.uniform3fv(P.u.uLightCols, lights.col); gl.uniform1i(P.u.uNumLights, lights.n);
     }
     gl.uniform2f(P.u.uUVOff, 0, 0);
@@ -455,7 +468,7 @@ const RENDER = (() => {
       gl.disable(gl.POLYGON_OFFSET_FILL); gl.cullFace(gl.BACK);
     }
     if (post.enabled) ensureTargets(canvas.width, canvas.height);
-    const usePost = post.enabled && post.msaa;
+    const usePost = post.enabled && post.msaa; hdrOut = !!(usePost && post.hdr);
     gl.bindFramebuffer(gl.FRAMEBUFFER, usePost ? post.msaa.fbo : null); gl.viewport(0, 0, canvas.width, canvas.height);
     // Under water there is no sky to draw: the buffer is cleared to the colour of the water instead, which is also
     // what the fog fades everything into, so the whole frame is one body of water.
@@ -465,7 +478,7 @@ const RENDER = (() => {
     if (!env.noSky) {
     gl.useProgram(skyProg.p); gl.depthMask(false); gl.disable(gl.DEPTH_TEST);
     gl.uniformMatrix4fv(skyProg.u.uInvVP, false, invVP); gl.uniform3f(skyProg.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform3fv(skyProg.u.uSunDir, env.sunDir);
-    gl.uniform3fv(skyProg.u.uZenith, env.zenith); gl.uniform3fv(skyProg.u.uHorizon, env.horizon); gl.uniform3fv(skyProg.u.uSunCol, env.sunCol); gl.uniform1f(skyProg.u.uStars, env.starAlpha); gl.uniform1f(skyProg.u.uSunDisc, env.sunDisc); gl.uniform1f(skyProg.u.uTime, time); gl.uniform1f(skyProg.u.uCloud, env.rain || 0); gl.uniform1f(skyProg.u.uHDR, post.hdr ? 1 : 0);
+    gl.uniform3fv(skyProg.u.uZenith, env.zenith); gl.uniform3fv(skyProg.u.uHorizon, env.horizon); gl.uniform3fv(skyProg.u.uSunCol, env.sunCol); gl.uniform1f(skyProg.u.uStars, env.starAlpha); gl.uniform1f(skyProg.u.uSunDisc, env.sunDisc); gl.uniform1f(skyProg.u.uTime, time); gl.uniform1f(skyProg.u.uCloud, env.rain || 0); gl.uniform1f(skyProg.u.uHDR, hdrOut ? 1 : 0); gl.uniform1f(skyProg.u.uExposure, post.exposure); gl.uniform1f(skyProg.u.uSat, post.sat); gl.uniform3fv(skyProg.u.uTint, post.tint);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.depthMask(true); gl.enable(gl.DEPTH_TEST); }
     drawScene(scene, false);
@@ -473,7 +486,7 @@ const RENDER = (() => {
     // Flat FX (alpha blended triangles + lines), then particles
     gl.enable(gl.BLEND); gl.depthMask(false);
     if (scene.flat && scene.flat.count > 0) {
-      gl.useProgram(flatProg.p); gl.uniformMatrix4fv(flatProg.u.uVP, false, vp);
+      gl.useProgram(flatProg.p); gl.uniformMatrix4fv(flatProg.u.uVP, false, vp); gl.uniform1f(flatProg.u.uLin, hdrOut ? 1 : 0);
       gl.bindVertexArray(flatVao); gl.bindBuffer(gl.ARRAY_BUFFER, flatBuf);
       const flatNeed = scene.flat.count * 7;
       if (flatNeed > flatCap) { flatCap = scene.flat.data.length; gl.bufferData(gl.ARRAY_BUFFER, flatCap * 4, gl.DYNAMIC_DRAW); }
@@ -485,7 +498,7 @@ const RENDER = (() => {
       if (scene.flat.lineCount) gl.drawArrays(gl.LINES, scene.flat.triCount + scene.flat.addCount, scene.flat.lineCount);
     }
     if (scene.particles && scene.particles.count > 0) {
-      gl.useProgram(partProg.p); gl.uniformMatrix4fv(partProg.u.uVP, false, vp); gl.uniform3f(partProg.u.uCamPos, cam.x, cam.y, cam.z);
+      gl.useProgram(partProg.p); gl.uniformMatrix4fv(partProg.u.uVP, false, vp); gl.uniform1f(partProg.u.uLin, hdrOut ? 1 : 0); gl.uniform3f(partProg.u.uCamPos, cam.x, cam.y, cam.z);
       gl.uniform1f(partProg.u.uScale, canvas.height * 0.9);
       gl.bindVertexArray(partVao); gl.bindBuffer(gl.ARRAY_BUFFER, partBuf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, scene.particles.data, 0, scene.particles.count * 8);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); if (scene.particles.alphaCount) gl.drawArrays(gl.POINTS, 0, scene.particles.alphaCount);
