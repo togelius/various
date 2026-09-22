@@ -172,7 +172,7 @@ const VEH = (() => {
       }
       // other cars
       for (const o of W.cars) {
-        if (o === this || o.removed || this.y>=o.y+o.spec.hgt || this.y+s.hgt<=o.y) continue; if (M.dist2(this.x, this.z, o.x, o.z) > 144) continue;
+        if (o === this || o.removed || this.y>=o.y+o.spec.hgt || this.y+this.spec.hgt<=o.y) continue; if (M.dist2(this.x, this.z, o.x, o.z) > 144) continue;
         const na = this.circlesInto(CIRC_A), nb = o.circlesInto(CIRC_B);
         for (let ai = 0; ai < na; ai++) for (let bi = 0; bi < nb; bi++) {
           const ax = CIRC_A[ai * 3], az = CIRC_A[ai * 3 + 1], ar = CIRC_A[ai * 3 + 2];
@@ -203,7 +203,7 @@ const VEH = (() => {
       // pedestrians
       const spd = this.absSpeed;
       if (spd > 1.5 && !water) for (const p of W.peds) {
-        if (p.removed || p.inCar || p.state === 'dead' || p.y>=this.y+s.hgt || p.y+1.7<=this.y) continue; if (M.dist2(this.x, this.z, p.x, p.z) > (half + 2) * (half + 2)) continue;
+        if (p.removed || p.inCar || p.state === 'dead' || p.y>=this.y+this.spec.hgt || p.y+1.7<=this.y) continue; if (M.dist2(this.x, this.z, p.x, p.z) > (half + 2) * (half + 2)) continue;
         const [lf, ll] = this.local(p.x, p.z); if (Math.abs(lf) < half + 0.4 && Math.abs(ll) < s.wid / 2 + 0.35) { p.hitByCar(this, spd); }
       }
     }
@@ -326,9 +326,9 @@ const VEH = (() => {
       }
       // obstacles ahead
       const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const f = [sa, ca], r = [-ca, sa]; let blocked = false, blockSpeed = 99; const reach = 5 + Math.abs(this.speed) * 1.0;
-      for (const o of W.cars) { if (o === this || o.removed || this.y>=o.y+o.spec.hgt || this.y+s.hgt<=o.y) continue; const dx = o.x - this.x, dz = o.z - this.z; if (dx * dx + dz * dz > (reach + 8) * (reach + 8)) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; const half = o.spec.len / 2; if (lf > 0 && lf - half < reach && Math.abs(ll) < 2.4) { const os = o.vx * f[0] + o.vz * f[1]; const gap = lf - half - this.spec.len / 2; if (gap < 3) { target = 0; blocked = true; } else target = Math.min(target, Math.max(0, os + (gap - 3) * 0.8)); blockSpeed = Math.min(blockSpeed, Math.abs(os)); } }
+      for (const o of W.cars) { if (o === this || o.removed || this.y>=o.y+o.spec.hgt || this.y+this.spec.hgt<=o.y) continue; const dx = o.x - this.x, dz = o.z - this.z; if (dx * dx + dz * dz > (reach + 8) * (reach + 8)) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; const half = o.spec.len / 2; if (lf > 0 && lf - half < reach && Math.abs(ll) < 2.4) { const os = o.vx * f[0] + o.vz * f[1]; const gap = lf - half - this.spec.len / 2; if (gap < 3) { target = 0; blocked = true; } else target = Math.min(target, Math.max(0, os + (gap - 3) * 0.8)); blockSpeed = Math.min(blockSpeed, Math.abs(os)); } }
       if (ai.mode !== 'flee') {
-        for (const p of W.peds) { if (p.removed || p.inCar || p.state === 'dead' || p.y>=this.y+s.hgt || p.y+1.7<=this.y) continue; const dx = p.x - this.x, dz = p.z - this.z; if (dx * dx + dz * dz > 400) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < reach + 2 && Math.abs(ll) < 1.8) { target = lf < 5 ? 0 : Math.min(target, 3); blocked = blocked || lf < 5; } }
+        for (const p of W.peds) { if (p.removed || p.inCar || p.state === 'dead' || p.y>=this.y+this.spec.hgt || p.y+1.7<=this.y) continue; const dx = p.x - this.x, dz = p.z - this.z; if (dx * dx + dz * dz > 400) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < reach + 2 && Math.abs(ll) < 1.8) { target = lf < 5 ? 0 : Math.min(target, 3); blocked = blocked || lf < 5; } }
         if (PLAYER && PLAYER.alive && !PLAYER.car) { const dx = PLAYER.x - this.x, dz = PLAYER.z - this.z; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < reach + 2 && Math.abs(ll) < 1.8) { target = lf < 5 ? 0 : Math.min(target, 3); if (lf < 5) { blocked = true; if (ai.honk <= 0 && W.rng() < 0.02) { ai.honk = 3; this.horn = 0.6; AUDIO.play('horn', this.x, this.z, 0.6); } } } }
       }
       // throttle / brake
@@ -389,7 +389,7 @@ const VEH = (() => {
       else { c.throttle = Math.abs(da) > 1.2 ? 0.5 : 1; c.brake = 0; if (Math.abs(da) > 0.7 && this.speed > 10) { c.throttle = 0; c.brake = 0.4; } if (Math.abs(da) > 1.0 && this.speed > 8) c.handbrake = 1; }
       if (this.speed < 0.6 && c.throttle > 0.5) { ai.stuck += dt; if (ai.stuck > 1.4) { ai.reverseT = 1.2; ai.stuck = 0; } } else ai.stuck = Math.max(0, ai.stuck - dt);
       // avoid piling into a car directly ahead when far from the target
-      if (d > 12) { const f = this.fwd, r = this.right; for (const o of W.cars) { if (o === this || o.removed || this.y>=o.y+o.spec.hgt || this.y+s.hgt<=o.y) continue; const dx = o.x - this.x, dz = o.z - this.z; if (dx * dx + dz * dz > 100) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < 7 && Math.abs(ll) < 2.2) { c.steer += ll > 0 ? -0.8 : 0.8; c.throttle *= 0.6; } } }
+      if (d > 12) { const f = this.fwd, r = this.right; for (const o of W.cars) { if (o === this || o.removed || this.y>=o.y+o.spec.hgt || this.y+this.spec.hgt<=o.y) continue; const dx = o.x - this.x, dz = o.z - this.z; if (dx * dx + dz * dz > 100) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < 7 && Math.abs(ll) < 2.2) { c.steer += ll > 0 ? -0.8 : 0.8; c.throttle *= 0.6; } } }
     }
     // ---- AI: follow a list of waypoints (race rivals, mission cars)
     aiRoute(dt) {
