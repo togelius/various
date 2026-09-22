@@ -220,7 +220,7 @@ const HUD = (() => {
     const near = PLAYER.entryCandidate();
     return (near ? 'F '+(near.car.locked ? 'locked' : near.car.name)+' · ' : '') + 'WASD move · SHIFT run · SPACE jump · CLICK attack · ALT or C aim · WHEEL weapon · R reload · TAB map · F1 all controls';
   }
-  const CONTROLS = [['ON FOOT', [['W A S D', 'move'], ['mouse', 'look'], ['SHIFT', 'run'], ['SPACE', 'jump'], ['CLICK / CTRL', 'attack or fire'], ['ALT (Option) / C', 'aim (or right-click, two-finger click on a trackpad)'], ['WHEEL / 1-9', 'change weapon'], ['F', 'get in a car, boat or bike'], ['R', 'reload'], ['Y', 'retry a failed mission']]],
+  const CONTROLS = [['ON FOOT', [['W A S D', 'move'], ['mouse', 'look'], ['SHIFT', 'run'], ['SPACE', 'jump'], ['CLICK / CTRL', 'attack or fire'], ['ALT (Option) / C', 'aim (or right-click, two-finger click on a trackpad)'], ['WHEEL / 1-9', 'change weapon'], ['F', 'get in a car, boat or bike'], ['R', 'reload'], ['G (hold)', 'talk to the debtor, empty-handed'], ['Y', 'retry a failed mission']]],
     ['DRIVING', [['W / S', 'accelerate / brake, reverse'], ['A / D', 'steer'], ['SPACE', 'handbrake'], ['F', 'get out'], ['H', 'horn'], ['L', 'siren (police cars)'], ['R', 'next radio station'], ['LMB', 'drive-by with a pistol or SMG']]],
     ['CITY', [['T', 'start or stop a side job in a taxi or police car'], ['walk in', 'shops, the bar, the safehouse, elevators'], ['DIGITS', 'pick from a menu'], ['P', 'photo mode'], ['TAB', 'map'], ['ESC', 'pause and options'], ['F1', 'this sheet']]]];
   function drawControls() { g.fillStyle = 'rgba(0,0,0,0.78)'; g.fillRect(0, 0, W_, H_); outlined('CONTROLS', W_ / 2, 60, 40, '#f5c542'); const colW = Math.min(300, W_ / 3.2); const x0 = W_ / 2 - colW * 1.5;

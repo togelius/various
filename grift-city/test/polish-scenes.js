@@ -33,3 +33,24 @@ document.querySelector('#approach').onclick=()=>{const d=MISSIONS.S.current&&MIS
 document.querySelector('#threaten').onclick=()=>{PLAYER.giveWeapon('pistol',51);PLAYER.P.weapon='pistol';window.__sim(2,['KeyC']);render();};
 document.querySelector('#car-door').onclick=()=>{const d=MISSIONS.S.current&&MISSIONS.S.current.data;if(!d||!d.car)return;const c=d.car,p=PLAYER.P;p.x=c.x+c.right[0]*(c.spec.wid/2+.7);p.z=c.z+c.right[1]*(c.spec.wid/2+.7);p.y=CITY.groundY(p.x,p.z);p.angle=p.camYaw=Math.atan2(c.x-p.x,c.z-p.z);render();};
 document.querySelector('#audit').onclick=()=>{try{prepare();const lines=runCampaignAudit();HUD.clearBig();statusEl.textContent=lines.join('\n');window.__renderOnce();}catch(e){statusEl.textContent=e.stack;}};
+
+async function rehearseRoute(id) {
+ try {
+  const p=prepare();W.cars.length=0;W.peds.length=0;MISSIONS.S.progress=9;MISSIONS.S.skipIntro=true;
+  const m=MISSIONS.LIST2[id];MISSIONS.start(m);const d=m.data,c=d.van||d.truck;c.damageScale=0;
+  const escort=id===4?VEH.spawn('sedan',c.x+35,c.z,0):null;
+  if(escort){p.car=escort;escort.driver=PLAYER;escort.ai.mode='player';p.state='car';}
+  p.x=c.x+20;p.z=c.z;p.y=CITY.groundY(p.x,p.z);if(escort){escort.x=p.x;escort.z=p.z;}
+  window.__sim(.1);let elapsed=0;
+  while(!d.arrived && elapsed<300 && MISSIONS.S.current===m) {
+   p.x=c.x+30;p.z=c.z+30;p.y=CITY.groundY(p.x,p.z);p.invuln=999;
+   if(escort){escort.x=p.x;escort.z=p.z;escort.vx=escort.vz=0;}
+   window.__sim(.5);elapsed+=.5;
+   if(elapsed%5===0){window.__renderOnce();statusEl.textContent=m.name+' route · '+elapsed+'s · waypoint '+c.ai.routeIdx+' · speed '+c.absSpeed.toFixed(1)+' · '+Math.round(c.x)+','+Math.round(c.z);await new Promise(requestAnimationFrame);}
+  }
+  statusEl.textContent=m.name+' route '+(d.arrived?'ARRIVED':'NOT COMPLETE')+' after '+elapsed+'s; waypoint '+c.ai.routeIdx+'; '+MISSIONS.objective;window.__renderOnce();
+ }catch(e){statusEl.textContent=e.stack;}
+}
+document.querySelector('#tail-route').onclick=()=>rehearseRoute(3);
+document.querySelector('#escort-route').onclick=()=>rehearseRoute(4);
+document.querySelector('#ledger').onclick=()=>{const p=prepare();MISSIONS.S.skipIntro=true;MISSIONS.start(MISSIONS.LIST2[5]);const d=MISSIONS.S.current.data;p.x=d.hut.x-3;p.z=d.hut.z;p.y=CITY.groundY(p.x,p.z);p.camYaw=Math.PI/2;render();};

@@ -63,8 +63,22 @@ const MISSIONS = (() => {
   const laneSpot = (i, j, di, dj, s, lane = 0) => { const n = CITY.roadNodes[i * (CITY.GRID + 1) + j]; const e = n.out.find(o => o.dx === di && o.dz === dj); let [x, z] = CITY.lanePoint(e, lane, s); if (lane === 1) { x += e.rx * 0.7; z += e.rz * 0.7; } return { x, z, angle: Math.atan2(di, dj), e, lane, s }; };
   const near = (x, z, r, useCar = true) => { const p = P(); return M.dist2(p.x, p.z, x, z) < r * r; };
   const sideOf = (x, z) => { const res = W.pushOut(x, z, 0.5); return [res.x, res.z]; };
-  function spawnCar(type, x, z, angle, opts = {}) { for (const o of W.cars) if (!o.removed && !o.important && o !== PLAYER.car && M.dist2(o.x, o.z, x, z) < 100) o.remove(); const c = VEH.spawn(type, x, z, angle, { mode: opts.mode || 'parked', color: opts.color }); c.important = true; c.isMission = true; if (opts.health) { c.maxHealth = opts.health; c.health = opts.health; } S.spawned.push(c); return c; }
-  function spawnPed(x, z, opts = {}) { const p = PEDS.spawn(x, z, { important: true, ...opts }); S.spawned.push(p); return p; }
+  function spawnCar(type, x, z, angle, opts = {}) { for (const o of W.cars) if (!o.removed && !o.important && o !== PLAYER.car && M.dist2(o.x, o.z, x, z) < 100) o.remove(); const c = VEH.spawn(type, x, z, angle, { mode: opts.mode || 'parked', color: opts.color }); // Fit all collision circles into the yard; a clear centre alone is not enough for a long truck.
+    if (!c.spec.boat) {
+      for(let attempt=0;attempt<12;attempt++) {let moved=0;for(const [cx,cz,cr] of c.circles()){const q=W.pushOut(cx,cz,cr+.12);const dx=q.x-cx,dz=q.z-cz;c.x+=dx;c.z+=dz;moved+=Math.hypot(dx,dz);}if(moved<.01)break;}
+      const clear = () => c.circles().every(([cx,cz,cr]) => {
+        const q=W.pushOut(cx,cz,cr+.08);
+        return Math.hypot(q.x-cx,q.z-cz)<.02 && !W.onWater(cx,cz) && !W.cars.some(other=>other!==c && !other.removed && other.circles().some(([ox,oz,or])=>M.dist(cx,cz,ox,oz)<cr+or+.15));
+      });
+      // Props can trap iterative pushes between a wall and a crate. Search nearby clear space instead.
+      if(!clear()) { let found=false; for(let radius=2;radius<=60&&!found;radius+=2) for(let k=0;k<24;k++) {
+        const a=k/24*M.TAU;c.x=x+Math.cos(a)*radius;c.z=z+Math.sin(a)*radius;
+        if(clear()){found=true;break;}
+      } }
+      c.y=CITY.groundY(c.x,c.z);
+    }
+    c.important = true; c.isMission = true; if (opts.health) { c.maxHealth = opts.health; c.health = opts.health; } S.spawned.push(c); return c; }
+  function spawnPed(x, z, opts = {}) { if(!W.onWater(x,z)) [x,z]=sideOf(x,z); const p = PEDS.spawn(x, z, { important: true, ...opts }); S.spawned.push(p); return p; }
   function cleanup() { S.blips.length = 0; for (const e of S.spawned) { if (e instanceof VEH.Vehicle) { e.important = false; if (e.driver && e.driver !== PLAYER) { e.ai.mode = 'traffic'; e.ai.edge = null; } } else { e.important = false; if (e.alive) { e.hostile = false; e.role = null; e.stationary = false; e.isGang = false; if (e.inCar && e.inCar.driver === PLAYER) e.exitCar(); } } } S.spawned.length = 0; S.blip = null; S.blips.length = 0; S.objective = ''; S.timer = -1; S.markers.length = 0; }
   function objective(text) { S.objective = text; }
   function blip(x, z, col = '#f5c542', obj = null, label = '') { S.blip = { x, z, col, obj, label }; }
@@ -130,6 +144,7 @@ const MISSIONS = (() => {
         }
         if (c.driver === PLAYER && !d.method) { d.method=d.fled?'chase':d.surrendered?'intimidated':'unnoticed'; if(o.alive && !d.fled) o.say("Wait—my car!"); }
         if (d.surrendered && c.driver !== PLAYER) objective('The keys are yours. Take the Falcata to Voss Motors.');
+        if (d.fled && !d.surrendered && o.alive && o.bailed && !o.inCar && !c.driver) { d.surrendered=true; HUD.notify('He gave up the chase. Take the Falcata.'); }
         if (d.fled && !d.surrendered && o.alive && o.inCar === c && (condition < 65 || (c.absSpeed < 1.5 && near(c.x,c.z,12) && (d.blocked = (d.blocked || 0)+dt) > 2))) {
           d.surrendered = true; o.exitCar(); o.gotoTarget = null; o.gotoResume = null; o.bailed = true; o.stationary = false; o.role = null; o.scare(P().x,P().z); o.say("Fine! Take the keys!"); c.ai.mode = 'parked'; c.scared = 0; c.controls.throttle = 0; c.controls.brake = 1;
           HUD.notify('The debtor gave up. Take the Falcata.');
@@ -242,18 +257,18 @@ const MISSIONS = (() => {
         if (dist > 80) { t.ai.mode = 'parked'; objective('The driver stopped. Stay with the truck!'); } else if (t.ai.mode === 'parked' && !d.arrived) { t.ai.mode = 'route'; objective('Escort the Hauler to Voss Motors.  Truck ' + Math.round(t.health / t.maxHealth * 100) + '%'); } else if (!d.arrived) objective('Escort the Hauler to Voss Motors.  Truck ' + Math.round(t.health / t.maxHealth * 100) + '%');
         d.attackT -= dt; if (d.attackT <= 0 && d.attacks < 3 && !d.arrived) { d.attacks++; d.attackT = 30; const spot = POLICE.laneSpotAway ? null : null; for (let c = 0; c < 2; c++) { let sp = null; for (let tr = 0; tr < 20 && !sp; tr++) { const e = CITY.roadEdges[Math.floor(W.rng() * CITY.roadEdges.length)]; const [x, z] = CITY.lanePoint(e, c, 10 + W.rng() * 40); const dd = M.dist(x, z, t.x, t.z); if (dd > 70 && dd < 150) sp = { x, z, e, c }; } if (!sp) continue; const car = spawnCar(d.attacks >= 3 ? 'swat' : 'muscle', sp.x, sp.z, 0, { mode: 'chase', color: 3 }); car.placeOnLane(sp.e, sp.c, 10); car.ai.mode = 'chase'; car.ai.target = t; const drv = spawnGang(car.x, car.z, 'pistol', { hostile: true }); drv.inCar = car; car.driver = drv; drv.state = 'driving'; const q = spawnGang(car.x, car.z, 'rifle', { hostile: true }); q.enterCar(car); } HUD.notify("Crane's cars incoming!"); }
         if (d.arrived) { t.ai.mode = 'parked'; POLICE.clear(); pass(8000, 'Okafor: "Tell Marla the pier is hers to use. And you: you are welcome on it."'); } } },
-    { id: 5, strand: 2, name: 'QUIET WORK', intro: [['OKAFOR', 'Crane keeps his books in the tower yard, in a hut behind the loading bay, watched by four men who are paid to watch.'], ['OKAFOR', 'Go after dark. Walk, do not run; stay behind them, stay out of their eyes. Bring me the ledger.'], ['OKAFOR', 'If they see you, the whole street will know. I would rather they did not.']],
-      start(d) { const tw = place('tower'); const [bx, bz] = CITY.blockOrigin(5, 4); d.yard = { x: bx + 35, z: bz + 40 }; d.hut = { x: bx + 52, z: bz + 52 }; d.guards = [];
+    { id: 5, strand: 2, name: 'QUIET WORK', intro: [['OKAFOR', 'Crane keeps his books in the tower yard, behind the tower, watched by four men who are paid to watch.'], ['OKAFOR', 'Go after dark. Walk, do not run; stay behind them, stay out of their eyes. Bring me the ledger.'], ['OKAFOR', 'If they see you, the whole street will know. I would rather they did not.']],
+      start(d) { const tw = place('tower'); const [bx, bz] = CITY.blockOrigin(5, 4); d.yard = { x: bx + 35, z: bz + 40 }; const hut=sideOf(bx+52,bz+52); d.hut = { x: hut[0], z: hut[1] }; d.guards = [];
         const routes = [[[bx + 20, bz + 30], [bx + 50, bz + 30]], [[bx + 60, bz + 35], [bx + 60, bz + 60]], [[bx + 25, bz + 60], [bx + 45, bz + 45]], [[bx + 40, bz + 20], [bx + 20, bz + 45]]];
-        routes.forEach((r, i) => { const g = spawnGang(r[0][0], r[0][1], i % 2 ? 'pistol' : 'uzi', { health: 90 }); g.patrolPts = r; g.patrolI = 1; g.stationary = false; d.guards.push(g); });
+        routes.forEach((r, i) => { r=r.map(pt=>sideOf(...pt)); const g = spawnGang(r[0][0], r[0][1], i % 2 ? 'pistol' : 'uzi', { health: 90 }); g.patrolPts = r; g.patrolI = 1; g.stationary = false; d.guards.push(g); });
         d.det = 0; d.alarm = false; d.got = false; W.state.time = Math.max(W.state.time, 21.5); if (W.state.time < 20 || W.state.time > 23.5) W.state.time = 21.5;
-        blip(d.hut.x, d.hut.z, '#f5c542'); marker(d.hut.x, d.hut.z, 1.6, [1, 0.85, 0.2]); objective('Get to the hut in the tower yard without being seen.'); },
+        blip(d.hut.x, d.hut.z, '#f5c542'); marker(d.hut.x, d.hut.z, 1.6, [1, 0.85, 0.2]); objective('Reach the marked ledger pickup behind the tower without being seen.'); },
       update(d, dt) { const p = P();
         // patrols walk their beats and look where they walk
         for (const g of d.guards) { if (!g.alive || g.hostile) continue; if (g.state !== 'goto') { const pt = g.patrolPts[g.patrolI]; g.patrolI = 1 - g.patrolI; g.goto(pt[0], pt[1], 1.3, null, 1.2); } }
         if (!d.alarm) { let rise = 0; for (const g of d.guards) { if (!g.alive) continue; const dx = p.x - g.x, dz = p.z - g.z; const dist = Math.hypot(dx, dz); if (dist > 26) continue; const fwd = [Math.sin(g.angle), Math.cos(g.angle)]; const cos = (dx * fwd[0] + dz * fwd[1]) / (dist || 1); const inCone = cos > 0.5 || dist < 3.5; const loud = p.speed > 4.5 && dist < 12; if ((inCone || loud) && W.los(g.x, g.z, p.x, p.z)) rise = Math.max(rise, (1 - dist / 26) * (loud ? 1.3 : 0.85) * (p.car ? 2 : 1)); }
           d.det = M.clamp(d.det + (rise > 0 ? rise * dt : -0.35 * dt), 0, 1);
-          const heard = W.state.heard.some(n => d.guards.some(g => g.alive && M.dist(n.x, n.z, g.x, g.z) < Math.max(n.r, 30))); if (d.det >= 1 || heard) { d.alarm = true; for (const g of d.guards) { g.hostile = true; g.stationary = false; } POLICE.setStars(2); HUD.notify("They've seen you. Take it anyway."); objective(d.got ? 'Get the ledger out of the yard.' : 'Grab the ledger from the hut and get out.'); } }
+          const heard = W.state.heard.some(n => d.guards.some(g => g.alive && M.dist(n.x, n.z, g.x, g.z) < Math.max(n.r, 30))); if (d.det >= 1 || heard) { d.alarm = true; for (const g of d.guards) { g.hostile = true; g.stationary = false; } POLICE.setStars(2); HUD.notify("They've seen you. Take it anyway."); objective(d.got ? 'Get the ledger out of the yard.' : 'Grab the marked ledger and get out.'); } }
         if (!d.got && near(d.hut.x, d.hut.z, 2.2) && !p.car) { d.got = true; AUDIO.play('pickup'); const k = place('mission2'); blip(k.x, k.z); S.markers.length = 0; objective(d.alarm ? 'Get the ledger to Okafor at Pier 9.' : 'Slip out and take the ledger to Okafor at Pier 9.'); }
         if (d.got) { const k = place('mission2'); if (near(k.x, k.z, 4) && !p.car) { d.det = undefined; pass(d.alarm ? 2000 : 5000, d.alarm ? 'Okafor: "Loud. But it is here."' : 'Okafor: "They will not even know it is gone. That is the job."'); } } } },
     { id: 6, strand: 2, name: 'EVIDENCE', intro: [['OKAFOR', 'Crane has a captain in the Southport precinct. I want proof, not rumours.'], ['OKAFOR', 'Take this camera. The captain meets a man of Crane\'s at the pier every evening. Get the two of them in one frame, then the plate of the car they came in, then the door of the tower where the money goes.'], ['OKAFOR', 'Three pictures. Do not get close enough to be one of them.']],

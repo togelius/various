@@ -755,3 +755,28 @@ you were last seen and search around it (the blue haze on the radar), and the
 trail goes cold faster in a car park, in the safehouse yard, or in a car they
 never saw you take. Fail the same job twice and the third try gets a longer
 clock and a vest.
+
+
+### Movement and mission regression checks
+
+The repo job supports three approaches: approach empty-handed and hold **G**
+(gamepad **Y**, touch **TALK**) to negotiate, hold aim on the debtor to intimidate
+him, or take the car before he notices. Suspicion rises with visible approach
+and rises faster when running; gunfire triggers flight. Keeping the car intact
+preserves the delivery bonus.
+
+Characters now use stance/swing foot targets with articulated ankles, landing
+compression, turn lean, and a short car-entry reach. Mission spawns check the
+whole vehicle footprint against buildings, props, and other cars.
+
+Run `node test/character-geometry.js`, `node test/vehicle-geometry.js`,
+`node test/gameplay-polish.js`, and `node test/campaign-node.js`.
+The campaign audit exercises all 22 mission completion/payout paths, actual
+failure/retry transitions, repo approaches, and target clearance. It controls
+travel and combat outcomes; it is not a human-speed difficulty playthrough.
+
+Serve the project and open `test/polish-scenes.html?mute=1` for muted, save-free
+browser rehearsals. The route buttons simulate actual AI driving for Tailgate
+and Harbor Night while repositioning the observer and suppressing escort damage.
+`test/character-studio.html?mute=1` previews the production models and poses.
+Rebuild the standalone file with `python3 tools/build-single.py`.

@@ -70,6 +70,12 @@ function runCampaignAudit() {
  for(const m of [MISSIONS.LIST[2],MISSIONS.LIST2[0]]){const d=start(m);enter(d.van||d.truck);update(m);park('docks');const oldExit=PLAYER.exitCar;PLAYER.exitCar=()=>false;try{update(m);}finally{PLAYER.exitCar=oldExit;}check(S.current===m,'blocked exit must defer delivery');}
  {const m=MISSIONS.LIST[7],d=start(m);dead(d.crew[0]);update(m);check(!S.current && S.retry.m===m,'bank job must require every crew member');}
  log.push('Race, delivery and crew regressions — passed');
+ for(const m of [...MISSIONS.LIST,...MISSIONS.LIST2,...MISSIONS.PHONE]) {
+  const d=start(m);
+  for(const e of S.spawned) {if(e.spec?.boat || e.inCar)continue;for(const [x,z,r] of e.spec?e.circles():[[e.x,e.z,.4]]) {const q=W.pushOut(x,z,r);check(Math.hypot(q.x-x,q.z-z)<.1,m.name+' spawns '+(e.type||e.name||'guard')+' inside collision geometry');}}
+  if(d.hut){const q=W.pushOut(d.hut.x,d.hut.z,.4);check(Math.hypot(q.x-d.hut.x,q.z-d.hut.z)<.1,'ledger must be accessible on foot');}
+ }
+ log.push('22 mission spawn-clearance checks — passed');
  return log;
 }
 if(typeof module!=='undefined')module.exports=runCampaignAudit;
