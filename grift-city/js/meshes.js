@@ -230,8 +230,8 @@ const MESH = (() => {
   function doorSpec(s){if(s.bike||s.boat)return null;const front=s.len/2-s.cabin[0]*s.len-s.hood*.5,back=s.len/2-s.cabin[1]*s.len-s.hood*.5;return {front,back:front-M.clamp((front-back)*.7,1,1.5),x:s.wid*.47,y:s.wheelR*.9+.12};}
   // Clip triangles at the door seams before assigning a rigid door bone. The remaining
   // shell stays closed around the opening, with no stretching across the hinge.
-  function rigDoors(builder,s){const d=doorSpec(s);if(!d)return;const out=new Builder();
-    const emit=(poly,bone)=>{if(poly.length<3)return;const first=out.n;for(const v of poly){const q=v.slice();if(bone)q[12]=bone;out.vert(...q);}for(let k=1;k+1<poly.length;k++)out.tri(first,first+k,first+k+1);if(bone){const back=out.n;for(const v of poly.slice().reverse()){const q=v.slice();q[12]=bone;for(let k=3;k<6;k++)q[k]*=-1;for(let k=6;k<9;k++)q[k]*=.58;out.vert(...q);}for(let k=1;k+1<poly.length;k++)out.tri(back,back+k,back+k+1);}};
+  function rigDoors(builder,s,inner=true){const d=doorSpec(s);if(!d)return;const out=new Builder();
+    const emit=(poly,bone)=>{if(poly.length<3)return;const first=out.n;for(const v of poly){const q=v.slice();if(bone)q[12]=bone;out.vert(...q);}for(let k=1;k+1<poly.length;k++)out.tri(first,first+k,first+k+1);if(bone&&inner){const back=out.n;for(const v of poly.slice().reverse()){const q=v.slice();q[12]=bone;for(let k=3;k<6;k++)q[k]*=-1;for(let k=6;k<9;k++)q[k]*=.58;out.vert(...q);}for(let k=1;k+1<poly.length;k++)out.tri(back,back+k,back+k+1);}};
     const split=(poly,axis,limit,sign)=>{const yes=[],no=[];for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],da=(a[axis]-limit)*sign,db=(b[axis]-limit)*sign;(da>=0?yes:no).push(a);if((da>=0)!==(db>=0)){const t=da/(da-db),v=a.map((q,k)=>q+(b[k]-q)*t);yes.push(v);no.push(v);}}return [yes,no];};
     for(let i=0;i<builder.i.length;i+=3){let poly=builder.i.slice(i,i+3).map(k=>builder.v.slice(k*13,k*13+13));const nx=poly.reduce((n,v)=>n+v[3],0)/3;
       if(poly[0][12]!==0||Math.abs(nx)<.45){emit(poly);continue;}const side=nx>0?1:-1;
@@ -367,7 +367,7 @@ const MESH = (() => {
     // wheels
     const wz = half * (s.bus ? 0.7 : 0.62), wx = hw - 0.05;
     const ws_ = LOD ? 8 : 16; b.wheel(wx, wr, wz, wr, 0.3, 1, ws_); b.wheel(-wx, wr, wz, wr, 0.3, 2, ws_); b.wheel(wx, wr, -wz, wr, 0.3, 3, ws_); b.wheel(-wx, wr, -wz, wr, 0.3, 4, ws_);
-    rigDoors(b,s);rigDoors(gb,s);localizedDamage(b,gb,s,opts.condition,opts.seed||1);
+    rigDoors(b,s);rigDoors(gb,s,false);localizedDamage(b,gb,s,opts.condition,opts.seed||1);
     if (opts.dent > 0) { dentBody(b, opts.dent, opts.seed || 1); dentBody(gb, opts.dent, opts.seed || 1); }
     return { body: b, glass: gb };
   }
