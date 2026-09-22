@@ -24,4 +24,4 @@ function studioDraw() {
 document.querySelectorAll('[data-look]').forEach(b=>b.onclick=()=>{castLook=b.dataset.look;studioDraw();});
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{studioView=b.dataset.view;studioDraw();});
 window.addEventListener('error',e=>studioStatus.textContent='ERROR: '+e.message);
-let studioTime=0;function studioFrame(now){requestAnimationFrame(studioFrame);if(!studioReady)return;const dt=Math.min(.04,(now-studioTime)/1000)||0;studioTime=now;W.state.elapsed+=dt;if(studioView==='walk'||studioView==='chat'){PLAYER.P.phase+=dt*7;studioDraw();}}requestAnimationFrame(studioFrame);
+let studioTime=0;function studioFrame(now){requestAnimationFrame(studioFrame);if(!studioReady)return;const dt=Math.min(.04,(now-studioTime)/1000)||0;studioTime=now;W.state.elapsed+=dt;if(studioView==='walk'||studioView==='chat'){PLAYER.P.phase+=dt*Math.PI*2*PEDS.cadence(PLAYER.P.speed);studioDraw();}}requestAnimationFrame(studioFrame);

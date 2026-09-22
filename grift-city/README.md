@@ -543,6 +543,26 @@ from one shared piece of shader code so the two cannot drift apart. The fallback
 post-processing goes before the shadows, since losing post now costs bloom and occlusion while losing
 the shadows costs the whole sense of a sunny street.
 
+## The walk and the run
+
+The old gait took nearly five steps a second at the default pace and seven and a half flat out, with a
+long stride on top. Its arms and shoulders were driven by a sine a quarter-cycle ahead of where the feet
+actually were, so they peaked while the legs were passing each other, and the hips rolled and swayed as
+if to a beat: the disco. The run pushed the upper arms forward with the elbows bent and held out wide,
+which is the zombie.
+
+Stride frequency now grows with the square root of speed, about two steps a second for a pedestrian's
+stroll, three for the default jog (the default pace, 3.3 m/s, is a jog, as it is in the old GTA games)
+and three and three quarters at a sprint; the stride length makes up the rest, and pedestrians and the
+player share the function so a planted foot slides back at exactly ground speed. Everything keys off
+each foot's place in its cycle. Walking has both feet down for a moment each step and the pelvis vaults
+up over the planted leg; running has a flight phase that lengthens with speed, and the pelvis sinks into
+the landing and rises in the air. The heel peels up late in the stance and the foot rolls over the toe,
+the swing foot tucks up behind and reaches back a little as it lands. The arms swing from the shoulder
+opposite the legs, left arm back as the left foot lands, with a soft elbow at a walk and about a right
+angle at a run, swinging from behind the body rather than in front of it; the shoulders counter-rotate
+the hips and the head cancels the twist. Hip roll and sway are a third of what they were.
+
 ## Light and colour
 
 The renderer lights in linear space. Textures and palette colours are authored in sRGB, so they are

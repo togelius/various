@@ -68,11 +68,23 @@ for(const driving of [false,true]) for(const bike of [false,true]) {
 }
 console.log(`${rigChecks} animated rig cases passed; deterministic meshes and face UV seams passed`);
 
-// A planted shoe stays level and at street height throughout its stance, across walk/run speeds.
-for(const speed of [1.5,3.3,6.8]) for(const cycle of [.04,.15,.25,.4,.49]) {
- const b=new Float32Array(224);peds.buildRig({x:0,y:0,z:0,angle:0,phase:cycle*Math.PI*2,speed,state:'walk'},math.create(),b);
- const shoe=b.subarray(192,208);const a=at(shoe,.11,-.86,0),toe=at(shoe,.11,-.86,.15);
- assert(Math.abs(a[1])<.025,'stance sole must stay within 2.5 cm of the pavement');
- assert(Math.abs(a[1]-toe[1])<1e-6,'stance shoe must stay level');
+// A planted shoe stays level and at street height until the heel peels, across walk/jog/sprint speeds; the toe
+// stays on the pavement to toe-off and slides back at exactly ground speed, so the feet never skate.
+let footCases=0;
+for(const speed of [1.5,3.3,6.8]) {
+ const {stance}=peds.gait(speed), cps=peds.cadence(speed);
+ const rig=cycle=>{const b=new Float32Array(224);peds.buildRig({x:0,y:0,z:0,angle:0,phase:cycle*Math.PI*2,speed,state:'walk'},math.create(),b);return b.subarray(192,208);};
+ for(const c of [.03,.15,.3,.45,.6]) {
+  const shoe=rig(c*stance);const a=at(shoe,.11,-.86,0),toe=at(shoe,.11,-.86,.15);
+  assert(Math.abs(a[1])<.025,'stance sole must stay within 2.5 cm of the pavement');
+  assert(Math.abs(a[1]-toe[1])<1e-6,'stance shoe must stay level');footCases++;
+ }
+ const toeAt=c=>at(rig(c*stance),.11,-.86,.15), t0=toeAt(.05);
+ for(const c of [.3,.7,.95]) {
+  const t=toeAt(c);assert(Math.abs(t[1])<.02,'toe must stay on the pavement until toe-off');
+  assert(Math.abs((t[2]-t0[2])+speed*(c-.05)*stance/cps)<.01,'planted toe must slide back at ground speed');footCases++;
+ }
 }
-console.log('15 planted-foot stance cases passed');
+assert(peds.gait(1.5).stance>.5&&peds.gait(3.3).stance<.5&&peds.gait(6.8).stance<peds.gait(3.3).stance,'walking has double support, running a flight phase');
+assert(2*peds.cadence(1.5)<2.4&&2*peds.cadence(6.8)<4,'steps per second must stay human, not frantic');
+console.log(`${footCases} planted-foot stance cases passed`);

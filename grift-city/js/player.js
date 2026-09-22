@@ -189,7 +189,7 @@ const PLAYER = (() => {
     if (firing && P.fireT <= 0) attack(wp);
     if (INPUT.hit('KeyR')) reload();
     moveBody(dt, false);
-    P.speed = Math.hypot(P.vx, P.vz); P.phase += dt * (P.speed > 0.05 ? M.TAU * P.speed / (1.0 + 0.12 * P.speed) : 0); // the stride lengthens with speed, so feet stop sliding
+    P.speed = Math.hypot(P.vx, P.vz); P.phase += dt * M.TAU * PEDS.cadence(P.speed); // the rig derives its stride from this cadence, so the feet never slide
     P.stats.distance += P.speed * dt;
     { const st = Math.floor(P.phase / Math.PI); if (st !== P.lastStep && P.speed > 0.6 && !P.airborne) { P.lastStep = st; AUDIO.play('step', P.x, P.z, !CITY.interiorRoom); } } // a footfall each half stride
     // hit by cars
@@ -342,7 +342,7 @@ const PLAYER = (() => {
       else { P.camYawOff = M.angleTo(behind, P.camYaw); }
       yaw = P.camYaw; pitch = M.clamp(P.camPitch, 0.1, 0.9); dist = 6.0 + c.spec.len * 0.3 + spd * 0.05; const la = Math.min(3, spd * 0.12); tx = c.x + c.vx / (spd || 1) * la; ty = c.y + 1.2; tz = c.z + c.vz / (spd || 1) * la; fov = 60 + spd * 0.32;
     } else {
-      yaw = P.camYaw; pitch = P.camPitch; dist = P.aim ? 2.4 : P.camDist + (P.sprinting ? 0.6 : 0); tx = P.x; ty = P.y + 1.45 + (P.sprinting ? Math.sin(P.phase) * 0.02 : 0); tz = P.z; fov = P.aim ? 50 : P.sprinting ? 68 : 62;
+      yaw = P.camYaw; pitch = P.camPitch; dist = P.aim ? 2.4 : P.camDist + (P.sprinting ? 0.6 : 0); tx = P.x; ty = P.y + 1.45 + (P.sprinting ? Math.cos(2 * P.phase) * 0.015 : 0); tz = P.z; fov = P.aim ? 50 : P.sprinting ? 68 : 62;
       if (P.aim) { const r = [-Math.cos(yaw), Math.sin(yaw)]; tx += r[0] * 0.55; tz += r[1] * 0.55; }
       if (!P.alive) { dist = 6; pitch = 0.9; }
     }

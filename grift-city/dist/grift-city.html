@@ -4144,7 +4144,7 @@ const PEDS = (() => {
       if (this.airborne) { if (this.y <= g) { this.y = g; this.airborne = false; this.vy = 0; if (this.state === 'dead') { this.vx *= 0.3; this.vz *= 0.3; } } } else this.y = g;
       const res = W.pushOut(this.x, this.z, 0.4); this.x = res.x; this.z = res.z;
       if (!ragdoll) for (const c of W.cars) { if (c.removed || M.dist2(c.x, c.z, this.x, this.z) > 49) continue; for (let ci = 0, nci = c.circlesInto(CIRC); ci < nci; ci++) { const cx = CIRC[ci * 3], cz = CIRC[ci * 3 + 1], r = CIRC[ci * 3 + 2]; const dx = this.x - cx, dz = this.z - cz; const rr = r + 0.35; const d2 = dx * dx + dz * dz; if (d2 < rr * rr && d2 > 1e-6) { const d = Math.sqrt(d2); this.x = cx + dx / d * rr; this.z = cz + dz / d * rr; } } }
-      if (!ragdoll) { this.vx = 0; this.vz = 0; this.phase += dt * (this.speed > 0.05 ? M.TAU * this.speed / (1.0 + 0.12 * this.speed) : 0); }
+      if (!ragdoll) { this.vx = 0; this.vz = 0; this.phase += dt * M.TAU * cadence(this.speed); }
     }
     // ---- Rig
     heldEntity() { return heldEntity(this); }
@@ -4173,66 +4173,86 @@ const PEDS = (() => {
     M.multiply(jt3,jt1,jt2); M.multiply(jt1,out.subarray(0,16),jt3); out.set(jt1,off);
   }
   const KNEE_Y = -LEG_H * 0.5, ELBOW_Y = -0.31;
-  // Animates the rig from the ped's state. Also used by the player. The walk is a two-beat cycle: the thigh swings,
-  // the knee folds while the foot is in the air and straightens for the heel strike, the pelvis sways and counter-
-  // rotates against the shoulders, the arms swing opposite the legs with the elbows folding on the forward swing.
+  // Stride frequency in full cycles (two steps) per second. Cadence grows with the square root of speed and the
+  // stride length does the rest, so a stroll is ~2 steps/s, the default jog ~3 and a flat-out sprint ~3.7.
+  // Pedestrians and the player advance their phase at this rate and buildRig derives the stride from it, so a
+  // planted foot moves backwards at exactly ground speed and never slides.
+  function cadence(spd) { return spd > 0.05 ? 0.55 + 0.5 * Math.sqrt(spd) : 0; }
+  // Gait shape for a speed: jog/sprint blends and the fraction of the cycle each foot is on the ground. Walking
+  // has double support (stance > .5); running has a flight phase (stance < .5), shorter the faster you go.
+  function gait(spd) { const r = M.clamp((spd - 2) / 1.4, 0, 1), s = M.clamp((spd - 3.4) / 3.4, 0, 1); return { r, s, stance: 0.62 - 0.26 * r - 0.1 * s }; }
+  const smooth = x => x * x * (3 - 2 * x);
+  // Animates the rig from the ped's state. Also used by the player. Everything keys off each foot's place in its
+  // cycle (0 = that foot strikes the ground): the feet are placed by IK, the arms swing against the legs (left arm
+  // back as the left foot lands), the shoulders counter-rotate the hips, and the pelvis vaults over a planted leg
+  // at a walk but sinks into it at a run. Lateral sway is kept small; a big hip roll reads as dancing.
   function buildRig(p, model, bones) {
     const lying = p.lying || 0; const dead = p.state === 'dead';
-    const spd = p.speed || 0; const walk = Math.min(1, spd / 1.2); const run = M.clamp((spd - 3) / 3, 0, 1);
+    const spd = p.speed || 0; const walk = Math.min(1, spd / 1.2); const G = gait(spd), r = G.r * walk, s = G.s, stance = G.stance;
     const direction = p.aim && spd > .1 ? M.angleTo(p.angle, Math.atan2(p.vx || 0, p.vz || 0)) : 0;
-    const ph = p.phase * (Math.cos(direction) < -.2 ? -1 : 1); const amp = 0.45 + 0.6 * run; const swing = Math.sin(ph) * amp * walk;
-    const bob = Math.abs(Math.cos(ph)) * (0.035 + 0.04 * run) * walk;
+    const ph = p.phase * (Math.cos(direction) < -.2 ? -1 : 1); const cycleL = ((ph / M.TAU) % 1 + 1) % 1;
+    const fL = Math.cos(M.TAU * (cycleL + 0.02)) * walk; // +1: left foot forward, left arm back
+    const swing = fL * (0.45 + 0.3 * r); // thigh swing for the non-IK poses (kicks, falls)
+    const q = (2 * cycleL) % 1; // phase within the current step: a foot lands at q = 0
+    const bob = Math.cos(M.TAU * (q - stance)) * (0.022 * (1 - r) - (0.03 + 0.015 * s) * r) * walk; // walk: up over the planted leg; run: down into it, up in flight
+    const lat = Math.cos(M.TAU * (cycleL - stance / 2)) * walk * (1 - 0.6 * r); // +1: weight over the left foot
     const aim = p.aim || 0; const punch = p.punchT > 0 ? Math.sin(Math.min(1, p.punchT / 0.3) * Math.PI) : 0;
     const t = W.state.elapsed + (p.phase % 7); const idle = 1 - walk; const breath = Math.sin(t * 1.6) * idle;
     const speaking = talkOpen(p);
     const gesture = !aim && !p.weaponOut && !p.item && !walk ? Math.max(
       p.gesturePulse > 0 ? Math.sin(Math.PI*Math.min(1,p.gesturePulse/1.25)) : 0,
       speaking > 0 ? Math.max(0,Math.sin(t*2.1))*.55 : 0) : 0;
-    const hip = LEG_H - (.08 + run*.05)*walk + bob*.25 - lying * (LEG_H - .25) - (p.landing||0)*.09; // knees bend, so the pelvis rides a little lower when moving
+    const hip = LEG_H - (.075 + .06 * r + .03 * s) * walk + bob - lying * (LEG_H - .25) - (p.landing||0)*.09; // knees stay soft when moving, more so at a run
     const flinch = p.flinchT > 0 ? Math.sin(Math.min(1, p.flinchT / 0.35) * Math.PI) : 0; const kick = p.kickT > 0 ? Math.sin(Math.min(1, p.kickT / 0.35) * Math.PI) : 0;
-    const lean = run * 0.2 + walk * 0.04 + (p.recoil || 0) * -0.5 - flinch * 0.35 + kick * 0.15;
-    const sway = Math.sin(ph) * walk; // pelvis moves over the planted foot
+    const lean = 0.03 * walk + 0.1 * r + 0.1 * s + (p.recoil || 0) * -0.5 - flinch * 0.35 + kick * 0.15;
+    const twist = fL * (0.07 + 0.05 * r) * (1 - aim); // shoulders turn against the stepping leg
+    const px = lat * 0.015;
     M.trsEuler(model, p.x, p.y, p.z, p.angle, lying * (dead ? -Math.PI / 2 * p.fallDir : -Math.PI / 2), 0, p.sx || 1, p.sy || 1, p.sx || 1);
-    // torso: lean, hip sway and a counter-twist against the leg swing; breathing when standing
-    bone(bones, 0, sway * 0.02, hip + breath * 0.006, 0, -sway * 0.09 + Math.sin(t * 0.7) * 0.02 * idle, lean+(p.landing||0)*.06, sway * 0.05 + breath * 0.008 + (p.turnLean||0));
-    // head: rides on the torso and cancels most of the twist so it keeps looking where the ped goes
-    torsoChild(bones,16,0,TORSO_H+.03,(aim ? 0 : (p.headYaw||0))+sway*.07,-lean*.7+(aim?0:Math.sin(t*.9)*.02*idle)+speaking*.018,-sway*.03);
-    // upper arms: pivot at the shoulders, swing opposite to the legs, held out a little at a run
+    // torso: lean, counter-twist, a touch of hip sway; breathing when standing
+    bone(bones, 0, px, hip + breath * 0.006, 0, twist + Math.sin(t * 0.7) * 0.02 * idle, lean+(p.landing||0)*.06, lat * 0.02 + breath * 0.008 + (p.turnLean||0));
+    // head: rides on the torso and cancels the twist so it keeps looking where the ped goes
+    torsoChild(bones,16,0,TORSO_H+.03,(aim ? 0 : (p.headYaw||0))-twist*.9,-lean*.7+(aim?0:Math.sin(t*.9)*.02*idle)+speaking*.018,-lat*.02);
+    // upper arms: pivot at the shoulders and swing opposite the legs; at a run they swing from behind the body
     const hold = !aim && p.item && (p.item === 'umbrella' || p.item === 'phone') ? p.item : null;
     const reloading = p.reloadT > 0 ? Math.sin(Math.PI * (1-p.reloadT/p.reloadDuration)) : 0;
     const reaching=p.state==='entering'?Math.sin(Math.min(1,(p.doorReach||0)/.32)*Math.PI*.7):0;
-    const armPitchL = (reloading ? -1.1 : aim ? -0.4 : swing * 0.85 - 0.45 * run) - flinch * 1.1 - kick * 0.5, armPitchR = hold === 'umbrella' ? -2.1 : hold === 'phone' ? -2.3 : (reloading ? -.8 : aim ? -Math.PI / 2 + 0.05 + (p.camPitch || 0) + (p.recoil || 0) * 2 : -swing * 0.85 - 0.45 * run - punch * 1.4) - flinch * 0.9 + kick * 0.6;
-    const armRoll = 0.06 + run * 0.3 + Math.sin(t * 1.1) * 0.015 * idle;
+    const armBias = (0.04 + 0.1 * r + 0.04 * s) * walk, armAmp = 0.28 + 0.3 * r + 0.3 * s;
+    const armPitchL = (reloading ? -1.1 : aim ? -0.4 : armBias + armAmp * fL) - flinch * 1.1 - kick * 0.5, armPitchR = hold === 'umbrella' ? -2.1 : hold === 'phone' ? -2.3 : (reloading ? -.8 : aim ? -Math.PI / 2 + 0.05 + (p.camPitch || 0) + (p.recoil || 0) * 2 : armBias - armAmp * fL - punch * 1.4) - flinch * 0.9 + kick * 0.6;
+    const armRoll = 0.07 + 0.05 * r + Math.sin(t * 1.1) * 0.015 * idle;
     torsoChild(bones,32,.26,SHOULDER,gesture*.2,armPitchL-gesture*.35,armRoll+(aim?.12:0)+gesture*.16,.26);
     torsoChild(bones,48,-.26,SHOULDER,aim?-.15:0,armPitchR-reaching*1.2,-armRoll,-.26);
-    // forearms: elbows fold on the forward swing, stay bent at a run, straight when aiming
-    const elbowL = aim ? -0.05 : -(0.22 + 0.35 * Math.max(0, Math.sin(ph)) * walk + 0.8 * run);
-    const elbowR = hold === 'phone' ? -2.3 : hold === 'umbrella' ? -0.3 : aim ? 0 : -(0.22 + 0.35 * Math.max(0, -Math.sin(ph)) * walk + 0.8 * run + punch * 0.6);
+    // forearms: soft at a walk, folding a little as the arm comes forward; about a right angle at a run
+    const elbowBase = 0.16 + 1.1 * r + 0.1 * s, elbowSwing = 0.22 + 0.2 * r;
+    const elbowL = aim ? -0.05 : -(elbowBase + elbowSwing * Math.max(0, -fL));
+    const elbowR = hold === 'phone' ? -2.3 : hold === 'umbrella' ? -0.3 : aim ? 0 : -(elbowBase + elbowSwing * Math.max(0, fL) + punch * 0.6);
     jointBone(bones, 144, 32, 0.26, ELBOW_Y, 0, elbowL-gesture*.95); jointBone(bones, 160, 48, -0.26, ELBOW_Y, 0, elbowR);
-    // thighs: pivot at the hips; knees fold while the foot swings through and straighten for the strike
-    bone(bones, 64, sway * 0.02, hip, 0, 0, p.airborne ? -.45 : -swing * .95 * Math.abs(Math.cos(direction)) + kick * .3, swing * Math.sin(direction) * .65); bone(bones, 80, sway * 0.02, hip, 0, 0, p.airborne ? .25 : swing * .95 * Math.abs(Math.cos(direction)) - kick * 1.5, -swing * Math.sin(direction) * .65); // a kick swings the right leg up
-    const kneeL = (0.08 + (0.75 + 0.55 * run) * Math.max(0, Math.cos(ph))) * walk + 0.04 * idle;
-    const kneeR = (0.08 + (0.75 + 0.55 * run) * Math.max(0, -Math.cos(ph))) * walk + 0.04 * idle;
+    // thighs for the poses the IK doesn't handle (airborne, kicking, falling)
+    bone(bones, 64, px, hip, 0, 0, p.airborne ? -.45 : -swing * .95 * Math.abs(Math.cos(direction)) + kick * .3, swing * Math.sin(direction) * .65); bone(bones, 80, px, hip, 0, 0, p.airborne ? .25 : swing * .95 * Math.abs(Math.cos(direction)) - kick * 1.5, -swing * Math.sin(direction) * .65); // a kick swings the right leg up
+    const kneeL = (0.08 + 0.75 * Math.max(0, -fL)) * walk + 0.04 * idle;
+    const kneeR = (0.08 + 0.75 * Math.max(0, fL)) * walk + 0.04 * idle;
     jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, dead ? 0 : kneeL); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, dead ? 0 : kneeR);
     // weapon: follows the right forearm, hidden when unarmed
     if (p.weaponOut && !dead) bones.set(bones.subarray(160, 176), 96); else bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
     mouthBone(bones, speaking);
     if (!p.airborne && !lying && !kick) {
-      // During stance the foot moves backwards at ground speed; the swing clears the pavement.
-      // Two-link IK bends the knee toward the target, while a separate ankle keeps the shoe flat.
-      for (const [off,shin,foot,sx,phase] of [[64,112,192,.11,ph],[80,128,208,-.11,ph+Math.PI]]) {
-        const cycle=((phase/M.TAU)%1+1)%1, stance=.52;
-        const stride=(1+.12*spd)*walk, reach=stride*stance/2;
-        const swingT=M.clamp((cycle-stance)/(1-stance),0,1);
-        const z=cycle<stance ? reach*(1-2*cycle/stance) : -reach+2*reach*(swingT*swingT*(3-2*swingT));
-        const lift=cycle<stance?0:Math.sin(swingT*Math.PI)*(.12+.10*run)*walk;
-        const targetY=.06+lift-hip, targetZ=z*Math.cos(direction);
+      // The toe follows a path: planted and sliding back at ground speed through the stance, then lifted and
+      // carried forward, still drifting back as it leaves and reaching back as it lands so it meets the ground softly. Late in the stance the heel peels up and the foot rolls over the toe; it flattens again
+      // through the swing. Two-link IK bends the knee to reach the resulting ankle position.
+      const stride = spd > 0.05 ? spd / cadence(spd) : 0, contact = stride * stance;
+      const front = contact * (0.5 - 0.12 * r), back = contact - front;
+      const peel = 0.62 + 0.08 * r, roll = (0.45 + 0.25 * r) * walk, lift = (0.09 + 0.12 * r + 0.14 * s) * walk;
+      for (const [off,shin,foot,sx,cycle] of [[64,112,192,.11,cycleL],[80,128,208,-.11,(cycleL+.5)%1]]) {
+        let z, y = 0, toe = 0;
+        if (cycle < stance) { const c = cycle / stance; z = front - contact * c; toe = roll * smooth(M.clamp((c - peel) / (1 - peel), 0, 1)); }
+        else { const w = (cycle - stance) / (1 - stance); z = -back + contact * smooth(w) - contact * Math.min(1.2, 0.5 * (1 - stance) / stance) * w * (1 - w) * (1 - 2 * w); y = lift * Math.sin(Math.PI * Math.pow(w, 0.8 - 0.25 * r)); toe = roll * (1 - smooth(M.clamp(w / 0.55, 0, 1))); }
+        const ay = y + .06 * Math.cos(toe) + .15 * Math.sin(toe), az = z + .15 + .06 * Math.sin(toe) - .15 * Math.cos(toe); // ankle, from the toe and the foot's roll
+        const targetY = ay - hip, targetZ = az * Math.cos(direction);
         const l1=.425,l2=.375,dist=M.clamp(Math.hypot(targetY,targetZ),.1,l1+l2-.001);
         const knee=Math.acos(M.clamp((dist*dist-l1*l1-l2*l2)/(2*l1*l2),-1,1));
         const pitch=Math.atan2(-targetZ,-targetY)-Math.atan2(l2*Math.sin(knee),l1+l2*Math.cos(knee));
-        bone(bones,off,sway*.02,hip,0,0,pitch,-z*Math.sin(direction)*.6);
+        bone(bones,off,px,hip,0,0,pitch,-az*Math.sin(direction)*.6);
         jointBone(bones,shin,off,sx,KNEE_Y,0,knee);
-        jointBone(bones,foot,shin,sx,-.8,0,-pitch-knee);
+        jointBone(bones,foot,shin,sx,-.8,0,-pitch-knee+toe);
       }
     }
   }
@@ -4369,7 +4389,7 @@ const PEDS = (() => {
       if (dx * dx + dz * dz > FAR2) { if (phase === 1) p.update(dt * 3); } else p.update(dt);
     }
   }
-  return { Ped, heldEntity, spawn, spawnDriver, spawnCop, populate, trim, despawn, updateAll, buildRig, buildRigSeated, seatOf, seatedEntity, getMesh, makeRagdoll, stepRagdoll, ragdollBones, endRagdoll, looks, COP, SWAT, GANG, PLAYER_LOOK, MARLA, DEBTOR, OKAFOR, CRANE };
+  return { Ped, heldEntity, spawn, spawnDriver, spawnCop, populate, trim, despawn, updateAll, buildRig, buildRigSeated, cadence, gait, seatOf, seatedEntity, getMesh, makeRagdoll, stepRagdoll, ragdollBones, endRagdoll, looks, COP, SWAT, GANG, PLAYER_LOOK, MARLA, DEBTOR, OKAFOR, CRANE };
 })();
 
 </script>
@@ -4565,7 +4585,7 @@ const PLAYER = (() => {
     if (firing && P.fireT <= 0) attack(wp);
     if (INPUT.hit('KeyR')) reload();
     moveBody(dt, false);
-    P.speed = Math.hypot(P.vx, P.vz); P.phase += dt * (P.speed > 0.05 ? M.TAU * P.speed / (1.0 + 0.12 * P.speed) : 0); // the stride lengthens with speed, so feet stop sliding
+    P.speed = Math.hypot(P.vx, P.vz); P.phase += dt * M.TAU * PEDS.cadence(P.speed); // the rig derives its stride from this cadence, so the feet never slide
     P.stats.distance += P.speed * dt;
     { const st = Math.floor(P.phase / Math.PI); if (st !== P.lastStep && P.speed > 0.6 && !P.airborne) { P.lastStep = st; AUDIO.play('step', P.x, P.z, !CITY.interiorRoom); } } // a footfall each half stride
     // hit by cars
@@ -4718,7 +4738,7 @@ const PLAYER = (() => {
       else { P.camYawOff = M.angleTo(behind, P.camYaw); }
       yaw = P.camYaw; pitch = M.clamp(P.camPitch, 0.1, 0.9); dist = 6.0 + c.spec.len * 0.3 + spd * 0.05; const la = Math.min(3, spd * 0.12); tx = c.x + c.vx / (spd || 1) * la; ty = c.y + 1.2; tz = c.z + c.vz / (spd || 1) * la; fov = 60 + spd * 0.32;
     } else {
-      yaw = P.camYaw; pitch = P.camPitch; dist = P.aim ? 2.4 : P.camDist + (P.sprinting ? 0.6 : 0); tx = P.x; ty = P.y + 1.45 + (P.sprinting ? Math.sin(P.phase) * 0.02 : 0); tz = P.z; fov = P.aim ? 50 : P.sprinting ? 68 : 62;
+      yaw = P.camYaw; pitch = P.camPitch; dist = P.aim ? 2.4 : P.camDist + (P.sprinting ? 0.6 : 0); tx = P.x; ty = P.y + 1.45 + (P.sprinting ? Math.cos(2 * P.phase) * 0.015 : 0); tz = P.z; fov = P.aim ? 50 : P.sprinting ? 68 : 62;
       if (P.aim) { const r = [-Math.cos(yaw), Math.sin(yaw)]; tx += r[0] * 0.55; tz += r[1] * 0.55; }
       if (!P.alive) { dist = 6; pitch = 0.9; }
     }
