@@ -219,9 +219,11 @@ const PEDS = (() => {
   // cycle (0 = that foot strikes the ground): the feet are placed by IK, the arms swing against the legs (left arm
   // back as the left foot lands), the shoulders counter-rotate the hips, and the pelvis vaults over a planted leg
   // at a walk but sinks into it at a run. Lateral sway is kept small; a big hip roll reads as dancing.
+  const RELOAD_POSES=[[0,-.4,-1.5,-.05,0],[.18,-.7,-1.1,-.7,-.35],[.40,-.2,-.85,-1.6,-.75],[.62,-1.0,-.95,-1.1,-.65],[.83,-.7,-1.35,-.4,-.15],[1,-.4,-1.5,-.05,0]];
+  function samplePose(keys,t) { let i=0;while(i<keys.length-2&&keys[i+1][0]<t)i++;const a=keys[i],b=keys[i+1],u=smooth(M.clamp((t-a[0])/(b[0]-a[0]),0,1));return a.slice(1).map((v,k)=>M.lerp(v,b[k+1],u)); }
   function buildRig(p, model, bones) {
     const lying = p.lying || 0; const dead = p.state === 'dead';
-    const spd = p.speed || 0; const walk = Math.min(1, spd / 1.2); const G = gait(spd), r = G.r * walk, s = G.s, stance = G.stance;
+    const spd = Math.max(p.speed || 0, Math.min(.65,(p.turnStep||0)*.10)); const walk = Math.min(1, spd / 1.2); const G = gait(spd), r = G.r * walk, s = G.s, stance = G.stance;
     const direction = p.aim && spd > .1 ? M.angleTo(p.angle, Math.atan2(p.vx || 0, p.vz || 0)) : 0;
     const ph = p.phase * (Math.cos(direction) < -.2 ? -1 : 1); const cycleL = ((ph / M.TAU) % 1 + 1) % 1;
     const fL = Math.cos(M.TAU * (cycleL + 0.02)) * walk; // +1: left foot forward, left arm back
@@ -237,7 +239,7 @@ const PEDS = (() => {
       speaking > 0 ? Math.max(0,Math.sin(t*2.1))*.55 : 0) : 0;
     const hip = LEG_H - (.075 + .06 * r + .03 * s) * walk + bob - lying * (LEG_H - .25) - (p.landing||0)*.09 - (p.crouch||0)*.43 - (p.evadeT>0?.12:0); // knees stay soft when moving, more so at a run
     const flinch = p.flinchT > 0 ? Math.sin(Math.min(1, p.flinchT / 0.35) * Math.PI) : 0; const kick = p.kickT > 0 ? Math.sin(Math.min(1, p.kickT / 0.35) * Math.PI) : 0;
-    const lean = (p.crouch||0)*.22 + (p.brace||0)*.14 + (p.evadeT>0?.22:0) + 0.03 * walk + 0.1 * r + 0.1 * s + (p.recoil || 0) * -0.5 - flinch * 0.35 + kick * 0.15;
+    const lean = (p.accelLean||0) + (p.crouch||0)*.22 + (p.brace||0)*.14 + (p.evadeT>0?.22:0) + 0.03 * walk + 0.1 * r + 0.1 * s + (p.recoil || 0) * -0.5 - flinch * 0.35 + kick * 0.15;
     const twist = fL * (0.07 + 0.05 * r) * (1 - aim); // shoulders turn against the stepping leg
     const px = lat * 0.015;
     M.trsEuler(model, p.x, p.y, p.z, p.angle, lying * (dead ? -Math.PI / 2 * p.fallDir : -Math.PI / 2), 0, p.sx || 1, p.sy || 1, p.sx || 1);
@@ -247,17 +249,18 @@ const PEDS = (() => {
     torsoChild(bones,16,0,TORSO_H+.03,(aim ? 0 : (p.headYaw||0))-twist*.9,-lean*.7+(aim?0:Math.sin(t*.9)*.02*idle)+speaking*.018,-lat*.02);
     // upper arms: pivot at the shoulders and swing opposite the legs; at a run they swing from behind the body
     const hold = !aim && p.item && (p.item === 'umbrella' || p.item === 'phone') ? p.item : null;
-    const reloading = p.reloadT > 0 ? Math.sin(Math.PI * (1-p.reloadT/p.reloadDuration)) : 0;
+    const reloadU=p.reloadT>0?1-p.reloadT/p.reloadDuration:0;
+    const pose=samplePose(RELOAD_POSES,reloadU), reloading=p.reloadT>0?1:0;
     const reaching=p.state==='entering'?Math.sin(Math.min(1,(p.doorReach||0)/.32)*Math.PI*.7):0;
     const armBias = (0.04 + 0.1 * r + 0.04 * s) * walk, armAmp = 0.28 + 0.3 * r + 0.3 * s;
-    const armPitchL = (reloading ? -1.1 : aim ? -0.4 : armBias + armAmp * fL) - flinch * 1.1 - kick * 0.5, armPitchR = hold === 'umbrella' ? -2.1 : hold === 'phone' ? -2.3 : (reloading ? -.8 : aim ? -Math.PI / 2 + 0.05 + (p.camPitch || 0) + (p.recoil || 0) * 2 : armBias - armAmp * fL - punch * 1.4) - flinch * 0.9 + kick * 0.6;
+    const armPitchL = (reloading ? pose[0] : aim ? -0.4 : armBias + armAmp * fL) - flinch * 1.1 - kick * 0.5, armPitchR = hold === 'umbrella' ? -2.1 : hold === 'phone' ? -2.3 : (reloading ? pose[1] : aim ? -Math.PI / 2 + 0.05 + (p.camPitch || 0) + (p.recoil || 0) * 2 : armBias - armAmp * fL - punch * 1.4) - flinch * 0.9 + kick * 0.6;
     const armRoll = 0.07 + 0.05 * r + Math.sin(t * 1.1) * 0.015 * idle;
     torsoChild(bones,32,.26,SHOULDER,gesture*.2,armPitchL-gesture*.35,armRoll+(aim?.12:0)+gesture*.16,.26);
     torsoChild(bones,48,-.26,SHOULDER,aim?-.15:0,armPitchR-reaching*1.2,-armRoll,-.26);
     // forearms: soft at a walk, folding a little as the arm comes forward; about a right angle at a run
     const elbowBase = 0.16 + 1.1 * r + 0.1 * s, elbowSwing = 0.22 + 0.2 * r;
-    const elbowL = aim ? -0.05 : -(elbowBase + elbowSwing * Math.max(0, -fL));
-    const elbowR = hold === 'phone' ? -2.3 : hold === 'umbrella' ? -0.3 : aim ? 0 : -(elbowBase + elbowSwing * Math.max(0, fL) + punch * 0.6);
+    const elbowL = reloading ? pose[2] : aim ? -0.05 : -(elbowBase + elbowSwing * Math.max(0, -fL));
+    const elbowR = reloading ? pose[3] : hold === 'phone' ? -2.3 : hold === 'umbrella' ? -0.3 : aim ? 0 : -(elbowBase + elbowSwing * Math.max(0, fL) + punch * 0.6);
     jointBone(bones, 144, 32, 0.26, ELBOW_Y, 0, elbowL-gesture*.95); jointBone(bones, 160, 48, -0.26, ELBOW_Y, 0, elbowR);
     // thighs for the poses the IK doesn't handle (airborne, kicking, falling)
     bone(bones, 64, px, hip, 0, 0, p.airborne ? -.45 : -swing * .95 * Math.abs(Math.cos(direction)) + kick * .3, swing * Math.sin(direction) * .65); bone(bones, 80, px, hip, 0, 0, p.airborne ? .25 : swing * .95 * Math.abs(Math.cos(direction)) - kick * 1.5, -swing * Math.sin(direction) * .65); // a kick swings the right leg up

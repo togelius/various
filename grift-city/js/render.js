@@ -9,11 +9,11 @@ const RENDER = (() => {
   const zeroEmis = new Float32Array(MAX_BONES);
   const cam = { x: 0, y: 20, z: 0, tx: 0, ty: 0, tz: 1, fov: 60 * Math.PI / 180, near: 0.3, far: 900 };
   const env = { sunDir: [0.3, 0.8, 0.5], sunCol: [1, 1, 1], skyCol: [0.5, 0.6, 0.7], groundCol: [0.3, 0.3, 0.3], fogCol: [0.7, 0.8, 0.9], fogDensity: 0.0016, nightEmis: 0, zenith: [0.2, 0.4, 0.8], horizon: [0.7, 0.8, 0.9], daylight: 1, starAlpha: 0, sunDisc: 1 , normalMaps: true, normalStrength: 0.6 , fogHeight: 30, fogSun: 0.7 , reflect: 1.7 , wet: 0 };
-  const lights = { pos: new Float32Array(MAX_LIGHTS * 4), col: new Float32Array(MAX_LIGHTS * 3), n: 0 };
+  const lights = { pos: new Float32Array(MAX_LIGHTS * 4), col: new Float32Array(MAX_LIGHTS * 3), dir: new Float32Array(MAX_LIGHTS * 4), n: 0 };
   const stats = { draws: 0, tris: 0 };
 
   const VS = `
-    in vec3 aPos; in vec3 aNrm; in vec3 aCol; in vec2 aUV; in float aTile; in float aBone;
+    in vec3 aPos; in vec3 aNrm; in vec3 aCol; in vec2 aUV; in float aTile; in float aBone; in vec2 aSkin; in vec3 aBind;
     #ifdef INSTANCED
     in vec4 aI0; in vec4 aI1; in vec4 aI2; in vec4 aI3; in vec4 aTint;
     #endif
@@ -28,6 +28,13 @@ const RENDER = (() => {
       mat4 model = uModel * uBones[int(aBone)]; vCol = aCol; vEmis = uBoneEmis[int(aBone)];
       #endif
       vec4 w = model * vec4(aPos, 1.0); vWorld = w.xyz; vNrm = normalize(mat3(model) * aNrm);
+      #if !defined(INSTANCED) && !defined(STATIC)
+      if (aSkin.y > 0.0) {
+        mat4 other=uModel*uBones[int(aSkin.x)];
+        w=mix(w,other*vec4(aPos+aBind,1.0),aSkin.y);
+        vWorld=w.xyz; vNrm=normalize(mix(vNrm,normalize(mat3(other)*aNrm),aSkin.y));
+      }
+      #endif
       vUV = aUV + uUVOff; vTile = aTile;
       gl_Position = uVP * w;
     }`;
@@ -47,12 +54,14 @@ const RENDER = (() => {
   `;
   const FS = DISPLAY_GLSL + `
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in float vEmis;
+    uniform samplerCube uProbe; uniform vec3 uProbePos;
     uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform sampler2DArray uNrm;
-    uniform float uNrmOn; uniform float uNrmStr; uniform float uEmis; uniform vec4 uPanes[128]; uniform float uInterior;
+    uniform float uActor; uniform float uNrmOn; uniform float uNrmStr; uniform float uEmis; uniform vec4 uPanes[128]; uniform float uInterior;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
     uniform float uFogDensity; uniform float uFogHeight; uniform float uFogSun; uniform float uNightEmis;
     uniform mat4 uLightVP[2]; uniform float uCascadeFar; uniform float uWet;
     uniform vec3 uZenith; uniform vec3 uHorizon; uniform float uReflect; uniform float uShadowOn; uniform float uTexOn; uniform float uSpec; uniform float uHDR; uniform float uAlpha; uniform float uWater; uniform float uTime;
+    uniform vec4 uLightDirs[${MAX_LIGHTS}]; uniform vec4 uBlockMin[8]; uniform vec4 uBlockMax[8]; uniform int uBlockCount;
     uniform vec4 uLights[${MAX_LIGHTS}]; uniform vec3 uLightCols[${MAX_LIGHTS}]; uniform int uNumLights;
     out vec4 o;
     // Textures and palette colours are authored in sRGB; lighting has to happen in linear light or everything
@@ -85,6 +94,15 @@ const RENDER = (() => {
       }
       float f = sampleCascade(1, wp + n * 0.14, 0.0022);
       return f < 0.0 ? 1.0 : f;
+    }
+    float localVisibility(vec3 start, vec3 end) {
+      vec3 delta=end-start; vec3 inv=1.0/(sign(delta)*max(abs(delta),vec3(.0001))+vec3(.0000001));
+      for(int k=0;k<8;k++) { if(k>=uBlockCount) break;
+        vec3 a=(uBlockMin[k].xyz-start)*inv,b=(uBlockMax[k].xyz-start)*inv;
+        vec3 mn=min(a,b),mx=max(a,b); float lo=max(max(mn.x,mn.y),mn.z),hi=min(min(mx.x,mx.y),mx.z);
+        if(max(lo,.01)<min(hi,.985)) return .035;
+      }
+      return 1.0;
     }
     void main() {
       vec4 t = uTexOn > 0.5 ? texture(uTex, vec3(vUV, vTile)) : vec4(1.0);
@@ -137,13 +155,21 @@ const RENDER = (() => {
       }
       if (uWater > 0.5) { n = normalize(n + vec3(sin(vWorld.x * 0.35 + uTime * 1.1) * 0.07 + sin(vWorld.z * 0.9 - uTime * 1.7) * 0.04, 0.0, cos(vWorld.z * 0.4 + uTime * 0.9) * 0.07 + cos(vWorld.x * 1.1 + uTime * 1.3) * 0.04)); }
       // Rain pools on anything facing the sky. The film darkens what is under it and reflects what is above.
-      float wet = uWet > 0.0 ? smoothstep(0.45, 0.92, n.y) * uWet : 0.0;
-      if (wet > 0.0) { rough = mix(rough, 0.26, wet); albedo *= mix(1.0, 0.5, wet); }
+      float pooling=.5+.24*sin(vWorld.x*.43+sin(vWorld.z*.31))+.23*sin(vWorld.z*.71+vWorld.x*.13);
+      float wet = uWet > 0.0 && uSpec>0.0 ? smoothstep(0.55, 0.96, n.y) * uWet * (.18+.82*smoothstep(.30,.76,pooling)) : 0.0;
+      // Untextured painted metal, rubber and glass have deliberately different highlight widths.
+      if (vTile<.5 && uSpec>0.0) rough=mix(.9,.31,smoothstep(.07,.24,max(vCol.r,max(vCol.g,vCol.b))));
+      if (uAlpha<.9) rough=.16;
+      if (wet > 0.0) { rough = mix(rough, 0.18, wet); albedo *= mix(1.0, 0.76, wet); }
       float ndl = max(dot(n, uSunDir), 0.0);
       float sh = (uShadowOn > 0.5 && ndl > 0.0) ? shadowAt(n) : 1.0;
       vec3 hemi = mix(uGroundCol, uSkyCol, n.y * 0.5 + 0.5);
       vec3 col = albedo * (hemi + uSunCol * ndl * sh);
       vec3 v = normalize(uCamPos - vWorld);
+      if(uActor>.5 && uNightEmis>.05) {
+        float openSky=localVisibility(vWorld+n*.04,vWorld+vec3(0,9,0));
+        col+=max(albedo,vec3(.028))*uSkyCol*.95*uNightEmis*openSky;
+      }
       float gloss = 1.0 - rough; float power = mix(6.0, 110.0, gloss * gloss);
       if (uSpec > 0.0) { vec3 hv = normalize(uSunDir + v);
         float sp = pow(max(dot(n, hv), 0.0), power) * (0.12 + 1.5 * gloss * gloss);
@@ -153,6 +179,13 @@ const RENDER = (() => {
         vec3 refl = reflect(-v, n);
         vec3 skyRefl = s2l(mix(uHorizon, uZenith, pow(clamp(refl.y, 0.0, 1.0), 0.55)));
         skyRefl += uSunCol * pow(max(dot(refl, uSunDir), 0.0), 64.0) * 0.6;
+        vec3 probeDelta=vWorld-uProbePos;
+        vec3 raySafe=sign(refl)*max(abs(refl),vec3(.0001))+vec3(.0000001);
+        vec3 edge=((sign(refl)*vec3(30.0,14.0,30.0))-probeDelta)/raySafe;
+        float travel=max(0.0,min(edge.x,min(edge.y,edge.z)));
+        vec3 localRefl=textureLod(uProbe,probeDelta+refl*travel,rough*4.0).rgb;
+        float localWeight=(1.0-smoothstep(18.0,42.0,length(probeDelta.xz)))*.78;
+        skyRefl=mix(skyRefl,localRefl,localWeight);
         float fres = 0.08 + 0.92 * pow(1.0 - max(dot(n, v), 0.0), 4.0);
         float dn = clamp(refl.y * 2.0 + 0.55, 0.0, 1.0); // rays aimed at the ground see the street, not the sky
         col = mix(col, skyRefl, clamp(uReflect * uSpec * gloss * gloss * fres * dn, 0.0, 0.92));
@@ -161,7 +194,9 @@ const RENDER = (() => {
         if (i >= uNumLights) break;
         vec3 L = uLights[i].xyz - vWorld; float d = length(L); float att = clamp(1.0 - d / uLights[i].w, 0.0, 1.0); att *= att;
         if (att <= 0.0) continue;
-        vec3 Ln = L / d;
+        vec3 Ln = L / max(d,.001);
+        if(uLightDirs[i].w>=0.0) att*=smoothstep(uLightDirs[i].w,min(.99,uLightDirs[i].w+.16),dot(-Ln,normalize(uLightDirs[i].xyz)));
+        if(i<2 && att>.002) att*=localVisibility(uLights[i].xyz,vWorld+n*.035);
         float nl = max(dot(n, Ln), 0.0) * 0.8 + 0.2;
         col += albedo * uLightCols[i] * att * nl;
         // a lamp reflected in a wet street, which is most of what a city looks like in the rain at night
@@ -323,10 +358,11 @@ const RENDER = (() => {
 
   // ---- Time of day → environment
   function setTimeOfDay(hours, rain = 0, fog = 0, dt = 0) {
+    env.hours=hours;
     const t = hours / 24; const sunAng = (t - 0.25) * M.TAU; // 6:00 sunrise at angle 0, noon at 90°
     const elev = Math.sin(sunAng), az = Math.cos(sunAng);
     let sx = az * 0.72, sy = elev * 0.72, sz = -0.78 + 0.2 * az; let l = Math.hypot(sx, sy, sz); sx /= l; sy /= l; sz /= l;
-    const day = M.clamp(elev * 4 + 0.15, 0, 1);          // 1 in daytime, 0 at night
+    const day = M.clamp((elev + .20) / .45, 0, 1);          // 1 in daytime, 0 at night
     // The warm horizon light reaches further up the sky than the brightness falls off. Golden hour is the best light in
     // the game and at a true scale it was a spike a few seconds wide; widening only the colour term lengthens it
     // without darkening the afternoon.
@@ -334,10 +370,10 @@ const RENDER = (() => {
     const night = 1 - day;
     if (sy > 0.02) env.sunDir = [sx, sy, sz]; else env.sunDir = [-sx * 0.5, Math.max(0.35, -sy), -sz * 0.5]; // moon-ish from the other side
     const mix3 = (a, b, k) => [M.lerp(a[0], b[0], k), M.lerp(a[1], b[1], k), M.lerp(a[2], b[2], k)];
-    const sunDay = mix3([1.98, 1.66, 1.22], [1.5, 0.64, 0.24], dusk); const sunNight = [0.02, 0.025, 0.045];
+    const sunDay = mix3([1.98, 1.66, 1.22], [1.5, 0.64, 0.24], dusk); const sunNight = [0.065, 0.085, 0.12];
     env.sunCol = mix3(sunNight, sunDay.map(v => v * 1.0), day);
-    env.skyCol = mix3([0.03, 0.037, 0.07], mix3([0.5, 0.53, 0.58], [0.42, 0.28, 0.26], dusk), day); // skylight is blue, so shade reads cool against warm sun
-    env.groundCol = mix3([0.014, 0.016, 0.024], mix3([0.31, 0.27, 0.22], [0.24, 0.15, 0.11], dusk), day); // light thrown back up off sunlit pavement and walls: the street in shade is still bright
+    env.skyCol = mix3([0.095, 0.12, 0.17], mix3([0.5, 0.53, 0.58], [0.42, 0.28, 0.26], dusk), day); // skylight is blue, so shade reads cool against warm sun
+    env.groundCol = mix3([0.048, 0.058, 0.077], mix3([0.31, 0.27, 0.22], [0.24, 0.15, 0.11], dusk), day); // light thrown back up off sunlit pavement and walls: the street in shade is still bright
     env.zenith = mix3([0.004, 0.006, 0.02], mix3([0.13, 0.33, 0.64], [0.15, 0.15, 0.4], dusk), day);
     env.horizon = mix3([0.012, 0.014, 0.03], mix3([0.66, 0.74, 0.82], [0.9, 0.4, 0.2], dusk), day);
     env.fogCol = mix3([0.01, 0.012, 0.024], mix3([0.6, 0.65, 0.71], [0.78, 0.4, 0.26], dusk), day);
@@ -386,21 +422,63 @@ const RENDER = (() => {
     M.frustumPlanes(viewPlanes, vp);
     stats.draws = 0; stats.tris = 0;
   }
+  const localBlocks={min:new Float32Array(32),max:new Float32Array(32),n:0};
   const selL = new Array(MAX_LIGHTS), selD = new Float64Array(MAX_LIGHTS);
+  // Small, geometry-baked local probes. Six 16px faces sample the actual surrounding lots;
+  // the bounded cache avoids scene re-rendering and updates on block / light changes.
+  const probeCache=new Map(); let probe=null;
+  function updateProbe() {
+    const size=16, x=cam.tx, z=cam.tz, py=cam.ty< -10?cam.ty:2;
+    const key=[Math.floor(x/24),Math.floor(z/24),Math.floor(py/8),Math.floor((env.hours||9)*2),Math.round((env.rain||0)*3)].join(':');
+    if(probeCache.has(key)) { probe=probeCache.get(key); return; }
+    const lots=CITY.lotsNear(x,z,100), texture=gl.createTexture();
+    gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP,texture);
+    for(let face=0;face<6;face++) {
+      const pixels=new Uint8Array(size*size*4);
+      for(let j=0;j<size;j++) for(let i=0;i<size;i++) {
+        const u=(i+.5)/size*2-1,v=(j+.5)/size*2-1;
+        const directions=[[1,-v,-u],[-1,-v,u],[u,1,v],[u,-1,-v],[u,-v,1],[-u,-v,-1]], d=directions[face];
+        const n=Math.hypot(...d);for(let k=0;k<3;k++)d[k]/=n;
+        let distance=100, hit=null;
+        if(d[1]<-.001) distance=Math.min(100,Math.max(0,-py/d[1]));
+        for(const lot of lots) {const t=W.rayBox(x,py,z,d[0]*100,d[1]*100,d[2]*100,lot.x0,lot.y0||0,lot.z0,lot.x1,lot.h,lot.z1);if(t>=0&&t*100<distance){distance=t*100;hit=lot;}}
+        let color;
+        if(hit) {
+          const hx=x+d[0]*distance,hy=py+d[1]*distance,hz=z+d[2]*distance;
+          const window=hy>3 && ((hx+hz)%3+3)%3<1.15 && hy%3.4<1.65;
+          color=window ? env.skyCol.map((c,k)=>c*.26+env.nightEmis*[.16,.12,.065][k]) : env.skyCol.map((c,k)=>c*[.23,.22,.19][k]+env.sunCol[k]*.10);
+        } else if(distance<99) color=env.groundCol.map(c=>c*.5);
+        else color=env.horizon.map((c,k)=>Math.pow(M.lerp(c,env.zenith[k],Math.sqrt(Math.max(0,d[1]))),2.2));
+        const off=(j*size+i)*4;for(let k=0;k<3;k++)pixels[off+k]=Math.round(M.clamp(color[k],0,1)*255);pixels[off+3]=255;
+      }
+      gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X+face,0,gl.RGBA,size,size,0,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+    }
+    gl.generateMipmap(gl.TEXTURE_CUBE_MAP); gl.texParameteri(gl.TEXTURE_CUBE_MAP,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_CUBE_MAP,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+    for(const axis of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T,gl.TEXTURE_WRAP_R])gl.texParameteri(gl.TEXTURE_CUBE_MAP,axis,gl.CLAMP_TO_EDGE);
+    probe={texture,pos:[x,py,z]};probeCache.set(key,probe);
+    if(probeCache.size>6){const first=probeCache.keys().next().value;gl.deleteTexture(probeCache.get(first).texture);probeCache.delete(first);}
+  }
+
   function setLights(list) {
+    updateProbe();
     // The MAX_LIGHTS nearest the camera target win. A city block carries hundreds of street lamps, so this keeps a
     // sorted shortlist by insertion rather than sorting the whole list with a comparator every frame.
     const n0 = list.length; let m = 0;
     for (let i = 0; i < n0; i++) {
-      const L = list[i]; const dx = L.x - cam.tx, dz = L.z - cam.tz; const d2 = dx * dx + dz * dz;
+      const L = list[i]; const dx = L.x - cam.tx, dz = L.z - cam.tz; const d2 = (dx * dx + dz * dz + 8) / (Math.max(.15,...L.col)*L.r*L.r) / (L.priority || 1);
       if (m === MAX_LIGHTS && d2 >= selD[m - 1]) continue;
       let j = m < MAX_LIGHTS ? m : MAX_LIGHTS - 1;
       while (j > 0 && selD[j - 1] > d2) { selD[j] = selD[j - 1]; selL[j] = selL[j - 1]; j--; }
       selD[j] = d2; selL[j] = L; if (m < MAX_LIGHTS) m++;
     }
+    // Conservative local building occluders. Only the nearest eight and first two lights incur this work.
+    const blocks=CITY.lotsNear(cam.tx,cam.tz,45).filter(l=>l.h>.8).sort((a,b)=>M.dist2((a.x0+a.x1)/2,(a.z0+a.z1)/2,cam.tx,cam.tz)-M.dist2((b.x0+b.x1)/2,(b.z0+b.z1)/2,cam.tx,cam.tz)).slice(0,8);
+    localBlocks.n=blocks.length;
+    blocks.forEach((b,i)=>{localBlocks.min.set([b.x0,b.y0||0,b.z0,0],i*4);localBlocks.max.set([b.x1,b.h,b.z1,0],i*4);});
     lights.n = m;
     for (let i = 0; i < m; i++) { const L = selL[i], o = i * 4, c = i * 3;
       lights.pos[o] = L.x; lights.pos[o + 1] = L.y; lights.pos[o + 2] = L.z; lights.pos[o + 3] = L.r;
+      lights.dir.set(L.dir ? [...L.dir,L.cone ?? .6] : [0,0,0,-1],o);
       lights.col[c] = L.col[0]; lights.col[c + 1] = L.col[1]; lights.col[c + 2] = L.col[2]; }
   }
   function bindCommon(P, forShadow) {
@@ -411,12 +489,14 @@ const RENDER = (() => {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, texArray); gl.uniform1i(P.u.uTex, 0);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadow.tex); gl.uniform1i(P.u.uShadow, 1);
       gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D_ARRAY, nrmArray || texArray); gl.uniform1i(P.u.uNrm, 3);
-      gl.uniform1f(P.u.uNrmOn, nrmArray && env.normalMaps ? 1 : 0); gl.uniform1f(P.u.uNrmStr, env.normalStrength); gl.uniform1f(P.u.uInterior, env.interiors === false ? 0 : 1); gl.uniform1f(P.u.uEmis, env.emisStr === undefined ? 1.8 : env.emisStr);
+      gl.uniform1f(P.u.uNrmOn, nrmArray && env.normalMaps ? 1 : 0); gl.uniform1f(P.u.uNrmStr, env.normalStrength); gl.uniform1f(P.u.uInterior, env.interiors === false ? 0 : 1); gl.uniform1f(P.u.uEmis, env.emisStr === undefined ? .95 : env.emisStr);
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
       gl.uniform3fv(P.u.uFogCol, env.fogCol); gl.uniform3f(P.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform1f(P.u.uFogDensity, env.fogDensity);
       gl.uniform1f(P.u.uFogHeight, env.fogHeight); gl.uniform1f(P.u.uFogSun, env.fogSun);
       gl.uniform3fv(P.u.uZenith, env.zenith); gl.uniform3fv(P.u.uHorizon, env.horizon); gl.uniform1f(P.u.uReflect, env.reflect); gl.uniform1f(P.u.uWet, env.wet);
-      gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uHDR, hdrOut ? 1 : 0); gl.uniform1f(P.u.uExposure, post.exposure); gl.uniform1f(P.u.uSat, post.sat); gl.uniform3fv(P.u.uTint, post.tint); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uWater, 0); gl.uniform1f(P.u.uTime, env.time || 0);
+      gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uActor,0); gl.uniform1f(P.u.uHDR, hdrOut ? 1 : 0); gl.uniform1f(P.u.uExposure, post.exposure); gl.uniform1f(P.u.uSat, post.sat); gl.uniform3fv(P.u.uTint, post.tint); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uWater, 0); gl.uniform1f(P.u.uTime, env.time || 0);
+      gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP,probe.texture); gl.uniform1i(P.u.uProbe,4); gl.uniform3fv(P.u.uProbePos,probe.pos);
+      gl.uniform4fv(P.u.uLightDirs,lights.dir); gl.uniform4fv(P.u.uBlockMin,localBlocks.min); gl.uniform4fv(P.u.uBlockMax,localBlocks.max); gl.uniform1i(P.u.uBlockCount,localBlocks.n);
       gl.uniform4fv(P.u.uLights, lights.pos); gl.uniform3fv(P.u.uLightCols, lights.col); gl.uniform1i(P.u.uNumLights, lights.n);
     }
     gl.uniform2f(P.u.uUVOff, 0, 0);
@@ -440,7 +520,7 @@ const RENDER = (() => {
       if (forShadow && !M.sphereInFrustum(planes, e.model[12], e.model[13], e.model[14], e.cullR || 6)) continue;
       gl.uniformMatrix4fv(P.u.uModel, false, e.model);
       if (e.bones) { gl.uniformMatrix4fv(P.u.uBones, false, e.bones); lastBones = e.bones; } else if (lastBones) { gl.uniformMatrix4fv(P.u.uBones, false, identityBones); lastBones = null; }
-      if (!forShadow) { gl.uniform1fv(P.u.uBoneEmis, e.emis || zeroEmis); if ((e.spec || 0) !== lastSpec) { lastSpec = e.spec || 0; gl.uniform1f(P.u.uSpec, lastSpec); } }
+      if (!forShadow) { gl.uniform1f(P.u.uActor,e.mesh.skinBuffer?1:0); gl.uniform1fv(P.u.uBoneEmis, e.emis || zeroEmis); if ((e.spec || 0) !== lastSpec) { lastSpec = e.spec || 0; gl.uniform1f(P.u.uSpec, lastSpec); } }
       GL.draw(e.mesh); stats.draws++; stats.tris += e.mesh.count / 3;
     }
     bindCommon(PI, forShadow);
@@ -452,7 +532,7 @@ const RENDER = (() => {
     if (!list.length) return;
     list.sort((a, b) => M.dist2(b.model[12], b.model[14], cam.x, cam.z) - M.dist2(a.model[12], a.model[14], cam.x, cam.z));
     bindCommon(P, false); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
-    gl.uniform1f(P.u.uAlpha, 0.55); gl.uniform1f(P.u.uSpec, 1.2); gl.uniformMatrix4fv(P.u.uBones, false, identityBones); gl.uniform1fv(P.u.uBoneEmis, zeroEmis);
+    gl.uniform1f(P.u.uActor,0); gl.uniform1f(P.u.uAlpha, 0.55); gl.uniform1f(P.u.uSpec, 1.2); gl.uniformMatrix4fv(P.u.uBones, false, identityBones); gl.uniform1fv(P.u.uBoneEmis, zeroEmis);
     for (const e of list) { gl.uniformMatrix4fv(P.u.uModel, false, e.model); GL.draw(e.glass); stats.draws++; }
     gl.uniform1f(P.u.uAlpha, 1); gl.depthMask(true); gl.disable(gl.BLEND);
   }

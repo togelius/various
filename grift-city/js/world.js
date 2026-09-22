@@ -11,18 +11,18 @@ const W = (() => {
   const P = { list: [], data: new Float32Array(4096 * 8), count: 0, alphaCount: 0, addCount: 0 };
   function particle(x, y, z, vx, vy, vz, life, size, col, a, opts = {}) {
     if (P.list.length > 4000) P.list.shift();
-    P.list.push({ x, y, z, vx, vy, vz, life, max: life, size, col, a, add: !!opts.add, grav: opts.grav ?? 0, drag: opts.drag ?? 0.2, grow: opts.grow ?? 0, fade: opts.fade ?? 1, ground: opts.ground ?? false });
+    P.list.push({ x, y, z, vx, vy, vz, life, max: life, size, col, a, streak: !!opts.streak, add: !!opts.add, grav: opts.grav ?? 0, drag: opts.drag ?? 0.2, grow: opts.grow ?? 0, fade: opts.fade ?? 1, ground: opts.ground ?? false });
   }
   const FX = {
     smoke(x, y, z, n = 1, big = false) { for (let i = 0; i < n; i++) particle(x + (rng() - 0.5) * 0.6, y, z + (rng() - 0.5) * 0.6, (rng() - 0.5) * 0.8, 1.2 + rng() * 1.5, (rng() - 0.5) * 0.8, 1.5 + rng() * 1.5, big ? 2.5 : 1.2, [0.25, 0.25, 0.27], 0.5, { grow: big ? 2.5 : 1.4, drag: 0.6 }); },
     fire(x, y, z, n = 1) { for (let i = 0; i < n; i++) particle(x + (rng() - 0.5) * 0.8, y, z + (rng() - 0.5) * 0.8, (rng() - 0.5) * 1, 2 + rng() * 2.5, (rng() - 0.5) * 1, 0.4 + rng() * 0.5, 1.6, [1, 0.5 + rng() * 0.3, 0.1], 0.9, { add: true, grow: 0.5, drag: 0.8 }); },
-    spark(x, y, z, n = 6, dir = null) { for (let i = 0; i < n; i++) { const a = rng() * M.TAU, s = 3 + rng() * 6; particle(x, y, z, Math.cos(a) * s + (dir ? dir[0] * 4 : 0), 2 + rng() * 5, Math.sin(a) * s + (dir ? dir[1] * 4 : 0), 0.3 + rng() * 0.4, 0.25, [1, 0.85, 0.4], 1, { add: true, grav: 20, drag: 0.1 }); } },
-    blood(x, y, z, n = 8, dir = null) { for (let i = 0; i < n; i++) { const a = rng() * M.TAU, s = 1 + rng() * 3; particle(x, y, z, Math.cos(a) * s + (dir ? dir[0] * 3 : 0), 1 + rng() * 3, Math.sin(a) * s + (dir ? dir[1] * 3 : 0), 0.4 + rng() * 0.5, 0.35, [0.55, 0.02, 0.02], 0.9, { grav: 18, drag: 0.1 }); } },
-    dust(x, y, z, n = 4) { for (let i = 0; i < n; i++) particle(x + (rng() - 0.5), y + 0.1, z + (rng() - 0.5), (rng() - 0.5) * 2, 0.5 + rng(), (rng() - 0.5) * 2, 0.6 + rng() * 0.6, 0.8, [0.6, 0.55, 0.45], 0.4, { grow: 2, drag: 1.5 }); },
+    spark(x, y, z, n = 6, dir = null) { for (let i = 0; i < n; i++) { const a = rng() * M.TAU, s = 3 + rng() * 6; particle(x, y, z, Math.cos(a) * s + (dir ? dir[0] * 4 : 0), 2 + rng() * 5, Math.sin(a) * s + (dir ? dir[1] * 4 : 0), 0.18 + rng() * 0.22, 0.085, [1, 0.85, 0.4], 1, { add: true, grav: 20, drag: 0.1 }); } },
+    blood(x, y, z, n = 8, dir = null) { for (let i = 0; i < n; i++) { const a = rng() * M.TAU, s = 1 + rng() * 3; particle(x, y, z, Math.cos(a) * s + (dir ? dir[0] * 3 : 0), 1 + rng() * 3, Math.sin(a) * s + (dir ? dir[1] * 3 : 0), 0.25 + rng() * 0.3, 0.09, [0.55, 0.02, 0.02], 0.9, { grav: 18, drag: 0.1 }); } },
+    dust(x, y, z, n = 4) { for (let i = 0; i < n; i++) particle(x + (rng() - 0.5), y + 0.1, z + (rng() - 0.5), (rng() - 0.5) * 2, 0.5 + rng(), (rng() - 0.5) * 2, 0.4 + rng() * 0.45, 0.22, [0.6, 0.55, 0.45], 0.4, { grow: .65, drag: 1.5 }); },
     debris(x, y, z, n = 10, col = [0.2, 0.2, 0.2]) { for (let i = 0; i < n; i++) { const a = rng() * M.TAU, s = 4 + rng() * 10; particle(x, y + 0.5, z, Math.cos(a) * s, 6 + rng() * 10, Math.sin(a) * s, 1 + rng() * 1.5, 0.35, col, 1, { grav: 22, drag: 0.05, fade: 0.2 }); } },
     glass(x, y, z, n = 8) { for (let i = 0; i < n; i++) { const a = rng() * M.TAU, s = 1 + rng() * 3; particle(x, y, z, Math.cos(a) * s, 1 + rng() * 3, Math.sin(a) * s, 0.5 + rng() * 0.5, 0.15, [0.8, 0.9, 1], 0.9, { add: true, grav: 18 }); } },
     splash(x, y, z) { for (let i = 0; i < 24; i++) { const a = rng() * M.TAU, s = 1 + rng() * 4; particle(x, y, z, Math.cos(a) * s, 3 + rng() * 6, Math.sin(a) * s, 0.6 + rng() * 0.6, 0.6, [0.7, 0.85, 0.95], 0.8, { grav: 14, grow: 1 }); } },
-    muzzle(x, y, z, fx, fz) { particle(x + fx * 0.3, y, z + fz * 0.3, 0, 0, 0, 0.05, 1.2, [1, 0.85, 0.5], 1, { add: true }); dyn.push({ x, y, z, r: 8, col: [1.2, 0.9, 0.5] }); },
+    muzzle(x, y, z, fx, fz) { particle(x + fx * 0.3, y, z + fz * 0.3, 0, 0, 0, 0.04, .34, [1, 0.85, 0.5], 1, { add: true }); dyn.push({ x, y, z, r: 8, col: [1.2, 0.9, 0.5] }); },
     explosion(x, y, z, big = 1) {
       for (let i = 0; i < 26 * big; i++) { const a = rng() * M.TAU, s = rng() * 6 * big; particle(x, y + 0.5, z, Math.cos(a) * s, 2 + rng() * 8, Math.sin(a) * s, 0.5 + rng() * 0.7, 3 * big, [1, 0.45 + rng() * 0.4, 0.1], 1, { add: true, grow: 4, drag: 1 }); }
       for (let i = 0; i < 20 * big; i++) { const a = rng() * M.TAU, s = rng() * 3; particle(x, y + 1, z, Math.cos(a) * s, 3 + rng() * 5, Math.sin(a) * s, 2 + rng() * 2, 3, [0.15, 0.13, 0.12], 0.7, { grow: 4, drag: 0.5 }); }
@@ -42,8 +42,8 @@ const W = (() => {
     L.length = w;
     // pack: alpha-blended first, then additive
     let n = 0; const pack = p => { const t = p.life / p.max; const a = p.a * (p.fade < 1 ? Math.min(1, t / p.fade) : t); P.data.set([p.x, p.y, p.z, p.size, p.col[0], p.col[1], p.col[2], a], n * 8); n++; };
-    for (const p of L) if (!p.add && n < 4096) pack(p); P.alphaCount = n;
-    for (const p of L) if (p.add && n < 4096) pack(p); P.addCount = n - P.alphaCount; P.count = n;
+    for (const p of L) if (!p.streak && !p.add && n < 4096) pack(p); P.alphaCount = n;
+    for (const p of L) if (!p.streak && p.add && n < 4096) pack(p); P.addCount = n - P.alphaCount; P.count = n;
   }
 
   // ---- Flat FX geometry (markers, headlight pools, tracers, shadows blobs)
@@ -318,6 +318,7 @@ const W = (() => {
     }
   }
   function lampCones(camX, camZ) {
+    for(const p of P.list) if(p.streak && p.y>CITY.groundY(p.x,p.z)+.1) fx.line(p.x,p.y,p.z,p.x-p.vx*.025,p.y-p.vy*.025,p.z-p.vz*.025,p.col,p.a*.5,0);
     const night = RENDER.env.nightEmis; if (night < 0.05) return; const rain = weather.rain; const wet = RENDER.env.wet || rain;
     let cones = 0;
     for (const p of CITY.props.lamppost) { if (p.fall !== undefined) continue; const d2 = M.dist2(p.x, p.z, camX, camZ); if (d2 > 60 * 60 || cones++ > 14) continue; const a = p.a || 0; const hx = p.x + Math.sin(a) * 1.6, hz = p.z + Math.cos(a) * 1.6; const y0 = CITY.groundY(hx, hz);
@@ -391,7 +392,7 @@ const W = (() => {
     // fog rolls in off the water in the small hours and burns off by mid-morning
     const h = state.time; const fogHour = (h > 3.5 && h < 9) ? M.clamp(1 - Math.abs(h - 6) / 2.5, 0, 1) : 0; if (weather.fogTarget === 0 && fogHour > 0 && weather.rain < 0.1 && rng() < dt * 0.12) weather.fogTarget = 0.5 + rng() * 0.5; if (fogHour === 0 || weather.rain > 0.3) weather.fogTarget = 0;
     weather.fog = M.approach(weather.fog, weather.fogTarget * fogHour, dt * 0.05);
-    if (weather.rain > 0.02) { const cam = RENDER.cam; const n = Math.floor(40 * weather.rain); for (let i = 0; i < n; i++) { const x = cam.tx + (rng() - 0.5) * 40, z = cam.tz + (rng() - 0.5) * 40; particle(x, cam.ty + 6 + rng() * 14, z, 0.6, -22, 0.3, 0.75, 0.09, [0.75, 0.8, 0.9], 0.45 * weather.rain, { grav: 0, drag: 0, fade: 1 }); } }
+    if (weather.rain > 0.02) { const cam = RENDER.cam; const n = Math.floor(40 * weather.rain); for (let i = 0; i < n; i++) { const x = cam.tx + (rng() - 0.5) * 40, z = cam.tz + (rng() - 0.5) * 40; if(CITY.insideLot(x,z)) continue; particle(x, cam.ty + 6 + rng() * 14, z, 0.6, -22, 0.3, 0.75, 0.09, [0.75, 0.8, 0.9], 0.45 * weather.rain, { grav: 0, drag: 0, fade: 1, streak: true }); } }
   }
   // ---- Clock
   function updateClock(dt) { state.time += dt * 24 / state.dayLength; if (state.time >= 24) state.time -= 24; state.elapsed += dt; state.frame++; }

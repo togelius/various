@@ -542,9 +542,9 @@ const CITY = (() => {
     const T = TEX.names; const { x, z } = block; const C = [1, 1, 1];
     b.floor(x, z, BLOCK, BLOCK, CURB + 0.01, C, T.asphalt, 12);
     // stacked containers and a warehouse
-    const cols = [[0.75, 0.2, 0.15], [0.15, 0.35, 0.65], [0.2, 0.55, 0.3], [0.8, 0.6, 0.1], [0.5, 0.5, 0.55]];
+    const cols = [[.53,.23,.16],[.24,.36,.43],[.24,.39,.32],[.64,.49,.26],[.42,.45,.43]];
     // three solid rows of containers with wide lanes between them (a car must never be able to wedge between stacks)
-    for (let k = 0; k < 9; k++) { const cx = x + 4 + (k % 3) * 6, cz = z + 4 + Math.floor(k / 3) * 9, n = rng.int(1, 3); for (let s = 0; s < n; s++) b.box(cx, CURB + s * 2.6, cz, 6, 2.6, 2.4, rng.pick(cols), T.metal, { uvScale: 2 }); addLot(block, cx, cz, cx + 6, cz + 2.4, 2.6 * n); }
+    for (let k = 0; k < 9; k++) { const cx = x + 4 + (k % 3) * 6, cz = z + 4 + Math.floor(k / 3) * 9, n = rng.int(1, 3); for (let s = 0; s < n; s++) b.append(MESH.shippingContainer(rng.pick(cols)),cx,CURB+s*2.6,cz); addLot(block, cx, cz, cx + 6, cz + 2.4, 2.6 * n); }
     b.box(x + 34, CURB, z + 30, 28, 9, 30, [0.6, 0.6, 0.62], T.metal, { uvScale: 3 }); b.box(x + 34 - 0.2, CURB + 9, z + 30 - 0.2, 28.4, 0.6, 30.4, [0.4, 0.4, 0.42]);
     b.box(x + 38, CURB, z + 29.8, 8, 6, 0.3, [0.3, 0.32, 0.36], T.garage, { uvScale: 8 });
     addLot(block, x + 34, z + 30, x + 62, z + 60, 9, 'warehouse');

@@ -177,7 +177,7 @@ const MESH = (() => {
       for (const idx of other.i) this.i.push(idx + base);
       return this;
     }
-    build(dynamic = false) { return GL.mesh(new Float32Array(this.v), new Uint32Array(this.i), dynamic); }
+    build(dynamic = false) { return GL.mesh(new Float32Array(this.v), new Uint32Array(this.i), dynamic, this.skin || null); }
     // One mesh whose triangles are grouped by the ground cell their centre falls in, each group with its bounding box, so the
     // renderer can draw only the cells a camera or the shadow light can see.
     buildChunked(cell) {
@@ -538,6 +538,42 @@ const MESH = (() => {
       b.roundedBox(sx - 0.04, -armL - 0.03, -0.022, 0.08, 0.1, 0.05, 0.02, skin, 0, fore, { n: 1 }); if (!lod) b.roundedBox(sx + (sx > 0 ? -0.075 : 0.04), -armL + 0.0, -0.005, 0.035, 0.05, 0.04, 0.015, skin, 0, fore, { n: 1 }); // hand and thumb
     }
     if (broad) for (let i=0;i<b.v.length;i+=13) { if (b.v[i+12] === 0) { b.v[i]*=1.08; b.v[i+2]*=1.12; } }
+    // Two-bone weights preserve the existing local bind spaces and deform the joint bands.
+    // Offset converts a primary-bone vertex into the secondary bone's bind coordinates.
+    b.skin=new Float32Array(b.n*5);
+    for(let v=0;v<b.n;v++) {
+      const i=v*13, x=b.v[i], y=b.v[i+1], bone=b.v[i+12]; let other=bone, weight=0, offsetY=0;
+      if (bone===2 || bone===3) {
+        if(y>-.15) {other=0;weight=M.clamp((y+.15)/.2,0,.65);offsetY=.6;}
+        else if(y<-.23) {other=bone===2?9:10;weight=M.clamp((-.23-y)/.16,0,.5);}
+      } else if(bone===9 || bone===10) {other=bone===9?2:3;weight=M.clamp((y+.40)/.18,0,.5);}
+      else if(bone===4 || bone===5) {
+        if(y>-.13) {other=0;weight=M.clamp((y+.13)/.25,0,.6);}
+        else if(y<-.34) {other=bone===4?7:8;weight=M.clamp((-.34-y)/.17,0,.5);}
+      } else if(bone===7 || bone===8) {other=bone===7?4:5;weight=M.clamp((y+.515)/.18,0,.5);}
+      else if(bone===1 && y<.06) {other=0;weight=M.clamp((.06-y)/.15,0,.3);offsetY=.68;}
+      b.skin.set([other,weight,0,offsetY,0],v*5);
+    }
+    return b;
+  }
+
+  // ISO-sized industrial kit: corrugated sides, corner castings, paired doors and lock bars.
+  function shippingContainer(col, length=6) {
+    const b=new Builder(), dark=col.map(c=>c*.67), edge=col.map(c=>Math.min(.8,c*1.1+.04));
+    b.box(.04,.04,.04,length-.08,2.52,2.32,col,T().metal,{uvScale:3});
+    for(const z of [0,2.36]) {
+      b.box(0,0,z,length,.13,.08,dark); b.box(0,2.47,z,length,.13,.08,edge);
+      for(let x=.25;x<length-.15;x+=.28) b.box(x,.15,z-.02,.08,2.28,.07,edge);
+    }
+    for(const x of [0,length-.13]) for(const z of [0,2.27]) {
+      b.box(x,0,z,.13,2.6,.13,dark);
+      for(const y of [0,2.43]) b.box(x-.015,y,z-.015,.16,.17,.16,[.25,.27,.26]);
+    }
+    for(const z of [.09,1.22]) { b.box(length-.015,.16,z,.04,2.23,1.08,col); b.box(length+.03,.21,z+.54,.035,2.13,.035,[.55,.57,.53]);
+      for(const y of [.52,1.87])b.box(length+.02,y,z,.065,.10,1.08,dark); }
+    b.box(length+.07,1.19,1.0,.035,.09,.5,[.66,.65,.56]);
+    b.box(.24,1.76,-.04,.82,.26,.025,[.8,.79,.67]);
+    for(let k=0;k<5;k++)b.box(.3+k*.12,1.80,-.058,.042,.15,.016,dark);
     return b;
   }
 
@@ -684,5 +720,5 @@ const MESH = (() => {
     b.cbox(0, 0.75, 1.5, 0.5, 0.3, 0.5, [1, 1, 0.9], 0, { bone: 3 });
     return b;
   }
-  return { Builder, VEHICLES, MOUTH_POS, HAND, heldMesh, carMesh, seatHeight, seatFit, dentBody, pedMesh, PICKUP_MODELS, assetInto, assetBounds, treeFat, treeTall, pine, pineSmall, bush, rock, tuft, dumpster, mailbox, meter, newsbox, busShelter, cone, barrier, hedge, roundTree, palm, umbrella, streetSign, payphone, hotdogCart, pigeon, gull, plane, cafeSet, crates, sandwichBoard, vending, barberPole, bikeRack, flowerBucket, tireStack, barrel, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
+  return { Builder, shippingContainer, VEHICLES, MOUTH_POS, HAND, heldMesh, carMesh, seatHeight, seatFit, dentBody, pedMesh, PICKUP_MODELS, assetInto, assetBounds, treeFat, treeTall, pine, pineSmall, bush, rock, tuft, dumpster, mailbox, meter, newsbox, busShelter, cone, barrier, hedge, roundTree, palm, umbrella, streetSign, payphone, hotdogCart, pigeon, gull, plane, cafeSet, crates, sandwichBoard, vending, barberPole, bikeRack, flowerBucket, tireStack, barrel, lamppost, trafficLight, lampHead, tree, hydrant, bin, bench, bollard, pickupBox, packageBox, marker, heli };
 })();

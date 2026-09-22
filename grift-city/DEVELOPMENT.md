@@ -5,7 +5,7 @@ Implementation of the September 2026 look, feel and gameplay review. Mission scr
 ## Milestones
 
 - [x] 1. Embodied controls: collision-aware locomotion, crouch/evasion, camera sweeps and shoulders, accessible settings and remapping.
-- [ ] 2. Presentation: character deformation and poses, coastal material rules, night readability, directional practical light, varied wetness and reflections.
+- [x] 2. Presentation: character deformation and poses, coastal material rules, night readability, directional practical light, varied wetness and reflections.
 - [ ] 3. Playable streets: ten connected authored blocks, shared cover/vault/destructible definitions, parking deck and multi-level queries/navigation.
 - [ ] 4. Driving: three handling identities, physical speed/feedback, localized damage, visible entry/exit, persistent vehicle condition.
 - [ ] 5. Decisions: tactical cover/flanking/suppression, weapon feedback, witness reports, vehicle identification and distributed searches.
@@ -24,3 +24,5 @@ World units are metres. Grounded stylization: warm weathered masonry, salt-grey 
 Baseline: existing gameplay, character and vehicle suites pass at `949cc38`. Review screenshots and frame samples were taken with audio muted.
 
 Milestone 1: added deterministic control-foundation coverage (30/60/120 Hz wall contact, crouch, evade recovery, shoulder switching, remapping and camera vehicle collision). Existing gameplay, character and vehicle suites pass. Muted browser verification confirmed wall speed 0, native settings changes, binding swap and resume. The pause panel scrolls at 1280×720; UI and touch use separate coordinate scales.
+
+Milestone 2: shared lit/shadow two-bone skinning with bind offsets, staged reload poses and acceleration lean; occluded night character fill; directional headlights; two influential local lights blocked by eight nearby building proxies; six cached 16px geometry-baked reflection cubemaps (static architecture, approximate materials, no reflected moving actors); varied wetness; corrugated container kit and smaller impacts/rain streaks. All five suites pass, including 56 weighted poses/1,694 blended vertices. A muted 10 s rainy-night browser sample at 1280×720 produced median/p95/p99 animation-frame intervals of 16.7/17.2/17.7 ms with automatic quality level 0. This is one Mac, not a cross-device performance claim.

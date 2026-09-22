@@ -22,7 +22,7 @@ const GL = (() => {
     const header = '#version 300 es\n' + defines + '\n';
     gl.attachShader(p, compile(gl.VERTEX_SHADER, header + vs));
     gl.attachShader(p, compile(gl.FRAGMENT_SHADER, header + 'precision highp float;\nprecision highp sampler2DArray;\nprecision highp sampler2DShadow;\n' + fs));
-    ['aPos', 'aNrm', 'aCol', 'aUV', 'aTile', 'aBone', 'aI0', 'aI1', 'aI2', 'aI3', 'aTint'].forEach((n, i) => gl.bindAttribLocation(p, i, n));
+    ['aPos', 'aNrm', 'aCol', 'aUV', 'aTile', 'aBone', 'aI0', 'aI1', 'aI2', 'aI3', 'aTint', 'aSkin', 'aBind'].forEach((n, i) => gl.bindAttribLocation(p, i, n));
     gl.linkProgram(p);
     if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error('Link failed: ' + gl.getProgramInfoLog(p));
     const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
@@ -36,15 +36,20 @@ const GL = (() => {
   const STRIDE = 13;
   const LAYOUT = [['aPos', 3, 0], ['aNrm', 3, 3], ['aCol', 3, 6], ['aUV', 2, 9], ['aTile', 1, 11], ['aBone', 1, 12]];
 
-  function mesh(data, indices, dynamic = false) {
+  function mesh(data, indices, dynamic = false, skin = null) {
     const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
     const vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
     gl.bufferData(gl.ARRAY_BUFFER, data, dynamic ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW);
     LAYOUT.forEach(([name, size, off], loc) => { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, STRIDE * 4, off * 4); });
+    // Only deforming characters pay for a second bone, weight and bind-space offset.
+    let skinBuffer=null;
+    if (skin) { skinBuffer=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,skinBuffer); gl.bufferData(gl.ARRAY_BUFFER,skin,gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(11); gl.vertexAttribPointer(11,2,gl.FLOAT,false,20,0);
+      gl.enableVertexAttribArray(12); gl.vertexAttribPointer(12,3,gl.FLOAT,false,20,8); }
     const ibo = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, dynamic ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW);
     gl.bindVertexArray(null);
-    return { vao, vbo, ibo, count: indices.length, instanced: false };
+    return { vao, vbo, ibo, skinBuffer, count: indices.length, instanced: false };
   }
   // Instanced version: extra per-instance buffer of 4 vec4 (matrix) + 1 vec4 (tint) = 20 floats, at attribute slots 6..10.
   function instancedMesh(data, indices, maxInstances) {

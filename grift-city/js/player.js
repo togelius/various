@@ -167,6 +167,7 @@ const PLAYER = (() => {
     const l = Math.hypot(ix, iz); if (l > 1) { ix /= l; iz /= l; } return [ix, iz];
   }
   function updateOnFoot(dt) {
+    const speedBefore=P.speed, angleBefore=P.angle;
     const [ix, iz] = inputMove(); const pad = INPUT.pad; const wp = WEAPONS[P.weapon];
     const sprint = INPUT.down('ShiftLeft') || INPUT.down('ShiftRight') || pad.buttons[0];
     const firing = (INPUT.mouse.buttons & 1) || pad.rt > 0.5 || INPUT.down('ControlLeft');
@@ -199,7 +200,7 @@ const PLAYER = (() => {
     if (firing && P.fireT <= 0 && P.evadeT<=0) attack(wp);
     if (INPUT.hit('KeyR')) reload();
     moveBody(dt, false);
-    P.speed = Math.hypot(P.vx, P.vz); P.phase += dt * M.TAU * PEDS.cadence(P.speed); // the rig derives its stride from this cadence, so the feet never slide
+    P.speed = Math.hypot(P.vx, P.vz); P.accelLean=M.lerp(P.accelLean||0,M.clamp((P.speed-speedBefore)/Math.max(dt,.001)*.009,-.13,.15),1-Math.exp(-dt*10)); P.turnStep=M.lerp(P.turnStep||0,Math.abs(M.angleTo(angleBefore,P.angle))/Math.max(dt,.001),1-Math.exp(-dt*12)); P.phase += dt * M.TAU * PEDS.cadence(P.speed); // the rig derives its stride from this cadence, so the feet never slide
     P.stats.distance += P.speed * dt;
     { const st = Math.floor(P.phase / Math.PI); if (st !== P.lastStep && P.speed > 0.6 && !P.airborne) { P.lastStep = st; AUDIO.play('step', P.x, P.z, !CITY.interiorRoom); } } // a footfall each half stride
     // hit by cars
