@@ -40,7 +40,24 @@ const Game = (() => {
     const off = e => { e.preventDefault(); keys[a] = false; b.classList.remove('on'); };
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
   }
+  // the left pad is one strip: whichever half your thumb is over, you walk that way
+  const stick = document.getElementById('stick');
+  if (stick) {
+    const halves = stick.querySelectorAll('.half');
+    const set = e => {
+      const r = stick.getBoundingClientRect(), right = e.clientX > r.left + r.width / 2;
+      if (right && !keys.right) pressed.right = true;
+      if (!right && !keys.left) pressed.left = true;
+      keys.right = right; keys.left = !right;
+      halves[0].classList.toggle('on', !right); halves[1].classList.toggle('on', right);
+    };
+    const end = e => { keys.left = keys.right = false; halves.forEach(h => h.classList.remove('on')); };
+    stick.addEventListener('pointerdown', e => { e.preventDefault(); stick.setPointerCapture(e.pointerId); pressed.any = true; Sound.init(); set(e); });
+    stick.addEventListener('pointermove', e => { if (stick.hasPointerCapture(e.pointerId)) set(e); });
+    stick.addEventListener('pointerup', end); stick.addEventListener('pointercancel', end);
+  }
   if ('ontouchstart' in window || navigator.maxTouchPoints > 0) document.body.classList.add('touch');
+  addEventListener('touchmove', e => e.preventDefault(), { passive: false });
   let padPrev = {};
   function pollPad() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -384,7 +401,7 @@ const Game = (() => {
       follow(dt, true);
       updateFlakes(dt, 0, 0);
       fadeTarget = 1;
-      if (stateT > 5.2 || (stateT > 1.2 && (pressed.jump || pressed.start))) { state = 'play'; stateT = 0; }
+      if (stateT > 5.2 || (stateT > 1.2 && (pressed.jump || pressed.start || pressed.any))) { state = 'play'; stateT = 0; }
     } else if (state === 'play') {
       if (pressed.pause || (pressed.start && paused)) paused = !paused;
       if (paused) { clearPressed(); return; }
@@ -415,7 +432,7 @@ const Game = (() => {
     } else if (state === 'ending') {
       updateEnding(dt);
     } else if (state === 'album') {
-      if (stateT > 3 && (pressed.jump || pressed.start || pressed.photo)) { state = 'loading'; album = []; loadChapter(0, () => { state = 'title'; stateT = 0; fade = 0; fadeTarget = 1; }); }
+      if (stateT > 3 && (pressed.jump || pressed.start || pressed.photo || pressed.any)) { state = 'loading'; album = []; loadChapter(0, () => { state = 'title'; stateT = 0; fade = 0; fadeTarget = 1; }); }
     }
     for (const s of splashes) {
       s.t += dt; s.x += s.vx * dt; s.y += s.vy * dt;
@@ -701,7 +718,7 @@ const Game = (() => {
     }
     if (state === 'play' && promptA > 0.02) {
       const ph = nearPhoto() || null;
-      text('E  ·  take a photograph', VIEW_W / 2, 58, 20, promptA * 0.9, { italic: true });
+      text(document.body.classList.contains('touch') ? '◉  ·  take a photograph' : 'E  ·  take a photograph', VIEW_W / 2, 58, 20, promptA * 0.9, { italic: true });
     }
     if (state === 'play' && stateT < 6) {
       const a = Math.min(1, stateT / 1, (6 - stateT) / 1.5);
@@ -738,7 +755,7 @@ const Game = (() => {
     text('STÅLHAGEN', VIEW_W / 2, 190, 92, a, { weight: 500, letter: 18, shadowA: 0.3 });
     text('the steel pasture', VIEW_W / 2, 238, 30, a * 0.9, { italic: true });
     const b = Math.min(1, Math.max(0, stateT - 1.5)) * (0.55 + Math.sin(time * 2) * 0.3);
-    text('press any key', VIEW_W / 2, VIEW_H - 70, 22, b, { italic: true, letter: 2 });
+    text(document.body.classList.contains('touch') ? 'tap to begin' : 'press any key', VIEW_W / 2, VIEW_H - 70, 22, b, { italic: true, letter: 2 });
     text('← →  walk     ↑ / space  jump     E  photograph     M  sound', VIEW_W / 2, VIEW_H - 36, 16, Math.min(1, Math.max(0, stateT - 1.5)) * 0.7, { letter: 1 });
   }
 
@@ -756,7 +773,7 @@ const Game = (() => {
     ctx.fillStyle = 'rgba(8,8,10,0.6)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     text('paused', VIEW_W / 2, 300, 48, 1, { italic: true });
     text('← → walk  ·  ↑ / space jump  ·  E photograph  ·  M sound ' + (Sound.muted ? '(off)' : '(on)'), VIEW_W / 2, 360, 20, 0.85);
-    text('esc to continue', VIEW_W / 2, 410, 18, 0.6, { italic: true });
+    text(document.body.classList.contains('touch') ? 'tap \u275a\u275a to continue' : 'esc to continue', VIEW_W / 2, 410, 18, 0.6, { italic: true });
   }
 
   function renderAlbum() {
@@ -784,7 +801,7 @@ const Game = (() => {
     const b = clamp(stateT - 2 - n * 0.25, 0, 1);
     text(`${n} of ${total} photographs`, VIEW_W / 2, VIEW_H - 92, 18, b * 0.7, { italic: true });
     text('STÅLHAGEN  ·  after the paintings of Simon Stålenhag  ·  every image drawn in code', VIEW_W / 2, VIEW_H - 60, 15, b * 0.5, { letter: 1 });
-    if (stateT > 3) text('press any key', VIEW_W / 2, VIEW_H - 26, 16, (0.4 + Math.sin(time * 2) * 0.2), { italic: true });
+    if (stateT > 3) text(document.body.classList.contains('touch') ? 'tap to play again' : 'press any key', VIEW_W / 2, VIEW_H - 26, 16, (0.4 + Math.sin(time * 2) * 0.2), { italic: true });
   }
 
   function render() {

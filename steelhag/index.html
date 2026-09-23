@@ -15,15 +15,14 @@
   <canvas id="screen" width="1280" height="720"></canvas>
   <div id="loading">painting&hellip;</div>
   <div id="touch" aria-hidden="true">
-    <div class="pad left">
-      <button data-act="left">&#9664;</button>
-      <button data-act="right">&#9654;</button>
-    </div>
+    <div id="stick" class="pad"><span class="half l">&#9664;</span><span class="half r">&#9654;</span></div>
     <div class="pad right">
-      <button data-act="photo" class="small">&#9673;</button>
-      <button data-act="jump">&#9650;</button>
+      <button data-act="photo" class="small" aria-label="Photograph">&#9673;</button>
+      <button data-act="jump" aria-label="Jump">&#9650;</button>
     </div>
+    <button id="pausebtn" data-act="pause" class="small" aria-label="Pause">&#10074;&#10074;</button>
   </div>
+  <div id="rotate">turn your phone sideways</div>
   <script src="js/util.js"></script>
   <script src="js/art.js"></script>
   <script src="js/world.js"></script>

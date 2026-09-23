@@ -1,10 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>STÅLHAGEN</title>
-<meta name="description" content="STÅLHAGEN — the steel pasture. A quiet platform game through fields of fallen machines, after the paintings of Simon Stålenhag.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
@@ -37,9 +31,8 @@ body.touch #touch { display: block; }
 @media (orientation: portrait) { body.touch #rotate { display: block; } }
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23d9d8d1'/><circle cx='11' cy='6' r='3.5' fill='%23a3aab0'/><rect y='11' width='16' height='5' fill='%23f2f2ee'/><rect x='4' y='8' width='2' height='4' fill='%23c9542a'/></svg>">
-</head>
-<body>
-  <canvas id="screen" width="1280" height="720"></canvas>
+<style>html, body { height: 100%; }</style>
+<canvas id="screen" width="1280" height="720"></canvas>
   <div id="loading">painting&hellip;</div>
   <div id="touch" aria-hidden="true">
     <div id="stick" class="pad"><span class="half l">&#9664;</span><span class="half r">&#9654;</span></div>
@@ -2889,5 +2882,3 @@ const Game = (() => {
 
 Game.start();
 </script>
-</body>
-</html>

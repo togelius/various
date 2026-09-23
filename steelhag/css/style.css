@@ -5,12 +5,22 @@ body { display: flex; align-items: center; justify-content: center; touch-action
   position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
   color: #d8d3c6; font: italic 22px "Cormorant Garamond", Georgia, serif; letter-spacing: 2px; pointer-events: none;
 }
-#touch { display: none; position: fixed; inset: auto 0 0 0; padding: 18px 22px calc(18px + env(safe-area-inset-bottom)); justify-content: space-between; pointer-events: none; }
-body.touch #touch { display: flex; }
-#touch .pad { display: flex; gap: 14px; align-items: flex-end; pointer-events: auto; }
-#touch button {
-  width: 68px; height: 68px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.35);
-  background: rgba(20,20,24,0.25); color: rgba(255,255,255,0.75); font-size: 22px; -webkit-tap-highlight-color: transparent;
+#touch { display: none; position: fixed; inset: 0; pointer-events: none; }
+body.touch #touch { display: block; }
+#touch .pad { position: absolute; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 14px; align-items: flex-end; pointer-events: auto; }
+#touch .pad.right { right: calc(20px + env(safe-area-inset-right, 0px)); }
+#touch #stick {
+  left: calc(20px + env(safe-area-inset-left, 0px)); width: 172px; height: 76px; gap: 0; border-radius: 38px;
+  border: 1.5px solid rgba(255,255,255,0.32); background: rgba(20,20,24,0.22); touch-action: none; align-items: stretch;
 }
-#touch button.small { width: 52px; height: 52px; font-size: 18px; }
+#stick .half { flex: 1; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.7); font-size: 22px; border-radius: 38px; }
+#stick .half.on { background: rgba(255,255,255,0.22); }
+#touch button {
+  width: 76px; height: 76px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.32); touch-action: none;
+  background: rgba(20,20,24,0.22); color: rgba(255,255,255,0.75); font-size: 24px; -webkit-tap-highlight-color: transparent; padding: 0;
+}
+#touch button.small { width: 54px; height: 54px; font-size: 18px; }
 #touch button.on { background: rgba(255,255,255,0.25); }
+#pausebtn { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: calc(14px + env(safe-area-inset-right, 0px)); pointer-events: auto; width: 44px !important; height: 44px !important; font-size: 13px !important; opacity: 0.7; }
+#rotate { display: none; position: fixed; left: 0; right: 0; top: calc(18px + env(safe-area-inset-top, 0px)); text-align: center; color: #d8d3c6; font: italic 18px "Cormorant Garamond", Georgia, serif; letter-spacing: 1px; pointer-events: none; }
+@media (orientation: portrait) { body.touch #rotate { display: block; } }
