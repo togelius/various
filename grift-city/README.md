@@ -15,6 +15,17 @@ around one file; `python3 tools/build-single.py` regenerates it.
 ![Northgate at night, headlights on](screenshots/night.jpg)
 ![Four stars in Downtown](screenshots/chase.jpg)
 
+## Getaway plan (September 2026)
+
+A new game opens with **HOT CAR**: a Falcata with its engine running, one star, and a lesson in losing it.
+Police now arrive by road and can be spun with a T-bone or a PIT; while you are wanted a **Heat Run** pot grows,
+banked by a clean getaway or a respray and lost if you are caught. Hold **G** (Y on a pad, HUSTLE on touch)
+beside a stranger to work a **con**. The **Gazette** prints your night's work each morning. Touch play shows only
+the buttons the moment needs, with a context ACTION button and a held-WEAP weapon wheel. Settings has a
+**Performance overlay** and **Copy performance report**, and adaptive quality no longer mistakes a 30 Hz screen
+for a slow one. Marla's finale now waits for Okafor's jobs. `./tools/check-all.sh` runs every check; see
+[DEVELOPMENT.md](DEVELOPMENT.md).
+
 ## Coastal getaway overhaul (September 2026)
 
 Grift City now has a connected ten-block **Foundry Quarter**, including Lantern Lane,

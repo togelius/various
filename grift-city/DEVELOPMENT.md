@@ -51,8 +51,8 @@ This file is the shared roadmap; whoever works on the game ticks items here and 
 
 ## Gate
 
-`./tools/check-overhaul.sh` (node suites, syntax, release build), then the browser suites in
-`tools/playtest/tests/` one at a time (`node tools/playtest/tests/<name>.js`; SwiftShader, so run one browser at a
+`./tools/check-all.sh` runs everything: `./tools/check-overhaul.sh` (node suites, syntax, release build), then the
+browser suites in `tools/playtest/tests/` one at a time (`node tools/playtest/tests/<name>.js`; SwiftShader, so run one browser at a
 time): visual, persistence, vehicles, enter_test, docks_test, repo_test, rev_test, missions_all, soak, pursuit.
 
 ## Steps
