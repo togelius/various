@@ -46,6 +46,9 @@ for(const lod of [false,true]) {
   }
  }
 }
+// Changing clothes must not change the protagonist's face.
+const heroHead = tailored => vertices(mesh.pedMesh({...look,hero:true,tailored,jacket:[.2,.2,.2]}),v=>v[12]===1||v[12]===11);
+assert.deepEqual(heroHead(false),heroHead(true),'suit tailoring must preserve the hero head');
 vm.runInContext(fs.readFileSync(path.join(__dirname,'../js/peds.js'),'utf8'),ctx);
 const peds=vm.runInContext('PEDS',ctx), math=vm.runInContext('M',ctx);
 const at=(m,x,y,z)=>[m[0]*x+m[4]*y+m[8]*z+m[12],m[1]*x+m[5]*y+m[9]*z+m[13],m[2]*x+m[6]*y+m[10]*z+m[14]];

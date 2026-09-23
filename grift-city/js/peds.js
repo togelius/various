@@ -202,7 +202,7 @@ const PEDS = (() => {
     // ---- Rig
     heldEntity() { return heldEntity(this); }
     entity() { if (this.rag) { ragdollBones(this, this.rag); this.emis.fill(0); return { mesh: this.mesh, model: this.model, bones: this.bones, emis: this.emis }; }
-      if (this.state === 'sit' && this.seat) { M.trs(seatWorld, this.seat.x, this.seat.y, this.seat.z, this.seat.a); buildRigSeated(this, this.model, this.bones, seatWorld, 0, 0, 0, 0, false, this.headYaw); this.emis.fill(0); return { mesh: this.mesh, model: this.model, bones: this.bones, emis: this.emis }; } buildRig(this, this.model, this.bones); this.emis.fill(0); const far = M.dist2(this.x, this.z, RENDER.cam.tx, RENDER.cam.tz) > 55 * 55; return { mesh: far && this.lodMesh ? this.lodMesh : this.mesh, model: this.model, bones: this.bones, emis: this.emis }; }
+      if (this.state === 'sit' && this.seat) { M.trs(seatWorld, this.seat.x, this.seat.y, this.seat.z, this.seat.a); buildRigSeated(this, this.model, this.bones, seatWorld, 0, 0, 0, 0, false, this.headYaw); this.emis.fill(0); return { mesh: this.mesh, model: this.model, bones: this.bones, emis: this.emis }; } buildRig(this, this.model, this.bones); this.emis.fill(0); const far = M.dist2(this.x, this.z, RENDER.cam.tx, RENDER.cam.tz) > 28 * 28; return { mesh: far && this.lodMesh ? this.lodMesh : this.mesh, model: this.model, bones: this.bones, emis: this.emis }; }
     remove() { this.removed = true; if (this.inCar) { if (this.inCar.driver === this) this.inCar.driver = null; } }
   }
 
@@ -212,9 +212,33 @@ const PEDS = (() => {
   const jt1 = M.create(), jt2 = M.create(), jt3 = M.create();
   // The weapon in the right hand is a second entity riding the forearm bone: model * forearm * T(hand).
   const heldBones = new Float32Array(16 * RENDER.MAX_BONES); for (let i = 0; i < RENDER.MAX_BONES; i++) heldBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16); const heldEmis = new Float32Array(RENDER.MAX_BONES);
-  const heldTmp = M.create(), heldHand = M.create();
+  const heldTmp = M.create(), heldHand = M.create(), weaponAim = M.create();
+  function shoulderAim(p) {
+    if(!['rifle','shotgun'].includes(p.weapon))return 0;
+    const u=p.reloadT>0?1-p.reloadT/p.reloadDuration:0;
+    const reload=p.reloadT>0?smooth(M.clamp(u/.12,0,1))*smooth(M.clamp((1-u)/.12,0,1)):0;
+    return (p.motion?.aim??p.aim??0)*(1-reload);
+  }
+  // A wrist can turn while the elbow stays tucked. Long guns meet the shoulder instead of pointing
+  // along a nearly straight forearm. Other items keep the original forearm attachment.
+  function weaponFrame(p,bones,out) {
+    out.set(bones.subarray(160,176));const amount=shoulderAim(p);
+    if(amount>.001) {
+      const yaw=M.clamp(M.angleTo(p.angle||0,p.camYaw??p.angle??0),-.6,.6);
+      M.trsEuler(weaponAim,0,0,0,yaw,-Math.PI/2+lockPitch(p),0);
+      for(const k of [0,1,2,4,5,6,8,9,10])out[k]=M.lerp(out[k],weaponAim[k],amount);
+      // Orthonormalize the blended wrist frame so the weapon cannot shear during a transition.
+      let l=Math.hypot(out[0],out[1],out[2]);for(let k=0;k<3;k++)out[k]/=l||1;
+      const dot=out[0]*out[4]+out[1]*out[5]+out[2]*out[6];for(let k=0;k<3;k++)out[4+k]-=dot*out[k];
+      l=Math.hypot(out[4],out[5],out[6]);for(let k=0;k<3;k++)out[4+k]/=l||1;
+      out[8]=out[1]*out[6]-out[2]*out[5];out[9]=out[2]*out[4]-out[0]*out[6];out[10]=out[0]*out[5]-out[1]*out[4];
+    }
+    const hand=rigPoint(bones,160,MESH.HAND[0],MESH.HAND[1],0);
+    out[12]=hand.x+out[8]*MESH.HAND[2];out[13]=hand.y+out[9]*MESH.HAND[2];out[14]=hand.z+out[10]*MESH.HAND[2];
+    return out;
+  }
   function heldEntity(p) { const armed = p.weapon && p.weapon !== 'fist' && p.weaponOut; const key = armed ? p.weapon : p.item; if (!key || p.inCar || p.rag || p.state === 'dead' || (p.state === 'sit' && !armed)) return null; const mesh = MESH.heldMesh(key); if (!mesh) return null;
-    if (!p.heldModel) p.heldModel = M.create(); M.multiply(heldTmp, p.model, p.bones.subarray(160, 176)); M.trs(heldHand, MESH.HAND[0], MESH.HAND[1], MESH.HAND[2], 0); M.multiply(p.heldModel, heldTmp, heldHand); return { mesh, model: p.heldModel, bones: heldBones, emis: heldEmis }; }
+    if (!p.heldModel) p.heldModel = M.create();weaponFrame(p,p.bones,heldHand);M.multiply(p.heldModel,p.model,heldHand); return { mesh, model: p.heldModel, bones: heldBones, emis: heldEmis }; }
   // Bone 11 carries the mouth: the head bone with a vertical stretch about the mouth's own position, so a talking ped's lips move.
   const mtmp1 = M.create(), mtmp2 = M.create(), mtmp3 = M.create();
   function mouthBone(out, open) { out.set(out.subarray(112,128),192); out.set(out.subarray(128,144),208); const [mx, my, mz] = MESH.MOUTH_POS; M.trs(mtmp1, mx, my, mz, 0, 1, 1 + open * 5, 1); M.trs(mtmp2, -mx, -my, -mz, 0); M.multiply(mtmp3, mtmp1, mtmp2); M.multiply(mtmp1, out.subarray(16, 32), mtmp3); out.set(mtmp1, 176); }
@@ -316,11 +340,19 @@ const PEDS = (() => {
     const elbowR=hold==='phone'?-2.3:hold==='umbrella'?-.3:M.lerp(-(elbowBase+elbowSwing*Math.max(0,fL)+punch*.6),longGun?-.69:-.48,aim);
     jointBone(bones,144,32,.26,ELBOW_Y,0,M.lerp(elbowL,pose[2],reloading)-gesture*.95);
     jointBone(bones,160,48,-.26,ELBOW_Y,0,M.lerp(elbowR,pose[3],reloading));
+    const shoulderWeight=shoulderAim(p);
+    if(shoulderWeight>.001) {
+      const shoulder=rigPoint(bones,96,-.26,.6,0),rest=rigPoint(bones,160,-.26,-.6,0),pitch=lockPitch(p);
+      const yaw=M.clamp(M.angleTo(p.angle||0,p.camYaw??p.angle??0),-.6,.6);
+      const target={x:M.lerp(rest.x,shoulder.x+.14+Math.sin(yaw)*Math.cos(pitch)*.34,shoulderWeight),y:M.lerp(rest.y,shoulder.y-.12-Math.sin(pitch)*.34,shoulderWeight),z:M.lerp(rest.z,shoulder.z+Math.cos(yaw)*Math.cos(pitch)*.34,shoulderWeight)};
+      solveLimb(bones,48,160,shoulder,target,.31,.29,-.26,-.31,[-1,-1,0],[1,0,0]);
+    }
     // The supporting hand reaches the actual weapon grip as aim blends in. No floating off-hand.
     const support=aim*(1-reloading)*(p.weapon&&p.weapon!=='grenade'&&p.weapon!=='bat'?1:0);
     if(support>.001) {
       const shoulder=rigPoint(bones,96,.26,.6,0),rest=rigPoint(bones,144,.26,-.6,0);
-      const grip=rigPoint(bones,160,MESH.HAND[0]+.04,MESH.HAND[1]-(longGun?.10:0),MESH.HAND[2]-.035);
+      weaponFrame(p,bones,heldTmp);
+      const grip=rigPoint(heldTmp,0,.04,longGun?-.10:0,-.035);
       const target={x:M.lerp(rest.x,grip.x,support),y:M.lerp(rest.y,grip.y,support),z:M.lerp(rest.z,grip.z,support)};
       const right=[bones[96],bones[97],bones[98]],pole=[right[0]*.7-bones[100]*.7,right[1]*.7-bones[101]*.7,right[2]*.7-bones[102]*.7];
       solveLimb(bones,32,144,shoulder,target,.31,.29,.26,-.31,pole,right);
@@ -354,17 +386,17 @@ const PEDS = (() => {
 
   // Seated pose inside a car (or on a bench): hips at the seat, thighs forward, shins down, hands on the wheel.
   const seatTmp = M.create(), seatLocal = M.create(), seatWorld = M.create();
-  function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1, bike = false) {
+  function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1, bike = false, vehicle = null) {
     M.trs(seatLocal, lx, ly, lz, yaw, (p.sx || 1) * fit, (p.sy || 1) * fit, (p.sx || 1) * fit); M.multiply(model, carModel, seatLocal);
     if (bike) { // astride: torso forward over the tank, arms out to the bars, knees bent down to the pegs
       const hip = 0.02, lean = 0.32; bone(bones, 0, 0, hip, 0, 0, lean, 0); bones.set(bones.subarray(0,16),96); torsoChild(bones,16,0,TORSO_H+.03,headYaw,-.35,0);
       torsoChild(bones,32,.26,SHOULDER,.35,-1.05,.2,.26); torsoChild(bones,48,-.26,SHOULDER,-.35,-1.05,-.2,-.26); jointBone(bones, 144, 32, 0.26, ELBOW_Y, 0, -0.45); jointBone(bones, 160, 48, -0.26, ELBOW_Y, 0, -0.45);
       bone(bones, 64, 0, hip, 0, 0, -0.95, 0.28); bone(bones, 80, 0, hip, 0, 0, -0.95, -0.28); jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, 1.45); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, 1.45);
       bones.set(bones.subarray(0,16),96); mouthBone(bones, talkOpen(p)); return; }
-    const hip = 0.02; const lean = driving ? 0.12 : 0.05;
+    const hip=.02,steer=driving?(vehicle?.steer||0)*.14:0;const lean=(driving?.12:.05)+(vehicle?.damageFlash||0)*.9+(vehicle?.pitch||0)*.4;
     bone(bones, 0, 0, hip, 0, 0, lean, 0); bones.set(bones.subarray(0,16),96);
     torsoChild(bones,16,0,TORSO_H+.03,headYaw,-lean*.7,0);
-    const armP = driving ? -0.9 : -0.35; torsoChild(bones,32,.26,SHOULDER,driving?.25:0,armP,driving?.15:.05,.26); torsoChild(bones,48,-.26,SHOULDER,driving?-.25:0,armP,driving?-.15:-.05,-.26);
+    const armP=driving?-.9:-.35;torsoChild(bones,32,.26,SHOULDER,driving?.25:0,armP-steer,driving?.15:.05,.26);torsoChild(bones,48,-.26,SHOULDER,driving?-.25:0,armP+steer,driving?-.15:-.05,-.26);
     jointBone(bones, 144, 32, 0.26, ELBOW_Y, 0, driving ? -0.7 : -0.5); jointBone(bones, 160, 48, -0.26, ELBOW_Y, 0, driving ? -0.7 : -0.5);
     bone(bones, 64, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0); bone(bones, 80, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0);
     jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, Math.PI / 2 - 0.35); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, Math.PI / 2 - 0.35);
@@ -430,7 +462,7 @@ const PEDS = (() => {
     const half = L / 2; const c0 = half - s.cabin[0] * L - s.hood * 0.5, c1 = half - s.cabin[1] * L - s.hood * 0.5; const seatZ = (c0 + c1) / 2 - 0.1;
     const row = Math.floor(index / 2), side = index % 2 === 0 ? 1 : -1; return [side * W * 0.21, seatY, seatZ - row * 0.9];
   }
-  function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0, MESH.seatFit(car.spec).scale, !!car.spec.bike); p.emis.fill(0); return { mesh: p.mesh, model: p.model, bones: p.bones, emis: p.emis }; }
+  function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0, MESH.seatFit(car.spec).scale, !!car.spec.bike, car); p.emis.fill(0);const far=M.dist2(car.x,car.z,RENDER.cam.tx,RENDER.cam.tz)>28*28;return {mesh:far&&p.lodMesh?p.lodMesh:p.mesh,model:p.model,bones:p.bones,emis:p.emis}; }
 
   // ---- Spawning
   function spawn(x, z, opts = {}) { const look = opts.look || looks[Math.floor(W.rng() * looks.length)]; const p = new Ped(look, x, z, opts); W.peds.push(p); return p; }

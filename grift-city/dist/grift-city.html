@@ -1133,11 +1133,11 @@ const MESH = (() => {
   // Limbs are tapered cylinders with ball joints, the torso is a lofted body, the head an ellipsoid with a hair cap.
   const MOUTH_POS = [0, .090, .113]; // where the mouth sits in head-bone space
   function pedMesh(look, lod = false) {
-    const b = new Builder(); const SEG = lod ? 8 : 20, RNG = lod ? 3 : 7, CS = lod ? 5 : 10, AS = lod ? 5 : 9; const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket, glasses = false, bag = null, skirt = false, longHair = false, beanie = false, hairStyle = 0, beard = false } = look;
+    const b = new Builder(); const SEG = lod ? 8 : 28, RNG = lod ? 3 : 7, CS = lod ? 5 : 10, AS = lod ? 5 : 9; const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket, glasses = false, bag = null, skirt = false, longHair = false, beanie = false, hairStyle = 0, beard = false } = look;
     const legH = 0.85, torsoH = 0.65, headR = 0.15;
     const tailored = look.tailored || false, broad = look.build === 'stocky';
     const skinDk = skin.map(c => c * 0.82), top = jacket || shirt, topDk = top.map(c => c * 0.72);
-    const hero=!!look.hero, edge=top.map(c=>Math.min(1,c*1.28+.035)), cloth=TEX.names.characterCloth||0;
+    const hero=!!look.hero, refinedFace=!hero&&tailored, edge=top.map(c=>Math.min(1,c*1.28+.035)), cloth=TEX.names.characterCloth||0;
     const seam=(a,c,col,bone,r=.0025)=>b.tube(a,c,r,r,col,0,bone,4);
     const ball = (x, y, z, r, col, bone, segs = 6, rings = 2) => b.sphere(x, y, z, r, r, r, col, { segs: lod ? 4 : segs, rings: lod ? 1 : rings, bone });
     // legs hang from the hips (bones 4, 5): thigh, knee, shin, a shaped shoe
@@ -1199,7 +1199,7 @@ const MESH = (() => {
     }
     // Constructed collars and back panels give the silhouettes depth instead of painted-on lapels.
     if(jacket) {
-      const collar=hero?[.66,.58,.43]:edge;
+      const collar=hero&&look.bomber!==false?[.66,.58,.43]:edge;
       for(const side of [-1,1]) {
         b.polyOut([[side*.050,.665,.088],[side*.138,.616,.143],[side*.102,.584,.157],[side*.043,.625,.135]],collar,0,.4,0);
         b.polyOut([[side*.055,.665,-.089],[side*.162,.616,-.119],[side*.142,.583,-.149],[side*.040,.616,-.117]],collar,0,.4,0);
@@ -1219,7 +1219,7 @@ const MESH = (() => {
         seam([0,.477,-.154],[side*.207,.531,-.138],edge,0,.003);
         seam([side*.154,.444,-.136],[side*.134,.15,-.142],edge,0);
       }
-      if(hero) { // a small repaired panel, not a screen-filling logo
+      if(hero&&look.bomber!==false) { // a small repaired panel, not a screen-filling logo
         b.roundedBox(.085,.275,-.146,.046,.066,.009,.005,[.27,.22,.17],0,0,{n:1});
         if(!lod) for(let k=0;k<4;k++) seam([.087+k*.014,.28,-.155],[.092+k*.014,.292,-.155],[.61,.49,.32],0,.0015);
       }
@@ -1229,14 +1229,22 @@ const MESH = (() => {
     if (bag) { b.roundedBox(-0.32, torsoH * 0.15, -0.16, 0.1, 0.3, 0.22, 0.03, bag, 0, 0, { n: 1 }); b.tube([-0.27, 0.62, -0.02], [-0.27, 0.25, -0.1], 0.012, 0.012, bag.map(c => c * 0.7), 0, 0, 5); }
     b.cyl(0, torsoH - 0.03, 0, 0.056, torsoH + 0.07, skin, 0, 8, 0, false, false, 0.06); // neck
     // One sculpted skull: chin, jaw, cheeks, brow and crown share a continuous surface.
-    const faceRing = (y,rx,rz,zc) => Array.from({length:SEG},(_,i)=>{const a=i/SEG*Math.PI*2,c=Math.cos(a),front=Math.sin(a);return [c*rx,y,zc+(front>0?Math.pow(front,.56):front)*rz];});
-    const jaw = tailored ? .92 : broad ? 1.1 : 1; const faceStart = b.v.length, faceIndexStart = b.i.length;
-    b.loft([faceRing(.025,.041,.051,.026),faceRing(.050,.075*jaw,.076,.022),faceRing(.081,.094*jaw,.084,.017),faceRing(.119,.110*jaw,.094,.010),faceRing(.157,.126,.107,-.003),faceRing(.186,.125,.100,-.004),faceRing(.216,.121,.108,-.007),faceRing(.250,.118,.105,-.011),faceRing(.287,.095,.085,-.013),faceRing(.315,.041,.038,-.014)],skin,0,1,{capStart:true,capEnd:true});
-    // Cylindrical face coordinates keep painted lids and brows on the skin, including the distant LOD.
+    const faceRing = (y,rx,rz,zc) => Array.from({length:SEG},(_,i)=>{
+      const a=i/SEG*M.TAU,c=Math.cos(a),front=Math.sin(a),x=c*rx;
+      // The bridge belongs to the face surface: continuous normals avoid a dark, floating nose seam.
+      const nose=front>.6?Math.max(0,1-Math.abs(y-.144)/.065)*.047*(refinedFace?.78:broad?1.15:1)*Math.exp(-Math.pow(x/.025,2)):0;
+      return [x,y,zc+(front>0?Math.pow(front,.56):front)*rz+nose];
+    });
+    const jaw = refinedFace ? .92 : broad ? 1.1 : 1; const faceStart = b.v.length, faceIndexStart = b.i.length;
+    b.loft([faceRing(.025,.041,.051,.026),faceRing(.050,.075*jaw,.076,.022),faceRing(.081,.094*jaw,.084,.017),faceRing(.119,.110*jaw,.094,.010),faceRing(.140,.120,.102,.003),faceRing(.157,.126,.107,-.003),faceRing(.186,.125,.100,-.004),faceRing(.216,.121,.108,-.007),faceRing(.250,.118,.105,-.011),faceRing(.287,.095,.085,-.013),faceRing(.315,.041,.038,-.014)],skin,0,1,{capStart:true,capEnd:true});
+    // Cylindrical face coordinates keep skin shading continuous around the sculpted features.
     for (let i=faceStart;i<b.v.length;i+=13) {
       b.v[i+9] = Math.atan2(b.v[i], b.v[i+2]) / (Math.PI*2) + .5;
       b.v[i+10] = 1-b.v[i+1]/.33; b.v[i+11] = TEX.names.face || 0;
-      const y=b.v[i+1],x=Math.abs(b.v[i]),front=b.v[i+2]>.04;const shade=y<.06?.78:y<.12?.93:front&&y<.20&&x>.06?.94:1;for(let k=0;k<3;k++)b.v[i+6+k]*=shade;
+      const y=b.v[i+1],x=Math.abs(b.v[i]),front=b.v[i+2]>.04;
+      const shade=y<.06?.78:y<.12?.93:front&&y<.20&&x>.06?.94:1;
+      const crease=front?1-.16*Math.exp(-Math.pow((x-.025)/.018,2)-Math.pow((y-.143)/.040,2)):1;
+      for(let k=0;k<3;k++)b.v[i+6+k]*=shade*crease;
     }
     // Unwrap seam-crossing faces at the back, never interpolate the face paint across the skull.
     for(let i=faceIndexStart;i<b.i.length;i+=3) {
@@ -1262,19 +1270,18 @@ const MESH = (() => {
         b.sphere(Math.sign(sx)*.14,.164,.004,.007,.018,.01,skinDk,{segs:6,rings:2,bone:1});
         if (look.earrings) b.sphere(Math.sign(sx)*.138,.129,.0,.009,.011,.009,[.88,.69,.32],{segs:7,rings:3,bone:1});
       }
-      // A bridge and nostrils sit between inset almond-shaped eyes. Skin folds integrate each feature.
-      b.loft([faceRing(.123,.021,.018,.104),faceRing(.141,.024,.021,.119),faceRing(.172,.012,.016,.119),faceRing(.202,.010,.009,.107)],skin,0,1,{capStart:true,capEnd:true});
+      // Small nostril shadows sit beneath the nose sculpted into the skull surface.
       for(const side of [-1,1]) {
-        b.sphere(side*.014,.129,.127,.009,.004,.004,skin.map(c=>c*.43),{segs:6,rings:2,bone:1});
+        b.sphere(side*.010,.128,.132,.005,.002,.002,skin.map(c=>c*.61),{segs:6,rings:2,bone:1});
         const x=side*.048,z=.101;
         b.sphere(x,.187,z-.003,.030,.011,.009,skinDk,{segs:12,rings:4,bone:1});
         b.sphere(x,.187,z+.007,.025,.008,.006,[.78,.76,.68],{segs:12,rings:4,bone:1});
         b.sphere(x-side*.001,.188,z+.013,.008,.008,.003,look.eyes||[.20,.25,.22],{segs:10,rings:3,bone:1});
         b.sphere(x-side*.001,.188,z+.016,.0035,.0047,.0015,[.025,.025,.023],{segs:8,rings:3,bone:1});
         b.sphere(x-.002,.191,z+.018,.0018,.0018,.001,[.9,.89,.78],{segs:5,rings:2,bone:1});
-        b.tube([x-.026,.188,z+.011],[x,.196,z+.014],.003,.003,skin.map(c=>c*.61),0,1,6);
-        b.tube([x,.196,z+.014],[x+.026,.187,z+.011],.003,.0025,skin.map(c=>c*.61),0,1,6);
-        b.tube([x-.026,.211,z+.005],[x+.022,.214,z+.004],.0035,.003,hair.map(c=>c*.78),0,1,6);
+        b.tube([x-.026,.188,z+.011],[x,.196,z+.014],.003,.003,skin.map(c=>c*.74),0,1,6);
+        b.tube([x,.196,z+.014],[x+.026,.187,z+.011],.003,.0025,skin.map(c=>c*.74),0,1,6);
+        b.tube([x-.026,.211,z+.005],[x+.022,.214,z+.004],refinedFace?.0024:.0035,refinedFace?.002:.003,hair.map(c=>c*.78),0,1,6);
         b.tube([x-.020,.174,z+.001],[x+.022,.175,z+.001],.002,.002,skin.map(c=>c*.86),0,1,5);
       }
       const lip=skin.map((c,i)=>c*(i===0?.77:.59));
@@ -1283,6 +1290,10 @@ const MESH = (() => {
       b.sphere(0,.084,.110,.023,.005,.006,skin.map((c,i)=>c*(i===0?.93:.8)),{segs:10,rings:3,bone:11});
 
       if (look.stubble) for(let i=faceStart;i<b.v.length;i+=13) { if(b.v[i+12]===1 && b.v[i+11]===(TEX.names.face||0) && b.v[i+1]<.11) for(let k=0;k<3;k++) b.v[i+6+k]*=.87; }
+    }
+    if(lod) { // Keep the face readable when the expensive eye/lid geometry drops away.
+      for(const x of [-.048,.048])b.cbox(x,.188,.108,.041,.006,.003,[.16,.14,.12],0,{bone:1});
+      b.cbox(0,.09,.113,.038,.004,.003,skin.map(c=>c*.5),0,{bone:11});
     }
     if (glasses) {
       for(const side of [-1,1]) { b.roundedBox(side*.051-.040,.157,.115,.080,.043,.012,.009,[.045,.055,.059],0,1,{n:2}); b.tube([side*.087,.18,.12],[side*.127,.18,-.015],.005,.005,[.065,.06,.055],0,1,5); }
@@ -4860,7 +4871,7 @@ const PEDS = (() => {
     // ---- Rig
     heldEntity() { return heldEntity(this); }
     entity() { if (this.rag) { ragdollBones(this, this.rag); this.emis.fill(0); return { mesh: this.mesh, model: this.model, bones: this.bones, emis: this.emis }; }
-      if (this.state === 'sit' && this.seat) { M.trs(seatWorld, this.seat.x, this.seat.y, this.seat.z, this.seat.a); buildRigSeated(this, this.model, this.bones, seatWorld, 0, 0, 0, 0, false, this.headYaw); this.emis.fill(0); return { mesh: this.mesh, model: this.model, bones: this.bones, emis: this.emis }; } buildRig(this, this.model, this.bones); this.emis.fill(0); const far = M.dist2(this.x, this.z, RENDER.cam.tx, RENDER.cam.tz) > 55 * 55; return { mesh: far && this.lodMesh ? this.lodMesh : this.mesh, model: this.model, bones: this.bones, emis: this.emis }; }
+      if (this.state === 'sit' && this.seat) { M.trs(seatWorld, this.seat.x, this.seat.y, this.seat.z, this.seat.a); buildRigSeated(this, this.model, this.bones, seatWorld, 0, 0, 0, 0, false, this.headYaw); this.emis.fill(0); return { mesh: this.mesh, model: this.model, bones: this.bones, emis: this.emis }; } buildRig(this, this.model, this.bones); this.emis.fill(0); const far = M.dist2(this.x, this.z, RENDER.cam.tx, RENDER.cam.tz) > 28 * 28; return { mesh: far && this.lodMesh ? this.lodMesh : this.mesh, model: this.model, bones: this.bones, emis: this.emis }; }
     remove() { this.removed = true; if (this.inCar) { if (this.inCar.driver === this) this.inCar.driver = null; } }
   }
 
@@ -4870,9 +4881,33 @@ const PEDS = (() => {
   const jt1 = M.create(), jt2 = M.create(), jt3 = M.create();
   // The weapon in the right hand is a second entity riding the forearm bone: model * forearm * T(hand).
   const heldBones = new Float32Array(16 * RENDER.MAX_BONES); for (let i = 0; i < RENDER.MAX_BONES; i++) heldBones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16); const heldEmis = new Float32Array(RENDER.MAX_BONES);
-  const heldTmp = M.create(), heldHand = M.create();
+  const heldTmp = M.create(), heldHand = M.create(), weaponAim = M.create();
+  function shoulderAim(p) {
+    if(!['rifle','shotgun'].includes(p.weapon))return 0;
+    const u=p.reloadT>0?1-p.reloadT/p.reloadDuration:0;
+    const reload=p.reloadT>0?smooth(M.clamp(u/.12,0,1))*smooth(M.clamp((1-u)/.12,0,1)):0;
+    return (p.motion?.aim??p.aim??0)*(1-reload);
+  }
+  // A wrist can turn while the elbow stays tucked. Long guns meet the shoulder instead of pointing
+  // along a nearly straight forearm. Other items keep the original forearm attachment.
+  function weaponFrame(p,bones,out) {
+    out.set(bones.subarray(160,176));const amount=shoulderAim(p);
+    if(amount>.001) {
+      const yaw=M.clamp(M.angleTo(p.angle||0,p.camYaw??p.angle??0),-.6,.6);
+      M.trsEuler(weaponAim,0,0,0,yaw,-Math.PI/2+lockPitch(p),0);
+      for(const k of [0,1,2,4,5,6,8,9,10])out[k]=M.lerp(out[k],weaponAim[k],amount);
+      // Orthonormalize the blended wrist frame so the weapon cannot shear during a transition.
+      let l=Math.hypot(out[0],out[1],out[2]);for(let k=0;k<3;k++)out[k]/=l||1;
+      const dot=out[0]*out[4]+out[1]*out[5]+out[2]*out[6];for(let k=0;k<3;k++)out[4+k]-=dot*out[k];
+      l=Math.hypot(out[4],out[5],out[6]);for(let k=0;k<3;k++)out[4+k]/=l||1;
+      out[8]=out[1]*out[6]-out[2]*out[5];out[9]=out[2]*out[4]-out[0]*out[6];out[10]=out[0]*out[5]-out[1]*out[4];
+    }
+    const hand=rigPoint(bones,160,MESH.HAND[0],MESH.HAND[1],0);
+    out[12]=hand.x+out[8]*MESH.HAND[2];out[13]=hand.y+out[9]*MESH.HAND[2];out[14]=hand.z+out[10]*MESH.HAND[2];
+    return out;
+  }
   function heldEntity(p) { const armed = p.weapon && p.weapon !== 'fist' && p.weaponOut; const key = armed ? p.weapon : p.item; if (!key || p.inCar || p.rag || p.state === 'dead' || (p.state === 'sit' && !armed)) return null; const mesh = MESH.heldMesh(key); if (!mesh) return null;
-    if (!p.heldModel) p.heldModel = M.create(); M.multiply(heldTmp, p.model, p.bones.subarray(160, 176)); M.trs(heldHand, MESH.HAND[0], MESH.HAND[1], MESH.HAND[2], 0); M.multiply(p.heldModel, heldTmp, heldHand); return { mesh, model: p.heldModel, bones: heldBones, emis: heldEmis }; }
+    if (!p.heldModel) p.heldModel = M.create();weaponFrame(p,p.bones,heldHand);M.multiply(p.heldModel,p.model,heldHand); return { mesh, model: p.heldModel, bones: heldBones, emis: heldEmis }; }
   // Bone 11 carries the mouth: the head bone with a vertical stretch about the mouth's own position, so a talking ped's lips move.
   const mtmp1 = M.create(), mtmp2 = M.create(), mtmp3 = M.create();
   function mouthBone(out, open) { out.set(out.subarray(112,128),192); out.set(out.subarray(128,144),208); const [mx, my, mz] = MESH.MOUTH_POS; M.trs(mtmp1, mx, my, mz, 0, 1, 1 + open * 5, 1); M.trs(mtmp2, -mx, -my, -mz, 0); M.multiply(mtmp3, mtmp1, mtmp2); M.multiply(mtmp1, out.subarray(16, 32), mtmp3); out.set(mtmp1, 176); }
@@ -4974,11 +5009,19 @@ const PEDS = (() => {
     const elbowR=hold==='phone'?-2.3:hold==='umbrella'?-.3:M.lerp(-(elbowBase+elbowSwing*Math.max(0,fL)+punch*.6),longGun?-.69:-.48,aim);
     jointBone(bones,144,32,.26,ELBOW_Y,0,M.lerp(elbowL,pose[2],reloading)-gesture*.95);
     jointBone(bones,160,48,-.26,ELBOW_Y,0,M.lerp(elbowR,pose[3],reloading));
+    const shoulderWeight=shoulderAim(p);
+    if(shoulderWeight>.001) {
+      const shoulder=rigPoint(bones,96,-.26,.6,0),rest=rigPoint(bones,160,-.26,-.6,0),pitch=lockPitch(p);
+      const yaw=M.clamp(M.angleTo(p.angle||0,p.camYaw??p.angle??0),-.6,.6);
+      const target={x:M.lerp(rest.x,shoulder.x+.14+Math.sin(yaw)*Math.cos(pitch)*.34,shoulderWeight),y:M.lerp(rest.y,shoulder.y-.12-Math.sin(pitch)*.34,shoulderWeight),z:M.lerp(rest.z,shoulder.z+Math.cos(yaw)*Math.cos(pitch)*.34,shoulderWeight)};
+      solveLimb(bones,48,160,shoulder,target,.31,.29,-.26,-.31,[-1,-1,0],[1,0,0]);
+    }
     // The supporting hand reaches the actual weapon grip as aim blends in. No floating off-hand.
     const support=aim*(1-reloading)*(p.weapon&&p.weapon!=='grenade'&&p.weapon!=='bat'?1:0);
     if(support>.001) {
       const shoulder=rigPoint(bones,96,.26,.6,0),rest=rigPoint(bones,144,.26,-.6,0);
-      const grip=rigPoint(bones,160,MESH.HAND[0]+.04,MESH.HAND[1]-(longGun?.10:0),MESH.HAND[2]-.035);
+      weaponFrame(p,bones,heldTmp);
+      const grip=rigPoint(heldTmp,0,.04,longGun?-.10:0,-.035);
       const target={x:M.lerp(rest.x,grip.x,support),y:M.lerp(rest.y,grip.y,support),z:M.lerp(rest.z,grip.z,support)};
       const right=[bones[96],bones[97],bones[98]],pole=[right[0]*.7-bones[100]*.7,right[1]*.7-bones[101]*.7,right[2]*.7-bones[102]*.7];
       solveLimb(bones,32,144,shoulder,target,.31,.29,.26,-.31,pole,right);
@@ -5012,17 +5055,17 @@ const PEDS = (() => {
 
   // Seated pose inside a car (or on a bench): hips at the seat, thighs forward, shins down, hands on the wheel.
   const seatTmp = M.create(), seatLocal = M.create(), seatWorld = M.create();
-  function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1, bike = false) {
+  function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1, bike = false, vehicle = null) {
     M.trs(seatLocal, lx, ly, lz, yaw, (p.sx || 1) * fit, (p.sy || 1) * fit, (p.sx || 1) * fit); M.multiply(model, carModel, seatLocal);
     if (bike) { // astride: torso forward over the tank, arms out to the bars, knees bent down to the pegs
       const hip = 0.02, lean = 0.32; bone(bones, 0, 0, hip, 0, 0, lean, 0); bones.set(bones.subarray(0,16),96); torsoChild(bones,16,0,TORSO_H+.03,headYaw,-.35,0);
       torsoChild(bones,32,.26,SHOULDER,.35,-1.05,.2,.26); torsoChild(bones,48,-.26,SHOULDER,-.35,-1.05,-.2,-.26); jointBone(bones, 144, 32, 0.26, ELBOW_Y, 0, -0.45); jointBone(bones, 160, 48, -0.26, ELBOW_Y, 0, -0.45);
       bone(bones, 64, 0, hip, 0, 0, -0.95, 0.28); bone(bones, 80, 0, hip, 0, 0, -0.95, -0.28); jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, 1.45); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, 1.45);
       bones.set(bones.subarray(0,16),96); mouthBone(bones, talkOpen(p)); return; }
-    const hip = 0.02; const lean = driving ? 0.12 : 0.05;
+    const hip=.02,steer=driving?(vehicle?.steer||0)*.14:0;const lean=(driving?.12:.05)+(vehicle?.damageFlash||0)*.9+(vehicle?.pitch||0)*.4;
     bone(bones, 0, 0, hip, 0, 0, lean, 0); bones.set(bones.subarray(0,16),96);
     torsoChild(bones,16,0,TORSO_H+.03,headYaw,-lean*.7,0);
-    const armP = driving ? -0.9 : -0.35; torsoChild(bones,32,.26,SHOULDER,driving?.25:0,armP,driving?.15:.05,.26); torsoChild(bones,48,-.26,SHOULDER,driving?-.25:0,armP,driving?-.15:-.05,-.26);
+    const armP=driving?-.9:-.35;torsoChild(bones,32,.26,SHOULDER,driving?.25:0,armP-steer,driving?.15:.05,.26);torsoChild(bones,48,-.26,SHOULDER,driving?-.25:0,armP+steer,driving?-.15:-.05,-.26);
     jointBone(bones, 144, 32, 0.26, ELBOW_Y, 0, driving ? -0.7 : -0.5); jointBone(bones, 160, 48, -0.26, ELBOW_Y, 0, driving ? -0.7 : -0.5);
     bone(bones, 64, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0); bone(bones, 80, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0);
     jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, Math.PI / 2 - 0.35); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, Math.PI / 2 - 0.35);
@@ -5088,7 +5131,7 @@ const PEDS = (() => {
     const half = L / 2; const c0 = half - s.cabin[0] * L - s.hood * 0.5, c1 = half - s.cabin[1] * L - s.hood * 0.5; const seatZ = (c0 + c1) / 2 - 0.1;
     const row = Math.floor(index / 2), side = index % 2 === 0 ? 1 : -1; return [side * W * 0.21, seatY, seatZ - row * 0.9];
   }
-  function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0, MESH.seatFit(car.spec).scale, !!car.spec.bike); p.emis.fill(0); return { mesh: p.mesh, model: p.model, bones: p.bones, emis: p.emis }; }
+  function seatedEntity(p, car, index, driving) { const [lx, ly, lz] = seatOf(car, index); buildRigSeated(p, p.model, p.bones, car.model, lx, ly, lz, 0, driving, 0, MESH.seatFit(car.spec).scale, !!car.spec.bike, car); p.emis.fill(0);const far=M.dist2(car.x,car.z,RENDER.cam.tx,RENDER.cam.tz)>28*28;return {mesh:far&&p.lodMesh?p.lodMesh:p.mesh,model:p.model,bones:p.bones,emis:p.emis}; }
 
   // ---- Spawning
   function spawn(x, z, opts = {}) { const look = opts.look || looks[Math.floor(W.rng() * looks.length)]; const p = new Ped(look, x, z, opts); W.peds.push(p); return p; }
@@ -5167,7 +5210,7 @@ const PLAYER = (() => {
   const P = {
     x: 0, z: 0, y: 0, angle: 0, vx: 0, vz: 0, vy: 0, airborne: false, speed: 0, phase: 0, lying: 0, fallDir: 1,
     health: 100, armor: 0, money: 500, wanted: 0, weapons: { fist: Infinity }, weapon: 'fist', magazines: {}, reloadT: 0, reloadDuration: 0, reloadWeapon: null, fireT: 0, weaponOut: false, aim: 0, recoil: 0, punchT: 0,
-    crouched: false, crouch: 0, shoulder: 1, evadeT: 0, evadeRecovery: 0, brace: 0,
+    crouched: false, crouch: 0, shoulder: 1, evadeT: 0, evadeRecovery: 0, brace: 0, jumpBuffer: 0, coyote: 0,
     car: null, state: 'foot', stateT: 0, alive: true, deadT: 0, look: PEDS.PLAYER_LOOK, mesh: null, bones: null, emis: null, model: null,
     camYaw: 0, camPitch: 0.28, camYawOff: 0, camIdle: 0, camX: 0, camY: 0, camZ: 0, camDist: 5.4, fov: 62,
     stats: { kills: 0, carsStolen: 0, missions: 0, distance: 0, packages: 0, stunts: 0, busted: 0, wasted: 0, cash: 0, jumps: [] },
@@ -5176,8 +5219,8 @@ const PLAYER = (() => {
   const projectiles = []; const tracers = [];
   const tmp = M.create();
 
-  const OUTFITS = [{ name: 'Street', shirt: [0.85, 0.85, 0.8], jacket: [0.36, 0.25, 0.19], pants: [0.2, 0.2, 0.25] }, { name: 'Suit', shirt: [0.95, 0.95, 0.95], jacket: [0.1, 0.1, 0.13], pants: [0.1, 0.1, 0.13] }, { name: 'Tracksuit', shirt: [0.9, 0.9, 0.9], jacket: [0.12, 0.32, 0.7], pants: [0.12, 0.32, 0.7] }, { name: 'Leather', shirt: [0.3, 0.3, 0.32], jacket: [0.08, 0.07, 0.07], pants: [0.15, 0.1, 0.08] }, { name: 'Bowling shirt', shirt: [0.9, 0.45, 0.2], jacket: [0.95, 0.8, 0.3], pants: [0.25, 0.22, 0.2] }];
-  function setOutfit(i) { const o = OUTFITS[i % OUTFITS.length]; P.outfit = i % OUTFITS.length; P.look.shirt = o.shirt; P.look.jacket = o.jacket; P.look.pants = o.pants; P.mesh = PEDS.getMesh(P.look); }
+  const OUTFITS = [{ name: 'Street', shirt: [0.85, 0.85, 0.8], jacket: [0.43, 0.30, 0.205], pants: [0.2, 0.2, 0.25] }, { name: 'Suit', shirt: [0.95, 0.95, 0.95], jacket: [0.1, 0.1, 0.13], pants: [0.1, 0.1, 0.13] }, { name: 'Tracksuit', shirt: [0.9, 0.9, 0.9], jacket: [0.12, 0.32, 0.7], pants: [0.12, 0.32, 0.7] }, { name: 'Leather', shirt: [0.3, 0.3, 0.32], jacket: [0.08, 0.07, 0.07], pants: [0.15, 0.1, 0.08] }, { name: 'Bowling shirt', shirt: [0.9, 0.45, 0.2], jacket: [0.95, 0.8, 0.3], pants: [0.25, 0.22, 0.2] }];
+  function setOutfit(i) { const o = OUTFITS[i % OUTFITS.length]; P.outfit = i % OUTFITS.length; P.look.bomber=P.outfit===0;P.look.tailored=P.outfit===1;P.look.shirt = o.shirt; P.look.jacket = o.jacket; P.look.pants = o.pants; P.mesh = PEDS.getMesh(P.look); }
   function init(x, z, angle) { P.mesh = PEDS.getMesh(P.look); P.bones = new Float32Array(16 * RENDER.MAX_BONES); P.emis = new Float32Array(RENDER.MAX_BONES); P.model = M.create(); P.x = x; P.z = z; P.y = CITY.groundY(x, z); P.angle = angle; P.camYaw = angle; }
   function giveWeapon(key, ammo) { if (!(key in P.weapons)) { P.weapons[key] = 0; P.weapon = key; } if (WEAPONS[key].melee) P.weapons[key] = Infinity; else P.weapons[key] += ammo; P.weaponOut = !WEAPONS[P.weapon].melee || P.weapon === 'bat'; }
   function addMoney(n, why) { P.money = Math.max(0, P.money + n); /* no debt: a charge takes what you have */ if (n > 0) P.stats.cash += n; HUD.money(n, why); if (n > 0) AUDIO.play('cash'); }
@@ -5230,7 +5273,7 @@ const PLAYER = (() => {
     // Step out of the door toward open street and face it, rather than a fixed heading that often stared at the wall.
     let best = 0, bestOpen = -1; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, fx = Math.sin(a), fz = Math.cos(a); let open = 0; for (let d = 2; d <= 14; d += 2) { if (CITY.insideLot(p.x + fx * d, p.z + fz * d)) break; open++; } if (open > bestOpen) { bestOpen = open; best = a; } }
     P.x = p.x + Math.sin(best) * 3; P.z = p.z + Math.cos(best) * 3; P.y = CITY.groundY(P.x, P.z, P.y); P.angle = best; P.camYaw = P.angle;
-    P.health = 100; P.alive = true; P.state = 'foot'; P.car = null; P.rag = null; P.vx = P.vz = P.vy = 0; P.airborne = false; P.lying = 0; P.knockT = 0; P.invuln = 2;
+    P.health = 100; P.alive = true; P.state = 'foot'; P.car = null; P.rag = null; P.vx = P.vz = P.vy = 0; P.airborne = false; P.lying = 0; P.knockT = 0; P.invuln = 2;P.jumpBuffer=P.coyote=0;P.vault=null;P.vaultPose=0;P.motion=null;
     const gentle = typeof MISSIONS !== 'undefined' && MISSIONS.S.gentleRestart; const fee = gentle ? 0 : Math.min(P.money, Math.max(200, Math.floor(P.money * 0.1))); if (fee > 0) addMoney(-fee, where === 'police' ? 'bail' : 'hospital bill'); // the opening does not bill you
     if (where === 'police') { for (const k in P.weapons) if (!WEAPONS[k].melee) P.weapons[k] = Math.floor(P.weapons[k] * 0.5); }
     POLICE.clear(); HUD.clearBig();
@@ -5354,8 +5397,13 @@ const PLAYER = (() => {
     // facing
     if (P.aim) P.angle += M.angleTo(P.angle, P.camYaw) * Math.min(1, 18 * dt);
     else if (moving) { const desired = Math.atan2(mx, mz); P.turnLean=M.lerp(P.turnLean,M.clamp(M.angleTo(P.angle,desired)*P.speed*.06,-.15,.15),1-Math.exp(-dt*9)); P.angle += M.angleTo(P.angle, desired) * Math.min(1, 14 * dt); }
-    // jump
-    if ((INPUT.hit('Space') || pad.pressed[1]) && !P.airborne && P.evadeT<=0) { if(startVault()) return; P.crouched=false; P.vy = 6.5; P.airborne = true; }
+    // A short buffer accepts a jump just before landing; coyote time forgives the last step off a ledge.
+    P.jumpBuffer=Math.max(0,(P.jumpBuffer||0)-dt);P.coyote=P.airborne?Math.max(0,(P.coyote||0)-dt):.09;
+    if(INPUT.hit('Space')||pad.pressed[1])P.jumpBuffer=.12;
+    if(P.jumpBuffer>0&&(!P.airborne||P.coyote>0)&&P.evadeT<=0){
+      P.jumpBuffer=0;P.coyote=0;if(!P.airborne&&startVault())return;
+      P.crouched=false;P.vy=6.5;P.airborne=true;
+    }
     // enter car
     if (INPUT.hit('KeyF') || pad.pressed[2]) tryEnterCar();
     // attack
@@ -5397,7 +5445,8 @@ const PLAYER = (() => {
   function vaultCandidate() {
     if(typeof STREETS==='undefined')return null;
     const fx=Math.sin(P.camYaw),fz=Math.cos(P.camYaw);
-    const h=W.raycast3(P.x,P.y+.65,P.z,fx,0,fz,1.6,null,true),o=h.obj;
+    const reach=1.6+Math.min(.35,(P.speed||0)*.055);
+    const h=W.raycast3(P.x,P.y+.65,P.z,fx,0,fz,reach,null,true),o=h.obj;
     if(h.kind!=='lot'||!o.vaultable||o.down||o.h-P.y>1.3||o.h-P.y<.4)return null;
     // Use the actual near/far faces. Refuse long or occupied landings.
     let exit=0;for(let d=h.dist;d<3.2;d+=.1){const x=P.x+fx*d,z=P.z+fz*d;if(x>o.x0-.5&&x<o.x1+.5&&z>o.z0-.5&&z<o.z1+.5)exit=d;}
@@ -5406,8 +5455,23 @@ const PLAYER = (() => {
     if(q.hit||!W.sight3(P.x,o.h+1,P.z,x,o.h+1,z)||W.cars.some(c=>!c.removed&&Math.abs(c.y-y)<2&&M.dist(c.x,c.z,x,z)<c.spec.len*.6))return null;
     return {x,z,y,top:o.h};
   }
-  function startVault() {const to=vaultCandidate();if(!to)return false;P.vault={from:[P.x,P.y,P.z],to,t:0};P.state='vaulting';P.airborne=true;P.reloadT=0;P.reloadWeapon=null;P.aim=0;P.vx=P.vz=0;P.angle=P.camYaw;return true;}
-  function updateVault(dt) {const v=P.vault;v.t+=dt;const t=Math.min(1,v.t/.58),u=t*t*(3-2*t),a=Math.sin(Math.PI*t);P.x=M.lerp(v.from[0],v.to.x,u);P.z=M.lerp(v.from[2],v.to.z,u);P.y=M.lerp(v.from[1],v.to.y,u)+a*(v.to.top-v.from[1]+.25);P.vaultPose=a;if(t===1){P.state='foot';P.airborne=false;P.y=v.to.y;P.vy=0;P.vaultPose=0;P.landing=.35;}}
+  function startVault() {
+    const to=vaultCandidate();if(!to)return false;
+    P.vault={from:[P.x,P.y,P.z],to,t:0,speed:P.speed||0};P.state='vaulting';P.airborne=true;
+    P.reloadT=0;P.reloadWeapon=null;P.aim=0;P.crouched=false;P.jumpBuffer=P.coyote=0;P.vx=P.vz=0;P.angle=P.camYaw;return true;
+  }
+  function updateVault(dt) {
+    const v=P.vault;v.t+=dt;const t=Math.min(1,v.t/.58),u=t*t*(3-2*t),a=Math.sin(Math.PI*t);
+    P.x=M.lerp(v.from[0],v.to.x,u);P.z=M.lerp(v.from[2],v.to.z,u);P.y=M.lerp(v.from[1],v.to.y,u)+a*(v.to.top-v.from[1]+.25);P.vaultPose=a;
+    if(t===1){
+      P.state='foot';P.airborne=false;P.y=v.to.y;P.vy=0;P.vaultPose=0;P.landing=.35;
+      // Preserve momentum only while the player is still asking to move. Releasing the stick lands in place.
+      const [ix,iz]=inputMove(),len=Math.hypot(ix,iz),run=INPUT.down('ShiftLeft')||INPUT.down('ShiftRight')||INPUT.pad.buttons[0];
+      const speed=len>.1?Math.min(v.speed,run?6.8:3.3):0;
+      const mx=Math.sin(P.camYaw)*iz-Math.cos(P.camYaw)*ix,mz=Math.cos(P.camYaw)*iz+Math.sin(P.camYaw)*ix;
+      P.vx=mx*speed;P.vz=mz*speed;P.speed=Math.hypot(P.vx,P.vz);P.vault=null;
+    }
+  }
   function moveBody(dt, ragdoll) {
     const ox=P.x, oz=P.z, oldY=P.y, intended=Math.hypot(P.vx,P.vz);
     if (P.airborne) { P.vy -= 22 * dt; P.y += P.vy * dt; if (ragdoll) { P.vx *= Math.max(0, 1 - 0.5 * dt); P.vz *= Math.max(0, 1 - 0.5 * dt); } }
@@ -5452,11 +5516,12 @@ const PLAYER = (() => {
     P.state='entering'; P.stateT=0; P.doorReach=0; P.targetCar=target.car; P.aim=0; P.doorSide=target.side;P.enterFrom=null;
   }
   function updateEntering(dt) {
-    const cancel = P.stateT > .08 && (INPUT.hit('KeyF') || INPUT.hit('Space') || INPUT.pad.pressed[2] || ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].some(k => INPUT.hit(k)));
+    // Before reaching the door, movement cancels the approach. Once climbing in, it queues driving instead.
+    const cancel=P.stateT>.08&&(INPUT.hit('KeyF')||INPUT.hit('Space')||INPUT.pad.pressed[2]||INPUT.pad.pressed[1]||((P.doorReach||0)<.28&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].some(k=>INPUT.hit(k))));
     const c = P.targetCar; if (cancel || !c || c.removed || c.wrecked) { if(c?.doorTarget)c.doorTarget.fill(0);if(P.enterFrom){[P.x,P.y,P.z]=P.enterFrom;P.enterFrom=null;}P.entryPose=0; P.state = 'foot'; P.vx = P.vz = 0; P.targetCar = null; return; }
     const r = c.right; const side = P.doorSide || -1; const doorX = c.x + r[0] * side * (c.spec.wid / 2 + 0.6), doorZ = c.z + r[1] * side * (c.spec.wid / 2 + 0.6);
     const d = M.dist(P.x, P.z, doorX, doorZ);
-    if (!P.enterFrom && d > 0.5 && P.stateT < 2.2 && c.absSpeed < 4) { const s = 4.5; P.vx = (doorX - P.x) / d * s; P.vz = (doorZ - P.z) / d * s; P.angle += M.angleTo(P.angle, Math.atan2(doorX - P.x, doorZ - P.z)) * Math.min(1, 12 * dt); moveBody(dt, false); P.speed = s; P.phase += dt * 7; return; }
+    if (!P.enterFrom && d > 0.5 && P.stateT < 2.2 && c.absSpeed < 4) { const s = 4.5; P.vx = (doorX - P.x) / d * s; P.vz = (doorZ - P.z) / d * s; P.angle += M.angleTo(P.angle, Math.atan2(doorX - P.x, doorZ - P.z)) * Math.min(1, 12 * dt); moveBody(dt, false); P.speed=Math.hypot(P.vx,P.vz);P.phase+=dt*M.TAU*PEDS.cadence(P.speed);return; }
     if ((!P.enterFrom && d > 1.1) || c.absSpeed >= 4) { P.state = 'foot'; P.vx = P.vz = 0; return; }
     // get in
     P.speed = 0; P.vx = P.vz = 0; P.angle += M.angleTo(P.angle,Math.atan2(c.x-P.x,c.z-P.z))*Math.min(1,dt*14); P.doorReach=(P.doorReach||0)+dt;
@@ -5482,7 +5547,7 @@ const PLAYER = (() => {
       if (!safe) { HUD.notify('Doors blocked. Move the car to make room.'); return false; }
       [P.x,P.z] = safe;
     }
-    P.y = CITY.groundY(P.x, P.z, P.y); P.angle = c.angle; P.camYaw = c.angle; P.vx = 0; P.vz = 0;
+    P.y = CITY.groundY(P.x, P.z, P.y); P.angle = c.angle; P.camIdle=0; P.vx = 0; P.vz = 0;
     c.driver = null; c.ai.mode = 'parked'; c.controls.throttle = 0; c.controls.brake = spd > 4 ? 0 : 1; c.controls.handbrake = 0; c.siren = false; P.car = null; P.state = 'foot'; if(spd<3&&!c.spec.boat&&!c.spec.bike){const di=((P.x-c.x)*r[0]+(P.z-c.z)*r[1])<0?0:1;if(c.doorTarget){c.doorTarget[di]=1;P.exitDoor={car:c,index:di,t:.65};}P.exitPose={from:[c.x,c.y-.25,c.z],to:[P.x,P.y,P.z],t:.65};} AUDIO.play('door', P.x, P.z);
     if (spd > 7) { knock(c.vx * 0.5, 3, c.vz * 0.5); hurt(spd * 1.5, 'fall', null); }
     P.weaponOut = P.weapon !== 'fist';
@@ -5542,8 +5607,9 @@ const PLAYER = (() => {
       else { P.camYawOff = M.angleTo(behind, P.camYaw); }
       yaw = P.camYaw; pitch = M.clamp(P.camPitch, 0.1, 0.9); dist = 6.0 + c.spec.len * 0.3 + spd * 0.05; const la = Math.min(3, spd * 0.12); tx = c.x + c.vx / (spd || 1) * la; ty = c.y + 1.2; tz = c.z + c.vz / (spd || 1) * la; fov = 60 + spd * 0.32 * option('speedFov',.8);
     } else {
-      yaw = P.camYaw+(P.kickYaw||0); pitch = P.camPitch+(P.kickPitch||0); dist = P.aim ? 2.4 : P.camDist + (P.sprinting ? 0.6 : 0); tx = P.x; ty = P.y + 1.45 - P.crouch*.43 + (P.sprinting ? Math.cos(2 * P.phase) * 0.015 * option('cameraShake',.65) : 0); tz = P.z; fov = P.aim ? 50 : 62 + (P.sprinting ? 6 * option('speedFov',.8) : 0);
-      if (P.aim) { const r = [-Math.cos(yaw), Math.sin(yaw)]; const shoulder = W.raycast3(P.x,ty,P.z,r[0]*P.shoulder,0,r[1]*P.shoulder,.65,P.car,true); const offset=Math.max(0,Math.min(.55,shoulder.dist-.12)); tx += r[0] * offset * P.shoulder; tz += r[1] * offset * P.shoulder; }
+      const aim=P.motion?.aim??P.aim;
+      yaw=P.camYaw+(P.kickYaw||0);pitch=P.camPitch+(P.kickPitch||0);dist=M.lerp(P.camDist+(P.sprinting?.6:0),2.4,aim);tx=P.x;ty=P.y+1.45-P.crouch*.43-(P.vaultPose||0)*.45+(P.sprinting?Math.cos(2*P.phase)*.015*option('cameraShake',.65):0);tz=P.z;fov=M.lerp(62+(P.sprinting?6*option('speedFov',.8):0),50,aim);
+      if (aim>.001) { const r = [-Math.cos(yaw), Math.sin(yaw)]; const shoulder = W.raycast3(P.x,ty,P.z,r[0]*P.shoulder,0,r[1]*P.shoulder,.65,P.car,true); const offset=Math.max(0,Math.min(.55,shoulder.dist-.12)); tx += r[0] * offset * P.shoulder*aim; tz += r[1] * offset * P.shoulder*aim; }
       if (!P.alive) { dist = 6; pitch = 0.9; }
     }
     if (P.drunk > 0) { const k = Math.min(1, P.drunk / 12), t = W.state.elapsed; yaw += Math.sin(t * 0.9) * 0.14 * k; pitch += Math.sin(t * 1.3) * 0.07 * k; fov += Math.sin(t * 0.7) * 8 * k; }
@@ -6800,7 +6866,7 @@ const HUD = (() => {
       if (cc) return 'GAS · BRAKE · HAND handbrake · EXIT · stick steers · drag to look';
       return 'stick to walk, push it to the rim to run · drag the ' + (GAME.options.touchLeft ? 'left' : 'right') + ' side to look';
     }
-    if (P.state === 'entering') return 'Getting in · F or move to cancel';
+    if(P.state==='entering')return P.doorReach>=.28?'Getting in · F to cancel':'Getting in · F or move to cancel';
     const c = P.car;
     if (c) { if (c.spec.boat) return 'W/S throttle · A/D rudder · F get out near land · F1 all controls'; if (c.spec.bike) return 'W/S throttle · A/D lean · SPACE brake slide · F get off · LMB drive-by · F1 all controls';
       return 'W/S drive · A/D steer · SPACE handbrake · F get out · H horn' + (c.type === 'police' || c.type === 'swat' ? ' · L siren' : '') + ' · R radio · LMB drive-by · F1 all controls'; }

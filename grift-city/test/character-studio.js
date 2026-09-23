@@ -17,6 +17,7 @@ function studioSetup() {
 function studioDraw() {
  if(!studioSetup())return;
  const p=PLAYER.P;p.look=PEDS[castLook];p.mesh=PEDS.getMesh(p.look);p.speed=studioView==='walk'?1.5:studioView==='run'?6.8:0;p.aim=studioView==='aim'?1:0;p.crouch=studioView==='crouch'?1:0;p.airborne=['vault','jump'].includes(studioView);p.vy=studioView==='jump'?4:0;p.landing=studioView==='land'?.8:0;p.vaultPose=studioView==='vault'?.8:0;p.reloadDuration=1.4;p.reloadT=studioView==='reload'?1.4-(W.state.elapsed%1.4):0;p.state='foot';p.vx=0;p.vz=p.speed;W.state.time=studioNight?22:10.5;p.weapon=['aim','reload'].includes(studioView)?studioWeapon:'fist';p.weaponOut=['aim','reload'].includes(studioView);p.camPitch=0;p.gesturePulse=studioView==='chat'?(.65+Math.sin(W.state.elapsed*2)*.6):0;
+ if(studioPaused)PEDS.updateMotion(p,.5); // selecting a new pose while paused must also settle its aim blend
  if(studioView==='seated') {p.seat={x:p.x,y:p.y+.75,z:p.z,a:0};PLAYER.entity=()=>{PEDS.buildRigSeated(p,p.model,p.bones,M.identity(M.create()),p.x,p.y+.75,p.z,0,true);return {mesh:p.mesh,model:p.model,bones:p.bones,emis:p.emis};};}
  else PLAYER.entity=()=>{PEDS.buildRig(p,p.model,p.bones);return {mesh:p.mesh,model:p.model,bones:p.bones,emis:p.emis};};
  window.__renderOnce();studioStatus.textContent=castLook+' · '+studioView+' · sound '+(AUDIO.muted?'muted':'on');
@@ -27,3 +28,5 @@ document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{studioView=b.
 window.addEventListener('error',e=>studioStatus.textContent='ERROR: '+e.message);
 document.querySelector('#studio-pause').onclick=()=>{studioPaused=!studioPaused;document.querySelector('#studio-pause').textContent=studioPaused?'Animate':'Pause pose';};document.querySelector('#studio-turn').onclick=()=>{studioYaw+=Math.PI/4;studioDraw();};document.querySelector('#studio-light').onclick=()=>{studioNight=!studioNight;studioDraw();};
 let studioTime=0;function studioFrame(now){requestAnimationFrame(studioFrame);if(!studioSetup())return;const dt=Math.min(.04,(now-studioTime)/1000)||0;studioTime=now;if(!studioPaused){W.state.elapsed+=dt;PLAYER.P.phase+=dt*Math.PI*2*PEDS.cadence(PLAYER.P.speed);PEDS.updateMotion(PLAYER.P,dt);studioDraw();}}requestAnimationFrame(studioFrame);
+
+document.querySelector('#studio-hide').onclick=()=>{const panel=document.querySelector('#studio-controls');panel.hidden=!panel.hidden;document.querySelector('#studio-hide').textContent=panel.hidden?'Show controls':'Hide controls';};

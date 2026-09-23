@@ -448,11 +448,11 @@ const MESH = (() => {
   // Limbs are tapered cylinders with ball joints, the torso is a lofted body, the head an ellipsoid with a hair cap.
   const MOUTH_POS = [0, .090, .113]; // where the mouth sits in head-bone space
   function pedMesh(look, lod = false) {
-    const b = new Builder(); const SEG = lod ? 8 : 20, RNG = lod ? 3 : 7, CS = lod ? 5 : 10, AS = lod ? 5 : 9; const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket, glasses = false, bag = null, skirt = false, longHair = false, beanie = false, hairStyle = 0, beard = false } = look;
+    const b = new Builder(); const SEG = lod ? 8 : 28, RNG = lod ? 3 : 7, CS = lod ? 5 : 10, AS = lod ? 5 : 9; const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket, glasses = false, bag = null, skirt = false, longHair = false, beanie = false, hairStyle = 0, beard = false } = look;
     const legH = 0.85, torsoH = 0.65, headR = 0.15;
     const tailored = look.tailored || false, broad = look.build === 'stocky';
     const skinDk = skin.map(c => c * 0.82), top = jacket || shirt, topDk = top.map(c => c * 0.72);
-    const hero=!!look.hero, edge=top.map(c=>Math.min(1,c*1.28+.035)), cloth=TEX.names.characterCloth||0;
+    const hero=!!look.hero, refinedFace=!hero&&tailored, edge=top.map(c=>Math.min(1,c*1.28+.035)), cloth=TEX.names.characterCloth||0;
     const seam=(a,c,col,bone,r=.0025)=>b.tube(a,c,r,r,col,0,bone,4);
     const ball = (x, y, z, r, col, bone, segs = 6, rings = 2) => b.sphere(x, y, z, r, r, r, col, { segs: lod ? 4 : segs, rings: lod ? 1 : rings, bone });
     // legs hang from the hips (bones 4, 5): thigh, knee, shin, a shaped shoe
@@ -514,7 +514,7 @@ const MESH = (() => {
     }
     // Constructed collars and back panels give the silhouettes depth instead of painted-on lapels.
     if(jacket) {
-      const collar=hero?[.66,.58,.43]:edge;
+      const collar=hero&&look.bomber!==false?[.66,.58,.43]:edge;
       for(const side of [-1,1]) {
         b.polyOut([[side*.050,.665,.088],[side*.138,.616,.143],[side*.102,.584,.157],[side*.043,.625,.135]],collar,0,.4,0);
         b.polyOut([[side*.055,.665,-.089],[side*.162,.616,-.119],[side*.142,.583,-.149],[side*.040,.616,-.117]],collar,0,.4,0);
@@ -534,7 +534,7 @@ const MESH = (() => {
         seam([0,.477,-.154],[side*.207,.531,-.138],edge,0,.003);
         seam([side*.154,.444,-.136],[side*.134,.15,-.142],edge,0);
       }
-      if(hero) { // a small repaired panel, not a screen-filling logo
+      if(hero&&look.bomber!==false) { // a small repaired panel, not a screen-filling logo
         b.roundedBox(.085,.275,-.146,.046,.066,.009,.005,[.27,.22,.17],0,0,{n:1});
         if(!lod) for(let k=0;k<4;k++) seam([.087+k*.014,.28,-.155],[.092+k*.014,.292,-.155],[.61,.49,.32],0,.0015);
       }
@@ -544,14 +544,22 @@ const MESH = (() => {
     if (bag) { b.roundedBox(-0.32, torsoH * 0.15, -0.16, 0.1, 0.3, 0.22, 0.03, bag, 0, 0, { n: 1 }); b.tube([-0.27, 0.62, -0.02], [-0.27, 0.25, -0.1], 0.012, 0.012, bag.map(c => c * 0.7), 0, 0, 5); }
     b.cyl(0, torsoH - 0.03, 0, 0.056, torsoH + 0.07, skin, 0, 8, 0, false, false, 0.06); // neck
     // One sculpted skull: chin, jaw, cheeks, brow and crown share a continuous surface.
-    const faceRing = (y,rx,rz,zc) => Array.from({length:SEG},(_,i)=>{const a=i/SEG*Math.PI*2,c=Math.cos(a),front=Math.sin(a);return [c*rx,y,zc+(front>0?Math.pow(front,.56):front)*rz];});
-    const jaw = tailored ? .92 : broad ? 1.1 : 1; const faceStart = b.v.length, faceIndexStart = b.i.length;
-    b.loft([faceRing(.025,.041,.051,.026),faceRing(.050,.075*jaw,.076,.022),faceRing(.081,.094*jaw,.084,.017),faceRing(.119,.110*jaw,.094,.010),faceRing(.157,.126,.107,-.003),faceRing(.186,.125,.100,-.004),faceRing(.216,.121,.108,-.007),faceRing(.250,.118,.105,-.011),faceRing(.287,.095,.085,-.013),faceRing(.315,.041,.038,-.014)],skin,0,1,{capStart:true,capEnd:true});
-    // Cylindrical face coordinates keep painted lids and brows on the skin, including the distant LOD.
+    const faceRing = (y,rx,rz,zc) => Array.from({length:SEG},(_,i)=>{
+      const a=i/SEG*M.TAU,c=Math.cos(a),front=Math.sin(a),x=c*rx;
+      // The bridge belongs to the face surface: continuous normals avoid a dark, floating nose seam.
+      const nose=front>.6?Math.max(0,1-Math.abs(y-.144)/.065)*.047*(refinedFace?.78:broad?1.15:1)*Math.exp(-Math.pow(x/.025,2)):0;
+      return [x,y,zc+(front>0?Math.pow(front,.56):front)*rz+nose];
+    });
+    const jaw = refinedFace ? .92 : broad ? 1.1 : 1; const faceStart = b.v.length, faceIndexStart = b.i.length;
+    b.loft([faceRing(.025,.041,.051,.026),faceRing(.050,.075*jaw,.076,.022),faceRing(.081,.094*jaw,.084,.017),faceRing(.119,.110*jaw,.094,.010),faceRing(.140,.120,.102,.003),faceRing(.157,.126,.107,-.003),faceRing(.186,.125,.100,-.004),faceRing(.216,.121,.108,-.007),faceRing(.250,.118,.105,-.011),faceRing(.287,.095,.085,-.013),faceRing(.315,.041,.038,-.014)],skin,0,1,{capStart:true,capEnd:true});
+    // Cylindrical face coordinates keep skin shading continuous around the sculpted features.
     for (let i=faceStart;i<b.v.length;i+=13) {
       b.v[i+9] = Math.atan2(b.v[i], b.v[i+2]) / (Math.PI*2) + .5;
       b.v[i+10] = 1-b.v[i+1]/.33; b.v[i+11] = TEX.names.face || 0;
-      const y=b.v[i+1],x=Math.abs(b.v[i]),front=b.v[i+2]>.04;const shade=y<.06?.78:y<.12?.93:front&&y<.20&&x>.06?.94:1;for(let k=0;k<3;k++)b.v[i+6+k]*=shade;
+      const y=b.v[i+1],x=Math.abs(b.v[i]),front=b.v[i+2]>.04;
+      const shade=y<.06?.78:y<.12?.93:front&&y<.20&&x>.06?.94:1;
+      const crease=front?1-.16*Math.exp(-Math.pow((x-.025)/.018,2)-Math.pow((y-.143)/.040,2)):1;
+      for(let k=0;k<3;k++)b.v[i+6+k]*=shade*crease;
     }
     // Unwrap seam-crossing faces at the back, never interpolate the face paint across the skull.
     for(let i=faceIndexStart;i<b.i.length;i+=3) {
@@ -577,19 +585,18 @@ const MESH = (() => {
         b.sphere(Math.sign(sx)*.14,.164,.004,.007,.018,.01,skinDk,{segs:6,rings:2,bone:1});
         if (look.earrings) b.sphere(Math.sign(sx)*.138,.129,.0,.009,.011,.009,[.88,.69,.32],{segs:7,rings:3,bone:1});
       }
-      // A bridge and nostrils sit between inset almond-shaped eyes. Skin folds integrate each feature.
-      b.loft([faceRing(.123,.021,.018,.104),faceRing(.141,.024,.021,.119),faceRing(.172,.012,.016,.119),faceRing(.202,.010,.009,.107)],skin,0,1,{capStart:true,capEnd:true});
+      // Small nostril shadows sit beneath the nose sculpted into the skull surface.
       for(const side of [-1,1]) {
-        b.sphere(side*.014,.129,.127,.009,.004,.004,skin.map(c=>c*.43),{segs:6,rings:2,bone:1});
+        b.sphere(side*.010,.128,.132,.005,.002,.002,skin.map(c=>c*.61),{segs:6,rings:2,bone:1});
         const x=side*.048,z=.101;
         b.sphere(x,.187,z-.003,.030,.011,.009,skinDk,{segs:12,rings:4,bone:1});
         b.sphere(x,.187,z+.007,.025,.008,.006,[.78,.76,.68],{segs:12,rings:4,bone:1});
         b.sphere(x-side*.001,.188,z+.013,.008,.008,.003,look.eyes||[.20,.25,.22],{segs:10,rings:3,bone:1});
         b.sphere(x-side*.001,.188,z+.016,.0035,.0047,.0015,[.025,.025,.023],{segs:8,rings:3,bone:1});
         b.sphere(x-.002,.191,z+.018,.0018,.0018,.001,[.9,.89,.78],{segs:5,rings:2,bone:1});
-        b.tube([x-.026,.188,z+.011],[x,.196,z+.014],.003,.003,skin.map(c=>c*.61),0,1,6);
-        b.tube([x,.196,z+.014],[x+.026,.187,z+.011],.003,.0025,skin.map(c=>c*.61),0,1,6);
-        b.tube([x-.026,.211,z+.005],[x+.022,.214,z+.004],.0035,.003,hair.map(c=>c*.78),0,1,6);
+        b.tube([x-.026,.188,z+.011],[x,.196,z+.014],.003,.003,skin.map(c=>c*.74),0,1,6);
+        b.tube([x,.196,z+.014],[x+.026,.187,z+.011],.003,.0025,skin.map(c=>c*.74),0,1,6);
+        b.tube([x-.026,.211,z+.005],[x+.022,.214,z+.004],refinedFace?.0024:.0035,refinedFace?.002:.003,hair.map(c=>c*.78),0,1,6);
         b.tube([x-.020,.174,z+.001],[x+.022,.175,z+.001],.002,.002,skin.map(c=>c*.86),0,1,5);
       }
       const lip=skin.map((c,i)=>c*(i===0?.77:.59));
@@ -598,6 +605,10 @@ const MESH = (() => {
       b.sphere(0,.084,.110,.023,.005,.006,skin.map((c,i)=>c*(i===0?.93:.8)),{segs:10,rings:3,bone:11});
 
       if (look.stubble) for(let i=faceStart;i<b.v.length;i+=13) { if(b.v[i+12]===1 && b.v[i+11]===(TEX.names.face||0) && b.v[i+1]<.11) for(let k=0;k<3;k++) b.v[i+6+k]*=.87; }
+    }
+    if(lod) { // Keep the face readable when the expensive eye/lid geometry drops away.
+      for(const x of [-.048,.048])b.cbox(x,.188,.108,.041,.006,.003,[.16,.14,.12],0,{bone:1});
+      b.cbox(0,.09,.113,.038,.004,.003,skin.map(c=>c*.5),0,{bone:11});
     }
     if (glasses) {
       for(const side of [-1,1]) { b.roundedBox(side*.051-.040,.157,.115,.080,.043,.012,.009,[.045,.055,.059],0,1,{n:2}); b.tube([side*.087,.18,.12],[side*.127,.18,-.015],.005,.005,[.065,.06,.055],0,1,5); }

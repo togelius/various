@@ -18,7 +18,7 @@ const PLAYER = (() => {
   const P = {
     x: 0, z: 0, y: 0, angle: 0, vx: 0, vz: 0, vy: 0, airborne: false, speed: 0, phase: 0, lying: 0, fallDir: 1,
     health: 100, armor: 0, money: 500, wanted: 0, weapons: { fist: Infinity }, weapon: 'fist', magazines: {}, reloadT: 0, reloadDuration: 0, reloadWeapon: null, fireT: 0, weaponOut: false, aim: 0, recoil: 0, punchT: 0,
-    crouched: false, crouch: 0, shoulder: 1, evadeT: 0, evadeRecovery: 0, brace: 0,
+    crouched: false, crouch: 0, shoulder: 1, evadeT: 0, evadeRecovery: 0, brace: 0, jumpBuffer: 0, coyote: 0,
     car: null, state: 'foot', stateT: 0, alive: true, deadT: 0, look: PEDS.PLAYER_LOOK, mesh: null, bones: null, emis: null, model: null,
     camYaw: 0, camPitch: 0.28, camYawOff: 0, camIdle: 0, camX: 0, camY: 0, camZ: 0, camDist: 5.4, fov: 62,
     stats: { kills: 0, carsStolen: 0, missions: 0, distance: 0, packages: 0, stunts: 0, busted: 0, wasted: 0, cash: 0, jumps: [] },
@@ -27,8 +27,8 @@ const PLAYER = (() => {
   const projectiles = []; const tracers = [];
   const tmp = M.create();
 
-  const OUTFITS = [{ name: 'Street', shirt: [0.85, 0.85, 0.8], jacket: [0.36, 0.25, 0.19], pants: [0.2, 0.2, 0.25] }, { name: 'Suit', shirt: [0.95, 0.95, 0.95], jacket: [0.1, 0.1, 0.13], pants: [0.1, 0.1, 0.13] }, { name: 'Tracksuit', shirt: [0.9, 0.9, 0.9], jacket: [0.12, 0.32, 0.7], pants: [0.12, 0.32, 0.7] }, { name: 'Leather', shirt: [0.3, 0.3, 0.32], jacket: [0.08, 0.07, 0.07], pants: [0.15, 0.1, 0.08] }, { name: 'Bowling shirt', shirt: [0.9, 0.45, 0.2], jacket: [0.95, 0.8, 0.3], pants: [0.25, 0.22, 0.2] }];
-  function setOutfit(i) { const o = OUTFITS[i % OUTFITS.length]; P.outfit = i % OUTFITS.length; P.look.shirt = o.shirt; P.look.jacket = o.jacket; P.look.pants = o.pants; P.mesh = PEDS.getMesh(P.look); }
+  const OUTFITS = [{ name: 'Street', shirt: [0.85, 0.85, 0.8], jacket: [0.43, 0.30, 0.205], pants: [0.2, 0.2, 0.25] }, { name: 'Suit', shirt: [0.95, 0.95, 0.95], jacket: [0.1, 0.1, 0.13], pants: [0.1, 0.1, 0.13] }, { name: 'Tracksuit', shirt: [0.9, 0.9, 0.9], jacket: [0.12, 0.32, 0.7], pants: [0.12, 0.32, 0.7] }, { name: 'Leather', shirt: [0.3, 0.3, 0.32], jacket: [0.08, 0.07, 0.07], pants: [0.15, 0.1, 0.08] }, { name: 'Bowling shirt', shirt: [0.9, 0.45, 0.2], jacket: [0.95, 0.8, 0.3], pants: [0.25, 0.22, 0.2] }];
+  function setOutfit(i) { const o = OUTFITS[i % OUTFITS.length]; P.outfit = i % OUTFITS.length; P.look.bomber=P.outfit===0;P.look.tailored=P.outfit===1;P.look.shirt = o.shirt; P.look.jacket = o.jacket; P.look.pants = o.pants; P.mesh = PEDS.getMesh(P.look); }
   function init(x, z, angle) { P.mesh = PEDS.getMesh(P.look); P.bones = new Float32Array(16 * RENDER.MAX_BONES); P.emis = new Float32Array(RENDER.MAX_BONES); P.model = M.create(); P.x = x; P.z = z; P.y = CITY.groundY(x, z); P.angle = angle; P.camYaw = angle; }
   function giveWeapon(key, ammo) { if (!(key in P.weapons)) { P.weapons[key] = 0; P.weapon = key; } if (WEAPONS[key].melee) P.weapons[key] = Infinity; else P.weapons[key] += ammo; P.weaponOut = !WEAPONS[P.weapon].melee || P.weapon === 'bat'; }
   function addMoney(n, why) { P.money = Math.max(0, P.money + n); /* no debt: a charge takes what you have */ if (n > 0) P.stats.cash += n; HUD.money(n, why); if (n > 0) AUDIO.play('cash'); }
@@ -81,7 +81,7 @@ const PLAYER = (() => {
     // Step out of the door toward open street and face it, rather than a fixed heading that often stared at the wall.
     let best = 0, bestOpen = -1; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, fx = Math.sin(a), fz = Math.cos(a); let open = 0; for (let d = 2; d <= 14; d += 2) { if (CITY.insideLot(p.x + fx * d, p.z + fz * d)) break; open++; } if (open > bestOpen) { bestOpen = open; best = a; } }
     P.x = p.x + Math.sin(best) * 3; P.z = p.z + Math.cos(best) * 3; P.y = CITY.groundY(P.x, P.z, P.y); P.angle = best; P.camYaw = P.angle;
-    P.health = 100; P.alive = true; P.state = 'foot'; P.car = null; P.rag = null; P.vx = P.vz = P.vy = 0; P.airborne = false; P.lying = 0; P.knockT = 0; P.invuln = 2;
+    P.health = 100; P.alive = true; P.state = 'foot'; P.car = null; P.rag = null; P.vx = P.vz = P.vy = 0; P.airborne = false; P.lying = 0; P.knockT = 0; P.invuln = 2;P.jumpBuffer=P.coyote=0;P.vault=null;P.vaultPose=0;P.motion=null;
     const gentle = typeof MISSIONS !== 'undefined' && MISSIONS.S.gentleRestart; const fee = gentle ? 0 : Math.min(P.money, Math.max(200, Math.floor(P.money * 0.1))); if (fee > 0) addMoney(-fee, where === 'police' ? 'bail' : 'hospital bill'); // the opening does not bill you
     if (where === 'police') { for (const k in P.weapons) if (!WEAPONS[k].melee) P.weapons[k] = Math.floor(P.weapons[k] * 0.5); }
     POLICE.clear(); HUD.clearBig();
@@ -205,8 +205,13 @@ const PLAYER = (() => {
     // facing
     if (P.aim) P.angle += M.angleTo(P.angle, P.camYaw) * Math.min(1, 18 * dt);
     else if (moving) { const desired = Math.atan2(mx, mz); P.turnLean=M.lerp(P.turnLean,M.clamp(M.angleTo(P.angle,desired)*P.speed*.06,-.15,.15),1-Math.exp(-dt*9)); P.angle += M.angleTo(P.angle, desired) * Math.min(1, 14 * dt); }
-    // jump
-    if ((INPUT.hit('Space') || pad.pressed[1]) && !P.airborne && P.evadeT<=0) { if(startVault()) return; P.crouched=false; P.vy = 6.5; P.airborne = true; }
+    // A short buffer accepts a jump just before landing; coyote time forgives the last step off a ledge.
+    P.jumpBuffer=Math.max(0,(P.jumpBuffer||0)-dt);P.coyote=P.airborne?Math.max(0,(P.coyote||0)-dt):.09;
+    if(INPUT.hit('Space')||pad.pressed[1])P.jumpBuffer=.12;
+    if(P.jumpBuffer>0&&(!P.airborne||P.coyote>0)&&P.evadeT<=0){
+      P.jumpBuffer=0;P.coyote=0;if(!P.airborne&&startVault())return;
+      P.crouched=false;P.vy=6.5;P.airborne=true;
+    }
     // enter car
     if (INPUT.hit('KeyF') || pad.pressed[2]) tryEnterCar();
     // attack
@@ -248,7 +253,8 @@ const PLAYER = (() => {
   function vaultCandidate() {
     if(typeof STREETS==='undefined')return null;
     const fx=Math.sin(P.camYaw),fz=Math.cos(P.camYaw);
-    const h=W.raycast3(P.x,P.y+.65,P.z,fx,0,fz,1.6,null,true),o=h.obj;
+    const reach=1.6+Math.min(.35,(P.speed||0)*.055);
+    const h=W.raycast3(P.x,P.y+.65,P.z,fx,0,fz,reach,null,true),o=h.obj;
     if(h.kind!=='lot'||!o.vaultable||o.down||o.h-P.y>1.3||o.h-P.y<.4)return null;
     // Use the actual near/far faces. Refuse long or occupied landings.
     let exit=0;for(let d=h.dist;d<3.2;d+=.1){const x=P.x+fx*d,z=P.z+fz*d;if(x>o.x0-.5&&x<o.x1+.5&&z>o.z0-.5&&z<o.z1+.5)exit=d;}
@@ -257,8 +263,23 @@ const PLAYER = (() => {
     if(q.hit||!W.sight3(P.x,o.h+1,P.z,x,o.h+1,z)||W.cars.some(c=>!c.removed&&Math.abs(c.y-y)<2&&M.dist(c.x,c.z,x,z)<c.spec.len*.6))return null;
     return {x,z,y,top:o.h};
   }
-  function startVault() {const to=vaultCandidate();if(!to)return false;P.vault={from:[P.x,P.y,P.z],to,t:0};P.state='vaulting';P.airborne=true;P.reloadT=0;P.reloadWeapon=null;P.aim=0;P.vx=P.vz=0;P.angle=P.camYaw;return true;}
-  function updateVault(dt) {const v=P.vault;v.t+=dt;const t=Math.min(1,v.t/.58),u=t*t*(3-2*t),a=Math.sin(Math.PI*t);P.x=M.lerp(v.from[0],v.to.x,u);P.z=M.lerp(v.from[2],v.to.z,u);P.y=M.lerp(v.from[1],v.to.y,u)+a*(v.to.top-v.from[1]+.25);P.vaultPose=a;if(t===1){P.state='foot';P.airborne=false;P.y=v.to.y;P.vy=0;P.vaultPose=0;P.landing=.35;}}
+  function startVault() {
+    const to=vaultCandidate();if(!to)return false;
+    P.vault={from:[P.x,P.y,P.z],to,t:0,speed:P.speed||0};P.state='vaulting';P.airborne=true;
+    P.reloadT=0;P.reloadWeapon=null;P.aim=0;P.crouched=false;P.jumpBuffer=P.coyote=0;P.vx=P.vz=0;P.angle=P.camYaw;return true;
+  }
+  function updateVault(dt) {
+    const v=P.vault;v.t+=dt;const t=Math.min(1,v.t/.58),u=t*t*(3-2*t),a=Math.sin(Math.PI*t);
+    P.x=M.lerp(v.from[0],v.to.x,u);P.z=M.lerp(v.from[2],v.to.z,u);P.y=M.lerp(v.from[1],v.to.y,u)+a*(v.to.top-v.from[1]+.25);P.vaultPose=a;
+    if(t===1){
+      P.state='foot';P.airborne=false;P.y=v.to.y;P.vy=0;P.vaultPose=0;P.landing=.35;
+      // Preserve momentum only while the player is still asking to move. Releasing the stick lands in place.
+      const [ix,iz]=inputMove(),len=Math.hypot(ix,iz),run=INPUT.down('ShiftLeft')||INPUT.down('ShiftRight')||INPUT.pad.buttons[0];
+      const speed=len>.1?Math.min(v.speed,run?6.8:3.3):0;
+      const mx=Math.sin(P.camYaw)*iz-Math.cos(P.camYaw)*ix,mz=Math.cos(P.camYaw)*iz+Math.sin(P.camYaw)*ix;
+      P.vx=mx*speed;P.vz=mz*speed;P.speed=Math.hypot(P.vx,P.vz);P.vault=null;
+    }
+  }
   function moveBody(dt, ragdoll) {
     const ox=P.x, oz=P.z, oldY=P.y, intended=Math.hypot(P.vx,P.vz);
     if (P.airborne) { P.vy -= 22 * dt; P.y += P.vy * dt; if (ragdoll) { P.vx *= Math.max(0, 1 - 0.5 * dt); P.vz *= Math.max(0, 1 - 0.5 * dt); } }
@@ -303,11 +324,12 @@ const PLAYER = (() => {
     P.state='entering'; P.stateT=0; P.doorReach=0; P.targetCar=target.car; P.aim=0; P.doorSide=target.side;P.enterFrom=null;
   }
   function updateEntering(dt) {
-    const cancel = P.stateT > .08 && (INPUT.hit('KeyF') || INPUT.hit('Space') || INPUT.pad.pressed[2] || ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].some(k => INPUT.hit(k)));
+    // Before reaching the door, movement cancels the approach. Once climbing in, it queues driving instead.
+    const cancel=P.stateT>.08&&(INPUT.hit('KeyF')||INPUT.hit('Space')||INPUT.pad.pressed[2]||INPUT.pad.pressed[1]||((P.doorReach||0)<.28&&['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].some(k=>INPUT.hit(k))));
     const c = P.targetCar; if (cancel || !c || c.removed || c.wrecked) { if(c?.doorTarget)c.doorTarget.fill(0);if(P.enterFrom){[P.x,P.y,P.z]=P.enterFrom;P.enterFrom=null;}P.entryPose=0; P.state = 'foot'; P.vx = P.vz = 0; P.targetCar = null; return; }
     const r = c.right; const side = P.doorSide || -1; const doorX = c.x + r[0] * side * (c.spec.wid / 2 + 0.6), doorZ = c.z + r[1] * side * (c.spec.wid / 2 + 0.6);
     const d = M.dist(P.x, P.z, doorX, doorZ);
-    if (!P.enterFrom && d > 0.5 && P.stateT < 2.2 && c.absSpeed < 4) { const s = 4.5; P.vx = (doorX - P.x) / d * s; P.vz = (doorZ - P.z) / d * s; P.angle += M.angleTo(P.angle, Math.atan2(doorX - P.x, doorZ - P.z)) * Math.min(1, 12 * dt); moveBody(dt, false); P.speed = s; P.phase += dt * 7; return; }
+    if (!P.enterFrom && d > 0.5 && P.stateT < 2.2 && c.absSpeed < 4) { const s = 4.5; P.vx = (doorX - P.x) / d * s; P.vz = (doorZ - P.z) / d * s; P.angle += M.angleTo(P.angle, Math.atan2(doorX - P.x, doorZ - P.z)) * Math.min(1, 12 * dt); moveBody(dt, false); P.speed=Math.hypot(P.vx,P.vz);P.phase+=dt*M.TAU*PEDS.cadence(P.speed);return; }
     if ((!P.enterFrom && d > 1.1) || c.absSpeed >= 4) { P.state = 'foot'; P.vx = P.vz = 0; return; }
     // get in
     P.speed = 0; P.vx = P.vz = 0; P.angle += M.angleTo(P.angle,Math.atan2(c.x-P.x,c.z-P.z))*Math.min(1,dt*14); P.doorReach=(P.doorReach||0)+dt;
@@ -333,7 +355,7 @@ const PLAYER = (() => {
       if (!safe) { HUD.notify('Doors blocked. Move the car to make room.'); return false; }
       [P.x,P.z] = safe;
     }
-    P.y = CITY.groundY(P.x, P.z, P.y); P.angle = c.angle; P.camYaw = c.angle; P.vx = 0; P.vz = 0;
+    P.y = CITY.groundY(P.x, P.z, P.y); P.angle = c.angle; P.camIdle=0; P.vx = 0; P.vz = 0;
     c.driver = null; c.ai.mode = 'parked'; c.controls.throttle = 0; c.controls.brake = spd > 4 ? 0 : 1; c.controls.handbrake = 0; c.siren = false; P.car = null; P.state = 'foot'; if(spd<3&&!c.spec.boat&&!c.spec.bike){const di=((P.x-c.x)*r[0]+(P.z-c.z)*r[1])<0?0:1;if(c.doorTarget){c.doorTarget[di]=1;P.exitDoor={car:c,index:di,t:.65};}P.exitPose={from:[c.x,c.y-.25,c.z],to:[P.x,P.y,P.z],t:.65};} AUDIO.play('door', P.x, P.z);
     if (spd > 7) { knock(c.vx * 0.5, 3, c.vz * 0.5); hurt(spd * 1.5, 'fall', null); }
     P.weaponOut = P.weapon !== 'fist';
@@ -393,8 +415,9 @@ const PLAYER = (() => {
       else { P.camYawOff = M.angleTo(behind, P.camYaw); }
       yaw = P.camYaw; pitch = M.clamp(P.camPitch, 0.1, 0.9); dist = 6.0 + c.spec.len * 0.3 + spd * 0.05; const la = Math.min(3, spd * 0.12); tx = c.x + c.vx / (spd || 1) * la; ty = c.y + 1.2; tz = c.z + c.vz / (spd || 1) * la; fov = 60 + spd * 0.32 * option('speedFov',.8);
     } else {
-      yaw = P.camYaw+(P.kickYaw||0); pitch = P.camPitch+(P.kickPitch||0); dist = P.aim ? 2.4 : P.camDist + (P.sprinting ? 0.6 : 0); tx = P.x; ty = P.y + 1.45 - P.crouch*.43 + (P.sprinting ? Math.cos(2 * P.phase) * 0.015 * option('cameraShake',.65) : 0); tz = P.z; fov = P.aim ? 50 : 62 + (P.sprinting ? 6 * option('speedFov',.8) : 0);
-      if (P.aim) { const r = [-Math.cos(yaw), Math.sin(yaw)]; const shoulder = W.raycast3(P.x,ty,P.z,r[0]*P.shoulder,0,r[1]*P.shoulder,.65,P.car,true); const offset=Math.max(0,Math.min(.55,shoulder.dist-.12)); tx += r[0] * offset * P.shoulder; tz += r[1] * offset * P.shoulder; }
+      const aim=P.motion?.aim??P.aim;
+      yaw=P.camYaw+(P.kickYaw||0);pitch=P.camPitch+(P.kickPitch||0);dist=M.lerp(P.camDist+(P.sprinting?.6:0),2.4,aim);tx=P.x;ty=P.y+1.45-P.crouch*.43-(P.vaultPose||0)*.45+(P.sprinting?Math.cos(2*P.phase)*.015*option('cameraShake',.65):0);tz=P.z;fov=M.lerp(62+(P.sprinting?6*option('speedFov',.8):0),50,aim);
+      if (aim>.001) { const r = [-Math.cos(yaw), Math.sin(yaw)]; const shoulder = W.raycast3(P.x,ty,P.z,r[0]*P.shoulder,0,r[1]*P.shoulder,.65,P.car,true); const offset=Math.max(0,Math.min(.55,shoulder.dist-.12)); tx += r[0] * offset * P.shoulder*aim; tz += r[1] * offset * P.shoulder*aim; }
       if (!P.alive) { dist = 6; pitch = 0.9; }
     }
     if (P.drunk > 0) { const k = Math.min(1, P.drunk / 12), t = W.state.elapsed; yaw += Math.sin(t * 0.9) * 0.14 * k; pitch += Math.sin(t * 1.3) * 0.07 * k; fov += Math.sin(t * 0.7) * 8 * k; }

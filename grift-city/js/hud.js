@@ -286,7 +286,7 @@ const HUD = (() => {
       if (cc) return 'GAS · BRAKE · HAND handbrake · EXIT · stick steers · drag to look';
       return 'stick to walk, push it to the rim to run · drag the ' + (GAME.options.touchLeft ? 'left' : 'right') + ' side to look';
     }
-    if (P.state === 'entering') return 'Getting in · F or move to cancel';
+    if(P.state==='entering')return P.doorReach>=.28?'Getting in · F to cancel':'Getting in · F or move to cancel';
     const c = P.car;
     if (c) { if (c.spec.boat) return 'W/S throttle · A/D rudder · F get out near land · F1 all controls'; if (c.spec.bike) return 'W/S throttle · A/D lean · SPACE brake slide · F get off · LMB drive-by · F1 all controls';
       return 'W/S drive · A/D steer · SPACE handbrake · F get out · H horn' + (c.type === 'police' || c.type === 'swat' ? ' · L siren' : '') + ' · R radio · LMB drive-by · F1 all controls'; }
