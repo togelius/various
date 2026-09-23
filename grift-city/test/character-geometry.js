@@ -53,10 +53,10 @@ const near=(a,b,msg)=>assert(Math.hypot(...a.map((x,i)=>x-b[i]))<1e-6,msg);
 let rigChecks=0;
 function checkJoints(b) {
  for(const [arm,fore,x] of [[2,9,.26],[3,10,-.26]]) {
-  near(at(b.subarray(0,16),x,.6,0),at(b.subarray(arm*16,arm*16+16),x,0,0),'shoulder must remain attached to the torso');
+  near(at(b.subarray(96,112),x,.6,0),at(b.subarray(arm*16,arm*16+16),x,0,0),'shoulder must remain attached to the torso');
   near(at(b.subarray(arm*16,arm*16+16),x,-.31,0),at(b.subarray(fore*16,fore*16+16),x,-.31,0),'elbow must remain attached');
  }
- near(at(b.subarray(0,16),0,.68,0),at(b.subarray(16,32),0,0,0),'neck must remain attached');
+ near(at(b.subarray(96,112),0,.68,0),at(b.subarray(16,32),0,0,0),'neck must remain attached');
  assert(Array.from(b).every(Number.isFinite));rigChecks++;
 }
 for(const gesturePulse of [0,.6]) for(const speed of [0,1.5,3.3,6]) for(const phase of [0,.7,1.6,3.2,4.8]) for(const aim of [0,1]) {

@@ -200,3 +200,16 @@ The items the first pass left out, worked through one at a time with the same ga
   weather, in-car and stars for context; nothing else about the player). Off by default; capped at three hours a
   session; outside the claude.ai viewer nothing is sent. The published artifact declares `db` for this, which makes
   it organisation-internal (it cannot be shared by public link while that capability is declared).
+
+
+## Character and escape pass — September 23
+
+The next pass prioritizes the protagonist, the shared cast and a continuous escape through the Foundry Quarter. Keep playtesting muted; publish each completed milestone to main.
+
+- [x] Character art: sculpted face planes, geometric eyes/lids/brows/lips/nose, swept protagonist hair, constructed collars and jacket pockets, back yoke/seams, cloth weave, trouser shaping, shoe details and articulated hands. Shared across the cast, with a distinct worn bomber, collar and watch for the protagonist.
+- [x] Spine foundation: reuse the unused weapon bone for the chest, with blended rib/waist skinning and pelvis/shoulder counter-rotation. All seated and ragdoll paths retain valid bones. Weapon entities still attach to the right forearm.
+- [x] Repair the character studio to use the production module list and add all principal cast, walk/sprint/crouch/vault/reload/seated poses, rotation, lighting and pause controls. No saves and always muted.
+- [ ] Animation: smooth action transitions, supported weapon grip, jump/vault/landing poses and collision-aware NPC locomotion.
+- [ ] Escape: rehearse steal/crash/abandon/vault/switch and improve the actual interactions found to interrupt it.
+
+Character-art validation: all 13 dependency-free suites, release build and whitespace checks pass; 84 connected-joint poses, 24 planted-foot checks and 56 weighted-skin poses. Inspected front/rear views and named cast in the live muted studio.

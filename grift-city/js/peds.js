@@ -21,7 +21,7 @@ const PEDS = (() => {
   const COP = { badge: true, skin: [0.9, 0.75, 0.62], shirt: [0.2, 0.3, 0.6], pants: [0.15, 0.18, 0.3], hair: [0.1, 0.1, 0.1], hat: [0.15, 0.18, 0.35], jacket: null, sleeves: true, glasses: true };
   const SWAT = { skin: [0.85, 0.7, 0.6], shirt: [0.12, 0.12, 0.14], pants: [0.1, 0.1, 0.12], hair: [0.1, 0.1, 0.1], hat: [0.1, 0.1, 0.12], jacket: [0.2, 0.2, 0.22], sleeves: true, glasses: true };
   const GANG = { skin: [0.6, 0.42, 0.3], shirt: [0.55, 0.05, 0.1], pants: [0.12, 0.12, 0.12], hair: [0.08, 0.06, 0.06], hat: [0.5, 0.05, 0.1], jacket: [0.15, 0.15, 0.15], sleeves: true };
-  const PLAYER_LOOK = { hairStyle: 1, stubble: true, chain: true, shoes: [.13,.095,.07], skin: [0.9, 0.74, 0.62], shirt: [0.85, 0.85, 0.8], pants: [0.2, 0.2, 0.25], hair: [0.15, 0.1, 0.08], hat: null, jacket: [0.36, 0.25, 0.19], sleeves: true };
+  const PLAYER_LOOK = { hero: true, eyes: [.22,.29,.25], hairStyle: 1, stubble: true, chain: true, shoes: [.13,.095,.07], skin: [0.9, 0.74, 0.62], shirt: [0.85, 0.85, 0.8], pants: [0.2, 0.2, 0.25], hair: [0.15, 0.1, 0.08], hat: null, jacket: [0.43, 0.30, 0.205], sleeves: true };
   const MARLA = { tailored: true, hairStyle: 4, earrings: true, chain: true, shoes: [.075,.06,.07], skin: [0.85, 0.65, 0.5], shirt: [.77,.49,.30], pants: [.12,.17,.19], hair: [0.05, 0.05, 0.05], hat: null, jacket: [.13,.27,.29], sleeves: true };
   const DEBTOR = { skin: [.87,.66,.49], shirt: [.60,.28,.20], pants: [.62,.55,.41], hair: [.28,.17,.095], hairStyle: 3, glasses: true, sleeves: false, pattern: 'stripe', build: 'stocky', shoes: [.76,.73,.65], chain: true };
   const OKAFOR = { skin: [0.42, 0.28, 0.2], shirt: [0.9, 0.85, 0.7], pants: [0.3, 0.3, 0.35], hair: [0.05, 0.05, 0.05], hat: [0.2, 0.25, 0.3], jacket: [0.85, 0.55, 0.1], sleeves: true };
@@ -217,7 +217,7 @@ const PEDS = (() => {
   function jointBone(out, off, parentOff, jx, jy, jz, pitch) { M.trsEuler(jt1, jx, jy, jz, 0, pitch, 0); M.trs(jt2, -jx, -jy, -jz, 0); M.multiply(jt3, jt1, jt2); M.multiply(jt1, out.subarray(parentOff, parentOff + 16), jt3); out.set(jt1, off); }
   function torsoChild(out, off, x, y, yaw, pitch, roll, anchorX = 0) {
     M.trsEuler(jt1,x,y,0,yaw,pitch,roll); M.trs(jt2,-anchorX,0,0,0);
-    M.multiply(jt3,jt1,jt2); M.multiply(jt1,out.subarray(0,16),jt3); out.set(jt1,off);
+    M.multiply(jt3,jt1,jt2); M.multiply(jt1,out.subarray(96,112),jt3); out.set(jt1,off);
   }
   const KNEE_Y = -LEG_H * 0.5, ELBOW_Y = -0.31;
   // Stride frequency in full cycles (two steps) per second. Cadence grows with the square root of speed and the
@@ -264,6 +264,10 @@ const PEDS = (() => {
     M.trsEuler(model, exit?M.lerp(exit.from[0],p.x,ease):p.x,exit?M.lerp(exit.from[1],p.y,ease):p.y,exit?M.lerp(exit.from[2],p.z,ease):p.z, p.angle, lying * (dead ? -Math.PI / 2 * p.fallDir : -Math.PI / 2), 0, p.sx || 1, p.sy || 1, p.sx || 1);
     // torso: lean, counter-twist, a touch of hip sway; breathing when standing
     bone(bones, 0, px, hip + breath * 0.006, 0, twist + Math.sin(t * 0.7) * 0.02 * idle, lean+(p.landing||0)*.06, lat * 0.02 + breath * 0.008 + (p.turnLean||0));
+    // Chest pivots at the lower ribs; pelvis and shoulders counter-rotate instead of moving as a block.
+    bone(bones,0,px,hip+breath*.004,0,-twist*.4,lean*.36,lat*.02+(p.turnLean||0)*.5);
+    M.trsEuler(jt1,0,.28,0,twist*1.4+Math.sin(t*.7)*.018*idle,lean*.64+breath*.009,(p.turnLean||0)*.5);
+    M.trs(jt2,0,-.28,0,0);M.multiply(jt3,jt1,jt2);M.multiply(jt1,bones.subarray(0,16),jt3);bones.set(jt1,96);
     // head: rides on the torso and cancels the twist so it keeps looking where the ped goes
     torsoChild(bones,16,0,TORSO_H+.03,(aim ? 0 : (p.headYaw||0))-twist*.9,-lean*.7+(aim?0:Math.sin(t*.9)*.02*idle)+speaking*.018,-lat*.02);
     // upper arms: pivot at the shoulders and swing opposite the legs; at a run they swing from behind the body
@@ -286,8 +290,6 @@ const PEDS = (() => {
     const kneeL = (0.08 + 0.75 * Math.max(0, -fL)) * walk + 0.04 * idle;
     const kneeR = (0.08 + 0.75 * Math.max(0, fL)) * walk + 0.04 * idle;
     jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, dead ? 0 : kneeL+(p.vaultPose||0)*1.3); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, dead ? 0 : kneeR+(p.vaultPose||0)*1.0);
-    // weapon: follows the right forearm, hidden when unarmed
-    if (p.weaponOut && !dead) bones.set(bones.subarray(160, 176), 96); else bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
     mouthBone(bones, speaking);
     if (!p.airborne && !lying && !kick) {
       // The toe follows a path: planted and sliding back at ground speed through the stance, then lifted and
@@ -317,18 +319,18 @@ const PEDS = (() => {
   function buildRigSeated(p, model, bones, carModel, lx, ly, lz, yaw, driving, headYaw = 0, fit = 1, bike = false) {
     M.trs(seatLocal, lx, ly, lz, yaw, (p.sx || 1) * fit, (p.sy || 1) * fit, (p.sx || 1) * fit); M.multiply(model, carModel, seatLocal);
     if (bike) { // astride: torso forward over the tank, arms out to the bars, knees bent down to the pegs
-      const hip = 0.02, lean = 0.32; bone(bones, 0, 0, hip, 0, 0, lean, 0); torsoChild(bones,16,0,TORSO_H+.03,headYaw,-.35,0);
+      const hip = 0.02, lean = 0.32; bone(bones, 0, 0, hip, 0, 0, lean, 0); bones.set(bones.subarray(0,16),96); torsoChild(bones,16,0,TORSO_H+.03,headYaw,-.35,0);
       torsoChild(bones,32,.26,SHOULDER,.35,-1.05,.2,.26); torsoChild(bones,48,-.26,SHOULDER,-.35,-1.05,-.2,-.26); jointBone(bones, 144, 32, 0.26, ELBOW_Y, 0, -0.45); jointBone(bones, 160, 48, -0.26, ELBOW_Y, 0, -0.45);
       bone(bones, 64, 0, hip, 0, 0, -0.95, 0.28); bone(bones, 80, 0, hip, 0, 0, -0.95, -0.28); jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, 1.45); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, 1.45);
-      bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001); mouthBone(bones, talkOpen(p)); return; }
+      bones.set(bones.subarray(0,16),96); mouthBone(bones, talkOpen(p)); return; }
     const hip = 0.02; const lean = driving ? 0.12 : 0.05;
-    bone(bones, 0, 0, hip, 0, 0, lean, 0);
+    bone(bones, 0, 0, hip, 0, 0, lean, 0); bones.set(bones.subarray(0,16),96);
     torsoChild(bones,16,0,TORSO_H+.03,headYaw,-lean*.7,0);
     const armP = driving ? -0.9 : -0.35; torsoChild(bones,32,.26,SHOULDER,driving?.25:0,armP,driving?.15:.05,.26); torsoChild(bones,48,-.26,SHOULDER,driving?-.25:0,armP,driving?-.15:-.05,-.26);
     jointBone(bones, 144, 32, 0.26, ELBOW_Y, 0, driving ? -0.7 : -0.5); jointBone(bones, 160, 48, -0.26, ELBOW_Y, 0, driving ? -0.7 : -0.5);
     bone(bones, 64, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0); bone(bones, 80, 0, hip, 0, 0, -Math.PI / 2 + 0.15, 0);
     jointBone(bones, 112, 64, 0.11, KNEE_Y, 0, Math.PI / 2 - 0.35); jointBone(bones, 128, 80, -0.11, KNEE_Y, 0, Math.PI / 2 - 0.35);
-    bone(bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
+    bones.set(bones.subarray(0,16),96);
     mouthBone(bones, talkOpen(p));
   }
   // ---- Ragdoll: sixteen verlet joints with bone-length and bracing constraints, ground contact and building push-out.
@@ -375,7 +377,7 @@ const PEDS = (() => {
     fitBone(p.bones, 144, P[RJ.elL], P[RJ.haL], 0.26, -0.31, 0, rx, ry, rz, true, sc); fitBone(p.bones, 160, P[RJ.elR], P[RJ.haR], -0.26, -0.31, 0, rx, ry, rz, true, sc);
     fitBone(p.bones, 64, P[RJ.hipL], P[RJ.knL], 0.11, 0, 0, rx, ry, rz, true, sc); fitBone(p.bones, 80, P[RJ.hipR], P[RJ.knR], -0.11, 0, 0, rx, ry, rz, true, sc);
     fitBone(p.bones, 112, P[RJ.knL], P[RJ.ftL], 0.11, -0.425, 0, rx, ry, rz, true, sc); fitBone(p.bones, 128, P[RJ.knR], P[RJ.ftR], -0.11, -0.425, 0, rx, ry, rz, true, sc);
-    bone(p.bones, 96, 0, -100, 0, 0, 0, 0, 0.001);
+    p.bones.set(p.bones.subarray(0,16),96);
     mouthBone(p.bones, 0);
   }
   // Seat positions in car-local space: driver on the left (+x), passenger right, rear seats behind.

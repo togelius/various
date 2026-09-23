@@ -295,15 +295,18 @@ const TEX = (() => {
     add('vossSign', g => { g.fillStyle='#163b3e'; g.fillRect(0,0,S,S); g.fillStyle='#eec778'; g.fillRect(12,20,488,12); g.fillRect(12,480,488,12); g.save(); g.scale(1,6.67); g.font='900 58px Impact, Arial Black, sans-serif'; g.textAlign='center'; g.textBaseline='middle'; g.fillText('VOSS MOTORS',256,38.4,470); g.restore(); g._lit.push([0,0,S,S]); });
     // Neutral paint multiplies each character's skin tone. Fine features stay flush with the face.
     for(const [key,label,bg] of [['foundryDiner','LANTERN DINER','#25575a'],['foundryWorks','OLD FOUNDRY','#473b32'],['foundryDeck','SWITCHBACK PARKING','#27444a'],['foundryPassage','COMPACT CARS','#5b5032'],['foundryMarket','SIGNAL MARKET','#315c57']]) add(key,g=>{g.fillStyle=bg;g.fillRect(0,0,S,S);g.fillStyle='#e6d3a2';g.fillRect(10,14,492,9);g.fillRect(10,489,492,9);g.save();g.scale(1,5);g.font='800 45px Arial,sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(label,256,51.2,474);g.restore();g._lit.push([0,0,S,S]);});
+    add('characterCloth', (g,r) => {
+      g.fillStyle='#f4f1ec';g.fillRect(0,0,S,S);
+      for(let y=0;y<S;y+=4){g.fillStyle=y%8?'#eeebe6':'#e9e6e1';g.fillRect(0,y,S,1);}
+      grain(g,r,12000,.035);flatN(g,0,0,S,S,.82);
+    });
     add('face', g => {
-      g.fillStyle='#fff'; g.fillRect(0,0,S,S); g.lineCap='round';
+      g.fillStyle='#fff';g.fillRect(0,0,S,S);
+      // Subtle eye sockets and cheek warmth. Eyes, lids, brows and lips are actual geometry now.
       for(const x of [220,292]) {
-        g.fillStyle='#e5ddd6'; g.beginPath(); g.ellipse(x,226,14,8,0,0,Math.PI*2); g.fill();
-        g.fillStyle='#fffdf2'; g.beginPath(); g.moveTo(x-12,229); g.quadraticCurveTo(x,219,x+12,229); g.quadraticCurveTo(x,235,x-12,229); g.fill();
-        g.fillStyle='#393c34'; g.beginPath(); g.ellipse(x,228,4,6,0,0,Math.PI*2); g.fill();
-        g.strokeStyle='#77635b'; g.lineWidth=2.5; g.beginPath(); g.moveTo(x-12,229); g.quadraticCurveTo(x,219,x+12,229); g.stroke();
-        g.strokeStyle='#63514a'; g.lineWidth=5; g.beginPath(); g.moveTo(x-13,201); g.quadraticCurveTo(x,194,x+12,200); g.stroke();
+        const shade=g.createRadialGradient(x,224,2,x,224,26);shade.addColorStop(0,'#d9d1cc');shade.addColorStop(1,'#fff');g.fillStyle=shade;g.fillRect(x-27,196,54,55);
       }
+      flatN(g,0,0,S,S,.63);
     });
     return { color: layers, normal: normals, panes };
   }
