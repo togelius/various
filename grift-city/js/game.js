@@ -149,7 +149,7 @@ const GAME = (() => {
     canvas = document.getElementById('gl'); hud = document.getElementById('hud'); HUD.init(hud); INPUT.init(canvas); TOUCH.init(canvas);
     const T = window.__bootTimes = {}; let t0 = performance.now(); const mark = k => { T[k] = Math.round(performance.now() - t0); t0 = performance.now(); };
     HUD.loading('loading materials…', 0);
-    TEX.preload(p => HUD.loading('loading materials…', p)).then(n => { mark('materials'); T.materials_n = n; HUD.loading('building the city…'); setTimeout(() => build(mark), 30); });
+    TEX.preload(p => HUD.loading('loading materials…', p)).then(n => { mark('materials'); T.materials_n = n; return TEX.loadCache(); }).then(hit => { T.paintCache = hit; mark('paintCache'); HUD.loading('building the city…'); setTimeout(() => build(mark), 30); });
   }
   function build(mark = () => { }) {
     const tex = TEX.build(); mark('textures');
@@ -172,6 +172,7 @@ const GAME = (() => {
     canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); lostContext = true; perf.losses++; if (started) save(); HUD.notify('The browser reset the graphics. Restoring…'); setTimeout(() => location.reload(), 1200); });
     // iPadOS can evict a background tab without warning: leaving the page is the last safe moment to save.
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && started && PLAYER.P.alive && (state === 'playing' || state === 'paused' || state === 'map')) save(); /* mid-job too: the job and its checkpoint are offered back on load */ });
+    if (TEX.pendingSave) setTimeout(() => TEX.saveCache().then(ok => { window.__bootTimes.paintCacheSaved = ok; }), 4000); // the next boot skips the painting
     window.__ready = true;
     mark('rest'); console.log('boot', JSON.stringify(window.__bootTimes));
     last = performance.now(); requestAnimationFrame(frame);

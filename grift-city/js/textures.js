@@ -117,7 +117,36 @@ const TEX = (() => {
   const stucco = (g, r, col) => { if (!base(g, col)) { g.fillStyle = col; g.fillRect(0, 0, S, S); grain(g, r, 30000, 0.05, 2); } stains(g, r, 5, 'rgba(0,0,0,0.08)'); };
   const concreteWall = (g, r, col) => { if (!base(g, col)) { g.fillStyle = col; g.fillRect(0, 0, S, S); grain(g, r, 24000, 0.05, 2); } for (let y = 0; y < S; y += 128) { g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(0, y, S, 2); } for (let x = 0; x < S; x += 128) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(x, 0, 2, S); } streaks(g, r, 40, 0, S, 0, 160, 'rgba(0,0,0,0.06)'); };
 
+  // ---- Paint cache. Painting every layer is most of the boot (9 of 12 s headless). The painted pixels are cached in
+  // IndexedDB, deflated, under a key made from the painting code itself, so any change to a painter repaints. A miss
+  // paints as before and writes the cache a few seconds after the game is up; any storage failure just paints.
+  let cached = null, pendingSave = null;
+  function version() { let h = 2166136261; const src = [paint, add, finish, packMaps, base].map(f => f.toString()).join('|') + S + ',' + NS + (typeof TEXDATA !== 'undefined' ? Object.keys(TEXDATA.mats).join(',') + Object.values(TEXDATA.mats).reduce((n, e) => n + (e.c || '').length, 0) : '');
+    for (let i = 0; i < src.length; i++) { h ^= src.charCodeAt(i); h = Math.imul(h, 16777619); } return 'paint-' + (h >>> 0).toString(36); }
+  const idb = mode => new Promise((res, rej) => { const r = indexedDB.open('grift-city-paint', 1); r.onupgradeneeded = () => r.result.createObjectStore('cache'); r.onsuccess = () => { const db = r.result; res(db.transaction('cache', mode).objectStore('cache')); }; r.onerror = () => rej(r.error); });
+  const req = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  const usable = () => typeof indexedDB !== 'undefined' && typeof CompressionStream !== 'undefined' && !/[?&]paintcache=0/.test(location.search);
+  function loadCache() {
+    if (!usable()) return Promise.resolve(false);
+    return idb('readonly').then(st => req(st.get(version()))).then(rec => { if (!rec) return false;
+      return new Response(rec.blob.stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer().then(buf => { const need = rec.count * S * S * 4 + rec.count * NS * NS * 4; if (buf.byteLength !== need) return false; cached = { rec, buf }; return true; }); })
+      .catch(() => false);
+  }
+  function saveCache() {
+    const job = pendingSave; pendingSave = null; if (!job || !usable()) return Promise.resolve(false);
+    return (navigator.storage && navigator.storage.estimate ? navigator.storage.estimate() : Promise.resolve({ quota: Infinity, usage: 0 })).then(est => { if ((est.quota || 0) - (est.usage || 0) < 250e6) return false;
+      const parts = [...job.color.map(l => l.data), ...job.normal.map(l => l.data)]; const blob = new Blob(parts); job.color = job.normal = null;
+      return new Response(blob.stream().pipeThrough(new CompressionStream('deflate'))).blob().then(z => idb('readwrite').then(st => { st.clear(); return req(st.put({ count: job.count, names: job.names, panes: job.panes, shopKinds: job.shopKinds, blob: z }, version())); })).then(() => true); }).catch(() => false);
+  }
+  function fromCache() { const { rec, buf } = cached; cached = null; let off = 0;
+    for (let i = 0; i < rec.count; i++) { layers.push(new ImageData(new Uint8ClampedArray(buf, off, S * S * 4), S, S)); off += S * S * 4; }
+    for (let i = 0; i < rec.count; i++) { normals.push(new ImageData(new Uint8ClampedArray(buf, off, NS * NS * 4), NS, NS)); off += NS * NS * 4; }
+    Object.assign(names, rec.names); panes.push(...rec.panes); shopKinds = rec.shopKinds; return { color: layers, normal: normals, panes, fromCache: true }; }
   function build() {
+    if (cached) return fromCache();
+    const out = paint(); if (usable()) pendingSave = { count: layers.length, color: layers.slice(), normal: normals.slice(), names: { ...names }, panes: panes.slice(), shopKinds }; return out;
+  }
+  function paint() {
     const FONTS = { sans: '"Helvetica Neue", Arial, sans-serif', serif: 'Georgia, "Times New Roman", serif', slab: '"Courier New", monospace', script: '"Brush Script MT", "Comic Sans MS", cursive', heavy: 'Impact, "Arial Black", sans-serif' };
     add('white', g => { g.fillStyle = '#fff'; g.fillRect(0, 0, S, S); });
     add('asphalt', (g, r) => { if (!base(g, '#39393d')) { g.fillStyle = '#39393d'; g.fillRect(0, 0, S, S); noise(g, r, 70, 14000); grain(g, r, 20000, 0.05); } cracks(g, r, 5, 'rgba(0,0,0,0.18)'); stains(g, r, 6, 'rgba(0,0,0,0.08)'); for (let i = 0; i < 3; i++) { const v = 20 + r() * 20; g.fillStyle = `rgba(${v},${v},${v + 2},0.14)`; g.fillRect(r() * S, r() * S, 40 + r() * 120, 30 + r() * 90); } });
@@ -281,5 +310,5 @@ const TEX = (() => {
   // Once the layers are on the GPU the painted pixels are dead weight: roughly a megabyte a layer, colour and normal.
   // A lost context is recovered by reloading the page, so nothing needs them again.
   function release() { layers.length = 0; normals.length = 0; }
-  return { build, release, preload, names, S, NS, base, flatN, get layers() { return layers; }, get normals() { return normals; }, get shopKinds() { return shopKinds; } };
+  return { build, release, loadCache, saveCache, version, get pendingSave() { return !!pendingSave; }, preload, names, S, NS, base, flatN, get layers() { return layers; }, get normals() { return normals; }, get shopKinds() { return shopKinds; } };
 })();

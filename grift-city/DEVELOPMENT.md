@@ -189,3 +189,8 @@ The items the first pass left out, worked through one at a time with the same ga
   floats, texture layer and bone as bytes; positions and UVs stay float). GPU vertex memory for the city and models
   119 -> 83 MB headless; a street render differs from the float layout by 0.07/255 on average. Meshes whose data
   would not fit keep the float layout. `tools/check-all.sh` now keeps each browser suite's log.
+- [x] Faster boot: the painted texture layers (78 colour at 512 px, 78 normal/roughness at 320 px) are cached in
+  IndexedDB, deflated, under a key hashed from the painting code and the photographic materials, so any change to a
+  painter repaints. A miss paints as before and writes the cache four seconds after the game is up (only with 250 MB
+  of storage headroom); any storage failure just paints. Headless, the texture phase goes from 9.7 s to 1.4 s on the
+  second boot, and a cached boot renders the same as a painted one. `?paintcache=0` bypasses it.
