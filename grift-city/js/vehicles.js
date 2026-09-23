@@ -345,6 +345,7 @@ const VEH = (() => {
       }
       if (ai.blockedT > 7) { ai.mode = 'flee'; this.scared = 3; ai.blockedT = 0; }
       if (ai.honk > 0) ai.honk -= dt;
+      c.reverse = ai.reverseT > 0; // the physics only backs away from a standstill when asked to
       if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.steer = -c.steer; }
       else if (target > 2 && Math.abs(sp) < 0.3 && !blocked && !ai.atLight) { ai.stuck += dt; if (ai.stuck > 2.5) { ai.reverseT = 1.2; ai.stuck = 0; } } else ai.stuck = Math.max(0, ai.stuck - dt);
       if (ai.mode === 'flee' && this.scared <= 0) ai.mode = 'traffic';
@@ -386,7 +387,7 @@ const VEH = (() => {
         while(ai.surfacePath?.length&&M.dist(this.x,this.z,ai.surfacePath[0].x,ai.surfacePath[0].z)<3&&Math.abs(this.y-ai.surfacePath[0].y)<.8)ai.surfacePath.shift();if(ai.surfacePath?.length){px=ai.surfacePath[0].x;pz=ai.surfacePath[0].z;}}
       const d = M.dist(this.x, this.z, px, pz); const desired = Math.atan2(px - this.x, pz - this.z); const da = M.angleTo(this.angle, desired);
       c.handbrake = 0;
-      if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.steer = M.clamp(-da * 2, -1, 1); return; }
+      if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.reverse = true; c.steer = M.clamp(-da * 2, -1, 1); return; } c.reverse = false;
       c.steer = M.clamp(da * 2.5, -1, 1);
       const stopDist = t.car ? 3 : 7;
       if (d < stopDist) { c.throttle = 0; c.brake = 1; }
@@ -401,7 +402,7 @@ const VEH = (() => {
       const ai = this.ai, c = this.controls; const pts = ai.route; if (!pts || !pts.length) { c.throttle = 0; c.brake = 1; return; }
       let p = pts[ai.routeIdx % pts.length]; const last = !ai.routeLoop && ai.routeIdx === pts.length - 1; if (last && M.dist(this.x, this.z, p[0], p[1]) < 18 && this.absSpeed < 1) { ai.stuckEnd = (ai.stuckEnd || 0) + dt; } if (M.dist(this.x, this.z, p[0], p[1]) < (p[2] || 7) || (ai.stuckEnd || 0) > 3) { ai.routeIdx++; if (!ai.routeLoop && ai.routeIdx >= pts.length) { ai.route = null; if (ai.onRouteEnd) ai.onRouteEnd(this); return; } p = pts[ai.routeIdx % pts.length]; }
       const desired = Math.atan2(p[0] - this.x, p[1] - this.z); const da = M.angleTo(this.angle, desired);
-      if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.steer = M.clamp(-da * 2, -1, 1); return; }
+      if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.reverse = true; c.steer = M.clamp(-da * 2, -1, 1); return; } c.reverse = false;
       c.steer = M.clamp(da * 2.5, -1, 1); const maxS = ai.routeSpeed || 22; const want = Math.abs(da) > 0.5 ? 8 : maxS;
       if (this.speed < want) { c.throttle = 1; c.brake = 0; } else { c.throttle = 0; c.brake = 0.5; } c.handbrake = Math.abs(da) > 1.1 && this.speed > 9 ? 1 : 0;
       if (this.speed < 0.6 && c.throttle > 0.5) { ai.stuck += dt; if (ai.stuck > 1.4) { ai.reverseT = 1.2; ai.stuck = 0; } } else ai.stuck = Math.max(0, ai.stuck - dt);
@@ -474,7 +475,7 @@ const VEH = (() => {
       return v;
     }
   }
-  function despawn(px, pz) { for (const c of W.cars) { if (c.removed || c.important || c.persistent || c === (PLAYER && PLAYER.car)) continue; const d = M.dist(c.x, c.z, px, pz); if (d > 280 || (c.wrecked && d > 150 && c.fireT > 10)) c.remove(); } let w = 0; for (const c of W.cars) if (!c.removed) W.cars[w++] = c; W.cars.length = w; }
+  function despawn(px, pz) { for (const c of W.cars) { if (c.removed || c.important || c.persistent || c.owned || (PLAYER && (c === PLAYER.car || (PLAYER.P && c === PLAYER.P.lastCar)))) continue; /* cars you bought, and the one you left, stay where you parked them */ const d = M.dist(c.x, c.z, px, pz); if (d > 280 || (c.wrecked && d > 150 && c.fireT > 10)) c.remove(); } let w = 0; for (const c of W.cars) if (!c.removed) W.cars[w++] = c; W.cars.length = w; }
   function spawnMarina() { CITY.marina.forEach((m, i) => { const b = spawn('boat', m.x, m.z, m.angle, { mode: 'parked', color: [2, 9, 6][i % 3] }); b.persistent = true; }); }
   function spawnParked() { for (const p of CITY.parkedSpots) { const type = p.type || TRAFFIC_TYPES[Math.floor(W.rng() * TRAFFIC_TYPES.length)]; if (type === 'bus' || type === 'truck') continue; spawn(type, p.x, p.z, p.angle, { mode: 'parked' }); } }
   function nearest(x, z, r, filter) { let best = null, bd = r * r; for (const c of W.cars) { if (c.removed || (filter && !filter(c))) continue; const d = M.dist2(c.x, c.z, x, z); if (d < bd) { bd = d; best = c; } } return best; }

@@ -11,7 +11,7 @@ const WEAPONS = {
   rocket:  { name: 'ROCKET LAUNCHER', dmg: 0, rate: 1.4, range: 150, projectile: 'rocket', sound: 'rocket', clip: 1 },
   grenade: { name: 'GRENADES', dmg: 0, rate: 0.9, range: 30, projectile: 'grenade', clip: 1 },
 };
-const WEAPON_ORDER = ['fist', 'bat', 'pistol', 'uzi', 'shotgun', 'rifle', 'rocket', 'grenade'];
+const WEAPON_ORDER = ['fist', 'bat', 'pistol', 'uzi', 'shotgun', 'rifle', 'rocket', 'grenade', 'camera']; // the job camera can be cycled back to after switching away
 
 const PLAYER = (() => {
   const CIRC = new Float64Array(9); // scratch for a car's collision circles, so walking into traffic allocates nothing
@@ -31,7 +31,7 @@ const PLAYER = (() => {
   function setOutfit(i) { const o = OUTFITS[i % OUTFITS.length]; P.outfit = i % OUTFITS.length; P.look.shirt = o.shirt; P.look.jacket = o.jacket; P.look.pants = o.pants; P.mesh = PEDS.getMesh(P.look); }
   function init(x, z, angle) { P.mesh = PEDS.getMesh(P.look); P.bones = new Float32Array(16 * RENDER.MAX_BONES); P.emis = new Float32Array(RENDER.MAX_BONES); P.model = M.create(); P.x = x; P.z = z; P.y = CITY.groundY(x, z); P.angle = angle; P.camYaw = angle; }
   function giveWeapon(key, ammo) { if (!(key in P.weapons)) { P.weapons[key] = 0; P.weapon = key; } if (WEAPONS[key].melee) P.weapons[key] = Infinity; else P.weapons[key] += ammo; P.weaponOut = !WEAPONS[P.weapon].melee || P.weapon === 'bat'; }
-  function addMoney(n, why) { P.money += n; if (n > 0) P.stats.cash += n; HUD.money(n, why); if (n > 0) AUDIO.play('cash'); }
+  function addMoney(n, why) { P.money = Math.max(0, P.money + n); /* no debt: a charge takes what you have */ if (n > 0) P.stats.cash += n; HUD.money(n, why); if (n > 0) AUDIO.play('cash'); }
   function cycleWeapon(dir) { const have = WEAPON_ORDER.filter(k => k in P.weapons && (P.weapons[k] > 0)); if (!have.length) return; let i = have.indexOf(P.weapon); i = (i + dir + have.length) % have.length; P.weapon = have[i]; P.weaponOut = P.weapon !== 'fist'; AUDIO.play('click'); }
 
   function magazine(key = P.weapon) {
@@ -58,7 +58,7 @@ const PLAYER = (() => {
   // camera shake: a knock the camera takes and lets go of over a third of a second
   function shake(a) { P.shake = Math.max(P.shake || 0, a); }
   const option = (key, fallback) => typeof GAME !== 'undefined' ? (GAME.options[key] ?? fallback) : fallback;
-  const assisted = () => typeof INPUT !== 'undefined' && (INPUT.pad.active ? option('controllerAssist',true) : option('mouseAssist',false));
+  const assisted = () => typeof INPUT !== 'undefined' && (INPUT.pad.active || INPUT.touch ? option('controllerAssist',true) : option('mouseAssist',false));
   function hurt(amount, how, source) {
     if (!P.alive || P.invuln > 0) return; if (how === 'melee' && P.car) return;
     let a = amount; if (P.armor > 0) { const ab = Math.min(P.armor, a * 0.7); P.armor -= ab; a -= ab; }
@@ -73,11 +73,14 @@ const PLAYER = (() => {
   }
   function bust() {
     if (!P.alive || P.state === 'busted') return; P.alive = false; P.state = 'busted'; P.deadT = 0; P.stats.busted++; P.aim = 0;
-    if (P.car) { const c = P.car; c.driver = null; c.ai.mode = 'parked'; c.controls.throttle = 0; c.controls.brake = 1; P.x = c.x; P.z = c.z; }
+    P.vx = P.vz = 0; if (P.car) { const c = P.car; c.driver = null; c.ai.mode = 'parked'; c.controls.throttle = 0; c.controls.brake = 1; c.vx = c.vz = 0; c.yawRate = 0; P.x = c.x; P.z = c.z; } // busted means stopped: nothing keeps rolling
     AUDIO.play('busted'); HUD.big('BUSTED', '#2f66c9'); MISSIONS.onPlayerDown('busted');
   }
   function respawn(where) {
-    const p = CITY.nearestPlace(where, P.x, P.z) || CITY.place('hospital'); P.x = p.x + 3; P.z = p.z; P.y = CITY.groundY(P.x, P.z, P.y); P.angle = Math.PI; P.camYaw = P.angle;
+    const p = CITY.nearestPlace(where, P.x, P.z) || CITY.place('hospital');
+    // Step out of the door toward open street and face it, rather than a fixed heading that often stared at the wall.
+    let best = 0, bestOpen = -1; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, fx = Math.sin(a), fz = Math.cos(a); let open = 0; for (let d = 2; d <= 14; d += 2) { if (CITY.insideLot(p.x + fx * d, p.z + fz * d)) break; open++; } if (open > bestOpen) { bestOpen = open; best = a; } }
+    P.x = p.x + Math.sin(best) * 3; P.z = p.z + Math.cos(best) * 3; P.y = CITY.groundY(P.x, P.z, P.y); P.angle = best; P.camYaw = P.angle;
     P.health = 100; P.alive = true; P.state = 'foot'; P.car = null; P.rag = null; P.vx = P.vz = P.vy = 0; P.airborne = false; P.lying = 0; P.knockT = 0; P.invuln = 2;
     const fee = Math.min(P.money, Math.max(200, Math.floor(P.money * 0.1))); if (fee > 0) addMoney(-fee, where === 'police' ? 'bail' : 'hospital bill');
     if (where === 'police') { for (const k in P.weapons) if (!WEAPONS[k].melee) P.weapons[k] = Math.floor(P.weapons[k] * 0.5); }
@@ -139,7 +142,11 @@ const PLAYER = (() => {
   // Auto-aim: the nearest target within a cone of the crosshair, measured from the crosshair line. P.aimTarget shows the lock.
   function aimAngle(cone = P.aim ? 0.2 : 0.14) {
     const base = P.camYaw; if (!assisted()) { P.aimTarget=null; return base; } let best = base, bd = cone; const [cx, cz] = aimOrigin(); let target = null;
-    const consider = (x, z, bonus, obj) => { const d = M.dist(x, z, cx, cz); if (d > 60 || d < 0.8) return; const ty = obj === W.heli ? obj.y : (obj.y || 0)+1.2; if (Math.abs(Math.atan2(ty-(P.y+1.45),d)+P.camPitch) > .18 || !W.sight3(P.x,P.y+1.35,P.z,x,ty,z)) return; const a = Math.atan2(x - cx, z - cz); const da = Math.abs(M.angleTo(base, a)) - bonus; if (da < bd && W.los(cx, cz, x, z)) { bd = da; best = a; target = obj; } };
+    // The vertical gate is measured along the crosshair ray from the rendered camera. It used to compare the target's
+    // pitch from the player's eye with the orbit camera's downward pitch, which at the resting 0.28 rad only let
+    // targets within a few metres through.
+    const cam = RENDER.cam || {}, camX = cam.x ?? P.x, camZ = cam.z ?? P.z, cy = cam.y ?? P.y + 1.45, fh = Math.hypot((cam.tx ?? camX) - camX, (cam.tz ?? camZ + 1) - camZ) || 1, camPitch = cam.ty !== undefined ? Math.atan2(cam.ty - cy, fh) : -P.camPitch;
+    const consider = (x, z, bonus, obj) => { const d = M.dist(x, z, cx, cz); if (d > 60 || d < 0.8) return; const ty = obj === W.heli ? obj.y : (obj.y || 0)+1.2; if (Math.abs(Math.atan2(ty - cy, Math.hypot(x - camX, z - camZ)) - camPitch) > .45 || !W.sight3(P.x,P.y+1.35,P.z,x,ty,z)) return; const a = Math.atan2(x - cx, z - cz); const da = Math.abs(M.angleTo(base, a)) - bonus; if (da < bd && W.los(cx, cz, x, z)) { bd = da; best = a; target = obj; } };
     for (const p of W.peds) if (p.alive && !p.inCar) consider(p.x, p.z, p.isCop || p.hostile || p.isGang ? 0.04 : 0, p);
     if (W.heli && !W.heli.dead) consider(W.heli.x, W.heli.z, 0.05, W.heli);
     P.aimTarget = target; return best;
@@ -226,11 +233,12 @@ const PLAYER = (() => {
     if (P.weapons[P.weapon] <= 0) { AUDIO.play('click'); P.fireT = 0.3; return; }
     P.fireT = wp.rate; P.weapons[P.weapon]--; if (!wp.projectile && wp.clip) P.magazines[P.weapon]--; P.recoil = .12;const pattern=[-.25,.12,.4,.2,-.3,-.45,.1,.35],kick=P.weapon==='shotgun'?.05:P.weapon==='rifle'?.015:.028;P.shotSequence=(P.shotSequence||0)+1;P.kickPitch=(P.kickPitch||0)-kick;P.kickYaw=(P.kickYaw||0)+pattern[P.shotSequence%pattern.length]*kick*.6;P.bloom=Math.min(.8,(P.bloom||0)+(P.weapon==='rifle'?.13:.2));P.angle = P.camYaw;
     const y = P.y + 1.35 - P.crouch*.43; const ang = aimAngle();
-    if (wp.projectile) { const pitch = -P.camPitch * 0.6 + (wp.projectile === 'grenade' ? 0.45 : 0.05); launchProjectile(wp.projectile, P.x + Math.sin(ang) * 0.8, y, P.z + Math.cos(ang) * 0.8, ang, pitch, wp.projectile === 'grenade' ? 14 : 45); AUDIO.play(wp.sound || 'click', P.x, P.z); }
+    if (wp.projectile) { const lt = wp.projectile !== 'grenade' && P.aimTarget; const pitch = lt ? Math.atan2((lt === W.heli ? lt.y : (lt.y || 0) + 1) - y, Math.hypot(lt.x - P.x, lt.z - P.z)) : -P.camPitch * 0.6 + (wp.projectile === 'grenade' ? 0.45 : 0.05); launchProjectile(wp.projectile, P.x + Math.sin(ang) * 0.8, y, P.z + Math.cos(ang) * 0.8, ang, pitch, wp.projectile === 'grenade' ? 14 : 45); AUDIO.play(wp.sound || 'click', P.x, P.z); }
     else {
       // Aim from the rendered camera; fire from the body so cover beside the muzzle still blocks shots.
       const cam = RENDER.cam, dx = cam.tx-cam.x, dy = cam.ty-cam.y, dz = cam.tz-cam.z;
-      const hit = W.raycast3(cam.x, cam.y, cam.z, dx, dy, dz, wp.range + 8, P.car);
+      const lock = P.aimTarget && P.aimTarget.alive !== false && !P.aimTarget.dead ? P.aimTarget : null; // a locked target is shot at, not the point behind the crosshair
+      const hit = lock ? { x: lock.x, y: lock === W.heli ? lock.y : (lock.y || 0) + 1.2 - (lock.crouch || 0) * .4, z: lock.z } : W.raycast3(cam.x, cam.y, cam.z, dx, dy, dz, wp.range + 8, P.car);
       const ax = hit.x-P.x, ay = hit.y-y, az = hit.z-P.z;
       fireBullet(PLAYER, P.x, P.z, y, Math.atan2(ax, az), wp, 1, null, Math.atan2(ay, Math.hypot(ax, az)));
     }
@@ -418,6 +426,6 @@ const PLAYER = (() => {
   let gm = null, rm = null;
   const GRENADE_MESH = () => gm || (gm = new MESH.Builder().cbox(0, 0, 0, 0.3, 0.35, 0.3, [0.2, 0.3, 0.2]).build());
   const ROCKET_MESH = () => rm || (rm = new MESH.Builder().cbox(0, 0, 0, 0.18, 0.18, 0.9, [0.4, 0.4, 0.42]).cbox(0, 0, 0.5, 0.12, 0.12, 0.2, [0.9, 0.2, 0.1]).build());
-  return { P, vaultCandidate, startVault, moveBody, entryCandidate, magazine, reload, updateWeapon, OUTFITS, setOutfit, init, update, updateCamera, heldEntity, shake, giveWeapon, addMoney, hurt, knock, die, bust, respawn, fireBullet, explodeAt, updateProjectiles, entity, drawFX, projectileEntities, exitCar,
+  return { P, aimAngle, vaultCandidate, startVault, moveBody, entryCandidate, magazine, reload, updateWeapon, OUTFITS, setOutfit, init, update, updateCamera, heldEntity, shake, giveWeapon, addMoney, hurt, knock, die, bust, respawn, fireBullet, explodeAt, updateProjectiles, entity, drawFX, projectileEntities, exitCar,
     get x() { return P.x; }, get z() { return P.z; }, get y() { return P.y; }, get car() { return P.car; }, get alive() { return P.alive; }, get wanted() { return P.wanted; }, set wanted(v) { P.wanted = v; }, get stats() { return P.stats; }, get health() { return P.health; }, get money() { return P.money; }, get weapons() { return P.weapons; }, get weapon() { return P.weapon; } };
 })();

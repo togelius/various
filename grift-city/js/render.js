@@ -495,7 +495,7 @@ const RENDER = (() => {
       gl.uniform1f(P.u.uFogHeight, env.fogHeight); gl.uniform1f(P.u.uFogSun, env.fogSun);
       gl.uniform3fv(P.u.uZenith, env.zenith); gl.uniform3fv(P.u.uHorizon, env.horizon); gl.uniform1f(P.u.uReflect, env.reflect); gl.uniform1f(P.u.uWet, env.wet);
       gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uActor,0); gl.uniform1f(P.u.uHDR, hdrOut ? 1 : 0); gl.uniform1f(P.u.uExposure, post.exposure); gl.uniform1f(P.u.uSat, post.sat); gl.uniform3fv(P.u.uTint, post.tint); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uWater, 0); gl.uniform1f(P.u.uTime, env.time || 0);
-      gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP,probe.texture); gl.uniform1i(P.u.uProbe,4); gl.uniform3fv(P.u.uProbePos,probe.pos);
+      if (!probe) updateProbe(); gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP,probe.texture); gl.uniform1i(P.u.uProbe,4); gl.uniform3fv(P.u.uProbePos,probe.pos);
       gl.uniform4fv(P.u.uLightDirs,lights.dir); gl.uniform4fv(P.u.uBlockMin,localBlocks.min); gl.uniform4fv(P.u.uBlockMax,localBlocks.max); gl.uniform1i(P.u.uBlockCount,localBlocks.n);
       gl.uniform4fv(P.u.uLights, lights.pos); gl.uniform3fv(P.u.uLightCols, lights.col); gl.uniform1i(P.u.uNumLights, lights.n);
     }

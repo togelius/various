@@ -123,7 +123,7 @@ const AUDIO = (() => {
     // wind: a slow-breathing band of air
     const wg = ctx.createGain(); wg.gain.value = 0.02; wg.connect(ambientBus); const ws = ctx.createBufferSource(); ws.buffer = noiseBuf; ws.loop = true; const wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 520; wf.Q.value = 0.5; const wl = ctx.createOscillator(); wl.frequency.value = 0.08; const wlg = ctx.createGain(); wlg.gain.value = 0.012; wl.connect(wlg); wlg.connect(wg.gain); ws.connect(wf); wf.connect(wg); ws.start(); wl.start();
     // helicopter rotor: pulsed low noise
-    const hg = ctx.createGain(); hg.gain.value = 0; hg.connect(ambientBus); const hs = ctx.createBufferSource(); hs.buffer = noiseBuf; hs.loop = true; const hf = ctx.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 220; const lfo = ctx.createOscillator(); lfo.frequency.value = 13; const lg = ctx.createGain(); lg.gain.value = 0.5; lfo.connect(lg); lg.connect(hg.gain); hs.connect(hf); hf.connect(hg); hs.start(); lfo.start();
+    const hg = ctx.createGain(); hg.gain.value = 0; hg.connect(ambientBus); const hs = ctx.createBufferSource(); hs.buffer = noiseBuf; hs.loop = true; const hf = ctx.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 220; const lfo = ctx.createOscillator(); lfo.frequency.value = 13; const lg = ctx.createGain(); lg.gain.value = 0.5; const pulse = ctx.createGain(); pulse.gain.value = 0.5; lfo.connect(lg); lg.connect(pulse.gain); hs.connect(hf); hf.connect(pulse); pulse.connect(hg); hs.start(); lfo.start(); // the rotor pulse modulates its own stage; it used to ride on the level itself, so a silent helicopter still thumped at 13 Hz
     const rg = ctx.createGain(); rg.gain.value = 0; rg.connect(ambientBus); const rs = ctx.createBufferSource(); rs.buffer = noiseBuf; rs.loop = true; const rf = ctx.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 3200; rf.Q.value = 0.4; rs.connect(rf); rf.connect(rg); rs.start();
     ambient = { g, hg, rg, f, wg };
   }
@@ -131,7 +131,7 @@ const AUDIO = (() => {
   function rain(v, inCar) { if (!ctx) return; ambient.rg.gain.setTargetAtTime(v * (inCar ? 0.05 : 0.14), now(), 0.5); ambient.wg.gain.setTargetAtTime(0.02 + v * 0.03, now(), 1); }
   function heliVolume(v) { if (!ctx) return; ambient.hg.gain.setTargetAtTime(v * 0.5, now(), 0.2); }
   // the small sounds of a place: birds by the parks, gulls by the water
-  function ambientTick(dt, near) { if (!ctx || muted) return; birdT -= dt; gullT -= dt; if (near.park && birdT <= 0) { birdT = 1.5 + Math.random() * 4; play('chirp', near.park.x, near.park.z); } if (near.water && gullT <= 0) { gullT = 4 + Math.random() * 8; play('gull', near.water.x, near.water.z); } }
+  function ambientTick(dt, near) { if (!ctx || muted) return; birdT -= dt; gullT -= dt; if (near.park && birdT <= 0 && !(typeof W !== 'undefined' && W.isNight())) { birdT = 1.5 + Math.random() * 4; play('chirp', near.park.x, near.park.z); } if (near.water && gullT <= 0) { gullT = 4 + Math.random() * 8; play('gull', near.water.x, near.water.z); } }
 
   // ---- Radio: three stations from a step sequencer with proper voices.
   const SCALES = { minor: [0, 2, 3, 5, 7, 8, 10], dorian: [0, 2, 3, 5, 7, 9, 10] };

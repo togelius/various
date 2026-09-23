@@ -41,3 +41,46 @@ All eleven suites and JavaScript syntax checks pass via `tools/check-overhaul.sh
 ## Remaining evaluation limits
 
 The implementation milestones are complete; experience-quality validation is broader than automated correctness. There has been no listening test, physical phone/controller test, lower-power hardware benchmark, complete human campaign playthrough, long-session soak, or player study of lap learning and encounter approaches. Reflections use small cached probes of static architecture, and local-light occlusion uses a bounded set of building proxies. Car exits retain immediate gameplay control with visual follow-through. The authored quarter establishes the new street standard; the rest of the island still uses the procedural block generator. These are practical limits of this release, not claims of completed validation.
+
+# Getaway plan (continues the overhaul)
+
+A second pass built on the review in which eight subsystem maps, a headless playtest and six design lenses were
+checked against the code. It keeps the overhaul's systems and goes after what still stands between them and the
+player on an iPad: the quality ladder, the chase, the first minutes, one-thumb combat, the nights and the story.
+This file is the shared roadmap; whoever works on the game ticks items here and runs the same gate.
+
+## Gate
+
+`./tools/check-overhaul.sh` (node suites, syntax, release build), then the browser suites in
+`tools/playtest/tests/` one at a time (`node tools/playtest/tests/<name>.js`; SwiftShader, so run one browser at a
+time): visual, persistence, vehicles, enter_test, docks_test, repo_test, rev_test, missions_all, soak.
+
+## Steps
+
+- [x] 1. Confirmed defects.
+- [ ] 2. Device truth and a quality ladder that understands a 30 Hz cap.
+- [ ] 3. A cold open through the Foundry Quarter.
+- [ ] 4. Pursuit legs: cruisers that reach you, a patrol car at one star, T-bones and PIT, the Heat Run pot.
+- [ ] 5. One-thumb combat: lock-on, a context ACTION button, fewer touch buttons.
+- [ ] 6. Nights and look.
+- [ ] 7. Story order, the con, the morning paper.
+
+## Validation log
+
+Step 1: auto-quality treated a steady 33 ms frame (a 30 Hz display, Low Power Mode) as slow and stepped down to
+the bottom rung for nothing; it now probes one rung, and when the frames do not speed up it concludes the cap is
+real, restores quality and judges against 30 Hz from then on (persistence suite: capped, vsync-slow and
+capped-and-slow cases). Idle job markers and taxi destinations were pushed every frame without limit (600 after ten
+seconds, each drawn every frame); marker() now reuses a marker at the same spot. Bought cars and the car you last
+drove are no longer despawned. The aim-lock vertical gate compared the target's pitch from the player's eye with the
+orbit camera's pitch and only let targets within a few metres through; it is measured along the camera's crosshair
+ray, touch uses the controller assist setting, locked shots and rockets fly at the target. AI cars could not reverse
+from a standstill because the physics zeroed any braking car below 0.15 m/s unless `reverse` was set; traffic and
+chase AI now set it. Respawns step out toward open street. Pay 'n' Spray charges once per visit and only with stars
+or damage. A closed shop stays closed until you step away. WASTED/BUSTED is shown before MISSION FAILED. Busted
+stops the car. Crane Holdings rises to 340 m with a crown of fins. Pay 'n' Spray is teal, not job-yellow. The
+helicopter rotor LFO rode on the level itself and thumped at 13 Hz with no helicopter; it has its own stage. No
+birdsong at night. Sub-star suspicion fades. Money cannot go negative. The job camera is in the weapon cycle.
+The radar edge checks now look for the blip at the rim (the on-foot route line shares its colour) and the vehicle
+showroom no longer assumes a reflection probe exists. `test/getaway.js` covers markers, despawn, lock, reversing,
+respawn heading, the spray and the shop latch; all node and browser suites pass.

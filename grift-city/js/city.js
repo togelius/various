@@ -592,7 +592,8 @@ const CITY = (() => {
         b.box(x0 + W / 2 - 2, y, z0 - 0.1, 4, 4, 0.2, [0.25, 0.2, 0.15]);
         addPlace('bank', { x: front.x, z: front.z, label: sp.label, angle: 0 }); break;
       case 'tower': {
-        h = 160; const tw = W * 0.7, td = D * 0.7, tx = x0 + (W - tw) / 2, tz = z0 + (D - td) / 2;
+        h = 340; const tw = W * 0.7, td = D * 0.7, tx = x0 + (W - tw) / 2, tz = z0 + (D - td) / 2; // Crane's tower tops the skyline (the generic towers reach ~325 m), so it reads from anywhere as the thing to aim for
+        for (let k = 0; k < 4; k++) { const fx = k < 2 ? tx - 0.4 : tx + tw - 0.8, fz = k % 2 ? tz + td - 0.8 : tz - 0.4; b.box(fx, y + h - 40, fz, 1.2, 58, 1.2, [0.86, 0.9, 0.95]); } // corner fins that rise past the roof as a crown
         b.box(x0, y, z0, W, 6, D, [0.3, 0.32, 0.36], T.glass, { uvScale: 14 });
         facadeBox(b, tx, y + 6, tz, tw, h - 6, td, [0.8, 0.9, 1.0], T.glass, { uOff: 0 }); b.floor(tx, tz, tw, td, y + h, [0.3, 0.3, 0.32], T.roof, 8);
         b.box(tx + tw / 2 - 0.2, y + h, tz + td / 2 - 0.2, 0.4, 14, 0.4, [0.8, 0.8, 0.8]); b.cbox(tx + tw / 2, y + h + 14.2, tz + td / 2, 0.5, 0.5, 0.5, [1, 0.1, 0.1]);

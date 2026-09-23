@@ -111,6 +111,7 @@ const POLICE = (() => {
     updateReports(dt);const P = PLAYER.P; const w = stars(); P.wanted = w;
     if (!S.arresting) S.arrestT = Math.max(0, S.arrestT - dt * 2); S.arresting = false;
     S.seenT += dt; if (S.searchT > 0) S.searchT -= dt;
+    if (w === 0 && S.heat > 0) S.heat = Math.max(0, S.heat - dt * 0.012); // suspicion short of a star fades in a minute or two instead of waiting forever for the next crime
     if (w > 0 && P.alive) {
       // out of sight in a car park or the safehouse yard, the trail goes cold twice as fast
       const bl = CITY.blockAt(P.x, P.z); const sh = CITY.place('safehouse'); if (S.seenT > 3 && ((bl && bl.kind === 'parking') || M.dist2(P.x, P.z, sh.x, sh.z) < 18 * 18)) S.seenT += dt;

@@ -2151,7 +2151,8 @@ const CITY = (() => {
         b.box(x0 + W / 2 - 2, y, z0 - 0.1, 4, 4, 0.2, [0.25, 0.2, 0.15]);
         addPlace('bank', { x: front.x, z: front.z, label: sp.label, angle: 0 }); break;
       case 'tower': {
-        h = 160; const tw = W * 0.7, td = D * 0.7, tx = x0 + (W - tw) / 2, tz = z0 + (D - td) / 2;
+        h = 340; const tw = W * 0.7, td = D * 0.7, tx = x0 + (W - tw) / 2, tz = z0 + (D - td) / 2; // Crane's tower tops the skyline (the generic towers reach ~325 m), so it reads from anywhere as the thing to aim for
+        for (let k = 0; k < 4; k++) { const fx = k < 2 ? tx - 0.4 : tx + tw - 0.8, fz = k % 2 ? tz + td - 0.8 : tz - 0.4; b.box(fx, y + h - 40, fz, 1.2, 58, 1.2, [0.86, 0.9, 0.95]); } // corner fins that rise past the roof as a crown
         b.box(x0, y, z0, W, 6, D, [0.3, 0.32, 0.36], T.glass, { uvScale: 14 });
         facadeBox(b, tx, y + 6, tz, tw, h - 6, td, [0.8, 0.9, 1.0], T.glass, { uOff: 0 }); b.floor(tx, tz, tw, td, y + h, [0.3, 0.3, 0.32], T.roof, 8);
         b.box(tx + tw / 2 - 0.2, y + h, tz + td / 2 - 0.2, 0.4, 14, 0.4, [0.8, 0.8, 0.8]); b.cbox(tx + tw / 2, y + h + 14.2, tz + td / 2, 0.5, 0.5, 0.5, [1, 0.1, 0.1]);
@@ -2826,7 +2827,7 @@ const RENDER = (() => {
       gl.uniform1f(P.u.uFogHeight, env.fogHeight); gl.uniform1f(P.u.uFogSun, env.fogSun);
       gl.uniform3fv(P.u.uZenith, env.zenith); gl.uniform3fv(P.u.uHorizon, env.horizon); gl.uniform1f(P.u.uReflect, env.reflect); gl.uniform1f(P.u.uWet, env.wet);
       gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uActor,0); gl.uniform1f(P.u.uHDR, hdrOut ? 1 : 0); gl.uniform1f(P.u.uExposure, post.exposure); gl.uniform1f(P.u.uSat, post.sat); gl.uniform3fv(P.u.uTint, post.tint); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uWater, 0); gl.uniform1f(P.u.uTime, env.time || 0);
-      gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP,probe.texture); gl.uniform1i(P.u.uProbe,4); gl.uniform3fv(P.u.uProbePos,probe.pos);
+      if (!probe) updateProbe(); gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP,probe.texture); gl.uniform1i(P.u.uProbe,4); gl.uniform3fv(P.u.uProbePos,probe.pos);
       gl.uniform4fv(P.u.uLightDirs,lights.dir); gl.uniform4fv(P.u.uBlockMin,localBlocks.min); gl.uniform4fv(P.u.uBlockMax,localBlocks.max); gl.uniform1i(P.u.uBlockCount,localBlocks.n);
       gl.uniform4fv(P.u.uLights, lights.pos); gl.uniform3fv(P.u.uLightCols, lights.col); gl.uniform1i(P.u.uNumLights, lights.n);
     }
@@ -3086,7 +3087,7 @@ const AUDIO = (() => {
     // wind: a slow-breathing band of air
     const wg = ctx.createGain(); wg.gain.value = 0.02; wg.connect(ambientBus); const ws = ctx.createBufferSource(); ws.buffer = noiseBuf; ws.loop = true; const wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 520; wf.Q.value = 0.5; const wl = ctx.createOscillator(); wl.frequency.value = 0.08; const wlg = ctx.createGain(); wlg.gain.value = 0.012; wl.connect(wlg); wlg.connect(wg.gain); ws.connect(wf); wf.connect(wg); ws.start(); wl.start();
     // helicopter rotor: pulsed low noise
-    const hg = ctx.createGain(); hg.gain.value = 0; hg.connect(ambientBus); const hs = ctx.createBufferSource(); hs.buffer = noiseBuf; hs.loop = true; const hf = ctx.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 220; const lfo = ctx.createOscillator(); lfo.frequency.value = 13; const lg = ctx.createGain(); lg.gain.value = 0.5; lfo.connect(lg); lg.connect(hg.gain); hs.connect(hf); hf.connect(hg); hs.start(); lfo.start();
+    const hg = ctx.createGain(); hg.gain.value = 0; hg.connect(ambientBus); const hs = ctx.createBufferSource(); hs.buffer = noiseBuf; hs.loop = true; const hf = ctx.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 220; const lfo = ctx.createOscillator(); lfo.frequency.value = 13; const lg = ctx.createGain(); lg.gain.value = 0.5; const pulse = ctx.createGain(); pulse.gain.value = 0.5; lfo.connect(lg); lg.connect(pulse.gain); hs.connect(hf); hf.connect(pulse); pulse.connect(hg); hs.start(); lfo.start(); // the rotor pulse modulates its own stage; it used to ride on the level itself, so a silent helicopter still thumped at 13 Hz
     const rg = ctx.createGain(); rg.gain.value = 0; rg.connect(ambientBus); const rs = ctx.createBufferSource(); rs.buffer = noiseBuf; rs.loop = true; const rf = ctx.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 3200; rf.Q.value = 0.4; rs.connect(rf); rf.connect(rg); rs.start();
     ambient = { g, hg, rg, f, wg };
   }
@@ -3094,7 +3095,7 @@ const AUDIO = (() => {
   function rain(v, inCar) { if (!ctx) return; ambient.rg.gain.setTargetAtTime(v * (inCar ? 0.05 : 0.14), now(), 0.5); ambient.wg.gain.setTargetAtTime(0.02 + v * 0.03, now(), 1); }
   function heliVolume(v) { if (!ctx) return; ambient.hg.gain.setTargetAtTime(v * 0.5, now(), 0.2); }
   // the small sounds of a place: birds by the parks, gulls by the water
-  function ambientTick(dt, near) { if (!ctx || muted) return; birdT -= dt; gullT -= dt; if (near.park && birdT <= 0) { birdT = 1.5 + Math.random() * 4; play('chirp', near.park.x, near.park.z); } if (near.water && gullT <= 0) { gullT = 4 + Math.random() * 8; play('gull', near.water.x, near.water.z); } }
+  function ambientTick(dt, near) { if (!ctx || muted) return; birdT -= dt; gullT -= dt; if (near.park && birdT <= 0 && !(typeof W !== 'undefined' && W.isNight())) { birdT = 1.5 + Math.random() * 4; play('chirp', near.park.x, near.park.z); } if (near.water && gullT <= 0) { gullT = 4 + Math.random() * 8; play('gull', near.water.x, near.water.z); } }
 
   // ---- Radio: three stations from a step sequencer with proper voices.
   const SCALES = { minor: [0, 2, 3, 5, 7, 8, 10], dorian: [0, 2, 3, 5, 7, 9, 10] };
@@ -4215,6 +4216,7 @@ const VEH = (() => {
       }
       if (ai.blockedT > 7) { ai.mode = 'flee'; this.scared = 3; ai.blockedT = 0; }
       if (ai.honk > 0) ai.honk -= dt;
+      c.reverse = ai.reverseT > 0; // the physics only backs away from a standstill when asked to
       if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.steer = -c.steer; }
       else if (target > 2 && Math.abs(sp) < 0.3 && !blocked && !ai.atLight) { ai.stuck += dt; if (ai.stuck > 2.5) { ai.reverseT = 1.2; ai.stuck = 0; } } else ai.stuck = Math.max(0, ai.stuck - dt);
       if (ai.mode === 'flee' && this.scared <= 0) ai.mode = 'traffic';
@@ -4256,7 +4258,7 @@ const VEH = (() => {
         while(ai.surfacePath?.length&&M.dist(this.x,this.z,ai.surfacePath[0].x,ai.surfacePath[0].z)<3&&Math.abs(this.y-ai.surfacePath[0].y)<.8)ai.surfacePath.shift();if(ai.surfacePath?.length){px=ai.surfacePath[0].x;pz=ai.surfacePath[0].z;}}
       const d = M.dist(this.x, this.z, px, pz); const desired = Math.atan2(px - this.x, pz - this.z); const da = M.angleTo(this.angle, desired);
       c.handbrake = 0;
-      if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.steer = M.clamp(-da * 2, -1, 1); return; }
+      if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.reverse = true; c.steer = M.clamp(-da * 2, -1, 1); return; } c.reverse = false;
       c.steer = M.clamp(da * 2.5, -1, 1);
       const stopDist = t.car ? 3 : 7;
       if (d < stopDist) { c.throttle = 0; c.brake = 1; }
@@ -4271,7 +4273,7 @@ const VEH = (() => {
       const ai = this.ai, c = this.controls; const pts = ai.route; if (!pts || !pts.length) { c.throttle = 0; c.brake = 1; return; }
       let p = pts[ai.routeIdx % pts.length]; const last = !ai.routeLoop && ai.routeIdx === pts.length - 1; if (last && M.dist(this.x, this.z, p[0], p[1]) < 18 && this.absSpeed < 1) { ai.stuckEnd = (ai.stuckEnd || 0) + dt; } if (M.dist(this.x, this.z, p[0], p[1]) < (p[2] || 7) || (ai.stuckEnd || 0) > 3) { ai.routeIdx++; if (!ai.routeLoop && ai.routeIdx >= pts.length) { ai.route = null; if (ai.onRouteEnd) ai.onRouteEnd(this); return; } p = pts[ai.routeIdx % pts.length]; }
       const desired = Math.atan2(p[0] - this.x, p[1] - this.z); const da = M.angleTo(this.angle, desired);
-      if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.steer = M.clamp(-da * 2, -1, 1); return; }
+      if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.reverse = true; c.steer = M.clamp(-da * 2, -1, 1); return; } c.reverse = false;
       c.steer = M.clamp(da * 2.5, -1, 1); const maxS = ai.routeSpeed || 22; const want = Math.abs(da) > 0.5 ? 8 : maxS;
       if (this.speed < want) { c.throttle = 1; c.brake = 0; } else { c.throttle = 0; c.brake = 0.5; } c.handbrake = Math.abs(da) > 1.1 && this.speed > 9 ? 1 : 0;
       if (this.speed < 0.6 && c.throttle > 0.5) { ai.stuck += dt; if (ai.stuck > 1.4) { ai.reverseT = 1.2; ai.stuck = 0; } } else ai.stuck = Math.max(0, ai.stuck - dt);
@@ -4344,7 +4346,7 @@ const VEH = (() => {
       return v;
     }
   }
-  function despawn(px, pz) { for (const c of W.cars) { if (c.removed || c.important || c.persistent || c === (PLAYER && PLAYER.car)) continue; const d = M.dist(c.x, c.z, px, pz); if (d > 280 || (c.wrecked && d > 150 && c.fireT > 10)) c.remove(); } let w = 0; for (const c of W.cars) if (!c.removed) W.cars[w++] = c; W.cars.length = w; }
+  function despawn(px, pz) { for (const c of W.cars) { if (c.removed || c.important || c.persistent || c.owned || (PLAYER && (c === PLAYER.car || (PLAYER.P && c === PLAYER.P.lastCar)))) continue; /* cars you bought, and the one you left, stay where you parked them */ const d = M.dist(c.x, c.z, px, pz); if (d > 280 || (c.wrecked && d > 150 && c.fireT > 10)) c.remove(); } let w = 0; for (const c of W.cars) if (!c.removed) W.cars[w++] = c; W.cars.length = w; }
   function spawnMarina() { CITY.marina.forEach((m, i) => { const b = spawn('boat', m.x, m.z, m.angle, { mode: 'parked', color: [2, 9, 6][i % 3] }); b.persistent = true; }); }
   function spawnParked() { for (const p of CITY.parkedSpots) { const type = p.type || TRAFFIC_TYPES[Math.floor(W.rng() * TRAFFIC_TYPES.length)]; if (type === 'bus' || type === 'truck') continue; spawn(type, p.x, p.z, p.angle, { mode: 'parked' }); } }
   function nearest(x, z, r, filter) { let best = null, bd = r * r; for (const c of W.cars) { if (c.removed || (filter && !filter(c))) continue; const d = M.dist2(c.x, c.z, x, z); if (d < bd) { bd = d; best = c; } } return best; }
@@ -4869,7 +4871,7 @@ const WEAPONS = {
   rocket:  { name: 'ROCKET LAUNCHER', dmg: 0, rate: 1.4, range: 150, projectile: 'rocket', sound: 'rocket', clip: 1 },
   grenade: { name: 'GRENADES', dmg: 0, rate: 0.9, range: 30, projectile: 'grenade', clip: 1 },
 };
-const WEAPON_ORDER = ['fist', 'bat', 'pistol', 'uzi', 'shotgun', 'rifle', 'rocket', 'grenade'];
+const WEAPON_ORDER = ['fist', 'bat', 'pistol', 'uzi', 'shotgun', 'rifle', 'rocket', 'grenade', 'camera']; // the job camera can be cycled back to after switching away
 
 const PLAYER = (() => {
   const CIRC = new Float64Array(9); // scratch for a car's collision circles, so walking into traffic allocates nothing
@@ -4889,7 +4891,7 @@ const PLAYER = (() => {
   function setOutfit(i) { const o = OUTFITS[i % OUTFITS.length]; P.outfit = i % OUTFITS.length; P.look.shirt = o.shirt; P.look.jacket = o.jacket; P.look.pants = o.pants; P.mesh = PEDS.getMesh(P.look); }
   function init(x, z, angle) { P.mesh = PEDS.getMesh(P.look); P.bones = new Float32Array(16 * RENDER.MAX_BONES); P.emis = new Float32Array(RENDER.MAX_BONES); P.model = M.create(); P.x = x; P.z = z; P.y = CITY.groundY(x, z); P.angle = angle; P.camYaw = angle; }
   function giveWeapon(key, ammo) { if (!(key in P.weapons)) { P.weapons[key] = 0; P.weapon = key; } if (WEAPONS[key].melee) P.weapons[key] = Infinity; else P.weapons[key] += ammo; P.weaponOut = !WEAPONS[P.weapon].melee || P.weapon === 'bat'; }
-  function addMoney(n, why) { P.money += n; if (n > 0) P.stats.cash += n; HUD.money(n, why); if (n > 0) AUDIO.play('cash'); }
+  function addMoney(n, why) { P.money = Math.max(0, P.money + n); /* no debt: a charge takes what you have */ if (n > 0) P.stats.cash += n; HUD.money(n, why); if (n > 0) AUDIO.play('cash'); }
   function cycleWeapon(dir) { const have = WEAPON_ORDER.filter(k => k in P.weapons && (P.weapons[k] > 0)); if (!have.length) return; let i = have.indexOf(P.weapon); i = (i + dir + have.length) % have.length; P.weapon = have[i]; P.weaponOut = P.weapon !== 'fist'; AUDIO.play('click'); }
 
   function magazine(key = P.weapon) {
@@ -4916,7 +4918,7 @@ const PLAYER = (() => {
   // camera shake: a knock the camera takes and lets go of over a third of a second
   function shake(a) { P.shake = Math.max(P.shake || 0, a); }
   const option = (key, fallback) => typeof GAME !== 'undefined' ? (GAME.options[key] ?? fallback) : fallback;
-  const assisted = () => typeof INPUT !== 'undefined' && (INPUT.pad.active ? option('controllerAssist',true) : option('mouseAssist',false));
+  const assisted = () => typeof INPUT !== 'undefined' && (INPUT.pad.active || INPUT.touch ? option('controllerAssist',true) : option('mouseAssist',false));
   function hurt(amount, how, source) {
     if (!P.alive || P.invuln > 0) return; if (how === 'melee' && P.car) return;
     let a = amount; if (P.armor > 0) { const ab = Math.min(P.armor, a * 0.7); P.armor -= ab; a -= ab; }
@@ -4931,11 +4933,14 @@ const PLAYER = (() => {
   }
   function bust() {
     if (!P.alive || P.state === 'busted') return; P.alive = false; P.state = 'busted'; P.deadT = 0; P.stats.busted++; P.aim = 0;
-    if (P.car) { const c = P.car; c.driver = null; c.ai.mode = 'parked'; c.controls.throttle = 0; c.controls.brake = 1; P.x = c.x; P.z = c.z; }
+    P.vx = P.vz = 0; if (P.car) { const c = P.car; c.driver = null; c.ai.mode = 'parked'; c.controls.throttle = 0; c.controls.brake = 1; c.vx = c.vz = 0; c.yawRate = 0; P.x = c.x; P.z = c.z; } // busted means stopped: nothing keeps rolling
     AUDIO.play('busted'); HUD.big('BUSTED', '#2f66c9'); MISSIONS.onPlayerDown('busted');
   }
   function respawn(where) {
-    const p = CITY.nearestPlace(where, P.x, P.z) || CITY.place('hospital'); P.x = p.x + 3; P.z = p.z; P.y = CITY.groundY(P.x, P.z, P.y); P.angle = Math.PI; P.camYaw = P.angle;
+    const p = CITY.nearestPlace(where, P.x, P.z) || CITY.place('hospital');
+    // Step out of the door toward open street and face it, rather than a fixed heading that often stared at the wall.
+    let best = 0, bestOpen = -1; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, fx = Math.sin(a), fz = Math.cos(a); let open = 0; for (let d = 2; d <= 14; d += 2) { if (CITY.insideLot(p.x + fx * d, p.z + fz * d)) break; open++; } if (open > bestOpen) { bestOpen = open; best = a; } }
+    P.x = p.x + Math.sin(best) * 3; P.z = p.z + Math.cos(best) * 3; P.y = CITY.groundY(P.x, P.z, P.y); P.angle = best; P.camYaw = P.angle;
     P.health = 100; P.alive = true; P.state = 'foot'; P.car = null; P.rag = null; P.vx = P.vz = P.vy = 0; P.airborne = false; P.lying = 0; P.knockT = 0; P.invuln = 2;
     const fee = Math.min(P.money, Math.max(200, Math.floor(P.money * 0.1))); if (fee > 0) addMoney(-fee, where === 'police' ? 'bail' : 'hospital bill');
     if (where === 'police') { for (const k in P.weapons) if (!WEAPONS[k].melee) P.weapons[k] = Math.floor(P.weapons[k] * 0.5); }
@@ -4997,7 +5002,11 @@ const PLAYER = (() => {
   // Auto-aim: the nearest target within a cone of the crosshair, measured from the crosshair line. P.aimTarget shows the lock.
   function aimAngle(cone = P.aim ? 0.2 : 0.14) {
     const base = P.camYaw; if (!assisted()) { P.aimTarget=null; return base; } let best = base, bd = cone; const [cx, cz] = aimOrigin(); let target = null;
-    const consider = (x, z, bonus, obj) => { const d = M.dist(x, z, cx, cz); if (d > 60 || d < 0.8) return; const ty = obj === W.heli ? obj.y : (obj.y || 0)+1.2; if (Math.abs(Math.atan2(ty-(P.y+1.45),d)+P.camPitch) > .18 || !W.sight3(P.x,P.y+1.35,P.z,x,ty,z)) return; const a = Math.atan2(x - cx, z - cz); const da = Math.abs(M.angleTo(base, a)) - bonus; if (da < bd && W.los(cx, cz, x, z)) { bd = da; best = a; target = obj; } };
+    // The vertical gate is measured along the crosshair ray from the rendered camera. It used to compare the target's
+    // pitch from the player's eye with the orbit camera's downward pitch, which at the resting 0.28 rad only let
+    // targets within a few metres through.
+    const cam = RENDER.cam || {}, camX = cam.x ?? P.x, camZ = cam.z ?? P.z, cy = cam.y ?? P.y + 1.45, fh = Math.hypot((cam.tx ?? camX) - camX, (cam.tz ?? camZ + 1) - camZ) || 1, camPitch = cam.ty !== undefined ? Math.atan2(cam.ty - cy, fh) : -P.camPitch;
+    const consider = (x, z, bonus, obj) => { const d = M.dist(x, z, cx, cz); if (d > 60 || d < 0.8) return; const ty = obj === W.heli ? obj.y : (obj.y || 0)+1.2; if (Math.abs(Math.atan2(ty - cy, Math.hypot(x - camX, z - camZ)) - camPitch) > .45 || !W.sight3(P.x,P.y+1.35,P.z,x,ty,z)) return; const a = Math.atan2(x - cx, z - cz); const da = Math.abs(M.angleTo(base, a)) - bonus; if (da < bd && W.los(cx, cz, x, z)) { bd = da; best = a; target = obj; } };
     for (const p of W.peds) if (p.alive && !p.inCar) consider(p.x, p.z, p.isCop || p.hostile || p.isGang ? 0.04 : 0, p);
     if (W.heli && !W.heli.dead) consider(W.heli.x, W.heli.z, 0.05, W.heli);
     P.aimTarget = target; return best;
@@ -5084,11 +5093,12 @@ const PLAYER = (() => {
     if (P.weapons[P.weapon] <= 0) { AUDIO.play('click'); P.fireT = 0.3; return; }
     P.fireT = wp.rate; P.weapons[P.weapon]--; if (!wp.projectile && wp.clip) P.magazines[P.weapon]--; P.recoil = .12;const pattern=[-.25,.12,.4,.2,-.3,-.45,.1,.35],kick=P.weapon==='shotgun'?.05:P.weapon==='rifle'?.015:.028;P.shotSequence=(P.shotSequence||0)+1;P.kickPitch=(P.kickPitch||0)-kick;P.kickYaw=(P.kickYaw||0)+pattern[P.shotSequence%pattern.length]*kick*.6;P.bloom=Math.min(.8,(P.bloom||0)+(P.weapon==='rifle'?.13:.2));P.angle = P.camYaw;
     const y = P.y + 1.35 - P.crouch*.43; const ang = aimAngle();
-    if (wp.projectile) { const pitch = -P.camPitch * 0.6 + (wp.projectile === 'grenade' ? 0.45 : 0.05); launchProjectile(wp.projectile, P.x + Math.sin(ang) * 0.8, y, P.z + Math.cos(ang) * 0.8, ang, pitch, wp.projectile === 'grenade' ? 14 : 45); AUDIO.play(wp.sound || 'click', P.x, P.z); }
+    if (wp.projectile) { const lt = wp.projectile !== 'grenade' && P.aimTarget; const pitch = lt ? Math.atan2((lt === W.heli ? lt.y : (lt.y || 0) + 1) - y, Math.hypot(lt.x - P.x, lt.z - P.z)) : -P.camPitch * 0.6 + (wp.projectile === 'grenade' ? 0.45 : 0.05); launchProjectile(wp.projectile, P.x + Math.sin(ang) * 0.8, y, P.z + Math.cos(ang) * 0.8, ang, pitch, wp.projectile === 'grenade' ? 14 : 45); AUDIO.play(wp.sound || 'click', P.x, P.z); }
     else {
       // Aim from the rendered camera; fire from the body so cover beside the muzzle still blocks shots.
       const cam = RENDER.cam, dx = cam.tx-cam.x, dy = cam.ty-cam.y, dz = cam.tz-cam.z;
-      const hit = W.raycast3(cam.x, cam.y, cam.z, dx, dy, dz, wp.range + 8, P.car);
+      const lock = P.aimTarget && P.aimTarget.alive !== false && !P.aimTarget.dead ? P.aimTarget : null; // a locked target is shot at, not the point behind the crosshair
+      const hit = lock ? { x: lock.x, y: lock === W.heli ? lock.y : (lock.y || 0) + 1.2 - (lock.crouch || 0) * .4, z: lock.z } : W.raycast3(cam.x, cam.y, cam.z, dx, dy, dz, wp.range + 8, P.car);
       const ax = hit.x-P.x, ay = hit.y-y, az = hit.z-P.z;
       fireBullet(PLAYER, P.x, P.z, y, Math.atan2(ax, az), wp, 1, null, Math.atan2(ay, Math.hypot(ax, az)));
     }
@@ -5276,7 +5286,7 @@ const PLAYER = (() => {
   let gm = null, rm = null;
   const GRENADE_MESH = () => gm || (gm = new MESH.Builder().cbox(0, 0, 0, 0.3, 0.35, 0.3, [0.2, 0.3, 0.2]).build());
   const ROCKET_MESH = () => rm || (rm = new MESH.Builder().cbox(0, 0, 0, 0.18, 0.18, 0.9, [0.4, 0.4, 0.42]).cbox(0, 0, 0.5, 0.12, 0.12, 0.2, [0.9, 0.2, 0.1]).build());
-  return { P, vaultCandidate, startVault, moveBody, entryCandidate, magazine, reload, updateWeapon, OUTFITS, setOutfit, init, update, updateCamera, heldEntity, shake, giveWeapon, addMoney, hurt, knock, die, bust, respawn, fireBullet, explodeAt, updateProjectiles, entity, drawFX, projectileEntities, exitCar,
+  return { P, aimAngle, vaultCandidate, startVault, moveBody, entryCandidate, magazine, reload, updateWeapon, OUTFITS, setOutfit, init, update, updateCamera, heldEntity, shake, giveWeapon, addMoney, hurt, knock, die, bust, respawn, fireBullet, explodeAt, updateProjectiles, entity, drawFX, projectileEntities, exitCar,
     get x() { return P.x; }, get z() { return P.z; }, get y() { return P.y; }, get car() { return P.car; }, get alive() { return P.alive; }, get wanted() { return P.wanted; }, set wanted(v) { P.wanted = v; }, get stats() { return P.stats; }, get health() { return P.health; }, get money() { return P.money; }, get weapons() { return P.weapons; }, get weapon() { return P.weapon; } };
 })();
 
@@ -5395,6 +5405,7 @@ const POLICE = (() => {
     updateReports(dt);const P = PLAYER.P; const w = stars(); P.wanted = w;
     if (!S.arresting) S.arrestT = Math.max(0, S.arrestT - dt * 2); S.arresting = false;
     S.seenT += dt; if (S.searchT > 0) S.searchT -= dt;
+    if (w === 0 && S.heat > 0) S.heat = Math.max(0, S.heat - dt * 0.012); // suspicion short of a star fades in a minute or two instead of waiting forever for the next crime
     if (w > 0 && P.alive) {
       // out of sight in a car park or the safehouse yard, the trail goes cold twice as fast
       const bl = CITY.blockAt(P.x, P.z); const sh = CITY.place('safehouse'); if (S.seenT > 3 && ((bl && bl.kind === 'parking') || M.dist2(P.x, P.z, sh.x, sh.z) < 18 * 18)) S.seenT += dt;
@@ -5528,13 +5539,16 @@ const MISSIONS = (() => {
     for (let i = ai; i !== bi; i += sx) pts.push([(i + sx) * PT + (i + sx === bi ? laneZ : 0), aj * PT + laneX, 9]);
     for (let j = aj; j !== bj; j += sz) pts.push([bi * PT + laneZ, (j + sz) * PT + (j + sz === bj ? (b[0] > bi * PT ? 1.75 : -1.75) : 0), 9]);
     pts.push([b[0], b[1], 10]); return pts; }
-  function marker(x, z, r = 2, col = [1, 0.85, 0.2]) { S.markers.push({ x, z, r, col }); }
+  // Markers persist until cleared, but the idle job markers and a taxi destination are re-issued every frame: an
+  // existing marker at the same spot is reused, so the list cannot grow by sixty entries a second.
+  function marker(x, z, r = 2, col = [1, 0.85, 0.2]) { for (const m of S.markers) if (m.x === x && m.z === z && m.r === r) { m.col = col; return; } S.markers.push({ x, z, r, col }); if (S.markers.length > 24) S.markers.shift(); }
   function say(lines, then, focus = null) { S.dialogue = { lines, i: 0, then, focus }; S.lineT = 0; P().aim = 0; }
   function pass(reward, text) { AUDIO.play('missionPass'); HUD.big('MISSION PASSED!' + (reward ? '  $' + reward : ''), '#f5c542', 3.5); if (reward) PLAYER.addMoney(reward, null); if (S.current) { const m = S.current; if (m.strand === 2) { S.done['o' + m.id] = true; if (m.id === S.progress2) S.progress2++; } else if (m.strand === 'phone') { if (m.id === S.phoneProgress) S.phoneProgress++; } else { S.done[m.id] = true; if (m.id === S.progress) S.progress++; } } P().stats.missions++; if (S.current) ECON.onMissionPassed(S.current); S.cp = null; cleanup(); POLICE.clear(); S.current = null; S.cooldown = 3; if (text) HUD.notify(text); GAME.save(); }
-  function fail(reason) { AUDIO.play('missionFail'); HUD.big('MISSION FAILED', '#c0281e', 3); if (reason) HUD.notify(reason + '  (Y to retry)'); if (S.current) { S.retry = { m: S.current, t: 25 }; S.fails[S.current.name] = (S.fails[S.current.name] || 0) + 1; } cleanup(); S.current = null; S.cooldown = 3; }
+  function fail(reason, down) { AUDIO.play('missionFail'); if (down) S.failBanner = 4.2; else HUD.big('MISSION FAILED', '#c0281e', 3); // WASTED/BUSTED gets its moment; the failure card follows at the respawn
+ if (reason) HUD.notify(reason + '  (Y to retry)'); if (S.current) { S.retry = { m: S.current, t: 25 }; S.fails[S.current.name] = (S.fails[S.current.name] || 0) + 1; } cleanup(); S.current = null; S.cooldown = 3; }
   // Y after a failure restarts the mission from its giver, healed and with the police off your back.
   function retry() { const p = P(); if (p.car && !PLAYER.exitCar()) return; const m = S.retry.m; S.retry = null; const cp = S.cp && S.cp.name === m.name ? S.cp : null; const g = m.strand === 2 ? place('mission2') : m.strand === 'phone' ? null : place('mission'); if (g && !cp) { p.x = g.x + 2.5; p.z = g.z + 2.5; p.y = CITY.groundY(p.x, p.z); p.vx = p.vz = 0; } p.health = 100; if (!p.alive) PLAYER.respawn(); POLICE.clear(); S.cooldown = 0; S.skipIntro = true; start(m); if (cp && S.current === m) { S.cp = cp; cp.restore(m.data); } }
-  function onPlayerDown(how) { if (S.current) fail(how === 'busted' ? 'You got busted.' : 'You got wasted.'); if (S.side) endSide(how); if (S.rampage) { S.rampage = null; S.objective = ''; } }
+  function onPlayerDown(how) { if (S.current) fail(how === 'busted' ? 'You got busted.' : 'You got wasted.', true); if (S.side) endSide(how); if (S.rampage) { S.rampage = null; S.objective = ''; } }
   function onPhoto(fx, fz) { if (S.current && S.current.onPhoto) S.current.onPhoto(S.current.data, fx, fz); else HUD.notify('Nothing worth a picture.'); }
   function onEnterCar(c) { if (S.current && S.current.onEnterCar) S.current.onEnterCar(c); if (S.side && S.side.onEnterCar) S.side.onEnterCar(c); }
   function onExitCar(c) { if (S.current && S.current.onExitCar) S.current.onExitCar(c); if (S.side && S.side.onExitCar) S.side.onExitCar(c); }
@@ -5798,7 +5812,9 @@ const MISSIONS = (() => {
   const GUNS = [['bat', 150, 0], ['pistol', 250, 34], ['uzi', 650, 90], ['shotgun', 800, 24], ['rifle', 1800, 90], ['rocket', 6000, 3], ['grenade', 900, 6], ['armor', 400, 0]];
   // Shops are menus: a title, numbered items with prices, and an action each. The gun shop, the dealer and the properties all use it.
   function gunMenu(g) { const p = P(); const disc = ECON.discount(); return { kind: 'guns', title: 'IRONMONGER', color: '#e0453b', x: g.x, z: g.z, hint: disc < 1 ? "Marla's friends pay 20% less" : '', items: GUNS.map(([k, base, ammo]) => { const price = Math.round(base * disc); return { label: k === 'armor' ? 'BODY ARMOR' : WEAPONS[k].name + (ammo ? ' (' + ammo + ')' : ''), price, get enabled() { return p.money >= price; }, action: () => { PLAYER.addMoney(-price, null); if (k === 'armor') p.armor = 100; else PLAYER.giveWeapon(k, ammo); AUDIO.play('pickup'); } }; }) }; }
-  function openShop(menu) { if (S.shop) return; S.shop = menu; AUDIO.play('click'); }
+  // A menu closed with Esc or F stays closed until you step away, instead of reopening next frame because you are
+  // still standing on its trigger. One latch covers every menu: guns, bar, wardrobe, dealer, properties.
+  function openShop(menu) { if (S.shop) return; if (S.shopLatch && M.dist2(P().x, P().z, S.shopLatch.x, S.shopLatch.z) < S.shopLatch.r2) return; S.shop = menu; AUDIO.play('click'); }
   // ---- Interiors: walk into a front door and the room under the lot takes over; walk into its door to come back out.
   function enterInterior(room) { const p = P(); S.inside = room.key; S.doorT = 1.0; CITY.setInterior(room); p.x = room.door.x; p.z = room.door.z + 2.2; p.y = room.floorY; p.vx = p.vz = 0; p.angle = 0; p.camYaw = 0; p.camX = 0; p.camZ = 0; HUD.fade(0.6); AUDIO.play('door', p.x, p.z);
     S.roomPeds = []; const keep = (q) => { q.important = true; q.indoor = true; S.roomPeds.push(q); return q; };
@@ -5822,14 +5838,20 @@ const MISSIONS = (() => {
     if (room.key === 'bar' && M.dist2(p.x, p.z, room.spots.counter.x, room.spots.counter.z) < 4) openShop(barMenu(room));
     if (room.key === 'safehouse') { if (M.dist2(p.x, p.z, room.spots.wardrobe.x, room.spots.wardrobe.z) < 2.5) openShop(wardrobeMenu(room));
       const bed = room.spots.bed; if (M.dist2(p.x, p.z, bed.x, bed.z) < 2.2 && !(S.saveT > 0)) { S.saveT = 8; p.health = 100; POLICE.clear(); W.state.time = (W.state.time + 6) % 24; const saved = GAME.save(); HUD.fade(1.5); if (saved) HUD.notify('Game saved. You slept until ' + W.clockString() + '.'); } } }
-  function closeShop() { S.shop = null; }
+  function closeShop() { if (S.shop) S.shopLatch = { x: S.shop.x, z: S.shop.z, r2: S.shop.kind === 'dealer' ? 64 : 16 }; S.shop = null; }
   function updateShops(dt) {
     const p = P(); if (!p.alive) return; if (S.doorT > 0) S.doorT -= dt;
+    if (S.shopLatch && M.dist2(p.x, p.z, S.shopLatch.x, S.shopLatch.z) > S.shopLatch.r2 * 1.4) S.shopLatch = null;
     if (S.shop) { objective(''); if (INPUT.hit('Escape') || INPUT.hit('KeyF') || M.dist2(p.x, p.z, S.shop.x, S.shop.z) > (S.shop.kind === 'dealer' ? 64 : 16)) { closeShop(); return; }
       for (let i = 0; i < S.shop.items.length; i++) if (INPUT.hit('Digit' + (i + 1))) { const it = S.shop.items[i]; if (!it.enabled || it.price > p.money) { HUD.notify(it.price > p.money ? 'Not enough cash.' : "Can't do that now."); AUDIO.play('click'); } else if (it.action) it.action(); if (!S.shop) break; }
       return; }
     for (const g of CITY.places.guns) if (!p.car && M.dist2(p.x, p.z, g.x, g.z) < 4) { const hr = W.state.time; if (hr >= 23 || hr < 7) { if (!(S.closedT > 0)) { HUD.notify('IRONMONGER is closed. Opens at 7.'); S.closedT = 6; } } else openShop(gunMenu(g)); } if (S.closedT > 0) S.closedT -= dt;
-    for (const sp of CITY.places.spray) if (p.car && M.dist2(p.car.x, p.car.z, sp.x, sp.z) < 16 && p.car.absSpeed < 1.5) { if (S.sprayT === undefined || S.sprayT <= 0) { if (p.money >= 100) { PLAYER.addMoney(-100, "Pay 'n' Spray"); p.car.colIdx = Math.floor(W.rng() * VEH.PALETTE.length); p.car.repair(); POLICE.clear(); HUD.fade(1.2); AUDIO.play('pickup'); S.sprayT = 6; } else if (!S.sprayWarn) { HUD.notify("Pay 'n' Spray costs $100."); S.sprayWarn = 4; } } }
+    // A respray is only sold when there is something to fix (stars or damage), and once per visit: waiting in the
+    // bay used to charge another $100 every six seconds.
+    let inBay = false;
+    for (const sp of CITY.places.spray) if (p.car && M.dist2(p.car.x, p.car.z, sp.x, sp.z) < 16) inBay = true;
+    if (!inBay) S.sprayDone = false;
+    for (const sp of CITY.places.spray) if (p.car && M.dist2(p.car.x, p.car.z, sp.x, sp.z) < 16 && p.car.absSpeed < 1.5 && !S.sprayDone) { if (p.wanted <= 0 && p.car.health >= p.car.maxHealth) { if (!S.sprayWarn) { HUD.notify('Nothing to fix and nobody looking for you.'); S.sprayWarn = 6; } continue; } if (S.sprayT === undefined || S.sprayT <= 0) { if (p.money >= 100) { PLAYER.addMoney(-100, "Pay 'n' Spray"); p.car.colIdx = Math.floor(W.rng() * VEH.PALETTE.length); p.car.repair(); POLICE.clear(); HUD.fade(1.2); AUDIO.play('pickup'); S.sprayT = 6; S.sprayDone = true; } else if (!S.sprayWarn) { HUD.notify("Pay 'n' Spray costs $100."); S.sprayWarn = 4; } } }
     if (S.sprayT > 0) S.sprayT -= dt; if (S.sprayWarn > 0) S.sprayWarn -= dt;
     updateInteriors(dt);
     if (S.saveT > 0) S.saveT -= dt; if (S.tip && (S.tip.t -= dt) <= 0) S.tip = null; if (S.roundT > 0) S.roundT -= dt;
@@ -5844,6 +5866,7 @@ const MISSIONS = (() => {
     for (const k in S.givers) { const g = S.givers[k]; g.health = 1e9; if (g.state === 'dead' || g.removed) { g.removed = true; delete S.givers[k]; } }
   }
   function update(dt) {
+    if (S.failBanner > 0) { S.failBanner -= dt; if (S.failBanner <= 0) HUD.big('MISSION FAILED', '#c0281e', 3); }
     if (S.cooldown > 0) S.cooldown -= dt; ensureGivers(); updateRampage(dt);
     if (S.dialogue) { const d = S.dialogue; S.lineT += dt; if (S.lineT > 4.2 || INPUT.hit('Space') || INPUT.hit('Enter') || INPUT.mouse.clicked || INPUT.pad.pressed[0]) { d.i++; S.lineT = 0; AUDIO.play('click'); if (d.i >= d.lines.length) { S.dialogue = null; if (d.then) d.then(); } } return; }
     if (S.timer > 0) S.timer -= dt / S.timerScale; // the third try at a job gets a gentler clock
@@ -5864,7 +5887,7 @@ const MISSIONS = (() => {
   function start(m) { S.objective = ''; S.current = m; m.data = {}; S.blip = null; S.blips.length = 0; S.markers.length = 0; HUD.big(m.name, '#f5c542', 3); const tries = S.fails[m.name] || 0; S.timerScale = tries >= 2 ? 1.4 : 1; if (tries >= 2) { P().armor = Math.max(P().armor, 50); HUD.notify('Third time lucky: more time on the clock, and a vest.'); } const focus = m.strand === 2 ? S.givers.okafor : m.strand === 'phone' ? null : (m.auto ? null : S.givers.marla); const intro = typeof m.intro === 'function' ? m.intro() : m.intro; if (intro && !S.skipIntro) say(intro, () => { m.start(m.data); }, focus); else m.start(m.data); S.skipIntro = false; if (S.cp && S.cp.name !== m.name) S.cp = null; }
   // A checkpoint inside a long mission: a retry after this point restarts here instead of at the giver.
   function checkpoint(restore) { if (!S.current) return; S.cp = { name: S.current.name, restore }; HUD.notify('Checkpoint.'); }
-  function markersFX(t) { for (const mk of S.markers) W.fx.marker(mk.x, mk.z, mk.r, 1.6, mk.col, t); if (S.roof) { const ra = CITY.roofAccess; W.fx.marker(ra.top.x, ra.top.z, 0.9, 1.6, [1, 0.5, 0.9], t); return; } if (S.inside) { const room = CITY.interiors[S.inside]; W.fx.marker(room.door.x, room.door.z, 0.9, 1.6, [1, 0.5, 0.9], t); for (const k of ['counter', 'wardrobe', 'bed']) if (room.spots[k]) W.fx.marker(room.spots[k].x, room.spots[k].z, 1.0, 1.6, [1, 0.85, 0.3], t); return; } if (!S.current && !S.side) { for (const g of CITY.places.guns) W.fx.marker(g.x, g.z, 1.4, 1.6, [1, 0.3, 0.3], t); for (const sp of CITY.places.spray) W.fx.marker(sp.x, sp.z, 2.6, 1.6, [1, 0.8, 0.2], t); const sh = place('safehouse'); W.fx.marker(sh.x, sh.z, 1.4, 1.6, [1, 0.5, 0.9], t); const br = CITY.places.bar && CITY.places.bar[0]; if (br) W.fx.marker(br.x, br.z, 1.4, 1.6, [0.35, 0.6, 1], t); const ra = CITY.roofAccess; if (ra) W.fx.marker(ra.outside.x, ra.outside.z, 1.2, 1.6, [0.6, 0.6, 1], t); } else { for (const sp of CITY.places.spray) W.fx.marker(sp.x, sp.z, 2.6, 1.6, [1, 0.8, 0.2], t); } }
+  function markersFX(t) { for (const mk of S.markers) W.fx.marker(mk.x, mk.z, mk.r, 1.6, mk.col, t); if (S.roof) { const ra = CITY.roofAccess; W.fx.marker(ra.top.x, ra.top.z, 0.9, 1.6, [1, 0.5, 0.9], t); return; } if (S.inside) { const room = CITY.interiors[S.inside]; W.fx.marker(room.door.x, room.door.z, 0.9, 1.6, [1, 0.5, 0.9], t); for (const k of ['counter', 'wardrobe', 'bed']) if (room.spots[k]) W.fx.marker(room.spots[k].x, room.spots[k].z, 1.0, 1.6, [1, 0.85, 0.3], t); return; } if (!S.current && !S.side) { for (const g of CITY.places.guns) W.fx.marker(g.x, g.z, 1.4, 1.6, [1, 0.3, 0.3], t); for (const sp of CITY.places.spray) W.fx.marker(sp.x, sp.z, 2.6, 1.6, [0.2, 0.85, 0.8], t); const sh = place('safehouse'); W.fx.marker(sh.x, sh.z, 1.4, 1.6, [1, 0.5, 0.9], t); const br = CITY.places.bar && CITY.places.bar[0]; if (br) W.fx.marker(br.x, br.z, 1.4, 1.6, [0.35, 0.6, 1], t); const ra = CITY.roofAccess; if (ra) W.fx.marker(ra.outside.x, ra.outside.z, 1.2, 1.6, [0.6, 0.6, 1], t); } else { for (const sp of CITY.places.spray) W.fx.marker(sp.x, sp.z, 2.6, 1.6, [0.2, 0.85, 0.8], t); } }
   function allBlips() { const out = []; const b = blipPos(); if (b) out.push(b); if (S.tip) out.push({ x: S.tip.x, z: S.tip.z, col: '#f5c542' }); for (const e of S.blips) { const o = e.obj; if (!o || o.removed || (o.wrecked && o.spec)) continue; out.push({ x: o.x, z: o.z, col: e.col }); } return out; }
   function blipPos() { if (!S.blip) return null; const b = S.blip; if (b.obj) { if (b.obj.removed) return null; return { x: b.obj.x, z: b.obj.z, col: b.col }; } return b; }
   return { S, LIST, LIST2, PHONE, RAMPAGES, GUNS, openShop, closeShop, enterInterior, exitInterior, onPhoto, checkpoint, placeRampages, startRampage, rampageKill, update, start, onPlayerDown, onEnterCar, onExitCar, markersFX, blipPos, allBlips, get objective() { return S.objective; }, get dialogue() { return S.dialogue; }, get shop() { return S.shop; }, get timer() { return S.timer; }, fmt, cleanup, endSide };
@@ -5892,9 +5915,9 @@ const ECON = (() => {
   }
   // ---- mods change a car's own copy of its spec so nothing else on the road is affected
   function applyMods(c) { c.spec = Object.assign({}, VEH.SPECS[c.type]); for (const [key, , , fn] of MODS) { const lvl = (c.mods && c.mods[key]) || 0; if (lvl) fn(c.spec, lvl); } if (c.mods && c.mods.armor) { const k = 1 + 0.35 * c.mods.armor; const hf = c.health / c.maxHealth; c.maxHealth = (c.spec.armor ? 2600 : 1000 * VEH.SPECS[c.type].mass) * k; c.health = c.maxHealth * hf; } }
-  function buyCar(type, price) { const p = P(); if (p.money < price) { HUD.notify('Not enough cash.'); AUDIO.play('click'); return; } PLAYER.addMoney(-price, 'Voss Motors'); const g = CITY.place('garage'); const c = VEH.spawn(type, g.x + 14, g.z - 8, Math.PI, { mode: 'parked', color: Math.floor(W.rng() * VEH.PALETTE.length) }); c.playerOwned = true; c.mods = {}; HUD.notify('Your ' + VEH.NAMES[type] + ' is round the side.'); MISSIONS.closeShop(); }
+  function buyCar(type, price) { const p = P(); if (p.money < price) { HUD.notify('Not enough cash.'); AUDIO.play('click'); return; } PLAYER.addMoney(-price, 'Voss Motors'); const g = CITY.place('garage'); const c = VEH.spawn(type, g.x + 14, g.z - 8, Math.PI, { mode: 'parked', color: Math.floor(W.rng() * VEH.PALETTE.length) }); c.playerOwned = true; c.owned = true; c.mods = {}; HUD.notify('Your ' + VEH.NAMES[type] + ' is round the side.'); MISSIONS.closeShop(); }
   function storeCar() { const c = P().car; if (!c) return; if (S.owned.length >= 3) { HUD.notify('The garage only holds three cars.'); return; } S.owned.push({ type: c.type, color: c.colIdx, condition:c.saveCondition(), mods: Object.assign({}, c.mods || {}) }); PLAYER.exitCar(); c.removed = true; HUD.notify(VEH.NAMES[c.type] + ' stored at Voss Motors.'); MISSIONS.closeShop(); }
-  function takeCar(i) { const o = S.owned[i]; if (!o) return; const g = CITY.place('garage'); const c = VEH.spawn(o.type, g.x + 14, g.z - 8, Math.PI, { mode: 'parked', color: o.color }); c.playerOwned = true; c.mods = o.mods; applyMods(c); c.loadCondition(o.condition); S.owned.splice(i, 1); HUD.notify('Your ' + VEH.NAMES[o.type] + ' is round the side.'); MISSIONS.closeShop(); }
+  function takeCar(i) { const o = S.owned[i]; if (!o) return; const g = CITY.place('garage'); const c = VEH.spawn(o.type, g.x + 14, g.z - 8, Math.PI, { mode: 'parked', color: o.color }); c.playerOwned = true; c.owned = true; c.mods = o.mods; applyMods(c); c.loadCondition(o.condition); S.owned.splice(i, 1); HUD.notify('Your ' + VEH.NAMES[o.type] + ' is round the side.'); MISSIONS.closeShop(); }
   function discount() { return S.rep.marla >= 3 ? 0.8 : 1; }
   function dealerMenu() {
     const p = P(); const items = [];
@@ -6078,7 +6101,7 @@ const HUD = (() => {
     for (const bl of CITY.blocks) { const col = bl.kind === 'park' ? '#526451' : (bl.kind === 'parking' || bl.kind === 'stunt') ? '#6d6d6d' : bl.kind === 'docks' ? '#7a6f55' : '#686b60'; m.fillStyle = col; m.fillRect((bl.x - 3 - b0) * s, (bl.z - 3 - b0) * s, 70 * s, 70 * s); m.fillStyle = 'rgba(0,0,0,0.25)'; for (const l of bl.lots) if (l.kind !== 'wall') m.fillRect((l.x0 - b0) * s, (l.z0 - b0) * s, (l.x1 - l.x0) * s, (l.z1 - l.z0) * s); }
     m.fillStyle = '#b7b6a6'; for (let i = 0; i <= CITY.GRID; i++) { m.fillRect((i * CITY.PITCH - 7 - b0) * s, (-7 - b0) * s, 14 * s, (CITY.SIZE + 14) * s); m.fillRect((-7 - b0) * s, (i * CITY.PITCH - 7 - b0) * s, (CITY.SIZE + 14) * s, 14 * s); }
     if(typeof STREETS!=='undefined'){m.lineCap='round';for(const p of STREETS.paths){m.strokeStyle=p.mode==='foot'?'#94b7aa':'#a4a897';m.lineWidth=Math.max(2,p.width*s);m.beginPath();p.points.forEach((v,i)=>i?m.lineTo((v[0]-b0)*s,(v[1]-b0)*s):m.moveTo((v[0]-b0)*s,(v[1]-b0)*s));m.stroke();}}
-    const icons = { safehouse: ['#ff70d0', 'S'], garage: ['#f5a623', 'V'], spray: ['#f5c542', 'P'], guns: ['#e0453b', 'G'], hospital: ['#ffffff', 'H'], police: ['#5aa0ff', 'P'], bank: ['#3df06a', '$'], tower: ['#a0a0ff', 'C'], docks: ['#c0a060', 'D'],landmark:['#76e0d0','◆'] };
+    const icons = { safehouse: ['#ff70d0', 'S'], garage: ['#f5a623', 'V'], spray: ['#2fd6c4', 'P'], guns: ['#e0453b', 'G'], hospital: ['#ffffff', 'H'], police: ['#5aa0ff', 'P'], bank: ['#3df06a', '$'], tower: ['#a0a0ff', 'C'], docks: ['#c0a060', 'D'],landmark:['#76e0d0','◆'] };
     mapCanvas._icons = []; for (const k in icons) for (const p of (CITY.places[k] || [])) mapCanvas._icons.push({ x: p.x, z: p.z, col: icons[k][0], ch: icons[k][1], kind: k });
   }
   function drawMapIcons(scale,filter){for(const ic of mapCanvas._icons){if(filter&&!filter(ic))continue;g.save();g.translate(ic.x,ic.z);g.scale(1/scale,1/scale);g.fillStyle='#14252b';g.strokeStyle=ic.col;g.lineWidth=1.5;g.beginPath();g.arc(0,0,7.5,0,M.TAU);g.fill();g.stroke();g.strokeStyle='#fff3d5';g.lineWidth=1.3;g.beginPath();
@@ -6437,15 +6460,28 @@ const GAME = (() => {
   // or null. What stops it oscillating is not a limit on how often quality may be restored -- that turned a few
   // transient stalls into a permanent downgrade on a machine well able to run it -- but a count of the restores
   // that did not hold: a raise undone within half a minute was the wrong call, and two of those settle it.
+  // A display or browser capped at 30 Hz (Low Power Mode, a throttled iPad, some iframes) delivers a steady 33 ms
+  // frame however light the scene is. Treating that as slow used to strip ink, bloom, AO, shadows and resolution
+  // one rung at a time for nothing. A steady ~33 ms now gets one probing step down; if the frames do not get
+  // faster within a few seconds the cap is real, the step is undone and 30 Hz becomes the baseline to judge by.
   function autoStep(a, raw) {
     const ms = Math.min(120, raw * 1000); a.ema += (ms - a.ema) * 0.06;
-    if (a.ema > 30) { a.slowT += raw; a.fastT = 0; } else if (a.ema < 17.5) { a.fastT += raw; a.slowT = 0; } else { a.slowT = 0; a.fastT = 0; }
+    a.capFrac = (a.capFrac ?? 0) + ((ms > 29.5 && ms < 37.5 ? 1 : 0) - (a.capFrac ?? 0)) * 0.03;
+    const capped = (a.cap || 16.7) > 20, slowMs = capped ? 45 : 30, fastMs = capped ? 36.5 : 17.5;
+    if (a.probe) {
+      a.probe.t += raw;
+      if (a.ema < 25) a.probe = null; // one rung made it fast: it really was slow
+      else if (a.probe.t > 4) { a.probe = null; if (a.capFrac > 0.7) { a.cap = 33.3; a.level--; a.slowT = a.fastT = 0; a.ema = 33.3; a.sinceRaise = Infinity; return 'raise'; } }
+      else return null;
+    }
+    if (a.ema > slowMs) { a.slowT += raw; a.fastT = 0; } else if (a.ema < fastMs) { a.fastT += raw; a.slowT = 0; } else { a.slowT = 0; a.fastT = 0; }
     a.sinceRaise += raw;
     if (a.slowT > 2.5 && a.level < AUTO_LEVELS) {
       if (a.sinceRaise < 30) a.badRaises++;
-      a.level++; a.slowT = 0; a.ema = 22; a.sinceRaise = Infinity; return 'lower';
+      const probing = !capped && a.capFrac > 0.8 && a.ema < 37.5;
+      a.level++; a.slowT = 0; a.ema = probing ? 33.3 : capped ? 36 : 22; a.sinceRaise = Infinity; if (probing) a.probe = { t: 0 }; return 'lower';
     }
-    if (a.fastT > 20 && a.level > 0 && a.badRaises < 2) { a.level--; a.fastT = 0; a.ema = 22; a.sinceRaise = 0; return 'raise'; }
+    if (a.fastT > 20 && a.level > 0 && a.badRaises < 2) { a.level--; a.fastT = 0; a.ema = capped ? 36 : 22; a.sinceRaise = 0; return 'raise'; }
     return null;
   }
   function autoQuality(raw) {
@@ -6514,7 +6550,7 @@ const GAME = (() => {
       }
       if (s.garage && VEH.SPECS[s.garage.type]) {
         const c = VEH.spawn(s.garage.type, s.garage.x, s.garage.z, s.garage.angle, { mode: 'parked', color: s.garage.color });
-        c.playerOwned = true; c.mods = s.garage.mods || {}; ECON.applyMods(c);c.loadCondition(s.garage.condition);
+        c.playerOwned = true; c.owned = true; c.mods = s.garage.mods || {}; ECON.applyMods(c);c.loadCondition(s.garage.condition);
       }
       W.state.time = s.time ?? 9;
       for (const p of W.pickups) if (p.kind === 'package' && (s.packages || []).includes(p.id)) p.taken = true;
@@ -6670,8 +6706,8 @@ const GAME = (() => {
     DOWNPOUR: () => { W.weather.target = 1; W.weather.nextChange = 3; HUD.notify('Rain'); },
     CLEARSKY: () => { W.weather.target = 0; W.weather.rain = 0; W.weather.nextChange = 6; HUD.notify('Clear skies'); },
     SUNRISE: () => { W.state.time = 8; HUD.notify('Morning comes'); },
-    FALCATA: () => { const P = PLAYER.P; const c = VEH.spawn('sports', P.x + 3, P.z, P.camYaw, { mode: 'parked', color: 0 }); c.playerOwned = true; HUD.notify('A Falcata appears'); },
-    BASTION: () => { const P = PLAYER.P; const c = VEH.spawn('swat', P.x + 3, P.z, P.camYaw, { mode: 'parked' }); c.playerOwned = true; HUD.notify('A Bastion appears'); },
+    FALCATA: () => { const P = PLAYER.P; const c = VEH.spawn('sports', P.x + 3, P.z, P.camYaw, { mode: 'parked', color: 0 }); c.playerOwned = c.owned = true; HUD.notify('A Falcata appears'); },
+    BASTION: () => { const P = PLAYER.P; const c = VEH.spawn('swat', P.x + 3, P.z, P.camYaw, { mode: 'parked' }); c.playerOwned = c.owned = true; HUD.notify('A Bastion appears'); },
   };
   function checkCheats() { const t = INPUT.typed; for (const k in CHEATS) if (t.endsWith(k)) { INPUT.typed = ''; CHEATS[k](); AUDIO.play('cash'); } }
   function step(dt) {

@@ -77,10 +77,15 @@ const { launch } = require('../launch.js');
       const flappy = []; for (let k = 0; k < 6; k++) { flappy.push([40, 6], [10, 22], [40, 6]); }
       return { transient: run(stalls).level, recovered: run(stalls).raises >= 5,
                oscillating: run(flappy).level, oscillatingRaises: run(flappy).raises,
-               fast: run([[9, 300]]).level, slow: run([[60, 300]]).level };
+               fast: run([[9, 300]]).level, slow: run([[60, 300]]).level,
+               // a 30 Hz display: steady 33 ms whatever the quality; one probing step, then back to full quality
+               capped: (() => { const a = window.__autoState(); const log = feed(a, 33.3, 300); return { level: a.level, cap: a.cap, lowers: log.filter(x => x === 'lower').length }; })(),
+               // a 60 Hz display that is genuinely too slow: one rung down reaches 60 Hz and stays there
+               vsyncSlow: (() => { const a = window.__autoState(); for (let t = 0; t < 120; ) { const ms = a.level >= 1 ? 16.7 : 33.3; window.__autoStep(a, ms / 1000); t += ms / 1000; } return a.level; })(),
+               cappedAndSlow: (() => { const a = window.__autoState(); feed(a, 33.3, 30); feed(a, 55, 20); return a.level > 0; })() };
     });
     check('quality recovers fully from spaced-out stalls and settles when it cannot hold',
-      autoq, { transient: 0, recovered: true, oscillating: 5, oscillatingRaises: 2, fast: 0, slow: 5 });
+      autoq, { transient: 0, recovered: true, oscillating: 5, oscillatingRaises: 2, fast: 0, slow: 5, capped: { level: 0, cap: 33.3, lowers: 1 }, vsyncSlow: 1, cappedAndSlow: true });
     check('no browser exceptions', errors, []);
     console.log(`${checks} checks passed (${entry})`);
   } finally { await browser.close(); }

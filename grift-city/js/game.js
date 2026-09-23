@@ -14,15 +14,28 @@ const GAME = (() => {
   // or null. What stops it oscillating is not a limit on how often quality may be restored -- that turned a few
   // transient stalls into a permanent downgrade on a machine well able to run it -- but a count of the restores
   // that did not hold: a raise undone within half a minute was the wrong call, and two of those settle it.
+  // A display or browser capped at 30 Hz (Low Power Mode, a throttled iPad, some iframes) delivers a steady 33 ms
+  // frame however light the scene is. Treating that as slow used to strip ink, bloom, AO, shadows and resolution
+  // one rung at a time for nothing. A steady ~33 ms now gets one probing step down; if the frames do not get
+  // faster within a few seconds the cap is real, the step is undone and 30 Hz becomes the baseline to judge by.
   function autoStep(a, raw) {
     const ms = Math.min(120, raw * 1000); a.ema += (ms - a.ema) * 0.06;
-    if (a.ema > 30) { a.slowT += raw; a.fastT = 0; } else if (a.ema < 17.5) { a.fastT += raw; a.slowT = 0; } else { a.slowT = 0; a.fastT = 0; }
+    a.capFrac = (a.capFrac ?? 0) + ((ms > 29.5 && ms < 37.5 ? 1 : 0) - (a.capFrac ?? 0)) * 0.03;
+    const capped = (a.cap || 16.7) > 20, slowMs = capped ? 45 : 30, fastMs = capped ? 36.5 : 17.5;
+    if (a.probe) {
+      a.probe.t += raw;
+      if (a.ema < 25) a.probe = null; // one rung made it fast: it really was slow
+      else if (a.probe.t > 4) { a.probe = null; if (a.capFrac > 0.7) { a.cap = 33.3; a.level--; a.slowT = a.fastT = 0; a.ema = 33.3; a.sinceRaise = Infinity; return 'raise'; } }
+      else return null;
+    }
+    if (a.ema > slowMs) { a.slowT += raw; a.fastT = 0; } else if (a.ema < fastMs) { a.fastT += raw; a.slowT = 0; } else { a.slowT = 0; a.fastT = 0; }
     a.sinceRaise += raw;
     if (a.slowT > 2.5 && a.level < AUTO_LEVELS) {
       if (a.sinceRaise < 30) a.badRaises++;
-      a.level++; a.slowT = 0; a.ema = 22; a.sinceRaise = Infinity; return 'lower';
+      const probing = !capped && a.capFrac > 0.8 && a.ema < 37.5;
+      a.level++; a.slowT = 0; a.ema = probing ? 33.3 : capped ? 36 : 22; a.sinceRaise = Infinity; if (probing) a.probe = { t: 0 }; return 'lower';
     }
-    if (a.fastT > 20 && a.level > 0 && a.badRaises < 2) { a.level--; a.fastT = 0; a.ema = 22; a.sinceRaise = 0; return 'raise'; }
+    if (a.fastT > 20 && a.level > 0 && a.badRaises < 2) { a.level--; a.fastT = 0; a.ema = capped ? 36 : 22; a.sinceRaise = 0; return 'raise'; }
     return null;
   }
   function autoQuality(raw) {
@@ -91,7 +104,7 @@ const GAME = (() => {
       }
       if (s.garage && VEH.SPECS[s.garage.type]) {
         const c = VEH.spawn(s.garage.type, s.garage.x, s.garage.z, s.garage.angle, { mode: 'parked', color: s.garage.color });
-        c.playerOwned = true; c.mods = s.garage.mods || {}; ECON.applyMods(c);c.loadCondition(s.garage.condition);
+        c.playerOwned = true; c.owned = true; c.mods = s.garage.mods || {}; ECON.applyMods(c);c.loadCondition(s.garage.condition);
       }
       W.state.time = s.time ?? 9;
       for (const p of W.pickups) if (p.kind === 'package' && (s.packages || []).includes(p.id)) p.taken = true;
@@ -247,8 +260,8 @@ const GAME = (() => {
     DOWNPOUR: () => { W.weather.target = 1; W.weather.nextChange = 3; HUD.notify('Rain'); },
     CLEARSKY: () => { W.weather.target = 0; W.weather.rain = 0; W.weather.nextChange = 6; HUD.notify('Clear skies'); },
     SUNRISE: () => { W.state.time = 8; HUD.notify('Morning comes'); },
-    FALCATA: () => { const P = PLAYER.P; const c = VEH.spawn('sports', P.x + 3, P.z, P.camYaw, { mode: 'parked', color: 0 }); c.playerOwned = true; HUD.notify('A Falcata appears'); },
-    BASTION: () => { const P = PLAYER.P; const c = VEH.spawn('swat', P.x + 3, P.z, P.camYaw, { mode: 'parked' }); c.playerOwned = true; HUD.notify('A Bastion appears'); },
+    FALCATA: () => { const P = PLAYER.P; const c = VEH.spawn('sports', P.x + 3, P.z, P.camYaw, { mode: 'parked', color: 0 }); c.playerOwned = c.owned = true; HUD.notify('A Falcata appears'); },
+    BASTION: () => { const P = PLAYER.P; const c = VEH.spawn('swat', P.x + 3, P.z, P.camYaw, { mode: 'parked' }); c.playerOwned = c.owned = true; HUD.notify('A Bastion appears'); },
   };
   function checkCheats() { const t = INPUT.typed; for (const k in CHEATS) if (t.endsWith(k)) { INPUT.typed = ''; CHEATS[k](); AUDIO.play('cash'); } }
   function step(dt) {
