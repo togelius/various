@@ -3,7 +3,7 @@
 const HUD = (() => {
   let cv, g, W_, H_, uiScale=1, mapCanvas = null; const notes = [];
   // Strips the touch layer can tap, rebuilt every frame: {x, y, w, h, key} where key is the key it stands for.
-  let newGameRect = null,mapRect=null; const zones = []; const zone = (x, y, w, h, key) => { if (TOUCH.active) zones.push({ x:x*uiScale, y:y*uiScale, w:w*uiScale, h:h*uiScale, key }); }; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
+  let newGameRect = null,mapRect=null, objSeen = '', objT = 0; const zones = []; const zone = (x, y, w, h, key) => { if (TOUCH.active) zones.push({ x:x*uiScale, y:y*uiScale, w:w*uiScale, h:h*uiScale, key }); }; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
   const FONT = '"Helvetica Neue", Arial, sans-serif'; const DISPLAY = 'Impact, "Arial Black", "Helvetica Neue", sans-serif';
   function init(canvas) { cv = canvas; g = cv.getContext('2d'); }
   function resize() { const dpr = Math.min(window.devicePixelRatio || 1, 1.5); /* a full-retina overlay costs more to composite than its text is worth */ const w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } uiScale=1; try { uiScale=GAME.options.hudScale || 1; } catch(e) {} W_ = cv.clientWidth/uiScale; H_ = cv.clientHeight/uiScale; g.setTransform(dpr*uiScale, 0, 0, dpr*uiScale, 0, 0); }
@@ -163,7 +163,15 @@ const HUD = (() => {
     zone(W_-200,103,176,48,'KeyR');
     // objective
     const obj = MISSIONS.objective;
-    if (obj) {
+    if (obj !== objSeen) { objSeen = obj; objT = 0; } objT += dt;
+    // Driving, the full card sat right over your own car. Once read (six seconds after it changes) it folds into a
+    // one-line strip at the top of the screen; on foot, and whenever the text changes, it is shown in full.
+    if (obj && P.car && objT > 6 && !MISSIONS.S.retry) {
+      const bp = MISSIONS.blipPos(), distance = bp ? Math.round(M.dist(P.x,P.z,bp.x,bp.z)) : null; const line = obj.length > 80 ? obj.slice(0, 78) + '…' : obj;
+      g.font = `normal 13px ${FONT}`; const w = Math.min(W_ - 40, g.measureText(line).width + (distance !== null ? 90 : 36)), x = (W_ - w) / 2, y = 10;
+      g.fillStyle = 'rgba(12,24,29,.78)'; g.fillRect(x, y, w, 26); g.fillStyle = '#f5ce68'; g.fillRect(x, y, 3, 26);
+      text(line, x + 14, y + 13, 13, '#f2efdf', 'left', 'normal', false); if (distance !== null) text(distance + ' m', x + w - 12, y + 13, 11, '#b5c9c9', 'right', '500', false);
+    } else if (obj) {
       const width = Math.min(540, W_-40), rows = wrap(obj,15,width-38), height = 45+rows.length*21;
       const x = (W_-width)/2, y = TOUCH.active ? H_-height-172 : H_-height-78;
       g.fillStyle = 'rgba(12,24,29,.9)'; g.fillRect(x,y,width,height); g.fillStyle = '#f5ce68'; g.fillRect(x,y,3,height);

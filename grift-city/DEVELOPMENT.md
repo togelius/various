@@ -59,7 +59,7 @@ time): visual, persistence, vehicles, enter_test, docks_test, repo_test, rev_tes
 
 - [x] 1. Confirmed defects.
 - [x] 2. Device truth and a quality ladder that understands a 30 Hz cap.
-- [ ] 3. A cold open through the Foundry Quarter.
+- [x] 3. A cold open through the Foundry Quarter.
 - [ ] 4. Pursuit legs: cruisers that reach you, a patrol car at one star, T-bones and PIT, the Heat Run pot.
 - [ ] 5. One-thumb combat: lock-on, a context ACTION button, fewer touch buttons.
 - [ ] 6. Nights and look.
@@ -96,3 +96,12 @@ hidden outside a mission, 1.5 s after any purchase and after a hidden package. T
 released after upload: JS heap after boot 326 -> 242 MB headless. Not done: vertex packing, an IndexedDB paint
 cache and artifact-side telemetry; the copyable report stands in for telemetry until real iPad numbers show where
 the time goes.
+
+Step 3: the first job is HOT CAR instead of a 182 m walk. Two skippable caption lines, then the camera faces a
+Falcata with its engine running at the kerb three metres away and its owner beside it on the phone. Taking it
+brings one star and a teal Pay 'n' Spray blip; losing the star by line of sight or a respray brings Marla's call,
+and delivering any car to Voss Motors pays $500 and makes that car yours. Being wasted or busted during the opening
+costs nothing: no failure card, no retry prompt, no bill; the job restarts itself five seconds after the respawn.
+While driving, the objective card folds into a one-line strip at the top six seconds after its text changes,
+instead of covering your car. The campaign audit plays the new opening (star, call, delivery, $500) and its quiet
+restart; missions_all, soak and persistence pass.

@@ -100,7 +100,8 @@ const MISSIONS = (() => {
  if (reason) HUD.notify(reason + '  (Y to retry)'); if (S.current) { S.retry = { m: S.current, t: 25 }; S.fails[S.current.name] = (S.fails[S.current.name] || 0) + 1; } cleanup(); S.current = null; S.cooldown = 3; }
   // Y after a failure restarts the mission from its giver, healed and with the police off your back.
   function retry() { const p = P(); if (p.car && !PLAYER.exitCar()) return; const m = S.retry.m; S.retry = null; const cp = S.cp && S.cp.name === m.name ? S.cp : null; const g = m.strand === 2 ? place('mission2') : m.strand === 'phone' ? null : place('mission'); if (g && !cp) { p.x = g.x + 2.5; p.z = g.z + 2.5; p.y = CITY.groundY(p.x, p.z); p.vx = p.vz = 0; } p.health = 100; if (!p.alive) PLAYER.respawn(); POLICE.clear(); S.cooldown = 0; S.skipIntro = true; start(m); if (cp && S.current === m) { S.cp = cp; cp.restore(m.data); } }
-  function onPlayerDown(how) { if (S.current) fail(how === 'busted' ? 'You got busted.' : 'You got wasted.', true); if (S.side) endSide(how); if (S.rampage) { S.rampage = null; S.objective = ''; } }
+  function onPlayerDown(how) { if (S.current && S.current.gentle) { const m = S.current; cleanup(); S.current = null; S.gentleRestart = { m, t: 5 }; return; } // the opening is a lesson, not a test: no failure card, no retry prompt
+    if (S.current) fail(how === 'busted' ? 'You got busted.' : 'You got wasted.', true); if (S.side) endSide(how); if (S.rampage) { S.rampage = null; S.objective = ''; } }
   function onPhoto(fx, fz) { if (S.current && S.current.onPhoto) S.current.onPhoto(S.current.data, fx, fz); else HUD.notify('Nothing worth a picture.'); }
   function onEnterCar(c) { if (S.current && S.current.onEnterCar) S.current.onEnterCar(c); if (S.side && S.side.onEnterCar) S.side.onEnterCar(c); }
   function onExitCar(c) { if (S.current && S.current.onExitCar) S.current.onExitCar(c); if (S.side && S.side.onExitCar) S.side.onExitCar(c); }
@@ -108,10 +109,18 @@ const MISSIONS = (() => {
 
   // ---- Story
   const LIST = [
-    { id: 0, name: 'WELCOME TO GRIFT CITY', auto: true,
-      intro: [[null, 'You stepped off the ferry with five hundred dollars and a phone number.'], [null, 'The number belongs to Marla Voss. She runs a garage in Midtown and, people say, a great deal more.'], [null, 'Get to VOSS MOTORS. Follow the yellow blip on the radar.']],
-      start(d) { const g = place('mission'); blip(g.x, g.z); objective('Go to Voss Motors in Midtown.'); },
-      update(d, dt) { const g = place('mission'); if (near(g.x, g.z, 4)) pass(200, 'Marla is waiting inside the yellow marker.'); } },
+    // The cold open: within a minute of the ferry you are in somebody else's car with a star on your head, and the
+    // first thing the city teaches is how to lose it. Dying or getting busted here costs nothing and starts it again.
+    { id: 0, name: 'HOT CAR', auto: true, gentle: true,
+      intro: [[null, 'Off the ferry with five hundred dollars and a phone number.'], [null, 'Somebody left their engine running.']],
+      start(d) { const p = P(); const ln = CITY.nearestLane(p.x, p.z); const [lx, lz] = CITY.lanePoint(ln.e, 1, M.clamp(ln.s, 8, CITY.laneLen(ln.e) - 8));
+        d.car = spawnCar('sports', lx + ln.e.rx * 0.7, lz + ln.e.rz * 0.7, Math.atan2(ln.e.dx, ln.e.dz), { color: 1 }); d.car.lightsOn = true; d.car.hot = true;
+        d.owner = spawnPed(lx + ln.e.rx * 3.2 - ln.e.dx * 2, lz + ln.e.rz * 3.2 - ln.e.dz * 2, { name: 'OWNER', stationary: true, item: 'phone' }); d.owner.faceTarget = d.car;
+        p.angle = p.camYaw = Math.atan2(d.car.x - p.x, d.car.z - p.z); d.phase = 0; blip(d.car.x, d.car.z, '#f5c542', d.car); objective(typeof TOUCH !== 'undefined' && TOUCH.active ? 'Take the car: walk up to it and tap ENTER.' : 'Take the car: walk up to it and press F.'); },
+      update(d, dt) { const p = P();
+        if (d.phase === 0) { if (p.car) { d.phase = 1; if (d.owner.alive) { d.owner.say("Hey! That's my car!"); d.owner.stationary = false; d.owner.scare?.(p.x, p.z); } POLICE.setStars(1); const sp = CITY.nearestPlace('spray', p.x, p.z) || place('spray'); blip(sp.x, sp.z, '#2fd6c4'); objective("Lose the cops: get out of sight, or get it resprayed at the teal Pay 'n' Spray."); HUD.notify('One star. Break line of sight and the heat fades.'); } return; }
+        if (d.phase === 1) { if (p.wanted === 0) { d.phase = 2; S.blip = null; say([['MARLA', 'Saw that from the garage. You drive like somebody with nothing to lose.'], ['MARLA', "Voss Motors. Bring the car, I'll make it legal."]], () => { const g = place('garage'); blip(g.x, g.z); objective('Bring a car to Voss Motors.'); }); } return; }
+        if (d.phase === 2 && !S.dialogue) { const g = place('garage'); if (p.car && M.dist2(p.car.x, p.car.z, g.x, g.z) < 12 * 12 && p.car.absSpeed < 3) { const c = p.car; c.owned = c.playerOwned = true; pass(500, 'The car is yours now. Marla is waiting inside the yellow marker.'); } else if (!p.car) objective('Get a car and bring it to Voss Motors.'); } } },
     { id: 1, name: 'REPO MAN',
       intro: [['MARLA', 'So you drive. Everybody drives. Question is whether you can drive with somebody screaming at you.'], ['MARLA', "A customer stopped paying on a red Falcata. It's parked outside a bar in Northgate. You can talk him round. Spook him and he'll run."], ['MARLA', "Go calmly, empty-handed, and hold G to talk. Or get creative. Bring the car back clean."]],
       start(d) { const s = laneSpot(4, 1, 1, 0, 30, 1); d.car = spawnCar('sports', s.x, s.z, s.angle, { color: 0 }); d.owner = spawnPed(s.x - 3, s.z + 3, { look: PEDS.DEBTOR, role: 'target', stationary: true, name: 'DEBTOR' }); d.owner.faceTarget = d.car; d.owner.health = 50; d.fled = false; blip(d.car.x, d.car.z, '#f5c542', d.car); objective('Get the red Falcata in Northgate.'); },
@@ -418,6 +427,7 @@ const MISSIONS = (() => {
     for (const k in S.givers) { const g = S.givers[k]; g.health = 1e9; if (g.state === 'dead' || g.removed) { g.removed = true; delete S.givers[k]; } }
   }
   function update(dt) {
+    if (S.gentleRestart && P().alive) { S.gentleRestart.t -= dt; if (S.gentleRestart.t <= 0) { const m = S.gentleRestart.m; S.gentleRestart = null; S.skipIntro = true; start(m); } }
     if (S.saveSoon > 0) { S.saveSoon -= dt; if (S.saveSoon <= 0 && !S.current && P().alive) GAME.save(); }
     if (S.failBanner > 0) { S.failBanner -= dt; if (S.failBanner <= 0) HUD.big('MISSION FAILED', '#c0281e', 3); }
     if (S.cooldown > 0) S.cooldown -= dt; ensureGivers(); updateRampage(dt);

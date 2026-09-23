@@ -4945,7 +4945,7 @@ const PLAYER = (() => {
     let best = 0, bestOpen = -1; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, fx = Math.sin(a), fz = Math.cos(a); let open = 0; for (let d = 2; d <= 14; d += 2) { if (CITY.insideLot(p.x + fx * d, p.z + fz * d)) break; open++; } if (open > bestOpen) { bestOpen = open; best = a; } }
     P.x = p.x + Math.sin(best) * 3; P.z = p.z + Math.cos(best) * 3; P.y = CITY.groundY(P.x, P.z, P.y); P.angle = best; P.camYaw = P.angle;
     P.health = 100; P.alive = true; P.state = 'foot'; P.car = null; P.rag = null; P.vx = P.vz = P.vy = 0; P.airborne = false; P.lying = 0; P.knockT = 0; P.invuln = 2;
-    const fee = Math.min(P.money, Math.max(200, Math.floor(P.money * 0.1))); if (fee > 0) addMoney(-fee, where === 'police' ? 'bail' : 'hospital bill');
+    const gentle = typeof MISSIONS !== 'undefined' && MISSIONS.S.gentleRestart; const fee = gentle ? 0 : Math.min(P.money, Math.max(200, Math.floor(P.money * 0.1))); if (fee > 0) addMoney(-fee, where === 'police' ? 'bail' : 'hospital bill'); // the opening does not bill you
     if (where === 'police') { for (const k in P.weapons) if (!WEAPONS[k].melee) P.weapons[k] = Math.floor(P.weapons[k] * 0.5); }
     POLICE.clear(); HUD.clearBig();
   }
@@ -5551,7 +5551,8 @@ const MISSIONS = (() => {
  if (reason) HUD.notify(reason + '  (Y to retry)'); if (S.current) { S.retry = { m: S.current, t: 25 }; S.fails[S.current.name] = (S.fails[S.current.name] || 0) + 1; } cleanup(); S.current = null; S.cooldown = 3; }
   // Y after a failure restarts the mission from its giver, healed and with the police off your back.
   function retry() { const p = P(); if (p.car && !PLAYER.exitCar()) return; const m = S.retry.m; S.retry = null; const cp = S.cp && S.cp.name === m.name ? S.cp : null; const g = m.strand === 2 ? place('mission2') : m.strand === 'phone' ? null : place('mission'); if (g && !cp) { p.x = g.x + 2.5; p.z = g.z + 2.5; p.y = CITY.groundY(p.x, p.z); p.vx = p.vz = 0; } p.health = 100; if (!p.alive) PLAYER.respawn(); POLICE.clear(); S.cooldown = 0; S.skipIntro = true; start(m); if (cp && S.current === m) { S.cp = cp; cp.restore(m.data); } }
-  function onPlayerDown(how) { if (S.current) fail(how === 'busted' ? 'You got busted.' : 'You got wasted.', true); if (S.side) endSide(how); if (S.rampage) { S.rampage = null; S.objective = ''; } }
+  function onPlayerDown(how) { if (S.current && S.current.gentle) { const m = S.current; cleanup(); S.current = null; S.gentleRestart = { m, t: 5 }; return; } // the opening is a lesson, not a test: no failure card, no retry prompt
+    if (S.current) fail(how === 'busted' ? 'You got busted.' : 'You got wasted.', true); if (S.side) endSide(how); if (S.rampage) { S.rampage = null; S.objective = ''; } }
   function onPhoto(fx, fz) { if (S.current && S.current.onPhoto) S.current.onPhoto(S.current.data, fx, fz); else HUD.notify('Nothing worth a picture.'); }
   function onEnterCar(c) { if (S.current && S.current.onEnterCar) S.current.onEnterCar(c); if (S.side && S.side.onEnterCar) S.side.onEnterCar(c); }
   function onExitCar(c) { if (S.current && S.current.onExitCar) S.current.onExitCar(c); if (S.side && S.side.onExitCar) S.side.onExitCar(c); }
@@ -5559,10 +5560,18 @@ const MISSIONS = (() => {
 
   // ---- Story
   const LIST = [
-    { id: 0, name: 'WELCOME TO GRIFT CITY', auto: true,
-      intro: [[null, 'You stepped off the ferry with five hundred dollars and a phone number.'], [null, 'The number belongs to Marla Voss. She runs a garage in Midtown and, people say, a great deal more.'], [null, 'Get to VOSS MOTORS. Follow the yellow blip on the radar.']],
-      start(d) { const g = place('mission'); blip(g.x, g.z); objective('Go to Voss Motors in Midtown.'); },
-      update(d, dt) { const g = place('mission'); if (near(g.x, g.z, 4)) pass(200, 'Marla is waiting inside the yellow marker.'); } },
+    // The cold open: within a minute of the ferry you are in somebody else's car with a star on your head, and the
+    // first thing the city teaches is how to lose it. Dying or getting busted here costs nothing and starts it again.
+    { id: 0, name: 'HOT CAR', auto: true, gentle: true,
+      intro: [[null, 'Off the ferry with five hundred dollars and a phone number.'], [null, 'Somebody left their engine running.']],
+      start(d) { const p = P(); const ln = CITY.nearestLane(p.x, p.z); const [lx, lz] = CITY.lanePoint(ln.e, 1, M.clamp(ln.s, 8, CITY.laneLen(ln.e) - 8));
+        d.car = spawnCar('sports', lx + ln.e.rx * 0.7, lz + ln.e.rz * 0.7, Math.atan2(ln.e.dx, ln.e.dz), { color: 1 }); d.car.lightsOn = true; d.car.hot = true;
+        d.owner = spawnPed(lx + ln.e.rx * 3.2 - ln.e.dx * 2, lz + ln.e.rz * 3.2 - ln.e.dz * 2, { name: 'OWNER', stationary: true, item: 'phone' }); d.owner.faceTarget = d.car;
+        p.angle = p.camYaw = Math.atan2(d.car.x - p.x, d.car.z - p.z); d.phase = 0; blip(d.car.x, d.car.z, '#f5c542', d.car); objective(typeof TOUCH !== 'undefined' && TOUCH.active ? 'Take the car: walk up to it and tap ENTER.' : 'Take the car: walk up to it and press F.'); },
+      update(d, dt) { const p = P();
+        if (d.phase === 0) { if (p.car) { d.phase = 1; if (d.owner.alive) { d.owner.say("Hey! That's my car!"); d.owner.stationary = false; d.owner.scare?.(p.x, p.z); } POLICE.setStars(1); const sp = CITY.nearestPlace('spray', p.x, p.z) || place('spray'); blip(sp.x, sp.z, '#2fd6c4'); objective("Lose the cops: get out of sight, or get it resprayed at the teal Pay 'n' Spray."); HUD.notify('One star. Break line of sight and the heat fades.'); } return; }
+        if (d.phase === 1) { if (p.wanted === 0) { d.phase = 2; S.blip = null; say([['MARLA', 'Saw that from the garage. You drive like somebody with nothing to lose.'], ['MARLA', "Voss Motors. Bring the car, I'll make it legal."]], () => { const g = place('garage'); blip(g.x, g.z); objective('Bring a car to Voss Motors.'); }); } return; }
+        if (d.phase === 2 && !S.dialogue) { const g = place('garage'); if (p.car && M.dist2(p.car.x, p.car.z, g.x, g.z) < 12 * 12 && p.car.absSpeed < 3) { const c = p.car; c.owned = c.playerOwned = true; pass(500, 'The car is yours now. Marla is waiting inside the yellow marker.'); } else if (!p.car) objective('Get a car and bring it to Voss Motors.'); } } },
     { id: 1, name: 'REPO MAN',
       intro: [['MARLA', 'So you drive. Everybody drives. Question is whether you can drive with somebody screaming at you.'], ['MARLA', "A customer stopped paying on a red Falcata. It's parked outside a bar in Northgate. You can talk him round. Spook him and he'll run."], ['MARLA', "Go calmly, empty-handed, and hold G to talk. Or get creative. Bring the car back clean."]],
       start(d) { const s = laneSpot(4, 1, 1, 0, 30, 1); d.car = spawnCar('sports', s.x, s.z, s.angle, { color: 0 }); d.owner = spawnPed(s.x - 3, s.z + 3, { look: PEDS.DEBTOR, role: 'target', stationary: true, name: 'DEBTOR' }); d.owner.faceTarget = d.car; d.owner.health = 50; d.fled = false; blip(d.car.x, d.car.z, '#f5c542', d.car); objective('Get the red Falcata in Northgate.'); },
@@ -5869,6 +5878,7 @@ const MISSIONS = (() => {
     for (const k in S.givers) { const g = S.givers[k]; g.health = 1e9; if (g.state === 'dead' || g.removed) { g.removed = true; delete S.givers[k]; } }
   }
   function update(dt) {
+    if (S.gentleRestart && P().alive) { S.gentleRestart.t -= dt; if (S.gentleRestart.t <= 0) { const m = S.gentleRestart.m; S.gentleRestart = null; S.skipIntro = true; start(m); } }
     if (S.saveSoon > 0) { S.saveSoon -= dt; if (S.saveSoon <= 0 && !S.current && P().alive) GAME.save(); }
     if (S.failBanner > 0) { S.failBanner -= dt; if (S.failBanner <= 0) HUD.big('MISSION FAILED', '#c0281e', 3); }
     if (S.cooldown > 0) S.cooldown -= dt; ensureGivers(); updateRampage(dt);
@@ -6082,7 +6092,7 @@ const NAV=(()=>{
 const HUD = (() => {
   let cv, g, W_, H_, uiScale=1, mapCanvas = null; const notes = [];
   // Strips the touch layer can tap, rebuilt every frame: {x, y, w, h, key} where key is the key it stands for.
-  let newGameRect = null,mapRect=null; const zones = []; const zone = (x, y, w, h, key) => { if (TOUCH.active) zones.push({ x:x*uiScale, y:y*uiScale, w:w*uiScale, h:h*uiScale, key }); }; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
+  let newGameRect = null,mapRect=null, objSeen = '', objT = 0; const zones = []; const zone = (x, y, w, h, key) => { if (TOUCH.active) zones.push({ x:x*uiScale, y:y*uiScale, w:w*uiScale, h:h*uiScale, key }); }; let big = null, starFlash = 0, fadeT = 0, fadeDur = 0, moneyAnim = { shown: 0, target: 0 };
   const FONT = '"Helvetica Neue", Arial, sans-serif'; const DISPLAY = 'Impact, "Arial Black", "Helvetica Neue", sans-serif';
   function init(canvas) { cv = canvas; g = cv.getContext('2d'); }
   function resize() { const dpr = Math.min(window.devicePixelRatio || 1, 1.5); /* a full-retina overlay costs more to composite than its text is worth */ const w = Math.floor(cv.clientWidth * dpr), h = Math.floor(cv.clientHeight * dpr); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } uiScale=1; try { uiScale=GAME.options.hudScale || 1; } catch(e) {} W_ = cv.clientWidth/uiScale; H_ = cv.clientHeight/uiScale; g.setTransform(dpr*uiScale, 0, 0, dpr*uiScale, 0, 0); }
@@ -6242,7 +6252,15 @@ const HUD = (() => {
     zone(W_-200,103,176,48,'KeyR');
     // objective
     const obj = MISSIONS.objective;
-    if (obj) {
+    if (obj !== objSeen) { objSeen = obj; objT = 0; } objT += dt;
+    // Driving, the full card sat right over your own car. Once read (six seconds after it changes) it folds into a
+    // one-line strip at the top of the screen; on foot, and whenever the text changes, it is shown in full.
+    if (obj && P.car && objT > 6 && !MISSIONS.S.retry) {
+      const bp = MISSIONS.blipPos(), distance = bp ? Math.round(M.dist(P.x,P.z,bp.x,bp.z)) : null; const line = obj.length > 80 ? obj.slice(0, 78) + '…' : obj;
+      g.font = `normal 13px ${FONT}`; const w = Math.min(W_ - 40, g.measureText(line).width + (distance !== null ? 90 : 36)), x = (W_ - w) / 2, y = 10;
+      g.fillStyle = 'rgba(12,24,29,.78)'; g.fillRect(x, y, w, 26); g.fillStyle = '#f5ce68'; g.fillRect(x, y, 3, 26);
+      text(line, x + 14, y + 13, 13, '#f2efdf', 'left', 'normal', false); if (distance !== null) text(distance + ' m', x + w - 12, y + 13, 11, '#b5c9c9', 'right', '500', false);
+    } else if (obj) {
       const width = Math.min(540, W_-40), rows = wrap(obj,15,width-38), height = 45+rows.length*21;
       const x = (W_-width)/2, y = TOUCH.active ? H_-height-172 : H_-height-78;
       g.fillStyle = 'rgba(12,24,29,.9)'; g.fillRect(x,y,width,height); g.fillStyle = '#f5ce68'; g.fillRect(x,y,3,height);

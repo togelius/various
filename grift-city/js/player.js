@@ -82,7 +82,7 @@ const PLAYER = (() => {
     let best = 0, bestOpen = -1; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4, fx = Math.sin(a), fz = Math.cos(a); let open = 0; for (let d = 2; d <= 14; d += 2) { if (CITY.insideLot(p.x + fx * d, p.z + fz * d)) break; open++; } if (open > bestOpen) { bestOpen = open; best = a; } }
     P.x = p.x + Math.sin(best) * 3; P.z = p.z + Math.cos(best) * 3; P.y = CITY.groundY(P.x, P.z, P.y); P.angle = best; P.camYaw = P.angle;
     P.health = 100; P.alive = true; P.state = 'foot'; P.car = null; P.rag = null; P.vx = P.vz = P.vy = 0; P.airborne = false; P.lying = 0; P.knockT = 0; P.invuln = 2;
-    const fee = Math.min(P.money, Math.max(200, Math.floor(P.money * 0.1))); if (fee > 0) addMoney(-fee, where === 'police' ? 'bail' : 'hospital bill');
+    const gentle = typeof MISSIONS !== 'undefined' && MISSIONS.S.gentleRestart; const fee = gentle ? 0 : Math.min(P.money, Math.max(200, Math.floor(P.money * 0.1))); if (fee > 0) addMoney(-fee, where === 'police' ? 'bail' : 'hospital bill'); // the opening does not bill you
     if (where === 'police') { for (const k in P.weapons) if (!WEAPONS[k].melee) P.weapons[k] = Math.floor(P.weapons[k] * 0.5); }
     POLICE.clear(); HUD.clearBig();
   }

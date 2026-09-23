@@ -11,12 +11,12 @@ function runCampaignAudit() {
  const wreck=c=>{c.wrecked=true;c.health=0;};
  const start=m=>{leave();MISSIONS.cleanup();W.cars.length=0;W.peds.length=0;W.pickups.length=0;W.state.heard.length=0;POLICE.clear();S.current=null;S.retry=null;S.cp=null;S.dialogue=null;S.cooldown=0;S.skipIntro=true;p.health=100;p.alive=true;p.weapon='fist';p.weaponOut=false;p.aim=0;p.speed=0;at(-100,-100);MISSIONS.start(m);check(S.current===m,m.name+' did not start');return m.data;};
  const update=(m,dt=.016)=>{m.update(m.data,dt);};
- const expectedRewards=[200,1600,1500,2500,2500,3000,4000,10000,25000,3000,4000,5000,5000,8000,5000,3500,6000,8000,1500,2500,4000,6000]; let rewardIndex=0, beforeMoney=0;
+ const expectedRewards=[500,1600,1500,2500,2500,3000,4000,10000,25000,3000,4000,5000,5000,8000,5000,3500,6000,8000,1500,2500,4000,6000]; let rewardIndex=0, beforeMoney=0;
  const passed=m=>{check(p.money-beforeMoney===expectedRewards[rewardIndex++],m.name+' payout mismatch: '+(p.money-beforeMoney));check(S.current===null,m.name+' did not finish: '+MISSIONS.objective);check(p.stats.missions>0,'mission counter');log.push(m.name+' — passed');S.dialogue=null;};
  for(const m of MISSIONS.LIST) {
   const d=start(m);beforeMoney=p.money;
   switch(m.id) {
-   case 0: place('mission');update(m);break;
+   case 0: {const c=d.car;enter(c);update(m);check(p.wanted===1,'the hot car brings a star');POLICE.clear();update(m);check(S.dialogue,'Marla calls once the heat is off');S.dialogue=null;park('garage');c.x=p.x;c.z=p.z;update(m);break;}
    case 1: d.method='unnoticed';enter(d.car);park('garage');update(m);break;
    case 2: enter(d.van);park('docks');update(m);break;
    case 3: at(...d.spot);update(m);d.goons.forEach(dead);update(m);dead(d.teddy);update(m);check(d.cash,'Teddy must drop the collection');p.money+=d.cash.amount;d.cash.taken=true;update(m);place('mission');update(m);break;
@@ -47,7 +47,9 @@ function runCampaignAudit() {
  check(S.progress===9,'Marla campaign unlock progression');check(S.progress2===9,'Okafor campaign unlock progression');check(S.phoneProgress===4,'phone campaign unlock progression');
  // Failure must offer the same job again; every scripted job supports a death/failure retry.
  for(const m of [...MISSIONS.LIST,...MISSIONS.LIST2,...MISSIONS.PHONE]) {
-  start(m);const oldData=m.data;MISSIONS.onPlayerDown('wasted');check(!S.current && S.retry.m===m,m.name+' failure did not retain retry');
+  start(m);const oldData=m.data;MISSIONS.onPlayerDown('wasted');
+  if(m.gentle){check(!S.current&&!S.retry&&S.gentleRestart.m===m,m.name+' must restart quietly');for(let i=0;i<400&&!S.current;i++)MISSIONS.update(.016);check(S.current===m&&m.data!==oldData&&!S.dialogue,m.name+' must restart itself without its intro');continue;}
+  check(!S.current && S.retry.m===m,m.name+' failure did not retain retry');
   const oldHit=INPUT.hit;INPUT.hit=k=>k==='KeyY';try{MISSIONS.update(.016);}finally{INPUT.hit=oldHit;}
   check(S.current===m && m.data!==oldData && !S.dialogue,m.name+' retry must recreate the job without replaying the intro');
  }
