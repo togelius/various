@@ -160,14 +160,15 @@ const PLAYER = (() => {
     P.camIdle += dt; if (INPUT.locked || pad.active) { const sens = 0.0022 * GAME.options.sensitivity * (P.aim ? option('aimSensitivity',.75) * (assisted() && P.aimTarget ? .72 : 1) : 1); const inv = GAME.options.invertY ? -1 : 1; P.camYaw -= m.dx * sens + pad.rx * 2.5 * dt;
       if (P.aim && !P.car) { const want = aimAngle(0.16); if (P.aimTarget && Math.abs(m.dx) < 6) P.camYaw += M.angleTo(P.camYaw, want) * Math.min(1, 5 * dt); } /* magnetism: the crosshair settles onto a target you are nearly on */ P.camPitch = M.clamp(P.camPitch + (m.dy * sens * 0.8 + pad.ry * 1.5 * dt) * inv, P.aim && !P.car ? -0.2 : -0.35, P.aim && !P.car ? 0.5 : 1.1); if (m.dx || m.dy || pad.rx) P.camIdle = 0; }
     if (!P.alive) { P.deadT += dt; if (P.state === 'dead') { if (P.rag) PEDS.stepRagdoll(P, dt); else { P.lying = Math.min(1, P.lying + dt * 3); moveBody(dt, true); } } if (P.deadT > 4.5) respawn(P.state === 'busted' ? 'police' : 'hospital'); updateCamera(dt); return; }
-    if (P.state === 'vaulting') {updateVault(dt);updateCamera(dt);return;}
-    if (P.state === 'entering') { updateEntering(dt); updateCamera(dt); return; }
+    if (P.state === 'vaulting') {updateVault(dt);PEDS.updateMotion(P,dt);updateCamera(dt);return;}
+    if (P.state === 'entering') { updateEntering(dt); PEDS.updateMotion(P,dt); updateCamera(dt); return; }
     if (P.state === 'knocked') { P.knockT -= dt; P.lying = Math.min(1, P.lying + dt * 4); moveBody(dt, true); if (P.knockT <= 0) { P.state = 'foot'; P.lying = 0; } updateCamera(dt); return; }
     if (P.lying > 0) P.lying = Math.max(0, P.lying - dt * 3);
     // weapon selection
     if (m.wheel) cycleWeapon(m.wheel > 0 ? 1 : -1); if (INPUT.hit('KeyQ')) cycleWeapon(-1); if (INPUT.hit('KeyE')) cycleWeapon(1); if (pad.pressed[5]) cycleWeapon(1); if (pad.pressed[4]) cycleWeapon(-1);
     for (let i = 0; i < WEAPON_ORDER.length; i++) if (INPUT.hit('Digit' + (i + 1)) && WEAPON_ORDER[i] in P.weapons && P.weapons[WEAPON_ORDER[i]] > 0) { P.weapon = WEAPON_ORDER[i]; P.weaponOut = P.weapon !== 'fist'; }
     if (P.car) updateInCar(dt); else updateOnFoot(dt);
+    PEDS.updateMotion(P,dt);
     updateCamera(dt);
   }
   function inputMove() {
@@ -212,7 +213,7 @@ const PLAYER = (() => {
     if (firing && P.fireT <= 0 && P.evadeT<=0) attack(wp);
     if (INPUT.hit('KeyR')) reload();
     moveBody(dt, false);
-    P.speed = Math.hypot(P.vx, P.vz); P.accelLean=M.lerp(P.accelLean||0,M.clamp((P.speed-speedBefore)/Math.max(dt,.001)*.009,-.13,.15),1-Math.exp(-dt*10)); P.turnStep=M.lerp(P.turnStep||0,Math.abs(M.angleTo(angleBefore,P.angle))/Math.max(dt,.001),1-Math.exp(-dt*12)); P.phase += dt * M.TAU * PEDS.cadence(P.speed); // the rig derives its stride from this cadence, so the feet never slide
+    P.speed = Math.hypot(P.vx, P.vz); P.accelLean=M.lerp(P.accelLean||0,M.clamp((P.speed-speedBefore)/Math.max(dt,.001)*.009,-.13,.15),1-Math.exp(-dt*10)); P.turnStep=M.lerp(P.turnStep||0,Math.abs(M.angleTo(angleBefore,P.angle))/Math.max(dt,.001),1-Math.exp(-dt*12)); P.phase += dt * M.TAU * PEDS.cadence(Math.max(P.speed,Math.min(.65,(P.turnStep||0)*.10))); // the rig derives its stride from this cadence, so the feet never slide
     P.stats.distance += P.speed * dt;
     { const st = Math.floor(P.phase / Math.PI); if (st !== P.lastStep && P.speed > 0.6 && !P.airborne) { P.lastStep = st; AUDIO.play('step', P.x, P.z, !CITY.interiorRoom); } } // a footfall each half stride
     // hit by cars

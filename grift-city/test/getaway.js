@@ -58,7 +58,7 @@ for(const where of ['hospital','police']){P.x=100;P.z=100;PLAYER.respawn(where);
 {const at=(m,x,y,z)=>[m[0]*x+m[4]*y+m[8]*z+m[12],m[1]*x+m[5]*y+m[9]*z+m[13],m[2]*x+m[6]*y+m[10]*z+m[14]];
  const rig=t=>{const b=new Float32Array(16*RENDER.MAX_BONES);PEDS.buildRig({x:0,y:0,z:0,angle:0,phase:0,vx:0,vz:0,aim:1,camPitch:.28,aimTarget:t,speed:0,state:'foot'},M.create(),b);return b;};
  const up=rig({x:0,y:6,z:6,alive:true}),level=rig(null);const hy=b=>at(b.subarray(160,176),-.26,-.6,0)[1]-at(b.subarray(48,64),-.26,0,0)[1];
- check(hy(up)>.3&&hy(level)<.1,'locked on a target above, the gun hand rises ('+hy(up).toFixed(2)+' vs '+hy(level).toFixed(2)+')');}
+ check(hy(up)-hy(level)>.4&&-up[165]>.5&&-level[165]<0,'locked on a target above, the hand rises and barrel points up ('+hy(up).toFixed(2)+' vs '+hy(level).toFixed(2)+')');}
 // 11. The con: hold G beside a stranger; the pitch lands for cash or blows up into a police report. Guns, stars
 // and nearby cops make it harder.
 {W.cars.length=0;W.peds.length=0;POLICE.clear();MISSIONS.cleanup();MISSIONS.S.current=null;MISSIONS.S.shop=null;MISSIONS.S.dialogue=null;const P=PLAYER.P;P.alive=true;P.car=null;P.x=300;P.z=300;P.speed=0;P.weapon='fist';P.weaponOut=false;P.money=0;

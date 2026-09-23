@@ -5,7 +5,7 @@ const { chromium } = (() => { try { return require('playwright'); } catch (e) { 
 const SOFTWARE = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
 const HARDWARE = ['--enable-gpu', '--ignore-gpu-blocklist'];
 async function launch(extraArgs = []) {
-  const args = (process.env.PW_GPU ? HARDWARE : SOFTWARE).concat(extraArgs);
+  const args = (process.env.PW_GPU ? HARDWARE : SOFTWARE).concat(['--mute-audio'], extraArgs);
   const channel = process.env.PW_CHANNEL;
   if (channel) return chromium.launch({ channel, args });
   try { return await chromium.launch({ args }); }

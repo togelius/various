@@ -209,7 +209,9 @@ The next pass prioritizes the protagonist, the shared cast and a continuous esca
 - [x] Character art: sculpted face planes, geometric eyes/lids/brows/lips/nose, swept protagonist hair, constructed collars and jacket pockets, back yoke/seams, cloth weave, trouser shaping, shoe details and articulated hands. Shared across the cast, with a distinct worn bomber, collar and watch for the protagonist.
 - [x] Spine foundation: reuse the unused weapon bone for the chest, with blended rib/waist skinning and pelvis/shoulder counter-rotation. All seated and ragdoll paths retain valid bones. Weapon entities still attach to the right forearm.
 - [x] Repair the character studio to use the production module list and add all principal cast, walk/sprint/crouch/vault/reload/seated poses, rotation, lighting and pause controls. No saves and always muted.
-- [ ] Animation: smooth action transitions, supported weapon grip, jump/vault/landing poses and collision-aware NPC locomotion.
+- [x] Animation: simulation-owned aim blending, supported pistol/rifle grip, separate ascending/falling jump poses, tucked vault legs, exact 3D strafe foot placement and collision-aware NPC locomotion. Turning leads with the head, and the upper/lower body counter-rotate.
 - [ ] Escape: rehearse steal/crash/abandon/vault/switch and improve the actual interactions found to interrupt it.
 
 Character-art validation: all 13 dependency-free suites, release build and whitespace checks pass; 84 connected-joint poses, 24 planted-foot checks and 56 weighted-skin poses. Inspected front/rear views and named cast in the live muted studio.
+
+Animation validation: 33 new checks cover 30/60/120 Hz transitions, off-hand reach, sideways/backward ground contact and NPC wall contact. All 14 node suites and all 10 browser suites pass (visual, persistence, vehicles, entry, docks, repo, reverse, missions, six-interval soak, pursuit). Browser launch is explicitly muted. The full gate now uses Python timeouts so it works on macOS without GNU coreutils. The elevated-target regression checks barrel direction and relative hand rise, which remain meaningful with a bent elbow.

@@ -5,12 +5,25 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 ./tools/check-overhaul.sh || exit 1
-status=0; logs="${TMPDIR:-/tmp}/grift-check"; mkdir -p "$logs"
-for t in visual persistence vehicles enter_test docks_test repo_test rev_test missions_all soak pursuit; do
-  out=$(timeout 1800 node "tools/playtest/tests/$t.js" 2>&1); code=$?; printf '%s\n' "$out" > "$logs/$t.log"
-  bad=$(printf '%s\n' "$out" | grep -cE '^FAIL|PAGEERROR|Uncaught|TypeError|ReferenceError' || true)
-  printf '%-12s exit=%s bad=%s\n' "$t" "$code" "$bad"
-  if [ "$code" != 0 ] || [ "$bad" != 0 ]; then status=1; fi
-done
-[ $status = 0 ] || echo "logs in $logs"
-exit $status
+# Python's timeout works on macOS as well as Linux; no GNU coreutils dependency.
+python3 - <<'PYGATE'
+import os, pathlib, re, subprocess, sys, tempfile
+logs = pathlib.Path(tempfile.gettempdir()) / 'grift-check'
+logs.mkdir(exist_ok=True)
+failed = False
+for name in ['visual', 'persistence', 'vehicles', 'enter_test', 'docks_test', 'repo_test', 'rev_test', 'missions_all', 'soak', 'pursuit']:
+    try:
+        result = subprocess.run(['node', f'tools/playtest/tests/{name}.js'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=1800)
+        output, code = result.stdout, result.returncode
+    except subprocess.TimeoutExpired as error:
+        output = error.stdout or b''
+        if isinstance(output, bytes): output = output.decode(errors='replace')
+        output += '\nTimed out after 30 minutes\n'
+        code = 124
+    (logs / f'{name}.log').write_text(output)
+    bad = len(re.findall(r'^FAIL|PAGEERROR|Uncaught|TypeError|ReferenceError', output, re.MULTILINE))
+    print(f'{name:12} exit={code} bad={bad}', flush=True)
+    failed |= code != 0 or bad != 0
+print(f'Browser logs: {logs}', flush=True)
+sys.exit(1 if failed else 0)
+PYGATE
