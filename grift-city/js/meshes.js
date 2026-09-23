@@ -489,7 +489,12 @@ const MESH = (() => {
     b.loft(chest, top, cloth, 0, { capStart: !!jacket, capEnd: true });
     if (jacket) {
       const front = [[.12,.139,.044],[.22,.131,.050],[.42,.148,.059],[.54,.145,.065],[.59,.132,.062],[.64,.095,.046]];
-      for(let i=0;i<front.length-1;i++) { const [y,z,w]=front[i], [y2,z2,w2]=front[i+1]; b.polyOut([[-w,y,z],[w,y,z],[w2,y2,z2],[-w2,y2,z2]],shirt,0,0,-.2); }
+      for(let i=0;i<front.length-1;i++) {
+        const [y,z,w]=front[i], [y2,z2,w2]=front[i+1];
+        // The shirt crosses a bending spine, so leave clearance over the jacket's broad front quads.
+        const lift=h=>h<.55?.022:.012;
+        b.polyOut([[-w,y,z+lift(y)],[w,y,z+lift(y)],[w2,y2,z2+lift(y2)],[-w2,y2,z2+lift(y2)]],shirt,0,0,-.2);
+      }
       for (const side of [-1,1]) {
         const lapel=[[.39,.151,.06,.067],[.54,.150,.065,.125],[.59,.137,.062,.10],[.64,.100,.046,.073]];
         for(let i=0;i<lapel.length-1;i++) { const [y,z,a,bw]=lapel[i], [y2,z2,a2,b2]=lapel[i+1]; b.polyOut([[side*a,y,z],[side*bw,y,z],[side*b2,y2,z2],[side*a2,y2,z2]],top.map(c=>c*.87),0,0,-.2); }
@@ -539,7 +544,7 @@ const MESH = (() => {
         if(!lod) for(let k=0;k<4;k++) seam([.087+k*.014,.28,-.155],[.092+k*.014,.292,-.155],[.61,.49,.32],0,.0015);
       }
     }
-    if (look.chain && !lod) { for(const side of [-1,1]) { b.tube([side*.045,.63,.115],[side*.033,.55,.155],.0025,.0025,[.8,.64,.3],0,0,5); b.tube([side*.033,.55,.155],[0,.505,.157],.0025,.0025,[.8,.64,.3],0,0,5); } b.cbox(0,.499,.159,.012,.018,.005,[.8,.64,.3]); }
+    if (look.chain && !lod) { const lift=jacket?.024:0;for(const side of [-1,1]) { b.tube([side*.045,.63,.115+lift],[side*.033,.55,.155+lift],.0025,.0025,[.8,.64,.3],0,0,5); b.tube([side*.033,.55,.155+lift],[0,.505,.157+lift],.0025,.0025,[.8,.64,.3],0,0,5); } b.cbox(0,.499,.159+lift,.012,.018,.005,[.8,.64,.3]); }
     if (look.badge && !lod) b.sphere(.11,.49,.14,.018,.025,.008,[.82,.72,.4],{segs:6,rings:2,bone:0});
     if (bag) { b.roundedBox(-0.32, torsoH * 0.15, -0.16, 0.1, 0.3, 0.22, 0.03, bag, 0, 0, { n: 1 }); b.tube([-0.27, 0.62, -0.02], [-0.27, 0.25, -0.1], 0.012, 0.012, bag.map(c => c * 0.7), 0, 0, 5); }
     b.cyl(0, torsoH - 0.03, 0, 0.056, torsoH + 0.07, skin, 0, 8, 0, false, false, 0.06); // neck

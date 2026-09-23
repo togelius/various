@@ -221,3 +221,5 @@ Escape validation: 19 dedicated simulation checks cover 30/60/120 Hz jump and va
 The final close-up inspection also tightened rifle and shotgun poses: a tucked right elbow, stock near the shoulder, independently aimed wrist, and supporting hand solved against the actual weapon frame. Weapon frames remain rigid through aim/reload blends, and changing outfits preserves the protagonist's facial shape.
 
 Final gate: 14 dependency-free suites, 11 browser suites, release build and whitespace checks pass. The final wrist adjustment was followed by another complete node gate, live muted studio inspection, and a rendering regression. The visible pressure-test run completed the first switch in 7.4 simulated seconds with 100 health; the longer replay lost pursuit at 89.4 seconds with damage and traffic active.
+
+Final clothing follow-up: increase clearance between the open shirt, jacket and necklace so the chest bend does not expose a brown triangle through the shirt. Checked in the front sprint pose; geometry, joint and weighted-skin checks pass.
