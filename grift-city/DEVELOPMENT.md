@@ -164,3 +164,7 @@ The items the first pass left out, worked through one at a time with the same ga
   (`test/getaway.js`). Close behind a fleeing car at two stars, a cruiser aims for the rear quarter on its own side
   and PITs it rather than braking to a stop behind (browser trial: contact in all four runs, the target spun and
   stopped).
+- [x] Kerb parking: 325 slots on about a fifth of the kerb stretches (position hash; clear of props, lots and the
+  Foundry Quarter), cars pulled up with two wheels on the pavement clear of the outer lane. Filled only between 30
+  and 150 m from the player, at most 24 at a time, cleared beyond 190 m; a car you drive off leaves its slot empty
+  for ten minutes. Parked cars hold position under physics (`test/getaway.js`).

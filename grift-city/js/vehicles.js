@@ -516,6 +516,25 @@ const VEH = (() => {
   function despawn(px, pz) { for (const c of W.cars) { if (c.removed || c.important || c.persistent || c.owned || (PLAYER && (c === PLAYER.car || (PLAYER.P && c === PLAYER.P.lastCar)))) continue; /* cars you bought, and the one you left, stay where you parked them */ const d = M.dist(c.x, c.z, px, pz); if (d > 280 || (c.wrecked && d > 150 && c.fireT > 10)) c.remove(); } let w = 0; for (const c of W.cars) if (!c.removed) W.cars[w++] = c; W.cars.length = w; }
   function spawnMarina() { CITY.marina.forEach((m, i) => { const b = spawn('boat', m.x, m.z, m.angle, { mode: 'parked', color: [2, 9, 6][i % 3] }); b.persistent = true; }); }
   function spawnParked() { for (const p of CITY.parkedSpots) { const type = p.type || TRAFFIC_TYPES[Math.floor(W.rng() * TRAFFIC_TYPES.length)]; if (type === 'bus' || type === 'truck') continue; spawn(type, p.x, p.z, p.angle, { mode: 'parked' }); } }
+  // ---- Kerb parking. About one kerb stretch in five has a car pulled up with two wheels on the pavement, clear of the
+  // outer lane so traffic flows past. Slots come from a hash of their position (the seeded city is untouched) and are
+  // filled only within 150 m of the player, at most 24 at a time, and emptied again beyond 190 m. A car you drive
+  // off leaves its slot empty for ten minutes.
+  let kerbSlots = null; const kerbCars = new Map(), kerbTaken = new Map();
+  function buildKerbSlots() { kerbSlots = []; const off = CITY.HALF_ROAD + 0.2 - (CITY.LANE * 1.5); // from the outer lane's centre to straddling the kerb
+    for (const e of CITY.roadEdges) { const L = CITY.laneLen(e); for (let s = 12, k = 0; s < L - 12; s += 6.2, k++) {
+      const h = Math.abs(Math.sin(e.from.x * 12.9898 + e.from.z * 78.233 + e.dx * 37.7 + e.dz * 91.3 + k * 17.17) * 43758.5453) % 1; if (h > 0.2) continue;
+      const [lx, lz] = CITY.lanePoint(e, 1, s); const x = lx + e.rx * off, z = lz + e.rz * off;
+      if (CITY.insideLot(x, z) || W.solidPropsNear(x, z, 3).some(p => M.dist2(p.x, p.z, x, z) < 3.2 * 3.2) || (typeof STREETS !== 'undefined' && CITY.blockAt(x - e.rx * 4, z - e.rz * 4)?.quarter)) continue;
+      kerbSlots.push({ key: kerbSlots.length, x, z, angle: Math.atan2(e.dx, e.dz), h }); } } }
+  function streamKerb(px, pz) {
+    if (!kerbSlots) buildKerbSlots(); const now = W.state.elapsed;
+    for (const [key, c] of kerbCars) { if (c.removed || c.driver || c.playerOwned || c.ai.mode !== 'parked') { kerbCars.delete(key); if (!c.removed) kerbTaken.set(key, now); continue; } if (M.dist2(c.x, c.z, px, pz) > 190 * 190) { c.remove(); kerbCars.delete(key); } }
+    if (kerbCars.size >= 24) return; const near = [];
+    for (const s of kerbSlots) { if (kerbCars.has(s.key) || (kerbTaken.has(s.key) && now - kerbTaken.get(s.key) < 600)) continue; const d = M.dist2(s.x, s.z, px, pz); if (d < 150 * 150 && d > 30 * 30) near.push([d, s]); } // not right beside the player: they appear beyond the corner, never out of thin air
+    near.sort((a, b) => a[0] - b[0]);
+    for (const [, s] of near) { if (kerbCars.size >= 24) break; if (W.cars.some(o => !o.removed && M.dist2(o.x, o.z, s.x, s.z) < 16)) continue; const type = TRAFFIC_TYPES[Math.floor(s.h * 5 * TRAFFIC_TYPES.length) % TRAFFIC_TYPES.length]; if (type === 'bus' || type === 'truck') continue;
+      const c = spawn(type, s.x, s.z, s.angle, { mode: 'parked', color: Math.floor(s.h * 97) % PALETTE.length }); c.kerb = true; kerbCars.set(s.key, c); } }
   function nearest(x, z, r, filter) { let best = null, bd = r * r; for (const c of W.cars) { if (c.removed || (filter && !filter(c))) continue; const d = M.dist2(c.x, c.z, x, z); if (d < bd) { bd = d; best = c; } } return best; }
   // Traffic far from the camera runs at a third of the rate with three times the step. All distant cars move on the
   // same frame, so they still see each other consistently; anything the player is near, or involved in, runs every frame.
@@ -530,5 +549,5 @@ const VEH = (() => {
       if (far) { if (phase === 0) c.update(dt * 3); } else c.update(dt);
     }
   }
-  return { Vehicle, SPECS, NAMES, PALETTE, TRAFFIC_TYPES, trafficTypeFor, trim, spawn, spawnTraffic, despawn, spawnParked, spawnMarina, nearest, updateAll, getMesh };
+  return { Vehicle, SPECS, NAMES, PALETTE, TRAFFIC_TYPES, trafficTypeFor, trim, spawn, spawnTraffic, despawn, spawnParked, spawnMarina, streamKerb, get kerbSlots() { return kerbSlots; }, kerbCars, nearest, updateAll, getMesh };
 })();

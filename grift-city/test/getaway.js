@@ -72,5 +72,12 @@ for(const where of ['hospital','police']){P.x=100;P.z=100;PLAYER.respawn(where);
  POLICE.setStars(3);POLICE.seen();POLICE.S.motion={f:[1,0.05],speed:20};POLICE.spawnRoadblock();check(POLICE.S.spikes.length===1,'a three-star roadblock lays a spike strip');
  const k=POLICE.S.spikes[0];check(Math.abs(k.fz)<1e-9&&W.cars.filter(c=>c.roadblock).length===2,'the block sits square across the road');
  car.x=k.x;car.z=k.z;car.vx=15;car.vz=0;POLICE.update(1/60);check(car.condition.tyres.every(t=>t===0),'driving over the strip shreds the tyres');P.car=null;car.driver=null;POLICE.clear();}
+// 13. Kerb parking: slots clear of the traffic lanes, streamed near the player, capped, and parked cars stay put.
+{W.cars.length=0;const P=PLAYER.P;P.car=null;P.x=300;P.z=300;VEH.streamKerb(P.x,P.z);const slots=VEH.kerbSlots;
+ check(slots.length>150&&slots.length<900,'kerb slots on a fraction of the streets ('+slots.length+')');
+ const live=[...VEH.kerbCars.values()];check(live.length>0&&live.length<=24,'kerb cars streamed near the player ('+live.length+')');
+ const clear=slots.every(s=>{const ln=CITY.nearestLane(s.x,s.z);const [lx,lz]=CITY.lanePoint(ln.e,1,ln.s);return Math.hypot(s.x-lx,s.z-lz)>1.8;});check(clear,'every slot sits clear of the outer lane');
+ const c=live[0],x0=c.x,z0=c.z;for(let i=0;i<300;i++)c.update(1/60);check(Math.hypot(c.x-x0,c.z-z0)<0.3,'a car parked on the kerb stays where it was put ('+Math.hypot(c.x-x0,c.z-z0).toFixed(2)+' m)');
+ P.x=800;P.z=800;VEH.streamKerb(P.x,P.z);check(c.removed,'kerb cars left far behind are cleared');}
 console.log('Getaway: '+checks+' checks passed'+(blocked?' (aim scene blocked; aim checked in browser)':''));
 `,ctx);
