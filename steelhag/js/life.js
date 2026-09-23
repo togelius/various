@@ -166,7 +166,7 @@ class QuietLife {
             const age = a - stops[i];
             if (age >= 0 && age < 2.2) {
               g.strokeStyle = css('#d8d0c0', (1 - age / 2.2) * 0.5);
-              g.beginPath(); g.ellipse(wx + (i - 1) * 51, wy, 3 + age * 19, 1 + age * 3, 0, TAU); g.stroke();
+              g.beginPath(); g.ellipse(wx + (i - 1) * 51, wy, 3 + age * 19, 1 + age * 3, 0, 0, TAU); g.stroke();
             }
             if (a >= stops[i - 1] && a < stops[i]) {
               const u = (a - stops[i - 1]) / (stops[i] - stops[i - 1]);
@@ -197,7 +197,7 @@ class QuietLife {
         for (let i = 0; i < 5; i++) {
           const lift = p.count ? Math.sin(Math.min(1, a / 10) * Math.PI) * (20 + i * 11) : Math.sin(t * 0.8 + i) * 1.2;
           const px = x + (i - 2) * 8, py = y - 3 - lift;
-          g.fillStyle = css('#535665', 0.18); g.beginPath(); g.ellipse(px, y + 1, 4, 1.2, 0, TAU); g.fill();
+          g.fillStyle = css('#535665', 0.18); g.beginPath(); g.ellipse(px, y + 1, 4, 1.2, 0, 0, TAU); g.fill();
           g.fillStyle = '#7d7a86'; g.beginPath(); g.ellipse(px + Math.sin(t + i) * lift * 0.04, py, 3, 2, i + lift * 0.03, 0, TAU); g.fill();
         }
       }
@@ -213,7 +213,7 @@ class QuietLife {
       } else if (this.chapter === 2) {
         const age = (t * 0.35 + d.phase) % 3;
         g.strokeStyle = css('#c9c5b5', 0.12 * (1 - age / 3));
-        g.beginPath(); g.ellipse(x, 655 - cam.y + d.phase * 5, 2 + age * 8, 1 + age * 1.4, 0, TAU); g.stroke();
+        g.beginPath(); g.ellipse(x, 655 - cam.y + d.phase * 5, 2 + age * 8, 1 + age * 1.4, 0, 0, TAU); g.stroke();
       } else if (this.chapter === 3) {
         const age = (t * 0.12 + d.phase) % 1;
         g.globalAlpha = Math.sin(age * Math.PI) * 0.055;
