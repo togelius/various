@@ -1,0 +1,16 @@
+html, body { margin: 0; height: 100%; background: #0c0c0e; overflow: hidden; }
+body { display: flex; align-items: center; justify-content: center; touch-action: none; -webkit-user-select: none; user-select: none; }
+#screen { display: block; background: #0c0c0e; }
+#loading {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: #d8d3c6; font: italic 22px "Cormorant Garamond", Georgia, serif; letter-spacing: 2px; pointer-events: none;
+}
+#touch { display: none; position: fixed; inset: auto 0 0 0; padding: 18px 22px calc(18px + env(safe-area-inset-bottom)); justify-content: space-between; pointer-events: none; }
+body.touch #touch { display: flex; }
+#touch .pad { display: flex; gap: 14px; align-items: flex-end; pointer-events: auto; }
+#touch button {
+  width: 68px; height: 68px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.35);
+  background: rgba(20,20,24,0.25); color: rgba(255,255,255,0.75); font-size: 22px; -webkit-tap-highlight-color: transparent;
+}
+#touch button.small { width: 52px; height: 52px; font-size: 18px; }
+#touch button.on { background: rgba(255,255,255,0.25); }

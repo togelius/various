@@ -19,6 +19,10 @@ subdirectory with its own README:
   WebGL2: a generated island city, traffic, pedestrians, five-star police,
   nine story missions and side jobs. Open `grift-city/index.html`, or the
   single-file build in `grift-city/dist/`.
+- **[steelhag/](steelhag/)** — STÅLHAGEN, a quiet platform game through
+  fields of fallen machines, after the paintings of Simon Stålenhag. Every
+  image is painted in code. Open `steelhag/index.html`, or the single-file
+  build in `steelhag/dist/`.
 - **[scriptprof/](scriptprof/)** — SCRIPTPROF, a lab for generating
   PuzzleScript games: rewrite-rule engine, BFS playtester, MAP-Elites
   archive. Open `scriptprof/index.html`.
