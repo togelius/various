@@ -58,7 +58,7 @@ time): visual, persistence, vehicles, enter_test, docks_test, repo_test, rev_tes
 ## Steps
 
 - [x] 1. Confirmed defects.
-- [ ] 2. Device truth and a quality ladder that understands a 30 Hz cap.
+- [x] 2. Device truth and a quality ladder that understands a 30 Hz cap.
 - [ ] 3. A cold open through the Foundry Quarter.
 - [ ] 4. Pursuit legs: cruisers that reach you, a patrol car at one star, T-bones and PIT, the Heat Run pot.
 - [ ] 5. One-thumb combat: lock-on, a context ACTION button, fewer touch buttons.
@@ -84,3 +84,15 @@ birdsong at night. Sub-star suspicion fades. Money cannot go negative. The job c
 The radar edge checks now look for the blip at the rim (the on-foot route line shares its colour) and the vehicle
 showroom no longer assumes a reflection probe exists. `test/getaway.js` covers markers, despawn, lock, reversing,
 respawn heading, the spray and the shop latch; all node and browser suites pass.
+
+Step 2: Settings has a Performance overlay (p50/p95/p99 frame time as delivered, detected cap, quality rung, render
+scale, dpr, CPU sim and render time, draws, triangles, heap, GPU string) and a Copy performance report button whose
+JSON can be pasted into a chat, so the iPad's own numbers decide what to tune. The adaptive ladder now sheds the
+overhaul's costs first: rung 1 stops rebuilding reflection probes, drops lamp occlusion and keeps the nearest 20
+lamps; rung 2 turns off normal maps and keeps 14 (plus AO off as before); rung 3 keeps 10 (plus 0.75 scale); rung 4
+post; rung 5 shadows. Paused and map frames are drawn once and held; the title orbit runs at half rate on a 60 Hz
+display. A lost WebGL context saves and reloads (forced loseContext verified). The game saves when the page is
+hidden outside a mission, 1.5 s after any purchase and after a hidden package. The painted texture layers are
+released after upload: JS heap after boot 326 -> 242 MB headless. Not done: vertex packing, an IndexedDB paint
+cache and artifact-side telemetry; the copyable report stands in for telemetry until real iPad numbers show where
+the time goes.

@@ -3,7 +3,7 @@
 const SETTINGS = (() => {
   const defaults = Object.freeze({ sensitivity: 1, aimSensitivity: .75, invertY: false,
     mouseAssist: false, controllerAssist: true, cameraShake: .65, speedFov: .8,
-    steeringAssist: .35, hudScale: 1, bloom: true, resolution: 1.25, shadows: true,
+    steeringAssist: .35, hudScale: 1, perfOverlay: false, bloom: true, resolution: 1.25, shadows: true,
     auto: true, edges: true, masterVolume:.8,sfxVolume:1,vehicleVolume:.85,ambientVolume:.65,musicVolume:.7,quietMix:false,bindings: {} });
   const actions = { KeyW:'Forward / accelerate', KeyS:'Back / brake', KeyA:'Left', KeyD:'Right',
     ShiftLeft:'Sprint', Space:'Jump / vault / handbrake', KeyF:'Enter / exit vehicle',
@@ -15,7 +15,7 @@ const SETTINGS = (() => {
     for (const [key, min, max] of [['sensitivity',.3,3],['aimSensitivity',.2,1.5],['cameraShake',0,1],['speedFov',0,1],['steeringAssist',0,1],['hudScale',.8,1.3],['resolution',.75,1.5],...['masterVolume','sfxVolume','vehicleVolume','ambientVolume','musicVolume'].map(k=>[k,0,1])]) {
       o[key] = Number.isFinite(o[key]) ? Math.min(max,Math.max(min,o[key])) : defaults[key];
     }
-    for (const key of ['invertY','mouseAssist','controllerAssist','bloom','shadows','auto','edges','quietMix']) if (typeof o[key] !== 'boolean') o[key] = defaults[key];
+    for (const key of ['invertY','mouseAssist','controllerAssist','bloom','shadows','auto','edges','quietMix','perfOverlay']) if (typeof o[key] !== 'boolean') o[key] = defaults[key];
     const bindings = {}, used = new Set();
     for (const key of Object.keys(actions)) { const value = o.bindings && o.bindings[key]; if (typeof value === 'string' && /^(Key[A-Z]|Space|ShiftLeft|ControlLeft|AltLeft)$/.test(value) && !['KeyM','KeyP','KeyT','KeyH','KeyL','KeyY','KeyN','KeyG','AltLeft'].includes(value) && !used.has(value)) { bindings[key] = value; used.add(value); } }
     o.bindings = bindings;
@@ -30,12 +30,12 @@ const SETTINGS = (() => {
   function build() {
     root = document.createElement('section'); root.id = 'settings'; root.hidden = true;
     root.setAttribute('role','dialog'); root.setAttribute('aria-modal','true'); root.setAttribute('aria-label','Pause and settings');
-    root.innerHTML = '<div class="settings-card"><header><div><small>GRIFT CITY</small><h1>Take a breath.</h1></div><button id="settings-resume">Resume game</button></header><p id="settings-status"></p><div class="settings-grid"></div><footer><button id="settings-reset">Restore all settings defaults</button><button id="settings-new">New game</button><span>Esc to resume · Changes save automatically</span></footer></div>';
+    root.innerHTML = '<div class="settings-card"><header><div><small>GRIFT CITY</small><h1>Take a breath.</h1></div><button id="settings-resume">Resume game</button></header><p id="settings-status"></p><div class="settings-grid"></div><footer><button id="settings-perf">Copy performance report</button><button id="settings-reset">Restore all settings defaults</button><button id="settings-new">New game</button><span>Esc to resume · Changes save automatically</span></footer></div>';
     document.body.appendChild(root);
     const grid = root.querySelector('.settings-grid');
     const groups = [
       ['Camera & comfort', [['sensitivity','Look sensitivity',.3,3,.1],['aimSensitivity','Aim sensitivity',.2,1.5,.05],['cameraShake','Camera shake',0,1,.05],['speedFov','Speed / sprint FOV effect',0,1,.1],['hudScale','HUD & text scale',.8,1.3,.05],['invertY','Invert vertical look'],['mouseAssist','Mouse aim assistance'],['controllerAssist','Controller / touch aim assistance'],['steeringAssist','Countersteer assistance',0,1,.05]]],
-      ['Picture & sound', [['resolution','Render scale',.75,1.5,.25],['shadows','Sun shadows'],['bloom','Bloom & tone mapping'],['edges','Illustrated outlines'],['auto','Adaptive quality'],['muted','Mute all sound'],['masterVolume','Master volume',0,1,.05],['sfxVolume','Effects volume',0,1,.05],['vehicleVolume','Vehicle volume',0,1,.05],['ambientVolume','Street & weather volume',0,1,.05],['musicVolume','Radio volume',0,1,.05],['quietMix','Quiet dynamic range']]]
+      ['Picture & sound', [['resolution','Render scale',.75,1.5,.25],['shadows','Sun shadows'],['bloom','Bloom & tone mapping'],['edges','Illustrated outlines'],['auto','Adaptive quality'],['perfOverlay','Performance overlay'],['muted','Mute all sound'],['masterVolume','Master volume',0,1,.05],['sfxVolume','Effects volume',0,1,.05],['vehicleVolume','Vehicle volume',0,1,.05],['ambientVolume','Street & weather volume',0,1,.05],['musicVolume','Radio volume',0,1,.05],['quietMix','Quiet dynamic range']]]
     ];
     for (const [name, rows] of groups) {
       const section = document.createElement('fieldset'); const legend = document.createElement('legend'); legend.textContent = name; section.appendChild(legend);
@@ -58,6 +58,10 @@ const SETTINGS = (() => {
     grid.appendChild(field);
     root.querySelector('#settings-resume').onclick = resume;
     root.querySelector('#settings-new').onclick = () => GAME.askNewGame();
+    // The report is how an iPad's real numbers reach whoever tunes the game: paste it into the chat.
+    root.querySelector('#settings-perf').onclick = () => { const text = JSON.stringify(GAME.perfReport()); const status = root.querySelector('#settings-status');
+      const shown = () => { status.textContent = text; const r = document.createRange(); r.selectNodeContents(status); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); };
+      try { navigator.clipboard.writeText(text).then(() => { status.textContent = 'Performance report copied. Paste it into the chat.'; }, shown); } catch (e) { shown(); } };
     root.querySelector('#settings-reset').onclick = () => { Object.assign(GAME.options, defaults, {bindings:{}}); GAME.saveOptions(); refresh(); };
     // Do not let form interactions become shots, menu shortcuts, or pointer-lock requests.
     for (const event of ['mousedown','mouseup','mousemove','wheel','touchstart','touchend']) root.addEventListener(event,e=>e.stopPropagation());

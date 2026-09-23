@@ -617,7 +617,10 @@ const TEX = (() => {
     });
     return { color: layers, normal: normals, panes };
   }
-  return { build, preload, names, S, NS, base, flatN, get layers() { return layers; }, get normals() { return normals; }, get shopKinds() { return shopKinds; } };
+  // Once the layers are on the GPU the painted pixels are dead weight: roughly a megabyte a layer, colour and normal.
+  // A lost context is recovered by reloading the page, so nothing needs them again.
+  function release() { layers.length = 0; normals.length = 0; }
+  return { build, release, preload, names, S, NS, base, flatN, get layers() { return layers; }, get normals() { return normals; }, get shopKinds() { return shopKinds; } };
 })();
 
 </script>
@@ -2386,7 +2389,7 @@ const RENDER = (() => {
   `;
   const FS = DISPLAY_GLSL + `
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in float vEmis;
-    uniform samplerCube uProbe; uniform vec3 uProbePos;
+    uniform samplerCube uProbe; uniform vec3 uProbePos; uniform float uProbeOn;
     uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform sampler2DArray uNrm;
     uniform float uActor; uniform float uNrmOn; uniform float uNrmStr; uniform float uEmis; uniform vec4 uPanes[128]; uniform float uInterior;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
@@ -2516,7 +2519,7 @@ const RENDER = (() => {
         vec3 edge=((sign(refl)*vec3(30.0,14.0,30.0))-probeDelta)/raySafe;
         float travel=max(0.0,min(edge.x,min(edge.y,edge.z)));
         vec3 localRefl=textureLod(uProbe,probeDelta+refl*travel,rough*4.0).rgb;
-        float localWeight=(1.0-smoothstep(18.0,42.0,length(probeDelta.xz)))*.78;
+        float localWeight=(1.0-smoothstep(18.0,42.0,length(probeDelta.xz)))*.78*uProbeOn;
         skyRefl=mix(skyRefl,localRefl,localWeight);
         float fres = 0.08 + 0.92 * pow(1.0 - max(dot(n, v), 0.0), 4.0);
         float dn = clamp(refl.y * 2.0 + 0.55, 0.0, 1.0); // rays aimed at the ground see the street, not the sky
@@ -2792,7 +2795,7 @@ const RENDER = (() => {
   }
 
   function setLights(list) {
-    updateProbe();
+    if (env.probes !== false || !probe) updateProbe(); // the quality ladder can stop rebuilding reflection probes; one is kept bound
     // The MAX_LIGHTS nearest the camera target win. A city block carries hundreds of street lamps, so this keeps a
     // sorted shortlist by insertion rather than sorting the whole list with a comparator every frame.
     const n0 = list.length; let m = 0;
@@ -2804,10 +2807,10 @@ const RENDER = (() => {
       selD[j] = d2; selL[j] = L; if (m < MAX_LIGHTS) m++;
     }
     // Conservative local building occluders. Only the nearest eight and first two lights incur this work.
-    const blocks=CITY.lotsNear(cam.tx,cam.tz,45).filter(l=>l.h>.8).sort((a,b)=>M.dist2((a.x0+a.x1)/2,(a.z0+a.z1)/2,cam.tx,cam.tz)-M.dist2((b.x0+b.x1)/2,(b.z0+b.z1)/2,cam.tx,cam.tz)).slice(0,8);
+    const blocks=env.localShadow===false?[]:CITY.lotsNear(cam.tx,cam.tz,45).filter(l=>l.h>.8).sort((a,b)=>M.dist2((a.x0+a.x1)/2,(a.z0+a.z1)/2,cam.tx,cam.tz)-M.dist2((b.x0+b.x1)/2,(b.z0+b.z1)/2,cam.tx,cam.tz)).slice(0,8);
     localBlocks.n=blocks.length;
     blocks.forEach((b,i)=>{localBlocks.min.set([b.x0,b.y0||0,b.z0,0],i*4);localBlocks.max.set([b.x1,b.h,b.z1,0],i*4);});
-    lights.n = m;
+    m = Math.min(m, env.maxLights || MAX_LIGHTS); lights.n = m; // nearest first, so a lower rung keeps the lamps that matter
     for (let i = 0; i < m; i++) { const L = selL[i], o = i * 4, c = i * 3;
       lights.pos[o] = L.x; lights.pos[o + 1] = L.y; lights.pos[o + 2] = L.z; lights.pos[o + 3] = L.r;
       lights.dir.set(L.dir ? [...L.dir,L.cone ?? .6] : [0,0,0,-1],o);
@@ -2827,7 +2830,7 @@ const RENDER = (() => {
       gl.uniform1f(P.u.uFogHeight, env.fogHeight); gl.uniform1f(P.u.uFogSun, env.fogSun);
       gl.uniform3fv(P.u.uZenith, env.zenith); gl.uniform3fv(P.u.uHorizon, env.horizon); gl.uniform1f(P.u.uReflect, env.reflect); gl.uniform1f(P.u.uWet, env.wet);
       gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uActor,0); gl.uniform1f(P.u.uHDR, hdrOut ? 1 : 0); gl.uniform1f(P.u.uExposure, post.exposure); gl.uniform1f(P.u.uSat, post.sat); gl.uniform3fv(P.u.uTint, post.tint); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uWater, 0); gl.uniform1f(P.u.uTime, env.time || 0);
-      if (!probe) updateProbe(); gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP,probe.texture); gl.uniform1i(P.u.uProbe,4); gl.uniform3fv(P.u.uProbePos,probe.pos);
+      if (!probe) updateProbe(); gl.uniform1f(P.u.uProbeOn, env.probes === false ? 0 : 1); gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP,probe.texture); gl.uniform1i(P.u.uProbe,4); gl.uniform3fv(P.u.uProbePos,probe.pos);
       gl.uniform4fv(P.u.uLightDirs,lights.dir); gl.uniform4fv(P.u.uBlockMin,localBlocks.min); gl.uniform4fv(P.u.uBlockMax,localBlocks.max); gl.uniform1i(P.u.uBlockCount,localBlocks.n);
       gl.uniform4fv(P.u.uLights, lights.pos); gl.uniform3fv(P.u.uLightCols, lights.col); gl.uniform1i(P.u.uNumLights, lights.n);
     }
@@ -5843,7 +5846,7 @@ const MISSIONS = (() => {
     const p = P(); if (!p.alive) return; if (S.doorT > 0) S.doorT -= dt;
     if (S.shopLatch && M.dist2(p.x, p.z, S.shopLatch.x, S.shopLatch.z) > S.shopLatch.r2 * 1.4) S.shopLatch = null;
     if (S.shop) { objective(''); if (INPUT.hit('Escape') || INPUT.hit('KeyF') || M.dist2(p.x, p.z, S.shop.x, S.shop.z) > (S.shop.kind === 'dealer' ? 64 : 16)) { closeShop(); return; }
-      for (let i = 0; i < S.shop.items.length; i++) if (INPUT.hit('Digit' + (i + 1))) { const it = S.shop.items[i]; if (!it.enabled || it.price > p.money) { HUD.notify(it.price > p.money ? 'Not enough cash.' : "Can't do that now."); AUDIO.play('click'); } else if (it.action) it.action(); if (!S.shop) break; }
+      for (let i = 0; i < S.shop.items.length; i++) if (INPUT.hit('Digit' + (i + 1))) { const it = S.shop.items[i]; if (!it.enabled || it.price > p.money) { HUD.notify(it.price > p.money ? 'Not enough cash.' : "Can't do that now."); AUDIO.play('click'); } else if (it.action) { it.action(); S.saveSoon = 1.5; } if (!S.shop) break; } // what you buy is saved, so a tab the iPad throws away does not take it with it
       return; }
     for (const g of CITY.places.guns) if (!p.car && M.dist2(p.x, p.z, g.x, g.z) < 4) { const hr = W.state.time; if (hr >= 23 || hr < 7) { if (!(S.closedT > 0)) { HUD.notify('IRONMONGER is closed. Opens at 7.'); S.closedT = 6; } } else openShop(gunMenu(g)); } if (S.closedT > 0) S.closedT -= dt;
     // A respray is only sold when there is something to fix (stars or damage), and once per visit: waiting in the
@@ -5866,6 +5869,7 @@ const MISSIONS = (() => {
     for (const k in S.givers) { const g = S.givers[k]; g.health = 1e9; if (g.state === 'dead' || g.removed) { g.removed = true; delete S.givers[k]; } }
   }
   function update(dt) {
+    if (S.saveSoon > 0) { S.saveSoon -= dt; if (S.saveSoon <= 0 && !S.current && P().alive) GAME.save(); }
     if (S.failBanner > 0) { S.failBanner -= dt; if (S.failBanner <= 0) HUD.big('MISSION FAILED', '#c0281e', 3); }
     if (S.cooldown > 0) S.cooldown -= dt; ensureGivers(); updateRampage(dt);
     if (S.dialogue) { const d = S.dialogue; S.lineT += dt; if (S.lineT > 4.2 || INPUT.hit('Space') || INPUT.hit('Enter') || INPUT.mouse.clicked || INPUT.pad.pressed[0]) { d.i++; S.lineT = 0; AUDIO.play('click'); if (d.i >= d.lines.length) { S.dialogue = null; if (d.then) d.then(); } } return; }
@@ -6189,9 +6193,14 @@ const HUD = (() => {
     }
     g.restore();
   }
+  // Performance overlay (Settings > Performance overlay): frame times as delivered, the detected cap, the rung the
+  // adaptive quality settled on and what the frame costs, readable on the device itself.
+  function drawPerf() { const r = GAME.perfInfo(); if (!r) return; const lines = [`frame ${r.frameP50} / ${r.frameP95} / ${r.frameP99} ms  (p50/p95/p99)`, `cap ${r.cap} · quality rung ${r.level} · scale ${r.scale} · dpr ${r.dpr}`, `sim ${r.simMs} ms · render ${r.renderMs} ms (CPU)`, `${r.draws} draws · ${(r.tris / 1000).toFixed(0)}k tris · ${r.canvas}${r.heapMB ? ' · heap ' + r.heapMB + ' MB' : ''}`, `${r.gpu}`];
+    const x = W_ / 2 - 190, y = 8; g.fillStyle = 'rgba(8,14,18,0.72)'; g.fillRect(x, y, 380, lines.length * 15 + 10); lines.forEach((l, i) => text(l, x + 8, y + 14 + i * 15, 11, i === 0 && r.frameP95 > (r.cap === '30 Hz' ? 40 : 22) ? '#ff9a7a' : '#d8e6e2', 'left', 'normal', false)); }
   function stars(P, x, y) { for (let i = 0; i < 5; i++) { const lit = i < P.wanted; const flash = starFlash > 0 && lit && Math.sin(W.state.elapsed * 20) > 0; text('★', x - i * 24, y, 24, lit ? (flash ? '#fff' : '#f5c542') : 'rgba(255,255,255,0.18)', 'center'); } }
 
-  function draw(dt, state, photo) {if(typeof NAV!=='undefined')NAV.sync(state);
+  function draw(dt, state, photo) { drawFrame(dt, state, photo); if (GAME.options.perfOverlay && state !== 'title' && state !== 'loading') drawPerf(); } // the overlay goes on top of everything, letterbox included
+  function drawFrame(dt, state, photo) {if(typeof NAV!=='undefined')NAV.sync(state);
     resize(); g.clearRect(0, 0, W_, H_); zones.length = 0; const P = PLAYER.P;
     if (state === 'title') return drawTitle();
     if (state === 'photo') { text('PHOTO MODE  ·  WASD/QE fly  ·  SHIFT fast  ·  wheel zoom  ·  click or ENTER saves a picture  ·  P back', W_ / 2, H_ - 18, 13, 'rgba(255,255,255,0.75)', 'center', 'normal'); if (photo && photo.savedT > 0) text('SAVED', W_ / 2, H_ / 2, 28, '#f5c542', 'center'); return; }
@@ -6346,7 +6355,7 @@ const HUD = (() => {
 const SETTINGS = (() => {
   const defaults = Object.freeze({ sensitivity: 1, aimSensitivity: .75, invertY: false,
     mouseAssist: false, controllerAssist: true, cameraShake: .65, speedFov: .8,
-    steeringAssist: .35, hudScale: 1, bloom: true, resolution: 1.25, shadows: true,
+    steeringAssist: .35, hudScale: 1, perfOverlay: false, bloom: true, resolution: 1.25, shadows: true,
     auto: true, edges: true, masterVolume:.8,sfxVolume:1,vehicleVolume:.85,ambientVolume:.65,musicVolume:.7,quietMix:false,bindings: {} });
   const actions = { KeyW:'Forward / accelerate', KeyS:'Back / brake', KeyA:'Left', KeyD:'Right',
     ShiftLeft:'Sprint', Space:'Jump / vault / handbrake', KeyF:'Enter / exit vehicle',
@@ -6358,7 +6367,7 @@ const SETTINGS = (() => {
     for (const [key, min, max] of [['sensitivity',.3,3],['aimSensitivity',.2,1.5],['cameraShake',0,1],['speedFov',0,1],['steeringAssist',0,1],['hudScale',.8,1.3],['resolution',.75,1.5],...['masterVolume','sfxVolume','vehicleVolume','ambientVolume','musicVolume'].map(k=>[k,0,1])]) {
       o[key] = Number.isFinite(o[key]) ? Math.min(max,Math.max(min,o[key])) : defaults[key];
     }
-    for (const key of ['invertY','mouseAssist','controllerAssist','bloom','shadows','auto','edges','quietMix']) if (typeof o[key] !== 'boolean') o[key] = defaults[key];
+    for (const key of ['invertY','mouseAssist','controllerAssist','bloom','shadows','auto','edges','quietMix','perfOverlay']) if (typeof o[key] !== 'boolean') o[key] = defaults[key];
     const bindings = {}, used = new Set();
     for (const key of Object.keys(actions)) { const value = o.bindings && o.bindings[key]; if (typeof value === 'string' && /^(Key[A-Z]|Space|ShiftLeft|ControlLeft|AltLeft)$/.test(value) && !['KeyM','KeyP','KeyT','KeyH','KeyL','KeyY','KeyN','KeyG','AltLeft'].includes(value) && !used.has(value)) { bindings[key] = value; used.add(value); } }
     o.bindings = bindings;
@@ -6373,12 +6382,12 @@ const SETTINGS = (() => {
   function build() {
     root = document.createElement('section'); root.id = 'settings'; root.hidden = true;
     root.setAttribute('role','dialog'); root.setAttribute('aria-modal','true'); root.setAttribute('aria-label','Pause and settings');
-    root.innerHTML = '<div class="settings-card"><header><div><small>GRIFT CITY</small><h1>Take a breath.</h1></div><button id="settings-resume">Resume game</button></header><p id="settings-status"></p><div class="settings-grid"></div><footer><button id="settings-reset">Restore all settings defaults</button><button id="settings-new">New game</button><span>Esc to resume · Changes save automatically</span></footer></div>';
+    root.innerHTML = '<div class="settings-card"><header><div><small>GRIFT CITY</small><h1>Take a breath.</h1></div><button id="settings-resume">Resume game</button></header><p id="settings-status"></p><div class="settings-grid"></div><footer><button id="settings-perf">Copy performance report</button><button id="settings-reset">Restore all settings defaults</button><button id="settings-new">New game</button><span>Esc to resume · Changes save automatically</span></footer></div>';
     document.body.appendChild(root);
     const grid = root.querySelector('.settings-grid');
     const groups = [
       ['Camera & comfort', [['sensitivity','Look sensitivity',.3,3,.1],['aimSensitivity','Aim sensitivity',.2,1.5,.05],['cameraShake','Camera shake',0,1,.05],['speedFov','Speed / sprint FOV effect',0,1,.1],['hudScale','HUD & text scale',.8,1.3,.05],['invertY','Invert vertical look'],['mouseAssist','Mouse aim assistance'],['controllerAssist','Controller / touch aim assistance'],['steeringAssist','Countersteer assistance',0,1,.05]]],
-      ['Picture & sound', [['resolution','Render scale',.75,1.5,.25],['shadows','Sun shadows'],['bloom','Bloom & tone mapping'],['edges','Illustrated outlines'],['auto','Adaptive quality'],['muted','Mute all sound'],['masterVolume','Master volume',0,1,.05],['sfxVolume','Effects volume',0,1,.05],['vehicleVolume','Vehicle volume',0,1,.05],['ambientVolume','Street & weather volume',0,1,.05],['musicVolume','Radio volume',0,1,.05],['quietMix','Quiet dynamic range']]]
+      ['Picture & sound', [['resolution','Render scale',.75,1.5,.25],['shadows','Sun shadows'],['bloom','Bloom & tone mapping'],['edges','Illustrated outlines'],['auto','Adaptive quality'],['perfOverlay','Performance overlay'],['muted','Mute all sound'],['masterVolume','Master volume',0,1,.05],['sfxVolume','Effects volume',0,1,.05],['vehicleVolume','Vehicle volume',0,1,.05],['ambientVolume','Street & weather volume',0,1,.05],['musicVolume','Radio volume',0,1,.05],['quietMix','Quiet dynamic range']]]
     ];
     for (const [name, rows] of groups) {
       const section = document.createElement('fieldset'); const legend = document.createElement('legend'); legend.textContent = name; section.appendChild(legend);
@@ -6401,6 +6410,10 @@ const SETTINGS = (() => {
     grid.appendChild(field);
     root.querySelector('#settings-resume').onclick = resume;
     root.querySelector('#settings-new').onclick = () => GAME.askNewGame();
+    // The report is how an iPad's real numbers reach whoever tunes the game: paste it into the chat.
+    root.querySelector('#settings-perf').onclick = () => { const text = JSON.stringify(GAME.perfReport()); const status = root.querySelector('#settings-status');
+      const shown = () => { status.textContent = text; const r = document.createRange(); r.selectNodeContents(status); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); };
+      try { navigator.clipboard.writeText(text).then(() => { status.textContent = 'Performance report copied. Paste it into the chat.'; }, shown); } catch (e) { shown(); } };
     root.querySelector('#settings-reset').onclick = () => { Object.assign(GAME.options, defaults, {bindings:{}}); GAME.saveOptions(); refresh(); };
     // Do not let form interactions become shots, menu shortcuts, or pointer-lock requests.
     for (const event of ['mousedown','mouseup','mousemove','wheel','touchstart','touchend']) root.addEventListener(event,e=>e.stopPropagation());
@@ -6455,7 +6468,7 @@ const GAME = (() => {
   const AUTO_LEVELS = 5, AO_STRENGTH = 0.65, STEP = 1 / 60, MAX_STEPS = 6;
   function loadOptions() { try { Object.assign(options, JSON.parse(localStorage.getItem('grift-city-options') || '{}')); } catch (e) { } SETTINGS.sanitize(options); applyOptions(); }
   function saveOptions() { try { localStorage.setItem('grift-city-options', JSON.stringify(options)); } catch (e) { } SETTINGS.sanitize(options); applyOptions(); }
-  function applyOptions() { AUDIO.setMix(options);const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 5; RENDER.post.enabled = options.bloom && L < 4; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.4 : 0; RENDER.env.interiors = !/[?&]rooms=0/.test(location.search); RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
+  function applyOptions() { AUDIO.setMix(options);const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 5; RENDER.post.enabled = options.bloom && L < 4; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.4 : 0; RENDER.env.interiors = !/[?&]rooms=0/.test(location.search); /* the rungs shed what costs most per pixel and shows least first: probe rebuilds, lamp occlusion and distant lamps, normal maps; then AO, resolution, post and shadows */ RENDER.env.probes = L < 1; RENDER.env.localShadow = L < 1; RENDER.env.maxLights = L >= 3 ? 10 : L >= 2 ? 14 : L >= 1 ? 20 : 32; RENDER.env.normalMaps = L < 2; RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
   // The decision alone, with no side effects, so it can be driven directly by a test. Returns 'lower', 'raise'
   // or null. What stops it oscillating is not a limit on how often quality may be restored -- that turned a few
   // transient stalls into a permanent downgrade on a machine well able to run it -- but a count of the restores
@@ -6570,7 +6583,21 @@ const GAME = (() => {
       PICKUPS.add('weapon', s.x + 4, s.z - 4, { weapon: w, ammo: w === 'rocket' ? 4 : 60, respawn: 240, packageReward: w });
     });
   }
+  // ---- Device truth: what this machine actually delivers, for the overlay and the copyable report. Numbers from a
+  // headless Linux browser say little about an iPad; these are measured where the game is played.
+  const perf = { iv: new Float32Array(300), i: 0, n: 0, sim: 0, draw: 0, losses: 0, gpu: '', rep: null, repT: 0 };
+  function perfSample(raw) { perf.iv[perf.i] = raw * 1000; perf.i = (perf.i + 1) % perf.iv.length; perf.n = Math.min(perf.iv.length, perf.n + 1); }
+  function perfReport() {
+    const a = Array.from(perf.iv.subarray(0, perf.n)).sort((x, y) => x - y), q = p => +(a[Math.min(a.length - 1, Math.floor(p * a.length))] || 0).toFixed(1);
+    const gl = RENDER.gl; if (!perf.gpu && gl) { try { const ext = gl.getExtension('WEBGL_debug_renderer_info'); perf.gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); } catch (e) { perf.gpu = '?'; } }
+    const mem = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null;
+    return { frameP50: q(.5), frameP95: q(.95), frameP99: q(.99), cap: auto.cap ? '30 Hz' : 'none found', level: options.auto ? auto.level : 'off', simMs: +perf.sim.toFixed(2), renderMs: +perf.draw.toFixed(2),
+      draws: RENDER.stats.draws, tris: Math.round(RENDER.stats.tris), dpr: +(window.devicePixelRatio || 1).toFixed(2), scale: options.resolution, heapMB: mem, contextLosses: perf.losses, gpu: perf.gpu,
+      canvas: RENDER.gl ? RENDER.gl.drawingBufferWidth + 'x' + RENDER.gl.drawingBufferHeight : '', touch: !!TOUCH.active, ua: navigator.userAgent.slice(0, 160), build: document.title };
+  }
+  function perfInfo() { if (performance.now() - perf.repT > 500) { perf.rep = perfReport(); perf.repT = performance.now(); } return perf.rep; }
   function onPackage(n) {
+    if (!MISSIONS.S.current) MISSIONS.S.saveSoon = 1;
     restorePackageRewards(n);
     const w = PACKAGE_WEAPONS[n / 5 - 1];
     if (w) HUD.notify(WEAPONS[w].name + ' now spawns at the safehouse');
@@ -6584,7 +6611,7 @@ const GAME = (() => {
   }
   function build(mark = () => { }) {
     const tex = TEX.build(); mark('textures');
-    RENDER.init(canvas, tex); mark('renderInit'); loadOptions();
+    RENDER.init(canvas, tex); tex.color = tex.normal = null; TEX.release(); mark('renderInit'); loadOptions();
     const sb = CITY.generate(); mark('cityGen'); console.log('static tris', (sb.i.length / 3) | 0, 'verts', sb.n); staticMesh = sb.buildChunked(CITY.PITCH); mark('cityMesh'); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; waterMesh.water = true; W.indexLights(); AMBIENT.init(); W.initProps();
     propList = W.PROP_TYPES.map(k => W.propMeshes[k]); propList.push(W.lampHeads, W.tlHeads);
     PICKUPS.placeWorld(); MISSIONS.placeRampages(); VEH.spawnParked(); VEH.spawnMarina(); AMBIENT.launchFerry();
@@ -6598,6 +6625,11 @@ const GAME = (() => {
     document.addEventListener('pointerdown',e=>{if(state==='map'&&!TOUCH.active&&!e.target.closest('#map-nav'))NAV.mapClick(e.clientX,e.clientY,e.button);});
     document.addEventListener('mousedown', e => { if (state !== 'title' || TOUCH.active) return; const r = HUD.newGameRect; if (r && e.clientX >= r.x && e.clientX <= r.x + r.w && e.clientY >= r.y && e.clientY <= r.y + r.h) { INPUT.tapKey('KeyN'); return; } startPlay(); }, { once: false });
 
+    // Safari drops the GL context when memory is short or the tab sat in the background. The city is rebuilt from its
+    // seed on reload, so recovery is: save what can be saved, say what is happening, and start again.
+    canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); lostContext = true; perf.losses++; if (started) save(); HUD.notify('The browser reset the graphics. Restoring…'); setTimeout(() => location.reload(), 1200); });
+    // iPadOS can evict a background tab without warning: leaving the page is the last safe moment to save.
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && started && PLAYER.P.alive && !MISSIONS.S.current && (state === 'playing' || state === 'paused' || state === 'map')) save(); });
     window.__ready = true;
     mark('rest'); console.log('boot', JSON.stringify(window.__bootTimes));
     last = performance.now(); requestAnimationFrame(frame);
@@ -6607,7 +6639,8 @@ const GAME = (() => {
   const scene = { statics: [], props: [], entities: [], flat: W.F, particles: W.P };
   function frame(now) {
     requestAnimationFrame(frame);
-    const raw = Math.max(0, (now - last) / 1000); let dt = Math.min(0.1, raw); last = now; INPUT.pollPad(); autoQuality(raw);
+    const raw = Math.max(0, (now - last) / 1000); let dt = Math.min(0.1, raw); last = now; INPUT.pollPad(); autoQuality(raw); if (state === 'playing') perfSample(raw);
+    if (lostContext) { HUD.draw(dt, state); INPUT.endFrame(); return; }
     if (window.__pt) { // playtest mode: fixed timestep, render every N steps, full quality only on request
       const pt = window.__pt; if (pt.paused) { INPUT.endFrame(); return; } dt = pt.dt; pt.n = (pt.n || 0) + 1; const shot = pt.wantShot;
       if (pt.replay) { const s = pt.replay[pt.n - 1]; if (s) INPUT.restore(s); else { pt.paused = true; pt.done = true; INPUT.endFrame(); return; } } // a recording drives the inputs instead of a bot
@@ -6619,7 +6652,7 @@ const GAME = (() => {
       INPUT.endFrame(); return;
     }
     wipeT = Math.max(0, wipeT - dt);
-    if (state === 'title') { if (INPUT.hit('KeyN')) askNewGame(); RENDER.setTimeOfDay(W.state.time, W.weather.rain); titleCamera(now / 1000); renderWorld(dt, true); HUD.draw(dt, 'title'); INPUT.endFrame(); return; }
+    if (state === 'title') { if (INPUT.hit('KeyN')) askNewGame(); titleSkip = !titleSkip; if (!titleSkip || raw > 0.025) { RENDER.setTimeOfDay(W.state.time, W.weather.rain); titleCamera(now / 1000); renderWorld(dt, true); } HUD.draw(dt, 'title'); INPUT.endFrame(); return; } // the title orbit runs at half rate on a 60 Hz screen: it is scenery, and it keeps the device cool
     if (INPUT.hit('Escape')) { if (MISSIONS.shop) { } else if (state === 'playing') { state = 'paused'; INPUT.releaseLock(); } else if (state === 'paused') { state = 'playing'; INPUT.requestLock(); } else if(state==='map'){state='playing';INPUT.releaseAll();} }
     if (INPUT.hit('Tab')) { if (state === 'playing') {state = 'map';INPUT.releaseLock();} else if (state === 'map') state = 'playing'; }
     if (INPUT.hit('KeyP') && state === 'playing' && !MISSIONS.shop) { state = 'photo'; const c = RENDER.cam; const d = Math.hypot(c.tx - c.x, c.ty - c.y, c.tz - c.z) || 1; photo = { x: c.x, y: c.y, z: c.z, yaw: Math.atan2(c.tx - c.x, c.tz - c.z), pitch: Math.asin((c.ty - c.y) / d), fov: 55, shot: false, savedT: 0 }; INPUT.requestLock(); }
@@ -6630,11 +6663,13 @@ const GAME = (() => {
     if (state === 'playing' && !INPUT.locked && INPUT.mouse.clicked) INPUT.requestLock();
     // the world advances in steps no longer than a 60 Hz frame: a slow frame is simulated as several small steps rather
     // than one big one, so the game keeps real-time pace down to ten frames a second and the physics never sees a jump
-    if (state === 'playing' && !window.__manual) { const n = Math.min(MAX_STEPS, Math.max(1, Math.ceil(dt / STEP - 1e-6))); const h = dt / n; for (let i = 0; i < n; i++) { step(h); if (i < n - 1) INPUT.consumeEdges(); } }
+    const t0 = performance.now(); if (state === 'playing' && !window.__manual) { const n = Math.min(MAX_STEPS, Math.max(1, Math.ceil(dt / STEP - 1e-6))); const h = dt / n; for (let i = 0; i < n; i++) { step(h); if (i < n - 1) INPUT.consumeEdges(); } } const t1 = performance.now(); perf.sim += (t1 - t0 - perf.sim) * 0.05;
     fpsAcc += raw; fpsN++; if (fpsAcc > 1) { window.__fps = fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
-    renderWorld(dt, false); if (state === 'photo' && photo.shot) { photo.shot = false; savePhoto(); } HUD.draw(dt, state, photo); INPUT.endFrame();
+    // Paused or on the map the world does not move, so it is drawn once and held: the browser keeps showing the last
+    // frame, and the GPU idles instead of redrawing the same picture sixty times a second behind a menu.
+    const still = state === 'paused' || state === 'map'; if (!still || !heldFrame || ++heldN % 30 === 0) renderWorld(dt, false); heldFrame = still; /* and twice a second anyway, in case a rotation resized the canvas */ perf.draw += (performance.now() - t1 - perf.draw) * 0.05; if (state === 'photo' && photo.shot) { photo.shot = false; savePhoto(); } HUD.draw(dt, state, photo); INPUT.endFrame();
   }
-  let fpsAcc = 0, fpsN = 0, fps = 0; const nearSounds = { park: null, water: null };
+  let fpsAcc = 0, fpsN = 0, fps = 0, titleSkip = false, heldFrame = false, heldN = 0, lostContext = false; const nearSounds = { park: null, water: null };
   // ---- Photo mode: the world freezes and the camera is yours. WASD/QE fly, mouse looks, wheel zooms, click or Enter saves a PNG.
   let photo = null;
   function updatePhoto(dt) { const m = INPUT.mouse; const sens = 0.0022 * (options.sensitivity || 1); photo.yaw -= m.dx * sens; photo.pitch = M.clamp(photo.pitch - m.dy * sens * (options.invertY ? -1 : 1), -1.4, 1.4);
@@ -6765,7 +6800,7 @@ const GAME = (() => {
     RENDER.render(canvas, scene, W.state.elapsed);
   }
   window.addEventListener('load', boot);
-  return { quality, options, auto, saveOptions, save, load, hasSave, saveInfo, askNewGame, newGame, onPackage, get wipeArmed() { return wipeT > 0; }, get state() { return state; }, set state(s) { state = s; }, get fps() { return fps; }, startPlay };
+  return { quality, options, auto, saveOptions, save, load, hasSave, saveInfo, perfInfo, perfReport, askNewGame, newGame, onPackage, get wipeArmed() { return wipeT > 0; }, get state() { return state; }, set state(s) { state = s; }, get fps() { return fps; }, startPlay };
 })();
 
 </script>

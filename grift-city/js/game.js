@@ -9,7 +9,7 @@ const GAME = (() => {
   const AUTO_LEVELS = 5, AO_STRENGTH = 0.65, STEP = 1 / 60, MAX_STEPS = 6;
   function loadOptions() { try { Object.assign(options, JSON.parse(localStorage.getItem('grift-city-options') || '{}')); } catch (e) { } SETTINGS.sanitize(options); applyOptions(); }
   function saveOptions() { try { localStorage.setItem('grift-city-options', JSON.stringify(options)); } catch (e) { } SETTINGS.sanitize(options); applyOptions(); }
-  function applyOptions() { AUDIO.setMix(options);const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 5; RENDER.post.enabled = options.bloom && L < 4; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.4 : 0; RENDER.env.interiors = !/[?&]rooms=0/.test(location.search); RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
+  function applyOptions() { AUDIO.setMix(options);const L = options.auto ? auto.level : 0; quality.shadows = options.shadows && L < 5; RENDER.post.enabled = options.bloom && L < 4; RENDER.post.ao = L >= 2 ? 0 : AO_STRENGTH; RENDER.post.edges = options.edges && !/[?&]edges=0/.test(location.search) ? 0.4 : 0; RENDER.env.interiors = !/[?&]rooms=0/.test(location.search); /* the rungs shed what costs most per pixel and shows least first: probe rebuilds, lamp occlusion and distant lamps, normal maps; then AO, resolution, post and shadows */ RENDER.env.probes = L < 1; RENDER.env.localShadow = L < 1; RENDER.env.maxLights = L >= 3 ? 10 : L >= 2 ? 14 : L >= 1 ? 20 : 32; RENDER.env.normalMaps = L < 2; RENDER.post.dprCap = Math.min(options.resolution, L >= 3 ? 0.75 : L >= 1 ? 1.0 : 9); }
   // The decision alone, with no side effects, so it can be driven directly by a test. Returns 'lower', 'raise'
   // or null. What stops it oscillating is not a limit on how often quality may be restored -- that turned a few
   // transient stalls into a permanent downgrade on a machine well able to run it -- but a count of the restores
@@ -124,7 +124,21 @@ const GAME = (() => {
       PICKUPS.add('weapon', s.x + 4, s.z - 4, { weapon: w, ammo: w === 'rocket' ? 4 : 60, respawn: 240, packageReward: w });
     });
   }
+  // ---- Device truth: what this machine actually delivers, for the overlay and the copyable report. Numbers from a
+  // headless Linux browser say little about an iPad; these are measured where the game is played.
+  const perf = { iv: new Float32Array(300), i: 0, n: 0, sim: 0, draw: 0, losses: 0, gpu: '', rep: null, repT: 0 };
+  function perfSample(raw) { perf.iv[perf.i] = raw * 1000; perf.i = (perf.i + 1) % perf.iv.length; perf.n = Math.min(perf.iv.length, perf.n + 1); }
+  function perfReport() {
+    const a = Array.from(perf.iv.subarray(0, perf.n)).sort((x, y) => x - y), q = p => +(a[Math.min(a.length - 1, Math.floor(p * a.length))] || 0).toFixed(1);
+    const gl = RENDER.gl; if (!perf.gpu && gl) { try { const ext = gl.getExtension('WEBGL_debug_renderer_info'); perf.gpu = ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); } catch (e) { perf.gpu = '?'; } }
+    const mem = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null;
+    return { frameP50: q(.5), frameP95: q(.95), frameP99: q(.99), cap: auto.cap ? '30 Hz' : 'none found', level: options.auto ? auto.level : 'off', simMs: +perf.sim.toFixed(2), renderMs: +perf.draw.toFixed(2),
+      draws: RENDER.stats.draws, tris: Math.round(RENDER.stats.tris), dpr: +(window.devicePixelRatio || 1).toFixed(2), scale: options.resolution, heapMB: mem, contextLosses: perf.losses, gpu: perf.gpu,
+      canvas: RENDER.gl ? RENDER.gl.drawingBufferWidth + 'x' + RENDER.gl.drawingBufferHeight : '', touch: !!TOUCH.active, ua: navigator.userAgent.slice(0, 160), build: document.title };
+  }
+  function perfInfo() { if (performance.now() - perf.repT > 500) { perf.rep = perfReport(); perf.repT = performance.now(); } return perf.rep; }
   function onPackage(n) {
+    if (!MISSIONS.S.current) MISSIONS.S.saveSoon = 1;
     restorePackageRewards(n);
     const w = PACKAGE_WEAPONS[n / 5 - 1];
     if (w) HUD.notify(WEAPONS[w].name + ' now spawns at the safehouse');
@@ -138,7 +152,7 @@ const GAME = (() => {
   }
   function build(mark = () => { }) {
     const tex = TEX.build(); mark('textures');
-    RENDER.init(canvas, tex); mark('renderInit'); loadOptions();
+    RENDER.init(canvas, tex); tex.color = tex.normal = null; TEX.release(); mark('renderInit'); loadOptions();
     const sb = CITY.generate(); mark('cityGen'); console.log('static tris', (sb.i.length / 3) | 0, 'verts', sb.n); staticMesh = sb.buildChunked(CITY.PITCH); mark('cityMesh'); waterMesh = CITY.water.build(); waterMesh.uvOff = new Float32Array(2); waterMesh.spec = 0.9; waterMesh.water = true; W.indexLights(); AMBIENT.init(); W.initProps();
     propList = W.PROP_TYPES.map(k => W.propMeshes[k]); propList.push(W.lampHeads, W.tlHeads);
     PICKUPS.placeWorld(); MISSIONS.placeRampages(); VEH.spawnParked(); VEH.spawnMarina(); AMBIENT.launchFerry();
@@ -152,6 +166,11 @@ const GAME = (() => {
     document.addEventListener('pointerdown',e=>{if(state==='map'&&!TOUCH.active&&!e.target.closest('#map-nav'))NAV.mapClick(e.clientX,e.clientY,e.button);});
     document.addEventListener('mousedown', e => { if (state !== 'title' || TOUCH.active) return; const r = HUD.newGameRect; if (r && e.clientX >= r.x && e.clientX <= r.x + r.w && e.clientY >= r.y && e.clientY <= r.y + r.h) { INPUT.tapKey('KeyN'); return; } startPlay(); }, { once: false });
 
+    // Safari drops the GL context when memory is short or the tab sat in the background. The city is rebuilt from its
+    // seed on reload, so recovery is: save what can be saved, say what is happening, and start again.
+    canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); lostContext = true; perf.losses++; if (started) save(); HUD.notify('The browser reset the graphics. Restoring…'); setTimeout(() => location.reload(), 1200); });
+    // iPadOS can evict a background tab without warning: leaving the page is the last safe moment to save.
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && started && PLAYER.P.alive && !MISSIONS.S.current && (state === 'playing' || state === 'paused' || state === 'map')) save(); });
     window.__ready = true;
     mark('rest'); console.log('boot', JSON.stringify(window.__bootTimes));
     last = performance.now(); requestAnimationFrame(frame);
@@ -161,7 +180,8 @@ const GAME = (() => {
   const scene = { statics: [], props: [], entities: [], flat: W.F, particles: W.P };
   function frame(now) {
     requestAnimationFrame(frame);
-    const raw = Math.max(0, (now - last) / 1000); let dt = Math.min(0.1, raw); last = now; INPUT.pollPad(); autoQuality(raw);
+    const raw = Math.max(0, (now - last) / 1000); let dt = Math.min(0.1, raw); last = now; INPUT.pollPad(); autoQuality(raw); if (state === 'playing') perfSample(raw);
+    if (lostContext) { HUD.draw(dt, state); INPUT.endFrame(); return; }
     if (window.__pt) { // playtest mode: fixed timestep, render every N steps, full quality only on request
       const pt = window.__pt; if (pt.paused) { INPUT.endFrame(); return; } dt = pt.dt; pt.n = (pt.n || 0) + 1; const shot = pt.wantShot;
       if (pt.replay) { const s = pt.replay[pt.n - 1]; if (s) INPUT.restore(s); else { pt.paused = true; pt.done = true; INPUT.endFrame(); return; } } // a recording drives the inputs instead of a bot
@@ -173,7 +193,7 @@ const GAME = (() => {
       INPUT.endFrame(); return;
     }
     wipeT = Math.max(0, wipeT - dt);
-    if (state === 'title') { if (INPUT.hit('KeyN')) askNewGame(); RENDER.setTimeOfDay(W.state.time, W.weather.rain); titleCamera(now / 1000); renderWorld(dt, true); HUD.draw(dt, 'title'); INPUT.endFrame(); return; }
+    if (state === 'title') { if (INPUT.hit('KeyN')) askNewGame(); titleSkip = !titleSkip; if (!titleSkip || raw > 0.025) { RENDER.setTimeOfDay(W.state.time, W.weather.rain); titleCamera(now / 1000); renderWorld(dt, true); } HUD.draw(dt, 'title'); INPUT.endFrame(); return; } // the title orbit runs at half rate on a 60 Hz screen: it is scenery, and it keeps the device cool
     if (INPUT.hit('Escape')) { if (MISSIONS.shop) { } else if (state === 'playing') { state = 'paused'; INPUT.releaseLock(); } else if (state === 'paused') { state = 'playing'; INPUT.requestLock(); } else if(state==='map'){state='playing';INPUT.releaseAll();} }
     if (INPUT.hit('Tab')) { if (state === 'playing') {state = 'map';INPUT.releaseLock();} else if (state === 'map') state = 'playing'; }
     if (INPUT.hit('KeyP') && state === 'playing' && !MISSIONS.shop) { state = 'photo'; const c = RENDER.cam; const d = Math.hypot(c.tx - c.x, c.ty - c.y, c.tz - c.z) || 1; photo = { x: c.x, y: c.y, z: c.z, yaw: Math.atan2(c.tx - c.x, c.tz - c.z), pitch: Math.asin((c.ty - c.y) / d), fov: 55, shot: false, savedT: 0 }; INPUT.requestLock(); }
@@ -184,11 +204,13 @@ const GAME = (() => {
     if (state === 'playing' && !INPUT.locked && INPUT.mouse.clicked) INPUT.requestLock();
     // the world advances in steps no longer than a 60 Hz frame: a slow frame is simulated as several small steps rather
     // than one big one, so the game keeps real-time pace down to ten frames a second and the physics never sees a jump
-    if (state === 'playing' && !window.__manual) { const n = Math.min(MAX_STEPS, Math.max(1, Math.ceil(dt / STEP - 1e-6))); const h = dt / n; for (let i = 0; i < n; i++) { step(h); if (i < n - 1) INPUT.consumeEdges(); } }
+    const t0 = performance.now(); if (state === 'playing' && !window.__manual) { const n = Math.min(MAX_STEPS, Math.max(1, Math.ceil(dt / STEP - 1e-6))); const h = dt / n; for (let i = 0; i < n; i++) { step(h); if (i < n - 1) INPUT.consumeEdges(); } } const t1 = performance.now(); perf.sim += (t1 - t0 - perf.sim) * 0.05;
     fpsAcc += raw; fpsN++; if (fpsAcc > 1) { window.__fps = fps = Math.round(fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
-    renderWorld(dt, false); if (state === 'photo' && photo.shot) { photo.shot = false; savePhoto(); } HUD.draw(dt, state, photo); INPUT.endFrame();
+    // Paused or on the map the world does not move, so it is drawn once and held: the browser keeps showing the last
+    // frame, and the GPU idles instead of redrawing the same picture sixty times a second behind a menu.
+    const still = state === 'paused' || state === 'map'; if (!still || !heldFrame || ++heldN % 30 === 0) renderWorld(dt, false); heldFrame = still; /* and twice a second anyway, in case a rotation resized the canvas */ perf.draw += (performance.now() - t1 - perf.draw) * 0.05; if (state === 'photo' && photo.shot) { photo.shot = false; savePhoto(); } HUD.draw(dt, state, photo); INPUT.endFrame();
   }
-  let fpsAcc = 0, fpsN = 0, fps = 0; const nearSounds = { park: null, water: null };
+  let fpsAcc = 0, fpsN = 0, fps = 0, titleSkip = false, heldFrame = false, heldN = 0, lostContext = false; const nearSounds = { park: null, water: null };
   // ---- Photo mode: the world freezes and the camera is yours. WASD/QE fly, mouse looks, wheel zooms, click or Enter saves a PNG.
   let photo = null;
   function updatePhoto(dt) { const m = INPUT.mouse; const sens = 0.0022 * (options.sensitivity || 1); photo.yaw -= m.dx * sens; photo.pitch = M.clamp(photo.pitch - m.dy * sens * (options.invertY ? -1 : 1), -1.4, 1.4);
@@ -319,5 +341,5 @@ const GAME = (() => {
     RENDER.render(canvas, scene, W.state.elapsed);
   }
   window.addEventListener('load', boot);
-  return { quality, options, auto, saveOptions, save, load, hasSave, saveInfo, askNewGame, newGame, onPackage, get wipeArmed() { return wipeT > 0; }, get state() { return state; }, set state(s) { state = s; }, get fps() { return fps; }, startPlay };
+  return { quality, options, auto, saveOptions, save, load, hasSave, saveInfo, perfInfo, perfReport, askNewGame, newGame, onPackage, get wipeArmed() { return wipeT > 0; }, get state() { return state; }, set state(s) { state = s; }, get fps() { return fps; }, startPlay };
 })();

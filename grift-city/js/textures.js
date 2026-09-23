@@ -278,5 +278,8 @@ const TEX = (() => {
     });
     return { color: layers, normal: normals, panes };
   }
-  return { build, preload, names, S, NS, base, flatN, get layers() { return layers; }, get normals() { return normals; }, get shopKinds() { return shopKinds; } };
+  // Once the layers are on the GPU the painted pixels are dead weight: roughly a megabyte a layer, colour and normal.
+  // A lost context is recovered by reloading the page, so nothing needs them again.
+  function release() { layers.length = 0; normals.length = 0; }
+  return { build, release, preload, names, S, NS, base, flatN, get layers() { return layers; }, get normals() { return normals; }, get shopKinds() { return shopKinds; } };
 })();

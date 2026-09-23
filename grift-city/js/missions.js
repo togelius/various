@@ -395,7 +395,7 @@ const MISSIONS = (() => {
     const p = P(); if (!p.alive) return; if (S.doorT > 0) S.doorT -= dt;
     if (S.shopLatch && M.dist2(p.x, p.z, S.shopLatch.x, S.shopLatch.z) > S.shopLatch.r2 * 1.4) S.shopLatch = null;
     if (S.shop) { objective(''); if (INPUT.hit('Escape') || INPUT.hit('KeyF') || M.dist2(p.x, p.z, S.shop.x, S.shop.z) > (S.shop.kind === 'dealer' ? 64 : 16)) { closeShop(); return; }
-      for (let i = 0; i < S.shop.items.length; i++) if (INPUT.hit('Digit' + (i + 1))) { const it = S.shop.items[i]; if (!it.enabled || it.price > p.money) { HUD.notify(it.price > p.money ? 'Not enough cash.' : "Can't do that now."); AUDIO.play('click'); } else if (it.action) it.action(); if (!S.shop) break; }
+      for (let i = 0; i < S.shop.items.length; i++) if (INPUT.hit('Digit' + (i + 1))) { const it = S.shop.items[i]; if (!it.enabled || it.price > p.money) { HUD.notify(it.price > p.money ? 'Not enough cash.' : "Can't do that now."); AUDIO.play('click'); } else if (it.action) { it.action(); S.saveSoon = 1.5; } if (!S.shop) break; } // what you buy is saved, so a tab the iPad throws away does not take it with it
       return; }
     for (const g of CITY.places.guns) if (!p.car && M.dist2(p.x, p.z, g.x, g.z) < 4) { const hr = W.state.time; if (hr >= 23 || hr < 7) { if (!(S.closedT > 0)) { HUD.notify('IRONMONGER is closed. Opens at 7.'); S.closedT = 6; } } else openShop(gunMenu(g)); } if (S.closedT > 0) S.closedT -= dt;
     // A respray is only sold when there is something to fix (stars or damage), and once per visit: waiting in the
@@ -418,6 +418,7 @@ const MISSIONS = (() => {
     for (const k in S.givers) { const g = S.givers[k]; g.health = 1e9; if (g.state === 'dead' || g.removed) { g.removed = true; delete S.givers[k]; } }
   }
   function update(dt) {
+    if (S.saveSoon > 0) { S.saveSoon -= dt; if (S.saveSoon <= 0 && !S.current && P().alive) GAME.save(); }
     if (S.failBanner > 0) { S.failBanner -= dt; if (S.failBanner <= 0) HUD.big('MISSION FAILED', '#c0281e', 3); }
     if (S.cooldown > 0) S.cooldown -= dt; ensureGivers(); updateRampage(dt);
     if (S.dialogue) { const d = S.dialogue; S.lineT += dt; if (S.lineT > 4.2 || INPUT.hit('Space') || INPUT.hit('Enter') || INPUT.mouse.clicked || INPUT.pad.pressed[0]) { d.i++; S.lineT = 0; AUDIO.play('click'); if (d.i >= d.lines.length) { S.dialogue = null; if (d.then) d.then(); } } return; }

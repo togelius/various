@@ -54,7 +54,7 @@ const RENDER = (() => {
   `;
   const FS = DISPLAY_GLSL + `
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in float vEmis;
-    uniform samplerCube uProbe; uniform vec3 uProbePos;
+    uniform samplerCube uProbe; uniform vec3 uProbePos; uniform float uProbeOn;
     uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform sampler2DArray uNrm;
     uniform float uActor; uniform float uNrmOn; uniform float uNrmStr; uniform float uEmis; uniform vec4 uPanes[128]; uniform float uInterior;
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
@@ -184,7 +184,7 @@ const RENDER = (() => {
         vec3 edge=((sign(refl)*vec3(30.0,14.0,30.0))-probeDelta)/raySafe;
         float travel=max(0.0,min(edge.x,min(edge.y,edge.z)));
         vec3 localRefl=textureLod(uProbe,probeDelta+refl*travel,rough*4.0).rgb;
-        float localWeight=(1.0-smoothstep(18.0,42.0,length(probeDelta.xz)))*.78;
+        float localWeight=(1.0-smoothstep(18.0,42.0,length(probeDelta.xz)))*.78*uProbeOn;
         skyRefl=mix(skyRefl,localRefl,localWeight);
         float fres = 0.08 + 0.92 * pow(1.0 - max(dot(n, v), 0.0), 4.0);
         float dn = clamp(refl.y * 2.0 + 0.55, 0.0, 1.0); // rays aimed at the ground see the street, not the sky
@@ -460,7 +460,7 @@ const RENDER = (() => {
   }
 
   function setLights(list) {
-    updateProbe();
+    if (env.probes !== false || !probe) updateProbe(); // the quality ladder can stop rebuilding reflection probes; one is kept bound
     // The MAX_LIGHTS nearest the camera target win. A city block carries hundreds of street lamps, so this keeps a
     // sorted shortlist by insertion rather than sorting the whole list with a comparator every frame.
     const n0 = list.length; let m = 0;
@@ -472,10 +472,10 @@ const RENDER = (() => {
       selD[j] = d2; selL[j] = L; if (m < MAX_LIGHTS) m++;
     }
     // Conservative local building occluders. Only the nearest eight and first two lights incur this work.
-    const blocks=CITY.lotsNear(cam.tx,cam.tz,45).filter(l=>l.h>.8).sort((a,b)=>M.dist2((a.x0+a.x1)/2,(a.z0+a.z1)/2,cam.tx,cam.tz)-M.dist2((b.x0+b.x1)/2,(b.z0+b.z1)/2,cam.tx,cam.tz)).slice(0,8);
+    const blocks=env.localShadow===false?[]:CITY.lotsNear(cam.tx,cam.tz,45).filter(l=>l.h>.8).sort((a,b)=>M.dist2((a.x0+a.x1)/2,(a.z0+a.z1)/2,cam.tx,cam.tz)-M.dist2((b.x0+b.x1)/2,(b.z0+b.z1)/2,cam.tx,cam.tz)).slice(0,8);
     localBlocks.n=blocks.length;
     blocks.forEach((b,i)=>{localBlocks.min.set([b.x0,b.y0||0,b.z0,0],i*4);localBlocks.max.set([b.x1,b.h,b.z1,0],i*4);});
-    lights.n = m;
+    m = Math.min(m, env.maxLights || MAX_LIGHTS); lights.n = m; // nearest first, so a lower rung keeps the lamps that matter
     for (let i = 0; i < m; i++) { const L = selL[i], o = i * 4, c = i * 3;
       lights.pos[o] = L.x; lights.pos[o + 1] = L.y; lights.pos[o + 2] = L.z; lights.pos[o + 3] = L.r;
       lights.dir.set(L.dir ? [...L.dir,L.cone ?? .6] : [0,0,0,-1],o);
@@ -495,7 +495,7 @@ const RENDER = (() => {
       gl.uniform1f(P.u.uFogHeight, env.fogHeight); gl.uniform1f(P.u.uFogSun, env.fogSun);
       gl.uniform3fv(P.u.uZenith, env.zenith); gl.uniform3fv(P.u.uHorizon, env.horizon); gl.uniform1f(P.u.uReflect, env.reflect); gl.uniform1f(P.u.uWet, env.wet);
       gl.uniform1f(P.u.uNightEmis, env.nightEmis); gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTexOn, 1); gl.uniform1f(P.u.uSpec, 0); gl.uniform1f(P.u.uActor,0); gl.uniform1f(P.u.uHDR, hdrOut ? 1 : 0); gl.uniform1f(P.u.uExposure, post.exposure); gl.uniform1f(P.u.uSat, post.sat); gl.uniform3fv(P.u.uTint, post.tint); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uWater, 0); gl.uniform1f(P.u.uTime, env.time || 0);
-      if (!probe) updateProbe(); gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP,probe.texture); gl.uniform1i(P.u.uProbe,4); gl.uniform3fv(P.u.uProbePos,probe.pos);
+      if (!probe) updateProbe(); gl.uniform1f(P.u.uProbeOn, env.probes === false ? 0 : 1); gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_CUBE_MAP,probe.texture); gl.uniform1i(P.u.uProbe,4); gl.uniform3fv(P.u.uProbePos,probe.pos);
       gl.uniform4fv(P.u.uLightDirs,lights.dir); gl.uniform4fv(P.u.uBlockMin,localBlocks.min); gl.uniform4fv(P.u.uBlockMax,localBlocks.max); gl.uniform1i(P.u.uBlockCount,localBlocks.n);
       gl.uniform4fv(P.u.uLights, lights.pos); gl.uniform3fv(P.u.uLightCols, lights.col); gl.uniform1i(P.u.uNumLights, lights.n);
     }

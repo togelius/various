@@ -114,9 +114,14 @@ const HUD = (() => {
     }
     g.restore();
   }
+  // Performance overlay (Settings > Performance overlay): frame times as delivered, the detected cap, the rung the
+  // adaptive quality settled on and what the frame costs, readable on the device itself.
+  function drawPerf() { const r = GAME.perfInfo(); if (!r) return; const lines = [`frame ${r.frameP50} / ${r.frameP95} / ${r.frameP99} ms  (p50/p95/p99)`, `cap ${r.cap} · quality rung ${r.level} · scale ${r.scale} · dpr ${r.dpr}`, `sim ${r.simMs} ms · render ${r.renderMs} ms (CPU)`, `${r.draws} draws · ${(r.tris / 1000).toFixed(0)}k tris · ${r.canvas}${r.heapMB ? ' · heap ' + r.heapMB + ' MB' : ''}`, `${r.gpu}`];
+    const x = W_ / 2 - 190, y = 8; g.fillStyle = 'rgba(8,14,18,0.72)'; g.fillRect(x, y, 380, lines.length * 15 + 10); lines.forEach((l, i) => text(l, x + 8, y + 14 + i * 15, 11, i === 0 && r.frameP95 > (r.cap === '30 Hz' ? 40 : 22) ? '#ff9a7a' : '#d8e6e2', 'left', 'normal', false)); }
   function stars(P, x, y) { for (let i = 0; i < 5; i++) { const lit = i < P.wanted; const flash = starFlash > 0 && lit && Math.sin(W.state.elapsed * 20) > 0; text('★', x - i * 24, y, 24, lit ? (flash ? '#fff' : '#f5c542') : 'rgba(255,255,255,0.18)', 'center'); } }
 
-  function draw(dt, state, photo) {if(typeof NAV!=='undefined')NAV.sync(state);
+  function draw(dt, state, photo) { drawFrame(dt, state, photo); if (GAME.options.perfOverlay && state !== 'title' && state !== 'loading') drawPerf(); } // the overlay goes on top of everything, letterbox included
+  function drawFrame(dt, state, photo) {if(typeof NAV!=='undefined')NAV.sync(state);
     resize(); g.clearRect(0, 0, W_, H_); zones.length = 0; const P = PLAYER.P;
     if (state === 'title') return drawTitle();
     if (state === 'photo') { text('PHOTO MODE  ·  WASD/QE fly  ·  SHIFT fast  ·  wheel zoom  ·  click or ENTER saves a picture  ·  P back', W_ / 2, H_ - 18, 13, 'rgba(255,255,255,0.75)', 'center', 'normal'); if (photo && photo.savedT > 0) text('SAVED', W_ / 2, H_ / 2, 28, '#f5c542', 'center'); return; }
