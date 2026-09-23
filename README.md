@@ -23,6 +23,8 @@ subdirectory with its own README:
   fields of fallen machines, after the paintings of Simon Stålenhag. Every
   image is painted in code. Open `steelhag/index.html`, or the single-file
   build in `steelhag/dist/`.
+- **[steelhag2/](steelhag2/)** — STÅLHAGEN II · Isvägen, a 3D action/horror
+  sequel in planning: the design document (`steelhag2/DESIGN.md`), no code yet.
 - **[scriptprof/](scriptprof/)** — SCRIPTPROF, a lab for generating
   PuzzleScript games: rewrite-rule engine, BFS playtester, MAP-Elites
   archive. Open `scriptprof/index.html`.
