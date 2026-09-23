@@ -394,6 +394,10 @@ const VEH = (() => {
       const targetY=t===PLAYER&&this.driver?.isCop?(POLICE.S.lastY||0):(t.P?.y||t.y||0);
       if(typeof STREETS!=='undefined'&&(Math.abs(targetY-this.y)>1||ai.surfacePath?.length)){ai.surfaceT=(ai.surfaceT||0)-dt;if(ai.surfaceT<=0){ai.surfacePath=STREETS.navigation(this,{x:px,z:pz,y:targetY},this.spec.wid);ai.surfaceT=2;}
         while(ai.surfacePath?.length&&M.dist(this.x,this.z,ai.surfacePath[0].x,ai.surfacePath[0].z)<3&&Math.abs(this.y-ai.surfacePath[0].y)<.8)ai.surfacePath.shift();if(ai.surfacePath?.length){px=ai.surfacePath[0].x;pz=ai.surfacePath[0].z;}}
+      // Close behind a fleeing car at two stars or more, a cruiser goes for the PIT: it aims at the rear quarter on its own
+      // side, so the contact spins the target (see the angular impulse in collide) instead of just shunting it.
+      if (t === PLAYER && t.car && this.driver?.isCop && PLAYER.wanted >= 2 && t.car.absSpeed > 8) { const tc = t.car, dd = M.dist(this.x, this.z, tc.x, tc.z); const behind = (this.x - tc.x) * tc.fwd[0] + (this.z - tc.z) * tc.fwd[1] < 0;
+        if (dd < 16 && behind && (!POLICE.observe || POLICE.observe(this))) { const side = ((this.x - tc.x) * tc.right[0] + (this.z - tc.z) * tc.right[1]) >= 0 ? 1 : -1; px = tc.x - tc.fwd[0] * tc.spec.len * 0.3 + tc.right[0] * side * 0.9 + tc.vx * 0.25; pz = tc.z - tc.fwd[1] * tc.spec.len * 0.3 + tc.right[1] * side * 0.9 + tc.vz * 0.25; ai.pit = true; } else ai.pit = false; }
       const d = M.dist(this.x, this.z, px, pz);
       // Far away or out of sight, a pursuer drives the roads like traffic with its siren on: through red lights, at
       // pursuit speed, turning at every junction toward the target along the road graph. Aiming straight at the
@@ -403,7 +407,7 @@ const VEH = (() => {
       c.handbrake = 0;
       if (ai.reverseT > 0) { ai.reverseT -= dt; c.throttle = 0; c.brake = 1; c.reverse = true; c.steer = M.clamp(-da * 2, -1, 1); return; } c.reverse = false;
       c.steer = M.clamp(da * 2.5, -1, 1);
-      const stopDist = t.car ? 3 : 7;
+      const stopDist = ai.pit ? 0 : t.car ? 3 : 7;
       if (d < stopDist) { c.throttle = 0; c.brake = 1; }
       else if (Math.abs(da) > 2.0 && this.speed < 3) { ai.reverseT = 1.0; }
       else { c.throttle = Math.abs(da) > 1.2 ? 0.5 : 1; c.brake = 0; if (Math.abs(da) > 0.7 && this.speed > 10) { c.throttle = 0; c.brake = 0.4; } if (Math.abs(da) > 1.0 && this.speed > 8) c.handbrake = 1; }

@@ -67,5 +67,10 @@ for(const where of ['hospital','police']){P.x=100;P.z=100;PLAYER.respawn(where);
  check(q.conned&&(P.money>0||POLICE.reports.length>0||P.wanted>0),'the pitch resolves: cash, or a report ($'+P.money+')');
  check(GRIFT.candidate()!==q,'nobody falls for it twice');
  const q2=PEDS.spawn(299,300);P.weapon='pistol';P.weaponOut=true;POLICE.setStars(1);check(GRIFT.odds(q2)<clean-.5,'a drawn gun and a star ruin the odds');P.weaponOut=false;POLICE.clear();}
+// 12. From three stars a roadblock comes with a spike strip across the road short of it; driving over it takes the tyres.
+{W.cars.length=0;W.peds.length=0;POLICE.clear();const P=PLAYER.P;P.alive=true;const n=CITY.roadNodes.find(q=>q.i===4&&q.j===4);P.x=n.x-120;P.z=n.z+1;const car=VEH.spawn('sedan',P.x,P.z,Math.PI/2,{mode:'parked'});car.vx=20;P.car=car;car.driver=PLAYER;
+ POLICE.setStars(3);POLICE.seen();POLICE.S.motion={f:[1,0.05],speed:20};POLICE.spawnRoadblock();check(POLICE.S.spikes.length===1,'a three-star roadblock lays a spike strip');
+ const k=POLICE.S.spikes[0];check(Math.abs(k.fz)<1e-9&&W.cars.filter(c=>c.roadblock).length===2,'the block sits square across the road');
+ car.x=k.x;car.z=k.z;car.vx=15;car.vz=0;POLICE.update(1/60);check(car.condition.tyres.every(t=>t===0),'driving over the strip shreds the tyres');P.car=null;car.driver=null;POLICE.clear();}
 console.log('Getaway: '+checks+' checks passed'+(blocked?' (aim scene blocked; aim checked in browser)':''));
 `,ctx);

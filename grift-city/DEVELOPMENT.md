@@ -159,3 +159,8 @@ The items the first pass left out, worked through one at a time with the same ga
   picks still happen, so the seeded city is unchanged).
 - [x] Touch layout settings: button size (0.75-1.4x), button opacity, and a left-handed mode that mirrors the action
   cluster and puts the stick on the right (the weapon wheel opens toward the screen centre either way).
+- [x] Roadblocks sit square across the road at the junction ahead of your line of travel, and from three stars a
+  spike strip goes down 26 m short of them; anything but a police car driving over it loses all four tyres
+  (`test/getaway.js`). Close behind a fleeing car at two stars, a cruiser aims for the rear quarter on its own side
+  and PITs it rather than braking to a stop behind (browser trial: contact in all four runs, the target spun and
+  stopped).

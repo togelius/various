@@ -1,7 +1,7 @@
 // GRIFT CITY — heat. Crimes raise it, cops answer it: foot patrols, cruisers, roadblocks, SWAT and a helicopter.
 'use strict';
 const POLICE = (() => {
-  const S = { heat: 0, seenT: 99, lastSeen: null, arrestT: 0, arresting: false, spawnT: 0, roadblockT: 20, footT: 0, heliT: 0, evadeMsg: 0, sirenVol: 0 };
+  const S = { spikes: [], heat: 0, seenT: 99, lastSeen: null, arrestT: 0, arresting: false, spawnT: 0, roadblockT: 20, footT: 0, heliT: 0, evadeMsg: 0, sirenVol: 0 };
   const HEAT = { con: 0.35, kill: 1.0, killcar: 0.55, copkill: 1.6, cop: 1.0, jack: 0.45, hit: 0.2, assault: 0.25, shoot: 0.12, explosion: 1.3, vandal: 0.12 };
   const stars = () => Math.min(5, Math.floor(S.heat));
   const COOLDOWN = { shoot: 1.5, assault: 1.2, hit: 0.6, vandal: 1.0 }; const lastCrime = {};
@@ -37,7 +37,7 @@ const POLICE = (() => {
   // respray banks it; WASTED or BUSTED takes it. clear() is used everywhere (respawns, beds, mission ends), so it
   // discards the pot, and only the two honest exits call bank() first.
   function bank(how) { const pot = Math.floor(S.pot || 0); S.pot = 0; if (pot >= 10) { PLAYER.addMoney(pot, how || 'clean getaway'); PLAYER.P.stats.bestRunToday = Math.max(PLAYER.P.stats.bestRunToday || 0, pot); if (pot > (PLAYER.P.stats.bestRun || 0)) { PLAYER.P.stats.bestRun = pot; HUD.notify('Best Heat Run yet: $' + pot.toLocaleString() + '.'); } } return pot; }
-  function clear() { S.pot = 0; S.heat = 0; PLAYER.P.wanted = 0; S.seenT = 99; S.lastSeen = null; S.search = null; S.description=null;reports.forEach(r=>{r.witness.reporting=0;r.witness.item=r.witness.reportItem||null;});reports.length=0;for(const k in lastCrime)delete lastCrime[k]; for (const c of W.cars) if (!c.removed && c.driver && c.driver.isCop && c.ai.mode === 'chase') { c.ai.mode = 'traffic'; c.ai.edge = null; c.siren = false; } if (W.heli) W.heli.leaving = true; }
+  function clear() { S.spikes.length = 0; S.pot = 0; S.heat = 0; PLAYER.P.wanted = 0; S.seenT = 99; S.lastSeen = null; S.search = null; S.description=null;reports.forEach(r=>{r.witness.reporting=0;r.witness.item=r.witness.reportItem||null;});reports.length=0;for(const k in lastCrime)delete lastCrime[k]; for (const c of W.cars) if (!c.removed && c.driver && c.driver.isCop && c.ai.mode === 'chase') { c.ai.mode = 'traffic'; c.ai.edge = null; c.siren = false; } if (W.heli) W.heli.leaving = true; }
   function setStars(n) { S.heat = Math.max(S.heat, n); PLAYER.P.wanted = stars(); S.seenT = 0; S.lastSeen = [PLAYER.x, PLAYER.z];S.lastY=PLAYER.P.y;S.description=description(); S.spawnT = 2.5; }
   function bribe() { S.heat = Math.max(0, S.heat - 1); PLAYER.P.wanted = stars(); }
 
@@ -67,7 +67,8 @@ const POLICE = (() => {
     for (let t = 0; t < 10; t++) { const n = cands[Math.floor(W.rng() * cands.length)]; const d = M.dist(n.x, n.z, P.x, P.z); if (W.los(n.x, n.z, P.x, P.z) && d < 50 && t < 8) continue; const p = PEDS.spawnCop(n.x, n.z, { weapon: P.wanted >= 3 ? 'shotgun' : 'pistol' }); p.alerted = 10; return p; }
   }
   function spawnRoadblock() {
-    if(!S.lastSeen||!S.motion||S.seenT>8)return;const P={x:S.lastSeen[0],z:S.lastSeen[1]},f=S.motion.f;const spd=Math.max(S.motion.speed,8);
+    if(!S.lastSeen||!S.motion||S.seenT>8)return;const P={x:S.lastSeen[0],z:S.lastSeen[1]},f0=S.motion.f;const spd=Math.max(S.motion.speed,8);
+    const f = Math.abs(f0[0]) > Math.abs(f0[1]) ? [Math.sign(f0[0]), 0] : [0, Math.sign(f0[1])]; // the roads run on the grid, so the block goes square across one
     // an intersection roughly ahead
     let best = null, bd = 1e9; for (const n of CITY.roadNodes) { const dx = n.x - P.x, dz = n.z - P.z; const along = dx * f[0] + dz * f[1]; const across = Math.abs(-dx * f[1] + dz * f[0]); if (along < 70 || along > 170 || across > 12) continue; const d = along + across * 3; if (d < bd) { bd = d; best = n; } }
     if (!best) return;
@@ -75,8 +76,18 @@ const POLICE = (() => {
     const bx = best.x - f[0] * 2, bz = best.z - f[1] * 2;
     for (let k = -1; k <= 1; k += 2) { const c = VEH.spawn('police', bx + perp[0] * k * 2.6, bz + perp[1] * k * 2.6, ang, { mode: 'parked' }); c.siren = true; c.lightsOn = true; c.roadblock = true; c.ai.mode = 'parked';
       const p = PEDS.spawnCop(bx + perp[0] * k * 3 + f[0] * 3.5, bz + perp[1] * k * 3 + f[1] * 3.5, { weapon: 'shotgun' }); p.alerted = 20; p.car = c; }
-    HUD.notify('Roadblock ahead!');
+    // From three stars a spike strip goes down across the road short of the block: brake for the block, or lose the
+    // tyres trying to swerve round it late.
+    if (PLAYER.wanted >= 3) S.spikes.push({ x: best.x - f[0] * 26, z: best.z - f[1] * 26, fx: f[0], fz: f[1], half: CITY.ROAD / 2 - 0.4, t: 50 });
+    HUD.notify(PLAYER.wanted >= 3 ? 'Roadblock ahead, with a spike strip!' : 'Roadblock ahead!');
   }
+  function updateSpikes(dt) {
+    for (let i = S.spikes.length - 1; i >= 0; i--) { const k = S.spikes[i]; k.t -= dt; if (k.t <= 0) { S.spikes.splice(i, 1); continue; }
+      for (const c of W.cars) { if (c.removed || c.wrecked || c.type === 'police' || c.type === 'swat' || c.spec.boat || !c.condition) continue; const dx = c.x - k.x, dz = c.z - k.z, along = dx * k.fx + dz * k.fz, across = Math.abs(-dx * k.fz + dz * k.fx);
+        if (Math.abs(along) < c.spec.len / 2 + 0.3 && across < k.half && c.absSpeed > 2) { const t = c.condition.tyres; if (t.some(v => v > 0)) { for (let j = 0; j < 4; j++) t[j] = 0; c.syncCondition(); AUDIO.play('hit', c.x, c.z); W.FX.spark(c.x, 0.3, c.z, 12); if (c.driver === PLAYER) { HUD.notify('Spike strip! The tyres are gone.'); PLAYER.shake(0.6); } } } } } }
+  function drawFX() { for (const k of S.spikes) { const y = CITY.groundY(k.x, k.z) + 0.04, px = -k.fz, pz = k.fx, w = 0.28;
+      W.fx.quad(W.F.tris, [k.x + px * k.half - k.fx * w, y, k.z + pz * k.half - k.fz * w], [k.x - px * k.half - k.fx * w, y, k.z - pz * k.half - k.fz * w], [k.x - px * k.half + k.fx * w, y, k.z - pz * k.half + k.fz * w], [k.x + px * k.half + k.fx * w, y, k.z + pz * k.half + k.fz * w], [0.12, 0.12, 0.13], 0.95);
+      for (let s = -k.half; s <= k.half; s += 0.55) { const cx = k.x + px * s, cz = k.z + pz * s; W.fx.line(cx, y, cz, cx, y + 0.12, cz, [0.75, 0.75, 0.78], 0.9); } } }
 
   // ---- Helicopter
   function spawnHeli() {
@@ -115,7 +126,7 @@ const POLICE = (() => {
   function update(dt) {
     updateReports(dt);const P = PLAYER.P; const w = stars(); P.wanted = w;
     if (!S.arresting) S.arrestT = Math.max(0, S.arrestT - dt * 2); S.arresting = false;
-    S.seenT += dt; if (S.searchT > 0) S.searchT -= dt;
+    S.seenT += dt; if (S.searchT > 0) S.searchT -= dt; updateSpikes(dt);
     if (w === 0 && S.heat > 0) S.heat = Math.max(0, S.heat - dt * 0.012); // suspicion short of a star fades in a minute or two instead of waiting forever for the next crime
     if (w > 0 && P.alive) {
       // out of sight in a car park or the safehouse yard, the trail goes cold twice as fast
@@ -153,5 +164,5 @@ const POLICE = (() => {
     let pitch = 1; if (loud && loud !== P.car) { const dx = loud.x - P.x, dz = loud.z - P.z, d = Math.hypot(dx, dz) || 1; const pv = P.car ? [P.car.vx, P.car.vz] : [P.vx || 0, P.vz || 0]; const vrel = ((loud.vx - pv[0]) * dx + (loud.vz - pv[1]) * dz) / d; pitch = M.clamp(343 / (343 + vrel), 0.86, 1.16); } // doppler: a cruiser closing sounds sharper, one pulling away flatter
     AUDIO.siren(M.clamp(vol, 0, 1) * (P.car && P.car.siren ? 1 : 0.8) + (P.car && P.car.siren ? 0.6 : 0), dt, pitch);
   }
-  return { S, bank, reports, updateReports, identified, observe, crime, seen, pursuitPoint, arrestProgress, clear, setStars, bribe, update, heliEntity, stars, get lastSeen() { return S.lastSeen; } };
+  return { S, bank, drawFX, spawnRoadblock, reports, updateReports, identified, observe, crime, seen, pursuitPoint, arrestProgress, clear, setStars, bribe, update, heliEntity, stars, get lastSeen() { return S.lastSeen; } };
 })();
