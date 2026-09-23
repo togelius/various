@@ -134,7 +134,7 @@ const POLICE = (() => {
       // cop cars see the player too
       const see = 70 * (1 - 0.55 * (W.weather.fog || 0)) * (W.isNight() ? 0.8 : 1); // fog and darkness shorten the police's sight
       for(const c of W.cars)if(!c.removed&&c.ai.mode==='chase'&&c.driver?.isCop)observe(c);
-      const evade = 10 + w * 7;
+      const evade = (10 + w * 7) * (typeof MISSIONS !== 'undefined' && MISSIONS.S.flags.ending === 'crane' ? 0.6 : 1); // Crane's police forget faster
       S.pot = (S.pot || 0) + dt * 5 * w * w;
       if (S.seenT > evade) { S.heat = Math.max(0, Math.floor(S.heat) - 1 + 0.9); S.seenT = evade * 0.55; if (stars() === 0) { S.heat = 0; HUD.notify('You lost the cops.'); bank('clean getaway'); clear(); } }
       // spawning

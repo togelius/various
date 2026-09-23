@@ -57,7 +57,7 @@ const PICKUPS = (() => {
 })();
 
 const MISSIONS = (() => {
-  const S = { fails: {}, timerScale: 1, cp: null, skipIntro: false, flags: {}, saveT: 6, sprayT: 0, sprayWarn: 0, progress2: 0, phoneProgress: 0, rampage: null, rampageDone: {}, givers: {}, blips: [], current: null, progress: 0, done: {}, dialogue: null, lineT: 0, blip: null, blips: [], objective: '', timer: -1, spawned: [], markers: [], shop: null, side: null, pending: null, cooldown: 0, ending: false };
+  const S = { choice: null, fails: {}, timerScale: 1, cp: null, skipIntro: false, flags: {}, saveT: 6, sprayT: 0, sprayWarn: 0, progress2: 0, phoneProgress: 0, rampage: null, rampageDone: {}, givers: {}, blips: [], current: null, progress: 0, done: {}, dialogue: null, lineT: 0, blip: null, blips: [], objective: '', timer: -1, spawned: [], markers: [], shop: null, side: null, pending: null, cooldown: 0, ending: false };
   const P = () => PLAYER.P;
   const place = (k, i = 0) => CITY.place(k, i);
   const laneSpot = (i, j, di, dj, s, lane = 0) => { const n = CITY.roadNodes[i * (CITY.GRID + 1) + j]; const e = n.out.find(o => o.dx === di && o.dz === dj); let [x, z] = CITY.lanePoint(e, lane, s); if (lane === 1) { x += e.rx * 0.7; z += e.rz * 0.7; } return { x, z, angle: Math.atan2(di, dj), e, lane, s }; };
@@ -239,8 +239,14 @@ const MISSIONS = (() => {
         if (d.phase === 0 && (near(t.x, t.z, 34) || W.state.heard.some(n => M.dist(n.x, n.z, t.x, t.z) < 60))) { d.phase = 1; for (const g of d.guards) { g.stationary = false; g.hostile = true; } c.say('Kill them!'); objective("Stop Crane's Bastion!"); blip(d.car.x, d.car.z, '#f5c542', d.car); c.fleeInCar(d.car, 21); }
         if (d.phase === 1 && c.alive && !c.bailed && !c.inCar && c.state !== 'goto' && !d.car.driver && !d.car.wrecked) c.fleeInCar(d.car, 21);
         if (d.phase === 1 && c.alive && c.inCar === d.car && !d.car.wrecked && M.dist(d.car.x, d.car.z, P().x, P().z) > 320) return fail('The Bastion made the bridge. Crane is gone, and so is Marla\'s chance.'); // the finale can be lost
-        if (d.phase === 1 && ((c.inCar && d.car.wrecked) || !c.alive)) { if (c.alive) c.die(PLAYER, 'explosion'); d.phase = 2; POLICE.setStars(5); const s = place('safehouse'); blip(s.x, s.z); objective('Crane is finished. Get to the safehouse!'); HUD.big('CRANE IS DEAD', '#f5c542', 3); }
-        if (d.phase === 2) { const s = place('safehouse'); if (near(s.x, s.z, 8)) { POLICE.clear(); pass(25000, null); S.ending = true; say([['MARLA', 'It is done. Crane is gone, and every crook on this island is asking who you are.'], ['MARLA', 'You know what? Let them ask.'], [null, 'GRIFT CITY IS YOURS.'], [null, 'Thanks for playing. The city stays open: side jobs, packages, and the police, who never forget.']], () => { S.ending = false; }); } } } },
+        // The ending turns on how the Bastion is stopped. Blown up, or Crane shot, and he is dead. Crashed to a halt, and
+        // he climbs out alive with an offer: finish it for Marla, or take his money and his city.
+        const killed = () => { if (c.alive) c.die(PLAYER, 'explosion'); d.phase = 2; POLICE.setStars(5); const s = place('safehouse'); blip(s.x, s.z); objective('Crane is finished. Get to the safehouse!'); HUD.big('CRANE IS DEAD', '#f5c542', 3); };
+        if ((d.phase === 1 || d.phase === 3) && !c.alive) killed();
+        else if (d.phase === 1 && c.inCar === d.car && d.car.wrecked) { if (d.car.burned) killed(); else { c.exitCar(); c.stationary = true; c.hostile = false; c.faceTarget = P(); c.health = Math.max(c.health, 60); c.say('Enough! Enough.'); d.phase = 3; blip(c.x, c.z, '#f5c542', c); objective('Crane crawls out of the wreck, alive. Walk up to him.'); } }
+        if (d.phase === 3 && c.alive && !P().car && near(c.x, c.z, 5)) { d.phase = 4; for (const g of d.guards) if (g.alive) { g.hostile = false; g.stationary = true; }
+          say([['CRANE', 'Look at you. Marla sends her best, and her best is a stranger off the ferry.'], ['CRANE', "Whatever she's paying you, I'll give you forty thousand now. Walk away and the tower has an office with your name on it."], ['CRANE', 'Or pull the trigger and spend your life running her errands. Your choice.']], () => { S.choice = { prompt: 'Silas Crane, on his knees in the wreck', options: ['Finish it (for Marla)', 'Take his deal'], then: i => { if (i === 0) { S.flags.ending = 'marla'; killed(); } else takeDeal(d); } }; }, c); }
+        if (d.phase === 2) { const s = place('safehouse'); if (near(s.x, s.z, 8)) { POLICE.clear(); S.flags.ending = 'marla'; pass(25000, null); S.ending = true; say([['MARLA', 'It is done. Crane is gone, and every crook on this island is asking who you are.'], ['MARLA', 'You know what? Let them ask.'], [null, 'GRIFT CITY IS YOURS.'], [null, 'Thanks for playing. The city stays open: side jobs, packages, and the police, who never forget.']], () => { S.ending = false; }); } } } },
   ];
 
   // ---- Strand two: Captain Okafor at Pier 9. Opens after COLLECTIONS.
@@ -438,6 +444,7 @@ const MISSIONS = (() => {
     if (S.saveSoon > 0) { S.saveSoon -= dt; if (S.saveSoon <= 0 && !S.current && P().alive) GAME.save(); }
     if (S.failBanner > 0) { S.failBanner -= dt; if (S.failBanner <= 0) HUD.big('MISSION FAILED', '#c0281e', 3); }
     if (S.cooldown > 0) S.cooldown -= dt; ensureGivers(); updateRampage(dt);
+    if (updateChoice()) return;
     if (S.dialogue) { const d = S.dialogue; S.lineT += dt; if (S.lineT > 4.2 || INPUT.hit('Space') || INPUT.hit('Enter') || INPUT.mouse.clicked || INPUT.pad.pressed[0]) { d.i++; S.lineT = 0; AUDIO.play('click'); if (d.i >= d.lines.length) { S.dialogue = null; if (d.then) d.then(); } } return; }
     if (S.timer > 0) S.timer -= dt / S.timerScale; // the third try at a job gets a gentler clock
     const p = P();
@@ -469,6 +476,12 @@ const MISSIONS = (() => {
   function markersFX(t) { for (const mk of S.markers) W.fx.marker(mk.x, mk.z, mk.r, 1.6, mk.col, t); if (S.roof) { const ra = CITY.roofAccess; W.fx.marker(ra.top.x, ra.top.z, 0.9, 1.6, [1, 0.5, 0.9], t); return; } if (S.inside) { const room = CITY.interiors[S.inside]; W.fx.marker(room.door.x, room.door.z, 0.9, 1.6, [1, 0.5, 0.9], t); for (const k of ['counter', 'wardrobe', 'bed']) if (room.spots[k]) W.fx.marker(room.spots[k].x, room.spots[k].z, 1.0, 1.6, [1, 0.85, 0.3], t); return; } if (!S.current && !S.side) { for (const g of CITY.places.guns) W.fx.marker(g.x, g.z, 1.4, 1.6, [1, 0.3, 0.3], t); for (const sp of CITY.places.spray) W.fx.marker(sp.x, sp.z, 2.6, 1.6, [0.2, 0.85, 0.8], t); const sh = place('safehouse'); W.fx.marker(sh.x, sh.z, 1.4, 1.6, [1, 0.5, 0.9], t); const br = CITY.places.bar && CITY.places.bar[0]; if (br) W.fx.marker(br.x, br.z, 1.4, 1.6, [0.35, 0.6, 1], t); const ra = CITY.roofAccess; if (ra) W.fx.marker(ra.outside.x, ra.outside.z, 1.2, 1.6, [0.6, 0.6, 1], t); } else { for (const sp of CITY.places.spray) W.fx.marker(sp.x, sp.z, 2.6, 1.6, [0.2, 0.85, 0.8], t); } }
   function allBlips() { const out = []; const b = blipPos(); if (b) out.push(b); if (S.tip) out.push({ x: S.tip.x, z: S.tip.z, col: '#f5c542' }); for (const e of S.blips) { const o = e.obj; if (!o || o.removed || (o.wrecked && o.spec)) continue; out.push({ x: o.x, z: o.z, col: e.col }); } return out; }
   function blipPos() { if (!S.blip) return null; const b = S.blip; if (b.obj) { if (b.obj.removed) return null; return { x: b.obj.x, z: b.obj.z, col: b.col }; } return b; }
+  // The other ending: Crane pays, walks, and the city changes hands. Marla's discount is gone; Crane's crews stop
+  // treating you as a target; the police, who work for him, lose interest faster.
+  function takeDeal(d) { const c = d.crane; S.flags.ending = 'crane'; POLICE.clear(); PLAYER.addMoney(40000, 'Silas Crane'); c.stationary = false; c.faceTarget = null; c.state = 'walk';
+    if (typeof ECON !== 'undefined') { ECON.S.rep.marla = -5; ECON.S.rep.crane = 5; }
+    pass(0, null); S.ending = true; say([['CRANE', 'A sensible man. I knew there was one on this island.'], ['MARLA', "(voicemail) You picked the wrong side of the table. Don't come to Voss Motors looking for a friend."], [null, 'GRIFT CITY IS CRANE\'S. AND YOU WORK FOR HIM NOW.'], [null, 'Thanks for playing. The city stays open, and some of it is yours: his crews leave you be, and his police forget faster.']], () => { S.ending = false; }); }
+  function updateChoice() { const ch = S.choice; if (!ch) return false; for (let i = 0; i < ch.options.length; i++) if (INPUT.hit('Digit' + (i + 1))) { S.choice = null; AUDIO.play('click'); ch.then(i); return true; } return true; }
   // What a save records about the job in hand, and how a load offers it back: the job by name, the checkpoint by index.
   function jobState() { const m = S.current || (S.retry && S.retry.m); if (!m) return null; return { name: m.name, cp: S.cp && S.cp.name === m.name ? S.cp.idx : null }; }
   function resumeJob(j) { if (!j) return; const m = [...LIST, ...LIST2, ...PHONE].find(q => q.name === j.name); if (!m) return; S.retry = { m, t: Infinity, resumed: true }; S.cp = j.cp !== null && j.cp !== undefined && m.checkpoints && m.checkpoints[j.cp] ? { name: m.name, idx: j.cp, restore: m.checkpoints[j.cp] } : null; }

@@ -62,6 +62,15 @@ function runCampaignAudit() {
   const job=MISSIONS.jobState();check(job&&job.name===m.name&&job.cp===0,'a save records the job and its checkpoint');leave();MISSIONS.cleanup();S.current=null;S.cp=null;S.retry=null;
   MISSIONS.resumeJob(JSON.parse(JSON.stringify(job)));check(S.retry&&S.retry.resumed&&S.cp&&S.cp.restore,'a load offers the job back');
   const oldHit=INPUT.hit;INPUT.hit=k=>k==='KeyY';try{MISSIONS.update(.016);}finally{INPUT.hit=oldHit;}check(S.current===m&&m.data.ambush&&S.timer>100,'resuming starts from the checkpoint');MISSIONS.cleanup();S.current=null;S.cp=null;log.push('Resume from a saved checkpoint — passed');}
+ // The finale's choice: a Bastion stopped by a crash leaves Crane alive with an offer; taking it pays $40,000, passes
+ // CRANE and turns Crane's people; finishing it is Marla's ending.
+ for(const pick of [1,0]){const m=MISSIONS.LIST[8];const d=start(m);beforeMoney=p.money;d.phase=1;d.crane.inCar=d.car;d.car.driver=d.crane;d.car.wrecked=true;d.car.disabled=true;update(m);check(d.phase===3&&d.crane.alive,'a crashed Bastion leaves Crane alive');
+  at(d.crane.x+2,d.crane.z);update(m);check(S.dialogue,'Crane makes his offer');const then=S.dialogue.then;S.dialogue=null;then&&then();check(S.choice&&S.choice.options.length===2,'the offer is a choice');
+  const oldHit=INPUT.hit;INPUT.hit=k=>k==='Digit'+(pick+1);try{MISSIONS.update(.016);}finally{INPUT.hit=oldHit;}S.dialogue=null;
+  if(pick===1){check(S.flags.ending==='crane'&&p.money-beforeMoney===40000&&ECON.S.rep.crane>0&&!S.current,'the deal pays and ends the story Crane\'s way');}
+  else{check(!d.crane.alive&&d.phase===2,'finishing it kills Crane');place('safehouse');update(m);check(S.flags.ending==='marla'&&!S.current,'Marla\'s ending');S.dialogue=null;}
+  MISSIONS.cleanup();S.current=null;POLICE.clear();}
+ log.push('The choice and both endings — passed');
  // The finale can be lost: the Bastion reaching open road far from the player fails CRANE.
  {const m=MISSIONS.LIST[8];const d=start(m);d.phase=1;d.crane.inCar=d.car;d.car.driver=d.crane;d.car.x=p.x+400;d.car.z=p.z;update(m);check(!S.current&&S.retry&&S.retry.m===m,'CRANE must fail when the Bastion escapes');S.retry=null;log.push('Finale fail branch — passed');}
  // The bank crew hold the door as fighters, not bystanders.

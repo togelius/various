@@ -173,3 +173,8 @@ The items the first pass left out, worked through one at a time with the same ga
   the tab). On load the interrupted job is offered back ("Where you left off: press Y / tap to resume ... from the
   checkpoint"). A failed job's retry offer now lapses after 45 s instead of hanging on the objective card forever.
   The campaign audit resumes SPECIAL DELIVERY from its ambush checkpoint through a JSON round trip.
+- [x] A choice and two endings. Stop Crane's Bastion by blowing it up (or shoot Crane) and he dies: Marla's ending.
+  Crash it to a halt and he climbs out alive and makes an offer; a choice panel (1/2 or tap) asks whether to finish it
+  for Marla or take his $40,000. The deal ends the story Crane's way: Marla's discount goes, Crane's crews stop
+  turning on you, the police forget faster (evasion time x0.6), and the Gazette reports that he walked away. The
+  ending is kept in the save's flags. The campaign audit plays both branches.
