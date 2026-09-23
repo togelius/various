@@ -194,3 +194,9 @@ The items the first pass left out, worked through one at a time with the same ga
   painter repaints. A miss paints as before and writes the cache four seconds after the game is up (only with 250 MB
   of storage headroom); any storage failure just paints. Headless, the texture phase goes from 9.7 s to 1.4 s on the
   second boot, and a cached boot renders the same as a painted one. `?paintcache=0` bypasses it.
+- [x] Opt-in performance logging: Settings > "Send performance numbers to Claude" writes one document a minute while
+  playing to the artifact's own database (`perf/<session>-<minute>`: that minute's frame count, mean and frames over
+  20/34/50 ms, plus the overlay's report: percentiles, rung, draws, triangles, heap, GPU string, canvas size; hour,
+  weather, in-car and stars for context; nothing else about the player). Off by default; capped at three hours a
+  session; outside the claude.ai viewer nothing is sent. The published artifact declares `db` for this, which makes
+  it organisation-internal (it cannot be shared by public link while that capability is declared).

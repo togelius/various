@@ -137,6 +137,17 @@ const GAME = (() => {
       draws: RENDER.stats.draws, tris: Math.round(RENDER.stats.tris), dpr: +(window.devicePixelRatio || 1).toFixed(2), scale: options.resolution, heapMB: mem, contextLosses: perf.losses, gpu: perf.gpu,
       canvas: RENDER.gl ? RENDER.gl.drawingBufferWidth + 'x' + RENDER.gl.drawingBufferHeight : '', touch: !!TOUCH.active, ua: navigator.userAgent.slice(0, 160), build: document.title };
   }
+  // Opt-in telemetry: with Settings > Send performance numbers on, a summary of the last minute goes to this artifact's
+  // own database once a minute while playing (frame percentiles, rung, draws, heap, GPU string; nothing about the
+  // player), where Claude can read it back. Outside the claude.ai viewer there is no database and nothing is sent.
+  const tele = { id: Math.random().toString(36).slice(2, 9), n: 0, t: 0, db: undefined, sent: 0, err: null };
+  function teleTick(raw) { if (!options.perfShare || state !== 'playing') return;
+    if (tele.db === undefined) { tele.db = null; if (window.claude && window.claude.use) window.claude.use('db').then(db => { tele.db = db || false; }).catch(() => { tele.db = false; }); else tele.db = false; }
+    const ms = raw * 1000; tele.frames = (tele.frames || 0) + 1; tele.sum = (tele.sum || 0) + ms; if (ms > 20) tele.over20 = (tele.over20 || 0) + 1; if (ms > 34) tele.over34 = (tele.over34 || 0) + 1; if (ms > 50) tele.over50 = (tele.over50 || 0) + 1;
+    tele.t += raw; if (tele.t < 60 || tele.n >= 180) return; tele.t = 0;
+    const minute = { frames: tele.frames, meanMs: +(tele.sum / tele.frames).toFixed(1), over20ms: tele.over20 || 0, over34ms: tele.over34 || 0, over50ms: tele.over50 || 0 }; tele.frames = tele.sum = tele.over20 = tele.over34 = tele.over50 = 0;
+    if (!tele.db) return; const r = perfReport(); tele.n++;
+    tele.db.doc('perf/' + tele.id + '-' + String(tele.n).padStart(3, '0')).set({ ...r, ...minute, session: tele.id, minute: tele.n, at: new Date().toISOString(), hour: +W.state.time.toFixed(1), inCar: !!PLAYER.P.car, wanted: PLAYER.P.wanted, weather: +W.weather.rain.toFixed(2) }).then(() => { tele.sent++; }, e => { tele.err = e && e.code; }); }
   function perfInfo() { if (performance.now() - perf.repT > 500) { perf.rep = perfReport(); perf.repT = performance.now(); } return perf.rep; }
   function onPackage(n) {
     if (!MISSIONS.S.current) MISSIONS.S.saveSoon = 1;
@@ -182,7 +193,7 @@ const GAME = (() => {
   const scene = { statics: [], props: [], entities: [], flat: W.F, particles: W.P };
   function frame(now) {
     requestAnimationFrame(frame);
-    const raw = Math.max(0, (now - last) / 1000); let dt = Math.min(0.1, raw); last = now; INPUT.pollPad(); autoQuality(raw); if (state === 'playing') perfSample(raw);
+    const raw = Math.max(0, (now - last) / 1000); let dt = Math.min(0.1, raw); last = now; INPUT.pollPad(); autoQuality(raw); if (state === 'playing') perfSample(raw); teleTick(raw);
     if (lostContext) { HUD.draw(dt, state); INPUT.endFrame(); return; }
     if (window.__pt) { // playtest mode: fixed timestep, render every N steps, full quality only on request
       const pt = window.__pt; if (pt.paused) { INPUT.endFrame(); return; } dt = pt.dt; pt.n = (pt.n || 0) + 1; const shot = pt.wantShot;
@@ -344,5 +355,5 @@ const GAME = (() => {
     RENDER.render(canvas, scene, W.state.elapsed);
   }
   window.addEventListener('load', boot);
-  return { quality, options, auto, saveOptions, save, load, hasSave, saveInfo, perfInfo, perfReport, askNewGame, newGame, onPackage, get wipeArmed() { return wipeT > 0; }, get state() { return state; }, set state(s) { state = s; }, get fps() { return fps; }, startPlay };
+  return { quality, options, auto, saveOptions, save, load, hasSave, saveInfo, perfInfo, perfReport, get telemetry() { return { sent: tele.sent, error: tele.err, available: tele.db === undefined ? null : !!tele.db }; }, askNewGame, newGame, onPackage, get wipeArmed() { return wipeT > 0; }, get state() { return state; }, set state(s) { state = s; }, get fps() { return fps; }, startPlay };
 })();
