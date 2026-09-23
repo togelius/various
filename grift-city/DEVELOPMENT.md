@@ -62,8 +62,8 @@ time): visual, persistence, vehicles, enter_test, docks_test, repo_test, rev_tes
 - [x] 3. A cold open through the Foundry Quarter.
 - [x] 4. Pursuit legs: cruisers that reach you, a patrol car at one star, T-bones and PIT, the Heat Run pot.
 - [x] 5. One-thumb combat: lock-on, a context ACTION button, fewer touch buttons.
-- [ ] 6. Nights and look.
-- [ ] 7. Story order, the con, the morning paper.
+- [x] 6. Nights and look.
+- [x] 7. Story order, the con, the morning paper.
 
 ## Validation log
 
@@ -129,3 +129,21 @@ ammo; the thumb's direction picks, release selects. Taxis and cruisers get a JOB
 work. Holding FIRE on touch uses the controller aim assist (step 1 made the lock work at range), and the gun arm
 now points at a locked target instead of following the orbit camera's tilt (`test/getaway.js`: the hand rises for
 a target overhead). The Heat Run readout sits below the weapon block.
+
+Step 6: nights are designed rather than subtracted. The night zenith is indigo instead of near-black, the horizon
+carries a sodium-orange glow the city throws on its haze, fog at night carries that glow into the distance, and
+light bounced up from lamp-lit pavement is warm. Twilight lasts to about 19:15 (it was full night by 18:45).
+Static geometry can now glow at night by tag (bone 20 warm, 21 beacon, resolved in the shader from the existing
+vertex attribute, no new draws): the aircraft beacons on towers and landmarks, and a lit band around Crane
+Holdings' crown. Checked on dusk, night and roof-skyline contact sheets.
+
+Step 7: Marla's finale waits until Okafor's nine jobs are done (they are all against a living Crane; the audit
+checks CRANE will not start before and does after). The Accountant phone contract is skipped once Crane is dead.
+CRANE can be lost: the Bastion reaching 320 m from you with Crane aboard fails the job. The bank crew in THE FIRST
+GRIFT hold the door and fire back (their 'crewwork' role had fallen through to civilian AI). The con: beside an
+ordinary pedestrian, empty-handed and unhurried, hold G (Y on a pad, HUSTLE on touch) for 2.4 s; one of three
+pitches (Charm, Pressure, Story) lands for $40-260 or blows up into a shout and a witness report. A drawn gun,
+stars or a cop in sight cut the odds, the night and the good suit help, and nobody falls for it twice
+(`test/getaway.js`). The Grift City Gazette prints when you wake at the safehouse and at seven each morning,
+with up to three headlines from what you did since the last edition: the last job passed, the best Heat Run
+banked, cruisers wrecked, bodies, stolen cars, cons, arrests and packages.

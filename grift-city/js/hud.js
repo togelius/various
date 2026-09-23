@@ -124,6 +124,35 @@ const HUD = (() => {
     g.save(); g.lineCap = 'round'; for (let i = 0; i < 28; i++) { const h = Math.sin(i * 12.9898) * 43758.5453, a = (h - Math.floor(h)) * M.TAU, ph = ((t * (1.6 + k * 2) + i * 0.37) % 1); const r0 = R * (0.55 + ph * 0.45), r1 = r0 + R * (0.08 + 0.12 * k);
       g.strokeStyle = `rgba(255,255,255,${(0.10 + 0.22 * k) * Math.sin(ph * Math.PI)})`; g.lineWidth = 1.2 + k; g.beginPath(); g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); g.stroke(); }
     g.restore(); }
+  // ---- The morning paper: what you did since the last edition, as the city tells it. Printed when you wake at the
+  // safehouse and at seven each morning, if there was anything to print.
+  const MISSION_HEADS = { 'HOT CAR': 'FALCATA STOLEN IN BROAD DAYLIGHT', 'REPO MAN': 'NORTHGATE MAN LOSES CAR TO REPO CREW', 'SPECIAL DELIVERY': 'MYSTERY CRATE REACHES PIER 9 INTACT', 'COLLECTIONS': "LOAN SHARK'S RACKET BROKEN UP", 'GRAND THEFT AUTO': 'VOSS MOTORS STOCK GROWS OVERNIGHT', 'MIDNIGHT RUN': 'STREET RACE TEARS THROUGH CITY', 'HOT PROPERTY': 'FOUR CRANE TRUCKS BURN AT PIER 9', 'THE FIRST GRIFT': 'FIRST GRIFT BANK ROBBED; CREW VANISHES', 'CRANE': 'SILAS CRANE DEAD IN DOWNTOWN SHOOTOUT', 'CARGO': 'HAULER RECOVERED FROM EASTSIDE YARD', 'CLEAN SWEEP': 'SIX CARS BURN IN EASTSIDE', 'HARBOR NIGHT': 'CONVOY FIGHTS ITS WAY TO MIDTOWN', 'QUIET WORK': "CRANE'S BOOKS GO MISSING", 'EVIDENCE': 'PRECINCT CAPTAIN PHOTOGRAPHED WITH CRANE MAN', 'FIREWORKS': 'TANKER BLAST LEVELS CAR YARD', 'SALT WATER': 'LAUNCH SUNK OFF PIER 9' };
+  let paper = null, paperT = 0;
+  function gazette() { const P = PLAYER.P, st = P.stats, snap = st.paper || {}; const d = k => (st[k] || 0) - (snap[k] || 0), heads = [];
+    if (d('missions') > 0 && st.lastJob) heads.push(MISSION_HEADS[st.lastJob] || 'WHO IS WORKING FOR MARLA VOSS?');
+    if ((st.bestRunToday || 0) > 0) heads.push('GETAWAY DRIVER LEAVES POLICE STANDING WITH $' + st.bestRunToday.toLocaleString());
+    if (d('copCars') > 0) heads.push(d('copCars') + (d('copCars') > 1 ? ' POLICE CRUISERS WRECKED; CHIEF "FURIOUS"' : ' POLICE CRUISER WRECKED IN CHASE'));
+    if (d('kills') >= 5) heads.push(d('kills') + ' DEAD IN A NIGHT OF VIOLENCE');
+    if (d('carsStolen') >= 3) heads.push(d('carsStolen') + ' CARS VANISH FROM CITY STREETS');
+    if (d('cons') > 0) heads.push('SWINDLER STRIKES ' + (d('cons') > 1 ? d('cons') + ' TIMES' : 'AGAIN') + '; POLICE WARN PUBLIC');
+    if (d('busted') > 0) heads.push('SUSPECT ARRESTED, OUT ON BAIL BY LUNCH');
+    if (d('packages') > 0) heads.push('ODD PACKAGES TURN UP ACROSS TOWN');
+    st.paper = { missions: st.missions, copCars: st.copCars || 0, kills: st.kills, carsStolen: st.carsStolen, cons: st.cons || 0, busted: st.busted, packages: st.packages }; st.bestRunToday = 0;
+    if (!heads.length) return false; paper = { heads: heads.slice(0, 3), place: CITY.districtName ? CITY.districtName(P.x, P.z) : 'Grift City', date: 'Day ' + ((st.days || 0) + 1) }; paperT = 9; st.days = (st.days || 0) + 1; return true; }
+  function drawGazette(dt) { if (!paper) return; paperT -= dt; if (paperT <= 0) { paper = null; return; } const a = Math.min(1, paperT * 2, (9 - paperT) * 4);
+    const w = Math.min(560, W_ - 40), h = 90 + paper.heads.length * 34 + 30, x = (W_ - w) / 2, y = Math.max(20, H_ * 0.3);
+    g.save(); g.globalAlpha = a; g.fillStyle = '#efe8d6'; g.fillRect(x, y, w, h); g.strokeStyle = '#2b2620'; g.lineWidth = 2; g.strokeRect(x + 6, y + 6, w - 12, h - 12);
+    g.fillStyle = '#1f1b16'; g.font = `bold 30px Georgia, "Times New Roman", serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('The Grift City Gazette', W_ / 2, y + 34);
+    g.font = `italic 12px Georgia, serif`; g.fillText(paper.date + '  ·  ' + String(paper.place).toUpperCase() + '  ·  ONE DOLLAR', W_ / 2, y + 60); g.fillRect(x + 16, y + 70, w - 32, 1.5);
+    paper.heads.forEach((t, i) => { g.font = i ? `bold 16px ${DISPLAY}` : `bold 22px ${DISPLAY}`; g.fillText(t.length > 46 ? t.slice(0, 45) + '…' : t, W_ / 2, y + 96 + i * 34); });
+    g.font = `11px Georgia, serif`; g.fillStyle = '#5b5247'; g.fillText(TOUCH.active ? 'tap to fold' : 'SPACE to fold', W_ / 2, y + h - 18); g.restore();
+    if (INPUT.hit('Space') || INPUT.mouse.clicked) paperT = Math.min(paperT, 0.4); }
+  // the con: a meter while the pitch is in the air, then the verdict
+  function drawGrift(P) { if (typeof GRIFT === 'undefined') return; const r = GRIFT.info(); const x = W_ / 2, y = H_ * 0.62;
+    if (r.active) { const w = 220; g.fillStyle = 'rgba(12,24,29,.85)'; g.fillRect(x - w / 2, y - 22, w, 36); g.fillStyle = '#263e46'; g.fillRect(x - w / 2 + 10, y + 4, w - 20, 5); g.fillStyle = '#f5ce68'; g.fillRect(x - w / 2 + 10, y + 4, (w - 20) * M.clamp(r.progress, 0, 1), 5);
+      text('THE ' + r.pitch + '  ·  ' + Math.round(r.odds * 100) + '%', x, y - 9, 12, '#f5ce68', 'center', '600', false); }
+    else if (r.result) text(r.result.ok ? 'TAKEN IN  +$' + r.result.take : 'MADE YOU', x, y, 20, r.result.ok ? '#8fe38a' : '#ff7a64', 'center');
+    else if (r.available && !P.car) text((TOUCH.active ? 'Hold HUSTLE' : INPUT.pad.active ? 'Hold Y' : 'Hold G') + ' to work a con', x, y, 13, 'rgba(255,255,255,0.8)', 'center', 'normal'); }
   function stars(P, x, y) { for (let i = 0; i < 5; i++) { const lit = i < P.wanted; const flash = starFlash > 0 && lit && Math.sin(W.state.elapsed * 20) > 0; text('★', x - i * 24, y, 24, lit ? (flash ? '#fff' : '#f5c542') : 'rgba(255,255,255,0.18)', 'center'); } }
 
   function draw(dt, state, photo) { drawFrame(dt, state, photo); if (GAME.options.perfOverlay && state !== 'title' && state !== 'loading') drawPerf(); } // the overlay goes on top of everything, letterbox included
@@ -171,6 +200,7 @@ const HUD = (() => {
     zone(W_-200,103,176,48,'KeyR');
     // objective
     const obj = MISSIONS.objective;
+    drawGrift(P); drawGazette(dt);
     if (obj !== objSeen) { objSeen = obj; objT = 0; } objT += dt;
     // Driving, the full card sat right over your own car. Once read (six seconds after it changes) it folds into a
     // one-line strip at the top of the screen; on foot, and whenever the text changes, it is shown in full.
@@ -282,5 +312,5 @@ const HUD = (() => {
   }
   // Where a run went: the big map with every sampled position burned in (tools/playtest/run.js writes it as heatmap.png).
   function heatmap(track) { resize(); g.clearRect(0, 0, W_, H_); drawBigMap(PLAYER.P, (scale) => { g.fillStyle = 'rgba(255,70,30,0.22)'; for (const [x, z] of track) { g.beginPath(); g.arc(x, z, 7 / scale, 0, 7); g.fill(); } g.fillStyle = '#fff'; g.beginPath(); g.arc(track[0][0], track[0][1], 5 / scale, 0, 7); g.fill(); }); text('positions sampled every 0.4 s of wall time; white dot is the start', W_ / 2, H_ - 14, 12, '#ccc', 'center', 'normal'); }
-  return {get mapRect(){return mapRect;}, radarLayout, init, draw, loading, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, zones, get newGameRect() { return newGameRect; }, shake: (a) => PLAYER.shake(a) };
+  return {gazette, get paperOpen() { return !!paper; }, get mapRect(){return mapRect;}, radarLayout, init, draw, loading, notify, money, big: bigText, clearBig, flashStars, fade, buildMap, heatmap, hitMark, zones, get newGameRect() { return newGameRect; }, shake: (a) => PLAYER.shake(a) };
 })();

@@ -409,7 +409,7 @@ const CITY = (() => {
         facadeBox(b, t2x, totalH, t2z, t2w, t2h, t2d, tint, T[facade], facadeOpts); b.box(t2x - 0.35, totalH + t2h - 0.45, t2z - 0.35, t2w + 0.7, 0.45, t2d + 0.7, trim, 0);
         b.floor(t2x, t2z, t2w, t2d, totalH + t2h, tint.map(v => v * 0.9), T.roof, 8); totalH += t2h;
         const cx = t2x + t2w / 2, cz = t2z + t2d / 2; b.box(cx - 0.9, totalH, cz - 0.9, 1.8, 3, 1.8, trim); b.box(cx - 0.35, totalH + 3, cz - 0.35, 0.7, 14, 0.7, trim.map(v => v * 0.85)); b.box(cx - 0.12, totalH + 17, cz - 0.12, 0.24, 6, 0.24, [0.7, 0.7, 0.72]);
-        b.cbox(cx, totalH + 23.2, cz, 0.5, 0.5, 0.5, [1, 0.1, 0.1], 0, { bone: 0 }); addPlace('landmark', { x: cx, z: cz, h: totalH + 23, label: 'tower' });
+        b.cbox(cx, totalH + 23.2, cz, 0.5, 0.5, 0.5, [1, 0.1, 0.1], 0, { bone: 21 }); addPlace('landmark', { x: cx, z: cz, h: totalH + 23, label: 'tower' });
       }
     }
     if (rng.chance(0.2) && floors < 12) {
@@ -459,7 +459,7 @@ const CITY = (() => {
     if (rng.chance(tall ? 0.55 : 0.3) && w > 8 && d > 8) { const cx = x + rng.range(3, w - 3), cz = z + rng.range(3, d - 3); for (const [ox, oz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) b.cyl(cx + ox, y, cz + oz, 0.08, 2.5, [0.3, 0.3, 0.3], 0, 4); b.cyl(cx, y + 2.5, cz, 1.3, 4.3, [0.45, 0.35, 0.25], 0, 10, 0, true, true); b.cyl(cx, y + 4.3, cz, 1.4, 4.6, [0.35, 0.28, 0.2], 0, 10, 0, true, false, 0.4); }
     if (rng.chance(0.4) && w > 6 && d > 6) { const sx = x + rng.range(1, w - 3.5), sz = z + rng.range(1, d - 3.5); b.box(sx, y, sz, 2.4, 2.6, 2.8, tint.map(v => v * 0.8)); b.box(sx + 0.7, y, sz - 0.05, 1, 2.1, 0.1, [0.2, 0.15, 0.1]); } // roof access shed
     if (rng.chance(0.35)) { const dx = x + rng.range(1, w - 1), dz = z + rng.range(1, d - 1); b.cyl(dx, y, dz, 0.06, 1.2, [0.5, 0.5, 0.5], 0, 4); b.cyl(dx, y + 1.0, dz, 0.7, 1.15, [0.85, 0.85, 0.88], 0, 10, 0, true, true, 0.1); } // dish
-    if (tall) { b.box(x + w / 2 - 0.1, y, z + d / 2 - 0.1, 0.2, 6, 0.2, [0.7, 0.7, 0.7]); b.cbox(x + w / 2, y + 6.1, z + d / 2, 0.3, 0.3, 0.3, [1, 0.1, 0.1], 0, { bone: 0 }); }
+    if (tall) { b.box(x + w / 2 - 0.1, y, z + d / 2 - 0.1, 0.2, 6, 0.2, [0.7, 0.7, 0.7]); b.cbox(x + w / 2, y + 6.1, z + d / 2, 0.3, 0.3, 0.3, [1, 0.1, 0.1], 0, { bone: 21 }); }
   }
   // Grass laid as a grid whose colour varies smoothly across it: some of it greener, some dried out. The tint is a
   // two-octave value noise of the world position sampled at each corner, so neighbouring cells agree along their shared
@@ -593,10 +593,11 @@ const CITY = (() => {
         addPlace('bank', { x: front.x, z: front.z, label: sp.label, angle: 0 }); break;
       case 'tower': {
         h = 340; const tw = W * 0.7, td = D * 0.7, tx = x0 + (W - tw) / 2, tz = z0 + (D - td) / 2; // Crane's tower tops the skyline (the generic towers reach ~325 m), so it reads from anywhere as the thing to aim for
-        for (let k = 0; k < 4; k++) { const fx = k < 2 ? tx - 0.4 : tx + tw - 0.8, fz = k % 2 ? tz + td - 0.8 : tz - 0.4; b.box(fx, y + h - 40, fz, 1.2, 58, 1.2, [0.86, 0.9, 0.95]); } // corner fins that rise past the roof as a crown
+        for (let k = 0; k < 4; k++) { const fx = k < 2 ? tx - 0.4 : tx + tw - 0.8, fz = k % 2 ? tz + td - 0.8 : tz - 0.4; b.box(fx, y + h - 34, fz, 1.2, 41, 1.2, [0.42, 0.46, 0.52]); } // corner fins that rise a storey past the roof as a crown
         b.box(x0, y, z0, W, 6, D, [0.3, 0.32, 0.36], T.glass, { uvScale: 14 });
         facadeBox(b, tx, y + 6, tz, tw, h - 6, td, [0.8, 0.9, 1.0], T.glass, { uOff: 0 }); b.floor(tx, tz, tw, td, y + h, [0.3, 0.3, 0.32], T.roof, 8);
-        b.box(tx + tw / 2 - 0.2, y + h, tz + td / 2 - 0.2, 0.4, 14, 0.4, [0.8, 0.8, 0.8]); b.cbox(tx + tw / 2, y + h + 14.2, tz + td / 2, 0.5, 0.5, 0.5, [1, 0.1, 0.1]);
+        b.box(tx + tw / 2 - 0.2, y + h, tz + td / 2 - 0.2, 0.4, 14, 0.4, [0.8, 0.8, 0.8]); b.cbox(tx + tw / 2, y + h + 14.2, tz + td / 2, 0.7, 0.7, 0.7, [1, 0.1, 0.1], 0, { bone: 21 });
+        for (const [bx0, bz0, bw, bd] of [[tx - 0.5, tz - 0.5, tw + 1, 0.4], [tx - 0.5, tz + td + 0.1, tw + 1, 0.4], [tx - 0.5, tz - 0.5, 0.4, td + 1], [tx + tw + 0.1, tz - 0.5, 0.4, td + 1]]) b.box(bx0, y + h - 6, bz0, bw, 1.1, bd, [1, 0.72, 0.36], 0, { bone: 20 }); // Crane's crown: a lit band that marks the tower at night
         // helipad
         b.floor(tx + 2, tz + 2, tw - 4, td - 4, y + h + 0.05, [0.4, 0.4, 0.42], T.asphalt, 8); b.cyl(tx + tw / 2, y + h + 0.06, tz + td / 2, 5, y + h + 0.1, [0.9, 0.9, 0.2], 0, 20);
         b.box(x0 + W / 2 - 3, y, z0 - 0.1, 6, 4.5, 0.2, [0.1, 0.1, 0.12]);

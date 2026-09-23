@@ -2,7 +2,7 @@
 'use strict';
 const POLICE = (() => {
   const S = { heat: 0, seenT: 99, lastSeen: null, arrestT: 0, arresting: false, spawnT: 0, roadblockT: 20, footT: 0, heliT: 0, evadeMsg: 0, sirenVol: 0 };
-  const HEAT = { kill: 1.0, killcar: 0.55, copkill: 1.6, cop: 1.0, jack: 0.45, hit: 0.2, assault: 0.25, shoot: 0.12, explosion: 1.3, vandal: 0.12 };
+  const HEAT = { con: 0.35, kill: 1.0, killcar: 0.55, copkill: 1.6, cop: 1.0, jack: 0.45, hit: 0.2, assault: 0.25, shoot: 0.12, explosion: 1.3, vandal: 0.12 };
   const stars = () => Math.min(5, Math.floor(S.heat));
   const COOLDOWN = { shoot: 1.5, assault: 1.2, hit: 0.6, vandal: 1.0 }; const lastCrime = {};
   const reports=[];let unitSerial=0;
@@ -36,7 +36,7 @@ const POLICE = (() => {
   // Heat Run: while wanted, a pot grows with the square of the stars (and each wrecked cruiser). A clean getaway or a
   // respray banks it; WASTED or BUSTED takes it. clear() is used everywhere (respawns, beds, mission ends), so it
   // discards the pot, and only the two honest exits call bank() first.
-  function bank(how) { const pot = Math.floor(S.pot || 0); S.pot = 0; if (pot >= 10) { PLAYER.addMoney(pot, how || 'clean getaway'); if (pot > (PLAYER.P.stats.bestRun || 0)) { PLAYER.P.stats.bestRun = pot; HUD.notify('Best Heat Run yet: $' + pot.toLocaleString() + '.'); } } return pot; }
+  function bank(how) { const pot = Math.floor(S.pot || 0); S.pot = 0; if (pot >= 10) { PLAYER.addMoney(pot, how || 'clean getaway'); PLAYER.P.stats.bestRunToday = Math.max(PLAYER.P.stats.bestRunToday || 0, pot); if (pot > (PLAYER.P.stats.bestRun || 0)) { PLAYER.P.stats.bestRun = pot; HUD.notify('Best Heat Run yet: $' + pot.toLocaleString() + '.'); } } return pot; }
   function clear() { S.pot = 0; S.heat = 0; PLAYER.P.wanted = 0; S.seenT = 99; S.lastSeen = null; S.search = null; S.description=null;reports.forEach(r=>{r.witness.reporting=0;r.witness.item=r.witness.reportItem||null;});reports.length=0;for(const k in lastCrime)delete lastCrime[k]; for (const c of W.cars) if (!c.removed && c.driver && c.driver.isCop && c.ai.mode === 'chase') { c.ai.mode = 'traffic'; c.ai.edge = null; c.siren = false; } if (W.heli) W.heli.leaving = true; }
   function setStars(n) { S.heat = Math.max(S.heat, n); PLAYER.P.wanted = stars(); S.seenT = 0; S.lastSeen = [PLAYER.x, PLAYER.z];S.lastY=PLAYER.P.y;S.description=description(); S.spawnT = 2.5; }
   function bribe() { S.heat = Math.max(0, S.heat - 1); PLAYER.P.wanted = stars(); }

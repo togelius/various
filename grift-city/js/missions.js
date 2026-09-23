@@ -95,7 +95,7 @@ const MISSIONS = (() => {
   // existing marker at the same spot is reused, so the list cannot grow by sixty entries a second.
   function marker(x, z, r = 2, col = [1, 0.85, 0.2]) { for (const m of S.markers) if (m.x === x && m.z === z && m.r === r) { m.col = col; return; } S.markers.push({ x, z, r, col }); if (S.markers.length > 24) S.markers.shift(); }
   function say(lines, then, focus = null) { S.dialogue = { lines, i: 0, then, focus }; S.lineT = 0; P().aim = 0; }
-  function pass(reward, text) { AUDIO.play('missionPass'); HUD.big('MISSION PASSED!' + (reward ? '  $' + reward : ''), '#f5c542', 3.5); if (reward) PLAYER.addMoney(reward, null); if (S.current) { const m = S.current; if (m.strand === 2) { S.done['o' + m.id] = true; if (m.id === S.progress2) S.progress2++; } else if (m.strand === 'phone') { if (m.id === S.phoneProgress) S.phoneProgress++; } else { S.done[m.id] = true; if (m.id === S.progress) S.progress++; } } P().stats.missions++; if (S.current) ECON.onMissionPassed(S.current); S.cp = null; cleanup(); POLICE.clear(); S.current = null; S.cooldown = 3; if (text) HUD.notify(text); GAME.save(); }
+  function pass(reward, text) { if (S.current) P().stats.lastJob = S.current.name; AUDIO.play('missionPass'); HUD.big('MISSION PASSED!' + (reward ? '  $' + reward : ''), '#f5c542', 3.5); if (reward) PLAYER.addMoney(reward, null); if (S.current) { const m = S.current; if (m.strand === 2) { S.done['o' + m.id] = true; if (m.id === S.progress2) S.progress2++; } else if (m.strand === 'phone') { if (m.id === S.phoneProgress) S.phoneProgress++; } else { S.done[m.id] = true; if (m.id === S.progress) S.progress++; } } P().stats.missions++; if (S.current) ECON.onMissionPassed(S.current); S.cp = null; cleanup(); POLICE.clear(); S.current = null; S.cooldown = 3; if (text) HUD.notify(text); GAME.save(); }
   function fail(reason, down) { AUDIO.play('missionFail'); if (down) S.failBanner = 4.2; else HUD.big('MISSION FAILED', '#c0281e', 3); // WASTED/BUSTED gets its moment; the failure card follows at the respawn
  if (reason) HUD.notify(reason + '  (Y to retry)'); if (S.current) { S.retry = { m: S.current, t: 25 }; S.fails[S.current.name] = (S.fails[S.current.name] || 0) + 1; } cleanup(); S.current = null; S.cooldown = 3; }
   // Y after a failure restarts the mission from its giver, healed and with the police off your back.
@@ -221,8 +221,8 @@ const MISSIONS = (() => {
       start(d) { const g = place('mission'); d.crew = []; for (let i = 0; i < 2; i++) { const c = spawnPed(g.x + 3 + i * 2, g.z + 1, { role: 'crew', weapon: 'uzi', health: 160 }); c.weaponOut = true; c.look = PEDS.SWAT; c.mesh = PEDS.getMesh(PEDS.SWAT); d.crew.push(c); } PLAYER.giveWeapon('uzi', 120); if (P().armor < 100) P().armor = 100; d.phase = 0; const b = place('bank'); blip(b.x, b.z); objective('Take the crew to First Grift Bank.'); },
       update(d, dt) { const b = place('bank'); const alive = d.crew.filter(c => c.alive);
         if (alive.length !== d.crew.length) return fail('A crew member died. Marla needs everyone back.');
-        if (d.phase === 0) { if (near(b.x, b.z, 12) && alive.every(c => M.dist(c.x, c.z, b.x, b.z) < 18)) { d.phase = 1; S.timer = 60; for (const c of alive) { if (c.inCar) c.exitCar(); c.role = 'crewwork'; c.stationary = true; c.x = b.x + (W.rng() - 0.5) * 3; c.z = b.z + 1.5; } POLICE.setStars(3); objective('Hold the street while the crew works.'); } else if (P().car && alive.some(c => !c.inCar)) objective('Wait for the crew to get in.'); }
-        else if (d.phase === 1) { objective('Hold the street while the crew works.  ' + fmt(S.timer)); if (S.timer < 30 && P().wanted < 4) POLICE.setStars(4); for (const c of alive) { c.state = 'walk'; c.speed = 0; } if (S.timer <= 0) { d.phase = 2; S.timer = -1; for (const c of alive) { c.role = 'crew'; c.stationary = false; } const s = place('safehouse'); blip(s.x, s.z); objective('Get the crew back to the safehouse!'); PLAYER.addMoney(0, null); } }
+        if (d.phase === 0) { if (near(b.x, b.z, 12) && alive.every(c => M.dist(c.x, c.z, b.x, b.z) < 18)) { d.phase = 1; S.timer = 60; for (const [i, c] of alive.entries()) { if (c.inCar) c.exitCar(); c.guardSpot = { x: b.x + (i ? 2.2 : -2.2), z: b.z + 1.6 }; } POLICE.setStars(3); /* the crew hold the door and shoot back; as 'crewwork' they had fallen through to civilian AI */ objective('Hold the street while the crew works.'); } else if (P().car && alive.some(c => !c.inCar)) objective('Wait for the crew to get in.'); }
+        else if (d.phase === 1) { objective('Hold the street while the crew works.  ' + fmt(S.timer)); if (S.timer < 30 && P().wanted < 4) POLICE.setStars(4); if (S.timer <= 0) { d.phase = 2; S.timer = -1; for (const c of alive) c.guardSpot = null; const s = place('safehouse'); blip(s.x, s.z); objective('Get the crew back to the safehouse!'); PLAYER.addMoney(0, null); } }
         else if (d.phase === 2) { const s = place('safehouse'); if (near(s.x, s.z, 8) && alive.every(c => M.dist(c.x, c.z, s.x, s.z) < 14 || (P().car && c.inCar === P().car))) { for (const c of alive) if (c.inCar) c.exitCar(); POLICE.clear(); pass(10000, 'Marla: "Everyone. Good."'); } else if (P().car && alive.some(c => !c.inCar)) objective('Wait for the crew to get in the car.'); else objective('Get the crew back to the safehouse!'); } } },
     { id: 8, name: 'CRANE',
       intro: [['MARLA', 'Crane knows it was us. He is leaving town at dawn from his tower, with everything he has left.'], ['MARLA', 'He has an armoured Bastion and a small army in the plaza. Make sure the Bastion never reaches the bridge.'], ['MARLA', 'After that, every cop in Grift City will want you. Get to the safehouse and we will talk about the future.']],
@@ -232,6 +232,7 @@ const MISSIONS = (() => {
       update(d, dt) { const t = place('tower'); const c = d.crane;
         if (d.phase === 0 && (near(t.x, t.z, 34) || W.state.heard.some(n => M.dist(n.x, n.z, t.x, t.z) < 60))) { d.phase = 1; for (const g of d.guards) { g.stationary = false; g.hostile = true; } c.say('Kill them!'); objective("Stop Crane's Bastion!"); blip(d.car.x, d.car.z, '#f5c542', d.car); c.fleeInCar(d.car, 21); }
         if (d.phase === 1 && c.alive && !c.bailed && !c.inCar && c.state !== 'goto' && !d.car.driver && !d.car.wrecked) c.fleeInCar(d.car, 21);
+        if (d.phase === 1 && c.alive && c.inCar === d.car && !d.car.wrecked && M.dist(d.car.x, d.car.z, P().x, P().z) > 320) return fail('The Bastion made the bridge. Crane is gone, and so is Marla\'s chance.'); // the finale can be lost
         if (d.phase === 1 && ((c.inCar && d.car.wrecked) || !c.alive)) { if (c.alive) c.die(PLAYER, 'explosion'); d.phase = 2; POLICE.setStars(5); const s = place('safehouse'); blip(s.x, s.z); objective('Crane is finished. Get to the safehouse!'); HUD.big('CRANE IS DEAD', '#f5c542', 3); }
         if (d.phase === 2) { const s = place('safehouse'); if (near(s.x, s.z, 8)) { POLICE.clear(); pass(25000, null); S.ending = true; say([['MARLA', 'It is done. Crane is gone, and every crook on this island is asking who you are.'], ['MARLA', 'You know what? Let them ask.'], [null, 'GRIFT CITY IS YOURS.'], [null, 'Thanks for playing. The city stays open: side jobs, packages, and the police, who never forget.']], () => { S.ending = false; }); } } } },
   ];
@@ -398,7 +399,7 @@ const MISSIONS = (() => {
     if (S.doorT <= 0 && M.dist2(p.x, p.z, room.door.x, room.door.z) < 1.2) { exitInterior(); return; }
     if (room.key === 'bar' && M.dist2(p.x, p.z, room.spots.counter.x, room.spots.counter.z) < 4) openShop(barMenu(room));
     if (room.key === 'safehouse') { if (M.dist2(p.x, p.z, room.spots.wardrobe.x, room.spots.wardrobe.z) < 2.5) openShop(wardrobeMenu(room));
-      const bed = room.spots.bed; if (M.dist2(p.x, p.z, bed.x, bed.z) < 2.2 && !(S.saveT > 0)) { S.saveT = 8; p.health = 100; POLICE.clear(); W.state.time = (W.state.time + 6) % 24; const saved = GAME.save(); HUD.fade(1.5); if (saved) HUD.notify('Game saved. You slept until ' + W.clockString() + '.'); } } }
+      const bed = room.spots.bed; if (M.dist2(p.x, p.z, bed.x, bed.z) < 2.2 && !(S.saveT > 0)) { S.saveT = 8; p.health = 100; POLICE.clear(); W.state.time = (W.state.time + 6) % 24; const saved = GAME.save(); HUD.fade(1.5); if (saved) HUD.notify('Game saved. You slept until ' + W.clockString() + '.'); HUD.gazette?.(); } } }
   function closeShop() { if (S.shop) S.shopLatch = { x: S.shop.x, z: S.shop.z, r2: S.shop.kind === 'dealer' ? 64 : 16 }; S.shop = null; }
   function updateShops(dt) {
     const p = P(); if (!p.alive) return; if (S.doorT > 0) S.doorT -= dt;
@@ -437,10 +438,15 @@ const MISSIONS = (() => {
     if (S.current) { try { S.current.update(S.current.data, dt); } catch (e) { console.error(e); fail('Something went wrong.'); } }
     else if (p.alive && S.cooldown <= 0 && !S.side && !S.rampage) {
       const next = LIST[S.progress];
-      if (next && next.auto && !S.retry) start(next);
+      // Okafor's nine jobs are all against a living Crane, so Marla's finale waits until they are done: killing Crane
+      // first used to leave five of them running against a dead man.
+      const craneWaits = next && next.id === 8 && S.progress2 < LIST2.length;
+      if (craneWaits) { const g = place('mission'); if (!p.car && M.dist2(p.x, p.z, g.x, g.z) < 36) objective('Marla: "Not yet. Crane is Okafor\'s business first. Finish his work at Pier 9."'); else if (S.objective.startsWith('Marla: "Not yet')) objective(''); }
+      else if (next && next.auto && !S.retry) start(next);
       else if (next) { const g = place('mission'); marker(g.x, g.z, 2, [1, 0.85, 0.2]); if (S.blip === null) blip(g.x, g.z, '#f5c542', null, 'M'); if (!p.car && M.dist2(p.x, p.z, g.x, g.z) < 4) start(next); else if (p.car && M.dist2(p.x, p.z, g.x, g.z) < 100) objective('Get out and walk into the marker to see Marla.'); else if (S.objective.startsWith('Get out and walk')) objective(''); }
       const next2 = LIST2[S.progress2];
       if (next2 && S.progress >= 4) { const g = place('mission2'); marker(g.x, g.z, 2, [0.2, 0.8, 1]); S.blips.length = 0; S.blips.push({ obj: g, col: '#3bb8ff' }); if (!p.car && M.dist2(p.x, p.z, g.x, g.z) < 4) start(next2); else if (p.car && M.dist2(p.x, p.z, g.x, g.z) < 100) objective('Get out and walk into the marker to see Okafor.'); }
+      if (PHONE[S.phoneProgress] && /ACCOUNTANT/.test(PHONE[S.phoneProgress].name) && S.progress > 8) S.phoneProgress++; // Crane's accountant has no one to work for after the finale
       const ph = PHONE[S.phoneProgress];
       if (ph && S.progress >= 2 && !p.car) { for (const t of CITY.places.phone) { marker(t.x, t.z, 1.0, [0.3, 0.5, 1]); if (M.dist2(p.x, p.z, t.x, t.z) < 2.5) { AUDIO.play('phone'); start(ph); break; } } }
     }

@@ -54,6 +54,13 @@ function runCampaignAudit() {
   check(S.current===m && m.data!==oldData && !S.dialogue,m.name+' retry must recreate the job without replaying the intro');
  }
  log.push('22 actual failure/retry transitions — passed');
+ // Story order: CRANE waits for Okafor's strand, and its marker does not start it early.
+ {leave();MISSIONS.cleanup();S.current=null;S.retry=null;S.cooldown=0;S.dialogue=null;S.progress=8;S.progress2=5;place('mission');MISSIONS.update(.016);check(!S.current&&/Not yet/.test(MISSIONS.objective),'CRANE must wait for Okafor');
+  S.progress2=MISSIONS.LIST2.length;MISSIONS.update(.016);check(S.current&&S.current.name==='CRANE','CRANE starts once Okafor is done');MISSIONS.cleanup();S.current=null;S.dialogue=null;log.push('Story order: CRANE after Okafor — passed');}
+ // The finale can be lost: the Bastion reaching open road far from the player fails CRANE.
+ {const m=MISSIONS.LIST[8];const d=start(m);d.phase=1;d.crane.inCar=d.car;d.car.driver=d.crane;d.car.x=p.x+400;d.car.z=p.z;update(m);check(!S.current&&S.retry&&S.retry.m===m,'CRANE must fail when the Bastion escapes');S.retry=null;log.push('Finale fail branch — passed');}
+ // The bank crew hold the door as fighters, not bystanders.
+ {const m=MISSIONS.LIST[7];const d=start(m);place('bank');d.crew.forEach(c=>{c.x=p.x;c.z=p.z;});update(m);check(d.phase===1&&d.crew.every(c=>c.role==='crew'&&c.guardSpot),'crew guard the bank door');MISSIONS.cleanup();S.current=null;POLICE.clear();log.push('Bank crew hold and fight — passed');}
  const repo=MISSIONS.LIST[1];
  for(const method of ['negotiated','intimidated','unnoticed','chase','noise']) {
   const d=start(repo),o=d.owner;at(o.x,o.z+(method==='unnoticed'?-8:2));o.angle=0;p.angle=Math.PI;

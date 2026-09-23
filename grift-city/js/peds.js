@@ -119,7 +119,8 @@ const PEDS = (() => {
     }
     aiCrew(dt) { // follows the player, fights back
       const p = PLAYER; if (p.car && !this.inCar) { if (M.dist(this.x, this.z, p.car.x, p.car.z) < 4) { this.enterCar(p.car); return; } this.moveToward(p.car.x, p.car.z, 5.5, dt); return; }
-      const d = M.dist(this.x, this.z, p.x, p.z); if (d > 3.5) this.moveToward(p.x, p.z, d > 12 ? 6 : 4, dt, p.P.y); else { this.speed = 0; this.faceTo(p.x, p.z, dt); }
+      if (this.guardSpot) { const g = this.guardSpot; if (M.dist(this.x, this.z, g.x, g.z) > 1.2) this.moveToward(g.x, g.z, 4, dt); else this.speed = 0; } // holding a position (the bank door): stay put and fight
+      else { const d = M.dist(this.x, this.z, p.x, p.z); if (d > 3.5) this.moveToward(p.x, p.z, d > 12 ? 6 : 4, dt, p.P.y); else { this.speed = 0; this.faceTo(p.x, p.z, dt); } }
       // shoot hostiles
       if (this.weapon) { let best = null, bd = 30 * 30; for (const o of W.peds) { if (o === this || !o.alive || o.inCar || !(o.isCop || o.hostile || o.isGang)) continue; const dd = M.dist2(o.x, o.z, this.x, this.z); if (dd < bd) { bd = dd; best = o; } } if (best && W.los(this.x, this.z, best.x, best.z)) { this.faceTo(best.x, best.z, dt); this.aim = 1; this.fireAt(best, dt); } else this.aim = 0; }
     }

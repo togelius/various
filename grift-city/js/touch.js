@@ -66,8 +66,9 @@ const TOUCH = (() => {
       // overhaul's extra moves only appear when they mean something, so an idle thumb sees five buttons, not ten.
       const talk = safe(()=>MISSIONS.S.current && MISSIONS.S.current.id===1 && !MISSIONS.S.current.strand && !MISSIONS.S.current.data.fled && !MISSIONS.S.current.data.surrendered,false);
       const vault = !talk && safe(() => !!PLAYER.vaultCandidate(), false);
-      actionKind = talk ? 'talk' : vault ? 'vault' : 'enter';
-      add('action', bx - u * 1.92, by - u * 1.92, u * 0.74, talk ? 'TALK' : vault ? 'VAULT' : 'ENTER', !talk);
+      const hustle = !talk && !vault && safe(() => typeof GRIFT !== 'undefined' && (GRIFT.S.mark || GRIFT.info().available), false);
+      actionKind = talk ? 'talk' : vault ? 'vault' : hustle ? 'hustle' : 'enter';
+      add('action', bx - u * 1.92, by - u * 1.92, u * 0.74, talk ? 'TALK' : vault ? 'VAULT' : hustle ? 'HUSTLE' : 'ENTER', !talk && !hustle);
       const armed = P.weapon && P.weapon !== 'fist' && P.weapon !== 'camera', fight = armed && (P.aim || P.wanted > 0 || safe(() => W.peds.some(q => q.alive && (q.hostile || (q.isCop && P.wanted > 0)) && M.dist2(q.x, q.z, P.x, P.z) < 900), false));
       if (fight || P.crouched) add('crouch',bx-u*3.75,by-u*1.6,u*.48,'CROUCH',true);
       if (fight) { add('evade',bx-u*3.65,by-u*3.4,u*.48,'EVADE',true); if (P.aim) add('shoulder',bx-u*1.9,by-u*3.5,u*.44,'SIDE',true); }
@@ -195,7 +196,7 @@ const TOUCH = (() => {
       if (on('shoot')) mouseButtons |= 1;
     } else {
       rt = on('fire') ? 1 : 0; lt = on('aim') ? 1 : 0;
-      vhold('KeyG', on('action') && actionKind === 'talk'); vhold('Space', false); vhold('KeyH', false);
+      vhold('KeyG', on('action') && (actionKind === 'talk' || actionKind === 'hustle')); vhold('Space', false); vhold('KeyH', false);
       vhold('ShiftLeft', Math.hypot(lx, ly) > SPRINT_AT);
       if (on('fire')) mouseButtons |= 1;
       if (on('aim')) mouseButtons |= 2;

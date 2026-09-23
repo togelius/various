@@ -23,7 +23,7 @@ const RENDER = (() => {
       #ifdef INSTANCED
       mat4 model = mat4(aI0, aI1, aI2, aI3); vCol = aCol * aTint.rgb; vEmis = aTint.a;
       #elif defined(STATIC)
-      mat4 model = uModel; vCol = aCol; vEmis = 0.0;
+      mat4 model = uModel; vCol = aCol; vEmis = aBone > 19.5 ? -aBone : 0.0; // static bones 20+ tag night glow: 20 warm light, 21 aircraft beacon
       #else
       mat4 model = uModel * uBones[int(aBone)]; vCol = aCol; vEmis = uBoneEmis[int(aBone)];
       #endif
@@ -203,7 +203,7 @@ const RENDER = (() => {
         if (uSpec > 0.0 && gloss > 0.4) col += uLightCols[i] * att * pow(max(dot(n, normalize(Ln + v)), 0.0), power) * uSpec * gloss * gloss * 1.6;
       }
       col += mix(albedo, s2l(vec3(1.0, 0.87, 0.66)), 0.15) * t.a * uNightEmis * uEmis;
-      col += s2l(vCol) * vEmis;
+      col += s2l(vCol) * (vEmis < -0.5 ? uNightEmis * (vEmis < -20.5 ? 4.0 : 2.4) : vEmis);
       // Height fog: haze pools in the streets and thins with altitude, so the skyline stays crisp and the city gains depth.
       // Analytic integral of an exponential density along the view ray, then tinted toward the sun for aerial perspective.
       vec3 dv = vWorld - uCamPos; float dist = length(dv);
@@ -362,7 +362,7 @@ const RENDER = (() => {
     const t = hours / 24; const sunAng = (t - 0.25) * M.TAU; // 6:00 sunrise at angle 0, noon at 90°
     const elev = Math.sin(sunAng), az = Math.cos(sunAng);
     let sx = az * 0.72, sy = elev * 0.72, sz = -0.78 + 0.2 * az; let l = Math.hypot(sx, sy, sz); sx /= l; sy /= l; sz /= l;
-    const day = M.clamp((elev + .20) / .45, 0, 1);          // 1 in daytime, 0 at night
+    const day = M.clamp((elev + .30) / .52, 0, 1);          // 1 in daytime, 0 at night; twilight lasts until about 19:15
     // The warm horizon light reaches further up the sky than the brightness falls off. Golden hour is the best light in
     // the game and at a true scale it was a spike a few seconds wide; widening only the colour term lengthens it
     // without darkening the afternoon.
@@ -372,11 +372,13 @@ const RENDER = (() => {
     const mix3 = (a, b, k) => [M.lerp(a[0], b[0], k), M.lerp(a[1], b[1], k), M.lerp(a[2], b[2], k)];
     const sunDay = mix3([1.98, 1.66, 1.22], [1.5, 0.64, 0.24], dusk); const sunNight = [0.065, 0.085, 0.12];
     env.sunCol = mix3(sunNight, sunDay.map(v => v * 1.0), day);
+    // Night is designed rather than subtracted: an indigo zenith over a sodium-orange glow the city throws on its own
+    // haze, warm light bounced up off lamp-lit pavement, and a fog that carries that glow into the distance.
     env.skyCol = mix3([0.095, 0.12, 0.17], mix3([0.5, 0.53, 0.58], [0.42, 0.28, 0.26], dusk), day); // skylight is blue, so shade reads cool against warm sun
-    env.groundCol = mix3([0.048, 0.058, 0.077], mix3([0.31, 0.27, 0.22], [0.24, 0.15, 0.11], dusk), day); // light thrown back up off sunlit pavement and walls: the street in shade is still bright
-    env.zenith = mix3([0.004, 0.006, 0.02], mix3([0.13, 0.33, 0.64], [0.15, 0.15, 0.4], dusk), day);
-    env.horizon = mix3([0.012, 0.014, 0.03], mix3([0.66, 0.74, 0.82], [0.9, 0.4, 0.2], dusk), day);
-    env.fogCol = mix3([0.01, 0.012, 0.024], mix3([0.6, 0.65, 0.71], [0.78, 0.4, 0.26], dusk), day);
+    env.groundCol = mix3([0.07, 0.058, 0.05], mix3([0.31, 0.27, 0.22], [0.24, 0.15, 0.11], dusk), day); // light thrown back up off sunlit pavement and walls: the street in shade is still bright
+    env.zenith = mix3([0.009, 0.012, 0.045], mix3([0.13, 0.33, 0.64], [0.15, 0.15, 0.4], dusk), day);
+    env.horizon = mix3([0.11, 0.062, 0.042], mix3([0.66, 0.74, 0.82], [0.9, 0.4, 0.2], dusk), day);
+    env.fogCol = mix3([0.05, 0.036, 0.034], mix3([0.6, 0.65, 0.71], [0.78, 0.4, 0.26], dusk), day);
     env.fogDensity = M.lerp(0.0032, 0.0022, day); env.fogHeight = M.lerp(22, 34, day); env.fogSun = 0.7 * day;
     // The city goes to bed: the lit-window mask dims through the small hours and comes back before dawn.
     const late = hours >= 23 || hours < 5.5 ? M.lerp(1, 0.66, M.clamp(Math.min(hours >= 23 ? hours - 23 : hours + 1, 5.5 - hours + 1) / 2.5, 0, 1)) : 1;

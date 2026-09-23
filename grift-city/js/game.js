@@ -210,7 +210,7 @@ const GAME = (() => {
     // frame, and the GPU idles instead of redrawing the same picture sixty times a second behind a menu.
     const still = state === 'paused' || state === 'map'; if (!still || !heldFrame || ++heldN % 30 === 0) renderWorld(dt, false); heldFrame = still; /* and twice a second anyway, in case a rotation resized the canvas */ perf.draw += (performance.now() - t1 - perf.draw) * 0.05; if (state === 'photo' && photo.shot) { photo.shot = false; savePhoto(); } HUD.draw(dt, state, photo); INPUT.endFrame();
   }
-  let fpsAcc = 0, fpsN = 0, fps = 0, titleSkip = false, heldFrame = false, heldN = 0, lostContext = false; const nearSounds = { park: null, water: null };
+  let lastHour = 12, fpsAcc = 0, fpsN = 0, fps = 0, titleSkip = false, heldFrame = false, heldN = 0, lostContext = false; const nearSounds = { park: null, water: null };
   // ---- Photo mode: the world freezes and the camera is yours. WASD/QE fly, mouse looks, wheel zooms, click or Enter saves a PNG.
   let photo = null;
   function updatePhoto(dt) { const m = INPUT.mouse; const sens = 0.0022 * (options.sensitivity || 1); photo.yaw -= m.dx * sens; photo.pitch = M.clamp(photo.pitch - m.dy * sens * (options.invertY ? -1 : 1), -1.4, 1.4);
@@ -291,7 +291,8 @@ const GAME = (() => {
     W.frameBegin(); W.updateClock(dt); W.updateWeather(dt); RENDER.setTimeOfDay(W.state.time, W.weather.rain, W.weather.fog, dt); const night = W.isNight();
     const room = CITY.interiorRoom; if (room) { const e = RENDER.env; e.sunCol = e.sunCol.map(v => v * 0.08); e.skyCol = [0.34, 0.3, 0.26]; e.groundCol = [0.2, 0.17, 0.14]; e.fogDensity = 0; e.nightEmis = 1; for (const l of room.lights) W.dyn.push({ x: l.x, y: l.y, z: l.z, r: l.r * 1.3, col: l.col.map(v => v * 1.2) }); } // a room lit by its lamps, not the sun
     const dlg = !!MISSIONS.dialogue;
-    MISSIONS.update(dt); ECON.update(dt);
+    MISSIONS.update(dt); if (typeof GRIFT !== 'undefined') GRIFT.update(dt); ECON.update(dt);
+    { const h = W.state.time; if (lastHour < 7 && h >= 7 && h < 8 && PLAYER.P.alive && !MISSIONS.S.current) HUD.gazette?.(); lastHour = h; } // the morning edition
     if (!dlg) PLAYER.update(dt); else { PLAYER.P.aim = 0; PLAYER.P.vx = PLAYER.P.vz = 0; if (PLAYER.car) { PLAYER.car.controls.throttle = 0; PLAYER.car.controls.brake = 1; } PLAYER.updateCamera(dt); }
     PLAYER.updateProjectiles(dt);
     VEH.updateAll(dt, night); PEDS.updateAll(dt); POLICE.update(dt); PICKUPS.update(dt);

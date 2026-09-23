@@ -4,8 +4,8 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const noop=()=>{};const ctx=vm.createContext({console,assert,URLSearchParams,location:{search:'?seed=42'},setTimeout:noop,
  TEX:{shopKinds:[],names:new Proxy({},{get:()=>0})},RENDER:{MAX_BONES:14,env:{wet:0},cam:{},setCamera:noop},
- AUDIO:new Proxy({},{get:()=>noop}),HUD:new Proxy({},{get:()=>noop}),INPUT:{touch:true,down:()=>false,hit:()=>false,pad:{buttons:[],pressed:[]},mouse:{}},GAME:{save:noop,options:{}},ECON:{S:{rep:{marla:0}},onMissionPassed:noop,discount:()=>1}});
-for(const n of ['math','assets','meshes','streets','city','world','tactics','peds','vehicles','player','police','missions'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../js',n+'.js'),'utf8'),ctx,{filename:n+'.js'});
+ AUDIO:new Proxy({},{get:()=>noop}),HUD:new Proxy({},{get:()=>noop}),INPUT:{touch:true,held:{},down(k){return !!this.held[k];},hit:()=>false,pad:{buttons:[],pressed:[]},mouse:{}},GAME:{save:noop,options:{}},ECON:{S:{rep:{marla:0}},onMissionPassed:noop,discount:()=>1}});
+for(const n of ['math','assets','meshes','streets','city','world','tactics','peds','vehicles','player','police','missions','grift'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../js',n+'.js'),'utf8'),ctx,{filename:n+'.js'});
 vm.runInContext(`
 MESH.Builder.prototype.build=MESH.Builder.prototype.buildInstanced=function(){return {}};CITY.generate();W.initProps();PLAYER.init(0,0,0);
 let checks=0;const check=(v,m)=>{assert.ok(v,m);checks++;};
@@ -59,5 +59,13 @@ for(const where of ['hospital','police']){P.x=100;P.z=100;PLAYER.respawn(where);
  const rig=t=>{const b=new Float32Array(16*RENDER.MAX_BONES);PEDS.buildRig({x:0,y:0,z:0,angle:0,phase:0,vx:0,vz:0,aim:1,camPitch:.28,aimTarget:t,speed:0,state:'foot'},M.create(),b);return b;};
  const up=rig({x:0,y:6,z:6,alive:true}),level=rig(null);const hy=b=>at(b.subarray(160,176),-.26,-.6,0)[1]-at(b.subarray(48,64),-.26,0,0)[1];
  check(hy(up)>.3&&hy(level)<.1,'locked on a target above, the gun hand rises ('+hy(up).toFixed(2)+' vs '+hy(level).toFixed(2)+')');}
+// 11. The con: hold G beside a stranger; the pitch lands for cash or blows up into a police report. Guns, stars
+// and nearby cops make it harder.
+{W.cars.length=0;W.peds.length=0;POLICE.clear();MISSIONS.cleanup();MISSIONS.S.current=null;MISSIONS.S.shop=null;MISSIONS.S.dialogue=null;const P=PLAYER.P;P.alive=true;P.car=null;P.x=300;P.z=300;P.speed=0;P.weapon='fist';P.weaponOut=false;P.money=0;
+ const q=PEDS.spawn(301.5,300);q.state='walk';check(GRIFT.candidate()===q,'a stranger within reach is a mark');const clean=GRIFT.odds(q);
+ INPUT.held.KeyG=true;for(let i=0;i<60*3;i++){GRIFT.update(1/60);q.x=301.5;q.z=300;}INPUT.held.KeyG=false;
+ check(q.conned&&(P.money>0||POLICE.reports.length>0||P.wanted>0),'the pitch resolves: cash, or a report ($'+P.money+')');
+ check(GRIFT.candidate()!==q,'nobody falls for it twice');
+ const q2=PEDS.spawn(299,300);P.weapon='pistol';P.weaponOut=true;POLICE.setStars(1);check(GRIFT.odds(q2)<clean-.5,'a drawn gun and a star ruin the odds');P.weaponOut=false;POLICE.clear();}
 console.log('Getaway: '+checks+' checks passed'+(blocked?' (aim scene blocked; aim checked in browser)':''));
 `,ctx);
