@@ -125,9 +125,10 @@ const AUDIO = (() => {
     // helicopter rotor: pulsed low noise
     const hg = ctx.createGain(); hg.gain.value = 0; hg.connect(ambientBus); const hs = ctx.createBufferSource(); hs.buffer = noiseBuf; hs.loop = true; const hf = ctx.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 220; const lfo = ctx.createOscillator(); lfo.frequency.value = 13; const lg = ctx.createGain(); lg.gain.value = 0.5; const pulse = ctx.createGain(); pulse.gain.value = 0.5; lfo.connect(lg); lg.connect(pulse.gain); hs.connect(hf); hf.connect(pulse); pulse.connect(hg); hs.start(); lfo.start(); // the rotor pulse modulates its own stage; it used to ride on the level itself, so a silent helicopter still thumped at 13 Hz
     const rg = ctx.createGain(); rg.gain.value = 0; rg.connect(ambientBus); const rs = ctx.createBufferSource(); rs.buffer = noiseBuf; rs.loop = true; const rf = ctx.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 3200; rf.Q.value = 0.4; rs.connect(rf); rf.connect(rg); rs.start();
-    ambient = { g, hg, rg, f, wg };
+    ambient = { g, hg, rg, f, wg, wf };
   }
   function traffic(v) { if (!ctx) return; ambient.g.gain.setTargetAtTime(0.03 + v * 0.06, now(), 0.8); ambient.f.frequency.setTargetAtTime(150 + v * 120, now(), 0.8); }
+  function wind(v, rainV = 0) { if (!ctx || !ambient) return; ambient.wg.gain.setTargetAtTime(0.02 + rainV * 0.03 + Math.min(1, v) * 0.09, now(), 0.3); ambient.wf.frequency.setTargetAtTime(420 + v * 700, now(), 0.3); } // air rushing past a fast car
   function rain(v, inCar) { if (!ctx) return; ambient.rg.gain.setTargetAtTime(v * (inCar ? 0.05 : 0.14), now(), 0.5); ambient.wg.gain.setTargetAtTime(0.02 + v * 0.03, now(), 1); }
   function heliVolume(v) { if (!ctx) return; ambient.hg.gain.setTargetAtTime(v * 0.5, now(), 0.2); }
   // the small sounds of a place: birds by the parks, gulls by the water
@@ -171,5 +172,5 @@ const AUDIO = (() => {
   function toggleMute() { muted = !muted;try{localStorage.setItem('grift-city-muted',muted?'1':'0');}catch(e){} if (ctx) master.gain.setTargetAtTime(muted ? 0 : mix.masterVolume, now(), 0.05); return muted; }
   // for the test harness: the loudest sample on the mix over the last analyser window
   function peak() { if (!analyser) return 0; const d = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(d); let m = 0; for (let i = 0; i < d.length; i++) m = Math.max(m, Math.abs(d[i])); return m; }
-  return { setMix,ensure, resume, play, engine, siren, screech, heliVolume, rain, traffic, ambientTick, radioTick, setRadio, get radioStation() { return radioStation; }, STATIONS, toggleMute, get muted() { return muted; }, listener, peak, get ready() { return !!ctx; } };
+  return { setMix,ensure, resume, play, wind, engine, siren, screech, heliVolume, rain, traffic, ambientTick, radioTick, setRadio, get radioStation() { return radioStation; }, STATIONS, toggleMute, get muted() { return muted; }, listener, peak, get ready() { return !!ctx; } };
 })();

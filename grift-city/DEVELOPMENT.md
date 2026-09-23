@@ -53,14 +53,14 @@ This file is the shared roadmap; whoever works on the game ticks items here and 
 
 `./tools/check-overhaul.sh` (node suites, syntax, release build), then the browser suites in
 `tools/playtest/tests/` one at a time (`node tools/playtest/tests/<name>.js`; SwiftShader, so run one browser at a
-time): visual, persistence, vehicles, enter_test, docks_test, repo_test, rev_test, missions_all, soak.
+time): visual, persistence, vehicles, enter_test, docks_test, repo_test, rev_test, missions_all, soak, pursuit.
 
 ## Steps
 
 - [x] 1. Confirmed defects.
 - [x] 2. Device truth and a quality ladder that understands a 30 Hz cap.
 - [x] 3. A cold open through the Foundry Quarter.
-- [ ] 4. Pursuit legs: cruisers that reach you, a patrol car at one star, T-bones and PIT, the Heat Run pot.
+- [x] 4. Pursuit legs: cruisers that reach you, a patrol car at one star, T-bones and PIT, the Heat Run pot.
 - [ ] 5. One-thumb combat: lock-on, a context ACTION button, fewer touch buttons.
 - [ ] 6. Nights and look.
 - [ ] 7. Story order, the con, the morning paper.
@@ -105,3 +105,18 @@ costs nothing: no failure card, no retry prompt, no bill; the job restarts itsel
 While driving, the objective card folds into a one-line strip at the top six seconds after its text changes,
 instead of covering your car. The campaign audit plays the new opening (star, call, delivery, $500) and its quiet
 restart; missions_all, soak and persistence pass.
+
+Step 4: cruisers far away or out of sight now drive the roads with sirens (through red lights, at pursuit speed),
+turning at each junction toward the target by hop distance over the road graph; within 38 m and in sight they
+close in directly. A cruiser held up behind traffic tries the other lane, then backs off and goes round for four
+seconds. New cruisers spawn on lanes heading toward you. Pursuit bench, two stars, player in a parked car at four
+spots, 60 s: before, cruisers came within 30 m at 2 of 4 spots (32.5 s in total); after, at 4 of 4 (99 s in total),
+first arrival 8-22 s. `tools/playtest/tests/pursuit.js` keeps it (3 of 4 within 35 s). One star now sends a patrol
+car. Car-to-car hits apply an angular impulse from the contact offset, so a T-bone spins the car it hits and a
+nudge on a rear quarter works as a PIT. The overhaul's contact damage had cut car fires out entirely (`burning` was
+never set, and every bullet with a contact point disabled rather than destroyed): gunfire and blasts now set a car
+alight below 12% and it explodes five seconds later, while crashes still only disable. Drive-by shooting has its
+own timer instead of sharing the burning countdown. Heat Run: while wanted, a pot grows at 5 x stars^2 per second,
+plus 150 x stars per cruiser destroyed; a clean getaway or a respray banks it (best run kept in stats), WASTED or
+BUSTED loses it; shown under the stars. Speed streaks at the screen edge past 20 m/s (scaled by the speed/FOV
+comfort setting, drawn on the 2D overlay) and wind noise that rises with speed.

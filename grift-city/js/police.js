@@ -33,7 +33,11 @@ const POLICE = (() => {
     return u.searchPoint;
   }
   function arrestProgress(dt, cop) { S.arrestT += dt; S.arresting = true; if (S.arrestT > 0.7) PLAYER.bust(); }
-  function clear() { S.heat = 0; PLAYER.P.wanted = 0; S.seenT = 99; S.lastSeen = null; S.search = null; S.description=null;reports.forEach(r=>{r.witness.reporting=0;r.witness.item=r.witness.reportItem||null;});reports.length=0;for(const k in lastCrime)delete lastCrime[k]; for (const c of W.cars) if (!c.removed && c.driver && c.driver.isCop && c.ai.mode === 'chase') { c.ai.mode = 'traffic'; c.ai.edge = null; c.siren = false; } if (W.heli) W.heli.leaving = true; }
+  // Heat Run: while wanted, a pot grows with the square of the stars (and each wrecked cruiser). A clean getaway or a
+  // respray banks it; WASTED or BUSTED takes it. clear() is used everywhere (respawns, beds, mission ends), so it
+  // discards the pot, and only the two honest exits call bank() first.
+  function bank(how) { const pot = Math.floor(S.pot || 0); S.pot = 0; if (pot >= 10) { PLAYER.addMoney(pot, how || 'clean getaway'); if (pot > (PLAYER.P.stats.bestRun || 0)) { PLAYER.P.stats.bestRun = pot; HUD.notify('Best Heat Run yet: $' + pot.toLocaleString() + '.'); } } return pot; }
+  function clear() { S.pot = 0; S.heat = 0; PLAYER.P.wanted = 0; S.seenT = 99; S.lastSeen = null; S.search = null; S.description=null;reports.forEach(r=>{r.witness.reporting=0;r.witness.item=r.witness.reportItem||null;});reports.length=0;for(const k in lastCrime)delete lastCrime[k]; for (const c of W.cars) if (!c.removed && c.driver && c.driver.isCop && c.ai.mode === 'chase') { c.ai.mode = 'traffic'; c.ai.edge = null; c.siren = false; } if (W.heli) W.heli.leaving = true; }
   function setStars(n) { S.heat = Math.max(S.heat, n); PLAYER.P.wanted = stars(); S.seenT = 0; S.lastSeen = [PLAYER.x, PLAYER.z];S.lastY=PLAYER.P.y;S.description=description(); S.spawnT = 2.5; }
   function bribe() { S.heat = Math.max(0, S.heat - 1); PLAYER.P.wanted = stars(); }
 
@@ -45,6 +49,7 @@ const POLICE = (() => {
       const e = cands[Math.floor(W.rng() * cands.length)]; const L = CITY.laneLen(e); const s = 5 + W.rng() * (L - 10); const lane = W.rng() < 0.5 ? 0 : 1; const [x, z] = CITY.lanePoint(e, lane, s); const d = M.dist(x, z, P.x, P.z);
       if (d < minD || d > maxD) continue;
       if (ahead && P.car && P.car.absSpeed > 5 && t < 20) { const f = P.car.fwd; if ((x - P.x) * f[0] + (z - P.z) * f[1] < 0) continue; }
+      if (ahead && t < 24 && (P.x - x) * e.dx + (P.z - z) * e.dz < 0) continue; // a cruiser that has to drive round the block first is a cruiser that never arrives
       if(M.dist(x,z,PLAYER.x,PLAYER.z)<125&&W.sight3(x,1.5,z,PLAYER.x,PLAYER.P.y+1.2,PLAYER.z,[PLAYER.car]))continue;
       return { e, lane, s, x, z };
     }
@@ -119,10 +124,11 @@ const POLICE = (() => {
       const see = 70 * (1 - 0.55 * (W.weather.fog || 0)) * (W.isNight() ? 0.8 : 1); // fog and darkness shorten the police's sight
       for(const c of W.cars)if(!c.removed&&c.ai.mode==='chase'&&c.driver?.isCop)observe(c);
       const evade = 10 + w * 7;
-      if (S.seenT > evade) { S.heat = Math.max(0, Math.floor(S.heat) - 1 + 0.9); S.seenT = evade * 0.55; if (stars() === 0) { S.heat = 0; HUD.notify('You lost the cops.'); clear(); } }
+      S.pot = (S.pot || 0) + dt * 5 * w * w;
+      if (S.seenT > evade) { S.heat = Math.max(0, Math.floor(S.heat) - 1 + 0.9); S.seenT = evade * 0.55; if (stars() === 0) { S.heat = 0; HUD.notify('You lost the cops.'); bank('clean getaway'); clear(); } }
       // spawning
       const cnt = counts(); S.spawnT -= dt; S.footT -= dt; S.roadblockT -= dt;
-      const wantCars = [0, 0, 2, 3, 4, 5][w], wantFoot = [0, 2, 3, 4, 4, 5][w], wantSwat = [0, 0, 0, 0, 1, 2][w];
+      const wantCars = [0, 1, 2, 3, 4, 5][w], /* one star sends a patrol car, not just a walk-up */ wantFoot = [0, 2, 3, 4, 4, 5][w], wantSwat = [0, 0, 0, 0, 1, 2][w];
       if (S.lastSeen && S.spawnT <= 0) { const bl = CITY.blockAt(P.x, P.z); const d = bl ? CITY.district(bl.i, bl.j) : 'midtown'; const resp = { downtown: 0.7, midtown: 0.9, westfield: 1.1, northgate: 1.2, southport: 1.3, eastside: 1.6 }[d] || 1; /* the precincts are downtown; the east side waits */ S.spawnT = (w >= 3 ? 6 : 10) * resp * (1 + 0.5 * (W.weather.fog || 0)); if (cnt.cars < wantCars) spawnCar(false); else if (cnt.swat < wantSwat) spawnCar(true); }
       if (S.lastSeen && S.footT <= 0) { S.footT = 5; if (cnt.foot < wantFoot && (!P.car || P.car.absSpeed < 6)) spawnFoot(); }
       if (S.seenT < 2.5 && w >= 3 && S.roadblockT <= 0 && P.car && P.car.absSpeed > 8) { S.roadblockT = w >= 4 ? 18 : 28; spawnRoadblock(); }
@@ -147,5 +153,5 @@ const POLICE = (() => {
     let pitch = 1; if (loud && loud !== P.car) { const dx = loud.x - P.x, dz = loud.z - P.z, d = Math.hypot(dx, dz) || 1; const pv = P.car ? [P.car.vx, P.car.vz] : [P.vx || 0, P.vz || 0]; const vrel = ((loud.vx - pv[0]) * dx + (loud.vz - pv[1]) * dz) / d; pitch = M.clamp(343 / (343 + vrel), 0.86, 1.16); } // doppler: a cruiser closing sounds sharper, one pulling away flatter
     AUDIO.siren(M.clamp(vol, 0, 1) * (P.car && P.car.siren ? 1 : 0.8) + (P.car && P.car.siren ? 0.6 : 0), dt, pitch);
   }
-  return { S, reports, updateReports, identified, observe, crime, seen, pursuitPoint, arrestProgress, clear, setStars, bribe, update, heliEntity, stars, get lastSeen() { return S.lastSeen; } };
+  return { S, bank, reports, updateReports, identified, observe, crime, seen, pursuitPoint, arrestProgress, clear, setStars, bribe, update, heliEntity, stars, get lastSeen() { return S.lastSeen; } };
 })();

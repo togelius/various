@@ -118,11 +118,18 @@ const HUD = (() => {
   // adaptive quality settled on and what the frame costs, readable on the device itself.
   function drawPerf() { const r = GAME.perfInfo(); if (!r) return; const lines = [`frame ${r.frameP50} / ${r.frameP95} / ${r.frameP99} ms  (p50/p95/p99)`, `cap ${r.cap} · quality rung ${r.level} · scale ${r.scale} · dpr ${r.dpr}`, `sim ${r.simMs} ms · render ${r.renderMs} ms (CPU)`, `${r.draws} draws · ${(r.tris / 1000).toFixed(0)}k tris · ${r.canvas}${r.heapMB ? ' · heap ' + r.heapMB + ' MB' : ''}`, `${r.gpu}`];
     const x = W_ / 2 - 190, y = 8; g.fillStyle = 'rgba(8,14,18,0.72)'; g.fillRect(x, y, 380, lines.length * 15 + 10); lines.forEach((l, i) => text(l, x + 8, y + 14 + i * 15, 11, i === 0 && r.frameP95 > (r.cap === '30 Hz' ? 40 : 22) ? '#ff9a7a' : '#d8e6e2', 'left', 'normal', false)); }
+  // Speed is felt at the edges of vision: past 20 m/s thin streaks rush outward from the centre, stronger with speed,
+  // scaled by the speed/FOV comfort setting. Drawn on the 2D overlay, so it costs the GPU nothing.
+  function speedLines(spd) { const k = M.clamp((spd - 20) / 16, 0, 1) * (GAME.options.speedFov ?? .8); if (k <= 0.02) return; const t = W.state.elapsed, cx = W_ / 2, cy = H_ * 0.46, R = Math.hypot(W_, H_) / 2;
+    g.save(); g.lineCap = 'round'; for (let i = 0; i < 28; i++) { const h = Math.sin(i * 12.9898) * 43758.5453, a = (h - Math.floor(h)) * M.TAU, ph = ((t * (1.6 + k * 2) + i * 0.37) % 1); const r0 = R * (0.55 + ph * 0.45), r1 = r0 + R * (0.08 + 0.12 * k);
+      g.strokeStyle = `rgba(255,255,255,${(0.10 + 0.22 * k) * Math.sin(ph * Math.PI)})`; g.lineWidth = 1.2 + k; g.beginPath(); g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1); g.stroke(); }
+    g.restore(); }
   function stars(P, x, y) { for (let i = 0; i < 5; i++) { const lit = i < P.wanted; const flash = starFlash > 0 && lit && Math.sin(W.state.elapsed * 20) > 0; text('★', x - i * 24, y, 24, lit ? (flash ? '#fff' : '#f5c542') : 'rgba(255,255,255,0.18)', 'center'); } }
 
   function draw(dt, state, photo) { drawFrame(dt, state, photo); if (GAME.options.perfOverlay && state !== 'title' && state !== 'loading') drawPerf(); } // the overlay goes on top of everything, letterbox included
   function drawFrame(dt, state, photo) {if(typeof NAV!=='undefined')NAV.sync(state);
     resize(); g.clearRect(0, 0, W_, H_); zones.length = 0; const P = PLAYER.P;
+    if (state === 'playing' && P.car) speedLines(P.car.absSpeed);
     if (state === 'title') return drawTitle();
     if (state === 'photo') { text('PHOTO MODE  ·  WASD/QE fly  ·  SHIFT fast  ·  wheel zoom  ·  click or ENTER saves a picture  ·  P back', W_ / 2, H_ - 18, 13, 'rgba(255,255,255,0.75)', 'center', 'normal'); if (photo && photo.savedT > 0) text('SAVED', W_ / 2, H_ / 2, 28, '#f5c542', 'center'); return; }
     if (state === 'loading') return drawLoading();
@@ -146,6 +153,7 @@ const HUD = (() => {
     if (P.wanted > 0) {
       stars(P, W_ - 38, 65); const searching = POLICE.S.seenT > 2.5;
       text(searching ? 'SEARCHING · stay out of sight' : 'PURSUIT · break line of sight', W_-24, 88, 11, searching ? '#84cbe0' : '#ff947e', 'right', '500');
+      if (POLICE.S.pot >= 1) text('HEAT RUN  $' + Math.floor(POLICE.S.pot).toLocaleString(), W_ - 24, 112, 13, '#f5c542', 'right', '600'); // banked by getting away, lost by getting caught
       if (searching) { const progress = M.clamp((POLICE.S.seenT-2.5)/(10+P.wanted*7-2.5),0,1); g.fillStyle = '#263e46'; g.fillRect(W_-188,98,164,2); g.fillStyle = '#84cbe0'; g.fillRect(W_-188,98,164*progress,2); }
     }
     weaponIcon(W_ - 60, 112, P.weapon); const ammo = P.weapons[P.weapon]; if (ammo !== Infinity) { const mag = PLAYER.magazine(); text(WEAPONS[P.weapon].projectile ? String(ammo) : mag + ' / ' + Math.max(0,ammo-mag), W_ - 100, 117, 18, '#fff', 'right'); }

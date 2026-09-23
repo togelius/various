@@ -42,5 +42,17 @@ for(const where of ['hospital','police']){P.x=100;P.z=100;PLAYER.respawn(where);
 {const gs=CITY.places.guns[0];W.state.time=12;P.car=null;P.x=gs.x;P.z=gs.z;MISSIONS.S.shop=null;MISSIONS.S.shopLatch=null;MISSIONS.update(1/60);check(MISSIONS.S.shop&&MISSIONS.S.shop.kind==='guns','gun shop opens');
  MISSIONS.closeShop();for(let i=0;i<30;i++)MISSIONS.update(1/60);check(!MISSIONS.S.shop,'closed shop does not reopen while you stand there');
  P.x=gs.x+8;MISSIONS.update(1/60);P.x=gs.x;MISSIONS.update(1/60);check(MISSIONS.S.shop,'it opens again after stepping away');MISSIONS.closeShop();}
+// 8. A T-bone spins the car it hits; a burning pursuer explodes; gunfire sets a car alight rather than disabling it.
+{W.cars.length=0;const pushOut=W.pushOut;W.pushOut=(x,z)=>({x,z});/* open ground: only the two cars */const a=VEH.spawn('sedan',400,380,Math.PI/2,{mode:'parked'}),b=VEH.spawn('sedan',406,381.9,0,{mode:'parked'});a.vx=15;a.vz=0;b.vx=b.vz=0;
+ for(let i=0;i<30&&Math.abs(b.yawRate||0)<1e-6;i++){a.x+=a.vx/60;a.collide(1/60);}W.pushOut=pushOut;check(Math.abs(b.yawRate||0)>1,'a T-bone on the rear quarter spins the car ('+(b.yawRate||0).toFixed(2)+' rad/s)');
+ W.cars.length=0;const cop=VEH.spawn('police',300,300,0,{mode:'chase'});cop.ai.target={x:300,z:400,P:{y:0}};
+ for(let i=0;i<20&&!cop.burning;i++)cop.damage(cop.maxHealth*.06,PLAYER,{x:300,y:1,z:301,kind:'bullet'});check(cop.burning&&!cop.wrecked,'gunfire sets a car alight');
+ for(let i=0;i<60*7&&!cop.burned;i++)cop.update(1/60);check(cop.burned,'a burning pursuer explodes within seconds');
+ const w=VEH.spawn('sedan',320,300,0,{mode:'parked'});w.damage(w.maxHealth*2,null,{x:320,y:.7,z:302,kind:'impact'});check(w.disabled&&!w.burned,'a crash disables without an explosion');}
+// 9. Heat Run: the pot grows while wanted, a clean getaway banks it, getting caught loses it.
+{W.cars.length=0;W.peds.length=0;const P=PLAYER.P;P.alive=true;P.car=null;P.money=0;POLICE.clear();POLICE.setStars(2);for(let i=0;i<600;i++)POLICE.update(1/60);
+ const pot=Math.floor(POLICE.S.pot);check(pot>=150,'two stars for ten seconds builds a pot ($'+pot+')');
+ POLICE.S.seenT=999;POLICE.S.heat=1.2;POLICE.update(1/60);check(P.money>=pot&&POLICE.S.pot===0,'losing the last star banks the pot ($'+P.money+')');
+ P.money=0;POLICE.setStars(3);for(let i=0;i<600;i++)POLICE.update(1/60);PLAYER.respawn('hospital');check(P.money===0&&POLICE.S.pot===0,'a respawn loses the pot');}
 console.log('Getaway: '+checks+' checks passed'+(blocked?' (aim scene blocked; aim checked in browser)':''));
 `,ctx);
