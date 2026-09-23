@@ -234,6 +234,10 @@ const PEDS = (() => {
   // at a walk but sinks into it at a run. Lateral sway is kept small; a big hip roll reads as dancing.
   const RELOAD_POSES=[[0,-.4,-1.5,-.05,0],[.18,-.7,-1.1,-.7,-.35],[.40,-.2,-.85,-1.6,-.75],[.62,-1.0,-.95,-1.1,-.65],[.83,-.7,-1.35,-.4,-.15],[1,-.4,-1.5,-.05,0]];
   function samplePose(keys,t) { let i=0;while(i<keys.length-2&&keys[i+1][0]<t)i++;const a=keys[i],b=keys[i+1],u=smooth(M.clamp((t-a[0])/(b[0]-a[0]),0,1));return a.slice(1).map((v,k)=>M.lerp(v,b[k+1],u)); }
+  // The gun arm follows a locked target (on a roof, in a helicopter, crouched behind a car), not the orbit camera's
+  // downward tilt, so a locked shot looks like it goes where it goes. Positive is down, like camPitch.
+  function lockPitch(p) { const t = p.aimTarget; if (!t || t.alive === false || t.dead) return M.clamp(p.camPitch || 0, -0.6, 0.6);
+    const ty = t === W.heli ? t.y : (t.y || 0) + 1.2 - (t.crouch || 0) * 0.4; return M.clamp(-Math.atan2(ty - (p.y || 0) - 1.35, Math.max(0.5, Math.hypot(t.x - p.x, t.z - p.z))), -1.2, 0.9); }
   function buildRig(p, model, bones) {
     const lying = p.lying || 0; const dead = p.state === 'dead';
     const spd = Math.max(p.speed || 0, Math.min(.65,(p.turnStep||0)*.10)); const walk = Math.min(1, spd / 1.2); const G = gait(spd), r = G.r * walk, s = G.s, stance = G.stance;
@@ -267,7 +271,7 @@ const PEDS = (() => {
     const pose=samplePose(RELOAD_POSES,reloadU), reloading=p.reloadT>0?1:0;
     const reaching=p.state==='entering'?Math.sin(Math.min(1,(p.doorReach||0)/.32)*Math.PI*.7):0;
     const armBias = (0.04 + 0.1 * r + 0.04 * s) * walk, armAmp = 0.28 + 0.3 * r + 0.3 * s;
-    const armPitchL = (reloading ? pose[0] : aim ? -0.4 : armBias + armAmp * fL) - flinch * 1.1 - kick * 0.5, armPitchR = hold === 'umbrella' ? -2.1 : hold === 'phone' ? -2.3 : (reloading ? pose[1] : aim ? -Math.PI / 2 + 0.05 + (p.camPitch || 0) + (p.recoil || 0) * 2 : armBias - armAmp * fL - punch * 1.4) - flinch * 0.9 + kick * 0.6;
+    const armPitchL = (reloading ? pose[0] : aim ? -0.4 : armBias + armAmp * fL) - flinch * 1.1 - kick * 0.5, armPitchR = hold === 'umbrella' ? -2.1 : hold === 'phone' ? -2.3 : (reloading ? pose[1] : aim ? -Math.PI / 2 + 0.05 + lockPitch(p) + (p.recoil || 0) * 2 : armBias - armAmp * fL - punch * 1.4) - flinch * 0.9 + kick * 0.6;
     const armRoll = 0.07 + 0.05 * r + Math.sin(t * 1.1) * 0.015 * idle;
     torsoChild(bones,32,.26,SHOULDER,gesture*.2,armPitchL-gesture*.35-(p.vaultPose||0)*1.1,armRoll+(aim?.12:0)+gesture*.16,.26);
     torsoChild(bones,48,-.26,SHOULDER,aim?-.15:0,armPitchR-reaching*1.2-(p.vaultPose||0)*1.3,-armRoll,-.26);

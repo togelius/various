@@ -61,7 +61,7 @@ time): visual, persistence, vehicles, enter_test, docks_test, repo_test, rev_tes
 - [x] 2. Device truth and a quality ladder that understands a 30 Hz cap.
 - [x] 3. A cold open through the Foundry Quarter.
 - [x] 4. Pursuit legs: cruisers that reach you, a patrol car at one star, T-bones and PIT, the Heat Run pot.
-- [ ] 5. One-thumb combat: lock-on, a context ACTION button, fewer touch buttons.
+- [x] 5. One-thumb combat: lock-on, a context ACTION button, fewer touch buttons.
 - [ ] 6. Nights and look.
 - [ ] 7. Story order, the con, the morning paper.
 
@@ -120,3 +120,12 @@ own timer instead of sharing the burning countdown. Heat Run: while wanted, a po
 plus 150 x stars per cruiser destroyed; a clean getaway or a respray banks it (best run kept in stats), WASTED or
 BUSTED loses it; shown under the stars. Speed streaks at the screen edge past 20 m/s (scaled by the speed/FOV
 comfort setting, drawn on the 2D overlay) and wind noise that rises with speed.
+
+Step 5: on foot, touch shows FIRE, AIM, JUMP, one ACTION button and WEAP when nothing is happening (ten buttons
+before). ACTION reads the moment: TALK (held) to the debtor in Repo Man, VAULT at a low wall, otherwise ENTER.
+CROUCH and EVADE appear when armed and in a fight (aiming, wanted, or a hostile within 30 m), SIDE while aiming,
+LOAD when the magazine is not full. WEAP taps to cycle and, held, opens a wheel of every weapon carried with its
+ammo; the thumb's direction picks, release selects. Taxis and cruisers get a JOB button for fares and vigilante
+work. Holding FIRE on touch uses the controller aim assist (step 1 made the lock work at range), and the gun arm
+now points at a locked target instead of following the orbit camera's tilt (`test/getaway.js`: the hand rises for
+a target overhead). The Heat Run readout sits below the weapon block.

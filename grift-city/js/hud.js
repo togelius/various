@@ -153,7 +153,7 @@ const HUD = (() => {
     if (P.wanted > 0) {
       stars(P, W_ - 38, 65); const searching = POLICE.S.seenT > 2.5;
       text(searching ? 'SEARCHING · stay out of sight' : 'PURSUIT · break line of sight', W_-24, 88, 11, searching ? '#84cbe0' : '#ff947e', 'right', '500');
-      if (POLICE.S.pot >= 1) text('HEAT RUN  $' + Math.floor(POLICE.S.pot).toLocaleString(), W_ - 24, 112, 13, '#f5c542', 'right', '600'); // banked by getting away, lost by getting caught
+      if (POLICE.S.pot >= 1) text('HEAT RUN  $' + Math.floor(POLICE.S.pot).toLocaleString(), W_ - 24, 162, 13, '#f5c542', 'right', '600'); // banked by getting away, lost by getting caught
       if (searching) { const progress = M.clamp((POLICE.S.seenT-2.5)/(10+P.wanted*7-2.5),0,1); g.fillStyle = '#263e46'; g.fillRect(W_-188,98,164,2); g.fillStyle = '#84cbe0'; g.fillRect(W_-188,98,164*progress,2); }
     }
     weaponIcon(W_ - 60, 112, P.weapon); const ammo = P.weapons[P.weapon]; if (ammo !== Infinity) { const mag = PLAYER.magazine(); text(WEAPONS[P.weapon].projectile ? String(ammo) : mag + ' / ' + Math.max(0,ammo-mag), W_ - 100, 117, 18, '#fff', 'right'); }

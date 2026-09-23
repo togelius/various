@@ -57,14 +57,22 @@ const TOUCH = (() => {
       if ((wp === 'pistol' || wp === 'uzi') && P.weapons[wp] > 0) add('shoot', bx - u * 3.55, by - u * 2.85, u * 0.6, 'SHOOT');
       add('radio', bx - u * 5.25, by - u * 1.45, u * 0.48, 'RADIO', true);
       if (car.type === 'police' || car.type === 'swat') add('siren', bx - u * 5.25, by - u * 2.75, u * 0.48, 'SIREN', true);
+      if ((car.type === 'taxi' || car.type === 'police') && !safe(() => MISSIONS.S.current, null)) add('job', bx - u * 5.25, by - u * 4.05, u * 0.48, 'JOB', true); // taxi fares and vigilante work were keyboard-only
     } else {
       add('fire', bx, by, u * 1.02, 'FIRE');
       add('aim', bx - u * 2.45, by + u * 0.04, u * 0.76, 'AIM');
       add('jump', bx + u * 0.04, by - u * 2.45, u * 0.7, 'JUMP', true);
-      add('enter', bx - u * 1.92, by - u * 1.92, u * 0.7, 'ENTER', true);
-      if (safe(()=>MISSIONS.S.current && MISSIONS.S.current.id===1 && !MISSIONS.S.current.strand && !MISSIONS.S.current.data.fled && !MISSIONS.S.current.data.surrendered,false)) add('talk',bx-u*3.55,by-u*2.85,u*.6,'TALK');
-      add('crouch',bx-u*3.75,by-u*1.6,u*.48,'CROUCH',true);add('evade',bx-u*3.65,by-u*3.4,u*.48,'EVADE',true);add('shoulder',bx-u*1.9,by-u*3.5,u*.44,'SIDE',true);add('reload',bx-u*5.0,by-u*2.7,u*.45,'LOAD',true);
-      add('weapon', bx - u * 4.05, by - u * 0.15, u * 0.56, 'WEAP', true);
+      // One ACTION button does what the moment needs: talk to the debtor, vault a low wall, or get in a car. The
+      // overhaul's extra moves only appear when they mean something, so an idle thumb sees five buttons, not ten.
+      const talk = safe(()=>MISSIONS.S.current && MISSIONS.S.current.id===1 && !MISSIONS.S.current.strand && !MISSIONS.S.current.data.fled && !MISSIONS.S.current.data.surrendered,false);
+      const vault = !talk && safe(() => !!PLAYER.vaultCandidate(), false);
+      actionKind = talk ? 'talk' : vault ? 'vault' : 'enter';
+      add('action', bx - u * 1.92, by - u * 1.92, u * 0.74, talk ? 'TALK' : vault ? 'VAULT' : 'ENTER', !talk);
+      const armed = P.weapon && P.weapon !== 'fist' && P.weapon !== 'camera', fight = armed && (P.aim || P.wanted > 0 || safe(() => W.peds.some(q => q.alive && (q.hostile || (q.isCop && P.wanted > 0)) && M.dist2(q.x, q.z, P.x, P.z) < 900), false));
+      if (fight || P.crouched) add('crouch',bx-u*3.75,by-u*1.6,u*.48,'CROUCH',true);
+      if (fight) { add('evade',bx-u*3.65,by-u*3.4,u*.48,'EVADE',true); if (P.aim) add('shoulder',bx-u*1.9,by-u*3.5,u*.44,'SIDE',true); }
+      const wd = armed && typeof WEAPONS !== 'undefined' && WEAPONS[P.weapon]; if (wd && wd.clip && (P.magazines[P.weapon] ?? wd.clip) < wd.clip && P.weapons[P.weapon] > 0) add('reload',bx-u*5.0,by-u*2.7,u*.45,'LOAD',true);
+      add('weapon', bx - u * 4.05, by - u * 0.15, u * 0.56, 'WEAP');
     }
     add('map', W - u * 5.9, u * 0.95, u * 0.5, 'MAP', true);
     add('pause', W - u * 4.45, u * 0.95, u * 0.5, 'II', true);
@@ -123,7 +131,7 @@ const TOUCH = (() => {
     if (md === 'paused') { INPUT.tapKey('Escape'); pts.set(id, { role: 'none' }); return; }
     const b = buttonAt(x, y, L);
     if (b) {
-      pts.set(id, { role: 'btn', btn: b.id }); held.add(b.id);
+      pts.set(id, { role: 'btn', btn: b.id, t0: performance.now(), x0: x, y0: y }); held.add(b.id);
       if (b.tap) fireTap(b.id);
       return;
     }
@@ -137,10 +145,11 @@ const TOUCH = (() => {
   function fireTap(id) {
     if (id === 'jump') INPUT.tapKey('Space');
     else if (id === 'enter' || id === 'exit') INPUT.tapKey('KeyF');
+    else if (id === 'action') INPUT.tapKey(actionKind === 'vault' ? 'Space' : 'KeyF');
     else if (['crouch','evade','shoulder','reload'].includes(id))INPUT.tapKey({crouch:'KeyZ',evade:'KeyX',shoulder:'KeyV',reload:'KeyR'}[id]);
-    else if (id === 'weapon') INPUT.tapKey('KeyE');
     else if (id === 'radio') INPUT.tapKey('KeyR');
     else if (id === 'siren') INPUT.tapKey('KeyL');
+    else if (id === 'job') INPUT.tapKey('KeyT');
     else if (id === 'pause') INPUT.tapKey('Escape');
     else if (id === 'map') INPUT.tapKey('Tab');
     else if (id === 'full') toggleFull();
@@ -155,6 +164,9 @@ const TOUCH = (() => {
       let dx = x - stick.cx, dy = y - stick.cy; const d = Math.hypot(dx, dy);
       if (d > R) { dx = dx / d * R; dy = dy / d * R; }
       stick.nx = dx / R; stick.ny = dy / R; stick.x = stick.cx + dx; stick.y = stick.cy + dy;
+    } else if (p.role === 'btn' && p.btn === 'weapon') { // holding WEAP opens the wheel; the thumb's direction from the button picks
+      if (!wheel && (Math.hypot(x - p.x0, y - p.y0) > 18 || performance.now() - p.t0 > 280)) wheel = { cx: p.x0 - (lastL ? lastL.u * 2.4 : 120), cy: p.y0 - (lastL ? lastL.u * 2.4 : 120), pick: -1 };
+      if (wheel) wheel.pick = wheelPick(x, y);
     } else if (p.role === 'look' && look && look.id === e.pointerId) {
       INPUT.mouse.dx += (x - look.x) * LOOK_GAIN; INPUT.mouse.dy += (y - look.y) * LOOK_GAIN;
       look.x = x; look.y = y;
@@ -164,6 +176,7 @@ const TOUCH = (() => {
     const p = pts.get(e.pointerId); pts.delete(e.pointerId);
     if (!p) return;
     if (p.role === 'btn') held.delete(p.btn);
+    if (p.role === 'btn' && p.btn === 'weapon') { if (wheel) { const k = wheel.pick; wheel = null; if (k >= 0) { const list = wheelList(); if (list[k]) INPUT.tapKey('Digit' + (WEAPON_ORDER.indexOf(list[k]) + 1)); } } else INPUT.tapKey('KeyE'); }
     if (p.role === 'stick' && stick && stick.id === e.pointerId) stick = null;
     if (p.role === 'look' && look && look.id === e.pointerId) look = null;
   }
@@ -182,7 +195,7 @@ const TOUCH = (() => {
       if (on('shoot')) mouseButtons |= 1;
     } else {
       rt = on('fire') ? 1 : 0; lt = on('aim') ? 1 : 0;
-      vhold('KeyG',on('talk')); vhold('Space', false); vhold('KeyH', false);
+      vhold('KeyG', on('action') && actionKind === 'talk'); vhold('Space', false); vhold('KeyH', false);
       vhold('ShiftLeft', Math.hypot(lx, ly) > SPRINT_AT);
       if (on('fire')) mouseButtons |= 1;
       if (on('aim')) mouseButtons |= 2;
@@ -190,6 +203,17 @@ const TOUCH = (() => {
     return { lx, ly, rx: 0, ry: 0, lt, rt, buttons: [], mouseButtons };
   }
 
+  // ---- weapon wheel: every weapon you carry on a ring around the thumb
+  let wheel = null, actionKind = 'enter';
+  const wheelList = () => { const P = ply(); return P && typeof WEAPON_ORDER !== 'undefined' ? WEAPON_ORDER.filter(k => k in P.weapons && P.weapons[k] > 0) : []; };
+  function wheelPick(x, y) { const list = wheelList(); if (!wheel || !list.length) return -1; const dx = x - wheel.cx, dy = y - wheel.cy; if (Math.hypot(dx, dy) < 22) return -1; const a = (Math.atan2(dx, -dy) + Math.PI * 2) % (Math.PI * 2); return Math.floor(a / (Math.PI * 2) * list.length + 0.5) % list.length; }
+  function drawWheel(g) { if (!wheel) return; const list = wheelList(), R = lastL ? lastL.u * 2.1 : 110, P = ply();
+    ring(g, wheel.cx, wheel.cy, R + 34, 'rgba(8,14,18,0.55)', 'rgba(255,255,255,0.25)', 2);
+    list.forEach((k, i) => { const a = i / list.length * Math.PI * 2, x = wheel.cx + Math.sin(a) * R, y = wheel.cy - Math.cos(a) * R, sel = i === wheel.pick, cur = P && P.weapon === k;
+      ring(g, x, y, 28, sel ? 'rgba(245,197,66,0.55)' : 'rgba(10,14,18,0.6)', sel || cur ? '#f5c542' : 'rgba(255,255,255,0.5)', 2);
+      g.font = 'bold 11px "Helvetica Neue", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#fff';
+      const name = (typeof WEAPONS !== 'undefined' && WEAPONS[k] ? WEAPONS[k].name : k).toUpperCase(); g.fillText(name.length > 9 ? name.slice(0, 9) : name, x, y - 4);
+      const n = P.weapons[k]; g.font = '10px "Helvetica Neue", Arial, sans-serif'; g.fillStyle = '#c9d6d2'; g.fillText(n === Infinity ? '' : String(n), x, y + 9); }); }
   // ---- drawing
   function ring(g, x, y, r, fill, stroke, w) {
     g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2);
@@ -220,6 +244,7 @@ const TOUCH = (() => {
       g.fillText(b.label, b.x, b.y);
     }
     if (!playing) return;
+    drawWheel(g);
     // the stick: a faint home ring until a thumb lands, then it follows the thumb
     const h = L.home;
     if (stick) {

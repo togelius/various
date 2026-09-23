@@ -54,5 +54,10 @@ for(const where of ['hospital','police']){P.x=100;P.z=100;PLAYER.respawn(where);
  const pot=Math.floor(POLICE.S.pot);check(pot>=150,'two stars for ten seconds builds a pot ($'+pot+')');
  POLICE.S.seenT=999;POLICE.S.heat=1.2;POLICE.update(1/60);check(P.money>=pot&&POLICE.S.pot===0,'losing the last star banks the pot ($'+P.money+')');
  P.money=0;POLICE.setStars(3);for(let i=0;i<600;i++)POLICE.update(1/60);PLAYER.respawn('hospital');check(P.money===0&&POLICE.S.pot===0,'a respawn loses the pot');}
+// 10. The gun arm points at a locked target above the player, not along the camera's tilt.
+{const at=(m,x,y,z)=>[m[0]*x+m[4]*y+m[8]*z+m[12],m[1]*x+m[5]*y+m[9]*z+m[13],m[2]*x+m[6]*y+m[10]*z+m[14]];
+ const rig=t=>{const b=new Float32Array(16*RENDER.MAX_BONES);PEDS.buildRig({x:0,y:0,z:0,angle:0,phase:0,vx:0,vz:0,aim:1,camPitch:.28,aimTarget:t,speed:0,state:'foot'},M.create(),b);return b;};
+ const up=rig({x:0,y:6,z:6,alive:true}),level=rig(null);const hy=b=>at(b.subarray(160,176),-.26,-.6,0)[1]-at(b.subarray(48,64),-.26,0,0)[1];
+ check(hy(up)>.3&&hy(level)<.1,'locked on a target above, the gun hand rises ('+hy(up).toFixed(2)+' vs '+hy(level).toFixed(2)+')');}
 console.log('Getaway: '+checks+' checks passed'+(blocked?' (aim scene blocked; aim checked in browser)':''));
 `,ctx);
