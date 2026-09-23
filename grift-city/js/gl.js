@@ -36,11 +36,31 @@ const GL = (() => {
   const STRIDE = 13;
   const LAYOUT = [['aPos', 3, 0], ['aNrm', 3, 3], ['aCol', 3, 6], ['aUV', 2, 9], ['aTile', 1, 11], ['aBone', 1, 12]];
 
+  // Static meshes are uploaded packed, 36 bytes a vertex instead of 52: the normal as three signed bytes, the colour
+  // as half floats (vertex colours can exceed 1), the texture layer and bone as unsigned bytes. Position and UV stay
+  // full floats: city UVs run to hundreds of repeats, which half floats cannot place precisely. Any mesh whose data
+  // does not fit (a layer or bone id outside 0-255, or not a whole number) keeps the float layout.
+  const PSTRIDE = 36, h32 = new Float32Array(1), h32u = new Uint32Array(h32.buffer);
+  function half(v) { h32[0] = v; const x = h32u[0], sgn = (x >>> 16) & 0x8000, e = ((x >>> 23) & 0xff) - 112; if (e <= 0) return sgn; if (e >= 31) return sgn | 0x7c00; return sgn | (e << 10) | ((x >>> 13) & 0x3ff); }
+  function pack(data) { const n = data.length / STRIDE; if (n !== Math.floor(n)) return null; const buf = new ArrayBuffer(n * PSTRIDE), f = new Float32Array(buf), i8 = new Int8Array(buf), u16 = new Uint16Array(buf), u8 = new Uint8Array(buf);
+    for (let v = 0; v < n; v++) { const o = v * STRIDE, fo = v * 9, bo = v * PSTRIDE, ho = bo >> 1, tile = data[o + 11], bone = data[o + 12];
+      if (tile !== (tile | 0) || tile < 0 || tile > 255 || bone !== (bone | 0) || bone < 0 || bone > 255) return null;
+      f[fo] = data[o]; f[fo + 1] = data[o + 1]; f[fo + 2] = data[o + 2];
+      i8[bo + 12] = Math.round(Math.max(-1, Math.min(1, data[o + 3])) * 127); i8[bo + 13] = Math.round(Math.max(-1, Math.min(1, data[o + 4])) * 127); i8[bo + 14] = Math.round(Math.max(-1, Math.min(1, data[o + 5])) * 127);
+      u16[ho + 8] = half(data[o + 6]); u16[ho + 9] = half(data[o + 7]); u16[ho + 10] = half(data[o + 8]);
+      f[fo + 6] = data[o + 9]; f[fo + 7] = data[o + 10]; u8[bo + 32] = tile; u8[bo + 33] = bone; }
+    return buf; }
+  let packedBytes = 0, floatBytes = 0;
   function mesh(data, indices, dynamic = false, skin = null) {
     const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
     const vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-    gl.bufferData(gl.ARRAY_BUFFER, data, dynamic ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW);
-    LAYOUT.forEach(([name, size, off], loc) => { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, STRIDE * 4, off * 4); });
+    const packed = dynamic ? null : pack(data);
+    if (packed) { gl.bufferData(gl.ARRAY_BUFFER, packed, gl.STATIC_DRAW); packedBytes += packed.byteLength; floatBytes += data.byteLength;
+      for (let loc = 0; loc < 6; loc++) gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(0, 3, gl.FLOAT, false, PSTRIDE, 0); gl.vertexAttribPointer(1, 3, gl.BYTE, true, PSTRIDE, 12); gl.vertexAttribPointer(2, 3, gl.HALF_FLOAT, false, PSTRIDE, 16);
+      gl.vertexAttribPointer(3, 2, gl.FLOAT, false, PSTRIDE, 24); gl.vertexAttribPointer(4, 1, gl.UNSIGNED_BYTE, false, PSTRIDE, 32); gl.vertexAttribPointer(5, 1, gl.UNSIGNED_BYTE, false, PSTRIDE, 33); }
+    else { gl.bufferData(gl.ARRAY_BUFFER, data, dynamic ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW); floatBytes += data.byteLength; packedBytes += data.byteLength;
+      LAYOUT.forEach(([name, size, off], loc) => { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, STRIDE * 4, off * 4); }); }
     // Only deforming characters pay for a second bone, weight and bind-space offset.
     let skinBuffer=null;
     if (skin) { skinBuffer=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,skinBuffer); gl.bufferData(gl.ARRAY_BUFFER,skin,gl.STATIC_DRAW);
@@ -121,5 +141,5 @@ const GL = (() => {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     return { fbo, tex, size, w: size, h };
   }
-  return { init, get gl() { return gl; }, program, mesh, instancedMesh, updateInstances, updateMesh, draw, drawRange, textureArray, texture2D, shadowTarget, STRIDE, LAYOUT };
+  return { get vertexBytes() { return { packed: packedBytes, float: floatBytes }; }, init, get gl() { return gl; }, program, mesh, instancedMesh, updateInstances, updateMesh, draw, drawRange, textureArray, texture2D, shadowTarget, STRIDE, LAYOUT };
 })();

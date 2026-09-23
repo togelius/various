@@ -185,3 +185,7 @@ The items the first pass left out, worked through one at a time with the same ga
   55, two stars instead of three to four, and a $2,500 clean-take bonus. The crew walk through the front door with
   you and hold the vault door while the guards fight; when the vault is open everyone comes out and runs for the
   safehouse. Audited (casing, interior, easier entry, exit) and played through in missions_all.
+- [x] Static vertex buffers are packed: 36 bytes a vertex instead of 52 (normals as signed bytes, colours as half
+  floats, texture layer and bone as bytes; positions and UVs stay float). GPU vertex memory for the city and models
+  119 -> 83 MB headless; a street render differs from the float layout by 0.07/255 on average. Meshes whose data
+  would not fit keep the float layout. `tools/check-all.sh` now keeps each browser suite's log.
