@@ -7,8 +7,8 @@ const TEX = (() => {
   const photos = {}; let curLayer = null; // decoded photographic materials (js/texdata.js), and the layer being painted
   // Decode every baked material. Called before build(); without it the painters fall back to their drawn colours.
   function preload(onProgress) {
-    if (typeof TEXDATA === 'undefined') return Promise.resolve(0);
-    const entries = Object.entries(TEXDATA.mats); let done = 0;
+    const mats={...(typeof TEXDATA!=='undefined'?TEXDATA.mats:{}),...(typeof HERODATA!=='undefined'?HERODATA.mats:{})};
+    const entries = Object.entries(mats); let done = 0;
     const img = src => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
     return Promise.all(entries.map(([name, e]) => Promise.all([img(e.c), e.n ? img(e.n) : null, e.r ? img(e.r) : null]).then(([c, n, r]) => {
       if (c) photos[name] = { c, n, r };
@@ -121,7 +121,7 @@ const TEX = (() => {
   // IndexedDB, deflated, under a key made from the painting code itself, so any change to a painter repaints. A miss
   // paints as before and writes the cache a few seconds after the game is up; any storage failure just paints.
   let cached = null, pendingSave = null;
-  function version() { let h = 2166136261; const src = [paint, add, finish, packMaps, base].map(f => f.toString()).join('|') + S + ',' + NS + (typeof TEXDATA !== 'undefined' ? Object.keys(TEXDATA.mats).join(',') + Object.values(TEXDATA.mats).reduce((n, e) => n + (e.c || '').length, 0) : '');
+  function version() { let h = 2166136261; const src = [typeof HERODATA!=='undefined'?HERODATA.version:'no-hero',paint, add, finish, packMaps, base].map(f => f.toString()).join('|') + S + ',' + NS + (typeof TEXDATA !== 'undefined' ? Object.keys(TEXDATA.mats).join(',') + Object.values(TEXDATA.mats).reduce((n, e) => n + (e.c || '').length, 0) : '');
     for (let i = 0; i < src.length; i++) { h ^= src.charCodeAt(i); h = Math.imul(h, 16777619); } return 'paint-' + (h >>> 0).toString(36); }
   const idb = mode => new Promise((res, rej) => { const r = indexedDB.open('grift-city-paint', 1); r.onupgradeneeded = () => r.result.createObjectStore('cache'); r.onsuccess = () => { const db = r.result; res(db.transaction('cache', mode).objectStore('cache')); }; r.onerror = () => rej(r.error); });
   const req = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
@@ -307,6 +307,12 @@ const TEX = (() => {
         const shade=g.createRadialGradient(x,224,2,x,224,26);shade.addColorStop(0,'#d9d1cc');shade.addColorStop(1,'#fff');g.fillStyle=shade;g.fillRect(x-27,196,54,55);
       }
       flatN(g,0,0,S,S,.63);
+    });
+    if(typeof HERODATA!=='undefined') for(const name of Object.keys(HERODATA.mats)) add(name,g=>{
+      const im=photos[name];
+      g.fillStyle=name==='heroSkin'?'#c7977b':name==='heroEyes'?'#999484':'#443127';g.fillRect(0,0,S,S);
+      if(im)g.drawImage(im.c,0,0,S,S);
+      flatN(g,0,0,S,S,name==='heroEyes'?.4:.82);
     });
     return { color: layers, normal: normals, panes };
   }

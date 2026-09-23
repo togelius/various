@@ -447,8 +447,23 @@ const MESH = (() => {
   // ---- Pedestrians. Bones: 0 pelvis, 1 head, 2/3 upper arms, 4/5 thighs, 6 chest, 7/8 shins, 9/10 forearms, 11 mouth, 12/13 feet.
   // Limbs are tapered cylinders with ball joints, the torso is a lofted body, the head an ellipsoid with a hair cap.
   const MOUTH_POS = [0, .090, .113]; // where the mouth sits in head-bone space
+  let importedParts = null;
+  function appendImportedHero(b) {
+    if (!importedParts) {
+      const decode = (text, Type) => { const bytes=Uint8Array.from(atob(text),c=>c.charCodeAt(0)); return new Type(bytes.buffer); };
+      importedParts = HERODATA.parts.map(p=>({...p, v:decode(p.vertices,Float32Array), i:decode(p.indices,Uint16Array)}));
+    }
+    for (const p of importedParts) {
+      const start=b.n, tile=TEX.names[p.material]||0;
+      // Keep the authored hair shading within the protagonist's dark brown palette.
+      const tint=p.material==='heroHair'?[.26,.19,.14]:[1,1,1];
+      for(let i=0;i<p.v.length;i+=8) b.vert(...p.v.subarray(i,i+6),...tint,p.v[i+6],p.v[i+7],tile,p.bone);
+      for(const index of p.i)b.i.push(start+index);
+    }
+  }
   function pedMesh(look, lod = false) {
     const b = new Builder(); const SEG = lod ? 8 : 28, RNG = lod ? 3 : 7, CS = lod ? 5 : 10, AS = lod ? 5 : 9; const { skin, shirt, pants, hair, hat, shoes = [0.1, 0.1, 0.1], jacket = null, sleeves = !!jacket, glasses = false, bag = null, skirt = false, longHair = false, beanie = false, hairStyle = 0, beard = false } = look;
+    const imported=!!look.importedHero && !!look.hero && typeof HERODATA!=='undefined';
     const legH = 0.85, torsoH = 0.65, headR = 0.15;
     const tailored = look.tailored || false, broad = look.build === 'stocky';
     const skinDk = skin.map(c => c * 0.82), top = jacket || shirt, topDk = top.map(c => c * 0.72);
@@ -547,6 +562,7 @@ const MESH = (() => {
     if (look.chain && !lod) { const lift=jacket?.024:0;for(const side of [-1,1]) { b.tube([side*.045,.63,.115+lift],[side*.033,.55,.155+lift],.0025,.0025,[.8,.64,.3],0,0,5); b.tube([side*.033,.55,.155+lift],[0,.505,.157+lift],.0025,.0025,[.8,.64,.3],0,0,5); } b.cbox(0,.499,.159+lift,.012,.018,.005,[.8,.64,.3]); }
     if (look.badge && !lod) b.sphere(.11,.49,.14,.018,.025,.008,[.82,.72,.4],{segs:6,rings:2,bone:0});
     if (bag) { b.roundedBox(-0.32, torsoH * 0.15, -0.16, 0.1, 0.3, 0.22, 0.03, bag, 0, 0, { n: 1 }); b.tube([-0.27, 0.62, -0.02], [-0.27, 0.25, -0.1], 0.012, 0.012, bag.map(c => c * 0.7), 0, 0, 5); }
+    if (!imported) {
     b.cyl(0, torsoH - 0.03, 0, 0.056, torsoH + 0.07, skin, 0, 8, 0, false, false, 0.06); // neck
     // One sculpted skull: chin, jaw, cheeks, brow and crown share a continuous surface.
     const faceRing = (y,rx,rz,zc) => Array.from({length:SEG},(_,i)=>{
@@ -621,6 +637,7 @@ const MESH = (() => {
     }
     if (hat && !beanie) { b.cyl(0, headR * 1.65, -0.01, hairR * 1.02, headR * 2.25, hat, 0, 12, 1, true, false, hairR * 0.9); const base = b.n; const bz = headR * 0.6; for (let k = 0; k <= 8; k++) { const a = -Math.PI / 2 + k / 8 * Math.PI; b.vert(Math.cos(a) * headR * 1.05, headR * 1.7, bz + Math.sin(a) * headR * 1.25, 0, 1, 0, ...hat, 0, 0, 0, 1); } const c = b.vert(0, headR * 1.7, bz, 0, 1, 0, ...hat, 0, 0, 0, 1); for (let k = 0; k < 8; k++) b.tri(base + k, base + k + 1, c); }
     if (hat && beanie) b.sphere(0, headR * 1.0, -0.01, hairR * 1.05, hairR * 1.3, hairR * 1.08, hat, { segs: 12, rings: 4, lat0: 0.05, lat1: 1, bone: 1 });
+    } // procedural head; the imported head includes its neck
     // arms (bones 2, 3): a rounded shoulder, upper arm, elbow, forearm, a hand with a thumb
     const armL = 0.62;
     for (const [sx, bone, fore] of [[0.26, 2, 9], [-0.26, 3, 10]]) {
@@ -631,15 +648,18 @@ const MESH = (() => {
       ball(sx, -armL * 0.5, 0.005, 0.059, sleeves ? top : skin, bone, 7, 3);
       b.loft([ar(-.55,sleeves?.049:.037,sleeves?.05:.04),ar(-.46,sleeves?.061:.048,sleeves?.063:.05),ar(-.35,sleeves?.064:.055,sleeves?.064:.056),ar(-.31,sleeves?.061:.055,sleeves?.063:.057)],sleeves?top:skin,sleeves?cloth:0,fore);
       if (sleeves) b.cyl(sx, -armL + 0.1, 0.01, 0.052, -armL + 0.14, topDk, 0, 8, fore, false, false, 0.052); // cuff
+      if (!imported) {
       b.cyl(sx, -armL + 0.02, 0.01, 0.036, -armL + 0.11, skin, 0, 7, fore, false, false, 0.038); // wrist
       b.roundedBox(sx-.032,-.63,-.017,.064,.080,.046,.017,skin,0,fore,{n:lod?1:2});
       b.tube([sx-Math.sign(sx)*.028,-.577,.015],[sx-Math.sign(sx)*.048,-.615,.027],.015,.012,skin,0,fore,lod?5:8);
+      }
       if(!lod) {
-        for(let k=0;k<4;k++) {const x=sx-.024+k*.016; b.tube([x,-.621,.009],[x,-.658+Math.abs(k-1.5)*.005,.02],.009,.0075,skin,0,fore,6);}
+        if(!imported) for(let k=0;k<4;k++) {const x=sx-.024+k*.016; b.tube([x,-.621,.009],[x,-.658+Math.abs(k-1.5)*.005,.02],.009,.0075,skin,0,fore,6);}
         if(sleeves) {seam([sx+.07,-.12,-.03],[sx+.056,-.27,-.025],edge,bone);for(let k=0;k<3;k++)seam([sx-.042,-.39-k*.021,-.05],[sx+.032,-.404-k*.021,-.054],topDk,fore);}
         if(hero&&sx>0) {b.cyl(sx,-.546,0,.042,-.520,[.105,.09,.07],0,10,fore,false,false,.042);b.roundedBox(sx-.019,-.550,-.045,.038,.032,.015,.006,[.56,.53,.44],0,fore,{n:1});b.cbox(sx,-.534,-.054,.025,.021,.002,[.06,.09,.09],0,{bone:fore});}
       }
     }
+    if (imported) appendImportedHero(b);
     if (broad) for (let i=0;i<b.v.length;i+=13) { if (b.v[i+12] === 0) { b.v[i]*=1.08; b.v[i+2]*=1.12; } }
     // Upper body now has a spine. Both torso bones share bind coordinates so collars and seams follow it too.
     for(let i=0;i<b.v.length;i+=13) if(b.v[i+12]===0 && b.v[i+1]>.32)b.v[i+12]=6;
@@ -666,7 +686,7 @@ const MESH = (() => {
         if(y>-.13) {other=0;weight=M.clamp((y+.13)/.25,0,.6);}
         else if(y<-.34) {other=bone===4?7:8;weight=M.clamp((-.34-y)/.17,0,.5);}
       } else if(bone===7 || bone===8) {other=bone===7?4:5;weight=M.clamp((y+.515)/.18,0,.5);}
-      else if(bone===1 && y<.06) {other=6;weight=M.clamp((.06-y)/.15,0,.3);offsetY=.68;}
+      else if(bone===1 && y<.06) {other=6;weight=imported?M.clamp((.05-y)/.09,0,1):M.clamp((.06-y)/.15,0,.3);offsetY=.68;}
       b.skin.set([other,weight,0,offsetY,0],v*5);
     }
     return b;

@@ -229,3 +229,24 @@ Final clothing follow-up: increase clearance between the open shirt, jacket and 
 The first escape now points directly through Lantern Lane's wooden gate with a short objective; after leaving the lane, it asks the player to turn a corner and stay out of sight. The starting lane no longer has a parked-vehicle slot, and gentle restarts clear ordinary parked obstructions from the run-up. Resprays remain usable and available on the map. Dialogue settles the player's locomotion state, and shot selection checks 3D sight against props as well as buildings.
 
 Validation: all 14 dependency-free suites, campaign transitions, release build and whitespace checks pass. A fresh, muted browser start confirmed the unobstructed lane and matching radar/instruction. This is a targeted correction following a stepped-input opening walkthrough, not a fresh-player difficulty study.
+
+## Imported protagonist prototype — September 23
+
+Added an opt-in Quaternius CC0 prototype: authored head, eyes, brows, parted hair and hands fitted to the current
+jacket, trousers and 14-bone rig. The neck blends into the chest and the wrists meet the cuffs. Three diffuse
+atlases are embedded in the single-file release; the texture cache includes the asset fingerprint. The importer,
+source checksums and original license notice are checked in under `tools/assets/`.
+
+Use `?mute=1&character=quaternius` to play with it, or compare Current / Imported in the character studio.
+The usual URL retains the current protagonist. This is a head/hands art prototype, not a replacement body or
+animation pipeline. Finger grips, blinking and facial animation are not yet retargeted; the imported parts
+retain full detail at both mesh tiers and are intended only for the protagonist. The studio's day/night switch
+now updates renderer lighting as well as the game clock.
+
+Validation: all 15 dependency-free suites, syntax, build and whitespace checks passed. The import regression
+checks valid geometry/UVs/normals, the 16-bit index budget, collar attachment, unchanged head/hands across clothing
+and mesh tiers, 48 skinned poses and the no-asset fallback. The subsequent head-proportion adjustment passed
+that regression and rebuilt successfully. Live muted inspection covered front/back, aiming, seated, sprint,
+dialogue and actual night lighting; studio console had no warnings/errors. The standalone release loaded,
+but the in-app browser's pointer-lock loss paused its attempted normal start, so this is not a claim of a fresh
+full browser campaign pass. No mobile-performance or listening test was performed.

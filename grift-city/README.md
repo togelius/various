@@ -887,3 +887,11 @@ and Harbor Night while repositioning the observer and suppressing escort damage.
 Rebuild the standalone file with `python3 tools/build-single.py`.
 
 The Foundry Quarter spans ten blocks around Voss Motors: Lantern Lane, Laundry Court, Old Foundry and Switchback Deck offer narrow escapes, breakable timber gates and two levels of travel. Space vaults nearby low cover when the landing is clear; otherwise it jumps.
+
+### Imported protagonist preview
+
+`test/character-studio.html?mute=1&character=quaternius` compares the current protagonist with an imported
+Quaternius head, hair, eyes and hands. The existing outfit and gameplay rig are retained. To play with the
+prototype, open `dist/grift-city.html?mute=1&character=quaternius`; the usual URL keeps the current model.
+See [asset provenance and rebuild instructions](tools/assets/HERO-SOURCES.md). The assets are CC0 and embedded
+in the release. Facial animation and finger grips remain prototype limitations.
