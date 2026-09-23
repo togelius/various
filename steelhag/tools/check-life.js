@@ -6,6 +6,8 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '..');
 const timers = [], sounds = [], listeners = {}, buttons = {};
 let frame;
+const MIN_ARGS = { ellipse: 7, arc: 5, arcTo: 5, rect: 4, fillRect: 4, strokeRect: 4, clearRect: 4, roundRect: 4, moveTo: 2, lineTo: 2,
+  quadraticCurveTo: 4, bezierCurveTo: 6, drawImage: 3, fillText: 3, strokeText: 3, translate: 2, scale: 2, rotate: 1, setTransform: 6, transform: 6 };
 const drawing = new Proxy({
   filter: 'none',
   createLinearGradient: () => ({ addColorStop() {} }),
@@ -15,7 +17,10 @@ const drawing = new Proxy({
   measureText: text => ({ width: text.length * 9 }),
 }, { get(target, key) {
   if (key in target) return target[key];
+  // real canvases throw when required arguments are missing; so does this stub
+  const need = MIN_ARGS[key];
   return (...args) => {
+    if (need) assert.ok(args.length >= need, `${String(key)} needs ${need} arguments, got ${args.length}`);
     for (const n of args) if (typeof n === 'number') assert.ok(Number.isFinite(n), `non-finite ${String(key)} argument`);
   };
 } });
@@ -38,13 +43,14 @@ const sandbox = {
 sandbox.window = sandbox;
 vm.createContext(sandbox);
 const run = text => vm.runInContext(text, sandbox);
-for (const file of ['util', 'art', 'world', 'levels', 'actors', 'life'])
+for (const file of ['util', 'store', 'art', 'world', 'levels', 'actors', 'life', 'painter'])
   run(fs.readFileSync(path.join(root, 'js', file + '.js'), 'utf8'));
 
 // Use real level geometry, but omit the expensive static paintings for logic tests.
 run('World.prototype.buildLayers = function () { return LAYER_DEFS.map(d => ({ ...d, canvas: makeCanvas(1280, 1240), w: 1280, h: 1240 })); };');
 run(fs.readFileSync(path.join(root, 'js/game.js'), 'utf8'));
 const flush = () => { while (timers.length) timers.shift()(); };
+const LEVELS_COUNT = () => vm.runInContext('LEVELS.length', sandbox);
 flush();
 const game = sandbox.__game;
 function jump(ch, x) { game.jump(ch, x); flush(); }
@@ -54,7 +60,7 @@ function key(code) { listeners.keydown({ code, preventDefault() {} }); game.step
 
 // Every optional place has a stable standing surface, clear of lethal arcs,
 // with an approach from the left and no changes to collision geometry.
-for (let ch = 0; ch < 5; ch++) {
+for (let ch = 0; ch < LEVELS_COUNT(); ch++) {
   jump(ch);
   for (const p of game.life.places) {
     assert.ok(Number.isFinite(p.y));
@@ -185,4 +191,4 @@ vm.runInContext(`Sound.init();
   Sound.quiet({ kind: 'answer', bell: true }); Sound.toggleMute();`, audioVM);
 assert.ok(audioCalls.length > 100);
 assert.equal(vm.runInContext('Sound.muted', audioVM), true);
-console.log('Quiet-life checks passed: all five chapters, optional progression, timing, reset, pause, input, and photo priority.');
+console.log('Quiet-life checks passed: all six chapters, optional progression, timing, reset, pause, input, and photo priority.');

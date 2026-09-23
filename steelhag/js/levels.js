@@ -120,8 +120,9 @@ const LEVELS = [
     [3930, 'From up there you could see the towers across the bay, breathing into the cold.'],
     [5000, 'It kept stopping to look back at me. As if it wanted me to come along.'],
   ],
-  photos: [[1720, 'Uncle Lars’s Volvo, where the snowplough left it'], [3700, 'SV-14, from on top'], [5245, 'The bus shelter. No bus since ’86']],
+  photos: [[1720, 'Uncle Lars’s Volvo, where the snowplough left it'], [3700, 'SV-14, from on top'], [5245, 'The bus shelter. No bus since ’86'], [5701, 'From the top of the bales, the whole field']],
   exit: 6300,
+  train: { y: 448, speed: 55, gap: 2600 },
   paint: {
     far(ctx, W, r, w) {
       const p = w.L.pal, n = makeNoise(5);
@@ -230,6 +231,8 @@ const LEVELS = [
     { t: 'log', x: 3180, w: 170, h: 24, sink: 2 },
     { t: 'rock', x: 3440, w: 80, h: 50 },
     { t: 'rock', x: 3760, w: 110, h: 74 },
+    { t: 'metal', x: 3786, w: 58, h: 40, y: 477, c: '#6e7162', moss: true, round: 8,
+      draw(ctx, o) { ctx.fillStyle = css('#1d2226'); ctx.fillRect(o.x + 30, o._y + 12, 20, 10); Art.dab(ctx, o.x + 44, o._y + 17, 2, 2, 0, '#5b2a22', 1); } },
     { t: 'rock', x: 4420, w: 70, h: 40 },
     { t: 'log', x: 5700, w: 180, h: 26, sink: 2 },
     { t: 'rock', x: 6100, w: 90, h: 56 },
@@ -243,7 +246,7 @@ const LEVELS = [
     [4650, 'The light went long and gold, the way it only does at the end of summer.'],
     [5900, 'I told myself I would turn back at the next hill.'],
   ],
-  photos: [[2440, 'KV-3, asleep in the birches'], [4860, 'The long light'], [6150, 'Moss, lichen, steel']],
+  photos: [[2440, 'KV-3, asleep in the birches'], [3815, 'A sensor head, left in the birches'], [4860, 'The long light'], [6150, 'Moss, lichen, steel']],
   exit: 6680,
   paint: {
     far(ctx, W, r, w) {
@@ -350,6 +353,8 @@ const LEVELS = [
     { t: 'metal', x: 2996, w: 64, h: 52, y: 436, c: '#4f4943' },
     { t: 'metal', x: 3060, w: 1180, h: 104, y: 382, c: '#6b5a4c', panel: 56 },
     { t: 'metal', x: 3806, w: 74, h: 72, y: 310, c: '#4f4943' },
+    { t: 'metal', x: 3950, w: 80, h: 12, y: 158, c: '#4a413b', panel: 30, rivets: false,
+      draw(ctx, o) { for (let x = o.x; x <= o.x + o.w; x += 8) Art.line(ctx, x, o._y, x, o._y - 14, 1.2, '#3a322c'); Art.line(ctx, o.x, o._y - 14, o.x + o.w, o._y - 14, 1.5, '#3a322c'); } },
     { t: 'metal', x: 3880, w: 270, h: 152, y: 230, c: '#7b6c5c', stripes: true, stripeY: 8, stripeH: 10,
       draw(ctx, o, r) {
         for (let i = 0; i < 5; i++) { ctx.fillStyle = css('#ffd89a', 0.75); ctx.fillRect(o.x + 22 + i * 48, o._y + 36, 30, 22); ctx.fillStyle = css('#3a3230', 0.6); ctx.fillRect(o.x + 36 + i * 48, o._y + 36, 2, 22); }
@@ -372,7 +377,7 @@ const LEVELS = [
     [3900, 'On deck the lamps were still lit. Nobody ever found out where the power came from.'],
     [5500, 'It was getting dark. I should have gone home.'],
   ],
-  photos: [[1320, 'The boardwalk, in fog'], [4010, 'On Båten’s roof'], [6450, 'The lamps, still on']],
+  photos: [[1320, 'The boardwalk, in fog'], [3990, 'From the crow’s nest, at dusk'], [4110, 'On Båten’s roof'], [6450, 'The lamps, still on']],
   exit: 6860,
   paint: {
     far(ctx, W, r, w) {
@@ -466,6 +471,11 @@ const LEVELS = [
     { t: 'plank', x: 3700, w: 250, y: 360, c: '#4a5055', piles: false }, { t: 'plank', x: 4050, w: 300, y: 360, c: '#4a5055', piles: false },
     { t: 'concrete', x: 4350, w: 200, h: 150 }, { t: 'concrete', x: 4550, w: 120, h: 80 },
     { t: 'concrete', x: 5000, w: 140, h: 60 }, { t: 'metal', x: 5140, w: 110, h: 110, c: '#445057', label: 'T-7', labelSize: 20 },
+    { t: 'plank', x: 3470, w: 100, y: 280, c: '#4a5055', piles: false },
+    // cover from the searchlight
+    { t: 'metal', x: 5560, w: 58, h: 72, c: '#4d4a44', stripes: true, stripeY: 8, stripeH: 8 },
+    { t: 'metal', x: 5880, w: 62, h: 76, c: '#46505a' },
+    { t: 'metal', x: 6170, w: 58, h: 72, c: '#4d4a44', stripes: true, stripeY: 8, stripeH: 8 },
   ],
   movers: [
     { x: 2040, y: 586, w: 96, h: 14, dy: -210, period: 7, art: 'lift', tail: 40 },
@@ -487,8 +497,9 @@ const LEVELS = [
     [4300, 'The little machine walked faster now. It knew the way.'],
     [5600, 'Past the last hall there was only the dark, and the tower, and snow starting.'],
   ],
-  photos: [[2380, 'The roof of Hall 3'], [4200, 'Blue light in the pipes'], [5860, 'The tower, close enough to touch']],
+  photos: [[2380, 'The roof of Hall 3'], [3515, 'Above the halls, everything humming'], [4200, 'Blue light in the pipes'], [5860, 'The tower, close enough to touch']],
   exit: 6480,
+  search: { sx: 5250, sy: 380, x0: 5470, x1: 6320, period: 11, r: 55 },
   paint: {
     far(ctx, W, r, w) {
       const p = w.L.pal, n = makeNoise(71);
@@ -600,7 +611,7 @@ const LEVELS = [
     [1500, 'There were no tracks ahead of us. Only its small ones, and then mine.'],
     [3000, 'Near the top the snow started falling upward.'],
   ],
-  photos: [[1420, 'The last of the machines'], [2520, 'First light on the snow'], [5700, 'Klotet']],
+  photos: [[1420, 'The last of the machines'], [2520, 'First light on the snow'], [3200, 'The last hill, before the edge'], [5700, 'Klotet']],
   exit: 5760,
   sphere: { x: 5960, y: 150, R: 250 },
   ending: true,
@@ -641,8 +652,105 @@ const LEVELS = [
       // cliff faces at the edge of the void
       for (const [x0, dir] of [[3462, -1], [5558, 1]]) {
         ctx.save(); ctx.beginPath(); ctx.moveTo(x0, 480); ctx.lineTo(x0 + dir * 60, 720); ctx.lineTo(x0 - dir * 40, 720); ctx.lineTo(x0 - dir * 40, 470); ctx.closePath(); ctx.clip();
-        for (let i = 0; i < 300; i++) Art.stroke(ctx, x0 - 50 + r() * 120, 470 + r() * 260, 8 + r() * 30, 2 + r() * 5, Math.PI / 2 + (r() - 0.5) * 0.8, jit('#6c6780', r, 30), 0.6);
+        for (let i = 0; i < 300; i++) Art.stroke(ctx, x0 - 50 + r() * 120, 470 + r() * 260, 8 + r() * 30, 2 + r() * 5, Math.PI / 2 + (r() - 0.5) * 0.8, mono(mix('#6c6780', '#9a98ae', r()), r, 16), 0.7);
         ctx.restore();
+      }
+    },
+  },
+},
+// ====================================================================== VI
+{
+  id: 6, seed: 67, title: 'Tövädret', sub: 'The Thaw', date: 'April, years later',
+  width: 4500, top: 200, bumps: 8,
+  pal: {
+    horizon: 450, light: -1, haze: '#dcdcd0', lowHaze: 0.3,
+    skyStops: [[-200, '#8ea2b2'], [120, '#b1bec5'], [360, '#dcdbd0'], [450, '#ece7d8'], [720, '#e3dfd2']],
+    sun: { x: 0.3, y: 320, color: '#fff2da', glow: 440, glowA: 0.5, disk: 22, diskA: 0.7, rim: '#fbf4e6' },
+    clouds: [
+      { y: 60, h: 100, n: 1100, light: '#c3cbcf', dark: '#93a0a9', a: 0.05, rx: [90, 280], flat: 0.14 },
+      { y: 280, h: 40, n: 500, light: '#f0ebe0', dark: '#bfc2bd', a: 0.06, rx: [60, 220], flat: 0.12 },
+    ],
+    ground: { kind: 'grass', fieldTop: '#868c58', fieldBottom: '#363b24', hi: '#c9cf8f', lo: '#3e4428', surfLight: '#b6bb78', surfShadow: '#5b663a', surfTop: '#cbd08c', bandLow: '#4c5431', band: 12, tuft: '#b8a96c', tuft2: '#7d8f45', tuftDensity: 0.18, tuftH: 16, fieldTufts: 0.03 },
+    birch: { bark: '#ece6d6', barkDark: '#2b2a26', barkShade: '#9a917f', leaf: '#a9bb64', leafLight: '#e2eba0', leafDark: '#6c7d40' },
+    metal: { c: '#6a6c66', rust: '#8e4f2c', label: '#e7e2d4', grime: '#39383a' },
+    stripes: ['#d9892f', '#2b2b2a'], concrete: '#9a9a92', rock: '#7e8078',
+    fg: { col: '#2e3320', col2: '#6a7040', kind: 'grass' },
+    weather: { kind: 'motes', n: 45 },
+    fog: [{ y: 470, h: 150, a: 0.28, speed: 5, after: 'far' }],
+  },
+  ground: [[0, 590], [300, 585], [700, 592], [1100, 578], [1500, 566], [1900, 572], [2300, 588], [2700, 586], [3100, 578], [3700, 582], [4100, 572], [4500, 572]],
+  gaps: [],
+  objects: [
+    // where SV-14 lay: a slab, and the footing its leg stood on
+    { t: 'concrete', x: 3140, w: 720, h: 14, sink: 8, c: '#9c9b92',
+      draw(ctx, o, r) {
+        for (let i = 0; i < 70; i++) Art.stroke(ctx, o.x + 20 + r() * (o.w - 40), o._y + 2, 6 + r() * 26, 2 + r() * 5, 0, '#8e4f2c', 0.18);
+        for (let i = 0; i < 90; i++) Art.grass(ctx, o.x + r() * o.w, o._y + 2, 6 + r() * 8, r() < 0.5 ? '#9fb05a' : '#7d8f45', r, 3, 0.8);
+      } },
+    { t: 'concrete', x: 3250, w: 70, h: 26, c: '#a3a299' },
+  ],
+  robot: [],
+  lines: [
+    [140, 'April. Years later. I came back the spring they sold the farm.'],
+    [1250, 'They cleared the machines away the summer after I moved. Nobody asked us.'],
+    [2550, 'Where SV-14 used to lie there is only a square of paler grass.'],
+    [3950, 'Sometimes, in the photographs, I think I can see a small red light.'],
+  ],
+  photos: [[900, 'The house, sold'], [3500, 'Where SV-14 used to lie'], [4200, 'The towers, gone quiet']],
+  exit: 4380,
+  train: { y: 448, speed: 55, gap: 1800 },
+  last: true,
+  paint: {
+    far(ctx, W, r, w) {
+      const p = w.L.pal, n = makeNoise(5);
+      Art.ridge(ctx, 0, W, x => 452, 720, '#cfd3cc', r);
+      Scene.waterBand(ctx, 0, W, 452, 6, '#c3cbc9', '#f4f2ea', r);
+      const fy = x => 446 - fbm(n, x / 160) * 22 - Math.max(0, Math.sin(x / 260)) * 8;
+      Art.ridge(ctx, 0, W, fy, 720, hz('#5a6560', p, 0.55), r, { tex: 1, jit: 8, texA: 0.2 });
+      Scene.forest(ctx, 0, W, fy, hz('#52605a', p, 0.52), r, { h: [5, 14], step: 3, n });
+      // the towers are still there; they no longer breathe
+      const tx = W * 0.64;
+      for (const [dx, h] of [[0, 128], [86, 146], [168, 120]]) Art.coolingTower(ctx, tx + dx, 450, h, p, r, { col: hz('#9ea4a6', p, 0.3), light: -1 });
+      Art.line(ctx, W * 0.33, 450, W * 0.33, 300, 1.6, hz('#5e676e', p, 0.5));
+    },
+    mid(ctx, W, r, w) {
+      const p = w.L.pal, n = makeNoise(9);
+      const fy = x => 488 - fbm(n, x / 220) * 38;
+      Scene.forest(ctx, 0, W, fy, hz('#34423a', p, 0.36), r, { h: [22, 58], step: 5, n, light: -1, lightCol: '#e8eadc', lightA: 0.2 });
+      const sy = x => 500 + fbm(n, x / 300 + 40) * 10;
+      Art.ridge(ctx, 0, W, sy, 720, '#9aa06a', r, { tex: 1.2, topCol: '#b9bf85', botCol: '#6f7748', jit: 10, texA: 0.25 });
+      for (let i = 0; i < 40; i++) { const x = r() * W; Art.dab(ctx, x, sy(x) + 4 + r() * 20, 20 + r() * 60, 2 + r() * 3, 0, '#eef0ea', 0.7); }
+      Art.house(ctx, W * 0.14, sy(W * 0.14) + 4, 46, 26, { wall: hz('#8e3a2c', p, 0.3), roof: hz('#3e3b3a', p, 0.3), trim: '#e8e4da', window: '#e9b86a' }, r);
+      Scene.pylons(ctx, 180, W, 420, x => sy(x) + 2, 150, hz('#454d52', p, 0.45), 1.3, hz('#454d52', p, 0.35), 14, r);
+    },
+    near(ctx, W, r, w) {
+      const p = w.L.pal, n = makeNoise(21);
+      const fy = x => 548 + fbm(n, x / 260) * 22;
+      for (let i = 0; i < 7; i++) { const x = r() * W; for (let k = 0; k < 2 + r() * 3; k++) { const xx = x + gauss(r) * 50; Art.birch(ctx, xx, fy(xx) + 3, 110 + r() * 110, p.birch, r, { fade: p.haze, fadeT: 0.3, light: -1, leafy: 0.4 }); } }
+      for (let i = 0; i < 16; i++) { const x = r() * W; Art.pine(ctx, x, fy(x) + 4, 50 + r() * 80, hz('#2f3a33', p, 0.3), r, { light: -1, lightCol: '#e7e8e2', lightA: 0.2 }); }
+      Art.ridge(ctx, 0, W, fy, 720, '#8e9460', r, { tex: 1.5, topCol: '#b8be80', botCol: '#4e5532', jit: 12, texA: 0.25 });
+      for (let i = 0; i < 30; i++) { const x = r() * W; Art.dab(ctx, x, fy(x) + 6 + r() * 30, 30 + r() * 80, 3 + r() * 5, 0, '#f0f1ec', 0.75); }
+      Art.fence(ctx, 0, W, x => fy(x) + 8, hz('#4a4036', p, 0.3), r, { h: 22, gap: 40, wireCol: hz('#4a4036', p, 0.5) });
+    },
+    playBack(ctx, W, r, w) {
+      const g = x => w.drawGroundAt(x);
+      Art.house(ctx, 110, g(200) + 8, 150, 88, { wall: '#8c3527', roof: '#393534', trim: '#ece8de', window: '#3a4450' }, r);
+      // a sign by the road
+      Art.line(ctx, 330, g(330) + 4, 330, g(330) - 46, 3, '#4d4135'); Art.line(ctx, 372, g(372) + 4, 372, g(372) - 46, 3, '#4d4135');
+      ctx.fillStyle = css('#f2eee2'); ctx.fillRect(322, g(350) - 70, 58, 26);
+      ctx.fillStyle = css('#a33a2a'); ctx.font = 'bold 12px Arial'; ctx.fillText('TILL SALU', 325, g(350) - 52);
+      Scene.poles(ctx, 40, W, 360, x => g(x) - 10, 150, '#3e3830', 4, '#2f2b27', r);
+      Art.fence(ctx, 420, 1560, x => g(x) - 2, '#4d4135', r, { h: 30, gap: 50, wireCol: '#5a4c3e' });
+      Scene.birches(ctx, 1900, 2300, 3, x => g(x) - 4, [220, 360], w.L.pal.birch, r, { light: -1, leafy: 0.4 });
+      Scene.birches(ctx, 4000, 4300, 2, x => g(x) - 4, [240, 360], w.L.pal.birch, r, { light: -1, leafy: 0.4 });
+    },
+    playFront(ctx, W, r, w) {
+      // the last of the snow, lying in the field in soft grey-white islands
+      const g = x => w.drawGroundAt(x);
+      for (let i = 0; i < 34; i++) {
+        const x = r() * W, d = r(), y = g(x) + 14 + d * d * 110, rx = 30 + d * 140 + r() * 40, ry = 2 + d * 9;
+        for (let k = 0; k < 16; k++) Art.dab(ctx, x + gauss(r) * rx * 0.6, y + gauss(r) * ry * 0.5, rx * (0.2 + r() * 0.3), ry * (0.5 + r() * 0.5), 0, r() < 0.25 ? '#c8cfd8' : '#eef0eb', 0.55);
+        for (let k = 0; k < 5; k++) Art.grass(ctx, x + gauss(r) * rx * 0.6, y, 6 + d * 18, '#b8a96c', r, 3, 0.8);
       }
     },
   },

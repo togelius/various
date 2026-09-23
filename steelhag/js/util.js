@@ -46,9 +46,12 @@ function shade(c, k) { return k >= 0 ? mix(c, [255, 255, 255], k) : mix(c, [0, 0
 function mono(c, r, amt) { c = hex(c); const d = (r() - 0.5) * amt; return [c[0] + d, c[1] + d, c[2] + d]; }
 function jit(c, r, amt) { c = hex(c); return [c[0] + (r() - 0.5) * amt, c[1] + (r() - 0.5) * amt, c[2] + (r() - 0.5) * amt]; }
 
+// In the painting worker there is no document, only OffscreenCanvas.
 function makeCanvas(w, h) {
+  w = Math.max(1, Math.ceil(w)); h = Math.max(1, Math.ceil(h));
+  if (typeof document === 'undefined') return new OffscreenCanvas(w, h);
   const c = document.createElement('canvas');
-  c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h));
+  c.width = w; c.height = h;
   return c;
 }
 

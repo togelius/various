@@ -20,19 +20,42 @@ const Game = (() => {
   }
   addEventListener('resize', resize);
   resize();
-  Q = clamp((window.devicePixelRatio || 1) * Math.min(innerWidth / VIEW_W, innerHeight / VIEW_H), 1, 1.5);
+  // Painted layers are large: a chapter can hold 100 MB of canvas at full quality.
+  // Phones and low-memory devices paint at lower resolution; the look survives it.
+  const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const isPhone = isTouch && typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 600;
+  const memory = navigator.deviceMemory || 8;
+  let qMax = 1.5;
+  if (isPhone || memory <= 4) qMax = 1;
+  if (memory <= 2) qMax = 0.8;
+  Q = clamp((window.devicePixelRatio || 1) * Math.min(innerWidth / VIEW_W, innerHeight / VIEW_H), Math.min(1, qMax), qMax);
 
-  // input
-  const keys = {}, pressed = {};
-  const map = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump',
-    KeyE: 'photo', KeyX: 'photo', ArrowDown: 'photo', KeyS: 'photo', KeyC: 'photo', Enter: 'start', Escape: 'pause', KeyP: 'pause', KeyM: 'mute' };
+  // input: arrows always work; the letter keys can be rebound in settings
+  const keys = {}, pressed = {}, nav = {};
+  // arrows and a few old aliases always work; letters you bind yourself take precedence
+  const FIXED = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'jump', ArrowDown: 'photo', KeyW: 'jump', KeyZ: 'jump', KeyX: 'photo', KeyC: 'photo',
+    Enter: 'start', Escape: 'pause', KeyP: 'pause', KeyM: 'mute' };
+  const NAV = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', Enter: 'ok', Space: 'ok', KeyZ: 'ok', KeyE: 'ok', Escape: 'back', Backspace: 'back' };
+  const actionFor = code => { const k = Store.settings.keys; for (const a in k) if (k[a] === code) return a; return FIXED[code]; };
+  let rebinding = null, tap = null;
   addEventListener('keydown', e => {
-    const a = map[e.code];
+    Sound.init();
+    if (rebinding) {
+      e.preventDefault();
+      if (e.code !== 'Escape') Store.bind(rebinding, e.code);
+      rebinding = null;
+      return;
+    }
+    const n = NAV[e.code]; if (n && !e.repeat) nav[n] = true;
+    const a = actionFor(e.code);
     if (a) { if (!keys[a]) pressed[a] = true; keys[a] = true; e.preventDefault(); }
     pressed.any = true;
-    Sound.init();
   });
-  addEventListener('keyup', e => { const a = map[e.code]; if (a) keys[a] = false; });
+  addEventListener('keyup', e => { const a = actionFor(e.code); if (a) keys[a] = false; });
+  cv.addEventListener('pointerdown', e => {
+    const r = cv.getBoundingClientRect();
+    tap = { x: (e.clientX - r.left) / r.width * VIEW_W, y: (e.clientY - r.top) / r.height * VIEW_H };
+  });
   cv.addEventListener('pointerdown', () => { pressed.any = true; Sound.init(); });
   for (const b of document.querySelectorAll('#touch button')) {
     const a = b.dataset.act;
@@ -67,11 +90,13 @@ const Game = (() => {
       left: p.axes[0] < -0.35 || p.buttons[14]?.pressed, right: p.axes[0] > 0.35 || p.buttons[15]?.pressed,
       jump: p.buttons[0]?.pressed, photo: p.buttons[2]?.pressed || p.buttons[3]?.pressed || p.buttons[1]?.pressed, start: p.buttons[9]?.pressed,
     };
+    const menu = { up: p.axes[1] < -0.5 || p.buttons[12]?.pressed, down: p.axes[1] > 0.5 || p.buttons[13]?.pressed, ok: p.buttons[0]?.pressed, back: p.buttons[1]?.pressed };
     for (const k in st) {
       if (st[k] && !padPrev[k]) { pressed[k] = true; pressed.any = true; Sound.init(); }
       if (st[k] !== padPrev[k]) keys[k] = !!st[k];
     }
-    padPrev = st;
+    for (const k in menu) if (menu[k] && !padPrev['m' + k]) nav[k] = true;
+    padPrev = { ...st, mup: menu.up, mdown: menu.down, mok: menu.ok, mback: menu.back };
   }
 
   // ---------------------------------------------------------------- state
@@ -80,7 +105,7 @@ const Game = (() => {
   let player, robot, cam, flakes = [], splashes = [], fogTex = null, fgSprites = [], fgItems = [], moverSprites = new Map();
   let lines = [], lineQ = [], lineCur = null, photos = [], album = [], checkpoint = null;
   let fade = 1, fadeTarget = 1, flash = 0, polaroid = null, ending = null, deathT = 0, promptA = 0;
-  let life = null, placePromptA = 0;
+  let life = null, placePromptA = 0, caughtT = 0, caughtOnce = false, trainHorn = false;
   const glowCache = {};
   let grain = null, vignette = null;
 
@@ -134,12 +159,13 @@ const Game = (() => {
   function loadChapter(i, then) {
     ci = i; L = LEVELS[i];
     loadingEl.textContent = 'painting…'; loadingEl.style.display = 'block';
-    setTimeout(() => {
-      if (layers) for (const l of layers) l.canvas.width = 0;
+    Painter.drop(i);
+    const finish = painted => {
+      Painter.release(layers);
       for (const s of moverSprites.values()) s.canvas.width = 0;
       moverSprites.clear();
       world = new World(L);
-      layers = world.buildLayers(Q);
+      layers = painted;
       for (const m of world.movers) moverSprites.set(m, moverSprite(world, m, Q));
       fogTex = Art.fogTexture(2048, 256, L.seed);
       tintCanvas(fogTex, L.pal.haze);
@@ -152,7 +178,11 @@ const Game = (() => {
       loadingEl.style.display = 'none';
       Sound.setChapter(i);
       then && then();
-    }, 40);
+      // start painting the next chapter while this one is played
+      setTimeout(() => Painter.prefetch(i + 1, Q), 1500);
+    };
+    // a moment for "painting…" to show before any main-thread work begins
+    setTimeout(() => { const job = Painter.take(i, Q); if (job.sync) finish(job.sync); else job.then(finish); }, 40);
   }
 
   function tintCanvas(c, col) {
@@ -167,12 +197,13 @@ const Game = (() => {
     robot = new Robot(world);
     robot.onBeep = v => Sound.beep(v);
     const sx = 90, sy = world.surfaceAt(sx);
-    player = { x: sx, y: sy, vx: 0, vy: 0, face: 1, onGround: true, ref: null, coyote: 0, buffer: 0, phase: 0, run: 0, air: false, stepT: 0, t: 0, breathT: 1, surface: 'snow' };
+    player = { x: sx, y: sy, vx: 0, vy: 0, face: 1, onGround: true, ref: null, coyote: 0, buffer: 0, phase: 0, run: 0, air: false, stepT: 0, t: 0, breathT: 1, surface: 'snow',
+      snow: 0, wet: L.id === 4 ? 0.6 : 0, torch: !!L.pal.night, reach: 0 };
     checkpoint = { x: sx, y: sy, i: 0 };
     cam = { x: 0, y: 0 };
     lines = L.lines.map(([x, text]) => ({ x, text, shown: false }));
     lineQ = []; lineCur = null;
-    photos = L.photos.map(([x, caption]) => ({ x, y: world.surfaceAt(x), caption, taken: false }));
+    photos = L.photos.map(([x, caption]) => { const key = `${L.id}:${x}`; return { x, y: world.surfaceAt(x), caption, key, have: Store.hasPhoto(key), taken: false }; });
     ending = null; splashes = [];
     initFlakes();
   }
@@ -180,7 +211,8 @@ const Game = (() => {
   function initFlakes() {
     flakes = [];
     const w = L.pal.weather;
-    for (let i = 0; i < w.n; i++) flakes.push({ x: Math.random() * VIEW_W, y: Math.random() * VIEW_H, z: 0.3 + Math.random() * 1.2, p: Math.random() * TAU });
+    const n = Math.round(w.n * (reduce() ? 0.35 : 1));
+    for (let i = 0; i < n; i++) flakes.push({ x: Math.random() * VIEW_W, y: Math.random() * VIEW_H, z: 0.3 + Math.random() * 1.2, p: Math.random() * TAU });
   }
 
   // ---------------------------------------------------------------- physics
@@ -189,7 +221,7 @@ const Game = (() => {
   function gravityAt(x) { return (L.pal.lowGrav && x > L.pal.lowGrav) ? 0.52 : 1; }
 
   function surfaceKind(s) {
-    if (!s) return ['snow', 'grass', 'marsh', 'default', 'snow'][L.id - 1];
+    if (!s) return ['snow', 'grass', 'marsh', 'default', 'snow', 'grass'][L.id - 1];
     const t = s.o ? s.o.t : s.art;
     if (t === 'metal' || t === 'pipe' || t === 'lift' || t === 'drum' || t === 'debris' || t === 'car') return 'metal';
     if (t === 'plank' || t === 'log') return 'wood';
@@ -287,11 +319,50 @@ const Game = (() => {
     if (p.onGround) checkpointsReach();
   }
 
+  // weather that stays on you: snow settles, the marsh soaks in, and slowly dries
+  function weather(dt) {
+    const p = player, w = L.pal.weather;
+    if (w.kind === 'snow' && !(w.rise && p.x > w.rise)) p.snow = Math.min(1, p.snow + dt / (Math.abs(p.vx) < 5 ? 30 : 90));
+    else p.snow = Math.max(0, p.snow - dt / 20);
+    if (L.id === 3 && p.onGround && (p.surface === 'marsh' || p.surface === 'wood')) p.wet = Math.min(1, p.wet + dt / 25);
+    else p.wet = Math.max(0, p.wet - dt / 400);
+  }
+
   function checkpointsReach() {
     const pts = robot.pts;
     for (let i = checkpoint.i + 1; i < pts.length; i++) {
       if (player.x >= pts[i].x - 30 && Math.abs(player.y - pts[i].y) < 60) { checkpoint = { x: pts[i].x, y: pts[i].y, i }; }
     }
+  }
+
+  // ---- the searchlight in the facility yard: its spot sweeps, crates cast shadows
+  let searchSeen = 0;
+  function searchSpot() {
+    const sr = L.search, u = 0.5 - 0.5 * Math.cos(time / sr.period * TAU);
+    const gx = lerp(sr.x0, sr.x1, u), gy = world.groundAt(gx) ?? 600;
+    const dir = Math.sin(time / sr.period * TAU) >= 0 ? 1 : -1;
+    return { gx, gy, dir };
+  }
+  function segHitsBox(x0, y0, x1, y1, b) {
+    let t0 = 0, t1 = 1;
+    const dx = x1 - x0, dy = y1 - y0;
+    for (const [p, q] of [[-dx, x0 - b.x], [dx, b.x + b.w - x0], [-dy, y0 - b.y], [dy, b.y + b.h - y0]]) {
+      if (p === 0) { if (q < 0) return false; continue; }
+      const r = q / p;
+      if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; } else { if (r < t0) return false; if (r < t1) t1 = r; }
+    }
+    return true;
+  }
+  function inShadow() {
+    const sr = L.search, px = player.x, py = player.y - 24;
+    return world.solids.some(b => b !== player.ref && !b.oneway && segHitsBox(sr.sx, sr.sy, px, py, b));
+  }
+  function updateSearch(dt) {
+    if (!L.search) return;
+    const sp = searchSpot();
+    const lit = Math.abs(player.x - sp.gx) < L.search.r && Math.abs(player.y - sp.gy) < 80 && !inShadow();
+    searchSeen = lit ? searchSeen + dt : 0;
+    if (searchSeen > 0.25 && deathT <= 0) { searchSeen = 0; die('light'); }
   }
 
   function dangers() {
@@ -310,11 +381,14 @@ const Game = (() => {
   function hazardOn(h) { return hazardPhase(h) * h.period < h.on; }
   function hazardWarn(h) { const t = hazardPhase(h) * h.period; return t > h.period - 0.45; }
 
+  let deaths = 0;
   function die(kind) {
     if (deathT > 0) return;
+    deaths++;
     deathT = 1.1;
     if (kind === 'water') { Sound.splash(); splash(player.x, world.inGap(player.x).water); }
     else if (kind === 'zap') { Sound.zap(); flash = 0.6; }
+    else if (kind === 'light') { Sound.siren(); caughtT = 1.2; if (!caughtOnce) { caughtOnce = true; lineQ.push('They didn’t see me. I told myself they didn’t see me.'); } }
     else Sound.fall();
     fadeTarget = 0;
   }
@@ -322,7 +396,7 @@ const Game = (() => {
     const c = checkpoint;
     player.x = c.x - 20; player.y = world.surfaceAt(player.x) ?? c.y; player.vx = 0; player.vy = 0; player.ref = null; player.onGround = true;
     if (world.surfaceAt(player.x) === null) { player.x = c.x; player.y = c.y; }
-    if (robot.i < c.i) { robot.i = c.i; robot.x = robot.pts[c.i].x; robot.y = robot.pts[c.i].y; robot.path = null; }
+    if (robot.i < c.i || robot.visit) { robot.i = Math.max(robot.i, c.i); robot.x = robot.pts[robot.i].x; robot.y = robot.pts[robot.i].y; robot.path = null; robot.visit = null; }
     fadeTarget = 1;
   }
 
@@ -380,7 +454,8 @@ const Game = (() => {
   function captureShot() {
     const c = makeCanvas(384, 216), g = c.getContext('2d');
     g.drawImage(cv, 0, 0, cv.width, cv.height, 0, 0, 384, 216);
-    album.push({ canvas: c, caption: wantShot.caption, chapter: L.title });
+    Store.keepPhoto(wantShot.key, L.id, wantShot.x, wantShot.caption, c);
+    wantShot.have = true;
     polaroid = { canvas: c, t: 0 };
     wantShot = null;
   }
@@ -389,7 +464,7 @@ const Game = (() => {
   function update(dt) {
     time += dt; stateT += dt;
     pollPad();
-    if (pressed.mute) Sound.toggleMute();
+    if (pressed.mute) Store.setting('muted', Sound.toggleMute());
     Sound.update(dt);
     fade = lerp(fade, fadeTarget, 1 - Math.pow(0.02, dt));
     flash = Math.max(0, flash - dt * 2.2);
@@ -399,19 +474,26 @@ const Game = (() => {
       cam.x = 60 + Math.sin(time * 0.05) * 40 + time * 6; cam.y = 0;
       robot.t += dt; robot.blink = Math.sin(time * 3) > 0.2 ? 1 : 0;
       updateFlakes(dt, 6 * dt, 0);
-      if (stateT > 0.8 && (pressed.any)) { state = 'card'; stateT = 0; cam.x = 0; Sound.init(); }
+      if (stateT > 0.8) { if (!menuStack) openMenu('main'); handleMenu(); }
     } else if (state === 'card') {
       follow(dt, true);
       updateFlakes(dt, 0, 0);
       fadeTarget = 1;
+      Store.reach(ci);
       if (stateT > 5.2 || (stateT > 1.2 && (pressed.jump || pressed.start || pressed.any))) { state = 'play'; stateT = 0; }
     } else if (state === 'play') {
-      if (pressed.pause || (pressed.start && paused)) paused = !paused;
-      if (paused) { clearPressed(); return; }
+      if (!paused && (pressed.pause || (tap && tap.x > VIEW_W - 90 && tap.y < 80 && !isTouch))) { paused = true; openMenu('pause'); clearPressed(); return; }
+      if (paused) {
+        if (pressed.pause && !nav.back) menuBack(); else handleMenu();
+        clearPressed(); return;
+      }
       const control = deathT <= 0;
       world.updateMovers(time);
       updatePlayer(dt, control);
-      robot.update(dt, player);
+      robot.update(dt, player, life.interest());
+      weather(dt);
+      updateSearch(dt);
+      caughtT = Math.max(0, caughtT - dt);
       const d = dangers(); if (d) die(d);
       if (deathT > 0) { const before = deathT; deathT -= dt; if (before > 0.45 && deathT <= 0.45) respawn(); if (deathT <= 0) deathT = 0; }
       const ph = nearPhoto();
@@ -438,11 +520,16 @@ const Game = (() => {
       world.updateMovers(time);
       updatePlayer(dt, false); player.vx = PH.run * 0.6; robot.update(dt, player);
       const ox = cam.x; follow(dt); updateFlakes(dt, cam.x - ox, 0);
-      if (stateT > 1.6) { state = 'loading'; loadChapter(ci + 1, () => { state = 'card'; stateT = 0; fade = 0; fadeTarget = 1; }); }
+      if (stateT > 1.6) {
+        if (L.last) { Store.finish(); state = 'album'; stateT = 0; fade = 0; fadeTarget = 1; }
+        else { state = 'loading'; loadChapter(ci + 1, () => { state = 'card'; stateT = 0; fade = 0; fadeTarget = 1; }); }
+      }
     } else if (state === 'ending') {
       updateEnding(dt);
     } else if (state === 'album') {
-      if (stateT > 3 && (pressed.jump || pressed.start || pressed.photo || pressed.any)) { state = 'loading'; album = []; loadChapter(0, () => { state = 'title'; stateT = 0; fade = 0; fadeTarget = 1; }); }
+      if (stateT > 3 && (pressed.any || tap)) toTitle();
+    } else if (state === 'albumview') {
+      if (stateT > 0.6 && (pressed.any || tap)) { state = 'title'; stateT = 1; openMenu('main'); }
     }
     for (const s of splashes) {
       s.t += dt; s.x += s.vx * dt; s.y += s.vy * dt;
@@ -451,7 +538,7 @@ const Game = (() => {
     splashes = splashes.filter(s => s.t < s.life);
     clearPressed();
   }
-  function clearPressed() { for (const k in pressed) pressed[k] = false; }
+  function clearPressed() { for (const k in pressed) pressed[k] = false; for (const k in nav) nav[k] = false; tap = null; }
 
   function follow(dt, snap) {
     const p = player;
@@ -464,41 +551,163 @@ const Game = (() => {
   // ---------------------------------------------------------------- ending
   function startEnding() {
     state = 'ending'; stateT = 0;
-    ending = { phase: 0, t: 0, rise: 0, text: [], beam: 0 };
+    ending = { t: 0, rise: 0, text: [], beam: 0, touch: 0, step: 'walk' };
     const n = robot.pts.length;
-    if (Math.abs(robot.x - player.x) > 500) { robot.path = null; robot.i = n - 2; robot.x = robot.pts[n - 2].x; robot.y = robot.pts[n - 2].y; }
+    robot.visit = null;
+    if (Math.abs(robot.x - player.x) > 500 || robot.i < n - 1) { robot.path = null; robot.i = n - 1; robot.x = robot.pts[n - 1].x; robot.y = robot.pts[n - 1].y; }
     Sound.rise(8);
   }
+  // The kid stops. The machine comes over, and for once lets itself be touched,
+  // then walks back under the sphere and goes up.
   function updateEnding(dt) {
-    const e = ending, S = L.sphere;
+    const e = ending, S = L.sphere, home = robot.pts[robot.pts.length - 1];
     e.t += dt;
     world.updateMovers(time);
-    // the kid walks a few more steps, then stands still
-    const control = false;
-    if (player.x < L.exit + 60) player.vx = PH.run * 0.35; else player.vx *= 0.8;
-    updatePlayer(dt, control);
-    if (player.x < L.exit + 60) { player.vx = PH.run * 0.35; }
+    const stop = L.exit + 60;
+    player.vx = player.x < stop ? PH.run * 0.35 : player.vx * 0.8;
+    updatePlayer(dt, false);
     player.face = 1;
-    // the machine walks under the sphere and rises
-    if (!robot.path && robot.i < robot.pts.length - 1) robot.go(robot.pts.length - 1);
-    if (!robot.path) {
-      robot.face = -1;
-      if (e.t > 4) { e.rise = Math.min(1, e.rise + dt / 9); robot.hopping = true; }
-      robot.x = robot.pts[robot.pts.length - 1].x;
-      robot.y = lerp(robot.pts[robot.pts.length - 1].y, S.y + S.R * 0.2, e.rise * e.rise * (3 - 2 * e.rise));
-      robot.t += dt; robot.blink = Math.sin(robot.t * 6) > 0 ? 1 : 0;
-    } else robot.update(dt, { x: robot.x + 2000, y: robot.y });
-    e.beam = lerp(e.beam, e.t > 3 ? 1 : 0, 1 - Math.pow(0.3, dt));
+    robot.t += dt;
+    if (robot.path) robot.follow(dt);
+    const lookAt = (x, y) => { robot.look = lerp(robot.look, clamp(Math.atan2(y - (robot.y - 25), Math.max(24, Math.abs(x - robot.x))), -0.75, 0.45), 1 - Math.pow(0.02, dt)); };
+    if (e.step === 'walk' && e.t > 2.6) { e.step = 'come'; robot.goTo({ x: stop + 30, y: world.surfaceAt(stop + 30) }, false, 0.8); Sound.beep(0.6); }
+    if (e.step === 'come' && !robot.path) { e.step = 'touch'; e.tt = 0; }
+    if (e.step === 'touch') {
+      e.tt += dt; robot.face = -1; robot.hopping = false;
+      e.touch = smooth(0.4, 1.6, e.tt) * (1 - smooth(3.4, 4.2, e.tt));
+      lookAt(player.x, player.y - 30);
+      if (e.tt > 1.5 && !e.touched) { e.touched = true; Sound.touch(); }
+      if (e.tt > 4.4) { e.step = 'back'; robot.goTo(home, false, 0.7); }
+    }
+    player.reach = e.touch;
+    if (e.step === 'back' && !robot.path) { e.step = 'rise'; e.rt = 0; }
+    if (e.step === 'rise') {
+      e.rt += dt; robot.face = -1; robot.x = home.x;
+      lookAt(home.x - 200, S.y);
+      if (e.rt > 1.2) { e.rise = Math.min(1, e.rise + dt / 9); robot.hopping = true; }
+      robot.y = lerp(home.y, S.y + S.R * 0.2, e.rise * e.rise * (3 - 2 * e.rise));
+    }
+    robot.blink = Math.sin(robot.t * (e.step === 'touch' ? 2 : 6)) > 0 ? 1 : 0;
+    e.beam = lerp(e.beam, e.step === 'rise' || e.step === 'back' ? 1 : 0, 1 - Math.pow(0.3, dt));
     const ox = cam.x, oy = cam.y;
     cam.x = lerp(cam.x, world.W - VIEW_W, 1 - Math.pow(0.3, dt));
-    cam.y = lerp(cam.y, e.t > 4 ? -200 : 0, 1 - Math.pow(0.5, dt));
+    cam.y = lerp(cam.y, e.step === 'rise' ? -200 : 0, 1 - Math.pow(0.5, dt));
     updateFlakes(dt, cam.x - ox, cam.y - oy);
-    const script = [[2, 'Dawn came up the colour of the inside of a shell.'], [8, 'It went up without looking back.'], [13.5, 'I think that was the point.']];
-    for (const [t, text] of script) if (e.t > t && !e.text.includes(text)) { e.text.push(text); lineCur = { text, t: 0, d: 4.8 }; }
+    const say = text => { if (!e.text.includes(text)) { e.text.push(text); lineCur = { text, t: 0, d: 4.8 }; } };
+    if (e.t > 1.2) say('Dawn came up the colour of the inside of a shell.');
+    if (e.touched && e.tt > 1.8) say('It let me touch it. Just once.');
+    if (e.step === 'rise' && e.rt > 2.5) say('It went up without looking back.');
+    if (e.rise > 0.75) say('I think that was the point.');
     if (lineCur) { lineCur.t += dt; if (lineCur.t > lineCur.d) lineCur = null; }
-    if (e.rise >= 0.9 && !e.flashed) { e.flashed = true; Sound.chime(); flash = 0.45; }
-    if (e.t > 19) { fadeTarget = 0; }
-    if (e.t > 21.5) { state = 'album'; stateT = 0; fadeTarget = 1; fade = 0; Sound.endHum(); }
+    if (e.rise >= 0.9 && !e.flashed) { e.flashed = true; e.end = e.t; Sound.chime(); flash = 0.45; }
+    if (e.end && e.t > e.end + 4) fadeTarget = 0;
+    if (e.end && e.t > e.end + 6.5) { Sound.endHum(); afterEnding(); }
+  }
+  function afterEnding() {
+    state = 'loading';
+    loadChapter(ci + 1, () => { state = 'card'; stateT = 0; fade = 0; fadeTarget = 1; });
+  }
+
+  // ---------------------------------------------------------------- menus
+  const S = () => Store.settings;
+  const T = () => S().large ? 1.28 : 1;             // text scale
+  const reduce = () => S().reduce;
+  const KEYNAME = { Space: 'space', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Enter: 'enter', ShiftLeft: 'shift', ShiftRight: 'shift', ControlLeft: 'ctrl', ControlRight: 'ctrl' };
+  const keyName = code => KEYNAME[code] || code.replace(/^Key|^Digit|^Numpad/, '');
+  const ACTIONS = [['left', 'Walk left'], ['right', 'Walk right'], ['jump', 'Jump'], ['photo', 'Photograph / interact']];
+  let menuStack = null, menuRects = [];
+
+  function openMenu(id) { menuStack = [{ id, sel: 0 }]; }
+  function pushMenu(id) { menuStack.push({ id, sel: 0 }); Sound.tick(); }
+  function menuBack() {
+    if (menuStack.length > 1) { menuStack.pop(); Sound.tick(); }
+    else if (paused) resume();
+  }
+  function resume() { paused = false; menuStack = null; }
+
+  function startChapter(i) {
+    Sound.init(); menuStack = null; paused = false;
+    if (i === ci && world && state === 'title') { resetChapterState(); state = 'card'; stateT = 0; return; }
+    state = 'loading';
+    loadChapter(i, () => { state = 'card'; stateT = 0; fade = 0; fadeTarget = 1; });
+  }
+  function toTitle() {
+    menuStack = null; paused = false; state = 'loading';
+    loadChapter(0, () => { state = 'title'; stateT = 0; fade = 0; fadeTarget = 1; cam = { x: 60, y: 0 }; posTitleBot(); });
+  }
+  function posTitleBot() { robot.x = 470; robot.y = world.surfaceAt(470); robot.face = -1; }
+
+  function menuItems(id) {
+    const back = { label: 'back', act: menuBack };
+    const onOff = v => v ? 'on' : 'off';
+    const avail = Store.finished ? LEVELS.length - 1 : Store.reached;
+    switch (id) {
+      case 'main': {
+        const items = [];
+        if (Store.reached > 0 && !Store.finished) items.push({ label: `continue · ${roman(LEVELS[Store.reached].id)} ${LEVELS[Store.reached].title}`, act: () => startChapter(Store.reached) });
+        items.push({ label: Store.reached > 0 || Store.finished ? 'begin again' : 'begin', act: () => startChapter(0) });
+        if (avail > 0) items.push({ label: 'chapters', act: () => pushMenu('chapters') });
+        if (Store.photos.length) items.push({ label: `the album · ${Store.photos.length}`, act: () => { menuStack = null; state = 'albumview'; stateT = 0; } });
+        items.push({ label: 'settings', act: () => pushMenu('settings') });
+        return items;
+      }
+      case 'chapters':
+        return LEVELS.slice(0, avail + 1).map((l, i) => ({ label: `${roman(l.id)} · ${l.title} — ${l.sub.toLowerCase()}`, act: () => startChapter(i) })).concat(back);
+      case 'settings': {
+        const items = [
+          { label: `larger text · ${onOff(S().large)}`, act: () => Store.setting('large', !S().large) },
+          { label: `reduced motion · ${onOff(S().reduce)}`, act: () => { Store.setting('reduce', !S().reduce); if (L) initFlakes(); } },
+          { label: `sound · ${onOff(!Sound.muted)}`, act: () => Store.setting('muted', Sound.toggleMute()) },
+        ];
+        if (!isTouch) items.push({ label: 'controls', act: () => pushMenu('controls') });
+        return items.concat(back);
+      }
+      case 'controls':
+        return ACTIONS.map(([a, name]) => ({ label: `${name} · ${rebinding === a ? 'press a key…' : keyName(S().keys[a])}`, act: () => { rebinding = a; } }))
+          .concat({ label: 'restore defaults', act: () => Store.resetKeys() }, back);
+      case 'pause':
+        return [
+          { label: 'continue', act: resume },
+          { label: 'settings', act: () => pushMenu('settings') },
+          { label: 'leave to the title', act: toTitle },
+        ];
+    }
+    return [back];
+  }
+  const MENU_HEAD = { chapters: 'chapters', settings: 'settings', controls: 'controls — choose one, then press a key', pause: 'paused' };
+
+  function handleMenu() {
+    const top = menuStack[menuStack.length - 1], items = menuItems(top.id);
+    top.sel = clamp(top.sel, 0, items.length - 1);
+    if (rebinding) return;
+    if (nav.up) { top.sel = (top.sel - 1 + items.length) % items.length; Sound.tick(); }
+    if (nav.down) { top.sel = (top.sel + 1) % items.length; Sound.tick(); }
+    let chosen = nav.ok ? top.sel : -1;
+    if (tap) {
+      const r = menuRects.find(r => tap.x >= r.x && tap.x <= r.x + r.w && tap.y >= r.y && tap.y <= r.y + r.h);
+      if (r) { top.sel = r.i; chosen = r.i; }
+    }
+    if (nav.back) menuBack();
+    else if (chosen >= 0) { Sound.tick(1); items[chosen].act(); }
+  }
+
+  function renderMenu(y0, a) {
+    const top = menuStack[menuStack.length - 1], items = menuItems(top.id), t = T();
+    menuRects = [];
+    const head = MENU_HEAD[top.id];
+    if (head) text(head, VIEW_W / 2, y0 - 44 * t, 18 * t, a * 0.65, { italic: true, letter: 2 });
+    const lh = Math.min(44 * t, 330 / Math.max(1, items.length));
+    items.forEach((it, i) => {
+      const y = y0 + i * lh, on = i === top.sel, size = Math.min(25 * t, lh * 0.72);
+      text(it.label, VIEW_W / 2, y, size, a * (on ? 1 : 0.62), { italic: !on, weight: on ? 500 : 400, letter: on ? 1 : 0 });
+      if (on) {
+        ctx.font = `500 ${size}px ${FONT}`;
+        const w = ctx.measureText(it.label).width / 2 + 22;
+        ctx.fillStyle = css('#f6f1e6', a * 0.7);
+        ctx.fillRect(VIEW_W / 2 - w - 14, y - size * 0.32, 10, 1.5); ctx.fillRect(VIEW_W / 2 + w + 4, y - size * 0.32, 10, 1.5);
+      }
+      menuRects.push({ x: VIEW_W / 2 - 330, y: y - size - 6, w: 660, h: lh, i });
+    });
   }
 
   // ---------------------------------------------------------------- render
@@ -527,7 +736,7 @@ const Game = (() => {
     const fogs = L.pal.fog || [];
     for (const l of layers) {
       drawLayer(l);
-      if (l.key === 'far') life.drawDistant(ctx, cam);
+      if (l.key === 'far') { life.drawDistant(ctx, cam); if (L.train) drawTrain(l); }
       for (const f of fogs) if (f.after === l.key) drawFog(f);
     }
     const cx = cam.x, cy = cam.y, amb = ambient();
@@ -545,13 +754,14 @@ const Game = (() => {
     for (const ph of photos) {
       if (ph.taken || Math.abs(ph.x - cx - VIEW_W / 2) > VIEW_W) continue;
       const x = ph.x - cx, y = ph.y - cy - 70 + Math.sin(time * 2 + ph.x) * 3;
-      const a = 0.35 + Math.sin(time * 3) * 0.15 + promptA * 0.4 * (nearPhoto() === ph ? 1 : 0);
+      const a = (ph.have ? 0.45 : 1) * (0.35 + Math.sin(time * 3) * 0.15) + promptA * 0.4 * (nearPhoto() === ph ? 1 : 0);
       ctx.strokeStyle = css('#ffffff', a); ctx.lineWidth = 1.5;
       ctx.beginPath();
       for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { ctx.moveTo(x + sx * 9, y + sy * 5); ctx.lineTo(x + sx * 9, y + sy * 8); ctx.lineTo(x + sx * 5, y + sy * 8); }
       ctx.stroke();
       ctx.fillStyle = css('#ffffff', a); ctx.beginPath(); ctx.arc(x, y, 1.6, 0, TAU); ctx.fill();
     }
+    if (L.search) drawSearch(cx, cy);
     // the sphere at the end of it all
     if (L.sphere) drawFinalSphere(cx, cy);
     // shadows
@@ -565,6 +775,12 @@ const Game = (() => {
     let led = null;
     const botA = ending ? 1 - smooth(0.82, 1, ending.rise) : 1;
     if (botA > 0.01) { ctx.globalAlpha = botA; led = robot.draw(ctx, cx, cy, amb); ctx.globalAlpha = 1; }
+    if (ending && ending.touch > 0.05 && robot.tip) {
+      ctx.globalCompositeOperation = 'lighter';
+      const tx = lerp(robot.tip[0], player.x - cx + 9, 0.5), ty = lerp(robot.tip[1], player.y - cy - 30, 0.5);
+      drawGlow('#ffe2c0', tx, ty, 24 + ending.touch * 20, 0.6 * ending.touch);
+      ctx.globalCompositeOperation = 'source-over';
+    }
     if (ending && ending.rise > 0) {
       ctx.globalCompositeOperation = 'lighter';
       drawGlow('#ffe7cc', robot.x - cx, robot.y - cy - 14, 40 + ending.rise * 40, 0.5 * Math.sin(Math.min(1, ending.rise) * Math.PI) + 0.1);
@@ -572,6 +788,17 @@ const Game = (() => {
     }
     if (state !== 'title' && !(deathT > 0 && deathT < 0.6)) drawKid(ctx, player.x - cx, player.y - cy, player.face, player, L.pal.light, amb);
     else if (state === 'title') drawKid(ctx, 330 - 0, world.surfaceAt(cx + 330) - cy, 1, { run: 0, phase: 0, air: false, vy: 0, t: time }, L.pal.light, amb);
+    if (player.torch && state !== 'title' && !(deathT > 0 && deathT < 0.6)) {
+      // the head torch: a warm cone the way you face, lighting the snow in it
+      const hx = player.x - cx + player.face * 6, hy = player.y - cy - 41;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createRadialGradient(hx, hy, 2, hx, hy, 260);
+      g.addColorStop(0, 'rgba(255,236,196,0.32)'); g.addColorStop(1, 'rgba(255,236,196,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(hx, hy);
+      ctx.lineTo(hx + player.face * 260, hy - 50); ctx.lineTo(hx + player.face * 260, hy + 110); ctx.closePath(); ctx.fill();
+      drawGlow('#fff1c8', hx, hy, 12, 0.7);
+      ctx.restore();
+    }
     // particles
     for (const s of splashes) {
       const a = 1 - s.t / s.life;
@@ -598,10 +825,48 @@ const Game = (() => {
       const x = f.x - cx * 1.25, w = 360 * f.k, h = 260 * f.k;
       if (x + w / 2 < 0 || x - w / 2 > VIEW_W) continue;
       ctx.save(); ctx.translate(x, VIEW_H + 16 - cy * 0.25); if (f.flip) ctx.scale(-1, 1);
-      if (L.pal.fg.kind !== 'fence') ctx.rotate(Math.sin((life?.time || 0) * 0.6 + f.x) * 0.007);
+      if (L.pal.fg.kind !== 'fence' && !reduce()) ctx.rotate(Math.sin((life?.time || 0) * 0.6 + f.x) * 0.007);
       ctx.drawImage(f.s, -w / 2, -h, w, h); ctx.restore();
     }
     life.drawForeground(ctx, cam);
+  }
+
+  // A train crossing far off, lit windows in a dark line, every minute or so.
+  function drawTrain(layer) {
+    const tr = L.train, span = layer.w + tr.gap;
+    const lx = ((time * tr.speed) % span) - 260, x = lx - cam.x * layer.f, y = tr.y - cam.y * layer.f;
+    if (x > VIEW_W + 20 || x < -300) { if (x > VIEW_W + 20) trainHorn = false; return; }
+    if (!trainHorn && x > VIEW_W - 200) { trainHorn = true; if (state === 'play') Sound.horn(); }
+    const dark = mix('#3f474e', L.pal.haze, 0.45);
+    ctx.fillStyle = css(dark);
+    for (let i = 0; i < 7; i++) {
+      const cx0 = x - i * 34;
+      ctx.fillRect(cx0, y - 9, 31, 8);
+      if (i === 0) { ctx.fillRect(cx0 + 20, y - 12, 10, 4); }
+      for (let k = 0; k < 5; k++) if ((i * 7 + k) % 3) { ctx.fillStyle = css('#f2d9a0', 0.8); ctx.fillRect(cx0 + 3 + k * 5.6, y - 7, 2.4, 2); ctx.fillStyle = css(dark); }
+    }
+    Art.line(ctx, x - 240, y - 13, x + 34, y - 13, 0.6, dark, 0.5);
+    ctx.globalCompositeOperation = 'lighter';
+    drawGlow('#fff0c8', x + 31, y - 6, 16, 0.6);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function drawSearch(cx, cy) {
+    const sr = L.search, sp = searchSpot(), lx = sr.sx - cx, ly = sr.sy - cy, gx = sp.gx - cx, gy = sp.gy - cy;
+    if (lx < -900 || lx > VIEW_W + 900) return;
+    // the tower
+    Art.line(ctx, lx, ly + 6, lx, (world.groundAt(sr.sx) ?? 600) - cy + 4, 6, '#20242b');
+    for (let yy = ly + 20; yy < (world.groundAt(sr.sx) ?? 600) - cy; yy += 26) Art.line(ctx, lx - 6, yy, lx + 6, yy + 13, 1.5, '#2c313a');
+    ctx.fillStyle = '#2b3038'; ctx.fillRect(lx - 12, ly - 8, 24, 14);
+    const red = caughtT > 0 ? caughtT / 1.2 : 0;
+    const col = red > 0 ? '#ff8a70' : '#f4f2e6';
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createLinearGradient(lx, ly, gx, gy);
+    g.addColorStop(0, css(col, 0.28)); g.addColorStop(1, css(col, 0.1));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(lx + 8, ly); ctx.lineTo(gx + sr.r, gy + 4); ctx.lineTo(gx - sr.r, gy + 4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = css(col, 0.22); ctx.beginPath(); ctx.ellipse(gx, gy + 2, sr.r, 9, 0, 0, TAU); ctx.fill();
+    drawGlow(col, lx + 8, ly, 30, 0.9);
+    ctx.restore();
   }
 
   function drawArc(h, cx, cy) {
@@ -693,6 +958,7 @@ const Game = (() => {
   function post() {
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.drawImage(vignette, 0, 0, VIEW_W, VIEW_H);
+    if (reduce()) return;
     ctx.save();
     ctx.globalCompositeOperation = 'overlay';
     ctx.fillStyle = ctx.createPattern(grain, 'repeat');
@@ -721,31 +987,33 @@ const Game = (() => {
   function renderUI() {
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     // narration
-    if (lineCur) {
+    if (lineCur && !paused) {
       const a = Math.min(1, lineCur.t / 0.9, (lineCur.d - lineCur.t) / 0.9);
-      const ls = wrap(lineCur.text, 760, 28, { italic: true });
-      const y0 = VIEW_H - 64 - (ls.length - 1) * 34;
-      const g = ctx.createLinearGradient(0, VIEW_H - 170, 0, VIEW_H);
-      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(8,8,10,${0.35 * a})`);
-      ctx.fillStyle = g; ctx.fillRect(0, VIEW_H - 170, VIEW_W, 170);
-      ls.forEach((l, i) => text(l, VIEW_W / 2, y0 + i * 34, 28, a, { italic: true, shadowA: 0.6 }));
+      const t = T(), size = 28 * t, lh = 34 * t;
+      const ls = wrap(lineCur.text, 760 * (t > 1 ? 1.25 : 1), size, { italic: true });
+      const y0 = VIEW_H - 58 - (ls.length - 1) * lh;
+      const g = ctx.createLinearGradient(0, VIEW_H - 170 * t, 0, VIEW_H);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(8,8,10,${(t > 1 ? 0.5 : 0.35) * a})`);
+      ctx.fillStyle = g; ctx.fillRect(0, VIEW_H - 170 * t, VIEW_W, 170 * t);
+      ls.forEach((l, i) => text(l, VIEW_W / 2, y0 + i * lh, size, a, { italic: true, shadowA: 0.6 }));
     }
     if (state === 'play' && promptA > 0.02) {
-      const ph = nearPhoto() || null;
-      text(document.body.classList.contains('touch') ? '◉  ·  take a photograph' : 'E  ·  take a photograph', VIEW_W / 2, 58, 20, promptA * 0.9, { italic: true });
+      const ph = nearPhoto();
+      const what = ph && ph.have ? 'take it again' : 'take a photograph';
+      text(`${isTouch ? '◉' : keyName(S().keys.photo)}  ·  ${what}`, VIEW_W / 2, 58, 20 * T(), promptA * 0.9, { italic: true });
     }
     if (state === 'play' && !nearPhoto() && placePromptA > 0.02 && deathT <= 0) {
       const place = life.near(player);
       if (place) {
-        const key = document.body.classList.contains('touch') ? '◉' : navigator.getGamepads?.().some(p => p) ? 'X / □' : 'E';
+        const key = isTouch ? '◉' : navigator.getGamepads?.().some(p => p) ? 'X / □' : keyName(S().keys.photo);
         const label = place.kind === 'signal' && place.on ? 'turn the lights off' : place.label;
         const waiting = place.kind === 'water' ? 'rings on the water' : place.kind === 'stones' ? 'almost weightless' : 'listen…';
-        text(place.cooldown > 0 ? waiting : `${key}  ·  ${label}`, VIEW_W / 2, 58, 20, placePromptA * 0.75 * (1 - promptA), { italic: true });
+        text(place.cooldown > 0 ? waiting : `${key}  ·  ${label}`, VIEW_W / 2, 58, 20 * T(), placePromptA * 0.75 * (1 - promptA), { italic: true });
       }
     }
     if (state === 'play' && stateT < 6) {
       const a = Math.min(1, stateT / 1, (6 - stateT) / 1.5);
-      text(`${roman(L.id)} · ${L.title}`, 40, 50, 22, a * 0.85, { align: 'left', letter: 2 });
+      text(`${roman(L.id)} · ${L.title}`, 40, 50, 22 * T(), a * 0.85, { align: 'left', letter: 2 });
     }
     // polaroid slides in, lingers, and goes to the album
     if (polaroid) {
@@ -756,19 +1024,20 @@ const Game = (() => {
       ctx.fillStyle = '#f2eee4'; ctx.fillRect(-w / 2 - 10, -h / 2 - 10, w + 20, h + 42);
       ctx.drawImage(polaroid.canvas, -w / 2, -h / 2, w, h * 1.0);
       ctx.restore();
-      const cnt = album.length, total = LEVELS.reduce((s, l) => s + l.photos.length, 0);
+      const cnt = Store.photos.length, total = LEVELS.reduce((s, l) => s + l.photos.length, 0);
       text(`${cnt} / ${total}`, x + w / 2, y + h + 24, 15, inT * (1 - outT) * 0.8, { col: '#3a3530', shadow: false, italic: true });
     }
-    if (flash > 0) { ctx.fillStyle = `rgba(255,252,245,${flash * 0.85})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
+    if (caughtT > 0 && state === 'play') { ctx.fillStyle = `rgba(160,40,30,${0.18 * caughtT / 1.2})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
+    if (flash > 0) { ctx.fillStyle = `rgba(255,252,245,${flash * (reduce() ? 0.3 : 0.85)})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
     if (fade < 0.999) { ctx.fillStyle = `rgba(6,6,8,${1 - fade})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
 
     if (state === 'title') renderTitle();
     if (state === 'card') renderCard();
-    if (state === 'album') renderAlbum();
+    if (state === 'album' || state === 'albumview') renderAlbum();
     if (paused && state === 'play') renderPause();
   }
 
-  function roman(n) { return ['', 'I', 'II', 'III', 'IV', 'V'][n]; }
+  function roman(n) { return ['', 'I', 'II', 'III', 'IV', 'V', 'VI'][n]; }
 
   function renderTitle() {
     const a = Math.min(1, stateT / 2);
@@ -777,9 +1046,20 @@ const Game = (() => {
     ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, 360);
     text('STÅLHAGEN', VIEW_W / 2, 190, 92, a, { weight: 500, letter: 18, shadowA: 0.3 });
     text('the steel pasture', VIEW_W / 2, 238, 30, a * 0.9, { italic: true });
-    const b = Math.min(1, Math.max(0, stateT - 1.5)) * (0.55 + Math.sin(time * 2) * 0.3);
-    text(document.body.classList.contains('touch') ? 'tap to begin' : 'press any key', VIEW_W / 2, VIEW_H - 70, 22, b, { italic: true, letter: 2 });
-    text('← →  walk     ↑ / space  jump     E  photograph / interact     M  sound', VIEW_W / 2, VIEW_H - 36, 16, Math.min(1, Math.max(0, stateT - 1.5)) * 0.7, { letter: 1 });
+    const b = Math.min(1, Math.max(0, stateT - 1));
+    if (menuStack) {
+      // a soft band behind the menu keeps it legible over the snow
+      const band = ctx.createLinearGradient(0, 270, 0, 620);
+      band.addColorStop(0, 'rgba(20,24,30,0)'); band.addColorStop(0.3, `rgba(20,24,30,${0.28 * b})`); band.addColorStop(0.75, `rgba(20,24,30,${0.28 * b})`); band.addColorStop(1, 'rgba(20,24,30,0)');
+      ctx.fillStyle = band; ctx.fillRect(0, 270, VIEW_W, 350);
+      renderMenu(menuStack.length > 1 ? 370 : 330, b);
+    }
+    if (!isTouch) {
+      const k = S().keys, foot = ctx.createLinearGradient(0, VIEW_H - 90, 0, VIEW_H);
+      foot.addColorStop(0, 'rgba(14,16,20,0)'); foot.addColorStop(1, `rgba(14,16,20,${0.55 * b})`);
+      ctx.fillStyle = foot; ctx.fillRect(0, VIEW_H - 90, VIEW_W, 90);
+      text(`← → or ${keyName(k.left)} ${keyName(k.right)}  walk     ↑ or ${keyName(k.jump)}  jump     ↓ or ${keyName(k.photo)}  photograph / interact     M  sound     esc  pause`, VIEW_W / 2, VIEW_H - 30, 15 * T(), b * 0.65, { letter: 1 });
+    }
   }
 
   function renderCard() {
@@ -793,39 +1073,40 @@ const Game = (() => {
   }
 
   function renderPause() {
-    ctx.fillStyle = 'rgba(8,8,10,0.6)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    text('paused', VIEW_W / 2, 300, 48, 1, { italic: true });
-    text('← → walk  ·  ↑ / space jump  ·  E photograph / interact  ·  M sound ' + (Sound.muted ? '(off)' : '(on)'), VIEW_W / 2, 360, 20, 0.85);
-    text('Some things answer. Some things only happen if you wait.', VIEW_W / 2, 385, 18, 0.6, { italic: true });
-    text(document.body.classList.contains('touch') ? 'tap \u275a\u275a to continue' : 'esc to continue', VIEW_W / 2, 410, 18, 0.6, { italic: true });
+    ctx.fillStyle = 'rgba(8,8,10,0.62)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    if (menuStack) renderMenu(330, 1);
+    text('Some things answer. Some things only happen if you wait.', VIEW_W / 2, VIEW_H - 60, 17 * T(), 0.55, { italic: true });
   }
 
   function renderAlbum() {
     ctx.fillStyle = '#1b1a1e'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    const a = Math.min(1, stateT / 1.5);
-    text('I still have the photographs. That’s how I know it happened.', VIEW_W / 2, 70, 28, a, { italic: true });
-    const n = album.length, cols = Math.min(5, Math.max(1, n)), w = 196, h = 110, gap = 30;
-    const rows = Math.ceil(n / cols), x0 = VIEW_W / 2 - (cols * (w + gap) - gap) / 2, y0 = 130;
-    album.forEach((p, i) => {
+    const a = Math.min(1, stateT / 1.5), t = T(), end = state === 'album';
+    text(end ? 'I still have the photographs. That’s how I know it happened.' : 'the album', VIEW_W / 2, 64, (end ? 28 : 30) * t, a, { italic: true, letter: end ? 0 : 3 });
+    const list = Store.photos, n = list.length;
+    const cols = n > 15 ? 6 : 5, w = n > 15 ? 168 : 196, h = w * 9 / 16, gap = 26, rowH = h + 44 + 14 * t;
+    const x0 = VIEW_W / 2 - (Math.min(cols, Math.max(1, n)) * (w + gap) - gap) / 2, y0 = 116;
+    list.forEach((p, i) => {
       const r = (i / cols) | 0, c = i % cols;
-      const pa = clamp((stateT - 1 - i * 0.25) / 0.6, 0, 1);
+      const pa = end ? clamp((stateT - 1 - i * 0.2) / 0.6, 0, 1) : a;
       if (pa <= 0) return;
-      const x = x0 + c * (w + gap), y = y0 + r * (h + 70);
+      const x = x0 + c * (w + gap), y = y0 + r * rowH;
       ctx.save(); ctx.globalAlpha = pa; ctx.translate(x + w / 2, y + h / 2); ctx.rotate(((i * 7919) % 11 - 5) * 0.006);
-      ctx.fillStyle = '#f0ece2'; ctx.fillRect(-w / 2 - 8, -h / 2 - 8, w + 16, h + 44);
-      ctx.drawImage(p.canvas, -w / 2, -h / 2, w, h);
+      ctx.fillStyle = '#f0ece2'; ctx.fillRect(-w / 2 - 8, -h / 2 - 8, w + 16, h + 36 + 14 * t);
+      const img = p.img;
+      if (img && (!(img instanceof Image) || (img.complete && img.naturalWidth))) ctx.drawImage(img, -w / 2, -h / 2, w, h);
+      else { ctx.fillStyle = '#c9c4b8'; ctx.fillRect(-w / 2, -h / 2, w, h); }
       ctx.restore();
       ctx.globalAlpha = pa;
-      const cl = wrap(p.caption, w, 13, { italic: true });
-      cl.slice(0, 2).forEach((l, k) => text(l, x + w / 2, y + h + 18 + k * 14, 13, pa, { italic: true, col: '#3a3530', shadow: false }));
+      const size = 12.5 * t, cl = wrap(p.caption, w + 6, size, { italic: true });
+      cl.slice(0, 2).forEach((l, k) => text(l, x + w / 2, y + h + 15 + size * 0.5 + k * size * 1.1, size, pa, { italic: true, col: '#3a3530', shadow: false }));
       ctx.globalAlpha = 1;
     });
-    if (!n) text('You didn’t take any. Maybe that is its own kind of remembering.', VIEW_W / 2, 330, 22, a * 0.8, { italic: true });
+    if (!n) text('You didn’t take any. Maybe that is its own kind of remembering.', VIEW_W / 2, 330, 22 * t, a * 0.8, { italic: true });
     const total = LEVELS.reduce((s, l) => s + l.photos.length, 0);
-    const b = clamp(stateT - 2 - n * 0.25, 0, 1);
-    text(`${n} of ${total} photographs`, VIEW_W / 2, VIEW_H - 92, 18, b * 0.7, { italic: true });
-    text('STÅLHAGEN  ·  after the paintings of Simon Stålenhag  ·  every image drawn in code', VIEW_W / 2, VIEW_H - 60, 15, b * 0.5, { letter: 1 });
-    if (stateT > 3) text(document.body.classList.contains('touch') ? 'tap to play again' : 'press any key', VIEW_W / 2, VIEW_H - 26, 16, (0.4 + Math.sin(time * 2) * 0.2), { italic: true });
+    const b = end ? clamp(stateT - 2 - n * 0.2, 0, 1) : a;
+    text(`${n} of ${total} photographs`, VIEW_W / 2, VIEW_H - 84, 17 * t, b * 0.7, { italic: true });
+    if (end) text('STÅLHAGEN  ·  after the paintings of Simon Stålenhag  ·  every image drawn in code', VIEW_W / 2, VIEW_H - 56, 14 * t, b * 0.5, { letter: 1 });
+    if (stateT > (end ? 3 : 0.6)) text(isTouch ? 'tap to go on' : 'press any key', VIEW_W / 2, VIEW_H - 24, 15 * t, (0.4 + Math.sin(time * 2) * 0.2), { italic: true });
   }
 
   function render() {
@@ -834,7 +1115,7 @@ const Game = (() => {
       ctx.fillStyle = '#0c0c0e'; ctx.fillRect(0, 0, cv.width, cv.height);
       return;
     }
-    if (state !== 'album') {
+    if (state !== 'album' && state !== 'albumview') {
       renderWorld();
       post();
       if (wantShot) captureShot();
@@ -849,13 +1130,15 @@ const Game = (() => {
     // fixed substeps keep jumps identical at any frame rate
     const n = Math.ceil(dt / (1 / 120));
     for (let i = 0; i < n; i++) { update(dt / n); }
-    render();
+    // a drawing error must never stop the loop; the next frame tries again
+    try { render(); } catch (err) { if (!frame.warned) { frame.warned = true; console.error(err); } }
     requestAnimationFrame(frame);
   }
 
   function start() {
     makePost();
-    loadChapter(0, () => { state = 'title'; stateT = 0; fade = 0; fadeTarget = 1; cam = { x: 60, y: 0 }; robot.x = 470; robot.y = world.surfaceAt(470); robot.face = -1; });
+    if (Store.settings.muted && !Sound.muted) Sound.toggleMute();
+    loadChapter(0, () => { state = 'title'; stateT = 0; fade = 0; fadeTarget = 1; cam = { x: 60, y: 0 }; posTitleBot(); });
     requestAnimationFrame(t => { last = t; frame(t); });
   }
 
@@ -864,8 +1147,8 @@ const Game = (() => {
     get state() { return state; }, get player() { return player; }, get world() { return world; }, get robot() { return robot; }, get cam() { return cam; },
     jump(i, x) { state = 'loading'; loadChapter(i, () => { state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x) { player.x = x; player.y = world.surfaceAt(x); follow(0, true); } }); },
     set(x, y) { player.x = x; player.y = y ?? world.surfaceAt(x); player.vy = 0; follow(0, true); },
-    keys, pressed, get album() { return album; }, get L() { return L; }, get time() { return time; },
-    get life() { return life; },
+    keys, pressed, nav, get album() { return Store.photos; }, get menu() { return menuStack; }, tapAt(x, y) { tap = { x, y }; }, get L() { return L; }, get time() { return time; },
+    get deaths() { return deaths; }, get life() { return life; }, search: () => L.search && { ...searchSpot(), hidden: inShadow() }, get Q() { return Q; }, get painted() { return layers; },
     step(n, dt = 1 / 120) { for (let i = 0; i < n; i++) update(dt); }, hazardOn: h => hazardOn(h), ending: () => startEnding(), setState(s) { state = s; stateT = 0; },
   };
   return { start };

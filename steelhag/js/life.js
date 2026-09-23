@@ -8,6 +8,8 @@ const QUIET_PLACES = [
     { kind: 'bell', x: 3500, label: 'ring the little bell' }],
   [{ kind: 'signal', x: 1290, label: 'try the switch' }],
   [{ kind: 'stones', x: 2960, label: 'let a pebble go' }],
+  // years later, something has moved into the place where the machine was
+  [{ kind: 'birds', x: 3620, label: 'whistle softly' }],
 ];
 
 class QuietLife {
@@ -16,7 +18,7 @@ class QuietLife {
     this.chapter = world.L.id - 1;
     this.time = 0;
     this.events = [];
-    this.places = QUIET_PLACES[this.chapter].map(p => ({
+    this.places = (QUIET_PLACES[this.chapter] || []).map(p => ({
       ...p, y: world.surfaceAt(p.x), age: 100, cooldown: 0, count: 0,
       waiting: 0, settled: false, on: false, answer: false,
     }));
@@ -85,6 +87,15 @@ class QuietLife {
     }
   }
 
+  // Something worth the machine's attention: a reply, birds lifting, lights coming on.
+  interest() {
+    for (const p of this.places) {
+      if (p.kind === 'birds' && (p.startled || p.settled) && p.age < 6) return { x: p.x + (p.startled ? 60 + p.age * 30 : 0), y: p.y - (p.startled ? 40 + p.age * 20 : 8) };
+      if (p.count && p.age < 5) return { x: p.kind === 'signal' ? p.x + 45 + Math.min(4, p.age / 0.45) * 40 : p.kind === 'water' ? p.waterX : p.x, y: p.kind === 'signal' ? p.y - 60 : p.y - 30 };
+    }
+    return null;
+  }
+
   drainSounds(playerX) {
     const out = this.events.filter(e => Math.abs(e.x - playerX) < 850);
     this.events = [];
@@ -107,7 +118,7 @@ class QuietLife {
     const t = this.time;
     g.save();
     // One loose flock, taking well over a minute to cross the landscape.
-    if (this.chapter < 3) {
+    if (this.chapter < 3 || this.chapter === 5) {
       g.strokeStyle = css(mix('#424952', this.world.L.pal.haze, 0.35), 0.45); g.lineWidth = 1;
       const x = ((t * 12 + this.chapter * 510) % 2600) - 500 - cam.x * 0.13;
       for (let i = 0; i < 5; i++) this.bird(g, x + i * 22, 315 - cam.y * 0.13 + Math.sin(i * 2) * 14, t + i, 3);

@@ -43,7 +43,7 @@ body.touch #touch { display: block; }
     <button id="pausebtn" data-act="pause" class="small" aria-label="Pause">&#10074;&#10074;</button>
   </div>
   <div id="rotate">turn your phone sideways</div>
-  <script>
+  <script data-src="util.js">
 'use strict';
 // Small shared helpers: seeded randomness, 1-D noise, colour maths, canvases.
 
@@ -92,9 +92,12 @@ function shade(c, k) { return k >= 0 ? mix(c, [255, 255, 255], k) : mix(c, [0, 0
 function mono(c, r, amt) { c = hex(c); const d = (r() - 0.5) * amt; return [c[0] + d, c[1] + d, c[2] + d]; }
 function jit(c, r, amt) { c = hex(c); return [c[0] + (r() - 0.5) * amt, c[1] + (r() - 0.5) * amt, c[2] + (r() - 0.5) * amt]; }
 
+// In the painting worker there is no document, only OffscreenCanvas.
 function makeCanvas(w, h) {
+  w = Math.max(1, Math.ceil(w)); h = Math.max(1, Math.ceil(h));
+  if (typeof document === 'undefined') return new OffscreenCanvas(w, h);
   const c = document.createElement('canvas');
-  c.width = Math.max(1, Math.ceil(w)); c.height = Math.max(1, Math.ceil(h));
+  c.width = w; c.height = h;
   return c;
 }
 
@@ -110,7 +113,74 @@ function stopsAt(stops, y) {
   return hex(stops[stops.length - 1][1]);
 }
 </script>
-  <script>
+  <script data-src="store.js">
+'use strict';
+// What the game remembers between visits: settings, how far you got, and the
+// photographs. Storage can be missing or full; everything here fails quietly
+// and the game plays the same without it.
+
+const Store = (() => {
+  const KEY = 'stalhagen.v1', ALBUM = 'stalhagen.album.v1';
+  const touch = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+  const phone = touch && typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 600;
+  const DEFAULT_KEYS = { left: 'KeyA', right: 'KeyD', jump: 'Space', photo: 'KeyE' };
+
+  const read = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+  const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+
+  const saved = read(KEY) || {};
+  const data = {
+    // on phones the defaults favour legibility and calm
+    settings: { large: phone, reduce: phone, muted: false, keys: { ...DEFAULT_KEYS }, ...(saved.settings || {}) },
+    progress: { reached: 0, finished: false, ...(saved.progress || {}) },
+  };
+  data.settings.keys = { ...DEFAULT_KEYS, ...(data.settings.keys || {}) };
+
+  // photographs: {key, chapter, x, caption, src}, and an Image for drawing
+  const photos = (read(ALBUM) || []).filter(p => p && p.src).map(p => ({ ...p, img: toImage(p.src) }));
+
+  function toImage(src) {
+    if (typeof Image === 'undefined') return null;
+    const img = new Image(); img.src = src; return img;
+  }
+  const save = () => write(KEY, { settings: data.settings, progress: data.progress });
+  const saveAlbum = () => {
+    const plain = photos.map(({ img, ...p }) => p);
+    // if storage is full, keep what fits rather than nothing
+    while (plain.length && !write(ALBUM, plain)) plain.shift();
+  };
+  const order = () => photos.sort((a, b) => a.chapter - b.chapter || a.x - b.x);
+  order();
+
+  return {
+    DEFAULT_KEYS, phone,
+    get settings() { return data.settings; },
+    setting(name, value) { data.settings[name] = value; save(); },
+    bind(action, code) { data.settings.keys[action] = code; save(); },
+    resetKeys() { data.settings.keys = { ...DEFAULT_KEYS }; save(); },
+
+    get reached() { return data.progress.reached; },
+    get finished() { return data.progress.finished; },
+    reach(i) { if (i > data.progress.reached) { data.progress.reached = i; save(); } },
+    finish() { data.progress.finished = true; save(); },
+
+    get photos() { return photos; },
+    hasPhoto(key) { return photos.some(p => p.key === key); },
+    // a canvas snapshot becomes a small JPEG; retaking a view replaces it
+    keepPhoto(key, chapter, x, caption, canvas) {
+      let src = null;
+      try { src = canvas.toDataURL('image/jpeg', 0.8); } catch (e) { /* tainted or unsupported */ }
+      const entry = { key, chapter, x, caption, src, img: src ? toImage(src) : canvas };
+      const at = photos.findIndex(p => p.key === key);
+      if (at >= 0) photos[at] = entry; else photos.push(entry);
+      order();
+      if (src) saveAlbum();
+      return entry;
+    },
+  };
+})();
+</script>
+  <script data-src="art.js">
 'use strict';
 // The paint box. Everything in the game is drawn from these procedures,
 // once per chapter, into large offscreen canvases. Nothing is a bitmap.
@@ -714,7 +784,7 @@ Art.fogTexture = (w, h, seed) => {
   return c;
 };
 </script>
-  <script>
+  <script data-src="world.js">
 'use strict';
 // A chapter turned into something you can stand on and something you can look at.
 
@@ -1066,7 +1136,7 @@ function moverSprite(world, m, Q) {
   return { canvas: c, pad };
 }
 </script>
-  <script>
+  <script data-src="levels.js">
 'use strict';
 // Five chapters. Each one is a palette, a ground line, the things you can
 // stand on, where the little machine waits, what is said, and how the land
@@ -1189,8 +1259,9 @@ const LEVELS = [
     [3930, 'From up there you could see the towers across the bay, breathing into the cold.'],
     [5000, 'It kept stopping to look back at me. As if it wanted me to come along.'],
   ],
-  photos: [[1720, 'Uncle Lars’s Volvo, where the snowplough left it'], [3700, 'SV-14, from on top'], [5245, 'The bus shelter. No bus since ’86']],
+  photos: [[1720, 'Uncle Lars’s Volvo, where the snowplough left it'], [3700, 'SV-14, from on top'], [5245, 'The bus shelter. No bus since ’86'], [5701, 'From the top of the bales, the whole field']],
   exit: 6300,
+  train: { y: 448, speed: 55, gap: 2600 },
   paint: {
     far(ctx, W, r, w) {
       const p = w.L.pal, n = makeNoise(5);
@@ -1299,6 +1370,8 @@ const LEVELS = [
     { t: 'log', x: 3180, w: 170, h: 24, sink: 2 },
     { t: 'rock', x: 3440, w: 80, h: 50 },
     { t: 'rock', x: 3760, w: 110, h: 74 },
+    { t: 'metal', x: 3786, w: 58, h: 40, y: 477, c: '#6e7162', moss: true, round: 8,
+      draw(ctx, o) { ctx.fillStyle = css('#1d2226'); ctx.fillRect(o.x + 30, o._y + 12, 20, 10); Art.dab(ctx, o.x + 44, o._y + 17, 2, 2, 0, '#5b2a22', 1); } },
     { t: 'rock', x: 4420, w: 70, h: 40 },
     { t: 'log', x: 5700, w: 180, h: 26, sink: 2 },
     { t: 'rock', x: 6100, w: 90, h: 56 },
@@ -1312,7 +1385,7 @@ const LEVELS = [
     [4650, 'The light went long and gold, the way it only does at the end of summer.'],
     [5900, 'I told myself I would turn back at the next hill.'],
   ],
-  photos: [[2440, 'KV-3, asleep in the birches'], [4860, 'The long light'], [6150, 'Moss, lichen, steel']],
+  photos: [[2440, 'KV-3, asleep in the birches'], [3815, 'A sensor head, left in the birches'], [4860, 'The long light'], [6150, 'Moss, lichen, steel']],
   exit: 6680,
   paint: {
     far(ctx, W, r, w) {
@@ -1419,6 +1492,8 @@ const LEVELS = [
     { t: 'metal', x: 2996, w: 64, h: 52, y: 436, c: '#4f4943' },
     { t: 'metal', x: 3060, w: 1180, h: 104, y: 382, c: '#6b5a4c', panel: 56 },
     { t: 'metal', x: 3806, w: 74, h: 72, y: 310, c: '#4f4943' },
+    { t: 'metal', x: 3950, w: 80, h: 12, y: 158, c: '#4a413b', panel: 30, rivets: false,
+      draw(ctx, o) { for (let x = o.x; x <= o.x + o.w; x += 8) Art.line(ctx, x, o._y, x, o._y - 14, 1.2, '#3a322c'); Art.line(ctx, o.x, o._y - 14, o.x + o.w, o._y - 14, 1.5, '#3a322c'); } },
     { t: 'metal', x: 3880, w: 270, h: 152, y: 230, c: '#7b6c5c', stripes: true, stripeY: 8, stripeH: 10,
       draw(ctx, o, r) {
         for (let i = 0; i < 5; i++) { ctx.fillStyle = css('#ffd89a', 0.75); ctx.fillRect(o.x + 22 + i * 48, o._y + 36, 30, 22); ctx.fillStyle = css('#3a3230', 0.6); ctx.fillRect(o.x + 36 + i * 48, o._y + 36, 2, 22); }
@@ -1441,7 +1516,7 @@ const LEVELS = [
     [3900, 'On deck the lamps were still lit. Nobody ever found out where the power came from.'],
     [5500, 'It was getting dark. I should have gone home.'],
   ],
-  photos: [[1320, 'The boardwalk, in fog'], [4010, 'On Båten’s roof'], [6450, 'The lamps, still on']],
+  photos: [[1320, 'The boardwalk, in fog'], [3990, 'From the crow’s nest, at dusk'], [4110, 'On Båten’s roof'], [6450, 'The lamps, still on']],
   exit: 6860,
   paint: {
     far(ctx, W, r, w) {
@@ -1535,6 +1610,11 @@ const LEVELS = [
     { t: 'plank', x: 3700, w: 250, y: 360, c: '#4a5055', piles: false }, { t: 'plank', x: 4050, w: 300, y: 360, c: '#4a5055', piles: false },
     { t: 'concrete', x: 4350, w: 200, h: 150 }, { t: 'concrete', x: 4550, w: 120, h: 80 },
     { t: 'concrete', x: 5000, w: 140, h: 60 }, { t: 'metal', x: 5140, w: 110, h: 110, c: '#445057', label: 'T-7', labelSize: 20 },
+    { t: 'plank', x: 3470, w: 100, y: 280, c: '#4a5055', piles: false },
+    // cover from the searchlight
+    { t: 'metal', x: 5560, w: 58, h: 72, c: '#4d4a44', stripes: true, stripeY: 8, stripeH: 8 },
+    { t: 'metal', x: 5880, w: 62, h: 76, c: '#46505a' },
+    { t: 'metal', x: 6170, w: 58, h: 72, c: '#4d4a44', stripes: true, stripeY: 8, stripeH: 8 },
   ],
   movers: [
     { x: 2040, y: 586, w: 96, h: 14, dy: -210, period: 7, art: 'lift', tail: 40 },
@@ -1556,8 +1636,9 @@ const LEVELS = [
     [4300, 'The little machine walked faster now. It knew the way.'],
     [5600, 'Past the last hall there was only the dark, and the tower, and snow starting.'],
   ],
-  photos: [[2380, 'The roof of Hall 3'], [4200, 'Blue light in the pipes'], [5860, 'The tower, close enough to touch']],
+  photos: [[2380, 'The roof of Hall 3'], [3515, 'Above the halls, everything humming'], [4200, 'Blue light in the pipes'], [5860, 'The tower, close enough to touch']],
   exit: 6480,
+  search: { sx: 5250, sy: 380, x0: 5470, x1: 6320, period: 11, r: 55 },
   paint: {
     far(ctx, W, r, w) {
       const p = w.L.pal, n = makeNoise(71);
@@ -1669,7 +1750,7 @@ const LEVELS = [
     [1500, 'There were no tracks ahead of us. Only its small ones, and then mine.'],
     [3000, 'Near the top the snow started falling upward.'],
   ],
-  photos: [[1420, 'The last of the machines'], [2520, 'First light on the snow'], [5700, 'Klotet']],
+  photos: [[1420, 'The last of the machines'], [2520, 'First light on the snow'], [3200, 'The last hill, before the edge'], [5700, 'Klotet']],
   exit: 5760,
   sphere: { x: 5960, y: 150, R: 250 },
   ending: true,
@@ -1710,15 +1791,112 @@ const LEVELS = [
       // cliff faces at the edge of the void
       for (const [x0, dir] of [[3462, -1], [5558, 1]]) {
         ctx.save(); ctx.beginPath(); ctx.moveTo(x0, 480); ctx.lineTo(x0 + dir * 60, 720); ctx.lineTo(x0 - dir * 40, 720); ctx.lineTo(x0 - dir * 40, 470); ctx.closePath(); ctx.clip();
-        for (let i = 0; i < 300; i++) Art.stroke(ctx, x0 - 50 + r() * 120, 470 + r() * 260, 8 + r() * 30, 2 + r() * 5, Math.PI / 2 + (r() - 0.5) * 0.8, jit('#6c6780', r, 30), 0.6);
+        for (let i = 0; i < 300; i++) Art.stroke(ctx, x0 - 50 + r() * 120, 470 + r() * 260, 8 + r() * 30, 2 + r() * 5, Math.PI / 2 + (r() - 0.5) * 0.8, mono(mix('#6c6780', '#9a98ae', r()), r, 16), 0.7);
         ctx.restore();
+      }
+    },
+  },
+},
+// ====================================================================== VI
+{
+  id: 6, seed: 67, title: 'Tövädret', sub: 'The Thaw', date: 'April, years later',
+  width: 4500, top: 200, bumps: 8,
+  pal: {
+    horizon: 450, light: -1, haze: '#dcdcd0', lowHaze: 0.3,
+    skyStops: [[-200, '#8ea2b2'], [120, '#b1bec5'], [360, '#dcdbd0'], [450, '#ece7d8'], [720, '#e3dfd2']],
+    sun: { x: 0.3, y: 320, color: '#fff2da', glow: 440, glowA: 0.5, disk: 22, diskA: 0.7, rim: '#fbf4e6' },
+    clouds: [
+      { y: 60, h: 100, n: 1100, light: '#c3cbcf', dark: '#93a0a9', a: 0.05, rx: [90, 280], flat: 0.14 },
+      { y: 280, h: 40, n: 500, light: '#f0ebe0', dark: '#bfc2bd', a: 0.06, rx: [60, 220], flat: 0.12 },
+    ],
+    ground: { kind: 'grass', fieldTop: '#868c58', fieldBottom: '#363b24', hi: '#c9cf8f', lo: '#3e4428', surfLight: '#b6bb78', surfShadow: '#5b663a', surfTop: '#cbd08c', bandLow: '#4c5431', band: 12, tuft: '#b8a96c', tuft2: '#7d8f45', tuftDensity: 0.18, tuftH: 16, fieldTufts: 0.03 },
+    birch: { bark: '#ece6d6', barkDark: '#2b2a26', barkShade: '#9a917f', leaf: '#a9bb64', leafLight: '#e2eba0', leafDark: '#6c7d40' },
+    metal: { c: '#6a6c66', rust: '#8e4f2c', label: '#e7e2d4', grime: '#39383a' },
+    stripes: ['#d9892f', '#2b2b2a'], concrete: '#9a9a92', rock: '#7e8078',
+    fg: { col: '#2e3320', col2: '#6a7040', kind: 'grass' },
+    weather: { kind: 'motes', n: 45 },
+    fog: [{ y: 470, h: 150, a: 0.28, speed: 5, after: 'far' }],
+  },
+  ground: [[0, 590], [300, 585], [700, 592], [1100, 578], [1500, 566], [1900, 572], [2300, 588], [2700, 586], [3100, 578], [3700, 582], [4100, 572], [4500, 572]],
+  gaps: [],
+  objects: [
+    // where SV-14 lay: a slab, and the footing its leg stood on
+    { t: 'concrete', x: 3140, w: 720, h: 14, sink: 8, c: '#9c9b92',
+      draw(ctx, o, r) {
+        for (let i = 0; i < 70; i++) Art.stroke(ctx, o.x + 20 + r() * (o.w - 40), o._y + 2, 6 + r() * 26, 2 + r() * 5, 0, '#8e4f2c', 0.18);
+        for (let i = 0; i < 90; i++) Art.grass(ctx, o.x + r() * o.w, o._y + 2, 6 + r() * 8, r() < 0.5 ? '#9fb05a' : '#7d8f45', r, 3, 0.8);
+      } },
+    { t: 'concrete', x: 3250, w: 70, h: 26, c: '#a3a299' },
+  ],
+  robot: [],
+  lines: [
+    [140, 'April. Years later. I came back the spring they sold the farm.'],
+    [1250, 'They cleared the machines away the summer after I moved. Nobody asked us.'],
+    [2550, 'Where SV-14 used to lie there is only a square of paler grass.'],
+    [3950, 'Sometimes, in the photographs, I think I can see a small red light.'],
+  ],
+  photos: [[900, 'The house, sold'], [3500, 'Where SV-14 used to lie'], [4200, 'The towers, gone quiet']],
+  exit: 4380,
+  train: { y: 448, speed: 55, gap: 1800 },
+  last: true,
+  paint: {
+    far(ctx, W, r, w) {
+      const p = w.L.pal, n = makeNoise(5);
+      Art.ridge(ctx, 0, W, x => 452, 720, '#cfd3cc', r);
+      Scene.waterBand(ctx, 0, W, 452, 6, '#c3cbc9', '#f4f2ea', r);
+      const fy = x => 446 - fbm(n, x / 160) * 22 - Math.max(0, Math.sin(x / 260)) * 8;
+      Art.ridge(ctx, 0, W, fy, 720, hz('#5a6560', p, 0.55), r, { tex: 1, jit: 8, texA: 0.2 });
+      Scene.forest(ctx, 0, W, fy, hz('#52605a', p, 0.52), r, { h: [5, 14], step: 3, n });
+      // the towers are still there; they no longer breathe
+      const tx = W * 0.64;
+      for (const [dx, h] of [[0, 128], [86, 146], [168, 120]]) Art.coolingTower(ctx, tx + dx, 450, h, p, r, { col: hz('#9ea4a6', p, 0.3), light: -1 });
+      Art.line(ctx, W * 0.33, 450, W * 0.33, 300, 1.6, hz('#5e676e', p, 0.5));
+    },
+    mid(ctx, W, r, w) {
+      const p = w.L.pal, n = makeNoise(9);
+      const fy = x => 488 - fbm(n, x / 220) * 38;
+      Scene.forest(ctx, 0, W, fy, hz('#34423a', p, 0.36), r, { h: [22, 58], step: 5, n, light: -1, lightCol: '#e8eadc', lightA: 0.2 });
+      const sy = x => 500 + fbm(n, x / 300 + 40) * 10;
+      Art.ridge(ctx, 0, W, sy, 720, '#9aa06a', r, { tex: 1.2, topCol: '#b9bf85', botCol: '#6f7748', jit: 10, texA: 0.25 });
+      for (let i = 0; i < 40; i++) { const x = r() * W; Art.dab(ctx, x, sy(x) + 4 + r() * 20, 20 + r() * 60, 2 + r() * 3, 0, '#eef0ea', 0.7); }
+      Art.house(ctx, W * 0.14, sy(W * 0.14) + 4, 46, 26, { wall: hz('#8e3a2c', p, 0.3), roof: hz('#3e3b3a', p, 0.3), trim: '#e8e4da', window: '#e9b86a' }, r);
+      Scene.pylons(ctx, 180, W, 420, x => sy(x) + 2, 150, hz('#454d52', p, 0.45), 1.3, hz('#454d52', p, 0.35), 14, r);
+    },
+    near(ctx, W, r, w) {
+      const p = w.L.pal, n = makeNoise(21);
+      const fy = x => 548 + fbm(n, x / 260) * 22;
+      for (let i = 0; i < 7; i++) { const x = r() * W; for (let k = 0; k < 2 + r() * 3; k++) { const xx = x + gauss(r) * 50; Art.birch(ctx, xx, fy(xx) + 3, 110 + r() * 110, p.birch, r, { fade: p.haze, fadeT: 0.3, light: -1, leafy: 0.4 }); } }
+      for (let i = 0; i < 16; i++) { const x = r() * W; Art.pine(ctx, x, fy(x) + 4, 50 + r() * 80, hz('#2f3a33', p, 0.3), r, { light: -1, lightCol: '#e7e8e2', lightA: 0.2 }); }
+      Art.ridge(ctx, 0, W, fy, 720, '#8e9460', r, { tex: 1.5, topCol: '#b8be80', botCol: '#4e5532', jit: 12, texA: 0.25 });
+      for (let i = 0; i < 30; i++) { const x = r() * W; Art.dab(ctx, x, fy(x) + 6 + r() * 30, 30 + r() * 80, 3 + r() * 5, 0, '#f0f1ec', 0.75); }
+      Art.fence(ctx, 0, W, x => fy(x) + 8, hz('#4a4036', p, 0.3), r, { h: 22, gap: 40, wireCol: hz('#4a4036', p, 0.5) });
+    },
+    playBack(ctx, W, r, w) {
+      const g = x => w.drawGroundAt(x);
+      Art.house(ctx, 110, g(200) + 8, 150, 88, { wall: '#8c3527', roof: '#393534', trim: '#ece8de', window: '#3a4450' }, r);
+      // a sign by the road
+      Art.line(ctx, 330, g(330) + 4, 330, g(330) - 46, 3, '#4d4135'); Art.line(ctx, 372, g(372) + 4, 372, g(372) - 46, 3, '#4d4135');
+      ctx.fillStyle = css('#f2eee2'); ctx.fillRect(322, g(350) - 70, 58, 26);
+      ctx.fillStyle = css('#a33a2a'); ctx.font = 'bold 12px Arial'; ctx.fillText('TILL SALU', 325, g(350) - 52);
+      Scene.poles(ctx, 40, W, 360, x => g(x) - 10, 150, '#3e3830', 4, '#2f2b27', r);
+      Art.fence(ctx, 420, 1560, x => g(x) - 2, '#4d4135', r, { h: 30, gap: 50, wireCol: '#5a4c3e' });
+      Scene.birches(ctx, 1900, 2300, 3, x => g(x) - 4, [220, 360], w.L.pal.birch, r, { light: -1, leafy: 0.4 });
+      Scene.birches(ctx, 4000, 4300, 2, x => g(x) - 4, [240, 360], w.L.pal.birch, r, { light: -1, leafy: 0.4 });
+    },
+    playFront(ctx, W, r, w) {
+      // the last of the snow, lying in the field in soft grey-white islands
+      const g = x => w.drawGroundAt(x);
+      for (let i = 0; i < 34; i++) {
+        const x = r() * W, d = r(), y = g(x) + 14 + d * d * 110, rx = 30 + d * 140 + r() * 40, ry = 2 + d * 9;
+        for (let k = 0; k < 16; k++) Art.dab(ctx, x + gauss(r) * rx * 0.6, y + gauss(r) * ry * 0.5, rx * (0.2 + r() * 0.3), ry * (0.5 + r() * 0.5), 0, r() < 0.25 ? '#c8cfd8' : '#eef0eb', 0.55);
+        for (let k = 0; k < 5; k++) Art.grass(ctx, x + gauss(r) * rx * 0.6, y, 6 + d * 18, '#b8a96c', r, 3, 0.8);
       }
     },
   },
 },
 ];
 </script>
-  <script>
+  <script data-src="actors.js">
 'use strict';
 // The kid in the orange parka, and the little machine.
 
@@ -1746,11 +1924,18 @@ function drawKid(ctx, x, y, face, pose, light, amb) {
     const fx = kx + Math.sin(th - sh) * 8.5, fy = ky + Math.cos(th - sh) * 8.5;
     ctx.strokeStyle = css(col); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 5.2;
     ctx.beginPath(); ctx.moveTo(0, hipY); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
+    if (pose.wet > 0.05) {
+      // marsh water soaked up to the shins
+      ctx.strokeStyle = css(mix(col, '#0e1216', 0.5 * pose.wet)); ctx.lineWidth = 5.3;
+      ctx.beginPath(); ctx.moveTo(lerp(kx, fx, 0.35), lerp(ky, fy, 0.35)); ctx.lineTo(fx, fy); ctx.stroke();
+    }
     ctx.fillStyle = css(k(KID.boots)); ctx.beginPath(); ctx.ellipse(fx + 1.8, fy + 0.2, 4.2, 2.6, 0, 0, TAU); ctx.fill();
+    if (pose.wet > 0.3) Art.line(ctx, fx, fy - 1.2, fx + 3.5, fy - 1.2, 0.8, '#9aa4ab', 0.6 * pose.wet);
   };
   const arm = (sw, col, front) => {
     let a = pose.air ? (front ? -2.2 : -1.2) : Math.sin(ph + sw) * 0.9 * run + 0.1;
     if (!pose.air && run < 0.1) a = 0.12 + Math.sin(pose.t * 2 + sw) * 0.03;
+    if (front && pose.reach) a = lerp(a, 1.5, pose.reach);
     const sx = 1, sy = hipY - 12;
     const ex = sx + Math.sin(a) * 6, ey = sy + Math.cos(a) * 6;
     const hx = ex + Math.sin(a - 0.5) * 6, hy = ey + Math.cos(a - 0.5) * 6;
@@ -1789,6 +1974,16 @@ function drawKid(ctx, x, y, face, pose, light, amb) {
   ctx.fillStyle = css(k(KID.hatDark)); ctx.fillRect(-4.8, hy - 1.2, 11.5, 2);
   ctx.fillStyle = css(k(KID.hat)); ctx.beginPath(); ctx.arc(-3.2, hy - 6, 2.3, 0, TAU); ctx.fill();
   ctx.fillStyle = css('#2b2522'); ctx.fillRect(4.3, hy + 0.2, 1.1, 1.3);
+  if (pose.snow > 0.05) {
+    // snow settles on the hat, the pompom, the top of the pack and the shoulders
+    const sn = pose.snow, white = amb && amb.night ? '#c9cfd9' : '#f6f7f4';
+    ctx.fillStyle = css(white, 0.4 + sn * 0.55);
+    ctx.beginPath(); ctx.ellipse(1, hy - 5.2, 4.2 * (0.5 + sn * 0.5), 1 + sn * 1.2, 0, Math.PI, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(-3.2, hy - 7.2, 1.2 + sn, Math.PI, TAU); ctx.fill();
+    ctx.fillRect(-11, hipY - 15.5 - sn, 7, 1 + sn * 1.4);
+    ctx.beginPath(); ctx.ellipse(-2, hipY - 15.3, 3 * sn, 0.9 + sn * 0.6, 0, Math.PI, TAU); ctx.fill();
+  }
+  if (pose.torch) { ctx.fillStyle = '#fff3cf'; ctx.fillRect(4.6, hy - 3.2, 2, 1.8); }
   arm(Math.PI, k(KID.jacket), true);
   ctx.restore();
 }
@@ -1812,76 +2007,133 @@ function drawBot(ctx, x, y, face, b, amb) {
   ctx.fillStyle = css(k('#a69f8e')); ctx.fillRect(-12, by + 10, 24, 4);
   ctx.fillStyle = css(k('#d7782f')); ctx.fillRect(-12, by + 5, 24, 2.5);
   ctx.fillStyle = css(k('#57544c')); ctx.font = 'bold 5px Arial'; ctx.fillText('04', -9, by + 4.8);
-  // sensor head
-  ctx.fillStyle = css(k('#c8c1ae')); ctx.beginPath(); ctx.roundRect(6, by - 7, 10, 9, 2); ctx.fill();
-  ctx.fillStyle = css('#1d2226'); ctx.fillRect(10, by - 5, 5, 4);
+  // sensor head, turned toward whatever it is watching
+  const look = b.look || 0;
+  ctx.save(); ctx.translate(8, by - 1); ctx.rotate(look);
+  ctx.fillStyle = css(k('#c8c1ae')); ctx.beginPath(); ctx.roundRect(-2, -6, 10, 9, 2); ctx.fill();
+  ctx.fillStyle = css('#1d2226'); ctx.fillRect(2, -4, 5, 4);
   const on = b.blink > 0.5;
-  ctx.fillStyle = on ? '#ff5a3c' : '#6e2a22'; ctx.fillRect(11.2, by - 4, 2.6, 2.2);
+  ctx.fillStyle = on ? '#ff5a3c' : '#6e2a22'; ctx.fillRect(3.2, -3, 2.6, 2.2);
+  ctx.restore();
   // antenna
   ctx.strokeStyle = css(k('#3a3b3c')); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-8, by); ctx.lineTo(-10, by - 12); ctx.stroke();
   ctx.fillStyle = on ? '#ff8a5c' : '#5b2a22'; ctx.beginPath(); ctx.arc(-10, by - 12.5, 1.4, 0, TAU); ctx.fill();
   ctx.restore();
-  return on ? [x + face * 12.5, y + by - 3] : null;
+  b.tip = [x + face * 15, y + by - 2];
+  const ex = 8 + Math.cos(look) * 4.5 - Math.sin(look) * -2, ey = by - 1 + Math.sin(look) * 4.5 + Math.cos(look) * -2;
+  return on ? [x + face * ex, y + ey] : null;
 }
 
 // The machine goes from waypoint to waypoint, hopping, when you come close.
+// It watches you, and whatever else moves; it startles if you jump at it,
+// and if you stand still long enough it comes back to see why.
 class Robot {
   constructor(world) {
     this.w = world;
-    this.pts = world.L.robot.map(x => ({ x, y: world.surfaceAt(x) ?? 560 }));
+    this.pts = (world.L.robot || []).map(x => ({ x, y: world.surfaceAt(x) ?? 560 }));
+    this.absent = !this.pts.length;
+    if (this.absent) this.pts = [{ x: -999, y: 0 }];
     this.i = 0; this.x = this.pts[0].x; this.y = this.pts[0].y; this.face = 1;
     this.t = 0; this.blink = 0; this.hopping = false; this.walk = false; this.path = null; this.beepT = 3;
-    this.done = false; this.onBeep = null;
+    this.look = 0; this.noticed = 0; this.visit = null; this.stillT = 0; this.visitCool = 0;
+    this.onBeep = null;
   }
   get last() { return this.i >= this.pts.length - 1; }
-  update(dt, player) {
+  update(dt, player, interest) {
+    if (this.absent) return;
     this.t += dt;
     this.blink = (Math.sin(this.t * (this.path ? 9 : 3)) > 0.2) ? 1 : 0;
-    if (this.path) {
-      const p = this.path; p.t += dt;
-      const seg = p.segs[p.k], u = clamp(p.t / seg.d, 0, 1);
-      this.x = lerp(seg.x0, seg.x1, u);
-      this.y = lerp(seg.y0, seg.y1, u) - Math.sin(u * Math.PI) * seg.h;
-      this.hopping = true; this.walk = false;
-      if (u >= 1) {
-        p.k++; p.t = 0;
-        if (p.k >= p.segs.length) { this.path = null; this.hopping = false; this.x = seg.x1; this.y = seg.y1; }
-      }
+    // where to look: something happening nearby, otherwise you
+    const tgt = interest && Math.abs(interest.x - this.x) < 500 ? interest : { x: player.x, y: player.y - 30 };
+    const dx = tgt.x - this.x, dy = tgt.y - (this.y - 25);
+    const want = clamp(Math.atan2(dy, Math.max(24, Math.abs(dx))), -0.75, 0.45);
+    this.look = lerp(this.look, this.path ? 0 : want, 1 - Math.pow(0.02, dt));
+    if (this.path) { this.follow(dt); return; }
+    this.face = dx > 0 ? 1 : -1;
+    if (this.hold) return;
+    this.visitCool = Math.max(0, this.visitCool - dt);
+
+    const gap = Math.abs(player.x - this.x);
+    const near = gap < 170 && Math.abs(player.y - this.y) < 200;
+    // on a visit: go back to its post once you move on
+    if (this.visit) {
+      if (Math.abs(player.x - this.visit.px) > 70 || Math.abs(player.vx) > 60) { this.visit = null; this.goTo(this.pts[this.i], false, 0.9); }
       return;
     }
-    this.face = player.x > this.x ? 1 : -1;
-    if (this.hold) return;
-    const near = Math.abs(player.x - this.x) < 170 && Math.abs(player.y - this.y) < 200;
-    if (near && !this.last && player.x > this.x - 80) this.go(this.i + 1);
+    if (near && !this.last && player.x > this.x - 80) {
+      // jumped at: off it goes at once
+      if (!player.onGround && gap < 110) { this.noticed = 0; this.go(this.i + 1, true); return; }
+      // otherwise a moment to look at you first
+      this.noticed += dt;
+      if (this.noticed > 0.7) { this.noticed = 0; this.go(this.i + 1); }
+      return;
+    }
+    this.noticed = 0;
+    // you've stopped, some way back: it comes to check on you
+    this.stillT = player.onGround && Math.abs(player.vx) < 5 ? this.stillT + dt : 0;
+    if (this.stillT > 5 && !this.visitCool && gap > 200 && gap < 700 && this.clearTo(player.x)) {
+      const side = player.x < this.x ? 1 : -1;
+      const x = player.x + side * 70;
+      this.visit = { px: player.x }; this.stillT = 0; this.visitCool = 20;
+      this.goTo({ x, y: this.w.surfaceAt(x) ?? this.y }, false, 0.9);
+      return;
+    }
     this.beepT -= dt;
-    if (this.beepT < 0 && Math.abs(player.x - this.x) > 420) { this.beepT = 4 + Math.random() * 3; this.onBeep && this.onBeep(0.5); }
+    if (this.beepT < 0 && gap > 420) { this.beepT = 4 + Math.random() * 3; this.onBeep && this.onBeep(0.5); }
   }
-  go(i) {
-    const a = { x: this.x, y: this.y }, b = this.pts[i];
-    this.i = i; this.face = b.x > a.x ? 1 : -1;
-    const dist = Math.abs(b.x - a.x), segs = [];
+  // a walkable line of ground or low things between here and x
+  clearTo(x) {
+    const a = Math.min(x, this.x), b = Math.max(x, this.x);
+    let prev = this.w.surfaceAt(a, this.y - 60);
+    for (let xx = a; xx <= b; xx += 16) {
+      const y = this.w.surfaceAt(xx, this.y - 60);
+      if (y === null || prev === null || Math.abs(y - prev) > 70) return false;
+      prev = y;
+    }
+    return true;
+  }
+  follow(dt) {
+    const p = this.path; p.t += dt;
+    const seg = p.segs[p.k], u = clamp(p.t / seg.d, 0, 1);
+    this.x = lerp(seg.x0, seg.x1, u);
+    this.y = lerp(seg.y0, seg.y1, u) - Math.sin(u * Math.PI) * seg.h;
+    this.hopping = true; this.walk = false;
+    if (u >= 1) {
+      p.k++; p.t = 0;
+      if (p.k >= p.segs.length) { this.path = null; this.hopping = false; this.x = seg.x1; this.y = seg.y1; }
+    }
+  }
+  go(i, startled) {
+    this.i = i;
+    this.goTo(this.pts[i], startled);
+    this.onBeep && this.onBeep(startled ? 1.4 : 1);
+  }
+  goTo(b, fast, speed = 1) {
+    const a = { x: this.x, y: this.y };
+    this.face = b.x > a.x ? 1 : -1;
+    const dist = Math.abs(b.x - a.x), segs = [], k = (fast ? 0.6 : 1) / speed;
     if (dist > 900) {
       segs.push({ x0: a.x, y0: a.y, x1: b.x, y1: b.y, h: 220, d: dist / 360 });
     } else {
       const n = Math.max(1, Math.ceil(dist / 110));
       let px = a.x, py = a.y;
-      for (let k = 1; k <= n; k++) {
-        const x = lerp(a.x, b.x, k / n);
-        let y = k === n ? b.y : (this.w.surfaceAt(x, Math.min(py, b.y) - 130) ?? lerp(a.y, b.y, k / n));
-        if (k < n && Math.abs(y - lerp(a.y, b.y, k / n)) > 140) y = lerp(a.y, b.y, k / n);
-        segs.push({ x0: px, y0: py, x1: x, y1: y, h: 16 + Math.max(0, py - y) * 1.1, d: 0.3 + Math.max(0, py - y) / 500 });
+      for (let j = 1; j <= n; j++) {
+        const x = lerp(a.x, b.x, j / n);
+        let y = j === n ? b.y : (this.w.surfaceAt(x, Math.min(py, b.y) - 130) ?? lerp(a.y, b.y, j / n));
+        if (j < n && Math.abs(y - lerp(a.y, b.y, j / n)) > 140) y = lerp(a.y, b.y, j / n);
+        segs.push({ x0: px, y0: py, x1: x, y1: y, h: (fast ? 26 : 16) + Math.max(0, py - y) * 1.1, d: (0.3 + Math.max(0, py - y) / 500) * k });
         px = x; py = y;
       }
     }
     this.path = { segs, k: 0, t: 0 };
-    this.onBeep && this.onBeep(1);
   }
   draw(ctx, cx, cy, amb) {
+    if (this.absent) return null;
     return drawBot(ctx, this.x - cx, this.y - cy, this.face, this, amb);
   }
 }
 </script>
-  <script>
+  <script data-src="audio.js">
 'use strict';
 // Wind, a slow analogue pad, sparse bells, and small foley. All synthesized.
 
@@ -1896,9 +2148,10 @@ const Sound = (() => {
     [[40, 47, 52, 55, 59], [36, 48, 52, 55, 59], [38, 50, 54, 57, 62], [35, 47, 50, 54, 59]],
     [[36, 43, 48, 51, 58], [32, 44, 48, 51, 55], [34, 41, 46, 50, 53], [31, 43, 47, 50, 55]],
     [[41, 53, 57, 60, 65], [38, 50, 57, 62, 65], [46, 53, 58, 62, 65], [48, 55, 60, 64, 67]],
+    [[36, 48, 55, 60, 64], [41, 53, 57, 60, 64], [33, 45, 52, 57, 60], [43, 50, 55, 59, 62]],
   ];
-  const WIND = [0.32, 0.12, 0.2, 0.22, 0.16];
-  const HUM = [0, 0, 0.02, 0.09, 0.05];
+  const WIND = [0.32, 0.12, 0.2, 0.22, 0.16, 0.14];
+  const HUM = [0, 0, 0.02, 0.09, 0.05, 0];
 
   function init() {
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
@@ -2010,6 +2263,10 @@ const Sound = (() => {
         default: noise(0.07, 'bandpass', 1200, 1.2, 0.2);
       }
     },
+    touch() { [0, 7, 12, 16].forEach((st, i) => tone(mtof(64 + st), 2.6, 'sine', 0.035, i * 0.18, 0, wet || sfx)); tone(mtof(40), 3, 'sine', 0.04, 0, 0, wet || sfx); },
+    horn() { if (!wet) return; [196, 247].forEach(f => tone(f, 1.6, 'sawtooth', 0.006, 0, 0.98, wet)); [196, 247].forEach(f => tone(f, 1.2, 'sawtooth', 0.004, 1.9, 0.98, wet)); },
+    siren() { tone(520, 0.5, 'square', 0.03, 0, 0.75); tone(520, 0.5, 'square', 0.03, 0.55, 0.75); noise(0.3, 'bandpass', 700, 2, 0.1); },
+    tick(v = 0) { tone(v ? 880 : 660, 0.06, 'sine', 0.02 + v * 0.01); },
     jump() { noise(0.14, 'bandpass', 900, 0.6, 0.1); },
     land(surface) { S.step(surface); noise(0.14, 'lowpass', 400, 1, 0.25); },
     beep(v = 1) { tone(1320, 0.09, 'square', 0.035 * v, 0, 0, sfx); tone(1760, 0.12, 'square', 0.03 * v, 0.1); if (wet) tone(1760, 0.12, 'sine', 0.02 * v, 0.1, 0, wet); },
@@ -2057,7 +2314,7 @@ const Sound = (() => {
   return S;
 })();
 </script>
-  <script>
+  <script data-src="life.js">
 'use strict';
 
 // Small things to notice, or pass by. Nothing here gates the journey.
@@ -2068,6 +2325,8 @@ const QUIET_PLACES = [
     { kind: 'bell', x: 3500, label: 'ring the little bell' }],
   [{ kind: 'signal', x: 1290, label: 'try the switch' }],
   [{ kind: 'stones', x: 2960, label: 'let a pebble go' }],
+  // years later, something has moved into the place where the machine was
+  [{ kind: 'birds', x: 3620, label: 'whistle softly' }],
 ];
 
 class QuietLife {
@@ -2076,7 +2335,7 @@ class QuietLife {
     this.chapter = world.L.id - 1;
     this.time = 0;
     this.events = [];
-    this.places = QUIET_PLACES[this.chapter].map(p => ({
+    this.places = (QUIET_PLACES[this.chapter] || []).map(p => ({
       ...p, y: world.surfaceAt(p.x), age: 100, cooldown: 0, count: 0,
       waiting: 0, settled: false, on: false, answer: false,
     }));
@@ -2145,6 +2404,15 @@ class QuietLife {
     }
   }
 
+  // Something worth the machine's attention: a reply, birds lifting, lights coming on.
+  interest() {
+    for (const p of this.places) {
+      if (p.kind === 'birds' && (p.startled || p.settled) && p.age < 6) return { x: p.x + (p.startled ? 60 + p.age * 30 : 0), y: p.y - (p.startled ? 40 + p.age * 20 : 8) };
+      if (p.count && p.age < 5) return { x: p.kind === 'signal' ? p.x + 45 + Math.min(4, p.age / 0.45) * 40 : p.kind === 'water' ? p.waterX : p.x, y: p.kind === 'signal' ? p.y - 60 : p.y - 30 };
+    }
+    return null;
+  }
+
   drainSounds(playerX) {
     const out = this.events.filter(e => Math.abs(e.x - playerX) < 850);
     this.events = [];
@@ -2167,7 +2435,7 @@ class QuietLife {
     const t = this.time;
     g.save();
     // One loose flock, taking well over a minute to cross the landscape.
-    if (this.chapter < 3) {
+    if (this.chapter < 3 || this.chapter === 5) {
       g.strokeStyle = css(mix('#424952', this.world.L.pal.haze, 0.35), 0.45); g.lineWidth = 1;
       const x = ((t * 12 + this.chapter * 510) % 2600) - 500 - cam.x * 0.13;
       for (let i = 0; i < 5; i++) this.bird(g, x + i * 22, 315 - cam.y * 0.13 + Math.sin(i * 2) * 14, t + i, 3);
@@ -2298,7 +2566,106 @@ class QuietLife {
   }
 }
 </script>
-  <script>
+  <script data-src="painter.js">
+'use strict';
+// Chapters are painted in a worker when the page carries its own script text
+// (the single-file builds), so the next chapter is ready before you reach it.
+// Anywhere a worker can't paint, the same code runs on the main thread.
+
+const Painter = (() => {
+  const NEEDS = ['util.js', 'art.js', 'world.js', 'levels.js'];
+  const BOOT = `
+self.onmessage = e => {
+  const { id, i, Q } = e.data;
+  try {
+    const layers = new World(LEVELS[i]).buildLayers(Q);
+    const out = layers.map(l => ({ key: l.key, f: l.f, blur: l.blur, w: l.w, h: l.h, canvas: l.canvas.transferToImageBitmap() }));
+    self.postMessage({ id, layers: out }, out.map(l => l.canvas));
+  } catch (err) { self.postMessage({ id, error: String(err && err.message || err) }); }
+};
+try { const c = new OffscreenCanvas(2, 2).getContext('2d'); if (!c) throw 0; self.postMessage({ ready: true }); }
+catch (e) { self.postMessage({ ready: false }); }
+`;
+  let worker = null, ready = null;            // ready: Promise<boolean>
+  const jobs = new Map();                     // chapter -> Promise<layers>
+  const waiting = new Map();                  // request id -> resolve/reject
+  let nextId = 1, taking = -1;
+
+  function source() {
+    const scripts = [...document.querySelectorAll('script')];
+    const parts = [];
+    for (const name of NEEDS) {
+      const el = scripts.find(s => (s.dataset.src || '') === name);
+      if (!el || !el.textContent.trim()) return null;
+      parts.push(el.textContent);
+    }
+    return parts.join('\n;\n') + BOOT;
+  }
+
+  function start() {
+    if (ready) return ready;
+    ready = new Promise(resolve => {
+      try {
+        const src = typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined' && source();
+        if (!src) return resolve(false);
+        worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+        const timer = setTimeout(() => resolve(false), 5000);
+        worker.onmessage = e => {
+          const d = e.data;
+          if ('ready' in d) { clearTimeout(timer); resolve(d.ready); return; }
+          const w = waiting.get(d.id);
+          if (!w) return;
+          waiting.delete(d.id);
+          d.error ? w.reject(new Error(d.error)) : w.resolve(d.layers);
+        };
+        worker.onerror = () => { clearTimeout(timer); resolve(false); };
+      } catch (e) { resolve(false); }
+    });
+    return ready;
+  }
+
+  function onMain(i, Q) { return new World(LEVELS[i]).buildLayers(Q); }
+  // known without waiting: can a worker even be tried here?
+  let possible = null;
+  const mayWork = () => possible ?? (possible = typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined' && !!source());
+
+  function paint(i, Q) {
+    if (jobs.has(i)) return jobs.get(i);
+    const job = start().then(ok => {
+      if (!ok) return onMain(i, Q);
+      return new Promise((resolve, reject) => {
+        const id = nextId++;
+        waiting.set(id, { resolve, reject });
+        worker.postMessage({ id, i, Q });
+      }).catch(() => onMain(i, Q));
+    });
+    jobs.set(i, job);
+    return job;
+  }
+
+  function release(layers) {
+    for (const l of layers || []) { if (l.canvas.close) l.canvas.close(); else l.canvas.width = 0; }
+  }
+
+  return {
+    // Layers for chapter i: {sync: layers} when painted right here, else a promise.
+    take(i, Q) {
+      if (!jobs.has(i) && !mayWork()) return { sync: onMain(i, Q) };
+      taking = i;
+      const p = paint(i, Q); jobs.delete(i);
+      p.then(() => { if (taking === i) taking = -1; }, () => { if (taking === i) taking = -1; });
+      return p;
+    },
+    // only worth it off the main thread; there it would stall play instead
+    prefetch(i, Q) { if (i >= 0 && i < LEVELS.length && i !== taking) start().then(ok => { if (ok && i !== taking) paint(i, Q); }); },
+    // Forget prepared chapters that are no longer next (e.g. after a chapter select).
+    drop(keep) { for (const [i, p] of jobs) if (i !== keep) { jobs.delete(i); p.then(release, () => {}); } },
+    release,
+    get usesWorker() { return ready; },
+  };
+})();
+</script>
+  <script data-src="game.js">
 'use strict';
 
 const PH = { g: 2200, run: 235, acc: 1900, airAcc: 1250, fric: 2400, jump: 640, coyote: 0.1, buffer: 0.13, maxFall: 950, step: 16, w: 16, h: 42 };
@@ -2321,19 +2688,42 @@ const Game = (() => {
   }
   addEventListener('resize', resize);
   resize();
-  Q = clamp((window.devicePixelRatio || 1) * Math.min(innerWidth / VIEW_W, innerHeight / VIEW_H), 1, 1.5);
+  // Painted layers are large: a chapter can hold 100 MB of canvas at full quality.
+  // Phones and low-memory devices paint at lower resolution; the look survives it.
+  const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const isPhone = isTouch && typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 600;
+  const memory = navigator.deviceMemory || 8;
+  let qMax = 1.5;
+  if (isPhone || memory <= 4) qMax = 1;
+  if (memory <= 2) qMax = 0.8;
+  Q = clamp((window.devicePixelRatio || 1) * Math.min(innerWidth / VIEW_W, innerHeight / VIEW_H), Math.min(1, qMax), qMax);
 
-  // input
-  const keys = {}, pressed = {};
-  const map = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump',
-    KeyE: 'photo', KeyX: 'photo', ArrowDown: 'photo', KeyS: 'photo', KeyC: 'photo', Enter: 'start', Escape: 'pause', KeyP: 'pause', KeyM: 'mute' };
+  // input: arrows always work; the letter keys can be rebound in settings
+  const keys = {}, pressed = {}, nav = {};
+  // arrows and a few old aliases always work; letters you bind yourself take precedence
+  const FIXED = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'jump', ArrowDown: 'photo', KeyW: 'jump', KeyZ: 'jump', KeyX: 'photo', KeyC: 'photo',
+    Enter: 'start', Escape: 'pause', KeyP: 'pause', KeyM: 'mute' };
+  const NAV = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', Enter: 'ok', Space: 'ok', KeyZ: 'ok', KeyE: 'ok', Escape: 'back', Backspace: 'back' };
+  const actionFor = code => { const k = Store.settings.keys; for (const a in k) if (k[a] === code) return a; return FIXED[code]; };
+  let rebinding = null, tap = null;
   addEventListener('keydown', e => {
-    const a = map[e.code];
+    Sound.init();
+    if (rebinding) {
+      e.preventDefault();
+      if (e.code !== 'Escape') Store.bind(rebinding, e.code);
+      rebinding = null;
+      return;
+    }
+    const n = NAV[e.code]; if (n && !e.repeat) nav[n] = true;
+    const a = actionFor(e.code);
     if (a) { if (!keys[a]) pressed[a] = true; keys[a] = true; e.preventDefault(); }
     pressed.any = true;
-    Sound.init();
   });
-  addEventListener('keyup', e => { const a = map[e.code]; if (a) keys[a] = false; });
+  addEventListener('keyup', e => { const a = actionFor(e.code); if (a) keys[a] = false; });
+  cv.addEventListener('pointerdown', e => {
+    const r = cv.getBoundingClientRect();
+    tap = { x: (e.clientX - r.left) / r.width * VIEW_W, y: (e.clientY - r.top) / r.height * VIEW_H };
+  });
   cv.addEventListener('pointerdown', () => { pressed.any = true; Sound.init(); });
   for (const b of document.querySelectorAll('#touch button')) {
     const a = b.dataset.act;
@@ -2368,11 +2758,13 @@ const Game = (() => {
       left: p.axes[0] < -0.35 || p.buttons[14]?.pressed, right: p.axes[0] > 0.35 || p.buttons[15]?.pressed,
       jump: p.buttons[0]?.pressed, photo: p.buttons[2]?.pressed || p.buttons[3]?.pressed || p.buttons[1]?.pressed, start: p.buttons[9]?.pressed,
     };
+    const menu = { up: p.axes[1] < -0.5 || p.buttons[12]?.pressed, down: p.axes[1] > 0.5 || p.buttons[13]?.pressed, ok: p.buttons[0]?.pressed, back: p.buttons[1]?.pressed };
     for (const k in st) {
       if (st[k] && !padPrev[k]) { pressed[k] = true; pressed.any = true; Sound.init(); }
       if (st[k] !== padPrev[k]) keys[k] = !!st[k];
     }
-    padPrev = st;
+    for (const k in menu) if (menu[k] && !padPrev['m' + k]) nav[k] = true;
+    padPrev = { ...st, mup: menu.up, mdown: menu.down, mok: menu.ok, mback: menu.back };
   }
 
   // ---------------------------------------------------------------- state
@@ -2381,7 +2773,7 @@ const Game = (() => {
   let player, robot, cam, flakes = [], splashes = [], fogTex = null, fgSprites = [], fgItems = [], moverSprites = new Map();
   let lines = [], lineQ = [], lineCur = null, photos = [], album = [], checkpoint = null;
   let fade = 1, fadeTarget = 1, flash = 0, polaroid = null, ending = null, deathT = 0, promptA = 0;
-  let life = null, placePromptA = 0;
+  let life = null, placePromptA = 0, caughtT = 0, caughtOnce = false, trainHorn = false;
   const glowCache = {};
   let grain = null, vignette = null;
 
@@ -2435,12 +2827,13 @@ const Game = (() => {
   function loadChapter(i, then) {
     ci = i; L = LEVELS[i];
     loadingEl.textContent = 'painting…'; loadingEl.style.display = 'block';
-    setTimeout(() => {
-      if (layers) for (const l of layers) l.canvas.width = 0;
+    Painter.drop(i);
+    const finish = painted => {
+      Painter.release(layers);
       for (const s of moverSprites.values()) s.canvas.width = 0;
       moverSprites.clear();
       world = new World(L);
-      layers = world.buildLayers(Q);
+      layers = painted;
       for (const m of world.movers) moverSprites.set(m, moverSprite(world, m, Q));
       fogTex = Art.fogTexture(2048, 256, L.seed);
       tintCanvas(fogTex, L.pal.haze);
@@ -2453,7 +2846,11 @@ const Game = (() => {
       loadingEl.style.display = 'none';
       Sound.setChapter(i);
       then && then();
-    }, 40);
+      // start painting the next chapter while this one is played
+      setTimeout(() => Painter.prefetch(i + 1, Q), 1500);
+    };
+    // a moment for "painting…" to show before any main-thread work begins
+    setTimeout(() => { const job = Painter.take(i, Q); if (job.sync) finish(job.sync); else job.then(finish); }, 40);
   }
 
   function tintCanvas(c, col) {
@@ -2468,12 +2865,13 @@ const Game = (() => {
     robot = new Robot(world);
     robot.onBeep = v => Sound.beep(v);
     const sx = 90, sy = world.surfaceAt(sx);
-    player = { x: sx, y: sy, vx: 0, vy: 0, face: 1, onGround: true, ref: null, coyote: 0, buffer: 0, phase: 0, run: 0, air: false, stepT: 0, t: 0, breathT: 1, surface: 'snow' };
+    player = { x: sx, y: sy, vx: 0, vy: 0, face: 1, onGround: true, ref: null, coyote: 0, buffer: 0, phase: 0, run: 0, air: false, stepT: 0, t: 0, breathT: 1, surface: 'snow',
+      snow: 0, wet: L.id === 4 ? 0.6 : 0, torch: !!L.pal.night, reach: 0 };
     checkpoint = { x: sx, y: sy, i: 0 };
     cam = { x: 0, y: 0 };
     lines = L.lines.map(([x, text]) => ({ x, text, shown: false }));
     lineQ = []; lineCur = null;
-    photos = L.photos.map(([x, caption]) => ({ x, y: world.surfaceAt(x), caption, taken: false }));
+    photos = L.photos.map(([x, caption]) => { const key = `${L.id}:${x}`; return { x, y: world.surfaceAt(x), caption, key, have: Store.hasPhoto(key), taken: false }; });
     ending = null; splashes = [];
     initFlakes();
   }
@@ -2481,7 +2879,8 @@ const Game = (() => {
   function initFlakes() {
     flakes = [];
     const w = L.pal.weather;
-    for (let i = 0; i < w.n; i++) flakes.push({ x: Math.random() * VIEW_W, y: Math.random() * VIEW_H, z: 0.3 + Math.random() * 1.2, p: Math.random() * TAU });
+    const n = Math.round(w.n * (reduce() ? 0.35 : 1));
+    for (let i = 0; i < n; i++) flakes.push({ x: Math.random() * VIEW_W, y: Math.random() * VIEW_H, z: 0.3 + Math.random() * 1.2, p: Math.random() * TAU });
   }
 
   // ---------------------------------------------------------------- physics
@@ -2490,7 +2889,7 @@ const Game = (() => {
   function gravityAt(x) { return (L.pal.lowGrav && x > L.pal.lowGrav) ? 0.52 : 1; }
 
   function surfaceKind(s) {
-    if (!s) return ['snow', 'grass', 'marsh', 'default', 'snow'][L.id - 1];
+    if (!s) return ['snow', 'grass', 'marsh', 'default', 'snow', 'grass'][L.id - 1];
     const t = s.o ? s.o.t : s.art;
     if (t === 'metal' || t === 'pipe' || t === 'lift' || t === 'drum' || t === 'debris' || t === 'car') return 'metal';
     if (t === 'plank' || t === 'log') return 'wood';
@@ -2588,11 +2987,50 @@ const Game = (() => {
     if (p.onGround) checkpointsReach();
   }
 
+  // weather that stays on you: snow settles, the marsh soaks in, and slowly dries
+  function weather(dt) {
+    const p = player, w = L.pal.weather;
+    if (w.kind === 'snow' && !(w.rise && p.x > w.rise)) p.snow = Math.min(1, p.snow + dt / (Math.abs(p.vx) < 5 ? 30 : 90));
+    else p.snow = Math.max(0, p.snow - dt / 20);
+    if (L.id === 3 && p.onGround && (p.surface === 'marsh' || p.surface === 'wood')) p.wet = Math.min(1, p.wet + dt / 25);
+    else p.wet = Math.max(0, p.wet - dt / 400);
+  }
+
   function checkpointsReach() {
     const pts = robot.pts;
     for (let i = checkpoint.i + 1; i < pts.length; i++) {
       if (player.x >= pts[i].x - 30 && Math.abs(player.y - pts[i].y) < 60) { checkpoint = { x: pts[i].x, y: pts[i].y, i }; }
     }
+  }
+
+  // ---- the searchlight in the facility yard: its spot sweeps, crates cast shadows
+  let searchSeen = 0;
+  function searchSpot() {
+    const sr = L.search, u = 0.5 - 0.5 * Math.cos(time / sr.period * TAU);
+    const gx = lerp(sr.x0, sr.x1, u), gy = world.groundAt(gx) ?? 600;
+    const dir = Math.sin(time / sr.period * TAU) >= 0 ? 1 : -1;
+    return { gx, gy, dir };
+  }
+  function segHitsBox(x0, y0, x1, y1, b) {
+    let t0 = 0, t1 = 1;
+    const dx = x1 - x0, dy = y1 - y0;
+    for (const [p, q] of [[-dx, x0 - b.x], [dx, b.x + b.w - x0], [-dy, y0 - b.y], [dy, b.y + b.h - y0]]) {
+      if (p === 0) { if (q < 0) return false; continue; }
+      const r = q / p;
+      if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; } else { if (r < t0) return false; if (r < t1) t1 = r; }
+    }
+    return true;
+  }
+  function inShadow() {
+    const sr = L.search, px = player.x, py = player.y - 24;
+    return world.solids.some(b => b !== player.ref && !b.oneway && segHitsBox(sr.sx, sr.sy, px, py, b));
+  }
+  function updateSearch(dt) {
+    if (!L.search) return;
+    const sp = searchSpot();
+    const lit = Math.abs(player.x - sp.gx) < L.search.r && Math.abs(player.y - sp.gy) < 80 && !inShadow();
+    searchSeen = lit ? searchSeen + dt : 0;
+    if (searchSeen > 0.25 && deathT <= 0) { searchSeen = 0; die('light'); }
   }
 
   function dangers() {
@@ -2611,11 +3049,14 @@ const Game = (() => {
   function hazardOn(h) { return hazardPhase(h) * h.period < h.on; }
   function hazardWarn(h) { const t = hazardPhase(h) * h.period; return t > h.period - 0.45; }
 
+  let deaths = 0;
   function die(kind) {
     if (deathT > 0) return;
+    deaths++;
     deathT = 1.1;
     if (kind === 'water') { Sound.splash(); splash(player.x, world.inGap(player.x).water); }
     else if (kind === 'zap') { Sound.zap(); flash = 0.6; }
+    else if (kind === 'light') { Sound.siren(); caughtT = 1.2; if (!caughtOnce) { caughtOnce = true; lineQ.push('They didn’t see me. I told myself they didn’t see me.'); } }
     else Sound.fall();
     fadeTarget = 0;
   }
@@ -2623,7 +3064,7 @@ const Game = (() => {
     const c = checkpoint;
     player.x = c.x - 20; player.y = world.surfaceAt(player.x) ?? c.y; player.vx = 0; player.vy = 0; player.ref = null; player.onGround = true;
     if (world.surfaceAt(player.x) === null) { player.x = c.x; player.y = c.y; }
-    if (robot.i < c.i) { robot.i = c.i; robot.x = robot.pts[c.i].x; robot.y = robot.pts[c.i].y; robot.path = null; }
+    if (robot.i < c.i || robot.visit) { robot.i = Math.max(robot.i, c.i); robot.x = robot.pts[robot.i].x; robot.y = robot.pts[robot.i].y; robot.path = null; robot.visit = null; }
     fadeTarget = 1;
   }
 
@@ -2681,7 +3122,8 @@ const Game = (() => {
   function captureShot() {
     const c = makeCanvas(384, 216), g = c.getContext('2d');
     g.drawImage(cv, 0, 0, cv.width, cv.height, 0, 0, 384, 216);
-    album.push({ canvas: c, caption: wantShot.caption, chapter: L.title });
+    Store.keepPhoto(wantShot.key, L.id, wantShot.x, wantShot.caption, c);
+    wantShot.have = true;
     polaroid = { canvas: c, t: 0 };
     wantShot = null;
   }
@@ -2690,7 +3132,7 @@ const Game = (() => {
   function update(dt) {
     time += dt; stateT += dt;
     pollPad();
-    if (pressed.mute) Sound.toggleMute();
+    if (pressed.mute) Store.setting('muted', Sound.toggleMute());
     Sound.update(dt);
     fade = lerp(fade, fadeTarget, 1 - Math.pow(0.02, dt));
     flash = Math.max(0, flash - dt * 2.2);
@@ -2700,19 +3142,26 @@ const Game = (() => {
       cam.x = 60 + Math.sin(time * 0.05) * 40 + time * 6; cam.y = 0;
       robot.t += dt; robot.blink = Math.sin(time * 3) > 0.2 ? 1 : 0;
       updateFlakes(dt, 6 * dt, 0);
-      if (stateT > 0.8 && (pressed.any)) { state = 'card'; stateT = 0; cam.x = 0; Sound.init(); }
+      if (stateT > 0.8) { if (!menuStack) openMenu('main'); handleMenu(); }
     } else if (state === 'card') {
       follow(dt, true);
       updateFlakes(dt, 0, 0);
       fadeTarget = 1;
+      Store.reach(ci);
       if (stateT > 5.2 || (stateT > 1.2 && (pressed.jump || pressed.start || pressed.any))) { state = 'play'; stateT = 0; }
     } else if (state === 'play') {
-      if (pressed.pause || (pressed.start && paused)) paused = !paused;
-      if (paused) { clearPressed(); return; }
+      if (!paused && (pressed.pause || (tap && tap.x > VIEW_W - 90 && tap.y < 80 && !isTouch))) { paused = true; openMenu('pause'); clearPressed(); return; }
+      if (paused) {
+        if (pressed.pause && !nav.back) menuBack(); else handleMenu();
+        clearPressed(); return;
+      }
       const control = deathT <= 0;
       world.updateMovers(time);
       updatePlayer(dt, control);
-      robot.update(dt, player);
+      robot.update(dt, player, life.interest());
+      weather(dt);
+      updateSearch(dt);
+      caughtT = Math.max(0, caughtT - dt);
       const d = dangers(); if (d) die(d);
       if (deathT > 0) { const before = deathT; deathT -= dt; if (before > 0.45 && deathT <= 0.45) respawn(); if (deathT <= 0) deathT = 0; }
       const ph = nearPhoto();
@@ -2739,11 +3188,16 @@ const Game = (() => {
       world.updateMovers(time);
       updatePlayer(dt, false); player.vx = PH.run * 0.6; robot.update(dt, player);
       const ox = cam.x; follow(dt); updateFlakes(dt, cam.x - ox, 0);
-      if (stateT > 1.6) { state = 'loading'; loadChapter(ci + 1, () => { state = 'card'; stateT = 0; fade = 0; fadeTarget = 1; }); }
+      if (stateT > 1.6) {
+        if (L.last) { Store.finish(); state = 'album'; stateT = 0; fade = 0; fadeTarget = 1; }
+        else { state = 'loading'; loadChapter(ci + 1, () => { state = 'card'; stateT = 0; fade = 0; fadeTarget = 1; }); }
+      }
     } else if (state === 'ending') {
       updateEnding(dt);
     } else if (state === 'album') {
-      if (stateT > 3 && (pressed.jump || pressed.start || pressed.photo || pressed.any)) { state = 'loading'; album = []; loadChapter(0, () => { state = 'title'; stateT = 0; fade = 0; fadeTarget = 1; }); }
+      if (stateT > 3 && (pressed.any || tap)) toTitle();
+    } else if (state === 'albumview') {
+      if (stateT > 0.6 && (pressed.any || tap)) { state = 'title'; stateT = 1; openMenu('main'); }
     }
     for (const s of splashes) {
       s.t += dt; s.x += s.vx * dt; s.y += s.vy * dt;
@@ -2752,7 +3206,7 @@ const Game = (() => {
     splashes = splashes.filter(s => s.t < s.life);
     clearPressed();
   }
-  function clearPressed() { for (const k in pressed) pressed[k] = false; }
+  function clearPressed() { for (const k in pressed) pressed[k] = false; for (const k in nav) nav[k] = false; tap = null; }
 
   function follow(dt, snap) {
     const p = player;
@@ -2765,41 +3219,163 @@ const Game = (() => {
   // ---------------------------------------------------------------- ending
   function startEnding() {
     state = 'ending'; stateT = 0;
-    ending = { phase: 0, t: 0, rise: 0, text: [], beam: 0 };
+    ending = { t: 0, rise: 0, text: [], beam: 0, touch: 0, step: 'walk' };
     const n = robot.pts.length;
-    if (Math.abs(robot.x - player.x) > 500) { robot.path = null; robot.i = n - 2; robot.x = robot.pts[n - 2].x; robot.y = robot.pts[n - 2].y; }
+    robot.visit = null;
+    if (Math.abs(robot.x - player.x) > 500 || robot.i < n - 1) { robot.path = null; robot.i = n - 1; robot.x = robot.pts[n - 1].x; robot.y = robot.pts[n - 1].y; }
     Sound.rise(8);
   }
+  // The kid stops. The machine comes over, and for once lets itself be touched,
+  // then walks back under the sphere and goes up.
   function updateEnding(dt) {
-    const e = ending, S = L.sphere;
+    const e = ending, S = L.sphere, home = robot.pts[robot.pts.length - 1];
     e.t += dt;
     world.updateMovers(time);
-    // the kid walks a few more steps, then stands still
-    const control = false;
-    if (player.x < L.exit + 60) player.vx = PH.run * 0.35; else player.vx *= 0.8;
-    updatePlayer(dt, control);
-    if (player.x < L.exit + 60) { player.vx = PH.run * 0.35; }
+    const stop = L.exit + 60;
+    player.vx = player.x < stop ? PH.run * 0.35 : player.vx * 0.8;
+    updatePlayer(dt, false);
     player.face = 1;
-    // the machine walks under the sphere and rises
-    if (!robot.path && robot.i < robot.pts.length - 1) robot.go(robot.pts.length - 1);
-    if (!robot.path) {
-      robot.face = -1;
-      if (e.t > 4) { e.rise = Math.min(1, e.rise + dt / 9); robot.hopping = true; }
-      robot.x = robot.pts[robot.pts.length - 1].x;
-      robot.y = lerp(robot.pts[robot.pts.length - 1].y, S.y + S.R * 0.2, e.rise * e.rise * (3 - 2 * e.rise));
-      robot.t += dt; robot.blink = Math.sin(robot.t * 6) > 0 ? 1 : 0;
-    } else robot.update(dt, { x: robot.x + 2000, y: robot.y });
-    e.beam = lerp(e.beam, e.t > 3 ? 1 : 0, 1 - Math.pow(0.3, dt));
+    robot.t += dt;
+    if (robot.path) robot.follow(dt);
+    const lookAt = (x, y) => { robot.look = lerp(robot.look, clamp(Math.atan2(y - (robot.y - 25), Math.max(24, Math.abs(x - robot.x))), -0.75, 0.45), 1 - Math.pow(0.02, dt)); };
+    if (e.step === 'walk' && e.t > 2.6) { e.step = 'come'; robot.goTo({ x: stop + 30, y: world.surfaceAt(stop + 30) }, false, 0.8); Sound.beep(0.6); }
+    if (e.step === 'come' && !robot.path) { e.step = 'touch'; e.tt = 0; }
+    if (e.step === 'touch') {
+      e.tt += dt; robot.face = -1; robot.hopping = false;
+      e.touch = smooth(0.4, 1.6, e.tt) * (1 - smooth(3.4, 4.2, e.tt));
+      lookAt(player.x, player.y - 30);
+      if (e.tt > 1.5 && !e.touched) { e.touched = true; Sound.touch(); }
+      if (e.tt > 4.4) { e.step = 'back'; robot.goTo(home, false, 0.7); }
+    }
+    player.reach = e.touch;
+    if (e.step === 'back' && !robot.path) { e.step = 'rise'; e.rt = 0; }
+    if (e.step === 'rise') {
+      e.rt += dt; robot.face = -1; robot.x = home.x;
+      lookAt(home.x - 200, S.y);
+      if (e.rt > 1.2) { e.rise = Math.min(1, e.rise + dt / 9); robot.hopping = true; }
+      robot.y = lerp(home.y, S.y + S.R * 0.2, e.rise * e.rise * (3 - 2 * e.rise));
+    }
+    robot.blink = Math.sin(robot.t * (e.step === 'touch' ? 2 : 6)) > 0 ? 1 : 0;
+    e.beam = lerp(e.beam, e.step === 'rise' || e.step === 'back' ? 1 : 0, 1 - Math.pow(0.3, dt));
     const ox = cam.x, oy = cam.y;
     cam.x = lerp(cam.x, world.W - VIEW_W, 1 - Math.pow(0.3, dt));
-    cam.y = lerp(cam.y, e.t > 4 ? -200 : 0, 1 - Math.pow(0.5, dt));
+    cam.y = lerp(cam.y, e.step === 'rise' ? -200 : 0, 1 - Math.pow(0.5, dt));
     updateFlakes(dt, cam.x - ox, cam.y - oy);
-    const script = [[2, 'Dawn came up the colour of the inside of a shell.'], [8, 'It went up without looking back.'], [13.5, 'I think that was the point.']];
-    for (const [t, text] of script) if (e.t > t && !e.text.includes(text)) { e.text.push(text); lineCur = { text, t: 0, d: 4.8 }; }
+    const say = text => { if (!e.text.includes(text)) { e.text.push(text); lineCur = { text, t: 0, d: 4.8 }; } };
+    if (e.t > 1.2) say('Dawn came up the colour of the inside of a shell.');
+    if (e.touched && e.tt > 1.8) say('It let me touch it. Just once.');
+    if (e.step === 'rise' && e.rt > 2.5) say('It went up without looking back.');
+    if (e.rise > 0.75) say('I think that was the point.');
     if (lineCur) { lineCur.t += dt; if (lineCur.t > lineCur.d) lineCur = null; }
-    if (e.rise >= 0.9 && !e.flashed) { e.flashed = true; Sound.chime(); flash = 0.45; }
-    if (e.t > 19) { fadeTarget = 0; }
-    if (e.t > 21.5) { state = 'album'; stateT = 0; fadeTarget = 1; fade = 0; Sound.endHum(); }
+    if (e.rise >= 0.9 && !e.flashed) { e.flashed = true; e.end = e.t; Sound.chime(); flash = 0.45; }
+    if (e.end && e.t > e.end + 4) fadeTarget = 0;
+    if (e.end && e.t > e.end + 6.5) { Sound.endHum(); afterEnding(); }
+  }
+  function afterEnding() {
+    state = 'loading';
+    loadChapter(ci + 1, () => { state = 'card'; stateT = 0; fade = 0; fadeTarget = 1; });
+  }
+
+  // ---------------------------------------------------------------- menus
+  const S = () => Store.settings;
+  const T = () => S().large ? 1.28 : 1;             // text scale
+  const reduce = () => S().reduce;
+  const KEYNAME = { Space: 'space', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Enter: 'enter', ShiftLeft: 'shift', ShiftRight: 'shift', ControlLeft: 'ctrl', ControlRight: 'ctrl' };
+  const keyName = code => KEYNAME[code] || code.replace(/^Key|^Digit|^Numpad/, '');
+  const ACTIONS = [['left', 'Walk left'], ['right', 'Walk right'], ['jump', 'Jump'], ['photo', 'Photograph / interact']];
+  let menuStack = null, menuRects = [];
+
+  function openMenu(id) { menuStack = [{ id, sel: 0 }]; }
+  function pushMenu(id) { menuStack.push({ id, sel: 0 }); Sound.tick(); }
+  function menuBack() {
+    if (menuStack.length > 1) { menuStack.pop(); Sound.tick(); }
+    else if (paused) resume();
+  }
+  function resume() { paused = false; menuStack = null; }
+
+  function startChapter(i) {
+    Sound.init(); menuStack = null; paused = false;
+    if (i === ci && world && state === 'title') { resetChapterState(); state = 'card'; stateT = 0; return; }
+    state = 'loading';
+    loadChapter(i, () => { state = 'card'; stateT = 0; fade = 0; fadeTarget = 1; });
+  }
+  function toTitle() {
+    menuStack = null; paused = false; state = 'loading';
+    loadChapter(0, () => { state = 'title'; stateT = 0; fade = 0; fadeTarget = 1; cam = { x: 60, y: 0 }; posTitleBot(); });
+  }
+  function posTitleBot() { robot.x = 470; robot.y = world.surfaceAt(470); robot.face = -1; }
+
+  function menuItems(id) {
+    const back = { label: 'back', act: menuBack };
+    const onOff = v => v ? 'on' : 'off';
+    const avail = Store.finished ? LEVELS.length - 1 : Store.reached;
+    switch (id) {
+      case 'main': {
+        const items = [];
+        if (Store.reached > 0 && !Store.finished) items.push({ label: `continue · ${roman(LEVELS[Store.reached].id)} ${LEVELS[Store.reached].title}`, act: () => startChapter(Store.reached) });
+        items.push({ label: Store.reached > 0 || Store.finished ? 'begin again' : 'begin', act: () => startChapter(0) });
+        if (avail > 0) items.push({ label: 'chapters', act: () => pushMenu('chapters') });
+        if (Store.photos.length) items.push({ label: `the album · ${Store.photos.length}`, act: () => { menuStack = null; state = 'albumview'; stateT = 0; } });
+        items.push({ label: 'settings', act: () => pushMenu('settings') });
+        return items;
+      }
+      case 'chapters':
+        return LEVELS.slice(0, avail + 1).map((l, i) => ({ label: `${roman(l.id)} · ${l.title} — ${l.sub.toLowerCase()}`, act: () => startChapter(i) })).concat(back);
+      case 'settings': {
+        const items = [
+          { label: `larger text · ${onOff(S().large)}`, act: () => Store.setting('large', !S().large) },
+          { label: `reduced motion · ${onOff(S().reduce)}`, act: () => { Store.setting('reduce', !S().reduce); if (L) initFlakes(); } },
+          { label: `sound · ${onOff(!Sound.muted)}`, act: () => Store.setting('muted', Sound.toggleMute()) },
+        ];
+        if (!isTouch) items.push({ label: 'controls', act: () => pushMenu('controls') });
+        return items.concat(back);
+      }
+      case 'controls':
+        return ACTIONS.map(([a, name]) => ({ label: `${name} · ${rebinding === a ? 'press a key…' : keyName(S().keys[a])}`, act: () => { rebinding = a; } }))
+          .concat({ label: 'restore defaults', act: () => Store.resetKeys() }, back);
+      case 'pause':
+        return [
+          { label: 'continue', act: resume },
+          { label: 'settings', act: () => pushMenu('settings') },
+          { label: 'leave to the title', act: toTitle },
+        ];
+    }
+    return [back];
+  }
+  const MENU_HEAD = { chapters: 'chapters', settings: 'settings', controls: 'controls — choose one, then press a key', pause: 'paused' };
+
+  function handleMenu() {
+    const top = menuStack[menuStack.length - 1], items = menuItems(top.id);
+    top.sel = clamp(top.sel, 0, items.length - 1);
+    if (rebinding) return;
+    if (nav.up) { top.sel = (top.sel - 1 + items.length) % items.length; Sound.tick(); }
+    if (nav.down) { top.sel = (top.sel + 1) % items.length; Sound.tick(); }
+    let chosen = nav.ok ? top.sel : -1;
+    if (tap) {
+      const r = menuRects.find(r => tap.x >= r.x && tap.x <= r.x + r.w && tap.y >= r.y && tap.y <= r.y + r.h);
+      if (r) { top.sel = r.i; chosen = r.i; }
+    }
+    if (nav.back) menuBack();
+    else if (chosen >= 0) { Sound.tick(1); items[chosen].act(); }
+  }
+
+  function renderMenu(y0, a) {
+    const top = menuStack[menuStack.length - 1], items = menuItems(top.id), t = T();
+    menuRects = [];
+    const head = MENU_HEAD[top.id];
+    if (head) text(head, VIEW_W / 2, y0 - 44 * t, 18 * t, a * 0.65, { italic: true, letter: 2 });
+    const lh = Math.min(44 * t, 330 / Math.max(1, items.length));
+    items.forEach((it, i) => {
+      const y = y0 + i * lh, on = i === top.sel, size = Math.min(25 * t, lh * 0.72);
+      text(it.label, VIEW_W / 2, y, size, a * (on ? 1 : 0.62), { italic: !on, weight: on ? 500 : 400, letter: on ? 1 : 0 });
+      if (on) {
+        ctx.font = `500 ${size}px ${FONT}`;
+        const w = ctx.measureText(it.label).width / 2 + 22;
+        ctx.fillStyle = css('#f6f1e6', a * 0.7);
+        ctx.fillRect(VIEW_W / 2 - w - 14, y - size * 0.32, 10, 1.5); ctx.fillRect(VIEW_W / 2 + w + 4, y - size * 0.32, 10, 1.5);
+      }
+      menuRects.push({ x: VIEW_W / 2 - 330, y: y - size - 6, w: 660, h: lh, i });
+    });
   }
 
   // ---------------------------------------------------------------- render
@@ -2828,7 +3404,7 @@ const Game = (() => {
     const fogs = L.pal.fog || [];
     for (const l of layers) {
       drawLayer(l);
-      if (l.key === 'far') life.drawDistant(ctx, cam);
+      if (l.key === 'far') { life.drawDistant(ctx, cam); if (L.train) drawTrain(l); }
       for (const f of fogs) if (f.after === l.key) drawFog(f);
     }
     const cx = cam.x, cy = cam.y, amb = ambient();
@@ -2846,13 +3422,14 @@ const Game = (() => {
     for (const ph of photos) {
       if (ph.taken || Math.abs(ph.x - cx - VIEW_W / 2) > VIEW_W) continue;
       const x = ph.x - cx, y = ph.y - cy - 70 + Math.sin(time * 2 + ph.x) * 3;
-      const a = 0.35 + Math.sin(time * 3) * 0.15 + promptA * 0.4 * (nearPhoto() === ph ? 1 : 0);
+      const a = (ph.have ? 0.45 : 1) * (0.35 + Math.sin(time * 3) * 0.15) + promptA * 0.4 * (nearPhoto() === ph ? 1 : 0);
       ctx.strokeStyle = css('#ffffff', a); ctx.lineWidth = 1.5;
       ctx.beginPath();
       for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { ctx.moveTo(x + sx * 9, y + sy * 5); ctx.lineTo(x + sx * 9, y + sy * 8); ctx.lineTo(x + sx * 5, y + sy * 8); }
       ctx.stroke();
       ctx.fillStyle = css('#ffffff', a); ctx.beginPath(); ctx.arc(x, y, 1.6, 0, TAU); ctx.fill();
     }
+    if (L.search) drawSearch(cx, cy);
     // the sphere at the end of it all
     if (L.sphere) drawFinalSphere(cx, cy);
     // shadows
@@ -2866,6 +3443,12 @@ const Game = (() => {
     let led = null;
     const botA = ending ? 1 - smooth(0.82, 1, ending.rise) : 1;
     if (botA > 0.01) { ctx.globalAlpha = botA; led = robot.draw(ctx, cx, cy, amb); ctx.globalAlpha = 1; }
+    if (ending && ending.touch > 0.05 && robot.tip) {
+      ctx.globalCompositeOperation = 'lighter';
+      const tx = lerp(robot.tip[0], player.x - cx + 9, 0.5), ty = lerp(robot.tip[1], player.y - cy - 30, 0.5);
+      drawGlow('#ffe2c0', tx, ty, 24 + ending.touch * 20, 0.6 * ending.touch);
+      ctx.globalCompositeOperation = 'source-over';
+    }
     if (ending && ending.rise > 0) {
       ctx.globalCompositeOperation = 'lighter';
       drawGlow('#ffe7cc', robot.x - cx, robot.y - cy - 14, 40 + ending.rise * 40, 0.5 * Math.sin(Math.min(1, ending.rise) * Math.PI) + 0.1);
@@ -2873,6 +3456,17 @@ const Game = (() => {
     }
     if (state !== 'title' && !(deathT > 0 && deathT < 0.6)) drawKid(ctx, player.x - cx, player.y - cy, player.face, player, L.pal.light, amb);
     else if (state === 'title') drawKid(ctx, 330 - 0, world.surfaceAt(cx + 330) - cy, 1, { run: 0, phase: 0, air: false, vy: 0, t: time }, L.pal.light, amb);
+    if (player.torch && state !== 'title' && !(deathT > 0 && deathT < 0.6)) {
+      // the head torch: a warm cone the way you face, lighting the snow in it
+      const hx = player.x - cx + player.face * 6, hy = player.y - cy - 41;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createRadialGradient(hx, hy, 2, hx, hy, 260);
+      g.addColorStop(0, 'rgba(255,236,196,0.32)'); g.addColorStop(1, 'rgba(255,236,196,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(hx, hy);
+      ctx.lineTo(hx + player.face * 260, hy - 50); ctx.lineTo(hx + player.face * 260, hy + 110); ctx.closePath(); ctx.fill();
+      drawGlow('#fff1c8', hx, hy, 12, 0.7);
+      ctx.restore();
+    }
     // particles
     for (const s of splashes) {
       const a = 1 - s.t / s.life;
@@ -2899,10 +3493,48 @@ const Game = (() => {
       const x = f.x - cx * 1.25, w = 360 * f.k, h = 260 * f.k;
       if (x + w / 2 < 0 || x - w / 2 > VIEW_W) continue;
       ctx.save(); ctx.translate(x, VIEW_H + 16 - cy * 0.25); if (f.flip) ctx.scale(-1, 1);
-      if (L.pal.fg.kind !== 'fence') ctx.rotate(Math.sin((life?.time || 0) * 0.6 + f.x) * 0.007);
+      if (L.pal.fg.kind !== 'fence' && !reduce()) ctx.rotate(Math.sin((life?.time || 0) * 0.6 + f.x) * 0.007);
       ctx.drawImage(f.s, -w / 2, -h, w, h); ctx.restore();
     }
     life.drawForeground(ctx, cam);
+  }
+
+  // A train crossing far off, lit windows in a dark line, every minute or so.
+  function drawTrain(layer) {
+    const tr = L.train, span = layer.w + tr.gap;
+    const lx = ((time * tr.speed) % span) - 260, x = lx - cam.x * layer.f, y = tr.y - cam.y * layer.f;
+    if (x > VIEW_W + 20 || x < -300) { if (x > VIEW_W + 20) trainHorn = false; return; }
+    if (!trainHorn && x > VIEW_W - 200) { trainHorn = true; if (state === 'play') Sound.horn(); }
+    const dark = mix('#3f474e', L.pal.haze, 0.45);
+    ctx.fillStyle = css(dark);
+    for (let i = 0; i < 7; i++) {
+      const cx0 = x - i * 34;
+      ctx.fillRect(cx0, y - 9, 31, 8);
+      if (i === 0) { ctx.fillRect(cx0 + 20, y - 12, 10, 4); }
+      for (let k = 0; k < 5; k++) if ((i * 7 + k) % 3) { ctx.fillStyle = css('#f2d9a0', 0.8); ctx.fillRect(cx0 + 3 + k * 5.6, y - 7, 2.4, 2); ctx.fillStyle = css(dark); }
+    }
+    Art.line(ctx, x - 240, y - 13, x + 34, y - 13, 0.6, dark, 0.5);
+    ctx.globalCompositeOperation = 'lighter';
+    drawGlow('#fff0c8', x + 31, y - 6, 16, 0.6);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  function drawSearch(cx, cy) {
+    const sr = L.search, sp = searchSpot(), lx = sr.sx - cx, ly = sr.sy - cy, gx = sp.gx - cx, gy = sp.gy - cy;
+    if (lx < -900 || lx > VIEW_W + 900) return;
+    // the tower
+    Art.line(ctx, lx, ly + 6, lx, (world.groundAt(sr.sx) ?? 600) - cy + 4, 6, '#20242b');
+    for (let yy = ly + 20; yy < (world.groundAt(sr.sx) ?? 600) - cy; yy += 26) Art.line(ctx, lx - 6, yy, lx + 6, yy + 13, 1.5, '#2c313a');
+    ctx.fillStyle = '#2b3038'; ctx.fillRect(lx - 12, ly - 8, 24, 14);
+    const red = caughtT > 0 ? caughtT / 1.2 : 0;
+    const col = red > 0 ? '#ff8a70' : '#f4f2e6';
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createLinearGradient(lx, ly, gx, gy);
+    g.addColorStop(0, css(col, 0.28)); g.addColorStop(1, css(col, 0.1));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(lx + 8, ly); ctx.lineTo(gx + sr.r, gy + 4); ctx.lineTo(gx - sr.r, gy + 4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = css(col, 0.22); ctx.beginPath(); ctx.ellipse(gx, gy + 2, sr.r, 9, 0, 0, TAU); ctx.fill();
+    drawGlow(col, lx + 8, ly, 30, 0.9);
+    ctx.restore();
   }
 
   function drawArc(h, cx, cy) {
@@ -2994,6 +3626,7 @@ const Game = (() => {
   function post() {
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.drawImage(vignette, 0, 0, VIEW_W, VIEW_H);
+    if (reduce()) return;
     ctx.save();
     ctx.globalCompositeOperation = 'overlay';
     ctx.fillStyle = ctx.createPattern(grain, 'repeat');
@@ -3022,31 +3655,33 @@ const Game = (() => {
   function renderUI() {
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     // narration
-    if (lineCur) {
+    if (lineCur && !paused) {
       const a = Math.min(1, lineCur.t / 0.9, (lineCur.d - lineCur.t) / 0.9);
-      const ls = wrap(lineCur.text, 760, 28, { italic: true });
-      const y0 = VIEW_H - 64 - (ls.length - 1) * 34;
-      const g = ctx.createLinearGradient(0, VIEW_H - 170, 0, VIEW_H);
-      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(8,8,10,${0.35 * a})`);
-      ctx.fillStyle = g; ctx.fillRect(0, VIEW_H - 170, VIEW_W, 170);
-      ls.forEach((l, i) => text(l, VIEW_W / 2, y0 + i * 34, 28, a, { italic: true, shadowA: 0.6 }));
+      const t = T(), size = 28 * t, lh = 34 * t;
+      const ls = wrap(lineCur.text, 760 * (t > 1 ? 1.25 : 1), size, { italic: true });
+      const y0 = VIEW_H - 58 - (ls.length - 1) * lh;
+      const g = ctx.createLinearGradient(0, VIEW_H - 170 * t, 0, VIEW_H);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(8,8,10,${(t > 1 ? 0.5 : 0.35) * a})`);
+      ctx.fillStyle = g; ctx.fillRect(0, VIEW_H - 170 * t, VIEW_W, 170 * t);
+      ls.forEach((l, i) => text(l, VIEW_W / 2, y0 + i * lh, size, a, { italic: true, shadowA: 0.6 }));
     }
     if (state === 'play' && promptA > 0.02) {
-      const ph = nearPhoto() || null;
-      text(document.body.classList.contains('touch') ? '◉  ·  take a photograph' : 'E  ·  take a photograph', VIEW_W / 2, 58, 20, promptA * 0.9, { italic: true });
+      const ph = nearPhoto();
+      const what = ph && ph.have ? 'take it again' : 'take a photograph';
+      text(`${isTouch ? '◉' : keyName(S().keys.photo)}  ·  ${what}`, VIEW_W / 2, 58, 20 * T(), promptA * 0.9, { italic: true });
     }
     if (state === 'play' && !nearPhoto() && placePromptA > 0.02 && deathT <= 0) {
       const place = life.near(player);
       if (place) {
-        const key = document.body.classList.contains('touch') ? '◉' : navigator.getGamepads?.().some(p => p) ? 'X / □' : 'E';
+        const key = isTouch ? '◉' : navigator.getGamepads?.().some(p => p) ? 'X / □' : keyName(S().keys.photo);
         const label = place.kind === 'signal' && place.on ? 'turn the lights off' : place.label;
         const waiting = place.kind === 'water' ? 'rings on the water' : place.kind === 'stones' ? 'almost weightless' : 'listen…';
-        text(place.cooldown > 0 ? waiting : `${key}  ·  ${label}`, VIEW_W / 2, 58, 20, placePromptA * 0.75 * (1 - promptA), { italic: true });
+        text(place.cooldown > 0 ? waiting : `${key}  ·  ${label}`, VIEW_W / 2, 58, 20 * T(), placePromptA * 0.75 * (1 - promptA), { italic: true });
       }
     }
     if (state === 'play' && stateT < 6) {
       const a = Math.min(1, stateT / 1, (6 - stateT) / 1.5);
-      text(`${roman(L.id)} · ${L.title}`, 40, 50, 22, a * 0.85, { align: 'left', letter: 2 });
+      text(`${roman(L.id)} · ${L.title}`, 40, 50, 22 * T(), a * 0.85, { align: 'left', letter: 2 });
     }
     // polaroid slides in, lingers, and goes to the album
     if (polaroid) {
@@ -3057,19 +3692,20 @@ const Game = (() => {
       ctx.fillStyle = '#f2eee4'; ctx.fillRect(-w / 2 - 10, -h / 2 - 10, w + 20, h + 42);
       ctx.drawImage(polaroid.canvas, -w / 2, -h / 2, w, h * 1.0);
       ctx.restore();
-      const cnt = album.length, total = LEVELS.reduce((s, l) => s + l.photos.length, 0);
+      const cnt = Store.photos.length, total = LEVELS.reduce((s, l) => s + l.photos.length, 0);
       text(`${cnt} / ${total}`, x + w / 2, y + h + 24, 15, inT * (1 - outT) * 0.8, { col: '#3a3530', shadow: false, italic: true });
     }
-    if (flash > 0) { ctx.fillStyle = `rgba(255,252,245,${flash * 0.85})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
+    if (caughtT > 0 && state === 'play') { ctx.fillStyle = `rgba(160,40,30,${0.18 * caughtT / 1.2})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
+    if (flash > 0) { ctx.fillStyle = `rgba(255,252,245,${flash * (reduce() ? 0.3 : 0.85)})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
     if (fade < 0.999) { ctx.fillStyle = `rgba(6,6,8,${1 - fade})`; ctx.fillRect(0, 0, VIEW_W, VIEW_H); }
 
     if (state === 'title') renderTitle();
     if (state === 'card') renderCard();
-    if (state === 'album') renderAlbum();
+    if (state === 'album' || state === 'albumview') renderAlbum();
     if (paused && state === 'play') renderPause();
   }
 
-  function roman(n) { return ['', 'I', 'II', 'III', 'IV', 'V'][n]; }
+  function roman(n) { return ['', 'I', 'II', 'III', 'IV', 'V', 'VI'][n]; }
 
   function renderTitle() {
     const a = Math.min(1, stateT / 2);
@@ -3078,9 +3714,20 @@ const Game = (() => {
     ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW_W, 360);
     text('STÅLHAGEN', VIEW_W / 2, 190, 92, a, { weight: 500, letter: 18, shadowA: 0.3 });
     text('the steel pasture', VIEW_W / 2, 238, 30, a * 0.9, { italic: true });
-    const b = Math.min(1, Math.max(0, stateT - 1.5)) * (0.55 + Math.sin(time * 2) * 0.3);
-    text(document.body.classList.contains('touch') ? 'tap to begin' : 'press any key', VIEW_W / 2, VIEW_H - 70, 22, b, { italic: true, letter: 2 });
-    text('← →  walk     ↑ / space  jump     E  photograph / interact     M  sound', VIEW_W / 2, VIEW_H - 36, 16, Math.min(1, Math.max(0, stateT - 1.5)) * 0.7, { letter: 1 });
+    const b = Math.min(1, Math.max(0, stateT - 1));
+    if (menuStack) {
+      // a soft band behind the menu keeps it legible over the snow
+      const band = ctx.createLinearGradient(0, 270, 0, 620);
+      band.addColorStop(0, 'rgba(20,24,30,0)'); band.addColorStop(0.3, `rgba(20,24,30,${0.28 * b})`); band.addColorStop(0.75, `rgba(20,24,30,${0.28 * b})`); band.addColorStop(1, 'rgba(20,24,30,0)');
+      ctx.fillStyle = band; ctx.fillRect(0, 270, VIEW_W, 350);
+      renderMenu(menuStack.length > 1 ? 370 : 330, b);
+    }
+    if (!isTouch) {
+      const k = S().keys, foot = ctx.createLinearGradient(0, VIEW_H - 90, 0, VIEW_H);
+      foot.addColorStop(0, 'rgba(14,16,20,0)'); foot.addColorStop(1, `rgba(14,16,20,${0.55 * b})`);
+      ctx.fillStyle = foot; ctx.fillRect(0, VIEW_H - 90, VIEW_W, 90);
+      text(`← → or ${keyName(k.left)} ${keyName(k.right)}  walk     ↑ or ${keyName(k.jump)}  jump     ↓ or ${keyName(k.photo)}  photograph / interact     M  sound     esc  pause`, VIEW_W / 2, VIEW_H - 30, 15 * T(), b * 0.65, { letter: 1 });
+    }
   }
 
   function renderCard() {
@@ -3094,39 +3741,40 @@ const Game = (() => {
   }
 
   function renderPause() {
-    ctx.fillStyle = 'rgba(8,8,10,0.6)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    text('paused', VIEW_W / 2, 300, 48, 1, { italic: true });
-    text('← → walk  ·  ↑ / space jump  ·  E photograph / interact  ·  M sound ' + (Sound.muted ? '(off)' : '(on)'), VIEW_W / 2, 360, 20, 0.85);
-    text('Some things answer. Some things only happen if you wait.', VIEW_W / 2, 385, 18, 0.6, { italic: true });
-    text(document.body.classList.contains('touch') ? 'tap \u275a\u275a to continue' : 'esc to continue', VIEW_W / 2, 410, 18, 0.6, { italic: true });
+    ctx.fillStyle = 'rgba(8,8,10,0.62)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    if (menuStack) renderMenu(330, 1);
+    text('Some things answer. Some things only happen if you wait.', VIEW_W / 2, VIEW_H - 60, 17 * T(), 0.55, { italic: true });
   }
 
   function renderAlbum() {
     ctx.fillStyle = '#1b1a1e'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
-    const a = Math.min(1, stateT / 1.5);
-    text('I still have the photographs. That’s how I know it happened.', VIEW_W / 2, 70, 28, a, { italic: true });
-    const n = album.length, cols = Math.min(5, Math.max(1, n)), w = 196, h = 110, gap = 30;
-    const rows = Math.ceil(n / cols), x0 = VIEW_W / 2 - (cols * (w + gap) - gap) / 2, y0 = 130;
-    album.forEach((p, i) => {
+    const a = Math.min(1, stateT / 1.5), t = T(), end = state === 'album';
+    text(end ? 'I still have the photographs. That’s how I know it happened.' : 'the album', VIEW_W / 2, 64, (end ? 28 : 30) * t, a, { italic: true, letter: end ? 0 : 3 });
+    const list = Store.photos, n = list.length;
+    const cols = n > 15 ? 6 : 5, w = n > 15 ? 168 : 196, h = w * 9 / 16, gap = 26, rowH = h + 44 + 14 * t;
+    const x0 = VIEW_W / 2 - (Math.min(cols, Math.max(1, n)) * (w + gap) - gap) / 2, y0 = 116;
+    list.forEach((p, i) => {
       const r = (i / cols) | 0, c = i % cols;
-      const pa = clamp((stateT - 1 - i * 0.25) / 0.6, 0, 1);
+      const pa = end ? clamp((stateT - 1 - i * 0.2) / 0.6, 0, 1) : a;
       if (pa <= 0) return;
-      const x = x0 + c * (w + gap), y = y0 + r * (h + 70);
+      const x = x0 + c * (w + gap), y = y0 + r * rowH;
       ctx.save(); ctx.globalAlpha = pa; ctx.translate(x + w / 2, y + h / 2); ctx.rotate(((i * 7919) % 11 - 5) * 0.006);
-      ctx.fillStyle = '#f0ece2'; ctx.fillRect(-w / 2 - 8, -h / 2 - 8, w + 16, h + 44);
-      ctx.drawImage(p.canvas, -w / 2, -h / 2, w, h);
+      ctx.fillStyle = '#f0ece2'; ctx.fillRect(-w / 2 - 8, -h / 2 - 8, w + 16, h + 36 + 14 * t);
+      const img = p.img;
+      if (img && (!(img instanceof Image) || (img.complete && img.naturalWidth))) ctx.drawImage(img, -w / 2, -h / 2, w, h);
+      else { ctx.fillStyle = '#c9c4b8'; ctx.fillRect(-w / 2, -h / 2, w, h); }
       ctx.restore();
       ctx.globalAlpha = pa;
-      const cl = wrap(p.caption, w, 13, { italic: true });
-      cl.slice(0, 2).forEach((l, k) => text(l, x + w / 2, y + h + 18 + k * 14, 13, pa, { italic: true, col: '#3a3530', shadow: false }));
+      const size = 12.5 * t, cl = wrap(p.caption, w + 6, size, { italic: true });
+      cl.slice(0, 2).forEach((l, k) => text(l, x + w / 2, y + h + 15 + size * 0.5 + k * size * 1.1, size, pa, { italic: true, col: '#3a3530', shadow: false }));
       ctx.globalAlpha = 1;
     });
-    if (!n) text('You didn’t take any. Maybe that is its own kind of remembering.', VIEW_W / 2, 330, 22, a * 0.8, { italic: true });
+    if (!n) text('You didn’t take any. Maybe that is its own kind of remembering.', VIEW_W / 2, 330, 22 * t, a * 0.8, { italic: true });
     const total = LEVELS.reduce((s, l) => s + l.photos.length, 0);
-    const b = clamp(stateT - 2 - n * 0.25, 0, 1);
-    text(`${n} of ${total} photographs`, VIEW_W / 2, VIEW_H - 92, 18, b * 0.7, { italic: true });
-    text('STÅLHAGEN  ·  after the paintings of Simon Stålenhag  ·  every image drawn in code', VIEW_W / 2, VIEW_H - 60, 15, b * 0.5, { letter: 1 });
-    if (stateT > 3) text(document.body.classList.contains('touch') ? 'tap to play again' : 'press any key', VIEW_W / 2, VIEW_H - 26, 16, (0.4 + Math.sin(time * 2) * 0.2), { italic: true });
+    const b = end ? clamp(stateT - 2 - n * 0.2, 0, 1) : a;
+    text(`${n} of ${total} photographs`, VIEW_W / 2, VIEW_H - 84, 17 * t, b * 0.7, { italic: true });
+    if (end) text('STÅLHAGEN  ·  after the paintings of Simon Stålenhag  ·  every image drawn in code', VIEW_W / 2, VIEW_H - 56, 14 * t, b * 0.5, { letter: 1 });
+    if (stateT > (end ? 3 : 0.6)) text(isTouch ? 'tap to go on' : 'press any key', VIEW_W / 2, VIEW_H - 24, 15 * t, (0.4 + Math.sin(time * 2) * 0.2), { italic: true });
   }
 
   function render() {
@@ -3135,7 +3783,7 @@ const Game = (() => {
       ctx.fillStyle = '#0c0c0e'; ctx.fillRect(0, 0, cv.width, cv.height);
       return;
     }
-    if (state !== 'album') {
+    if (state !== 'album' && state !== 'albumview') {
       renderWorld();
       post();
       if (wantShot) captureShot();
@@ -3150,13 +3798,15 @@ const Game = (() => {
     // fixed substeps keep jumps identical at any frame rate
     const n = Math.ceil(dt / (1 / 120));
     for (let i = 0; i < n; i++) { update(dt / n); }
-    render();
+    // a drawing error must never stop the loop; the next frame tries again
+    try { render(); } catch (err) { if (!frame.warned) { frame.warned = true; console.error(err); } }
     requestAnimationFrame(frame);
   }
 
   function start() {
     makePost();
-    loadChapter(0, () => { state = 'title'; stateT = 0; fade = 0; fadeTarget = 1; cam = { x: 60, y: 0 }; robot.x = 470; robot.y = world.surfaceAt(470); robot.face = -1; });
+    if (Store.settings.muted && !Sound.muted) Sound.toggleMute();
+    loadChapter(0, () => { state = 'title'; stateT = 0; fade = 0; fadeTarget = 1; cam = { x: 60, y: 0 }; posTitleBot(); });
     requestAnimationFrame(t => { last = t; frame(t); });
   }
 
@@ -3165,8 +3815,8 @@ const Game = (() => {
     get state() { return state; }, get player() { return player; }, get world() { return world; }, get robot() { return robot; }, get cam() { return cam; },
     jump(i, x) { state = 'loading'; loadChapter(i, () => { state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x) { player.x = x; player.y = world.surfaceAt(x); follow(0, true); } }); },
     set(x, y) { player.x = x; player.y = y ?? world.surfaceAt(x); player.vy = 0; follow(0, true); },
-    keys, pressed, get album() { return album; }, get L() { return L; }, get time() { return time; },
-    get life() { return life; },
+    keys, pressed, nav, get album() { return Store.photos; }, get menu() { return menuStack; }, tapAt(x, y) { tap = { x, y }; }, get L() { return L; }, get time() { return time; },
+    get deaths() { return deaths; }, get life() { return life; }, search: () => L.search && { ...searchSpot(), hidden: inShadow() }, get Q() { return Q; }, get painted() { return layers; },
     step(n, dt = 1 / 120) { for (let i = 0; i < n; i++) update(dt); }, hazardOn: h => hazardOn(h), ending: () => startEnding(), setState(s) { state = s; stateT = 0; },
   };
   return { start };

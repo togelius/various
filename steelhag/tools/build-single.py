@@ -6,7 +6,9 @@ html = (root / 'index.html').read_text()
 css = (root / 'css/style.css').read_text()
 html = html.replace('<link rel="stylesheet" href="css/style.css">', '<style>\n' + css + '</style>')
 def inline(m):
-    return '<script>\n' + (root / m.group(1)).read_text() + '</script>'
+    # data-src lets the painting worker find the scripts it needs by name
+    name = pathlib.Path(m.group(1)).name
+    return f'<script data-src="{name}">\n' + (root / m.group(1)).read_text() + '</script>'
 html = re.sub(r'<script src="([^"]+)"></script>', inline, html)
 out = root / 'dist' / 'stalhagen.html'
 out.parent.mkdir(exist_ok=True)

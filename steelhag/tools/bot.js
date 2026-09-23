@@ -10,7 +10,7 @@ const path = require('path');
   page.on('pageerror', e => errors.push(e.message));
   await page.goto('file://' + path.resolve(__dirname, '../index.html'));
   await page.waitForFunction(() => window.__game && window.__game.state === 'title', null, { timeout: 60000 });
-  for (const spec of (chs.length ? chs : ['0', '1', '2', '3', '4'])) {
+  for (const spec of (chs.length ? chs : ['0', '1', '2', '3', '4', '5'])) {
     const [ch, sx] = spec.split(':').map(Number);
     await page.evaluate(([ch, sx]) => window.__game.jump(ch, sx || 0), [ch, sx]);
     await page.waitForFunction(() => window.__game.state === 'play', null, { timeout: 60000 });
@@ -42,6 +42,14 @@ const path = require('path');
           else {
             for (const m of W.movers) if (m.art === 'lift' && m.x - p.x > 0 && m.x - p.x < 40 && Math.abs(m.y - m.by) > 6) k.right = false;
           }
+          // searchlight: wait in a crate's shadow until the spot is behind or well ahead
+          const sr = L.search;
+          if (sr && p.x > sr.x0 - 250 && p.x < sr.x1 + 40) {
+            const sp = G.search(), ahead = sp.gx - p.x;
+            const safe = (ahead < -70 && sp.dir < 0) || (ahead > 380 && sp.dir > 0);
+            if (sp.hidden && !safe) k.right = false;
+            if (!sp.hidden && p.x < sr.x0 - 60 && !safe) k.right = false;
+          }
           if (k.right && (drop || wall)) { G.pressed.jump = true; k.jump = true; }
         } else { k.jump = true; if (p.vy > 0) { const below = ahead(p.x); const far = ahead(p.x + 40); if (below !== null && below > p.y - 4 && (far === null || far > below + 30)) k.right = false; } }
         if (G.player.y > 0 && Math.random() < 0.002) {}
@@ -51,7 +59,7 @@ const path = require('path');
         if (p.x > best + 5) { best = p.x; stuckT = 0; } else stuckT += 1 / 60;
         if (stuckT > 6) { k.right = false; k.left = true; for (let i = 0; i < 20; i++) G.step(2); k.left = false; k.right = true; G.pressed.jump = true; k.jump = true; for (let i = 0; i < 30; i++) G.step(2); stuckT = 0; log.push('unstick@' + Math.round(p.x)); if (log.length > 12) break; }
       }
-      return { state: G.state, best: Math.round(best), x: Math.round(G.player.x), exit: L.exit, log, t: Math.round(t) };
+      return { deaths: G.deaths, state: G.state, best: Math.round(best), x: Math.round(G.player.x), exit: L.exit, log, t: Math.round(t) };
     });
     console.log('chapter', ch + 1, JSON.stringify(res));
   }
