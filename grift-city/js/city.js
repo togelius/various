@@ -265,7 +265,11 @@ const CITY = (() => {
       // wall, because a frontage runs across several lots and a repeat shows up across a corner or a jog just as
       // plainly as along one straight wall.
       { const uniq = [...new Set(pool)]; let last = -1;
-        for (let t = 0; t < frontLen - 0.5; t += 8) { let k = rng.pick(pool); if (k === last) k = rng.pick(pool); last = k; shopTiles.push(k);
+        // A lot in the middle column of a three-wide block is given an east front, but its east wall faces the next lot
+        // a few metres away, not a street. The random picks still happen (so the seeded city does not move); only the
+        // painting and the recorded shopfront are skipped there.
+        const [obx0, obz0] = blockOrigin(block.i, block.j); const onStreet = front === 'n' ? z - obz0 < 0.5 : front === 's' ? obz0 + BLOCK - (z + d) < 0.5 : front === 'w' ? x - obx0 < 0.5 : obx0 + BLOCK - (x + w) < 0.5;
+        for (let t = 0; t < frontLen - 0.5; t += 8) { let k = rng.pick(pool); if (k === last) k = rng.pick(pool); last = k; shopTiles.push(k); if (!onStreet) continue;
         const seg = Math.min(8, frontLen - t);
         const [fx2, fz2] = frontPt(t + seg / 2, 0.2);
         const near = new Set();

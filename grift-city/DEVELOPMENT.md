@@ -147,3 +147,13 @@ stars or a cop in sight cut the odds, the night and the good suit help, and nobo
 (`test/getaway.js`). The Grift City Gazette prints when you wake at the safehouse and at seven each morning,
 with up to three headlines from what you did since the last edition: the last job passed, the best Heat Run
 banked, cruisers wrecked, bodies, stolen cars, cons, arrests and packages.
+
+## Getaway plan, second pass
+
+The items the first pass left out, worked through one at a time with the same gate.
+
+- [x] The cold open starts in the Foundry Quarter: the player outside the Lantern Diner, the Falcata idling at the
+  mouth of Lantern Lane, the lane's timber gate ahead. Older saves that finished Marla's finale before Okafor's jobs
+  get a line from Okafor acknowledging Crane is dead (his lieutenants still run the yards). Lots in the middle column
+  of a three-wide block no longer paint shopfronts on the wall that faces the next lot (41 such fronts; the random
+  picks still happen, so the seeded city is unchanged).
