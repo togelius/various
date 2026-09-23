@@ -3,9 +3,9 @@
 
 const LAYER_DEFS = [
   { key: 'sky', f: 0.03, blur: 0 },
-  { key: 'far', f: 0.13, blur: 1.4 },
-  { key: 'mid', f: 0.32, blur: 0.8 },
-  { key: 'near', f: 0.6, blur: 0.35 },
+  { key: 'far', f: 0.13, blur: 2.1 },
+  { key: 'mid', f: 0.32, blur: 1.05 },
+  { key: 'near', f: 0.6, blur: 0.4 },
   { key: 'play', f: 1, blur: 0 },
 ];
 

@@ -28,17 +28,26 @@ on screen. The ones you take become your album at the end.
 
 It takes about fifteen minutes.
 
+There are also small, optional things to do along the way: tune a forgotten
+radio, whistle to nesting birds (or stand quietly and let them approach), skip
+stones in the marsh, ring a ship's bell, and try an old lighting circuit.
+Near the last hill, even loose pebbles behave strangely. Some replies take a few
+seconds. These encounters have no score, checklist, or effect on your progress;
+you can stop, experiment, come back, or simply keep walking.
+
 ## Controls
 
 | | |
 | --- | --- |
 | ← → / A D | walk |
 | ↑ / W / Space / Z | jump (hold for higher) |
-| E / X / ↓ | take a photograph (at a vantage point) |
+| E / X / ↓ | photograph at a vantage point, otherwise interact nearby |
 | M | sound on / off |
 | Esc / P | pause |
 
-Gamepads work too, and on touch screens there are on-screen buttons.
+Gamepads work too (face buttons other than jump photograph/interact), and on
+touch screens the round button does both. Nearby prompts describe the action;
+photographs take priority if two opportunities overlap.
 
 ## How it's made
 
@@ -52,17 +61,26 @@ lamp and sun glows, film grain and a vignette. The music is synthesized too:
 a slow detuned analogue pad, sparse bells in a long reverb, wind, a low hum
 near the machines.
 
+Far scenery and the closest plants have a slight softness, with sparse, faint
+out-of-focus highlights near the bottom of the summer and night scenes. The
+characters and walking surfaces stay in focus. Passing birds, falling birch
+leaves, water rings, and faint drifting vapour add motion between encounters.
+
 - `js/art.js`: the paint box (brush strokes, trees, machines, towers, spheres)
 - `js/levels.js`: the five chapters (palettes, ground, platforms, narration, scenery)
 - `js/world.js`: ground, collision, and painting a chapter into layers
 - `js/actors.js`: the kid and the little machine
 - `js/audio.js`: all sound, synthesized with WebAudio
+- `js/life.js`: optional encounters, seasonal motion, and close soft highlights
 - `js/game.js`: loop, physics, camera, photographs, story, ending
 
 `tools/shot.js` takes screenshots (`node tools/shot.js out 0:3600 title`),
 `tools/bot.js` runs a simple bot through each chapter to check it can be
 finished, and `tools/hops.js` checks that every jump between moving
 platforms has at least one timing that works. All three need Playwright.
+
+`node tools/check-life.js` checks encounter reachability, delayed replies,
+input priority, cooldowns, pause, and chapter resets without browser dependencies.
 
 ## A note
 

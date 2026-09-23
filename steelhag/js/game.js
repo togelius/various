@@ -80,6 +80,7 @@ const Game = (() => {
   let player, robot, cam, flakes = [], splashes = [], fogTex = null, fgSprites = [], fgItems = [], moverSprites = new Map();
   let lines = [], lineQ = [], lineCur = null, photos = [], album = [], checkpoint = null;
   let fade = 1, fadeTarget = 1, flash = 0, polaroid = null, ending = null, deathT = 0, promptA = 0;
+  let life = null, placePromptA = 0;
   const glowCache = {};
   let grain = null, vignette = null;
 
@@ -124,7 +125,7 @@ const Game = (() => {
       }
     }
     const b = makeCanvas(360, 260), bg = b.getContext('2d');
-    if ('filter' in bg) bg.filter = 'blur(2.5px)';
+    if ('filter' in bg) bg.filter = `blur(${kind === 'fence' ? 3.2 : 4.2}px)`;
     bg.drawImage(c, 0, 0);
     return b;
   }
@@ -161,6 +162,8 @@ const Game = (() => {
   }
 
   function resetChapterState() {
+    life = new QuietLife(world);
+    placePromptA = 0;
     robot = new Robot(world);
     robot.onBeep = v => Sound.beep(v);
     const sx = 90, sy = world.surfaceAt(sx);
@@ -413,7 +416,14 @@ const Game = (() => {
       if (deathT > 0) { const before = deathT; deathT -= dt; if (before > 0.45 && deathT <= 0.45) respawn(); if (deathT <= 0) deathT = 0; }
       const ph = nearPhoto();
       promptA = lerp(promptA, ph ? 1 : 0, 1 - Math.pow(0.001, dt));
-      if (ph && pressed.photo && control) takePhoto(ph);
+      const place = deathT <= 0 && !ph && life.near(player);
+      placePromptA = lerp(placePromptA, place ? 1 : 0, 1 - Math.pow(0.005, dt));
+      if (pressed.photo && deathT <= 0) {
+        if (ph) takePhoto(ph);
+        else life.interact(player);
+      }
+      life.update(dt, player, deathT <= 0);
+      for (const event of life.drainSounds(player.x)) Sound.quiet(event);
       updateLines(dt);
       for (const h of L.hazards || []) if (hazardOn(h) && Math.abs(h.x - player.x) < 700 && Math.random() < dt * 12) Sound.crackle();
       player.breathT -= dt; if (player.breathT < 0) { player.breathT = 1.6 + Math.random(); breath(); }
@@ -517,6 +527,7 @@ const Game = (() => {
     const fogs = L.pal.fog || [];
     for (const l of layers) {
       drawLayer(l);
+      if (l.key === 'far') life.drawDistant(ctx, cam);
       for (const f of fogs) if (f.after === l.key) drawFog(f);
     }
     const cx = cam.x, cy = cam.y, amb = ambient();
@@ -527,6 +538,7 @@ const Game = (() => {
       if (m.x + m.w < cx - 40 || m.x > cx + VIEW_W + 40) continue;
       ctx.drawImage(s.canvas, m.x - cx - s.pad, m.y - cy - s.pad, s.canvas.width / Q, s.canvas.height / Q);
     }
+    life.draw(ctx, cam);
     // hazards
     for (const h of L.hazards || []) drawArc(h, cx, cy);
     // photo spots
@@ -586,8 +598,10 @@ const Game = (() => {
       const x = f.x - cx * 1.25, w = 360 * f.k, h = 260 * f.k;
       if (x + w / 2 < 0 || x - w / 2 > VIEW_W) continue;
       ctx.save(); ctx.translate(x, VIEW_H + 16 - cy * 0.25); if (f.flip) ctx.scale(-1, 1);
+      if (L.pal.fg.kind !== 'fence') ctx.rotate(Math.sin((life?.time || 0) * 0.6 + f.x) * 0.007);
       ctx.drawImage(f.s, -w / 2, -h, w, h); ctx.restore();
     }
+    life.drawForeground(ctx, cam);
   }
 
   function drawArc(h, cx, cy) {
@@ -720,6 +734,15 @@ const Game = (() => {
       const ph = nearPhoto() || null;
       text(document.body.classList.contains('touch') ? '◉  ·  take a photograph' : 'E  ·  take a photograph', VIEW_W / 2, 58, 20, promptA * 0.9, { italic: true });
     }
+    if (state === 'play' && !nearPhoto() && placePromptA > 0.02 && deathT <= 0) {
+      const place = life.near(player);
+      if (place) {
+        const key = document.body.classList.contains('touch') ? '◉' : navigator.getGamepads?.().some(p => p) ? 'X / □' : 'E';
+        const label = place.kind === 'signal' && place.on ? 'turn the lights off' : place.label;
+        const waiting = place.kind === 'water' ? 'rings on the water' : place.kind === 'stones' ? 'almost weightless' : 'listen…';
+        text(place.cooldown > 0 ? waiting : `${key}  ·  ${label}`, VIEW_W / 2, 58, 20, placePromptA * 0.75 * (1 - promptA), { italic: true });
+      }
+    }
     if (state === 'play' && stateT < 6) {
       const a = Math.min(1, stateT / 1, (6 - stateT) / 1.5);
       text(`${roman(L.id)} · ${L.title}`, 40, 50, 22, a * 0.85, { align: 'left', letter: 2 });
@@ -756,7 +779,7 @@ const Game = (() => {
     text('the steel pasture', VIEW_W / 2, 238, 30, a * 0.9, { italic: true });
     const b = Math.min(1, Math.max(0, stateT - 1.5)) * (0.55 + Math.sin(time * 2) * 0.3);
     text(document.body.classList.contains('touch') ? 'tap to begin' : 'press any key', VIEW_W / 2, VIEW_H - 70, 22, b, { italic: true, letter: 2 });
-    text('← →  walk     ↑ / space  jump     E  photograph     M  sound', VIEW_W / 2, VIEW_H - 36, 16, Math.min(1, Math.max(0, stateT - 1.5)) * 0.7, { letter: 1 });
+    text('← →  walk     ↑ / space  jump     E  photograph / interact     M  sound', VIEW_W / 2, VIEW_H - 36, 16, Math.min(1, Math.max(0, stateT - 1.5)) * 0.7, { letter: 1 });
   }
 
   function renderCard() {
@@ -772,7 +795,8 @@ const Game = (() => {
   function renderPause() {
     ctx.fillStyle = 'rgba(8,8,10,0.6)'; ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     text('paused', VIEW_W / 2, 300, 48, 1, { italic: true });
-    text('← → walk  ·  ↑ / space jump  ·  E photograph  ·  M sound ' + (Sound.muted ? '(off)' : '(on)'), VIEW_W / 2, 360, 20, 0.85);
+    text('← → walk  ·  ↑ / space jump  ·  E photograph / interact  ·  M sound ' + (Sound.muted ? '(off)' : '(on)'), VIEW_W / 2, 360, 20, 0.85);
+    text('Some things answer. Some things only happen if you wait.', VIEW_W / 2, 385, 18, 0.6, { italic: true });
     text(document.body.classList.contains('touch') ? 'tap \u275a\u275a to continue' : 'esc to continue', VIEW_W / 2, 410, 18, 0.6, { italic: true });
   }
 
@@ -841,6 +865,7 @@ const Game = (() => {
     jump(i, x) { state = 'loading'; loadChapter(i, () => { state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x) { player.x = x; player.y = world.surfaceAt(x); follow(0, true); } }); },
     set(x, y) { player.x = x; player.y = y ?? world.surfaceAt(x); player.vy = 0; follow(0, true); },
     keys, pressed, get album() { return album; }, get L() { return L; }, get time() { return time; },
+    get life() { return life; },
     step(n, dt = 1 / 120) { for (let i = 0; i < n; i++) update(dt); }, hazardOn: h => hazardOn(h), ending: () => startEnding(), setState(s) { state = s; stateT = 0; },
   };
   return { start };

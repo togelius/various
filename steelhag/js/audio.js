@@ -130,6 +130,32 @@ const Sound = (() => {
     land(surface) { S.step(surface); noise(0.14, 'lowpass', 400, 1, 0.25); },
     beep(v = 1) { tone(1320, 0.09, 'square', 0.035 * v, 0, 0, sfx); tone(1760, 0.12, 'square', 0.03 * v, 0.1); if (wet) tone(1760, 0.12, 'sine', 0.02 * v, 0.1, 0, wet); },
     shutter() { noise(0.03, 'highpass', 3000, 0.7, 0.4); noise(0.05, 'bandpass', 1800, 2, 0.3, 0.07); tone(2400, 0.04, 'square', 0.02, 0.07); },
+    quiet(e) {
+      // Replies are deliberately quieter than footsteps and never loop.
+      switch (e.kind) {
+        case 'radio':
+          noise(0.5, 'bandpass', 900 + e.channel * 600, 2, 0.07);
+          if (e.channel === 0) tone(146, 1.4, 'sine', 0.025, 0.15);
+          if (e.channel === 1) [392, 440, 330].forEach((f, i) => tone(f, 0.45, 'sine', 0.018, 0.3 + i * 0.4));
+          if (e.channel === 2) [0, 0.24, 0.6].forEach(d => tone(880, 0.12, 'sine', 0.024, d));
+          break;
+        case 'birds':
+          if (!e.gentle) tone(1240, 0.35, 'sine', 0.025, 0, 1.35);
+          [0.6, 1, 1.8].forEach((d, i) => tone(2200 + i * 170, 0.16, 'sine', 0.017, d, 0.78));
+          break;
+        case 'flutter': noise(0.3, 'highpass', 1800, 0.6, 0.035); break;
+        case 'water': noise(0.13, 'highpass', 1800, 0.6, 0.035); break;
+        case 'drop': noise(0.13, 'lowpass', 1600, 1, 0.055); tone(720, 0.09, 'sine', 0.025, 0, 0.6); break;
+        case 'bell':
+          [523, 1049, 1564].forEach((f, i) => tone(f, 2.8 - i * 0.5, 'sine', 0.035 / (i + 1), 0, 0, wet || sfx));
+          break;
+        case 'answer':
+          (e.bell ? [262, 525] : [660, 660, 880]).forEach((f, i) => tone(f, e.bell ? 3 : 0.3, 'sine', 0.018 / (i + 1), i * 0.28, 0, wet || sfx));
+          break;
+        case 'signal': noise(0.08, 'bandpass', 600, 1, 0.06); if (e.on) tone(110, 1.7, 'sine', 0.025, 0.2); break;
+        case 'stones': tone(330, 2, 'sine', 0.018, 0, 1.5, wet || sfx); break;
+      }
+    },
     splash() { noise(0.6, 'lowpass', 1200, 0.7, 0.5); noise(0.3, 'highpass', 3000, 0.5, 0.2, 0.05); },
     zap() { noise(0.35, 'bandpass', 2600, 1.5, 0.5); tone(90, 0.3, 'sawtooth', 0.12, 0, 0.5); },
     crackle() { noise(0.05 + Math.random() * 0.05, 'bandpass', 3000 + Math.random() * 2000, 2, 0.06); },
