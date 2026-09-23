@@ -168,3 +168,8 @@ The items the first pass left out, worked through one at a time with the same ga
   Foundry Quarter), cars pulled up with two wheels on the pavement clear of the outer lane. Filled only between 30
   and 150 m from the player, at most 24 at a time, cleared beyond 190 m; a car you drive off leaves its slot empty
   for ten minutes. Parked cars hold position under physics (`test/getaway.js`).
+- [x] Jobs and checkpoints survive a reload. Checkpoint restores live in each job's `checkpoints` table and are named
+  by index, so a save can record them; the game now also saves when the page is hidden mid-job (iPadOS may discard
+  the tab). On load the interrupted job is offered back ("Where you left off: press Y / tap to resume ... from the
+  checkpoint"). A failed job's retry offer now lapses after 45 s instead of hanging on the objective card forever.
+  The campaign audit resumes SPECIAL DELIVERY from its ambush checkpoint through a JSON round trip.

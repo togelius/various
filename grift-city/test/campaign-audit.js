@@ -57,6 +57,11 @@ function runCampaignAudit() {
  // Story order: CRANE waits for Okafor's strand, and its marker does not start it early.
  {leave();MISSIONS.cleanup();S.current=null;S.retry=null;S.cooldown=0;S.dialogue=null;S.progress=8;S.progress2=5;place('mission');MISSIONS.update(.016);check(!S.current&&/Not yet/.test(MISSIONS.objective),'CRANE must wait for Okafor');
   S.progress2=MISSIONS.LIST2.length;MISSIONS.update(.016);check(S.current&&S.current.name==='CRANE','CRANE starts once Okafor is done');MISSIONS.cleanup();S.current=null;S.dialogue=null;log.push('Story order: CRANE after Okafor — passed');}
+ // A job interrupted by a reload comes back, from its checkpoint: SPECIAL DELIVERY past the ambush checkpoint.
+ {const m=MISSIONS.LIST[2];const d=start(m);enter(d.van);d.phase=1;{const k=CITY.place('docks');at(k.x+60,k.z+60);}p.car.x=p.x;p.car.z=p.z;update(m);check(S.cp&&S.cp.name===m.name&&S.cp.idx===0,'the ambush sets a checkpoint');
+  const job=MISSIONS.jobState();check(job&&job.name===m.name&&job.cp===0,'a save records the job and its checkpoint');leave();MISSIONS.cleanup();S.current=null;S.cp=null;S.retry=null;
+  MISSIONS.resumeJob(JSON.parse(JSON.stringify(job)));check(S.retry&&S.retry.resumed&&S.cp&&S.cp.restore,'a load offers the job back');
+  const oldHit=INPUT.hit;INPUT.hit=k=>k==='KeyY';try{MISSIONS.update(.016);}finally{INPUT.hit=oldHit;}check(S.current===m&&m.data.ambush&&S.timer>100,'resuming starts from the checkpoint');MISSIONS.cleanup();S.current=null;S.cp=null;log.push('Resume from a saved checkpoint — passed');}
  // The finale can be lost: the Bastion reaching open road far from the player fails CRANE.
  {const m=MISSIONS.LIST[8];const d=start(m);d.phase=1;d.crane.inCar=d.car;d.car.driver=d.crane;d.car.x=p.x+400;d.car.z=p.z;update(m);check(!S.current&&S.retry&&S.retry.m===m,'CRANE must fail when the Bastion escapes');S.retry=null;log.push('Finale fail branch — passed');}
  // The bank crew hold the door as fighters, not bystanders.

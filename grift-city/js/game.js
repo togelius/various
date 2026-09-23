@@ -61,7 +61,7 @@ const GAME = (() => {
       }
       localStorage.setItem(SAVE_KEY, JSON.stringify({
         version: 2, x: P.x, y: P.y, z: P.z, inside: MISSIONS.S.inside || null, roof: !!MISSIONS.S.roof,
-        outfit: P.outfit || 0, garage,streetlife:STREETLIFE.save(), econ: ECON.saveData(), flags: MISSIONS.S.flags,
+        outfit: P.outfit || 0, job: MISSIONS.jobState ? MISSIONS.jobState() : null, garage,streetlife:STREETLIFE.save(), econ: ECON.saveData(), flags: MISSIONS.S.flags,
         progress2: MISSIONS.S.progress2, phoneProgress: MISSIONS.S.phoneProgress, rampageDone: MISSIONS.S.rampageDone,
         money: P.money, health: P.health, armor: P.armor,
         magazines: P.magazines,
@@ -107,6 +107,7 @@ const GAME = (() => {
         c.playerOwned = true; c.owned = true; c.mods = s.garage.mods || {}; ECON.applyMods(c);c.loadCondition(s.garage.condition);
       }
       W.state.time = s.time ?? 9;
+      if (s.job && MISSIONS.resumeJob) MISSIONS.resumeJob(s.job); // a job interrupted by the tab closing is offered back
       for (const p of W.pickups) if (p.kind === 'package' && (s.packages || []).includes(p.id)) p.taken = true;
       restorePackageRewards(P.stats.packages);
       return true;
@@ -170,7 +171,7 @@ const GAME = (() => {
     // seed on reload, so recovery is: save what can be saved, say what is happening, and start again.
     canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); lostContext = true; perf.losses++; if (started) save(); HUD.notify('The browser reset the graphics. Restoring…'); setTimeout(() => location.reload(), 1200); });
     // iPadOS can evict a background tab without warning: leaving the page is the last safe moment to save.
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && started && PLAYER.P.alive && !MISSIONS.S.current && (state === 'playing' || state === 'paused' || state === 'map')) save(); });
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && started && PLAYER.P.alive && (state === 'playing' || state === 'paused' || state === 'map')) save(); /* mid-job too: the job and its checkpoint are offered back on load */ });
     window.__ready = true;
     mark('rest'); console.log('boot', JSON.stringify(window.__bootTimes));
     last = performance.now(); requestAnimationFrame(frame);
