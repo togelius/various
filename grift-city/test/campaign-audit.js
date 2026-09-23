@@ -62,6 +62,11 @@ function runCampaignAudit() {
   const job=MISSIONS.jobState();check(job&&job.name===m.name&&job.cp===0,'a save records the job and its checkpoint');leave();MISSIONS.cleanup();S.current=null;S.cp=null;S.retry=null;
   MISSIONS.resumeJob(JSON.parse(JSON.stringify(job)));check(S.retry&&S.retry.resumed&&S.cp&&S.cp.restore,'a load offers the job back');
   const oldHit=INPUT.hit;INPUT.hit=k=>k==='KeyY';try{MISSIONS.update(.016);}finally{INPUT.hit=oldHit;}check(S.current===m&&m.data.ambush&&S.timer>100,'resuming starts from the checkpoint');MISSIONS.cleanup();S.current=null;S.cp=null;log.push('Resume from a saved checkpoint — passed');}
+ // Casing the bank: three photos (two door guards and the camera) mean one guard inside and a 35 s drill, not three and 55.
+ {check(CITY.interiors.bank&&CITY.interiors.bank.locked,'the bank has a vault interior that only the heist opens');const m=MISSIONS.LIST[7];const d=start(m);
+  for(const sj of d.subjects){at(sj.x,sj.z-16);p.angle=0;MISSIONS.onPhoto(0,1);}check(d.cased===d.subjects.length&&d.subjects.length===3,'three casing shots ('+d.cased+')');
+  place('bank');d.crew.forEach(c=>{c.x=p.x;c.z=p.z;});update(m);check(d.phase===1&&S.inside==='bank'&&d.inside.length===1&&S.timer===35,'a cased job goes in easier');
+  S.timer=0;update(m);check(d.phase===2&&!S.inside,'the crew come out with the bags');MISSIONS.cleanup();S.current=null;POLICE.clear();if(S.inside)MISSIONS.exitInterior();log.push('Casing the bank and the vault — passed');}
  // The finale's choice: a Bastion stopped by a crash leaves Crane alive with an offer; taking it pays $40,000, passes
  // CRANE and turns Crane's people; finishing it is Marla's ending.
  for(const pick of [1,0]){const m=MISSIONS.LIST[8];const d=start(m);beforeMoney=p.money;d.phase=1;d.crane.inCar=d.car;d.car.driver=d.crane;d.car.wrecked=true;d.car.disabled=true;update(m);check(d.phase===3&&d.crane.alive,'a crashed Bastion leaves Crane alive');

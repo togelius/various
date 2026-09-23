@@ -178,3 +178,10 @@ The items the first pass left out, worked through one at a time with the same ga
   for Marla or take his $40,000. The deal ends the story Crane's way: Marla's discount goes, Crane's crews stop
   turning on you, the police forget faster (evasion time x0.6), and the Gazette reports that he walked away. The
   ending is kept in the save's flags. The campaign audit plays both branches.
+- [x] The bank job. First Grift Bank has an interior under its lot (a banking hall with a counter and brass grille,
+  and a vault behind a round door with shelves of banded cash that glow at night-emissive strength), opened only by
+  the heist. THE FIRST GRIFT now starts with optional casing: the camera is in the car, and photographing the two door
+  guards and the camera over the door (a new prop) means one guard inside instead of three, a 35 s drill instead of
+  55, two stars instead of three to four, and a $2,500 clean-take bonus. The crew walk through the front door with
+  you and hold the vault door while the guards fight; when the vault is open everyone comes out and runs for the
+  safehouse. Audited (casing, interior, easier entry, exit) and played through in missions_all.

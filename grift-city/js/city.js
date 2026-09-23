@@ -594,7 +594,8 @@ const CITY = (() => {
       case 'bank':
         h = 14; b.box(x0, y, z0, W, h, D, [0.85, 0.82, 0.72], T.concrete, { uvScale: 1, faces: 63 }); for (let k = 0; k < 5; k++) b.cyl(x0 + 3 + k * (W - 6) / 4, y, z0 - 1.2, 0.6, y + 10, [0.9, 0.88, 0.8], 0, 8); b.box(x0 - 0.5, y + 10, z0 - 2.2, W + 1, 1.6, 2.6, [0.9, 0.88, 0.8]); b.box(x0 - 0.8, y + h, z0 - 0.8, W + 1.6, 1.2, D + 1.6, [0.75, 0.72, 0.62]);
         b.box(x0 + W / 2 - 2, y, z0 - 0.1, 4, 4, 0.2, [0.25, 0.2, 0.15]);
-        addPlace('bank', { x: front.x, z: front.z, label: sp.label, angle: 0 }); break;
+        b.box(x0 + W / 2 + 2.4, y + 4.4, z0 - 0.55, 0.5, 0.32, 0.55, [0.2, 0.2, 0.22]); b.cbox(x0 + W / 2 + 2.65, y + 4.5, z0 - 0.85, 0.16, 0.16, 0.08, [0.1, 0.1, 0.12]); // a security camera over the door, for casing
+        addPlace('bank', { x: front.x, z: front.z, label: sp.label, angle: 0, cam: { x: x0 + W / 2 + 2.65, y: y + 4.5, z: z0 - 0.8 } }); specialLots.bank = { x0, z0, x1, z1, door: front }; break;
       case 'tower': {
         h = 340; const tw = W * 0.7, td = D * 0.7, tx = x0 + (W - tw) / 2, tz = z0 + (D - td) / 2; // Crane's tower tops the skyline (the generic towers reach ~325 m), so it reads from anywhere as the thing to aim for
         for (let k = 0; k < 4; k++) { const fx = k < 2 ? tx - 0.4 : tx + tw - 0.8, fz = k % 2 ? tz + td - 0.8 : tz - 0.4; b.box(fx, y + h - 34, fz, 1.2, 41, 1.2, [0.42, 0.46, 0.52]); } // corner fins that rise a storey past the roof as a crown
@@ -664,6 +665,17 @@ const CITY = (() => {
       for (const lx of [x0 + 4, cx, x1 - 4]) { b.cyl(lx, Y + 2.5, cz, 0.02, Y + 3.2, dark, 0, 4); b.cyl(lx, Y + 2.2, cz, 0.35, Y + 2.5, [0.9, 0.85, 0.6], 0, 8, 0, true, true, 0.12); r.lights.push({ x: lx, y: Y + 2.1, z: cz, r: 9, col: [1.0, 0.8, 0.5] }); }
       r.lights.push({ x: cx, y: Y + 2.4, z: z1 - 1, r: 8, col: [0.9, 0.5, 0.9] }, { x: x1 - 1, y: Y + 1.3, z: z0 + 1, r: 5, col: [1, 0.7, 0.3] });
       r.spots.counter = { x: cx, z: z1 - 3.6 }; r.spots.bartender = { x: cx, z: z1 - 1.0 }; r.spots.jukebox = { x: x1 - 1.0, z: z0 + 1.9 }; r.spots.patrons = [[x0 + 3, z0 + 4.6], [cx + 1.8, z0 + 3.2], [x0 + 3.2, z1 - 3.5]]; }
+    // First Grift Bank: a marble banking hall with a counter, and at the back a vault behind a round door. Only the heist
+    // opens it (the doors are not a walk-in like the bar's).
+    if (specialLots.bank) { const r = room('bank', specialLots.bank, 18, 14); const { x0, z0, x1, z1, cx, cz } = r; r.locked = true;
+      b.box(x0, Y + 0.001, z0, x1 - x0, 0.02, z1 - z0, [0.74, 0.71, 0.66], 0); for (let k = 1; k < 6; k++) b.box(x0 + k * (x1 - x0) / 6 - 0.03, Y + 0.022, z0, 0.06, 0.005, z1 - z0, [0.52, 0.48, 0.42]); // pale stone floor laid in bands
+      b.box(x0 + 2, Y, cz - 0.5, x1 - x0 - 4, 1.15, 0.8, [0.42, 0.3, 0.2]); b.box(x0 + 1.9, Y + 1.15, cz - 0.6, x1 - x0 - 3.8, 0.08, 1.0, [0.75, 0.72, 0.66]); for (let k = 0; k < 4; k++) b.box(x0 + 3.5 + k * (x1 - x0 - 7) / 3, Y + 1.23, cz - 0.1, 0.05, 1.1, 0.05, [0.7, 0.62, 0.3]); // the counter and its brass grille
+      r.walls.push({ x0: x0 + 2, z0: cz - 0.5, x1: cx - 1.2, z1: cz + 0.3, h: Y + 1.3, kind: 'wall' }, { x0: cx + 1.2, z0: cz - 0.5, x1: x1 - 2, z1: cz + 0.3, h: Y + 1.3, kind: 'wall' }); // a gap behind the counter
+      b.box(x0, Y, z1 - 4.2, cx - 1.6 - x0, 3.2, 0.4, [0.55, 0.55, 0.58]); b.box(cx + 1.6, Y, z1 - 4.2, x1 - cx - 1.6, 3.2, 0.4, [0.55, 0.55, 0.58]); r.walls.push({ x0, z0: z1 - 4.2, x1: cx - 1.6, z1: z1 - 3.8, h: Y + 3.2, kind: 'wall' }, { x0: cx + 1.6, z0: z1 - 4.2, x1, z1: z1 - 3.8, h: Y + 3.2, kind: 'wall' }); // the vault wall
+      b.cyl(cx + 2.4, Y + 0.1, z1 - 4.5, 1.5, Y + 0.3, [0.62, 0.62, 0.66], 0, 20); b.cbox(cx + 2.4, Y + 1.4, z1 - 4.35, 2.4, 2.4, 0.3, [0.6, 0.6, 0.64]); b.cyl(cx + 2.4, Y + 1.4, z1 - 4.6, 0.5, Y + 1.5, [0.8, 0.75, 0.4], 0, 12); // the round door, swung open
+      for (let k = 0; k < 6; k++) { const sx = x0 + 3 + k * (x1 - x0 - 6) / 5; b.box(sx - 0.6, Y, z1 - 1.0, 1.2, 1.8, 0.6, [0.4, 0.42, 0.45]); for (let j = 0; j < 3; j++) b.cbox(sx, Y + 0.35 + j * 0.55, z1 - 0.95, 0.9, 0.18, 0.4, [0.35, 0.55, 0.3], 0, { bone: 20 }); } // shelves of banded cash, glowing faintly green
+      for (const lx of [x0 + 4, cx, x1 - 4]) r.lights.push({ x: lx, y: Y + 2.8, z: z0 + 3.5, r: 10, col: [1.0, 0.92, 0.78] }); r.lights.push({ x: cx, y: Y + 2.4, z: z1 - 2, r: 7, col: [0.7, 1.0, 0.75] });
+      r.spots.vault = { x: cx, z: z1 - 2.2 }; r.spots.crew = [[cx - 2.2, z1 - 5.2], [cx + 2.2, z1 - 5.2]]; r.spots.guards = [[x0 + 2.5, z0 + 3], [x1 - 2.5, z0 + 3], [cx, cz + 2.2]]; }
     if (specialLots.safehouse) { const r = room('safehouse', specialLots.safehouse, 11, 9); const { x0, z0, x1, z1, cx, cz } = r;
       b.box(x1 - 3.2, Y, z1 - 2.3, 2.2, 0.5, 2.1, [0.35, 0.28, 0.2]); b.box(x1 - 3.1, Y + 0.5, z1 - 2.2, 2.0, 0.25, 1.9, [0.75, 0.75, 0.8]); b.cbox(x1 - 2.1, Y + 0.85, z1 - 0.7, 1.4, 0.2, 0.5, [0.95, 0.95, 0.9]); b.box(x1 - 3.2, Y + 0.5, z1 - 2.3, 2.2, 0.35, 0.35, [0.5, 0.3, 0.3]); r.walls.push({ x0: x1 - 3.2, z0: z1 - 2.3, x1: x1 - 1.0, z1: z1 - 0.2, h: Y + 0.8, kind: 'wall' }); // bed
       b.box(x0 + 0.2, Y, z1 - 2.2, 1.0, 2.2, 2.0, [0.3, 0.2, 0.12]); b.cbox(x0 + 1.22, Y + 1.1, z1 - 1.2, 0.02, 2.0, 1.8, [0.4, 0.28, 0.16]); b.cbox(x0 + 1.25, Y + 1.1, z1 - 1.2, 0.03, 0.12, 0.03, [0.85, 0.8, 0.4]); r.walls.push({ x0: x0, z0: z1 - 2.2, x1: x0 + 1.2, z1: z1 - 0.2, h: Y + 2.2, kind: 'wall' }); // wardrobe
