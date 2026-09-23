@@ -306,7 +306,7 @@ const GAME = (() => {
     const dlg = !!MISSIONS.dialogue;
     MISSIONS.update(dt); if (typeof GRIFT !== 'undefined') GRIFT.update(dt); ECON.update(dt);
     { const h = W.state.time; if (lastHour < 7 && h >= 7 && h < 8 && PLAYER.P.alive && !MISSIONS.S.current) HUD.gazette?.(); lastHour = h; } // the morning edition
-    if (!dlg) PLAYER.update(dt); else { PLAYER.P.aim = 0; PLAYER.P.vx = PLAYER.P.vz = 0; if (PLAYER.car) { PLAYER.car.controls.throttle = 0; PLAYER.car.controls.brake = 1; } PLAYER.updateCamera(dt); }
+    if (!dlg) PLAYER.update(dt); else { PLAYER.P.aim = 0; PLAYER.P.vx = PLAYER.P.vz = PLAYER.P.speed = 0; PLAYER.P.turnStep = PLAYER.P.accelLean = 0; PEDS.updateMotion(PLAYER.P,dt); if (PLAYER.car) { PLAYER.car.controls.throttle = 0; PLAYER.car.controls.brake = 1; } PLAYER.updateCamera(dt); }
     PLAYER.updateProjectiles(dt);
     VEH.updateAll(dt, night); PEDS.updateAll(dt); POLICE.update(dt); PICKUPS.update(dt);
     W.updateLights(dt); W.updateKnocked(dt); W.updateExplosions(dt); W.updateParticles(dt); AMBIENT.update(dt, PLAYER.x, PLAYER.z);STREETLIFE.update(dt);

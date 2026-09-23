@@ -16,7 +16,7 @@ function runCampaignAudit() {
  for(const m of MISSIONS.LIST) {
   const d=start(m);beforeMoney=p.money;
   switch(m.id) {
-   case 0: {const c=d.car;enter(c);update(m);check(p.wanted===1,'the hot car brings a star');POLICE.clear();update(m);check(S.dialogue,'Marla calls once the heat is off');S.dialogue=null;park('garage');c.x=p.x;c.z=p.z;update(m);break;}
+   case 0: {const c=d.car;enter(c);update(m);check(p.wanted===1,'the hot car brings a star');check(S.blip?.direct && S.objective.length<55,'opening points straight through the gate with a short instruction');p.z=d.exit.z+3;update(m);check(!S.blip && /out of sight/.test(S.objective),'gate exit clears route and teaches hiding');POLICE.clear();update(m);check(S.dialogue,'Marla calls once the heat is off');S.dialogue=null;park('garage');c.x=p.x;c.z=p.z;update(m);break;}
    case 1: d.method='unnoticed';enter(d.car);park('garage');update(m);break;
    case 2: enter(d.van);park('docks');update(m);break;
    case 3: at(...d.spot);update(m);d.goons.forEach(dead);update(m);dead(d.teddy);update(m);check(d.cash,'Teddy must drop the collection');p.money+=d.cash.amount;d.cash.taken=true;update(m);place('mission');update(m);break;

@@ -65,7 +65,7 @@ const STREETS = (() => {
       building(x+3,z+31,23,29,17,'loft',19);building(x+38,z+4,22,24,14,'stone',7);building(x+38,z+40,22,20,11,'painted',5);
       const lane=[[x+32,z-10],[x+32,z+74]];paintPath(lane,5.6);route('Lantern Lane',lane,5.6);
       gate(x+29.2,z+43,5.6,.16);wall(x+42,z+32,9,.5);wall(x+53,z+32,7,.5);
-      landmark('Lantern Diner',x+15,z-2,'diner');props.cafeSet.push({x:x+13,z:z-1.5,a:0});parkedSpots.push({x:x+33,z:z+20,angle:0});
+      landmark('Lantern Diner',x+15,z-2,'diner');props.cafeSet.push({x:x+13,z:z-1.5,a:0}); // Keep the opening escape lane clear of parked vehicles.
     } else if(id==='2,4') {
       building(x+3,z+3,22,13,11,'brick3',14);building(x+39,z+3,15,13,11,'painted',14);building(x+4,z+47,49,14,14,'loft',17);building(x+3,z+23,12,19,8,'painted',2);
       b.floor(x+18,z+18,38,27,.165,C.cream,T.sidewalk,6);

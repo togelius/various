@@ -44,6 +44,7 @@ const HUD = (() => {
   function radarLayout(w, h) { const R = Math.min(82, w * 0.12); return TOUCH.active ? { R, cx: R + 18, cy: R + 18 } : { R, cx: R + 24, cy: h - R - 30 }; }
   let routeCache = { key: '', points: [] };
   function route(P, bp) {
+    if (bp && bp.direct) return [[P.x,P.z],[bp.x,bp.z]];
     if(typeof NAV!=='undefined'){const p=NAV.route(P,bp);if(p.length)return p;}
     if (!bp || !P.car || P.car.spec.boat || M.dist(P.x,P.z,bp.x,bp.z) < 20) return [];
     const nearest = (x,z) => CITY.roadNodes.reduce((a,b) => M.dist2(a.x,a.z,x,z) < M.dist2(b.x,b.z,x,z) ? a : b);

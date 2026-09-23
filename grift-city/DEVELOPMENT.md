@@ -223,3 +223,9 @@ The final close-up inspection also tightened rifle and shotgun poses: a tucked r
 Final gate: 14 dependency-free suites, 11 browser suites, release build and whitespace checks pass. The final wrist adjustment was followed by another complete node gate, live muted studio inspection, and a rendering regression. The visible pressure-test run completed the first switch in 7.4 simulated seconds with 100 health; the longer replay lost pursuit at 89.4 seconds with damage and traffic active.
 
 Final clothing follow-up: increase clearance between the open shirt, jacket and necklace so the chest bend does not expose a brown triangle through the shirt. Checked in the front sprint pose; geometry, joint and weighted-skin checks pass.
+
+## Opening clarity — September 23
+
+The first escape now points directly through Lantern Lane's wooden gate with a short objective; after leaving the lane, it asks the player to turn a corner and stay out of sight. The starting lane no longer has a parked-vehicle slot, and gentle restarts clear ordinary parked obstructions from the run-up. Resprays remain usable and available on the map. Dialogue settles the player's locomotion state, and shot selection checks 3D sight against props as well as buildings.
+
+Validation: all 14 dependency-free suites, campaign transitions, release build and whitespace checks pass. A fresh, muted browser start confirmed the unobstructed lane and matching radar/instruction. This is a targeted correction following a stepped-input opening walkthrough, not a fresh-player difficulty study.

@@ -118,14 +118,21 @@ const MISSIONS = (() => {
         // one-car alley whose timber gate gives way to a bumper. Without the quarter it falls back to the nearest kerb.
         const diner = typeof STREETS !== 'undefined' && STREETS.landmarks.find(l => l.key === 'diner');
         if (diner) { const bx = diner.x - 15, bz = diner.z + 2; p.x = bx + 29; p.z = bz - 1.5; p.y = CITY.groundY(p.x, p.z); p.vx = p.vz = 0; if (p.car) { p.car.driver = null; p.car = null; p.state = 'foot'; }
-          d.car = spawnCar('sports', bx + 32, bz + 5, 0, { color: 1 }); d.lane = true; d.owner = spawnPed(bx + 29.5, bz + 2.5, { name: 'OWNER', stationary: true, item: 'phone' }); }
+          // Give the first driving lesson a clear run-up, including on a gentle restart.
+          for (const c of W.cars) if (!c.removed && !c.important && c !== p.car && Math.abs(c.x-(bx+32)) < 5 && c.z > bz && c.z < bz+65) c.remove();
+          d.car = spawnCar('sports', bx + 32, bz + 5, 0, { color: 1 }); d.lane = true; d.exit = {x:bx+32,z:bz+49}; d.owner = spawnPed(bx + 29.5, bz + 2.5, { name: 'OWNER', stationary: true, item: 'phone' }); }
         else { const ln = CITY.nearestLane(p.x, p.z); const [lx, lz] = CITY.lanePoint(ln.e, 1, M.clamp(ln.s, 8, CITY.laneLen(ln.e) - 8));
           d.car = spawnCar('sports', lx + ln.e.rx * 0.7, lz + ln.e.rz * 0.7, Math.atan2(ln.e.dx, ln.e.dz), { color: 1 }); d.owner = spawnPed(lx + ln.e.rx * 3.2 - ln.e.dx * 2, lz + ln.e.rz * 3.2 - ln.e.dz * 2, { name: 'OWNER', stationary: true, item: 'phone' }); }
         d.car.lightsOn = true; d.car.hot = true; d.owner.faceTarget = d.car;
         p.angle = p.camYaw = Math.atan2(d.car.x - p.x, d.car.z - p.z); d.phase = 0; blip(d.car.x, d.car.z, '#f5c542', d.car); objective(typeof TOUCH !== 'undefined' && TOUCH.active ? 'Take the car: walk up to it and tap ENTER.' : 'Take the car: walk up to it and press F.'); },
       update(d, dt) { const p = P();
-        if (d.phase === 0) { if (p.car) { d.phase = 1; if (d.owner.alive) { d.owner.say("Hey! That's my car!"); d.owner.stationary = false; d.owner.scare?.(p.x, p.z); } POLICE.setStars(1); const sp = CITY.nearestPlace('spray', p.x, p.z) || place('spray'); blip(sp.x, sp.z, '#2fd6c4'); objective(d.lane ? "Lose the cops. Lantern Lane runs south ahead of you, and its old gate won't stop a car. Or get resprayed at the teal Pay 'n' Spray." : "Lose the cops: get out of sight, or get it resprayed at the teal Pay 'n' Spray."); HUD.notify('One star. Break line of sight and the heat fades.'); } return; }
-        if (d.phase === 1) { if (p.wanted === 0) { d.phase = 2; S.blip = null; say([['MARLA', 'Saw that from the garage. You drive like somebody with nothing to lose.'], ['MARLA', "Voss Motors. Bring the car, I'll make it legal."]], () => { const g = place('garage'); blip(g.x, g.z); objective('Bring a car to Voss Motors.'); }); } return; }
+        if (d.phase === 0) { if (p.car) { d.phase = 1; if (d.owner.alive) { d.owner.say("Hey! That's my car!"); d.owner.stationary = false; d.owner.scare?.(p.x, p.z); } POLICE.setStars(1); if (d.exit) { blip(d.exit.x,d.exit.z); S.blip.direct=true; objective('Drive through the wooden gate ahead.'); }
+          else { S.blip=null; objective('Lose the cops. Turn a corner and stay out of sight.'); }
+          HUD.notify('One star. Get out of sight to lose the police.'); } return; }
+        if (d.phase === 1) {
+          if (d.exit && (p.z > d.exit.z-2 || Math.abs(p.x-d.exit.x)>12)) { d.exit=null; S.blip=null; }
+          if (!d.exit && p.wanted) objective('Lose the cops. Turn a corner and stay out of sight.');
+          if (p.wanted === 0) { d.phase = 2; S.blip = null; say([['MARLA', 'Saw that from the garage. You drive like somebody with nothing to lose.'], ['MARLA', "Voss Motors. Bring the car, I'll make it legal."]], () => { const g = place('garage'); blip(g.x, g.z); objective('Voss Motors: stop by the yellow garage.'); }); } return; }
         if (d.phase === 2 && !S.dialogue) { const g = place('garage'); if (p.car && M.dist2(p.car.x, p.car.z, g.x, g.z) < 12 * 12 && p.car.absSpeed < 3) { const c = p.car; c.owned = c.playerOwned = true; pass(500, 'The car is yours now. Marla is waiting inside the yellow marker.'); } else if (!p.car) objective('Get a car and bring it to Voss Motors.'); } } },
     { id: 1, name: 'REPO MAN',
       intro: [['MARLA', 'So you drive. Everybody drives. Question is whether you can drive with somebody screaming at you.'], ['MARLA', "A customer stopped paying on a red Falcata. It's parked outside a bar in Northgate. You can talk him round. Spook him and he'll run."], ['MARLA', "Go calmly, empty-handed, and hold G to talk. Or get creative. Bring the car back clean."]],

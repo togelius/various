@@ -401,7 +401,7 @@ const PLAYER = (() => {
       const cut = P.dlgLine !== dlg.i || P.dlgFocus !== f; if (cut) { P.dlgLine = dlg.i; P.dlgFocus = f; }
       const SHOTS = [[Math.PI / 2, 4.2], [-Math.PI * 0.85, 3.0], [-Math.PI / 2, 4.2], [Math.PI * 0.85, 3.0], [0.4, 2.6], [-0.4, 2.6]]; const start = dlg.i % SHOTS.length;
       let best = null;
-      for (let k = 0; k < SHOTS.length; k++) { const [off, d0] = SHOTS[(start + k) % SHOTS.length]; const a = base + off + Math.sin(t * 0.25) * 0.15; for (const dist of [d0, d0 * 0.75, 2.2]) { const cx = mid[0] + Math.sin(a) * dist, cz = mid[1] + Math.cos(a) * dist; if (CITY.insideLot(cx, cz) || !W.los(cx, cz, f.x, f.z) || !W.los(cx, cz, P.x, P.z)) continue; best = [cx, cz]; break; } if (best) break; }
+      for (let k = 0; k < SHOTS.length; k++) { const [off, d0] = SHOTS[(start + k) % SHOTS.length]; const a = base + off + Math.sin(t * 0.25) * 0.15; for (const dist of [d0, d0 * 0.75, 2.2]) { const cx = mid[0] + Math.sin(a) * dist, cz = mid[1] + Math.cos(a) * dist; if (CITY.insideLot(cx, cz) || !W.sight3(cx,1.7,cz,f.x,f.y+1.4,f.z,[P.car]) || !W.sight3(cx,1.7,cz,P.x,P.y+1.4,P.z,[P.car])) continue; best = [cx, cz]; break; } if (best) break; }
       if (!best) best = [mid[0] + Math.sin(base) * 2, mid[1] + Math.cos(base) * 2];
       const cy = (dlg.i % 2 ? 1.55 : 1.8) + Math.sin(t * 0.4) * 0.1;
       if (cut) { P.camX = best[0]; P.camY = cy; P.camZ = best[1]; } else { P.camX = M.lerp(P.camX, best[0], Math.min(1, 3 * dt)); P.camY = M.lerp(P.camY, cy, Math.min(1, 3 * dt)); P.camZ = M.lerp(P.camZ, best[1], Math.min(1, 3 * dt)); }
