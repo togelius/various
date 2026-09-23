@@ -37,11 +37,11 @@ const TOUCH = (() => {
   function metrics() {
     const W = (hudCv && hudCv.clientWidth) || window.innerWidth || 960;
     const H = (hudCv && hudCv.clientHeight) || window.innerHeight || 540;
-    const u = Math.max(34, Math.min(62, Math.min(W, H) * 0.085));
-    return { W, H, u };
+    const o = typeof GAME !== 'undefined' ? GAME.options : {}; const u = Math.max(34, Math.min(62, Math.min(W, H) * 0.085)) * (o.touchScale || 1);
+    return { W, H, u, left: !!o.touchLeft };
   }
   function layout() {
-    const { W, H, u } = metrics();
+    const { W, H, u, left } = metrics();
     const P = ply();
     const car = P && P.car;
     const m = u * 1.3, bx = W - m, by = H - m;
@@ -81,6 +81,8 @@ const TOUCH = (() => {
     const L = { W, H, u, car: !!car, buttons: B,
       home: { x: Math.max(u * 2.3, W * 0.15), y: H - u * 2.5, r: u * 1.35 },
       zone: { x1: W * 0.47, y0: H * 0.26 } };
+    // Left-handed: the action cluster and the stick swap sides; the top row (map, pause) stays where it is.
+    if (left) { for (const b of B) if (b.id !== 'map' && b.id !== 'pause' && b.id !== 'full') b.x = W - b.x; L.home.x = W - L.home.x; L.left = true; }
     lastL = L; return L;
   }
   const canFull = () => !!((document.fullscreenEnabled && document.documentElement.requestFullscreen)
@@ -92,6 +94,7 @@ const TOUCH = (() => {
       else (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
     } catch (e) { }
   }
+  const W_ = L => L.W;
   function buttonAt(x, y, L) {
     for (let i = L.buttons.length - 1; i >= 0; i--) { const b = L.buttons[i];
       const dx = x - b.x, dy = y - b.y, r = b.r * 1.3; if (dx * dx + dy * dy <= r * r) return b; }
@@ -137,10 +140,11 @@ const TOUCH = (() => {
       return;
     }
     if (md === 'shop') { pts.set(id, { role: 'none' }); return; }
-    if (x < L.zone.x1 && y > L.zone.y0 && !stick) {
+    const stickSide = L.left ? x > W_(L) - L.zone.x1 : x < L.zone.x1;
+    if (stickSide && y > L.zone.y0 && !stick) {
       stick = { id, cx: x, cy: y, nx: 0, ny: 0 }; pts.set(id, { role: 'stick' }); return;
     }
-    if (x >= L.zone.x1 && !look) { look = { id, x, y }; pts.set(id, { role: 'look' }); return; }
+    if (!stickSide && !look) { look = { id, x, y }; pts.set(id, { role: 'look' }); return; }
     pts.set(id, { role: 'none' });
   }
   function fireTap(id) {
@@ -166,7 +170,7 @@ const TOUCH = (() => {
       if (d > R) { dx = dx / d * R; dy = dy / d * R; }
       stick.nx = dx / R; stick.ny = dy / R; stick.x = stick.cx + dx; stick.y = stick.cy + dy;
     } else if (p.role === 'btn' && p.btn === 'weapon') { // holding WEAP opens the wheel; the thumb's direction from the button picks
-      if (!wheel && (Math.hypot(x - p.x0, y - p.y0) > 18 || performance.now() - p.t0 > 280)) wheel = { cx: p.x0 - (lastL ? lastL.u * 2.4 : 120), cy: p.y0 - (lastL ? lastL.u * 2.4 : 120), pick: -1 };
+      if (!wheel && (Math.hypot(x - p.x0, y - p.y0) > 18 || performance.now() - p.t0 > 280)) wheel = { cx: p.x0 + (lastL && lastL.left ? 1 : -1) * (lastL ? lastL.u * 2.4 : 120), cy: p.y0 - (lastL ? lastL.u * 2.4 : 120), pick: -1 };
       if (wheel) wheel.pick = wheelPick(x, y);
     } else if (p.role === 'look' && look && look.id === e.pointerId) {
       INPUT.mouse.dx += (x - look.x) * LOOK_GAIN; INPUT.mouse.dy += (y - look.y) * LOOK_GAIN;
@@ -232,7 +236,7 @@ const TOUCH = (() => {
       g.fillStyle = '#f5c542'; g.fillText('Turn the device sideways to play', W / 2, H / 2);
       return;
     }
-    const playing = md === 'play';
+    const playing = md === 'play'; g.save(); g.globalAlpha = (typeof GAME !== 'undefined' && GAME.options.touchOpacity) || 0.85;
     for (const b of L.buttons) {
       const isTop = b.id === 'map' || b.id === 'pause' || b.id === 'full';
       if (!playing && !isTop) continue;
@@ -244,7 +248,7 @@ const TOUCH = (() => {
       g.fillStyle = down ? '#fff' : 'rgba(255,255,255,0.82)';
       g.fillText(b.label, b.x, b.y);
     }
-    if (!playing) return;
+    if (!playing) { g.restore(); return; }
     drawWheel(g);
     // the stick: a faint home ring until a thumb lands, then it follows the thumb
     const h = L.home;
@@ -255,6 +259,7 @@ const TOUCH = (() => {
       ring(g, h.x, h.y, h.r, 'rgba(10,14,18,0.16)', 'rgba(255,255,255,0.22)', 2);
       ring(g, h.x, h.y, h.r * 0.42, 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0.26)', 2);
     }
+    g.restore();
   }
 
   function init(canvas) {

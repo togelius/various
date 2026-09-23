@@ -157,3 +157,5 @@ The items the first pass left out, worked through one at a time with the same ga
   get a line from Okafor acknowledging Crane is dead (his lieutenants still run the yards). Lots in the middle column
   of a three-wide block no longer paint shopfronts on the wall that faces the next lot (41 such fronts; the random
   picks still happen, so the seeded city is unchanged).
+- [x] Touch layout settings: button size (0.75-1.4x), button opacity, and a left-handed mode that mirrors the action
+  cluster and puts the stick on the right (the weapon wheel opens toward the screen centre either way).

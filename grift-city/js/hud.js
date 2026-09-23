@@ -280,7 +280,7 @@ const HUD = (() => {
     if (TOUCH.active) {
       const cc = P.car;
       if (cc) return 'GAS · BRAKE · HAND handbrake · EXIT · stick steers · drag to look';
-      return 'stick to walk, push it to the rim to run · drag the right side to look';
+      return 'stick to walk, push it to the rim to run · drag the ' + (GAME.options.touchLeft ? 'left' : 'right') + ' side to look';
     }
     if (P.state === 'entering') return 'Getting in · F or move to cancel';
     const c = P.car;
