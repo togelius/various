@@ -16,7 +16,7 @@ const VEH = (() => {
 
   const tmpV = [0, 0, 0]; const CIRC_A = new Float64Array(9), CIRC_B = new Float64Array(9); /* scratch for circlesInto */ const TURN_R = 10; // radius of the arc traffic drives through a corner (m); long vehicles need more
   const LEAN_SIGN = -1; // positive roll tips the body to the right, so leaning into a left turn (positive yaw) is negative
-  const HANDLING={sedan:{response:5.2,steer:.60,front:.48,rear:.52,stiffF:.13,stiffR:.095,inertia:.30,damping:1.9,brake:1,drive:1.1},sports:{response:7.4,steer:.66,front:.53,rear:.47,stiffF:.10,stiffR:.14,inertia:.25,damping:1.35,brake:1.12,drive:1.6},utility:{response:3.6,steer:.57,front:.46,rear:.54,stiffF:.15,stiffR:.12,inertia:.39,damping:1.5,brake:.85,drive:1.05}};
+  const HANDLING={sedan:{response:5.2,steer:.60,front:.48,rear:.52,stiffF:.13,stiffR:.095,inertia:.30,damping:1.9,brake:1,drive:1.1},sports:{response:7.4,steer:.66,front:.50,rear:.50,stiffF:.10,stiffR:.085,inertia:.25,damping:1.8,brake:1.12,drive:1.6},utility:{response:3.6,steer:.57,front:.46,rear:.54,stiffF:.15,stiffR:.12,inertia:.39,damping:1.5,brake:.85,drive:1.05}};
   const handling=s=>s.sports||s.top>=33?HANDLING.sports:s.mass>=1.3?HANDLING.utility:HANDLING.sedan;
   const condition=()=>({engine:1,cooling:1,temperature:0,panels:[1,1,1,1],glass:[1,1,1,1],tyres:[1,1,1,1]});
   let nextIdentity=1;
@@ -85,7 +85,7 @@ const VEH = (() => {
       let vF = this.vx * f[0] + this.vz * f[1], vL = this.vx * r[0] + this.vz * r[1];
       const tune=handling(s); const top = s.top; const spd = Math.abs(vF);
       // steering: the wheel angle that full lock gives shrinks with speed, so a twitch at 150 km/h is not a spin
-      this.steer = M.approach(this.steer, M.clamp(c.steer, -1, 1), tune.response * dt);
+      const want = M.clamp(c.steer, -1, 1); this.steer = M.approach(this.steer, want, tune.response * (Math.abs(want) < Math.abs(this.steer) || want * this.steer < 0 ? 2.2 : 1) * dt); // the wheel self-centres faster than it winds on
       const maxSteer = tune.steer / (1 + spd / 13);
       const assist=this.driver===PLAYER?(GAME.options?.steeringAssist??.35):0;
       const counter=M.clamp(-Math.atan2(vL,Math.max(spd,3))*.35,-.09,.09)*assist*Math.min(1,spd/10);
@@ -93,7 +93,7 @@ const VEH = (() => {
       // tyre model: a bicycle with a front and a rear axle, lateral force from slip angle up to a friction limit
       const Lw = s.len * 0.58, bF = Lw * 0.5, bR = Lw * 0.5; const mu = 13 * s.grip; // total lateral grip, m/s^2
       const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked');
-      const wet = 1 - 0.3 * (RENDER.env.wet || 0); // rain takes almost a third of the grip
+      const wet = 1 - 0.18 * (RENDER.env.wet || 0); // rain takes a fifth of the grip
       let muF = mu * tune.front * wet * this.dmg.front, muR = mu * tune.rear * wet * this.dmg.rear; if (c.handbrake) muR *= 0.32; if (c.brake > 0.6 && vF > 4) muF *= 0.75; // locked rears slide, hard braking dulls the front
       const Cf = muF / tune.stiffF, Cr = muR / tune.stiffR; // cornering stiffness: the front saturates at a slightly larger slip than the rear, so the car understeers gently
       let wheelspin = 0;
@@ -101,10 +101,10 @@ const VEH = (() => {
       let aLong = 0;
       if (live && !this.airborne) {
         if (c.throttle > 0) { const k = Math.max(0.15, 1 - Math.max(0, vF) / top); const want = s.accel * k * c.throttle * (.18+.82*this.condition.engine); const latUse = Math.min(1, Math.abs(this.latForceR || 0) / muR); const avail = muR * tune.drive * Math.sqrt(Math.max(0.05, 1 - latUse * latUse)); aLong += Math.min(want, avail); if (want > avail * 1.15 && spd < 12) wheelspin = 1; }
-        if (c.brake > 0) { if (vF > 0.3) aLong -= Math.min(s.brake, mu * .9 * wet * tune.brake) * c.brake; else if (c.reverse === false) aLong += Math.min(s.brake * c.brake, -vF / dt); /* forward pedal while rolling backwards: stop, don't reverse harder */ else if (vF > -top * 0.35) aLong -= s.accel * 0.6 * c.brake; }
+        if (c.brake > 0) { if (vF > 0.3) aLong -= Math.min(s.brake, mu * .9 * (1 - 0.3 * (RENDER.env.wet || 0)) * tune.brake) * c.brake; /* rain still costs a third of the braking */ else if (c.reverse === false) aLong += Math.min(s.brake * c.brake, -vF / dt); /* forward pedal while rolling backwards: stop, don't reverse harder */ else if (vF > -top * 0.35) aLong -= s.accel * 0.6 * c.brake; }
       }
       if (!this.airborne) { aLong -= Math.sign(vF) * Math.min(Math.abs(vF) / dt, 1.2 + (c.handbrake ? 6 : 0)); aLong -= vF * Math.abs(vF) * 0.0035; }
-      let yawR = this.yawRate || 0;
+      let yawR = this.yawRate || 0; const grip = c.handbrake || !live ? 0 : this.driver === PLAYER ? (GAME.options?.gripAssist ?? .6) : .6;
       const sub = 2, h = dt / sub;
       for (let k = 0; k < sub; k++) {
         vF += aLong * h; if (c.brake > 0 && c.reverse !== true && Math.abs(vF) < 0.15 && spd < 1) vF = 0;
@@ -119,6 +119,10 @@ const VEH = (() => {
         const kinYaw = vF / Lw * Math.tan(delta);
         vL += aLat * h * w; vL -= yawR * vF * h * w; vL -= vL * Math.min(1, 10 * h) * (1 - w);
         yawR += yawAcc * h * w; yawR = yawR * w + kinYaw * (1 - w); yawR -= yawR * Math.min(1, tune.damping * h);
+        // arcade grip: tyres that bite a little harder than physics would allow, so the car goes where it points and
+        // stops turning when the wheel does. The handbrake switches it off; that is what the handbrake is for.
+        if (grip > 0 && w > 0) { const g = grip * w * Math.min(1, Math.abs(vF) / 6); vL -= vL * Math.min(1, 4.5 * g * h);
+          const lim = (muF + muR) * 1.25 / v, target = M.clamp(kinYaw, -lim, lim); yawR += (target - yawR) * Math.min(1, 5 * g * h); }
         this.latForceR = Fr; this.slipF = af; this.slipR = ar; this.latAcc = aLat;
       }
       if (!this.airborne) this.angle += yawR * dt;

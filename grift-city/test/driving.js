@@ -12,6 +12,10 @@ assert.ok(stats[1].speed>stats[0].speed+3,'sports acceleration distinct');assert
 const stop=wet=>{RENDER.env.wet=wet;const c=spawn('sedan');c.vz=20;c.controls.brake=1;c.controls.reverse=false;let i=0;while(c.absSpeed>.2&&i++<600)c.physics(1/60);return c.z-300;};
 const dry=stop(0),wet=stop(1);assert.ok(wet>dry*1.2,'wet braking distance longer');RENDER.env.wet=0;
 const speeds=[];for(const fps of [30,60,120]){const c=spawn('sports');c.controls.throttle=1;run(c,4,fps);speeds.push(c.absSpeed);}assert.ok(Math.max(...speeds)-Math.min(...speeds)<.4,'frame-rate stable acceleration');
+const settle=(type,hb)=>{const c=spawn(type);c.vz=20;let pk=0;for(let i=0;i<60;i++){c.controls.throttle=hb?0:.5;c.controls.handbrake=hb?1:0;c.controls.steer=1;c.physics(1/60);pk=Math.max(pk,Math.atan2(Math.abs(c.lat),Math.abs(c.speed))*57.3);}
+ c.controls.handbrake=0;c.controls.steer=0;let t=0;for(let i=0;i<300;i++){c.physics(1/60);if(Math.abs(c.lat)>.4||Math.abs(c.yawRate)>.1)t=(i+1)/60;}return {pk,t};};
+for(const type of ['sedan','sports','muscle','pickup']){const r=settle(type,false);assert.ok(r.t<.6&&r.pk<5,type+' grips: slip '+r.pk.toFixed(1)+' deg, settles in '+r.t.toFixed(2)+' s');}
+assert.ok(settle('sports',true).pk>12,'the handbrake still breaks the rear loose');
 const c=spawn('sedan');c.damage(120,PLAYER,{x:301,y:.3,z:301.4,kind:'bullet'});assert.equal(c.condition.tyres[0],0);assert.equal(c.condition.tyres.filter(t=>t===0).length,1);assert.ok(c.dmg.front<.6);assert.equal(c.condition.engine,1,'tyre hit does not damage engine');
 c.damage(300,PLAYER,{x:300,y:.7,z:302.2,kind:'impact'});assert.ok(c.condition.engine<1&&c.condition.cooling<c.condition.engine);
 c.damage(100,PLAYER,{x:301,y:1.2,z:300,kind:'bullet'});assert.equal(c.condition.glass[2],0);

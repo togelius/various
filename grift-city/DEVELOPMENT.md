@@ -253,3 +253,21 @@ full browser campaign pass. No mobile-performance or listening test was performe
 - [x] Kerb cars sit 2.35 m out from the outer lane's centre (two wheels on the pavement) and traffic passes a parked
   kerb car instead of queueing behind it; before, outer-lane traffic stopped 7.7 m short of one (`test/getaway.js`).
   Found through the escape endurance replay, whose scripted driver sat behind one for eight minutes after a respawn.
+
+## Car grip — September 24
+
+Playtest report from an iPad: the cars feel slippery. Measured with the bicycle model in node (20 m/s, one second
+at full lock, then let go): sports and muscle cars — the sports tune — kept sliding for 2.8 s (5 s in the wet)
+and ran 18–25° past the exit of a 90° corner, because their front axle was stiffer than their rear (Cf > Cr is
+oversteer, unstable at speed). Every car ran 8–12° past the corner because the wheel took as long to centre as
+to wind on.
+
+- [x] Sports tune rebalanced to mild understeer (50/50 grip split, rear stiffness .14 → .085, yaw damping 1.8).
+- [x] Arcade grip: each substep bleeds sideways speed and pulls the yaw rate toward the kinematic turn the wheel
+  asks for, capped at 1.25× what the tyres could hold. Off under the handbrake, so drifts still work. The player
+  can set it under Settings → Tyre grip assistance (default .6; 0 is the old model); AI cars use .6.
+- [x] The wheel self-centres 2.2× faster than it winds on.
+- [x] Rain takes a fifth of the cornering grip (was nearly a third); braking still loses a third in the wet.
+
+Result: every class settles within 0.2–0.4 s of letting go, wet or dry; corner overshoot 4–8°; handbrake still
+breaks the sports car's rear loose (25° slip) but no longer spins it. Regression in `test/driving.js`.
