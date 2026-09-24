@@ -93,7 +93,7 @@ const Game = (() => {
   // ---------------------------------------------------------------- world and cast
   RENDER.init(cv);
   const world = World.build();
-  const kid = new Kid();
+  const kid = new Character();
   const P = Player.P;
   const bearerMesh = null;
   const machines = [];
@@ -201,7 +201,7 @@ const Game = (() => {
     if (P.torch && P.hold > 0.05) P.flinch = true;
     // the kid
     Tracks.update(P);
-    kid.pose(P.x, P.y, P.z, P.yaw, P.speed / 1.4, dt, clamp(P.hold * 2, 0, 1) || (standoffWith ? 0.25 : 0), 0, P.torch);
+    kid.pose(P.x, P.y, P.z, P.yaw, P.speed / 1.4, dt, clamp(P.hold * 2, 0, 1) || (standoffWith ? 0.25 : 0), 0, P.torch, P.cutterUp);
     P.handWorld = kid.hand;
     // machines
     const mctx = { calmCeiling: quiet() ? 1 : calmCeiling, awake: awake && !P.sit, onLift: m => { if (quiet()) { m.state = 'wait'; return; } flags.carried = true; carriedFrom = { x: P.x, z: P.z }; P.carried = 0.001; Sound.at('lift', m.x, m.y + 1, m.z); }, onCarried: m => wake(m), onSwitchedOff: m => { flags.off = true; lineFor('off'); Sound.touch(); sleepReady = true; } };
@@ -300,7 +300,7 @@ const Game = (() => {
   function buildScene() {
     const items = world.items.slice();
     for (const m of machines) { items.push(m.item); for (const ch of m.chunks) items.push(ch.item); }
-    if (state !== 'title') items.push(kid.item);
+    if (state !== 'title' && !P.viewfinder) items.push(...kid.items);
     if(Tracks.item)items.push(Tracks.item);
     M.trs(sledModel, P.sled.x, P.sled.y, P.sled.z, P.sled.yaw); world.sled.model = sledModel;
     RENDER.clearLights();

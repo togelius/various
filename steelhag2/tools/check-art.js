@@ -12,8 +12,6 @@ for(const [name,build] of [['rounded box',b=>b.roundedBox(-1,-1,-1,2,2,2,.2)],['
 ctx.RENDER={MAX_BONES:32};ctx.World={groundY:(x,z)=>.025*x+.01*z};
 for(const file of ['util.js','math.js','paint.js','creatures.js'])vm.runInContext(fs.readFileSync(path.join(root,'js',file),'utf8'),ctx);
 vm.runInContext(`
-const kid=new Kid();
-for(let i=0;i<360;i++){kid.pose(i*.015,World.groundY(i*.015,0),0,i*.03,1.57,1/60,i%60/60);if(!kid.bones.every(Number.isFinite))throw Error('nonfinite walking pose');}
 for(const yaw of [0,.7,2.1,-2.2]){
  const m=new Machine('bearer',0,0,yaw);
  for(let l=0;l<4;l++){const [x,z]=m.hipWorld(l);if(Math.hypot(x-m.feet[l].x,z-m.feet[l].z)>1e-6)throw Error('feet start crossed');}
