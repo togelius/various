@@ -7,7 +7,7 @@ const TEXT = {
     1: { n: 'I', title: 'Isen', sub: 'The Ice', date: 'December 16th, 1997. Noon.' },
     2: { n: 'II', title: 'Sjögården', sub: 'The Farm', date: 'Dusk.' },
   },
-  pause: 'Progress is saved at the island, at benches, and after encounters. The roadkeeper lunges when its lamp pulses. Cut its supports or run past it.',
+  pause: 'Progress is saved at the island, at benches, and after encounters. The roadkeeper commits to the amber charge lane. Cut its supports or run past it.',
   quietPause: 'Machines will watch. They will not attack or carry you.',
   // narration, fired once each by a condition the game checks
   lines: [

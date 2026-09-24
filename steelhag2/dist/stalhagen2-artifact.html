@@ -339,6 +339,7 @@ const Store = (() => {
       return entry;
     },
     develop(entry) { entry.developed = true; saveAlbum(); },
+    developBatch(entries) { for(const entry of entries)entry.developed=true;return saveAlbum(); },
     get undeveloped() { return photos.filter(p => !p.developed); },
   };
 })();
@@ -2978,7 +2979,7 @@ const TEXT = {
     1: { n: 'I', title: 'Isen', sub: 'The Ice', date: 'December 16th, 1997. Noon.' },
     2: { n: 'II', title: 'Sjögården', sub: 'The Farm', date: 'Dusk.' },
   },
-  pause: 'Progress is saved at the island, at benches, and after encounters. The roadkeeper lunges when its lamp pulses. Cut its supports or run past it.',
+  pause: 'Progress is saved at the island, at benches, and after encounters. The roadkeeper commits to the amber charge lane. Cut its supports or run past it.',
   quietPause: 'Machines will watch. They will not attack or carry you.',
   // narration, fired once each by a condition the game checks
   lines: [
@@ -3040,6 +3041,18 @@ const Combat=(()=>{
   function select(candidates){return candidates.find(t=>t.score<.58)||null;}
   function missEnd(hand,cam,range=8){const f=view(cam).f,point=[cam.x+f[0]*12,cam.y+f[1]*12,cam.z+f[2]*12],d=point.map((v,i)=>v-hand[i]),l=Math.hypot(...d)||1;return hand.map((v,i)=>v+d[i]/l*range);}
   return {project,targets,select,missEnd};
+})();
+</script>
+  <script data-src="darkroom.js">
+// A short batch development, followed by deliberate inspection of each exposure.
+'use strict';
+const Darkroom=(()=>{
+  const DURATION=2.4;
+  function open(photos){const list=photos.slice(),pending=list.filter(p=>!p.developed),i=Math.max(0,list.findIndex(p=>!p.developed));return {list,pending,i,t:pending.length?0:DURATION,ready:!pending.length,compare:false};}
+  function advance(d,dt,skip=false){if(d.ready)return [];d.t=Math.min(DURATION,skip?DURATION:d.t+dt);if(d.t<DURATION)return [];d.ready=true;return d.pending;}
+  function move(d,dir){d.i=Math.max(0,Math.min(d.list.length-1,d.i+dir));d.compare=false;}
+  function reveal(d){return d.ready?1:Math.max(0,Math.min(1,(d.t-.25)/(DURATION-.25)));}
+  return {open,advance,move,reveal,DURATION};
 })();
 </script>
   <script data-src="game.js">
@@ -3158,7 +3171,7 @@ const Game = (() => {
 
   // ---------------------------------------------------------------- state
   let endingT=0,wakeFadeT=0,checkpointToast=0,albumPage=0,albumZoom=-1,albumCompare=false,albumRects=[];
-  let albumReturn = 'title', islandTransition = 0, health=3, hurtT=0, cutterCooldown=0, cutFlash=0, cutPoint=[0,0,0],cutCandidates=[],combatNotice=null,impactT=0;
+  let albumReturn = 'title', islandTransition = 0, health=3, hurtT=0, cutterCooldown=0, cutFlash=0, cutPoint=[0,0,0],cutCandidates=[],combatNotice=null,impactT=0,darkroomRects=[];
   let state = 'boot', stateT = 0, time = 0, chapter = 1, fade = 0, fadeTarget = 1, flash = 0, deathT = 0;
   let lineCur = null, lineQ = [], said = new Set(), menuStack = null, menuRects = [], darkroom = null, ending = null;
   let calmCeiling = 1, awake = false, nightsSpent = 0, carriedFrom = null, cutTarget = null, standoffWith = null, promptA = 0, prompt = '', lastSeat = null, sleepReady = false;
@@ -3264,7 +3277,7 @@ const Game = (() => {
     const cellar = world.cellar, cd = Math.hypot(P.x - cellar.x, P.z - cellar.z);
     if (!P.sit && input.usePressed && !P.viewfinder && !standoffWith) {
       if(nearRelay&&!flags.relay){flags.relay=true;awake=true;relayPulseT=3.2;Sound.at('rumble',world.relay.x,world.relay.y,world.relay.z,.7);lineFor('relay');checkpoint();return;}
-      if (cd < 2.4 && Store.undeveloped.length) return openDarkroom();
+      if (cd < 2.4 && Store.photos.length) return openDarkroom();
       if (dd < 2.2 && sleepReady) return enterHouse();
     }
     // the standoff: which bearer is close enough, facing you, lamp on
@@ -3351,7 +3364,7 @@ const Game = (() => {
     if (cutTarget) return cutterCooldown>0 ? 'cutter recharging' : `${TEXT.prompts.cut} ${cutTarget.j[4]}`;
     if(standoffWith)return P.hold>0?TEXT.prompts.hold:TEXT.prompts.reach;
     if(P.cutterUp)return cutterMissT>0?'no support joint in range':'bring a joint into range';
-    if (cd < 2.4) return Store.undeveloped.length ? TEXT.prompts.cellar : TEXT.prompts.cellarEmpty;
+    if (cd < 2.4) return Store.photos.length ? Store.undeveloped.length?'develop the photographs':'inspect the prints':TEXT.prompts.cellarEmpty;
     if (dd < 2.2) return sleepReady ? 'enter the house' : TEXT.prompts.doorLocked;
     if(chapter===2&&Math.hypot(P.x-world.relay.x,P.z-world.relay.z)<2.3)return flags.relay?'relay restored':'restore the field relay';
     if (seat) return TEXT.prompts.sit;
@@ -3394,11 +3407,17 @@ const Game = (() => {
     checkpoint();
   }
   function goSleep() { fadeTarget=0;lineFor('sleep');endingT=2.5;checkpoint(); }
-  function openDarkroom() { darkroom = { t: 0, list: Store.undeveloped.slice(0, 8), i: 0 }; state = 'darkroom'; stateT = 0; Sound.develop(); lineQ.push(TEXT.darkroom); }
+  function openDarkroom() { darkroom=Darkroom.open(Store.photos);darkroomRects=[];state='darkroom';stateT=0;Sound.setIndoor(true);P.viewfinder=false;lineCur=null;lineQ=[];Sound.develop();if(document.exitPointerLock)document.exitPointerLock(); }
   function updateDarkroom(dt) {
-    const d = darkroom; d.t += dt;
-    if (d.list.length && d.t > 8.5) { Store.develop(d.list[d.i]); d.i++; d.t = 0; if (d.i >= d.list.length) d.list = []; else Sound.develop(); }
-    if ((!d.list.length && d.t > 1.5 && (pressed.any || nav.ok)) || nav.back || input.pausePressed) { state = 'play'; stateT = 0; }
+    const d=darkroom,hit=tap&&darkroomRects.find(r=>tap.x>=r.x&&tap.x<=r.x+r.w&&tap.y>=r.y&&tap.y<=r.y+r.h);
+    if(nav.back||input.pausePressed||hit&&hit.act==='leave'){Sound.setIndoor(Interior.contains(P.x,P.z));state='play';stateT=1;return;}
+    const wasReady=d.ready,developed=Darkroom.advance(d,dt,stateT>.2&&(input.usePressed||nav.ok||hit&&hit.act==='reveal'));
+    if(developed.length){Store.developBatch(developed);Sound.tick_menu(1);}
+    if(!wasReady||stateT<.2)return;
+    if(pressed.album||hit&&hit.act==='album'){albumReturn='darkroom';albumZoom=-1;albumCompare=false;state='album';stateT=0;return;}
+    const dir=(nav.next||hit&&hit.act==='next'?1:0)-(nav.prev||hit&&hit.act==='prev'?1:0);if(dir)Darkroom.move(d,dir);
+    if(input.cameraPressed||input.usePressed||nav.ok||hit&&hit.act==='compare')d.compare=!d.compare;
+    if(hit&&Number.isInteger(hit.index)){d.i=hit.index;d.compare=false;}
   }
   function titleCamera(dt) { const c = RENDER.cam; const t = time * 0.02; c.x = 30 * Math.sin(t) - 10; c.y = 6.5; c.z = -62 + Math.cos(t) * 10; c.tx = 0; c.ty = 2; c.tz = 120; c.fov = 50 * Math.PI / 180; }
   function updateSnow(dt) {
@@ -3544,7 +3563,7 @@ const Game = (() => {
     if(checkpointToast>0&&state==='play')text('CHECKPOINT SAVED',1238,80,11,Math.min(1,checkpointToast),{align:'right',ui:true});
     if(hurtT>0){g.strokeStyle='rgba(151,53,31,'+(hurtT*.35)+')';g.lineWidth=24;g.strokeRect(0,0,UW,UH);}
     // narration
-    if (lineCur && !menuStack && state !== 'title' && state!=='note') {
+    if (lineCur && !menuStack && state !== 'title' && state!=='note' && state!=='darkroom') {
       const a = Math.min(1, lineCur.t / 0.35, (lineCur.d - lineCur.t) / 0.55), size = 23 * t, lh = Math.max(30 * t, 20 / sy);
       const ls = wrap(lineCur.text, UW<760?(UW-44)/sx:800, size), y0 = (isTouch?UH-185:UH-48)/sy - (ls.length - 1) * lh;
       const grd = g.createLinearGradient(0, (720 - 170 * t) * sy, 0, 720 * sy); grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, `rgba(8,12,15,${0.65 * a})`); g.fillStyle = grd; g.fillRect(0, (720 - 170 * t) * sy, UW, 170 * t * sy);
@@ -3595,21 +3614,29 @@ const Game = (() => {
     line(isTouch?'Tap to put the notebook down':'E / Esc · put the notebook down',y+h-30,12,{ui:true});
   }
   function renderDarkroom() {
-    const d = darkroom, t = T();
-    g.fillStyle = 'rgba(28,10,4,0.86)'; g.fillRect(0, 0, UW, UH);
-    text('the darkroom', 640, 70, 26 * t, 0.7, { italic: true, letter: 3, col: '#f0b070' });
-    if (!d.list.length) { text('Nothing waiting in the trays.' + (Store.photos.length ? ' The prints are in the album.' : ''), 640, 340, 22 * t, 0.8, { italic: true, col: '#f0b070' }); text(isTouch ? 'tap to leave' : 'press any key to leave', 640, 640, 16 * t, 0.5, { italic: true, col: '#f0b070' }); return; }
-    const p = d.list[d.i], w = 520, h = 292, x = 640 - w / 2, y = 130, u = smooth(0.5, 8, d.t);
-    g.save(); g.translate(x * sx, y * sy); g.scale(sx, sy);
-    g.fillStyle = '#efe6d6'; g.fillRect(-14, -14, w + 28, h + 60);
-    g.fillStyle = '#d9c7ad'; g.fillRect(0, 0, w, h);
-    const img = p.print && (!(p.print instanceof Image) || p.print.complete) ? p.print : null;
-    if (img) { g.globalAlpha = u; g.drawImage(img, 0, 0, w, h); g.globalAlpha = 1; }
-    g.fillStyle = `rgba(240,150,80,${0.55 * (1 - u)})`; g.fillRect(0, 0, w, h);
-    g.restore();
-    text(p.caption || 'a free frame', 640, y + h + 26, 15 * t, u * 0.9, { italic: true, col: '#3a3530', shadow: false });
-    text(`${d.i + 1} of ${d.list.length}`, 640, y + h + 52, 13 * t, 0.7, { italic: true, col: '#f0b070' });
-    text('The print comes up over eight seconds. It shows what the eye did not.', 640, 640, 16 * t, 0.5, { italic: true, col: '#f0b070' });
+    const d=darkroom,p=d.list[d.i],compact=UW<760,short=UH<510;darkroomRects=[];
+    // A red safelight over a scarred bench, enamel tray and contact strip.
+    g.fillStyle='#15110f';g.fillRect(0,0,UW,UH);const glow=g.createRadialGradient(UW*.16,0,10,UW*.16,0,UW*.95);glow.addColorStop(0,'rgba(173,45,22,.42)');glow.addColorStop(.45,'rgba(81,35,24,.24)');glow.addColorStop(1,'rgba(9,12,13,.9)');g.fillStyle=glow;g.fillRect(0,0,UW,UH);
+    g.strokeStyle='rgba(173,135,99,.045)';g.lineWidth=1;for(let y=8;y<UH;y+=9){g.beginPath();g.moveTo(0,y);g.lineTo(UW,y+Math.sin(y)*4);g.stroke();}g.strokeStyle='rgba(0,0,0,.35)';for(let y=90;y<UH;y+=110){g.beginPath();g.moveTo(0,y);g.lineTo(UW,y+2);g.stroke();}
+    const label=(s,x,y,size=14,opt={})=>text(s,x/sx,y/sy,size,1,{align:'left',ui:true,col:'#dfc7a7',...opt});
+    const button=(title,act,x,y,w,index)=>{g.fillStyle='rgba(217,185,146,.09)';g.fillRect(x,y,w,38);g.strokeStyle='rgba(217,185,146,.26)';g.strokeRect(x+.5,y+.5,w-1,37);label(title,x+w/2,y+24,12,{align:'center'});darkroomRects.push({act,index,x:x/sx,y:y/sy,w:w/sx,h:38/sy});};
+    label('SJÖGÅRDEN / BASEMENT',24,short?25:35,compact?10:12,{col:'#bb8564'});label('THE DARKROOM',24,short?49:65,compact?18:23,{letter:2});
+    label(d.ready?'PRINT '+String(d.i+1).padStart(2,'0')+' / '+d.list.length:'DEVELOPING '+d.pending.length+' EXPOSURE'+(d.pending.length===1?'':'S'),UW-24,short?26:40,compact?10:12,{align:'right',col:'#bb8564'});
+    const top=short?78:105,bottom=short?UH-82:UH-178,available=Math.max(70,bottom-top),w=Math.min(UW-(compact?48:190),Math.max(120,(available-48)*16/9),800),h=w*9/16,x=(UW-w)/2,y=top+(available-h-48)/2;
+    g.shadowColor='rgba(0,0,0,.55)';g.shadowBlur=24;g.shadowOffsetY=12;g.fillStyle='#424a46';g.fillRect(x-20,y-20,w+40,h+88);g.shadowBlur=0;g.shadowOffsetY=0;
+    g.strokeStyle='#788078';g.lineWidth=2;g.strokeRect(x-19,y-19,w+38,h+86);g.fillStyle='#1d2929';g.fillRect(x-10,y-10,w+20,h+64);
+    g.fillStyle='#ddd4bd';g.fillRect(x-4,y-4,w+8,h+52);g.fillStyle='#c5bca5';g.fillRect(x,y,w,h);
+    const readyImage=img=>img&&(!(img instanceof Image)||img.complete&&img.naturalWidth),u=Darkroom.reveal(d),img=p&&(d.compare?p.img:p.print);
+    if(readyImage(img)){g.globalAlpha=d.compare?1:smooth(0,1,u);g.drawImage(img,x,y,w,h);g.globalAlpha=1;}
+    if(!d.ready){g.fillStyle='rgba(141,46,21,'+(.45*(1-u))+')';g.fillRect(x,y,w,h);g.fillStyle='#b7764f';g.fillRect(x,y+h+40,w*u,3);}
+    const caption=p&&p.caption||'An unmarked frame.';const lines=wrap(caption,(w-12)/sx,compact?13:16);lines.slice(0,2).forEach((line,i)=>label(line,UW/2,y+h+19+i*17,compact?13:16,{align:'center',ui:false,col:'#393c35',italic:true,shadow:false}));
+    label(d.compare?'ORIGINAL EXPOSURE':d.ready?'DEVELOPED PRINT':'IMAGE EMERGING',UW/2,y-33,10,{align:'center',col:'#c99c79'});
+    if(!short){const count=Math.min(compact?3:7,d.list.length),start=clamp(d.i-Math.floor(count/2),0,Math.max(0,d.list.length-count)),tw=compact?76:88,th=tw*9/16,gap=12,xx=(UW-(count*tw+(count-1)*gap))/2,yy=UH-120;
+      for(let i=0;i<count;i++){const photo=d.list[start+i],tx=xx+i*(tw+gap);g.fillStyle=start+i===d.i?'#d2b68e':'#544a3d';g.fillRect(tx-3,yy-3,tw+6,th+6);const im=d.ready?photo.print:photo.img;if(readyImage(im))g.drawImage(im,tx,yy,tw,th);darkroomRects.push({index:start+i,x:(tx-3)/sx,y:(yy-3)/sy,w:(tw+6)/sx,h:(th+6)/sy});}
+    }
+    const bw=compact?[38,38,106,64,64]:[50,50,190,130,110],gap=compact?6:10,total=bw.reduce((a,b)=>a+b,0)+gap*4,xx=(UW-total)/2,yy=UH-49;
+    let bx=xx;[['←','prev'],['→','next'],[!d.ready?'Reveal now':d.compare?'Show print':'Compare',!d.ready?'reveal':'compare'],['Album','album'],['Leave','leave']].forEach(([title,act],i)=>{button(title,act,bx,yy,bw[i]);bx+=bw[i]+gap;});
+    if(!compact&&!short)label(d.ready?'← → browse   ·   C / E compare   ·   Tab album   ·   Esc leave':'The whole roll develops together. Press E to reveal it now.',UW/2,UH-145,12,{align:'center',col:'#aa8c70'});
   }
   const albumSize=()=>UW<760?1:6;
   function updateAlbum(){
@@ -3684,7 +3711,7 @@ const Game = (() => {
     requestAnimationFrame(t => { last = t; frame(t); });
   }
   window.__game = {
-    get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get interior(){return Interior.contains(P.x,P.z);},get room(){return Interior;},enterHouse,get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get cutTarget(){return cutTarget;},get cutCandidates(){return cutCandidates;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
+    get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get darkroom(){return darkroom;},openDarkroom,get interior(){return Interior.contains(P.x,P.z);},get room(){return Interior;},enterHouse,get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get cutTarget(){return cutTarget;},get cutCandidates(){return cutCandidates;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
     jump(ch, x, z) { lineCur=null; lineQ=[]; menuStack = null; if (ch >= 2) { flags.island = true; flags.hulls = true; for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; h.y = 0; } } startChapter(ch); state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x !== undefined) Player.place(x, z, 0); if (ch === 2) awake = true; },
     set(x, y, z, tx, ty, tz) { const c = RENDER.cam; state = 'free'; c.x = x; c.y = y; c.z = z; c.tx = tx; c.ty = ty; c.tz = tz; },
     place(x, z, yaw) { Player.place(x, z, yaw || 0); }, step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) update(dt); }, get awake() { return awake; }, set awake(v) { awake = v; }, get standoff() { return standoffWith; }, get time() { return time; }, get deaths() { return deathT; }, setState(s) { state = s; stateT = 0; },

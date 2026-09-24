@@ -108,7 +108,8 @@ Run `node tools/check-character.js` for weighted skin, authored clip blends and 
 bounds. Run `node tools/check-art.js
 node tools/check-combat.js` for winding, machine poses, peaceful interactions,
 roadkeeper attack telegraphing, damage, staggering and defeat. Run
-`node tools/check-store.js` for storage-quota and save preservation, and
+`node tools/check-store.js
+node tools/check-darkroom.js` for storage-quota and save preservation, and
 `node tools/check-world.js` for shoreline continuity, collision and cutter occlusion.
 `node tools/check-player.js` checks camera obstruction and the aiming/threat/scenic
 framing rules. `node tools/check-interior.js` checks room geometry, the furniture
@@ -136,3 +137,10 @@ reverses the walking cycle. Quiet mode retains the non-attacking encounter.
 The idle camera keeps a distant focus so the sky and horizon remain in frame.
 Snow blends into the lake ice along both shorelines, with broken rushes framing
 the entrance to the crossing.
+
+### Darkroom
+
+The cellar develops the whole roll in 2.4 seconds; press E to reveal immediately.
+Browse with left/right, compare the original exposure with C or E, open the album
+with Tab and leave with Esc. The workbench also has pointer/touch buttons and a
+contact strip. Completed prints can be inspected again without waiting.

@@ -66,6 +66,7 @@ const Store = (() => {
       return entry;
     },
     develop(entry) { entry.developed = true; saveAlbum(); },
+    developBatch(entries) { for(const entry of entries)entry.developed=true;return saveAlbum(); },
     get undeveloped() { return photos.filter(p => !p.developed); },
   };
 })();
