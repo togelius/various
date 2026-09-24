@@ -1229,8 +1229,8 @@ class Builder {
 // STÅLHAGEN II — painted materials. Every surface is a 256 px square painted with the first game's brushes,
 // once at boot, into a texture array. The alpha channel of the steel materials is the seam mask the charge flows along.
 'use strict';
-const MAT = { SNOW: 0, ICE: 1, STEEL: 2, RED: 3, PLANK: 4, CONCRETE: 5, BIRCH: 6, ROOF: 7, BEIGE: 8, DARK: 9, GLASS: 10, ROAD: 11, FOIL: 12, REED: 13, FLAT: 14, LED: 15, CABLE: 16, SPRUCE: 17, WINDOW: 18, CLOTH: 19, BADGE: 20 };
-const MATS = 21, TEX = 256;
+const MAT = { SNOW: 0, ICE: 1, STEEL: 2, RED: 3, PLANK: 4, CONCRETE: 5, BIRCH: 6, ROOF: 7, BEIGE: 8, DARK: 9, GLASS: 10, ROAD: 11, FOIL: 12, REED: 13, FLAT: 14, LED: 15, CABLE: 16, SPRUCE: 17, WINDOW: 18, CLOTH: 19, BADGE: 20, TRACK: 21 };
+const MATS = 22, TEX = 256;
 
 const Paint = (() => {
   // per-material parameters: [roughness 0..1 (1 = matte), retroreflective 0/1, emissive strength, seam-glow 0/1]
@@ -1337,6 +1337,7 @@ const Paint = (() => {
     put(MAT.WINDOW, (g,r) => { fill(g,'#354a54'); strokes(g,r,90,'#89979b',8,[80,220],[1,6],0.12,-0.3,0.1); },0.12);
     put(MAT.CLOTH, (g,r) => { fill(g,'#e5e0d5'); strokes(g,r,500,'#b9b4a8',6,[3,15],[0.6,1.4],0.1,Math.PI/2,0.15); for(let y=0;y<TEX;y+=3){g.fillStyle='rgba(40,35,28,.025)';g.fillRect(0,y,TEX,1);} },1);
     put(MAT.BADGE, (g,r) => { fill(g,'#c6c1ac'); g.fillStyle='#353c38'; g.font='bold 42px monospace';g.fillText('MDK',24,65);g.fillRect(24,80,205,4);g.font='26px monospace';g.fillText('KV — 03',24,123);g.font='13px monospace';g.fillText('MÄLARDALENS KRAFT',24,158);g.fillText('SERVICE  •  1984',24,183);for(let i=0;i<50;i++){g.fillStyle='rgba(70,50,30,.13)';g.fillRect(r()*TEX,r()*TEX,2+r()*12,1+r()*3);} },.8);
+    put(MAT.TRACK,(g)=>fill(g,'#ffffff'),1);
     return out;
   }
 
@@ -1404,6 +1405,7 @@ const RENDER = (() => {
     float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
     void main() {
       int tile = int(vTile + 0.5); vec4 m = uMat[tile];
+      if(tile == ${MAT.TRACK}) { float edge=1.0-smoothstep(0.30,1.0,dot(vUV,vUV)); o=vec4(0.045,0.065,0.09,edge*0.22); return; }
       vec4 tx = texture(uTex, vec3(vUV, vTile));
       // Canvas colours and vertex tints are authored in sRGB. Light in linear space.
       vec3 albedo = pow(max(tx.rgb * vCol, vec3(0.0)), vec3(2.2));
@@ -1498,7 +1500,16 @@ const RENDER = (() => {
     in vec2 vUV; uniform sampler2D uTex; uniform float uExposure; uniform float uGrain; uniform float uVignette; uniform float uSat; uniform float uTime; uniform vec2 uRes; uniform float uPrint; out vec4 o;
     float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     void main() {
-      vec3 c = texture(uTex, vUV).rgb * uExposure;
+      // Small contrast-aware resolve: soften stair steps without blurring the whole image.
+      vec2 px=1.0/uRes;
+      vec3 center=texture(uTex,vUV).rgb;
+      vec3 north=texture(uTex,vUV+vec2(0,px.y)).rgb, south=texture(uTex,vUV-vec2(0,px.y)).rgb;
+      vec3 east=texture(uTex,vUV+vec2(px.x,0)).rgb, west=texture(uTex,vUV-vec2(px.x,0)).rgb;
+      vec3 lum=vec3(.2126,.7152,.0722);
+      float ln=dot(north,lum),ls=dot(south,lum),le=dot(east,lum),lw=dot(west,lum),lc=dot(center,lum);
+      float contrast=max(max(ln,ls),max(le,lw))-min(min(ln,ls),min(le,lw));
+      vec3 resolve=abs(ln-ls)>abs(le-lw)?(east+west)*.5:(north+south)*.5;
+      vec3 c=mix(center,resolve,smoothstep(.035,.18,contrast)*.32)*uExposure;
       // a gentle shoulder so lamps and the sun do not clip
       c = max(c - 0.006, 0.0);
       c = (c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14);
@@ -2011,21 +2022,37 @@ function ik2(H, F, a, b, hint, K) {
 const RIG = { BODY: 0, HEAD: 1, LED: 2, ANT: 3, LAMP: 4, LEG: 5, ARM: 13, CRADLE: 17, N: 18 };
 function buildMachineMesh(s, o = {}) {
   const b = new Builder(), c = [1, 1, 1];
-  // body: an instrument case with an orange stripe and a darker base band
-  b.bone = RIG.BODY; b.tile = MAT.BEIGE; b.col = c; b.box(-0.55 * s, -0.22 * s, -0.35 * s, 1.1 * s, 0.5 * s, 0.7 * s, { uv: 0.8 / s });
-  b.tile = MAT.FLAT; b.col = [0.84, 0.47, 0.18]; b.box(-0.551 * s, 0.0 * s, -0.351 * s, 1.102 * s, 0.06 * s, 0.702 * s);
-  b.col = [0.63, 0.6, 0.53]; b.box(-0.551 * s, -0.22 * s, -0.351 * s, 1.102 * s, 0.08 * s, 0.702 * s);
-  // head on a short neck at the front; the LED is its own bone so it can go dark
-  b.bone = RIG.HEAD; b.tile = MAT.BEIGE; b.col = c; b.box(-0.08 * s, -0.04 * s, -0.14 * s, 0.34 * s, 0.26 * s, 0.28 * s, { uv: 0.8 / s });
-  b.tile = MAT.DARK; b.box(0.26 * s, 0.0 * s, -0.09 * s, 0.02 * s, 0.14 * s, 0.18 * s);
-  b.bone = RIG.LED; b.tile = MAT.LED; b.col = c; b.box(0.27 * s, 0.05 * s, -0.03 * s, 0.03 * s, 0.05 * s, 0.06 * s);
-  b.bone = RIG.ANT; b.tile = MAT.DARK; b.cyl(0, 0, 0, 0.012 * s, 0.45 * s, { segs: 4 }); b.tile = MAT.LED; b.col = [1, 0.55, 0.35]; b.sphere(0, 0.46 * s, 0, 0.03 * s, { segs: 6, rings: 4 });
-  // the work lamp on the head's side, dark until it decides to come
-  b.bone = RIG.LAMP; b.tile = MAT.DARK; b.col = c; b.box(-0.06 * s, -0.06 * s, -0.06 * s, 0.12 * s, 0.12 * s, 0.12 * s); b.tile = MAT.GLASS; b.col = [1, 0.75, 0.45]; b.box(0.06 * s, -0.045 * s, -0.045 * s, 0.02 * s, 0.09 * s, 0.09 * s);
+  // Pressed-steel housing with a dark chassis, service cover and restrained markings.
+  b.bone=RIG.BODY;b.tile=MAT.DARK;b.col=[.8,.84,.8];
+  b.roundedBox(-.48*s,-.24*s,-.38*s,.96*s,.18*s,.80*s,.06*s);
+  b.tile=MAT.BEIGE;b.col=[.80,.83,.78];b.roundedBox(-.51*s,-.13*s,-.38*s,1.02*s,.43*s,.80*s,.085*s,{uv:.55/s});
+  b.col=[.68,.72,.68];b.roundedBox(-.42*s,.265*s,-.30*s,.84*s,.055*s,.59*s,.025*s);
+  b.tile=MAT.FLAT;b.col=[.57,.29,.12];b.roundedBox(-.515*s,-.015*s,-.385*s,1.03*s,.045*s,.81*s,.025*s);
+  b.tile=MAT.DARK;b.col=[.66,.7,.67];
+  for(const side of [-1,1]) {
+    for(let i=0;i<6;i++)b.roundedBox(side*.512*s-.007*s,.06*s,(-.24+i*.066)*s,.014*s,.12*s,.019*s,.006*s);
+    b.tube([[side*.43*s,-.12*s,-.25*s],[side*.60*s,-.23*s,-.18*s],[side*.61*s,-.19*s,.16*s],[side*.43*s,-.10*s,.24*s]],.027*s,{segs:7});
+  }
+  b.tile=MAT.STEEL;b.col=[.65,.67,.61];for(const x of [-.39,.39])for(const z of [-.26,.24])b.cyl(x*s,.319*s,z*s,.02*s,.008*s,{segs:8});
+  // Serial plate on the rear, using a dedicated authored label texture.
+  b.tile=MAT.BADGE;b.col=c;
+  {const a=b.vert(-.19*s,.025*s,-.389*s,0,0,-1,1,1),d=b.vert(.19*s,.025*s,-.389*s,0,0,-1,0,1),e=b.vert(.19*s,.23*s,-.389*s,0,0,-1,0,0),f=b.vert(-.19*s,.23*s,-.389*s,0,0,-1,1,0);b.quad(a,f,e,d);}
+  b.bone=RIG.HEAD;b.tile=MAT.DARK;b.col=[.72,.74,.7];b.cyl(0,-.14*s,0,.095*s,.19*s,{segs:12});
+  b.tile=MAT.BEIGE;b.col=[.86,.87,.80];b.roundedBox(-.18*s,-.035*s,-.13*s,.36*s,.27*s,.32*s,.055*s);
+  b.tile=MAT.DARK;b.col=[.75,.78,.76];b.roundedBox(-.145*s,.025*s,.177*s,.29*s,.14*s,.035*s,.026*s);
+  b.tile=MAT.WINDOW;b.col=[.4,.50,.49];b.roundedBox(-.115*s,.048*s,.210*s,.15*s,.09*s,.014*s,.014*s);
+  b.bone=RIG.LED;b.tile=MAT.LED;b.col=[.75,.55,.35];b.sphere(.087*s,.09*s,.218*s,.018*s,{segs:10,rings:8});
+  b.bone=RIG.ANT;b.tile=MAT.DARK;b.col=c;b.cyl(0,0,0,.025*s,.09*s,{segs:8});b.tube([[0,.07*s,0],[.01*s,.26*s,0],[.03*s,.52*s,-.02*s]],.008*s,{segs:5});
+  b.bone=RIG.LAMP;b.tile=MAT.DARK;b.col=c;b.roundedBox(-.07*s,-.065*s,-.05*s,.14*s,.13*s,.10*s,.023*s);
+  b.tile=MAT.GLASS;b.col=[1,.80,.55];b.roundedBox(-.05*s,-.045*s,.053*s,.10*s,.09*s,.012*s,.016*s);
   // legs: upper and lower segments along +y from the joint
   for (let l = 0; l < 4; l++) {
-    b.bone = RIG.LEG + l * 2; b.tile = MAT.DARK; b.col = c; b.cyl(0, 0, 0, 0.045 * s, o.upper, { segs: 6 }); b.sphere(0, 0, 0, 0.06 * s, { segs: 6, rings: 4 });
-    b.bone = RIG.LEG + l * 2 + 1; b.cyl(0, 0, 0, 0.035 * s, o.lower, { segs: 6 }); b.sphere(0, 0, 0, 0.05 * s, { segs: 6, rings: 4 }); b.tile = MAT.STEEL; b.cyl(0, o.lower - 0.03 * s, 0, 0.09 * s, 0.04 * s, { segs: 6 });
+    b.bone = RIG.LEG + l * 2; b.tile = MAT.DARK; b.col = c; b.cyl(0, 0, 0, 0.045 * s, o.upper, { segs: 12 });
+    b.tile=MAT.BEIGE;b.col=[.7,.73,.68];b.roundedBox(-.068*s,.075*s,-.065*s,.136*s,o.upper*.58,.13*s,.035*s);
+    b.tile=MAT.STEEL;b.col=[.65,.70,.69];b.cyl(.078*s,.13*s,0,.022*s,o.upper*.6,{segs:8});
+    b.tile=MAT.DARK;b.col=c; b.sphere(0, 0, 0, 0.06 * s, { segs: 6, rings: 4 });
+    b.bone = RIG.LEG + l * 2 + 1; b.cyl(0, 0, 0, 0.035 * s, o.lower, { segs: 12 });
+    for(let k=0;k<5;k++)b.cyl(0,(.04+k*.023)*s,0,.051*s,.012*s,{segs:10}); b.sphere(0, 0, 0, 0.05 * s, { segs: 6, rings: 4 }); b.tile = MAT.STEEL; b.cyl(0, o.lower - 0.03 * s, 0, 0.09 * s, 0.04 * s, { segs: 6 });
   }
   if (o.arms) for (let a = 0; a < 2; a++) {
     b.bone = RIG.ARM + a * 2; b.tile = MAT.DARK; b.col = c; b.cyl(0, 0, 0, 0.035 * s, o.armLen, { segs: 6 }); b.sphere(0, 0, 0, 0.05 * s, { segs: 6, rings: 4 });
@@ -2050,7 +2077,7 @@ class Machine {
     this.item = { mesh: this.mesh, model: M.create(), bones: this.bones, fx: this.fx, x, y: this.y, z, radius: 2.5 * s, hidden: !!opts.hidden, machine: this };
     this.hidden = !!opts.hidden; this.hopOnly = kind === 'scout';
     this.bodyH = 0.95 * s; this.hips = [[0.42, 0.28], [0.42, -0.28], [-0.42, 0.28], [-0.42, -0.28]].map(([fx, fz]) => [fx * s, fz * s]);
-    this.feet = this.hips.map(([fx, fz]) => { const wx = x + Math.cos(yaw) * fx - Math.sin(yaw) * fz * 1.3, wz = z + Math.sin(yaw) * fx + Math.cos(yaw) * fz * 1.3; return { x: wx, y: World.groundY(wx, wz), z: wz, step: 0, fromX: wx, fromZ: wz, toX: wx, toZ: wz }; });
+    this.feet = this.hips.map(([fx, fz]) => { const wx = x + Math.cos(yaw) * fx + Math.sin(yaw) * fz * 1.3, wz = z - Math.sin(yaw) * fx + Math.cos(yaw) * fz * 1.3; return { x: wx, y: World.groundY(wx, wz), z: wz, step: 0, fromX: wx, fromZ: wz, toX: wx, toZ: wz }; });
     this.t = 0; this.blink = 0; this.look = { x: 0, y: 0, z: 1 }; this.lookT = 0; this.headYaw = 0; this.headPitch = 0;
     this.led = true; this.lamp = false; this.antSpring = 0; this.antVel = 0;
     this.state = 'idle'; this.calm = 0; this.notice = 0; this.hold = 0; this.stepT = 0; this.beepT = 4; this.off = false; this.kneel = 0;
@@ -2113,14 +2140,14 @@ class Machine {
     M.trsEuler(B.subarray(0, 16), this.x, bodyY + bob, this.z, this.yaw, pitch, 0);
     const bx = this.x, by = bodyY + bob, bz = this.z;
     // head: at the front, turned toward what it watches
-    const hx = bx + c * 0.55 * s, hz = bz - sn * 0.55 * s, hy = by + 0.12 * s;
+    const hx = bx + sn * 0.48 * s, hz = bz + c * 0.48 * s, hy = by + 0.12 * s;
     const dx = this.look.x - hx, dy = this.look.y - hy, dz = this.look.z - hz;
     const wantYaw = M.angleTo(this.yaw, Math.atan2(dx, dz)), wantPitch = clamp(Math.atan2(dy, Math.hypot(dx, dz)), -0.7, 0.5);
     this.headYaw = lerp(this.headYaw, clamp(wantYaw, -1.1, 1.1), 0.08); this.headPitch = lerp(this.headPitch, wantPitch, 0.08);
     M.trsEuler(B.subarray(16, 32), hx, hy, hz, this.yaw + this.headYaw, -this.headPitch, 0);
     B.set(B.subarray(16, 32), 32); // the LED rides the head
     // antenna at the back, springy
-    M.trsEuler(B.subarray(48, 64), bx - c * 0.45 * s, by + 0.28 * s, bz + sn * 0.45 * s, this.yaw, 0, this.antSpring);
+    M.trsEuler(B.subarray(48, 64), bx - sn * 0.30 * s + c * 0.32 * s, by + 0.32 * s, bz - c * 0.30 * s - sn * 0.32 * s, this.yaw, 0, this.antSpring);
     // lamp on the head's side
     const hm = B.subarray(16, 32); M.trsEuler(B.subarray(64, 80), hm[12] + hm[8] * 0.2 * s + hm[0] * 0.05 * s, hm[13] + hm[5] * 0.16 * s, hm[14] + hm[10] * 0.2 * s + hm[2] * 0.05 * s, this.yaw + this.headYaw, -this.headPitch, 0);
     // legs by IK
@@ -2137,9 +2164,9 @@ class Machine {
     if (this.kind === 'bearer') {
       for (let a = 0; a < 2; a++) {
         const side = a ? 1 : -1, open = this.armsOpen;
-        const S0 = [hx - c * 0.1 * s + sn * side * 0.18 * s, hy - 0.16 * s, hz + sn * 0.1 * s + c * side * 0.18 * s];
+        const S0 = [hx - sn * 0.1 * s + c * side * 0.18 * s, hy - 0.16 * s, hz - c * 0.1 * s - sn * side * 0.18 * s];
         const reach = 0.25 + open * 0.75, drop = lerp(-0.2, 0.05, open);
-        const E = [S0[0] + c * reach * this.armLen * 1.2 + sn * side * lerp(0.05, 0.25, open) * s, S0[1] + drop * s, S0[2] - sn * reach * this.armLen * 1.2 + c * side * lerp(0.05, 0.25, open) * s];
+        const E = [S0[0] + sn * reach * this.armLen * 1.2 + c * side * lerp(0.05, 0.25, open) * s, S0[1] + drop * s, S0[2] + c * reach * this.armLen * 1.2 - sn * side * lerp(0.05, 0.25, open) * s];
         ik2(S0, E, this.armLen, this.armLen, [0, -1, 0], K);
         aimMatrix(B.subarray((RIG.ARM + a * 2) * 16, (RIG.ARM + a * 2) * 16 + 16), S0[0], S0[1], S0[2], K[0] - S0[0], K[1] - S0[1], K[2] - S0[2], sn * side, 0, c * side);
         aimMatrix(B.subarray((RIG.ARM + a * 2 + 1) * 16, (RIG.ARM + a * 2 + 1) * 16 + 16), K[0], K[1], K[2], E[0] - K[0], E[1] - K[1], E[2] - K[2], sn * side, 0, c * side);
@@ -2147,14 +2174,14 @@ class Machine {
       B.set(B.subarray(0, 16), RIG.CRADLE * 16);
     }
     // charge and hidden flags
-    for (let i = 0; i < RIG.N; i++) { const o = i * 4; this.fx[o] = this.dark ? 0 : this.charge * (i === RIG.BODY || i === RIG.HEAD || i === RIG.CRADLE ? 0.8 : 0); this.fx[o + 1] = this.cut.has(i) ? 1 : 0; }
+    for (let i = 0; i < RIG.N; i++) { const o = i * 4; this.fx[o] = this.dark ? 0 : this.charge * (i === RIG.BODY || i === RIG.HEAD || i === RIG.CRADLE ? 0.20 : 0); this.fx[o + 1] = this.cut.has(i) ? 1 : 0; }
     if (!this.led) this.fx[RIG.LED * 4 + 1] = 1;
     if (this.kind !== 'bearer') { this.fx[RIG.LAMP * 4 + 1] = 1; for (let i = RIG.ARM; i < RIG.N; i++) this.fx[i * 4 + 1] = 1; }
     else if (!this.lamp) this.fx[RIG.LAMP * 4 + 1] = 1;
     for (const k of this.cut) for (const j of subtree(k)) this.fx[j * 4 + 1] = 1;
     this.item.x = this.x; this.item.y = bodyY; this.item.z = this.z;
-    this.headWorld = [hm[12] + hm[0] * 0.28 * s, hm[13] + hm[5] * 0.05 * s, hm[14] + hm[2] * 0.28 * s];
-    this.lampWorld = [B[64 + 12], B[64 + 13], B[64 + 14], B[64 + 0], B[64 + 1], B[64 + 2]];
+    this.headWorld = [hm[12] + hm[8] * 0.22 * s, hm[13] + hm[5] * 0.05 * s, hm[14] + hm[10] * 0.22 * s];
+    this.lampWorld = [B[64 + 12], B[64 + 13], B[64 + 14], B[64 + 8], B[64 + 9], B[64 + 10]];
   }
   // joint positions the cutter can reach: [bone, x, y, z, name]
   joints() {
@@ -2323,9 +2350,12 @@ class Kid {
   // x,y,z feet; yaw facing; run 0..1; reach 0..1 (the right arm out); carried (lying on its back, held up)
   pose(x, y, z, yaw, run, dt, reach = 0, carried = 0, torchOn = false) {
     const B = this.bones, c = Math.cos(yaw), s = Math.sin(yaw);
-    this.phase += dt * (4 + run * 6.5) * (run > 0.05 ? 1 : 0);
-    const ph = this.phase, bob = Math.abs(Math.sin(ph)) * -0.035 * run;
-    const hipY = y + 0.82 + bob + carried * 0.6;
+    const speed = run * 1.4;
+    this.phase += dt * speed / 1.4 * TAU;
+    this.bob += dt;
+    const gait = Math.min(1, speed / 0.5);
+    const ph = this.phase, bob = Math.cos(ph * 2) * 0.012 * gait + Math.sin(this.bob * 1.7) * 0.003;
+    const hipY = y + 0.79 + bob + carried * 0.6;
     const lean = run * 0.08;
     M.trsEuler(B.subarray(0, 16), x, hipY, z, yaw, lean + carried * 1.4, 0);
     const hips = B.subarray(0, 16);
@@ -2337,12 +2367,15 @@ class Kid {
     const K = [0, 0, 0];
     for (let l = 0; l < 2; l++) {
       const side = l ? 1 : -1, sw = ph + l * Math.PI;
-      const th = carried ? -1.0 : Math.sin(sw) * 0.7 * run, kn = carried ? 1.2 : Math.max(0, Math.cos(sw)) * lerp(0.3, 0.95, (Math.sin(sw) + 1) * 0.5) * run + 0.06;
-      const H = at([side * 0.1, -0.05, 0]);
-      const kx = Math.sin(th) * 0.42, ky = -Math.cos(th) * 0.42;
-      const Kp = at([side * 0.1, -0.05 + ky, kx]);
-      const fx2 = kx + Math.sin(th - kn) * 0.4, fy2 = ky - Math.cos(th - kn) * 0.4;
-      const F = at([side * 0.1, -0.05 + fy2, fx2]);
+      const cycle = ((ph / TAU + l * 0.5) % 1 + 1) % 1;
+      const stance = cycle < .6;
+      const footZ = (stance ? lerp(.42,-.42,cycle/.6) : lerp(-.42,.42,smooth(0,1,(cycle-.6)/.4))) * gait;
+      const lift = stance ? 0 : Math.sin((cycle-.6)/.4*Math.PI)*.12*gait;
+      const H = at([side*.105,-.025,0]);
+      let F = at([side*.11,-.79,footZ]);
+      F[1] = World.groundY(F[0],F[2]) + .035 + lift;
+      if(carried) F = at([side*.11,-.35,.5]);
+      const Kp=[0,0,0];ik2(H,F,.42,.40,[fwd[0],.05,fwd[2]],Kp);
       aimMatrix(B.subarray((KID.LEG + l * 2) * 16, (KID.LEG + l * 2) * 16 + 16), H[0], H[1], H[2], Kp[0] - H[0], Kp[1] - H[1], Kp[2] - H[2], right[0], right[1], right[2]);
       aimMatrix(B.subarray((KID.LEG + l * 2 + 1) * 16, (KID.LEG + l * 2 + 1) * 16 + 16), Kp[0], Kp[1], Kp[2], F[0] - Kp[0], F[1] - Kp[1], F[2] - Kp[2], right[0], right[1], right[2]);
     }
@@ -2373,13 +2406,14 @@ const Player = (() => {
     sled: { x: 0.8, y: 0, z: -26, vx: 0, vz: 0, yaw: 0, rope: 2.2 }, snow: 0, wet: 0, breath: 0, stepT: 0, surface: 'snow', dead: 0,
   };
   const cam = RENDER.cam;
+  const inputLook={dx:0,dy:0};
   let camX = 0, camY = 3, camZ = -30;
   const RADIUS = 0.35;
 
   function place(x, z, yaw = 0) { P.x = x; P.z = z; P.y = World.groundY(x, z); P.yaw = yaw; P.camYaw = yaw; P.vx = P.vz = 0; P.sled.x = x - Math.sin(yaw) * 2; P.sled.z = z - Math.cos(yaw) * 2; P.sled.y = World.groundY(P.sled.x, P.sled.z); snapCamera(); }
 
   function update(dt, input, ctx) {
-    P.flinch = false;
+    P.flinch = false; inputLook.dx=input.lookDX;inputLook.dy=input.lookDY;
     const control = !P.sit && !ctx.locked && P.carried <= 0;
     // look
     if (control || P.viewfinder) { P.camYaw -= input.lookDX * 0.0022; P.camPitch = clamp(P.camPitch + input.lookDY * 0.0022, -0.6, 0.9); }
@@ -2450,9 +2484,10 @@ const Player = (() => {
       camX = lerp(camX, tx, 1 - Math.pow(0.05, dt)); camY = lerp(camY, ty, 1 - Math.pow(0.05, dt)); camZ = lerp(camZ, tz, 1 - Math.pow(0.05, dt));
     } else {
       // over the shoulder; when you stand still in open country it drifts back and up into the painting
+      if(Math.abs(inputLook.dx)+Math.abs(inputLook.dy)>0.5) P.stillT=0;
       const paint = ctx.indoors ? 0 : smooth(2.5, 7, P.stillT) * (P.hold > 0 ? 0 : 1);
       P.calmCam = lerp(P.calmCam, paint, 1 - Math.pow(0.3, dt));
-      const dist = lerp(P.cutterUp ? 2.2 : 3.6, 8, P.calmCam), height = lerp(1.9, 3.4, P.calmCam), side = lerp(0.6, 0.2, P.calmCam);
+      const dist = lerp(P.cutterUp ? 2.2 : 4.1, 6.6, P.calmCam), height = lerp(1.75, 2.5, P.calmCam), side = lerp(0.6, 0.2, P.calmCam);
       const pitch = P.camPitch, cy = Math.cos(P.camYaw), sy = Math.sin(P.camYaw);
       tx = P.x - sy * dist * Math.cos(pitch) + cy * side; tz = P.z - cy * dist * Math.cos(pitch) - sy * side; ty = P.y + height + Math.sin(pitch) * dist;
       // keep the camera out of things and above the ground
@@ -2469,6 +2504,38 @@ const Player = (() => {
   // the ray the cutter and the camera look along
   function facing() { return [Math.sin(P.yaw), 0, Math.cos(P.yaw)]; }
   return { P, update, place, facing, snapCamera };
+})();
+</script>
+  <script data-src="tracks.js">
+// Bounded, transient footprints and sled marks. One small dynamic draw call.
+// Review/reset and chapter changes never leave a line connecting distant positions.
+'use strict';
+const Tracks=(()=>{
+  const MAX=240, data=new Float32Array(MAX*4*13),indices=new Uint32Array(MAX*6);
+  for(let i=0;i<MAX;i++){const v=i*4;indices.set([v,v+1,v+2,v,v+2,v+3],i*6);}
+  let mesh=null,count=0,cursor=0,last=null,side=1;
+  const item={model:null,mesh:null,noShadow:true,alpha:1};
+  function stamp(x,z,yaw,width,length){
+    const c=Math.cos(yaw),s=Math.sin(yaw),corners=[[-1,-1],[-1,1],[1,1],[1,-1]];
+    for(let j=0;j<4;j++){const [u,v]=corners[j],xx=x+c*u*width+s*v*length,zz=z-s*u*width+c*v*length;
+      data.set([xx,World.groundY(xx,zz)+.015,zz,0,1,0,1,1,1,u,v,MAT.TRACK,0],(cursor*4+j)*13);}
+    cursor=(cursor+1)%MAX;count=Math.min(MAX,count+1);
+  }
+  function update(p){
+    if(!last){last={x:p.x,z:p.z,sx:p.sled.x,sz:p.sled.z,foot:0};return;}
+    const dist=Math.hypot(p.x-last.x,p.z-last.z);
+    if(dist>5){last=null;return;}
+    if(dist<.22)return;
+    last.foot+=dist;
+    if(last.foot>.64){last.foot=0;side=-side;stamp(p.x+Math.cos(p.yaw)*.11*side,p.z-Math.sin(p.yaw)*.11*side,p.yaw,.065,.145);}
+    const sledDist=Math.hypot(p.sled.x-last.sx,p.sled.z-last.sz);
+    if(sledDist>.20&&sledDist<3){const yaw=p.sled.yaw;for(const side of [-1,1])stamp(p.sled.x+Math.cos(yaw)*.26*side,p.sled.z-Math.sin(yaw)*.26*side,yaw,.022,.26);last.sx=p.sled.x;last.sz=p.sled.z;}
+    last.x=p.x;last.z=p.z;
+    if(!mesh){mesh=GL.mesh(data,indices,true);item.mesh=mesh;item.model=M.create();}
+    GL.updateMesh(mesh,data);mesh.count=count*6;
+  }
+  function reset(){count=cursor=0;last=null;if(mesh)mesh.count=0;}
+  return {update,reset,get item(){return count&&mesh?item:null;}};
 })();
 </script>
   <script data-src="photo.js">
@@ -2802,7 +2869,7 @@ const Game = (() => {
     if (!lineCur && lineQ.length) { const text = lineQ.shift(); lineCur = { text, t: 0, d: 3.4 + text.length / 16 }; }
   }
   function startChapter(ch) {
-    chapter = ch; state = 'card'; stateT = 0; fade = 0; fadeTarget = 1;
+    Tracks.reset(); chapter = ch; state = 'card'; stateT = 0; fade = 0; fadeTarget = 1;
     setRig(ch === 1 ? 'noon' : 'dusk', true); Sound.setChapter(ch - 1);
     if (ch === 1) { Player.place(0.5, -22, 0); o4.x = 10; o4.z = 20; }
     else { Player.place(World.FARM.x - 6, World.SHORE_Z + 14, 0); }
@@ -2870,7 +2937,8 @@ const Game = (() => {
     Player.update(dt, input, ctx);
     if (P.torch && P.hold > 0.05) P.flinch = true;
     // the kid
-    kid.pose(P.x, P.y, P.z, P.yaw, clamp(P.speed / 1.4, 0, 1.3), dt, clamp(P.hold * 2, 0, 1) || (standoffWith ? 0.25 : 0), 0, P.torch);
+    Tracks.update(P);
+    kid.pose(P.x, P.y, P.z, P.yaw, P.speed / 1.4, dt, clamp(P.hold * 2, 0, 1) || (standoffWith ? 0.25 : 0), 0, P.torch);
     P.handWorld = kid.hand;
     // machines
     const mctx = { calmCeiling: quiet() ? 1 : calmCeiling, awake: awake && !P.sit, onLift: m => { if (quiet()) { m.state = 'wait'; return; } flags.carried = true; carriedFrom = { x: P.x, z: P.z }; P.carried = 0.001; Sound.at('lift', m.x, m.y + 1, m.z); }, onCarried: m => wake(m), onSwitchedOff: m => { flags.off = true; lineFor('off'); Sound.touch(); sleepReady = true; } };
@@ -2970,6 +3038,7 @@ const Game = (() => {
     const items = world.items.slice();
     for (const m of machines) { items.push(m.item); for (const ch of m.chunks) items.push(ch.item); }
     if (state !== 'title') items.push(kid.item);
+    if(Tracks.item)items.push(Tracks.item);
     M.trs(sledModel, P.sled.x, P.sled.y, P.sled.z, P.sled.yaw); world.sled.model = sledModel;
     RENDER.clearLights();
     if (state !== 'title') RENDER.contact(P.x,P.y,P.z,0.55);
@@ -3020,14 +3089,15 @@ const Game = (() => {
 
   // ---------------------------------------------------------------- HUD
   const g = ctx2; let sx = 1, sy = 1;
+  const textPixels=size=>Math.max(size*sx,Math.min(size,15));
   function text(t, x, y, size, a, o = {}) {
-    g.font = `${o.italic ? 'italic ' : ''}${o.weight || 400} ${size * sx}px ${FONT}`; g.textAlign = o.align || 'center'; g.textBaseline = 'alphabetic';
+    g.font = `${o.italic ? 'italic ' : ''}${o.weight || 400} ${textPixels(size)}px ${FONT}`; g.textAlign = o.align || 'center'; g.textBaseline = 'alphabetic';
     if ('letterSpacing' in g) g.letterSpacing = (o.letter || 0) * sx + 'px';
     if (o.shadow !== false) { g.fillStyle = css('#000000', a * (o.shadowA ?? 0.4)); g.fillText(t, x * sx + 1, y * sy + 1.5); }
     g.fillStyle = css(o.col || '#f6f1e6', a); g.fillText(t, x * sx, y * sy);
     if ('letterSpacing' in g) g.letterSpacing = '0px';
   }
-  function wrap(t, maxW, size, o = {}) { g.font = `${o.italic ? 'italic ' : ''}400 ${size * sx}px ${FONT}`; const words = t.split(' '), out = []; let cur = ''; for (const w of words) { const test = cur ? cur + ' ' + w : w; if (g.measureText(test).width > maxW * sx && cur) { out.push(cur); cur = w; } else cur = test; } if (cur) out.push(cur); return out; }
+  function wrap(t, maxW, size, o = {}) { g.font = `${o.italic ? 'italic ' : ''}400 ${textPixels(size)}px ${FONT}`; const words = t.split(' '), out = []; let cur = ''; for (const w of words) { const test = cur ? cur + ' ' + w : w; if (g.measureText(test).width > maxW * sx && cur) { out.push(cur); cur = w; } else cur = test; } if (cur) out.push(cur); return out; }
   function roman(n) { return ['', 'I', 'II', 'III', 'IV', 'V', 'VI'][n]; }
   function renderUI() {
     sx = UW / 1280; sy = UH / 720; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, UW, UH);
@@ -3048,7 +3118,7 @@ const Game = (() => {
     }
     // narration
     if (lineCur && !menuStack && state !== 'title') {
-      const a = Math.min(1, lineCur.t / 0.9, (lineCur.d - lineCur.t) / 0.9), size = 28 * t, lh = 34 * t;
+      const a = Math.min(1, lineCur.t / 0.9, (lineCur.d - lineCur.t) / 0.9), size = 28 * t, lh = Math.max(34 * t, 20 / sy);
       const ls = wrap(lineCur.text, 780 * (t > 1 ? 1.25 : 1), size, { italic: true }), y0 = 720 - 58 - (ls.length - 1) * lh;
       const grd = g.createLinearGradient(0, (720 - 170 * t) * sy, 0, 720 * sy); grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, `rgba(8,8,10,${0.45 * a})`); g.fillStyle = grd; g.fillRect(0, (720 - 170 * t) * sy, UW, 170 * t * sy);
       ls.forEach((l, i) => text(l, 640, y0 + i * lh, size, a, { italic: true, shadowA: 0.6 }));
@@ -3075,7 +3145,7 @@ const Game = (() => {
     const top = menuStack[menuStack.length - 1], items = menuItems(top.id), t = T(); menuRects = [];
     const head = MENU_HEAD[top.id]; if (head) text(head, 640, y0 - 44 * t, 18 * t, a * 0.65, { italic: true, letter: 2 });
     const lh = Math.min(44 * t, 330 / Math.max(1, items.length));
-    items.forEach((it, i) => { const y = y0 + i * lh, on = i === top.sel, size = Math.min(25 * t, lh * 0.72); text(it.label, 640, y, size, a * (on ? 1 : 0.62), { italic: !on, weight: on ? 500 : 400, letter: on ? 1 : 0 }); if (on) { g.font = `500 ${size * sx}px ${FONT}`; const w = g.measureText(it.label).width / 2 / sx + 22; g.fillStyle = css('#f6f1e6', a * 0.7); g.fillRect((640 - w - 14) * sx, (y - size * 0.32) * sy, 10 * sx, 1.5); g.fillRect((640 + w + 4) * sx, (y - size * 0.32) * sy, 10 * sx, 1.5); } menuRects.push({ x: 640 - 330, y: y - size - 6, w: 660, h: lh, i }); });
+    items.forEach((it, i) => { const y = y0 + i * lh, on = i === top.sel, size = Math.min(25 * t, lh * 0.72); text(it.label, 640, y, size, a * (on ? 1 : 0.62), { italic: !on, weight: on ? 500 : 400, letter: on ? 1 : 0 }); if (on) { g.font = `500 ${textPixels(size)}px ${FONT}`; const w = g.measureText(it.label).width / 2 / sx + 22; g.fillStyle = css('#f6f1e6', a * 0.7); g.fillRect((640 - w - 14) * sx, (y - size * 0.32) * sy, 10 * sx, 1.5); g.fillRect((640 + w + 4) * sx, (y - size * 0.32) * sy, 10 * sx, 1.5); } menuRects.push({ x: 640 - 330, y: y - size - 6, w: 660, h: lh, i }); });
   }
   function renderTitle() {
     const a = Math.min(1, stateT / 2), b = Math.min(1, Math.max(0, stateT - 0.6));
@@ -3128,8 +3198,8 @@ const Game = (() => {
     requestAnimationFrame(t => { last = t; frame(t); });
   }
   window.__game = {
-    get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
-    jump(ch, x, z) { menuStack = null; if (ch >= 2) { flags.island = true; flags.hulls = true; for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; h.y = 0; } } startChapter(ch); state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x !== undefined) Player.place(x, z, 0); if (ch === 2) awake = true; },
+    get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
+    jump(ch, x, z) { lineCur=null; lineQ=[]; menuStack = null; if (ch >= 2) { flags.island = true; flags.hulls = true; for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; h.y = 0; } } startChapter(ch); state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x !== undefined) Player.place(x, z, 0); if (ch === 2) awake = true; },
     set(x, y, z, tx, ty, tz) { const c = RENDER.cam; state = 'free'; c.x = x; c.y = y; c.z = z; c.tx = tx; c.ty = ty; c.tz = tz; },
     place(x, z, yaw) { Player.place(x, z, yaw || 0); }, step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) update(dt); }, get awake() { return awake; }, set awake(v) { awake = v; }, get standoff() { return standoffWith; }, get time() { return time; }, get deaths() { return deathT; }, setState(s) { state = s; stateT = 0; },
   };

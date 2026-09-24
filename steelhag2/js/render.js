@@ -56,6 +56,7 @@ const RENDER = (() => {
     float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
     void main() {
       int tile = int(vTile + 0.5); vec4 m = uMat[tile];
+      if(tile == ${MAT.TRACK}) { float edge=1.0-smoothstep(0.30,1.0,dot(vUV,vUV)); o=vec4(0.045,0.065,0.09,edge*0.22); return; }
       vec4 tx = texture(uTex, vec3(vUV, vTile));
       // Canvas colours and vertex tints are authored in sRGB. Light in linear space.
       vec3 albedo = pow(max(tx.rgb * vCol, vec3(0.0)), vec3(2.2));
@@ -150,7 +151,16 @@ const RENDER = (() => {
     in vec2 vUV; uniform sampler2D uTex; uniform float uExposure; uniform float uGrain; uniform float uVignette; uniform float uSat; uniform float uTime; uniform vec2 uRes; uniform float uPrint; out vec4 o;
     float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     void main() {
-      vec3 c = texture(uTex, vUV).rgb * uExposure;
+      // Small contrast-aware resolve: soften stair steps without blurring the whole image.
+      vec2 px=1.0/uRes;
+      vec3 center=texture(uTex,vUV).rgb;
+      vec3 north=texture(uTex,vUV+vec2(0,px.y)).rgb, south=texture(uTex,vUV-vec2(0,px.y)).rgb;
+      vec3 east=texture(uTex,vUV+vec2(px.x,0)).rgb, west=texture(uTex,vUV-vec2(px.x,0)).rgb;
+      vec3 lum=vec3(.2126,.7152,.0722);
+      float ln=dot(north,lum),ls=dot(south,lum),le=dot(east,lum),lw=dot(west,lum),lc=dot(center,lum);
+      float contrast=max(max(ln,ls),max(le,lw))-min(min(ln,ls),min(le,lw));
+      vec3 resolve=abs(ln-ls)>abs(le-lw)?(east+west)*.5:(north+south)*.5;
+      vec3 c=mix(center,resolve,smoothstep(.035,.18,contrast)*.32)*uExposure;
       // a gentle shoulder so lamps and the sun do not clip
       c = max(c - 0.006, 0.0);
       c = (c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14);

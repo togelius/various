@@ -1,13 +1,27 @@
 <!doctype html><meta charset="utf-8"><title>Isvägen · art review</title>
-<style>body{margin:0;background:#171c22;color:#d6dbdf;font:13px system-ui}nav{padding:10px;display:flex;gap:8px;align-items:center}button{background:#343e48;color:inherit;border:1px solid #56616a;padding:7px 12px;border-radius:4px;cursor:pointer}iframe{width:100%;height:calc(100vh - 55px);border:0}output{margin-left:auto}</style>
-<nav><strong>ISVÄGEN</strong><button data-view="crossing">Crossing</button><button data-view="farm">Farm</button><button data-view="bearer">Bearer</button><button data-view="character">Character</button><button id="walk">Walk / stop</button><output id="status">Loading…</output></nav><iframe id="game" src="../index.html?review=1"></iframe>
+<style>body{height:100vh;display:flex;flex-direction:column;margin:0;background:#171c22;color:#d6dbdf;font:13px system-ui}nav{flex-shrink:0;padding:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}button{background:#343e48;color:inherit;border:1px solid #56616a;padding:7px 12px;border-radius:4px;cursor:pointer}iframe{width:100%;flex:1;min-height:0;border:0}output{margin-left:auto}</style>
+<nav><strong>ISVÄGEN</strong><button data-view="crossing">Crossing</button><button data-view="farm">Farm</button><button data-view="bearer">Bearer</button><button data-view="character">Character</button><button id="walk">Walk / stop</button><button id="checks">Run checks</button><button id="build">Standalone</button><output id="status">Loading…</output></nav><iframe id="game" src="../index.html?review=1"></iframe>
 <script>
 const f=document.querySelector('iframe'),status=document.querySelector('output');let walking=false;
 function scene(name){const w=f.contentWindow,g=w.__game;if(!g)return;g.keys.forward=false;walking=false;
 const views={crossing:[1,4,45,0],farm:[2,-12,352,0.4],bearer:[2,24,396,0],character:[1,4,40,Math.PI]};const [ch,x,z,yaw]=views[name];g.jump(ch,x,z);g.place(x,z,yaw);g.step(1);g.awake=false;
-if(name==='bearer')g.set(27,5,399,26,4.6,402);
+if(name==='bearer'){const m=g.bearer;g.set(m.x+2.4,m.y+1.5,m.z+3.0,m.x,m.y+.7,m.z);}
 if(name==='character')g.set(6,1.8,43,4,1.0,40);
 status.textContent=name;}
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>scene(b.dataset.view));document.querySelector('#walk').onclick=()=>{const g=f.contentWindow.__game;g.setState('play');walking=!walking;g.keys.forward=walking;};
+document.querySelector('#build').onclick=()=>{f.src='../dist/stalhagen2.html?review=1';};
+document.querySelector('#checks').onclick=()=>{
+  try{const w=f.contentWindow,g=w.__game;g.jump(1,4,45);g.awake=false;const z=g.P.z;g.keys.forward=true;g.step(180);g.keys.forward=false;g.step(30);const moved=g.P.z-z;if(moved<5||moved>8)throw Error('walking distance '+moved);
+    if(!g.machines.every(m=>Array.from(m.bones).every(Number.isFinite)))throw Error('invalid rig');
+    // Real camera shutter and snapshot pipeline, with storage disabled by review=1.
+    const before=g.photos.length;g.pressed.camera=true;g.step(1);g.pressed.use=true;g.step(1);g.pressed.camera=true;g.step(1);
+    if(g.photos.length<=before)throw Error('shutter produced no photograph');
+    if(g.renderError)throw Error('render failure');
+    g.jump(2,24,400);const m=g.bearer;m.state='standoff';m.calm=1;g.place(m.x,m.z-.9,0);g.keys.use=true;g.step(145);g.keys.use=false;
+    if(!m.off)throw Error('standoff did not resolve');
+    if(!g.photos.every(p=>p.src&&p.neg))throw Error('incomplete photographic negative');
+    status.textContent='PASS · walk, rigs, shutter, standoff';
+  }catch(e){status.textContent='FAIL · '+e.message;}
+};
 f.onload=()=>{scene('crossing');};
 </script>

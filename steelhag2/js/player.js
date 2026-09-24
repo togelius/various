@@ -8,13 +8,14 @@ const Player = (() => {
     sled: { x: 0.8, y: 0, z: -26, vx: 0, vz: 0, yaw: 0, rope: 2.2 }, snow: 0, wet: 0, breath: 0, stepT: 0, surface: 'snow', dead: 0,
   };
   const cam = RENDER.cam;
+  const inputLook={dx:0,dy:0};
   let camX = 0, camY = 3, camZ = -30;
   const RADIUS = 0.35;
 
   function place(x, z, yaw = 0) { P.x = x; P.z = z; P.y = World.groundY(x, z); P.yaw = yaw; P.camYaw = yaw; P.vx = P.vz = 0; P.sled.x = x - Math.sin(yaw) * 2; P.sled.z = z - Math.cos(yaw) * 2; P.sled.y = World.groundY(P.sled.x, P.sled.z); snapCamera(); }
 
   function update(dt, input, ctx) {
-    P.flinch = false;
+    P.flinch = false; inputLook.dx=input.lookDX;inputLook.dy=input.lookDY;
     const control = !P.sit && !ctx.locked && P.carried <= 0;
     // look
     if (control || P.viewfinder) { P.camYaw -= input.lookDX * 0.0022; P.camPitch = clamp(P.camPitch + input.lookDY * 0.0022, -0.6, 0.9); }
@@ -85,9 +86,10 @@ const Player = (() => {
       camX = lerp(camX, tx, 1 - Math.pow(0.05, dt)); camY = lerp(camY, ty, 1 - Math.pow(0.05, dt)); camZ = lerp(camZ, tz, 1 - Math.pow(0.05, dt));
     } else {
       // over the shoulder; when you stand still in open country it drifts back and up into the painting
+      if(Math.abs(inputLook.dx)+Math.abs(inputLook.dy)>0.5) P.stillT=0;
       const paint = ctx.indoors ? 0 : smooth(2.5, 7, P.stillT) * (P.hold > 0 ? 0 : 1);
       P.calmCam = lerp(P.calmCam, paint, 1 - Math.pow(0.3, dt));
-      const dist = lerp(P.cutterUp ? 2.2 : 3.6, 8, P.calmCam), height = lerp(1.9, 3.4, P.calmCam), side = lerp(0.6, 0.2, P.calmCam);
+      const dist = lerp(P.cutterUp ? 2.2 : 4.1, 6.6, P.calmCam), height = lerp(1.75, 2.5, P.calmCam), side = lerp(0.6, 0.2, P.calmCam);
       const pitch = P.camPitch, cy = Math.cos(P.camYaw), sy = Math.sin(P.camYaw);
       tx = P.x - sy * dist * Math.cos(pitch) + cy * side; tz = P.z - cy * dist * Math.cos(pitch) - sy * side; ty = P.y + height + Math.sin(pitch) * dist;
       // keep the camera out of things and above the ground

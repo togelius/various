@@ -30,21 +30,37 @@ function ik2(H, F, a, b, hint, K) {
 const RIG = { BODY: 0, HEAD: 1, LED: 2, ANT: 3, LAMP: 4, LEG: 5, ARM: 13, CRADLE: 17, N: 18 };
 function buildMachineMesh(s, o = {}) {
   const b = new Builder(), c = [1, 1, 1];
-  // body: an instrument case with an orange stripe and a darker base band
-  b.bone = RIG.BODY; b.tile = MAT.BEIGE; b.col = c; b.box(-0.55 * s, -0.22 * s, -0.35 * s, 1.1 * s, 0.5 * s, 0.7 * s, { uv: 0.8 / s });
-  b.tile = MAT.FLAT; b.col = [0.84, 0.47, 0.18]; b.box(-0.551 * s, 0.0 * s, -0.351 * s, 1.102 * s, 0.06 * s, 0.702 * s);
-  b.col = [0.63, 0.6, 0.53]; b.box(-0.551 * s, -0.22 * s, -0.351 * s, 1.102 * s, 0.08 * s, 0.702 * s);
-  // head on a short neck at the front; the LED is its own bone so it can go dark
-  b.bone = RIG.HEAD; b.tile = MAT.BEIGE; b.col = c; b.box(-0.08 * s, -0.04 * s, -0.14 * s, 0.34 * s, 0.26 * s, 0.28 * s, { uv: 0.8 / s });
-  b.tile = MAT.DARK; b.box(0.26 * s, 0.0 * s, -0.09 * s, 0.02 * s, 0.14 * s, 0.18 * s);
-  b.bone = RIG.LED; b.tile = MAT.LED; b.col = c; b.box(0.27 * s, 0.05 * s, -0.03 * s, 0.03 * s, 0.05 * s, 0.06 * s);
-  b.bone = RIG.ANT; b.tile = MAT.DARK; b.cyl(0, 0, 0, 0.012 * s, 0.45 * s, { segs: 4 }); b.tile = MAT.LED; b.col = [1, 0.55, 0.35]; b.sphere(0, 0.46 * s, 0, 0.03 * s, { segs: 6, rings: 4 });
-  // the work lamp on the head's side, dark until it decides to come
-  b.bone = RIG.LAMP; b.tile = MAT.DARK; b.col = c; b.box(-0.06 * s, -0.06 * s, -0.06 * s, 0.12 * s, 0.12 * s, 0.12 * s); b.tile = MAT.GLASS; b.col = [1, 0.75, 0.45]; b.box(0.06 * s, -0.045 * s, -0.045 * s, 0.02 * s, 0.09 * s, 0.09 * s);
+  // Pressed-steel housing with a dark chassis, service cover and restrained markings.
+  b.bone=RIG.BODY;b.tile=MAT.DARK;b.col=[.8,.84,.8];
+  b.roundedBox(-.48*s,-.24*s,-.38*s,.96*s,.18*s,.80*s,.06*s);
+  b.tile=MAT.BEIGE;b.col=[.80,.83,.78];b.roundedBox(-.51*s,-.13*s,-.38*s,1.02*s,.43*s,.80*s,.085*s,{uv:.55/s});
+  b.col=[.68,.72,.68];b.roundedBox(-.42*s,.265*s,-.30*s,.84*s,.055*s,.59*s,.025*s);
+  b.tile=MAT.FLAT;b.col=[.57,.29,.12];b.roundedBox(-.515*s,-.015*s,-.385*s,1.03*s,.045*s,.81*s,.025*s);
+  b.tile=MAT.DARK;b.col=[.66,.7,.67];
+  for(const side of [-1,1]) {
+    for(let i=0;i<6;i++)b.roundedBox(side*.512*s-.007*s,.06*s,(-.24+i*.066)*s,.014*s,.12*s,.019*s,.006*s);
+    b.tube([[side*.43*s,-.12*s,-.25*s],[side*.60*s,-.23*s,-.18*s],[side*.61*s,-.19*s,.16*s],[side*.43*s,-.10*s,.24*s]],.027*s,{segs:7});
+  }
+  b.tile=MAT.STEEL;b.col=[.65,.67,.61];for(const x of [-.39,.39])for(const z of [-.26,.24])b.cyl(x*s,.319*s,z*s,.02*s,.008*s,{segs:8});
+  // Serial plate on the rear, using a dedicated authored label texture.
+  b.tile=MAT.BADGE;b.col=c;
+  {const a=b.vert(-.19*s,.025*s,-.389*s,0,0,-1,1,1),d=b.vert(.19*s,.025*s,-.389*s,0,0,-1,0,1),e=b.vert(.19*s,.23*s,-.389*s,0,0,-1,0,0),f=b.vert(-.19*s,.23*s,-.389*s,0,0,-1,1,0);b.quad(a,f,e,d);}
+  b.bone=RIG.HEAD;b.tile=MAT.DARK;b.col=[.72,.74,.7];b.cyl(0,-.14*s,0,.095*s,.19*s,{segs:12});
+  b.tile=MAT.BEIGE;b.col=[.86,.87,.80];b.roundedBox(-.18*s,-.035*s,-.13*s,.36*s,.27*s,.32*s,.055*s);
+  b.tile=MAT.DARK;b.col=[.75,.78,.76];b.roundedBox(-.145*s,.025*s,.177*s,.29*s,.14*s,.035*s,.026*s);
+  b.tile=MAT.WINDOW;b.col=[.4,.50,.49];b.roundedBox(-.115*s,.048*s,.210*s,.15*s,.09*s,.014*s,.014*s);
+  b.bone=RIG.LED;b.tile=MAT.LED;b.col=[.75,.55,.35];b.sphere(.087*s,.09*s,.218*s,.018*s,{segs:10,rings:8});
+  b.bone=RIG.ANT;b.tile=MAT.DARK;b.col=c;b.cyl(0,0,0,.025*s,.09*s,{segs:8});b.tube([[0,.07*s,0],[.01*s,.26*s,0],[.03*s,.52*s,-.02*s]],.008*s,{segs:5});
+  b.bone=RIG.LAMP;b.tile=MAT.DARK;b.col=c;b.roundedBox(-.07*s,-.065*s,-.05*s,.14*s,.13*s,.10*s,.023*s);
+  b.tile=MAT.GLASS;b.col=[1,.80,.55];b.roundedBox(-.05*s,-.045*s,.053*s,.10*s,.09*s,.012*s,.016*s);
   // legs: upper and lower segments along +y from the joint
   for (let l = 0; l < 4; l++) {
-    b.bone = RIG.LEG + l * 2; b.tile = MAT.DARK; b.col = c; b.cyl(0, 0, 0, 0.045 * s, o.upper, { segs: 6 }); b.sphere(0, 0, 0, 0.06 * s, { segs: 6, rings: 4 });
-    b.bone = RIG.LEG + l * 2 + 1; b.cyl(0, 0, 0, 0.035 * s, o.lower, { segs: 6 }); b.sphere(0, 0, 0, 0.05 * s, { segs: 6, rings: 4 }); b.tile = MAT.STEEL; b.cyl(0, o.lower - 0.03 * s, 0, 0.09 * s, 0.04 * s, { segs: 6 });
+    b.bone = RIG.LEG + l * 2; b.tile = MAT.DARK; b.col = c; b.cyl(0, 0, 0, 0.045 * s, o.upper, { segs: 12 });
+    b.tile=MAT.BEIGE;b.col=[.7,.73,.68];b.roundedBox(-.068*s,.075*s,-.065*s,.136*s,o.upper*.58,.13*s,.035*s);
+    b.tile=MAT.STEEL;b.col=[.65,.70,.69];b.cyl(.078*s,.13*s,0,.022*s,o.upper*.6,{segs:8});
+    b.tile=MAT.DARK;b.col=c; b.sphere(0, 0, 0, 0.06 * s, { segs: 6, rings: 4 });
+    b.bone = RIG.LEG + l * 2 + 1; b.cyl(0, 0, 0, 0.035 * s, o.lower, { segs: 12 });
+    for(let k=0;k<5;k++)b.cyl(0,(.04+k*.023)*s,0,.051*s,.012*s,{segs:10}); b.sphere(0, 0, 0, 0.05 * s, { segs: 6, rings: 4 }); b.tile = MAT.STEEL; b.cyl(0, o.lower - 0.03 * s, 0, 0.09 * s, 0.04 * s, { segs: 6 });
   }
   if (o.arms) for (let a = 0; a < 2; a++) {
     b.bone = RIG.ARM + a * 2; b.tile = MAT.DARK; b.col = c; b.cyl(0, 0, 0, 0.035 * s, o.armLen, { segs: 6 }); b.sphere(0, 0, 0, 0.05 * s, { segs: 6, rings: 4 });
@@ -69,7 +85,7 @@ class Machine {
     this.item = { mesh: this.mesh, model: M.create(), bones: this.bones, fx: this.fx, x, y: this.y, z, radius: 2.5 * s, hidden: !!opts.hidden, machine: this };
     this.hidden = !!opts.hidden; this.hopOnly = kind === 'scout';
     this.bodyH = 0.95 * s; this.hips = [[0.42, 0.28], [0.42, -0.28], [-0.42, 0.28], [-0.42, -0.28]].map(([fx, fz]) => [fx * s, fz * s]);
-    this.feet = this.hips.map(([fx, fz]) => { const wx = x + Math.cos(yaw) * fx - Math.sin(yaw) * fz * 1.3, wz = z + Math.sin(yaw) * fx + Math.cos(yaw) * fz * 1.3; return { x: wx, y: World.groundY(wx, wz), z: wz, step: 0, fromX: wx, fromZ: wz, toX: wx, toZ: wz }; });
+    this.feet = this.hips.map(([fx, fz]) => { const wx = x + Math.cos(yaw) * fx + Math.sin(yaw) * fz * 1.3, wz = z - Math.sin(yaw) * fx + Math.cos(yaw) * fz * 1.3; return { x: wx, y: World.groundY(wx, wz), z: wz, step: 0, fromX: wx, fromZ: wz, toX: wx, toZ: wz }; });
     this.t = 0; this.blink = 0; this.look = { x: 0, y: 0, z: 1 }; this.lookT = 0; this.headYaw = 0; this.headPitch = 0;
     this.led = true; this.lamp = false; this.antSpring = 0; this.antVel = 0;
     this.state = 'idle'; this.calm = 0; this.notice = 0; this.hold = 0; this.stepT = 0; this.beepT = 4; this.off = false; this.kneel = 0;
@@ -132,14 +148,14 @@ class Machine {
     M.trsEuler(B.subarray(0, 16), this.x, bodyY + bob, this.z, this.yaw, pitch, 0);
     const bx = this.x, by = bodyY + bob, bz = this.z;
     // head: at the front, turned toward what it watches
-    const hx = bx + c * 0.55 * s, hz = bz - sn * 0.55 * s, hy = by + 0.12 * s;
+    const hx = bx + sn * 0.48 * s, hz = bz + c * 0.48 * s, hy = by + 0.12 * s;
     const dx = this.look.x - hx, dy = this.look.y - hy, dz = this.look.z - hz;
     const wantYaw = M.angleTo(this.yaw, Math.atan2(dx, dz)), wantPitch = clamp(Math.atan2(dy, Math.hypot(dx, dz)), -0.7, 0.5);
     this.headYaw = lerp(this.headYaw, clamp(wantYaw, -1.1, 1.1), 0.08); this.headPitch = lerp(this.headPitch, wantPitch, 0.08);
     M.trsEuler(B.subarray(16, 32), hx, hy, hz, this.yaw + this.headYaw, -this.headPitch, 0);
     B.set(B.subarray(16, 32), 32); // the LED rides the head
     // antenna at the back, springy
-    M.trsEuler(B.subarray(48, 64), bx - c * 0.45 * s, by + 0.28 * s, bz + sn * 0.45 * s, this.yaw, 0, this.antSpring);
+    M.trsEuler(B.subarray(48, 64), bx - sn * 0.30 * s + c * 0.32 * s, by + 0.32 * s, bz - c * 0.30 * s - sn * 0.32 * s, this.yaw, 0, this.antSpring);
     // lamp on the head's side
     const hm = B.subarray(16, 32); M.trsEuler(B.subarray(64, 80), hm[12] + hm[8] * 0.2 * s + hm[0] * 0.05 * s, hm[13] + hm[5] * 0.16 * s, hm[14] + hm[10] * 0.2 * s + hm[2] * 0.05 * s, this.yaw + this.headYaw, -this.headPitch, 0);
     // legs by IK
@@ -156,9 +172,9 @@ class Machine {
     if (this.kind === 'bearer') {
       for (let a = 0; a < 2; a++) {
         const side = a ? 1 : -1, open = this.armsOpen;
-        const S0 = [hx - c * 0.1 * s + sn * side * 0.18 * s, hy - 0.16 * s, hz + sn * 0.1 * s + c * side * 0.18 * s];
+        const S0 = [hx - sn * 0.1 * s + c * side * 0.18 * s, hy - 0.16 * s, hz - c * 0.1 * s - sn * side * 0.18 * s];
         const reach = 0.25 + open * 0.75, drop = lerp(-0.2, 0.05, open);
-        const E = [S0[0] + c * reach * this.armLen * 1.2 + sn * side * lerp(0.05, 0.25, open) * s, S0[1] + drop * s, S0[2] - sn * reach * this.armLen * 1.2 + c * side * lerp(0.05, 0.25, open) * s];
+        const E = [S0[0] + sn * reach * this.armLen * 1.2 + c * side * lerp(0.05, 0.25, open) * s, S0[1] + drop * s, S0[2] + c * reach * this.armLen * 1.2 - sn * side * lerp(0.05, 0.25, open) * s];
         ik2(S0, E, this.armLen, this.armLen, [0, -1, 0], K);
         aimMatrix(B.subarray((RIG.ARM + a * 2) * 16, (RIG.ARM + a * 2) * 16 + 16), S0[0], S0[1], S0[2], K[0] - S0[0], K[1] - S0[1], K[2] - S0[2], sn * side, 0, c * side);
         aimMatrix(B.subarray((RIG.ARM + a * 2 + 1) * 16, (RIG.ARM + a * 2 + 1) * 16 + 16), K[0], K[1], K[2], E[0] - K[0], E[1] - K[1], E[2] - K[2], sn * side, 0, c * side);
@@ -166,14 +182,14 @@ class Machine {
       B.set(B.subarray(0, 16), RIG.CRADLE * 16);
     }
     // charge and hidden flags
-    for (let i = 0; i < RIG.N; i++) { const o = i * 4; this.fx[o] = this.dark ? 0 : this.charge * (i === RIG.BODY || i === RIG.HEAD || i === RIG.CRADLE ? 0.8 : 0); this.fx[o + 1] = this.cut.has(i) ? 1 : 0; }
+    for (let i = 0; i < RIG.N; i++) { const o = i * 4; this.fx[o] = this.dark ? 0 : this.charge * (i === RIG.BODY || i === RIG.HEAD || i === RIG.CRADLE ? 0.20 : 0); this.fx[o + 1] = this.cut.has(i) ? 1 : 0; }
     if (!this.led) this.fx[RIG.LED * 4 + 1] = 1;
     if (this.kind !== 'bearer') { this.fx[RIG.LAMP * 4 + 1] = 1; for (let i = RIG.ARM; i < RIG.N; i++) this.fx[i * 4 + 1] = 1; }
     else if (!this.lamp) this.fx[RIG.LAMP * 4 + 1] = 1;
     for (const k of this.cut) for (const j of subtree(k)) this.fx[j * 4 + 1] = 1;
     this.item.x = this.x; this.item.y = bodyY; this.item.z = this.z;
-    this.headWorld = [hm[12] + hm[0] * 0.28 * s, hm[13] + hm[5] * 0.05 * s, hm[14] + hm[2] * 0.28 * s];
-    this.lampWorld = [B[64 + 12], B[64 + 13], B[64 + 14], B[64 + 0], B[64 + 1], B[64 + 2]];
+    this.headWorld = [hm[12] + hm[8] * 0.22 * s, hm[13] + hm[5] * 0.05 * s, hm[14] + hm[10] * 0.22 * s];
+    this.lampWorld = [B[64 + 12], B[64 + 13], B[64 + 14], B[64 + 8], B[64 + 9], B[64 + 10]];
   }
   // joint positions the cutter can reach: [bone, x, y, z, name]
   joints() {
@@ -342,9 +358,12 @@ class Kid {
   // x,y,z feet; yaw facing; run 0..1; reach 0..1 (the right arm out); carried (lying on its back, held up)
   pose(x, y, z, yaw, run, dt, reach = 0, carried = 0, torchOn = false) {
     const B = this.bones, c = Math.cos(yaw), s = Math.sin(yaw);
-    this.phase += dt * (4 + run * 6.5) * (run > 0.05 ? 1 : 0);
-    const ph = this.phase, bob = Math.abs(Math.sin(ph)) * -0.035 * run;
-    const hipY = y + 0.82 + bob + carried * 0.6;
+    const speed = run * 1.4;
+    this.phase += dt * speed / 1.4 * TAU;
+    this.bob += dt;
+    const gait = Math.min(1, speed / 0.5);
+    const ph = this.phase, bob = Math.cos(ph * 2) * 0.012 * gait + Math.sin(this.bob * 1.7) * 0.003;
+    const hipY = y + 0.79 + bob + carried * 0.6;
     const lean = run * 0.08;
     M.trsEuler(B.subarray(0, 16), x, hipY, z, yaw, lean + carried * 1.4, 0);
     const hips = B.subarray(0, 16);
@@ -356,12 +375,15 @@ class Kid {
     const K = [0, 0, 0];
     for (let l = 0; l < 2; l++) {
       const side = l ? 1 : -1, sw = ph + l * Math.PI;
-      const th = carried ? -1.0 : Math.sin(sw) * 0.7 * run, kn = carried ? 1.2 : Math.max(0, Math.cos(sw)) * lerp(0.3, 0.95, (Math.sin(sw) + 1) * 0.5) * run + 0.06;
-      const H = at([side * 0.1, -0.05, 0]);
-      const kx = Math.sin(th) * 0.42, ky = -Math.cos(th) * 0.42;
-      const Kp = at([side * 0.1, -0.05 + ky, kx]);
-      const fx2 = kx + Math.sin(th - kn) * 0.4, fy2 = ky - Math.cos(th - kn) * 0.4;
-      const F = at([side * 0.1, -0.05 + fy2, fx2]);
+      const cycle = ((ph / TAU + l * 0.5) % 1 + 1) % 1;
+      const stance = cycle < .6;
+      const footZ = (stance ? lerp(.42,-.42,cycle/.6) : lerp(-.42,.42,smooth(0,1,(cycle-.6)/.4))) * gait;
+      const lift = stance ? 0 : Math.sin((cycle-.6)/.4*Math.PI)*.12*gait;
+      const H = at([side*.105,-.025,0]);
+      let F = at([side*.11,-.79,footZ]);
+      F[1] = World.groundY(F[0],F[2]) + .035 + lift;
+      if(carried) F = at([side*.11,-.35,.5]);
+      const Kp=[0,0,0];ik2(H,F,.42,.40,[fwd[0],.05,fwd[2]],Kp);
       aimMatrix(B.subarray((KID.LEG + l * 2) * 16, (KID.LEG + l * 2) * 16 + 16), H[0], H[1], H[2], Kp[0] - H[0], Kp[1] - H[1], Kp[2] - H[2], right[0], right[1], right[2]);
       aimMatrix(B.subarray((KID.LEG + l * 2 + 1) * 16, (KID.LEG + l * 2 + 1) * 16 + 16), Kp[0], Kp[1], Kp[2], F[0] - Kp[0], F[1] - Kp[1], F[2] - Kp[2], right[0], right[1], right[2]);
     }

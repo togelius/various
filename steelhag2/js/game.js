@@ -132,7 +132,7 @@ const Game = (() => {
     if (!lineCur && lineQ.length) { const text = lineQ.shift(); lineCur = { text, t: 0, d: 3.4 + text.length / 16 }; }
   }
   function startChapter(ch) {
-    chapter = ch; state = 'card'; stateT = 0; fade = 0; fadeTarget = 1;
+    Tracks.reset(); chapter = ch; state = 'card'; stateT = 0; fade = 0; fadeTarget = 1;
     setRig(ch === 1 ? 'noon' : 'dusk', true); Sound.setChapter(ch - 1);
     if (ch === 1) { Player.place(0.5, -22, 0); o4.x = 10; o4.z = 20; }
     else { Player.place(World.FARM.x - 6, World.SHORE_Z + 14, 0); }
@@ -200,7 +200,8 @@ const Game = (() => {
     Player.update(dt, input, ctx);
     if (P.torch && P.hold > 0.05) P.flinch = true;
     // the kid
-    kid.pose(P.x, P.y, P.z, P.yaw, clamp(P.speed / 1.4, 0, 1.3), dt, clamp(P.hold * 2, 0, 1) || (standoffWith ? 0.25 : 0), 0, P.torch);
+    Tracks.update(P);
+    kid.pose(P.x, P.y, P.z, P.yaw, P.speed / 1.4, dt, clamp(P.hold * 2, 0, 1) || (standoffWith ? 0.25 : 0), 0, P.torch);
     P.handWorld = kid.hand;
     // machines
     const mctx = { calmCeiling: quiet() ? 1 : calmCeiling, awake: awake && !P.sit, onLift: m => { if (quiet()) { m.state = 'wait'; return; } flags.carried = true; carriedFrom = { x: P.x, z: P.z }; P.carried = 0.001; Sound.at('lift', m.x, m.y + 1, m.z); }, onCarried: m => wake(m), onSwitchedOff: m => { flags.off = true; lineFor('off'); Sound.touch(); sleepReady = true; } };
@@ -300,6 +301,7 @@ const Game = (() => {
     const items = world.items.slice();
     for (const m of machines) { items.push(m.item); for (const ch of m.chunks) items.push(ch.item); }
     if (state !== 'title') items.push(kid.item);
+    if(Tracks.item)items.push(Tracks.item);
     M.trs(sledModel, P.sled.x, P.sled.y, P.sled.z, P.sled.yaw); world.sled.model = sledModel;
     RENDER.clearLights();
     if (state !== 'title') RENDER.contact(P.x,P.y,P.z,0.55);
@@ -350,14 +352,15 @@ const Game = (() => {
 
   // ---------------------------------------------------------------- HUD
   const g = ctx2; let sx = 1, sy = 1;
+  const textPixels=size=>Math.max(size*sx,Math.min(size,15));
   function text(t, x, y, size, a, o = {}) {
-    g.font = `${o.italic ? 'italic ' : ''}${o.weight || 400} ${size * sx}px ${FONT}`; g.textAlign = o.align || 'center'; g.textBaseline = 'alphabetic';
+    g.font = `${o.italic ? 'italic ' : ''}${o.weight || 400} ${textPixels(size)}px ${FONT}`; g.textAlign = o.align || 'center'; g.textBaseline = 'alphabetic';
     if ('letterSpacing' in g) g.letterSpacing = (o.letter || 0) * sx + 'px';
     if (o.shadow !== false) { g.fillStyle = css('#000000', a * (o.shadowA ?? 0.4)); g.fillText(t, x * sx + 1, y * sy + 1.5); }
     g.fillStyle = css(o.col || '#f6f1e6', a); g.fillText(t, x * sx, y * sy);
     if ('letterSpacing' in g) g.letterSpacing = '0px';
   }
-  function wrap(t, maxW, size, o = {}) { g.font = `${o.italic ? 'italic ' : ''}400 ${size * sx}px ${FONT}`; const words = t.split(' '), out = []; let cur = ''; for (const w of words) { const test = cur ? cur + ' ' + w : w; if (g.measureText(test).width > maxW * sx && cur) { out.push(cur); cur = w; } else cur = test; } if (cur) out.push(cur); return out; }
+  function wrap(t, maxW, size, o = {}) { g.font = `${o.italic ? 'italic ' : ''}400 ${textPixels(size)}px ${FONT}`; const words = t.split(' '), out = []; let cur = ''; for (const w of words) { const test = cur ? cur + ' ' + w : w; if (g.measureText(test).width > maxW * sx && cur) { out.push(cur); cur = w; } else cur = test; } if (cur) out.push(cur); return out; }
   function roman(n) { return ['', 'I', 'II', 'III', 'IV', 'V', 'VI'][n]; }
   function renderUI() {
     sx = UW / 1280; sy = UH / 720; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, UW, UH);
@@ -378,7 +381,7 @@ const Game = (() => {
     }
     // narration
     if (lineCur && !menuStack && state !== 'title') {
-      const a = Math.min(1, lineCur.t / 0.9, (lineCur.d - lineCur.t) / 0.9), size = 28 * t, lh = 34 * t;
+      const a = Math.min(1, lineCur.t / 0.9, (lineCur.d - lineCur.t) / 0.9), size = 28 * t, lh = Math.max(34 * t, 20 / sy);
       const ls = wrap(lineCur.text, 780 * (t > 1 ? 1.25 : 1), size, { italic: true }), y0 = 720 - 58 - (ls.length - 1) * lh;
       const grd = g.createLinearGradient(0, (720 - 170 * t) * sy, 0, 720 * sy); grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, `rgba(8,8,10,${0.45 * a})`); g.fillStyle = grd; g.fillRect(0, (720 - 170 * t) * sy, UW, 170 * t * sy);
       ls.forEach((l, i) => text(l, 640, y0 + i * lh, size, a, { italic: true, shadowA: 0.6 }));
@@ -405,7 +408,7 @@ const Game = (() => {
     const top = menuStack[menuStack.length - 1], items = menuItems(top.id), t = T(); menuRects = [];
     const head = MENU_HEAD[top.id]; if (head) text(head, 640, y0 - 44 * t, 18 * t, a * 0.65, { italic: true, letter: 2 });
     const lh = Math.min(44 * t, 330 / Math.max(1, items.length));
-    items.forEach((it, i) => { const y = y0 + i * lh, on = i === top.sel, size = Math.min(25 * t, lh * 0.72); text(it.label, 640, y, size, a * (on ? 1 : 0.62), { italic: !on, weight: on ? 500 : 400, letter: on ? 1 : 0 }); if (on) { g.font = `500 ${size * sx}px ${FONT}`; const w = g.measureText(it.label).width / 2 / sx + 22; g.fillStyle = css('#f6f1e6', a * 0.7); g.fillRect((640 - w - 14) * sx, (y - size * 0.32) * sy, 10 * sx, 1.5); g.fillRect((640 + w + 4) * sx, (y - size * 0.32) * sy, 10 * sx, 1.5); } menuRects.push({ x: 640 - 330, y: y - size - 6, w: 660, h: lh, i }); });
+    items.forEach((it, i) => { const y = y0 + i * lh, on = i === top.sel, size = Math.min(25 * t, lh * 0.72); text(it.label, 640, y, size, a * (on ? 1 : 0.62), { italic: !on, weight: on ? 500 : 400, letter: on ? 1 : 0 }); if (on) { g.font = `500 ${textPixels(size)}px ${FONT}`; const w = g.measureText(it.label).width / 2 / sx + 22; g.fillStyle = css('#f6f1e6', a * 0.7); g.fillRect((640 - w - 14) * sx, (y - size * 0.32) * sy, 10 * sx, 1.5); g.fillRect((640 + w + 4) * sx, (y - size * 0.32) * sy, 10 * sx, 1.5); } menuRects.push({ x: 640 - 330, y: y - size - 6, w: 660, h: lh, i }); });
   }
   function renderTitle() {
     const a = Math.min(1, stateT / 2), b = Math.min(1, Math.max(0, stateT - 0.6));
@@ -458,8 +461,8 @@ const Game = (() => {
     requestAnimationFrame(t => { last = t; frame(t); });
   }
   window.__game = {
-    get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
-    jump(ch, x, z) { menuStack = null; if (ch >= 2) { flags.island = true; flags.hulls = true; for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; h.y = 0; } } startChapter(ch); state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x !== undefined) Player.place(x, z, 0); if (ch === 2) awake = true; },
+    get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
+    jump(ch, x, z) { lineCur=null; lineQ=[]; menuStack = null; if (ch >= 2) { flags.island = true; flags.hulls = true; for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; h.y = 0; } } startChapter(ch); state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x !== undefined) Player.place(x, z, 0); if (ch === 2) awake = true; },
     set(x, y, z, tx, ty, tz) { const c = RENDER.cam; state = 'free'; c.x = x; c.y = y; c.z = z; c.tx = tx; c.ty = ty; c.tz = tz; },
     place(x, z, yaw) { Player.place(x, z, yaw || 0); }, step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) update(dt); }, get awake() { return awake; }, set awake(v) { awake = v; }, get standoff() { return standoffWith; }, get time() { return time; }, get deaths() { return deathT; }, setState(s) { state = s; stateT = 0; },
   };

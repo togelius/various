@@ -50,3 +50,28 @@ Quiet mode (in settings) makes the bearers watch but never carry you.
 
 - `tools/shot.js`: screenshots at given chapters/positions with Playwright and SwiftShader.
 - `tools/build-single.py`: the single-file build.
+
+## Visual revision (September 2026)
+
+The slice now uses shaped clothing and equipment meshes, rounded machine housings,
+service plates, redesigned trees and van, proper pitched roofs, window joinery and
+snowdrifts. Lighting decodes painted sRGB colours before shading and uses a filmic
+highlight curve; grain is applied after display conversion so dark materials stay
+clean. Ground contact shading, broad ice variation, edge smoothing, footprints and
+sled marks support the winter setting. The player's gait follows travel speed and
+samples ground height. The bearer's head and work lamp face along its travel axis.
+
+The Stålenhag homage remains the art direction. **Authored meshes, textures and other
+assets are welcome; procedural generation is not a requirement.** Current additions
+are original geometry and painted material definitions contained in the source.
+
+Run `node tools/check-art.js` for geometry winding, finite rig poses, initial foot
+placement, machine orientation, cutting, and standoff checks. Serve the folder and
+open `tools/art-review.html` for fixed crossing/farm/character/bearer views and the
+**Run checks** button. **Standalone** runs the same checks against the release build.
+Review mode is muted and does not read or write player saves or photographs.
+Rebuild releases with `python3 tools/build-single.py`.
+
+These checks cover the slice's revised rendering and interactions, not a complete
+playthrough or a device performance certification. Further work should concentrate
+on richer terrain composition, clothing deformation, and more natural tree crowns.
