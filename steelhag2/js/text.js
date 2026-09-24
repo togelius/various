@@ -17,6 +17,7 @@ const TEXT = {
     { id: 'i4', ch: 1, when: 'hulls', text: 'They had not been cleared away. They had been put in the bay.' },
     { id: 'i5', ch: 1, when: 'far', text: 'Something on the island was drawing current. Some nights the meter at the substation ran backwards.' },
     { id: 'i6', ch: 1, when: 'thin', text: 'The dark ice was the thin ice. Dad had told me that when I was six, and I had not believed him.' },
+    { id: 'recovery', ch:1, when:'recovery', text:'The recovery crew had cut the tow cable. They had left the warning light on.' },
     { id: 'relay', ch:2, when:'relay', text:'The relay clicked. In the field, something answered before the current came back.' },
     { id: 'ii1', ch: 2, when: 'start', text: 'The house had been sold twice since us. The kitchen window was lit.' },
     { id: 'ii2', ch: 2, when: 'hole', text: 'Where SV-14 used to lie there was a hole. In the hole there was a cable, and the cable was warm.' },

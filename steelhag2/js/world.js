@@ -356,6 +356,7 @@ const World = (() => {
     S.vantages.push({ x: 18, z: 78, key: '1:hulls', caption: 'They had not been cleared away. They had been put in the bay.' });
     S.vantages.push({ x: FARM.x - 12, z: FARM.z - 14, key: '2:house', caption: 'The house, sold, with a window lit' });
     S.vantages.push({ x: 40, z: (FARM.z + 24), key: '2:hole', caption: 'Where SV-14 used to lie. Something had been laid into the hole.' });
+    Roadside.build(place,collide,groundY,S);
     // triggers along the way
     S.triggers.push({ x: 0, z: 14, r: 14, id: 'hulls' }, { x: FARM.x, z: SHORE_Z + 5, r: 12, id: 'island' });
     S.door = { x: FARM.x, z: FARM.z - 4.6 };

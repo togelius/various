@@ -255,7 +255,7 @@ const Game = (() => {
     if (photoRequested) takePhoto();
     // triggers and lines
     for (const t of world.triggers) if (!flags[t.id] && Math.hypot(P.x - t.x, P.z - t.z) < t.r) trigger(t.id);
-    if (chapter === 1) { if (P.z > 2) lineFor('ice'); if (P.z > 36) lineFor('mid'); if (P.z > 78) lineFor('far'); if (P.thinT > 0.5) lineFor('thin'); }
+    if (chapter === 1) { if (P.z > 2) lineFor('ice'); if (P.z > 36) lineFor('mid'); if (P.z > 78) lineFor('far'); if (P.thinT > 0.5) lineFor('thin'); if(Math.hypot(P.x-world.recovery.x,P.z-world.recovery.z)<7)lineFor('recovery'); }
     if (chapter === 2) {
       if (Math.hypot(P.x - 46, P.z - (World.FARM.z + 30)) < 12) lineFor('hole');
       if (!flags.scoutSeen && Math.hypot(P.x - scout.x, P.z - scout.z) < 12) { flags.scoutSeen = true; lineFor('scout'); }
@@ -398,6 +398,7 @@ const Game = (() => {
     const power=relayPulseT>0?(reduce()?.4:Math.sin(relayPulseT*7)>.35?.75:.035):1;world.window.emis=world.lamps[0].k/.9*power;
     if(!inside)for (const l of world.lamps) RENDER.light(l.x, l.y, l.z, l.r, l.col[0] * l.k * 1.6 * power, l.col[1] * l.k * 1.6 * power, l.col[2] * l.k * 1.6 * power);
     if (P.torch && state !== 'title') { const t = kid.torchWorld; const fl = Math.hypot(t[3], t[4], t[5]) || 1; RENDER.light(t[0], t[1], t[2], 26, 1.6, 1.45, 1.15, t[3] / fl, t[4] / fl, t[5] / fl, 0.86); }
+    if(world.recoveryLight){const glow=reduce()?.7:.45+.35*(.5+.5*Math.sin(time*1.3));world.recoveryLight.emis=glow;if(!inside)RENDER.light(world.recoveryLight.x,world.recoveryLight.y,world.recoveryLight.z,3,.8*glow,.17*glow,.04*glow);}
     world.relay.emis=flags.relay?.4:1.1+Math.sin(time*3)*.4;if(chapter===2&&!flags.relay)RENDER.light(world.relay.x,world.relay.y+1,world.relay.z-1,5,.25,.7,1.1);
     if (world.safelight && chapter >= 2) RENDER.light(world.safelight.x, world.safelight.y - 0.1, world.safelight.z, 5, 0.9, 0.12, 0.06);
     for (const m of machines) if (m.lamp && m.lampWorld && (m===sentry?chapter===1:chapter===2)) { const l = m.lampWorld, k=m.state==='windup'?(reduce()?.8:.5+.5*smooth(0,.95,m.attackT)):1; RENDER.light(l[0], l[1], l[2], 18, 1.6*k, 1.15*k, 0.6*k, l[3], l[4], l[5], 0.8); }

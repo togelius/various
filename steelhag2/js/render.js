@@ -35,9 +35,10 @@ const RENDER = (() => {
       int b = int(aBone); mat4 model = uModel * uBones[b]; vCharge = uFx[b].x; float hidden = uFx[b].y;
       #endif
       vec4 w = model * vec4(aPos, 1.0);
-      if(int(aTile+.5)==${MAT.FOLIAGE}){vec3 center=model[3].xyz;vec3 facing=uCamPos-center;vec3 right=normalize(vec3(facing.z,0.0,-facing.x));float scale=length(model[0].xyz);w.xyz=center+right*aPos.x*scale+vec3(0.0,aPos.y*scale,0.0);}
+      if(int(aTile+.5)==${MAT.FOLIAGE}){vec3 center=model[3].xyz;vec3 facing=uCamPos-center;vec3 right=normalize(vec3(facing.z,0.0,-facing.x));float scale=length(model[0].xyz),shape=.82+.34*fract(sin(dot(center.xz,vec2(12.9898,78.233)))*43758.5453);w.xyz=center+right*aPos.x*scale*shape+vec3(0.0,aPos.y*scale,0.0);}
       vWorld = w.xyz; vNrm = normalize(mat3(model) * aNrm);
       vCol = aCol; vUV = aUV; vTile = aTile;
+      if(int(aTile+.5)==${MAT.FOLIAGE}){float seed=fract(sin(dot(model[3].xz,vec2(39.346,11.135)))*47453.5453);vUV.x=seed>.5?1.0-aUV.x:aUV.x;vCol*=.88+.20*seed;}
       gl_Position = hidden > 0.5 ? vec4(0.0, 0.0, 3.0, 1.0) : uVP * w;
     }`;
   const FS = `

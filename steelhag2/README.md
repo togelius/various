@@ -144,3 +144,6 @@ The cellar develops the whole roll in 2.4 seconds; press E to reveal immediately
 Browse with left/right, compare the original exposure with C or E, open the album
 with Tab and leave with Esc. The workbench also has pointer/touch buttons and a
 contact strip. Completed prints can be inspected again without waiting.
+
+
+The ice-road entrance includes an authored service hut, open boom gate, winter-road sign, fencing, utility wires, vehicle ruts and old footprints. A damaged R-07 recovery cradle lies beside the crossing with a cut tow cable and warning beacon. These optional landmarks preserve the direct route and are batched in `js/roadside.js`. `node tools/check-roadside.js` checks geometry bounds/materials and the clear walking corridor. The playtest harness includes checkpoint, recovery-equipment and recovery-photograph views.
