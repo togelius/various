@@ -54,7 +54,7 @@ class Character {
     for(let k=0;k<n;k++)out[k]=lerp(v[a*n+k],v[b*n+k]*sign,f);
     if(n===4){const len=Math.hypot(...out)||1;for(let k=0;k<4;k++)out[k]/=len;}
   }
-  pose(x,y,z,yaw,run,dt,reach=0,carried=0,torchOn=false,aim=false){
+  pose(x,y,z,yaw,run,dt,reach=0,carried=0,torchOn=false,aim=false,velocity=null){
     const speed=run*1.4;this.clock+=dt;
     const name=carried?'Death':aim?'Idle_Gun_Pointing':reach>.5?'Interact':speed>3.6?'Run':speed>.12?'Walk':'Idle_Neutral';
     if(name!==this.clip){this.oldPose=this.nodes.map(n=>({t:n.t.slice(),q:n.q.slice(),s:n.s.slice()}));this.clip=name;this.blend=0;this.phase=0;}
@@ -64,7 +64,7 @@ class Character {
     for(let i=0;i<this.nodes.length;i++){const n=this.nodes[i],src=CHARACTER_ASSET.nodes[i];n.t.splice(0,3,...(src.translation||[0,0,0]));n.q.splice(0,4,...(src.rotation||[0,0,0,1]));n.s.splice(0,3,...(src.scale||[1,1,1]));}
     for(const tr of clip.tracks)this.sample(tr,tm,this.nodes[tr.node][{translation:'t',rotation:'q',scale:'s'}[tr.path]]);
     // Keep the authored aiming upper body while the lower body continues to walk.
-    if(aim&&speed>.12){const walk=speed>3.6?this.clips.Run:this.clips.Walk;this.movePhase+=dt*Math.max(.25,speed/(speed>3.6?4.2:1.65));for(const tr of walk.tracks)if(/^(UpperLeg|LowerLeg|Foot|PT)\./.test(this.nodes[tr.node].name))this.sample(tr,this.movePhase%walk.duration,this.nodes[tr.node][{translation:'t',rotation:'q',scale:'s'}[tr.path]]);}
+    if(aim&&speed>.12){const walk=speed>3.6?this.clips.Run:this.clips.Walk;const backward=velocity&&velocity[0]*Math.sin(yaw)+velocity[1]*Math.cos(yaw)<-.15;this.movePhase+=dt*Math.max(.25,speed/(speed>3.6?4.2:1.65))*(backward?-1:1);for(const tr of walk.tracks)if(/^(UpperLeg|LowerLeg|Foot|PT)\./.test(this.nodes[tr.node].name))this.sample(tr,(this.movePhase%walk.duration+walk.duration)%walk.duration,this.nodes[tr.node][{translation:'t',rotation:'q',scale:'s'}[tr.path]]);}
     if(this.oldPose&&this.blend<1)for(let i=0;i<this.nodes.length;i++){
       const n=this.nodes[i],p=this.oldPose[i],f=smooth(0,1,this.blend);let dot=n.q.reduce((a,v,k)=>a+v*p.q[k],0),sg=dot<0?-1:1;
       for(let k=0;k<3;k++){n.t[k]=lerp(p.t[k],n.t[k],f);n.s[k]=lerp(p.s[k],n.s[k],f);}for(let k=0;k<4;k++)n.q[k]=lerp(p.q[k],n.q[k]*sg,f);const len=Math.hypot(...n.q);for(let k=0;k<4;k++)n.q[k]/=len;

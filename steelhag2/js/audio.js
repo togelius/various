@@ -101,6 +101,7 @@ const Sound = (() => {
     at(kind, x, y, z, v = 1) {
       if (!ac) return; const p = panner(x, y, z);
       switch (kind) {
+        case 'charge': tone(95,.85,'sawtooth',.09*v,0,2.1,p,.15);tone(440,.18,'sine',.12*v,0,1.35,p);noise(.7,'bandpass',640,3,.22*v,.06,p);break;
         case 'beep': tone(1320, 0.09, 'square', 0.12 * v, 0, 0, p); tone(1760, 0.12, 'square', 0.1 * v, 0.1, 0, p); tone(1760, 0.14, 'sine', 0.05 * v, 0.1, 0, wet); break;
         case 'hop': noise(0.1, 'bandpass', 700, 1.5, 0.25 * v, 0, p); break;
         case 'step': noise(0.06, 'bandpass', 500, 2, 0.3 * v, 0, p); tone(120, 0.08, 'sine', 0.15 * v, 0, 0.5, p); break;
@@ -112,7 +113,7 @@ const Sound = (() => {
         case 'cut': noise(0.35, 'bandpass', 2600, 1.5, 0.6, 0, p); tone(90, 0.3, 'sawtooth', 0.15, 0, 0.5, p); noise(0.25, 'lowpass', 400, 1, 0.4, 0.05, p); break;
         case 'dark': tone(220, 1.8, 'sine', 0.25, 0, 0.25, p); noise(0.8, 'lowpass', 250, 1, 0.35, 0, p); break;
         case 'rumble': tone(38, 6, 'sine', 0.9 * v, 0, 1.1, p, 0.5); noise(4, 'lowpass', 120, 1, 0.9 * v, 0, p); noise(2.5, 'bandpass', 500, 1, 0.5 * v, 1, p); break;
-        case 'crack': noise(0.4, 'bandpass', 900, 2, 0.6, 0, p); tone(180, 0.6, 'sine', 0.3, 0, 0.5, p); tone(700, 0.2, 'square', 0.05, 0, 0.7, p); break;
+        case 'crack': noise(0.4, 'bandpass', 900, 2, 0.6*v, 0, p); tone(180, 0.6, 'sine', 0.3*v, 0, 0.5, p); tone(700, 0.2, 'square', 0.05*v, 0, 0.7, p); break;
       }
     },
     tick(v) { noise(0.02, 'highpass', 3500, 1, 0.12 * v); },

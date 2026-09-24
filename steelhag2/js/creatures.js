@@ -33,8 +33,8 @@ function buildMachineMesh(s, o = {}) {
   // Pressed-steel housing with a dark chassis, service cover and restrained markings.
   b.bone=RIG.BODY;b.tile=MAT.DARK;b.col=[.8,.84,.8];
   b.roundedBox(-.48*s,-.24*s,-.38*s,.96*s,.18*s,.80*s,.06*s);
-  b.tile=MAT.BEIGE;b.col=[.80,.83,.78];b.roundedBox(-.51*s,-.13*s,-.38*s,1.02*s,.43*s,.80*s,.085*s,{uv:.55/s});
-  b.col=[.68,.72,.68];b.roundedBox(-.42*s,.265*s,-.30*s,.84*s,.055*s,.59*s,.025*s);
+  b.tile=MAT.BEIGE;b.col=o.aggressive?[.48,.53,.49]:[.80,.83,.78];b.roundedBox(-.51*s,-.13*s,-.38*s,1.02*s,.43*s,.80*s,.085*s,{uv:.55/s});
+  b.col=o.aggressive?[.39,.44,.42]:[.68,.72,.68];b.roundedBox(-.42*s,.265*s,-.30*s,.84*s,.055*s,.59*s,.025*s);
   b.tile=MAT.FLAT;b.col=[.57,.29,.12];b.roundedBox(-.515*s,-.015*s,-.385*s,1.03*s,.045*s,.81*s,.025*s);
   b.tile=MAT.DARK;b.col=[.66,.7,.67];
   for(const side of [-1,1]) {
@@ -67,6 +67,26 @@ function buildMachineMesh(s, o = {}) {
     b.bone = RIG.ARM + a * 2 + 1; b.cyl(0, 0, 0, 0.03 * s, o.armLen, { segs: 6 }); b.tile = MAT.STEEL; b.box(-0.05 * s, o.armLen - 0.02 * s, -0.02 * s, 0.1 * s, 0.14 * s, 0.04 * s); b.box(-0.05 * s, o.armLen - 0.02 * s, 0.02 * s, 0.1 * s, 0.14 * s, 0.04 * s);
   }
   if (o.cradle) { b.bone = RIG.CRADLE; b.tile = MAT.STEEL; b.col = c; for (const z of [-0.28, 0, 0.28]) { const pts = []; for (let i = 0; i <= 8; i++) { const t = i / 8; pts.push([(-0.5 + t) * s, (0.28 + Math.sin(t * Math.PI) * 0.32) * s, z * s]); } b.tube(pts, 0.02 * s, { segs: 5 }); } for (const x of [-0.45, 0.45]) b.tube([[x * s, 0.28 * s, -0.3 * s], [x * s, 0.28 * s, 0.3 * s]], 0.02 * s, { segs: 5 }); }
+  if(o.aggressive){
+    // Road maintenance machinery refitted for a purpose the warning plate never named.
+    b.bone=RIG.BODY;b.tile=MAT.STEEL;b.col=[.35,.39,.37];
+    for(const side of [-1,1]){
+      b.roundedBox(side*.61*s-.08*s,-.11*s,-.39*s,.16*s,.46*s,.87*s,.028*s);
+      b.tube([[side*.57*s,.32*s,-.24*s],[side*.57*s,.66*s,-.11*s],[side*.57*s,.66*s,.35*s],[side*.57*s,.12*s,.48*s]],.034*s,{segs:9});
+      b.tile=MAT.BEIGE;b.col=[.89,.53,.15];b.roundedBox(side*.613*s-.014*s,.05*s,-.38*s,.028*s,.08*s,.68*s,.008*s);
+      b.tile=MAT.DARK;b.col=[.72,.74,.70];for(let z=-.33;z<.29;z+=.10)b.box(side*.63*s-.016*s,.05*s,z*s,.032*s,.085*s,.032*s);
+      b.tile=MAT.STEEL;b.col=[.35,.39,.37];
+    }
+    // A black, shielded sensor mast and slotted amber warning lamp.
+    b.bone=RIG.HEAD;b.tile=MAT.DARK;b.col=[.57,.60,.57];b.roundedBox(-.27*s,.20*s,-.19*s,.54*s,.33*s,.40*s,.025*s);
+    b.tile=MAT.GLASS;b.col=[1,.49,.16];b.roundedBox(-.205*s,.30*s,.219*s,.41*s,.07*s,.016*s,.009*s);
+    b.tile=MAT.STEEL;b.col=[.43,.46,.42];for(const x of [-.14,-.045,.05,.145])b.box(x*s,.285*s,.239*s,.02*s,.105*s,.025*s);
+    b.roundedBox(-.30*s,.52*s,-.23*s,.60*s,.07*s,.50*s,.014*s);
+    b.bone=RIG.BODY;b.tile=MAT.DARK;b.col=[.40,.43,.40];b.roundedBox(-.38*s,-.20*s,.42*s,.76*s,.18*s,.15*s,.018*s);
+    b.tile=MAT.STEEL;b.col=[.65,.67,.61];for(const x of [-.32,-.16,0,.16,.32])b.box(x*s,-.36*s,.49*s,.045*s,.23*s,.08*s);
+    // Copper isolation collars make the actual severable pivots readable in snow.
+    for(let l=0;l<4;l++)for(const lower of [0,1]){b.bone=RIG.LEG+l*2+lower;b.tile=MAT.BEIGE;b.col=[.92,.53,.13];b.cyl(0,0,0,.085*s,.085*s,{segs:14});b.tile=MAT.STEEL;b.col=[.38,.42,.39];b.cyl(0,.033*s,0,.089*s,.017*s,{segs:14});}
+  }
   return b.build();
 }
 // The current graph: which bones hang from which. Cutting a bone darkens and drops its subtree.
@@ -75,17 +95,17 @@ function subtree(k) { const out = [k]; for (let i = 0; i < RIG.N; i++) if (PAREN
 
 class Machine {
   constructor(kind, x, z, yaw, opts = {}) {
-    this.aggressive = !!opts.aggressive; this.attackT=0; this.stagger=0;
+    this.aggressive = !!opts.aggressive; this.attackT=0; this.stagger=0; this.attackDir=[0,1]; this.attackOrigin=[x,z];
     this.kind = kind; // 'scout' | 'bearer'
     const s = this.s = (kind === 'bearer' ? 1 : .42)*(opts.scale||1);
-    this.upper = 0.58 * s; this.lower = 0.62 * s; this.armLen = 0.36 * s;
-    this.mesh = opts.mesh || buildMachineMesh(s, { upper: this.upper, lower: this.lower, armLen: this.armLen, arms: kind === 'bearer', cradle: kind === 'bearer' });
+    this.upper = (this.aggressive?.70:.58) * s; this.lower = (this.aggressive?.68:.62) * s; this.armLen = 0.36 * s;
+    this.mesh = opts.mesh || buildMachineMesh(s, { upper: this.upper, lower: this.lower, armLen: this.armLen, aggressive:this.aggressive, arms: kind === 'bearer', cradle: kind === 'bearer' });
     this.x = x; this.z = z; this.y = World.groundY(x, z); this.yaw = yaw; this.vx = 0; this.vz = 0; this.speed = 0;
     this.bones = new Float32Array(RENDER.MAX_BONES * 16); this.fx = new Float32Array(RENDER.MAX_BONES * 4);
     for (let i = 0; i < RENDER.MAX_BONES; i++) this.bones.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], i * 16);
     this.item = { mesh: this.mesh, model: M.create(), bones: this.bones, fx: this.fx, x, y: this.y, z, radius: 2.5 * s, hidden: !!opts.hidden, machine: this };
     this.hidden = !!opts.hidden; this.hopOnly = kind === 'scout';
-    this.bodyH = 0.95 * s; this.hips = [[0.42, 0.28], [0.42, -0.28], [-0.42, 0.28], [-0.42, -0.28]].map(([fx, fz]) => [fx * s, fz * s]);
+    this.bodyH = (this.aggressive?1.10:.95) * s; this.hips = [[0.42, 0.28], [0.42, -0.28], [-0.42, 0.28], [-0.42, -0.28]].map(([fx, fz]) => [fx * s, fz * s]);
     this.feet = this.hips.map(([fx, fz]) => { const wx = x + Math.cos(yaw) * fx + Math.sin(yaw) * fz * 1.3, wz = z - Math.sin(yaw) * fx + Math.cos(yaw) * fz * 1.3; return { x: wx, y: World.groundY(wx, wz), z: wz, step: 0, fromX: wx, fromZ: wz, toX: wx, toZ: wz }; });
     this.t = 0; this.blink = 0; this.look = { x: 0, y: 0, z: 1 }; this.lookT = 0; this.headYaw = 0; this.headPitch = 0;
     this.led = true; this.lamp = false; this.antSpring = 0; this.antVel = 0;
@@ -145,9 +165,10 @@ class Machine {
     // body height from the feet, with a kneel and a lift
     let fy = 0, n = 0; for (let l = 0; l < 4; l++) if (this.legOk(l)) { fy += this.feet[l].y; n++; }
     const base = n ? fy / n : World.groundY(this.x, this.z);
-    const bodyY = base + this.bodyH * (1 - this.kneel * 0.55) * (this.legsLeft() ? 1 : 0.35) + (this.hop ? this.y - World.groundY(this.x, this.z) : 0);
+    const brace=this.aggressive&&this.state==='windup'?smooth(0,.6,this.attackT)*.13*this.s:0;
+    const bodyY = base - brace + this.bodyH * (1 - this.kneel * 0.55) * (this.legsLeft() ? 1 : 0.35) + (this.hop ? this.y - World.groundY(this.x, this.z) : 0);
     const bob = this.speed > 0.05 && !this.hop ? Math.sin(this.t * 9) * 0.012 * s : 0;
-    const pitch = this.kneel * 0.15;
+    const pitch = this.kneel * 0.15+(this.aggressive&&this.state==='windup'?.10:0);
     M.trsEuler(B.subarray(0, 16), this.x, bodyY + bob, this.z, this.yaw, pitch, 0);
     const bx = this.x, by = bodyY + bob, bz = this.z;
     // head: at the front, turned toward what it watches
@@ -232,23 +253,23 @@ class Machine {
   // Cutting a support joint interrupts it; two lost legs make the exposed core reachable.
   updateHostile(dt,player,ctx) {
     const dx=player.x-this.x,dz=player.z-this.z,d=Math.hypot(dx,dz),dir=d>.001?[dx/d,dz/d]:[0,1];
-    this.lookAt(player.x,player.y+1.2,player.z);
+    if(this.state==='windup'||this.state==='lunge')this.lookAt(this.x+this.attackDir[0]*8,player.y+1.2,this.z+this.attackDir[1]*8);else this.lookAt(player.x,player.y+1.2,player.z);
     if(this.legsLeft()<=1){this.off=true;this.led=false;this.lamp=false;this.state='off';this.pose();if(ctx.onSwitchedOff)ctx.onSwitchedOff(this);return;}
     if(this.stagger>0){this.stagger-=dt;this.speed=0;this.pose();return;}
     if(!ctx.awake || d>40){this.speed=0;this.state='idle';this.pose();return;}
     this.lamp=true;this.attackT+=dt;
     if(this.state==='windup'){
-      this.speed=0;this.armsOpen=.8;this.blink=Math.sin(this.attackT*24)>0?1:0;
-      if(this.attackT>.95){this.state='lunge';this.attackT=0;this.attackDir=dir;this.say('lift',.6);}
+      this.speed=0;this.armsOpen=.8;this.blink=1;
+      if(this.attackT>.95){this.state='lunge';this.attackT=0;this.say('lift',.6);}
     }else if(this.state==='lunge'){
       this.move(dt,this.attackDir[0],this.attackDir[1],5.8);
       if(d<1.25&&!this.hitThisLunge){this.hitThisLunge=true;if(ctx.onHit)ctx.onHit(this);}
-      if(this.attackT>.65){this.state='recover';this.attackT=0;}
+      if(this.attackT>.65){this.state='recover';this.attackT=0;this.say('crack',.55);if(ctx.onImpact)ctx.onImpact(this);}
     }else if(this.state==='recover'){
       this.speed=0;this.armsOpen=0;if(this.attackT>1.4){this.state='approach';this.attackT=0;}
     }else{
       this.state='approach';this.armsOpen=.12;
-      if(d<4.8){this.state='windup';this.attackT=0;this.hitThisLunge=false;this.say('beep');}
+      if(d<4.8){this.state='windup';this.attackT=0;this.attackDir=dir;this.attackOrigin=[this.x,this.z];this.hitThisLunge=false;this.say('charge');}
       else this.move(dt,dir[0],dir[1],1.7);
     }
     this.pose();

@@ -48,3 +48,15 @@ if(walking.feet.some(f=>f.step>0||Math.abs(f.y-World.groundY(f.x,f.z))>.001))thr
 if(Math.abs(walking.yaw)>.001)throw Error('machine failed to face north');
 console.log('Locomotion: scaled rig, north-facing travel and interrupted steps settle onto terrain');
 `,ctx);
+
+vm.runInContext(`
+const stationary={x:0,y:0,z:3,speed:0,torch:false,cutterUp:false,hold:0,flinch:false,handWorld:[0,1,3]};
+let hurt=0,impacts=0;const callbacks={awake:true,quiet:false,onHit:()=>hurt++,onImpact:()=>impacts++};
+const dodged=new Machine('bearer',0,0,0,{aggressive:true});dodged.update(1/60,stationary,callbacks);
+if(dodged.state!=='windup')throw Error('charge did not announce');
+const original=JSON.stringify(dodged.attackDir);stationary.x=3;
+for(let i=0;i<120;i++)dodged.update(1/60,stationary,callbacks);
+if(JSON.stringify(dodged.attackDir)!==original||Math.abs(dodged.x)>.01)throw Error('telegraphed charge changed its lane');
+if(hurt!==0||impacts!==1)throw Error('sidestep must avoid damage and charge must land once');
+console.log('Roadkeeper: telegraphed lane commits before movement, side-step is safe, impact fires once');
+`,ctx);

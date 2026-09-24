@@ -30,7 +30,7 @@ sources and prompts are recorded in [assets/foliage/README.md](assets/foliage/RE
   pointer) or the right stick. **Shift** runs. Walking is 3.1 m/s; running is 5.6 m/s.
 - **E** (or click) reaches out, sits down, uses doors, takes the photograph.
 - **F** the torch. **C** raises the camera; **E** takes a photograph anywhere. An E photo prompt also raises the camera and shoots directly.
-- **Hold Space** or right mouse to aim the arc cutter; **E / left click** cuts the highlighted support joint within eight metres. It recharges between shots.
+- **Hold Space** or right mouse to aim the arc cutter; **E / left click** cuts the highlighted support joint within eight metres. It recharges between shots. Aim near a joint to select it; the small dots mark reachable pivots, and the ring marks the selected one.
 - **Esc** pause, **Tab** the album, **M** mute. Keys can be rebound in the menu.
 - On a phone: left pad walks, dragging the right half looks, and the buttons are camera,
   torch, reach/use, cutter, run and album. The album adapts to portrait screens.
@@ -105,7 +105,8 @@ procedural generation is not a requirement.
 ## Validation
 
 Run `node tools/check-character.js` for weighted skin, authored clip blends and pose
-bounds. Run `node tools/check-art.js` for winding, machine poses, peaceful interactions,
+bounds. Run `node tools/check-art.js
+node tools/check-combat.js` for winding, machine poses, peaceful interactions,
 roadkeeper attack telegraphing, damage, staggering and defeat. Run
 `node tools/check-store.js` for storage-quota and save preservation, and
 `node tools/check-world.js` for shoreline continuity, collision and cutter occlusion.
@@ -122,3 +123,12 @@ release build. Review mode is muted and does not read or write player saves/phot
 Rebuild releases with `python3 tools/build-single.py`.
 
 These checks are regression coverage, not a claim that the art or game is finished.
+
+### Roadkeeper encounter polish
+
+The hostile machine has its own heavier chassis, shielded warning mast and copper
+pivot collars. Its amber lane commits when the wind-up begins: step sideways to
+avoid the lunge, then use its recovery to cut. A severed support interrupts the
+attack. The cutter selects visible joints near the reticle, respects vertical aim
+and walls, and shows support/core/defeat feedback. Backpedaling while aiming
+reverses the walking cycle. Quiet mode retains the non-attacking encounter.

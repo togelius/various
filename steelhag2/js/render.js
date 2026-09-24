@@ -59,6 +59,7 @@ const RENDER = (() => {
     float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
     void main() {
       int tile = int(vTile + 0.5); vec4 m = uMat[tile];
+      if(tile==${MAT.SIGNAL}){float edge=1.0-smoothstep(.86,1.0,abs(vUV.x));float ends=smoothstep(0.0,.08,vUV.y)*(1.0-smoothstep(.88,1.0,vUV.y));float rails=smoothstep(.83,.91,abs(vUV.x));o=vec4(.95,.43,.10,edge*ends*(.13+rails*.42)*uAlpha);return;}
       if(tile==${MAT.PATH}){float edge=1.0-smoothstep(.42,1.0,abs(vUV.x)+vnoise(vWorld.xz*4.0)*.18);float mottling=.65+.35*vnoise(vWorld.xz*2.2);o=vec4(.16,.19,.22,edge*mottling*.13*uAlpha);return;}
       if(tile == ${MAT.TRACK}) { float edge=1.0-smoothstep(0.30,1.0,dot(vUV,vUV)); o=vec4(0.045,0.065,0.09,edge*0.22); return; }
       vec4 tx = (tile==${MAT.FOLIAGE}||tile==${MAT.WINDOW_TREE})?texture(uFoliage,vUV):texture(uTex, vec3(vUV, vTile));

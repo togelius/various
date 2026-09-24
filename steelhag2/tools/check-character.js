@@ -12,5 +12,6 @@ for(const speed of [0,1.5,2.8,5.6,0])for(let frame=0;frame<120;frame++){
 for(const mode of ['Interact','Idle_Gun_Pointing']){for(let i=0;i<60;i++)c.pose(0,0,0,0,0,1/60,mode==='Interact'?1:0,0,false,mode==='Idle_Gun_Pointing');if(c.clip!==mode)throw Error('missing interaction pose');}
 if(c.hand[1]<1.15||c.hand[2]<.3)throw Error('cutter arm is not aimed forward');
 const foot=c.nodes.findIndex(n=>n.name==='Foot.L'),samples=[];for(let i=0;i<90;i++){c.pose(0,0,0,0,2/1.4,1/60,0,0,false,true);samples.push(c.nodes[foot].world[14]);}if(Math.max(...samples)-Math.min(...samples)<.1)throw Error('aiming locomotion is sliding');
+const before=c.movePhase;for(let i=0;i<60;i++)c.pose(0,0,0,0,2/1.4,1/60,0,0,false,true,[0,-2]);if(c.movePhase>=before||!c.vertices.every(Number.isFinite))throw Error('backpedal clip did not reverse safely');
 console.log('Authored character: weighted skin, walk/run/idle blends, grounding, interaction and cutter pose passed');
 `,ctx);
