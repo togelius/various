@@ -101,6 +101,7 @@ const Sound = (() => {
     at(kind, x, y, z, v = 1) {
       if (!ac) return; const p = panner(x, y, z);
       switch (kind) {
+        case 'relay': noise(.09,'bandpass',620,1.8,.32*v,0,p);tone(85,.17,'triangle',.17*v,.02,.65,p);noise(.07,'highpass',2100,1,.12*v,.14,p);break;
         case 'charge': tone(95,.85,'sawtooth',.09*v,0,2.1,p,.15);tone(440,.18,'sine',.12*v,0,1.35,p);noise(.7,'bandpass',640,3,.22*v,.06,p);break;
         case 'beep': tone(1320, 0.09, 'square', 0.12 * v, 0, 0, p); tone(1760, 0.12, 'square', 0.1 * v, 0.1, 0, p); tone(1760, 0.14, 'sine', 0.05 * v, 0.1, 0, wet); break;
         case 'hop': noise(0.1, 'bandpass', 700, 1.5, 0.25 * v, 0, p); break;

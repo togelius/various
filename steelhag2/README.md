@@ -158,3 +158,7 @@ The forest mixes the original spruce with a second generated winter pine cutout,
 The field pack now carries three condition lamps: green, amber, then red as damage accumulates. Hits briefly recoil the torso, the cutter has a short visual kick, and the pack and cap follow the authored skeleton orientation. These reactions preserve movement and the camera; reduced motion suppresses hit/recoil motion. Defeat plays the authored fall and identifies the checkpoint return.
 
 Roadkeeper charges now stop at contact and enter recovery, giving the player space to escape; swept contact also catches long frames without passing through the protagonist.
+
+The farm field relay has a moving breaker and ammeter, enamel instructions and standby/running lamps. Activating it sends a brief surge along the cable into the field while the house supply drops; reduced motion keeps steady state changes without the travelling surge. The same breaker and lamp state is restored from checkpoints.
+
+The farm bearer crosses open ground faster and eases down near the player; its natural approach from the relay now completes within twenty seconds rather than the previous thirty-second test allowance.

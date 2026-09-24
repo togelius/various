@@ -1,7 +1,7 @@
 // Check real farm geometry and navigable routes, including the open garden gate.
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const root=path.join(__dirname,'../js'),c=vm.createContext({console,Math,Float32Array,Uint32Array,RENDER:{MAX_BONES:32},GL:{mesh:(v,i)=>({v,i}),instances:()=>{}}});
-for(const f of ['util','math','geo','paint','roadside','farmyard','world'])vm.runInContext(fs.readFileSync(path.join(root,f+'.js'),'utf8'),c);
+for(const f of ['util','math','geo','paint','roadside','farmyard','relay','world'])vm.runInContext(fs.readFileSync(path.join(root,f+'.js'),'utf8'),c);
 vm.runInContext(`
 const assert=(v,m)=>{if(!v)throw Error(m);},meshes=[],colliders=[];
 const S={};Farmyard.build((mesh,x,y,z,yaw,extra)=>{const it={mesh,x,y,z,...extra};meshes.push(it);return it;},(x,y,z,w,h,d)=>colliders.push({x0:x,y0:y,z0:z,x1:x+w,y1:y+h,z1:z+d}),World.groundY,S);

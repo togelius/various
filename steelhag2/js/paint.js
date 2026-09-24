@@ -1,8 +1,8 @@
 // STÅLHAGEN II — painted materials. Every surface is a 256 px square painted with the first game's brushes,
 // once at boot, into a texture array. The alpha channel of the steel materials is the seam mask the charge flows along.
 'use strict';
-const MAT = { SNOW: 0, ICE: 1, STEEL: 2, RED: 3, PLANK: 4, CONCRETE: 5, BIRCH: 6, ROOF: 7, BEIGE: 8, DARK: 9, GLASS: 10, ROAD: 11, FOIL: 12, REED: 13, FLAT: 14, LED: 15, CABLE: 16, SPRUCE: 17, WINDOW: 18, CLOTH: 19, BADGE: 20, TRACK: 21, COLD_LIGHT: 22, FOLIAGE: 23, HULL_PLATE: 24, PATH: 25, NOTE: 26, WINDOW_TREE: 27, SIGNAL: 28, CROSSING_SIGN: 29, RECOVERY_PLATE: 30, YARD_PLATE: 31, LOG_END: 32, PINE: 33 };
-const MATS = 34, TEX = 256;
+const MAT = { SNOW: 0, ICE: 1, STEEL: 2, RED: 3, PLANK: 4, CONCRETE: 5, BIRCH: 6, ROOF: 7, BEIGE: 8, DARK: 9, GLASS: 10, ROAD: 11, FOIL: 12, REED: 13, FLAT: 14, LED: 15, CABLE: 16, SPRUCE: 17, WINDOW: 18, CLOTH: 19, BADGE: 20, TRACK: 21, COLD_LIGHT: 22, FOLIAGE: 23, HULL_PLATE: 24, PATH: 25, NOTE: 26, WINDOW_TREE: 27, SIGNAL: 28, CROSSING_SIGN: 29, RECOVERY_PLATE: 30, YARD_PLATE: 31, LOG_END: 32, PINE: 33, RELAY_PLATE: 34, RELAY_DIAL: 35 };
+const MATS = 36, TEX = 256;
 
 const Paint = (() => {
   // per-material parameters: [roughness 0..1 (1 = matte), retroreflective 0/1, emissive strength, seam-glow 0/1]
@@ -125,6 +125,14 @@ const Paint = (() => {
     put(MAT.RECOVERY_PLATE,(g,r)=>{fill(g,'#b8b9a3');g.fillStyle='#303e3c';g.font='bold 65px monospace';g.fillText('R-07',16,83);g.fillRect(16,101,222,4);g.font='bold 22px sans-serif';g.fillText('BÄRGNING',16,145);g.font='14px monospace';g.fillText('KRAFTVERK / RECOVERY',16,180);g.fillStyle='#8b4f30';g.fillRect(16,207,222,12);for(let i=0;i<95;i++){g.fillStyle='rgba(78,50,28,.18)';g.fillRect(r()*256,r()*256,2+r()*14,1+r()*3);}},.8);
     put(MAT.YARD_PLATE,(g,r)=>{fill(g,'#bfc8bd');g.strokeStyle='#52635e';g.lineWidth=6;g.strokeRect(7,7,242,242);g.fillStyle='#394b46';g.textAlign='center';g.font='bold 30px sans-serif';g.fillText('SJÖGÅRDEN',128,90);g.font='bold 84px serif';g.fillText('17',128,190);for(let i=0;i<50;i++){g.fillStyle='rgba(70,58,33,.14)';g.fillRect(r()*256,r()*256,2+r()*8,1+r()*3);}},.8);
     put(MAT.LOG_END,(g,r)=>{fill(g,'#a39378');g.strokeStyle='#6e634f';g.lineWidth=1.5;for(let ring=12;ring<125;ring+=7+r()*5){g.beginPath();for(let k=0;k<=60;k++){const a=k/60*TAU,rr=ring+Math.sin(a*5+ring)*2;const x=128+Math.cos(a)*rr,y=128+Math.sin(a)*rr;if(k)g.lineTo(x,y);else g.moveTo(x,y);}g.stroke();}g.strokeStyle='#655b41';g.lineWidth=2;for(let i=0;i<4;i++){const a=i*1.47;g.beginPath();g.moveTo(128+Math.cos(a)*120,128+Math.sin(a)*120);g.lineTo(128+Math.cos(a+.1)*52,128+Math.sin(a+.1)*52);g.stroke();}},1);
+
+    put(MAT.RELAY_PLATE,(g,r)=>{
+      fill(g,'#c7c5a6');g.strokeStyle='#51584e';g.lineWidth=3;g.strokeRect(5,5,246,246);g.fillStyle='#38443e';g.textAlign='center';g.font='bold 24px sans-serif';g.fillText('FÄLTRELÄ 17',128,28);g.font='12px monospace';g.fillText('SJÖGÅRDEN · 400 V',128,47);
+      g.font='bold 15px monospace';g.fillText('FRÅN',45,60);g.fillText('TILL',45,154);g.font='11px sans-serif';g.fillText('VÄNTAR',194,194);g.fillText('DRIFT',69,194);
+      g.fillStyle='#715731';g.fillRect(12,207,232,2);g.font='bold 15px sans-serif';g.fillText('⚡ HÖGSPÄNNING',128,230);g.font='9px monospace';g.fillText('STÅLHAGEN KRAFTVERK · 1978',128,246);
+      for(let i=0;i<50;i++){g.fillStyle='rgba(74,54,28,.12)';g.fillRect(r()*256,r()*256,1+r()*9,1+r()*2);}
+    },.9);
+    put(MAT.RELAY_DIAL,(g)=>{fill(g,'#c9c8aa');g.strokeStyle='#37463f';g.lineWidth=2;g.beginPath();g.arc(128,224,180,Math.PI*1.12,Math.PI*1.88);g.stroke();for(let i=0;i<=10;i++){const a=Math.PI*(1.12+i*.076);g.beginPath();g.moveTo(128+Math.cos(a)*164,224+Math.sin(a)*164);g.lineTo(128+Math.cos(a)*180,224+Math.sin(a)*180);g.stroke();}g.fillStyle='#3c473e';g.textAlign='center';g.font='bold 44px serif';g.fillText('A',128,152);g.font='22px monospace';g.fillText('0',32,100);g.fillText('40',220,100);g.font='14px sans-serif';g.fillText('LIKSTRÖM',128,185);},.65);
     return out;
   }
 

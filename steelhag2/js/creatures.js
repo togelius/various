@@ -319,7 +319,7 @@ class Machine {
         // a look every six seconds: it stops, then comes on
         this.lookPause = (this.lookPause || 0) + dt;
         if (this.lookPause % 6 < 0.7) { this.speed = 0; this.state = 'wait'; }
-        else { this.state = 'approach'; this.move(dt, dx / d, dz / d, 1.15); }
+        else { this.state = 'approach'; this.move(dt, dx / d, dz / d, lerp(1.05,1.9,smooth(3,10,d))); }
       } else { this.speed = 0; this.state = 'wait'; }
       if (d < 1.15 && still) this.state = 'standoff';
       if (d > 45) { this.state = 'idle'; this.lamp = false; }

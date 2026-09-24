@@ -1244,8 +1244,8 @@ class Builder {
 // STÅLHAGEN II — painted materials. Every surface is a 256 px square painted with the first game's brushes,
 // once at boot, into a texture array. The alpha channel of the steel materials is the seam mask the charge flows along.
 'use strict';
-const MAT = { SNOW: 0, ICE: 1, STEEL: 2, RED: 3, PLANK: 4, CONCRETE: 5, BIRCH: 6, ROOF: 7, BEIGE: 8, DARK: 9, GLASS: 10, ROAD: 11, FOIL: 12, REED: 13, FLAT: 14, LED: 15, CABLE: 16, SPRUCE: 17, WINDOW: 18, CLOTH: 19, BADGE: 20, TRACK: 21, COLD_LIGHT: 22, FOLIAGE: 23, HULL_PLATE: 24, PATH: 25, NOTE: 26, WINDOW_TREE: 27, SIGNAL: 28, CROSSING_SIGN: 29, RECOVERY_PLATE: 30, YARD_PLATE: 31, LOG_END: 32, PINE: 33 };
-const MATS = 34, TEX = 256;
+const MAT = { SNOW: 0, ICE: 1, STEEL: 2, RED: 3, PLANK: 4, CONCRETE: 5, BIRCH: 6, ROOF: 7, BEIGE: 8, DARK: 9, GLASS: 10, ROAD: 11, FOIL: 12, REED: 13, FLAT: 14, LED: 15, CABLE: 16, SPRUCE: 17, WINDOW: 18, CLOTH: 19, BADGE: 20, TRACK: 21, COLD_LIGHT: 22, FOLIAGE: 23, HULL_PLATE: 24, PATH: 25, NOTE: 26, WINDOW_TREE: 27, SIGNAL: 28, CROSSING_SIGN: 29, RECOVERY_PLATE: 30, YARD_PLATE: 31, LOG_END: 32, PINE: 33, RELAY_PLATE: 34, RELAY_DIAL: 35 };
+const MATS = 36, TEX = 256;
 
 const Paint = (() => {
   // per-material parameters: [roughness 0..1 (1 = matte), retroreflective 0/1, emissive strength, seam-glow 0/1]
@@ -1368,6 +1368,14 @@ const Paint = (() => {
     put(MAT.RECOVERY_PLATE,(g,r)=>{fill(g,'#b8b9a3');g.fillStyle='#303e3c';g.font='bold 65px monospace';g.fillText('R-07',16,83);g.fillRect(16,101,222,4);g.font='bold 22px sans-serif';g.fillText('BÄRGNING',16,145);g.font='14px monospace';g.fillText('KRAFTVERK / RECOVERY',16,180);g.fillStyle='#8b4f30';g.fillRect(16,207,222,12);for(let i=0;i<95;i++){g.fillStyle='rgba(78,50,28,.18)';g.fillRect(r()*256,r()*256,2+r()*14,1+r()*3);}},.8);
     put(MAT.YARD_PLATE,(g,r)=>{fill(g,'#bfc8bd');g.strokeStyle='#52635e';g.lineWidth=6;g.strokeRect(7,7,242,242);g.fillStyle='#394b46';g.textAlign='center';g.font='bold 30px sans-serif';g.fillText('SJÖGÅRDEN',128,90);g.font='bold 84px serif';g.fillText('17',128,190);for(let i=0;i<50;i++){g.fillStyle='rgba(70,58,33,.14)';g.fillRect(r()*256,r()*256,2+r()*8,1+r()*3);}},.8);
     put(MAT.LOG_END,(g,r)=>{fill(g,'#a39378');g.strokeStyle='#6e634f';g.lineWidth=1.5;for(let ring=12;ring<125;ring+=7+r()*5){g.beginPath();for(let k=0;k<=60;k++){const a=k/60*TAU,rr=ring+Math.sin(a*5+ring)*2;const x=128+Math.cos(a)*rr,y=128+Math.sin(a)*rr;if(k)g.lineTo(x,y);else g.moveTo(x,y);}g.stroke();}g.strokeStyle='#655b41';g.lineWidth=2;for(let i=0;i<4;i++){const a=i*1.47;g.beginPath();g.moveTo(128+Math.cos(a)*120,128+Math.sin(a)*120);g.lineTo(128+Math.cos(a+.1)*52,128+Math.sin(a+.1)*52);g.stroke();}},1);
+
+    put(MAT.RELAY_PLATE,(g,r)=>{
+      fill(g,'#c7c5a6');g.strokeStyle='#51584e';g.lineWidth=3;g.strokeRect(5,5,246,246);g.fillStyle='#38443e';g.textAlign='center';g.font='bold 24px sans-serif';g.fillText('FÄLTRELÄ 17',128,28);g.font='12px monospace';g.fillText('SJÖGÅRDEN · 400 V',128,47);
+      g.font='bold 15px monospace';g.fillText('FRÅN',45,60);g.fillText('TILL',45,154);g.font='11px sans-serif';g.fillText('VÄNTAR',194,194);g.fillText('DRIFT',69,194);
+      g.fillStyle='#715731';g.fillRect(12,207,232,2);g.font='bold 15px sans-serif';g.fillText('⚡ HÖGSPÄNNING',128,230);g.font='9px monospace';g.fillText('STÅLHAGEN KRAFTVERK · 1978',128,246);
+      for(let i=0;i<50;i++){g.fillStyle='rgba(74,54,28,.12)';g.fillRect(r()*256,r()*256,1+r()*9,1+r()*2);}
+    },.9);
+    put(MAT.RELAY_DIAL,(g)=>{fill(g,'#c9c8aa');g.strokeStyle='#37463f';g.lineWidth=2;g.beginPath();g.arc(128,224,180,Math.PI*1.12,Math.PI*1.88);g.stroke();for(let i=0;i<=10;i++){const a=Math.PI*(1.12+i*.076);g.beginPath();g.moveTo(128+Math.cos(a)*164,224+Math.sin(a)*164);g.lineTo(128+Math.cos(a)*180,224+Math.sin(a)*180);g.stroke();}g.fillStyle='#3c473e';g.textAlign='center';g.font='bold 44px serif';g.fillText('A',128,152);g.font='22px monospace';g.fillText('0',32,100);g.fillText('40',220,100);g.font='14px sans-serif';g.fillText('LIKSTRÖM',128,185);},.65);
     return out;
   }
 
@@ -2066,6 +2074,66 @@ const Farmyard=(()=>{
   return {build};
 })();
 </script>
+  <script data-src="relay.js">
+// An electromechanical field relay: breaker, moving ammeter and a visible cable surge.
+'use strict';
+const FieldRelay=(()=>{
+  function build(place,collide,groundY,path,S){
+    const x=14,z=176,y=groundY(x,z),b=new Builder();
+    const face=(builder,tile,x,y,z,w,h)=>{builder.tile=tile;builder.col=[1,1,1];const a=builder.vert(x,y,z,0,0,-1,1,1),c=builder.vert(x+w,y,z,0,0,-1,0,1),d=builder.vert(x+w,y+h,z,0,0,-1,0,0),e=builder.vert(x,y+h,z,0,0,-1,1,0);builder.quad(a,e,d,c);};
+    b.tile=MAT.CONCRETE;b.col=[.66,.64,.55];b.roundedBox(-.7,-.12,-.5,1.4,.35,1,.06);
+    b.tile=MAT.DARK;b.col=[.60,.65,.61];for(const xx of [-.45,.37])b.box(xx,.15,-.23,.08,.17,.46);
+    b.tile=MAT.BEIGE;b.col=[.62,.70,.65];b.roundedBox(-.53,.27,-.27,1.06,1.39,.53,.065);
+    // A recessed front door, dark gasket, folded lip and snow on the top flange.
+    b.tile=MAT.DARK;b.col=[.67,.69,.62];b.roundedBox(-.485,.34,-.304,.97,1.23,.035,.018);
+    b.tile=MAT.BEIGE;b.col=[.72,.77,.68];b.roundedBox(-.459,.36,-.335,.918,1.19,.04,.018);
+    b.tile=MAT.STEEL;b.col=[.60,.65,.62];b.box(-.59,1.64,-.34,1.18,.055,.66);
+    b.tile=MAT.SNOW;b.col=[.91,.96,.96];b.roundedBox(-.57,1.688,-.32,1.14,.085,.62,.04);
+    b.tile=MAT.DARK;b.col=[.6,.63,.58];for(const yy of [.46,1.32])b.roundedBox(-.53,yy,-.369,.07,.16,.055,.013);
+    b.tile=MAT.STEEL;b.col=[.85,.83,.70];for(const xx of [-.412,.405])for(const yy of [.405,1.49])b.cyl(xx,yy,-.369,.018,.02,{axis:'z',segs:8});
+    // Printed enamel control plate and a separate glass-fronted ammeter.
+    face(b,MAT.RELAY_PLATE,-.39,.40,-.378,.78,1.08);
+    b.tile=MAT.DARK;b.col=[.75,.77,.69];b.roundedBox(-.35,.91,-.404,.40,.34,.044,.03);
+    face(b,MAT.RELAY_DIAL,-.325,.938,-.451,.35,.29);
+    b.tile=MAT.STEEL;b.col=[.87,.85,.70];b.cyl(.25,1.095,-.408,.072,.065,{axis:'z',segs:20});
+    // Two porcelain cable terminations, strapped conduit and an earth lead.
+    b.tile=MAT.DARK;b.col=[.70,.72,.64];for(const xx of [-.24,.23])b.cyl(xx,.21,.12,.06,.10,{segs:10});
+    for(const xx of [-.24,.23]){b.tile=MAT.FLAT;b.col=[.67,.57,.39];for(let i=0;i<4;i++)b.cyl(xx,.18+i*.037,.12,.081,.025,{segs:14});}
+    b.tile=MAT.DARK;b.col=[.72,.79,.74];b.tube([[.23,.20,.12],[.58,.12,.29],[.69,.07,.63]],.055,{segs:8});
+    b.tile=MAT.CABLE;b.col=[.64,.66,.53];b.tube([[-.24,.19,.12],[-.48,.08,.35],[-.67,.06,.24],[-.58,.10,-.31]],.018,{segs:7});
+    b.tile=MAT.STEEL;b.col=[.68,.65,.52];for(const xx of [-.57,.57])for(const zz of [-.37,.35]){b.cyl(xx,.23,zz,.032,.037,{segs:6});}
+    place(b.build(),x,y,z);collide(x-.55,y,z-.36,1.1,1.8,.65);
+    const leverB=new Builder();leverB.tile=MAT.STEEL;leverB.col=[.87,.84,.68];leverB.cyl(0,0,0,.026,.25,{segs:10});leverB.tile=MAT.DARK;leverB.col=[.68,.41,.24];leverB.roundedBox(-.065,.18,-.046,.13,.16,.092,.028);
+    const lever=place(leverB.build(),x+.25,y+1.095,z-.485,0,{radius:.4});
+    const needleB=new Builder();needleB.tile=MAT.FLAT;needleB.col=[.39,.16,.08];needleB.tube([[0,0,0],[0,.12,0]],.0045,{segs:5});needleB.cyl(0,0,-.004,.012,.008,{axis:'z',segs:10});
+    const needle=place(needleB.build(),x-.15,y+.976,z-.459,0,{noShadow:true,radius:.2});
+    function lamp(xx,col){const lb=new Builder();lb.tile=MAT.COLD_LIGHT;lb.col=col;lb.sphere(0,0,0,.026,{segs:14,rings:10});return place(lb.build(),x+xx,y+.736,z-.409,0,{noShadow:true,emis:.08,radius:.1});}
+    const amber=lamp(-.20,[1,.47,.13]),green=lamp(.18,[.33,.91,.70]);
+    // The familiar cyan strip remains the interaction's location and navigation reference.
+    const statusB=new Builder();statusB.tile=MAT.COLD_LIGHT;statusB.col=[.3,.65,.72];statusB.box(-.34,1.525,-.378,.68,.026,.012);
+    S.relay=place(statusB.build(),x,y,z,0,{emis:.35,noShadow:true,radius:1});
+    // One skinned mesh, up to 32 sections. No particles or new geometry while playing.
+    const pulseB=new Builder(),fx=new Float32Array(RENDER.MAX_BONES*4),n=Math.min(path.length-1,RENDER.MAX_BONES);
+    pulseB.tile=MAT.COLD_LIGHT;pulseB.col=[.20,.72,1];for(let i=0;i<n;i++){pulseB.bone=i;pulseB.tube([path[i],path[i+1]],.086,{segs:7});}
+    const pulse=place(pulseB.build(),0,0,0,0,{fx,noShadow:true,emis:1.3});pulse.hidden=true;
+    const relay={lever,needle,amber,green,pulse,light:null,progress:0,
+      sync(on,remaining,reduced=false){
+        const elapsed=3.2-remaining,progress=on?(remaining>0?smooth(0,.38,elapsed):1):0;
+        this.progress=progress;
+        M.trsEuler(lever.model,x+.25,y+1.095,z-.485,0,lerp(-.78,-2.35,progress),0);
+        const settle=on&&remaining>0&&!reduced?Math.sin(elapsed*10)*Math.exp(-elapsed*3)*.13:0;
+        M.trsEuler(needle.model,x-.15,y+.976,z-.459,0,0,lerp(-.95,.48,progress)+settle);
+        amber.emis=on?.025:.8;green.emis=on?.8:.025;
+        const active=on&&remaining>0&&elapsed>.40&&elapsed<2.9&&!reduced;this.light=null;pulse.hidden=!active;
+        for(let i=0;i<n;i++)fx[i*4+1]=1;
+        if(active){const front=(elapsed-.40)/2.5*n;for(let i=0;i<n;i++)if(i<=front&&i>front-3)fx[i*4+1]=0;const i=Math.min(n-1,Math.floor(front)),f=front-i;this.light=path[i].map((v,k)=>lerp(v,path[i+1][k],f));}
+      }
+    };
+    relay.sync(false,0);S.fieldRelay=relay;return relay;
+  }
+  return {build};
+})();
+</script>
   <script data-src="world.js">
 // STÅLHAGEN II — the slice's world: the shore road and the substation, the frozen bay, the island shore with
 // Sjögården, the snow field and the birches; the towers on the horizon and the hulls standing up out of the ice.
@@ -2387,17 +2455,9 @@ const World = (() => {
     // the hole where the slab was, and the cable that runs into it
     const foot = new Builder(); foot.tile = MAT.CONCRETE; foot.col = [0.75, 0.75, 0.72]; foot.box(-1.2, 0, -1.2, 2.4, 0.5, 2.4); place(foot.build(), 46, groundY(46, (FARM.z + 30)) - 0.2, (FARM.z + 30), 0.4);
     const relayX=14,relayZ=FARM.z+14,relayY=groundY(relayX,relayZ);
-    const rb=new Builder();rb.tile=MAT.CONCRETE;rb.col=[.57,.57,.52];rb.roundedBox(-.7,-.12,-.5,1.4,.35,1,.06);
-    rb.tile=MAT.BEIGE;rb.col=[.67,.69,.59];rb.roundedBox(-.48,.2,-.25,.96,1.35,.48,.08);
-    rb.tile=MAT.DARK;rb.col=[.9,.95,.95];rb.roundedBox(-.37,.9,-.28,.74,.42,.06,.025);
-    rb.tile=MAT.BADGE;rb.col=[.82,.84,.74];rb.box(-.3,.47,-.288,.6,.22,.012);
-    rb.tile=MAT.STEEL;rb.col=[1,1,1];for(const x of [-.24,.24])rb.cyl(x,1.04,-.32,.07,.06,{axis:'z',segs:12});
-    rb.tile=MAT.DARK;rb.col=[1,1,1];rb.tube([[.4,.6,.16],[.75,.35,.3],[.7,.08,.6]],.06,{segs:7});
-    place(rb.build(),relayX,relayY,relayZ);collide(relayX-.5,relayY,relayZ-.3,1,1.6,.6);
-    const rl=new Builder();rl.tile=MAT.COLD_LIGHT;rl.col=[.3,.8,1];rl.box(-.2,1.35,-.292,.4,.045,.02);
-    S.relay=place(rl.build(),relayX,relayY,relayZ,0,{emis:1,noShadow:true});
     const cablePts=[];for(let i=0;i<=32;i++){const t=i/32,x=relayX+(46-relayX)*t+Math.sin(t*8)*1.2,z=relayZ+16*t+Math.sin(t*5)*2;cablePts.push([x,groundY(x,z)+.09,z]);}
-    S.cable=place(buildCable(cablePts),0,0,0,0,{noShadow:true,fx:new Float32Array(RENDER.MAX_BONES*4)});S.cable.fx[0]=.9;S.cablePath=cablePts;
+    S.cable=place(buildCable(cablePts),0,0,0,0,{noShadow:true,fx:new Float32Array(RENDER.MAX_BONES*4)});S.cable.fx[0]=.18;S.cablePath=cablePts;
+    FieldRelay.build(place,collide,groundY,cablePts,S);
     // fence along the field
     const fence = new Builder(); const fpts = []; for (let x = -30; x <= 60; x += 5) fpts.push([x, FARM.z + 24 + Math.sin(x * 0.1) * 2]); buildFence(fence, fpts); place(fence.build(), 0, 0, 0, 0);
     // birches and spruces along the shore and the field's edges
@@ -2891,7 +2951,7 @@ class Machine {
         // a look every six seconds: it stops, then comes on
         this.lookPause = (this.lookPause || 0) + dt;
         if (this.lookPause % 6 < 0.7) { this.speed = 0; this.state = 'wait'; }
-        else { this.state = 'approach'; this.move(dt, dx / d, dz / d, 1.15); }
+        else { this.state = 'approach'; this.move(dt, dx / d, dz / d, lerp(1.05,1.9,smooth(3,10,d))); }
       } else { this.speed = 0; this.state = 'wait'; }
       if (d < 1.15 && still) this.state = 'standoff';
       if (d > 45) { this.state = 'idle'; this.lamp = false; }
@@ -3318,6 +3378,7 @@ const Sound = (() => {
     at(kind, x, y, z, v = 1) {
       if (!ac) return; const p = panner(x, y, z);
       switch (kind) {
+        case 'relay': noise(.09,'bandpass',620,1.8,.32*v,0,p);tone(85,.17,'triangle',.17*v,.02,.65,p);noise(.07,'highpass',2100,1,.12*v,.14,p);break;
         case 'charge': tone(95,.85,'sawtooth',.09*v,0,2.1,p,.15);tone(440,.18,'sine',.12*v,0,1.35,p);noise(.7,'bandpass',640,3,.22*v,.06,p);break;
         case 'beep': tone(1320, 0.09, 'square', 0.12 * v, 0, 0, p); tone(1760, 0.12, 'square', 0.1 * v, 0.1, 0, p); tone(1760, 0.14, 'sine', 0.05 * v, 0.1, 0, wet); break;
         case 'hop': noise(0.1, 'bandpass', 700, 1.5, 0.25 * v, 0, p); break;
@@ -3666,7 +3727,7 @@ const Game = (() => {
     const door = world.door, dd = Math.hypot(P.x - door.x, P.z - door.z);
     const cellar = world.cellar, cd = Math.hypot(P.x - cellar.x, P.z - cellar.z);
     if (!P.sit && input.usePressed && !P.viewfinder && !standoffWith) {
-      if(nearRelay&&!flags.relay){flags.relay=true;awake=true;relayPulseT=3.2;Sound.at('rumble',world.relay.x,world.relay.y,world.relay.z,.7);lineFor('relay');checkpoint();return;}
+      if(nearRelay&&!flags.relay){flags.relay=true;awake=true;relayPulseT=3.2;Sound.at('relay',world.relay.x,world.relay.y+1,world.relay.z,.8);Sound.at('rumble',world.relay.x,world.relay.y,world.relay.z,.7);lineFor('relay');checkpoint();return;}
       if (cd < 2.4 && Store.photos.length) return openDarkroom();
       if (dd < 2.2 && sleepReady) return enterHouse();
     }
@@ -3853,11 +3914,13 @@ const Game = (() => {
     if(state!=='title'&&kid.feet)for(const f of kid.feet)RENDER.contact(f[0],World.groundY(f[0],f[2]),f[2],.23);
     if(!inside)RENDER.contact(P.sled.x,P.sled.y,P.sled.z,0.7);else Interior.light(flags.radio);
     for(const m of machines)if(!m.hidden&&Math.hypot(m.x-P.x,m.z-P.z)<24&&(m===sentry?chapter===1:chapter===2)){for(const f of m.feet)RENDER.contact(f.x,World.groundY(f.x,f.z),f.z,.23*m.s);}
-    const power=relayPulseT>0?(reduce()?.4:Math.sin(relayPulseT*7)>.35?.75:.035):1;world.window.emis=world.lamps[0].k/.9*power;
-    if(!inside)for (const l of world.lamps) RENDER.light(l.x, l.y, l.z, l.r, l.col[0] * l.k * 1.6 * power, l.col[1] * l.k * 1.6 * power, l.col[2] * l.k * 1.6 * power);
+    world.fieldRelay.sync(flags.relay,relayPulseT,reduce());world.cable.fx[0]=flags.relay?.10:.18;
+    if(!inside&&world.fieldRelay.light){const p=world.fieldRelay.light;RENDER.light(p[0],p[1]+.18,p[2],4,.22,.78,1.1);}
+    const relayAge=3.2-relayPulseT,power=relayPulseT>0?(reduce()?.55:1-.94*smooth(0,.28,relayAge)*(1-smooth(1.1,3.2,relayAge))):1;world.window.emis=world.lamps[0].k/.9*power;
+    if(!inside)for (const l of world.lamps){const supply=l.name==='window'||l.name==='porch'?power:1;RENDER.light(l.x,l.y,l.z,l.r,...l.col.map(c=>c*l.k*1.6*supply));}
     if (P.torch && state !== 'title') { const t = kid.torchWorld; const fl = Math.hypot(t[3], t[4], t[5]) || 1; RENDER.light(t[0], t[1], t[2], 26, 1.6, 1.45, 1.15, t[3] / fl, t[4] / fl, t[5] / fl, 0.86); }
     if(world.recoveryLight){const glow=reduce()?.7:.45+.35*(.5+.5*Math.sin(time*1.3));world.recoveryLight.emis=glow;if(!inside)RENDER.light(world.recoveryLight.x,world.recoveryLight.y,world.recoveryLight.z,3,.8*glow,.17*glow,.04*glow);}
-    world.relay.emis=flags.relay?.4:1.1+Math.sin(time*3)*.4;if(chapter===2&&!flags.relay)RENDER.light(world.relay.x,world.relay.y+1,world.relay.z-1,5,.25,.7,1.1);
+    world.relay.emis=flags.relay?.20:.55;if(chapter===2&&!flags.relay)RENDER.light(world.relay.x,world.relay.y+1,world.relay.z-1,5,.25,.7,1.1);
     if (world.safelight && chapter >= 2) RENDER.light(world.safelight.x, world.safelight.y - 0.1, world.safelight.z, 5, 0.9, 0.12, 0.06);
     for (const m of machines) if (m.lamp && m.lampWorld && (m===sentry?chapter===1:chapter===2)) { const l = m.lampWorld, k=m.state==='windup'?(reduce()?.8:.5+.5*smooth(0,.95,m.attackT)):1; RENDER.light(l[0], l[1], l[2], 18, 1.6*k, 1.15*k, 0.6*k, l[3], l[4], l[5], 0.8); }
     // the hazards blink, the mast blinks
@@ -3936,7 +3999,7 @@ const Game = (() => {
         text(`FRAME ${String(Store.photos.length+1).padStart(2,'0')}`, isTouch?14/sx:1280-120, isTouch?28/sy:60, isTouch?12:16, .8, {align:isTouch?'left':'center',letter:isTouch?0:2});
       }
       // prompts
-      if (prompt && !menuStack) { const key = isTouch ? '✧' : keyName(S().keys.use); text(prompt === TEXT.prompts.hold || P.cutterUp && !cutTarget || cutterCooldown>0 ? prompt : `${key}  ·  ${prompt}`, 640, 60, 20 * t, 0.85, { italic: true }); }
+      if (prompt && !menuStack) { const key = isTouch ? '✧' : keyName(S().keys.use); text(prompt === TEXT.prompts.hold || prompt==='relay restored' || P.cutterUp && !cutTarget || cutterCooldown>0 ? prompt : `${key}  ·  ${prompt}`, 640, 60, 20 * t, 0.85, { italic: true }); }
       if (P.hold > 0) { g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 2 * sx; g.beginPath(); g.arc(640 * sx, 88 * sy, 14 * sx, -Math.PI / 2, -Math.PI / 2 + Math.min(1, P.hold / 2) * TAU); g.stroke(); }
       if (state === 'play' && stateT < 6 && !menuStack) { const a = Math.min(1, stateT, (6 - stateT) / 1.5); const c = TEXT.cards[chapter]; text(`${c.n} · ${c.title}`, 40, 50, 22 * t, a * 0.85, { align: 'left', letter: 2 }); }
     }

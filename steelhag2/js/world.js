@@ -318,17 +318,9 @@ const World = (() => {
     // the hole where the slab was, and the cable that runs into it
     const foot = new Builder(); foot.tile = MAT.CONCRETE; foot.col = [0.75, 0.75, 0.72]; foot.box(-1.2, 0, -1.2, 2.4, 0.5, 2.4); place(foot.build(), 46, groundY(46, (FARM.z + 30)) - 0.2, (FARM.z + 30), 0.4);
     const relayX=14,relayZ=FARM.z+14,relayY=groundY(relayX,relayZ);
-    const rb=new Builder();rb.tile=MAT.CONCRETE;rb.col=[.57,.57,.52];rb.roundedBox(-.7,-.12,-.5,1.4,.35,1,.06);
-    rb.tile=MAT.BEIGE;rb.col=[.67,.69,.59];rb.roundedBox(-.48,.2,-.25,.96,1.35,.48,.08);
-    rb.tile=MAT.DARK;rb.col=[.9,.95,.95];rb.roundedBox(-.37,.9,-.28,.74,.42,.06,.025);
-    rb.tile=MAT.BADGE;rb.col=[.82,.84,.74];rb.box(-.3,.47,-.288,.6,.22,.012);
-    rb.tile=MAT.STEEL;rb.col=[1,1,1];for(const x of [-.24,.24])rb.cyl(x,1.04,-.32,.07,.06,{axis:'z',segs:12});
-    rb.tile=MAT.DARK;rb.col=[1,1,1];rb.tube([[.4,.6,.16],[.75,.35,.3],[.7,.08,.6]],.06,{segs:7});
-    place(rb.build(),relayX,relayY,relayZ);collide(relayX-.5,relayY,relayZ-.3,1,1.6,.6);
-    const rl=new Builder();rl.tile=MAT.COLD_LIGHT;rl.col=[.3,.8,1];rl.box(-.2,1.35,-.292,.4,.045,.02);
-    S.relay=place(rl.build(),relayX,relayY,relayZ,0,{emis:1,noShadow:true});
     const cablePts=[];for(let i=0;i<=32;i++){const t=i/32,x=relayX+(46-relayX)*t+Math.sin(t*8)*1.2,z=relayZ+16*t+Math.sin(t*5)*2;cablePts.push([x,groundY(x,z)+.09,z]);}
-    S.cable=place(buildCable(cablePts),0,0,0,0,{noShadow:true,fx:new Float32Array(RENDER.MAX_BONES*4)});S.cable.fx[0]=.9;S.cablePath=cablePts;
+    S.cable=place(buildCable(cablePts),0,0,0,0,{noShadow:true,fx:new Float32Array(RENDER.MAX_BONES*4)});S.cable.fx[0]=.18;S.cablePath=cablePts;
+    FieldRelay.build(place,collide,groundY,cablePts,S);
     // fence along the field
     const fence = new Builder(); const fpts = []; for (let x = -30; x <= 60; x += 5) fpts.push([x, FARM.z + 24 + Math.sin(x * 0.1) * 2]); buildFence(fence, fpts); place(fence.build(), 0, 0, 0, 0);
     // birches and spruces along the shore and the field's edges

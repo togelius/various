@@ -219,7 +219,7 @@ const Game = (() => {
     const door = world.door, dd = Math.hypot(P.x - door.x, P.z - door.z);
     const cellar = world.cellar, cd = Math.hypot(P.x - cellar.x, P.z - cellar.z);
     if (!P.sit && input.usePressed && !P.viewfinder && !standoffWith) {
-      if(nearRelay&&!flags.relay){flags.relay=true;awake=true;relayPulseT=3.2;Sound.at('rumble',world.relay.x,world.relay.y,world.relay.z,.7);lineFor('relay');checkpoint();return;}
+      if(nearRelay&&!flags.relay){flags.relay=true;awake=true;relayPulseT=3.2;Sound.at('relay',world.relay.x,world.relay.y+1,world.relay.z,.8);Sound.at('rumble',world.relay.x,world.relay.y,world.relay.z,.7);lineFor('relay');checkpoint();return;}
       if (cd < 2.4 && Store.photos.length) return openDarkroom();
       if (dd < 2.2 && sleepReady) return enterHouse();
     }
@@ -406,11 +406,13 @@ const Game = (() => {
     if(state!=='title'&&kid.feet)for(const f of kid.feet)RENDER.contact(f[0],World.groundY(f[0],f[2]),f[2],.23);
     if(!inside)RENDER.contact(P.sled.x,P.sled.y,P.sled.z,0.7);else Interior.light(flags.radio);
     for(const m of machines)if(!m.hidden&&Math.hypot(m.x-P.x,m.z-P.z)<24&&(m===sentry?chapter===1:chapter===2)){for(const f of m.feet)RENDER.contact(f.x,World.groundY(f.x,f.z),f.z,.23*m.s);}
-    const power=relayPulseT>0?(reduce()?.4:Math.sin(relayPulseT*7)>.35?.75:.035):1;world.window.emis=world.lamps[0].k/.9*power;
-    if(!inside)for (const l of world.lamps) RENDER.light(l.x, l.y, l.z, l.r, l.col[0] * l.k * 1.6 * power, l.col[1] * l.k * 1.6 * power, l.col[2] * l.k * 1.6 * power);
+    world.fieldRelay.sync(flags.relay,relayPulseT,reduce());world.cable.fx[0]=flags.relay?.10:.18;
+    if(!inside&&world.fieldRelay.light){const p=world.fieldRelay.light;RENDER.light(p[0],p[1]+.18,p[2],4,.22,.78,1.1);}
+    const relayAge=3.2-relayPulseT,power=relayPulseT>0?(reduce()?.55:1-.94*smooth(0,.28,relayAge)*(1-smooth(1.1,3.2,relayAge))):1;world.window.emis=world.lamps[0].k/.9*power;
+    if(!inside)for (const l of world.lamps){const supply=l.name==='window'||l.name==='porch'?power:1;RENDER.light(l.x,l.y,l.z,l.r,...l.col.map(c=>c*l.k*1.6*supply));}
     if (P.torch && state !== 'title') { const t = kid.torchWorld; const fl = Math.hypot(t[3], t[4], t[5]) || 1; RENDER.light(t[0], t[1], t[2], 26, 1.6, 1.45, 1.15, t[3] / fl, t[4] / fl, t[5] / fl, 0.86); }
     if(world.recoveryLight){const glow=reduce()?.7:.45+.35*(.5+.5*Math.sin(time*1.3));world.recoveryLight.emis=glow;if(!inside)RENDER.light(world.recoveryLight.x,world.recoveryLight.y,world.recoveryLight.z,3,.8*glow,.17*glow,.04*glow);}
-    world.relay.emis=flags.relay?.4:1.1+Math.sin(time*3)*.4;if(chapter===2&&!flags.relay)RENDER.light(world.relay.x,world.relay.y+1,world.relay.z-1,5,.25,.7,1.1);
+    world.relay.emis=flags.relay?.20:.55;if(chapter===2&&!flags.relay)RENDER.light(world.relay.x,world.relay.y+1,world.relay.z-1,5,.25,.7,1.1);
     if (world.safelight && chapter >= 2) RENDER.light(world.safelight.x, world.safelight.y - 0.1, world.safelight.z, 5, 0.9, 0.12, 0.06);
     for (const m of machines) if (m.lamp && m.lampWorld && (m===sentry?chapter===1:chapter===2)) { const l = m.lampWorld, k=m.state==='windup'?(reduce()?.8:.5+.5*smooth(0,.95,m.attackT)):1; RENDER.light(l[0], l[1], l[2], 18, 1.6*k, 1.15*k, 0.6*k, l[3], l[4], l[5], 0.8); }
     // the hazards blink, the mast blinks
@@ -489,7 +491,7 @@ const Game = (() => {
         text(`FRAME ${String(Store.photos.length+1).padStart(2,'0')}`, isTouch?14/sx:1280-120, isTouch?28/sy:60, isTouch?12:16, .8, {align:isTouch?'left':'center',letter:isTouch?0:2});
       }
       // prompts
-      if (prompt && !menuStack) { const key = isTouch ? '✧' : keyName(S().keys.use); text(prompt === TEXT.prompts.hold || P.cutterUp && !cutTarget || cutterCooldown>0 ? prompt : `${key}  ·  ${prompt}`, 640, 60, 20 * t, 0.85, { italic: true }); }
+      if (prompt && !menuStack) { const key = isTouch ? '✧' : keyName(S().keys.use); text(prompt === TEXT.prompts.hold || prompt==='relay restored' || P.cutterUp && !cutTarget || cutterCooldown>0 ? prompt : `${key}  ·  ${prompt}`, 640, 60, 20 * t, 0.85, { italic: true }); }
       if (P.hold > 0) { g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 2 * sx; g.beginPath(); g.arc(640 * sx, 88 * sy, 14 * sx, -Math.PI / 2, -Math.PI / 2 + Math.min(1, P.hold / 2) * TAU); g.stroke(); }
       if (state === 'play' && stateT < 6 && !menuStack) { const a = Math.min(1, stateT, (6 - stateT) / 1.5); const c = TEXT.cards[chapter]; text(`${c.n} · ${c.title}`, 40, 50, 22 * t, a * 0.85, { align: 'left', letter: 2 }); }
     }
