@@ -9,6 +9,10 @@ for(const speed of [0,1.5,2.8,5.6,0])for(let frame=0;frame<120;frame++){
  for(let i=0;i<c.vertices.length;i+=13){for(let k=0;k<6;k++)if(!Number.isFinite(c.vertices[i+k]))throw Error('invalid skinned vertex');low=Math.min(low,c.vertices[i+1]);high=Math.max(high,c.vertices[i+1]);if(Math.hypot(c.vertices[i],c.vertices[i+2])>1.5)throw Error('root motion escaped player');}
  if(low<-.18||low>.3||high<1.5||high>2.1)throw Error('character lost grounding: '+[speed,low,high]);
 }
+for(let i=0;i<150;i++)c.pose(0,0,0,0,0,1/60,1);
+if(c.hand[1]<1.25||c.hand[2]<.40)throw Error('held reach retracts before release');
+for(let i=0;i<40;i++)c.pose(0,0,0,0,0,1/60);
+if(c.hand[1]>1.1||c.hand[2]>.25)throw Error('released reach does not settle');
 for(const mode of ['Interact','Idle_Gun_Pointing']){for(let i=0;i<60;i++)c.pose(0,0,0,0,0,1/60,mode==='Interact'?1:0,0,false,mode==='Idle_Gun_Pointing');if(c.clip!==mode)throw Error('missing interaction pose');}
 if(c.hand[1]<1.15||c.hand[2]<.3)throw Error('cutter arm is not aimed forward');
 const foot=c.nodes.findIndex(n=>n.name==='Foot.L'),samples=[];for(let i=0;i<90;i++){c.pose(0,0,0,0,2/1.4,1/60,0,0,false,true);samples.push(c.nodes[foot].world[14]);}if(Math.max(...samples)-Math.min(...samples)<.1)throw Error('aiming locomotion is sliding');

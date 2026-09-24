@@ -64,7 +64,8 @@ class Character {
     if(name!==this.clip){this.oldPose=this.nodes.map(n=>({t:n.t.slice(),q:n.q.slice(),s:n.s.slice()}));this.clip=name;this.blend=0;this.phase=0;}
     this.blend=Math.min(1,this.blend+dt/0.18);
     const clip=this.clips[name];const rate=name==='Walk'?Math.max(.25,speed/1.65):name==='Run'?Math.max(.4,speed/4.2):1;
-    this.phase+=dt*rate;const tm=(name==='Interact'||name==='Death')?Math.min(this.phase,clip.duration-.001):this.phase%clip.duration;
+    // Keep the hand extended until the player releases the interaction.
+    this.phase+=dt*rate;const tm=name==='Interact'?Math.min(this.phase,clip.duration*.52):name==='Death'?Math.min(this.phase,clip.duration-.001):this.phase%clip.duration;
     for(let i=0;i<this.nodes.length;i++){const n=this.nodes[i],src=CHARACTER_ASSET.nodes[i];n.t.splice(0,3,...(src.translation||[0,0,0]));n.q.splice(0,4,...(src.rotation||[0,0,0,1]));n.s.splice(0,3,...(src.scale||[1,1,1]));}
     for(const tr of clip.tracks)this.sample(tr,tm,this.nodes[tr.node][{translation:'t',rotation:'q',scale:'s'}[tr.path]]);
     // Keep the authored aiming upper body while the lower body continues to walk.

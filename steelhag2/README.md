@@ -162,3 +162,7 @@ Roadkeeper charges now stop at contact and enter recovery, giving the player spa
 The farm field relay has a moving breaker and ammeter, enamel instructions and standby/running lamps. Activating it sends a brief surge along the cable into the field while the house supply drops; reduced motion keeps steady state changes without the travelling surge. The same breaker and lamp state is restored from checkpoints.
 
 The farm bearer crosses open ground faster and eases down near the player; its natural approach from the relay now completes within twenty seconds rather than the previous thirty-second test allowance.
+
+Control hints now use legible backed keycaps, reflect keyboard bindings and change for the cutter and camera. Interaction prompts have their own high-contrast panel and hold-progress line. Touch buttons include visible labels.
+
+During a still, held reach, the character turns toward the nearby bearer and keeps the hand extended until release, while the camera remains under the player’s control. The objective changes to Reach out at contact distance.

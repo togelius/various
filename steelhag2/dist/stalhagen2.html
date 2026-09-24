@@ -37,6 +37,14 @@ body.touch.playing #touch { display: block; }
 #touch #stick .knob { left: 50%; top: 50%; transform: translate(-50%, -50%); }
 
 #gl:focus { outline: none; }
+
+/* Keep the touch actions understandable without memorising icon shapes. */
+#touch button { position: relative; box-sizing: border-box; padding-bottom: 12px; background: rgba(13,23,27,.72); border-color: rgba(192,210,201,.46); color: #e2e8df; }
+#touch button::after { content: attr(data-label); position: absolute; bottom: 6px; left: 0; width: 100%; font: 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .5px; color: #dce2d7; }
+#touch #runbtn, #touch #albumbtn, #touch #pausebtn { position: absolute; }
+#touch #albumbtn, #touch #pausebtn { padding-bottom: 9px; opacity: 1; }
+#touch #albumbtn::after, #touch #pausebtn::after { bottom: 5px; font-size: 7px; }
+#touch button.on { background: rgba(74,103,100,.84); border-color: #d2dfcf; }
 </style>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%239ea9b3'/><rect y='10' width='16' height='6' fill='%23dfe6ea'/><rect x='6' y='6' width='2' height='5' fill='%23c9542a'/><circle cx='12' cy='4' r='1' fill='%23ff5a3c'/></svg>">
 </head>
@@ -49,15 +57,15 @@ body.touch.playing #touch { display: block; }
   <div id="touch">
     <div id="stick" class="pad"><div class="knob"></div></div>
     <div class="pad right">
-      <button data-act="camera" class="small" aria-label="Camera">&#9673;</button>
-      <button data-act="torch" class="small" aria-label="Torch">&#9788;</button>
-      <button data-act="use" aria-label="Reach out / use">&#10022;</button>
-      <button data-act="cut" class="small" aria-label="Cutter">&#9889;</button>
+      <button data-act="camera" class="small" aria-label="Camera" data-label="CAMERA">&#9673;</button>
+      <button data-act="torch" class="small" aria-label="Torch" data-label="TORCH">&#9788;</button>
+      <button data-act="use" aria-label="Reach out / use" data-label="USE">&#10022;</button>
+      <button data-act="cut" class="small" aria-label="Cutter" data-label="CUTTER">&#9889;</button>
     </div>
     <div id="look"></div>
-    <button id="runbtn" data-act="hurry" class="small" aria-label="Run">⇧</button>
-    <button id="albumbtn" data-act="album" class="small" aria-label="Photo album">▦</button>
-    <button id="pausebtn" data-act="pause" class="small" aria-label="Pause">&#10074;&#10074;</button>
+    <button id="runbtn" data-act="hurry" class="small" aria-label="Run" data-label="RUN">⇧</button>
+    <button id="albumbtn" data-act="album" class="small" aria-label="Photo album" data-label="ALBUM">▦</button>
+    <button id="pausebtn" data-act="pause" class="small" aria-label="Pause" data-label="PAUSE">&#10074;&#10074;</button>
   </div>
   <script data-src="util.js">
 'use strict';
@@ -3068,7 +3076,8 @@ class Character {
     if(name!==this.clip){this.oldPose=this.nodes.map(n=>({t:n.t.slice(),q:n.q.slice(),s:n.s.slice()}));this.clip=name;this.blend=0;this.phase=0;}
     this.blend=Math.min(1,this.blend+dt/0.18);
     const clip=this.clips[name];const rate=name==='Walk'?Math.max(.25,speed/1.65):name==='Run'?Math.max(.4,speed/4.2):1;
-    this.phase+=dt*rate;const tm=(name==='Interact'||name==='Death')?Math.min(this.phase,clip.duration-.001):this.phase%clip.duration;
+    // Keep the hand extended until the player releases the interaction.
+    this.phase+=dt*rate;const tm=name==='Interact'?Math.min(this.phase,clip.duration*.52):name==='Death'?Math.min(this.phase,clip.duration-.001):this.phase%clip.duration;
     for(let i=0;i<this.nodes.length;i++){const n=this.nodes[i],src=CHARACTER_ASSET.nodes[i];n.t.splice(0,3,...(src.translation||[0,0,0]));n.q.splice(0,4,...(src.rotation||[0,0,0,1]));n.s.splice(0,3,...(src.scale||[1,1,1]));}
     for(const tr of clip.tracks)this.sample(tr,tm,this.nodes[tr.node][{translation:'t',rotation:'q',scale:'s'}[tr.path]]);
     // Keep the authored aiming upper body while the lower body continues to walk.
@@ -3749,6 +3758,7 @@ const Game = (() => {
     };
     Player.update(dt, input, ctx);
     if (P.torch && P.hold > 0.05) P.flinch = true;
+    if(standoffWith&&P.hold>.05&&P.speed<.08&&!P.cutterUp){const facing=Math.atan2(standoffWith.x-P.x,standoffWith.z-P.z);P.yaw+=M.angleTo(P.yaw,facing)*(1-Math.pow(.001,dt));}
     // the kid
     Tracks.update(P);
     kid.pose(P.x, P.y, P.z, P.yaw, P.speed / 1.4, dt, clamp(P.hold * 2, 0, 1) || (standoffWith ? 0.25 : 0), 0, P.torch, P.cutterUp,[P.vx,P.vz],characterFeedback());
@@ -3990,12 +4000,48 @@ const Game = (() => {
     if ('letterSpacing' in g) g.letterSpacing = '0px';
   }
   function wrap(t, maxW, size, o = {}) { g.font = `${o.italic ? 'italic ' : ''}400 ${textPixels(size)}px ${FONT}`; const words = t.split(' '), out = []; let cur = ''; for (const w of words) { const test = cur ? cur + ' ' + w : w; if (g.measureText(test).width > maxW * sx && cur) { out.push(cur); cur = w; } else cur = test; } if (cur) out.push(cur); return out; }
+  // Functional instructions use a fixed physical size and a quiet dark backing.
+  // The larger serif type remains the voice of the story, not the controls.
+  function uiLabel(label,x,y,size=13,col='#e0e6df',align='left'){
+    g.font=`${size}px ui-monospace, SFMono-Regular, Menlo, monospace`;g.textAlign=align;g.textBaseline='alphabetic';g.fillStyle=col;g.fillText(label,x,y);
+  }
+  function uiBox(x,y,w,h,fill='rgba(13,23,27,.88)',stroke='rgba(174,195,190,.20)'){
+    g.fillStyle=fill;g.beginPath();g.roundRect(x,y,w,h,5);g.fill();if(stroke){g.strokeStyle=stroke;g.lineWidth=1;g.stroke();}
+  }
+  function controlHints(title=false){
+    if(isTouch)return;
+    const k=S().keys,key=a=>keyName(k[a]).toUpperCase(),move=[k.forward,k.left,k.back,k.right].map(keyName).join('').toUpperCase();
+    const hints=title?[["ENTER","Select"],["↑ ↓","Choose"],["ESC","Back"]]:P.viewfinder?[[key('use'),'Shutter'],[key('camera'),'Lower camera'],['TAB','Album']]:P.cutterUp?[[move,'Evade'],[key('use'),'Fire'],[key('cut'),'Release to lower']]:[[move,'Move'],['SHIFT','Run'],[key('cut'),'Hold to aim'],[key('camera'),'Camera'],['TAB','Album']];
+    if(!title)hints.unshift([locked?'MOUSE':'CLICK',locked?'Look':'Look around']);
+    const font=Math.min(16,12*T()),keyFont=Math.min(16,11*T()),gap=16,maxW=UW-28,rows=[[]];let widths=[0];
+    for(const [key,label]of hints){g.font=`${keyFont}px ui-monospace, SFMono-Regular, Menlo, monospace`;const kw=Math.max(25,g.measureText(key).width+12);g.font=`${font}px ui-monospace, SFMono-Regular, Menlo, monospace`;const w=kw+7+g.measureText(label).width;
+      let i=rows.length-1;if(widths[i]+w+gap>maxW-24&&rows[i].length){rows.push([]);widths.push(0);i++;}rows[i].push({key,label,kw,w});widths[i]+=w+gap;
+    }
+    const height=rows.length*34+8,y=UH-height-10;
+    rows.forEach((row,i)=>{const w=widths[i]-gap+24,x=(UW-w)/2,yy=y+i*34;uiBox(x,yy,w,34);let xx=x+12;for(const h of row){uiBox(xx,yy+6,h.kw,22,'rgba(181,200,190,.10)','rgba(181,200,190,.32)');uiLabel(h.key,xx+h.kw/2,yy+21,keyFont,'#e8dfc9','center');uiLabel(h.label,xx+h.kw+7,yy+21,font);xx+=h.w+gap;}});
+  }
+  function interactionPrompt(y){
+    if(!prompt||menuStack)return 0;
+    const captured=P.viewfinder&&Photo.S.polaroid&&Photo.S.polaroid.t<2.8;
+    const status=captured||prompt==='relay restored'||prompt===TEXT.prompts.cellarEmpty||prompt===TEXT.prompts.doorLocked||P.cutterUp&&!cutTarget||cutterCooldown>0;
+    const label=captured?'PHOTO '+String(Photo.S.polaroid.count).padStart(2,'0')+' · CAPTURED':prompt===TEXT.prompts.hold?'Keep holding':prompt,key=status?'':(P.hold>0?'HOLD ':'')+(isTouch?'USE':keyName(S().keys.use).toUpperCase());
+    const size=Math.min(18,14*T()),maxW=Math.min(UW-28,520),lines=[],words=label.split(' ');let line='';
+    g.font=`${size}px ui-monospace, SFMono-Regular, Menlo, monospace`;const kw=key?Math.max(30,g.measureText(key).width+14):0,available=maxW-30-(key?kw+12:0);
+    for(const word of words){const test=line?line+' '+word:word;if(line&&g.measureText(test).width>available){lines.push(line);line=word;}else line=test;}if(line)lines.push(line);
+    const tw=Math.max(...lines.map(l=>g.measureText(l).width)),w=Math.min(maxW,tw+30+(key?kw+12:0)),h=18+lines.length*(size+5),x=(UW-w)/2;
+    uiBox(x,y,w,h);g.fillStyle=status?'#819794':'#cdae7d';g.fillRect(x,y+6,2,h-12);
+    if(key){uiBox(x+12,y+(h-28)/2,kw,28,'rgba(195,207,195,.13)','rgba(204,218,202,.40)');uiLabel(key,x+12+kw/2,y+h/2+5,size-1,'#f0e5ca','center');}
+    lines.forEach((l,i)=>uiLabel(l,x+15+(key?kw+12:0),y+14+size+i*(size+5),size));
+    if(P.hold>0){g.fillStyle='#bdd9ca';g.fillRect(x+8,y+h-3,(w-16)*Math.min(1,P.hold/2),2);}
+    return h;
+  }
   function roman(n) { return ['', 'I', 'II', 'III', 'IV', 'V', 'VI'][n]; }
   let lastTouchState=false;
   function renderUI() {
+    if(isTouch){const use=document.querySelector('#touch [data-act=use]'),camera=document.querySelector('#touch [data-act=camera]');const label=P.viewfinder?'SHUTTER':P.cutterUp?'FIRE':P.hold>0?'HOLD':'USE';if(use&&use.dataset.label!==label)use.dataset.label=label;if(camera)camera.dataset.label=P.viewfinder?'LOWER':'CAMERA';}
     const touchState=state==='play'&&!menuStack&&deathT<=0;if(touchState!==lastTouchState){document.body.classList.toggle('playing',touchState);lastTouchState=touchState;}
     sx = UW / 1280; sy = UH / 720; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, UW, UH);
-    const t = T();
+    const t = T();let promptY=isTouch?72:28;
     if ((state === 'play' || state === 'darkroom')&&deathT<=0) {
       // the viewfinder: a 35 mm frame, the counter, grain is in the render
       if (P.viewfinder && state === 'play') {
@@ -4005,28 +4051,25 @@ const Game = (() => {
         g.beginPath(); g.arc(fw / 2, fh / 2, 26 * sx, 0, TAU); g.stroke();
         text(`FRAME ${String(Store.photos.length+1).padStart(2,'0')}`, isTouch?14/sx:1280-120, isTouch?28/sy:60, isTouch?12:16, .8, {align:isTouch?'left':'center',letter:isTouch?0:2});
       }
-      // prompts
-      if (prompt && !menuStack) { const key = isTouch ? '✧' : keyName(S().keys.use); text(prompt === TEXT.prompts.hold || prompt==='relay restored' || P.cutterUp && !cutTarget || cutterCooldown>0 ? prompt : `${key}  ·  ${prompt}`, 640, 60, 20 * t, 0.85, { italic: true }); }
-      if (P.hold > 0) { g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 2 * sx; g.beginPath(); g.arc(640 * sx, 88 * sy, 14 * sx, -Math.PI / 2, -Math.PI / 2 + Math.min(1, P.hold / 2) * TAU); g.stroke(); }
       if (state === 'play' && stateT < 6 && !menuStack) { const a = Math.min(1, stateT, (6 - stateT) / 1.5); const c = TEXT.cards[chapter]; text(`${c.n} · ${c.title}`, 40, 50, 22 * t, a * 0.85, { align: 'left', letter: 2 }); }
     }
     if(state==='play'&&!menuStack&&!P.viewfinder&&deathT<=0){
       const threat=chapter===1&&!sentry.off&&!sentry.dark&&Math.hypot(P.x-sentry.x,P.z-sentry.z)<27;
       const inside=Interior.contains(P.x,P.z);
-      const goal=inside?'THE HOUSE':chapter===1?(threat?'DISABLE THE ROADKEEPER':'REACH SJÖGÅRDEN'):sleepReady?'RETURN TO THE FRONT DOOR':flags.relay?'APPROACH THE BEARER':'RESTORE THE FIELD RELAY';
-      const detail=inside?'Listen to the radio and read the notebook, or rest in your old room.':threat?(quiet()?'Lower the cutter, approach and hold still to reach out.':'Aim at the support joints. Step out of the amber charge lane.'):chapter===1?Math.max(0,Math.round(World.SHORE_Z-P.z))+' m to the island · follow the red markers':sleepReady?'Develop your photographs at the side door, or enter the house.':flags.relay?'Lower the cutter and hold still to reach out. Or cut its supports.':'Follow the blue cable behind the barn. The relay is still drawing current.';
-      const compact=UW<760,panelX=compact?14/sx:28,panelY=compact?68/sy:90,panelW=compact?(UW-28)/sx:470;
+      const goal=inside?'THE HOUSE':chapter===1?(threat?(quiet()?'CALM THE ROADKEEPER':'DISABLE THE ROADKEEPER'):'REACH SJÖGÅRDEN'):sleepReady?'RETURN TO THE FRONT DOOR':standoffWith?'REACH OUT':flags.relay?'APPROACH THE BEARER':'RESTORE THE FIELD RELAY';
+      const detail=standoffWith?'Hold '+(isTouch?'Use':keyName(S().keys.use))+' to reach out. Keep still and keep the torch off.':inside?'Listen to the radio and read the notebook, or rest in your old room.':threat?(quiet()?'Lower the cutter, approach and hold still to reach out.':'Aim at the support joints. Step out of the amber charge lane.'):chapter===1?Math.max(0,Math.round(World.SHORE_Z-P.z))+' m to the island · follow the red markers':sleepReady?'Develop your photographs at the side door, or enter the house.':flags.relay?'Lower the cutter and hold still to reach out. Or cut its supports.':'Follow the blue cable behind the barn. The relay is still drawing current.';
+      const short=UH<510,compact=UW<760||short,panelX=compact?14/sx:28,panelY=compact?(short?14:68)/sy:90,panelW=compact?Math.min(UW-28,short?390:UW-28)/sx:470;
       const detailLines=wrap(detail,panelW-32,13),lineH=compact?17/sy:17,headH=compact?24/sy:24,panelH=headH+detailLines.length*lineH+(compact?12/sy:10);
       g.fillStyle='rgba(10,19,23,.72)';g.fillRect(panelX*sx,panelY*sy,panelW*sx,panelH*sy);g.fillStyle='#cda779';g.fillRect(panelX*sx,panelY*sy,3,panelH*sy);
       text(goal,panelX+16,panelY+headH,14,.95,{align:'left',letter:compact?.3:1,ui:true});detailLines.forEach((l,i)=>text(l,panelX+16,panelY+headH+(i+1)*lineH,13,.85,{align:'left'}));
-      if(!isTouch)text(P.cutterUp?'E / click · cut     WASD · evade':compact?'WASD · move   Shift · run   Space · cutter   C · camera':'WASD · move    Shift · run    Space · aim cutter    C · camera    Tab · album',640,710,compact?11:14,.8);
+      if(compact)promptY=panelY*sy+panelH*sy+10;
       const target=inside?[...Interior.spots.bed,'BEDROOM']:chapter===1?[0,World.SHORE_Z,'ISLAND']:sleepReady?[world.door.x,world.door.z,'HOUSE']:flags.relay?[bearer.x,bearer.z,'BEARER']:[world.relay.x,world.relay.z,'RELAY'];
       if(!threat&&!P.cutterUp&&UW>=760){const dx=target[0]-P.x,dz=target[1]-P.z,angle=M.angleTo(P.camYaw,Math.atan2(dx,dz)),xx=640-clamp(angle/.9,-1,1)*490;g.strokeStyle='#d4bb8a';g.lineWidth=1;g.beginPath();g.moveTo(xx*sx,184*sy);g.lineTo((xx+4)*sx,189*sy);g.lineTo(xx*sx,194*sy);g.lineTo((xx-4)*sx,189*sy);g.closePath();g.stroke();text(target[2]+' · '+Math.round(Math.hypot(dx,dz))+' m',xx,216,10,.7,{ui:true});}
       if(P.cutterUp){const ready=cutterCooldown<=0;g.strokeStyle=ready?'#abd8df':'#cca16c';g.lineWidth=1.5;g.beginPath();g.moveTo(UW/2-14,UH/2);g.lineTo(UW/2-5,UH/2);g.moveTo(UW/2+5,UH/2);g.lineTo(UW/2+14,UH/2);g.moveTo(UW/2,UH/2-10);g.lineTo(UW/2,UH/2+10);g.stroke();if(cutterCooldown>0){g.fillStyle='rgba(7,18,21,.6)';g.fillRect(UW/2-18,UH/2+20,36,3);g.fillStyle='#a7d3dc';g.fillRect(UW/2-18,UH/2+20,36*(1-clamp(cutterCooldown/.7,0,1)),3);}
         for(const target of cutCandidates){const dot=Combat.project(target.j.slice(1,4),RENDER.cam,UW/UH);if(!dot)continue;g.fillStyle=target===cutTarget?'#d9f8fc':'rgba(171,216,223,.48)';g.beginPath();g.arc((dot.x*.5+.5)*UW,(-dot.y*.5+.5)*UH,target===cutTarget?3:2,0,TAU);g.fill();}
         if(cutTarget){const p=cutTarget.j,m=RENDER.vp,x=p[1],y=p[2],z=p[3],w=m[3]*x+m[7]*y+m[11]*z+m[15];if(w>0){const xx=(m[0]*x+m[4]*y+m[8]*z+m[12])/w,yy=(m[1]*x+m[5]*y+m[9]*z+m[13])/w;g.beginPath();g.arc((xx*.5+.5)*UW,(-yy*.5+.5)*UH,13,0,TAU);g.stroke();}}
       }
-      if(threat){const warningY=compact?(panelY*sy+panelH*sy+27)/sy:230;if(sentry.state==='windup')text('CHARGE · STEP OUT OF THE LIGHT',640,warningY,compact?12:15,.92,{ui:true,col:'#efb077'});else if(sentry.legsLeft()<=2)text('CORE EXPOSED',640,warningY,14,.85,{ui:true,col:'#b7e3eb'});}
+      if(threat){const warningY=compact?(panelY*sy+panelH*sy+(prompt?88:27))/sy:230;if(sentry.state==='windup')text('CHARGE · STEP OUT OF THE LIGHT',640,warningY,compact?12:15,.92,{ui:true,col:'#efb077'});else if(sentry.legsLeft()<=2)text('CORE EXPOSED',640,warningY,14,.85,{ui:true,col:'#b7e3eb'});}
       if(combatNotice)text(combatNotice.text,640,(UH*.5+52)/sy,13,Math.min(1,combatNotice.t*3),{ui:true,col:'#cbe4e2'});
 
     }
@@ -4048,25 +4091,27 @@ const Game = (() => {
         text(label,lx/sx,ly/sy,11,.95,{ui:true,col:color});text(Math.round(distance)+' m',lx/sx,(ly+15)/sy,11,.78,{ui:true});
       }
     }
+    if(state==='play'&&!menuStack&&deathT<=0)interactionPrompt(promptY);
     if(P.thinT>.55&&state==='play'&&deathT<=0)text('THIN ICE · KEEP MOVING',640,305,15,.85,{ui:true,col:'#b7dce6'});
-    if(checkpointToast>0&&state==='play'&&deathT<=0)text('CHECKPOINT SAVED',1238,80,11,Math.min(1,checkpointToast),{align:'right',ui:true});
+    if(checkpointToast>0&&state==='play'&&deathT<=0){g.save();g.globalAlpha=Math.min(1,checkpointToast);const x=isTouch?(UW-170)/2:UW-194,y=UH-(isTouch?184:91);uiBox(x,y,170,27,'rgba(16,33,31,.85)');uiLabel('CHECKPOINT SAVED',x+85,y+18,11,'#b9d1bf','center');g.restore();}
     if(hurtT>0&&deathT<=0){const strength=reduce()?.14:.28*Math.min(1,hurtT*2),radius=Math.hypot(UW,UH)*.55,grad=g.createRadialGradient(UW/2,UH/2,radius*.45,UW/2,UH/2,radius);grad.addColorStop(0,'rgba(112,34,21,0)');grad.addColorStop(1,'rgba(112,34,21,'+strength+')');g.fillStyle=grad;g.fillRect(0,0,UW,UH);}
     // narration
     if (lineCur && deathT<=0 && !menuStack && state !== 'title' && state!=='note' && state!=='darkroom') {
       const a = Math.min(1, lineCur.t / 0.35, (lineCur.d - lineCur.t) / 0.55), size = 23 * t, lh = Math.max(30 * t, 20 / sy);
-      const ls = wrap(lineCur.text, UW<760?(UW-44)/sx:800, size), y0 = (isTouch?UH-185:UH-48)/sy - (ls.length - 1) * lh;
+      const ls = wrap(lineCur.text, UW<760?(UW-44)/sx:800, size), y0 = (isTouch?UH-185:UH-(UW<760?108:78))/sy - (ls.length - 1) * lh;
       const grd = g.createLinearGradient(0, (720 - 170 * t) * sy, 0, 720 * sy); grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, `rgba(8,12,15,${0.65 * a})`); g.fillStyle = grd; g.fillRect(0, (720 - 170 * t) * sy, UW, 170 * t * sy);
       ls.forEach((l, i) => text(l, 640, y0 + i * lh, size, a, { shadowA: .9 }));
     }
     // the polaroid thumbnail
     const pl = Photo.S.polaroid;
     if (pl && state === 'play'&&deathT<=0) {
-      const tt = pl.t, inT = smooth(0, 0.5, tt), outT = smooth(5.2, 6, tt), w = 290, h = 163, x = 1280 - w - 40 + outT * 300, y = 720 - h - 70 + (1 - inT) * 240;
-      g.save(); g.translate((x + w / 2) * sx, (y + h / 2) * sy); g.rotate(0.05 - outT * 0.2); g.scale(sx, sy);
-      g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(-w / 2 - 8, -h / 2 - 6, w + 20, h + 40); g.fillStyle = '#f2eee4'; g.fillRect(-w / 2 - 10, -h / 2 - 10, w + 20, h + 42); g.drawImage(pl.canvas, -w / 2, -h / 2, w, h); g.restore();
-      text(`PHOTO ${pl.count} · ${pl.saved ? 'SAVED' : 'THIS SESSION'}`, x + w / 2, y + h + 24, 15, inT * (1 - outT) * 0.8, { col: '#3a3530', shadow: false, italic: true });
+      const inT=smooth(0,.5,pl.t),outT=smooth(5.2,6,pl.t),w=UW<760?132:230,h=w*9/16;
+      const x=UW-w-24+outT*(w+40),y=UH-(isTouch?318:242)+(1-inT)*(h+90);
+      g.save();g.translate(x+w/2,y+h/2);g.rotate(.035-outT*.15);
+      g.fillStyle='rgba(0,0,0,.28)';g.fillRect(-w/2-7,-h/2-5,w+18,h+40);g.fillStyle='#eee9de';g.fillRect(-w/2-8,-h/2-8,w+16,h+38);g.drawImage(pl.canvas,-w/2,-h/2,w,h);
+      uiLabel('PHOTO '+String(pl.count).padStart(2,'0')+' · '+(pl.saved?'SAVED':'SESSION'),0,h/2+19,UW<760?10:11,'#41453e','center');g.restore();
     }
-    if(pl && state==='play'&&deathT<=0) text(isTouch ? 'Photograph captured' : 'Photograph captured · Tab to open album · C to lower camera',640,115,18,Math.min(1,pl.t*4),{col:'#f6e5bc'});
+    if(state==='play'&&!menuStack&&deathT<=0)controlHints();
     if (state === 'darkroom') renderDarkroom();
     if(state==='note')renderNotebook();
     if (flash > 0) { g.fillStyle = `rgba(255,252,245,${flash * (reduce() ? 0.3 : 0.8)})`; g.fillRect(0, 0, UW, UH); }
@@ -4090,8 +4135,9 @@ const Game = (() => {
     const grd = g.createLinearGradient(0, 0, 0, 360 * sy); grd.addColorStop(0, `rgba(20,24,30,${0.35 * a})`); grd.addColorStop(1, 'rgba(20,24,30,0)'); g.fillStyle = grd; g.fillRect(0, 0, UW, 360 * sy);
     text(TEXT.title, 640, 190, 88, a, { weight: 500, letter: 18, shadowA: 0.3 }); text(TEXT.subtitle, 640, 238, 30, a * 0.9, { italic: true });
     if (menuStack) { const band = g.createLinearGradient(0, 270 * sy, 0, 620 * sy); band.addColorStop(0, 'rgba(20,24,30,0)'); band.addColorStop(0.3, `rgba(20,24,30,${0.3 * b})`); band.addColorStop(0.75, `rgba(20,24,30,${0.3 * b})`); band.addColorStop(1, 'rgba(20,24,30,0)'); g.fillStyle = band; g.fillRect(0, 270 * sy, UW, 350 * sy); renderMenu(menuStack.length > 1 ? 370 : 330, b); }
-    if (!isTouch) { const k = S().keys; const foot = g.createLinearGradient(0, (720 - 90) * sy, 0, 720 * sy); foot.addColorStop(0, 'rgba(14,16,20,0)'); foot.addColorStop(1, `rgba(14,16,20,${0.55 * b})`); g.fillStyle = foot; g.fillRect(0, (720 - 90) * sy, UW, 90 * sy); text(`${keyName(k.forward)} ${keyName(k.left)} ${keyName(k.back)} ${keyName(k.right)}  walk   ·   mouse  look   ·   ${keyName(k.use)} / click  reach out, use, shutter   ·   ${keyName(k.torch)}  torch   ·   ${keyName(k.camera)}  camera   ·   ${keyName(k.cut)} / right click  cutter   ·   shift  hurry   ·   esc  pause`, 640, 720 - 30, 14 * T(), b * 0.65, { letter: 1 }); }
-    text('the winter crossing · a machine that hunts · a house with its lights on', 640, 720 - 62, 15, b * 0.5, { italic: true });
+    controlHints(true);
+    const tagline=isTouch?'The ice road. The house with its lights on.':'the winter crossing · a machine that hunts · a house with its lights on';
+    text(tagline,640,(UH-(isTouch?36:82))/sy,isTouch?13:15,b*.85,{italic:true});
   }
   function renderCard() { const tt = stateT, a = Math.min(1, tt / 1.2) * (1 - smooth(3.6, 5, tt)), bg = 1 - smooth(3.2, 5, tt), c = TEXT.cards[chapter]; g.fillStyle = `rgba(8,8,10,${0.85 * bg})`; g.fillRect(0, 0, UW, UH); text(c.n, 640, 280, 30, a * 0.8, { letter: 6 }); text(c.title, 640, 360, 74, a, { weight: 500, letter: 4 }); text(c.sub, 640, 404, 26, a * 0.85, { italic: true }); text(c.date, 640, 470, 20, a * 0.6, { italic: true, letter: 2 }); }
   function renderNotebook(){
