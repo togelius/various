@@ -154,3 +154,7 @@ The rising hulls fracture and displace the ice: branching leads, twelve animated
 The farmhouse garden now has a snow-capped open gate, an address postbox, stacked winter firewood, a bare apple tree, a bicycle and a wooden sled. The central approach and route to the relay remain open. Original authored meshes and two locally painted material tiles; no new downloaded assets.
 
 The forest mixes the original spruce with a second generated winter pine cutout, arranged in loose stands with a few trees framing the farmhouse. Both use the same lighting and distance fog; PNG originals and full prompts are retained under assets/foliage/.
+
+The field pack now carries three condition lamps: green, amber, then red as damage accumulates. Hits briefly recoil the torso, the cutter has a short visual kick, and the pack and cap follow the authored skeleton orientation. These reactions preserve movement and the camera; reduced motion suppresses hit/recoil motion. Defeat plays the authored fall and identifies the checkpoint return.
+
+Roadkeeper charges now stop at contact and enter recovery, giving the player space to escape; swept contact also catches long frames without passing through the protagonist.

@@ -115,7 +115,7 @@ const Game = (() => {
   // ---------------------------------------------------------------- state
   let endingT=0,wakeFadeT=0,checkpointToast=0,albumPage=0,albumZoom=-1,albumCompare=false,albumRects=[];
   let albumReturn = 'title', islandTransition = 0, health=3, hurtT=0, cutterCooldown=0, cutFlash=0, cutPoint=[0,0,0],cutCandidates=[],combatNotice=null,impactT=0,darkroomRects=[];
-  let state = 'boot', stateT = 0, time = 0, chapter = 1, fade = 0, fadeTarget = 1, flash = 0, deathT = 0;
+  let state = 'boot', stateT = 0, time = 0, chapter = 1, fade = 0, fadeTarget = 1, flash = 0, deathT = 0, deathKind='machine';
   let lineCur = null, lineQ = [], said = new Set(), menuStack = null, menuRects = [], darkroom = null, ending = null;
   let calmCeiling = 1, awake = false, nightsSpent = 0, carriedFrom = null, cutTarget = null, standoffWith = null, promptA = 0, prompt = '', lastSeat = null, sleepReady = false;
   const flags = { hulls: false, island: false, scoutSeen: false, bearerSeen: false, standoff: false, off: false, carried: false, cut: false, relay:false, roadkeeper:false, house:false, radio:false, notebook:false };
@@ -201,7 +201,7 @@ const Game = (() => {
     if(wakeFadeT>0){wakeFadeT-=dt;if(wakeFadeT<=0)fadeTarget=1;}
     if(endingT>0){endingT-=dt;if(endingT<=0){state='end';stateT=0;fade=0;fadeTarget=1;Store.finish();Sound.chime();}return;}
     if(islandTransition>0){islandTransition-=dt;if(islandTransition<=0)startChapter(2);return;}
-    if (deathT > 0) { deathT -= dt; if (deathT <= 0) respawn(); Player.update(dt, { mx: 0, my: 0, lookDX: 0, lookDY: 0 }, { locked: true }); return; }
+    if (deathT > 0) { deathT -= dt; if (deathT <= 0){respawn();return;} Player.update(dt, { mx: 0, my: 0, lookDX: 0, lookDY: 0 }, { locked: true });kid.pose(P.x,P.y,P.z,P.yaw,0,dt,0,1,P.torch,false,null,{condition:0});return; }
     impactT=Math.max(0,impactT-dt);if(combatNotice){combatNotice.t-=dt;if(combatNotice.t<=0)combatNotice=null;}relayPulseT=Math.max(0,relayPulseT-dt);cutterMissT=Math.max(0,cutterMissT-dt);hurtT=Math.max(0,hurtT-dt);cutterCooldown=Math.max(0,cutterCooldown-dt);cutFlash=Math.max(0,cutFlash-dt);
     if(Interior.contains(P.x,P.z))return updateInterior(dt);
     // the camera toggle
@@ -236,10 +236,10 @@ const Game = (() => {
     if (P.torch && P.hold > 0.05) P.flinch = true;
     // the kid
     Tracks.update(P);
-    kid.pose(P.x, P.y, P.z, P.yaw, P.speed / 1.4, dt, clamp(P.hold * 2, 0, 1) || (standoffWith ? 0.25 : 0), 0, P.torch, P.cutterUp,[P.vx,P.vz]);
+    kid.pose(P.x, P.y, P.z, P.yaw, P.speed / 1.4, dt, clamp(P.hold * 2, 0, 1) || (standoffWith ? 0.25 : 0), 0, P.torch, P.cutterUp,[P.vx,P.vz],characterFeedback());
     P.handWorld = kid.hand;
     // machines
-    const mctx = { calmCeiling: quiet() ? 1 : calmCeiling, awake: awake && !P.sit, quiet:quiet(), onImpact:m=>{impactT=3.5;M.trs(impact.model,m.x,World.groundY(m.x,m.z)+.012,m.z,0);emitCut(m.x,.08,m.z);}, onHit: m=>{if(hurtT>0)return;health--;hurtT=1.5;Sound.fall();if(health<=0)die('machine');}, onLift: m => { if (quiet()) { m.state = 'wait'; return; } flags.carried = true; carriedFrom = { x: P.x, z: P.z }; P.carried = 0.001; Sound.at('lift', m.x, m.y + 1, m.z); }, onCarried: m => wake(m), onSwitchedOff: m => { if(m===sentry){flags.roadkeeper=true;combatNotice={text:'ROADKEEPER DISABLED',t:3.5};Sound.touch();checkpoint();return;} flags.off = true; lineFor('off'); Sound.touch(); sleepReady = true;checkpoint(); } };
+    const mctx = { calmCeiling: quiet() ? 1 : calmCeiling, awake: awake && !P.sit, quiet:quiet(), onImpact:m=>{impactT=3.5;M.trs(impact.model,m.x,World.groundY(m.x,m.z)+.012,m.z,0);emitCut(m.x,.08,m.z);}, onHit: m=>{if(hurtT>0)return;health--;hurtT=1.5;combatNotice={text:health===1?'CRITICAL · ONE HIT LEFT':'HIT · KEEP MOVING',t:1.4};Sound.fall();if(health<=0)die('machine');}, onLift: m => { if (quiet()) { m.state = 'wait'; return; } flags.carried = true; carriedFrom = { x: P.x, z: P.z }; P.carried = 0.001; Sound.at('lift', m.x, m.y + 1, m.z); }, onCarried: m => wake(m), onSwitchedOff: m => { if(m===sentry){flags.roadkeeper=true;combatNotice={text:'ROADKEEPER DISABLED',t:3.5};Sound.touch();checkpoint();return;} flags.off = true; lineFor('off'); Sound.touch(); sleepReady = true;checkpoint(); } };
     for (const m of machines) { if(m===sentry && chapter!==1)continue; if(m!==sentry && m!==o4 && chapter===1)continue; if (m === o4) updateO4(dt); else m.update(dt, P, {...mctx,awake:m===sentry?P.z>-3:mctx.awake}); }
     if (P.carried > 0) { P.carried += dt; }
     // the cutter: the nearest joint in front of you within reach
@@ -270,6 +270,11 @@ const Game = (() => {
     // prompts
     prompt = promptText(seat, dd, cd);
   }
+  function characterFeedback(){
+    const age=1.5-hurtT,hit=hurtT>0?smooth(0,.06,age)*(1-smooth(.06,.60,age)):0;
+    const c=RENDER.cam,aimPitch=Math.atan2(c.y-c.ty,Math.hypot(c.tx-c.x,c.tz-c.z));
+    return {hit:reduce()?0:hit,recoil:reduce()?0:cutFlash/.18,aimPitch,condition:health};
+  }
   function fireMiss(){
       const h=kid.hand,end=Combat.missEnd(h,RENDER.cam),hit=World.raycast(...h,...end);
       cutPoint=h.map((v,i)=>lerp(v,end[i],hit));cutFlash=.11;cutterCooldown=.4;cutterMissT=1.4;
@@ -286,7 +291,7 @@ const Game = (() => {
     if(input.cameraPressed){P.viewfinder=!P.viewfinder;Sound.wind_lever();}
     cutTarget=null;standoffWith=null;
     Player.update(dt,input,{indoors:true,onStep:()=>Sound.step('wood',P.hurry),onTorch:on=>Sound.torch(on)});
-    kid.pose(P.x,P.y,P.z,P.yaw,P.speed/1.4,dt,0,0,P.torch,P.cutterUp,[P.vx,P.vz]);P.handWorld=kid.hand;
+    kid.pose(P.x,P.y,P.z,P.yaw,P.speed/1.4,dt,0,0,P.torch,P.cutterUp,[P.vx,P.vz],characterFeedback());P.handWorld=kid.hand;
     const near=Interior.nearby(P.x,P.z);prompt=P.viewfinder?TEXT.prompts.photo:P.cutterUp?(cutterMissT>0?'no support joint in range':'arc cutter'):near?roomPrompts[near]:'';
     if(!input.usePressed)return;
     if(P.viewfinder){takePhoto();return;}
@@ -340,8 +345,8 @@ const Game = (() => {
     const v = Photo.nearVantage(chapter, P.x, P.z); Sound.shutter(); flash = 1;
     Photo.shoot(buildScene(), chapter, P.x, P.z, v);
   }
-  function die(kind) { if (deathT > 0) return; deathT = 2.2; fadeTarget = 0; if (kind === 'ice') Sound.splash(); else Sound.fall(); }
-  function respawn() {const saved=Store.save,s=saved&&saved.chapter===chapter?saved:lastSeat||(chapter===2?world.seats.find(s=>s.name==='the porch bench'):world.seats[0]);Player.place(s.x,s.z,s.yaw||0);fadeTarget=1;P.thinT=0;health=3;hurtT=1;P.viewfinder=false;if(chapter===1&&!flags.roadkeeper)resetMachine(sentry,4,33,Math.PI);}
+  function die(kind) { if (deathT > 0) return; deathT = 2.2;deathKind=kind;P.viewfinder=false;P.cutterUp=false;combatNotice=null;prompt=''; fadeTarget = 0; if (kind === 'ice') Sound.splash(); else Sound.fall(); }
+  function respawn() {kid.oldPose=null;kid.clip='Idle_Neutral';kid.blend=1;kid.phase=0;const saved=Store.save,s=saved&&saved.chapter===chapter?saved:lastSeat||(chapter===2?world.seats.find(s=>s.name==='the porch bench'):world.seats[0]);Player.place(s.x,s.z,s.yaw||0);fadeTarget=1;P.thinT=0;health=3;hurtT=1;P.viewfinder=false;if(chapter===1&&!flags.roadkeeper)resetMachine(sentry,4,33,Math.PI);}
 
   // being carried: you wake on the bench under the foil blanket. The night has passed, and the window has gone dark.
   function wake(m) {
@@ -471,10 +476,10 @@ const Game = (() => {
   function roman(n) { return ['', 'I', 'II', 'III', 'IV', 'V', 'VI'][n]; }
   let lastTouchState=false;
   function renderUI() {
-    const touchState=state==='play'&&!menuStack;if(touchState!==lastTouchState){document.body.classList.toggle('playing',touchState);lastTouchState=touchState;}
+    const touchState=state==='play'&&!menuStack&&deathT<=0;if(touchState!==lastTouchState){document.body.classList.toggle('playing',touchState);lastTouchState=touchState;}
     sx = UW / 1280; sy = UH / 720; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, UW, UH);
     const t = T();
-    if (state === 'play' || state === 'darkroom') {
+    if ((state === 'play' || state === 'darkroom')&&deathT<=0) {
       // the viewfinder: a 35 mm frame, the counter, grain is in the render
       if (P.viewfinder && state === 'play') {
         g.fillStyle = 'rgba(8,8,10,0.92)'; const fw = 1280 * sx, fh = 720 * sy, mw = fw * 0.11, mh = fh * 0.11;
@@ -488,7 +493,7 @@ const Game = (() => {
       if (P.hold > 0) { g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 2 * sx; g.beginPath(); g.arc(640 * sx, 88 * sy, 14 * sx, -Math.PI / 2, -Math.PI / 2 + Math.min(1, P.hold / 2) * TAU); g.stroke(); }
       if (state === 'play' && stateT < 6 && !menuStack) { const a = Math.min(1, stateT, (6 - stateT) / 1.5); const c = TEXT.cards[chapter]; text(`${c.n} · ${c.title}`, 40, 50, 22 * t, a * 0.85, { align: 'left', letter: 2 }); }
     }
-    if(state==='play'&&!menuStack&&!P.viewfinder){
+    if(state==='play'&&!menuStack&&!P.viewfinder&&deathT<=0){
       const threat=chapter===1&&!sentry.off&&!sentry.dark&&Math.hypot(P.x-sentry.x,P.z-sentry.z)<27;
       const inside=Interior.contains(P.x,P.z);
       const goal=inside?'THE HOUSE':chapter===1?(threat?'DISABLE THE ROADKEEPER':'REACH SJÖGÅRDEN'):sleepReady?'RETURN TO THE FRONT DOOR':flags.relay?'APPROACH THE BEARER':'RESTORE THE FIELD RELAY';
@@ -508,7 +513,7 @@ const Game = (() => {
       if(combatNotice)text(combatNotice.text,640,(UH*.5+52)/sy,13,Math.min(1,combatNotice.t*3),{ui:true,col:'#cbe4e2'});
 
     }
-    if(state==='play'&&!menuStack){
+    if(state==='play'&&!menuStack&&deathT<=0){
       const distance=Math.hypot(P.x-sentry.x,P.z-sentry.z),threat=chapter===1&&!sentry.off&&!sentry.dark&&distance<27&&!quiet();
       if(threat||health<3){
         const right=UW-(isTouch?132:28),top=isTouch?34:42;
@@ -526,11 +531,11 @@ const Game = (() => {
         text(label,lx/sx,ly/sy,11,.95,{ui:true,col:color});text(Math.round(distance)+' m',lx/sx,(ly+15)/sy,11,.78,{ui:true});
       }
     }
-    if(P.thinT>.55&&state==='play')text('THIN ICE · KEEP MOVING',640,305,15,.85,{ui:true,col:'#b7dce6'});
-    if(checkpointToast>0&&state==='play')text('CHECKPOINT SAVED',1238,80,11,Math.min(1,checkpointToast),{align:'right',ui:true});
-    if(hurtT>0){g.strokeStyle='rgba(151,53,31,'+(hurtT*.35)+')';g.lineWidth=24;g.strokeRect(0,0,UW,UH);}
+    if(P.thinT>.55&&state==='play'&&deathT<=0)text('THIN ICE · KEEP MOVING',640,305,15,.85,{ui:true,col:'#b7dce6'});
+    if(checkpointToast>0&&state==='play'&&deathT<=0)text('CHECKPOINT SAVED',1238,80,11,Math.min(1,checkpointToast),{align:'right',ui:true});
+    if(hurtT>0&&deathT<=0){const strength=reduce()?.14:.28*Math.min(1,hurtT*2),radius=Math.hypot(UW,UH)*.55,grad=g.createRadialGradient(UW/2,UH/2,radius*.45,UW/2,UH/2,radius);grad.addColorStop(0,'rgba(112,34,21,0)');grad.addColorStop(1,'rgba(112,34,21,'+strength+')');g.fillStyle=grad;g.fillRect(0,0,UW,UH);}
     // narration
-    if (lineCur && !menuStack && state !== 'title' && state!=='note' && state!=='darkroom') {
+    if (lineCur && deathT<=0 && !menuStack && state !== 'title' && state!=='note' && state!=='darkroom') {
       const a = Math.min(1, lineCur.t / 0.35, (lineCur.d - lineCur.t) / 0.55), size = 23 * t, lh = Math.max(30 * t, 20 / sy);
       const ls = wrap(lineCur.text, UW<760?(UW-44)/sx:800, size), y0 = (isTouch?UH-185:UH-48)/sy - (ls.length - 1) * lh;
       const grd = g.createLinearGradient(0, (720 - 170 * t) * sy, 0, 720 * sy); grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, `rgba(8,12,15,${0.65 * a})`); g.fillStyle = grd; g.fillRect(0, (720 - 170 * t) * sy, UW, 170 * t * sy);
@@ -538,18 +543,19 @@ const Game = (() => {
     }
     // the polaroid thumbnail
     const pl = Photo.S.polaroid;
-    if (pl && state === 'play') {
+    if (pl && state === 'play'&&deathT<=0) {
       const tt = pl.t, inT = smooth(0, 0.5, tt), outT = smooth(5.2, 6, tt), w = 290, h = 163, x = 1280 - w - 40 + outT * 300, y = 720 - h - 70 + (1 - inT) * 240;
       g.save(); g.translate((x + w / 2) * sx, (y + h / 2) * sy); g.rotate(0.05 - outT * 0.2); g.scale(sx, sy);
       g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(-w / 2 - 8, -h / 2 - 6, w + 20, h + 40); g.fillStyle = '#f2eee4'; g.fillRect(-w / 2 - 10, -h / 2 - 10, w + 20, h + 42); g.drawImage(pl.canvas, -w / 2, -h / 2, w, h); g.restore();
       text(`PHOTO ${pl.count} · ${pl.saved ? 'SAVED' : 'THIS SESSION'}`, x + w / 2, y + h + 24, 15, inT * (1 - outT) * 0.8, { col: '#3a3530', shadow: false, italic: true });
     }
-    if(pl && state==='play') text(isTouch ? 'Photograph captured' : 'Photograph captured · Tab to open album · C to lower camera',640,115,18,Math.min(1,pl.t*4),{col:'#f6e5bc'});
+    if(pl && state==='play'&&deathT<=0) text(isTouch ? 'Photograph captured' : 'Photograph captured · Tab to open album · C to lower camera',640,115,18,Math.min(1,pl.t*4),{col:'#f6e5bc'});
     if (state === 'darkroom') renderDarkroom();
     if(state==='note')renderNotebook();
     if (flash > 0) { g.fillStyle = `rgba(255,252,245,${flash * (reduce() ? 0.3 : 0.8)})`; g.fillRect(0, 0, UW, UH); }
     if (P.carried > 0 && state === 'play') { g.fillStyle = `rgba(230,236,240,${Math.min(0.35, P.carried * 0.06)})`; g.fillRect(0, 0, UW, UH); }
     if (fade < 0.999) { g.fillStyle = `rgba(6,6,8,${1 - fade})`; g.fillRect(0, 0, UW, UH); }
+    if(deathT>0){text(deathKind==='ice'?'THE ICE GAVE WAY':'THE ROADKEEPER CAUGHT YOU',640,340,17,.95,{ui:true,col:'#d7d7cd'});text('Returning to the last checkpoint',640,373,15,.75,{italic:true});}
     if (state === 'title') renderTitle();
     if (state === 'card') renderCard();
     if (state === 'end') { g.fillStyle = 'rgba(8,8,10,0.7)'; g.fillRect(0, 0, UW, UH); text(TEXT.ending, 640, 340, 30 * t, Math.min(1, stateT / 1.5), { italic: true }); text(`${Store.photos.length} photographs · ${nightsSpent} night${nightsSpent === 1 ? '' : 's'} spent`, 640, 400, 20 * t, Math.min(1, stateT / 2) * 0.7, { italic: true }); if (stateT > 4) text(isTouch ? 'tap to go on' : 'press any key', 640, 660, 16, 0.5 + Math.sin(time * 2) * 0.2, { italic: true }); }
@@ -679,7 +685,7 @@ const Game = (() => {
   }
   window.__game = {
     set reviewFrozen(v){reviewFrozen=reviewParams.has('review')&&!!v;},
-    get iceBreak(){return iceBreak;},get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get darkroom(){return darkroom;},openDarkroom,get interior(){return Interior.contains(P.x,P.z);},get room(){return Interior;},enterHouse,get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get cutTarget(){return cutTarget;},get cutCandidates(){return cutCandidates;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
+    get iceBreak(){return iceBreak;},get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get darkroom(){return darkroom;},openDarkroom,get interior(){return Interior.contains(P.x,P.z);},get room(){return Interior;},enterHouse,get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get hurt(){return hurtT;},get feedback(){return characterFeedback();},get cutTarget(){return cutTarget;},get cutCandidates(){return cutCandidates;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
     jump(ch, x, z) { lineCur=null; lineQ=[]; menuStack = null; if (ch >= 2) { flags.island = true; flags.hulls = true; for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; h.y = 0; } } startChapter(ch); state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x !== undefined) Player.place(x, z, 0); if (ch === 2) awake = true; },
     set(x, y, z, tx, ty, tz) { const c = RENDER.cam; state = 'free'; c.x = x; c.y = y; c.z = z; c.tx = tx; c.ty = ty; c.tz = tz; },
     place(x, z, yaw) { Player.place(x, z, yaw || 0); }, step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) update(dt); }, get awake() { return awake; }, set awake(v) { awake = v; }, get standoff() { return standoffWith; }, get time() { return time; }, get deaths() { return deathT; }, setState(s) { state = s; stateT = 0; },

@@ -262,9 +262,14 @@ class Machine {
       this.speed=0;this.armsOpen=.8;this.blink=1;
       if(this.attackT>.95){this.state='lunge';this.attackT=0;this.say('lift',.6);}
     }else if(this.state==='lunge'){
-      this.move(dt,this.attackDir[0],this.attackDir[1],5.8);
-      if(d<1.25&&!this.hitThisLunge){this.hitThisLunge=true;if(ctx.onHit)ctx.onHit(this);}
-      if(this.attackT>.65){this.state='recover';this.attackT=0;this.say('crack',.55);if(ctx.onImpact)ctx.onImpact(this);}
+      const ox=this.x,oz=this.z;this.move(dt,this.attackDir[0],this.attackDir[1],5.8);
+      // Sweep the actual step against the player's contact circle. Stop at impact,
+      // including at low frame rates, rather than driving through the character.
+      const sx=this.x-ox,sz=this.z-oz,a=sx*sx+sz*sz,b=-(dx*sx+dz*sz),c=d*d-1.25*1.25,disc=b*b-a*c;
+      const contact=c<=0?0:a>0&&disc>=0?(-b-Math.sqrt(disc))/a:Infinity;
+      const hit=contact>=0&&contact<=1;
+      if(hit){this.x=ox+sx*contact;this.z=oz+sz*contact;this.y=World.groundY(this.x,this.z);if(!this.hitThisLunge){this.hitThisLunge=true;if(ctx.onHit)ctx.onHit(this);}}
+      if(hit||this.attackT>.65){this.speed=0;this.state='recover';this.attackT=0;this.say('crack',.55);if(ctx.onImpact)ctx.onImpact(this);}
     }else if(this.state==='recover'){
       this.speed=0;this.armsOpen=0;if(this.attackT>1.4){this.state='approach';this.attackT=0;}
     }else{

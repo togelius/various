@@ -31,7 +31,11 @@ class Character {
     pack.tile=MAT.STEEL;pack.col=[.86,.83,.65];for(const x of [-.11,.075])pack.roundedBox(x,-.06,-.37,.035,.045,.013,.004);
     pack.tile=MAT.CLOTH;pack.col=[.72,.66,.47];pack.roundedBox(-.085,.02,-.355,.17,.055,.014,.004);
     pack.tile=MAT.DARK;pack.col=[.62,.64,.59];pack.tube([[-.04,.23,-.19],[-.04,.27,-.19],[.04,.27,-.19],[.04,.23,-.19]],.011,{segs:6});
+    pack.tile=MAT.DARK;pack.col=[.48,.53,.49];pack.roundedBox(-.035,-.155,-.385,.07,.165,.027,.01);
     this.pack={mesh:pack.build(),model:M.create(),radius:1};this.items.push(this.pack);
+    const gauge=new Builder();this.gaugeRanges=[];
+    for(let i=0;i<3;i++){const first=gauge.count;gauge.tile=MAT.COLD_LIGHT;gauge.col=[.42,.78,.70];gauge.box(-.020,-.139+i*.046,-.400,.04,.025,.012);this.gaugeRanges.push([first,gauge.count]);}
+    this.gaugeData=new Float32Array(gauge.v);this.gauge={mesh:GL.mesh(this.gaugeData,new Uint32Array(gauge.i),true),model:this.pack.model,radius:1,noShadow:true,emis:.55};this.items.push(this.gauge);this.condition=-1;
     const lamp=new Builder();lamp.tile=MAT.CLOTH;lamp.col=[.65,.53,.32];
     lamp.loft(0,.09,-.015,[[0,.115,.135],[.045,.12,.138],[.11,.112,.13],[.16,.065,.08],[.177,.005,.006]],{segs:24});
     lamp.col=[.49,.40,.25];lamp.loft(0,.09,-.015,[[0,.12,.14],[.046,.122,.141]],{segs:24});
@@ -54,7 +58,7 @@ class Character {
     for(let k=0;k<n;k++)out[k]=lerp(v[a*n+k],v[b*n+k]*sign,f);
     if(n===4){const len=Math.hypot(...out)||1;for(let k=0;k<4;k++)out[k]/=len;}
   }
-  pose(x,y,z,yaw,run,dt,reach=0,carried=0,torchOn=false,aim=false,velocity=null){
+  pose(x,y,z,yaw,run,dt,reach=0,carried=0,torchOn=false,aim=false,velocity=null,feedback={}){
     const speed=run*1.4;this.clock+=dt;
     const name=carried?'Death':aim?'Idle_Gun_Pointing':reach>.5?'Interact':speed>3.6?'Run':speed>.12?'Walk':'Idle_Neutral';
     if(name!==this.clip){this.oldPose=this.nodes.map(n=>({t:n.t.slice(),q:n.q.slice(),s:n.s.slice()}));this.clip=name;this.blend=0;this.phase=0;}
@@ -69,6 +73,10 @@ class Character {
       const n=this.nodes[i],p=this.oldPose[i],f=smooth(0,1,this.blend);let dot=n.q.reduce((a,v,k)=>a+v*p.q[k],0),sg=dot<0?-1:1;
       for(let k=0;k<3;k++){n.t[k]=lerp(p.t[k],n.t[k],f);n.s[k]=lerp(p.s[k],n.s[k],f);}for(let k=0;k<4;k++)n.q[k]=lerp(p.q[k],n.q[k]*sg,f);const len=Math.hypot(...n.q);for(let k=0;k<4;k++)n.q[k]/=len;
     }
+    // Small upper-body reactions leave authored footwork and locomotion untouched.
+    const recoil=clamp(feedback.recoil||0,0,1),hit=clamp(feedback.hit||0,0,1),pitch=aim?clamp(feedback.aimPitch||0,-.5,.6):0;
+    const rotateX=(index,angle)=>{const q=this.nodes[index].q,[x,y,z,w]=q,s=Math.sin(angle*.5),c=Math.cos(angle*.5);q[0]=x*c+w*s;q[1]=y*c+z*s;q[2]=z*c-y*s;q[3]=w*c-x*s;};
+    rotateX(this.chestIndex,pitch*.72+hit*.26-recoil*.12);rotateX(this.headIndex,hit*.12-pitch*.20);
     // The authored animations are in place; world movement belongs solely to Player.
     for(const n of this.nodes){this.matrix(n.local,n.t,n.q,n.s);if(n.parent<0)n.world.set(n.local);else M.multiply(n.world,this.nodes[n.parent].world,n.local);}
     for(const p of this.parts){
@@ -84,8 +92,13 @@ class Character {
     }
     GL.updateMesh(this.mesh,this.vertices);M.trs(this.item.model,x,y+.015,z,yaw,.94,.94,.94);this.item.x=x;this.item.y=y+1;this.item.z=z;
     const worldPoint=i=>{const n=this.nodes[i].world,a=this.item.model;return [a[0]*n[12]+a[8]*n[14]+x,n[13]*.94+y+.015,a[2]*n[12]+a[10]*n[14]+z];};
-    this.feet=this.footIndices.map(worldPoint);this.hand=worldPoint(this.handIndex);M.trs(this.tool.model,...this.hand,yaw);this.tool.x=x;this.tool.y=y+1;this.tool.z=z;this.head=worldPoint(this.headIndex);const c=worldPoint(this.chestIndex);
-    M.trs(this.pack.model,c[0],c[1]-.08,c[2],yaw);M.trs(this.lamp.model,...this.head,yaw);
+    this.feet=this.footIndices.map(worldPoint);this.hand=worldPoint(this.handIndex);M.trsEuler(this.tool.model,this.hand[0]-Math.sin(yaw)*recoil*.035,this.hand[1]+recoil*.018,this.hand[2]-Math.cos(yaw)*recoil*.035,yaw,pitch-recoil*.14,0);this.tool.x=x;this.tool.y=y+1;this.tool.z=z;this.head=worldPoint(this.headIndex);const c=worldPoint(this.chestIndex);
+    // Attach orientation as well as position; the pack and cap follow torso/head motion.
+    const attach=(item,index,point,offsetY=0)=>{const n=this.nodes[index].world,a=item.model,cy=Math.cos(yaw),sy=Math.sin(yaw);M.identity(a);for(let col=0;col<3;col++){const k=col*4,len=Math.hypot(n[k],n[k+1],n[k+2])||1;a[k]=(cy*n[k]+sy*n[k+2])/len;a[k+1]=n[k+1]/len;a[k+2]=(-sy*n[k]+cy*n[k+2])/len;}a[12]=point[0]+a[4]*offsetY;a[13]=point[1]+a[5]*offsetY;a[14]=point[2]+a[6]*offsetY;};
+    attach(this.pack,this.chestIndex,c,-.08);attach(this.lamp,this.headIndex,this.head);
+    this.gauge.x=x;this.gauge.y=y+1;this.gauge.z=z;
+    const condition=clamp(Math.round(feedback.condition===undefined?3:feedback.condition),0,3);
+    if(condition!==this.condition){this.condition=condition;const col=condition===3?[.42,.78,.70]:condition===2?[.96,.61,.25]:[1,.25,.10];for(let i=0;i<3;i++)for(let v=this.gaugeRanges[i][0];v<this.gaugeRanges[i][1];v++){this.gaugeData.set(i<condition?col:[.24,.29,.28],v*13+6);this.gaugeData[v*13+11]=i<condition?MAT.COLD_LIGHT:MAT.DARK;}GL.updateMesh(this.gauge.mesh,this.gaugeData);}
     for(const item of [this.pack,this.lamp]){item.x=x;item.y=y+1;item.z=z;}
     this.lamp.emis=torchOn?1:.02;this.torchWorld=[this.head[0]+Math.sin(yaw)*.16,this.head[1]+.12,this.head[2]+Math.cos(yaw)*.16,Math.sin(yaw),-.12,Math.cos(yaw)];
   }

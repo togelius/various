@@ -60,3 +60,17 @@ if(JSON.stringify(dodged.attackDir)!==original||Math.abs(dodged.x)>.01)throw Err
 if(hurt!==0||impacts!==1)throw Error('sidestep must avoid damage and charge must land once');
 console.log('Roadkeeper: telegraphed lane commits before movement, side-step is safe, impact fires once');
 `,ctx);
+
+vm.runInContext(`
+for(const dt of [1/120,1/30,.4]){
+ const contactPlayer={x:0,y:0,z:3,speed:0,torch:false,cutterUp:false};
+ let hits=0,impacts=0;const m=new Machine('bearer',0,0,0,{aggressive:true,scale:1.45});m.state='lunge';
+ const callbacks={awake:true,quiet:false,onHit:()=>hits++,onImpact:()=>impacts++};
+ for(let i=0;i<120&&m.state==='lunge';i++)m.update(dt,contactPlayer,callbacks);
+ if(hits!==1||impacts!==1||m.state!=='recover')throw Error('contact must end the charge once');
+ if(Math.abs(Math.hypot(m.x-contactPlayer.x,m.z-contactPlayer.z)-1.25)>1e-6)throw Error('charge drove through player');
+ const stop=[m.x,m.z];m.update(.5,contactPlayer,callbacks);
+ if(hits!==1||impacts!==1||m.x!==stop[0]||m.z!==stop[1])throw Error('contact recovery must leave room to escape');
+}
+console.log('Roadkeeper: contact stops at player boundary at 120/30 fps and through a long frame');
+`,ctx);
