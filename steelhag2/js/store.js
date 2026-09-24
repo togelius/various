@@ -31,8 +31,8 @@ const Store = (() => {
   const save = () => write(KEY, { settings: data.settings, progress: data.progress });
   const saveAlbum = () => {
     const plain = photos.map(({ img, print, ...p }) => p);
-    // if storage is full, keep what fits rather than nothing
-    while (plain.length && !write(ALBUM, plain)) plain.shift();
+    // Preserve the existing album if persistence fails. Never silently evict older photographs.
+    return write(ALBUM, plain);
   };
   const order = () => photos.sort((a, b) => a.chapter - b.chapter || a.x - b.x);
   order();
@@ -61,7 +61,7 @@ const Store = (() => {
       const at = photos.findIndex(p => p.key === key);
       if (at >= 0) photos[at] = entry; else photos.push(entry);
       order();
-      if (src) saveAlbum();
+      entry.saved = !!src && saveAlbum();
       return entry;
     },
     develop(entry) { entry.developed = true; saveAlbum(); },

@@ -24,12 +24,12 @@ const Player = (() => {
     if (control) { const f = input.my, r = input.mx; const c = Math.cos(P.camYaw), s = Math.sin(P.camYaw); mx = s * f - c * r; mz = c * f + s * r; }
     const mag = Math.min(1, Math.hypot(mx, mz)); if (mag > 0.001) { mx /= Math.hypot(mx, mz); mz /= Math.hypot(mx, mz); }
     P.hurry = control && input.hurry && mag > 0.3;
-    const target = mag * (P.hurry ? 4.2 : P.viewfinder ? 1.0 : 2.2);
-    const acc = P.onIce ? 6 : 14;
+    const target = mag * (P.hurry ? 5.6 : P.viewfinder ? 1.5 : input.cutHeld ? 2.0 : 3.1);
+    const acc = P.onIce ? 12 : 20;
     P.vx = M.approach(P.vx, mx * target, acc * dt); P.vz = M.approach(P.vz, mz * target, acc * dt);
     P.speed = Math.hypot(P.vx, P.vz);
-    if (mag > 0.3 && !P.viewfinder) P.yaw = P.yaw + M.angleTo(P.yaw, Math.atan2(mx, mz)) * (1 - Math.pow(0.001, dt));
-    if (P.viewfinder) P.yaw = P.yaw + M.angleTo(P.yaw, P.camYaw) * (1 - Math.pow(0.001, dt));
+    if (mag > 0.3 && !P.viewfinder && !input.cutHeld) P.yaw = P.yaw + M.angleTo(P.yaw, Math.atan2(mx, mz)) * (1 - Math.pow(0.001, dt));
+    if (P.viewfinder || input.cutHeld) P.yaw = P.yaw + M.angleTo(P.yaw, P.camYaw) * (1 - Math.pow(0.001, dt));
     const nx = P.x + P.vx * dt, nz = P.z + P.vz * dt;
     const pos = { x: nx, z: nz }; World.pushOut(pos, RADIUS, P.y);
     P.x = pos.x; P.z = pos.z; P.y = World.groundY(P.x, P.z);
@@ -87,9 +87,9 @@ const Player = (() => {
     } else {
       // over the shoulder; when you stand still in open country it drifts back and up into the painting
       if(Math.abs(inputLook.dx)+Math.abs(inputLook.dy)>0.5) P.stillT=0;
-      const paint = ctx.indoors ? 0 : smooth(2.5, 7, P.stillT) * (P.hold > 0 ? 0 : 1);
+      const paint = ctx.indoors ? 0 : smooth(6, 12, P.stillT) * (P.hold > 0 ? 0 : 1);
       P.calmCam = lerp(P.calmCam, paint, 1 - Math.pow(0.3, dt));
-      const dist = lerp(P.cutterUp ? 2.2 : 4.1, 6.6, P.calmCam), height = lerp(1.75, 2.5, P.calmCam), side = lerp(0.6, 0.2, P.calmCam);
+      const dist = lerp(P.cutterUp ? 2.1 : 3.5, 4.8, P.calmCam), height = lerp(1.7, 2.1, P.calmCam), side = lerp(0.6, 0.2, P.calmCam);
       const pitch = P.camPitch, cy = Math.cos(P.camYaw), sy = Math.sin(P.camYaw);
       tx = P.x - sy * dist * Math.cos(pitch) + cy * side; tz = P.z - cy * dist * Math.cos(pitch) - sy * side; ty = P.y + height + Math.sin(pitch) * dist;
       // keep the camera out of things and above the ground

@@ -17,7 +17,7 @@ const Photo = (() => {
     const k = vantage ? vantage.key : key(chapter, px, pz) + ':' + Date.now();
     const caption = vantage ? vantage.caption : '';
     const entry = Store.keepPhoto(k, chapter, px, caption, seen, print);
-    S.polaroid = { canvas: seen, t: 0, count: Store.photos.filter(p => p.caption).length, total: World.S.vantages.length };
+    S.polaroid = { canvas: seen, t: 0, count: Store.photos.length, saved: entry.saved };
     return entry;
   }
   return { S, nearVantage, shoot, W, H };

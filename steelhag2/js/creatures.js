@@ -75,6 +75,7 @@ function subtree(k) { const out = [k]; for (let i = 0; i < RIG.N; i++) if (PAREN
 
 class Machine {
   constructor(kind, x, z, yaw, opts = {}) {
+    this.aggressive = !!opts.aggressive; this.attackT=0; this.stagger=0;
     this.kind = kind; // 'scout' | 'bearer'
     const s = this.s = kind === 'bearer' ? 1 : 0.42;
     this.upper = 0.58 * s; this.lower = 0.62 * s; this.armLen = 0.36 * s;
@@ -195,7 +196,7 @@ class Machine {
   joints() {
     const out = [], B = this.bones;
     const at = (bone, name) => { if (!this.cut.has(bone) && !subtreeCut(this, bone)) out.push([bone, B[bone * 16 + 12], B[bone * 16 + 13], B[bone * 16 + 14], name]); };
-    for (let l = 0; l < 4; l++) { at(RIG.LEG + l * 2, 'the hip'); at(RIG.LEG + l * 2 + 1, 'the knee'); }
+    for (let l = 0; l < 4; l++) { if(!this.legOk(l))continue; at(RIG.LEG + l * 2, 'the hip'); at(RIG.LEG + l * 2 + 1, 'the knee'); }
     if (this.kind === 'bearer') { for (let a = 0; a < 2; a++) at(RIG.ARM + a * 2, 'the shoulder'); at(RIG.HEAD, 'the neck'); out.push([RIG.BODY, B[12] + B[4] * -0.2 * this.s, B[13] - 0.2 * this.s, B[14] + B[6] * -0.2 * this.s, 'the belly seam']); }
     return out;
     function subtreeCut(m, bone) { let p = PARENT[bone]; while (p >= 0) { if (m.cut.has(p)) return true; p = PARENT[p]; } return false; }
@@ -204,6 +205,7 @@ class Machine {
   sever(bone) {
     if (bone === RIG.BODY) { this.dark = 1; this.state = 'dying'; this.stateT = 0; this.say('dark'); return; }
     if (this.cut.has(bone)) return;
+    this.stagger=.9; this.state='approach';
     this.cut.add(bone); this.say('cut');
     // the part falls: the same mesh, drawn with only this subtree, on a rigid body
     const sub = subtree(bone), fx = new Float32Array(RENDER.MAX_BONES * 4); for (let i = 0; i < RENDER.MAX_BONES; i++) fx[i * 4 + 1] = sub.includes(i) ? 0 : 1;
@@ -224,6 +226,31 @@ class Machine {
   }
 
   // ---- behaviour
+  // Roadkeeper: a readable wind-up, a committed straight lunge, then a recovery.
+  // Cutting a support joint interrupts it; two lost legs make the exposed core reachable.
+  updateHostile(dt,player,ctx) {
+    const dx=player.x-this.x,dz=player.z-this.z,d=Math.hypot(dx,dz),dir=d>.001?[dx/d,dz/d]:[0,1];
+    this.lookAt(player.x,player.y+1.2,player.z);
+    if(this.legsLeft()<=1){this.off=true;this.led=false;this.lamp=false;this.state='off';this.pose();if(ctx.onSwitchedOff)ctx.onSwitchedOff(this);return;}
+    if(this.stagger>0){this.stagger-=dt;this.speed=0;this.pose();return;}
+    if(!ctx.awake || d>40){this.speed=0;this.state='idle';this.pose();return;}
+    this.lamp=true;this.attackT+=dt;
+    if(this.state==='windup'){
+      this.speed=0;this.armsOpen=.8;this.blink=Math.sin(this.attackT*24)>0?1:0;
+      if(this.attackT>.95){this.state='lunge';this.attackT=0;this.attackDir=dir;this.say('lift',.6);}
+    }else if(this.state==='lunge'){
+      this.move(dt,this.attackDir[0],this.attackDir[1],5.8);
+      if(d<1.25&&!this.hitThisLunge){this.hitThisLunge=true;if(ctx.onHit)ctx.onHit(this);}
+      if(this.attackT>.65){this.state='recover';this.attackT=0;}
+    }else if(this.state==='recover'){
+      this.speed=0;this.armsOpen=0;if(this.attackT>1.4){this.state='approach';this.attackT=0;}
+    }else{
+      this.state='approach';this.armsOpen=.12;
+      if(d<4.8){this.state='windup';this.attackT=0;this.hitThisLunge=false;this.say('beep');}
+      else this.move(dt,dir[0],dir[1],1.7);
+    }
+    this.pose();
+  }
   update(dt, player, ctx) {
     this.t += dt;
     this.blink = Math.sin(this.t * (this.state === 'approach' ? 5 : 2.5)) > 0.2 ? 1 : 0;
@@ -239,6 +266,7 @@ class Machine {
     }
     if (this.off) { this.kneel = Math.min(1, this.kneel + dt * 0.6); this.speed = 0; this.pose(); return; }
     if (this.kind === 'scout') return this.updateScout(dt, player, ctx);
+    if(this.aggressive && !ctx.quiet) return this.updateHostile(dt,player,ctx);
     // --- the bearer
     this.lookAt(px, py + 1.3, pz);
     if (this.state === 'lift') {
@@ -248,14 +276,14 @@ class Machine {
     }
     // calm: rises while you hold still without light or sound, falls with every step
     if (d < 40) {
-      if (still) this.calm = Math.min(ctx.calmCeiling, this.calm + 0.06 * dt);
+      if (still) this.calm = Math.min(ctx.calmCeiling, this.calm + 0.25 * dt);
       else this.calm = Math.max(0, this.calm - (player.speed > 0.5 ? 0.14 : 0.06) * dt - (player.torch ? 0.25 * dt : 0));
     }
     const stopDist = 0.8 + 5.2 * (1 - Math.min(this.calm, ctx.calmCeiling));
     this.beepT -= dt;
     if (this.state === 'idle') {
       this.speed = 0;
-      if (d < 26 && ctx.awake) { this.notice += dt; if (this.notice > 1.2) { this.state = 'approach'; this.notice = 0; this.lamp = true; this.say('lamp'); this.say('beep'); this.beepT = 6; } }
+      if (d < 26 && ctx.awake) { this.notice += dt; if (this.notice > .6) { this.state = 'approach'; this.notice = 0; this.lamp = true; this.say('lamp'); this.say('beep'); this.beepT = 6; } }
       else this.notice = Math.max(0, this.notice - dt);
     } else if (this.state === 'approach' || this.state === 'wait') {
       if (this.beepT < 0) { this.say('beep'); this.beepT = 6; }
@@ -263,12 +291,12 @@ class Machine {
         // a look every six seconds: it stops, then comes on
         this.lookPause = (this.lookPause || 0) + dt;
         if (this.lookPause % 6 < 0.7) { this.speed = 0; this.state = 'wait'; }
-        else { this.state = 'approach'; this.move(dt, dx / d, dz / d, 0.35); }
+        else { this.state = 'approach'; this.move(dt, dx / d, dz / d, 1.15); }
       } else { this.speed = 0; this.state = 'wait'; }
       if (d < 1.15 && still) this.state = 'standoff';
       if (d > 45) { this.state = 'idle'; this.lamp = false; }
       // walking away: it follows at a quarter of your speed only if it has waited, and loses you at 30 m
-      if (player.speed > 0.5 && d > stopDist + 2 && d < 30) this.move(dt, dx / d, dz / d, 0.35);
+
     } else if (this.state === 'standoff') {
       this.speed = 0;
       // the head turns to your hand; the arms twitch open at one second of the hold

@@ -18,12 +18,13 @@ class Character {
     this.phase=0;this.clock=0;this.blend=1;this.clip='Idle_Neutral';this.oldPose=null;
     this.headIndex=this.nodes.findIndex(n=>n.name==='Head');this.handIndex=this.nodes.findIndex(n=>n.name==='Wrist.R');this.chestIndex=this.nodes.findIndex(n=>n.name==='Chest');
     // Small field pack and headlamp are equipment attached to the imported skeleton.
-    const pack=new Builder();pack.tile=MAT.CLOTH;pack.col=[.25,.28,.22];pack.roundedBox(-.16,-.18,-.31,.32,.40,.18,.035);pack.col=[.12,.15,.12];
-    for(const x of [-.1,.1])pack.roundedBox(x-.012,-.15,-.325,.024,.32,.016,.003);
-    pack.col=[.67,.66,.56];pack.roundedBox(-.07,-.07,-.33,.14,.055,.012,.004);
+    const pack=new Builder();pack.tile=MAT.CLOTH;pack.col=[.25,.28,.22];pack.roundedBox(-.14,-.18,-.255,.28,.35,.12,.055);pack.col=[.12,.15,.12];
+    for(const x of [-.1,.1])pack.roundedBox(x-.012,-.15,-.27,.024,.26,.016,.003);
+    pack.col=[.67,.66,.56];pack.roundedBox(-.07,-.07,-.28,.14,.04,.012,.004);
     this.pack={mesh:pack.build(),model:M.create(),radius:1};this.items.push(this.pack);
-    const lamp=new Builder();lamp.tile=MAT.DARK;lamp.col=[.14,.16,.15];lamp.roundedBox(-.05,.09,.10,.10,.065,.055,.01);lamp.tile=MAT.GLASS;lamp.col=[.80,.76,.59];lamp.roundedBox(-.027,.107,.151,.054,.027,.008,.004);
+    const lamp=new Builder();lamp.tile=MAT.CLOTH;lamp.col=[.35,.39,.37];lamp.loft(0,.06,0,[[0,.105,.11],[.04,.115,.115],[.15,.11,.11],[.21,.065,.07],[.23,.01,.01]],{segs:16});lamp.tile=MAT.DARK;lamp.col=[.14,.16,.15];lamp.roundedBox(-.05,.09,.10,.10,.065,.055,.01);lamp.tile=MAT.GLASS;lamp.col=[.80,.76,.59];lamp.roundedBox(-.027,.107,.151,.054,.027,.008,.004);
     this.lamp={mesh:lamp.build(),model:M.create(),radius:1};this.items.push(this.lamp);
+    const tool=new Builder();tool.tile=MAT.DARK;tool.col=[.16,.18,.17];tool.roundedBox(-.055,-.03,-.06,.11,.10,.30,.015);tool.tile=MAT.BEIGE;tool.col=[.67,.52,.28];tool.roundedBox(-.065,.04,.015,.13,.09,.22,.015);tool.tile=MAT.LED;tool.col=[.3,.83,1];for(const x of [-.05,.05])tool.box(x-.012,.055,.23,.024,.025,.10);this.tool={mesh:tool.build(),model:M.create(),radius:1};
     this.pose(0,0,0,0,0,0);
   }
   // TRS uses glTF quaternion ordering x,y,z,w.
@@ -67,7 +68,7 @@ class Character {
     }
     GL.updateMesh(this.mesh,this.vertices);M.trs(this.item.model,x,y+.015,z,yaw,.94,.94,.94);this.item.x=x;this.item.y=y+1;this.item.z=z;
     const worldPoint=i=>{const n=this.nodes[i].world,a=this.item.model;return [a[0]*n[12]+a[8]*n[14]+x,n[13]*.94+y+.015,a[2]*n[12]+a[10]*n[14]+z];};
-    this.hand=worldPoint(this.handIndex);this.head=worldPoint(this.headIndex);const c=worldPoint(this.chestIndex);
+    this.hand=worldPoint(this.handIndex);M.trs(this.tool.model,...this.hand,yaw);this.tool.x=x;this.tool.y=y+1;this.tool.z=z;this.head=worldPoint(this.headIndex);const c=worldPoint(this.chestIndex);
     M.trs(this.pack.model,c[0],c[1]-.08,c[2],yaw);M.trs(this.lamp.model,...this.head,yaw);
     for(const item of [this.pack,this.lamp]){item.x=x;item.y=y+1;item.z=z;}
     this.lamp.emis=torchOn?1:.02;this.torchWorld=[this.head[0]+Math.sin(yaw)*.16,this.head[1]+.12,this.head[2]+Math.cos(yaw)*.16,Math.sin(yaw),-.12,Math.cos(yaw)];

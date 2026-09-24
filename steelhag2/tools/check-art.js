@@ -24,3 +24,18 @@ for(const yaw of [0,.7,2.1,-2.2]){
 }
 console.log('Rigs: sloped walking, four headings, contact, cut and flinch passed');
 `,ctx);
+
+vm.runInContext(`
+const player={x:0,y:0,z:3,speed:0,torch:false,cutterUp:false,hold:0,flinch:false,handWorld:[0,1,3]};
+let hits=0;const ctx={awake:true,quiet:false,onHit:()=>hits++};const hostile=new Machine('bearer',0,0,0,{aggressive:true});
+for(let i=0;i<55;i++)hostile.update(1/60,player,ctx);
+if(hits!==0||hostile.state!=='windup')throw Error('attack must telegraph before damage');
+for(let i=0;i<65;i++)hostile.update(1/60,player,ctx);
+if(hits!==1)throw Error('committed attack must hit exactly once');
+const stopped=new Machine('bearer',0,0,0,{aggressive:true});stopped.state='windup';stopped.attackT=.8;stopped.sever(RIG.LEG+1);
+if(stopped.joints().some(j=>j[0]===RIG.LEG||j[0]===RIG.LEG+1))throw Error('disabled support still targetable');
+stopped.update(.2,player,ctx);if(stopped.state==='lunge')throw Error('sever did not interrupt windup');
+stopped.sever(RIG.LEG+2);stopped.sever(RIG.LEG+4);let completed=false;stopped.update(.01,player,{...ctx,onSwitchedOff:()=>completed=true});
+if(!stopped.off||!completed)throw Error('three supports must disable roadkeeper');
+console.log('Roadkeeper: telegraph, one hit per lunge, stagger, disabled-joint filtering and defeat passed');
+`,ctx);

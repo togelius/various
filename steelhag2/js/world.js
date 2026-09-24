@@ -5,7 +5,7 @@
 const World = (() => {
   const n1 = makeNoise(11), n2 = makeNoise(23), n3 = makeNoise(37);
   const noise2 = (x, z, s) => (fbm(n1, x / s, 3) + fbm(n2, z / s + x / (s * 3.1), 3)) * 0.5;
-  const FARM = { x: 0, z: 372 }, SHORE_Z = 318, MAINLAND_Z = 0;
+  const FARM = { x: 0, z: 162 }, SHORE_Z = 108, MAINLAND_Z = 0;
   const S = { items: [], colliders: [], seats: [], vantages: [], triggers: [], birches: [], hulls: [], lamps: [], thinIce: [] };
 
   // --- terrain --------------------------------------------------------
@@ -16,11 +16,18 @@ const World = (() => {
     const em = landEdgeMain(x), ei = landEdgeIsle(x);
     let h;
     if (z <= em) { const d = em - z; h = Math.min(d * 0.14, 7) + noise2(x, z, 18) * 1.4 - 0.7; if (Math.abs(x) < 4 && z < -14 && z > -60) h = Math.min(h, 3.2); }
-    else if (z >= ei) { const d = z - ei; h = Math.min(d * 0.09, 5) + noise2(x, z, 22) * 1.6 - 0.8; const fx = x - FARM.x, fz = z - FARM.z; const near = Math.hypot(fx, fz); if (near < 28) h = lerp(3.0, h, smooth(14, 28, near)); const hole = Math.hypot(x - 46, z - 402); if (hole < 9) h -= (1 - hole / 9) * 2.2; }
+    else if (z >= ei) { const d = z - ei; h = Math.min(d * 0.09, 5) + noise2(x, z, 22) * 1.6 - 0.8; const fx = x - FARM.x, fz = z - FARM.z; const near = Math.hypot(fx, fz); if (near < 28) h = lerp(3.0, h, smooth(14, 28, near)); const hole = Math.hypot(x - 46, z - (FARM.z + 30)); if (hole < 9) h -= (1 - hole / 9) * 2.2; }
     else h = -0.4;
     return h;
   }
-  function groundY(x, z) { const t = terrain(x, z); return inBay(x, z) ? 0 : t; }
+  // Match the rendered grid's triangles exactly; an analytic height between coarse
+  // vertices made shoes and contact shadows hover above the visible snow.
+  function groundY(x,z){
+    if(inBay(x,z))return 0;
+    const gx=Math.floor((x+420)/5)*5-420,gz=Math.floor((z+120)/5)*5-120,fx=(x-gx)/5,fz=(z-gz)/5;
+    const a=terrain(gx,gz),b=terrain(gx,gz+5),c=terrain(gx+5,gz+5),d=terrain(gx+5,gz);
+    return fz>=fx?a+(b-a)*fz+(c-b)*fx:a+(d-a)*fx+(c-d)*fz;
+  }
   function onIce(x, z) { return inBay(x, z); }
   function thinAt(x, z) { for (const t of S.thinIce) { const d = Math.hypot(x - t.x, z - t.z); if (d < t.r) return 1 - d / t.r; } return 0; }
 
@@ -33,18 +40,18 @@ const World = (() => {
   // --- build ----------------------------------------------------------
   function buildTerrain() {
     const b = new Builder(), r = rng32(5);
-    const x0 = -420, z0 = -120, w = 900, d = 780, nx = 300, nz = 260;
+    const x0 = -420, z0 = -120, w = 900, d = 570, nx = 180, nz = 114;
     b.grid(x0, z0, w, d, nx, nz, terrain, (x, z, y, slope) => {
       if (inBay(x, z)) return [MAT.ICE, [0.8, 0.82, 0.84]];
       const k = 0.9 + noise2(x + 500, z, 9) * 0.2;
       const road = Math.abs(x) < 3.2 && z < -12 && z > -70;
-      if (road) return [MAT.ROAD, [0.9, 0.9, 0.9]];
+      // The road is snow-covered; avoid a coarse grid's triangular asphalt edge.
       return [MAT.SNOW, [k, k, k * 1.02]];
     }, { uv: 0.2 });
-    place(b.build(), 0, 0, 0, 0, { noShadow: false });
+    place(b.build(), 0, 0, 0, 0, { noShadow: true });
     // the ice sheet: a separate plane at y = 0 with the thin patches darker
     const ice = new Builder();
-    ice.grid(-420, -60, 900, 460, 180, 92, (x, z) => inBay(x, z) ? 0 : -8, (x, z) => { const t = thinAt(x, z); const k = 1 - t * 0.55; return [MAT.ICE, [k * 0.9, k * 0.95, k * 1.0]]; }, { uv: 0.35 });
+    ice.grid(-420, -60, 900, 250, 150, 50, (x, z) => inBay(x, z) ? 0 : -8, (x, z) => { const t = thinAt(x, z); const k = 1 - t * 0.55; return [MAT.ICE, [k * 0.9, k * 0.95, k * 1.0]]; }, { uv: 0.35 });
     place(ice.build(), 0, 0.0, 0, 0, { noShadow: true });
   }
 
@@ -202,21 +209,14 @@ const World = (() => {
     return b.build();
   }
   function buildSpruce() {
-    const b=new Builder(),r=rng32(912);b.tile=MAT.PLANK;b.col=[.34,.31,.24];b.cyl(0,0,0,.17,9.1,{r1:.015,segs:8});
-    // Drooping boughs with irregular needle fans, rather than stacked cones.
-    b.tile=MAT.SPRUCE;
-    for(let tier=0;tier<11;tier++)for(let arm=0;arm<7;arm++){
-      const a=arm*TAU/7+tier*1.71+(r()-.5)*.35,y=1.15+tier*.68,len=(2.35-tier*.18)*(.72+r()*.4),dx=Math.cos(a),dz=Math.sin(a);
-      b.col=[.65+r()*.23,.74+r()*.20,.69+r()*.19];
-      for(let part=0;part<4;part++){
-        const t=part/4,tt=(part+1)/4,spread=(1-t)*.42+.035;
-        const cx=dx*len*t,cz=dz*len*t,cy=y-.28*Math.sin(t*Math.PI)+.1*t;
-        const ex=dx*len*tt,ez=dz*len*tt,ey=y-.28*Math.sin(tt*Math.PI)+.1*tt;
-        for(const sg of [-1,1]){
-          const u=b.vert(cx,cy+.055,cz,0,.8,0,t,0),v=b.vert(ex+dz*spread*sg,ey-.12,ez-dx*spread*sg,0,.8,0,tt,1),w=b.vert(ex+dx*.24,ey,ez+dz*.24,0,.8,0,tt,0);
-          b.i.push(u,v,w,w,v,u);
-        }
-      }
+    const b=new Builder(),r=rng32(912);b.tile=MAT.PLANK;b.col=[.58,.54,.45];b.cyl(0,0,0,.18,11,{r1:.025,segs:7});
+    for(let tier=0;tier<10;tier++){
+      const y=.8+tier*.85,rad=2.9-tier*.245;
+      b.tile=MAT.SPRUCE;b.col=[.82+r()*.15,.88+r()*.12,.83+r()*.12];
+      b.loft((r()-.5)*.20,y,0,[[0,rad*.26,rad*.26],[.14,rad,rad*.86],[.50,rad*.78,rad*.68],[1.9,.015,.015]],{segs:11});
+      // Broken mantles on the upper boughs, leaving a dark underside.
+      b.tile=MAT.SNOW;b.col=[.75,.81,.85];
+      b.loft(.06,y+.55,-.02,[[0,rad*.65,rad*.58],[.15,rad*.63,rad*.57],[1.42,.01,.01]],{segs:11});
     }
     return b.build();
   }
@@ -235,7 +235,7 @@ const World = (() => {
 
   function build() {
     const r = rng32(3);
-    S.thinIce.push({ x: -40, z: 150, r: 14 }, { x: 70, z: 210, r: 11 }, { x: 20, z: 90, r: 9 });
+    S.thinIce.push({ x: -18, z: 48, r: 10 }, { x: 21, z: 68, r: 9 }, { x: -12, z: 91, r: 7 });
     buildTerrain();
     // the mainland: the van, the substation, the road
     const van = buildVan(); const vy = groundY(0, -30);
@@ -255,44 +255,45 @@ const World = (() => {
     // the bench by the porch, facing the bay
     place(buildBench(), FARM.x + 5.5, fy, FARM.z - 4.2, Math.PI); seat(FARM.x + 5.5, FARM.z - 4.6, Math.PI, 'The bench by the porch. The window was lit. Nobody was home.', [-7, 3, -7], 'the porch bench');
     // the hole where the slab was, and the cable that runs into it
-    const foot = new Builder(); foot.tile = MAT.CONCRETE; foot.col = [0.75, 0.75, 0.72]; foot.box(-1.2, 0, -1.2, 2.4, 0.5, 2.4); place(foot.build(), 46, groundY(46, 402) - 0.2, 402, 0.4);
-    const cablePts = []; for (let i = 0; i <= 40; i++) { const t = i / 40; const x = 46 + (i === 0 ? 0 : 0) + t * 90 + Math.sin(t * 9) * 2.5, z = 402 + t * 40 + Math.cos(t * 7) * 2; cablePts.push([x, groundY(x, z) + 0.06, z]); }
+    const foot = new Builder(); foot.tile = MAT.CONCRETE; foot.col = [0.75, 0.75, 0.72]; foot.box(-1.2, 0, -1.2, 2.4, 0.5, 2.4); place(foot.build(), 46, groundY(46, (FARM.z + 30)) - 0.2, (FARM.z + 30), 0.4);
+    const cablePts = []; for (let i = 0; i <= 40; i++) { const t = i / 40; const x = 46 + (i === 0 ? 0 : 0) + t * 90 + Math.sin(t * 9) * 2.5, z = (FARM.z + 30) + t * 40 + Math.cos(t * 7) * 2; cablePts.push([x, groundY(x, z) + 0.06, z]); }
     S.cable = place(buildCable(cablePts), 0, 0, 0, 0, { noShadow: true, fx: new Float32Array(RENDER.MAX_BONES * 4) }); S.cable.fx[0] = 0.9;
     // fence along the field
     const fence = new Builder(); const fpts = []; for (let x = -30; x <= 60; x += 5) fpts.push([x, FARM.z + 24 + Math.sin(x * 0.1) * 2]); buildFence(fence, fpts); place(fence.build(), 0, 0, 0, 0);
     // birches and spruces along the shore and the field's edges
     const birch = buildBirch(), spruce = buildSpruce(), bl = [], sl = [];
-    for (let i = 0; i < 160; i++) { const x = -160 + r() * 320, z = landEdgeIsle(x) + 4 + r() * 90; if (Math.hypot(x - FARM.x, z - FARM.z) < 26 || Math.hypot(x - 46, z - 402) < 10) continue; (r() < 0.75 ? bl : sl).push([x, groundY(x, z) - 0.3, z, r() * TAU, 0.7 + r() * 0.8]); }
-    for (let i = 0; i < 80; i++) { const x = -200 + r() * 400, z = landEdgeMain(x) - 8 - r() * 70; if (Math.abs(x) < 16 && z > -60) continue; (r() < 0.4 ? bl : sl).push([x, groundY(x, z) - 0.3, z, r() * TAU, 0.7 + r() * 0.8]); }
-    instancesAlong(birch, bl); instancesAlong(spruce, sl); S.items.push({ mesh: birch, model: M.create() }, { mesh: spruce, model: M.create() });
+    for (let i = 0; i < 160; i++) { const x = -160 + r() * 320, z = landEdgeIsle(x) + 4 + r() * 90; if (Math.hypot(x - FARM.x, z - FARM.z) < 26 || Math.hypot(x - 46, z - (FARM.z + 30)) < 10) continue; (r() < 0.32 ? bl : sl).push([x, groundY(x, z) - 0.3, z, r() * TAU, 0.85 + r() * 1.0]); }
+    for (let i = 0; i < 80; i++) { const x = -200 + r() * 400, z = landEdgeMain(x) - 8 - r() * 70; if (Math.abs(x) < 16 && z > -60) continue; (r() < 0.4 ? bl : sl).push([x, groundY(x, z) - 0.3, z, r() * TAU, 0.85 + r() * 1.0]); }
+    for(let i=0;i<90;i++){const x=-180+r()*360,z=205+r()*95;sl.push([x,groundY(x,z)-.2,z,r()*TAU,1+r()*1.3]);}
+    instancesAlong(birch, bl); instancesAlong(spruce, sl); S.items.push({ mesh: birch, model: M.create(), noShadow: true }, { mesh: spruce, model: M.create(), noShadow: true });
     S.birches = bl;
     const dressing=new Builder(),rd=rng32(81);
     dressing.tile=MAT.SNOW;dressing.col=[.91,.94,.96];
-    for(const [x,z,rx,rz] of [[-5,371,2,4],[5,376,2.4,2],[-17,380,3,1.5],[19,376,3,2],[28,375,2,4],[-11,-29,3,1.7]]){
+    for(const [x,z,rx,rz] of [[-5,161,2,4],[5,166,2.4,2],[-17,170,3,1.5],[19,166,3,2],[28,165,2,4],[-11,-29,3,1.7]]){
       const y=groundY(x,z);dressing.loft(x,y-.15,z,[[0,rx,rz],[.22,rx*.92,rz*.93],[.48,rx*.66,rz*.64],[.58,.01,.01]],{segs:24});
     }
     for(let i=0;i<100;i++) {const x=-150+rd()*300,z=landEdgeIsle(x)+2+rd()*5,y=groundY(x,z);if(Math.abs(x)<9)continue;
       dressing.tile=MAT.REED;dressing.col=[.62,.59,.42];const h=.3+rd()*.7;dressing.tube([[x,y,z],[x+.1,y+h*.7,z+.04],[x+.25,y+h,z+.12]],.013,{segs:3});
     }
-    dressing.tile=MAT.CONCRETE;dressing.col=[.5,.54,.53];for(const [x,z] of [[-18,350],[-24,355],[12,340],[31,384]]){const y=groundY(x,z);dressing.roundedBox(x,y-.3,z,1.3,.75,1,.3);dressing.tile=MAT.SNOW;dressing.col=[.94,.96,.98];dressing.roundedBox(x+.06,y+.36,z+.04,1.2,.12,.92,.05);dressing.tile=MAT.CONCRETE;dressing.col=[.5,.54,.53];}
-    dressing.tile=MAT.PLANK;dressing.col=[.62,.49,.34];for(let row=0;row<3;row++)for(let k=0;k<7-row;k++)dressing.cyl(-3.8+k*.3+row*.15,fy+.16+row*.25,375.7,.145,.65,{axis:'z',segs:9});
+    dressing.tile=MAT.CONCRETE;dressing.col=[.5,.54,.53];for(const [x,z] of [[-18,140],[-24,145],[12,130],[31,174]]){const y=groundY(x,z);dressing.roundedBox(x,y-.3,z,1.3,.75,1,.3);dressing.tile=MAT.SNOW;dressing.col=[.94,.96,.98];dressing.roundedBox(x+.06,y+.36,z+.04,1.2,.12,.92,.05);dressing.tile=MAT.CONCRETE;dressing.col=[.5,.54,.53];}
+    dressing.tile=MAT.PLANK;dressing.col=[.62,.49,.34];for(let row=0;row<3;row++)for(let k=0;k<7-row;k++)dressing.cyl(-3.8+k*.3+row*.15,fy+.16+row*.25,165.7,.145,.65,{axis:'z',segs:9});
     place(dressing.build(),0,0,0);
     // the towers across the bay, and the mast with its red light
     const tw = new Builder(); buildTowers(tw); place(tw.build(), 620, -2, 640, 0);
     const mast = new Builder(); mast.tile = MAT.DARK; mast.col = [1, 1, 1]; mast.cyl(0, 0, 0, 0.5, 70, { r1: 0.2, segs: 6 }); place(mast.build(), -260, groundY(-260, 420), 420, 0);
     const ml = new Builder(); ml.tile = MAT.LED; ml.col = [1, 0.3, 0.25]; ml.box(-0.4, 70, -0.4, 0.8, 0.8, 0.8); S.mastLight = place(ml.build(), -260, groundY(-260, 420), 420, 0, { emis: 1, noShadow: true });
     // the hulls in the bay: standing, or waiting under the ice until you are halfway across
-    for (const [x, z, h, yaw] of [[190, 230, 30, 0.3], [250, 190, 24, -0.4], [320, 260, 34, 0.9], [-230, 250, 20, 1.2]]) { const it = place(buildHull(h), x, -h * 1.05, z, yaw, { noShadow: true, radius: h * 1.2, hull: true }); it.h = h; it.rise = 0; S.hulls.push(it); }
+    for (const [x, z, h, yaw] of [[19, 53, 26, 0.25], [-29, 83, 34, -0.35], [95, 100, 37, 0.9], [-80, 77, 20, 1.2]]) { const it = place(buildHull(h), x, -h * 1.05, z, yaw, { noShadow: true, radius: h * 1.2, hull: true }); it.h = h; it.rise = 0; S.hulls.push(it); }
     // the sled
     S.sled = place(buildSled(), 0.8, vy, -26, 0, { noShadow: false });
     // vantage points: places the game asks you to look from
     S.vantages.push({ x: 2, z: -8, key: '1:van', caption: 'The van, with its hazards on, and the whole bay in front of it' });
-    S.vantages.push({ x: 4, z: 150, key: '1:bay', caption: 'Halfway across. The towers had stopped breathing.' });
-    S.vantages.push({ x: 40, z: 250, key: '1:hulls', caption: 'They had not been cleared away. They had been put in the bay.' });
+    S.vantages.push({ x: 4, z: 36, key: '1:bay', caption: 'Halfway across. The towers had stopped breathing.' });
+    S.vantages.push({ x: 18, z: 78, key: '1:hulls', caption: 'They had not been cleared away. They had been put in the bay.' });
     S.vantages.push({ x: FARM.x - 12, z: FARM.z - 14, key: '2:house', caption: 'The house, sold, with a window lit' });
-    S.vantages.push({ x: 40, z: 396, key: '2:hole', caption: 'Where SV-14 used to lie. Something had been laid into the hole.' });
+    S.vantages.push({ x: 40, z: (FARM.z + 24), key: '2:hole', caption: 'Where SV-14 used to lie. Something had been laid into the hole.' });
     // triggers along the way
-    S.triggers.push({ x: 0, z: 150, r: 40, id: 'hulls' }, { x: FARM.x, z: SHORE_Z - 6, r: 60, id: 'island' });
+    S.triggers.push({ x: 0, z: 14, r: 14, id: 'hulls' }, { x: FARM.x, z: SHORE_Z + 5, r: 12, id: 'island' });
     S.door = { x: FARM.x, z: FARM.z - 4.6 };
     S.cellar = { x: FARM.x + 6.4, z: FARM.z };
     return S;

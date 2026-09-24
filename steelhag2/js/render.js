@@ -15,7 +15,7 @@ const RENDER = (() => {
     sunGlow: 0.5, sunDisc: 0.3, cloud: 0.7, cloudCol: [0.6, 0.64, 0.68], stars: 0, shadowOn: true, time: 0, iceGlow: 0, exposure: 1.0, grain: 0.012, vignette: 0.16, sat: 1.0, darkAdapt: 1.0, reduce: 0,
   };
   const lights = { data: new Float32Array(MAX_LIGHTS * 12), n: 0 };
-  const stats = { draws: 0 };
+  const stats = { draws: 0, triangles:0 };
   const contacts = new Float32Array(8 * 4); let contactCount = 0;
   function contact(x,y,z,r) { if(contactCount < 8) contacts.set([x,y,z,r], contactCount++ * 4); }
   const planes = new Float32Array(24);
@@ -48,7 +48,7 @@ const RENDER = (() => {
     float shadowAt(vec3 n) {
       vec4 lp = uLightVP * vec4(vWorld + n * 0.06, 1.0); vec3 p = lp.xyz / lp.w * 0.5 + 0.5;
       if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0 || p.z > 1.0) return 1.0;
-      float s = 0.0; float t = 2.0 / 2048.0;
+      float s = 0.0; float t = 2.5 / 1024.0;
       for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) s += texture(uShadow, vec3(p.xy + vec2(float(x), float(y)) * t, p.z - 0.0015));
       return s / 9.0;
     }
@@ -69,10 +69,10 @@ const RENDER = (() => {
       if (tile == ${MAT.SNOW} || tile == ${MAT.ICE}) {
         float banks = vnoise(vWorld.xz * 0.035 + vec2(17.0, 8.0));
         float wind = vnoise(vWorld.xz * vec2(0.045, 0.38));
-        albedo *= 0.82 + 0.22 * banks + 0.08 * wind;
+        albedo *= 0.88 + 0.12 * banks + 0.04 * wind;
         if (tile == ${MAT.ICE}) {
           float cover = smoothstep(0.43, 0.72, banks * 0.7 + wind * 0.3);
-          albedo = mix(albedo * vec3(0.72, 0.85, 0.94), vec3(0.65, 0.71, 0.75), cover * 0.75);
+          albedo = mix(albedo * vec3(0.80, 0.88, 0.92), vec3(0.43, 0.49, 0.51), cover * 0.25);
         }
       }
       hemi *= 0.65 + 0.35 * smoothstep(-0.5, 0.9, n.y);
@@ -81,7 +81,7 @@ const RENDER = (() => {
         if(i>=uNC) break;
         vec4 c=uContacts[i]; float dy=abs(vWorld.y-c.y);
         float radial=length(vWorld.xz-c.xz)/c.w;
-        contactAO *= 1.0-0.42*exp(-radial*radial*3.0)*(1.0-smoothstep(0.03,0.30,dy));
+        contactAO *= 1.0-0.68*exp(-radial*radial*2.4)*(1.0-smoothstep(0.03,0.50,dy));
       }
       vec3 col = albedo * (hemi * contactAO + uSunCol * ndl * sh);
       float gloss = 1.0 - m.x;
@@ -184,7 +184,7 @@ const RENDER = (() => {
       if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(vs)); if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(fs));
       gl.attachShader(p, vs); gl.attachShader(p, fs); gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aSize'); gl.bindAttribLocation(p, 2, 'aAlpha'); gl.linkProgram(p);
       const u = {}; ['uVP', 'uScale', 'uCol'].forEach(n => u[n] = gl.getUniformLocation(p, n)); return { p, u }; })();
-    shadow = GL.shadowTarget(2048);
+    shadow = GL.shadowTarget(1024);
     Paint.build();
     // snow particles
     const vao = gl.createVertexArray(); gl.bindVertexArray(vao); const vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
@@ -254,7 +254,7 @@ const RENDER = (() => {
         gl.uniform1f(prog.u.uEmisMul, it.emis !== undefined ? it.emis : 1);
         if (it.twoSided) gl.disable(gl.CULL_FACE);
       }
-      GL.draw(it.mesh); stats.draws++;
+      GL.draw(it.mesh); stats.draws++; stats.triangles+=it.mesh.count/3*Math.max(1,it.mesh.instCount);
       if (!forShadow) {
         if (it.alpha !== undefined) { gl.uniform1f(prog.u.uAlpha, 1); gl.disable(gl.BLEND); gl.depthMask(true); }
         if (it.twoSided) gl.enable(gl.CULL_FACE);
@@ -292,7 +292,7 @@ const RENDER = (() => {
   // Draw the scene into the internal target: shadow pass, sky, items, particles.
   function renderScene(withHidden, parts) {
     setCamera(); setLight();
-    stats.draws = 0;
+    stats.draws = 0; stats.triangles=0;
     if (env.shadowOn) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, shadow.fbo); gl.viewport(0, 0, shadow.size, shadow.size); gl.clear(gl.DEPTH_BUFFER_BIT);
       gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(2, 4); drawScene(true, withHidden); gl.disable(gl.POLYGON_OFFSET_FILL);
