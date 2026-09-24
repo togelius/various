@@ -127,6 +127,44 @@ class Builder {
     }
     return this;
   }
+  // Elliptical cross-sections [height, x radius, z radius, z offset].
+  // Profile values are authored in metres; smooth normals follow the profile.
+  loft(x, y, z, profile, o = {}) {
+    const segs = o.segs || 20, base = this.count;
+    for (let j = 0; j < profile.length; j++) {
+      const [h, rx, rz, dz = 0] = profile[j];
+      const p = profile[Math.max(0, j - 1)], q = profile[Math.min(profile.length - 1, j + 1)];
+      for (let k = 0; k <= segs; k++) {
+        const a = k / segs * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a);
+        let nx = c / Math.max(rx, 0.001), nz = sn / Math.max(rz, 0.001);
+        let ny = -(nx * c * (q[1] - p[1]) + nz * (sn * (q[2] - p[2]) + ((q[3] || 0) - (p[3] || 0)))) / Math.max(0.001, q[0] - p[0]);
+        const len = Math.hypot(nx, ny, nz); nx /= len; ny /= len; nz /= len;
+        this.vert(x + c * rx, y + h, z + sn * rz + dz, nx, ny, nz, k / segs, h * 2, o);
+      }
+    }
+    for (let j = 0; j < profile.length - 1; j++) for (let k = 0; k < segs; k++) {
+      const a = base + j * (segs + 1) + k, b = a + segs + 1; this.quad(a, b, b + 1, a + 1);
+    }
+    return this;
+  }
+  // Bevelled box, subdivided only across the rounded edges. Correct normals
+  // preserve large flat panels while catching light on the silhouette.
+  roundedBox(x, y, z, w, h, d, radius = 0.04, o = {}) {
+    const r = Math.min(radius, w / 2, h / 2, d / 2), center = [x + w/2, y + h/2, z + d/2], half = [w/2, h/2, d/2];
+    for (let axis = 0; axis < 3; axis++) for (const side of [-1, 1]) {
+      const u = (axis + 1) % 3, v = (axis + 2) % 3;
+      const steps = a => [-half[a], -half[a]+r*0.3, -half[a]+r, half[a]-r, half[a]-r*0.3, half[a]];
+      const us = steps(u), vs = steps(v), base = this.count;
+      for (const b of vs) for (const a of us) {
+        const p = [0,0,0]; p[axis] = side * half[axis]; p[u] = a; p[v] = b;
+        const q = p.map((n,i) => Math.max(-half[i]+r, Math.min(half[i]-r,n)));
+        const n = p.map((n,i) => n-q[i]), len = Math.hypot(...n) || 1;
+        this.vert(...q.map((val,i) => center[i]+val+n[i]/len*r), ...n.map(val=>val/len), (a+half[u])*(o.uv||0.5), (b+half[v])*(o.uv||0.5), o);
+      }
+      for (let j=0;j<5;j++) for(let k=0;k<5;k++) { const a=base+j*6+k; if(side>0) this.quad(a,a+1,a+7,a+6); else this.quad(a,a+6,a+7,a+1); }
+    }
+    return this;
+  }
   // Bounding box of everything so far.
   bounds() {
     const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];

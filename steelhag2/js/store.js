@@ -9,13 +9,14 @@ const Store = (() => {
   const phone = touch && typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 600;
   const DEFAULT_KEYS = { forward: 'KeyW', back: 'KeyS', left: 'KeyA', right: 'KeyD', use: 'KeyE', torch: 'KeyF', camera: 'KeyC', cut: 'Space' };
 
-  const read = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
-  const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+  const review = typeof location !== 'undefined' && new URLSearchParams(location.search).has('review');
+  const read = k => { if (review) return null; try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+  const write = (k, v) => { if (review) return true; try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
 
   const saved = read(KEY) || {};
   const data = {
     // on phones the defaults favour legibility and calm
-    settings: { large: phone, reduce: phone, muted: false, keys: { ...DEFAULT_KEYS }, ...(saved.settings || {}) },
+    settings: { large: phone, reduce: phone, muted: review, keys: { ...DEFAULT_KEYS }, ...(saved.settings || {}) },
     progress: { reached: 0, finished: false, save: null, ...(saved.progress || {}) },
   };
   data.settings.keys = { ...DEFAULT_KEYS, ...(data.settings.keys || {}) };

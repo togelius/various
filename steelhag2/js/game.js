@@ -115,8 +115,8 @@ const Game = (() => {
 
   // ---------------------------------------------------------------- light
   const RIGS = {
-    noon: { sunDir: [-0.42, 0.17, 0.89], sunCol: [0.95, 0.74, 0.5], skyCol: [0.5, 0.58, 0.74], groundCol: [0.5, 0.5, 0.54], fogCol: [0.84, 0.79, 0.78], fogDensity: 0.0021, fogHeight: 45, zenith: [0.4, 0.5, 0.68], horizon: [0.95, 0.82, 0.7], cloudCol: [0.72, 0.68, 0.72], cloud: 0.22, sunGlow: 1.2, sunDisc: 0.6, stars: 0, exposure: 0.97, sat: 1.02 },
-    dusk: { sunDir: [-0.5, 0.06, 0.7], sunCol: [0.55, 0.32, 0.18], skyCol: [0.3, 0.33, 0.44], groundCol: [0.28, 0.27, 0.3], fogCol: [0.52, 0.47, 0.5], fogDensity: 0.0038, fogHeight: 35, zenith: [0.16, 0.2, 0.32], horizon: [0.86, 0.55, 0.38], cloudCol: [0.42, 0.36, 0.42], cloud: 0.55, sunGlow: 0.9, sunDisc: 0.0, stars: 0.15, exposure: 1.0, sat: 1.05 },
+    noon: { sunDir: [-0.42, 0.17, 0.89], sunCol: [0.72, 0.57, 0.40], skyCol: [0.39, 0.48, 0.62], groundCol: [0.23, 0.26, 0.32], fogCol: [0.53, 0.59, 0.64], fogDensity: 0.0021, fogHeight: 45, zenith: [0.20, 0.29, 0.39], horizon: [0.62, 0.64, 0.62], cloudCol: [0.72, 0.68, 0.72], cloud: 0.65, sunGlow: 0.32, sunDisc: 0.14, stars: 0, exposure: 0.97, sat: 1.02 },
+    dusk: { sunDir: [-0.5, 0.06, 0.7], sunCol: [0.55, 0.32, 0.18], skyCol: [0.3, 0.33, 0.44], groundCol: [0.10, 0.12, 0.17], fogCol: [0.25, 0.29, 0.37], fogDensity: 0.0038, fogHeight: 35, zenith: [0.16, 0.2, 0.32], horizon: [0.53, 0.34, 0.26], cloudCol: [0.42, 0.36, 0.42], cloud: 0.55, sunGlow: 0.3, sunDisc: 0.0, stars: 0.15, exposure: 1.0, sat: 1.05 },
     night: { sunDir: [0.2, 0.5, 0.3], sunCol: [0.04, 0.05, 0.08], skyCol: [0.08, 0.1, 0.16], groundCol: [0.07, 0.08, 0.11], fogCol: [0.1, 0.11, 0.15], fogDensity: 0.005, fogHeight: 30, zenith: [0.03, 0.04, 0.09], horizon: [0.16, 0.16, 0.2], cloudCol: [0.1, 0.11, 0.15], cloud: 0.5, sunGlow: 0, sunDisc: 0, stars: 0.8, exposure: 1.4, sat: 0.9 },
   };
   const env = RENDER.env; let rig = RIGS.noon, rigFrom = RIGS.noon, rigT = 1;
@@ -290,7 +290,7 @@ const Game = (() => {
     const c = RENDER.cam, on = chapter === 1 || state === 'title'; let n = 0; const d = snow.data;
     if (!on) { snow.count = 0; return; }
     const lim = reduce() ? snow.n * 0.35 : snow.n;
-    for (let i = 0; i < lim; i++) { const f = snow.pts[i]; f.p += dt; f.y -= (0.6 + f.s * 4) * dt; f.x += Math.sin(f.p * 0.8) * 0.3 * dt - 0.5 * dt; if (f.y < -2) { f.y = 24; f.x = (Math.random() - 0.5) * 60; f.z = (Math.random() - 0.5) * 60; } if (Math.abs(f.x) < 2.5 && Math.abs(f.z) < 2.5) f.x += 3; d[n * 5] = c.x + f.x; d[n * 5 + 1] = c.y + f.y - 8; d[n * 5 + 2] = c.z + f.z; d[n * 5 + 3] = f.s * 4; d[n * 5 + 4] = 0.7; n++; }
+    for (let i = 0; i < lim; i++) { const f = snow.pts[i]; f.p += dt; f.y -= (0.6 + f.s * 4) * dt; f.x += Math.sin(f.p * 0.8) * 0.3 * dt - 0.5 * dt; if (f.y < -2) { f.y = 24; f.x = (Math.random() - 0.5) * 60; f.z = (Math.random() - 0.5) * 60; } if (Math.abs(f.x) < 2.5 && Math.abs(f.z) < 2.5) f.x += 3; d[n * 5] = c.x + f.x; d[n * 5 + 1] = c.y + f.y - 8; d[n * 5 + 2] = c.z + f.z; d[n * 5 + 3] = f.s * 1.8; d[n * 5 + 4] = 0.42; n++; }
     snow.count = n;
   }
 
@@ -302,6 +302,9 @@ const Game = (() => {
     if (state !== 'title') items.push(kid.item);
     M.trs(sledModel, P.sled.x, P.sled.y, P.sled.z, P.sled.yaw); world.sled.model = sledModel;
     RENDER.clearLights();
+    if (state !== 'title') RENDER.contact(P.x,P.y,P.z,0.55);
+    RENDER.contact(P.sled.x,P.sled.y,P.sled.z,0.7);
+    for(const m of machines) if(!m.hidden) RENDER.contact(m.x,World.groundY(m.x,m.z),m.z,m.kind==='bearer'?1.1:0.45);
     for (const l of world.lamps) RENDER.light(l.x, l.y, l.z, l.r, l.col[0] * l.k * 1.6, l.col[1] * l.k * 1.6, l.col[2] * l.k * 1.6);
     if (P.torch && state !== 'title') { const t = kid.torchWorld; const fl = Math.hypot(t[3], t[4], t[5]) || 1; RENDER.light(t[0], t[1], t[2], 26, 1.6, 1.45, 1.15, t[3] / fl, t[4] / fl, t[5] / fl, 0.86); }
     if (world.safelight && chapter >= 2) RENDER.light(world.safelight.x, world.safelight.y - 0.1, world.safelight.z, 5, 0.9, 0.12, 0.06);

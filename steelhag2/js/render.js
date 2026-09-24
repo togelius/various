@@ -12,10 +12,12 @@ const RENDER = (() => {
   const env = {
     sunDir: [0.3, 0.5, 0.6], sunCol: [0.35, 0.34, 0.32], skyCol: [0.62, 0.66, 0.7], groundCol: [0.5, 0.52, 0.55],
     fogCol: [0.8, 0.81, 0.8], fogDensity: 0.0035, fogHeight: 40, zenith: [0.45, 0.52, 0.6], horizon: [0.84, 0.84, 0.82],
-    sunGlow: 0.5, sunDisc: 0.3, cloud: 0.7, cloudCol: [0.6, 0.64, 0.68], stars: 0, shadowOn: true, time: 0, iceGlow: 0, exposure: 1.0, grain: 0.035, vignette: 0.3, sat: 1.0, darkAdapt: 1.0, reduce: 0,
+    sunGlow: 0.5, sunDisc: 0.3, cloud: 0.7, cloudCol: [0.6, 0.64, 0.68], stars: 0, shadowOn: true, time: 0, iceGlow: 0, exposure: 1.0, grain: 0.012, vignette: 0.16, sat: 1.0, darkAdapt: 1.0, reduce: 0,
   };
   const lights = { data: new Float32Array(MAX_LIGHTS * 12), n: 0 };
   const stats = { draws: 0 };
+  const contacts = new Float32Array(8 * 4); let contactCount = 0;
+  function contact(x,y,z,r) { if(contactCount < 8) contacts.set([x,y,z,r], contactCount++ * 4); }
   const planes = new Float32Array(24);
 
   const VS = `
@@ -41,11 +43,12 @@ const RENDER = (() => {
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
     uniform float uFogDensity; uniform float uFogHeight; uniform float uShadowOn; uniform float uTime; uniform float uIceGlow; uniform float uAlpha; uniform float uEmisMul;
     uniform vec4 uLights[${MAX_LIGHTS * 3}]; uniform int uNL;
+    uniform vec4 uContacts[8]; uniform int uNC;
     out vec4 o;
     float shadowAt(vec3 n) {
       vec4 lp = uLightVP * vec4(vWorld + n * 0.06, 1.0); vec3 p = lp.xyz / lp.w * 0.5 + 0.5;
       if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0 || p.z > 1.0) return 1.0;
-      float s = 0.0; float t = 1.0 / 2048.0;
+      float s = 0.0; float t = 2.0 / 2048.0;
       for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) s += texture(uShadow, vec3(p.xy + vec2(float(x), float(y)) * t, p.z - 0.0015));
       return s / 9.0;
     }
@@ -54,13 +57,32 @@ const RENDER = (() => {
     void main() {
       int tile = int(vTile + 0.5); vec4 m = uMat[tile];
       vec4 tx = texture(uTex, vec3(vUV, vTile));
-      vec3 albedo = tx.rgb * vCol;
+      // Canvas colours and vertex tints are authored in sRGB. Light in linear space.
+      vec3 albedo = pow(max(tx.rgb * vCol, vec3(0.0)), vec3(2.2));
       vec3 n = normalize(vNrm); vec3 v = normalize(uCamPos - vWorld);
       if (!gl_FrontFacing) n = -n;
       float ndl = max(dot(n, uSunDir), 0.0);
       float sh = (uShadowOn > 0.5 && ndl > 0.0) ? shadowAt(n) : 1.0;
       vec3 hemi = mix(uGroundCol, uSkyCol, n.y * 0.5 + 0.5);
-      vec3 col = albedo * (hemi + uSunCol * ndl * sh);
+      // Broad weathering and wind-scoured snow, independent of the small repeating tile.
+      if (tile == ${MAT.SNOW} || tile == ${MAT.ICE}) {
+        float banks = vnoise(vWorld.xz * 0.035 + vec2(17.0, 8.0));
+        float wind = vnoise(vWorld.xz * vec2(0.045, 0.38));
+        albedo *= 0.82 + 0.22 * banks + 0.08 * wind;
+        if (tile == ${MAT.ICE}) {
+          float cover = smoothstep(0.43, 0.72, banks * 0.7 + wind * 0.3);
+          albedo = mix(albedo * vec3(0.72, 0.85, 0.94), vec3(0.65, 0.71, 0.75), cover * 0.75);
+        }
+      }
+      hemi *= 0.65 + 0.35 * smoothstep(-0.5, 0.9, n.y);
+      float contactAO = 1.0;
+      if (n.y > 0.45) for(int i=0;i<8;i++) {
+        if(i>=uNC) break;
+        vec4 c=uContacts[i]; float dy=abs(vWorld.y-c.y);
+        float radial=length(vWorld.xz-c.xz)/c.w;
+        contactAO *= 1.0-0.42*exp(-radial*radial*3.0)*(1.0-smoothstep(0.03,0.30,dy));
+      }
+      vec3 col = albedo * (hemi * contactAO + uSunCol * ndl * sh);
       float gloss = 1.0 - m.x;
       // a little sky reflection on smooth things (ice, glass, foil)
       col += hemi * gloss * 0.35 * pow(1.0 - max(dot(n, v), 0.0), 3.0);
@@ -130,13 +152,14 @@ const RENDER = (() => {
     void main() {
       vec3 c = texture(uTex, vUV).rgb * uExposure;
       // a gentle shoulder so lamps and the sun do not clip
-      c = c / (1.0 + c * 0.18);
+      c = max(c - 0.006, 0.0);
+      c = (c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14);
       float l = dot(c, vec3(0.3, 0.55, 0.15)); c = mix(vec3(l), c, uSat);
       vec2 d = vUV - 0.5; c *= 1.0 - uVignette * dot(d, d) * 2.2;
       float g = hash(floor(vUV * uRes * 0.5) + fract(uTime * 7.3) * 100.0) - 0.5;
-      c += g * uGrain;
+      // Grain is added in display space below; linear-space noise crushes dark cloth.
       if (uPrint > 0.5) { c = mix(c, c * vec3(1.05, 0.98, 0.9), 0.5); c = mix(vec3(l), c, 0.85); float edge = smoothstep(0.0, 0.03, min(min(vUV.x, 1.0 - vUV.x), min(vUV.y, 1.0 - vUV.y))); c = mix(vec3(0.95, 0.93, 0.88), c, edge); c += (hash(vUV * 900.0) - 0.5) * 0.08; }
-      o = vec4(pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2)), 1.0);
+      o = vec4(clamp(pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2)) + g * uGrain, 0.0, 1.0), 1.0);
     }`;
 
   function init(canvas) {
@@ -168,7 +191,7 @@ const RENDER = (() => {
     if (lights.n >= MAX_LIGHTS) return;
     const o = lights.n * 12; lights.data.set([x, y, z, radius, r, g, b, 0, dx, dy, dz, cosCone], o); lights.n++;
   }
-  function clearLights() { lights.n = 0; }
+  function clearLights() { lights.n = 0; contactCount = 0; }
 
   function setCamera() {
     M.perspective(proj, cam.fov, tw / th, cam.near, cam.far);
@@ -196,6 +219,7 @@ const RENDER = (() => {
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
       gl.uniform3fv(P.u.uFogCol, env.fogCol); gl.uniform3f(P.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform1f(P.u.uFogDensity, env.fogDensity); gl.uniform1f(P.u.uFogHeight, env.fogHeight);
       gl.uniform1f(P.u.uShadowOn, env.shadowOn ? 1 : 0); gl.uniform1f(P.u.uTime, env.time); gl.uniform1f(P.u.uIceGlow, env.iceGlow); gl.uniform1f(P.u.uAlpha, 1); gl.uniform1f(P.u.uEmisMul, 1);
+      gl.uniform4fv(P.u.uContacts, contacts); gl.uniform1i(P.u.uNC, contactCount);
       gl.uniform4fv(P.u.uLights, lights.data); gl.uniform1i(P.u.uNL, lights.n);
     }
   }
@@ -287,5 +311,5 @@ const RENDER = (() => {
     g.putImageData(id, 0, 0);
     return c;
   }
-  return { init, cam, env, light, clearLights, frame, snapshot, stats, MAX_BONES, get vp() { return vp; }, get planes() { return planes; } };
+  return { init, cam, env, light, contact, clearLights, frame, snapshot, stats, MAX_BONES, get vp() { return vp; }, get planes() { return planes; } };
 })();

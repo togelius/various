@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><title>Isvägen · art review</title>
+<style>body{margin:0;background:#171c22;color:#d6dbdf;font:13px system-ui}nav{padding:10px;display:flex;gap:8px;align-items:center}button{background:#343e48;color:inherit;border:1px solid #56616a;padding:7px 12px;border-radius:4px;cursor:pointer}iframe{width:100%;height:calc(100vh - 55px);border:0}output{margin-left:auto}</style>
+<nav><strong>ISVÄGEN</strong><button data-view="crossing">Crossing</button><button data-view="farm">Farm</button><button data-view="bearer">Bearer</button><button data-view="character">Character</button><button id="walk">Walk / stop</button><output id="status">Loading…</output></nav><iframe id="game" src="../index.html?review=1"></iframe>
+<script>
+const f=document.querySelector('iframe'),status=document.querySelector('output');let walking=false;
+function scene(name){const w=f.contentWindow,g=w.__game;if(!g)return;g.keys.forward=false;walking=false;
+const views={crossing:[1,4,45,0],farm:[2,-12,352,0.4],bearer:[2,24,396,0],character:[1,4,40,Math.PI]};const [ch,x,z,yaw]=views[name];g.jump(ch,x,z);g.place(x,z,yaw);g.step(1);g.awake=false;
+if(name==='bearer')g.set(27,5,399,26,4.6,402);
+if(name==='character')g.set(6,1.8,43,4,1.0,40);
+status.textContent=name;}
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>scene(b.dataset.view));document.querySelector('#walk').onclick=()=>{const g=f.contentWindow.__game;g.setState('play');walking=!walking;g.keys.forward=walking;};
+f.onload=()=>{scene('crossing');};
+</script>
