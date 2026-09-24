@@ -26,7 +26,7 @@ const Game = (() => {
   const keys = {}, pressed = {}, nav = {};
   const input = { mx: 0, my: 0, lookDX: 0, lookDY: 0, torchPressed: false, useHeld: false, usePressed: false, cutHeld: false, cutPressed: false, hurry: false, cameraPressed: false, pausePressed: false };
   const FIXED = { ArrowUp: 'forward', ArrowDown: 'back', ArrowLeft: 'left', ArrowRight: 'right', ShiftLeft: 'hurry', ShiftRight: 'hurry', Enter: 'use', Escape: 'pause', KeyP: 'pause', KeyM: 'mute', Tab: 'album' };
-  const NAV = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', Enter: 'ok', Space: 'ok', KeyE: 'ok', Escape: 'back', Backspace: 'back' };
+  const NAV = { ArrowLeft:'prev',ArrowRight:'next', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', Enter: 'ok', Space: 'ok', KeyE: 'ok', Escape: 'back', Backspace: 'back' };
   const actionFor = code => { const k = Store.settings.keys; for (const a in k) if (k[a] === code) return a; return FIXED[code]; };
   let rebinding = null, tap = null, lookDX = 0, lookDY = 0, locked = false;
   addEventListener('keydown', e => {
@@ -108,11 +108,12 @@ const Game = (() => {
   for (let i = 0; i < snow.n; i++) snow.pts.push({ x: (Math.random() - 0.5) * 60, y: Math.random() * 25, z: (Math.random() - 0.5) * 60, s: 0.05 + Math.random() * 0.08, p: Math.random() * TAU });
 
   // ---------------------------------------------------------------- state
+  let endingT=0,wakeFadeT=0,checkpointToast=0,albumPage=0,albumZoom=-1,albumCompare=false,albumRects=[];
   let albumReturn = 'title', islandTransition = 0, health=3, hurtT=0, cutterCooldown=0, cutFlash=0, cutPoint=[0,0,0];
   let state = 'boot', stateT = 0, time = 0, chapter = 1, fade = 0, fadeTarget = 1, flash = 0, deathT = 0;
   let lineCur = null, lineQ = [], said = new Set(), menuStack = null, menuRects = [], darkroom = null, ending = null;
   let calmCeiling = 1, awake = false, nightsSpent = 0, carriedFrom = null, cutTarget = null, standoffWith = null, promptA = 0, prompt = '', lastSeat = null, sleepReady = false;
-  const flags = { hulls: false, island: false, scoutSeen: false, bearerSeen: false, standoff: false, off: false, carried: false, cut: false };
+  const flags = { hulls: false, island: false, scoutSeen: false, bearerSeen: false, standoff: false, off: false, carried: false, cut: false, relay:false, roadkeeper:false };
   const S = () => Store.settings, T = () => S().large ? 1.28 : 1, reduce = () => S().reduce, quiet = () => S().quiet;
 
   // ---------------------------------------------------------------- light
@@ -134,7 +135,12 @@ const Game = (() => {
     if (!lineCur && lineQ.length) { const text = lineQ.shift(); lineCur = { text, t: 0, d: 3.4 + text.length / 16 }; }
   }
   function resetMachine(m,x,z,yaw){const sound=m.onSound;Object.assign(m,new Machine(m.kind,x,z,yaw,{mesh:m.mesh,aggressive:m.aggressive,hidden:m.hidden}));m.onSound=sound;}
+  function checkpoint(){
+    const cast={};for(const [id,m] of [['bearer',bearer],['sentry',sentry]])cast[id]={x:m.x,z:m.z,yaw:m.yaw,off:m.off,dark:m.dark,cut:[...m.cut]};
+    Store.setSave({worldVersion:2,chapter,x:P.x,z:P.z,yaw:P.yaw,flags:{...flags},nights:nightsSpent,sleepReady,cast});checkpointToast=2.8;
+  }
   function newJourney(){
+    Store.startJourney();endingT=wakeFadeT=0;albumPage=0;albumZoom=-1;
     for(const key in flags)flags[key]=false;said.clear();lineCur=null;lineQ=[];menuStack=null;islandTransition=0;health=3;hurtT=0;cutterCooldown=0;cutFlash=0;nightsSpent=0;sleepReady=false;awake=false;calmCeiling=1;lastSeat=null;standoffWith=null;deathT=0;cutTarget=null;ending=null;darkroom=null;for(const k in keys)keys[k]=false;
     P.sit=null;P.carried=0;P.viewfinder=false;P.thinT=0;P.hold=0;P.torch=false;Photo.S.polaroid=null;
     resetMachine(bearer,World.FARM.x+26,World.FARM.z+30,-2.2);resetMachine(sentry,4,33,Math.PI);const marks=scout.marks;resetMachine(scout,World.FARM.x-6,World.SHORE_Z+20,Math.PI);scout.marks=marks;resetMachine(o4,10,20,0);o4.marks=[];o4.item.hidden=true;
@@ -146,13 +152,13 @@ const Game = (() => {
     setRig(ch === 1 ? 'noon' : 'dusk', true); Sound.setChapter(ch - 1);
     if (ch === 1) { Player.place(0.5, -22, 0); o4.x = 10; o4.z = 20; }
     else { Player.place(World.FARM.x - 6, World.SHORE_Z + 14, 0); }
-    Store.reach(ch - 1);
+    Store.reach(ch - 1);checkpoint();
   }
   function beginPlay() { state = 'play'; stateT = 0; lineFor('start'); }
 
   // ---------------------------------------------------------------- update
   function update(dt) {
-    time += dt; stateT += dt; env.time = time; env.reduce = reduce() ? 1 : 0;
+    time += dt; stateT += dt;checkpointToast=Math.max(0,checkpointToast-dt); env.time = time; env.reduce = reduce() ? 1 : 0;
     gatherInput(dt);
     if (pressed.mute) Store.setting('muted', Sound.toggleMute());
     fade = lerp(fade, fadeTarget, 1 - Math.pow(0.02, dt)); flash = Math.max(0, flash - dt * 2);
@@ -162,8 +168,8 @@ const Game = (() => {
     else if (state === 'card') { if (stateT > 5 || (stateT > 1.2 && (pressed.any || nav.ok))) beginPlay(); }
     else if (state === 'play') updatePlay(dt);
     else if (state === 'darkroom') updateDarkroom(dt);
-    else if (state === 'end') { if (stateT > 4 && (pressed.any || nav.ok)) { albumReturn='title'; state = 'album'; stateT = 0; } }
-    else if (state === 'album') { if (stateT > .2 && (pressed.album || input.pausePressed || nav.back || nav.ok || tap)) { state = albumReturn; stateT = 1; if(state === 'title') openMenu('main'); } }
+    else if (state === 'end') { if (stateT > 4 && (pressed.any || nav.ok)) { albumReturn='title';albumZoom=-1;albumCompare=false;state = 'album'; stateT = 0; } }
+    else if(state==='album')updateAlbum();
     updateLines(dt);
     updateSnow(dt);
     Sound.update(dt, RENDER.cam, humAmount(), P.onIce);
@@ -177,14 +183,16 @@ const Game = (() => {
     for (const m of machines) if (m.kind === 'bearer' && !m.dark && !m.off) { const d = Math.hypot(m.x - P.x, m.z - P.z); if (d < best) best = d; }
     return clamp(1 - best / 22, 0, 1);
   }
-  const cablePath = []; for (let i = 0; i <= 40; i++) { const t = i / 40; cablePath.push([46 + t * 90 + Math.sin(t * 9) * 2.5, 0, (World.FARM.z + 30) + t * 40 + Math.cos(t * 7) * 2]); }
+  const cablePath = world.cablePath;
   let tickT = 0;
   function updateTester(dt) { const h = humAmount(); if (h <= 0.05) return; tickT -= dt; if (tickT <= 0) { tickT = lerp(1.4, 0.18, h); Sound.tick(0.5 + h); } }
 
   function updatePlay(dt) {
     if (menuStack) { handleMenu(); return; }
     if (input.pausePressed) { openMenu('pause'); return; }
-    if (pressed.album) { albumReturn='play'; state='album'; stateT=0; if(document.exitPointerLock)document.exitPointerLock(); return; }
+    if (pressed.album) { albumReturn='play';albumZoom=-1;albumCompare=false;state='album';stateT=0; if(document.exitPointerLock)document.exitPointerLock(); return; }
+    if(wakeFadeT>0){wakeFadeT-=dt;if(wakeFadeT<=0)fadeTarget=1;}
+    if(endingT>0){endingT-=dt;if(endingT<=0){state='end';stateT=0;fade=0;fadeTarget=1;Store.finish();Sound.chime();}return;}
     if(islandTransition>0){islandTransition-=dt;if(islandTransition<=0)startChapter(2);return;}
     if (deathT > 0) { deathT -= dt; if (deathT <= 0) respawn(); Player.update(dt, { mx: 0, my: 0, lookDX: 0, lookDY: 0 }, { locked: true }); return; }
     hurtT=Math.max(0,hurtT-dt);cutterCooldown=Math.max(0,cutterCooldown-dt);cutFlash=Math.max(0,cutFlash-dt);
@@ -192,7 +200,8 @@ const Game = (() => {
     if (input.cameraPressed && !P.sit && P.carried <= 0) { P.viewfinder = !P.viewfinder; Sound.wind_lever(); }
     standoffWith = machines.find(m=>m.kind==='bearer' && (m.state==='standoff'||(m.state==='wait'&&Math.hypot(m.x-P.x,m.z-P.z)<1.3))) || null;
     const vantage = Photo.nearVantage(chapter,P.x,P.z);
-    const photoRequested = input.usePressed && !P.sit && P.carried<=0 && !standoffWith && !input.cutHeld && (P.viewfinder || vantage);
+    const nearRelay=chapter===2&&Math.hypot(P.x-world.relay.x,P.z-world.relay.z)<2.3;
+    const photoRequested = input.usePressed && !P.sit && P.carried<=0 && !standoffWith && !input.cutHeld && (P.viewfinder || (vantage && !nearRelay && !nearestSeat() && Math.hypot(P.x-world.door.x,P.z-world.door.z)>2.3 && Math.hypot(P.x-world.cellar.x,P.z-world.cellar.z)>2.4));
     if(photoRequested) P.viewfinder=true;
     // sitting
     const seat = nearestSeat();
@@ -202,6 +211,7 @@ const Game = (() => {
     const door = world.door, dd = Math.hypot(P.x - door.x, P.z - door.z);
     const cellar = world.cellar, cd = Math.hypot(P.x - cellar.x, P.z - cellar.z);
     if (!P.sit && input.usePressed && !P.viewfinder && !standoffWith) {
+      if(nearRelay&&!flags.relay){flags.relay=true;awake=true;Sound.at('rumble',world.relay.x,world.relay.y,world.relay.z,.7);lineFor('relay');checkpoint();return;}
       if (cd < 2.4 && Store.undeveloped.length) return openDarkroom();
       if (dd < 2.2 && sleepReady) return goSleep();
     }
@@ -221,7 +231,7 @@ const Game = (() => {
     kid.pose(P.x, P.y, P.z, P.yaw, P.speed / 1.4, dt, clamp(P.hold * 2, 0, 1) || (standoffWith ? 0.25 : 0), 0, P.torch, P.cutterUp);
     P.handWorld = kid.hand;
     // machines
-    const mctx = { calmCeiling: quiet() ? 1 : calmCeiling, awake: awake && !P.sit, quiet:quiet(), onHit: m=>{if(hurtT>0)return;health--;hurtT=1.5;Sound.fall();if(health<=0)die('machine');}, onLift: m => { if (quiet()) { m.state = 'wait'; return; } flags.carried = true; carriedFrom = { x: P.x, z: P.z }; P.carried = 0.001; Sound.at('lift', m.x, m.y + 1, m.z); }, onCarried: m => wake(m), onSwitchedOff: m => { if(m===sentry){flags.roadkeeper=true;Sound.touch();return;} flags.off = true; lineFor('off'); Sound.touch(); sleepReady = true; } };
+    const mctx = { calmCeiling: quiet() ? 1 : calmCeiling, awake: awake && !P.sit, quiet:quiet(), onHit: m=>{if(hurtT>0)return;health--;hurtT=1.5;Sound.fall();if(health<=0)die('machine');}, onLift: m => { if (quiet()) { m.state = 'wait'; return; } flags.carried = true; carriedFrom = { x: P.x, z: P.z }; P.carried = 0.001; Sound.at('lift', m.x, m.y + 1, m.z); }, onCarried: m => wake(m), onSwitchedOff: m => { if(m===sentry){flags.roadkeeper=true;Sound.touch();checkpoint();return;} flags.off = true; lineFor('off'); Sound.touch(); sleepReady = true;checkpoint(); } };
     for (const m of machines) { if(m===sentry && chapter!==1)continue; if(m!==sentry && m!==o4 && chapter===1)continue; if (m === o4) updateO4(dt); else m.update(dt, P, {...mctx,awake:m===sentry?P.z>-3:mctx.awake}); }
     if (P.carried > 0) { P.carried += dt; }
     // the cutter: the nearest joint in front of you within reach
@@ -230,7 +240,7 @@ const Game = (() => {
       let best = 8; const f = Player.facing();
       for (const m of machines) if (m.kind === 'bearer' && !m.dark && !m.off && (m===sentry?chapter===1:chapter===2)) for (const j of m.joints()) { if(j[0]>=RIG.ARM)continue; if(j[0]===RIG.BODY && m.legsLeft()>2)continue; if(j[0]<RIG.LEG && j[0]!==RIG.BODY)continue; const dx = j[1] - P.x, dz = j[3] - P.z, d = Math.hypot(dx, dz); if (d < best && (dx * f[0] + dz * f[2]) / (d || 1) > 0.72) { best = d; cutTarget = { m, j }; } }
       if (cutTarget) cutTarget.m.fx[cutTarget.j[0] * 4] = 1;
-      if (cutTarget && input.usePressed && cutterCooldown<=0) { cutterCooldown=.7;cutFlash=.18;cutPoint=cutTarget.j.slice(1,4); cutTarget.m.sever(cutTarget.j[0]); flags.cut = true; lineFor('cut'); calmCeiling = Math.max(0.35, calmCeiling - 0.25); Sound.at('cut', cutTarget.j[1], cutTarget.j[2], cutTarget.j[3]); if(cutTarget.m===sentry){if(cutTarget.m.dark||cutTarget.m.legsLeft()<=1)flags.roadkeeper=true;} else if (cutTarget.m.legsLeft() === 0 || cutTarget.m.dark) sleepReady = true; }
+      if (cutTarget && input.usePressed && cutterCooldown<=0) { cutterCooldown=.7;cutFlash=.18;cutPoint=cutTarget.j.slice(1,4); cutTarget.m.sever(cutTarget.j[0]); flags.cut = true; lineFor('cut'); if(cutTarget.m===bearer)calmCeiling = Math.max(0.35, calmCeiling - 0.25); Sound.at('cut', cutTarget.j[1], cutTarget.j[2], cutTarget.j[3]); if(cutTarget.m===sentry){if(cutTarget.m.dark||cutTarget.m.legsLeft()<=1){flags.roadkeeper=true;checkpoint();}} else if (cutTarget.m.legsLeft() === 0 || cutTarget.m.dark){sleepReady=true;checkpoint();} }
     }
     // photographs
     if (photoRequested) takePhoto();
@@ -240,7 +250,7 @@ const Game = (() => {
     if (chapter === 2) {
       if (Math.hypot(P.x - 46, P.z - (World.FARM.z + 30)) < 12) lineFor('hole');
       if (!flags.scoutSeen && Math.hypot(P.x - scout.x, P.z - scout.z) < 12) { flags.scoutSeen = true; lineFor('scout'); }
-      if (!awake && Math.hypot(P.x - World.FARM.x, P.z - World.FARM.z) < 40 && stateT > 3) { awake = true; }
+      if (!awake && flags.relay) { awake = true; }
       if (!flags.bearerSeen && bearer.state === 'approach') { flags.bearerSeen = true; lineFor('bearer'); }
       if (!flags.standoff && standoffWith) { flags.standoff = true; lineFor('standoff'); }
     }
@@ -259,12 +269,13 @@ const Game = (() => {
     if(P.cutterUp)return 'bring a joint into range';
     if (cd < 2.4) return Store.undeveloped.length ? TEXT.prompts.cellar : TEXT.prompts.cellarEmpty;
     if (dd < 2.2) return sleepReady ? TEXT.prompts.sleep : TEXT.prompts.doorLocked;
+    if(chapter===2&&Math.hypot(P.x-world.relay.x,P.z-world.relay.z)<2.3)return flags.relay?'relay restored':'restore the field relay';
     if (seat) return TEXT.prompts.sit;
     const v = Photo.nearVantage(chapter, P.x, P.z); if (v && !Store.hasPhoto(v.key)) return TEXT.prompts.photo;
     return '';
   }
   function nearestSeat() { let best = null, bd = 1.8; for (const s of world.seats) { const d = Math.hypot(P.x - s.x, P.z - s.z); if (d < bd) { bd = d; best = s; } } return best; }
-  function sit(seat) { P.sit = seat; P.vx = P.vz = 0; P.x = seat.x; P.z = seat.z; P.yaw = seat.yaw; lastSeat = seat; Sound.sit(); if (seat.line) lineQ.push(seat.line); if (seat.name === 'the porch bench') lineFor('bench'); Store.setSave({ worldVersion:2, chapter, x: seat.x, z: seat.z, flags: { ...flags }, nights: nightsSpent }); }
+  function sit(seat) { P.sit = seat; P.vx = P.vz = 0; P.x = seat.x; P.z = seat.z; P.yaw = seat.yaw; lastSeat = seat; Sound.sit(); if (seat.line) lineQ.push(seat.line); if (seat.name === 'the porch bench') lineFor('bench'); checkpoint(); }
   function trigger(id) {
     flags[id] = true;
     if (id === 'hulls') { for (const h of world.hulls) h.rising = true; Sound.at('rumble', 38, 0, 56, 1); Sound.at('rumble', -80, 0, 77, 0.6); lineFor('hulls'); }
@@ -286,7 +297,8 @@ const Game = (() => {
     Photo.shoot(buildScene(), chapter, P.x, P.z, v);
   }
   function die(kind) { if (deathT > 0) return; deathT = 2.2; fadeTarget = 0; if (kind === 'ice') Sound.splash(); else Sound.fall(); }
-  function respawn() { const s = lastSeat || (chapter===2?world.seats.find(s=>s.name==='the porch bench'):world.seats[0]); Player.place(s.x, s.z - 1, s.yaw); fadeTarget = 1; P.thinT = 0; health=3; hurtT=1; P.viewfinder=false; if(chapter===1)resetMachine(sentry,4,33,Math.PI);  }
+  function respawn() {const saved=Store.save,s=saved&&saved.chapter===chapter?saved:lastSeat||(chapter===2?world.seats.find(s=>s.name==='the porch bench'):world.seats[0]);Player.place(s.x,s.z,s.yaw||0);fadeTarget=1;P.thinT=0;health=3;hurtT=1;P.viewfinder=false;if(chapter===1&&!flags.roadkeeper)resetMachine(sentry,4,33,Math.PI);}
+
   // being carried: you wake on the bench under the foil blanket. The night has passed, and the window has gone dark.
   function wake(m) {
     P.carried = 0; nightsSpent++; const bench = world.seats.find(s => s.name === 'the porch bench');
@@ -294,10 +306,10 @@ const Game = (() => {
     m.x = m.post.x; m.z = m.post.z; m.state = 'idle'; m.calm = 0; m.lamp = false; m.notice = 0; for (let l = 0; l < 4; l++) { const [hx, hz] = m.hipWorld(l); m.feet[l].x = hx; m.feet[l].z = hz; m.feet[l].y = World.groundY(hx, hz); }
     if (world.window) { world.window.emis = 0.05; world.lamps[0].k = 0.05; }
     setRig('night'); lineFor('carried'); sleepReady = true;
-    setTimeout(() => { fadeTarget = 1; }, 600);
-    Store.setSave({ worldVersion:2, chapter, x: bench.x, z: bench.z, flags: { ...flags }, nights: nightsSpent });
+    wakeFadeT=.6;
+    checkpoint();
   }
-  function goSleep() { fadeTarget = 0; lineFor('sleep'); setTimeout(() => { state = 'end'; stateT = 0; fade = 0; fadeTarget = 1; Store.finish(); Sound.chime(); }, 2500); }
+  function goSleep() { fadeTarget=0;lineFor('sleep');endingT=2.5;checkpoint(); }
   function openDarkroom() { darkroom = { t: 0, list: Store.undeveloped.slice(0, 8), i: 0 }; state = 'darkroom'; stateT = 0; Sound.develop(); lineQ.push(TEXT.darkroom); }
   function updateDarkroom(dt) {
     const d = darkroom; d.t += dt;
@@ -315,7 +327,7 @@ const Game = (() => {
 
   // ---------------------------------------------------------------- scene
   const sledModel = M.create();
-  const beamBuilder=new Builder();beamBuilder.tile=MAT.LED;beamBuilder.col=[.3,.86,1];beamBuilder.cyl(0,0,0,.013,1,{segs:5});
+  const beamBuilder=new Builder();beamBuilder.tile=MAT.COLD_LIGHT;beamBuilder.col=[.3,.86,1];beamBuilder.cyl(0,0,0,.013,1,{segs:5});
   const beam={mesh:beamBuilder.build(),model:M.create(),noShadow:true,emis:3};
   function buildScene() {
     const items = world.items.slice();
@@ -331,8 +343,9 @@ const Game = (() => {
     for(const m of machines) if(!m.hidden) RENDER.contact(m.x,World.groundY(m.x,m.z),m.z,m.kind==='bearer'?1.1:0.45);
     for (const l of world.lamps) RENDER.light(l.x, l.y, l.z, l.r, l.col[0] * l.k * 1.6, l.col[1] * l.k * 1.6, l.col[2] * l.k * 1.6);
     if (P.torch && state !== 'title') { const t = kid.torchWorld; const fl = Math.hypot(t[3], t[4], t[5]) || 1; RENDER.light(t[0], t[1], t[2], 26, 1.6, 1.45, 1.15, t[3] / fl, t[4] / fl, t[5] / fl, 0.86); }
+    world.relay.emis=flags.relay?.4:1.1+Math.sin(time*3)*.4;if(chapter===2&&!flags.relay)RENDER.light(world.relay.x,world.relay.y+1,world.relay.z-1,5,.25,.7,1.1);
     if (world.safelight && chapter >= 2) RENDER.light(world.safelight.x, world.safelight.y - 0.1, world.safelight.z, 5, 0.9, 0.12, 0.06);
-    for (const m of machines) if (m.lamp && m.lampWorld) { const l = m.lampWorld; RENDER.light(l[0], l[1], l[2], 18, 1.6, 1.15, 0.6, l[3], l[4], l[5], 0.8); }
+    for (const m of machines) if (m.lamp && m.lampWorld && (m===sentry?chapter===1:chapter===2)) { const l = m.lampWorld, k=m.state==='windup'?.25+.75*(Math.sin(m.attackT*24)*.5+.5):1; RENDER.light(l[0], l[1], l[2], 18, 1.6*k, 1.15*k, 0.6*k, l[3], l[4], l[5], 0.8); }
     // the hazards blink, the mast blinks
     world.van.emis = Math.sin(time * 4) > 0 ? 1.4 : 0.05; world.mastLight.emis = Math.sin(time * 2.2) > 0.6 ? 1.8 : 0.0;
     return { items };
@@ -348,7 +361,7 @@ const Game = (() => {
   function menuItems(id) {
     const back = { label: 'back', act: menuBack }, onOff = v => v ? 'on' : 'off';
     switch (id) {
-      case 'main': { const items = []; const sv = Store.save; if (sv) items.push({ label: `continue · ${TEXT.cards[sv.chapter].title}`, act: () => resume(sv) }); items.push({ label: sv ? 'begin again' : 'begin', act: () => newJourney() }); if (Store.photos.length) items.push({ label: `the album · ${Store.photos.length}`, act: () => { menuStack = null; albumReturn='title'; state = 'album'; stateT = 0; } }); items.push({ label: 'settings', act: () => pushMenu('settings') }); return items; }
+      case 'main': { const items = []; const sv = Store.save; if (sv) items.push({ label: `continue · ${TEXT.cards[sv.chapter].title}`, act: () => resume(sv) }); items.push({ label: sv ? 'begin again' : 'begin', act: () => newJourney() }); if (Store.photos.length) items.push({ label: `the album · ${Store.photos.length}`, act: () => { menuStack = null; albumReturn='title';albumZoom=-1;albumCompare=false;state = 'album'; stateT = 0; } }); items.push({ label: 'settings', act: () => pushMenu('settings') }); return items; }
       case 'settings': { const items = [
         { label: `quiet mode · ${onOff(S().quiet)}`, act: () => Store.setting('quiet', !S().quiet) },
         { label: `larger text · ${onOff(S().large)}`, act: () => Store.setting('large', !S().large) },
@@ -361,7 +374,17 @@ const Game = (() => {
     }
     return [back];
   }
-  function resume(sv) { menuStack = null; chapter = sv.chapter; Object.assign(flags, sv.flags || {}); nightsSpent = sv.nights || 0; setRig(chapter === 1 ? 'noon' : 'dusk', true); Sound.setChapter(chapter - 1); Player.place(sv.x, (sv.worldVersion===2 ? sv.z : chapter===2 ? sv.z-210 : Math.min(sv.z,96)) - 1, 0); state = 'play'; stateT = 0; fade = 0; fadeTarget = 1; if (chapter === 2) { awake = true; } if (flags.hulls) for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; } }
+  function resume(sv) {
+    // A checkpoint restores the outcome as well as the position.
+    const snapshot=JSON.parse(JSON.stringify(sv));newJourney();sv=snapshot;menuStack=null;endingT=wakeFadeT=0;chapter=sv.chapter;Object.assign(flags,sv.flags||{});nightsSpent=sv.nights||0;sleepReady=!!sv.sleepReady||flags.off||nightsSpent>0;health=3;
+    setRig(nightsSpent?'night':chapter===1?'noon':'dusk',true);Sound.setChapter(chapter-1);
+    Player.place(sv.x,sv.worldVersion===2?sv.z:chapter===2?sv.z-210:Math.min(sv.z,96),sv.yaw||0);state='play';stateT=0;fade=0;fadeTarget=1;awake=chapter===2&&!!flags.relay;
+    for(const [id,m] of [['bearer',bearer],['sentry',sentry]]){const data=sv.cast&&sv.cast[id];if(data){m.x=data.x;m.z=data.z;m.yaw=data.yaw;for(const bone of data.cut||[])m.sever(bone);m.off=!!data.off;m.dark=data.dark||0;if(m.off||m.dark){m.led=false;m.lamp=false;}m.pose();}}
+    if(!sv.cast&&flags.off){bearer.off=true;bearer.led=false;bearer.lamp=false;}
+    if(flags.hulls)for(const h of world.hulls){h.rise=1;h.rising=true;h.model[13]=0;h.y=0;}
+    if(nightsSpent){world.window.emis=.05;world.lamps[0].k=.05;}checkpoint();
+  }
+
   const MENU_HEAD = { settings: 'settings', controls: 'controls — choose one, then press a key', pause: 'paused' };
   function handleMenu() {
     const top = menuStack[menuStack.length - 1], items = menuItems(top.id); top.sel = clamp(top.sel, 0, items.length - 1);
@@ -403,16 +426,20 @@ const Game = (() => {
     }
     if(state==='play'&&!menuStack&&!P.viewfinder){
       const threat=chapter===1&&!sentry.off&&!sentry.dark&&Math.hypot(P.x-sentry.x,P.z-sentry.z)<27;
-      const goal=chapter===1?(threat?'DISABLE THE ROADKEEPER':'REACH SJÖGÅRDEN'):sleepReady?'RETURN TO THE FRONT DOOR':'FIND THE LIVE CABLE';
-      const detail=threat?'Cut the leg joints. Move sideways when its lamp pulses.':chapter===1?Math.max(0,Math.round(World.SHORE_Z-P.z))+' m to the island · follow the red markers':sleepReady?'Develop your photographs at the side door, or sleep.':'The red safelight marks the cellar. A bearer is moving in the field.';
-      g.fillStyle='rgba(10,19,23,.72)';g.fillRect(28*sx,90*sy,440*sx,66*sy);g.fillStyle='#cda779';g.fillRect(28*sx,90*sy,3*sx,66*sy);
+      const goal=chapter===1?(threat?'DISABLE THE ROADKEEPER':'REACH SJÖGÅRDEN'):sleepReady?'RETURN TO THE FRONT DOOR':flags.relay?'APPROACH THE BEARER':'RESTORE THE FIELD RELAY';
+      const detail=threat?'Cut the leg joints. Move sideways when its lamp pulses.':chapter===1?Math.max(0,Math.round(World.SHORE_Z-P.z))+' m to the island · follow the red markers':sleepReady?'Develop your photographs at the side door, or sleep.':flags.relay?'Lower the cutter and hold still to reach out. Or cut its supports.':'Follow the blue cable behind the barn. The relay is still drawing current.';
+      g.fillStyle='rgba(10,19,23,.72)';g.fillRect(28*sx,90*sy,470*sx,66*sy);g.fillStyle='#cda779';g.fillRect(28*sx,90*sy,3*sx,66*sy);
       text(goal,44,114,14,.95,{align:'left',letter:1,ui:true});text(detail,44,140,13,.85,{align:'left'});
       text(isTouch?'Camera ◉ · hold cutter ⚡ and use ✧':P.cutterUp?'E / click · cut joint     WASD · evade':'WASD · move    Shift · run    Space · aim cutter    C · camera    Tab · album',640,710,14,.8);
+      const target=chapter===1?[0,World.SHORE_Z,'ISLAND']:sleepReady?[world.door.x,world.door.z,'HOUSE']:flags.relay?[bearer.x,bearer.z,'BEARER']:[world.relay.x,world.relay.z,'RELAY'];
+      if(!threat&&!P.cutterUp){const dx=target[0]-P.x,dz=target[1]-P.z,angle=M.angleTo(P.camYaw,Math.atan2(dx,dz)),xx=640-clamp(angle/.9,-1,1)*490;g.strokeStyle='#d4bb8a';g.lineWidth=1;g.beginPath();g.moveTo(xx*sx,184*sy);g.lineTo((xx+4)*sx,189*sy);g.lineTo(xx*sx,194*sy);g.lineTo((xx-4)*sx,189*sy);g.closePath();g.stroke();text(target[2]+' · '+Math.round(Math.hypot(dx,dz))+' m',xx,216,10,.7,{ui:true});}
       if(P.cutterUp){const ready=cutterCooldown<=0;g.strokeStyle=ready?'#abd8df':'#cca16c';g.lineWidth=1.5;g.beginPath();g.moveTo(UW/2-14,UH/2);g.lineTo(UW/2-5,UH/2);g.moveTo(UW/2+5,UH/2);g.lineTo(UW/2+14,UH/2);g.moveTo(UW/2,UH/2-10);g.lineTo(UW/2,UH/2+10);g.stroke();
         if(cutTarget){const p=cutTarget.j,m=RENDER.vp,x=p[1],y=p[2],z=p[3],w=m[3]*x+m[7]*y+m[11]*z+m[15];if(w>0){const xx=(m[0]*x+m[4]*y+m[8]*z+m[12])/w,yy=(m[1]*x+m[5]*y+m[9]*z+m[13])/w;g.beginPath();g.arc((xx*.5+.5)*UW,(-yy*.5+.5)*UH,13,0,TAU);g.stroke();}}
       }
+      if(threat&&sentry.state==='windup')text('LAMP PULSING · MOVE SIDEWAYS',640,270,16,.92,{ui:true,col:'#efb077'});
       if(threat||health<3){for(let i=0;i<3;i++){g.fillStyle=i<health?'#b3c5c0':'#63433f';g.fillRect((1180+i*21)*sx,42*sy,14*sx,5*sy);}text('CONDITION',1236,33,11,.75,{align:'right'});}
     }
+    if(checkpointToast>0&&state==='play')text('CHECKPOINT SAVED',1238,80,11,Math.min(1,checkpointToast),{align:'right',ui:true});
     if(hurtT>0){g.strokeStyle='rgba(151,53,31,'+(hurtT*.35)+')';g.lineWidth=24;g.strokeRect(0,0,UW,UH);}
     // narration
     if (lineCur && !menuStack && state !== 'title') {
@@ -472,13 +499,44 @@ const Game = (() => {
     text(`${d.i + 1} of ${d.list.length}`, 640, y + h + 52, 13 * t, 0.7, { italic: true, col: '#f0b070' });
     text('The print comes up over eight seconds. It shows what the eye did not.', 640, 640, 16 * t, 0.5, { italic: true, col: '#f0b070' });
   }
-  function renderAlbum() {
-    g.fillStyle = '#1b1a1e'; g.fillRect(0, 0, UW, UH); const t = T(), a = Math.min(1, stateT / 1.5);
-    text('the album', 640, 64, 30 * t, a, { italic: true, letter: 3 });
-    const list = Store.photos, n = list.length, cols = 5, w = 196, h = 110, gap = 26, rowH = h + 44 + 14 * t, x0 = 640 - (Math.min(cols, Math.max(1, n)) * (w + gap) - gap) / 2, y0 = 116;
-    list.forEach((p, i) => { const r = (i / cols) | 0, c = i % cols, x = x0 + c * (w + gap), y = y0 + r * rowH; const img = p.developed ? p.print : p.img; g.save(); g.globalAlpha = a; g.translate((x + w / 2) * sx, (y + h / 2) * sy); g.rotate(((i * 7919) % 11 - 5) * 0.006); g.scale(sx, sy); g.fillStyle = '#f0ece2'; g.fillRect(-w / 2 - 8, -h / 2 - 8, w + 16, h + 36 + 14 * t); if (img && (!(img instanceof Image) || (img.complete && img.naturalWidth))) g.drawImage(img, -w / 2, -h / 2, w, h); else { g.fillStyle = '#c9c4b8'; g.fillRect(-w / 2, -h / 2, w, h); } if (!p.developed) { g.fillStyle = 'rgba(40,30,20,0.35)'; g.fillRect(-w / 2, -h / 2, w, h); } g.restore(); const cl = wrap(p.caption || (p.developed ? '' : 'undeveloped'), w + 6, 12.5 * t, { italic: true }); cl.slice(0, 2).forEach((l, k) => text(l, x + w / 2, y + h + 15 + 12.5 * t * 0.5 + k * 12.5 * t * 1.1, 12.5 * t, a, { italic: true, col: '#3a3530', shadow: false })); });
-    if (!n) text('No photographs yet.', 640, 330, 22 * t, a * 0.8, { italic: true });
-    text(isTouch ? 'tap to go back' : 'Tab / Esc · return', 640, 720 - 24, 15 * t, 0.4 + Math.sin(time * 2) * 0.2, { italic: true });
+  const ALBUM_SIZE=6;
+  function updateAlbum(){
+    if(stateT<.2)return;
+    const pages=Math.max(1,Math.ceil(Store.photos.length/ALBUM_SIZE));albumPage=clamp(albumPage,0,pages-1);
+    const hit=tap&&albumRects.find(r=>tap.x>=r.x&&tap.x<=r.x+r.w&&tap.y>=r.y&&tap.y<=r.y+r.h);
+    if(pressed.album||input.pausePressed||nav.back||(hit&&hit.act==='back')){
+      if(albumZoom>=0&&!pressed.album){albumZoom=-1;albumCompare=false;return;}
+      state=albumReturn;stateT=1;if(state==='title')openMenu('main');return;
+    }
+    const dir=(nav.next||hit&&hit.act==='next'?1:0)-(nav.prev||hit&&hit.act==='prev'?1:0);
+    if(albumZoom>=0){if(dir){albumZoom=clamp(albumZoom+dir,0,Store.photos.length-1);albumCompare=false;}if(nav.ok||hit&&hit.act==='compare')albumCompare=!albumCompare;}
+    else{albumPage=clamp(albumPage+dir,0,pages-1);if(hit&&Number.isInteger(hit.index)){albumZoom=hit.index;albumCompare=false;}else if(nav.ok&&Store.photos.length)albumZoom=albumPage*ALBUM_SIZE;}
+  }
+  function renderAlbum(){
+    g.fillStyle='#161c20';g.fillRect(0,0,UW,UH);albumRects=[];const a=Math.min(1,stateT/.3),list=Store.photos,n=list.length,pages=Math.max(1,Math.ceil(n/ALBUM_SIZE));
+    const button=(label,act,x,y,w=130)=>{g.fillStyle='rgba(210,210,190,.08)';g.fillRect(x*sx,(y-23)*sy,w*sx,35*sy);text(label,x+w/2,y,14,.85,{ui:true});albumRects.push({act,x,y:y-23,w,h:35});};
+    text('THE FIELD ALBUM',52,54,16,a,{align:'left',letter:2,ui:true});text(n+' photograph'+(n===1?'':'s'),1228,54,14,a*.6,{align:'right',ui:true});
+    if(albumZoom>=0&&list[albumZoom]){
+      const p=list[albumZoom],developed=p.developed&&!albumCompare,img=developed?p.print:p.img,w=840,h=472,x=220,y=93;
+      g.fillStyle='#eee8db';g.fillRect((x-12)*sx,(y-12)*sy,(w+24)*sx,(h+65)*sy);
+      if(img&&(!(img instanceof Image)||img.complete&&img.naturalWidth))g.drawImage(img,x*sx,y*sy,w*sx,h*sy);
+      text(p.caption||'An unmarked frame.',640,y+h+28,18,a,{italic:true,col:'#333a3a',shadow:false});
+      text(developed?'DEVELOPED PRINT':p.developed?'ORIGINAL EXPOSURE':'UNDEVELOPED · visit the cellar at Sjögården',640,78,12,.65,{ui:true});
+      button('← Back','back',38,680);button('← Previous','prev',380,680);button('Next →','next',770,680);
+      if(p.developed)button(albumCompare?'Show print':'Compare','compare',550,680,180);
+      text((albumZoom+1)+' / '+n,1238,680,14,.7,{align:'right',ui:true});return;
+    }
+    const start=albumPage*ALBUM_SIZE;
+    list.slice(start,start+ALBUM_SIZE).forEach((p,i)=>{const x=110+i%3*365,y=111+Math.floor(i/3)*246,w=330,h=186,img=p.developed?p.print:p.img;
+      g.fillStyle='#e7e1d4';g.fillRect((x-8)*sx,(y-8)*sy,(w+16)*sx,(h+46)*sy);
+      if(img&&(!(img instanceof Image)||img.complete&&img.naturalWidth))g.drawImage(img,x*sx,y*sy,w*sx,h*sy);
+      else{g.fillStyle='#556063';g.fillRect(x*sx,y*sy,w*sx,h*sy);}
+      const caption=p.caption||'Unmarked frame';text(caption.length>45?caption.slice(0,42)+'…':caption,x+w/2,y+h+20,15,a,{italic:true,col:'#343b39',shadow:false});
+      text(p.developed?'DEVELOPED':'UNDEVELOPED',x+w-4,y+16,9,.8,{align:'right',ui:true});albumRects.push({index:start+i,x:x-8,y:y-8,w:w+16,h:h+46});
+    });
+    if(!n)text('Raise the camera with C. Press E to keep a photograph.',640,335,24,.8,{italic:true});
+    button('← Return','back',38,680);if(pages>1){button('← Previous','prev',410,680);button('Next →','next',740,680);}text((albumPage+1)+' / '+pages,640,680,14,.65,{ui:true});
+    text('Select a photograph to inspect it · Tab to return',640,635,14,.55,{ui:true});
   }
 
   // ---------------------------------------------------------------- loop
@@ -497,7 +555,7 @@ const Game = (() => {
     requestAnimationFrame(t => { last = t; frame(t); });
   }
   window.__game = {
-    get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles}; }, get character() {return kid;}, newJourney, get health(){return health;}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
+    get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
     jump(ch, x, z) { lineCur=null; lineQ=[]; menuStack = null; if (ch >= 2) { flags.island = true; flags.hulls = true; for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; h.y = 0; } } startChapter(ch); state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x !== undefined) Player.place(x, z, 0); if (ch === 2) awake = true; },
     set(x, y, z, tx, ty, tz) { const c = RENDER.cam; state = 'free'; c.x = x; c.y = y; c.z = z; c.tx = tx; c.ty = ty; c.tz = tz; },
     place(x, z, yaw) { Player.place(x, z, yaw || 0); }, step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) update(dt); }, get awake() { return awake; }, set awake(v) { awake = v; }, get standoff() { return standoffWith; }, get time() { return time; }, get deaths() { return deathT; }, setState(s) { state = s; stateT = 0; },

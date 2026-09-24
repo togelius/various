@@ -209,16 +209,10 @@ const World = (() => {
     return b.build();
   }
   function buildSpruce() {
-    const b=new Builder(),r=rng32(912);b.tile=MAT.PLANK;b.col=[.58,.54,.45];b.cyl(0,0,0,.18,11,{r1:.025,segs:7});
-    for(let tier=0;tier<10;tier++){
-      const y=.8+tier*.85,rad=2.9-tier*.245;
-      b.tile=MAT.SPRUCE;b.col=[.82+r()*.15,.88+r()*.12,.83+r()*.12];
-      b.loft((r()-.5)*.20,y,0,[[0,rad*.26,rad*.26],[.14,rad,rad*.86],[.50,rad*.78,rad*.68],[1.9,.015,.015]],{segs:11});
-      // Broken mantles on the upper boughs, leaving a dark underside.
-      b.tile=MAT.SNOW;b.col=[.75,.81,.85];
-      b.loft(.06,y+.55,-.02,[[0,rad*.65,rad*.58],[.15,rad*.63,rad*.57],[1.42,.01,.01]],{segs:11});
-    }
-    return b.build();
+    // A detailed alpha cutout; the renderer turns each instance towards the eye.
+    const b=new Builder();b.tile=MAT.FOLIAGE;b.col=[1,1,1];
+    const a=b.vert(-4.35,0,0,0,1,0,0,1),c=b.vert(4.35,0,0,0,1,0,1,1),d=b.vert(4.35,13.05,0,0,1,0,1,0),e=b.vert(-4.35,13.05,0,0,1,0,0,0);
+    b.quad(a,c,d,e);return b.build();
   }
 
   function buildFence(b, pts) {
@@ -256,8 +250,18 @@ const World = (() => {
     place(buildBench(), FARM.x + 5.5, fy, FARM.z - 4.2, Math.PI); seat(FARM.x + 5.5, FARM.z - 4.6, Math.PI, 'The bench by the porch. The window was lit. Nobody was home.', [-7, 3, -7], 'the porch bench');
     // the hole where the slab was, and the cable that runs into it
     const foot = new Builder(); foot.tile = MAT.CONCRETE; foot.col = [0.75, 0.75, 0.72]; foot.box(-1.2, 0, -1.2, 2.4, 0.5, 2.4); place(foot.build(), 46, groundY(46, (FARM.z + 30)) - 0.2, (FARM.z + 30), 0.4);
-    const cablePts = []; for (let i = 0; i <= 40; i++) { const t = i / 40; const x = 46 + (i === 0 ? 0 : 0) + t * 90 + Math.sin(t * 9) * 2.5, z = (FARM.z + 30) + t * 40 + Math.cos(t * 7) * 2; cablePts.push([x, groundY(x, z) + 0.06, z]); }
-    S.cable = place(buildCable(cablePts), 0, 0, 0, 0, { noShadow: true, fx: new Float32Array(RENDER.MAX_BONES * 4) }); S.cable.fx[0] = 0.9;
+    const relayX=14,relayZ=FARM.z+14,relayY=groundY(relayX,relayZ);
+    const rb=new Builder();rb.tile=MAT.CONCRETE;rb.col=[.57,.57,.52];rb.roundedBox(-.7,-.12,-.5,1.4,.35,1,.06);
+    rb.tile=MAT.BEIGE;rb.col=[.67,.69,.59];rb.roundedBox(-.48,.2,-.25,.96,1.35,.48,.08);
+    rb.tile=MAT.DARK;rb.col=[.9,.95,.95];rb.roundedBox(-.37,.9,-.28,.74,.42,.06,.025);
+    rb.tile=MAT.BADGE;rb.col=[.82,.84,.74];rb.box(-.3,.47,-.288,.6,.22,.012);
+    rb.tile=MAT.STEEL;rb.col=[1,1,1];for(const x of [-.24,.24])rb.cyl(x,1.04,-.32,.07,.06,{axis:'z',segs:12});
+    rb.tile=MAT.DARK;rb.col=[1,1,1];rb.tube([[.4,.6,.16],[.75,.35,.3],[.7,.08,.6]],.06,{segs:7});
+    place(rb.build(),relayX,relayY,relayZ);collide(relayX-.5,relayY,relayZ-.3,1,1.6,.6);
+    const rl=new Builder();rl.tile=MAT.COLD_LIGHT;rl.col=[.3,.8,1];rl.box(-.2,1.35,-.292,.4,.045,.02);
+    S.relay=place(rl.build(),relayX,relayY,relayZ,0,{emis:1,noShadow:true});
+    const cablePts=[];for(let i=0;i<=32;i++){const t=i/32,x=relayX+(46-relayX)*t+Math.sin(t*8)*1.2,z=relayZ+16*t+Math.sin(t*5)*2;cablePts.push([x,groundY(x,z)+.09,z]);}
+    S.cable=place(buildCable(cablePts),0,0,0,0,{noShadow:true,fx:new Float32Array(RENDER.MAX_BONES*4)});S.cable.fx[0]=.9;S.cablePath=cablePts;
     // fence along the field
     const fence = new Builder(); const fpts = []; for (let x = -30; x <= 60; x += 5) fpts.push([x, FARM.z + 24 + Math.sin(x * 0.1) * 2]); buildFence(fence, fpts); place(fence.build(), 0, 0, 0, 0);
     // birches and spruces along the shore and the field's edges
@@ -265,8 +269,8 @@ const World = (() => {
     for (let i = 0; i < 160; i++) { const x = -160 + r() * 320, z = landEdgeIsle(x) + 4 + r() * 90; if (Math.hypot(x - FARM.x, z - FARM.z) < 26 || Math.hypot(x - 46, z - (FARM.z + 30)) < 10) continue; (r() < 0.32 ? bl : sl).push([x, groundY(x, z) - 0.3, z, r() * TAU, 0.85 + r() * 1.0]); }
     for (let i = 0; i < 80; i++) { const x = -200 + r() * 400, z = landEdgeMain(x) - 8 - r() * 70; if (Math.abs(x) < 16 && z > -60) continue; (r() < 0.4 ? bl : sl).push([x, groundY(x, z) - 0.3, z, r() * TAU, 0.85 + r() * 1.0]); }
     for(let i=0;i<90;i++){const x=-180+r()*360,z=205+r()*95;sl.push([x,groundY(x,z)-.2,z,r()*TAU,1+r()*1.3]);}
-    instancesAlong(birch, bl); instancesAlong(spruce, sl); S.items.push({ mesh: birch, model: M.create(), noShadow: true }, { mesh: spruce, model: M.create(), noShadow: true });
-    S.birches = bl;
+    instancesAlong(birch, bl); instancesAlong(spruce, sl); S.items.push({ mesh: birch, model: M.create(), noShadow: true }, { mesh: spruce, model: M.create(), noShadow: true, twoSided:true });
+    S.birches = bl;for(const [x,y,z,,scale] of sl)collide(x-.17*scale,y,z-.17*scale,.34*scale,3,.34*scale);
     const dressing=new Builder(),rd=rng32(81);
     dressing.tile=MAT.SNOW;dressing.col=[.91,.94,.96];
     for(const [x,z,rx,rz] of [[-5,161,2,4],[5,166,2.4,2],[-17,170,3,1.5],[19,166,3,2],[28,165,2,4],[-11,-29,3,1.7]]){

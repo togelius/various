@@ -12,7 +12,7 @@ const Player = (() => {
   let camX = 0, camY = 3, camZ = -30;
   const RADIUS = 0.35;
 
-  function place(x, z, yaw = 0) { P.x = x; P.z = z; P.y = World.groundY(x, z); P.yaw = yaw; P.camYaw = yaw; P.vx = P.vz = 0; P.sled.x = x - Math.sin(yaw) * 2; P.sled.z = z - Math.cos(yaw) * 2; P.sled.y = World.groundY(P.sled.x, P.sled.z); snapCamera(); }
+  function place(x, z, yaw = 0) { P.x = x; P.z = z; P.y = World.groundY(x, z); P.yaw = yaw; P.camYaw = yaw; P.vx = P.vz = P.speed = 0;P.stillT=0;P.calmCam=0; P.sled.vx=P.sled.vz=0; P.sled.x = x - Math.sin(yaw) * 2; P.sled.z = z - Math.cos(yaw) * 2; P.sled.y = World.groundY(P.sled.x, P.sled.z); snapCamera(); }
 
   function update(dt, input, ctx) {
     P.flinch = false; inputLook.dx=input.lookDX;inputLook.dy=input.lookDY;
@@ -42,7 +42,7 @@ const Player = (() => {
     // stillness, for the painting camera and the machines
     if (P.speed < 0.08 && mag < 0.1) P.stillT += dt; else P.stillT = 0;
     // footsteps
-    if (P.speed > 0.2) { P.stepT -= dt * (0.6 + P.speed * 1.4); if (P.stepT <= 0) { P.stepT = 1; ctx.onStep && ctx.onStep(P.surface, P.hurry); } }
+    if (P.speed > 0.2) { P.stepT -= dt * P.speed * (P.hurry ? .60 : .91); if (P.stepT <= 0) { P.stepT = 1; ctx.onStep && ctx.onStep(P.surface, P.hurry); } }
     // the torch and the cutter
     if (control && input.torchPressed) { P.torch = !P.torch; ctx.onTorch && ctx.onTorch(P.torch); if (P.torch && P.hold > 0) P.flinch = true; }
     P.cutterUp = control && input.cutHeld && !P.viewfinder;
@@ -89,7 +89,7 @@ const Player = (() => {
       if(Math.abs(inputLook.dx)+Math.abs(inputLook.dy)>0.5) P.stillT=0;
       const paint = ctx.indoors ? 0 : smooth(6, 12, P.stillT) * (P.hold > 0 ? 0 : 1);
       P.calmCam = lerp(P.calmCam, paint, 1 - Math.pow(0.3, dt));
-      const dist = lerp(P.cutterUp ? 2.1 : 3.5, 4.8, P.calmCam), height = lerp(1.7, 2.1, P.calmCam), side = lerp(0.6, 0.2, P.calmCam);
+      const dist = lerp(P.cutterUp ? 2.1 : 3.5, 4.8, P.calmCam), height = lerp(1.7, 2.1, P.calmCam), side = lerp(-0.6, -0.2, P.calmCam);
       const pitch = P.camPitch, cy = Math.cos(P.camYaw), sy = Math.sin(P.camYaw);
       tx = P.x - sy * dist * Math.cos(pitch) + cy * side; tz = P.z - cy * dist * Math.cos(pitch) - sy * side; ty = P.y + height + Math.sin(pitch) * dist;
       // keep the camera out of things and above the ground

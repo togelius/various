@@ -3,6 +3,7 @@
 // point sprites, and a composite pass with grain and a vignette. Overcast light is a lighting choice, not a polygon count.
 'use strict';
 const RENDER = (() => {
+  let foliageTex,skyTexture,foliageReady=false,skyReady=false;
   let gl, litProg, instProg, shadowProg, shadowInstProg, skyProg, partProg, compProg, shadow, scene = null, partMesh = null;
   const MAX_BONES = 32, MAX_LIGHTS = 12;
   const proj = M.create(), view = M.create(), vp = M.create(), invVP = M.create(), lightVP = M.create(), lightView = M.create(), lightProj = M.create();
@@ -25,7 +26,7 @@ const RENDER = (() => {
     #ifdef INSTANCED
     in vec4 aI0; in vec4 aI1; in vec4 aI2; in vec4 aI3;
     #endif
-    uniform mat4 uVP; uniform mat4 uModel; uniform mat4 uBones[${MAX_BONES}]; uniform vec4 uFx[${MAX_BONES}];
+    uniform vec3 uCamPos; uniform mat4 uVP; uniform mat4 uModel; uniform mat4 uBones[${MAX_BONES}]; uniform vec4 uFx[${MAX_BONES}];
     out vec3 vWorld; out vec3 vNrm; out vec3 vCol; out vec2 vUV; flat out float vTile; out float vCharge;
     void main() {
       #ifdef INSTANCED
@@ -33,13 +34,15 @@ const RENDER = (() => {
       #else
       int b = int(aBone); mat4 model = uModel * uBones[b]; vCharge = uFx[b].x; float hidden = uFx[b].y;
       #endif
-      vec4 w = model * vec4(aPos, 1.0); vWorld = w.xyz; vNrm = normalize(mat3(model) * aNrm);
+      vec4 w = model * vec4(aPos, 1.0);
+      if(int(aTile+.5)==${MAT.FOLIAGE}){vec3 center=model[3].xyz;vec3 facing=uCamPos-center;vec3 right=normalize(vec3(facing.z,0.0,-facing.x));float scale=length(model[0].xyz);w.xyz=center+right*aPos.x*scale+vec3(0.0,aPos.y*scale,0.0);}
+      vWorld = w.xyz; vNrm = normalize(mat3(model) * aNrm);
       vCol = aCol; vUV = aUV; vTile = aTile;
       gl_Position = hidden > 0.5 ? vec4(0.0, 0.0, 3.0, 1.0) : uVP * w;
     }`;
   const FS = `
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in float vCharge;
-    uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform mat4 uLightVP; uniform vec4 uMat[${MATS}];
+    uniform sampler2D uFoliage; uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform mat4 uLightVP; uniform vec4 uMat[${MATS}];
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
     uniform float uFogDensity; uniform float uFogHeight; uniform float uShadowOn; uniform float uTime; uniform float uIceGlow; uniform float uAlpha; uniform float uEmisMul;
     uniform vec4 uLights[${MAX_LIGHTS * 3}]; uniform int uNL;
@@ -57,7 +60,8 @@ const RENDER = (() => {
     void main() {
       int tile = int(vTile + 0.5); vec4 m = uMat[tile];
       if(tile == ${MAT.TRACK}) { float edge=1.0-smoothstep(0.30,1.0,dot(vUV,vUV)); o=vec4(0.045,0.065,0.09,edge*0.22); return; }
-      vec4 tx = texture(uTex, vec3(vUV, vTile));
+      vec4 tx = tile==${MAT.FOLIAGE}?texture(uFoliage,vUV):texture(uTex, vec3(vUV, vTile));
+      if(tile==${MAT.FOLIAGE}&&tx.a<.48)discard;
       // Canvas colours and vertex tints are authored in sRGB. Light in linear space.
       vec3 albedo = pow(max(tx.rgb * vCol, vec3(0.0)), vec3(2.2));
       vec3 n = normalize(vNrm); vec3 v = normalize(uCamPos - vWorld);
@@ -84,6 +88,7 @@ const RENDER = (() => {
         contactAO *= 1.0-0.68*exp(-radial*radial*2.4)*(1.0-smoothstep(0.03,0.50,dy));
       }
       vec3 col = albedo * (hemi * contactAO + uSunCol * ndl * sh);
+      if(tile==${MAT.FOLIAGE})col=albedo*(uSkyCol*.9+uGroundCol*.25+uSunCol*.2);
       float gloss = 1.0 - m.x;
       // a little sky reflection on smooth things (ice, glass, foil)
       col += hemi * gloss * 0.35 * pow(1.0 - max(dot(n, v), 0.0), 3.0);
@@ -117,7 +122,7 @@ const RENDER = (() => {
   const SHADOW_FS = `out vec4 o; void main() { o = vec4(1.0); }`;
   const SKY_VS = `const vec2 v[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0)); out vec2 vNdc; void main() { vNdc = v[gl_VertexID]; gl_Position = vec4(v[gl_VertexID], 0.9999, 1.0); }`;
   const SKY_FS = `
-    in vec2 vNdc; uniform mat4 uInvVP; uniform vec3 uCamPos; uniform vec3 uSunDir; uniform vec3 uZenith; uniform vec3 uHorizon; uniform vec3 uFogCol; uniform vec3 uCloudCol;
+    uniform sampler2D uSkyTexture; uniform float uSkyReady; in vec2 vNdc; uniform mat4 uInvVP; uniform vec3 uCamPos; uniform vec3 uSunDir; uniform vec3 uZenith; uniform vec3 uHorizon; uniform vec3 uFogCol; uniform vec3 uCloudCol;
     uniform float uSunGlow; uniform float uSunDisc; uniform float uCloud; uniform float uStars; uniform float uTime; out vec4 o;
     float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
     float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
@@ -139,6 +144,7 @@ const RENDER = (() => {
       col += vec3(1.0, 0.97, 0.9) * uSunDisc * smoothstep(0.9985, 0.9995, sd) * 1.5;
       col += vec3(1.0, 0.9, 0.7) * uSunGlow * pow(sd, 3.0) * 0.12;
       if (uStars > 0.0 && dir.y > 0.0) { vec3 g = floor(dir * 220.0); float s = hash(g.xz * 0.37 + g.y); float tw = 0.7 + 0.3 * sin(uTime * 2.0 + s * 40.0); if (s > 0.992) col += vec3(0.8, 0.85, 1.0) * uStars * tw * (s - 0.992) * 90.0 * h; }
+      if(uSkyReady>.5){vec2 uv=vec2(fract(atan(dir.x,dir.z)/6.2831853+.5+uTime*.00006),.5-asin(clamp(dir.y,-1.0,1.0))/3.14159265);vec3 painted=pow(texture(uSkyTexture,uv).rgb,vec3(2.2));col=mix(col,painted*(.85-uStars*.70),.84);}
       // the sky meets the fog at the horizon
       col = mix(col, uFogCol, smoothstep(0.12, -0.05, dir.y));
       o = vec4(col, 1.0);
@@ -168,8 +174,8 @@ const RENDER = (() => {
       vec2 d = vUV - 0.5; c *= 1.0 - uVignette * dot(d, d) * 2.2;
       float g = hash(floor(vUV * uRes * 0.5) + fract(uTime * 7.3) * 100.0) - 0.5;
       // Grain is added in display space below; linear-space noise crushes dark cloth.
-      if (uPrint > 0.5) { c = mix(c, c * vec3(1.05, 0.98, 0.9), 0.5); c = mix(vec3(l), c, 0.85); float edge = smoothstep(0.0, 0.03, min(min(vUV.x, 1.0 - vUV.x), min(vUV.y, 1.0 - vUV.y))); c = mix(vec3(0.95, 0.93, 0.88), c, edge); c += (hash(vUV * 900.0) - 0.5) * 0.08; }
-      o = vec4(clamp(pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2)) + g * uGrain, 0.0, 1.0), 1.0);
+      if (uPrint > 0.5) { c = mix(c, c * vec3(1.05, 0.98, 0.9), 0.5); c = mix(vec3(l), c, 0.85); float edge = smoothstep(0.0, 0.03, min(min(vUV.x, 1.0 - vUV.x), min(vUV.y, 1.0 - vUV.y))); c = mix(vec3(0.95, 0.93, 0.88), c, edge); /* Print grain stays in display space, preserving shadow detail. */ }
+      o = vec4(clamp(pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2)) + g * (uGrain + uPrint * 0.009), 0.0, 1.0), 1.0);
     }`;
 
   function init(canvas) {
@@ -186,6 +192,9 @@ const RENDER = (() => {
       const u = {}; ['uVP', 'uScale', 'uCol'].forEach(n => u[n] = gl.getUniformLocation(p, n)); return { p, u }; })();
     shadow = GL.shadowTarget(1024);
     Paint.build();
+    foliageTex=GL.texture2D(makeCanvas(1,1));
+    const foliageImage=new Image();foliageImage.onload=()=>{gl.deleteTexture(foliageTex);foliageTex=GL.texture2D(foliageImage);gl.bindTexture(gl.TEXTURE_2D,foliageTex);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);foliageReady=true;};foliageImage.src=FOLIAGE_IMAGE;
+    skyTexture=GL.texture2D(makeCanvas(1,1));const skyImage=new Image();skyImage.onload=()=>{gl.deleteTexture(skyTexture);skyTexture=GL.texture2D(skyImage);gl.bindTexture(gl.TEXTURE_2D,skyTexture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);skyReady=true;};skyImage.src=SKY_IMAGE;
     // snow particles
     const vao = gl.createVertexArray(); gl.bindVertexArray(vao); const vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
     for (let i = 0; i < 3; i++) gl.enableVertexAttribArray(i);
@@ -210,7 +219,7 @@ const RENDER = (() => {
   }
   function setLight() {
     // one shadow box 90 m across, centred a little ahead of the camera, snapped to a texel
-    const s = env.sunDir, R = 45, texel = 2 * R / 2048;
+    const s = env.sunDir, R = 45, texel = 2 * R / 1024;
     const fx = cam.tx - cam.x, fz = cam.tz - cam.z, fl = Math.hypot(fx, fz) || 1;
     let cx = cam.x + fx / fl * 20, cz = cam.z + fz / fl * 20, cy = cam.y;
     cx = Math.round(cx / texel) * texel; cz = Math.round(cz / texel) * texel;
@@ -224,6 +233,7 @@ const RENDER = (() => {
     if (!forShadow) {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, Paint.tex); gl.uniform1i(P.u.uTex, 0);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadow.tex); gl.uniform1i(P.u.uShadow, 1);
+      gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,foliageTex);gl.uniform1i(P.u.uFoliage,2);
       gl.uniformMatrix4fv(P.u.uLightVP, false, lightVP);
       gl.uniform4fv(P.u.uMat, Paint.params);
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
@@ -264,6 +274,7 @@ const RENDER = (() => {
 
   function drawSky() {
     gl.useProgram(skyProg.p); gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
+    gl.activeTexture(gl.TEXTURE3);gl.bindTexture(gl.TEXTURE_2D,skyTexture);gl.uniform1i(skyProg.u.uSkyTexture,3);gl.uniform1f(skyProg.u.uSkyReady,skyReady?1:0);
     gl.uniformMatrix4fv(skyProg.u.uInvVP, false, invVP); gl.uniform3f(skyProg.u.uCamPos, cam.x, cam.y, cam.z); gl.uniform3fv(skyProg.u.uSunDir, env.sunDir);
     gl.uniform3fv(skyProg.u.uZenith, env.zenith); gl.uniform3fv(skyProg.u.uHorizon, env.horizon); gl.uniform3fv(skyProg.u.uFogCol, env.fogCol); gl.uniform3fv(skyProg.u.uCloudCol, env.cloudCol);
     gl.uniform1f(skyProg.u.uSunGlow, env.sunGlow); gl.uniform1f(skyProg.u.uSunDisc, env.sunDisc); gl.uniform1f(skyProg.u.uCloud, env.cloud); gl.uniform1f(skyProg.u.uStars, env.stars); gl.uniform1f(skyProg.u.uTime, env.time);
@@ -321,5 +332,5 @@ const RENDER = (() => {
     g.putImageData(id, 0, 0);
     return c;
   }
-  return { init, cam, env, light, contact, clearLights, frame, snapshot, stats, MAX_BONES, get vp() { return vp; }, get planes() { return planes; } };
+  return { init, cam, env, light, contact, clearLights, frame, snapshot, stats, MAX_BONES, get foliageReady(){return foliageReady&&skyReady;}, get vp() { return vp; }, get planes() { return planes; } };
 })();

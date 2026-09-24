@@ -1,6 +1,6 @@
 <!doctype html><meta charset="utf-8"><title>Isvägen · playtest</title>
 <style>body{height:100vh;display:flex;flex-direction:column;margin:0;background:#171c22;color:#d6dbdf;font:13px system-ui}nav{flex-shrink:0;padding:8px;display:flex;flex-wrap:wrap;gap:7px;align-items:center}button{background:#343e48;color:inherit;border:1px solid #56616a;padding:6px 10px;border-radius:4px;cursor:pointer}iframe{width:100%;flex:1;min-height:0;border:0}output{margin-left:auto;font-size:12px}</style>
-<nav><strong>ISVÄGEN</strong><button data-view="opening">Opening</button><button data-view="crossing">Crossing</button><button data-view="farm">Farm</button><button data-view="bearer">Bearer</button><button data-view="character">Character</button><button data-view="encounter">Encounter</button><button id="walk">Walk / stop</button><button id="run">Run / stop</button><button id="aim">Aim / lower</button><button id="fire">Use / fire</button><button id="checks">Run checks</button><button id="build">Standalone</button><span id="stats"></span><output id="status">Loading…</output></nav><iframe id="game" src="../index.html?review=1"></iframe>
+<nav><strong>ISVÄGEN</strong><button data-view="opening">Opening</button><button data-view="crossing">Crossing</button><button data-view="farm">Farm</button><button data-view="bearer">Bearer</button><button data-view="character">Character</button><button data-view="encounter">Encounter</button><button id="walk">Walk / stop</button><button id="run">Run / stop</button><button id="aim">Aim / lower</button><button id="fire">Use / fire</button><button id="checks">Run checks</button><button id="farmcheck">Farm checks</button><button id="album">Album</button><button id="build">Standalone</button><span id="stats"></span><output id="status">Loading…</output></nav><iframe id="game" src="../index.html?review=1"></iframe>
 <script>
 const f=document.querySelector('iframe'),status=document.querySelector('output');let walking=false,running=false,aiming=false;
 function scene(name){const g=f.contentWindow.__game;if(!g)return;g.newJourney();Object.keys(g.keys).forEach(k=>g.keys[k]=false);walking=running=aiming=false;
@@ -27,6 +27,18 @@ document.querySelector('#checks').onclick=async()=>{
     for(let i=0;i<48&&g.chapter===1;i++){g.step(60);if(i%6===0)await new Promise(requestAnimationFrame);}g.keys.forward=false;assert(g.chapter===2,'island not reached in 48 seconds');
     g.jump(2,24,190);const m=g.bearer;m.state='standoff';m.calm=1;g.place(m.x,m.z-.9,0);g.keys.use=true;g.step(145);g.keys.use=false;assert(m.off,'peaceful standoff failed');assert(!g.renderError,'render failure');
     status.textContent='PASS · E photo / album / movement / cutting / damage / 48s crossing / standoff';g.setState('free');
+  }catch(e){status.textContent='FAIL · '+e.message;}
+};
+document.querySelector('#album').onclick=()=>{f.contentWindow.__game.pressed.album=true;};
+document.querySelector('#farmcheck').onclick=async()=>{
+  const g=f.contentWindow.__game,assert=(v,msg)=>{if(!v)throw Error(msg);};
+  try{g.newJourney();g.jump(2);g.awake=false;const r=g.world.relay;g.place(r.x,r.z-1.5,0);g.pressed.use=true;g.step(1);assert(g.flags.relay&&g.awake,'relay did not wake bearer');
+    g.step(60);assert(g.bearer.state==='approach'||g.bearer.state==='wait','bearer did not respond');
+    g.bearer.state='standoff';g.bearer.calm=1;g.place(g.bearer.x,g.bearer.z-.9,0);g.keys.use=true;g.step(145);g.keys.use=false;assert(g.sleepReady,'bearer resolution did not unlock ending');
+    const saved=JSON.parse(JSON.stringify(g.saved));g.newJourney();g.resume(saved);assert(g.chapter===2&&g.bearer.off&&g.sleepReady&&g.flags.relay,'checkpoint did not restore resolved encounter');
+    const before=g.photos.length;g.P.viewfinder=true;g.pressed.use=true;g.step(1);assert(g.photos.length>=before,'photo failure');g.P.viewfinder=false;
+    g.place(g.world.cellar.x,g.world.cellar.z,0);g.pressed.use=true;g.step(1);assert(g.state==='darkroom','cellar not usable');g.step(550);g.nav.back=true;g.step(1);assert(g.state==='play','darkroom did not return');
+    g.place(g.world.door.x,g.world.door.z-1,0);g.pressed.use=true;g.step(180);assert(g.state==='end','front door did not finish game');g.step(250);g.pressed.any=true;g.step(1);assert(g.state==='album','ending did not open album');assert(!g.renderError,'render error');status.textContent='PASS · relay / bearer / checkpoint restore / darkroom / ending / album';
   }catch(e){status.textContent='FAIL · '+e.message;}
 };
 f.onload=()=>scene('opening');setInterval(()=>{const g=f.contentWindow.__game;if(g)document.querySelector('#stats').textContent=g.performance.fps+' fps · '+g.performance.draws+' draws · '+g.performance.triangles.toLocaleString()+' tris';},1000);

@@ -2,7 +2,7 @@
 // takes two pictures: the thumbnail the eye saw, and a negative with the hidden layer, which the darkroom develops.
 'use strict';
 const Photo = (() => {
-  const W = 384, H = 216;
+  const W = 640, H = 360;
   const S = { negatives: [], polaroid: null, developing: null };
 
   function key(ch, x, z) { return `${ch}:${Math.round(x)}:${Math.round(z)}`; }

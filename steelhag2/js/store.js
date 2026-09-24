@@ -48,6 +48,7 @@ const Store = (() => {
     get finished() { return data.progress.finished; },
     reach(i) { if (i > data.progress.reached) { data.progress.reached = i; save(); } },
     finish() { data.progress.finished = true; save(); },
+    startJourney() { data.progress.finished=false;data.progress.save=null;save(); },
     get save() { return data.progress.save; },
     setSave(v) { data.progress.save = v; save(); },
 

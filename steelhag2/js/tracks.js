@@ -18,7 +18,7 @@ const Tracks=(()=>{
     if(dist>5){last=null;return;}
     if(dist<.22)return;
     last.foot+=dist;
-    if(last.foot>.64){last.foot=0;side=-side;stamp(p.x+Math.cos(p.yaw)*.11*side,p.z-Math.sin(p.yaw)*.11*side,p.yaw,.065,.145);}
+    if(last.foot>(p.hurry?1.6:1.05)){last.foot=0;side=-side;stamp(p.x+Math.cos(p.yaw)*.11*side,p.z-Math.sin(p.yaw)*.11*side,p.yaw,.065,.145);}
     const sledDist=Math.hypot(p.sled.x-last.sx,p.sled.z-last.sz);
     if(sledDist>.20&&sledDist<3){const yaw=p.sled.yaw;for(const side of [-1,1])stamp(p.sled.x+Math.cos(yaw)*.26*side,p.sled.z-Math.sin(yaw)*.26*side,yaw,.022,.26);last.sx=p.sled.x;last.sz=p.sled.z;}
     last.x=p.x;last.z=p.z;

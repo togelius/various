@@ -18,7 +18,10 @@ no dependencies. There's also a single-file build at `dist/stalhagen2.html`
 
 The protagonist uses Quaternius’s authored, skinned character meshes and animation
 clips (CC0; provenance in [assets/character/README.md](assets/character/README.md)).
-The environment, machines, painted materials and sound are built locally.
+The environment meshes, machines, painted materials and sound are built locally.
+The detailed spruce cutout and cloud panorama are original generated assets; their
+sources and prompts are recorded in [assets/foliage/README.md](assets/foliage/README.md)
+and [assets/sky/README.md](assets/sky/README.md).
 
 ## How it plays
 
@@ -46,13 +49,21 @@ The cutter takes its legs off one at a time; with no legs it can't lift anyone. 
 
 **Photographs.** Prints are developed in the cellar darkroom on the east side of the
 house. Some things only show up in the print. A large thumbnail and confirmation appear
-after shooting, and Tab opens the album during play. When browser storage is full,
+after shooting, and Tab opens the album during play. Select a photograph to enlarge
+it. A developed print can be compared against its original exposure. Albums are paged. When browser storage is full,
 the game identifies the photograph as session-only and preserves the existing album.
+
+**The farm relay.** Follow the direction marker to the blue-lit relay behind the
+barn. Restoring it wakes the bearer. Lower the cutter and hold still to let it approach,
+or sever its supports and exposed core.
 
 **Sleep** at the front door once the day is done (a bearer switched off, cut down, or
 after you were carried).
 
-Quiet mode (in settings) makes the bearers watch but never carry you.
+Checkpoints save automatically at chapter arrivals, the relay, resolved encounters
+and benches. Continuing restores disabled joints and encounter outcomes.
+
+Quiet mode (in settings) makes the machines watch without attacking or carrying you.
 
 ## Tools
 
@@ -81,7 +92,8 @@ roadkeeper attack telegraphing, damage, staggering and defeat.
 
 Serve the folder and open `tools/art-review.html`. **Run checks** exercises movement,
 the real E photo/negative pipeline, album return, cutting, damage, the full crossing
-and the peaceful farm encounter. **Standalone** runs the same checks against the
+and the peaceful farm encounter. **Farm checks** covers the relay, checkpoint restore,
+darkroom, front door ending and album. **Standalone** runs the same checks against the
 release build. Review mode is muted and does not read or write player saves/photos.
 Rebuild releases with `python3 tools/build-single.py`.
 

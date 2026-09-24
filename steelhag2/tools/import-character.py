@@ -22,8 +22,8 @@ for d,buf,ends in [(g,b,('Body','Head')),(other,ob,('Legs','Feet'))]:
   skin=d['skins'][node['skin']];joints=[names[d['nodes'][j]['name']] for j in skin['joints']];ibm=enc(accessor(d,buf,skin['inverseBindMatrices']))
   for prim in d['meshes'][node['mesh']]['primitives']:
    attrs=prim['attributes'];mat=d['materials'][prim['material']]['name'];part=node['name'];col=[.4,.4,.4];tile='CLOTH'
-   if part.endswith('Body'):col=[.51,.24,.14] if mat!='Skin' else [.16,.18,.18]
-   elif part.endswith('Legs'):col=[.18,.23,.25]
+   if part.endswith('Body'):col=[.68,.34,.20] if mat!='Skin' else [.16,.18,.18]
+   elif part.endswith('Legs'):col=[.24,.29,.32]
    elif part.endswith('Feet'):col=[.11,.12,.11]
    else:
     tile='FLAT';col={'Skin':[.64,.47,.35],'Hair':[.16,.14,.105],'Eyebrows':[.11,.095,.08],'Eye':[.07,.08,.08]}.get(mat,[.4,.4,.4])
