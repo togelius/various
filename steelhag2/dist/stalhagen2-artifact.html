@@ -1789,7 +1789,7 @@ const World = (() => {
     place(b.build(), 0, 0, 0, 0, { noShadow: true });
     // the ice sheet: a separate plane at y = 0 with the thin patches darker
     const ice = new Builder();
-    ice.grid(-420, -60, 900, 250, 150, 50, (x, z) => 0, (x, z) => { const t = thinAt(x, z); const k = 1 - t * 0.55; return [MAT.ICE, [k * 0.9, k * 0.95, k * 1.0]]; }, { uv: 0.35 });
+    ice.grid(-420, -60, 900, 250, 150, 50, (x, z) => 0, (x, z) => { const t = thinAt(x, z),k=1-t*.55,d=Math.min(z-landEdgeMain(x),landEdgeIsle(x)-z),mix=smooth(-2,9,d+(noise2(x,z,11)-.5)*4);return [mix,[lerp(.96,k*.9,mix),lerp(.98,k*.95,mix),lerp(1,k,mix)]]; }, { uv: 0.35 });
     place(ice.build(), 0, 0.0, 0, 0, { noShadow: true });
   }
 
@@ -2060,6 +2060,8 @@ const World = (() => {
     for(let i=0;i<100;i++) {const x=-150+rd()*300,z=landEdgeIsle(x)+2+rd()*5,y=groundY(x,z);if(Math.abs(x)<9)continue;
       dressing.tile=MAT.REED;dressing.col=[.62,.59,.42];const h=.3+rd()*.7;dressing.tube([[x,y,z],[x+.1,y+h*.7,z+.04],[x+.25,y+h,z+.12]],.013,{segs:3});
     }
+    // Broken rushes at the near shore give the entrance a natural edge without blocking the ice road.
+    for(let i=0;i<65;i++){const x=-48+rd()*96;if(Math.abs(x)<7)continue;const z=landEdgeMain(x)-2+rd()*5,y=groundY(x,z);dressing.tile=MAT.REED;dressing.col=[.55,.51,.36];for(let k=0;k<3;k++){const h=.35+rd()*.6,dx=(rd()-.5)*.4,dz=(rd()-.5)*.3;dressing.tube([[x+dx,y,z+dz],[x+dx+.06,y+h*.7,z+dz],[x+dx+.17,y+h,z+dz+.08]],.011,{segs:3});}}
     dressing.tile=MAT.CONCRETE;dressing.col=[.5,.54,.53];for(const [x,z] of [[-18,140],[-24,145],[12,130],[31,174]]){const y=groundY(x,z);dressing.roundedBox(x,y-.3,z,1.3,.75,1,.3);dressing.tile=MAT.SNOW;dressing.col=[.94,.96,.98];dressing.roundedBox(x+.06,y+.36,z+.04,1.2,.12,.92,.05);dressing.tile=MAT.CONCRETE;dressing.col=[.5,.54,.53];}
     dressing.tile=MAT.PLANK;dressing.col=[.62,.49,.34];for(let row=0;row<3;row++)for(let k=0;k<7-row;k++)dressing.cyl(-3.8+k*.3+row*.15,fy+.16+row*.25,165.7,.145,.65,{axis:'z',segs:9});
     dressing.tile=MAT.PLANK;dressing.col=[.60,.56,.46];for(let i=0;i<5;i++)dressing.box(29.2,.14+groundY(29.2,168),167.4+i*.18,1.05,.06,.12);
@@ -2751,7 +2753,7 @@ const Player = (() => {
       if(Math.abs(inputLook.dx)+Math.abs(inputLook.dy)>0.5) P.stillT=0;
       const paint = ctx.indoors || ctx.threat || P.cutterUp ? 0 : smooth(6, 12, P.stillT) * (P.hold > 0 ? 0 : 1);
       P.calmCam = lerp(P.calmCam, paint, 1 - Math.pow(0.3, dt));
-      const dist = lerp(P.cutterUp ? 2.1 : ctx.indoors?2.5:3.5, 4.8, P.calmCam), height = lerp(1.7, 2.1, P.calmCam), side = lerp(-0.6, -0.2, P.calmCam);
+      const dist = lerp(P.cutterUp ? 2.1 : ctx.indoors?2.5:3.5, 4.8, P.calmCam), height = lerp(1.7, 1.95, P.calmCam), side = lerp(-0.6, -0.2, P.calmCam);
       const pitch = P.camPitch, cy = Math.cos(P.camYaw), sy = Math.sin(P.camYaw);
       tx = P.x - sy * dist * Math.cos(pitch) + cy * side; tz = P.z - cy * dist * Math.cos(pitch) - sy * side; ty = P.y + height + Math.sin(pitch) * dist;
       // keep the camera out of things and above the ground
@@ -2763,8 +2765,8 @@ const Player = (() => {
       // Pull in immediately when obstructed; ease out when the wall is clear.
       const clear=World.raycast(P.x,P.y+1.45,P.z,camX,camY,camZ,.14);
       if(clear<1){const safe=Math.max(0,clear-.025);camX=lerp(P.x,camX,safe);camY=lerp(P.y+1.45,camY,safe);camZ=lerp(P.z,camZ,safe);}
-      lx = P.x + cy * side * 0.6; ly = P.y + lerp(1.3, 1.0, P.calmCam) + Math.sin(pitch) * 0.4; lz = P.z - sy * side * 0.6;
-      const fx = Math.sin(P.camYaw), fz = Math.cos(P.camYaw); lx += fx * 3.2 * (1 - P.calmCam); lz += fz * 3.2 * (1 - P.calmCam);
+      lx = P.x + cy * side * 0.6; ly = P.y + lerp(1.3, 1.45, P.calmCam) + Math.sin(pitch) * 0.4; lz = P.z - sy * side * 0.6;
+      const fx = Math.sin(P.camYaw), fz = Math.cos(P.camYaw); const ahead=lerp(3.2,6.0,P.calmCam);lx += fx * ahead; lz += fz * ahead;
       fov = lerp(55, 48, P.calmCam);
     }
     cam.x = camX; cam.y = camY; cam.z = camZ; cam.tx = lx; cam.ty = ly; cam.tz = lz; cam.fov = fov * Math.PI / 180;

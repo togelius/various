@@ -15,5 +15,6 @@ assert(Player.P.calmCam<.01,'aiming drifted into the distant scenic camera');
 assert(Math.hypot(RENDER.cam.x,RENDER.cam.z-20)<2.4,'aim camera lost its shoulder framing');
 Player.place(0,20,0);for(let i=0;i<900;i++)Player.update(1/60,input,{threat:true});assert(Player.P.calmCam<.01,'threat camera zoomed away');
 Player.place(0,20,0);for(let i=0;i<900;i++)Player.update(1/60,input,ctx);assert(Player.P.calmCam>.8,'safe scenic camera stopped working');
+const viewDown=(RENDER.cam.y-RENDER.cam.ty)/Math.hypot(RENDER.cam.tx-RENDER.cam.x,RENDER.cam.tz-RENDER.cam.z);assert(viewDown<.16,'scenic camera lost the horizon by looking at the ground');
 console.log('Player: wall-safe camera boom, close aiming, stable threat framing and scenic idle camera passed');
 `,c);

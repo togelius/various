@@ -89,7 +89,7 @@ const Player = (() => {
       if(Math.abs(inputLook.dx)+Math.abs(inputLook.dy)>0.5) P.stillT=0;
       const paint = ctx.indoors || ctx.threat || P.cutterUp ? 0 : smooth(6, 12, P.stillT) * (P.hold > 0 ? 0 : 1);
       P.calmCam = lerp(P.calmCam, paint, 1 - Math.pow(0.3, dt));
-      const dist = lerp(P.cutterUp ? 2.1 : ctx.indoors?2.5:3.5, 4.8, P.calmCam), height = lerp(1.7, 2.1, P.calmCam), side = lerp(-0.6, -0.2, P.calmCam);
+      const dist = lerp(P.cutterUp ? 2.1 : ctx.indoors?2.5:3.5, 4.8, P.calmCam), height = lerp(1.7, 1.95, P.calmCam), side = lerp(-0.6, -0.2, P.calmCam);
       const pitch = P.camPitch, cy = Math.cos(P.camYaw), sy = Math.sin(P.camYaw);
       tx = P.x - sy * dist * Math.cos(pitch) + cy * side; tz = P.z - cy * dist * Math.cos(pitch) - sy * side; ty = P.y + height + Math.sin(pitch) * dist;
       // keep the camera out of things and above the ground
@@ -101,8 +101,8 @@ const Player = (() => {
       // Pull in immediately when obstructed; ease out when the wall is clear.
       const clear=World.raycast(P.x,P.y+1.45,P.z,camX,camY,camZ,.14);
       if(clear<1){const safe=Math.max(0,clear-.025);camX=lerp(P.x,camX,safe);camY=lerp(P.y+1.45,camY,safe);camZ=lerp(P.z,camZ,safe);}
-      lx = P.x + cy * side * 0.6; ly = P.y + lerp(1.3, 1.0, P.calmCam) + Math.sin(pitch) * 0.4; lz = P.z - sy * side * 0.6;
-      const fx = Math.sin(P.camYaw), fz = Math.cos(P.camYaw); lx += fx * 3.2 * (1 - P.calmCam); lz += fz * 3.2 * (1 - P.calmCam);
+      lx = P.x + cy * side * 0.6; ly = P.y + lerp(1.3, 1.45, P.calmCam) + Math.sin(pitch) * 0.4; lz = P.z - sy * side * 0.6;
+      const fx = Math.sin(P.camYaw), fz = Math.cos(P.camYaw); const ahead=lerp(3.2,6.0,P.calmCam);lx += fx * ahead; lz += fz * ahead;
       fov = lerp(55, 48, P.calmCam);
     }
     cam.x = camX; cam.y = camY; cam.z = camZ; cam.tx = lx; cam.ty = ly; cam.tz = lz; cam.fov = fov * Math.PI / 180;

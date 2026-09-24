@@ -132,3 +132,7 @@ avoid the lunge, then use its recovery to cut. A severed support interrupts the
 attack. The cutter selects visible joints near the reticle, respects vertical aim
 and walls, and shows support/core/defeat feedback. Backpedaling while aiming
 reverses the walking cycle. Quiet mode retains the non-attacking encounter.
+
+The idle camera keeps a distant focus so the sky and horizon remain in frame.
+Snow blends into the lake ice along both shorelines, with broken rushes framing
+the entrance to the crossing.

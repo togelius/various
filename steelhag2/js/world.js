@@ -53,7 +53,7 @@ const World = (() => {
     place(b.build(), 0, 0, 0, 0, { noShadow: true });
     // the ice sheet: a separate plane at y = 0 with the thin patches darker
     const ice = new Builder();
-    ice.grid(-420, -60, 900, 250, 150, 50, (x, z) => 0, (x, z) => { const t = thinAt(x, z); const k = 1 - t * 0.55; return [MAT.ICE, [k * 0.9, k * 0.95, k * 1.0]]; }, { uv: 0.35 });
+    ice.grid(-420, -60, 900, 250, 150, 50, (x, z) => 0, (x, z) => { const t = thinAt(x, z),k=1-t*.55,d=Math.min(z-landEdgeMain(x),landEdgeIsle(x)-z),mix=smooth(-2,9,d+(noise2(x,z,11)-.5)*4);return [mix,[lerp(.96,k*.9,mix),lerp(.98,k*.95,mix),lerp(1,k,mix)]]; }, { uv: 0.35 });
     place(ice.build(), 0, 0.0, 0, 0, { noShadow: true });
   }
 
@@ -324,6 +324,8 @@ const World = (() => {
     for(let i=0;i<100;i++) {const x=-150+rd()*300,z=landEdgeIsle(x)+2+rd()*5,y=groundY(x,z);if(Math.abs(x)<9)continue;
       dressing.tile=MAT.REED;dressing.col=[.62,.59,.42];const h=.3+rd()*.7;dressing.tube([[x,y,z],[x+.1,y+h*.7,z+.04],[x+.25,y+h,z+.12]],.013,{segs:3});
     }
+    // Broken rushes at the near shore give the entrance a natural edge without blocking the ice road.
+    for(let i=0;i<65;i++){const x=-48+rd()*96;if(Math.abs(x)<7)continue;const z=landEdgeMain(x)-2+rd()*5,y=groundY(x,z);dressing.tile=MAT.REED;dressing.col=[.55,.51,.36];for(let k=0;k<3;k++){const h=.35+rd()*.6,dx=(rd()-.5)*.4,dz=(rd()-.5)*.3;dressing.tube([[x+dx,y,z+dz],[x+dx+.06,y+h*.7,z+dz],[x+dx+.17,y+h,z+dz+.08]],.011,{segs:3});}}
     dressing.tile=MAT.CONCRETE;dressing.col=[.5,.54,.53];for(const [x,z] of [[-18,140],[-24,145],[12,130],[31,174]]){const y=groundY(x,z);dressing.roundedBox(x,y-.3,z,1.3,.75,1,.3);dressing.tile=MAT.SNOW;dressing.col=[.94,.96,.98];dressing.roundedBox(x+.06,y+.36,z+.04,1.2,.12,.92,.05);dressing.tile=MAT.CONCRETE;dressing.col=[.5,.54,.53];}
     dressing.tile=MAT.PLANK;dressing.col=[.62,.49,.34];for(let row=0;row<3;row++)for(let k=0;k<7-row;k++)dressing.cyl(-3.8+k*.3+row*.15,fy+.16+row*.25,165.7,.145,.65,{axis:'z',segs:9});
     dressing.tile=MAT.PLANK;dressing.col=[.60,.56,.46];for(let i=0;i<5;i++)dressing.box(29.2,.14+groundY(29.2,168),167.4+i*.18,1.05,.06,.12);
