@@ -20,11 +20,11 @@ const Player = (() => {
     if (control || P.viewfinder) { P.camYaw -= input.lookDX * 0.0022; P.camPitch = clamp(P.camPitch + input.lookDY * 0.0022, -0.6, 0.9); }
     // move, relative to the camera
     let mx = 0, mz = 0;
-    if (control) { const f = input.my, r = input.mx; const c = Math.cos(P.camYaw), s = Math.sin(P.camYaw); mx = s * f + c * r; mz = c * f - s * r; }
+    if (control) { const f = input.my, r = input.mx; const c = Math.cos(P.camYaw), s = Math.sin(P.camYaw); mx = s * f - c * r; mz = c * f + s * r; }
     const mag = Math.min(1, Math.hypot(mx, mz)); if (mag > 0.001) { mx /= Math.hypot(mx, mz); mz /= Math.hypot(mx, mz); }
     P.hurry = control && input.hurry && mag > 0.3;
-    const target = mag * (P.hurry ? 2.6 : P.viewfinder ? 0.7 : 1.4);
-    const acc = P.onIce ? 4.5 : 9;
+    const target = mag * (P.hurry ? 4.2 : P.viewfinder ? 1.0 : 2.2);
+    const acc = P.onIce ? 6 : 14;
     P.vx = M.approach(P.vx, mx * target, acc * dt); P.vz = M.approach(P.vz, mz * target, acc * dt);
     P.speed = Math.hypot(P.vx, P.vz);
     if (mag > 0.3 && !P.viewfinder) P.yaw = P.yaw + M.angleTo(P.yaw, Math.atan2(mx, mz)) * (1 - Math.pow(0.001, dt));
@@ -61,7 +61,8 @@ const Player = (() => {
   function updateSled(dt, ctx) {
     const s = P.sled; const dx = s.x - P.x, dz = s.z - P.z, d = Math.hypot(dx, dz);
     if (d > s.rope) { const k = (d - s.rope) / d; s.vx -= dx * k * 30 * dt; s.vz -= dz * k * 30 * dt; }
-    const fr = World.onIce(s.x, s.z) ? 0.6 : 3.5; s.vx *= Math.max(0, 1 - fr * dt); s.vz *= Math.max(0, 1 - fr * dt);
+    const fr = World.onIce(s.x, s.z) ? 1.4 : 3.5; s.vx *= Math.max(0, 1 - fr * dt); s.vz *= Math.max(0, 1 - fr * dt);
+    if (d < 1.1 && d > 1e-4) { const nx = dx / d, nz = dz / d, vin = s.vx * nx + s.vz * nz; if (vin < 0) { s.vx -= vin * nx; s.vz -= vin * nz; } s.x = P.x + nx * 1.1; s.z = P.z + nz * 1.1; }
     s.x += s.vx * dt; s.z += s.vz * dt; s.y = World.groundY(s.x, s.z);
     const sp = Math.hypot(s.vx, s.vz); if (sp > 0.2) s.yaw = s.yaw + M.angleTo(s.yaw, Math.atan2(s.vx, s.vz)) * (1 - Math.pow(0.01, dt));
     s.speed = sp;
@@ -86,7 +87,7 @@ const Player = (() => {
       // over the shoulder; when you stand still in open country it drifts back and up into the painting
       const paint = ctx.indoors ? 0 : smooth(2.5, 7, P.stillT) * (P.hold > 0 ? 0 : 1);
       P.calmCam = lerp(P.calmCam, paint, 1 - Math.pow(0.3, dt));
-      const dist = lerp(P.cutterUp ? 1.9 : 2.8, 7.5, P.calmCam), height = lerp(1.65, 3.2, P.calmCam), side = lerp(0.45, 0.2, P.calmCam);
+      const dist = lerp(P.cutterUp ? 2.2 : 3.6, 8, P.calmCam), height = lerp(1.9, 3.4, P.calmCam), side = lerp(0.6, 0.2, P.calmCam);
       const pitch = P.camPitch, cy = Math.cos(P.camYaw), sy = Math.sin(P.camYaw);
       tx = P.x - sy * dist * Math.cos(pitch) + cy * side; tz = P.z - cy * dist * Math.cos(pitch) - sy * side; ty = P.y + height + Math.sin(pitch) * dist;
       // keep the camera out of things and above the ground
@@ -95,7 +96,7 @@ const Player = (() => {
       const k = 1 - Math.pow(P.calmCam > 0.02 ? 0.3 : 0.001, dt);
       camX = lerp(camX, tx, k); camY = lerp(camY, ty, k); camZ = lerp(camZ, tz, k);
       lx = P.x + cy * side * 0.6; ly = P.y + lerp(1.3, 1.0, P.calmCam) + Math.sin(pitch) * 0.4; lz = P.z - sy * side * 0.6;
-      const fx = Math.sin(P.camYaw), fz = Math.cos(P.camYaw); lx += fx * 2.5 * (1 - P.calmCam); lz += fz * 2.5 * (1 - P.calmCam);
+      const fx = Math.sin(P.camYaw), fz = Math.cos(P.camYaw); lx += fx * 3.2 * (1 - P.calmCam); lz += fz * 3.2 * (1 - P.calmCam);
       fov = lerp(55, 48, P.calmCam);
     }
     cam.x = camX; cam.y = camY; cam.z = camZ; cam.tx = lx; cam.ty = ly; cam.tz = lz; cam.fov = fov * Math.PI / 180;

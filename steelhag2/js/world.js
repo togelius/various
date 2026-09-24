@@ -93,6 +93,16 @@ const World = (() => {
       if (side < 0) b.quad(a, dd, c, bb); else b.quad(a, bb, c, dd);
     }
     b.end(M.create());
+    // snow on the roof: a soft white slab either side of the ridge, thicker at the eaves
+    b.tile = MAT.SNOW; b.col = [1, 1, 1]; b.begin();
+    for (const side of [-1, 1]) {
+      const z0 = side < 0 ? -d / 2 - ov : 0.05, z1 = side < 0 ? -0.05 : d / 2 + ov;
+      const ya = side < 0 ? h - 0.1 + 0.32 : h + rh + 0.14, yb = side < 0 ? h + rh + 0.14 : h - 0.1 + 0.32;
+      const a = b.vert(-w / 2 - ov, ya, z0, 0, 0.7, side * 0.7, 0, 0), bb = b.vert(w / 2 + ov, ya, z0, 0, 0.7, side * 0.7, (w + 2 * ov) * 0.3, 0);
+      const c = b.vert(w / 2 + ov, yb, z1, 0, 0.7, side * 0.7, (w + 2 * ov) * 0.3, 1.2), dd = b.vert(-w / 2 - ov, yb, z1, 0, 0.7, side * 0.7, 0, 1.2);
+      if (side < 0) b.quad(a, dd, c, bb); else b.quad(a, bb, c, dd);
+    }
+    b.end(M.create());
     // gable ends
     b.tile = MAT.RED;
     for (const x of [-w / 2, w / 2]) { const n = x < 0 ? -1 : 1; const a = b.vert(x, h, -d / 2, n, 0, 0, 0, 0), bb = b.vert(x, h, d / 2, n, 0, 0, d * 0.6, 0), c = b.vert(x, h + rh, 0, n, 0, 0, d * 0.3, rh * 0.6); if (n > 0) b.i.push(a, bb, c); else b.i.push(a, c, bb); }
@@ -119,6 +129,7 @@ const World = (() => {
     b.tile = MAT.ROOF; b.box(-w / 2 - 0.4, h, -d / 2 - 0.4, w + 0.8, 0.3, d + 0.8);
     b.begin(); for (let k = 0; k < 6; k++) b.box(-w / 2 - 0.4, h + 0.3 + k * 0.45, -d / 2 - 0.4 + k * (d + 0.8) / 12, w + 0.8, 0.45, d + 0.8 - k * (d + 0.8) / 6); b.end(M.create());
     b.tile = MAT.DARK; b.box(-1.6, 0, -d / 2 - 0.05, 3.2, 3.0, 0.08);
+    b.tile = MAT.SNOW; b.col = [1, 1, 1]; b.box(-w / 2 - 0.45, h + 0.3 + 6 * 0.45, -d / 2 - 0.45 + 6 * (d + 0.8) / 12 - 0.3, w + 0.9, 0.3, d + 0.9 - 6 * (d + 0.8) / 6 + 0.6); for (let k = 0; k < 6; k++) b.box(-w / 2 - 0.45, h + 0.3 + k * 0.45 + 0.42, -d / 2 - 0.45 + k * (d + 0.8) / 12, w + 0.9, 0.12, d + 0.9 - k * (d + 0.8) / 6);
   }
 
   function buildBench() { const b = new Builder(); b.tile = MAT.PLANK; b.col = [0.8, 0.75, 0.68]; b.box(-0.8, 0.42, -0.2, 1.6, 0.06, 0.4); b.box(-0.8, 0.5, -0.22, 1.6, 0.5, 0.06); b.tile = MAT.DARK; b.col = [1, 1, 1]; for (const x of [-0.7, 0.7]) { b.box(x - 0.04, 0, -0.18, 0.08, 0.42, 0.36); b.box(x - 0.04, 0.42, -0.22, 0.08, 0.6, 0.06); } return b.build(); }

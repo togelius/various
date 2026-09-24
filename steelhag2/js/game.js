@@ -7,12 +7,19 @@ const Game = (() => {
   const cv = document.getElementById('gl'), ui = document.getElementById('ui'), ctx2 = ui.getContext('2d');
   const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   let W = 0, H = 0, UW = 0, UH = 0;
+  let resScale = 1, frameAvg = 0.016, tuneT = 0;
   function resize() {
-    const dpr = Math.min(devicePixelRatio || 1, isTouch ? 1 : 1.5);
+    const dpr = Math.min(devicePixelRatio || 1, isTouch ? 1 : 1.5) * resScale;
     W = Math.min(Math.round(innerWidth * dpr), 1920); H = Math.round(W * innerHeight / innerWidth);
     cv.width = W; cv.height = H; UW = ui.width = innerWidth; UH = ui.height = innerHeight;
   }
   addEventListener('resize', resize); resize();
+  // dynamic resolution: the frame time is averaged, and the render size steps down towards 55 % when it runs long, and back up when there is room
+  function tuneResolution(dt) {
+    frameAvg = lerp(frameAvg, dt, 0.05); tuneT += dt; if (tuneT < 1.5) return; tuneT = 0;
+    const want = frameAvg > 0.03 ? Math.max(0.55, resScale - 0.15) : frameAvg < 0.015 ? Math.min(1, resScale + 0.15) : resScale;
+    if (want !== resScale) { resScale = want; resize(); }
+  }
   if (isTouch) document.body.classList.add('touch');
 
   // ---------------------------------------------------------------- input
@@ -108,7 +115,7 @@ const Game = (() => {
 
   // ---------------------------------------------------------------- light
   const RIGS = {
-    noon: { sunDir: [0.35, 0.42, 0.6], sunCol: [0.36, 0.35, 0.33], skyCol: [0.66, 0.7, 0.74], groundCol: [0.55, 0.57, 0.6], fogCol: [0.8, 0.81, 0.8], fogDensity: 0.0032, fogHeight: 45, zenith: [0.47, 0.54, 0.62], horizon: [0.84, 0.84, 0.82], cloudCol: [0.62, 0.66, 0.7], cloud: 0.7, sunGlow: 0.5, sunDisc: 0.35, stars: 0, exposure: 1.05, sat: 0.95 },
+    noon: { sunDir: [-0.42, 0.17, 0.89], sunCol: [0.95, 0.74, 0.5], skyCol: [0.5, 0.58, 0.74], groundCol: [0.5, 0.5, 0.54], fogCol: [0.84, 0.79, 0.78], fogDensity: 0.0021, fogHeight: 45, zenith: [0.4, 0.5, 0.68], horizon: [0.95, 0.82, 0.7], cloudCol: [0.72, 0.68, 0.72], cloud: 0.22, sunGlow: 1.2, sunDisc: 0.6, stars: 0, exposure: 0.97, sat: 1.02 },
     dusk: { sunDir: [-0.5, 0.06, 0.7], sunCol: [0.55, 0.32, 0.18], skyCol: [0.3, 0.33, 0.44], groundCol: [0.28, 0.27, 0.3], fogCol: [0.52, 0.47, 0.5], fogDensity: 0.0038, fogHeight: 35, zenith: [0.16, 0.2, 0.32], horizon: [0.86, 0.55, 0.38], cloudCol: [0.42, 0.36, 0.42], cloud: 0.55, sunGlow: 0.9, sunDisc: 0.0, stars: 0.15, exposure: 1.0, sat: 1.05 },
     night: { sunDir: [0.2, 0.5, 0.3], sunCol: [0.04, 0.05, 0.08], skyCol: [0.08, 0.1, 0.16], groundCol: [0.07, 0.08, 0.11], fogCol: [0.1, 0.11, 0.15], fogDensity: 0.005, fogHeight: 30, zenith: [0.03, 0.04, 0.09], horizon: [0.16, 0.16, 0.2], cloudCol: [0.1, 0.11, 0.15], cloud: 0.5, sunGlow: 0, sunDisc: 0, stars: 0.8, exposure: 1.4, sat: 0.9 },
   };
@@ -435,7 +442,7 @@ const Game = (() => {
   // ---------------------------------------------------------------- loop
   let last = performance.now();
   function frame(now) {
-    let dt = Math.min(0.05, (now - last) / 1000); last = now;
+    let dt = Math.min(0.12, (now - last) / 1000); last = now; tuneResolution(dt);
     const n = Math.ceil(dt / (1 / 60)); for (let i = 0; i < n; i++) update(dt / n);
     try { if (state !== 'album') RENDER.frame(buildScene(), W, H, snow.count ? { data: snow.data, n: snow.count, col: snow.col } : null); renderUI(); }
     catch (err) { if (!frame.warned) { frame.warned = true; console.error(err); } }

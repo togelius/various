@@ -12,7 +12,7 @@ const RENDER = (() => {
   const env = {
     sunDir: [0.3, 0.5, 0.6], sunCol: [0.35, 0.34, 0.32], skyCol: [0.62, 0.66, 0.7], groundCol: [0.5, 0.52, 0.55],
     fogCol: [0.8, 0.81, 0.8], fogDensity: 0.0035, fogHeight: 40, zenith: [0.45, 0.52, 0.6], horizon: [0.84, 0.84, 0.82],
-    sunGlow: 0.5, sunDisc: 0.3, cloud: 0.7, cloudCol: [0.6, 0.64, 0.68], stars: 0, shadowOn: true, time: 0, iceGlow: 0, exposure: 1.0, grain: 0.06, vignette: 0.35, sat: 1.0, darkAdapt: 1.0, reduce: 0,
+    sunGlow: 0.5, sunDisc: 0.3, cloud: 0.7, cloudCol: [0.6, 0.64, 0.68], stars: 0, shadowOn: true, time: 0, iceGlow: 0, exposure: 1.0, grain: 0.035, vignette: 0.3, sat: 1.0, darkAdapt: 1.0, reduce: 0,
   };
   const lights = { data: new Float32Array(MAX_LIGHTS * 12), n: 0 };
   const stats = { draws: 0 };
@@ -121,7 +121,7 @@ const RENDER = (() => {
       o = vec4(col, 1.0);
     }`;
   const PART_VS = `in vec3 aPos; in float aSize; in float aAlpha; uniform mat4 uVP; uniform float uScale; out float vA;
-    void main() { gl_Position = uVP * vec4(aPos, 1.0); float d = max(gl_Position.w, 0.1); gl_PointSize = clamp(aSize * uScale / d, 1.0, 14.0); vA = aAlpha * clamp(1.0 - d / 90.0, 0.0, 1.0); }`;
+    void main() { gl_Position = uVP * vec4(aPos, 1.0); float d = max(gl_Position.w, 0.1); gl_PointSize = clamp(aSize * uScale / d, 1.0, 7.0); vA = aAlpha * clamp(1.0 - d / 90.0, 0.0, 1.0); }`;
   const PART_FS = `in float vA; uniform vec3 uCol; out vec4 o; void main() { vec2 c = gl_PointCoord * 2.0 - 1.0; float r = dot(c, c); if (r > 1.0) discard; o = vec4(uCol, vA * smoothstep(1.0, 0.3, r)); }`;
   const QUAD_VS = `const vec2 v[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0)); out vec2 vUV; void main() { vUV = v[gl_VertexID] * 0.5 + 0.5; gl_Position = vec4(v[gl_VertexID], 0.0, 1.0); }`;
   const COMP_FS = `

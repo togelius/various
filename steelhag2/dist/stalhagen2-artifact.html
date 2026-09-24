@@ -1317,7 +1317,7 @@ const RENDER = (() => {
   const env = {
     sunDir: [0.3, 0.5, 0.6], sunCol: [0.35, 0.34, 0.32], skyCol: [0.62, 0.66, 0.7], groundCol: [0.5, 0.52, 0.55],
     fogCol: [0.8, 0.81, 0.8], fogDensity: 0.0035, fogHeight: 40, zenith: [0.45, 0.52, 0.6], horizon: [0.84, 0.84, 0.82],
-    sunGlow: 0.5, sunDisc: 0.3, cloud: 0.7, cloudCol: [0.6, 0.64, 0.68], stars: 0, shadowOn: true, time: 0, iceGlow: 0, exposure: 1.0, grain: 0.06, vignette: 0.35, sat: 1.0, darkAdapt: 1.0, reduce: 0,
+    sunGlow: 0.5, sunDisc: 0.3, cloud: 0.7, cloudCol: [0.6, 0.64, 0.68], stars: 0, shadowOn: true, time: 0, iceGlow: 0, exposure: 1.0, grain: 0.035, vignette: 0.3, sat: 1.0, darkAdapt: 1.0, reduce: 0,
   };
   const lights = { data: new Float32Array(MAX_LIGHTS * 12), n: 0 };
   const stats = { draws: 0 };
@@ -1426,7 +1426,7 @@ const RENDER = (() => {
       o = vec4(col, 1.0);
     }`;
   const PART_VS = `in vec3 aPos; in float aSize; in float aAlpha; uniform mat4 uVP; uniform float uScale; out float vA;
-    void main() { gl_Position = uVP * vec4(aPos, 1.0); float d = max(gl_Position.w, 0.1); gl_PointSize = clamp(aSize * uScale / d, 1.0, 14.0); vA = aAlpha * clamp(1.0 - d / 90.0, 0.0, 1.0); }`;
+    void main() { gl_Position = uVP * vec4(aPos, 1.0); float d = max(gl_Position.w, 0.1); gl_PointSize = clamp(aSize * uScale / d, 1.0, 7.0); vA = aAlpha * clamp(1.0 - d / 90.0, 0.0, 1.0); }`;
   const PART_FS = `in float vA; uniform vec3 uCol; out vec4 o; void main() { vec2 c = gl_PointCoord * 2.0 - 1.0; float r = dot(c, c); if (r > 1.0) discard; o = vec4(uCol, vA * smoothstep(1.0, 0.3, r)); }`;
   const QUAD_VS = `const vec2 v[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0)); out vec2 vUV; void main() { vUV = v[gl_VertexID] * 0.5 + 0.5; gl_Position = vec4(v[gl_VertexID], 0.0, 1.0); }`;
   const COMP_FS = `
@@ -1691,6 +1691,16 @@ const World = (() => {
       if (side < 0) b.quad(a, dd, c, bb); else b.quad(a, bb, c, dd);
     }
     b.end(M.create());
+    // snow on the roof: a soft white slab either side of the ridge, thicker at the eaves
+    b.tile = MAT.SNOW; b.col = [1, 1, 1]; b.begin();
+    for (const side of [-1, 1]) {
+      const z0 = side < 0 ? -d / 2 - ov : 0.05, z1 = side < 0 ? -0.05 : d / 2 + ov;
+      const ya = side < 0 ? h - 0.1 + 0.32 : h + rh + 0.14, yb = side < 0 ? h + rh + 0.14 : h - 0.1 + 0.32;
+      const a = b.vert(-w / 2 - ov, ya, z0, 0, 0.7, side * 0.7, 0, 0), bb = b.vert(w / 2 + ov, ya, z0, 0, 0.7, side * 0.7, (w + 2 * ov) * 0.3, 0);
+      const c = b.vert(w / 2 + ov, yb, z1, 0, 0.7, side * 0.7, (w + 2 * ov) * 0.3, 1.2), dd = b.vert(-w / 2 - ov, yb, z1, 0, 0.7, side * 0.7, 0, 1.2);
+      if (side < 0) b.quad(a, dd, c, bb); else b.quad(a, bb, c, dd);
+    }
+    b.end(M.create());
     // gable ends
     b.tile = MAT.RED;
     for (const x of [-w / 2, w / 2]) { const n = x < 0 ? -1 : 1; const a = b.vert(x, h, -d / 2, n, 0, 0, 0, 0), bb = b.vert(x, h, d / 2, n, 0, 0, d * 0.6, 0), c = b.vert(x, h + rh, 0, n, 0, 0, d * 0.3, rh * 0.6); if (n > 0) b.i.push(a, bb, c); else b.i.push(a, c, bb); }
@@ -1717,6 +1727,7 @@ const World = (() => {
     b.tile = MAT.ROOF; b.box(-w / 2 - 0.4, h, -d / 2 - 0.4, w + 0.8, 0.3, d + 0.8);
     b.begin(); for (let k = 0; k < 6; k++) b.box(-w / 2 - 0.4, h + 0.3 + k * 0.45, -d / 2 - 0.4 + k * (d + 0.8) / 12, w + 0.8, 0.45, d + 0.8 - k * (d + 0.8) / 6); b.end(M.create());
     b.tile = MAT.DARK; b.box(-1.6, 0, -d / 2 - 0.05, 3.2, 3.0, 0.08);
+    b.tile = MAT.SNOW; b.col = [1, 1, 1]; b.box(-w / 2 - 0.45, h + 0.3 + 6 * 0.45, -d / 2 - 0.45 + 6 * (d + 0.8) / 12 - 0.3, w + 0.9, 0.3, d + 0.9 - 6 * (d + 0.8) / 6 + 0.6); for (let k = 0; k < 6; k++) b.box(-w / 2 - 0.45, h + 0.3 + k * 0.45 + 0.42, -d / 2 - 0.45 + k * (d + 0.8) / 12, w + 0.9, 0.12, d + 0.9 - k * (d + 0.8) / 6);
   }
 
   function buildBench() { const b = new Builder(); b.tile = MAT.PLANK; b.col = [0.8, 0.75, 0.68]; b.box(-0.8, 0.42, -0.2, 1.6, 0.06, 0.4); b.box(-0.8, 0.5, -0.22, 1.6, 0.5, 0.06); b.tile = MAT.DARK; b.col = [1, 1, 1]; for (const x of [-0.7, 0.7]) { b.box(x - 0.04, 0, -0.18, 0.08, 0.42, 0.36); b.box(x - 0.04, 0.42, -0.22, 0.08, 0.6, 0.06); } return b.build(); }
@@ -2157,7 +2168,7 @@ class Kid {
   // x,y,z feet; yaw facing; run 0..1; reach 0..1 (the right arm out); carried (lying on its back, held up)
   pose(x, y, z, yaw, run, dt, reach = 0, carried = 0, torchOn = false) {
     const B = this.bones, c = Math.cos(yaw), s = Math.sin(yaw);
-    this.phase += dt * (5 + run * 8) * (run > 0.05 ? 1 : 0);
+    this.phase += dt * (4 + run * 6.5) * (run > 0.05 ? 1 : 0);
     const ph = this.phase, bob = Math.abs(Math.sin(ph)) * -0.035 * run;
     const hipY = y + 0.82 + bob + carried * 0.6;
     const lean = run * 0.08;
@@ -2171,7 +2182,7 @@ class Kid {
     const K = [0, 0, 0];
     for (let l = 0; l < 2; l++) {
       const side = l ? 1 : -1, sw = ph + l * Math.PI;
-      const th = carried ? -1.0 : Math.sin(sw) * 0.7 * run, kn = carried ? 1.2 : Math.max(0, -Math.cos(sw)) * 1.0 * run + 0.06;
+      const th = carried ? -1.0 : Math.sin(sw) * 0.7 * run, kn = carried ? 1.2 : Math.max(0, Math.cos(sw)) * lerp(0.3, 0.95, (Math.sin(sw) + 1) * 0.5) * run + 0.06;
       const H = at([side * 0.1, -0.05, 0]);
       const kx = Math.sin(th) * 0.42, ky = -Math.cos(th) * 0.42;
       const Kp = at([side * 0.1, -0.05 + ky, kx]);
@@ -2219,11 +2230,11 @@ const Player = (() => {
     if (control || P.viewfinder) { P.camYaw -= input.lookDX * 0.0022; P.camPitch = clamp(P.camPitch + input.lookDY * 0.0022, -0.6, 0.9); }
     // move, relative to the camera
     let mx = 0, mz = 0;
-    if (control) { const f = input.my, r = input.mx; const c = Math.cos(P.camYaw), s = Math.sin(P.camYaw); mx = s * f + c * r; mz = c * f - s * r; }
+    if (control) { const f = input.my, r = input.mx; const c = Math.cos(P.camYaw), s = Math.sin(P.camYaw); mx = s * f - c * r; mz = c * f + s * r; }
     const mag = Math.min(1, Math.hypot(mx, mz)); if (mag > 0.001) { mx /= Math.hypot(mx, mz); mz /= Math.hypot(mx, mz); }
     P.hurry = control && input.hurry && mag > 0.3;
-    const target = mag * (P.hurry ? 2.6 : P.viewfinder ? 0.7 : 1.4);
-    const acc = P.onIce ? 4.5 : 9;
+    const target = mag * (P.hurry ? 4.2 : P.viewfinder ? 1.0 : 2.2);
+    const acc = P.onIce ? 6 : 14;
     P.vx = M.approach(P.vx, mx * target, acc * dt); P.vz = M.approach(P.vz, mz * target, acc * dt);
     P.speed = Math.hypot(P.vx, P.vz);
     if (mag > 0.3 && !P.viewfinder) P.yaw = P.yaw + M.angleTo(P.yaw, Math.atan2(mx, mz)) * (1 - Math.pow(0.001, dt));
@@ -2260,7 +2271,8 @@ const Player = (() => {
   function updateSled(dt, ctx) {
     const s = P.sled; const dx = s.x - P.x, dz = s.z - P.z, d = Math.hypot(dx, dz);
     if (d > s.rope) { const k = (d - s.rope) / d; s.vx -= dx * k * 30 * dt; s.vz -= dz * k * 30 * dt; }
-    const fr = World.onIce(s.x, s.z) ? 0.6 : 3.5; s.vx *= Math.max(0, 1 - fr * dt); s.vz *= Math.max(0, 1 - fr * dt);
+    const fr = World.onIce(s.x, s.z) ? 1.4 : 3.5; s.vx *= Math.max(0, 1 - fr * dt); s.vz *= Math.max(0, 1 - fr * dt);
+    if (d < 1.1 && d > 1e-4) { const nx = dx / d, nz = dz / d, vin = s.vx * nx + s.vz * nz; if (vin < 0) { s.vx -= vin * nx; s.vz -= vin * nz; } s.x = P.x + nx * 1.1; s.z = P.z + nz * 1.1; }
     s.x += s.vx * dt; s.z += s.vz * dt; s.y = World.groundY(s.x, s.z);
     const sp = Math.hypot(s.vx, s.vz); if (sp > 0.2) s.yaw = s.yaw + M.angleTo(s.yaw, Math.atan2(s.vx, s.vz)) * (1 - Math.pow(0.01, dt));
     s.speed = sp;
@@ -2285,7 +2297,7 @@ const Player = (() => {
       // over the shoulder; when you stand still in open country it drifts back and up into the painting
       const paint = ctx.indoors ? 0 : smooth(2.5, 7, P.stillT) * (P.hold > 0 ? 0 : 1);
       P.calmCam = lerp(P.calmCam, paint, 1 - Math.pow(0.3, dt));
-      const dist = lerp(P.cutterUp ? 1.9 : 2.8, 7.5, P.calmCam), height = lerp(1.65, 3.2, P.calmCam), side = lerp(0.45, 0.2, P.calmCam);
+      const dist = lerp(P.cutterUp ? 2.2 : 3.6, 8, P.calmCam), height = lerp(1.9, 3.4, P.calmCam), side = lerp(0.6, 0.2, P.calmCam);
       const pitch = P.camPitch, cy = Math.cos(P.camYaw), sy = Math.sin(P.camYaw);
       tx = P.x - sy * dist * Math.cos(pitch) + cy * side; tz = P.z - cy * dist * Math.cos(pitch) - sy * side; ty = P.y + height + Math.sin(pitch) * dist;
       // keep the camera out of things and above the ground
@@ -2294,7 +2306,7 @@ const Player = (() => {
       const k = 1 - Math.pow(P.calmCam > 0.02 ? 0.3 : 0.001, dt);
       camX = lerp(camX, tx, k); camY = lerp(camY, ty, k); camZ = lerp(camZ, tz, k);
       lx = P.x + cy * side * 0.6; ly = P.y + lerp(1.3, 1.0, P.calmCam) + Math.sin(pitch) * 0.4; lz = P.z - sy * side * 0.6;
-      const fx = Math.sin(P.camYaw), fz = Math.cos(P.camYaw); lx += fx * 2.5 * (1 - P.calmCam); lz += fz * 2.5 * (1 - P.calmCam);
+      const fx = Math.sin(P.camYaw), fz = Math.cos(P.camYaw); lx += fx * 3.2 * (1 - P.calmCam); lz += fz * 3.2 * (1 - P.calmCam);
       fov = lerp(55, 48, P.calmCam);
     }
     cam.x = camX; cam.y = camY; cam.z = camZ; cam.tx = lx; cam.ty = ly; cam.tz = lz; cam.fov = fov * Math.PI / 180;
@@ -2510,12 +2522,19 @@ const Game = (() => {
   const cv = document.getElementById('gl'), ui = document.getElementById('ui'), ctx2 = ui.getContext('2d');
   const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   let W = 0, H = 0, UW = 0, UH = 0;
+  let resScale = 1, frameAvg = 0.016, tuneT = 0;
   function resize() {
-    const dpr = Math.min(devicePixelRatio || 1, isTouch ? 1 : 1.5);
+    const dpr = Math.min(devicePixelRatio || 1, isTouch ? 1 : 1.5) * resScale;
     W = Math.min(Math.round(innerWidth * dpr), 1920); H = Math.round(W * innerHeight / innerWidth);
     cv.width = W; cv.height = H; UW = ui.width = innerWidth; UH = ui.height = innerHeight;
   }
   addEventListener('resize', resize); resize();
+  // dynamic resolution: the frame time is averaged, and the render size steps down towards 55 % when it runs long, and back up when there is room
+  function tuneResolution(dt) {
+    frameAvg = lerp(frameAvg, dt, 0.05); tuneT += dt; if (tuneT < 1.5) return; tuneT = 0;
+    const want = frameAvg > 0.03 ? Math.max(0.55, resScale - 0.15) : frameAvg < 0.015 ? Math.min(1, resScale + 0.15) : resScale;
+    if (want !== resScale) { resScale = want; resize(); }
+  }
   if (isTouch) document.body.classList.add('touch');
 
   // ---------------------------------------------------------------- input
@@ -2611,7 +2630,7 @@ const Game = (() => {
 
   // ---------------------------------------------------------------- light
   const RIGS = {
-    noon: { sunDir: [0.35, 0.42, 0.6], sunCol: [0.36, 0.35, 0.33], skyCol: [0.66, 0.7, 0.74], groundCol: [0.55, 0.57, 0.6], fogCol: [0.8, 0.81, 0.8], fogDensity: 0.0032, fogHeight: 45, zenith: [0.47, 0.54, 0.62], horizon: [0.84, 0.84, 0.82], cloudCol: [0.62, 0.66, 0.7], cloud: 0.7, sunGlow: 0.5, sunDisc: 0.35, stars: 0, exposure: 1.05, sat: 0.95 },
+    noon: { sunDir: [-0.42, 0.17, 0.89], sunCol: [0.95, 0.74, 0.5], skyCol: [0.5, 0.58, 0.74], groundCol: [0.5, 0.5, 0.54], fogCol: [0.84, 0.79, 0.78], fogDensity: 0.0021, fogHeight: 45, zenith: [0.4, 0.5, 0.68], horizon: [0.95, 0.82, 0.7], cloudCol: [0.72, 0.68, 0.72], cloud: 0.22, sunGlow: 1.2, sunDisc: 0.6, stars: 0, exposure: 0.97, sat: 1.02 },
     dusk: { sunDir: [-0.5, 0.06, 0.7], sunCol: [0.55, 0.32, 0.18], skyCol: [0.3, 0.33, 0.44], groundCol: [0.28, 0.27, 0.3], fogCol: [0.52, 0.47, 0.5], fogDensity: 0.0038, fogHeight: 35, zenith: [0.16, 0.2, 0.32], horizon: [0.86, 0.55, 0.38], cloudCol: [0.42, 0.36, 0.42], cloud: 0.55, sunGlow: 0.9, sunDisc: 0.0, stars: 0.15, exposure: 1.0, sat: 1.05 },
     night: { sunDir: [0.2, 0.5, 0.3], sunCol: [0.04, 0.05, 0.08], skyCol: [0.08, 0.1, 0.16], groundCol: [0.07, 0.08, 0.11], fogCol: [0.1, 0.11, 0.15], fogDensity: 0.005, fogHeight: 30, zenith: [0.03, 0.04, 0.09], horizon: [0.16, 0.16, 0.2], cloudCol: [0.1, 0.11, 0.15], cloud: 0.5, sunGlow: 0, sunDisc: 0, stars: 0.8, exposure: 1.4, sat: 0.9 },
   };
@@ -2938,7 +2957,7 @@ const Game = (() => {
   // ---------------------------------------------------------------- loop
   let last = performance.now();
   function frame(now) {
-    let dt = Math.min(0.05, (now - last) / 1000); last = now;
+    let dt = Math.min(0.12, (now - last) / 1000); last = now; tuneResolution(dt);
     const n = Math.ceil(dt / (1 / 60)); for (let i = 0; i < n; i++) update(dt / n);
     try { if (state !== 'album') RENDER.frame(buildScene(), W, H, snow.count ? { data: snow.data, n: snow.count, col: snow.col } : null); renderUI(); }
     catch (err) { if (!frame.warned) { frame.warned = true; console.error(err); } }

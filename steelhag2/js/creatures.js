@@ -323,7 +323,7 @@ class Kid {
   // x,y,z feet; yaw facing; run 0..1; reach 0..1 (the right arm out); carried (lying on its back, held up)
   pose(x, y, z, yaw, run, dt, reach = 0, carried = 0, torchOn = false) {
     const B = this.bones, c = Math.cos(yaw), s = Math.sin(yaw);
-    this.phase += dt * (5 + run * 8) * (run > 0.05 ? 1 : 0);
+    this.phase += dt * (4 + run * 6.5) * (run > 0.05 ? 1 : 0);
     const ph = this.phase, bob = Math.abs(Math.sin(ph)) * -0.035 * run;
     const hipY = y + 0.82 + bob + carried * 0.6;
     const lean = run * 0.08;
@@ -337,7 +337,7 @@ class Kid {
     const K = [0, 0, 0];
     for (let l = 0; l < 2; l++) {
       const side = l ? 1 : -1, sw = ph + l * Math.PI;
-      const th = carried ? -1.0 : Math.sin(sw) * 0.7 * run, kn = carried ? 1.2 : Math.max(0, -Math.cos(sw)) * 1.0 * run + 0.06;
+      const th = carried ? -1.0 : Math.sin(sw) * 0.7 * run, kn = carried ? 1.2 : Math.max(0, Math.cos(sw)) * lerp(0.3, 0.95, (Math.sin(sw) + 1) * 0.5) * run + 0.06;
       const H = at([side * 0.1, -0.05, 0]);
       const kx = Math.sin(th) * 0.42, ky = -Math.cos(th) * 0.42;
       const Kp = at([side * 0.1, -0.05 + ky, kx]);
