@@ -16,5 +16,11 @@ assert(Combat.missEnd([0,1.2,0],{...cam,ty:8})[1]>2,'missed discharge ignores pi
 const core={...machine,legsLeft:()=>2,joints:()=>[[0,0,1.2,5,'core']]};
 assert(Combat.select(Combat.targets([core],p,cam,1,()=>false)).j[0]===0,'exposed core not targetable');
 assert(Combat.targets([{...core,legsLeft:()=>4}],p,cam,1,()=>false).length===0,'armored core is targetable');
-console.log('Combat: reticle priority, horizontal/vertical aim, range, occlusion, missed-ray pitch and exposed core passed');
+assert(Combat.indicator([0,1.2,6],cam,16/9)===null,'on-screen threat should not have a bearing marker');
+const behind=Combat.indicator([0,1.2,-6],cam,16/9),right=Combat.indicator([-9,1.2,-2],cam,16/9),left=Combat.indicator([9,1.2,-2],cam,16/9);
+assert(behind.behind&&behind.y>.99&&Math.abs(behind.x)<.01,'behind marker must point down');
+assert(right.x>.99&&left.x<-.99,'side bearings are reversed');
+assert(Combat.indicator([-9,1.2,-2],{...cam,tx:8,tz:-2},16/9).behind,'bearing ignores camera rotation');
+assert(Combat.indicator([0,1.2,-2],cam,1)===null,'coincident threat has invalid bearing');
+console.log('Combat: reticle priority, horizontal/vertical aim, range, occlusion, missed-ray pitch exposed core and offscreen threat bearings passed');
 `,c);

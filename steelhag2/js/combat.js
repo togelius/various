@@ -10,6 +10,15 @@ const Combat=(()=>{
     const b=view(cam),d=[point[0]-cam.x,point[1]-cam.y,point[2]-cam.z],dot=a=>a.reduce((s,v,i)=>s+v*d[i],0),depth=dot(b.f),t=Math.tan(cam.fov/2);
     if(depth<=.05)return null;return {x:dot(b.r)/(depth*t*aspect),y:dot(b.u)/(depth*t),depth};
   }
+  // Horizontal bearing remains meaningful when the threat passes behind the camera.
+  function indicator(point,cam,aspect=1){
+    const screen=project(point,cam,aspect);
+    if(screen&&Math.abs(screen.x)<.88&&Math.abs(screen.y)<.8)return null;
+    const b=view(cam),dx=point[0]-cam.x,dz=point[2]-cam.z,h=Math.hypot(b.f[0],b.f[2])||1;
+    const across=dx*b.r[0]+dz*b.r[2],ahead=(dx*b.f[0]+dz*b.f[2])/h,length=Math.hypot(across,ahead);
+    if(length<.001)return null;
+    return {x:across/length,y:-ahead/length,behind:ahead<0};
+  }
   function targets(machines,player,cam,aspect,occluded){
     const out=[];
     for(const m of machines){if(m.kind!=='bearer'||m.off||m.dark)continue;
@@ -27,5 +36,5 @@ const Combat=(()=>{
   }
   function select(candidates){return candidates.find(t=>t.score<.58)||null;}
   function missEnd(hand,cam,range=8){const f=view(cam).f,point=[cam.x+f[0]*12,cam.y+f[1]*12,cam.z+f[2]*12],d=point.map((v,i)=>v-hand[i]),l=Math.hypot(...d)||1;return hand.map((v,i)=>v+d[i]/l*range);}
-  return {project,targets,select,missEnd};
+  return {project,indicator,targets,select,missEnd};
 })();

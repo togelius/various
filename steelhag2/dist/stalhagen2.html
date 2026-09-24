@@ -3030,6 +3030,15 @@ const Combat=(()=>{
     const b=view(cam),d=[point[0]-cam.x,point[1]-cam.y,point[2]-cam.z],dot=a=>a.reduce((s,v,i)=>s+v*d[i],0),depth=dot(b.f),t=Math.tan(cam.fov/2);
     if(depth<=.05)return null;return {x:dot(b.r)/(depth*t*aspect),y:dot(b.u)/(depth*t),depth};
   }
+  // Horizontal bearing remains meaningful when the threat passes behind the camera.
+  function indicator(point,cam,aspect=1){
+    const screen=project(point,cam,aspect);
+    if(screen&&Math.abs(screen.x)<.88&&Math.abs(screen.y)<.8)return null;
+    const b=view(cam),dx=point[0]-cam.x,dz=point[2]-cam.z,h=Math.hypot(b.f[0],b.f[2])||1;
+    const across=dx*b.r[0]+dz*b.r[2],ahead=(dx*b.f[0]+dz*b.f[2])/h,length=Math.hypot(across,ahead);
+    if(length<.001)return null;
+    return {x:across/length,y:-ahead/length,behind:ahead<0};
+  }
   function targets(machines,player,cam,aspect,occluded){
     const out=[];
     for(const m of machines){if(m.kind!=='bearer'||m.off||m.dark)continue;
@@ -3047,7 +3056,7 @@ const Combat=(()=>{
   }
   function select(candidates){return candidates.find(t=>t.score<.58)||null;}
   function missEnd(hand,cam,range=8){const f=view(cam).f,point=[cam.x+f[0]*12,cam.y+f[1]*12,cam.z+f[2]*12],d=point.map((v,i)=>v-hand[i]),l=Math.hypot(...d)||1;return hand.map((v,i)=>v+d[i]/l*range);}
-  return {project,targets,select,missEnd};
+  return {project,indicator,targets,select,missEnd};
 })();
 </script>
   <script data-src="darkroom.js">
@@ -3539,7 +3548,7 @@ const Game = (() => {
         g.fillRect(0, 0, fw, mh); g.fillRect(0, fh - mh, fw, mh); g.fillRect(0, 0, mw, fh); g.fillRect(fw - mw, 0, mw, fh);
         g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 1; g.strokeRect(mw, mh, fw - 2 * mw, fh - 2 * mh);
         g.beginPath(); g.arc(fw / 2, fh / 2, 26 * sx, 0, TAU); g.stroke();
-        text(`FRAME ${String(Store.photos.length+1).padStart(2,'0')}`, 1280 - 120, 60, 16, 0.8, { letter: 2 });
+        text(`FRAME ${String(Store.photos.length+1).padStart(2,'0')}`, isTouch?14/sx:1280-120, isTouch?28/sy:60, isTouch?12:16, .8, {align:isTouch?'left':'center',letter:isTouch?0:2});
       }
       // prompts
       if (prompt && !menuStack) { const key = isTouch ? '✧' : keyName(S().keys.use); text(prompt === TEXT.prompts.hold || P.cutterUp && !cutTarget || cutterCooldown>0 ? prompt : `${key}  ·  ${prompt}`, 640, 60, 20 * t, 0.85, { italic: true }); }
@@ -3550,7 +3559,7 @@ const Game = (() => {
       const threat=chapter===1&&!sentry.off&&!sentry.dark&&Math.hypot(P.x-sentry.x,P.z-sentry.z)<27;
       const inside=Interior.contains(P.x,P.z);
       const goal=inside?'THE HOUSE':chapter===1?(threat?'DISABLE THE ROADKEEPER':'REACH SJÖGÅRDEN'):sleepReady?'RETURN TO THE FRONT DOOR':flags.relay?'APPROACH THE BEARER':'RESTORE THE FIELD RELAY';
-      const detail=inside?'Listen to the radio and read the notebook, or rest in your old room.':threat?'Aim at the support joints. Step out of the amber charge lane.':chapter===1?Math.max(0,Math.round(World.SHORE_Z-P.z))+' m to the island · follow the red markers':sleepReady?'Develop your photographs at the side door, or enter the house.':flags.relay?'Lower the cutter and hold still to reach out. Or cut its supports.':'Follow the blue cable behind the barn. The relay is still drawing current.';
+      const detail=inside?'Listen to the radio and read the notebook, or rest in your old room.':threat?(quiet()?'Lower the cutter, approach and hold still to reach out.':'Aim at the support joints. Step out of the amber charge lane.'):chapter===1?Math.max(0,Math.round(World.SHORE_Z-P.z))+' m to the island · follow the red markers':sleepReady?'Develop your photographs at the side door, or enter the house.':flags.relay?'Lower the cutter and hold still to reach out. Or cut its supports.':'Follow the blue cable behind the barn. The relay is still drawing current.';
       const compact=UW<760,panelX=compact?14/sx:28,panelY=compact?68/sy:90,panelW=compact?(UW-28)/sx:470;
       const detailLines=wrap(detail,panelW-32,13),lineH=compact?17/sy:17,headH=compact?24/sy:24,panelH=headH+detailLines.length*lineH+(compact?12/sy:10);
       g.fillStyle='rgba(10,19,23,.72)';g.fillRect(panelX*sx,panelY*sy,panelW*sx,panelH*sy);g.fillStyle='#cda779';g.fillRect(panelX*sx,panelY*sy,3,panelH*sy);
@@ -3564,7 +3573,25 @@ const Game = (() => {
       }
       if(threat){const warningY=compact?(panelY*sy+panelH*sy+27)/sy:230;if(sentry.state==='windup')text('CHARGE · STEP OUT OF THE LIGHT',640,warningY,compact?12:15,.92,{ui:true,col:'#efb077'});else if(sentry.legsLeft()<=2)text('CORE EXPOSED',640,warningY,14,.85,{ui:true,col:'#b7e3eb'});}
       if(combatNotice)text(combatNotice.text,640,(UH*.5+52)/sy,13,Math.min(1,combatNotice.t*3),{ui:true,col:'#cbe4e2'});
-      if(threat||health<3){for(let i=0;i<3;i++){g.fillStyle=i<health?'#b3c5c0':'#63433f';g.fillRect((1180+i*21)*sx,42*sy,14*sx,5*sy);}text('CONDITION',1236,33,11,.75,{align:'right'});}
+
+    }
+    if(state==='play'&&!menuStack){
+      const distance=Math.hypot(P.x-sentry.x,P.z-sentry.z),threat=chapter===1&&!sentry.off&&!sentry.dark&&distance<27&&!quiet();
+      if(threat||health<3){
+        const right=UW-(isTouch?132:28),top=isTouch?34:42;
+        for(let i=0;i<3;i++){g.fillStyle=i<health?'#c5d7cd':'#694a43';g.fillRect(right-56+i*21,top,14,5);}
+        text('CONDITION',right/sx,(top-8)/sy,11,.85,{align:'right',ui:true});
+      }
+      const bearing=threat?Combat.indicator([sentry.x,sentry.y+1.4,sentry.z],RENDER.cam,UW/UH):null;
+      if(bearing){
+        const urgent=sentry.state==='windup'||sentry.state==='lunge',color=urgent?'#ffc58a':'#d8b18a';
+        const xx=UW/2+bearing.x*Math.min(500,UW*.38),yy=UH/2+bearing.y*Math.min(190,UH*(UW<760?.10:.31));
+        g.save();g.translate(xx,yy);g.rotate(Math.atan2(bearing.x,-bearing.y));g.strokeStyle=color;g.shadowColor='#101619';g.shadowBlur=6;g.lineWidth=2.5;
+        g.beginPath();g.moveTo(-7,4);g.lineTo(0,-4);g.lineTo(7,4);g.stroke();g.restore();
+        const label=urgent?(bearing.behind?'CHARGE · BEHIND':'CHARGING'):bearing.behind?'BEHIND YOU':'ROADKEEPER',lx=clamp(xx,75,UW-75),ly=yy+(bearing.y>.35?-25:23);
+        g.fillStyle='rgba(10,19,23,.82)';g.fillRect(lx-70,ly-13,140,35);
+        text(label,lx/sx,ly/sy,11,.95,{ui:true,col:color});text(Math.round(distance)+' m',lx/sx,(ly+15)/sy,11,.78,{ui:true});
+      }
     }
     if(P.thinT>.55&&state==='play')text('THIN ICE · KEEP MOVING',640,305,15,.85,{ui:true,col:'#b7dce6'});
     if(checkpointToast>0&&state==='play')text('CHECKPOINT SAVED',1238,80,11,Math.min(1,checkpointToast),{align:'right',ui:true});
@@ -3703,10 +3730,10 @@ const Game = (() => {
   }
 
   // ---------------------------------------------------------------- loop
-  let last = performance.now();
+  let last = performance.now(),reviewFrozen=false;
   function frame(now) {
     let dt = Math.min(0.12, (now - last) / 1000); last = now; tuneResolution(dt);
-    const n = Math.ceil(dt / (1 / 60)); for (let i = 0; i < n; i++) update(dt / n);
+    const n = Math.ceil(dt / (1 / 60)); if(!reviewFrozen)for (let i = 0; i < n; i++) update(dt / n);
     try { if (state !== 'album') RENDER.frame(buildScene(), W, H, snow.count ? { data: snow.data, n: snow.count, col: snow.col } : null); renderUI(); }
     catch (err) { if (!frame.warned) { frame.warned = true; console.error(err); } }
     requestAnimationFrame(frame);
@@ -3718,6 +3745,7 @@ const Game = (() => {
     requestAnimationFrame(t => { last = t; frame(t); });
   }
   window.__game = {
+    set reviewFrozen(v){reviewFrozen=reviewParams.has('review')&&!!v;},
     get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get darkroom(){return darkroom;},openDarkroom,get interior(){return Interior.contains(P.x,P.z);},get room(){return Interior;},enterHouse,get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get cutTarget(){return cutTarget;},get cutCandidates(){return cutCandidates;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
     jump(ch, x, z) { lineCur=null; lineQ=[]; menuStack = null; if (ch >= 2) { flags.island = true; flags.hulls = true; for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; h.y = 0; } } startChapter(ch); state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x !== undefined) Player.place(x, z, 0); if (ch === 2) awake = true; },
     set(x, y, z, tx, ty, tz) { const c = RENDER.cam; state = 'free'; c.x = x; c.y = y; c.z = z; c.tx = tx; c.ty = ty; c.tz = tz; },
