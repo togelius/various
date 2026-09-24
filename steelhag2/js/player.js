@@ -34,7 +34,7 @@ const Player = (() => {
     const pos = { x: nx, z: nz }; World.pushOut(pos, RADIUS, P.y);
     P.x = pos.x; P.z = pos.z; P.y = World.groundY(P.x, P.z);
     P.onIce = World.onIce(P.x, P.z);
-    P.surface = P.onIce ? 'ice' : 'snow';
+    P.surface = ctx.indoors?'wood':P.onIce ? 'ice' : 'snow';
     // thin ice: two and a half seconds of standing on the dark patches, or running across them
     const thin = P.onIce ? World.thinAt(P.x, P.z) : 0;
     if (thin > 0.3) { P.thinT += dt * (P.hurry ? 2.2 : 1); if (P.thinT > 0.8 && !P.crackWarned) { P.crackWarned = true; ctx.onCrack && ctx.onCrack(); } if (P.thinT > 2.5) { P.thinT = 0; ctx.onThinIce && ctx.onThinIce(); } }
@@ -89,7 +89,7 @@ const Player = (() => {
       if(Math.abs(inputLook.dx)+Math.abs(inputLook.dy)>0.5) P.stillT=0;
       const paint = ctx.indoors || ctx.threat || P.cutterUp ? 0 : smooth(6, 12, P.stillT) * (P.hold > 0 ? 0 : 1);
       P.calmCam = lerp(P.calmCam, paint, 1 - Math.pow(0.3, dt));
-      const dist = lerp(P.cutterUp ? 2.1 : 3.5, 4.8, P.calmCam), height = lerp(1.7, 2.1, P.calmCam), side = lerp(-0.6, -0.2, P.calmCam);
+      const dist = lerp(P.cutterUp ? 2.1 : ctx.indoors?2.5:3.5, 4.8, P.calmCam), height = lerp(1.7, 2.1, P.calmCam), side = lerp(-0.6, -0.2, P.calmCam);
       const pitch = P.camPitch, cy = Math.cos(P.camYaw), sy = Math.sin(P.camYaw);
       tx = P.x - sy * dist * Math.cos(pitch) + cy * side; tz = P.z - cy * dist * Math.cos(pitch) - sy * side; ty = P.y + height + Math.sin(pitch) * dist;
       // keep the camera out of things and above the ground

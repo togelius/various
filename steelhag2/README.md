@@ -58,8 +58,12 @@ the game identifies the photograph as session-only and preserves the existing al
 barn. Restoring it wakes the bearer. Lower the cutter and hold still to let it approach,
 or sever its supports and exposed core.
 
-**Sleep** at the front door once the day is done (a bearer switched off, cut down, or
-after you were carried).
+**The house.** Once the bearer is resolved (switched off, cut down, or after you were
+carried), the front door opens into a playable kitchen and bedroom. Listen to the
+radio, inspect the notebook on the table, take photographs, or go back outside to
+the darkroom. Rest at the bed to finish the day. The radio and notebook are optional;
+there is no extra waiting or collection requirement. House discoveries and indoor
+checkpoints persist when continuing.
 
 Checkpoints save automatically at chapter arrivals, the relay, resolved encounters
 and benches. Continuing restores disabled joints and encounter outcomes.
@@ -93,7 +97,7 @@ Quiet mode (in settings) makes the machines watch without attacking or carrying 
 - Shore transitions use a finer continuous terrain surface, moving aim keeps the
   character’s legs animated, and foot contacts have individual grounding shadows.
 - Farm power, the bearer encounter, automatic checkpoints, the darkroom and the
-  ending form a complete short route. The large design document remains a longer-term proposal.
+  house interior and bedroom ending form a complete short route. The large design document remains a longer-term proposal.
 
 The Stålenhag homage remains the art direction. Authored assets are welcome;
 procedural generation is not a requirement.
@@ -106,12 +110,14 @@ roadkeeper attack telegraphing, damage, staggering and defeat. Run
 `node tools/check-store.js` for storage-quota and save preservation, and
 `node tools/check-world.js` for shoreline continuity, collision and cutter occlusion.
 `node tools/check-player.js` checks camera obstruction and the aiming/threat/scenic
-framing rules.
+framing rules. `node tools/check-interior.js` checks room geometry, the furniture
+route and the bedroom doorway.
 
 Serve the folder and open `tools/art-review.html`. **Run checks** exercises movement,
 the real E photo/negative pipeline, album return, cutting, damage, the full crossing
 and the peaceful farm encounter. **Farm checks** covers the relay, checkpoint restore,
-darkroom, front door ending and album. **Standalone** runs the same checks against the
+darkroom, entering/leaving the house, radio, notebook, indoor photography,
+saved discoveries and the bedroom ending. **Standalone** runs the same checks against the
 release build. Review mode is muted and does not read or write player saves/photos.
 Rebuild releases with `python3 tools/build-single.py`.
 

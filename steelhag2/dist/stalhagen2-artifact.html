@@ -1243,8 +1243,8 @@ class Builder {
 // STÅLHAGEN II — painted materials. Every surface is a 256 px square painted with the first game's brushes,
 // once at boot, into a texture array. The alpha channel of the steel materials is the seam mask the charge flows along.
 'use strict';
-const MAT = { SNOW: 0, ICE: 1, STEEL: 2, RED: 3, PLANK: 4, CONCRETE: 5, BIRCH: 6, ROOF: 7, BEIGE: 8, DARK: 9, GLASS: 10, ROAD: 11, FOIL: 12, REED: 13, FLAT: 14, LED: 15, CABLE: 16, SPRUCE: 17, WINDOW: 18, CLOTH: 19, BADGE: 20, TRACK: 21, COLD_LIGHT: 22, FOLIAGE: 23, HULL_PLATE: 24, PATH: 25 };
-const MATS = 26, TEX = 256;
+const MAT = { SNOW: 0, ICE: 1, STEEL: 2, RED: 3, PLANK: 4, CONCRETE: 5, BIRCH: 6, ROOF: 7, BEIGE: 8, DARK: 9, GLASS: 10, ROAD: 11, FOIL: 12, REED: 13, FLAT: 14, LED: 15, CABLE: 16, SPRUCE: 17, WINDOW: 18, CLOTH: 19, BADGE: 20, TRACK: 21, COLD_LIGHT: 22, FOLIAGE: 23, HULL_PLATE: 24, PATH: 25, NOTE: 26, WINDOW_TREE: 27 };
+const MATS = 28, TEX = 256;
 
 const Paint = (() => {
   // per-material parameters: [roughness 0..1 (1 = matte), retroreflective 0/1, emissive strength, seam-glow 0/1]
@@ -1351,6 +1351,8 @@ const Paint = (() => {
     put(MAT.WINDOW, (g,r) => { fill(g,'#354a54'); strokes(g,r,90,'#89979b',8,[80,220],[1,6],0.12,-0.3,0.1); },0.12);
     put(MAT.CLOTH, (g,r) => { fill(g,'#e5e0d5'); strokes(g,r,500,'#b9b4a8',6,[3,15],[0.6,1.4],0.1,Math.PI/2,0.15); for(let y=0;y<TEX;y+=3){g.fillStyle='rgba(40,35,28,.025)';g.fillRect(0,y,TEX,1);} },1);
     put(MAT.BADGE, (g,r) => { fill(g,'#c6c1ac'); g.fillStyle='#353c38'; g.font='bold 42px monospace';g.fillText('MDK',24,65);g.fillRect(24,80,205,4);g.font='26px monospace';g.fillText('KV — 03',24,123);g.font='13px monospace';g.fillText('MÄLARDALENS KRAFT',24,158);g.fillText('SERVICE  •  1984',24,183);for(let i=0;i<50;i++){g.fillStyle='rgba(70,50,30,.13)';g.fillRect(r()*TEX,r()*TEX,2+r()*12,1+r()*3);} },.8);
+    put(MAT.WINDOW_TREE,(g)=>fill(g,'#ffffff'),1);
+    put(MAT.NOTE,(g)=>{fill(g,'#d9cbb0');g.strokeStyle='#a9a28e';for(let y=25;y<256;y+=25){g.beginPath();g.moveTo(16,y);g.lineTo(238,y);g.stroke();}g.fillStyle='#4b5148';g.font='16px monospace';['16 DECEMBER 1997','18:40','FOUND ONE','ON THE ICE.','BROUGHT IN.'].forEach((t,i)=>g.fillText(t,22,40+i*34));},1);
     put(MAT.PATH,(g)=>fill(g,'#ffffff'),1);
     put(MAT.TRACK,(g)=>fill(g,'#ffffff'),1);
     put(MAT.COLD_LIGHT,(g)=>fill(g,'#ffffff'),.3,0,3);
@@ -1441,8 +1443,8 @@ const RENDER = (() => {
       int tile = int(vTile + 0.5); vec4 m = uMat[tile];
       if(tile==${MAT.PATH}){float edge=1.0-smoothstep(.42,1.0,abs(vUV.x)+vnoise(vWorld.xz*4.0)*.18);float mottling=.65+.35*vnoise(vWorld.xz*2.2);o=vec4(.16,.19,.22,edge*mottling*.13*uAlpha);return;}
       if(tile == ${MAT.TRACK}) { float edge=1.0-smoothstep(0.30,1.0,dot(vUV,vUV)); o=vec4(0.045,0.065,0.09,edge*0.22); return; }
-      vec4 tx = tile==${MAT.FOLIAGE}?texture(uFoliage,vUV):texture(uTex, vec3(vUV, vTile));
-      if(tile==${MAT.FOLIAGE}&&tx.a<.48)discard;
+      vec4 tx = (tile==${MAT.FOLIAGE}||tile==${MAT.WINDOW_TREE})?texture(uFoliage,vUV):texture(uTex, vec3(vUV, vTile));
+      if((tile==${MAT.FOLIAGE}||tile==${MAT.WINDOW_TREE})&&tx.a<.48)discard;
       if(vTile<1.001){float mixIce=clamp(vTile,0.0,1.0);tx=mix(texture(uTex,vec3(vUV,0.0)),texture(uTex,vec3(vUV,1.0)),mixIce);m=mix(uMat[0],uMat[1],mixIce);}
       if(vTile<1.001&&uIceReady>.5){
         vec2 uv=vWorld.xz*.065;vec3 frost=texture(uIceTexture,uv).rgb;
@@ -1478,6 +1480,7 @@ const RENDER = (() => {
       }
       vec3 col = albedo * (hemi * contactAO + uSunCol * ndl * sh);
       if(tile==${MAT.FOLIAGE})col=albedo*(uSkyCol*.9+uGroundCol*.25+uSunCol*.2);
+      if(tile==${MAT.WINDOW_TREE})col=albedo*vec3(.21,.27,.33);
       float gloss = 1.0 - m.x;
       // a little sky reflection on smooth things (ice, glass, foil)
       col += hemi * gloss * 0.35 * pow(1.0 - max(dot(n, v), 0.0), 3.0);
@@ -1755,6 +1758,7 @@ const World = (() => {
   // Match the rendered grid's triangles exactly; an analytic height between coarse
   // vertices made shoes and contact shadows hover above the visible snow.
   function groundY(x,z){
+    if(typeof Interior!=='undefined'&&Interior.contains(x,z))return 0;
     const gx=Math.floor((x+420)/GRID)*GRID-420,gz=Math.floor((z+120)/GRID)*GRID-120,fx=(x-gx)/GRID,fz=(z-gz)/GRID;
     const a=terrain(gx,gz),b=terrain(gx,gz+GRID),c=terrain(gx+GRID,gz+GRID),d=terrain(gx+GRID,gz);
     return Math.max(0,fz>=fx?a+(b-a)*fz+(c-b)*fx:a+(d-a)*fx+(c-d)*fz);
@@ -2113,6 +2117,90 @@ const World = (() => {
   }
   function occluded(x,y,z,tx,ty,tz){return raycast(x,y,z,tx,ty,tz)<.999;}
   return { build, S, groundY, terrain, onIce, thinAt, inBay, pushOut, raycast, occluded, FARM, SHORE_Z, landEdgeIsle, landEdgeMain };
+})();
+</script>
+  <script data-src="interior.js">
+// The old house: a compact authored interior with a kitchen, radio and bedroom.
+'use strict';
+const Interior=(()=>{
+  const X=800,Z=800,items=[],lamps=[],spots={entry:[X+5,Z+2.3],exit:[X+5,Z+.65],radio:[X+1.6,Z+8.35],note:[X+5.4,Z+5.6],bed:[X+9.5,Z+7.1]};
+  const contains=(x,z)=>x>X-2&&x<X+14&&z>Z-2&&z<Z+12;
+  const collide=(x,z,w,d,h=2.8)=>World.S.colliders.push({x0:X+x,y0:0,z0:Z+z,x1:X+x+w,y1:h,z1:Z+z+d});
+  let redLight;
+  function build(){
+    const b=new Builder();
+    const box=(x,y,z,w,h,d)=>b.box(x,y,z,w,h,d);
+    b.tile=MAT.PLANK;b.col=[.94,.88,.74];box(0,-.16,0,12,.16,10);
+    b.tile=MAT.FLAT;b.col=[.62,.65,.53];box(-.2,0,-.2,12.4,3.2,.2);box(-.2,0,10,12.4,3.2,.2);box(-.2,0,0,.2,3.2,10);box(12,0,0,.2,3.2,10);
+    collide(-.2,-.2,12.4,.2);collide(-.2,10,12.4,.2);collide(-.2,0,.2,10);collide(12,0,.2,10);
+    b.col=[.67,.66,.57];box(-.2,3.2,-.2,12.4,.2,10.4);
+    World.S.colliders.push({x0:X-.2,y0:3.2,z0:Z-.2,x1:X+12.2,y1:3.4,z1:Z+10.2});
+    // Painted tongue-and-groove panels below the pale plaster.
+    b.tile=MAT.PLANK;b.col=[.72,.73,.61];for(let x=0;x<12;x+=.2){box(x,0,.008,.19,1.03,.023);box(x,0,9.97,.19,1.03,.023);}for(let z=0;z<10;z+=.2){box(.008,0,z,.023,1.03,.19);box(11.97,0,z,.023,1.03,.19);}
+    b.tile=MAT.FLAT;b.col=[.43,.47,.38];box(0,.97,0,12,.055,.05);box(0,.97,9.95,12,.055,.05);box(0,.97,0,.05,.055,10);box(11.95,.97,0,.05,.055,10);
+    b.tile=MAT.PLANK;b.col=[.43,.34,.24];for(const x of [0,3.7,7.5,11.8])box(x,3.03,0,.14,.18,10);
+    // Bedroom partition, with a clear doorway through the middle.
+    b.tile=MAT.FLAT;b.col=[.53,.58,.50];box(7.7,0,4,.16,3.2,2.0);box(7.7,0,7.4,.16,3.2,2.6);box(7.7,2.35,6,.16,.85,1.4);box(7.7,0,4,4.3,3.2,.14);
+    collide(7.7,4,.16,2);collide(7.7,7.4,.16,2.6);collide(7.7,4,4.3,.14);
+    b.tile=MAT.PLANK;b.col=[.72,.70,.57];for(const z of [5.94,7.4])box(7.63,0,z,.26,2.4,.07);box(7.63,2.33,5.94,.26,.07,1.53);
+    // The shut front door and its coat hooks.
+    b.tile=MAT.PLANK;b.col=[.39,.43,.36];box(4.45,0,.01,1.1,2.23,.08);b.col=[.65,.64,.52];for(const x of [4.35,5.56])box(x,0,.07,.09,2.33,.1);box(4.35,2.25,.07,1.3,.08,.1);
+    b.tile=MAT.STEEL;b.col=[.82,.71,.46];b.roundedBox(5.31,.99,.10,.13,.025,.06,.01);
+    b.tile=MAT.PLANK;b.col=[.52,.45,.34];box(6.2,1.64,.03,1.15,.13,.08);b.tile=MAT.DARK;b.col=[.55,.57,.49];for(const x of [6.4,6.78,7.16])b.tube([[x,1.69,.1],[x,1.57,.2],[x,1.65,.23]],.018,{segs:6});
+    // The small coat belongs to the person the narrator used to be.
+    b.tile=MAT.CLOTH;b.col=[.58,.29,.15];b.loft(6.78,.80,.21,[[0,.22,.07],[.12,.22,.08],[.50,.18,.085],[.63,.14,.07]],{segs:16});
+    for(const side of [-1,1])b.tube([[6.78+side*.15,1.36,.21],[6.78+side*.29,1.17,.23],[6.78+side*.26,.90,.25]],.067,{segs:9});
+    b.sphere(6.78,1.49,.21,.12,{segs:16,rings:12});b.tile=MAT.DARK;b.col=[.5,.4,.25];b.cyl(6.78,1.49,.32,.08,.012,{axis:'z',segs:16});
+    // Two deep windows: blue winter light against the room's tungsten lamps.
+    for(const x of [2.45,9.45]){
+      b.tile=MAT.COLD_LIGHT;b.col=[.23,.29,.36];box(x,1.1,9.955,1.7,1.35,.025);
+      // Tree silhouettes sit behind the glazing bars, outside the warm room.
+      b.tile=MAT.WINDOW_TREE;b.col=[.74,.81,.84];
+      for(const [xx,ww,hh]of [[x+.1,.53,.96],[x+.68,.64,1.22],[x+1.23,.41,.78]]){const y=1.11,z=9.932,a=b.vert(xx,y,z,0,0,-1,0,1),c=b.vert(xx+ww,y,z,0,0,-1,1,1),d=b.vert(xx+ww,y+hh,z,0,0,-1,1,0),e=b.vert(xx,y+hh,z,0,0,-1,0,0);b.quad(a,e,d,c);}
+      b.tile=MAT.FLAT;b.col=[.70,.70,.59];for(const xx of [x-.07,x+.82,x+1.7])box(xx,1.02,9.90,.07,1.5,.10);box(x-.07,1.73,9.90,1.84,.06,.1);box(x-.07,2.43,9.88,1.84,.08,.12);box(x-.17,1.01,9.73,2.03,.09,.30);
+      b.tile=MAT.CLOTH;b.col=[.65,.62,.47];for(const xx of [x-.27,x+1.68])for(let i=0;i<4;i++)b.roundedBox(xx+i*.065,1.0,9.72,.08,1.63,.08,.025);
+      lamps.push({x:X+x+.85,y:1.8,z:Z+9.65,r:4,col:[.18,.30,.48],k:.8});
+    }
+    // Galley kitchen, enamel cooker, sink, cupboards and crockery.
+    b.tile=MAT.PLANK;b.col=[.50,.54,.43];box(.12,0,2.2,.72,.91,3.6);collide(.12,2.2,.72,3.6,1);
+    b.tile=MAT.FLAT;b.col=[.68,.64,.53];box(.10,.91,2.15,.78,.055,3.7);
+    b.tile=MAT.STEEL;b.col=[.85,.85,.76];box(.13,.961,2.5,.61,.015,.75);b.tile=MAT.DARK;b.col=[.72,.75,.70];box(.20,.978,2.56,.46,.012,.6);
+    b.tile=MAT.STEEL;b.col=[.92,.92,.84];b.tube([[.21,.97,3.32],[.21,1.26,3.32],[.37,1.26,3.32],[.41,1.16,3.32]],.024,{segs:10});
+    b.tile=MAT.FLAT;b.col=[.72,.73,.65];box(.14,1.58,2.2,.40,.86,3.6);for(let z=2.35;z<5.8;z+=.7){b.col=[.45,.49,.40];box(.545,1.69,z,.02,.03,.12);}
+    b.tile=MAT.DARK;b.col=[.7,.73,.67];box(.12,.97,4.15,.7,.025,.85);for(const z of [4.35,4.73])for(const x of [.3,.63])b.cyl(x,1.0,z,.11,.012,{segs:16});
+    b.tile=MAT.STEEL;b.col=[.68,.63,.45];b.cyl(.47,1.02,4.37,.11,.17,{segs:18});b.tube([[.37,1.17,4.37],[.37,1.32,4.37],[.57,1.32,4.37],[.57,1.17,4.37]],.016,{segs:8});
+    // Worn rug and kitchen table. Furniture has real, simple collision volumes.
+    b.tile=MAT.CLOTH;b.col=[.32,.35,.31];box(3.6,.006,3.8,3.8,.013,3.0);b.col=[.60,.52,.38];box(3.72,.022,3.94,3.56,.009,.07);box(3.72,.022,6.58,3.56,.009,.07);
+    b.tile=MAT.PLANK;b.col=[.75,.62,.44];b.roundedBox(4.35,.76,4.52,1.95,.10,1.03,.045);for(const x of [4.45,6.13])for(const z of [4.62,5.39])box(x,0,z,.10,.78,.10);collide(4.35,4.52,1.95,1.03,.85);
+    function chair(x,z,yaw){b.begin();b.tile=MAT.PLANK;b.col=[.66,.53,.37];b.roundedBox(-.23,.43,-.23,.46,.06,.46,.02);for(const xx of [-.20,.16])for(const zz of [-.20,.16])box(xx,0,zz,.04,.47,.04);for(const xx of [-.21,.17])box(xx,.47,.17,.04,.55,.04);for(const y of [.64,.89])box(-.20,y,.17,.41,.07,.04);b.end(M.trs(M.create(),x,0,z,yaw));collide(x-.27,z-.27,.54,.54,1);}
+    chair(5.2,3.97,Math.PI);chair(6.85,5.02,Math.PI/2);chair(4.5,6.07,0);
+    // An open notebook, a cup and the old torch on the table.
+    b.tile=MAT.PLANK;b.col=[.22,.28,.23];box(5.05,.87,4.73,.49,.028,.40);b.tile=MAT.NOTE;b.col=[1,1,1];box(5.065,.90,4.745,.46,.008,.37,{uv:1});
+    b.tile=MAT.FLAT;b.col=[.72,.72,.60];b.cyl(5.85,.87,4.83,.075,.14,{segs:16});b.tile=MAT.DARK;b.col=[.5,.55,.5];b.cyl(5.85,1.01,4.83,.061,.007,{segs:16});
+    // The radio occupies its own pool of light by the northern wall.
+    b.tile=MAT.PLANK;b.col=[.47,.39,.28];b.roundedBox(.55,0,8.9,1.8,.86,.75,.025);collide(.55,8.9,1.8,.75,1);
+    b.col=[.39,.27,.16];b.roundedBox(.85,.86,9.07,1.13,.47,.31,.035);
+    b.tile=MAT.CLOTH;b.col=[.40,.39,.31];box(.91,.93,9.05,.55,.3,.023);b.tile=MAT.DARK;b.col=[.50,.49,.40];for(let x=.94;x<1.45;x+=.032)box(x,.96,9.027,.009,.23,.016);
+    b.tile=MAT.GLASS;b.col=[.67,.68,.43];box(1.52,1.16,9.036,.37,.095,.016);b.tile=MAT.DARK;b.col=[.8,.82,.72];for(const x of [1.59,1.82])b.cyl(x,1.02,9.016,.045,.04,{axis:'z',segs:14});
+    b.tile=MAT.STEEL;b.col=[.8,.8,.72];b.tube([[1.13,1.3,9.23],[1.25,1.85,9.24]],.009,{segs:6});
+    // A small wall clock. Its stopped hands read 18:40.
+    b.tile=MAT.PLANK;b.col=[.42,.30,.18];b.cyl(5.9,2.3,9.88,.25,.08,{axis:'z',segs:32});b.tile=MAT.FLAT;b.col=[.76,.74,.60];b.cyl(5.9,2.3,9.86,.21,.025,{axis:'z',segs:32});b.tile=MAT.DARK;b.col=[1,1,1];b.tube([[5.9,2.3,9.849],[5.75,2.22,9.849]],.009,{segs:5});b.tube([[5.9,2.3,9.849],[5.88,2.19,9.849]],.014,{segs:6});
+    // The old bedroom: a faded blanket, pillow, shoes and a bedside lamp.
+    b.tile=MAT.PLANK;b.col=[.46,.37,.27];b.roundedBox(9.3,.17,7.65,1.5,.29,2.0,.04);box(9.25,0,9.55,1.6,.95,.08);collide(9.25,7.6,1.6,2.03,.9);
+    b.tile=MAT.CLOTH;b.col=[.52,.58,.55];b.roundedBox(9.30,.45,7.66,1.50,.20,1.85,.09);b.col=[.75,.74,.65];b.roundedBox(9.44,.65,9.03,1.2,.15,.40,.10);b.col=[.31,.40,.39];b.roundedBox(9.27,.62,7.63,1.55,.04,1.12,.018);
+    b.tile=MAT.PLANK;b.col=[.55,.45,.31];box(8.20,0,8.95,.64,.59,.64);collide(8.2,8.95,.64,.64,.6);
+    b.tile=MAT.STEEL;b.col=[.59,.47,.29];b.cyl(8.52,.60,9.28,.14,.025,{segs:16});b.cyl(8.52,.62,9.28,.023,.28,{segs:12});b.tile=MAT.CLOTH;b.col=[.89,.73,.46];b.loft(8.52,.91,9.28,[[0,.24,.24],[.31,.13,.13]],{segs:24});
+    lamps.push({x:X+8.52,y:1.1,z:Z+9.28,r:4,col:[1.7,.82,.34],k:1});
+    // Low pendant over the kitchen table.
+    b.tile=MAT.DARK;b.col=[.33,.34,.29];b.cyl(5.35,2.64,5.0,.018,.56,{segs:8});b.loft(5.35,2.42,5,[[0,.31,.31],[.23,.09,.09]],{segs:24});b.tile=MAT.GLASS;b.col=[.9,.82,.59];b.sphere(5.35,2.40,5,.075,{segs:12,rings:8});
+    lamps.push({x:X+5.35,y:2.30,z:Z+5,r:7,col:[1.40,.81,.39],k:1});
+    World.S.vantages.push({x:X+5,z:Z+3,key:'2:kitchen',caption:'The room was warmer than I remembered. There was a light beyond the window.'});
+    items.push({mesh:b.build(),model:M.trs(M.create(),X,0,Z,0),x:X+6,y:1.6,z:Z+5,radius:9,noShadow:true});
+    const eye=new Builder();eye.tile=MAT.LED;eye.col=[1,.20,.08];eye.sphere(0,0,0,.018,{segs:8,rings:6});redLight={mesh:eye.build(),model:M.trs(M.create(),X+3.5,1.64,Z+9.85,0),x:X+3.5,y:1.64,z:Z+9.85,radius:.1,hidden:true,noShadow:true,emis:2};items.push(redLight);
+  }
+  function nearby(x,z){let best=null,d=1.45;for(const [id,p] of Object.entries(spots)){if(id==='entry')continue;const dist=Math.hypot(p[0]-x,p[1]-z);if(dist<d){d=dist;best=id;}}return best;}
+  function light(answered){for(const l of lamps)RENDER.light(l.x,l.y,l.z,l.r,...l.col);redLight.hidden=!answered;RENDER.contact(X+5.35,0,Z+5,1.2);}
+  return {build,contains,items,spots,nearby,light};
 })();
 </script>
   <script data-src="creatures.js">
@@ -2585,7 +2673,7 @@ const Player = (() => {
     const pos = { x: nx, z: nz }; World.pushOut(pos, RADIUS, P.y);
     P.x = pos.x; P.z = pos.z; P.y = World.groundY(P.x, P.z);
     P.onIce = World.onIce(P.x, P.z);
-    P.surface = P.onIce ? 'ice' : 'snow';
+    P.surface = ctx.indoors?'wood':P.onIce ? 'ice' : 'snow';
     // thin ice: two and a half seconds of standing on the dark patches, or running across them
     const thin = P.onIce ? World.thinAt(P.x, P.z) : 0;
     if (thin > 0.3) { P.thinT += dt * (P.hurry ? 2.2 : 1); if (P.thinT > 0.8 && !P.crackWarned) { P.crackWarned = true; ctx.onCrack && ctx.onCrack(); } if (P.thinT > 2.5) { P.thinT = 0; ctx.onThinIce && ctx.onThinIce(); } }
@@ -2640,7 +2728,7 @@ const Player = (() => {
       if(Math.abs(inputLook.dx)+Math.abs(inputLook.dy)>0.5) P.stillT=0;
       const paint = ctx.indoors || ctx.threat || P.cutterUp ? 0 : smooth(6, 12, P.stillT) * (P.hold > 0 ? 0 : 1);
       P.calmCam = lerp(P.calmCam, paint, 1 - Math.pow(0.3, dt));
-      const dist = lerp(P.cutterUp ? 2.1 : 3.5, 4.8, P.calmCam), height = lerp(1.7, 2.1, P.calmCam), side = lerp(-0.6, -0.2, P.calmCam);
+      const dist = lerp(P.cutterUp ? 2.1 : ctx.indoors?2.5:3.5, 4.8, P.calmCam), height = lerp(1.7, 2.1, P.calmCam), side = lerp(-0.6, -0.2, P.calmCam);
       const pitch = P.camPitch, cy = Math.cos(P.camYaw), sy = Math.sin(P.camYaw);
       tx = P.x - sy * dist * Math.cos(pitch) + cy * side; tz = P.z - cy * dist * Math.cos(pitch) - sy * side; ty = P.y + height + Math.sin(pitch) * dist;
       // keep the camera out of things and above the ground
@@ -2727,6 +2815,7 @@ const Photo = (() => {
 'use strict';
 const Sound = (() => {
   let ac = null, master, music, sfx, wet, wind, windGain, windFilter, hum, hum2, humGain, humFilter, noiseBuf, listener;
+  let indoors=false;
   let muted = false, chapter = 0, chordT = 0, chordI = 0, bellT = 6, humTarget = 0, iceT = 8;
   const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
   const CHORDS = [
@@ -2757,7 +2846,7 @@ const Sound = (() => {
     humGain = ac.createGain(); humGain.gain.value = 0; hum.connect(humFilter); hum2.connect(humFilter); humFilter.connect(humGain); humGain.connect(master); hum.start(); hum2.start();
     setChapter(chapter);
   }
-  function setChapter(i) { chapter = Math.min(i, CHORDS.length - 1); chordI = 0; chordT = 0; if (!ac) return; windGain.gain.setTargetAtTime(WIND[chapter], ac.currentTime, 2); playChord(); }
+  function setChapter(i) { chapter = Math.min(i, CHORDS.length - 1); chordI = 0; chordT = 0; if (!ac) return; windGain.gain.setTargetAtTime(indoors?.015:WIND[chapter], ac.currentTime, 2); playChord(); }
   function playChord() {
     if (!ac) return;
     const t = ac.currentTime, notes = CHORDS[chapter][chordI % 4], dur = 11;
@@ -2812,6 +2901,7 @@ const Sound = (() => {
     const f = 60 + Math.random() * 90; tone(f * 4, 1.4, 'sine', 0.35, 0, 0.35, p, 0.02); tone(f, 2.2, 'sine', 0.3, 0.1, 0.5, p, 0.05); noise(0.5, 'lowpass', 200, 1, 0.5, 0.05, p);
   }
   const S = {
+    setIndoor(v){indoors=v;if(ac)windGain.gain.setTargetAtTime(indoors?.015:WIND[chapter],ac.currentTime,.7);},
     init, setChapter, update, get muted() { return muted; },
     toggleMute() { muted = !muted; if (master) master.gain.setTargetAtTime(muted ? 0 : 0.8, ac.currentTime, 0.05); return muted; },
     step(surface, hurry) {
@@ -2990,7 +3080,7 @@ const Game = (() => {
 
   // ---------------------------------------------------------------- world and cast
   RENDER.init(cv);
-  const world = World.build();
+  const world = World.build();Interior.build();
   const kid = new Character();
   const P = Player.P;
   const bearerMesh = null;
@@ -3013,11 +3103,12 @@ const Game = (() => {
   let state = 'boot', stateT = 0, time = 0, chapter = 1, fade = 0, fadeTarget = 1, flash = 0, deathT = 0;
   let lineCur = null, lineQ = [], said = new Set(), menuStack = null, menuRects = [], darkroom = null, ending = null;
   let calmCeiling = 1, awake = false, nightsSpent = 0, carriedFrom = null, cutTarget = null, standoffWith = null, promptA = 0, prompt = '', lastSeat = null, sleepReady = false;
-  const flags = { hulls: false, island: false, scoutSeen: false, bearerSeen: false, standoff: false, off: false, carried: false, cut: false, relay:false, roadkeeper:false };
+  const flags = { hulls: false, island: false, scoutSeen: false, bearerSeen: false, standoff: false, off: false, carried: false, cut: false, relay:false, roadkeeper:false, house:false, radio:false, notebook:false };
   const S = () => Store.settings, T = () => S().large ? 1.28 : 1, reduce = () => S().reduce, quiet = () => S().quiet;
 
   // ---------------------------------------------------------------- light
   const RIGS = {
+    interior:{sunDir:[0,1,0],sunCol:[0,0,0],skyCol:[.11,.105,.085],groundCol:[.045,.043,.035],fogCol:[.03,.04,.05],fogDensity:0,fogHeight:30,zenith:[.03,.04,.05],horizon:[.1,.13,.18],cloudCol:[.1,.13,.18],cloud:.5,sunGlow:0,sunDisc:0,stars:.4,exposure:1.25,sat:.96},
     noon: { sunDir: [-0.42, 0.17, 0.89], sunCol: [0.23, 0.17, 0.12], skyCol: [0.23, 0.31, 0.36], groundCol: [0.18, 0.23, 0.25], fogCol: [0.13, 0.19, 0.23], fogDensity: 0.0035, fogHeight: 32, zenith: [0.07, 0.12, 0.17], horizon: [0.24, 0.24, 0.22], cloudCol: [0.16, 0.19, 0.22], cloud: 0.85, sunGlow: 0.14, sunDisc: 0.0, stars: 0, exposure: 1.0, sat: 0.88 },
     dusk: { sunDir: [-0.5, 0.06, 0.7], sunCol: [0.55, 0.32, 0.18], skyCol: [0.3, 0.33, 0.44], groundCol: [0.10, 0.12, 0.17], fogCol: [0.25, 0.29, 0.37], fogDensity: 0.0038, fogHeight: 35, zenith: [0.16, 0.2, 0.32], horizon: [0.53, 0.34, 0.26], cloudCol: [0.42, 0.36, 0.42], cloud: 0.55, sunGlow: 0.3, sunDisc: 0.0, stars: 0.15, exposure: 1.0, sat: 1.05 },
     night: { sunDir: [0.2, 0.5, 0.3], sunCol: [0.04, 0.05, 0.08], skyCol: [0.08, 0.1, 0.16], groundCol: [0.07, 0.08, 0.11], fogCol: [0.1, 0.11, 0.15], fogDensity: 0.005, fogHeight: 30, zenith: [0.03, 0.04, 0.09], horizon: [0.16, 0.16, 0.2], cloudCol: [0.1, 0.11, 0.15], cloud: 0.5, sunGlow: 0, sunDisc: 0, stars: 0.8, exposure: 1.4, sat: 0.9 },
@@ -3040,7 +3131,7 @@ const Game = (() => {
     Store.setSave({worldVersion:2,chapter,x:P.x,z:P.z,yaw:P.yaw,flags:{...flags},nights:nightsSpent,sleepReady,cast});checkpointToast=2.8;
   }
   function newJourney(){
-    Store.startJourney();endingT=wakeFadeT=0;albumPage=0;albumZoom=-1;
+    Sound.setIndoor(false);Store.startJourney();endingT=wakeFadeT=0;albumPage=0;albumZoom=-1;
     for(const key in flags)flags[key]=false;said.clear();lineCur=null;lineQ=[];menuStack=null;islandTransition=0;health=3;hurtT=0;cutterCooldown=0;cutFlash=0;nightsSpent=0;sleepReady=false;awake=false;calmCeiling=1;lastSeat=null;standoffWith=null;deathT=0;cutTarget=null;ending=null;darkroom=null;for(const k in keys)keys[k]=false;
     cutterMissT=0;relayPulseT=0;sparks.pts=[];sparks.n=0;P.sit=null;P.carried=0;P.viewfinder=false;P.thinT=0;P.hold=0;P.torch=false;Photo.S.polaroid=null;
     resetMachine(bearer,World.FARM.x+26,World.FARM.z+30,-2.2);resetMachine(sentry,4,33,Math.PI);const marks=scout.marks;resetMachine(scout,World.FARM.x-6,World.SHORE_Z+20,Math.PI);scout.marks=marks;resetMachine(o4,10,20,0);o4.marks=[];o4.item.hidden=true;
@@ -3070,6 +3161,7 @@ const Game = (() => {
     else if (state === 'darkroom') updateDarkroom(dt);
     else if (state === 'end') { if (stateT > 4 && (pressed.any || nav.ok)) { albumReturn='title';albumZoom=-1;albumCompare=false;state = 'album'; stateT = 0; } }
     else if(state==='album')updateAlbum();
+    else if(state==='note'&&stateT>.3&&(pressed.use||nav.back||input.pausePressed||tap)){state='play';stateT=1;}
     updateLines(dt);
     updateSnow(dt);
     Sound.update(dt, RENDER.cam, humAmount(), P.onIce);
@@ -3096,6 +3188,7 @@ const Game = (() => {
     if(islandTransition>0){islandTransition-=dt;if(islandTransition<=0)startChapter(2);return;}
     if (deathT > 0) { deathT -= dt; if (deathT <= 0) respawn(); Player.update(dt, { mx: 0, my: 0, lookDX: 0, lookDY: 0 }, { locked: true }); return; }
     relayPulseT=Math.max(0,relayPulseT-dt);cutterMissT=Math.max(0,cutterMissT-dt);hurtT=Math.max(0,hurtT-dt);cutterCooldown=Math.max(0,cutterCooldown-dt);cutFlash=Math.max(0,cutFlash-dt);
+    if(Interior.contains(P.x,P.z))return updateInterior(dt);
     // the camera toggle
     if (input.cameraPressed && !P.sit && P.carried <= 0) { P.viewfinder = !P.viewfinder; Sound.wind_lever(); }
     standoffWith = machines.find(m=>m.kind==='bearer' && (m.state==='standoff'||(m.state==='wait'&&Math.hypot(m.x-P.x,m.z-P.z)<1.3))) || null;
@@ -3113,7 +3206,7 @@ const Game = (() => {
     if (!P.sit && input.usePressed && !P.viewfinder && !standoffWith) {
       if(nearRelay&&!flags.relay){flags.relay=true;awake=true;relayPulseT=3.2;Sound.at('rumble',world.relay.x,world.relay.y,world.relay.z,.7);lineFor('relay');checkpoint();return;}
       if (cd < 2.4 && Store.undeveloped.length) return openDarkroom();
-      if (dd < 2.2 && sleepReady) return goSleep();
+      if (dd < 2.2 && sleepReady) return enterHouse();
     }
     // the standoff: which bearer is close enough, facing you, lamp on
     standoffWith = null;
@@ -3143,11 +3236,7 @@ const Game = (() => {
       if (cutTarget && input.usePressed && cutterCooldown<=0) { cutterCooldown=.7;cutFlash=.18;cutPoint=cutTarget.j.slice(1,4);emitCut(...cutPoint); cutTarget.m.sever(cutTarget.j[0]); flags.cut = true; lineFor('cut'); if(cutTarget.m===bearer)calmCeiling = Math.max(0.35, calmCeiling - 0.25); if(cutTarget.m===sentry){if(cutTarget.m.dark||cutTarget.m.legsLeft()<=1){flags.roadkeeper=true;checkpoint();}} else if (cutTarget.m.legsLeft() === 0 || cutTarget.m.dark){sleepReady=true;checkpoint();} }
     }
     // A missed discharge still has a visible, audible response and a short cooldown.
-    if(P.cutterUp&&input.usePressed&&!cutTarget&&cutterCooldown<=0){
-      const h=kid.hand,dir=Player.facing(),end=[h[0]+dir[0]*8,h[1],h[2]+dir[2]*8],hit=World.raycast(...h,...end);
-      cutPoint=h.map((v,i)=>lerp(v,end[i],hit));cutFlash=.11;cutterCooldown=.4;cutterMissT=1.4;
-      if(hit<1)emitCut(...cutPoint);Sound.at('arc',...h,.4);
-    }
+    if(P.cutterUp&&input.usePressed&&!cutTarget&&cutterCooldown<=0)fireMiss();
     // photographs
     if (photoRequested) takePhoto();
     // triggers and lines
@@ -3166,6 +3255,36 @@ const Game = (() => {
     // prompts
     prompt = promptText(seat, dd, cd);
   }
+  function fireMiss(){
+      const h=kid.hand,dir=Player.facing(),end=[h[0]+dir[0]*8,h[1],h[2]+dir[2]*8],hit=World.raycast(...h,...end);
+      cutPoint=h.map((v,i)=>lerp(v,end[i],hit));cutFlash=.11;cutterCooldown=.4;cutterMissT=1.4;
+      if(hit<1)emitCut(...cutPoint);Sound.at('arc',...h,.4);
+  }
+  const roomPrompts={exit:'go back outside',radio:'answer the radio',note:'read the notebook',bed:'rest in your old room'};
+  function enterHouse(){
+    const first=!flags.house;flags.house=true;P.viewfinder=false;P.sit=null;P.hold=0;standoffWith=null;cutTarget=null;
+    Player.place(...Interior.spots.entry,0);setRig('interior',true);Sound.setIndoor(true);fade=.15;fadeTarget=1;Tracks.reset();lineCur=null;lineQ=[];
+    if(first)lineQ.push('My coat was still on the hook. It was too small for me now.');checkpoint();
+  }
+  function leaveHouse(){P.viewfinder=false;Player.place(world.door.x,world.door.z-1,Math.PI);setRig(nightsSpent?'night':'dusk',true);Sound.setIndoor(false);fade=.15;fadeTarget=1;Tracks.reset();checkpoint();}
+  function updateInterior(dt){
+    if(input.cameraPressed){P.viewfinder=!P.viewfinder;Sound.wind_lever();}
+    cutTarget=null;standoffWith=null;
+    Player.update(dt,input,{indoors:true,onStep:()=>Sound.step('wood',P.hurry),onTorch:on=>Sound.torch(on)});
+    kid.pose(P.x,P.y,P.z,P.yaw,P.speed/1.4,dt,0,0,P.torch,P.cutterUp);P.handWorld=kid.hand;
+    const near=Interior.nearby(P.x,P.z);prompt=P.viewfinder?TEXT.prompts.photo:P.cutterUp?(cutterMissT>0?'no support joint in range':'arc cutter'):near?roomPrompts[near]:'';
+    if(!input.usePressed)return;
+    if(P.viewfinder){takePhoto();return;}
+    if(P.cutterUp){if(cutterCooldown<=0)fireMiss();return;}
+    if(near==='exit'){leaveHouse();return;}
+    if(near==='bed'){goSleep();return;}
+    if(near==='radio'){
+      Sound.at('beep',Interior.spots.radio[0],1.2,Interior.spots.radio[1],.5);
+      lineCur=null;lineQ=[flags.radio?'Only the carrier was left. The red light beyond the window was still there.':'Roos said I had already called. Then the radio played my voice asking him to wait.'];
+      flags.radio=true;checkpoint();
+    }
+    if(near==='note'){flags.notebook=true;checkpoint();state='note';stateT=0;if(document.exitPointerLock)document.exitPointerLock();}
+  }
   function promptText(seat, dd, cd) {
     if (P.sit) return TEXT.prompts.stand;
     if (P.carried > 0) return '';
@@ -3174,7 +3293,7 @@ const Game = (() => {
     if(standoffWith)return P.hold>0?TEXT.prompts.hold:TEXT.prompts.reach;
     if(P.cutterUp)return cutterMissT>0?'no support joint in range':'bring a joint into range';
     if (cd < 2.4) return Store.undeveloped.length ? TEXT.prompts.cellar : TEXT.prompts.cellarEmpty;
-    if (dd < 2.2) return sleepReady ? TEXT.prompts.sleep : TEXT.prompts.doorLocked;
+    if (dd < 2.2) return sleepReady ? 'enter the house' : TEXT.prompts.doorLocked;
     if(chapter===2&&Math.hypot(P.x-world.relay.x,P.z-world.relay.z)<2.3)return flags.relay?'relay restored':'restore the field relay';
     if (seat) return TEXT.prompts.sit;
     const v = Photo.nearVantage(chapter, P.x, P.z); if (v && !Store.hasPhoto(v.key)) return TEXT.prompts.photo;
@@ -3237,19 +3356,19 @@ const Game = (() => {
   const beamBuilder=new Builder();beamBuilder.tile=MAT.COLD_LIGHT;beamBuilder.col=[.3,.86,1];beamBuilder.cyl(0,0,0,.013,1,{segs:5});
   const beam={mesh:beamBuilder.build(),model:M.create(),noShadow:true,emis:3};
   function buildScene() {
-    const items = world.items.slice();
-    for (const m of machines) { if(m===sentry && chapter!==1)continue; items.push(m.item); for (const ch of m.chunks) items.push(ch.item); }
+    const inside=Interior.contains(P.x,P.z)&&state!=='title';const items = inside?Interior.items.slice():world.items.slice();
+    if(!inside)for (const m of machines) { if(m===sentry && chapter!==1)continue; items.push(m.item); for (const ch of m.chunks) items.push(ch.item); }
     if (state !== 'title' && !P.viewfinder) {const alpha=smooth(.35,1.10,Math.hypot(P.x-RENDER.cam.x,P.z-RENDER.cam.z));for(const it of kid.items)it.alpha=alpha<.995?alpha:undefined;kid.tool.alpha=alpha<.995?alpha:undefined;items.push(...kid.items);if(P.cutterUp)items.push(kid.tool);}
-    if(Tracks.item)items.push(Tracks.item);
+    if(!inside&&Tracks.item)items.push(Tracks.item);
     M.trs(sledModel, P.sled.x, P.sled.y, P.sled.z, P.sled.yaw); world.sled.model = sledModel;
     RENDER.clearLights();
     if(cutFlash>0){const h=kid.hand,dx=cutPoint[0]-h[0],dy=cutPoint[1]-h[1],dz=cutPoint[2]-h[2],len=Math.hypot(dx,dy,dz);aimMatrix(beam.model,...h,dx,dy,dz);for(let k=4;k<7;k++)beam.model[k]*=len;items.push(beam);RENDER.light(...cutPoint,5,.3,1.6,2);}
 
     if(state!=='title'&&kid.feet)for(const f of kid.feet)RENDER.contact(f[0],World.groundY(f[0],f[2]),f[2],.23);
-    RENDER.contact(P.sled.x,P.sled.y,P.sled.z,0.7);
+    if(!inside)RENDER.contact(P.sled.x,P.sled.y,P.sled.z,0.7);else Interior.light(flags.radio);
     for(const m of machines)if(!m.hidden&&Math.hypot(m.x-P.x,m.z-P.z)<24&&(m===sentry?chapter===1:chapter===2)){for(const f of m.feet)RENDER.contact(f.x,World.groundY(f.x,f.z),f.z,.23*m.s);}
-    const power=relayPulseT>0?(reduce()?.4:Math.sin(relayPulseT*7)>.35?.75:.035):1;world.window.emis=world.lamps[0].k>0?power:0;
-    for (const l of world.lamps) RENDER.light(l.x, l.y, l.z, l.r, l.col[0] * l.k * 1.6 * power, l.col[1] * l.k * 1.6 * power, l.col[2] * l.k * 1.6 * power);
+    const power=relayPulseT>0?(reduce()?.4:Math.sin(relayPulseT*7)>.35?.75:.035):1;world.window.emis=world.lamps[0].k/.9*power;
+    if(!inside)for (const l of world.lamps) RENDER.light(l.x, l.y, l.z, l.r, l.col[0] * l.k * 1.6 * power, l.col[1] * l.k * 1.6 * power, l.col[2] * l.k * 1.6 * power);
     if (P.torch && state !== 'title') { const t = kid.torchWorld; const fl = Math.hypot(t[3], t[4], t[5]) || 1; RENDER.light(t[0], t[1], t[2], 26, 1.6, 1.45, 1.15, t[3] / fl, t[4] / fl, t[5] / fl, 0.86); }
     world.relay.emis=flags.relay?.4:1.1+Math.sin(time*3)*.4;if(chapter===2&&!flags.relay)RENDER.light(world.relay.x,world.relay.y+1,world.relay.z-1,5,.25,.7,1.1);
     if (world.safelight && chapter >= 2) RENDER.light(world.safelight.x, world.safelight.y - 0.1, world.safelight.z, 5, 0.9, 0.12, 0.06);
@@ -3286,7 +3405,7 @@ const Game = (() => {
     // A checkpoint restores the outcome as well as the position.
     const snapshot=JSON.parse(JSON.stringify(sv));newJourney();sv=snapshot;menuStack=null;endingT=wakeFadeT=0;chapter=sv.chapter;Object.assign(flags,sv.flags||{});nightsSpent=sv.nights||0;sleepReady=!!sv.sleepReady||flags.off||nightsSpent>0;health=3;
     setRig(nightsSpent?'night':chapter===1?'noon':'dusk',true);Sound.setChapter(chapter-1);
-    Player.place(sv.x,sv.worldVersion===2?sv.z:chapter===2?sv.z-210:Math.min(sv.z,96),sv.yaw||0);state='play';stateT=0;fade=0;fadeTarget=1;awake=chapter===2&&!!flags.relay;
+    Player.place(sv.x,sv.worldVersion===2?sv.z:chapter===2?sv.z-210:Math.min(sv.z,96),sv.yaw||0);if(Interior.contains(P.x,P.z)){setRig('interior',true);Sound.setIndoor(true);}state='play';stateT=0;fade=0;fadeTarget=1;awake=chapter===2&&!!flags.relay;
     for(const [id,m] of [['bearer',bearer],['sentry',sentry]]){const data=sv.cast&&sv.cast[id];if(data){m.x=data.x;m.z=data.z;m.yaw=data.yaw;for(const bone of data.cut||[])m.sever(bone);m.off=!!data.off;m.dark=data.dark||0;if(m.off||m.dark){m.led=false;m.lamp=false;}m.pose();}}
     if(!sv.cast&&flags.off){bearer.off=true;bearer.led=false;bearer.lamp=false;}
     if(flags.hulls)for(const h of world.hulls){h.rise=1;h.rising=true;h.model[13]=0;h.y=0;}
@@ -3336,14 +3455,15 @@ const Game = (() => {
     }
     if(state==='play'&&!menuStack&&!P.viewfinder){
       const threat=chapter===1&&!sentry.off&&!sentry.dark&&Math.hypot(P.x-sentry.x,P.z-sentry.z)<27;
-      const goal=chapter===1?(threat?'DISABLE THE ROADKEEPER':'REACH SJÖGÅRDEN'):sleepReady?'RETURN TO THE FRONT DOOR':flags.relay?'APPROACH THE BEARER':'RESTORE THE FIELD RELAY';
-      const detail=threat?'Cut the leg joints. Move sideways when its lamp pulses.':chapter===1?Math.max(0,Math.round(World.SHORE_Z-P.z))+' m to the island · follow the red markers':sleepReady?'Develop your photographs at the side door, or sleep.':flags.relay?'Lower the cutter and hold still to reach out. Or cut its supports.':'Follow the blue cable behind the barn. The relay is still drawing current.';
+      const inside=Interior.contains(P.x,P.z);
+      const goal=inside?'THE HOUSE':chapter===1?(threat?'DISABLE THE ROADKEEPER':'REACH SJÖGÅRDEN'):sleepReady?'RETURN TO THE FRONT DOOR':flags.relay?'APPROACH THE BEARER':'RESTORE THE FIELD RELAY';
+      const detail=inside?'Listen to the radio and read the notebook, or rest in your old room.':threat?'Cut the leg joints. Move sideways when its lamp pulses.':chapter===1?Math.max(0,Math.round(World.SHORE_Z-P.z))+' m to the island · follow the red markers':sleepReady?'Develop your photographs at the side door, or enter the house.':flags.relay?'Lower the cutter and hold still to reach out. Or cut its supports.':'Follow the blue cable behind the barn. The relay is still drawing current.';
       const compact=UW<760,panelX=compact?14/sx:28,panelY=compact?68/sy:90,panelW=compact?(UW-28)/sx:470;
       const detailLines=wrap(detail,panelW-32,13),lineH=compact?17/sy:17,headH=compact?24/sy:24,panelH=headH+detailLines.length*lineH+(compact?12/sy:10);
       g.fillStyle='rgba(10,19,23,.72)';g.fillRect(panelX*sx,panelY*sy,panelW*sx,panelH*sy);g.fillStyle='#cda779';g.fillRect(panelX*sx,panelY*sy,3,panelH*sy);
       text(goal,panelX+16,panelY+headH,14,.95,{align:'left',letter:compact?.3:1,ui:true});detailLines.forEach((l,i)=>text(l,panelX+16,panelY+headH+(i+1)*lineH,13,.85,{align:'left'}));
       if(!isTouch)text(P.cutterUp?'E / click · cut     WASD · evade':compact?'WASD · move   Shift · run   Space · cutter   C · camera':'WASD · move    Shift · run    Space · aim cutter    C · camera    Tab · album',640,710,compact?11:14,.8);
-      const target=chapter===1?[0,World.SHORE_Z,'ISLAND']:sleepReady?[world.door.x,world.door.z,'HOUSE']:flags.relay?[bearer.x,bearer.z,'BEARER']:[world.relay.x,world.relay.z,'RELAY'];
+      const target=inside?[...Interior.spots.bed,'BEDROOM']:chapter===1?[0,World.SHORE_Z,'ISLAND']:sleepReady?[world.door.x,world.door.z,'HOUSE']:flags.relay?[bearer.x,bearer.z,'BEARER']:[world.relay.x,world.relay.z,'RELAY'];
       if(!threat&&!P.cutterUp&&UW>=760){const dx=target[0]-P.x,dz=target[1]-P.z,angle=M.angleTo(P.camYaw,Math.atan2(dx,dz)),xx=640-clamp(angle/.9,-1,1)*490;g.strokeStyle='#d4bb8a';g.lineWidth=1;g.beginPath();g.moveTo(xx*sx,184*sy);g.lineTo((xx+4)*sx,189*sy);g.lineTo(xx*sx,194*sy);g.lineTo((xx-4)*sx,189*sy);g.closePath();g.stroke();text(target[2]+' · '+Math.round(Math.hypot(dx,dz))+' m',xx,216,10,.7,{ui:true});}
       if(P.cutterUp){const ready=cutterCooldown<=0;g.strokeStyle=ready?'#abd8df':'#cca16c';g.lineWidth=1.5;g.beginPath();g.moveTo(UW/2-14,UH/2);g.lineTo(UW/2-5,UH/2);g.moveTo(UW/2+5,UH/2);g.lineTo(UW/2+14,UH/2);g.moveTo(UW/2,UH/2-10);g.lineTo(UW/2,UH/2+10);g.stroke();if(cutterCooldown>0){g.fillStyle='rgba(7,18,21,.6)';g.fillRect(UW/2-18,UH/2+20,36,3);g.fillStyle='#a7d3dc';g.fillRect(UW/2-18,UH/2+20,36*(1-clamp(cutterCooldown/.7,0,1)),3);}
         if(cutTarget){const p=cutTarget.j,m=RENDER.vp,x=p[1],y=p[2],z=p[3],w=m[3]*x+m[7]*y+m[11]*z+m[15];if(w>0){const xx=(m[0]*x+m[4]*y+m[8]*z+m[12])/w,yy=(m[1]*x+m[5]*y+m[9]*z+m[13])/w;g.beginPath();g.arc((xx*.5+.5)*UW,(-yy*.5+.5)*UH,13,0,TAU);g.stroke();}}
@@ -3355,7 +3475,7 @@ const Game = (() => {
     if(checkpointToast>0&&state==='play')text('CHECKPOINT SAVED',1238,80,11,Math.min(1,checkpointToast),{align:'right',ui:true});
     if(hurtT>0){g.strokeStyle='rgba(151,53,31,'+(hurtT*.35)+')';g.lineWidth=24;g.strokeRect(0,0,UW,UH);}
     // narration
-    if (lineCur && !menuStack && state !== 'title') {
+    if (lineCur && !menuStack && state !== 'title' && state!=='note') {
       const a = Math.min(1, lineCur.t / 0.35, (lineCur.d - lineCur.t) / 0.55), size = 23 * t, lh = Math.max(30 * t, 20 / sy);
       const ls = wrap(lineCur.text, UW<760?(UW-44)/sx:800, size), y0 = (isTouch?UH-185:UH-48)/sy - (ls.length - 1) * lh;
       const grd = g.createLinearGradient(0, (720 - 170 * t) * sy, 0, 720 * sy); grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, `rgba(8,12,15,${0.65 * a})`); g.fillStyle = grd; g.fillRect(0, (720 - 170 * t) * sy, UW, 170 * t * sy);
@@ -3371,6 +3491,7 @@ const Game = (() => {
     }
     if(pl && state==='play') text(isTouch ? 'Photograph captured' : 'Photograph captured · Tab to open album · C to lower camera',640,115,18,Math.min(1,pl.t*4),{col:'#f6e5bc'});
     if (state === 'darkroom') renderDarkroom();
+    if(state==='note')renderNotebook();
     if (flash > 0) { g.fillStyle = `rgba(255,252,245,${flash * (reduce() ? 0.3 : 0.8)})`; g.fillRect(0, 0, UW, UH); }
     if (P.carried > 0 && state === 'play') { g.fillStyle = `rgba(230,236,240,${Math.min(0.35, P.carried * 0.06)})`; g.fillRect(0, 0, UW, UH); }
     if (fade < 0.999) { g.fillStyle = `rgba(6,6,8,${1 - fade})`; g.fillRect(0, 0, UW, UH); }
@@ -3395,6 +3516,15 @@ const Game = (() => {
     text('the winter crossing · a machine that hunts · a house with its lights on', 640, 720 - 62, 15, b * 0.5, { italic: true });
   }
   function renderCard() { const tt = stateT, a = Math.min(1, tt / 1.2) * (1 - smooth(3.6, 5, tt)), bg = 1 - smooth(3.2, 5, tt), c = TEXT.cards[chapter]; g.fillStyle = `rgba(8,8,10,${0.85 * bg})`; g.fillRect(0, 0, UW, UH); text(c.n, 640, 280, 30, a * 0.8, { letter: 6 }); text(c.title, 640, 360, 74, a, { weight: 500, letter: 4 }); text(c.sub, 640, 404, 26, a * 0.85, { italic: true }); text(c.date, 640, 470, 20, a * 0.6, { italic: true, letter: 2 }); }
+  function renderNotebook(){
+    g.fillStyle='rgba(4,8,8,.83)';g.fillRect(0,0,UW,UH);const w=Math.min(UW-32,650),h=Math.min(UH-60,520),x=(UW-w)/2,y=(UH-h)/2;
+    g.fillStyle='#d6cbb2';g.fillRect(x,y,w,h);g.fillStyle='#9e5039';g.fillRect(x+22,y+24,2,h-48);
+    const line=(s,yy,size=18,opt={})=>text(s,(x+42)/sx,yy/sy,size,1,{align:'left',col:'#313b35',shadow:false,...opt});
+    const compact=UH<480;line('SJÖGÅRDEN · 16 DECEMBER 1997',y+(compact?34:52),UW<500?10:13,{ui:true});line('18:40',y+(compact?64:90),compact?22:26,{ui:true});
+    const body=['FOUND ONE ON THE ICE. BROUGHT IN.','Left the light on. Put the key where it always was.','The radio keeps using the names of people who have already come home.'];let yy=y+(compact?105:145);
+    for(const para of body){const ls=wrap(para,(w-85)/sx,compact?16:19);for(const l of ls){line(l,yy,compact?16:19);yy+=compact?22:27;}yy+=compact?12:20;}
+    line(isTouch?'Tap to put the notebook down':'E / Esc · put the notebook down',y+h-30,12,{ui:true});
+  }
   function renderDarkroom() {
     const d = darkroom, t = T();
     g.fillStyle = 'rgba(28,10,4,0.86)'; g.fillRect(0, 0, UW, UH);
@@ -3485,7 +3615,7 @@ const Game = (() => {
     requestAnimationFrame(t => { last = t; frame(t); });
   }
   window.__game = {
-    get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
+    get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get interior(){return Interior.contains(P.x,P.z);},get room(){return Interior;},enterHouse,get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
     jump(ch, x, z) { lineCur=null; lineQ=[]; menuStack = null; if (ch >= 2) { flags.island = true; flags.hulls = true; for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; h.y = 0; } } startChapter(ch); state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x !== undefined) Player.place(x, z, 0); if (ch === 2) awake = true; },
     set(x, y, z, tx, ty, tz) { const c = RENDER.cam; state = 'free'; c.x = x; c.y = y; c.z = z; c.tx = tx; c.ty = ty; c.tz = tz; },
     place(x, z, yaw) { Player.place(x, z, yaw || 0); }, step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) update(dt); }, get awake() { return awake; }, set awake(v) { awake = v; }, get standoff() { return standoffWith; }, get time() { return time; }, get deaths() { return deathT; }, setState(s) { state = s; stateT = 0; },

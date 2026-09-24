@@ -3,6 +3,7 @@
 'use strict';
 const Sound = (() => {
   let ac = null, master, music, sfx, wet, wind, windGain, windFilter, hum, hum2, humGain, humFilter, noiseBuf, listener;
+  let indoors=false;
   let muted = false, chapter = 0, chordT = 0, chordI = 0, bellT = 6, humTarget = 0, iceT = 8;
   const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
   const CHORDS = [
@@ -33,7 +34,7 @@ const Sound = (() => {
     humGain = ac.createGain(); humGain.gain.value = 0; hum.connect(humFilter); hum2.connect(humFilter); humFilter.connect(humGain); humGain.connect(master); hum.start(); hum2.start();
     setChapter(chapter);
   }
-  function setChapter(i) { chapter = Math.min(i, CHORDS.length - 1); chordI = 0; chordT = 0; if (!ac) return; windGain.gain.setTargetAtTime(WIND[chapter], ac.currentTime, 2); playChord(); }
+  function setChapter(i) { chapter = Math.min(i, CHORDS.length - 1); chordI = 0; chordT = 0; if (!ac) return; windGain.gain.setTargetAtTime(indoors?.015:WIND[chapter], ac.currentTime, 2); playChord(); }
   function playChord() {
     if (!ac) return;
     const t = ac.currentTime, notes = CHORDS[chapter][chordI % 4], dur = 11;
@@ -88,6 +89,7 @@ const Sound = (() => {
     const f = 60 + Math.random() * 90; tone(f * 4, 1.4, 'sine', 0.35, 0, 0.35, p, 0.02); tone(f, 2.2, 'sine', 0.3, 0.1, 0.5, p, 0.05); noise(0.5, 'lowpass', 200, 1, 0.5, 0.05, p);
   }
   const S = {
+    setIndoor(v){indoors=v;if(ac)windGain.gain.setTargetAtTime(indoors?.015:WIND[chapter],ac.currentTime,.7);},
     init, setChapter, update, get muted() { return muted; },
     toggleMute() { muted = !muted; if (master) master.gain.setTargetAtTime(muted ? 0 : 0.8, ac.currentTime, 0.05); return muted; },
     step(surface, hurry) {

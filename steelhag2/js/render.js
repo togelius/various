@@ -61,8 +61,8 @@ const RENDER = (() => {
       int tile = int(vTile + 0.5); vec4 m = uMat[tile];
       if(tile==${MAT.PATH}){float edge=1.0-smoothstep(.42,1.0,abs(vUV.x)+vnoise(vWorld.xz*4.0)*.18);float mottling=.65+.35*vnoise(vWorld.xz*2.2);o=vec4(.16,.19,.22,edge*mottling*.13*uAlpha);return;}
       if(tile == ${MAT.TRACK}) { float edge=1.0-smoothstep(0.30,1.0,dot(vUV,vUV)); o=vec4(0.045,0.065,0.09,edge*0.22); return; }
-      vec4 tx = tile==${MAT.FOLIAGE}?texture(uFoliage,vUV):texture(uTex, vec3(vUV, vTile));
-      if(tile==${MAT.FOLIAGE}&&tx.a<.48)discard;
+      vec4 tx = (tile==${MAT.FOLIAGE}||tile==${MAT.WINDOW_TREE})?texture(uFoliage,vUV):texture(uTex, vec3(vUV, vTile));
+      if((tile==${MAT.FOLIAGE}||tile==${MAT.WINDOW_TREE})&&tx.a<.48)discard;
       if(vTile<1.001){float mixIce=clamp(vTile,0.0,1.0);tx=mix(texture(uTex,vec3(vUV,0.0)),texture(uTex,vec3(vUV,1.0)),mixIce);m=mix(uMat[0],uMat[1],mixIce);}
       if(vTile<1.001&&uIceReady>.5){
         vec2 uv=vWorld.xz*.065;vec3 frost=texture(uIceTexture,uv).rgb;
@@ -98,6 +98,7 @@ const RENDER = (() => {
       }
       vec3 col = albedo * (hemi * contactAO + uSunCol * ndl * sh);
       if(tile==${MAT.FOLIAGE})col=albedo*(uSkyCol*.9+uGroundCol*.25+uSunCol*.2);
+      if(tile==${MAT.WINDOW_TREE})col=albedo*vec3(.21,.27,.33);
       float gloss = 1.0 - m.x;
       // a little sky reflection on smooth things (ice, glass, foil)
       col += hemi * gloss * 0.35 * pow(1.0 - max(dot(n, v), 0.0), 3.0);

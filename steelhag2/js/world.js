@@ -24,6 +24,7 @@ const World = (() => {
   // Match the rendered grid's triangles exactly; an analytic height between coarse
   // vertices made shoes and contact shadows hover above the visible snow.
   function groundY(x,z){
+    if(typeof Interior!=='undefined'&&Interior.contains(x,z))return 0;
     const gx=Math.floor((x+420)/GRID)*GRID-420,gz=Math.floor((z+120)/GRID)*GRID-120,fx=(x-gx)/GRID,fz=(z-gz)/GRID;
     const a=terrain(gx,gz),b=terrain(gx,gz+GRID),c=terrain(gx+GRID,gz+GRID),d=terrain(gx+GRID,gz);
     return Math.max(0,fz>=fx?a+(b-a)*fz+(c-b)*fx:a+(d-a)*fx+(c-d)*fz);
