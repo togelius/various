@@ -340,8 +340,8 @@ const World = (() => {
     S.birches = bl;for(const [x,y,z,,scale] of sl)collide(x-.17*scale,y,z-.17*scale,.34*scale,3,.34*scale);
     const dressing=new Builder(),rd=rng32(81);
     dressing.tile=MAT.SNOW;dressing.col=[.91,.94,.96];
-    for(const [x,z,rx,rz] of [[-5,161,2,4],[5,166,2.4,2],[-17,170,3,1.5],[19,166,3,2],[28,165,2,4],[-11,-29,3,1.7]]){
-      const y=groundY(x,z);dressing.loft(x,y-.15,z,[[0,rx,rz],[.22,rx*.92,rz*.93],[.48,rx*.66,rz*.64],[.58,.01,.01]],{segs:24});
+    for(const [x,z,rx,rz] of [[-4.9,165.5,1.2,1.5],[5,166,2.4,2],[-17,170,3,1.5],[19,166,3,2],[28,165,2,4],[-11,-29,3,1.7]]){
+      const base=dressing.count;dressing.loft(x,-.055,z,[[0,rx,rz],[.08,rx*.95,rz*.95],[.18,rx*.75,rz*.76],[.26,rx*.4,rz*.43],[.28,.01,.01]],{segs:28});for(let i=base;i<dressing.count;i++){const k=i*13;dressing.v[k+1]+=groundY(dressing.v[k],dressing.v[k+2]);}
     }
     for(let i=0;i<100;i++) {const x=-150+rd()*300,z=landEdgeIsle(x)+2+rd()*5,y=groundY(x,z);if(Math.abs(x)<9)continue;
       dressing.tile=MAT.REED;dressing.col=[.62,.59,.42];const h=.3+rd()*.7;dressing.tube([[x,y,z],[x+.1,y+h*.7,z+.04],[x+.25,y+h,z+.12]],.013,{segs:3});
@@ -363,6 +363,7 @@ const World = (() => {
         pathMesh.quad(verts[0],verts[3],verts[2],verts[1]);
       }
     }
+    for(let i=0;i<dressing.count;i++){const k=i*13;if(dressing.v[k+11]===MAT.SNOW){dressing.v[k+9]=dressing.v[k]*.20;dressing.v[k+10]=dressing.v[k+2]*.20;}}
     place(dressing.build(),0,0,0);place(pathMesh.build(),0,0,0,0,{alpha:1,noShadow:true});
     // the towers across the bay, and the mast with its red light
     const tw = new Builder(); buildTowers(tw); place(tw.build(), 620, -2, 640, 0);
@@ -379,6 +380,7 @@ const World = (() => {
     S.vantages.push({ x: FARM.x - 12, z: FARM.z - 14, key: '2:house', caption: 'The house, sold, with a window lit' });
     S.vantages.push({ x: 40, z: (FARM.z + 24), key: '2:hole', caption: 'Where SV-14 used to lie. Something had been laid into the hole.' });
     Roadside.build(place,collide,groundY,S);
+    Farmyard.build(place,collide,groundY,S);
     // triggers along the way
     S.triggers.push({ x: 0, z: 14, r: 14, id: 'hulls' }, { x: FARM.x, z: SHORE_Z + 5, r: 12, id: 'island' });
     S.door = { x: FARM.x, z: FARM.z - 4.6 };
