@@ -368,7 +368,7 @@ const PLAYER = (() => {
     // Heading grows counter-clockwise seen from above (+z toward +x, which is screen-left), so steering right is negative.
     let ix = 0, iz = 0;
     if (INPUT.down('KeyW') || INPUT.down('ArrowUp')) iz += 1; if (INPUT.down('KeyS') || INPUT.down('ArrowDown')) iz -= 1; if (INPUT.down('KeyD') || INPUT.down('ArrowRight')) ix += 1; if (INPUT.down('KeyA') || INPUT.down('ArrowLeft')) ix -= 1;
-    if (pad.active) { ix = M.clamp(ix + pad.lx, -1, 1); iz = M.clamp(iz - pad.ly, -1, 1); }
+    if (pad.active) { const x = pad.lx * (0.4 + 0.6 * pad.lx * pad.lx); /* expo: a thumb's first centimetre makes fine corrections, the rim is still full lock */ ix = M.clamp(ix + x, -1, 1); iz = M.clamp(iz - pad.ly, -1, 1); }
     const ctl = c.controls;
     const fwdIn = Math.min(1, Math.max(0, iz) + pad.rt), backIn = Math.min(1, Math.max(0, -iz) + pad.lt);
     if (fwdIn > 0) { if (c.speed < -0.5) { ctl.throttle = 0; ctl.brake = fwdIn; ctl.reverse = false; } else { ctl.throttle = fwdIn; ctl.brake = 0; } }
@@ -409,7 +409,7 @@ const PLAYER = (() => {
     }
     if (P.car && P.stuntCam) { const c = P.car, sc = P.stuntCam; RENDER.setCamera(sc.x, sc.y, sc.z, c.x, c.y + 0.8, c.z, 38 * Math.PI / 180); W.state.camYaw = Math.atan2(c.x - sc.x, c.z - sc.z); P.camX = sc.x; P.camY = sc.y; P.camZ = sc.z; return; } // the stunt camera stays on the ramp and watches the car fly
     if (P.car) {
-      const c = P.car; const spd = c.absSpeed; const behind = c.speed < -2 && P.camIdle > 1 ? c.angle + Math.PI : c.angle;
+      const c = P.car; const spd = c.absSpeed; const slide = c.speed > 5 && !c.airborne ? M.clamp(M.angleTo(c.angle, Math.atan2(c.vx, c.vz)), -.7, .7) * .6 : 0; /* in a slide the camera looks down the road the car is travelling, not along its nose */ const behind = c.speed < -2 && P.camIdle > 1 ? c.angle + Math.PI : c.angle + slide;
       const targetYaw = behind + P.camYawOff;
       if (P.camIdle > 1.0) { P.camYawOff *= Math.max(0, 1 - 4 * dt); P.camYaw += M.angleTo(P.camYaw, behind + P.camYawOff + (c.yawRate || 0) * 0.12) * Math.min(1, (4.5 + spd * 0.22) * dt); } // swings round faster and leads a little into the turn
       else { P.camYawOff = M.angleTo(behind, P.camYaw); }

@@ -4192,14 +4192,28 @@ const VEH = (() => {
       // steering: the wheel angle that full lock gives shrinks with speed, so a twitch at 150 km/h is not a spin
       const want = M.clamp(c.steer, -1, 1); this.steer = M.approach(this.steer, want, tune.response * (Math.abs(want) < Math.abs(this.steer) || want * this.steer < 0 ? 2.2 : 1) * dt); // the wheel self-centres faster than it winds on
       const maxSteer = tune.steer / (1 + spd / 13);
+      const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked'), me = live && this.driver === PLAYER;
+      // sideslip: negative when the nose has swung left of the direction of travel (the tail out to the right), which
+      // is what a left turn (positive yaw) that oversteers looks like. Pointing the front wheels along the travel
+      // direction, a countersteer, means steering toward the sign of the slip.
+      const beta = Math.atan2(vL, Math.max(spd, 3));
+      // a drift is a state, not an accident: a handbrake flick with the wheel turned at speed breaks the rear loose,
+      // and it stays loose while the throttle is on, until the car straightens up, slows right down or is braked
+      if (me) { const d = this.drift;
+        if (!d && !this.airborne && spd > 9 && c.handbrake && Math.abs(c.steer) > .25) { this.drift = { t: 0, calm: 0, peak: 0 }; if (!PLAYER.P?.stats?.tricks && !VEH.toldDrift && typeof HUD !== 'undefined') { VEH.toldDrift = true; HUD.notify('Drift: keep the gas on and steer to hold it. Lift off to straighten.'); } }
+        else if (d) { d.t += dt; d.peak = Math.max(d.peak, Math.abs(beta)); d.calm = !c.handbrake && Math.abs(beta) < .12 ? d.calm + dt : 0;
+          if ((d.calm > .2 && d.t > .35) || spd < 5 || (c.brake > .5 && !c.handbrake) || this.airborne) { this.drift = null; this.driftOut = .35; this.lastDrift = d; } } }
+      else this.drift = null;
+      if (this.driftOut > 0) this.driftOut -= dt;
       const assist=this.driver===PLAYER?(GAME.options?.steeringAssist??.35):0;
-      const counter=M.clamp(-Math.atan2(vL,Math.max(spd,3))*.35,-.09,.09)*assist*Math.min(1,spd/10);
+      const counter=M.clamp(beta*(this.drift && !c.handbrake ? .75 : .35),-(this.drift ? .32 : .09),this.drift ? .32 : .09)*(this.drift ? Math.max(assist, .6) : assist)*Math.min(1,spd/10); // in a drift the wheels are helped to follow the slide, so a neutral stick holds it
       const delta = this.steer * maxSteer + counter + this.dmg.pull * Math.min(1, spd / 8); this.steerAngle = delta;
       // tyre model: a bicycle with a front and a rear axle, lateral force from slip angle up to a friction limit
       const Lw = s.len * 0.58, bF = Lw * 0.5, bR = Lw * 0.5; const mu = 13 * s.grip; // total lateral grip, m/s^2
-      const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked');
       const wet = 1 - 0.18 * (RENDER.env.wet || 0); // rain takes a fifth of the grip
-      let muF = mu * tune.front * wet * this.dmg.front, muR = mu * tune.rear * wet * this.dmg.rear; if (c.handbrake) muR *= 0.32; if (c.brake > 0.6 && vF > 4) muF *= 0.75; // locked rears slide, hard braking dulls the front
+      let muF = mu * tune.front * wet * this.dmg.front, muR = mu * tune.rear * wet * this.dmg.rear; if (c.handbrake) muR *= me ? .2 : .32; else if (this.drift) muR *= .62 + .25 * (1 - c.throttle); if (c.brake > 0.6 && vF > 4) muF *= 0.75; // locked rears slide, power keeps a drifting rear loose, hard braking dulls the front
+      // weight transfer: braking loads the front tyres (sharper turn-in, a lighter tail), power loads the rear
+      this.load = M.approach(this.load || 0, this.airborne ? 0 : M.clamp(-(this.aLong || 0) * .018, -.14, .2), 3 * dt); muF *= 1 + this.load; muR *= 1 - this.load;
       const Cf = muF / tune.stiffF, Cr = muR / tune.stiffR; // cornering stiffness: the front saturates at a slightly larger slip than the rear, so the car understeers gently
       let wheelspin = 0;
       // engine and brakes as longitudinal accelerations; the driven rear axle only gets what the friction circle leaves
@@ -4209,7 +4223,8 @@ const VEH = (() => {
         if (c.brake > 0) { if (vF > 0.3) aLong -= Math.min(s.brake, mu * .9 * (1 - 0.3 * (RENDER.env.wet || 0)) * tune.brake) * c.brake; /* rain still costs a third of the braking */ else if (c.reverse === false) aLong += Math.min(s.brake * c.brake, -vF / dt); /* forward pedal while rolling backwards: stop, don't reverse harder */ else if (vF > -top * 0.35) aLong -= s.accel * 0.6 * c.brake; }
       }
       if (!this.airborne) { aLong -= Math.sign(vF) * Math.min(Math.abs(vF) / dt, 1.2 + (c.handbrake ? 6 : 0)); aLong -= vF * Math.abs(vF) * 0.0035; }
-      let yawR = this.yawRate || 0; const grip = c.handbrake || !live ? 0 : this.driver === PLAYER ? (GAME.options?.gripAssist ?? .6) : .6;
+      let yawR = this.yawRate || 0; this.aLong = aLong;
+      const grip = c.handbrake || !live ? 0 : (this.driver === PLAYER ? (GAME.options?.gripAssist ?? .6) : .6) * (this.drift ? .08 : 1 - .9 * Math.max(0, this.driftOut || 0) / .35);
       const sub = 2, h = dt / sub;
       for (let k = 0; k < sub; k++) {
         vF += aLong * h; if (c.brake > 0 && c.reverse !== true && Math.abs(vF) < 0.15 && spd < 1) vF = 0;
@@ -4228,6 +4243,8 @@ const VEH = (() => {
         // stops turning when the wheel does. The handbrake switches it off; that is what the handbrake is for.
         if (grip > 0 && w > 0) { const g = grip * w * Math.min(1, Math.abs(vF) / 6); vL -= vL * Math.min(1, 4.5 * g * h);
           const lim = (muF + muR) * 1.25 / v, target = M.clamp(kinYaw, -lim, lim); yawR += (target - yawR) * Math.min(1, 5 * g * h); }
+        // past about 50 degrees a drift becomes a spin; lean on the yaw so a held drift stays a drift
+        if (this.drift && !c.handbrake) { const b = Math.atan2(vL, Math.max(Math.abs(vF), 3)), over = Math.abs(b) - .85; if (over > 0) yawR += Math.sign(b) * over * 14 * h; }
         this.latForceR = Fr; this.slipF = af; this.slipR = ar; this.latAcc = aLat;
       }
       if (!this.airborne) this.angle += yawR * dt;
@@ -4269,11 +4286,17 @@ const VEH = (() => {
           const dx = res.x - cx, dz = res.z - cz; this.x += dx; this.z += dz;
           const vn = this.vx * nx + this.vz * nz;
           if (vn < 0) {
-            const impact = -vn; this.vx -= vn * nx * 1.15; this.vz -= vn * nz * 1.15;
-            // scrape: slow down along the wall, rotate away
-            this.vx *= 0.9; this.vz *= 0.9;
-            const front = (cx - this.x) * f[0] + (cz - this.z) * f[1] > 0; const side = (nx * f[1] - nz * f[0]); // which side the wall is on
-            this.angle += (front ? -1 : 1) * Math.sign(side || 1) * Math.min(impact * 0.03, 0.15) * (this.speed < 0 ? -1 : 1);
+            const impact = -vn;
+            // the wall takes the speed into it (and gives a little back); friction along it scrubs in proportion to how
+            // hard the car is pressed in, so a glancing touch costs a little and a square hit stops you
+            const tx = this.vx - vn * nx, tz = this.vz - vn * nz, vt = Math.hypot(tx, tz), keep = vt > 0 ? Math.max(0, vt - impact * 0.45) / vt : 0;
+            this.vx = tx * keep + nx * impact * 0.15; this.vz = tz * keep + nz * impact * 0.15;
+            if (impact < vt * 0.5 && vt > 2) { // glancing: the wall turns the nose along it, like a guard rail
+              const back = this.speed < 0 ? Math.PI : 0, along = Math.atan2(tx, tz) + back, turn = M.angleTo(this.angle, along);
+              if (Math.abs(turn) < 0.9) { this.angle += turn * 0.35; this.yawRate = (this.yawRate || 0) * 0.5; }
+              if (vt > 6 && W.state.frame % 3 === 0) W.FX.spark(cx - nx * r, 0.5, cz - nz * r, 3);
+            } else { const front = (cx - this.x) * f[0] + (cz - this.z) * f[1] > 0; const side = (nx * f[1] - nz * f[0]); // which side the wall is on
+              this.angle += (front ? -1 : 1) * Math.sign(side || 1) * Math.min(impact * 0.03, 0.15) * (this.speed < 0 ? -1 : 1); }
             if (impact > 3 && this.driver === PLAYER) PLAYER.shake(Math.min(1, impact / 10));
             if (impact > 3) { this.damage(impact * impact * .35,null,{x:cx-nx*r,y:this.y+.7,z:cz-nz*r,kind:'impact'}); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; if (s.bike && impact > 6.5) this.throwRider(impact); }
           }
@@ -4291,7 +4314,7 @@ const VEH = (() => {
           const mA = this.spec.mass, mB = o.spec.mass, tot = mA + mB;
           this.x += nx * pen * (mB / tot); this.z += nz * pen * (mB / tot); o.x -= nx * pen * (mA / tot); o.z -= nz * pen * (mA / tot);
           const rvx = this.vx - o.vx, rvz = this.vz - o.vz; const vn = rvx * nx + rvz * nz;
-          if (vn < 0) {
+          if (vn < 0) { this.touchT = o.touchT = W.state.elapsed; // a touch spoils a near miss
             const j = -(1.25) * vn / (1 / mA + 1 / mB);
             this.vx += j * nx / mA; this.vz += j * nz / mA; o.vx -= j * nx / mB; o.vz -= j * nz / mB;
             const impact = -vn;
@@ -5600,7 +5623,7 @@ const PLAYER = (() => {
     // Heading grows counter-clockwise seen from above (+z toward +x, which is screen-left), so steering right is negative.
     let ix = 0, iz = 0;
     if (INPUT.down('KeyW') || INPUT.down('ArrowUp')) iz += 1; if (INPUT.down('KeyS') || INPUT.down('ArrowDown')) iz -= 1; if (INPUT.down('KeyD') || INPUT.down('ArrowRight')) ix += 1; if (INPUT.down('KeyA') || INPUT.down('ArrowLeft')) ix -= 1;
-    if (pad.active) { ix = M.clamp(ix + pad.lx, -1, 1); iz = M.clamp(iz - pad.ly, -1, 1); }
+    if (pad.active) { const x = pad.lx * (0.4 + 0.6 * pad.lx * pad.lx); /* expo: a thumb's first centimetre makes fine corrections, the rim is still full lock */ ix = M.clamp(ix + x, -1, 1); iz = M.clamp(iz - pad.ly, -1, 1); }
     const ctl = c.controls;
     const fwdIn = Math.min(1, Math.max(0, iz) + pad.rt), backIn = Math.min(1, Math.max(0, -iz) + pad.lt);
     if (fwdIn > 0) { if (c.speed < -0.5) { ctl.throttle = 0; ctl.brake = fwdIn; ctl.reverse = false; } else { ctl.throttle = fwdIn; ctl.brake = 0; } }
@@ -5641,7 +5664,7 @@ const PLAYER = (() => {
     }
     if (P.car && P.stuntCam) { const c = P.car, sc = P.stuntCam; RENDER.setCamera(sc.x, sc.y, sc.z, c.x, c.y + 0.8, c.z, 38 * Math.PI / 180); W.state.camYaw = Math.atan2(c.x - sc.x, c.z - sc.z); P.camX = sc.x; P.camY = sc.y; P.camZ = sc.z; return; } // the stunt camera stays on the ramp and watches the car fly
     if (P.car) {
-      const c = P.car; const spd = c.absSpeed; const behind = c.speed < -2 && P.camIdle > 1 ? c.angle + Math.PI : c.angle;
+      const c = P.car; const spd = c.absSpeed; const slide = c.speed > 5 && !c.airborne ? M.clamp(M.angleTo(c.angle, Math.atan2(c.vx, c.vz)), -.7, .7) * .6 : 0; /* in a slide the camera looks down the road the car is travelling, not along its nose */ const behind = c.speed < -2 && P.camIdle > 1 ? c.angle + Math.PI : c.angle + slide;
       const targetYaw = behind + P.camYawOff;
       if (P.camIdle > 1.0) { P.camYawOff *= Math.max(0, 1 - 4 * dt); P.camYaw += M.angleTo(P.camYaw, behind + P.camYawOff + (c.yawRate || 0) * 0.12) * Math.min(1, (4.5 + spd * 0.22) * dt); } // swings round faster and leads a little into the turn
       else { P.camYawOff = M.angleTo(behind, P.camYaw); }
@@ -6447,6 +6470,65 @@ const GRIFT = (() => {
 
 </script>
 <script>
+// GRIFT CITY — style: driving worth watching pays. Drifts, near misses and air are tricks; each one that lands within
+// four seconds of the last grows the chain and its multiplier. The chain banks when the streak goes quiet (or you get
+// out) and is lost in a real crash, so a long chain is a reason to keep your nerve. While wanted it feeds the Heat Run
+// pot instead of your pocket: the show is only paid if you get away.
+'use strict';
+const STYLE = (() => {
+  const WINDOW = 4, NEAR = 1.0, NEAR_SPEED = 11;
+  const S = { chain: null, pops: [], near: new Map(), car: null, health: 0, air: 0 };
+  const mult = n => Math.min(4, 1 + 0.5 * (n - 1));
+  const value = ch => Math.round(ch.pts * mult(ch.tricks.length));
+  function pop(text, color) { S.pops.push({ text, color, t: 1.6 }); if (S.pops.length > 3) S.pops.shift(); }
+  function trick(name, pts) {
+    const ch = S.chain || (S.chain = { tricks: [], pts: 0, t: 0 });
+    ch.tricks.push(name); ch.pts += pts; ch.t = WINDOW; pop(name + '  +' + pts, '#f5ce68');
+    const P = PLAYER.P; if (!P.stats.tricks && !S.told && typeof HUD !== 'undefined') { S.told = true; HUD.notify('Style pays: drifts, near misses and air chain up. Crash and the chain is lost.'); }
+    if (typeof AUDIO !== 'undefined' && ch.tricks.length > 1) AUDIO.play('pickup');
+  }
+  function bank() {
+    const ch = S.chain; S.chain = null; if (!ch) return; const v = value(ch), P = PLAYER.P;
+    P.stats.styleBest = Math.max(P.stats.styleBest || 0, v); P.stats.tricks = (P.stats.tricks || 0) + ch.tricks.length;
+    if (P.wanted > 0 && typeof POLICE !== 'undefined') { POLICE.S.pot = (POLICE.S.pot || 0) + v; pop('THE SHOW  +$' + v + '  → HEAT RUN', '#f5c542'); }
+    else { PLAYER.addMoney(v, ch.tricks.length > 1 ? ch.tricks.length + '-trick chain' : 'driving style'); pop('BANKED  +$' + v, '#8fe38a'); }
+  }
+  function lose(why) { if (!S.chain) return; S.chain = null; pop(why, '#ff7a64'); }
+  function nearMisses(c, dt) {
+    const seen = new Set();
+    for (const o of W.cars) {
+      if (o === c || o.removed || o.wrecked || o.ai.mode === 'parked' || o.spec.boat || M.dist2(o.x, o.z, c.x, c.z) > 144) continue;
+      seen.add(o); const [lf, ll] = c.local(o.x, o.z); const overlap = Math.abs(lf) < (c.spec.len + o.spec.len) / 2;
+      const gap = Math.abs(ll) - (c.spec.wid + o.spec.wid) / 2, rel = Math.hypot(c.vx - o.vx, c.vz - o.vz);
+      let r = S.near.get(o);
+      if (overlap) { if (!r) S.near.set(o, r = { min: gap, rel, since: W.state.elapsed }); r.min = Math.min(r.min, gap); r.rel = Math.max(r.rel, rel); }
+      else if (r) { S.near.delete(o); const touched = (o.touchT || -1) >= r.since - 0.2;
+        if (!touched && r.min < NEAR && r.min > -0.1 && r.rel > NEAR_SPEED) trick(r.min < 0.4 ? 'PAINT SWAP' : 'NEAR MISS', Math.round(r.rel * (r.min < 0.4 ? 1.6 : 1))); }
+    }
+    for (const o of S.near.keys()) if (!seen.has(o)) S.near.delete(o);
+  }
+  function update(dt) {
+    for (let i = S.pops.length - 1; i >= 0; i--) if ((S.pops[i].t -= dt) <= 0) S.pops.splice(i, 1);
+    const P = PLAYER.P, c = P.car;
+    if (!P.alive) { lose('WASTED'); S.car = null; return; }
+    if (!c || c.spec.boat) { if (S.chain) bank(); S.car = null; S.near.clear(); return; }
+    if (c !== S.car) { S.car = c; S.health = c.health; S.near.clear(); S.air = 0; }
+    // a crash is a hit that really hurts the car, not a scrape or a nudge
+    if (S.health - c.health > c.maxHealth * 0.05) lose('CRASHED  ·  CHAIN LOST'); S.health = c.health;
+    if (c.wrecked) { lose('WRECKED'); return; }
+    if (c.lastDrift) { const d = c.lastDrift; c.lastDrift = null; const deg = d.peak * 180 / Math.PI; if (d.t > 0.8 && deg > 15) trick('DRIFT', Math.round(d.t * (8 + deg * 0.4))); }
+    if (c.airborne) S.air += dt; else { if (S.air > 0.4 && c.absSpeed > 8) trick(S.air > 0.85 ? 'BIG AIR' : 'AIR', Math.round(S.air * 40)); S.air = 0; }
+    if (c.absSpeed > 6) nearMisses(c, dt); else S.near.clear();
+    const ch = S.chain; if (ch) { if (c.drift || c.airborne) ch.t = Math.max(ch.t, 1); ch.t -= dt; if (ch.t <= 0) bank(); }
+  }
+  // what the HUD shows: the chain in the air, a live drift, and the last few calls
+  const info = () => { const c = PLAYER.P.car, ch = S.chain;
+    return { chain: ch && { tricks: ch.tricks, pts: ch.pts, mult: mult(ch.tricks.length), value: value(ch), left: ch.t / WINDOW }, drift: c && c.drift && c.drift.t > 0.4 ? c.drift.t : 0, pops: S.pops }; };
+  return { S, update, info, trick, bank, lose, WINDOW };
+})();
+
+</script>
+<script>
 // GRIFT CITY — the money side: the dealer and mod shop at Voss Motors, properties that pay out, and standing with the families.
 const ECON = (() => {
   const S = { bounty: 0, bountyT: 0, crew: null, owned: [], properties: {}, rep: { marla: 0, crane: 0, okafor: 0 }, lastCollect: 0, dealerT: 0 };
@@ -6785,6 +6867,13 @@ const HUD = (() => {
       text('THE ' + r.pitch + '  ·  ' + Math.round(r.odds * 100) + '%', x, y - 9, 12, '#f5ce68', 'center', '600', false); }
     else if (r.result) text(r.result.ok ? 'TAKEN IN  +$' + r.result.take : 'MADE YOU', x, y, 20, r.result.ok ? '#8fe38a' : '#ff7a64', 'center');
     else if (r.available && !P.car) text((TOUCH.active ? 'Hold HUSTLE' : INPUT.pad.active ? 'Hold Y' : 'Hold G') + ' to work a con', x, y, 13, 'rgba(255,255,255,0.8)', 'center', 'normal'); }
+  // style: the chain in the air (tricks, multiplier, what it is worth, a fuse), a live drift timer, and the calls
+  function drawStyle(P) { if (typeof STYLE === 'undefined' || !P.car) return; const r = STYLE.info(), x = W_ / 2, y = H_ * 0.3;
+    if (r.chain) { const ch = r.chain, names = ch.tricks.slice(-4).join('  ·  '); text(names, x, y, 12, 'rgba(255,255,255,.85)', 'center', '600');
+      text('×' + ch.mult.toFixed(1).replace('.0', '') + '   $' + ch.value, x, y + 24, 22, '#f5c542', 'center', '700', true, true);
+      g.fillStyle = 'rgba(12,24,29,.6)'; g.fillRect(x - 60, y + 40, 120, 3); g.fillStyle = '#f5ce68'; g.fillRect(x - 60, y + 40, 120 * M.clamp(ch.left, 0, 1), 3); }
+    if (r.drift) text('DRIFT  ' + r.drift.toFixed(1) + 's', x, y + (r.chain ? 60 : 24), 16, '#fff', 'center', '700', true, true);
+    r.pops.forEach((p, i) => text(p.text, x, y - 26 - i * 20 - (1.6 - p.t) * 14, 14, p.color, 'center', '700', true, true)); }
   function stars(P, x, y) { for (let i = 0; i < 5; i++) { const lit = i < P.wanted; const flash = starFlash > 0 && lit && Math.sin(W.state.elapsed * 20) > 0; text('★', x - i * 24, y, 24, lit ? (flash ? '#fff' : '#f5c542') : 'rgba(255,255,255,0.18)', 'center'); } }
 
   function draw(dt, state, photo) { drawFrame(dt, state, photo); if (GAME.options.perfOverlay && state !== 'title' && state !== 'loading') drawPerf(); } // the overlay goes on top of everything, letterbox included
@@ -6832,7 +6921,7 @@ const HUD = (() => {
     zone(W_-200,103,176,48,'KeyR');
     // objective
     const obj = MISSIONS.objective;
-    drawGrift(P); drawGazette(dt); drawChoice();
+    drawGrift(P); drawStyle(P); drawGazette(dt); drawChoice();
     if (obj !== objSeen) { objSeen = obj; objT = 0; } objT += dt;
     // Driving, the full card sat right over your own car. Once read (six seconds after it changes) it folds into a
     // one-line strip at the top of the screen; on foot, and whenever the text changes, it is shown in full.
@@ -7362,7 +7451,7 @@ const GAME = (() => {
     W.frameBegin(); W.updateClock(dt); W.updateWeather(dt); RENDER.setTimeOfDay(W.state.time, W.weather.rain, W.weather.fog, dt); const night = W.isNight();
     const room = CITY.interiorRoom; if (room) { const e = RENDER.env; e.sunCol = e.sunCol.map(v => v * 0.08); e.skyCol = [0.34, 0.3, 0.26]; e.groundCol = [0.2, 0.17, 0.14]; e.fogDensity = 0; e.nightEmis = 1; for (const l of room.lights) W.dyn.push({ x: l.x, y: l.y, z: l.z, r: l.r * 1.3, col: l.col.map(v => v * 1.2) }); } // a room lit by its lamps, not the sun
     const dlg = !!MISSIONS.dialogue;
-    MISSIONS.update(dt); if (typeof GRIFT !== 'undefined') GRIFT.update(dt); ECON.update(dt);
+    MISSIONS.update(dt); if (typeof GRIFT !== 'undefined') GRIFT.update(dt); if (typeof STYLE !== 'undefined') STYLE.update(dt); ECON.update(dt);
     { const h = W.state.time; if (lastHour < 7 && h >= 7 && h < 8 && PLAYER.P.alive && !MISSIONS.S.current) HUD.gazette?.(); lastHour = h; } // the morning edition
     if (!dlg) PLAYER.update(dt); else { PLAYER.P.aim = 0; PLAYER.P.vx = PLAYER.P.vz = PLAYER.P.speed = 0; PLAYER.P.turnStep = PLAYER.P.accelLean = 0; PEDS.updateMotion(PLAYER.P,dt); if (PLAYER.car) { PLAYER.car.controls.throttle = 0; PLAYER.car.controls.brake = 1; } PLAYER.updateCamera(dt); }
     PLAYER.updateProjectiles(dt);

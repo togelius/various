@@ -5,7 +5,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const noop=()=>{};const ctx=vm.createContext({console,assert,URLSearchParams,location:{search:'?seed=42'},setTimeout:noop,
  TEX:{shopKinds:[],names:new Proxy({},{get:()=>0})},RENDER:{MAX_BONES:14,env:{wet:0},cam:{},setCamera:noop},
  AUDIO:new Proxy({},{get:()=>noop}),HUD:new Proxy({},{get:()=>noop}),INPUT:{touch:true,held:{},down(k){return !!this.held[k];},hit:()=>false,pad:{buttons:[],pressed:[]},mouse:{}},GAME:{save:noop,options:{}},ECON:{S:{rep:{marla:0}},onMissionPassed:noop,discount:()=>1}});
-for(const n of ['math','assets','meshes','streets','city','world','tactics','peds','vehicles','player','police','missions','grift'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../js',n+'.js'),'utf8'),ctx,{filename:n+'.js'});
+for(const n of ['math','assets','meshes','streets','city','world','tactics','peds','vehicles','player','police','missions','grift','style'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../js',n+'.js'),'utf8'),ctx,{filename:n+'.js'});
 vm.runInContext(`
 MESH.Builder.prototype.build=MESH.Builder.prototype.buildInstanced=function(){return {}};CITY.generate();W.initProps();PLAYER.init(0,0,0);
 let checks=0;const check=(v,m)=>{assert.ok(v,m);checks++;};
@@ -82,5 +82,21 @@ for(const where of ['hospital','police']){P.x=100;P.z=100;PLAYER.respawn(where);
  {const ln=CITY.nearestLane(c.x,c.z,Math.sin(c.angle),Math.cos(c.angle));const s0=Math.max(2,ln.s-14);const [tx,tz]=CITY.lanePoint(ln.e,1,s0);const t=VEH.spawn('sedan',tx,tz,Math.atan2(ln.e.dx,ln.e.dz),{mode:'traffic'});t.ai.edge=ln.e;t.ai.lane=1;t.ai.cruise=8;t.ai.nextEdge=null;
   const W0=W.lightFor;W.lightFor=()=>null;for(let i=0;i<60*4;i++){t.aiTraffic(1/60);t.physics(1/60);}W.lightFor=W0;const past=(t.x-c.x)*ln.e.dx+(t.z-c.z)*ln.e.dz;check(past>2,'outer-lane traffic passes a kerb car ('+past.toFixed(1)+' m past)');t.remove();}
  P.x=800;P.z=800;VEH.streamKerb(P.x,P.z);check(c.removed,'kerb cars left far behind are cleared');}
+// 14. Style: a drift, near misses and air chain up; the chain banks when the streak goes quiet, is lost in a crash, and
+// feeds the Heat Run pot while wanted. A pass that touches, or one a lane over, is not a near miss.
+{W.cars.length=0;W.peds.length=0;POLICE.clear();const P=PLAYER.P;P.alive=true;P.money=0;const pushOut=W.pushOut;W.pushOut=(x,z)=>({x,z});
+ const me=VEH.spawn('sports',500,500,0,{mode:'parked'});me.driver=PLAYER;me.ai.mode='player';P.car=me;STYLE.S.chain=null;STYLE.update(1/60);
+ const pass=gap=>{const o=VEH.spawn('sedan',500+2+gap,560,Math.PI,{mode:'traffic'});me.x=500;me.z=500;me.vx=0;me.vz=18;let t=0;
+  for(let i=0;i<60*5;i++){me.x+=me.vx/60;me.z+=me.vz/60;o.x=500+2+gap;o.z-=8/60;W.state.elapsed+=1/60;STYLE.update(1/60);}o.remove();W.cars.splice(W.cars.indexOf(o),1);};
+ me.lastDrift={t:1.6,peak:.6};STYLE.update(1/60);check(STYLE.S.chain&&STYLE.S.chain.tricks[0]==='DRIFT','a held drift is a trick');
+ const before=STYLE.S.chain.tricks.length;const o=VEH.spawn('sedan',502.7,540,Math.PI,{mode:'traffic'});me.vz=18;
+ for(let i=0;i<60*3;i++){me.z+=18/60;o.z-=8/60;W.state.elapsed+=1/60;STYLE.update(1/60);}check(STYLE.S.chain&&STYLE.S.chain.tricks.length===before+1&&/NEAR|PAINT/.test(STYLE.S.chain.tricks[before]),'an oncoming car 0.7 m away is a near miss');
+ const v=STYLE.info().chain.value;check(STYLE.info().chain.mult===1.5&&v>0,'two tricks, ×1.5 ($'+v+')');
+ for(let i=0;i<60*5;i++){W.state.elapsed+=1/60;STYLE.update(1/60);}check(!STYLE.S.chain&&P.money===v,'the chain banks when the streak goes quiet ($'+P.money+')');
+ const o2=VEH.spawn('sedan',504.2,me.z+40,Math.PI,{mode:'traffic'});for(let i=0;i<60*3;i++){me.z+=18/60;o2.z-=8/60;W.state.elapsed+=1/60;STYLE.update(1/60);}check(!STYLE.S.chain,'a car a lane over (2.2 m) is not a near miss');
+ const o3=VEH.spawn('sedan',502.7,me.z+40,Math.PI,{mode:'traffic'});for(let i=0;i<60*3;i++){me.z+=18/60;o3.z-=8/60;W.state.elapsed+=1/60;if(i===70)o3.touchT=W.state.elapsed;STYLE.update(1/60);}check(!STYLE.S.chain,'a pass that touched is not a near miss');
+ me.lastDrift={t:2,peak:.7};STYLE.update(1/60);me.health-=me.maxHealth*.2;STYLE.update(1/60);check(!STYLE.S.chain&&P.money===v,'a crash loses the chain');
+ POLICE.setStars(2);const pot0=POLICE.S.pot||0;me.lastDrift={t:2,peak:.7};STYLE.update(1/60);STYLE.bank();check(POLICE.S.pot>pot0&&P.money===v,'while wanted the show feeds the Heat Run pot');
+ POLICE.clear();P.car=null;me.remove();W.pushOut=pushOut;}
 console.log('Getaway: '+checks+' checks passed'+(blocked?' (aim scene blocked; aim checked in browser)':''));
 `,ctx);

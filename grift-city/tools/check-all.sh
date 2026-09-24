@@ -11,7 +11,7 @@ import os, pathlib, re, subprocess, sys, tempfile
 logs = pathlib.Path(tempfile.gettempdir()) / 'grift-check'
 logs.mkdir(exist_ok=True)
 failed = False
-for name in ['visual', 'persistence', 'vehicles', 'enter_test', 'docks_test', 'repo_test', 'rev_test', 'missions_all', 'soak', 'pursuit', 'escape']:
+for name in ['visual', 'persistence', 'vehicles', 'enter_test', 'docks_test', 'repo_test', 'rev_test', 'missions_all', 'soak', 'pursuit', 'drift', 'escape']:
     try:
         result = subprocess.run(['node', f'tools/playtest/tests/{name}.js'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=1800)
         output, code = result.stdout, result.returncode

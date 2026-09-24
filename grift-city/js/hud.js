@@ -158,6 +158,15 @@ const HUD = (() => {
       text('THE ' + r.pitch + '  ·  ' + Math.round(r.odds * 100) + '%', x, y - 9, 12, '#f5ce68', 'center', '600', false); }
     else if (r.result) text(r.result.ok ? 'TAKEN IN  +$' + r.result.take : 'MADE YOU', x, y, 20, r.result.ok ? '#8fe38a' : '#ff7a64', 'center');
     else if (r.available && !P.car) text((TOUCH.active ? 'Hold HUSTLE' : INPUT.pad.active ? 'Hold Y' : 'Hold G') + ' to work a con', x, y, 13, 'rgba(255,255,255,0.8)', 'center', 'normal'); }
+  // style: the chain in the air (tricks, multiplier, what it is worth, a fuse), a live drift timer, and the calls
+  function drawStyle(P) { if (typeof STYLE === 'undefined' || !P.car) return; const r = STYLE.info(), x = W_ / 2, y = H_ * 0.3;
+    if (r.chain) { const ch = r.chain, n = ch.tricks.length, pulse = 1 + ch.flash * 0.35;
+      if (n > 1) text('×' + String(ch.mult).replace(/\.0$/, '') + '  CHAIN', x, y - 26, 13, '#fff', 'center', '700', true, true);
+      text('$' + ch.value, x, y, Math.round(26 * pulse), '#f5c542', 'center', '800', true, true);
+      text(ch.tricks.slice(-3).join('  ·  '), x, y + 24, 12, ch.flash > 0 ? '#f5ce68' : 'rgba(255,255,255,.85)', 'center', '600');
+      g.fillStyle = 'rgba(12,24,29,.6)'; g.fillRect(x - 60, y + 38, 120, 3); g.fillStyle = '#f5ce68'; g.fillRect(x - 60, y + 38, 120 * M.clamp(ch.left, 0, 1), 3); }
+    if (r.drift) text('DRIFT  ' + r.drift.toFixed(1) + 's', x, y + (r.chain ? 60 : 0), 16, '#fff', 'center', '700', true, true);
+    r.pops.forEach((p, i) => text(p.text, x, y - 52 - i * 20 - (1.6 - p.t) * 14, 14, p.color, 'center', '700', true, true)); }
   function stars(P, x, y) { for (let i = 0; i < 5; i++) { const lit = i < P.wanted; const flash = starFlash > 0 && lit && Math.sin(W.state.elapsed * 20) > 0; text('★', x - i * 24, y, 24, lit ? (flash ? '#fff' : '#f5c542') : 'rgba(255,255,255,0.18)', 'center'); } }
 
   function draw(dt, state, photo) { drawFrame(dt, state, photo); if (GAME.options.perfOverlay && state !== 'title' && state !== 'loading') drawPerf(); } // the overlay goes on top of everything, letterbox included
@@ -205,7 +214,7 @@ const HUD = (() => {
     zone(W_-200,103,176,48,'KeyR');
     // objective
     const obj = MISSIONS.objective;
-    drawGrift(P); drawGazette(dt); drawChoice();
+    drawGrift(P); drawStyle(P); drawGazette(dt); drawChoice();
     if (obj !== objSeen) { objSeen = obj; objT = 0; } objT += dt;
     // Driving, the full card sat right over your own car. Once read (six seconds after it changes) it folds into a
     // one-line strip at the top of the screen; on foot, and whenever the text changes, it is shown in full.

@@ -87,14 +87,28 @@ const VEH = (() => {
       // steering: the wheel angle that full lock gives shrinks with speed, so a twitch at 150 km/h is not a spin
       const want = M.clamp(c.steer, -1, 1); this.steer = M.approach(this.steer, want, tune.response * (Math.abs(want) < Math.abs(this.steer) || want * this.steer < 0 ? 2.2 : 1) * dt); // the wheel self-centres faster than it winds on
       const maxSteer = tune.steer / (1 + spd / 13);
+      const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked'), me = live && this.driver === PLAYER;
+      // sideslip: negative when the nose has swung left of the direction of travel (the tail out to the right), which
+      // is what a left turn (positive yaw) that oversteers looks like. Pointing the front wheels along the travel
+      // direction, a countersteer, means steering toward the sign of the slip.
+      const beta = Math.atan2(vL, Math.max(spd, 3));
+      // a drift is a state, not an accident: a handbrake flick with the wheel turned at speed breaks the rear loose,
+      // and it stays loose while the throttle is on, until the car straightens up, slows right down or is braked
+      if (me) { const d = this.drift;
+        if (!d && !s.bike && !this.airborne && spd > 9 && c.handbrake && Math.abs(c.steer) > .25) { this.drift = { t: 0, calm: 0, peak: 0 }; if (!PLAYER.P?.stats?.tricks && !VEH.toldDrift && typeof HUD !== 'undefined') { VEH.toldDrift = true; HUD.notify('Drift: keep the gas on and steer to hold it. Lift off to straighten.'); } }
+        else if (d) { d.t += dt; d.peak = Math.max(d.peak, Math.abs(beta)); d.calm = !c.handbrake && Math.abs(beta) < .12 ? d.calm + dt : 0;
+          if ((d.calm > .2 && d.t > .35) || spd < 5 || (c.brake > .5 && !c.handbrake) || this.airborne) { this.drift = null; this.driftOut = .35; this.lastDrift = d; } } }
+      else this.drift = null;
+      if (this.driftOut > 0) this.driftOut -= dt;
       const assist=this.driver===PLAYER?(GAME.options?.steeringAssist??.35):0;
-      const counter=M.clamp(-Math.atan2(vL,Math.max(spd,3))*.35,-.09,.09)*assist*Math.min(1,spd/10);
+      const counter=M.clamp(beta*(this.drift && !c.handbrake ? .75 : .35),-(this.drift ? .32 : .09),this.drift ? .32 : .09)*(this.drift ? Math.max(assist, .6) : assist)*Math.min(1,spd/10); // in a drift the wheels are helped to follow the slide, so a neutral stick holds it
       const delta = this.steer * maxSteer + counter + this.dmg.pull * Math.min(1, spd / 8); this.steerAngle = delta;
       // tyre model: a bicycle with a front and a rear axle, lateral force from slip angle up to a friction limit
       const Lw = s.len * 0.58, bF = Lw * 0.5, bR = Lw * 0.5; const mu = 13 * s.grip; // total lateral grip, m/s^2
-      const live = !this.wrecked && (this.driver || this.ai.mode !== 'parked');
       const wet = 1 - 0.18 * (RENDER.env.wet || 0); // rain takes a fifth of the grip
-      let muF = mu * tune.front * wet * this.dmg.front, muR = mu * tune.rear * wet * this.dmg.rear; if (c.handbrake) muR *= 0.32; if (c.brake > 0.6 && vF > 4) muF *= 0.75; // locked rears slide, hard braking dulls the front
+      let muF = mu * tune.front * wet * this.dmg.front, muR = mu * tune.rear * wet * this.dmg.rear; if (c.handbrake) muR *= me ? .2 : .32; else if (this.drift) muR *= .62 + .25 * (1 - c.throttle); if (c.brake > 0.6 && vF > 4) muF *= 0.75; // locked rears slide, power keeps a drifting rear loose, hard braking dulls the front
+      // weight transfer: braking loads the front tyres (sharper turn-in, a lighter tail), power loads the rear
+      this.load = M.approach(this.load || 0, this.airborne ? 0 : M.clamp(-(this.aLong || 0) * .018, -.14, .2), 3 * dt); muF *= 1 + this.load; muR *= 1 - this.load;
       const Cf = muF / tune.stiffF, Cr = muR / tune.stiffR; // cornering stiffness: the front saturates at a slightly larger slip than the rear, so the car understeers gently
       let wheelspin = 0;
       // engine and brakes as longitudinal accelerations; the driven rear axle only gets what the friction circle leaves
@@ -104,7 +118,8 @@ const VEH = (() => {
         if (c.brake > 0) { if (vF > 0.3) aLong -= Math.min(s.brake, mu * .9 * (1 - 0.3 * (RENDER.env.wet || 0)) * tune.brake) * c.brake; /* rain still costs a third of the braking */ else if (c.reverse === false) aLong += Math.min(s.brake * c.brake, -vF / dt); /* forward pedal while rolling backwards: stop, don't reverse harder */ else if (vF > -top * 0.35) aLong -= s.accel * 0.6 * c.brake; }
       }
       if (!this.airborne) { aLong -= Math.sign(vF) * Math.min(Math.abs(vF) / dt, 1.2 + (c.handbrake ? 6 : 0)); aLong -= vF * Math.abs(vF) * 0.0035; }
-      let yawR = this.yawRate || 0; const grip = c.handbrake || !live ? 0 : this.driver === PLAYER ? (GAME.options?.gripAssist ?? .6) : .6;
+      let yawR = this.yawRate || 0; this.aLong = aLong;
+      const grip = c.handbrake || !live ? 0 : (this.driver === PLAYER ? (GAME.options?.gripAssist ?? .6) : .6) * (this.drift ? .08 : 1 - .9 * Math.max(0, this.driftOut || 0) / .35);
       const sub = 2, h = dt / sub;
       for (let k = 0; k < sub; k++) {
         vF += aLong * h; if (c.brake > 0 && c.reverse !== true && Math.abs(vF) < 0.15 && spd < 1) vF = 0;
@@ -123,6 +138,8 @@ const VEH = (() => {
         // stops turning when the wheel does. The handbrake switches it off; that is what the handbrake is for.
         if (grip > 0 && w > 0) { const g = grip * w * Math.min(1, Math.abs(vF) / 6); vL -= vL * Math.min(1, 4.5 * g * h);
           const lim = (muF + muR) * 1.25 / v, target = M.clamp(kinYaw, -lim, lim); yawR += (target - yawR) * Math.min(1, 5 * g * h); }
+        // past about 50 degrees a drift becomes a spin; lean on the yaw so a held drift stays a drift
+        if (this.drift && !c.handbrake) { const b = Math.atan2(vL, Math.max(Math.abs(vF), 3)), over = Math.abs(b) - .85; if (over > 0) yawR += Math.sign(b) * over * 14 * h; }
         this.latForceR = Fr; this.slipF = af; this.slipR = ar; this.latAcc = aLat;
       }
       if (!this.airborne) this.angle += yawR * dt;
@@ -164,13 +181,22 @@ const VEH = (() => {
           const dx = res.x - cx, dz = res.z - cz; this.x += dx; this.z += dz;
           const vn = this.vx * nx + this.vz * nz;
           if (vn < 0) {
-            const impact = -vn; this.vx -= vn * nx * 1.15; this.vz -= vn * nz * 1.15;
-            // scrape: slow down along the wall, rotate away
-            this.vx *= 0.9; this.vz *= 0.9;
-            const front = (cx - this.x) * f[0] + (cz - this.z) * f[1] > 0; const side = (nx * f[1] - nz * f[0]); // which side the wall is on
-            this.angle += (front ? -1 : 1) * Math.sign(side || 1) * Math.min(impact * 0.03, 0.15) * (this.speed < 0 ? -1 : 1);
-            if (impact > 3 && this.driver === PLAYER) PLAYER.shake(Math.min(1, impact / 10));
-            if (impact > 3) { this.damage(impact * impact * .35,null,{x:cx-nx*r,y:this.y+.7,z:cz-nz*r,kind:'impact'}); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; if (s.bike && impact > 6.5) this.throwRider(impact); }
+            const impact = -vn;
+            // the wall takes the speed into it (and gives a little back); friction along it scrubs in proportion to how
+            // hard the car is pressed in, so a glancing touch costs a little and a square hit stops you
+            const tx = this.vx - vn * nx, tz = this.vz - vn * nz, vt = Math.hypot(tx, tz), keep = vt > 0 ? Math.max(0, vt - impact * 0.45) / vt : 0;
+            // a glancing touch does not bounce: a bounce off a wall the tyres are steering back into is a rattle, and every
+            // rattle would count as a fresh crash
+            const glance = impact < vt * 0.5 && vt > 2, bounce = glance ? 0 : 0.15, hard = glance ? 5 : 3;
+            this.vx = tx * keep + nx * impact * bounce; this.vz = tz * keep + nz * impact * bounce;
+            if (glance) { // the wall turns the nose along it, like a guard rail
+              const back = this.speed < 0 ? Math.PI : 0, along = Math.atan2(tx, tz) + back, turn = M.angleTo(this.angle, along);
+              if (Math.abs(turn) < 0.9) { this.angle += turn * 0.35; this.yawRate = (this.yawRate || 0) * 0.5; }
+              if (vt > 6 && W.state.frame % 3 === 0) W.FX.spark(cx - nx * r, 0.5, cz - nz * r, 3);
+            } else { const front = (cx - this.x) * f[0] + (cz - this.z) * f[1] > 0; const side = (nx * f[1] - nz * f[0]); // which side the wall is on
+              this.angle += (front ? -1 : 1) * Math.sign(side || 1) * Math.min(impact * 0.03, 0.15) * (this.speed < 0 ? -1 : 1); }
+            if (impact > hard && this.driver === PLAYER) PLAYER.shake(Math.min(1, impact / 10));
+            if (impact > hard) { this.damage(impact * impact * .35,null,{x:cx-nx*r,y:this.y+.7,z:cz-nz*r,kind:'impact'}); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; if (s.bike && impact > 6.5) this.throwRider(impact); }
           }
         }
       }
@@ -186,7 +212,7 @@ const VEH = (() => {
           const mA = this.spec.mass, mB = o.spec.mass, tot = mA + mB;
           this.x += nx * pen * (mB / tot); this.z += nz * pen * (mB / tot); o.x -= nx * pen * (mA / tot); o.z -= nz * pen * (mA / tot);
           const rvx = this.vx - o.vx, rvz = this.vz - o.vz; const vn = rvx * nx + rvz * nz;
-          if (vn < 0) {
+          if (vn < 0) { this.touchT = o.touchT = W.state.elapsed; // a touch spoils a near miss
             const j = -(1.25) * vn / (1 / mA + 1 / mB);
             this.vx += j * nx / mA; this.vz += j * nz / mA; o.vx -= j * nx / mB; o.vz -= j * nz / mB;
             const impact = -vn;
