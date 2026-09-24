@@ -73,6 +73,7 @@ Quiet mode (in settings) makes the machines watch without attacking or carrying 
 ## Tools
 
 - `tools/shot.js`: screenshots at given chapters/positions with Playwright and SwiftShader.
+- `tools/compress-assets.py`: re-encodes the source PNGs under `assets/` as WebP data URIs in `js/*-data.js` and compacts the character JSON. Run it after changing an asset, before `build-single.py`; it takes the single-file build from about 17 MB to under 3 MB.
 - `tools/build-single.py`: the single-file build.
 
 ## September 2026 revision
