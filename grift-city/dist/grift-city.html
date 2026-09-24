@@ -4442,7 +4442,7 @@ const VEH = (() => {
       }
       // obstacles ahead
       const sa = Math.sin(this.angle), ca = Math.cos(this.angle); const f = [sa, ca], r = [-ca, sa]; let blocked = false, blockSpeed = 99; const reach = 5 + Math.abs(this.speed) * 1.0;
-      for (const o of W.cars) { if (o === this || o.removed || this.y>=o.y+o.spec.hgt || this.y+this.spec.hgt<=o.y) continue; const dx = o.x - this.x, dz = o.z - this.z; if (dx * dx + dz * dz > (reach + 8) * (reach + 8)) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; const half = o.spec.len / 2; if (lf > 0 && lf - half < reach && Math.abs(ll) < 2.4) { const os = o.vx * f[0] + o.vz * f[1]; const gap = lf - half - this.spec.len / 2; if (gap < 3) { target = 0; blocked = true; } else target = Math.min(target, Math.max(0, os + (gap - 3) * 0.8)); blockSpeed = Math.min(blockSpeed, Math.abs(os)); } }
+      for (const o of W.cars) { if (o === this || o.removed || this.y>=o.y+o.spec.hgt || this.y+this.spec.hgt<=o.y) continue; const dx = o.x - this.x, dz = o.z - this.z; if (dx * dx + dz * dz > (reach + 8) * (reach + 8)) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; const half = o.spec.len / 2; if (lf > 0 && lf - half < reach && Math.abs(ll) < (o.kerb && o.ai.mode === 'parked' ? 1.9 : 2.4)) { /* a car parked up on the kerb is passed, not queued behind */ const os = o.vx * f[0] + o.vz * f[1]; const gap = lf - half - this.spec.len / 2; if (gap < 3) { target = 0; blocked = true; } else target = Math.min(target, Math.max(0, os + (gap - 3) * 0.8)); blockSpeed = Math.min(blockSpeed, Math.abs(os)); } }
       if (ai.mode !== 'flee') {
         for (const p of W.peds) { if (p.removed || p.inCar || p.state === 'dead' || p.y>=this.y+this.spec.hgt || p.y+1.7<=this.y) continue; const dx = p.x - this.x, dz = p.z - this.z; if (dx * dx + dz * dz > 400) continue; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < reach + 2 && Math.abs(ll) < 1.8) { target = lf < 5 ? 0 : Math.min(target, 3); blocked = blocked || lf < 5; } }
         if (PLAYER && PLAYER.alive && !PLAYER.car) { const dx = PLAYER.x - this.x, dz = PLAYER.z - this.z; const lf = dx * f[0] + dz * f[1], ll = dx * r[0] + dz * r[1]; if (lf > 0 && lf < reach + 2 && Math.abs(ll) < 1.8) { target = lf < 5 ? 0 : Math.min(target, 3); if (lf < 5) { blocked = true; if (ai.honk <= 0 && W.rng() < 0.02) { ai.honk = 3; this.horn = 0.6; AUDIO.play('horn', this.x, this.z, 0.6); } } } }
@@ -4626,7 +4626,7 @@ const VEH = (() => {
   // filled only within 150 m of the player, at most 24 at a time, and emptied again beyond 190 m. A car you drive
   // off leaves its slot empty for ten minutes.
   let kerbSlots = null; const kerbCars = new Map(), kerbTaken = new Map();
-  function buildKerbSlots() { kerbSlots = []; const off = CITY.HALF_ROAD + 0.2 - (CITY.LANE * 1.5); // from the outer lane's centre to straddling the kerb
+  function buildKerbSlots() { kerbSlots = []; const off = CITY.HALF_ROAD + 0.6 - (CITY.LANE * 1.5); /* from the outer lane's centre to two wheels up on the kerb: 2.35 m, so a car in the outer lane passes with room to spare */
     for (const e of CITY.roadEdges) { const L = CITY.laneLen(e); for (let s = 12, k = 0; s < L - 12; s += 6.2, k++) {
       const h = Math.abs(Math.sin(e.from.x * 12.9898 + e.from.z * 78.233 + e.dx * 37.7 + e.dz * 91.3 + k * 17.17) * 43758.5453) % 1; if (h > 0.2) continue;
       const [lx, lz] = CITY.lanePoint(e, 1, s); const x = lx + e.rx * off, z = lz + e.rz * off;

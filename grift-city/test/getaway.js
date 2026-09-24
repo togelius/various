@@ -76,8 +76,11 @@ for(const where of ['hospital','police']){P.x=100;P.z=100;PLAYER.respawn(where);
 {W.cars.length=0;const P=PLAYER.P;P.car=null;P.x=300;P.z=300;VEH.streamKerb(P.x,P.z);const slots=VEH.kerbSlots;
  check(slots.length>150&&slots.length<900,'kerb slots on a fraction of the streets ('+slots.length+')');
  const live=[...VEH.kerbCars.values()];check(live.length>0&&live.length<=24,'kerb cars streamed near the player ('+live.length+')');
- const clear=slots.every(s=>{const ln=CITY.nearestLane(s.x,s.z);const [lx,lz]=CITY.lanePoint(ln.e,1,ln.s);return Math.hypot(s.x-lx,s.z-lz)>1.8;});check(clear,'every slot sits clear of the outer lane');
+ const clear=slots.every(s=>{const ln=CITY.nearestLane(s.x,s.z);const [lx,lz]=CITY.lanePoint(ln.e,1,ln.s);return Math.hypot(s.x-lx,s.z-lz)>2.2;});check(clear,'every slot sits clear of the outer lane');
  const c=live[0],x0=c.x,z0=c.z;for(let i=0;i<300;i++)c.update(1/60);check(Math.hypot(c.x-x0,c.z-z0)<0.3,'a car parked on the kerb stays where it was put ('+Math.hypot(c.x-x0,c.z-z0).toFixed(2)+' m)');
+ // traffic in the outer lane drives past a parked kerb car instead of queueing behind it
+ {const ln=CITY.nearestLane(c.x,c.z,Math.sin(c.angle),Math.cos(c.angle));const s0=Math.max(2,ln.s-14);const [tx,tz]=CITY.lanePoint(ln.e,1,s0);const t=VEH.spawn('sedan',tx,tz,Math.atan2(ln.e.dx,ln.e.dz),{mode:'traffic'});t.ai.edge=ln.e;t.ai.lane=1;t.ai.cruise=8;t.ai.nextEdge=null;
+  const W0=W.lightFor;W.lightFor=()=>null;for(let i=0;i<60*4;i++){t.aiTraffic(1/60);t.physics(1/60);}W.lightFor=W0;const past=(t.x-c.x)*ln.e.dx+(t.z-c.z)*ln.e.dz;check(past>2,'outer-lane traffic passes a kerb car ('+past.toFixed(1)+' m past)');t.remove();}
  P.x=800;P.z=800;VEH.streamKerb(P.x,P.z);check(c.removed,'kerb cars left far behind are cleared');}
 console.log('Getaway: '+checks+' checks passed'+(blocked?' (aim scene blocked; aim checked in browser)':''));
 `,ctx);

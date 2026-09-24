@@ -250,3 +250,6 @@ that regression and rebuilt successfully. Live muted inspection covered front/ba
 dialogue and actual night lighting; studio console had no warnings/errors. The standalone release loaded,
 but the in-app browser's pointer-lock loss paused its attempted normal start, so this is not a claim of a fresh
 full browser campaign pass. No mobile-performance or listening test was performed.
+- [x] Kerb cars sit 2.35 m out from the outer lane's centre (two wheels on the pavement) and traffic passes a parked
+  kerb car instead of queueing behind it; before, outer-lane traffic stopped 7.7 m short of one (`test/getaway.js`).
+  Found through the escape endurance replay, whose scripted driver sat behind one for eight minutes after a respawn.
