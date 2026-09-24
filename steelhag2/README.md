@@ -21,7 +21,8 @@ clips (CC0; provenance in [assets/character/README.md](assets/character/README.m
 The environment meshes, machines, painted materials and sound are built locally.
 The detailed spruce cutout and cloud panorama are original generated assets; their
 sources and prompts are recorded in [assets/foliage/README.md](assets/foliage/README.md)
-and [assets/sky/README.md](assets/sky/README.md).
+[assets/sky/README.md](assets/sky/README.md), and
+[assets/materials/README.md](assets/materials/README.md).
 
 ## How it plays
 
@@ -80,6 +81,12 @@ Quiet mode (in settings) makes the machines watch without attacking or carrying 
   banded ice give the route stronger depth. Character contact follows the exact
   terrain triangles. Tree/terrain shadow cost is reduced.
 - Photography works directly from its E prompt. The album is accessible during play, with enlarged prints, original/print comparison and image export.
+- Original ice and Falu-red timber textures add surface detail; the farmhouse has
+  framed lit glazing, a porch lamp, entrance hardware and soft paths through the snow.
+- The fitted cap and detailed field pack accompany softer authored-character shading.
+  The camera retracts at walls and keeps its close framing during aiming and threats.
+- A missed cutter discharge still produces an arc, sound and feedback. Restoring the
+  relay briefly interrupts the house lights; reduced-motion mode uses a steady dim.
 - Walker hulls have glazed cabins, access ladders, hydraulic legs, railings and service
   markings. Cutter impacts throw sparks and an arc from the tool; the roadkeeper
   advertises its lunge with a pulsing lamp.
@@ -98,6 +105,8 @@ bounds. Run `node tools/check-art.js` for winding, machine poses, peaceful inter
 roadkeeper attack telegraphing, damage, staggering and defeat. Run
 `node tools/check-store.js` for storage-quota and save preservation, and
 `node tools/check-world.js` for shoreline continuity, collision and cutter occlusion.
+`node tools/check-player.js` checks camera obstruction and the aiming/threat/scenic
+framing rules.
 
 Serve the folder and open `tools/art-review.html`. **Run checks** exercises movement,
 the real E photo/negative pipeline, album return, cutting, damage, the full crossing

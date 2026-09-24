@@ -106,6 +106,7 @@ const Sound = (() => {
         case 'servo': noise(0.15, 'bandpass', 1400, 4, 0.12 * v, 0, p); break;
         case 'off': tone(880, 0.5, 'sine', 0.2, 0, 0.5, p); tone(110, 1.5, 'sine', 0.2, 0.2, 0.7, p); noise(0.3, 'lowpass', 300, 1, 0.3, 0.1, p); break;
         case 'lift': noise(0.5, 'bandpass', 800, 2, 0.35, 0, p); tone(70, 1.2, 'sine', 0.3, 0, 1.3, p); break;
+        case 'arc': noise(.12,'highpass',2400,1,.25*v,0,p);tone(160,.18,'sawtooth',.06*v,0,.45,p);break;
         case 'cut': noise(0.35, 'bandpass', 2600, 1.5, 0.6, 0, p); tone(90, 0.3, 'sawtooth', 0.15, 0, 0.5, p); noise(0.25, 'lowpass', 400, 1, 0.4, 0.05, p); break;
         case 'dark': tone(220, 1.8, 'sine', 0.25, 0, 0.25, p); noise(0.8, 'lowpass', 250, 1, 0.35, 0, p); break;
         case 'rumble': tone(38, 6, 'sine', 0.9 * v, 0, 1.1, p, 0.5); noise(4, 'lowpass', 120, 1, 0.9 * v, 0, p); noise(2.5, 'bandpass', 500, 1, 0.5 * v, 1, p); break;

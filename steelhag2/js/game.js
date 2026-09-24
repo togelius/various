@@ -146,13 +146,13 @@ const Game = (() => {
   function newJourney(){
     Store.startJourney();endingT=wakeFadeT=0;albumPage=0;albumZoom=-1;
     for(const key in flags)flags[key]=false;said.clear();lineCur=null;lineQ=[];menuStack=null;islandTransition=0;health=3;hurtT=0;cutterCooldown=0;cutFlash=0;nightsSpent=0;sleepReady=false;awake=false;calmCeiling=1;lastSeat=null;standoffWith=null;deathT=0;cutTarget=null;ending=null;darkroom=null;for(const k in keys)keys[k]=false;
-    sparks.pts=[];sparks.n=0;P.sit=null;P.carried=0;P.viewfinder=false;P.thinT=0;P.hold=0;P.torch=false;Photo.S.polaroid=null;
+    cutterMissT=0;relayPulseT=0;sparks.pts=[];sparks.n=0;P.sit=null;P.carried=0;P.viewfinder=false;P.thinT=0;P.hold=0;P.torch=false;Photo.S.polaroid=null;
     resetMachine(bearer,World.FARM.x+26,World.FARM.z+30,-2.2);resetMachine(sentry,4,33,Math.PI);const marks=scout.marks;resetMachine(scout,World.FARM.x-6,World.SHORE_Z+20,Math.PI);scout.marks=marks;resetMachine(o4,10,20,0);o4.marks=[];o4.item.hidden=true;
     for(const h of world.hulls){h.rise=0;h.rising=false;h.y=-h.h*1.05;h.model[13]=h.y;}
     world.window.emis=1;world.lamps[0].k=.9;startChapter(1);
   }
   function startChapter(ch) {
-    Tracks.reset(); P.viewfinder=false;sparks.pts=[];sparks.n=0;P.sit=null;P.carried=0;P.thinT=0;health=3;chapter = ch; state = 'card'; stateT = 0; fade = 0; fadeTarget = 1;
+    Tracks.reset(); P.viewfinder=false;cutterMissT=0;relayPulseT=0;sparks.pts=[];sparks.n=0;P.sit=null;P.carried=0;P.thinT=0;health=3;chapter = ch; state = 'card'; stateT = 0; fade = 0; fadeTarget = 1;
     setRig(ch === 1 ? 'noon' : 'dusk', true); Sound.setChapter(ch - 1);
     if (ch === 1) { Player.place(0.5, -22, 0); o4.x = 10; o4.z = 20; }
     else { Player.place(World.FARM.x - 6, World.SHORE_Z + 14, 0); }
@@ -188,7 +188,7 @@ const Game = (() => {
     return clamp(1 - best / 22, 0, 1);
   }
   const cablePath = world.cablePath;
-  let tickT = 0;
+  let tickT = 0, cutterMissT=0, relayPulseT=0;
   function updateTester(dt) { const h = humAmount(); if (h <= 0.05) return; tickT -= dt; if (tickT <= 0) { tickT = lerp(1.4, 0.18, h); Sound.tick(0.5 + h); } }
 
   function updatePlay(dt) {
@@ -199,7 +199,7 @@ const Game = (() => {
     if(endingT>0){endingT-=dt;if(endingT<=0){state='end';stateT=0;fade=0;fadeTarget=1;Store.finish();Sound.chime();}return;}
     if(islandTransition>0){islandTransition-=dt;if(islandTransition<=0)startChapter(2);return;}
     if (deathT > 0) { deathT -= dt; if (deathT <= 0) respawn(); Player.update(dt, { mx: 0, my: 0, lookDX: 0, lookDY: 0 }, { locked: true }); return; }
-    hurtT=Math.max(0,hurtT-dt);cutterCooldown=Math.max(0,cutterCooldown-dt);cutFlash=Math.max(0,cutFlash-dt);
+    relayPulseT=Math.max(0,relayPulseT-dt);cutterMissT=Math.max(0,cutterMissT-dt);hurtT=Math.max(0,hurtT-dt);cutterCooldown=Math.max(0,cutterCooldown-dt);cutFlash=Math.max(0,cutFlash-dt);
     // the camera toggle
     if (input.cameraPressed && !P.sit && P.carried <= 0) { P.viewfinder = !P.viewfinder; Sound.wind_lever(); }
     standoffWith = machines.find(m=>m.kind==='bearer' && (m.state==='standoff'||(m.state==='wait'&&Math.hypot(m.x-P.x,m.z-P.z)<1.3))) || null;
@@ -215,7 +215,7 @@ const Game = (() => {
     const door = world.door, dd = Math.hypot(P.x - door.x, P.z - door.z);
     const cellar = world.cellar, cd = Math.hypot(P.x - cellar.x, P.z - cellar.z);
     if (!P.sit && input.usePressed && !P.viewfinder && !standoffWith) {
-      if(nearRelay&&!flags.relay){flags.relay=true;awake=true;Sound.at('rumble',world.relay.x,world.relay.y,world.relay.z,.7);lineFor('relay');checkpoint();return;}
+      if(nearRelay&&!flags.relay){flags.relay=true;awake=true;relayPulseT=3.2;Sound.at('rumble',world.relay.x,world.relay.y,world.relay.z,.7);lineFor('relay');checkpoint();return;}
       if (cd < 2.4 && Store.undeveloped.length) return openDarkroom();
       if (dd < 2.2 && sleepReady) return goSleep();
     }
@@ -223,7 +223,7 @@ const Game = (() => {
     standoffWith = null;
     for (const m of machines) if (m.kind === 'bearer' && (m.state === 'standoff' || (m.state === 'wait' && Math.hypot(m.x - P.x, m.z - P.z) < 1.3))) standoffWith = m;
     const ctx = {
-      locked: false, standoff: !!standoffWith, snowing: chapter === 1, indoors: false,
+      locked: false, threat:chapter===1&&!sentry.off&&!sentry.dark&&Math.hypot(P.x-sentry.x,P.z-sentry.z)<24, standoff: !!standoffWith, snowing: chapter === 1, indoors: false,
       onStep: (s, h) => Sound.step(s, h), onTorch: on => Sound.torch(on),
       onThinIce: () => die('ice'), onCrack: () => Sound.at('crack', P.x, 0, P.z, 1),
       onRelease: h => { if (standoffWith) { /* letting go is never a flinch; the arms stay a little open */ } },
@@ -244,7 +244,13 @@ const Game = (() => {
       let best = 8; const f = Player.facing();
       for (const m of machines) if (m.kind === 'bearer' && !m.dark && !m.off && (m===sentry?chapter===1:chapter===2)) for (const j of m.joints()) { if(j[0]>=RIG.ARM)continue; if(j[0]===RIG.BODY && m.legsLeft()>2)continue; if(j[0]<RIG.LEG && j[0]!==RIG.BODY)continue; const dx = j[1] - P.x, dz = j[3] - P.z, d = Math.hypot(dx, dz); if (d < best && (dx * f[0] + dz * f[2]) / (d || 1) > 0.72 && !World.occluded(P.x,P.y+1.2,P.z,j[1],j[2],j[3])) { best = d; cutTarget = { m, j }; } }
       if (cutTarget) cutTarget.m.fx[cutTarget.j[0] * 4] = 1;
-      if (cutTarget && input.usePressed && cutterCooldown<=0) { cutterCooldown=.7;cutFlash=.18;cutPoint=cutTarget.j.slice(1,4);emitCut(...cutPoint); cutTarget.m.sever(cutTarget.j[0]); flags.cut = true; lineFor('cut'); if(cutTarget.m===bearer)calmCeiling = Math.max(0.35, calmCeiling - 0.25); Sound.at('cut', cutTarget.j[1], cutTarget.j[2], cutTarget.j[3]); if(cutTarget.m===sentry){if(cutTarget.m.dark||cutTarget.m.legsLeft()<=1){flags.roadkeeper=true;checkpoint();}} else if (cutTarget.m.legsLeft() === 0 || cutTarget.m.dark){sleepReady=true;checkpoint();} }
+      if (cutTarget && input.usePressed && cutterCooldown<=0) { cutterCooldown=.7;cutFlash=.18;cutPoint=cutTarget.j.slice(1,4);emitCut(...cutPoint); cutTarget.m.sever(cutTarget.j[0]); flags.cut = true; lineFor('cut'); if(cutTarget.m===bearer)calmCeiling = Math.max(0.35, calmCeiling - 0.25); if(cutTarget.m===sentry){if(cutTarget.m.dark||cutTarget.m.legsLeft()<=1){flags.roadkeeper=true;checkpoint();}} else if (cutTarget.m.legsLeft() === 0 || cutTarget.m.dark){sleepReady=true;checkpoint();} }
+    }
+    // A missed discharge still has a visible, audible response and a short cooldown.
+    if(P.cutterUp&&input.usePressed&&!cutTarget&&cutterCooldown<=0){
+      const h=kid.hand,dir=Player.facing(),end=[h[0]+dir[0]*8,h[1],h[2]+dir[2]*8],hit=World.raycast(...h,...end);
+      cutPoint=h.map((v,i)=>lerp(v,end[i],hit));cutFlash=.11;cutterCooldown=.4;cutterMissT=1.4;
+      if(hit<1)emitCut(...cutPoint);Sound.at('arc',...h,.4);
     }
     // photographs
     if (photoRequested) takePhoto();
@@ -270,7 +276,7 @@ const Game = (() => {
     if (P.viewfinder) return TEXT.prompts.photo;
     if (cutTarget) return cutterCooldown>0 ? 'cutter recharging' : `${TEXT.prompts.cut} ${cutTarget.j[4]}`;
     if(standoffWith)return P.hold>0?TEXT.prompts.hold:TEXT.prompts.reach;
-    if(P.cutterUp)return 'bring a joint into range';
+    if(P.cutterUp)return cutterMissT>0?'no support joint in range':'bring a joint into range';
     if (cd < 2.4) return Store.undeveloped.length ? TEXT.prompts.cellar : TEXT.prompts.cellarEmpty;
     if (dd < 2.2) return sleepReady ? TEXT.prompts.sleep : TEXT.prompts.doorLocked;
     if(chapter===2&&Math.hypot(P.x-world.relay.x,P.z-world.relay.z)<2.3)return flags.relay?'relay restored':'restore the field relay';
@@ -337,7 +343,7 @@ const Game = (() => {
   function buildScene() {
     const items = world.items.slice();
     for (const m of machines) { if(m===sentry && chapter!==1)continue; items.push(m.item); for (const ch of m.chunks) items.push(ch.item); }
-    if (state !== 'title' && !P.viewfinder) {items.push(...kid.items);if(P.cutterUp)items.push(kid.tool);}
+    if (state !== 'title' && !P.viewfinder) {const alpha=smooth(.35,1.10,Math.hypot(P.x-RENDER.cam.x,P.z-RENDER.cam.z));for(const it of kid.items)it.alpha=alpha<.995?alpha:undefined;kid.tool.alpha=alpha<.995?alpha:undefined;items.push(...kid.items);if(P.cutterUp)items.push(kid.tool);}
     if(Tracks.item)items.push(Tracks.item);
     M.trs(sledModel, P.sled.x, P.sled.y, P.sled.z, P.sled.yaw); world.sled.model = sledModel;
     RENDER.clearLights();
@@ -346,7 +352,8 @@ const Game = (() => {
     if(state!=='title'&&kid.feet)for(const f of kid.feet)RENDER.contact(f[0],World.groundY(f[0],f[2]),f[2],.23);
     RENDER.contact(P.sled.x,P.sled.y,P.sled.z,0.7);
     for(const m of machines)if(!m.hidden&&Math.hypot(m.x-P.x,m.z-P.z)<24&&(m===sentry?chapter===1:chapter===2)){for(const f of m.feet)RENDER.contact(f.x,World.groundY(f.x,f.z),f.z,.23*m.s);}
-    for (const l of world.lamps) RENDER.light(l.x, l.y, l.z, l.r, l.col[0] * l.k * 1.6, l.col[1] * l.k * 1.6, l.col[2] * l.k * 1.6);
+    const power=relayPulseT>0?(reduce()?.4:Math.sin(relayPulseT*7)>.35?.75:.035):1;world.window.emis=world.lamps[0].k>0?power:0;
+    for (const l of world.lamps) RENDER.light(l.x, l.y, l.z, l.r, l.col[0] * l.k * 1.6 * power, l.col[1] * l.k * 1.6 * power, l.col[2] * l.k * 1.6 * power);
     if (P.torch && state !== 'title') { const t = kid.torchWorld; const fl = Math.hypot(t[3], t[4], t[5]) || 1; RENDER.light(t[0], t[1], t[2], 26, 1.6, 1.45, 1.15, t[3] / fl, t[4] / fl, t[5] / fl, 0.86); }
     world.relay.emis=flags.relay?.4:1.1+Math.sin(time*3)*.4;if(chapter===2&&!flags.relay)RENDER.light(world.relay.x,world.relay.y+1,world.relay.z-1,5,.25,.7,1.1);
     if (world.safelight && chapter >= 2) RENDER.light(world.safelight.x, world.safelight.y - 0.1, world.safelight.z, 5, 0.9, 0.12, 0.06);
@@ -442,7 +449,7 @@ const Game = (() => {
       if(!isTouch)text(P.cutterUp?'E / click · cut     WASD · evade':compact?'WASD · move   Shift · run   Space · cutter   C · camera':'WASD · move    Shift · run    Space · aim cutter    C · camera    Tab · album',640,710,compact?11:14,.8);
       const target=chapter===1?[0,World.SHORE_Z,'ISLAND']:sleepReady?[world.door.x,world.door.z,'HOUSE']:flags.relay?[bearer.x,bearer.z,'BEARER']:[world.relay.x,world.relay.z,'RELAY'];
       if(!threat&&!P.cutterUp&&UW>=760){const dx=target[0]-P.x,dz=target[1]-P.z,angle=M.angleTo(P.camYaw,Math.atan2(dx,dz)),xx=640-clamp(angle/.9,-1,1)*490;g.strokeStyle='#d4bb8a';g.lineWidth=1;g.beginPath();g.moveTo(xx*sx,184*sy);g.lineTo((xx+4)*sx,189*sy);g.lineTo(xx*sx,194*sy);g.lineTo((xx-4)*sx,189*sy);g.closePath();g.stroke();text(target[2]+' · '+Math.round(Math.hypot(dx,dz))+' m',xx,216,10,.7,{ui:true});}
-      if(P.cutterUp){const ready=cutterCooldown<=0;g.strokeStyle=ready?'#abd8df':'#cca16c';g.lineWidth=1.5;g.beginPath();g.moveTo(UW/2-14,UH/2);g.lineTo(UW/2-5,UH/2);g.moveTo(UW/2+5,UH/2);g.lineTo(UW/2+14,UH/2);g.moveTo(UW/2,UH/2-10);g.lineTo(UW/2,UH/2+10);g.stroke();
+      if(P.cutterUp){const ready=cutterCooldown<=0;g.strokeStyle=ready?'#abd8df':'#cca16c';g.lineWidth=1.5;g.beginPath();g.moveTo(UW/2-14,UH/2);g.lineTo(UW/2-5,UH/2);g.moveTo(UW/2+5,UH/2);g.lineTo(UW/2+14,UH/2);g.moveTo(UW/2,UH/2-10);g.lineTo(UW/2,UH/2+10);g.stroke();if(cutterCooldown>0){g.fillStyle='rgba(7,18,21,.6)';g.fillRect(UW/2-18,UH/2+20,36,3);g.fillStyle='#a7d3dc';g.fillRect(UW/2-18,UH/2+20,36*(1-clamp(cutterCooldown/.7,0,1)),3);}
         if(cutTarget){const p=cutTarget.j,m=RENDER.vp,x=p[1],y=p[2],z=p[3],w=m[3]*x+m[7]*y+m[11]*z+m[15];if(w>0){const xx=(m[0]*x+m[4]*y+m[8]*z+m[12])/w,yy=(m[1]*x+m[5]*y+m[9]*z+m[13])/w;g.beginPath();g.arc((xx*.5+.5)*UW,(-yy*.5+.5)*UH,13,0,TAU);g.stroke();}}
       }
       if(threat&&sentry.state==='windup')text('LAMP PULSING · MOVE SIDEWAYS',640,270,16,.92,{ui:true,col:'#efb077'});
@@ -453,10 +460,10 @@ const Game = (() => {
     if(hurtT>0){g.strokeStyle='rgba(151,53,31,'+(hurtT*.35)+')';g.lineWidth=24;g.strokeRect(0,0,UW,UH);}
     // narration
     if (lineCur && !menuStack && state !== 'title') {
-      const a = Math.min(1, lineCur.t / 0.9, (lineCur.d - lineCur.t) / 0.9), size = 28 * t, lh = Math.max(34 * t, 20 / sy);
-      const ls = wrap(lineCur.text, 780 * (t > 1 ? 1.25 : 1), size, { italic: true }), y0 = 720 - 58 - (ls.length - 1) * lh;
-      const grd = g.createLinearGradient(0, (720 - 170 * t) * sy, 0, 720 * sy); grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, `rgba(8,8,10,${0.45 * a})`); g.fillStyle = grd; g.fillRect(0, (720 - 170 * t) * sy, UW, 170 * t * sy);
-      ls.forEach((l, i) => text(l, 640, y0 + i * lh, size, a, { italic: true, shadowA: 0.6 }));
+      const a = Math.min(1, lineCur.t / 0.35, (lineCur.d - lineCur.t) / 0.55), size = 23 * t, lh = Math.max(30 * t, 20 / sy);
+      const ls = wrap(lineCur.text, UW<760?(UW-44)/sx:800, size), y0 = (isTouch?UH-185:UH-48)/sy - (ls.length - 1) * lh;
+      const grd = g.createLinearGradient(0, (720 - 170 * t) * sy, 0, 720 * sy); grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, `rgba(8,12,15,${0.65 * a})`); g.fillStyle = grd; g.fillRect(0, (720 - 170 * t) * sy, UW, 170 * t * sy);
+      ls.forEach((l, i) => text(l, 640, y0 + i * lh, size, a, { shadowA: .9 }));
     }
     // the polaroid thumbnail
     const pl = Photo.S.polaroid;
@@ -582,7 +589,7 @@ const Game = (() => {
     requestAnimationFrame(t => { last = t; frame(t); });
   }
   window.__game = {
-    get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
+    get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
     jump(ch, x, z) { lineCur=null; lineQ=[]; menuStack = null; if (ch >= 2) { flags.island = true; flags.hulls = true; for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; h.y = 0; } } startChapter(ch); state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x !== undefined) Player.place(x, z, 0); if (ch === 2) awake = true; },
     set(x, y, z, tx, ty, tz) { const c = RENDER.cam; state = 'free'; c.x = x; c.y = y; c.z = z; c.tx = tx; c.ty = ty; c.tz = tz; },
     place(x, z, yaw) { Player.place(x, z, yaw || 0); }, step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) update(dt); }, get awake() { return awake; }, set awake(v) { awake = v; }, get standoff() { return standoffWith; }, get time() { return time; }, get deaths() { return deathT; }, setState(s) { state = s; stateT = 0; },

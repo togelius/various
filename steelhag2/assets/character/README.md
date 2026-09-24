@@ -8,7 +8,7 @@ Authored mesh, skeleton and animations: **Quaternius**, Ultimate Modular Men Pac
 - CC0: https://creativecommons.org/publicdomain/zero/1.0/
 - Unmodified GLB mirrors retrieved from https://github.com/CODE-MEDI-2026-1TEAM/CODE-MEDI-2026-1TEAM/tree/main/frontend/public/models/patients (Man4.glb and Man2.glb). The artist's original Drive downloads were quota limited at retrieval.
 
-The game combines the hooded upper body and head with long trousers and shoes. Material colours are adapted to rust outerwear, dark gloves and slate trousers; original animation data and four-weight skinning are preserved. Field pack and lamp are original equipment attachments.
+The game combines the hooded upper body and head with long trousers and shoes. Material colours are adapted to rust outerwear, dark gloves and slate trousers; original animation data and four-weight skinning are preserved. The import smooths surface normals across cloth faces, retaining creases, and omits the hair concealed by the fitted wool cap. The cap, field pack, straps and lamp are original equipment attachments.
 
 Recompile from the repository root:
 

@@ -151,6 +151,12 @@ const World = (() => {
     b.tile=MAT.PLANK;b.col=[.75,.72,.63];
     for(const x of [-.84,.77])b.box(x,0,-d/2-.68,.07,2.48,.07);
     b.tile=MAT.SNOW;b.col=[.92,.95,.96];b.roundedBox(-1.08,2.40,-d/2-.9,2.16,.14,1.1,.06);
+    // The entrance: a deep jamb, panelled door, brass letter slot and porch lamp.
+    b.tile=MAT.FLAT;b.col=[.79,.79,.71];for(const x of [-.59,.51])b.box(x,.02,-d/2-.13,.08,2.13,.16);b.box(-.59,2.08,-d/2-.13,1.18,.09,.16);
+    b.tile=MAT.PLANK;b.col=[.48,.50,.43];for(const y of [.22,1.02])b.roundedBox(-.40,y,-d/2-.15,.8,.62,.05,.025);
+    b.tile=MAT.STEEL;b.col=[.83,.74,.50];b.roundedBox(.34,.90,-d/2-.19,.035,.16,.035,.008);b.roundedBox(.29,1.02,-d/2-.22,.1,.022,.045,.006);b.box(-.15,1.54,-d/2-.20,.3,.045,.025);
+    b.tile=MAT.DARK;b.col=[.58,.60,.54];b.tube([[.89,1.9,-d/2-.10],[.89,2.16,-d/2-.36]],.024,{segs:7});b.cyl(.89,2.1,-d/2-.36,.17,.08,{segs:12});
+    b.tile=MAT.GLASS;b.col=[.78,.70,.52];b.sphere(.89,2.04,-d/2-.36,.065,{segs:10,rings:8});
     // door and steps
     b.tile = MAT.PLANK; b.col = [0.5, 0.42, 0.34]; b.box(-0.5, 0, -d / 2 - 0.06, 1.0, 2.05, 0.08);
     b.col = [0.7, 0.7, 0.7]; b.box(-1.0, -0.3, -d / 2 - 1.0, 2.0, 0.3, 1.0); b.box(-1.0, -0.6, -d / 2 - 1.5, 2.0, 0.3, 1.5);
@@ -160,7 +166,17 @@ const World = (() => {
     b.tile = MAT.DARK; b.col = [1, 1, 1]; b.box(w / 2 + 0.02, 0.45, -0.1, 0.06, 1.6, 0.06);
   }
   function buildSafelight() { const b = new Builder(); b.tile = MAT.LED; b.col = [1, 0.15, 0.1]; b.sphere(0, 0, 0, 0.09, { segs: 8, rings: 6 }); return b.build(); }
-  function buildKitchenWindow() { const b = new Builder(); b.tile = MAT.GLASS; b.col = [1, 0.85, 0.55]; b.box(0, 0, 0, 0.06, 1.2, 1.2); return b.build(); }
+  function buildKitchenWindow() {
+    const b=new Builder();b.tile=MAT.GLASS;b.col=[.84,.80,.69];b.box(0,0,0,.04,1.2,1.2);
+    // The light belongs to a room: curtains, timber joinery, a sill and a plant.
+    b.tile=MAT.CLOTH;b.col=[.83,.78,.64];for(const z of [.02,1.02])b.box(-.014,.03,z,.025,1.16,.15);
+    b.tile=MAT.PLANK;b.col=[.70,.69,.59];b.box(-.05,-.04,-.05,.09,.07,1.30);b.box(-.05,1.17,-.05,.09,.07,1.30);
+    for(const z of [-.035,.575,1.17])b.box(-.055,0,z,.10,1.2,.05);
+    b.box(-.055,.57,-.03,.10,.05,1.25);b.box(-.18,-.10,-.13,.28,.09,1.46);
+    b.tile=MAT.DARK;b.col=[.43,.36,.25];b.cyl(-.02,.015,.30,.075,.12,{segs:10});
+    b.tile=MAT.SPRUCE;b.col=[.38,.40,.32];for(let i=0;i<5;i++){const t=i*1.2;b.tube([[-.04,.14,.30],[-.07,.25+Math.sin(t)*.08,.30+Math.cos(t)*.12]],.015,{segs:4});}
+    return b.build();
+  }
 
   function buildBarn(b, w=12,d=8,h=4.5) {
     b.tile=MAT.RED;b.col=[.80,.83,.80];b.box(-w/2,0,-d/2,w,h,d,{uv:.6});
@@ -272,6 +288,7 @@ const World = (() => {
     S.safelight = place(buildSafelight(), FARM.x + 4.55, fy + 2.05, FARM.z - 0.07, 0, { emis: 1, noShadow: true });
     collide(FARM.x + 4.5, fy - 0.2, FARM.z - 0.9, 1.5, 0.6, 1.8);
     S.lamps.push({ x: FARM.x - 5.2, y: fy + 1.8, z: FARM.z - 0.7, r: 9, col: [1.0, 0.72, 0.4], k: 0.9, name: 'window' });
+    S.lamps.push({x:FARM.x+.89,y:fy+2.04,z:FARM.z-3.86,r:5,col:[1,.70,.39],k:.45,name:'porch'});
     const barn = new Builder(); buildBarn(barn); place(barn.build(), FARM.x + 22, groundY(FARM.x + 22, FARM.z + 6), FARM.z + 6, 0.3); collide(FARM.x + 15.5, 0, FARM.z + 1.5, 13, 6, 9);
     // the bench by the porch, facing the bay
     place(buildBench(), FARM.x + 5.5, fy, FARM.z - 4.2, Math.PI); seat(FARM.x + 5.5, FARM.z - 4.6, Math.PI, 'The bench by the porch. The window was lit. Nobody was home.', [-7, 3, -7], 'the porch bench');
@@ -308,7 +325,20 @@ const World = (() => {
     }
     dressing.tile=MAT.CONCRETE;dressing.col=[.5,.54,.53];for(const [x,z] of [[-18,140],[-24,145],[12,130],[31,174]]){const y=groundY(x,z);dressing.roundedBox(x,y-.3,z,1.3,.75,1,.3);dressing.tile=MAT.SNOW;dressing.col=[.94,.96,.98];dressing.roundedBox(x+.06,y+.36,z+.04,1.2,.12,.92,.05);dressing.tile=MAT.CONCRETE;dressing.col=[.5,.54,.53];}
     dressing.tile=MAT.PLANK;dressing.col=[.62,.49,.34];for(let row=0;row<3;row++)for(let k=0;k<7-row;k++)dressing.cyl(-3.8+k*.3+row*.15,fy+.16+row*.25,165.7,.145,.65,{axis:'z',segs:9});
-    place(dressing.build(),0,0,0);
+    dressing.tile=MAT.PLANK;dressing.col=[.60,.56,.46];for(let i=0;i<5;i++)dressing.box(29.2,.14+groundY(29.2,168),167.4+i*.18,1.05,.06,.12);
+    for(const [x,z] of [[-5.4,164],[-5.9,164.3]]){const y=groundY(x,z);dressing.tile=MAT.STEEL;dressing.col=[.84,.85,.78];dressing.cyl(x,y+.02,z,.19,.49,{segs:18});dressing.cyl(x,y+.51,z,.12,.12,{segs:16});dressing.cyl(x,y+.63,z,.15,.025,{segs:16});dressing.tile=MAT.DARK;dressing.col=[.61,.64,.60];for(const side of [-1,1])dressing.tube([[x+side*.16,y+.37,z],[x+side*.24,y+.38,z],[x+side*.24,y+.48,z],[x+side*.16,y+.48,z]],.015,{segs:5});}
+    // Thin paths of packed snow connect the shoreline, house and field relay.
+    const pathMesh=new Builder();
+    const paths=[[[-6,122],[-8,135],[-7,145],[0,156]],[[1,155],[9,155],[12,163],[13,175]]];
+    pathMesh.tile=MAT.PATH;pathMesh.col=[1,1,1];
+    for(const pts of paths)for(let j=0;j<pts.length-1;j++){
+      const [ax,az]=pts[j],[bx,bz]=pts[j+1],dx=bx-ax,dz=bz-az,l=Math.hypot(dx,dz),nx=dz/l,nz=-dx/l,steps=Math.ceil(l*2);
+      for(let k=0;k<steps;k++){const a=k/steps,b=(k+1)/steps,wa=.40+rd()*.1,wb=.40+rd()*.1,verts=[];
+        for(const [t,side,w] of [[a,-1,wa],[a,1,wa],[b,1,wb],[b,-1,wb]]){const x=lerp(ax,bx,t)+nx*side*w,z=lerp(az,bz,t)+nz*side*w;verts.push(pathMesh.vert(x,groundY(x,z)+.024,z,0,1,0,side,t));}
+        pathMesh.quad(verts[0],verts[3],verts[2],verts[1]);
+      }
+    }
+    place(dressing.build(),0,0,0);place(pathMesh.build(),0,0,0,0,{alpha:1,noShadow:true});
     // the towers across the bay, and the mast with its red light
     const tw = new Builder(); buildTowers(tw); place(tw.build(), 620, -2, 640, 0);
     const mast = new Builder(); mast.tile = MAT.DARK; mast.col = [1, 1, 1]; mast.cyl(0, 0, 0, 0.5, 70, { r1: 0.2, segs: 6 }); place(mast.build(), -260, groundY(-260, 420), 420, 0);
@@ -342,12 +372,14 @@ const World = (() => {
       }
     }
   }
-  function occluded(x,y,z,tx,ty,tz){
-    const from=[x,y,z],delta=[tx-x,ty-y,tz-z];
-    for(const c of S.colliders){let lo=.001,hi=.999;const mins=[c.x0,c.y0,c.z0],maxs=[c.x1,c.y1,c.z1];
+  // First hit along a segment. Padding gives the camera boom a small volume.
+  function raycast(x,y,z,tx,ty,tz,pad=0){
+    const from=[x,y,z],delta=[tx-x,ty-y,tz-z];let first=1;
+    for(const c of S.colliders){let lo=0,hi=1;const mins=[c.x0-pad,c.y0-pad,c.z0-pad],maxs=[c.x1+pad,c.y1+pad,c.z1+pad];
       for(let a=0;a<3;a++){if(Math.abs(delta[a])<1e-6){if(from[a]<mins[a]||from[a]>maxs[a]){lo=1;hi=0;break;}}else{let t0=(mins[a]-from[a])/delta[a],t1=(maxs[a]-from[a])/delta[a];if(t0>t1)[t0,t1]=[t1,t0];lo=Math.max(lo,t0);hi=Math.min(hi,t1);if(lo>hi)break;}}
-      if(lo<=hi)return true;
-    }return false;
+      if(lo<=hi&&hi>.001)first=Math.min(first,lo);
+    }return first;
   }
-  return { build, S, groundY, terrain, onIce, thinAt, inBay, pushOut, occluded, FARM, SHORE_Z, landEdgeIsle, landEdgeMain };
+  function occluded(x,y,z,tx,ty,tz){return raycast(x,y,z,tx,ty,tz)<.999;}
+  return { build, S, groundY, terrain, onIce, thinAt, inBay, pushOut, raycast, occluded, FARM, SHORE_Z, landEdgeIsle, landEdgeMain };
 })();

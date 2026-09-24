@@ -11,18 +11,32 @@ class Character {
     this.clips={};for(const [name,c] of Object.entries(d.clips))this.clips[name]={duration:c.duration,tracks:c.tracks.map(t=>({...t,t:unpack(t.t),v:unpack(t.v)}))};
     let nv=0;const indices=[];for(const p of this.parts){p.offset=nv;for(const i of p.i)indices.push(i+nv);nv+=p.p.length/3;}
     this.vertices=new Float32Array(nv*13);
-    for(const p of this.parts)for(let i=0;i<p.p.length/3;i++){const k=(p.offset+i)*13;this.vertices.set(p.col,k+6);this.vertices[k+9]=p.p[i*3]*250;this.vertices[k+10]=p.p[i*3+2]*250;this.vertices[k+11]=MAT[p.tile];}
+    for(const p of this.parts)for(let i=0;i<p.p.length/3;i++){const k=(p.offset+i)*13;const wear=p.tile==='CLOTH'?.94+.06*Math.sin(p.p[i*3+2]*1800+p.p[i*3]*450):1;this.vertices.set(p.col.map(c=>c*wear),k+6);this.vertices[k+9]=p.p[i*3]*250;this.vertices[k+10]=p.p[i*3+2]*250;this.vertices[k+11]=MAT[p.tile];}
     this.mesh=GL.mesh(this.vertices,new Uint32Array(indices),true);
     this.item={mesh:this.mesh,model:M.create(),radius:1.4,x:0,y:1,z:0};
     this.items=[this.item];this.hand=[0,1,0];this.torchWorld=[0,1.7,0,0,0,1];
     this.phase=0;this.movePhase=0;this.clock=0;this.blend=1;this.clip='Idle_Neutral';this.oldPose=null;
     this.headIndex=this.nodes.findIndex(n=>n.name==='Head');this.handIndex=this.nodes.findIndex(n=>n.name==='Wrist.R');this.chestIndex=this.nodes.findIndex(n=>n.name==='Chest');this.footIndices=['Foot.L','Foot.R'].map(name=>this.nodes.findIndex(n=>n.name===name));
     // Small field pack and headlamp are equipment attached to the imported skeleton.
-    const pack=new Builder();pack.tile=MAT.CLOTH;pack.col=[.37,.40,.32];pack.roundedBox(-.14,-.18,-.255,.28,.35,.12,.055);pack.col=[.12,.15,.12];
-    for(const x of [-.1,.1])pack.roundedBox(x-.012,-.15,-.27,.024,.26,.016,.003);
-    pack.col=[.67,.66,.56];pack.roundedBox(-.07,-.07,-.28,.14,.04,.012,.004);
+    const pack=new Builder();pack.tile=MAT.CLOTH;pack.col=[.43,.46,.37];
+    pack.roundedBox(-.155,-.19,-.30,.31,.40,.16,.065);
+    pack.col=[.35,.38,.31];pack.roundedBox(-.148,-.11,-.341,.296,.18,.065,.025);
+    pack.col=[.51,.51,.40];pack.roundedBox(-.16,.12,-.305,.32,.10,.16,.04);
+    // Webbing, leather tabs, a stitched front pocket and a folded rain cover.
+    pack.col=[.22,.25,.20];for(const x of [-.105,.08])pack.roundedBox(x,-.15,-.359,.025,.35,.022,.007);
+    for(const side of [-1,1]){
+      pack.col=[.37,.40,.33];pack.roundedBox(side<0?-.21:.15,-.12,-.275,.07,.22,.12,.025);
+      pack.col=[.27,.28,.23];pack.tube([[side*.12,.14,-.20],[side*.135,.27,-.06],[side*.14,.22,.10],[side*.13,-.10,.13],[side*.12,-.17,-.10]],.022,{segs:7});
+    }
+    pack.tile=MAT.STEEL;pack.col=[.86,.83,.65];for(const x of [-.11,.075])pack.roundedBox(x,-.06,-.37,.035,.045,.013,.004);
+    pack.tile=MAT.CLOTH;pack.col=[.72,.66,.47];pack.roundedBox(-.085,.02,-.355,.17,.055,.014,.004);
+    pack.tile=MAT.DARK;pack.col=[.62,.64,.59];pack.tube([[-.04,.23,-.19],[-.04,.27,-.19],[.04,.27,-.19],[.04,.23,-.19]],.011,{segs:6});
     this.pack={mesh:pack.build(),model:M.create(),radius:1};this.items.push(this.pack);
-    const lamp=new Builder();lamp.tile=MAT.CLOTH;lamp.col=[.35,.39,.37];lamp.loft(0,.06,0,[[0,.105,.11],[.04,.115,.115],[.15,.11,.11],[.21,.065,.07],[.23,.01,.01]],{segs:16});lamp.tile=MAT.DARK;lamp.col=[.14,.16,.15];lamp.roundedBox(-.05,.09,.10,.10,.065,.055,.01);lamp.tile=MAT.GLASS;lamp.col=[.80,.76,.59];lamp.roundedBox(-.027,.107,.151,.054,.027,.008,.004);
+    const lamp=new Builder();lamp.tile=MAT.CLOTH;lamp.col=[.65,.53,.32];
+    lamp.loft(0,.09,-.015,[[0,.115,.135],[.045,.12,.138],[.11,.112,.13],[.16,.065,.08],[.177,.005,.006]],{segs:24});
+    lamp.col=[.49,.40,.25];lamp.loft(0,.09,-.015,[[0,.12,.14],[.046,.122,.141]],{segs:24});
+    lamp.tile=MAT.DARK;lamp.col=[.38,.39,.33];lamp.roundedBox(-.05,.115,.125,.10,.058,.05,.013);
+    lamp.tile=MAT.GLASS;lamp.col=[.80,.76,.59];lamp.roundedBox(-.027,.13,.171,.054,.027,.009,.006);
     this.lamp={mesh:lamp.build(),model:M.create(),radius:1};this.items.push(this.lamp);
     const tool=new Builder();tool.tile=MAT.DARK;tool.col=[.16,.18,.17];tool.roundedBox(-.055,-.03,-.06,.11,.10,.30,.015);tool.tile=MAT.BEIGE;tool.col=[.67,.52,.28];tool.roundedBox(-.065,.04,.015,.13,.09,.22,.015);tool.tile=MAT.COLD_LIGHT;tool.col=[.3,.83,1];for(const x of [-.05,.05])tool.box(x-.012,.055,.23,.024,.025,.10);this.tool={mesh:tool.build(),model:M.create(),radius:1};
     this.pose(0,0,0,0,0,0);

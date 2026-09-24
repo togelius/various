@@ -3,7 +3,7 @@
 // point sprites, and a composite pass with grain and a vignette. Overcast light is a lighting choice, not a polygon count.
 'use strict';
 const RENDER = (() => {
-  let foliageTex,skyTexture,foliageReady=false,skyReady=false;
+  let foliageTex,skyTexture,iceTexture,woodTexture,woodReady=false,foliageReady=false,skyReady=false,iceReady=false;
   let gl, litProg, instProg, shadowProg, shadowInstProg, skyProg, partProg, compProg, shadow, scene = null, partMesh = null;
   const MAX_BONES = 32, MAX_LIGHTS = 12;
   const proj = M.create(), view = M.create(), vp = M.create(), invVP = M.create(), lightVP = M.create(), lightView = M.create(), lightProj = M.create();
@@ -42,7 +42,7 @@ const RENDER = (() => {
     }`;
   const FS = `
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; in float vTile; in float vCharge;
-    uniform sampler2D uFoliage; uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform mat4 uLightVP; uniform vec4 uMat[${MATS}];
+    uniform sampler2D uWoodTexture; uniform float uWoodReady; uniform sampler2D uIceTexture; uniform float uIceReady; uniform sampler2D uFoliage; uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform mat4 uLightVP; uniform vec4 uMat[${MATS}];
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
     uniform float uFogDensity; uniform float uFogHeight; uniform float uShadowOn; uniform float uTime; uniform float uIceGlow; uniform float uAlpha; uniform float uEmisMul;
     uniform vec4 uLights[${MAX_LIGHTS * 3}]; uniform int uNL;
@@ -59,10 +59,18 @@ const RENDER = (() => {
     float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
     void main() {
       int tile = int(vTile + 0.5); vec4 m = uMat[tile];
+      if(tile==${MAT.PATH}){float edge=1.0-smoothstep(.42,1.0,abs(vUV.x)+vnoise(vWorld.xz*4.0)*.18);float mottling=.65+.35*vnoise(vWorld.xz*2.2);o=vec4(.16,.19,.22,edge*mottling*.13*uAlpha);return;}
       if(tile == ${MAT.TRACK}) { float edge=1.0-smoothstep(0.30,1.0,dot(vUV,vUV)); o=vec4(0.045,0.065,0.09,edge*0.22); return; }
       vec4 tx = tile==${MAT.FOLIAGE}?texture(uFoliage,vUV):texture(uTex, vec3(vUV, vTile));
       if(tile==${MAT.FOLIAGE}&&tx.a<.48)discard;
       if(vTile<1.001){float mixIce=clamp(vTile,0.0,1.0);tx=mix(texture(uTex,vec3(vUV,0.0)),texture(uTex,vec3(vUV,1.0)),mixIce);m=mix(uMat[0],uMat[1],mixIce);}
+      if(vTile<1.001&&uIceReady>.5){
+        vec2 uv=vWorld.xz*.065;vec3 frost=texture(uIceTexture,uv).rgb;
+        // Two world scales hide obvious repetition, with the fine layer kept quiet.
+        frost=mix(frost,texture(uIceTexture,uv*.371+vec2(.31,.71)).rgb,.32);
+        tx.rgb=mix(tx.rgb,mix(vec3(.64,.70,.74),frost,.64),clamp(vTile,0.0,1.0));
+      }
+      if(tile==${MAT.RED}&&uWoodReady>.5){vec2 woodUV=vec2(abs(vNrm.x)>.5?vWorld.z:vWorld.x,vWorld.y)*vec2(.43,.34);tx.rgb=texture(uWoodTexture,woodUV).rgb;}
       // Canvas colours and vertex tints are authored in sRGB. Light in linear space.
       vec3 albedo = pow(max(tx.rgb * vCol, vec3(0.0)), vec3(2.2));
       vec3 n = normalize(vNrm); vec3 v = normalize(uCamPos - vWorld);
@@ -195,6 +203,8 @@ const RENDER = (() => {
     Paint.build();
     foliageTex=GL.texture2D(makeCanvas(1,1));
     const foliageImage=new Image();foliageImage.onload=()=>{gl.deleteTexture(foliageTex);foliageTex=GL.texture2D(foliageImage);gl.bindTexture(gl.TEXTURE_2D,foliageTex);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);foliageReady=true;};foliageImage.src=FOLIAGE_IMAGE;
+    woodTexture=GL.texture2D(makeCanvas(1,1));const woodImage=new Image();woodImage.onload=()=>{gl.deleteTexture(woodTexture);woodTexture=GL.texture2D(woodImage);gl.bindTexture(gl.TEXTURE_2D,woodTexture);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.MIRRORED_REPEAT);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.REPEAT);woodReady=true;};woodImage.src=WOOD_IMAGE;
+    iceTexture=GL.texture2D(makeCanvas(1,1));const iceImage=new Image();iceImage.onload=()=>{gl.deleteTexture(iceTexture);iceTexture=GL.texture2D(iceImage);gl.bindTexture(gl.TEXTURE_2D,iceTexture);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.MIRRORED_REPEAT);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.MIRRORED_REPEAT);const aniso=gl.getExtension('EXT_texture_filter_anisotropic');if(aniso)gl.texParameterf(gl.TEXTURE_2D,aniso.TEXTURE_MAX_ANISOTROPY_EXT,Math.min(8,gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));iceReady=true;};iceImage.src=ICE_IMAGE;
     skyTexture=GL.texture2D(makeCanvas(1,1));const skyImage=new Image();skyImage.onload=()=>{gl.deleteTexture(skyTexture);skyTexture=GL.texture2D(skyImage);gl.bindTexture(gl.TEXTURE_2D,skyTexture);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);skyReady=true;};skyImage.src=SKY_IMAGE;
     // snow particles
     const vao = gl.createVertexArray(); gl.bindVertexArray(vao); const vbo = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
@@ -235,6 +245,8 @@ const RENDER = (() => {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, Paint.tex); gl.uniform1i(P.u.uTex, 0);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadow.tex); gl.uniform1i(P.u.uShadow, 1);
       gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,foliageTex);gl.uniform1i(P.u.uFoliage,2);
+      gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,iceTexture);gl.uniform1i(P.u.uIceTexture,4);gl.uniform1f(P.u.uIceReady,iceReady?1:0);
+      gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_2D,woodTexture);gl.uniform1i(P.u.uWoodTexture,5);gl.uniform1f(P.u.uWoodReady,woodReady?1:0);
       gl.uniformMatrix4fv(P.u.uLightVP, false, lightVP);
       gl.uniform4fv(P.u.uMat, Paint.params);
       gl.uniform3fv(P.u.uSunDir, env.sunDir); gl.uniform3fv(P.u.uSunCol, env.sunCol); gl.uniform3fv(P.u.uSkyCol, env.skyCol); gl.uniform3fv(P.u.uGroundCol, env.groundCol);
@@ -333,5 +345,5 @@ const RENDER = (() => {
     g.putImageData(id, 0, 0);
     return c;
   }
-  return { init, cam, env, light, contact, clearLights, frame, snapshot, stats, MAX_BONES, get foliageReady(){return foliageReady&&skyReady;}, get vp() { return vp; }, get planes() { return planes; } };
+  return { init, cam, env, light, contact, clearLights, frame, snapshot, stats, MAX_BONES, get foliageReady(){return foliageReady&&skyReady&&iceReady&&woodReady;}, get vp() { return vp; }, get planes() { return planes; } };
 })();
