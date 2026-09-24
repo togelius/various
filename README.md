@@ -24,7 +24,10 @@ subdirectory with its own README:
   image is painted in code. Open `steelhag/index.html`, or the single-file
   build in `steelhag/dist/`.
 - **[steelhag2/](steelhag2/)** — STÅLHAGEN II · Isvägen, a 3D action/horror
-  sequel in planning: the design document (`steelhag2/DESIGN.md`), no code yet.
+  sequel: a walk across the frozen bay to the farm, a standoff with a bearer,
+  photographs developed in the cellar. Raw WebGL2, everything painted in code.
+  Open `steelhag2/index.html`, or the single-file build in `steelhag2/dist/`;
+  the full design is in `steelhag2/DESIGN.md`.
 - **[scriptprof/](scriptprof/)** — SCRIPTPROF, a lab for generating
   PuzzleScript games: rewrite-rule engine, BFS playtester, MAP-Elites
   archive. Open `scriptprof/index.html`.
