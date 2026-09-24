@@ -66,11 +66,11 @@ async function runEscapeAudit(seconds=600) {
    if(d<8){waypoint++;if(waypoint===route.length)waypoint=2;}
    const next=route[waypoint],error=M.angleTo(c.angle,Math.atan2(next[0]-c.x,next[1]-c.z));
    let targetSpeed=Math.abs(error)>.65?4:Math.abs(error)>.25?7:10;
-   const f=c.fwd,r=c.right;for(const other of W.cars){if(other===c||other.removed)continue;const dx=other.x-c.x,dz=other.z-c.z,along=dx*f[0]+dz*f[1],across=Math.abs(dx*r[0]+dz*r[1]);if(along>0&&along<5+c.absSpeed*.8&&across<(c.spec.wid+other.spec.wid)*.5+.2)targetSpeed=0;}
+   const f=c.fwd,r=c.right;for(const other of W.cars){if(other===c||other.removed||(!other.driver&&other.absSpeed<.5&&other.ai.mode!=='parked'&&other.spec.bike))continue;/* a fallen, riderless motorbike is not traffic to queue behind; a person nudges it aside */const dx=other.x-c.x,dz=other.z-c.z,along=dx*f[0]+dz*f[1],across=Math.abs(dx*r[0]+dz*r[1]);if(along>0&&along<5+c.absSpeed*.8&&across<(c.spec.wid+other.spec.wid)*.5+.2)targetSpeed=0;}
    if(c.absSpeed<.4)stuck+=.1;else stuck=0;
    if(stuck>2){reversing=1.2;stuck=0;}
    const keys=[];
-   if(reversing>0){keys.push('KeyS');reversing-=.1;if(Math.abs(error)>.15)keys.push(error>0?'KeyD':'KeyA');}
+   if(reversing>0){if(c.speed>-3)keys.push('KeyS');reversing-=.1;/* back out at walking pace, as a person would, not flat out */if(Math.abs(error)>.15)keys.push(error>0?'KeyD':'KeyA');}
    else {keys.push(targetSpeed===0&&c.absSpeed<.5?'Space':c.absSpeed>targetSpeed+.7?(c.speed<0?'KeyW':'KeyS')/* braking a car that is rolling backwards is the forward pedal; S would reverse harder */:c.absSpeed<targetSpeed?'KeyW':'');if(Math.abs(error)>.07)keys.push(error>0?'KeyA':'KeyD');}
    const x=c.x,z=c.z;GAME.state='playing';window.__sim(.1,keys.filter(Boolean));elapsed+=.1;distance+=M.dist(c.x,c.z,x,z);
    if(Math.floor(elapsed/60)>minutes.length){minutes.push({minute:minutes.length+1,health:Math.round(PLAYER.P.health),carHealth:Math.round(100*c.health/c.maxHealth),wanted:PLAYER.P.wanted,distance:Math.round(distance),pos:[Math.round(c.x),Math.round(c.z)]});}
