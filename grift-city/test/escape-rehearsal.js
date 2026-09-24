@@ -71,7 +71,7 @@ async function runEscapeAudit(seconds=600) {
    if(stuck>2){reversing=1.2;stuck=0;}
    const keys=[];
    if(reversing>0){keys.push('KeyS');reversing-=.1;if(Math.abs(error)>.15)keys.push(error>0?'KeyD':'KeyA');}
-   else {keys.push(targetSpeed===0&&c.absSpeed<.5?'Space':c.absSpeed>targetSpeed+.7?'KeyS':c.absSpeed<targetSpeed?'KeyW':'');if(Math.abs(error)>.07)keys.push(error>0?'KeyA':'KeyD');}
+   else {keys.push(targetSpeed===0&&c.absSpeed<.5?'Space':c.absSpeed>targetSpeed+.7?(c.speed<0?'KeyW':'KeyS')/* braking a car that is rolling backwards is the forward pedal; S would reverse harder */:c.absSpeed<targetSpeed?'KeyW':'');if(Math.abs(error)>.07)keys.push(error>0?'KeyA':'KeyD');}
    const x=c.x,z=c.z;GAME.state='playing';window.__sim(.1,keys.filter(Boolean));elapsed+=.1;distance+=M.dist(c.x,c.z,x,z);
    if(Math.floor(elapsed/60)>minutes.length){minutes.push({minute:minutes.length+1,health:Math.round(PLAYER.P.health),carHealth:Math.round(100*c.health/c.maxHealth),wanted:PLAYER.P.wanted,distance:Math.round(distance),pos:[Math.round(c.x),Math.round(c.z)]});}
    if(Math.round(elapsed*10)%20===0){draw();await new Promise(requestAnimationFrame);}
