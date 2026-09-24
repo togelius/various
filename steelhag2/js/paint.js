@@ -1,8 +1,8 @@
 // STÅLHAGEN II — painted materials. Every surface is a 256 px square painted with the first game's brushes,
 // once at boot, into a texture array. The alpha channel of the steel materials is the seam mask the charge flows along.
 'use strict';
-const MAT = { SNOW: 0, ICE: 1, STEEL: 2, RED: 3, PLANK: 4, CONCRETE: 5, BIRCH: 6, ROOF: 7, BEIGE: 8, DARK: 9, GLASS: 10, ROAD: 11, FOIL: 12, REED: 13, FLAT: 14, LED: 15, CABLE: 16, SPRUCE: 17, WINDOW: 18, CLOTH: 19, BADGE: 20, TRACK: 21, COLD_LIGHT: 22, FOLIAGE: 23 };
-const MATS = 24, TEX = 256;
+const MAT = { SNOW: 0, ICE: 1, STEEL: 2, RED: 3, PLANK: 4, CONCRETE: 5, BIRCH: 6, ROOF: 7, BEIGE: 8, DARK: 9, GLASS: 10, ROAD: 11, FOIL: 12, REED: 13, FLAT: 14, LED: 15, CABLE: 16, SPRUCE: 17, WINDOW: 18, CLOTH: 19, BADGE: 20, TRACK: 21, COLD_LIGHT: 22, FOLIAGE: 23, HULL_PLATE: 24 };
+const MATS = 25, TEX = 256;
 
 const Paint = (() => {
   // per-material parameters: [roughness 0..1 (1 = matte), retroreflective 0/1, emissive strength, seam-glow 0/1]
@@ -112,6 +112,7 @@ const Paint = (() => {
     put(MAT.TRACK,(g)=>fill(g,'#ffffff'),1);
     put(MAT.COLD_LIGHT,(g)=>fill(g,'#ffffff'),.3,0,3);
     put(MAT.FOLIAGE,(g)=>fill(g,'#ffffff'),1);
+    put(MAT.HULL_PLATE,(g,r)=>{fill(g,'#9da69e');g.fillStyle='#2c3a3b';g.font='bold 77px monospace';g.fillText('SV-14',10,104);g.fillRect(12,123,228,5);g.font='19px monospace';g.fillText('STÅLHAGEN',13,158);g.font='12px monospace';g.fillText('KRAFTVERK  /  1978',13,183);for(let i=0;i<120;i++){g.fillStyle='rgba(70,45,24,.16)';g.fillRect(r()*256,r()*256,2+r()*17,1+r()*3);}},.8);
     return out;
   }
 

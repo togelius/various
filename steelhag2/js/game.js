@@ -5,7 +5,8 @@ const FONT = '"Cormorant Garamond", "EB Garamond", Garamond, Georgia, serif';
 
 const Game = (() => {
   const cv = document.getElementById('gl'), ui = document.getElementById('ui'), ctx2 = ui.getContext('2d');
-  const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const reviewParams=new URLSearchParams(location.search);
+  const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || (reviewParams.has('review')&&reviewParams.has('touch'));
   let W = 0, H = 0, UW = 0, UH = 0;
   let resScale = 1, frameAvg = 0.016, tuneT = 0;
   function resize() {
@@ -37,6 +38,7 @@ const Game = (() => {
     pressed.any = true;
   });
   addEventListener('keyup', e => { const a = actionFor(e.code); if (a) keys[a] = false; });
+  addEventListener('blur',()=>{for(const k in keys)keys[k]=false;lookDX=lookDY=0;if(state==='play'&&!menuStack&&!new URLSearchParams(location.search).has('review'))openMenu('pause');});
   cv.addEventListener('pointerdown', e => {
     const r = cv.getBoundingClientRect(); tap = { x: (e.clientX - r.left) / r.width * 1280, y: (e.clientY - r.top) / r.height * 720 }; pressed.any = true; Sound.init();
     if (!isTouch && state === 'play' && !menuStack && !locked) cv.requestPointerLock && cv.requestPointerLock();
@@ -52,8 +54,8 @@ const Game = (() => {
   if (stick) {
     let sid = null, cx = 0, cy = 0;
     stick.addEventListener('pointerdown', e => { e.preventDefault(); sid = e.pointerId; stick.setPointerCapture(sid); const r = stick.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2; pressed.any = true; Sound.init(); });
-    stick.addEventListener('pointermove', e => { if (e.pointerId !== sid) return; const dx = clamp((e.clientX - cx) / 55, -1, 1), dy = clamp((e.clientY - cy) / 55, -1, 1); touchAxes.x = dx; touchAxes.y = -dy; knob.style.left = 50 + dx * 45 + 'px'; knob.style.top = 50 + dy * 45 + 'px'; });
-    const end = e => { if (e.pointerId !== sid) return; sid = null; touchAxes.x = touchAxes.y = 0; knob.style.left = '50px'; knob.style.top = '50px'; };
+    stick.addEventListener('pointermove', e => { if (e.pointerId !== sid) return; const dx = clamp((e.clientX - cx) / 55, -1, 1), dy = clamp((e.clientY - cy) / 55, -1, 1); touchAxes.x = dx; touchAxes.y = -dy; knob.style.left = 50 + dx * 32 + '%'; knob.style.top = 50 + dy * 32 + '%'; });
+    const end = e => { if (e.pointerId !== sid) return; sid = null; touchAxes.x = touchAxes.y = 0; knob.style.left = '50%'; knob.style.top = '50%'; };
     stick.addEventListener('pointerup', end); stick.addEventListener('pointercancel', end);
     let lid = null, lx = 0, ly = 0;
     lookArea.addEventListener('pointerdown', e => { e.preventDefault(); lid = e.pointerId; lx = e.clientX; ly = e.clientY; lookArea.setPointerCapture(lid); pressed.any = true; Sound.init(); const r = cv.getBoundingClientRect(); tap = { x: (e.clientX - r.left) / r.width * 1280, y: (e.clientY - r.top) / r.height * 720 }; });
@@ -71,7 +73,7 @@ const Game = (() => {
   let padPrev = {};
   function pollPad() {
     const pads = navigator.getGamepads ? navigator.getGamepads() : [], p = pads && [...pads].find(Boolean); if (!p) return null;
-    const st = { use: p.buttons[0]?.pressed, cut: p.buttons[7]?.pressed || p.buttons[2]?.pressed, torch: p.buttons[3]?.pressed, camera: p.buttons[1]?.pressed || p.buttons[5]?.pressed, pause: p.buttons[9]?.pressed, hurry: p.buttons[10]?.pressed || p.buttons[6]?.pressed };
+    const st = { use: p.buttons[0]?.pressed, cut: p.buttons[7]?.pressed || p.buttons[2]?.pressed, torch: p.buttons[3]?.pressed, album:p.buttons[8]?.pressed,camera: p.buttons[1]?.pressed || p.buttons[5]?.pressed, pause: p.buttons[9]?.pressed, hurry: p.buttons[10]?.pressed || p.buttons[6]?.pressed };
     const menu = { up: p.axes[1] < -0.5 || p.buttons[12]?.pressed, down: p.axes[1] > 0.5 || p.buttons[13]?.pressed, ok: p.buttons[0]?.pressed, back: p.buttons[1]?.pressed };
     for (const k in st) { if (st[k] && !padPrev[k]) { pressed[k] = true; pressed.any = true; Sound.init(); } if (st[k] !== padPrev[k]) keys[k] = !!st[k]; }
     for (const k in menu) if (menu[k] && !padPrev['m' + k]) nav[k] = true;
@@ -98,14 +100,16 @@ const Game = (() => {
   const bearerMesh = null;
   const machines = [];
   const bearer = new Machine('bearer', World.FARM.x + 26, World.FARM.z + 30, -2.2); bearer.item.hidden = false; machines.push(bearer);
-  const sentry = new Machine('bearer',4,33,Math.PI,{mesh:bearer.mesh,aggressive:true});machines.push(sentry);
+  const sentry = new Machine('bearer',4,33,Math.PI,{aggressive:true,scale:1.45});machines.push(sentry);
   const scout = new Machine('scout', World.FARM.x - 6, World.SHORE_Z + 20, Math.PI); scout.marks = [[World.FARM.x - 4, World.SHORE_Z + 34], [World.FARM.x + 1, World.FARM.z - 14], [World.FARM.x + 6, World.FARM.z - 8]]; machines.push(scout);
   const o4 = new Machine('scout', 10, 20, 0, { hidden: true, mesh: scout.mesh }); o4.marks = []; o4.item.hidden = true; machines.push(o4);
   for (const m of machines) m.onSound = (k, x, y, z, v) => Sound.at(k, x, y, z, v);
   Player.place(0.5, -22, 0);
 
-  const snow = { data: new Float32Array(1400 * 5), n: 1400, col: [0.95, 0.96, 0.98], pts: [] };
-  for (let i = 0; i < snow.n; i++) snow.pts.push({ x: (Math.random() - 0.5) * 60, y: Math.random() * 25, z: (Math.random() - 0.5) * 60, s: 0.05 + Math.random() * 0.08, p: Math.random() * TAU });
+  const sparks={pts:[],data:new Float32Array(96*5),n:0,col:[.72,.88,1]};
+  function emitCut(x,y,z){for(let i=0;i<36;i++)sparks.pts.push({x,y,z,vx:(Math.random()-.5)*4,vy:1+Math.random()*3,vz:(Math.random()-.5)*4,life:.25+Math.random()*.45});if(sparks.pts.length>96)sparks.pts.splice(0,sparks.pts.length-96);}
+  const snow = { data: new Float32Array(850 * 5), n: 850, col: [0.95, 0.96, 0.98], pts: [] };
+  for (let i = 0; i < snow.n; i++) snow.pts.push({ x: (Math.random() - 0.5) * 60, y: Math.random() * 25, z: (Math.random() - 0.5) * 60, s: 0.025 + Math.random() * 0.06, p: Math.random() * TAU });
 
   // ---------------------------------------------------------------- state
   let endingT=0,wakeFadeT=0,checkpointToast=0,albumPage=0,albumZoom=-1,albumCompare=false,albumRects=[];
@@ -125,7 +129,7 @@ const Game = (() => {
   const env = RENDER.env; let rig = RIGS.noon, rigFrom = RIGS.noon, rigT = 1;
   function setRig(name, instant) { rigFrom = mixRig(rigFrom, rig, rigT); rig = RIGS[name]; rigT = instant ? 1 : 0; }
   function mixRig(a, b, t) { const o = {}; for (const k in b) o[k] = Array.isArray(b[k]) ? b[k].map((v, i) => lerp(a[k] ? a[k][i] : v, v, t)) : lerp(a[k] !== undefined ? a[k] : b[k], b[k], t); return o; }
-  function applyRig(dt) { rigT = Math.min(1, rigT + dt / 6); const m = mixRig(rigFrom, rig, smooth(0, 1, rigT)); Object.assign(env, m); env.shadowOn = env.sunCol[0] > 0.1; }
+  function applyRig(dt) { rigT = Math.min(1, rigT + dt / 6); const m = mixRig(rigFrom, rig, smooth(0, 1, rigT)); Object.assign(env, m); env.shadowOn = env.sunCol[0] > 0.1;env.iceGlow=flags.hulls?Math.sin(Math.PI*world.hulls[0].rise)*.45:0; }
 
   // ---------------------------------------------------------------- story
   function say(id) { if (said.has(id)) return; const l = TEXT.lines.find(l => l.id === id); if (!l) return; said.add(id); lineQ.push(l.text); }
@@ -134,7 +138,7 @@ const Game = (() => {
     if (lineCur) { lineCur.t += dt; if (lineCur.t > lineCur.d) lineCur = null; }
     if (!lineCur && lineQ.length) { const text = lineQ.shift(); lineCur = { text, t: 0, d: 3.4 + text.length / 16 }; }
   }
-  function resetMachine(m,x,z,yaw){const sound=m.onSound;Object.assign(m,new Machine(m.kind,x,z,yaw,{mesh:m.mesh,aggressive:m.aggressive,hidden:m.hidden}));m.onSound=sound;}
+  function resetMachine(m,x,z,yaw){const sound=m.onSound;Object.assign(m,new Machine(m.kind,x,z,yaw,{mesh:m.mesh,aggressive:m.aggressive,hidden:m.hidden,scale:m.s/(m.kind==='bearer'?1:.42)}));m.onSound=sound;}
   function checkpoint(){
     const cast={};for(const [id,m] of [['bearer',bearer],['sentry',sentry]])cast[id]={x:m.x,z:m.z,yaw:m.yaw,off:m.off,dark:m.dark,cut:[...m.cut]};
     Store.setSave({worldVersion:2,chapter,x:P.x,z:P.z,yaw:P.yaw,flags:{...flags},nights:nightsSpent,sleepReady,cast});checkpointToast=2.8;
@@ -142,13 +146,13 @@ const Game = (() => {
   function newJourney(){
     Store.startJourney();endingT=wakeFadeT=0;albumPage=0;albumZoom=-1;
     for(const key in flags)flags[key]=false;said.clear();lineCur=null;lineQ=[];menuStack=null;islandTransition=0;health=3;hurtT=0;cutterCooldown=0;cutFlash=0;nightsSpent=0;sleepReady=false;awake=false;calmCeiling=1;lastSeat=null;standoffWith=null;deathT=0;cutTarget=null;ending=null;darkroom=null;for(const k in keys)keys[k]=false;
-    P.sit=null;P.carried=0;P.viewfinder=false;P.thinT=0;P.hold=0;P.torch=false;Photo.S.polaroid=null;
+    sparks.pts=[];sparks.n=0;P.sit=null;P.carried=0;P.viewfinder=false;P.thinT=0;P.hold=0;P.torch=false;Photo.S.polaroid=null;
     resetMachine(bearer,World.FARM.x+26,World.FARM.z+30,-2.2);resetMachine(sentry,4,33,Math.PI);const marks=scout.marks;resetMachine(scout,World.FARM.x-6,World.SHORE_Z+20,Math.PI);scout.marks=marks;resetMachine(o4,10,20,0);o4.marks=[];o4.item.hidden=true;
     for(const h of world.hulls){h.rise=0;h.rising=false;h.y=-h.h*1.05;h.model[13]=h.y;}
     world.window.emis=1;world.lamps[0].k=.9;startChapter(1);
   }
   function startChapter(ch) {
-    Tracks.reset(); P.viewfinder=false;P.sit=null;P.carried=0;P.thinT=0;health=3;chapter = ch; state = 'card'; stateT = 0; fade = 0; fadeTarget = 1;
+    Tracks.reset(); P.viewfinder=false;sparks.pts=[];sparks.n=0;P.sit=null;P.carried=0;P.thinT=0;health=3;chapter = ch; state = 'card'; stateT = 0; fade = 0; fadeTarget = 1;
     setRig(ch === 1 ? 'noon' : 'dusk', true); Sound.setChapter(ch - 1);
     if (ch === 1) { Player.place(0.5, -22, 0); o4.x = 10; o4.z = 20; }
     else { Player.place(World.FARM.x - 6, World.SHORE_Z + 14, 0); }
@@ -201,7 +205,7 @@ const Game = (() => {
     standoffWith = machines.find(m=>m.kind==='bearer' && (m.state==='standoff'||(m.state==='wait'&&Math.hypot(m.x-P.x,m.z-P.z)<1.3))) || null;
     const vantage = Photo.nearVantage(chapter,P.x,P.z);
     const nearRelay=chapter===2&&Math.hypot(P.x-world.relay.x,P.z-world.relay.z)<2.3;
-    const photoRequested = input.usePressed && !P.sit && P.carried<=0 && !standoffWith && !input.cutHeld && (P.viewfinder || (vantage && !nearRelay && !nearestSeat() && Math.hypot(P.x-world.door.x,P.z-world.door.z)>2.3 && Math.hypot(P.x-world.cellar.x,P.z-world.cellar.z)>2.4));
+    const photoRequested = input.usePressed && !P.sit && P.carried<=0 && (P.viewfinder || (!standoffWith && !input.cutHeld && vantage && !nearRelay && !nearestSeat() && Math.hypot(P.x-world.door.x,P.z-world.door.z)>2.3 && Math.hypot(P.x-world.cellar.x,P.z-world.cellar.z)>2.4));
     if(photoRequested) P.viewfinder=true;
     // sitting
     const seat = nearestSeat();
@@ -238,9 +242,9 @@ const Game = (() => {
     cutTarget = null;
     if (P.cutterUp) {
       let best = 8; const f = Player.facing();
-      for (const m of machines) if (m.kind === 'bearer' && !m.dark && !m.off && (m===sentry?chapter===1:chapter===2)) for (const j of m.joints()) { if(j[0]>=RIG.ARM)continue; if(j[0]===RIG.BODY && m.legsLeft()>2)continue; if(j[0]<RIG.LEG && j[0]!==RIG.BODY)continue; const dx = j[1] - P.x, dz = j[3] - P.z, d = Math.hypot(dx, dz); if (d < best && (dx * f[0] + dz * f[2]) / (d || 1) > 0.72) { best = d; cutTarget = { m, j }; } }
+      for (const m of machines) if (m.kind === 'bearer' && !m.dark && !m.off && (m===sentry?chapter===1:chapter===2)) for (const j of m.joints()) { if(j[0]>=RIG.ARM)continue; if(j[0]===RIG.BODY && m.legsLeft()>2)continue; if(j[0]<RIG.LEG && j[0]!==RIG.BODY)continue; const dx = j[1] - P.x, dz = j[3] - P.z, d = Math.hypot(dx, dz); if (d < best && (dx * f[0] + dz * f[2]) / (d || 1) > 0.72 && !World.occluded(P.x,P.y+1.2,P.z,j[1],j[2],j[3])) { best = d; cutTarget = { m, j }; } }
       if (cutTarget) cutTarget.m.fx[cutTarget.j[0] * 4] = 1;
-      if (cutTarget && input.usePressed && cutterCooldown<=0) { cutterCooldown=.7;cutFlash=.18;cutPoint=cutTarget.j.slice(1,4); cutTarget.m.sever(cutTarget.j[0]); flags.cut = true; lineFor('cut'); if(cutTarget.m===bearer)calmCeiling = Math.max(0.35, calmCeiling - 0.25); Sound.at('cut', cutTarget.j[1], cutTarget.j[2], cutTarget.j[3]); if(cutTarget.m===sentry){if(cutTarget.m.dark||cutTarget.m.legsLeft()<=1){flags.roadkeeper=true;checkpoint();}} else if (cutTarget.m.legsLeft() === 0 || cutTarget.m.dark){sleepReady=true;checkpoint();} }
+      if (cutTarget && input.usePressed && cutterCooldown<=0) { cutterCooldown=.7;cutFlash=.18;cutPoint=cutTarget.j.slice(1,4);emitCut(...cutPoint); cutTarget.m.sever(cutTarget.j[0]); flags.cut = true; lineFor('cut'); if(cutTarget.m===bearer)calmCeiling = Math.max(0.35, calmCeiling - 0.25); Sound.at('cut', cutTarget.j[1], cutTarget.j[2], cutTarget.j[3]); if(cutTarget.m===sentry){if(cutTarget.m.dark||cutTarget.m.legsLeft()<=1){flags.roadkeeper=true;checkpoint();}} else if (cutTarget.m.legsLeft() === 0 || cutTarget.m.dark){sleepReady=true;checkpoint();} }
     }
     // photographs
     if (photoRequested) takePhoto();
@@ -318,10 +322,11 @@ const Game = (() => {
   }
   function titleCamera(dt) { const c = RENDER.cam; const t = time * 0.02; c.x = 30 * Math.sin(t) - 10; c.y = 6.5; c.z = -62 + Math.cos(t) * 10; c.tx = 0; c.ty = 2; c.tz = 120; c.fov = 50 * Math.PI / 180; }
   function updateSnow(dt) {
+    sparks.n=0;sparks.pts=sparks.pts.filter(p=>p.life>0);for(const p of sparks.pts){p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;p.vy-=5*dt;sparks.data.set([p.x,p.y,p.z,.05,Math.min(1,p.life*3)],sparks.n++*5);}
     const c = RENDER.cam, on = chapter === 1 || state === 'title'; let n = 0; const d = snow.data;
     if (!on) { snow.count = 0; return; }
     const lim = reduce() ? snow.n * 0.35 : snow.n;
-    for (let i = 0; i < lim; i++) { const f = snow.pts[i]; f.p += dt; f.y -= (0.6 + f.s * 4) * dt; f.x += Math.sin(f.p * 0.8) * 0.3 * dt - 0.5 * dt; if (f.y < -2) { f.y = 24; f.x = (Math.random() - 0.5) * 60; f.z = (Math.random() - 0.5) * 60; } if (Math.abs(f.x) < 2.5 && Math.abs(f.z) < 2.5) f.x += 3; d[n * 5] = c.x + f.x; d[n * 5 + 1] = c.y + f.y - 8; d[n * 5 + 2] = c.z + f.z; d[n * 5 + 3] = f.s * 1.8; d[n * 5 + 4] = 0.42; n++; }
+    for (let i = 0; i < lim; i++) { const f = snow.pts[i]; f.p += dt; f.y -= (0.6 + f.s * 4) * dt; f.x += Math.sin(f.p * 0.8) * 0.3 * dt - 0.5 * dt; if (f.y < -2) { f.y = 24; f.x = (Math.random() - 0.5) * 60; f.z = (Math.random() - 0.5) * 60; } if (Math.abs(f.x) < 2.5 && Math.abs(f.z) < 2.5) f.x += 3; d[n * 5] = c.x + f.x; d[n * 5 + 1] = c.y + f.y - 8; d[n * 5 + 2] = c.z + f.z; d[n * 5 + 3] = f.s * 1.5; d[n * 5 + 4] = 0.42; n++; }
     snow.count = n;
   }
 
@@ -338,9 +343,9 @@ const Game = (() => {
     RENDER.clearLights();
     if(cutFlash>0){const h=kid.hand,dx=cutPoint[0]-h[0],dy=cutPoint[1]-h[1],dz=cutPoint[2]-h[2],len=Math.hypot(dx,dy,dz);aimMatrix(beam.model,...h,dx,dy,dz);for(let k=4;k<7;k++)beam.model[k]*=len;items.push(beam);RENDER.light(...cutPoint,5,.3,1.6,2);}
 
-    if (state !== 'title') RENDER.contact(P.x,P.y,P.z,0.55);
+    if(state!=='title'&&kid.feet)for(const f of kid.feet)RENDER.contact(f[0],World.groundY(f[0],f[2]),f[2],.23);
     RENDER.contact(P.sled.x,P.sled.y,P.sled.z,0.7);
-    for(const m of machines) if(!m.hidden) RENDER.contact(m.x,World.groundY(m.x,m.z),m.z,m.kind==='bearer'?1.1:0.45);
+    for(const m of machines)if(!m.hidden&&Math.hypot(m.x-P.x,m.z-P.z)<24&&(m===sentry?chapter===1:chapter===2)){for(const f of m.feet)RENDER.contact(f.x,World.groundY(f.x,f.z),f.z,.23*m.s);}
     for (const l of world.lamps) RENDER.light(l.x, l.y, l.z, l.r, l.col[0] * l.k * 1.6, l.col[1] * l.k * 1.6, l.col[2] * l.k * 1.6);
     if (P.torch && state !== 'title') { const t = kid.torchWorld; const fl = Math.hypot(t[3], t[4], t[5]) || 1; RENDER.light(t[0], t[1], t[2], 26, 1.6, 1.45, 1.15, t[3] / fl, t[4] / fl, t[5] / fl, 0.86); }
     world.relay.emis=flags.relay?.4:1.1+Math.sin(time*3)*.4;if(chapter===2&&!flags.relay)RENDER.light(world.relay.x,world.relay.y+1,world.relay.z-1,5,.25,.7,1.1);
@@ -348,7 +353,7 @@ const Game = (() => {
     for (const m of machines) if (m.lamp && m.lampWorld && (m===sentry?chapter===1:chapter===2)) { const l = m.lampWorld, k=m.state==='windup'?.25+.75*(Math.sin(m.attackT*24)*.5+.5):1; RENDER.light(l[0], l[1], l[2], 18, 1.6*k, 1.15*k, 0.6*k, l[3], l[4], l[5], 0.8); }
     // the hazards blink, the mast blinks
     world.van.emis = Math.sin(time * 4) > 0 ? 1.4 : 0.05; world.mastLight.emis = Math.sin(time * 2.2) > 0.6 ? 1.8 : 0.0;
-    return { items };
+    return { items,effects:sparks.n?{data:sparks.data,n:sparks.n,col:sparks.col}:null };
   }
 
   // ---------------------------------------------------------------- menus
@@ -407,7 +412,9 @@ const Game = (() => {
   }
   function wrap(t, maxW, size, o = {}) { g.font = `${o.italic ? 'italic ' : ''}400 ${textPixels(size)}px ${FONT}`; const words = t.split(' '), out = []; let cur = ''; for (const w of words) { const test = cur ? cur + ' ' + w : w; if (g.measureText(test).width > maxW * sx && cur) { out.push(cur); cur = w; } else cur = test; } if (cur) out.push(cur); return out; }
   function roman(n) { return ['', 'I', 'II', 'III', 'IV', 'V', 'VI'][n]; }
+  let lastTouchState=false;
   function renderUI() {
+    const touchState=state==='play'&&!menuStack;if(touchState!==lastTouchState){document.body.classList.toggle('playing',touchState);lastTouchState=touchState;}
     sx = UW / 1280; sy = UH / 720; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, UW, UH);
     const t = T();
     if (state === 'play' || state === 'darkroom') {
@@ -417,7 +424,7 @@ const Game = (() => {
         g.fillRect(0, 0, fw, mh); g.fillRect(0, fh - mh, fw, mh); g.fillRect(0, 0, mw, fh); g.fillRect(fw - mw, 0, mw, fh);
         g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = 1; g.strokeRect(mw, mh, fw - 2 * mw, fh - 2 * mh);
         g.beginPath(); g.arc(fw / 2, fh / 2, 26 * sx, 0, TAU); g.stroke();
-        text(`${Store.photos.filter(p => p.caption).length} / ${world.vantages.length}`, 1280 - 120, 60, 16, 0.8, { letter: 2 });
+        text(`FRAME ${String(Store.photos.length+1).padStart(2,'0')}`, 1280 - 120, 60, 16, 0.8, { letter: 2 });
       }
       // prompts
       if (prompt && !menuStack) { const key = isTouch ? '✧' : keyName(S().keys.use); text(prompt === TEXT.prompts.hold || P.cutterUp && !cutTarget || cutterCooldown>0 ? prompt : `${key}  ·  ${prompt}`, 640, 60, 20 * t, 0.85, { italic: true }); }
@@ -428,17 +435,20 @@ const Game = (() => {
       const threat=chapter===1&&!sentry.off&&!sentry.dark&&Math.hypot(P.x-sentry.x,P.z-sentry.z)<27;
       const goal=chapter===1?(threat?'DISABLE THE ROADKEEPER':'REACH SJÖGÅRDEN'):sleepReady?'RETURN TO THE FRONT DOOR':flags.relay?'APPROACH THE BEARER':'RESTORE THE FIELD RELAY';
       const detail=threat?'Cut the leg joints. Move sideways when its lamp pulses.':chapter===1?Math.max(0,Math.round(World.SHORE_Z-P.z))+' m to the island · follow the red markers':sleepReady?'Develop your photographs at the side door, or sleep.':flags.relay?'Lower the cutter and hold still to reach out. Or cut its supports.':'Follow the blue cable behind the barn. The relay is still drawing current.';
-      g.fillStyle='rgba(10,19,23,.72)';g.fillRect(28*sx,90*sy,470*sx,66*sy);g.fillStyle='#cda779';g.fillRect(28*sx,90*sy,3*sx,66*sy);
-      text(goal,44,114,14,.95,{align:'left',letter:1,ui:true});text(detail,44,140,13,.85,{align:'left'});
-      text(isTouch?'Camera ◉ · hold cutter ⚡ and use ✧':P.cutterUp?'E / click · cut joint     WASD · evade':'WASD · move    Shift · run    Space · aim cutter    C · camera    Tab · album',640,710,14,.8);
+      const compact=UW<760,panelX=compact?14/sx:28,panelY=compact?68/sy:90,panelW=compact?(UW-28)/sx:470;
+      const detailLines=wrap(detail,panelW-32,13),lineH=compact?17/sy:17,headH=compact?24/sy:24,panelH=headH+detailLines.length*lineH+(compact?12/sy:10);
+      g.fillStyle='rgba(10,19,23,.72)';g.fillRect(panelX*sx,panelY*sy,panelW*sx,panelH*sy);g.fillStyle='#cda779';g.fillRect(panelX*sx,panelY*sy,3,panelH*sy);
+      text(goal,panelX+16,panelY+headH,14,.95,{align:'left',letter:compact?.3:1,ui:true});detailLines.forEach((l,i)=>text(l,panelX+16,panelY+headH+(i+1)*lineH,13,.85,{align:'left'}));
+      if(!isTouch)text(P.cutterUp?'E / click · cut     WASD · evade':compact?'WASD · move   Shift · run   Space · cutter   C · camera':'WASD · move    Shift · run    Space · aim cutter    C · camera    Tab · album',640,710,compact?11:14,.8);
       const target=chapter===1?[0,World.SHORE_Z,'ISLAND']:sleepReady?[world.door.x,world.door.z,'HOUSE']:flags.relay?[bearer.x,bearer.z,'BEARER']:[world.relay.x,world.relay.z,'RELAY'];
-      if(!threat&&!P.cutterUp){const dx=target[0]-P.x,dz=target[1]-P.z,angle=M.angleTo(P.camYaw,Math.atan2(dx,dz)),xx=640-clamp(angle/.9,-1,1)*490;g.strokeStyle='#d4bb8a';g.lineWidth=1;g.beginPath();g.moveTo(xx*sx,184*sy);g.lineTo((xx+4)*sx,189*sy);g.lineTo(xx*sx,194*sy);g.lineTo((xx-4)*sx,189*sy);g.closePath();g.stroke();text(target[2]+' · '+Math.round(Math.hypot(dx,dz))+' m',xx,216,10,.7,{ui:true});}
+      if(!threat&&!P.cutterUp&&UW>=760){const dx=target[0]-P.x,dz=target[1]-P.z,angle=M.angleTo(P.camYaw,Math.atan2(dx,dz)),xx=640-clamp(angle/.9,-1,1)*490;g.strokeStyle='#d4bb8a';g.lineWidth=1;g.beginPath();g.moveTo(xx*sx,184*sy);g.lineTo((xx+4)*sx,189*sy);g.lineTo(xx*sx,194*sy);g.lineTo((xx-4)*sx,189*sy);g.closePath();g.stroke();text(target[2]+' · '+Math.round(Math.hypot(dx,dz))+' m',xx,216,10,.7,{ui:true});}
       if(P.cutterUp){const ready=cutterCooldown<=0;g.strokeStyle=ready?'#abd8df':'#cca16c';g.lineWidth=1.5;g.beginPath();g.moveTo(UW/2-14,UH/2);g.lineTo(UW/2-5,UH/2);g.moveTo(UW/2+5,UH/2);g.lineTo(UW/2+14,UH/2);g.moveTo(UW/2,UH/2-10);g.lineTo(UW/2,UH/2+10);g.stroke();
         if(cutTarget){const p=cutTarget.j,m=RENDER.vp,x=p[1],y=p[2],z=p[3],w=m[3]*x+m[7]*y+m[11]*z+m[15];if(w>0){const xx=(m[0]*x+m[4]*y+m[8]*z+m[12])/w,yy=(m[1]*x+m[5]*y+m[9]*z+m[13])/w;g.beginPath();g.arc((xx*.5+.5)*UW,(-yy*.5+.5)*UH,13,0,TAU);g.stroke();}}
       }
       if(threat&&sentry.state==='windup')text('LAMP PULSING · MOVE SIDEWAYS',640,270,16,.92,{ui:true,col:'#efb077'});
       if(threat||health<3){for(let i=0;i<3;i++){g.fillStyle=i<health?'#b3c5c0':'#63433f';g.fillRect((1180+i*21)*sx,42*sy,14*sx,5*sy);}text('CONDITION',1236,33,11,.75,{align:'right'});}
     }
+    if(P.thinT>.55&&state==='play')text('THIN ICE · KEEP MOVING',640,305,15,.85,{ui:true,col:'#b7dce6'});
     if(checkpointToast>0&&state==='play')text('CHECKPOINT SAVED',1238,80,11,Math.min(1,checkpointToast),{align:'right',ui:true});
     if(hurtT>0){g.strokeStyle='rgba(151,53,31,'+(hurtT*.35)+')';g.lineWidth=24;g.strokeRect(0,0,UW,UH);}
     // narration
@@ -499,21 +509,23 @@ const Game = (() => {
     text(`${d.i + 1} of ${d.list.length}`, 640, y + h + 52, 13 * t, 0.7, { italic: true, col: '#f0b070' });
     text('The print comes up over eight seconds. It shows what the eye did not.', 640, 640, 16 * t, 0.5, { italic: true, col: '#f0b070' });
   }
-  const ALBUM_SIZE=6;
+  const albumSize=()=>UW<760?1:6;
   function updateAlbum(){
     if(stateT<.2)return;
-    const pages=Math.max(1,Math.ceil(Store.photos.length/ALBUM_SIZE));albumPage=clamp(albumPage,0,pages-1);
+    const pages=Math.max(1,Math.ceil(Store.photos.length/albumSize()));albumPage=clamp(albumPage,0,pages-1);
     const hit=tap&&albumRects.find(r=>tap.x>=r.x&&tap.x<=r.x+r.w&&tap.y>=r.y&&tap.y<=r.y+r.h);
     if(pressed.album||input.pausePressed||nav.back||(hit&&hit.act==='back')){
       if(albumZoom>=0&&!pressed.album){albumZoom=-1;albumCompare=false;return;}
       state=albumReturn;stateT=1;if(state==='title')openMenu('main');return;
     }
+    if(hit&&hit.act==='download'&&albumZoom>=0){const p=Store.photos[albumZoom],src=p.developed&&!albumCompare?p.neg:p.src;if(src&&src.startsWith('data:image/')){const a=document.createElement('a');a.href=src;a.download='stalhagen-photo-'+(albumZoom+1)+'.jpg';a.click();}return;}
     const dir=(nav.next||hit&&hit.act==='next'?1:0)-(nav.prev||hit&&hit.act==='prev'?1:0);
     if(albumZoom>=0){if(dir){albumZoom=clamp(albumZoom+dir,0,Store.photos.length-1);albumCompare=false;}if(nav.ok||hit&&hit.act==='compare')albumCompare=!albumCompare;}
-    else{albumPage=clamp(albumPage+dir,0,pages-1);if(hit&&Number.isInteger(hit.index)){albumZoom=hit.index;albumCompare=false;}else if(nav.ok&&Store.photos.length)albumZoom=albumPage*ALBUM_SIZE;}
+    else{albumPage=clamp(albumPage+dir,0,pages-1);if(hit&&Number.isInteger(hit.index)){albumZoom=hit.index;albumCompare=false;}else if(nav.ok&&Store.photos.length)albumZoom=albumPage*albumSize();}
   }
   function renderAlbum(){
-    g.fillStyle='#161c20';g.fillRect(0,0,UW,UH);albumRects=[];const a=Math.min(1,stateT/.3),list=Store.photos,n=list.length,pages=Math.max(1,Math.ceil(n/ALBUM_SIZE));
+    if(UW<760)return renderCompactAlbum();
+    g.fillStyle='#161c20';g.fillRect(0,0,UW,UH);albumRects=[];const a=Math.min(1,stateT/.3),list=Store.photos,n=list.length,pages=Math.max(1,Math.ceil(n/albumSize()));
     const button=(label,act,x,y,w=130)=>{g.fillStyle='rgba(210,210,190,.08)';g.fillRect(x*sx,(y-23)*sy,w*sx,35*sy);text(label,x+w/2,y,14,.85,{ui:true});albumRects.push({act,x,y:y-23,w,h:35});};
     text('THE FIELD ALBUM',52,54,16,a,{align:'left',letter:2,ui:true});text(n+' photograph'+(n===1?'':'s'),1228,54,14,a*.6,{align:'right',ui:true});
     if(albumZoom>=0&&list[albumZoom]){
@@ -523,11 +535,11 @@ const Game = (() => {
       text(p.caption||'An unmarked frame.',640,y+h+28,18,a,{italic:true,col:'#333a3a',shadow:false});
       text(developed?'DEVELOPED PRINT':p.developed?'ORIGINAL EXPOSURE':'UNDEVELOPED · visit the cellar at Sjögården',640,78,12,.65,{ui:true});
       button('← Back','back',38,680);button('← Previous','prev',380,680);button('Next →','next',770,680);
-      if(p.developed)button(albumCompare?'Show print':'Compare','compare',550,680,180);
+      if(p.developed)button(albumCompare?'Show print':'Compare','compare',550,680,180);button('Save image','download',960,680,160);
       text((albumZoom+1)+' / '+n,1238,680,14,.7,{align:'right',ui:true});return;
     }
-    const start=albumPage*ALBUM_SIZE;
-    list.slice(start,start+ALBUM_SIZE).forEach((p,i)=>{const x=110+i%3*365,y=111+Math.floor(i/3)*246,w=330,h=186,img=p.developed?p.print:p.img;
+    const start=albumPage*albumSize();
+    list.slice(start,start+albumSize()).forEach((p,i)=>{const x=110+i%3*365,y=111+Math.floor(i/3)*246,w=330,h=186,img=p.developed?p.print:p.img;
       g.fillStyle='#e7e1d4';g.fillRect((x-8)*sx,(y-8)*sy,(w+16)*sx,(h+46)*sy);
       if(img&&(!(img instanceof Image)||img.complete&&img.naturalWidth))g.drawImage(img,x*sx,y*sy,w*sx,h*sy);
       else{g.fillStyle='#556063';g.fillRect(x*sx,y*sy,w*sx,h*sy);}
@@ -537,6 +549,21 @@ const Game = (() => {
     if(!n)text('Raise the camera with C. Press E to keep a photograph.',640,335,24,.8,{italic:true});
     button('← Return','back',38,680);if(pages>1){button('← Previous','prev',410,680);button('Next →','next',740,680);}text((albumPage+1)+' / '+pages,640,680,14,.65,{ui:true});
     text('Select a photograph to inspect it · Tab to return',640,635,14,.55,{ui:true});
+  }
+
+  function renderCompactAlbum(){
+    g.fillStyle='#161c20';g.fillRect(0,0,UW,UH);albumRects=[];const list=Store.photos,n=list.length,index=albumZoom>=0?albumZoom:albumPage,p=list[index];
+    const label=(t,x,y,size=14,opt={})=>text(t,x/sx,y/sy,size,1,{ui:true,...opt});
+    const button=(t,act,x,y,w)=>{g.fillStyle='rgba(210,210,190,.1)';g.fillRect(x,y,w,40);label(t,x+w/2,y+25,14);albumRects.push({act,x:x/sx,y:y/sy,w:w/sx,h:40/sy});};
+    label('THE FIELD ALBUM',20,34,14,{align:'left'});label(n?(index+1)+' / '+n:'0 photographs',UW-20,59,12,{align:'right',col:'#a9b4b5'});
+    if(p){const isPrint=p.developed&&!albumCompare,img=isPrint?p.print:p.img,w=UW-40,h=w*9/16,x=20,y=Math.max(100,(UH-h-105)/2);
+      g.fillStyle='#e7e1d4';g.fillRect(x-5,y-5,w+10,h+62);if(img&&(!(img instanceof Image)||img.complete&&img.naturalWidth))g.drawImage(img,x,y,w,h);
+      const lines=wrap(p.caption||'Unmarked frame',(w-12)/sx,14);lines.slice(0,2).forEach((l,i)=>text(l,UW/2/sx,(y+h+24+i*17)/sy,14,1,{italic:true,col:'#343b39',shadow:false}));
+      label(isPrint?'DEVELOPED PRINT':'ORIGINAL EXPOSURE',UW/2,y-18,11,{col:'#a9b4b5'});
+      if(albumZoom<0){albumRects.push({index,x:x/sx,y:y/sy,w:w/sx,h:(h+56)/sy});label('Tap the photograph to inspect it',UW/2,y+h+85,11,{col:'#a9b4b5'});}
+      else{button('Save image','download',UW-145,75,125);if(p.developed)button(albumCompare?'Show print':'Compare','compare',UW/2-70,y+h+78,140);}
+    }else label('No photographs yet.',UW/2,UH/2,18);
+    const bw=(UW-60)/3,y=UH-56;button('←','prev',20,y,bw);button(albumZoom>=0?'Album':'Return','back',30+bw,y,bw);button('→','next',40+bw*2,y,bw);
   }
 
   // ---------------------------------------------------------------- loop

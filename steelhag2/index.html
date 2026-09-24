@@ -13,11 +13,11 @@
 </head>
 <body>
   <div id="frame">
-    <canvas id="gl"></canvas>
-    <canvas id="ui"></canvas>
+    <canvas id="gl" tabindex="0" aria-label="STÅLHAGEN II game. Enter to begin; WASD to move."></canvas>
+    <canvas id="ui" aria-hidden="true"></canvas>
   </div>
   <div id="loading">painting&hellip;</div>
-  <div id="touch" aria-hidden="true">
+  <div id="touch">
     <div id="stick" class="pad"><div class="knob"></div></div>
     <div class="pad right">
       <button data-act="camera" class="small" aria-label="Camera">&#9673;</button>
@@ -26,6 +26,8 @@
       <button data-act="cut" class="small" aria-label="Cutter">&#9889;</button>
     </div>
     <div id="look"></div>
+    <button id="runbtn" data-act="hurry" class="small" aria-label="Run">⇧</button>
+    <button id="albumbtn" data-act="album" class="small" aria-label="Photo album">▦</button>
     <button id="pausebtn" data-act="pause" class="small" aria-label="Pause">&#10074;&#10074;</button>
   </div>
   <script src="js/util.js"></script>

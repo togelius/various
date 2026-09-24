@@ -1,12 +1,13 @@
 <!doctype html><meta charset="utf-8"><title>Isvägen · playtest</title>
 <style>body{height:100vh;display:flex;flex-direction:column;margin:0;background:#171c22;color:#d6dbdf;font:13px system-ui}nav{flex-shrink:0;padding:8px;display:flex;flex-wrap:wrap;gap:7px;align-items:center}button{background:#343e48;color:inherit;border:1px solid #56616a;padding:6px 10px;border-radius:4px;cursor:pointer}iframe{width:100%;flex:1;min-height:0;border:0}output{margin-left:auto;font-size:12px}</style>
-<nav><strong>ISVÄGEN</strong><button data-view="opening">Opening</button><button data-view="crossing">Crossing</button><button data-view="farm">Farm</button><button data-view="bearer">Bearer</button><button data-view="character">Character</button><button data-view="encounter">Encounter</button><button id="walk">Walk / stop</button><button id="run">Run / stop</button><button id="aim">Aim / lower</button><button id="fire">Use / fire</button><button id="checks">Run checks</button><button id="farmcheck">Farm checks</button><button id="album">Album</button><button id="build">Standalone</button><span id="stats"></span><output id="status">Loading…</output></nav><iframe id="game" src="../index.html?review=1"></iframe>
+<nav><strong>ISVÄGEN</strong><button data-view="opening">Opening</button><button data-view="crossing">Crossing</button><button data-view="farm">Farm</button><button data-view="hulls">Hulls</button><button data-view="photospot">Photo spot</button><button data-view="bearer">Bearer</button><button data-view="character">Character</button><button data-view="encounter">Encounter</button><button id="walk">Walk / stop</button><button id="run">Run / stop</button><button id="aim">Aim / lower</button><button id="fire">Use / fire</button><button id="checks">Run checks</button><button id="farmcheck">Farm checks</button><button id="album">Album</button><button id="build">Standalone</button><span id="stats"></span><output id="status">Loading…</output></nav><iframe id="game" src="../index.html?review=1"></iframe>
 <script>
 const f=document.querySelector('iframe'),status=document.querySelector('output');let walking=false,running=false,aiming=false;
 function scene(name){const g=f.contentWindow.__game;if(!g)return;g.newJourney();Object.keys(g.keys).forEach(k=>g.keys[k]=false);walking=running=aiming=false;
-const views={opening:[1,.5,-22,0],crossing:[1,0,56,0],farm:[2,-12,142,.4],bearer:[2,24,186,0],character:[1,4,40,Math.PI],encounter:[1,4,25,0]};const [ch,x,z,yaw]=views[name];g.jump(ch,x,z);g.place(x,z,yaw);g.step(1);g.awake=false;
+const views={opening:[1,.5,-22,0],crossing:[1,0,56,0],farm:[2,-12,142,.4],bearer:[2,24,186,0],character:[1,4,40,Math.PI],encounter:[1,4,25,0],hulls:[1,0,8,0],photospot:[1,2,-8,0]};const [ch,x,z,yaw]=views[name];g.jump(ch,x,z);g.place(x,z,yaw);g.step(1);g.awake=false;
 if(name==='bearer'){const m=g.bearer;g.set(m.x+2.4,m.y+1.5,m.z+3,m.x,m.y+.7,m.z);}
 if(name==='character')g.set(6,1.8,43,4,1,40);
+if(name==='hulls'){g.flags.hulls=true;for(const h of g.world.hulls){h.rise=1;h.rising=true;h.model[13]=0;}g.sentry.off=true;g.set(-3,2,1,8,10,61);}
 if(name==='crossing'){g.flags.hulls=true;for(const h of g.world.hulls){h.rise=1;h.rising=true;h.model[13]=0;}g.sentry.off=true;g.set(1,2.0,50,0,2,78);}
 status.textContent=name;}
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>scene(b.dataset.view));document.querySelector('#walk').onclick=()=>{const g=f.contentWindow.__game;g.setState('play');walking=!walking;g.keys.forward=walking;g.keys.hurry=false;};
@@ -25,7 +26,7 @@ document.querySelector('#checks').onclick=async()=>{
     status.textContent='Encounter passed; testing route…';await new Promise(requestAnimationFrame);
     g.newJourney();g.jump(1,0,-22);g.sentry.off=true;g.keys.forward=true;
     for(let i=0;i<48&&g.chapter===1;i++){g.step(60);if(i%6===0)await new Promise(requestAnimationFrame);}g.keys.forward=false;assert(g.chapter===2,'island not reached in 48 seconds');
-    g.jump(2,24,190);const m=g.bearer;m.state='standoff';m.calm=1;g.place(m.x,m.z-.9,0);g.keys.use=true;g.step(145);g.keys.use=false;assert(m.off,'peaceful standoff failed');assert(!g.renderError,'render failure');
+    g.jump(2,24,190);const m=g.bearer;m.state='standoff';m.calm=1;g.place(m.x,m.z-.9,0);g.P.viewfinder=true;const closePhoto=g.photos.length;g.pressed.use=true;g.step(1);assert(g.photos.length===closePhoto+1,'camera E blocked by close machine');g.P.viewfinder=false;g.keys.use=true;g.step(145);g.keys.use=false;assert(m.off,'peaceful standoff failed');assert(!g.renderError,'render failure');assert(g.performance.foliage,'environment assets did not load');
     status.textContent='PASS · E photo / album / movement / cutting / damage / 48s crossing / standoff';g.setState('free');
   }catch(e){status.textContent='FAIL · '+e.message;}
 };
@@ -34,7 +35,7 @@ document.querySelector('#farmcheck').onclick=async()=>{
   const g=f.contentWindow.__game,assert=(v,msg)=>{if(!v)throw Error(msg);};
   try{g.newJourney();g.jump(2);g.awake=false;const r=g.world.relay;g.place(r.x,r.z-1.5,0);g.pressed.use=true;g.step(1);assert(g.flags.relay&&g.awake,'relay did not wake bearer');
     g.step(60);assert(g.bearer.state==='approach'||g.bearer.state==='wait','bearer did not respond');
-    g.bearer.state='standoff';g.bearer.calm=1;g.place(g.bearer.x,g.bearer.z-.9,0);g.keys.use=true;g.step(145);g.keys.use=false;assert(g.sleepReady,'bearer resolution did not unlock ending');
+    g.step(1800);assert(g.bearer.state==='standoff','bearer could not reach the relay naturally: '+g.bearer.state);g.keys.use=true;g.step(145);g.keys.use=false;assert(g.sleepReady,'bearer resolution did not unlock ending');
     const saved=JSON.parse(JSON.stringify(g.saved));g.newJourney();g.resume(saved);assert(g.chapter===2&&g.bearer.off&&g.sleepReady&&g.flags.relay,'checkpoint did not restore resolved encounter');
     const before=g.photos.length;g.P.viewfinder=true;g.pressed.use=true;g.step(1);assert(g.photos.length>=before,'photo failure');g.P.viewfinder=false;
     g.place(g.world.cellar.x,g.world.cellar.z,0);g.pressed.use=true;g.step(1);assert(g.state==='darkroom','cellar not usable');g.step(550);g.nav.back=true;g.step(1);assert(g.state==='play','darkroom did not return');

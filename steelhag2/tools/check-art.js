@@ -9,7 +9,7 @@ for(const [name,build] of [['rounded box',b=>b.roundedBox(-1,-1,-1,2,2,2,.2)],['
 }
 
 // Check the authored rigs across headings, slopes and all phases of the gait.
-ctx.RENDER={MAX_BONES:32};ctx.World={groundY:(x,z)=>.025*x+.01*z};
+ctx.RENDER={MAX_BONES:32};ctx.World={pushOut:()=>{},groundY:(x,z)=>.025*x+.01*z};
 for(const file of ['util.js','math.js','paint.js','creatures.js'])vm.runInContext(fs.readFileSync(path.join(root,'js',file),'utf8'),ctx);
 vm.runInContext(`
 for(const yaw of [0,.7,2.1,-2.2]){
@@ -38,4 +38,13 @@ stopped.update(.2,player,ctx);if(stopped.state==='lunge')throw Error('sever did 
 stopped.sever(RIG.LEG+2);stopped.sever(RIG.LEG+4);let completed=false;stopped.update(.01,player,{...ctx,onSwitchedOff:()=>completed=true});
 if(!stopped.off||!completed)throw Error('three supports must disable roadkeeper');
 console.log('Roadkeeper: telegraph, one hit per lunge, stagger, disabled-joint filtering and defeat passed');
+`,ctx);
+
+vm.runInContext(`
+const walking=new Machine('bearer',0,0,0,{scale:1.45});
+for(let i=0;i<120;i++){walking.t+=1/60;walking.advanceFeet(1/60);walking.move(1/60,0,1,1.7);walking.pose();}
+walking.speed=0;for(let i=0;i<40;i++){walking.advanceFeet(1/60);walking.pose();}
+if(walking.feet.some(f=>f.step>0||Math.abs(f.y-World.groundY(f.x,f.z))>.001))throw Error('paused machine left a foot in the air');
+if(Math.abs(walking.yaw)>.001)throw Error('machine failed to face north');
+console.log('Locomotion: scaled rig, north-facing travel and interrupted steps settle onto terrain');
 `,ctx);

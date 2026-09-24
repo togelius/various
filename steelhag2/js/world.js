@@ -5,6 +5,7 @@
 const World = (() => {
   const n1 = makeNoise(11), n2 = makeNoise(23), n3 = makeNoise(37);
   const noise2 = (x, z, s) => (fbm(n1, x / s, 3) + fbm(n2, z / s + x / (s * 3.1), 3)) * 0.5;
+  const GRID=3;
   const FARM = { x: 0, z: 162 }, SHORE_Z = 108, MAINLAND_Z = 0;
   const S = { items: [], colliders: [], seats: [], vantages: [], triggers: [], birches: [], hulls: [], lamps: [], thinIce: [] };
 
@@ -15,19 +16,19 @@ const World = (() => {
   function terrain(x, z) {
     const em = landEdgeMain(x), ei = landEdgeIsle(x);
     let h;
-    if (z <= em) { const d = em - z; h = Math.min(d * 0.14, 7) + noise2(x, z, 18) * 1.4 - 0.7; if (Math.abs(x) < 4 && z < -14 && z > -60) h = Math.min(h, 3.2); }
-    else if (z >= ei) { const d = z - ei; h = Math.min(d * 0.09, 5) + noise2(x, z, 22) * 1.6 - 0.8; const fx = x - FARM.x, fz = z - FARM.z; const near = Math.hypot(fx, fz); if (near < 28) h = lerp(3.0, h, smooth(14, 28, near)); const hole = Math.hypot(x - 46, z - (FARM.z + 30)); if (hole < 9) h -= (1 - hole / 9) * 2.2; }
+    if (z <= em) { const d = em - z; h = Math.min(d * 0.14, 7) + noise2(x, z, 18) * 1.4 - 0.7; if (Math.abs(x) < 4 && z < -14 && z > -60) h = Math.min(h, 3.2);h=lerp(-.25,h,smooth(0,7,d)); }
+    else if (z >= ei) { const d = z - ei; h = Math.min(d * 0.09, 5) + noise2(x, z, 22) * 1.6 - 0.8; const fx = x - FARM.x, fz = z - FARM.z; const near = Math.hypot(fx, fz); if (near < 28) h = lerp(3.0, h, smooth(14, 28, near)); const hole = Math.hypot(x - 46, z - (FARM.z + 30)); if (hole < 9) h -= (1 - hole / 9) * 2.2;h=lerp(-.25,h,smooth(0,7,d)); }
     else h = -0.4;
     return h;
   }
   // Match the rendered grid's triangles exactly; an analytic height between coarse
   // vertices made shoes and contact shadows hover above the visible snow.
   function groundY(x,z){
-    if(inBay(x,z))return 0;
-    const gx=Math.floor((x+420)/5)*5-420,gz=Math.floor((z+120)/5)*5-120,fx=(x-gx)/5,fz=(z-gz)/5;
-    const a=terrain(gx,gz),b=terrain(gx,gz+5),c=terrain(gx+5,gz+5),d=terrain(gx+5,gz);
-    return fz>=fx?a+(b-a)*fz+(c-b)*fx:a+(d-a)*fx+(c-d)*fz;
+    const gx=Math.floor((x+420)/GRID)*GRID-420,gz=Math.floor((z+120)/GRID)*GRID-120,fx=(x-gx)/GRID,fz=(z-gz)/GRID;
+    const a=terrain(gx,gz),b=terrain(gx,gz+GRID),c=terrain(gx+GRID,gz+GRID),d=terrain(gx+GRID,gz);
+    return Math.max(0,fz>=fx?a+(b-a)*fz+(c-b)*fx:a+(d-a)*fx+(c-d)*fz);
   }
+
   function onIce(x, z) { return inBay(x, z); }
   function thinAt(x, z) { for (const t of S.thinIce) { const d = Math.hypot(x - t.x, z - t.z); if (d < t.r) return 1 - d / t.r; } return 0; }
 
@@ -40,7 +41,7 @@ const World = (() => {
   // --- build ----------------------------------------------------------
   function buildTerrain() {
     const b = new Builder(), r = rng32(5);
-    const x0 = -420, z0 = -120, w = 900, d = 570, nx = 180, nz = 114;
+    const x0 = -420, z0 = -120, w = 900, d = 570, nx = 300, nz = 190;
     b.grid(x0, z0, w, d, nx, nz, terrain, (x, z, y, slope) => {
       if (inBay(x, z)) return [MAT.ICE, [0.8, 0.82, 0.84]];
       const k = 0.9 + noise2(x + 500, z, 9) * 0.2;
@@ -51,7 +52,7 @@ const World = (() => {
     place(b.build(), 0, 0, 0, 0, { noShadow: true });
     // the ice sheet: a separate plane at y = 0 with the thin patches darker
     const ice = new Builder();
-    ice.grid(-420, -60, 900, 250, 150, 50, (x, z) => inBay(x, z) ? 0 : -8, (x, z) => { const t = thinAt(x, z); const k = 1 - t * 0.55; return [MAT.ICE, [k * 0.9, k * 0.95, k * 1.0]]; }, { uv: 0.35 });
+    ice.grid(-420, -60, 900, 250, 150, 50, (x, z) => 0, (x, z) => { const t = thinAt(x, z); const k = 1 - t * 0.55; return [MAT.ICE, [k * 0.9, k * 0.95, k * 1.0]]; }, { uv: 0.35 });
     place(ice.build(), 0, 0.0, 0, 0, { noShadow: true });
   }
 
@@ -181,14 +182,40 @@ const World = (() => {
   function buildSled() { const b = new Builder(); b.tile = MAT.PLANK; b.col = [0.7, 0.62, 0.5]; for (const x of [-0.28, 0.24]) b.box(x, 0, -0.7, 0.04, 0.06, 1.4); b.box(-0.3, 0.14, -0.6, 0.6, 0.04, 1.2); for (const z of [-0.5, 0, 0.5]) for (const x of [-0.28, 0.24]) b.box(x, 0.06, z, 0.04, 0.08, 0.04); b.tile = MAT.FOIL; b.col = [1, 1, 1]; b.box(-0.22, 0.18, -0.4, 0.44, 0.22, 0.7); b.tile = MAT.DARK; b.box(-0.2, 0.18, 0.32, 0.4, 0.16, 0.24); return b.build(); }
 
   function buildHull(h) {
-    // a walker hull standing in the bay: a chamfered slab on two legs, seventeen to thirty metres tall
-    const b = new Builder(); b.tile = MAT.STEEL; b.col = [0.8, 0.82, 0.8];
-    const bw = h * 0.42, bh = h * 0.2, by = h * 0.8;
-    b.box(-bw / 2, by, -bw * 0.3, bw, bh, bw * 0.6, { uv: 0.12 });
-    b.box(-bw * 0.15, by + bh, -bw * 0.1, bw * 0.3, bh * 0.4, bw * 0.25, { uv: 0.12 });
-    for (const [x, s] of [[-bw * 0.2, 1], [bw * 0.18, -1]]) { b.cyl(x, by * 0.45, s * 0.6, h * 0.045, by * 0.55 + 1, { segs: 8 }); b.cyl(x + s * h * 0.06, 0, s * 0.6 + s * 0.4, h * 0.04, by * 0.45, { r1: h * 0.045, segs: 8 }); b.sphere(x + s * h * 0.03, by * 0.45, s * 0.6 + s * 0.2, h * 0.06, { segs: 8, rings: 6 }); b.box(x + s * h * 0.06 - h * 0.08, -0.5, s * 1.0 - h * 0.06, h * 0.16, 0.6, h * 0.12); }
-    b.tile = MAT.DARK; b.cyl(-bw * 0.1, by + bh * 1.4, 0, h * 0.006, h * 0.18, { segs: 5 });
-    b.tile = MAT.LED; b.col = [1, 1, 1]; b.box(bw * 0.5 - 0.3, by + bh * 0.4, 0.2, 0.3, 0.3, 0.3);
+    // A retired walking transformer: a human-scale cabin, maintenance rails and
+    // ladders explain the enormous hydraulic chassis beneath it.
+    const b=new Builder(),bw=h*.46,by=h*.65,bh=h*.26,depth=bw*.56;
+    b.tile=MAT.DARK;b.col=[.8,.9,.89];b.roundedBox(-bw*.49,by-.75,-depth*.47,bw*.98,1.0,depth*.94,.25);
+    b.tile=MAT.BEIGE;b.col=[.63,.71,.68];b.roundedBox(-bw/2,by,-depth/2,bw,bh,depth,.55,{uv:.10});
+    b.col=[.80,.82,.70];b.roundedBox(-bw*.40,by+bh-.16,-depth*.42,bw*.75,1.5,depth*.78,.32);
+    // Rust-stained seams and the ochre band give each machine a legible face.
+    b.tile=MAT.FLAT;b.col=[.44,.24,.12];b.roundedBox(-bw*.505,by+bh*.19,-depth*.505,bw*1.01,.30,depth*1.01,.12);
+    b.tile=MAT.DARK;b.col=[.76,.87,.85];b.roundedBox(-bw*.43,by+bh*.60,-depth*.505,bw*.86,bh*.20,.14,.06);
+    b.tile=MAT.WINDOW;b.col=[.71,.88,.85];for(let i=0;i<5;i++)b.roundedBox(-bw*.39+i*bw*.15,by+bh*.64,-depth*.53,bw*.12,bh*.12,.1,.06);
+    b.tile=MAT.DARK;b.col=[.95,1,1];for(let i=0;i<8;i++)b.box(bw*.25,by+.65+i*.23,-depth*.52,bw*.17,.09,.09);
+    b.tile=MAT.HULL_PLATE;b.col=[1,1,1];{
+      const x=-bw*.37,y=by+bh*.29,z=-depth*.515,w=bw*.38,hh=bh*.24;
+      const a=b.vert(x,y,z,0,0,-1,1,1),c=b.vert(x+w,y,z,0,0,-1,0,1),d=b.vert(x+w,y+hh,z,0,0,-1,0,0),e=b.vert(x,y+hh,z,0,0,-1,1,0);b.quad(a,e,d,c);
+    }
+    for(const side of [-1,1]){
+      const hip=side*bw*.30,knee=side*bw*.39,foot=side*bw*.47,ky=by*.44;
+      b.tile=MAT.STEEL;b.col=[.72,.78,.74];b.tube([[hip,by+.2,.3],[knee,ky,-.3]],h*.035,{segs:14});b.tube([[knee,ky,-.3],[foot,.4,.3]],h*.026,{segs:14});
+      b.tile=MAT.BEIGE;b.col=[.6,.65,.57];b.roundedBox(hip-.65,by*.63,-.55,1.3,by*.30,1.5,.22);
+      b.tile=MAT.DARK;b.col=[.9,.95,.96];b.sphere(knee,ky,-.3,h*.052,{segs:16,rings:10});
+      b.tile=MAT.STEEL;b.col=[.91,.94,.87];b.cyl(knee,ky,-h*.065,h*.032,h*.13,{axis:'z',segs:18});
+      b.tube([[hip+side*.48,by-.5,.9],[knee+side*.38,ky+1,.7]],.12,{segs:8});b.tube([[knee+side*.35,ky-.4,.7],[foot+side*.2,.65,.7]],.10,{segs:8});
+      b.tile=MAT.DARK;b.col=[.8,.87,.88];b.roundedBox(foot-h*.07,-.15,-h*.07,h*.14,.55,h*.18,.20);
+      b.tile=MAT.STEEL;b.col=[.85,.85,.75];for(let y=.9;y<ky-1;y+=.65)b.tube([[foot-.3,y,-.5],[foot+.3,y,-.5]],.036,{segs:5});
+      for(const xx of [-.34,.34])b.tube([[foot+xx,.65,-.5],[foot+xx,ky-1,-.5]],.035,{segs:5});
+    }
+    b.tile=MAT.DARK;b.col=[.85,.93,.93];
+    for(const x of [-bw*.35,0,bw*.34])b.tube([[x,by-.35,depth*.2],[x+.3,by-2.1,depth*.22],[x+.8,by-3.0,depth*.10],[x+1.1,by-2.5,0]],.095,{segs:7});
+    // Roof access rail, mast, and a broken antenna.
+    b.tile=MAT.STEEL;b.col=[.68,.73,.69];for(let x=-bw*.4;x<bw*.4;x+=1.4)b.cyl(x,by+bh,depth*.46,.045,1.1,{segs:5});
+    b.tube([[-bw*.4,by+bh+1,depth*.46],[bw*.4,by+bh+1,depth*.46]],.045,{segs:6});
+    b.cyl(-bw*.25,by+bh+1.4,0,.09,h*.12,{segs:8});b.tube([[bw*.24,by+bh,0],[bw*.27,by+bh+2.2,0],[bw*.36,by+bh+2.55,.3]],.05,{segs:6});
+    b.tile=MAT.SNOW;b.col=[.84,.9,.93];b.roundedBox(-bw*.39,by+bh+1.30,-depth*.40,bw*.72,.22,depth*.73,.09);
+    b.tile=MAT.GLASS;b.col=[1,.67,.30];for(const x of [-bw*.44,bw*.44])b.roundedBox(x,by+bh*.33,-depth*.54,.20,.34,.10,.045);
     return b.build();
   }
 
@@ -315,5 +342,12 @@ const World = (() => {
       }
     }
   }
-  return { build, S, groundY, terrain, onIce, thinAt, inBay, pushOut, FARM, SHORE_Z, landEdgeIsle, landEdgeMain };
+  function occluded(x,y,z,tx,ty,tz){
+    const from=[x,y,z],delta=[tx-x,ty-y,tz-z];
+    for(const c of S.colliders){let lo=.001,hi=.999;const mins=[c.x0,c.y0,c.z0],maxs=[c.x1,c.y1,c.z1];
+      for(let a=0;a<3;a++){if(Math.abs(delta[a])<1e-6){if(from[a]<mins[a]||from[a]>maxs[a]){lo=1;hi=0;break;}}else{let t0=(mins[a]-from[a])/delta[a],t1=(maxs[a]-from[a])/delta[a];if(t0>t1)[t0,t1]=[t1,t0];lo=Math.max(lo,t0);hi=Math.min(hi,t1);if(lo>hi)break;}}
+      if(lo<=hi)return true;
+    }return false;
+  }
+  return { build, S, groundY, terrain, onIce, thinAt, inBay, pushOut, occluded, FARM, SHORE_Z, landEdgeIsle, landEdgeMain };
 })();

@@ -32,7 +32,7 @@ and [assets/sky/README.md](assets/sky/README.md).
 - **Hold Space** or right mouse to aim the arc cutter; **E / left click** cuts the highlighted support joint within eight metres. It recharges between shots.
 - **Esc** pause, **Tab** the album, **M** mute. Keys can be rebound in the menu.
 - On a phone: left pad walks, dragging the right half looks, and the buttons are camera,
-  torch, reach/use and cutter.
+  torch, reach/use, cutter, run and album. The album adapts to portrait screens.
 
 **The roadkeeper.** A machine intercepts the ice road. Its pulsing lamp warns of a
 committed lunge: sidestep it, then cut its supports during recovery. Cutting a joint
@@ -50,7 +50,7 @@ The cutter takes its legs off one at a time; with no legs it can't lift anyone. 
 **Photographs.** Prints are developed in the cellar darkroom on the east side of the
 house. Some things only show up in the print. A large thumbnail and confirmation appear
 after shooting, and Tab opens the album during play. Select a photograph to enlarge
-it. A developed print can be compared against its original exposure. Albums are paged. When browser storage is full,
+it. A developed print can be compared against its original exposure. Albums are paged, every exposure is kept, and an enlarged photograph can be saved as a JPEG. When browser storage is full,
 the game identifies the photograph as session-only and preserves the existing album.
 
 **The farm relay.** Follow the direction marker to the blue-lit relay behind the
@@ -79,7 +79,14 @@ Quiet mode (in settings) makes the machines watch without attacking or carrying 
 - Darker overcast light, closer monumental hulls, denser forest silhouettes and less
   banded ice give the route stronger depth. Character contact follows the exact
   terrain triangles. Tree/terrain shadow cost is reduced.
-- Photography works directly from its E prompt. The album is accessible during play.
+- Photography works directly from its E prompt. The album is accessible during play, with enlarged prints, original/print comparison and image export.
+- Walker hulls have glazed cabins, access ladders, hydraulic legs, railings and service
+  markings. Cutter impacts throw sparks and an arc from the tool; the roadkeeper
+  advertises its lunge with a pulsing lamp.
+- Shore transitions use a finer continuous terrain surface, moving aim keeps the
+  character’s legs animated, and foot contacts have individual grounding shadows.
+- Farm power, the bearer encounter, automatic checkpoints, the darkroom and the
+  ending form a complete short route. The large design document remains a longer-term proposal.
 
 The Stålenhag homage remains the art direction. Authored assets are welcome;
 procedural generation is not a requirement.
@@ -88,7 +95,9 @@ procedural generation is not a requirement.
 
 Run `node tools/check-character.js` for weighted skin, authored clip blends and pose
 bounds. Run `node tools/check-art.js` for winding, machine poses, peaceful interactions,
-roadkeeper attack telegraphing, damage, staggering and defeat.
+roadkeeper attack telegraphing, damage, staggering and defeat. Run
+`node tools/check-store.js` for storage-quota and save preservation, and
+`node tools/check-world.js` for shoreline continuity, collision and cutter occlusion.
 
 Serve the folder and open `tools/art-review.html`. **Run checks** exercises movement,
 the real E photo/negative pipeline, album return, cutting, damage, the full crossing

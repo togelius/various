@@ -27,7 +27,7 @@ const RENDER = (() => {
     in vec4 aI0; in vec4 aI1; in vec4 aI2; in vec4 aI3;
     #endif
     uniform vec3 uCamPos; uniform mat4 uVP; uniform mat4 uModel; uniform mat4 uBones[${MAX_BONES}]; uniform vec4 uFx[${MAX_BONES}];
-    out vec3 vWorld; out vec3 vNrm; out vec3 vCol; out vec2 vUV; flat out float vTile; out float vCharge;
+    out vec3 vWorld; out vec3 vNrm; out vec3 vCol; out vec2 vUV; out float vTile; out float vCharge;
     void main() {
       #ifdef INSTANCED
       mat4 model = mat4(aI0, aI1, aI2, aI3); vCharge = 0.0; float hidden = 0.0;
@@ -41,7 +41,7 @@ const RENDER = (() => {
       gl_Position = hidden > 0.5 ? vec4(0.0, 0.0, 3.0, 1.0) : uVP * w;
     }`;
   const FS = `
-    in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; flat in float vTile; in float vCharge;
+    in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; in float vTile; in float vCharge;
     uniform sampler2D uFoliage; uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform mat4 uLightVP; uniform vec4 uMat[${MATS}];
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
     uniform float uFogDensity; uniform float uFogHeight; uniform float uShadowOn; uniform float uTime; uniform float uIceGlow; uniform float uAlpha; uniform float uEmisMul;
@@ -62,6 +62,7 @@ const RENDER = (() => {
       if(tile == ${MAT.TRACK}) { float edge=1.0-smoothstep(0.30,1.0,dot(vUV,vUV)); o=vec4(0.045,0.065,0.09,edge*0.22); return; }
       vec4 tx = tile==${MAT.FOLIAGE}?texture(uFoliage,vUV):texture(uTex, vec3(vUV, vTile));
       if(tile==${MAT.FOLIAGE}&&tx.a<.48)discard;
+      if(vTile<1.001){float mixIce=clamp(vTile,0.0,1.0);tx=mix(texture(uTex,vec3(vUV,0.0)),texture(uTex,vec3(vUV,1.0)),mixIce);m=mix(uMat[0],uMat[1],mixIce);}
       // Canvas colours and vertex tints are authored in sRGB. Light in linear space.
       vec3 albedo = pow(max(tx.rgb * vCol, vec3(0.0)), vec3(2.2));
       vec3 n = normalize(vNrm); vec3 v = normalize(uCamPos - vWorld);
@@ -310,7 +311,7 @@ const RENDER = (() => {
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo); gl.viewport(0, 0, tw, th);
     gl.clearColor(env.fogCol[0], env.fogCol[1], env.fogCol[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    drawSky(); drawScene(false, withHidden); drawParticles(parts);
+    drawSky(); drawScene(false, withHidden); drawParticles(parts);if(scene.effects)drawParticles(scene.effects);
   }
 
   function frame(sc, w, h, parts) {

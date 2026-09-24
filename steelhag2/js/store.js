@@ -53,12 +53,12 @@ const Store = (() => {
     setSave(v) { data.progress.save = v; save(); },
 
     get photos() { return photos; },
-    hasPhoto(key) { return photos.some(p => p.key === key); },
+    hasPhoto(key) { return photos.some(p => p.key === key || p.vantage === key); },
     // two canvases become small JPEGs: what the eye saw, and the negative with the hidden layer, developed later
-    keepPhoto(key, chapter, x, caption, seenCanvas, printCanvas) {
+    keepPhoto(key, chapter, x, caption, seenCanvas, printCanvas, vantage=null) {
       let src = null, neg = null;
       try { src = seenCanvas.toDataURL('image/jpeg', 0.8); neg = printCanvas.toDataURL('image/jpeg', 0.85); } catch (e) { /* tainted or unsupported */ }
-      const entry = { key, chapter, x, caption, src, neg, developed: false, img: src ? toImage(src) : seenCanvas, print: neg ? toImage(neg) : printCanvas };
+      const entry = { key, vantage, chapter, x, caption, src, neg, developed: false, img: src ? toImage(src) : seenCanvas, print: neg ? toImage(neg) : printCanvas };
       const at = photos.findIndex(p => p.key === key);
       if (at >= 0) photos[at] = entry; else photos.push(entry);
       order();

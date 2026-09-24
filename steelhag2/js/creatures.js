@@ -77,7 +77,7 @@ class Machine {
   constructor(kind, x, z, yaw, opts = {}) {
     this.aggressive = !!opts.aggressive; this.attackT=0; this.stagger=0;
     this.kind = kind; // 'scout' | 'bearer'
-    const s = this.s = kind === 'bearer' ? 1 : 0.42;
+    const s = this.s = (kind === 'bearer' ? 1 : .42)*(opts.scale||1);
     this.upper = 0.58 * s; this.lower = 0.62 * s; this.armLen = 0.36 * s;
     this.mesh = opts.mesh || buildMachineMesh(s, { upper: this.upper, lower: this.lower, armLen: this.armLen, arms: kind === 'bearer', cradle: kind === 'bearer' });
     this.x = x; this.z = z; this.y = World.groundY(x, z); this.yaw = yaw; this.vx = 0; this.vz = 0; this.speed = 0;
@@ -101,8 +101,8 @@ class Machine {
   move(dt, dirX, dirZ, speed) {
     const legs = this.legsLeft(); if (legs === 0) speed *= 0.25; else if (legs < 4) speed *= 0.4 + 0.15 * legs;
     if (this.hopOnly) return this.hopMove(dt, dirX, dirZ, speed);
-    this.x += dirX * speed * dt; this.z += dirZ * speed * dt; this.speed = speed;
-    if (speed > 0.01) this.yaw = lerp(this.yaw, Math.atan2(dirX, dirZ) === 0 ? this.yaw : this.yaw + M.angleTo(this.yaw, Math.atan2(dirX, dirZ)), 1 - Math.pow(0.02, dt));
+    const pos={x:this.x+dirX*speed*dt,z:this.z+dirZ*speed*dt};World.pushOut(pos,.5*this.s,this.y);this.x=pos.x;this.z=pos.z;this.speed=speed;
+    if (speed > 0.01) this.yaw = lerp(this.yaw, this.yaw + M.angleTo(this.yaw, Math.atan2(dirX, dirZ)), 1 - Math.pow(0.02, dt));
     // find the most overdue foot on a free diagonal
     let stepping = 0; for (const f of this.feet) if (f.step > 0) stepping++;
     if (stepping < 2) {
@@ -116,13 +116,15 @@ class Machine {
       }
       if (worst >= 0) { const f = this.feet[worst], [hx, hz] = this.hipWorld(worst); f.step = 0.001; f.fromX = f.x; f.fromZ = f.z; f.toX = hx + dirX * 0.35 * this.s; f.toZ = hz + dirZ * 0.35 * this.s; }
     }
+    this.y = World.groundY(this.x, this.z);
+  }
+  advanceFeet(dt) {
     for (let l = 0; l < 4; l++) {
       const f = this.feet[l]; if (f.step <= 0) continue;
       f.step += dt / 0.32; const u = Math.min(1, f.step);
       f.x = lerp(f.fromX, f.toX, u); f.z = lerp(f.fromZ, f.toZ, u); f.y = World.groundY(f.x, f.z) + Math.sin(u * Math.PI) * 0.12 * this.s;
       if (u >= 1) { f.step = 0; f.y = World.groundY(f.x, f.z); this.say('step', 0.5); }
     }
-    this.y = World.groundY(this.x, this.z);
   }
   hopMove(dt, dirX, dirZ, speed) {
     if (!this.hop) {
@@ -252,7 +254,7 @@ class Machine {
     this.pose();
   }
   update(dt, player, ctx) {
-    this.t += dt;
+    this.t += dt;this.advanceFeet(dt);
     this.blink = Math.sin(this.t * (this.state === 'approach' ? 5 : 2.5)) > 0.2 ? 1 : 0;
     this.antVel += (-this.antSpring * 40 - this.antVel * 3) * dt + (this.speed > 0.05 ? (Math.random() - 0.5) * 0.4 * dt : 0); this.antSpring += this.antVel * dt;
     this.updateChunks(dt);

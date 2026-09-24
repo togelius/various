@@ -16,7 +16,7 @@ class Character {
     this.item={mesh:this.mesh,model:M.create(),radius:1.4,x:0,y:1,z:0};
     this.items=[this.item];this.hand=[0,1,0];this.torchWorld=[0,1.7,0,0,0,1];
     this.phase=0;this.movePhase=0;this.clock=0;this.blend=1;this.clip='Idle_Neutral';this.oldPose=null;
-    this.headIndex=this.nodes.findIndex(n=>n.name==='Head');this.handIndex=this.nodes.findIndex(n=>n.name==='Wrist.R');this.chestIndex=this.nodes.findIndex(n=>n.name==='Chest');
+    this.headIndex=this.nodes.findIndex(n=>n.name==='Head');this.handIndex=this.nodes.findIndex(n=>n.name==='Wrist.R');this.chestIndex=this.nodes.findIndex(n=>n.name==='Chest');this.footIndices=['Foot.L','Foot.R'].map(name=>this.nodes.findIndex(n=>n.name===name));
     // Small field pack and headlamp are equipment attached to the imported skeleton.
     const pack=new Builder();pack.tile=MAT.CLOTH;pack.col=[.37,.40,.32];pack.roundedBox(-.14,-.18,-.255,.28,.35,.12,.055);pack.col=[.12,.15,.12];
     for(const x of [-.1,.1])pack.roundedBox(x-.012,-.15,-.27,.024,.26,.016,.003);
@@ -50,7 +50,7 @@ class Character {
     for(let i=0;i<this.nodes.length;i++){const n=this.nodes[i],src=CHARACTER_ASSET.nodes[i];n.t.splice(0,3,...(src.translation||[0,0,0]));n.q.splice(0,4,...(src.rotation||[0,0,0,1]));n.s.splice(0,3,...(src.scale||[1,1,1]));}
     for(const tr of clip.tracks)this.sample(tr,tm,this.nodes[tr.node][{translation:'t',rotation:'q',scale:'s'}[tr.path]]);
     // Keep the authored aiming upper body while the lower body continues to walk.
-    if(aim&&speed>.12){const walk=this.clips.Walk;this.movePhase+=dt*Math.max(.25,speed/1.65);for(const tr of walk.tracks)if(/^(UpperLeg|LowerLeg|Foot|PT)\./.test(this.nodes[tr.node].name))this.sample(tr,this.movePhase%walk.duration,this.nodes[tr.node][{translation:'t',rotation:'q',scale:'s'}[tr.path]]);}
+    if(aim&&speed>.12){const walk=speed>3.6?this.clips.Run:this.clips.Walk;this.movePhase+=dt*Math.max(.25,speed/(speed>3.6?4.2:1.65));for(const tr of walk.tracks)if(/^(UpperLeg|LowerLeg|Foot|PT)\./.test(this.nodes[tr.node].name))this.sample(tr,this.movePhase%walk.duration,this.nodes[tr.node][{translation:'t',rotation:'q',scale:'s'}[tr.path]]);}
     if(this.oldPose&&this.blend<1)for(let i=0;i<this.nodes.length;i++){
       const n=this.nodes[i],p=this.oldPose[i],f=smooth(0,1,this.blend);let dot=n.q.reduce((a,v,k)=>a+v*p.q[k],0),sg=dot<0?-1:1;
       for(let k=0;k<3;k++){n.t[k]=lerp(p.t[k],n.t[k],f);n.s[k]=lerp(p.s[k],n.s[k],f);}for(let k=0;k<4;k++)n.q[k]=lerp(p.q[k],n.q[k]*sg,f);const len=Math.hypot(...n.q);for(let k=0;k<4;k++)n.q[k]/=len;
@@ -70,7 +70,7 @@ class Character {
     }
     GL.updateMesh(this.mesh,this.vertices);M.trs(this.item.model,x,y+.015,z,yaw,.94,.94,.94);this.item.x=x;this.item.y=y+1;this.item.z=z;
     const worldPoint=i=>{const n=this.nodes[i].world,a=this.item.model;return [a[0]*n[12]+a[8]*n[14]+x,n[13]*.94+y+.015,a[2]*n[12]+a[10]*n[14]+z];};
-    this.hand=worldPoint(this.handIndex);M.trs(this.tool.model,...this.hand,yaw);this.tool.x=x;this.tool.y=y+1;this.tool.z=z;this.head=worldPoint(this.headIndex);const c=worldPoint(this.chestIndex);
+    this.feet=this.footIndices.map(worldPoint);this.hand=worldPoint(this.handIndex);M.trs(this.tool.model,...this.hand,yaw);this.tool.x=x;this.tool.y=y+1;this.tool.z=z;this.head=worldPoint(this.headIndex);const c=worldPoint(this.chestIndex);
     M.trs(this.pack.model,c[0],c[1]-.08,c[2],yaw);M.trs(this.lamp.model,...this.head,yaw);
     for(const item of [this.pack,this.lamp]){item.x=x;item.y=y+1;item.z=z;}
     this.lamp.emis=torchOn?1:.02;this.torchWorld=[this.head[0]+Math.sin(yaw)*.16,this.head[1]+.12,this.head[2]+Math.cos(yaw)*.16,Math.sin(yaw),-.12,Math.cos(yaw)];
