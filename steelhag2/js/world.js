@@ -50,17 +50,36 @@ const World = (() => {
 
   function buildVan() {
     const b = new Builder();
-    // a boxy 80s panel van in company yellow
-    b.col = [0.95, 0.8, 0.3]; b.tile = MAT.FLAT;
-    b.box(-1.0, 0.45, -2.6, 2.0, 1.5, 5.2, { uv: 0.4 }); b.box(-1.0, 1.95, -0.6, 2.0, 0.5, 3.2);
-    b.col = [0.2, 0.22, 0.25]; b.tile = MAT.GLASS; b.box(-0.9, 1.05, -2.66, 1.8, 0.7, 0.1); b.box(-1.06, 1.05, -2.2, 0.1, 0.6, 1.0); b.box(0.96, 1.05, -2.2, 0.1, 0.6, 1.0);
-    b.col = [1, 1, 1]; b.tile = MAT.DARK; for (const [x, z] of [[-1.05, -1.6], [0.75, -1.6], [-1.05, 1.7], [0.75, 1.7]]) b.cyl(x, 0.45, z, 0.42, 0.3, { axis: 'x', segs: 10 });
-    b.col = [0.9, 0.9, 0.9]; b.tile = MAT.STEEL; b.box(-1.05, 0.25, -2.75, 2.1, 0.25, 0.3); b.box(-1.05, 0.25, 2.45, 2.1, 0.25, 0.3);
-    const mesh = b.build();
-    // hazard lights as their own item so they can blink
-    const hz = new Builder(); hz.tile = MAT.LED; hz.col = [1, 0.6, 0.2];
-    for (const [x, z] of [[-0.95, -2.7], [0.8, -2.7], [-0.95, 2.62], [0.8, 2.62]]) hz.box(x, 0.85, z, 0.16, 0.1, 0.1);
-    return { mesh, hazards: hz.build() };
+    // A work-worn panel van: rounded pressed steel, rubber seals and a roof rack.
+    b.tile=MAT.FLAT;b.col=[0.66,0.60,0.37];
+    b.roundedBox(-1,0.64,-2.5,2,1.60,5.0,.18);
+    b.roundedBox(-.97,0.77,-2.65,1.94,.48,1.1,.12);
+    b.col=[.46,.43,.30];b.roundedBox(-1.015,.65,-2.42,2.03,.18,4.84,.035);
+    b.tile=MAT.DARK;b.col=[1,1,1];
+    b.roundedBox(-.90,1.25,-2.51,1.8,.78,.05,.075);
+    for(const side of [-1,1]) b.roundedBox(side*.99-.02,1.28,-2.12,.045,.69,1.02,.035);
+    b.tile=MAT.WINDOW;b.col=[.75,.85,.91];
+    b.roundedBox(-.85,1.30,-2.542,1.70,.68,.025,.06);
+    for(const side of [-1,1]) b.roundedBox(side*1.017-.012,1.33,-2.07,.025,.59,.92,.03);
+    b.tile=MAT.DARK;b.col=[.75,.76,.72];
+    b.roundedBox(-1.08,.42,-2.70,2.16,.20,.18,.05);b.roundedBox(-1.08,.42,2.42,2.16,.20,.18,.05);
+    b.box(-.57,.77,-2.668,1.14,.24,.02);
+    b.tile=MAT.STEEL;b.col=[.65,.65,.59];
+    for(let y=.80;y<.99;y+=.055)b.box(-.54,y,-2.686,1.08,.015,.02);
+    b.tile=MAT.FLAT;b.col=[.68,.67,.52];
+    for(const x of [-.89,.62])b.roundedBox(x,.85,-2.69,.27,.21,.03,.035);
+    for(const side of [-1,1]) {
+      b.tile=MAT.DARK;b.col=[.6,.64,.64];
+      for(const z of [-1.5,1.65]) { b.cyl(side>0?.89:-1.14,.46,z,.43,.25,{axis:'x',segs:24});b.tile=MAT.STEEL;b.col=[.6,.62,.61];b.cyl(side>0?1.145:-1.155,.46,z,.23,.025,{axis:'x',segs:16});b.tile=MAT.DARK;b.col=[.6,.64,.64]; }
+      b.roundedBox(side*1.02-.015,1.1,-.75,.03,.04,.21,.015);
+      b.box(side*1.018-.008,.79,-.89,.016,1.36,.012);
+      b.tube([[side*.96,1.39,-2.11],[side*1.24,1.38,-2.12],[side*1.26,1.55,-2.12]],.025,{segs:6});b.roundedBox(side*1.26-.045,1.47,-2.18,.09,.24,.18,.035);
+    }
+    b.tile=MAT.STEEL;b.col=[.55,.58,.57];for(const z of [-.8,1.5]){b.box(-.85,2.2,z,.07,.2,.08);b.box(.78,2.2,z,.07,.2,.08);b.box(-1.02,2.39,z,2.04,.06,.07);}
+    b.tile=MAT.SNOW;b.col=[.9,.93,.94];b.roundedBox(-.83,2.225,-.48,1.66,.10,2.7,.045);
+    const mesh=b.build(),hz=new Builder();hz.tile=MAT.LED;hz.col=[1,.65,.18];
+    for(const [x,z] of [[-.96,-2.69],[.82,-2.69],[-.96,2.51],[.82,2.51]])hz.roundedBox(x,.80,z,.14,.12,.04,.015);
+    return {mesh,hazards:hz.build()};
   }
 
   function buildSubstation(b) {
@@ -90,7 +109,7 @@ const World = (() => {
       const ya = side < 0 ? h - 0.1 : h + rh, yb = side < 0 ? h + rh : h - 0.1;
       const a = b.vert(-w / 2 - ov, ya, z0, 0, 0.7, side * 0.7, 0, 0), bb = b.vert(w / 2 + ov, ya, z0, 0, 0.7, side * 0.7, (w + 2 * ov) * 0.5, 0);
       const c = b.vert(w / 2 + ov, yb, z1, 0, 0.7, side * 0.7, (w + 2 * ov) * 0.5, 2), dd = b.vert(-w / 2 - ov, yb, z1, 0, 0.7, side * 0.7, 0, 2);
-      if (side < 0) b.quad(a, dd, c, bb); else b.quad(a, bb, c, dd);
+      b.quad(a, dd, c, bb);
     }
     b.end(M.create());
     // snow on the roof: a soft white slab either side of the ridge, thicker at the eaves
@@ -100,19 +119,30 @@ const World = (() => {
       const ya = side < 0 ? h - 0.1 + 0.32 : h + rh + 0.14, yb = side < 0 ? h + rh + 0.14 : h - 0.1 + 0.32;
       const a = b.vert(-w / 2 - ov, ya, z0, 0, 0.7, side * 0.7, 0, 0), bb = b.vert(w / 2 + ov, ya, z0, 0, 0.7, side * 0.7, (w + 2 * ov) * 0.3, 0);
       const c = b.vert(w / 2 + ov, yb, z1, 0, 0.7, side * 0.7, (w + 2 * ov) * 0.3, 1.2), dd = b.vert(-w / 2 - ov, yb, z1, 0, 0.7, side * 0.7, 0, 1.2);
-      if (side < 0) b.quad(a, dd, c, bb); else b.quad(a, bb, c, dd);
+      b.quad(a, dd, c, bb);
     }
     b.end(M.create());
     // gable ends
     b.tile = MAT.RED;
-    for (const x of [-w / 2, w / 2]) { const n = x < 0 ? -1 : 1; const a = b.vert(x, h, -d / 2, n, 0, 0, 0, 0), bb = b.vert(x, h, d / 2, n, 0, 0, d * 0.6, 0), c = b.vert(x, h + rh, 0, n, 0, 0, d * 0.3, rh * 0.6); if (n > 0) b.i.push(a, bb, c); else b.i.push(a, c, bb); }
+    for (const x of [-w / 2, w / 2]) { const n = x < 0 ? -1 : 1; const a = b.vert(x, h, -d / 2, n, 0, 0, 0, 0), bb = b.vert(x, h, d / 2, n, 0, 0, d * 0.6, 0), c = b.vert(x, h + rh, 0, n, 0, 0, d * 0.3, rh * 0.6); if (n > 0) b.i.push(a, c, bb); else b.i.push(a, bb, c); }
     // chimney
     b.tile = MAT.CONCRETE; b.box(w * 0.2, h + rh - 0.8, -0.4, 0.7, 1.6, 0.8);
     // windows: south wall two, west wall one (the kitchen, lit)
     b.tile = MAT.FLAT; b.col = [0.93, 0.92, 0.88];
     for (const x of [-w * 0.3, w * 0.22]) b.box(x - 0.65, 1.0, -d / 2 - 0.06, 1.3, 1.4, 0.08);
     b.box(-w / 2 - 0.06, 1.0, -0.7, 0.08, 1.4, 1.4);
-    b.tile = MAT.GLASS; b.col = [0.35, 0.4, 0.45]; for (const x of [-w * 0.3, w * 0.22]) b.box(x - 0.55, 1.1, -d / 2 - 0.09, 1.1, 1.2, 0.06);
+    b.tile = MAT.WINDOW; b.col = [0.65, 0.75, 0.82]; for (const x of [-w * 0.3, w * 0.22]) b.box(x - 0.55, 1.1, -d / 2 - 0.09, 1.1, 1.2, 0.06);
+    // Window joinery, deep sills and restrained warm interiors.
+    b.tile=MAT.FLAT;b.col=[.77,.76,.68];
+    for(const x of [-w*.3,w*.22]) { b.box(x-.025,1.06,-d/2-.14,.05,1.30,.07);b.box(x-.60,1.72,-d/2-.14,1.20,.045,.07);b.box(x-.72,.96,-d/2-.20,1.44,.09,.25); }
+    b.tile=MAT.CONCRETE;b.col=[.52,.53,.50];b.box(-w/2-.06,-.18,-d/2-.07,w+.12,.28,d+.14);
+    // Narrow battens catch light instead of asking a flat texture to supply all depth.
+    b.tile=MAT.RED;b.col=[.88,.90,.87];for(let x=-w/2+.15;x<w/2;x+=.23){b.box(x,.30,-d/2-.025,.025,h-.52,.025);b.box(x,.30,d/2,.025,h-.52,.025);}
+    b.tile=MAT.DARK;b.col=[.75,.77,.72];
+    for(const x of [-w/2-.18,w/2+.12]) { b.cyl(x,.05,-d/2-.10,.055,h-.05,{segs:8}); }
+    b.tile=MAT.PLANK;b.col=[.75,.72,.63];
+    for(const x of [-.84,.77])b.box(x,0,-d/2-.68,.07,2.48,.07);
+    b.tile=MAT.SNOW;b.col=[.92,.95,.96];b.roundedBox(-1.08,2.40,-d/2-.9,2.16,.14,1.1,.06);
     // door and steps
     b.tile = MAT.PLANK; b.col = [0.5, 0.42, 0.34]; b.box(-0.5, 0, -d / 2 - 0.06, 1.0, 2.05, 0.08);
     b.col = [0.7, 0.7, 0.7]; b.box(-1.0, -0.3, -d / 2 - 1.0, 2.0, 0.3, 1.0); b.box(-1.0, -0.6, -d / 2 - 1.5, 2.0, 0.3, 1.5);
@@ -124,12 +154,19 @@ const World = (() => {
   function buildSafelight() { const b = new Builder(); b.tile = MAT.LED; b.col = [1, 0.15, 0.1]; b.sphere(0, 0, 0, 0.09, { segs: 8, rings: 6 }); return b.build(); }
   function buildKitchenWindow() { const b = new Builder(); b.tile = MAT.GLASS; b.col = [1, 0.85, 0.55]; b.box(0, 0, 0, 0.06, 1.2, 1.2); return b.build(); }
 
-  function buildBarn(b, w = 12, d = 8, h = 4.5) {
-    b.col = [1, 1, 1]; b.tile = MAT.RED; b.box(-w / 2, 0, -d / 2, w, h, d, { uv: 0.6 });
-    b.tile = MAT.ROOF; b.box(-w / 2 - 0.4, h, -d / 2 - 0.4, w + 0.8, 0.3, d + 0.8);
-    b.begin(); for (let k = 0; k < 6; k++) b.box(-w / 2 - 0.4, h + 0.3 + k * 0.45, -d / 2 - 0.4 + k * (d + 0.8) / 12, w + 0.8, 0.45, d + 0.8 - k * (d + 0.8) / 6); b.end(M.create());
-    b.tile = MAT.DARK; b.box(-1.6, 0, -d / 2 - 0.05, 3.2, 3.0, 0.08);
-    b.tile = MAT.SNOW; b.col = [1, 1, 1]; b.box(-w / 2 - 0.45, h + 0.3 + 6 * 0.45, -d / 2 - 0.45 + 6 * (d + 0.8) / 12 - 0.3, w + 0.9, 0.3, d + 0.9 - 6 * (d + 0.8) / 6 + 0.6); for (let k = 0; k < 6; k++) b.box(-w / 2 - 0.45, h + 0.3 + k * 0.45 + 0.42, -d / 2 - 0.45 + k * (d + 0.8) / 12, w + 0.9, 0.12, d + 0.9 - k * (d + 0.8) / 6);
+  function buildBarn(b, w=12,d=8,h=4.5) {
+    b.tile=MAT.RED;b.col=[.80,.83,.80];b.box(-w/2,0,-d/2,w,h,d,{uv:.6});
+    b.tile=MAT.ROOF;b.col=[.7,.74,.76];
+    const ridge=h+2.8;
+    for(const side of [-1,1]) {
+      const z0=side<0?-d/2-.4:0,z1=side<0?0:d/2+.4,y0=side<0?h:ridge,y1=side<0?ridge:h;
+      for(const snow of [false,true]) { b.tile=snow?MAT.SNOW:MAT.ROOF;b.col=snow?[.93,.96,.97]:[.8,.82,.83];const lift=snow?.16:0;
+        const a=b.vert(-w/2-.4,y0+lift,z0,0,.82,side*.57,0,0),c=b.vert(w/2+.4,y0+lift,z0,0,.82,side*.57,6,0),e=b.vert(w/2+.4,y1+lift,z1,0,.82,side*.57,6,2),f=b.vert(-w/2-.4,y1+lift,z1,0,.82,side*.57,0,2);b.quad(a,f,e,c); }
+    }
+    b.tile=MAT.RED;b.col=[.80,.83,.80];for(const x of [-w/2,w/2]) {const n=x<0?-1:1,a=b.vert(x,h,-d/2,n,0,0,0,0),c=b.vert(x,h,d/2,n,0,0,4,0),e=b.vert(x,ridge,0,n,0,0,2,2);if(n>0)b.i.push(a,e,c);else b.i.push(a,c,e);}
+    b.tile=MAT.PLANK;b.col=[.37,.40,.36];b.box(-1.6,0,-d/2-.05,3.2,3.2,.10);
+    b.col=[.60,.58,.48];for(const x of [-1.63,-.035,1.56])b.box(x,.05,-d/2-.17,.07,3.15,.09);for(const y of [.1,1.6,3.1])b.box(-1.6,y,-d/2-.16,3.2,.06,.08);
+    b.tile=MAT.FLAT;b.col=[.68,.68,.62];for(const x of [-w/2,w/2-.12])b.box(x,0,-d/2-.02,.12,h,.08);
   }
 
   function buildBench() { const b = new Builder(); b.tile = MAT.PLANK; b.col = [0.8, 0.75, 0.68]; b.box(-0.8, 0.42, -0.2, 1.6, 0.06, 0.4); b.box(-0.8, 0.5, -0.22, 1.6, 0.5, 0.06); b.tile = MAT.DARK; b.col = [1, 1, 1]; for (const x of [-0.7, 0.7]) { b.box(x - 0.04, 0, -0.18, 0.08, 0.42, 0.36); b.box(x - 0.04, 0.42, -0.22, 0.08, 0.6, 0.06); } return b.build(); }
@@ -155,13 +192,34 @@ const World = (() => {
   }
 
   function buildBirch() {
-    const b = new Builder(), r = rng32(77); b.tile = MAT.BIRCH; b.col = [1, 1, 1];
-    b.cyl(0, 0, 0, 0.16, 7, { r1: 0.05, segs: 7, uv: 0.5 });
-    b.tile = MAT.DARK; b.col = [0.35, 0.33, 0.3];
-    for (let i = 0; i < 9; i++) { const y = 2.5 + r() * 4, a = r() * TAU, len = 1.2 + r() * 2.2, up = 0.4 + r() * 0.9; b.tube([[0, y, 0], [Math.cos(a) * len * 0.5, y + up * 0.5, Math.sin(a) * len * 0.5], [Math.cos(a) * len, y + up, Math.sin(a) * len]], 0.03 + r() * 0.03, { segs: 4 }); }
+    const b=new Builder(),r=rng32(77);b.tile=MAT.BIRCH;b.col=[.82,.80,.74];
+    b.tube([[0,0,0],[.05,2,0],[-.10,4,.08],[.03,6,.15],[.18,8,.2]],.105,{segs:8,uv:.8});
+    b.tile=MAT.DARK;b.col=[.56,.54,.48];
+    for(let i=0;i<18;i++) { const y=2.0+i*.30,a=i*2.399,len=(1-i/23)*(1.4+r()*1.1),dx=Math.cos(a),dz=Math.sin(a);
+      const pts=[[0,y,0],[dx*len*.45,y+.35,dz*len*.45],[dx*len,y+.8,dz*len]];b.tube(pts,.018+(.025*(1-i/18)),{segs:5});
+      for(let j=1;j<=4;j++){const t=j/5,x=dx*len*t,z=dz*len*t,sg=j%2?1:-1;b.tube([[x,y+t*.7,z],[x+dx*.3+dz*sg*.23,y+t*.7+.35,z+dz*.3-dx*sg*.23],[x+dx*.4+dz*sg*.38,y+t*.7+.65,z+dz*.4-dx*sg*.38]],.009,{segs:3});}
+    }
     return b.build();
   }
-  function buildSpruce() { const b = new Builder(); b.tile = MAT.SPRUCE; b.col = [1, 1, 1]; for (let t = 0; t < 5; t++) b.cyl(0, 1 + t * 1.6, 0, 2.2 - t * 0.4, 2.4, { r1: 0.05, segs: 8 }); b.tile = MAT.DARK; b.cyl(0, 0, 0, 0.15, 1.2, { segs: 5 }); return b.build(); }
+  function buildSpruce() {
+    const b=new Builder(),r=rng32(912);b.tile=MAT.PLANK;b.col=[.34,.31,.24];b.cyl(0,0,0,.17,9.1,{r1:.015,segs:8});
+    // Drooping boughs with irregular needle fans, rather than stacked cones.
+    b.tile=MAT.SPRUCE;
+    for(let tier=0;tier<11;tier++)for(let arm=0;arm<7;arm++){
+      const a=arm*TAU/7+tier*1.71+(r()-.5)*.35,y=1.15+tier*.68,len=(2.35-tier*.18)*(.72+r()*.4),dx=Math.cos(a),dz=Math.sin(a);
+      b.col=[.65+r()*.23,.74+r()*.20,.69+r()*.19];
+      for(let part=0;part<4;part++){
+        const t=part/4,tt=(part+1)/4,spread=(1-t)*.42+.035;
+        const cx=dx*len*t,cz=dz*len*t,cy=y-.28*Math.sin(t*Math.PI)+.1*t;
+        const ex=dx*len*tt,ez=dz*len*tt,ey=y-.28*Math.sin(tt*Math.PI)+.1*tt;
+        for(const sg of [-1,1]){
+          const u=b.vert(cx,cy+.055,cz,0,.8,0,t,0),v=b.vert(ex+dz*spread*sg,ey-.12,ez-dx*spread*sg,0,.8,0,tt,1),w=b.vert(ex+dx*.24,ey,ez+dz*.24,0,.8,0,tt,0);
+          b.i.push(u,v,w,w,v,u);
+        }
+      }
+    }
+    return b.build();
+  }
 
   function buildFence(b, pts) {
     b.tile = MAT.PLANK; b.col = [0.55, 0.5, 0.42];
@@ -208,6 +266,17 @@ const World = (() => {
     for (let i = 0; i < 80; i++) { const x = -200 + r() * 400, z = landEdgeMain(x) - 8 - r() * 70; if (Math.abs(x) < 16 && z > -60) continue; (r() < 0.4 ? bl : sl).push([x, groundY(x, z) - 0.3, z, r() * TAU, 0.7 + r() * 0.8]); }
     instancesAlong(birch, bl); instancesAlong(spruce, sl); S.items.push({ mesh: birch, model: M.create() }, { mesh: spruce, model: M.create() });
     S.birches = bl;
+    const dressing=new Builder(),rd=rng32(81);
+    dressing.tile=MAT.SNOW;dressing.col=[.91,.94,.96];
+    for(const [x,z,rx,rz] of [[-5,371,2,4],[5,376,2.4,2],[-17,380,3,1.5],[19,376,3,2],[28,375,2,4],[-11,-29,3,1.7]]){
+      const y=groundY(x,z);dressing.loft(x,y-.15,z,[[0,rx,rz],[.22,rx*.92,rz*.93],[.48,rx*.66,rz*.64],[.58,.01,.01]],{segs:24});
+    }
+    for(let i=0;i<100;i++) {const x=-150+rd()*300,z=landEdgeIsle(x)+2+rd()*5,y=groundY(x,z);if(Math.abs(x)<9)continue;
+      dressing.tile=MAT.REED;dressing.col=[.62,.59,.42];const h=.3+rd()*.7;dressing.tube([[x,y,z],[x+.1,y+h*.7,z+.04],[x+.25,y+h,z+.12]],.013,{segs:3});
+    }
+    dressing.tile=MAT.CONCRETE;dressing.col=[.5,.54,.53];for(const [x,z] of [[-18,350],[-24,355],[12,340],[31,384]]){const y=groundY(x,z);dressing.roundedBox(x,y-.3,z,1.3,.75,1,.3);dressing.tile=MAT.SNOW;dressing.col=[.94,.96,.98];dressing.roundedBox(x+.06,y+.36,z+.04,1.2,.12,.92,.05);dressing.tile=MAT.CONCRETE;dressing.col=[.5,.54,.53];}
+    dressing.tile=MAT.PLANK;dressing.col=[.62,.49,.34];for(let row=0;row<3;row++)for(let k=0;k<7-row;k++)dressing.cyl(-3.8+k*.3+row*.15,fy+.16+row*.25,375.7,.145,.65,{axis:'z',segs:9});
+    place(dressing.build(),0,0,0);
     // the towers across the bay, and the mast with its red light
     const tw = new Builder(); buildTowers(tw); place(tw.build(), 620, -2, 640, 0);
     const mast = new Builder(); mast.tile = MAT.DARK; mast.col = [1, 1, 1]; mast.cyl(0, 0, 0, 0.5, 70, { r1: 0.2, segs: 6 }); place(mast.build(), -260, groundY(-260, 420), 420, 0);
