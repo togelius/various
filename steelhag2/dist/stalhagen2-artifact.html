@@ -2099,6 +2099,28 @@ const World = (() => {
     }
     b.tile=MAT.DARK;b.col=[.85,.93,.93];
     for(const x of [-bw*.35,0,bw*.34])b.tube([[x,by-.35,depth*.2],[x+.3,by-2.1,depth*.22],[x+.8,by-3.0,depth*.10],[x+1.1,by-2.5,0]],.095,{segs:7});
+    // Rear heat-exchanger banks and a human-scale service gallery. These are
+    // visible on the return view from the island instead of a blank cabinet.
+    const back=depth*.515;
+    for(const side of [-1,1]){
+      const x=side*bw*.24,ww=bw*.29,yy=by+bh*.29,hh=bh*.48;
+      b.tile=MAT.DARK;b.col=[.74,.82,.78];b.roundedBox(x-ww/2-.10,yy-.12,back-.03,ww+.2,hh+.24,.38,.10);
+      b.tile=MAT.STEEL;b.col=[.63,.68,.61];
+      for(let k=0;k<12;k++)b.box(x-ww*.47,yy+k*hh/12,back+.32,ww*.94,hh*.038,.13);
+      b.tile=MAT.FLAT;b.col=[.43,.27,.15];b.tube([[x-ww*.54,yy-.2,back+.2],[x-ww*.54,yy+hh+.27,back+.2],[x+ww*.50,yy+hh+.27,back+.2]],.06,{segs:7});
+      b.tile=MAT.STEEL;b.col=[.77,.80,.73];b.tube([[x+ww*.55,by+.2,back+.14],[x+ww*.55,by+bh*.17,back+.75],[x+ww*.27,by+bh*.17,back+.75],[x+ww*.27,yy,back+.40]],.13,{segs:10});
+    }
+    b.tile=MAT.BEIGE;b.col=[.76,.78,.65];b.roundedBox(-.62,by+.05,back,1.24,2.02,.12,.045);
+    b.tile=MAT.DARK;b.col=[.77,.85,.81];b.box(.34,by+.90,back+.135,.06,.25,.08);
+    // Grated maintenance floor, narrow rails, and brackets beneath the gallery.
+    b.tile=MAT.STEEL;b.col=[.57,.64,.60];b.box(-bw*.44,by-.02,back,bw*.88,.13,1.05);
+    for(let x=-bw*.42;x<bw*.43;x+=.28)b.box(x,by+.12,back+.10,.055,.035,.88);
+    for(const x of [-bw*.44,-bw*.22,0,bw*.22,bw*.44]){b.cyl(x,by+.11,back+1.0,.033,1.08,{segs:6});b.tube([[x,by-.1,back+.84],[x,by-.85,back-.12]],.055,{segs:6});}
+    for(const y of [.6,1.17])b.tube([[-bw*.44,by+y,back+1],[bw*.44,by+y,back+1]],.034,{segs:6});
+    // An external cable reel makes the huge volume understandable at eye level.
+    b.tile=MAT.DARK;b.col=[.65,.73,.69];b.cyl(bw*.50,by+bh*.47,0,.75,.40,{axis:'x',segs:24});
+    b.tile=MAT.STEEL;b.col=[.75,.79,.71];for(const x of [bw*.50-.07,bw*.50+.40])b.cyl(x,by+bh*.47,0,.87,.07,{axis:'x',segs:24});
+    b.tile=MAT.DARK;b.col=[.82,.86,.80];b.tube([[bw*.55,by+bh*.42,.5],[bw*.57,by-1.0,.7],[bw*.62,by-3,.4],[bw*.72,by-3.5,1.2],[bw*.78,by-2.7,1.6]],.065,{segs:7});
     // Roof access rail, mast, and a broken antenna.
     b.tile=MAT.STEEL;b.col=[.68,.73,.69];for(let x=-bw*.4;x<bw*.4;x+=1.4)b.cyl(x,by+bh,depth*.46,.045,1.1,{segs:5});
     b.tube([[-bw*.4,by+bh+1,depth*.46],[bw*.4,by+bh+1,depth*.46]],.045,{segs:6});
