@@ -3,7 +3,7 @@
 // point sprites, and a composite pass with grain and a vignette. Overcast light is a lighting choice, not a polygon count.
 'use strict';
 const RENDER = (() => {
-  let foliageTex,skyTexture,iceTexture,woodTexture,woodReady=false,foliageReady=false,skyReady=false,iceReady=false;
+  let pineTexture,pineReady=false,foliageTex,skyTexture,iceTexture,woodTexture,woodReady=false,foliageReady=false,skyReady=false,iceReady=false;
   let gl, litProg, instProg, shadowProg, shadowInstProg, skyProg, partProg, compProg, shadow, scene = null, partMesh = null;
   const MAX_BONES = 32, MAX_LIGHTS = 12;
   const proj = M.create(), view = M.create(), vp = M.create(), invVP = M.create(), lightVP = M.create(), lightView = M.create(), lightProj = M.create();
@@ -35,15 +35,15 @@ const RENDER = (() => {
       int b = int(aBone); mat4 model = uModel * uBones[b]; vCharge = uFx[b].x; float hidden = uFx[b].y;
       #endif
       vec4 w = model * vec4(aPos, 1.0);
-      if(int(aTile+.5)==${MAT.FOLIAGE}){vec3 center=model[3].xyz;vec3 facing=uCamPos-center;vec3 right=normalize(vec3(facing.z,0.0,-facing.x));float scale=length(model[0].xyz),shape=.82+.34*fract(sin(dot(center.xz,vec2(12.9898,78.233)))*43758.5453);w.xyz=center+right*aPos.x*scale*shape+vec3(0.0,aPos.y*scale,0.0);}
+      if((int(aTile+.5)==${MAT.FOLIAGE}||int(aTile+.5)==${MAT.PINE})){vec3 center=model[3].xyz;vec3 facing=uCamPos-center;vec3 right=normalize(vec3(facing.z,0.0,-facing.x));float scale=length(model[0].xyz),shape=.82+.34*fract(sin(dot(center.xz,vec2(12.9898,78.233)))*43758.5453);w.xyz=center+right*aPos.x*scale*shape+vec3(0.0,aPos.y*scale,0.0);}
       vWorld = w.xyz; vNrm = normalize(mat3(model) * aNrm);
       vCol = aCol; vUV = aUV; vTile = aTile;
-      if(int(aTile+.5)==${MAT.FOLIAGE}){float seed=fract(sin(dot(model[3].xz,vec2(39.346,11.135)))*47453.5453);vUV.x=seed>.5?1.0-aUV.x:aUV.x;vCol*=.88+.20*seed;}
+      if((int(aTile+.5)==${MAT.FOLIAGE}||int(aTile+.5)==${MAT.PINE})){float seed=fract(sin(dot(model[3].xz,vec2(39.346,11.135)))*47453.5453);vUV.x=seed>.5?1.0-aUV.x:aUV.x;vCol*=.88+.20*seed;}
       gl_Position = hidden > 0.5 ? vec4(0.0, 0.0, 3.0, 1.0) : uVP * w;
     }`;
   const FS = `
     in vec3 vWorld; in vec3 vNrm; in vec3 vCol; in vec2 vUV; in float vTile; in float vCharge;
-    uniform sampler2D uWoodTexture; uniform float uWoodReady; uniform sampler2D uIceTexture; uniform float uIceReady; uniform sampler2D uFoliage; uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform mat4 uLightVP; uniform vec4 uMat[${MATS}];
+    uniform sampler2D uWoodTexture; uniform float uWoodReady; uniform sampler2D uIceTexture; uniform float uIceReady; uniform sampler2D uPine; uniform sampler2D uFoliage; uniform sampler2DArray uTex; uniform sampler2DShadow uShadow; uniform mat4 uLightVP; uniform vec4 uMat[${MATS}];
     uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyCol; uniform vec3 uGroundCol; uniform vec3 uFogCol; uniform vec3 uCamPos;
     uniform float uFogDensity; uniform float uFogHeight; uniform float uShadowOn; uniform float uTime; uniform float uIceGlow; uniform float uAlpha; uniform float uEmisMul;
     uniform vec4 uLights[${MAX_LIGHTS * 3}]; uniform int uNL;
@@ -63,8 +63,8 @@ const RENDER = (() => {
       if(tile==${MAT.SIGNAL}){float edge=1.0-smoothstep(.86,1.0,abs(vUV.x));float ends=smoothstep(0.0,.08,vUV.y)*(1.0-smoothstep(.88,1.0,vUV.y));float rails=smoothstep(.83,.91,abs(vUV.x));o=vec4(.95,.43,.10,edge*ends*(.13+rails*.42)*uAlpha);return;}
       if(tile==${MAT.PATH}){float edge=1.0-smoothstep(.42,1.0,abs(vUV.x)+vnoise(vWorld.xz*4.0)*.18);float mottling=.65+.35*vnoise(vWorld.xz*2.2);o=vec4(.16,.19,.22,edge*mottling*.13*uAlpha);return;}
       if(tile == ${MAT.TRACK}) { float edge=1.0-smoothstep(0.30,1.0,dot(vUV,vUV)); o=vec4(0.045,0.065,0.09,edge*0.22); return; }
-      vec4 tx = (tile==${MAT.FOLIAGE}||tile==${MAT.WINDOW_TREE})?texture(uFoliage,vUV):texture(uTex, vec3(vUV, vTile));
-      if((tile==${MAT.FOLIAGE}||tile==${MAT.WINDOW_TREE})&&tx.a<.48)discard;
+      vec4 tx = tile==${MAT.PINE}?texture(uPine,vUV):(tile==${MAT.FOLIAGE}||tile==${MAT.WINDOW_TREE})?texture(uFoliage,vUV):texture(uTex, vec3(vUV, vTile));
+      if((tile==${MAT.FOLIAGE}||tile==${MAT.PINE}||tile==${MAT.WINDOW_TREE})&&tx.a<.48)discard;
       if(vTile<1.001){float mixIce=clamp(vTile,0.0,1.0);tx=mix(texture(uTex,vec3(vUV,0.0)),texture(uTex,vec3(vUV,1.0)),mixIce);m=mix(uMat[0],uMat[1],mixIce);}
       if(vTile<1.001&&uIceReady>.5){
         vec2 uv=vWorld.xz*.065;vec3 frost=texture(uIceTexture,uv).rgb;
@@ -99,7 +99,7 @@ const RENDER = (() => {
         contactAO *= 1.0-0.68*exp(-radial*radial*2.4)*(1.0-smoothstep(0.03,0.50,dy));
       }
       vec3 col = albedo * (hemi * contactAO + uSunCol * ndl * sh);
-      if(tile==${MAT.FOLIAGE})col=albedo*(uSkyCol*.9+uGroundCol*.25+uSunCol*.2);
+      if(tile==${MAT.FOLIAGE}||tile==${MAT.PINE})col=albedo*(uSkyCol*.9+uGroundCol*.25+uSunCol*.2);
       if(tile==${MAT.WINDOW_TREE})col=albedo*vec3(.21,.27,.33);
       float gloss = 1.0 - m.x;
       // a little sky reflection on smooth things (ice, glass, foil)
@@ -212,6 +212,7 @@ const RENDER = (() => {
       const u = {}; ['uVP', 'uScale', 'uMaxSize', 'uCol', 'uSoft'].forEach(n => u[n] = gl.getUniformLocation(p, n)); return { p, u }; })();
     shadow = GL.shadowTarget(1024);
     Paint.build();
+    pineTexture=GL.texture2D(makeCanvas(1,1));const pineImage=new Image();pineImage.onload=()=>{gl.deleteTexture(pineTexture);pineTexture=GL.texture2D(pineImage);gl.bindTexture(gl.TEXTURE_2D,pineTexture);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);pineReady=true;};pineImage.src=PINE_IMAGE;
     foliageTex=GL.texture2D(makeCanvas(1,1));
     const foliageImage=new Image();foliageImage.onload=()=>{gl.deleteTexture(foliageTex);foliageTex=GL.texture2D(foliageImage);gl.bindTexture(gl.TEXTURE_2D,foliageTex);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);foliageReady=true;};foliageImage.src=FOLIAGE_IMAGE;
     woodTexture=GL.texture2D(makeCanvas(1,1));const woodImage=new Image();woodImage.onload=()=>{gl.deleteTexture(woodTexture);woodTexture=GL.texture2D(woodImage);gl.bindTexture(gl.TEXTURE_2D,woodTexture);gl.generateMipmap(gl.TEXTURE_2D);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.MIRRORED_REPEAT);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.REPEAT);woodReady=true;};woodImage.src=WOOD_IMAGE;
@@ -256,6 +257,7 @@ const RENDER = (() => {
       gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D_ARRAY, Paint.tex); gl.uniform1i(P.u.uTex, 0);
       gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, shadow.tex); gl.uniform1i(P.u.uShadow, 1);
       gl.activeTexture(gl.TEXTURE2);gl.bindTexture(gl.TEXTURE_2D,foliageTex);gl.uniform1i(P.u.uFoliage,2);
+      gl.activeTexture(gl.TEXTURE6);gl.bindTexture(gl.TEXTURE_2D,pineTexture);gl.uniform1i(P.u.uPine,6);
       gl.activeTexture(gl.TEXTURE4);gl.bindTexture(gl.TEXTURE_2D,iceTexture);gl.uniform1i(P.u.uIceTexture,4);gl.uniform1f(P.u.uIceReady,iceReady?1:0);
       gl.activeTexture(gl.TEXTURE5);gl.bindTexture(gl.TEXTURE_2D,woodTexture);gl.uniform1i(P.u.uWoodTexture,5);gl.uniform1f(P.u.uWoodReady,woodReady?1:0);
       gl.uniformMatrix4fv(P.u.uLightVP, false, lightVP);
@@ -356,5 +358,5 @@ const RENDER = (() => {
     g.putImageData(id, 0, 0);
     return c;
   }
-  return { init, cam, env, light, contact, clearLights, frame, snapshot, stats, MAX_BONES, get foliageReady(){return foliageReady&&skyReady&&iceReady&&woodReady;}, get vp() { return vp; }, get planes() { return planes; } };
+  return { init, cam, env, light, contact, clearLights, frame, snapshot, stats, MAX_BONES, get foliageReady(){return foliageReady&&pineReady&&skyReady&&iceReady&&woodReady;}, get vp() { return vp; }, get planes() { return planes; } };
 })();

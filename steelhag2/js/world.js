@@ -274,10 +274,10 @@ const World = (() => {
     }
     return b.build();
   }
-  function buildSpruce() {
+  function buildSpruce(tile=MAT.FOLIAGE,height=13.05) {
     // A detailed alpha cutout; the renderer turns each instance towards the eye.
-    const b=new Builder();b.tile=MAT.FOLIAGE;b.col=[1,1,1];
-    const a=b.vert(-4.35,0,0,0,1,0,0,1),c=b.vert(4.35,0,0,0,1,0,1,1),d=b.vert(4.35,13.05,0,0,1,0,1,0),e=b.vert(-4.35,13.05,0,0,1,0,0,0);
+    const b=new Builder();b.tile=tile;b.col=[1,1,1];const w=height/3;
+    const a=b.vert(-w,0,0,0,1,0,0,1),c=b.vert(w,0,0,0,1,0,1,1),d=b.vert(w,height,0,0,1,0,1,0),e=b.vert(-w,height,0,0,1,0,0,0,0);
     b.quad(a,c,d,e);return b.build();
   }
 
@@ -332,12 +332,16 @@ const World = (() => {
     // fence along the field
     const fence = new Builder(); const fpts = []; for (let x = -30; x <= 60; x += 5) fpts.push([x, FARM.z + 24 + Math.sin(x * 0.1) * 2]); buildFence(fence, fpts); place(fence.build(), 0, 0, 0, 0);
     // birches and spruces along the shore and the field's edges
-    const birch = buildBirch(), spruce = buildSpruce(), bl = [], sl = [];
+    const birch = buildBirch(), spruce = buildSpruce(), pine=buildSpruce(MAT.PINE,14.4), bl = [], sl = [];
     for (let i = 0; i < 160; i++) { const x = -160 + r() * 320, z = landEdgeIsle(x) + 4 + r() * 90; if (Math.hypot(x - FARM.x, z - FARM.z) < 26 || Math.hypot(x - 46, z - (FARM.z + 30)) < 10) continue; (r() < 0.32 ? bl : sl).push([x, groundY(x, z) - 0.3, z, r() * TAU, 0.85 + r() * 1.0]); }
     for (let i = 0; i < 80; i++) { const x = -200 + r() * 400, z = landEdgeMain(x) - 8 - r() * 70; if (Math.abs(x) < 16 && z > -60) continue; (r() < 0.4 ? bl : sl).push([x, groundY(x, z) - 0.3, z, r() * TAU, 0.85 + r() * 1.0]); }
     for(let i=0;i<90;i++){const x=-180+r()*360,z=205+r()*95;sl.push([x,groundY(x,z)-.2,z,r()*TAU,1+r()*1.3]);}
-    instancesAlong(birch, bl); instancesAlong(spruce, sl); S.items.push({ mesh: birch, model: M.create(), noShadow: true }, { mesh: spruce, model: M.create(), noShadow: true, twoSided:true });
-    S.birches = bl;for(const [x,y,z,,scale] of sl)collide(x-.17*scale,y,z-.17*scale,.34*scale,3,.34*scale);
+    // Cluster pines among spruce rather than alternating two identical silhouettes.
+    const pines=[],spruces=[];for(const p of sl){const patch=Math.sin(p[0]*.031+p[2]*.013)+Math.cos(p[2]*.047);(patch>.52?pines:spruces).push(p);}
+    for(const [x,z,scale]of[[-19,157,1.12],[-16,177,.94],[36,150,1.08],[39,181,1.2]])pines.push([x,groundY(x,z)-.3,z,0,scale]);
+    instancesAlong(pine,pines);S.items.push({mesh:pine,model:M.create(),noShadow:true,twoSided:true});S.pines=pines;
+    instancesAlong(birch, bl); instancesAlong(spruce, spruces); S.items.push({ mesh: birch, model: M.create(), noShadow: true }, { mesh: spruce, model: M.create(), noShadow: true, twoSided:true });
+    S.birches = bl;S.spruces=spruces;for(const [x,y,z,,scale] of [...spruces,...pines])collide(x-.17*scale,y,z-.17*scale,.34*scale,3,.34*scale);
     const dressing=new Builder(),rd=rng32(81);
     dressing.tile=MAT.SNOW;dressing.col=[.91,.94,.96];
     for(const [x,z,rx,rz] of [[-4.9,165.5,1.2,1.5],[5,166,2.4,2],[-17,170,3,1.5],[19,166,3,2],[28,165,2,4],[-11,-29,3,1.7]]){

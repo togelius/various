@@ -152,3 +152,5 @@ The ice-road entrance includes an authored service hut, open boom gate, winter-r
 The rising hulls fracture and displace the ice: branching leads, twelve animated slabs per hull, short-lived powder plumes and a persistent debris field. The effect follows hull progress, so saved games restore the aftermath without replaying it. Reduced motion removes powder and tumbling. `node tools/check-ice-break.js` verifies bounded geometry/particles, finite poses, reset/resume and reduced-motion behavior. The playtest harness includes live and staged reveal views.
 
 The farmhouse garden now has a snow-capped open gate, an address postbox, stacked winter firewood, a bare apple tree, a bicycle and a wooden sled. The central approach and route to the relay remain open. Original authored meshes and two locally painted material tiles; no new downloaded assets.
+
+The forest mixes the original spruce with a second generated winter pine cutout, arranged in loose stands with a few trees framing the farmhouse. Both use the same lighting and distance fog; PNG originals and full prompts are retained under assets/foliage/.
