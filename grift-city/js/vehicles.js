@@ -187,8 +187,9 @@ const VEH = (() => {
             const tx = this.vx - vn * nx, tz = this.vz - vn * nz, vt = Math.hypot(tx, tz), keep = vt > 0 ? Math.max(0, vt - impact * 0.45) / vt : 0;
             // a glancing touch does not bounce: a bounce off a wall the tyres are steering back into is a rattle, and every
             // rattle would count as a fresh crash
-            const glance = impact < vt * 0.5 && vt > 2, bounce = glance ? 0 : 0.15, hard = glance ? 5 : 3;
-            this.vx = tx * keep + nx * impact * bounce; this.vz = tz * keep + nz * impact * bounce;
+            const mine = this.driver === PLAYER, glance = mine && impact < vt * 0.5 && vt > 2, bounce = glance ? 0 : 0.15, hard = glance ? 5 : 3;
+            if (mine) { this.vx = tx * keep + nx * impact * bounce; this.vz = tz * keep + nz * impact * bounce; }
+            else { this.vx -= vn * nx * 1.15; this.vz -= vn * nz * 1.15; this.vx *= 0.9; this.vz *= 0.9; } // AI cars keep the old sticky walls: a cruiser that clips a kerb loses its run on you
             if (glance) { // the wall turns the nose along it, like a guard rail
               const back = this.speed < 0 ? Math.PI : 0, along = Math.atan2(tx, tz) + back, turn = M.angleTo(this.angle, along);
               if (Math.abs(turn) < 0.9) { this.angle += turn * 0.35; this.yawRate = (this.yawRate || 0) * 0.5; }
