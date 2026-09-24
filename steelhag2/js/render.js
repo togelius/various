@@ -169,9 +169,9 @@ const RENDER = (() => {
       col = mix(col, uFogCol, smoothstep(0.12, -0.05, dir.y));
       o = vec4(col, 1.0);
     }`;
-  const PART_VS = `in vec3 aPos; in float aSize; in float aAlpha; uniform mat4 uVP; uniform float uScale; out float vA;
-    void main() { gl_Position = uVP * vec4(aPos, 1.0); float d = max(gl_Position.w, 0.1); gl_PointSize = clamp(aSize * uScale / d, 1.0, 7.0); vA = aAlpha * clamp(1.0 - d / 90.0, 0.0, 1.0); }`;
-  const PART_FS = `in float vA; uniform vec3 uCol; out vec4 o; void main() { vec2 c = gl_PointCoord * 2.0 - 1.0; float r = dot(c, c); if (r > 1.0) discard; o = vec4(uCol, vA * smoothstep(1.0, 0.3, r)); }`;
+  const PART_VS = `in vec3 aPos; in float aSize; in float aAlpha; uniform mat4 uVP; uniform float uScale; uniform float uMaxSize; out float vA;
+    void main() { gl_Position = uVP * vec4(aPos, 1.0); float d = max(gl_Position.w, 0.1); gl_PointSize = clamp(aSize * uScale / d, 1.0, uMaxSize); vA = aAlpha * clamp(1.0 - d / 90.0, 0.0, 1.0); }`;
+  const PART_FS = `in float vA; uniform vec3 uCol; uniform float uSoft; out vec4 o; void main() { vec2 c = gl_PointCoord * 2.0 - 1.0; float r = dot(c, c); if (r > 1.0) discard; float falloff = uSoft > 0.5 ? pow(1.0-r,3.0) * (0.75+0.25*sin(c.x*13.0+sin(c.y*9.0))*sin(c.y*15.0)) : smoothstep(1.0, 0.3, r); o = vec4(uCol, vA * falloff); }`;
   const QUAD_VS = `const vec2 v[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0)); out vec2 vUV; void main() { vUV = v[gl_VertexID] * 0.5 + 0.5; gl_Position = vec4(v[gl_VertexID], 0.0, 1.0); }`;
   const COMP_FS = `
     in vec2 vUV; uniform sampler2D uTex; uniform float uExposure; uniform float uGrain; uniform float uVignette; uniform float uSat; uniform float uTime; uniform vec2 uRes; uniform float uPrint; out vec4 o;
@@ -209,7 +209,7 @@ const RENDER = (() => {
       const fs = gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(fs, h + 'precision highp float;\n' + PART_FS); gl.compileShader(fs);
       if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(vs)); if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(fs));
       gl.attachShader(p, vs); gl.attachShader(p, fs); gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aSize'); gl.bindAttribLocation(p, 2, 'aAlpha'); gl.linkProgram(p);
-      const u = {}; ['uVP', 'uScale', 'uCol'].forEach(n => u[n] = gl.getUniformLocation(p, n)); return { p, u }; })();
+      const u = {}; ['uVP', 'uScale', 'uMaxSize', 'uCol', 'uSoft'].forEach(n => u[n] = gl.getUniformLocation(p, n)); return { p, u }; })();
     shadow = GL.shadowTarget(1024);
     Paint.build();
     foliageTex=GL.texture2D(makeCanvas(1,1));
@@ -310,7 +310,7 @@ const RENDER = (() => {
     if (!parts || !parts.n) return;
     gl.useProgram(partProg.p); gl.bindVertexArray(partMesh.vao); gl.bindBuffer(gl.ARRAY_BUFFER, partMesh.vbo);
     gl.bufferData(gl.ARRAY_BUFFER, parts.data.subarray(0, parts.n * 5), gl.DYNAMIC_DRAW);
-    gl.uniformMatrix4fv(partProg.u.uVP, false, vp); gl.uniform1f(partProg.u.uScale, th * 0.9); gl.uniform3fv(partProg.u.uCol, parts.col);
+    gl.uniformMatrix4fv(partProg.u.uVP, false, vp); gl.uniform1f(partProg.u.uScale, th * 0.9); gl.uniform1f(partProg.u.uMaxSize,parts.maxSize||7); gl.uniform3fv(partProg.u.uCol, parts.col);gl.uniform1f(partProg.u.uSoft,parts.soft?1:0);
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
     gl.drawArrays(gl.POINTS, 0, parts.n);
     gl.depthMask(true); gl.disable(gl.BLEND); gl.bindVertexArray(null);
@@ -334,7 +334,7 @@ const RENDER = (() => {
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo); gl.viewport(0, 0, tw, th);
     gl.clearColor(env.fogCol[0], env.fogCol[1], env.fogCol[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    drawSky(); drawScene(false, withHidden); drawParticles(parts);if(scene.effects)drawParticles(scene.effects);
+    drawSky(); drawScene(false, withHidden); if(scene.dust)drawParticles(scene.dust);drawParticles(parts);if(scene.effects)drawParticles(scene.effects);
   }
 
   function frame(sc, w, h, parts) {

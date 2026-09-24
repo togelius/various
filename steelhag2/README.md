@@ -147,3 +147,6 @@ contact strip. Completed prints can be inspected again without waiting.
 
 
 The ice-road entrance includes an authored service hut, open boom gate, winter-road sign, fencing, utility wires, vehicle ruts and old footprints. A damaged R-07 recovery cradle lies beside the crossing with a cut tow cable and warning beacon. These optional landmarks preserve the direct route and are batched in `js/roadside.js`. `node tools/check-roadside.js` checks geometry bounds/materials and the clear walking corridor. The playtest harness includes checkpoint, recovery-equipment and recovery-photograph views.
+
+
+The rising hulls fracture and displace the ice: branching leads, twelve animated slabs per hull, short-lived powder plumes and a persistent debris field. The effect follows hull progress, so saved games restore the aftermath without replaying it. Reduced motion removes powder and tumbling. `node tools/check-ice-break.js` verifies bounded geometry/particles, finite poses, reset/resume and reduced-motion behavior. The playtest harness includes live and staged reveal views.

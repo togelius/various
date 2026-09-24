@@ -1565,9 +1565,9 @@ const RENDER = (() => {
       col = mix(col, uFogCol, smoothstep(0.12, -0.05, dir.y));
       o = vec4(col, 1.0);
     }`;
-  const PART_VS = `in vec3 aPos; in float aSize; in float aAlpha; uniform mat4 uVP; uniform float uScale; out float vA;
-    void main() { gl_Position = uVP * vec4(aPos, 1.0); float d = max(gl_Position.w, 0.1); gl_PointSize = clamp(aSize * uScale / d, 1.0, 7.0); vA = aAlpha * clamp(1.0 - d / 90.0, 0.0, 1.0); }`;
-  const PART_FS = `in float vA; uniform vec3 uCol; out vec4 o; void main() { vec2 c = gl_PointCoord * 2.0 - 1.0; float r = dot(c, c); if (r > 1.0) discard; o = vec4(uCol, vA * smoothstep(1.0, 0.3, r)); }`;
+  const PART_VS = `in vec3 aPos; in float aSize; in float aAlpha; uniform mat4 uVP; uniform float uScale; uniform float uMaxSize; out float vA;
+    void main() { gl_Position = uVP * vec4(aPos, 1.0); float d = max(gl_Position.w, 0.1); gl_PointSize = clamp(aSize * uScale / d, 1.0, uMaxSize); vA = aAlpha * clamp(1.0 - d / 90.0, 0.0, 1.0); }`;
+  const PART_FS = `in float vA; uniform vec3 uCol; uniform float uSoft; out vec4 o; void main() { vec2 c = gl_PointCoord * 2.0 - 1.0; float r = dot(c, c); if (r > 1.0) discard; float falloff = uSoft > 0.5 ? pow(1.0-r,3.0) * (0.75+0.25*sin(c.x*13.0+sin(c.y*9.0))*sin(c.y*15.0)) : smoothstep(1.0, 0.3, r); o = vec4(uCol, vA * falloff); }`;
   const QUAD_VS = `const vec2 v[3] = vec2[3](vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0)); out vec2 vUV; void main() { vUV = v[gl_VertexID] * 0.5 + 0.5; gl_Position = vec4(v[gl_VertexID], 0.0, 1.0); }`;
   const COMP_FS = `
     in vec2 vUV; uniform sampler2D uTex; uniform float uExposure; uniform float uGrain; uniform float uVignette; uniform float uSat; uniform float uTime; uniform vec2 uRes; uniform float uPrint; out vec4 o;
@@ -1605,7 +1605,7 @@ const RENDER = (() => {
       const fs = gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(fs, h + 'precision highp float;\n' + PART_FS); gl.compileShader(fs);
       if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(vs)); if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(fs));
       gl.attachShader(p, vs); gl.attachShader(p, fs); gl.bindAttribLocation(p, 0, 'aPos'); gl.bindAttribLocation(p, 1, 'aSize'); gl.bindAttribLocation(p, 2, 'aAlpha'); gl.linkProgram(p);
-      const u = {}; ['uVP', 'uScale', 'uCol'].forEach(n => u[n] = gl.getUniformLocation(p, n)); return { p, u }; })();
+      const u = {}; ['uVP', 'uScale', 'uMaxSize', 'uCol', 'uSoft'].forEach(n => u[n] = gl.getUniformLocation(p, n)); return { p, u }; })();
     shadow = GL.shadowTarget(1024);
     Paint.build();
     foliageTex=GL.texture2D(makeCanvas(1,1));
@@ -1706,7 +1706,7 @@ const RENDER = (() => {
     if (!parts || !parts.n) return;
     gl.useProgram(partProg.p); gl.bindVertexArray(partMesh.vao); gl.bindBuffer(gl.ARRAY_BUFFER, partMesh.vbo);
     gl.bufferData(gl.ARRAY_BUFFER, parts.data.subarray(0, parts.n * 5), gl.DYNAMIC_DRAW);
-    gl.uniformMatrix4fv(partProg.u.uVP, false, vp); gl.uniform1f(partProg.u.uScale, th * 0.9); gl.uniform3fv(partProg.u.uCol, parts.col);
+    gl.uniformMatrix4fv(partProg.u.uVP, false, vp); gl.uniform1f(partProg.u.uScale, th * 0.9); gl.uniform1f(partProg.u.uMaxSize,parts.maxSize||7); gl.uniform3fv(partProg.u.uCol, parts.col);gl.uniform1f(partProg.u.uSoft,parts.soft?1:0);
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
     gl.drawArrays(gl.POINTS, 0, parts.n);
     gl.depthMask(true); gl.disable(gl.BLEND); gl.bindVertexArray(null);
@@ -1730,7 +1730,7 @@ const RENDER = (() => {
     }
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo); gl.viewport(0, 0, tw, th);
     gl.clearColor(env.fogCol[0], env.fogCol[1], env.fogCol[2], 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    drawSky(); drawScene(false, withHidden); drawParticles(parts);if(scene.effects)drawParticles(scene.effects);
+    drawSky(); drawScene(false, withHidden); if(scene.dust)drawParticles(scene.dust);drawParticles(parts);if(scene.effects)drawParticles(scene.effects);
   }
 
   function frame(sc, w, h, parts) {
@@ -1753,6 +1753,80 @@ const RENDER = (() => {
     return c;
   }
   return { init, cam, env, light, contact, clearLights, frame, snapshot, stats, MAX_BONES, get foliageReady(){return foliageReady&&skyReady&&iceReady&&woodReady;}, get vp() { return vp; }, get planes() { return planes; } };
+})();
+</script>
+  <script data-src="ice-break.js">
+// Ice displaced by the rising transformer hulls. Presentation follows hull progress,
+// so reset, checkpoint restore and photographs share exactly the same state.
+'use strict';
+const IceBreak=(()=>{
+  const PIECES=12,DUST=44;
+  function ribbon(b,pts,width,col,y){
+    b.tile=MAT.FLAT;b.col=col;
+    for(let i=0;i<pts.length-1;i++){
+      const a=pts[i],c=pts[i+1],dx=c[0]-a[0],dz=c[1]-a[1],len=Math.hypot(dx,dz)||1,nx=dz/len*width,nz=-dx/len*width;
+      const v=[b.vert(a[0]-nx,y,a[1]-nz,0,1,0,0,0),b.vert(a[0]+nx,y,a[1]+nz,0,1,0,1,0),b.vert(c[0]+nx,y,c[1]+nz,0,1,0,1,1),b.vert(c[0]-nx,y,c[1]-nz,0,1,0,0,1)];b.quad(v[0],v[3],v[2],v[1]);
+    }
+  }
+  function plate(b,size,r){
+    const ring=[];for(let j=0;j<6;j++){const a=j*TAU/6,rad=size*(.7+r()*.35);ring.push([Math.sin(a)*rad,Math.cos(a)*rad]);}
+    b.tile=MAT.ICE;b.col=[.93,.98,1];
+    const top=b.vert(0,.07,0,0,1,0,0,0),topRing=ring.map(([x,z])=>b.vert(x,.07,z,0,1,0,x*.3,z*.3));
+    for(let j=0;j<6;j++)b.i.push(top,topRing[j],topRing[(j+1)%6]);
+    b.tile=MAT.FLAT;b.col=[.38,.52,.59];const bottom=b.vert(0,-.07,0,0,-1,0,0,0),low=ring.map(([x,z])=>b.vert(x,-.07,z,0,-1,0,x,z));
+    for(let j=0;j<6;j++)b.i.push(bottom,low[(j+1)%6],low[j]);
+    b.col=[.54,.70,.77];for(let j=0;j<6;j++){const [x,z]=ring[j],[xx,zz]=ring[(j+1)%6],nx=x+xx,nz=z+zz,len=Math.hypot(nx,nz)||1;
+      const a=b.vert(x,.07,z,nx/len,0,nz/len,0,0),c=b.vert(x,-.07,z,nx/len,0,nz/len,0,1),d=b.vert(xx,-.07,zz,nx/len,0,nz/len,1,1),e=b.vert(xx,.07,zz,nx/len,0,nz/len,1,0);b.quad(a,c,d,e);
+    }
+  }
+  function create(hulls){
+    const fields=hulls.map((h,index)=>{
+      const r=rng32(820+index*59),cracks=new Builder(),slabs=new Builder(),chunks=[],dust=[];
+      // An uneven pressure perimeter and branching leads, not a perfect shock ring.
+      const perimeter=[];
+      for(let j=0;j<=28;j++){const a=(j%28)*TAU/28,rr=h.h*(.26+(j%4)*.011);perimeter.push([Math.sin(a)*rr,Math.cos(a)*rr*.70]);}
+      ribbon(cracks,perimeter,.13,[.16,.27,.32],.018);ribbon(cracks,perimeter,.035,[.83,.94,.98],.022);
+      for(let j=0;j<11;j++){
+        const a=j*TAU/11+(r()-.5)*.24,pts=[];
+        for(let k=0;k<5;k++){const rr=h.h*(.18+k*(.047+r()*.012)),aa=a+(r()-.5)*.15;pts.push([Math.sin(aa)*rr,Math.cos(aa)*rr*.82]);}
+        ribbon(cracks,pts,.08+r()*.035,[.17,.31,.37],.024);
+        const start=pts[2],aa=a+(j%2?1:-1)*.45,rr=h.h*.39;
+        ribbon(cracks,[start,[(start[0]+Math.sin(aa)*rr)/2,(start[1]+Math.cos(aa)*rr*.82)/2],[Math.sin(aa)*rr,Math.cos(aa)*rr*.82]],.035,[.45,.65,.74],.026);
+      }
+      for(let j=0;j<PIECES;j++){
+        const a=j*TAU/PIECES+(r()-.5)*.17,size=h.h*(.029+r()*.024);
+        chunks.push({a,size,delay:.12+r()*.15,push:.8+r()*1.4,height:.6+r()*1.2,twist:(r()-.5)*.7});
+        slabs.bone=j;plate(slabs,size,r);
+      }
+      for(let j=0;j<DUST;j++)dust.push({a:r()*TAU,delay:.12+r()*.34,rad:h.h*(.22+r()*.1),speed:1.5+r()*3.5,lift:1+r()*3.4,size:1.1+r()*2.2});
+      const bones=new Float32Array(RENDER.MAX_BONES*16);for(let j=0;j<RENDER.MAX_BONES;j++)M.identity(bones.subarray(j*16,j*16+16));
+      return {h,chunks,dust,crack:{mesh:cracks.build(),model:M.create(),noShadow:true,alpha:0,hidden:true},slab:{mesh:slabs.build(),model:M.create(),bones,noShadow:true,hidden:true}};
+    });
+    const items=fields.flatMap(f=>[f.crack,f.slab]),particles={data:new Float32Array(fields.length*DUST*5),n:0,col:[.45,.60,.66],maxSize:60,soft:true};
+    function sync(reduced=false){
+      particles.n=0;
+      for(const f of fields){
+        const {h}=f,p=clamp(h.rise||0,0,1),growth=smooth(.015,.32,p),show=p>.015;
+        f.crack.hidden=!show;f.slab.hidden=p<.12;f.crack.alpha=growth*.82;
+        M.trs(f.crack.model,h.x,0,h.z,0,lerp(.35,1,growth),1,lerp(.35,1,growth));
+        for(let j=0;j<f.chunks.length;j++){
+          const c=f.chunks[j],t=clamp((p-c.delay)/.65,0,1),travel=smooth(0,1,t),arc=Math.sin(Math.PI*t),radius=h.h*.245+travel*(h.h*.075+c.push);
+          const y=t<=0?-.5:reduced?lerp(-.15,.13,travel):.13+arc*c.height;
+          M.trsEuler(f.slab.bones.subarray(j*16,j*16+16),h.x+Math.sin(c.a)*radius,y,h.z+Math.cos(c.a)*radius*.72,c.a+c.twist*travel,reduced?0:arc*.43, reduced?0:arc*c.twist);
+        }
+        // Short, bounded sheets of powder emerge from the same cracks. No repeated
+        // emission and no idle animation once the plate has settled.
+        if(!reduced&&p<1)for(const d of f.dust){
+          const t=(p-d.delay)/.41;if(t<=0||t>=1)continue;
+          const radius=d.rad+d.speed*t,alpha=Math.sin(t*Math.PI)*.19;
+          particles.data.set([h.x+Math.sin(d.a)*radius,.12+Math.sin(t*Math.PI)*d.lift,h.z+Math.cos(d.a)*radius*.72,d.size*(.6+t),alpha],particles.n++*5);
+        }
+      }
+      return items;
+    }
+    sync();return {items,particles,sync};
+  }
+  return {create};
 })();
 </script>
   <script data-src="roadside.js">
@@ -3328,6 +3402,7 @@ const Game = (() => {
   // ---------------------------------------------------------------- world and cast
   RENDER.init(cv);
   const world = World.build();Interior.build();
+  const iceBreak=IceBreak.create(world.hulls);
   const kid = new Character();
   const P = Player.P;
   const bearerMesh = null;
@@ -3550,10 +3625,14 @@ const Game = (() => {
   function sit(seat) { P.sit = seat; P.vx = P.vz = 0; P.x = seat.x; P.z = seat.z; P.yaw = seat.yaw; lastSeat = seat; Sound.sit(); if (seat.line) lineQ.push(seat.line); if (seat.name === 'the porch bench') lineFor('bench'); checkpoint(); }
   function trigger(id) {
     flags[id] = true;
-    if (id === 'hulls') { for (const h of world.hulls) h.rising = true; Sound.at('rumble', 38, 0, 56, 1); Sound.at('rumble', -80, 0, 77, 0.6); lineFor('hulls'); }
+    if (id === 'hulls') { for (const h of world.hulls) h.rising = true; world.hulls.slice(0,2).forEach((h,i)=>Sound.at('rumble',h.x,0,h.z,i?.6:1)); lineFor('hulls'); }
     if (id === 'island') { fadeTarget = 0; islandTransition=1.1; }
   }
-  function updateHulls(dt) { for (const h of world.hulls) { if (!h.rising) continue; h.rise = Math.min(1, h.rise + dt / 7); const y = lerp(-h.h * 1.05, 0, smooth(0, 1, h.rise)); h.model[13] = y; h.y = y; } }
+  function updateHulls(dt) { for (const h of world.hulls) {
+    if (!h.rising) continue; const was=h.rise;h.rise = Math.min(1, h.rise + dt / 7);
+    if(was<.24&&h.rise>=.24)Sound.at('crack',h.x,0,h.z,.65);
+    const y = lerp(-h.h * 1.05, 0, smooth(0, 1, h.rise)); h.model[13] = y; h.y = y;
+  } }
   function updateO4(dt) {
     // 04 follows out on the ice, hopping ahead and looking back, seen only through the lens
     const d = Math.hypot(o4.x - P.x, o4.z - P.z); o4.t += dt; o4.blink = Math.sin(o4.t * 3) > 0.2 ? 1 : 0;
@@ -3616,6 +3695,7 @@ const Game = (() => {
   const impact={mesh:iceMark.build(),model:M.create(),alpha:1,noShadow:true};
   function buildScene() {
     const inside=Interior.contains(P.x,P.z)&&state!=='title';const items = inside?Interior.items.slice():world.items.slice();
+    if(!inside)items.push(...iceBreak.sync(reduce()));
     if(!inside)for (const m of machines) { if(m===sentry && chapter!==1)continue; items.push(m.item); for (const ch of m.chunks) items.push(ch.item); }
     if (state !== 'title' && !P.viewfinder) {const alpha=smooth(.35,1.10,Math.hypot(P.x-RENDER.cam.x,P.z-RENDER.cam.z));for(const it of kid.items)it.alpha=alpha<.995?alpha:undefined;kid.tool.alpha=alpha<.995?alpha:undefined;items.push(...kid.items);if(P.cutterUp)items.push(kid.tool);}
     if(!inside&&Tracks.item)items.push(Tracks.item);
@@ -3637,7 +3717,7 @@ const Game = (() => {
     for (const m of machines) if (m.lamp && m.lampWorld && (m===sentry?chapter===1:chapter===2)) { const l = m.lampWorld, k=m.state==='windup'?(reduce()?.8:.5+.5*smooth(0,.95,m.attackT)):1; RENDER.light(l[0], l[1], l[2], 18, 1.6*k, 1.15*k, 0.6*k, l[3], l[4], l[5], 0.8); }
     // the hazards blink, the mast blinks
     world.van.emis = Math.sin(time * 4) > 0 ? 1.4 : 0.05; world.mastLight.emis = Math.sin(time * 2.2) > 0.6 ? 1.8 : 0.0;
-    return { items,effects:sparks.n?{data:sparks.data,n:sparks.n,col:sparks.col}:null };
+    return { items,dust:!inside&&iceBreak.particles.n?iceBreak.particles:null,effects:sparks.n?{data:sparks.data,n:sparks.n,col:sparks.col}:null };
   }
 
   // ---------------------------------------------------------------- menus
@@ -3906,7 +3986,7 @@ const Game = (() => {
   }
   window.__game = {
     set reviewFrozen(v){reviewFrozen=reviewParams.has('review')&&!!v;},
-    get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get darkroom(){return darkroom;},openDarkroom,get interior(){return Interior.contains(P.x,P.z);},get room(){return Interior;},enterHouse,get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get cutTarget(){return cutTarget;},get cutCandidates(){return cutCandidates;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
+    get iceBreak(){return iceBreak;},get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get darkroom(){return darkroom;},openDarkroom,get interior(){return Interior.contains(P.x,P.z);},get room(){return Interior;},enterHouse,get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get cutTarget(){return cutTarget;},get cutCandidates(){return cutCandidates;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
     jump(ch, x, z) { lineCur=null; lineQ=[]; menuStack = null; if (ch >= 2) { flags.island = true; flags.hulls = true; for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; h.y = 0; } } startChapter(ch); state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x !== undefined) Player.place(x, z, 0); if (ch === 2) awake = true; },
     set(x, y, z, tx, ty, tz) { const c = RENDER.cam; state = 'free'; c.x = x; c.y = y; c.z = z; c.tx = tx; c.ty = ty; c.tz = tz; },
     place(x, z, yaw) { Player.place(x, z, yaw || 0); }, step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) update(dt); }, get awake() { return awake; }, set awake(v) { awake = v; }, get standoff() { return standoffWith; }, get time() { return time; }, get deaths() { return deathT; }, setState(s) { state = s; stateT = 0; },

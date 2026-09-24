@@ -95,6 +95,7 @@ const Game = (() => {
   // ---------------------------------------------------------------- world and cast
   RENDER.init(cv);
   const world = World.build();Interior.build();
+  const iceBreak=IceBreak.create(world.hulls);
   const kid = new Character();
   const P = Player.P;
   const bearerMesh = null;
@@ -317,10 +318,14 @@ const Game = (() => {
   function sit(seat) { P.sit = seat; P.vx = P.vz = 0; P.x = seat.x; P.z = seat.z; P.yaw = seat.yaw; lastSeat = seat; Sound.sit(); if (seat.line) lineQ.push(seat.line); if (seat.name === 'the porch bench') lineFor('bench'); checkpoint(); }
   function trigger(id) {
     flags[id] = true;
-    if (id === 'hulls') { for (const h of world.hulls) h.rising = true; Sound.at('rumble', 38, 0, 56, 1); Sound.at('rumble', -80, 0, 77, 0.6); lineFor('hulls'); }
+    if (id === 'hulls') { for (const h of world.hulls) h.rising = true; world.hulls.slice(0,2).forEach((h,i)=>Sound.at('rumble',h.x,0,h.z,i?.6:1)); lineFor('hulls'); }
     if (id === 'island') { fadeTarget = 0; islandTransition=1.1; }
   }
-  function updateHulls(dt) { for (const h of world.hulls) { if (!h.rising) continue; h.rise = Math.min(1, h.rise + dt / 7); const y = lerp(-h.h * 1.05, 0, smooth(0, 1, h.rise)); h.model[13] = y; h.y = y; } }
+  function updateHulls(dt) { for (const h of world.hulls) {
+    if (!h.rising) continue; const was=h.rise;h.rise = Math.min(1, h.rise + dt / 7);
+    if(was<.24&&h.rise>=.24)Sound.at('crack',h.x,0,h.z,.65);
+    const y = lerp(-h.h * 1.05, 0, smooth(0, 1, h.rise)); h.model[13] = y; h.y = y;
+  } }
   function updateO4(dt) {
     // 04 follows out on the ice, hopping ahead and looking back, seen only through the lens
     const d = Math.hypot(o4.x - P.x, o4.z - P.z); o4.t += dt; o4.blink = Math.sin(o4.t * 3) > 0.2 ? 1 : 0;
@@ -383,6 +388,7 @@ const Game = (() => {
   const impact={mesh:iceMark.build(),model:M.create(),alpha:1,noShadow:true};
   function buildScene() {
     const inside=Interior.contains(P.x,P.z)&&state!=='title';const items = inside?Interior.items.slice():world.items.slice();
+    if(!inside)items.push(...iceBreak.sync(reduce()));
     if(!inside)for (const m of machines) { if(m===sentry && chapter!==1)continue; items.push(m.item); for (const ch of m.chunks) items.push(ch.item); }
     if (state !== 'title' && !P.viewfinder) {const alpha=smooth(.35,1.10,Math.hypot(P.x-RENDER.cam.x,P.z-RENDER.cam.z));for(const it of kid.items)it.alpha=alpha<.995?alpha:undefined;kid.tool.alpha=alpha<.995?alpha:undefined;items.push(...kid.items);if(P.cutterUp)items.push(kid.tool);}
     if(!inside&&Tracks.item)items.push(Tracks.item);
@@ -404,7 +410,7 @@ const Game = (() => {
     for (const m of machines) if (m.lamp && m.lampWorld && (m===sentry?chapter===1:chapter===2)) { const l = m.lampWorld, k=m.state==='windup'?(reduce()?.8:.5+.5*smooth(0,.95,m.attackT)):1; RENDER.light(l[0], l[1], l[2], 18, 1.6*k, 1.15*k, 0.6*k, l[3], l[4], l[5], 0.8); }
     // the hazards blink, the mast blinks
     world.van.emis = Math.sin(time * 4) > 0 ? 1.4 : 0.05; world.mastLight.emis = Math.sin(time * 2.2) > 0.6 ? 1.8 : 0.0;
-    return { items,effects:sparks.n?{data:sparks.data,n:sparks.n,col:sparks.col}:null };
+    return { items,dust:!inside&&iceBreak.particles.n?iceBreak.particles:null,effects:sparks.n?{data:sparks.data,n:sparks.n,col:sparks.col}:null };
   }
 
   // ---------------------------------------------------------------- menus
@@ -673,7 +679,7 @@ const Game = (() => {
   }
   window.__game = {
     set reviewFrozen(v){reviewFrozen=reviewParams.has('review')&&!!v;},
-    get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get darkroom(){return darkroom;},openDarkroom,get interior(){return Interior.contains(P.x,P.z);},get room(){return Interior;},enterHouse,get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get cutTarget(){return cutTarget;},get cutCandidates(){return cutCandidates;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
+    get iceBreak(){return iceBreak;},get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get darkroom(){return darkroom;},openDarkroom,get interior(){return Interior.contains(P.x,P.z);},get room(){return Interior;},enterHouse,get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get cutTarget(){return cutTarget;},get cutCandidates(){return cutCandidates;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
     jump(ch, x, z) { lineCur=null; lineQ=[]; menuStack = null; if (ch >= 2) { flags.island = true; flags.hulls = true; for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; h.y = 0; } } startChapter(ch); state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x !== undefined) Player.place(x, z, 0); if (ch === 2) awake = true; },
     set(x, y, z, tx, ty, tz) { const c = RENDER.cam; state = 'free'; c.x = x; c.y = y; c.z = z; c.tx = tx; c.ty = ty; c.tz = tz; },
     place(x, z, yaw) { Player.place(x, z, yaw || 0); }, step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) update(dt); }, get awake() { return awake; }, set awake(v) { awake = v; }, get standoff() { return standoffWith; }, get time() { return time; }, get deaths() { return deathT; }, setState(s) { state = s; stateT = 0; },
