@@ -2,8 +2,11 @@
 
 A small arcade game made to look and feel like a hand-woven indigo-and-cream
 rug. You steer a needle down the rug with a green thread behind it. Pass
-through the unwoven diamonds to weave them in. Each one gives back thread,
-and the thread keeps running out. Keep clear of the spiked chevron blocks and
+through the unwoven diamonds to weave them in, and keep an eye on the thread,
+because it keeps running out. Diamonds give thread back, but a lone diamond
+gives back very little. A streak pays more: +5, +8, +11, then +13 for the
+fourth diamond in a row and every one after, until you miss a diamond or get
+snagged. Keep clear of the spiked chevron blocks and
 the snag bars. The rug speeds up as you go.
 
 After about fifteen seconds, clothes moths start fluttering up the rug after

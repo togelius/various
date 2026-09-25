@@ -484,11 +484,16 @@ function spawn() {
 function fibre(x, y, vx, vy, col) {
   return { x, y, vx, vy, col, life: rand(0.6, 1.2), max: 1, w: rand(1.4, 2.4), h: rand(3, 7), rot: rand(0, 6.3), vr: rand(-8, 8) };
 }
+// thread given back by each diamond in a streak: a lone diamond barely pays,
+// the fourth in a row and every one after pays in full
+const STREAK_REFILL = [5, 8, 11, 13];
 function weaveDia(o) {
   o.woven = true; o.t = 0;
   const gain = 50 * combo;
   score += gain;
-  thread = Math.min(100, thread + 13);
+  const refill = STREAK_REFILL[Math.min(combo, STREAK_REFILL.length) - 1];
+  thread = Math.min(100, thread + refill);
+  floats.push({ x: o.x, y: o.y + DR + 16, txt: '+' + refill + ' thread' + (combo >= STREAK_REFILL.length ? ' · full' : ''), life: 1.1, col: GREEN_L });
   floats.push({ x: o.x, y: o.y - DR - 14, txt: '+' + gain + (combo > 1 ? '  ×' + combo : ''), life: 1.1 });
   rings.push({ x: o.x, y: o.y, t: 0 });
   for (let i = 0; i < 18; i++) {
@@ -890,7 +895,7 @@ function drawEffects() {
   for (const f of floats) {
     ctx.globalAlpha = clamp(f.life / 0.4, 0, 1);
     ctx.fillStyle = INK; ctx.fillText(f.txt, f.x + 1, f.y + 1.5);
-    ctx.fillStyle = f.txt === 'snagged' || f.txt === 'bitten' ? GREEN_L : CREAMS[3]; ctx.fillText(f.txt, f.x, f.y);
+    ctx.fillStyle = f.col || (f.txt === 'snagged' || f.txt === 'bitten' ? GREEN_L : CREAMS[3]); ctx.fillText(f.txt, f.x, f.y);
   }
   ctx.globalAlpha = 1;
 }
@@ -1004,7 +1009,7 @@ function drawCard() {
     const lines = [
       'Steer the needle down the rug.',
       'Pass through the diamonds to weave them in:',
-      'each one gives back thread.',
+      'a streak of them gives back the most thread.',
       'Keep off the spiked chevrons and the snags.',
       'Moths go for your thread. Swerve to shake them off.',
     ];
