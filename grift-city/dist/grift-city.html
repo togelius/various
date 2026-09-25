@@ -4200,7 +4200,7 @@ const VEH = (() => {
       // a drift is a state, not an accident: a handbrake flick with the wheel turned at speed breaks the rear loose,
       // and it stays loose while the throttle is on, until the car straightens up, slows right down or is braked
       if (me) { const d = this.drift;
-        if (!d && !this.airborne && spd > 9 && c.handbrake && Math.abs(c.steer) > .25) { this.drift = { t: 0, calm: 0, peak: 0 }; if (!PLAYER.P?.stats?.tricks && !VEH.toldDrift && typeof HUD !== 'undefined') { VEH.toldDrift = true; HUD.notify('Drift: keep the gas on and steer to hold it. Lift off to straighten.'); } }
+        if (!d && !s.bike && !this.airborne && spd > 9 && c.handbrake && Math.abs(c.steer) > .25) { this.drift = { t: 0, calm: 0, peak: 0 }; if (!PLAYER.P?.stats?.tricks && !VEH.toldDrift && typeof HUD !== 'undefined') { VEH.toldDrift = true; HUD.notify('Drift: keep the gas on and steer to hold it. Lift off to straighten.'); } }
         else if (d) { d.t += dt; d.peak = Math.max(d.peak, Math.abs(beta)); d.calm = !c.handbrake && Math.abs(beta) < .12 ? d.calm + dt : 0;
           if ((d.calm > .2 && d.t > .35) || spd < 5 || (c.brake > .5 && !c.handbrake) || this.airborne) { this.drift = null; this.driftOut = .35; this.lastDrift = d; } } }
       else this.drift = null;
@@ -4286,17 +4286,11 @@ const VEH = (() => {
           const dx = res.x - cx, dz = res.z - cz; this.x += dx; this.z += dz;
           const vn = this.vx * nx + this.vz * nz;
           if (vn < 0) {
-            const impact = -vn;
-            // the wall takes the speed into it (and gives a little back); friction along it scrubs in proportion to how
-            // hard the car is pressed in, so a glancing touch costs a little and a square hit stops you
-            const tx = this.vx - vn * nx, tz = this.vz - vn * nz, vt = Math.hypot(tx, tz), keep = vt > 0 ? Math.max(0, vt - impact * 0.45) / vt : 0;
-            this.vx = tx * keep + nx * impact * 0.15; this.vz = tz * keep + nz * impact * 0.15;
-            if (impact < vt * 0.5 && vt > 2) { // glancing: the wall turns the nose along it, like a guard rail
-              const back = this.speed < 0 ? Math.PI : 0, along = Math.atan2(tx, tz) + back, turn = M.angleTo(this.angle, along);
-              if (Math.abs(turn) < 0.9) { this.angle += turn * 0.35; this.yawRate = (this.yawRate || 0) * 0.5; }
-              if (vt > 6 && W.state.frame % 3 === 0) W.FX.spark(cx - nx * r, 0.5, cz - nz * r, 3);
-            } else { const front = (cx - this.x) * f[0] + (cz - this.z) * f[1] > 0; const side = (nx * f[1] - nz * f[0]); // which side the wall is on
-              this.angle += (front ? -1 : 1) * Math.sign(side || 1) * Math.min(impact * 0.03, 0.15) * (this.speed < 0 ? -1 : 1); }
+            const impact = -vn; this.vx -= vn * nx * 1.15; this.vz -= vn * nz * 1.15;
+            // scrape: slow down along the wall, rotate away
+            this.vx *= 0.9; this.vz *= 0.9;
+            const front = (cx - this.x) * f[0] + (cz - this.z) * f[1] > 0; const side = (nx * f[1] - nz * f[0]); // which side the wall is on
+            this.angle += (front ? -1 : 1) * Math.sign(side || 1) * Math.min(impact * 0.03, 0.15) * (this.speed < 0 ? -1 : 1);
             if (impact > 3 && this.driver === PLAYER) PLAYER.shake(Math.min(1, impact / 10));
             if (impact > 3) { this.damage(impact * impact * .35,null,{x:cx-nx*r,y:this.y+.7,z:cz-nz*r,kind:'impact'}); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; if (s.bike && impact > 6.5) this.throwRider(impact); }
           }
@@ -6483,7 +6477,7 @@ const STYLE = (() => {
   function pop(text, color) { S.pops.push({ text, color, t: 1.6 }); if (S.pops.length > 3) S.pops.shift(); }
   function trick(name, pts) {
     const ch = S.chain || (S.chain = { tricks: [], pts: 0, t: 0 });
-    ch.tricks.push(name); ch.pts += pts; ch.t = WINDOW; pop(name + '  +' + pts, '#f5ce68');
+    ch.tricks.push(name); ch.pts += pts; ch.t = WINDOW; ch.lastT = 0.6; // the HUD flashes the newest trick
     const P = PLAYER.P; if (!P.stats.tricks && !S.told && typeof HUD !== 'undefined') { S.told = true; HUD.notify('Style pays: drifts, near misses and air chain up. Crash and the chain is lost.'); }
     if (typeof AUDIO !== 'undefined' && ch.tricks.length > 1) AUDIO.play('pickup');
   }
@@ -6519,11 +6513,11 @@ const STYLE = (() => {
     if (c.lastDrift) { const d = c.lastDrift; c.lastDrift = null; const deg = d.peak * 180 / Math.PI; if (d.t > 0.8 && deg > 15) trick('DRIFT', Math.round(d.t * (8 + deg * 0.4))); }
     if (c.airborne) S.air += dt; else { if (S.air > 0.4 && c.absSpeed > 8) trick(S.air > 0.85 ? 'BIG AIR' : 'AIR', Math.round(S.air * 40)); S.air = 0; }
     if (c.absSpeed > 6) nearMisses(c, dt); else S.near.clear();
-    const ch = S.chain; if (ch) { if (c.drift || c.airborne) ch.t = Math.max(ch.t, 1); ch.t -= dt; if (ch.t <= 0) bank(); }
+    const ch = S.chain; if (ch) { if (c.drift || c.airborne) ch.t = Math.max(ch.t, 1); ch.t -= dt; ch.lastT = Math.max(0, (ch.lastT || 0) - dt); if (ch.t <= 0) bank(); }
   }
   // what the HUD shows: the chain in the air, a live drift, and the last few calls
   const info = () => { const c = PLAYER.P.car, ch = S.chain;
-    return { chain: ch && { tricks: ch.tricks, pts: ch.pts, mult: mult(ch.tricks.length), value: value(ch), left: ch.t / WINDOW }, drift: c && c.drift && c.drift.t > 0.4 ? c.drift.t : 0, pops: S.pops }; };
+    return { chain: ch && { tricks: ch.tricks, pts: ch.pts, mult: mult(ch.tricks.length), value: value(ch), left: ch.t / WINDOW, flash: ch.lastT || 0 }, drift: c && c.drift && c.drift.t > 0.4 ? c.drift.t : 0, pops: S.pops }; };
   return { S, update, info, trick, bank, lose, WINDOW };
 })();
 
@@ -6869,11 +6863,13 @@ const HUD = (() => {
     else if (r.available && !P.car) text((TOUCH.active ? 'Hold HUSTLE' : INPUT.pad.active ? 'Hold Y' : 'Hold G') + ' to work a con', x, y, 13, 'rgba(255,255,255,0.8)', 'center', 'normal'); }
   // style: the chain in the air (tricks, multiplier, what it is worth, a fuse), a live drift timer, and the calls
   function drawStyle(P) { if (typeof STYLE === 'undefined' || !P.car) return; const r = STYLE.info(), x = W_ / 2, y = H_ * 0.3;
-    if (r.chain) { const ch = r.chain, names = ch.tricks.slice(-4).join('  ·  '); text(names, x, y, 12, 'rgba(255,255,255,.85)', 'center', '600');
-      text('×' + ch.mult.toFixed(1).replace('.0', '') + '   $' + ch.value, x, y + 24, 22, '#f5c542', 'center', '700', true, true);
-      g.fillStyle = 'rgba(12,24,29,.6)'; g.fillRect(x - 60, y + 40, 120, 3); g.fillStyle = '#f5ce68'; g.fillRect(x - 60, y + 40, 120 * M.clamp(ch.left, 0, 1), 3); }
-    if (r.drift) text('DRIFT  ' + r.drift.toFixed(1) + 's', x, y + (r.chain ? 60 : 24), 16, '#fff', 'center', '700', true, true);
-    r.pops.forEach((p, i) => text(p.text, x, y - 26 - i * 20 - (1.6 - p.t) * 14, 14, p.color, 'center', '700', true, true)); }
+    if (r.chain) { const ch = r.chain, n = ch.tricks.length, pulse = 1 + ch.flash * 0.35;
+      if (n > 1) text('×' + String(ch.mult).replace(/\.0$/, '') + '  CHAIN', x, y - 26, 13, '#fff', 'center', '700', true, true);
+      text('$' + ch.value, x, y, Math.round(26 * pulse), '#f5c542', 'center', '800', true, true);
+      text(ch.tricks.slice(-3).join('  ·  '), x, y + 24, 12, ch.flash > 0 ? '#f5ce68' : 'rgba(255,255,255,.85)', 'center', '600');
+      g.fillStyle = 'rgba(12,24,29,.6)'; g.fillRect(x - 60, y + 38, 120, 3); g.fillStyle = '#f5ce68'; g.fillRect(x - 60, y + 38, 120 * M.clamp(ch.left, 0, 1), 3); }
+    if (r.drift) text('DRIFT  ' + r.drift.toFixed(1) + 's', x, y + (r.chain ? 60 : 0), 16, '#fff', 'center', '700', true, true);
+    r.pops.forEach((p, i) => text(p.text, x, y - 52 - i * 20 - (1.6 - p.t) * 14, 14, p.color, 'center', '700', true, true)); }
   function stars(P, x, y) { for (let i = 0; i < 5; i++) { const lit = i < P.wanted; const flash = starFlash > 0 && lit && Math.sin(W.state.elapsed * 20) > 0; text('★', x - i * 24, y, 24, lit ? (flash ? '#fff' : '#f5c542') : 'rgba(255,255,255,0.18)', 'center'); } }
 
   function draw(dt, state, photo) { drawFrame(dt, state, photo); if (GAME.options.perfOverlay && state !== 'title' && state !== 'loading') drawPerf(); } // the overlay goes on top of everything, letterbox included

@@ -181,23 +181,13 @@ const VEH = (() => {
           const dx = res.x - cx, dz = res.z - cz; this.x += dx; this.z += dz;
           const vn = this.vx * nx + this.vz * nz;
           if (vn < 0) {
-            const impact = -vn;
-            // the wall takes the speed into it (and gives a little back); friction along it scrubs in proportion to how
-            // hard the car is pressed in, so a glancing touch costs a little and a square hit stops you
-            const tx = this.vx - vn * nx, tz = this.vz - vn * nz, vt = Math.hypot(tx, tz), keep = vt > 0 ? Math.max(0, vt - impact * 0.45) / vt : 0;
-            // a glancing touch does not bounce: a bounce off a wall the tyres are steering back into is a rattle, and every
-            // rattle would count as a fresh crash
-            const mine = this.driver === PLAYER, glance = mine && impact < vt * 0.5 && vt > 2, bounce = glance ? 0 : 0.15, hard = glance ? 5 : 3;
-            if (mine) { this.vx = tx * keep + nx * impact * bounce; this.vz = tz * keep + nz * impact * bounce; }
-            else { this.vx -= vn * nx * 1.15; this.vz -= vn * nz * 1.15; this.vx *= 0.9; this.vz *= 0.9; } // AI cars keep the old sticky walls: a cruiser that clips a kerb loses its run on you
-            if (glance) { // the wall turns the nose along it, like a guard rail
-              const back = this.speed < 0 ? Math.PI : 0, along = Math.atan2(tx, tz) + back, turn = M.angleTo(this.angle, along);
-              if (Math.abs(turn) < 0.9) { this.angle += turn * 0.35; this.yawRate = (this.yawRate || 0) * 0.5; }
-              if (vt > 6 && W.state.frame % 3 === 0) W.FX.spark(cx - nx * r, 0.5, cz - nz * r, 3);
-            } else { const front = (cx - this.x) * f[0] + (cz - this.z) * f[1] > 0; const side = (nx * f[1] - nz * f[0]); // which side the wall is on
-              this.angle += (front ? -1 : 1) * Math.sign(side || 1) * Math.min(impact * 0.03, 0.15) * (this.speed < 0 ? -1 : 1); }
-            if (impact > hard && this.driver === PLAYER) PLAYER.shake(Math.min(1, impact / 10));
-            if (impact > hard) { this.damage(impact * impact * .35,null,{x:cx-nx*r,y:this.y+.7,z:cz-nz*r,kind:'impact'}); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; if (s.bike && impact > 6.5) this.throwRider(impact); }
+            const impact = -vn; this.vx -= vn * nx * 1.15; this.vz -= vn * nz * 1.15;
+            // scrape: slow down along the wall, rotate away
+            this.vx *= 0.9; this.vz *= 0.9;
+            const front = (cx - this.x) * f[0] + (cz - this.z) * f[1] > 0; const side = (nx * f[1] - nz * f[0]); // which side the wall is on
+            this.angle += (front ? -1 : 1) * Math.sign(side || 1) * Math.min(impact * 0.03, 0.15) * (this.speed < 0 ? -1 : 1);
+            if (impact > 3 && this.driver === PLAYER) PLAYER.shake(Math.min(1, impact / 10));
+            if (impact > 3) { this.damage(impact * impact * .35,null,{x:cx-nx*r,y:this.y+.7,z:cz-nz*r,kind:'impact'}); AUDIO.play('crash', this.x, this.z, impact / 12); W.FX.spark(cx + nx * -r, 0.6, cz + nz * -r, Math.min(12, impact * 2)); if (impact > 6) W.FX.glass(cx, 1.2, cz, 6); this.ai.stuck += 0.5; if (s.bike && impact > 6.5) this.throwRider(impact); }
           }
         }
       }

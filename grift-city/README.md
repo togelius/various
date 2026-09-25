@@ -20,8 +20,7 @@ around one file; `python3 tools/build-single.py` regenerates it.
 Cars go where they point. Normal driving has **tyre grip assistance** (Settings, default 0.6; 0 is the old,
 looser model), the wheel straightens faster than it turns in, and rain costs a fifth of the cornering grip.
 Braking loads the front tyres and power loads the rear. **Countersteer assistance** now steers the right way:
-it used to steer into a slide and made it worse. Scraping a wall at a shallow angle turns you along it, like
-a guard rail, and keeps most of your speed. A square hit still stops you dead.
+it used to steer into a slide and made it worse.
 
 **Drifts** are deliberate. Flick the handbrake (Space, A on a pad, HAND on touch) with the wheel turned at
 speed, then keep the gas on. The stick holds the angle, the wheels help follow the slide, and lifting off
