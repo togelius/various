@@ -415,13 +415,14 @@ let keyMoving = false, drag = null;
 try { best = +localStorage.getItem('weft.best') || 0; } catch (e) {}
 
 const headY = () => camY + H * 0.3 / S;
-const diff = () => Math.min(1, elapsed / 170);
+const diff = () => Math.min(1, elapsed / 110);
 
 function start() {
   audio();
   state = 'play'; paused = false;
   elapsed = 0; score = 0; thread = 100; combo = 1; shake = 0; invuln = 0; beatT = 0; beatN = 0; spawnCount = 0;
   objs = []; parts = []; floats = []; rings = [];
+  moths = []; mothT = 14; jerk = 0; lastVx = 0;
   nextY = headY() + H / S * 0.55;
   pluck(note(0), 0.2); pluck(note(4), 0.12, 0.09);
 }
@@ -498,13 +499,193 @@ function weaveDia(o) {
   pluck(note(combo - 1) / 2, 0.08);
   combo++;
 }
-function snag(x, y, o) {
+function snag(x, y, o, txt) {
   thread -= 20; invuln = 1.1; shake = 11; combo = 1;
   if (o) o.flash = 1;
-  floats.push({ x, y: y - 10, txt: 'snagged', life: 1 });
+  floats.push({ x, y: y - 10, txt: txt || 'snagged', life: 1 });
   for (let i = 0; i < 22; i++)
     parts.push(fibre(x, y, rand(-160, 160), rand(-160, 60), i % 3 ? GREEN : CREAMS[i & 3]));
   thud();
+}
+
+// ---------------------------------------------------------------- moths
+// Clothes moths flutter up the rug after the needle. One that touches the
+// fresh thread lands on it, spools it up, and crawls down it toward the eye.
+// Swerve hard to shake it off before it gets there.
+const MOTH = ['#80684f', '#735c45', '#8c7358', '#67523e'];
+const SHAKE_OFF = 2600;
+let moths = [], mothT = 0, jerk = 0, lastVx = 0, mothTaught = false;
+
+function mothWings() {
+  return sprite('moth', 72, 52, 36, 22, g => {
+    const wing = (u, v, cx, cy, a, b, ang) => {
+      const x = Math.abs(u) - cx, y = v - cy, c = Math.cos(ang), s = Math.sin(ang);
+      const p = x * c + y * s, q = -x * s + y * c;
+      return (p * p) / (a * a) + (q * q) / (b * b) < 1 ? p / a : null;
+    };
+    g.fillStyle = '#16120e';
+    for (const side of [-1, 1]) {
+      for (const [cx, cy, a, b, ang] of [[13, 6, 19, 8.6, 0.55], [9, 12, 12.4, 7.6, 1.0]]) {
+        g.beginPath(); g.ellipse(side * cx, cy, a, b, side * ang, 0, Math.PI * 2); g.fill();
+      }
+    }
+    const band = f => frac((f + 1) * 2.3) < 0.24;
+    weave(g, -36, 36, -22, 30, (u, v, r) => {
+      const f = wing(u, v, 13, 6, 16.5, 6.6, 0.55);
+      if (f !== null) return !band(f);
+      const h = wing(u, v, 9, 12, 10, 5.6, 1.0);
+      return h !== null && r > 0.2;
+    }, 81, { drop: 0, cw: 2.2, ch: 1.9, colors: MOTH });
+    weave(g, -36, 36, -22, 30, (u, v) => {
+      const f = wing(u, v, 13, 6, 15.5, 5.8, 0.55);
+      return f !== null && band(f);
+    }, 82, { drop: 0, cw: 2.2, ch: 1.9 });
+  });
+}
+function eyeL() {
+  const l = trail[trail.length - 1];
+  return l ? l.L + Math.hypot(player.x - l.x, headY() - l.y) : 0;
+}
+function pointAtL(L) {
+  if (!trail.length || L < trail[0].L) return null;
+  for (let i = trail.length - 1; i > 0; i--) {
+    const a = trail[i - 1], b = trail[i];
+    if (L >= a.L) {
+      const t = b.L > a.L ? clamp((L - a.L) / (b.L - a.L), 0, 1) : 0;
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, dx: b.x - a.x, dy: b.y - a.y };
+    }
+  }
+  return { x: trail[0].x, y: trail[0].y, dx: 0, dy: 1 };
+}
+function spawnMoth() {
+  const side = Math.random() < 0.5 ? -1 : 1, fromSide = Math.random() < 0.45;
+  const x = fromSide ? side * (PF + 40) : rand(-PF + 40, PF - 40);
+  const y = camY + H / S * (fromSide ? rand(0.6, 0.9) : 1) + (fromSide ? 0 : 40);
+  moths.push({ x, y, rvx: 0, rvy: -60, ang: 0, phase: rand(0, 6), state: 'seek', t: 0, life: rand(6, 8), L: 0, spool: 0 });
+  if (!mothTaught) {
+    mothTaught = true;
+    floats.push({ x: clamp(x, -PF + 110, PF - 110), y: headY() + 110, txt: 'a moth! keep it off your thread', life: 2.4 });
+  }
+}
+function flyOff(m, burst) {
+  m.state = 'leave';
+  const out = m.x < 0 ? -1 : 1;
+  m.rvx = out * rand(160, 240) + (burst ? Math.sign(player.vx || out) * 200 : 0);
+  m.rvy = -rand(80, 180);
+}
+function updateMoths(dt) {
+  const d = diff(), hy = headY(), play = state === 'play';
+  if (play) {
+    jerk = Math.max(0, jerk - 1500 * dt) + Math.abs(player.vx - lastVx);
+    lastVx = player.vx;
+    mothT -= dt;
+    const active = moths.filter(m => m.state !== 'leave').length;
+    if (mothT <= 0) {
+      if (active < (d > 0.55 ? 2 : 1)) spawnMoth();
+      mothT = rand(7, 11) - 4 * d;
+    }
+  }
+  for (const m of moths) {
+    m.t += dt; m.phase += dt * 30;
+    if (m.state === 'latched') {
+      if (!play) { flyOff(m, false); continue; }
+      m.L += (speed + 34 + 26 * d) * dt;                       // reeling toward the eye
+      const p = pointAtL(m.L);
+      if (!p) { flyOff(m, false); continue; }
+      m.x = p.x; m.y = p.y;
+      m.ang = Math.atan2(p.dx, -p.dy);
+      thread -= 10 * dt; m.spool = Math.min(14, m.spool + 7 * dt);
+      if (Math.random() < dt * 14) parts.push(fibre(m.x, m.y, rand(-60, 60), rand(-60, 20), GREEN));
+      if (jerk > SHAKE_OFF) {
+        flyOff(m, true);
+        floats.push({ x: m.x, y: m.y - 24, txt: 'shaken off', life: 1 });
+        for (let i = 0; i < 12; i++) parts.push(fibre(m.x, m.y, rand(-140, 140), rand(-140, 40), MOTH[i & 3]));
+        score += 25; pluck(note(7), 0.14); pluck(note(9), 0.1, 0.07);
+        jerk = 0;
+      } else if (eyeL() - m.L < 8) {
+        snag(player.x, hy, null, 'bitten');
+        flyOff(m, false);
+      }
+      continue;
+    }
+    if (m.state === 'seek') {
+      const dx = player.x - m.x, dy = hy - 16 - m.y, dist = Math.hypot(dx, dy) || 1;
+      const acc = 250 + 150 * d, max = 125 + 85 * d;
+      m.rvx += (dx / dist * acc + Math.cos(m.t * 6.3) * 260) * dt;
+      m.rvy += (dy / dist * acc + Math.sin(m.t * 4.9) * 260) * dt;
+      const sp = Math.hypot(m.rvx, m.rvy);
+      if (sp > max) { m.rvx *= max / sp; m.rvy *= max / sp; }
+      if (m.t > m.life || !play) flyOff(m, false);
+      else if (invuln <= 0) {
+        // the fresh end of the thread (and the needle itself) is what it's after
+        const eL = eyeL();
+        let hitL = -1;
+        if (Math.hypot(player.x - m.x, hy + 14 - m.y) < 16) hitL = eL - 45;
+        for (let i = trail.length - 1; i >= 0 && hitL < 0; i--) {
+          const q = trail[i];
+          if (eL - q.L > 170) break;
+          if (Math.hypot(q.x - m.x, q.y - m.y) < 13) hitL = q.L;
+        }
+        if (hitL >= 0) {
+          m.state = 'latched'; m.L = Math.max(trail[0] ? trail[0].L : 0, hitL); jerk = 0;
+          floats.push({ x: clamp(m.x, -PF + 90, PF - 90), y: m.y + 48, txt: 'swerve to shake it off!', life: 1.3 });
+          thud();
+          continue;
+        }
+      }
+    }
+    m.x += m.rvx * dt;
+    m.y += (speed + m.rvy) * dt;
+    const want = Math.atan2(m.rvx, -(m.rvy));
+    let da = want - m.ang;
+    while (da > Math.PI) da -= Math.PI * 2;
+    while (da < -Math.PI) da += Math.PI * 2;
+    m.ang += da * Math.min(1, dt * 8);
+  }
+  moths = moths.filter(m => m.state !== 'leave' ||
+    (Math.abs(m.x) < W / 2 / S + 60 && m.y > camY - 60 && m.y < camY + H / S + 120));
+}
+function drawMoths() {
+  const wings = mothWings();
+  for (const m of moths) {
+    const latched = m.state === 'latched';
+    if (m.spool > 0.5) {                                        // the ball of thread it has wound up
+      const r = 3 + m.spool * 0.7;
+      ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.beginPath(); ctx.arc(m.x + 2, m.y + 3, r, 0, 7); ctx.fill();
+      ctx.fillStyle = GREEN_D; ctx.beginPath(); ctx.arc(m.x, m.y, r, 0, 7); ctx.fill();
+      ctx.strokeStyle = GREEN; ctx.lineWidth = 1.2;
+      for (let k = 0; k < 4; k++) {
+        ctx.beginPath(); ctx.ellipse(m.x, m.y, r * 0.85, r * (0.3 + k * 0.18), k * 0.8 + m.spool * 0.6, 0, 7); ctx.stroke();
+      }
+    }
+    const flap = latched ? 0.62 + 0.08 * Math.sin(clock * 10) : 0.3 + 0.7 * Math.abs(Math.sin(m.phase));
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.rotate(m.ang);
+    ctx.scale(1.3, 1.3);
+    ctx.save(); ctx.translate(4, 6); ctx.scale(flap, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.ellipse(-12, 6, 18, 9, -0.55, 0, 7); ctx.ellipse(12, 6, 18, 9, 0.55, 0, 7); ctx.fill();
+    ctx.restore();
+    ctx.save(); ctx.scale(flap, 1); blit(wings, 0, 0); ctx.restore();
+    ctx.fillStyle = '#3a2f25';
+    ctx.beginPath(); ctx.ellipse(0, 5, 3.4, 10, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#8c7659';
+    ctx.beginPath(); ctx.ellipse(-0.8, 3, 1.3, 6, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#2b241d';
+    ctx.beginPath(); ctx.arc(0, -5, 3.2, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#2b241d'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-1, -7); ctx.quadraticCurveTo(-4, -14, -8, -17);
+    ctx.moveTo(1, -7); ctx.quadraticCurveTo(4, -14, 8, -17); ctx.stroke();
+    ctx.restore();
+    if (latched) {                                              // how close you are to shaking it off
+      const f = clamp(jerk / SHAKE_OFF, 0, 1);
+      ctx.strokeStyle = 'rgba(27,28,35,0.8)'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(m.x, m.y, 32, 0, 7); ctx.stroke();
+      ctx.strokeStyle = GREEN_L; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.arc(m.x, m.y, 32, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2); ctx.stroke();
+    }
+  }
 }
 
 // ---------------------------------------------------------------- update
@@ -534,7 +715,7 @@ function update(dt) {
   } else if (state === 'play' && !paused) {
     elapsed += dt;
     const d = diff();
-    speed = 115 + 150 * d;
+    speed = 120 + 165 * d + Math.min(50, Math.max(0, elapsed - 110) * 0.25);
     camY += speed * dt;
     while (nextY < camY + H / S + 200) spawn();
 
@@ -545,7 +726,7 @@ function update(dt) {
     movePlayer(dt);
     recordTrail();
 
-    thread -= (2.6 + 2.4 * d) * dt;
+    thread -= (2.6 + 2.8 * d) * dt;
     score += speed * dt / 12;
     invuln = Math.max(0, invuln - dt);
 
@@ -585,6 +766,7 @@ function update(dt) {
   }
 
   if (!paused) {
+    updateMoths(dt);
     for (const p of parts) {
       p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= Math.pow(0.08, dt); p.vy *= Math.pow(0.08, dt);
       p.vy += 40 * dt; p.rot += p.vr * dt; p.life -= dt;
@@ -708,7 +890,7 @@ function drawEffects() {
   for (const f of floats) {
     ctx.globalAlpha = clamp(f.life / 0.4, 0, 1);
     ctx.fillStyle = INK; ctx.fillText(f.txt, f.x + 1, f.y + 1.5);
-    ctx.fillStyle = f.txt === 'snagged' ? GREEN_L : CREAMS[3]; ctx.fillText(f.txt, f.x, f.y);
+    ctx.fillStyle = f.txt === 'snagged' || f.txt === 'bitten' ? GREEN_L : CREAMS[3]; ctx.fillText(f.txt, f.x, f.y);
   }
   ctx.globalAlpha = 1;
 }
@@ -806,7 +988,7 @@ function drawHUD() {
 function drawCard() {
   const CARD_W = Math.min(460, (W - 32) / S);
   const title = state === 'title';
-  const h = title ? 360 : 330;
+  const h = title ? 384 : 330;
   const cy = Math.max(84, H * 0.44 - h * S / 2);
   const words = title ? [['WEFT', 96, 88]] : [[String(lastRun ? lastRun.score : 0), 70, 132]];
   const s = cartouche((title ? 'ct' : 'co' + (lastRun ? lastRun.score : 0)) + '_' + Math.round(CARD_W), CARD_W, h, words);
@@ -824,12 +1006,13 @@ function drawCard() {
       'Pass through the diamonds to weave them in:',
       'each one gives back thread.',
       'Keep off the spiked chevrons and the snags.',
+      'Moths go for your thread. Swerve to shake them off.',
     ];
-    lines.forEach((l, i) => label(l, 0, 176 + i * 22, 15, i === 3 ? GREEN_L : C, 'center', 400, 0.2));
-    label('← → or mouse   ·   drag on touch', 0, 280, 12, dim, 'center', 600, 1.4);
+    lines.forEach((l, i) => label(l, 0, 176 + i * 22, 15, i >= 3 ? GREEN_L : C, 'center', 400, 0.2));
+    label('← → or mouse   ·   drag on touch', 0, 302, 12, dim, 'center', 600, 1.4);
     ctx.globalAlpha = alpha * blink;
-    label('PRESS SPACE OR TAP TO BEGIN', 0, 318, 13, C, 'center', 700, 2.4);
-    if (best > 0) { ctx.globalAlpha = alpha; label('BEST  ' + best, 0, 342, 11, dim, 'center', 600, 2); }
+    label('PRESS SPACE OR TAP TO BEGIN', 0, 340, 13, C, 'center', 700, 2.4);
+    if (best > 0) { ctx.globalAlpha = alpha; label('BEST  ' + best, 0, 364, 11, dim, 'center', 600, 2); }
   } else {
     label('THE THREAD RAN OUT', 0, 70, 14, GREEN_L, 'center', 700, 2.6);
     label(lastRun && lastRun.record ? 'A NEW BEST' : 'BEST  ' + best, 0, 206, 12, dim, 'center', 600, 2.2);
@@ -852,6 +1035,7 @@ function draw() {
   ctx.setTransform(S * DPR, 0, 0, S * DPR, W / 2 * DPR + sx, -camY * S * DPR + sy);
   drawObjects();
   drawThread();
+  drawMoths();
   drawNeedle();
   drawEffects();
 

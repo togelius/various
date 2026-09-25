@@ -6,6 +6,12 @@ through the unwoven diamonds to weave them in. Each one gives back thread,
 and the thread keeps running out. Keep clear of the spiked chevron blocks and
 the snag bars. The rug speeds up as you go.
 
+After about fifteen seconds, clothes moths start fluttering up the rug after
+the needle. If one touches the fresh end of your thread, it lands on it and
+spools it into a little green ball. Then it crawls down the thread toward the
+eye. Swerve hard left and right to shake it off before it bites. Later in the
+run, two moths can hunt you at once.
+
 Open `index.html` in a browser. It is one file with no dependencies. It loads
 Josefin Sans from Google Fonts if it can and uses a fallback font if not.
 
