@@ -1,0 +1,932 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Weft</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;600;700&display=swap">
+<style>
+  :root { --ink: #1b1c23; --cream: #e6d2ae; color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: var(--ink); color: var(--cream); overflow: hidden; }
+  body { touch-action: none; -webkit-user-select: none; user-select: none; }
+  #game { display: block; position: fixed; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+  #game:focus { outline: none; }
+</style>
+</head>
+<body>
+<canvas id="game" tabindex="0" aria-label="Weft: steer a needle down a woven rug"></canvas>
+<script>
+(() => {
+'use strict';
+
+// ---------------------------------------------------------------- palette
+const INK = '#1b1c23';
+const CREAMS = ['#ead7b3', '#e0c9a2', '#d5bb93', '#f1e2c4'];
+const GHOSTS = ['#c9b18a', '#bea67f', '#d2ba93', '#b39c76'];
+const GREEN = '#6f9955', GREEN_D = '#2d4527', GREEN_L = '#b4d193';
+const FROND = ['#2c4a2a', '#35562f', '#3f6435', '#4b7340'];
+const UI_FONT = '"Josefin Sans", "Trebuchet MS", "Gill Sans", sans-serif';
+
+const PF = 240;        // half-width of the playfield, world units
+const CHK = 220;       // background chunk height, world units
+const DR = 46;         // diamond half-diagonal
+
+const cv = document.getElementById('game');
+const ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1, S = 1;
+
+// ---------------------------------------------------------------- helpers
+function hash(a, b, c) {
+  let h = (Math.imul(a | 0, 374761393) + Math.imul(b | 0, 668265263) + Math.imul(c | 0, 1442695041)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+const frac = x => x - Math.floor(x);
+const tri = x => Math.abs(frac(x) * 2 - 1);       // 1 at integers, 0 at halves
+const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+const rand = (a, b) => a + Math.random() * (b - a);
+
+// ---------------------------------------------------------------- the loom
+// Everything cream in the game is "woven": a pattern mask is sampled on a grid
+// of warp columns and weft rows, and each hit becomes a short vertical float.
+// Each row is nudged sideways a little, which feathers edges the way ikat does.
+const CW = 2.8, CH = 2.3;
+function weave(g, x0, x1, y0, y1, mask, seed, o) {
+  o = o || {};
+  const cw = o.cw || CW, ch = o.ch || CH, drop = o.drop == null ? 0.025 : o.drop;
+  const cols = o.colors || CREAMS;
+  const P = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
+  const i0 = Math.floor(x0 / cw) - 1, i1 = Math.ceil(x1 / cw) + 1;
+  const j0 = Math.floor(y0 / ch) - 1, j1 = Math.ceil(y1 / ch) + 1;
+  for (let j = j0; j < j1; j++) {
+    const y = (j + 0.5) * ch;
+    const bleed = (hash(j, seed, 11) - 0.5) * cw * (o.bleed == null ? 0.55 : o.bleed);
+    for (let i = i0; i < i1; i++) {
+      const r = hash(i, j, seed);
+      if (r < drop) continue;
+      const x = (i + 0.5) * cw;
+      if (!mask(x + bleed + (hash(i, j, seed + 3) - 0.5) * cw * 0.25, y, r)) continue;
+      const w = cw * (0.58 + 0.34 * hash(j, i, seed + 1));
+      const h = ch * (1.0 + 0.5 * hash(i + 17, j, seed + 2));
+      P[(r * 97 | 0) & 3].rect(x - w / 2 + (hash(i, j, seed + 5) - 0.5) * 0.6, y - h / 2, w, h);
+    }
+  }
+  for (let k = 0; k < 4; k++) { g.fillStyle = cols[k]; g.fill(P[k]); }
+}
+
+// ---------------------------------------------------------------- rug bands
+function mCream(u, v, r, b) {
+  if (Math.abs(u - b.w * 0.5) < 0.9 && hash(Math.floor(v / 9), b.seed, 3) < 0.45) return false;
+  return r > 0.06;
+}
+function mStripes(u, v, r, b) {
+  const P = b.P, k = Math.floor(u / P);
+  const wob = 1.2 * Math.sin(v * 0.012 + k * 1.9) + 0.7 * Math.sin(v * 0.043 + k * 0.7);
+  const l = (u + wob) / P - k;
+  const duty = 0.3 + 0.2 * hash(k, b.seed, 1) + 0.06 * Math.sin(v * 0.019 + k * 2.3);
+  return l > 0.12 && l < 0.12 + duty;
+}
+function mZig(u, v, r, b) {
+  const w = b.w;
+  if (u < 2.2 || u > w - 2.2) return r > 0.12;
+  const P = b.P, amp = (w - 13) * 0.5;
+  const c = w * 0.5 + amp * (tri(v / P) * 2 - 1);
+  const s = 4 * amp / P;
+  return Math.abs(u - c) < 1.7 * Math.sqrt(1 + s * s);
+}
+function mVzig(u, v, r, b) {
+  const w = b.w;
+  if (u < 1.8 || u > w - 1.8) return r > 0.2;
+  const c = Math.abs(u - w / 2) / (w / 2 - 4);
+  if (c > 1) return false;
+  const f = frac(v / b.P - c * 0.55);
+  return f < 0.24 || (r > 0.93 && f < 0.42);
+}
+function mTri(u, v, r, b) {
+  const w = b.w;
+  if (u < 1.6 || u > w - 1.6) return false;
+  let L = u / w + Math.abs(frac(v / b.P) - 0.5) * 2;
+  if (L > 1) L = 2 - L;
+  if (L > 0.93) return false;
+  if (L < 0.1) return true;
+  return frac(L * 5.5) > 0.42;
+}
+function mDia(u, v, r, b) {
+  const w = b.w, Hh = b.P, q = 3.4;
+  if (u < 2 || u > w - 2) return true;
+  const k = Math.floor(v / Hh);
+  const du = Math.round((u - w / 2) / q), dv = Math.round((v - (k + 0.5) * Hh) / q);
+  const d = Math.abs(du) * q / (w / 2 - 3) + Math.abs(dv) * q / (Hh / 2);
+  if (d > 1) return false;
+  if (d > 0.86) return ((du + dv) & 1) === 0;
+  if (d > 0.7) return false;
+  if (d > 0.5) return true;
+  if (d > 0.38) return false;
+  const m = ((k % 3) + 3) % 3;
+  if (m === 0) return d < 0.12;
+  if (m === 1) return ((du ^ dv) & 1) === 0;
+  return true;
+}
+const MASKS = { cream: mCream, zig: mZig, vzig: mVzig, tri: mTri, dia: mDia, stripes: mStripes };
+
+let bands = [], bandAt = [], bandXmin = 0;
+function band(t, x0, w, seed) {
+  const P = t === 'dia' ? w * 1.3 : t === 'tri' ? w * 1.25 : t === 'zig' ? 24 : t === 'vzig' ? 15 : 8.4;
+  return { x0, w, m: MASKS[t], seed, P };
+}
+function buildBands() {
+  bands = [band('stripes', -PF, 2 * PF, 1)];
+  bands[0].P = 11.5;
+  const ext = W / 2 / S + 30;
+  const R = [['cream', 10], ['zig', 44], ['cream', 6], ['tri', 92], ['cream', 6], ['dia', 76], ['cream', 5],
+             ['stripes', 58], ['cream', 7], ['vzig', 38], ['cream', 6]];
+  const L = [['cream', 10], ['vzig', 40], ['cream', 6], ['dia', 80], ['cream', 6], ['stripes', 50],
+             ['cream', 6], ['tri', 88], ['cream', 6], ['zig', 42], ['cream', 6]];
+  let x = PF, n = 0;
+  while (x < ext) { const [t, w] = R[n % R.length]; bands.push(band(t, x, w, n + 10)); x += w; n++; }
+  x = -PF; n = 0;
+  while (x > -ext) { const [t, w] = L[n % L.length]; x -= w; bands.push(band(t, x, w, n + 50)); n++; }
+  bandXmin = Math.floor(-ext - 10);
+  const cnt = Math.ceil(2 * ext + 20);
+  bandAt = new Array(cnt);
+  for (let i = 0; i < cnt; i++) {
+    const x = bandXmin + i + 0.5;
+    bandAt[i] = bands.find(b => x >= b.x0 && x < b.x0 + b.w) || null;
+  }
+}
+function rugMask(x, y, r) {
+  const b = bandAt[Math.floor(x - bandXmin)];
+  return b ? b.m(x - b.x0, y, r, b) : false;
+}
+
+// background is woven lazily in horizontal chunks as the rug unrolls
+const chunks = new Map();
+function chunk(k) {
+  let c = chunks.get(k);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = cv.width;
+  c.height = Math.ceil(CHK * S * DPR) + 2;
+  const g = c.getContext('2d');
+  g.fillStyle = INK;
+  g.fillRect(0, 0, c.width, c.height);
+  g.setTransform(S * DPR, 0, 0, S * DPR, W / 2 * DPR, -k * CHK * S * DPR);
+  const x0 = -W / 2 / S - 4, x1 = W / 2 / S + 4, y0 = k * CHK, y1 = (k + 1) * CHK + 3 / S;
+  for (let j = Math.floor(y0 / CH); j < y1 / CH; j++) {       // uneven weft rows
+    const h = hash(j, 3, 9);
+    if (h < 0.4) {
+      g.fillStyle = h < 0.12 ? 'rgba(255,235,205,0.035)' : 'rgba(0,0,0,0.14)';
+      g.fillRect(x0, j * CH, x1 - x0, CH);
+    }
+  }
+  weave(g, x0, x1, y0 - 3, y1 + 3, rugMask, 7);
+  chunks.set(k, c);
+  return c;
+}
+
+// ---------------------------------------------------------------- sprites
+const sprites = new Map();
+function sprite(key, w, h, ox, oy, paint) {
+  let s = sprites.get(key);
+  if (s) return s;
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.ceil(w * S * DPR));
+  c.height = Math.max(1, Math.ceil(h * S * DPR));
+  const g = c.getContext('2d');
+  g.setTransform(S * DPR, 0, 0, S * DPR, ox * S * DPR, oy * S * DPR);
+  paint(g);
+  s = { c, w, h, ox, oy };
+  sprites.set(key, s);
+  return s;
+}
+function blit(s, x, y) { ctx.drawImage(s.c, x - s.ox, y - s.oy, s.w, s.h); }
+function diamondPath(g, x, y, r) {
+  g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + r, y); g.lineTo(x, y + r); g.lineTo(x - r, y); g.closePath();
+}
+
+function mDiaWoven(u, v) {
+  const q = DR / 9, du = Math.round(u / q), dv = Math.round(v / q);
+  const au = Math.abs(u), av = Math.abs(v);
+  if (au < 2.4 && av > DR * 1.06 && av < DR * 1.42) return frac(av / 7) < 0.55;   // tassel dots
+  const d = (au + av) / DR;
+  if (d >= 1) return false;
+  if (d < 0.4) return true;
+  const dq = (Math.abs(du) + Math.abs(dv)) * q / DR;
+  if (dq < 0.56) return false;
+  if (dq < 0.84) return Math.abs(u / q - du) < 0.36 && Math.abs(v / q - dv) < 0.44;
+  return false;
+}
+function mDiaGhost(u, v) {
+  const q = DR / 9, du = Math.round(u / q), dv = Math.round(v / q);
+  if ((Math.abs(u) + Math.abs(v)) / DR < 0.1) return true;
+  const dq = (Math.abs(du) + Math.abs(dv)) * q / DR;
+  if (dq >= 0.56 && dq < 0.84)
+    return Math.abs(u / q - du) < 0.32 && Math.abs(v / q - dv) < 0.4 && hash(du, dv, 5) < 0.85;
+  return false;
+}
+function diaSprite(woven) {
+  return sprite('dia' + woven, DR * 2 + 10, DR * 2.9, DR + 5, DR * 1.45, g => {
+    if (woven) {
+      g.fillStyle = INK;
+      diamondPath(g, 0, 0, DR); g.fill();
+      g.fillRect(-3.5, -DR * 1.44, 7, DR * 0.5);
+      g.fillRect(-3.5, DR * 0.94, 7, DR * 0.5);
+      weave(g, -DR - 4, DR + 4, -DR * 1.45, DR * 1.45, mDiaWoven, 21, { drop: 0.01 });
+    } else {
+      g.fillStyle = 'rgba(27,28,35,0.9)';
+      diamondPath(g, 0, 0, DR); g.fill();
+      g.strokeStyle = 'rgba(214,190,150,0.55)'; g.lineWidth = 1.2; g.setLineDash([3, 3]);
+      diamondPath(g, 0, 0, DR - 1); g.stroke(); g.setLineDash([]);
+      weave(g, -DR - 4, DR + 4, -DR, DR, mDiaGhost, 22, { drop: 0, colors: GHOSTS });
+    }
+  });
+}
+// spiked chevron block, pointing right from its base at x=0
+function triSprite(len, h) {
+  return sprite('t' + len + '_' + h, len * 1.14 + 8, h * 1.2 + 8, 4, h * 0.6 + 4, g => {
+    g.fillStyle = INK;
+    g.beginPath(); g.moveTo(0, -h / 2 - 3); g.lineTo(len + 5, 0); g.lineTo(0, h / 2 + 3); g.closePath(); g.fill();
+    weave(g, 0, len * 1.14, -h * 0.6, h * 0.6, (u, v) => {
+      const L = u / len + Math.abs(v) / (h / 2);
+      if (L >= 1) return L < 1.12 && u > 3 && frac(v / 7.5 + u / 15) < 0.32;
+      if (L > 0.91) return false;
+      if (L < 0.1) return true;
+      return frac(L * 5) > 0.42;
+    }, 31, { drop: 0.01 });
+  });
+}
+function snagSprite(o) {
+  const gl = o.gapX - o.gapW / 2, gr = o.gapX + o.gapW / 2;
+  return sprite('s' + o.gapX + '_' + o.gapW, 2 * PF + 4, 34, PF + 2, 6, g => {
+    g.fillStyle = INK;
+    g.fillRect(-PF, -4, gl + PF, 29);
+    g.fillRect(gr, -4, PF - gr, 29);
+    weave(g, -PF, PF, -6, 30, (u, v, r) => {
+      if (u > gl - 1 && u < gr + 1) return false;
+      if (v < 4) return r > 0.04;
+      const p = frac((u + PF) / 13);
+      return v < 4 + 19 * (1 - Math.abs(p - 0.5) * 2);
+    }, 41, { drop: 0.01 });
+  });
+}
+
+// woven lettering: rasterise text once, then sample it through the loom
+function textMask(txt, px, cx, cy) {
+  const RES = 2, m = document.createElement('canvas'), g = m.getContext('2d');
+  const font = `700 ${px * RES}px ${UI_FONT}`;
+  g.font = font;
+  if ('letterSpacing' in g) g.letterSpacing = (px * RES * 0.1) + 'px';
+  m.width = Math.ceil(g.measureText(txt).width + px * RES * 0.6);
+  m.height = Math.ceil(px * RES * 1.4);
+  g.font = font;
+  if ('letterSpacing' in g) g.letterSpacing = (px * RES * 0.1) + 'px';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = g.strokeStyle = '#fff';
+  g.lineWidth = px * RES * 0.06; g.lineJoin = 'round';
+  g.fillText(txt, m.width / 2, m.height * 0.56);
+  g.strokeText(txt, m.width / 2, m.height * 0.56);
+  const d = g.getImageData(0, 0, m.width, m.height).data, mw = m.width, mh = m.height;
+  return (u, v) => {
+    const x = Math.floor((u - cx) * RES + mw / 2), y = Math.floor((v - cy) * RES + mh / 2);
+    if (x < 0 || y < 0 || x >= mw || y >= mh) return false;
+    return d[(y * mw + x) * 4 + 3] > 110;
+  };
+}
+function cartouche(key, w, h, words) {
+  return sprite(key, w, h, w / 2, 0, g => {
+    g.fillStyle = 'rgba(27,28,35,0.94)';
+    g.fillRect(-w / 2, 0, w, h);
+    const tm = words.map(([t, px, y]) => textMask(t, px, 0, y));
+    weave(g, -w / 2, w / 2, 0, h, (x, v) => {
+      const u = x + w / 2;
+      const e = Math.min(u, w - u, v, h - v);
+      if (e < 0) return false;
+      if (e < 3) return true;
+      if (e < 6) return false;
+      if (e < 8) return frac((u + v) / 6) < 0.5;
+      const vb = v < h / 2 ? v : h - v;
+      if (vb > 13 && vb < 29 && u > 16 && u < w - 16)
+        return Math.abs(vb - (21 + 6 * (tri(u / 14) * 2 - 1))) < 2.1;
+      for (const m of tm) if (m(x, v)) return true;
+      return false;
+    }, 61, { drop: 0.015 });
+  });
+}
+
+// HUD strip: a cream selvedge band, woven at screen resolution
+const panels = new Map();
+function panel(pw, ph) {
+  const key = pw + 'x' + ph;
+  let c = panels.get(key);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = Math.ceil(pw * DPR); c.height = Math.ceil(ph * DPR);
+  const g = c.getContext('2d');
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  g.fillStyle = INK; g.fillRect(0, 0, pw, ph);
+  g.fillStyle = '#d9c29b'; g.fillRect(6, 6, pw - 12, ph - 12);
+  weave(g, 0, pw, 0, ph, (u, v, r) => {
+    const e = Math.min(u, pw - u, v, ph - v);
+    if (e < 2) return false;
+    if (e < 4) return true;
+    if (e < 6) return false;
+    return r < 0.55;
+  }, 71, { drop: 0, cw: 2.6, ch: 2.2, colors: ['#e6d2ae', '#dcc59f', '#e3cda7', '#d4bc94'] });
+  panels.set(key, c);
+  return c;
+}
+
+// ---------------------------------------------------------------- sound
+let AC = null, master = null, muted = false, noiseBuf = null;
+try { muted = localStorage.getItem('weft.muted') === '1'; } catch (e) {}
+function audio() {
+  try {
+    if (!AC) {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      master = AC.createGain();
+      master.gain.value = muted ? 0 : 0.55;
+      master.connect(AC.destination);
+    }
+    if (AC.state === 'suspended') AC.resume();
+  } catch (e) { AC = null; }
+}
+function toggleMute() {
+  muted = !muted;
+  if (master) master.gain.value = muted ? 0 : 0.55;
+  try { localStorage.setItem('weft.muted', muted ? '1' : '0'); } catch (e) {}
+}
+const SCALE = [0, 3, 5, 7, 10, 12, 15, 17, 19, 22, 24, 27];
+const note = i => 293.66 * Math.pow(2, SCALE[clamp(i, 0, SCALE.length - 1)] / 12);
+function pluck(f, vol, when) {
+  if (!AC) return;
+  const t = AC.currentTime + (when || 0);
+  const lp = AC.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.setValueAtTime(Math.min(12000, f * 9), t);
+  lp.frequency.exponentialRampToValueAtTime(f * 1.4, t + 0.6);
+  lp.connect(master);
+  for (const [fr, ty, v, du] of [[f, 'triangle', vol, 1.2], [f * 2, 'sine', vol * 0.35, 0.5], [f * 3.01, 'sine', vol * 0.12, 0.25]]) {
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = ty; o.frequency.value = fr;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(v, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + du);
+    o.connect(g); g.connect(lp);
+    o.start(t); o.stop(t + du + 0.05);
+  }
+}
+function noise() {
+  if (!noiseBuf) {
+    noiseBuf = AC.createBuffer(1, AC.sampleRate * 0.5 | 0, AC.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  return noiseBuf;
+}
+function burst(freq, q, vol, dur) {
+  const t = AC.currentTime, s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+  s.buffer = noise(); f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  s.connect(f); f.connect(g); g.connect(master);
+  s.start(t); s.stop(t + dur + 0.02);
+}
+function clack(hi) { if (AC) burst(hi ? 2300 : 1400, 5, hi ? 0.1 : 0.07, 0.05); }   // the loom's beater
+function thud() {
+  if (!AC) return;
+  burst(380, 0.8, 0.45, 0.3);
+  const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
+  o.frequency.setValueAtTime(120, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.3);
+  g.gain.setValueAtTime(0.45, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.4);
+}
+
+// ---------------------------------------------------------------- state
+let state = 'title', paused = false;
+let camY = 0, speed = 0, elapsed = 0, score = 0, thread = 100, combo = 1, best = 0;
+let shake = 0, invuln = 0, overT = 0, clock = 0, beatT = 0, beatN = 0, spawnCount = 0;
+let objs = [], parts = [], floats = [], rings = [], trail = [], nextY = 0;
+let lastRun = null;
+const player = { x: 0, tx: 0, vx: 0, ang: 0 };
+const keys = {};
+let keyMoving = false, drag = null;
+try { best = +localStorage.getItem('weft.best') || 0; } catch (e) {}
+
+const headY = () => camY + H * 0.3 / S;
+const diff = () => Math.min(1, elapsed / 170);
+
+function start() {
+  audio();
+  state = 'play'; paused = false;
+  elapsed = 0; score = 0; thread = 100; combo = 1; shake = 0; invuln = 0; beatT = 0; beatN = 0; spawnCount = 0;
+  objs = []; parts = []; floats = []; rings = [];
+  nextY = headY() + H / S * 0.55;
+  pluck(note(0), 0.2); pluck(note(4), 0.12, 0.09);
+}
+function endGame() {
+  state = 'over'; overT = 0;
+  const s = Math.floor(score);
+  lastRun = { score: s, record: s > best && s > 0 };
+  if (s > best) { best = s; try { localStorage.setItem('weft.best', String(best)); } catch (e) {} }
+  const hy = headY();
+  for (let i = 0; i < 40; i++) {
+    const p = trail[Math.max(0, trail.length - 1 - (Math.random() * 40 | 0))] || { x: player.x, y: hy };
+    parts.push(fibre(p.x, p.y, rand(-80, 80), rand(-120, 20), Math.random() < 0.7 ? GREEN : CREAMS[0]));
+  }
+  thud();
+  [5, 3, 2, 0].forEach((n, i) => pluck(note(n) / 2, 0.16, 0.18 + i * 0.16));
+}
+
+const dia = (x, y) => ({ type: 'dia', x: Math.round(x), y, woven: false, t: 0, missed: false });
+function spawn() {
+  const d = diff();
+  let y = nextY;
+  const r = Math.random();
+  if (spawnCount === 0) {                                    // a gentle opening
+    objs.push(dia(0, y), dia(80, y + 150), dia(-60, y + 300));
+    y += 420;
+  } else if (r < 0.2) {
+    objs.push(dia(rand(-PF + 60, PF - 60), y));
+    y += rand(150, 210);
+  } else if (r < 0.48) {                                     // chevron slalom
+    let side = Math.random() < 0.5 ? -1 : 1;
+    const n = 2 + (Math.random() * (2 + d * 2) | 0);
+    for (let i = 0; i < n; i++) {
+      const h = Math.round(rand(110, 150) / 10) * 10;
+      const len = Math.round((rand(200, 260) + d * 80) / 10) * 10;
+      objs.push({ type: 'tri', side, y: y + h / 2, len, h, flash: 0 });
+      if (Math.random() < 0.75) objs.push(dia(-side * len / 2, y + h / 2));
+      y += h + rand(45, 95) * (1 - 0.45 * d);
+      side = -side;
+    }
+    y += 50;
+  } else if (r < 0.7) {                                      // a snag with one gap
+    const gw = Math.round(150 - d * 45);
+    const gx = Math.round(rand(-PF + gw / 2 + 8, PF - gw / 2 - 8));
+    objs.push({ type: 'snag', y, gapX: gx, gapW: gw, flash: 0 });
+    if (Math.random() < 0.7) objs.push(dia(gx, y + 125));
+    y += rand(210, 260) - d * 40;
+  } else {                                                   // a running chain of motifs
+    const n = 3 + (Math.random() * 3 | 0), x0 = rand(-110, 110), ph = rand(0, 6), a = rand(60, 130);
+    for (let i = 0; i < n; i++) {
+      objs.push(dia(clamp(x0 + Math.sin(ph + i * 0.9) * a, -PF + 56, PF - 56), y));
+      y += rand(115, 150);
+    }
+    y += 30;
+  }
+  nextY = y + rand(50, 120) * (1 - 0.4 * d);
+  spawnCount++;
+}
+
+function fibre(x, y, vx, vy, col) {
+  return { x, y, vx, vy, col, life: rand(0.6, 1.2), max: 1, w: rand(1.4, 2.4), h: rand(3, 7), rot: rand(0, 6.3), vr: rand(-8, 8) };
+}
+function weaveDia(o) {
+  o.woven = true; o.t = 0;
+  const gain = 50 * combo;
+  score += gain;
+  thread = Math.min(100, thread + 13);
+  floats.push({ x: o.x, y: o.y - DR - 14, txt: '+' + gain + (combo > 1 ? '  ×' + combo : ''), life: 1.1 });
+  rings.push({ x: o.x, y: o.y, t: 0 });
+  for (let i = 0; i < 18; i++) {
+    const a = i / 18 * Math.PI * 2;
+    parts.push(fibre(o.x + Math.cos(a) * 20, o.y + Math.sin(a) * 20, Math.cos(a) * rand(60, 150), Math.sin(a) * rand(60, 150), CREAMS[i & 3]));
+  }
+  pluck(note(combo - 1), 0.22);
+  pluck(note(combo - 1) / 2, 0.08);
+  combo++;
+}
+function snag(x, y, o) {
+  thread -= 20; invuln = 1.1; shake = 11; combo = 1;
+  if (o) o.flash = 1;
+  floats.push({ x, y: y - 10, txt: 'snagged', life: 1 });
+  for (let i = 0; i < 22; i++)
+    parts.push(fibre(x, y, rand(-160, 160), rand(-160, 60), i % 3 ? GREEN : CREAMS[i & 3]));
+  thud();
+}
+
+// ---------------------------------------------------------------- update
+function recordTrail() {
+  const hy = headY(), last = trail[trail.length - 1];
+  if (!last || hy - last.y >= 3) {
+    const L = last ? last.L + Math.hypot(player.x - last.x, hy - last.y) : 0;
+    trail.push({ x: player.x, y: hy, L });
+  }
+  while (trail.length > 2 && trail[1].y < camY - 30) trail.shift();
+}
+function movePlayer(dt) {
+  const dx = player.tx - player.x;
+  const maxV = 780 * dt;
+  const step = clamp(dx * Math.min(1, dt * 13), -maxV, maxV);
+  player.x = clamp(player.x + step, -PF + 12, PF - 12);
+  player.vx = dt > 0 ? step / dt : 0;
+  const target = clamp(Math.atan2(player.vx, Math.max(60, speed)), -0.65, 0.65);
+  player.ang += (target - player.ang) * Math.min(1, dt * 10);
+}
+function update(dt) {
+  clock += dt;
+  if (state === 'title') {
+    speed = 40; camY += speed * dt;
+    player.tx = Math.sin(clock * 0.7) * 150 + Math.sin(clock * 1.9) * 30;
+    movePlayer(dt); recordTrail();
+  } else if (state === 'play' && !paused) {
+    elapsed += dt;
+    const d = diff();
+    speed = 115 + 150 * d;
+    camY += speed * dt;
+    while (nextY < camY + H / S + 200) spawn();
+
+    const dir = (keys.ArrowRight || keys.KeyD ? 1 : 0) - (keys.ArrowLeft || keys.KeyA ? 1 : 0);
+    if (dir) { player.tx = player.x + dir * 70; keyMoving = true; }
+    else if (keyMoving) { player.tx = player.x; keyMoving = false; }
+    player.tx = clamp(player.tx, -PF + 12, PF - 12);
+    movePlayer(dt);
+    recordTrail();
+
+    thread -= (2.6 + 2.4 * d) * dt;
+    score += speed * dt / 12;
+    invuln = Math.max(0, invuln - dt);
+
+    const hy = headY();
+    const tx = player.x + Math.sin(player.ang) * 34, ty = hy + Math.cos(player.ang) * 34;   // needle point
+    for (const o of objs) {
+      if (o.type === 'dia') {
+        if (o.woven) o.t = Math.min(1, o.t + dt * 2.2);
+        else if (Math.abs(tx - o.x) + Math.abs(ty - o.y) < DR * 0.62) weaveDia(o);
+        else if (!o.missed && o.y < ty - DR * 0.7) { o.missed = true; combo = 1; }
+      } else if (o.type === 'tri') {
+        o.flash = Math.max(0, o.flash - dt * 2);
+        if (invuln <= 0) {
+          const ux = o.side < 0 ? tx + PF : PF - tx;
+          if (ux / o.len + Math.abs(ty - o.y) / (o.h / 2) < 0.97) snag(tx, ty, o);
+        }
+      } else if (o.type === 'snag') {
+        o.flash = Math.max(0, o.flash - dt * 2);
+        if (invuln <= 0 && ty > o.y - 1 && ty < o.y + 19 &&
+            (tx < o.gapX - o.gapW / 2 + 2 || tx > o.gapX + o.gapW / 2 - 2)) snag(tx, ty, o);
+      }
+    }
+    objs = objs.filter(o => o.y + 200 > camY);
+
+    const iv = 60 / (88 + 50 * d);
+    beatT += dt;
+    if (beatT > iv) {
+      beatT -= iv; beatN++;
+      clack(beatN & 1);
+      if (beatN % 4 === 0) pluck(73.42, 0.1);
+      if (beatN % 16 === 8) pluck(110, 0.07);
+    }
+    if (thread <= 0) { thread = 0; endGame(); }
+  } else if (state === 'over') {
+    overT += dt;
+    speed = 30; camY += speed * dt;
+  }
+
+  if (!paused) {
+    for (const p of parts) {
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= Math.pow(0.08, dt); p.vy *= Math.pow(0.08, dt);
+      p.vy += 40 * dt; p.rot += p.vr * dt; p.life -= dt;
+    }
+    parts = parts.filter(p => p.life > 0);
+    for (const f of floats) { f.y -= 30 * dt; f.life -= dt; }
+    floats = floats.filter(f => f.life > 0);
+    for (const r of rings) r.t += dt * 1.8;
+    rings = rings.filter(r => r.t < 1);
+    shake = Math.max(0, shake - dt * 30);
+  }
+}
+
+// ---------------------------------------------------------------- draw
+let vignette = null;
+function buildVignette() {
+  vignette = document.createElement('canvas');
+  vignette.width = cv.width; vignette.height = cv.height;
+  const g = vignette.getContext('2d');
+  const r = Math.hypot(cv.width, cv.height) * 0.62;
+  const gr = g.createRadialGradient(cv.width * 0.42, cv.height * 0.34, r * 0.1, cv.width * 0.5, cv.height * 0.5, r);
+  gr.addColorStop(0, 'rgba(255,238,210,0.06)');
+  gr.addColorStop(0.55, 'rgba(0,0,0,0)');
+  gr.addColorStop(1, 'rgba(0,0,0,0.5)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, cv.width, cv.height);
+}
+
+function drawThread() {
+  if (trail.length < 2) return;
+  const hy = headY();
+  const w = 2.4 + 2.2 * clamp(thread / 100, 0, 1);
+  const path = () => {
+    ctx.beginPath();
+    ctx.moveTo(trail[0].x, trail[0].y);
+    for (let i = 1; i < trail.length; i++) ctx.lineTo(trail[i].x, trail[i].y);
+    ctx.lineTo(player.x, hy);
+  };
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.setLineDash([11, 4]);
+  ctx.lineDashOffset = trail[0].L;
+  ctx.save(); ctx.translate(1.6, 2.6); path();
+  ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = w + 1.5; ctx.stroke(); ctx.restore();
+  path();
+  ctx.strokeStyle = GREEN_D; ctx.lineWidth = w + 1.6; ctx.stroke();
+  ctx.strokeStyle = GREEN; ctx.lineWidth = w; ctx.stroke();
+  ctx.save(); ctx.translate(-w * 0.18, 0); path();
+  ctx.strokeStyle = GREEN_L; ctx.lineWidth = 0.9; ctx.stroke(); ctx.restore();
+  ctx.setLineDash([]);
+}
+function needlePath(ox, oy) {
+  ctx.beginPath();
+  ctx.moveTo(ox - 2.7, oy - 5);
+  ctx.quadraticCurveTo(ox, oy - 9.5, ox + 2.7, oy - 5);
+  ctx.lineTo(ox + 2.3, oy + 16);
+  ctx.lineTo(ox, oy + 34);
+  ctx.lineTo(ox - 2.3, oy + 16);
+  ctx.closePath();
+}
+function drawNeedle() {
+  if (state === 'over') return;
+  if (invuln > 0 && ((invuln * 14) | 0) % 2) return;
+  ctx.save();
+  ctx.translate(player.x, headY());
+  ctx.rotate(-player.ang);
+  ctx.scale(1.35, 1.35);
+  ctx.fillStyle = 'rgba(0,0,0,0.42)'; needlePath(3, 4); ctx.fill();
+  const gr = ctx.createLinearGradient(-3, 0, 3, 0);
+  gr.addColorStop(0, '#8a8272'); gr.addColorStop(0.45, '#f6efe0'); gr.addColorStop(1, '#9d947f');
+  ctx.fillStyle = gr; needlePath(0, 0); ctx.fill();
+  ctx.strokeStyle = INK; ctx.lineWidth = 1.1; ctx.stroke();
+  ctx.fillStyle = INK; ctx.beginPath(); ctx.ellipse(0, -2, 0.9, 2.6, 0, 0, 7); ctx.fill();
+  ctx.restore();
+}
+function drawObjects() {
+  const ghost = diaSprite(false), woven = diaSprite(true);
+  for (const o of objs) {
+    if (o.type === 'tri') {
+      const s = triSprite(o.len, o.h);
+      ctx.save();
+      ctx.translate(o.side * PF, o.y);
+      if (o.side > 0) ctx.scale(-1, 1);
+      blit(s, 0, 0);
+      if (o.flash > 0) {
+        ctx.globalAlpha = o.flash * 0.5; ctx.fillStyle = GREEN_L;
+        ctx.beginPath(); ctx.moveTo(0, -o.h / 2); ctx.lineTo(o.len, 0); ctx.lineTo(0, o.h / 2); ctx.fill();
+      }
+      ctx.restore();
+    } else if (o.type === 'snag') {
+      blit(snagSprite(o), 0, o.y);
+    }
+  }
+  for (const o of objs) {
+    if (o.type !== 'dia') continue;
+    if (!o.woven) {
+      ctx.globalAlpha = 0.9 + 0.1 * Math.sin(clock * 4 + o.y * 0.05);
+      blit(ghost, o.x, o.y);
+      ctx.globalAlpha = 1;
+    } else if (o.t < 1) {
+      blit(ghost, o.x, o.y);
+      const e = 1 - Math.pow(1 - o.t, 3);
+      ctx.save(); diamondPath(ctx, o.x, o.y, DR * 1.5 * e); ctx.clip(); blit(woven, o.x, o.y); ctx.restore();
+    } else blit(woven, o.x, o.y);
+  }
+}
+function drawEffects() {
+  for (const r of rings) {
+    ctx.globalAlpha = (1 - r.t) * 0.8;
+    ctx.strokeStyle = CREAMS[3]; ctx.lineWidth = 2.5 * (1 - r.t) + 0.5;
+    diamondPath(ctx, r.x, r.y, DR * (1 + r.t * 0.7)); ctx.stroke();
+  }
+  for (const p of parts) {
+    ctx.globalAlpha = clamp(p.life / 0.5, 0, 1);
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+    ctx.fillStyle = p.col; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `700 15px ${UI_FONT}`;
+  for (const f of floats) {
+    ctx.globalAlpha = clamp(f.life / 0.4, 0, 1);
+    ctx.fillStyle = INK; ctx.fillText(f.txt, f.x + 1, f.y + 1.5);
+    ctx.fillStyle = f.txt === 'snagged' ? GREEN_L : CREAMS[3]; ctx.fillText(f.txt, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// a palm frond lying over the corner of the rug
+function leaf(bx, by, a, len, wd, col) {
+  const dx = Math.cos(a), dy = Math.sin(a), px = -dy, py = dx;
+  const tx = bx + dx * len, ty = by + dy * len;
+  const cx = bx + dx * len * 0.5 + px * len * 0.06, cy = by + dy * len * 0.5 + py * len * 0.06;
+  ctx.moveTo(bx + px * wd / 2, by + py * wd / 2);
+  ctx.quadraticCurveTo(cx + px * wd * 0.55, cy + py * wd * 0.55, tx, ty);
+  ctx.quadraticCurveTo(cx - px * wd * 0.35, cy - py * wd * 0.35, bx - px * wd / 2, by - py * wd / 2);
+  ctx.closePath();
+}
+function frondShape(x0, y0, x1, y1, bend, sz, t, fill, shadow) {
+  const N = 26;
+  for (let side = -1; side <= 1; side += 2) {
+    for (let i = 2; i < N; i++) {
+      const s = i / N;
+      const bx = x0 + (x1 - x0) * s + bend * Math.sin(s * Math.PI) * 0.4;
+      const by = y0 + (y1 - y0) * s + bend * Math.sin(s * Math.PI);
+      const ang = Math.atan2(y1 - y0 + bend * Math.cos(s * Math.PI) * Math.PI, x1 - x0);
+      const sway = Math.sin(t * 0.9 + s * 2.2 + side) * 0.05;
+      const la = ang + side * (0.72 - s * 0.25) + sway;
+      const len = sz * 0.36 * Math.sin(Math.PI * (0.12 + 0.86 * s)) * (0.85 + 0.3 * hash(i, side + 2, 91));
+      ctx.beginPath();
+      leaf(bx, by, la, len, sz * 0.03, null);
+      ctx.fillStyle = shadow ? 'rgba(0,0,0,0.34)' : fill[(i + (side > 0 ? 1 : 0)) % fill.length];
+      ctx.fill();
+      if (!shadow) {
+        ctx.strokeStyle = 'rgba(160,200,130,0.25)'; ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + Math.cos(la) * len * 0.9, by + Math.sin(la) * len * 0.9); ctx.stroke();
+      }
+    }
+  }
+  if (!shadow) {
+    ctx.strokeStyle = '#2a4026'; ctx.lineWidth = sz * 0.012;
+    ctx.beginPath(); ctx.moveTo(x0, y0);
+    ctx.quadraticCurveTo((x0 + x1) / 2 + bend * 0.4, (y0 + y1) / 2 + bend, x1, y1); ctx.stroke();
+  }
+}
+function drawFrond() {
+  const margin = W / 2 - PF * S;
+  if (state === 'play' && margin < 220) return;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const sz = Math.min(W, H) * 0.7;
+  const fr = [
+    [W + sz * 0.1, H * 0.6, W - sz * 0.75, H * 0.64, -sz * 0.12],
+    [W + sz * 0.1, H * 0.82, W - sz * 0.62, H * 0.98, sz * 0.06],
+  ];
+  const t = clock;
+  ctx.save(); ctx.translate(-sz * 0.05, sz * 0.07);
+  for (const f of fr) frondShape(...f, sz, t, FROND, true);
+  ctx.restore();
+  for (const f of fr) frondShape(...f, sz, t, FROND, false);
+}
+
+function label(txt, x, y, size, color, align, weight, spacing) {
+  ctx.font = `${weight || 600} ${size}px ${UI_FONT}`;
+  if ('letterSpacing' in ctx) ctx.letterSpacing = (spacing || 0) + 'px';
+  ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = color;
+  ctx.fillText(txt, x, y);
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+}
+function drawHUD() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const pw = Math.round(Math.min(W - 24, Math.max(2 * PF * S, 320))), ph = 50;
+  const px = Math.round((W - pw) / 2), py = 12;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(px + 3, py + 4, pw, ph);
+  ctx.drawImage(panel(pw, ph), px, py, pw, ph);
+  const dark = INK;
+  label('SCORE', px + 16, py + 20, 10, dark, 'left', 700, 1.6);
+  label(String(Math.floor(score)), px + 16, py + 40, 20, dark, 'left', 700, 0.5);
+  label('COMBO', px + pw - 16, py + 20, 10, dark, 'right', 700, 1.6);
+  label('×' + combo, px + pw - 16, py + 40, 20, dark, 'right', 700, 0.5);
+  // the spool: how much thread is left
+  const mw = Math.round(Math.min(170, pw * 0.38)), mx = Math.round(px + (pw - mw) / 2), my = py + 28;
+  label('THREAD', px + pw / 2, py + 20, 10, dark, 'center', 700, 1.6);
+  ctx.fillStyle = dark; ctx.fillRect(mx, my, mw, 12);
+  const low = thread < 25 && ((clock * 4) | 0) % 2;
+  const fw = Math.max(0, (mw - 4) * thread / 100);
+  ctx.fillStyle = low ? GREEN_L : GREEN; ctx.fillRect(mx + 2, my + 2, fw, 8);
+  ctx.save(); ctx.beginPath(); ctx.rect(mx + 2, my + 2, fw, 8); ctx.clip();
+  ctx.strokeStyle = GREEN_D; ctx.lineWidth = 1.2;
+  for (let x = mx - 10; x < mx + fw + 10; x += 4) { ctx.beginPath(); ctx.moveTo(x, my + 10); ctx.lineTo(x + 6, my + 2); ctx.stroke(); }
+  ctx.restore();
+  const snd = muted ? 'M · SOUND OFF' : 'M · SOUND ON';
+  ctx.font = `700 9px ${UI_FONT}`;
+  const sw = ctx.measureText(snd).width + 18;
+  ctx.fillStyle = 'rgba(27,28,35,0.88)'; ctx.fillRect(px + pw - sw, py + ph + 4, sw, 16);
+  label(snd, px + pw - 8, py + ph + 15, 9, CREAMS[2], 'right', 700, 1.2);
+}
+
+function drawCard() {
+  const CARD_W = Math.min(460, (W - 32) / S);
+  const title = state === 'title';
+  const h = title ? 360 : 330;
+  const cy = Math.max(84, H * 0.44 - h * S / 2);
+  const words = title ? [['WEFT', 96, 88]] : [[String(lastRun ? lastRun.score : 0), 70, 132]];
+  const s = cartouche((title ? 'ct' : 'co' + (lastRun ? lastRun.score : 0)) + '_' + Math.round(CARD_W), CARD_W, h, words);
+  const alpha = title ? 1 : clamp((overT - 0.5) / 0.6, 0, 1);
+  if (alpha <= 0) return;
+  ctx.setTransform(S * DPR, 0, 0, S * DPR, W / 2 * DPR, cy * DPR);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(-CARD_W / 2 + 6, 8, CARD_W, h);
+  blit(s, 0, 0);
+  const C = CREAMS[0], dim = 'rgba(234,215,179,0.7)';
+  const blink = 0.55 + 0.45 * Math.sin(clock * 3.5);
+  if (title) {
+    const lines = [
+      'Steer the needle down the rug.',
+      'Pass through the diamonds to weave them in:',
+      'each one gives back thread.',
+      'Keep off the spiked chevrons and the snags.',
+    ];
+    lines.forEach((l, i) => label(l, 0, 176 + i * 22, 15, i === 3 ? GREEN_L : C, 'center', 400, 0.2));
+    label('← → or mouse   ·   drag on touch', 0, 280, 12, dim, 'center', 600, 1.4);
+    ctx.globalAlpha = alpha * blink;
+    label('PRESS SPACE OR TAP TO BEGIN', 0, 318, 13, C, 'center', 700, 2.4);
+    if (best > 0) { ctx.globalAlpha = alpha; label('BEST  ' + best, 0, 342, 11, dim, 'center', 600, 2); }
+  } else {
+    label('THE THREAD RAN OUT', 0, 70, 14, GREEN_L, 'center', 700, 2.6);
+    label(lastRun && lastRun.record ? 'A NEW BEST' : 'BEST  ' + best, 0, 206, 12, dim, 'center', 600, 2.2);
+    ctx.globalAlpha = alpha * (overT > 1.1 ? blink : 0.3);
+    label('SPACE OR TAP TO WEAVE AGAIN', 0, 268, 13, C, 'center', 700, 2.4);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function draw() {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = INK; ctx.fillRect(0, 0, cv.width, cv.height);
+  const sx = (Math.random() - 0.5) * shake * DPR, sy = (Math.random() - 0.5) * shake * DPR;
+
+  const k0 = Math.floor(camY / CHK), k1 = Math.floor((camY + H / S) / CHK);
+  for (let k = k0; k <= k1; k++) ctx.drawImage(chunk(k), sx, Math.round((k * CHK - camY) * S * DPR + sy));
+  if (!chunks.has(k1 + 1)) chunk(k1 + 1);                    // weave one ahead
+  for (const key of chunks.keys()) if (key < k0 - 1) chunks.delete(key);
+
+  ctx.setTransform(S * DPR, 0, 0, S * DPR, W / 2 * DPR + sx, -camY * S * DPR + sy);
+  drawObjects();
+  drawThread();
+  drawNeedle();
+  drawEffects();
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(vignette, 0, 0);
+  drawFrond();
+  if (state !== 'title') drawHUD();
+  if (state !== 'play') drawCard();
+  if (paused) {
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.fillStyle = 'rgba(27,28,35,0.7)'; ctx.fillRect(0, 0, W, H);
+    label('PAUSED', W / 2, H / 2, 22, CREAMS[0], 'center', 700, 5);
+    label('press P or tap to continue', W / 2, H / 2 + 28, 13, CREAMS[2], 'center', 400, 1);
+  }
+}
+
+// ---------------------------------------------------------------- setup & input
+function resize() {
+  DPR = Math.min(1.75, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  S = Math.min(W / 600, H / 760);
+  chunks.clear(); sprites.clear(); panels.clear();
+  buildBands(); buildVignette();
+}
+window.addEventListener('resize', resize);
+resize();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { sprites.clear(); });
+
+function primary() {
+  audio();
+  if (paused) { paused = false; return; }
+  if (state === 'title') start();
+  else if (state === 'over' && overT > 1.1) start();
+}
+function togglePause() { if (state === 'play') paused = !paused; }
+
+window.addEventListener('keydown', e => {
+  if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'].includes(e.code)) e.preventDefault();
+  if (e.repeat) { keys[e.code] = true; return; }
+  keys[e.code] = true;
+  if (e.code === 'Space' || e.code === 'Enter') primary();
+  else if (e.code === 'KeyM') { audio(); toggleMute(); }
+  else if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+const toWorldX = cx => (cx - W / 2) / S;
+cv.addEventListener('pointerdown', e => {
+  cv.focus();
+  if (state !== 'play' || paused) { primary(); }
+  if (e.pointerType === 'mouse') player.tx = toWorldX(e.clientX);
+  else drag = { x: e.clientX, tx: player.x };
+});
+cv.addEventListener('pointermove', e => {
+  if (state !== 'play' || paused) return;
+  if (e.pointerType === 'mouse') player.tx = toWorldX(e.clientX);
+  else if (drag) player.tx = drag.tx + (e.clientX - drag.x) / S * 1.3;
+});
+const endDrag = () => { drag = null; };
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', endDrag);
+window.addEventListener('blur', () => { if (state === 'play') paused = true; });
+document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') paused = true; });
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+cv.focus();
+})();
+</script>
+</body>
+</html>

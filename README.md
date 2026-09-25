@@ -28,6 +28,9 @@ subdirectory with its own README:
   photographs developed in the cellar. Raw WebGL2, everything painted in code.
   Open `steelhag2/index.html`, or the single-file build in `steelhag2/dist/`;
   the full design is in `steelhag2/DESIGN.md`.
+- **[weft/](weft/)** — WEFT, a small arcade game woven like an indigo and
+  cream rug: steer a needle, weave the diamonds, keep the thread from running
+  out. One HTML file. Open `weft/index.html`.
 - **[scriptprof/](scriptprof/)** — SCRIPTPROF, a lab for generating
   PuzzleScript games: rewrite-rule engine, BFS playtester, MAP-Elites
   archive. Open `scriptprof/index.html`.
