@@ -15,6 +15,24 @@ around one file; `python3 tools/build-single.py` regenerates it.
 ![Northgate at night, headlights on](screenshots/night.jpg)
 ![Four stars in Downtown](screenshots/chase.jpg)
 
+## Driving that grips, drifts and pays (September 2026)
+
+Cars go where they point. Normal driving has **tyre grip assistance** (Settings, default 0.6; 0 is the old,
+looser model), the wheel straightens faster than it turns in, and rain costs a fifth of the cornering grip.
+Braking loads the front tyres and power loads the rear. **Countersteer assistance** now steers the right way:
+it used to steer into a slide and made it worse.
+
+**Drifts** are deliberate. Flick the handbrake (Space, A on a pad, HAND on touch) with the wheel turned at
+speed, then keep the gas on. The stick holds the angle, the wheels help follow the slide, and lifting off
+straightens you out. Sports cars hold a hands-off drift, muscle cars ease out of one, and sedans and vans
+barely drift at all.
+
+**Style** pays: a held drift, a **near miss** (under a metre from a moving car, at speed, without touching)
+and **air** are tricks. Each one landed within four seconds of the last grows the chain's multiplier (up to
+×4). The chain banks when the streak goes quiet and is lost in a real crash. While you are wanted, it goes into
+the Heat Run pot instead: the show is only paid if you get away. `node tools/driving-lab.js [revision]` prints
+the handling numbers for every class, dry and wet.
+
 ## Getaway plan (September 2026)
 
 A new game opens with **HOT CAR**: a Falcata with its engine running, one star, and a lesson in losing it.

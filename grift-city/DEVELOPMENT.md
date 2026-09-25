@@ -271,3 +271,51 @@ to wind on.
 
 Result: every class settles within 0.2–0.4 s of letting go, wet or dry; corner overshoot 4–8°; handbrake still
 breaks the sports car's rear loose (25° slip) but no longer spins it. Regression in `test/driving.js`.
+
+### Second pass: drifts, walls, style
+
+`node tools/driving-lab.js [revision]` scripts the same manoeuvres for every class, dry and wet (column meanings in
+the file header). Dry, before this work (149ca44) → now:
+
+| class  | settle s  | overshoot ° | slalom slip ° | handbrake ° | drift held s |
+|--------|-----------|-------------|---------------|-------------|--------------|
+| sedan  | 0.42→0.25 | 8.9→5.4     | 3.0→2.6       | 37→49       | 0→1.6        |
+| sports | 2.00→0.22 | 14.6→4.6    | 9.6→2.8       | 109→102     | 1.6→3.9      |
+| muscle | 1.70→0.22 | 13.3→4.4    | 8.4→2.6       | 90→81       | 0.1→3.8      |
+| pickup | 0.63→0.35 | 11.2→7.2    | 3.3→2.8       | 27→29       | 0→0          |
+| bike   | 6.00→0.23 | 142→4.9     | 46→4.3        | —           | — (no drift) |
+
+Findings along the way:
+- [x] **Countersteer assistance steered the wrong way.** Its sign was flipped: it turned the wheels further into
+  a slide. With the old tyres the sports car stayed sideways for 2.7 s with it off, 3.3 s at the default setting
+  and 5.8 s at full. It now follows the sign of the sideslip.
+- [ ] **Walls are glue — measured, prototyped, not shipped.** Every contact frame takes 10% of the speed, so a 12°
+  glance at 72 km/h keeps 1–2% of it (lab column `wall`). A Coulomb-style scrape (friction in proportion to
+  the impact, the nose turned along the wall, no bounce on a glance, a crash only above 5 m/s into the wall)
+  kept 67%. For every car it made escapes harder: police cars no longer lost their run on a clipped kerb. For
+  the player's car only, the escape endurance replay still failed on seed 42 every time (busted or dead),
+  while it passed with the old walls. Over 8 other seeds, two-minute escapes were level (6/8 against 7/8 before).
+  Shelved until a human playtest says which feels better; the code is in the session branch history
+  (`610d6d9`).
+- [x] **Drift state** (player only, not bikes): a handbrake flick at >9 m/s with the wheel turned. While it
+  lasts, grip assistance drops to 8%, throttle keeps the rear loose, the wheels follow the slide (so a neutral
+  stick holds the angle), and yaw is held back past 50° so the drift doesn't become a spin. It ends when the car
+  straightens for 0.2 s, drops below 5 m/s, or is braked; grip returns over 0.35 s. The player's handbrake
+  holds the rear at 20% of its grip (AI cars 32%).
+- [x] **Weight transfer**: grip moves up to 20% toward the front under braking and 14% toward the rear under
+  power.
+- [x] **Touch/pad steering** has an expo curve (0.4x + 0.6x³). **Chase camera** looks 60% of the way from the
+  nose toward the direction of travel in a slide.
+- [x] **Style** (`js/style.js`): DRIFT (over 0.8 s and 15°), NEAR MISS / PAINT SWAP (under 1 m / 0.4 m from a
+  moving car at a relative speed over 11 m/s, with no contact), AIR / BIG AIR. The chain multiplier is 1 +
+  0.5 per extra trick, up to ×4, with a 4 s fuse. A crash (5% of the car's health in one frame) loses the chain.
+  While wanted, it pays into the Heat Run pot.
+
+The escape replay's scripted driver had two bugs of its own, exposed by the new physics: pressing S to slow a car
+that was rolling backwards (which reverses harder: it once backed across traffic at 13 m/s), and queueing behind
+a fallen, riderless motorbike as if it were traffic. `test/escape-rehearsal.js` now brakes with the forward
+pedal when rolling backwards, backs out below 3 m/s, and nudges past a fallen bike.
+
+Validation: `test/driving.js` (drift start/hold/exit), `test/getaway.js` (8 style
+checks), `tools/playtest/tests/drift.js` (the real input path in the browser: drift held, chain banked, HUD
+screenshots in `/tmp/grift-check`).

@@ -16,6 +16,9 @@ const settle=(type,hb)=>{const c=spawn(type);c.vz=20;let pk=0;for(let i=0;i<60;i
  c.controls.handbrake=0;c.controls.steer=0;let t=0;for(let i=0;i<300;i++){c.physics(1/60);if(Math.abs(c.lat)>.4||Math.abs(c.yawRate)>.1)t=(i+1)/60;}return {pk,t};};
 for(const type of ['sedan','sports','muscle','pickup']){const r=settle(type,false);assert.ok(r.t<.6&&r.pk<5,type+' grips: slip '+r.pk.toFixed(1)+' deg, settles in '+r.t.toFixed(2)+' s');}
 assert.ok(settle('sports',true).pk>12,'the handbrake still breaks the rear loose');
+{const c=spawn('sports');c.vz=20;for(let i=0;i<27;i++){Object.assign(c.controls,{handbrake:1,steer:1,throttle:.3});c.physics(1/60);}assert.ok(c.drift,'a handbrake flick at speed starts a drift');
+ for(let i=0;i<60;i++){Object.assign(c.controls,{handbrake:0,steer:0,throttle:.8});c.physics(1/60);}assert.ok(c.drift&&Math.abs(c.lat)>2,'throttle and a neutral stick hold a sports car drift');
+ for(let i=0;i<150&&c.drift;i++){Object.assign(c.controls,{throttle:0,steer:0});c.physics(1/60);}assert.ok(!c.drift&&c.lastDrift&&c.lastDrift.t>1,'lifting ends it cleanly');}
 const c=spawn('sedan');c.damage(120,PLAYER,{x:301,y:.3,z:301.4,kind:'bullet'});assert.equal(c.condition.tyres[0],0);assert.equal(c.condition.tyres.filter(t=>t===0).length,1);assert.ok(c.dmg.front<.6);assert.equal(c.condition.engine,1,'tyre hit does not damage engine');
 c.damage(300,PLAYER,{x:300,y:.7,z:302.2,kind:'impact'});assert.ok(c.condition.engine<1&&c.condition.cooling<c.condition.engine);
 c.damage(100,PLAYER,{x:301,y:1.2,z:300,kind:'bullet'});assert.equal(c.condition.glass[2],0);
