@@ -31,6 +31,9 @@ subdirectory with its own README:
 - **[weft/](weft/)** — WEFT, a small arcade game woven like an indigo and
   cream rug: steer a needle, weave the diamonds, keep the thread from running
   out. One HTML file. Open `weft/index.html`.
+- **[bollard-hop/](bollard-hop/)** — Bollard Hop, a one-button game about
+  hopping along a row of rubber ball bollards on a shopping street, with a
+  predicted jump arc. One HTML file. Open `bollard-hop/index.html`.
 - **[scriptprof/](scriptprof/)** — SCRIPTPROF, a lab for generating
   PuzzleScript games: rewrite-rule engine, BFS playtester, MAP-Elites
   archive. Open `scriptprof/index.html`.
