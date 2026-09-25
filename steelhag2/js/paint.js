@@ -90,7 +90,7 @@ const Paint = (() => {
       for (let y = 0; y < TEX; y++) for (let x = 0; x < TEX; x++) { const o = (y * TEX + x) * 4; const sx = Math.abs((x % 128) - 64), sy = Math.abs((y % 128) - 64); const m = Math.max(0, 1 - Math.min(sx, sy) / 4); d[o + 3] = 255 - Math.round(m * 200); }
       g.putImageData(id, 0, 0);
     }, 0.7, 0, 0, 1);
-    put(MAT.DARK, (g, r) => { fill(g, '#2c2e30'); strokes(g, r, 500, '#3a3d40', 8, [4, 16], [1, 3], 0.2, 0, 3); }, 0.6);
+    put(MAT.DARK, (g, r) => { fill(g, '#454d4c'); strokes(g, r, 500, '#58605d', 8, [4, 16], [1, 3], 0.2, 0, 3); }, 0.6);
     put(MAT.GLASS, (g, r) => { fill(g, '#f0c878'); strokes(g, r, 200, '#ffe0a0', 10, [10, 60], [3, 10], 0.25, 0.4, 0.2); }, 0.1, 0, 1.6);
     put(MAT.ROAD, (g, r) => { fill(g, '#3d3f43'); strokes(g, r, 900, '#474a4f', 8, [3, 10], [1, 3], 0.25, 0, 3); dabs(g, r, 300, '#2f3134', 6, [1, 2], 0.4); }, 0.85);
     put(MAT.FOIL, (g, r) => { fill(g, '#c9c9c4'); strokes(g, r, 900, '#f2f2ee', 6, [4, 20], [1, 3], 0.4, 0, 3); strokes(g, r, 500, '#8f8f8b', 6, [4, 20], [1, 3], 0.4, 0, 3); }, 0.15, 1);
@@ -107,7 +107,11 @@ const Paint = (() => {
     put(MAT.SPRUCE, (g, r) => { fill(g, '#2f3d35'); strokes(g, r, 900, '#3c4c42', 10, [4, 14], [1, 3], 0.3, Math.PI / 2, 0.6); strokes(g, r, 400, '#1f2a24', 8, [4, 14], [1, 2], 0.3, Math.PI / 2, 0.6); }, 1);
     // Unlit glazing is separate from the emissive kitchen panes.
     put(MAT.WINDOW, (g,r) => { fill(g,'#354a54'); strokes(g,r,90,'#89979b',8,[80,220],[1,6],0.12,-0.3,0.1); },0.12);
-    put(MAT.CLOTH, (g,r) => { fill(g,'#e5e0d5'); strokes(g,r,500,'#b9b4a8',6,[3,15],[0.6,1.4],0.1,Math.PI/2,0.15); for(let y=0;y<TEX;y+=3){g.fillStyle='rgba(40,35,28,.025)';g.fillRect(0,y,TEX,1);} },1);
+    put(MAT.CLOTH, (g,r) => {
+      fill(g,'#dedbd2');dabs(g,r,320,'#b8b9ad',8,[3,13],.07);
+      for(let y=0;y<TEX;y+=2)for(let x=0;x<TEX;x+=2){g.fillStyle=(x+y)%4?'rgba(40,42,36,.065)':'rgba(255,251,230,.12)';g.fillRect(x,y,1,2);}
+      strokes(g,r,140,'#f4ead7',6,[2,8],[.5,1],.12,Math.PI/2,.2);
+    },1);
     put(MAT.BADGE, (g,r) => { fill(g,'#c6c1ac'); g.fillStyle='#353c38'; g.font='bold 42px monospace';g.fillText('MDK',24,65);g.fillRect(24,80,205,4);g.font='26px monospace';g.fillText('KV — 03',24,123);g.font='13px monospace';g.fillText('MÄLARDALENS KRAFT',24,158);g.fillText('SERVICE  •  1984',24,183);for(let i=0;i<50;i++){g.fillStyle='rgba(70,50,30,.13)';g.fillRect(r()*TEX,r()*TEX,2+r()*12,1+r()*3);} },.8);
     put(MAT.SIGNAL,(g)=>fill(g,'#ffffff'),1);
     put(MAT.WINDOW_TREE,(g)=>fill(g,'#ffffff'),1);

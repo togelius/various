@@ -11,7 +11,15 @@ class Character {
     this.clips={};for(const [name,c] of Object.entries(d.clips))this.clips[name]={duration:c.duration,tracks:c.tracks.map(t=>({...t,t:unpack(t.t),v:unpack(t.v)}))};
     let nv=0;const indices=[];for(const p of this.parts){p.offset=nv;for(const i of p.i)indices.push(i+nv);nv+=p.p.length/3;}
     this.vertices=new Float32Array(nv*13);
-    for(const p of this.parts)for(let i=0;i<p.p.length/3;i++){const k=(p.offset+i)*13;const wear=p.tile==='CLOTH'?.94+.06*Math.sin(p.p[i*3+2]*1800+p.p[i*3]*450):1;this.vertices.set(p.col.map(c=>c*wear),k+6);this.vertices[k+9]=p.p[i*3]*250;this.vertices[k+10]=p.p[i*3+2]*250;this.vertices[k+11]=MAT[p.tile];}
+    for(const p of this.parts)for(let i=0;i<p.p.length/3;i++){
+      const k=(p.offset+i)*13,x=p.p[i*3],h=p.p[i*3+2]*100,coat=p.name==='Casual_Body'&&p.col[0]>.5;
+      const col=coat?[.64,.43,.31]:p.name==='Suit_Legs'?[.38,.42,.43]:p.name==='Suit_Feet'?[.28,.29,.27]:p.col;
+      // Faded shoulders, dirt at the hem and a quiet stitched centre seam.
+      let wear=p.tile==='CLOTH'?.90+.06*Math.sin(h*21+x*620):1;
+      if(coat)wear*=lerp(.82,1.08,smooth(1.02,1.5,h))*(1-.16*Math.exp(-Math.abs(x)*18000));
+      if(p.name==='Suit_Legs')wear*=lerp(.74,1,smooth(.15,.65,h));
+      this.vertices.set(col.map(c=>c*wear),k+6);this.vertices[k+9]=x*250;this.vertices[k+10]=p.p[i*3+2]*250;this.vertices[k+11]=MAT[p.tile];
+    }
     this.mesh=GL.mesh(this.vertices,new Uint32Array(indices),true);
     this.item={mesh:this.mesh,model:M.create(),radius:1.4,x:0,y:1,z:0};
     this.items=[this.item];this.hand=[0,1,0];this.torchWorld=[0,1.7,0,0,0,1];
@@ -36,9 +44,13 @@ class Character {
     const gauge=new Builder();this.gaugeRanges=[];
     for(let i=0;i<3;i++){const first=gauge.count;gauge.tile=MAT.COLD_LIGHT;gauge.col=[.42,.78,.70];gauge.box(-.020,-.139+i*.046,-.400,.04,.025,.012);this.gaugeRanges.push([first,gauge.count]);}
     this.gaugeData=new Float32Array(gauge.v);this.gauge={mesh:GL.mesh(this.gaugeData,new Uint32Array(gauge.i),true),model:this.pack.model,radius:1,noShadow:true,emis:.55};this.items.push(this.gauge);this.condition=-1;
-    const lamp=new Builder();lamp.tile=MAT.CLOTH;lamp.col=[.65,.53,.32];
-    lamp.loft(0,.09,-.015,[[0,.115,.135],[.045,.12,.138],[.11,.112,.13],[.16,.065,.08],[.177,.005,.006]],{segs:24});
-    lamp.col=[.49,.40,.25];lamp.loft(0,.09,-.015,[[0,.12,.14],[.046,.122,.141]],{segs:24});
+    const collar=new Builder();collar.tile=MAT.CLOTH;collar.col=[.43,.45,.41];
+    collar.loft(0,.235,.015,[[0,.125,.112],[.035,.143,.128],[.075,.137,.119],[.102,.105,.09]],{segs:32});
+    collar.col=[.34,.37,.34];collar.tube([[-.09,.27,.08],[-.05,.25,.13],[.06,.26,.12],[.11,.29,.04]],.012,{segs:8});
+    this.collar={mesh:collar.build(),model:M.create(),radius:1};this.items.push(this.collar);
+    const lamp=new Builder();lamp.tile=MAT.CLOTH;lamp.col=[.57,.49,.36];
+    lamp.loft(0,.09,-.015,[[0,.113,.133],[.04,.117,.136],[.085,.112,.132],[.125,.093,.114],[.156,.065,.087],[.176,.032,.049],[.184,.002,.006]],{segs:32});
+    lamp.col=[.47,.42,.33];lamp.loft(0,.09,-.015,[[0,.12,.14],[.046,.122,.141]],{segs:24});
     lamp.tile=MAT.DARK;lamp.col=[.38,.39,.33];lamp.roundedBox(-.05,.115,.125,.10,.058,.05,.013);
     lamp.tile=MAT.GLASS;lamp.col=[.80,.76,.59];lamp.roundedBox(-.027,.13,.171,.054,.027,.009,.006);
     this.lamp={mesh:lamp.build(),model:M.create(),radius:1};this.items.push(this.lamp);
@@ -96,11 +108,11 @@ class Character {
     this.feet=this.footIndices.map(worldPoint);this.hand=worldPoint(this.handIndex);M.trsEuler(this.tool.model,this.hand[0]-Math.sin(yaw)*recoil*.035,this.hand[1]+recoil*.018,this.hand[2]-Math.cos(yaw)*recoil*.035,yaw,pitch-recoil*.14,0);this.tool.x=x;this.tool.y=y+1;this.tool.z=z;this.head=worldPoint(this.headIndex);const c=worldPoint(this.chestIndex);
     // Attach orientation as well as position; the pack and cap follow torso/head motion.
     const attach=(item,index,point,offsetY=0)=>{const n=this.nodes[index].world,a=item.model,cy=Math.cos(yaw),sy=Math.sin(yaw);M.identity(a);for(let col=0;col<3;col++){const k=col*4,len=Math.hypot(n[k],n[k+1],n[k+2])||1;a[k]=(cy*n[k]+sy*n[k+2])/len;a[k+1]=n[k+1]/len;a[k+2]=(-sy*n[k]+cy*n[k+2])/len;}a[12]=point[0]+a[4]*offsetY;a[13]=point[1]+a[5]*offsetY;a[14]=point[2]+a[6]*offsetY;};
-    attach(this.pack,this.chestIndex,c,-.08);attach(this.lamp,this.headIndex,this.head);
+    attach(this.pack,this.chestIndex,c,-.08);attach(this.collar,this.chestIndex,c,-.08);attach(this.lamp,this.headIndex,this.head);
     this.gauge.x=x;this.gauge.y=y+1;this.gauge.z=z;
     const condition=clamp(Math.round(feedback.condition===undefined?3:feedback.condition),0,3);
     if(condition!==this.condition){this.condition=condition;const col=condition===3?[.42,.78,.70]:condition===2?[.96,.61,.25]:[1,.25,.10];for(let i=0;i<3;i++)for(let v=this.gaugeRanges[i][0];v<this.gaugeRanges[i][1];v++){this.gaugeData.set(i<condition?col:[.24,.29,.28],v*13+6);this.gaugeData[v*13+11]=i<condition?MAT.COLD_LIGHT:MAT.DARK;}GL.updateMesh(this.gauge.mesh,this.gaugeData);}
-    for(const item of [this.pack,this.lamp]){item.x=x;item.y=y+1;item.z=z;}
+    for(const item of [this.pack,this.lamp,this.collar]){item.x=x;item.y=y+1;item.z=z;}
     this.lamp.emis=torchOn?1:.02;this.torchWorld=[this.head[0]+Math.sin(yaw)*.16,this.head[1]+.12,this.head[2]+Math.cos(yaw)*.16,Math.sin(yaw),-.12,Math.cos(yaw)];
   }
 }

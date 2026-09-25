@@ -36,5 +36,18 @@ const Combat=(()=>{
   }
   function select(candidates){return candidates.find(t=>t.score<.58)||null;}
   function missEnd(hand,cam,range=8){const f=view(cam).f,point=[cam.x+f[0]*12,cam.y+f[1]*12,cam.z+f[2]*12],d=point.map((v,i)=>v-hand[i]),l=Math.hypot(...d)||1;return hand.map((v,i)=>v+d[i]/l*range);}
-  return {project,indicator,targets,select,missEnd};
+  // Explain the first obstacle to a useful shot; proximity alone is not aim.
+  function guidance(machines,player,cam,aspect,occluded){
+    const live=machines.filter(m=>m.kind==='bearer'&&!m.off&&!m.dark);
+    if(!live.length)return 'no active machine';
+    let near=false,clear=false,visible=false;
+    for(const m of live)for(const j of m.joints()){
+      if(j[0]>=RIG.ARM||j[0]<RIG.LEG&&j[0]!==RIG.BODY||j[0]===RIG.BODY&&m.legsLeft()>2)continue;
+      const p=j.slice(1,4);if(Math.hypot(p[0]-player.x,p[1]-player.y-1.2,p[2]-player.z)>8)continue;
+      near=true;if(occluded(player.x,player.y+1.2,player.z,...p))continue;clear=true;
+      const s=project(p,cam,aspect);if(s&&Math.abs(s.x)<.94&&Math.abs(s.y)<.85)visible=true;
+    }
+    return !near?'move closer · cutter reach 8 m':!clear?'clear the line of fire':!visible?'turn toward the machine':'aim at a copper support';
+  }
+  return {project,indicator,targets,select,missEnd,guidance};
 })();

@@ -22,5 +22,9 @@ assert(behind.behind&&behind.y>.99&&Math.abs(behind.x)<.01,'behind marker must p
 assert(right.x>.99&&left.x<-.99,'side bearings are reversed');
 assert(Combat.indicator([-9,1.2,-2],{...cam,tx:8,tz:-2},16/9).behind,'bearing ignores camera rotation');
 assert(Combat.indicator([0,1.2,-2],cam,1)===null,'coincident threat has invalid bearing');
+assert(Combat.guidance([{...machine,joints:()=>[[5,0,1.2,6]]}],p,{...cam,tz:-8},16/9,()=>false)==='turn toward the machine','nearby offscreen machine mislabeled as out of range');
+assert(Combat.guidance([machine],p,cam,16/9,()=>true)==='clear the line of fire','blocked shot guidance incorrect');
+assert(Combat.guidance([{...machine,joints:()=>[[5,0,1,20]]}],p,cam,1,()=>false).includes('move closer'),'distant shot guidance incorrect');
+assert(Combat.guidance([],p,cam,1,()=>false)==='no active machine','empty area guidance incorrect');
 console.log('Combat: reticle priority, horizontal/vertical aim, range, occlusion, missed-ray pitch exposed core and offscreen threat bearings passed');
 `,c);

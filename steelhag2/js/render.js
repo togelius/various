@@ -90,6 +90,12 @@ const RENDER = (() => {
           albedo = mix(albedo * vec3(0.80, 0.88, 0.92), vec3(0.43, 0.49, 0.51), cover * 0.25);
         }
       }
+      if(tile==${MAT.STEEL}||tile==${MAT.BEIGE}||tile==${MAT.DARK}){
+        // Stable object UVs keep the patina attached to moving machinery.
+        float wear=vnoise(vUV*19.0),chips=smoothstep(.68,.86,vnoise(vUV*147.0))*smoothstep(.46,.72,wear);
+        albedo*=.88+.18*wear;
+        albedo=mix(albedo,vec3(.105,.064,.034),chips*.32);
+      }
       hemi *= 0.65 + 0.35 * smoothstep(-0.5, 0.9, n.y);
       float contactAO = 1.0;
       if (n.y > 0.45) for(int i=0;i<8;i++) {
@@ -101,6 +107,9 @@ const RENDER = (() => {
       vec3 col = albedo * (hemi * contactAO + uSunCol * ndl * sh);
       if(tile==${MAT.FOLIAGE}||tile==${MAT.PINE})col=albedo*(uSkyCol*.9+uGroundCol*.25+uSunCol*.2);
       if(tile==${MAT.WINDOW_TREE})col=albedo*vec3(.21,.27,.33);
+      // Broad cloth sheen, not a plastic specular highlight. It carries the
+      // cold sky onto shoulders and keeps the figure in the same light as the snow.
+      if(tile==${MAT.CLOTH})col+=albedo*uSkyCol*.22*pow(1.0-max(dot(n,v),0.0),2.0);
       float gloss = 1.0 - m.x;
       // a little sky reflection on smooth things (ice, glass, foil)
       col += hemi * gloss * 0.35 * pow(1.0 - max(dot(n, v), 0.0), 3.0);

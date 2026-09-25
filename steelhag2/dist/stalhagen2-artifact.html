@@ -1341,7 +1341,7 @@ const Paint = (() => {
       for (let y = 0; y < TEX; y++) for (let x = 0; x < TEX; x++) { const o = (y * TEX + x) * 4; const sx = Math.abs((x % 128) - 64), sy = Math.abs((y % 128) - 64); const m = Math.max(0, 1 - Math.min(sx, sy) / 4); d[o + 3] = 255 - Math.round(m * 200); }
       g.putImageData(id, 0, 0);
     }, 0.7, 0, 0, 1);
-    put(MAT.DARK, (g, r) => { fill(g, '#2c2e30'); strokes(g, r, 500, '#3a3d40', 8, [4, 16], [1, 3], 0.2, 0, 3); }, 0.6);
+    put(MAT.DARK, (g, r) => { fill(g, '#454d4c'); strokes(g, r, 500, '#58605d', 8, [4, 16], [1, 3], 0.2, 0, 3); }, 0.6);
     put(MAT.GLASS, (g, r) => { fill(g, '#f0c878'); strokes(g, r, 200, '#ffe0a0', 10, [10, 60], [3, 10], 0.25, 0.4, 0.2); }, 0.1, 0, 1.6);
     put(MAT.ROAD, (g, r) => { fill(g, '#3d3f43'); strokes(g, r, 900, '#474a4f', 8, [3, 10], [1, 3], 0.25, 0, 3); dabs(g, r, 300, '#2f3134', 6, [1, 2], 0.4); }, 0.85);
     put(MAT.FOIL, (g, r) => { fill(g, '#c9c9c4'); strokes(g, r, 900, '#f2f2ee', 6, [4, 20], [1, 3], 0.4, 0, 3); strokes(g, r, 500, '#8f8f8b', 6, [4, 20], [1, 3], 0.4, 0, 3); }, 0.15, 1);
@@ -1358,7 +1358,11 @@ const Paint = (() => {
     put(MAT.SPRUCE, (g, r) => { fill(g, '#2f3d35'); strokes(g, r, 900, '#3c4c42', 10, [4, 14], [1, 3], 0.3, Math.PI / 2, 0.6); strokes(g, r, 400, '#1f2a24', 8, [4, 14], [1, 2], 0.3, Math.PI / 2, 0.6); }, 1);
     // Unlit glazing is separate from the emissive kitchen panes.
     put(MAT.WINDOW, (g,r) => { fill(g,'#354a54'); strokes(g,r,90,'#89979b',8,[80,220],[1,6],0.12,-0.3,0.1); },0.12);
-    put(MAT.CLOTH, (g,r) => { fill(g,'#e5e0d5'); strokes(g,r,500,'#b9b4a8',6,[3,15],[0.6,1.4],0.1,Math.PI/2,0.15); for(let y=0;y<TEX;y+=3){g.fillStyle='rgba(40,35,28,.025)';g.fillRect(0,y,TEX,1);} },1);
+    put(MAT.CLOTH, (g,r) => {
+      fill(g,'#dedbd2');dabs(g,r,320,'#b8b9ad',8,[3,13],.07);
+      for(let y=0;y<TEX;y+=2)for(let x=0;x<TEX;x+=2){g.fillStyle=(x+y)%4?'rgba(40,42,36,.065)':'rgba(255,251,230,.12)';g.fillRect(x,y,1,2);}
+      strokes(g,r,140,'#f4ead7',6,[2,8],[.5,1],.12,Math.PI/2,.2);
+    },1);
     put(MAT.BADGE, (g,r) => { fill(g,'#c6c1ac'); g.fillStyle='#353c38'; g.font='bold 42px monospace';g.fillText('MDK',24,65);g.fillRect(24,80,205,4);g.font='26px monospace';g.fillText('KV — 03',24,123);g.font='13px monospace';g.fillText('MÄLARDALENS KRAFT',24,158);g.fillText('SERVICE  •  1984',24,183);for(let i=0;i<50;i++){g.fillStyle='rgba(70,50,30,.13)';g.fillRect(r()*TEX,r()*TEX,2+r()*12,1+r()*3);} },.8);
     put(MAT.SIGNAL,(g)=>fill(g,'#ffffff'),1);
     put(MAT.WINDOW_TREE,(g)=>fill(g,'#ffffff'),1);
@@ -1502,6 +1506,12 @@ const RENDER = (() => {
           albedo = mix(albedo * vec3(0.80, 0.88, 0.92), vec3(0.43, 0.49, 0.51), cover * 0.25);
         }
       }
+      if(tile==${MAT.STEEL}||tile==${MAT.BEIGE}||tile==${MAT.DARK}){
+        // Stable object UVs keep the patina attached to moving machinery.
+        float wear=vnoise(vUV*19.0),chips=smoothstep(.68,.86,vnoise(vUV*147.0))*smoothstep(.46,.72,wear);
+        albedo*=.88+.18*wear;
+        albedo=mix(albedo,vec3(.105,.064,.034),chips*.32);
+      }
       hemi *= 0.65 + 0.35 * smoothstep(-0.5, 0.9, n.y);
       float contactAO = 1.0;
       if (n.y > 0.45) for(int i=0;i<8;i++) {
@@ -1513,6 +1523,9 @@ const RENDER = (() => {
       vec3 col = albedo * (hemi * contactAO + uSunCol * ndl * sh);
       if(tile==${MAT.FOLIAGE}||tile==${MAT.PINE})col=albedo*(uSkyCol*.9+uGroundCol*.25+uSunCol*.2);
       if(tile==${MAT.WINDOW_TREE})col=albedo*vec3(.21,.27,.33);
+      // Broad cloth sheen, not a plastic specular highlight. It carries the
+      // cold sky onto shoulders and keeps the figure in the same light as the snow.
+      if(tile==${MAT.CLOTH})col+=albedo*uSkyCol*.22*pow(1.0-max(dot(n,v),0.0),2.0);
       float gloss = 1.0 - m.x;
       // a little sky reflection on smooth things (ice, glass, foil)
       col += hemi * gloss * 0.35 * pow(1.0 - max(dot(n, v), 0.0), 3.0);
@@ -2673,8 +2686,8 @@ function buildMachineMesh(s, o = {}) {
   // Pressed-steel housing with a dark chassis, service cover and restrained markings.
   b.bone=RIG.BODY;b.tile=MAT.DARK;b.col=[.8,.84,.8];
   b.roundedBox(-.48*s,-.24*s,-.38*s,.96*s,.18*s,.80*s,.06*s);
-  b.tile=MAT.BEIGE;b.col=o.aggressive?[.48,.53,.49]:[.80,.83,.78];b.roundedBox(-.51*s,-.13*s,-.38*s,1.02*s,.43*s,.80*s,.085*s,{uv:.55/s});
-  b.col=o.aggressive?[.39,.44,.42]:[.68,.72,.68];b.roundedBox(-.42*s,.265*s,-.30*s,.84*s,.055*s,.59*s,.025*s);
+  b.tile=MAT.BEIGE;b.col=o.aggressive?[.66,.71,.67]:[.80,.83,.78];b.roundedBox(-.51*s,-.13*s,-.38*s,1.02*s,.43*s,.80*s,.085*s,{uv:.55/s});
+  b.col=o.aggressive?[.57,.63,.59]:[.68,.72,.68];b.roundedBox(-.42*s,.265*s,-.30*s,.84*s,.055*s,.59*s,.025*s);
   b.tile=MAT.FLAT;b.col=[.57,.29,.12];b.roundedBox(-.515*s,-.015*s,-.385*s,1.03*s,.045*s,.81*s,.025*s);
   b.tile=MAT.DARK;b.col=[.66,.7,.67];
   for(const side of [-1,1]) {
@@ -2686,9 +2699,9 @@ function buildMachineMesh(s, o = {}) {
   b.tile=MAT.BADGE;b.col=c;
   {const a=b.vert(-.19*s,.025*s,-.389*s,0,0,-1,1,1),d=b.vert(.19*s,.025*s,-.389*s,0,0,-1,0,1),e=b.vert(.19*s,.23*s,-.389*s,0,0,-1,0,0),f=b.vert(-.19*s,.23*s,-.389*s,0,0,-1,1,0);b.quad(a,f,e,d);}
   b.bone=RIG.HEAD;b.tile=MAT.DARK;b.col=[.72,.74,.7];b.cyl(0,-.14*s,0,.095*s,.19*s,{segs:12});
-  b.tile=MAT.BEIGE;b.col=[.86,.87,.80];b.roundedBox(-.18*s,-.035*s,-.13*s,.36*s,.27*s,.32*s,.055*s);
-  b.tile=MAT.DARK;b.col=[.75,.78,.76];b.roundedBox(-.145*s,.025*s,.177*s,.29*s,.14*s,.035*s,.026*s);
-  b.tile=MAT.WINDOW;b.col=[.4,.50,.49];b.roundedBox(-.115*s,.048*s,.210*s,.15*s,.09*s,.014*s,.014*s);
+  b.tile=MAT.BEIGE;b.col=[.78,.81,.76];b.roundedBox(-.18*s,-.035*s,-.13*s,.36*s,.27*s,.32*s,.075*s);
+  b.tile=MAT.DARK;b.col=[.95,1,.97];b.roundedBox(-.145*s,.025*s,.177*s,.29*s,.14*s,.035*s,.04*s);
+  if(!o.aggressive){b.tile=MAT.WINDOW;b.col=[.4,.50,.49];b.roundedBox(-.115*s,.048*s,.210*s,.15*s,.09*s,.014*s,.014*s);}
   b.bone=RIG.LED;b.tile=MAT.LED;b.col=[.75,.55,.35];b.sphere(.087*s,.09*s,.218*s,.018*s,{segs:10,rings:8});
   b.bone=RIG.ANT;b.tile=MAT.DARK;b.col=c;b.cyl(0,0,0,.025*s,.09*s,{segs:8});b.tube([[0,.07*s,0],[.01*s,.26*s,0],[.03*s,.52*s,-.02*s]],.008*s,{segs:5});
   b.bone=RIG.LAMP;b.tile=MAT.DARK;b.col=c;b.roundedBox(-.07*s,-.065*s,-.05*s,.14*s,.13*s,.10*s,.023*s);
@@ -2709,20 +2722,23 @@ function buildMachineMesh(s, o = {}) {
   if (o.cradle) { b.bone = RIG.CRADLE; b.tile = MAT.STEEL; b.col = c; for (const z of [-0.28, 0, 0.28]) { const pts = []; for (let i = 0; i <= 8; i++) { const t = i / 8; pts.push([(-0.5 + t) * s, (0.28 + Math.sin(t * Math.PI) * 0.32) * s, z * s]); } b.tube(pts, 0.02 * s, { segs: 5 }); } for (const x of [-0.45, 0.45]) b.tube([[x * s, 0.28 * s, -0.3 * s], [x * s, 0.28 * s, 0.3 * s]], 0.02 * s, { segs: 5 }); }
   if(o.aggressive){
     // Road maintenance machinery refitted for a purpose the warning plate never named.
-    b.bone=RIG.BODY;b.tile=MAT.STEEL;b.col=[.35,.39,.37];
+    b.bone=RIG.BODY;b.tile=MAT.STEEL;b.col=[.83,.88,.85];
     for(const side of [-1,1]){
       b.roundedBox(side*.61*s-.08*s,-.11*s,-.39*s,.16*s,.46*s,.87*s,.028*s);
       b.tube([[side*.57*s,.32*s,-.24*s],[side*.57*s,.66*s,-.11*s],[side*.57*s,.66*s,.35*s],[side*.57*s,.12*s,.48*s]],.034*s,{segs:9});
       b.tile=MAT.BEIGE;b.col=[.89,.53,.15];b.roundedBox(side*.613*s-.014*s,.05*s,-.38*s,.028*s,.08*s,.68*s,.008*s);
       b.tile=MAT.DARK;b.col=[.72,.74,.70];for(let z=-.33;z<.29;z+=.10)b.box(side*.63*s-.016*s,.05*s,z*s,.032*s,.085*s,.032*s);
-      b.tile=MAT.STEEL;b.col=[.35,.39,.37];
+      b.tile=MAT.STEEL;b.col=[.83,.88,.85];
     }
-    // A black, shielded sensor mast and slotted amber warning lamp.
-    b.bone=RIG.HEAD;b.tile=MAT.DARK;b.col=[.57,.60,.57];b.roundedBox(-.27*s,.20*s,-.19*s,.54*s,.33*s,.40*s,.025*s);
-    b.tile=MAT.GLASS;b.col=[1,.49,.16];b.roundedBox(-.205*s,.30*s,.219*s,.41*s,.07*s,.016*s,.009*s);
-    b.tile=MAT.STEEL;b.col=[.43,.46,.42];for(const x of [-.14,-.045,.05,.145])b.box(x*s,.285*s,.239*s,.02*s,.105*s,.025*s);
-    b.roundedBox(-.30*s,.52*s,-.23*s,.60*s,.07*s,.50*s,.014*s);
-    b.bone=RIG.BODY;b.tile=MAT.DARK;b.col=[.40,.43,.40];b.roundedBox(-.38*s,-.20*s,.42*s,.76*s,.18*s,.15*s,.018*s);
+    // Low optical hood: a single narrow aperture rather than a cartoon face.
+    b.bone=RIG.HEAD;b.tile=MAT.BEIGE;b.col=[.79,.83,.78];b.roundedBox(-.31*s,.13*s,-.22*s,.62*s,.24*s,.46*s,.065*s);
+    b.tile=MAT.DARK;b.col=[.92,.97,.94];b.roundedBox(-.27*s,.16*s,.229*s,.54*s,.145*s,.025*s,.032*s);
+    b.tile=MAT.GLASS;b.col=[.94,.51,.22];b.roundedBox(-.20*s,.215*s,.256*s,.31*s,.029*s,.012*s,.008*s);
+    b.tile=MAT.STEEL;b.col=[.87,.89,.83];b.roundedBox(-.34*s,.352*s,-.245*s,.68*s,.055*s,.54*s,.02*s);
+    // Recessed bolts, cable glands and side cooling ribs catch the overcast light.
+    for(const side of [-1,1])for(let i=0;i<5;i++)b.roundedBox(side*.312*s-.012*s,.15*s,(-.15+i*.055)*s,.024*s,.13*s,.016*s,.006*s);
+    b.tile=MAT.DARK;b.col=[1,1,1];b.tube([[.23*s,.16*s,-.20*s],[.28*s,-.03*s,-.30*s],[.15*s,-.16*s,-.28*s]],.023*s,{segs:9});
+    b.bone=RIG.BODY;b.tile=MAT.STEEL;b.col=[.66,.70,.65];b.roundedBox(-.38*s,-.20*s,.42*s,.76*s,.18*s,.15*s,.018*s);
     b.tile=MAT.STEEL;b.col=[.65,.67,.61];for(const x of [-.32,-.16,0,.16,.32])b.box(x*s,-.36*s,.49*s,.045*s,.23*s,.08*s);
     // Copper isolation collars make the actual severable pivots readable in snow.
     for(let l=0;l<4;l++)for(const lower of [0,1]){b.bone=RIG.LEG+l*2+lower;b.tile=MAT.BEIGE;b.col=[.92,.53,.13];b.cyl(0,0,0,.085*s,.085*s,{segs:14});b.tile=MAT.STEEL;b.col=[.38,.42,.39];b.cyl(0,.033*s,0,.089*s,.017*s,{segs:14});}
@@ -2738,6 +2754,7 @@ class Machine {
     this.aggressive = !!opts.aggressive; this.attackT=0; this.stagger=0; this.attackDir=[0,1]; this.attackOrigin=[x,z];
     this.kind = kind; // 'scout' | 'bearer'
     const s = this.s = (kind === 'bearer' ? 1 : .42)*(opts.scale||1);
+    this.contactRadius=.85*s+.5;
     this.upper = (this.aggressive?.70:.58) * s; this.lower = (this.aggressive?.68:.62) * s; this.armLen = 0.36 * s;
     this.mesh = opts.mesh || buildMachineMesh(s, { upper: this.upper, lower: this.lower, armLen: this.armLen, aggressive:this.aggressive, arms: kind === 'bearer', cradle: kind === 'bearer' });
     this.x = x; this.z = z; this.y = World.groundY(x, z); this.yaw = yaw; this.vx = 0; this.vz = 0; this.speed = 0;
@@ -2846,7 +2863,7 @@ class Machine {
       B.set(B.subarray(0, 16), RIG.CRADLE * 16);
     }
     // charge and hidden flags
-    for (let i = 0; i < RIG.N; i++) { const o = i * 4; this.fx[o] = this.dark ? 0 : this.charge * (i === RIG.BODY || i === RIG.HEAD || i === RIG.CRADLE ? 0.20 : 0); this.fx[o + 1] = this.cut.has(i) ? 1 : 0; }
+    for (let i = 0; i < RIG.N; i++) { const o = i * 4; this.fx[o] = this.dark ? 0 : this.charge * (i === RIG.BODY || i === RIG.HEAD || i === RIG.CRADLE ? (this.aggressive?.035:.065) : 0); this.fx[o + 1] = this.cut.has(i) ? 1 : 0; }
     if (!this.led) this.fx[RIG.LED * 4 + 1] = 1;
     if (this.kind !== 'bearer') { this.fx[RIG.LAMP * 4 + 1] = 1; for (let i = RIG.ARM; i < RIG.N; i++) this.fx[i * 4 + 1] = 1; }
     else if (!this.lamp) this.fx[RIG.LAMP * 4 + 1] = 1;
@@ -2905,16 +2922,19 @@ class Machine {
       const ox=this.x,oz=this.z;this.move(dt,this.attackDir[0],this.attackDir[1],5.8);
       // Sweep the actual step against the player's contact circle. Stop at impact,
       // including at low frame rates, rather than driving through the character.
-      const sx=this.x-ox,sz=this.z-oz,a=sx*sx+sz*sz,b=-(dx*sx+dz*sz),c=d*d-1.25*1.25,disc=b*b-a*c;
+      const sx=this.x-ox,sz=this.z-oz,a=sx*sx+sz*sz,b=-(dx*sx+dz*sz),c=d*d-this.contactRadius*this.contactRadius,disc=b*b-a*c;
       const contact=c<=0?0:a>0&&disc>=0?(-b-Math.sqrt(disc))/a:Infinity;
       const hit=contact>=0&&contact<=1;
       if(hit){this.x=ox+sx*contact;this.z=oz+sz*contact;this.y=World.groundY(this.x,this.z);if(!this.hitThisLunge){this.hitThisLunge=true;if(ctx.onHit)ctx.onHit(this);}}
       if(hit||this.attackT>.65){this.speed=0;this.state='recover';this.attackT=0;this.say('crack',.55);if(ctx.onImpact)ctx.onImpact(this);}
     }else if(this.state==='recover'){
-      this.speed=0;this.armsOpen=0;if(this.attackT>1.4){this.state='approach';this.attackT=0;}
+      this.speed=0;this.armsOpen=0;
+      // Recoil creates a readable cutting window without pushing the player.
+      if(this.attackT>.3&&this.attackT<1.1&&d<4.2)this.move(dt,-dir[0],-dir[1],1.25);
+      if(this.attackT>1.65){this.state='approach';this.attackT=0;}
     }else{
       this.state='approach';this.armsOpen=.12;
-      if(d<4.8){this.state='windup';this.attackT=0;this.attackDir=dir;this.attackOrigin=[this.x,this.z];this.hitThisLunge=false;this.say('charge');}
+      if(d<5.2){this.state='windup';this.attackT=0;this.attackDir=dir;this.attackOrigin=[this.x,this.z];this.hitThisLunge=false;this.say('charge');}
       else this.move(dt,dir[0],dir[1],1.7);
     }
     this.pose();
@@ -3016,7 +3036,15 @@ class Character {
     this.clips={};for(const [name,c] of Object.entries(d.clips))this.clips[name]={duration:c.duration,tracks:c.tracks.map(t=>({...t,t:unpack(t.t),v:unpack(t.v)}))};
     let nv=0;const indices=[];for(const p of this.parts){p.offset=nv;for(const i of p.i)indices.push(i+nv);nv+=p.p.length/3;}
     this.vertices=new Float32Array(nv*13);
-    for(const p of this.parts)for(let i=0;i<p.p.length/3;i++){const k=(p.offset+i)*13;const wear=p.tile==='CLOTH'?.94+.06*Math.sin(p.p[i*3+2]*1800+p.p[i*3]*450):1;this.vertices.set(p.col.map(c=>c*wear),k+6);this.vertices[k+9]=p.p[i*3]*250;this.vertices[k+10]=p.p[i*3+2]*250;this.vertices[k+11]=MAT[p.tile];}
+    for(const p of this.parts)for(let i=0;i<p.p.length/3;i++){
+      const k=(p.offset+i)*13,x=p.p[i*3],h=p.p[i*3+2]*100,coat=p.name==='Casual_Body'&&p.col[0]>.5;
+      const col=coat?[.64,.43,.31]:p.name==='Suit_Legs'?[.38,.42,.43]:p.name==='Suit_Feet'?[.28,.29,.27]:p.col;
+      // Faded shoulders, dirt at the hem and a quiet stitched centre seam.
+      let wear=p.tile==='CLOTH'?.90+.06*Math.sin(h*21+x*620):1;
+      if(coat)wear*=lerp(.82,1.08,smooth(1.02,1.5,h))*(1-.16*Math.exp(-Math.abs(x)*18000));
+      if(p.name==='Suit_Legs')wear*=lerp(.74,1,smooth(.15,.65,h));
+      this.vertices.set(col.map(c=>c*wear),k+6);this.vertices[k+9]=x*250;this.vertices[k+10]=p.p[i*3+2]*250;this.vertices[k+11]=MAT[p.tile];
+    }
     this.mesh=GL.mesh(this.vertices,new Uint32Array(indices),true);
     this.item={mesh:this.mesh,model:M.create(),radius:1.4,x:0,y:1,z:0};
     this.items=[this.item];this.hand=[0,1,0];this.torchWorld=[0,1.7,0,0,0,1];
@@ -3041,9 +3069,13 @@ class Character {
     const gauge=new Builder();this.gaugeRanges=[];
     for(let i=0;i<3;i++){const first=gauge.count;gauge.tile=MAT.COLD_LIGHT;gauge.col=[.42,.78,.70];gauge.box(-.020,-.139+i*.046,-.400,.04,.025,.012);this.gaugeRanges.push([first,gauge.count]);}
     this.gaugeData=new Float32Array(gauge.v);this.gauge={mesh:GL.mesh(this.gaugeData,new Uint32Array(gauge.i),true),model:this.pack.model,radius:1,noShadow:true,emis:.55};this.items.push(this.gauge);this.condition=-1;
-    const lamp=new Builder();lamp.tile=MAT.CLOTH;lamp.col=[.65,.53,.32];
-    lamp.loft(0,.09,-.015,[[0,.115,.135],[.045,.12,.138],[.11,.112,.13],[.16,.065,.08],[.177,.005,.006]],{segs:24});
-    lamp.col=[.49,.40,.25];lamp.loft(0,.09,-.015,[[0,.12,.14],[.046,.122,.141]],{segs:24});
+    const collar=new Builder();collar.tile=MAT.CLOTH;collar.col=[.43,.45,.41];
+    collar.loft(0,.235,.015,[[0,.125,.112],[.035,.143,.128],[.075,.137,.119],[.102,.105,.09]],{segs:32});
+    collar.col=[.34,.37,.34];collar.tube([[-.09,.27,.08],[-.05,.25,.13],[.06,.26,.12],[.11,.29,.04]],.012,{segs:8});
+    this.collar={mesh:collar.build(),model:M.create(),radius:1};this.items.push(this.collar);
+    const lamp=new Builder();lamp.tile=MAT.CLOTH;lamp.col=[.57,.49,.36];
+    lamp.loft(0,.09,-.015,[[0,.113,.133],[.04,.117,.136],[.085,.112,.132],[.125,.093,.114],[.156,.065,.087],[.176,.032,.049],[.184,.002,.006]],{segs:32});
+    lamp.col=[.47,.42,.33];lamp.loft(0,.09,-.015,[[0,.12,.14],[.046,.122,.141]],{segs:24});
     lamp.tile=MAT.DARK;lamp.col=[.38,.39,.33];lamp.roundedBox(-.05,.115,.125,.10,.058,.05,.013);
     lamp.tile=MAT.GLASS;lamp.col=[.80,.76,.59];lamp.roundedBox(-.027,.13,.171,.054,.027,.009,.006);
     this.lamp={mesh:lamp.build(),model:M.create(),radius:1};this.items.push(this.lamp);
@@ -3101,11 +3133,11 @@ class Character {
     this.feet=this.footIndices.map(worldPoint);this.hand=worldPoint(this.handIndex);M.trsEuler(this.tool.model,this.hand[0]-Math.sin(yaw)*recoil*.035,this.hand[1]+recoil*.018,this.hand[2]-Math.cos(yaw)*recoil*.035,yaw,pitch-recoil*.14,0);this.tool.x=x;this.tool.y=y+1;this.tool.z=z;this.head=worldPoint(this.headIndex);const c=worldPoint(this.chestIndex);
     // Attach orientation as well as position; the pack and cap follow torso/head motion.
     const attach=(item,index,point,offsetY=0)=>{const n=this.nodes[index].world,a=item.model,cy=Math.cos(yaw),sy=Math.sin(yaw);M.identity(a);for(let col=0;col<3;col++){const k=col*4,len=Math.hypot(n[k],n[k+1],n[k+2])||1;a[k]=(cy*n[k]+sy*n[k+2])/len;a[k+1]=n[k+1]/len;a[k+2]=(-sy*n[k]+cy*n[k+2])/len;}a[12]=point[0]+a[4]*offsetY;a[13]=point[1]+a[5]*offsetY;a[14]=point[2]+a[6]*offsetY;};
-    attach(this.pack,this.chestIndex,c,-.08);attach(this.lamp,this.headIndex,this.head);
+    attach(this.pack,this.chestIndex,c,-.08);attach(this.collar,this.chestIndex,c,-.08);attach(this.lamp,this.headIndex,this.head);
     this.gauge.x=x;this.gauge.y=y+1;this.gauge.z=z;
     const condition=clamp(Math.round(feedback.condition===undefined?3:feedback.condition),0,3);
     if(condition!==this.condition){this.condition=condition;const col=condition===3?[.42,.78,.70]:condition===2?[.96,.61,.25]:[1,.25,.10];for(let i=0;i<3;i++)for(let v=this.gaugeRanges[i][0];v<this.gaugeRanges[i][1];v++){this.gaugeData.set(i<condition?col:[.24,.29,.28],v*13+6);this.gaugeData[v*13+11]=i<condition?MAT.COLD_LIGHT:MAT.DARK;}GL.updateMesh(this.gauge.mesh,this.gaugeData);}
-    for(const item of [this.pack,this.lamp]){item.x=x;item.y=y+1;item.z=z;}
+    for(const item of [this.pack,this.lamp,this.collar]){item.x=x;item.y=y+1;item.z=z;}
     this.lamp.emis=torchOn?1:.02;this.torchWorld=[this.head[0]+Math.sin(yaw)*.16,this.head[1]+.12,this.head[2]+Math.cos(yaw)*.16,Math.sin(yaw),-.12,Math.cos(yaw)];
   }
 }
@@ -3137,7 +3169,7 @@ const Player = (() => {
     if (control) { const f = input.my, r = input.mx; const c = Math.cos(P.camYaw), s = Math.sin(P.camYaw); mx = s * f - c * r; mz = c * f + s * r; }
     const mag = Math.min(1, Math.hypot(mx, mz)); if (mag > 0.001) { mx /= Math.hypot(mx, mz); mz /= Math.hypot(mx, mz); }
     P.hurry = control && input.hurry && mag > 0.3;
-    const target = mag * (P.hurry ? 5.6 : P.viewfinder ? 1.5 : input.cutHeld ? 2.0 : 3.1);
+    const target = mag * (P.hurry ? 5.6 : P.viewfinder ? 1.5 : input.cutHeld ? 2.8 : 3.1);
     const acc = P.onIce ? 12 : 20;
     P.vx = M.approach(P.vx, mx * target, acc * dt); P.vz = M.approach(P.vz, mz * target, acc * dt);
     P.speed = Math.hypot(P.vx, P.vz);
@@ -3145,6 +3177,15 @@ const Player = (() => {
     if (P.viewfinder || input.cutHeld) P.yaw = P.yaw + M.angleTo(P.yaw, P.camYaw) * (1 - Math.pow(0.001, dt));
     const nx = P.x + P.vx * dt, nz = P.z + P.vz * dt;
     const pos = { x: nx, z: nz }; World.pushOut(pos, RADIUS, P.y);
+    // Slide around the roadkeeper's body instead of walking inside its chassis.
+    for(const body of ctx.bodies||[]){
+      const dx=pos.x-body.x,dz=pos.z-body.z,d=Math.hypot(dx,dz),r=body.radius;
+      if(d<r){const oldX=P.x-body.x,oldZ=P.z-body.z,oldD=Math.hypot(oldX,oldZ);
+        const nx=d>.001?dx/d:oldD>.001?oldX/oldD:-Math.sin(P.camYaw),nz=d>.001?dz/d:oldD>.001?oldZ/oldD:-Math.cos(P.camYaw);
+        pos.x=body.x+nx*r;pos.z=body.z+nz*r;World.pushOut(pos,RADIUS,P.y);
+        const inward=P.vx*nx+P.vz*nz;if(inward<0){P.vx-=inward*nx;P.vz-=inward*nz;}
+      }
+    }
     P.x = pos.x; P.z = pos.z; P.y = World.groundY(P.x, P.z);
     P.onIce = World.onIce(P.x, P.z);
     P.surface = ctx.indoors?'wood':P.onIce ? 'ice' : 'snow';
@@ -3202,7 +3243,8 @@ const Player = (() => {
       if(Math.abs(inputLook.dx)+Math.abs(inputLook.dy)>0.5) P.stillT=0;
       const paint = ctx.indoors || ctx.threat || P.cutterUp ? 0 : smooth(6, 12, P.stillT) * (P.hold > 0 ? 0 : 1);
       P.calmCam = lerp(P.calmCam, paint, 1 - Math.pow(0.3, dt));
-      const dist = lerp(P.cutterUp ? 2.1 : ctx.indoors?2.5:3.5, 4.8, P.calmCam), height = lerp(1.7, 1.95, P.calmCam), side = lerp(-0.6, -0.2, P.calmCam);
+      const pressure=ctx.threat?1-smooth(3,9,ctx.threatDistance===undefined?9:ctx.threatDistance):0;
+      const dist = lerp(P.cutterUp ? lerp(2.5,3.6,pressure) : ctx.indoors?2.5:lerp(3.5,3.9,pressure), 4.8, P.calmCam), height = lerp(1.78, 1.95, P.calmCam), side = lerp(-0.65, -0.2, P.calmCam);
       const pitch = P.camPitch, cy = Math.cos(P.camYaw), sy = Math.sin(P.camYaw);
       tx = P.x - sy * dist * Math.cos(pitch) + cy * side; tz = P.z - cy * dist * Math.cos(pitch) - sy * side; ty = P.y + height + Math.sin(pitch) * dist;
       // keep the camera out of things and above the ground
@@ -3216,7 +3258,7 @@ const Player = (() => {
       if(clear<1){const safe=Math.max(0,clear-.025);camX=lerp(P.x,camX,safe);camY=lerp(P.y+1.45,camY,safe);camZ=lerp(P.z,camZ,safe);}
       lx = P.x + cy * side * 0.6; ly = P.y + lerp(1.3, 1.45, P.calmCam) + Math.sin(pitch) * 0.4; lz = P.z - sy * side * 0.6;
       const fx = Math.sin(P.camYaw), fz = Math.cos(P.camYaw); const ahead=lerp(3.2,6.0,P.calmCam);lx += fx * ahead; lz += fz * ahead;
-      fov = lerp(55, 48, P.calmCam);
+      fov = lerp(55+pressure*8, 48, P.calmCam);
     }
     cam.x = camX; cam.y = camY; cam.z = camZ; cam.tx = lx; cam.ty = ly; cam.tz = lz; cam.fov = fov * Math.PI / 180;
   }
@@ -3499,7 +3541,20 @@ const Combat=(()=>{
   }
   function select(candidates){return candidates.find(t=>t.score<.58)||null;}
   function missEnd(hand,cam,range=8){const f=view(cam).f,point=[cam.x+f[0]*12,cam.y+f[1]*12,cam.z+f[2]*12],d=point.map((v,i)=>v-hand[i]),l=Math.hypot(...d)||1;return hand.map((v,i)=>v+d[i]/l*range);}
-  return {project,indicator,targets,select,missEnd};
+  // Explain the first obstacle to a useful shot; proximity alone is not aim.
+  function guidance(machines,player,cam,aspect,occluded){
+    const live=machines.filter(m=>m.kind==='bearer'&&!m.off&&!m.dark);
+    if(!live.length)return 'no active machine';
+    let near=false,clear=false,visible=false;
+    for(const m of live)for(const j of m.joints()){
+      if(j[0]>=RIG.ARM||j[0]<RIG.LEG&&j[0]!==RIG.BODY||j[0]===RIG.BODY&&m.legsLeft()>2)continue;
+      const p=j.slice(1,4);if(Math.hypot(p[0]-player.x,p[1]-player.y-1.2,p[2]-player.z)>8)continue;
+      near=true;if(occluded(player.x,player.y+1.2,player.z,...p))continue;clear=true;
+      const s=project(p,cam,aspect);if(s&&Math.abs(s.x)<.94&&Math.abs(s.y)<.85)visible=true;
+    }
+    return !near?'move closer · cutter reach 8 m':!clear?'clear the line of fire':!visible?'turn toward the machine':'aim at a copper support';
+  }
+  return {project,indicator,targets,select,missEnd,guidance};
 })();
 </script>
   <script data-src="darkroom.js">
@@ -3546,7 +3601,7 @@ const Game = (() => {
   const FIXED = { ArrowUp: 'forward', ArrowDown: 'back', ArrowLeft: 'left', ArrowRight: 'right', ShiftLeft: 'hurry', ShiftRight: 'hurry', Enter: 'use', Escape: 'pause', KeyP: 'pause', KeyM: 'mute', Tab: 'album' };
   const NAV = { ArrowLeft:'prev',ArrowRight:'next', ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', Enter: 'ok', Space: 'ok', KeyE: 'ok', Escape: 'back', Backspace: 'back' };
   const actionFor = code => { const k = Store.settings.keys; for (const a in k) if (k[a] === code) return a; return FIXED[code]; };
-  let rebinding = null, tap = null, lookDX = 0, lookDY = 0, locked = false;
+  let rebinding = null, tap = null, lookDX = 0, lookDY = 0, locked = false, touchAim=false;
   addEventListener('keydown', e => {
     Sound.init();
     if (rebinding) { e.preventDefault(); if (e.code !== 'Escape') Store.bind(rebinding, e.code); rebinding = null; return; }
@@ -3581,9 +3636,16 @@ const Game = (() => {
     lookArea.addEventListener('pointerup', lend); lookArea.addEventListener('pointercancel', lend);
     for (const b of document.querySelectorAll('#touch button')) {
       const a = b.dataset.act;
-      const on = e => { e.preventDefault(); if (!keys[a]) pressed[a] = true; keys[a] = true; pressed.any = true; Sound.init(); b.classList.add('on'); };
-      const off = e => { e.preventDefault(); keys[a] = false; b.classList.remove('on'); };
-      b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
+      let fireX=0,fireY=0,fireId=null;
+      const on = e => { e.preventDefault();pressed.any=true;Sound.init();
+        if(a==='cut'){touchAim=!touchAim;if(touchAim)P.viewfinder=false;return;}
+        if(a==='camera'||a==='pause'||a==='album')touchAim=false;
+        if (!keys[a]) pressed[a] = true; keys[a] = true;b.classList.add('on');
+        if(a==='use'&&touchAim){fireId=e.pointerId;fireX=e.clientX;fireY=e.clientY;b.setPointerCapture(e.pointerId);}
+      };
+      b.addEventListener('pointermove',e=>{if(e.pointerId===fireId&&touchAim){lookDX+=(e.clientX-fireX)*2.2;lookDY+=(e.clientY-fireY)*2.2;fireX=e.clientX;fireY=e.clientY;}});
+      const off = e => { e.preventDefault();fireId=null; keys[a] = false; b.classList.remove('on'); };
+      b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave',e=>{if(fireId===null)off(e);});
     }
     addEventListener('touchmove', e => e.preventDefault(), { passive: false });
   }
@@ -3605,7 +3667,10 @@ const Game = (() => {
     input.mx = clamp(mx, -1, 1); input.my = clamp(my, -1, 1);
     const inv = Store.settings.invertY ? -1 : 1;
     input.lookDX = lookDX; input.lookDY = lookDY * inv; lookDX = lookDY = 0;
-    input.torchPressed = !!pressed.torch; input.useHeld = !!keys.use; input.usePressed = !!pressed.use; input.cutHeld = !!keys.cut; input.cutPressed = !!pressed.cut; input.hurry = !!keys.hurry; input.cameraPressed = !!pressed.camera; input.pausePressed = !!pressed.pause;
+    input.torchPressed = !!pressed.torch; input.useHeld = !!keys.use; input.usePressed = !!pressed.use; input.cutHeld = !!keys.cut||touchAim; input.cutPressed = !!pressed.cut; input.hurry = !!keys.hurry; input.cameraPressed = !!pressed.camera; input.pausePressed = !!pressed.pause;
+    // One thumb moves; the other holds Fire and drags to aim. Desktop remains hold-to-aim.
+    if(touchAim&&keys.use)input.usePressed=true;
+    if(pressed.camera||pressed.pause||pressed.album){touchAim=false;input.cutHeld=!!keys.cut;}
   }
   function clearPressed() { for (const k in pressed) pressed[k] = false; for (const k in nav) nav[k] = false; tap = null; }
 
@@ -3653,7 +3718,12 @@ const Game = (() => {
   // ---------------------------------------------------------------- story
   function say(id) { if (said.has(id)) return; const l = TEXT.lines.find(l => l.id === id); if (!l) return; said.add(id); lineQ.push(l.text); }
   function lineFor(when) { const l = TEXT.lines.find(l => l.ch === chapter && l.when === when); if (l) say(l.id); }
+  let narrationHold=0;
+  function combatPressure(){return state==='play'&&chapter===1&&!quiet()&&!sentry.off&&!sentry.dark&&Math.hypot(P.x-sentry.x,P.z-sentry.z)<20;}
   function updateLines(dt) {
+    if(combatPressure())narrationHold=2;
+    else narrationHold=Math.max(0,narrationHold-dt);
+    if(narrationHold>0||menuStack||state==='album'||state==='note')return;
     if (lineCur) { lineCur.t += dt; if (lineCur.t > lineCur.d) lineCur = null; }
     if (!lineCur && lineQ.length) { const text = lineQ.shift(); lineCur = { text, t: 0, d: 3.4 + text.length / 16 }; }
   }
@@ -3663,6 +3733,7 @@ const Game = (() => {
     Store.setSave({worldVersion:2,chapter,x:P.x,z:P.z,yaw:P.yaw,flags:{...flags},nights:nightsSpent,sleepReady,cast});checkpointToast=2.8;
   }
   function newJourney(){
+    touchAim=false;narrationHold=0;
     Sound.setIndoor(false);Store.startJourney();endingT=wakeFadeT=0;albumPage=0;albumZoom=-1;
     for(const key in flags)flags[key]=false;said.clear();lineCur=null;lineQ=[];menuStack=null;islandTransition=0;health=3;hurtT=0;cutterCooldown=0;cutFlash=0;nightsSpent=0;sleepReady=false;awake=false;calmCeiling=1;lastSeat=null;standoffWith=null;deathT=0;cutTarget=null;ending=null;darkroom=null;for(const k in keys)keys[k]=false;
     cutterMissT=0;relayPulseT=0;impactT=0;combatNotice=null;cutCandidates=[];sparks.pts=[];sparks.n=0;P.sit=null;P.carried=0;P.viewfinder=false;P.thinT=0;P.hold=0;P.torch=false;Photo.S.polaroid=null;
@@ -3718,7 +3789,7 @@ const Game = (() => {
     if(wakeFadeT>0){wakeFadeT-=dt;if(wakeFadeT<=0)fadeTarget=1;}
     if(endingT>0){endingT-=dt;if(endingT<=0){state='end';stateT=0;fade=0;fadeTarget=1;Store.finish();Sound.chime();}return;}
     if(islandTransition>0){islandTransition-=dt;if(islandTransition<=0)startChapter(2);return;}
-    if (deathT > 0) { deathT -= dt; if (deathT <= 0){respawn();return;} Player.update(dt, { mx: 0, my: 0, lookDX: 0, lookDY: 0 }, { locked: true });kid.pose(P.x,P.y,P.z,P.yaw,0,dt,0,1,P.torch,false,null,{condition:0});return; }
+    if (deathT > 0) { touchAim=false;deathT -= dt; if (deathT <= 0){respawn();return;} Player.update(dt, { mx: 0, my: 0, lookDX: 0, lookDY: 0 }, { locked: true });kid.pose(P.x,P.y,P.z,P.yaw,0,dt,0,1,P.torch,false,null,{condition:0});return; }
     impactT=Math.max(0,impactT-dt);if(combatNotice){combatNotice.t-=dt;if(combatNotice.t<=0)combatNotice=null;}relayPulseT=Math.max(0,relayPulseT-dt);cutterMissT=Math.max(0,cutterMissT-dt);hurtT=Math.max(0,hurtT-dt);cutterCooldown=Math.max(0,cutterCooldown-dt);cutFlash=Math.max(0,cutFlash-dt);
     if(Interior.contains(P.x,P.z))return updateInterior(dt);
     // the camera toggle
@@ -3743,7 +3814,9 @@ const Game = (() => {
     // the standoff: which bearer is close enough, facing you, lamp on
     standoffWith = null;
     for (const m of machines) if (m.kind === 'bearer' && (m.state === 'standoff' || (m.state === 'wait' && Math.hypot(m.x - P.x, m.z - P.z) < 1.3))) standoffWith = m;
+    const threatDistance=Math.hypot(P.x-sentry.x,P.z-sentry.z);
     const ctx = {
+      threatDistance,bodies:chapter===1&&!quiet()?[{x:sentry.x,z:sentry.z,radius:sentry.contactRadius-.08}]:[],
       locked: false, threat:chapter===1&&!sentry.off&&!sentry.dark&&Math.hypot(P.x-sentry.x,P.z-sentry.z)<24, standoff: !!standoffWith, snowing: chapter === 1, indoors: false,
       onStep: (s, h) => Sound.step(s, h), onTorch: on => Sound.torch(on),
       onThinIce: () => die('ice'), onCrack: () => Sound.at('crack', P.x, 0, P.z, 1),
@@ -3800,6 +3873,7 @@ const Game = (() => {
   }
   const roomPrompts={exit:'go back outside',radio:'answer the radio',note:'read the notebook',bed:'rest in your old room'};
   function enterHouse(){
+    touchAim=false;
     const first=!flags.house;flags.house=true;P.viewfinder=false;P.sit=null;P.hold=0;standoffWith=null;cutTarget=null;
     Player.place(...Interior.spots.entry,0);setRig('interior',true);Sound.setIndoor(true);fade=.15;fadeTarget=1;Tracks.reset();lineCur=null;lineQ=[];
     if(first)lineQ.push('My coat was still on the hook. It was too small for me now.');checkpoint();
@@ -3829,7 +3903,7 @@ const Game = (() => {
     if (P.viewfinder) return TEXT.prompts.photo;
     if (cutTarget) return cutterCooldown>0 ? 'cutter recharging' : `${TEXT.prompts.cut} ${cutTarget.j[4]}`;
     if(standoffWith)return P.hold>0?TEXT.prompts.hold:TEXT.prompts.reach;
-    if(P.cutterUp)return cutterMissT>0?'no support joint in range':'bring a joint into range';
+    if(P.cutterUp)return cutterCooldown>0?'cutter recharging':Combat.guidance(machines.filter(m=>m===sentry?chapter===1:chapter===2),P,RENDER.cam,UW/UH,World.occluded);
     if (cd < 2.4) return Store.photos.length ? Store.undeveloped.length?'develop the photographs':'inspect the prints':TEXT.prompts.cellarEmpty;
     if (dd < 2.2) return sleepReady ? 'enter the house' : TEXT.prompts.doorLocked;
     if(chapter===2&&Math.hypot(P.x-world.relay.x,P.z-world.relay.z)<2.3)return flags.relay?'relay restored':'restore the field relay';
@@ -3864,7 +3938,7 @@ const Game = (() => {
     Photo.shoot(buildScene(), chapter, P.x, P.z, v);
   }
   function die(kind) { if (deathT > 0) return; deathT = 2.2;deathKind=kind;P.viewfinder=false;P.cutterUp=false;combatNotice=null;prompt=''; fadeTarget = 0; if (kind === 'ice') Sound.splash(); else Sound.fall(); }
-  function respawn() {kid.oldPose=null;kid.clip='Idle_Neutral';kid.blend=1;kid.phase=0;const saved=Store.save,s=saved&&saved.chapter===chapter?saved:lastSeat||(chapter===2?world.seats.find(s=>s.name==='the porch bench'):world.seats[0]);Player.place(s.x,s.z,s.yaw||0);fadeTarget=1;P.thinT=0;health=3;hurtT=1;P.viewfinder=false;if(chapter===1&&!flags.roadkeeper)resetMachine(sentry,4,33,Math.PI);}
+  function respawn() {touchAim=false;kid.oldPose=null;kid.clip='Idle_Neutral';kid.blend=1;kid.phase=0;const saved=Store.save,s=saved&&saved.chapter===chapter?saved:lastSeat||(chapter===2?world.seats.find(s=>s.name==='the porch bench'):world.seats[0]);Player.place(s.x,s.z,s.yaw||0);fadeTarget=1;P.thinT=0;health=3;hurtT=1;P.viewfinder=false;if(chapter===1&&!flags.roadkeeper)resetMachine(sentry,4,33,Math.PI);}
 
   // being carried: you wake on the bench under the foil blanket. The night has passed, and the window has gone dark.
   function wake(m) {
@@ -3904,7 +3978,7 @@ const Game = (() => {
   const beamBuilder=new Builder();beamBuilder.tile=MAT.COLD_LIGHT;beamBuilder.col=[.3,.86,1];beamBuilder.cyl(0,0,0,.013,1,{segs:5});
   const beam={mesh:beamBuilder.build(),model:M.create(),noShadow:true,emis:3};
   const warningBuilder=new Builder();warningBuilder.tile=MAT.SIGNAL;warningBuilder.col=[1,1,1];
-  {const a=warningBuilder.vert(-1.25,0,0,0,1,0,-1,0),b=warningBuilder.vert(1.25,0,0,0,1,0,1,0),c=warningBuilder.vert(1.25,0,5.4,0,1,0,1,1),d=warningBuilder.vert(-1.25,0,5.4,0,1,0,-1,1);warningBuilder.quad(a,d,c,b);}
+  {const w=sentry.contactRadius+.12,length=6;const a=warningBuilder.vert(-w,0,0,0,1,0,-1,0),b=warningBuilder.vert(w,0,0,0,1,0,1,0),c=warningBuilder.vert(w,0,length,0,1,0,1,1),d=warningBuilder.vert(-w,0,length,0,1,0,-1,1);warningBuilder.quad(a,d,c,b);}
   const warning={mesh:warningBuilder.build(),model:M.create(),alpha:1,noShadow:true};
   const iceMark=new Builder();iceMark.tile=MAT.FLAT;iceMark.col=[.64,.78,.84];
   for(let j=0;j<9;j++){const a=j*TAU/9,r=1.0+(j%3)*.25;iceMark.tube([[0,0,0],[Math.sin(a)*.5,0,Math.cos(a)*.5],[Math.sin(a+.15)*r,0,Math.cos(a+.15)*r]],.012,{segs:3});}
@@ -3923,7 +3997,7 @@ const Game = (() => {
 
     if(state!=='title'&&kid.feet)for(const f of kid.feet)RENDER.contact(f[0],World.groundY(f[0],f[2]),f[2],.23);
     if(!inside)RENDER.contact(P.sled.x,P.sled.y,P.sled.z,0.7);else Interior.light(flags.radio);
-    for(const m of machines)if(!m.hidden&&Math.hypot(m.x-P.x,m.z-P.z)<24&&(m===sentry?chapter===1:chapter===2)){for(const f of m.feet)RENDER.contact(f.x,World.groundY(f.x,f.z),f.z,.23*m.s);}
+    for(const m of machines)if(!m.hidden&&Math.hypot(m.x-P.x,m.z-P.z)<24&&(m===sentry?chapter===1:chapter===2)){RENDER.contact(m.x,World.groundY(m.x,m.z),m.z,.68*m.s);for(const f of m.feet)RENDER.contact(f.x,World.groundY(f.x,f.z),f.z,.23*m.s);}
     world.fieldRelay.sync(flags.relay,relayPulseT,reduce());world.cable.fx[0]=flags.relay?.10:.18;
     if(!inside&&world.fieldRelay.light){const p=world.fieldRelay.light;RENDER.light(p[0],p[1]+.18,p[2],4,.22,.78,1.1);}
     const relayAge=3.2-relayPulseT,power=relayPulseT>0?(reduce()?.55:1-.94*smooth(0,.28,relayAge)*(1-smooth(1.1,3.2,relayAge))):1;world.window.emis=world.lamps[0].k/.9*power;
@@ -3942,7 +4016,7 @@ const Game = (() => {
   const KEYNAME = { Space: 'space', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', Enter: 'enter', ShiftLeft: 'shift' };
   const keyName = code => KEYNAME[code] || code.replace(/^Key|^Digit/, '');
   const ACTIONS = [['forward', 'Forward'], ['back', 'Back'], ['left', 'Left'], ['right', 'Right'], ['use', 'Reach out / use / shutter'], ['torch', 'Head torch'], ['camera', 'Raise the camera'], ['cut', 'Raise the cutter']];
-  function openMenu(id) { menuStack = [{ id, sel: 0 }]; if (document.exitPointerLock) document.exitPointerLock(); }
+  function openMenu(id) { touchAim=false;menuStack = [{ id, sel: 0 }]; if (document.exitPointerLock) document.exitPointerLock(); }
   function pushMenu(id) { menuStack.push({ id, sel: 0 }); Sound.tick_menu(); }
   function menuBack() { if (menuStack.length > 1) menuStack.pop(); else if (state === 'play') menuStack = null; }
   function menuItems(id) {
@@ -4031,7 +4105,7 @@ const Game = (() => {
   function roman(n) { return ['', 'I', 'II', 'III', 'IV', 'V', 'VI'][n]; }
   let lastTouchState=false;
   function renderUI() {
-    if(isTouch){const use=document.querySelector('#touch [data-act=use]'),camera=document.querySelector('#touch [data-act=camera]');const label=P.viewfinder?'SHUTTER':P.cutterUp?'FIRE':P.hold>0?'HOLD':'USE';if(use&&use.dataset.label!==label)use.dataset.label=label;if(camera)camera.dataset.label=P.viewfinder?'LOWER':'CAMERA';}
+    if(isTouch){const use=document.querySelector('#touch [data-act=use]'),camera=document.querySelector('#touch [data-act=camera]');const label=P.viewfinder?'SHUTTER':P.cutterUp?'FIRE':P.hold>0?'HOLD':'USE';if(use&&use.dataset.label!==label)use.dataset.label=label;if(camera)camera.dataset.label=P.viewfinder?'LOWER':'CAMERA';const cutter=document.querySelector('#touch [data-act=cut]');if(cutter){cutter.dataset.label=touchAim?'LOWER':'AIM';cutter.classList.toggle('on',touchAim);cutter.setAttribute('aria-pressed',String(touchAim));}if(use)use.title=touchAim?'Hold to fire; drag to aim':'Reach out / use';}
     const touchState=state==='play'&&!menuStack&&deathT<=0;if(touchState!==lastTouchState){document.body.classList.toggle('playing',touchState);lastTouchState=touchState;}
     sx = UW / 1280; sy = UH / 720; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, UW, UH);
     const t = T();let promptY=isTouch?72:28;
@@ -4063,7 +4137,7 @@ const Game = (() => {
         if(cutTarget){const p=cutTarget.j,m=RENDER.vp,x=p[1],y=p[2],z=p[3],w=m[3]*x+m[7]*y+m[11]*z+m[15];if(w>0){const xx=(m[0]*x+m[4]*y+m[8]*z+m[12])/w,yy=(m[1]*x+m[5]*y+m[9]*z+m[13])/w;g.beginPath();g.arc((xx*.5+.5)*UW,(-yy*.5+.5)*UH,13,0,TAU);g.stroke();}}
       }
       if(threat){const warningY=compact?(panelY*sy+panelH*sy+(prompt?88:27))/sy:230;if(sentry.state==='windup')text('CHARGE · STEP OUT OF THE LIGHT',640,warningY,compact?12:15,.92,{ui:true,col:'#efb077'});else if(sentry.legsLeft()<=2)text('CORE EXPOSED',640,warningY,14,.85,{ui:true,col:'#b7e3eb'});}
-      if(combatNotice)text(combatNotice.text,640,(UH*.5+52)/sy,13,Math.min(1,combatNotice.t*3),{ui:true,col:'#cbe4e2'});
+      if(combatNotice)text(combatNotice.text,640,(UH*.5-35)/sy,13,Math.min(1,combatNotice.t*3),{ui:true,col:'#cbe4e2'});
 
     }
     if(state==='play'&&!menuStack&&deathT<=0){
@@ -4084,12 +4158,12 @@ const Game = (() => {
         text(label,lx/sx,ly/sy,11,.95,{ui:true,col:color});text(Math.round(distance)+' m',lx/sx,(ly+15)/sy,11,.78,{ui:true});
       }
     }
-    if(state==='play'&&!menuStack&&deathT<=0)interactionPrompt(promptY);
+    if(state==='play'&&!menuStack&&deathT<=0)interactionPrompt(P.cutterUp&&!isTouch?UH*.5+67:promptY);
     if(P.thinT>.55&&state==='play'&&deathT<=0)text('THIN ICE · KEEP MOVING',640,305,15,.85,{ui:true,col:'#b7dce6'});
-    if(checkpointToast>0&&state==='play'&&deathT<=0){g.save();g.globalAlpha=Math.min(1,checkpointToast);const x=isTouch?(UW-170)/2:UW-194,y=UH-(isTouch?184:91);uiBox(x,y,170,27,'rgba(16,33,31,.85)');uiLabel('CHECKPOINT SAVED',x+85,y+18,11,'#b9d1bf','center');g.restore();}
+    if(checkpointToast>0&&!combatPressure()&&state==='play'&&deathT<=0){g.save();g.globalAlpha=Math.min(1,checkpointToast);const x=isTouch?(UW-170)/2:UW-194,y=UH-(isTouch?184:91);uiBox(x,y,170,27,'rgba(16,33,31,.85)');uiLabel('CHECKPOINT SAVED',x+85,y+18,11,'#b9d1bf','center');g.restore();}
     if(hurtT>0&&deathT<=0){const strength=reduce()?.14:.28*Math.min(1,hurtT*2),radius=Math.hypot(UW,UH)*.55,grad=g.createRadialGradient(UW/2,UH/2,radius*.45,UW/2,UH/2,radius);grad.addColorStop(0,'rgba(112,34,21,0)');grad.addColorStop(1,'rgba(112,34,21,'+strength+')');g.fillStyle=grad;g.fillRect(0,0,UW,UH);}
     // narration
-    if (lineCur && deathT<=0 && !menuStack && state !== 'title' && state!=='note' && state!=='darkroom') {
+    if (lineCur && narrationHold<=0 && deathT<=0 && !menuStack && state !== 'title' && state!=='note' && state!=='darkroom') {
       const a = Math.min(1, lineCur.t / 0.35, (lineCur.d - lineCur.t) / 0.55), size = 23 * t, lh = Math.max(30 * t, 20 / sy);
       const ls = wrap(lineCur.text, UW<760?(UW-44)/sx:800, size), y0 = (isTouch?UH-185:UH-(UW<760?108:78))/sy - (ls.length - 1) * lh;
       const grd = g.createLinearGradient(0, (720 - 170 * t) * sy, 0, 720 * sy); grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, `rgba(8,12,15,${0.65 * a})`); g.fillStyle = grd; g.fillRect(0, (720 - 170 * t) * sy, UW, 170 * t * sy);
@@ -4115,10 +4189,23 @@ const Game = (() => {
     if (state === 'card') renderCard();
     if (state === 'end') { g.fillStyle = 'rgba(8,8,10,0.7)'; g.fillRect(0, 0, UW, UH); text(TEXT.ending, 640, 340, 30 * t, Math.min(1, stateT / 1.5), { italic: true }); text(`${Store.photos.length} photographs · ${nightsSpent} night${nightsSpent === 1 ? '' : 's'} spent`, 640, 400, 20 * t, Math.min(1, stateT / 2) * 0.7, { italic: true }); if (stateT > 4) text(isTouch ? 'tap to go on' : 'press any key', 640, 660, 16, 0.5 + Math.sin(time * 2) * 0.2, { italic: true }); }
     if (state === 'album') renderAlbum();
-    if (menuStack && state === 'play') { g.fillStyle = 'rgba(8,8,10,0.62)'; g.fillRect(0, 0, UW, UH); renderMenu(330, 1); text(quiet() ? TEXT.quietPause : TEXT.pause, 640, 720 - 60, 16 * t, 0.55, { italic: true }); }
+    if (menuStack && state === 'play') { g.fillStyle = 'rgba(8,8,10,0.62)'; g.fillRect(0, 0, UW, UH); renderMenu(330, 1);const help=quiet()?TEXT.quietPause:TEXT.pause,helpLines=wrap(help,(UW-40)/sx,15,{italic:true});helpLines.forEach((l,i)=>text(l,640,(UH-22-(helpLines.length-1-i)*19)/sy,15,.65,{italic:true})); }
   }
   function renderMenu(y0, a) {
     const top = menuStack[menuStack.length - 1], items = menuItems(top.id), t = T(); menuRects = [];
+    if(UW<760||UH<510){
+      const rowH=UH<510?36:43,maxRows=Math.max(6,Math.floor((UH-136)/rowH)),start=clamp(top.sel-Math.floor(maxRows/2),0,Math.max(0,items.length-maxRows)),shown=items.slice(start,start+maxRows);
+      const w=Math.min(UW-36,430),h=shown.length*rowH+46,x=(UW-w)/2,y=state==='title'&&top.id==='main'?Math.min(UH-h-58,Math.max(165,UH*.43)):(UH-h)/2;
+      g.save();g.globalAlpha=a;uiBox(x,y,w,h,'rgba(12,21,25,.90)');
+      uiLabel(MENU_HEAD[top.id]||'THE ICE ROAD',UW/2,y+24,13,'#b4c3bb','center');
+      shown.forEach((it,j)=>{const i=start+j,yy=y+35+j*rowH,on=i===top.sel;
+        if(on)uiBox(x+8,yy,w-16,rowH-4,'rgba(179,195,180,.12)','rgba(188,201,181,.35)');
+        g.font='20px '+FONT;g.textAlign='center';g.fillStyle=on?'#efe6d4':'#b3b9b2';g.fillText(it.label,UW/2,yy+Math.min(26,rowH-10));
+        menuRects.push({x:(x+8)/sx,y:yy/sy,w:(w-16)/sx,h:(rowH-4)/sy,i});
+      });
+      if(items.length>shown.length)uiLabel('↑ ↓  '+(top.sel+1)+' / '+items.length,UW/2,y+h+17,11,'#c2c8bc','center');
+      g.restore();return;
+    }
     const head = MENU_HEAD[top.id]; if (head) text(head, 640, y0 - 44 * t, 18 * t, a * 0.65, { italic: true, letter: 2 });
     const lh = Math.min(44 * t, 330 / Math.max(1, items.length));
     items.forEach((it, i) => { const y = y0 + i * lh, on = i === top.sel, size = Math.min(25 * t, lh * 0.72); text(it.label, 640, y, size, a * (on ? 1 : 0.62), { italic: !on, weight: on ? 500 : 400, letter: on ? 1 : 0 }); if (on) { g.font = `500 ${textPixels(size)}px ${FONT}`; const w = g.measureText(it.label).width / 2 / sx + 22; g.fillStyle = css('#f6f1e6', a * 0.7); g.fillRect((640 - w - 14) * sx, (y - size * 0.32) * sy, 10 * sx, 1.5); g.fillRect((640 + w + 4) * sx, (y - size * 0.32) * sy, 10 * sx, 1.5); } menuRects.push({ x: 640 - 330, y: y - size - 6, w: 660, h: lh, i }); });
@@ -4126,7 +4213,8 @@ const Game = (() => {
   function renderTitle() {
     const a = Math.min(1, stateT / 2), b = Math.min(1, Math.max(0, stateT - 0.6));
     const grd = g.createLinearGradient(0, 0, 0, 360 * sy); grd.addColorStop(0, `rgba(20,24,30,${0.35 * a})`); grd.addColorStop(1, 'rgba(20,24,30,0)'); g.fillStyle = grd; g.fillRect(0, 0, UW, 360 * sy);
-    text(TEXT.title, 640, 190, 88, a, { weight: 500, letter: 18, shadowA: 0.3 }); text(TEXT.subtitle, 640, 238, 30, a * 0.9, { italic: true });
+    if((UW<760||UH<510)&&menuStack&&menuStack.length>1)uiLabel('STÅLHAGEN II',UW/2,32,17,'#e6e0d2','center');
+    else{text(TEXT.title, 640, 190, 88, a, { weight: 500, letter: 18, shadowA: 0.3 }); text(TEXT.subtitle, 640, 238, 30, a * 0.9, { italic: true });}
     if (menuStack) { const band = g.createLinearGradient(0, 270 * sy, 0, 620 * sy); band.addColorStop(0, 'rgba(20,24,30,0)'); band.addColorStop(0.3, `rgba(20,24,30,${0.3 * b})`); band.addColorStop(0.75, `rgba(20,24,30,${0.3 * b})`); band.addColorStop(1, 'rgba(20,24,30,0)'); g.fillStyle = band; g.fillRect(0, 270 * sy, UW, 350 * sy); renderMenu(menuStack.length > 1 ? 370 : 330, b); }
     controlHints(true);
     const tagline=isTouch?'The ice road. The house with its lights on.':'the winter crossing · a machine that hunts · a house with its lights on';
@@ -4241,7 +4329,7 @@ const Game = (() => {
   }
   window.__game = {
     set reviewFrozen(v){reviewFrozen=reviewParams.has('review')&&!!v;},
-    get iceBreak(){return iceBreak;},get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get darkroom(){return darkroom;},openDarkroom,get interior(){return Interior.contains(P.x,P.z);},get room(){return Interior;},enterHouse,get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get hurt(){return hurtT;},get feedback(){return characterFeedback();},get cutTarget(){return cutTarget;},get cutCandidates(){return cutCandidates;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
+    get narrative(){return {paused:narrationHold>0,current:lineCur&&{...lineCur},queued:lineQ.length};},get iceBreak(){return iceBreak;},get performance() { return {fps:Math.round(1/frameAvg),scale:resScale,draws:RENDER.stats.draws,triangles:RENDER.stats.triangles,foliage:RENDER.foliageReady}; }, get darkroom(){return darkroom;},openDarkroom,get interior(){return Interior.contains(P.x,P.z);},get room(){return Interior;},enterHouse,get character() {return kid;},newJourney,checkpoint,resume,get saved(){return Store.save;},get sleepReady(){return sleepReady;}, get health(){return health;},get hurt(){return hurtT;},get feedback(){return characterFeedback();},get cutTarget(){return cutTarget;},get cutCandidates(){return cutCandidates;},get cutterFeedback(){return {flash:cutFlash,cooldown:cutterCooldown,miss:cutterMissT};}, get sentry(){return sentry;}, get prompt() {return prompt;}, get renderError() { return !!frame.warned; }, get photos() { return Store.photos; }, get state() { return state; }, get P() { return P; }, get chapter() { return chapter; }, get flags() { return flags; }, get machines() { return machines; }, get bearer() { return bearer; }, keys, pressed, nav, input, world,
     jump(ch, x, z) { lineCur=null; lineQ=[]; menuStack = null; if (ch >= 2) { flags.island = true; flags.hulls = true; for (const h of world.hulls) { h.rise = 1; h.model[13] = 0; h.y = 0; } } startChapter(ch); state = 'play'; stateT = 10; fade = 1; fadeTarget = 1; if (x !== undefined) Player.place(x, z, 0); if (ch === 2) awake = true; },
     set(x, y, z, tx, ty, tz) { const c = RENDER.cam; state = 'free'; c.x = x; c.y = y; c.z = z; c.tx = tx; c.ty = ty; c.tz = tz; },
     place(x, z, yaw) { Player.place(x, z, yaw || 0); }, step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) update(dt); }, get awake() { return awake; }, set awake(v) { awake = v; }, get standoff() { return standoffWith; }, get time() { return time; }, get deaths() { return deathT; }, setState(s) { state = s; stateT = 0; },

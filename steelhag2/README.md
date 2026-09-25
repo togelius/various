@@ -167,3 +167,13 @@ The farm bearer crosses open ground faster and eases down near the player; its n
 Control hints now use legible backed keycaps, reflect keyboard bindings and change for the cutter and camera. Interaction prompts have their own high-contrast panel and hold-progress line. Touch buttons include visible labels.
 
 During a still, held reach, the character turns toward the nearby bearer and keeps the hand extended until release, while the camera remains under the player’s control. The objective changes to Reach out at contact distance.
+
+### Combat and visual refinement
+
+The roadkeeper stops at the edge of its chassis, then recoils during a 1.65-second recovery window. Its warning lane covers the contact radius. The player slides around the machine instead of walking into it; aiming movement is 2.8 m/s. The shoulder camera eases wider as a threat closes while retaining wall collision. Cutter guidance distinguishes distance, an obstructed shot, an offscreen machine and a support outside the reticle.
+
+Story captions pause during danger and resume two seconds after it clears. Combat prompts sit near the reticle on desktop; touch layouts keep them above the play area. On touch, tap Aim to raise or lower the cutter, then hold Fire and drag that same finger to aim. Camera, pause, album and death clear the aiming latch. Phone and short-screen menus use larger rows and wrapped help.
+
+The protagonist keeps the imported animations with a rounded wool cap, scarf/collar, faded canvas coat and worn trousers. Machinery has a lower protected optical hood, brighter weathered enamel and metal, quieter seam glow and a body contact shadow. The compressed WebP assets are preserved; the offline build remains about 2.4 MB.
+
+The playtest harness adds Close combat and Design checks, including caption suspension/resumption and touch aim, camera switching, held fire and pause reset. The unit checks cover body collision, close camera framing, shot guidance, committed sidesteps and the recovery step.

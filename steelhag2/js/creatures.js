@@ -33,8 +33,8 @@ function buildMachineMesh(s, o = {}) {
   // Pressed-steel housing with a dark chassis, service cover and restrained markings.
   b.bone=RIG.BODY;b.tile=MAT.DARK;b.col=[.8,.84,.8];
   b.roundedBox(-.48*s,-.24*s,-.38*s,.96*s,.18*s,.80*s,.06*s);
-  b.tile=MAT.BEIGE;b.col=o.aggressive?[.48,.53,.49]:[.80,.83,.78];b.roundedBox(-.51*s,-.13*s,-.38*s,1.02*s,.43*s,.80*s,.085*s,{uv:.55/s});
-  b.col=o.aggressive?[.39,.44,.42]:[.68,.72,.68];b.roundedBox(-.42*s,.265*s,-.30*s,.84*s,.055*s,.59*s,.025*s);
+  b.tile=MAT.BEIGE;b.col=o.aggressive?[.66,.71,.67]:[.80,.83,.78];b.roundedBox(-.51*s,-.13*s,-.38*s,1.02*s,.43*s,.80*s,.085*s,{uv:.55/s});
+  b.col=o.aggressive?[.57,.63,.59]:[.68,.72,.68];b.roundedBox(-.42*s,.265*s,-.30*s,.84*s,.055*s,.59*s,.025*s);
   b.tile=MAT.FLAT;b.col=[.57,.29,.12];b.roundedBox(-.515*s,-.015*s,-.385*s,1.03*s,.045*s,.81*s,.025*s);
   b.tile=MAT.DARK;b.col=[.66,.7,.67];
   for(const side of [-1,1]) {
@@ -46,9 +46,9 @@ function buildMachineMesh(s, o = {}) {
   b.tile=MAT.BADGE;b.col=c;
   {const a=b.vert(-.19*s,.025*s,-.389*s,0,0,-1,1,1),d=b.vert(.19*s,.025*s,-.389*s,0,0,-1,0,1),e=b.vert(.19*s,.23*s,-.389*s,0,0,-1,0,0),f=b.vert(-.19*s,.23*s,-.389*s,0,0,-1,1,0);b.quad(a,f,e,d);}
   b.bone=RIG.HEAD;b.tile=MAT.DARK;b.col=[.72,.74,.7];b.cyl(0,-.14*s,0,.095*s,.19*s,{segs:12});
-  b.tile=MAT.BEIGE;b.col=[.86,.87,.80];b.roundedBox(-.18*s,-.035*s,-.13*s,.36*s,.27*s,.32*s,.055*s);
-  b.tile=MAT.DARK;b.col=[.75,.78,.76];b.roundedBox(-.145*s,.025*s,.177*s,.29*s,.14*s,.035*s,.026*s);
-  b.tile=MAT.WINDOW;b.col=[.4,.50,.49];b.roundedBox(-.115*s,.048*s,.210*s,.15*s,.09*s,.014*s,.014*s);
+  b.tile=MAT.BEIGE;b.col=[.78,.81,.76];b.roundedBox(-.18*s,-.035*s,-.13*s,.36*s,.27*s,.32*s,.075*s);
+  b.tile=MAT.DARK;b.col=[.95,1,.97];b.roundedBox(-.145*s,.025*s,.177*s,.29*s,.14*s,.035*s,.04*s);
+  if(!o.aggressive){b.tile=MAT.WINDOW;b.col=[.4,.50,.49];b.roundedBox(-.115*s,.048*s,.210*s,.15*s,.09*s,.014*s,.014*s);}
   b.bone=RIG.LED;b.tile=MAT.LED;b.col=[.75,.55,.35];b.sphere(.087*s,.09*s,.218*s,.018*s,{segs:10,rings:8});
   b.bone=RIG.ANT;b.tile=MAT.DARK;b.col=c;b.cyl(0,0,0,.025*s,.09*s,{segs:8});b.tube([[0,.07*s,0],[.01*s,.26*s,0],[.03*s,.52*s,-.02*s]],.008*s,{segs:5});
   b.bone=RIG.LAMP;b.tile=MAT.DARK;b.col=c;b.roundedBox(-.07*s,-.065*s,-.05*s,.14*s,.13*s,.10*s,.023*s);
@@ -69,20 +69,23 @@ function buildMachineMesh(s, o = {}) {
   if (o.cradle) { b.bone = RIG.CRADLE; b.tile = MAT.STEEL; b.col = c; for (const z of [-0.28, 0, 0.28]) { const pts = []; for (let i = 0; i <= 8; i++) { const t = i / 8; pts.push([(-0.5 + t) * s, (0.28 + Math.sin(t * Math.PI) * 0.32) * s, z * s]); } b.tube(pts, 0.02 * s, { segs: 5 }); } for (const x of [-0.45, 0.45]) b.tube([[x * s, 0.28 * s, -0.3 * s], [x * s, 0.28 * s, 0.3 * s]], 0.02 * s, { segs: 5 }); }
   if(o.aggressive){
     // Road maintenance machinery refitted for a purpose the warning plate never named.
-    b.bone=RIG.BODY;b.tile=MAT.STEEL;b.col=[.35,.39,.37];
+    b.bone=RIG.BODY;b.tile=MAT.STEEL;b.col=[.83,.88,.85];
     for(const side of [-1,1]){
       b.roundedBox(side*.61*s-.08*s,-.11*s,-.39*s,.16*s,.46*s,.87*s,.028*s);
       b.tube([[side*.57*s,.32*s,-.24*s],[side*.57*s,.66*s,-.11*s],[side*.57*s,.66*s,.35*s],[side*.57*s,.12*s,.48*s]],.034*s,{segs:9});
       b.tile=MAT.BEIGE;b.col=[.89,.53,.15];b.roundedBox(side*.613*s-.014*s,.05*s,-.38*s,.028*s,.08*s,.68*s,.008*s);
       b.tile=MAT.DARK;b.col=[.72,.74,.70];for(let z=-.33;z<.29;z+=.10)b.box(side*.63*s-.016*s,.05*s,z*s,.032*s,.085*s,.032*s);
-      b.tile=MAT.STEEL;b.col=[.35,.39,.37];
+      b.tile=MAT.STEEL;b.col=[.83,.88,.85];
     }
-    // A black, shielded sensor mast and slotted amber warning lamp.
-    b.bone=RIG.HEAD;b.tile=MAT.DARK;b.col=[.57,.60,.57];b.roundedBox(-.27*s,.20*s,-.19*s,.54*s,.33*s,.40*s,.025*s);
-    b.tile=MAT.GLASS;b.col=[1,.49,.16];b.roundedBox(-.205*s,.30*s,.219*s,.41*s,.07*s,.016*s,.009*s);
-    b.tile=MAT.STEEL;b.col=[.43,.46,.42];for(const x of [-.14,-.045,.05,.145])b.box(x*s,.285*s,.239*s,.02*s,.105*s,.025*s);
-    b.roundedBox(-.30*s,.52*s,-.23*s,.60*s,.07*s,.50*s,.014*s);
-    b.bone=RIG.BODY;b.tile=MAT.DARK;b.col=[.40,.43,.40];b.roundedBox(-.38*s,-.20*s,.42*s,.76*s,.18*s,.15*s,.018*s);
+    // Low optical hood: a single narrow aperture rather than a cartoon face.
+    b.bone=RIG.HEAD;b.tile=MAT.BEIGE;b.col=[.79,.83,.78];b.roundedBox(-.31*s,.13*s,-.22*s,.62*s,.24*s,.46*s,.065*s);
+    b.tile=MAT.DARK;b.col=[.92,.97,.94];b.roundedBox(-.27*s,.16*s,.229*s,.54*s,.145*s,.025*s,.032*s);
+    b.tile=MAT.GLASS;b.col=[.94,.51,.22];b.roundedBox(-.20*s,.215*s,.256*s,.31*s,.029*s,.012*s,.008*s);
+    b.tile=MAT.STEEL;b.col=[.87,.89,.83];b.roundedBox(-.34*s,.352*s,-.245*s,.68*s,.055*s,.54*s,.02*s);
+    // Recessed bolts, cable glands and side cooling ribs catch the overcast light.
+    for(const side of [-1,1])for(let i=0;i<5;i++)b.roundedBox(side*.312*s-.012*s,.15*s,(-.15+i*.055)*s,.024*s,.13*s,.016*s,.006*s);
+    b.tile=MAT.DARK;b.col=[1,1,1];b.tube([[.23*s,.16*s,-.20*s],[.28*s,-.03*s,-.30*s],[.15*s,-.16*s,-.28*s]],.023*s,{segs:9});
+    b.bone=RIG.BODY;b.tile=MAT.STEEL;b.col=[.66,.70,.65];b.roundedBox(-.38*s,-.20*s,.42*s,.76*s,.18*s,.15*s,.018*s);
     b.tile=MAT.STEEL;b.col=[.65,.67,.61];for(const x of [-.32,-.16,0,.16,.32])b.box(x*s,-.36*s,.49*s,.045*s,.23*s,.08*s);
     // Copper isolation collars make the actual severable pivots readable in snow.
     for(let l=0;l<4;l++)for(const lower of [0,1]){b.bone=RIG.LEG+l*2+lower;b.tile=MAT.BEIGE;b.col=[.92,.53,.13];b.cyl(0,0,0,.085*s,.085*s,{segs:14});b.tile=MAT.STEEL;b.col=[.38,.42,.39];b.cyl(0,.033*s,0,.089*s,.017*s,{segs:14});}
@@ -98,6 +101,7 @@ class Machine {
     this.aggressive = !!opts.aggressive; this.attackT=0; this.stagger=0; this.attackDir=[0,1]; this.attackOrigin=[x,z];
     this.kind = kind; // 'scout' | 'bearer'
     const s = this.s = (kind === 'bearer' ? 1 : .42)*(opts.scale||1);
+    this.contactRadius=.85*s+.5;
     this.upper = (this.aggressive?.70:.58) * s; this.lower = (this.aggressive?.68:.62) * s; this.armLen = 0.36 * s;
     this.mesh = opts.mesh || buildMachineMesh(s, { upper: this.upper, lower: this.lower, armLen: this.armLen, aggressive:this.aggressive, arms: kind === 'bearer', cradle: kind === 'bearer' });
     this.x = x; this.z = z; this.y = World.groundY(x, z); this.yaw = yaw; this.vx = 0; this.vz = 0; this.speed = 0;
@@ -206,7 +210,7 @@ class Machine {
       B.set(B.subarray(0, 16), RIG.CRADLE * 16);
     }
     // charge and hidden flags
-    for (let i = 0; i < RIG.N; i++) { const o = i * 4; this.fx[o] = this.dark ? 0 : this.charge * (i === RIG.BODY || i === RIG.HEAD || i === RIG.CRADLE ? 0.20 : 0); this.fx[o + 1] = this.cut.has(i) ? 1 : 0; }
+    for (let i = 0; i < RIG.N; i++) { const o = i * 4; this.fx[o] = this.dark ? 0 : this.charge * (i === RIG.BODY || i === RIG.HEAD || i === RIG.CRADLE ? (this.aggressive?.035:.065) : 0); this.fx[o + 1] = this.cut.has(i) ? 1 : 0; }
     if (!this.led) this.fx[RIG.LED * 4 + 1] = 1;
     if (this.kind !== 'bearer') { this.fx[RIG.LAMP * 4 + 1] = 1; for (let i = RIG.ARM; i < RIG.N; i++) this.fx[i * 4 + 1] = 1; }
     else if (!this.lamp) this.fx[RIG.LAMP * 4 + 1] = 1;
@@ -265,16 +269,19 @@ class Machine {
       const ox=this.x,oz=this.z;this.move(dt,this.attackDir[0],this.attackDir[1],5.8);
       // Sweep the actual step against the player's contact circle. Stop at impact,
       // including at low frame rates, rather than driving through the character.
-      const sx=this.x-ox,sz=this.z-oz,a=sx*sx+sz*sz,b=-(dx*sx+dz*sz),c=d*d-1.25*1.25,disc=b*b-a*c;
+      const sx=this.x-ox,sz=this.z-oz,a=sx*sx+sz*sz,b=-(dx*sx+dz*sz),c=d*d-this.contactRadius*this.contactRadius,disc=b*b-a*c;
       const contact=c<=0?0:a>0&&disc>=0?(-b-Math.sqrt(disc))/a:Infinity;
       const hit=contact>=0&&contact<=1;
       if(hit){this.x=ox+sx*contact;this.z=oz+sz*contact;this.y=World.groundY(this.x,this.z);if(!this.hitThisLunge){this.hitThisLunge=true;if(ctx.onHit)ctx.onHit(this);}}
       if(hit||this.attackT>.65){this.speed=0;this.state='recover';this.attackT=0;this.say('crack',.55);if(ctx.onImpact)ctx.onImpact(this);}
     }else if(this.state==='recover'){
-      this.speed=0;this.armsOpen=0;if(this.attackT>1.4){this.state='approach';this.attackT=0;}
+      this.speed=0;this.armsOpen=0;
+      // Recoil creates a readable cutting window without pushing the player.
+      if(this.attackT>.3&&this.attackT<1.1&&d<4.2)this.move(dt,-dir[0],-dir[1],1.25);
+      if(this.attackT>1.65){this.state='approach';this.attackT=0;}
     }else{
       this.state='approach';this.armsOpen=.12;
-      if(d<4.8){this.state='windup';this.attackT=0;this.attackDir=dir;this.attackOrigin=[this.x,this.z];this.hitThisLunge=false;this.say('charge');}
+      if(d<5.2){this.state='windup';this.attackT=0;this.attackDir=dir;this.attackOrigin=[this.x,this.z];this.hitThisLunge=false;this.say('charge');}
       else this.move(dt,dir[0],dir[1],1.7);
     }
     this.pose();

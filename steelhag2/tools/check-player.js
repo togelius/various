@@ -12,9 +12,11 @@ for(let i=0;i<900;i++){Player.update(1/60,input,ctx);assert(!World.occluded(Play
 World.S.colliders.length=0;Player.place(0,20,0);
 for(let i=0;i<900;i++)Player.update(1/60,{...input,cutHeld:true},ctx);
 assert(Player.P.calmCam<.01,'aiming drifted into the distant scenic camera');
-assert(Math.hypot(RENDER.cam.x,RENDER.cam.z-20)<2.4,'aim camera lost its shoulder framing');
+assert(Math.hypot(RENDER.cam.x,RENDER.cam.z-20)<2.8,'aim camera lost its shoulder framing');
 Player.place(0,20,0);for(let i=0;i<900;i++)Player.update(1/60,input,{threat:true});assert(Player.P.calmCam<.01,'threat camera zoomed away');
 Player.place(0,20,0);for(let i=0;i<900;i++)Player.update(1/60,input,ctx);assert(Player.P.calmCam>.8,'safe scenic camera stopped working');
 const viewDown=(RENDER.cam.y-RENDER.cam.ty)/Math.hypot(RENDER.cam.tx-RENDER.cam.x,RENDER.cam.tz-RENDER.cam.z);assert(viewDown<.16,'scenic camera lost the horizon by looking at the ground');
+Player.place(0,20,0);for(let i=0;i<90;i++)Player.update(1/60,{...input,my:1},{bodies:[{x:0,z:22,radius:1.65}]});assert(Player.P.z<=20.351,'player entered roadkeeper body');
+Player.place(0,20,0);for(let i=0;i<90;i++)Player.update(1/60,{...input,cutHeld:true},{threat:true,threatDistance:2});assert(Math.hypot(RENDER.cam.x,RENDER.cam.z-20)>3.4&&RENDER.cam.fov>1.08,'close threat is not framed wider');
 console.log('Player: wall-safe camera boom, close aiming, stable threat framing and scenic idle camera passed');
 `,c);

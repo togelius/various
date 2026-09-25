@@ -24,7 +24,7 @@ const Player = (() => {
     if (control) { const f = input.my, r = input.mx; const c = Math.cos(P.camYaw), s = Math.sin(P.camYaw); mx = s * f - c * r; mz = c * f + s * r; }
     const mag = Math.min(1, Math.hypot(mx, mz)); if (mag > 0.001) { mx /= Math.hypot(mx, mz); mz /= Math.hypot(mx, mz); }
     P.hurry = control && input.hurry && mag > 0.3;
-    const target = mag * (P.hurry ? 5.6 : P.viewfinder ? 1.5 : input.cutHeld ? 2.0 : 3.1);
+    const target = mag * (P.hurry ? 5.6 : P.viewfinder ? 1.5 : input.cutHeld ? 2.8 : 3.1);
     const acc = P.onIce ? 12 : 20;
     P.vx = M.approach(P.vx, mx * target, acc * dt); P.vz = M.approach(P.vz, mz * target, acc * dt);
     P.speed = Math.hypot(P.vx, P.vz);
@@ -32,6 +32,15 @@ const Player = (() => {
     if (P.viewfinder || input.cutHeld) P.yaw = P.yaw + M.angleTo(P.yaw, P.camYaw) * (1 - Math.pow(0.001, dt));
     const nx = P.x + P.vx * dt, nz = P.z + P.vz * dt;
     const pos = { x: nx, z: nz }; World.pushOut(pos, RADIUS, P.y);
+    // Slide around the roadkeeper's body instead of walking inside its chassis.
+    for(const body of ctx.bodies||[]){
+      const dx=pos.x-body.x,dz=pos.z-body.z,d=Math.hypot(dx,dz),r=body.radius;
+      if(d<r){const oldX=P.x-body.x,oldZ=P.z-body.z,oldD=Math.hypot(oldX,oldZ);
+        const nx=d>.001?dx/d:oldD>.001?oldX/oldD:-Math.sin(P.camYaw),nz=d>.001?dz/d:oldD>.001?oldZ/oldD:-Math.cos(P.camYaw);
+        pos.x=body.x+nx*r;pos.z=body.z+nz*r;World.pushOut(pos,RADIUS,P.y);
+        const inward=P.vx*nx+P.vz*nz;if(inward<0){P.vx-=inward*nx;P.vz-=inward*nz;}
+      }
+    }
     P.x = pos.x; P.z = pos.z; P.y = World.groundY(P.x, P.z);
     P.onIce = World.onIce(P.x, P.z);
     P.surface = ctx.indoors?'wood':P.onIce ? 'ice' : 'snow';
@@ -89,7 +98,8 @@ const Player = (() => {
       if(Math.abs(inputLook.dx)+Math.abs(inputLook.dy)>0.5) P.stillT=0;
       const paint = ctx.indoors || ctx.threat || P.cutterUp ? 0 : smooth(6, 12, P.stillT) * (P.hold > 0 ? 0 : 1);
       P.calmCam = lerp(P.calmCam, paint, 1 - Math.pow(0.3, dt));
-      const dist = lerp(P.cutterUp ? 2.1 : ctx.indoors?2.5:3.5, 4.8, P.calmCam), height = lerp(1.7, 1.95, P.calmCam), side = lerp(-0.6, -0.2, P.calmCam);
+      const pressure=ctx.threat?1-smooth(3,9,ctx.threatDistance===undefined?9:ctx.threatDistance):0;
+      const dist = lerp(P.cutterUp ? lerp(2.5,3.6,pressure) : ctx.indoors?2.5:lerp(3.5,3.9,pressure), 4.8, P.calmCam), height = lerp(1.78, 1.95, P.calmCam), side = lerp(-0.65, -0.2, P.calmCam);
       const pitch = P.camPitch, cy = Math.cos(P.camYaw), sy = Math.sin(P.camYaw);
       tx = P.x - sy * dist * Math.cos(pitch) + cy * side; tz = P.z - cy * dist * Math.cos(pitch) - sy * side; ty = P.y + height + Math.sin(pitch) * dist;
       // keep the camera out of things and above the ground
@@ -103,7 +113,7 @@ const Player = (() => {
       if(clear<1){const safe=Math.max(0,clear-.025);camX=lerp(P.x,camX,safe);camY=lerp(P.y+1.45,camY,safe);camZ=lerp(P.z,camZ,safe);}
       lx = P.x + cy * side * 0.6; ly = P.y + lerp(1.3, 1.45, P.calmCam) + Math.sin(pitch) * 0.4; lz = P.z - sy * side * 0.6;
       const fx = Math.sin(P.camYaw), fz = Math.cos(P.camYaw); const ahead=lerp(3.2,6.0,P.calmCam);lx += fx * ahead; lz += fz * ahead;
-      fov = lerp(55, 48, P.calmCam);
+      fov = lerp(55+pressure*8, 48, P.calmCam);
     }
     cam.x = camX; cam.y = camY; cam.z = camZ; cam.tx = lx; cam.ty = ly; cam.tz = lz; cam.fov = fov * Math.PI / 180;
   }

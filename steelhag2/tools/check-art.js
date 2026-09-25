@@ -54,9 +54,9 @@ const stationary={x:0,y:0,z:3,speed:0,torch:false,cutterUp:false,hold:0,flinch:f
 let hurt=0,impacts=0;const callbacks={awake:true,quiet:false,onHit:()=>hurt++,onImpact:()=>impacts++};
 const dodged=new Machine('bearer',0,0,0,{aggressive:true});dodged.update(1/60,stationary,callbacks);
 if(dodged.state!=='windup')throw Error('charge did not announce');
-const original=JSON.stringify(dodged.attackDir);stationary.x=3;
-for(let i=0;i<120;i++)dodged.update(1/60,stationary,callbacks);
-if(JSON.stringify(dodged.attackDir)!==original||Math.abs(dodged.x)>.01)throw Error('telegraphed charge changed its lane');
+const original=JSON.stringify(dodged.attackDir);stationary.x=dodged.contactRadius+.2;
+for(let i=0;i<120;i++){const charging=dodged.state==='windup'||dodged.state==='lunge';dodged.update(1/60,stationary,callbacks);if(charging&&Math.abs(dodged.x)>.01)throw Error('charge changed its committed lane');}
+if(JSON.stringify(dodged.attackDir)!==original)throw Error('telegraphed charge changed its lane');
 if(hurt!==0||impacts!==1)throw Error('sidestep must avoid damage and charge must land once');
 console.log('Roadkeeper: telegraphed lane commits before movement, side-step is safe, impact fires once');
 `,ctx);
@@ -68,9 +68,13 @@ for(const dt of [1/120,1/30,.4]){
  const callbacks={awake:true,quiet:false,onHit:()=>hits++,onImpact:()=>impacts++};
  for(let i=0;i<120&&m.state==='lunge';i++)m.update(dt,contactPlayer,callbacks);
  if(hits!==1||impacts!==1||m.state!=='recover')throw Error('contact must end the charge once');
- if(Math.abs(Math.hypot(m.x-contactPlayer.x,m.z-contactPlayer.z)-1.25)>1e-6)throw Error('charge drove through player');
- const stop=[m.x,m.z];m.update(.5,contactPlayer,callbacks);
+ if(Math.abs(Math.hypot(m.x-contactPlayer.x,m.z-contactPlayer.z)-m.contactRadius)>1e-6)throw Error('charge drove through player');
+ const stop=[m.x,m.z];m.update(.1,contactPlayer,callbacks);
  if(hits!==1||impacts!==1||m.x!==stop[0]||m.z!==stop[1])throw Error('contact recovery must leave room to escape');
 }
+const recoil=new Machine('bearer',0,0,0,{aggressive:true,scale:1.45});recoil.state='recover';recoil.attackT=.31;
+const target={x:0,y:0,z:2,speed:0,torch:false,cutterUp:false};const initial=Math.hypot(recoil.x-target.x,recoil.z-target.z);
+for(let i=0;i<35;i++)recoil.update(1/60,target,{awake:true,quiet:false});
+if(Math.hypot(recoil.x-target.x,recoil.z-target.z)<initial+.5)throw Error('recovery creates no cutting space');
 console.log('Roadkeeper: contact stops at player boundary at 120/30 fps and through a long frame');
 `,ctx);
