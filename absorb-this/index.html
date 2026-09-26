@@ -991,72 +991,387 @@ function posterHit(x, y, z) {
 }
 function zFace() { drawZ(T, false, null, 0); try { return ZC.toDataURL(); } catch (e) { return ''; } }
 
-let TAGLINES = ['A COUNTER-TERRORISM SHOOTER'], SHOUTS = ['MOIST!'], NARR = { evaporated: ['You dried up.'], floor: ['You fell.'], absorbed: ['You stopped fighting. The sponge took you in. It is warm in here, and a little yellow.'] };
+let TAGLINES = ['A COUNTER-TERRORISM SHOOTER'], SHOUTS = ['MOIST!'], NARR = {
+  evaporated: [
+    "You dried out. Somewhere above the counter, a very small cloud is forming. It does not remember you.",
+    "You rose off the counter as vapour and drifted toward the extractor fan. It was on. It is always on.",
+    "You evaporated. A faint mark on the counter shows where you were. It will be gone by morning.",
+    "The last drop is gone. The sponges waited a moment to see if there was more. There was not.",
+    "You became humidity. The kitchen is now very slightly more humid. Nobody noticed. The bread noticed.",
+    "You are gone. The sponges have dried out a little too, which might have been respect, but was probably the radiator.",
+  ],
+  floor: [
+    "You fell off the counter. The dog found you in under a second. The dog was not surprised. The dog is never surprised by food.",
+    "The floor was farther down than it looked. The dog was closer than it looked.",
+    "You landed beside a raisin and some dust. The dog took all three.",
+    "The dog licked you up and looked back at the counter, hopeful. There was nothing else. It kept looking anyway.",
+    "The dog had been lying under the counter all evening, just in case. Tonight, just in case happened.",
+  ],
+  absorbed: [
+    "You held E and let go of everything else. The sponge was very gentle about it. It has done this before.",
+    "The sponge absorbed you. You are spread among its many small holes, which are roomier than you expected.",
+    "You gave yourself to the sponge. Tomorrow it will be used on a frying pan, and you will be there for it.",
+    "You are inside the sponge now. It smells of washing-up liquid and last night's rice. You will get used to it.",
+    "The sponge drank you. It is slightly heavier now. That is your legacy.",
+    "You are part of the sponge now. One day it will be wrung out over the sink, and you will finally see the drain.",
+  ],
+};
 let MULTIW = [[], [], ['DOUBLE DIP!'], ['TRIPLE SCRUB!'], ['QUAD-RINSE!'], ['DISHWASHER MODE!'], ['SPIN CYCLE!'], ['DISHPOCALYPSE!'], ['DISHPOCALYPSE!']];
 let ZNAMES = ['ŽIŽEKBOT 3000', 'VIRTUAL ŽIŽEK', "CECI N'EST PAS UN ŽIŽEK", 'ŽIŽEK SIMULACRUM'];
+// every line below is invented for the game; it is a cartoon parody, not a real quotation
 const ZL = {
-  poster: ['You shoot at the big Other? The big Other does not exist! You are wasting water.'],
-  start: ['Ah. You are a drop of water. The last drop. The little piece of excess that does not fit in the glass. Precisely! This is the subject.',
-    'Look at this kitchen. A counter, a sponge, some sauce. It looks so innocent. This is exactly how ideology works!'],
-  idle: ['You know, in Slovenia we have an old saying about sponges. No, we don\'t. I invented it just now. This is how every tradition begins.',
-    'Why does the sponge want to absorb you? Because it lacks something. We all lack something. The sponge is simply more honest about it. *sniff*',
-    'The counter is not neutral ground. Somebody wiped it. Somebody decided what counts as clean. Pure ideology!',
-    'Every time you squirt, you lose a little of yourself. Then you drink it back off the counter. This is the circulation of capital, my friend.',
-    'Observe the hot sauce. It is not really dangerous. It is hot in a safe, packaged way. It is the decaffeinated coffee of pain.',
-    'You think you are the hero? You are tap water with a gun, and the gun is also water. Where does the subject end and the weapon begin?',
-    'Note how the game gives you points. Points for what? For destroying kitchenware. And you feel good! Ha! They have got you completely.',
-    'The spoons circle you. They do not attack at once. First they must stir. This is liberal democracy: endless stirring, and nothing changes.',
-    'What is a sponge, ultimately? A hole with edges. A structured absence. Lacan\'s objet petit a, but you can buy it in packs of four.',
-    'You keep looking for the fork. There is no fork. The fork is the big Other of this kitchen. It does not exist, and still it rules everything.',
-    'I am not here. I am a drawing inside a game about a drop of water. And still you listen to me! What does this tell you about yourself?',
-    'And so on, and so on. *sniff*'],
-  first_sponge: ['You killed a sponge. But you did not kill THE sponge. The sponge as a form continues. There will always be more sponges, and so on, and so on.'],
-  sponge: ['Another sponge wrung out. You think you are resisting the system. But the system LOVES this spectacle of resistance!',
-    'Look at all this foam. This is the obscene underside of cleanliness.'],
-  first_bottle: ['Hot sauce! It promises you pain, but a safe pain. It is chocolate laxative: the product contains its own antidote.'],
-  bottle: ['You broke the bottle, but the sauce was always inside you. Well, not literally, you are water. But philosophically, yes.'],
-  first_spoon: ['The spoon! Why always the spoon and never the fork? Because the fork is too honest about its violence.'],
-  spoon: ['You bent the spoon. "There is no spoon," they say in the film. No! There is a spoon. It is on the floor now. It is very real.'],
-  googly: ['You shot it in the googly eye. Lacan tells of a sardine can floating on the sea: it does not see you, and yet it looks at you. You shot the sardine can. Bravo.',
-    'Aim for the eyes, the game tells you. Why the eyes? Because the eye is the one place where the object looks back at you.'],
-  multi: ['DOUBLE DIP, it screams. The game enjoys on your behalf, like canned laughter in a sitcom. You do not even have to have fun. It is done for you!',
-    'The announcer celebrates for you. The prayer wheel prays, the laugh track laughs, the announcer shouts. You are free to feel nothing!'],
-  counter: ['COUNTER-STRIKE. Off the counter. You see how the pun works? The joke knows more than you do.',
-    'You pushed it off the edge. There is always an outside. The floor is the Real of the kitchen.'],
-  rocket: ['You blow yourself up in order to go higher. This is basically how an academic career works.',
-    'Rocket jumping! Self-harm as a form of social mobility. Very contemporary.'],
-  dare: ['The sponge has you. Hold E. Stop fighting it. What if the sponge is not your enemy? What if it is your desire?',
-    'Hold E and let it take you. Go on. I dare you. Or are you afraid of what you really want?'],
-  absorbed: ['Yes! You feel it? The obscene enjoyment of being consumed. You protest, but a little part of you says: more.'],
-  puddle: ['Now you are a puddle. Horizontal! No more pretending to stand upright like the proud bourgeois individual.'],
-  soak: ['You drink your own spilled water off the counter. Disgusting. Beautiful. Both at the same time. This is life.'],
-  low: ['You are drying up. Soon you will be vapour. Is this death, or finally the pure form of freedom? Probably death.'],
-  ice: ['An ice cube. Water, but frozen, like ideology. Cold, hard, and still you consume it willingly.'],
-  clear: ['The counter is clean. But nothing is more suspicious than a clean counter. Who benefits from this cleanliness? Ask yourself!',
-    'Wave cleared. For a moment there is peace. This is the most dangerous moment of all, when you think it is over.'],
-  mama: ['Grandma Sponge! This is the superego itself. She does not forbid you anything. She commands you: Eat something! Enjoy! Absorb!'],
-  mamaKill: ['You defeated Grandma, and she split into two more grandmas. The return of the repressed. It always comes back, doubled.'],
-  still: ['You stopped moving. Finally! Sometimes the most radical act is to do nothing at all. Like Bartleby: I would prefer not to.'],
-  spoonHit: ['The spoon hit you. You know why it hurts? Not the impact. The humiliation of being stirred.'],
-  sauceHit: ['Sauce in the face! You see? The spice is not the problem. The problem is that a part of you wanted it.'],
-  glass: ['You want to take away the glass? There is no clear view. The distortion IS the view. Without the glass, there is no you.'],
-  pad: ['A ketchup packet launches you into the air. Even your freedom is sponsored by a condiment.'],
-  rank: ['SUPERSATURATED. The game gives you a letter grade for murder, and you are proud of it. This is also how school works.'],
-  mute: ['You muted me? Ha! I am still here. Now I am text. For you, this is even worse.'],
-  jokeFollow: ['...It is. And that is exactly what makes it so dangerous.',
-    'Look at yourself. You are killing sponges with a water pistol, and laughing. So who is really being absorbed here?',
-    'The joke is the only place where the truth can hide. So keep laughing. But carefully.',
-    'Laugh, go on. The game has already laughed for you. You are only catching up.',
-    'No, no, it is fine. Continue. But know that I know that you know.',
-    'Precisely because you know it is a joke, you can do it with a clear conscience. This is how ideology works today.'],
-  death: ['You evaporated. But do not worry. In a sense, you were never really wet.',
-    'Game over. But notice: you will click again. You always click again. This is the death drive!',
-    'You died, and the kitchen simply goes on without you. This is not tragedy. This is the kitchen.'],
-  fallDeath: ['You fell off the counter and the dog licked you up. This is the only honest ending in the whole game.'],
-  pause: ['You paused? The game does not stop. It waits for you. Which is worse.', 'Take a break. The sponges will still want you when you return. Desire is patient.'],
-  end: ['You think you have lost? Look closer. The sponge is now 98% you. So, who has absorbed whom?',
-    'At last you stopped resisting. And what did you find inside the sponge? More sponge. There is no inside. Only more holes.',
-    'You chose to be absorbed. Congratulations. This is the first free act you have committed in the entire game.'],
+  start: [
+    "Before we begin, a confession: nothing I say is real. I am a simulacrum, drawn by strangers, speaking through your browser. In other words, a normal philosopher.",
+    "Everybody asks if the glass is half empty or half full. Nobody asks the drop at the bottom. The drop says: the glass is ninety-nine percent empty, and I am armed.",
+    "A drop of water with a gun made of itself. My God! Every shot is a little self-sacrifice. This is the most honest economic model I have ever seen in a video game.",
+  ],
+  idle: [
+    "Every kitchen has a Tupperware drawer where no lid fits any container. The most Lacanian place in the house: there is always a lid, and it is always the wrong one.",
+    "People put their dishes in the dishwasher, the machine that washes, but first they rinse them. They wash for the dishwasher! We do not trust the big Other to do its job.",
+    "Bottled water is tap water plus ideology, you know. And you, my friend, are tap water. You are honest. This is why you are losing.",
+    "The salad spinner: a machine whose only purpose is to remove water from lettuce. For you, DRIP, it is a horror film. Spinning, spinning, and at the end, you are gone.",
+    "The knife block: the blades are hidden inside the wood, only the handles are visible. This is how power works. You only ever see the handle.",
+    "Best before: the most metaphysical phrase in the kitchen. Best before what? Before the Fall? Before language? Before we started playing this game?",
+    "In They Live, a man puts on sunglasses and sees the hidden messages everywhere: OBEY, CONSUME. Take off your glass here and you see the hidden message of this kitchen: ABSORB. Oh wait, that is the title of the game.",
+    "Why do we always leave the last drop in the glass? Nobody drinks it. Precisely! It is not there to be drunk, it proves the glass was once full. You are not water. You are a certificate.",
+    "Psycho, the shower scene, the water spiraling down the drain. For a drop of water this is not a horror film. It is a documentary.",
+    "Peer review is when three sponges drink your paper and send it back saying it is too wet. Reviewer two is always the scouring side.",
+    "*sniff* People ask why I sniff all the time. It is not a cold. I am trying to inhale the Real, and unfortunately the Real goes up the nose.",
+    "They play my voice at double speed with a low pitch. People think this is a distortion. No! For the first time, I sound as fast as I think.",
+    "The game lets me speak only every thirty seconds. Thirty seconds! I have never finished a thought in thirty seconds. This one, for example, is also going to be cut off before the",
+    "If I am a cartoon, who is drawing me? A designer? A browser? The big Other? This is the old question of theology, but now in JavaScript.",
+    "Dirty plate, clean plate, and then? Dirty plate again. The negation of the negation is not a return to the beginning. It is dinner.",
+    "A tea bag exists only to be drowned in hot water. I understand the tea bag completely, you know. It is how I feel at conferences.",
+    "Diogenes lived in a barrel. You live in a glass. This is progress: now everyone can see the philosopher.",
+    "Heidegger had Dasein, being-there. You have Dampsein, being-damp. Much more honest. To be alive is to be slightly moist. A dry man is a mummy.",
+    "Hegel's Logic begins with pure being, which is nothing, and ends with the Absolute. Basically it is a wave-based shooter. The final boss is the Concept.",
+    "Coca-Cola has a magic property: the more you drink, the thirstier you get. You are the opposite. The more you are drunk, the less of you there is. You are anti-Coke.",
+    "People asked me for years what my book Incontinence of the Void was about. Now I can finally answer. It is about you. A leaking drop of water with a gun.",
+    "I wrote sixty books, and now I am a drawing in the corner of a video game about a drop of water. This is not a career. This is a symptom.",
+    "You know, in Slovenia we have an old saying about sponges. No, we don't. I invented it just now. This is how every tradition begins.",
+    "What is a sponge, ultimately? A hole with edges. A structured absence. Lacan's objet petit a, but you can buy it in packs of four.",
+    "You keep looking for the fork. There is no fork. The fork is the big Other of this kitchen. It does not exist, and still it rules everything.",
+    "And so on, and so on. *sniff*",
+  ],
+  first_sponge: [
+    "A kitchen sponge is a plastic imitation of an animal. I am a cartoon imitation of a philosopher. We were brothers, two simulacra. And you killed my brother. Well done.",
+    "First blood? No, first foam. The first one you never forget, and then you repeat it compulsively. Freud called it the repetition compulsion. Gamers call it a kill streak.",
+    "You killed a sponge. But you did not kill THE sponge. The sponge as a form continues. There will always be more sponges, and so on, and so on.",
+  ],
+  sponge: [
+    "A minute of silence for the sponge, please. Okay, that is enough. It is a video game and I am paid by the line.",
+    "Squeezed! In the end every sponge confesses. All that foam, all those holes, and not one idea inside. Like a panel discussion.",
+    "A sponge is not a thing with holes. It is holes, held together by a thing. So ontologically you did not kill it. You only removed the thing.",
+  ],
+  first_bottle: [
+    "Marx says the commodity is a strange thing: the table stands on its head and grows grotesque ideas out of its wooden brain. Here the hot sauce grew stubby legs. And you smashed it.",
+    "A bottle that walks by itself and throws its own contents at your face. This is what every commodity would do if it were honest about how it feels about us.",
+    "Hot sauce! It promises you pain, but a safe pain. It is chocolate laxative: the product contains its own antidote.",
+  ],
+  bottle: [
+    "Thesis: water. Antithesis: hot sauce. Synthesis: a disgusting pink puddle. This is exactly why Hegel never actually used this formula.",
+    "The label said Made With Real Peppers. Real! Nobody writes made with real water. This is how ideology works: the word real appears exactly where the Real is missing.",
+    "Why does it throw sauce at you? It wants to share its enjoyment. And nothing, you know, is more dangerous than a neighbor who insists that you enjoy what he enjoys.",
+  ],
+  first_spoon: [
+    "Your first spoon! In The Matrix, a child tells us there is no spoon. And you, like a good philosopher, have proven it with violence.",
+    "First spoon down. Knives are feared, forks are respected, but the spoon? Disposable. The spoon is the proletariat of the drawer.",
+    "The spoon! Why always the spoon and never the fork? Because the fork is too honest about its violence.",
+  ],
+  spoon: [
+    "The spoon only wanted to feed you. The ideology of care: open your mouth, here comes the airplane! And then the airplane lunges. Every airplane spoon is a threat.",
+    "An empty spoon flying at your face. Lacan says love is giving what you do not have. That spoon had nothing on it, and it gave it to you with enormous force. That was love.",
+    "In the drawer, spoons lie nested together for years, perfectly aligned. Of course they escape and attack! Too much intimacy produces violence. Every family knows this.",
+  ],
+  googly: [
+    "Why bonus damage for the eye? Without eyes a sponge is a tool. With eyes it is a victim. The eye is the difference between cleaning and murder, and you aimed for the murder.",
+    "Un Chien Andalou, but family friendly: tap water instead of a razor. Surrealism for the whole kitchen.",
+    "Precisely! Hit the gaze and the whole object collapses. The eye was holding everything together. Without it, a sponge is just a rectangle with regrets.",
+  ],
+  multi: [
+    "Listen to that announcer! So fast, so high, so excited. For the first time in my life somebody speaks faster than me. I am jealous, and I am sniffing about it. *sniff*",
+    "That voice! My God! A chipmunk on espresso! Lacan says the voice is an object that detaches itself from the body. This one has detached itself from all dignity.",
+    "The announcer enjoys the multi kill for you, the way canned laughter laughs for you. Interpassivity! You can relax, the celebration has been outsourced.",
+  ],
+  counter: [
+    "The five-second rule! We know very well the floor is dirty, and yet, if we pick it up quickly, it is still clean. Fetishistic disavowal. The sponge has five seconds. Then the dog.",
+    "Fort! Freud's grandson threw his spool away, fort, and pulled it back, da. You threw the sponge away, and there is no string. Fort forever.",
+    "When a kitchen sponge falls on the floor, it is demoted. Next week it cleans the toilet. German, French or Anglo-Saxon toilet, it does not matter. Its career is over.",
+  ],
+  rocket: [
+    "Rocket jumping is self-destruction as public transport. You explode yourself to get somewhere, like capitalism growing through its own crises, and so on, and so on. Look how high!",
+    "Look at you, above the counter, above the sponges, above ideology! No, wait. Ideology is precisely the feeling of being above ideology. Come down, please.",
+  ],
+  dare: [
+    "Lacan says: do not give way on your desire. But what if your desire is to give way? Then hold E! Do not give way on giving way!",
+    "Why hold E? I do not know. I only know that you want to, and that you pretend you do not. This is the whole of psychoanalysis. Hold E, and I will send you the bill.",
+    "Resist, fight, rebel. Boring! Everybody resists, it is the official ideology. The only truly transgressive act left is to hold E and let the sponge win.",
+  ],
+  absorbed: [
+    "Here I am tempted to say: the romantic ideal, two become one. Nobody warned you that the one would be the sponge.",
+    "Welcome to the desert of the Real? No, the opposite. Welcome to the wetland of the Imaginary! Inside the sponge everything is soft and yellow and yours.",
+  ],
+  puddle: [
+    "Flat, slippery, fast. The Ticklish Subject! When you are this flat, everything tickles. The crumbs, the counter, the whole kitchen is tickling you.",
+    "Puddle form! No depth, pure surface. Finally a postmodern subject: no interiority, only reflection, and very fast.",
+  ],
+  soak: [
+    "You drink yourself back up from the counter. The subject reappropriates its own alienated product! Marx dreamed of this. He did not imagine it would involve licking a countertop.",
+    "The prodigal puddle returns! And what does the father do? He drinks it. This is not in the Bible, but it should be.",
+    "Licking the counter! My God, where the raw chicken was! Ideology is not what you think, it is what you are willing to put in your mouth.",
+  ],
+  low: [
+    "Welcome to the desert of the Real! You are drying out, and what remains is the truth: a little ring of limescale.",
+    "Almost nothing left! Soon you will be less than nothing, which, I must say, is my specialty. I wrote a thousand pages about it. Do not make me write page one thousand and one.",
+    "Drying out! This is how every great enthusiasm ends. The passion evaporates and only the stain remains. Do not become a stain. Become a puddle.",
+  ],
+  ice: [
+    "Ice! In Titanic, the iceberg arrives exactly on time to save the love story from boring everyday life. This ice cube arrives to save you from a boring fight.",
+    "You picked up the tip of the iceberg. And under the surface, as always, lies the unconscious. In this case, the freezer.",
+  ],
+  clear: [
+    "Cleared! And now what? Every victory produces this emptiness. The hero kills the dragon, and then he has to go home and do the dishes.",
+    "The end of history! No enemies, no conflict, Hegel's Absolute Knowing achieved on a kitchen counter. It will last approximately until the next wave.",
+    "In a real kitchen, after the battle, someone would wipe the counter. The ultimate irony: here the only cleaning products are the enemies. Who cleans the cleaners?",
+  ],
+  mama: [
+    "My God, the grandmother! People think the superego is the strict father who forbids. No! The true superego is Grandma: Eat! You are too thin! Why do you not finish your plate?",
+    "She wears spectacles! Lacan's sardine can does not see you, but Grandma sees you. Grandma always sees you. She saw you forget her birthday.",
+    "Here she comes, the mother of the mother, the mother squared. If the mother is the primordial Thing, the grandmother is the Thing that brought cookies.",
+  ],
+  mamaKill: [
+    "The negation of the negation! Kill one grandma, you get two. Kill two, you get four. Hegel never warned us that the dialectic ends in a retirement home.",
+    "She splits! The dialectical formula: one divides into two. Not two become one, like romantic love. No, one grandma becomes two grandmas, and both are disappointed in you.",
+  ],
+  still: [
+    "Nine seconds without moving. Are you waiting for the game to play itself, like canned laughter that laughs for you? Put a prayer wheel on the W key, it will walk for you.",
+    "Hello? Are you there? Maybe you went to get a glass of water. The irony! A drop of water, abandoned by a player who is drinking water. Cannibalism by proxy.",
+    "A drop does not stand still. A drop that stands still is called evaporation. Move, or become weather.",
+  ],
+  spoonHit: [
+    "Ow! It lunged like a thesis advisor asking when you will finish. Always circling, always winding up, and then, bang, right in the dampness.",
+    "Hit! You know why the spoon is so dangerous? It is concave. It is made to hold things. It wanted to hold you, had no idea how, so it hit you instead. Like most relatives.",
+  ],
+  sauceHit: [
+    "Sauce on your screen! Holbein's Ambassadors has a strange smear that becomes a skull when you look from the side. Your screen has a smear too. From the side it is still hot sauce.",
+    "Now you see the world through hot sauce. This is ideology: not glasses you put on, but a stain on the lens that you forget is there.",
+  ],
+  glass: [
+    "The parallax view! Through the glass, one kitchen. Without the glass, another. The truth is in neither image, it is in the gap between them. Also press G again, I preferred it.",
+    "Welcome to the desert of the Real! No curvature, no bubbles, no bottom of the glass. It is too sharp. We cannot bear very much reality, especially in high resolution.",
+    "G! G for Gaze! No, G for Glass. No, G for God, who is also a kind of distortion filter. I claim that every key on your keyboard is a theological key.",
+  ],
+  pad: [
+    "Aufhebung! In German it means to cancel and to lift up at the same time. You cancelled the ketchup packet and it lifted you up. Hegelian sublation in its purest form!",
+    "Boing! Ketchup makes everything taste like ketchup. It abolishes difference. And now it abolishes gravity. Ketchup is the most totalitarian of all condiments.",
+  ],
+  rank: [
+    "Who gives you this rank? The big Other, who does not exist. And still you perform for his approval. Exactly like tenure.",
+    "SPLISH SPLASH SUPREME! And yet you want more. This is the superego: no rank is ever enough. Tomorrow there will be four S's and you will still feel guilty.",
+  ],
+  mute: [
+    "Muted, but the sniff remains. You cannot mute the sniff. The sniff is the Real. *sniff*",
+    "You muted the philosopher and kept the explosions. Pure ideology. This is how the whole world treats philosophy.",
+  ],
+  jokeFollow: [
+    "The sponge does not think it is a joke. The sponge thinks it is lunch. So tell me, which of you is taking reality more seriously?",
+    "Then why did you stop moving too? The game froze, and so did you. Your body obeys a grey screen faster than it has ever obeyed your alarm clock.",
+    "Here is a joke. A person finds a glass with one drop left in it and asks, who drank all the water? And the drop says: you did. Every night. For years.",
+    "It is a joke in the way a mousetrap is a snack. Technically true. Please, keep reaching for the cheese.",
+    "First as tragedy, then as farce. We skipped the tragedy completely and went straight to the googly eyes. This is how you know it is serious.",
+    "You say joke. But notice, the tab is still open. You have not closed it. Your hand is voting against your irony.",
+    "Of course not. You think it is a game. A joke, you can explain. A game explains you. Your entire evening, fully explained, by a drop of water.",
+    "Here is the real joke. Tonight you will rinse a glass, and at the bottom there will be one little drop, and you will think of me. And you will pour it away anyway.",
+    "A joke is like a fork in the road. Oh no. I said the word. Forget I said it. There is no fork. There is no fork! Unfreeze, unfreeze!",
+    "No, no. It is much worse than a joke. It is a hobby. You chose this. Freely. On a weeknight.",
+    "Everything important first arrives as a joke. Nobody took the fork seriously either. Remember that I said this. Later. When it matters.",
+    "Let me give you an example. A person plays a game about the last drop of water, late at night, with a real glass beside them. Is there a glass beside you now? Do not look. Too late. You looked.",
+  ],
+  death: [
+    "Zero percent dampness. Perfect dryness. Monks spend thirty years on a mountain trying to become this empty. You did it in four minutes, against a hot sauce bottle.",
+    "The sponge did not hate you. This is the horror. Hate would have been personal. It only needed you. Need is not an emotion. Need is plumbing.",
+    "Less Than Nothing. This used to be the title of a very long book. Now it is also your dampness.",
+    "You died of dryness in a kitchen. A kitchen! The one room in the house built entirely around water! This is not a tragedy. This is interior design.",
+    "Drip is dead. Long live the drip. Somewhere, a tap is already leaking your successor.",
+  ],
+  fallDeath: [
+    "You fell from the symbolic order of the counter into the Real of the kitchen floor. The Real, it turns out, has four legs and bad breath.",
+    "The fall is not the tragedy. The tragedy is how happy the dog was.",
+    "You wanted to see what lies beyond the edge of the world. Now you know. It is a dog. Every world ends in a dog, if you go far enough.",
+    "You fell off the counter and the dog licked you up. This is the only honest ending in the whole game.",
+  ],
+  rollDeath: [
+    "The paper towel did not kill you. It simply cleaned up. For the system, your death was not a murder. It was housekeeping.",
+    "The Quicker Picker-Upper. Quicker than what? Picker of what? Upper towards where? The answer to all three questions is, sadly, you.",
+  ],
+  forkDeath: [
+    "The fork does not exist, and yet you are perforated in four places. You see? Ideology does not need to exist in order to stab you. It only needs a handle.",
+    "I said there is no fork. I was wrong. But notice, I was wrong in a very sophisticated way. You were wrong in a very dead way.",
+  ],
+  end: [
+    "You held E, and E held you. It is the most stable relationship you have had all evening.",
+    "At last, no more struggle. Only warmth, and a faint smell of yesterday's lasagne. Is this happiness? Perhaps. Most happiness smells a little of yesterday's lasagne.",
+    "The superego says Enjoy! And you found the one loophole. You let something else do the enjoying. Brilliant. Perverse. Deeply, deeply brilliant.",
+    "You gave up your dampness freely. Beautiful. Now you belong to a larger dampness. This is either communism or a kitchen sponge. I have never been able to tell them apart.",
+    "E. The fifth letter. Why E? E for Enjoy! E for Ego, dissolving! E for Exit! E for Eaten! Every letter becomes a destiny if you hold it long enough.",
+    "In Lacanian terms, you made yourself the instrument of the sponge's enjoyment. Technically, this is perversion. A very tidy, very absorbent perversion. The Pervert's Guide to Kitchenware.",
+    "You think you have lost? Look closer. The sponge is now 98% you. So, who has absorbed whom?",
+    "You chose to be absorbed. Congratulations. This is the first free act you have committed in the entire game.",
+  ],
+  pause: [
+    "Pausing a game is like decaf coffee. You get the whole ritual of playing without the dangerous substance of playing. Sip slowly.",
+    "You paused, and suddenly, anxiety. Without the enemies you are alone with the most frightening thing in any game. The settings menu.",
+    "While we wait, consider the three endings, like the three toilets. Evaporation is French, everything vanishes at once. The floor is German, the dog inspects you. The sponge is English. You float.",
+    "Let me give you an example. The game is paused, the sponges are paused, you are paused. But the fridge is still humming. The fridge never pauses. The fridge is the true subject of history.",
+  ],
+  bubble: [
+    "A soap bubble is pure ideology. You can see right through it, and still you cannot get out.",
+    "Bubbled! It can see you. It can hate you. It simply cannot touch you. Like a neighbour on the other side of a very clean window.",
+    "The Suds-O-Matic. You attack the enemy and you wash it at the same time. Violence with the hygiene already included. Every parent dreams of such a weapon.",
+  ],
+  bubbleCounter: [
+    "You did not kill it. You relocated it. The most polite way to remove an enemy is to let gravity take the blame.",
+    "This is interpassivity. You did not kill it, the floor did it for you. You keep the points, and gravity keeps the guilt.",
+    "It did not fall. It was released. Language is important. With the right words, even a sponge plunging to the floor is a graduation.",
+  ],
+  roll: [
+    "Here it comes, the paper towel. It does not attack. It only cleans. And precisely this makes it unstoppable. Nobody ever resists being cleaned.",
+    "The absorbent totality! It takes in the water, the sponges, the contradictions, everything. This is Hegel's Absolute, but in two ply.",
+    "Look at it roll! And under that soft white surface, a cardboard tube, completely empty. Every totality is built around a hole. Run from this one.",
+  ],
+  rollKill: [
+    "Victory! But do not relax. Paper towels never come alone. They come in packs of six. Twelve for large families.",
+    "Look at what remains. Only the cardboard tube. The paper towel was always organised around an absence. Like me. Like you. Like the fork. Oh no. I said fork.",
+  ],
+  rollLeft: [
+    "It did not need you to defeat it. It was defeated by geography. The counter ended. Most things end where the counter ends.",
+    "It rolled off the counter by itself. Nobody pushed it. This is the only truly free act in the kitchen.",
+  ],
+  rollSquash: [
+    "Squashed! The sponges thought the paper towel was on their side. Absorbent solidarity! But no. There is no solidarity among things that absorb.",
+    "You see? The enemy of your enemy is not your friend. The enemy of your enemy is a paper towel, and it will squash you next with the same gentle smile.",
+  ],
+  fork: [
+    "No. No, no, no. This is not possible. The fork is the big Other, and the big Other does not exist! Who let it in? Who wrote this game?",
+    "The fork exists! The spoons lied! The news lied! I lied! But I lied in good faith, which is the worst kind of lying, because then you believe it too!",
+    "The spoons kept saying, I am not a fork, I am not a fork. Nobody asked them! This was the clue! The denial was the confession! Freud! It is always Freud!",
+    "The return of the repressed! We repressed the fork so hard that it came back with four prongs and a health bar.",
+    "Seen nowhere, suspiciously! The news ticker knew! The news ticker was the only honest journalist in this kitchen, and nobody listened to the news ticker!",
+    "Everything I said is still true. It is only that now it is also stabbing you.",
+  ],
+  forkKill: [
+    "You killed the fork. Now it truly does not exist. You see? I was right all along, only a little early. Theory always arrives before the facts, like a nervous dinner guest.",
+    "The fork is gone, and my theory is saved. Thank you. You did not do it for truth, you did it for points. But the effect on my theory is exactly the same.",
+    "You killed the thing that does not exist. This is either the greatest victory in the history of philosophy, or you are very tired. Probably both.",
+  ],
+  gold: [
+    "Look at it glitter! It is still a sponge. Same holes, same smell. But it is golden, and suddenly you want it more than your own dampness. Commodity fetishism, hopping away.",
+    "Of course it runs from you. The paradox is, if it ever stopped running, it would be an ordinary yellow sponge. And sponges are already yellow!",
+    "The Sublime Object of Ideology! With googly eyes! Running away! I wrote a whole book about this sponge, and I did not even know it existed.",
+  ],
+  goldKill: [
+    "The golden sponge is yours, and all its fortune. Tell me honestly, do you feel rich? No. You feel like chasing another one. This is the whole economy, in one sponge.",
+    "Congratulations, the golden sponge. And now the terrible truth. It was yellow the whole time. It was the lighting. It is always the lighting.",
+  ],
+  goldEscape: [
+    "It ran away. Do not be sad. An object of desire that escapes is doing its job perfectly. It is the only employee in this kitchen who does.",
+    "In Defense of Lost Causes! I will defend this sponge. It is lost. It is a cause. It is golden. What more do you want from a cause?",
+  ],
+  mod_tap: [
+    "Somebody left the tap on! Water from the heavens, free, endless, for everybody! This is communism! No, wait. It is only bad plumbing. What is the difference, really?",
+    "Incontinence of the Void! The universe cannot hold its water, and neither, it seems, can this kitchen.",
+  ],
+  mod_moon: [
+    "The sponges hop so high now, so joyful. Nobody has told them there are no sinks on the moon. Ignorance, you know, is lighter than air.",
+    "Low gravity! Finally the sponges experience the unbearable lightness of being. It does not suit them.",
+  ],
+  mod_googly: [
+    "Googly overload! Now the eyes are bigger than the sponges. The gaze has eaten the object. This is Lacan, but also a children's craft project that went very wrong.",
+    "Giant eyes, easier to hit! You see? The bigger the gaze, the easier the target. Remember this if you ever become famous.",
+  ],
+  mod_caffeine: [
+    "Caffeinated! Everything faster! Finally the world is talking at my speed. Welcome, welcome, everybody, to my normal.",
+    "Caffeinated sponges! They hop faster, drink faster, want you faster. Speed is not freedom. Speed is only anxiety with better marketing.",
+  ],
+  mod_rave: [
+    "The sponges are dancing. Or maybe they are only hopping as usual, but with lighting. This is all of culture. The same hopping, better lighting.",
+    "Lights, bass, sweat. Except there is no sweat, because you are the sweat. You are the only moisture on the dance floor. Careful. Everybody here is thirsty.",
+  ],
+  mod_funsize: [
+    "Fun Size! Tiny sponges, twice as many! Like the fun size chocolate bar. Nobody ever asks, fun for whom? Not for you. Definitely not for you.",
+    "Each little sponge drinks a little less, but there are so many more. This is not a reduction. This is a subscription model.",
+  ],
+  chal_bartleby_intro: [
+    "Challenge: Bartleby! For six seconds, do not shoot. Not once. I would prefer not to, says Bartleby, and so will you. Hands off the trigger.",
+    "Do not shoot for six seconds. In a shooting game! The most subversive thing you can do. It is also, I admit, a little boring. Be boring. Be magnificent.",
+  ],
+  chal_bartleby_win: [
+    "Six seconds, and not one shot! You preferred not to! The system has no idea what to do with you now.",
+    "You did nothing for six whole seconds, and you were rewarded. Remember this moment. It will never happen again in your life.",
+  ],
+  chal_bartleby_fail: [
+    "You shot! You could not resist! The finger is always faster than the critique of ideology.",
+  ],
+  chal_enjoy_intro: [
+    "Challenge: Enjoy! Eight kills, twelve seconds. In the old days the father said, do not enjoy. Today the superego says, enjoy, eight times, quickly!",
+    "Twelve seconds, eight kills. Enjoy! And notice, nothing kills enjoyment faster than being ordered to enjoy. Good luck!",
+  ],
+  chal_enjoy_win: [
+    "You did it! Eight kills! The superego is satisfied. For one moment. Then it will want nine.",
+    "Eight kills in twelve seconds! Tell me, did it feel good, or did it feel like homework? Exactly. This is enjoyment today.",
+  ],
+  chal_enjoy_fail: [
+    "Not eight. Not enough. The superego is disappointed. The superego is always disappointed. It is its only hobby.",
+  ],
+  chal_real_intro: [
+    "Challenge: Return to the Real! Knock an enemy off the counter within twenty-five seconds. Below the counter is the Real. Send somebody there.",
+    "New challenge! Within twenty-five seconds, knock an enemy off the counter. Every enemy must one day meet the Real. Today you are the delivery service.",
+  ],
+  chal_real_win: [
+    "It fell! Into the Real! Welcome to the desert of the Real, my little friend. It is mostly crumbs, and a dog.",
+    "Over the edge! You returned an enemy to the Real. It did not want to go. Nobody ever wants to go. That is how you know it was the Real.",
+  ],
+  chal_real_fail: [
+    "The edge was right there, and nobody went over it. The Real was one push away. It is always one push away. Nobody ever pushes.",
+  ],
+  chal_gaze_intro: [
+    "Challenge: The Gaze! Shoot three googly eyes in fifteen seconds. They look at you, you look at them, but only one of you has a water pistol.",
+    "Fifteen seconds, three googly eye hits. The gaze has been judging you all game. Now you judge it. Aim for the eyes.",
+  ],
+  chal_gaze_win: [
+    "Three eyes! You shot the gaze itself! And yet I still feel watched. This is the gaze. You can shoot it, but you can never quite stop it.",
+    "Precisely! Right in the googly, three times! The gaze of the Other is blinded. For a moment nobody is watching you. How does it feel? Lonely, yes?",
+  ],
+  chal_gaze_fail: [
+    "Not three. The eyes remain. The terrible thing about the googly gaze is that it never blinks. It cannot. It is glued on.",
+  ],
+  chal_horizontal_intro: [
+    "The Ticklish Subject? No! The Horizontal Subject! Stay in puddle form for six seconds within the next twenty. Lie down. Spread out. Stop being so vertical.",
+    "Become horizontal! Stay a puddle for six seconds. Right mouse, or C. Let go of your upright dignity.",
+  ],
+  chal_horizontal_win: [
+    "Six seconds of puddle! Flat, humble, horizontal. Diogenes lived in a barrel. You lived on a counter. Same thing, but wetter.",
+    "Six seconds flat. The Ticklish Subject has become the Horizontal Subject. I should write a book. I probably already did. Several.",
+  ],
+  chal_horizontal_fail: [
+    "Too humble for you, being a puddle? Everyone wants to be the drop. Nobody wants to be the spill. And yet the spill is the truth of the drop.",
+  ],
+  chal_negation_intro: [
+    "Negation of the Negation! Soak up ten puddles of your own spilled water in twenty seconds. You spilled yourself. Now unspill yourself.",
+    "Soak up ten of your own puddles within twenty seconds. The subject is the one who gets lost and then walks around picking itself up. Pick yourself up. Ten times.",
+  ],
+  chal_negation_win: [
+    "You picked yourself up ten times. This is exactly what Hegel meant. Probably. He was never very clear about puddles.",
+    "Ten out of ten! You absorbed yourself back. A sponge of your own being! The sponges are jealous. Philosophy is jealous.",
+  ],
+  chal_negation_fail: [
+    "You left yourself lying all over the kitchen. The negation stays negated. The paper towel will get the rest of you. That is not dialectics. That is just cleaning.",
+  ],
+  poster: [
+    "You shoot at my poster? Iconoclasm! Very good, very Protestant. But the poster is not me. Ceci n'est pas un Žižek.",
+    "You shot the big Other in the face. Congratulations. It does not exist anyway. You just made a hole in some paper.",
+    "Every time you shoot the poster, a hundred points disappear. This is the tax the big Other collects. You pay it, and you do not even believe in him.",
+  ],
 };
 var ZZ = { on: false, text: '', shown: 0, hideAt: 0, t: 0, gest: null, gT: 0, gDur: 0.8, nextG: 1, cool: 0, once: {}, big: false, lock: false,
   speaking: false, spokeAt: 0, nextIdle: 0, phase: 0 };
@@ -1067,7 +1382,7 @@ const ZOPEN = ['No, no, no, listen.', 'You know what?', 'Let me be very precise 
 const ZCLOSE = ['And so on, and so on.', 'Pure ideology!', 'Precisely!', 'My God!', '*sniff*', 'Etcetera, etcetera.', 'It is crazy!', 'I am not joking.', 'Think about it!'];
 function ztic(t) {
   if (Math.random() < 0.18) t = pick(ZOPEN) + ' ' + t;
-  if (Math.random() < 0.3 && !/and so on|ideology!|precisely!|my god|\*sniff\*|etcetera/i.test(t)) t += ' ' + pick(ZCLOSE);
+  if (Math.random() < 0.3 && /[.!?]$/.test(t) && !/and so on|ideology!|precisely!|my god|\*sniff\*|etcetera/i.test(t)) t += ' ' + pick(ZCLOSE);
   return t;
 }
 function nowS() { return performance.now() / 1000; }
