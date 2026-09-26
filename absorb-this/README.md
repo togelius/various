@@ -18,13 +18,34 @@ You need a mouse and keyboard.
 
 - **Mouse** to look, **click** to shoot (click the page first to capture the
   mouse)
-- **WASD** or arrow keys to move, **Space** to jump, **Shift** to dash
+- **WASD** or arrow keys to move, **Space** to jump, **Shift** to dash (you
+  can't be hit mid-dash)
+- Hold **right mouse** or **C** to become a puddle
+- Hold **E** while a sponge has you to surrender to it
 - **1 / 2 / 3** or the **mouse wheel** to switch weapons
 - **G** cycles the glass distortion: murky, clean, none
-- **M** mutes, **Esc** pauses
+- **M** mutes everything, **V** mutes only Žižek's voice, **Esc** pauses
 
 ## What's in it
 
+- **Slavoj Žižek.** A cartoon parody of the philosopher (drawn in code, every
+  line made up) pops up in the corner to comment on what you're doing: your
+  first kill of each enemy, googly shots, multi-kills, rocket jumps, standing
+  still, drinking your own spilled water. He sniffs, touches his nose and tugs
+  his collar, and reads his lines aloud using the browser's speech synthesis.
+  Now and then the game nearly stops, loses its colour and music, and he fills
+  the screen to ask: "You think this is a joke?"
+- **Moving like water.** The Squirter is made of you: every shot costs a
+  little dampness, and the water you spill stays on the counter as puddles you
+  can soak back up. Sponges drink them too, and it heals them. Hold right mouse
+  or C to flatten into a puddle: low, slippery and fast, faster still over
+  spilled water.
+- **Surrender.** When a sponge has latched onto you, hold E to stop fighting.
+  That's the third ending. The death screen tracks which of the three endings
+  you've found.
+- **Noise.** A Counter News Network ticker along the bottom, enemies shouting
+  puns, splish-splosh hit words, style ranks from D (DAMP) up to SSS (SPLISH
+  SPLASH SUPREME), and a lot of puns.
 - **Weapons.** The Squirter (tap water, never runs out), the Ice Shotgun (ten
   shards, lots of knockback) and the Seltzer Launcher (explosive fizzy cans,
   good for rocket jumping).
