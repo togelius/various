@@ -22,19 +22,36 @@ You need a mouse and keyboard.
   can't be hit mid-dash)
 - Hold **right mouse** or **C** to become a puddle
 - Hold **E** while a sponge has you to surrender to it
-- **1 / 2 / 3** or the **mouse wheel** to switch weapons
+- **1 / 2 / 3 / 4** or the **mouse wheel** to switch weapons
 - **G** cycles the glass distortion: murky, clean, none
-- **M** mutes everything, **V** mutes only Žižek's voice, **Esc** pauses
+- **M** mutes everything, **V** switches Žižek's voice between accented,
+  plain English and off, **Esc** pauses
 
 ## What's in it
 
 - **Slavoj Žižek.** A cartoon parody of the philosopher (drawn in code, every
   line made up) pops up in the corner to comment on what you're doing: your
   first kill of each enemy, googly shots, multi-kills, rocket jumps, standing
-  still, drinking your own spilled water. He sniffs, touches his nose and tugs
-  his collar, and reads his lines aloud using the browser's speech synthesis.
-  Now and then the game nearly stops, loses its colour and music, and he fills
-  the screen to ask: "You think this is a joke?"
+  still, drinking your own spilled water. His label changes every time
+  (ŽIŽEKBOT 3000, CECI N'EST PAS UN ŽIŽEK, ...). He sniffs, touches his nose
+  and tugs his collar. Now and then the game nearly stops, loses its colour and
+  music, and he fills the screen to ask: "You think this is a joke?" He also
+  hangs on the back wall as a Magritte-style poster that moves its mouth when
+  he talks. Shooting it costs you points.
+- **Voices.** Everything is read aloud by the browser's speech synthesis at
+  double speed. The announcer gets a high-pitched English voice. Žižek gets a
+  low pitch and the most Slavic voice your system has installed (Slovenian,
+  Croatian, Czech, Polish, Russian, ...), reading English with that language's
+  pronunciation, which gives him an accent. If there's none he uses English.
+  The title screen shows which voice he got.
+- **Žižek's challenges.** Timed dares with a bonus: don't shoot for six seconds
+  (I WOULD PREFER NOT TO), eight kills in twelve seconds (ENJOY!), knock
+  something off the counter, three googly shots, stay a puddle, soak up your
+  own puddles.
+- **Wave modifiers.** From wave 4 a wave may come with conditions: the tap is
+  left on (it rains water), moon kitchen (low gravity), googly overload
+  (enormous eyes), caffeinated (everything faster), kitchen rave (hue-cycling
+  strobes and lasers) or fun size (tiny sponges, twice as many).
 - **Moving like water.** The Squirter is made of you: every shot costs a
   little dampness, and the water you spill stays on the counter as puddles you
   can soak back up. Sponges drink them too, and it heals them. Hold right mouse
@@ -46,14 +63,23 @@ You need a mouse and keyboard.
 - **Noise.** A Counter News Network ticker along the bottom, enemies shouting
   puns, splish-splosh hit words, style ranks from D (DAMP) up to SSS (SPLISH
   SPLASH SUPREME), and a lot of puns.
-- **Weapons.** The Squirter (tap water, never runs out), the Ice Shotgun (ten
-  shards, lots of knockback) and the Seltzer Launcher (explosive fizzy cans,
-  good for rocket jumping).
+- **Weapons.** The Squirter (tap water, costs you a little dampness per
+  shot), the Ice Shotgun (ten shards, lots of knockback), the Seltzer Launcher
+  (explosive fizzy cans, good for rocket jumping) and the Suds-O-Matic, which
+  traps enemies in soap bubbles that float up and drift. Water and ice push a
+  bubble around; fizz pops it. Pop one over the floor, or push it past the
+  edge, and whatever's inside falls to the kitchen floor.
 - **Enemies.** Hopping sponges that latch on and drink your dampness. Hot sauce
   bottles on stubby legs that lob sauce, which splashes onto the screen and
   leaves burning puddles. Flying spoons that circle, wind up and lunge. Every
   fifth wave Grandma Sponge shows up: huge, in spectacles, squeezing out
   spongelings, and she splits in two when she dies (and they split again).
+  From wave 4 the Quicker Picker-Upper rolls down the counter: a giant paper
+  towel roll that soaks up every puddle, flattens anything in its way and
+  flings you. A golden sponge (the sublime object) sometimes appears, runs
+  away and is worth 5,000. And on wave 7, after the whole game has insisted
+  there is no fork, the Fork arrives. It stabs three times in a row and calls
+  in spoons.
 - **Googly eyes.** Every enemy has them, the pupils have physics, and shots to
   the eyes do extra damage ("GOOGLY SHOT!").
 - **The edge.** The front of the counter is a drop to the kitchen floor. Knock

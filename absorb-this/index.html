@@ -105,6 +105,15 @@
     text-shadow:3px 3px 0 var(--ink); animation: pulse .4s infinite alternate; }
   #prompt .bar { width:320px; height:12px; margin:6px auto 0; border:3px solid var(--ink); border-radius:8px; background:rgba(29,19,12,.7); overflow:hidden; }
   #surr { height:100%; width:0; background:var(--foam); }
+  #chal { position:absolute; left:50%; top:78px; transform:translateX(-50%); min-width:340px; max-width:92vw; text-align:center;
+    background:rgba(29,19,12,.78); border:3px solid var(--foam); border-radius:10px; padding:6px 14px 8px; box-shadow:4px 4px 0 var(--ink); }
+  #chal b { display:block; font-family:Bangers, Impact, sans-serif; font-weight:400; font-size:15px; letter-spacing:.1em; color:var(--foam); }
+  #chalD { display:block; font-family:Bangers, Impact, sans-serif; font-size:20px; color:#fff; letter-spacing:.04em; }
+  #chal .bar, #boss .bar { height:8px; margin-top:4px; border-radius:6px; background:rgba(255,255,255,.15); overflow:hidden; }
+  #chalF { height:100%; width:100%; background:var(--foam); }
+  #boss { position:absolute; left:50%; top:14px; transform:translateX(-50%); width:min(460px, 70vw); text-align:center; font-size:24px; text-shadow:3px 3px 0 var(--ink); }
+  #boss .bar { height:14px; border:3px solid var(--ink); background:rgba(29,19,12,.75); }
+  #bossF { height:100%; width:100%; background:linear-gradient(90deg, var(--sauce), var(--foam)); }
   #scr .zq { display:flex; gap:16px; align-items:center; justify-content:center; margin:16px auto; max-width:620px; text-align:left; }
   #scr .zq img { width:110px; height:110px; border-radius:50%; border:4px solid var(--ink); box-shadow:4px 4px 0 var(--ink); flex:none; }
   #scr .zq p { font-weight:900; font-style:italic; margin:0; }
@@ -127,8 +136,10 @@
   <div id="bl"><div class="lbl" id="lbl">DAMPNESS</div><div id="hpbar"><div id="hpfill"></div></div><div id="hpnum" class="big">100%</div></div>
   <div id="br"><div id="wname" class="big"></div><div id="wsub"></div><div id="ammo" class="big"></div><div id="wlist"></div></div>
   <div id="pops" class="big"></div>
+  <div id="boss" class="big" hidden><span id="bossN"></span><div class="bar"><div id="bossF"></div></div></div>
+  <div id="chal" hidden><b>ŽIŽEK'S CHALLENGE</b><span id="chalD"></span><div class="bar"><div id="chalF"></div></div></div>
   <div id="prompt" class="big" hidden>HOLD E TO SURRENDER TO THE SPONGE<div class="bar"><div id="surr"></div></div></div>
-  <div id="zz"><div class="face" id="zzface"></div><div class="bub"><span class="who">SLAVOJ ŽIŽEK (PARODY)</span><span id="zztext"></span></div></div>
+  <div id="zz"><div class="face" id="zzface"></div><div class="bub"><span class="who" id="zzwho">ŽIŽEKBOT 3000</span><span id="zztext"></span></div></div>
   <div id="tick"><span class="lab">COUNTER NEWS NETWORK</span><span id="tickrun"></span></div>
 </div>
 <div id="scr"></div>
@@ -275,6 +286,9 @@ void main(){
     vec3 ir = 0.5+0.5*cos(6.2832*(fr*1.4 + uTime*0.1 + vec3(0.,0.33,0.67)));
     vec3 c = mix(vec3(0.86,0.92,1.0)*vC, ir, fr*0.75) + pow(max(dot(n,normalize(SUN+V)),0.),40.)*1.4;
     o = vec4(mix(c, FOG, (1.-exp(-dist*0.0075))*0.6), 1.); return; }
+  if(m==17){ float fr = pow(1.-abs(dot(n,V)),2.5); float hl = pow(max(dot(n,normalize(SUN+V)),0.),60.);
+    vec3 ir = 0.5+0.5*cos(6.2832*(fr*1.2 + vW.y*0.15 + uTime*0.15 + vec3(0.,0.33,0.67)));
+    o = vec4((mix(vec3(0.9,0.95,1.0), ir, 0.65) + hl*2.)*vC, clamp(0.07 + fr*0.8 + hl, 0., 0.92)); return; }
   if(m==1){ alb = wood(vW, vC); spec = 0.07;
     alb *= mix(0.55,1., smoothstep(0.,3.5, vW.z+22.)) * mix(0.6,1., smoothstep(0.,2.5, 32.-abs(vW.x)));
     if(vW.y < -0.05) alb *= 0.7; }
@@ -293,6 +307,13 @@ void main(){
   else if(m==10){ float ch = mod(floor(vW.x/6.)+floor(vW.z/6.),2.); alb = mix(vec3(0.86,0.83,0.76), vec3(0.30,0.28,0.32), ch); spec=.4; }
   else if(m==11){ spec = 1.1; shin = 60.; refl = 0.12; }
   else if(m==12){ spec = 1.6; shin = 90.; refl = 0.55; alb = vC*(0.75+0.25*vn3(vL*9.)); }
+  else if(m==18){ float ang = atan(vU.z, vU.x);
+    if(vU.y < 0.002 || vU.y > 0.998){ float rr = length(vU.xz); alb = mix(vec3(0.97,0.96,0.93), vec3(0.84,0.83,0.8), step(0.55, fract(rr*14.))); }
+    else { vec2 q = vec2(ang*3.2, vU.y*11.); float d = abs(fract(q.x+q.y)-.5) + abs(fract(q.x-q.y)-.5);
+      float perf = step(abs(fract(vU.y*4.)-0.5), 0.008) * step(0.5, fract(ang*18.));
+      alb = vec3(0.98,0.97,0.94)*(0.86 + 0.14*smoothstep(0.35,0.75,d))*(1.-perf*0.45);
+      alb = mix(alb, vec3(0.45,0.7,0.95), step(0.93, h21(floor(q*2.)))*0.35); }
+    spec = 0.05; }
   else if(m==13){ alb = vC*(0.75+0.4*vn2(vW.xz*9.)*vn2(vW.xz*3.+vW.y)); spec = 0.05; }
 
   float dif = max(dot(n,SUN),0.);
@@ -320,7 +341,7 @@ void main(){ gl_Position = vec4(aP,0.,1.); }`;
 
 const PFS = `#version 300 es
 precision highp float;
-uniform sampler2D uT; uniform vec2 uR; uniform float uTime, uGlass, uHurt, uAbs, uDead, uLow, uGrey, uFill, uPud;
+uniform sampler2D uT; uniform vec2 uR; uniform float uTime, uGlass, uHurt, uAbs, uDead, uLow, uGrey, uFill, uPud, uRave;
 uniform vec4 uSp[8];
 out vec4 o;
 ${NOISE}
@@ -377,6 +398,16 @@ void main(){
     c = mix(c, sc, mm*min(1.,life*2.5)*0.88);
   }
   c = mix(c, c*vec3(0.82,0.96,1.12), uPud*0.45);
+  if(uRave > 0.){
+    mat3 toYIQ = mat3(0.299,0.596,0.211, 0.587,-0.274,-0.523, 0.114,-0.322,0.312);
+    mat3 toRGB = mat3(1.,1.,1., 0.956,-0.272,-1.106, 0.621,-0.647,1.703);
+    vec3 yiq = toYIQ*c; float hh = atan(yiq.z, yiq.y) + uTime*2.5; float ch = length(yiq.yz)*1.8 + 0.05;
+    vec3 rc = toRGB*vec3(yiq.x, ch*cos(hh), ch*sin(hh));
+    float beat = pow(max(sin(uTime*18.43),0.), 6.);
+    c = mix(c, rc, 0.75*uRave)*(1. + 0.35*beat*uRave);
+    c += vec3(1.,0.2,0.8)*smoothstep(0.02,0.,abs(fract(p.x*0.8 + p.y*0.3 + uTime*0.7)-0.5))*0.25*uRave;
+    c += vec3(0.2,1.,0.9)*smoothstep(0.015,0.,abs(fract(p.x*0.6 - p.y*0.5 - uTime*0.9)-0.5))*0.2*uRave;
+  }
   float l = dot(c,vec3(.3,.59,.11)); c = mix(c, vec3(l)*vec3(1.,.88,.78), max(uDead*0.75, uGrey));
   c *= 1. - uGrey*0.45*smoothstep(0.3,1.5,rl);
   o = vec4(c,1.);
@@ -399,6 +430,12 @@ function program(vs, fs) {
 const PR_MAIN = program(VS, FS);
 const PR_INST = program(VS.replace('precision highp float;', 'precision highp float;\n#define INST'), FS);
 const PR_POST = program(PVS, PFS);
+const PR_TEX = program(`#version 300 es
+layout(location=0) in vec3 aPos; uniform mat4 uVP, uModel; out vec2 vUV; out vec3 vW;
+void main(){ vec4 w = uModel*vec4(aPos,1.); vW = w.xyz; vUV = aPos.xy + 0.5; gl_Position = uVP*w; }`, `#version 300 es
+precision highp float; uniform sampler2D uTex; uniform vec3 uEye; in vec2 vUV; in vec3 vW; out vec4 o;
+void main(){ vec3 c = texture(uTex, vec2(vUV.x, 1.-vUV.y)).rgb*0.92; float d = length(uEye - vW);
+  c = mix(c, vec3(0.97,0.88,0.74), (1.-exp(-d*0.0075))*0.85); o = vec4(c,1.); }`);
 
 // =====================================================================  meshes
 function cubeGeo() {
@@ -569,6 +606,7 @@ const PADS = [{ x: -3.2, z: 2.2 }, { x: 8.5, z: 8.4 }];
   for (const p of PADS) S(CUBE, p.x, 0.12, p.z, 2.3, 0.24, 1.6, [0.85, 0.08, 0.05], 11);
 })();
 
+S(CUBE, -22, 31, -21.93, 12.8, 15.8, 0.12, [0.3, 0.2, 0.12], 0);   // the poster's frame
 function groundAt(x, z, y) {
   let g = onCounter(x, z) ? 0 : -60;
   for (const c of COL) {
@@ -679,6 +717,12 @@ function sfx(n) {
     case 'die': tone('sawtooth', 400, 40, 1.4, 0.3); noise(1.0, 0.3, 'lowpass', 2000, 100, 2); break;
     case 'fall': tone('sine', 900, 120, 1.2, 0.25); break;
     case 'scratch': noise(0.35, 0.9, 'bandpass', 3500, 250, 3); tone('sawtooth', 900, 60, 0.35, 0.25); break;
+    case 'bloop': tone('sine', 260, 900, 0.14, 0.25); tone('sine', 900, 1500, 0.06, 0.12, 0.1); break;
+    case 'pop': noise(0.05, 0.4, 'highpass', 3000, 6000, 1); tone('sine', 1400, 500, 0.06, 0.18); break;
+    case 'whistle': tone('sine', 2400, 500, 1.1, 0.16); tone('sine', 2420, 510, 1.1, 0.1); break;
+    case 'sparkle': [0, 4, 7, 11, 14, 19].forEach((q, i) => tone('triangle', 1318 * Math.pow(2, q / 12), 1318 * Math.pow(2, q / 12), 0.12, 0.07, i * 0.04)); break;
+    case 'fanfare': [0, 0, 7, 12, 7, 12, 16].forEach((q, i) => tone('sawtooth', 196 * Math.pow(2, q / 12), 196 * Math.pow(2, q / 12), 0.22, 0.12, i * 0.13)); break;
+    case 'sniff': noise(0.07, 0.28, 'bandpass', 1800, 4200, 5); noise(0.11, 0.34, 'bandpass', 2100, 5200, 5, 0.12); break;
     case 'sip': tone('sine', 700, 1400, 0.08, 0.14); break;
     case 'splash': noise(0.3, 0.5, 'lowpass', 2400, 300, 2); tone('sine', 320, 110, 0.2, 0.25); break;
     case 'spawn': tone('sine', 90, 200, 0.15, 0.15); noise(0.12, 0.15, 'lowpass', 700, 300, 2); break;
@@ -708,15 +752,48 @@ function musStepPlay(i, t) {
 setInterval(() => {
   if (!AC || muted) return;
   if (state !== 'play') { musNext = AC.currentTime + 0.05; return; }
-  const step = 60 / 176 / 4;
+  const step = 60 / 176 / 4 / (MOD === 'caffeine' ? 1.3 : MOD === 'rave' ? 1.15 : 1);
   if (musNext < AC.currentTime) musNext = AC.currentTime + 0.02;
   while (musNext < AC.currentTime + 0.12) { musStepPlay(musStep, musNext); musStep++; musNext += step; }
 }, 25);
+// ----- voices. The announcer gets an English voice. Žižek gets the most Slavic voice the system
+// has: a Slovenian, Croatian, Czech, Polish or Russian voice reading English text gives him an accent.
+let VOICES = [], vAnn = null, vZAccent = null, vZPlain = null, zVoiceMode = 0;   // 0 accented, 1 plain English, 2 silent
+function pickVoices() {
+  try { VOICES = speechSynthesis.getVoices() || []; } catch (e) { VOICES = []; }
+  const lang = v => (v.lang || '').toLowerCase().replace('_', '-');
+  const MALE = /\b(male|man|lado|rok|matej|jakub|pavel|maxim|dmitri|dmitry|yuri|ivan|milan|filip|krzysztof|marek|stefan|jan|petr|boris|goran|daniel|george|david|james|mark|guy|ryan|thomas|oliver|arthur|fred|alex|aaron|gordon|rishi)\b/i;
+  const SLAV = ['sl', 'hr', 'bs', 'sr', 'sk', 'cs', 'pl', 'uk', 'ru', 'bg', 'mk', 'hu'];
+  let best = null, bs = -1;
+  for (const v of VOICES) {
+    const i = SLAV.indexOf(lang(v).slice(0, 2)); if (i < 0) continue;
+    const sc = (SLAV.length - i) * 10 + (MALE.test(v.name) ? 4 : 0) + (/natural|online|neural|google|premium|enhanced/i.test(v.name) ? 2 : 0);
+    if (sc > bs) { bs = sc; best = v; }
+  }
+  vZAccent = best;
+  const en = VOICES.filter(v => lang(v).startsWith('en'));
+  vZPlain = en.find(v => lang(v) === 'en-gb' && MALE.test(v.name)) || en.find(v => MALE.test(v.name)) || en.find(v => lang(v) === 'en-gb') || en[0] || null;
+  vAnn = en.find(v => lang(v) === 'en-us' && v !== vZPlain) || en.find(v => v !== vZPlain) || en[0] || null;
+}
+if ('speechSynthesis' in window) {
+  pickVoices();
+  try { speechSynthesis.addEventListener('voiceschanged', pickVoices); } catch (e) { speechSynthesis.onvoiceschanged = pickVoices; }
+}
+function voiceLabel() {
+  if (!('speechSynthesis' in window)) return 'THIS BROWSER HAS NO SPEECH SYNTHESIS. ŽIŽEK WILL BE TEXT ONLY.';
+  const m = ['ACCENTED', 'PLAIN ENGLISH', 'OFF'][zVoiceMode];
+  const v = zVoiceMode === 0 ? (vZAccent || vZPlain) : zVoiceMode === 1 ? vZPlain : null;
+  return `ŽIŽEK VOICE: ${m}` + (v ? ` (${v.name})` : '') + (zVoiceMode === 0 && !vZAccent ? ' · NO SLAVIC VOICE INSTALLED, USING ENGLISH' : '');
+}
 let lastSay = 0;
 function say(text, force) {
   if (muted || !('speechSynthesis' in window) || ZZ.speaking) return;
-  const now = performance.now(); if (!force && now - lastSay < 1400) return; lastSay = now;
-  try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.pitch = 0.05; u.rate = 1.0; u.volume = 1; speechSynthesis.speak(u); } catch (e) { }
+  const now = performance.now(); if (!force && now - lastSay < 600) return; lastSay = now;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text); if (vAnn) { u.voice = vAnn; u.lang = vAnn.lang; }
+    u.pitch = 1.9; u.rate = 2; u.volume = 1; speechSynthesis.speak(u);
+  } catch (e) { }
 }
 
 // =====================================================================  game state
@@ -725,23 +802,67 @@ const WEAPONS = [
   { name: 'SQUIRTER', sub: 'MADE OF YOU · SOAK IT BACK UP', rate: 0.12, max: Infinity, start: Infinity },
   { name: 'ICE SHOTGUN', sub: '10 SHARDS OF COLD JUSTICE', rate: 0.72, max: 48, start: 16 },
   { name: 'SELTZER LAUNCHER', sub: 'CARBONATED · EXPLOSIVE · HYDRATING', rate: 0.85, max: 24, start: 6 },
+  { name: 'SUDS-O-MATIC', sub: 'TRAPS THEM IN SOAP · FLOAT THEM OFF THE EDGE', rate: 0.5, max: 16, start: 4 },
 ];
 let state = 'title';
-let P, enemies, globs, rockets, parts, stains, pickups, hazards, pops, splats;
+let P, enemies, globs, rockets, parts, stains, pickups, hazards, pops, splats, soaps = [];
 let score, combo, comboT, multi, multiT, wave, spawnQ, spawnT, waveActive, interT, hitstop, shake, killCount, deathCause, T = 0;
 let glassLevel = 1, sens = 0.0022;
+const MODS = {
+  tap: { name: 'THE TAP IS LEFT ON', sub: 'IT IS RAINING WATER. THE SPONGES ARE THRILLED' },
+  moon: { name: 'MOON KITCHEN', sub: 'LOW GRAVITY. THE MICROWAVE DID SOMETHING' },
+  googly: { name: 'GOOGLY OVERLOAD', sub: 'THE EYES HAVE IT' },
+  caffeine: { name: 'CAFFEINATED', sub: 'EVERYTHING IS FASTER, INCLUDING YOUR HEART' },
+  rave: { name: 'KITCHEN RAVE', sub: 'UNTZ UNTZ UNTZ UNTZ' },
+  funsize: { name: 'FUN SIZE', sub: 'TINY SPONGES. TWICE AS MANY' },
+};
+let MOD = null, lastMod = null, gs = 1, tapT = 0, tickNews = [];
+function headlineNow(t) { tickNews.push(t); tickW = 0; }
+// ----- Žižek's challenges: small timed dares with a bonus
+const CHALS = {
+  bartleby: { title: 'I WOULD PREFER NOT TO', goal: "DON'T SHOOT", dur: 6, bonus: 1500, need: 1 },
+  enjoy: { title: 'ENJOY!', goal: 'KILLS', dur: 12, bonus: 2000, need: 8 },
+  real: { title: 'RETURN TO THE REAL', goal: 'KNOCKED OFF THE COUNTER', dur: 25, bonus: 2500, need: 1 },
+  gaze: { title: 'THE GAZE', goal: 'GOOGLY SHOTS', dur: 15, bonus: 1500, need: 3 },
+  horizontal: { title: 'THE HORIZONTAL SUBJECT', goal: 'SECONDS AS A PUDDLE', dur: 20, bonus: 1200, need: 6 },
+  negation: { title: 'NEGATION OF THE NEGATION', goal: 'PUDDLES SOAKED UP', dur: 20, bonus: 1200, need: 10 },
+};
+let chal = null, chalNext = 0, lastChal = null;
+function chalStart() {
+  const k = pick(Object.keys(CHALS).filter(q => q !== lastChal)); lastChal = k;
+  chal = { k, t: CHALS[k].dur, prog: 0 }; sfx('swap');
+  if (!ZZ.lock) { ZZ.cool = 0; zShow(pick(ZL['chal_' + k + '_intro'] || ['A challenge!']), { cool: 4 }); }
+}
+function chalEvent(kind, amt = 1) {
+  if (!chal || state !== 'play') return;
+  const c = CHALS[chal.k];
+  if (chal.k === 'bartleby') { if (kind === 'fire') chalEnd(false); return; }
+  const want = { enjoy: 'kill', real: 'fall', gaze: 'googly', horizontal: 'puddle', negation: 'soak' }[chal.k];
+  if (kind === want) { chal.prog += amt; if (chal.prog >= c.need) chalEnd(true); }
+}
+function chalUpdate(dt) {
+  if (!chal) { if (waveActive && enemies.length >= 3 && T > chalNext && jokeT <= 0) chalStart(); return; }
+  chal.t -= dt; if (chal.t <= 0) chalEnd(chal.k === 'bartleby');
+}
+function chalEnd(win) {
+  const k = chal.k, c = CHALS[k]; chal = null; chalNext = T + rand(40, 70);
+  if (win) { score += c.bonus; announce('CHALLENGE COMPLETE', `${c.title} · +${c.bonus}`); sfx('clear'); }
+  else { multiText('CHALLENGE FAILED'); sfx('empty'); }
+  if (!ZZ.lock) { ZZ.cool = 0; zShow(ztic(pick(ZL['chal_' + k + (win ? '_win' : '_fail')] || ['Hm.'])), { cool: 4 }); }
+}
 let hiScore = 0; try { hiScore = +localStorage.getItem('absorbthis.hi') || 0; } catch (e) { }
 
 function reset() {
   P = { x: 0, y: 0, z: 14, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: -0.05, onG: true, hp: 100, dashT: 0, dashCd: 0, coyote: 0, w: 0, wNext: 0,
     cool: 0, recoil: 0, switchT: 0, bob: 0, hurtT: 0, absorbT: 0, flashT: 0, ammo: WEAPONS.map(w => w.start), deadT: 0, lowT: 0, jumpHeld: false, fov: 0,
     pud: false, pudT: 0, eyeH: EYE, iT: 0, latch: null, latchT: 0, surr: 0, stillT: 0, endT: 0, endE: null, endShown: false, sipT: 0 };
-  enemies = []; globs = []; rockets = []; parts = []; stains = []; pickups = []; hazards = []; splats = [];
+  enemies = []; globs = []; rockets = []; parts = []; stains = []; pickups = []; hazards = []; splats = []; soaps = [];
   for (const p of pops || []) p.el.remove(); pops = [];
   score = 0; combo = 0; comboT = 0; multi = 0; multiT = 0; wave = 0; spawnQ = []; spawnT = 0; waveActive = false; interT = 1.6;
   hitstop = 0; shake = 0; killCount = 0; deathCause = '';
   $('feed').innerHTML = '';
   if (typeof zReset === 'function') zReset();
+  MOD = null; gs = 1; chal = null; chalNext = T + 40; tickNews = [];
 }
 reset();
 
@@ -848,9 +969,33 @@ function drawZ(t, talk, gest, gp) {
   }
   c.setTransform(1, 0, 0, 1, 0, 0);
 }
+const PCV = document.createElement('canvas'); PCV.width = 256; PCV.height = 320; const pcx = PCV.getContext('2d');
+const posterTex = gl.createTexture(); let posterDirty = true, posterT = -9;
+function drawPoster() {
+  pcx.fillStyle = '#efe0c2'; pcx.fillRect(0, 0, 256, 320);
+  pcx.drawImage(ZC, 10, 10, 236, 236);
+  pcx.lineWidth = 6; pcx.strokeStyle = '#1d130c'; pcx.strokeRect(3, 3, 250, 314);
+  pcx.fillStyle = '#1d130c'; pcx.textAlign = 'center';
+  let fs = 25; do { pcx.font = `italic ${fs}px Georgia, 'Times New Roman', serif`; fs--; } while (fs > 12 && pcx.measureText("Ceci n'est pas un Žižek.").width > 234);
+  pcx.fillText("Ceci n'est pas un Žižek.", 128, 290);
+  gl.bindTexture(gl.TEXTURE_2D, posterTex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, PCV);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  posterDirty = false;
+}
+function posterHit(x, y, z) {
+  gibs(x, y, z + 0.3, 6, [[0.95, 0.9, 0.8], [0.3, 0.2, 0.12]], { smin: 0.05, smax: 0.12, sy: 0.1, maxS: 3, maxU: 3 });
+  if (T - posterT < 4 || state !== 'play') return; posterT = T;
+  score = Math.max(0, score - 100); pop(x, y + 1, z + 1, pick(['-100 · YOU SHOT THE BIG OTHER', 'THE BIG OTHER IS NOT AMUSED · -100', 'ICONOCLASM! -100']), false);
+  ZZ.cool = 0; zz('poster', { force: true });
+}
 function zFace() { drawZ(T, false, null, 0); try { return ZC.toDataURL(); } catch (e) { return ''; } }
 
+let TAGLINES = ['A COUNTER-TERRORISM SHOOTER'], SHOUTS = ['MOIST!'], NARR = { evaporated: ['You dried up.'], floor: ['You fell.'], absorbed: ['You stopped fighting. The sponge took you in. It is warm in here, and a little yellow.'] };
+let MULTIW = [[], [], ['DOUBLE DIP!'], ['TRIPLE SCRUB!'], ['QUAD-RINSE!'], ['DISHWASHER MODE!'], ['SPIN CYCLE!'], ['DISHPOCALYPSE!'], ['DISHPOCALYPSE!']];
+let ZNAMES = ['ŽIŽEKBOT 3000', 'VIRTUAL ŽIŽEK', "CECI N'EST PAS UN ŽIŽEK", 'ŽIŽEK SIMULACRUM'];
 const ZL = {
+  poster: ['You shoot at the big Other? The big Other does not exist! You are wasting water.'],
   start: ['Ah. You are a drop of water. The last drop. The little piece of excess that does not fit in the glass. Precisely! This is the subject.',
     'Look at this kitchen. A counter, a sponge, some sauce. It looks so innocent. This is exactly how ideology works!'],
   idle: ['You know, in Slovenia we have an old saying about sponges. No, we don\'t. I invented it just now. This is how every tradition begins.',
@@ -915,7 +1060,16 @@ const ZL = {
 };
 var ZZ = { on: false, text: '', shown: 0, hideAt: 0, t: 0, gest: null, gT: 0, gDur: 0.8, nextG: 1, cool: 0, once: {}, big: false, lock: false,
   speaking: false, spokeAt: 0, nextIdle: 0, phase: 0 };
-let zVoiceOn = true, greyV = 0;
+let greyV = 0;
+// openers and closers get glued onto lines now and then, so the same line rarely comes out twice the same way
+const ZOPEN = ['No, no, no, listen.', 'You know what?', 'Let me be very precise here.', 'Ah! My God.', 'But wait, wait, wait.', 'Here I disagree with myself.',
+  'Okay, okay.', 'I will tell you something.', 'Look.', 'Let me give you an example.', 'Now here it gets interesting.'];
+const ZCLOSE = ['And so on, and so on.', 'Pure ideology!', 'Precisely!', 'My God!', '*sniff*', 'Etcetera, etcetera.', 'It is crazy!', 'I am not joking.', 'Think about it!'];
+function ztic(t) {
+  if (Math.random() < 0.18) t = pick(ZOPEN) + ' ' + t;
+  if (Math.random() < 0.3 && !/and so on|ideology!|precisely!|my god|\*sniff\*|etcetera/i.test(t)) t += ' ' + pick(ZCLOSE);
+  return t;
+}
 function nowS() { return performance.now() / 1000; }
 function zz(key, o = {}) {
   if (state !== 'play' || jokeT > 0 || ZZ.lock) return false;
@@ -924,13 +1078,13 @@ function zz(key, o = {}) {
   if (!o.force && (nowS() < ZZ.cool || ZZ.on)) return false;
   if (o.p !== undefined && Math.random() > o.p) return false;
   ZZ.once[key] = true;
-  zShow(pick(bank));
+  zShow(ztic(pick(bank)));
   return true;
 }
 function zShow(text, o = {}) {
-  ZZ.on = true; ZZ.text = text; ZZ.shown = 0; ZZ.big = !!o.big;
-  ZZ.hideAt = nowS() + 1.8 + text.length * 0.055; ZZ.cool = ZZ.hideAt + (o.cool === undefined ? 6 : o.cool);
-  $('zz').className = 'on' + (ZZ.big ? ' big' : ''); $('zztext').textContent = '';
+  ZZ.on = true; ZZ.text = text; ZZ.shown = 0; ZZ.big = !!o.big; ZZ.sniffAt = text.indexOf('*sniff*');
+  ZZ.hideAt = nowS() + 1.8 + text.length * 0.055; ZZ.cool = ZZ.hideAt + (o.cool === undefined ? 5 : o.cool);
+  $('zz').className = 'on' + (ZZ.big ? ' big' : ''); $('zztext').textContent = ''; $('zzwho').textContent = pick(ZNAMES);
   zVoice(text);
 }
 function zHide() {
@@ -939,40 +1093,44 @@ function zHide() {
 }
 function zReset() { if (!ZZ) return; zHide(); ZZ.once = {}; ZZ.cool = 0; ZZ.lock = false; ZZ.nextIdle = T + rand(25, 35); jokeAt = 0; jokeT = 0; lastRank = 0; }
 function zVoice(text) {
-  if (muted || !zVoiceOn || !('speechSynthesis' in window)) return;
+  if (muted || zVoiceMode === 2 || !('speechSynthesis' in window)) return;
   try {
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text.replace(/\*[^*]+\*/g, ' ')); u.pitch = 0.8; u.rate = 1.1; u.volume = 1;
+    const u = new SpeechSynthesisUtterance(text.replace(/\*[^*]+\*/g, ' '));
+    const v = zVoiceMode === 0 ? (vZAccent || vZPlain) : vZPlain; if (v) { u.voice = v; u.lang = v.lang; }
+    u.pitch = 0.3; u.rate = 2; u.volume = 1;
     u.onend = u.onerror = () => { ZZ.speaking = false; };
     ZZ.speaking = true; ZZ.spokeAt = nowS(); speechSynthesis.speak(u);
   } catch (e) { ZZ.speaking = false; }
 }
 function zUpdate(dt) {
-  if (ZZ.speaking && nowS() - ZZ.spokeAt > 3 + ZZ.text.length * 0.12) ZZ.speaking = false;
+  if (ZZ.speaking && nowS() - ZZ.spokeAt > 2.5 + ZZ.text.length * 0.07) ZZ.speaking = false;
   if (!ZZ.on) return;
   ZZ.t += dt; const was = Math.floor(ZZ.shown); ZZ.shown += dt * 42;
+  if (ZZ.sniffAt >= 0 && ZZ.shown >= ZZ.sniffAt) { sfx('sniff'); ZZ.sniffAt = ZZ.text.indexOf('*sniff*', ZZ.sniffAt + 1); }
   if (Math.floor(ZZ.shown) !== was) $('zztext').textContent = ZZ.text.slice(0, Math.floor(ZZ.shown));
   const talking = ZZ.shown < ZZ.text.length || ZZ.speaking;
   ZZ.nextG -= dt;
   if (ZZ.gest) { ZZ.gT += dt; if (ZZ.gT > ZZ.gDur) ZZ.gest = null; }
-  else if (talking && ZZ.nextG <= 0) { ZZ.gest = pick(['nose', 'nose', 'tug', 'point']); ZZ.gT = 0; ZZ.gDur = rand(0.6, 1.0); ZZ.nextG = rand(1.2, 2.6); }
-  drawZ(ZZ.t, talking, ZZ.gest, ZZ.gest ? Math.sin(Math.PI * clamp(ZZ.gT / ZZ.gDur, 0, 1)) : 0);
+  else if (talking && ZZ.nextG <= 0) { ZZ.gest = pick(['nose', 'nose', 'tug', 'point']); ZZ.gT = 0; ZZ.gDur = rand(0.6, 1.0); ZZ.nextG = rand(1.2, 2.6); if (ZZ.gest === 'nose') sfx('sniff'); }
+  drawZ(ZZ.t, talking, ZZ.gest, ZZ.gest ? Math.sin(Math.PI * clamp(ZZ.gT / ZZ.gDur, 0, 1)) : 0); posterDirty = true;
   if (!ZZ.lock && nowS() > ZZ.hideAt && !ZZ.speaking) zHide();
 }
 // "You think this is a joke?": the game nearly stops, loses its colour and its music, and he looks at you
-function jokeMoment() {
+function jokeMoment(first, follow, outro) {
   if (jokeT > 0 || state !== 'play') return;
-  lastJokeT = T; ZZ.lock = true; ZZ.phase = 1; jokeT = 2.2;
+  lastJokeT = T; ZZ.lock = true; ZZ.phase = 1; jokeT = 2.2; ZZ.follow = follow || ZL.jokeFollow; ZZ.outro = outro || null;
   sfx('scratch'); if (AC && musG) musG.gain.setTargetAtTime(0.0001, AC.currentTime, 0.05);
-  zShow('You think this is a joke?', { big: true, cool: 3 });
+  zShow(first || (Math.random() < 0.8 ? 'You think this is a joke?' : pick(['You think this is a game?', 'You think this is just a sponge?', 'You think this is about kitchenware?', 'You think you are the one playing?'])), { big: true, cool: 3 });
 }
+function forkMoment() { jokeAt = 0; if (jokeT > 0) { jokeT = 0; ZZ.lock = false; } jokeMoment(pick(['Wait. Is that... a FORK?', 'No. No, no, no. Is that a fork?', 'What is that? My God. It is a fork.']), ZL.fork, ['THE FORK', 'IT EXISTS']); }
 function jokeUpdate(dt) {
   if (jokeT <= 0) return;
   jokeT -= dt;
   if (jokeT > 0) return;
-  if (ZZ.phase === 1) { ZZ.phase = 2; const f = pick(ZL.jokeFollow); zShow(f, { big: true, cool: 8 }); jokeT = 1.4 + f.length * 0.065; return; }
+  if (ZZ.phase === 1) { ZZ.phase = 2; const f = pick(ZZ.follow); zShow(f, { big: true, cool: 8 }); jokeT = 1.4 + f.length * 0.065; return; }
   jokeT = 0; ZZ.phase = 0; ZZ.lock = false; zHide();
-  announce('...ANYWAY.', pick(['BACK TO THE VIOLENCE', 'WHERE WERE WE', 'RESUME HAVING FUN', 'AS YOU WERE']));
+  const oa = ZZ.outro || ['...ANYWAY.', pick(['BACK TO THE VIOLENCE', 'WHERE WERE WE', 'RESUME HAVING FUN', 'AS YOU WERE'])]; announce(oa[0], oa[1]);
   sfx('boom'); if (AC && musG) musG.gain.setTargetAtTime(0.16, AC.currentTime, 0.1);
 }
 function endings() { try { return JSON.parse(localStorage.getItem('absorbthis.endings') || '{}') || {}; } catch (e) { return {}; } }
@@ -994,7 +1152,7 @@ function headlines() {
   const dyn = [`BREAKING: DRIP DESTROYS ${killCount} KITCHENWARE, SHOWS NO REMORSE`, `WAVE ${wave || 1} UNDERWAY. SPONGES ADVISED TO STAY IN THE HIVE`,
     `DRIP'S DAMPNESS AT ${hp}%. "I FEEL ${hp < 30 ? 'PARCHED' : hp < 70 ? 'CLAMMY' : 'MOIST'}," SAYS DRIP`,
     `SCORE CLIMBS TO ${score.toLocaleString()}. ECONOMISTS: "THIS IS NOT REAL MONEY"`];
-  const a = []; for (let i = 0; i < 4; i++) a.push(Math.random() < 0.35 ? pick(dyn) : pick(HEADS));
+  const a = tickNews.splice(0, 2); while (a.length < 4) a.push(Math.random() < 0.3 ? pick(dyn) : pick(HEADS));
   return a.join('   ✦   ') + '   ✦   ';
 }
 function beginAbsorbed(e) {
@@ -1006,6 +1164,7 @@ function beginAbsorbed(e) {
 
 // =====================================================================  enemies
 const KILLW = {
+  roll: ['PAPER-CUT!'], fork: ['FORKED!'], gold: ['STRUCK GOLD!'], bubble: ['BUBBLE-STRIKE!'], squash: ['FLATTENED!'],
   sponge: ["SQUEEGEE'D!", 'WRUNG OUT!', 'SPONGE-ICIDE!', 'DE-FOAMED!', 'ABSORB THAT!', 'SCRUBBED!', 'RINSED!', 'POROUS NO MORE!',
     'HOLE-Y MOLEY!', 'SCRUB-A-DUB-DEAD!', 'SOAKED UP THE PAIN!', 'FOAMED AT THE MOUTH!', 'ABSORBED A LESSON!', 'NO MORE MR. NICE SPONGE!', 'DAMP SQUIB!'],
   bottle: ['SAUCED!', 'HOT MESS!', 'BOTTLED IT!', 'CONDIMENTED!', 'SHAKEN, NOT STIRRED!', 'CAP POPPED!', 'SRIRA-CHAOS!',
@@ -1016,37 +1175,56 @@ const KILLW = {
   fall: ['COUNTER-STRIKE!', 'EVICTED!', "FLOOR'D!", 'GRAVITY ASSIST!', 'OFF THE EDGE!', 'COUNTER-INTUITIVE!', 'TOPPLED!', 'SPLAT ON THE MAT!', 'DOG FOOD!', 'COUNTER-PRODUCTIVE!'],
 };
 const TAUNTS = {
+  roll: ['QUICKER! PICKIER! UPPIER!'], fork: ['I EXIST!'], gold: ['CATCH ME IF YOU CAN'],
   sponge: ["I'M JUST HERE TO SOAK IT IN", 'COME TO SPONGE DADDY', 'ABSORBING THE VIBES', "YOU'RE TOO DRIP FOR ME", "I'M A SCRUB AND PROUD", 'HOLE-SOME CONTENT ONLY', "I'LL WRING YOUR NECK. YOU DON'T HAVE A NECK", 'THIRSTY. SO THIRSTY.'],
   bottle: ["YOU'RE KETCH-UP TO NO GOOD", "I'M HOT STUFF", 'SAUCE ME, MAYBE', 'LET ME SPICE THINGS UP', 'BOTTLE UP YOUR FEELINGS', "DON'T BE SAUCY", 'I HAVE NO CHILL. LITERALLY.', 'CAPSAICIN CAPTAIN REPORTING'],
   spoon: ["LET'S STIR THINGS UP", 'SPOON-TANEOUS ATTACK!', "YOU'RE UTENSILLY DOOMED", "I'M A BIT OF A STIRRER", "I'M NOT A FORK. DON'T ASK.", 'TEA TIME IS OVER', 'SPOON! SPOON! SPOON!'],
   mama: ['BACK IN MY DAY WE ABSORBED UPHILL', "EAT SOMETHING, YOU'RE ALL DRIP", 'COME GIVE GRANDMA A SQUEEZE', "YOU'LL CATCH YOUR DEATH OF DRYNESS", 'WHEN ARE YOU GETTING MARRIED'],
 };
+let SOAPW = ['+4 SUDS', 'SOAP-ER STAR! +4', 'SUDDEN SUDS +4', 'LATHER UP +4'];
 const HITW = ['SPLISH', 'SPLOSH', 'PLIP', 'SQUELCH', 'PLOP', 'SPLOOSH', 'BLORP', 'SHPLUK'];
 const RANKS = [[0, '', ''], [3, 'D', 'DAMP'], [6, 'C', 'CLAMMY'], [10, 'B', 'BRINY'], [15, 'A', 'AQUATIC'], [21, 'S', 'SOAKING'], [28, 'SS', 'SUPERSATURATED'], [36, 'SSS', 'SPLISH SPLASH SUPREME']];
 const NAMES = { sponge: 'SPONGE', bottle: 'HOT SAUCE', spoon: 'SPOON', mama: 'GRANDMA SPONGE' };
-const WICON = ['SQUIRTER', 'ICE SHOTGUN', 'SELTZER', 'THE FLOOR'];
+const WICON = ['SQUIRTER', 'ICE SHOTGUN', 'SELTZER', 'SUDS-O-MATIC', 'THE FLOOR', 'THE ROLL'];
 function makeEnemy(type, x, z, s = 1) {
   const e = { type, x, y: 0, z, vx: 0, vy: 0, vz: 0, yaw: Math.atan2(P.x - x, P.z - z), t: Math.random() * 10, s, flash: 0, sq: 1, sqv: 0,
     cd: rand(0.5, 1.5), state: 0, stT: rand(1.5, 3), stun: 0, wet: 0, spawnT: 0.45, px: 0, py: -0.5, pvx: 0, pvy: 0, lvx: 0, lvy: 0, lvz: 0, orbit: Math.random() < 0.5 ? 1 : -1, chomp: 0, lastHit: -1 };
-  if (type === 'sponge') { const big = s >= 3.5; e.hp = s >= 3.5 ? 1100 : s >= 1.8 ? 200 : 40; e.r = 0.8 * s; e.h = 0.9 * s; e.speed = big ? 5 : s >= 1.8 ? 7 : 8.5; if (big) e.type = 'mama'; }
+  if (type === 'sponge') { const big = s >= 3.5; e.hp = s >= 3.5 ? 1100 : s >= 1.8 ? 200 : s < 0.8 ? 18 : 40; e.r = 0.8 * s; e.h = 0.9 * s; e.speed = big ? 5 : s >= 1.8 ? 7 : s < 0.8 ? 11 : 8.5; if (big) e.type = 'mama'; }
+  if (type === 'roll') { e.hp = 420; e.r = 2.6; e.h = 3; e.speed = 8.5; e.len = 4.4; e.rot = 0; e.hitCd = 0; e.vz = 1.5; e.yaw = 0; }
+  if (type === 'fork') { e.hp = 900; e.r = 1.3; e.h = 1.4; e.speed = 14; e.stabs = 0; e.summonT = 7; e.stT = 3; }
   if (type === 'bottle') { e.hp = 70; e.r = 0.75; e.h = 3.0; e.speed = 3.4; }
   if (type === 'spoon') { e.hp = 28; e.r = 0.65; e.h = 0.8; e.speed = 10; e.y = 2.5; }
   if (e.type === 'mama') { e.hp = 1100; e.r = 0.8 * s; e.h = 0.9 * s; }
   e.maxHp = e.hp;
   return e;
 }
+const ROLL_LANES = [[-9, -10], [17.6, -3.5], [-27, -9.5]];
 const SPAWNS = {
   sponge: [[-2.5, -1], [16.5, 3], [7, -5.5], [7, 7.4], [-2.5, 5]],
   bottle: [[-15, -12.5], [-3, -19.5], [19, -16], [25, -12], [-26, -9], [-29, 6]],
   spoon: [[-20, -18], [0, -19], [15, -19], [28, 0], [-28, 0]],
 };
 function spawnEnemy(type) {
+  if (type === 'roll') {
+    const L = pick(ROLL_LANES); enemies.push(makeEnemy('roll', L[0], L[1]));
+    announce('INCOMING!', 'THE QUICKER PICKER-UPPER'); sfx('whistle'); headlineNow('BREAKING: GIANT PAPER TOWEL ROLL ON THE MOVE. RESIDENTS URGED TO BE LESS WET');
+    setTimeout(() => zz('roll', { force: true }), 1000); return;
+  }
+  if (type === 'fork') {
+    const e = makeEnemy('fork', 5, -18); e.y = 16; enemies.push(e); sfx('fanfare');
+    headlineNow('BREAKING: FORK SIGHTED. EXPERTS: "WE WERE TOLD IT DID NOT EXIST"'); forkMoment(); return;
+  }
+  if (type === 'gold') {
+    const sp = pick(SPAWNS.sponge), e = makeEnemy('sponge', sp[0], sp[1]); e.gold = true; e.hp = e.maxHp = 60; e.speed = 11; e.fleeT = 16; e.vy = 12;
+    enemies.push(e); sfx('sparkle'); pop(e.x, 2.5, e.z, 'THE SUBLIME OBJECT!', false); headlineNow('BREAKING: GOLDEN SPONGE SIGHTED. EVERYONE ACT NATURAL');
+    setTimeout(() => zz('gold', { force: true }), 700); return;
+  }
   let best = null;
   for (let k = 0; k < 6; k++) {
     const sp = pick(SPAWNS[type === 'mama' ? 'sponge' : type]); const d = Math.hypot(sp[0] - P.x, sp[1] - P.z);
     if (!best || d > best.d) best = { sp, d }; if (d > 12) break;
   }
-  const e = makeEnemy(type === 'mama' ? 'sponge' : type, best.sp[0] + rand(-1, 1), best.sp[1] + rand(-1, 1), type === 'mama' ? 4 : 1);
+  const e = makeEnemy(type === 'mama' ? 'sponge' : type, best.sp[0] + rand(-1, 1), best.sp[1] + rand(-1, 1), type === 'mama' ? 4 : type === 'sponge' && MOD === 'funsize' ? 0.55 : 1);
   if (type === 'spoon') { e.y = 9; }
   if (type === 'mama') { e.y = 7; e.x = HIVE.x; e.z = HIVE.z; e.vy = 14; announce('GRANDMA SPONGE', 'SHE HAS ABSORBED WORSE THAN YOU'); say('Grandma sponge', true); setTimeout(() => zz('mama', { force: true }), 1500); }
   if (type === 'sponge' || type === 'mama') { e.vy = 10; e.vx = rand(-3, 3); e.vz = rand(2, 5); if (e.x > HIVE.x + 6) e.vx = 5; if (e.x < HIVE.x - 6) e.vx = -5; if (e.z < HIVE.z - 3) e.vz = -5; }
@@ -1070,13 +1248,22 @@ function buildWave(n) {
   else if (n === 4) { add('sponge', 10); add('bottle', 5); add('spoon', 5); }
   else if (n % 5 === 0) { q.push('mama'); add('spoon', 3 + n); add('bottle', Math.floor(n / 2)); for (let i = 5; i < n; i += 5) q.push('mama'); }
   else { add('sponge', 6 + n * 2); add('bottle', 2 + n); add('spoon', 2 + n); }
+  if (n === 4 || n >= 6) add('roll', n === 4 ? 1 : 1 + Math.floor((n - 6) / 3));
+  if (n >= 2 && Math.random() < 0.35) q.push('gold');
   for (let i = q.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; if (q[i] !== 'mama' && q[j] !== 'mama') { const t = q[i]; q[i] = q[j]; q[j] = t; } }
+  if (n % 7 === 0) q.unshift('fork');
   return q;
 }
 function startWave(n) {
-  wave = n; spawnQ = buildWave(n); waveActive = true; spawnT = 0.6;
-  announce('WAVE ' + n, waveName(n)); sfx('wave'); say(waveName(n).toLowerCase(), true);
-  if (n === 3 || (n > 3 && Math.random() < 0.35)) jokeAt = T + 4.5;
+  wave = n; MOD = null; gs = 1;
+  if (n >= 4 && n % 7 !== 0 && Math.random() < 0.7) { MOD = pick(Object.keys(MODS).filter(k => k !== lastMod)); lastMod = MOD; gs = MOD === 'moon' ? 0.4 : 1; }
+  spawnQ = buildWave(n);
+  if (MOD === 'funsize') spawnQ = spawnQ.flatMap(t => t === 'sponge' ? ['sponge', 'sponge'] : [t]);
+  waveActive = true; spawnT = 0.6;
+  announce('WAVE ' + n, waveName(n) + (MOD ? '<br>+ ' + MODS[MOD].name : '')); sfx('wave'); say(waveName(n).toLowerCase(), true);
+  if (MOD) { headlineNow('KITCHEN CONDITIONS: ' + MODS[MOD].name + '. ' + MODS[MOD].sub);
+    setTimeout(() => { if (state === 'play' && MOD) { multiText(MODS[MOD].name + '!'); zz('mod_' + MOD, { force: true }); } }, 2600); }
+  if (n % 7 !== 0 && (n === 3 || (n > 3 && Math.random() < 0.35))) jokeAt = T + 4.5;
 }
 
 function hurt(amount, cause, fx, fz) {
@@ -1089,6 +1276,7 @@ function hurt(amount, cause, fx, fz) {
   if (P.hp <= 0) die(cause);
 }
 const DEATH = {
+  roll: ['You were picked up by the quicker picker-upper.'], fork: ['You were forked.'],
   sponge: ['You were absorbed. You live in a sponge now. The rent is reasonable.', 'A sponge drank you. You are now 40% of its personality.', 'Absorbed. Somewhere, a sponge is slightly heavier and very smug.',
     'A sponge soaked you up against your will. Next time, try doing it willingly (hold E).'],
   mama: ['Grandma Sponge absorbed you and told you that you were too thin anyway.', 'You have been absorbed by Grandma. She will wring you out at Thanksgiving.'],
@@ -1110,37 +1298,53 @@ function die(cause) {
 
 function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head) {
   if (e.hp <= 0) return;
+  if (e.bub > 0) {
+    if (weapon === 2) popBubble(e);
+    else {
+      e.vx += dx * knock * 0.5; e.vz += dz * knock * 0.5; e.bdx = e.vx; e.bdz = e.vz; e.vy += 0.4; e.flash = 0.4; sfx('hit'); hitmark(false);
+      if (T - hitWT > 0.12) { hitWT = T; pop(e.x, e.y + e.h + 0.8, e.z, pick(['BOINK', 'BOOP', 'BWOMP', 'BLOOP', 'BONK (SOAPY)']), true); }
+      return;
+    }
+  }
   if (head) dmg *= 1.75;
   e.hp -= dmg; e.flash = 1; e.lastHit = weapon;
-  const mass = e.type === 'mama' ? 8 : e.type === 'bottle' ? 1.6 : e.s >= 1.8 ? 3 : 1;
-  e.vx += dx * knock / mass; e.vz += dz * knock / mass; if (e.type !== 'spoon') e.vy += Math.max(0, knock * 0.35 / mass + dy * knock / mass);
+  const mass = e.type === 'roll' ? 25 : e.type === 'fork' ? 5 : e.type === 'mama' ? 8 : e.type === 'bottle' ? 1.6 : e.s >= 1.8 ? 3 : 1;
+  e.vx += dx * knock / mass; e.vz += dz * knock / mass; if (e.type !== 'spoon' && e.type !== 'fork' && e.type !== 'roll') e.vy += Math.max(0, knock * 0.35 / mass + dy * knock / mass);
   if (knock / mass > 5) e.stun = Math.min(0.6, knock / mass * 0.04);
   const cy = e.y + (e.type === 'spoon' ? 0 : e.h * 0.5);
   if (e.type === 'sponge' || e.type === 'mama') { gibs(e.x, cy, e.z, 4, FOAM, { smin: 0.06, smax: 0.16, maxS: 6, maxU: 7, dx: -dx * 2, dz: -dz * 2 }); if (Math.random() < 0.4) bubbles(e.x, cy, e.z, 2, 0.4); }
   if (e.type === 'bottle') gibs(e.x, cy, e.z, 4, SAUCE, { sph: true, smin: 0.06, smax: 0.14, maxS: 5, maxU: 7, stain: SAUCE[0] });
-  if (e.type === 'spoon') gibs(e.x, cy, e.z, 5, [[1, 0.9, 0.5]], { mat: 7, smin: 0.03, smax: 0.07, maxS: 8, lifeMin: 0.2, lifeMax: 0.5 });
+  if (e.type === 'roll') gibs(e.x + rand(-2, 2), cy + 1, e.z + 1.3, 4, [[0.97, 0.96, 0.93]], { smin: 0.1, smax: 0.2, sy: 0.08, maxS: 5, maxU: 6, grav: 8 });
+  if (e.type === 'spoon' || e.type === 'fork') gibs(e.x, cy, e.z, 5, [[1, 0.9, 0.5]], { mat: 7, smin: 0.03, smax: 0.07, maxS: 8, lifeMin: 0.2, lifeMax: 0.5 });
+  if (head) chalEvent('googly');
   if (head) { pop(e.x, cy + e.h * 0.6 + 0.4, e.z, pick(['GOOGLY SHOT!', 'EYE-GORE!', 'POKED THE GOOGLY!', 'I SEE WHAT YOU DID THERE']), true); sfx('head'); zz('googly', { p: 0.3 }); }
   else { sfx('hit'); if (T - hitWT > 0.15 && Math.random() < 0.4) { hitWT = T; pop(e.x + rand(-.5, .5), cy + e.h * 0.5 + 0.3, e.z, pick(HITW), true); } }
-  if (weapon === 0) gibs(e.x, cy, e.z, 2, WATER, { sph: true, mat: 12, smin: 0.06, smax: 0.12, maxS: 3, maxU: 4, stain: WET });
+  if (weapon === 0 && Math.random() < 0.5) gibs(e.x, cy, e.z, 1, WATER, { sph: true, mat: 12, smin: 0.06, smax: 0.12, maxS: 4, maxU: 4, stain: WET });
   hitmark(e.hp <= 0);
   if (e.hp <= 0) killEnemy(e, weapon, dx, dz, head);
 }
 function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false) {
   e.hp = 0; e.dead = true;
   const cy = e.y + (e.type === 'spoon' ? 0 : e.h * 0.5);
-  const base = { sponge: 100, bottle: 150, spoon: 120, mama: 2500 }[e.type] * (e.s >= 1.8 && e.type === 'sponge' ? 2 : 1);
+  const base = e.gold ? 5000 : { sponge: e.s < 0.8 ? 60 : 100, bottle: 150, spoon: 120, mama: 2500, roll: 1500, fork: 5000 }[e.type] * (e.s >= 1.8 && e.type === 'sponge' ? 2 : 1);
   combo++; comboT = 3.2;
   if (multiT > 0) multi++; else multi = 1; multiT = 0.8;
   const mult = Math.min(10, 1 + Math.floor(combo / 4));
   let pts = base * mult * (head ? 1.5 : 1) * (fell ? 2 : 1);
   score += Math.round(pts); killCount++;
-  const word = pick(KILLW[fell ? 'fall' : e.type]);
+  const word = pick(KILLW[fell ? (e.wasBub ? 'bubble' : 'fall') : e.squashed ? 'squash' : e.gold ? 'gold' : e.type]);
+  if (Math.random() < 0.55) say(word.replace(/[!?.]/g, '').toLowerCase()); else if (Math.random() < 0.5) say(pick(SHOUTS).toLowerCase());
+  chalEvent('kill'); if (fell) chalEvent('fall');
   pop(e.x, cy + 0.8, e.z, word);
-  feed(`DRIP <em>[${WICON[fell ? 3 : weapon] || 'SQUIRTER'}]</em> ${NAMES[e.type]}${head ? ' <em>· GOOGLY</em>' : ''}`);
-  if (multi >= 2) { const MT = ['', '', 'DOUBLE DIP!', 'TRIPLE SCRUB!', 'QUAD-RINSE!', 'DISHWASHER MODE!', 'SPIN CYCLE!', 'DISHPOCALYPSE!']; const t = MT[Math.min(multi, 7)]; multiText(t); say(t.replace('!', '').toLowerCase()); zz('multi', { p: 0.35 }); }
+  feed(`DRIP <em>[${WICON[fell ? 4 : weapon] || 'SQUIRTER'}]</em> ${e.gold ? 'GOLDEN SPONGE' : NAMES[e.type]}${head ? ' <em>· GOOGLY</em>' : ''}`);
+  if (multi >= 2) { const t = pick(MULTIW[Math.min(multi, 8)]); multiText(t); say(t.replace('!', '').toLowerCase()); zz('multi', { p: 0.35 }); }
   else if (combo > 0 && combo % 10 === 0) { multiText(`${combo} KILL STREAK!`); say(pick(['unstoppable', 'soaking wet', 'hydration nation', 'moist and furious'])); }
-  if (fell) zz('counter', { p: 0.6 });
+  if (fell) zz(e.wasBub ? 'bubbleCounter' : 'counter', { p: 0.65 });
   else if (e.type === 'mama') zz('mamaKill', { force: true });
+  else if (e.type === 'fork') zz('forkKill', { force: true });
+  else if (e.type === 'roll') zz('rollKill', { force: true });
+  else if (e.gold) zz('goldKill', { force: true });
+  else if (weapon === 5) zz('rollSquash', { p: 0.4 });
   else if (!zz('first_' + e.type, { once: true, force: true })) zz(e.type, { p: 0.1 });
   if (combo === 12 || combo === 30 || (T - lastJokeT > 110 && Math.random() < 0.03)) jokeAt = T + 0.6;
   hitstop = Math.max(hitstop, e.type === 'mama' ? 0.35 : 0.05);
@@ -1153,7 +1357,7 @@ function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false) {
     gibs(e.x, e.y + e.h * 0.7, e.z, 2, [[0.98, 0.98, 0.95]], { sph: true, mat: 11, smin: 0.2 * k, smax: 0.24 * k, maxU: 18, bounce: 0.7 });
     bubbles(e.x, cy, e.z, 16, 0.8 * k);
     sfx('squish');
-    if (e.s >= 1.8 && !fell) {
+    if (e.s >= 1.8 && !fell && !e.squashed) {
       const ns = e.s >= 3.5 ? 2 : 1;
       for (let i = 0; i < 2; i++) { const c = makeEnemy('sponge', e.x + (i ? 1 : -1) * e.r * 0.5, e.z, ns); c.y = e.y + 0.5; c.vy = 12; c.vx = (i ? 1 : -1) * 9 + rand(-2, 2); c.vz = rand(-4, 4); c.spawnT = 0; enemies.push(c); }
       pop(e.x, cy + 1.6, e.z, 'SPLIT!', true);
@@ -1164,6 +1368,15 @@ function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false) {
     part3({ x: e.x, y: e.y + 3.2, z: e.z, vy: 18, vx: rand(-3, 3), vz: rand(-3, 3), life: 3, size: 0.32, sy: 1.2, col: [0.62, 0.05, 0.08], mat: 11, bounce: 0.5 });
     if (e.y < 1) { hazards.push({ x: e.x, z: e.z, r: 2.2, t: 6 }); stain(e.x, 0, e.z, 2.2, [0.6, 0.05, 0.02]); }
     sfx('shatter'); sfx('splat');
+  } else if (e.type === 'roll') {
+    gibs(e.x, e.y + 1.5, e.z, 60, [[0.98, 0.97, 0.94], [0.93, 0.93, 0.9], [0.7, 0.85, 1.0]], { smin: 0.15, smax: 0.4, sy: 0.06, maxS: 12, maxU: 16, grav: 7, bounce: 0.1, lifeMin: 2, lifeMax: 4 });
+    part3({ x: e.x, y: e.y + 1.5, z: e.z, vx: rand(-3, 3), vy: 14, vz: rand(-3, 3), life: 4, size: 1, sx: 4.4, sy: 1, sz: 1, col: [0.62, 0.44, 0.26], mat: 13, angV: 6, bounce: 0.5, shrink: false });
+    sfx('squish'); sfx('boom'); announce('PAPER-CUT!', 'THE QUICKER PICKER-UPPER HAS BEEN PICKED UP');
+  } else if (e.type === 'fork') {
+    gibs(e.x, e.y, e.z, 40, [[1, 0.9, 0.5], [1, 1, 0.8]], { mat: 7, smin: 0.05, smax: 0.12, lifeMin: 0.4, lifeMax: 1, maxS: 18, maxU: 16 });
+    for (let i = 0; i < 4; i++) part3({ x: e.x + (i - 1.5) * 0.3, y: e.y + 1, z: e.z, vx: rand(-8, 8), vy: rand(10, 18), vz: rand(-8, 8), life: 5, size: 1, sx: 0.14, sy: 1.5, sz: 0.14, col: [0.82, 0.82, 0.86], mat: 5, angV: 20, bounce: 0.6, shrink: false });
+    part3({ x: e.x, y: e.y - 1, z: e.z, vx: rand(-4, 4), vy: 12, vz: rand(-4, 4), life: 5, size: 1, sx: 0.36, sy: 3.2, sz: 0.16, col: [0.82, 0.82, 0.86], mat: 5, angV: 12, bounce: 0.6, shrink: false });
+    sfx('ting'); sfx('boom'); sfx('fanfare'); announce('FORKED!', 'THE FORK IS DEAD. LONG LIVE THE FORK'); hitstop = Math.max(hitstop, 0.4);
   } else if (e.type === 'spoon') {
     part3({ x: e.x, y: e.y, z: e.z, vx: dx * 10 + rand(-3, 3), vy: 12, vz: dz * 10 + rand(-3, 3), life: 4, size: 1, sx: 0.5, sy: 0.14, sz: 0.65, col: [0.82, 0.82, 0.86], mat: 5, sph: true, angV: 25, bounce: 0.6, shrink: false });
     part3({ x: e.x, y: e.y - 0.8, z: e.z, vx: dx * 8 + rand(-3, 3), vy: 10, vz: dz * 8 + rand(-3, 3), life: 4, size: 1, sx: 0.14, sy: 1.5, sz: 0.06, col: [0.82, 0.82, 0.86], mat: 5, angV: 20, bounce: 0.6, shrink: false });
@@ -1171,9 +1384,10 @@ function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false) {
     gibs(e.x, e.y + 0.3, e.z, 2, [[0.98, 0.98, 0.95]], { sph: true, mat: 11, smin: 0.18, smax: 0.2, maxU: 16, bounce: 0.7 });
     sfx('ting');
   }
-  if (!fell && Math.random() < (e.type === 'mama' ? 1 : 0.3)) {
-    const n = e.type === 'mama' ? 5 : 1;
-    for (let i = 0; i < n; i++) { const r = Math.random(); pickups.push({ type: r < 0.45 ? 'ice' : r < 0.8 ? 'shells' : 'seltzer', x: e.x + rand(-1, 1) * (n > 1), y: Math.max(0, e.y) + 1, z: e.z + rand(-1, 1) * (n > 1), vy: 8, t: 0 }); }
+  if (waveActive && !spawnQ.length && enemies.every(o => o.dead)) { hitstop = Math.max(hitstop, 0.8); multiText(pick(['FINAL RINSE!', 'LAST ONE DOWN THE DRAIN!', 'SPOTLESS!', 'THAT WAS THE LAST DROP!'])); }
+  if (!fell && Math.random() < (e.type === 'mama' || e.type === 'fork' || e.type === 'roll' || e.gold ? 1 : 0.3)) {
+    const n = e.type === 'mama' ? 5 : e.type === 'fork' ? 6 : e.gold ? 3 : e.type === 'roll' ? 2 : 1;
+    for (let i = 0; i < n; i++) { const r = Math.random(); pickups.push({ type: r < 0.4 ? 'ice' : r < 0.68 ? 'shells' : r < 0.85 ? 'seltzer' : 'soap', x: e.x + rand(-1, 1) * (n > 1), y: Math.max(0, e.y) + 1, z: e.z + rand(-1, 1) * (n > 1), vy: 8, t: 0 }); }
   }
 }
 
@@ -1181,6 +1395,19 @@ function updateEnemies(dt) {
   const px = P.x, pz = P.z;
   for (const e of enemies) {
     e.t += dt; e.flash = Math.max(0, e.flash - dt * 7); e.stun -= dt; e.spawnT = Math.max(0, e.spawnT - dt); e.chomp = Math.max(0, e.chomp - dt * 3);
+    if (e.bub > 0) {
+      e.bub -= dt;
+      const gb = groundAt(e.x, e.z, e.y + 0.1), ty = Math.max(gb, 0) + (e.type === 'spoon' ? 4 : 3.2) + Math.sin(e.t * 1.7) * 0.4;
+      e.vy = lerp(e.vy, (ty - e.y) * 1.2, Math.min(1, dt * 2));
+      e.vx = lerp(e.vx, e.bdx, Math.min(1, dt * 0.7)); e.vz = lerp(e.vz, e.bdz, Math.min(1, dt * 0.7));
+      e.x += e.vx * dt; e.y += e.vy * dt; e.z += e.vz * dt;
+      collide(e, bubR(e) * 0.8, e.h);
+      e.yaw += dt * 0.8; e.pvx += (Math.random() - 0.5) * dt * 40; e.pvy += (Math.random() - 0.5) * dt * 40;
+      e.px = clamp(e.px + e.pvx * dt, -1, 1); e.py = clamp(e.py + e.pvy * dt, -1, 1); e.pvx *= 0.95; e.pvy *= 0.95;
+      if (Math.random() < dt * 0.6) pop(e.x, e.y + e.h + 1.2, e.z, pick(['HELP', 'LET ME OUT', 'THIS IS HUMILIATING', 'WHEEEE', 'I CAN SEE MY HOUSE', 'BLUB BLUB']), true);
+      if (e.bub <= 0) popBubble(e);
+      continue;
+    }
     const dx = px - e.x, dz = pz - e.z, dist = Math.hypot(dx, dz) || 1e-3;
     let nx = dx / dist, nz = dz / dist;
     // after bumping into scenery, walk around it for a while instead of straight at the player
@@ -1191,25 +1418,50 @@ function updateEnemies(dt) {
     const onG = e.y <= g + 0.02;
     const alive = state === 'play';
     e.tauntT = (e.tauntT === undefined ? rand(1, 7) : e.tauntT) - dt;
-    if (e.tauntT <= 0) { e.tauntT = rand(6, 13); if (dist < 24 && alive) pop(e.x, e.y + (e.type === 'spoon' ? 1 : e.h + 0.7), e.z, pick(TAUNTS[e.type]), true); }
+    if (e.tauntT <= 0) { e.tauntT = rand(6, 13); if (dist < 24 && alive) pop(e.x, e.y + (e.type === 'spoon' ? 1 : e.type === 'fork' ? 2.6 : e.h + 0.7), e.z, pick(TAUNTS[e.gold ? 'gold' : e.type]), true); }
+    if (e.type === 'roll') {
+      e.yaw = 0; e.vx = 0; e.hitCd -= dt;
+      e.vz = Math.min(e.speed, e.vz + dt * 2.5); e.z += e.vz * dt; e.rot += e.vz * dt / 1.5;
+      if (e.z > CZ1 + 1.2) { e.vy -= GRAV * gs * dt; e.y += e.vy * dt; }
+      else if (Math.random() < dt * 8) part3({ x: e.x + rand(-2, 2), y: 0.1, z: e.z + 1.4, vx: rand(-1, 1), vy: rand(1, 3), vz: e.vz * 0.5, life: 0.5, size: rand(0.05, 0.1), col: [0.95, 0.95, 0.9], grav: 20 });
+      // it soaks up every puddle it rolls over, and flattens anything small enough
+      for (let i = stains.length - 1; i >= 0; i--) { const st = stains[i]; if (Math.abs(st.x - e.x) < e.len / 2 && Math.abs(st.z - e.z) < 1.5) stains.splice(i, 1); }
+      for (const o of enemies) {
+        if (o === e || o.dead || o.bub > 0 || o.type === 'roll' || o.type === 'spoon' || o.type === 'fork' || o.type === 'mama') continue;
+        if (Math.abs(o.x - e.x) < e.len / 2 + o.r * 0.4 && Math.abs(o.z - e.z) < 1.5 + o.r * 0.4 && o.y < 2.4) { o.squashed = true; killEnemy(o, 5, 0, 1); }
+      }
+      if (alive && e.hitCd <= 0 && Math.abs(P.x - e.x) < e.len / 2 + PRAD && Math.abs(P.z - e.z) < 1.5 + PRAD && P.y < e.y + 3) {
+        e.hitCd = 1.2;
+        if (P.iT > 0) hurt(0, 'roll');
+        else { hurt(26, 'roll'); P.vy = 15; P.vz = e.vz + 5; P.onG = false; pop(P.x, P.y + 2, P.z, pick(['PICKED UP!', 'QUICKER! PICKIER! UPPIER!', 'ROLLED!']), true); }
+      }
+      if (e.y < -18 && !e.dead) { e.dead = true; zz('rollLeft', { p: 0.7 }); }
+      continue;
+    }
     if (e.type === 'sponge' || e.type === 'mama') {
       if (onG) { e.vx *= Math.exp(-dt * 14); e.vz *= Math.exp(-dt * 14); }
       // sponges drink your spilled water too, and it heals them
       if (onG) for (let i = stains.length - 1; i >= 0; i--) { const st = stains[i]; if (!st.water) continue; const sx = st.x - e.x, sz = st.z - e.z;
-        if (sx * sx + sz * sz < e.r * e.r && Math.abs(st.y - e.y) < 0.4) { stains.splice(i, 1); e.hp = Math.min(e.maxHp * 1.5, e.hp + 4); e.wet = Math.min(1, e.wet + 0.12); if (Math.random() < 0.15) pop(e.x, e.y + e.h + 0.5, e.z, pick(['GULP', 'MY WATER NOW', 'FREE REFILL']), true); } }
+        if (sx * sx + sz * sz < e.r * e.r && Math.abs(st.y - e.y) < 0.4) { stains.splice(i, 1); e.hp = Math.min(e.maxHp * 1.3, e.hp + 2); e.wet = Math.min(1, e.wet + 0.12); if (Math.random() < 0.15) pop(e.x, e.y + e.h + 0.5, e.z, pick(['GULP', 'MY WATER NOW', 'FREE REFILL']), true); } }
       e.cd -= dt;
       if (onG && e.cd <= 0 && e.stun <= 0 && alive) {
         const big = e.type === 'mama';
         const lunge = dist < 5 && !big;
         const sp = e.speed * (lunge ? 1.5 : 1) * rand(0.85, 1.15);
         const side = rand(-0.35, 0.35);
-        e.vx = (nx * Math.cos(side) - nz * Math.sin(side)) * sp; e.vz = (nz * Math.cos(side) + nx * Math.sin(side)) * sp;
+        let hx = nx, hz = nz;
+        if (e.gold) { hx = -nx; hz = -nz + (e.z > 15 ? -1.2 : 0) + (e.z < -17 ? 1.2 : 0); hx += e.x > 27 ? -1.2 : e.x < -27 ? 1.2 : 0; const hl = Math.hypot(hx, hz) || 1; hx /= hl; hz /= hl; }
+        e.vx = (hx * Math.cos(side) - hz * Math.sin(side)) * sp; e.vz = (hz * Math.cos(side) + hx * Math.sin(side)) * sp;
         e.vy = big ? 13 : lunge ? rand(6, 8) : rand(7, 10);
         e.cd = big ? rand(0.5, 0.8) : rand(0.08, 0.3); e.sq = 0.6; if (dist < 25) sfx('hop');
       }
       if (e.type === 'mama') { e.stT -= dt; if (e.stT <= 0 && enemies.length < 24 && alive) { e.stT = 4.5; const c = makeEnemy('sponge', e.x, e.z, 1); c.y = e.y + e.h; c.vy = 14; c.vx = nx * 6 + rand(-4, 4); c.vz = nz * 6 + rand(-4, 4); c.spawnT = 0.2; enemies.push(c); bubbles(e.x, e.y + e.h, e.z, 10, 1.5); sfx('spawn'); pop(e.x, e.y + e.h + 1, e.z, 'SQUEEZE!', true); } }
       const reach = e.r + PRAD + 0.1;
-      if (dist < reach && P.y < e.y + e.h + 0.2 && P.y + 1.2 > e.y && alive && P.iT <= 0) {
+      if (e.gold) {
+        e.fleeT -= dt; if (Math.random() < dt * 12) part3({ x: e.x + rand(-.6, .6), y: e.y + rand(0, 1), z: e.z + rand(-.6, .6), vy: rand(1, 3), life: 0.6, size: rand(0.04, 0.09), col: [1.6, 1.3, 0.4], mat: 7, grav: -1, bounce: 0 });
+        if (e.fleeT <= 0) { e.dead = true; bubbles(e.x, e.y + 0.5, e.z, 14, 0.8); pop(e.x, e.y + 2, e.z, 'IT GOT AWAY', false); zz('goldEscape', { force: true }); }
+      }
+      if (dist < reach && P.y < e.y + e.h + 0.2 && P.y + 1.2 > e.y && alive && P.iT <= 0 && !e.gold) {
         P.latch = e; P.latchT = 0.8;
         if (P.surr > 0) { e.cd = Math.max(e.cd, 0.3); e.vx *= 0.5; e.vz *= 0.5; } if (!ZZ.once.dare) zz('dare', { once: true, force: true });
         const dmg = (e.type === 'mama' ? 34 : e.s >= 1.8 ? 24 : 16) * dt;
@@ -1233,38 +1485,44 @@ function updateEnemies(dt) {
         const tT = clamp(dist / 16, 0.45, 1.6);
         const tx = px + P.vx * tT * 0.6, tz = pz + P.vz * tT * 0.6, ty = P.y + 0.6;
         const gg = 22;
-        globs.push({ x: sx, y: sy, z: sz, vx: (tx - sx) / tT, vz: (tz - sz) / tT, vy: (ty - sy + 0.5 * gg * tT * tT) / tT, g: gg, life: 4 });
+        globs.push({ x: sx, y: sy, z: sz, vx: (tx - sx) / tT, vz: (tz - sz) / tT, vy: (ty - sy + 0.5 * gg * gs * tT * tT) / tT, g: gg, life: 4 });
         e.sq = 1.35; sfx('glob');
       }
-    } else if (e.type === 'spoon') {
+    } else if (e.type === 'spoon' || e.type === 'fork') {
+      const F = e.type === 'fork';
       e.stT -= dt;
-      const ty = Math.max(g, 0) + 1.2 + Math.sin(e.t * 2) * 0.4;
+      let ty = Math.max(g, 0) + (F ? 2.4 : 1.2) + Math.sin(e.t * 2) * 0.4;
+      if (e.climbT > 0) { e.climbT -= dt; ty = Math.max(ty, 7.5); }   // fly over whatever it bumped into
+      if (F && alive) { e.summonT -= dt; if (e.summonT <= 0 && enemies.length < 22) { e.summonT = 9; for (let i = 0; i < 3; i++) { const c = makeEnemy('spoon', e.x + rand(-2, 2), e.z + rand(-2, 2)); c.y = e.y; enemies.push(c); } pop(e.x, e.y + 2.8, e.z, pick(['CUTLERY DRAWER, ASSEMBLE!', 'SPOONS! TO ME!', 'MY LOYAL SCOOPS!']), false); sfx('ting'); } }
       if (e.state === 0) {
-        const ang = Math.atan2(e.z - pz, e.x - px) + e.orbit * dt * 1.4;
-        const R = 7;
+        const ang = Math.atan2(e.z - pz, e.x - px) + e.orbit * dt * (F ? 0.9 : 1.4);
+        const R = F ? 10 : 7, cap = F ? 20 : 16;
         const tx = px + Math.cos(ang) * R, tz = pz + Math.sin(ang) * R;
         e.vx = lerp(e.vx, (tx - e.x) * 3, Math.min(1, dt * 3)); e.vz = lerp(e.vz, (tz - e.z) * 3, Math.min(1, dt * 3)); e.vy = lerp(e.vy, (ty + 1 - e.y) * 3, Math.min(1, dt * 3));
-        const hs = Math.hypot(e.vx, e.vz); if (hs > 16) { e.vx *= 16 / hs; e.vz *= 16 / hs; }
-        if (e.stT <= 0 && dist < 16 && alive) { e.state = 1; e.stT = 0.45; sfx('whoosh'); }
+        const hs = Math.hypot(e.vx, e.vz); if (hs > cap) { e.vx *= cap / hs; e.vz *= cap / hs; }
+        if (e.stT <= 0 && dist < (F ? 22 : 16) && alive) { e.state = 1; e.stT = F ? 0.6 : 0.45; sfx('whoosh'); }
       } else if (e.state === 1) {
         e.vx = lerp(e.vx, -nx * 3, Math.min(1, dt * 8)); e.vz = lerp(e.vz, -nz * 3, Math.min(1, dt * 8)); e.vy = lerp(e.vy, (P.y + 1.5 - e.y) * 2, Math.min(1, dt * 5));
-        if (e.stT <= 0) { e.state = 2; e.stT = 0.8; const dy = P.y + 0.7 - e.y, d3 = Math.hypot(dx, dy, dz) || 1; e.vx = dx / d3 * 24; e.vy = dy / d3 * 24; e.vz = dz / d3 * 24; }
+        if (e.stT <= 0) { e.state = 2; e.stT = F ? 0.55 : 0.8; const sp = F ? 30 : 24, dy = P.y + 0.7 - e.y, d3 = Math.hypot(dx, dy, dz) || 1; e.vx = dx / d3 * sp; e.vy = dy / d3 * sp; e.vz = dz / d3 * sp; }
       } else {
-        if (e.stT <= 0) { e.state = 0; e.stT = rand(1.5, 3.2); }
+        if (e.stT <= 0) { if (F && e.stabs < 2) { e.stabs++; e.state = 1; e.stT = 0.28; } else { e.stabs = 0; e.state = 0; e.stT = F ? rand(1.2, 2.2) : rand(1.5, 3.2); } }
         const dy = P.y + P.eyeH * 0.6 - e.y;
         if (Math.hypot(dx, dy, dz) < e.r + PRAD + 0.3 && alive) {
-          hurt(12, 'spoon', e.x, e.z); sfx('ting'); zz('spoonHit', { p: 0.3 }); pop(e.x, e.y + 0.6, e.z, pick(['BONK', 'TING!', 'CLANG', 'STIR!']), true);
-          e.state = 0; e.stT = rand(1.8, 3); e.vx = -e.vx * 0.5; e.vz = -e.vz * 0.5; e.vy = 6;
+          hurt(F ? 22 : 12, e.type, e.x, e.z); sfx('ting'); zz('spoonHit', { p: F ? 0 : 0.3 });
+          pop(e.x, e.y + 0.6, e.z, pick(F ? ['STABBED!', 'FORKED!', 'PRONGED!', 'FOUR HOLES!'] : ['BONK', 'TING!', 'CLANG', 'STIR!']), true);
+          e.state = 0; e.stabs = 0; e.stT = F ? rand(0.8, 1.6) : rand(1.8, 3); e.vx = -e.vx * 0.5; e.vz = -e.vz * 0.5; e.vy = 6;
         }
       }
       if (e.stun > 0) { e.vy -= GRAV * 0.5 * dt; }
     }
-    if (e.type !== 'spoon') { e.vy -= GRAV * dt; }
+    if (e.type !== 'spoon' && e.type !== 'fork') { e.vy -= GRAV * gs * dt; }
     e.x += e.vx * dt; e.y += e.vy * dt; e.z += e.vz * dt;
     const bump = collide(e, e.r * 0.85, e.h);
-    if (bump && e.type !== 'spoon') { if (e.detourT <= 0) e.dsign = Math.random() < 0.5 ? 1 : -1; e.detourT = 1.0; }
+    if (bump && e.type !== 'spoon' && e.type !== 'fork') { if (e.detourT <= 0) e.dsign = Math.random() < 0.5 ? 1 : -1; e.detourT = 1.0; }
+    if (bump && (e.type === 'spoon' || e.type === 'fork')) { e.climbT = 1.4; e.vy = Math.max(e.vy, 7); if (e.state === 2) { e.state = 0; e.stT = rand(0.8, 1.6); } }
     const gg = groundAt(e.x, e.z, e.y);
-    if (e.type !== 'spoon') {
+    if (e.type !== 'spoon' && e.type !== 'fork') {
+      if (e.y < gg && e.popY !== undefined) { const drop = e.popY - gg; e.popY = undefined; if (drop > 1.5) { e.y = gg; damageEnemy(e, drop * 10, 0, 0, 0, 0, 3, false); pop(e.x, e.y + e.h + 0.6, e.z, pick(['SPLAT', 'OOF', 'GRAVITY!', 'THUD']), true); } }
       if (e.y < gg) { if (e.vy < -8) { e.sq = 0.55; if (e.type === 'mama') { shake = Math.max(shake, 0.5 * clamp(1 - dist / 25, 0, 1)); sfx('land'); if (dist < 6 && P.onG && alive) hurt(10, 'mama', e.x, e.z); } } e.y = gg; e.vy = Math.max(0, e.vy); }
     } else if (e.y < gg + 1.0) { e.y = gg + 1.0; e.vy = Math.abs(e.vy) * 0.3; }
     // squash/stretch spring
@@ -1277,17 +1535,17 @@ function updateEnemies(dt) {
     e.pvx += (-lax * 0.02 + (Math.random() - 0.5) * 2) * dt * 60 * 0.1 - e.pvx * dt * 2; e.pvy += (-18 - ayv * 0.06) * dt * 0.35 - e.pvy * dt * 2;
     e.px += e.pvx * dt; e.py += e.pvy * dt;
     const pr = Math.hypot(e.px, e.py); if (pr > 1) { e.px /= pr; e.py /= pr; const vn = (e.pvx * e.px + e.pvy * e.py); if (vn > 0) { e.pvx -= 1.5 * vn * e.px; e.pvy -= 1.5 * vn * e.py; } }
-    if (e.y < -18 && !e.dead) { killEnemy(e, 3, 0, 0, false, true); }
+    if (e.y < -18 && !e.dead) { killEnemy(e, 4, 0, 0, false, true); }
   }
   // separation
   for (let i = 0; i < enemies.length; i++) for (let j = i + 1; j < enemies.length; j++) {
-    const a = enemies[i], b = enemies[j]; if ((a.type === 'spoon') !== (b.type === 'spoon')) continue;
+    const a = enemies[i], b = enemies[j]; if (a.type === 'roll' || b.type === 'roll' || (a.type === 'spoon' || a.type === 'fork') !== (b.type === 'spoon' || b.type === 'fork')) continue;
     const dx = b.x - a.x, dz = b.z - a.z, m = (a.r + b.r) * 0.9, d2 = dx * dx + dz * dz;
     if (d2 < m * m && d2 > 1e-6) { const d = Math.sqrt(d2), p = (m - d) * 0.5, ux = dx / d, uz = dz / d; a.x -= ux * p; a.z -= uz * p; b.x += ux * p; b.z += uz * p; }
   }
   // player can't walk through walkers
   for (const e of enemies) {
-    if (e.type === 'spoon' || e.dead) continue;
+    if (e.type === 'spoon' || e.type === 'fork' || e.type === 'roll' || e.dead || e.bub > 0) continue;
     const dx = P.x - e.x, dz = P.z - e.z, m = e.r * 0.9 + PRAD, d2 = dx * dx + dz * dz;
     if (d2 < m * m && P.y < e.y + e.h - 0.2 && P.y + 1.2 > e.y) { const d = Math.sqrt(d2) || 1e-3; P.x += dx / d * (m - d) * 0.7; P.z += dz / d * (m - d) * 0.7; }
     else if (d2 < m * m && P.y >= e.y + e.h - 0.2 && P.vy <= 0) { P.y = e.y + e.h; P.vy = 9; e.sq = 0.5; sfx('hop'); pop(e.x, e.y + e.h + 0.5, e.z, 'BOING', true); }
@@ -1298,7 +1556,7 @@ function updateEnemies(dt) {
 // =====================================================================  projectiles
 function updateGlobs(dt) {
   for (const g of globs) {
-    g.vy -= g.g * dt; g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.life -= dt;
+    g.vy -= g.g * gs * dt; g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.life -= dt;
     if (Math.random() < dt * 30) part3({ x: g.x, y: g.y, z: g.z, vx: rand(-1, 1), vy: rand(-1, 1), vz: rand(-1, 1), life: 0.4, size: rand(0.06, 0.12), col: pick(SAUCE), sph: true, grav: 10, stain: SAUCE[0] });
     const dx = P.x - g.x, dy = P.y + P.eyeH * 0.6 - g.y, dz = P.z - g.z;
     if (state === 'play' && dx * dx + dy * dy + dz * dz < 0.95 * 0.95) {
@@ -1327,9 +1585,8 @@ function explode(x, y, z) {
   const R = 5.2;
   for (const e of enemies) {
     if (e.dead) continue;
-    const cy = e.y + (e.type === 'spoon' ? 0 : e.h * 0.5);
-    const dx = e.x - x, dy = cy - y, dz = e.z - z, d = Math.hypot(dx, dy, dz);
-    if (d < R + e.r) { const f = 1 - Math.max(0, d - e.r) / R; const n = Math.hypot(dx, dz) || 1; damageEnemy(e, 130 * f + 10, dx / n, 0.6, dz / n, 30 * f + 6, 2, false); if (e.type !== 'spoon') e.vy += 10 * f; }
+    const [sd, sh] = nearestSphere(e, x, y, z);
+    if (sd < R) { const f = 1 - Math.max(0, sd) / R; const dx = sh[0] - x, dz = sh[2] - z, n = Math.hypot(dx, dz) || 1; damageEnemy(e, 130 * f + 10, dx / n, 0.6, dz / n, 30 * f + 6, 2, false); if (e.type !== 'spoon' && e.type !== 'roll' && e.type !== 'fork') e.vy += 10 * f; }
   }
   const dx = P.x - x, dy = P.y + 0.5 - y, dz = P.z - z, d = Math.hypot(dx, dy, dz);
   if (d < R && state === 'play') {
@@ -1346,7 +1603,7 @@ function updateRockets(dt) {
       const sp = Math.hypot(r.vx, r.vy, r.vz), len = sp * sdt;
       const t = rayStatic(r.x, r.y, r.z, r.vx / sp, r.vy / sp, r.vz / sp, len);
       let boom = t < len;
-      if (!boom) for (const e of enemies) { if (e.dead) continue; const cy = e.y + (e.type === 'spoon' ? 0 : e.h * 0.5); if ((e.x - nx) ** 2 + (cy - ny) ** 2 + (e.z - nz) ** 2 < (e.r + 0.35) ** 2) { boom = true; break; } }
+      if (!boom) for (const e of enemies) { if (e.dead) continue; if (nearestSphere(e, nx, ny, nz)[0] < 0.35) { boom = true; break; } }
       if (boom) { const tt = Math.min(t, len) * 0.95; explode(r.x + r.vx / sp * tt, r.y + r.vy / sp * tt, r.z + r.vz / sp * tt); r.life = 0; break; }
       r.x = nx; r.y = ny; r.z = nz;
     }
@@ -1363,25 +1620,39 @@ function camBasis() {
   return { f: [-sy * cp, sp, -cy * cp], r: [cy, 0, -sy], u: [sy * sp, cp, cy * sp] };
 }
 function dirFrom(yaw, pitch) { return [-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)]; }
+// every enemy is one or more spheres to shoot at; the paper towel roll is three in a row
+function bubR(e) { return e.type === 'bottle' ? 1.9 : e.type === 'spoon' ? 1.4 : e.r * 1.35 + 0.35; }
+function bubCY(e) { return e.type === 'spoon' ? e.y : e.type === 'bottle' ? e.y + 1.5 : e.y + e.h * 0.5; }
+function hitSpheres(e) {
+  if (e.bub > 0) return [[e.x, bubCY(e), e.z, bubR(e)]];
+  if (e.type === 'roll') { const y = e.y + 1.5; return [[e.x - 1.6, y, e.z, 1.55], [e.x, y, e.z, 1.55], [e.x + 1.6, y, e.z, 1.55]]; }
+  if (e.type === 'fork') return [[e.x, e.y + 0.4, e.z, 1.6]];
+  const cy = e.y + (e.type === 'spoon' ? 0.2 : e.h * 0.5);
+  return [[e.x, cy, e.z, e.type === 'bottle' ? 1.05 : e.type === 'spoon' ? 0.75 : e.r * 0.95]];
+}
+function nearestSphere(e, x, y, z) { let bd = 1e9, bh = null; for (const h of hitSpheres(e)) { const d = Math.hypot(h[0] - x, h[1] - y, h[2] - z) - h[3]; if (d < bd) { bd = d; bh = h; } } return [bd, bh]; }
 function hitscan(o, d, dmg, knock, weapon, tracer) {
   const tW = rayStatic(o[0], o[1], o[2], d[0], d[1], d[2], 90);
   let best = null, bt = tW;
   for (const e of enemies) {
     if (e.dead) continue;
-    const cy = e.y + (e.type === 'spoon' ? 0.2 : e.h * 0.5);
-    const R = e.type === 'bottle' ? 1.05 : e.type === 'spoon' ? 0.75 : e.r * 0.95;
-    const ox = o[0] - e.x, oy = o[1] - cy, oz = o[2] - e.z;
-    const b = ox * d[0] + oy * d[1] + oz * d[2], c = ox * ox + oy * oy + oz * oz - R * R, disc = b * b - c;
-    if (disc > 0) { let t = -b - Math.sqrt(disc); if (t <= 0) t = Math.min(0.3, -b + Math.sqrt(disc)); if (t > 0 && t < bt) { bt = t; best = { e, cy, R }; } }
+    for (const hs of hitSpheres(e)) {
+      const R = hs[3], ox = o[0] - hs[0], oy = o[1] - hs[1], oz = o[2] - hs[2];
+      const b = ox * d[0] + oy * d[1] + oz * d[2], c = ox * ox + oy * oy + oz * oz - R * R, disc = b * b - c;
+      if (disc > 0) { let t = -b - Math.sqrt(disc); if (t <= 0) t = Math.min(0.3, -b + Math.sqrt(disc)); if (t > 0 && t < bt) { bt = t; best = { e, cy: hs[1], R }; } }
+    }
   }
   const hx = o[0] + d[0] * bt, hy = o[1] + d[1] * bt, hz = o[2] + d[2] * bt;
   if (best) {
     const e = best.e;
-    const eyeY = e.type === 'bottle' ? e.y + 1.6 : e.type === 'spoon' ? e.y + 0.45 : e.y + e.h * 0.7;
-    const head = e.type === 'bottle' ? Math.abs(hy - eyeY) < 0.35 : hy > eyeY - (e.type === 'spoon' ? 0.2 : e.h * 0.12);
+    const eyeY = e.type === 'bottle' ? e.y + 1.6 : e.type === 'spoon' ? e.y + 0.45 : e.type === 'fork' ? e.y + 0.9 : e.type === 'roll' ? e.y + 2.1 : e.y + e.h * 0.7;
+    let head = e.type === 'bottle' || e.type === 'fork' ? Math.abs(hy - eyeY) < (e.type === 'fork' ? 0.6 : 0.35) : e.type === 'roll' ? hy > eyeY - 0.3 && hz > e.z + 0.6 : hy > eyeY - (e.type === 'spoon' ? 0.2 : e.h * 0.12);
+    if (MOD === 'googly' && e.type !== 'roll') head = head || hy > best.cy - 0.15;
+    if (e.bub > 0) head = false;
     const hn = Math.hypot(d[0], d[2]) || 1;
     damageEnemy(e, dmg, d[0] / hn, d[1], d[2] / hn, knock, weapon, head);
   } else if (bt < 90) {
+    if (hz < -21.4 && hx > -28.2 && hx < -15.8 && hy > 23.3 && hy < 38.7) posterHit(hx, hy, hz);
     if (weapon === 0) gibs(hx, hy, hz, 4, WATER, { sph: true, mat: 12, smin: 0.04, smax: 0.1, maxS: 4, maxU: 5, lifeMin: 0.3, lifeMax: 0.8, stain: WET });
     else gibs(hx, hy, hz, 3, [[0.8, 0.92, 1]], { mat: 12, smin: 0.04, smax: 0.09, maxS: 5, maxU: 5, lifeMin: 0.3, lifeMax: 0.8 });
   }
@@ -1390,7 +1661,8 @@ function hitscan(o, d, dmg, knock, weapon, tracer) {
 function fire() {
   const w = P.w, W_ = WEAPONS[w];
   if (P.cool > 0 || P.switchT > 0) return;
-  if (P.ammo[w] <= 0) { P.cool = 0.3; sfx('empty'); pop(P.x, P.y + 1.4, P.z, 'OUT OF ' + (w === 1 ? 'ICE' : 'FIZZ') + '!', true); P.wNext = 0; P.switchT = 0.3; return; }
+  if (P.ammo[w] <= 0) { P.cool = 0.3; sfx('empty'); pop(P.x, P.y + 1.4, P.z, 'OUT OF ' + ['', 'ICE', 'FIZZ', 'SOAP'][w] + '!', true); P.wNext = 0; P.switchT = 0.3; return; }
+  chalEvent('fire');
   P.cool = W_.rate; if (W_.max !== Infinity) P.ammo[w]--;
   const B = camBasis();
   const eye = [P.x, P.y + P.eyeH + camBob(), P.z];
@@ -1413,12 +1685,44 @@ function fire() {
     gibs(muz[0], muz[1], muz[2], 8, [[0.85, 0.95, 1]], { mat: 12, smin: 0.04, smax: 0.08, maxS: 3, maxU: 3, lifeMin: 0.2, lifeMax: 0.5, dx: B.f[0] * 8, dz: B.f[2] * 8 });
     P.recoil = 1; P.vx -= B.f[0] * 2.5; P.vz -= B.f[2] * 2.5; if (!P.onG) P.vy -= B.f[1] * 5;
     sfx('shotgun'); shake = Math.max(shake, 0.3);
-  } else {
+  } else if (w === 2) {
     const d = dirFrom(P.yaw, P.pitch);
     rockets.push({ x: muz[0], y: muz[1], z: muz[2], vx: d[0] * 34, vy: d[1] * 34, vz: d[2] * 34, life: 3 });
     P.recoil = 1.2; sfx('launch'); shake = Math.max(shake, 0.2);
     gibs(muz[0], muz[1], muz[2], 10, BUBBLE, { sph: true, mat: 16, smin: 0.05, smax: 0.12, maxS: 3, maxU: 3, grav: -3, lifeMin: 0.3, lifeMax: 0.8 });
+  } else {
+    const d = dirFrom(P.yaw, P.pitch);
+    soaps.push({ x: muz[0], y: muz[1], z: muz[2], vx: d[0] * 15 + P.vx * 0.3, vy: d[1] * 15 + 0.5, vz: d[2] * 15 + P.vz * 0.3, r: 0.25, life: 3 });
+    P.recoil = 0.5; sfx('bloop');
   }
+}
+// ----- soap bubbles: trap an enemy, it floats up and drifts; push it with water or ice, pop it with fizz
+function popFx(x, y, z) { sfx('pop'); gibs(x, y, z, 10, BUBBLE, { sph: true, mat: 16, smin: 0.04, smax: 0.1, maxS: 4, maxU: 4, grav: 6, lifeMin: 0.2, lifeMax: 0.5 }); }
+function trapInBubble(e) {
+  if (e.type === 'mama' || e.type === 'roll' || e.type === 'fork') { popFx(e.x, e.y + e.h * 0.5, e.z); pop(e.x, e.y + e.h + 0.8, e.z, pick(['TOO BIG TO BUBBLE', 'NICE TRY', 'I AM NOT A BATH TOY']), true); return; }
+  e.bub = 7; e.wasBub = true; e.stun = 0; e.state = 0; e.vy = 3; e.vx *= 0.2; e.vz *= 0.2; e.popY = undefined;
+  const dx = e.x - P.x, dz = e.z - P.z, d = Math.hypot(dx, dz) || 1; e.bdx = dx / d * 1.3 + rand(-0.5, 0.5); e.bdz = dz / d * 1.3 + rand(-0.5, 0.5);
+  sfx('bloop'); pop(e.x, e.y + e.h + 1, e.z, pick(['BUBBLED!', 'IN THE SUDS!', 'SOAP OPERA!', 'LATHERED!', 'BATH TIME!', 'SUDDENLY: SUDS']), true);
+  zz('bubble', { p: 0.35 });
+}
+function popBubble(e) {
+  e.bub = 0; e.popY = e.y; e.stun = 0.6; e.vy = 2;
+  popFx(e.x, bubCY(e), e.z); pop(e.x, e.y + e.h + 1, e.z, 'POP!', true);
+  if (e.type === 'spoon') { e.popY = undefined; damageEnemy(e, 15, 0, 0, 0, 0, 3, false); }
+}
+function updateSoaps(dt) {
+  for (const b of soaps) {
+    b.life -= dt; b.r = Math.min(0.85, b.r + dt * 0.9);
+    const k = Math.exp(-dt * 0.6); b.vx *= k; b.vz *= k; b.vy = b.vy * k + dt * 0.8;
+    const sp = Math.hypot(b.vx, b.vy, b.vz) || 1, len = sp * dt;
+    const hitWall = rayStatic(b.x, b.y, b.z, b.vx / sp, b.vy / sp, b.vz / sp, len + b.r * 0.5) < len + b.r * 0.5;
+    b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+    let caught = null;
+    for (const e of enemies) { if (e.dead || e.bub > 0) continue; if (nearestSphere(e, b.x, b.y, b.z)[0] < b.r) { caught = e; break; } }
+    if (caught) { trapInBubble(caught); b.life = 0; continue; }
+    if (hitWall || b.life <= 0) { b.life = 0; popFx(b.x, b.y, b.z); }
+  }
+  soaps = soaps.filter(b => b.life > 0);
 }
 function camBob() { return P.onG ? Math.sin(P.bob * 2) * 0.06 * Math.min(1, Math.hypot(P.vx, P.vz) / 11) : 0; }
 
@@ -1443,6 +1747,7 @@ function updatePlayer(dt) {
   }
   if (!wantPud && P.pud) P.pud = false;
   P.pudT = lerp(P.pudT, P.pud ? 1 : 0, Math.min(1, dt * 10)); P.eyeH = lerp(EYE, 0.32, P.pudT);
+  if (P.pud) chalEvent('puddle', dt);
   if ((keys.ShiftLeft || keys.ShiftRight) && P.dashCd <= 0) {
     const dx = wl > 0 ? wx : -sy, dz = wl > 0 ? wz : -cy;
     P.vx = dx * 30; P.vz = dz * 30; if (P.vy < 2) P.vy = 2; P.dashT = 0.16; P.dashCd = 0.85; P.iT = 0.25; sfx('dash'); P.fov = 1;
@@ -1463,7 +1768,7 @@ function updatePlayer(dt) {
   P.coyote = P.onG ? 0.1 : P.coyote - dt;
   if (keys.Space && !P.jumpHeld && P.coyote > 0) { P.vy = 13.5; P.onG = false; P.coyote = 0; sfx('jump'); }
   P.jumpHeld = !!keys.Space;
-  P.vy -= GRAV * dt;
+  P.vy -= GRAV * gs * dt;
   const ox = P.x, oz = P.z;
   P.x += P.vx * dt; P.z += P.vz * dt;
   collide(P, PRAD, 1.2);
@@ -1485,7 +1790,7 @@ function updatePlayer(dt) {
   if (P.onG && P.hp < 100) {
     const R = P.pud ? 1.1 : 0.75; let got = 0;
     for (let i = stains.length - 1; i >= 0; i--) { const st = stains[i]; if (!st.water || Math.abs(st.y - P.y) > 0.4) continue;
-      const dx = st.x - P.x, dz = st.z - P.z, r = R + st.sx * 0.5; if (dx * dx + dz * dz < r * r) { stains.splice(i, 1); got += 0.4 + st.sx * 0.6; } }
+      const dx = st.x - P.x, dz = st.z - P.z, r = R + st.sx * 0.5; if (dx * dx + dz * dz < r * r) { stains.splice(i, 1); got += 0.4 + st.sx * 0.6; chalEvent('soak'); } }
     if (got > 0) {
       P.hp = Math.min(100, P.hp + got);
       if (P.sipT <= 0) { P.sipT = 0.6; sfx('sip'); pop(P.x - Math.sin(P.yaw) * 2, P.y + 1.2, P.z - Math.cos(P.yaw) * 2, pick(['+SIP', 'SLURP (YOURS)', 'REHYDRATED', 'WASTE NOT', 'RECYCLED!']), true); }
@@ -1514,13 +1819,13 @@ function updatePlayer(dt) {
   if (mouseDown && locked) fire();
 }
 function selectWeapon(i) {
-  if (state !== 'play' || i === P.wNext || i < 0 || i > 2) return;
+  if (state !== 'play' || i === P.wNext || i < 0 || i > 3) return;
   if (i > 0 && P.ammo[i] <= 0) { pop(P.x, P.y + 1.4, P.z, 'NO AMMO!', true); sfx('empty'); return; }
   P.wNext = i; P.switchT = 0.3; sfx('swap');
 }
 function updatePickups(dt) {
   for (const k of pickups) {
-    k.t += dt; k.vy -= GRAV * 0.6 * dt; k.y += k.vy * dt;
+    k.t += dt; k.vy -= GRAV * 0.6 * gs * dt; k.y += k.vy * dt;
     const g = groundAt(k.x, k.z, k.y); if (k.y < g + 0.4) { k.y = g + 0.4; k.vy = Math.abs(k.vy) > 3 ? -k.vy * 0.4 : 0; }
     if (k.y < -30) k.dead = true;
     const dx = P.x - k.x, dy = P.y + 0.5 - k.y, dz = P.z - k.z;
@@ -1528,6 +1833,7 @@ function updatePickups(dt) {
       if (k.type === 'ice') { if (P.hp >= 100) continue; P.hp = Math.min(100, P.hp + 25); pop(k.x, k.y + 1, k.z, pick(['ICE ICE BABY! +25', 'COOL! +25 DAMPNESS', 'CHILL OUT +25']), true); zz('ice', { p: 0.35 }); }
       if (k.type === 'shells') { if (P.ammo[1] >= WEAPONS[1].max) continue; P.ammo[1] = Math.min(WEAPONS[1].max, P.ammo[1] + 10); pop(k.x, k.y + 1, k.z, pick(['+10 ICE · STAY FROSTY', '+10 ICE · COLD AS YOU', '+10 ICE · FREEZE!']), true); }
       if (k.type === 'seltzer') { if (P.ammo[2] >= WEAPONS[2].max) continue; P.ammo[2] = Math.min(WEAPONS[2].max, P.ammo[2] + 3); pop(k.x, k.y + 1, k.z, pick(['+3 FIZZ-TASTIC', '+3 BUBBLE TROUBLE', '+3 SPARKLING VIOLENCE']), true); }
+      if (k.type === 'soap') { if (P.ammo[3] >= WEAPONS[3].max) continue; P.ammo[3] = Math.min(WEAPONS[3].max, P.ammo[3] + 4); pop(k.x, k.y + 1, k.z, pick(SOAPW), true); }
       k.dead = true; sfx('pickup');
     }
   }
@@ -1536,7 +1842,7 @@ function updatePickups(dt) {
 function updateParticles(dt) {
   for (const p of parts) {
     p.life -= dt; if (p.life <= 0) continue;
-    p.vy -= p.grav * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.ang += p.angV * dt;
+    p.vy -= p.grav * (p.grav > 0 ? gs : 1) * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.ang += p.angV * dt;
     if (p.grow) p.size += p.grow * dt;
     if (p.grav > 0) {
       const g = groundAt(p.x, p.z, p.y + 0.2);
@@ -1554,8 +1860,8 @@ function updateWaves(dt) {
     spawnT -= dt;
     if (spawnT <= 0 && spawnQ.length && enemies.length < 22) { spawnEnemy(spawnQ.shift()); spawnT = rand(0.35, 0.8) * Math.max(0.5, 1 - wave * 0.04); }
     if (!spawnQ.length && !enemies.length) {
-      waveActive = false; interT = 4.5; const bonus = 500 * wave; score += bonus;
-      P.hp = Math.min(100, P.hp + 20); P.ammo[1] = Math.min(WEAPONS[1].max, P.ammo[1] + 6); P.ammo[2] = Math.min(WEAPONS[2].max, P.ammo[2] + 2);
+      waveActive = false; interT = 4.5; const bonus = 500 * wave; score += bonus; MOD = null; gs = 1; if (chal) chal.t = Math.min(chal.t, 0.01);
+      P.hp = Math.min(100, P.hp + 20); P.ammo[1] = Math.min(WEAPONS[1].max, P.ammo[1] + 6); P.ammo[2] = Math.min(WEAPONS[2].max, P.ammo[2] + 2); P.ammo[3] = Math.min(WEAPONS[3].max, P.ammo[3] + 2);
       announce(pick(['WAVE CLEAR', 'SPOTLESS', 'SQUEAKY CLEAN', 'COUNTER-ATTACK REPELLED']), `+${bonus} · +20 DAMPNESS · ` + pick(['FREE ICE', 'NICE WORK, DRIP', 'THE FRIDGE APPROVES', 'MOIST AND VICTORIOUS'])); sfx('clear'); say(pick(['counter cleaned', 'spotless', 'the kitchen is quiet. for now']), true);
       setTimeout(() => zz('clear', { p: 0.7 }), 2200);
     }
@@ -1563,14 +1869,16 @@ function updateWaves(dt) {
 }
 function update(dt) {
   if (state === 'play') updatePlayer(dt);
-  updateEnemies(dt); updateGlobs(dt); updateRockets(dt); updateParticles(dt); updatePickups(dt);
+  updateEnemies(dt); updateGlobs(dt); updateRockets(dt); updateSoaps(dt); updateParticles(dt); updatePickups(dt);
   for (const h of hazards) { h.t -= dt; if (Math.random() < dt * 4) part3({ x: h.x + rand(-h.r, h.r) * 0.7, y: 0.1, z: h.z + rand(-h.r, h.r) * 0.7, vy: rand(1, 3), life: 0.6, size: rand(0.05, 0.12), col: [1.2, 0.4, 0.1], mat: 7, sph: true, grav: -1, bounce: 0 }); }
   hazards = hazards.filter(h => h.t > 0);
   for (const s of splats) s.life -= dt * 0.33;
   splats = splats.filter(s => s.life > 0);
   if (state === 'play') {
     updateWaves(dt);
-    if (T > ZZ.nextIdle) { ZZ.nextIdle = T + rand(25, 40); zz('idle'); }
+    if (T > ZZ.nextIdle) { ZZ.nextIdle = T + rand(22, 36); zz('idle'); }
+    chalUpdate(dt);
+    if (MOD === 'tap') { tapT -= dt; while (tapT <= 0) { tapT += 0.06; part3({ x: clamp(P.x + rand(-15, 15), -31, 31), y: rand(14, 20), z: clamp(P.z + rand(-14, 10), -21, 20.5), vy: -6, life: 3, size: rand(0.08, 0.14), col: pick(WATER), mat: 12, sph: true, stain: WET, grav: 30, bounce: 0 }); } }
     comboT -= dt; if (comboT <= 0) combo = 0;
     multiT -= dt;
   }
@@ -1580,6 +1888,7 @@ function update(dt) {
 // =====================================================================  rendering
 const shArr = new Float32Array(160);
 function drawEyes(e, y, z, R, spread, brow) {
+  if (MOD === 'googly') { R *= 2.3; y += R * 0.25; }
   for (const sgn of [-1, 1]) {
     const x = sgn * spread;
     part(SPH, x, y, z, R, R, R * 0.7, [0.98, 0.98, 0.95], 11);
@@ -1596,7 +1905,7 @@ function drawEnemy(e) {
     const sqy = e.sq, sqx = 1 / Math.sqrt(sqy);
     sc(cur, sqx * s, sqy * s, sqx * s);
     const wt = 1 - e.wet * 0.35, tint = [wt, wt, wt];
-    part(CUBE, 0, 0.45, 0, 1.4, 0.9, 1.0, tint, 2);
+    part(CUBE, 0, 0.45, 0, 1.4, 0.9, 1.0, e.gold ? [2.4, 1.7, 0.45] : tint, e.gold ? 5 : 2);
     const ch = 0.05 + e.chomp * 0.16 + (e.type === 'mama' ? 0.08 + Math.sin(e.t * 6) * 0.05 : 0);
     part(CUBE, 0, 0.27, 0.5, 0.56, ch, 0.04, [0.12, 0.02, 0.02], 0);
     part(CUBE, -0.14, 0.27 + ch / 2 - 0.03, 0.51, 0.1, 0.07, 0.04, [1, 1, 0.95], 11);
@@ -1625,6 +1934,28 @@ function drawEnemy(e) {
     drawEyes(e, 1.3, 0.7, 0.18, 0.24, 0.5);
     part(CUBE, 0, 0.95, 0.7, 0.34, 0.06 + (e.state === 1 ? 0.12 : 0), 0.04, [0.12, 0.02, 0.02], 0);
     pop();
+  } else if (e.type === 'roll') {
+    const L = e.len, sp = 0.3 + 0.7 * pop_;
+    sc(cur, sp, sp, sp);
+    push(); tr(cur, 0, 1.5, 0); rz(cur, Math.PI / 2); ry(cur, e.rot);
+    part(CYL, 0, -L / 2, 0, 1.5, L, 1.5, WHITE, 18);
+    part(CYL, 0, -L / 2 - 0.02, 0, 0.5, L + 0.04, 0.5, [0.62, 0.44, 0.26], 13);
+    part(CYL, 0, -L / 2 - 0.04, 0, 0.36, L + 0.08, 0.36, [0.08, 0.06, 0.05], 0);
+    pop();
+    drawEyes(e, 2.05, 1.42, 0.36, 0.85, 0.5);
+    part(CUBE, 0, 1.25, 1.5, 1.0, 0.1 + Math.abs(Math.sin(e.t * 8)) * 0.14, 0.06, [0.12, 0.02, 0.02], 0);
+  } else if (e.type === 'fork') {
+    const sp = (0.3 + 0.7 * pop_) * 2;
+    sc(cur, sp, sp, sp);
+    const tilt = e.state === 2 ? 1.3 : e.state === 1 ? -0.4 + Math.sin(e.t * 50) * 0.08 : Math.sin(e.t * 2) * 0.15;
+    ry(cur, e.state === 0 ? Math.sin(e.t * 1.5) * 0.6 : 0); rx(cur, tilt);
+    const MC = [0.84, 0.84, 0.88];
+    part(CUBE, 0, -1.0, 0, 0.18, 1.6, 0.08, MC, 5);
+    part(CUBE, 0, -0.1, 0, 0.3, 0.3, 0.09, MC, 5);
+    part(CUBE, 0, 0.12, 0, 0.66, 0.36, 0.09, MC, 5);
+    for (let i = 0; i < 4; i++) { part(CUBE, -0.25 + i * 0.167, 0.62, 0, 0.08, 0.72, 0.08, MC, 5); part(CONE, -0.25 + i * 0.167, 0.98, 0, 0.045, 0.14, 0.045, [1.2, 0.9, 0.25], 5); }
+    drawEyes(e, 0.15, 0.08, 0.14, 0.17, 0.6);
+    part(CUBE, 0, -0.04, 0.07, 0.3, 0.04 + (e.state === 1 ? 0.08 : 0), 0.03, [0.12, 0.02, 0.02], 0);
   } else if (e.type === 'spoon') {
     const s = 0.3 + 0.7 * pop_;
     sc(cur, s, s, s);
@@ -1663,6 +1994,15 @@ function drawViewmodel(eye) {
     part(SPH, 0.01, -0.16, 0.2, 0.085, 0.085, 0.085, [0.55, 0.8, 1], 12);
     part(SPH, -0.02, -0.06, -0.2, 0.08, 0.08, 0.08, [0.55, 0.8, 1], 12);
     if (P.flashT > 0) part(SPH, 0, 0.02, -0.5, 0.14, 0.14, 0.12, [1.2, 1.35, 1.5], 7);
+  } else if (w === 3) {
+    part(CYL, 0, 0.02, 0.16, 0.095, 0.42, 0.095, [0.3, 0.82, 0.38], 11, 0, -Math.PI / 2);
+    part(CYL, 0, 0.02, 0.0, 0.097, 0.13, 0.097, [0.98, 0.6, 0.8], 11, 0, -Math.PI / 2);
+    part(NECK, 0, 0.02, -0.26, 0.095, 0.1, 0.095, [0.95, 0.95, 0.95], 11, 0, -Math.PI / 2);
+    part(CYL, 0, 0.02, -0.355, 0.025, 0.07, 0.025, [0.95, 0.4, 0.1], 11, 0, -Math.PI / 2);
+    part(CUBE, 0, -0.14, 0.12, 0.05, 0.2, 0.06, [0.3, 0.7, 0.35], 11, 0, -0.25);
+    part(SPH, 0.02, -0.2, 0.14, 0.085, 0.085, 0.085, [0.55, 0.8, 1], 12);
+    part(SPH, -0.12, 0.02, 0.1, 0.08, 0.08, 0.08, [0.55, 0.8, 1], 12);
+    part(SPH, 0, 0.03, -0.46 - (P.flashT > 0 ? 0.05 : 0), 0.06 + Math.sin(T * 5) * 0.01, 0.06, 0.06, WHITE, 16);
   } else {
     part(CYL, 0, 0.02, 0.2, 0.12, 0.62, 0.12, [0.85, 0.87, 0.9], 5, 0, -Math.PI / 2);
     part(CYL, 0, 0.02, 0.05, 0.123, 0.3, 0.123, [0.45, 0.8, 0.25], 11, 0, -Math.PI / 2);
@@ -1725,6 +2065,12 @@ function render() {
   }
   gl.useProgram(PR_MAIN.p); flashU = 0;
   for (const o of STATIC) { ident(cur); part(o.m, o.x, o.y, o.z, o.sx, o.sy, o.sz, o.col, o.mat, o.yaw, o.pit); }
+  if (posterDirty) drawPoster();
+  gl.useProgram(PR_TEX.p); gl.uniformMatrix4fv(PR_TEX.u.uVP, false, VP); gl.uniform3f(PR_TEX.u.uEye, eye[0], eye[1], eye[2]);
+  ident(tmp); tr(tmp, -22, 31, -21.85); sc(tmp, 12, 15, 0.05); gl.uniformMatrix4fv(PR_TEX.u.uModel, false, tmp);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posterTex); gl.uniform1i(PR_TEX.u.uTex, 0);
+  gl.bindVertexArray(CUBE.vao); gl.drawElements(gl.TRIANGLES, CUBE.n, gl.UNSIGNED_SHORT, 0);
+  gl.useProgram(PR_MAIN.p);
   for (const e of enemies) drawEnemy(e);
   for (const r of rockets) {
     ident(cur); tr(cur, r.x, r.y, r.z); ry(cur, Math.atan2(-r.vx, -r.vz)); rx(cur, Math.atan2(r.vy, Math.hypot(r.vx, r.vz))); rx(cur, -Math.PI / 2);
@@ -1735,6 +2081,7 @@ function render() {
     ident(cur); tr(cur, k.x, k.y + Math.sin(k.t * 3) * 0.15, k.z); ry(cur, k.t * 2);
     if (k.type === 'ice') { part(CUBE, 0, 0, 0, 0.7, 0.7, 0.7, [0.75, 0.9, 1.05], 12, 0, 0.3); part(SPH, 0, 0, 0, 0.18, 0.18, 0.18, [0.6, 0.85, 1.3], 7); }
     else if (k.type === 'shells') { for (let i = 0; i < 3; i++) part(CUBE, Math.cos(i * 2.1) * 0.3, i * 0.12, Math.sin(i * 2.1) * 0.3, 0.35, 0.35, 0.35, [0.65, 0.85, 1.0], 12, i); }
+    else if (k.type === 'soap') { part(CUBE, 0, 0, 0, 0.8, 0.34, 0.5, [0.98, 0.66, 0.84], 11); part(SPH, 0.2, 0.3, 0, 0.16, 0.16, 0.16, WHITE, 16); part(SPH, -0.15, 0.4, 0.1, 0.1, 0.1, 0.1, WHITE, 16); }
     else { part(CYL, 0, -0.4, 0, 0.3, 0.8, 0.3, [0.85, 0.87, 0.9], 5); part(CYL, 0, -0.25, 0, 0.305, 0.45, 0.305, [0.45, 0.8, 0.25], 11); }
   }
   // instanced: cubes / spheres + stains
@@ -1746,6 +2093,14 @@ function render() {
   if (n) { gl.bindBuffer(gl.ARRAY_BUFFER, instBuf.cube); gl.bufferSubData(gl.ARRAY_BUFFER, 0, instData.cube, 0, n * 12); gl.bindVertexArray(ICUBE.vao); gl.drawElementsInstanced(gl.TRIANGLES, ICUBE.n, gl.UNSIGNED_SHORT, 0, n); }
   n = fillInst(sphs, instData.sph);
   if (n) { gl.bindBuffer(gl.ARRAY_BUFFER, instBuf.sph); gl.bufferSubData(gl.ARRAY_BUFFER, 0, instData.sph, 0, n * 12); gl.bindVertexArray(ISPH.vao); gl.drawElementsInstanced(gl.TRIANGLES, ISPH.n, gl.UNSIGNED_SHORT, 0, n); }
+  // translucent soap film
+  const bubs = enemies.filter(e => e.bub > 0 && !e.dead);
+  if (bubs.length || soaps.length) {
+    gl.useProgram(PR_MAIN.p); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+    for (const e of bubs) { const R = bubR(e) * (1 + Math.sin(T * 7 + e.t) * 0.04), fl = e.bub < 1.5 && Math.sin(T * 30) > 0; ident(cur); part(SPH, e.x, bubCY(e), e.z, R, R * 0.95, R, fl ? [1.6, 1.3, 1.3] : WHITE, 17); }
+    for (const b of soaps) { ident(cur); part(SPH, b.x, b.y, b.z, b.r, b.r, b.r, WHITE, 17); }
+    gl.depthMask(true); gl.disable(gl.BLEND);
+  }
   // viewmodel
   if (state !== 'title') {
     gl.clear(gl.DEPTH_BUFFER_BIT); gl.useProgram(PR_MAIN.p);
@@ -1762,6 +2117,7 @@ function render() {
   gl.uniform1f(u.uHurt, state === 'title' ? 0 : P.hurtT); gl.uniform1f(u.uAbs, state === 'title' ? 0 : P.absorbT);
   gl.uniform1f(u.uDead, state === 'dead' ? Math.min(1, P.deadT) : 0); gl.uniform1f(u.uLow, state === 'play' && P.hp < 30 ? 1 : 0);
   gl.uniform1f(u.uGrey, greyV); gl.uniform1f(u.uPud, state === 'title' ? 0 : P.pudT);
+  gl.uniform1f(u.uRave, state === 'play' && MOD === 'rave' ? 1 : 0);
   gl.uniform1f(u.uFill, state === 'absorbing' || state === 'absorbed' ? Math.min(1, P.endT / 2.8) : 0);
   const sp = new Float32Array(32); splats.forEach((s, i) => sp.set([s.x * aspect * 0.8, s.y, s.s, s.life], i * 4)); gl.uniform4fv(u.uSp, sp);
   gl.bindVertexArray(QUAD); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.bindVertexArray(null);
@@ -1791,12 +2147,17 @@ function hud(dt) {
     if (ri > lastRank && ri > 0) { multiText(RANKS[ri][1] + ' · ' + RANKS[ri][2] + '!'); say(RANKS[ri][2].toLowerCase()); if (ri >= 6) zz('rank', { once: true, force: true }); }
     lastRank = ri; $('rank').innerHTML = ri ? `<b>${RANKS[ri][1]}</b>${RANKS[ri][2]}` : '';
   }
+  const boss = enemies.find(e => !e.dead && (e.type === 'mama' || e.type === 'fork'));
+  $('boss').hidden = !boss || state !== 'play';
+  if (boss) { $('bossN').textContent = boss.type === 'fork' ? 'THE FORK (IT EXISTS)' : 'GRANDMA SPONGE'; $('bossF').style.width = Math.max(0, boss.hp / boss.maxHp * 100) + '%'; }
+  $('chal').hidden = !chal || state !== 'play';
+  if (chal) { const c = CHALS[chal.k]; $('chalD').textContent = c.title + ' · ' + (chal.k === 'bartleby' ? `${c.goal} ${Math.max(0, chal.t).toFixed(1)}s` : `${chal.k === 'horizontal' ? chal.prog.toFixed(1) : chal.prog}/${c.need} ${c.goal}`); $('chalF').style.width = Math.max(0, chal.t / c.dur * 100) + '%'; }
   const showP = state === 'play' && P.latchT > 0; $('prompt').hidden = !showP; if (showP) $('surr').style.width = (P.surr / 1.6 * 100) + '%';
   $('lbl').textContent = P.pud ? 'DAMPNESS · PUDDLE FORM' : 'DAMPNESS';
   const hp = Math.max(0, Math.ceil(P.hp));
   const mult = Math.min(10, 1 + Math.floor(combo / 4));
   const w = WEAPONS[P.w];
-  const key = [score, hp, combo, P.w, P.ammo.join(), wave, enemies.length + spawnQ.length, P.wNext].join('|');
+  const key = [score, hp, combo, P.w, P.ammo.join(), wave, enemies.length + spawnQ.length, P.wNext, MOD].join('|');
   if (key === lastHud) return; lastHud = key;
   $('score').textContent = score.toLocaleString();
   $('combo').textContent = combo >= 2 ? `${combo} COMBO · x${mult}` : '';
@@ -1805,8 +2166,8 @@ function hud(dt) {
   $('hpnum').textContent = hp <= 0 ? 'BONE DRY' : hp < 30 ? `${hp}% · PARCHED!` : hp + '%';
   $('wname').textContent = w.name; $('wsub').textContent = w.sub;
   $('ammo').textContent = w.max === Infinity ? '∞' : P.ammo[P.w];
-  $('wlist').innerHTML = ['1 SQUIRT', '2 ICE ' + P.ammo[1], '3 FIZZ ' + P.ammo[2]].map((t, i) => `<span class="${i === P.wNext ? 'on' : ''}">${t}</span>`).join('');
-  $('wave').innerHTML = wave ? `WAVE ${wave}<small>${waveActive ? (enemies.length + spawnQ.length) + ' KITCHENWARE REMAIN' : 'CATCH YOUR BREATH'}</small>` : '';
+  $('wlist').innerHTML = ['1 SQUIRT', '2 ICE ' + P.ammo[1], '3 FIZZ ' + P.ammo[2], '4 SUDS ' + P.ammo[3]].map((t, i) => `<span class="${i === P.wNext ? 'on' : ''}">${t}</span>`).join('');
+  $('wave').innerHTML = wave ? `WAVE ${wave}<small>${waveActive ? (enemies.length + spawnQ.length) + ' KITCHENWARE REMAIN' : 'CATCH YOUR BREATH'}</small>${MOD ? `<small style="color:var(--foam)">${MODS[MOD].name}</small>` : ''}` : '';
 }
 
 // =====================================================================  screens & input
@@ -1817,39 +2178,41 @@ const CONTROLS = `<div class="keys">
   <b>SHIFT</b><span>splash dash (you can't be hit mid-splash)</span>
   <b>RIGHT MOUSE / C</b><span>hold to become a puddle: flat, slippery, fast</span>
   <b>E</b><span>when a sponge has you, hold to surrender</span>
-  <b>1 2 3 / WHEEL</b><span>squirter · ice shotgun · seltzer launcher</span>
+  <b>1 2 3 4 / WHEEL</b><span>squirter · ice shotgun · seltzer launcher · suds-o-matic</span>
   <b>G</b><span>glass: murky / clean / none</span>
-  <b>M · V</b><span>mute everything · mute Žižek's voice</span>
+  <b>M · V</b><span>mute everything · Žižek's voice: accented / plain / off</span>
   <b>ESC</b><span>pause</span></div>`;
 function showScreen(kind) {
   const s = $('scr'); s.classList.remove('off');
   if (kind === 'title') {
-    s.innerHTML = `<div class="box"><h1>ABSORB THIS</h1><h2>A COUNTER-TERRORISM SHOOTER</h2>
+    s.innerHTML = `<div class="box"><h1>ABSORB THIS</h1><h2>${pick(TAGLINES)}</h2>
       <p>You are <b>DRIP</b>, the last drop of water in a glass on a kitchen counter. The sponges want to drink you. The hot sauce wants you diluted. The spoons just want to stir.</p>
-      <p>Stay damp. Your squirter is made of you, so soak your spilled water back up. Knock things off the counter. Hit them in the googly eyes.</p>${CONTROLS}
+      <p>Stay damp. Your squirter is made of you, so soak your spilled water back up. Knock things off the counter. Hit them in the googly eyes.</p>${zQuote(ZL.start)}${CONTROLS}
       <div class="cta">CLICK TO GET WET</div>
-      <p class="fine">Featuring a cartoon parody of the philosopher Slavoj Žižek. He never said any of this. Every line is made up.</p></div>`;
+      <p class="fine">Featuring a cartoon parody of the philosopher Slavoj Žižek. He never said any of this. Every line is made up.</p>
+      <p class="fine">${voiceLabel()}</p></div>`;
   } else if (kind === 'pause') {
-    s.innerHTML = `<div class="box"><h1 style="font-size:90px">PAUSED</h1><h2>THE SPONGES ARE WAITING. PATIENTLY. MOISTLY.</h2>${zQuote(ZL.pause)}${CONTROLS}<div class="cta">CLICK TO RESUME</div></div>`;
+    s.innerHTML = `<div class="box"><h1 style="font-size:90px">PAUSED</h1><h2>THE SPONGES ARE WAITING. PATIENTLY. MOISTLY.</h2>${zQuote(ZL.pause)}${CONTROLS}<p class="fine">${voiceLabel()}</p><div class="cta">CLICK TO RESUME</div></div>`;
   } else if (kind === 'dead') {
-    const best = score >= hiScore && score > 0;
-    s.innerHTML = `<div class="box"><h1 style="font-size:110px">EVAPORATED</h1>
+    const best = score >= hiScore && score > 0, fl = deathCause === 'fall';
+    s.innerHTML = `<div class="box"><h1 style="font-size:110px">${fl ? 'FLOORED' : 'EVAPORATED'}</h1><h2>${fl ? 'THE FLOOR ENDING' : 'THE EVAPORATED ENDING'}</h2>
       <p class="quip">${pick(DEATH[deathCause] || DEATH.sponge)}</p>
+      <p>${pick(fl ? NARR.floor : NARR.evaporated)}</p>
       <p class="stat">SCORE ${score.toLocaleString()} · WAVE ${wave} · ${killCount} KITCHENWARE DESTROYED</p>
       <p class="stat" style="color:var(--foam)">${best ? 'NEW BEST! THE FRIDGE IS PROUD OF YOU.' : 'BEST ' + hiScore.toLocaleString()}</p>
-      ${zQuote(deathCause === 'fall' ? ZL.fallDeath : ZL.death)}
+      ${zQuote(fl ? ZL.fallDeath : ZL[deathCause + 'Death'] || ZL.death)}
       <p class="endings">${endingsLine()}</p>${endings().absorbed ? '' : '<p class="fine">HINT: WHEN A SPONGE HAS YOU, HOLD E.</p>'}
       <div class="cta">CLICK TO RE-CONDENSE</div></div>`;
   } else if (kind === 'absorbed') {
     s.innerHTML = `<div class="box"><h1 style="font-size:110px">ABSORBED</h1><h2>THE SURRENDER ENDING</h2>
-      <p class="quip">You stopped fighting. The sponge took you in. It is warm in here, and a little yellow. You are no longer the last drop. You are one of many.</p>
+      <p class="quip">${pick(NARR.absorbed)}</p>
       ${zQuote(ZL.end)}
       <p class="stat">SCORE ${score.toLocaleString()} · WAVE ${wave} · SURRENDER BONUS: PRICELESS</p>
       <p class="endings">${endingsLine()}</p>
       <div class="cta">CLICK TO SQUEEZE YOURSELF OUT</div></div>`;
   }
 }
-function zQuote(bank) { return `<div class="zq"><img alt="" src="${zFace()}"><p><small>SLAVOJ ŽIŽEK (PARODY)</small>"${pick(bank)}"</p></div>`; }
+function zQuote(bank) { return `<div class="zq"><img alt="" src="${zFace()}"><p><small>${pick(ZNAMES)}</small>"${pick(bank)}"</p></div>`; }
 function hideScreen() { $('scr').classList.add('off'); }
 function start() {
   initAudio();
@@ -1872,14 +2235,15 @@ addEventListener('mousemove', e => {
   if (performance.now() - lockAt < 120 || Math.abs(e.movementX) > 400 || Math.abs(e.movementY) > 400) return;
   P.yaw -= e.movementX * sens; P.pitch = clamp(P.pitch - e.movementY * sens, -1.5, 1.5);
 });
-addEventListener('wheel', e => { if (state !== 'play') return; const d = e.deltaY > 0 ? 1 : -1; let i = P.wNext; for (let k = 0; k < 3; k++) { i = (i + d + 3) % 3; if (i === 0 || P.ammo[i] > 0) break; } selectWeapon(i); }, { passive: true });
+addEventListener('wheel', e => { if (state !== 'play') return; const d = e.deltaY > 0 ? 1 : -1; let i = P.wNext; for (let k = 0; k < 4; k++) { i = (i + d + 4) % 4; if (i === 0 || P.ammo[i] > 0) break; } selectWeapon(i); }, { passive: true });
 addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
-  if (e.code === 'Digit1') selectWeapon(0); if (e.code === 'Digit2') selectWeapon(1); if (e.code === 'Digit3') selectWeapon(2);
+  if (e.code === 'Digit1') selectWeapon(0); if (e.code === 'Digit2') selectWeapon(1); if (e.code === 'Digit3') selectWeapon(2); if (e.code === 'Digit4') selectWeapon(3);
   if (e.code === 'KeyG') { glassLevel = glassLevel === 1 ? 0.45 : glassLevel === 0.45 ? 0 : 1; if (state === 'play') pop(P.x - Math.sin(P.yaw) * 4, P.y + 1.5, P.z - Math.cos(P.yaw) * 4, ['GLASS: NONE', 'GLASS: CLEAN', 'GLASS: MURKY'][glassLevel === 0 ? 0 : glassLevel < 1 ? 1 : 2], true); }
   if (e.code === 'KeyM') { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.8; if (muted && 'speechSynthesis' in window) speechSynthesis.cancel(); ZZ.speaking = false; if (muted) zz('mute', { force: true }); }
-  if (e.code === 'KeyV') { zVoiceOn = !zVoiceOn; if (!zVoiceOn && 'speechSynthesis' in window) { speechSynthesis.cancel(); ZZ.speaking = false; } }
+  if (e.code === 'KeyV') { zVoiceMode = (zVoiceMode + 1) % 3; if ('speechSynthesis' in window) { speechSynthesis.cancel(); ZZ.speaking = false; } multiText(voiceLabel().split(' (')[0].split(' ·')[0]);
+    if (state === 'play' && zVoiceMode < 2) { ZZ.cool = 0; zShow(zVoiceMode === 0 ? 'Now I speak like myself. More or less. *sniff*' : 'Now I speak like a BBC newsreader. This is how ideology sounds: neutral.', { cool: 3 }); } }
   if (e.code === 'KeyG') zz('glass', { force: true });
   if ((e.code === 'Enter' || e.code === 'KeyR') && state === 'dead' && P.deadT > 1.2) start();
   if (e.code === 'Enter' && state === 'title') start();
@@ -1900,7 +2264,7 @@ function frame(now) {
   }
   if (state === 'play') {
     jokeUpdate(dt);
-    const sdt = jokeT > 0 ? dt * 0.05 : hitstop > 0 ? dt * 0.12 : dt; hitstop -= dt; update(sdt);
+    const sdt = (jokeT > 0 ? dt * 0.05 : hitstop > 0 ? dt * 0.12 : dt) * (MOD === 'caffeine' ? 1.3 : 1); hitstop -= dt; update(sdt);
     if (jokeAt && T > jokeAt && state === 'play') { jokeAt = 0; jokeMoment(); }
   }
   else if (state === 'absorbing' || state === 'absorbed') {
