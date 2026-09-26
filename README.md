@@ -34,6 +34,10 @@ subdirectory with its own README:
 - **[bollard-hop/](bollard-hop/)** — Bollard Hop, a one-button game about
   hopping along a row of rubber ball bollards on a shopping street, with a
   predicted jump arc. One HTML file. Open `bollard-hop/index.html`.
+- **[gasp/](gasp/)** — GASP!, a fast parkour roguelike starring a talking,
+  emotionally expressive papier-mâché fish head hopping across an office to
+  find the elevator down. Procedural floors, relics, a mood on its face and
+  in its voice. One HTML file. Open `gasp/index.html`.
 - **[scriptprof/](scriptprof/)** — SCRIPTPROF, a lab for generating
   PuzzleScript games: rewrite-rule engine, BFS playtester, MAP-Elites
   archive. Open `scriptprof/index.html`.
