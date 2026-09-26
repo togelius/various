@@ -12,9 +12,17 @@ into somebody's tea. Your health is called DAMPNESS.
 Open `index.html` in a browser. It is one file with no dependencies, written in
 raw WebGL2. It loads Bangers and Nunito from Google Fonts if it can and uses
 fallback fonts if not. Your best score is kept in the browser's local storage.
-You need a mouse and keyboard.
+It plays with a mouse and keyboard or on a touch screen (iPhone, iPad, Android).
 
 ## Controls
+
+On a phone or tablet: drag on the left half to move, drag on the right half to
+look (or drag from the FIRE button to aim while shooting), and use the buttons
+for jump, dash, puddle and swapping weapons. A surrender button appears when a
+sponge has you. Pause holds the glass, sound and voice settings. Phones need to
+be held sideways. On the death screen there's a box to type *please* into.
+
+With a keyboard and mouse:
 
 - **Mouse** to look, **click** to shoot (click the page first to capture the
   mouse)

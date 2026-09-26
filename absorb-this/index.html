@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&family=Nunito:wght@700;900&display=swap">
 <style>
   :root { --cream:#fff4e0; --ink:#1d130c; --sauce:#d8301a; --foam:#ffb52e; --scour:#1f9a5f; --water:#7cc8ff; color-scheme: dark; }
-  html, body { margin:0; height:100%; background:#2a1c12; overflow:hidden; color:var(--cream);
+  html, body { margin:0; height:100%; background:#2a1c12; overflow:hidden; overscroll-behavior:none; color:var(--cream);
     font-family: Nunito, "Trebuchet MS", sans-serif; -webkit-user-select:none; user-select:none; }
   #c { position:fixed; inset:0; width:100%; height:100%; display:block; cursor:crosshair; }
   .big { font-family: Bangers, Impact, "Arial Black", sans-serif; letter-spacing:.04em; }
@@ -120,6 +120,55 @@
   #scr .zq small { display:block; font-style:normal; color:var(--foam); font-family:Bangers, Impact, sans-serif; font-weight:400; letter-spacing:.08em; font-size:16px; }
   #scr .fine { font-size:13px; opacity:.75; }
   #scr .endings { font-weight:900; letter-spacing:.1em; font-size:14px; color:var(--foam); }
+  /* ----- touch devices */
+  #touchui { position:fixed; inset:0; touch-action:none; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
+  #touchui[hidden] { display:none; }
+  .tb { position:absolute; border-radius:50%; border:3px solid rgba(255,244,224,.75); background:rgba(29,19,12,.42); color:var(--cream);
+    font-family:Bangers, Impact, sans-serif; font-size:17px; letter-spacing:.06em; touch-action:none; padding:0; -webkit-tap-highlight-color:transparent;
+    display:flex; align-items:center; justify-content:center; text-shadow:2px 2px 0 var(--ink); }
+  .tb.on { background:rgba(216,48,26,.6); border-color:#fff; }
+  #tbFire { width:104px; height:104px; right:calc(22px + env(safe-area-inset-right, 0px)); bottom:118px; font-size:24px; background:rgba(216,48,26,.4); }
+  #tbJump { width:74px; height:74px; right:calc(140px + env(safe-area-inset-right, 0px)); bottom:74px; }
+  #tbDash { width:62px; height:62px; right:calc(146px + env(safe-area-inset-right, 0px)); bottom:166px; }
+  #tbPud { width:62px; height:62px; right:calc(44px + env(safe-area-inset-right, 0px)); bottom:236px; font-size:14px; }
+  #tbSwap { width:66px; height:66px; right:calc(126px + env(safe-area-inset-right, 0px)); bottom:246px; font-size:13px; line-height:1.05; text-align:center; }
+  #tbPause { width:46px; height:46px; left:calc(14px + env(safe-area-inset-left, 0px)); bottom:124px; font-size:15px; }
+  #tbSurr { width:auto; height:auto; border-radius:14px; left:50%; top:54%; transform:translateX(-50%); padding:14px 22px; font-size:22px;
+    background:rgba(255,181,46,.55); animation: pulse .4s infinite alternate; }
+  #tbSurr[hidden] { display:none; }
+  #stick { position:absolute; width:130px; height:130px; margin:-65px 0 0 -65px; border-radius:50%; border:3px solid rgba(255,244,224,.55);
+    background:rgba(29,19,12,.25); pointer-events:none; }
+  #stick i { position:absolute; left:50%; top:50%; width:54px; height:54px; margin:-27px 0 0 -27px; border-radius:50%; background:rgba(124,200,255,.7);
+    border:3px solid rgba(255,255,255,.8); }
+  #stick[hidden] { display:none; }
+  body.touch #prompt { display:none; }
+  body.touch #zz { left:calc(12px + env(safe-area-inset-left, 0px)); bottom:auto; top:118px; }
+  body.touch #zz:not(.big) .face { width:74px; height:74px; }
+  body.touch #zz:not(.big) .bub { margin-bottom:0; font-size:13px; max-width:300px; padding:7px 11px 9px; }
+  body.touch #br { display:none; }
+  #rot { position:fixed; inset:0; display:none; align-items:center; justify-content:center; text-align:center; padding:30px; background:#2a1c12;
+    font-family:Bangers, Impact, sans-serif; font-size:34px; line-height:1.2; color:#fff; text-shadow:3px 3px 0 var(--sauce); }
+  @media (orientation: portrait) and (max-width: 700px) { body.touch #rot { display:flex; } }
+  @media (max-height: 520px), (max-width: 700px) {
+    #score { font-size:30px; } #combo { font-size:18px; min-height:20px; } #rank { font-size:15px; } #rank b { font-size:28px; }
+    #wave { font-size:20px; } #wave small { font-size:10px; }
+    #ann { font-size:48px; } #ann small { font-size:22px; } #mk { font-size:34px; }
+    #bl { width:190px; bottom:36px; } #hpnum { font-size:20px; } #hpbar { height:14px; }
+    #br { bottom:36px; } #wname { font-size:20px; } #ammo { font-size:32px; }
+    #tick { height:22px; font-size:11px; line-height:20px; } #tick .lab { font-size:13px; }
+    #feed { display:none; } .pop { font-size:22px; } .pop.s { font-size:15px; }
+    #zz.big .face { width:150px; height:150px; } #zz.big .bub { font-size:20px; }
+    #boss { font-size:16px; } #chal { top:52px; min-width:0; } #chalD { font-size:15px; }
+  }
+  #scr { touch-action:pan-y; }
+  @media (max-height: 520px) {
+    #scr h1 { font-size:64px !important; } #scr h2 { font-size:22px; margin-top:10px; } #scr p { font-size:14px; } #scr .stat { font-size:19px; }
+    #scr .quip { font-size:16px; } #scr .keys { font-size:13px; } #scr .cta { font-size:30px; } #scr .zq img { width:70px; height:70px; }
+  }
+  #scr .opts { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin:14px 0; }
+  #scr .opts button, #scr .plz { font-family:Bangers, Impact, sans-serif; font-size:20px; letter-spacing:.06em; color:#fff; background:rgba(29,19,12,.7);
+    border:3px solid var(--foam); border-radius:10px; padding:8px 16px; }
+  #scr .plz { font-family:Nunito, sans-serif; font-weight:900; width:220px; text-align:center; background:#fff8ea; color:var(--ink); }
   #err { position:fixed; inset:0; display:none; align-items:center; justify-content:center; font-size:20px; padding:30px; text-align:center; }
 </style>
 </head>
@@ -142,7 +191,14 @@
   <div id="zz"><div class="face" id="zzface"></div><div class="bub"><span class="who" id="zzwho">ŽIŽEKBOT 3000</span><span id="zztext"></span></div></div>
   <div id="tick"><span class="lab">COUNTER NEWS NETWORK</span><span id="tickrun"></span></div>
 </div>
+<div id="touchui" hidden>
+  <div id="stick" hidden><i></i></div>
+  <button class="tb" id="tbFire">FIRE</button><button class="tb" id="tbJump">JUMP</button><button class="tb" id="tbDash">DASH</button>
+  <button class="tb" id="tbPud">PUDDLE</button><button class="tb" id="tbSwap">SWAP</button><button class="tb" id="tbPause">❚❚</button>
+  <button class="tb" id="tbSurr" hidden>HOLD TO SURRENDER</button>
+</div>
 <div id="scr"></div>
+<div id="rot">TURN YOUR DEVICE SIDEWAYS.<br>WATER PREFERS TO LIE DOWN.</div>
 <div id="err">This game needs WebGL2. Your browser said no. Try a recent Chrome, Firefox or Safari.</div>
 <script>
 (() => {
@@ -510,7 +566,9 @@ const QUAD = (() => { const vao = gl.createVertexArray(); gl.bindVertexArray(vao
 // follows the window times a render scale that drops on slow machines and recovers on fast ones.
 let W = 0, H = 0, SW = 0, SH = 0, fbo = null, fboTex = null, fboDepth = null;
 const qScale = +new URLSearchParams(location.search).get('scale') || 0;
-let rScale = qScale || 1;
+const TOUCH = (window.matchMedia && matchMedia('(pointer: coarse)').matches) || navigator.maxTouchPoints > 1;
+if (TOUCH) document.body.classList.add('touch');
+let rScale = qScale || (TOUCH ? 0.8 : 1);
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
   W = Math.max(2, Math.floor(innerWidth * dpr)); H = Math.max(2, Math.floor(innerHeight * dpr));
@@ -1974,7 +2032,7 @@ function hitscan(o, d, dmg, knock, weapon, tracer) {
   for (const e of enemies) {
     if (e.dead) continue;
     for (const hs of hitSpheres(e)) {
-      const R = hs[3], ox = o[0] - hs[0], oy = o[1] - hs[1], oz = o[2] - hs[2];
+      const R = hs[3] * (TOUCH ? 1.3 : 1), ox = o[0] - hs[0], oy = o[1] - hs[1], oz = o[2] - hs[2];
       const b = ox * d[0] + oy * d[1] + oz * d[2], c = ox * ox + oy * oy + oz * oz - R * R, disc = b * b - c;
       if (disc > 0) { let t = -b - Math.sqrt(disc); if (t <= 0) t = Math.min(0.3, -b + Math.sqrt(disc)); if (t > 0 && t < bt) { bt = t; best = { e, cy: hs[1], R }; } }
     }
@@ -2067,8 +2125,9 @@ function camBob() { return P.onG ? Math.sin(P.bob * 2) * 0.06 * Math.min(1, Math
 const keys = {};
 let mouseDown = false, locked = false, lockAt = 0, tensionT = -9;
 function updatePlayer(dt) {
-  const f = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0);
-  const s = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
+  const f = clamp((keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) + stickV.y, -1, 1);
+  const s = clamp((keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + stickV.x, -1, 1);
+  const mag = Math.min(1, Math.hypot(f, s));
   const sy = Math.sin(P.yaw), cy = Math.cos(P.yaw);
   let wx = -sy * f + cy * s, wz = -cy * f - sy * s; const wl = Math.hypot(wx, wz); if (wl > 0) { wx /= wl; wz /= wl; }
   P.dashCd -= dt; P.dashT -= dt; P.iT -= dt; P.latchT -= dt;
@@ -2098,7 +2157,7 @@ function updatePlayer(dt) {
     else { P.vx *= Math.exp(-dt * fr); P.vz *= Math.exp(-dt * fr); }
     if (Math.hypot(P.vx, P.vz) > 7 && Math.random() < dt * 25) part3({ x: P.x + rand(-.4, .4), y: P.y + 0.1, z: P.z + rand(-.4, .4), vx: -P.vx * 0.2 + rand(-1, 1), vy: rand(1, 3), vz: -P.vz * 0.2 + rand(-1, 1), life: 0.4, size: rand(0.04, 0.09), col: pick(WATER), mat: 12, sph: true, grav: 12, bounce: 0 });
   } else if (P.dashT <= 0) {
-    const sp = 11.5, k = P.onG ? 13 : 2.8;
+    const sp = 11.5 * (wl > 0 ? Math.max(0.35, mag) : 1), k = P.onG ? 13 : 2.8;
     const ax = wx * sp, az = wz * sp;
     if (P.onG || wl > 0) { P.vx = lerp(P.vx, ax, Math.min(1, dt * k)); P.vz = lerp(P.vz, az, Math.min(1, dt * k)); }
   }
@@ -2489,7 +2548,7 @@ function hud(dt) {
   if (boss) { $('bossN').textContent = boss.type === 'fork' ? 'THE FORK (IT EXISTS)' : 'GRANDMA SPONGE'; $('bossF').style.width = Math.max(0, boss.hp / boss.maxHp * 100) + '%'; }
   $('chal').hidden = !chal || state !== 'play';
   if (chal) { const c = CHALS[chal.k]; $('chalD').textContent = c.title + ' · ' + (chal.k === 'bartleby' ? `${c.goal} ${Math.max(0, chal.t).toFixed(1)}s` : `${chal.k === 'horizontal' ? chal.prog.toFixed(1) : chal.prog}/${c.need} ${c.goal}`); $('chalF').style.width = Math.max(0, chal.t / c.dur * 100) + '%'; }
-  const showP = state === 'play' && P.latchT > 0; $('prompt').hidden = !showP; if (showP) $('surr').style.width = (P.surr / 1.6 * 100) + '%';
+  const showP = state === 'play' && P.latchT > 0; $('prompt').hidden = !showP; if (TOUCH) $('tbSurr').hidden = !showP; if (showP) $('surr').style.width = (P.surr / 1.6 * 100) + '%';
   $('lbl').textContent = P.pud ? 'DAMPNESS · PUDDLE FORM' : 'DAMPNESS';
   const hp = Math.max(0, Math.ceil(P.hp));
   const mult = Math.min(10, 1 + Math.floor(combo / 4));
@@ -2502,13 +2561,22 @@ function hud(dt) {
   $('hpfill').style.width = hp + '%'; $('hpfill').className = hp < 30 ? 'low' : '';
   $('hpnum').textContent = hp <= 0 ? 'BONE DRY' : hp < 30 ? `${hp}% · PARCHED!` : hp + '%';
   $('wname').textContent = w.name; $('wsub').textContent = w.sub;
+  if (TOUCH) $('tbSwap').innerHTML = ['SQUIRT', 'ICE', 'FIZZ', 'SUDS'][P.wNext] + '<br>' + (P.wNext === 0 ? '∞' : P.ammo[P.wNext]);
   $('ammo').textContent = w.max === Infinity ? '∞' : P.ammo[P.w];
   $('wlist').innerHTML = ['1 SQUIRT', '2 ICE ' + P.ammo[1], '3 FIZZ ' + P.ammo[2], '4 SUDS ' + P.ammo[3]].map((t, i) => `<span class="${i === P.wNext ? 'on' : ''}">${t}</span>`).join('');
   $('wave').innerHTML = wave ? `WAVE ${wave}<small>${waveActive ? (enemies.length + spawnQ.length) + ' KITCHENWARE REMAIN' : 'CATCH YOUR BREATH'}</small>${MOD ? `<small style="color:var(--foam)">${MODS[MOD].name}</small>` : ''}` : '';
 }
 
 // =====================================================================  screens & input
-const CONTROLS = `<div class="keys">
+const TOUCH_CONTROLS = `<div class="keys">
+  <b>LEFT THUMB</b><span>drag anywhere on the left to scurry</span>
+  <b>RIGHT THUMB</b><span>drag on the right to look (drag from FIRE to aim while shooting)</span>
+  <b>JUMP · DASH</b><span>jump, and splash dash (you can't be hit mid-splash)</span>
+  <b>PUDDLE</b><span>hold to become a puddle: flat, slippery, fast</span>
+  <b>SWAP</b><span>squirter · ice shotgun · seltzer launcher · suds-o-matic</span>
+  <b>SURRENDER</b><span>when a sponge has you, a button appears. Hold it.</span>
+  <b>❚❚</b><span>pause (glass, sound and Žižek's voice are in there)</span></div>`;
+const CONTROLS_DESK = `<div class="keys">
   <b>MOUSE</b><span>look · click to shoot</span>
   <b>WASD</b><span>scurry</span>
   <b>SPACE</b><span>jump (land on sponges to boing)</span>
@@ -2519,8 +2587,9 @@ const CONTROLS = `<div class="keys">
   <b>G</b><span>glass: murky / clean / none</span>
   <b>M · V</b><span>mute everything · Žižek's voice: accented / plain / off</span>
   <b>ESC</b><span>pause</span></div>`;
+const CONTROLS = TOUCH ? TOUCH_CONTROLS : CONTROLS_DESK;
 function showScreen(kind) {
-  const s = $('scr'); s.classList.remove('off');
+  const s = $('scr'); s.classList.remove('off'); $('touchui').hidden = true; mouseDown = false;
   if (kind === 'title') {
     s.innerHTML = `<div class="box"><h1>ABSORB THIS</h1><h2>${pick(TAGLINES)}</h2>
       <p>You are <b>DRIP</b>, the last drop of water in a glass on a kitchen counter. The sponges want to drink you. The hot sauce wants you diluted. The spoons just want to stir.</p>
@@ -2529,7 +2598,7 @@ function showScreen(kind) {
       <p class="fine">Featuring a cartoon parody of the philosopher Slavoj Žižek. He never said any of this. Every line is made up.</p>
       <p class="fine">${voiceLabel()}</p></div>`;
   } else if (kind === 'pause') {
-    s.innerHTML = `<div class="box"><h1 style="font-size:90px">PAUSED</h1><h2>THE SPONGES ARE WAITING. PATIENTLY. MOISTLY.</h2>${zQuote(ZL.pause)}${CONTROLS}<p class="fine">${voiceLabel()}</p><div class="cta">CLICK TO RESUME</div></div>`;
+    s.innerHTML = `<div class="box"><h1 style="font-size:90px">PAUSED</h1><h2>THE SPONGES ARE WAITING. PATIENTLY. MOISTLY.</h2>${zQuote(ZL.pause)}${optsHTML()}${CONTROLS}<p class="fine">${voiceLabel()}</p><div class="cta">CLICK TO RESUME</div></div>`;
   } else if (kind === 'dead') {
     const best = score >= hiScore && score > 0, fl = deathCause === 'fall';
     s.innerHTML = `<div class="box"><h1 style="font-size:110px">${fl ? 'FLOORED' : 'EVAPORATED'}</h1><h2>${fl ? 'THE FLOOR ENDING' : 'THE EVAPORATED ENDING'}</h2>
@@ -2540,6 +2609,7 @@ function showScreen(kind) {
       ${zQuote(fl ? ZL.fallDeath : ZL[deathCause + 'Death'] || ZL.death)}
       <p class="endings">${endingsLine()}</p>${endings().absorbed ? '' : '<p class="fine">HINT: WHEN A SPONGE HAS YOU, HOLD E.</p>'}
       <p class="stat" style="color:#fff">OR TYPE <b style="color:var(--foam)">PLEASE</b> TO CONTINUE FROM WAVE ${wave}</p>
+      ${TOUCH ? '<p><input class="plz" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="ask nicely"></p>' : ''}
       <p class="fine">INFINITE CONTINUES, IF YOU ASK NICELY.${continues ? ` CONTINUES USED: ${continues}. DIGNITY REMAINING: NONE.` : ''}</p>
       <div class="cta">CLICK TO RE-CONDENSE</div></div>`;
   } else if (kind === 'absorbed') {
@@ -2550,6 +2620,8 @@ function showScreen(kind) {
       <p class="endings">${endingsLine()}</p>
       <div class="cta">CLICK TO SQUEEZE YOURSELF OUT</div></div>`;
   }
+  if (TOUCH) s.innerHTML = s.innerHTML.replace('HOLD E.', 'HOLD THE SURRENDER BUTTON.').replace('(hold E)', '(hold the surrender button)');
+  if (TOUCH) s.querySelectorAll('.cta').forEach(c => { c.textContent = c.textContent.replace('CLICK', 'TAP'); });
 }
 function zQuote(bank) { return `<div class="zq"><img alt="" src="${zFace()}"><p><small>${pick(ZNAMES)}</small>"${pick(bank)}"</p></div>`; }
 // asked nicely: same wave again, same score, fresh dampness
@@ -2561,17 +2633,27 @@ function continueGame() {
   headlineNow(`DRIP RETURNS FROM THE DEAD AFTER SAYING PLEASE. CONTINUE NUMBER ${continues}`);
   startWave(keep.wave); say('continue', true);
   setTimeout(() => { ZZ.cool = 0; zz('please', { force: true }); }, 1500);
-  try { const r = cv.requestPointerLock({ unadjustedMovement: true }); if (r && r.catch) r.catch(() => cv.requestPointerLock()); } catch (e) { cv.requestPointerLock(); }
+  grabPointer();
 }
 function hideScreen() { $('scr').classList.add('off'); }
+function optsHTML() { return `<div class="opts"><button data-o="g">${GLASSN()}</button><button data-o="v">${voiceLabel().split(' (')[0].split(' ·')[0]}</button><button data-o="m">${muted ? 'SOUND: OFF' : 'SOUND: ON'}</button></div>`; }
+$('scr').addEventListener('click', e => { const b = e.target.closest('button[data-o]'); if (!b) return;
+  ({ g: toggleGlass, v: cycleVoice, m: toggleMute })[b.dataset.o](); const o = b.closest('.opts'); if (o) o.outerHTML = optsHTML(); });
 function start() {
   initAudio();
   if (state === 'title' || state === 'dead' || state === 'absorbed') { reset(); continues = 0; state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; say('get wet', true); setTimeout(() => zz('start', { force: true }), 1400); }
   else if (state === 'paused') state = 'play';
-  hideScreen();
+  hideScreen(); grabPointer();
+}
+function grabPointer() {
+  if (TOUCH) { locked = true; $('touchui').hidden = false; return; }
   try { const r = cv.requestPointerLock({ unadjustedMovement: true }); if (r && r.catch) r.catch(() => cv.requestPointerLock()); } catch (e) { cv.requestPointerLock(); }
 }
-$('scr').addEventListener('click', () => { if (state === 'dead' && P.deadT < 1.2) return; start(); });
+$('scr').addEventListener('click', e => {
+  if (e.target.closest('input, button')) return;
+  if (state === 'dead' && P.deadT < 1.2) return; start();
+});
+$('scr').addEventListener('input', e => { if (e.target.classList.contains('plz') && /please/i.test(e.target.value)) { e.target.blur(); continueGame(); } });
 cv.addEventListener('mousedown', e => { if (state === 'play' && !locked) start(); if (e.button === 0) mouseDown = true; if (e.button === 2) keys.Mouse2 = true; });
 addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; if (e.button === 2) keys.Mouse2 = false; });
 addEventListener('contextmenu', e => e.preventDefault());
@@ -2590,11 +2672,9 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
   if (e.code === 'Digit1') selectWeapon(0); if (e.code === 'Digit2') selectWeapon(1); if (e.code === 'Digit3') selectWeapon(2); if (e.code === 'Digit4') selectWeapon(3);
-  if (e.code === 'KeyG') { glassLevel = glassLevel === 1 ? 0.45 : glassLevel === 0.45 ? 0 : 1; if (state === 'play') pop(P.x - Math.sin(P.yaw) * 4, P.y + 1.5, P.z - Math.cos(P.yaw) * 4, ['GLASS: NONE', 'GLASS: CLEAN', 'GLASS: MURKY'][glassLevel === 0 ? 0 : glassLevel < 1 ? 1 : 2], true); }
-  if (e.code === 'KeyM') { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.8; if (muted && 'speechSynthesis' in window) speechSynthesis.cancel(); ZZ.speaking = false; if (muted) zz('mute', { force: true }); }
-  if (e.code === 'KeyV') { zVoiceMode = (zVoiceMode + 1) % 3; if ('speechSynthesis' in window) { speechSynthesis.cancel(); ZZ.speaking = false; } multiText(voiceLabel().split(' (')[0].split(' ·')[0]);
-    if (state === 'play' && zVoiceMode < 2) { ZZ.cool = 0; zShow(zVoiceMode === 0 ? 'Now I speak like myself. More or less. *sniff*' : 'Now I speak like a BBC newsreader. This is how ideology sounds: neutral.', { cool: 3 }); } }
-  if (e.code === 'KeyG') zz('glass', { force: true });
+  if (e.code === 'KeyG') toggleGlass();
+  if (e.code === 'KeyM') toggleMute();
+  if (e.code === 'KeyV') cycleVoice();
   if (state === 'dead' && P.deadT > 1.2 && e.key && e.key.length === 1) {
     pleaseBuf = (pleaseBuf + e.key.toLowerCase()).slice(-12);
     if (pleaseBuf.endsWith('please')) { pleaseBuf = ''; continueGame(); return; }
@@ -2603,6 +2683,64 @@ addEventListener('keydown', e => {
   if (e.code === 'Enter' && state === 'title') start();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
+const GLASSN = () => ['GLASS: NONE', 'GLASS: CLEAN', 'GLASS: MURKY'][glassLevel === 0 ? 0 : glassLevel < 1 ? 1 : 2];
+function toggleGlass() {
+  glassLevel = glassLevel === 1 ? 0.45 : glassLevel === 0.45 ? 0 : 1;
+  if (state === 'play') pop(P.x - Math.sin(P.yaw) * 4, P.y + 1.5, P.z - Math.cos(P.yaw) * 4, GLASSN(), true);
+  zz('glass', { force: true });
+}
+function toggleMute() {
+  muted = !muted; if (master) master.gain.value = muted ? 0 : 0.8;
+  if (muted && 'speechSynthesis' in window) speechSynthesis.cancel(); ZZ.speaking = false; if (muted) zz('mute', { force: true });
+}
+function cycleVoice() {
+  zVoiceMode = (zVoiceMode + 1) % 3; if ('speechSynthesis' in window) { speechSynthesis.cancel(); ZZ.speaking = false; } multiText(voiceLabel().split(' (')[0].split(' ·')[0]);
+  if (state === 'play' && zVoiceMode < 2) { ZZ.cool = 0; zShow(zVoiceMode === 0 ? 'Now I speak like myself. More or less. *sniff*' : 'Now I speak like a BBC newsreader. This is how ideology sounds: neutral.', { cool: 3 }); }
+}
+function pauseGame() { if (state !== 'play') return; state = 'paused'; mouseDown = false; for (const k in keys) keys[k] = false; stickV.x = stickV.y = 0; showScreen('pause'); }
+document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
+
+// ----- touch: floating stick on the left, drag to look on the right, buttons for the rest
+const stickV = { x: 0, y: 0 };
+if (TOUCH) {
+  const ui = $('touchui'), st = $('stick'), knob = st.firstElementChild;
+  let stickId = null, sx0 = 0, sy0 = 0; const looks = new Map();
+  const TS = 0.0058;
+  ui.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (e.target.closest('.tb')) return;
+    if (e.clientX < innerWidth * 0.42 && stickId === null) { stickId = e.pointerId; sx0 = e.clientX; sy0 = e.clientY; st.style.left = sx0 + 'px'; st.style.top = sy0 + 'px'; st.hidden = false; knob.style.transform = ''; }
+    else looks.set(e.pointerId, [e.clientX, e.clientY]);
+  });
+  addEventListener('pointermove', e => {
+    if (e.pointerId === stickId) {
+      let dx = e.clientX - sx0, dy = e.clientY - sy0; const d = Math.hypot(dx, dy), R = 60; if (d > R) { dx *= R / d; dy *= R / d; }
+      knob.style.transform = `translate(${dx}px, ${dy}px)`; stickV.x = dx / R; stickV.y = -dy / R;
+    } else if (looks.has(e.pointerId) && state === 'play') {
+      const l = looks.get(e.pointerId); P.yaw -= (e.clientX - l[0]) * TS; P.pitch = clamp(P.pitch - (e.clientY - l[1]) * TS, -1.5, 1.5); l[0] = e.clientX; l[1] = e.clientY;
+    }
+  }, { passive: true });
+  const end = e => {
+    if (e.pointerId === stickId) { stickId = null; st.hidden = true; stickV.x = stickV.y = 0; }
+    looks.delete(e.pointerId);
+  };
+  addEventListener('pointerup', end); addEventListener('pointercancel', end);
+  const hold = (id, on, off) => {
+    const b = $(id);
+    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); b.classList.add('on'); on(e); });
+    const up = e => { b.classList.remove('on'); if (off) off(e); };
+    b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
+  };
+  // the fire button also steers: drag from it to aim while shooting
+  hold('tbFire', e => { mouseDown = true; looks.set(e.pointerId, [e.clientX, e.clientY]); }, () => { mouseDown = false; });
+  hold('tbJump', () => { keys.Space = true; }, () => { keys.Space = false; });
+  hold('tbDash', () => { keys.ShiftLeft = true; }, () => { keys.ShiftLeft = false; });
+  hold('tbPud', () => { keys.KeyC = true; }, () => { keys.KeyC = false; });
+  hold('tbSurr', () => { keys.KeyE = true; }, () => { keys.KeyE = false; });
+  hold('tbSwap', () => { let i = P.wNext; for (let k = 0; k < 4; k++) { i = (i + 1) % 4; if (i === 0 || P.ammo[i] > 0) break; } selectWeapon(i); });
+  hold('tbPause', () => pauseGame());
+  document.addEventListener('gesturestart', e => e.preventDefault());
+}
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseDown = false; });
 
 // =====================================================================  loop
