@@ -34,6 +34,10 @@ subdirectory with its own README:
 - **[bollard-hop/](bollard-hop/)** — Bollard Hop, a one-button game about
   hopping along a row of rubber ball bollards on a shopping street, with a
   predicted jump arc. One HTML file. Open `bollard-hop/index.html`.
+- **[absorb-this/](absorb-this/)** — ABSORB THIS, a fast, violent, absurd
+  first-person shooter on a kitchen counter, seen through the bottom of a
+  glass: you are the last drop of water, versus sponges, hot sauce and spoons
+  with googly eyes. Raw WebGL2, one HTML file. Open `absorb-this/index.html`.
 - **[scriptprof/](scriptprof/)** — SCRIPTPROF, a lab for generating
   PuzzleScript games: rewrite-rule engine, BFS playtester, MAP-Elites
   archive. Open `scriptprof/index.html`.
