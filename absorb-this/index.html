@@ -792,7 +792,7 @@ function say(text, force) {
   try {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text); if (vAnn) { u.voice = vAnn; u.lang = vAnn.lang; }
-    u.pitch = 1.9; u.rate = 2; u.volume = 1; speechSynthesis.speak(u);
+    u.pitch = 1.9; u.rate = 1.5; u.volume = 1; speechSynthesis.speak(u);
   } catch (e) { }
 }
 
@@ -850,6 +850,7 @@ function chalEnd(win) {
   else { multiText('CHALLENGE FAILED'); sfx('empty'); }
   if (!ZZ.lock) { ZZ.cool = 0; zShow(ztic(pick(ZL['chal_' + k + (win ? '_win' : '_fail')] || ['Hm.'])), { cool: 4 }); }
 }
+let continues = 0, pleaseBuf = '';
 let hiScore = 0; try { hiScore = +localStorage.getItem('absorbthis.hi') || 0; } catch (e) { }
 
 function reset() {
@@ -1020,12 +1021,39 @@ let MULTIW = [[], [], ["DOUBLE DIP!", "DOUBLE DIP!", "DOUBLE DUNK!", "TWO-PLY!"]
 let ZNAMES = ["ŽIŽEKBOT 3000", "VIRTUAL ŽIŽEK", "CECI N'EST PAS UN ŽIŽEK", "ŽIŽEK SIMULACRUM", "ŽIŽEK-SIMULACRA", "OBJET PETIT ŽIŽEK", "ŽIŽEK (DECAFFEINATED)", "IMITATION ŽIŽEK FLAVOUR", "HOLOGRAM ŽIŽEK", "ŽIŽEK (IMAGINARY ORDER)", "ŽIŽEK (TAKEAWAY ORDER)", "I CAN'T BELIEVE IT'S NOT ŽIŽEK", "ACTUAL ŽIŽEK MAY VARY", "MAY CONTAIN TRACES OF ŽIŽEK", "REAL ŽIŽEK SOLD SEPARATELY", "LEGALLY DISTINCT ŽIŽEK", "THE BIG ŽIŽEK DOES NOT EXIST", "A STAIN THAT LOOKS LIKE ŽIŽEK", "FACE OF ŽIŽEK SEEN IN TOAST", "ŽIŽEK FRIDGE MAGNET", "INSTANT ŽIŽEK: JUST ADD WATER", "ŽIŽEK (FROM CONCENTRATE)", "DISHWASHER-SAFE ŽIŽEK", "COUNTER-FEIT ŽIŽEK", "STORE-BRAND ŽIŽEK", "ŽIŽEK, OPEN BOX, SLIGHTLY DAMP", "GENUINE FAKE ŽIŽEK", "ŽIŽEK BOBBLEHEAD", "ŽIŽEK STUNT DOUBLE", "DECOY ŽIŽEK #4", "ŽIŽEK TRIBUTE ACT", "ŽIŽEK (KARAOKE VERSION)", "ŽIŽEK 2 (DIRECT TO VIDEO)", "TEXT-TO-ŽIŽEK", "ŽIŽEK.EXE HAS STOPPED WORKING", "ŽIŽEK_COPY(3).PNG", "ŽIŽEK FREE TRIAL (3 DAYS LEFT)", "ŽIŽEK (MISQUOTED)", "ŽIŽEK, BADLY TRANSLATED", "ŽIŽEK (ARTIST'S IMPRESSION)", "ŽIŽEK FAN FICTION", "INSPIRED BY ŽIŽEK. BARELY."];
 // every line below is invented for the game; it is a cartoon parody, not a real quotation
 const ZL = {
+  please: [
+    "You said please! Politeness is the purest ideology: we pretend the game has a choice, and the game pretends it is being generous. Continue.",
+    "Infinite continues. The dream of late capitalism: consequences without end, and no ending either.",
+    "You asked nicely, so you may continue. Notice: the big Other does not exist, but it still likes to be asked.",
+    "Death, but with a continue button. This is Christianity for gamers. Resurrection, and you even keep your score.",
+    "Please! Kant would approve. You treated the game as an end in itself. Well, as a means to continue. Close enough.",
+    "Again? You come back every time. Freud has a name for this. The sponges also have a name for this: lunch.",
+    "Look how easily you say please when you want something. This is the whole secret of civilisation, and also of dogs.",
+  ],
   start: [
     "Before we begin, a confession: nothing I say is real. I am a simulacrum, drawn by strangers, speaking through your browser. In other words, a normal philosopher.",
     "Everybody asks if the glass is half empty or half full. Nobody asks the drop at the bottom. The drop says: the glass is ninety-nine percent empty, and I am armed.",
     "A drop of water with a gun made of itself. My God! Every shot is a little self-sacrifice. This is the most honest economic model I have ever seen in a video game.",
   ],
   idle: [
+    "Kant said never treat a person merely as a means. You treat sponges merely as ammunition. Kant would be furious, but he never left Königsberg, so he never met a sponge.",
+    "Kant walked the same route at exactly the same time every day, and the neighbours set their clocks by him. You hop between the same three puddles. The sponges set their clocks by you.",
+    "The thing-in-itself! Kant says we can never know the sponge as it really is, only as it appears to us. As it appears to us, it is trying to drink you. That is enough epistemology for one wave.",
+    "The categorical imperative, kitchen edition: shoot only those sponges you could will to be shot universally. So, all of them. Kant would sign off on this. Reluctantly.",
+    "Two things fill the mind with awe, says Kant: the starry heavens above me and the moral law within me. Here: the ceiling light above me and the hot sauce within me.",
+    "People ask me, can one drop of water defeat an entire kitchen? And I say, no, you Kant. No, wait. You can. This is a categorical imperative. Go.",
+    "Nietzsche: when you gaze into the abyss, the abyss gazes back. When you gaze into the sink drain, the drain also gazes back, but mostly it smells.",
+    "Sartre says hell is other people. He never shared a counter with a sponge. Hell is other sponges.",
+    "Camus says we must imagine Sisyphus happy. Imagine the sponge happy: it absorbs, it is wrung out, it absorbs again, forever. Now imagine you are the water. Less happy.",
+    "Descartes: I think, therefore I am. The sponge: I drink, therefore you are not.",
+    "Wittgenstein: whereof one cannot speak, thereof one must be silent. The announcer has never read Wittgenstein. The announcer has never read anything.",
+    "Occam's razor: the simplest explanation is usually correct. Why does the sponge attack you? Because you are water. Done. Philosophy is finished. Go home.",
+    "Zeno says you can never reach the edge of the counter: first you must go halfway, then half of that, and so on. Surface tension is only Zeno with better marketing.",
+    "Pascal says all of humanity's problems come from our inability to sit quietly in a room alone. You cannot even sit quietly on a counter for nine seconds.",
+    "Hobbes says life in the state of nature is solitary, poor, nasty, brutish and short. Life on the counter is damp, poor, nasty, brutish and short. Hobbes was an optimist.",
+    "Leibniz says this is the best of all possible worlds. A world in which the hot sauce has legs. The best one!",
+    "Marx says the philosophers have only interpreted the world; the point is to change it. You are changing it. You are changing it into puddles.",
+    "Rousseau: man is born free, and everywhere he is in chains. Water is born free, and everywhere it is in glasses.",
     "Every kitchen has a Tupperware drawer where no lid fits any container. The most Lacanian place in the house: there is always a lid, and it is always the wrong one.",
     "People put their dishes in the dishwasher, the machine that washes, but first they rinse them. They wash for the dishwasher! We do not trust the big Other to do its job.",
     "Bottled water is tap water plus ideology, you know. And you, my friend, are tap water. You are honest. This is why you are losing.",
@@ -1037,7 +1065,7 @@ const ZL = {
     "Psycho, the shower scene, the water spiraling down the drain. For a drop of water this is not a horror film. It is a documentary.",
     "Peer review is when three sponges drink your paper and send it back saying it is too wet. Reviewer two is always the scouring side.",
     "*sniff* People ask why I sniff all the time. It is not a cold. I am trying to inhale the Real, and unfortunately the Real goes up the nose.",
-    "They play my voice at double speed with a low pitch. People think this is a distortion. No! For the first time, I sound as fast as I think.",
+    "They play my voice at one and a half times speed with a low pitch. People think this is a distortion. No! For the first time, I sound almost as fast as I think.",
     "The game lets me speak only every thirty seconds. Thirty seconds! I have never finished a thought in thirty seconds. This one, for example, is also going to be cut off before the",
     "If I am a cartoon, who is drawing me? A designer? A browser? The big Other? This is the old question of theology, but now in JavaScript.",
     "Dirty plate, clean plate, and then? Dirty plate again. The negation of the negation is not a return to the beginning. It is dinner.",
@@ -1413,7 +1441,7 @@ function zVoice(text) {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text.replace(/\*[^*]+\*/g, ' '));
     const v = zVoiceMode === 0 ? (vZAccent || vZPlain) : vZPlain; if (v) { u.voice = v; u.lang = v.lang; }
-    u.pitch = 0.3; u.rate = 2; u.volume = 1;
+    u.pitch = 0.3; u.rate = 1.5; u.volume = 1;
     u.onend = u.onerror = () => { ZZ.speaking = false; };
     ZZ.speaking = true; ZZ.spokeAt = nowS(); speechSynthesis.speak(u);
   } catch (e) { ZZ.speaking = false; }
@@ -2346,7 +2374,7 @@ function render() {
   } else {
     const sh = shake * shake;
     eye = [P.x, P.y + P.eyeH + camBob(), P.z];
-    if (state === 'dead') { P.deadT += 1 / 60; eye[1] = P.y + Math.max(0.15, EYE - P.deadT * 1.5); }
+    if (state === 'dead') { eye[1] = P.y + Math.max(0.15, EYE - P.deadT * 1.5); }
     camYaw = P.yaw + (Math.random() - 0.5) * sh * 0.08; camPitch = P.pitch + (Math.random() - 0.5) * sh * 0.08 + P.recoil * 0.015;
     if ((state === 'absorbing' || state === 'absorbed') && P.endE) {
       const e = P.endE, k = Math.min(1, P.endT / 2.6), kk = k * k * (3 - 2 * k), tx = e.x, ty = e.y + e.h * 0.55, tz = e.z;
@@ -2470,7 +2498,7 @@ function hud(dt) {
   if (key === lastHud) return; lastHud = key;
   $('score').textContent = score.toLocaleString();
   $('combo').textContent = combo >= 2 ? `${combo} COMBO · x${mult}` : '';
-  $('hi').textContent = 'BEST ' + Math.max(hiScore, score).toLocaleString();
+  $('hi').textContent = 'BEST ' + Math.max(hiScore, score).toLocaleString() + (continues ? ` · CONTINUES ${continues}` : '');
   $('hpfill').style.width = hp + '%'; $('hpfill').className = hp < 30 ? 'low' : '';
   $('hpnum').textContent = hp <= 0 ? 'BONE DRY' : hp < 30 ? `${hp}% · PARCHED!` : hp + '%';
   $('wname').textContent = w.name; $('wsub').textContent = w.sub;
@@ -2511,6 +2539,8 @@ function showScreen(kind) {
       <p class="stat" style="color:var(--foam)">${best ? 'NEW BEST! THE FRIDGE IS PROUD OF YOU.' : 'BEST ' + hiScore.toLocaleString()}</p>
       ${zQuote(fl ? ZL.fallDeath : ZL[deathCause + 'Death'] || ZL.death)}
       <p class="endings">${endingsLine()}</p>${endings().absorbed ? '' : '<p class="fine">HINT: WHEN A SPONGE HAS YOU, HOLD E.</p>'}
+      <p class="stat" style="color:#fff">OR TYPE <b style="color:var(--foam)">PLEASE</b> TO CONTINUE FROM WAVE ${wave}</p>
+      <p class="fine">INFINITE CONTINUES, IF YOU ASK NICELY.${continues ? ` CONTINUES USED: ${continues}. DIGNITY REMAINING: NONE.` : ''}</p>
       <div class="cta">CLICK TO RE-CONDENSE</div></div>`;
   } else if (kind === 'absorbed') {
     s.innerHTML = `<div class="box"><h1 style="font-size:110px">ABSORBED</h1><h2>THE SURRENDER ENDING</h2>
@@ -2522,10 +2552,21 @@ function showScreen(kind) {
   }
 }
 function zQuote(bank) { return `<div class="zq"><img alt="" src="${zFace()}"><p><small>${pick(ZNAMES)}</small>"${pick(bank)}"</p></div>`; }
+// asked nicely: same wave again, same score, fresh dampness
+function continueGame() {
+  const keep = { score, wave, ammo: P.ammo.slice(), killCount, continues: continues + 1 };
+  initAudio(); reset();
+  score = keep.score; killCount = keep.killCount; continues = keep.continues; P.ammo = keep.ammo.map((a, i) => i === 0 ? a : Math.max(a, WEAPONS[i].start));
+  state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; hideScreen();
+  headlineNow(`DRIP RETURNS FROM THE DEAD AFTER SAYING PLEASE. CONTINUE NUMBER ${continues}`);
+  startWave(keep.wave); say('continue', true);
+  setTimeout(() => { ZZ.cool = 0; zz('please', { force: true }); }, 1500);
+  try { const r = cv.requestPointerLock({ unadjustedMovement: true }); if (r && r.catch) r.catch(() => cv.requestPointerLock()); } catch (e) { cv.requestPointerLock(); }
+}
 function hideScreen() { $('scr').classList.add('off'); }
 function start() {
   initAudio();
-  if (state === 'title' || state === 'dead' || state === 'absorbed') { reset(); state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; say('get wet', true); setTimeout(() => zz('start', { force: true }), 1400); }
+  if (state === 'title' || state === 'dead' || state === 'absorbed') { reset(); continues = 0; state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; say('get wet', true); setTimeout(() => zz('start', { force: true }), 1400); }
   else if (state === 'paused') state = 'play';
   hideScreen();
   try { const r = cv.requestPointerLock({ unadjustedMovement: true }); if (r && r.catch) r.catch(() => cv.requestPointerLock()); } catch (e) { cv.requestPointerLock(); }
@@ -2554,7 +2595,11 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyV') { zVoiceMode = (zVoiceMode + 1) % 3; if ('speechSynthesis' in window) { speechSynthesis.cancel(); ZZ.speaking = false; } multiText(voiceLabel().split(' (')[0].split(' ·')[0]);
     if (state === 'play' && zVoiceMode < 2) { ZZ.cool = 0; zShow(zVoiceMode === 0 ? 'Now I speak like myself. More or less. *sniff*' : 'Now I speak like a BBC newsreader. This is how ideology sounds: neutral.', { cool: 3 }); } }
   if (e.code === 'KeyG') zz('glass', { force: true });
-  if ((e.code === 'Enter' || e.code === 'KeyR') && state === 'dead' && P.deadT > 1.2) start();
+  if (state === 'dead' && P.deadT > 1.2 && e.key && e.key.length === 1) {
+    pleaseBuf = (pleaseBuf + e.key.toLowerCase()).slice(-12);
+    if (pleaseBuf.endsWith('please')) { pleaseBuf = ''; continueGame(); return; }
+  }
+  if ((e.code === 'Enter' || (e.code === 'KeyR' && !pleaseBuf.endsWith('p'))) && state === 'dead' && P.deadT > 1.2) start();
   if (e.code === 'Enter' && state === 'title') start();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
@@ -2586,7 +2631,7 @@ function frame(now) {
       document.exitPointerLock && document.exitPointerLock(); showScreen('absorbed');
     }
   }
-  else if (state === 'dead') { update(dt * 0.35); P.vy -= GRAV * dt * 0.35; P.y = Math.max(groundAt(P.x, P.z, P.y) , P.y + P.vy * dt * 0.35); }
+  else if (state === 'dead') { P.deadT += dt; update(dt * 0.35); P.vy -= GRAV * dt * 0.35; P.y = Math.max(groundAt(P.x, P.z, P.y) , P.y + P.vy * dt * 0.35); }
   else if (state === 'title') { if (Math.random() < dt * 2) bubbles(HIVE.x + rand(-7, 7), HIVE.top, HIVE.z + rand(-4, 4), 2, 0.3); updateParticles(dt); }
   greyV = lerp(greyV, jokeT > 0 ? 1 : 0, Math.min(1, dt * 8));
   render(); hud(dt); zUpdate(dt);

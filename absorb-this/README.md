@@ -46,7 +46,7 @@ You need a mouse and keyboard.
   and taunts for every enemy. Each of the three endings has its own narration
   and quotes, picked at random each time.
 - **Voices.** Everything is read aloud by the browser's speech synthesis at
-  double speed. The announcer gets a high-pitched English voice. Žižek gets a
+  one and a half times normal speed. The announcer gets a high-pitched English voice. Žižek gets a
   low pitch and the most Slavic voice your system has installed (Slovenian,
   Croatian, Czech, Polish, Russian, ...), reading English with that language's
   pronunciation, which gives him an accent. If there's none he uses English.
@@ -64,6 +64,8 @@ You need a mouse and keyboard.
   can soak back up. Sponges drink them too, and it heals them. Hold right mouse
   or C to flatten into a puddle: low, slippery and fast, faster still over
   spilled water.
+- **Infinite continues, if you ask nicely.** On the death screen, type PLEASE
+  to continue from the wave you died on, keeping your score.
 - **Surrender.** When a sponge has latched onto you, hold E to stop fighting.
   That's the third ending. The death screen tracks which of the three endings
   you've found.
