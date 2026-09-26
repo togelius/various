@@ -38,6 +38,13 @@ You need a mouse and keyboard.
   music, and he fills the screen to ask: "You think this is a joke?" He also
   hangs on the back wall as a Magritte-style poster that moves its mouth when
   he talks. Shooting it costs you points.
+- **The writing.** About 1,400 candidate lines were drafted for this version
+  and cut down hard: 210 Žižek lines stayed (about 100 of general commentary,
+  plus one to three for each situation: the challenges, the modifiers, the
+  Fork, the endings), along with 42 name tags, 21 title taglines, 53 ticker
+  headlines, a wave name for each of the first 21 waves, and new kill words
+  and taunts for every enemy. Each of the three endings has its own narration
+  and quotes, picked at random each time.
 - **Voices.** Everything is read aloud by the browser's speech synthesis at
   double speed. The announcer gets a high-pitched English voice. Žižek gets a
   low pitch and the most Slavic voice your system has installed (Slovenian,

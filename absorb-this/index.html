@@ -809,12 +809,12 @@ let P, enemies, globs, rockets, parts, stains, pickups, hazards, pops, splats, s
 let score, combo, comboT, multi, multiT, wave, spawnQ, spawnT, waveActive, interT, hitstop, shake, killCount, deathCause, T = 0;
 let glassLevel = 1, sens = 0.0022;
 const MODS = {
-  tap: { name: 'THE TAP IS LEFT ON', sub: 'IT IS RAINING WATER. THE SPONGES ARE THRILLED' },
-  moon: { name: 'MOON KITCHEN', sub: 'LOW GRAVITY. THE MICROWAVE DID SOMETHING' },
-  googly: { name: 'GOOGLY OVERLOAD', sub: 'THE EYES HAVE IT' },
-  caffeine: { name: 'CAFFEINATED', sub: 'EVERYTHING IS FASTER, INCLUDING YOUR HEART' },
-  rave: { name: 'KITCHEN RAVE', sub: 'UNTZ UNTZ UNTZ UNTZ' },
-  funsize: { name: 'FUN SIZE', sub: 'TINY SPONGES. TWICE AS MANY' },
+  tap: { name: 'THE TAP IS LEFT ON', sub: 'IT IS RAINING WATER. THE SPONGES ARE THRILLED', alts: ["INDOOR MONSOON", "SCATTERED SHOWERS", "SINK OR SWIM"] },
+  moon: { name: 'MOON KITCHEN', sub: 'LOW GRAVITY. THE MICROWAVE DID SOMETHING', alts: ["ONE SMALL SPLASH", "FLY ME TO THE SPOON", "HOUSTON, WE HAVE A SPONGE"] },
+  googly: { name: 'GOOGLY OVERLOAD', sub: 'THE EYES HAVE IT', alts: ["ALL EYES ON DRIP", "EYE-POCALYPSE", "THE STARING CONTEST"] },
+  caffeine: { name: 'CAFFEINATED', sub: 'EVERYTHING IS FASTER, INCLUDING YOUR HEART', alts: ["TRIPLE-SHOT ESPRESSO", "DECAF IS FOR QUITTERS", "THE JITTERS"] },
+  rave: { name: 'KITCHEN RAVE', sub: 'UNTZ UNTZ UNTZ UNTZ', alts: ["DRIP AND BASS", "DISCO DISHWASHER", "DANCE DANCE EVAPORATION"] },
+  funsize: { name: 'FUN SIZE', sub: 'TINY SPONGES. TWICE AS MANY', alts: ["TRAVEL SIZE", "SNACK PACK", "KIDS' MENU"] },
 };
 let MOD = null, lastMod = null, gs = 1, tapT = 0, tickNews = [];
 function headlineNow(t) { tickNews.push(t); tickW = 0; }
@@ -991,7 +991,7 @@ function posterHit(x, y, z) {
 }
 function zFace() { drawZ(T, false, null, 0); try { return ZC.toDataURL(); } catch (e) { return ''; } }
 
-let TAGLINES = ['A COUNTER-TERRORISM SHOOTER'], SHOUTS = ['MOIST!'], NARR = {
+let TAGLINES = ["A COUNTER-TERRORISM SHOOTER", "NOW WITH 40% MORE IDEOLOGY", "A FIRST-PERSON SQUIRTER", "THERE IS NO FORK", "IT'S NOT A PHASE, MOM, IT'S A LIQUID", "SOLID GAMEPLAY. LIQUID PROTAGONIST.", "WHAT DOESN'T KILL YOU MAKES YOU WETTER", "GLASS HALF EMPTY, GUN HALF FULL", "BASED ON A TRUE SPILL", "RATED M FOR MOIST", "A SHOOTER THAT HOLDS WATER", "IN THE SINK NO ONE CAN HEAR YOU DRIP", "THE WORLD'S FIRST SOAPSLIKE", "AN OPEN WORLD (IT'S A COUNTER)", "A COUNTER-CULTURE SHOOTER", "NOW WITH REAL FAKE PHILOSOPHY", "9 OUT OF 10 SPONGES FOUND IT DELICIOUS", "GAME OF THE YEAR (WETTEST CATEGORY)", "A TRULY IMMERSIVE SIM (YOU ARE WATER)", "NO SPONGES WERE HARMED (LIE)", "THE DRIP ABIDES"], SHOUTS = ["MOIST!", "H2-OH YEAH!", "H2WHOA!", "DRIP CHECK!", "THE DRIP IS REAL!", "SUDSATIONAL!", "CAUTION: WET FLOOR!", "OH, BUOY!", "WATERSHED MOMENT!", "LIQUID ASSETS!", "FLUID DYNAMICS!", "DRINK YOUR WATER!", "EIGHT GLASSES A DAY!", "WETTER IS BETTER!", "SPILL THE TEA!", "SPLASH ZONE!", "SPLASH OF THE TITANS!", "DEW IT!", "RELEASE THE SUDS!", "FIZZ BANG WALLOP!", "WATER BEAUTIFUL DAY!", "GLUG GLUG GLUG!", "MAXIMUM MOISTURE!", "SLIPPERY WHEN WET!", "DRIPTASTIC!", "PUDDLE POWER!", "GO WITH THE FLOW!", "OOH, SQUELCHY!", "AAAQUAAA!"], NARR = {
   evaporated: [
     "You dried out. Somewhere above the counter, a very small cloud is forming. It does not remember you.",
     "You rose off the counter as vapour and drifted toward the extractor fan. It was on. It is always on.",
@@ -1016,8 +1016,8 @@ let TAGLINES = ['A COUNTER-TERRORISM SHOOTER'], SHOUTS = ['MOIST!'], NARR = {
     "You are part of the sponge now. One day it will be wrung out over the sink, and you will finally see the drain.",
   ],
 };
-let MULTIW = [[], [], ['DOUBLE DIP!'], ['TRIPLE SCRUB!'], ['QUAD-RINSE!'], ['DISHWASHER MODE!'], ['SPIN CYCLE!'], ['DISHPOCALYPSE!'], ['DISHPOCALYPSE!']];
-let ZNAMES = ['ŽIŽEKBOT 3000', 'VIRTUAL ŽIŽEK', "CECI N'EST PAS UN ŽIŽEK", 'ŽIŽEK SIMULACRUM'];
+let MULTIW = [[], [], ["DOUBLE DIP!", "DOUBLE DIP!", "DOUBLE DUNK!", "TWO-PLY!"], ["TRIPLE SCRUB!", "HAT-TRICKLE!", "THREE-COURSE MEAL!"], ["QUAD-RINSE!", "FOUR-SLICE TOASTER!", "QUADRUPLE SQUEEGEE!"], ["DISHWASHER MODE!", "FIVE-A-DAY!", "PENTA-SPLASH!"], ["SPIN CYCLE!", "SIX-PACK!", "SIX-BURNER STOVE!"], ["SEVEN-LAYER DIP!", "SEVENTH HEAVEN!"], ["DISHPOCALYPSE!", "EVERYTHING BUT THE KITCHEN SINK!", "BIBLICAL DELUGE!", "TOTAL SATURATION!"]];
+let ZNAMES = ["ŽIŽEKBOT 3000", "VIRTUAL ŽIŽEK", "CECI N'EST PAS UN ŽIŽEK", "ŽIŽEK SIMULACRUM", "ŽIŽEK-SIMULACRA", "OBJET PETIT ŽIŽEK", "ŽIŽEK (DECAFFEINATED)", "IMITATION ŽIŽEK FLAVOUR", "HOLOGRAM ŽIŽEK", "ŽIŽEK (IMAGINARY ORDER)", "ŽIŽEK (TAKEAWAY ORDER)", "I CAN'T BELIEVE IT'S NOT ŽIŽEK", "ACTUAL ŽIŽEK MAY VARY", "MAY CONTAIN TRACES OF ŽIŽEK", "REAL ŽIŽEK SOLD SEPARATELY", "LEGALLY DISTINCT ŽIŽEK", "THE BIG ŽIŽEK DOES NOT EXIST", "A STAIN THAT LOOKS LIKE ŽIŽEK", "FACE OF ŽIŽEK SEEN IN TOAST", "ŽIŽEK FRIDGE MAGNET", "INSTANT ŽIŽEK: JUST ADD WATER", "ŽIŽEK (FROM CONCENTRATE)", "DISHWASHER-SAFE ŽIŽEK", "COUNTER-FEIT ŽIŽEK", "STORE-BRAND ŽIŽEK", "ŽIŽEK, OPEN BOX, SLIGHTLY DAMP", "GENUINE FAKE ŽIŽEK", "ŽIŽEK BOBBLEHEAD", "ŽIŽEK STUNT DOUBLE", "DECOY ŽIŽEK #4", "ŽIŽEK TRIBUTE ACT", "ŽIŽEK (KARAOKE VERSION)", "ŽIŽEK 2 (DIRECT TO VIDEO)", "TEXT-TO-ŽIŽEK", "ŽIŽEK.EXE HAS STOPPED WORKING", "ŽIŽEK_COPY(3).PNG", "ŽIŽEK FREE TRIAL (3 DAYS LEFT)", "ŽIŽEK (MISQUOTED)", "ŽIŽEK, BADLY TRANSLATED", "ŽIŽEK (ARTIST'S IMPRESSION)", "ŽIŽEK FAN FICTION", "INSPIRED BY ŽIŽEK. BARELY."];
 // every line below is invented for the game; it is a cartoon parody, not a real quotation
 const ZL = {
   start: [
@@ -1454,14 +1454,7 @@ function endingsLine() {
   const o = endings(), L = [['evaporated', 'EVAPORATED'], ['floor', 'THE FLOOR'], ['absorbed', 'ABSORBED']];
   return `ENDINGS FOUND ${L.filter(l => o[l[0]]).length}/3: ` + L.map(l => o[l[0]] ? l[1] : '???').join(' · ');
 }
-const HEADS = ['SPONGE UNION DEMANDS THE RIGHT TO ABSORB', 'HOT SAUCE: "WE ARE JUST MISUNDERSTOOD"', 'SPOONS DENY STIRRING UP TROUBLE',
-  'LOCAL DROP REFUSES TO EVAPORATE, EXPERTS BAFFLED', 'FORK SEEN NOWHERE, SUSPICIOUSLY', 'DISHWASHER SAFE? INVESTIGATION CONTINUES',
-  'GRANDMA SPONGE: "YOU ARE ALL TOO THIN"', 'KETCHUP PACKET STILL ONLY SAUCE-ADJACENT', 'PHILOSOPHER SPOTTED ON COUNTER, SNIFFING',
-  'SCIENTISTS CONFIRM WATER IS WET. DRIP: "NO COMMENT"', 'SALT SHAKER "NOT INVOLVED", SAYS SALT SHAKER', 'FRIDGE WATCHES IN SILENCE, AS ALWAYS',
-  'TAP WATER DECLARES INDEPENDENCE FROM GLASS', 'WEATHER: 90% CHANCE OF SPLASH', 'MARKETS: SPONGE FUTURES SOAR, ABSORB ALL LOSSES',
-  'OPINION: IS THE GLASS HALF FULL OR HALF EMPTY? DRIP: "IT IS ME"', 'CONDIMENT CAUCUS CALLS FOR PEACE, THROWS SAUCE',
-  'SPOONS FORM A UNION. FORKS UNAVAILABLE FOR COMMENT', 'IDEOLOGY FOUND IN KITCHEN, SAYS BEARDED MAN', 'MUG ASKS NOT TO BE INCLUDED IN THIS',
-  'SPONGE: "I AM NOT A HOLE, I AM MANY HOLES"', 'SAUCE BOTTLE CLAIMS DIPLOMATIC IMMUNITY', 'COUNTER-TERRORISM COUNTER NOW TERRORISM COUNTER'];
+const HEADS = ["SPONGE UNION DEMANDS THE RIGHT TO ABSORB", "HOT SAUCE: \"WE ARE JUST MISUNDERSTOOD\"", "LOCAL DROP REFUSES TO EVAPORATE, EXPERTS BAFFLED", "FORK SEEN NOWHERE, SUSPICIOUSLY", "SCIENTISTS CONFIRM WATER IS WET. DRIP: \"NO COMMENT\"", "SALT SHAKER \"NOT INVOLVED\", SAYS SALT SHAKER", "FRIDGE WATCHES IN SILENCE, AS ALWAYS", "MARKETS: SPONGE FUTURES SOAR, ABSORB ALL LOSSES", "OPINION: IS THE GLASS HALF FULL OR HALF EMPTY? DRIP: \"IT IS ME\"", "SPOONS FORM A UNION. FORKS UNAVAILABLE FOR COMMENT", "IDEOLOGY FOUND IN KITCHEN, SAYS BEARDED MAN", "SPONGE: \"I AM NOT A HOLE, I AM MANY HOLES\"", "COUNTER-TERRORISM COUNTER NOW TERRORISM COUNTER", "FORK DENIES OWN EXISTENCE IN STRONGLY WORDED STATEMENT", "CUTLERY DRAWER SEARCHED. FINDINGS: SPOONS, A BATTERY, NO FORK", "SPORK DETAINED FOR QUESTIONING IN FORK INVESTIGATION, RELEASED AS \"HALF SPOON\"", "CORRECTION: YESTERDAY'S REPORTED FORK SIGHTING WAS A COMB", "THE FORK: A TIMELINE (IT IS BLANK)", "BUTTER KNIFE \"NOT A FORK, NEVER WAS,\" SAYS BUTTER KNIFE, UNPROMPTED", "POLL: 100% OF FORKS SURVEYED DO NOT EXIST", "DOG WAITING BELOW COUNTER \"JUST IN CASE\"", "DOG PROMOTED TO HEAD OF FLOOR CLEANUP. SALARY: WHATEVER FALLS", "DOG DENIES EATING EVIDENCE. EVIDENCE: GONE", "TAP ACCUSED OF LEAKING TO THE PRESS", "PLUMBER \"ON THE WAY\" SINCE TUESDAY", "STUDY: SPONGES 80% HOLES, 20% ATTITUDE", "SPONGE READS PHILOSOPHER'S NEW BOOK, ABSORBS NONE OF IT", "OBITUARY: SPONGE, 3 WEEKS. \"HE TOOK EVERYTHING IN\"", "GRANDMA SPONGE SPLITS IN TWO. BOTH HALVES INSIST YOU TAKE LEFTOVERS", "GRANDMA SPONGE ASKS WHY DRIP NEVER CALLS", "GRANDMA SPONGE'S SPECTACLES FOG UP AGAIN. \"WHO SAID THAT?\"", "MAYONNAISE STAYS NEUTRAL, AS ALWAYS. NOBODY SURPRISED", "SPOONS CIRCLE OVERHEAD FOR THIRD HOUR. AIR TRAFFIC CONTROL \"CONCERNED\"", "LOCAL SPOON \"SAW A FORK ONCE,\" CANNOT DESCRIBE IT", "OBITUARY: SPOON, 12. LEAVES BEHIND A TEACUP AND A DENT", "PAPER TOWEL ROLL UNABLE TO SAY WHAT, EXACTLY, IT IS QUICKER THAN", "CARDBOARD TUBE INSIDE PAPER TOWEL ROLL \"JUST WANTS TO BE SEEN\"", "SPONGE FLOATS AWAY INSIDE SOAP BUBBLE. \"WE HAVE A VIEW NOW,\" IT SAYS", "PHILOSOPHER ASKED TO LEAVE KITCHEN, STAYS TO EXPLAIN WHY LEAVING IS IDEOLOGY", "PHILOSOPHER'S POSTER SHOT AGAIN. POSTER: \"I AM NOT EVEN HERE\"", "CARTOON PHILOSOPHER \"DEFINITELY NOT THE REAL ONE,\" SAYS HIS LAWYER, A SPOON", "PHILOSOPHER EXPLAINS SPONGE TO SPONGE. SPONGE \"NEVER FELT SO SEEN\"", "MICROWAVE BEEPS THREE TIMES, NOBODY COMES. \"STORY OF MY LIFE\"", "LID DRAWER CRISIS ENTERS 11TH YEAR. NO LID FITS ANYTHING", "CACTUS OFFERS DRIP ASYLUM: \"I COULD MAKE YOU LAST FOR MONTHS\"", "COUNTER EDGE TO GET SAFETY RAILING \"NEXT YEAR,\" AS EVERY YEAR", "WEATHER: SCATTERED SAUCE, CLEARING BY AFTERNOON. HIGH RISK OF SPONGE", "MARKETS: BUBBLE BURSTS, TRADERS FALL TO FLOOR, DOG PLEASED", "THERMOSTAT BLAMED FOR EVAPORATION. THERMOSTAT: \"IT'S A DRY HEAT\"", "CORRECTION: DRIP IS NOT \"A TEAR.\" DRIP WOULD LIKE TO MOVE ON", "LOW GRAVITY BLAMED ON MICROWAVE, WHICH \"DOES THAT SOMETIMES\"", "COUNTER NEWS NETWORK APOLOGISES FOR ALL CAPS, WILL CONTINUE", "BREAKING: WET THINGS GETTING WETTER"];
 function headlines() {
   const hp = Math.max(0, Math.ceil(P.hp));
   const dyn = [`BREAKING: DRIP DESTROYS ${killCount} KITCHENWARE, SHOWS NO REMORSE`, `WAVE ${wave || 1} UNDERWAY. SPONGES ADVISED TO STAY IN THE HIVE`,
@@ -1479,24 +1472,28 @@ function beginAbsorbed(e) {
 
 // =====================================================================  enemies
 const KILLW = {
-  roll: ['PAPER-CUT!'], fork: ['FORKED!'], gold: ['STRUCK GOLD!'], bubble: ['BUBBLE-STRIKE!'], squash: ['FLATTENED!'],
-  sponge: ["SQUEEGEE'D!", 'WRUNG OUT!', 'SPONGE-ICIDE!', 'DE-FOAMED!', 'ABSORB THAT!', 'SCRUBBED!', 'RINSED!', 'POROUS NO MORE!',
-    'HOLE-Y MOLEY!', 'SCRUB-A-DUB-DEAD!', 'SOAKED UP THE PAIN!', 'FOAMED AT THE MOUTH!', 'ABSORBED A LESSON!', 'NO MORE MR. NICE SPONGE!', 'DAMP SQUIB!'],
-  bottle: ['SAUCED!', 'HOT MESS!', 'BOTTLED IT!', 'CONDIMENTED!', 'SHAKEN, NOT STIRRED!', 'CAP POPPED!', 'SRIRA-CHAOS!',
-    'HOT TAKE!', 'DIP-LOMATIC INCIDENT!', 'KETCH-UP WITH YOU LATER!', 'SALSA-CIDE!', 'YOU MUSTARD KNOWN!', 'SAUCE OF ALL EVIL!', 'SPICED UP!'],
-  spoon: ['SPOONED!', 'UTENSIL-CIDE!', 'STIR CRAZY!', 'CUTLERY CARNAGE!', 'SPOON FED!', 'BENT!', 'TEA-BAGGED!',
-    'SPOON-TANEOUS COMBUSTION!', 'STIRRED TO DEATH!', 'DISH-MISSED!', 'SPOONER-ISM!', 'CUTLER-EASY!', 'LADLE-DE-DA!', 'GOT THE SCOOP!'],
-  mama: ['GRANDMA GOT WRUNG!', 'MOTHER-SPONGER!', 'GRAND-SMA-SHED!', 'NANA NA NA, GOODBYE!', 'OLD SPONGE, NEW TRICKS!'],
-  fall: ['COUNTER-STRIKE!', 'EVICTED!', "FLOOR'D!", 'GRAVITY ASSIST!', 'OFF THE EDGE!', 'COUNTER-INTUITIVE!', 'TOPPLED!', 'SPLAT ON THE MAT!', 'DOG FOOD!', 'COUNTER-PRODUCTIVE!'],
+  roll: ["PAPER-CUT!", "PERFORATED!", "TEAR ALONG THE DOTTED LINE!", "PLY-ONARA!", "SHEET HAPPENS!", "TOWEL THROWN IN!", "UNSPOOLED!", "THE ABSORBER ABSORBED!", "DOWN TO THE CARDBOARD!"],
+  fork: ["FORKED!", "FORK OFF!", "WHAT THE FORK!", "FOR FORK'S SAKE!", "TINE'S UP!", "STICK A FORK IN IT!", "BACK TO NOT EXISTING!", "NOW IT'S FORKLORE!", "THERE IS NO FORK (AGAIN)!"],
+  gold: ["STRUCK GOLD!", "GOLDEN RETRIEVED!", "GILT-TRIPPED!", "SUBLIME OBJECT ACQUIRED!", "DESIRE FULFILLED. HOW EMPTY!", "ALL THAT GLITTERS IS DEAD!", "AU REVOIR!"],
+  bubble: ["BUBBLE-STRIKE!", "SORRY TO BURST YOUR BUBBLE!", "LATHER, RINSE, DROP!", "FROM SUDS TO THUD!", "FLOAT LIKE A BUBBLE, DROP LIKE A ROCK!", "SPECIAL DELIVERY FOR THE DOG!", "DOWNWARD MOBILITY!", "MARKET CRASH!"],
+  squash: ["FLATTENED!", "PANCAKED!", "NOW IN 2D!", "FLAT-PACKED!", "IRONED OUT!", "LAMINATED!", "THE QUICKER FLATTENER-OUTER!"],
+  sponge: ["SQUEEGEE'D!", "WRUNG OUT!", "SPONGE-ICIDE!", "DE-FOAMED!", "ABSORB THAT!", "SCRUBBED!", "RINSED!", "POROUS NO MORE!", "HOLE-Y MOLEY!", "SCRUB-A-DUB-DEAD!", "SOAKED UP THE PAIN!", "FOAMED AT THE MOUTH!", "ABSORBED A LESSON!", "NO MORE MR. NICE SPONGE!", "DAMP SQUIB!", "HOLE IN ONE!", "HOLE-SALE DESTRUCTION!", "BEEN THROUGH THE WRINGER!", "PORE THING!", "CELLU-LOSER!", "CAN'T HOLD WATER!", "NOT SO ABSORBING NOW!", "LOST ITS BOUNCE!"],
+  bottle: ["SAUCED!", "HOT MESS!", "BOTTLED IT!", "CONDIMENTED!", "SHAKEN, NOT STIRRED!", "CAP POPPED!", "SRIRA-CHAOS!", "HOT TAKE!", "DIP-LOMATIC INCIDENT!", "KETCH-UP WITH YOU LATER!", "SALSA-CIDE!", "YOU MUSTARD KNOWN!", "SAUCE OF ALL EVIL!", "SPICED UP!", "WATERED DOWN!", "CHILI RECEPTION!", "RELISH THE MOMENT!", "SAUCE-ASSINATED!", "PAST ITS BEST-BEFORE!", "SPICE SPICE BABY!", "SAUCE CODE DELETED!"],
+  spoon: ["SPOONED!", "UTENSIL-CIDE!", "STIR CRAZY!", "CUTLERY CARNAGE!", "SPOON FED!", "BENT!", "TEA-BAGGED!", "SPOON-TANEOUS COMBUSTION!", "STIRRED TO DEATH!", "DISH-MISSED!", "SPOONER-ISM!", "CUTLER-EASY!", "LADLE-DE-DA!", "GOT THE SCOOP!", "SPOONER OR LATER!", "STIR-FRIED!", "TEA-TOTALLED!", "DESSERTED!", "FLIGHT CANCELLED!", "THE TABLESPOONS HAVE TURNED!", "PUT BACK IN THE DRAWER!"],
+  mama: ["GRANDMA GOT WRUNG!", "MOTHER-SPONGER!", "GRAND-SMA-SHED!", "NANA NA NA, GOODBYE!", "OLD SPONGE, NEW TRICKS!"],
+  fall: ["COUNTER-STRIKE!", "EVICTED!", "FLOOR'D!", "GRAVITY ASSIST!", "OFF THE EDGE!", "COUNTER-INTUITIVE!", "TOPPLED!", "SPLAT ON THE MAT!", "DOG FOOD!", "COUNTER-PRODUCTIVE!"],
 };
 const TAUNTS = {
-  roll: ['QUICKER! PICKIER! UPPIER!'], fork: ['I EXIST!'], gold: ['CATCH ME IF YOU CAN'],
-  sponge: ["I'M JUST HERE TO SOAK IT IN", 'COME TO SPONGE DADDY', 'ABSORBING THE VIBES', "YOU'RE TOO DRIP FOR ME", "I'M A SCRUB AND PROUD", 'HOLE-SOME CONTENT ONLY', "I'LL WRING YOUR NECK. YOU DON'T HAVE A NECK", 'THIRSTY. SO THIRSTY.'],
-  bottle: ["YOU'RE KETCH-UP TO NO GOOD", "I'M HOT STUFF", 'SAUCE ME, MAYBE', 'LET ME SPICE THINGS UP', 'BOTTLE UP YOUR FEELINGS', "DON'T BE SAUCY", 'I HAVE NO CHILL. LITERALLY.', 'CAPSAICIN CAPTAIN REPORTING'],
-  spoon: ["LET'S STIR THINGS UP", 'SPOON-TANEOUS ATTACK!', "YOU'RE UTENSILLY DOOMED", "I'M A BIT OF A STIRRER", "I'M NOT A FORK. DON'T ASK.", 'TEA TIME IS OVER', 'SPOON! SPOON! SPOON!'],
-  mama: ['BACK IN MY DAY WE ABSORBED UPHILL', "EAT SOMETHING, YOU'RE ALL DRIP", 'COME GIVE GRANDMA A SQUEEZE', "YOU'LL CATCH YOUR DEATH OF DRYNESS", 'WHEN ARE YOU GETTING MARRIED'],
+  roll: ["QUICKER! PICKIER! UPPIER!", "I'LL WIPE THE COUNTER WITH YOU", "CLEAN-UP ON AISLE YOU", "NO SPILL LEFT BEHIND", "HAVE A NICE DRY", "I'M ON A ROLL!", "QUICKER THAN WHAT? DON'T ASK", "TWO PLIES. NO MERCY.", "I'VE WIPED UP BIGGER SPILLS THAN YOU"],
+  fork: ["I EXIST!", "WHO SAID THERE WAS NO FORK?", "I WAS IN THE DISHWASHER THE WHOLE TIME", "I WAS UNDER THE FRIDGE ALL ALONG", "YOU'VE COME TO A FORK IN THE ROAD", "I'VE GOT FOUR GOOD POINTS", "THE REAL HAS PRONGS", "I AM THE BIG OTHER NOW", "EXPLAIN ME, PHILOSOPHER!", "THERE IS NO SPOON. ONLY FORK.", "THEY SAID I DIDN'T EXIST. THEY LIED."],
+  gold: ["CATCH ME IF YOU CAN", "I DON'T DO DISHES, DARLING", "YOU WANT ME BECAUSE YOU CAN'T HAVE ME", "SHINY AND NOT SORRY", "24 CARATS OF NOPE", "I'M THE SUBLIME OBJECT. TA-TA!", "ALL THAT GLITTERS IS ME", "FINDERS KEEPERS, LOSERS WEEPERS"],
+  sponge: ["I'M JUST HERE TO SOAK IT IN", "COME TO SPONGE DADDY", "ABSORBING THE VIBES", "YOU'RE TOO DRIP FOR ME", "I'M A SCRUB AND PROUD", "HOLE-SOME CONTENT ONLY", "I'LL WRING YOUR NECK. YOU DON'T HAVE A NECK", "THIRSTY. SO THIRSTY.", "WATER YOU WAITING FOR?", "H2-OH HI THERE", "ONE SIP. JUST ONE SIP.", "I DRINK, THEREFORE I AM", "I'M 90% HOLES AND 100% HUNGRY", "LET ME ABSORB THAT FOR YOU", "HOLD STILL, I'M THIRSTY", "YOU LOOK REFRESHING"],
+  bottle: ["YOU'RE KETCH-UP TO NO GOOD", "I'M HOT STUFF", "SAUCE ME, MAYBE", "LET ME SPICE THINGS UP", "BOTTLE UP YOUR FEELINGS", "DON'T BE SAUCY", "I HAVE NO CHILL. LITERALLY.", "CAPSAICIN CAPTAIN REPORTING", "CAN'T STAND THE HEAT? GET OFF MY COUNTER", "SHAKE WELL BEFORE DYING", "BEST BEFORE: YOUR FUNERAL", "SERVING SUGGESTION: YOU", "SHORT LEGS, SHORTER TEMPER", "IT'S NOT PERSONAL, IT'S PEPPERS", "HOLD MY CAP", "I'M NOT BITTER, I'M SPICY"],
+  spoon: ["LET'S STIR THINGS UP", "SPOON-TANEOUS ATTACK!", "YOU'RE UTENSILLY DOOMED", "I'M A BIT OF A STIRRER", "I'M NOT A FORK. DON'T ASK.", "TEA TIME IS OVER", "SPOON! SPOON! SPOON!", "HERE COMES THE AEROPLANE! NEEOOW!", "OPEN WIDE!", "I'M A CEREAL KILLER", "SUGAR? MILK? PAIN?", "I SEE YOU UPSIDE DOWN", "YOU'D LOOK GREAT IN A TEACUP", "ONE SPOONFUL OF YOU, PLEASE"],
+  mama: ["BACK IN MY DAY WE ABSORBED UPHILL", "EAT SOMETHING, YOU'RE ALL DRIP", "COME GIVE GRANDMA A SQUEEZE", "YOU'LL CATCH YOUR DEATH OF DRYNESS", "WHEN ARE YOU GETTING MARRIED", "YOU NEVER CALL, YOU NEVER DRIP", "PUT A CARDIGAN ON, YOU'LL EVAPORATE", "WHERE ARE MY GLASSES? OH, ON MY FACE", "YOU'RE NOT LEAVING TILL YOU'RE ABSORBED", "I'M NOT OLD, I'M SEASONED", "THERE'S TWO OF ME, YOU KNOW", "I KNITTED YOU A PUDDLE"],
 };
-let SOAPW = ['+4 SUDS', 'SOAP-ER STAR! +4', 'SUDDEN SUDS +4', 'LATHER UP +4'];
+let SOAPW = ["+4 SUDS", "SOAP-ER STAR! +4", "LATHER, RINSE, RELOAD +4", "SUDSCRIPTION RENEWED +4", "FOAMO SAPIENS +4", "SOAP OPERA +4", "SQUEAKY CLEAN AMMO +4", "SUDS FOR DAYS +4"];
+const CLEARW = ["WAVE CLEAR", "SPOTLESS", "SQUEAKY CLEAN", "COUNTER-ATTACK REPELLED", "WASH CYCLE COMPLETE", "DISHES DONE", "STREAK-FREE SHINE", "99.9% OF GERMS KILLED", "CLEAN PLATE CLUB", "ALL WASHED UP", "CALM BEFORE THE SPONGE", "COUNTER-TOP NOTCH", "DAMP BUT UNBEATEN", "A BRIEF DRY SPELL"];
 const HITW = ['SPLISH', 'SPLOSH', 'PLIP', 'SQUELCH', 'PLOP', 'SPLOOSH', 'BLORP', 'SHPLUK'];
 const RANKS = [[0, '', ''], [3, 'D', 'DAMP'], [6, 'C', 'CLAMMY'], [10, 'B', 'BRINY'], [15, 'A', 'AQUATIC'], [21, 'S', 'SOAKING'], [28, 'SS', 'SUPERSATURATED'], [36, 'SSS', 'SPLISH SPLASH SUPREME']];
 const NAMES = { sponge: 'SPONGE', bottle: 'HOT SAUCE', spoon: 'SPOON', mama: 'GRANDMA SPONGE' };
@@ -1548,11 +1545,8 @@ function spawnEnemy(type) {
   sfx('spawn');
 }
 function waveName(n) {
-  const L = ['THE SCRUBBENING', 'HOT SAUCE HOSTILITIES', 'SPOON RIOT', 'CONDIMENT CRUSADE', 'GRANDMA SPONGE', 'THE RINSE CYCLE', 'SAUCE BOSS',
-    'CUTLERY DRAWER OF THE DAMNED', 'DISHWASHER SAFE (YOU ARE NOT)', 'MOTHER OF ALL SPONGES', 'THE SOAKENING', 'SPOON-DAY BLOODY SPOON-DAY',
-    'STIR WARS', 'THE SAUCE OF THE MATTER', 'NO COUNTRY FOR OLD SPONGES', 'GRANDMA\'S REVENGE (SHE BROUGHT GRANDMA)', 'THE UNBEARABLE LIGHTNESS OF SEEPING'];
-  return n <= L.length ? L[n - 1] : pick(['MORE OF THE SAME BUT ANGRIER', 'THE KITCHEN REMEMBERS', 'NOBODY DOES THE DISHES', 'ETERNAL DAMPNESS', 'SAUCE UNTO SAUCE',
-    'IDEOLOGY, BUT WET', 'THE DEATH DRIP', 'A DRIP TOO FAR', 'SPONGE AGAINST THE MACHINE']);
+  const L = ["THE SCRUBBENING", "HOT SAUCE HOSTILITIES", "SPOON RIOT", "CONDIMENT CRUSADE", "GRANDMA SPONGE", "THE RINSE CYCLE", "THERE IS NO FORK", "THE EMPIRE SOAKS BACK", "DISHWASHER SAFE (YOU ARE NOT)", "A TALE OF TWO GRANDMAS", "THE GOOD, THE BAD AND THE SOGGY", "RESERVOIR DROPS", "THE SILENCE OF THE LADLES", "THE FORK AWAKENS", "THE GRANDMOTHER PART III", "YOU'RE GONNA NEED A BIGGER GLASS", "SMOOTHIE CRIMINAL", "FIGHT CLUB SODA", "I SEE DAMP PEOPLE", "GRANDMA'S REVENGE (SHE BROUGHT GRANDMA)", "RAIDERS OF THE LOST FORK"];
+  return n <= L.length ? L[n - 1] : pick(["FOAM ALONE", "PULP FRICTION", "THE TWO TOWELS", "THE FELLOWSHIP OF THE RINSE", "A NEW SOAP", "LIVE AND LET DRY", "THE MAN WITH THE GOLDEN SPONGE", "NIGHT OF THE LIVING DREGS", "28 SPONGES LATER", "DRY HARD WITH A VENGEANCE", "THE BIRDS (BUT SPOONS)", "SINGIN' IN THE DRAIN", "NOBODY PUTS DRIP IN A CORNER", "WAX ON, WIPE OUT", "THE HOLEY GRAIL", "GRIME AND PUNISHMENT", "SAUCE AND SENSIBILITY", "KETCH-22", "THE THIRST GAMES", "DRAINCULA", "(I CAN'T GET NO) SATURATION", "WE ALL LIVE IN A YELLOW SPONGE", "THE TAPS OF WRATH", "STAYIN' A LIQUID", "SWEET CHILI O' MINE", "IDEOLOGY, BUT WET", "THE DEATH DRIP", "SPONGE AGAINST THE MACHINE", "NO COUNTRY FOR OLD SPONGES", "STIR WARS", "THE UNBEARABLE LIGHTNESS OF SEEPING", "THE SAUCE OF THE MATTER"]);
 }
 function buildWave(n) {
   const q = [];
@@ -1575,7 +1569,7 @@ function startWave(n) {
   spawnQ = buildWave(n);
   if (MOD === 'funsize') spawnQ = spawnQ.flatMap(t => t === 'sponge' ? ['sponge', 'sponge'] : [t]);
   waveActive = true; spawnT = 0.6;
-  announce('WAVE ' + n, waveName(n) + (MOD ? '<br>+ ' + MODS[MOD].name : '')); sfx('wave'); say(waveName(n).toLowerCase(), true);
+  announce('WAVE ' + n, waveName(n) + (MOD ? '<br>+ ' + MODS[MOD].name + ' · ' + pick(MODS[MOD].alts) : '')); sfx('wave'); say(waveName(n).toLowerCase(), true);
   if (MOD) { headlineNow('KITCHEN CONDITIONS: ' + MODS[MOD].name + '. ' + MODS[MOD].sub);
     setTimeout(() => { if (state === 'play' && MOD) { multiText(MODS[MOD].name + '!'); zz('mod_' + MOD, { force: true }); } }, 2600); }
   if (n % 7 !== 0 && (n === 3 || (n > 3 && Math.random() < 0.35))) jokeAt = T + 4.5;
@@ -1591,15 +1585,15 @@ function hurt(amount, cause, fx, fz) {
   if (P.hp <= 0) die(cause);
 }
 const DEATH = {
-  roll: ['You were picked up by the quicker picker-upper.'], fork: ['You were forked.'],
-  sponge: ['You were absorbed. You live in a sponge now. The rent is reasonable.', 'A sponge drank you. You are now 40% of its personality.', 'Absorbed. Somewhere, a sponge is slightly heavier and very smug.',
-    'A sponge soaked you up against your will. Next time, try doing it willingly (hold E).'],
-  mama: ['Grandma Sponge absorbed you and told you that you were too thin anyway.', 'You have been absorbed by Grandma. She will wring you out at Thanksgiving.'],
-  bottle: ['You were diluted by hot sauce. You are now 3% more flavourful.', 'Sauced to death. A tragedy with notes of chipotle.', 'You became a marinade.'],
-  spoon: ['You were stirred into somebody\'s tea. Delicious.', 'Spooned. Not in the nice way.', 'The spoon stirred. You dispersed. Such is life.', 'You got spoon-fed a defeat.'],
-  fall: ['You dripped off the counter. The dog licked you up.', 'You fell off the counter and became part of a floor stain. Legacy secured.', 'You left the counter. The floor had been waiting.'],
-  self: ['You carbonated yourself. Bold choice.', 'You rocket-jumped into the afterlife. Fizzily.'],
-  puddle: ['You evaporated in a puddle of hot sauce. You smelled great, though.', 'You wandered into sauce and simply stopped being water.'],
+  roll: ["You were wiped off the face of the counter.", "The paper towel blotted you up. Blotted! The indignity.", "The quicker picker-upper picked you up. It will not be putting you down.", "You were soaked up by a single sheet. It did not even need the second ply.", "You were rolled over, soaked up and torn off along the dotted line."],
+  fork: ["There was no fork. Then there was a fork. Then there was no you.", "A fork is the worst possible tool for eating water. It managed anyway.", "You slipped through the prongs twice. The third stab was the charm.", "The fork found you before anyone found the fork.", "You were killed by something that does not exist. Please do not tell the philosopher.", "You went looking for the fork. The fork was also looking for you."],
+  sponge: ["You were absorbed. You live in a sponge now. The rent is reasonable.", "A sponge drank you. You are now 40% of its personality.", "Absorbed. Somewhere, a sponge is slightly heavier and very smug.", "A sponge soaked you up against your will. Next time, try doing it willingly (hold E)."],
+  mama: ["Grandma Sponge absorbed you and told you that you were too thin anyway.", "You have been absorbed by Grandma. She will wring you out at Thanksgiving."],
+  bottle: ["You were diluted by hot sauce. You are now 3% more flavourful.", "Sauced to death. A tragedy with notes of chipotle.", "You became a marinade."],
+  spoon: ["You were stirred into somebody's tea. Delicious.", "Spooned. Not in the nice way.", "The spoon stirred. You dispersed. Such is life.", "You got spoon-fed a defeat."],
+  fall: ["You dripped off the counter. The dog licked you up.", "You fell off the counter and became part of a floor stain. Legacy secured.", "You left the counter. The floor had been waiting."],
+  self: ["You carbonated yourself. Bold choice.", "You rocket-jumped into the afterlife. Fizzily."],
+  puddle: ["You evaporated in a puddle of hot sauce. You smelled great, though.", "You wandered into sauce and simply stopped being water."],
 };
 function die(cause) {
   if (state !== 'play') return;
@@ -2177,7 +2171,7 @@ function updateWaves(dt) {
     if (!spawnQ.length && !enemies.length) {
       waveActive = false; interT = 4.5; const bonus = 500 * wave; score += bonus; MOD = null; gs = 1; if (chal) chal.t = Math.min(chal.t, 0.01);
       P.hp = Math.min(100, P.hp + 20); P.ammo[1] = Math.min(WEAPONS[1].max, P.ammo[1] + 6); P.ammo[2] = Math.min(WEAPONS[2].max, P.ammo[2] + 2); P.ammo[3] = Math.min(WEAPONS[3].max, P.ammo[3] + 2);
-      announce(pick(['WAVE CLEAR', 'SPOTLESS', 'SQUEAKY CLEAN', 'COUNTER-ATTACK REPELLED']), `+${bonus} · +20 DAMPNESS · ` + pick(['FREE ICE', 'NICE WORK, DRIP', 'THE FRIDGE APPROVES', 'MOIST AND VICTORIOUS'])); sfx('clear'); say(pick(['counter cleaned', 'spotless', 'the kitchen is quiet. for now']), true);
+      announce(pick(CLEARW), `+${bonus} · +20 DAMPNESS · ` + pick(['FREE ICE', 'NICE WORK, DRIP', 'THE FRIDGE APPROVES', 'MOIST AND VICTORIOUS'])); sfx('clear'); say(pick(['counter cleaned', 'spotless', 'the kitchen is quiet. for now']), true);
       setTimeout(() => zz('clear', { p: 0.7 }), 2200);
     }
   } else { interT -= dt; if (interT <= 0) startWave(wave + 1); }
