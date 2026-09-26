@@ -2381,6 +2381,10 @@ const GROUPS = [
   { title: 'One input for everything', ids: ['blink', 'lighthouse'],
     text: 'You keep all four jobs, but they share a single input: a tap that means different things depending on what it lands on, or one button.' },
 ];
+GROUPS.forEach((gr, gi) => gr.ids.forEach(id => { SK[id].group = gi; }));
+// A page can be built around a single sketch: give the canvas data-solo="<id>".
+// It then opens straight into that sketch and has no menu.
+const SOLO = SK[cv.dataset.solo] ? cv.dataset.solo : '';
 const menuEl = document.getElementById('menu'), panelEl = document.getElementById('panel');
 const sheetEl = document.getElementById('sheet'), pauseBtn = document.getElementById('pauseBtn');
 let panelKind = null;
@@ -2409,12 +2413,11 @@ function controlsList(sk) {
 }
 function buildMenu() {
   const host = document.getElementById('groups');
-  GROUPS.forEach((gr, gi) => {
+  GROUPS.forEach(gr => {
     const sec = el('section', 'group'), head = el('div', 'group-head'), pair = el('div', 'pair');
     head.append(el('h2', null, gr.title), el('p', null, gr.text));
     for (const id of gr.ids) {
       const sk = SK[id], card = el('article', 'card'), body = el('div', 'card-body'), foot = el('div', 'card-foot');
-      sk.group = gi;
       card.style.setProperty('--c', sk.color);
       const cnv = el('canvas', 'thumb'); cnv.width = 640; cnv.height = 360; cnv.setAttribute('aria-hidden', 'true');
       cnv.addEventListener('click', () => openSketch(id));
@@ -2448,9 +2451,11 @@ function showPanel(kind) {
   if (kind === 'intro') {
     const best = +store.get('best.' + sk.id, 0) || 0;
     primary = button('play', 'Start', beginRound);
-    const row = actions(primary, button('ghost', 'All sketches', toMenu));
+    const row = actions(primary);
+    if (!SOLO) row.append(button('ghost', 'All sketches', toMenu));
     if (best) row.append(el('span', 'best', 'Best ' + fmt(best)));
-    sheetEl.append(el('p', 'eyebrow', GROUPS[sk.group].title), title(sk.name), el('p', null, sk.pitch), jobsList(sk), controlsList(sk), row);
+    const eyebrow = (SOLO ? 'Finger Guns · ' : '') + GROUPS[sk.group].title;
+    sheetEl.append(el('p', 'eyebrow', eyebrow), title(sk.name), el('p', null, sk.pitch), jobsList(sk), controlsList(sk), row);
   } else if (kind === 'over') {
     const stat = [G.stats.kills + ' popped'];
     if (sk.stat) stat.push(sk.stat());
@@ -2459,18 +2464,19 @@ function showPanel(kind) {
     primary = button('play', 'Play again', beginRound);
     sheetEl.append(el('p', 'eyebrow', G.endText), title(fmt(G.score)),
       el('p', null, (G.newBest ? 'New best. ' : 'Best ' + fmt(G.best) + '. ') + stat.join(', ') + '.'),
-      note, actions(primary, button('ghost', 'All sketches', toMenu)));
+      note, SOLO ? actions(primary) : actions(primary, button('ghost', 'All sketches', toMenu)));
   } else {
     primary = button('play', 'Resume', resume);
     const snd = button('ghost', muted ? 'Sound off' : 'Sound on', () => { setMuted(!muted); snd.textContent = muted ? 'Sound off' : 'Sound on'; });
-    sheetEl.append(el('p', 'eyebrow', sk.name), title('Paused'), controlsList(sk), actions(primary, snd, button('ghost', 'All sketches', toMenu)));
+    const out = SOLO ? button('ghost', 'Restart', beginRound) : button('ghost', 'All sketches', toMenu);
+    sheetEl.append(el('p', 'eyebrow', sk.name), title('Paused'), controlsList(sk), actions(primary, snd, out));
   }
   panelEl.hidden = false;
   setTimeout(() => { try { primary.focus({ preventScroll: true }); } catch (e) {} }, 30);
 }
 function hidePanel() { panelEl.hidden = true; panelKind = null; }
 
-function setHash(id) { try { history.replaceState(null, '', id ? '#' + id : location.pathname + location.search); } catch (e) {} }
+function setHash(id) { if (SOLO) return; try { history.replaceState(null, '', id ? '#' + id : location.pathname + location.search); } catch (e) {} }
 function openSketch(id) {
   const sk = SK[id];
   if (!sk) return;
@@ -2494,6 +2500,7 @@ function beginRound() {
 }
 function toMenu() {
   if (G.sk && G.sk.cancel) G.sk.cancel();
+  if (SOLO) { G.paused = false; openSketch(SOLO); return; }
   G.st = 'menu'; G.sk = null; G.paused = false;
   hidePanel(); pauseBtn.hidden = true; menuEl.hidden = false;
   refreshBests(); setHash('');
@@ -2543,7 +2550,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Escape' || e.code === 'KeyP') {
     if (G.st === 'play' && !G.paused) pause();
     else if (G.paused) resume();
-    else if (G.st === 'intro' || G.st === 'over') toMenu();
+    else if (G.st === 'over' || (G.st === 'intro' && !SOLO)) toMenu();
     return;
   }
   if (G.st !== 'play' || G.paused) return;
@@ -2555,7 +2562,7 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { if (G.st === 'play' && !G.paused && G.sk.key) G.sk.key(e.code, false); });
 window.addEventListener('blur', pause);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
-window.addEventListener('hashchange', () => { const id = location.hash.slice(1); if (SK[id] && G.st === 'menu') openSketch(id); });
+window.addEventListener('hashchange', () => { const id = location.hash.slice(1); if (!SOLO && SK[id] && G.st === 'menu') openSketch(id); });
 
 // ---------------------------------------------------------------- loop
 let last = performance.now(), lastErr = '';
@@ -2578,10 +2585,13 @@ function boot(data) {
   if (booted) return;
   booted = true;
   resize();
-  buildMenu();
-  for (const id in SK) thumbnail(SK[id], SK[id].thumbEl);
-  const id = (data && data.sketch) || location.hash.slice(1);
-  if (SK[id]) openSketch(id);
+  if (SOLO) { menuEl.hidden = true; openSketch(SOLO); }
+  else {
+    buildMenu();
+    for (const id in SK) thumbnail(SK[id], SK[id].thumbEl);
+    const id = (data && data.sketch) || location.hash.slice(1);
+    if (SK[id]) openSketch(id);
+  }
   requestAnimationFrame(frame);
 }
 window.fingerGuns = {

@@ -10,7 +10,9 @@ fallback fonts if not. It plays with a mouse, a keyboard or a touch screen, and
 every sketch can be played with one finger. Rounds last a minute and you get
 three hearts. Best scores are kept in the browser's local storage. To jump
 straight to a sketch, add its name to the address: `#ride`, `#sweep`,
-`#beeline`, `#floor`, `#blink` or `#lighthouse`.
+`#beeline`, `#floor`, `#blink` or `#lighthouse`. To make a page with just one
+sketch and no menu, give the canvas that name as `data-solo`, for example
+`<canvas id="game" data-solo="ride">`.
 
 ## The problem
 
