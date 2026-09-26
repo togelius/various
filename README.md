@@ -45,6 +45,12 @@ subdirectory with its own README:
 - **[scriptprof/](scriptprof/)** — SCRIPTPROF, a lab for generating
   PuzzleScript games: rewrite-rule engine, BFS playtester, MAP-Elites
   archive. Open `scriptprof/index.html`.
+- **[finger-guns/](finger-guns/)** — Finger Guns, six playable sketches of a
+  casual, fast first-person shooter, each controlled a different way: a ghost
+  train where you only point, a lock-on sweep, an auto-firing runner, a disco
+  grid that fires on the beat, a plaza where one tap does everything, and a
+  one-button lighthouse. One HTML file. Open `finger-guns/index.html`; the
+  design notes are in `finger-guns/README.md`.
 
 ## Repository policy
 
