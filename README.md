@@ -38,6 +38,10 @@ subdirectory with its own README:
   emotionally expressive papier-mâché fish head hopping across an office to
   find the elevator down. Procedural floors, relics, a mood on its face and
   in its voice. One HTML file. Open `gasp/index.html`.
+- **[absorb-this/](absorb-this/)** — ABSORB THIS, a fast, violent, absurd
+  first-person shooter on a kitchen counter, seen through the bottom of a
+  glass: you are the last drop of water, versus sponges, hot sauce and spoons
+  with googly eyes. Raw WebGL2, one HTML file. Open `absorb-this/index.html`.
 - **[scriptprof/](scriptprof/)** — SCRIPTPROF, a lab for generating
   PuzzleScript games: rewrite-rule engine, BFS playtester, MAP-Elites
   archive. Open `scriptprof/index.html`.
