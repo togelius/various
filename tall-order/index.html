@@ -698,16 +698,19 @@ function buildTower() {
   LADDERS.push({ x0: 4.05, z0: 2, x1: 5.0, z1: 4, y0: Y[4], y1: Y[5] + 0.5, face: Math.PI });
   lattice(4.0, 2, 4.3, 4, Y[4], Y[5], C.red);
   solid(4.0, Y[4], 2, 4.3, Y[5], 4);
-  // a low wall round floor 5, open where the ladder arrives
-  for (let x = -4; x < 4; x += 2) { brick(x, -1, Y[5], 2, 0.5, 1, C.orange); brick(x, 6.5, Y[5], 2, 0.5, 1, C.orange); }
-  for (let z = -0.5; z < 6.5; z += 2) brick(-4, z, Y[5], 0.5, Math.min(2, 6.5 - z), 1, C.orange);
-  brick(3.5, -0.5, Y[5], 0.5, 2.5, 1, C.orange); brick(3.5, 4, Y[5], 0.5, 2.5, 1, C.orange);
+  // a low wall round floor 5, open where the ladder arrives: a brick with a plate on top,
+  // just too tall to step over
+  const wall = (x, z, w, d) => { brick(x, z, Y[5], w, d, 1, C.orange); vis(x, Y[5] + BH, z, x + w, Y[5] + BH + PH, z + d, C.red, { studs: true }); solid(x, Y[5] + BH, z, x + w, Y[5] + BH + PH, z + d); };
+  for (let x = -4; x < 4; x += 2) { wall(x, -1, 2, 0.5); wall(x, 6.5, 2, 0.5); }
+  for (let z = -0.5; z < 6.5; z += 2) wall(-4, z, 0.5, Math.min(2, 6.5 - z));
+  wall(3.5, -0.5, 0.5, 2.5); wall(3.5, 4, 0.5, 2.5);
   // --- the crane: a white lattice tower with steps spiralling round it to the top
   const cx = 0, cz = 1.2, top = Y[5] + 16 * 0.55;
   lattice(cx - 1, cz - 1, cx + 1, cz + 1, Y[5], top, C.white, true);
   solid(cx - 1, Y[5], cz - 1, cx + 1, top, cz + 1);
   for (let k = 0; k < 16; k++) {
-    const a = Math.PI / 2 - k * Math.PI / 4, sx = cx + Math.cos(a) * 2.6, sz = cz + Math.sin(a) * 2.6, t = Y[5] + 0.55 * (k + 1);
+    // it starts on the south side and winds away from the ladder, so the low steps never block it
+    const a = Math.PI / 2 + k * Math.PI / 4, sx = cx + Math.cos(a) * 2.6, sz = cz + Math.sin(a) * 2.6, t = Y[5] + 0.55 * (k + 1);
     STEPS.push({ x0: sx - 1.2, z0: sz - 1.2, x1: sx + 1.2, z1: sz + 1.2, y0: t - 0.3, y1: t, col: k % 2 ? C.white : C.red, p: 0, k });
   }
   vis(cx - 1.8, top - 0.3, cz - 1.8, cx + 1.8, top, cz + 1.8, C.red, { studs: true });
@@ -717,8 +720,8 @@ function buildTower() {
   // each with the way to face when you come back to it: towards the way on up
   CHECKS.push({ x: 4, y: 0, z: 23.5, n: 0, to: [4, 8] }, { x: 4, y: Y[1], z: 6.2, n: 1, to: [4, -4.5] }, { x: -4.5, y: Y[2], z: -5, n: 2, to: [-4.5, 2] },
     { x: -6.8, y: Y[3], z: -4, n: 3, to: [0, -5] }, { x: 3, y: Y[4], z: -5.5, n: 4, to: [5, 3] }, { x: 3, y: Y[5], z: 5.2, n: 5, to: [0, 1.2] });
-  const mid = STEPS[8];
-  CHECKS.push({ x: (mid.x0 + mid.x1) / 2 - 0.5, y: mid.y1, z: (mid.z0 + mid.z1) / 2 - 0.4, n: 6, to: [3, 3], step: mid });
+  const mid = STEPS[8], next = STEPS[9];
+  CHECKS.push({ x: (mid.x0 + mid.x1) / 2 + 0.5, y: mid.y1, z: (mid.z0 + mid.z1) / 2 - 0.4, n: 6, to: [(next.x0 + next.x1) / 2, (next.z0 + next.z1) / 2], step: mid });
   for (const c of CHECKS) c.reached = c.n === 0;
 }
 // a lattice of beams: an open square tower (like a crane) or a flat panel
@@ -1123,7 +1126,9 @@ function stepPlayer(dt) {
   let wx = ca * sp - sa * strafe * 4.2, wz = sa * sp + ca * strafe * 4.2;
   // knockback fades; while it is strong you have less say
   const kick = Math.hypot(P.kx, P.kz);
-  const ctrl = P.onGround ? 1 : clamp(1 - kick / 10, 0.25, 1);
+  // (a spring's throw is hard to steer against, so it always lands you on the floor above)
+  P.padT = Math.max(0, (P.padT || 0) - dt);
+  const ctrl = P.onGround ? 1 : clamp(1 - kick / 10, 0.25, 1) * (P.padT > 0.55 ? 0 : P.padT > 0 ? 0.25 : 1);
   P.vx = ease(P.vx, wx, (P.onGround ? 16 : 7) * ctrl, dt);
   P.vz = ease(P.vz, wz, (P.onGround ? 16 : 7) * ctrl, dt);
   P.kx = ease(P.kx, 0, P.onGround ? 6 : 1.2, dt); P.kz = ease(P.kz, 0, P.onGround ? 6 : 1.2, dt);
@@ -1163,7 +1168,7 @@ function stepPlayer(dt) {
   // spring pads
   for (const p of PADS) {
     if (P.onGround && Math.hypot(P.x - p.x, P.z - p.z) < p.r + 0.2 && Math.abs(P.y - (p.y + 0.3)) < 0.1) {
-      P.vy = p.vy; P.kx = p.px; P.kz = p.pz; P.onGround = false; P.ground = null; P.launched = true; p.squash = 1; sfx.boing(); G.shake = Math.max(G.shake, 4);
+      P.vy = p.vy; P.kx = p.px; P.kz = p.pz; P.vx = P.vz = 0; P.onGround = false; P.ground = null; P.launched = true; P.padT = 1; p.squash = 1; sfx.boing(); G.shake = Math.max(G.shake, 4);
     }
     p.squash = Math.max(0, p.squash - dt * 3);
   }
@@ -1224,7 +1229,7 @@ const TYPES = {
   golem: { r: 0.85, h: 2.9, hp: 26, speed: 0.95, mass: 4 },
   car: { r: 0.62, h: 0.95, hp: 9, speed: 2.4, mass: 2 },
   cannon: { r: 0.6, h: 1.6, hp: 9, speed: 0, mass: 99 },
-  boss: { r: 1.2, h: 4.3, hp: 110, speed: 1.2, mass: 8 },
+  boss: { r: 1.2, h: 4.3, hp: 150, speed: 1.2, mass: 8 },
 };
 const WHITE = [1, 1, 1];
 const HIPS = { wolf: 0.54, boss: 0.54, golem: 0.92, kitty: 0.24, bee: -1, car: 0, cannon: 99 };
@@ -1366,6 +1371,7 @@ function wake(e) {
   e.awake = true; e.alert = 0.9; e.st = 'chase';
   const v = near(e.x, e.y, e.z);
   if (e.type === 'boss') { e.cd = 1.2; say(e, 'MY TOWER!', 2); sfx.roar(); G.shake = 12; }
+  else if (LINES[e.type]) chatter(e, LINES[e.type], 0.45);
   else if (e.type === 'wolf') sfx.growl(v); else if (e.type === 'kitty') sfx.meow(v); else if (e.type === 'bee') sfx.buzz(v); else sfx.squeak(v);
 }
 
@@ -1464,7 +1470,7 @@ function golemAI(e, dt) {
     return;
   }
   if (e.st === 'slam') { halt(e, dt); e.t -= dt; e.tele = 0; if (e.t <= 0) { e.st = 'chase'; e.cd = rand(2.4, 3.4); } return; }
-  if (same && d < 6.5 && e.cd <= 0) { e.st = 'windup'; e.t = e.tt = 1.5; e.alert = 1.4; sfx.windup(near(e.x, e.y, e.z)); return; }
+  if (same && d < 6.5 && e.cd <= 0) { e.st = 'windup'; e.t = e.tt = 1.5; e.alert = 1.4; sfx.windup(near(e.x, e.y, e.z)); chatter(e, ['SMAAASH!', 'STOMP TIME.', 'HUP!'], 0.7, 1.4); return; }
   if (same && d > 2.4) walkTo(e, P.x, P.z, TYPES.golem.speed, dt, true); else if (!same) wander(e, dt, 0.5); else halt(e, dt);
   if (sees) faceTo(e, P.x, P.z, 2.5, dt);
   e.stompT = (e.stompT || 0) + dt * Math.hypot(e.vx, e.vz);
@@ -1497,7 +1503,7 @@ function carAI(e, dt) {
   // patrol between two points, and turn on you when you come into view
   if (e.awake && sees && same && d < 15 && e.cd <= 0) {
     faceTo(e, P.x, P.z, 1.6, dt); halt(e, dt, 6);
-    if (Math.abs(wrap(Math.atan2(P.z - e.z, P.x - e.x) - e.yaw)) < 0.12) { e.st = 'rev'; e.t = e.tt = 1.3; e.alert = 1.3; sfx.rev(near(e.x, e.y, e.z)); }
+    if (Math.abs(wrap(Math.atan2(P.z - e.z, P.x - e.x) - e.yaw)) < 0.12) { e.st = 'rev'; e.t = e.tt = 1.3; e.alert = 1.3; sfx.rev(near(e.x, e.y, e.z)); chatter(e, ['VROOM VROOM!', 'BEEP BEEP!', 'HERE I COME!'], 0.6, 1.2); }
     return;
   }
   const tgt = e.leg ? e.pb : e.pa;
@@ -1517,14 +1523,14 @@ function cannonAI(e, dt) {
   if (e.cd <= 0 && d < 24) {
     const mz = qRot(qYaw(e.yaw), [1.1, 1.3, 0]);
     lob(e, 'shell', e.x + mz[0], e.y + mz[1], e.z + mz[2], 1.55, 0.45);
-    e.cd = rand(3.2, 4.2); e.squash = 0.25; sfx.thump(near(e.x, e.y, e.z));
+    e.cd = rand(3.2, 4.2); e.squash = 0.25; sfx.thump(near(e.x, e.y, e.z)); chatter(e, ['INCOMING!', 'FIRE!', 'CATCH!'], 0.3, 1.1);
     for (let i = 0; i < 10; i++) PARTS.push({ x: e.x + mz[0], y: e.y + mz[1], z: e.z + mz[2], vx: rand(-1, 1), vy: rand(0.5, 2), vz: rand(-1, 1), life: 0.6, s: 0.14, col: [0.75, 0.74, 0.76], spin: 0 });
   }
 }
 function bossAI(e, dt) {
   const d = pdist(e), dy = P.y - e.y;
   if (!e.awake) { if (P.y > Y[5] - 0.5 && d < 12) wake(e); else return; }
-  e.cd -= dt; e.sayT = Math.max(0, (e.sayT || 0) - dt);
+  e.cd -= dt;
   // not up here with it? it waits for you, and heckles
   if (P.y < Y[5] - 1.5 && e.st !== 'howl') {
     e.st = 'chase'; e.tele = 0; e.cd = Math.max(e.cd, 1);
@@ -1574,11 +1580,26 @@ function bossAI(e, dt) {
   if (e.stompT > 1.1) { e.stompT = 0; sfx.thud(1); G.shake = Math.max(G.shake, 4); }
 }
 function say(e, text, dur) { e.say = text; e.sayT = dur || 1.5; }
+// the toys have things to say, now and then; one at a time, so it stays funny
+const LINES = {
+  wolf: ['HEY!', 'INTRUDER!', 'OFF MY RUG!', 'GRRR!', 'GET HIM!', 'A GIANT!'],
+  kitty: ['MRRP?', 'HISSS!', 'MINE!', 'MEOW!', 'PLAY WITH ME!'],
+  bee: ['BZZT!', 'NO FLY ZONE!', 'BUZZ OFF!'],
+  golem: ['ME BIG.', 'BLOCK.', 'UH OH.'],
+  car: ['BEEP BEEP!', 'VROOM?'],
+  cannon: ['TARGET!', 'READY!'],
+};
+function chatter(e, lines, chance, dur) {
+  if (G.sayCd > 0 || Math.random() > chance) return;
+  say(e, pick(lines), dur || 1.3); G.sayCd = 2.2;
+}
 const AI = { wolf: wolfAI, kitty: kittyAI, bee: beeAI, golem: golemAI, car: carAI, cannon: cannonAI, boss: bossAI };
 
 function stepFoes(dt) {
+  G.sayCd = Math.max(0, (G.sayCd || 0) - dt);
   for (const e of FOES) {
     if (!e.alive) continue;
+    e.sayT = Math.max(0, (e.sayT || 0) - dt);
     const far = Math.hypot(P.x - e.x, P.y - e.y, P.z - e.z) > 34;
     if (far && e.type !== 'boss') { if (e.awake && !e.flung) { e.awake = false; e.st = 'idle'; } continue; }
     e.flash = Math.max(0, e.flash - dt); e.alert = Math.max(0, e.alert - dt); e.squash = ease(e.squash, 0, 8, dt);
@@ -2525,7 +2546,8 @@ function startGame() {
   G.st = 'play'; G.paused = false;
   hidePanel(); pauseBtn.hidden = false;
   try { hud.focus({ preventScroll: true }); } catch (e) {}
-  G.intro = 3;
+  G.intro = REDUCE ? 0 : 3;
+  if (REDUCE) { callout('CLIMB!', '#ffd23f', 64, 1); sfx.start(); }
 }
 function resetGame() {
   Object.assign(P, { x: 4, y: 0, z: 23.5, yaw: -Math.PI / 2, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 0, dead: 0, check: 0, onGround: true, ground: null, fallFrom: 0, full: 0, fireT: 0, kick: 0, itemT: 0, vm: null, swing: 0, hurtT: 0, hurtA: null });
