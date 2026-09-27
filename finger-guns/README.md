@@ -4,10 +4,9 @@ Seven playable sketches of a casual, fast-paced first-person shooter. Each
 one is controlled a different way. It answers the question: what would a
 casual, fast FPS look like, and how would you control it? The first six were
 the original answer. The seventh, Snapshot, came from a playtest suggestion to
-split the screen: the left half moves and turns you, and the right half fires
-and centres the view. It has since become the place to try out two more
-questions: how turning speed should follow the thumb, and how to choose
-between two weapons.
+split the screen, with the left half moving and turning you and the right half
+firing. It has since become the place to try out two more questions: how
+turning speed should follow the thumb, and how to choose between two weapons.
 
 Open `index.html` in a browser. It is one file with no dependencies. It loads
 Lilita One and Atkinson Hyperlegible from Google Fonts if it can and uses
@@ -68,7 +67,7 @@ different ways:
 | Four on the Floor | **you** (one tile) | **you** (quarter turns) | game (your line) | game (every beat) | four discrete moves |
 | Blink | **you** (tap the ground) | **you** (tap sky or marker) | **you** (tap the target) | same tap | one tap, read by context |
 | Lighthouse | nobody | game spins, **you** stop it | **you** (timing, with a snap) | **you** (while holding) | one button |
-| Snapshot | **you** (left thumb) | **you** (left thumb turns, a tap centres) | **you** (where you tap) | same tap (a flick throws a bomb) | two thumbs |
+| Snapshot | **you** (left thumb) | **you** (left thumb) | **you** (where you tap) | same tap (a flick throws a bomb) | two thumbs |
 
 The seven fall into four strategies:
 
@@ -85,8 +84,8 @@ The seven fall into four strategies:
    while the game supplies the motion.
 4. **Two thumbs, tap to aim.** The standard phone layout, with a stick under
    the left thumb and the right thumb on the screen, except that the right
-   thumb taps where it wants to shoot instead of dragging to aim, and the view
-   comes to wherever it fired.
+   thumb taps where it wants to shoot instead of dragging to aim, and never
+   moves the view.
 
 ## The seven sketches
 
@@ -225,15 +224,13 @@ ahead, so the timing is forgiving. A radar in the corner shows what is coming.
 
 A garden of hedges and topiary, played with two thumbs. The left half of the
 screen is a floating stick: push up to walk forward, down to back away, and
-sideways to turn, like driving a car. A tap on the right half fires exactly
-where it lands, with a finger's width of slack, and swings the view to centre
-that spot, so you can miss, and a miss kicks up a puff where the shot lands.
-Holding on a target locks on: you keep firing, the view stays on the target,
-and the stick's sideways push becomes a strafe, so you circle it. Holding on
-empty space keeps firing straight ahead while you aim with the stick. Gems
-around the garden keep your chain alive, which gives you a reason to move.
-With a keyboard, W and S walk, A and D turn (or sidestep while locked on),
-Space fires and E throws a bomb.
+sideways to turn, like driving a car. It is the only thing that moves the
+view. A tap on the right half fires exactly where it lands, with a finger's
+width of slack, so you can miss, and a miss kicks up a puff where the shot
+lands. Holding keeps firing wherever the thumb is, so you can slide it along
+after a target. Gems around the garden keep your chain alive, which gives you
+a reason to move. With a keyboard, W and S walk, A and D turn, Space fires
+straight ahead and E throws a bomb.
 
 The first version picked the nearest target for you, so a tap never missed,
 and it moved and turned more slowly. After playing it, the requests were for
@@ -244,6 +241,13 @@ whether turning speed could follow how far, or how fast, the thumb drags, and
 how to make it easy to choose between two weapons. The answers are below, each
 as a set of options to compare. The intro and pause cards switch between them,
 and the choice is kept in the browser.
+
+Until then, a tap also swung the view to centre the spot it fired at, and
+holding on a target locked on to it: the view followed the target and the
+stick's sideways push became a strafe, so you could circle it. The request
+after the turning options was that only the left thumb should move the view.
+Taps no longer swing it, and the lock-on, which turned the view to follow its
+target, went too.
 
 **Turning.** There are three ways for the stick to turn you:
 
@@ -267,9 +271,6 @@ and the choice is kept in the browser.
   a second and 445° in a second.
 
 In all three, motion that is mostly up or down is walking and doesn't turn you.
-When a lock-on ends with the stick still pushed sideways, the stick stops
-turning you until it comes back to the middle, so a pop doesn't set you
-spinning.
 
 **A second weapon.** The bomb is lobbed in an arc that clears a hedge if the
 hedge isn't too close, and it pops everything within 1.9 units of where it
@@ -280,14 +281,14 @@ three options answer, and the next section explains them.
 - *Why it's casual:* it keeps the layout phone players already know, but takes
   out its hardest part, which is aiming by dragging the right thumb. You point
   at what you want to hit, which is the one aiming skill nearly everyone
-  already has. The view moves only when you move it, in short, quick swings,
-  which matters for anyone who gets motion sick.
+  already has. The view moves only when your left thumb moves it, which
+  matters for anyone who gets motion sick.
 - *Why it's fast:* you move and turn quickly, enemies come from all sides in
   waves, and you are always moving, shooting and choosing at once.
-- *Where the skill is:* tapping accurately under pressure, movement and
-  positioning, which targets to take first, and circle-strafing around the
-  ones you are locked on to. The lock gives you circle-strafing without having
-  to teach it. The results card shows your accuracy.
+- *Where the skill is:* tapping accurately under pressure, keeping a held
+  thumb on a target while the other thumb turns you, movement and positioning,
+  which targets to take first, and when to spend the bomb. The results card
+  shows your accuracy and how many bombs you threw.
 - *What's wrong with it:* it needs two hands and a phone held sideways. The
   right thumb can only reach the right half of the screen, so a target on the
   far left needs the stick first. Small, distant targets are hard to hit with a
@@ -295,9 +296,8 @@ three options answer, and the next section explains them.
   can't turn left at full speed. Swipe's lean at the end of the track is hard
   to find without being told about it.
 - *Relatives:* the stick-and-drag layout of Call of Duty: Mobile and PUBG
-  Mobile, the tank controls of the early Resident Evil games, the lock-on of
-  The Legend of Zelda: Ocarina of Time, and the aim assist that snaps to a
-  target on console shooters.
+  Mobile, and the tank controls of Wolfenstein 3D and the early Resident Evil
+  games, with pointing at the screen in place of a fixed crosshair.
 
 ## What they share
 
@@ -332,9 +332,9 @@ Snapshot has three ways around it, with the bomb as the second weapon:
 
 - **The gesture chooses (Flick, the default).** A tap shoots; a flick throws.
   The two are told apart in the first 0.09 seconds: if the thumb has moved
-  more than 22 pixels by then, it is a throw. The view doesn't swing, a dotted
-  arc and a ring show where the bomb will come down, and it lands where you
-  let go, on a foe if you let go on one. The blaster still fires the moment
+  more than 22 pixels by then, it is a throw. A dotted arc and a ring show
+  where the bomb will come down, and it lands where you let go, on a foe if
+  you let go on one. The blaster still fires the moment
   the thumb lands, so a tap never waits to be recognised; a flick costs one
   stray shot. There is no mode to remember, because the weapon follows from
   what you do: point at one thing, or sweep toward a place.
@@ -355,8 +355,8 @@ Snapshot has three ways around it, with the bomb as the second weapon:
   to people who already play shooters, and it is what the other three are
   trying to avoid.
 
-I also considered a long press, which clashes with holding to keep firing and
-locking on; a two-finger tap, which is awkward with the other thumb on the
+I also considered a long press, which clashes with holding to keep firing; a
+two-finger tap, which is awkward with the other thumb on the
 stick; and a double tap, which makes every single tap wait to see whether a
 second is coming. With a keyboard and mouse, E throws ahead and a right-click
 throws at the pointer, whichever option is chosen.
@@ -371,11 +371,10 @@ classic trigger: the view keeps rotating while the player's body does not, and
 the player didn't cause the rotation, so the eyes and the inner ear disagree
 with nothing to warn them.
 
-Snapshot was built with this in mind. Only the player turns the camera, even
-at its fastest. A turn toward a tapped spot is a short, quick swing rather than
-a slow pan. The
-edges of the screen dim a little while the view turns fast, a flat-screen
-version of the comfort vignettes used in VR. There is no head bob and no roll.
+Snapshot was built with this in mind. Only the player turns the camera, and
+only with the left thumb: shooting never moves it. The edges of the screen dim
+a little while the view turns fast, a flat-screen version of the comfort
+vignettes used in VR. There is no head bob and no roll.
 
 Others could get the same treatment. Beeline leans into turns and never stops
 moving, which will bother some players. A gentler Lighthouse would turn in
@@ -439,7 +438,7 @@ Questions for a playtest:
 | Four on the Floor | click the left, right, top or bottom of the screen | swipe, or tap those areas | ← → turn, ↑ ↓ step, Q E sidestep |
 | Blink | click (the cursor shows what will happen) | tap | Q E turn, Space turns around |
 | Lighthouse | hold the button | hold a finger down | hold Space |
-| Snapshot | drag on the left half; click on the right half to fire there (anywhere once you use the keys); right-click throws a bomb at the pointer | left thumb: stick; right thumb: tap to fire where you tap, hold to keep firing, flick to throw a bomb (or see the options) | W S walk, A D turn (sidestep when locked on), Space fires, E throws a bomb |
+| Snapshot | drag on the left half; click on the right half to fire there (anywhere once you use the keys); right-click throws a bomb at the pointer | left thumb: stick; right thumb: tap to fire where you tap, hold to keep firing where the thumb is, flick to throw a bomb (or see the options) | W S walk, A D turn, Space fires straight ahead, E throws a bomb |
 
 In every sketch, **M** mutes and **Esc** pauses.
 

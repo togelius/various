@@ -2408,13 +2408,10 @@ const Lighthouse = (() => {
 // ---------------------------------------------------------------- 7. Snapshot
 // Two thumbs, split the way phone shooters usually are, but with the right
 // thumb's job made easy. The left half of the screen is a stick that walks you
-// and turns you, like driving a car. A tap on the right half fires where it
-// lands and swings the view to centre that spot, so you point rather than drag
-// to aim, and you can miss. Holding on a target locks on and keeps firing, and
-// while you are locked on the stick's sideways push strafes, so you circle the
-// target (the lock-on of the 3D Zelda games). Holding anywhere else keeps
-// firing while the stick aims. Nothing turns the camera unless you ask it to,
-// and the edges dim a little while it turns.
+// and turns you, like driving a car, and it is the only thing that moves the
+// view. A tap on the right half fires where it lands, so you point rather than
+// drag to aim, and you can miss. Holding keeps firing wherever the thumb is.
+// The edges dim a little while the view turns quickly.
 //
 // Two things can be chosen on the intro and pause cards. How the stick turns
 // you: Reach turns faster the further the thumb goes sideways, over a long
@@ -2425,7 +2422,7 @@ const Lighthouse = (() => {
 // taps; Auto throws it for you when a tap lands on a brute or on two foes
 // together.
 const Snapshot = (() => {
-  const N = 25, C = 12, FWD = 6.5, BACK = 4.6, SIDE = 5.6, TURN = 5.0, BOOST = 8.0;
+  const N = 25, C = 12, FWD = 6.5, BACK = 4.6, TURN = 5.0, BOOST = 8.0;
   const REACH = 9.5, SWIPE = 0.0042, LEAN = 2.6;   // top speeds in radians a second; SWIPE is radians a pixel
   const BLAST = 1.9, RELOAD = 2.5, RANGE = 13;
   const TURNS = [
@@ -2491,7 +2488,7 @@ const Snapshot = (() => {
   function setup() {
     const g = build();
     sc.map = { get: (x, y) => x < 0 || y < 0 || x >= N || y >= N ? 1 : g[y * N + x] };
-    S = { cam: { x: C + 0.5, y: C + 7.5, a: -Math.PI / 2, z: 0.5, fov: 80 }, stick: null, trig: null, lock: null, centre: null, hadLock: false,
+    S = { cam: { x: C + 0.5, y: C + 7.5, a: -Math.PI / 2, z: 0.5, fov: 80 }, stick: null, trig: null,
       kf: 0, kb: 0, kl: 0, kr: 0, keys: false, fireT: 0, kick: 0, gunA: 0, waveT: 1.5, wave: 0, pips: [], spin: 0, lastA: -Math.PI / 2, full: 0,
       turn: mode('snapshot.turn', TURNS), bomb: mode('snapshot.bomb', BOMBS), bombT: 0, ready: 0, booms: [], thrown: 0,
       tune: { orb: 3.2, wind: 0.75, gap: 8 } };
@@ -2517,17 +2514,15 @@ const Snapshot = (() => {
   const stickR = () => clamp(Math.min(W, H) * 0.12, 44, 70);   // a thumb's travel, whatever the screen
   const reachT = () => Math.max(stickR() * 1.6, Math.min(stickR() * 2.8, W * 0.28));   // Reach's longer sideways throw
   // the stick and the keys add up; each axis has a small dead zone. The stick's
-  // sideways push counts here with Push, or while locked on, when it strafes;
-  // Reach and Swipe turn you through reachRate, leanRate and swipe instead.
-  // After a lock ends, a stick still pushed sideways is ignored for turning
-  // until it comes back to the middle, so a pop doesn't set you spinning
+  // sideways push only counts here with Push; Reach and Swipe turn you through
+  // reachRate, leanRate and swipe instead
   function stickVec() {
     let x = S.kr - S.kl, y = S.kb - S.kf;
     const k = S.stick;
     if (k) {
       const R = stickR();
       y += (k.y - k.y0) / R;
-      if (S.lock || (S.turn === 'push' && !k.latch)) x += clamp((k.x - k.x0) / R, -1, 1);
+      if (S.turn === 'push') x += clamp((k.x - k.x0) / R, -1, 1);
     }
     const dz = v => { v = clamp(v, -1, 1); return Math.abs(v) < 0.12 ? 0 : Math.sign(v) * (Math.abs(v) - 0.12) / 0.88; };
     return { x: dz(x), y: dz(y) };
@@ -2536,7 +2531,7 @@ const Snapshot = (() => {
   // that small corrections stay small
   function reachRate() {
     const k = S.stick;
-    if (!k || k.latch || S.turn !== 'reach') return 0;
+    if (!k || S.turn !== 'reach') return 0;
     const dx = k.x - k.x0, T = reachT(), d0 = stickR() * 0.1;
     return Math.sign(dx) * Math.pow(clamp((Math.abs(dx) - d0) / (T - d0), 0, 1), 1.7) * REACH;
   }
@@ -2545,7 +2540,7 @@ const Snapshot = (() => {
   const LEAN0 = 2.4, LEAN1 = 3.4;   // where the lean starts and where it is full, in stick radii
   function leanRate() {
     const k = S.stick;
-    if (!k || k.latch || S.turn !== 'swipe') return 0;
+    if (!k || S.turn !== 'swipe') return 0;
     const R = stickR(), dx = k.x - k.x0;
     return Math.sign(dx) * clamp((Math.abs(dx) / R - LEAN0) / (LEAN1 - LEAN0), 0, 1) * LEAN;
   }
@@ -2560,9 +2555,8 @@ const Snapshot = (() => {
     while (k.hist.length > 2 && now - k.hist[1][0] > 60) k.hist.shift();
     const h = k.hist[0], v = Math.abs(x - h[1]) / (clamp(now - h[0], 8, 60) / 1000);
     const m = Math.sign(mx) * Math.max(0, Math.abs(mx) - 0.35 * Math.abs(my));
-    if (!m || S.lock) return;
+    if (!m) return;
     S.cam.a += m * SWIPE * (1 + Math.min(5, Math.pow(v / 700, 1.5)));
-    if (Math.abs(m) > 1) S.centre = null;
     // the ring keeps up with quick outward motion, which has already turned
     // you, so a flick doesn't leave the thumb out at the end of the track
     const ox = k.x - k.x0;
@@ -2590,34 +2584,26 @@ const Snapshot = (() => {
   }
   const huddle = e => G.ents.some(o => o !== e && o.foe && !o.orb && !o.dead && !o.gone && o.age >= 0 && Math.hypot(o.x - e.x, o.y - e.y) < BLAST);
   const bombWorthy = e => e && !e.orb && (e.kind === 'brute' || huddle(e));
-  // a tap on the right half fires where it lands and swings the view to centre
-  // that spot. Hit something that survives and holding locks on to it; miss,
-  // and holding keeps firing through the middle of the view while the stick aims
+  // a tap on the right half fires where it lands, and holding keeps firing
+  // wherever the thumb is (Space fires through the crosshair). The view stays
+  // where the left thumb put it
   function trigger(x, y) {
     x -= G.shx; y -= G.shy;
-    const t = S.trig, p = { centre: S.cam.a + Math.atan((x - W / 2) / V.f), e: null };
-    S.lock = null;
+    const t = S.trig;
     // Auto: a tap on a brute, or on a foe with company, throws the bomb if it is ready
     if (S.bomb === 'auto' && S.bombT <= 0) {
       const e = pickAt(x, y, 1.15, 22);
-      if (bombWorthy(e) && throwTo(e)) { S.centre = p.centre; S.fireT = 0.3; return; }
+      if (bombWorthy(e) && throwTo(e)) { S.fireT = 0.3; return; }
     }
-    if (S.fireT <= 0.1) p.e = shootAt(x, y);
-    // Flick: the swing and the lock wait a moment, in case the thumb is flicking
-    if (S.bomb === 'flick' && t && t.id !== 'key') { t.pend = p; t.at = G.t + 0.09; S.centre = null; }
-    else settle(p);
-  }
-  function settle(p) {
-    if (p.e && !p.e.dead && !p.e.gone) { S.lock = p.e; S.centre = null; }
-    else S.centre = p.centre;
+    if (S.fireT <= 0.1) shootAt(x, y);
+    // Flick: for a moment the thumb may still set off on a flick, and until
+    // then holding doesn't fire
+    if (S.bomb === 'flick' && t && t.id !== 'key') t.until = G.t + 0.09;
   }
   function letGo() {
     const t = S.trig;
     S.trig = null;
-    if (t && t.aim) { throwTo(landing(t.x - G.shx, t.y - G.shy)); return; }
-    if (t && t.pend) settle(t.pend);
-    if (S.lock && !S.lock.dead && !S.lock.gone) S.centre = bearing(S.lock);
-    S.lock = null;
+    if (t && t.aim) throwTo(landing(t.x - G.shx, t.y - G.shy));
   }
 
   // the bomb: a lob from just in front of you to a point on the lawn, and where
@@ -2666,12 +2652,12 @@ const Snapshot = (() => {
     S.bombT = RELOAD; S.thrown++; sfx.toss();
     return true;
   }
-  // Left tap and E: a bomb at the foe you are locked on to or facing, or a
-  // little way ahead if there is none
+  // Left tap and E: a bomb at the foe you are facing, or a little way ahead if
+  // there is none
   function throwAhead() {
     const cam = S.cam;
-    let best = S.lock && !S.lock.dead && !S.lock.gone ? S.lock : null, bd = RANGE;
-    if (!best) for (const e of G.ents) {
+    let best = null, bd = RANGE;
+    for (const e of G.ents) {
       if (!e.foe || e.orb || e.dead || e.gone || e.age < 0) continue;
       const d = Math.hypot(e.x - cam.x, e.y - cam.y);
       if (d < bd && Math.abs(wrap(bearing(e) - cam.a)) < 0.17 && arenaLos(sc, cam.x, cam.y, e.x, e.y)) { best = e; bd = d; }
@@ -2712,41 +2698,24 @@ const Snapshot = (() => {
   }
 
   function update(dt) {
-    const cam = S.cam, st = stickVec(), t = S.trig, k = S.stick, R = stickR();
+    const cam = S.cam, st = stickVec(), t = S.trig;
     S.kick = Math.max(0, S.kick - dt * 7);
     S.gunA = ease(S.gunA, 0, 4, dt);
     S.fireT -= dt;
     if (S.bombT > 0 && (S.bombT -= dt) <= 0) { S.bombT = 0; S.ready = 1; sfx.ready(); }
     S.ready = Math.max(0, S.ready - dt * 2.5);
-    if (S.lock && (S.lock.dead || S.lock.gone)) S.lock = null;
-    if (k && S.hadLock && !S.lock) k.latch = true;
-    if (k && k.latch && Math.abs(k.x - k.x0) < R * 0.25) k.latch = false;
-    S.hadLock = !!S.lock;
-    // Flick: a thumb that has stayed put for a moment was a tap
-    if (t && t.pend && G.t >= t.at) { settle(t.pend); t.pend = null; }
+    // the keys and Push: gentle near the middle, fast at the edge, and faster
+    // still once held hard over for a moment, so you can spin round
     const ax = Math.abs(st.x);
     S.full = ax > 0.85 ? S.full + dt : 0;
-    let side = 0;
-    if (S.lock) {
-      // locked on: the view follows the target and the stick strafes around it
-      cam.a = easeAng(cam.a, bearing(S.lock), 18, dt);
-      side = st.x * SIDE;
-    } else {
-      const more = reachRate() + leanRate();
-      if (ax > 0.2 || Math.abs(more) > 0.8) S.centre = null;
-      if (S.centre != null) {
-        cam.a = easeAng(cam.a, S.centre, 28, dt);
-        if (Math.abs(wrap(S.centre - cam.a)) < 0.004) S.centre = null;
-      }
-      // the keys and Push: gentle near the middle, fast at the edge, and faster
-      // still once held hard over for a moment, so you can spin round
-      const rate = lerp(TURN, BOOST, clamp((S.full - 0.12) / 0.2, 0, 1));
-      cam.a += (Math.sign(st.x) * Math.pow(ax, 1.2) * rate + more) * dt;
+    const rate = lerp(TURN, BOOST, clamp((S.full - 0.12) / 0.2, 0, 1));
+    cam.a += (Math.sign(st.x) * Math.pow(ax, 1.2) * rate + reachRate() + leanRate()) * dt;
+    // holding the trigger keeps firing where the thumb is
+    if (t && !t.aim && !(t.until > G.t) && S.fireT <= 0) {
+      if (t.id === 'key') shootAt(W / 2, H / 2); else shootAt(t.x - G.shx, t.y - G.shy);
     }
-    // holding the trigger keeps firing through the middle of the view
-    if (t && !t.pend && !t.aim && S.fireT <= 0) shootAt(W / 2, H / 2);
-    const fwd = st.y < 0 ? -st.y * FWD : -st.y * BACK, ca = Math.cos(cam.a), sa = Math.sin(cam.a);
-    const mx = (ca * fwd - sa * side) * dt, my = (sa * fwd + ca * side) * dt;
+    const fwd = st.y < 0 ? -st.y * FWD : -st.y * BACK;
+    const mx = Math.cos(cam.a) * fwd * dt, my = Math.sin(cam.a) * fwd * dt;
     if (arenaFree(sc, cam.x + mx, cam.y, 0.3)) cam.x += mx;
     if (arenaFree(sc, cam.x, cam.y + my, 0.3)) cam.y += my;
     S.spin = ease(S.spin, Math.abs(wrap(cam.a - S.lastA)) / Math.max(dt, 1e-3), 10, dt);
@@ -2774,20 +2743,20 @@ const Snapshot = (() => {
   // the stick: a ring for Push; for Reach and Swipe, a long sideways track too,
   // with chevrons that light up as the thumb passes them
   function drawStick(x0, y0, kx, ky) {
-    const u = U(), R = stickR(), dx = kx - x0, latch = S.stick && S.stick.latch;
+    const u = U(), R = stickR(), dx = kx - x0;
     if (S.turn !== 'push') {
       const T = S.turn === 'reach' ? reachT() : R * LEAN1, h = R * 0.5, d0 = S.turn === 'reach' ? R * 1.3 : R * LEAN0;
       ctx.fillStyle = 'rgba(255,255,255,0.08)';
       ctx.beginPath(); ctx.arc(x0 - T, y0, h, Math.PI / 2, Math.PI * 1.5); ctx.arc(x0 + T, y0, h, -Math.PI / 2, Math.PI / 2); ctx.closePath(); ctx.fill();
       for (const sg of [-1, 1]) for (let i = 0; i < 3; i++) {
-        const d = lerp(d0, T - R * 0.3, i / 2), x = x0 + sg * d, lit = !latch && sg * dx >= d;
+        const d = lerp(d0, T - R * 0.3, i / 2), x = x0 + sg * d, lit = sg * dx >= d;
         ctx.strokeStyle = lit ? '#b8e04a' : 'rgba(255,255,255,0.45)'; ctx.lineWidth = (lit ? 3.5 : 2) * u;
         ctx.beginPath(); ctx.moveTo(x - sg * 5 * u, y0 - 8 * u); ctx.lineTo(x + sg * 3 * u, y0); ctx.lineTo(x - sg * 5 * u, y0 + 8 * u); ctx.stroke();
       }
     }
     ctx.fillStyle = 'rgba(255,255,255,0.14)'; circle(x0, y0, R);
     ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2 * u; ring(x0, y0, R);
-    ctx.fillStyle = latch ? 'rgba(255,255,255,0.7)' : 'rgba(184,224,74,0.9)'; circle(kx, ky, R * 0.42);
+    ctx.fillStyle = 'rgba(184,224,74,0.9)'; circle(kx, ky, R * 0.42);
   }
   // the stick while a thumb is on it; before that, where the thumbs go
   function drawThumbs() {
@@ -2812,11 +2781,6 @@ const Snapshot = (() => {
   function render() {
     renderWorld(sc, S.cam, G.ents);
     const u = U();
-    if (S.lock && S.lock.scr) {
-      const s = S.lock.scr, r = Math.max(s.R * 1.35, 16 * u), rot = G.time * 3;
-      ctx.strokeStyle = '#b8e04a'; ctx.lineWidth = 3 * u;
-      for (let i = 0; i < 4; i++) { const a = rot + i * Math.PI / 2; ctx.beginPath(); ctx.arc(s.sx, s.sy, r, a, a + 0.8); ctx.stroke(); }
-    }
     // Auto: dashed rings on whatever a tap would throw the bomb at
     if (S.bomb === 'auto' && S.bombT <= 0) {
       ctx.strokeStyle = '#b8e04a'; ctx.lineWidth = 2.5 * u; ctx.setLineDash([6 * u, 5 * u]);
@@ -2839,7 +2803,7 @@ const Snapshot = (() => {
       }
       label(ok ? 'LET GO TO THROW' : 'RELOADING', t.x - G.shx, t.y - G.shy - 58 * u, 16 * u, ok ? '#b8e04a' : '#ffffff', 'center');
     }
-    crosshair(W / 2, H / 2, S.lock ? '#b8e04a' : '#ffffff');
+    crosshair(W / 2, H / 2, '#ffffff');
     drawBlaster(W * 0.8, H + 40 * u, gunScale() * 0.9, S.gunA, S.kick, '#b8e04a');
     // a comfort vignette: the edges dim while the view is turning quickly
     if (S.spin > 0.5) {
@@ -2893,22 +2857,22 @@ const Snapshot = (() => {
   const BOMB_HOW = { flick: 'flick the right thumb toward where it should land', left: 'a quick tap of the left thumb', auto: 'tap a brute, or two foes together, when it is ready' };
   return {
     id: 'snapshot', name: 'Snapshot', color: '#b8e04a', cursor: 'crosshair', demoSteps: 120, multi: true, rightClick: true,
-    pitch: 'A garden, played the way phone shooters are: a stick under the left thumb that walks and turns you, and the right thumb on the screen. A tap there fires where it lands and swings the view to that spot. Hold on a target to lock on and circle it. There is a bomb as well, and you can choose how the stick turns and how the bomb is thrown.',
-    jobs: [['you', 'Move', 'left thumb'], ['you', 'Look', 'left turns, right centres'], ['you', 'Aim', 'where you tap'], ['you', 'Fire', 'the same tap']],
+    pitch: 'A garden, played the way phone shooters are: a stick under the left thumb that walks and turns you, and the right thumb on the screen. A tap there fires where it lands, and holding keeps firing wherever the thumb is. Only the left thumb moves the view. There is a bomb as well, and you can choose how the stick turns and how the bomb is thrown.',
+    jobs: [['you', 'Move', 'left thumb'], ['you', 'Look', 'left thumb'], ['you', 'Aim', 'where you tap'], ['you', 'Fire', 'the same tap']],
     get controls() {
-      return [['Touch', 'left half is a stick that walks and turns; right half fires where you tap, and holding keeps firing'],
+      return [['Touch', 'left half is a stick that walks and turns; right half fires where you tap, and holding keeps firing where your thumb is'],
         ['Bomb', BOMB_HOW[mode('snapshot.bomb', BOMBS)] + '; E or right-click with a keyboard and mouse'],
-        ['Keys', 'W S walk, A D turn (sidestep when locked on), Space fires'],
+        ['Keys', 'W S walk, A D turn, Space fires straight ahead'],
         ['Mouse', 'drag on the left half, click on the right; once you use the keys, click anywhere']];
     },
     hint: 'Left thumb walks and turns. Right thumb fires where it taps.',
-    notice: 'Two weapons need no switch when each has its own gesture: a flick throws where a tap shoots, or the idle left thumb throws, or the game throws for you when a tap lands on a crowd. The pause menu has all three, and three ways to turn: faster the further you push (Reach), further the faster you move (Swipe), or a plain stick (Push).',
+    notice: 'Two weapons need no switch when each has its own gesture: a flick throws where a tap shoots, or a quick tap of the left thumb throws, or the game throws for you when a tap lands on a crowd. The pause menu has all three, and three ways to turn: faster the further you push (Reach), further the faster you move (Swipe), or a plain stick (Push).',
     stat: () => (G.stats.shots ? Math.round(100 * G.stats.hits / G.stats.shots) : 0) + '% of shots hit, ' + S.thrown + (S.thrown === 1 ? ' bomb' : ' bombs'),
     state: () => S, setup, update, render, hud, options,
     pdown(id, x, y, type, button) {
       if (button === 2) { throwTo(landing(x - G.shx, y - G.shy)); return; }
       if (x < W / 2 && !(type === 'mouse' && S.keys)) {
-        if (!S.stick) S.stick = { id, x0: x, y0: y, x, y, sx: x, sy: y, px: x, py: y, hist: [[performance.now(), x]], t0: G.t, moved: 0, latch: false };
+        if (!S.stick) S.stick = { id, x0: x, y0: y, x, y, sx: x, sy: y, px: x, py: y, hist: [[performance.now(), x]], t0: G.t, moved: 0 };
       } else if (!S.trig) { S.trig = { id, x0: x, y0: y, x, y }; trigger(x, y); }
     },
     pmove(id, x, y) {
@@ -2931,7 +2895,7 @@ const Snapshot = (() => {
       } else if (t && t.id === id) {
         t.x = x; t.y = y;
         // Flick: a thumb that sets off quickly is throwing, not tapping
-        if (t.pend && Math.hypot(x - t.x0, y - t.y0) > 22) { t.pend = null; t.aim = true; }
+        if (t.until > G.t && !t.aim && Math.hypot(x - t.x0, y - t.y0) > 22) t.aim = true;
       }
     },
     pup(id) {
@@ -2972,7 +2936,7 @@ const GROUPS = [
   { title: 'One input for everything', ids: ['blink', 'lighthouse'],
     text: 'You keep all four jobs, but they share a single input: a tap that means different things depending on what it lands on, or one button.' },
   { title: 'Two thumbs, tap to aim', ids: ['snapshot'],
-    text: 'The usual phone layout, with the left thumb on a stick and the right thumb shooting. The difference is that the right thumb taps where it wants to shoot instead of dragging to aim, and the view comes to wherever it fired. This one was added after the first six, from a suggestion to split the screen that way. It also tries three ways to turn and three ways to choose between two weapons.' },
+    text: 'The usual phone layout, with the left thumb on a stick and the right thumb shooting. The difference is that the right thumb taps where it wants to shoot instead of dragging to aim, and only the left thumb moves the view. This one was added after the first six, from a suggestion to split the screen that way. It also tries three ways to turn and three ways to choose between two weapons.' },
 ];
 GROUPS.forEach((gr, gi) => gr.ids.forEach(id => { SK[id].group = gi; }));
 // A page can be built around a single sketch: give the canvas data-solo="<id>".
