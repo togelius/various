@@ -694,7 +694,7 @@ function buildTower() {
   // stairs on floor 3 rising east to floor 4
   for (let i = 1; i <= 6; i++) brick(-6 + i, -6, Y[3], 1, 2, i, [BRICKS[(i + 3) % BRICKS.length], C.white]);
   // --- floor 5, the yellow top floor, and its pillars
-  for (const [x, z] of [[-4, -1], [-4, 3], [-4, 6], [3, -1], [3, 3], [3, 6], [-0.5, 6]]) pillar(x, z, Y[5] - PH, colB);
+  for (const [x, z] of [[-3, -1], [-4, 3], [-4, 6], [3, -1], [3, 3], [3, 6], [-0.5, 6]]) pillar(x, z, Y[5] - PH, colB);
   plate(-4, -1, 4, 7, Y[5], C.yellow);
   // a red lattice ladder up the east face of floor 5
   LADDERS.push({ x0: 4.05, z0: 2, x1: 5.0, z1: 4, y0: Y[4], y1: Y[5] + 0.5, face: Math.PI });
@@ -922,7 +922,7 @@ const HINT = { moved: 0, fired: 0, used: 0, jumpTold: false, learned: store.get(
 function callout(text, col, size, dur, at) { G.callouts.push({ text, col: col || '#ffffff', size: size || 44, life: dur || 1.1, max: dur || 1.1, at }); }
 
 // ---------------------------------------------------------------- input
-const IN = { kJump: false, kFire: false, mFire: false, kf: 0, kb: 0, kl: 0, kr: 0, ksl: 0, ksr: 0, mouseTurn: 0, locked: false, keys: false };
+const IN = { kJump: false, kFire: false, mFire: false, mb: 0, kf: 0, kb: 0, kl: 0, kr: 0, ksl: 0, ksr: 0, mouseTurn: 0, locked: false, keys: false };
 const held = b => { for (const p of pointers.values()) if (p.b === b) return true; return false; };
 const fireHeld = () => IN.kFire || IN.mFire || held('fire');
 const jumpHeld = () => IN.kJump || held('jump');
@@ -1107,12 +1107,12 @@ function stepLifts(dt) {
     L.dy = y - L.y;
     // carry whoever stands on it
     if (P.ground === L.sol && P.onGround) { P.y += L.dy; }
-    for (const e of FOES) if (e.alive && e.onGround && e.ground === L.sol) e.y += L.dy;
+    for (const e of FOES) if (e.alive && e.onGround && e.ground === L.sol && !TYPES[e.type].fly) e.y += L.dy;
     L.y = y;
     L.sol.y0 = y - 0.4; L.sol.y1 = y;
     if (P.ground === L.sol && P.onGround && blocked(P.x, P.y, P.z, P.r, P.h)) P.y = y + 0.001;
     // anyone it comes down on gets scooped up onto it rather than stuck inside it
-    for (const b of [P, ...FOES]) if (b.alive !== false && b.ground !== L.sol && hits(L.sol, b.x, b.y, b.z, b.r, b.h)) { b.y = y + 0.001; b.vy = Math.max(b.vy, 0); b.onGround = true; b.ground = L.sol; }
+    for (const b of [P, ...FOES]) if (b.alive !== false && !(b.type && TYPES[b.type].fly) && b.ground !== L.sol && hits(L.sol, b.x, b.y, b.z, b.r, b.h)) { b.y = y + 0.001; b.vy = Math.max(b.vy, 0); b.onGround = true; b.ground = L.sol; }
     if (Math.abs(L.dy) > 0 && Math.random() < dt * 3 && near(P.x, L.y, P.z) > 0.5) sfx.lift();
   }
 }
@@ -1206,6 +1206,8 @@ function stepWorld(dt) {
 }
 function win() {
   G.won = true; G.st = 'win'; G.winT = 0; G.winA = null;
+  if (document.pointerLockElement) document.exitPointerLock();
+  IN.kFire = IN.mFire = false;
   callout('YOU MADE IT!', '#ffd23f', 64, 2.5); sfx.win();
   for (let i = 0; i < 160; i++) PARTS.push({ x: GOAL.x + rand(-2, 2), y: GOAL.y + rand(0.5, 3), z: GOAL.z + rand(-2, 2), vx: rand(-4, 4), vy: rand(2, 9), vz: rand(-4, 4), life: rand(1.5, 3), s: rand(0.05, 0.12), col: pick(BRICKS), spin: rand(0, 6) });
 }
@@ -1397,7 +1399,7 @@ function wolfAI(e, dt) {
       if (e.st === 'swipe') { sfx.swish(near(e.x, e.y, e.z)); if (pdist(e) < 1.95 && Math.abs(P.y - e.y) < 1.3) { const u = dirTo(e); hurtPlayer(12, u.x * 6, 3, u.z * 6, e); } }
       else { const hand = qRot(qYaw(e.yaw), [0.1, 1.7, 0.33]); lob(e, 'brick', e.x + hand[0], e.y + hand[1], e.z + hand[2], clamp(d / 9, 0.55, 1.3), 0.35); sfx.toss(near(e.x, e.y, e.z)); }
     }
-    if (e.t <= -0.35) { e.st = 'chase'; e.cd = e.st === 'swipe' ? rand(0.7, 1.2) : rand(2, 3.2); e.tele = 0; }
+    if (e.t <= -0.35) { e.cd = e.st === 'swipe' ? rand(0.7, 1.2) : rand(2, 3.2); e.st = 'chase'; e.tele = 0; }
     return;
   }
   if (same && d < 1.7 && e.cd <= 0) { e.st = 'swipe'; e.t = e.tt = 0.5; e.struck = false; return; }
@@ -1551,7 +1553,14 @@ function bossAI(e, dt) {
   if (e.st === 'howl') {
     halt(e, dt); e.t -= dt; e.tele = 0; G.shake = Math.max(G.shake, 5);
     if (e.t <= 0) {
-      for (let i = 0; i < 3; i++) { const a = rand(0, TAU); const k = foe('kitty', clamp(e.x + Math.cos(a) * 3, -3.2, 3.2), Y[5], clamp(e.z + Math.sin(a) * 3, 0, 6.2)); k.awake = true; k.st = 'chase'; k.vy = 6; k.alert = 0.8; }
+      for (let i = 0; i < 3; i++) {
+        // somewhere round it with room for a kitty (not inside the crane)
+        for (let n = 0; n < 12; n++) {
+          const a = rand(0, TAU), x = clamp(e.x + Math.cos(a) * 3, -3.2, 3.2), z = clamp(e.z + Math.sin(a) * 3, 0, 6.2);
+          if (blocked(x, Y[5] + 0.02, z, TYPES.kitty.r, TYPES.kitty.h)) continue;
+          const k = foe('kitty', x, Y[5], z); k.awake = true; k.st = 'chase'; k.vy = 6; k.alert = 0.8; break;
+        }
+      }
       const b = foe('bee', e.x, Y[5] + 3.5, e.z); b.awake = true; b.st = 'chase';
       e.st = 'chase'; e.cd = 1.5;
     }
@@ -1622,6 +1631,7 @@ function stepFoes(dt) {
     else if (P.dead) halt(e, dt);
     // moving about
     if (TYPES[e.type].fly) {
+      e.onGround = false; e.ground = null;   // fliers never stand on anything, so nothing carries them
       const hw = moveBody(e, (e.vx + e.kx) * dt, e.vy * dt, (e.vz + e.kz) * dt, 0);
       if (hw && e.st === 'dive') e.bumped = true;
       e.kx = ease(e.kx, 0, 3, dt); e.kz = ease(e.kz, 0, 3, dt);
@@ -2600,6 +2610,7 @@ function resetGame() {
   Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0 });
   G.callouts.length = 0; PARTS.length = 0; G.stats = { shots: 0, hits: 0 };
   stick = null; pointers.clear();
+  IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = false; IN.mb = 0; IN.mouseTurn = 0;
   populate();
 }
 function pause() {
@@ -2617,7 +2628,7 @@ hud.addEventListener('pointerdown', e => {
   e.preventDefault();
   try { hud.setPointerCapture(e.pointerId); } catch (_) {}
   const mouse = e.pointerType === 'mouse';
-  if (mouse && IN.locked) { if (e.button === 0) IN.mFire = true; else if (e.button === 2) useItem(); return; }
+  if (mouse && IN.locked) { mouseButtons(e); return; }
   if (mouse && e.button === 2) { useItem(); return; }
   if (mouse && e.button > 0) return;
   const x = e.clientX, y = e.clientY;
@@ -2628,7 +2639,7 @@ hud.addEventListener('pointerdown', e => {
 });
 hud.addEventListener('pointermove', e => {
   if (G.st !== 'play' || G.paused) return;
-  if (IN.locked && e.pointerType === 'mouse') { IN.mouseTurn += e.movementX * 0.0032; return; }
+  if (IN.locked && e.pointerType === 'mouse') { IN.mouseTurn += e.movementX * 0.0032; if ((e.buttons | 0) !== IN.mb) mouseButtons(e); return; }
   if (stick && stick.id === e.pointerId) {
     stick.x = e.clientX; stick.y = e.clientY;
     const R = stickR(), dx = stick.x - stick.x0, dy = stick.y - stick.y0, L = Math.hypot(dx, dy);
@@ -2638,8 +2649,16 @@ hud.addEventListener('pointermove', e => {
   const p = pointers.get(e.pointerId);
   if (p) { const b = onButton(e.clientX, e.clientY); if (b && b !== p.b) press(e.pointerId, b); }
 });
+// with the mouse grabbed: the left button fires while held, pressing the right one uses your pickup.
+// (a second button pressed or let go while another is down arrives as a move, so go by the mask)
+function mouseButtons(e) {
+  const b = e.buttons | 0;
+  IN.mFire = !!(b & 1);
+  if ((b & 2) && !(IN.mb & 2)) useItem();
+  IN.mb = b;
+}
 const pointerEnd = e => {
-  if (IN.locked && e.pointerType === 'mouse') { if (e.button === 0) IN.mFire = false; return; }
+  if (IN.locked && e.pointerType === 'mouse') { mouseButtons(e); return; }
   if (stick && stick.id === e.pointerId) stick = null;
   pointers.delete(e.pointerId);
 };
@@ -2653,7 +2672,7 @@ hud.addEventListener('click', e => {
 });
 document.addEventListener('pointerlockchange', () => {
   IN.locked = document.pointerLockElement === hud;
-  if (!IN.locked) { IN.mFire = false; IN.ksl = IN.ksr = 0; }
+  if (!IN.locked) { IN.mFire = false; IN.mb = 0; IN.ksl = IN.ksr = 0; }
 });
 pauseBtn.addEventListener('click', pause);
 window.addEventListener('keydown', e => {
@@ -2664,13 +2683,14 @@ window.addEventListener('keydown', e => {
   if (e.repeat) return;
   audio(); key(e.code, true);
 });
-window.addEventListener('keyup', e => { if (G.st === 'play' && !G.paused) key(e.code, false); });
+// letting go of a key always counts, whatever screen is up, so nothing stays held
+window.addEventListener('keyup', e => key(e.code, false));
 function key(code, down) {
   const v = down ? 1 : 0;
   if (code === 'KeyW' || code === 'ArrowUp') IN.kf = v;
   else if (code === 'KeyS' || code === 'ArrowDown') IN.kb = v;
-  else if (code === 'KeyA' || code === 'ArrowLeft') { if (IN.locked && code === 'KeyA') IN.ksl = v; else IN.kl = v; }
-  else if (code === 'KeyD' || code === 'ArrowRight') { if (IN.locked && code === 'KeyD') IN.ksr = v; else IN.kr = v; }
+  else if (code === 'KeyA' || code === 'ArrowLeft') { if (!down) { IN.kl = 0; if (code === 'KeyA') IN.ksl = 0; } else if (IN.locked && code === 'KeyA') IN.ksl = 1; else IN.kl = 1; }
+  else if (code === 'KeyD' || code === 'ArrowRight') { if (!down) { IN.kr = 0; if (code === 'KeyD') IN.ksr = 0; } else if (IN.locked && code === 'KeyD') IN.ksr = 1; else IN.kr = 1; }
   else if (code === 'Space') { IN.kJump = down; if (down) P.jumpBuf = 0.14; }
   else if (code === 'KeyJ' || code === 'KeyF' || code === 'Enter') IN.kFire = down;
   else if (code === 'KeyK' || code === 'KeyE') { if (down) useItem(); }
@@ -2682,7 +2702,7 @@ window.addEventListener('blur', pause);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
 // ---------------------------------------------------------------- loop
-let last = performance.now(), lastErr = '', slow = 0, fast = 0;
+let last = performance.now(), lastErr = '', ft = 0, qT = 0;
 function frame(now) {
   const rdt = Math.max(0, (now - last) / 1000), dt = Math.min(0.05, rdt);
   last = now;
@@ -2704,9 +2724,13 @@ function frame(now) {
   } catch (err) {
     if (String(err) !== lastErr) { lastErr = String(err); console.error(err); }
   }
-  // if frames are slow, draw the 3D view at a lower resolution
-  if (rdt > 0.028) slow += rdt; else slow = Math.max(0, slow - rdt * 0.5);
-  if (slow > 1.5 && QUAL > 0.55) { QUAL -= 0.15; slow = 0; resize(); }
+  // if frames run slow for a while, draw the 3D view at a lower resolution, and raise it again
+  // when there is room; a long gap (a hidden tab, a stall) doesn't count
+  if (rdt > 0 && rdt < 0.25) {
+    ft = ft ? ft + (rdt - ft) * 0.03 : rdt;
+    if (ft > 0.045 && QUAL > 0.55 && now - qT > 2500) { QUAL -= 0.15; qT = now; resize(); }
+    else if (ft < 0.022 && QUAL < 1 && now - qT > 8000) { QUAL = Math.min(1, QUAL + 0.15); qT = now; resize(); }
+  }
   requestAnimationFrame(frame);
 }
 function finishRun() {
