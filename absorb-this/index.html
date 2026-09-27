@@ -847,6 +847,12 @@ function voiceLabel() {
   const v = zVoiceMode === 0 ? (vZAccent || vZPlain) : zVoiceMode === 1 ? vZPlain : null;
   return `ŽIŽEK VOICE: ${m}` + (v ? ` (${v.name})` : '') + (zVoiceMode === 0 && !vZAccent ? ' · NO SLAVIC VOICE INSTALLED, USING ENGLISH' : '');
 }
+// Apple's speech engine (every browser on iOS, and Safari) runs far faster at the same rate: 1.5 there is gibberish.
+const APPLE_TTS = /iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) || (/Safari/.test(navigator.userAgent) && !/Chrome|Chromium|Android|Edg/.test(navigator.userAgent));
+const TALK_RATES = APPLE_TTS ? [0.9, 1, 1.1, 1.25] : [1, 1.2, 1.5, 1.9], TALK_NAMES = ['SLOW', 'NORMAL', 'FAST', 'ASSAULT'];
+let talkSpeed = 2; try { const t = +localStorage.getItem('absorb.talk'); if (t >= 0 && t < 4 && localStorage.getItem('absorb.talk') !== null) talkSpeed = t; } catch (e) { }
+const talkRate = () => TALK_RATES[talkSpeed];
+function cycleTalk() { talkSpeed = (talkSpeed + 1) % 4; try { localStorage.setItem('absorb.talk', talkSpeed); } catch (e) { } multiText('SPEECH: ' + TALK_NAMES[talkSpeed]); if ('speechSynthesis' in window) { speechSynthesis.cancel(); ZZ.speaking = false; } say(TALK_NAMES[talkSpeed].toLowerCase() + ' talking', true); }
 let lastSay = 0;
 function say(text, force) {
   if (muted || !('speechSynthesis' in window) || ZZ.speaking) return;
@@ -854,7 +860,7 @@ function say(text, force) {
   try {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text); if (vAnn) { u.voice = vAnn; u.lang = vAnn.lang; }
-    u.pitch = 1.9; u.rate = 1.5; u.volume = 1; speechSynthesis.speak(u);
+    u.pitch = 1.9; u.rate = talkRate(); u.volume = 1; speechSynthesis.speak(u);
   } catch (e) { }
 }
 
@@ -1503,7 +1509,7 @@ function zVoice(text) {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text.replace(/\*[^*]+\*/g, ' '));
     const v = zVoiceMode === 0 ? (vZAccent || vZPlain) : vZPlain; if (v) { u.voice = v; u.lang = v.lang; }
-    u.pitch = 0.3; u.rate = 1.5; u.volume = 1;
+    u.pitch = 0.3; u.rate = talkRate(); u.volume = 1;
     u.onend = u.onerror = () => { ZZ.speaking = false; };
     ZZ.speaking = true; ZZ.spokeAt = nowS(); speechSynthesis.speak(u);
   } catch (e) { ZZ.speaking = false; }
@@ -2642,9 +2648,9 @@ function continueGame() {
   grabPointer();
 }
 function hideScreen() { $('scr').classList.add('off'); }
-function optsHTML() { return `<div class="opts"><button data-o="g">${GLASSN()}</button><button data-o="v">${voiceLabel().split(' (')[0].split(' ·')[0]}</button><button data-o="m">${muted ? 'SOUND: OFF' : 'SOUND: ON'}</button></div>`; }
+function optsHTML() { return `<div class="opts"><button data-o="g">${GLASSN()}</button><button data-o="v">${voiceLabel().split(' (')[0].split(' ·')[0]}</button><button data-o="s">SPEECH: ${TALK_NAMES[talkSpeed]}</button><button data-o="m">${muted ? 'SOUND: OFF' : 'SOUND: ON'}</button></div>`; }
 $('scr').addEventListener('click', e => { const b = e.target.closest('button[data-o]'); if (!b) return;
-  ({ g: toggleGlass, v: cycleVoice, m: toggleMute })[b.dataset.o](); const o = b.closest('.opts'); if (o) o.outerHTML = optsHTML(); });
+  ({ g: toggleGlass, v: cycleVoice, s: cycleTalk, m: toggleMute })[b.dataset.o](); const o = b.closest('.opts'); if (o) o.outerHTML = optsHTML(); });
 function start() {
   initAudio();
   if (state === 'title' || state === 'dead' || state === 'absorbed') { reset(); continues = 0; state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; say('get wet', true); setTimeout(() => zz('start', { force: true }), 1400); }

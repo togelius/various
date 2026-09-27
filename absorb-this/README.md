@@ -53,8 +53,11 @@ With a keyboard and mouse:
   and taunts for every enemy. Each of the three endings has its own narration
   and quotes, picked at random each time.
 - **Voices.** Everything is read aloud by the browser's speech synthesis at
-  one and a half times normal speed. The announcer gets a high-pitched English voice. Žižek gets a
-  low pitch and the most Slavic voice your system has installed (Slovenian,
+  one and a half times normal speed. Apple's speech engine (Safari, and every
+  browser on iPhone and iPad) runs much faster at the same setting, so there
+  it uses 1.1. The SPEECH button in the options cycles SLOW, NORMAL, FAST and
+  ASSAULT, and remembers your choice. The announcer gets a high-pitched
+  English voice. Žižek gets a low pitch and the most Slavic voice your system has installed (Slovenian,
   Croatian, Czech, Polish, Russian, ...), reading English with that language's
   pronunciation, which gives him an accent. If there's none he uses English.
   The title screen shows which voice he got.
