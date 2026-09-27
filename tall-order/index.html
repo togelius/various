@@ -1204,7 +1204,7 @@ function stepWorld(dt) {
   if (G.stepsIn > 0 && (G.stepsIn -= dt) <= 0) { callout('THE STEPS ARE BUILDING THEMSELVES', '#b8f060', 34, 2.4); buildSteps(); }
 }
 function win() {
-  G.won = true; G.st = 'win'; G.winT = 0;
+  G.won = true; G.st = 'win'; G.winT = 0; G.winA = null;
   callout('YOU MADE IT!', '#ffd23f', 64, 2.5); sfx.win();
   for (let i = 0; i < 160; i++) PARTS.push({ x: GOAL.x + rand(-2, 2), y: GOAL.y + rand(0.5, 3), z: GOAL.z + rand(-2, 2), vx: rand(-4, 4), vy: rand(2, 9), vz: rand(-4, 4), life: rand(1.5, 3), s: rand(0.05, 0.12), col: pick(BRICKS), spin: rand(0, 6) });
 }
@@ -2456,7 +2456,7 @@ function drawHUD(dt) {
   if (G.st === 'title') return;
   const u = U(), pad = 14 * u, L = SAFE.l + pad, T = SAFE.t + pad;
   drawTracers();
-  if (!P.dead) { if (!P.vm || P.vm.t > 0.5 || P.vm.kind === 'zap' || P.vm.kind === 'bomb') drawBlaster(W / 2, H + 40 * u, gunScale(), P.kick); drawViewItem(); }
+  if (!P.dead && G.st === 'play') { if (!P.vm || P.vm.t > 0.5 || P.vm.kind === 'zap' || P.vm.kind === 'bomb') drawBlaster(W / 2, H + 40 * u, gunScale(), P.kick); drawViewItem(); }
   drawWayUp();
   drawMarks();
   // health
@@ -2479,13 +2479,13 @@ function drawHUD(dt) {
   const cx = W / 2, cy = H / 2, on = G.st === 'play' && inLine();
   if (on && on.alive) { const p = project(on.x, on.y + on.h * 0.5, on.z); if (p) { hx.strokeStyle = 'rgba(184,240,96,0.85)'; hx.lineWidth = 2 * u; ring(p.x, p.y, clamp(on.r * 1.3 * H / p.w * 0.9, 14 * u, 120 * u)); } }
   hx.lineCap = 'round';
-  for (const [w, c] of [[5 * u, 'rgba(20,10,36,0.5)'], [2.2 * u, on ? '#b8f060' : '#ffffff']]) {
+  if (G.st === 'play') for (const [w, c] of [[5 * u, 'rgba(20,10,36,0.5)'], [2.2 * u, on ? '#b8f060' : '#ffffff']]) {
     hx.lineWidth = w; hx.strokeStyle = c; hx.beginPath();
     hx.moveTo(cx - 16 * u, cy); hx.lineTo(cx - 7 * u, cy); hx.moveTo(cx + 7 * u, cy); hx.lineTo(cx + 16 * u, cy);
     hx.moveTo(cx, cy - 16 * u); hx.lineTo(cx, cy - 7 * u); hx.moveTo(cx, cy + 7 * u); hx.lineTo(cx, cy + 16 * u); hx.stroke();
   }
   drawHurt();
-  drawControls();
+  if (G.st === 'play') drawControls();
   // callouts
   // the newest in the middle, older ones pushed up above it
   let sy = H * 0.3;
@@ -2719,6 +2719,16 @@ function placeCamera(dt) {
     CAM.yaw = Math.atan2(1 - CAM.z, -CAM.x); CAM.pitch = 0.18;
     return;
   }
+  if (G.st === 'win' && GOAL) {
+    // at the top: swing out and circle the flag
+    const e = easeInOut(clamp(G.winT / 2.4, 0, 1));
+    if (G.winA == null) { G.winA = Math.atan2(P.z - GOAL.z, P.x - GOAL.x); G.winR = Math.max(0.5, Math.hypot(P.x - GOAL.x, P.z - GOAL.z)); }
+    const a = G.winA + G.winT * 0.22, R = lerp(G.winR, 9, e);
+    CAM.x = GOAL.x + Math.cos(a) * R; CAM.z = GOAL.z + Math.sin(a) * R; CAM.y = lerp(P.y + EYE, GOAL.y + 4.5, e);
+    const yaw = Math.atan2(GOAL.z - CAM.z, GOAL.x - CAM.x), pitch = Math.atan2(GOAL.y + 1.4 - CAM.y, R);
+    CAM.yaw = P.yaw + wrap(yaw - P.yaw) * e; CAM.pitch = pitch * e;
+    return;
+  }
   const down = P.dead > 0 ? clamp(1 - P.dead / 2.2, 0, 1) : 0;
   // at the start, a look up the tower to the flag, then down to business
   if (G.intro > 0 && G.st === 'play' && !G.paused) {
@@ -2742,7 +2752,7 @@ window.tallOrder = {
   FOES, SHOTS, ITEMS, INV, WAVES, giveItem, useItem, inLine, populate, los, floorBelow, stepsT: () => stepsT,
   sim(secs) { const dt = 1 / 60; for (let i = 0; i < Math.round(secs * 60); i++) { G.time += dt; G.t += dt; stepLifts(dt); stepSteps(dt); stepPlayer(dt); if (typeof stepWorld === 'function') stepWorld(dt); } },
   setStick(x, y) { if (x == null) { stick = null; return; } const R = stickR(); stick = { id: -1, x0: 0, y0: 0, x: x * R, y: y * R }; },
-  G, P, IN, SOL, CHECKS, LIFTS, PADS, LADDERS, STEPS, GOAL: () => GOAL, start: startGame, world: () => WORLD, key, buttons, buildSteps,
+  G, P, IN, SOL, CHECKS, LIFTS, PADS, LADDERS, STEPS, CAM, GOAL: () => GOAL, start: startGame, world: () => WORLD, key, buttons, buildSteps,
   teleport(x, y, z, yaw) { Object.assign(P, { x, y, z, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0 }); if (yaw != null) P.yaw = yaw; } };
 requestAnimationFrame(frame);
 })();
