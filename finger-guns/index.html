@@ -2405,7 +2405,7 @@ const Lighthouse = (() => {
 // firing while the stick aims. Nothing turns the camera unless you ask it to,
 // and the edges dim a little while it turns.
 const Snapshot = (() => {
-  const N = 25, C = 12, FWD = 4.8, BACK = 3.4, SIDE = 4.2, TURN = 3.4, BOOST = 5.6;
+  const N = 25, C = 12, FWD = 6.5, BACK = 4.6, SIDE = 5.6, TURN = 5.0, BOOST = 8.0;
   const CLOUDS = Array.from({ length: 14 }, (_, i) => [i / 14 * TAU + rand(-0.2, 0.2), rand(0.2, 0.5), rand(0.09, 0.16)]);
   const sc = makeScene({
     walls: {
@@ -2518,18 +2518,18 @@ const Snapshot = (() => {
     let side = 0;
     if (S.lock) {
       // locked on: the view follows the target and the stick strafes around it
-      cam.a = easeAng(cam.a, bearing(S.lock), 14, dt);
+      cam.a = easeAng(cam.a, bearing(S.lock), 18, dt);
       side = st.x * SIDE;
     } else {
       if (ax > 0.2) S.centre = null;
       if (S.centre != null) {
-        cam.a = easeAng(cam.a, S.centre, 22, dt);
+        cam.a = easeAng(cam.a, S.centre, 28, dt);
         if (Math.abs(wrap(S.centre - cam.a)) < 0.004) S.centre = null;
       }
       // gentle near the middle of the stick, fast at the edge, and faster still
       // once it has been held hard over for a moment, so you can spin round
-      const rate = lerp(TURN, BOOST, clamp((S.full - 0.2) / 0.3, 0, 1));
-      cam.a += Math.sign(st.x) * Math.pow(ax, 1.3) * rate * dt;
+      const rate = lerp(TURN, BOOST, clamp((S.full - 0.12) / 0.2, 0, 1));
+      cam.a += Math.sign(st.x) * Math.pow(ax, 1.2) * rate * dt;
     }
     // holding the trigger keeps firing through the middle of the view
     if (S.trig && S.fireT <= 0) shootAt(W / 2, H / 2);

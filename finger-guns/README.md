@@ -225,7 +225,7 @@ A garden of hedges and topiary, played with two thumbs. The left half of the
 screen is a floating stick: push up to walk forward, down to back away, and
 sideways to turn, like driving a car. Turning is gentle near the middle of the
 stick and fast at the edge, and if you hold the stick hard over it speeds up
-again, so you can turn right round in under a second. A tap on the right half
+again, so you can turn right round in about half a second. A tap on the right half
 fires exactly where it lands, with a finger's width of slack, and swings the
 view to centre that spot, so you can miss, and a miss kicks up a puff where the
 shot lands. Holding on a target locks on: you keep firing, the view stays on the
@@ -238,7 +238,9 @@ on) and Space fires.
 The first version picked the nearest target for you, so a tap never missed,
 and it moved and turned more slowly. After playing it, the requests were for
 faster movement, especially turning, and for taps that fire even when they are
-going to miss. This version does both.
+going to miss. This version does both, and it has since been sped up again: it
+walks nearly twice as fast as the first version, and turns more than twice as
+fast (three and a half times with the stick held over).
 
 - *Why it's casual:* it keeps the layout phone players already know, but takes
   out its hardest part, which is aiming by dragging the right thumb. You point
