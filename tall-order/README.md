@@ -129,15 +129,24 @@ the same test hook the page exposes (`window.tallOrder`). It follows a route up
 the tower, fights what it sees, uses pickups on big toys and crowds, jumps
 shockwaves and steps out from under shells. It plays in three modes: unhurtable,
 normal, and a "human" mode that only notices what is in front of it, reacts a
-beat late and turns more slowly. The bot runs found a boss that sniped you from
-the top floor after you'd been knocked down, crane steps that were too narrow to
-walk up, a checkpoint that could leave you standing under a step, and a boss
-fight that could be won from the ladder, a wall round the top floor low enough
-to step over, and a spring that could drop you back where you started if you
-held the stick the wrong way. They also set the difficulty: in human mode the
-bot finishes in a minute and a half to three minutes and gets knocked out a few
-times along the way, mostly by falls. A person playing for the first time
-should expect to take longer.
+beat late and turns more slowly. Between them, the bot runs and a handful of
+targeted tests (the spring from every direction, the ladder, the lift, the real
+touch controls, starting again after a win) turned up:
+
+- a boss that kept throwing bricks at you after you'd been knocked down a floor,
+  and could be shot from the ladder without fighting back
+- crane steps too narrow to walk up, and a spiral that boxed in the top of the
+  ladder once it was built
+- a checkpoint that put you back under one of those steps
+- a wall round the top floor low enough to step over
+- a spring that could drop you back where you started if you held the stick
+  the wrong way
+- a lift that trapped you inside it if it came down on you
+
+The runs also set the difficulty. In human mode the bot finishes in a minute
+and a half to three minutes and gets knocked out a few times along the way,
+mostly by falls. A person playing for the first time should expect to take
+longer.
 
 ## Code
 
