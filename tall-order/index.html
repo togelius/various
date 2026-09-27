@@ -1108,6 +1108,8 @@ function stepLifts(dt) {
     L.y = y;
     L.sol.y0 = y - 0.4; L.sol.y1 = y;
     if (P.ground === L.sol && P.onGround && blocked(P.x, P.y, P.z, P.r, P.h)) P.y = y + 0.001;
+    // anyone it comes down on gets scooped up onto it rather than stuck inside it
+    for (const b of [P, ...FOES]) if (b.alive !== false && b.ground !== L.sol && hits(L.sol, b.x, b.y, b.z, b.r, b.h)) { b.y = y + 0.001; b.vy = Math.max(b.vy, 0); b.onGround = true; b.ground = L.sol; }
     if (Math.abs(L.dy) > 0 && Math.random() < dt * 3 && near(P.x, L.y, P.z) > 0.5) sfx.lift();
   }
 }
