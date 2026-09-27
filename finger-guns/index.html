@@ -84,14 +84,6 @@
   .notice strong { color: var(--text); }
   .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .sheet.long > .actions:last-child { position: sticky; bottom: -22px; z-index: 1; margin: 0 -22px -22px; padding: 14px 22px 22px; background: var(--panel); box-shadow: 0 -14px 14px -12px rgba(10, 8, 24, 0.7); }
-  .opts { display: grid; gap: 12px; padding-top: 2px; }
-  .opt { display: grid; gap: 6px; }
-  .sheet .opt-label { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
-  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
-  .seg button { border: 1.5px solid var(--rule); border-radius: 999px; padding: 9px 16px; min-height: 44px; background: transparent; cursor: pointer; font-weight: 700; }
-  .seg button:hover { border-color: var(--muted); }
-  .seg button[aria-pressed="true"] { background: var(--c); border-color: var(--c); color: var(--on-accent); }
-  .sheet .opt-note { color: var(--muted); font-size: 14px; line-height: 1.4; }
   #pauseBtn { position: fixed; z-index: 4; top: max(12px, env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); width: 46px; height: 46px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.3); background: rgba(14, 11, 30, 0.5); cursor: pointer; display: grid; place-items: center; padding: 0; }
   #pauseBtn span { display: block; width: 14px; height: 16px; border-left: 4px solid #fff; border-right: 4px solid #fff; box-sizing: border-box; }
   @media (max-width: 400px) { .jobs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
@@ -2415,21 +2407,9 @@ const Lighthouse = (() => {
 // are two buttons, one for each weapon: the blaster keeps firing while its
 // button is held, and the rocket launcher fires one rocket and then reloads.
 // The edges dim a little while the view turns quickly.
-//
-// How the stick turns you can be chosen on the intro and pause cards: Reach
-// turns faster the further the thumb goes sideways, over a long throw; Swipe
-// turns with the thumb's sideways motion, much further for a flick, and a slow
-// drag to the far end keeps turning; Push is a plain stick.
 const Snapshot = (() => {
   const N = 25, C = 12, FWD = 6.5, BACK = 4.6, TURN = 5.0, BOOST = 8.0;
-  const REACH = 9.5, SWIPE = 0.0042, LEAN = 2.6;   // top speeds in radians a second; SWIPE is radians a pixel
   const BLAST = 1.9, RELOAD = 2.5, ROCKET = 16;    // a rocket's blast radius, reload time and speed
-  const TURNS = [
-    ['reach', 'Reach', 'The further your thumb goes sideways, the faster you turn: a nudge near the middle, a spin at the far end.'],
-    ['swipe', 'Swipe', 'The view follows your thumb sideways, and a quick flick turns you much further than a slow drag. Drag slowly all the way out and hold to keep turning.'],
-    ['push', 'Push', 'A plain stick: push sideways to turn, and hold it hard over to spin faster.'],
-  ];
-  const mode = (key, list) => { const v = store.get(key, list[0][0]); return list.some(c => c[0] === v) ? v : list[0][0]; };
   const CLOUDS = Array.from({ length: 14 }, (_, i) => [i / 14 * TAU + rand(-0.2, 0.2), rand(0.2, 0.5), rand(0.09, 0.16)]);
   const sc = makeScene({
     walls: {
@@ -2476,7 +2456,7 @@ const Snapshot = (() => {
     sc.map = { get: (x, y) => x < 0 || y < 0 || x >= N || y >= N ? 1 : g[y * N + x] };
     S = { cam: { x: C + 0.5, y: C + 7.5, a: -Math.PI / 2, z: 0.5, fov: 80 }, stick: null, trig: null, rocketDown: null,
       kf: 0, kb: 0, kl: 0, kr: 0, keys: false, fireT: 0, kick: 0, waveT: 1.5, wave: 0, pips: [], spin: 0, lastA: -Math.PI / 2, full: 0,
-      turn: mode('snapshot.turn', TURNS), rocketT: 0, rkick: 0, ready: 0, booms: [], fired: 0,
+      rocketT: 0, rkick: 0, ready: 0, booms: [], fired: 0,
       tune: { orb: 3.2, wind: 0.75, gap: 8 } };
     G.dur = 60; G.chainMax = 2.5;
     for (let i = 0; i < 3; i++) placeGem();
@@ -2498,55 +2478,12 @@ const Snapshot = (() => {
   }
 
   const stickR = () => clamp(Math.min(W, H) * 0.12, 44, 70);   // a thumb's travel, whatever the screen
-  const reachT = () => Math.max(stickR() * 1.6, Math.min(stickR() * 2.8, W * 0.28));   // Reach's longer sideways throw
-  // the stick and the keys add up; each axis has a small dead zone. The stick's
-  // sideways push only counts here with Push; Reach and Swipe turn you through
-  // reachRate, leanRate and swipe instead
+  // the stick and the keys add up; each axis has a small dead zone
   function stickVec() {
     let x = S.kr - S.kl, y = S.kb - S.kf;
-    const k = S.stick;
-    if (k) {
-      const R = stickR();
-      y += (k.y - k.y0) / R;
-      if (S.turn === 'push') x += clamp((k.x - k.x0) / R, -1, 1);
-    }
+    if (S.stick) { const R = stickR(), k = S.stick; x += (k.x - k.x0) / R; y += (k.y - k.y0) / R; }
     const dz = v => { v = clamp(v, -1, 1); return Math.abs(v) < 0.12 ? 0 : Math.sign(v) * (Math.abs(v) - 0.12) / 0.88; };
     return { x: dz(x), y: dz(y) };
-  }
-  // Reach: the further out sideways, the faster you turn, gently at first so
-  // that small corrections stay small
-  function reachRate() {
-    const k = S.stick;
-    if (!k || S.turn !== 'reach') return 0;
-    const dx = k.x - k.x0, T = reachT(), d0 = stickR() * 0.1;
-    return Math.sign(dx) * Math.pow(clamp((Math.abs(dx) - d0) / (T - d0), 0, 1), 1.7) * REACH;
-  }
-  // Swipe: a thumb that has run out of room, dragged slowly to the far end of
-  // the track and held there, keeps turning
-  const LEAN0 = 2.4, LEAN1 = 3.4;   // where the lean starts and where it is full, in stick radii
-  function leanRate() {
-    const k = S.stick;
-    if (!k || S.turn !== 'swipe') return 0;
-    const R = stickR(), dx = k.x - k.x0;
-    return Math.sign(dx) * clamp((Math.abs(dx) / R - LEAN0) / (LEAN1 - LEAN0), 0, 1) * LEAN;
-  }
-  // Swipe: the view turns with the thumb's sideways motion, more per pixel the
-  // faster it goes, so a slow drag nudges and a flick spins you round. The
-  // speed is measured over the last few hundredths of a second. Motion that is
-  // mostly up or down is walking, and doesn't turn you
-  function swipe(k, x, y) {
-    const now = performance.now(), mx = x - k.px, my = y - k.py;
-    k.px = x; k.py = y;
-    k.hist.push([now, x]);
-    while (k.hist.length > 2 && now - k.hist[1][0] > 60) k.hist.shift();
-    const h = k.hist[0], v = Math.abs(x - h[1]) / (clamp(now - h[0], 8, 60) / 1000);
-    const m = Math.sign(mx) * Math.max(0, Math.abs(mx) - 0.35 * Math.abs(my));
-    if (!m) return;
-    S.cam.a += m * SWIPE * (1 + Math.min(5, Math.pow(v / 700, 1.5)));
-    // the ring keeps up with quick outward motion, which has already turned
-    // you, so a flick doesn't leave the thumb out at the end of the track
-    const ox = k.x - k.x0;
-    if (Math.abs(ox + m) > Math.abs(ox)) k.x0 += m * clamp((v - 150) / 450, 0, 1);
   }
 
   // the two buttons at the bottom of the right half: the blaster's, big, where
@@ -2663,12 +2600,12 @@ const Snapshot = (() => {
     S.fireT -= dt;
     if (S.rocketT > 0 && (S.rocketT -= dt) <= 0) { S.rocketT = 0; S.ready = 1; sfx.ready(); }
     S.ready = Math.max(0, S.ready - dt * 2.5);
-    // the keys and Push: gentle near the middle, fast at the edge, and faster
+    // turning: gentle near the middle of the stick, fast at the edge, and faster
     // still once held hard over for a moment, so you can spin round
     const ax = Math.abs(st.x);
     S.full = ax > 0.85 ? S.full + dt : 0;
     const rate = lerp(TURN, BOOST, clamp((S.full - 0.12) / 0.2, 0, 1));
-    cam.a += (Math.sign(st.x) * Math.pow(ax, 1.2) * rate + reachRate() + leanRate()) * dt;
+    cam.a += Math.sign(st.x) * Math.pow(ax, 1.2) * rate * dt;
     // holding the fire button keeps firing
     if (S.trig && S.fireT <= 0) fire();
     const fwd = st.y < 0 ? -st.y * FWD : -st.y * BACK;
@@ -2700,20 +2637,9 @@ const Snapshot = (() => {
     }
   }
 
-  // the stick: a ring for Push; for Reach and Swipe, a long sideways track too,
-  // with chevrons that light up as the thumb passes them
+  // the stick: its ring, and a knob under the thumb
   function drawStick(x0, y0, kx, ky) {
-    const u = U(), R = stickR(), dx = kx - x0;
-    if (S.turn !== 'push') {
-      const T = S.turn === 'reach' ? reachT() : R * LEAN1, h = R * 0.5, d0 = S.turn === 'reach' ? R * 1.3 : R * LEAN0;
-      ctx.fillStyle = 'rgba(255,255,255,0.08)';
-      ctx.beginPath(); ctx.arc(x0 - T, y0, h, Math.PI / 2, Math.PI * 1.5); ctx.arc(x0 + T, y0, h, -Math.PI / 2, Math.PI / 2); ctx.closePath(); ctx.fill();
-      for (const sg of [-1, 1]) for (let i = 0; i < 3; i++) {
-        const d = lerp(d0, T - R * 0.3, i / 2), x = x0 + sg * d, lit = sg * dx >= d;
-        ctx.strokeStyle = lit ? '#b8e04a' : 'rgba(255,255,255,0.45)'; ctx.lineWidth = (lit ? 3.5 : 2) * u;
-        ctx.beginPath(); ctx.moveTo(x - sg * 5 * u, y0 - 8 * u); ctx.lineTo(x + sg * 3 * u, y0); ctx.lineTo(x - sg * 5 * u, y0 + 8 * u); ctx.stroke();
-      }
-    }
+    const u = U(), R = stickR();
     ctx.fillStyle = 'rgba(255,255,255,0.14)'; circle(x0, y0, R);
     ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2 * u; ring(x0, y0, R);
     ctx.fillStyle = 'rgba(184,224,74,0.9)'; circle(kx, ky, R * 0.42);
@@ -2792,24 +2718,6 @@ const Snapshot = (() => {
     drawButtons();
     drawThumbs();
   }
-  // the turning styles, as a row of buttons on the intro and pause cards
-  function options() {
-    const box = el('div', 'opts'), wrap = el('div', 'opt'), seg = el('div', 'seg'), note = el('p', 'opt-note');
-    seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Turning');
-    const paint = () => {
-      const v = mode('snapshot.turn', TURNS);
-      for (const b of seg.children) b.setAttribute('aria-pressed', String(b.dataset.v === v));
-      note.textContent = TURNS.find(c => c[0] === v)[2];
-    };
-    for (const [v, name] of TURNS) {
-      const b = button(null, name, () => { store.set('snapshot.turn', v); if (S) S.turn = v; paint(); });
-      b.dataset.v = v; seg.append(b);
-    }
-    paint();
-    wrap.append(el('p', 'opt-label', 'Turning'), seg, note);
-    box.append(wrap);
-    return box;
-  }
   function press(id) {
     if (S.trig) return;
     S.trig = { id };
@@ -2835,15 +2743,15 @@ const Snapshot = (() => {
       ['Keys', 'W S walk, A D turn, Space fires, E launches a rocket'],
       ['Mouse', 'drag on the left half and click the buttons; once you use the keys, click anywhere else to fire, and right-click for a rocket']],
     hint: 'Turn to aim: the gun always fires straight ahead.',
-    notice: 'Aiming was only turning, the way it was in Doom on a keyboard: the gun fires straight ahead and the game finds the height. That leaves the right thumb only a choice between two buttons, and puts all the skill in the left thumb, which walks and aims at once. The pause menu has three ways for it to turn.',
+    notice: 'Aiming was only turning, the way it was in Doom on a keyboard: the gun fires straight ahead and the game finds the height. That leaves the right thumb only a choice between two buttons, and puts all the skill in the left thumb, which walks and aims at once.',
     stat: () => (G.stats.shots ? Math.round(100 * G.stats.hits / G.stats.shots) : 0) + '% of shots hit, ' + S.fired + (S.fired === 1 ? ' rocket' : ' rockets'),
-    state: () => S, setup, update, render, options,
+    state: () => S, setup, update, render,
     pdown(id, x, y, type, button) {
       if (type === 'mouse' && button === 2) { launch(); return; }
       // a mouse, once you use the keys: click anywhere to fire, or on the rocket button for a rocket
       if (type === 'mouse' && S.keys) { hold(id, onButton(x, y) === 'rocket' ? 'rocket' : 'fire'); return; }
       if (x < W / 2) {
-        if (!S.stick) S.stick = { id, x0: x, y0: y, x, y, px: x, py: y, hist: [[performance.now(), x]] };
+        if (!S.stick) S.stick = { id, x0: x, y0: y, x, y };
         return;
       }
       const b = buttonAt(x, y);
@@ -2856,19 +2764,10 @@ const Snapshot = (() => {
         if ((S.trig && S.trig.id === id) || S.rocketDown === id) { const b = onButton(x, y); if (b) hold(id, b); }
         return;
       }
-      if (S.turn === 'swipe') swipe(k, x, y);
       k.x = x; k.y = y;
-      // the base follows a thumb that wanders past the edge of the stick; for
-      // Reach and Swipe, sideways only at the far end of the track
-      const R = stickR(), dx = x - k.x0, dy = y - k.y0;
-      if (S.turn === 'push') {
-        const L = Math.hypot(dx, dy);
-        if (L > R) { k.x0 = x - dx / L * R; k.y0 = y - dy / L * R; }
-      } else {
-        const T = S.turn === 'reach' ? reachT() : R * LEAN1;
-        if (Math.abs(dx) > T) k.x0 = x - Math.sign(dx) * T;
-        if (Math.abs(dy) > R) k.y0 = y - Math.sign(dy) * R;
-      }
+      // the base follows a thumb that wanders past the edge of the stick
+      const R = stickR(), dx = x - k.x0, dy = y - k.y0, L = Math.hypot(dx, dy);
+      if (L > R) { k.x0 = x - dx / L * R; k.y0 = y - dy / L * R; }
     },
     pup(id) {
       if (S.stick && S.stick.id === id) S.stick = null;
@@ -2901,7 +2800,7 @@ const GROUPS = [
   { title: 'One input for everything', ids: ['blink', 'lighthouse'],
     text: 'You keep all four jobs, but they share a single input: a tap that means different things depending on what it lands on, or one button.' },
   { title: 'Two thumbs, turn to aim', ids: ['snapshot'],
-    text: 'The usual phone layout, with a stick under the left thumb and fire buttons under the right. The difference is that aiming is only turning: the gun fires straight ahead and finds the height by itself, as Doom did, so the right thumb only has to pick a weapon. This one was added after the first six, from a suggestion to split the screen, and it also tries three ways to turn.' },
+    text: 'The usual phone layout, with a stick under the left thumb and fire buttons under the right. The difference is that aiming is only turning: the gun fires straight ahead and finds the height by itself, as Doom did, so the right thumb only has to pick a weapon. This one was added after the first six, from a suggestion to split the screen.' },
 ];
 GROUPS.forEach((gr, gi) => gr.ids.forEach(id => { SK[id].group = gi; }));
 // A page can be built around a single sketch: give the canvas data-solo="<id>".
@@ -2977,9 +2876,7 @@ function showPanel(kind) {
     if (!SOLO) row.append(button('ghost', 'All sketches', toMenu));
     if (best) row.append(el('span', 'best', 'Best ' + fmt(best)));
     const eyebrow = (SOLO ? 'Finger Guns · ' : '') + GROUPS[sk.group].title;
-    sheetEl.append(el('p', 'eyebrow', eyebrow), title(sk.name), el('p', null, sk.pitch), jobsList(sk), controlsList(sk));
-    if (sk.options) sheetEl.append(sk.options());
-    sheetEl.append(row);
+    sheetEl.append(el('p', 'eyebrow', eyebrow), title(sk.name), el('p', null, sk.pitch), jobsList(sk), controlsList(sk), row);
   } else if (kind === 'over') {
     const stat = [G.stats.kills + ' popped'];
     if (sk.stat) stat.push(sk.stat());
@@ -2993,9 +2890,7 @@ function showPanel(kind) {
     primary = button('play', 'Resume', resume);
     const snd = button('ghost', muted ? 'Sound off' : 'Sound on', () => { setMuted(!muted); snd.textContent = muted ? 'Sound off' : 'Sound on'; });
     const out = SOLO ? button('ghost', 'Restart', beginRound) : button('ghost', 'All sketches', toMenu);
-    sheetEl.append(el('p', 'eyebrow', sk.name), title('Paused'), controlsList(sk));
-    if (sk.options) sheetEl.append(sk.options());
-    sheetEl.append(actions(primary, snd, out));
+    sheetEl.append(el('p', 'eyebrow', sk.name), title('Paused'), controlsList(sk), actions(primary, snd, out));
   }
   panelEl.hidden = false;
   fitSheet();

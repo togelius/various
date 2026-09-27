@@ -244,37 +244,37 @@ playing it. The first version picked the nearest target for you, so a tap on
 the right half never missed. The next fired exactly where a tap landed, so you
 could miss, and swung the view to centre that spot; holding on a target locked
 on, with the view following it and the stick strafing around it. It was then
-sped up twice, given the three ways to turn described below, and given a
-second weapon, a lobbed bomb, with three ways to choose it, described in the
-next section. The request after that was that only the left thumb should move
-the view, which took away the swing and the lock-on. The latest was to
-simplify: fire straight ahead with the height found automatically, and give
-each weapon a button. The right thumb no longer aims at all.
+sped up twice, given three ways to turn (described below), and given a second
+weapon, a lobbed bomb, with three ways to choose it (described in the next
+section). The request after that was that only the left thumb should move the
+view, which took away the swing and the lock-on. The next was to simplify:
+fire straight ahead with the height found automatically, and give each weapon
+a button. The right thumb no longer aims at all. Last, the turning styles were
+tried against each other and all but one went.
 
-**Turning.** Now that turning is all of aiming, how the stick turns you matters
-more than ever. There are three ways, chosen on the intro or pause card and
-kept in the browser:
+**Turning.** The stick turns you gently near its middle and fast at its edge,
+and if you hold it hard over it speeds up again: on a phone held sideways it
+turned 30° a second a quarter of the way out, 110° halfway, and 101° in the
+first quarter of a second held hard over, or 445° in a full second. Motion that
+is mostly up or down is walking and doesn't turn you.
 
-- **Reach** (the default) gives the stick a long sideways track, nearly three
-  times its radius, and turns you faster the further out the thumb is, slowly
-  at first. On a phone held sideways it turned 7° a second with the thumb 14
-  pixels out, 87° at 47 pixels, 309° at 94, and 562° at the end of the track,
-  131 pixels out. Small corrections stay small, a spin is one long push away,
-  and you can hold any speed for as long as you like. Chevrons along the track
-  light up as the thumb passes them.
-- **Swipe** turns the view with the thumb's sideways motion, like a trackpad
-  with pointer acceleration: the faster the thumb moves, the further each pixel
-  turns you. A slow 60-pixel drag turned 15°. A 150-pixel flick in a tenth of a
-  second turned 120° to 140°, and a 200-pixel flick in 90 ms turned 210° to
-  225°. Speed can't be held the way distance can, so a thumb that runs out of
-  room, dragged slowly to the far end of its track and held there, keeps
-  turning at up to 149° a second. After a quick flick the track catches up
-  with the thumb, so a flick doesn't leave you turning.
-- **Push** is the stick from before: turning speed follows how far the stick is
-  pushed, and holding it hard over speeds it up again, to 101° in a quarter of
-  a second and 445° in a second.
+The question behind the turning styles was whether turning speed should
+follow how far the thumb drags, or how fast. There were three to compare:
 
-In all three, motion that is mostly up or down is walking and doesn't turn you.
+- **Reach** gave the stick a long sideways track, nearly three times its
+  radius, and turned faster the further out the thumb was, from 7° a second
+  14 pixels out to 562° at the end of the track, 131 pixels out.
+- **Swipe** turned the view with the thumb's sideways motion, like a trackpad
+  with pointer acceleration, so a quick flick turned much further than a slow
+  drag: 15° for a slow 60-pixel drag, about 130° for a 150-pixel flick in a
+  tenth of a second. Because speed can't be held the way distance can, a thumb
+  dragged slowly to the far end of its track and held there kept turning.
+- **Push**, the plain stick, is the one described above.
+
+In play, Swipe wasn't good, and Reach and Push were both good and felt very
+similar. With nothing to choose between them, the plain stick stayed: it is
+the simpler of the two, it takes up less of the screen, and it turns the same
+way as the A and D keys.
 
 - *Why it's casual:* it keeps the layout phone players already know, but takes
   out its hardest part, which is aiming by dragging the right thumb. Aiming is
@@ -290,10 +290,7 @@ In all three, motion that is mostly up or down is walking and doesn't turn you.
 - *What's wrong with it:* it needs two hands and a phone held sideways. One
   thumb does all the moving and all the aiming, and there is no sidestep, so
   you can only walk toward or away from whatever you are aiming at. The
-  buttons have to be found without looking, which takes practice. Reach's long
-  track needs room: a thumb that lands near the left edge can't turn left at
-  full speed. Swipe's lean at the end of the track is hard to find without
-  being told about it.
+  buttons have to be found without looking, which takes practice.
 - *Relatives:* Doom and Wolfenstein 3D played on a keyboard, which aimed by
   turning; the fire buttons of phone shooters like Call of Duty: Mobile; and
   the tank controls of the early Resident Evil games.
@@ -404,9 +401,8 @@ players run them. Nobody has playtested them yet.
 - **Snapshot** is the closest to a mainstream phone shooter, and the easiest to
   imagine turning into one. It has been through the most versions and has
   ended up close to Doom on a keyboard: the left thumb moves and aims, and the
-  right thumb only pulls triggers. The things to find out with real players
-  are which way of turning they settle on, and whether aiming by turning feels
-  fair on a thumb.
+  right thumb only pulls triggers. The thing to find out with real players is
+  whether aiming by turning feels fair on a thumb.
 - Combinations are worth trying: Dark Ride's staged rooms with Sweep's lock-on
   (which is more or less Rez), Blink with its dashes snapped to Four on the
   Floor's beat, or Lighthouse as a one-switch mode for any of the others.
@@ -419,7 +415,6 @@ Questions for a playtest:
 - Do they notice that they never touch the camera in Dark Ride?
 - How do they hold the phone?
 - Which sketch do they replay without being asked?
-- In Snapshot, which turning style do they keep?
 
 ## Controls
 

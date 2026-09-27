@@ -50,7 +50,7 @@ subdirectory with its own README:
   train where you only point, a lock-on sweep, an auto-firing runner, a disco
   grid that fires on the beat, a plaza where one tap does everything, a
   one-button lighthouse, and a two-thumb garden where you aim by turning and
-  fire with two buttons, with options for how the stick turns you. One HTML file. Open `finger-guns/index.html`; the design notes are
+  fire with two buttons. One HTML file. Open `finger-guns/index.html`; the design notes are
   in `finger-guns/README.md`.
 
 ## Repository policy
