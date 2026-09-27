@@ -149,6 +149,11 @@ touch controls, starting again after a win) turned up:
   the wrong way
 - a lift that trapped you inside it if it came down on you
 
+A separate read-through of the code, with its own test harness, found the
+rest: keys and mouse buttons that could stay held after a win or a mouse grab,
+a resolution scaler that only ever went down, kitties summoned inside the crane,
+bees riding the lift, and a pillar running through it.
+
 The runs also set the difficulty. In human mode the bot finishes in a minute
 and a half to three minutes and gets knocked out a few times along the way,
 mostly by falls; the novice takes two to six minutes and gets knocked out more
