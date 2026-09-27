@@ -98,9 +98,13 @@ In between:
   bricks from further away. Bricks can be shot out of the air.
 
 Toys that fall far enough go SPLAT, and everything that pops falls apart into
-the bricks it was made of, with ketchup. Your own blasts push you around but
-never hurt you, so rocket jumps work. Toys' blasts hurt everyone, toys
-included.
+the bricks it was made of, with ketchup. Pop several in a row for a DOUBLE POP
+or better. Your own blasts push you around but never hurt you, so rocket jumps
+work. Toys' blasts hurt everyone, toys included. The toys shout things when
+they spot you and when they wind up, one at a time.
+
+At the top you get your time, how many toys you popped, how often you fell or
+were knocked out, and a rank.
 
 ## Pickups
 

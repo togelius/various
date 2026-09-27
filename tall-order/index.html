@@ -1193,6 +1193,7 @@ function stepWorld(dt) {
   if (fireHeld() && P.fireT <= 0 && !P.dead) firePrimary();
   stepMallet(dt);
   stepFoes(dt); stepShots(dt); stepWaves(dt); stepGibs(dt); stepFX(dt); stepItems(dt);
+  G.comboT = Math.max(0, (G.comboT || 0) - dt);
   if (G.stepsIn > 0 && (G.stepsIn -= dt) <= 0) { callout('THE STEPS ARE BUILDING THEMSELVES', '#b8f060', 34, 2.4); buildSteps(); }
 }
 function win() {
@@ -1654,6 +1655,9 @@ function killFoe(e, how, kx, ky, kz) {
   if (!e.alive) return;
   e.alive = false; e.hp = 0;
   G.kills++;
+  // several pops close together
+  G.combo = G.comboT > 0 ? (G.combo || 0) + 1 : 1; G.comboT = 1.1;
+  if (G.combo >= 2) callout(['DOUBLE POP!', 'TRIPLE POP!', 'QUADRUPLE POP!', 'TOY STORM!'][Math.min(G.combo - 2, 3)], '#ff7ad9', 38 + Math.min(G.combo, 6) * 3, 1);
   const S = e.scale;
   // the pieces fly apart, away from whatever did it
   const L = Math.hypot(kx || 0, kz || 0) || 1, push = Math.min(8, L * 0.5);
@@ -2533,11 +2537,20 @@ function showPanel(kind) {
     primary = button('play', 'Climb again', startGame);
     const st = el('dl', 'stats');
     for (const [k, v] of [['Time', fmtTime(G.t)], ['Popped', String(G.kills)], ['Falls and knockouts', String(G.deaths)]]) { const d = el('div'); d.append(el('dt', null, k), el('dd', null, v)); st.append(d); }
-    sheetEl.append(el('p', 'eyebrow', G.newBest ? 'New best time' : 'Best ' + fmtTime(G.best)), title('h2', 'Top of the tower!'), st, actions(primary));
+    sheetEl.append(el('p', 'eyebrow', G.newBest ? 'New best time' : 'Best ' + fmtTime(G.best)), title('h2', 'Top of the tower!'), el('p', 'lede', rank()), st, actions(primary));
   }
   panelEl.hidden = false;
   sheetEl.classList.toggle('long', sheetEl.scrollHeight > sheetEl.clientHeight + 2);
   setTimeout(() => { try { primary.focus({ preventScroll: true }); } catch (e) {} }, 30);
+}
+// a title for how the climb went
+function rank() {
+  const t = G.t, d = G.deaths;
+  if (t < 150 && d === 0) return 'Rank: Brick Legend. Not a scratch on you.';
+  if (t < 210 && d <= 1) return 'Rank: Tower Toppler. The toys will talk about this.';
+  if (t < 330) return 'Rank: Sturdy Climber. The flag is yours.';
+  if (d >= 8) return 'Rank: Ketchup Connoisseur. You fell a lot, and you got there anyway.';
+  return 'Rank: Slow and Steady. The wolf was getting bored.';
 }
 function hidePanel() { panelEl.hidden = true; panelKind = null; }
 function startGame() {
@@ -2554,7 +2567,7 @@ function resetGame() {
   for (const c of CHECKS) c.reached = c.n === 0;
   for (const s of STEPS) { s.p = 0; s.sol.off = true; }
   stepsT = -1;
-  Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, newBest: false, stepsIn: 0 });
+  Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0 });
   G.callouts.length = 0; PARTS.length = 0; G.stats = { shots: 0, hits: 0 };
   stick = null; pointers.clear();
   populate();
