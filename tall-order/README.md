@@ -51,6 +51,10 @@ With a keyboard and mouse:
 - **M** mutes, **Esc** or **P** pauses. The pause menu also turns the music
   off and on.
 
+The first time you play, small hints show you where to drag, that FIRE is held
+down, and that pickups are tapped. They stop once you have done each of those
+things.
+
 ## The climb
 
 Each floor has one way up to the next, and a lime marker shows you where it is:
@@ -127,16 +131,18 @@ each comes with a few uses:
 Most of the tuning came from a scripted bot that plays the whole game through
 the same test hook the page exposes (`window.tallOrder`). It follows a route up
 the tower, fights what it sees, uses pickups on big toys and crowds, jumps
-shockwaves and steps out from under shells. It plays in three modes: unhurtable,
-normal, and a "human" mode that only notices what is in front of it, reacts a
-beat late and turns more slowly. Between them, the bot runs and a handful of
+shockwaves and steps out from under shells. It plays in four modes: unhurtable,
+normal, a "human" mode that only notices what is in front of it, reacts a beat
+late and turns more slowly, and a "novice" mode that is slower still and never
+uses its pickups. Between them, the bot runs and a handful of
 targeted tests (the spring from every direction, the ladder, the lift, the real
 touch controls, starting again after a win) turned up:
 
 - a boss that kept throwing bricks at you after you'd been knocked down a floor,
   and could be shot from the ladder without fighting back
-- crane steps too narrow to walk up, and a spiral that boxed in the top of the
-  ladder once it was built
+- crane steps too narrow to walk up, then a spiral the novice kept falling off
+  (it now has twice as many steps, overlapping like a staircase), and a spiral
+  that boxed in the top of the ladder once it was built
 - a checkpoint that put you back under one of those steps
 - a wall round the top floor low enough to step over
 - a spring that could drop you back where you started if you held the stick
@@ -145,8 +151,9 @@ touch controls, starting again after a win) turned up:
 
 The runs also set the difficulty. In human mode the bot finishes in a minute
 and a half to three minutes and gets knocked out a few times along the way,
-mostly by falls. A person playing for the first time should expect to take
-longer.
+mostly by falls; the novice takes two to six minutes and gets knocked out more
+often, by the MEGA WOLF as well as by falls, but it always got to the top. A
+person playing for the first time should expect to take longer.
 
 ## Code
 
