@@ -38,6 +38,8 @@
   .sheet h2 { font-size: clamp(34px, 6vw, 46px); font-variant-numeric: tabular-nums; }
   .lede { font-size: 18px; line-height: 1.4; }
   .muted { color: var(--muted); }
+  .sideways { display: none; margin: 0; color: var(--muted); }
+  @media (orientation: portrait) and (pointer: coarse) { .sideways { display: block; } }
   .controls { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; font-size: 14px; }
   .controls dt { color: var(--muted); }
   .controls dd { margin: 0; }
@@ -190,9 +192,9 @@ const sfx = {
 // music: a toy-box march for the climb, a stomp for the big wolf, and the march a
 // step higher for the way up the crane. Eighth notes, in semitones from the root.
 const SONGS = {
-  climb: { bpm: 132, root: 60, bass: 'oom', chords: [0, 0, 5, 7, 0, 9, 5, 7], mel: [
+  climb: { bpm: 132, root: 60, bass: 'oom', chords: [0, 5, 7, 0, 0, 9, 5, 7], mel: [
     [4, 7, 12, 7, 4, 7, 12, 16], [17, 16, 12, 9, 5, 9, 12, 9], [7, 11, 14, 17, 16, 14, 11, 7], [12, 7, 4, 7, 12, null, 0, null],
-    [4, 4, 7, 4, 12, 11, 9, 7], [9, 12, 16, 12, 9, 7, 4, 2], [5, 9, 12, 17, 16, 14, 11, 7], [12, null, 7, null, 0, null, null, null]] },
+    [4, 4, 7, 4, 12, 11, 9, 7], [9, 12, 16, 12, 9, 7, 4, 2], [5, 9, 12, 17, 16, 14, 11, 7], [11, null, 7, null, 2, null, 7, 11]] },
   boss: { bpm: 152, root: 57, bass: 'drive', chords: [0, 0, 8, 7, 0, 0, 5, 7], mel: [
     [12, null, 7, null, 3, 7, 12, null], [14, 12, 10, 7, 8, 7, 5, 3], [3, 8, 12, 8, 3, 8, 12, 15], [14, 11, 7, 11, 14, null, 19, null],
     [12, 12, 15, 12, 19, 17, 15, 12], [14, null, 12, null, 10, 7, 3, 0], [5, 8, 12, 17, 15, 12, 8, 5], [7, null, 11, null, 14, null, 11, 7]] },
@@ -1580,7 +1582,12 @@ function bossAI(e, dt) {
   e.stompT = (e.stompT || 0) + dt * Math.hypot(e.vx, e.vz);
   if (e.stompT > 1.1) { e.stompT = 0; sfx.thud(1); G.shake = Math.max(G.shake, 4); }
 }
-function say(e, text, dur) { e.say = text; e.sayT = dur || 1.5; }
+function say(e, text, dur) {
+  e.say = text; e.sayT = dur || 1.5;
+  // a little gibberish voice, pitched for the toy
+  const v = near(e.x, e.y, e.z), f = { wolf: 200, kitty: 720, bee: 520, golem: 95, car: 420, cannon: 300, boss: 120 }[e.type] || 300;
+  for (let i = 0, n = Math.min(6, 2 + (text.length >> 2)); i < n; i++) tone(e.type === 'bee' ? 'sawtooth' : 'square', f * rand(0.85, 1.35), f * rand(0.75, 1.2), 0.07, (e.type === 'boss' ? 0.09 : 0.05) * v, i * 0.08);
+}
 // the toys have things to say, now and then; one at a time, so it stays funny
 const LINES = {
   wolf: ['HEY!', 'INTRUDER!', 'OFF MY RUG!', 'GRRR!', 'GET HIM!', 'A GIANT!'],
@@ -1657,7 +1664,12 @@ function killFoe(e, how, kx, ky, kz) {
   G.kills++;
   // several pops close together
   G.combo = G.comboT > 0 ? (G.combo || 0) + 1 : 1; G.comboT = 1.1;
-  if (G.combo >= 2) callout(['DOUBLE POP!', 'TRIPLE POP!', 'QUADRUPLE POP!', 'TOY STORM!'][Math.min(G.combo - 2, 3)], '#ff7ad9', 38 + Math.min(G.combo, 6) * 3, 1);
+  if (G.combo >= 2) {
+    // one combo word at a time, growing
+    const text = ['DOUBLE POP!', 'TRIPLE POP!', 'QUADRUPLE POP!', 'TOY STORM!'][Math.min(G.combo - 2, 3)], size = 38 + Math.min(G.combo, 6) * 3;
+    const c = G.callouts.find(c => c.combo);
+    if (c) Object.assign(c, { text, size, life: 1, max: 1 }); else { callout(text, '#ff7ad9', size, 1); G.callouts[G.callouts.length - 1].combo = true; }
+  }
   const S = e.scale;
   // the pieces fly apart, away from whatever did it
   const L = Math.hypot(kx || 0, kz || 0) || 1, push = Math.min(8, L * 0.5);
@@ -2527,6 +2539,7 @@ function showPanel(kind) {
     primary = button('play', 'Climb', startGame);
     sheetEl.append(el('p', 'eyebrow', 'A toy-box shooter'), title('h1', 'Tall Order'),
       el('p', 'lede', 'Somebody built a tower out of big bricks in the middle of the rug, and it is crawling with toys. Fight your way to the flag on top.'),
+      el('p', 'sideways', 'It plays best with your phone turned sideways.'),
       controlsList(), actions(primary, G.best ? el('span', 'muted', 'Best ' + fmtTime(G.best)) : el('span')));
   } else if (kind === 'pause') {
     primary = button('play', 'Resume', resume);

@@ -132,9 +132,12 @@ normal, and a "human" mode that only notices what is in front of it, reacts a
 beat late and turns more slowly. The bot runs found a boss that sniped you from
 the top floor after you'd been knocked down, crane steps that were too narrow to
 walk up, a checkpoint that could leave you standing under a step, and a boss
-fight that could be won from the ladder. They also set the difficulty: in human
-mode the bot finishes in two to three minutes and gets knocked out a few times
-along the way, mostly by falls.
+fight that could be won from the ladder, a wall round the top floor low enough
+to step over, and a spring that could drop you back where you started if you
+held the stick the wrong way. They also set the difficulty: in human mode the
+bot finishes in a minute and a half to three minutes and gets knocked out a few
+times along the way, mostly by falls. A person playing for the first time
+should expect to take longer.
 
 ## Code
 
