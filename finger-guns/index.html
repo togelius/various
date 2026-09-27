@@ -2476,7 +2476,7 @@ const Snapshot = (() => {
     sc.map = { get: (x, y) => x < 0 || y < 0 || x >= N || y >= N ? 1 : g[y * N + x] };
     S = { cam: { x: C + 0.5, y: C + 7.5, a: -Math.PI / 2, z: 0.5, fov: 80 }, stick: null, trig: null, rocketDown: null,
       kf: 0, kb: 0, kl: 0, kr: 0, keys: false, fireT: 0, kick: 0, waveT: 1.5, wave: 0, pips: [], spin: 0, lastA: -Math.PI / 2, full: 0,
-      turn: mode('snapshot.turn', TURNS), rocketT: 0, ready: 0, booms: [], fired: 0,
+      turn: mode('snapshot.turn', TURNS), rocketT: 0, rkick: 0, ready: 0, booms: [], fired: 0,
       tune: { orb: 3.2, wind: 0.75, gap: 8 } };
     G.dur = 60; G.chainMax = 2.5;
     for (let i = 0; i < 3; i++) placeGem();
@@ -2559,9 +2559,19 @@ const Snapshot = (() => {
     const rocket = left - r2 > W / 2 + 10 ? { x: left, y: fy + r - r2, r: r2 } : { x: fx - r * 0.2, y: fy - r - gap - r2, r: r2 };
     return { fire: { x: fx, y: fy, r }, rocket };
   }
-  // which button a touch on the right half is for: the nearer, measured from
-  // their edges, as long as it is within most of a radius of one
+  // the button a point is on, with a little margin, if it is on one
+  function onButton(x, y) {
+    const B = buttons();
+    if (Math.hypot(x - B.rocket.x, y - B.rocket.y) < B.rocket.r * 1.1) return 'rocket';
+    if (Math.hypot(x - B.fire.x, y - B.fire.y) < B.fire.r * 1.1) return 'fire';
+    return null;
+  }
+  // which button a touch on the right half is for: the one it is on, or else
+  // the nearer, measured from their edges, as long as it is within most of a
+  // radius of one
   function buttonAt(x, y) {
+    const on = onButton(x, y);
+    if (on) return on;
     const B = buttons(), df = Math.hypot(x - B.fire.x, y - B.fire.y) - B.fire.r, dr = Math.hypot(x - B.rocket.x, y - B.rocket.y) - B.rocket.r;
     if (df <= dr) return df < B.fire.r * 0.9 ? 'fire' : null;
     return dr < B.rocket.r * 0.9 ? 'rocket' : null;
@@ -2603,9 +2613,9 @@ const Snapshot = (() => {
   function launch() {
     if (S.rocketT > 0) { sfx.bump(); return false; }
     const cam = S.cam, ca = Math.cos(cam.a), sa = Math.sin(cam.a), e = inLine();
-    G.ents.push({ kind: 'rocket', x: cam.x + ca * 0.4, y: cam.y + sa * 0.4, z: 0.32, tz: e ? e.z : 0.45, vx: ca * ROCKET, vy: sa * ROCKET,
-      r: 0.1, life: 1.8, trail: [], shadow: false, draw: drawRocket });
-    S.rocketT = RELOAD; S.fired++; S.kick = 1.6; sfx.rocket();
+    G.ents.push({ kind: 'rocket', x: cam.x + ca * 0.6, y: cam.y + sa * 0.6, z: 0.3, tz: e ? e.z : 0.45, vx: ca * ROCKET, vy: sa * ROCKET,
+      r: 0.13, life: 1.8, trail: [], shadow: false, draw: drawRocket });
+    S.rocketT = RELOAD; S.fired++; S.rkick = 1; G.shake = Math.max(G.shake, 5); sfx.rocket();
     return true;
   }
   // a rocket goes off: everything close enough pops, orbs included
@@ -2622,13 +2632,20 @@ const Snapshot = (() => {
     sfx.boom();
     if (n > 1) callout(n + ' AT ONCE', '#ffd23f', 38, 0.9);
   }
-  // a rocket seen from behind: its exhaust, flickering
+  // a rocket seen from behind: four fins round a flickering exhaust
   function drawRocket(it) {
     const R = Math.max(3, it.R), x = it.sx, y = it.sy, f = 1 + Math.sin(G.time * 40) * 0.15;
-    ctx.fillStyle = 'rgba(255,190,80,0.35)'; circle(x, y, R * 2.2 * f);
-    ctx.fillStyle = '#e8e4f4'; circle(x, y, R);
-    ctx.fillStyle = '#ffd23f'; circle(x, y, R * 0.62 * f);
-    ctx.fillStyle = '#fff6d8'; circle(x, y, R * 0.3);
+    ctx.fillStyle = 'rgba(255,170,60,0.35)'; circle(x, y, R * 2.4 * f);
+    ctx.fillStyle = '#cfc8e6';
+    for (let i = 0; i < 4; i++) {
+      const a = (i + 0.5) * Math.PI / 2;
+      ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * R * 0.6, y + Math.sin(a) * R * 0.6);
+      ctx.lineTo(x + Math.cos(a + 0.3) * R * 1.6, y + Math.sin(a + 0.3) * R * 1.6); ctx.lineTo(x + Math.cos(a - 0.3) * R * 1.6, y + Math.sin(a - 0.3) * R * 1.6);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.fillStyle = '#f2eefc'; circle(x, y, R);
+    ctx.fillStyle = '#ff8a1f'; circle(x, y, R * 0.7 * f);
+    ctx.fillStyle = '#ffe88a'; circle(x, y, R * 0.36);
   }
   function drawFlash(it, e) {
     const k = 1 - e.life / e.max, R = it.R * (0.55 + k * 0.9), x = it.sx, y = it.sy;
@@ -2642,6 +2659,7 @@ const Snapshot = (() => {
   function update(dt) {
     const cam = S.cam, st = stickVec();
     S.kick = Math.max(0, S.kick - dt * 7);
+    S.rkick = Math.max(0, S.rkick - dt * 4);
     S.fireT -= dt;
     if (S.rocketT > 0 && (S.rocketT -= dt) <= 0) { S.rocketT = 0; S.ready = 1; sfx.ready(); }
     S.ready = Math.max(0, S.ready - dt * 2.5);
@@ -2763,7 +2781,7 @@ const Snapshot = (() => {
     const e = inLine();
     if (e) { ctx.strokeStyle = 'rgba(184,224,74,0.9)'; ctx.lineWidth = 2 * u; ring(e.scr.sx, e.scr.sy, Math.max(e.scr.R * 1.3, 14 * u)); }
     crosshair(W / 2, H / 2, e ? '#b8e04a' : '#ffffff');
-    drawBlaster(W / 2, H + 40 * u, gunScale() * 0.8, 0, S.kick, '#b8e04a');
+    drawBlaster(W / 2, H + 40 * u + S.rkick * 30 * gunScale(), gunScale() * 0.8, 0, S.kick, '#b8e04a');
     // a comfort vignette: the edges dim while the view is turning quickly
     if (S.spin > 0.5) {
       const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.7);
@@ -2797,6 +2815,17 @@ const Snapshot = (() => {
     S.trig = { id };
     if (S.fireT <= 0.1) fire();
   }
+  // a thumb on one of the buttons. One that slides onto the other button
+  // switches to it, so it can go from firing to a rocket without lifting
+  function hold(id, b) {
+    if (b === 'rocket' && S.rocketDown !== id) {
+      if (S.trig && S.trig.id === id) S.trig = null;
+      S.rocketDown = id; launch();
+    } else if (b === 'fire' && !(S.trig && S.trig.id === id)) {
+      if (S.rocketDown === id) S.rocketDown = null;
+      press(id);
+    }
+  }
 
   return {
     id: 'snapshot', name: 'Snapshot', color: '#b8e04a', cursor: 'crosshair', demoSteps: 120, multi: true, rightClick: true,
@@ -2804,25 +2833,29 @@ const Snapshot = (() => {
     jobs: [['you', 'Move', 'left thumb'], ['you', 'Look', 'left thumb'], ['you', 'Aim', 'by turning; height is automatic'], ['you', 'Fire', 'two buttons']],
     controls: [['Touch', 'left half is a stick that walks and turns; on the right, hold the big button to fire and tap the small one for a rocket'],
       ['Keys', 'W S walk, A D turn, Space fires, E launches a rocket'],
-      ['Mouse', 'drag on the left half and click the buttons; once you use the keys, click anywhere to fire and right-click for a rocket']],
+      ['Mouse', 'drag on the left half and click the buttons; once you use the keys, click anywhere else to fire, and right-click for a rocket']],
     hint: 'Turn to aim: the gun always fires straight ahead.',
     notice: 'Aiming was only turning, the way it was in Doom on a keyboard: the gun fires straight ahead and the game finds the height. That leaves the right thumb only a choice between two buttons, and puts all the skill in the left thumb, which walks and aims at once. The pause menu has three ways for it to turn.',
     stat: () => (G.stats.shots ? Math.round(100 * G.stats.hits / G.stats.shots) : 0) + '% of shots hit, ' + S.fired + (S.fired === 1 ? ' rocket' : ' rockets'),
     state: () => S, setup, update, render, options,
     pdown(id, x, y, type, button) {
-      // a mouse, once you use the keys: click anywhere to fire, right-click for a rocket
-      if (type === 'mouse' && (S.keys || button === 2)) { if (button === 2) launch(); else press(id); return; }
+      if (type === 'mouse' && button === 2) { launch(); return; }
+      // a mouse, once you use the keys: click anywhere to fire, or on the rocket button for a rocket
+      if (type === 'mouse' && S.keys) { hold(id, onButton(x, y) === 'rocket' ? 'rocket' : 'fire'); return; }
       if (x < W / 2) {
         if (!S.stick) S.stick = { id, x0: x, y0: y, x, y, px: x, py: y, hist: [[performance.now(), x]] };
         return;
       }
       const b = buttonAt(x, y);
-      if (b === 'fire') press(id);
-      else if (b === 'rocket') { S.rocketDown = id; launch(); }
+      if (b) hold(id, b);
     },
     pmove(id, x, y) {
       const k = S.stick;
-      if (!k || k.id !== id) return;
+      if (!k || k.id !== id) {
+        // a thumb sliding from one button onto the other
+        if ((S.trig && S.trig.id === id) || S.rocketDown === id) { const b = onButton(x, y); if (b) hold(id, b); }
+        return;
+      }
       if (S.turn === 'swipe') swipe(k, x, y);
       k.x = x; k.y = y;
       // the base follows a thumb that wanders past the edge of the stick; for

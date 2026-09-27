@@ -230,13 +230,14 @@ crosshair, and hits the nearest foe in line with it whatever its height, the
 way Doom aimed. A ring marks that foe and the crosshair lights up, so you know
 when a shot will land. Under the right thumb, at the bottom of the screen, are
 two buttons: a big one for the blaster, which keeps firing while you hold it,
-and a smaller one for a rocket launcher. A rocket flies straight ahead and
+and a smaller one for a rocket launcher. A thumb can slide from one button to
+the other without lifting. A rocket flies straight ahead and
 bursts on the first foe or hedge it meets, popping everything within 1.9 units,
 orbs included. The launcher then takes two and a half seconds to reload, and
 its button fills up as it does. Gems around the garden keep your chain alive,
 which gives you a reason to move. With a keyboard, W and S walk, A and D turn,
-Space fires and E launches a rocket; with a mouse as well, a click fires and a
-right-click launches.
+Space fires and E launches a rocket; with a mouse as well, a click anywhere but
+the rocket button fires, and a right-click launches.
 
 Snapshot has changed more than any other sketch, each time after a round of
 playing it. The first version picked the nearest target for you, so a tap on
@@ -430,7 +431,7 @@ Questions for a playtest:
 | Four on the Floor | click the left, right, top or bottom of the screen | swipe, or tap those areas | ← → turn, ↑ ↓ step, Q E sidestep |
 | Blink | click (the cursor shows what will happen) | tap | Q E turn, Space turns around |
 | Lighthouse | hold the button | hold a finger down | hold Space |
-| Snapshot | drag on the left half and click the buttons; once you use the keys, click anywhere to fire and right-click for a rocket | left thumb: stick; right thumb: hold the big button to fire, tap the small one for a rocket | W S walk, A D turn, Space fires, E launches a rocket |
+| Snapshot | drag on the left half and click the buttons; once you use the keys, click anywhere else to fire, and right-click for a rocket | left thumb: stick; right thumb: hold the big button to fire, tap the small one for a rocket | W S walk, A D turn, Space fires, E launches a rocket |
 
 In every sketch, **M** mutes and **Esc** pauses.
 
