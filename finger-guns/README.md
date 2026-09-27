@@ -1,16 +1,19 @@
 # Finger Guns
 
-Six playable sketches of a casual, fast-paced first-person shooter. Each one
-is controlled a different way. It answers the question: what would a casual,
-fast FPS look like, and how would you control it?
+Seven playable sketches of a casual, fast-paced first-person shooter. Each
+one is controlled a different way. It answers the question: what would a
+casual, fast FPS look like, and how would you control it? The first six were
+the original answer. The seventh, Snapshot, came from a playtest suggestion to
+split the screen: the left half moves and turns you, and the right half fires
+and centres the view.
 
 Open `index.html` in a browser. It is one file with no dependencies. It loads
 Lilita One and Atkinson Hyperlegible from Google Fonts if it can and uses
 fallback fonts if not. It plays with a mouse, a keyboard or a touch screen, and
-every sketch can be played with one finger. Rounds last a minute and you get
-three hearts. Best scores are kept in the browser's local storage. To jump
-straight to a sketch, add its name to the address: `#ride`, `#sweep`,
-`#beeline`, `#floor`, `#blink` or `#lighthouse`. To make a page with just one
+every sketch but Snapshot can be played with one finger. Rounds last a minute
+and you get three hearts. Best scores are kept in the browser's local storage.
+To jump straight to a sketch, add its name to the address: `#ride`, `#sweep`,
+`#beeline`, `#floor`, `#blink`, `#lighthouse` or `#snapshot`. To make a page with just one
 sketch and no menu, give the canvas that name as `data-solo`, for example
 `<canvas id="game" data-solo="ride">`.
 
@@ -52,7 +55,7 @@ up anyway.
 
 The main thing to decide is who does each of the four jobs: the player, the
 game, or a merger with another job. A standard FPS gives all four to the
-player and merges aiming into looking. The sketches take them apart in six
+player and merges aiming into looking. The sketches take them apart in seven
 different ways:
 
 | Sketch | Move | Look | Aim | Fire | Input |
@@ -63,8 +66,9 @@ different ways:
 | Four on the Floor | **you** (one tile) | **you** (quarter turns) | game (your line) | game (every beat) | four discrete moves |
 | Blink | **you** (tap the ground) | **you** (tap sky or marker) | **you** (tap the target) | same tap | one tap, read by context |
 | Lighthouse | nobody | game spins, **you** stop it | **you** (timing, with a snap) | **you** (while holding) | one button |
+| Snapshot | **you** (left thumb) | **you** (left thumb turns, a tap centres) | **you** (tap near it) | same tap | two thumbs |
 
-The six fall into three strategies:
+The seven fall into four strategies:
 
 1. **The game drives, you shoot.** This is the light-gun and rail-shooter
    arrangement. The key move is separating aiming from looking: a free
@@ -77,8 +81,11 @@ The six fall into three strategies:
 3. **One input for everything.** You keep all the jobs, but they share one
    input: a tap whose meaning depends on what it lands on, or a single button
    while the game supplies the motion.
+4. **Two thumbs, no aiming.** The standard phone layout, with a stick under
+   the left thumb and the right thumb on the screen, except that the right
+   thumb taps instead of aiming, and the view comes to what it taps.
 
-## The six sketches
+## The seven sketches
 
 ### Dark Ride
 
@@ -184,7 +191,8 @@ floor where you would land, or a turning arrow.
   causes in some people.
 - *Why it's fast:* dashes are instant, and the orbs keep you moving.
 - *Where the skill is:* it keeps all four jobs with the player, so it has the
-  highest ceiling of the six: positioning, dodging and choosing targets.
+  highest ceiling of the one-finger sketches: positioning, dodging and
+  choosing targets.
 - *What's wrong with it:* orientation is still hard, and the markers are a
   patch for that. Reading intent from context has the usual problem: near the
   horizon, the floor, a wall and an enemy can be a few pixels apart.
@@ -210,6 +218,36 @@ ahead, so the timing is forgiving. A radar in the corner shows what is coming.
 - *Relatives:* one-button games like Canabalt and Flappy Bird, scanning
   interfaces for switch users, turret defence games.
 
+### Snapshot
+
+A garden of hedges and topiary, played with two thumbs. The left half of the
+screen is a floating stick: push up to walk forward, down to back away, and
+sideways to turn, like driving a car. A tap on the right half shoots whatever
+is nearest the tap and swings the view to centre it. A tap with nothing near it
+just turns you that way. Holding locks on: you keep firing, the view stays on
+the target, and the stick's sideways push becomes a strafe, so you circle the
+target. Let go and the stick turns you again. Gems around the garden keep your
+chain alive, which gives you a reason to move. With a keyboard, W and S move,
+A and D turn (or sidestep while locked on) and Space shoots.
+
+- *Why it's casual:* it keeps the layout phone players already know, but takes
+  out its hardest part, which is aiming by dragging the right thumb. A tap only
+  has to land near a target. The view moves only when you move it, and it
+  moves in short, quick swings, which matters for anyone who gets motion sick.
+- *Why it's fast:* enemies come from all sides in waves, and you are always
+  moving, shooting and choosing at once.
+- *Where the skill is:* movement and positioning, which targets to take
+  first, and circle-strafing around the ones you are locked on to. The lock
+  gives you circle-strafing without having to teach it.
+- *What's wrong with it:* it needs two hands and a phone held sideways. The
+  right thumb can only reach the right half of the screen, so a target on the
+  far left needs the stick first. Because a tap never misses, shooting itself
+  is not a skill, and it can feel as if the game is aiming for you.
+- *Relatives:* the stick-and-drag layout of Call of Duty: Mobile and PUBG
+  Mobile, the tank controls of the early Resident Evil games, the lock-on of
+  The Legend of Zelda: Ocarina of Time, and the aim assist that snaps to a
+  target on console shooters.
+
 ## What they share
 
 The sketches share one toybox, so that only the controls differ:
@@ -228,7 +266,25 @@ The sketches share one toybox, so that only the controls differ:
   costs only the bonus.
 - **Juice.** Confetti, squash and stretch, score numbers, screen shake, and
   pop sounds that climb a scale as your chain grows.
-- **One finger.** Every sketch plays with a single finger on a touch screen.
+- **One finger.** Every sketch but Snapshot plays with a single finger on a
+  touch screen. Snapshot uses two thumbs on purpose.
+
+## Motion sickness
+
+The Lighthouse made at least one player queasy almost at once. That is the
+classic trigger: the view keeps rotating while the player's body does not, and
+the player didn't cause the rotation, so the eyes and the inner ear disagree
+with nothing to warn them.
+
+Snapshot was built with this in mind. Only the player turns the camera. A turn
+toward a tapped target is a short, quick swing rather than a slow pan. The
+edges of the screen dim a little while the view turns fast, a flat-screen
+version of the comfort vignettes used in VR. There is no head bob and no roll.
+
+Others could get the same treatment. Beeline leans into turns and never stops
+moving, which will bother some players. A gentler Lighthouse would turn in
+discrete steps, like the snap turning used in VR, rather than spinning
+smoothly. That might keep the one-button idea without the nausea.
 
 ## Comparison
 
@@ -243,6 +299,7 @@ players run them. Nobody has playtested them yet.
 | Four on the Floor | a minute | high | low | low | good (swipes) | low |
 | Blink | a minute | high | high | medium | good | low |
 | Lighthouse | instant | low | medium | medium (radar helps) | excellent | low |
+| Snapshot | a minute | high | high | medium | good (two thumbs, held sideways) | low |
 
 ## Where I'd go next
 
@@ -256,6 +313,10 @@ players run them. Nobody has playtested them yet.
   after each kill.
 - **Sweep** has the best feel moment to moment on a touch screen, and the most
   expressive gesture.
+- **Snapshot** is the closest to a mainstream phone shooter, and the easiest to
+  imagine turning into one. The open question is whether tap-to-centre feels
+  like aiming or like the game playing itself. Another one to try is making the
+  tap only centre the view, so that firing becomes a separate tap.
 - Combinations are worth trying: Dark Ride's staged rooms with Sweep's lock-on
   (which is more or less Rez), Blink with its dashes snapped to Four on the
   Floor's beat, or Lighthouse as a one-switch mode for any of the others.
@@ -279,6 +340,7 @@ Questions for a playtest:
 | Four on the Floor | click the left, right, top or bottom of the screen | swipe, or tap those areas | ← → turn, ↑ ↓ step, Q E sidestep |
 | Blink | click (the cursor shows what will happen) | tap | Q E turn, Space turns around |
 | Lighthouse | hold the button | hold a finger down | hold Space |
+| Snapshot | drag on the left half; click on the right half (anywhere once you use the keys) | left thumb: stick; right thumb: tap, or hold to lock on | W S move, A D turn (sidestep when locked on), Space shoots |
 
 In every sketch, **M** mutes and **Esc** pauses.
 
@@ -295,7 +357,9 @@ sounds, including Four on the Floor's kick, hats, claps and bass line, are
 synthesised with WebAudio.
 
 Each sketch is a small module with `setup`, `update`, `render` and input
-handlers. They share the renderer, the enemies, the scoring and the menu. The
+handlers. They share the renderer, the enemies, the scoring and the menu.
+Blink and Snapshot also share their arena enemies. Snapshot takes every finger
+on the screen; the others follow one at a time. The
 card thumbnails are rendered by the same code, by running each sketch for a
 few seconds with nobody playing. `window.fingerGuns` exposes a small handle
 (`start(id)`, `foes()`, the game state) that the automated playtests in

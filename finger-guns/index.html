@@ -46,6 +46,10 @@
   .group h2 { margin: 0; font: 400 clamp(25px, 3vw, 31px)/1.1 var(--display); letter-spacing: 0.01em; text-wrap: balance; }
   .group-head p { margin: 0; color: var(--muted); }
   .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 18px; }
+  @media (min-width: 760px) {
+    .pair.one .card { flex-direction: row; }
+    .pair.one .thumb { width: 50%; flex: none; align-self: stretch; aspect-ratio: auto; object-fit: cover; border-bottom: 0; border-right: 1px solid var(--rule); }
+  }
   .card { display: flex; flex-direction: column; background: var(--panel); border: 1px solid var(--rule); border-radius: 14px; overflow: hidden; }
   .thumb { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #0c0a1c; border-bottom: 1px solid var(--rule); cursor: pointer; }
   .card-body { display: flex; flex-direction: column; gap: 14px; padding: 18px 18px 20px; flex: 1; }
@@ -91,8 +95,8 @@
   <div class="wrap">
     <header class="top">
       <h1>Finger Guns</h1>
-      <p class="lede">Six playable sketches of a casual, fast first-person shooter, each controlled a different way.</p>
-      <p class="thesis">A shooter asks you to do four jobs at once: move, look, aim and fire. With a mouse and keyboard, or two thumbsticks, that means two hands doing different things at speed, and that is most of what keeps people out of the genre. Each sketch gives some of the jobs to the game or folds them into one gesture. Rounds last a minute, you have three hearts, and every sketch plays with one finger on a touch screen.</p>
+      <p class="lede">Seven playable sketches of a casual, fast first-person shooter, each controlled a different way.</p>
+      <p class="thesis">A shooter asks you to do four jobs at once: move, look, aim and fire. With a mouse and keyboard, or two thumbsticks, that means two hands doing different things at speed, and that is most of what keeps people out of the genre. Each sketch gives some of the jobs to the game or folds them into one gesture. Rounds last a minute, you have three hearts, and every sketch plays on a touch screen, all but the last with one finger.</p>
       <ul class="legend" aria-label="How to read the cards">
         <li><span class="swatch you"></span>you do this job</li>
         <li><span class="swatch game"></span>the game does it for you</li>
@@ -228,6 +232,7 @@ const sfx = {
 // and clipped to the columns where it is in front of the walls.
 const V = { f: 1, hz: 0, ca: 1, sa: 0, cam: null, zb: new Float32Array(4096), colW: 1 };
 const FOGN = 24;
+const OVER = 40;   // sky and floor are drawn this far past the edges, so screen shake never uncovers them
 
 function makeScene(o) {
   const sc = Object.assign({ fogNear: 3, fogFar: 30, wallH: 1, map: null, walls: {} }, o);
@@ -277,12 +282,12 @@ function skyX(theta) {
 // a silhouette on the horizon; fn gives its height (radians) for a heading
 function ridge(col, fn) {
   ctx.fillStyle = col;
-  ctx.beginPath(); ctx.moveTo(-2, V.hz + 1);
-  for (let x = -2; x <= W + 8; x += 8) {
+  ctx.beginPath(); ctx.moveTo(-OVER, V.hz + 1);
+  for (let x = -OVER; x <= W + OVER; x += 8) {
     const th = V.cam.a + Math.atan((x - W / 2) / V.f);
     ctx.lineTo(x, V.hz - fn(th) * V.f);
   }
-  ctx.lineTo(W + 8, V.hz + 1); ctx.closePath(); ctx.fill();
+  ctx.lineTo(W + OVER, V.hz + 1); ctx.closePath(); ctx.fill();
 }
 
 function drawSky(sc) {
@@ -290,7 +295,7 @@ function drawSky(sc) {
   if (hz <= 0) return;
   const g = ctx.createLinearGradient(0, hz - H * 0.8, 0, hz);
   g.addColorStop(0, sc.ceil || sc.sky[0]); g.addColorStop(1, sc.ceil ? sc.fog : sc.sky[1]);
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, hz + 1);
+  ctx.fillStyle = g; ctx.fillRect(-OVER, -OVER, W + OVER * 2, hz + 1 + OVER);
   if (sc.skyDeco) sc.skyDeco();
 }
 
@@ -346,7 +351,7 @@ function drawFloor(sc) {
   const hz = V.hz;
   if (hz >= H) return;
   const top = Math.max(0, hz);
-  ctx.fillStyle = sc.floor; ctx.fillRect(0, top, W, H - top);
+  ctx.fillStyle = sc.floor; ctx.fillRect(-OVER, top, W + OVER * 2, H - top + OVER);
   if (sc.grid) grid(sc.grid);
   if (sc.floorDeco) sc.floorDeco();
   // distance fog over the floor, as a gradient from the horizon down
@@ -358,7 +363,7 @@ function drawFloor(sc) {
       const p = pF + (1 - pF) * i / 8, d = sc.fogNear / p;
       g.addColorStop(p, rgba(fog, Math.pow(clamp((d - sc.fogNear) / (sc.fogFar - sc.fogNear), 0, 1), 1.2)));
     }
-    ctx.fillStyle = g; ctx.fillRect(0, hz, W, yN - hz);
+    ctx.fillStyle = g; ctx.fillRect(-OVER, hz, W + OVER * 2, yN - hz);
   }
 }
 
@@ -866,6 +871,7 @@ function drawHUD() {
 function draw() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (!G.sk || G.st === 'menu') { ctx.fillStyle = '#15132b'; ctx.fillRect(0, 0, W, H); return; }
+  ctx.fillStyle = '#15132b'; ctx.fillRect(0, 0, W, H);
   const sh = REDUCE ? G.shake * 0.25 : G.shake;
   G.shx = sh > 0 ? rand(-0.6, 0.6) * sh : 0; G.shy = sh > 0 ? rand(-0.6, 0.6) * sh : 0;
   ctx.save(); ctx.translate(G.shx, G.shy);
@@ -907,6 +913,22 @@ function drawStars(stars, alpha) {
     ctx.fillStyle = '#ffffff'; ctx.fillRect(x, y, s[2], s[2]);
   }
   ctx.globalAlpha = 1;
+}
+// gems, hearts and the triple-shot power-up
+function drawPickup(it, e) {
+  const R = Math.max(3, it.R), x = it.sx, y = it.sy;
+  if (e.kind === 'heart') { heart(x, y, R * 0.7, true, false); return; }
+  if (e.kind === 'spread') {
+    ctx.fillStyle = 'rgba(53,212,154,0.35)'; circle(x, y, R * 1.4);
+    ctx.fillStyle = '#35d49a';
+    for (const a of [-0.5, 0, 0.5]) circle(x + Math.sin(a) * R * 0.7, y - Math.cos(a) * R * 0.5, R * 0.3);
+    ctx.fillStyle = '#ffffff'; circle(x, y + R * 0.3, R * 0.25);
+    return;
+  }
+  const w = 0.25 + 0.75 * Math.abs(Math.cos(G.time * 3 + e.seed));
+  ctx.fillStyle = '#7ff0ff'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, R * 0.12);
+  ctx.beginPath(); ctx.moveTo(x, y - R); ctx.lineTo(x + R * 0.7 * w, y); ctx.lineTo(x, y + R); ctx.lineTo(x - R * 0.7 * w, y); ctx.closePath();
+  ctx.fill(); ctx.stroke();
 }
 function cloud(x, y, s) {
   ctx.fillStyle = 'rgba(255,255,255,0.92)';
@@ -1506,21 +1528,6 @@ const Beeline = (() => {
     const kind = G.hearts < 3 && Math.random() < 0.2 ? 'heart' : Math.random() < 0.3 ? 'spread' : 'gem';
     G.ents.push({ kind, x: cx + 0.5, y: cy + 0.5, z: 0.42, r: 0.24, pickup: true, seed: Math.random() * 9, draw: drawPickup });
   }
-  function drawPickup(it, e) {
-    const R = Math.max(3, it.R), x = it.sx, y = it.sy;
-    if (e.kind === 'heart') { heart(x, y, R * 0.7, true, false); return; }
-    if (e.kind === 'spread') {
-      ctx.fillStyle = 'rgba(53,212,154,0.35)'; circle(x, y, R * 1.4);
-      ctx.fillStyle = '#35d49a';
-      for (const a of [-0.5, 0, 0.5]) circle(x + Math.sin(a) * R * 0.7, y - Math.cos(a) * R * 0.5, R * 0.3);
-      ctx.fillStyle = '#ffffff'; circle(x, y + R * 0.3, R * 0.25);
-      return;
-    }
-    const w = 0.25 + 0.75 * Math.abs(Math.cos(G.time * 3 + e.seed));
-    ctx.fillStyle = '#7ff0ff'; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1, R * 0.12);
-    ctx.beginPath(); ctx.moveTo(x, y - R); ctx.lineTo(x + R * 0.7 * w, y); ctx.lineTo(x, y + R); ctx.lineTo(x - R * 0.7 * w, y); ctx.closePath();
-    ctx.fill(); ctx.stroke();
-  }
   function drawShot(it) {
     if (it.cz < 1.6) return;
     const R = Math.max(2, it.R);
@@ -1942,6 +1949,116 @@ const Floor = (() => {
   };
 })();
 
+// ---------------------------------------------------------------- arenas
+// Blink and Snapshot share an open arena and its enemies: pops that chase you
+// and wind up to bonk you, and spitters that keep their distance and throw
+// orbs. They arrive in waves, most of each wave in front of you. S.tune can
+// soften them: { orb: orb speed, wind: wind-up time, gap: seconds between waves }.
+function arenaFree(sc, x, y, r) {
+  const m = sc.map;
+  return !m.get(Math.floor(x - r), Math.floor(y - r)) && !m.get(Math.floor(x + r), Math.floor(y - r)) &&
+    !m.get(Math.floor(x - r), Math.floor(y + r)) && !m.get(Math.floor(x + r), Math.floor(y + r));
+}
+function arenaLos(sc, x0, y0, x1, y1) {
+  const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 0.25);
+  for (let i = 1; i < n; i++) if (sc.map.get(Math.floor(lerp(x0, x1, i / n)), Math.floor(lerp(y0, y1, i / n)))) return false;
+  return true;
+}
+function arenaMove(sc, e, mx, my) {
+  if (arenaFree(sc, e.x + mx, e.y, e.r * 0.8)) e.x += mx;
+  if (arenaFree(sc, e.x, e.y + my, e.r * 0.8)) e.y += my;
+}
+function arenaWave(sc, S, N) {
+  const gap = (S.tune && S.tune.gap) || 7;
+  S.wave++; S.waveT = Math.max(gap - 3, gap - S.wave * 0.35);
+  const n = Math.min(7, 2 + (S.wave * 0.7 | 0));
+  const kinds = S.wave < 2 ? ['pip', 'pip', 'spit'] : S.wave < 4 ? ['pip', 'spit', 'zip', 'pip'] : ['pip', 'spit', 'zip', 'brute', 'spit'];
+  for (let i = 0; i < n; i++) {
+    for (let tries = 0; tries < 40; tries++) {
+      let x = rand(1.6, N - 1.6), y = rand(1.6, N - 1.6);
+      if (i % 3 !== 2 && tries < 25) { const a = S.cam.a + rand(-0.75, 0.75), d = rand(8, 13); x = S.cam.x + Math.cos(a) * d; y = S.cam.y + Math.sin(a) * d; }
+      if (x < 1.6 || y < 1.6 || x > N - 1.6 || y > N - 1.6 || !arenaFree(sc, x, y, 0.45) || Math.hypot(x - S.cam.x, y - S.cam.y) < 7) continue;
+      const e = blob(pick(kinds), x, y, 0, { age: -i * 0.2, fuse: rand(1.5, 2.8), wind: 0, strafe: Math.random() < 0.5 ? 1 : -1 });
+      e.z = e.r; e.sc = 0;
+      break;
+    }
+  }
+}
+// moves the enemies and their orbs; safe() says the player can't be hit just now
+function arenaStep(sc, S, N, dt, safe) {
+  const cam = S.cam, foes = G.ents.filter(e => e.foe && !e.orb && !e.dead && !e.gone);
+  const orbV = (S.tune && S.tune.orb) || 4.2, wind = (S.tune && S.tune.wind) || 0.55;
+  S.waveT -= dt;
+  if (S.waveT <= 0 || (!foes.length && S.waveT > 1)) arenaWave(sc, S, N);
+  for (const e of G.ents) {
+    if (e.dead || e.gone || !e.foe) continue;
+    if (e.orb) {
+      e.x += e.vx * dt; e.y += e.vy * dt; e.life -= dt;
+      if (e.life <= 0 || !arenaFree(sc, e.x, e.y, 0.05)) { e.gone = true; continue; }
+      if (Math.hypot(e.x - cam.x, e.y - cam.y) < 0.4) { e.gone = true; if (!safe() && hurt()) splat(); }
+      continue;
+    }
+    e.age += dt;
+    if (e.age < 0) { e.sc = 0; continue; }
+    e.sc = easeBack(e.age / 0.3);
+    const dx = cam.x - e.x, dy = cam.y - e.y, d = Math.hypot(dx, dy) || 1;
+    let mx = 0, my = 0, sp;
+    if (e.kind === 'spit') {
+      sp = 1.3;
+      const want = d < 5.5 ? -1 : d > 8.5 ? 1 : 0;
+      mx = dx / d * want - dy / d * e.strafe * 0.6; my = dy / d * want + dx / d * e.strafe * 0.6;
+      e.fuse -= dt; e.tele = e.fuse < 0.8 ? 1 - e.fuse / 0.8 : null;
+      if (e.fuse <= 0) {
+        if (arenaLos(sc, e.x, e.y, cam.x, cam.y)) {
+          orb(e.x, e.y, 0.45, { vx: dx / d * orbV, vy: dy / d * orbV, life: 5, pts: 30 });
+          sfx.toss(); e.squash = -0.25;
+        }
+        e.fuse = rand(2.2, 3);
+      }
+    } else {
+      sp = e.kind === 'zip' ? 2.9 : e.kind === 'brute' ? 0.95 : 1.55;
+      if (e.wind > 0) {
+        e.wind -= dt; sp = 0; e.tele = 1 - e.wind / wind;
+        if (e.wind <= 0) { e.tele = null; if (d < 1.25 && !safe()) hurt(); arenaMove(sc, e, -dx / d * 1.2, -dy / d * 1.2); }
+      } else if (d < 0.95) { e.wind = wind; }
+      const wig = e.kind === 'zip' ? Math.sin(G.time * 3 + e.seed) * 1.1 : 0;
+      const c = Math.cos(wig), s = Math.sin(wig);
+      mx = (dx * c - dy * s) / d; my = (dx * s + dy * c) / d;
+    }
+    for (const o of foes) {
+      if (o === e) continue;
+      const ox = e.x - o.x, oy = e.y - o.y, od = Math.hypot(ox, oy);
+      if (od > 0.01 && od < 0.8) { mx += ox / od * 0.8; my += oy / od * 0.8; }
+    }
+    arenaMove(sc, e, mx * sp * dt, my * sp * dt);
+    e.z = e.r + Math.abs(Math.sin(G.time * 6 + e.seed)) * 0.08;
+  }
+}
+// markers at the edges of the screen for enemies you can't see
+function arenaPips(S) {
+  const cam = S.cam, u = U(), half = Math.atan((W / 2) / V.f), out = [];
+  for (const e of G.ents) {
+    if (!e.foe || e.orb || e.dead || e.gone || e.age < 0) continue;
+    const rel = wrap(Math.atan2(e.y - cam.y, e.x - cam.x) - cam.a);
+    if (Math.abs(rel) < half * 0.92) continue;
+    const side = rel > 0 ? 1 : -1, k = clamp((Math.abs(rel) - half) / (Math.PI - half), 0, 1);
+    out.push({ e, side, x: side > 0 ? W - SAFE.r - 28 * u : SAFE.l + 28 * u, y: H * 0.3 + k * H * 0.42, r: 17 * u });
+  }
+  for (const s of [-1, 1]) {
+    const L = out.filter(p => p.side === s).sort((a, b) => a.y - b.y);
+    for (let i = 1; i < L.length; i++) if (L[i].y - L[i - 1].y < 38 * u) L[i].y = L[i - 1].y + 38 * u;
+  }
+  for (const p of out) {
+    ctx.fillStyle = 'rgba(14,9,32,0.6)'; circle(p.x, p.y, p.r + 3 * u);
+    ctx.fillStyle = p.e.col; circle(p.x, p.y, p.r);
+    ctx.fillStyle = '#ffffff'; ctx.beginPath();
+    ctx.moveTo(p.x + p.side * 9 * u, p.y); ctx.lineTo(p.x - p.side * 5 * u, p.y - 8 * u); ctx.lineTo(p.x - p.side * 5 * u, p.y + 8 * u);
+    ctx.closePath(); ctx.fill();
+    if (p.e.tele != null && p.e.tele > 0.2) { ctx.strokeStyle = '#ff3355'; ctx.lineWidth = 3 * u; ring(p.x, p.y, p.r + 6 * u + Math.sin(G.time * 18) * 2 * u); }
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- 5. Blink
 // A plaza with pillars, and a single kind of input: a tap. What the tap does
 // depends on what is under it. Tap an enemy to shoot it, the ground to dash
@@ -1971,17 +2088,7 @@ const Blink = (() => {
     S = { cam: { x: 12.5, y: 13.5, a: -Math.PI / 2, z: 0.5, fov: 80 }, dash: null, turn: null, waveT: 1.2, wave: 0, kick: 0, gunA: 0, pips: [], hover: 'none', dest: null };
     G.dur = 60; G.chainMax = 2.5;
   }
-  const free = (x, y, r) => !sc.map.get(Math.floor(x - r), Math.floor(y - r)) && !sc.map.get(Math.floor(x + r), Math.floor(y - r)) &&
-    !sc.map.get(Math.floor(x - r), Math.floor(y + r)) && !sc.map.get(Math.floor(x + r), Math.floor(y + r));
-  function los(x0, y0, x1, y1) {
-    const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 0.25);
-    for (let i = 1; i < n; i++) if (sc.map.get(Math.floor(lerp(x0, x1, i / n)), Math.floor(lerp(y0, y1, i / n)))) return false;
-    return true;
-  }
-  function moveEnt(e, mx, my) {
-    if (free(e.x + mx, e.y, e.r * 0.8)) e.x += mx;
-    if (free(e.x, e.y + my, e.r * 0.8)) e.y += my;
-  }
+  const free = (x, y, r) => arenaFree(sc, x, y, r);
   // where a dash toward a floor point would end: at most 7 units, short of walls
   function dashDest(tx, ty) {
     const cam = S.cam;
@@ -2012,27 +2119,6 @@ const Blink = (() => {
     G.fx.push({ k: 'ring', x, y, r0: 6, r1: 30, life: 0.22, max: 0.22 });
     damage(e, 1);
   }
-  function fireOrb(e) {
-    const dx = S.cam.x - e.x, dy = S.cam.y - e.y, d = Math.hypot(dx, dy) || 1;
-    orb(e.x, e.y, 0.45, { vx: dx / d * 4.2, vy: dy / d * 4.2, life: 5, pts: 30 });
-    sfx.toss(); e.squash = -0.25;
-  }
-  function spawnWave() {
-    S.wave++; S.waveT = Math.max(4, 7 - S.wave * 0.35);
-    const n = Math.min(7, 2 + (S.wave * 0.7 | 0));
-    const kinds = S.wave < 2 ? ['pip', 'pip', 'spit'] : S.wave < 4 ? ['pip', 'spit', 'zip', 'pip'] : ['pip', 'spit', 'zip', 'brute', 'spit'];
-    for (let i = 0; i < n; i++) {
-      for (let tries = 0; tries < 40; tries++) {
-        let x = rand(1.6, N - 1.6), y = rand(1.6, N - 1.6);
-        if (i % 3 !== 2 && tries < 25) { const a = S.cam.a + rand(-0.75, 0.75), d = rand(8, 13); x = S.cam.x + Math.cos(a) * d; y = S.cam.y + Math.sin(a) * d; }
-        if (x < 1.6 || y < 1.6 || x > N - 1.6 || y > N - 1.6 || !free(x, y, 0.45) || Math.hypot(x - S.cam.x, y - S.cam.y) < 7) continue;
-        const e = blob(pick(kinds), x, y, 0, { age: -i * 0.2, fuse: rand(1.5, 2.8), wind: 0, strafe: Math.random() < 0.5 ? 1 : -1 });
-        e.z = e.r; e.sc = 0;
-        break;
-      }
-    }
-  }
-
   function update(dt) {
     const cam = S.cam;
     S.kick = Math.max(0, S.kick - dt * 7);
@@ -2049,71 +2135,9 @@ const Blink = (() => {
       if (S.turn.t >= S.turn.T) S.turn = null;
     }
     cam.fov = ease(cam.fov, S.dash ? 92 : 80, 14, dt);
-    const foes = G.ents.filter(e => e.foe && !e.orb && !e.dead && !e.gone);
-    S.waveT -= dt;
-    if (S.waveT <= 0 || (!foes.length && S.waveT > 1)) spawnWave();
-    for (const e of G.ents) {
-      if (e.dead || e.gone) continue;
-      if (e.orb) {
-        e.x += e.vx * dt; e.y += e.vy * dt; e.life -= dt;
-        if (e.life <= 0 || !free(e.x, e.y, 0.05)) { e.gone = true; continue; }
-        if (Math.hypot(e.x - cam.x, e.y - cam.y) < 0.4) { e.gone = true; if (!S.dash && hurt()) splat(); }
-        continue;
-      }
-      e.age += dt;
-      if (e.age < 0) { e.sc = 0; continue; }
-      e.sc = easeBack(e.age / 0.3);
-      const dx = cam.x - e.x, dy = cam.y - e.y, d = Math.hypot(dx, dy) || 1;
-      let mx = 0, my = 0, sp;
-      if (e.kind === 'spit') {
-        sp = 1.3;
-        const want = d < 5.5 ? -1 : d > 8.5 ? 1 : 0;
-        mx = dx / d * want - dy / d * e.strafe * 0.6; my = dy / d * want + dx / d * e.strafe * 0.6;
-        e.fuse -= dt; e.tele = e.fuse < 0.8 ? 1 - e.fuse / 0.8 : null;
-        if (e.fuse <= 0) { if (los(e.x, e.y, cam.x, cam.y)) fireOrb(e); e.fuse = rand(2.2, 3); }
-      } else {
-        sp = e.kind === 'zip' ? 2.9 : e.kind === 'brute' ? 0.95 : 1.55;
-        if (e.wind > 0) {
-          e.wind -= dt; sp = 0; e.tele = 1 - e.wind / 0.55;
-          if (e.wind <= 0) { e.tele = null; if (d < 1.25 && !S.dash) hurt(); moveEnt(e, -dx / d * 1.2, -dy / d * 1.2); }
-        } else if (d < 0.95) { e.wind = 0.55; }
-        const wig = e.kind === 'zip' ? Math.sin(G.time * 3 + e.seed) * 1.1 : 0;
-        const c = Math.cos(wig), s = Math.sin(wig);
-        mx = (dx * c - dy * s) / d; my = (dx * s + dy * c) / d;
-      }
-      for (const o of foes) {
-        if (o === e) continue;
-        const ox = e.x - o.x, oy = e.y - o.y, od = Math.hypot(ox, oy);
-        if (od > 0.01 && od < 0.8) { mx += ox / od * 0.8; my += oy / od * 0.8; }
-      }
-      moveEnt(e, mx * sp * dt, my * sp * dt);
-      e.z = e.r + Math.abs(Math.sin(G.time * 6 + e.seed)) * 0.08;
-    }
+    arenaStep(sc, S, N, dt, () => !!S.dash);
   }
 
-  function drawPips() {
-    const cam = S.cam, u = U(), half = Math.atan((W / 2) / V.f), out = [];
-    for (const e of G.ents) {
-      if (!e.foe || e.orb || e.dead || e.gone || e.age < 0) continue;
-      const rel = wrap(Math.atan2(e.y - cam.y, e.x - cam.x) - cam.a);
-      if (Math.abs(rel) < half * 0.92) continue;
-      const side = rel > 0 ? 1 : -1, k = clamp((Math.abs(rel) - half) / (Math.PI - half), 0, 1);
-      out.push({ e, side, x: side > 0 ? W - SAFE.r - 28 * u : SAFE.l + 28 * u, y: H * 0.3 + k * H * 0.42, r: 17 * u });
-    }
-    for (const s of [-1, 1]) {
-      const L = out.filter(p => p.side === s).sort((a, b) => a.y - b.y);
-      for (let i = 1; i < L.length; i++) if (L[i].y - L[i - 1].y < 38 * u) L[i].y = L[i - 1].y + 38 * u;
-    }
-    for (const p of out) {
-      ctx.fillStyle = 'rgba(14,9,32,0.6)'; circle(p.x, p.y, p.r + 3 * u);
-      ctx.fillStyle = p.e.col; circle(p.x, p.y, p.r);
-      ctx.fillStyle = '#ffffff'; ctx.beginPath();
-      ctx.moveTo(p.x + p.side * 9 * u, p.y); ctx.lineTo(p.x - p.side * 5 * u, p.y - 8 * u); ctx.lineTo(p.x - p.side * 5 * u, p.y + 8 * u);
-      ctx.closePath(); ctx.fill();
-      if (p.e.tele != null && p.e.tele > 0.2) { ctx.strokeStyle = '#ff3355'; ctx.lineWidth = 3 * u; ring(p.x, p.y, p.r + 6 * u + Math.sin(G.time * 18) * 2 * u); }
-    }
-    S.pips = out;
-  }
   function render() {
     renderWorld(sc, S.cam, G.ents);
     const u = U();
@@ -2143,7 +2167,7 @@ const Blink = (() => {
       } else { ctx.fillStyle = '#ffffff'; circle(x, y, 3 * u); }
     }
     drawBlaster(W * 0.78, H + 40 * u, gunScale() * 0.9, S.gunA, S.kick, '#4cc3ff');
-    drawPips();
+    S.pips = arenaPips(S);
   }
 
   return {
@@ -2370,9 +2394,254 @@ const Lighthouse = (() => {
   };
 })();
 
+// ---------------------------------------------------------------- 7. Snapshot
+// Two thumbs, split the way phone shooters usually are, but with the right
+// thumb's job made easy. The left half of the screen is a stick that moves and
+// turns you, like driving a car. A tap on the right half shoots whatever is
+// nearest the tap and swings the view to centre it. Holding locks on and keeps
+// firing, and while you are locked on the stick's sideways push strafes, so you
+// circle the target (the lock-on of the 3D Zelda games). Nothing turns the
+// camera unless you ask it to, and the edges dim a little while it turns.
+const Snapshot = (() => {
+  const N = 25, C = 12, FWD = 3.4, BACK = 2.2, SIDE = 2.8, TURN = 2.3;
+  const CLOUDS = Array.from({ length: 14 }, (_, i) => [i / 14 * TAU + rand(-0.2, 0.2), rand(0.2, 0.5), rand(0.09, 0.16)]);
+  const sc = makeScene({
+    walls: {
+      1: { base: '#3f9a50', alt: '#45a457', trim: '#2c7a3b', seam: '#2b7038' },
+      2: { base: '#ece8ff', alt: '#e3deff', trim: '#b8aee8', seam: '#cdc6f5', band: '#ff7fb0', bandAt: [0.78, 0.9] },
+      3: { base: '#2f8a45', alt: '#35924b', trim: '#236c35', seam: '#226632' },
+    },
+    fog: '#e2f1ff', fogNear: 6, fogFar: 30, sky: ['#5ab4ff', '#e2f1ff'], floor: '#8ccd6c', shadow: 'rgba(20,60,30,0.25)',
+  });
+  sc.skyDeco = () => { for (const c of CLOUDS) { const x = skyX(c[0]); if (x != null) cloud(x, V.hz - V.f * c[1], V.f * c[2]); } };
+  // mown stripes on the lawn
+  sc.floorDeco = () => {
+    const R = 22, cx = V.cam.x, cy = V.cam.y;
+    ctx.fillStyle = 'rgba(255,255,255,0.09)';
+    ctx.beginPath();
+    for (let x = Math.floor((cx - R) / 2) * 2; x < cx + R; x += 2) floorPoly([[x, cy - R], [x + 1, cy - R], [x + 1, cy + R], [x, cy + R]]);
+    ctx.fill();
+  };
+  let S = null;
+
+  // a lawn with a planter in the middle, four L-shaped hedges around it and topiary
+  function build() {
+    const g = new Uint8Array(N * N), set = (x, y, v) => { g[y * N + x] = v; };
+    for (let i = 0; i < N; i++) { set(i, 0, 1); set(i, N - 1, 1); set(0, i, 1); set(N - 1, i, 1); }
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+      for (let k = 3; k <= 6; k++) { set(C + sx * k, C + sy * 6, 1); set(C + sx * 6, C + sy * k, 1); }
+      set(C + sx * 9, C + sy * 9, 3);
+    }
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) set(C + i, C + j, 2);
+    for (const [x, y] of [[C, C - 9], [C, C + 9], [C - 9, C], [C + 9, C]]) set(x, y, 3);
+    return g;
+  }
+  function setup() {
+    const g = build();
+    sc.map = { get: (x, y) => x < 0 || y < 0 || x >= N || y >= N ? 1 : g[y * N + x] };
+    S = { cam: { x: C + 0.5, y: C + 7.5, a: -Math.PI / 2, z: 0.5, fov: 80 }, stick: null, trig: null, lock: null, centre: null,
+      kf: 0, kb: 0, kl: 0, kr: 0, keys: false, fireT: 0, kick: 0, gunA: 0, waveT: 1.5, wave: 0, pips: [], spin: 0, lastA: -Math.PI / 2,
+      tune: { orb: 3.2, wind: 0.75, gap: 8 } };
+    G.dur = 60; G.chainMax = 2.5;
+    for (let i = 0; i < 3; i++) placeGem();
+  }
+  // gems keep your chain going, so there is a reason to move about
+  function placeGem() {
+    for (let t = 0; t < 40; t++) {
+      const x = rand(1.6, N - 1.6), y = rand(1.6, N - 1.6);
+      if (!arenaFree(sc, x, y, 0.45) || Math.hypot(x - S.cam.x, y - S.cam.y) < 5) continue;
+      G.ents.push({ kind: G.hearts < 3 && Math.random() < 0.15 ? 'heart' : 'gem', x, y, z: 0.4, r: 0.24, pickup: true, seed: Math.random() * 9, draw: drawPickup });
+      return;
+    }
+  }
+  function collect(e) {
+    e.gone = true; sfx.coin();
+    if (e.kind === 'heart') { G.hearts = Math.min(3, G.hearts + 1); callout('+1 HEART', '#ff5f7a', 40, 1); }
+    else { G.score += 50; float(e.x, e.y, e.z + 0.3, '+50', '#7ff0ff'); if (G.combo > 1) G.chainT = G.chainMax; }
+    placeGem();
+  }
+
+  const stickR = () => 58 * U();
+  // the stick and the keys add up; each axis has a small dead zone
+  function stickVec() {
+    let x = S.kr - S.kl, y = S.kb - S.kf;
+    if (S.stick) { const R = stickR(); x += (S.stick.x - S.stick.x0) / R; y += (S.stick.y - S.stick.y0) / R; }
+    const dz = v => { v = clamp(v, -1, 1); return Math.abs(v) < 0.12 ? 0 : Math.sign(v) * (Math.abs(v) - 0.12) / 0.88; };
+    return { x: dz(x), y: dz(y) };
+  }
+  const bearing = e => Math.atan2(e.y - S.cam.y, e.x - S.cam.x);
+  // the visible target nearest a point on the screen, within reach of it
+  function nearest(x, y, reach) {
+    let best = null, bd = reach;
+    for (const e of G.ents) {
+      if (!e.foe || e.dead || e.gone || !e.scr || e.age < 0.15) continue;
+      const d = Math.hypot(e.scr.sx - x, e.scr.sy - y) - e.scr.R * 1.2;
+      if (d < bd) { bd = d; best = e; }
+    }
+    return best;
+  }
+  // when the locked target pops and you are still holding, move on to whatever
+  // is nearest the middle of the view
+  function nextTarget() {
+    let best = null, bs = 0.5;
+    for (const e of G.ents) {
+      if (!e.foe || e.orb || e.dead || e.gone || !e.scr || e.age < 0.15) continue;
+      const rel = Math.abs(wrap(bearing(e) - S.cam.a));
+      if (rel < bs) { bs = rel; best = e; }
+    }
+    return best;
+  }
+  function shoot(e) {
+    S.fireT = 0.2; S.kick = 1; sfx.shot(); G.stats.shots++; G.stats.hits++;
+    if (e.scr) {
+      const u = U(), s = gunScale() * 0.9;
+      S.gunA = clamp((e.scr.sx - W * 0.8) / W * 1.4, -0.5, 0.3);
+      G.fx.push({ k: 'tracer', x0: W * 0.8 + Math.sin(S.gunA) * 182 * s, y0: H + 40 * u - Math.cos(S.gunA) * 182 * s, x1: e.scr.sx, y1: e.scr.sy, life: 0.08, max: 0.08 });
+    }
+    damage(e, 1);
+  }
+  // a tap on the right half: shoot what is nearest the tap and bring it to the
+  // middle; with nothing near it, just look that way
+  function trigger(x, y) {
+    x -= G.shx; y -= G.shy;
+    const e = nearest(x, y, Math.max(W * 0.2, 120));
+    if (e) { S.lock = e; S.centre = null; if (S.fireT <= 0.12) shoot(e); return; }
+    S.centre = S.cam.a + Math.atan((x - W / 2) / V.f);
+    sfx.turn();
+  }
+  function letGo() {
+    if (S.lock && !S.lock.dead && !S.lock.gone) S.centre = bearing(S.lock);
+    S.lock = null; S.trig = null;
+  }
+
+  function update(dt) {
+    const cam = S.cam, st = stickVec();
+    S.kick = Math.max(0, S.kick - dt * 7);
+    S.gunA = ease(S.gunA, 0, 4, dt);
+    S.fireT -= dt;
+    if (S.lock && (S.lock.dead || S.lock.gone)) S.lock = S.trig ? nextTarget() : null;
+    let side = 0;
+    if (S.lock) {
+      // locked on: the view follows the target and the stick strafes around it
+      cam.a = easeAng(cam.a, bearing(S.lock), 12, dt);
+      side = st.x * SIDE;
+      if (S.trig && S.fireT <= 0) shoot(S.lock);
+    } else {
+      if (Math.abs(st.x) > 0.2) S.centre = null;
+      if (S.centre != null) {
+        cam.a = easeAng(cam.a, S.centre, 16, dt);
+        if (Math.abs(wrap(S.centre - cam.a)) < 0.004) S.centre = null;
+      }
+      cam.a += Math.sign(st.x) * Math.pow(Math.abs(st.x), 1.5) * TURN * dt;
+    }
+    const fwd = st.y < 0 ? -st.y * FWD : -st.y * BACK, ca = Math.cos(cam.a), sa = Math.sin(cam.a);
+    const mx = (ca * fwd - sa * side) * dt, my = (sa * fwd + ca * side) * dt;
+    if (arenaFree(sc, cam.x + mx, cam.y, 0.3)) cam.x += mx;
+    if (arenaFree(sc, cam.x, cam.y + my, 0.3)) cam.y += my;
+    S.spin = ease(S.spin, Math.abs(wrap(cam.a - S.lastA)) / Math.max(dt, 1e-3), 10, dt);
+    S.lastA = cam.a;
+    arenaStep(sc, S, N, dt, () => false);
+    for (const e of G.ents) {
+      if (!e.pickup || e.gone) continue;
+      e.z = 0.4 + Math.sin(G.time * 4 + e.seed) * 0.06;
+      if (Math.hypot(e.x - cam.x, e.y - cam.y) < 0.6) collect(e);
+    }
+  }
+
+  // the stick while a thumb is on it; before that, where the thumbs go
+  function drawThumbs() {
+    const u = U(), R = stickR();
+    if (S.stick) {
+      const k = S.stick;
+      ctx.fillStyle = 'rgba(255,255,255,0.14)'; circle(k.x0, k.y0, R);
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2 * u; ring(k.x0, k.y0, R);
+      ctx.fillStyle = 'rgba(184,224,74,0.9)'; circle(k.x, k.y, R * 0.42);
+      return;
+    }
+    if (G.t > 8 || S.keys) return;
+    const a = clamp(8 - G.t, 0, 1) * 0.85;
+    const lx = SAFE.l + Math.max(100 * u, W * 0.17), ly = H - SAFE.b - Math.max(100 * u, H * 0.24);
+    const rx = W - SAFE.r - Math.max(120 * u, W * 0.22), ry = H * 0.44;
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2 * u;
+    ring(lx, ly, R); ctx.fillStyle = 'rgba(255,255,255,0.3)'; circle(lx, ly, R * 0.42);
+    ring(rx, ry, 22 * u); ring(rx, ry, 34 * u + Math.sin(G.time * 5) * 4 * u);
+    ctx.setLineDash([5 * u, 9 * u]); line(W / 2, H * 0.22, W / 2, H - SAFE.b - 60 * u); ctx.setLineDash([]);
+    ctx.restore();
+    label('MOVE AND TURN', lx, ly - R - 18 * u, 15 * u, '#ffffff', 'center', a);
+    label('TAP TO SHOOT', rx, ry - 52 * u, 15 * u, '#ffffff', 'center', a);
+  }
+  function render() {
+    renderWorld(sc, S.cam, G.ents);
+    const u = U();
+    if (S.lock && S.lock.scr) {
+      const s = S.lock.scr, r = Math.max(s.R * 1.35, 16 * u), rot = G.time * 3;
+      ctx.strokeStyle = '#b8e04a'; ctx.lineWidth = 3 * u;
+      for (let i = 0; i < 4; i++) { const a = rot + i * Math.PI / 2; ctx.beginPath(); ctx.arc(s.sx, s.sy, r, a, a + 0.8); ctx.stroke(); }
+    }
+    // with a mouse, ring whatever a click would pick
+    if (G.st === 'play' && G.ptr.type === 'mouse' && G.ptr.in && !S.trig && (S.keys || G.ptr.x >= W / 2)) {
+      const e = nearest(G.ptr.x - G.shx, G.ptr.y - G.shy, Math.max(W * 0.2, 120));
+      if (e && e.scr) { ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2 * u; ring(e.scr.sx, e.scr.sy, Math.max(e.scr.R * 1.35, 16 * u)); }
+    }
+    crosshair(W / 2, H / 2, S.lock ? '#b8e04a' : '#ffffff');
+    drawBlaster(W * 0.8, H + 40 * u, gunScale() * 0.9, S.gunA, S.kick, '#b8e04a');
+    // a comfort vignette: the edges dim while the view is turning quickly
+    if (S.spin > 0.5) {
+      const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.7);
+      g.addColorStop(0, 'rgba(8,24,16,0)'); g.addColorStop(1, `rgba(8,24,16,${clamp((S.spin - 0.5) / 3, 0, 0.32)})`);
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    }
+    S.pips = arenaPips(S);
+    drawThumbs();
+  }
+
+  return {
+    id: 'snapshot', name: 'Snapshot', color: '#b8e04a', cursor: 'crosshair', demoSteps: 120, multi: true,
+    pitch: 'A garden, played the way phone shooters are: a stick under the left thumb that moves and turns you, and the right thumb on the screen. A tap there shoots whatever is nearest and swings the view to it. Hold to stay locked on and circle it.',
+    jobs: [['you', 'Move', 'left thumb'], ['you', 'Look', 'left turns, right centres'], ['you', 'Aim', 'tap near it'], ['you', 'Fire', 'the same tap']],
+    controls: [['Touch', 'left half is a stick that moves and turns; right half, tap to shoot and hold to lock on'],
+      ['Keys', 'W S move, A D turn (sidestep when locked on), Space shoots'],
+      ['Mouse', 'drag on the left half, click on the right; once you use the keys, click anywhere']],
+    hint: 'Left thumb moves and turns. Right thumb taps to shoot.',
+    notice: 'This is the usual phone layout, but the right thumb never has to aim: a tap picks the nearest target and the view comes to it. Only you move the camera, which should be easier on anyone the Lighthouse made queasy. Holding on a target turns the stick into a strafe, so circling it comes for free.',
+    state: () => S, setup, update, render,
+    pdown(id, x, y, type) {
+      if (x < W / 2 && !(type === 'mouse' && S.keys)) { if (!S.stick) S.stick = { id, x0: x, y0: y, x, y }; }
+      else if (!S.trig) { S.trig = { id }; trigger(x, y); }
+    },
+    pmove(id, x, y) {
+      const k = S.stick;
+      if (!k || k.id !== id) return;
+      k.x = x; k.y = y;
+      // the base follows a thumb that wanders past the edge of the stick
+      const R = stickR(), dx = x - k.x0, dy = y - k.y0, L = Math.hypot(dx, dy);
+      if (L > R) { k.x0 = x - dx / L * R; k.y0 = y - dy / L * R; }
+    },
+    pup(id) {
+      if (S.stick && S.stick.id === id) S.stick = null;
+      if (S.trig && S.trig.id === id) letGo();
+    },
+    key(code, down) {
+      const v = down ? 1 : 0;
+      if (code === 'KeyW' || code === 'ArrowUp') S.kf = v;
+      else if (code === 'KeyS' || code === 'ArrowDown') S.kb = v;
+      else if (code === 'KeyA' || code === 'ArrowLeft') S.kl = v;
+      else if (code === 'KeyD' || code === 'ArrowRight') S.kr = v;
+      else if (code === 'Space') {
+        if (down && !S.trig) { S.trig = { id: 'key' }; trigger(W / 2 + G.shx, H / 2 + G.shy); }
+        else if (!down && S.trig && S.trig.id === 'key') letGo();
+        return;
+      } else return;
+      if (down) S.keys = true;
+    },
+    cancel() { if (!S) return; S.stick = null; S.kf = S.kb = S.kl = S.kr = 0; if (S.trig) letGo(); },
+  };
+})();
+
 // ---------------------------------------------------------------- menu and panels
 const SK = {};
-for (const sk of [Ride, Sweep, Beeline, Floor, Blink, Lighthouse]) SK[sk.id] = sk;
+for (const sk of [Ride, Sweep, Beeline, Floor, Blink, Lighthouse, Snapshot]) SK[sk.id] = sk;
 const GROUPS = [
   { title: 'The game drives, you shoot', ids: ['ride', 'sweep'],
     text: 'The camera runs on rails and keeps the action in frame, so you never steer or look around. All that is left is pointing, which almost everyone can already do.' },
@@ -2380,6 +2649,8 @@ const GROUPS = [
     text: 'The gun fires by itself. You only move, and the aiming comes from where you go and which way you face.' },
   { title: 'One input for everything', ids: ['blink', 'lighthouse'],
     text: 'You keep all four jobs, but they share a single input: a tap that means different things depending on what it lands on, or one button.' },
+  { title: 'Two thumbs, no aiming', ids: ['snapshot'],
+    text: 'The usual phone layout, with the left thumb on a stick and the right thumb shooting, but the right thumb taps instead of aiming and the view comes to what it taps. This one was added after the first six, from a suggestion to split the screen that way.' },
 ];
 GROUPS.forEach((gr, gi) => gr.ids.forEach(id => { SK[id].group = gi; }));
 // A page can be built around a single sketch: give the canvas data-solo="<id>".
@@ -2414,7 +2685,7 @@ function controlsList(sk) {
 function buildMenu() {
   const host = document.getElementById('groups');
   GROUPS.forEach(gr => {
-    const sec = el('section', 'group'), head = el('div', 'group-head'), pair = el('div', 'pair');
+    const sec = el('section', 'group'), head = el('div', 'group-head'), pair = el('div', gr.ids.length > 1 ? 'pair' : 'pair one');
     head.append(el('h2', null, gr.title), el('p', null, gr.text));
     for (const id of gr.ids) {
       const sk = SK[id], card = el('article', 'card'), body = el('div', 'card-body'), foot = el('div', 'card-foot');
@@ -2522,6 +2793,14 @@ function resume() {
 cv.addEventListener('pointerdown', e => {
   audio();
   if (G.st !== 'play' || G.paused) return;
+  if (G.sk.multi) {
+    if (e.pointerType === 'mouse' && e.button > 0) return;
+    e.preventDefault();
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    Object.assign(G.ptr, { x: e.clientX, y: e.clientY, type: e.pointerType || 'mouse', in: true });
+    G.sk.pdown(e.pointerId, e.clientX, e.clientY, e.pointerType || 'mouse');
+    return;
+  }
   if (G.ptr.id !== -1 && G.ptr.id !== e.pointerId) return;          // one finger at a time
   if (e.pointerType === 'mouse' && e.button > 0) return;
   e.preventDefault();
@@ -2530,11 +2809,17 @@ cv.addEventListener('pointerdown', e => {
   if (G.sk.down) G.sk.down(G.ptr);
 });
 cv.addEventListener('pointermove', e => {
+  if (G.sk && G.sk.multi) {
+    if (e.pointerType === 'mouse') Object.assign(G.ptr, { x: e.clientX, y: e.clientY, type: 'mouse', in: true });
+    if (G.st === 'play' && !G.paused) G.sk.pmove(e.pointerId, e.clientX, e.clientY);
+    return;
+  }
   if (G.ptr.id !== -1 && G.ptr.id !== e.pointerId) return;
   G.ptr.x = e.clientX; G.ptr.y = e.clientY; G.ptr.type = e.pointerType || 'mouse'; G.ptr.in = true;
   if (G.st === 'play' && !G.paused && G.sk.move) G.sk.move(G.ptr);
 });
 const pointerEnd = e => {
+  if (G.sk && G.sk.multi) { if (G.st === 'play' && !G.paused) G.sk.pup(e.pointerId); return; }
   if (G.ptr.id !== e.pointerId) return;
   G.ptr.id = -1; G.ptr.down = false;
   if (G.st === 'play' && !G.paused && G.sk.up) G.sk.up(G.ptr);
