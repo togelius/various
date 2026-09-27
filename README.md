@@ -52,6 +52,12 @@ subdirectory with its own README:
   one-button lighthouse, and a two-thumb garden where you aim by turning and
   fire with two buttons. One HTML file. Open `finger-guns/index.html`; the design notes are
   in `finger-guns/README.md`.
+- **[tall-order/](tall-order/)** — Tall Order, a first-person shooter about
+  climbing a tower of big toy bricks on a living-room rug, through wolves,
+  kitties, bees, a brick golem, toy cars and cannons, up to a giant wolf and a
+  crane with a flag on top. Pickup weapons you use up, checkpoints, splats.
+  Raw WebGL2, one HTML file, made for a phone held sideways. Open
+  `tall-order/index.html`.
 
 ## Repository policy
 
