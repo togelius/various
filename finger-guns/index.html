@@ -2397,13 +2397,15 @@ const Lighthouse = (() => {
 // ---------------------------------------------------------------- 7. Snapshot
 // Two thumbs, split the way phone shooters usually are, but with the right
 // thumb's job made easy. The left half of the screen is a stick that moves and
-// turns you, like driving a car. A tap on the right half shoots whatever is
-// nearest the tap and swings the view to centre it. Holding locks on and keeps
-// firing, and while you are locked on the stick's sideways push strafes, so you
-// circle the target (the lock-on of the 3D Zelda games). Nothing turns the
-// camera unless you ask it to, and the edges dim a little while it turns.
+// turns you, like driving a car. A tap on the right half fires where it lands
+// and swings the view to centre that spot, so you point rather than drag to
+// aim, and you can miss. Holding on a target locks on and keeps firing, and
+// while you are locked on the stick's sideways push strafes, so you circle the
+// target (the lock-on of the 3D Zelda games). Holding anywhere else keeps
+// firing while the stick aims. Nothing turns the camera unless you ask it to,
+// and the edges dim a little while it turns.
 const Snapshot = (() => {
-  const N = 25, C = 12, FWD = 3.4, BACK = 2.2, SIDE = 2.8, TURN = 2.3;
+  const N = 25, C = 12, FWD = 4.8, BACK = 3.4, SIDE = 4.2, TURN = 3.4, BOOST = 5.6;
   const CLOUDS = Array.from({ length: 14 }, (_, i) => [i / 14 * TAU + rand(-0.2, 0.2), rand(0.2, 0.5), rand(0.09, 0.16)]);
   const sc = makeScene({
     walls: {
@@ -2440,7 +2442,7 @@ const Snapshot = (() => {
     const g = build();
     sc.map = { get: (x, y) => x < 0 || y < 0 || x >= N || y >= N ? 1 : g[y * N + x] };
     S = { cam: { x: C + 0.5, y: C + 7.5, a: -Math.PI / 2, z: 0.5, fov: 80 }, stick: null, trig: null, lock: null, centre: null,
-      kf: 0, kb: 0, kl: 0, kr: 0, keys: false, fireT: 0, kick: 0, gunA: 0, waveT: 1.5, wave: 0, pips: [], spin: 0, lastA: -Math.PI / 2,
+      kf: 0, kb: 0, kl: 0, kr: 0, keys: false, fireT: 0, kick: 0, gunA: 0, waveT: 1.5, wave: 0, pips: [], spin: 0, lastA: -Math.PI / 2, full: 0,
       tune: { orb: 3.2, wind: 0.75, gap: 8 } };
     G.dur = 60; G.chainMax = 2.5;
     for (let i = 0; i < 3; i++) placeGem();
@@ -2461,7 +2463,7 @@ const Snapshot = (() => {
     placeGem();
   }
 
-  const stickR = () => 58 * U();
+  const stickR = () => clamp(Math.min(W, H) * 0.12, 44, 70);   // a thumb's travel, whatever the screen
   // the stick and the keys add up; each axis has a small dead zone
   function stickVec() {
     let x = S.kr - S.kl, y = S.kb - S.kf;
@@ -2470,44 +2472,35 @@ const Snapshot = (() => {
     return { x: dz(x), y: dz(y) };
   }
   const bearing = e => Math.atan2(e.y - S.cam.y, e.x - S.cam.x);
-  // the visible target nearest a point on the screen, within reach of it
-  function nearest(x, y, reach) {
-    let best = null, bd = reach;
-    for (const e of G.ents) {
-      if (!e.foe || e.dead || e.gone || !e.scr || e.age < 0.15) continue;
-      const d = Math.hypot(e.scr.sx - x, e.scr.sy - y) - e.scr.R * 1.2;
-      if (d < bd) { bd = d; best = e; }
+  // a shot along the ray through a point on the screen: it hits whatever is under
+  // that point, with a finger's width of slack, or it misses and kicks up a puff
+  function shootAt(x, y) {
+    S.fireT = 0.16; S.kick = 1; sfx.shot(); G.stats.shots++;
+    const u = U(), s = gunScale() * 0.9, e = pickAt(x, y, 1.15, 22);
+    S.gunA = clamp((x - W * 0.8) / W * 1.4, -0.5, 0.3);
+    G.fx.push({ k: 'tracer', x0: W * 0.8 + Math.sin(S.gunA) * 182 * s, y0: H + 40 * u - Math.cos(S.gunA) * 182 * s, x1: x, y1: y, life: 0.08, max: 0.08 });
+    if (e) {
+      G.stats.hits++; damage(e, 1);
+      G.fx.push({ k: 'ring', x, y, r0: 6, r1: 26, life: 0.2, max: 0.2 });
+      return e;
     }
-    return best;
-  }
-  // when the locked target pops and you are still holding, move on to whatever
-  // is nearest the middle of the view
-  function nextTarget() {
-    let best = null, bs = 0.5;
-    for (const e of G.ents) {
-      if (!e.foe || e.orb || e.dead || e.gone || !e.scr || e.age < 0.15) continue;
-      const rel = Math.abs(wrap(bearing(e) - S.cam.a));
-      if (rel < bs) { bs = rel; best = e; }
+    sfx.miss();
+    const w = worldAt(x, y);
+    if (w) for (let i = 0; i < 7; i++) {
+      G.parts.push({ x: w.x, y: w.y, z: w.z, vx: rand(-1, 1), vy: rand(-1, 1), vz: rand(0.5, 2), life: rand(0.3, 0.6), sz: 0.03, rot: 0, vr: 0, col: '#f4ffe0' });
     }
-    return best;
+    return null;
   }
-  function shoot(e) {
-    S.fireT = 0.2; S.kick = 1; sfx.shot(); G.stats.shots++; G.stats.hits++;
-    if (e.scr) {
-      const u = U(), s = gunScale() * 0.9;
-      S.gunA = clamp((e.scr.sx - W * 0.8) / W * 1.4, -0.5, 0.3);
-      G.fx.push({ k: 'tracer', x0: W * 0.8 + Math.sin(S.gunA) * 182 * s, y0: H + 40 * u - Math.cos(S.gunA) * 182 * s, x1: e.scr.sx, y1: e.scr.sy, life: 0.08, max: 0.08 });
-    }
-    damage(e, 1);
-  }
-  // a tap on the right half: shoot what is nearest the tap and bring it to the
-  // middle; with nothing near it, just look that way
+  // a tap on the right half fires where it lands and swings the view to centre
+  // that spot. Hit something that survives and holding locks on to it; miss,
+  // and holding keeps firing through the middle of the view while the stick aims
   function trigger(x, y) {
     x -= G.shx; y -= G.shy;
-    const e = nearest(x, y, Math.max(W * 0.2, 120));
-    if (e) { S.lock = e; S.centre = null; if (S.fireT <= 0.12) shoot(e); return; }
+    S.lock = null;
     S.centre = S.cam.a + Math.atan((x - W / 2) / V.f);
-    sfx.turn();
+    if (S.fireT > 0.1) return;
+    const e = shootAt(x, y);
+    if (e && !e.dead) { S.lock = e; S.centre = null; }
   }
   function letGo() {
     if (S.lock && !S.lock.dead && !S.lock.gone) S.centre = bearing(S.lock);
@@ -2519,21 +2512,27 @@ const Snapshot = (() => {
     S.kick = Math.max(0, S.kick - dt * 7);
     S.gunA = ease(S.gunA, 0, 4, dt);
     S.fireT -= dt;
-    if (S.lock && (S.lock.dead || S.lock.gone)) S.lock = S.trig ? nextTarget() : null;
+    if (S.lock && (S.lock.dead || S.lock.gone)) S.lock = null;
+    const ax = Math.abs(st.x);
+    S.full = ax > 0.85 ? S.full + dt : 0;
     let side = 0;
     if (S.lock) {
       // locked on: the view follows the target and the stick strafes around it
-      cam.a = easeAng(cam.a, bearing(S.lock), 12, dt);
+      cam.a = easeAng(cam.a, bearing(S.lock), 14, dt);
       side = st.x * SIDE;
-      if (S.trig && S.fireT <= 0) shoot(S.lock);
     } else {
-      if (Math.abs(st.x) > 0.2) S.centre = null;
+      if (ax > 0.2) S.centre = null;
       if (S.centre != null) {
-        cam.a = easeAng(cam.a, S.centre, 16, dt);
+        cam.a = easeAng(cam.a, S.centre, 22, dt);
         if (Math.abs(wrap(S.centre - cam.a)) < 0.004) S.centre = null;
       }
-      cam.a += Math.sign(st.x) * Math.pow(Math.abs(st.x), 1.5) * TURN * dt;
+      // gentle near the middle of the stick, fast at the edge, and faster still
+      // once it has been held hard over for a moment, so you can spin round
+      const rate = lerp(TURN, BOOST, clamp((S.full - 0.2) / 0.3, 0, 1));
+      cam.a += Math.sign(st.x) * Math.pow(ax, 1.3) * rate * dt;
     }
+    // holding the trigger keeps firing through the middle of the view
+    if (S.trig && S.fireT <= 0) shootAt(W / 2, H / 2);
     const fwd = st.y < 0 ? -st.y * FWD : -st.y * BACK, ca = Math.cos(cam.a), sa = Math.sin(cam.a);
     const mx = (ca * fwd - sa * side) * dt, my = (sa * fwd + ca * side) * dt;
     if (arenaFree(sc, cam.x + mx, cam.y, 0.3)) cam.x += mx;
@@ -2579,9 +2578,9 @@ const Snapshot = (() => {
       ctx.strokeStyle = '#b8e04a'; ctx.lineWidth = 3 * u;
       for (let i = 0; i < 4; i++) { const a = rot + i * Math.PI / 2; ctx.beginPath(); ctx.arc(s.sx, s.sy, r, a, a + 0.8); ctx.stroke(); }
     }
-    // with a mouse, ring whatever a click would pick
+    // with a mouse, ring whatever a click would hit
     if (G.st === 'play' && G.ptr.type === 'mouse' && G.ptr.in && !S.trig && (S.keys || G.ptr.x >= W / 2)) {
-      const e = nearest(G.ptr.x - G.shx, G.ptr.y - G.shy, Math.max(W * 0.2, 120));
+      const e = pickAt(G.ptr.x - G.shx, G.ptr.y - G.shy, 1.15, 22);
       if (e && e.scr) { ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2 * u; ring(e.scr.sx, e.scr.sy, Math.max(e.scr.R * 1.35, 16 * u)); }
     }
     crosshair(W / 2, H / 2, S.lock ? '#b8e04a' : '#ffffff');
@@ -2598,13 +2597,14 @@ const Snapshot = (() => {
 
   return {
     id: 'snapshot', name: 'Snapshot', color: '#b8e04a', cursor: 'crosshair', demoSteps: 120, multi: true,
-    pitch: 'A garden, played the way phone shooters are: a stick under the left thumb that moves and turns you, and the right thumb on the screen. A tap there shoots whatever is nearest and swings the view to it. Hold to stay locked on and circle it.',
-    jobs: [['you', 'Move', 'left thumb'], ['you', 'Look', 'left turns, right centres'], ['you', 'Aim', 'tap near it'], ['you', 'Fire', 'the same tap']],
-    controls: [['Touch', 'left half is a stick that moves and turns; right half, tap to shoot and hold to lock on'],
-      ['Keys', 'W S move, A D turn (sidestep when locked on), Space shoots'],
+    pitch: 'A garden, played the way phone shooters are: a stick under the left thumb that moves and turns you, and the right thumb on the screen. A tap there fires where it lands and swings the view to that spot. Hold on a target to lock on and circle it; hold anywhere else to keep firing while the stick aims.',
+    jobs: [['you', 'Move', 'left thumb'], ['you', 'Look', 'left turns, right centres'], ['you', 'Aim', 'where you tap'], ['you', 'Fire', 'the same tap']],
+    controls: [['Touch', 'left half is a stick that moves and turns; right half fires where you tap, and holding keeps firing'],
+      ['Keys', 'W S move, A D turn (sidestep when locked on), Space fires'],
       ['Mouse', 'drag on the left half, click on the right; once you use the keys, click anywhere']],
-    hint: 'Left thumb moves and turns. Right thumb taps to shoot.',
-    notice: 'This is the usual phone layout, but the right thumb never has to aim: a tap picks the nearest target and the view comes to it. Only you move the camera, which should be easier on anyone the Lighthouse made queasy. Holding on a target turns the stick into a strafe, so circling it comes for free.',
+    hint: 'Left thumb moves and turns. Right thumb fires where it taps.',
+    notice: 'Every tap fires where it lands, so you can miss, and the view comes to wherever you fired. Only you move the camera. Push the stick hard over and hold it there to spin round quickly. Holding on a target turns the stick into a strafe, so circling it comes for free.',
+    stat: () => (G.stats.shots ? Math.round(100 * G.stats.hits / G.stats.shots) : 0) + '% of shots hit',
     state: () => S, setup, update, render,
     pdown(id, x, y, type) {
       if (x < W / 2 && !(type === 'mouse' && S.keys)) { if (!S.stick) S.stick = { id, x0: x, y0: y, x, y }; }
@@ -2649,8 +2649,8 @@ const GROUPS = [
     text: 'The gun fires by itself. You only move, and the aiming comes from where you go and which way you face.' },
   { title: 'One input for everything', ids: ['blink', 'lighthouse'],
     text: 'You keep all four jobs, but they share a single input: a tap that means different things depending on what it lands on, or one button.' },
-  { title: 'Two thumbs, no aiming', ids: ['snapshot'],
-    text: 'The usual phone layout, with the left thumb on a stick and the right thumb shooting, but the right thumb taps instead of aiming and the view comes to what it taps. This one was added after the first six, from a suggestion to split the screen that way.' },
+  { title: 'Two thumbs, tap to aim', ids: ['snapshot'],
+    text: 'The usual phone layout, with the left thumb on a stick and the right thumb shooting. The difference is that the right thumb taps where it wants to shoot instead of dragging to aim, and the view comes to wherever it fired. This one was added after the first six, from a suggestion to split the screen that way.' },
 ];
 GROUPS.forEach((gr, gi) => gr.ids.forEach(id => { SK[id].group = gi; }));
 // A page can be built around a single sketch: give the canvas data-solo="<id>".
