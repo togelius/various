@@ -19,8 +19,7 @@ It plays with a mouse and keyboard or on a touch screen (iPhone, iPad, Android).
 On a phone or tablet: drag on the left half to move, drag on the right half to
 look (or drag from the FIRE button to aim while shooting), and use the buttons
 for jump, dash, puddle and swapping weapons. A surrender button appears when a
-sponge has you. Pause holds the glass, sound and voice settings. Phones need to
-be held sideways. On the death screen there's a box to type *please* into.
+sponge has you. Pause holds the glass, sound and voice settings. Either orientation works. On the death screen there's a box to type *please* into.
 
 With a keyboard and mouse:
 

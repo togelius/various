@@ -144,11 +144,16 @@
   body.touch #prompt { display:none; }
   body.touch #zz { left:calc(12px + env(safe-area-inset-left, 0px)); bottom:auto; top:118px; }
   body.touch #zz:not(.big) .face { width:74px; height:74px; }
-  body.touch #zz:not(.big) .bub { margin-bottom:0; font-size:13px; max-width:300px; padding:7px 11px 9px; }
+  body.touch #zz:not(.big) .bub { margin-bottom:0; font-size:13px; max-width:min(300px, calc(100vw - 120px)); padding:7px 11px 9px; }
+  #zz.big { max-width:94vw; } #zz.big .bub { max-width:min(640px, 90vw); }
+  @media (orientation: portrait) {
+    body.touch #zz:not(.big) { top:calc(212px + env(safe-area-inset-top, 0px)); bottom:auto; }
+    body.touch #tl { top:calc(10px + env(safe-area-inset-top, 0px)); } body.touch #wave { top:calc(10px + env(safe-area-inset-top, 0px)); }
+    body.touch #boss { top:calc(64px + env(safe-area-inset-top, 0px)); width:80vw; } body.touch #chal { top:calc(104px + env(safe-area-inset-top, 0px)); max-width:88vw; }
+    body.touch #ann { top:30%; } body.touch #tbPause { top:calc(120px + env(safe-area-inset-top, 0px)); bottom:auto; left:auto; right:calc(14px + env(safe-area-inset-right, 0px)); }
+    body.touch #bl { width:150px; }
+  }
   body.touch #br { display:none; }
-  #rot { position:fixed; inset:0; display:none; align-items:center; justify-content:center; text-align:center; padding:30px; background:#2a1c12;
-    font-family:Bangers, Impact, sans-serif; font-size:34px; line-height:1.2; color:#fff; text-shadow:3px 3px 0 var(--sauce); }
-  @media (orientation: portrait) and (max-width: 700px) { body.touch #rot { display:flex; } }
   @media (max-height: 520px), (max-width: 700px) {
     #score { font-size:30px; } #combo { font-size:18px; min-height:20px; } #rank { font-size:15px; } #rank b { font-size:28px; }
     #wave { font-size:20px; } #wave small { font-size:10px; }
@@ -198,7 +203,6 @@
   <button class="tb" id="tbSurr" hidden>HOLD TO SURRENDER</button>
 </div>
 <div id="scr"></div>
-<div id="rot">TURN YOUR DEVICE SIDEWAYS.<br>WATER PREFERS TO LIE DOWN.</div>
 <div id="err">This game needs WebGL2. Your browser said no. Try a recent Chrome, Firefox or Safari.</div>
 <script>
 (() => {
@@ -2423,6 +2427,8 @@ function fillInst(list, arr) {
   }
   return n;
 }
+// vertical FOV for this aspect: in portrait, widen it so the horizontal view matches a square screen (capped)
+function fitFov(fovy, aspect) { return aspect >= 1 ? fovy : Math.min(1.9, 2 * Math.atan(Math.tan(fovy / 2) / aspect)); }
 function render() {
   const aspect = W / H;
   let eye;
@@ -2443,7 +2449,7 @@ function render() {
     }
   }
   ident(VIEW); rx(VIEW, -camPitch); ry(VIEW, -camYaw); tr(VIEW, -eye[0], -eye[1], -eye[2]);
-  const fov = (78 + P.fov * 10 + (state === 'dead' ? -10 : 0)) * Math.PI / 180;
+  const fov = fitFov((78 + P.fov * 10 + (state === 'dead' ? -10 : 0)) * Math.PI / 180, aspect);
   persp(PROJ, fov, aspect, 0.05, 500); mul(VP, PROJ, VIEW);
 
   let ns = 0;
@@ -2500,7 +2506,7 @@ function render() {
   // viewmodel
   if (state !== 'title') {
     gl.clear(gl.DEPTH_BUFFER_BIT); gl.useProgram(PR_MAIN.p);
-    persp(PROJ, 70 * Math.PI / 180, aspect, 0.02, 10); mul(VP, PROJ, VIEW); gl.uniformMatrix4fv(PR_MAIN.u.uVP, false, VP);
+    persp(PROJ, fitFov(70 * Math.PI / 180, aspect), aspect, 0.02, 10); mul(VP, PROJ, VIEW); gl.uniformMatrix4fv(PR_MAIN.u.uVP, false, VP);
     drawViewmodel(eye);
     persp(PROJ, fov, aspect, 0.05, 500); mul(VP, PROJ, VIEW);
   }
@@ -2569,7 +2575,7 @@ function hud(dt) {
 
 // =====================================================================  screens & input
 const TOUCH_CONTROLS = `<div class="keys">
-  <b>LEFT THUMB</b><span>drag anywhere on the left to scurry</span>
+  <b>LEFT THUMB</b><span>drag on the left to scurry (lower left when held upright)</span>
   <b>RIGHT THUMB</b><span>drag on the right to look (drag from FIRE to aim while shooting)</span>
   <b>JUMP · DASH</b><span>jump, and splash dash (you can't be hit mid-splash)</span>
   <b>PUDDLE</b><span>hold to become a puddle: flat, slippery, fast</span>
@@ -2709,7 +2715,8 @@ if (TOUCH) {
   ui.addEventListener('pointerdown', e => {
     e.preventDefault();
     if (e.target.closest('.tb')) return;
-    if (e.clientX < innerWidth * 0.42 && stickId === null) { stickId = e.pointerId; sx0 = e.clientX; sy0 = e.clientY; st.style.left = sx0 + 'px'; st.style.top = sy0 + 'px'; st.hidden = false; knob.style.transform = ''; }
+    const portrait = innerHeight > innerWidth;
+    if (e.clientX < innerWidth * (portrait ? 0.5 : 0.42) && (!portrait || e.clientY > innerHeight * 0.45) && stickId === null) { stickId = e.pointerId; sx0 = e.clientX; sy0 = e.clientY; st.style.left = sx0 + 'px'; st.style.top = sy0 + 'px'; st.hidden = false; knob.style.transform = ''; }
     else looks.set(e.pointerId, [e.clientX, e.clientY]);
   });
   addEventListener('pointermove', e => {
