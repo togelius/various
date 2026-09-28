@@ -3708,7 +3708,8 @@ function drawKeyControls(u, B) {
     if (HINT.moved >= 5 && HINT.fired >= 8 && HINT.used >= 1) { HINT.learned = true; store.set('learned', 1); }
   }
   // until the mouse is grabbed (early in a climb, and for a while after it's let go), a reminder that it can be
-  if (!IN.locked && !IN.lockFail && (!HINT.learned || G.t < 12 || G.time - IN.freeT < 8)) row('CLICK TO STEER WITH THE MOUSE', '#b8f060', 0.55 + 0.35 * pulse);
+  // (not all the way up, though, for someone happy on the keys alone)
+  if (!IN.locked && !IN.lockFail && (!HINT.learned && G.t < 45 || G.t < 12 || G.time - IN.freeT < 8)) row('CLICK TO STEER WITH THE MOUSE', '#b8f060', 0.55 + 0.35 * pulse);
 }
 // a key drawn as a little key
 function keycap(text, x, y, s) {
