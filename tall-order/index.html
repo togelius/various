@@ -1150,6 +1150,11 @@ function drawBrolly() {
   put(SH.sph, x, y + 0.28 * open, z, Q0, 0.14, 0.14, 0.14, C.yellow);
 }
 function drawGoal() {
+  if (G.crown) {
+    const c = G.crown;
+    put(SH.cyl, c.x, c.y + 0.2, c.z, qAxis(1, 0, 0, 0.35), 1.3, 0.4, 1.3, C.gold, 1, 0.25);
+    for (let i = 0; i < 5; i++) { const a = i / 5 * TAU; put(SH.box, c.x + Math.cos(a) * 0.55, c.y + 0.55 + Math.sin(a) * 0.2, c.z + Math.sin(a) * 0.55, qAxis(1, 0, 0, 0.35), 0.18, 0.4, 0.18, C.gold, 1, 0.25); }
+  }
   if (!GOAL) return;
   const g = GOAL, t = G.time;
   put(SH.cyl, g.x, g.y + 1.6, g.z, Q0, 0.12, 3.2, 0.12, C.white, 0.6);
@@ -1886,7 +1891,21 @@ function cannonAI(e, dt) {
     for (let i = 0; i < 10; i++) PARTS.push({ x: e.x + mz[0], y: e.y + mz[1], z: e.z + mz[2], vx: rand(-1, 1), vy: rand(0.5, 2), vz: rand(-1, 1), life: 0.6, s: 0.14, col: [0.75, 0.74, 0.76], spin: 0 });
   }
 }
+// beaten: it staggers, backs off to the south wall with its arms windmilling, and goes over. You can't look down to
+// watch it land, so you hear it; on the way home you can look, and there it is on the rug, crown and all
+function toppleAI(e, dt) {
+  e.t += dt; e.tele = 0; e.alert = 0;
+  if (e.t < 1.4) { halt(e, dt); if (!e.saidNo) { e.saidNo = true; say(e, pick(['NOT MY TOWER!', 'NO NO NO NO', 'I WAS KING HERE!']), 2); sfx.roar(); G.shake = Math.max(G.shake, 10); } return; }
+  if (e.falling) return;
+  faceTo(e, e.x, e.z - 5, 4, dt);
+  walkTo(e, clamp(e.x, -2.2, 2.2), 7.2, 1.6, dt, false);
+  if (e.z > 5.2 || e.t > 5) {
+    e.falling = true; e.vy = 8; e.kz = 5; e.kx = 0; e.flung = 99; e.onGround = false; e.fallFrom = e.y;
+    callout('TIMBER!', '#ffd23f', 72, 2); sfx.roar(); tone('sine', 900, 120, 1.6, 0.08, 0.3); G.shake = 14;
+  }
+}
 function bossAI(e, dt) {
+  if (e.st === 'topple') { toppleAI(e, dt); return; }
   const d = pdist(e), dy = P.y - e.y;
   if (!e.awake) { if (P.y > Y[5] - 0.5 && d < 12) wake(e); else return; }
   e.cd -= dt;
@@ -2001,11 +2020,13 @@ function stepFoes(dt) {
       e.kx = ease(e.kx, 0, e.onGround ? 5 : 0.6, dt); e.kz = ease(e.kz, 0, e.onGround ? 5 : 0.6, dt);
       if (e.onGround && !was) {
         const fall = e.fallFrom - e.y;
-        if (fall > 5 && e.type !== 'boss') { killFoe(e, 'splat'); continue; }
+        if (fall > 5 && (e.type !== 'boss' || e.toppling)) { killFoe(e, 'splat'); continue; }
         if (fall > 1) { e.squash = 0.35; }
         if (e.flung) e.flung = 0;
       }
       if (!e.onGround && was) e.fallFrom = e.y;
+      // a beaten MEGA WOLF caught on the wall keeps going over; one that really can't pops where it is, so the steps still come
+      if (e.toppling && e.falling) { if (e.onGround) { e.kz = Math.max(e.kz, 3); if ((e.restT = (e.restT || 0) + dt) > 1.2) { killFoe(e, 'boom'); continue; } } else e.restT = 0; }
       if (!e.onGround) e.fallFrom = Math.max(e.fallFrom, e.y);
       if (e.flung) e.flung = Math.max(0, e.flung - dt * 0.4);
     }
@@ -2017,12 +2038,13 @@ function stepFoes(dt) {
 
 // ---------------------------------------------------------------- hurting and popping
 function hurtFoe(e, dmg, kx, ky, kz, how) {
-  if (!e.alive) return false;
+  if (!e.alive || e.toppling) return false;
   e.lastHow = how; e.hp -= dmg; e.flash = 0.09;
   if (!e.awake) wake(e);
   const m = e.mass;
   if (kx || kz) { e.kx += kx / m; e.kz += kz / m; }
   if (ky && m < 20) { e.vy = Math.max(e.vy, ky / m); e.onGround = false; if (ky / m > 3) { e.flung = 0.9; e.fallFrom = e.y; e.st = e.type === 'car' ? 'patrol' : 'chase'; e.tele = 0; } }
+  if (e.hp <= 0 && e.type === 'boss' && e.y > Y[5] - 0.5) { e.toppling = true; e.hp = 0.01; e.st = 'topple'; e.t = 0; e.tele = 0; e.kx = e.kz = 0; e.flung = 0; return true; }
   if (e.hp <= 0) { killFoe(e, how, kx, ky, kz); return true; }
   sfx.squeak(0.6 * near(e.x, e.y, e.z) + 0.2);
   return false;
@@ -2055,7 +2077,7 @@ function killFoe(e, how, kx, ky, kz) {
   for (let i = 0; i < 18 + e.h * 8; i++) PARTS.push({ x: e.x, y: cy, z: e.z, vx: rand(-4, 4), vy: rand(1, 6), vz: rand(-4, 4), life: rand(0.6, 1.2), s: rand(0.05, 0.12), col: Math.random() < 0.55 ? [0.85, 0.08, 0.08] : pick(BRICKS), spin: rand(0, 6) });
   const fy = floorBelow(e.x, e.y + 0.2, e.z);
   SPLATS.push({ x: e.x, y: fy, z: e.z, r: 0.7 + e.r, seed: rand(0, 9), life: 30 });
-  if (SPLATS.length > 40) SPLATS.shift();
+  if (SPLATS.length > 40) SPLATS.splice(SPLATS.findIndex(sp => sp.life < 1e8), 1);
   const v = near(e.x, e.y, e.z);
   sfx.pop(v); if (how === 'splat') sfx.splat(v);
   if (Math.random() < (e.type === 'kitty' || e.type === 'bee' ? 0.5 : 0.9) || how === 'splat') callout(pick(POPS[how] || POPS.blaster), how === 'splat' ? '#ff5a5a' : '#ffffff', 40, 0.8, { x: e.x, y: e.y + e.h * 0.8, z: e.z });
@@ -2066,7 +2088,13 @@ function killFoe(e, how, kx, ky, kz) {
   if (hk && how !== 'splat' && Math.random() < 0.12 && !INV.some(i => i.kind === hk) && !ITEMS.some(i => !i.gone && i.kind === hk) && Math.abs(fy - P.y) < 1.5) ITEMS.push({ kind: hk, x: e.x, y: fy, z: e.z, t: 0 });
 }
 function bossDown(e) {
-  callout('TIMBER!', '#ffd23f', 72, 2.2); G.flash = 0.6; G.shake = 26; sfx.roar(); sfx.boom(1);
+  if (e.toppling) {
+    const fy = floorBelow(e.x, e.y + 0.3, e.z);
+    SPLATS.push({ x: e.x, y: fy, z: e.z, r: 5.5, seed: rand(0, 9), life: 1e9 });
+    G.crown = { x: e.x + 1.2, y: fy, z: e.z - 0.6 };
+    callout('THE BIGGEST SPLAT OF ALL', '#ff5a5a', 40, 2.4);
+  } else callout('TIMBER!', '#ffd23f', 72, 2.2);
+  G.flash = 0.6; G.shake = 26; sfx.roar(); sfx.boom(1);
   for (let i = 0; i < 90; i++) GIBS.push({ sh: 'box', x: e.x + rand(-1.5, 1.5), y: e.y + rand(0.5, 4), z: e.z + rand(-1.5, 1.5), q: Q0, sx: 0.5, sy: 0.3, sz: 0.5, col: pick(BRICKS),
     vx: rand(-7, 7), vy: rand(3, 12), vz: rand(-7, 7), w: [rand(-6, 6), rand(-6, 6), rand(-6, 6)], life: rand(4, 7), s: 1 });
   G.stepsIn = 1.2;
@@ -2097,7 +2125,7 @@ function splatPlayer() {
   P.hang = null;
   P.hp = 0; P.dead = 2.2; G.deaths++; G.trail.push([G.t, P.y, 'x']); P.vx = P.vz = P.kx = P.kz = 0;
   SPLATS.push({ x: P.x, y: P.y, z: P.z, r: 1.5, seed: rand(0, 9), life: 30 });
-  if (SPLATS.length > 40) SPLATS.shift();
+  if (SPLATS.length > 40) SPLATS.splice(SPLATS.findIndex(sp => sp.life < 1e8), 1);
   for (let i = 0; i < 26; i++) PARTS.push({ x: P.x + rand(-0.4, 0.4), y: P.y + 0.2, z: P.z + rand(-0.4, 0.4), vx: rand(-4, 4), vy: rand(2, 7), vz: rand(-4, 4), life: rand(0.5, 1.1), s: rand(0.1, 0.2), col: [0.85, 0.08, 0.06], spin: 0 });
   callout(pick(['SPLAT!', 'PANCAKE!', 'SPLOOSH!']), '#ff5a5a', 66, 1.8); sfx.splat(1); sfx.death(); G.shake = 16;
   const fl = FALLS[(G.fallN = ((G.fallN == null ? Math.floor(Math.random() * FALLS.length) : G.fallN) + 1) % FALLS.length)];
@@ -2198,7 +2226,7 @@ function explode(x, y, z, R, dmg, knock, mine, quiet, why) {
   }
   FX.push({ k: 'boom', x, y, z, r: R, life: 0.42, max: 0.42 });
   const fy = floorBelow(x, y + 0.3, z);
-  if (y - fy < R) { SPLATS.push({ x, y: fy, z, r: R * 0.55, seed: rand(0, 9), life: 20, scorch: true }); if (SPLATS.length > 40) SPLATS.shift(); }
+  if (y - fy < R) { SPLATS.push({ x, y: fy, z, r: R * 0.55, seed: rand(0, 9), life: 20, scorch: true }); if (SPLATS.length > 40) SPLATS.splice(SPLATS.findIndex(sp => sp.life < 1e8), 1); }
   for (let i = 0; i < (quiet ? 14 : 30); i++) { const a = rand(0, TAU), sp = rand(2, 8); PARTS.push({ x, y, z, vx: Math.cos(a) * sp, vy: rand(2, 8), vz: Math.sin(a) * sp, life: rand(0.5, 1.2), s: rand(0.06, 0.16), col: pick([C.yellow, C.orange, C.red, C.dgrey, C.white]), spin: rand(0, 6) }); }
   const v = near(x, y, z);
   G.shake = Math.max(G.shake, 22 * v); G.flash = Math.max(G.flash, 0.35 * v);
@@ -3363,7 +3391,7 @@ function resetGame() {
   stepsT = -1;
   for (const L of LIFTS) { L.mode = 'top'; L.t = 0; L.rung = false; L.y = L.hi; L.sol.y0 = L.hi - 0.4; L.sol.y1 = L.hi; }
   Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, stood: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0, eagleSeen: false, eagleWarned: 0, hinged: false, brolly: false, desc: null, downKills: 0, fold: false, landT: 0, trail: [[0, 0]], trailT: 0.25 });
-  G.callouts.length = 0; PARTS.length = 0; G.stats = { shots: 0, hits: 0 };
+  G.callouts.length = 0; PARTS.length = 0; G.stats = { shots: 0, hits: 0 }; G.crown = null;
   stick = null; pointers.clear(); resetDirector();
   IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = IN.fireTap = false; IN.mb = 0; IN.mouseTurn = 0; IN.mouseLook = 0; IN.ktap = 0;
   populate();
