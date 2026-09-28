@@ -957,7 +957,7 @@ function callout(text, col, size, dur, at) {
 }
 
 // ---------------------------------------------------------------- input
-const IN = { kJump: false, kFire: false, mFire: false, fireTap: false, ktap: 0, mb: 0, mouseLook: 0, kf: 0, kb: 0, kl: 0, kr: 0, ksl: 0, ksr: 0, kt: 0, mouseTurn: 0, locked: false,
+const IN = { kJump: false, kFire: false, mFire: false, fireTap: false, ktap: 0, mb: 0, mouseLook: 0, jumps: 0, kf: 0, kb: 0, kl: 0, kr: 0, ksl: 0, ksr: 0, kt: 0, mouseTurn: 0, locked: false,
   // 'touch' puts a stick and buttons on the screen; 'keys' (a laptop: keyboard, mouse or trackpad) leaves them off
   mode: (() => { try { return matchMedia('(pointer: coarse)').matches ? 'touch' : 'keys'; } catch (e) { return 'touch'; } })(),
   sens: clamp(+store.get('sens', 1) || 1, 0.3, 3), relock: false, everLocked: false, lockFail: false, freeT: -99, wheel: 0, wheelAt: 0, wheelDone: false };
@@ -1002,7 +1002,7 @@ function stickVec() {
 function press(id, b, x, y) {
   const p = pointers.get(id) || {};
   p.b = b; if (x != null) { p.x = x; p.y = y; } pointers.set(id, p);
-  if (b === 'jump') P.jumpBuf = 0.14;
+  if (b === 'jump') { P.jumpBuf = 0.14; IN.jumps++; }
   if (b === 'fire') IN.fireTap = true;
   if (b === 'item') useItem();
 }
@@ -1232,6 +1232,25 @@ function stepPlayer(dt) {
   const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw);
   const sp = fwd > 0 ? fwd * WALK : fwd * BACK;
   let wx = ca * sp - sa * strafe * 4.2, wz = sa * sp + ca * strafe * 4.2;
+  if (P.rider) {
+    const e = P.rider;
+    if (!e.alive || e.st !== 'ride' || P.dead) dismount(false);
+    else {
+      P.riderT += dt;
+      // it steers you at the nearest edge (you can walk against it), paws at your eyes, and scratches
+      if ((P.edgeDirT -= dt) <= 0) { P.edgeDirT = 0.5; P.edgeDir = nearestDrop(); }
+      if (P.edgeDir) { wx += P.edgeDir[0] * 2.2; wz += P.edgeDir[1] * 2.2; }
+      P.yaw += Math.sin(G.time * 7.3 + 1) * 0.55 * dt;
+      if ((P.scratchT -= dt) <= 0) { P.scratchT = 1.3; hurtPlayer(3, 0, 0, 0, e); }
+      // each JUMP shakes at it, and so does turning hard one way then the other
+      if (IN.jumps > P.jumpsSeen) { P.shake += 0.55 * (IN.jumps - P.jumpsSeen); P.jumpsSeen = IN.jumps; }
+      const sx = Math.abs(st.x) > 0.85 ? Math.sign(st.x) : 0;
+      if (sx && P.lastSx && sx !== P.lastSx) P.shake += 0.3;
+      if (sx) P.lastSx = sx;
+      P.shake = Math.max(0, P.shake - dt * 0.12);
+      if (P.shake >= 1) dismount(true);
+    }
+  }
   // Teeter: walking toward a drop of more than a step, your base rocks on the lip and you stop for
   // half a second (so backing off blind in a fight doesn't drop you); keep pushing and over you go.
   // Edges here are all square to the axes, so each axis is checked on its own: you can still walk along one.
@@ -1307,6 +1326,7 @@ function stepPlayer(dt) {
     // and where you hang: pulled back toward the lip until your body is up against it
     let hx0 = P.x, hz0 = P.z;
     for (let i = 0; i < 16; i++) { const nx = hx0 - Lp.dx * 0.08, nz = hz0 - Lp.dz * 0.08; if (blocked(nx, Lp.y - 1.2, nz, P.r, 1.15)) break; hx0 = nx; hz0 = nz; }
+    if (lx != null && P.rider) dismount(false);
     if (lx != null) P.hang = { x: hx0, z: hz0, y: Lp.y - 1.2, lx, lz, ly: Lp.y + 0.01, ax: Lp.dx, az: Lp.dz, t: 0, pull: -1, armed: false };
   }
   if (P.hang && P.hang.t === 0 && P.hang.pull < 0 && !P.hang.said) {
@@ -1356,6 +1376,7 @@ function stepWorld(dt) {
 }
 function win() {
   G.won = true; G.st = 'win'; G.winT = 0; G.hinged = false; G.brolly = false;
+  if (P.rider) dismount(false);
   TRACERS.length = 0; P.hurtT = 0; for (const e of FOES) { e.alert = 0; e.tele = 0; }
   for (let i = SHOTS.length - 1; i >= 0; i--) if (SHOTS[i].foe) SHOTS.splice(i, 1);
   IN.kFire = IN.mFire = IN.fireTap = false; P.jumpBuf = 0; stick = null; pointers.clear();
@@ -1578,7 +1599,39 @@ function wolfAI(e, dt) {
   } else if (!same) { wander(e, dt, 1.2); if (sees) faceTo(e, P.x, P.z, 4, dt); }
   else halt(e, dt);
 }
+// ---------------------------------------------------------------- the rider
+// In a swarm, a kitty can end up on your head: dropping right on top of you, or from a pounce. It paws at your eyes
+// and steers you at the nearest edge. JUMP (twice, or turn hard back and forth) to shake it off.
+const canRide = e => e.swarm && !P.rider && !P.hang && !P.carried && !P.dead && P.onGround && G.st === 'play' && G.time > (P.riderCd || 0);
+function mount(e) {
+  P.rider = e; P.shake = 0; P.riderT = 0; P.edgeDir = null; P.edgeDirT = 0; P.scratchT = 1; P.jumpsSeen = IN.jumps;
+  e.st = 'ride'; e.vx = e.vy = e.vz = e.kx = e.kz = 0; e.bit = true;
+  callout('A KITTY ON YOUR HEAD!', '#ff7ad9', 40, 1.3); sfx.meow(1); G.shake = Math.max(G.shake, 5);
+  if (!HINT.rider) { HINT.rider = true; callout('JUMP TO SHAKE IT OFF', '#ffd23f', 30, 2.2); }
+}
+function dismount(fling) {
+  const e = P.rider; P.rider = null; P.shake = 0; P.riderCd = G.time + 12;
+  if (!e || !e.alive) return;
+  const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw);
+  e.st = 'chase'; e.cd = 1.4; e.bit = false; e.onGround = false; e.x = P.x + ca * 0.5; e.z = P.z + sa * 0.5; e.y = P.y + 1.4; e.fallFrom = e.y;
+  // shaken off, it tumbles off in front of you, dazed: a sitting duck
+  if (fling) { e.kx = ca * 4; e.kz = sa * 4; e.vy = 3.5; e.stun = 1.2; callout('SHAKEN OFF!', '#b8f060', 40, 1); sfx.meow(1); }
+}
+// the nearest drop round you (it steers you at it), probed now and then
+function nearestDrop() {
+  let best = null, bd = 99;
+  for (let k = 0; k < 12; k++) {
+    const a = k / 12 * TAU, ca = Math.cos(a), sa = Math.sin(a);
+    for (let d = 0.8; d <= 7; d += 0.6) {
+      if (blocked(P.x + ca * d, P.y + 0.3, P.z + sa * d, 0.2, 1)) break;   // a wall that way
+      if (floorBelow(P.x + ca * d, P.y + STEP + 0.01, P.z + sa * d) < P.y - 1.2) { if (d < bd) { bd = d; best = [ca, sa]; } break; }
+    }
+  }
+  return best;
+}
 function kittyAI(e, dt) {
+  // coming down right on top of you
+  if (!e.onGround && e.vy < -1 && canRide(e) && Math.hypot(P.x - e.x, P.z - e.z) < 0.6 && e.y > P.y + 0.9 && e.y < P.y + 2.2) { mount(e); return; }
   const d = pdist(e), dy = P.y - e.y, sees = seesPlayer(e, dt);
   if (!e.awake) { if ((sees && d < 13 && Math.abs(dy) < 4) || d < 3) wake(e); else { wander(e, dt, 1.4); return; } }
   e.cd -= dt;
@@ -1590,6 +1643,7 @@ function kittyAI(e, dt) {
   if (e.st === 'pounce') {
     e.t -= dt;
     if (!e.bit && Math.hypot(P.x - e.x, P.z - e.z) < 0.75 && Math.abs(P.y + 0.5 - e.y) < 1) {
+      if (canRide(e) && Math.random() < 0.22) { mount(e); return; }
       e.bit = true; const u = dirTo(e); hurtPlayer(6, u.x * 2, 0, u.z * 2, e);
       e.kx = -u.x * 4; e.kz = -u.z * 4; e.vy = 3;
     }
@@ -1703,6 +1757,7 @@ function eagleAI(e, dt) {
 function snatch(e) {
   const f = floorOf(P.y), c = CARRY[f];
   e.st = 'carry'; e.carry = { f, zone: c.zone, out: c.out, t: 0, sw: 0, x0: P.x, z0: P.z, top: Y[f + 1] + 2.7, arrived: false };
+  if (P.rider) dismount(false);
   P.carried = e; P.hang = null; P.lip = null; P.jumpBuf = 0; P.vx = P.vy = P.vz = P.kx = P.kz = 0; P.onGround = false; P.ground = null;
   e.x = P.x; e.z = P.z; e.y = P.y + 1.35; e.vx = e.vz = 0; e.vy = 1;
   callout('SNATCHED!', '#ff9a3a', 50, 1.3); sfx.screech(1); G.shake = Math.max(G.shake, 6);
@@ -1901,6 +1956,10 @@ function stepFoes(dt) {
   for (const e of FOES) {
     if (!e.alive) continue;
     e.sayT = Math.max(0, (e.sayT || 0) - dt);
+    if (e.st === 'ride') {
+      if (P.rider !== e || e.stun > 0 || e.flung) { if (P.rider === e) dismount(false); else e.st = 'chase'; }
+      else { e.x = P.x; e.y = P.y + 1.35; e.z = P.z; e.yaw = P.yaw; e.vx = e.vy = e.vz = 0; e.onGround = false; e.fallFrom = e.y; continue; }
+    }
     const far = Math.hypot(P.x - e.x, P.y - e.y, P.z - e.z) > 34;
     if (far && e.type !== 'boss') { if (e.awake && !e.flung) { e.awake = false; e.st = 'idle'; } continue; }
     e.flash = Math.max(0, e.flash - dt); e.alert = Math.max(0, e.alert - dt); e.squash = ease(e.squash, 0, 8, dt);
@@ -2015,6 +2074,7 @@ function hurtPlayer(dmg, kx, ky, kz, src) {
 // a fall of more than a floor and a half: ketchup, and back to the last checkpoint
 function splatPlayer() {
   if (P.carried) dropFromEagle(null);
+  if (P.rider) dismount(false);
   P.hang = null;
   P.hp = 0; P.dead = 2.2; G.deaths++; G.trail.push([G.t, P.y, 'x']); P.vx = P.vz = P.kx = P.kz = 0;
   SPLATS.push({ x: P.x, y: P.y, z: P.z, r: 1.5, seed: rand(0, 9), life: 30 });
@@ -2024,13 +2084,14 @@ function splatPlayer() {
 }
 function die() {
   if (P.carried) dropFromEagle(null);
+  if (P.rider) dismount(false);
   P.hang = null;
   P.hp = 0; P.dead = 2.2; G.deaths++; G.trail.push([G.t, P.y, 'x']);
   callout(pick(['OUCH!', 'BONKED!', 'SQUISHED!', 'OOF!']), '#ff5a5a', 60, 1.6); sfx.death();
 }
 function respawn() {
   const c = CHECKS.filter(c => c.reached).sort((a, b) => b.n - a.n)[0] || CHECKS[0];
-  Object.assign(P, { x: c.x, y: c.y + 0.05, z: c.z + (c.n ? 0.8 : 0), vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 2, dead: 0, onGround: true, ground: null, fallFrom: c.y, hang: null, lip: null, edgeT: 0, tip: 0, carried: null });
+  Object.assign(P, { x: c.x, y: c.y + 0.05, z: c.z + (c.n ? 0.8 : 0), vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 2, dead: 0, onGround: true, ground: null, fallFrom: c.y, hang: null, lip: null, edgeT: 0, tip: 0, carried: null, rider: null, riderCd: G.time + 4 });
   P.yaw = Math.atan2(c.to[1] - P.z, c.to[0] - P.x);
   for (let i = SHOTS.length - 1; i >= 0; i--) if (SHOTS[i].foe) SHOTS.splice(i, 1);
   WAVES.length = 0;
@@ -2402,7 +2463,7 @@ function poseParts(e) {
 }
 function drawFoes() {
   for (const e of FOES) {
-    if (!e.alive) continue;
+    if (!e.alive || e.st === 'ride') continue;
     const dx = e.x - CAM.x, dz = e.z - CAM.z;
     if (dx * dx + dz * dz > 70 * 70) continue;
     for (const p of poseParts(e)) put(SH[p.sh], p.x, p.y, p.z, p.q, p.sx, p.sy, p.sz, p.col, p.spec, p.emis);
@@ -2551,9 +2612,10 @@ function spawnSwarm(w) {
     // they come down on the floor at its foot if there's no room round you)
     const b0 = Math.max(Y[floorOf(P.y)], floorBelow(P.x, P.y + 0.3, P.z));
     let made = 0, base = b0;
+    const onYou = floorOf(P.y) >= 1 && Math.random() < 0.3;
     for (let tries = 0; tries < 120 && made < w.n; tries++) {
       if (tries === 60 && !made) base = Y[floorOf(P.y)];
-      const a = rand(0, TAU), d = rand(2.8, 7), x = P.x + Math.cos(a) * d, z = P.z + Math.sin(a) * d;
+      const a = rand(0, TAU), d = onYou && !made && tries < 6 ? rand(0, 0.25) : rand(2.8, 7), x = P.x + Math.cos(a) * d, z = P.z + Math.sin(a) * d;
       if (Math.abs(floorBelow(x, base + 0.3, z) - base) > 0.35) continue;          // on your floor
       const type = w.n >= 4 && made === w.n - 1 ? 'wolf' : 'kitty', T0 = TYPES[type];
       // dropping from just under whatever is overhead there, from no more than four up
@@ -2668,6 +2730,28 @@ function drawHands(u) {
   if (P.hang.pull < 0) {
     label(IN.mode === 'keys' ? 'SPACE TO PULL UP' : 'JUMP TO PULL UP', W / 2, H * 0.52, 22 * u, '#ffffff', 'center', 0.75 + 0.25 * Math.sin(G.time * 6));
   }
+}
+// a kitty on your head: its face upside down over your brow, its paws scrabbling at your eyes
+function drawRider(u) {
+  const s = gunScale(), t = G.time, sw = Math.sin(t * 7.3), grey = '#9a9ca2', dark = '#6f7178';
+  // (drawn with its ears downward: it's leaning over your forehead, upside down to you)
+  hx.save(); hx.translate(W / 2 + sw * 40 * s, -10 * s + Math.sin(t * 11) * 8 * s); hx.scale(s, s);
+  hx.fillStyle = grey; hx.fillRect(-120, -40, 240, 170);
+  hx.fillStyle = dark; hx.beginPath(); hx.moveTo(-110, 130); hx.lineTo(-60, 130); hx.lineTo(-95, 200); hx.closePath(); hx.fill();
+  hx.beginPath(); hx.moveTo(110, 130); hx.lineTo(60, 130); hx.lineTo(95, 200); hx.closePath(); hx.fill();
+  hx.fillStyle = '#b8f060'; hx.fillRect(-72, 50, 44, 40); hx.fillRect(28, 50, 44, 40);
+  hx.fillStyle = '#1b1b20'; hx.fillRect(-56, 52, 14, 36); hx.fillRect(44, 52, 14, 36);
+  hx.fillStyle = '#f17fb0'; hx.fillRect(-14, 18, 28, 16);
+  hx.fillStyle = '#fff3d6'; hx.fillRect(-40, -20, 80, 36);
+  hx.restore();
+  for (const k of [-1, 1]) {
+    const px = W / 2 + k * (230 + Math.sin(t * 13 + k) * 30) * s, py = (60 + Math.sin(t * 17 + k * 2) * 40) * s;
+    hx.fillStyle = grey; hx.beginPath(); if (hx.roundRect) hx.roundRect(px - 40 * s, -20 * s, 80 * s, py + 60 * s, 30 * s); else hx.rect(px - 40 * s, -20 * s, 80 * s, py + 60 * s); hx.fill();
+    hx.fillStyle = '#f17fb0'; for (const b of [-22, 0, 22]) { hx.beginPath(); hx.arc(px + b * s, py + 24 * s, 9 * s, 0, TAU); hx.fill(); }
+  }
+  const keys = IN.mode === 'keys', pulse = 0.8 + 0.2 * Math.sin(t * 6);
+  label(keys ? 'SPACE TO SHAKE IT OFF' : 'JUMP TO SHAKE IT OFF', W / 2, H * 0.62, 26 * u, '#ffffff', 'center', pulse);
+  for (let i = 0; i < 2; i++) { hx.fillStyle = P.shake > (i + 0.5) * 0.5 ? '#b8f060' : 'rgba(255,255,255,0.3)'; circle(W / 2 + (i - 0.5) * 26 * u, H * 0.62 + 26 * u, 7 * u); }
 }
 // carried off: the eagle's feet gripping your shoulders from above, and what you'd land on if you let go now
 function drawCarried(u) {
@@ -2948,6 +3032,7 @@ function drawHUD(dt) {
   if (!P.dead && active() && !P.hang && !P.carried) { if (!P.vm || P.vm.t > 0.5 || P.vm.kind === 'zap' || P.vm.kind === 'bomb') drawBlaster(W / 2, H + 40 * u, gunScale(), P.kick, P.strain); drawViewItem(); }
   if (P.hang && G.st === 'play') drawHands(u);
   if (P.carried && G.st === 'play') drawCarried(u);
+  if (P.rider && G.st === 'play') drawRider(u);
   drawWayUp();
   drawMarks();
   // health
@@ -3206,7 +3291,7 @@ function startGame() {
   if (REDUCE) { callout('CLIMB!', '#ffd23f', 64, 1); sfx.start(); }
 }
 function resetGame() {
-  Object.assign(P, { x: 4, y: 0, z: 23.5, yaw: -Math.PI / 2, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 0, dead: 0, check: 0, onGround: true, ground: null, fallFrom: 0, full: 0, fireT: 0, kick: 0, itemT: 0, vm: null, swing: 0, hurtT: 0, hurtA: null, hang: null, lip: null, edgeT: 0, tip: 0, strain: 0, padT: 0, launched: false, jumpBuf: 0, look: 0, carried: null });
+  Object.assign(P, { x: 4, y: 0, z: 23.5, yaw: -Math.PI / 2, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 0, dead: 0, check: 0, onGround: true, ground: null, fallFrom: 0, full: 0, fireT: 0, kick: 0, itemT: 0, vm: null, swing: 0, hurtT: 0, hurtA: null, hang: null, lip: null, edgeT: 0, tip: 0, strain: 0, padT: 0, launched: false, jumpBuf: 0, look: 0, carried: null, rider: null, riderCd: 0, shake: 0 });
   for (const c of CHECKS) c.reached = c.n === 0;
   for (const s of STEPS) { s.p = 0; s.sol.off = true; }
   stepsT = -1;
@@ -3340,7 +3425,7 @@ function key(code, down) {
   else if (code === 'KeyS' || code === 'ArrowDown') IN.kb = v;
   else if (code === 'KeyA' || code === 'ArrowLeft') { if (!down) { IN.kl = 0; if (code === 'KeyA') IN.ksl = 0; } else if (IN.locked && code === 'KeyA') IN.ksl = 1; else { IN.kl = 1; IN.ktap = -1; } }
   else if (code === 'KeyD' || code === 'ArrowRight') { if (!down) { IN.kr = 0; if (code === 'KeyD') IN.ksr = 0; } else if (IN.locked && code === 'KeyD') IN.ksr = 1; else { IN.kr = 1; IN.ktap = 1; } }
-  else if (code === 'Space') { IN.kJump = down; if (down) P.jumpBuf = 0.14; }
+  else if (code === 'Space') { IN.kJump = down; if (down) { P.jumpBuf = 0.14; IN.jumps++; } }
   else if (code === 'KeyJ' || code === 'KeyF' || code === 'KeyZ' || code === 'Enter') { IN.kFire = down; if (down) IN.fireTap = true; }
   else if (code === 'KeyK' || code === 'KeyE' || code === 'KeyX') { if (down) useItem(); }
   else if (code === 'KeyQ' || code === 'KeyC' || code === 'KeyL') { if (down) cycleItem(); }
