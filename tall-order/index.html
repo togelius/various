@@ -946,6 +946,16 @@ const PARTS = [];     // bits and confetti
 // first-time hints, shown until you have done each thing once (and then never again)
 const HINT = { moved: 0, fired: 0, used: 0, jumpTold: false, learned: store.get('learned', '0') === '1' };
 // a word on the screen; with a place, it floats up from that spot in the world
+// the furniture you climb past, by height: callouts the first time you stand higher, and lines on the chart
+const HEIGHTS = [[1.6, 'HIGHER THAN THE HEARTH!'], [14, 'HIGHER THAN THE SOFA CUSHIONS!'], [22, 'HIGHER THAN THE ARM OF THE SOFA!'], [25.5, 'HIGHER THAN THE FIREPLACE!']];
+// the history of human flight is mostly the history of landing badly
+const FALLS = [
+  ['EILMER OF MALMESBURY JUMPED FROM A TOWER TOO.', 'HE BLAMED THE LACK OF A TAIL.'],
+  ['IBN FIRNAS GLIDED A WAY, THEN CAME DOWN HARD.', 'HE FORGOT A TAIL. BIRDS LAND ON THEIRS.'],
+  ['JOHN DAMIAN JUMPED OFF STIRLING CASTLE IN 1507.', 'A DUNG HEAP BROKE HIS FALL. NO DUNG HEAP HERE.'],
+  ['THE MARQUIS DE BACQUEVILLE FLAPPED OVER THE SEINE', 'AND CAME DOWN ON A WASHERWOMAN\'S BARGE.'],
+  ['"O HUMAN RACE, BORN TO FLY UPWARD,', 'WHEREFORE AT A LITTLE WIND DOST THOU SO FALL?" (DANTE)'],
+];
 // the states where the controls do something: climbing, floating home, and the moment you're handed the umbrella
 const active = () => G.st === 'play' || G.st === 'descent' || (G.st === 'win' && G.winT > 3.3);
 function callout(text, col, size, dur, at) {
@@ -1335,6 +1345,7 @@ function stepPlayer(dt) {
     P.hang.said = true;
     P.hangUsed = true; P.lip = null; P.vx = P.vz = P.vy = P.kx = P.kz = 0; P.y = P.hang.y; P.x = P.hang.x; P.z = P.hang.z;
     callout('GRAB!', '#ffd23f', 44, 0.8); sfx.clack(1); G.shake = Math.max(G.shake, 5);
+    if (!HINT.cornice) { HINT.cornice = true; callout('LIKE LILIENTHAL, BLOWN OFF A ROOF IN 1894, HANGING FROM A CORNICE', '#fff3d6', 18, 2.4); }
   }
   if (!P.onGround) P.fallFrom = Math.max(P.fallFrom, P.y);
   HINT.moved += Math.hypot(P.vx, P.vz) * dt;
@@ -1357,6 +1368,8 @@ function stepPlayer(dt) {
   }
   // the top
   if (GOAL && !G.won && Math.hypot(P.x - GOAL.x, P.z - GOAL.z) < 2 && P.y > GOAL.y - 0.3) win();
+  // standing higher than the furniture for the first time this climb
+  if (P.onGround && !P.dead && P.y > (G.stood || 0) + 0.05) { for (const [h, text] of HEIGHTS) if ((G.stood || 0) < h && P.y >= h) callout(text, '#fff3d6', 30, 2); G.stood = P.y; }
   G.peak = Math.max(G.peak, P.y);
   P.spin = ease(P.spin, Math.abs(wrap(P.yaw - P.lastYaw)) / Math.max(dt, 1e-3), 10, dt);
   P.lastYaw = P.yaw;
@@ -2086,7 +2099,9 @@ function splatPlayer() {
   SPLATS.push({ x: P.x, y: P.y, z: P.z, r: 1.5, seed: rand(0, 9), life: 30 });
   if (SPLATS.length > 40) SPLATS.shift();
   for (let i = 0; i < 26; i++) PARTS.push({ x: P.x + rand(-0.4, 0.4), y: P.y + 0.2, z: P.z + rand(-0.4, 0.4), vx: rand(-4, 4), vy: rand(2, 7), vz: rand(-4, 4), life: rand(0.5, 1.1), s: rand(0.1, 0.2), col: [0.85, 0.08, 0.06], spin: 0 });
-  callout(pick(['SPLAT!', 'PANCAKE!', 'SPLOOSH!']), '#ff5a5a', 66, 1.6); sfx.splat(1); sfx.death(); G.shake = 16;
+  callout(pick(['SPLAT!', 'PANCAKE!', 'SPLOOSH!']), '#ff5a5a', 66, 1.8); sfx.splat(1); sfx.death(); G.shake = 16;
+  const fl = FALLS[(G.fallN = ((G.fallN == null ? Math.floor(Math.random() * FALLS.length) : G.fallN) + 1) % FALLS.length)];
+  callout(fl[0], '#fff3d6', 19, 2.6); callout(fl[1], '#fff3d6', 19, 2.6);
 }
 function die() {
   if (P.carried) dropFromEagle(null);
@@ -3294,6 +3309,13 @@ function drawChart(cv) {
     c.fillStyle = '#bdb2dc'; c.textAlign = 'right'; c.fillText(n, l - 6, Yp(Y[i]));
   });
   c.fillStyle = '#ffc928'; c.textAlign = 'right'; c.fillText('FLAG', l - 6, Yp(top));
+  // and the furniture, for scale
+  c.font = 'italic 10px "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif';
+  for (const [hgt, name] of [[14, 'sofa cushions'], [22, 'arm of the sofa'], [25.5, 'fireplace']]) {
+    c.strokeStyle = 'rgba(255,243,214,0.18)'; c.setLineDash([1, 3]); c.beginPath(); c.moveTo(l, Yp(hgt)); c.lineTo(w - r, Yp(hgt)); c.stroke(); c.setLineDash([]);
+    c.fillStyle = 'rgba(255,243,214,0.55)'; c.textAlign = 'left'; c.fillText(name, l + 4, Yp(hgt) - 6);
+  }
+  c.font = '11px "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif';
   // the climb, broken where you were sent back to a checkpoint
   c.strokeStyle = '#ffc928'; c.lineWidth = 2; c.beginPath();
   G.trail.forEach(([t, y, ev], i) => { if (i === 0 || ev === 'r') c.moveTo(X(t), Yp(y)); else c.lineTo(X(t), Yp(y)); });
@@ -3340,7 +3362,7 @@ function resetGame() {
   for (const s of STEPS) { s.p = 0; s.sol.off = true; }
   stepsT = -1;
   for (const L of LIFTS) { L.mode = 'top'; L.t = 0; L.rung = false; L.y = L.hi; L.sol.y0 = L.hi - 0.4; L.sol.y1 = L.hi; }
-  Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0, eagleSeen: false, eagleWarned: 0, hinged: false, brolly: false, desc: null, downKills: 0, fold: false, landT: 0, trail: [[0, 0]], trailT: 0.25 });
+  Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, stood: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0, eagleSeen: false, eagleWarned: 0, hinged: false, brolly: false, desc: null, downKills: 0, fold: false, landT: 0, trail: [[0, 0]], trailT: 0.25 });
   G.callouts.length = 0; PARTS.length = 0; G.stats = { shots: 0, hits: 0 };
   stick = null; pointers.clear(); resetDirector();
   IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = IN.fireTap = false; IN.mb = 0; IN.mouseTurn = 0; IN.mouseLook = 0; IN.ktap = 0;
@@ -3559,7 +3581,15 @@ function land() {
   for (let i = 0; i < 22; i++) { const a = rand(0, TAU); PARTS.push({ x: P.x + Math.cos(a) * 0.5, y: 0.1, z: P.z + Math.sin(a) * 0.5, vx: Math.cos(a) * rand(1, 3), vy: rand(0.5, 2), vz: Math.sin(a) * rand(1, 3), life: rand(0.5, 1), s: rand(0.06, 0.12), col: C.tan, spin: 0 }); }
   callout('HOME', '#ffd23f', 64, 1.8);
 }
+function stepAmbience(dt) {
+  if (!AC || muted || G.paused || (G.st !== 'play' && G.st !== 'descent')) return;
+  const A = G.amb || (G.amb = { crackle: 0, tick: 0, tock: false, wind: 0 }), low = clamp(1 - P.y / 18, 0, 1), high = clamp((P.y - 6) / 18, 0, 1);
+  if ((A.crackle -= dt) <= 0) { A.crackle = rand(0.06, 0.45); if (low > 0.02) hiss('bandpass', rand(1400, 4200), 2.5, 0.025, 0.035 * low * rand(0.4, 1)); }
+  if ((A.tick -= dt) <= 0) { A.tick = 1; A.tock = !A.tock; if (low > 0.02) tone('square', A.tock ? 1500 : 1800, 0, 0.012, 0.012 * low); }
+  if ((A.wind -= dt) <= 0) { A.wind = rand(0.6, 1.1); if (high > 0.02) hiss('lowpass', rand(250, 650), 0.7, 1.5, 0.028 * high); }
+}
 function stepGame(dt) {
+  stepAmbience(dt);
   if (G.st === 'play') {
     G.t += dt;
     stepLifts(dt); stepSteps(dt); stepPlayer(dt); stepWorld(dt);
