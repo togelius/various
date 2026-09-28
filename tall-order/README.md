@@ -313,6 +313,12 @@ each comes with a few uses:
 - **Squeaky Mallet**: a big swing that sends toys flying and bats shells and
   bricks back where they came from.
 - **Zap Wand**: lightning that jumps between up to four toys and stuns them.
+- **Party Balloons**: tie one to the toy you're facing and up it goes, kicking,
+  out of the fight and drifting out from the middle of the tower, until the
+  balloon pops (or a ceiling pops it) and down it comes: SPLAT from high
+  enough, a heavy landing otherwise. The MEGA WOLF is too heavy, cannons are
+  bolted down, and bees laugh at it. There's a bunch on the rug and another on
+  floor three.
 - **Juice**: 35 health, drunk on the spot. It stays where it is if you are
   already at full health.
 - **Wolf Head** and **Kitty Head**: not used up; you wear them (see Their heads).
@@ -412,6 +418,26 @@ dives, riders, heads, wins and pauses, turned up:
 The screenshots of this round's cues turned up one more: a blank frame
 whenever the resolution scaler changed the resolution, because it resized the
 canvas after drawing the frame.
+
+A fifth read-through, of the kitty ladders, the smoke, the look from outside
+and their tower, with its own tests and fuzzing, found:
+
+- two kitty ladders on the same spot, when a ladder swarm arrived where
+  leftover kitties had already started one: a hit on the peeker brought down
+  only one of them
+- JUMP not getting on with the look from outside, as promised, because the
+  controls weren't live yet
+- their tower growing while its wolves dozed, far from you, so they ended up
+  inside it and stopped being its wolves
+- the out-of-reach cue for one of their bricks drawn nowhere at all
+- you vanishing from the look from outside before the camera was back in your
+  head
+- their tower lifting anyone standing where it had been, a brick at a time, as
+  it was rebuilt
+
+and, while the balloons went in, a read-through caught a balloon on the MEGA
+WOLF, too heavy to lift it, that would have stalled its fall off the tower,
+the way the Zap Wand had.
 
 The runs also set the difficulty, which was meant to stay about where it was
 before. With everything in, the kitty ladders and their tower included, the
