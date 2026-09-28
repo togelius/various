@@ -48,7 +48,13 @@ laptop.
 The third round was an open brief to keep going and make it better. It started
 with a fresh-eyes review of the code and a frame-by-frame look at a whole climb,
 and then built the rest of the second round's ideas: the way home after the
-hinge, the snatcher, the rider, and wearing other toys' heads.
+hinge, the snatcher, the rider, and wearing other toys' heads. Then came the
+ones that play with height from other directions: kitties that make ladders of
+themselves, a tower the wolves race you with, periscopes for the one look ahead
+you get, party balloons that take toys up out of your reach (and drop them),
+shooting down from the eagle's talons, smoke that hangs over floor three, and,
+at the top, the one look at yourself from outside. Each part went through its
+own tests and bot runs, and two more read-throughs of the new code.
 
 ## Controls
 
