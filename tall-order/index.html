@@ -752,7 +752,7 @@ function buildTower() {
     { x: -6.8, y: Y[3], z: -4, n: 3, to: [0, -5] }, { x: 3, y: Y[4], z: -5.5, n: 4, to: [5, 3] }, { x: 3, y: Y[5], z: 5.2, n: 5, to: [0, 1.2] });
   const mid = STEPS[12], next = STEPS[13];
   CHECKS.push({ x: (mid.x0 + mid.x1) / 2 + 0.5, y: mid.y1, z: (mid.z0 + mid.z1) / 2 - 0.4, n: 6, to: [(next.x0 + next.x1) / 2, (next.z0 + next.z1) / 2], step: mid });
-  for (const c of CHECKS) c.reached = c.n === 0;
+  for (const c of CHECKS) { c.reached = c.n === 0; c.swapAt = null; }
 }
 // a lattice of beams: an open square tower (like a crane) or a flat panel
 function lattice(x0, z0, x1, z1, y0, y1, col, tower) {
@@ -1101,12 +1101,25 @@ function drawPads() {
     decal(0, p.x, p.y + 0.3 + 0.5 * s + 0.16, p.z, 0.75 + Math.sin(G.time * 5) * 0.06, 0.2, 0, 1, [1, 0.85, 0.2, 0.8]);
   }
 }
+// The MEGA WOLF has planted its black flags all the way up. Reaching one, you swap it for yours: the black
+// one slides down the pole and yours runs up
 function drawChecks() {
   for (const c of CHECKS) {
     if (c.n === 0 || c.step && c.step.p < 1) continue;
     put(SH.cyl, c.x, c.y + 0.9, c.z, Q0, 0.1, 1.8, 0.1, C.white, 0.6);
-    const wave = Math.sin(G.time * 5 + c.n) * 0.12, col = c.reached ? C.lime : C.white;
-    put(SH.box, c.x + 0.35, c.y + 1.55, c.z, qAxis(0, 1, 0, wave), 0.6, 0.4, 0.04, col, 1, c.reached ? 0.35 : 0);
+    const wave = qAxis(0, 1, 0, Math.sin(G.time * 5 + c.n) * 0.12), k = c.reached ? clamp((G.time - (c.swapAt == null ? -9 : c.swapAt)) / 0.9, 0, 1) : 0;
+    const down = clamp(k / 0.45, 0, 1), up = clamp((k - 0.45) / 0.55, 0, 1);
+    if (down < 1) {
+      const y = c.y + 1.55 - easeInOut(down) * 1.25;
+      put(SH.box, c.x + 0.35, y, c.z, wave, 0.6, 0.4, 0.04, C.black);
+      put(SH.box, c.x + 0.38, y + 0.02, c.z, wave, 0.2, 0.16, 0.05, C.white);
+      put(SH.box, c.x + 0.33, y + 0.11, c.z, wave, 0.05, 0.08, 0.05, C.white); put(SH.box, c.x + 0.43, y + 0.11, c.z, wave, 0.05, 0.08, 0.05, C.white);
+    }
+    if (up > 0) {
+      const y = c.y + 0.3 + easeOut(up) * 1.25;
+      put(SH.box, c.x + 0.35, y, c.z, wave, 0.6, 0.4, 0.04, C.yellow, 1, 0.3);
+      put(SH.box, c.x + 0.35, y, c.z, wave, 0.6, 0.12, 0.05, C.red, 1, 0.3);
+    }
     put(SH.cyl, c.x, c.y + 0.06, c.z, Q0, 0.7, 0.12, 0.7, c.reached ? C.lime : C.grey);
   }
 }
@@ -1366,8 +1379,9 @@ function stepPlayer(dt) {
   // checkpoints: touch the flag, or just stand on its floor
   for (const c of CHECKS) {
     if (c.reached || P.dead || !P.onGround || c.step && c.step.p < 1 || (Math.hypot(P.x - c.x, P.z - c.z) > 1.4 || Math.abs(P.y - c.y) > 1) && Math.abs(P.y - c.y) > 0.3) continue;
-    c.reached = true; P.check = Math.max(P.check, c.n); P.hp = Math.max(P.hp, 70);
+    c.reached = true; c.swapAt = G.time; P.check = Math.max(P.check, c.n); P.hp = Math.max(P.hp, 70);
     callout('CHECKPOINT', '#b8f060', 40, 1.2); sfx.checkpoint();
+    if (!HINT.flag) { HINT.flag = true; callout('THE WOLF\'S FLAG COMES DOWN, AND YOURS GOES UP', '#fff3d6', 20, 2.2); }
     if (c.n === 1) swarm({ event: true, from: 'below', n: 4, say: 'THEY\'RE COMING UP THE STAIRS', x: 4, y: 0, z: 18.5, route: [[4, 14.6], [4, 9.2], [4, 7.2]] });
     if (c.n === 4) swarm({ event: true, from: 'below', n: 3, bees: 1, say: 'THEY\'RE COMING UP THE STAIRS', x: -7.3, y: Y[3], z: -5, route: [[-5.8, -5], [0.6, -5], [2.4, -5]] });
   }
@@ -3386,7 +3400,7 @@ function startGame() {
 }
 function resetGame() {
   Object.assign(P, { x: 4, y: 0, z: 23.5, yaw: -Math.PI / 2, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 0, dead: 0, check: 0, onGround: true, ground: null, fallFrom: 0, full: 0, fireT: 0, kick: 0, itemT: 0, vm: null, swing: 0, hurtT: 0, hurtA: null, hang: null, lip: null, edgeT: 0, tip: 0, strain: 0, padT: 0, launched: false, jumpBuf: 0, look: 0, carried: null, rider: null, riderCd: 0, shake: 0, head: null, headPitch: 0, headSwap: 0 });
-  for (const c of CHECKS) c.reached = c.n === 0;
+  for (const c of CHECKS) { c.reached = c.n === 0; c.swapAt = null; }
   for (const s of STEPS) { s.p = 0; s.sol.off = true; }
   stepsT = -1;
   for (const L of LIFTS) { L.mode = 'top'; L.t = 0; L.rung = false; L.y = L.hi; L.sol.y0 = L.hi - 0.4; L.sol.y1 = L.hi; }
