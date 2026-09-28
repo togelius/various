@@ -1256,7 +1256,8 @@ function stepPlayer(dt) {
   // a turn key eases in, so a tap nudges your aim and holding it swings you round
   IN.kt = (IN.kl || IN.kr) && !stick ? IN.kt + dt : 0;
   const rate = lerp(TURN, BOOST, clamp((P.full - 0.12) / 0.2, 0, 1)) * (IN.kt > 0 ? lerp(0.4, 1, clamp(IN.kt / 0.3, 0, 1)) : 1);
-  P.yaw += Math.sign(st.x) * Math.pow(ax, 1.2) * rate * dt + IN.mouseTurn;
+  const mTurn = IN.mouseTurn;
+  P.yaw += Math.sign(st.x) * Math.pow(ax, 1.2) * rate * dt + mTurn;
   // (a turn key let go before a frame saw it still nudges you)
   if (IN.ktap && !IN.kl && !IN.kr && !(P.dead > 0)) P.yaw += IN.ktap * 0.05;
   IN.mouseTurn = 0; IN.mouseLook = 0; IN.ktap = 0;
@@ -1276,7 +1277,7 @@ function stepPlayer(dt) {
       if ((P.scratchT -= dt) <= 0) { P.scratchT = 1.3; hurtPlayer(3, 0, 0, 0, e); }
       // each JUMP shakes at it, and so does turning hard one way then the other
       if (IN.jumps > P.jumpsSeen) { P.shake += 0.55 * (IN.jumps - P.jumpsSeen); P.jumpsSeen = IN.jumps; }
-      const sx = Math.abs(st.x) > 0.85 ? Math.sign(st.x) : 0;
+      const sx = Math.abs(st.x) > 0.85 ? Math.sign(st.x) : Math.abs(mTurn) > dt * 4 ? Math.sign(mTurn) : 0;
       if (sx && P.lastSx && sx !== P.lastSx) P.shake += 0.3;
       if (sx) P.lastSx = sx;
       P.shake = Math.max(0, P.shake - dt * 0.12);
@@ -1385,10 +1386,11 @@ function stepPlayer(dt) {
     callout('CHECKPOINT', '#b8f060', 40, 1.2); sfx.checkpoint();
     if (!HINT.flag) { HINT.flag = true; callout('THE WOLF\'S FLAG COMES DOWN, AND YOURS GOES UP', '#fff3d6', 20, 2.2); }
     if (c.n === 1) swarm({ event: true, from: 'below', n: 4, say: 'THEY\'RE COMING UP THE STAIRS', x: 4, y: 0, z: 18.5, route: [[4, 14.6], [4, 9.2], [4, 7.2]] });
+    if (c.n === 3) swarm({ event: true, from: 'below', ladder: true, n: 4, say: 'SCRABBLING BELOW YOU…' });
     if (c.n === 4) swarm({ event: true, from: 'below', n: 3, bees: 1, say: 'THEY\'RE COMING UP THE STAIRS', x: -7.3, y: Y[3], z: -5, route: [[-5.8, -5], [0.6, -5], [2.4, -5]] });
   }
   // the top
-  if (GOAL && !G.won && Math.hypot(P.x - GOAL.x, P.z - GOAL.z) < 2 && P.y > GOAL.y - 0.3) win();
+  if (GOAL && !G.won && !P.dead && Math.hypot(P.x - GOAL.x, P.z - GOAL.z) < 2 && P.y > GOAL.y - 0.3) win();
   // standing higher than the furniture for the first time this climb
   if (P.onGround && !P.dead && P.y > (G.stood || 0) + 0.05) { for (const [h, text] of HEIGHTS) if ((G.stood || 0) < h && P.y >= h) callout(text, '#fff3d6', 30, 2); G.stood = P.y; }
   G.peak = Math.max(G.peak, P.y);
@@ -1406,16 +1408,18 @@ function stepWorld(dt) {
   if (P.dead) IN.fireTap = false;
   stepMallet(dt);
   stepFoes(dt); stepShots(dt); stepWaves(dt); stepGibs(dt); stepFX(dt); stepItems(dt);
-  if (G.st === 'play') stepDirector(dt);
+  if (G.st === 'play') { stepStacks(dt); stepDirector(dt); }
   G.comboT = Math.max(0, (G.comboT || 0) - dt);
   if (G.stepsIn > 0 && (G.stepsIn -= dt) <= 0) { callout('THE STEPS ARE BUILDING THEMSELVES', '#b8f060', 34, 2.4); buildSteps(); }
 }
 function win() {
   G.won = true; G.st = 'win'; G.winT = 0; G.hinged = false; G.brolly = false;
-  if (P.rider) dismount(false);
+  if (P.rider) { const r = P.rider; dismount(false); if (r.alive) killFoe(r, 'confetti'); }
+  P.kick = P.strain = P.swing = 0; P.vm = null;
+  for (const S of STACKS.slice()) breakLadder(S, false);
   P.head = null; P.headPitch = 0; P.headSwap = 0;
   TRACERS.length = 0; P.hurtT = 0; for (const e of FOES) { e.alert = 0; e.tele = 0; }
-  for (let i = SHOTS.length - 1; i >= 0; i--) if (SHOTS[i].foe) SHOTS.splice(i, 1);
+  SHOTS.length = 0;
   IN.kFire = IN.mFire = IN.fireTap = false; P.jumpBuf = 0; stick = null; pointers.clear();
   G.trail.push([G.t, P.y, 'w']); finishRun();
   callout('YOU MADE IT!', '#ffd23f', 64, 2.5); sfx.win();
@@ -1651,6 +1655,7 @@ function dismount(fling) {
   if (!e || !e.alive) return;
   const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw);
   e.st = 'chase'; e.cd = 1.4; e.bit = false; e.onGround = false; e.x = P.x + ca * 0.5; e.z = P.z + sa * 0.5; e.y = P.y + 1.4; e.fallFrom = e.y;
+  if (blocked(e.x, e.y, e.z, e.r, e.h)) { e.x = P.x; e.z = P.z; }   // (not inside a pillar)
   // shaken off, it tumbles off in front of you, dazed: a sitting duck
   if (fling) { e.kx = ca * 4; e.kz = sa * 4; e.vy = 3.5; e.stun = 1.2; callout('SHAKEN OFF!', '#b8f060', 40, 1); sfx.meow(1); }
 }
@@ -1666,6 +1671,139 @@ function nearestDrop() {
   }
   return best;
 }
+// ---------------------------------------------------------------- the kitty ladder
+// Kitties that can't get up to you stand on each other's heads against the edge of your floor: a living ladder.
+// The one on top pulls itself up and peeks over the lip before it climbs on up; the next runs up the others'
+// backs to take its place. You can't see the ladder from up there, but you can hit the one peeking over the lip,
+// and then the whole ladder comes down.
+const STACKS = [], KUP = 0.95, KREACH = 2;   // how much each kitty adds; the rung that can reach the lip
+// somewhere for a ladder: on the floor below yours, just past your edge, near you, clear of pillars and stairs
+function ladderSpot(y0, top, maxD) {
+  let best = null, bd = maxD || 8;
+  for (let k = 0; k < 32; k++) {
+    const a = k / 32 * TAU, ca = Math.cos(a), sa = Math.sin(a);
+    for (let d = 0.3; d < bd; d += 0.25) {
+      const x = P.x + ca * d, z = P.z + sa * d;
+      if (blocked(x, top + 0.1, z, 0.15, 1)) break;              // a wall that way
+      if (floorBelow(x, top + 0.3, z) > top - 0.3) continue;      // still your floor
+      const sx = x + ca * 0.5, sz = z + sa * 0.5, lx = x - ca * 0.7, lz = z - sa * 0.7;
+      if (Math.abs(floorBelow(sx, top - 0.3, sz) - y0) < 0.2 && !blocked(sx, y0 + 0.05, sz, 0.4, top - y0 + 1)
+        && floorBelow(lx, top + 0.3, lz) > top - 0.3 && !blocked(lx, top + 0.05, lz, 0.3, 0.9)) {
+        bd = d; best = { x: sx, z: sz, ex: x - ca * 0.1, ez: z - sa * 0.1, lx, lz, ox: -ca, oz: -sa };
+      }
+      break;
+    }
+  }
+  return best;
+}
+function startLadder(sp, y0, top, kits) {
+  const S = Object.assign(sp, { y0, top, members: [], coming: [], seed: rand(0, 9), idle: 0, said: false });
+  G.ladders = (G.ladders || 0) + 1;
+  for (const e of kits) { e.stack = S; e.stackT = 0; e.bestD = 1e9; S.coming.push(e); }
+  STACKS.push(S);
+  return S;
+}
+// the ladder comes apart: knocked, when they all tumble away from the edge (the higher, the further) and the fall
+// does for them; or given up on, when they just get down
+function breakLadder(S, knocked) {
+  const n = S.members.length;
+  S.members.forEach((m, i) => {
+    m.stack = null; m.st = 'chase'; m.onGround = false; m.fallFrom = m.y; m.vx = m.vz = 0;
+    if (knocked) {
+      const side = rand(-1.2, 1.2), out = 1 + i * 1.3;
+      m.kx = -S.ox * out - S.oz * side; m.kz = -S.oz * out + S.ox * side; m.vy = 2 + i * 0.6;
+      m.flung = 1.2; m.stun = 0.8; m.tumble = true;
+    } else { m.kx = -S.ox * 1.2; m.kz = -S.oz * 1.2; m.vy = 1.5; }
+  });
+  for (const m of S.coming) m.stack = null;
+  S.members.length = S.coming.length = 0;
+  const k = STACKS.indexOf(S); if (k >= 0) STACKS.splice(k, 1);
+  if (knocked && n) {
+    G.toppled = (G.toppled || 0) + 1;
+    callout(n >= 3 ? 'KITTY TOWER DOWN!' : 'DOWN THEY GO!', '#ff7ad9', 42, 1.4);
+    const v = near(S.x, S.top, S.z); sfx.meow(v); sfx.thud(v); tone('triangle', 1000, 300, 0.5, 0.06 * v, 0.1);
+  }
+}
+// on its way to the ladder, or waiting at the foot of it for the one on top to get out of the way
+function toLadder(e, dt) {
+  const S = e.stack, d = Math.hypot(S.x - e.x, S.z - e.z);
+  if (d < 0.5 && e.onGround && S.members.length <= KREACH) {
+    S.coming.splice(S.coming.indexOf(e), 1); S.members.push(e);
+    e.st = 'ladder'; e.climb = 0; e.topT = 0; e.onTop = false; e.vx = e.vz = e.kx = e.kz = 0;
+    return;
+  }
+  if (d < 1.2 && S.members.length > KREACH) { halt(e, dt); faceTo(e, S.x, S.z, 8, dt); return; }
+  if ((e.stackT += dt) > 9) { e.stack = null; S.coming.splice(S.coming.indexOf(e), 1); return; }   // (stuck behind something)
+  // not getting any nearer (a pillar in the way, say): a dash off to one side, then try again
+  if (d < (e.bestD || 1e9) - 0.05) { e.bestD = d; e.noGo = 0; } else if ((e.noGo = (e.noGo || 0) + dt) > 0.35 && !(e.detourT > 0)) {
+    const s = Math.random() < 0.5 ? 1 : -1; e.detX = -(S.z - e.z) / d * s; e.detZ = (S.x - e.x) / d * s; e.detourT = 0.45; e.noGo = 0; e.bestD = 1e9;
+  }
+  if (e.detourT > 0) { e.detourT -= dt; walkTo(e, e.x + e.detX, e.z + e.detZ, TYPES.kitty.speed, dt, true); }
+  else walkTo(e, S.x, S.z, TYPES.kitty.speed, dt, true);
+  faceTo(e, e.x + e.vx, e.z + e.vz, 10, dt);
+}
+// kitties on a floor (and after you) with nothing better to do: they can go and make a ladder, or join one
+const idleKits = (y0, x, z) => FOES.filter(e => e.alive && e.type === 'kitty' && e.awake && !e.stack && !(e.route && e.route.length) && e.st === 'chase' && !e.flung && !(e.stun > 0)
+  && e.y > y0 - 0.05 && e.y < y0 + 0.8 && Math.hypot(e.x - x, e.z - z) < 14);
+function stepStacks(dt) {
+  const recruit = (G.ladderT = (G.ladderT || 0) - dt) <= 0;
+  if (recruit) G.ladderT = 0.6;
+  for (const S of STACKS.slice()) {
+    if (recruit) for (const e of idleKits(S.y0, S.x, S.z)) { e.stack = S; e.stackT = 0; e.bestD = 1e9; S.coming.push(e); }
+    S.members = S.members.filter(e => e.alive && e.stack === S);
+    S.coming = S.coming.filter(e => e.alive && e.stack === S);
+    // you've gone somewhere else, or they've all gone: they give up and get down
+    if (P.dead || P.onGround && Math.abs(P.y - S.top) > 1.2 || !S.members.length && !S.coming.length) { breakLadder(S, false); continue; }
+    const tx = -S.oz, tz = S.ox;
+    let over = null;
+    S.members.forEach((e, i) => {
+      e.flash = Math.max(0, e.flash - dt); e.alert = Math.max(0, e.alert - dt); e.upright = Math.min(1, (e.upright || 0) + dt * 5);
+      e.yaw = Math.atan2(S.oz, S.ox); e.vx = e.vy = e.vz = e.kx = e.kz = 0; e.onGround = true; e.phase += dt * 6;
+      if (e.st === 'lip') {
+        // up on the lip: it pulls itself up, peeks over at you (now's your chance), and scrambles up
+        e.lipT += dt;
+        const k1 = easeOut(e.lipT / 0.45), k2 = easeInOut(clamp((e.lipT - 1.3) / 0.3, 0, 1));
+        e.x = lerp(lerp(e.y1x, S.ex, k1), S.lx, k2); e.z = lerp(lerp(e.y1z, S.ez, k1), S.lz, k2);
+        e.y = lerp(lerp(e.y1, S.top - 0.55, k1), S.top + 0.05, k2) + (k1 >= 1 && k2 <= 0 ? Math.sin(e.lipT * 9) * 0.04 : 0);
+        if (e.lipT >= 0.45 && !e.peeked) { e.peeked = true; e.alert = 1; say(e, pick(['PEEKABOO!', 'MRRP?', 'HELLO!', 'FOUND YOU!']), 1.1); }
+        if (e.lipT >= 1.6) over = e;
+        e.fallFrom = e.y;
+        return;
+      }
+      // each on the head of the one below, swaying more the higher it is; the newest on its way up round their backs
+      e.climb = Math.min(1, e.climb + dt / (0.2 + 0.3 * i));
+      const sw = Math.sin(G.time * 2.4 + S.seed) * 0.05 * i + Math.sin(G.time * 5.3 + i) * 0.015 * i, round = Math.sin(e.climb * Math.PI) * 0.4;
+      e.x = S.x - S.ox * round + tx * sw; e.z = S.z - S.oz * round + tz * sw; e.y = S.y0 + i * KUP * easeInOut(e.climb); e.fallFrom = e.y;
+      if (e.climb >= 1 && !e.onTop) { e.onTop = true; if (i) say(e, pick(['HUP!', 'ALLEZ-OOP!', 'HUP!', 'ONE MORE!']), 0.9); }
+      // the top one, high enough to reach the lip, goes for it
+      if (e.climb >= 1 && i === S.members.length - 1 && S.y0 + i * KUP + KUP + 1 >= S.top - 0.01 && (e.topT += dt) > 0.3) {
+        e.st = 'lip'; e.lipT = 0; e.peeked = false; e.y1 = e.y; e.y1x = e.x; e.y1z = e.z; sfx.scrabble();
+      }
+    });
+    if (over) {
+      S.members.splice(S.members.indexOf(over), 1);
+      Object.assign(over, { stack: null, st: 'chase', cd: 0.5, onGround: false, y: S.top + 0.05, fallFrom: S.top + 0.05 });
+      G.overs = (G.overs || 0) + 1;
+      sfx.meow(near(over.x, over.y, over.z));
+    }
+    if (S.members.length >= 2 && !S.said) {
+      S.said = true; callout('THEY\'RE STACKING UP AT THE EDGE!', '#ff7ad9', 34, 1.8);
+      if (!HINT.ladder) { HINT.ladder = true; callout('HIT THE ONE THAT PEEKS OVER, AND DOWN THEY ALL COME', '#ffd23f', 22, 2.8); }
+    }
+    // nobody left to climb it and nobody on it who can reach: they give up after a while
+    const top = S.members[S.members.length - 1];
+    S.idle = !S.coming.length && (!top || top.st !== 'lip' && S.y0 + (S.members.length - 1) * KUP + KUP + 1 < S.top - 0.01) ? S.idle + dt : 0;
+    if (S.idle > 4) breakLadder(S, false);
+  }
+  // kitties left on the floor below you, and after you, start one
+  if (STACKS.length || !recruit) return;
+  const f = floorOf(P.y);
+  if (f < 1 || f > 4 || !P.onGround || P.dead || P.hang || P.carried || Math.abs(P.y - Y[f]) > 0.3) return;
+  const stuck = idleKits(Y[f - 1], P.x, P.z);
+  if (stuck.length < 3) return;
+  const sp = ladderSpot(Y[f - 1], Y[f]);
+  if (sp) startLadder(sp, Y[f - 1], Y[f], stuck.slice(0, 5));
+}
 function kittyAI(e, dt) {
   // curled up asleep on its stack: only a shot, or walking right up to it, wakes it
   if (e.sleeps && !e.awake) {
@@ -1674,6 +1812,7 @@ function kittyAI(e, dt) {
     else if ((e.zzT = (e.zzT || 0) - dt) <= 0) { e.zzT = 2.6; e.say = 'Z z z'; e.sayT = 1.8; }
     return;
   }
+  if (e.stack) { toLadder(e, dt); return; }
   // coming down right on top of you
   if (!e.onGround && e.vy < -1 && canRide(e) && Math.hypot(P.x - e.x, P.z - e.z) < 0.6 && e.y > P.y + 0.9 && e.y < P.y + 2.2) { mount(e); return; }
   const d = pdist(e), dy = P.y - e.y, sees = seesPlayer(e, dt);
@@ -1802,7 +1941,7 @@ function snatch(e) {
   const f = floorOf(P.y), c = CARRY[f];
   e.st = 'carry'; e.carry = { f, zone: c.zone, out: c.out, t: 0, sw: 0, x0: P.x, z0: P.z, top: Y[f + 1] + 2.7, arrived: false };
   if (P.rider) dismount(false);
-  P.carried = e; P.hang = null; P.lip = null; P.jumpBuf = 0; P.vx = P.vy = P.vz = P.kx = P.kz = 0; P.onGround = false; P.ground = null;
+  P.carried = e; P.hang = null; P.lip = null; P.jumpBuf = 0; P.vx = P.vy = P.vz = P.kx = P.kz = 0; P.onGround = false; P.ground = null; P.tip = P.edgeT = 0;
   e.x = P.x; e.z = P.z; e.y = P.y + 1.35; e.vx = e.vz = 0; e.vy = 1;
   callout('SNATCHED!', '#ff9a3a', 50, 1.3); sfx.screech(1); G.shake = Math.max(G.shake, 6);
 }
@@ -1837,7 +1976,7 @@ function stepCarried(dt, st) {
   const tx = e.x + Math.sin(G.time * 2.1) * 0.08, ty = e.y - 1.35, tz = e.z;
   P.onGround = false;
   moveBody(P, tx - P.x, ty - P.y, tz - P.z, 0);
-  P.vx = P.vy = P.vz = 0; P.fallFrom = P.y;
+  P.vx = P.vy = P.vz = P.kx = P.kz = 0; P.fallFrom = P.y;
   if (Math.hypot(tx - P.x, ty - P.y, tz - P.z) > 1.4) { dropFromEagle('YOU SLIP FREE'); return; }
   if (P.jumpBuf > 0) { P.jumpBuf = 0; dropFromEagle(null); sfx.jump(); }
 }
@@ -2018,10 +2157,12 @@ function stepFoes(dt) {
       if (P.rider !== e || e.stun > 0 || e.flung) { if (P.rider === e) dismount(false); else e.st = 'chase'; }
       else { e.x = P.x; e.y = P.y + 1.35; e.z = P.z; e.yaw = P.yaw; e.vx = e.vy = e.vz = 0; e.onGround = false; e.fallFrom = e.y; continue; }
     }
+    if (e.st === 'ladder' || e.st === 'lip') { if (e.stack) continue; e.st = 'chase'; }   // (the ladder moves its kitties)
+    if (e.upright && !e.stack) e.upright = Math.max(0, e.upright - dt * 4);
     const far = Math.hypot(P.x - e.x, P.y - e.y, P.z - e.z) > 34;
     if (far && e.type !== 'boss') { if (e.awake && !e.flung) { e.awake = false; e.st = 'idle'; } continue; }
     e.flash = Math.max(0, e.flash - dt); e.alert = Math.max(0, e.alert - dt); e.squash = ease(e.squash, 0, 8, dt);
-    if (e.stun > 0) { e.stun -= dt; halt(e, dt, 8); e.tele = 0; e.st = e.type === 'car' ? 'patrol' : e.awake ? 'chase' : 'idle'; }
+    if (e.stun > 0 && !e.toppling) { e.stun -= dt; halt(e, dt, 8); e.tele = 0; e.st = e.type === 'car' ? 'patrol' : e.awake ? 'chase' : 'idle'; }
     else if (!e.flung && !P.dead) { if (e.route && e.route.length) followRoute(e, dt); else AI[e.type](e, dt); }
     else if (P.dead) halt(e, dt);
     // moving about
@@ -2044,6 +2185,8 @@ function stepFoes(dt) {
       if (e.onGround && !was) {
         const fall = e.fallFrom - e.y;
         if (fall > 5 && (e.type !== 'boss' || e.toppling)) { killFoe(e, 'splat'); continue; }
+        // down off a knocked-over ladder, in a heap
+        if (e.tumble) { e.tumble = false; e.flung = 0; if (hurtFoe(e, 2, 0, 0, 0, 'tumble')) continue; }
         if (fall > 1) { e.squash = 0.35; }
         if (e.flung) e.flung = 0;
       }
@@ -2062,6 +2205,7 @@ function stepFoes(dt) {
 // ---------------------------------------------------------------- hurting and popping
 function hurtFoe(e, dmg, kx, ky, kz, how) {
   if (!e.alive || e.toppling) return false;
+  if (e.stack && e.stack.members.includes(e)) breakLadder(e.stack, true);
   e.lastHow = how; e.hp -= dmg; e.flash = 0.09;
   if (!e.awake) wake(e);
   const m = e.mass;
@@ -2073,7 +2217,7 @@ function hurtFoe(e, dmg, kx, ky, kz, how) {
   return false;
 }
 const POPS = { blaster: ['POP!', 'BONK!', 'PLINK!'], boom: ['KABOOM!', 'BLAM!', 'KA-BLOOEY!'], confetti: ['PARTY!', 'YEET!', 'WHEEE!'],
-  mallet: ['SQUEAK!', 'BONK!', 'HOME RUN!'], zap: ['ZAP!', 'FRIZZLED!', 'BZZT!'], splat: ['SPLAT!', 'SPLAT!', 'WHOOPS!'], friendly: ['OOPS!', 'OUCH!', 'BONK!'] };
+  mallet: ['SQUEAK!', 'BONK!', 'HOME RUN!'], zap: ['ZAP!', 'FRIZZLED!', 'BZZT!'], splat: ['SPLAT!', 'SPLAT!', 'WHOOPS!'], tumble: ['THUD!', 'BONK!', 'OOF!'], friendly: ['OOPS!', 'OUCH!', 'BONK!'] };
 function killFoe(e, how, kx, ky, kz) {
   if (!e.alive) return;
   e.alive = false; e.hp = 0;
@@ -2407,7 +2551,7 @@ function useItem() {
   if ((G.st !== 'play' && G.st !== 'descent') || G.paused || P.dead || P.hang || P.carried) return;
   const it = INV[SEL];
   if (!it || P.itemT > 0) { if (!it) { sfx.deny(); callout('NOTHING TO USE', '#ffffff', 28, 0.8); } return; }
-  if (isHead(it.kind)) { swapHead(it.kind); return; }
+  if (isHead(it.kind)) { if (G.st === 'play') swapHead(it.kind); else { sfx.deny(); callout('NO NEED: YOU HAVE A HINGE NOW', '#ffffff', 26, 1); } return; }
   const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw), ex = P.x + ca * 0.4, ey = P.y + EYE - 0.25, ez = P.z + sa * 0.4;
   P.vm = { kind: it.kind, t: 0 };
   if (it.kind === 'rocket') {
@@ -2452,7 +2596,7 @@ function useItem() {
       hitL.push(e); cur = p;
     }
     if (!hitL.length) FX.push({ k: 'bolt', a: from, b: [ex + ca * 8, ey, ez + sa * 8], life: 0.25, max: 0.25, seed: rand(0, 99) });
-    for (const e of hitL) { hurtFoe(e, 7, 0, 2, 0, 'zap'); if (e.alive) { e.stun = 1.5; e.tele = 0; } }
+    for (const e of hitL) { hurtFoe(e, 7, 0, 2, 0, 'zap'); if (e.alive && !e.toppling) { e.stun = 1.5; e.tele = 0; } }
     sfx.zap(); P.itemT = 0.4; G.flash = Math.max(G.flash, 0.2);
   }
   it.ammo--; HINT.used++;
@@ -2496,7 +2640,7 @@ function stepItems(dt) {
 function poseParts(e) {
   const m = MODELS[e.type], S = e.scale, out = [];
   let qb = qYaw(e.yaw);
-  if (e.flung > 0 || (!e.onGround && e.type !== 'bee' && e.vy < -6)) qb = qMul(qb, qAxis(0, 0, 1, (e.spinA = (e.spinA || 0) + 0.25)));
+  if (e.flung > 0 || (!e.onGround && !TYPES[e.type].fly && e.vy < -6)) qb = qMul(qb, qAxis(0, 0, 1, (e.spinA = (e.spinA || 0) + 0.25)));
   const sq = e.squash || 0, sy = 1 - sq, sxz = 1 + sq * 0.5;
   const s = Math.sin(e.phase), walk = clamp(Math.hypot(e.vx, e.vz) / Math.max(0.5, TYPES[e.type].speed), 0, 1);
   const J = { legL: s * 0.7 * walk, legR: -s * 0.7 * walk, armL: -s * 0.5 * walk, armR: s * 0.5 * walk, head: Math.sin(e.phase * 0.5) * 0.05, body: 0, tail: 0.5 + Math.sin(G.time * 6 + e.seed) * 0.3, wingL: Math.sin(G.time * 45 + e.seed) * 0.7, wingR: -Math.sin(G.time * 45 + e.seed) * 0.7, wheel: -e.wheel, sting: 0, barrel: e.pitch };
@@ -2525,9 +2669,13 @@ function poseParts(e) {
     J.legL = J.legR = e.st === 'dive' || e.st === 'carry' ? -0.6 : 0;
   }
   const hip = HIPS[e.type], bq = J.body ? qAxis(0, 0, 1, J.body) : null;
+  // a kitty in a ladder stands up on its hind legs, tipped up about its hips, with its head turned to look
+  // ahead and its front paws reaching up
+  const upr = e.upright || 0, uq = upr ? qAxis(0, 0, 1, upr * Math.PI / 2) : null;
   for (const p of m) {
     let lx = p.x, ly = p.y, lz = p.z, lq = Q0;
-    const a = p.joint && p.joint !== 'body' ? J[p.joint] : 0;
+    let a = p.joint && p.joint !== 'body' ? J[p.joint] : 0;
+    if (upr) a = p.joint === 'head' ? -upr * Math.PI / 2 : p.joint === 'legL' || p.joint === 'legR' ? (p.x < 0 ? -upr * Math.PI / 2 : upr * (1.3 + Math.sin(G.time * 10 + e.seed + p.z * 30) * 0.4)) : a;
     if (a) {
       const jq = p.axis === 0 ? qAxis(1, 0, 0, a) : qAxis(0, 0, 1, a), pv = p.pv || [0, 0, 0], r = qRot(jq, [lx - pv[0], ly - pv[1], lz - pv[2]]);
       lx = pv[0] + r[0]; ly = pv[1] + r[1]; lz = pv[2] + r[2]; lq = jq;
@@ -2536,6 +2684,7 @@ function poseParts(e) {
     if (bq && p.joint !== 'legL' && p.joint !== 'legR' && (p.joint === 'body' || (p.pv ? p.pv[1] : p.y) > hip)) {
       const r = qRot(bq, [lx, ly - hip, lz]); lx = r[0]; ly = hip + r[1]; lz = r[2]; lq = qMul(bq, lq);
     }
+    if (uq) { const r = qRot(uq, [lx + 0.16, ly - 0.24, lz]); lx = r[0] - 0.16 + upr * 0.23; ly = r[1] + 0.24; lz = r[2]; lq = qMul(uq, lq); }
     if (p.q0) lq = qMul(lq, p.q0);
     const q = qMul(qb, lq);
     const off = qRot(qb, [lx * S * sxz, ly * S * sy, lz * S * sxz]);
@@ -2675,7 +2824,7 @@ function drawFX() {
 // bell, arriving at the top of a staircase); if you linger, the toys come looking.
 const floorOf = y => Y.reduce((f, yy, k) => y > yy - 0.3 ? k : f, 0);
 const DIR = { phase: 'calm', t: 50, swarm: [], queue: [], warn: null, last: null };
-function resetDirector() { Object.assign(DIR, { phase: 'calm', t: 50, swarm: [], queue: [], warn: null, last: null, pending: null }); }
+function resetDirector() { Object.assign(DIR, { phase: 'calm', t: 50, swarm: [], queue: [], warn: null, last: null, pending: null, count: 0 }); }
 // the underside of whatever is overhead at a spot (the ceiling, if nothing else)
 function ceilingAbove(x, y, z) {
   let lo = 72;
@@ -2691,8 +2840,30 @@ function swarm(w) {
   sfx.chorus();
   return true;
 }
+// the next timed swarm: from above, and every other time, if there's anywhere near for one, up a ladder of kitties
+function nextSwarm(floor) {
+  DIR.count = (DIR.count || 0) + 1;
+  if (floor >= 1 && floor <= 4 && DIR.count % 2 === 0 && ladderSpot(Y[floor - 1], Y[floor], 7)) return { from: 'below', ladder: true, n: floor >= 3 ? 5 : 4, say: 'SCRABBLING BELOW YOU…' };
+  return { from: 'above', n: floor >= 3 ? 4 : 3, bees: floor >= 2 ? 1 : 0 };
+}
 function spawnSwarm(w) {
   DIR.phase = 'swarm'; DIR.t = 0; DIR.swarm = []; DIR.queue = [];
+  if (w.ladder) {
+    // they turn up on the floor below, out of sight, and make for the edge nearest you
+    const f = floorOf(P.y), sp = f >= 1 && f <= 4 && ladderSpot(Y[f - 1], Y[f]);
+    if (sp) {
+      const y0 = Y[f - 1];
+      for (let tries = 0; tries < 80 && DIR.swarm.length < w.n; tries++) {
+        const a = rand(0, TAU), d = rand(2.5, 6.5), x = sp.x + Math.cos(a) * d, z = sp.z + Math.sin(a) * d;
+        if (Math.abs(floorBelow(x, y0 + 0.3, z) - y0) > 0.2 || blocked(x, y0 + 0.05, z, 0.3, 0.9)) continue;
+        const e = foe('kitty', x, y0, z); e.awake = true; e.st = 'chase'; e.alert = 1; e.swarm = true; e.onGround = true; e.yaw = Math.atan2(sp.z - z, sp.x - x);
+        DIR.swarm.push(e);
+      }
+      if (DIR.swarm.length) { startLadder(sp, y0, Y[f], DIR.swarm); sfx.chorus(); return; }
+    }
+    // nowhere for a ladder now (you've moved off): they come down on you instead
+    w = DIR.warn = { from: 'above', n: w.n - 1, bees: 0 };
+  }
   if (w.from === 'above') {
     callout('IT\'S RAINING CATS AND DOGS!', '#ff7ad9', 40, 1.8);
     // measured from the floor you're on (you might be in the middle of a jump, or on a stair; from a stair,
@@ -2726,7 +2897,7 @@ function stepDirector(dt) {
     // a swarm something set off while another was on comes as soon as it's over
     if (DIR.pending && G.time > DIR.pending.until) DIR.pending = null;
     if (DIR.pending && DIR.t > 3) DIR.t = 3;
-    if (DIR.t <= 0) { const pw = DIR.pending; DIR.pending = null; swarm(pw ? pw.w : { from: 'above', n: floor >= 3 ? 4 : 3, bees: floor >= 2 ? 1 : 0 }); }
+    if (DIR.t <= 0) { const pw = DIR.pending; DIR.pending = null; swarm(pw ? pw.w : nextSwarm(floor)); }
   } else if (DIR.phase === 'warn') {
     // (it waits for you to land, if you're in the air)
     if ((DIR.t -= dt) <= 0 && (P.onGround || DIR.t < -2)) spawnSwarm(DIR.warn);
@@ -2751,7 +2922,7 @@ function stepDirector(dt) {
     }
     // it's over when none are still after you: on your floor and nearby, or on their way up
     // (still falling toward you from above counts, as does climbing up to you)
-    const left = DIR.swarm.filter(e => e.alive && (e.route && e.route.length || e.y - P.y < (TYPES[e.type].fly ? 4.5 : 4) && P.y - e.y < (TYPES[e.type].fly ? 4.5 : 2.5) && Math.hypot(e.x - P.x, e.z - P.z) < 20));
+    const left = DIR.swarm.filter(e => e.alive && (e.stack || e.route && e.route.length || e.y - P.y < (TYPES[e.type].fly ? 4.5 : 4) && P.y - e.y < (TYPES[e.type].fly ? 4.5 : 2.5) && Math.hypot(e.x - P.x, e.z - P.z) < 20));
     for (const e of DIR.swarm) if (!e.alive && !e.counted) { e.counted = true; DIR.last = { x: e.x, y: floorBelow(e.x, e.y + 0.3, e.z), z: e.z }; }
     if (DIR.queue.every(q => q.done) && DIR.t > 3 && (!left.length || DIR.t > 40)) {
       DIR.phase = 'calm'; DIR.t = rand(45, 65); DIR.swarm = [];
@@ -2768,7 +2939,7 @@ function followRoute(e, dt) {
   faceTo(e, e.x + e.vx, e.z + e.vz, 10, dt);
 }
 function populate() {
-  FOES.length = SHOTS.length = ITEMS.length = GIBS.length = FX.length = SPLATS.length = WAVES.length = TRACERS.length = 0;
+  FOES.length = SHOTS.length = ITEMS.length = GIBS.length = FX.length = SPLATS.length = WAVES.length = TRACERS.length = STACKS.length = 0;
   INV.length = 0; SEL = 0;
   const f = (t, x, y, z, o) => foe(t, x, y, z, o), it = (kind, x, y, z) => ITEMS.push({ kind, x, y, z, t: rand(0, 5) });
   // the rug
@@ -3032,6 +3203,23 @@ function drawMarks() {
     if (c && c.x > 30 && c.x < W - 30 && c.y > 30 && c.y < H - 30) continue;
     edgeArrow(e.x, e.y + e.h * 0.5, e.z, '#ff4d4d');
   }
+  // a ladder of kitties coming up at the edge of your floor, where you can't see it: pink chevrons over the lip,
+  // one for each kitty on it (and while one is peeking over, just the kitty; or a red arrow, if it's off the screen)
+  for (const S of STACKS) {
+    const n = S.members.length, peek = S.members.some(m => m.st === 'lip' && m.peeked);
+    if (n < 2 && !peek) continue;
+    const p = project(S.ex, S.top + 0.9, S.ez), col = peek ? '#ff4d4d' : '#ff7ad9';
+    if (p && p.x > 30 && p.x < W - 30 && p.y > 30 && p.y < H - 30) {
+      if (peek) continue;
+      const s = clamp(8 / p.w, 0.55, 1.1) * u, b = Math.sin(G.time * 8) * 3 * s;
+      hx.save(); hx.fillStyle = col; hx.strokeStyle = 'rgba(20,10,36,0.8)'; hx.lineWidth = 3 * u; hx.lineJoin = 'round';
+      for (let i = 0; i < Math.min(n, 5); i++) {
+        const y = p.y + b + (i - n / 2) * 9 * s;
+        hx.beginPath(); hx.moveTo(p.x - 12 * s, y - 5 * s); hx.lineTo(p.x, y + 5 * s); hx.lineTo(p.x + 12 * s, y - 5 * s); hx.lineTo(p.x, y + 1 * s); hx.closePath(); hx.stroke(); hx.fill();
+      }
+      hx.restore();
+    } else edgeArrow(S.ex, S.top + 0.5, S.ez, col);
+  }
   for (const s of SHOTS) {
     if (s.dead || !s.foe || (s.kind !== 'shell' && s.kind !== 'bigbrick')) continue;
     const c = project(s.x, s.y, s.z);
@@ -3101,7 +3289,7 @@ function drawHurt() {
     }
   }
   if (P.dead > 0) { hx.fillStyle = `rgba(120,0,20,${clamp((2.2 - P.dead) * 0.6, 0, 0.55)})`; hx.fillRect(0, 0, W, H); }
-  else if (P.hp < 30) {
+  else if (P.hp < 30 && G.st === 'play') {
     const g = hx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.7);
     g.addColorStop(0, 'rgba(255,0,40,0)'); g.addColorStop(1, `rgba(255,0,40,${0.18 + 0.12 * Math.sin(G.time * 6)})`);
     hx.fillStyle = g; hx.fillRect(0, 0, W, H);
@@ -3414,15 +3602,17 @@ function resetGame() {
   for (const s of STEPS) { s.p = 0; s.sol.off = true; }
   stepsT = -1;
   for (const L of LIFTS) { L.mode = 'top'; L.t = 0; L.rung = false; L.y = L.hi; L.sol.y0 = L.hi - 0.4; L.sol.y1 = L.hi; }
-  Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, stood: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0, eagleSeen: false, eagleWarned: 0, hinged: false, brolly: false, desc: null, downKills: 0, fold: false, landT: 0, trail: [[0, 0]], trailT: 0.25 });
+  Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, stood: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0, eagleSeen: false, eagleWarned: 0, hinged: false, brolly: false, desc: null, downKills: 0, fold: false, landT: 0, trail: [[0, 0]], trailT: 0.25, ladders: 0, toppled: 0, overs: 0 });
   G.callouts.length = 0; PARTS.length = 0; G.stats = { shots: 0, hits: 0 }; G.crown = null;
   stick = null; pointers.clear(); resetDirector();
   IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = IN.fireTap = false; IN.mb = 0; IN.mouseTurn = 0; IN.mouseLook = 0; IN.ktap = 0;
   populate();
 }
+// everything held down, let go of (the window lost focus, say, so the keys going up won't be seen)
+function letGo() { stick = null; pointers.clear(); IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = IN.fireTap = false; IN.mb = 0; }
 function pause() {
   if ((G.st !== 'play' && G.st !== 'descent') || G.paused) return;
-  G.paused = true; stick = null; pointers.clear(); IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = IN.fireTap = false; IN.mb = 0;
+  G.paused = true; letGo();
   IN.relock = IN.locked;
   if (document.pointerLockElement) document.exitPointerLock();
   showPanel('pause');
@@ -3551,8 +3741,8 @@ function key(code, down) {
   else return;
   if (down) setMode('keys');
 }
-window.addEventListener('blur', pause);
-document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+window.addEventListener('blur', () => { letGo(); pause(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { letGo(); pause(); } });
 
 // ---------------------------------------------------------------- loop
 let last = performance.now(), lastErr = '', ft = 0, qT = 0;
@@ -3570,7 +3760,7 @@ function frame(now) {
   G.time += dt;
   try {
     if (!G.paused && !G.manual) stepGame(dt);
-    if (G.st !== 'play' || !G.paused) stepParts(dt);
+    if (!G.paused) stepParts(dt);
     const bossOn = G.boss && G.boss.alive && G.boss.awake && P.y > Y[4] - 0.5;
     music(G.st === 'play' && !G.paused ? (bossOn ? 'boss' : DIR.phase === 'swarm' || DIR.phase === 'warn' ? 'swarm' : 'climb') : null, bossOn || DIR.phase === 'calm' ? (stepsT >= 0 ? 2 : 0) : 0);
     G.shake = Math.max(0, G.shake - dt * 30); G.flash = Math.max(0, G.flash - dt * 3);
@@ -3613,6 +3803,7 @@ function stepLook(dt) {
 }
 function stepDescent(dt) {
   const D = G.desc;
+  if (dt <= 0) return;
   // holding JUMP folds the umbrella a little and you drop faster (once you've let go of the JUMP that started it)
   if (!jumpHeld()) D.armed = true;
   G.fold = D.armed && jumpHeld();
@@ -3708,7 +3899,7 @@ buildMesh();
 resize();
 showPanel('title');
 window.tallOrder = {
-  FOES, SHOTS, ITEMS, INV, WAVES, giveItem, useItem, inLine, populate, los, floorBelow, foe, stepsT: () => stepsT, aim: () => ({ out: OUTBAND, dir: OUTDIR, y: AIMY }), selIdx: () => SEL, dir: () => DIR,
+  FOES, SHOTS, ITEMS, INV, WAVES, STACKS, ladderSpot, giveItem, useItem, inLine, populate, los, floorBelow, foe, stepsT: () => stepsT, aim: () => ({ out: OUTBAND, dir: OUTDIR, y: AIMY }), selIdx: () => SEL, dir: () => DIR,
   sim(secs) { const dt = 1 / 60; for (let i = 0; i < Math.round(secs * 60); i++) { G.time += dt; stepGame(dt); } },
   setStick(x, y) { if (x == null) { stick = null; return; } const R = stickR(), x0 = W * 0.2, y0 = H * 0.64; stick = { id: -1, x0, y0, x: x0 + x * R, y: y0 + y * R }; },
   dbgDecals() { DECAL.n = 0; drawFoes(); const out = []; for (let i = 0; i < DECAL.n; i++) out.push(Array.from(DECAL.inst.slice(i * 12, i * 12 + 12)).map(v => +v.toFixed(2))); DECAL.n = 0; SH.box.n = SH.cyl.n = SH.sph.n = 0; GLOW.box.n = GLOW.sph.n = 0; return out; },

@@ -129,11 +129,25 @@ come from the heights you can't look at:
 - **From below**: kitties pour up the stairs behind you.
 
 Some swarms are set off by what you do: arriving at the top of the rug stairs
-and of the stairs up to floor four brings kitties up after you, and the first
-time you call the lift, its bell wakes the floor. If you linger somewhere quiet
+and of the stairs up to floor four brings kitties up after you, the first
+time you call the lift, its bell wakes the floor, and arriving on floor three
+brings kitties up after you on a ladder of themselves (see below). If you linger somewhere quiet
 for about a minute, the toys come looking for you. The height strip on the left
 shows the toys hunting you as dots at their heights (pink for a swarm), and
 blinks above or below you, on the side the next swarm is coming from.
+
+Kitties that can't get up to you make a ladder of themselves: they stand on
+each other's heads against the edge of your floor, from the floor below, three
+high, swaying, shouting "HUP!" and "ALLEZ-OOP!". You can't see them down
+there; you hear the scrabbling, pink chevrons over the edge count how many are
+on it, and their shouts show through the floor. The one on top pulls itself up
+and peeks over the lip at you ("PEEKABOO!") before it climbs up, and the next
+one runs up the others' backs to take its place. From close to the edge it's
+below your reach; from a few steps back it isn't. Hit the one that peeks over
+and the whole ladder comes down: they tumble away from the edge, the higher
+the further, and the fall does for all of them. Every other timed swarm comes
+this way, when there's an edge near you for a ladder, and so do kitties left
+on the floor below once you've gone up.
 
 Now and then a swarm kitty ends up on your head, from a pounce or by dropping
 right on top of you. It hangs over your brow upside down (its face, its ears
@@ -343,6 +357,30 @@ kitty, and to carry on from a floor it got to some other way, and its runs
 checked each new toy. The descent, the results and every new cue were checked
 in screenshots on a phone held sideways, a phone held upright and a laptop
 screen.
+
+For the fourth round (the way home, the snatcher, the rider, the heads, the
+heights, and the MEGA WOLF's fall), another read-through with its own tests,
+and a fuzzer that drove the real frame loop through random teleports, swarms,
+dives, riders, heads, wins and pauses, turned up:
+
+- finishing the MEGA WOLF with the Zap Wand, which stunned it out of its fall:
+  it never fell, never popped, and the crane's steps never came
+- a knock taken while the eagle carried you, kept and applied when you let go
+- the kick of your last shot, a rocket in the air and the launcher in your
+  hand, all frozen at the flag
+- a win you could get while knocked out, which then sent you back to a
+  checkpoint halfway down the way home
+- the view left tipped over an edge for a whole carry, if the eagle took you
+  while you teetered
+- a kitty shaken off in front of a pillar, which came out on top of it
+- keys held down when the window lost focus at the flag, which stayed held
+- confetti still falling while the way home was paused, the low-health glow
+  through the ending, a head that did nothing on the way down, and a mouse
+  turn that couldn't shake a rider off
+
+The screenshots of this round's cues turned up one more: a blank frame
+whenever the resolution scaler changed the resolution, because it resized the
+canvas after drawing the frame.
 
 The runs also set the difficulty, which was meant to stay about where it was
 before. With everything in, the bot in human mode finishes in a minute and a
