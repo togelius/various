@@ -4,7 +4,8 @@ A first-person shooter about climbing. Somebody built a tower out of big bricks
 in the middle of the living-room rug, and it is crawling with toys. You are a
 cheap plastic figure: your head only turns side to side and your blaster is
 molded at your hip, so you can only shoot what is roughly level with you. What
-is above you, you climb to. Fight your way up six floors to the flag on top.
+is above you, you climb to. Fight your way up six floors to the flag on top,
+where you finally get to look up, and then float home.
 
 Open `index.html` in a browser. It is one file with no dependencies, written in
 raw WebGL2. It loads Lilita One and Atkinson Hyperlegible from Google Fonts if
@@ -44,6 +45,11 @@ asked for ideas that support that, ideally ones not seen in other games; for
 the game not to be too hard; and for a keyboard and mouse mode, to play it on a
 laptop.
 
+The third round was an open brief to keep going and make it better. It started
+with a fresh-eyes review of the code and a frame-by-frame look at a whole climb,
+and then built the rest of the second round's ideas: the way home after the
+hinge, the snatcher, the rider, and wearing other toys' heads.
+
 ## Controls
 
 On a phone or tablet:
@@ -70,6 +76,7 @@ are holding sits in the corner with its keys:
   turns you.
 - **M** mutes, **Esc** or **P** pauses. The pause menu also turns the music
   off and on.
+- Once you have the neck hinge, **W S** (or the mouse) look up and down.
 
 The first time you play, small hints show you where to drag (or which keys to
 press), that FIRE is held down, and how to use a pickup. They stop once you
@@ -94,8 +101,19 @@ have done each of those things.
   or get knocked off, and you grab the edge and hang by your stubby hands: JUMP
   pulls you up, pushing away from the wall lets go, and after four seconds you
   drop anyway.
+- **Their heads.** There's a wolf head on floor two and a kitty head at the top
+  of the rug stairs, and popped wolves and kitties sometimes leave theirs. They
+  go with your pickups and aren't used up: select one and tap it (or E) to put
+  it on, and again to take it off. The swap pops your head off and presses the
+  other on, a moment in which you can't shoot. The wolf head, molded mid-howl,
+  tilts your fixed gaze and your blaster's reach 24 degrees up, so bees
+  overhead and toys on the floor above come into reach while a wolf level with
+  you close by doesn't; the kitty head, always hunting, tilts 20 degrees down,
+  for what's coming up the stairs. You see its ears at the top of your view
+  while you wear it.
 - **The neck hinge.** At the top, a hinge clicks into your neck and you look up
-  for the first time.
+  for the first time, at the ceiling light you've been climbing toward, just as
+  an umbrella opens over you.
 
 ## Swarms
 
@@ -117,6 +135,14 @@ for about a minute, the toys come looking for you. The height strip on the left
 shows the toys hunting you as dots at their heights (pink for a swarm), and
 blinks above or below you, on the side the next swarm is coming from.
 
+Now and then a swarm kitty ends up on your head, from a pounce or by dropping
+right on top of you. It hangs over your brow upside down (its face, its ears
+and its scrabbling paws at the top of the screen), paws at your eyes so your
+aim wanders, scratches, and steers you at the nearest edge. You can walk
+against it, and the edge still teeters before you go; if you go over, you grab
+the ledge and it jumps off. JUMP twice, or turn hard one way and then the
+other, and it's shaken off, tumbling away in front of you, dazed.
+
 ## The climb
 
 Each floor has one way up to the next, and a lime marker shows you where it is:
@@ -137,6 +163,22 @@ it tops your health back up to 70. If you are knocked out, or fall more than a
 floor and a half ("SPLAT!"), you come back at the highest checkpoint you have
 reached, facing the way on up. There is one more checkpoint halfway up the
 crane.
+
+## The way home
+
+At the flag, the neck hinge clicks in and an umbrella opens over you. From then
+on the stick (or W S, or the mouse) looks up and down as well as turning. Press
+JUMP and you float home: a slow spiral round the outside of the tower, past
+every floor you fought through, shooting wherever you look at whatever you left
+behind. Nothing can hurt you on the way down. Holding JUMP folds the umbrella a
+little and you drop faster; left alone, your gaze drifts back to the tower. You
+land on the rug and look up one last time at what you climbed.
+
+The results show your climb the way James Glaisher drew his balloon flights in
+the 1860s: your height against time, a red cross for each knockout with a dotted
+line back to the checkpoint, and the float home as a dashed pink drop. Under it
+is a line from René Daumal's *Mount Analogue*: "One climbs, one sees. One
+descends, one sees no longer, but one has seen."
 
 ## The toys
 
@@ -165,14 +207,30 @@ In between:
 - **Wolves.** They walk up and swipe (after a wind-up you can see), or throw
   bricks from further away. Bricks can be shot out of the air.
 
+And the one that can help you climb:
+
+- **The snatcher.** A toy eagle nests on top of the crane. On floors two and
+  three, wherever there's real sky over you, it circles high overhead where you
+  can't look; all you get is its big shadow sweeping round you and a dot on the
+  height strip. Then it lines up (a screech, and the screen darkens from the
+  edges as its shadow falls over you) and drops on you. Step aside and it
+  misses, and labours back up low enough to shoot. If it gets you, it carries
+  you up a floor, tipped forward so you can see what's below: "BELOW: FLOOR 3 ·
+  SHORTCUT!" or "A LONG WAY DOWN". While it has you it's above you, so there's
+  no shooting it. JUMP lets go. Hang on and it swings out past the edge and back,
+  and in the end lets go wherever it happens to be. With no sky over you, it
+  waits out beyond the tower, where you can see it, and hit it from far enough
+  away.
+
 Toys that fall far enough go SPLAT, and everything that pops falls apart into
 the bricks it was made of, with ketchup. Pop several in a row for a DOUBLE POP
 or better. Your own blasts push you around but never hurt you, so rocket jumps
 work. Toys' blasts hurt everyone, toys included. The toys shout things when
 they spot you and when they wind up, one at a time.
 
-At the top you get your time, how many toys you popped, how often you fell or
-were knocked out, and a rank.
+At the end you get your time, how many toys you popped on the way up and on
+the way down, how often you fell or were knocked out, a rank, and the chart of
+your climb.
 
 ## Pickups
 
@@ -189,6 +247,7 @@ each comes with a few uses:
 - **Zap Wand**: lightning that jumps between up to four toys and stuns them.
 - **Juice**: 35 health, drunk on the spot. It stays where it is if you are
   already at full health.
+- **Wolf Head** and **Kitty Head**: not used up; you wear them (see Their heads).
 
 ## How it was playtested
 
@@ -236,14 +295,41 @@ and screenshots of each new cue on a phone and a laptop screen turned up:
 - on a slow machine, a key tap quicker than a frame that did nothing, and
   jumps of the hidden pointer that spun you round
 
+For the third round a separate agent read the new code with fresh eyes and
+tested what it found, and a human-mode climb was filmed a frame every four
+seconds. Between them they turned up:
+
+- timed swarms on the rug and floor one that ended the moment they spawned,
+  because the kitties still falling toward you didn't count as part of them
+- the teeter going off on every staircase, at the lift's edge and on the crane
+  spiral, where the edge probe missed the next step up or fell into a seam
+- no ledge grab when you were knocked off an edge, though the grab was meant to
+  catch exactly that
+- a swarm set off by the lift's bell or a checkpoint quietly dropped if another
+  swarm was on (now it comes when that one is over)
+- swarm bees appearing inside pillars
+- aim brackets drawn around your eye line when the reach is measured from your
+  hip, so up close they showed the wrong place
+- effects frozen in the air at the flag, and a blaster that could still be fired
+  while you hung from a ledge
+- five or six callouts stacked on top of each other at busy moments (now no
+  more than three), and warnings on the floor hidden by the studs
+
+The bot learned to let go of the eagle over a higher floor, to shake off a
+kitty, and to carry on from a floor it got to some other way, and its runs
+checked each new toy. The descent, the results and every new cue were checked
+in screenshots on a phone held sideways, a phone held upright and a laptop
+screen.
+
 The runs also set the difficulty, which was meant to stay about where it was
-before. In human mode the bot finishes in a minute and a half to two and a half
-minutes and gets knocked out once to three times, mostly by the MEGA WOLF and
-by falls; the novice takes two to five and a half minutes, usually with two to
-four knockouts (nine, once, when it kept walking back into the golem and the
-cannon on floor three); and the novice that stands about on every floor takes
-five to six minutes and meets four or five swarms. All of them always got to
-the top. A person playing for the first time should expect to take longer.
+before. With everything in, the bot in human mode finishes in a minute and a
+half to two and a half minutes and gets knocked out up to three times, mostly
+by the MEGA WOLF and by falls; the novice takes two to four and a half minutes,
+with two to six knockouts; and the novice that stands about on every floor
+takes four to five minutes and meets three or four swarms. The eagle snatches
+most of them once or twice a climb, and usually gives them a shortcut. All of
+them always got to the top. A person playing for the first time should expect
+to take longer.
 
 ## Code
 
