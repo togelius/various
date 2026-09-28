@@ -55,8 +55,11 @@ subdirectory with its own README:
 - **[tall-order/](tall-order/)** — Tall Order, a first-person shooter about
   climbing a tower of big toy bricks on a living-room rug, through wolves,
   kitties, bees, a brick golem, toy cars and cannons, up to a giant wolf and a
-  crane with a flag on top. Pickup weapons you use up, checkpoints, splats.
-  Raw WebGL2, one HTML file, made for a phone held sideways. Open
+  crane with a flag on top. You are a plastic figure that can't look up, so
+  you climb level with things to hit them; the kitties come in swarms, from
+  above and up the stairs. Pickup weapons you use up, checkpoints, splats, a
+  ledge to grab. Raw WebGL2, one HTML file, made for a phone held sideways and
+  playable on a laptop with the keys and the mouse. Open
   `tall-order/index.html`.
 
 ## Repository policy

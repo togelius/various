@@ -2347,7 +2347,8 @@ function spawnSwarm(w) {
       if (Math.abs(floorBelow(x, P.y + 0.3, z) - P.y) > 0.35) continue;          // on your floor
       const type = w.n >= 4 && made === w.n - 1 ? 'wolf' : 'kitty', T0 = TYPES[type];
       // dropping from just under whatever is overhead there, from no more than four up
-      const y = Math.min(P.y + 4, ceilingAbove(x, P.y + T0.h + 0.2, z) - T0.h - 0.1);
+      // (no higher than the floor above's underside, or one could come down on top of it)
+      const y = Math.min(P.y + 3.1, ceilingAbove(x, P.y + T0.h + 0.2, z) - T0.h - 0.1);
       if (y < P.y + 1.4 || blocked(x, y, z, T0.r, T0.h)) continue;
       const e = foe(type, x, y, z); e.awake = true; e.st = 'chase'; e.alert = 1; e.swarm = true; e.fallFrom = y; e.yaw = Math.atan2(P.z - z, P.x - x);
       DIR.swarm.push(e); made++;
@@ -2495,9 +2496,10 @@ function itemIcon(kind, x, y, s) {
 }
 // the chips for the other things you are carrying sit beside the item button
 function chipSpots() {
-  const B = buttons(), b = B.item, out = [], r = Math.max(18, b.r * 0.5);
+  const B = buttons(), b = B.item, out = [], r = Math.max(18, b.r * 0.5), n = INV.length - 1;
+  // in the order they're numbered, left to right
   let k = 0;
-  INV.forEach((it, i) => { if (i === SEL) return; out.push({ i, x: b.x - b.r - 10 - r - k * (2 * r + 8), y: b.y, r }); k++; });
+  INV.forEach((it, i) => { if (i === SEL) return; out.push({ i, x: b.x - b.r - 10 - r - (n - 1 - k) * (2 * r + 8), y: b.y, r }); k++; });
   return out;
 }
 function drawItemButton() {
@@ -2724,10 +2726,10 @@ function drawHUD(dt) {
   label(fmtTime(G.t), W / 2, T + 14 * u, 26 * u, '#ffffff', 'center');
   drawBossBar();
   // crosshair, lit up when a shot would hit something
-  const cx = W / 2, cy = H / 2, on = G.st === 'play' && inLine();
+  const cx = W / 2, cy = H / 2, aiming = G.st === 'play' && !P.hang, on = aiming && inLine();
   if (on && on.alive) { const p = project(on.x, AIMY, on.z); if (p) { hx.strokeStyle = 'rgba(184,240,96,0.85)'; hx.lineWidth = 2 * u; ring(p.x, p.y, clamp(on.r * 1.3 * H / p.w * 0.9, 14 * u, 120 * u)); } }
   hx.lineCap = 'round';
-  if (G.st === 'play') {
+  if (aiming) {
     // how far your molded arm can wobble: faint brackets at the top and bottom of its reach
     const k = Math.min(H * 0.42, AIMT / Math.tan(CAM.fovy / 2) * H / 2), bw = 13 * u, hot = !on && OUTBAND ? OUTDIR : 0;
     for (const sg of [-1, 1]) {
@@ -2739,14 +2741,17 @@ function drawHUD(dt) {
     if (!on && OUTBAND) {
       const o = OUTBAND, p = project(o.x, o.kind ? o.y : o.y + o.h * 0.5, o.z);
       if (p) {
-        const r = clamp((o.r || 0.3) * 1.3 * H / p.w * 0.9, 12 * u, 90 * u), d = OUTDIR, ty = p.y - d * (r + 12 * u);
-        hx.setLineDash([5 * u, 5 * u]); hx.strokeStyle = 'rgba(255,154,58,0.9)'; hx.lineWidth = 2 * u; ring(p.x, p.y, r); hx.setLineDash([]);
-        hx.fillStyle = '#ff9a3a'; hx.beginPath(); hx.moveTo(p.x - 10 * u, ty + d * 6 * u); hx.lineTo(p.x, ty - d * 6 * u); hx.lineTo(p.x + 10 * u, ty + d * 6 * u); hx.closePath(); hx.fill();
-        if ((HINT.band || 0) <= 4 && G.time - (P.creakT || -9) < 1.4) label(d > 0 ? 'TOO HIGH · BACK OFF OR CLIMB' : 'TOO LOW · BACK OFF OR GO DOWN', p.x, ty - d * 20 * u, 15 * u, '#ff9a3a', 'center');
+        const r = clamp((o.r || 0.3) * 1.3 * H / p.w * 0.9, 12 * u, 90 * u), d = OUTDIR, top = T + 62 * u, bot = H - 70 * u;
+        // right overhead (or underfoot) it's off the screen, since you can't look at it: then the arrow sits at the edge
+        const off = p.y < top || p.y > bot, x = clamp(p.x, 60 * u, W - 60 * u), ty = off ? clamp(p.y, top, bot) : p.y - d * (r + 12 * u);
+        if (!off) { hx.setLineDash([5 * u, 5 * u]); hx.strokeStyle = 'rgba(255,154,58,0.9)'; hx.lineWidth = 2 * u; ring(p.x, p.y, r); hx.setLineDash([]); }
+        const a = off ? 0.75 + 0.25 * Math.sin(G.time * 10) : 1, k = off ? 1.4 : 1;
+        hx.globalAlpha = a; hx.fillStyle = '#ff9a3a'; hx.beginPath(); hx.moveTo(x - 10 * k * u, ty + d * 6 * k * u); hx.lineTo(x, ty - d * 6 * k * u); hx.lineTo(x + 10 * k * u, ty + d * 6 * k * u); hx.closePath(); hx.fill(); hx.globalAlpha = 1;
+        if ((HINT.band || 0) <= 4 && G.time - (P.creakT || -9) < 1.4) label(d > 0 ? 'TOO HIGH · BACK OFF OR CLIMB' : 'TOO LOW · BACK OFF OR GO DOWN', x, ty + (off ? d : -d) * 22 * u, 15 * u, '#ff9a3a', 'center');
       }
     }
   }
-  if (G.st === 'play') for (const [w, c] of [[5 * u, 'rgba(20,10,36,0.5)'], [2.2 * u, on ? '#b8f060' : '#ffffff']]) {
+  if (aiming) for (const [w, c] of [[5 * u, 'rgba(20,10,36,0.5)'], [2.2 * u, on ? '#b8f060' : '#ffffff']]) {
     hx.lineWidth = w; hx.strokeStyle = c; hx.beginPath();
     hx.moveTo(cx - 16 * u, cy); hx.lineTo(cx - 7 * u, cy); hx.moveTo(cx + 7 * u, cy); hx.lineTo(cx + 16 * u, cy);
     hx.moveTo(cx, cy - 16 * u); hx.lineTo(cx, cy - 7 * u); hx.moveTo(cx, cy + 7 * u); hx.lineTo(cx, cy + 16 * u); hx.stroke();
@@ -2798,7 +2803,7 @@ function drawKeyControls(u, B) {
   drawItemButton();
   if (INV[SEL]) keycap('E', b.x, b.y + b.r + 13 * u, 17 * u);
   for (const c of chipSpots()) keycap(String(c.i + 1), c.x, c.y + c.r + 12 * u, 15 * u);
-  if (G.st !== 'play' || G.paused || P.dead || G.intro > 0) return;
+  if (G.st !== 'play' || G.paused || P.dead || P.hang || G.intro > 0) return;
   const pulse = 0.82 + 0.18 * Math.sin(G.time * 5);
   let y = H * 0.76;
   const row = (text, col, a) => { label(text, W / 2, y, 16 * u, col, 'center', a); y += 22 * u; };
