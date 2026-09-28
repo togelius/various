@@ -956,9 +956,9 @@ function stickVec() {
   const dz = v => { v = clamp(v, -1, 1); return Math.abs(v) < 0.12 ? 0 : Math.sign(v) * (Math.abs(v) - 0.12) / 0.88; };
   return { x: dz(x), y: dz(y) };
 }
-function press(id, b) {
+function press(id, b, x, y) {
   const p = pointers.get(id) || {};
-  p.b = b; pointers.set(id, p);
+  p.b = b; if (x != null) { p.x = x; p.y = y; } pointers.set(id, p);
   if (b === 'jump') P.jumpBuf = 0.14;
   if (b === 'item') useItem();
 }
@@ -2632,10 +2632,11 @@ hud.addEventListener('pointerdown', e => {
   if (mouse && e.button === 2) { useItem(); return; }
   if (mouse && e.button > 0) return;
   const x = e.clientX, y = e.clientY;
-  if (x < W / 2) { if (!stick) stick = { id: e.pointerId, x0: x, y0: y, x, y }; return; }
+  // a new touch on the left half always becomes the stick, even if the last one's end never arrived
+  if (x < W / 2) { stick = { id: e.pointerId, x0: x, y0: y, x, y }; return; }
   for (const c of chipSpots()) if (Math.hypot(x - c.x, y - c.y) < c.r * 1.25) { SEL = c.i; sfx.pickup(); return; }
   const b = buttonAt(x, y);
-  if (b) press(e.pointerId, b);
+  if (b) press(e.pointerId, b, x, y);
 });
 hud.addEventListener('pointermove', e => {
   if (G.st !== 'play' || G.paused) return;
@@ -2647,7 +2648,7 @@ hud.addEventListener('pointermove', e => {
     return;
   }
   const p = pointers.get(e.pointerId);
-  if (p) { const b = onButton(e.clientX, e.clientY); if (b && b !== p.b) press(e.pointerId, b); }
+  if (p) { p.x = e.clientX; p.y = e.clientY; const b = onButton(e.clientX, e.clientY); if (b && b !== p.b) press(e.pointerId, b); }
 });
 // with the mouse grabbed: the left button fires while held, pressing the right one uses your pickup.
 // (a second button pressed or let go while another is down arrives as a move, so go by the mask)
@@ -2664,6 +2665,16 @@ const pointerEnd = e => {
 };
 hud.addEventListener('pointerup', pointerEnd);
 hud.addEventListener('pointercancel', pointerEnd);
+// Phones sometimes lose the end of a touch (an edge swipe the browser or the app takes over, say),
+// which would leave the stick or a button held forever. Every touch event lists the fingers that
+// are really on the glass, so forget any we still think are down that aren't among them.
+function reconcile(e) {
+  const on = Array.from(e.touches || [], t => [t.clientX, t.clientY]);
+  const there = (x, y) => on.some(([tx, ty]) => Math.hypot(tx - x, ty - y) < 90);
+  if (stick && stick.id !== -1 && !there(stick.x, stick.y)) stick = null;
+  for (const [id, p] of pointers) if (p.x == null || !there(p.x, p.y)) pointers.delete(id);
+}
+for (const t of ['touchstart', 'touchend', 'touchcancel']) hud.addEventListener(t, reconcile, { passive: true });
 hud.addEventListener('contextmenu', e => e.preventDefault());
 hud.addEventListener('click', e => {
   // with a mouse, a click grabs it, so it can turn you
@@ -2777,7 +2788,7 @@ window.tallOrder = {
   FOES, SHOTS, ITEMS, INV, WAVES, giveItem, useItem, inLine, populate, los, floorBelow, stepsT: () => stepsT,
   sim(secs) { const dt = 1 / 60; for (let i = 0; i < Math.round(secs * 60); i++) { G.time += dt; G.t += dt; stepLifts(dt); stepSteps(dt); stepPlayer(dt); if (typeof stepWorld === 'function') stepWorld(dt); } },
   setStick(x, y) { if (x == null) { stick = null; return; } const R = stickR(); stick = { id: -1, x0: 0, y0: 0, x: x * R, y: y * R }; },
-  G, P, IN, SOL, CHECKS, LIFTS, PADS, LADDERS, STEPS, CAM, GOAL: () => GOAL, start: startGame, world: () => WORLD, key, buttons, buildSteps,
+  G, P, IN, SOL, CHECKS, LIFTS, PADS, LADDERS, STEPS, CAM, GOAL: () => GOAL, stick: () => stick && { ...stick }, pointers: () => [...pointers], start: startGame, world: () => WORLD, key, buttons, buildSteps,
   teleport(x, y, z, yaw) { Object.assign(P, { x, y, z, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0 }); if (yaw != null) P.yaw = yaw; } };
 requestAnimationFrame(frame);
 })();
