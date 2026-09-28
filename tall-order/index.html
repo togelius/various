@@ -23,7 +23,7 @@
   [hidden] { display: none !important; }
   html, body { height: 100%; margin: 0; background: var(--ground); color: var(--text); }
   body { font: 16px/1.5 var(--body); overflow: hidden; -webkit-tap-highlight-color: transparent; }
-  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #gl, #hud { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   #hud { touch-action: none; outline: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
   button { font: inherit; color: inherit; }
   button:focus-visible { outline: 3px solid var(--text); outline-offset: 3px; }
@@ -48,6 +48,18 @@
   .stats div { background: rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 8px 10px; }
   .stats dt { font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
   .stats dd { margin: 0; font: 400 24px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+  .chart { display: block; width: 100%; height: 150px; }
+  .climb { display: grid; gap: 8px; align-content: start; }
+  /* the results: the numbers on the left, the climb on the right, when there's room */
+  .sheet.results { width: min(860px, 100%); grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); column-gap: 22px; }
+  .sheet.results > * { grid-column: 1; }
+  .sheet.results > .climb { grid-column: 2; grid-row: 1 / span 4; }
+  .sheet.results > .actions { grid-column: 1 / -1; }
+  .sheet.results .stats { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 640px) { .sheet.results { grid-template-columns: minmax(0, 1fr); } .sheet.results > .climb { grid-column: 1; grid-row: auto; } }
+  @media (max-height: 500px) { .sheet.results { gap: 9px; padding: 16px 20px; } .sheet.results h2 { font-size: 32px; } .sheet.results .lede { font-size: 16px; }
+    .sheet.results .stats div { padding: 6px 10px; } .sheet.results .stats dd { font-size: 20px; } .sheet.results .chart { height: 128px; } .sheet.results .quote { font-size: 13px; } }
+  .quote { margin: 0; font-size: 14px; line-height: 1.45; color: var(--muted); font-style: italic; }
   .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   .sheet.long > .actions:last-child { position: sticky; bottom: -22px; z-index: 1; margin: 0 -22px -22px; padding: 14px 22px 22px; background: var(--panel); box-shadow: 0 -14px 14px -12px rgba(10, 8, 24, 0.7); }
   .play { border: 0; border-radius: 999px; padding: 11px 26px 12px; background: var(--accent); color: var(--on-accent); font: 400 22px/1 var(--display); letter-spacing: 0.02em; cursor: pointer; }
@@ -190,6 +202,8 @@ const sfx = {
   death() { tone('sawtooth', 400, 60, 0.9, 0.16); tone('square', 200, 40, 0.9, 0.06); },
   creak() { hiss('bandpass', 1500, 9, 0.13, 0.16, 0, 650); tone('square', 190, 120, 0.09, 0.03); },
   hinge() { tone('square', 1400, 900, 0.05, 0.08); tone('sine', 520, 760, 0.35, 0.1, 0.08); },
+  brolly() { hiss('bandpass', 1100, 1.4, 0.22, 0.16); tone('triangle', 260, 820, 0.16, 0.07, 0.02); tone('sine', 820, 700, 0.2, 0.05, 0.16); },
+  wind(v) { hiss('lowpass', rand(280, 620), 0.7, 1.1, 0.03 * v); },
   bell() { for (const [f, v] of [[880, 0.12], [1320, 0.06], [1760, 0.04]]) tone('sine', f, f, 1.4, v); },
   patter() { for (let i = 0; i < 14; i++) hiss('highpass', 2600, 2, 0.03, 0.05 + i * 0.004, i * 0.12 + Math.random() * 0.06); },
   scrabble() { for (let i = 0; i < 14; i++) hiss('bandpass', 700, 3, 0.04, 0.06 + i * 0.004, i * 0.11 + Math.random() * 0.06); },
@@ -924,16 +938,24 @@ const P = { x: 0, y: 0, z: 16, r: 0.3, h: 1.3, yaw: -Math.PI / 2, vx: 0, vy: 0, 
   fireT: 0, kick: 0, itemT: 0, vm: null, swing: 0, hurtA: null };
 
 // ---------------------------------------------------------------- game state
-const G = { st: 'title', paused: false, time: 0, t: 0, kills: 0, deaths: 0, shake: 0, flash: 0, callouts: [], best: +store.get('best', 0) || 0,
+const G = { st: 'title', paused: false, time: 0, t: 0, kills: 0, deaths: 0, shake: 0, flash: 0, callouts: [], trail: [], best: +store.get('best', 0) || 0,
   boss: null, won: false, peak: 0, stats: { shots: 0, hits: 0 }, god: false, aimed: null };
 const PARTS = [];     // bits and confetti
 // first-time hints, shown until you have done each thing once (and then never again)
 const HINT = { moved: 0, fired: 0, used: 0, jumpTold: false, learned: store.get('learned', '0') === '1' };
 // a word on the screen; with a place, it floats up from that spot in the world
-function callout(text, col, size, dur, at) { G.callouts.push({ text, col: col || '#ffffff', size: size || 44, life: dur || 1.1, max: dur || 1.1, at }); }
+// the states where the controls do something: climbing, floating home, and the moment you're handed the umbrella
+const active = () => G.st === 'play' || G.st === 'descent' || (G.st === 'win' && G.winT > 3.3);
+function callout(text, col, size, dur, at) {
+  // the same words again just start over; and no more than three in the middle at once, the oldest fading first
+  if (!at) { const same = G.callouts.find(c => !c.at && c.text === text); if (same) { same.life = same.max = Math.max(same.life, dur || 1.1); return; } }
+  G.callouts.push({ text, col: col || '#ffffff', size: size || 44, life: dur || 1.1, max: dur || 1.1, at });
+  const mid = G.callouts.filter(c => !c.at);
+  for (let i = 0; i < mid.length - 3; i++) mid[i].life = Math.min(mid[i].life, 0.25);
+}
 
 // ---------------------------------------------------------------- input
-const IN = { kJump: false, kFire: false, mFire: false, fireTap: false, ktap: 0, mb: 0, kf: 0, kb: 0, kl: 0, kr: 0, ksl: 0, ksr: 0, kt: 0, mouseTurn: 0, locked: false,
+const IN = { kJump: false, kFire: false, mFire: false, fireTap: false, ktap: 0, mb: 0, mouseLook: 0, kf: 0, kb: 0, kl: 0, kr: 0, ksl: 0, ksr: 0, kt: 0, mouseTurn: 0, locked: false,
   // 'touch' puts a stick and buttons on the screen; 'keys' (a laptop: keyboard, mouse or trackpad) leaves them off
   mode: (() => { try { return matchMedia('(pointer: coarse)').matches ? 'touch' : 'keys'; } catch (e) { return 'touch'; } })(),
   sens: clamp(+store.get('sens', 1) || 1, 0.3, 3), relock: false, everLocked: false, lockFail: false, freeT: -99, wheel: 0, wheelAt: 0, wheelDone: false };
@@ -1103,6 +1125,18 @@ function stepSteps(dt) {
     }
   }
 }
+const BROLLY = [hex3('#ff7ad9'), hex3('#fff3d6')];
+function drawBrolly() {
+  if (!G.brolly || !(G.st === 'win' || G.st === 'descent' || G.st === 'landed')) return;
+  const open = G.st === 'win' ? easeBack(clamp((G.winT - 2.2) / 0.35, 0, 1)) : G.st === 'landed' ? 1 - 0.55 * easeOut(clamp(G.landT / 0.4, 0, 1)) : G.fold ? 0.55 : 1;
+  // held up in your left hand (turning right adds to yaw, so left is (sin, -cos)), swaying a little
+  const t = G.time, ca = Math.cos(P.yaw), sa = Math.sin(P.yaw), sw = Math.sin(t * 1.3) * 0.05;
+  const x = P.x + ca * 0.15 + sa * 0.45 + sw, z = P.z + sa * 0.15 - ca * 0.45 + Math.cos(t * 1.1) * 0.04, y = P.y + EYE + 2.0;
+  put(SH.cyl, x, y - 0.7, z, Q0, 0.04, 1.4, 0.04, C.white, 0.6);
+  // (lit a little from inside, so its underside isn't lost in its own shadow when you look up)
+  [[1.0, 0.07, 0, 0], [0.8, 0.08, 1, 0.07], [0.6, 0.08, 0, 0.14], [0.36, 0.08, 1, 0.21]].forEach(([r, h, c, dy]) => put(SH.cyl, x, y + dy * open, z, Q0, r * 2 * open, h, r * 2 * open, BROLLY[c], 0.5, 0.45));
+  put(SH.sph, x, y + 0.28 * open, z, Q0, 0.14, 0.14, 0.14, C.yellow);
+}
 function drawGoal() {
   if (!GOAL) return;
   const g = GOAL, t = G.time;
@@ -1172,10 +1206,11 @@ function stepHang(dt, st) {
   if ((h.armed && away > 0.6) || h.t > 4) { P.hang = null; P.hangUsed = true; P.vy = -1; callout(pick(['WHOOPS', 'NOOO', 'BYE']), '#ff9a3a', 34, 0.8); }
 }
 function stepPlayer(dt) {
+  if ((G.trailT = (G.trailT || 0) - dt) <= 0) { G.trailT = 0.25; G.trail.push([G.t, P.y]); }
   const st = P.dead > 0 ? { x: 0, y: 0 } : stickVec();
   if (P.hang && !P.dead) {
     // you can still turn your head... no, your whole body, while you dangle
-    const ax0 = Math.abs(st.x); P.yaw += Math.sign(st.x) * Math.pow(ax0, 1.2) * TURN * 0.4 * dt + IN.mouseTurn * 0.4; IN.mouseTurn = 0; IN.ktap = 0;
+    const ax0 = Math.abs(st.x); P.yaw += Math.sign(st.x) * Math.pow(ax0, 1.2) * TURN * 0.4 * dt + IN.mouseTurn * 0.4; IN.mouseTurn = 0; IN.mouseLook = 0; IN.ktap = 0;
     P.jumpBuf = Math.max(0, P.jumpBuf - dt * 0.2);
     stepHang(dt, st); return;
   }
@@ -1189,7 +1224,7 @@ function stepPlayer(dt) {
   P.yaw += Math.sign(st.x) * Math.pow(ax, 1.2) * rate * dt + IN.mouseTurn;
   // (a turn key let go before a frame saw it still nudges you)
   if (IN.ktap && !IN.kl && !IN.kr && !(P.dead > 0)) P.yaw += IN.ktap * 0.05;
-  IN.mouseTurn = 0; IN.ktap = 0;
+  IN.mouseTurn = 0; IN.mouseLook = 0; IN.ktap = 0;
   const fwd = -st.y, strafe = IN.ksr - IN.ksl;
   const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw);
   const sp = fwd > 0 ? fwd * WALK : fwd * BACK;
@@ -1309,15 +1344,15 @@ function stepWorld(dt) {
   if (P.dead) IN.fireTap = false;
   stepMallet(dt);
   stepFoes(dt); stepShots(dt); stepWaves(dt); stepGibs(dt); stepFX(dt); stepItems(dt);
-  stepDirector(dt);
+  if (G.st === 'play') stepDirector(dt);
   G.comboT = Math.max(0, (G.comboT || 0) - dt);
   if (G.stepsIn > 0 && (G.stepsIn -= dt) <= 0) { callout('THE STEPS ARE BUILDING THEMSELVES', '#b8f060', 34, 2.4); buildSteps(); }
 }
 function win() {
-  G.won = true; G.st = 'win'; G.winT = 0; G.winA = null;
-  if (document.pointerLockElement) document.exitPointerLock();
-  IN.kFire = IN.mFire = false;
-  callout('YOU MADE IT!', '#ffd23f', 64, 2.5); sfx.win(); G.hinged = false;
+  G.won = true; G.st = 'win'; G.winT = 0; G.hinged = false; G.brolly = false;
+  IN.kFire = IN.mFire = IN.fireTap = false; P.jumpBuf = 0; stick = null; pointers.clear();
+  G.trail.push([G.t, P.y, 'w']); finishRun();
+  callout('YOU MADE IT!', '#ffd23f', 64, 2.5); sfx.win();
   for (let i = 0; i < 160; i++) PARTS.push({ x: GOAL.x + rand(-2, 2), y: GOAL.y + rand(0.5, 3), z: GOAL.z + rand(-2, 2), vx: rand(-4, 4), vy: rand(2, 9), vz: rand(-4, 4), life: rand(1.5, 3), s: rand(0.05, 0.12), col: pick(BRICKS), spin: rand(0, 6) });
 }
 
@@ -1787,7 +1822,7 @@ const POPS = { blaster: ['POP!', 'BONK!', 'PLINK!'], boom: ['KABOOM!', 'BLAM!', 
 function killFoe(e, how, kx, ky, kz) {
   if (!e.alive) return;
   e.alive = false; e.hp = 0;
-  G.kills++;
+  G.kills++; if (G.st === 'descent' || G.st === 'landed') G.downKills = (G.downKills || 0) + 1;
   // several pops close together
   G.combo = G.comboT > 0 ? (G.combo || 0) + 1 : 1; G.comboT = 1.1;
   if (G.combo >= 2) {
@@ -1842,14 +1877,14 @@ function hurtPlayer(dmg, kx, ky, kz, src) {
 }
 // a fall of more than a floor and a half: ketchup, and back to the last checkpoint
 function splatPlayer() {
-  P.hp = 0; P.dead = 2.2; G.deaths++; P.vx = P.vz = P.kx = P.kz = 0;
+  P.hp = 0; P.dead = 2.2; G.deaths++; G.trail.push([G.t, P.y, 'x']); P.vx = P.vz = P.kx = P.kz = 0;
   SPLATS.push({ x: P.x, y: P.y, z: P.z, r: 1.5, seed: rand(0, 9), life: 30 });
   if (SPLATS.length > 40) SPLATS.shift();
   for (let i = 0; i < 26; i++) PARTS.push({ x: P.x + rand(-0.4, 0.4), y: P.y + 0.2, z: P.z + rand(-0.4, 0.4), vx: rand(-4, 4), vy: rand(2, 7), vz: rand(-4, 4), life: rand(0.5, 1.1), s: rand(0.1, 0.2), col: [0.85, 0.08, 0.06], spin: 0 });
   callout(pick(['SPLAT!', 'PANCAKE!', 'SPLOOSH!']), '#ff5a5a', 66, 1.6); sfx.splat(1); sfx.death(); G.shake = 16;
 }
 function die() {
-  P.hp = 0; P.dead = 2.2; G.deaths++;
+  P.hp = 0; P.dead = 2.2; G.deaths++; G.trail.push([G.t, P.y, 'x']);
   callout(pick(['OUCH!', 'BONKED!', 'SQUISHED!', 'OOF!']), '#ff5a5a', 60, 1.6); sfx.death();
 }
 function respawn() {
@@ -1858,6 +1893,7 @@ function respawn() {
   P.yaw = Math.atan2(c.to[1] - P.z, c.to[0] - P.x);
   for (let i = SHOTS.length - 1; i >= 0; i--) if (SHOTS[i].foe) SHOTS.splice(i, 1);
   WAVES.length = 0;
+  G.trail.push([G.t, P.y, 'r']);
   callout('BACK AT IT', '#ffffff', 40, 1);
 }
 
@@ -2003,6 +2039,7 @@ function inBand(dist, y0, y1) {
 // the nearest thing straight ahead that the blaster can hit; also notes the nearest one it can't,
 // being too far above or below, so the HUD can say so
 function inLine(range) {
+  if (G.st === 'descent' || G.st === 'win') return inCone(range);
   const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw), ex = P.x, ey = P.y + EYE, gy = P.y + HIP, ez = P.z;
   let best = null, bd = range || 40, by = 0, out = null, od = Infinity, odir = 0;
   const seen = (x, y0, y1, z) => los(ex, ey, ez, x, (y0 + y1) / 2, z) || los(ex, gy, ez, x, (y0 + y1) / 2, z) || los(ex, ey, ez, x, y0 + (y1 - y0) * 0.9, z);
@@ -2028,9 +2065,27 @@ function inLine(range) {
   return best;
 }
 const aimPoint = e => [e.x, AIMY, e.z];
+function inCone(range) {
+  const cp = Math.cos(P.look || 0), vx = Math.cos(P.yaw) * cp, vy = Math.sin(P.look || 0), vz = Math.sin(P.yaw) * cp;
+  const ex = P.x, ey = P.y + EYE, ez = P.z;
+  let best = null, bs = Infinity, by = 0;
+  const check = (t, x, y, z, r) => {
+    const dx = x - ex, dy = y - ey, dz = z - ez, along = dx * vx + dy * vy + dz * vz;
+    if (along < 0.4 || along > (range || 40)) return;
+    const off = Math.sqrt(Math.max(0, dx * dx + dy * dy + dz * dz - along * along)), tol = Math.max(r, along * 0.06);
+    if (off > tol) return;
+    const sc = off / tol + along / 40;
+    if (sc >= bs || !los(ex, ey, ez, x, y, z)) return;
+    best = t; bs = sc; by = y;
+  };
+  for (const e of FOES) if (e.alive) check(e, e.x, e.y + e.h * 0.5, e.z, e.r * 1.3 + e.h * 0.25);
+  for (const sh of SHOTS) if (sh.shootable && !sh.dead) check(sh, sh.x, sh.y, sh.z, sh.r * 1.4);
+  AIMY = by; OUTBAND = null;
+  return best;
+}
 function firePrimary() {
   P.fireT = 0.13; P.kick = 1; G.stats.shots++; HINT.fired++;
-  const e = inLine(), ex = P.x, ey = P.y + HIP, ez = P.z;
+  const free = G.st !== 'play', e = inLine(), ex = P.x, ey = P.y + (free ? EYE : HIP), ez = P.z;
   sfx.shot();
   // straining at something out of reach: the arm creaks
   if (!e && OUTBAND && G.time - (P.creakT || 0) > 0.45) { P.creakT = G.time; sfx.creak(); P.strain = OUTDIR; HINT.band = (HINT.band || 0) + 1; }
@@ -2044,10 +2099,12 @@ function firePrimary() {
     for (let i = 0; i < 5; i++) PARTS.push({ x: p[0], y: p[1], z: p[2], vx: rand(-2, 2) - dx / L * 2, vy: rand(0, 3), vz: rand(-2, 2) - dz / L * 2, life: 0.35, s: 0.06, col: C.yellow, spin: 0 });
     return;
   }
-  const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw), t = rayHit(ex, ey, ez, ca, 0, sa, 60);
-  const hx0 = ex + ca * (t === Infinity ? 60 : t), hz0 = ez + sa * (t === Infinity ? 60 : t);
-  TRACERS.push({ x: hx0, y: ey, z: hz0, life: 0.07 });
-  if (t !== Infinity) for (let i = 0; i < 4; i++) PARTS.push({ x: hx0 - ca * 0.05, y: ey, z: hz0 - sa * 0.05, vx: -ca * rand(1, 3) + rand(-1, 1), vy: rand(0.5, 2.5), vz: -sa * rand(1, 3) + rand(-1, 1), life: 0.3, s: 0.05, col: [1, 0.95, 0.7], spin: 0 });
+  // (with the hinge in, the shot goes where you look)
+  const cp = free ? Math.cos(P.look || 0) : 1, vy = free ? Math.sin(P.look || 0) : 0, ca = Math.cos(P.yaw) * cp, sa = Math.sin(P.yaw) * cp;
+  const t = rayHit(ex, ey, ez, ca, vy, sa, 60), L0 = t === Infinity ? 60 : t;
+  const hx0 = ex + ca * L0, hz0 = ez + sa * L0, hy0 = ey + vy * L0;
+  TRACERS.push({ x: hx0, y: hy0, z: hz0, life: 0.07 });
+  if (t !== Infinity) for (let i = 0; i < 4; i++) PARTS.push({ x: hx0 - ca * 0.05, y: hy0, z: hz0 - sa * 0.05, vx: -ca * rand(1, 3) + rand(-1, 1), vy: rand(0.5, 2.5), vz: -sa * rand(1, 3) + rand(-1, 1), life: 0.3, s: 0.05, col: [1, 0.95, 0.7], spin: 0 });
 }
 
 // pickups: each one gives a few uses of something better than the blaster
@@ -2067,7 +2124,7 @@ function giveItem(kind, n) {
   return true;
 }
 function useItem() {
-  if (G.st !== 'play' || G.paused || P.dead) return;
+  if ((G.st !== 'play' && G.st !== 'descent') || G.paused || P.dead) return;
   const it = INV[SEL];
   if (!it || P.itemT > 0) { if (!it) { sfx.deny(); callout('NOTHING TO USE', '#ffffff', 28, 0.8); } return; }
   const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw), ex = P.x + ca * 0.4, ey = P.y + EYE - 0.25, ez = P.z + sa * 0.4;
@@ -2694,7 +2751,7 @@ function drawHUD(dt) {
   if (G.st === 'title') return;
   const u = U(), pad = 14 * u, L = SAFE.l + pad, T = SAFE.t + pad;
   drawTracers();
-  if (!P.dead && G.st === 'play' && !P.hang) { if (!P.vm || P.vm.t > 0.5 || P.vm.kind === 'zap' || P.vm.kind === 'bomb') drawBlaster(W / 2, H + 40 * u, gunScale(), P.kick, P.strain); drawViewItem(); }
+  if (!P.dead && active() && !P.hang) { if (!P.vm || P.vm.t > 0.5 || P.vm.kind === 'zap' || P.vm.kind === 'bomb') drawBlaster(W / 2, H + 40 * u, gunScale(), P.kick, P.strain); drawViewItem(); }
   if (P.hang && G.st === 'play') drawHands(u);
   drawWayUp();
   drawMarks();
@@ -2721,15 +2778,15 @@ function drawHUD(dt) {
   }
   const py = my + mh * (1 - clamp(P.y / topY, 0, 1));
   hx.fillStyle = '#ffd23f'; hx.beginPath(); hx.moveTo(mx + 6 * u, py); hx.lineTo(mx + 16 * u, py - 6 * u); hx.lineTo(mx + 16 * u, py + 6 * u); hx.closePath(); hx.fill();
-  label(Math.round(P.y / BH) + ' bricks up', mx + 20 * u, py, 14 * u, '#ffffff');
+  label(Math.round(P.y / BH) + ' bricks up', mx + 20 * u, py, Math.max(11, 14 * u), '#ffffff');
   // time and pops
   label(fmtTime(G.t), W / 2, T + 14 * u, 26 * u, '#ffffff', 'center');
   drawBossBar();
   // crosshair, lit up when a shot would hit something
-  const cx = W / 2, cy = H / 2, aiming = G.st === 'play' && !P.hang, on = aiming && inLine();
+  const cx = W / 2, cy = H / 2, aiming = active() && !P.hang, on = aiming && inLine();
   if (on && on.alive) { const p = project(on.x, AIMY, on.z); if (p) { hx.strokeStyle = 'rgba(184,240,96,0.85)'; hx.lineWidth = 2 * u; ring(p.x, p.y, clamp(on.r * 1.3 * H / p.w * 0.9, 14 * u, 120 * u)); } }
   hx.lineCap = 'round';
-  if (aiming) {
+  if (aiming && G.st === 'play') {
     // how far your molded arm can wobble: faint brackets at the top and bottom of its reach
     const k = Math.min(H * 0.42, AIMT / Math.tan(CAM.fovy / 2) * H / 2), bw = 13 * u, hot = !on && OUTBAND ? OUTDIR : 0;
     for (const sg of [-1, 1]) {
@@ -2757,7 +2814,7 @@ function drawHUD(dt) {
     hx.moveTo(cx, cy - 16 * u); hx.lineTo(cx, cy - 7 * u); hx.moveTo(cx, cy + 7 * u); hx.lineTo(cx, cy + 16 * u); hx.stroke();
   }
   drawHurt();
-  if (G.st === 'play') drawControls();
+  if (active()) { drawControls(); drawHomeHUD(u, T); }
   // callouts
   // the newest in the middle, older ones pushed up above it
   let sy = H * 0.3, prev = 0;
@@ -2769,6 +2826,18 @@ function drawHUD(dt) {
     prev = c.size;
   }
   G.callouts = G.callouts.filter(c => (c.life -= dt) > 0);
+}
+// floating home: what to press, and what you've popped on the way down
+function drawHomeHUD(u, top) {
+  if (G.paused) return;
+  const keys = IN.mode === 'keys', pulse = 0.8 + 0.2 * Math.sin(G.time * 5);
+  if (G.st === 'win') {
+    label(keys ? 'SPACE TO FLOAT HOME' : 'JUMP TO FLOAT HOME', W / 2, H * 0.62, 26 * u, '#ffd23f', 'center', pulse);
+    label(keys ? (IN.locked ? 'AND THE MOUSE LOOKS UP AND DOWN NOW' : 'W S LOOK UP AND DOWN NOW · CLICK FOR THE MOUSE') : 'AND THE STICK LOOKS UP AND DOWN NOW', W / 2, H * 0.62 + 28 * u, 16 * u, '#ffffff', 'center', 0.85);
+  } else if (G.st === 'descent') {
+    label('POPPED ON THE WAY DOWN: ' + (G.downKills || 0), W / 2, top + 40 * u, 17 * u, '#ff7ad9', 'center');
+    if (G.desc && G.desc.t < 5) label(keys ? 'POP WHAT IS LEFT · HOLD SPACE TO DROP FASTER' : 'POP WHAT IS LEFT · HOLD JUMP TO DROP FASTER', W / 2, H * 0.7, 16 * u, '#ffffff', 'center', pulse);
+  }
 }
 function drawControls() {
   const u = U(), B = buttons();
@@ -2847,10 +2916,10 @@ const SENS = [[0.55, 'slow'], [1, 'normal'], [1.7, 'fast']];
 function sensName() { let b = SENS[0]; for (const s of SENS) if (Math.abs(s[0] - IN.sens) < Math.abs(b[0] - IN.sens)) b = s; return b; }
 function showPanel(kind) {
   panelKind = kind;
-  sheetEl.textContent = '';
+  sheetEl.textContent = ''; sheetEl.classList.remove('results');
   const title = (tag, text) => { const h = el(tag, null, text); h.id = 'sheetTitle'; return h; };
   const actions = (...b) => { const d = el('div', 'actions'); d.append(...b); return d; };
-  let primary;
+  let primary, chart = null;
   if (kind === 'title') {
     primary = button('play', 'Climb', startGame);
     sheetEl.append(el('p', 'eyebrow', 'A toy-box shooter'), title('h1', 'Tall Order'),
@@ -2870,13 +2939,54 @@ function showPanel(kind) {
     sheetEl.append(el('p', 'eyebrow', 'Tall Order'), title('h2', 'Paused'), controlsList(), actions(primary, ...more, button('ghost', 'Start over', startGame)));
   } else if (kind === 'win') {
     primary = button('play', 'Climb again', startGame);
-    const st = el('dl', 'stats');
-    for (const [k, v] of [['Time', fmtTime(G.t)], ['Popped', String(G.kills)], ['Falls and knockouts', String(G.deaths)]]) { const d = el('div'); d.append(el('dt', null, k), el('dd', null, v)); st.append(d); }
-    sheetEl.append(el('p', 'eyebrow', G.newBest ? 'New best time' : 'Best ' + fmtTime(G.best)), title('h2', 'Top of the tower!'), el('p', 'lede', rank()), st, actions(primary));
+    const st = el('dl', 'stats'), down = G.downKills || 0;
+    for (const [k, v] of [['Time', fmtTime(G.t)], ['Popped', String(G.kills - down)], ['On the way down', String(down)], ['Falls and knockouts', String(G.deaths)]]) { const d = el('div'); d.append(el('dt', null, k), el('dd', null, v)); st.append(d); }
+    chart = el('canvas', 'chart'); chart.setAttribute('role', 'img'); chart.setAttribute('aria-label', 'Your height over the climb, and the float home');
+    const climb = el('div', 'climb');
+    climb.append(el('p', 'eyebrow', 'Your climb'), chart, el('p', 'quote', '\u201cOne climbs, one sees. One descends, one sees no longer, but one has seen.\u201d René Daumal'));
+    sheetEl.classList.add('results');
+    sheetEl.append(el('p', 'eyebrow', G.newBest ? 'New best time' : 'Best ' + fmtTime(G.best)), title('h2', 'Top of the tower!'), el('p', 'lede', rank()), st, climb, actions(primary));
   }
   panelEl.hidden = false;
+  if (chart) drawChart(chart);
   sheetEl.classList.toggle('long', sheetEl.scrollHeight > sheetEl.clientHeight + 2);
   setTimeout(() => { try { primary.focus({ preventScroll: true }); } catch (e) {} }, 30);
+}
+// the climb as Glaisher drew his balloon flights: height against time, every fall a cliff, then the float home
+function drawChart(cv) {
+  const c = cv.getContext && cv.getContext('2d');
+  if (!c) return;
+  const w = cv.clientWidth || 480, h = cv.clientHeight || 150, dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const top = GOAL ? GOAL.y : 28, T = Math.max(1, G.t), l = 38, r = 8, t0 = 8, b = 18, span = (w - l - r) * 0.86;
+  const X = t => l + span * clamp(t / T, 0, 1), Yp = y => t0 + (h - t0 - b) * (1 - clamp(y / top, 0, 1));
+  c.font = '11px "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif'; c.textBaseline = 'middle'; c.lineJoin = 'round'; c.lineCap = 'round';
+  // the floors, and the flag
+  ['RUG', '1', '2', '3', '4', 'TOP'].forEach((n, i) => {
+    c.strokeStyle = 'rgba(255,255,255,0.12)'; c.lineWidth = 1; c.setLineDash([3, 4]); c.beginPath(); c.moveTo(l, Yp(Y[i])); c.lineTo(w - r, Yp(Y[i])); c.stroke(); c.setLineDash([]);
+    c.fillStyle = '#bdb2dc'; c.textAlign = 'right'; c.fillText(n, l - 6, Yp(Y[i]));
+  });
+  c.fillStyle = '#ffc928'; c.textAlign = 'right'; c.fillText('FLAG', l - 6, Yp(top));
+  // the climb, broken where you were sent back to a checkpoint
+  c.strokeStyle = '#ffc928'; c.lineWidth = 2; c.beginPath();
+  G.trail.forEach(([t, y, ev], i) => { if (i === 0 || ev === 'r') c.moveTo(X(t), Yp(y)); else c.lineTo(X(t), Yp(y)); });
+  c.stroke();
+  // knocked out: a red cross, and a dotted line to where you came back
+  let at = null;
+  for (const [t, y, ev] of G.trail) {
+    if (ev === 'x') {
+      at = [X(t), Yp(y)]; c.strokeStyle = '#ff5a5a'; c.lineWidth = 2; c.beginPath();
+      c.moveTo(at[0] - 4, at[1] - 4); c.lineTo(at[0] + 4, at[1] + 4); c.moveTo(at[0] + 4, at[1] - 4); c.lineTo(at[0] - 4, at[1] + 4); c.stroke();
+    } else if (ev === 'r' && at) {
+      c.strokeStyle = 'rgba(255,90,90,0.55)'; c.lineWidth = 1.5; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(at[0], at[1]); c.lineTo(X(t), Yp(y)); c.stroke(); c.setLineDash([]); at = null;
+    }
+  }
+  // the float home
+  const xw = X(T), xe = w - r;
+  c.strokeStyle = '#ff7ad9'; c.lineWidth = 2; c.setLineDash([5, 4]); c.beginPath(); c.moveTo(xw, Yp(top)); c.bezierCurveTo(xw + (xe - xw) * 0.35, Yp(top), xe - (xe - xw) * 0.3, Yp(top * 0.25), xe, Yp(0)); c.stroke(); c.setLineDash([]);
+  c.fillStyle = '#ffc928'; c.beginPath(); c.arc(xw, Yp(top), 3.5, 0, TAU); c.fill();
+  c.fillStyle = '#bdb2dc'; c.textAlign = 'left'; c.fillText('0:00', l, h - 7); c.textAlign = 'right'; c.fillText(fmtTime(T), xw + 4, h - 7);
+  c.fillStyle = '#ff7ad9'; c.textAlign = 'right'; c.fillText('home', xe, h - 7);
 }
 // a title for how the climb went
 function rank() {
@@ -2898,19 +3008,19 @@ function startGame() {
   if (REDUCE) { callout('CLIMB!', '#ffd23f', 64, 1); sfx.start(); }
 }
 function resetGame() {
-  Object.assign(P, { x: 4, y: 0, z: 23.5, yaw: -Math.PI / 2, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 0, dead: 0, check: 0, onGround: true, ground: null, fallFrom: 0, full: 0, fireT: 0, kick: 0, itemT: 0, vm: null, swing: 0, hurtT: 0, hurtA: null, hang: null, lip: null, edgeT: 0, tip: 0, strain: 0, padT: 0, launched: false, jumpBuf: 0 });
+  Object.assign(P, { x: 4, y: 0, z: 23.5, yaw: -Math.PI / 2, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 0, dead: 0, check: 0, onGround: true, ground: null, fallFrom: 0, full: 0, fireT: 0, kick: 0, itemT: 0, vm: null, swing: 0, hurtT: 0, hurtA: null, hang: null, lip: null, edgeT: 0, tip: 0, strain: 0, padT: 0, launched: false, jumpBuf: 0, look: 0 });
   for (const c of CHECKS) c.reached = c.n === 0;
   for (const s of STEPS) { s.p = 0; s.sol.off = true; }
   stepsT = -1;
   for (const L of LIFTS) { L.mode = 'top'; L.t = 0; L.rung = false; L.y = L.hi; L.sol.y0 = L.hi - 0.4; L.sol.y1 = L.hi; }
-  Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0 });
+  Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0, hinged: false, brolly: false, desc: null, downKills: 0, fold: false, landT: 0, trail: [[0, 0]], trailT: 0.25 });
   G.callouts.length = 0; PARTS.length = 0; G.stats = { shots: 0, hits: 0 };
   stick = null; pointers.clear(); resetDirector();
-  IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = IN.fireTap = false; IN.mb = 0; IN.mouseTurn = 0; IN.ktap = 0;
+  IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = IN.fireTap = false; IN.mb = 0; IN.mouseTurn = 0; IN.mouseLook = 0; IN.ktap = 0;
   populate();
 }
 function pause() {
-  if (G.st !== 'play' || G.paused) return;
+  if ((G.st !== 'play' && G.st !== 'descent') || G.paused) return;
   G.paused = true; stick = null; pointers.clear(); IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = IN.fireTap = false; IN.mb = 0;
   IN.relock = IN.locked;
   if (document.pointerLockElement) document.exitPointerLock();
@@ -2926,7 +3036,7 @@ function resume() {
 // ---------------------------------------------------------------- input wiring
 hud.addEventListener('pointerdown', e => {
   audio();
-  if (G.st !== 'play' || G.paused) return;
+  if (!active() || G.paused) return;
   e.preventDefault();
   try { hud.setPointerCapture(e.pointerId); } catch (_) {}
   // a mouse (or a trackpad) means a laptop: a click grabs it, so it can turn you, and its buttons fire
@@ -2940,11 +3050,12 @@ hud.addEventListener('pointerdown', e => {
   if (b) press(e.pointerId, b, x, y);
 });
 hud.addEventListener('pointermove', e => {
-  if (G.st !== 'play' || G.paused) return;
+  if (!active() || G.paused) return;
   if (e.pointerType === 'mouse') {
     // (a jump of hundreds of pixels in one move is the browser putting the hidden pointer back, not you)
-    const mx = e.movementX || 0;
+    const mx = e.movementX || 0, my = e.movementY || 0;
     if (IN.locked && Math.abs(mx) < 300) IN.mouseTurn += mx * 0.003 * IN.sens;
+    if (IN.locked && Math.abs(my) < 300) IN.mouseLook -= my * 0.003 * IN.sens;
     if (e.button >= 0 && (e.buttons | 0) !== IN.mb) mouseButtons(e);
     return;
   }
@@ -3001,12 +3112,12 @@ document.addEventListener('pointerlockchange', () => {
   if (IN.locked) { IN.everLocked = true; IN.lockFail = false; return; }
   IN.mFire = false; IN.mb = 0; IN.ksl = IN.ksr = 0; IN.freeT = G.time;
   // Esc lets go of the mouse, so that pauses; resuming grabs it again
-  if (was && G.st === 'play' && !G.paused) { pause(); IN.relock = true; }
+  if (was && (G.st === 'play' || G.st === 'descent') && !G.paused) { pause(); IN.relock = true; }
 });
 // the wheel (or two fingers on a trackpad) swaps pickups: one swap per flick
 hud.addEventListener('wheel', e => {
   e.preventDefault();
-  if (G.st !== 'play' || G.paused) return;
+  if (!active() || G.paused) return;
   const now = performance.now();
   if (now - IN.wheelAt > 220) { IN.wheel = 0; IN.wheelDone = false; }
   IN.wheelAt = now;
@@ -3017,8 +3128,8 @@ hud.addEventListener('wheel', e => {
 pauseBtn.addEventListener('click', pause);
 window.addEventListener('keydown', e => {
   if (e.code === 'KeyM') { audio(); setMuted(!muted); return; }
-  if (e.code === 'Escape' || e.code === 'KeyP') { if (G.st === 'play' && !G.paused) pause(); else if (G.paused) resume(); return; }
-  if (G.st !== 'play' || G.paused) return;
+  if (e.code === 'Escape' || e.code === 'KeyP') { if ((G.st === 'play' || G.st === 'descent') && !G.paused) pause(); else if (G.paused) resume(); return; }
+  if (!active() || G.paused) return;
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if (e.repeat) return;
   audio(); key(e.code, true);
@@ -3049,20 +3160,13 @@ function frame(now) {
   last = now;
   G.time += dt;
   try {
-    if (G.st === 'play' && !G.paused && !G.manual) {
-      G.t += dt;
-      stepLifts(dt); stepSteps(dt); stepPlayer(dt); stepWorld(dt);
-    } else if (G.st === 'win') {
-      G.winT += dt;
-      if (G.winT > 0.6 && !G.hinged) { G.hinged = true; sfx.clack(1); sfx.hinge(); callout('CLICK! A NECK HINGE. YOU CAN LOOK UP', '#b8f060', 30, 2.6); }
-      if (G.winT > 4.4 && panelKind !== 'win') { finishRun(); showPanel('win'); }
-    }
+    if (!G.paused && !G.manual) stepGame(dt);
     if (G.st !== 'play' || !G.paused) stepParts(dt);
     const bossOn = G.boss && G.boss.alive && G.boss.awake && P.y > Y[4] - 0.5;
     music(G.st === 'play' && !G.paused ? (bossOn ? 'boss' : DIR.phase === 'swarm' || DIR.phase === 'warn' ? 'swarm' : 'climb') : null, bossOn || DIR.phase === 'calm' ? (stepsT >= 0 ? 2 : 0) : 0);
     G.shake = Math.max(0, G.shake - dt * 30); G.flash = Math.max(0, G.flash - dt * 3);
     placeCamera(dt);
-    drawLifts(); drawPads(); drawChecks(); drawSteps(); drawGoal(); drawParts();
+    drawLifts(); drawPads(); drawChecks(); drawSteps(); drawGoal(); drawBrolly(); drawParts();
     drawFoes(); drawShots(); drawGibs(); drawItems(); drawFX();
     render3d();
     drawHUD(dt);
@@ -3078,6 +3182,73 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
+// ---------------------------------------------------------------- the way home
+// With the hinge in you can look anywhere, and there's an umbrella: JUMP and you float down round the
+// outside of the tower, past every floor you fought through, popping whatever is left.
+function startDescent() {
+  const a0 = Math.atan2(P.z - GOAL.z, P.x - GOAL.x), turns = 1.35, aEnd = -2.4;
+  // about a turn and a third, to land on the rug off the north-west corner, well away from the stairs
+  const a1 = aEnd + TAU * Math.round((a0 + turns * TAU - aEnd) / TAU);
+  G.desc = { a0, a1, r0: Math.max(0.5, Math.hypot(P.x - GOAL.x, P.z - GOAL.z)), y0: P.y, T: 22, t: 0, idle: 0, windT: 0, armed: false };
+  G.st = 'descent'; G.downKills = 0; G.fold = false;
+  P.vx = P.vy = P.vz = P.kx = P.kz = 0; P.jumpBuf = 0; P.onGround = false; P.hang = null;
+  sfx.jump(); sfx.brolly(); callout('WHEEE!', '#ff7ad9', 54, 1.3);
+}
+// where you are, a fraction s of the way down
+function descentAt(s) {
+  const D = G.desc, a = lerp(D.a0, D.a1, s), r = lerp(D.r0, 13, easeOut(Math.min(1, s * 4.5)));
+  // a hop off the top, then a steady float down
+  const y = lerp(D.y0, 0, s) + Math.sin(Math.min(1, s * 9) * Math.PI) * 0.9;
+  return [GOAL.x + Math.cos(a) * r, y, GOAL.z + Math.sin(a) * r];
+}
+// turning and, now, looking up and down: the stick, the keys or the mouse
+function stepLook(dt) {
+  const st = stickVec();
+  const turn = Math.sign(st.x) * Math.pow(Math.abs(st.x), 1.2) * TURN * 0.7 * dt + IN.mouseTurn + (IN.ksr - IN.ksl) * TURN * 0.5 * dt;
+  P.yaw += turn; IN.mouseTurn = 0;
+  P.look = clamp((P.look || 0) - st.y * 1.5 * dt + IN.mouseLook, -1.3, 1.3); IN.mouseLook = 0;
+  return Math.abs(turn) > 1e-5;
+}
+function stepDescent(dt) {
+  const D = G.desc;
+  // holding JUMP folds the umbrella a little and you drop faster (once you've let go of the JUMP that started it)
+  if (!jumpHeld()) D.armed = true;
+  G.fold = D.armed && jumpHeld();
+  D.t += dt * (G.fold ? 3 : 1);
+  const s = Math.min(1, D.t / D.T), p = descentAt(s);
+  P.vx = (p[0] - P.x) / dt; P.vz = (p[2] - P.z) / dt; P.vy = (p[1] - P.y) / dt;
+  P.x = p[0]; P.y = p[1]; P.z = p[2]; P.onGround = false; P.inv = 1;
+  // left alone, your gaze drifts back to the tower
+  if (stepLook(dt)) D.idle = 0; else if ((D.idle += dt) > 0.9) P.yaw = easeAng(P.yaw, Math.atan2(-P.z, -P.x), 1.1, dt);
+  if ((D.windT -= dt) <= 0) { D.windT = 0.45; sfx.wind(G.fold ? 1.8 : 1); }
+  if (s >= 1) land();
+}
+function land() {
+  G.st = 'landed'; G.landT = 0; G.fold = false;
+  P.y = 0; P.vx = P.vy = P.vz = 0; P.onGround = true;
+  IN.kFire = IN.mFire = IN.fireTap = false; stick = null; pointers.clear();
+  if (document.pointerLockElement) document.exitPointerLock();
+  sfx.land(1); G.shake = 10;
+  for (let i = 0; i < 22; i++) { const a = rand(0, TAU); PARTS.push({ x: P.x + Math.cos(a) * 0.5, y: 0.1, z: P.z + Math.sin(a) * 0.5, vx: Math.cos(a) * rand(1, 3), vy: rand(0.5, 2), vz: Math.sin(a) * rand(1, 3), life: rand(0.5, 1), s: rand(0.06, 0.12), col: C.tan, spin: 0 }); }
+  callout('HOME', '#ffd23f', 64, 1.8);
+}
+function stepGame(dt) {
+  if (G.st === 'play') {
+    G.t += dt;
+    stepLifts(dt); stepSteps(dt); stepPlayer(dt); stepWorld(dt);
+  } else if (G.st === 'win') {
+    G.winT += dt;
+    if (G.winT > 0.6 && !G.hinged) { G.hinged = true; sfx.clack(1); sfx.hinge(); callout('CLICK! A NECK HINGE. YOU CAN LOOK UP', '#b8f060', 30, 2.6); }
+    // then an umbrella, and the way home
+    if (G.winT > 2.2 && !G.brolly) { G.brolly = true; P.look = 0.2; sfx.brolly(); callout('AN UMBRELLA!', '#ff7ad9', 46, 1.8); }
+    if (G.winT > 3.3) { stepLook(dt); if (P.jumpBuf > 0 || G.winT > 16) startDescent(); } else P.jumpBuf = 0;
+  } else if (G.st === 'descent') {
+    stepLifts(dt); stepSteps(dt); stepDescent(dt); stepWorld(dt);
+  } else if (G.st === 'landed') {
+    G.landT += dt; stepWorld(dt);
+    if (G.landT > 3.8 && panelKind !== 'win') showPanel('win');
+  }
+}
 function finishRun() {
   if (!G.best || G.t < G.best) { G.best = G.t; G.newBest = true; store.set('best', G.t.toFixed(2)); }
 }
@@ -3089,20 +3260,20 @@ function placeCamera(dt) {
     CAM.yaw = Math.atan2(1 - CAM.z, -CAM.x); CAM.pitch = 0.18;
     return;
   }
-  if (G.st === 'win' && GOAL && G.winT < 2.4) {
-    // with the hinge in, the first look up: at the ceiling, and the lamp you have been climbing toward
-    const k = easeInOut(clamp((G.winT - 0.7) / 1.1, 0, 1)) * (1 - easeInOut(clamp((G.winT - 2.0) / 0.4, 0, 1)) * 0.4);
-    CAM.x = P.x; CAM.y = P.y + EYE; CAM.z = P.z; CAM.yaw = P.yaw + Math.sin(G.winT * 1.3) * 0.15 * k; CAM.pitch = 1.25 * k;
+  if ((G.st === 'win' && GOAL) || G.st === 'descent') {
+    // with the hinge in, the first look up: the ceiling, the lamp you've been climbing toward, and an umbrella
+    // opening over you; then you look wherever you like
+    const w = G.st === 'win' ? G.winT : 99, up = easeInOut(clamp((w - 0.7) / 1.1, 0, 1)) * 1.2, k = easeInOut(clamp((w - 3.3) / 0.6, 0, 1));
+    CAM.x = P.x; CAM.y = P.y + EYE; CAM.z = P.z;
+    CAM.yaw = P.yaw + Math.sin(Math.PI * clamp((w - 0.7) / 2.6, 0, 1)) * 0.18 * (1 - k);
+    CAM.pitch = lerp(up, P.look || 0, k) + (G.st === 'descent' ? Math.sin(G.time * 1.3) * 0.02 : 0);
     return;
   }
-  if (G.st === 'win' && GOAL) {
-    // then swing out and circle the flag
-    const wt = G.winT - 2.4, e = easeInOut(clamp(wt / 2.4, 0, 1));
-    if (G.winA == null) { G.winA = Math.atan2(P.z - GOAL.z, P.x - GOAL.x); G.winR = Math.max(0.5, Math.hypot(P.x - GOAL.x, P.z - GOAL.z)); }
-    const a = G.winA + wt * 0.22, R = lerp(G.winR, 9, e);
-    CAM.x = GOAL.x + Math.cos(a) * R; CAM.z = GOAL.z + Math.sin(a) * R; CAM.y = lerp(P.y + EYE, GOAL.y + 4.5, e);
-    const yaw = Math.atan2(GOAL.z - CAM.z, GOAL.x - CAM.x), pitch = Math.atan2(GOAL.y + 1.4 - CAM.y, R);
-    CAM.yaw = P.yaw + wrap(yaw - P.yaw) * e; CAM.pitch = lerp(1.25 * 0.6, pitch, e);
+  if (G.st === 'landed' && GOAL) {
+    // and back on the rug, one last look up at what you climbed
+    const k = easeInOut(clamp((G.landT - 0.7) / 2.2, 0, 1)), to = Math.atan2(GOAL.z - P.z, GOAL.x - P.x);
+    CAM.x = P.x; CAM.y = P.y + EYE * (1 - 0.15 * Math.max(0, 1 - G.landT * 3)); CAM.z = P.z;
+    CAM.yaw = P.yaw + wrap(to - P.yaw) * k; CAM.pitch = lerp(P.look || 0, Math.atan2(GOAL.y * 0.75 - EYE, Math.hypot(GOAL.x - P.x, GOAL.z - P.z)), k);
     return;
   }
   const down = P.dead > 0 ? clamp(1 - P.dead / 2.2, 0, 1) : 0;
@@ -3128,8 +3299,8 @@ resize();
 showPanel('title');
 window.tallOrder = {
   FOES, SHOTS, ITEMS, INV, WAVES, giveItem, useItem, inLine, populate, los, floorBelow, foe, stepsT: () => stepsT, aim: () => ({ out: OUTBAND, dir: OUTDIR, y: AIMY }), selIdx: () => SEL, dir: () => DIR,
-  sim(secs) { const dt = 1 / 60; for (let i = 0; i < Math.round(secs * 60); i++) { G.time += dt; G.t += dt; stepLifts(dt); stepSteps(dt); stepPlayer(dt); if (typeof stepWorld === 'function') stepWorld(dt); } },
-  setStick(x, y) { if (x == null) { stick = null; return; } const R = stickR(); stick = { id: -1, x0: 0, y0: 0, x: x * R, y: y * R }; },
+  sim(secs) { const dt = 1 / 60; for (let i = 0; i < Math.round(secs * 60); i++) { G.time += dt; stepGame(dt); } },
+  setStick(x, y) { if (x == null) { stick = null; return; } const R = stickR(), x0 = W * 0.2, y0 = H * 0.64; stick = { id: -1, x0, y0, x: x0 + x * R, y: y0 + y * R }; },
   G, P, IN, SOL, CHECKS, LIFTS, PADS, LADDERS, STEPS, CAM, GOAL: () => GOAL, stick: () => stick && { ...stick }, pointers: () => [...pointers], start: startGame, world: () => WORLD, key, buttons, buildSteps,
   teleport(x, y, z, yaw) { Object.assign(P, { x, y, z, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0 }); if (yaw != null) P.yaw = yaw; } };
 requestAnimationFrame(frame);
