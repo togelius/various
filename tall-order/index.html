@@ -1208,6 +1208,8 @@ function stepHang(dt, st) {
   if ((h.armed && away > 0.6) || h.t > 4) { P.hang = null; P.hangUsed = true; P.vy = -1; callout(pick(['WHOOPS', 'NOOO', 'BYE']), '#ff9a3a', 34, 0.8); }
 }
 function stepPlayer(dt) {
+  P.headSwap = Math.max(0, (P.headSwap || 0) - dt);
+  P.headPitch = ease(P.headPitch || 0, P.head && P.headSwap < 0.3 ? ITEM_DEF[P.head].head : 0, P.headSwap > 0 ? 14 : 30, dt);
   if ((G.trailT = (G.trailT || 0) - dt) <= 0) { G.trailT = 0.25; G.trail.push([G.t, P.y]); }
   const st = P.dead > 0 ? { x: 0, y: 0 } : stickVec();
   if (P.hang && !P.dead) {
@@ -1377,6 +1379,7 @@ function stepWorld(dt) {
 function win() {
   G.won = true; G.st = 'win'; G.winT = 0; G.hinged = false; G.brolly = false;
   if (P.rider) dismount(false);
+  P.head = null; P.headPitch = 0; P.headSwap = 0;
   TRACERS.length = 0; P.hurtT = 0; for (const e of FOES) { e.alert = 0; e.tele = 0; }
   for (let i = SHOTS.length - 1; i >= 0; i--) if (SHOTS[i].foe) SHOTS.splice(i, 1);
   IN.kFire = IN.mFire = IN.fireTap = false; P.jumpBuf = 0; stick = null; pointers.clear();
@@ -2045,6 +2048,9 @@ function killFoe(e, how, kx, ky, kz) {
   if (Math.random() < (e.type === 'kitty' || e.type === 'bee' ? 0.5 : 0.9) || how === 'splat') callout(pick(POPS[how] || POPS.blaster), how === 'splat' ? '#ff5a5a' : '#ffffff', 40, 0.8, { x: e.x, y: e.y + e.h * 0.8, z: e.z });
   if (e.type === 'boss') bossDown(e);
   if (e.type === 'car' || e.type === 'cannon') explode(e.x, cy, e.z, 2.2, 6, 6, true, true);
+  // now and then a head rolls free, if there isn't one of that kind about already
+  const hk = e.type === 'wolf' ? 'wolfhead' : e.type === 'kitty' ? 'kittyhead' : null;
+  if (hk && how !== 'splat' && Math.random() < 0.12 && !INV.some(i => i.kind === hk) && !ITEMS.some(i => !i.gone && i.kind === hk) && Math.abs(fy - P.y) < 1.5) ITEMS.push({ kind: hk, x: e.x, y: fy, z: e.z, t: 0 });
 }
 function bossDown(e) {
   callout('TIMBER!', '#ffd23f', 72, 2.2); G.flash = 0.6; G.shake = 26; sfx.roar(); sfx.boom(1);
@@ -2234,8 +2240,8 @@ const HIP = 0.75, AIM = 12 * Math.PI / 180, AIMT = Math.tan(AIM);
 let AIMY = 0, OUTBAND = null, OUTDIR = 0;
 // the height to hit on something spanning y0..y1 at a distance, or null if none of it is within the wobble
 function inBand(dist, y0, y1) {
-  const gy = P.y + HIP, t = AIMT * Math.max(dist, 0.4);
-  const lo = Math.max(y0, gy - t), hi = Math.min(y1, gy + t);
+  const gy = P.y + HIP, d = Math.max(dist, 0.4), hp = P.headPitch || 0;
+  const lo = Math.max(y0, gy + d * Math.tan(hp - AIM)), hi = Math.min(y1, gy + d * Math.tan(hp + AIM));
   return lo <= hi ? (lo + hi) / 2 : null;
 }
 // the nearest thing straight ahead that the blaster can hit; also notes the nearest one it can't,
@@ -2252,7 +2258,7 @@ function inLine(range) {
     if (hd > bd && hd > od) return;
     const ay = inBand(hd, y0, y1);
     if (ay == null) {
-      if (hd < od && hd < bd && seen(x, y0, y1, z)) { od = hd; out = t; odir = y0 > gy ? 1 : -1; }
+      if (hd < od && hd < bd && seen(x, y0, y1, z)) { od = hd; out = t; odir = (y0 + y1) / 2 > gy + hd * Math.tan(P.headPitch || 0) ? 1 : -1; }
       return;
     }
     if (hd > bd) return;
@@ -2302,7 +2308,7 @@ function firePrimary() {
     return;
   }
   // (with the hinge in, the shot goes where you look)
-  const cp = free ? Math.cos(P.look || 0) : 1, vy = free ? Math.sin(P.look || 0) : 0, ca = Math.cos(P.yaw) * cp, sa = Math.sin(P.yaw) * cp;
+  const pitch = free ? P.look || 0 : P.headPitch || 0, cp = Math.cos(pitch), vy = Math.sin(pitch), ca = Math.cos(P.yaw) * cp, sa = Math.sin(P.yaw) * cp;
   const t = rayHit(ex, ey, ez, ca, vy, sa, 60), L0 = t === Infinity ? 60 : t;
   const hx0 = ex + ca * L0, hz0 = ez + sa * L0, hy0 = ey + vy * L0;
   TRACERS.push({ x: hx0, y: hy0, z: hz0, life: 0.07 });
@@ -2316,12 +2322,18 @@ const ITEM_DEF = {
   bomb: { name: 'BOUNCY BOMB', ammo: 3, max: 6, col: '#ffd23f' },
   mallet: { name: 'SQUEAKY MALLET', ammo: 6, max: 10, col: '#6fd0ff' },
   zap: { name: 'ZAP WAND', ammo: 3, max: 6, col: '#b58cff' },
+  // other toys' heads: wear one and your fixed gaze (and your blaster's reach) tilts with it
+  wolfhead: { name: 'WOLF HEAD', ammo: 1, max: 1, col: '#d8a060', head: 0.42, what: 'MOLDED MID-HOWL: YOU LOOK UP' },
+  kittyhead: { name: 'KITTY HEAD', ammo: 1, max: 1, col: '#b8bcc4', head: -0.35, what: 'ALWAYS HUNTING: YOU LOOK DOWN' },
 };
+const isHead = kind => ITEM_DEF[kind] && ITEM_DEF[kind].head != null;
 const INV = [];
 let SEL = 0;
 function giveItem(kind, n) {
   let it = INV.find(i => i.kind === kind);
-  if (!it) { if (INV.length >= 4) return false; it = { kind, ammo: 0 }; INV.push(it); SEL = INV.length - 1; }
+  if (it && isHead(kind)) return false;
+  // (picking up a head doesn't take you off the weapon you had ready)
+  if (!it) { if (INV.length >= 4) return false; it = { kind, ammo: 0 }; INV.push(it); if (!isHead(kind) || INV.length === 1) SEL = INV.length - 1; }
   it.ammo = Math.min(ITEM_DEF[kind].max, it.ammo + (n || ITEM_DEF[kind].ammo));
   return true;
 }
@@ -2329,11 +2341,12 @@ function useItem() {
   if ((G.st !== 'play' && G.st !== 'descent') || G.paused || P.dead || P.hang || P.carried) return;
   const it = INV[SEL];
   if (!it || P.itemT > 0) { if (!it) { sfx.deny(); callout('NOTHING TO USE', '#ffffff', 28, 0.8); } return; }
+  if (isHead(it.kind)) { swapHead(it.kind); return; }
   const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw), ex = P.x + ca * 0.4, ey = P.y + EYE - 0.25, ez = P.z + sa * 0.4;
   P.vm = { kind: it.kind, t: 0 };
   if (it.kind === 'rocket') {
-    const e = inLine(50);
-    let dx = ca, dy = 0, dz = sa;
+    const e = inLine(50), hp = G.st === 'play' ? P.headPitch || 0 : P.look || 0;
+    let dx = ca * Math.cos(hp), dy = Math.sin(hp), dz = sa * Math.cos(hp);
     if (e) { const p = aimPoint(e); dx = p[0] - ex; dy = p[1] - ey; dz = p[2] - ez; const L = Math.hypot(dx, dy, dz); dx /= L; dy /= L; dz /= L; }
     SHOTS.push({ kind: 'rocket', x: ex, y: ey, z: ez, vx: dx * 20, vy: dy * 20, vz: dz * 20, g: 0, life: 3, r: 0.18, t: 0, spin: 0 });
     sfx.rocket(); P.itemT = 0.35; G.shake = Math.max(G.shake, 4);
@@ -2405,7 +2418,10 @@ function stepItems(dt) {
     if (it.kind === 'juice') {
       if (P.hp >= 100) continue;
       P.hp = Math.min(100, P.hp + 35); it.gone = true; sfx.heal(); callout('+35 JUICE', '#7ee06a', 32, 0.9);
-    } else if (giveItem(it.kind)) { it.gone = true; sfx.pickup(); callout(ITEM_DEF[it.kind].name, ITEM_DEF[it.kind].col, 34, 1.1); }
+    } else if (giveItem(it.kind)) {
+      it.gone = true; sfx.pickup(); callout(ITEM_DEF[it.kind].name, ITEM_DEF[it.kind].col, 34, 1.1);
+      if (isHead(it.kind) && !HINT['h' + it.kind]) { HINT['h' + it.kind] = true; callout(ITEM_DEF[it.kind].what, '#ffffff', 22, 2.6); callout(IN.mode === 'keys' ? 'SELECT IT (1-4) AND PRESS E TO WEAR IT' : 'SELECT IT AND TAP TO WEAR IT', '#ffd23f', 22, 2.6); }
+    }
   }
 }
 
@@ -2538,6 +2554,11 @@ function drawItems() {
     } else if (it.kind === 'mallet') {
       p = at(0, -0.05, 0); put(SH.cyl, p[0], p[1], p[2], q, 0.07, 0.7, 0.07, C.tan);
       p = at(0, 0.32, 0); put(SH.cyl, p[0], p[1], p[2], qMul(q, qAxis(1, 0, 0, Math.PI / 2)), 0.32, 0.5, 0.32, C.sky);
+    } else if (it.kind === 'wolfhead' || it.kind === 'kittyhead') {
+      const w = it.kind === 'wolfhead', fur = w ? C.brown : C.grey, dk = w ? C.dbrown : C.dgrey;
+      p = at(0, 0, 0); put(SH.box, p[0], p[1], p[2], q, 0.44, 0.4, 0.44, fur);
+      p = at(0.27, w ? 0.02 : -0.02, 0); put(SH.box, p[0], p[1], p[2], q, w ? 0.2 : 0.06, w ? 0.17 : 0.16, 0.24, w ? dk : C.white);
+      for (const z of [-0.12, 0.12]) { p = at(-0.02, 0.28, z); put(SH.box, p[0], p[1], p[2], q, 0.1, 0.18, 0.1, dk); p = at(0.225, 0.08, z * 0.8); put(SH.box, p[0], p[1], p[2], q, 0.02, 0.1, 0.1, w ? C.white : C.lime, 1, w ? 0 : 0.3); }
     } else if (it.kind === 'zap') {
       p = at(0, -0.05, 0); put(SH.cyl, p[0], p[1], p[2], q, 0.06, 0.6, 0.06, C.purple);
       p = at(0, 0.32, 0); put(SH.box, p[0], p[1], p[2], qMul(q, qAxis(0, 0, 1, 0.785)), 0.2, 0.2, 0.08, C.yellow, 1, 0.5);
@@ -2692,12 +2713,12 @@ function populate() {
   f('car', 5.5, Y[1], 5, { pa: [5.5, 6], pb: [5.5, -6], yaw: -Math.PI / 2 });
   f('wolf', 3, Y[1], 1); f('wolf', -4, Y[1], 4); f('wolf', 5, Y[1], -6.5);
   f('kitty', -5, Y[1], -5);
-  it('rocket', 6.5, Y[1], -1); it('juice', -6, Y[1], 6);
+  it('rocket', 6.5, Y[1], -1); it('juice', -6, Y[1], 6); it('kittyhead', 6.2, Y[1], 5.6);
   // floor 2
   f('kitty', -6, Y[2], 5); f('kitty', -4, Y[2], -6.5);
   f('wolf', -6, Y[2], 1); f('wolf', -5, Y[2], -4);
   f('bee', -4, Y[2] + 2, 2);
-  it('bomb', -7, Y[2], 7); it('juice', -2, Y[2], -7);
+  it('bomb', -7, Y[2], 7); it('juice', -2, Y[2], -7); it('wolfhead', -7, Y[2], 1.5);
   // floor 3, with a cannon at the edge that can see down onto floor 2
   f('golem', 4, Y[3], -5);
   f('wolf', -1, Y[3], -3); f('wolf', 5.5, Y[3], -3.5);
@@ -2815,6 +2836,15 @@ function itemIcon(kind, x, y, s) {
     hx.rotate(-0.6); hx.fillStyle = '#e8d2a0'; hx.fillRect(-0.08, -0.3, 0.16, 1.2);
     hx.fillStyle = '#6fd0ff'; hx.beginPath(); hx.roundRect ? hx.roundRect(-0.6, -0.8, 1.2, 0.56, 0.2) : hx.rect(-0.6, -0.8, 1.2, 0.56); hx.fill();
     hx.fillStyle = '#ffd23f'; hx.fillRect(-0.62, -0.8, 0.14, 0.56); hx.fillRect(0.48, -0.8, 0.14, 0.56);
+  } else if (kind === 'wolfhead' || kind === 'kittyhead') {
+    const w = kind === 'wolfhead';
+    hx.fillStyle = w ? '#8a5a30' : '#9a9ca2'; hx.fillRect(-0.55, -0.4, 1.1, 0.95);
+    hx.beginPath(); hx.moveTo(-0.55, -0.35); hx.lineTo(-0.35, -0.9); hx.lineTo(-0.1, -0.35); hx.moveTo(0.55, -0.35); hx.lineTo(0.35, -0.9); hx.lineTo(0.1, -0.35); hx.fill();
+    hx.fillStyle = w ? '#ffffff' : '#b8f060'; hx.fillRect(-0.36, -0.12, 0.2, 0.2); hx.fillRect(0.16, -0.12, 0.2, 0.2);
+    hx.fillStyle = '#1b1b20'; hx.fillRect(-0.3, -0.08, 0.1, 0.14); hx.fillRect(0.22, -0.08, 0.1, 0.14);
+    hx.fillStyle = w ? '#4b2d17' : '#f17fb0'; hx.fillRect(-0.18, 0.2, 0.36, w ? 0.26 : 0.12);
+    // which way it makes you look
+    hx.fillStyle = '#ffd23f'; hx.beginPath(); if (w) { hx.moveTo(0.62, -0.1); hx.lineTo(0.9, -0.55); hx.lineTo(1.1, -0.1); } else { hx.moveTo(0.62, 0.2); hx.lineTo(0.9, 0.65); hx.lineTo(1.1, 0.2); } hx.fill();
   } else if (kind === 'zap') {
     hx.rotate(0.6); hx.fillStyle = '#b58cff'; hx.fillRect(-0.07, -0.2, 0.14, 1.1);
     hx.fillStyle = '#ffd23f'; hx.beginPath();
@@ -2822,6 +2852,13 @@ function itemIcon(kind, x, y, s) {
     hx.closePath(); hx.fill();
   }
   hx.restore();
+}
+// the head swap: pop yours off, press the other on (a moment when you can't shoot), and the world tilts
+function swapHead(kind) {
+  if (G.st !== 'play' || P.headSwap > 0) return;
+  P.head = P.head === kind ? null : kind; P.headSwap = 0.55; P.fireT = Math.max(P.fireT, 0.55); P.itemT = 0.55;
+  sfx.clack(1); tone('sine', 300, 700, 0.12, 0.08, 0.25);
+  callout(P.head ? ITEM_DEF[P.head].name + ' ON' : 'YOUR OWN HEAD', P.head ? ITEM_DEF[P.head].col : '#ffffff', 32, 1.1);
 }
 // the chips for the other things you are carrying sit beside the item button
 function chipSpots() {
@@ -2838,13 +2875,15 @@ function drawItemButton() {
   if (!it) { label('EMPTY', b.x, b.y, b.r * 0.3, 'rgba(255,255,255,0.55)', 'center'); return; }
   if (P.itemT > 0) { hx.fillStyle = 'rgba(255,255,255,0.18)'; circle(b.x, b.y, b.r); }
   itemIcon(it.kind, b.x - b.r * 0.1, b.y + b.r * 0.02, b.r * 0.5);
-  label('×' + it.ammo, b.x + b.r * 0.42, b.y + b.r * 0.5, b.r * 0.38, '#ffffff', 'center');
+  if (isHead(it.kind)) label(P.head === it.kind ? 'ON' : 'WEAR', b.x + b.r * 0.3, b.y + b.r * 0.62, b.r * 0.3, P.head === it.kind ? '#b8f060' : '#ffffff', 'center');
+  else label('×' + it.ammo, b.x + b.r * 0.42, b.y + b.r * 0.5, b.r * 0.38, '#ffffff', 'center');
   for (const c of chipSpots()) {
     const ci = INV[c.i];
     hx.fillStyle = 'rgba(20,10,36,0.45)'; circle(c.x, c.y, c.r);
     hx.strokeStyle = ITEM_DEF[ci.kind].col; hx.lineWidth = 2 * u; ring(c.x, c.y, c.r);
     itemIcon(ci.kind, c.x, c.y, c.r * 0.5);
-    label(String(ci.ammo), c.x + c.r * 0.6, c.y + c.r * 0.6, c.r * 0.55, '#ffffff', 'center');
+    if (!isHead(ci.kind)) label(String(ci.ammo), c.x + c.r * 0.6, c.y + c.r * 0.6, c.r * 0.55, '#ffffff', 'center');
+    else if (P.head === ci.kind) label('ON', c.x + c.r * 0.5, c.y + c.r * 0.7, c.r * 0.5, '#b8f060', 'center');
   }
 }
 // what you are swinging or firing, for a moment after you use it
@@ -3030,6 +3069,11 @@ function drawHUD(dt) {
     hx.fillStyle = g; hx.fillRect(0, 0, W, H);
   }
   if (!P.dead && active() && !P.hang && !P.carried) { if (!P.vm || P.vm.t > 0.5 || P.vm.kind === 'zap' || P.vm.kind === 'bomb') drawBlaster(W / 2, H + 40 * u, gunScale(), P.kick, P.strain); drawViewItem(); }
+  if (P.head && G.st === 'play' && !P.dead) {
+    const w = P.head === 'wolfhead', s = gunScale(), k = 1 - clamp((P.headSwap || 0) / 0.3, 0, 1);
+    hx.fillStyle = w ? `rgba(122,74,38,${0.92 * k})` : `rgba(154,156,162,${0.92 * k})`;
+    for (const sx of [-1, 1]) { const x0 = W / 2 + sx * 330 * s; hx.beginPath(); hx.moveTo(x0 - 70 * s, -2); hx.lineTo(x0 + sx * 30 * s, 110 * s * k); hx.lineTo(x0 + 70 * s, -2); hx.closePath(); hx.fill(); }
+  }
   if (P.hang && G.st === 'play') drawHands(u);
   if (P.carried && G.st === 'play') drawCarried(u);
   if (P.rider && G.st === 'play') drawRider(u);
@@ -3291,7 +3335,7 @@ function startGame() {
   if (REDUCE) { callout('CLIMB!', '#ffd23f', 64, 1); sfx.start(); }
 }
 function resetGame() {
-  Object.assign(P, { x: 4, y: 0, z: 23.5, yaw: -Math.PI / 2, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 0, dead: 0, check: 0, onGround: true, ground: null, fallFrom: 0, full: 0, fireT: 0, kick: 0, itemT: 0, vm: null, swing: 0, hurtT: 0, hurtA: null, hang: null, lip: null, edgeT: 0, tip: 0, strain: 0, padT: 0, launched: false, jumpBuf: 0, look: 0, carried: null, rider: null, riderCd: 0, shake: 0 });
+  Object.assign(P, { x: 4, y: 0, z: 23.5, yaw: -Math.PI / 2, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 0, dead: 0, check: 0, onGround: true, ground: null, fallFrom: 0, full: 0, fireT: 0, kick: 0, itemT: 0, vm: null, swing: 0, hurtT: 0, hurtA: null, hang: null, lip: null, edgeT: 0, tip: 0, strain: 0, padT: 0, launched: false, jumpBuf: 0, look: 0, carried: null, rider: null, riderCd: 0, shake: 0, head: null, headPitch: 0, headSwap: 0 });
   for (const c of CHECKS) c.reached = c.n === 0;
   for (const s of STEPS) { s.p = 0; s.sol.off = true; }
   stepsT = -1;
@@ -3569,7 +3613,7 @@ function placeCamera(dt) {
   const up = G.intro > 0 ? easeInOut(clamp(G.intro / 1.7, 0, 1)) * 0.56 : 0;
   // teetering, your base rocks on the lip: tipping forward shows you the drop, backward the ceiling
   const tip = (P.tip || 0) * (0.3 + 0.05 * Math.sin(G.time * 24)) * -Math.sign(P.tipTo || 0);
-  CAM.x = P.x; CAM.y = P.y + EYE * (1 - down * 0.7); CAM.z = P.z; CAM.yaw = P.yaw; CAM.pitch = up - down * 0.35 + tip + (P.hang ? 0.12 : 0) + (P.carried ? -0.55 + Math.sin(G.time * 2.3) * 0.04 : 0);
+  CAM.x = P.x; CAM.y = P.y + EYE * (1 - down * 0.7); CAM.z = P.z; CAM.yaw = P.yaw; CAM.pitch = up - down * 0.35 + tip + (P.hang ? 0.12 : 0) + (P.carried ? -0.55 + Math.sin(G.time * 2.3) * 0.04 : 0) + (P.headPitch || 0) - Math.sin(Math.PI * clamp((P.headSwap || 0) / 0.55, 0, 1)) * 0.5;
 }
 
 // ---------------------------------------------------------------- boot
