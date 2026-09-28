@@ -48,6 +48,7 @@
   .stats div { background: rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 8px 10px; }
   .stats dt { font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
   .stats dd { margin: 0; font: 400 24px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+  .stats dd small { display: block; margin-top: 2px; font: 400 12px/1.2 var(--body); color: #ff9ee3; }
   .chart { display: block; width: 100%; height: 150px; }
   .climb { display: grid; gap: 8px; align-content: start; }
   /* the results: the numbers on the left, the climb on the right, when there's room */
@@ -1705,6 +1706,7 @@ function addRivBrick() {
   const i = RIV.bricks.length;
   RIV.bricks.push({ rivBrick: true, i, col: BRICKS[(i * 3 + 1) % BRICKS.length], ox: rand(-0.1, 0.1), oz: rand(-0.1, 0.1), hp: 6, flash: 0, y0: i * RB, y1: (i + 1) * RB, x: RIV.x, z: RIV.z });
   RIV.sol.y1 = rivTop(); RIV.sol.off = false;
+  if (RIV.trail) RIV.trail.push([G.t, rivTop()]);
 }
 function rivWolf(spot, climbing) {
   const e = foe('wolf', RIV.x + spot * 0.42, climbing ? 0 : rivTop(), RIV.z, { rival: true, spot, awake: true, st: climbing ? 'climbup' : 'chase', cd: rand(2, 4) });
@@ -1712,8 +1714,9 @@ function rivWolf(spot, climbing) {
   return e;
 }
 function rivReset() {
-  RIV.bricks.length = 0; RIV.growT = 10; RIV.climbT = 14; RIV.hop = 0; RIV.seen = false; RIV.passed = {};
+  RIV.bricks.length = 0; RIV.growT = 10; RIV.climbT = 14; RIV.hop = 0; RIV.seen = false; RIV.passed = {}; RIV.trail = null;
   for (let i = 0; i < 3; i++) addRivBrick();
+  RIV.trail = [[0, rivTop()]];
   rivWolf(-1); rivWolf(1);
 }
 // hit a brick: enough and it breaks, and everything above it comes down, away from your tower
@@ -1723,6 +1726,7 @@ function hitRiv(b, dmg) {
   if (b.hp > 0) return;
   const gone = RIV.bricks.splice(b.i), ax = RIV.x / Math.hypot(RIV.x, RIV.z), az = RIV.z / Math.hypot(RIV.x, RIV.z);
   RIV.sol.y1 = rivTop(); RIV.sol.off = !RIV.bricks.length;
+  if (RIV.trail && G.st === 'play') RIV.trail.push([G.t, rivTop()]);
   gone.forEach((g, j) => GIBS.push({ sh: 'box', x: RIV.x + g.ox, y: g.y0 + RB / 2, z: RIV.z + g.oz, q: Q0, sx: RIV.w, sy: RB, sz: RIV.w, col: g.col, spec: 1,
     vx: ax * (1 + j * 0.7) + rand(-0.8, 0.8), vy: rand(0, 2) + j * 0.25, vz: az * (1 + j * 0.7) + rand(-0.8, 0.8), w: [rand(-1.5, 1.5), rand(-0.6, 0.6), rand(-1.5, 1.5)], life: rand(6, 9), s: 1 }));
   if (GIBS.length > 420) GIBS.splice(0, GIBS.length - 420);
@@ -2136,9 +2140,10 @@ function dropFromEagle(say) {
 // it, and hold still: up it goes, and for a few seconds you see across the floor above, where things are waiting for
 // you. The only look ahead you get. Any move, a shot, a jump or a hit and you're back.
 function stepPeri(dt) {
+  const sv = stickVec(), still = Math.hypot(sv.x, sv.y) < 0.2 && !fireHeld();   // (hands off everything, too)
   for (const p of PERIS) {
     p.cool = Math.max(0, p.cool - dt);
-    const d = Math.hypot(P.x - p.ex, P.z - p.ez), at = d < 0.75 && Math.abs(P.y - p.y) < 0.3 && P.onGround && Math.hypot(P.vx, P.vz) < 0.8 && Math.abs(wrap(P.yaw - p.yaw)) < 0.9;
+    const d = Math.hypot(P.x - p.ex, P.z - p.ez), at = still && d < 0.75 && Math.abs(P.y - p.y) < 0.3 && P.onGround && Math.hypot(P.vx, P.vz) < 0.8 && Math.abs(wrap(P.yaw - p.yaw)) < 0.9;
     if (Math.hypot(P.x - p.x, P.z - p.z) < 3.2 && Math.abs(P.y - p.y) < 0.5 && !HINT.peri) { HINT.peri = true; callout('A PERISCOPE! STAND AT IT, FACING IT, TO SEE THE FLOOR ABOVE', '#b8f060', 20, 2.6); }
     if (d > 1.3) p.used = false;   // (step away from it, and it's ready for another peep)
     p.near = at && !p.used && !G.peep && !P.dead && !P.hang && !P.carried && !P.rider && p.cool <= 0 ? p.near + dt : 0;
@@ -3728,7 +3733,8 @@ function controlsList() {
     : [['Touch', 'left thumb: a stick that walks and turns; right thumb: FIRE (hold), JUMP, and the button for whatever you picked up']];
   for (const [k, v] of [...rows,
     ['Aim', 'turn to face it. The blaster only wobbles a little up or down: to hit something above or below you, climb to it or back away from it. Bombs, zaps and confetti reach further.'],
-    ['Edges', 'you rock on the lip for a moment before you step off. If you go over, you grab on, and ' + (keys ? 'Space' : 'JUMP') + ' pulls you up.']]) dl.append(el('dt', null, k), el('dd', null, v));
+    ['Edges', 'you rock on the lip for a moment before you step off. If you go over, you grab on, and ' + (keys ? 'Space' : 'JUMP') + ' pulls you up.'],
+    ['Look ahead', 'at the edge of each floor there\'s a periscope. Stand at it, facing it, and hold still, and you see across the floor above.']]) dl.append(el('dt', null, k), el('dd', null, v));
   return dl;
 }
 // how fast the mouse turns you, for the pause menu
@@ -3760,7 +3766,9 @@ function showPanel(kind) {
   } else if (kind === 'win') {
     primary = button('play', 'Climb again', startGame);
     const st = el('dl', 'stats'), down = G.downKills || 0;
-    for (const [k, v] of [['Time', fmtTime(G.t)], ['Popped', String(G.kills - down)], ['On the way down', String(down)], ['Their tower knocked down', String(G.rivDown || 0)], ['Falls and knockouts', String(G.deaths)]]) { const d = el('div'); d.append(el('dt', null, k), el('dd', null, v)); st.append(d); }
+    for (const [k, v, note] of [['Time', fmtTime(G.t)], ['Popped', String(G.kills - down), down ? '+' + down + ' on the way home' : ''], ['Their tower toppled', String(G.rivDown || 0)], ['Falls and knockouts', String(G.deaths)]]) {
+      const d = el('div'), dd = el('dd', null, v); if (note) dd.append(el('small', null, note)); d.append(el('dt', null, k), dd); st.append(d);
+    }
     chart = el('canvas', 'chart'); chart.setAttribute('role', 'img'); chart.setAttribute('aria-label', 'Your height over the climb, and the float home');
     const climb = el('div', 'climb');
     climb.append(el('p', 'eyebrow', 'Your climb'), chart, el('p', 'quote', '\u201cOne climbs, one sees. One descends, one sees no longer, but one has seen.\u201d René Daumal'));
@@ -3794,6 +3802,14 @@ function drawChart(cv) {
     c.fillStyle = 'rgba(255,243,214,0.55)'; c.textAlign = 'left'; c.fillText(name, l + 4, Yp(hgt) - 6);
   }
   c.font = '11px "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif';
+  // their tower, the race you were in: a brown step line under yours
+  if (RIV.trail && RIV.trail.length) {
+    c.strokeStyle = 'rgba(176,112,58,0.9)'; c.lineWidth = 1.5; c.beginPath();
+    let py = RIV.trail[0][1]; c.moveTo(X(0), Yp(py));
+    for (const [t, y] of RIV.trail) { if (t > T) break; c.lineTo(X(t), Yp(py)); c.lineTo(X(t), Yp(y)); py = y; }
+    c.lineTo(X(T), Yp(py)); c.stroke();
+    c.fillStyle = 'rgba(214,150,96,0.95)'; c.textAlign = 'right'; c.fillText('theirs', X(T) - 4, Yp(py) + 8);
+  }
   // the climb, broken where you were sent back to a checkpoint
   c.strokeStyle = '#ffc928'; c.lineWidth = 2; c.beginPath();
   G.trail.forEach(([t, y, ev], i) => { if (i === 0 || ev === 'r') c.moveTo(X(t), Yp(y)); else c.lineTo(X(t), Yp(y)); });

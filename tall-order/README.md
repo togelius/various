@@ -225,8 +225,9 @@ land on the rug and look up one last time at what you climbed.
 
 The results show your climb the way James Glaisher drew his balloon flights in
 the 1860s: your height against time, a red cross for each knockout with a dotted
-line back to the checkpoint, and the float home as a dashed pink drop. Under it
-is a line from René Daumal's *Mount Analogue*: "One climbs, one sees. One
+line back to the checkpoint, the float home as a dashed pink drop, and the
+race you were in: their tower's height as a brown step line under yours. Under
+it is a line from René Daumal's *Mount Analogue*: "One climbs, one sees. One
 descends, one sees no longer, but one has seen."
 
 ## The toys
@@ -295,8 +296,8 @@ or better. Your own blasts push you around but never hurt you, so rocket jumps
 work. Toys' blasts hurt everyone, toys included. The toys shout things when
 they spot you and when they wind up, one at a time.
 
-At the end you get your time, how many toys you popped on the way up and on
-the way down, how often you knocked their tower down, how often you fell or
+At the end you get your time, how many toys you popped (and how many of them
+on the way home), how often you toppled their tower, how often you fell or
 were knocked out, a rank, and the chart of your climb.
 
 ## Pickups
