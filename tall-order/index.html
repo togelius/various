@@ -38,6 +38,7 @@
   .sheet h2 { font-size: clamp(34px, 6vw, 46px); font-variant-numeric: tabular-nums; }
   .lede { font-size: 18px; line-height: 1.4; }
   .muted { color: var(--muted); }
+  .figure { margin: 0; font-size: 15px; line-height: 1.45; color: var(--muted); max-width: 60ch; }
   .sideways { display: none; margin: 0; color: var(--muted); }
   @media (orientation: portrait) and (pointer: coarse) { .sideways { display: block; } }
   .controls { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; font-size: 14px; }
@@ -187,6 +188,13 @@ const sfx = {
   confetti() { hiss('highpass', 1500, 0.7, 0.3, 0.5); tone('square', 900, 1800, 0.08, 0.06); for (let i = 0; i < 6; i++) tone('square', rand(1500, 3000), 0, 0.03, 0.04, 0.05 + i * 0.03); },
   zap() { for (let i = 0; i < 6; i++) tone('sawtooth', rand(200, 1400), rand(100, 800), 0.05, 0.08, i * 0.04); hiss('highpass', 3000, 2, 0.3, 0.2); },
   death() { tone('sawtooth', 400, 60, 0.9, 0.16); tone('square', 200, 40, 0.9, 0.06); },
+  creak() { hiss('bandpass', 1500, 9, 0.13, 0.16, 0, 650); tone('square', 190, 120, 0.09, 0.03); },
+  hinge() { tone('square', 1400, 900, 0.05, 0.08); tone('sine', 520, 760, 0.35, 0.1, 0.08); },
+  bell() { for (const [f, v] of [[880, 0.12], [1320, 0.06], [1760, 0.04]]) tone('sine', f, f, 1.4, v); },
+  patter() { for (let i = 0; i < 14; i++) hiss('highpass', 2600, 2, 0.03, 0.05 + i * 0.004, i * 0.12 + Math.random() * 0.06); },
+  scrabble() { for (let i = 0; i < 14; i++) hiss('bandpass', 700, 3, 0.04, 0.06 + i * 0.004, i * 0.11 + Math.random() * 0.06); },
+  chorus() { for (let i = 0; i < 4; i++) { const f = rand(650, 900); tone('triangle', f, f * 1.5, 0.1, 0.05, 0.9 + i * 0.28); tone('triangle', f * 1.5, f * 0.8, 0.16, 0.05, 1.0 + i * 0.28); } },
+  teeter() { for (let i = 0; i < 3; i++) tone('triangle', 560 - i * 70, 430 - i * 60, 0.07, 0.06, i * 0.08); hiss('bandpass', 900, 6, 0.22, 0.05); },
 };
 
 // music: a toy-box march for the climb, a stomp for the big wolf, and the march a
@@ -195,6 +203,9 @@ const SONGS = {
   climb: { bpm: 132, root: 60, bass: 'oom', chords: [0, 5, 7, 0, 0, 9, 5, 7], mel: [
     [4, 7, 12, 7, 4, 7, 12, 16], [17, 16, 12, 9, 5, 9, 12, 9], [7, 11, 14, 17, 16, 14, 11, 7], [12, 7, 4, 7, 12, null, 0, null],
     [4, 4, 7, 4, 12, 11, 9, 7], [9, 12, 16, 12, 9, 7, 4, 2], [5, 9, 12, 17, 16, 14, 11, 7], [11, null, 7, null, 2, null, 7, 11]] },
+  swarm: { bpm: 146, root: 57, bass: 'drive', chords: [0, 0, 8, 7, 0, 0, 5, 7], mel: [
+    [12, 12, null, 12, 15, null, 12, null], [10, null, 7, null, 8, 7, 5, 3], [3, 3, null, 8, 12, null, 8, null], [11, null, 14, null, 19, 17, 14, 11],
+    [12, 12, null, 12, 15, null, 17, null], [15, 14, 12, 10, 8, 7, 5, 3], [5, null, 8, null, 12, 8, 5, 8], [7, 11, 14, 11, 7, null, null, null]] },
   boss: { bpm: 152, root: 57, bass: 'drive', chords: [0, 0, 8, 7, 0, 0, 5, 7], mel: [
     [12, null, 7, null, 3, 7, 12, null], [14, 12, 10, 7, 8, 7, 5, 3], [3, 8, 12, 8, 3, 8, 12, 15], [14, 11, 7, 11, 14, null, 19, null],
     [12, 12, 15, 12, 19, 17, 15, 12], [14, null, 12, null, 10, 7, 3, 0], [5, 8, 12, 17, 15, 12, 8, 5], [7, null, 11, null, 14, null, 11, 7]] },
@@ -687,7 +698,7 @@ function buildTower() {
   for (const x of [-8, -3, 2, 7]) for (const z of [-8, -3]) pillar(x, z, Y[3] - PH, x < 0 ? colC : colB);
   plate(-8, -8, 8, -2, Y[3], C.green);
   // a lift on floor 2 that rises to floor 3
-  LIFTS.push({ x0: -5.5, z0: -1.8, x1: -3.5, z1: 0.2, lo: Y[2] + 0.4, hi: Y[3], y: Y[2] + 0.4, t: 0, dy: 0, wait: 1.4, move: 2.2, col: C.yellow });
+  LIFTS.push({ x0: -5.5, z0: -1.8, x1: -3.5, z1: 0.2, lo: Y[2] + 0.4, hi: Y[3], y: Y[3], t: 0, dy: 0, move: 2.2, slow: 7, mode: 'top', col: C.yellow });
   // --- floor 4, a sky-blue plate along the east side
   for (const x of [1, 7]) for (const z of [-8, -3, 2, 7]) pillar(x, z, Y[4] - PH, z < -2 ? colD : colA);
   plate(1, -8, 8, 8, Y[4], C.sky);
@@ -922,7 +933,11 @@ const HINT = { moved: 0, fired: 0, used: 0, jumpTold: false, learned: store.get(
 function callout(text, col, size, dur, at) { G.callouts.push({ text, col: col || '#ffffff', size: size || 44, life: dur || 1.1, max: dur || 1.1, at }); }
 
 // ---------------------------------------------------------------- input
-const IN = { kJump: false, kFire: false, mFire: false, mb: 0, kf: 0, kb: 0, kl: 0, kr: 0, ksl: 0, ksr: 0, mouseTurn: 0, locked: false, keys: false };
+const IN = { kJump: false, kFire: false, mFire: false, fireTap: false, ktap: 0, mb: 0, kf: 0, kb: 0, kl: 0, kr: 0, ksl: 0, ksr: 0, kt: 0, mouseTurn: 0, locked: false,
+  // 'touch' puts a stick and buttons on the screen; 'keys' (a laptop: keyboard, mouse or trackpad) leaves them off
+  mode: (() => { try { return matchMedia('(pointer: coarse)').matches ? 'touch' : 'keys'; } catch (e) { return 'touch'; } })(),
+  sens: clamp(+store.get('sens', 1) || 1, 0.3, 3), relock: false, everLocked: false, lockFail: false, freeT: -99, wheel: 0, wheelAt: 0, wheelDone: false };
+function setMode(m) { if (IN.mode !== m) { IN.mode = m; stick = null; pointers.clear(); } }
 const held = b => { for (const p of pointers.values()) if (p.b === b) return true; return false; };
 const fireHeld = () => IN.kFire || IN.mFire || held('fire');
 const jumpHeld = () => IN.kJump || held('jump');
@@ -935,14 +950,18 @@ function buttons() {
   let jump = { x: fx - r - gap - rj, y: fy + r - rj, r: rj };
   let item = { x: fx - r * 0.15, y: fy - r - gap - ri, r: ri };
   if (jump.x - rj < W / 2 + 10) { jump = { x: fx - (r + gap + rj) * 0.72, y: fy - (r + gap + rj) * 0.72, r: rj }; item = { x: fx + r * 0.05, y: fy - r * 2.1 - gap - ri, r: ri }; }
+  // on a laptop only the pickup is shown, smaller, down in the corner
+  if (IN.mode === 'keys') { const rk = clamp(m * 0.07, 26, 40); item = { x: W - SAFE.r - rk - Math.max(22, m * 0.05), y: H - SAFE.b - rk - Math.max(30, m * 0.07), r: rk }; }
   return { fire: { x: fx, y: fy, r }, jump, item };
 }
 function onButton(x, y) {
+  if (IN.mode === 'keys') return null;
   const B = buttons();
   for (const k of ['item', 'jump', 'fire']) { const b = B[k]; if (Math.hypot(x - b.x, y - b.y) < b.r * 1.08) return k; }
   return null;
 }
 function buttonAt(x, y) {
+  if (IN.mode === 'keys') return null;
   const on = onButton(x, y);
   if (on) return on;
   const B = buttons();
@@ -960,6 +979,7 @@ function press(id, b, x, y) {
   const p = pointers.get(id) || {};
   p.b = b; if (x != null) { p.x = x; p.y = y; } pointers.set(id, p);
   if (b === 'jump') P.jumpBuf = 0.14;
+  if (b === 'fire') IN.fireTap = true;
   if (b === 'item') useItem();
 }
 
@@ -1097,13 +1117,27 @@ function drawGoal() {
 // ---------------------------------------------------------------- update
 function stepLifts(dt) {
   for (const L of LIFTS) {
-    L.t += dt;
-    const cyc = 2 * (L.wait + L.move), t = L.t % cyc;
-    let y;
-    if (t < L.wait) y = L.lo;
-    else if (t < L.wait + L.move) y = lerp(L.lo, L.hi, easeInOut((t - L.wait) / L.move));
-    else if (t < 2 * L.wait + L.move) y = L.hi;
-    else y = lerp(L.hi, L.lo, easeInOut((t - 2 * L.wait - L.move) / L.move));
+    // The lift waits at the top until it's called from below. It rings its bell and takes its time
+    // coming down, and the toys upstairs hear the bell too: hold out until it arrives.
+    let y = L.y;
+    const onIt = P.ground === L.sol && P.onGround;
+    const caller = Math.abs(P.y - Y[2]) < 0.6 && Math.hypot(P.x - (L.x0 + L.x1) / 2, P.z - (L.z0 + L.z1) / 2) < 5.5;
+    if (L.mode === 'top') {
+      y = L.hi;
+      if (caller && !P.dead && G.st === 'play') {
+        L.mode = 'coming'; L.t = 0; sfx.bell(); callout('DING! THE LIFT IS ON ITS WAY DOWN', '#ffd23f', 30, 2);
+        if (!L.rung) { L.rung = true; DIR.t = 0; swarm({ from: 'above', n: 4, bees: 1 }); }
+      }
+    } else if (L.mode === 'coming') {
+      L.t += dt; y = lerp(L.hi, L.lo, easeInOut(clamp(L.t / L.slow, 0, 1)));
+      if (L.t >= L.slow) { L.mode = 'bottom'; L.t = 0; sfx.bell(); }
+    } else if (L.mode === 'bottom') {
+      y = L.lo; L.t = onIt ? L.t + dt : 0;
+      if (L.t > 0.4) { L.mode = 'going'; L.t = 0; }
+    } else {
+      L.t += dt; y = lerp(L.lo, L.hi, easeInOut(clamp(L.t / L.move, 0, 1)));
+      if (L.t >= L.move) { L.mode = 'top'; L.t = 0; }
+    }
     L.dy = y - L.y;
     // carry whoever stands on it
     if (P.ground === L.sol && P.onGround) { P.y += L.dy; }
@@ -1118,19 +1152,64 @@ function stepLifts(dt) {
 }
 const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 
+// hanging from a ledge by your hands: JUMP pulls you up, pulling away (or a bite) lets go
+function stepHang(dt, st) {
+  const h = P.hang;
+  h.t += dt;
+  if (h.pull >= 0) {
+    // hauling yourself up onto the lip
+    h.pull += dt;
+    const k = easeInOut(clamp(h.pull / 0.32, 0, 1));
+    P.x = lerp(h.x, h.lx, k); P.z = lerp(h.z, h.lz, k); P.y = lerp(h.y, h.ly, k);
+    if (h.pull >= 0.32) { P.hang = null; P.onGround = true; P.ground = null; P.vy = 0; P.fallFrom = P.y; sfx.land(0.4); }
+    return;
+  }
+  P.vx = P.vz = P.vy = 0; P.kx = P.kz = 0; P.x = h.x; P.z = h.z; P.y = h.y;
+  if (P.jumpBuf > 0) { P.jumpBuf = 0; h.pull = 0; sfx.climb(); sfx.jump(); return; }
+  // letting go takes a fresh push away from the wall: whatever you were holding as you went over doesn't count
+  const away = -st.y * (Math.cos(P.yaw) * h.ax + Math.sin(P.yaw) * h.az);
+  if (Math.hypot(st.x, st.y) < 0.3) h.armed = true;
+  if ((h.armed && away > 0.6) || h.t > 4) { P.hang = null; P.hangUsed = true; P.vy = -1; callout(pick(['WHOOPS', 'NOOO', 'BYE']), '#ff9a3a', 34, 0.8); }
+}
 function stepPlayer(dt) {
   const st = P.dead > 0 ? { x: 0, y: 0 } : stickVec();
+  if (P.hang && !P.dead) {
+    // you can still turn your head... no, your whole body, while you dangle
+    const ax0 = Math.abs(st.x); P.yaw += Math.sign(st.x) * Math.pow(ax0, 1.2) * TURN * 0.4 * dt + IN.mouseTurn * 0.4; IN.mouseTurn = 0; IN.ktap = 0;
+    P.jumpBuf = Math.max(0, P.jumpBuf - dt * 0.2);
+    stepHang(dt, st); return;
+  }
   if (P.dead > 0) { IN.mouseTurn = 0; P.jumpBuf = 0; }
   // turning: gentle near the middle of the stick, fast at the edge, faster still held hard over
   const ax = Math.abs(st.x);
   P.full = ax > 0.85 ? P.full + dt : 0;
-  const rate = lerp(TURN, BOOST, clamp((P.full - 0.12) / 0.2, 0, 1));
+  // a turn key eases in, so a tap nudges your aim and holding it swings you round
+  IN.kt = (IN.kl || IN.kr) && !stick ? IN.kt + dt : 0;
+  const rate = lerp(TURN, BOOST, clamp((P.full - 0.12) / 0.2, 0, 1)) * (IN.kt > 0 ? lerp(0.4, 1, clamp(IN.kt / 0.3, 0, 1)) : 1);
   P.yaw += Math.sign(st.x) * Math.pow(ax, 1.2) * rate * dt + IN.mouseTurn;
-  IN.mouseTurn = 0;
+  // (a turn key let go before a frame saw it still nudges you)
+  if (IN.ktap && !IN.kl && !IN.kr && !(P.dead > 0)) P.yaw += IN.ktap * 0.05;
+  IN.mouseTurn = 0; IN.ktap = 0;
   const fwd = -st.y, strafe = IN.ksr - IN.ksl;
   const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw);
   const sp = fwd > 0 ? fwd * WALK : fwd * BACK;
   let wx = ca * sp - sa * strafe * 4.2, wz = sa * sp + ca * strafe * 4.2;
+  // Teeter: walking toward a drop of more than a step, your base rocks on the lip and you stop for
+  // half a second (so backing off blind in a fight doesn't drop you); keep pushing and over you go.
+  // Edges here are all square to the axes, so each axis is checked on its own: you can still walk along one.
+  let edge = 0, ex = 0, ez = 0;
+  if (P.onGround && !P.climbing && !(P.padT > 0)) {
+    const m = P.r + 0.16, drop = (dx, dz) => floorBelow(P.x + dx, P.y + 0.3, P.z + dz) < P.y - 1.2;
+    if (Math.abs(wx) > 0.2 && drop(Math.sign(wx) * m, 0)) { edge = 1; ex = Math.sign(wx); if (P.edgeT < 0.5) wx = 0; }
+    if (Math.abs(wz) > 0.2 && drop(0, Math.sign(wz) * m)) { edge = 1; ez = Math.sign(wz); if (P.edgeT < 0.5) wz = 0; }
+  }
+  if (edge) {
+    if (!(P.edgeT > 0)) sfx.teeter();
+    P.edgeT = (P.edgeT || 0) + dt;
+    // which way you're tipping, relative to where you face: forward tips the view down, backward up
+    P.tipTo = (ex * ca + ez * sa) || 0.001;
+  } else P.edgeT = 0;
+  P.tip = ease(P.tip || 0, edge && P.edgeT < 0.5 ? 1 : 0, 10, dt);
   // knockback fades; while it is strong you have less say
   const kick = Math.hypot(P.kx, P.kz);
   // (a spring's throw is hard to steer against, so it always lands you on the floor above)
@@ -1168,7 +1247,32 @@ function stepPlayer(dt) {
     if (fall > 6.2 && !P.dead) splatPlayer();
     else if (fall > 1.2) { sfx.land(clamp(fall / 6, 0.3, 1)); G.shake = Math.max(G.shake, clamp(fall * 1.2, 0, 8)); }
   }
-  if (!P.onGround && wasGround) P.fallFrom = fromY;
+  if (!P.onGround && wasGround) {
+    P.fallFrom = fromY;
+    // walked or knocked off (not a jump or a spring): remember the lip, for one grab at it
+    if (!P.launched && P.vy <= 0.5 && !P.climbing) {
+      const mx = P.vx + P.kx, mz = P.vz + P.kz, L = Math.hypot(mx, mz) || 1;
+      P.lip = { y: fromY, t: G.time, sx: P.x, sz: P.z, dx: mx / L, dz: mz / L }; P.hangUsed = false;
+    } else P.lip = null;
+  }
+  if (P.onGround) P.lip = null;
+  // a frantic grab at the lip you just went over, if the drop below is a big one
+  if (P.lip && !P.onGround && !P.dead && !P.hangUsed && P.vy < 0 && G.time - P.lip.t < 0.7 && P.y < P.lip.y - 0.55 && P.y > P.lip.y - 1.7
+      && Math.hypot(P.x - P.lip.sx, P.z - P.lip.sz) < 1.3 && floorBelow(P.x, P.y + 0.1, P.z) < P.lip.y - 2.5) {
+    // where you'll stand when you haul yourself up: solid, clear floor back along the way you went over
+    const Lp = P.lip, ok = (x, z) => floorBelow(x, Lp.y + 0.3, z) >= Lp.y - 0.05 && !blocked(x, Lp.y + 0.01, z, P.r, P.h);
+    let lx = null, lz = null;
+    for (const k of [0.55, 0.7, 0.85, 1.0, 1.2, 0.45, 0.35, 0.25]) { const x = Lp.sx - Lp.dx * k, z = Lp.sz - Lp.dz * k; if (ok(x, z)) { lx = x; lz = z; break; } }
+    // and where you hang: pulled back toward the lip until your body is up against it
+    let hx0 = P.x, hz0 = P.z;
+    for (let i = 0; i < 16; i++) { const nx = hx0 - Lp.dx * 0.08, nz = hz0 - Lp.dz * 0.08; if (blocked(nx, Lp.y - 1.2, nz, P.r, 1.15)) break; hx0 = nx; hz0 = nz; }
+    if (lx != null) P.hang = { x: hx0, z: hz0, y: Lp.y - 1.2, lx, lz, ly: Lp.y + 0.01, ax: Lp.dx, az: Lp.dz, t: 0, pull: -1, armed: false };
+  }
+  if (P.hang && P.hang.t === 0 && P.hang.pull < 0 && !P.hang.said) {
+    P.hang.said = true;
+    P.hangUsed = true; P.lip = null; P.vx = P.vz = P.vy = P.kx = P.kz = 0; P.y = P.hang.y; P.x = P.hang.x; P.z = P.hang.z;
+    callout('GRAB!', '#ffd23f', 44, 0.8); sfx.clack(1); G.shake = Math.max(G.shake, 5);
+  }
   if (!P.onGround) P.fallFrom = Math.max(P.fallFrom, P.y);
   HINT.moved += Math.hypot(P.vx, P.vz) * dt;
   // footsteps
@@ -1185,6 +1289,8 @@ function stepPlayer(dt) {
     if (c.reached || P.dead || !P.onGround || c.step && c.step.p < 1 || (Math.hypot(P.x - c.x, P.z - c.z) > 1.4 || Math.abs(P.y - c.y) > 1) && Math.abs(P.y - c.y) > 0.3) continue;
     c.reached = true; P.check = Math.max(P.check, c.n); P.hp = Math.max(P.hp, 70);
     callout('CHECKPOINT', '#b8f060', 40, 1.2); sfx.checkpoint();
+    if (c.n === 1) swarm({ from: 'below', n: 4, say: 'THEY\'RE COMING UP THE STAIRS', x: 4, y: 0, z: 18.5, route: [[4, 14.6], [4, 9.2], [4, 7.2]] });
+    if (c.n === 4) swarm({ from: 'below', n: 3, bees: 1, say: 'THEY\'RE COMING UP THE STAIRS', x: -7.3, y: Y[3], z: -5, route: [[-5.8, -5], [0.6, -5], [2.4, -5]] });
   }
   // the top
   if (GOAL && !G.won && Math.hypot(P.x - GOAL.x, P.z - GOAL.z) < 2 && P.y > GOAL.y - 0.3) win();
@@ -1196,11 +1302,14 @@ function stepPlayer(dt) {
 function stepWorld(dt) {
   if (P.dead > 0) { P.dead -= dt; if (P.dead <= 0) respawn(); }
   P.inv = Math.max(0, P.inv - dt); P.hurtT = Math.max(0, P.hurtT - dt * 1.5);
-  P.fireT -= dt; P.kick = Math.max(0, P.kick - dt * 8); P.itemT = Math.max(0, P.itemT - dt);
+  P.fireT -= dt; P.kick = Math.max(0, P.kick - dt * 8); P.itemT = Math.max(0, P.itemT - dt); P.strain = ease(P.strain || 0, 0, 5, dt);
   if (P.vm) P.vm.t += dt;
-  if (fireHeld() && P.fireT <= 0 && !P.dead) firePrimary();
+  // (a tap quicker than a frame still gets its shot)
+  if ((fireHeld() || IN.fireTap) && P.fireT <= 0 && !P.dead) { firePrimary(); IN.fireTap = false; }
+  if (P.dead) IN.fireTap = false;
   stepMallet(dt);
   stepFoes(dt); stepShots(dt); stepWaves(dt); stepGibs(dt); stepFX(dt); stepItems(dt);
+  stepDirector(dt);
   G.comboT = Math.max(0, (G.comboT || 0) - dt);
   if (G.stepsIn > 0 && (G.stepsIn -= dt) <= 0) { callout('THE STEPS ARE BUILDING THEMSELVES', '#b8f060', 34, 2.4); buildSteps(); }
 }
@@ -1208,7 +1317,7 @@ function win() {
   G.won = true; G.st = 'win'; G.winT = 0; G.winA = null;
   if (document.pointerLockElement) document.exitPointerLock();
   IN.kFire = IN.mFire = false;
-  callout('YOU MADE IT!', '#ffd23f', 64, 2.5); sfx.win();
+  callout('YOU MADE IT!', '#ffd23f', 64, 2.5); sfx.win(); G.hinged = false;
   for (let i = 0; i < 160; i++) PARTS.push({ x: GOAL.x + rand(-2, 2), y: GOAL.y + rand(0.5, 3), z: GOAL.z + rand(-2, 2), vx: rand(-4, 4), vy: rand(2, 9), vz: rand(-4, 4), life: rand(1.5, 3), s: rand(0.05, 0.12), col: pick(BRICKS), spin: rand(0, 6) });
 }
 
@@ -1236,7 +1345,7 @@ const FOES = [], SHOTS = [], ITEMS = [], GIBS = [], FX = [], SPLATS = [], WAVES 
 const TYPES = {
   wolf: { r: 0.36, h: 1.5, hp: 4, speed: 2.5, mass: 1 },
   kitty: { r: 0.28, h: 0.85, hp: 2, speed: 5.6, mass: 0.7 },
-  bee: { r: 0.32, h: 0.6, hp: 2, speed: 4.4, mass: 0.6, fly: true },
+  bee: { r: 0.32, h: 0.6, hp: 1, speed: 4.4, mass: 0.6, fly: true },
   golem: { r: 0.85, h: 2.9, hp: 26, speed: 0.95, mass: 4 },
   car: { r: 0.62, h: 0.95, hp: 9, speed: 2.4, mass: 2 },
   cannon: { r: 0.6, h: 1.6, hp: 9, speed: 0, mass: 99 },
@@ -1443,8 +1552,9 @@ function beeAI(e, dt) {
   if (!e.awake) { if ((sees && d < 15) || d < 4) wake(e); else { e.vx = Math.cos(G.time + e.seed) * 0.8; e.vz = Math.sin(G.time * 0.8 + e.seed) * 0.8; e.vy = Math.sin(G.time * 2 + e.seed) * 0.3; return; } }
   e.cd -= dt;
   if (e.st === 'aim') {
+    // to sting you it has to come down to your level and line up, and that's when you can hit it
     e.t -= dt; e.tele = 1 - e.t / e.tt; faceTo(e, P.x, P.z, 10, dt);
-    e.vx = ease(e.vx, 0, 6, dt); e.vy = ease(e.vy, 0, 6, dt); e.vz = ease(e.vz, 0, 6, dt);
+    e.vx = ease(e.vx, 0, 6, dt); e.vz = ease(e.vz, 0, 6, dt); e.vy = ease(e.vy, clamp((P.y + 1.0 - e.y) * 5, -6, 6), 10, dt);
     if (e.t <= 0) {
       const dx = P.x - e.x, dy = P.y + 0.9 - e.y, dz = P.z - e.z, L = Math.hypot(dx, dy, dz) || 1;
       e.st = 'dive'; e.t = 1.1; e.vx = dx / L * 12; e.vy = dy / L * 12; e.vz = dz / L * 12; e.bit = false; e.tele = 0; sfx.buzz(near(e.x, e.y, e.z));
@@ -1463,7 +1573,7 @@ function beeAI(e, dt) {
   const dx = tx - e.x, dy = ty - e.y, dz = tz - e.z, L = Math.hypot(dx, dy, dz) || 1, sp = Math.min(TYPES.bee.speed, L * 2);
   e.vx = ease(e.vx, dx / L * sp, 3, dt); e.vy = ease(e.vy, dy / L * sp, 3, dt); e.vz = ease(e.vz, dz / L * sp, 3, dt);
   faceTo(e, P.x, P.z, 5, dt);
-  if (e.cd <= 0 && sees && d < 12) { e.st = 'aim'; e.t = e.tt = 0.6; e.alert = 0.6; }
+  if (e.cd <= 0 && sees && d < 12) { e.st = 'aim'; e.t = e.tt = 0.9; e.alert = 0.9; }
 }
 function golemAI(e, dt) {
   const d = pdist(e), dy = P.y - e.y, sees = seesPlayer(e, dt), same = Math.abs(dy) < 1.4;
@@ -1627,7 +1737,7 @@ function stepFoes(dt) {
     if (far && e.type !== 'boss') { if (e.awake && !e.flung) { e.awake = false; e.st = 'idle'; } continue; }
     e.flash = Math.max(0, e.flash - dt); e.alert = Math.max(0, e.alert - dt); e.squash = ease(e.squash, 0, 8, dt);
     if (e.stun > 0) { e.stun -= dt; halt(e, dt, 8); e.tele = 0; e.st = e.type === 'car' ? 'patrol' : e.awake ? 'chase' : 'idle'; }
-    else if (!e.flung && !P.dead) AI[e.type](e, dt);
+    else if (!e.flung && !P.dead) { if (e.route && e.route.length) followRoute(e, dt); else AI[e.type](e, dt); }
     else if (P.dead) halt(e, dt);
     // moving about
     if (TYPES[e.type].fly) {
@@ -1716,6 +1826,7 @@ function bossDown(e) {
 // the player's health
 function hurtPlayer(dmg, kx, ky, kz, src) {
   if (P.inv > 0 || G.st !== 'play' || P.dead) return false;
+  if (P.hang && P.hang.pull < 0) { P.hang = null; P.hangUsed = true; callout('OW, MY FINGERS', '#ff9a3a', 32, 0.9); }
   if (G.hits) G.hits.push([src ? src.type || (src.src && src.src.type) || '?' : '?', Math.round(dmg), Math.round(P.y * 10) / 10]);
   if (!G.god) P.hp -= dmg;
   P.inv = 0.55; P.hurtT = 1;
@@ -1743,7 +1854,7 @@ function die() {
 }
 function respawn() {
   const c = CHECKS.filter(c => c.reached).sort((a, b) => b.n - a.n)[0] || CHECKS[0];
-  Object.assign(P, { x: c.x, y: c.y + 0.05, z: c.z + (c.n ? 0.8 : 0), vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 2, dead: 0, onGround: true, ground: null, fallFrom: c.y });
+  Object.assign(P, { x: c.x, y: c.y + 0.05, z: c.z + (c.n ? 0.8 : 0), vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 2, dead: 0, onGround: true, ground: null, fallFrom: c.y, hang: null, lip: null, edgeT: 0, tip: 0 });
   P.yaw = Math.atan2(c.to[1] - P.z, c.to[0] - P.x);
   for (let i = SHOTS.length - 1; i >= 0; i--) if (SHOTS[i].foe) SHOTS.splice(i, 1);
   WAVES.length = 0;
@@ -1878,34 +1989,51 @@ function stepFX(dt) {
 // The blaster fires straight ahead and hits the nearest toy in line with the
 // crosshair, whatever its height, the way Doom aimed.
 function targets() { return FOES.filter(e => e.alive).concat(SHOTS.filter(s => s.shootable && !s.dead)); }
+// You are a cheap one-piece figure: your blaster is molded at your hip, and it only wobbles a little
+// up or down. It hits what is within AIM of level with your hip, and nothing much above or below.
+// (An angle, not a height: far things on the next floor can be in reach, close things over your head can't.)
+const HIP = 0.75, AIM = 12 * Math.PI / 180, AIMT = Math.tan(AIM);
+let AIMY = 0, OUTBAND = null, OUTDIR = 0;
+// the height to hit on something spanning y0..y1 at a distance, or null if none of it is within the wobble
+function inBand(dist, y0, y1) {
+  const gy = P.y + HIP, t = AIMT * Math.max(dist, 0.4);
+  const lo = Math.max(y0, gy - t), hi = Math.min(y1, gy + t);
+  return lo <= hi ? (lo + hi) / 2 : null;
+}
+// the nearest thing straight ahead that the blaster can hit; also notes the nearest one it can't,
+// being too far above or below, so the HUD can say so
 function inLine(range) {
-  const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw), ex = P.x, ey = P.y + EYE, ez = P.z;
-  let best = null, bd = range || 40;
-  for (const e of FOES) {
-    if (!e.alive) continue;
-    const dx = e.x - ex, dz = e.z - ez, fwd = dx * ca + dz * sa;
-    if (fwd < 0.25) continue;
-    const side = Math.abs(-dx * sa + dz * ca);
-    if (side > Math.max(e.r * 1.2, fwd * 0.03)) continue;
-    const cy = e.y + e.h * 0.5, d = Math.hypot(dx, cy - ey, dz);
-    if (d > bd) continue;
-    if (!los(ex, ey, ez, e.x, cy, e.z) && !los(ex, ey, ez, e.x, e.y + e.h * 0.9, e.z)) continue;
-    best = e; bd = d;
-  }
-  for (const s of SHOTS) {
-    if (!s.shootable || s.dead) continue;
-    const dx = s.x - ex, dz = s.z - ez, fwd = dx * ca + dz * sa;
-    if (fwd < 0.25 || Math.abs(-dx * sa + dz * ca) > Math.max(s.r * 1.4, fwd * 0.03)) continue;
-    const d = Math.hypot(dx, s.y - ey, dz);
-    if (d < bd && los(ex, ey, ez, s.x, s.y, s.z)) { best = s; bd = d; }
-  }
+  const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw), ex = P.x, ey = P.y + EYE, gy = P.y + HIP, ez = P.z;
+  let best = null, bd = range || 40, by = 0, out = null, od = Infinity, odir = 0;
+  const seen = (x, y0, y1, z) => los(ex, ey, ez, x, (y0 + y1) / 2, z) || los(ex, gy, ez, x, (y0 + y1) / 2, z) || los(ex, ey, ez, x, y0 + (y1 - y0) * 0.9, z);
+  const check = (t, x, y0, y1, z, r) => {
+    const dx = x - ex, dz = z - ez, fwd = dx * ca + dz * sa;
+    if (fwd < 0.25 || Math.abs(-dx * sa + dz * ca) > Math.max(r, fwd * 0.03)) return;
+    const hd = Math.hypot(dx, dz);
+    if (hd > bd && hd > od) return;
+    const ay = inBand(hd, y0, y1);
+    if (ay == null) {
+      if (hd < od && hd < bd && seen(x, y0, y1, z)) { od = hd; out = t; odir = y0 > gy ? 1 : -1; }
+      return;
+    }
+    if (hd > bd) return;
+    if (!los(ex, ey, ez, x, ay, z) && !los(ex, gy, ez, x, ay, z)) return;
+    best = t; bd = hd; by = ay;
+  };
+  for (const e of FOES) if (e.alive) check(e, e.x, e.y, e.y + e.h, e.z, e.r * 1.2);
+  for (const s of SHOTS) if (s.shootable && !s.dead) check(s, s.x, s.y - s.r, s.y + s.r, s.z, s.r * 1.4);
+  AIMY = by;
+  // the thing you can't reach only matters if it's nearer than what you can
+  OUTBAND = out && od < bd ? out : null; OUTDIR = odir;
   return best;
 }
-const aimPoint = e => e.kind ? [e.x, e.y, e.z] : [e.x, e.y + e.h * 0.55, e.z];
+const aimPoint = e => [e.x, AIMY, e.z];
 function firePrimary() {
   P.fireT = 0.13; P.kick = 1; G.stats.shots++; HINT.fired++;
-  const e = inLine(), ex = P.x, ey = P.y + EYE, ez = P.z;
+  const e = inLine(), ex = P.x, ey = P.y + HIP, ez = P.z;
   sfx.shot();
+  // straining at something out of reach: the arm creaks
+  if (!e && OUTBAND && G.time - (P.creakT || 0) > 0.45) { P.creakT = G.time; sfx.creak(); P.strain = OUTDIR; HINT.band = (HINT.band || 0) + 1; }
   if (e) {
     const p = aimPoint(e);
     G.stats.hits++;
@@ -2009,7 +2137,7 @@ function stepMallet(dt) {
   for (const s of SHOTS) if (s.foe && !s.dead && Math.hypot(s.x - P.x, s.z - P.z) < 2.5 && Math.abs(s.y - P.y - 1) < 2) { s.foe = null; s.vx = Math.cos(P.yaw) * 14; s.vz = Math.sin(P.yaw) * 14; s.vy = 5; s.shootable = false; }
   if (n) { sfx.bonk(1); G.shake = Math.max(G.shake, 8); } else sfx.squeak(1);
 }
-function cycleItem() { if (INV.length > 1) { SEL = (SEL + 1) % INV.length; sfx.pickup(); } }
+function cycleItem(dir) { if (INV.length > 1) { SEL = (SEL + (dir < 0 ? INV.length - 1 : 1)) % INV.length; sfx.pickup(); } }
 function stepItems(dt) {
   for (const it of ITEMS) {
     if (it.gone) continue;
@@ -2075,7 +2203,12 @@ function drawFoes() {
     if (dx * dx + dz * dz > 70 * 70) continue;
     for (const p of poseParts(e)) put(SH[p.sh], p.x, p.y, p.z, p.q, p.sx, p.sy, p.sz, p.col, p.spec, p.emis);
     const fy = floorBelow(e.x, e.y + 0.2, e.z), hgt = e.y - fy;
-    if (hgt < 6) decal(1, e.x, fy, e.z, e.r * 1.5, 0, 0, 1, [0, 0, 0, 0.3 * (1 - hgt / 6)]);
+    if (hgt < 9) {
+      const air = hgt > 0.4, k = 1 - hgt / 9;
+      decal(1, e.x, fy, e.z, e.r * (air ? 1.3 + hgt * 0.12 : 1.5), 0, 0, 1, [0, 0, 0, air ? 0.2 + 0.4 * k : 0.3]);
+      // something about to land on your floor: a ring round its shadow
+      if (air && e.vy < -1 && Math.abs(fy - P.y) < 0.6) decal(0, e.x, fy, e.z, e.r * 1.6 + hgt * 0.1, 0.12, 0, 1, [1, 0.35, 0.3, 0.5 * k]);
+    }
     // warnings on the ground
     if (e.type === 'golem' && e.st === 'windup') { decal(2, e.x, e.y, e.z, 7.5, easeOut(e.tele), 0, 1, [1, 0.2, 0.15, 0.5 + 0.3 * Math.sin(G.time * 20)]); }
     if (e.type === 'boss' && e.st === 'stomp' && e.t > 0) { decal(2, e.x, e.y, e.z, 9.5, easeOut(e.tele), 0, 1, [1, 0.2, 0.15, 0.5 + 0.3 * Math.sin(G.time * 20)]); }
@@ -2181,35 +2314,112 @@ function drawFX() {
 }
 
 // ---------------------------------------------------------------- the toys' positions
+// ---------------------------------------------------------------- the swarm director
+// Pacing after Left 4 Dead: calm stretches to look around in, then a swarm of the fast, annoying toys,
+// then quiet again. Swarms come from heights you can't look at: they rain down from above (their
+// shadows come first) or pour up the stairs from below. Some are set off by what you do (the lift's
+// bell, arriving at the top of a staircase); if you linger, the toys come looking.
+const floorOf = y => Y.reduce((f, yy, k) => y > yy - 0.3 ? k : f, 0);
+const DIR = { phase: 'calm', t: 50, swarm: [], queue: [], warn: null, last: null };
+function resetDirector() { Object.assign(DIR, { phase: 'calm', t: 50, swarm: [], queue: [], warn: null, last: null }); }
+// the underside of whatever is overhead at a spot (the ceiling, if nothing else)
+function ceilingAbove(x, y, z) {
+  let lo = 72;
+  for (const b of near3(x, z, x, z, TMP)) if (!b.off && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1 && b.y0 >= y && b.y0 < lo) lo = b.y0;
+  return lo;
+}
+// announce a swarm; it arrives a couple of seconds later
+function swarm(w) {
+  if (DIR.phase !== 'calm') return false;
+  DIR.phase = 'warn'; DIR.t = 2.4; DIR.warn = w;
+  callout(w.from === 'above' ? 'HEAR THAT? ABOVE YOU' : w.say || 'SOMETHING IS COMING UP', '#ff9a3a', 34, 2.2);
+  if (w.from === 'above') sfx.patter(); else sfx.scrabble();
+  sfx.chorus();
+  return true;
+}
+function spawnSwarm(w) {
+  DIR.phase = 'swarm'; DIR.t = 0; DIR.swarm = []; DIR.queue = [];
+  if (w.from === 'above') {
+    callout('IT\'S RAINING CATS AND DOGS!', '#ff7ad9', 40, 1.8);
+    let made = 0;
+    for (let tries = 0; tries < 80 && made < w.n; tries++) {
+      const a = rand(0, TAU), d = rand(2.8, 7), x = P.x + Math.cos(a) * d, z = P.z + Math.sin(a) * d;
+      if (Math.abs(floorBelow(x, P.y + 0.3, z) - P.y) > 0.35) continue;          // on your floor
+      const type = w.n >= 4 && made === w.n - 1 ? 'wolf' : 'kitty', T0 = TYPES[type];
+      // dropping from just under whatever is overhead there, from no more than four up
+      const y = Math.min(P.y + 4, ceilingAbove(x, P.y + T0.h + 0.2, z) - T0.h - 0.1);
+      if (y < P.y + 1.4 || blocked(x, y, z, T0.r, T0.h)) continue;
+      const e = foe(type, x, y, z); e.awake = true; e.st = 'chase'; e.alert = 1; e.swarm = true; e.fallFrom = y; e.yaw = Math.atan2(P.z - z, P.x - x);
+      DIR.swarm.push(e); made++;
+    }
+  } else for (let i = 0; i < w.n; i++) DIR.queue.push({ at: 0.2 + i * 0.5, type: 'kitty' });
+  for (let i = 0; i < (w.bees || 0); i++) DIR.queue.push({ at: 1 + i * 0.8, type: 'bee' });
+}
+function stepDirector(dt) {
+  const floor = floorOf(P.y);
+  if (DIR.phase === 'calm') {
+    // it only counts down while nothing much is going on, and not up on the boss's floor
+    const busy = FOES.some(e => e.alive && e.awake && Math.hypot(e.x - P.x, e.z - P.z) < 9 && Math.abs(e.y - P.y) < 3);
+    if (!busy && !P.dead && !P.hang && floor < 5) DIR.t -= dt;
+    if (DIR.t <= 0) swarm({ from: 'above', n: floor >= 3 ? 4 : 3, bees: floor >= 2 ? 1 : 0 });
+  } else if (DIR.phase === 'warn') {
+    if ((DIR.t -= dt) <= 0) spawnSwarm(DIR.warn);
+  } else if (DIR.phase === 'swarm') {
+    DIR.t += dt;
+    const w = DIR.warn;
+    for (const q of DIR.queue) if (!q.done && DIR.t >= q.at) {
+      q.done = true;
+      let e;
+      if (q.type === 'bee') { const a = rand(0, TAU); e = foe('bee', P.x + Math.cos(a) * 7, P.y + (w.from === 'above' ? 4 : -2.5), P.z + Math.sin(a) * 7); }
+      else { e = foe('kitty', w.x + rand(-0.3, 0.3), w.y, w.z + rand(-0.3, 0.3)); e.route = w.route.map(p => p.slice()); }
+      e.awake = true; e.st = 'chase'; e.alert = 1; e.swarm = true; DIR.swarm.push(e);
+    }
+    // it's over when none are still after you: on your floor and nearby, or on their way up
+    const left = DIR.swarm.filter(e => e.alive && (e.route && e.route.length || Math.abs(e.y - P.y) < (TYPES[e.type].fly ? 4.5 : 2.5) && Math.hypot(e.x - P.x, e.z - P.z) < 20));
+    for (const e of DIR.swarm) if (!e.alive && !e.counted) { e.counted = true; DIR.last = { x: e.x, y: floorBelow(e.x, e.y + 0.3, e.z), z: e.z }; }
+    if (DIR.queue.every(q => q.done) && (!left.length || DIR.t > 40)) {
+      DIR.phase = 'calm'; DIR.t = rand(45, 65); DIR.swarm = [];
+      callout('PHEW', '#b8f060', 38, 1.2);
+      if (P.hp < 85 && DIR.last && Math.abs(DIR.last.y - P.y) < 1) ITEMS.push({ kind: 'juice', x: DIR.last.x, y: DIR.last.y, z: DIR.last.z, t: 0 });
+    }
+  }
+}
+// following a set path first (up a staircase, say), then hunting as usual
+function followRoute(e, dt) {
+  const pt = e.route[0];
+  if (Math.hypot(pt[0] - e.x, pt[1] - e.z) < 0.6) { e.route.shift(); return; }
+  walkTo(e, pt[0], pt[1], TYPES[e.type].speed, dt, false);
+  faceTo(e, e.x + e.vx, e.z + e.vz, 10, dt);
+}
 function populate() {
   FOES.length = SHOTS.length = ITEMS.length = GIBS.length = FX.length = SPLATS.length = WAVES.length = TRACERS.length = 0;
   INV.length = 0; SEL = 0;
   const f = (t, x, y, z, o) => foe(t, x, y, z, o), it = (kind, x, y, z) => ITEMS.push({ kind, x, y, z, t: rand(0, 5) });
   // the rug
   f('wolf', -5, 0, 11); f('wolf', 7, 0, 12.5);
-  f('kitty', -4, 0, 3); f('kitty', 2.5, 0, 0); f('kitty', -1, 0, -5);
+  f('kitty', -4, 0, 3); f('kitty', 2.5, 0, 0);
   it('confetti', -2.5, 0, 12); it('juice', -6, 0, 5);
   // floor 1
   f('car', 5.5, Y[1], 5, { pa: [5.5, 6], pb: [5.5, -6], yaw: -Math.PI / 2 });
   f('wolf', 3, Y[1], 1); f('wolf', -4, Y[1], 4); f('wolf', 5, Y[1], -6.5);
-  f('kitty', 0, Y[1], 5); f('kitty', -5, Y[1], -5);
+  f('kitty', -5, Y[1], -5);
   it('rocket', 6.5, Y[1], -1); it('juice', -6, Y[1], 6);
   // floor 2
-  f('kitty', -2, Y[2], 2); f('kitty', -6, Y[2], 5); f('kitty', -4, Y[2], -6.5); f('kitty', -2, Y[2], 6);
+  f('kitty', -6, Y[2], 5); f('kitty', -4, Y[2], -6.5);
   f('wolf', -6, Y[2], 1); f('wolf', -5, Y[2], -4);
-  f('bee', -4, Y[2] + 2, 2); f('bee', -6, Y[2] + 2, -2);
+  f('bee', -4, Y[2] + 2, 2);
   it('bomb', -7, Y[2], 7); it('juice', -2, Y[2], -7);
   // floor 3, with a cannon at the edge that can see down onto floor 2
   f('golem', 4, Y[3], -5);
   f('wolf', -1, Y[3], -3); f('wolf', 5.5, Y[3], -3.5);
-  f('bee', 0, Y[3] + 2, -6); f('bee', 5, Y[3] + 2, -3);
+  f('bee', 5, Y[3] + 2, -3);
   f('cannon', -2, Y[3], -2.8, { yaw: Math.PI / 2 });
   it('mallet', -7, Y[3], -7); it('juice', 6, Y[3], -6);
   // floor 4
   f('car', 5.5, Y[4], -6, { pa: [5.5, -6.5], pb: [5.5, 6.5], yaw: Math.PI / 2 });
-  f('kitty', 2, Y[4], 1); f('kitty', 6.5, Y[4], 4); f('kitty', 2.5, Y[4], 6);
+  f('kitty', 6.5, Y[4], 4);
   f('wolf', 6.5, Y[4], -6); f('wolf', 7, Y[4], 6.5);
-  f('bee', 4, Y[4] + 2, 5); f('bee', 5, Y[4] + 2, -3);
+  f('bee', 4, Y[4] + 2, 5);
   f('cannon', 7, Y[4], -7.2, { yaw: Math.PI });
   it('zap', 7.2, Y[4], 7.2); it('rocket', 2, Y[4], -7); it('juice', 7.2, Y[4], 0);
   // the top floor: the boss
@@ -2218,10 +2428,25 @@ function populate() {
 }
 
 // ---------------------------------------------------------------- HUD: the weapon in your hand
-function drawBlaster(x, y, s, kick) {
+// hanging on by your stubby plastic hands
+function drawHands(u) {
+  const s = gunScale(), pull = P.hang.pull >= 0 ? clamp(P.hang.pull / 0.32, 0, 1) : 0, y = H * 0.66 + pull * H * 0.4 + Math.sin(G.time * 9) * 3 * u * (1 - pull);
+  for (const sx of [-1, 1]) {
+    hx.save(); hx.translate(W / 2 + sx * 150 * s, y); hx.scale(s, s);
+    hx.fillStyle = '#a8620c'; hx.fillRect(-58, -22, 116, 300);
+    hx.fillStyle = '#ffd23f'; hx.fillRect(-52, -30, 104, 70); hx.fillRect(-52, -46, 26, 30); hx.fillRect(-20, -52, 26, 36); hx.fillRect(12, -48, 26, 32);
+    hx.restore();
+  }
+  if (P.hang.pull < 0) {
+    label(IN.mode === 'keys' ? 'SPACE TO PULL UP' : 'JUMP TO PULL UP', W / 2, H * 0.52, 22 * u, '#ffffff', 'center', 0.75 + 0.25 * Math.sin(G.time * 6));
+  }
+}
+function drawBlaster(x, y, s, kick, strain) {
   const col = '#ffb627', dark = '#a8620c', light = '#ffe08a';
   hx.save();
-  hx.translate(x, y + kick * 18 * s); hx.scale(s, s);
+  // straining at something out of reach: it heaves toward it and shakes, but the arm won't bend
+  const st = strain || 0;
+  hx.translate(x + (st ? Math.sin(G.time * 90) * 3 * s * Math.abs(st) : 0), y + kick * 18 * s - st * 26 * s); hx.scale(s, s);
   if (kick > 0.55) {
     hx.fillStyle = 'rgba(255,240,160,0.9)'; hx.beginPath();
     for (let i = 0; i < 10; i++) { const a = i / 10 * TAU, r = i % 2 ? 26 : 62; hx.lineTo(Math.cos(a) * r, -214 + Math.sin(a) * r * 0.6); }
@@ -2383,7 +2608,7 @@ function wayUp() {
   const f = Y.reduce((f, y, k) => P.y > y - 0.3 ? k : f, 0);
   if (f === 0) return { x: 4, y: 0.6, z: 13.5, t: 'UP' };
   if (f === 1) return { x: PADS[0].x, y: Y[1] + 0.3, z: PADS[0].z, t: 'BOING' };
-  if (f === 2) { const L = LIFTS[0]; return { x: (L.x0 + L.x1) / 2, y: L.y, z: (L.z0 + L.z1) / 2, t: 'LIFT' }; }
+  if (f === 2) { const L = LIFTS[0]; return { x: (L.x0 + L.x1) / 2, y: L.y, z: (L.z0 + L.z1) / 2, t: L.mode === 'coming' ? 'LIFT ' + Math.ceil(L.slow - L.t) : 'LIFT' }; }
   if (f === 3) return { x: -4.5, y: Y[3] + 0.6, z: -5, t: 'STAIRS' };
   if (f === 4) return { x: 4.6, y: Y[4], z: 3, t: 'CLIMB' };
   if (stepsT < 0) return null;
@@ -2467,7 +2692,8 @@ function drawHUD(dt) {
   if (G.st === 'title') return;
   const u = U(), pad = 14 * u, L = SAFE.l + pad, T = SAFE.t + pad;
   drawTracers();
-  if (!P.dead && G.st === 'play') { if (!P.vm || P.vm.t > 0.5 || P.vm.kind === 'zap' || P.vm.kind === 'bomb') drawBlaster(W / 2, H + 40 * u, gunScale(), P.kick); drawViewItem(); }
+  if (!P.dead && G.st === 'play' && !P.hang) { if (!P.vm || P.vm.t > 0.5 || P.vm.kind === 'zap' || P.vm.kind === 'bomb') drawBlaster(W / 2, H + 40 * u, gunScale(), P.kick, P.strain); drawViewItem(); }
+  if (P.hang && G.st === 'play') drawHands(u);
   drawWayUp();
   drawMarks();
   // health
@@ -2480,6 +2706,17 @@ function drawHUD(dt) {
   hx.fillStyle = 'rgba(20,10,36,0.55)'; hx.fillRect(mx - 4 * u, my, 8 * u, mh);
   for (const c of CHECKS) if (c.n > 0 && !(c.step && c.step.p < 1)) { hx.fillStyle = c.reached ? '#b8f060' : 'rgba(255,255,255,0.5)'; hx.fillRect(mx - 7 * u, my + mh * (1 - c.y / topY) - 1.5 * u, 14 * u, 3 * u); }
   hx.fillStyle = '#ff5a5a'; hx.fillRect(mx - 4 * u, my - 3 * u, 8 * u, 6 * u);
+  // a height radar: toys hunting you nearby, at their heights on the strip
+  for (const e of FOES) {
+    if (!e.alive || !(e.awake || e.swarm) || Math.hypot(e.x - P.x, e.z - P.z) > 16) continue;
+    hx.fillStyle = e.swarm ? '#ff7ad9' : '#ff5a5a'; circle(mx - 9 * u, my + mh * (1 - clamp((e.y + e.h * 0.5) / topY, 0, 1)), 2.6 * u);
+  }
+  // and where a swarm is about to come from
+  if (DIR.phase === 'warn' && DIR.warn) {
+    const up = DIR.warn.from === 'above', y0 = my + mh * (1 - clamp(P.y / topY, 0, 1));
+    hx.fillStyle = `rgba(255,122,217,${0.35 + 0.35 * Math.sin(G.time * 14)})`;
+    hx.fillRect(mx - 12 * u, up ? y0 - 30 * u : y0 + 4 * u, 6 * u, 26 * u);
+  }
   const py = my + mh * (1 - clamp(P.y / topY, 0, 1));
   hx.fillStyle = '#ffd23f'; hx.beginPath(); hx.moveTo(mx + 6 * u, py); hx.lineTo(mx + 16 * u, py - 6 * u); hx.lineTo(mx + 16 * u, py + 6 * u); hx.closePath(); hx.fill();
   label(Math.round(P.y / BH) + ' bricks up', mx + 20 * u, py, 14 * u, '#ffffff');
@@ -2488,8 +2725,27 @@ function drawHUD(dt) {
   drawBossBar();
   // crosshair, lit up when a shot would hit something
   const cx = W / 2, cy = H / 2, on = G.st === 'play' && inLine();
-  if (on && on.alive) { const p = project(on.x, on.y + on.h * 0.5, on.z); if (p) { hx.strokeStyle = 'rgba(184,240,96,0.85)'; hx.lineWidth = 2 * u; ring(p.x, p.y, clamp(on.r * 1.3 * H / p.w * 0.9, 14 * u, 120 * u)); } }
+  if (on && on.alive) { const p = project(on.x, AIMY, on.z); if (p) { hx.strokeStyle = 'rgba(184,240,96,0.85)'; hx.lineWidth = 2 * u; ring(p.x, p.y, clamp(on.r * 1.3 * H / p.w * 0.9, 14 * u, 120 * u)); } }
   hx.lineCap = 'round';
+  if (G.st === 'play') {
+    // how far your molded arm can wobble: faint brackets at the top and bottom of its reach
+    const k = Math.min(H * 0.42, AIMT / Math.tan(CAM.fovy / 2) * H / 2), bw = 13 * u, hot = !on && OUTBAND ? OUTDIR : 0;
+    for (const sg of [-1, 1]) {
+      hx.strokeStyle = hot === -sg ? 'rgba(255,154,58,0.95)' : 'rgba(255,255,255,0.3)'; hx.lineWidth = 2 * u;
+      const yy = cy + sg * k, t = -sg * 6 * u;
+      hx.beginPath(); hx.moveTo(cx - 3 * bw, yy + t); hx.lineTo(cx - 3 * bw, yy); hx.lineTo(cx - 1.9 * bw, yy);
+      hx.moveTo(cx + 1.9 * bw, yy); hx.lineTo(cx + 3 * bw, yy); hx.lineTo(cx + 3 * bw, yy + t); hx.stroke();
+    }
+    if (!on && OUTBAND) {
+      const o = OUTBAND, p = project(o.x, o.kind ? o.y : o.y + o.h * 0.5, o.z);
+      if (p) {
+        const r = clamp((o.r || 0.3) * 1.3 * H / p.w * 0.9, 12 * u, 90 * u), d = OUTDIR, ty = p.y - d * (r + 12 * u);
+        hx.setLineDash([5 * u, 5 * u]); hx.strokeStyle = 'rgba(255,154,58,0.9)'; hx.lineWidth = 2 * u; ring(p.x, p.y, r); hx.setLineDash([]);
+        hx.fillStyle = '#ff9a3a'; hx.beginPath(); hx.moveTo(p.x - 10 * u, ty + d * 6 * u); hx.lineTo(p.x, ty - d * 6 * u); hx.lineTo(p.x + 10 * u, ty + d * 6 * u); hx.closePath(); hx.fill();
+        if ((HINT.band || 0) <= 4 && G.time - (P.creakT || -9) < 1.4) label(d > 0 ? 'TOO HIGH · BACK OFF OR CLIMB' : 'TOO LOW · BACK OFF OR GO DOWN', p.x, ty - d * 20 * u, 15 * u, '#ff9a3a', 'center');
+      }
+    }
+  }
   if (G.st === 'play') for (const [w, c] of [[5 * u, 'rgba(20,10,36,0.5)'], [2.2 * u, on ? '#b8f060' : '#ffffff']]) {
     hx.lineWidth = w; hx.strokeStyle = c; hx.beginPath();
     hx.moveTo(cx - 16 * u, cy); hx.lineTo(cx - 7 * u, cy); hx.moveTo(cx + 7 * u, cy); hx.lineTo(cx + 16 * u, cy);
@@ -2499,17 +2755,19 @@ function drawHUD(dt) {
   if (G.st === 'play') drawControls();
   // callouts
   // the newest in the middle, older ones pushed up above it
-  let sy = H * 0.3;
+  let sy = H * 0.3, prev = 0;
   for (let i = G.callouts.length - 1; i >= 0; i--) {
     const c = G.callouts[i], age = c.max - c.life, pop = 1 + 0.45 * Math.max(0, 1 - age * 7), a = Math.min(1, c.life * 3);
     if (c.at) { const p = project(c.at.x, c.at.y + age * 1.5, c.at.z); if (p) label(c.text, p.x, p.y, c.size * u * pop * clamp(7 / p.w, 0.55, 1.1), c.col, 'center', a); continue; }
+    if (prev) sy -= (prev + c.size) * 0.5 * u * 1.08;
     label(c.text, W / 2, sy, c.size * u * pop, c.col, 'center', a);
-    sy -= c.size * u * 1.05;
+    prev = c.size;
   }
   G.callouts = G.callouts.filter(c => (c.life -= dt) > 0);
 }
 function drawControls() {
   const u = U(), B = buttons();
+  if (IN.mode === 'keys') { drawKeyControls(u, B); return; }
   // the stick
   if (stick) {
     const R = stickR();
@@ -2527,20 +2785,41 @@ function drawControls() {
   drawItemButton();
   // first-time hints
   if (G.st === 'play' && !G.paused && !P.dead && !(G.intro > 0) && !HINT.learned) {
-    const pulse = 0.82 + 0.18 * Math.sin(G.time * 5), coarse = matchMedia('(pointer: coarse)').matches;
-    if (HINT.moved < 5 && !stick) {
-      if (coarse && !IN.keys) { hx.strokeStyle = `rgba(255,255,255,${0.45 * pulse})`; hx.lineWidth = 2 * u; ring(W * 0.2, H * 0.64, stickR()); label('DRAG HERE', W * 0.2, H * 0.64 - 10 * u, 18 * u, '#ffffff', 'center', pulse); label('to walk and turn', W * 0.2, H * 0.64 + 12 * u, 15 * u, '#ffffff', 'center', pulse); }
-      else label('W S walk · A D turn · click to steer with the mouse', W * 0.5, H * 0.72, 17 * u, '#ffffff', 'center', pulse);
-    }
+    const pulse = 0.82 + 0.18 * Math.sin(G.time * 5);
+    if (HINT.moved < 5 && !stick) { hx.strokeStyle = `rgba(255,255,255,${0.45 * pulse})`; hx.lineWidth = 2 * u; ring(W * 0.2, H * 0.64, stickR()); label('DRAG HERE', W * 0.2, H * 0.64 - 10 * u, 18 * u, '#ffffff', 'center', pulse); label('to walk and turn', W * 0.2, H * 0.64 + 12 * u, 15 * u, '#ffffff', 'center', pulse); }
     if (HINT.fired < 8) label('HOLD', B.fire.x, B.fire.y + B.fire.r * 0.45, B.fire.r * 0.24, '#ffd23f', 'center', pulse);
     if (INV.length && HINT.used < 1) label('TAP TO USE', B.item.x, B.item.y - B.item.r - 14 * u, 16 * u, '#ffd23f', 'center', pulse);
     if (HINT.moved >= 5 && HINT.fired >= 8 && HINT.used >= 1) { HINT.learned = true; store.set('learned', 1); }
   }
-  if (IN.keys) {
-    label('SPACE', B.jump.x, B.jump.y + B.jump.r + 12 * u, 12 * u, '#ffffff', 'center', 0.8);
-    label('J', B.fire.x, B.fire.y + B.fire.r + 12 * u, 12 * u, '#ffffff', 'center', 0.8);
-    label('K', B.item.x, B.item.y + B.item.r + 12 * u, 12 * u, '#ffffff', 'center', 0.8);
+}
+// on a laptop there are no buttons on the screen: just what you are carrying, and the keys for it
+function drawKeyControls(u, B) {
+  const b = B.item;
+  drawItemButton();
+  if (INV[SEL]) keycap('E', b.x, b.y + b.r + 13 * u, 17 * u);
+  for (const c of chipSpots()) keycap(String(c.i + 1), c.x, c.y + c.r + 12 * u, 15 * u);
+  if (G.st !== 'play' || G.paused || P.dead || G.intro > 0) return;
+  const pulse = 0.82 + 0.18 * Math.sin(G.time * 5);
+  let y = H * 0.76;
+  const row = (text, col, a) => { label(text, W / 2, y, 16 * u, col, 'center', a); y += 22 * u; };
+  if (!HINT.learned) {
+    if (HINT.moved < 5) row(IN.locked ? 'W S WALK · A D SIDESTEP · THE MOUSE TURNS YOU' : 'W S WALK · A D TURN', '#ffffff', pulse);
+    if (HINT.fired < 8) row(IN.lockFail ? 'HOLD F OR J TO FIRE' : 'HOLD F OR J TO FIRE, OR THE LEFT BUTTON', '#ffd23f', pulse);
+    if (INV.length && HINT.used < 1) label(IN.lockFail ? 'E TO USE' : 'E (OR THE RIGHT BUTTON) TO USE', b.x - b.r * 0.6, b.y - b.r - 14 * u, 15 * u, '#ffd23f', 'right', pulse);
+    if (HINT.moved >= 5 && HINT.fired >= 8 && HINT.used >= 1) { HINT.learned = true; store.set('learned', 1); }
   }
+  // until the mouse is grabbed (early in a climb, and for a while after it's let go), a reminder that it can be
+  if (!IN.locked && !IN.lockFail && (!HINT.learned || G.t < 12 || G.time - IN.freeT < 8)) row('CLICK TO STEER WITH THE MOUSE', '#b8f060', 0.55 + 0.35 * pulse);
+}
+// a key drawn as a little key
+function keycap(text, x, y, s) {
+  hx.save();
+  hx.font = `${Math.round(s * 0.62)}px ${DISPLAY}`;
+  const w = Math.max(s, hx.measureText(text).width + s * 0.5);
+  hx.globalAlpha = 0.85; hx.fillStyle = 'rgba(20,10,36,0.7)'; hx.strokeStyle = 'rgba(255,255,255,0.75)'; hx.lineWidth = Math.max(1, s * 0.08);
+  hx.beginPath(); if (hx.roundRect) hx.roundRect(x - w / 2, y - s / 2, w, s, s * 0.22); else hx.rect(x - w / 2, y - s / 2, w, s); hx.fill(); hx.stroke();
+  hx.fillStyle = '#ffffff'; hx.textAlign = 'center'; hx.textBaseline = 'middle'; hx.fillText(text, x, y + s * 0.04);
+  hx.restore();
 }
 
 // ---------------------------------------------------------------- game flow
@@ -2549,13 +2828,18 @@ let panelKind = null;
 function el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
 function button(cls, text, fn) { const b = el('button', cls, text); b.type = 'button'; b.addEventListener('click', fn); return b; }
 function controlsList() {
-  const dl = el('dl', 'controls');
-  for (const [k, v] of [['Touch', 'left thumb: a stick that walks and turns; right thumb: FIRE (hold), JUMP, and the button for whatever you picked up'],
-    ['Keys', 'W S walk, A D turn, Space jumps, J fires, K uses your pickup, Q swaps pickups'],
-    ['Mouse', 'click to grab the mouse; move it to turn, click to fire, right-click for your pickup, A D sidestep'],
-    ['Aim', 'turn to face it: the gun fires straight ahead and finds the height by itself']]) dl.append(el('dt', null, k), el('dd', null, v));
+  const dl = el('dl', 'controls'), keys = IN.mode === 'keys';
+  const rows = keys ? [['Keys', 'W S walk, A D turn (or the arrow keys). Space jumps. Hold F or J to fire; E or K uses your pickup; Q or 1 to 4 swaps.'],
+    ['Mouse', 'click the game to grab the pointer, and the mouse or trackpad turns you while A D sidestep. Hold the left button to fire; the right button uses your pickup and the wheel swaps. Esc lets go and pauses.']]
+    : [['Touch', 'left thumb: a stick that walks and turns; right thumb: FIRE (hold), JUMP, and the button for whatever you picked up']];
+  for (const [k, v] of [...rows,
+    ['Aim', 'turn to face it. The blaster only wobbles a little up or down: to hit something above or below you, climb to it or back away from it. Bombs, zaps and confetti reach further.'],
+    ['Edges', 'you rock on the lip for a moment before you step off. If you go over, you grab on, and ' + (keys ? 'Space' : 'JUMP') + ' pulls you up.']]) dl.append(el('dt', null, k), el('dd', null, v));
   return dl;
 }
+// how fast the mouse turns you, for the pause menu
+const SENS = [[0.55, 'slow'], [1, 'normal'], [1.7, 'fast']];
+function sensName() { let b = SENS[0]; for (const s of SENS) if (Math.abs(s[0] - IN.sens) < Math.abs(b[0] - IN.sens)) b = s; return b; }
 function showPanel(kind) {
   panelKind = kind;
   sheetEl.textContent = '';
@@ -2566,13 +2850,19 @@ function showPanel(kind) {
     primary = button('play', 'Climb', startGame);
     sheetEl.append(el('p', 'eyebrow', 'A toy-box shooter'), title('h1', 'Tall Order'),
       el('p', 'lede', 'Somebody built a tower out of big bricks in the middle of the rug, and it is crawling with toys. Fight your way to the flag on top.'),
+      el('p', 'figure', 'You are a cheap plastic figure. Your head only turns side to side and your blaster is molded at your hip, so you can only hit what is roughly level with you. What is above you, you climb to.'),
       el('p', 'sideways', 'It plays best with your phone turned sideways.'),
       controlsList(), actions(primary, G.best ? el('span', 'muted', 'Best ' + fmtTime(G.best)) : el('span')));
   } else if (kind === 'pause') {
     primary = button('play', 'Resume', resume);
     const snd = button('ghost', muted ? 'Sound off' : 'Sound on', () => { setMuted(!muted); snd.textContent = muted ? 'Sound off' : 'Sound on'; });
     const mus = button('ghost', MUS.on ? 'Music on' : 'Music off', () => { MUS.on = !MUS.on; store.set('music', MUS.on ? 1 : 0); mus.textContent = MUS.on ? 'Music on' : 'Music off'; });
-    sheetEl.append(el('p', 'eyebrow', 'Tall Order'), title('h2', 'Paused'), controlsList(), actions(primary, snd, mus, button('ghost', 'Start over', startGame)));
+    const more = [snd, mus];
+    if (IN.mode === 'keys') {
+      const spd = button('ghost', 'Mouse ' + sensName()[1], () => { const i = (SENS.indexOf(sensName()) + 1) % SENS.length; IN.sens = SENS[i][0]; store.set('sens', IN.sens); spd.textContent = 'Mouse ' + SENS[i][1]; });
+      more.push(spd);
+    }
+    sheetEl.append(el('p', 'eyebrow', 'Tall Order'), title('h2', 'Paused'), controlsList(), actions(primary, ...more, button('ghost', 'Start over', startGame)));
   } else if (kind === 'win') {
     primary = button('play', 'Climb again', startGame);
     const st = el('dl', 'stats');
@@ -2603,23 +2893,30 @@ function startGame() {
   if (REDUCE) { callout('CLIMB!', '#ffd23f', 64, 1); sfx.start(); }
 }
 function resetGame() {
-  Object.assign(P, { x: 4, y: 0, z: 23.5, yaw: -Math.PI / 2, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 0, dead: 0, check: 0, onGround: true, ground: null, fallFrom: 0, full: 0, fireT: 0, kick: 0, itemT: 0, vm: null, swing: 0, hurtT: 0, hurtA: null });
+  Object.assign(P, { x: 4, y: 0, z: 23.5, yaw: -Math.PI / 2, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 0, dead: 0, check: 0, onGround: true, ground: null, fallFrom: 0, full: 0, fireT: 0, kick: 0, itemT: 0, vm: null, swing: 0, hurtT: 0, hurtA: null, hang: null, lip: null, edgeT: 0, tip: 0, strain: 0, padT: 0, launched: false, jumpBuf: 0 });
   for (const c of CHECKS) c.reached = c.n === 0;
   for (const s of STEPS) { s.p = 0; s.sol.off = true; }
   stepsT = -1;
+  for (const L of LIFTS) { L.mode = 'top'; L.t = 0; L.rung = false; L.y = L.hi; L.sol.y0 = L.hi - 0.4; L.sol.y1 = L.hi; }
   Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0 });
   G.callouts.length = 0; PARTS.length = 0; G.stats = { shots: 0, hits: 0 };
-  stick = null; pointers.clear();
-  IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = false; IN.mb = 0; IN.mouseTurn = 0;
+  stick = null; pointers.clear(); resetDirector();
+  IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = IN.fireTap = false; IN.mb = 0; IN.mouseTurn = 0; IN.ktap = 0;
   populate();
 }
 function pause() {
   if (G.st !== 'play' || G.paused) return;
-  G.paused = true; stick = null; pointers.clear(); IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = false;
+  G.paused = true; stick = null; pointers.clear(); IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = IN.fireTap = false; IN.mb = 0;
+  IN.relock = IN.locked;
   if (document.pointerLockElement) document.exitPointerLock();
   showPanel('pause');
 }
-function resume() { G.paused = false; hidePanel(); last = performance.now(); try { hud.focus({ preventScroll: true }); } catch (e) {} }
+function resume() {
+  G.paused = false; hidePanel(); last = performance.now(); try { hud.focus({ preventScroll: true }); } catch (e) {}
+  // if the mouse was grabbed before the pause, grab it again (this is inside the click or key that resumed)
+  if (IN.relock && IN.mode === 'keys') grabMouse();
+  IN.relock = false;
+}
 
 // ---------------------------------------------------------------- input wiring
 hud.addEventListener('pointerdown', e => {
@@ -2627,10 +2924,9 @@ hud.addEventListener('pointerdown', e => {
   if (G.st !== 'play' || G.paused) return;
   e.preventDefault();
   try { hud.setPointerCapture(e.pointerId); } catch (_) {}
-  const mouse = e.pointerType === 'mouse';
-  if (mouse && IN.locked) { mouseButtons(e); return; }
-  if (mouse && e.button === 2) { useItem(); return; }
-  if (mouse && e.button > 0) return;
+  // a mouse (or a trackpad) means a laptop: a click grabs it, so it can turn you, and its buttons fire
+  if (e.pointerType === 'mouse') { setMode('keys'); if (!IN.locked) grabMouse(); mouseButtons(e); return; }
+  setMode('touch');
   const x = e.clientX, y = e.clientY;
   // a new touch on the left half always becomes the stick, even if the last one's end never arrived
   if (x < W / 2) { stick = { id: e.pointerId, x0: x, y0: y, x, y }; return; }
@@ -2640,7 +2936,13 @@ hud.addEventListener('pointerdown', e => {
 });
 hud.addEventListener('pointermove', e => {
   if (G.st !== 'play' || G.paused) return;
-  if (IN.locked && e.pointerType === 'mouse') { IN.mouseTurn += e.movementX * 0.0032; if ((e.buttons | 0) !== IN.mb) mouseButtons(e); return; }
+  if (e.pointerType === 'mouse') {
+    // (a jump of hundreds of pixels in one move is the browser putting the hidden pointer back, not you)
+    const mx = e.movementX || 0;
+    if (IN.locked && Math.abs(mx) < 300) IN.mouseTurn += mx * 0.003 * IN.sens;
+    if (e.button >= 0 && (e.buttons | 0) !== IN.mb) mouseButtons(e);
+    return;
+  }
   if (stick && stick.id === e.pointerId) {
     stick.x = e.clientX; stick.y = e.clientY;
     const R = stickR(), dx = stick.x - stick.x0, dy = stick.y - stick.y0, L = Math.hypot(dx, dy);
@@ -2650,16 +2952,17 @@ hud.addEventListener('pointermove', e => {
   const p = pointers.get(e.pointerId);
   if (p) { p.x = e.clientX; p.y = e.clientY; const b = onButton(e.clientX, e.clientY); if (b && b !== p.b) press(e.pointerId, b); }
 });
-// with the mouse grabbed: the left button fires while held, pressing the right one uses your pickup.
+// the left button fires while held, pressing the right one uses your pickup
 // (a second button pressed or let go while another is down arrives as a move, so go by the mask)
 function mouseButtons(e) {
   const b = e.buttons | 0;
   IN.mFire = !!(b & 1);
+  if ((b & 1) && !(IN.mb & 1)) IN.fireTap = true;
   if ((b & 2) && !(IN.mb & 2)) useItem();
   IN.mb = b;
 }
 const pointerEnd = e => {
-  if (IN.locked && e.pointerType === 'mouse') { mouseButtons(e); return; }
+  if (e.pointerType === 'mouse') { mouseButtons(e); return; }
   if (stick && stick.id === e.pointerId) stick = null;
   pointers.delete(e.pointerId);
 };
@@ -2676,15 +2979,36 @@ function reconcile(e) {
 }
 for (const t of ['touchstart', 'touchend', 'touchcancel']) hud.addEventListener(t, reconcile, { passive: true });
 hud.addEventListener('contextmenu', e => e.preventDefault());
-hud.addEventListener('click', e => {
-  // with a mouse, a click grabs it, so it can turn you
-  if (G.st !== 'play' || G.paused || IN.locked || e.pointerType === 'touch' || matchMedia('(pointer: coarse)').matches) return;
-  try { const r = hud.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (_) {}
-});
+function grabMouse() {
+  if (IN.locked || !hud.requestPointerLock) return;
+  try { const r = hud.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (_) { lockFailed(); }
+}
+function lockFailed() {
+  // some pages (inside a frame, say) won't let the mouse be grabbed; the keys still turn you
+  if (IN.everLocked || IN.lockFail) return;
+  IN.lockFail = true;
+  if (G.st === 'play') callout("THE MOUSE CAN'T BE GRABBED HERE · A D TURN", '#ff9a3a', 24, 2.6);
+}
+document.addEventListener('pointerlockerror', lockFailed);
 document.addEventListener('pointerlockchange', () => {
+  const was = IN.locked;
   IN.locked = document.pointerLockElement === hud;
-  if (!IN.locked) { IN.mFire = false; IN.mb = 0; IN.ksl = IN.ksr = 0; }
+  if (IN.locked) { IN.everLocked = true; IN.lockFail = false; return; }
+  IN.mFire = false; IN.mb = 0; IN.ksl = IN.ksr = 0; IN.freeT = G.time;
+  // Esc lets go of the mouse, so that pauses; resuming grabs it again
+  if (was && G.st === 'play' && !G.paused) { pause(); IN.relock = true; }
 });
+// the wheel (or two fingers on a trackpad) swaps pickups: one swap per flick
+hud.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (G.st !== 'play' || G.paused) return;
+  const now = performance.now();
+  if (now - IN.wheelAt > 220) { IN.wheel = 0; IN.wheelDone = false; }
+  IN.wheelAt = now;
+  if (IN.wheelDone) return;
+  IN.wheel += e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? 400 : 1);
+  if (Math.abs(IN.wheel) >= 40) { IN.wheelDone = true; cycleItem(Math.sign(IN.wheel)); }
+}, { passive: false });
 pauseBtn.addEventListener('click', pause);
 window.addEventListener('keydown', e => {
   if (e.code === 'KeyM') { audio(); setMuted(!muted); return; }
@@ -2700,14 +3024,15 @@ function key(code, down) {
   const v = down ? 1 : 0;
   if (code === 'KeyW' || code === 'ArrowUp') IN.kf = v;
   else if (code === 'KeyS' || code === 'ArrowDown') IN.kb = v;
-  else if (code === 'KeyA' || code === 'ArrowLeft') { if (!down) { IN.kl = 0; if (code === 'KeyA') IN.ksl = 0; } else if (IN.locked && code === 'KeyA') IN.ksl = 1; else IN.kl = 1; }
-  else if (code === 'KeyD' || code === 'ArrowRight') { if (!down) { IN.kr = 0; if (code === 'KeyD') IN.ksr = 0; } else if (IN.locked && code === 'KeyD') IN.ksr = 1; else IN.kr = 1; }
+  else if (code === 'KeyA' || code === 'ArrowLeft') { if (!down) { IN.kl = 0; if (code === 'KeyA') IN.ksl = 0; } else if (IN.locked && code === 'KeyA') IN.ksl = 1; else { IN.kl = 1; IN.ktap = -1; } }
+  else if (code === 'KeyD' || code === 'ArrowRight') { if (!down) { IN.kr = 0; if (code === 'KeyD') IN.ksr = 0; } else if (IN.locked && code === 'KeyD') IN.ksr = 1; else { IN.kr = 1; IN.ktap = 1; } }
   else if (code === 'Space') { IN.kJump = down; if (down) P.jumpBuf = 0.14; }
-  else if (code === 'KeyJ' || code === 'KeyF' || code === 'Enter') IN.kFire = down;
-  else if (code === 'KeyK' || code === 'KeyE') { if (down) useItem(); }
-  else if (code === 'KeyQ') { if (down) cycleItem(); }
+  else if (code === 'KeyJ' || code === 'KeyF' || code === 'KeyZ' || code === 'Enter') { IN.kFire = down; if (down) IN.fireTap = true; }
+  else if (code === 'KeyK' || code === 'KeyE' || code === 'KeyX') { if (down) useItem(); }
+  else if (code === 'KeyQ' || code === 'KeyC' || code === 'KeyL') { if (down) cycleItem(); }
+  else if (/^(Digit|Numpad)[1-4]$/.test(code)) { const i = +code.slice(-1) - 1; if (down && INV[i] && i !== SEL) { SEL = i; sfx.pickup(); } }
   else return;
-  if (down) IN.keys = true;
+  if (down) setMode('keys');
 }
 window.addEventListener('blur', pause);
 document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
@@ -2722,10 +3047,14 @@ function frame(now) {
     if (G.st === 'play' && !G.paused && !G.manual) {
       G.t += dt;
       stepLifts(dt); stepSteps(dt); stepPlayer(dt); stepWorld(dt);
-    } else if (G.st === 'win') { G.winT += dt; if (G.winT > 2.2 && panelKind !== 'win') { finishRun(); showPanel('win'); } }
+    } else if (G.st === 'win') {
+      G.winT += dt;
+      if (G.winT > 0.6 && !G.hinged) { G.hinged = true; sfx.clack(1); sfx.hinge(); callout('CLICK! A NECK HINGE. YOU CAN LOOK UP', '#b8f060', 30, 2.6); }
+      if (G.winT > 4.4 && panelKind !== 'win') { finishRun(); showPanel('win'); }
+    }
     if (G.st !== 'play' || !G.paused) stepParts(dt);
     const bossOn = G.boss && G.boss.alive && G.boss.awake && P.y > Y[4] - 0.5;
-    music(G.st === 'play' && !G.paused ? (bossOn ? 'boss' : 'climb') : null, stepsT >= 0 ? 2 : 0);
+    music(G.st === 'play' && !G.paused ? (bossOn ? 'boss' : DIR.phase === 'swarm' || DIR.phase === 'warn' ? 'swarm' : 'climb') : null, bossOn || DIR.phase === 'calm' ? (stepsT >= 0 ? 2 : 0) : 0);
     G.shake = Math.max(0, G.shake - dt * 30); G.flash = Math.max(0, G.flash - dt * 3);
     placeCamera(dt);
     drawLifts(); drawPads(); drawChecks(); drawSteps(); drawGoal(); drawParts();
@@ -2755,14 +3084,20 @@ function placeCamera(dt) {
     CAM.yaw = Math.atan2(1 - CAM.z, -CAM.x); CAM.pitch = 0.18;
     return;
   }
+  if (G.st === 'win' && GOAL && G.winT < 2.4) {
+    // with the hinge in, the first look up: at the ceiling, and the lamp you have been climbing toward
+    const k = easeInOut(clamp((G.winT - 0.7) / 1.1, 0, 1)) * (1 - easeInOut(clamp((G.winT - 2.0) / 0.4, 0, 1)) * 0.4);
+    CAM.x = P.x; CAM.y = P.y + EYE; CAM.z = P.z; CAM.yaw = P.yaw + Math.sin(G.winT * 1.3) * 0.15 * k; CAM.pitch = 1.25 * k;
+    return;
+  }
   if (G.st === 'win' && GOAL) {
-    // at the top: swing out and circle the flag
-    const e = easeInOut(clamp(G.winT / 2.4, 0, 1));
+    // then swing out and circle the flag
+    const wt = G.winT - 2.4, e = easeInOut(clamp(wt / 2.4, 0, 1));
     if (G.winA == null) { G.winA = Math.atan2(P.z - GOAL.z, P.x - GOAL.x); G.winR = Math.max(0.5, Math.hypot(P.x - GOAL.x, P.z - GOAL.z)); }
-    const a = G.winA + G.winT * 0.22, R = lerp(G.winR, 9, e);
+    const a = G.winA + wt * 0.22, R = lerp(G.winR, 9, e);
     CAM.x = GOAL.x + Math.cos(a) * R; CAM.z = GOAL.z + Math.sin(a) * R; CAM.y = lerp(P.y + EYE, GOAL.y + 4.5, e);
     const yaw = Math.atan2(GOAL.z - CAM.z, GOAL.x - CAM.x), pitch = Math.atan2(GOAL.y + 1.4 - CAM.y, R);
-    CAM.yaw = P.yaw + wrap(yaw - P.yaw) * e; CAM.pitch = pitch * e;
+    CAM.yaw = P.yaw + wrap(yaw - P.yaw) * e; CAM.pitch = lerp(1.25 * 0.6, pitch, e);
     return;
   }
   const down = P.dead > 0 ? clamp(1 - P.dead / 2.2, 0, 1) : 0;
@@ -2773,7 +3108,9 @@ function placeCamera(dt) {
     if (was > 1.5 && G.intro <= 1.5) { callout('CLIMB!', '#ffd23f', 64, 1); sfx.start(); }
   }
   const up = G.intro > 0 ? easeInOut(clamp(G.intro / 1.7, 0, 1)) * 0.56 : 0;
-  CAM.x = P.x; CAM.y = P.y + EYE * (1 - down * 0.7); CAM.z = P.z; CAM.yaw = P.yaw; CAM.pitch = up - down * 0.35;
+  // teetering, your base rocks on the lip: tipping forward shows you the drop, backward the ceiling
+  const tip = (P.tip || 0) * (0.3 + 0.05 * Math.sin(G.time * 24)) * -Math.sign(P.tipTo || 0);
+  CAM.x = P.x; CAM.y = P.y + EYE * (1 - down * 0.7); CAM.z = P.z; CAM.yaw = P.yaw; CAM.pitch = up - down * 0.35 + tip + (P.hang ? 0.12 : 0);
 }
 
 // ---------------------------------------------------------------- boot
@@ -2785,7 +3122,7 @@ buildMesh();
 resize();
 showPanel('title');
 window.tallOrder = {
-  FOES, SHOTS, ITEMS, INV, WAVES, giveItem, useItem, inLine, populate, los, floorBelow, stepsT: () => stepsT,
+  FOES, SHOTS, ITEMS, INV, WAVES, giveItem, useItem, inLine, populate, los, floorBelow, foe, stepsT: () => stepsT, aim: () => ({ out: OUTBAND, dir: OUTDIR, y: AIMY }), selIdx: () => SEL, dir: () => DIR,
   sim(secs) { const dt = 1 / 60; for (let i = 0; i < Math.round(secs * 60); i++) { G.time += dt; G.t += dt; stepLifts(dt); stepSteps(dt); stepPlayer(dt); if (typeof stepWorld === 'function') stepWorld(dt); } },
   setStick(x, y) { if (x == null) { stick = null; return; } const R = stickR(); stick = { id: -1, x0: 0, y0: 0, x: x * R, y: y * R }; },
   G, P, IN, SOL, CHECKS, LIFTS, PADS, LADDERS, STEPS, CAM, GOAL: () => GOAL, stick: () => stick && { ...stick }, pointers: () => [...pointers], start: startGame, world: () => WORLD, key, buttons, buildSteps,
