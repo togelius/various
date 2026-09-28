@@ -269,6 +269,18 @@ And the one that can help you climb:
   waits out beyond the tower, where you can see it, and hit it from far enough
   away.
 
+And the ones racing you:
+
+- **Their tower.** Out on the rug beside yours, the wolves are stacking a tower
+  of their own, a big brick at a time: the ones on top hop, and when they land
+  there's another brick under them ("HUP!"). While theirs is taller than you,
+  they throw bricks down at you from up there (from far enough away, the angle
+  rule lets you hit them back). Shoot out the brick level with you and
+  everything above it comes down, wolves and all; new wolves climb up the side
+  (hit one on the way up and it lets go) and start again from what's left. Or
+  just out-climb them: it tops out just short of your top floor, so up there
+  you've won the race. On the height strip it's the mark with the wolf ears.
+
 Toys that fall far enough go SPLAT, and everything that pops falls apart into
 the bricks it was made of, with ketchup. Pop several in a row for a DOUBLE POP
 or better. Your own blasts push you around but never hurt you, so rocket jumps
@@ -276,8 +288,8 @@ work. Toys' blasts hurt everyone, toys included. The toys shout things when
 they spot you and when they wind up, one at a time.
 
 At the end you get your time, how many toys you popped on the way up and on
-the way down, how often you fell or were knocked out, a rank, and the chart of
-your climb.
+the way down, how often you knocked their tower down, how often you fell or
+were knocked out, a rank, and the chart of your climb.
 
 ## Pickups
 
@@ -393,12 +405,16 @@ whenever the resolution scaler changed the resolution, because it resized the
 canvas after drawing the frame.
 
 The runs also set the difficulty, which was meant to stay about where it was
-before. With everything in, the kitty ladders included, the bot in human mode
-finishes in two to two and a half minutes and gets knocked out up to three
-times, mostly by the MEGA WOLF and by falls; the novice takes two and a half to
-four and a half minutes, with two to four knockouts; and the novice that stands
-about on every floor takes about five minutes, meets four or five swarms (one
-or two of them up a ladder) and gets knocked out four or five times. The eagle
+before. With everything in, the kitty ladders and their tower included, the
+bot in human mode finishes in a minute and three quarters to two and a half
+minutes and gets knocked out up to three times, mostly by the MEGA WOLF and by
+falls; the novice takes two to four and a half minutes, with one to five
+knockouts; and the novice that stands about on every floor takes four and a
+half to five minutes, meets four or five swarms (one or two of them up a
+ladder) and gets knocked out four or five times. Their tower first had no
+ceiling, and grew over the top floor to throw bricks all through the fight
+with the MEGA WOLF, and at you on the ladder, where you can't shoot back; now
+it stops short of the top floor, and they hold their fire while you climb. The eagle
 snatches about half of them once or twice a climb, and usually gives them a
 shortcut. All of them always got to the top. A person playing for the first
 time should expect to take longer.
