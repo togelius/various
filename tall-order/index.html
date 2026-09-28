@@ -204,6 +204,8 @@ const sfx = {
   hinge() { tone('square', 1400, 900, 0.05, 0.08); tone('sine', 520, 760, 0.35, 0.1, 0.08); },
   brolly() { hiss('bandpass', 1100, 1.4, 0.22, 0.16); tone('triangle', 260, 820, 0.16, 0.07, 0.02); tone('sine', 820, 700, 0.2, 0.05, 0.16); },
   wind(v) { hiss('lowpass', rand(280, 620), 0.7, 1.1, 0.03 * v); },
+  screech(v) { tone('sawtooth', 2400, 1100, 0.45, 0.05 * v); tone('square', 1900, 800, 0.4, 0.025 * v, 0.04); hiss('highpass', 3200, 1.2, 0.3, 0.05 * v); },
+  flap(v) { hiss('lowpass', 420, 0.9, 0.16, 0.1 * v); },
   bell() { for (const [f, v] of [[880, 0.12], [1320, 0.06], [1760, 0.04]]) tone('sine', f, f, 1.4, v); },
   patter() { for (let i = 0; i < 14; i++) hiss('highpass', 2600, 2, 0.03, 0.05 + i * 0.004, i * 0.12 + Math.random() * 0.06); },
   scrabble() { for (let i = 0; i < 14; i++) hiss('bandpass', 700, 3, 0.04, 0.06 + i * 0.004, i * 0.11 + Math.random() * 0.06); },
@@ -1160,7 +1162,7 @@ function stepLifts(dt) {
       y = L.hi;
       if (caller && !P.dead && G.st === 'play') {
         L.mode = 'coming'; L.t = 0; sfx.bell(); callout('DING! THE LIFT IS ON ITS WAY DOWN', '#ffd23f', 30, 2);
-        if (!L.rung) { L.rung = true; DIR.t = 0; swarm({ from: 'above', n: 4, bees: 1 }); }
+        if (!L.rung) { L.rung = true; swarm({ from: 'above', n: 4, bees: 1, event: true }); }
       }
     } else if (L.mode === 'coming') {
       L.t += dt; y = lerp(L.hi, L.lo, easeInOut(clamp(L.t / L.slow, 0, 1)));
@@ -1214,6 +1216,7 @@ function stepPlayer(dt) {
     P.jumpBuf = Math.max(0, P.jumpBuf - dt * 0.2);
     stepHang(dt, st); return;
   }
+  if (P.carried && !P.dead) { stepCarried(dt, st); return; }
   if (P.dead > 0) { IN.mouseTurn = 0; P.jumpBuf = 0; }
   // turning: gentle near the middle of the stick, fast at the edge, faster still held hard over
   const ax = Math.abs(st.x);
@@ -1234,9 +1237,12 @@ function stepPlayer(dt) {
   // Edges here are all square to the axes, so each axis is checked on its own: you can still walk along one.
   let edge = 0, ex = 0, ez = 0;
   if (P.onGround && !P.climbing && !(P.padT > 0)) {
-    const m = P.r + 0.16, drop = (dx, dz) => floorBelow(P.x + dx, P.y + 0.3, P.z + dz) < P.y - 1.2;
-    if (Math.abs(wx) > 0.2 && drop(Math.sign(wx) * m, 0)) { edge = 1; ex = Math.sign(wx); if (P.edgeT < 0.5) wx = 0; }
-    if (Math.abs(wz) > 0.2 && drop(0, Math.sign(wz) * m)) { edge = 1; ez = Math.sign(wz); if (P.edgeT < 0.5) wz = 0; }
+    // (probed from a step up, so a stair's next step counts as floor; and twice, a little further out too, so a seam isn't a drop)
+    const m = P.r + 0.16, low = (dx, dz) => floorBelow(P.x + dx, P.y + STEP + 0.01, P.z + dz) < P.y - 1.2, drop = (dx, dz) => low(dx, dz) && low(dx * 1.6, dz * 1.6);
+    // (and only if the way you're actually going drops away too: a spiral stair goes on round the corner)
+    const wl = Math.hypot(wx, wz), ahead = wl > 0.2 && drop(wx / wl * m, wz / wl * m);
+    if (ahead && Math.abs(wx) > 0.2 && drop(Math.sign(wx) * m, 0)) { edge = 1; ex = Math.sign(wx); if (P.edgeT < 0.5) wx = 0; }
+    if (ahead && Math.abs(wz) > 0.2 && drop(0, Math.sign(wz) * m)) { edge = 1; ez = Math.sign(wz); if (P.edgeT < 0.5) wz = 0; }
   }
   if (edge) {
     if (!(P.edgeT > 0)) sfx.teeter();
@@ -1292,8 +1298,8 @@ function stepPlayer(dt) {
   }
   if (P.onGround) P.lip = null;
   // a frantic grab at the lip you just went over, if the drop below is a big one
-  if (P.lip && !P.onGround && !P.dead && !P.hangUsed && P.vy < 0 && G.time - P.lip.t < 0.7 && P.y < P.lip.y - 0.55 && P.y > P.lip.y - 1.7
-      && Math.hypot(P.x - P.lip.sx, P.z - P.lip.sz) < 1.3 && floorBelow(P.x, P.y + 0.1, P.z) < P.lip.y - 2.5) {
+  if (P.lip && !P.onGround && !P.dead && !P.hangUsed && P.vy < 0 && G.time - P.lip.t < (P.lip.knock ? 1.1 : 0.7) && P.y < P.lip.y - 0.55 && P.y > P.lip.y - 1.7
+      && Math.hypot(P.x - P.lip.sx, P.z - P.lip.sz) < (P.lip.knock ? 2.4 : 1.3) && floorBelow(P.x, P.y + 0.1, P.z) < P.lip.y - 2.5) {
     // where you'll stand when you haul yourself up: solid, clear floor back along the way you went over
     const Lp = P.lip, ok = (x, z) => floorBelow(x, Lp.y + 0.3, z) >= Lp.y - 0.05 && !blocked(x, Lp.y + 0.01, z, P.r, P.h);
     let lx = null, lz = null;
@@ -1324,8 +1330,8 @@ function stepPlayer(dt) {
     if (c.reached || P.dead || !P.onGround || c.step && c.step.p < 1 || (Math.hypot(P.x - c.x, P.z - c.z) > 1.4 || Math.abs(P.y - c.y) > 1) && Math.abs(P.y - c.y) > 0.3) continue;
     c.reached = true; P.check = Math.max(P.check, c.n); P.hp = Math.max(P.hp, 70);
     callout('CHECKPOINT', '#b8f060', 40, 1.2); sfx.checkpoint();
-    if (c.n === 1) swarm({ from: 'below', n: 4, say: 'THEY\'RE COMING UP THE STAIRS', x: 4, y: 0, z: 18.5, route: [[4, 14.6], [4, 9.2], [4, 7.2]] });
-    if (c.n === 4) swarm({ from: 'below', n: 3, bees: 1, say: 'THEY\'RE COMING UP THE STAIRS', x: -7.3, y: Y[3], z: -5, route: [[-5.8, -5], [0.6, -5], [2.4, -5]] });
+    if (c.n === 1) swarm({ event: true, from: 'below', n: 4, say: 'THEY\'RE COMING UP THE STAIRS', x: 4, y: 0, z: 18.5, route: [[4, 14.6], [4, 9.2], [4, 7.2]] });
+    if (c.n === 4) swarm({ event: true, from: 'below', n: 3, bees: 1, say: 'THEY\'RE COMING UP THE STAIRS', x: -7.3, y: Y[3], z: -5, route: [[-5.8, -5], [0.6, -5], [2.4, -5]] });
   }
   // the top
   if (GOAL && !G.won && Math.hypot(P.x - GOAL.x, P.z - GOAL.z) < 2 && P.y > GOAL.y - 0.3) win();
@@ -1340,7 +1346,7 @@ function stepWorld(dt) {
   P.fireT -= dt; P.kick = Math.max(0, P.kick - dt * 8); P.itemT = Math.max(0, P.itemT - dt); P.strain = ease(P.strain || 0, 0, 5, dt);
   if (P.vm) P.vm.t += dt;
   // (a tap quicker than a frame still gets its shot)
-  if ((fireHeld() || IN.fireTap) && P.fireT <= 0 && !P.dead) { firePrimary(); IN.fireTap = false; }
+  if ((fireHeld() || IN.fireTap) && P.fireT <= 0 && !P.dead && !P.hang && !P.carried) { firePrimary(); IN.fireTap = false; }
   if (P.dead) IN.fireTap = false;
   stepMallet(dt);
   stepFoes(dt); stepShots(dt); stepWaves(dt); stepGibs(dt); stepFX(dt); stepItems(dt);
@@ -1350,6 +1356,8 @@ function stepWorld(dt) {
 }
 function win() {
   G.won = true; G.st = 'win'; G.winT = 0; G.hinged = false; G.brolly = false;
+  TRACERS.length = 0; P.hurtT = 0; for (const e of FOES) { e.alert = 0; e.tele = 0; }
+  for (let i = SHOTS.length - 1; i >= 0; i--) if (SHOTS[i].foe) SHOTS.splice(i, 1);
   IN.kFire = IN.mFire = IN.fireTap = false; P.jumpBuf = 0; stick = null; pointers.clear();
   G.trail.push([G.t, P.y, 'w']); finishRun();
   callout('YOU MADE IT!', '#ffd23f', 64, 2.5); sfx.win();
@@ -1385,9 +1393,10 @@ const TYPES = {
   car: { r: 0.62, h: 0.95, hp: 9, speed: 2.4, mass: 2 },
   cannon: { r: 0.6, h: 1.6, hp: 9, speed: 0, mass: 99 },
   boss: { r: 1.2, h: 4.3, hp: 150, speed: 1.2, mass: 8 },
+  eagle: { r: 0.5, h: 0.7, hp: 4, speed: 6.5, mass: 1.2, fly: true },
 };
 const WHITE = [1, 1, 1];
-const HIPS = { wolf: 0.54, boss: 0.54, golem: 0.92, kitty: 0.24, bee: -1, car: 0, cannon: 99 };
+const HIPS = { wolf: 0.54, boss: 0.54, golem: 0.92, kitty: 0.24, bee: -1, car: 0, cannon: 99, eagle: -1 };
 function part(sh, x, y, z, sx, sy, sz, col, joint, pv, o) { return Object.assign({ sh, x, y, z, sx, sy, sz, col, joint: joint || null, pv: pv || null }, o); }
 const MODELS = (() => {
   const M = {}, fur = C.brown, dfur = C.dbrown;
@@ -1440,6 +1449,20 @@ const MODELS = (() => {
     part('sph', 0.5, 0.39, -0.09, 0.06, 0.07, 0.06, C.black, 'body', [0, 0.3, 0]), part('sph', 0.5, 0.39, 0.09, 0.06, 0.07, 0.06, C.black, 'body', [0, 0.3, 0]),
     part('box', -0.02, 0.54, -0.26, 0.26, 0.02, 0.4, [0.92, 0.96, 1], 'wingL', [-0.02, 0.5, -0.1], { axis: 0 }),
     part('box', -0.02, 0.54, 0.26, 0.26, 0.02, 0.4, [0.92, 0.96, 1], 'wingR', [-0.02, 0.5, 0.1], { axis: 0 }),
+  ];
+  // a toy eagle: brown with a white head and tail, a hooked yellow beak, and a fierce brow
+  const EB = [0, 0.5, 0], EWL = [0, 0.52, -0.22], EWR = [0, 0.52, 0.22];
+  M.eagle = [
+    part('box', 0, 0.42, 0, 0.9, 0.38, 0.44, C.dbrown, 'body', EB),
+    part('box', -0.6, 0.45, 0, 0.36, 0.06, 0.42, C.white, 'body', EB),
+    part('box', 0.56, 0.58, 0, 0.34, 0.32, 0.3, C.white, 'body', EB),
+    part('box', 0.78, 0.55, 0, 0.16, 0.1, 0.12, C.yellow, 'body', EB), part('box', 0.86, 0.5, 0, 0.06, 0.09, 0.08, C.orange, 'body', EB),
+    part('box', 0.7, 0.63, -0.12, 0.04, 0.07, 0.07, C.black, 'body', EB), part('box', 0.7, 0.63, 0.12, 0.04, 0.07, 0.07, C.black, 'body', EB),
+    part('box', 0.64, 0.7, 0, 0.2, 0.05, 0.34, C.dbrown, 'body', EB),
+    part('box', 0, 0.52, -0.72, 0.52, 0.05, 1.0, C.brown, 'wingL', EWL, { axis: 0 }), part('box', -0.08, 0.52, -1.38, 0.42, 0.05, 0.36, C.tan, 'wingL', EWL, { axis: 0 }),
+    part('box', 0, 0.52, 0.72, 0.52, 0.05, 1.0, C.brown, 'wingR', EWR, { axis: 0 }), part('box', -0.08, 0.52, 1.38, 0.42, 0.05, 0.36, C.tan, 'wingR', EWR, { axis: 0 }),
+    part('box', 0.1, 0.13, -0.12, 0.1, 0.26, 0.1, C.yellow, 'legL', [0.1, 0.25, -0.12]), part('box', 0.1, 0.13, 0.12, 0.1, 0.26, 0.1, C.yellow, 'legR', [0.1, 0.25, 0.12]),
+    part('box', 0.16, 0.01, -0.12, 0.24, 0.05, 0.14, C.orange, 'legL', [0.1, 0.25, -0.12]), part('box', 0.16, 0.01, 0.12, 0.24, 0.05, 0.14, C.orange, 'legR', [0.1, 0.25, 0.12]),
   ];
   const GH = [0, 2.05, 0];
   M.golem = [
@@ -1610,6 +1633,115 @@ function beeAI(e, dt) {
   faceTo(e, P.x, P.z, 5, dt);
   if (e.cd <= 0 && sees && d < 12) { e.st = 'aim'; e.t = e.tt = 0.9; e.alert = 0.9; }
 }
+// ---------------------------------------------------------------- the snatcher
+// A toy eagle nests on top of the crane. On floors two and three, wherever there's sky over you, it circles high
+// overhead, out of reach (only its shadow sweeping round you gives it away), then drops on you and carries you off.
+// While it has you it's above you, so there's no shooting it: you choose when to let go. Over the floor it's
+// making for, that's a shortcut; out past the edge, a long way down.
+const CARRY = { 2: { zone: [-4.8, -5.2], out: [-12, -5.2] }, 3: { zone: [4.6, -4.5], out: [12, -4.5] } };
+function eagleAI(e, dt) {
+  // (real sky: nothing overhead for a good way up, so there's room to carry you off without hitting anything)
+  const f = floorOf(P.y), sky = ceilingAbove(P.x, P.y + 1.8, P.z) > P.y + 16;
+  const hunt = !!CARRY[f] && !P.hang && !P.climbing && !P.carried && G.st === 'play';
+  e.cd -= dt;
+  if (e.st === 'carry') { carryAI(e, dt); return; }
+  if (e.st === 'dive') {
+    e.t -= dt;
+    const dx = P.x - e.x, dy = P.y + 1.3 - e.y, dz = P.z - e.z, L = Math.hypot(dx, dy, dz) || 1;
+    e.vx = ease(e.vx, dx / L * 11, 2.2, dt); e.vy = ease(e.vy, dy / L * 11, 2.2, dt); e.vz = ease(e.vz, dz / L * 11, 2.2, dt);
+    faceTo(e, P.x, P.z, 4, dt);
+    if (L < 1.0 && hunt) { snatch(e); return; }
+    if (e.t <= 0 || e.bumped || e.y < P.y + 0.4) { e.st = 'flee'; e.t = 1.8; e.cd = rand(12, 18); e.bumped = false; chatter(e, ['MISSED!', 'SCREE?'], 0.8); }
+    return;
+  }
+  if (e.st === 'flee') {
+    // after a miss it labours back up, low and slow for a moment: your chance to hit it
+    e.t -= dt; e.vx = ease(e.vx, 0, 2, dt); e.vz = ease(e.vz, 0, 2, dt); e.vy = ease(e.vy, e.t > 1.1 ? 0.2 : 4, 3, dt);
+    if (e.t <= 0) e.st = 'circle';
+    return;
+  }
+  const nest = e.nest;
+  let tx, ty, tz;
+  if (!hunt) {
+    // nothing to hunt: back to the nest, unless you're up there, in which case it gives you room
+    const close = Math.hypot(P.x - nest[0], P.y - nest[1], P.z - nest[2]) < 7;
+    if (close || e.st === 'circle' && P.y > nest[1] - 1) { e.orbit = (e.orbit || 0) + dt * 0.3; tx = Math.cos(e.orbit) * 14; tz = Math.sin(e.orbit) * 14; ty = Math.max(nest[1] + 2, P.y + 4); if (e.st === 'perch' || e.st === 'idle') { e.st = 'circle'; sfx.flap(1); } }
+    else if (e.st === 'perch') { e.x = nest[0]; e.y = nest[1]; e.z = nest[2]; e.vx = e.vy = e.vz = 0; e.awake = false; return; }
+    else {
+      tx = nest[0]; ty = nest[1]; tz = nest[2]; if (e.st === 'aim') e.st = 'circle';
+      if (Math.hypot(e.x - tx, e.y - ty, e.z - tz) < 0.35) { e.st = 'perch'; e.x = tx; e.y = ty; e.z = tz; e.vx = e.vy = e.vz = 0; e.awake = false; return; }
+    }
+  } else {
+    if (e.st === 'perch' || e.st === 'idle') {
+      e.st = 'circle'; e.cd = Math.max(e.cd, 6); e.awake = true;
+      if (!G.eagleSeen) { G.eagleSeen = true; callout('SCREEEE! SOMETHING ABOVE', '#ff9a3a', 38, 1.8); sfx.screech(1); }
+    }
+    e.awake = true;
+    e.orbit = (e.orbit || rand(0, TAU)) + dt * 0.75;
+    if (sky) {
+      // high over you, where you can't look
+      const R = e.st === 'aim' ? lerp(3.4, 0.2, clamp(1 - e.t / e.tt, 0, 1)) : 3.4;
+      tx = P.x + Math.cos(e.orbit) * R; tz = P.z + Math.sin(e.orbit) * R; ty = P.y + 7;
+    } else {
+      // no sky over you: it waits out beyond the tower, where you can see it (and hit it, from far enough away)
+      tx = Math.cos(e.orbit * 0.6) * 13; tz = Math.sin(e.orbit * 0.6) * 13; ty = P.y + 3;
+      if (e.st === 'aim') e.st = 'circle';
+    }
+  }
+  const dx = tx - e.x, dy = ty - e.y, dz = tz - e.z, L = Math.hypot(dx, dy, dz) || 1, v = Math.min(TYPES.eagle.speed, L * 2);
+  e.vx = ease(e.vx, dx / L * v, 3, dt); e.vy = ease(e.vy, dy / L * v, 3, dt); e.vz = ease(e.vz, dz / L * v, 3, dt);
+  faceTo(e, e.x + e.vx, e.z + e.vz, 5, dt);
+  if ((e.flapT = (e.flapT || 0) - dt) <= 0) { e.flapT = 0.55; sfx.flap(near(e.x, e.y, e.z)); }
+  if (e.st === 'aim') {
+    e.t -= dt; e.tele = 1 - e.t / e.tt;
+    if (e.t <= 0) { e.st = 'dive'; e.t = 1.6; e.tele = 0; sfx.screech(near(e.x, e.y, e.z) + 0.3); }
+  } else if (hunt && sky && e.cd <= 0 && DIR.phase === 'calm' && !P.dead && Math.hypot(e.x - P.x, e.z - P.z) < 4.5 && e.y > P.y + 5.5) {
+    e.st = 'aim'; e.t = e.tt = 1.5; e.alert = 1.5; sfx.screech(near(e.x, e.y, e.z) * 0.7);
+    if ((G.eagleWarned = (G.eagleWarned || 0) + 1) <= 2) callout('ITS SHADOW! STEP ASIDE', '#ff9a3a', 32, 1.6);
+  }
+}
+function snatch(e) {
+  const f = floorOf(P.y), c = CARRY[f];
+  e.st = 'carry'; e.carry = { f, zone: c.zone, out: c.out, t: 0, sw: 0, x0: P.x, z0: P.z, top: Y[f + 1] + 2.7, arrived: false };
+  P.carried = e; P.hang = null; P.lip = null; P.jumpBuf = 0; P.vx = P.vy = P.vz = P.kx = P.kz = 0; P.onGround = false; P.ground = null;
+  e.x = P.x; e.z = P.z; e.y = P.y + 1.35; e.vx = e.vz = 0; e.vy = 1;
+  callout('SNATCHED!', '#ff9a3a', 50, 1.3); sfx.screech(1); G.shake = Math.max(G.shake, 6);
+}
+// up first, where there's sky; over to the floor it's making for; then swinging out past the edge and back
+function carryAI(e, dt) {
+  if (P.carried !== e) { e.st = 'flee'; e.t = 1.8; e.cd = rand(24, 32); e.carry = null; return; }
+  const c = e.carry; c.t += dt;
+  let tx = c.x0, tz = c.z0, sp = 3.2;
+  if (e.y > c.top - 0.4 || c.t > 2.6) {
+    if (c.arrived || Math.hypot(e.x - c.zone[0], e.z - c.zone[1]) < 0.8 || c.t > 5.5) { c.arrived = true; c.sw += dt; }
+    const k = c.arrived ? 0.5 - 0.5 * Math.cos(c.sw * 1.2) : 0;
+    tx = lerp(c.zone[0], c.out[0], k); tz = lerp(c.zone[1], c.out[1], k); sp = 5;
+    // it gets bored, and lets go wherever it happens to be: usually the worst place
+    if (c.sw > 8 && k > 0.85) { dropFromEagle('IT LET GO!'); return; }
+  }
+  const dx = tx - e.x, dy = c.top - e.y, dz = tz - e.z, L = Math.hypot(dx, dy, dz) || 1, v = Math.min(sp, L * 2.5);
+  e.vx = ease(e.vx, dx / L * v, 4, dt); e.vy = ease(e.vy, dy / L * v, 4, dt); e.vz = ease(e.vz, dz / L * v, 4, dt);
+  faceTo(e, e.x + e.vx, e.z + e.vz, 3, dt);
+  if ((e.flapT = (e.flapT || 0) - dt) <= 0) { e.flapT = 0.3; sfx.flap(1); }
+}
+function dropFromEagle(say) {
+  const e = P.carried; P.carried = null;
+  if (e && e.alive) { e.st = 'flee'; e.t = 1.8; e.cd = rand(24, 32); e.carry = null; }
+  P.vy = 0; P.fallFrom = P.y; P.onGround = false; P.launched = true; P.lip = null;
+  if (say) callout(say, '#ff9a3a', 40, 1.1);
+}
+// dangling from its talons: you can turn a little, and JUMP lets go
+function stepCarried(dt, st) {
+  const e = P.carried;
+  P.yaw += Math.sign(st.x) * Math.pow(Math.abs(st.x), 1.2) * TURN * 0.4 * dt + IN.mouseTurn * 0.4; IN.mouseTurn = 0; IN.mouseLook = 0; IN.ktap = 0;
+  if (!e.alive || e.st !== 'carry' || e.flung || e.stun > 0) { dropFromEagle('FREE!'); return; }
+  const tx = e.x + Math.sin(G.time * 2.1) * 0.08, ty = e.y - 1.35, tz = e.z;
+  P.onGround = false;
+  moveBody(P, tx - P.x, ty - P.y, tz - P.z, 0);
+  P.vx = P.vy = P.vz = 0; P.fallFrom = P.y;
+  if (Math.hypot(tx - P.x, ty - P.y, tz - P.z) > 1.4) { dropFromEagle('YOU SLIP FREE'); return; }
+  if (P.jumpBuf > 0) { P.jumpBuf = 0; dropFromEagle(null); sfx.jump(); }
+}
 function golemAI(e, dt) {
   const d = pdist(e), dy = P.y - e.y, sees = seesPlayer(e, dt), same = Math.abs(dy) < 1.4;
   if (!e.awake) { if (sees && d < 15 && Math.abs(dy) < 3) wake(e); else { wander(e, dt, 0.6); return; } }
@@ -1756,12 +1888,13 @@ const LINES = {
   golem: ['ME BIG.', 'BLOCK.', 'UH OH.'],
   car: ['BEEP BEEP!', 'VROOM?'],
   cannon: ['TARGET!', 'READY!'],
+  eagle: ['SCREEE!', 'UP YOU GO!', 'MINE!'],
 };
 function chatter(e, lines, chance, dur) {
   if (G.sayCd > 0 || Math.random() > chance) return;
   say(e, pick(lines), dur || 1.3); G.sayCd = 2.2;
 }
-const AI = { wolf: wolfAI, kitty: kittyAI, bee: beeAI, golem: golemAI, car: carAI, cannon: cannonAI, boss: bossAI };
+const AI = { wolf: wolfAI, kitty: kittyAI, bee: beeAI, golem: golemAI, car: carAI, cannon: cannonAI, boss: bossAI, eagle: eagleAI };
 
 function stepFoes(dt) {
   G.sayCd = Math.max(0, (G.sayCd || 0) - dt);
@@ -1777,7 +1910,9 @@ function stepFoes(dt) {
     // moving about
     if (TYPES[e.type].fly) {
       e.onGround = false; e.ground = null;   // fliers never stand on anything, so nothing carries them
-      const hw = moveBody(e, (e.vx + e.kx) * dt, e.vy * dt, (e.vz + e.kz) * dt, 0);
+      // (the eagle up high, out of sight, just flies: only its dive and its escape can hit things)
+      const free = e.type === 'eagle' && e.st !== 'dive' && e.st !== 'flee';
+      const hw = free ? (e.x += (e.vx + e.kx) * dt, e.y += e.vy * dt, e.z += (e.vz + e.kz) * dt, false) : moveBody(e, (e.vx + e.kx) * dt, e.vy * dt, (e.vz + e.kz) * dt, 0);
       if (hw && e.st === 'dive') e.bumped = true;
       e.kx = ease(e.kx, 0, 3, dt); e.kz = ease(e.kz, 0, 3, dt);
       if (e.flung) { e.vy -= GRAV * dt; e.flung = Math.max(0, e.flung - dt); }
@@ -1869,6 +2004,8 @@ function hurtPlayer(dmg, kx, ky, kz, src) {
   P.kx += kx || 0; P.kz += kz || 0;
   // on the top floor a knock never lifts you over the low wall
   if (ky && P.y > Y[5] - 0.2 && Math.abs(P.x) < 3.6 && P.z > -0.6 && P.z < 6.6) ky = Math.min(ky, 4.2);
+  // knocked from where you stood: remember the spot, in case it throws you over an edge
+  if (P.onGround && !P.climbing && Math.hypot(kx || 0, kz || 0) > 0.5) { const L = Math.hypot(kx, kz); P.lip = { y: P.y, t: G.time, sx: P.x, sz: P.z, dx: kx / L, dz: kz / L, knock: true }; P.hangUsed = false; }
   if (ky) { P.vy = Math.max(P.vy, ky); P.onGround = false; P.launched = true; P.ground = null; }
   if (src) P.hurtA = Math.atan2(src.z - P.z, src.x - P.x);
   sfx.hurt();
@@ -1877,6 +2014,8 @@ function hurtPlayer(dmg, kx, ky, kz, src) {
 }
 // a fall of more than a floor and a half: ketchup, and back to the last checkpoint
 function splatPlayer() {
+  if (P.carried) dropFromEagle(null);
+  P.hang = null;
   P.hp = 0; P.dead = 2.2; G.deaths++; G.trail.push([G.t, P.y, 'x']); P.vx = P.vz = P.kx = P.kz = 0;
   SPLATS.push({ x: P.x, y: P.y, z: P.z, r: 1.5, seed: rand(0, 9), life: 30 });
   if (SPLATS.length > 40) SPLATS.shift();
@@ -1884,12 +2023,14 @@ function splatPlayer() {
   callout(pick(['SPLAT!', 'PANCAKE!', 'SPLOOSH!']), '#ff5a5a', 66, 1.6); sfx.splat(1); sfx.death(); G.shake = 16;
 }
 function die() {
+  if (P.carried) dropFromEagle(null);
+  P.hang = null;
   P.hp = 0; P.dead = 2.2; G.deaths++; G.trail.push([G.t, P.y, 'x']);
   callout(pick(['OUCH!', 'BONKED!', 'SQUISHED!', 'OOF!']), '#ff5a5a', 60, 1.6); sfx.death();
 }
 function respawn() {
   const c = CHECKS.filter(c => c.reached).sort((a, b) => b.n - a.n)[0] || CHECKS[0];
-  Object.assign(P, { x: c.x, y: c.y + 0.05, z: c.z + (c.n ? 0.8 : 0), vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 2, dead: 0, onGround: true, ground: null, fallFrom: c.y, hang: null, lip: null, edgeT: 0, tip: 0 });
+  Object.assign(P, { x: c.x, y: c.y + 0.05, z: c.z + (c.n ? 0.8 : 0), vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 2, dead: 0, onGround: true, ground: null, fallFrom: c.y, hang: null, lip: null, edgeT: 0, tip: 0, carried: null });
   P.yaw = Math.atan2(c.to[1] - P.z, c.to[0] - P.x);
   for (let i = SHOTS.length - 1; i >= 0; i--) if (SHOTS[i].foe) SHOTS.splice(i, 1);
   WAVES.length = 0;
@@ -2124,7 +2265,7 @@ function giveItem(kind, n) {
   return true;
 }
 function useItem() {
-  if ((G.st !== 'play' && G.st !== 'descent') || G.paused || P.dead) return;
+  if ((G.st !== 'play' && G.st !== 'descent') || G.paused || P.dead || P.hang || P.carried) return;
   const it = INV[SEL];
   if (!it || P.itemT > 0) { if (!it) { sfx.deny(); callout('NOTHING TO USE', '#ffffff', 28, 0.8); } return; }
   const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw), ex = P.x + ca * 0.4, ey = P.y + EYE - 0.25, ez = P.z + sa * 0.4;
@@ -2233,6 +2374,12 @@ function poseParts(e) {
     J.sting = e.st === 'aim' ? 0.4 : 0;
   } else if (e.type === 'car') {
     J.body = e.st === 'rev' ? Math.sin(G.time * 40) * 0.03 : e.st === 'charge' ? -0.06 : 0;
+  } else if (e.type === 'eagle') {
+    // big slow wingbeats; folded back in a dive, working hard with you in its talons, mantling on its nest
+    const beat = Math.sin(G.time * (e.st === 'carry' ? 11 : 6.5) + e.seed) * (e.st === 'carry' ? 0.8 : 0.65);
+    J.wingL = e.st === 'dive' ? 1.15 : e.st === 'perch' ? 0.35 + Math.sin(G.time * 1.5) * 0.08 : beat; J.wingR = -J.wingL;
+    J.body = e.st === 'dive' ? 0.65 : e.st === 'aim' ? -0.25 : e.st === 'carry' ? -0.2 : 0;
+    J.legL = J.legR = e.st === 'dive' || e.st === 'carry' ? -0.6 : 0;
   }
   const hip = HIPS[e.type], bq = J.body ? qAxis(0, 0, 1, J.body) : null;
   for (const p of m) {
@@ -2260,11 +2407,13 @@ function drawFoes() {
     if (dx * dx + dz * dz > 70 * 70) continue;
     for (const p of poseParts(e)) put(SH[p.sh], p.x, p.y, p.z, p.q, p.sx, p.sy, p.sz, p.col, p.spec, p.emis);
     const fy = floorBelow(e.x, e.y + 0.2, e.z), hgt = e.y - fy;
-    if (hgt < 9) {
+    if (hgt < (e.type === 'eagle' ? 12 : 9)) {
       const air = hgt > 0.4, k = 1 - hgt / 9;
-      decal(1, e.x, fy, e.z, e.r * (air ? 1.3 + hgt * 0.12 : 1.5), 0, 0, 1, [0, 0, 0, air ? 0.2 + 0.4 * k : 0.3]);
+      // (these warnings sit just above the studs, or the studs hide most of them)
+      if (e.type === 'eagle') decal(1, e.x, fy + 0.1, e.z, 1.9 + hgt * 0.06, 0, 0, 1, [0, 0, 0, 0.55 + 0.3 * k + (e.st === 'aim' ? 0.15 * e.tele : 0)]);
+      else decal(1, e.x, fy, e.z, e.r * (air ? 1.3 + hgt * 0.12 : 1.5), 0, 0, 1, [0, 0, 0, air ? 0.2 + 0.4 * k : 0.3]);
       // something about to land on your floor: a ring round its shadow
-      if (air && e.vy < -1 && Math.abs(fy - P.y) < 0.6) decal(0, e.x, fy, e.z, e.r * 1.6 + hgt * 0.1, 0.12, 0, 1, [1, 0.35, 0.3, 0.5 * k]);
+      if (air && e.vy < -1 && Math.abs(fy - P.y) < 0.6) decal(0, e.x, fy + 0.1, e.z, e.r * 1.6 + hgt * 0.1, 0.12, 0, 1, [1, 0.35, 0.3, 0.5 * k]);
     }
     // warnings on the ground
     if (e.type === 'golem' && e.st === 'windup') { decal(2, e.x, e.y, e.z, 7.5, easeOut(e.tele), 0, 1, [1, 0.2, 0.15, 0.5 + 0.3 * Math.sin(G.time * 20)]); }
@@ -2378,7 +2527,7 @@ function drawFX() {
 // bell, arriving at the top of a staircase); if you linger, the toys come looking.
 const floorOf = y => Y.reduce((f, yy, k) => y > yy - 0.3 ? k : f, 0);
 const DIR = { phase: 'calm', t: 50, swarm: [], queue: [], warn: null, last: null };
-function resetDirector() { Object.assign(DIR, { phase: 'calm', t: 50, swarm: [], queue: [], warn: null, last: null }); }
+function resetDirector() { Object.assign(DIR, { phase: 'calm', t: 50, swarm: [], queue: [], warn: null, last: null, pending: null }); }
 // the underside of whatever is overhead at a spot (the ceiling, if nothing else)
 function ceilingAbove(x, y, z) {
   let lo = 72;
@@ -2387,7 +2536,7 @@ function ceilingAbove(x, y, z) {
 }
 // announce a swarm; it arrives a couple of seconds later
 function swarm(w) {
-  if (DIR.phase !== 'calm') return false;
+  if (DIR.phase !== 'calm') { if (w.event) DIR.pending = { w, until: G.time + 25 }; return false; }
   DIR.phase = 'warn'; DIR.t = 2.4; DIR.warn = w;
   callout(w.from === 'above' ? 'HEAR THAT? ABOVE YOU' : w.say || 'SOMETHING IS COMING UP', '#ff9a3a', 34, 2.2);
   if (w.from === 'above') sfx.patter(); else sfx.scrabble();
@@ -2398,44 +2547,64 @@ function spawnSwarm(w) {
   DIR.phase = 'swarm'; DIR.t = 0; DIR.swarm = []; DIR.queue = [];
   if (w.from === 'above') {
     callout('IT\'S RAINING CATS AND DOGS!', '#ff7ad9', 40, 1.8);
-    let made = 0;
-    for (let tries = 0; tries < 80 && made < w.n; tries++) {
+    // measured from the floor you're on (you might be in the middle of a jump, or on a stair; from a stair,
+    // they come down on the floor at its foot if there's no room round you)
+    const b0 = Math.max(Y[floorOf(P.y)], floorBelow(P.x, P.y + 0.3, P.z));
+    let made = 0, base = b0;
+    for (let tries = 0; tries < 120 && made < w.n; tries++) {
+      if (tries === 60 && !made) base = Y[floorOf(P.y)];
       const a = rand(0, TAU), d = rand(2.8, 7), x = P.x + Math.cos(a) * d, z = P.z + Math.sin(a) * d;
-      if (Math.abs(floorBelow(x, P.y + 0.3, z) - P.y) > 0.35) continue;          // on your floor
+      if (Math.abs(floorBelow(x, base + 0.3, z) - base) > 0.35) continue;          // on your floor
       const type = w.n >= 4 && made === w.n - 1 ? 'wolf' : 'kitty', T0 = TYPES[type];
       // dropping from just under whatever is overhead there, from no more than four up
       // (no higher than the floor above's underside, or one could come down on top of it)
-      const y = Math.min(P.y + 3.1, ceilingAbove(x, P.y + T0.h + 0.2, z) - T0.h - 0.1);
-      if (y < P.y + 1.4 || blocked(x, y, z, T0.r, T0.h)) continue;
+      const y = Math.min(base + 3.1, ceilingAbove(x, base + T0.h + 0.2, z) - T0.h - 0.1);
+      if (y < base + 1.4 || blocked(x, y, z, T0.r, T0.h)) continue;
       const e = foe(type, x, y, z); e.awake = true; e.st = 'chase'; e.alert = 1; e.swarm = true; e.fallFrom = y; e.yaw = Math.atan2(P.z - z, P.x - x);
       DIR.swarm.push(e); made++;
     }
   } else for (let i = 0; i < w.n; i++) DIR.queue.push({ at: 0.2 + i * 0.5, type: 'kitty' });
   for (let i = 0; i < (w.bees || 0); i++) DIR.queue.push({ at: 1 + i * 0.8, type: 'bee' });
+  // nowhere to put them (a cramped spot): quietly try again soon
+  if (!DIR.swarm.length && !DIR.queue.length) { DIR.phase = 'calm'; DIR.t = 8; }
 }
 function stepDirector(dt) {
   const floor = floorOf(P.y);
   if (DIR.phase === 'calm') {
     // it only counts down while nothing much is going on, and not up on the boss's floor
     const busy = FOES.some(e => e.alive && e.awake && Math.hypot(e.x - P.x, e.z - P.z) < 9 && Math.abs(e.y - P.y) < 3);
-    if (!busy && !P.dead && !P.hang && floor < 5) DIR.t -= dt;
-    if (DIR.t <= 0) swarm({ from: 'above', n: floor >= 3 ? 4 : 3, bees: floor >= 2 ? 1 : 0 });
+    if (!busy && !P.dead && !P.hang && !P.carried && floor < 5) DIR.t -= dt;
+    // a swarm something set off while another was on comes as soon as it's over
+    if (DIR.pending && G.time > DIR.pending.until) DIR.pending = null;
+    if (DIR.pending && DIR.t > 3) DIR.t = 3;
+    if (DIR.t <= 0) { const pw = DIR.pending; DIR.pending = null; swarm(pw ? pw.w : { from: 'above', n: floor >= 3 ? 4 : 3, bees: floor >= 2 ? 1 : 0 }); }
   } else if (DIR.phase === 'warn') {
-    if ((DIR.t -= dt) <= 0) spawnSwarm(DIR.warn);
+    // (it waits for you to land, if you're in the air)
+    if ((DIR.t -= dt) <= 0 && (P.onGround || DIR.t < -2)) spawnSwarm(DIR.warn);
   } else if (DIR.phase === 'swarm') {
     DIR.t += dt;
     const w = DIR.warn;
     for (const q of DIR.queue) if (!q.done && DIR.t >= q.at) {
       q.done = true;
       let e;
-      if (q.type === 'bee') { const a = rand(0, TAU); e = foe('bee', P.x + Math.cos(a) * 7, P.y + (w.from === 'above' ? 4 : -2.5), P.z + Math.sin(a) * 7); }
+      if (q.type === 'bee') {
+        // somewhere clear that can see you, not inside a pillar
+        let x = P.x, y = P.y + 2.5, z = P.z;
+        for (let k = 0; k < 16; k++) {
+          const a = rand(0, TAU), d = rand(4, 7), yy = P.y + (w.from === 'above' ? rand(2.5, 4) : -2.5), xx = P.x + Math.cos(a) * d, zz = P.z + Math.sin(a) * d;
+          if (!blocked(xx, yy, zz, TYPES.bee.r, TYPES.bee.h) && los(P.x, P.y + EYE, P.z, xx, yy + 0.3, zz)) { x = xx; y = yy; z = zz; break; }
+        }
+        if (blocked(x, y, z, TYPES.bee.r, TYPES.bee.h)) continue;
+        e = foe('bee', x, y, z);
+      }
       else { e = foe('kitty', w.x + rand(-0.3, 0.3), w.y, w.z + rand(-0.3, 0.3)); e.route = w.route.map(p => p.slice()); }
       e.awake = true; e.st = 'chase'; e.alert = 1; e.swarm = true; DIR.swarm.push(e);
     }
     // it's over when none are still after you: on your floor and nearby, or on their way up
-    const left = DIR.swarm.filter(e => e.alive && (e.route && e.route.length || Math.abs(e.y - P.y) < (TYPES[e.type].fly ? 4.5 : 2.5) && Math.hypot(e.x - P.x, e.z - P.z) < 20));
+    // (still falling toward you from above counts, as does climbing up to you)
+    const left = DIR.swarm.filter(e => e.alive && (e.route && e.route.length || e.y - P.y < (TYPES[e.type].fly ? 4.5 : 4) && P.y - e.y < (TYPES[e.type].fly ? 4.5 : 2.5) && Math.hypot(e.x - P.x, e.z - P.z) < 20));
     for (const e of DIR.swarm) if (!e.alive && !e.counted) { e.counted = true; DIR.last = { x: e.x, y: floorBelow(e.x, e.y + 0.3, e.z), z: e.z }; }
-    if (DIR.queue.every(q => q.done) && (!left.length || DIR.t > 40)) {
+    if (DIR.queue.every(q => q.done) && DIR.t > 3 && (!left.length || DIR.t > 40)) {
       DIR.phase = 'calm'; DIR.t = rand(45, 65); DIR.swarm = [];
       callout('PHEW', '#b8f060', 38, 1.2);
       if (P.hp < 85 && DIR.last && Math.abs(DIR.last.y - P.y) < 1) ITEMS.push({ kind: 'juice', x: DIR.last.x, y: DIR.last.y, z: DIR.last.z, t: 0 });
@@ -2482,6 +2651,7 @@ function populate() {
   it('zap', 7.2, Y[4], 7.2); it('rocket', 2, Y[4], -7); it('juice', 7.2, Y[4], 0);
   // the top floor: the boss
   G.boss = f('boss', 0, Y[5], 5, { yaw: -Math.PI / 2 });
+  const eg = f('eagle', GOAL.x + 0.9, GOAL.y, GOAL.z + 0.6, { st: 'perch', yaw: Math.PI / 2, scale: 1.1 }); eg.nest = [eg.x, eg.y, eg.z];
   it('juice', -3, Y[5], 0.3); it('rocket', 2.8, Y[5], 6);
 }
 
@@ -2498,6 +2668,24 @@ function drawHands(u) {
   if (P.hang.pull < 0) {
     label(IN.mode === 'keys' ? 'SPACE TO PULL UP' : 'JUMP TO PULL UP', W / 2, H * 0.52, 22 * u, '#ffffff', 'center', 0.75 + 0.25 * Math.sin(G.time * 6));
   }
+}
+// carried off: the eagle's feet gripping your shoulders from above, and what you'd land on if you let go now
+function drawCarried(u) {
+  const s = gunScale(), t = G.time;
+  for (const sx of [-1, 1]) {
+    hx.save(); hx.translate(W / 2 + sx * 190 * s, Math.sin(t * 9 + sx) * 3 * s); hx.scale(s * sx, s);
+    hx.fillStyle = '#f7c21b'; hx.fillRect(-20, -20, 40, 120);
+    hx.fillStyle = '#e8a010'; hx.fillRect(-26, 80, 52, 34);
+    hx.fillStyle = '#3a2a1a';
+    for (const k of [-1, 0, 1]) { const x0 = k * 20; hx.beginPath(); hx.moveTo(x0 - 7, 108); hx.quadraticCurveTo(x0 + 2, 160, x0 + 16, 150); hx.lineTo(x0 + 8, 140); hx.quadraticCurveTo(x0 + 2, 140, x0 + 6, 108); hx.closePath(); hx.fill(); }
+    hx.restore();
+  }
+  const keys = IN.mode === 'keys', pulse = 0.8 + 0.2 * Math.sin(t * 6), e = P.carried;
+  label(keys ? 'SPACE TO LET GO' : 'JUMP TO LET GO', W / 2, H * 0.56, 30 * u, '#ffffff', 'center', pulse);
+  const fb = floorBelow(P.x, P.y + 0.1, P.z), drop = P.y - fb, f = floorOf(fb + 0.05), from = e && e.carry ? e.carry.f : f;
+  const name = f === 0 ? 'THE RUG' : 'FLOOR ' + f;
+  const [txt, col] = drop > 6.2 ? ['BELOW: A LONG WAY DOWN', '#ff5a5a'] : f > from ? ['BELOW: ' + name + ' · SHORTCUT!', '#b8f060'] : ['BELOW: ' + name, '#ffffff'];
+  label(txt, W / 2, H * 0.56 + 36 * u, 26 * u, col, 'center');
 }
 function drawBlaster(x, y, s, kick, strain) {
   const col = '#ffb627', dark = '#a8620c', light = '#ffe08a';
@@ -2648,7 +2836,7 @@ function drawMarks() {
       hx.fillStyle = '#1d1433'; hx.textAlign = 'center'; hx.textBaseline = 'middle'; hx.fillText(e.say, bx, by + 1);
     }
     // off-screen threats
-    const threat = e.tele > 0.15 || (e.type === 'bee' && e.st === 'dive') || (e.type === 'car' && e.st === 'charge');
+    const threat = e.tele > 0.15 || ((e.type === 'bee' || e.type === 'eagle') && e.st === 'dive') || (e.type === 'car' && e.st === 'charge');
     if (!threat) continue;
     const c = project(e.x, e.y + e.h * 0.5, e.z);
     if (c && c.x > 30 && c.x < W - 30 && c.y > 30 && c.y < H - 30) continue;
@@ -2751,8 +2939,15 @@ function drawHUD(dt) {
   if (G.st === 'title') return;
   const u = U(), pad = 14 * u, L = SAFE.l + pad, T = SAFE.t + pad;
   drawTracers();
-  if (!P.dead && active() && !P.hang) { if (!P.vm || P.vm.t > 0.5 || P.vm.kind === 'zap' || P.vm.kind === 'bomb') drawBlaster(W / 2, H + 40 * u, gunScale(), P.kick, P.strain); drawViewItem(); }
+  // the eagle lining up overhead: its shadow falling over you, closing in from the edges
+  for (const e of FOES) if (e.type === 'eagle' && e.alive && e.st === 'aim' && Math.hypot(e.x - P.x, e.z - P.z) < 6) {
+    const k = clamp(e.tele, 0, 1), R = Math.hypot(W, H) / 2, g = hx.createRadialGradient(W / 2, H / 2, R * (1 - 0.85 * k), W / 2, H / 2, R);
+    g.addColorStop(0, `rgba(20,10,20,${0.15 * k})`); g.addColorStop(1, `rgba(20,10,20,${0.35 + 0.5 * k})`);
+    hx.fillStyle = g; hx.fillRect(0, 0, W, H);
+  }
+  if (!P.dead && active() && !P.hang && !P.carried) { if (!P.vm || P.vm.t > 0.5 || P.vm.kind === 'zap' || P.vm.kind === 'bomb') drawBlaster(W / 2, H + 40 * u, gunScale(), P.kick, P.strain); drawViewItem(); }
   if (P.hang && G.st === 'play') drawHands(u);
+  if (P.carried && G.st === 'play') drawCarried(u);
   drawWayUp();
   drawMarks();
   // health
@@ -2783,15 +2978,18 @@ function drawHUD(dt) {
   label(fmtTime(G.t), W / 2, T + 14 * u, 26 * u, '#ffffff', 'center');
   drawBossBar();
   // crosshair, lit up when a shot would hit something
-  const cx = W / 2, cy = H / 2, aiming = active() && !P.hang, on = aiming && inLine();
+  const cx = W / 2, cy = H / 2, aiming = active() && !P.hang && !P.carried, on = aiming && inLine();
   if (on && on.alive) { const p = project(on.x, AIMY, on.z); if (p) { hx.strokeStyle = 'rgba(184,240,96,0.85)'; hx.lineWidth = 2 * u; ring(p.x, p.y, clamp(on.r * 1.3 * H / p.w * 0.9, 14 * u, 120 * u)); } }
   hx.lineCap = 'round';
   if (aiming && G.st === 'play') {
     // how far your molded arm can wobble: faint brackets at the top and bottom of its reach
-    const k = Math.min(H * 0.42, AIMT / Math.tan(CAM.fovy / 2) * H / 2), bw = 13 * u, hot = !on && OUTBAND ? OUTDIR : 0;
+    // (the band is measured from your hip, so close up it sits lower than your eye line: the brackets follow
+    // the distance of whatever you're facing)
+    const tgt = on || OUTBAND, d = tgt ? Math.max(1.2, Math.hypot(tgt.x - P.x, tgt.z - P.z)) : clamp(rayHit(P.x, P.y + HIP, P.z, Math.cos(P.yaw), 0, Math.sin(P.yaw), 30), 1.2, 30);
+    const sc = H / 2 / Math.tan(CAM.fovy / 2), drop = (EYE - HIP) / d, bw = 13 * u, hot = !on && OUTBAND ? OUTDIR : 0;
     for (const sg of [-1, 1]) {
       hx.strokeStyle = hot === -sg ? 'rgba(255,154,58,0.95)' : 'rgba(255,255,255,0.3)'; hx.lineWidth = 2 * u;
-      const yy = cy + sg * k, t = -sg * 6 * u;
+      const yy = clamp(cy + (sg * AIMT + drop) * sc, T + 30 * u, H - 30 * u), t = -sg * 6 * u;
       hx.beginPath(); hx.moveTo(cx - 3 * bw, yy + t); hx.lineTo(cx - 3 * bw, yy); hx.lineTo(cx - 1.9 * bw, yy);
       hx.moveTo(cx + 1.9 * bw, yy); hx.lineTo(cx + 3 * bw, yy); hx.lineTo(cx + 3 * bw, yy + t); hx.stroke();
     }
@@ -3008,12 +3206,12 @@ function startGame() {
   if (REDUCE) { callout('CLIMB!', '#ffd23f', 64, 1); sfx.start(); }
 }
 function resetGame() {
-  Object.assign(P, { x: 4, y: 0, z: 23.5, yaw: -Math.PI / 2, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 0, dead: 0, check: 0, onGround: true, ground: null, fallFrom: 0, full: 0, fireT: 0, kick: 0, itemT: 0, vm: null, swing: 0, hurtT: 0, hurtA: null, hang: null, lip: null, edgeT: 0, tip: 0, strain: 0, padT: 0, launched: false, jumpBuf: 0, look: 0 });
+  Object.assign(P, { x: 4, y: 0, z: 23.5, yaw: -Math.PI / 2, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0, hp: 100, inv: 0, dead: 0, check: 0, onGround: true, ground: null, fallFrom: 0, full: 0, fireT: 0, kick: 0, itemT: 0, vm: null, swing: 0, hurtT: 0, hurtA: null, hang: null, lip: null, edgeT: 0, tip: 0, strain: 0, padT: 0, launched: false, jumpBuf: 0, look: 0, carried: null });
   for (const c of CHECKS) c.reached = c.n === 0;
   for (const s of STEPS) { s.p = 0; s.sol.off = true; }
   stepsT = -1;
   for (const L of LIFTS) { L.mode = 'top'; L.t = 0; L.rung = false; L.y = L.hi; L.sol.y0 = L.hi - 0.4; L.sol.y1 = L.hi; }
-  Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0, hinged: false, brolly: false, desc: null, downKills: 0, fold: false, landT: 0, trail: [[0, 0]], trailT: 0.25 });
+  Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0, eagleSeen: false, eagleWarned: 0, hinged: false, brolly: false, desc: null, downKills: 0, fold: false, landT: 0, trail: [[0, 0]], trailT: 0.25 });
   G.callouts.length = 0; PARTS.length = 0; G.stats = { shots: 0, hits: 0 };
   stick = null; pointers.clear(); resetDirector();
   IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = IN.fireTap = false; IN.mb = 0; IN.mouseTurn = 0; IN.mouseLook = 0; IN.ktap = 0;
@@ -3109,7 +3307,7 @@ document.addEventListener('pointerlockerror', lockFailed);
 document.addEventListener('pointerlockchange', () => {
   const was = IN.locked;
   IN.locked = document.pointerLockElement === hud;
-  if (IN.locked) { IN.everLocked = true; IN.lockFail = false; return; }
+  if (IN.locked) { IN.everLocked = true; IN.lockFail = false; if (G.paused || !active()) document.exitPointerLock(); return; }
   IN.mFire = false; IN.mb = 0; IN.ksl = IN.ksr = 0; IN.freeT = G.time;
   // Esc lets go of the mouse, so that pauses; resuming grabs it again
   if (was && (G.st === 'play' || G.st === 'descent') && !G.paused) { pause(); IN.relock = true; }
@@ -3237,7 +3435,7 @@ function stepGame(dt) {
     G.t += dt;
     stepLifts(dt); stepSteps(dt); stepPlayer(dt); stepWorld(dt);
   } else if (G.st === 'win') {
-    G.winT += dt;
+    G.winT += dt; stepGibs(dt); stepFX(dt);
     if (G.winT > 0.6 && !G.hinged) { G.hinged = true; sfx.clack(1); sfx.hinge(); callout('CLICK! A NECK HINGE. YOU CAN LOOK UP', '#b8f060', 30, 2.6); }
     // then an umbrella, and the way home
     if (G.winT > 2.2 && !G.brolly) { G.brolly = true; P.look = 0.2; sfx.brolly(); callout('AN UMBRELLA!', '#ff7ad9', 46, 1.8); }
@@ -3286,7 +3484,7 @@ function placeCamera(dt) {
   const up = G.intro > 0 ? easeInOut(clamp(G.intro / 1.7, 0, 1)) * 0.56 : 0;
   // teetering, your base rocks on the lip: tipping forward shows you the drop, backward the ceiling
   const tip = (P.tip || 0) * (0.3 + 0.05 * Math.sin(G.time * 24)) * -Math.sign(P.tipTo || 0);
-  CAM.x = P.x; CAM.y = P.y + EYE * (1 - down * 0.7); CAM.z = P.z; CAM.yaw = P.yaw; CAM.pitch = up - down * 0.35 + tip + (P.hang ? 0.12 : 0);
+  CAM.x = P.x; CAM.y = P.y + EYE * (1 - down * 0.7); CAM.z = P.z; CAM.yaw = P.yaw; CAM.pitch = up - down * 0.35 + tip + (P.hang ? 0.12 : 0) + (P.carried ? -0.55 + Math.sin(G.time * 2.3) * 0.04 : 0);
 }
 
 // ---------------------------------------------------------------- boot
@@ -3301,6 +3499,7 @@ window.tallOrder = {
   FOES, SHOTS, ITEMS, INV, WAVES, giveItem, useItem, inLine, populate, los, floorBelow, foe, stepsT: () => stepsT, aim: () => ({ out: OUTBAND, dir: OUTDIR, y: AIMY }), selIdx: () => SEL, dir: () => DIR,
   sim(secs) { const dt = 1 / 60; for (let i = 0; i < Math.round(secs * 60); i++) { G.time += dt; stepGame(dt); } },
   setStick(x, y) { if (x == null) { stick = null; return; } const R = stickR(), x0 = W * 0.2, y0 = H * 0.64; stick = { id: -1, x0, y0, x: x0 + x * R, y: y0 + y * R }; },
+  dbgDecals() { DECAL.n = 0; drawFoes(); const out = []; for (let i = 0; i < DECAL.n; i++) out.push(Array.from(DECAL.inst.slice(i * 12, i * 12 + 12)).map(v => +v.toFixed(2))); DECAL.n = 0; SH.box.n = SH.cyl.n = SH.sph.n = 0; GLOW.box.n = GLOW.sph.n = 0; return out; },
   G, P, IN, SOL, CHECKS, LIFTS, PADS, LADDERS, STEPS, CAM, GOAL: () => GOAL, stick: () => stick && { ...stick }, pointers: () => [...pointers], start: startGame, world: () => WORLD, key, buttons, buildSteps,
   teleport(x, y, z, yaw) { Object.assign(P, { x, y, z, vx: 0, vy: 0, vz: 0, kx: 0, kz: 0 }); if (yaw != null) P.yaw = yaw; } };
 requestAnimationFrame(frame);
