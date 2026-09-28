@@ -189,6 +189,12 @@ than the hearth, the sofa cushions, the arm of the sofa and the fireplace. The
 room thins out as you go up (the fire's crackle and the clock's tick fade, and
 a wind picks up), and the chart at the end marks the furniture for scale.
 
+Smoke from the fireplace has pooled in a layer just over floor three. There it
+hangs over your head, greying everything above your eye line; the stairs up to
+floor four take you up through it and out into clear air, and from above it
+lies over the room like a sea of fog, with the sofa, the table and the
+fireplace standing out of it. It's a grey band on the height strip.
+
 A SPLAT comes with a line from the history of human flight, which is mostly the
 history of landing badly: Eilmer of Malmesbury and Ibn Firnas, who both blamed
 the lack of a tail; John Damian, off Stirling Castle in 1507 onto a dung heap;
@@ -199,7 +205,11 @@ from a cornice.
 
 ## The way home
 
-At the flag, the neck hinge clicks in and an umbrella opens over you. From then
+At the flag, for the only time, the view swings out of your head and behind
+you, and you see yourself: a small painted figure on top of it all, looking
+out over the smoke like the wanderer in Caspar David Friedrich's *Wanderer
+above the Sea of Fog* (JUMP gets on with it). Then you're back in your head,
+the neck hinge clicks in, and an umbrella opens over you. From then
 on the stick (or W S, or the mouse) looks up and down as well as turning. Press
 JUMP and you float home: a slow spiral round the outside of the tower, past
 every floor you fought through, shooting wherever you look at whatever you left
@@ -383,14 +393,15 @@ whenever the resolution scaler changed the resolution, because it resized the
 canvas after drawing the frame.
 
 The runs also set the difficulty, which was meant to stay about where it was
-before. With everything in, the bot in human mode finishes in a minute and a
-half to two and a half minutes and gets knocked out up to three times, mostly
-by the MEGA WOLF and by falls; the novice takes two to four and a half minutes,
-with two to six knockouts; and the novice that stands about on every floor
-takes four to five minutes and meets three or four swarms. The eagle snatches
-most of them once or twice a climb, and usually gives them a shortcut. All of
-them always got to the top. A person playing for the first time should expect
-to take longer.
+before. With everything in, the kitty ladders included, the bot in human mode
+finishes in two to two and a half minutes and gets knocked out up to three
+times, mostly by the MEGA WOLF and by falls; the novice takes two and a half to
+four and a half minutes, with two to four knockouts; and the novice that stands
+about on every floor takes about five minutes, meets four or five swarms (one
+or two of them up a ladder) and gets knocked out four or five times. The eagle
+snatches about half of them once or twice a climb, and usually gives them a
+shortcut. All of them always got to the top. A person playing for the first
+time should expect to take longer.
 
 ## Code
 
