@@ -56,9 +56,11 @@ subdirectory with its own README:
   climbing a tower of big toy bricks on a living-room rug, through wolves,
   kitties, bees, a brick golem, toy cars and cannons, up to a giant wolf and a
   crane with a flag on top. You are a plastic figure that can't look up, so
-  you climb level with things to hit them (or wear another toy's head); the
-  kitties come in swarms, from above and up the stairs, an eagle carries you
-  off, and at the top you get a neck hinge and float home under an umbrella.
+  you climb level with things to hit them (or wear another toy's head, or peep
+  up a periscope); the kitties come in swarms, from above, up the stairs and
+  up ladders of themselves, the wolves race you with a tower of their own, an
+  eagle carries you off, and at the top you get a neck hinge and float home
+  under an umbrella, down through the smoke from the fireplace.
   Pickup weapons you use up, checkpoints, splats, a ledge to grab. Raw WebGL2, one HTML file, made for a phone held sideways and
   playable on a laptop with the keys and the mouse. Open
   `tall-order/index.html`.
