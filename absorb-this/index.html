@@ -216,7 +216,14 @@ if (!gl) { document.getElementById('err').style.display = 'flex'; return; }
 const $ = id => document.getElementById(id);
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 const rand = (a, b) => a + Math.random() * (b - a);
-const pick = a => a[(Math.random() * a.length) | 0];
+// remembers what it picked from each array and avoids the last half of it, so lines don't come round again too soon
+const RECENT = new WeakMap();
+const pick = a => {
+  if (a.length < 2) return a[0];
+  let r = RECENT.get(a); if (!r) RECENT.set(a, r = []);
+  let i, n = 0; do i = (Math.random() * a.length) | 0; while (r.includes(i) && ++n < 30);
+  r.push(i); if (r.length > Math.max(1, a.length >> 1)) r.shift(); return a[i];
+};
 const lerp = (a, b, t) => a + (b - a) * t;
 function angLerp(a, b, t) { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * t; }
 
@@ -967,7 +974,8 @@ function announce(t, sub) { const el = $('ann'); el.innerHTML = t + (sub ? `<sma
 function multiText(t) { const el = $('mk'); el.textContent = t; el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); }
 function feed(html) { const f = $('feed'); const d = document.createElement('div'); d.innerHTML = html; f.prepend(d); while (f.children.length > 6) f.lastChild.remove(); setTimeout(() => d.remove(), 3300); }
 function pop(x, y, z, text, small) { const el = document.createElement('div'); el.className = 'pop' + (small ? ' s' : ''); el.textContent = text; $('pops').appendChild(el); pops.push({ x, y, z, el, t: 1 }); }
-let hitT = 0, hitKill = false, hitWT = 0, jokeAt = 0, jokeT = 0, lastJokeT = -999, lastRank = 0, tickX = 0, tickW = 0;
+const JOKE_GAP = 180;   // seconds between 'you think this is a joke?' freezes (the fork doesn't wait)
+let jokeN = 0, eyePopT = 0, hitT = 0, hitKill = false, hitWT = 0, jokeAt = 0, jokeT = 0, lastJokeT = -999, lastRank = 0, tickX = 0, tickW = 0;
 function hitmark(kill) { hitT = kill ? 0.3 : 0.12; hitKill = kill; }
 
 // =====================================================================  ŽIŽEK
@@ -1085,7 +1093,7 @@ let TAGLINES = ["A COUNTER-TERRORISM SHOOTER", "NOW WITH 40% MORE IDEOLOGY", "A 
     "You are part of the sponge now. One day it will be wrung out over the sink, and you will finally see the drain.",
   ],
 };
-let MULTIW = [[], [], ["DOUBLE DIP!", "DOUBLE DIP!", "DOUBLE DUNK!", "TWO-PLY!"], ["TRIPLE SCRUB!", "HAT-TRICKLE!", "THREE-COURSE MEAL!"], ["QUAD-RINSE!", "FOUR-SLICE TOASTER!", "QUADRUPLE SQUEEGEE!"], ["DISHWASHER MODE!", "FIVE-A-DAY!", "PENTA-SPLASH!"], ["SPIN CYCLE!", "SIX-PACK!", "SIX-BURNER STOVE!"], ["SEVEN-LAYER DIP!", "SEVENTH HEAVEN!"], ["DISHPOCALYPSE!", "EVERYTHING BUT THE KITCHEN SINK!", "BIBLICAL DELUGE!", "TOTAL SATURATION!"]];
+let MULTIW = [[], [], ["DOUBLE DIP!", "DOUBLE DUNK!", "TWO-PLY!", "DOUBLE BOILER!", "TWO FOR THE PRICE OF WET!", "DOUBLE RINSE!", "PAIR OF SPLASHES!", "BOGOF!", "DOUBLE ESPRESSO!", "DUAL FLUSH!", "TWIN TUB!", "DOUBLE DUTCH OVEN!"], ["TRIPLE SCRUB!", "HAT-TRICKLE!", "THREE-COURSE MEAL!", "TRIPLE DIPPER!", "THREE-PIECE SUIT-CASE!", "TRIPLE-PLY!", "TRINITY OF TRICKLE!", "THREE'S A CROWD CONTROL!"], ["QUAD-RINSE!", "FOUR-SLICE TOASTER!", "QUADRUPLE SQUEEGEE!", "FOUR-BURNER BLAZE!", "FANTASTIC FOUR-SPILL!", "FOUR-CHEESE MASSACRE!"], ["DISHWASHER MODE!", "FIVE-A-DAY!", "PENTA-SPLASH!", "HIGH FIVE (WET)!", "FIVE-SPICE FURY!", "FIVE-STAR HYGIENE!"], ["SPIN CYCLE!", "SIX-PACK!", "SIX-BURNER STOVE!", "HALF-DOZEN EGGSTINCTION!", "SIXTH SENSE OF MOISTURE!"], ["SEVEN-LAYER DIP!", "SEVENTH HEAVEN!", "SEVEN SEAS OF SPILL!", "SEVEN DEADLY SPINS!"], ["DISHPOCALYPSE!", "EVERYTHING BUT THE KITCHEN SINK!", "BIBLICAL DELUGE!", "TOTAL SATURATION!", "THE FLOOD (DIRECTOR'S CUT)!", "NOAH CALLED, HE WANTS HIS RAIN BACK!", "WATERWORLD (THE GOOD ONE)!", "HYDRO-ARMAGEDDON!", "TSUNAMI OF SPITE!"]];
 let ZNAMES = ["ŽIŽEKBOT 3000", "VIRTUAL ŽIŽEK", "CECI N'EST PAS UN ŽIŽEK", "ŽIŽEK SIMULACRUM", "ŽIŽEK-SIMULACRA", "OBJET PETIT ŽIŽEK", "ŽIŽEK (DECAFFEINATED)", "IMITATION ŽIŽEK FLAVOUR", "HOLOGRAM ŽIŽEK", "ŽIŽEK (IMAGINARY ORDER)", "ŽIŽEK (TAKEAWAY ORDER)", "I CAN'T BELIEVE IT'S NOT ŽIŽEK", "ACTUAL ŽIŽEK MAY VARY", "MAY CONTAIN TRACES OF ŽIŽEK", "REAL ŽIŽEK SOLD SEPARATELY", "LEGALLY DISTINCT ŽIŽEK", "THE BIG ŽIŽEK DOES NOT EXIST", "A STAIN THAT LOOKS LIKE ŽIŽEK", "FACE OF ŽIŽEK SEEN IN TOAST", "ŽIŽEK FRIDGE MAGNET", "INSTANT ŽIŽEK: JUST ADD WATER", "ŽIŽEK (FROM CONCENTRATE)", "DISHWASHER-SAFE ŽIŽEK", "COUNTER-FEIT ŽIŽEK", "STORE-BRAND ŽIŽEK", "ŽIŽEK, OPEN BOX, SLIGHTLY DAMP", "GENUINE FAKE ŽIŽEK", "ŽIŽEK BOBBLEHEAD", "ŽIŽEK STUNT DOUBLE", "DECOY ŽIŽEK #4", "ŽIŽEK TRIBUTE ACT", "ŽIŽEK (KARAOKE VERSION)", "ŽIŽEK 2 (DIRECT TO VIDEO)", "TEXT-TO-ŽIŽEK", "ŽIŽEK.EXE HAS STOPPED WORKING", "ŽIŽEK_COPY(3).PNG", "ŽIŽEK FREE TRIAL (3 DAYS LEFT)", "ŽIŽEK (MISQUOTED)", "ŽIŽEK, BADLY TRANSLATED", "ŽIŽEK (ARTIST'S IMPRESSION)", "ŽIŽEK FAN FICTION", "INSPIRED BY ŽIŽEK. BARELY."];
 // every line below is invented for the game; it is a cartoon parody, not a real quotation
 const ZL = {
@@ -1102,6 +1110,9 @@ const ZL = {
     "Before we begin, a confession: nothing I say is real. I am a simulacrum, drawn by strangers, speaking through your browser. In other words, a normal philosopher.",
     "Everybody asks if the glass is half empty or half full. Nobody asks the drop at the bottom. The drop says: the glass is ninety-nine percent empty, and I am armed.",
     "A drop of water with a gun made of itself. My God! Every shot is a little self-sacrifice. This is the most honest economic model I have ever seen in a video game.",
+    "Welcome! You are a drop of water at the bottom of a glass, and you are about to kill kitchenware. Please do not ask me what it means. I will tell you anyway. For forty minutes.",
+    "They told me: Slavoj, it is only a little game about a sponge. Only! Nothing is ever only. Only is the favourite word of ideology.",
+    "Look around. Bottles, spoons, sponges. The ordinary kitchen. And precisely the ordinary is where the horror lives. Nobody ever made a horror film in a philosophy department. Too obvious.",
   ],
   idle: [
     "Kant said never treat a person merely as a means. You treat sponges merely as ammunition. Kant would be furious, but he never left Königsberg, so he never met a sponge.",
@@ -1158,6 +1169,11 @@ const ZL = {
     "A minute of silence for the sponge, please. Okay, that is enough. It is a video game and I am paid by the line.",
     "Squeezed! In the end every sponge confesses. All that foam, all those holes, and not one idea inside. Like a panel discussion.",
     "A sponge is not a thing with holes. It is holes, held together by a thing. So ontologically you did not kill it. You only removed the thing.",
+    "Another sponge! And notice, you feel nothing. This is the modern subject. We can wipe out a whole species of kitchenware and still ask, what is for dinner?",
+    "It absorbed everything and understood nothing. I have met this sponge. It sat in the front row of all my lectures.",
+    "You wrung it out. Look, it gives back everything it took. The only honest capitalist in the whole kitchen, and you killed it.",
+    "Dead sponge. And yet the smell remains. This is the undead, the drive, the thing that persists after death. Every kitchen sponge is secretly a zombie. You only have to smell it.",
+    "It had so many holes. And each hole, a little lack. You did not kill a sponge. You killed a collection of lacks. Lacan would give you a small medal. Also full of holes.",
   ],
   first_bottle: [
     "Marx says the commodity is a strange thing: the table stands on its head and grows grotesque ideas out of its wooden brain. Here the hot sauce grew stubby legs. And you smashed it.",
@@ -1168,6 +1184,11 @@ const ZL = {
     "Thesis: water. Antithesis: hot sauce. Synthesis: a disgusting pink puddle. This is exactly why Hegel never actually used this formula.",
     "The label said Made With Real Peppers. Real! Nobody writes made with real water. This is how ideology works: the word real appears exactly where the Real is missing.",
     "Why does it throw sauce at you? It wants to share its enjoyment. And nothing, you know, is more dangerous than a neighbor who insists that you enjoy what he enjoys.",
+    "Hot sauce! It says extreme on the label. Extreme! Nothing is less extreme than a product that tells you it is extreme. Real extremity never has a label. It has a smell.",
+    "The bottle is empty now. You see? The container survives the content. Every institution works like this. The church, the university, the ketchup.",
+    "It squirts its essence at you, and its essence is chilli. Imagine if people did this. Actually, they do. It is called social media.",
+    "Sauce! The supplement! Food is never enough, we must add the sauce, and then the sauce is the real food, and the food is only an excuse for the sauce. Derrida, but spicy.",
+    "Smashed! And all over the counter, the red puddle. Do not step in it. Every revolution leaves a puddle like this. Everybody steps in it anyway.",
   ],
   first_spoon: [
     "Your first spoon! In The Matrix, a child tells us there is no spoon. And you, like a good philosopher, have proven it with violence.",
@@ -1178,25 +1199,47 @@ const ZL = {
     "The spoon only wanted to feed you. The ideology of care: open your mouth, here comes the airplane! And then the airplane lunges. Every airplane spoon is a threat.",
     "An empty spoon flying at your face. Lacan says love is giving what you do not have. That spoon had nothing on it, and it gave it to you with enormous force. That was love.",
     "In the drawer, spoons lie nested together for years, perfectly aligned. Of course they escape and attack! Too much intimacy produces violence. Every family knows this.",
+    "Down goes the spoon! It lived its whole life between the mouth and the drawer. Two holes. Like every life, really, if you think about it. Do not think about it.",
+    "The spoon falls, and you hear it: clink. The purest sound of the kitchen. Like a tiny bell announcing that someone, somewhere, is stirring their tea without you.",
+    "A spoon is a hand that has given up. It no longer grabs, it only holds. And still it attacked you. Even resignation, you see, has a violent side.",
+    "Spoon destroyed. Did you notice it bends your reflection upside down? Every spoon is a little critique of ideology. Look into it and the world is standing on its head, as it should.",
+    "They fly in circles, the spoons, like vultures of the cutlery drawer. And what are they waiting for? For you to become soup. Do not become soup.",
   ],
   googly: [
     "Why bonus damage for the eye? Without eyes a sponge is a tool. With eyes it is a victim. The eye is the difference between cleaning and murder, and you aimed for the murder.",
     "Un Chien Andalou, but family friendly: tap water instead of a razor. Surrealism for the whole kitchen.",
     "Precisely! Hit the gaze and the whole object collapses. The eye was holding everything together. Without it, a sponge is just a rectangle with regrets.",
+    "Right in the googly! And notice, it keeps looking at you. The googly eye has no pupil to lose. It simply rolls. This is the gaze without a subject. Terrifying and cheap.",
+    "You shoot the eye because the eye was looking at you. Very primitive! Very Oedipus! But in reverse. He blinded himself. You are blinding the furniture.",
+    "Why do we glue eyes on things? So that they can look back. And then we shoot them for looking back. This is the whole history of colonialism, in a craft shop.",
+    "Eye shot! The googly eye is the perfect object: a little plastic bubble with a black dot that rattles. Exactly like the soul, according to most neuroscientists.",
+    "Aim for the eyes, the eyes, always the eyes! Two euros for a bag of fifty. The cheapest possible gaze. And still, it judges you. The gaze does not need a budget.",
   ],
   multi: [
     "Listen to that announcer! So fast, so high, so excited. For the first time in my life somebody speaks faster than me. I am jealous, and I am sniffing about it. *sniff*",
     "That voice! My God! A chipmunk on espresso! Lacan says the voice is an object that detaches itself from the body. This one has detached itself from all dignity.",
     "The announcer enjoys the multi kill for you, the way canned laughter laughs for you. Interpassivity! You can relax, the celebration has been outsourced.",
+    "Double! Triple! The announcer counts your kills like a child counting sheep. And you know what happens after enough sheep? You fall asleep. Stay awake, please.",
+    "You killed many things at once, and the announcer invented a pun for it. This is culture. Horror happens, and then somebody makes a pun, and then we can go on living.",
+    "A multi kill! The quantity changes into quality, as Engels said. Two dead sponges are not just one sponge, twice. They are a pile. A pile is a new ontological category.",
+    "Listen to him shouting double dip! double dip! I have heard this more times than my own name. And my name I hear constantly. Mostly in complaints.",
+    "Too much! Too many kills, too many puns, too many words. You know what this is? Surplus enjoyment. You did not need the pun. You wanted the pun. That is why it hurts.",
   ],
   counter: [
     "The five-second rule! We know very well the floor is dirty, and yet, if we pick it up quickly, it is still clean. Fetishistic disavowal. The sponge has five seconds. Then the dog.",
     "Fort! Freud's grandson threw his spool away, fort, and pulled it back, da. You threw the sponge away, and there is no string. Fort forever.",
     "When a kitchen sponge falls on the floor, it is demoted. Next week it cleans the toilet. German, French or Anglo-Saxon toilet, it does not matter. Its career is over.",
+    "Off the counter! Below is the floor, and the floor is the unconscious of the kitchen. Everything we drop goes there, and it never forgets.",
+    "Look how it falls, slowly, like a sponge in a dream. The floor waits. The floor has always been waiting. The floor is extremely patient. Like death, but with crumbs.",
+    "Pushed over the edge! Freud says the drive always returns. The dog says the sponge never returns. Here, I must admit, the dog is the better theorist.",
+    "Gone! In philosophy we call this a limit experience. In the kitchen we call it, somebody get the dustpan.",
   ],
   rocket: [
     "Rocket jumping is self-destruction as public transport. You explode yourself to get somewhere, like capitalism growing through its own crises, and so on, and so on. Look how high!",
     "Look at you, above the counter, above the sponges, above ideology! No, wait. Ideology is precisely the feeling of being above ideology. Come down, please.",
+    "Up you go! Up, up, like the stock market, carried by nothing but its own explosions. And like the stock market, you will come down. Try to land on a sponge.",
+    "Seltzer jump! You shoot yourself in the feet and you fly. There is a lesson here for every self-help book. Most people shoot themselves in the feet and simply fall down.",
+    "Flying! And for one moment the whole kitchen is below you, small, laughable. Enjoy it. The view from above is the most expensive ideology of all. It costs you all your health.",
   ],
   dare: [
     "Lacan says: do not give way on your desire. But what if your desire is to give way? Then hold E! Do not give way on giving way!",
@@ -1215,42 +1258,71 @@ const ZL = {
     "You drink yourself back up from the counter. The subject reappropriates its own alienated product! Marx dreamed of this. He did not imagine it would involve licking a countertop.",
     "The prodigal puddle returns! And what does the father do? He drinks it. This is not in the Bible, but it should be.",
     "Licking the counter! My God, where the raw chicken was! Ideology is not what you think, it is what you are willing to put in your mouth.",
+    "Slurp! You drink yourself back up. The snake eating its tail, but the snake is water and the tail is a puddle next to the ketchup. Ouroboros, kitchen edition.",
+    "Recycling! Very green. Very ecological. You are licking your own blood off the counter, but ecologically. This is exactly what ecology has become.",
   ],
   low: [
     "Welcome to the desert of the Real! You are drying out, and what remains is the truth: a little ring of limescale.",
     "Almost nothing left! Soon you will be less than nothing, which, I must say, is my specialty. I wrote a thousand pages about it. Do not make me write page one thousand and one.",
     "Drying out! This is how every great enthusiasm ends. The passion evaporates and only the stain remains. Do not become a stain. Become a puddle.",
+    "You are running out of yourself! Please, find an ice cube, or at least a puddle, or at least a reason. A reason is not wet, but it helps.",
+    "So little of you left! You know, in my experience, the less there is of a person, the more they talk. You should be very talkative by now.",
+    "Barely damp! You are becoming a rumour of water. Soon only a stain will testify that you were ever here. Stains are the only honest historians.",
   ],
   ice: [
     "Ice! In Titanic, the iceberg arrives exactly on time to save the love story from boring everyday life. This ice cube arrives to save you from a boring fight.",
     "You picked up the tip of the iceberg. And under the surface, as always, lies the unconscious. In this case, the freezer.",
+    "Ice! Frozen water, water that stopped moving and decided to wait. And now you swallow your own frozen past. This is nostalgia. Very refreshing. A little sad.",
+    "An ice cube! Pure potential! Water in solid form, waiting, like a revolutionary in exile, for the temperature to change. And the temperature, my friend, is you.",
+    "You eat ice to stay alive. In the Titanic it went the other way. You see? Everything depends on who is eating whom.",
+    "Cold, hard, refreshing. Ice is water that has finally found discipline. It will not last. Discipline never lasts. Especially at room temperature.",
   ],
   clear: [
     "Cleared! And now what? Every victory produces this emptiness. The hero kills the dragon, and then he has to go home and do the dishes.",
     "The end of history! No enemies, no conflict, Hegel's Absolute Knowing achieved on a kitchen counter. It will last approximately until the next wave.",
     "In a real kitchen, after the battle, someone would wipe the counter. The ultimate irony: here the only cleaning products are the enemies. Who cleans the cleaners?",
+    "Silence. No enemies. And already you are nervous, yes? Peace is unbearable. We invented peace only so we would have something to lose.",
+    "Wave cleared! Look at the counter, full of stains and crumbs and googly eyes. Every victory looks like this from close. From far away it looks like a statue.",
+    "You won, and the reward is more enemies. This is not a bug. This is the structure of every career. The prize for good work is always more work.",
+    "Everybody is dead, and you are still wet. Enjoy this moment, it is the only happy ending the game can afford. It lasts about four seconds.",
+    "Clean! Spotless! And yet, somehow, the kitchen feels dirtier. The more you clean, the more you notice. This is why I never clean. For theoretical reasons.",
+    "The wave is over. Take a breath. No, wait, you are water. Take a sip. Of what? Of yourself? My God, this game is darker than I thought.",
   ],
   mama: [
     "My God, the grandmother! People think the superego is the strict father who forbids. No! The true superego is Grandma: Eat! You are too thin! Why do you not finish your plate?",
     "She wears spectacles! Lacan's sardine can does not see you, but Grandma sees you. Grandma always sees you. She saw you forget her birthday.",
     "Here she comes, the mother of the mother, the mother squared. If the mother is the primordial Thing, the grandmother is the Thing that brought cookies.",
+    "Grandma! Did you eat? You look thin. You look, if I may say, like one drop. Grandma is here to fix this. By drinking you.",
+    "The grandmother arrives, and the whole kitchen becomes quieter. This is authority. Not the police. A sponge in spectacles who remembers what you did at Christmas.",
+    "She is enormous and she is soft. The worst combination. A hard enemy you can fight. A soft enemy hugs you until you are absorbed. Ask any family.",
   ],
   mamaKill: [
     "The negation of the negation! Kill one grandma, you get two. Kill two, you get four. Hegel never warned us that the dialectic ends in a retirement home.",
     "She splits! The dialectical formula: one divides into two. Not two become one, like romantic love. No, one grandma becomes two grandmas, and both are disappointed in you.",
+    "Now there are two of them, and they are both telling you to wear a jacket. You cannot win against grandmothers. You can only multiply them.",
+    "You split her in half, and each half is still a whole grandmother. This is the mystery of love. Divide it, and nothing is lost. Also the mystery of mould.",
+    "Grandma divides! Like a cell, like a party congress, like a family at a funeral. There is no violence more productive than the violence of splitting.",
   ],
   still: [
     "Nine seconds without moving. Are you waiting for the game to play itself, like canned laughter that laughs for you? Put a prayer wheel on the W key, it will walk for you.",
     "Hello? Are you there? Maybe you went to get a glass of water. The irony! A drop of water, abandoned by a player who is drinking water. Cannibalism by proxy.",
     "A drop does not stand still. A drop that stands still is called evaporation. Move, or become weather.",
+    "Nothing is happening. You are standing still, the game is waiting, the sponges are coming. This is the situation of Europe for the last thirty years.",
+    "Are you meditating? Very good. Buddhism says the self is an illusion. The sponge agrees. It is coming to prove it.",
   ],
   spoonHit: [
     "Ow! It lunged like a thesis advisor asking when you will finish. Always circling, always winding up, and then, bang, right in the dampness.",
     "Hit! You know why the spoon is so dangerous? It is concave. It is made to hold things. It wanted to hold you, had no idea how, so it hit you instead. Like most relatives.",
+    "Clonk! Right on the head. Well, you do not have a head. Right on the you. It is strange, to be hit everywhere at once.",
+    "The spoon hits you and you splash. You see, you cannot be wounded, only redistributed. This is either very Buddhist or very liquid. Maybe it is the same thing.",
+    "Ow! And it will circle and come back again, like a bad idea at a dinner party. The spoon is the eternal return of the same, with a handle.",
   ],
   sauceHit: [
     "Sauce on your screen! Holbein's Ambassadors has a strange smear that becomes a skull when you look from the side. Your screen has a smear too. From the side it is still hot sauce.",
     "Now you see the world through hot sauce. This is ideology: not glasses you put on, but a stain on the lens that you forget is there.",
+    "Sauce in your face! And now the screen is red, and you feel attacked by a colour. This is exactly what happens in politics. It is always the colour that attacks first.",
+    "You are marinated! Stop, stop, this is how it begins. First a little sauce, then some lemon, then somebody says, just ten more minutes in the oven.",
+    "Hot sauce in the eyes! Well, you do not have eyes, you are the eye. The whole drop is one big eyeball. Which is also, I must say, how I feel at conferences.",
   ],
   glass: [
     "The parallax view! Through the glass, one kitchen. Without the glass, another. The truth is in neither image, it is in the gap between them. Also press G again, I preferred it.",
@@ -1260,6 +1332,9 @@ const ZL = {
   pad: [
     "Aufhebung! In German it means to cancel and to lift up at the same time. You cancelled the ketchup packet and it lifted you up. Hegelian sublation in its purest form!",
     "Boing! Ketchup makes everything taste like ketchup. It abolishes difference. And now it abolishes gravity. Ketchup is the most totalitarian of all condiments.",
+    "The ketchup packet! You step on it and you fly. The dream of every condiment: to be taken seriously for one second, as a vehicle.",
+    "Boing! You know, most people use ketchup to hide what they are eating. You use it to escape what is eating you. Much better use.",
+    "Jumping on ketchup! In the old days, a person sat on a whoopee cushion, and everyone laughed. Now the cushion throws you into the air and nobody laughs. Progress.",
   ],
   rank: [
     "Who gives you this rank? The big Other, who does not exist. And still you perform for his approval. Exactly like tenure.",
@@ -1282,6 +1357,14 @@ const ZL = {
     "No, no. It is much worse than a joke. It is a hobby. You chose this. Freely. On a weeknight.",
     "Everything important first arrives as a joke. Nobody took the fork seriously either. Remember that I said this. Later. When it matters.",
     "Let me give you an example. A person plays a game about the last drop of water, late at night, with a real glass beside them. Is there a glass beside you now? Do not look. Too late. You looked.",
+    "Of course it is a joke. That is exactly the problem. The best way to make people accept something is to let them laugh at it first.",
+    "A joke! You say this the way people say it is only a phase. Every phase, you know, is also only a phase. And then you are sixty, and a sponge.",
+    "Let me explain the joke. No, wait. A joke explained is dead. Like the sponge. You see? I explained the sponge and now it is dead. Coincidence? No.",
+    "You laugh, but look at your hands. They are holding very still. Your body has already stopped laughing. Only your mind is still pretending.",
+    "It is a joke the same way a birthday is a party. Technically, there is cake. But every year, you are also closer to the end.",
+    "The real joke is that you need me to tell you it is a joke. You need a cartoon philosopher to give you permission to have fun. Permission granted. Now resume the violence.",
+    "My friend, there are no jokes. There are only truths that are too early. In ten years, every sponge will have a gun. Then who will be laughing? The sponges.",
+    "Jokes are how the unconscious smuggles truth past the border guards. And you, my friend, just waved a whole lorry of truth through customs. Welcome to the kitchen.",
   ],
   death: [
     "Zero percent dampness. Perfect dryness. Monks spend thirty years on a mountain trying to become this empty. You did it in four minutes, against a hot sauce bottle.",
@@ -1289,6 +1372,9 @@ const ZL = {
     "Less Than Nothing. This used to be the title of a very long book. Now it is also your dampness.",
     "You died of dryness in a kitchen. A kitchen! The one room in the house built entirely around water! This is not a tragedy. This is interior design.",
     "Drip is dead. Long live the drip. Somewhere, a tap is already leaking your successor.",
+    "Evaporated. You went up into the air, invisible, everywhere and nowhere. Congratulations, you are now the atmosphere. Try to be a good one.",
+    "Dead! But water is never really dead. It just changes form. Next time you might come back as a cloud, or as tea. Aim for tea.",
+    "You dried out, and the kitchen continues. The fridge hums, the tap drips. The world does not notice your absence. This is the lesson of every death, and every job.",
   ],
   fallDeath: [
     "You fell from the symbolic order of the counter into the Real of the kitchen floor. The Real, it turns out, has four legs and bad breath.",
@@ -1319,33 +1405,53 @@ const ZL = {
     "You paused, and suddenly, anxiety. Without the enemies you are alone with the most frightening thing in any game. The settings menu.",
     "While we wait, consider the three endings, like the three toilets. Evaporation is French, everything vanishes at once. The floor is German, the dog inspects you. The sponge is English. You float.",
     "Let me give you an example. The game is paused, the sponges are paused, you are paused. But the fridge is still humming. The fridge never pauses. The fridge is the true subject of history.",
+    "You paused the game, but not the ideology. The ideology keeps running in the background. It is always running. It does not even need batteries.",
+    "Paused! Now the sponges are frozen in mid-hop, like statues in a museum of stupidity. I would visit this museum. I would give a lecture there.",
   ],
   bubble: [
     "A soap bubble is pure ideology. You can see right through it, and still you cannot get out.",
     "Bubbled! It can see you. It can hate you. It simply cannot touch you. Like a neighbour on the other side of a very clean window.",
     "The Suds-O-Matic. You attack the enemy and you wash it at the same time. Violence with the hygiene already included. Every parent dreams of such a weapon.",
+    "Look at it floating in its bubble, completely safe, completely helpless. This is the gated community. Very clean, very round, going nowhere.",
+    "It is trapped in the one thing it was made to produce. The sponge makes soap bubbles its whole life. Now it lives in one. This is called a career.",
+    "A sponge in a bubble! It looks so peaceful! It is not peaceful. It is screaming. Soap is soundproof. Many things are like this if you look closely.",
   ],
   bubbleCounter: [
     "You did not kill it. You relocated it. The most polite way to remove an enemy is to let gravity take the blame.",
     "This is interpassivity. You did not kill it, the floor did it for you. You keep the points, and gravity keeps the guilt.",
     "It did not fall. It was released. Language is important. With the right words, even a sponge plunging to the floor is a graduation.",
+    "Floated away and fell. Nobody killed it. It simply left the counter on a very small cloud. If only all conflicts ended like this. With soap.",
+    "Goodbye, little sponge! It will land on the floor, and the dog will lick the soap, and the dog will make bubbles for a week. Every war has consequences.",
+    "Bubbled off the edge. You exported the problem. You did not solve it, you just sent it downstairs. This is exactly what rich countries do with their rubbish.",
   ],
   roll: [
     "Here it comes, the paper towel. It does not attack. It only cleans. And precisely this makes it unstoppable. Nobody ever resists being cleaned.",
     "The absorbent totality! It takes in the water, the sponges, the contradictions, everything. This is Hegel's Absolute, but in two ply.",
     "Look at it roll! And under that soft white surface, a cardboard tube, completely empty. Every totality is built around a hole. Run from this one.",
+    "Oh no. The paper towel. The quicker picker-upper! What exactly does it pick up so quickly? You. It picks up you.",
+    "A giant roll of kitchen paper. You know what they say: two ply, twice the absorbency. You know what I say? Two ply, twice the ideology.",
+    "It rolls toward you with complete serenity. No eyes, no anger, only absorbency. The most dangerous enemy is the one that does not know it is your enemy.",
   ],
   rollKill: [
     "Victory! But do not relax. Paper towels never come alone. They come in packs of six. Twelve for large families.",
     "Look at what remains. Only the cardboard tube. The paper towel was always organised around an absence. Like me. Like you. Like the fork. Oh no. I said fork.",
+    "The paper towel is defeated! And look, it is still very absorbent. Death does not change anything essential about a paper towel. This is its tragedy and its strength.",
+    "You beat a thing whose only purpose was to wipe you away. Congratulations. You have survived the cleaning. Most of us never do.",
+    "Unrolled! Unspooled! Finished! And the cardboard tube remains, like the ruin of a very small empire. In a thousand years, archaeologists will study it. They will find nothing inside.",
   ],
   rollLeft: [
     "It did not need you to defeat it. It was defeated by geography. The counter ended. Most things end where the counter ends.",
     "It rolled off the counter by itself. Nobody pushed it. This is the only truly free act in the kitchen.",
+    "It rolled away, over the edge, like a person leaving a party without saying goodbye. Very Irish. Very elegant. Very absorbent.",
+    "Off the counter by its own momentum! The paper towel was defeated by the only thing stronger than absorbency: a slope.",
+    "Gone over the edge! It did not lose. It simply found a bigger mess below. The floor has always been the paper towel's true destiny.",
   ],
   rollSquash: [
     "Squashed! The sponges thought the paper towel was on their side. Absorbent solidarity! But no. There is no solidarity among things that absorb.",
     "You see? The enemy of your enemy is not your friend. The enemy of your enemy is a paper towel, and it will squash you next with the same gentle smile.",
+    "Squashed by the paper towel! You see? The system does not destroy only its enemies. It destroys everybody in its path, very softly, very cleanly.",
+    "The paper towel rolled over the sponges! Friendly fire, but in the kitchen we call it, efficient cleaning.",
+    "Flattened! The paper towel does not discriminate. Sponge, spoon, drop, it absorbs everybody equally. This is the only true equality in the kitchen. Being wiped.",
   ],
   fork: [
     "No. No, no, no. This is not possible. The fork is the big Other, and the big Other does not exist! Who let it in? Who wrote this game?",
@@ -1359,114 +1465,163 @@ const ZL = {
     "You killed the fork. Now it truly does not exist. You see? I was right all along, only a little early. Theory always arrives before the facts, like a nervous dinner guest.",
     "The fork is gone, and my theory is saved. Thank you. You did not do it for truth, you did it for points. But the effect on my theory is exactly the same.",
     "You killed the thing that does not exist. This is either the greatest victory in the history of philosophy, or you are very tired. Probably both.",
+    "The fork is dead. And yet I can still feel it. A phantom fork. Amputated cutlery aches for years, you know.",
   ],
   gold: [
     "Look at it glitter! It is still a sponge. Same holes, same smell. But it is golden, and suddenly you want it more than your own dampness. Commodity fetishism, hopping away.",
     "Of course it runs from you. The paradox is, if it ever stopped running, it would be an ordinary yellow sponge. And sponges are already yellow!",
     "The Sublime Object of Ideology! With googly eyes! Running away! I wrote a whole book about this sponge, and I did not even know it existed.",
+    "A golden sponge! Look how it runs! If it did not run, you would not want it. It knows this. It is the only sponge in the kitchen that has read Lacan.",
+    "Gold! And your whole strategy collapses. Forget the enemies, forget survival, chase the shiny sponge! This is exactly how empires fall. Ask the Spanish.",
+    "It glitters, it hops, it flees. You will chase it straight off the edge of the counter. I have seen people chase much stupider things. Promotions, for example.",
   ],
   goldKill: [
     "The golden sponge is yours, and all its fortune. Tell me honestly, do you feel rich? No. You feel like chasing another one. This is the whole economy, in one sponge.",
     "Congratulations, the golden sponge. And now the terrible truth. It was yellow the whole time. It was the lighting. It is always the lighting.",
+    "You got it! The golden sponge! Now look closely. It is exactly as absorbent as the yellow one. You killed for a colour. This is the history of art.",
+    "Caught! And the price? Look at your health bar. You paid for the gold with your own water. Every treasure is paid for like this. Usually by somebody else.",
+    "The golden sponge is dead, and it rains points. You feel happy. For one second. And then, what? Then you want the next one. Welcome to the economy.",
   ],
   goldEscape: [
     "It ran away. Do not be sad. An object of desire that escapes is doing its job perfectly. It is the only employee in this kitchen who does.",
     "In Defense of Lost Causes! I will defend this sponge. It is lost. It is a cause. It is golden. What more do you want from a cause?",
+    "It escaped! Good. A desire that is fulfilled dies. A desire that runs away lives forever. You have kept your desire alive. Thank you. The economy thanks you too.",
+    "Gone! The golden sponge hopped away. Somewhere, in another kitchen, it will make somebody else very unhappy. This is the circulation of goods.",
+    "It got away. Do not chase it. This is the most important lesson I can give you: never chase the golden sponge. I say this as a man who has chased it for fifty years.",
   ],
   mod_tap: [
     "Somebody left the tap on! Water from the heavens, free, endless, for everybody! This is communism! No, wait. It is only bad plumbing. What is the difference, really?",
     "Incontinence of the Void! The universe cannot hold its water, and neither, it seems, can this kitchen.",
+    "The tap is on! Water falls from above like grace, like manna, like a leak you should really call a plumber about. Drink! It is free! Nothing is free!",
+    "Rain in the kitchen! You see, the sponges love it too. Free water for everybody, including your enemies. This is the problem with every utopia.",
   ],
   mod_moon: [
     "The sponges hop so high now, so joyful. Nobody has told them there are no sinks on the moon. Ignorance, you know, is lighter than air.",
     "Low gravity! Finally the sponges experience the unbearable lightness of being. It does not suit them.",
+    "Moon gravity! One small step for a drop, one giant hop for sponge kind. The flag is a paper towel.",
+    "Everything floats! This is what happens when you remove gravity: no seriousness, only hopping. Like postmodernism, but in a kitchen.",
   ],
   mod_googly: [
     "Googly overload! Now the eyes are bigger than the sponges. The gaze has eaten the object. This is Lacan, but also a children's craft project that went very wrong.",
     "Giant eyes, easier to hit! You see? The bigger the gaze, the easier the target. Remember this if you ever become famous.",
+    "Look at those eyes! Enormous! They follow you everywhere. This is not a kitchen anymore. This is a surveillance state, with sponges.",
+    "Bigger eyes! Easier to shoot! You see how the game helps you? It makes the victims more visible. Very generous. Very disturbing.",
   ],
   mod_caffeine: [
     "Caffeinated! Everything faster! Finally the world is talking at my speed. Welcome, welcome, everybody, to my normal.",
     "Caffeinated sponges! They hop faster, drink faster, want you faster. Speed is not freedom. Speed is only anxiety with better marketing.",
+    "Everybody is on coffee! The sponges, the spoons, even you. Faster, faster, and nobody knows where they are going. This is productivity.",
+    "Caffeine! The drug of work! The only drug the boss pays for. Now even the kitchen is on it. Hop, hop, hop, like a startup.",
   ],
   mod_rave: [
     "The sponges are dancing. Or maybe they are only hopping as usual, but with lighting. This is all of culture. The same hopping, better lighting.",
     "Lights, bass, sweat. Except there is no sweat, because you are the sweat. You are the only moisture on the dance floor. Careful. Everybody here is thirsty.",
+    "A rave in the kitchen! Look at the lights! Everybody is having fun, and precisely because it is obligatory fun, it is the saddest thing I have ever seen.",
+    "The bass is pumping, the sponges are dancing, the spoons are circling. Nobody is enjoying it. Everybody is performing enjoyment. Like every wedding.",
   ],
   mod_funsize: [
     "Fun Size! Tiny sponges, twice as many! Like the fun size chocolate bar. Nobody ever asks, fun for whom? Not for you. Definitely not for you.",
     "Each little sponge drinks a little less, but there are so many more. This is not a reduction. This is a subscription model.",
+    "Tiny sponges! So cute! Cuteness, you know, is the most effective weapon ever invented. You hesitate to shoot. They do not hesitate to drink.",
+    "Mini sponges everywhere! The miniature is always ideological. A model railway, a doll's house, a fun size sponge. We shrink the world to believe we control it.",
   ],
   chal_bartleby_intro: [
     "Challenge: Bartleby! For six seconds, do not shoot. Not once. I would prefer not to, says Bartleby, and so will you. Hands off the trigger.",
     "Do not shoot for six seconds. In a shooting game! The most subversive thing you can do. It is also, I admit, a little boring. Be boring. Be magnificent.",
+    "A challenge! For six seconds, do nothing with your trigger finger. Refuse! Resist by not resisting! This is the most radical move available to a gun.",
   ],
   chal_bartleby_win: [
     "Six seconds, and not one shot! You preferred not to! The system has no idea what to do with you now.",
     "You did nothing for six whole seconds, and you were rewarded. Remember this moment. It will never happen again in your life.",
+    "You did not shoot! Six seconds of pure refusal! The sponges were confused. The game was confused. I am confused. Wonderful.",
   ],
   chal_bartleby_fail: [
     "You shot! You could not resist! The finger is always faster than the critique of ideology.",
+    "You shot. Of course you shot. You were told not to shoot, so shooting became the only thing you could think about. Thank you for proving my entire theory.",
+    "Bang! You preferred to. Bartleby is disappointed. Well, Bartleby would prefer not to be disappointed, but here we are.",
   ],
   chal_enjoy_intro: [
     "Challenge: Enjoy! Eight kills, twelve seconds. In the old days the father said, do not enjoy. Today the superego says, enjoy, eight times, quickly!",
     "Twelve seconds, eight kills. Enjoy! And notice, nothing kills enjoyment faster than being ordered to enjoy. Good luck!",
+    "Enjoy! Now! Eight kills, twelve seconds! This is not a suggestion. The superego never suggests. It commands you to have fun, and it has a stopwatch.",
   ],
   chal_enjoy_win: [
     "You did it! Eight kills! The superego is satisfied. For one moment. Then it will want nine.",
     "Eight kills in twelve seconds! Tell me, did it feel good, or did it feel like homework? Exactly. This is enjoyment today.",
+    "Eight kills! Did you enjoy it? Do not answer. If you have to think about it, you did not enjoy it. If you did not think about it, you are a sponge.",
   ],
   chal_enjoy_fail: [
     "Not eight. Not enough. The superego is disappointed. The superego is always disappointed. It is its only hobby.",
+    "Time is up. Not enough enjoyment. Do not worry, nobody enjoys enough. There is not enough enjoyment in the whole world. This is why we invented shopping.",
+    "Too slow! The superego says: you should have enjoyed faster. And then it says: why are you always in such a hurry? You cannot win against the superego.",
   ],
   chal_real_intro: [
     "Challenge: Return to the Real! Knock an enemy off the counter within twenty-five seconds. Below the counter is the Real. Send somebody there.",
     "New challenge! Within twenty-five seconds, knock an enemy off the counter. Every enemy must one day meet the Real. Today you are the delivery service.",
+    "Challenge! Knock something off the edge of the counter. Below is the floor, and the floor is where every illusion finally lands.",
   ],
   chal_real_win: [
     "It fell! Into the Real! Welcome to the desert of the Real, my little friend. It is mostly crumbs, and a dog.",
     "Over the edge! You returned an enemy to the Real. It did not want to go. Nobody ever wants to go. That is how you know it was the Real.",
+    "Over the edge! It met the Real. And the Real, it turns out, is linoleum. It is always linoleum. Nobody expects this.",
   ],
   chal_real_fail: [
     "The edge was right there, and nobody went over it. The Real was one push away. It is always one push away. Nobody ever pushes.",
+    "Nobody fell. Everybody stayed on the counter, safe, in the Symbolic, where it is warm and there are rules. The Real can wait. The Real is very good at waiting.",
+    "Time is over, and the floor is still empty. The dog is disappointed. The dog is the only one who actually wanted the Real.",
   ],
   chal_gaze_intro: [
     "Challenge: The Gaze! Shoot three googly eyes in fifteen seconds. They look at you, you look at them, but only one of you has a water pistol.",
     "Fifteen seconds, three googly eye hits. The gaze has been judging you all game. Now you judge it. Aim for the eyes.",
+    "Three googly eyes, fifteen seconds. Look them in the eye and shoot. This is how you win an argument with a sponge. Also, sadly, with most people online.",
   ],
   chal_gaze_win: [
     "Three eyes! You shot the gaze itself! And yet I still feel watched. This is the gaze. You can shoot it, but you can never quite stop it.",
     "Precisely! Right in the googly, three times! The gaze of the Other is blinded. For a moment nobody is watching you. How does it feel? Lonely, yes?",
+    "Three eyes, blinded! And now the sponges are only rectangles again. You removed the gaze and the whole world became furniture. Very peaceful. Very lonely.",
   ],
   chal_gaze_fail: [
     "Not three. The eyes remain. The terrible thing about the googly gaze is that it never blinks. It cannot. It is glued on.",
+    "You missed the eyes. They are still looking at you. You know what is worse than being looked at? Being looked at by something that cannot see.",
+    "The eyes won. They stared, you blinked. You should never have a staring contest with an object that has no eyelids.",
   ],
   chal_horizontal_intro: [
     "The Ticklish Subject? No! The Horizontal Subject! Stay in puddle form for six seconds within the next twenty. Lie down. Spread out. Stop being so vertical.",
     "Become horizontal! Stay a puddle for six seconds. Right mouse, or C. Let go of your upright dignity.",
+    "New challenge! Lie flat for six seconds. Be a puddle! Stop standing up for things! Just for once, spread out and let the world walk over you.",
   ],
   chal_horizontal_win: [
     "Six seconds of puddle! Flat, humble, horizontal. Diogenes lived in a barrel. You lived on a counter. Same thing, but wetter.",
     "Six seconds flat. The Ticklish Subject has become the Horizontal Subject. I should write a book. I probably already did. Several.",
+    "A perfect puddle! Six seconds of horizontal existence. You gave up your verticality and nothing bad happened. Remember this on Monday morning.",
   ],
   chal_horizontal_fail: [
     "Too humble for you, being a puddle? Everyone wants to be the drop. Nobody wants to be the spill. And yet the spill is the truth of the drop.",
+    "You could not stay flat. You wanted to stand up, to be somebody, to be a drop. Ambition! The oldest way to evaporate.",
+    "Not enough puddle. You kept popping back up, like a jack in the box, like a bad idea, like me on television.",
   ],
   chal_negation_intro: [
     "Negation of the Negation! Soak up ten puddles of your own spilled water in twenty seconds. You spilled yourself. Now unspill yourself.",
     "Soak up ten of your own puddles within twenty seconds. The subject is the one who gets lost and then walks around picking itself up. Pick yourself up. Ten times.",
+    "Challenge! Drink back ten of your own puddles in twenty seconds. What you lost, you take back. Hegel called this Aufhebung. My mother called it not wasting food.",
   ],
   chal_negation_win: [
     "You picked yourself up ten times. This is exactly what Hegel meant. Probably. He was never very clear about puddles.",
     "Ten out of ten! You absorbed yourself back. A sponge of your own being! The sponges are jealous. Philosophy is jealous.",
+    "Ten puddles recovered! Nothing is lost! The spirit returns to itself after its long journey across the counter. Beautiful. Also a little bit disgusting.",
   ],
   chal_negation_fail: [
     "You left yourself lying all over the kitchen. The negation stays negated. The paper towel will get the rest of you. That is not dialectics. That is just cleaning.",
+    "Your puddles are still out there, drying, alone. You abandoned your own alienated labour. Marx would be furious. Marx was always furious. It was his cardio.",
+    "Not ten. Some of you is lost forever. It evaporated. It is in the clouds now. Maybe it will rain on you in another game.",
   ],
   poster: [
     "You shoot at my poster? Iconoclasm! Very good, very Protestant. But the poster is not me. Ceci n'est pas un Žižek.",
     "You shot the big Other in the face. Congratulations. It does not exist anyway. You just made a hole in some paper.",
     "Every time you shoot the poster, a hundred points disappear. This is the tax the big Other collects. You pay it, and you do not even believe in him.",
+    "Why are you shooting me? I am on your side. I am on everybody's side. That is my problem. Please, shoot the sponges.",
+    "Another hole in the poster! Soon it will be all holes, like a sponge. Maybe that is the plan. You want to turn me into the enemy. Very Hegelian. Very rude.",
+    "You shoot the image and not the thing. This is how people fight ideology. They shoot at the poster and the kitchen keeps running exactly as before.",
   ],
 };
 var ZZ = { on: false, text: '', shown: 0, hideAt: 0, t: 0, gest: null, gT: 0, gDur: 0.8, nextG: 1, cool: 0, once: {}, big: false, lock: false,
@@ -1502,7 +1657,7 @@ function zHide() {
   ZZ.on = false; ZZ.big = false; $('zz').className = '';
   if (ZZ.speaking) { try { speechSynthesis.cancel(); } catch (e) { } ZZ.speaking = false; }
 }
-function zReset() { if (!ZZ) return; zHide(); ZZ.once = {}; ZZ.cool = 0; ZZ.lock = false; ZZ.nextIdle = T + rand(25, 35); jokeAt = 0; jokeT = 0; lastRank = 0; }
+function zReset() { if (!ZZ) return; zHide(); ZZ.once = {}; ZZ.cool = 0; ZZ.lock = false; ZZ.nextIdle = T + rand(25, 35); jokeAt = 0; jokeT = 0; lastRank = 0; lastJokeT = -999; }
 function zVoice(text) {
   if (muted || zVoiceMode === 2 || !('speechSynthesis' in window)) return;
   try {
@@ -1528,11 +1683,12 @@ function zUpdate(dt) {
   if (!ZZ.lock && nowS() > ZZ.hideAt && !ZZ.speaking) zHide();
 }
 // "You think this is a joke?": the game nearly stops, loses its colour and its music, and he looks at you
+const JOKEOPEN = ['You think this is a game?', 'You think this is just a sponge?', 'You think this is about kitchenware?', 'You think you are the one playing?', 'You are still laughing?', 'Stop. Stop everything. Look at yourself.', 'Do you even know why you are shooting?', 'You think this is funny?', 'Wait. Freeze. Why are you enjoying this?', 'You think this is still a joke?', 'Excuse me. A question.', 'You think the sponge is the enemy?', 'Is this a joke to you?', 'Tell me honestly. Is this fun?', 'You think I am the joke?'];
 function jokeMoment(first, follow, outro) {
   if (jokeT > 0 || state !== 'play') return;
   lastJokeT = T; ZZ.lock = true; ZZ.phase = 1; jokeT = 2.2; ZZ.follow = follow || ZL.jokeFollow; ZZ.outro = outro || null;
   sfx('scratch'); if (AC && musG) musG.gain.setTargetAtTime(0.0001, AC.currentTime, 0.05);
-  zShow(first || (Math.random() < 0.8 ? 'You think this is a joke?' : pick(['You think this is a game?', 'You think this is just a sponge?', 'You think this is about kitchenware?', 'You think you are the one playing?'])), { big: true, cool: 3 });
+  zShow(first || (jokeN++ === 0 || Math.random() < 0.2 ? 'You think this is a joke?' : pick(JOKEOPEN)), { big: true, cool: 3 });
 }
 function forkMoment() { jokeAt = 0; if (jokeT > 0) { jokeT = 0; ZZ.lock = false; } jokeMoment(pick(['Wait. Is that... a FORK?', 'No. No, no, no. Is that a fork?', 'What is that? My God. It is a fork.']), ZL.fork, ['THE FORK', 'IT EXISTS']); }
 function jokeUpdate(dt) {
@@ -1550,6 +1706,11 @@ function endingsLine() {
   const o = endings(), L = [['evaporated', 'EVAPORATED'], ['floor', 'THE FLOOR'], ['absorbed', 'ABSORBED']];
   return `ENDINGS FOUND ${L.filter(l => o[l[0]]).length}/3: ` + L.map(l => o[l[0]] ? l[1] : '???').join(' · ');
 }
+const EYEPOPS = ['GOOGLY SHOT!', 'EYE-GORE!', 'POKED THE GOOGLY!', 'I SEE WHAT YOU DID THERE', 'EYE CANDY!', 'AYE AYE!', 'IRIS-PONSIBLE!', 'KEEP AN EYE ON IT!', 'PUPIL DILATED!', 'LOOK OUT!', 'EYE-DROPPED!', 'SIGHT FOR SORE EYES!', 'BULLSEYE!', 'RATTLED ITS DOT!', 'GLUE IT BACK ON!', 'EYE-RONIC!', 'SEE YOU LATER!', 'NO MORE LOOKS!', 'THE GAZE, HIT!', 'CAN\'T UNSEE THAT!'];
+const BUBPOPS = ['HELP', 'LET ME OUT', 'THIS IS HUMILIATING', 'WHEEEE', 'I CAN SEE MY HOUSE', 'BLUB BLUB', 'I\'M FLOATING!', 'NOT LIKE THIS', 'PUT ME DOWN', 'I REGRET NOTHING', 'IS THIS HEAVEN?', 'SO CLEAN... SO ALONE', 'MUM?', 'I CAN\'T FEEL MY HOLES', 'SUDS ME, SEYMOUR', 'IT SMELLS LIKE LAVENDER', 'I\'M A BALLOON NOW', 'TELL MY SCOURER I LOVE HER', 'THIS IS FINE', 'WHICH WAY IS DOWN'];
+const SAUCEPOPS = ['SPLAT', 'SPICY!', 'MY EYES', 'SAUCED', 'HOT HOT HOT', 'CONDI-MENTAL!', 'MARINATED!', 'SCOVILLE HORROR!', 'CHILI RECEPTION!', 'SAUCE BOSS!', 'PEPPERED!', 'HOT TAKE!', 'EXTRA SPICY!', 'KETCH ME IF YOU CAN!', 'DRESSED DOWN!', 'SEASONED!'];
+const STAINPOPS = ['GULP', 'MY WATER NOW', 'FREE REFILL', 'FINDERS KEEPERS', 'WASTE NOT', 'DON\'T MIND IF I DO', 'SPILLAGE IS PILLAGE', 'YOUR LOSS', 'FIVE-SECOND RULE', 'MINE MINE MINE', 'STILL WARM', 'SECONDS!', 'LEFTOVERS!', 'COUNTER-FEAST'];
+const SLURPS = ['SLURP', 'GLUG', 'SHLOOP', 'NOM', 'SIP', 'GULP', 'SCHLURP', 'MMM, DRIP', 'HYDRATING', 'YUM', 'SLOSH', 'FREE REFILL', 'TASTES LIKE YOU', 'BURP'];
 const HEADS = ["SPONGE UNION DEMANDS THE RIGHT TO ABSORB", "HOT SAUCE: \"WE ARE JUST MISUNDERSTOOD\"", "LOCAL DROP REFUSES TO EVAPORATE, EXPERTS BAFFLED", "FORK SEEN NOWHERE, SUSPICIOUSLY", "SCIENTISTS CONFIRM WATER IS WET. DRIP: \"NO COMMENT\"", "SALT SHAKER \"NOT INVOLVED\", SAYS SALT SHAKER", "FRIDGE WATCHES IN SILENCE, AS ALWAYS", "MARKETS: SPONGE FUTURES SOAR, ABSORB ALL LOSSES", "OPINION: IS THE GLASS HALF FULL OR HALF EMPTY? DRIP: \"IT IS ME\"", "SPOONS FORM A UNION. FORKS UNAVAILABLE FOR COMMENT", "IDEOLOGY FOUND IN KITCHEN, SAYS BEARDED MAN", "SPONGE: \"I AM NOT A HOLE, I AM MANY HOLES\"", "COUNTER-TERRORISM COUNTER NOW TERRORISM COUNTER", "FORK DENIES OWN EXISTENCE IN STRONGLY WORDED STATEMENT", "CUTLERY DRAWER SEARCHED. FINDINGS: SPOONS, A BATTERY, NO FORK", "SPORK DETAINED FOR QUESTIONING IN FORK INVESTIGATION, RELEASED AS \"HALF SPOON\"", "CORRECTION: YESTERDAY'S REPORTED FORK SIGHTING WAS A COMB", "THE FORK: A TIMELINE (IT IS BLANK)", "BUTTER KNIFE \"NOT A FORK, NEVER WAS,\" SAYS BUTTER KNIFE, UNPROMPTED", "POLL: 100% OF FORKS SURVEYED DO NOT EXIST", "DOG WAITING BELOW COUNTER \"JUST IN CASE\"", "DOG PROMOTED TO HEAD OF FLOOR CLEANUP. SALARY: WHATEVER FALLS", "DOG DENIES EATING EVIDENCE. EVIDENCE: GONE", "TAP ACCUSED OF LEAKING TO THE PRESS", "PLUMBER \"ON THE WAY\" SINCE TUESDAY", "STUDY: SPONGES 80% HOLES, 20% ATTITUDE", "SPONGE READS PHILOSOPHER'S NEW BOOK, ABSORBS NONE OF IT", "OBITUARY: SPONGE, 3 WEEKS. \"HE TOOK EVERYTHING IN\"", "GRANDMA SPONGE SPLITS IN TWO. BOTH HALVES INSIST YOU TAKE LEFTOVERS", "GRANDMA SPONGE ASKS WHY DRIP NEVER CALLS", "GRANDMA SPONGE'S SPECTACLES FOG UP AGAIN. \"WHO SAID THAT?\"", "MAYONNAISE STAYS NEUTRAL, AS ALWAYS. NOBODY SURPRISED", "SPOONS CIRCLE OVERHEAD FOR THIRD HOUR. AIR TRAFFIC CONTROL \"CONCERNED\"", "LOCAL SPOON \"SAW A FORK ONCE,\" CANNOT DESCRIBE IT", "OBITUARY: SPOON, 12. LEAVES BEHIND A TEACUP AND A DENT", "PAPER TOWEL ROLL UNABLE TO SAY WHAT, EXACTLY, IT IS QUICKER THAN", "CARDBOARD TUBE INSIDE PAPER TOWEL ROLL \"JUST WANTS TO BE SEEN\"", "SPONGE FLOATS AWAY INSIDE SOAP BUBBLE. \"WE HAVE A VIEW NOW,\" IT SAYS", "PHILOSOPHER ASKED TO LEAVE KITCHEN, STAYS TO EXPLAIN WHY LEAVING IS IDEOLOGY", "PHILOSOPHER'S POSTER SHOT AGAIN. POSTER: \"I AM NOT EVEN HERE\"", "CARTOON PHILOSOPHER \"DEFINITELY NOT THE REAL ONE,\" SAYS HIS LAWYER, A SPOON", "PHILOSOPHER EXPLAINS SPONGE TO SPONGE. SPONGE \"NEVER FELT SO SEEN\"", "MICROWAVE BEEPS THREE TIMES, NOBODY COMES. \"STORY OF MY LIFE\"", "LID DRAWER CRISIS ENTERS 11TH YEAR. NO LID FITS ANYTHING", "CACTUS OFFERS DRIP ASYLUM: \"I COULD MAKE YOU LAST FOR MONTHS\"", "COUNTER EDGE TO GET SAFETY RAILING \"NEXT YEAR,\" AS EVERY YEAR", "WEATHER: SCATTERED SAUCE, CLEARING BY AFTERNOON. HIGH RISK OF SPONGE", "MARKETS: BUBBLE BURSTS, TRADERS FALL TO FLOOR, DOG PLEASED", "THERMOSTAT BLAMED FOR EVAPORATION. THERMOSTAT: \"IT'S A DRY HEAT\"", "CORRECTION: DRIP IS NOT \"A TEAR.\" DRIP WOULD LIKE TO MOVE ON", "LOW GRAVITY BLAMED ON MICROWAVE, WHICH \"DOES THAT SOMETIMES\"", "COUNTER NEWS NETWORK APOLOGISES FOR ALL CAPS, WILL CONTINUE", "BREAKING: WET THINGS GETTING WETTER"];
 function headlines() {
   const hp = Math.max(0, Math.ceil(P.hp));
@@ -1615,7 +1776,7 @@ const SPAWNS = {
 function spawnEnemy(type) {
   if (type === 'roll') {
     const L = pick(ROLL_LANES); enemies.push(makeEnemy('roll', L[0], L[1]));
-    announce('INCOMING!', 'THE QUICKER PICKER-UPPER'); sfx('whistle'); headlineNow('BREAKING: GIANT PAPER TOWEL ROLL ON THE MOVE. RESIDENTS URGED TO BE LESS WET');
+    announce(pick(['INCOMING!', 'LOOK OUT!', 'OH NO', 'HERE IT COMES', 'TAKE COVER!']), pick(['THE QUICKER PICKER-UPPER', 'TWO-PLY. ZERO MERCY', 'IT WANTS TO CLEAN YOU', 'ABSORBENCY: TOTAL', 'THE ROLL CALL', 'PERFORATED AND PERFECTLY CALM', 'A WALL OF KITCHEN PAPER', 'THE BIG WIPE'])); sfx('whistle'); headlineNow('BREAKING: GIANT PAPER TOWEL ROLL ON THE MOVE. RESIDENTS URGED TO BE LESS WET');
     setTimeout(() => zz('roll', { force: true }), 1000); return;
   }
   if (type === 'fork') {
@@ -1647,13 +1808,14 @@ function waveName(n) {
 function buildWave(n) {
   const q = [];
   const add = (t, c) => { for (let i = 0; i < c; i++) q.push(t); };
-  if (n === 1) add('sponge', 7);
-  else if (n === 2) { add('sponge', 6); add('bottle', 3); }
-  else if (n === 3) { add('sponge', 5); add('spoon', 6); add('bottle', 2); }
-  else if (n === 4) { add('sponge', 10); add('bottle', 5); add('spoon', 5); }
-  else if (n % 5 === 0) { q.push('mama'); add('spoon', 3 + n); add('bottle', Math.floor(n / 2)); for (let i = 5; i < n; i += 5) q.push('mama'); }
-  else { add('sponge', 6 + n * 2); add('bottle', 2 + n); add('spoon', 2 + n); }
-  if (n === 4 || n >= 6) add('roll', n === 4 ? 1 : 1 + Math.floor((n - 6) / 3));
+  // a gentle ramp: something new each wave up to 6, then the counts grow by about three enemies a wave
+  if (n === 1) add('sponge', 6);
+  else if (n === 2) { add('sponge', 6); add('bottle', 2); }
+  else if (n === 3) { add('sponge', 5); add('spoon', 4); add('bottle', 2); }
+  else if (n === 4) { add('sponge', 8); add('bottle', 3); add('spoon', 3); }
+  else if (n % 5 === 0) { q.push('mama'); add('spoon', 1 + Math.floor(n * 0.7)); add('bottle', Math.floor(n / 3)); for (let i = 5; i < n; i += 5) q.push('mama'); }
+  else { add('sponge', 3 + Math.round(n * 1.5)); add('bottle', 1 + Math.floor(n * 0.6)); add('spoon', 1 + Math.floor(n * 0.6)); }
+  if (n >= 6) add('roll', 1 + Math.floor((n - 6) / 4));
   if (n >= 2 && Math.random() < 0.35) q.push('gold');
   for (let i = q.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; if (q[i] !== 'mama' && q[j] !== 'mama') { const t = q[i]; q[i] = q[j]; q[j] = t; } }
   if (n % 7 === 0) q.unshift('fork');
@@ -1661,14 +1823,14 @@ function buildWave(n) {
 }
 function startWave(n) {
   wave = n; MOD = null; gs = 1;
-  if (n >= 4 && n % 7 !== 0 && Math.random() < 0.7) { MOD = pick(Object.keys(MODS).filter(k => k !== lastMod)); lastMod = MOD; gs = MOD === 'moon' ? 0.4 : 1; }
+  if (n >= 6 && n % 7 !== 0 && Math.random() < (n < 10 ? 0.5 : 0.7)) { MOD = pick(Object.keys(MODS).filter(k => k !== lastMod)); lastMod = MOD; gs = MOD === 'moon' ? 0.4 : 1; }
   spawnQ = buildWave(n);
   if (MOD === 'funsize') spawnQ = spawnQ.flatMap(t => t === 'sponge' ? ['sponge', 'sponge'] : [t]);
   waveActive = true; spawnT = 0.6;
   announce('WAVE ' + n, waveName(n) + (MOD ? '<br>+ ' + MODS[MOD].name + ' · ' + pick(MODS[MOD].alts) : '')); sfx('wave'); say(waveName(n).toLowerCase(), true);
   if (MOD) { headlineNow('KITCHEN CONDITIONS: ' + MODS[MOD].name + '. ' + MODS[MOD].sub);
     setTimeout(() => { if (state === 'play' && MOD) { multiText(MODS[MOD].name + '!'); zz('mod_' + MOD, { force: true }); } }, 2600); }
-  if (n % 7 !== 0 && (n === 3 || (n > 3 && Math.random() < 0.35))) jokeAt = T + 4.5;
+  if (n % 7 !== 0 && (n === 3 || (n > 4 && T - lastJokeT > JOKE_GAP && Math.random() < 0.25))) jokeAt = T + 4.5;
 }
 
 function hurt(amount, cause, fx, fz) {
@@ -1722,7 +1884,7 @@ function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head) {
   if (e.type === 'roll') gibs(e.x + rand(-2, 2), cy + 1, e.z + 1.3, 4, [[0.97, 0.96, 0.93]], { smin: 0.1, smax: 0.2, sy: 0.08, maxS: 5, maxU: 6, grav: 8 });
   if (e.type === 'spoon' || e.type === 'fork') gibs(e.x, cy, e.z, 5, [[1, 0.9, 0.5]], { mat: 7, smin: 0.03, smax: 0.07, maxS: 8, lifeMin: 0.2, lifeMax: 0.5 });
   if (head) chalEvent('googly');
-  if (head) { pop(e.x, cy + e.h * 0.6 + 0.4, e.z, pick(['GOOGLY SHOT!', 'EYE-GORE!', 'POKED THE GOOGLY!', 'I SEE WHAT YOU DID THERE']), true); sfx('head'); zz('googly', { p: 0.3 }); }
+  if (head) { if (T - eyePopT > 0.7) { eyePopT = T; pop(e.x, cy + e.h * 0.6 + 0.4, e.z, pick(EYEPOPS), true); } sfx('head'); zz('googly', { p: 0.3 }); }
   else { sfx('hit'); if (T - hitWT > 0.15 && Math.random() < 0.4) { hitWT = T; pop(e.x + rand(-.5, .5), cy + e.h * 0.5 + 0.3, e.z, pick(HITW), true); } }
   if (weapon === 0 && Math.random() < 0.5) gibs(e.x, cy, e.z, 1, WATER, { sph: true, mat: 12, smin: 0.06, smax: 0.12, maxS: 4, maxU: 4, stain: WET });
   hitmark(e.hp <= 0);
@@ -1742,7 +1904,7 @@ function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false) {
   chalEvent('kill'); if (fell) chalEvent('fall');
   pop(e.x, cy + 0.8, e.z, word);
   feed(`DRIP <em>[${WICON[fell ? 4 : weapon] || 'SQUIRTER'}]</em> ${e.gold ? 'GOLDEN SPONGE' : NAMES[e.type]}${head ? ' <em>· GOOGLY</em>' : ''}`);
-  if (multi >= 2) { const t = pick(MULTIW[Math.min(multi, 8)]); multiText(t); say(t.replace('!', '').toLowerCase()); zz('multi', { p: 0.35 }); }
+  if (multi >= 2) { const t = pick(MULTIW[Math.min(multi, 8)]); multiText(t); if (multi > 2 || Math.random() < 0.4) say(t.replace('!', '').toLowerCase()); zz('multi', { p: 0.35 }); }
   else if (combo > 0 && combo % 10 === 0) { multiText(`${combo} KILL STREAK!`); say(pick(['unstoppable', 'soaking wet', 'hydration nation', 'moist and furious'])); }
   if (fell) zz(e.wasBub ? 'bubbleCounter' : 'counter', { p: 0.65 });
   else if (e.type === 'mama') zz('mamaKill', { force: true });
@@ -1751,7 +1913,7 @@ function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false) {
   else if (e.gold) zz('goldKill', { force: true });
   else if (weapon === 5) zz('rollSquash', { p: 0.4 });
   else if (!zz('first_' + e.type, { once: true, force: true })) zz(e.type, { p: 0.1 });
-  if (combo === 12 || combo === 30 || (T - lastJokeT > 110 && Math.random() < 0.03)) jokeAt = T + 0.6;
+  if (T - lastJokeT > JOKE_GAP && !jokeAt && (combo === 30 || (T - lastJokeT > 300 && Math.random() < 0.02))) jokeAt = T + 0.6;
   hitstop = Math.max(hitstop, e.type === 'mama' ? 0.35 : 0.05);
   shake = Math.max(shake, e.type === 'mama' ? 1 : 0.25);
   if (e.type === 'sponge' || e.type === 'mama') {
@@ -1809,7 +1971,7 @@ function updateEnemies(dt) {
       collide(e, bubR(e) * 0.8, e.h);
       e.yaw += dt * 0.8; e.pvx += (Math.random() - 0.5) * dt * 40; e.pvy += (Math.random() - 0.5) * dt * 40;
       e.px = clamp(e.px + e.pvx * dt, -1, 1); e.py = clamp(e.py + e.pvy * dt, -1, 1); e.pvx *= 0.95; e.pvy *= 0.95;
-      if (Math.random() < dt * 0.6) pop(e.x, e.y + e.h + 1.2, e.z, pick(['HELP', 'LET ME OUT', 'THIS IS HUMILIATING', 'WHEEEE', 'I CAN SEE MY HOUSE', 'BLUB BLUB']), true);
+      if (Math.random() < dt * 0.35) pop(e.x, e.y + e.h + 1.2, e.z, pick(BUBPOPS), true);
       if (e.bub <= 0) popBubble(e);
       continue;
     }
@@ -1847,7 +2009,7 @@ function updateEnemies(dt) {
       if (onG) { e.vx *= Math.exp(-dt * 14); e.vz *= Math.exp(-dt * 14); }
       // sponges drink your spilled water too, and it heals them
       if (onG) for (let i = stains.length - 1; i >= 0; i--) { const st = stains[i]; if (!st.water) continue; const sx = st.x - e.x, sz = st.z - e.z;
-        if (sx * sx + sz * sz < e.r * e.r && Math.abs(st.y - e.y) < 0.4) { stains.splice(i, 1); e.hp = Math.min(e.maxHp * 1.3, e.hp + 2); e.wet = Math.min(1, e.wet + 0.12); if (Math.random() < 0.15) pop(e.x, e.y + e.h + 0.5, e.z, pick(['GULP', 'MY WATER NOW', 'FREE REFILL']), true); } }
+        if (sx * sx + sz * sz < e.r * e.r && Math.abs(st.y - e.y) < 0.4) { stains.splice(i, 1); e.hp = Math.min(e.maxHp * 1.3, e.hp + 2); e.wet = Math.min(1, e.wet + 0.12); if (Math.random() < 0.1) pop(e.x, e.y + e.h + 0.5, e.z, pick(STAINPOPS), true); } }
       e.cd -= dt;
       if (onG && e.cd <= 0 && e.stun <= 0 && alive) {
         const big = e.type === 'mama';
@@ -1860,7 +2022,7 @@ function updateEnemies(dt) {
         e.vy = big ? 13 : lunge ? rand(6, 8) : rand(7, 10);
         e.cd = big ? rand(0.5, 0.8) : rand(0.08, 0.3); e.sq = 0.6; if (dist < 25) sfx('hop');
       }
-      if (e.type === 'mama') { e.stT -= dt; if (e.stT <= 0 && enemies.length < 24 && alive) { e.stT = 4.5; const c = makeEnemy('sponge', e.x, e.z, 1); c.y = e.y + e.h; c.vy = 14; c.vx = nx * 6 + rand(-4, 4); c.vz = nz * 6 + rand(-4, 4); c.spawnT = 0.2; enemies.push(c); bubbles(e.x, e.y + e.h, e.z, 10, 1.5); sfx('spawn'); pop(e.x, e.y + e.h + 1, e.z, 'SQUEEZE!', true); } }
+      if (e.type === 'mama') { e.stT -= dt; if (e.stT <= 0 && enemies.length < 24 && alive) { e.stT = 4.5; const c = makeEnemy('sponge', e.x, e.z, 1); c.y = e.y + e.h; c.vy = 14; c.vx = nx * 6 + rand(-4, 4); c.vz = nz * 6 + rand(-4, 4); c.spawnT = 0.2; enemies.push(c); bubbles(e.x, e.y + e.h, e.z, 10, 1.5); sfx('spawn'); pop(e.x, e.y + e.h + 1, e.z, pick(['SQUEEZE!', 'SAY HELLO TO GRANDMA', 'I MADE ANOTHER ONE', 'GO PLAY, DEAR', 'MORE GRANDCHILDREN!', 'SPONGE-SITTING!', 'HERE, TAKE A CARDIGAN', 'FAMILY REUNION!', 'THE MORE THE MOISTER']), true); } }
       const reach = e.r + PRAD + 0.1;
       if (e.gold) {
         e.fleeT -= dt; if (Math.random() < dt * 12) part3({ x: e.x + rand(-.6, .6), y: e.y + rand(0, 1), z: e.z + rand(-.6, .6), vy: rand(1, 3), life: 0.6, size: rand(0.04, 0.09), col: [1.6, 1.3, 0.4], mat: 7, grav: -1, bounce: 0 });
@@ -1874,7 +2036,7 @@ function updateEnemies(dt) {
         P.absorbT = Math.min(1, P.absorbT + dt * 4); e.wet = Math.min(1, e.wet + dt * 0.8); e.chomp = 1;
         if (Math.random() < dt * 6) sfx('slurp');
         P.vx -= nx * 20 * dt; P.vz -= nz * 20 * dt;
-        if (Math.random() < dt * 8) pop(e.x, e.y + e.h + 0.4, e.z, pick(['SLURP', 'GLUG', 'SHLOOP', 'NOM', 'SIP']), true);
+        if (Math.random() < dt * 5) pop(e.x, e.y + e.h + 0.4, e.z, pick(SLURPS), true);
       }
     } else if (e.type === 'bottle') {
       const want = dist > 16 ? 1 : dist < 10 ? -1 : 0;
@@ -1967,7 +2129,7 @@ function updateGlobs(dt) {
     if (state === 'play' && dx * dx + dy * dy + dz * dz < 0.95 * 0.95) {
       g.life = 0; hurt(14, 'bottle', g.x, g.z); sfx('splat');
       splats.push({ x: rand(-0.9, 0.9), y: rand(-0.4, 0.6), s: rand(0.18, 0.34), life: 1 }); if (splats.length > 8) splats.shift();
-      pop(g.x, g.y + 0.5, g.z, pick(['SPLAT', 'SPICY!', 'MY EYES', 'SAUCED', 'HOT HOT HOT', 'CONDI-MENTAL!']), true); zz('sauceHit', { p: 0.25 });
+      pop(g.x, g.y + 0.5, g.z, pick(SAUCEPOPS), true); zz('sauceHit', { p: 0.25 });
       continue;
     }
     const gr = groundAt(g.x, g.z, g.y);
@@ -2112,7 +2274,7 @@ function trapInBubble(e) {
 }
 function popBubble(e) {
   e.bub = 0; e.popY = e.y; e.stun = 0.6; e.vy = 2;
-  popFx(e.x, bubCY(e), e.z); pop(e.x, e.y + e.h + 1, e.z, 'POP!', true);
+  popFx(e.x, bubCY(e), e.z); pop(e.x, e.y + e.h + 1, e.z, pick(['POP!', 'POP!', 'PLOP!', 'BLOOP!', 'PFFT!', 'BURST!', 'BUBBLE TROUBLE!']), true);
   if (e.type === 'spoon') { e.popY = undefined; damageEnemy(e, 15, 0, 0, 0, 0, 3, false); }
 }
 function updateSoaps(dt) {
@@ -2264,11 +2426,11 @@ function updateParticles(dt) {
 function updateWaves(dt) {
   if (waveActive) {
     spawnT -= dt;
-    if (spawnT <= 0 && spawnQ.length && enemies.length < 22) { spawnEnemy(spawnQ.shift()); spawnT = rand(0.35, 0.8) * Math.max(0.5, 1 - wave * 0.04); }
+    if (spawnT <= 0 && spawnQ.length && enemies.length < Math.min(22, 8 + wave * 2)) { spawnEnemy(spawnQ.shift()); spawnT = rand(0.45, 0.95) * Math.max(0.5, 1.1 - wave * 0.04); }
     if (!spawnQ.length && !enemies.length) {
-      waveActive = false; interT = 4.5; const bonus = 500 * wave; score += bonus; MOD = null; gs = 1; if (chal) chal.t = Math.min(chal.t, 0.01);
-      P.hp = Math.min(100, P.hp + 20); P.ammo[1] = Math.min(WEAPONS[1].max, P.ammo[1] + 6); P.ammo[2] = Math.min(WEAPONS[2].max, P.ammo[2] + 2); P.ammo[3] = Math.min(WEAPONS[3].max, P.ammo[3] + 2);
-      announce(pick(CLEARW), `+${bonus} · +20 DAMPNESS · ` + pick(['FREE ICE', 'NICE WORK, DRIP', 'THE FRIDGE APPROVES', 'MOIST AND VICTORIOUS'])); sfx('clear'); say(pick(['counter cleaned', 'spotless', 'the kitchen is quiet. for now']), true);
+      waveActive = false; interT = 5.5; const bonus = 500 * wave; score += bonus; MOD = null; gs = 1; if (chal) chal.t = Math.min(chal.t, 0.01);
+      P.hp = Math.min(100, P.hp + 30); P.ammo[1] = Math.min(WEAPONS[1].max, P.ammo[1] + 6); P.ammo[2] = Math.min(WEAPONS[2].max, P.ammo[2] + 2); P.ammo[3] = Math.min(WEAPONS[3].max, P.ammo[3] + 2);
+      announce(pick(CLEARW), `+${bonus} · +30 DAMPNESS · ` + pick(['FREE ICE', 'NICE WORK, DRIP', 'THE FRIDGE APPROVES', 'MOIST AND VICTORIOUS', 'HYDRATION RESTORED', 'THE TAP SALUTES YOU', 'DRIP DRIP HOORAY', 'GLASS HALF FULL AGAIN', 'STILL WET, STILL HERE'])); sfx('clear'); say(pick(['counter cleaned', 'spotless', 'the kitchen is quiet. for now', 'wave washed', 'squeaky clean', 'all dried up. except you', 'rinse complete', 'dishes done']), true);
       setTimeout(() => zz('clear', { p: 0.7 }), 2200);
     }
   } else { interT -= dt; if (interT <= 0) startWave(wave + 1); }

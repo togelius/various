@@ -45,13 +45,19 @@ With a keyboard and mouse:
   music, and he fills the screen to ask: "You think this is a joke?" He also
   hangs on the back wall as a Magritte-style poster that moves its mouth when
   he talks. Shooting it costs you points.
-- **The writing.** About 1,400 candidate lines were drafted for this version
-  and cut down hard: 210 Žižek lines stayed (about 100 of general commentary,
-  plus one to three for each situation: the challenges, the modifiers, the
-  Fork, the endings), along with 42 name tags, 21 title taglines, 53 ticker
-  headlines, a wave name for each of the first 21 waves, and new kill words
-  and taunts for every enemy. Each of the three endings has its own narration
-  and quotes, picked at random each time.
+- **The writing.** About 1,400 candidate lines were drafted and cut down
+  hard: 210 Žižek lines stayed, along with 42 name tags, 21 title taglines,
+  53 ticker headlines, a wave name for each of the first 21 waves, and kill
+  words and taunts for every enemy. A later pass logged which lines a bot
+  playthrough saw most and wrote more for those situations, so there are now
+  382 Žižek lines (three to ten for each situation, plus about 100 of general
+  commentary), and more multi-kill names, googly-eye shouts and bubble cries.
+  Random picks skip whatever came up recently. Each of the three endings has
+  its own narration and quotes.
+- **Difficulty.** Each of the first six waves adds one new thing: sponges,
+  hot sauce, spoons, a bigger mix, Grandma, then the paper towel and the wave
+  modifiers. After that about three more enemies arrive each wave. Clearing a wave restores 30 dampness. The "you think this is a
+  joke?" freeze comes on wave 3 and then at most every three minutes.
 - **Voices.** Everything is read aloud by the browser's speech synthesis at
   one and a half times normal speed. Apple's speech engine (Safari, and every
   browser on iPhone and iPad) runs much faster at the same setting, so there
@@ -65,7 +71,7 @@ With a keyboard and mouse:
   (I WOULD PREFER NOT TO), eight kills in twelve seconds (ENJOY!), knock
   something off the counter, three googly shots, stay a puddle, soak up your
   own puddles.
-- **Wave modifiers.** From wave 4 a wave may come with conditions: the tap is
+- **Wave modifiers.** From wave 6 a wave may come with conditions: the tap is
   left on (it rains water), moon kitchen (low gravity), googly overload
   (enormous eyes), caffeinated (everything faster), kitchen rave (hue-cycling
   strobes and lasers) or fun size (tiny sponges, twice as many).
@@ -93,7 +99,7 @@ With a keyboard and mouse:
   leaves burning puddles. Flying spoons that circle, wind up and lunge. Every
   fifth wave Grandma Sponge shows up: huge, in spectacles, squeezing out
   spongelings, and she splits in two when she dies (and they split again).
-  From wave 4 the Quicker Picker-Upper rolls down the counter: a giant paper
+  From wave 6 the Quicker Picker-Upper rolls down the counter: a giant paper
   towel roll that soaks up every puddle, flattens anything in its way and
   flings you. A golden sponge (the sublime object) sometimes appears, runs
   away and is worth 5,000. And on wave 7, after the whole game has insisted
