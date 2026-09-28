@@ -717,7 +717,7 @@ function pillar(x, z, top, cols, w, d) {
 }
 
 // the moving parts and the things you can touch
-const LIFTS = [], PADS = [], LADDERS = [], CHECKS = [], PICKS = [], STEPS = [];
+const LIFTS = [], PADS = [], LADDERS = [], CHECKS = [], PICKS = [], STEPS = [], PERIS = [];
 let GOAL = null, stepsT = -1;
 
 function buildTower() {
@@ -776,6 +776,14 @@ function buildTower() {
   vis(cx - 1.8, top - 0.3, cz - 1.8, cx + 1.8, top, cz + 1.8, C.red, { studs: true });
   solid(cx - 1.8, top - 0.3, cz - 1.8, cx + 1.8, top, cz + 1.8);
   GOAL = { x: cx, y: top, z: cz, r: 1.3 };
+  // --- periscopes: a toy periscope at the edge of each floor, its head poking up over the floor above
+  // (x, z, the floor it stands on, the way it looks)
+  // (the last one, looking over the top floor's wall at the MEGA WOLF, stands taller and further off, to take it all in)
+  for (const [x, z, f, yaw] of [[-0.55, 1.5, 1, Math.PI], [-6.5, -1.55, 2, -Math.PI / 2], [0.55, -2.6, 3, 0], [4.45, -0.3, 4, 2.2]]) {
+    const top = Y[f + 1] + (f === 4 ? 2.4 : 1.25);
+    PERIS.push({ x, z, y: Y[f], top, yaw, f: f + 1, hx: x + Math.cos(yaw) * 0.4, hz: z + Math.sin(yaw) * 0.4, ex: x - Math.cos(yaw) * 0.6, ez: z - Math.sin(yaw) * 0.6, cool: 0, near: 0 });
+    solid(x - 0.16, Y[f], z - 0.16, x + 0.16, top, z + 0.16);
+  }
   // --- checkpoints
   // each with the way to face when you come back to it: towards the way on up
   CHECKS.push({ x: 4, y: 0, z: 23.5, n: 0, to: [4, 8] }, { x: 4, y: Y[1], z: 6.2, n: 1, to: [4, -4.5] }, { x: -4.5, y: Y[2], z: -5, n: 2, to: [-4.5, 2] },
@@ -1059,7 +1067,7 @@ function project(x, y, z) {
 }
 function setCamera() {
   const asp = W / H;
-  CAM.fovy = clamp(2 * Math.atan(Math.tan(48 * Math.PI / 180) / asp), 55 * Math.PI / 180, 80 * Math.PI / 180);
+  CAM.fovy = clamp(2 * Math.atan(Math.tan(48 * Math.PI / 180) / asp), 55 * Math.PI / 180, 80 * Math.PI / 180) * (CAM.zoom || 1);
   persp(PM, CAM.fovy, asp, 0.05, 420);
   const sh = G.shake * (REDUCE ? 0.25 : 1) * 0.004;
   view(VM, [CAM.x + rand(-sh, sh), CAM.y + rand(-sh, sh), CAM.z + rand(-sh, sh)], CAM.yaw, CAM.pitch);
@@ -1212,6 +1220,17 @@ function drawFigure() {
     put(SH[sh], P.x + r[0], P.y + r[1], P.z + r[2], lie ? qMul(qy, along) : qy, sx, sy, sz, col, 0.8);
   }
 }
+function drawPeris() {
+  for (const p of PERIS) {
+    const up = G.peep && G.peep.p === p ? easeOut(G.peep.t / 0.35) * 0.25 : 0, q = qYaw(p.yaw), ca = Math.cos(p.yaw), sa = Math.sin(p.yaw);
+    put(SH.box, p.x, (p.y + p.top) / 2 + up / 2, p.z, q, 0.3, p.top - p.y + up, 0.3, C.green, 1, 0.1);
+    // the head, looking out over the floor above, and the eyepiece down at your end
+    put(SH.box, p.x + ca * 0.18, p.top - 0.18 + up, p.z + sa * 0.18, q, 0.62, 0.42, 0.42, C.yellow, 1, 0.1);
+    put(SH.box, p.x + ca * 0.5, p.top - 0.18 + up, p.z + sa * 0.5, q, 0.03, 0.28, 0.3, C.black, 1, 0.2);
+    put(SH.box, p.x - ca * 0.18, p.y + 1.1, p.z - sa * 0.18, q, 0.5, 0.32, 0.36, C.yellow, 1, 0.1);
+    put(SH.box, p.x - ca * 0.44, p.y + 1.1, p.z - sa * 0.44, q, 0.03, 0.2, 0.24, C.black, 1, 0.2);
+  }
+}
 function drawRival() {
   for (const b of RIV.bricks) put(SH.box, RIV.x + b.ox, b.y0 + RB / 2, RIV.z + b.oz, Q0, RIV.w, RB - 0.02, RIV.w, b.flash > 0 ? WHITE : b.col, 1, b.flash > 0 ? 0.5 : 0.14);
   const t = RIV.bricks[RIV.bricks.length - 1];
@@ -1302,6 +1321,7 @@ function stepPlayer(dt) {
     stepHang(dt, st); return;
   }
   if (P.carried && !P.dead) { stepCarried(dt, st); return; }
+  if (G.peep) { stepPeep(dt, st); if (G.peep) return; }
   if (P.dead > 0) { IN.mouseTurn = 0; P.jumpBuf = 0; }
   // turning: gentle near the middle of the stick, fast at the edge, faster still held hard over
   const ax = Math.abs(st.x);
@@ -1459,11 +1479,11 @@ function stepWorld(dt) {
   P.fireT -= dt; P.kick = Math.max(0, P.kick - dt * 8); P.itemT = Math.max(0, P.itemT - dt); P.strain = ease(P.strain || 0, 0, 5, dt);
   if (P.vm) P.vm.t += dt;
   // (a tap quicker than a frame still gets its shot)
-  if ((fireHeld() || IN.fireTap) && P.fireT <= 0 && !P.dead && !P.hang && !P.carried) { firePrimary(); IN.fireTap = false; }
+  if ((fireHeld() || IN.fireTap) && P.fireT <= 0 && !P.dead && !P.hang) { firePrimary(); IN.fireTap = false; }
   if (P.dead) IN.fireTap = false;
   stepMallet(dt);
   stepFoes(dt); stepShots(dt); stepWaves(dt); stepGibs(dt); stepFX(dt); stepItems(dt);
-  if (G.st === 'play') { stepStacks(dt); stepDirector(dt); stepRival(dt); }
+  if (G.st === 'play') { stepStacks(dt); stepDirector(dt); stepRival(dt); stepPeri(dt); }
   G.comboT = Math.max(0, (G.comboT || 0) - dt);
   if (G.stepsIn > 0 && (G.stepsIn -= dt) <= 0) { callout('THE STEPS ARE BUILDING THEMSELVES', '#b8f060', 34, 2.4); buildSteps(); }
 }
@@ -1679,7 +1699,7 @@ function wake(e) {
 // throw bricks down at you from up there. Shoot a brick out of it at your height and everything above comes down,
 // wolves and all; new wolves climb up and start again from what's left. Or just out-climb it.
 const RIV = { x: 14.5, z: -3.5, w: 1.7, bricks: [], growT: 0, climbT: 0, hop: 0, sol: null, seen: false, passed: {} };
-const RB = 1.2, RMAX = 15;   // how tall each of its bricks is; and it tops out just short of your top floor
+const RB = 1.2, RMAX = 13;   // how tall each of its bricks is; and it tops out level with floor four
 const rivTop = () => RIV.bricks.length * RB;
 function addRivBrick() {
   const i = RIV.bricks.length;
@@ -1752,7 +1772,7 @@ function rivalAI(e, dt, d, sees) {
   if (e.onGround) walkTo(e, RIV.x + e.spot * 0.42, RIV.z, 1.2, dt, true); else halt(e, dt);
   faceTo(e, P.x, P.z, 5, dt);
   // (not while you're on a ladder or hanging on, where you can't answer back)
-  if (sees && e.cd <= 0 && e.onGround && rivTop() > P.y - 0.5 && d < 26 && !P.dead && !P.climbing && !P.hang && !P.carried && G.st === 'play') { e.st = 'throw'; e.t = e.tt = 0.75; e.struck = false; e.alert = 0.75; }
+  if (sees && e.cd <= 0 && e.onGround && rivTop() > P.y + 0.5 && d < 26 && !P.dead && !P.climbing && !P.hang && !P.carried && G.st === 'play') { e.st = 'throw'; e.t = e.tt = 0.75; e.struck = false; e.alert = 0.75; }
   return true;
 }
 
@@ -1770,7 +1790,7 @@ function wolfAI(e, dt) {
       if (e.st === 'swipe') { sfx.swish(near(e.x, e.y, e.z)); if (pdist(e) < 1.95 && Math.abs(P.y - e.y) < 1.3) { const u = dirTo(e); hurtPlayer(12, u.x * 6, 3, u.z * 6, e); } }
       else { const hand = qRot(qYaw(e.yaw), [0.1, 1.7, 0.33]); lob(e, 'brick', e.x + hand[0], e.y + hand[1], e.z + hand[2], clamp(d / 9, 0.55, 1.3), 0.35); sfx.toss(near(e.x, e.y, e.z)); }
     }
-    if (e.t <= -0.35) { e.cd = e.st === 'swipe' ? rand(0.7, 1.2) : e.rival ? rand(4.5, 6.5) : rand(2, 3.2); e.st = 'chase'; e.tele = 0; }
+    if (e.t <= -0.35) { e.cd = e.st === 'swipe' ? rand(0.7, 1.2) : e.rival ? rand(7, 10) : rand(2, 3.2); e.st = 'chase'; e.tele = 0; }
     return;
   }
   if (e.rival && rivalAI(e, dt, d, sees)) return;
@@ -2110,6 +2130,34 @@ function dropFromEagle(say) {
   if (e && e.alive) { e.st = 'flee'; e.t = 1.8; e.cd = rand(24, 32); e.carry = null; }
   P.vy = 0; P.fallFrom = P.y; P.onGround = false; P.launched = true; P.lip = null;
   if (say) callout(say, '#ff9a3a', 40, 1.1);
+}
+// ---------------------------------------------------------------- up periscope
+// A toy periscope stands at the edge of each floor, poking up over the floor above. Stand at its eyepiece, facing
+// it, and hold still: up it goes, and for a few seconds you see across the floor above, where things are waiting for
+// you. The only look ahead you get. Any move, a shot, a jump or a hit and you're back.
+function stepPeri(dt) {
+  for (const p of PERIS) {
+    p.cool = Math.max(0, p.cool - dt);
+    const d = Math.hypot(P.x - p.ex, P.z - p.ez), at = d < 0.75 && Math.abs(P.y - p.y) < 0.3 && P.onGround && Math.hypot(P.vx, P.vz) < 0.8 && Math.abs(wrap(P.yaw - p.yaw)) < 0.9;
+    if (Math.hypot(P.x - p.x, P.z - p.z) < 3.2 && Math.abs(P.y - p.y) < 0.5 && !HINT.peri) { HINT.peri = true; callout('A PERISCOPE! STAND AT IT, FACING IT, TO SEE THE FLOOR ABOVE', '#b8f060', 20, 2.6); }
+    if (d > 1.3) p.used = false;   // (step away from it, and it's ready for another peep)
+    p.near = at && !p.used && !G.peep && !P.dead && !P.hang && !P.carried && !P.rider && p.cool <= 0 ? p.near + dt : 0;
+    if (p.near > 0.35) {
+      G.peep = { p, t: 0, hp: P.hp, jumps: IN.jumps };
+      P.vx = P.vz = 0; tone('square', 300, 900, 0.35, 0.05); hiss('bandpass', 1200, 2, 0.35, 0.06);
+      if (p.f === 5 && G.boss && G.boss.alive && !G.boss.awake) say(G.boss, pick(['WHO\'S PEEPING?', 'I SMELL A GIANT!', 'MY TOWER. MINE.']), 2.2);
+    }
+  }
+}
+function stepPeep(dt, st) {
+  const k = G.peep;
+  k.t += dt; P.vx = P.vz = 0; IN.mouseTurn = 0; IN.mouseLook = 0; IN.ktap = 0;
+  if (k.t > 4.4 || Math.hypot(st.x, st.y) > 0.35 || fireHeld() || IN.jumps !== k.jumps || P.hp < k.hp || P.dead || !P.onGround) endPeep();
+}
+function endPeep() {
+  if (!G.peep) return;
+  G.peep.p.cool = 1; G.peep.p.used = true; G.peep = null; P.jumpBuf = 0;
+  tone('square', 700, 250, 0.2, 0.05); sfx.clack(0.8);
 }
 // dangling from its talons: you can turn a little, and JUMP lets go
 function stepCarried(dt, st) {
@@ -2593,11 +2641,13 @@ function targets() { return FOES.filter(e => e.alive).concat(SHOTS.filter(s => s
 // You are a cheap one-piece figure: your blaster is molded at your hip, and it only wobbles a little
 // up or down. It hits what is within AIM of level with your hip, and nothing much above or below.
 // (An angle, not a height: far things on the next floor can be in reach, close things over your head can't.)
-const HIP = 0.75, AIM = 12 * Math.PI / 180, AIMT = Math.tan(AIM);
+const HIP = 0.75, AIM = 12 * Math.PI / 180, AIMT = Math.tan(AIM), CARRY_TILT = -0.55;
+// (dangling from the eagle's talons you're tipped forward, and so is your blaster: whatever you're carried over is in reach)
+const aimPitch = () => (P.headPitch || 0) + (P.carried ? CARRY_TILT : 0);
 let AIMY = 0, OUTBAND = null, OUTDIR = 0;
 // the height to hit on something spanning y0..y1 at a distance, or null if none of it is within the wobble
 function inBand(dist, y0, y1) {
-  const gy = P.y + HIP, d = Math.max(dist, 0.4), hp = P.headPitch || 0;
+  const gy = P.y + HIP, d = Math.max(dist, 0.4), hp = aimPitch();
   const lo = Math.max(y0, gy + d * Math.tan(hp - AIM)), hi = Math.min(y1, gy + d * Math.tan(hp + AIM));
   return lo <= hi ? (lo + hi) / 2 : null;
 }
@@ -2615,7 +2665,7 @@ function inLine(range) {
     if (hd > bd && hd > od) return;
     const ay = inBand(hd, y0, y1);
     if (ay == null) {
-      if (hd < od && hd < bd && seen(x, y0, y1, z)) { od = hd; out = t; odir = (y0 + y1) / 2 > gy + hd * Math.tan(P.headPitch || 0) ? 1 : -1; }
+      if (hd < od && hd < bd && seen(x, y0, y1, z)) { od = hd; out = t; odir = (y0 + y1) / 2 > gy + hd * Math.tan(aimPitch()) ? 1 : -1; }
       return;
     }
     if (hd > bd) return;
@@ -2627,7 +2677,7 @@ function inLine(range) {
   // (their tower's bricks: aimed at on the face toward you)
   if (RIV.bricks.length) {
     const L = Math.hypot(P.x - RIV.x, P.z - RIV.z) || 1, fx = RIV.x + (P.x - RIV.x) / L * (RIV.w / 2 + 0.03), fz = RIV.z + (P.z - RIV.z) / L * (RIV.w / 2 + 0.03);
-    const at = gy + L * Math.tan(P.headPitch || 0), b = RIV.bricks[clamp(Math.floor(at / RB), 0, RIV.bricks.length - 1)];
+    const at = gy + L * Math.tan(aimPitch()), b = RIV.bricks[clamp(Math.floor(at / RB), 0, RIV.bricks.length - 1)];
     b.x = fx + b.ox; b.z = fz + b.oz; check(b, b.x, b.y0 + 0.05, b.y1 - 0.05, b.z, RIV.w * 0.5);
   }
   AIMY = by;
@@ -2676,7 +2726,7 @@ function firePrimary() {
     return;
   }
   // (with the hinge in, the shot goes where you look)
-  const pitch = free ? P.look || 0 : P.headPitch || 0, cp = Math.cos(pitch), vy = Math.sin(pitch), ca = Math.cos(P.yaw) * cp, sa = Math.sin(P.yaw) * cp;
+  const pitch = free ? P.look || 0 : aimPitch(), cp = Math.cos(pitch), vy = Math.sin(pitch), ca = Math.cos(P.yaw) * cp, sa = Math.sin(P.yaw) * cp;
   const t = rayHit(ex, ey, ez, ca, vy, sa, 60), L0 = t === Infinity ? 60 : t;
   const hx0 = ex + ca * L0, hz0 = ez + sa * L0, hy0 = ey + vy * L0;
   TRACERS.push({ x: hx0, y: hy0, z: hz0, life: 0.07 });
@@ -2706,14 +2756,14 @@ function giveItem(kind, n) {
   return true;
 }
 function useItem() {
-  if ((G.st !== 'play' && G.st !== 'descent') || G.paused || P.dead || P.hang || P.carried) return;
+  if ((G.st !== 'play' && G.st !== 'descent') || G.paused || P.dead || P.hang) return;
   const it = INV[SEL];
   if (!it || P.itemT > 0) { if (!it) { sfx.deny(); callout('NOTHING TO USE', '#ffffff', 28, 0.8); } return; }
   if (isHead(it.kind)) { if (G.st === 'play') swapHead(it.kind); else { sfx.deny(); callout('NO NEED: YOU HAVE A HINGE NOW', '#ffffff', 26, 1); } return; }
   const ca = Math.cos(P.yaw), sa = Math.sin(P.yaw), ex = P.x + ca * 0.4, ey = P.y + EYE - 0.25, ez = P.z + sa * 0.4;
   P.vm = { kind: it.kind, t: 0 };
   if (it.kind === 'rocket') {
-    const e = inLine(50), hp = G.st === 'play' ? P.headPitch || 0 : P.look || 0;
+    const e = inLine(50), hp = G.st === 'play' ? aimPitch() : P.look || 0;
     let dx = ca * Math.cos(hp), dy = Math.sin(hp), dz = sa * Math.cos(hp);
     if (e) { const p = aimPoint(e); dx = p[0] - ex; dy = p[1] - ey; dz = p[2] - ez; const L = Math.hypot(dx, dy, dz); dx /= L; dy /= L; dz /= L; }
     SHOTS.push({ kind: 'rocket', x: ex, y: ey, z: ez, vx: dx * 20, vy: dy * 20, vz: dz * 20, g: 0, life: 3, r: 0.18, t: 0, spin: 0 });
@@ -2851,7 +2901,7 @@ function poseParts(e) {
   return out;
 }
 function drawFoes() {
-  const film = G.st === 'win' && G.wandT < WAND;
+  const film = G.st === 'win' && G.wandT < WAND;   // (the look at yourself from outside: nothing right against the camera)
   for (const e of FOES) {
     if (!e.alive || e.st === 'ride' || film && Math.hypot(e.x - CAM.x, e.y - CAM.y, e.z - CAM.z) < 3) continue;
     const dx = e.x - CAM.x, dz = e.z - CAM.z;
@@ -3489,7 +3539,7 @@ function drawHUD(dt) {
     g.addColorStop(0, `rgba(20,10,20,${0.15 * k})`); g.addColorStop(1, `rgba(20,10,20,${0.35 + 0.5 * k})`);
     hx.fillStyle = g; hx.fillRect(0, 0, W, H);
   }
-  if (!P.dead && active() && !P.hang && !P.carried) { if (!P.vm || P.vm.t > 0.5 || P.vm.kind === 'zap' || P.vm.kind === 'bomb') drawBlaster(W / 2, H + 40 * u, gunScale(), P.kick, P.strain); drawViewItem(); }
+  if (!P.dead && active() && !P.hang && !G.peep) { if (!P.vm || P.vm.t > 0.5 || P.vm.kind === 'zap' || P.vm.kind === 'bomb') drawBlaster(W / 2, H + 40 * u, gunScale(), P.kick, P.strain); drawViewItem(); }
   if (P.head && G.st === 'play' && !P.dead) {
     const w = P.head === 'wolfhead', s = gunScale(), k = 1 - clamp((P.headSwap || 0) / 0.3, 0, 1);
     hx.fillStyle = w ? `rgba(122,74,38,${0.92 * k})` : `rgba(154,156,162,${0.92 * k})`;
@@ -3498,10 +3548,18 @@ function drawHUD(dt) {
   if (P.hang && G.st === 'play') drawHands(u);
   if (P.carried && G.st === 'play') drawCarried(u);
   if (P.rider && G.st === 'play') drawRider(u);
-  const film = G.st === 'win' && G.wandT < WAND;
+  const wander = G.st === 'win' && G.wandT < WAND, film = wander || !!G.peep;
   drawWayUp();
-  if (!film) drawMarks();
-  if (film) {
+  if (!wander) drawMarks();
+  if (G.peep) {
+    const k = G.peep, R = Math.min(W, H) * 0.44 * easeOut(clamp(k.t / 0.3, 0, 1)) * (1 - easeInOut(clamp((k.t - 4.1) / 0.3, 0, 1)));
+    hx.save(); hx.fillStyle = '#0a0612'; hx.beginPath(); hx.rect(0, 0, W, H); hx.arc(W / 2, H / 2, Math.max(1, R), 0, TAU, true); hx.fill('evenodd');
+    hx.strokeStyle = 'rgba(184,240,96,0.55)'; hx.lineWidth = 2 * u;
+    for (let i = -3; i <= 3; i++) if (i) { line(W / 2 + i * R * 0.22, H / 2 - 5 * u, W / 2 + i * R * 0.22, H / 2 + 5 * u); line(W / 2 - 5 * u, H / 2 + i * R * 0.22, W / 2 + 5 * u, H / 2 + i * R * 0.22); }
+    hx.restore();
+    label('UP PERISCOPE \u00b7 FLOOR ' + k.p.f, W / 2, H - 22 * u, 20 * u, '#b8f060', 'center');
+  }
+  if (wander) {
     const k = easeInOut(clamp(G.wandT / 0.4, 0, 1)) * (1 - easeInOut(clamp((G.wandT - WAND + 0.4) / 0.4, 0, 1))), bh = H * 0.1 * k;
     hx.fillStyle = '#0a0612'; hx.fillRect(0, 0, W, bh); hx.fillRect(0, H - bh, W, bh);
   }
@@ -3542,7 +3600,7 @@ function drawHUD(dt) {
   drawBossBar();
   }
   // crosshair, lit up when a shot would hit something
-  const cx = W / 2, cy = H / 2, aiming = active() && !P.hang && !P.carried, on = aiming && inLine();
+  const cx = W / 2, cy = H / 2, aiming = active() && !P.hang && !G.peep, on = aiming && inLine();
   if (on && on.alive) { const p = project(on.x, AIMY, on.z); if (p) { hx.strokeStyle = 'rgba(184,240,96,0.85)'; hx.lineWidth = 2 * u; ring(p.x, p.y, clamp(on.r * 1.3 * H / p.w * 0.9, 14 * u, 120 * u)); } }
   hx.lineCap = 'round';
   if (aiming && G.st === 'play') {
@@ -3782,7 +3840,7 @@ function resetGame() {
   for (const s of STEPS) { s.p = 0; s.sol.off = true; }
   stepsT = -1;
   for (const L of LIFTS) { L.mode = 'top'; L.t = 0; L.rung = false; L.y = L.hi; L.sol.y0 = L.hi - 0.4; L.sol.y1 = L.hi; }
-  Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, stood: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0, eagleSeen: false, eagleWarned: 0, hinged: false, brolly: false, desc: null, downKills: 0, fold: false, landT: 0, trail: [[0, 0]], trailT: 0.25, ladders: 0, toppled: 0, overs: 0, aboveSmoke: false, rivDown: 0 });
+  Object.assign(G, { t: 0, kills: 0, deaths: 0, shake: 0, won: false, peak: 0, stood: 0, newBest: false, stepsIn: 0, combo: 0, comboT: 0, sayCd: 0, intro: 0, eagleSeen: false, eagleWarned: 0, hinged: false, brolly: false, desc: null, downKills: 0, fold: false, landT: 0, trail: [[0, 0]], trailT: 0.25, ladders: 0, toppled: 0, overs: 0, aboveSmoke: false, rivDown: 0, peep: null });
   G.callouts.length = 0; PARTS.length = 0; G.stats = { shots: 0, hits: 0 }; G.crown = null;
   stick = null; pointers.clear(); resetDirector();
   IN.kf = IN.kb = IN.kl = IN.kr = IN.ksl = IN.ksr = 0; IN.kFire = IN.mFire = IN.kJump = IN.fireTap = false; IN.mb = 0; IN.mouseTurn = 0; IN.mouseLook = 0; IN.ktap = 0;
@@ -3945,7 +4003,7 @@ function frame(now) {
     music(G.st === 'play' && !G.paused ? (bossOn ? 'boss' : DIR.phase === 'swarm' || DIR.phase === 'warn' ? 'swarm' : 'climb') : null, bossOn || DIR.phase === 'calm' ? (stepsT >= 0 ? 2 : 0) : 0);
     G.shake = Math.max(0, G.shake - dt * 30); G.flash = Math.max(0, G.flash - dt * 3);
     placeCamera(dt);
-    drawLifts(); drawPads(); drawChecks(); drawSteps(); drawGoal(); drawRival(); drawBrolly(); drawParts();
+    drawLifts(); drawPads(); drawChecks(); drawSteps(); drawGoal(); drawRival(); drawPeris(); drawBrolly(); drawParts();
     drawFoes(); drawShots(); drawGibs(); drawItems(); drawFX();
     if (G.st === 'win' && G.wandT > 0.12 && G.wandT < WAND - 0.2) drawFigure();
     render3d();
@@ -4042,11 +4100,18 @@ function finishRun() {
   if (!G.best || G.t < G.best) { G.best = G.t; G.newBest = true; store.set('best', G.t.toFixed(2)); }
 }
 function placeCamera(dt) {
+  CAM.zoom = 1;
   if (G.st === 'title') {
     // a slow turn round the tower
     const a = G.time * 0.12, R = 26;
     CAM.x = Math.cos(a) * R; CAM.z = Math.sin(a) * R + 1; CAM.y = 9 + Math.sin(G.time * 0.2) * 3;
     CAM.yaw = Math.atan2(1 - CAM.z, -CAM.x); CAM.pitch = 0.18;
+    return;
+  }
+  if (G.peep) {
+    const k = G.peep, p = k.p, rise = easeInOut(clamp(k.t / 0.35, 0, 1));
+    CAM.x = lerp(P.x, p.hx, rise); CAM.z = lerp(P.z, p.hz, rise); CAM.y = lerp(P.y + EYE, p.top - 0.2, rise);
+    CAM.yaw = p.yaw + Math.sin(Math.max(0, k.t - 0.35) * 0.95) * 0.75; CAM.pitch = p.f === 5 ? 0.06 : -0.05; CAM.zoom = 0.92;
     return;
   }
   if (G.st === 'win' && G.wandT < WAND) {
@@ -4084,7 +4149,7 @@ function placeCamera(dt) {
   const up = G.intro > 0 ? easeInOut(clamp(G.intro / 1.7, 0, 1)) * 0.56 : 0;
   // teetering, your base rocks on the lip: tipping forward shows you the drop, backward the ceiling
   const tip = (P.tip || 0) * (0.3 + 0.05 * Math.sin(G.time * 24)) * -Math.sign(P.tipTo || 0);
-  CAM.x = P.x; CAM.y = P.y + EYE * (1 - down * 0.7); CAM.z = P.z; CAM.yaw = P.yaw; CAM.pitch = up - down * 0.35 + tip + (P.hang ? 0.12 : 0) + (P.carried ? -0.55 + Math.sin(G.time * 2.3) * 0.04 : 0) + (P.headPitch || 0) - Math.sin(Math.PI * clamp((P.headSwap || 0) / 0.55, 0, 1)) * 0.5;
+  CAM.x = P.x; CAM.y = P.y + EYE * (1 - down * 0.7); CAM.z = P.z; CAM.yaw = P.yaw; CAM.pitch = up - down * 0.35 + tip + (P.hang ? 0.12 : 0) + (P.carried ? CARRY_TILT + Math.sin(G.time * 2.3) * 0.04 : 0) + (P.headPitch || 0) - Math.sin(Math.PI * clamp((P.headSwap || 0) / 0.55, 0, 1)) * 0.5;
 }
 
 // ---------------------------------------------------------------- boot
@@ -4098,7 +4163,7 @@ buildMesh();
 resize();
 showPanel('title');
 window.tallOrder = {
-  FOES, SHOTS, ITEMS, INV, WAVES, STACKS, ladderSpot, RIV, rivTop, hitRiv, giveItem, useItem, inLine, populate, los, floorBelow, foe, stepsT: () => stepsT, aim: () => ({ out: OUTBAND, dir: OUTDIR, y: AIMY }), selIdx: () => SEL, dir: () => DIR,
+  FOES, SHOTS, ITEMS, INV, WAVES, STACKS, ladderSpot, RIV, rivTop, hitRiv, PERIS, giveItem, useItem, inLine, populate, los, floorBelow, foe, stepsT: () => stepsT, aim: () => ({ out: OUTBAND, dir: OUTDIR, y: AIMY }), selIdx: () => SEL, dir: () => DIR,
   sim(secs) { const dt = 1 / 60; for (let i = 0; i < Math.round(secs * 60); i++) { G.time += dt; stepGame(dt); } },
   setStick(x, y) { if (x == null) { stick = null; return; } const R = stickR(), x0 = W * 0.2, y0 = H * 0.64; stick = { id: -1, x0, y0, x: x0 + x * R, y: y0 + y * R }; },
   dbgDecals() { DECAL.n = 0; drawFoes(); const out = []; for (let i = 0; i < DECAL.n; i++) out.push(Array.from(DECAL.inst.slice(i * 12, i * 12 + 12)).map(v => +v.toFixed(2))); DECAL.n = 0; SH.box.n = SH.cyl.n = SH.sph.n = 0; GLOW.box.n = GLOW.sph.n = 0; return out; },

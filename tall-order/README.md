@@ -111,6 +111,12 @@ have done each of those things.
   you close by doesn't; the kitty head, always hunting, tilts 20 degrees down,
   for what's coming up the stairs. You see its ears at the top of your view
   while you wear it.
+- **Periscopes.** You can't look up, but at the edge of each floor there's a
+  toy periscope poking up over the floor above. Stand at its eyepiece, facing
+  it, and hold still: up it goes, and for a few seconds you see across the
+  floor above from a toy's eye height, the only look ahead you get. Any move, a
+  shot, a jump or a hit and you're back. The last one looks over the top
+  floor's wall at the MEGA WOLF, who wonders who's peeping.
 - **The neck hinge.** At the top, a hinge clicks into your neck and you look up
   for the first time, at the ceiling light you've been climbing toward, just as
   an umbrella opens over you.
@@ -264,7 +270,9 @@ And the one that can help you climb:
   misses, and labours back up low enough to shoot. If it gets you, it carries
   you up a floor, tipped forward so you can see what's below: "BELOW: FLOOR 3 ·
   SHORTCUT!" or "A LONG WAY DOWN". While it has you it's above you, so there's
-  no shooting it. JUMP lets go. Hang on and it swings out past the edge and back,
+  no shooting it; but you dangle tipped forward, blaster and all, so what it
+  carries you over is in reach, and so is whatever's waiting where you'll
+  drop (pickups work too: bombs away). JUMP lets go. Hang on and it swings out past the edge and back,
   and in the end lets go wherever it happens to be. With no sky over you, it
   waits out beyond the tower, where you can see it, and hit it from far enough
   away.
@@ -278,7 +286,7 @@ And the ones racing you:
   rule lets you hit them back). Shoot out the brick level with you and
   everything above it comes down, wolves and all; new wolves climb up the side
   (hit one on the way up and it lets go) and start again from what's left. Or
-  just out-climb them: it tops out just short of your top floor, so up there
+  just out-climb them: it tops out level with floor four, so from there on
   you've won the race. On the height strip it's the mark with the wolf ears.
 
 Toys that fall far enough go SPLAT, and everything that pops falls apart into
@@ -413,8 +421,11 @@ knockouts; and the novice that stands about on every floor takes four and a
 half to five minutes, meets four or five swarms (one or two of them up a
 ladder) and gets knocked out four or five times. Their tower first had no
 ceiling, and grew over the top floor to throw bricks all through the fight
-with the MEGA WOLF, and at you on the ladder, where you can't shoot back; now
-it stops short of the top floor, and they hold their fire while you climb. The eagle
+with the MEGA WOLF, and at you on the ladder, where you can't shoot back; then,
+stopped just short of the top floor, it kept floor four under a steady rain of
+bricks that held the human-mode bot there for three minutes. Now it tops out
+level with floor four, they throw half as often, and they hold their fire
+while you climb. The eagle
 snatches about half of them once or twice a climb, and usually gives them a
 shortcut. All of them always got to the top. A person playing for the first
 time should expect to take longer.
