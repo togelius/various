@@ -703,6 +703,8 @@ function buildTower() {
   // a few big bricks on the rug to hide behind
   brick(-6, 11, 0, 2, 1, 2, [C.red, C.yellow]); brick(-11, 4, 0, 1, 2, 3, [C.blue, C.white, C.blue]);
   brick(9.5, -2, 0, 2, 2, 1, C.green); brick(10, 3, 0, 1, 1, 2, [C.purple, C.orange]); brick(-3, 13, 0, 1, 1, 1, C.lime);
+  // and a stack just ahead of where you start, with a kitty asleep on top: the first thing too high to hit
+  brick(1.6, 18.8, 0, 1, 1, 4, [C.red, C.yellow, C.blue, C.white]);
   // --- floor 2, a white plate over the west side of floor 1
   for (const x of [-8, -2]) for (const z of [-8, -3, 2, 7]) pillar(x, z, Y[2] - PH, colE);
   plate(-8, -8, -1, 8, Y[2], C.white);
@@ -1665,6 +1667,13 @@ function nearestDrop() {
   return best;
 }
 function kittyAI(e, dt) {
+  // curled up asleep on its stack: only a shot, or walking right up to it, wakes it
+  if (e.sleeps && !e.awake) {
+    halt(e, dt);
+    if (pdist(e) < 2.2) wake(e);
+    else if ((e.zzT = (e.zzT || 0) - dt) <= 0) { e.zzT = 2.6; e.say = 'Z z z'; e.sayT = 1.8; }
+    return;
+  }
   // coming down right on top of you
   if (!e.onGround && e.vy < -1 && canRide(e) && Math.hypot(P.x - e.x, P.z - e.z) < 0.6 && e.y > P.y + 0.9 && e.y < P.y + 2.2) { mount(e); return; }
   const d = pdist(e), dy = P.y - e.y, sees = seesPlayer(e, dt);
@@ -2763,6 +2772,7 @@ function populate() {
   INV.length = 0; SEL = 0;
   const f = (t, x, y, z, o) => foe(t, x, y, z, o), it = (kind, x, y, z) => ITEMS.push({ kind, x, y, z, t: rand(0, 5) });
   // the rug
+  f('kitty', 2.1, 2.4, 19.3, { sleeps: true, yaw: 1.2 });
   f('wolf', -5, 0, 11); f('wolf', 7, 0, 12.5);
   f('kitty', -4, 0, 3); f('kitty', 2.5, 0, 0);
   it('confetti', -2.5, 0, 12); it('juice', -6, 0, 5);
@@ -3549,6 +3559,14 @@ let last = performance.now(), lastErr = '', ft = 0, qT = 0;
 function frame(now) {
   const rdt = Math.max(0, (now - last) / 1000), dt = Math.min(0.05, rdt);
   last = now;
+  // if frames run slow for a while, draw the 3D view at a lower resolution, and raise it again when there is
+  // room; a long gap (a hidden tab, a stall) doesn't count. (Resizing clears the canvas, so it happens here,
+  // before this frame is drawn, never after, which would show a blank frame.)
+  if (rdt > 0 && rdt < 0.25) {
+    ft = ft ? ft + (rdt - ft) * 0.03 : rdt;
+    if (ft > 0.045 && QUAL > 0.55 && now - qT > 2500) { QUAL -= 0.15; qT = now; resize(); }
+    else if (ft < 0.022 && QUAL < 1 && now - qT > 8000) { QUAL = Math.min(1, QUAL + 0.15); qT = now; resize(); }
+  }
   G.time += dt;
   try {
     if (!G.paused && !G.manual) stepGame(dt);
@@ -3563,13 +3581,6 @@ function frame(now) {
     drawHUD(dt);
   } catch (err) {
     if (String(err) !== lastErr) { lastErr = String(err); console.error(err); }
-  }
-  // if frames run slow for a while, draw the 3D view at a lower resolution, and raise it again
-  // when there is room; a long gap (a hidden tab, a stall) doesn't count
-  if (rdt > 0 && rdt < 0.25) {
-    ft = ft ? ft + (rdt - ft) * 0.03 : rdt;
-    if (ft > 0.045 && QUAL > 0.55 && now - qT > 2500) { QUAL -= 0.15; qT = now; resize(); }
-    else if (ft < 0.022 && QUAL < 1 && now - qT > 8000) { QUAL = Math.min(1, QUAL + 0.15); qT = now; resize(); }
   }
   requestAnimationFrame(frame);
 }

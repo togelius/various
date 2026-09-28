@@ -147,7 +147,11 @@ other, and it's shaken off, tumbling away in front of you, dazed.
 
 Each floor has one way up to the next, and a lime marker shows you where it is:
 
-1. **The rug.** Stairs of stacked bricks lead up to the first floor.
+1. **The rug.** Stairs of stacked bricks lead up to the first floor. Just
+   ahead of where you start there's a stack of four bricks with a kitty asleep
+   on top ("Z z z"), the first thing you meet that is too high to hit from
+   where you stand. Back off and it comes into reach; walk right up to the
+   stack, or shoot it, and it wakes.
 2. **Floor one**, a grey baseplate on sixteen columns. A spring pad (BOING)
    throws you up onto the second floor.
 3. **Floor two**, a white plate. A yellow lift carries you up to the third.
@@ -159,10 +163,25 @@ Each floor has one way up to the next, and a lime marker shows you where it is:
    build themselves, spiralling up to the flag.
 
 Every floor has a checkpoint. It counts as soon as you stand on that floor, and
-it tops your health back up to 70. If you are knocked out, or fall more than a
+it tops your health back up to 70. The MEGA WOLF has planted a black flag at
+each one; get there and you swap it for yours, the black flag sliding down the
+pole as your yellow and red one runs up. If you are knocked out, or fall more than a
 floor and a half ("SPLAT!"), you come back at the highest checkpoint you have
 reached, facing the way on up. There is one more checkpoint halfway up the
 crane.
+
+The first time you stand higher than the furniture, the game says so: higher
+than the hearth, the sofa cushions, the arm of the sofa and the fireplace. The
+room thins out as you go up (the fire's crackle and the clock's tick fade, and
+a wind picks up), and the chart at the end marks the furniture for scale.
+
+A SPLAT comes with a line from the history of human flight, which is mostly the
+history of landing badly: Eilmer of Malmesbury and Ibn Firnas, who both blamed
+the lack of a tail; John Damian, off Stirling Castle in 1507 onto a dung heap;
+the Marquis de Bacqueville, who flapped over the Seine and came down on a
+washerwoman's barge; and Dante's "O human race, born to fly upward". Your first
+ledge grab remembers Otto Lilienthal, blown off a roof in 1894 and left hanging
+from a cornice.
 
 ## The way home
 
@@ -194,7 +213,11 @@ Slow and telegraphed:
   out of the circle. You can shoot the shells down in the air.
 - **MEGA WOLF.** A giant wolf in a gold crown. It stomps (a big shockwave to
   jump), throws huge bricks, and howls twice to call down kitties and a bee. It
-  talks too much.
+  talks too much. Beaten, it doesn't just pop: it staggers ("NOT MY TOWER!"),
+  backs off to the wall with its arms windmilling and goes over. TIMBER! You
+  can't look down to watch it land, so you hear it, a long whistle and a thud
+  far below, and "THE BIGGEST SPLAT OF ALL". On the way home you can look, and
+  there it is on the rug, with its crown beside it.
 
 Fast and annoying:
 
