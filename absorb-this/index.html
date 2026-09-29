@@ -897,7 +897,7 @@ function headlineNow(t) { tickNews.push(t); tickW = 0; }
 const CHALS = {
   bartleby: { title: 'I WOULD PREFER NOT TO', goal: "DON'T SHOOT", dur: 6, bonus: 1500, need: 1 },
   enjoy: { title: 'ENJOY!', goal: 'KILLS', dur: 12, bonus: 2000, need: 8 },
-  real: { title: 'RETURN TO THE REAL', goal: 'KNOCKED OFF THE COUNTER', dur: 25, bonus: 2500, need: 1 },
+  real: { title: 'RETURN TO THE REAL', goal: 'KNOCKED OFF THE COUNTER (SOAP HELPS)', dur: 35, bonus: 2500, need: 1 },
   gaze: { title: 'THE GAZE', goal: 'GOOGLY SHOTS', dur: 15, bonus: 1500, need: 3 },
   horizontal: { title: 'THE HORIZONTAL SUBJECT', goal: 'SECONDS AS A PUDDLE', dur: 20, bonus: 1200, need: 6 },
   negation: { title: 'NEGATION OF THE NEGATION', goal: 'PUDDLES SOAKED UP', dur: 20, bonus: 1200, need: 10 },
@@ -906,6 +906,7 @@ let chal = null, chalNext = 0, lastChal = null;
 function chalStart() {
   const k = pick(Object.keys(CHALS).filter(q => q !== lastChal)); lastChal = k;
   chal = { k, t: CHALS[k].dur, prog: 0 }; sfx('swap');
+  if (k === 'real') P.ammo[3] = Math.max(P.ammo[3], 6);
   if (!ZZ.lock) { ZZ.cool = 0; zShow(pick(ZL['chal_' + k + '_intro'] || ['A challenge!']), { cool: 4 }); }
 }
 function chalEvent(kind, amt = 1) {
@@ -1556,8 +1557,8 @@ const ZL = {
     "Too slow! The superego says: you should have enjoyed faster. And then it says: why are you always in such a hurry? You cannot win against the superego.",
   ],
   chal_real_intro: [
-    "Challenge: Return to the Real! Knock an enemy off the counter within twenty-five seconds. Below the counter is the Real. Send somebody there.",
-    "New challenge! Within twenty-five seconds, knock an enemy off the counter. Every enemy must one day meet the Real. Today you are the delivery service.",
+    "Challenge: Return to the Real! Knock an enemy off the counter within thirty-five seconds. Soap helps. Below the counter is the Real. Send somebody there.",
+    "New challenge! Within thirty-five seconds, knock an enemy off the counter. Take some soap. Every enemy must one day meet the Real. Today you are the delivery service.",
     "Challenge! Knock something off the edge of the counter. Below is the floor, and the floor is where every illusion finally lands.",
   ],
   chal_real_win: [
@@ -1760,7 +1761,7 @@ function makeEnemy(type, x, z, s = 1) {
     cd: rand(0.5, 1.5), state: 0, stT: rand(1.5, 3), stun: 0, wet: 0, spawnT: 0.45, px: 0, py: -0.5, pvx: 0, pvy: 0, lvx: 0, lvy: 0, lvz: 0, orbit: Math.random() < 0.5 ? 1 : -1, chomp: 0, lastHit: -1 };
   if (type === 'sponge') { const big = s >= 3.5; e.hp = s >= 3.5 ? 1100 : s >= 1.8 ? 200 : s < 0.8 ? 18 : 40; e.r = 0.8 * s; e.h = 0.9 * s; e.speed = big ? 5 : s >= 1.8 ? 7 : s < 0.8 ? 11 : 8.5; if (big) e.type = 'mama'; }
   if (type === 'roll') { e.hp = 420; e.r = 2.6; e.h = 3; e.speed = 8.5; e.len = 4.4; e.rot = 0; e.hitCd = 0; e.vz = 1.5; e.yaw = 0; }
-  if (type === 'fork') { e.hp = 900; e.r = 1.3; e.h = 1.4; e.speed = 14; e.stabs = 0; e.summonT = 7; e.stT = 3; }
+  if (type === 'fork') { e.hp = wave < 14 ? 700 : 900; e.r = 1.3; e.h = 1.4; e.speed = 14; e.stabs = 0; e.summonT = 7; e.stT = 3; }
   if (type === 'bottle') { e.hp = 70; e.r = 0.75; e.h = 3.0; e.speed = 3.4; }
   if (type === 'spoon') { e.hp = 28; e.r = 0.65; e.h = 0.8; e.speed = 10; e.y = 2.5; }
   if (e.type === 'mama') { e.hp = 1100; e.r = 0.8 * s; e.h = 0.9 * s; }
@@ -2022,7 +2023,7 @@ function updateEnemies(dt) {
         e.vy = big ? 13 : lunge ? rand(6, 8) : rand(7, 10);
         e.cd = big ? rand(0.5, 0.8) : rand(0.08, 0.3); e.sq = 0.6; if (dist < 25) sfx('hop');
       }
-      if (e.type === 'mama') { e.stT -= dt; if (e.stT <= 0 && enemies.length < 24 && alive) { e.stT = 4.5; const c = makeEnemy('sponge', e.x, e.z, 1); c.y = e.y + e.h; c.vy = 14; c.vx = nx * 6 + rand(-4, 4); c.vz = nz * 6 + rand(-4, 4); c.spawnT = 0.2; enemies.push(c); bubbles(e.x, e.y + e.h, e.z, 10, 1.5); sfx('spawn'); pop(e.x, e.y + e.h + 1, e.z, pick(['SQUEEZE!', 'SAY HELLO TO GRANDMA', 'I MADE ANOTHER ONE', 'GO PLAY, DEAR', 'MORE GRANDCHILDREN!', 'SPONGE-SITTING!', 'HERE, TAKE A CARDIGAN', 'FAMILY REUNION!', 'THE MORE THE MOISTER']), true); } }
+      if (e.type === 'mama') { e.stT -= dt; if (e.stT <= 0 && enemies.length < 24 && alive) { e.stT = wave < 10 ? 6 : 4.5; const c = makeEnemy('sponge', e.x, e.z, 1); c.y = e.y + e.h; c.vy = 14; c.vx = nx * 6 + rand(-4, 4); c.vz = nz * 6 + rand(-4, 4); c.spawnT = 0.2; enemies.push(c); bubbles(e.x, e.y + e.h, e.z, 10, 1.5); sfx('spawn'); pop(e.x, e.y + e.h + 1, e.z, pick(['SQUEEZE!', 'SAY HELLO TO GRANDMA', 'I MADE ANOTHER ONE', 'GO PLAY, DEAR', 'MORE GRANDCHILDREN!', 'SPONGE-SITTING!', 'HERE, TAKE A CARDIGAN', 'FAMILY REUNION!', 'THE MORE THE MOISTER']), true); } }
       const reach = e.r + PRAD + 0.1;
       if (e.gold) {
         e.fleeT -= dt; if (Math.random() < dt * 12) part3({ x: e.x + rand(-.6, .6), y: e.y + rand(0, 1), z: e.z + rand(-.6, .6), vy: rand(1, 3), life: 0.6, size: rand(0.04, 0.09), col: [1.6, 1.3, 0.4], mat: 7, grav: -1, bounce: 0 });
@@ -2031,7 +2032,7 @@ function updateEnemies(dt) {
       if (dist < reach && P.y < e.y + e.h + 0.2 && P.y + 1.2 > e.y && alive && P.iT <= 0 && !e.gold) {
         P.latch = e; P.latchT = 0.8;
         if (P.surr > 0) { e.cd = Math.max(e.cd, 0.3); e.vx *= 0.5; e.vz *= 0.5; } if (!ZZ.once.dare) zz('dare', { once: true, force: true });
-        const dmg = (e.type === 'mama' ? 34 : e.s >= 1.8 ? 24 : 16) * dt;
+        const dmg = (e.type === 'mama' ? (wave < 10 ? 24 : 30) : e.s >= 1.8 ? 24 : 16) * dt;
         P.hp -= dmg; P.hurtT = Math.min(0.6, P.hurtT + dt * 1.2); if (P.hp <= 0) die(e.type);
         P.absorbT = Math.min(1, P.absorbT + dt * 4); e.wet = Math.min(1, e.wet + dt * 0.8); e.chomp = 1;
         if (Math.random() < dt * 6) sfx('slurp');
@@ -2075,7 +2076,7 @@ function updateEnemies(dt) {
         if (e.stT <= 0) { if (F && e.stabs < 2) { e.stabs++; e.state = 1; e.stT = 0.28; } else { e.stabs = 0; e.state = 0; e.stT = F ? rand(1.2, 2.2) : rand(1.5, 3.2); } }
         const dy = P.y + P.eyeH * 0.6 - e.y;
         if (Math.hypot(dx, dy, dz) < e.r + PRAD + 0.3 && alive) {
-          hurt(F ? 22 : 12, e.type, e.x, e.z); sfx('ting'); zz('spoonHit', { p: F ? 0 : 0.3 });
+          hurt(F ? (wave < 14 ? 17 : 22) : 12, e.type, e.x, e.z); sfx('ting'); zz('spoonHit', { p: F ? 0 : 0.3 });
           pop(e.x, e.y + 0.6, e.z, pick(F ? ['STABBED!', 'FORKED!', 'PRONGED!', 'FOUR HOLES!'] : ['BONK', 'TING!', 'CLANG', 'STIR!']), true);
           e.state = 0; e.stabs = 0; e.stT = F ? rand(0.8, 1.6) : rand(1.8, 3); e.vx = -e.vx * 0.5; e.vz = -e.vz * 0.5; e.vy = 6;
         }
@@ -2341,7 +2342,8 @@ function updatePlayer(dt) {
   P.x += P.vx * dt; P.z += P.vz * dt;
   collide(P, PRAD, 1.2);
   // surface tension: on foot you only leave the counter if you are walking off it on purpose
-  if (P.onG && P.y < 0.3 && onCounter(ox, oz) && !onCounter(P.x, P.z) && (wl === 0 || onCounter(ox + wx * 1.5, oz + wz * 1.5))) {
+  // (a dash never carries you off either: you can only leave by walking or jumping)
+  if (P.y < 1.2 && onCounter(ox, oz) && !onCounter(P.x, P.z) && ((P.onG && (wl === 0 || onCounter(ox + wx * 1.5, oz + wz * 1.5))) || P.dashT > -0.15)) {
     if (!onCounter(P.x, oz)) { P.x = ox; P.vx = 0; }
     if (!onCounter(ox, P.z)) { P.z = oz; P.vz = 0; }
     if (!onCounter(P.x, P.z)) { P.x = ox; P.z = oz; }
