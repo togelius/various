@@ -9,6 +9,10 @@ You are DRIP, the last drop of water in the glass. The sponges want to drink
 you, the hot sauce bottles want to dilute you, and the spoons want to stir you
 into somebody's tea. Your health is called DAMPNESS.
 
+Now the counter is a **very long kitchen**: five districts, ten waves, and a
+sink at the far end. Get there, clear the final kitchenware, and pull the plug.
+The kitchen will call it a successful transfer of responsibilities.
+
 Open `index.html` in a browser. It is one file with no dependencies, written in
 raw WebGL2. It loads Bangers and Nunito from Google Fonts if it can and uses
 fallback fonts if not. Your best score is kept in the browser's local storage.
@@ -19,7 +23,9 @@ It plays with a mouse and keyboard or on a touch screen (iPhone, iPad, Android).
 On a phone or tablet: drag on the left half to move, drag on the right half to
 look (or drag from the FIRE button to aim while shooting), and use the buttons
 for jump, dash, puddle and swapping weapons. A surrender button appears when a
-sponge has you. Pause holds the glass, sound and voice settings. Either orientation works. On the death screen there's a box to type *please* into.
+sponge has you, and a pull-the-plug button appears at the cleared drain.
+Pause holds the glass, sound and voice settings. Either orientation works.
+On the death screen there's a box to type *please* into.
 
 With a keyboard and mouse:
 
@@ -29,6 +35,7 @@ With a keyboard and mouse:
   can't be hit mid-dash)
 - Hold **right mouse** or **C** to become a puddle
 - Hold **E** while a sponge has you to surrender to it
+- At the sink, clear its two waves and hold **E** over the drain to escape
 - **1 / 2 / 3 / 4** or the **mouse wheel** to switch weapons
 - **G** cycles the glass distortion: murky, clean, none
 - **M** mutes everything, **V** switches Žižek's voice between accented,
@@ -36,6 +43,27 @@ With a keyboard and mouse:
 
 ## What's in it
 
+- **The long kitchen.** A continuous 360 × 43 counter, over five times the
+  original length. Clear two waves in each district to roll up its dishcloth
+  barrier, then follow the gold arrows to the next checkpoint. The route
+  display names your district, shows the objective, and points to your next
+  destination. Entering a district restores at least 80 dampness and starting
+  ammunition. The five stops are:
+  - **The Spill:** the original sponge hive, bottles and spoon, now the start
+    of a much longer problem.
+  - **Breakfast Republic:** a giant mint toaster, coffee, DOUBT FLAKES cereal,
+    biscuit steps and a low cutting board. Slide underneath in puddle form,
+    or take a ketchup launch onto the toaster for supplies.
+  - **The Hot Take:** four cycling hotplates around an oversized orange
+    kettle. Watch the heat, jump the burners, or take the outer lane.
+  - **Dishcourse:** a towering plate rack, climbable plate stacks and a knife
+    bridge, with a wet fast lane below and another ketchup launch above.
+  - **The Sink of History:** a recessed basin, rippling water, soap bubbles,
+    a working refill tap and the plug that ends the journey.
+- **An escape ending.** Clear wave ten and hold the plug for 1.5 seconds to
+  go DOWN THE DRAIN, bank 10,000 points, and record your time. You can start
+  another spill or choose STAY & MAKE A BIGGER MESS: endless mode continues
+  at wave eleven, opens every checkpoint, and spawns encounters near you.
 - **Slavoj Žižek.** A cartoon parody of the philosopher (drawn in code, every
   line made up) pops up in the corner to comment on what you're doing: your
   first kill of each enemy, googly shots, multi-kills, rocket jumps, standing
@@ -45,19 +73,30 @@ With a keyboard and mouse:
   music, and he fills the screen to ask: "You think this is a joke?" He also
   hangs on the back wall as a Magritte-style poster that moves its mouth when
   he talks. Shooting it costs you points.
-- **The writing.** About 1,400 candidate lines were drafted. A first pass
-  kept only the best, then a bot playthrough showed which situations
-  repeated most and those got more lines, and finally almost everything
-  that had been cut went back in (only lines that had gone out of date were
-  left out). There are now about 950 Žižek lines (at least 6 and usually about 10 for each
-  situation, 110 of general commentary and 68 for the "you think
-  this is a joke?" freeze), 77 name tags, 46 title taglines, 120 ticker
-  headlines, 73 wave names, and kill words and taunts for every enemy.
-  Random picks skip whatever came up recently. Each of the three endings has
-  its own narration and quotes.
+- **The writing.** About 1,080 invented philosopher lines across 82
+  situations and topics. Most of the lines cut in an early curation pass
+  went back in; only ones that had gone out of date stayed out. There are
+  also 77 name tags, 52 title taglines, 144 news headlines, 73 wave names,
+  and taunts, kill words and combat shouts for every enemy. The kitchen has
+  its own petty politics: sponges privatise your puddles, airborne bubble
+  prisoners form a residents' association, and surface tension screens
+  calls from the abyss. New jokes react to nearby sponges drinking water,
+  three or more trapped enemies, edge rescues and your third PLEASE
+  continue. Ordinary commentary keeps its cooldown; the theatrical
+  interruptions, shouting and mess stay. Random picks skip whatever came up
+  recently. District arrivals get their own commentary; cereal packaging,
+  workplace notices and checkpoint signs carry more jokes. The four endings
+  have their own closing text.
+- **The Fork story.** Counter News Network starts with rumours and denial.
+  When the Fork actually arrives, the experts revise their statements;
+  when it dies, they claim they were right all along. The philosopher also
+  has excuses after the revelation. This history survives PLEASE continues
+  and starts over with a new run.
 - **Difficulty.** Each of the first six waves adds one new thing: sponges,
   hot sauce, spoons, a bigger mix, Grandma, then the paper towel and the wave
-  modifiers. After that about three more enemies arrive each wave. Clearing a wave restores 30 dampness. The "you think this is a
+  modifiers. After that about three more enemies arrive each wave. The
+  journey ends after wave ten unless you opt into endless mode. Clearing a
+  wave restores 30 dampness. The "you think this is a
   joke?" freeze comes on wave 3 and then at most every three minutes.
 - **Voices.** Everything is read aloud by the browser's speech synthesis at
   one and a half times normal speed. Apple's speech engine (Safari, and every
@@ -67,7 +106,7 @@ With a keyboard and mouse:
   English voice. Žižek gets a low pitch and the most Slavic voice your system has installed (Slovenian,
   Croatian, Czech, Polish, Russian, ...), reading English with that language's
   pronunciation, which gives him an accent. If there's none he uses English.
-  The title screen shows which voice he got.
+  The pause screen shows which voice he got.
 - **Žižek's challenges.** Timed dares with a bonus: don't shoot for six seconds
   (I WOULD PREFER NOT TO), eight kills in twelve seconds (ENJOY!), knock
   something off the counter, three googly shots, stay a puddle, soak up your
@@ -81,10 +120,22 @@ With a keyboard and mouse:
   can soak back up. Sponges drink them too, and it heals them. Hold right mouse
   or C to flatten into a puddle: low, slippery and fast, faster still over
   spilled water.
+- **A visible liquid body.** DRIP grips the weapons with glossy streams of
+  water that form fingers, stretch during a dash and thin out as dampness
+  falls. The squirter pulses, the shotgun grows ice crystals, and the soap
+  nozzle flexes as it fires. Puddle form draws the weapon down into the spill.
+- **Expressive kitchenware.** Rounded sponges compress before hopping;
+  bottles wind up and rattle their caps; spoons flash a ring before lunging.
+  The googly eyes blink and catch the light, and Grandma has open spectacle
+  rims. Warm wood, cool reflective water and matte sponge surfaces have
+  different finishes. Glass starts in the lighter setting; G still cycles
+  through all three looks.
 - **Infinite continues, if you ask nicely.** On the death screen, type PLEASE
-  to continue from the wave you died on, keeping your score.
+  to return to the current district's checkpoint and retry that wave, keeping
+  your score and the Fork's history. If you've already cleared the district,
+  its exit stays open. You return with fresh dampness and usable ammunition.
 - **Surrender.** When a sponge has latched onto you, hold E to stop fighting.
-  That's the third ending. The death screen tracks which of the three endings
+  That's the third ending. The death screen tracks which of the four endings
   you've found.
 - **Noise.** A Counter News Network ticker along the bottom, enemies shouting
   puns, splish-splosh hit words, style ranks from D (DAMP) up to SSS (SPLISH
@@ -112,8 +163,8 @@ With a keyboard and mouse:
   enemies off it for double points ("COUNTER-STRIKE!"). You can go over too,
   if a blast or a jump takes you there. On foot, surface tension holds you at
   the edge unless you walk off on purpose.
-- **Ketchup packets** launch you onto the top of the big sponge. You can also
-  bounce off sponges' heads.
+- **Ketchup packets** launch you onto the big sponge, the toaster, or the
+  dish route. You can also bounce off sponges' heads.
 - **Scoring.** Kill combos raise a multiplier, and quick kills in a row call
   out multi-kills (DOUBLE DIP, TRIPLE SCRUB, ... DISHPOCALYPSE). An announcer
   reads them in a very deep voice using the browser's speech synthesis, if it
@@ -121,12 +172,14 @@ With a keyboard and mouse:
 
 ## How it's made
 
-There are no image assets. Everything is boxes, cylinders and spheres, and the
+There are no external image assets. Everything is procedural meshes—rounded
+boxes, cylinders, spheres, rings and arches—and the
 surfaces are painted in the fragment shader: wood grain along the planks, the
 sponge's pores and scouring pad with the serrated seam between them, brown
 glass with etched white script, the pink label, tiles. Shadows are soft blobs.
 Gibs, bubbles, sauce and water are instanced particles, and splats stay on the
-counter as stains.
+counter as stains. Signs and packaging are painted into canvas textures.
+Distant props are culled as you travel along the kitchen.
 
 The scene is drawn to an offscreen buffer. A final pass bends it the way the
 glass bottom in the photo does, with chromatic fringing, blurred thick glass at
@@ -138,3 +191,14 @@ machines and comes back on fast ones; add `?scale=0.5` to the URL to fix it.
 Sound is all WebAudio: synthesized squirts, squishes, shattering glass, spoon
 tings, and a polka-metal loop (oom-pah bass, kick drum, a square-wave
 accordion) that plays the melody only while enemies are alive.
+
+## Checking changes
+
+Serve the repository locally, for example with `python3 -m http.server 8000`,
+then open `http://localhost:8000/absorb-this/tests/` and click **Run checks**.
+The dependency-free browser suite runs the actual simulation and WebGL
+renderer in a muted frame with an in-memory save store. It covers the full
+ten-wave progression (including boss splitting), checkpoint continues,
+gates, hotplates, tap, drain ending, endless mode, and movement through the
+low board, launch routes and full counter. It does not replace playing the
+encounters to judge difficulty and feel.
