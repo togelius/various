@@ -45,15 +45,21 @@ With a keyboard and mouse:
   music, and he fills the screen to ask: "You think this is a joke?" He also
   hangs on the back wall as a Magritte-style poster that moves its mouth when
   he talks. Shooting it costs you points.
-- **The writing.** About 1,400 candidate lines were drafted and cut down
-  hard: 210 Žižek lines stayed, along with 42 name tags, 21 title taglines,
-  53 ticker headlines, a wave name for each of the first 21 waves, and kill
-  words and taunts for every enemy. A later pass logged which lines a bot
-  playthrough saw most and wrote more for those situations, so there are now
-  382 Žižek lines (three to ten for each situation, plus about 100 of general
-  commentary), and more multi-kill names, googly-eye shouts and bubble cries.
-  Random picks skip whatever came up recently. Each of the three endings has
-  its own narration and quotes.
+- **The writing.** 501 invented philosopher lines across 77 situations and
+  topics, plus changing name tags, title taglines, news headlines, enemy
+  taunts and combat shouts. The kitchen has its own petty politics: sponges
+  privatise your puddles, airborne bubble prisoners form a residents'
+  association, and surface tension screens calls from the abyss. New jokes
+  react to nearby sponges drinking water, three or more trapped enemies,
+  edge rescues and your third PLEASE continue. Ordinary commentary keeps
+  its cooldown; the theatrical interruptions, shouting and mess stay.
+  Random picks skip whatever came up recently. Each of the three endings
+  has its own narration and quotes.
+- **The Fork story.** Counter News Network starts with rumours and denial.
+  When the Fork actually arrives, the experts revise their statements;
+  when it dies, they claim they were right all along. The philosopher also
+  has excuses after the revelation. This history survives PLEASE continues
+  and starts over with a new run.
 - **Difficulty.** Each of the first six waves adds one new thing: sponges,
   hot sauce, spoons, a bigger mix, Grandma, then the paper towel and the wave
   modifiers. After that about three more enemies arrive each wave. Clearing a wave restores 30 dampness. The "you think this is a
