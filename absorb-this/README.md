@@ -45,13 +45,14 @@ With a keyboard and mouse:
   music, and he fills the screen to ask: "You think this is a joke?" He also
   hangs on the back wall as a Magritte-style poster that moves its mouth when
   he talks. Shooting it costs you points.
-- **The writing.** About 1,400 candidate lines were drafted and cut down
-  hard: 210 Žižek lines stayed, along with 42 name tags, 21 title taglines,
-  53 ticker headlines, a wave name for each of the first 21 waves, and kill
-  words and taunts for every enemy. A later pass logged which lines a bot
-  playthrough saw most and wrote more for those situations, so there are now
-  382 Žižek lines (three to ten for each situation, plus about 100 of general
-  commentary), and more multi-kill names, googly-eye shouts and bubble cries.
+- **The writing.** About 1,400 candidate lines were drafted. A first pass
+  kept only the best, then a bot playthrough showed which situations
+  repeated most and those got more lines, and finally almost everything
+  that had been cut went back in (only lines that had gone out of date were
+  left out). There are now about 950 Žižek lines (at least 6 and usually about 10 for each
+  situation, 110 of general commentary and 68 for the "you think
+  this is a joke?" freeze), 77 name tags, 46 title taglines, 120 ticker
+  headlines, 73 wave names, and kill words and taunts for every enemy.
   Random picks skip whatever came up recently. Each of the three endings has
   its own narration and quotes.
 - **Difficulty.** Each of the first six waves adds one new thing: sponges,
