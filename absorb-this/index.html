@@ -2023,7 +2023,7 @@ function updateEnemies(dt) {
         e.vy = big ? 13 : lunge ? rand(6, 8) : rand(7, 10);
         e.cd = big ? rand(0.5, 0.8) : rand(0.08, 0.3); e.sq = 0.6; if (dist < 25) sfx('hop');
       }
-      if (e.type === 'mama') { e.stT -= dt; if (e.stT <= 0 && enemies.length < 24 && alive) { e.stT = wave < 10 ? 6 : 4.5; const c = makeEnemy('sponge', e.x, e.z, 1); c.y = e.y + e.h; c.vy = 14; c.vx = nx * 6 + rand(-4, 4); c.vz = nz * 6 + rand(-4, 4); c.spawnT = 0.2; enemies.push(c); bubbles(e.x, e.y + e.h, e.z, 10, 1.5); sfx('spawn'); pop(e.x, e.y + e.h + 1, e.z, pick(['SQUEEZE!', 'SAY HELLO TO GRANDMA', 'I MADE ANOTHER ONE', 'GO PLAY, DEAR', 'MORE GRANDCHILDREN!', 'SPONGE-SITTING!', 'HERE, TAKE A CARDIGAN', 'FAMILY REUNION!', 'THE MORE THE MOISTER']), true); } }
+      if (e.type === 'mama') { e.stT -= dt; if (e.stT <= 0 && enemies.length < 24 && alive) { e.stT = wave < 15 ? 6 : 4.5; const c = makeEnemy('sponge', e.x, e.z, 1); c.y = e.y + e.h; c.vy = 14; c.vx = nx * 6 + rand(-4, 4); c.vz = nz * 6 + rand(-4, 4); c.spawnT = 0.2; enemies.push(c); bubbles(e.x, e.y + e.h, e.z, 10, 1.5); sfx('spawn'); pop(e.x, e.y + e.h + 1, e.z, pick(['SQUEEZE!', 'SAY HELLO TO GRANDMA', 'I MADE ANOTHER ONE', 'GO PLAY, DEAR', 'MORE GRANDCHILDREN!', 'SPONGE-SITTING!', 'HERE, TAKE A CARDIGAN', 'FAMILY REUNION!', 'THE MORE THE MOISTER']), true); } }
       const reach = e.r + PRAD + 0.1;
       if (e.gold) {
         e.fleeT -= dt; if (Math.random() < dt * 12) part3({ x: e.x + rand(-.6, .6), y: e.y + rand(0, 1), z: e.z + rand(-.6, .6), vy: rand(1, 3), life: 0.6, size: rand(0.04, 0.09), col: [1.6, 1.3, 0.4], mat: 7, grav: -1, bounce: 0 });
@@ -2032,7 +2032,7 @@ function updateEnemies(dt) {
       if (dist < reach && P.y < e.y + e.h + 0.2 && P.y + 1.2 > e.y && alive && P.iT <= 0 && !e.gold) {
         P.latch = e; P.latchT = 0.8;
         if (P.surr > 0) { e.cd = Math.max(e.cd, 0.3); e.vx *= 0.5; e.vz *= 0.5; } if (!ZZ.once.dare) zz('dare', { once: true, force: true });
-        const dmg = (e.type === 'mama' ? (wave < 10 ? 24 : 30) : e.s >= 1.8 ? 24 : 16) * dt;
+        const dmg = (e.type === 'mama' ? (wave < 15 ? 24 : 30) : e.s >= 1.8 ? 24 : 16) * dt;
         P.hp -= dmg; P.hurtT = Math.min(0.6, P.hurtT + dt * 1.2); if (P.hp <= 0) die(e.type);
         P.absorbT = Math.min(1, P.absorbT + dt * 4); e.wet = Math.min(1, e.wet + dt * 0.8); e.chomp = 1;
         if (Math.random() < dt * 6) sfx('slurp');
@@ -2342,8 +2342,11 @@ function updatePlayer(dt) {
   P.x += P.vx * dt; P.z += P.vz * dt;
   collide(P, PRAD, 1.2);
   // surface tension: on foot you only leave the counter if you are walking off it on purpose
-  // (a dash never carries you off either: you can only leave by walking or jumping)
-  if (P.y < 1.2 && onCounter(ox, oz) && !onCounter(P.x, P.z) && ((P.onG && (wl === 0 || onCounter(ox + wx * 1.5, oz + wz * 1.5))) || P.dashT > -0.15)) {
+  // Walking at the edge you teeter first and only drop if you keep pushing for a moment; a dash never carries you off.
+  const pushing = P.onG && wl > 0 && !onCounter(P.x + wx * 1.2, P.z + wz * 1.2) && P.dashT < -0.7;
+  P.teeter = pushing ? (P.teeter || 0) + dt : 0;
+  if (P.y < 1.2 && onCounter(ox, oz) && !onCounter(P.x, P.z) && ((P.onG && P.teeter < 0.6) || (P.dashT > -0.7 && !P.onG) || P.dashT > 0)) {
+    if (P.teeter > 0) { shake = Math.max(shake, 0.08); if (T - tensionT > 1.2) { tensionT = T; pop(P.x, P.y + 1.6, P.z, pick(['TEETERING!', 'WHOA WHOA WHOA', 'KEEP PUSHING TO JUMP', 'THE FLOOR IS CALLING']), true); } }
     if (!onCounter(P.x, oz)) { P.x = ox; P.vx = 0; }
     if (!onCounter(ox, P.z)) { P.z = oz; P.vz = 0; }
     if (!onCounter(P.x, P.z)) { P.x = ox; P.z = oz; }
