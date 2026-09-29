@@ -147,10 +147,10 @@
   body.touch #zz:not(.big) .bub { margin-bottom:0; font-size:13px; max-width:min(300px, calc(100vw - 120px)); padding:7px 11px 9px; }
   #zz.big { max-width:94vw; } #zz.big .bub { max-width:min(640px, 90vw); }
   @media (orientation: portrait) {
-    body.touch #zz:not(.big) { top:calc(212px + env(safe-area-inset-top, 0px)); bottom:auto; }
+    body.touch #zz:not(.big) { top:calc(246px + env(safe-area-inset-top, 0px)); bottom:auto; }
     body.touch #tl { top:calc(10px + env(safe-area-inset-top, 0px)); } body.touch #wave { top:calc(10px + env(safe-area-inset-top, 0px)); }
-    body.touch #boss { top:calc(64px + env(safe-area-inset-top, 0px)); width:80vw; } body.touch #chal { top:calc(104px + env(safe-area-inset-top, 0px)); max-width:88vw; }
-    body.touch #ann { top:30%; } body.touch #tbPause { top:calc(120px + env(safe-area-inset-top, 0px)); bottom:auto; left:auto; right:calc(14px + env(safe-area-inset-right, 0px)); }
+    body.touch #boss { top:calc(144px + env(safe-area-inset-top, 0px)); width:80vw; } body.touch #chal { top:calc(190px + env(safe-area-inset-top, 0px)); max-width:88vw; }
+    body.touch #ann { top:30%; }
     body.touch #bl { width:150px; }
   }
   body.touch #br { display:none; }
@@ -174,6 +174,28 @@
   #scr .opts button, #scr .plz { font-family:Bangers, Impact, sans-serif; font-size:20px; letter-spacing:.06em; color:#fff; background:rgba(29,19,12,.7);
     border:3px solid var(--foam); border-radius:10px; padding:8px 16px; }
   #scr .plz { font-family:Nunito, sans-serif; font-weight:900; width:220px; text-align:center; background:#fff8ea; color:var(--ink); }
+  #journey { position:absolute;left:50%;top:12px;transform:translateX(-50%);width:min(440px,42vw);text-align:center;
+    background:rgba(24,39,34,.9);border:2px solid #dcc18b;border-radius:3px 13px 4px 10px;box-shadow:4px 4px 0 #20170faa;padding:7px 10px 8px; }
+  #journeyName { display:block;font-family:Bangers,Impact,sans-serif;font-size:22px;letter-spacing:.08em;color:#ffe4a5; }
+  #journeyGoal { display:block;font-size:11px;font-weight:900;letter-spacing:.07em;margin:3px 0 6px; }
+  #journeySteps { display:flex;gap:4px;justify-content:center; }
+  #journeySteps span { flex:1;border-bottom:3px solid #77705d;color:#baaf99;font-size:9px;padding:2px 1px; }
+  #journeySteps .done { border-color:#7aceb3;color:#b4e8d4; } #journeySteps .here { border-color:#ffc85b;color:#fff2d0; }
+  #journeyNav { position:absolute;left:100%;top:14px;margin-left:9px;padding:3px 8px;background:#1d2b25e8;border:1px solid #dcc18b;border-radius:6px;white-space:nowrap; }
+  #journeyArrow { display:inline-block;font-size:22px;line-height:24px;color:#9de3e7; } #journeyDistance { display:block;font-size:10px; }
+  #boss { top:103px; } #chal { top:158px; }
+  #scr .startbox { max-width:850px; } #scr .startbox h1 { font-size:clamp(62px,11vw,136px); }
+  #scr .eyebrow { font-size:12px;letter-spacing:.25em;font-weight:900;color:#c8e2c3; }
+  #scr .actions { display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:18px auto; }
+  #scr button.action { cursor:pointer;font-family:Bangers,Impact,sans-serif;font-size:30px;letter-spacing:.05em;border:3px solid #291e13;border-radius:7px;padding:12px 24px;background:#f9bd4d;color:#291e13;box-shadow:4px 5px 0 #291e13; }
+  #scr button.action:hover, #scr button.action:focus-visible { background:#fff0ac;transform:translateY(-2px);outline:2px solid white; }
+  #scr button.action.secondary { background:#b8dcd5;font-size:23px; }
+  #scr details { max-width:630px;margin:16px auto;border-top:1px solid #b7a37e;padding-top:12px; }
+  #scr summary { cursor:pointer;letter-spacing:.09em;color:#f2d8a1;font-weight:900; }
+  #scr .itinerary { display:flex;justify-content:center;gap:7px;flex-wrap:wrap;margin:15px 0;font-size:12px;font-weight:900;letter-spacing:.06em; }
+  #scr .itinerary span { border:1px solid #af9f7e;padding:5px 9px;background:#18332ba6;border-radius:4px; }
+  @media (max-width:700px) { #journey { top:calc(60px + env(safe-area-inset-top, 0px));width:72vw; } #journeyName { font-size:17px; } #journeyNav { left:auto;right:0;top:calc(100% + 4px);margin-left:0;padding:1px 4px; } #journeyGoal {font-size:9px;} #boss {top:144px;} #chal {top:190px;} #hi{display:none;} #rank{position:fixed;left:78px;bottom:124px;width:100px;font-size:11px;} #rank b{font-size:24px;} }
+  @media (max-height:520px) and (min-width:701px) { #journey {width:42vw;padding:3px 7px;} #journeyName {font-size:17px;} #journeySteps {display:none;} #boss{top:72px;} #chal{top:122px;max-width:200px;} body.touch #zz:not(.big) .bub{max-width:180px;font-size:12px;} body.touch #zz:not(.big) .face{width:58px;height:58px;} }
   #err { position:fixed; inset:0; display:none; align-items:center; justify-content:center; font-size:20px; padding:30px; text-align:center; }
 </style>
 </head>
@@ -184,6 +206,7 @@
   <div id="hit"></div>
   <div id="tl" class="big"><div id="score">0</div><div id="combo"></div><div id="rank"></div><div id="hi"></div></div>
   <div id="wave" class="big"></div>
+  <div id="journey"><strong id="journeyName"></strong><span id="journeyGoal"></span><div id="journeySteps"></div><div id="journeyNav" hidden><span id="journeyArrow">↑</span><span id="journeyDistance"></span></div></div>
   <div id="ann" class="big"></div>
   <div id="mk" class="big"></div>
   <div id="feed"></div>
@@ -192,7 +215,7 @@
   <div id="pops" class="big"></div>
   <div id="boss" class="big" hidden><span id="bossN"></span><div class="bar"><div id="bossF"></div></div></div>
   <div id="chal" hidden><b>ŽIŽEK'S CHALLENGE</b><span id="chalD"></span><div class="bar"><div id="chalF"></div></div></div>
-  <div id="prompt" class="big" hidden>HOLD E TO SURRENDER TO THE SPONGE<div class="bar"><div id="surr"></div></div></div>
+  <div id="prompt" class="big" hidden><span id="promptText">HOLD E TO SURRENDER TO THE SPONGE</span><div class="bar"><div id="surr"></div></div></div>
   <div id="zz"><div class="face" id="zzface"></div><div class="bub"><span class="who" id="zzwho">ŽIŽEKBOT 3000</span><span id="zztext"></span></div></div>
   <div id="tick"><span class="lab">COUNTER NEWS NETWORK</span><span id="tickrun"></span></div>
 </div>
@@ -357,7 +380,7 @@ void main(){
     vec3 ir = 0.5+0.5*cos(6.2832*(fr*1.2 + vW.y*0.15 + uTime*0.15 + vec3(0.,0.33,0.67)));
     o = vec4((mix(vec3(0.9,0.95,1.0), ir, 0.65) + hl*2.)*vC, clamp(0.07 + fr*0.8 + hl, 0., 0.92)); return; }
   if(m==1){ alb = wood(vW, vC); spec = 0.07;
-    alb *= mix(0.55,1., smoothstep(0.,3.5, vW.z+22.)) * mix(0.6,1., smoothstep(0.,2.5, 32.-abs(vW.x)));
+    alb *= mix(0.55,1., smoothstep(0.,3.5, vW.z+22.)) * mix(0.6,1., smoothstep(0.,2.5, min(vW.x+32.,328.-vW.x)));
     if(vW.y < -0.05) alb *= 0.7; }
   else if(m==2){ alb = spongeC(vL, vU, vC, spec); }
   else if(m==3 || m==4 || m==15){ alb = bottleC(vU, m, vC, spec, refl); shin = 70.; }
@@ -392,6 +415,10 @@ void main(){
     alb += vec3(.3,.62,.68)*windowLight;
   }
   else if(m==20){ alb = vC; spec = .85; shin = 75.; refl = .16; }
+  else if(m==22){
+    float rip = sin(vW.x*1.8+vW.z*2.6+uTime*1.2)*sin(vW.z*1.1-uTime*.7);
+    alb = vec3(.09,.31,.37) + rip*.022; spec = .9; shin = 95.; refl = .25;
+  }
   else if(m==21){
     float thread = sin(vL.x*65.)*sin(vL.z*65.)*.025;
     float stripe = step(.76,fract(vW.z*.35));
@@ -578,12 +605,12 @@ function roundedBoxGeo() {
   }
   return { P, N, I };
 }
-function torusGeo() {
+function torusGeo(halfPipe = false) {
   const P = [], N = [], I = [], rings = 32, sides = 8;
   for (let i = 0; i <= rings; i++) for (let j = 0; j <= sides; j++) {
-    const a = i / rings * Math.PI * 2, b = j / sides * Math.PI * 2, r = 1 + Math.cos(b) * 0.12;
-    P.push(Math.cos(a) * r, Math.sin(b) * 0.12, Math.sin(a) * r);
-    N.push(Math.cos(a) * Math.cos(b), Math.sin(b), Math.sin(a) * Math.cos(b));
+    const a = i / rings * Math.PI * (halfPipe ? 1 : 2), b = j / sides * Math.PI * 2, tube = halfPipe ? .2 : .12, r = 1 + Math.cos(b) * tube;
+    if (halfPipe) { P.push(Math.cos(a)*r,Math.sin(a)*r,Math.sin(b)*tube); N.push(Math.cos(a)*Math.cos(b),Math.sin(a)*Math.cos(b),Math.sin(b)); }
+    else { P.push(Math.cos(a) * r, Math.sin(b) * tube, Math.sin(a) * r); N.push(Math.cos(a) * Math.cos(b), Math.sin(b), Math.sin(a) * Math.cos(b)); }
     if (i < rings && j < sides) { const k = i * (sides + 1) + j; I.push(k, k + sides + 1, k + 1, k + 1, k + sides + 1, k + sides + 2); }
   }
   return { P, N, I };
@@ -609,7 +636,7 @@ function mesh(g, inst) {
 }
 const CUBE = mesh(cubeGeo()), CYL = mesh(cylGeo(28, 1)), SPH = mesh(sphGeo(18, 12));
 const NECK = mesh(cylGeo(28, 0.38)), CONE = mesh(cylGeo(16, 0.0));
-const ROUND = mesh(roundedBoxGeo()), TORUS = mesh(torusGeo());
+const ROUND = mesh(roundedBoxGeo()), TORUS = mesh(torusGeo()), PIPE_ARCH = mesh(torusGeo(true));
 const ICUBE = mesh(cubeGeo(), instBuf.cube), ISPH = mesh(sphGeo(9, 6), instBuf.sph);
 const QUAD = (() => { const vao = gl.createVertexArray(); gl.bindVertexArray(vao); const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); gl.bindVertexArray(null); return vao; })();
@@ -661,11 +688,202 @@ function setFlash(f) { if (f !== flashU) { flashU = f; gl.uniform1f(PR_MAIN.u.uF
 const COL = [];      // colliders
 const STATIC = [];   // draw list
 const SHSTAT = [];   // static contact shadows
-const CX = 32, CZ0 = -22, CZ1 = 21;  // counter extents
-function onCounter(x, z) { return x > -CX && x < CX && z > CZ0 && z < CZ1; }
+const CX0 = -32, CX1 = 328, CZ0 = -22, CZ1 = 21;  // a very long kitchen
+function onCounter(x, z) { return x > CX0 && x < CX1 && z > CZ0 && z < CZ1; }
 function addCyl(x, z, r, top) { COL.push({ k: 0, x, z, r, top, bot: -1 }); }
 function addBox(x, z, hx, hz, top, yaw = 0, bot = -1) { COL.push({ k: 1, x, z, hx, hz, top, bot, c: Math.cos(yaw), s: Math.sin(yaw) }); }
 function S(m, x, y, z, sx, sy, sz, col, mat, yaw = 0, pit = 0) { STATIC.push({ m, x, y, z, sx, sy, sz, col, mat, yaw, pit }); }
+// One continuous counter. Each district owns two encounters and a refill checkpoint.
+const CHAPTERS = [
+  { x: 0, name: 'THE SPILL', short: 'SPILL', first: 1, last: 2, color: '#d89529', sub: 'EVERY JOURNEY BEGINS WITH POOR CONTAINMENT' },
+  { x: 72, name: 'BREAKFAST REPUBLIC', short: 'BREAKFAST', first: 3, last: 4, color: '#368f86', sub: 'LIBERTY. EQUALITY. TOAST.' },
+  { x: 144, name: 'THE HOT TAKE', short: 'STOVE', first: 5, last: 6, color: '#c54827', sub: 'ALL OPINIONS SERVED AT 240 DEGREES' },
+  { x: 216, name: 'DISHCOURSE', short: 'DISH RACK', first: 7, last: 8, color: '#637aa8', sub: 'THE PLATES HAVE TAKEN SIDES' },
+  { x: 288, name: 'THE SINK OF HISTORY', short: 'SINK', first: 9, last: 10, color: '#287a8e', sub: 'EVERYTHING FLOWS. EVENTUALLY.' },
+];
+const WET_LANES = [{ x: 73, z: 11, hx: 17, hz: 2.3 }, { x: 215, z: 14, hx: 23, hz: 2 }, { x: 291, z: -4, hx: 22, hz: 12 }];
+const BURNERS = [{ x: 135, z: -9, phase: 0 }, { x: 155, z: -9, phase: 2 }, { x: 135, z: 5, phase: 3 }, { x: 155, z: 5, phase: 1 }];
+const DRAIN = { x: 303, z: -4, r: 2.8 };
+const SIGNS = [], GATES = [];
+let chapter = 0, chapterClear = false, endless = false, runTime = 0, drainHold = 0, fountainT = 0;
+const chapterGateOpen = i => endless || chapter > i || (chapter === i && chapterClear);
+const solidEnabled = c => c.gate === undefined || !chapterGateOpen(c.gate);
+const wetLaneAt = (x, z) => WET_LANES.some(p => Math.abs(x - p.x) < p.hx && Math.abs(z - p.z) < p.hz);
+const burnerHeat = b => (Math.sin(T * 1.05 + b.phase) + 1) / 2;
+function paintSign(sign) {
+  const c = sign.canvas.getContext('2d'), w = 768, h = 320;
+  c.fillStyle = sign.bg || '#fff0c9'; c.fillRect(0, 0, w, h);
+  c.fillStyle = sign.ink || '#302319'; c.fillRect(14, 14, w-28, h-28);
+  c.fillStyle = sign.bg || '#fff0c9'; c.fillRect(22, 22, w-44, h-44);
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = sign.ink || '#302319';
+  c.font = 'bold 23px sans-serif'; c.fillText(sign.top || 'COUNTER AUTHORITY · NO LIABILITY', w/2, 57);
+  let size = 89; c.font = `bold ${size}px Bangers, Impact, sans-serif`;
+  while (c.measureText(sign.title).width > w-70 && size > 30) { size -= 2; c.font = `bold ${size}px Bangers, Impact, sans-serif`; }
+  c.fillText(sign.title, w/2, 151);
+  c.font = 'bold 25px sans-serif';
+  const words = (sign.sub || '').split(' '); let line = '', y = 228;
+  for (const word of words) { if (c.measureText(line + word).width > w-75) { c.fillText(line.trim(), w/2, y); y+=31; line=''; } line += word+' '; }
+  c.fillText(line.trim(), w/2, y);
+  // A little foxing keeps the signage part of the kitchen rather than a floating app UI.
+  c.fillStyle = '#664421'; c.globalAlpha = .08;
+  for (let i=0;i<90;i++) c.fillRect((i*197)%w, (i*79)%h, 2+(i%4), 2);
+  c.globalAlpha = 1;
+  gl.bindTexture(gl.TEXTURE_2D, sign.tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sign.canvas);
+}
+function kitchenSign(x, y, z, width, height, title, sub, bg = '#fff0c9', yaw = 0, top) {
+  const canvas = document.createElement('canvas'); canvas.width = 768; canvas.height = 320;
+  const sign = { x, y, z, width, height, title, sub, bg, yaw, top, canvas, tex: gl.createTexture() };
+  gl.bindTexture(gl.TEXTURE_2D, sign.tex); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  paintSign(sign); SIGNS.push(sign); return sign;
+}
+function mug(x, z, r, h, col) {
+  S(CYL, x, 0, z, r, h, r, col, 20); S(CYL, x, h+.03, z, r*.9, .05, r*.9, [.12,.065,.035], 11);
+  S(TORUS, x, h, z, r*.94, r*.6, r*.94, col, 20);
+  S(TORUS, x+r*1.05, h*.55, z, r*.62, r*.75, r*.65, col, 20, 0, Math.PI/2);
+  addCyl(x,z,r,h); SHSTAT.push([x,z,r*1.25,2]);
+}
+function plate(x,y,z,r,col) {
+  S(CYL,x,y,z,r,.24,r,col,20); S(TORUS,x,y+.23,z,r*.92,r*.32,r*.92,col,20);
+}
+function buildLongKitchen() {
+  // Cupboards, tiles and warm windows provide continuity across all five districts.
+  for (let x = 40; x < CX1; x += 12) {
+    S(ROUND,x,-17,20,11.5,30,.7,[.2,.44,.4],20); S(CYL,x,-6,20.8,.16,3,.16,[.8,.68,.39],5,0,Math.PI/2);
+  }
+  for (let i = 1; i < CHAPTERS.length; i++) {
+    const c = CHAPTERS[i];
+    S(ROUND,c.x,34,-21.8,49,25,.5,[.29,.43,.38],20);
+    S(CUBE,c.x,34,-21.45,45,21,.12,[1.13,1.23,1.19],7);
+    S(CUBE,c.x,34,-21.15,.6,22,.6,[.7,.83,.73],20); S(CUBE,c.x,34,-21.15,46,.6,.6,[.7,.83,.73],20);
+    S(ROUND,c.x,23,-20,48,1.2,3,[.52,.65,.51],20);
+    kitchenSign(c.x-22,10,-17,14,5,c.name,c.sub,'#fff0c9',-Math.PI/2,`DISTRICT ${i+1} / 5 → THE SINK`);
+    S(CUBE,c.x-22,4,-17,.3,8,.3,[.21,.3,.25],5);
+  }
+  // Rolled-up dishcloth checkpoints: tangible barriers until each district is cleared.
+  for (let i=0;i<4;i++) {
+    const x = CHAPTERS[i].x+36;
+    addBox(x,-.5,.28,21.5,16); COL[COL.length-1].gate=i;
+    S(CYL,x,0,-21,.3,18,.3,[.45,.43,.34],5); S(CYL,x,0,20,.3,18,.3,[.45,.43,.34],5);
+    const sign=kitchenSign(x-.32,9,-.5,27,6,'SPILL CHECKPOINT',`CLEAR ${CHAPTERS[i].name} · THEN KEEP GOING`,'#f2d99e',-Math.PI/2,`NEXT: ${CHAPTERS[i+1].name}`);
+    sign.gate=i;GATES.push({x,index:i});
+  }
+  kitchenSign(-13,4.4,8,8,3,'THE SINK →','A LONG WAY TO GO FOR A DRAIN','#f7dda1',-Math.PI/2);
+  S(CUBE,-13,2,8,.15,4,.15,[.3,.22,.12],0);
+
+  // Breakfast Republic: toaster, coffee, a low cutting-board shortcut and a biscuit stair.
+  S(ROUND,65,4.6,-8,14,9.2,9,[.65,.83,.73],20); addBox(65,-8,7,4.5,9.2);
+  for (const z of [-10,-6]) { S(ROUND,65,9.25,z,11,.15,1.1,[.09,.075,.065],0); S(ROUND,65,10.1,z,9,4.4,.85,[.76,.43,.18],13); }
+  S(ROUND,72.2,5.8,-8,.5,3.5,1,[.19,.24,.22],5); S(SPH,72.6,6,-8,.4,.3,.6,[.86,.21,.09],11);
+  kitchenSign(65,4,-3.42,9,3,'TOAST OFFICE','ALL REQUESTS WILL BE RETURNED BROWN','#dd5030');
+  mug(90,-8,4.8,8,[.1,.48,.48]);
+  kitchenSign(90,4,-3.14,6,2.7,'I THINK','THEREFORE I NEED COFFEE','#fae6be');
+  S(ROUND,74,1.18,11,16,.45,8,[1.08,.83,.48],1); addBox(74,11,8,4,1.405,0,.955);
+  for (const x of [67,81]) for (const z of [7.6,14.4]) { S(CUBE,x,.5,z,.55,1,.55,[.52,.31,.15],1); addBox(x,z,.28,.28,1); }
+  kitchenSign(65.96,.7,11,4,1.2,'PUDDLE POST','FLAT MAIL ONLY','#9bd7d4',-Math.PI/2);
+  for (let i=0;i<4;i++) {const x=85+i*3;S(CYL,x,0,13,2.1,.7+i*.7,2.1,[.72,.43,.21],13);addCyl(x,13,2.1,.7+i*.7);}
+  PADS.push({x:57,z:2,tx:65,tz:-8,power:30,speed:11}); S(ROUND,57,.12,2,2.3,.24,1.6,[.94,.19,.05],11);
+
+  // Stove: safe outer lane, four cycling hotplates and a kettle large enough to be a weather system.
+  S(ROUND,145,-.15,-4,45,.6,32,[.17,.24,.27],5); addBox(145,-4,22.5,16,.15);
+  for(const b of BURNERS) {addCyl(b.x,b.z,4.5,.31);S(CYL,b.x,.16,b.z,4.5,.15,4.5,[.055,.065,.07],0);for(let r=1;r<=4;r++)S(TORUS,b.x,.33,b.z,r,r*.5,r,[.18,.22,.25],5);}
+  for(let i=0;i<4;i++)S(CYL,132+i*8,.4,14,.75,.45,.75,[.3,.34,.33],5);
+  S(SPH,145,5.5,-17,5.6,5.5,4.7,[.77,.3,.12],20);addCyl(145,-17,5,10);
+  S(TORUS,145,12,-17,4.3,4.3,4.3,[.14,.17,.17],5,0,Math.PI/2);
+  S(CYL,145,10.5,-17,2,.5,2,[.66,.72,.68],5); S(SPH,145,11.3,-17,.6,.5,.6,[.13,.14,.12],11);
+  S(NECK,150,6,-17,1.5,6,1.5,[.78,.36,.13],20,0,-1.1);
+  kitchenSign(146,18,-21.4,25,5,'THE HOT TAKE','WHEN IT GLOWS, YOUR ARGUMENT IS COOKED','#f9cc83');
+  S(ROUND,165,.45,12,11,.9,8,[.9,.73,.45],1);addBox(165,12,5.5,4,.9);
+  S(ROUND,169,1.7,12,3,1.6,7,[.66,.37,.16],13);addBox(169,12,1.5,3.5,2.5);
+
+  // Dishcourse: a climbable, wobbling-looking skyline of plates, with a wet route underneath.
+  for(let i=0;i<7;i++){
+    const x=203+i*3.2, h=1+i*.58;
+    for(let j=0;j<Math.ceil(h/.38);j++)plate(x,j*.38,4,3.7,[.77+i*.018,.87,.83]);
+    addCyl(x,4,3.7,Math.ceil(h/.38)*.38+.24);
+  }
+  for(let i=0;i<5;i++){
+    const x=203+i*6;
+    S(CYL,x,9,-11,7,.35,7,i%2?[.38,.64,.65]:[.89,.85,.68],20,Math.PI/2,Math.PI/2);
+    S(TORUS,x,9,-10.75,6.5,6.5,6.5,[.2,.48,.52],20,Math.PI/2,Math.PI/2);
+    addBox(x,-11,.5,6.5,15);
+  }
+  for(const z of [-17,-5]){S(CUBE,216,2.2,z,37,.3,.3,[.62,.69,.65],5);for(let x=198;x<236;x+=6)S(CUBE,x,1,z,.2,2,.2,[.62,.69,.65],5);}
+  S(ROUND,217,4.8,4,28,.3,1.8,[.72,.79,.82],5);addBox(217,4,14,.9,4.95,0,4.65);
+  mug(238,-15,3.1,10,[.86,.59,.36]);
+  kitchenSign(218,19,-21.3,27,5,'DISHCOURSE','EVERY PLATE IS A PLATFORM. UNFORTUNATELY.','#d5dfda');
+  PADS.push({x:196,z:7,tx:208,tz:4});S(ROUND,196,.12,7,2.3,.24,1.6,[.94,.19,.05],11);
+
+  // The sink: pooled water, a massive swan-neck tap, and a real destination.
+  S(ROUND,291,-3.3,-4,48,.6,31,[.32,.48,.53],5);
+  for(const z of [-19,11])S(CUBE,291,-1.4,z,48,3,.5,[.39,.56,.61],5);
+  for(const x of [267,315])S(CUBE,x,-1.4,-4,.5,3,30,[.39,.56,.61],5);
+  for(const z of [-19,11]){S(ROUND,291,.18,z,48,.4,.7,[.68,.77,.78],5);addBox(291,z,24,.35,.38);}
+  for(const x of [267,315]){S(ROUND,x,.18,-4,.7,.4,30,[.68,.77,.78],5);addBox(x,-4,.35,15,.38);}
+  S(CYL,311,0,-17,1.2,18,1.2,[.75,.85,.88],5);addCyl(311,-17,1.2,18);
+  S(PIPE_ARCH,305,18,-17,6,6,6,[.75,.85,.88],5);
+  S(CYL,299,15.2,-17,1.2,3,1.2,[.75,.85,.88],5);
+  S(TORUS,320,4,-16,2,2,2,[.3,.66,.86],20,0,Math.PI/2);S(CUBE,320,2,-16,.7,4,.7,[.72,.8,.8],5);
+  S(CYL,DRAIN.x,.14,DRAIN.z,DRAIN.r,.1,DRAIN.r,[.045,.085,.1],0);
+  S(TORUS,DRAIN.x,.27,DRAIN.z,DRAIN.r,1,DRAIN.r,[.65,.8,.8],5);
+  for(let i=0;i<5;i++)S(CUBE,DRAIN.x-1.6+i*.8,.26,DRAIN.z,.17,.1,4,[.33,.45,.5],5);
+  kitchenSign(304,11,-21.1,24,6,'THE SINK OF HISTORY','PULL THE PLUG. BECOME SOMEBODY ELSE\'S PROBLEM.','#b3dfdf');
+  mug(260,-15,3,6,[.6,.78,.26]);
+
+  S(ROUND,79,8,-18,6,16,5,[.96,.49,.16],11);addBox(79,-18,3,2.5,16);
+  kitchenSign(79,9,-15.45,5.2,7,'DOUBT FLAKES','NOW WITH 30% LESS CERTAINTY','#f6cc70');
+  S(ROUND,78.5,16.3,-18,6.6,.3,5.2,[.97,.76,.38],13,0,.2);
+  for(let i=0;i<7;i++)S(TORUS,76+i*.85,.12,-12+Math.sin(i*3)*1.1,.3,.4,.3,[.74,.46,.18],13);
+  S(CYL,123,0,-17,2.1,6,2.1,[.72,.83,.7],12);S(CYL,123,6,-17,2.2,.9,2.2,[.55,.62,.59],5);addCyl(123,-17,2.2,6.9);
+  kitchenSign(123,3,-14.82,3.2,2.4,'HOT TAKES','GROUND DAILY','#ffd2a1');
+  S(CYL,145,.05,-17,3.8,.4,3.8,[.21,.2,.17],5);
+  S(ROUND,230,5,4,5,.8,2.5,[.35,.17,.095],1);addBox(230,4,2.5,1.25,5.4,0,4.6);
+  S(ROUND,260,1,0,7,2,4,[.96,.47,.65],11);addBox(260,0,3.5,2,2);
+  kitchenSign(260,1.05,2.05,4.5,1.3,'SOAP','MORALLY SUPERIOR','#ffd1d9');
+
+  // Lived-in clutter, spill rings and a physical arrow trail along the safe outer lane.
+  for(let x=-16;x<318;x+=10){
+    for(const sg of [-1,1])S(CUBE,x,.035,17+sg*.36,1.8,.025,.3,[1.15,.88,.32],11,sg*Math.PI/4);
+    const z=-3+Math.sin(x*1.31)*14;
+    if(x>40 && !(x>123&&x<175) && x<254){S(TORUS,x,.025,z,2.1,.12,2.1,[.25,.13,.07],0);}
+    for(let i=0;i<3;i++)S(ROUND,x+i*.8,.08,-19+((x+i*3)%8),.15+i*.1,.16,.26,[.77,.53,.25],13,i*.8);
+  }
+  for(const lane of WET_LANES) {
+    if(lane.x>260)S(ROUND,lane.x,-.01,lane.z,47,.06,29,[.32,.73,.89],22);
+    else S(SPH,lane.x,.025,lane.z,lane.hx,.025,lane.hz,[.32,.73,.89],22);
+  }
+  if(document.fonts)document.fonts.ready.then(()=>SIGNS.forEach(paintSign));
+}
+function drawKitchenSigns(eye) {
+  gl.useProgram(PR_TEX.p);gl.uniformMatrix4fv(PR_TEX.u.uVP,false,VP);gl.uniform3f(PR_TEX.u.uEye,...eye);gl.uniform1i(PR_TEX.u.uTex,0);gl.activeTexture(gl.TEXTURE0);
+  for(const s of SIGNS){
+    if(Math.abs(s.x-eye[0])>110 || (s.gate!==undefined&&chapterGateOpen(s.gate)))continue;
+    ident(tmp);tr(tmp,s.x,s.y,s.z);ry(tmp,s.yaw);sc(tmp,s.width,s.height,.045);
+    gl.uniformMatrix4fv(PR_TEX.u.uModel,false,tmp);gl.bindTexture(gl.TEXTURE_2D,s.tex);gl.bindVertexArray(CUBE.vao);gl.drawElements(gl.TRIANGLES,CUBE.n,gl.UNSIGNED_SHORT,0);
+  }
+  gl.useProgram(PR_MAIN.p);
+}
+function drawKitchenMotion(eye) {
+  for(const g of GATES){if(Math.abs(g.x-eye[0])>105)continue;ident(cur);const open=chapterGateOpen(g.index);
+    part(ROUND,g.x,open?17:8,-.5,.45,open?1.2:16,42,[.73,.81,.64],21);
+    part(CYL,g.x,17.5,-21,.4,42,.4,[.4,.47,.36],5,0,Math.PI/2);
+  }
+  for(const b of BURNERS){if(Math.abs(b.x-eye[0])>80)continue;const heat=burnerHeat(b);ident(cur);
+    for(let r=1;r<=4;r++)part(TORUS,b.x,.36,b.z,r,r*.25,r,heat>.55?[1.3,heat*.43,.045]:[.28+heat*.5,.12,.055],heat>.55?7:11);
+  }
+  if(Math.abs(260-eye[0])<65){ident(cur);for(let i=0;i<4;i++)part(SPH,260+Math.sin(i*2)*2,2.5+(T*.25+i*.6)%3,Math.cos(i)*1.3,.3+i*.07,.3+i*.07,.3+i*.07,WHITE,16);}
+  if(Math.abs(299-eye[0])<95){ident(cur);
+    const lift=state==='won'?0:drainHold*1.25, plugX=state==='won'?DRAIN.x+5:DRAIN.x;
+    part(CYL,plugX,.34+lift,DRAIN.z,2.25,.25,2.25,[.065,.09,.095],11);
+    part(TORUS,plugX,.82+lift,DRAIN.z,.48,.48,.48,[.8,.85,.83],5,0,Math.PI/2);part(CYL,299,.08,-17,.32,15.2,.32,[.52,.83,1],19);
+    for(let i=0;i<4;i++){const r=.6+(T*.7+i*.4)%2;part(TORUS,299,.08,-17,r,.2,r,[.5,.88,1],19);}
+    if((chapter===4&&chapterClear&&!endless)||state==='won'){
+      for(let i=0;i<3;i++){const a=T*1.4+i*2.094;part(SPH,DRAIN.x+Math.cos(a)*3,.8+Math.sin(T*2+i)*.3,DRAIN.z+Math.sin(a)*3,.18,.3,.18,[.5,1,1.2],7);}
+    }
+  }
+}
+
 const WHITE = [1, 1, 1];
 function giantBottle(x, z, r, h, mat, cap) {
   S(CYL, x, 0, z, r, h, r, WHITE, mat);
@@ -678,20 +896,22 @@ function giantBottle(x, z, r, h, mat, cap) {
 const HIVE = { x: 7, z: 1, hx: 8, hz: 5, top: 6, yaw: -0.1 };
 const PADS = [{ x: -3.2, z: 2.2 }, { x: 8.5, z: 8.4 }];
 (function buildWorld() {
-  S(CUBE, 0, -1.5, -0.5, 64, 3, 43, WHITE, 1);
-  S(CUBE, 0, -31.5, -2, 63.6, 57, 40, [0.78, 0.72, 0.6], 8);
+  S(CUBE,116,-1.5,-.5,296,3,43,WHITE,1);
+  S(CUBE,296,-1.5,16,64,3,10,WHITE,1); S(CUBE,296,-1.5,-20.5,64,3,3,WHITE,1);
+  S(CUBE,265.5,-1.5,-4,3,3,30,WHITE,1); S(CUBE,321.5,-1.5,-4,13,3,30,WHITE,1);
+  S(CUBE, 148, -31.5, -2, 359.6, 57, 40, [0.28, 0.47, 0.4], 20);
   for (let i = -3; i <= 3; i++) S(CUBE, i * 9.6, -18, 18.1, 0.35, 26, 0.3, [0.5, 0.42, 0.32], 0);
   for (let i = -3; i <= 3; i++) S(CUBE, i * 9.6 + 4.8, -8, 18.4, 2.5, 0.6, 0.8, [0.72, 0.72, 0.74], 5);
-  S(CUBE, 0, -60.5, 0, 260, 1, 260, WHITE, 10);
-  S(CUBE, 0, 30, -23, 70, 62, 2, [0.92, 0.88, 0.8], 6);
+  S(CUBE, 148, -60.5, 0, 720, 1, 260, WHITE, 10);
+  S(CUBE, 148, 30, -23, 368, 62, 2, [0.83, 0.87, 0.76], 6);
   S(CUBE, 5, 33, -21.95, 34, 20, 0.2, [1.55, 1.46, 1.3], 7);
   for (const dx of [-12, 5, 22]) S(CUBE, dx, 33, -21.8, 0.8, 21, 0.6, [0.9, 0.86, 0.8], 8);
   S(CUBE, 5, 43.4, -21.8, 35.5, 0.9, 0.6, [0.9, 0.86, 0.8], 8);
   S(CUBE, 5, 22.6, -21.3, 36, 0.9, 1.6, [0.9, 0.86, 0.8], 8);
   S(CUBE, -34.5, 25, -0.5, 5, 90, 44, [0.93, 0.93, 0.9], 8);
   S(CUBE, -32.1, 14, 14, 0.3, 1.2, 10, [0.7, 0.7, 0.72], 5);
-  S(CUBE, 34.5, 25, -0.5, 5, 90, 44, [0.88, 0.84, 0.76], 6);
-  addBox(0, -23.5, 40, 1.5, 200); addBox(-34.5, 0, 2.5, 30, 200); addBox(34.5, 0, 2.5, 30, 200);
+  S(CUBE, CX1+2.5, 25, -0.5, 5, 90, 44, [0.88, 0.84, 0.76], 6);
+  addBox(148, -23.5, 184, 1.5, 200); addBox(-34.5, 0, 2.5, 30, 200); addBox(CX1+2.5, 0, 2.5, 30, 200);
 
   giantBottle(-15, -7, 3.4, 17, 4, WHITE);
   giantBottle(-3, -15, 3.0, 20, 3, [0.62, 0.05, 0.08]);
@@ -718,9 +938,11 @@ const PADS = [{ x: -3.2, z: 2.2 }, { x: 8.5, z: 8.4 }];
 })();
 
 S(CUBE, -22, 31, -21.93, 12.8, 15.8, 0.12, [0.3, 0.2, 0.12], 0);   // the poster's frame
+buildLongKitchen();
 function groundAt(x, z, y) {
   let g = onCounter(x, z) ? 0 : -60;
   for (const c of COL) {
+    if (!solidEnabled(c)) continue;
     if (c.top > y + 0.5 || c.top <= g) continue;
     if (c.k === 0) { const dx = x - c.x, dz = z - c.z; if (dx * dx + dz * dz <= c.r * c.r) g = c.top; }
     else { const dx = x - c.x, dz = z - c.z; const lx = dx * c.c - dz * c.s, lz = dx * c.s + dz * c.c; if (Math.abs(lx) <= c.hx && Math.abs(lz) <= c.hz) g = c.top; }
@@ -730,6 +952,7 @@ function groundAt(x, z, y) {
 function collide(e, rad, hgt) {
   let hit = false;
   for (const c of COL) {
+    if (!solidEnabled(c)) continue;
     if (e.y >= c.top - 0.5 || e.y + hgt < c.bot) continue;
     if (c.k === 0) {
       const dx = e.x - c.x, dz = e.z - c.z, d2 = dx * dx + dz * dz, m = c.r + rad;
@@ -755,6 +978,7 @@ function rayStatic(ox, oy, oz, dx, dy, dz, maxT) {
   if (dy < 0) { const tt = -oy / dy; if (tt > 0 && tt < t && onCounter(ox + dx * tt, oz + dz * tt)) t = tt;
     const tf = (-60 - oy) / dy; if (tf > 0 && tf < t) t = tf; }
   for (const c of COL) {
+    if (!solidEnabled(c)) continue;
     if (c.k === 0) {
       const px = ox - c.x, pz = oz - c.z, a = dx * dx + dz * dz, b = 2 * (px * dx + pz * dz), cc = px * px + pz * pz - c.r * c.r;
       if (a > 1e-9) { const disc = b * b - 4 * a * cc; if (disc > 0) { const t1 = (-b - Math.sqrt(disc)) / (2 * a); if (t1 > 0 && t1 < t) { const y = oy + dy * t1; if (y <= c.top && y >= c.bot) t = t1; } } }
@@ -972,7 +1196,7 @@ let continues = 0, pleaseBuf = '', forkStatus = 'rumour';
 let hiScore = 0; try { hiScore = +localStorage.getItem('absorbthis.hi') || 0; } catch (e) { }
 
 function reset() {
-  P = { x: 0, y: 0, z: 14, vx: 0, vy: 0, vz: 0, yaw: 0, pitch: -0.05, onG: true, hp: 100, dashT: 0, dashCd: 0, coyote: 0, w: 0, wNext: 0,
+  P = { x: -24, y: 0, z: 17, vx: 0, vy: 0, vz: 0, yaw: -Math.PI/2, pitch: 0.035, onG: true, hp: 100, dashT: 0, dashCd: 0, coyote: 0, w: 0, wNext: 0,
     cool: 0, recoil: 0, switchT: 0, bob: 0, hurtT: 0, absorbT: 0, flashT: 0, ammo: WEAPONS.map(w => w.start), deadT: 0, lowT: 0, jumpHeld: false, fov: 0,
     pud: false, pudT: 0, eyeH: EYE, iT: 0, latch: null, latchT: 0, surr: 0, stillT: 0, endT: 0, endE: null, endShown: false, sipT: 0 };
   enemies = []; globs = []; rockets = []; parts = []; stains = []; pickups = []; hazards = []; splats = []; soaps = [];
@@ -983,6 +1207,7 @@ function reset() {
   $('rank').innerHTML = '';
   if (typeof zReset === 'function') zReset();
   MOD = null; gs = 1; chal = null; chalNext = T + 40; tickNews = []; forkStatus = 'rumour';
+  chapter=0;chapterClear=false;endless=false;runTime=0;drainHold=0;fountainT=0;
 }
 reset();
 
@@ -1789,6 +2014,11 @@ const ZL = {
     "You keep returning. The sponge has started charging a refundable deposit.",
     "Please, please, please. The afterlife has put you on hold. This game has better customer service than God.",
   ],
+  kitchen_0: ["The sink is at the other end. Of course it is. If salvation were convenient, somebody would have bottled it."],
+  kitchen_1: ["The Breakfast Republic! Everyone is equal until the toaster decides who gets a second slice.", "The board admits flat things only. You can change your shape. This is already more social mobility than most institutions offer."],
+  kitchen_2: ["The stove. A place where every disagreement eventually becomes chemistry.", "Grandma has booked the hotplate. She says it is a dry heat. You are water. She knows."],
+  kitchen_3: ["The plates have taken sides. Several sides. None of them stable.", "Dishcourse! Finally, a platform where being pushed off has consequences."],
+  kitchen_4: ["The sink of history. Everything flows into it, and somebody else is expected to do the washing-up.", "You came all this way for a hole. Desire has an extraordinary travel budget."],
   forkAfter: [
     "Before the fork: does it exist? After the fork: what counts as existence? Philosophy never loses; it changes the question.",
     "My theory survived contact with the fork. My theory is that I was misquoted.",
@@ -1876,8 +2106,8 @@ function jokeUpdate(dt) {
 function endings() { try { return JSON.parse(localStorage.getItem('absorbthis.endings') || '{}') || {}; } catch (e) { return {}; } }
 function recordEnding(k) { const o = endings(); o[k] = 1; try { localStorage.setItem('absorbthis.endings', JSON.stringify(o)); } catch (e) { } }
 function endingsLine() {
-  const o = endings(), L = [['evaporated', 'EVAPORATED'], ['floor', 'THE FLOOR'], ['absorbed', 'ABSORBED']];
-  return `ENDINGS FOUND ${L.filter(l => o[l[0]]).length}/3: ` + L.map(l => o[l[0]] ? l[1] : '???').join(' · ');
+  const o = endings(), L = [['evaporated', 'EVAPORATED'], ['floor', 'THE FLOOR'], ['absorbed', 'ABSORBED'], ['escaped','DOWN THE DRAIN']];
+  return `ENDINGS FOUND ${L.filter(l => o[l[0]]).length}/${L.length}: ` + L.map(l => o[l[0]] ? l[1] : '???').join(' · ');
 }
 const EYEPOPS = ["PEER REVIEWED!", "OBJECTION SUSTAINED!", "WORLDVIEW ADJUSTED!", "LOST PERSPECTIVE!", 'GOOGLY SHOT!', 'EYE-GORE!', 'POKED THE GOOGLY!', 'I SEE WHAT YOU DID THERE', 'EYE CANDY!', 'AYE AYE!', 'IRIS-PONSIBLE!', 'KEEP AN EYE ON IT!', 'PUPIL DILATED!', 'LOOK OUT!', 'EYE-DROPPED!', 'SIGHT FOR SORE EYES!', 'BULLSEYE!', 'RATTLED ITS DOT!', 'GLUE IT BACK ON!', 'EYE-RONIC!', 'SEE YOU LATER!', 'NO MORE LOOKS!', 'THE GAZE, HIT!', 'CAN\'T UNSEE THAT!'];
 const BUBPOPS = ["THE RENT IS HOW MUCH?", "I REQUEST A WINDOW", "THIS WAS NOT IN THE BROCHURE", "IS THERE A UNION UP HERE?", "I HAVE RISEN ABOVE YOU", "MY THERAPIST SAID BOUNDARIES", 'HELP', 'LET ME OUT', 'THIS IS HUMILIATING', 'WHEEEE', 'I CAN SEE MY HOUSE', 'BLUB BLUB', 'I\'M FLOATING!', 'NOT LIKE THIS', 'PUT ME DOWN', 'I REGRET NOTHING', 'IS THIS HEAVEN?', 'SO CLEAN... SO ALONE', 'MUM?', 'I CAN\'T FEEL MY HOLES', 'SUDS ME, SEYMOUR', 'IT SMELLS LIKE LAVENDER', 'I\'M A BALLOON NOW', 'TELL MY SCOURER I LOVE HER', 'THIS IS FINE', 'WHICH WAY IS DOWN'];
@@ -1974,30 +2204,103 @@ const SPAWNS = {
   bottle: [[-15, -12.5], [-3, -19.5], [19, -16], [25, -12], [-26, -9], [-29, 6]],
   spoon: [[-20, -18], [0, -19], [15, -19], [28, 0], [-28, 0]],
 };
+const DISTRICT_SPAWNS = [null,
+  [[52,4],[88,5],[96,14],[55,-16],[94,16]],
+  [[120,8],[166,4],[172,-8],[125,-14],[146,15]],
+  [[192,8],[240,10],[227,17],[196,-18],[231,-1]],
+  [[264,13],[284,9],[314,7],[281,-15],[319,-8]],
+];
+function encounterDistrict() { return endless ? clamp(Math.floor((P.x+36)/72),0,4) : chapter; }
+function encounterSpawn(type) {
+  const i = encounterDistrict();
+  const bank = i === 0 ? SPAWNS[type === 'mama' || type === 'gold' ? 'sponge' : type] : DISTRICT_SPAWNS[i];
+  let best = bank[0], far = -1;
+  for (let j=0;j<8;j++) { const p=pick(bank), d=Math.hypot(p[0]-P.x,p[1]-P.z); if(d>far){best=p;far=d;} if(d>12&&d<32)return p; }
+  return best;
+}
+function checkpointPosition() {
+  const c=CHAPTERS[chapter]; P.x=c.x-24;P.z=17;P.y=0;P.yaw=-Math.PI/2;P.pitch=.035;
+  P.vx=P.vy=P.vz=0;P.onG=true;P.dashT=-1;P.iT=1.8;
+}
+function districtSupplies() {
+  const c=CHAPTERS[chapter];
+  for(const [dx,z,type] of [[-18,17,'shells'],[-12,16,'soap'],[20,17,'ice'],[25,11,'seltzer']]){
+    const x=c.x+dx, y=groundAt(x,z,30)+.5; pickups.push({type,x,y,z,vy:0,t:0});
+  }
+  if(chapter===1||chapter===3){const x=chapter===1?65:216,z=chapter===1?-8:4;pickups.push({type:'seltzer',x,y:groundAt(x,z,30)+.5,z,vy:0,t:0});}
+}
+function enterDistrict(i) {
+  chapter=i;chapterClear=false;drainHold=0;interT=3;waveActive=false;wave=CHAPTERS[i].first-1;MOD=null;gs=1;
+  hazards=[];globs=[];rockets=[];soaps=[];pickups=[];chal=null;
+  P.hp=Math.max(P.hp,80);P.ammo=P.ammo.map((a,k)=>Math.max(a,WEAPONS[k].start));P.iT=2;
+  districtSupplies();
+  const c=CHAPTERS[i];announce(c.name,'CHECKPOINT · REFILLED · '+c.sub);sfx('pickup');
+  headlineNow(`DRIP REACHES ${c.name}. LOCAL OBJECTS HAD HOPED THIS WOULD NOT HAPPEN`);
+  setTimeout(()=>{if(state==='play'&&chapter===i)zz('kitchen_'+i,{force:true});},1200);
+}
+function escapeReady() { return !endless && chapter===4 && chapterClear && Math.hypot(P.x-DRAIN.x,P.z-DRAIN.z)<DRAIN.r+1.2 && P.y<1.5 && state==='play'; }
+function escapeKitchen() {
+  if(!escapeReady())return;
+  state='won';mouseDown=false;drainHold=0;jokeT=0;ZZ.lock=false;zHide();for(const k in keys)keys[k]=false;
+  score+=10000;recordEnding('escaped');
+  if(score>hiScore){hiScore=score;try{localStorage.setItem('absorbthis.hi',String(hiScore));}catch(e){}}
+  sfx('clear');say('down the drain. finally',true);
+  document.exitPointerLock&&document.exitPointerLock();$('hud').classList.add('off');showScreen('won');
+}
+function kitchenUpdate(dt) {
+  runTime+=dt;
+  if(!endless&&chapterClear&&chapter<4&&P.x>=CHAPTERS[chapter+1].x-29)enterDistrict(chapter+1);
+  if(P.onG&&P.y<.65){
+    for(const b of BURNERS)if(burnerHeat(b)>.72&&(P.x-b.x)**2+(P.z-b.z)**2<4.2**2){
+      P.hp-=12*dt;P.hurtT=Math.max(P.hurtT,.24);if(P.hp<=0)die('stove');break;
+    }
+    if(Math.hypot(P.x-299,P.z+17)<2.5){P.hp=Math.min(100,P.hp+12*dt);fountainT-=dt;if(fountainT<=0){fountainT=.65;pop(299,1.6,-17,'FREE REFILL. SUSPICIOUS.',true);sfx('sip');}}
+  }
+  drainHold=escapeReady()&&keys.KeyE?drainHold+dt:0;
+  if(drainHold>=1.5)escapeKitchen();
+}
+function continueEndless() {
+  if(state!=='won')return;
+  endless=true;chapterClear=false;state='play';P.hp=100;P.ammo=WEAPONS.map(w=>w.start);P.iT=2;interT=4;waveActive=false;
+  zHide();hideScreen();$('hud').classList.remove('off');lastHud='';headlineNow('DRIP DECLINES ESCAPE. KITCHEN ASKS WHAT MORE IT COULD POSSIBLY DO');grabPointer();
+}
+function journeyHUD() {
+  const c=CHAPTERS[chapter], next=CHAPTERS[Math.min(4,chapter+1)];
+  let goal, target;
+  if(endless)goal='ESCAPE BANKED · MAKE A BIGGER MESS';
+  else if(chapterClear&&chapter===4){goal=escapeReady()?(TOUCH?'HOLD THE PLUG BUTTON':'HOLD E · PULL THE PLUG'):'THE DRAIN IS OPEN · GET TO THE SINK';target=DRAIN;}
+  else if(chapterClear){goal='FOLLOW THE ARROWS → '+next.short;target={x:next.x-24,z:17};}
+  else goal=waveActive?`CLEAR THIS DISTRICT · WAVE ${wave} OF ${c.last}`:'REFILL. BREATHE. REMAIN A PROBLEM.';
+  $('journeyName').textContent=endless?'THE LONG KITCHEN · ENDLESS':`${chapter+1}/5 · ${c.name}`;
+  $('journeyGoal').textContent=goal;
+  const steps=$('journeySteps'), key=chapter+'|'+endless;
+  if(steps.dataset.progress!==key){steps.dataset.progress=key;steps.innerHTML=CHAPTERS.map((s,i)=>`<span class="${i<chapter||endless?'done':i===chapter?'here':''}">${s.short}</span>`).join('');}
+  const nav=$('journeyNav');nav.hidden=!target;
+  if(target){const dx=target.x-P.x,dz=target.z-P.z;const a=Math.atan2(-dx,-dz)-P.yaw;$('journeyArrow').style.transform=`rotate(${-a*180/Math.PI}deg)`;$('journeyDistance').textContent=Math.ceil(Math.hypot(dx,dz))+' cm';}
+}
+
 function spawnEnemy(type) {
   if (type === 'roll') {
-    const L = pick(ROLL_LANES); enemies.push(makeEnemy('roll', L[0], L[1]));
+    const district=encounterDistrict(), lanes=district===0?ROLL_LANES:[[CHAPTERS[district].x-21,-17],[CHAPTERS[district].x+27,-17]];
+    const L=pick(lanes); enemies.push(makeEnemy('roll',L[0],L[1]));
     announce(pick(['INCOMING!', 'LOOK OUT!', 'OH NO', 'HERE IT COMES', 'TAKE COVER!']), pick(['THE QUICKER PICKER-UPPER', 'TWO-PLY. ZERO MERCY', 'IT WANTS TO CLEAN YOU', 'ABSORBENCY: TOTAL', 'THE ROLL CALL', 'PERFORATED AND PERFECTLY CALM', 'A WALL OF KITCHEN PAPER', 'THE BIG WIPE'])); sfx('whistle'); headlineNow('BREAKING: GIANT PAPER TOWEL ROLL ON THE MOVE. RESIDENTS URGED TO BE LESS WET');
     setTimeout(() => zz('roll', { force: true }), 1000); return;
   }
   if (type === 'fork') {
-    const e = makeEnemy('fork', 5, -18); e.y = 16; enemies.push(e); forkStatus = 'sighted'; sfx('fanfare');
+    const c=CHAPTERS[encounterDistrict()], e = makeEnemy('fork', c.x+6, 12); e.y = 7; enemies.push(e); forkStatus = 'sighted'; sfx('fanfare');
     headlineNow('BREAKING: FORK SIGHTED. EXPERTS: "WE WERE TOLD IT DID NOT EXIST"'); forkMoment(); return;
   }
   if (type === 'gold') {
-    const sp = pick(SPAWNS.sponge), e = makeEnemy('sponge', sp[0], sp[1]); e.gold = true; e.hp = e.maxHp = 60; e.speed = 11; e.fleeT = 16; e.vy = 12;
+    const sp = encounterSpawn('gold'), e = makeEnemy('sponge', sp[0], sp[1]); e.gold = true; e.hp = e.maxHp = 60; e.speed = 11; e.fleeT = 16; e.vy = 12;
     enemies.push(e); sfx('sparkle'); pop(e.x, 2.5, e.z, 'THE SUBLIME OBJECT!', false); headlineNow('BREAKING: GOLDEN SPONGE SIGHTED. EVERYONE ACT NATURAL');
     setTimeout(() => zz('gold', { force: true }), 700); return;
   }
-  let best = null;
-  for (let k = 0; k < 6; k++) {
-    const sp = pick(SPAWNS[type === 'mama' ? 'sponge' : type]); const d = Math.hypot(sp[0] - P.x, sp[1] - P.z);
-    if (!best || d > best.d) best = { sp, d }; if (d > 12) break;
-  }
-  const e = makeEnemy(type === 'mama' ? 'sponge' : type, best.sp[0] + rand(-1, 1), best.sp[1] + rand(-1, 1), type === 'mama' ? 4 : type === 'sponge' && MOD === 'funsize' ? 0.55 : 1);
-  if (type === 'spoon') { e.y = 9; }
-  if (type === 'mama') { e.y = 7; e.x = HIVE.x; e.z = HIVE.z; e.vy = 14; announce('GRANDMA SPONGE', 'SHE HAS ABSORBED WORSE THAN YOU'); say('Grandma sponge', true); setTimeout(() => zz('mama', { force: true }), 1500); }
-  if (type === 'sponge' || type === 'mama') { e.vy = 10; e.vx = rand(-3, 3); e.vz = rand(2, 5); if (e.x > HIVE.x + 6) e.vx = 5; if (e.x < HIVE.x - 6) e.vx = -5; if (e.z < HIVE.z - 3) e.vz = -5; }
+  const sp=wave===1&&killCount===0&&enemies.length===0?[-11,15]:encounterSpawn(type);
+  const e=makeEnemy(type==='mama'?'sponge':type,sp[0],sp[1],type==='mama'?4:type==='sponge'&&MOD==='funsize'?.55:1);
+  e.y=groundAt(e.x,e.z,30);
+  if(type==='spoon')e.y+=7;
+  if(type==='mama'){e.y+=7;e.vy=14;announce('GRANDMA SPONGE','SHE HAS ABSORBED WORSE THAN YOU');say('Grandma sponge',true);setTimeout(()=>zz('mama',{force:true}),1500);}
+  if(type==='sponge'||type==='mama'){e.vy=10;e.vx=rand(-2,2);e.vz=rand(-1,1);}
   enemies.push(e);
   bubbles(e.x, e.y + 0.5, e.z, 8, 0.8);
   sfx('spawn');
@@ -2044,6 +2347,7 @@ function hurt(amount, cause, fx, fz) {
   if (P.hp <= 0) die(cause);
 }
 const DEATH = {
+  stove: ["You became steam. A promotion in altitude, a disaster in every other respect.", "Your hot take was that the hob was safe. The hob has issued a rebuttal."],
   roll: ["You were wiped off the face of the counter.", "The paper towel blotted you up. Blotted! The indignity.", "The quicker picker-upper picked you up. It will not be putting you down.", "You were soaked up by a single sheet. It did not even need the second ply.", "You were rolled over, soaked up and torn off along the dotted line."],
   fork: ["There was no fork. Then there was a fork. Then there was no you.", "A fork is the worst possible tool for eating water. It managed anyway.", "You slipped through the prongs twice. The third stab was the charm.", "The fork found you before anyone found the fork.", "You were killed by something that does not exist. Please do not tell the philosopher.", "You went looking for the fork. The fork was also looking for you."],
   sponge: ["You were absorbed. You live in a sponge now. The rent is reasonable.", "A sponge drank you. You are now 40% of its personality.", "Absorbed. Somewhere, a sponge is slightly heavier and very smug.", "A sponge soaked you up against your will. Next time, try doing it willingly (hold E)."],
@@ -2221,7 +2525,7 @@ function updateEnemies(dt) {
         const sp = e.speed * (lunge ? 1.5 : 1) * rand(0.85, 1.15);
         const side = rand(-0.35, 0.35);
         let hx = nx, hz = nz;
-        if (e.gold) { hx = -nx; hz = -nz + (e.z > 15 ? -1.2 : 0) + (e.z < -17 ? 1.2 : 0); hx += e.x > 27 ? -1.2 : e.x < -27 ? 1.2 : 0; const hl = Math.hypot(hx, hz) || 1; hx /= hl; hz /= hl; }
+        if (e.gold) { hx = -nx; hz = -nz + (e.z > 15 ? -1.2 : 0) + (e.z < -17 ? 1.2 : 0); hx += e.x > CX1-5 ? -1.2 : e.x < CX0+5 ? 1.2 : 0; const hl = Math.hypot(hx, hz) || 1; hx /= hl; hz /= hl; }
         e.vx = (hx * Math.cos(side) - hz * Math.sin(side)) * sp; e.vz = (hz * Math.cos(side) + hx * Math.sin(side)) * sp;
         e.vy = big ? 13 : lunge ? rand(6, 8) : rand(7, 10);
         e.cd = big ? rand(0.5, 0.8) : rand(0.08, 0.3); e.sq = 0.6; if (dist < 25) sfx('hop');
@@ -2263,7 +2567,7 @@ function updateEnemies(dt) {
       const F = e.type === 'fork';
       e.stT -= dt;
       let ty = Math.max(g, 0) + (F ? 2.4 : 1.2) + Math.sin(e.t * 2) * 0.4;
-      if (e.climbT > 0) { e.climbT -= dt; ty = Math.max(ty, 7.5); }   // fly over whatever it bumped into
+      if (e.climbT > 0) { e.climbT -= dt; ty = Math.max(ty, e.climbTop || 7.5); }   // fly over the local scenery
       if (F && alive) { e.summonT -= dt; if (e.summonT <= 0 && enemies.length < 22) { e.summonT = 9; for (let i = 0; i < 3; i++) { const c = makeEnemy('spoon', e.x + rand(-2, 2), e.z + rand(-2, 2)); c.y = e.y; enemies.push(c); } pop(e.x, e.y + 2.8, e.z, pick(['CUTLERY DRAWER, ASSEMBLE!', 'SPOONS! TO ME!', 'MY LOYAL SCOOPS!']), false); sfx('ting'); } }
       if (e.state === 0) {
         const ang = Math.atan2(e.z - pz, e.x - px) + e.orbit * dt * (F ? 0.9 : 1.4);
@@ -2290,7 +2594,7 @@ function updateEnemies(dt) {
     e.x += e.vx * dt; e.y += e.vy * dt; e.z += e.vz * dt;
     const bump = collide(e, e.r * 0.85, e.h);
     if (bump && e.type !== 'spoon' && e.type !== 'fork') { if (e.detourT <= 0) e.dsign = Math.random() < 0.5 ? 1 : -1; e.detourT = 1.0; }
-    if (bump && (e.type === 'spoon' || e.type === 'fork')) { e.climbT = 1.4; e.vy = Math.max(e.vy, 7); if (e.state === 2) { e.state = 0; e.stT = rand(0.8, 1.6); } }
+    if (bump && (e.type === 'spoon' || e.type === 'fork')) { e.climbT = 2.2; e.climbTop = Math.max(7.5, groundAt(e.x + nx * (e.r + 1), e.z + nz * (e.r + 1), 35) + 2); e.vy = Math.max(e.vy, 7); if (e.state === 2) { e.state = 0; e.stT = rand(0.8, 1.6); } }
     const gg = groundAt(e.x, e.z, e.y);
     if (e.type !== 'spoon' && e.type !== 'fork') {
       if (e.y < gg && e.popY !== undefined) { const drop = e.popY - gg; e.popY = undefined; if (drop > 1.5) { e.y = gg; damageEnemy(e, drop * 10, 0, 0, 0, 0, 3, false); pop(e.x, e.y + e.h + 0.6, e.z, pick(['SPLAT', 'OOF', 'GRAVITY!', 'THUD']), true); } }
@@ -2338,7 +2642,8 @@ function updateGlobs(dt) {
     }
     const gr = groundAt(g.x, g.z, g.y);
     let hitS = g.y <= gr;
-    if (!hitS) for (const c of COL) { if (g.y > c.top || g.y < c.bot) continue; if (c.k === 0) { if ((g.x - c.x) ** 2 + (g.z - c.z) ** 2 < c.r * c.r) { hitS = true; break; } } else { const px = g.x - c.x, pz = g.z - c.z; if (Math.abs(px * c.c - pz * c.s) < c.hx && Math.abs(px * c.s + pz * c.c) < c.hz) { hitS = true; break; } } }
+    if (!hitS) for (const c of COL) {
+    if (!solidEnabled(c)) continue; if (g.y > c.top || g.y < c.bot) continue; if (c.k === 0) { if ((g.x - c.x) ** 2 + (g.z - c.z) ** 2 < c.r * c.r) { hitS = true; break; } } else { const px = g.x - c.x, pz = g.z - c.z; if (Math.abs(px * c.c - pz * c.s) < c.hx && Math.abs(px * c.s + pz * c.c) < c.hz) { hitS = true; break; } } }
     if (hitS || g.life <= 0) {
       g.life = 0; gibs(g.x, g.y + 0.1, g.z, 10, SAUCE, { sph: true, smin: 0.06, smax: 0.18, maxS: 5, maxU: 6, stain: SAUCE[0] });
       if (Math.abs(g.y - gr) < 0.6) { stain(g.x, gr, g.z, 1.2, SAUCE[1]); if (gr < 0.5) hazards.push({ x: g.x, z: g.z, r: 1.3, t: 4.5 }); }
@@ -2517,7 +2822,8 @@ function updatePlayer(dt) {
     gibs(P.x, P.y + 0.2, P.z, 10, WATER, { sph: true, mat: 12, smin: 0.05, smax: 0.12, maxS: 6, maxU: 5, lifeMin: 0.3, lifeMax: 0.7 });
     zz('puddle', { once: true, force: true });
   }
-  if (!wantPud && P.pud) P.pud = false;
+  // Stay flat while below the board; reform as soon as there is headroom.
+  if (!wantPud && P.pud && rayStatic(P.x, P.y + .42, P.z, 0, 1, 0, 1) > .78) P.pud = false;
   P.pudT = lerp(P.pudT, P.pud ? 1 : 0, Math.min(1, dt * 10)); P.eyeH = lerp(EYE, 0.32, P.pudT);
   if (P.pud) chalEvent('puddle', dt);
   if ((keys.ShiftLeft || keys.ShiftRight) && P.dashCd <= 0) {
@@ -2526,7 +2832,7 @@ function updatePlayer(dt) {
     for (let i = 0; i < 8; i++) part3({ x: P.x + rand(-.3, .3), y: P.y + rand(0.2, 1), z: P.z + rand(-.3, .3), vx: -dx * 6 + rand(-2, 2), vy: rand(0, 2), vz: -dz * 6 + rand(-2, 2), life: 0.5, size: rand(0.05, 0.12), col: pick(WATER), mat: 12, sph: true, grav: 10, stain: WET });
   }
   if (P.dashT <= 0 && P.pud && P.onG) {
-    let wet = false;
+    let wet = wetLaneAt(P.x, P.z);
     for (const st of stains) if (st.water && (st.x - P.x) ** 2 + (st.z - P.z) ** 2 < 2.6) { wet = true; break; }
     const top = wet ? 24 : 17, acc = wet ? 3 : 2.2, fr = wet ? 0.25 : 0.9;
     if (wl > 0) { P.vx = lerp(P.vx, wx * top, Math.min(1, dt * acc)); P.vz = lerp(P.vz, wz * top, Math.min(1, dt * acc)); }
@@ -2543,7 +2849,7 @@ function updatePlayer(dt) {
   P.vy -= GRAV * gs * dt;
   const ox = P.x, oz = P.z;
   P.x += P.vx * dt; P.z += P.vz * dt;
-  collide(P, PRAD, 1.2);
+  collide(P, PRAD, P.pud ? 0.42 : 1.2);
   // surface tension: on foot you only leave the counter if you are walking off it on purpose
   // Walking at the edge you teeter first and only drop if you keep pushing for a moment; a dash never carries you off.
   const pushing = P.onG && wl > 0 && !onCounter(P.x + wx * 1.2, P.z + wz * 1.2) && P.dashT < -0.7;
@@ -2578,7 +2884,7 @@ function updatePlayer(dt) {
   if (P.hp < 30) zz('low', { p: dt * 0.4 });
   if (P.onG) for (const p of PADS) {
     if (Math.abs(P.x - p.x) < 1.4 && Math.abs(P.z - p.z) < 1.1 && P.y < 0.5) {
-      P.vy = 25; P.onG = false; const dx = HIVE.x - P.x, dz = HIVE.z - P.z, d = Math.hypot(dx, dz) || 1; P.vx = dx / d * 5; P.vz = dz / d * 5;
+      P.vy = p.power || 25; P.onG = false; const dx = (p.tx ?? HIVE.x) - P.x, dz = (p.tz ?? HIVE.z) - P.z, d = Math.hypot(dx, dz) || 1; P.vx = dx / d * (p.speed || 5); P.vz = dz / d * (p.speed || 5);
       sfx('pad'); pop(p.x, 1.5, p.z, pick(['SPLOOT!', 'KETCHUP LAUNCH!', 'WHEEE', 'SAUCE-PROPELLED!', 'CONDIMENT CANNON!']), true); zz('pad', { p: 0.4 });
       gibs(p.x, 0.3, p.z, 16, SAUCE, { sph: true, smin: 0.08, smax: 0.18, stain: SAUCE[0] });
     }
@@ -2638,10 +2944,11 @@ function updateWaves(dt) {
     if (!spawnQ.length && !enemies.length) {
       waveActive = false; interT = 5.5; const bonus = 500 * wave; score += bonus; MOD = null; gs = 1; if (chal) chal.t = Math.min(chal.t, 0.01);
       P.hp = Math.min(100, P.hp + 30); P.ammo[1] = Math.min(WEAPONS[1].max, P.ammo[1] + 6); P.ammo[2] = Math.min(WEAPONS[2].max, P.ammo[2] + 2); P.ammo[3] = Math.min(WEAPONS[3].max, P.ammo[3] + 2);
-      announce(pick(CLEARW), `+${bonus} · +30 DAMPNESS · ` + pick(['FREE ICE', 'NICE WORK, DRIP', 'THE FRIDGE APPROVES', 'MOIST AND VICTORIOUS', 'HYDRATION RESTORED', 'THE TAP SALUTES YOU', 'DRIP DRIP HOORAY', 'GLASS HALF FULL AGAIN', 'STILL WET, STILL HERE'])); sfx('clear'); say(pick(['counter cleaned', 'spotless', 'the kitchen is quiet. for now', 'wave washed', 'squeaky clean', 'all dried up. except you', 'rinse complete', 'dishes done']), true);
+      if (!endless && wave >= CHAPTERS[chapter].last) { chapterClear=true; headlineNow(CHAPTERS[chapter].name+' DECLARES EMERGENCY OVER. NEIGHBOURING DISTRICT INFORMED TOO LATE'); }
+      announce(chapterClear&&!endless ? 'DISTRICT CLEAR' : pick(CLEARW), chapterClear&&!endless ? (chapter===4?'GET TO THE DRAIN · HOLD E TO PULL THE PLUG':'CHECKPOINT OPEN → '+CHAPTERS[chapter+1].name) : `+${bonus} · +30 DAMPNESS · ` + pick(['FREE ICE', 'NICE WORK, DRIP', 'THE FRIDGE APPROVES', 'MOIST AND VICTORIOUS', 'HYDRATION RESTORED', 'THE TAP SALUTES YOU', 'DRIP DRIP HOORAY', 'GLASS HALF FULL AGAIN', 'STILL WET, STILL HERE'])); sfx('clear'); say(pick(['counter cleaned', 'spotless', 'the kitchen is quiet. for now', 'wave washed', 'squeaky clean', 'all dried up. except you', 'rinse complete', 'dishes done']), true);
       setTimeout(() => zz('clear', { p: 0.7 }), 2200);
     }
-  } else { interT -= dt; if (interT <= 0) startWave(wave + 1); }
+  } else if (!chapterClear || endless) { interT -= dt; if (interT <= 0) startWave(wave + 1); }
 }
 function update(dt) {
   if (state === 'play') updatePlayer(dt);
@@ -2651,10 +2958,11 @@ function update(dt) {
   for (const s of splats) s.life -= dt * 0.33;
   splats = splats.filter(s => s.life > 0);
   if (state === 'play') {
+    kitchenUpdate(dt); if(state!=='play')return;
     updateWaves(dt);
     if (T > ZZ.nextIdle) { ZZ.nextIdle = T + rand(22, 36); zz(forkStatus !== 'rumour' && Math.random() < 0.4 ? 'forkAfter' : 'idle'); }
     chalUpdate(dt);
-    if (MOD === 'tap') { tapT -= dt; while (tapT <= 0) { tapT += 0.06; part3({ x: clamp(P.x + rand(-15, 15), -31, 31), y: rand(14, 20), z: clamp(P.z + rand(-14, 10), -21, 20.5), vy: -6, life: 3, size: rand(0.08, 0.14), col: pick(WATER), mat: 12, sph: true, stain: WET, grav: 30, bounce: 0 }); } }
+    if (MOD === 'tap') { tapT -= dt; while (tapT <= 0) { tapT += 0.06; part3({ x: clamp(P.x + rand(-15, 15), CX0+1, CX1-1), y: rand(14, 20), z: clamp(P.z + rand(-14, 10), -21, 20.5), vy: -6, life: 3, size: rand(0.08, 0.14), col: pick(WATER), mat: 12, sph: true, stain: WET, grav: 30, bounce: 0 }); } }
     comboT -= dt; if (comboT <= 0) combo = 0;
     multiT -= dt;
   }
@@ -2756,7 +3064,7 @@ function drawEnemy(e) {
   setFlash(0);
 }
 function drawViewmodel(eye) {
-  if (state === 'dead' || state === 'absorbing' || state === 'absorbed') return;
+  if (state === 'dead' || state === 'absorbing' || state === 'absorbed' || state === 'won') return;
   ident(cur); tr(cur, eye[0], eye[1], eye[2]); ry(cur, camYaw); rx(cur, camPitch);
   const st = P.switchT > 0 ? (P.switchT > 0.15 ? (0.3 - P.switchT) / 0.15 : P.switchT / 0.15) : 0;
   const spd = Math.min(1, Math.hypot(P.vx, P.vz) / 11) * (P.onG ? 1 : 0.2);
@@ -2855,7 +3163,7 @@ function render() {
   persp(PROJ, fov, aspect, 0.05, 500); mul(VP, PROJ, VIEW);
 
   let ns = 0;
-  for (const s of SHSTAT) { if (ns >= 40) break; shArr.set(s, ns * 4); ns++; }
+  for (const s of SHSTAT.filter(s => Math.abs(s[0]-eye[0]) < 36)) { if (ns >= 20) break; shArr.set(s, ns * 4); ns++; }
   for (const e of enemies) { if (ns >= 40) break; shArr[ns * 4] = e.x; shArr[ns * 4 + 1] = e.z; shArr[ns * 4 + 2] = (e.type === 'bottle' ? 1.0 : e.r * 1.1); shArr[ns * 4 + 3] = e.y + (e.type === 'spoon' ? 0.5 : e.h); ns++; }
   for (const k of pickups) { if (ns >= 40) break; shArr[ns * 4] = k.x; shArr[ns * 4 + 1] = k.z; shArr[ns * 4 + 2] = 0.5; shArr[ns * 4 + 3] = k.y + 0.3; ns++; }
 
@@ -2868,7 +3176,8 @@ function render() {
     if (pr.u.uFlash) gl.uniform1f(pr.u.uFlash, 0);
   }
   gl.useProgram(PR_MAIN.p); flashU = 0;
-  for (const o of STATIC) { ident(cur); part(o.m, o.x, o.y, o.z, o.sx, o.sy, o.sz, o.col, o.mat, o.yaw, o.pit); }
+  for (const o of STATIC) { if (Math.abs(o.x-eye[0]) > 105 + Math.max(o.sx,o.sz)*.6) continue; ident(cur); part(o.m, o.x, o.y, o.z, o.sx, o.sy, o.sz, o.col, o.mat, o.yaw, o.pit); }
+  drawKitchenMotion(eye); drawKitchenSigns(eye);
   if (posterDirty) drawPoster();
   gl.useProgram(PR_TEX.p); gl.uniformMatrix4fv(PR_TEX.u.uVP, false, VP); gl.uniform3f(PR_TEX.u.uEye, eye[0], eye[1], eye[2]);
   ident(tmp); tr(tmp, -22, 31, -21.85); sc(tmp, 12, 15, 0.05); gl.uniformMatrix4fv(PR_TEX.u.uModel, false, tmp);
@@ -2941,6 +3250,7 @@ function hud(dt) {
   pops = pops.filter(p => p.t > 0);
   hitT -= dt; const h = $('hit'); h.style.opacity = hitT > 0 ? 1 : 0; h.className = hitKill ? 'kill' : '';
   if (state === 'title') return;
+  journeyHUD();
   // news ticker
   const run = $('tickrun'); tickX -= dt * 120;
   if (tickX < -tickW || !tickW) { run.textContent = headlines(); tickW = run.offsetWidth; tickX = innerWidth; }
@@ -2956,7 +3266,10 @@ function hud(dt) {
   if (boss) { $('bossN').textContent = boss.type === 'fork' ? 'THE FORK (IT EXISTS)' : 'GRANDMA SPONGE'; $('bossF').style.width = Math.max(0, boss.hp / boss.maxHp * 100) + '%'; }
   $('chal').hidden = !chal || state !== 'play';
   if (chal) { const c = CHALS[chal.k]; $('chalD').textContent = c.title + ' · ' + (chal.k === 'bartleby' ? `${c.goal} ${Math.max(0, chal.t).toFixed(1)}s` : `${chal.k === 'horizontal' ? chal.prog.toFixed(1) : chal.prog}/${c.need} ${c.goal}`); $('chalF').style.width = Math.max(0, chal.t / c.dur * 100) + '%'; }
-  const showP = state === 'play' && P.latchT > 0; $('prompt').hidden = !showP; if (TOUCH) $('tbSurr').hidden = !showP; if (showP) $('surr').style.width = (P.surr / 1.6 * 100) + '%';
+  const drain=escapeReady(), showP=state==='play'&&(P.latchT>0||drain);$('prompt').hidden=!showP;
+  $('promptText').textContent=drain?'HOLD E TO PULL THE PLUG':'DASH TO ESCAPE · HOLD E TO SURRENDER';
+  if(TOUCH){$('tbSurr').hidden=!showP;$('tbSurr').textContent=drain?'HOLD TO PULL PLUG':'HOLD TO SURRENDER';}
+  if(showP)$('surr').style.width=((drain?drainHold/1.5:P.surr/1.6)*100)+'%';
   $('lbl').textContent = P.pud ? 'DAMPNESS · PUDDLE FORM' : 'DAMPNESS';
   const hp = Math.max(0, Math.ceil(P.hp));
   const mult = Math.min(10, 1 + Math.floor(combo / 4));
@@ -2982,7 +3295,7 @@ const TOUCH_CONTROLS = `<div class="keys">
   <b>JUMP · DASH</b><span>jump, and splash dash (you can't be hit mid-splash)</span>
   <b>PUDDLE</b><span>hold to become a puddle: flat, slippery, fast</span>
   <b>SWAP</b><span>squirter · ice shotgun · seltzer launcher · suds-o-matic</span>
-  <b>SURRENDER</b><span>when a sponge has you, a button appears. Hold it.</span>
+  <b>SURRENDER / PLUG</b><span>hold the button to surrender when caught, or pull the plug at the cleared sink</span>
   <b>❚❚</b><span>pause (glass, sound and Žižek's voice are in there)</span></div>`;
 const CONTROLS_DESK = `<div class="keys">
   <b>MOUSE</b><span>look · click to shoot</span>
@@ -2990,7 +3303,7 @@ const CONTROLS_DESK = `<div class="keys">
   <b>SPACE</b><span>jump (land on sponges to boing)</span>
   <b>SHIFT</b><span>splash dash (you can't be hit mid-splash)</span>
   <b>RIGHT MOUSE / C</b><span>hold to become a puddle: flat, slippery, fast</span>
-  <b>E</b><span>when a sponge has you, hold to surrender</span>
+  <b>E</b><span>hold to surrender when caught, or pull the plug at the cleared sink</span>
   <b>1 2 3 4 / WHEEL</b><span>squirter · ice shotgun · seltzer launcher · suds-o-matic</span>
   <b>G</b><span>glass: murky / clean / none</span>
   <b>M · V</b><span>mute everything · Žižek's voice: accented / plain / off</span>
@@ -2999,24 +3312,34 @@ const CONTROLS = TOUCH ? TOUCH_CONTROLS : CONTROLS_DESK;
 function showScreen(kind) {
   const s = $('scr'); s.classList.remove('off'); $('touchui').hidden = true; mouseDown = false;
   if (kind === 'title') {
-    s.innerHTML = `<div class="box"><h1>ABSORB THIS</h1><h2>${pick(TAGLINES)}</h2>
-      <p>You are <b>DRIP</b>, the last drop of water in a glass on a kitchen counter. The sponges want to drink you. The hot sauce wants you diluted. The spoons just want to stir.</p>
-      <p>Stay damp. Your squirter is made of you, so soak your spilled water back up. Knock things off the counter. Hit them in the googly eyes.</p>${zQuote(ZL.start)}${CONTROLS}
-      <div class="cta">CLICK TO GET WET</div>
-      <p class="fine">Featuring a cartoon parody of the philosopher Slavoj Žižek. He never said any of this. Every line is made up.</p>
-      <p class="fine">${voiceLabel()}</p></div>`;
+    s.innerHTML = `<div class="box startbox"><p class="eyebrow">${pick(TAGLINES)}</p><h1>ABSORB THIS</h1><h2>GET TO THE SINK. PULL THE PLUG.</h2>
+      <p>You are <b>DRIP</b>. Five districts of hostile kitchenware stand between you and the drain. Stay damp, make a mess, and escape the cleanup.</p>
+      <div class="actions"><button class="action" data-action="start">GET WET →</button></div>
+      <div class="itinerary">${CHAPTERS.map((c,i)=>`<span>${i+1} · ${c.short}</span>`).join('')}</div>
+      <p class="fine">Two waves per district · Refill checkpoints · Infinite PLEASE continues</p>${optsHTML()}
+      <details><summary>HOW TO BE WATER</summary><p>Slide through wet shortcuts. Jump the hotplates. Follow the gold arrows. At the sink, clear the final waves and hold ${TOUCH?'the plug button':'E'} over the drain.</p>${CONTROLS}</details>
+      ${zQuote(ZL.start)}<p class="fine">A cartoon parody of Slavoj Žižek. He never said any of this. Every line is made up.</p></div>`;
   } else if (kind === 'pause') {
     s.innerHTML = `<div class="box"><h1 style="font-size:90px">PAUSED</h1><h2>THE SPONGES ARE WAITING. PATIENTLY. MOISTLY.</h2>${zQuote(ZL.pause)}${optsHTML()}${CONTROLS}<p class="fine">${voiceLabel()}</p><div class="cta">CLICK TO RESUME</div></div>`;
+  } else if (kind === 'won') {
+    const elapsed=`${Math.floor(runTime/60)}:${String(Math.floor(runTime%60)).padStart(2,'0')}`;
+    s.innerHTML=`<div class="box startbox"><p class="eyebrow">THE FOURTH ENDING · ESCAPE</p><h1>DOWN THE DRAIN</h1><h2>YOU LEFT THE KITCHEN WORSE THAN YOU FOUND IT.</h2>
+      <p class="quip">Five districts. Ten waves. One hole with excellent public transport links.</p>
+      <p>You became somebody else's problem. The kitchen is calling this a successful transfer of responsibilities.</p>
+      <p class="stat">${score.toLocaleString()} POINTS · ${elapsed} · ${killCount} KITCHENWARE DESTROYED</p>
+      <p class="fine">${continues?continues+' PLEASE CONTINUES. DEATH HAS STOPPED TAKING YOUR CALLS.':'ONE LIFE. AN UNREASONABLE AMOUNT OF WATER.'}</p>
+      <div class="actions"><button class="action" data-action="restart">ANOTHER SPILL</button><button class="action secondary" data-action="endless">STAY & MAKE A BIGGER MESS</button></div>
+      <p class="endings">${endingsLine()}</p></div>`;
   } else if (kind === 'dead') {
     const best = score >= hiScore && score > 0, fl = deathCause === 'fall';
     s.innerHTML = `<div class="box"><h1 style="font-size:110px">${fl ? 'FLOORED' : 'EVAPORATED'}</h1><h2>${fl ? 'THE FLOOR ENDING' : 'THE EVAPORATED ENDING'}</h2>
       <p class="quip">${pick(DEATH[deathCause] || DEATH.sponge)}</p>
       <p>${pick(fl ? NARR.floor : NARR.evaporated)}</p>
-      <p class="stat">SCORE ${score.toLocaleString()} · WAVE ${wave} · ${killCount} KITCHENWARE DESTROYED</p>
+      <p class="stat">${CHAPTERS[chapter].name} · WAVE ${wave}<br>SCORE ${score.toLocaleString()} · ${killCount} KITCHENWARE DESTROYED</p>
       <p class="stat" style="color:var(--foam)">${best ? 'NEW BEST! THE FRIDGE IS PROUD OF YOU.' : 'BEST ' + hiScore.toLocaleString()}</p>
       ${zQuote(fl ? ZL.fallDeath : ZL[deathCause + 'Death'] || ZL.death)}
       <p class="endings">${endingsLine()}</p>${endings().absorbed ? '' : '<p class="fine">HINT: WHEN A SPONGE HAS YOU, HOLD E.</p>'}
-      <p class="stat" style="color:#fff">OR TYPE <b style="color:var(--foam)">PLEASE</b> TO CONTINUE FROM WAVE ${wave}</p>
+      <p class="stat" style="color:#fff">OR TYPE <b style="color:var(--foam)">PLEASE</b> TO RETURN TO THE ${CHAPTERS[chapter].short} CHECKPOINT</p>
       ${TOUCH ? '<p><input class="plz" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="ask nicely"></p>' : ''}
       <p class="fine">INFINITE CONTINUES, IF YOU ASK NICELY.${continues ? ` CONTINUES USED: ${continues}. DIGNITY REMAINING: NONE.` : ''}</p>
       <div class="cta">CLICK TO RE-CONDENSE</div></div>`;
@@ -3034,12 +3357,13 @@ function showScreen(kind) {
 function zQuote(bank) { return `<div class="zq"><img alt="" src="${zFace()}"><p><small>${pick(ZNAMES)}</small>"${pick(bank)}"</p></div>`; }
 // asked nicely: same wave again, same score, fresh dampness
 function continueGame() {
-  const keep = { score, wave, ammo: P.ammo.slice(), killCount, continues: continues + 1, forkStatus };
+  const keep = { score, wave, ammo: P.ammo.slice(), killCount, continues: continues + 1, forkStatus, chapter, chapterClear, endless, runTime };
   initAudio(); reset();
   score = keep.score; killCount = keep.killCount; continues = keep.continues; forkStatus = keep.forkStatus; P.ammo = keep.ammo.map((a, i) => i === 0 ? a : Math.max(a, WEAPONS[i].start));
+  chapter=keep.chapter;chapterClear=keep.chapterClear;endless=keep.endless;runTime=keep.runTime;wave=keep.wave;checkpointPosition();districtSupplies();
   state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; hideScreen();
   headlineNow(`DRIP RETURNS FROM THE DEAD AFTER SAYING PLEASE. CONTINUE NUMBER ${continues}`);
-  startWave(keep.wave); say('continue', true);
+  if(!chapterClear||endless)startWave(Math.max(CHAPTERS[chapter].first,keep.wave)); say('continue', true);
   setTimeout(() => { if (state !== 'play' || continues !== keep.continues) return; ZZ.cool = 0; zz(continues >= 3 ? 'pleaseAgain' : 'please', { force: true }); }, 1500);
   grabPointer();
 }
@@ -3049,7 +3373,7 @@ $('scr').addEventListener('click', e => { const b = e.target.closest('button[dat
   ({ g: toggleGlass, v: cycleVoice, s: cycleTalk, m: toggleMute })[b.dataset.o](); const o = b.closest('.opts'); if (o) o.outerHTML = optsHTML(); });
 function start() {
   initAudio();
-  if (state === 'title' || state === 'dead' || state === 'absorbed') { reset(); continues = 0; state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; say('get wet', true); setTimeout(() => zz('start', { force: true }), 1400); }
+  if (state === 'title' || state === 'dead' || state === 'absorbed' || state === 'won') { reset(); districtSupplies(); continues = 0; state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; say('get wet', true); setTimeout(() => { if(state==='play')zz(Math.random()<.4?'kitchen_0':'start', { force: true }); }, 1400); }
   else if (state === 'paused') state = 'play';
   hideScreen(); grabPointer();
 }
@@ -3058,7 +3382,9 @@ function grabPointer() {
   try { const r = cv.requestPointerLock({ unadjustedMovement: true }); if (r && r.catch) r.catch(() => cv.requestPointerLock()); } catch (e) { cv.requestPointerLock(); }
 }
 $('scr').addEventListener('click', e => {
-  if (e.target.closest('input, button')) return;
+  const action=e.target.closest('button[data-action]');
+  if(action){if(action.dataset.action==='endless')continueEndless();else start();return;}
+  if (e.target.closest('input, button, details, summary')) return;
   if (state === 'dead' && P.deadT < 1.2) return; start();
 });
 $('scr').addEventListener('input', e => { if (e.target.classList.contains('plz') && /please/i.test(e.target.value)) { e.target.blur(); continueGame(); } });
@@ -3184,6 +3510,7 @@ function tick(dt) {
     }
   }
   else if (state === 'dead') { P.deadT += dt; update(dt * 0.35); P.vy -= GRAV * dt * 0.35; P.y = Math.max(groundAt(P.x, P.z, P.y) , P.y + P.vy * dt * 0.35); }
+  else if (state === 'won') { updateParticles(dt); }
   else if (state === 'title') { if (Math.random() < dt * 2) bubbles(HIVE.x + rand(-7, 7), HIVE.top, HIVE.z + rand(-4, 4), 2, 0.3); updateParticles(dt); }
   greyV = lerp(greyV, jokeT > 0 ? 1 : 0, Math.min(1, dt * 8));
 }
