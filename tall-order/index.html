@@ -1009,7 +1009,7 @@ function callout(text, col, size, dur, at) {
 }
 
 // ---------------------------------------------------------------- input
-const IN = { kJump: false, kFire: false, mFire: false, fireTap: false, ktap: 0, mb: 0, mouseLook: 0, jumps: 0, kf: 0, kb: 0, kl: 0, kr: 0, ksl: 0, ksr: 0, kt: 0, mouseTurn: 0, locked: false,
+const IN = { kJump: false, kFire: false, mFire: false, mAlt: false, fireTap: false, ktap: 0, mb: 0, mouseLook: 0, jumps: 0, kf: 0, kb: 0, kl: 0, kr: 0, ksl: 0, ksr: 0, kt: 0, mouseTurn: 0, locked: false,
   // 'touch' puts a stick and buttons on the screen; 'keys' (a laptop: keyboard, mouse or trackpad) leaves them off
   mode: (() => { try { return matchMedia('(pointer: coarse)').matches ? 'touch' : 'keys'; } catch (e) { return 'touch'; } })(),
   sens: clamp(+store.get('sens', 1) || 1, 0.3, 3), relock: false, everLocked: false, lockFail: false, freeT: -99, wheel: 0, wheelAt: 0, wheelDone: false };
@@ -2791,17 +2791,20 @@ function firePrimary() {
 
 // pickups: each one gives a few uses of something better than the blaster
 const ITEM_DEF = {
-  rocket: { name: 'ROCKET POP', ammo: 3, max: 6, col: '#ff5a4a' },
-  confetti: { name: 'CONFETTI CANNON', ammo: 4, max: 8, col: '#ff7ad9' },
-  bomb: { name: 'BOUNCY BOMB', ammo: 3, max: 6, col: '#ffd23f' },
-  mallet: { name: 'SQUEAKY MALLET', ammo: 6, max: 10, col: '#6fd0ff' },
-  zap: { name: 'ZAP WAND', ammo: 3, max: 6, col: '#b58cff' },
-  balloon: { name: 'PARTY BALLOONS', ammo: 3, max: 6, col: '#ff6f91' },
+  rocket: { name: 'ROCKET POP', ammo: 3, max: 6, col: '#ff5a4a', verb: 'FIRE', how: 'FIRE ONE' },
+  confetti: { name: 'CONFETTI CANNON', ammo: 4, max: 8, col: '#ff7ad9', verb: 'FIRE', how: 'FIRE IT' },
+  bomb: { name: 'BOUNCY BOMB', ammo: 3, max: 6, col: '#ffd23f', verb: 'THROW', how: 'THROW ONE' },
+  mallet: { name: 'SQUEAKY MALLET', ammo: 6, max: 10, col: '#6fd0ff', verb: 'SWING', how: 'SWING IT' },
+  zap: { name: 'ZAP WAND', ammo: 3, max: 6, col: '#b58cff', verb: 'ZAP', how: 'ZAP' },
+  balloon: { name: 'PARTY BALLOONS', ammo: 3, max: 6, col: '#ff6f91', verb: 'TIE ON', how: 'TIE ONE ON A TOY' },
   // other toys' heads: wear one and your fixed gaze (and your blaster's reach) tilts with it
   wolfhead: { name: 'WOLF HEAD', ammo: 1, max: 1, col: '#d8a060', head: 0.42, what: 'MOLDED MID-HOWL: YOU LOOK UP' },
   kittyhead: { name: 'KITTY HEAD', ammo: 1, max: 1, col: '#b8bcc4', head: -0.35, what: 'ALWAYS HUNTING: YOU LOOK DOWN' },
 };
 const isHead = kind => ITEM_DEF[kind] && ITEM_DEF[kind].head != null;
+// what the use key does with it right now, in a word (under the item button) and in a few (the first time)
+const verbOf = kind => isHead(kind) ? (P.head === kind ? 'TAKE OFF' : 'WEAR') : ITEM_DEF[kind].verb;
+const howOf = kind => isHead(kind) ? (P.head === kind ? 'TAKE IT OFF' : 'WEAR IT') : ITEM_DEF[kind].how;
 const INV = [];
 let SEL = 0;
 function giveItem(kind, n) {
@@ -2902,6 +2905,7 @@ function stepItems(dt) {
       P.hp = Math.min(100, P.hp + 35); it.gone = true; sfx.heal(); callout('+35 JUICE', '#7ee06a', 32, 0.9);
     } else if (giveItem(it.kind)) {
       it.gone = true; sfx.pickup(); callout(ITEM_DEF[it.kind].name, ITEM_DEF[it.kind].col, 34, 1.1);
+      if (IN.mode === 'keys' && HINT.used < 1 && !isHead(it.kind) && it.kind !== 'balloon') callout('PRESS E TO ' + howOf(it.kind), '#ffd23f', 26, 2.4);
       if (it.kind === 'balloon' && !HINT.gotBalloon) { HINT.gotBalloon = true; callout('FACE A TOY AND ' + (IN.mode === 'keys' ? 'PRESS E' : 'TAP IT') + ' TO TIE ONE ON', '#ffd23f', 22, 2.4); }
       if (isHead(it.kind) && !HINT['h' + it.kind]) { HINT['h' + it.kind] = true; callout(ITEM_DEF[it.kind].what, '#ffffff', 22, 2.6); callout(IN.mode === 'keys' ? 'SELECT IT (1-4) AND PRESS E TO WEAR IT' : 'SELECT IT AND TAP TO WEAR IT', '#ffd23f', 22, 2.6); }
     }
@@ -3788,7 +3792,9 @@ function drawControls() {
 function drawKeyControls(u, B) {
   const b = B.item;
   drawItemButton();
-  if (INV[SEL]) keycap('E', b.x, b.y + b.r + 13 * u, 17 * u);
+  // (only while it can be: not on the way home with a head, nor once you've won)
+  const it = INV[SEL];
+  if (it && (G.st === 'play' || G.st === 'descent' && !isHead(it.kind))) keyPrompt('E', verbOf(it.kind), b.x, b.y + b.r + 15 * u, 21 * u);
   for (const c of chipSpots()) keycap(String(c.i + 1), c.x, c.y + c.r + 12 * u, 15 * u);
   if (G.st !== 'play' || G.paused || P.dead || P.hang || G.intro > 0) return;
   const pulse = 0.82 + 0.18 * Math.sin(G.time * 5);
@@ -3796,13 +3802,23 @@ function drawKeyControls(u, B) {
   const row = (text, col, a) => { label(text, W / 2, y, 16 * u, col, 'center', a); y += 22 * u; };
   if (!HINT.learned) {
     if (HINT.moved < 5) row(IN.locked ? 'W S WALK · A D SIDESTEP · THE MOUSE TURNS YOU' : 'W S WALK · A D TURN', '#ffffff', pulse);
-    if (HINT.fired < 8) row(IN.lockFail ? 'HOLD F OR J TO FIRE' : 'HOLD F OR J TO FIRE, OR THE LEFT BUTTON', '#ffd23f', pulse);
-    if (INV.length && HINT.used < 1) label(IN.lockFail ? 'E TO USE' : 'E (OR THE RIGHT BUTTON) TO USE', b.x - b.r * 0.6, b.y - b.r - 14 * u, 15 * u, '#ffd23f', 'right', pulse);
+    if (HINT.fired < 8) row(IN.lockFail ? 'HOLD F OR J TO FIRE' : 'HOLD F OR J TO FIRE, OR THE MOUSE BUTTON', '#ffd23f', pulse);
+    if (it && HINT.used < 1) row('PRESS E TO ' + howOf(it.kind) + (IN.lockFail ? '' : ' (OR RIGHT-CLICK)'), '#ffd23f', pulse);
     if (HINT.moved >= 5 && HINT.fired >= 8 && HINT.used >= 1) { HINT.learned = true; store.set('learned', 1); }
   }
   // until the mouse is grabbed (early in a climb, and for a while after it's let go), a reminder that it can be
   // (not all the way up, though, for someone happy on the keys alone)
   if (!IN.locked && !IN.lockFail && (!HINT.learned && G.t < 45 || G.t < 12 || G.time - IN.freeT < 8)) row('CLICK TO STEER WITH THE MOUSE', '#b8f060', 0.55 + 0.35 * pulse);
+}
+// a key and what it does, side by side, centred on x
+function keyPrompt(k, text, x, y, s) {
+  hx.save(); hx.font = `${Math.round(s * 0.62)}px ${DISPLAY}`;
+  const kw = Math.max(s, hx.measureText(k).width + s * 0.5);
+  hx.font = `${Math.round(s * 0.72)}px ${DISPLAY}`;
+  const tw = hx.measureText(text).width, gap = s * 0.3, x0 = x - (kw + gap + tw) / 2;
+  hx.restore();
+  keycap(k, x0 + kw / 2, y, s);
+  label(text, x0 + kw + gap, y + s * 0.03, s * 0.72, '#ffffff', 'left');
 }
 // a key drawn as a little key
 function keycap(text, x, y, s) {
@@ -3822,8 +3838,8 @@ function el(tag, cls, text) { const n = document.createElement(tag); if (cls) n.
 function button(cls, text, fn) { const b = el('button', cls, text); b.type = 'button'; b.addEventListener('click', fn); return b; }
 function controlsList() {
   const dl = el('dl', 'controls'), keys = IN.mode === 'keys';
-  const rows = keys ? [['Keys', 'W S walk, A D turn (or the arrow keys). Space jumps. Hold F or J to fire; E or K uses your pickup; Q or 1 to 4 swaps.'],
-    ['Mouse', 'click the game to grab the pointer, and the mouse or trackpad turns you while A D sidestep. Hold the left button to fire; the right button uses your pickup and the wheel swaps. Esc lets go and pauses.']]
+  const rows = keys ? [['Keys', 'W S walk, A D turn (or the arrow keys). Space jumps. Hold F or J to fire. E uses whatever you picked up, and Q or 1 to 4 swap between them.'],
+    ['Mouse', 'click the game to grab the pointer: then the mouse or trackpad turns you, and A D sidestep. Hold the button down to fire. E still uses your pickup (so does a right-click, or a Ctrl-click); the wheel swaps. Esc lets go and pauses.']]
     : [['Touch', 'left thumb: a stick that walks and turns; right thumb: FIRE (hold), JUMP, and the button for whatever you picked up']];
   for (const [k, v] of [...rows,
     ['Aim', 'turn to face it. The blaster only wobbles a little up or down: to hit something above or below you, climb to it or back away from it. Bombs, zaps and confetti reach further.'],
@@ -4008,13 +4024,15 @@ hud.addEventListener('pointermove', e => {
   const p = pointers.get(e.pointerId);
   if (p) { p.x = e.clientX; p.y = e.clientY; const b = onButton(e.clientX, e.clientY); if (b && b !== p.b) press(e.pointerId, b); }
 });
-// the left button fires while held, pressing the right one uses your pickup
+// the left button fires while held, pressing the right one uses your pickup. So does a Ctrl-click (how a Mac
+// with the one button right-clicks), a Cmd-click, and pressing the wheel in
 // (a second button pressed or let go while another is down arrives as a move, so go by the mask)
 function mouseButtons(e) {
-  const b = e.buttons | 0;
-  IN.mFire = !!(b & 1);
-  if ((b & 1) && !(IN.mb & 1)) IN.fireTap = true;
-  if ((b & 2) && !(IN.mb & 2)) useItem();
+  const b = e.buttons | 0, down = b & ~IN.mb;
+  if (down & 1) IN.mAlt = !!(e.ctrlKey || e.metaKey);
+  IN.mFire = !!(b & 1) && !IN.mAlt;
+  if ((down & 1) && !IN.mAlt) IN.fireTap = true;
+  if ((down & 6) || (down & 1) && IN.mAlt) useItem();
   IN.mb = b;
 }
 const pointerEnd = e => {

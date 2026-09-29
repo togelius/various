@@ -74,10 +74,13 @@ are holding sits in the corner with its keys:
 - **W S** walk and **A D** turn (or the arrow keys), **Space** jumps, hold
   **F**, **J** or **Z** to fire, **E**, **K** or **X** uses your pickup, and
   **Q**, **C**, **L** or **1** to **4** swap pickups. A tap of a turn key nudges
-  you round a little; holding it swings you round faster and faster.
+  you round a little; holding it swings you round faster and faster. Under the
+  pickup in the corner, its key and what it does: **E** THROW, **E** WEAR.
 - **Click** the game to grab the mouse or trackpad. Then moving it turns you
-  and **A D** sidestep. Hold the left button to fire; the right button uses
-  your pickup and the wheel swaps them. **Esc** lets go of the pointer and
+  and **A D** sidestep. Hold the button down to fire. **E** still uses your
+  pickup, and so does the right button, a **Ctrl**-click (how a Mac with one
+  button right-clicks), a **Cmd**-click or pressing the wheel in, so one button
+  is enough; the wheel swaps them. **Esc** lets go of the pointer and
   pauses, and resuming grabs it again. The pause menu sets how fast the mouse
   turns you.
 - **M** mutes, **Esc** or **P** pauses. The pause menu also turns the music
@@ -85,8 +88,9 @@ are holding sits in the corner with its keys:
 - Once you have the neck hinge, **W S** (or the mouse) look up and down.
 
 The first time you play, small hints show you where to drag (or which keys to
-press), that FIRE is held down, and how to use a pickup. They stop once you
-have done each of those things.
+press), that FIRE is held down, and how to use a pickup (on a laptop, the first
+pickup's name comes with PRESS E TO FIRE IT, or whatever it does). They stop
+once you have done each of those things.
 
 ## Being a plastic figure
 
