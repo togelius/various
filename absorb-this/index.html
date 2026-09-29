@@ -2345,7 +2345,7 @@ function updatePlayer(dt) {
   // Walking at the edge you teeter first and only drop if you keep pushing for a moment; a dash never carries you off.
   const pushing = P.onG && wl > 0 && !onCounter(P.x + wx * 1.2, P.z + wz * 1.2) && P.dashT < -0.7;
   P.teeter = pushing ? (P.teeter || 0) + dt : 0;
-  if (P.y < 1.2 && onCounter(ox, oz) && !onCounter(P.x, P.z) && ((P.onG && P.teeter < 0.6) || (P.dashT > -0.7 && !P.onG) || P.dashT > 0)) {
+  if (onCounter(ox, oz) && !onCounter(P.x, P.z) && ((P.y < 1.2 && P.onG && P.teeter < 0.6) || P.dashT > -0.7)) {
     if (P.teeter > 0) { shake = Math.max(shake, 0.08); if (T - tensionT > 1.2) { tensionT = T; pop(P.x, P.y + 1.6, P.z, pick(['TEETERING!', 'WHOA WHOA WHOA', 'KEEP PUSHING TO JUMP', 'THE FLOOR IS CALLING']), true); } }
     if (!onCounter(P.x, oz)) { P.x = ox; P.vx = 0; }
     if (!onCounter(ox, P.z)) { P.z = oz; P.vz = 0; }
