@@ -86,6 +86,16 @@ With a keyboard and mouse:
   can soak back up. Sponges drink them too, and it heals them. Hold right mouse
   or C to flatten into a puddle: low, slippery and fast, faster still over
   spilled water.
+- **A visible liquid body.** DRIP grips the weapons with glossy streams of
+  water that form fingers, stretch during a dash and thin out as dampness
+  falls. The squirter pulses, the shotgun grows ice crystals, and the soap
+  nozzle flexes as it fires. Puddle form draws the weapon down into the spill.
+- **Expressive kitchenware.** Rounded sponges compress before hopping;
+  bottles wind up and rattle their caps; spoons flash a ring before lunging.
+  The googly eyes blink and catch the light, and Grandma has open spectacle
+  rims. Warm wood, cool reflective water and matte sponge surfaces have
+  different finishes. Glass starts in the lighter setting; G still cycles
+  through all three looks.
 - **Infinite continues, if you ask nicely.** On the death screen, type PLEASE
   to continue from the wave you died on, keeping your score.
 - **Surrender.** When a sponge has latched onto you, hold E to stop fighting.
