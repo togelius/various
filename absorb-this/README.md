@@ -88,7 +88,7 @@ With a keyboard and mouse:
   music, and he fills the screen to ask: "You think this is a joke?" He also
   hangs on the back wall as a Magritte-style poster that moves its mouth when
   he talks. Shooting it costs you points.
-- **The writing.** About 1,640 invented philosopher lines across 82
+- **The writing.** About 1,990 invented philosopher lines across 109
   situations and topics (at least nine for each), after most of the lines
   cut in an early curation pass went back in and a further batch was
   written for every situation. There are also 107 name tags, 82 title
@@ -133,17 +133,25 @@ With a keyboard and mouse:
   (enormous eyes), caffeinated (everything faster), kitchen rave (hue-cycling
   strobes and lasers), fun size (tiny sponges, twice as many) or vibrant
   matter (new materialism: the pickups have agency and scuttle away from you).
-- **Favourite foes.** A quarter of the philosopher's idle chatter picks fights:
-  Derrida (deride, deconstruct, différance, and nothing outside the text
-  except the dog), new materialism (this is what happens when you make
-  objects primary in your ontology: they rise up and kill you), Fukuyama's
-  end of history, Deleuze's rhizome (it's mould), Habermas's ideal speech
-  situation with a spoon, Western Buddhism, ethical coffee and the lobster.
-  Kill words, taunts, name tags, headlines and wave names join in
-  (DECONSTRUCTED!, UNDER ERASURE!, OF GRAMMATOLOGY (AND GREASE)). Once a run,
-  the "you think this is a joke?" freeze can turn into a confession: he is
-  the biggest sponge in the kitchen, absorbing everything and dripping mixed
-  ideology.
+- **Favourite foes.** The philosopher keeps a rogues' gallery of 24
+  nemeses, about 12 jabs each: Derrida, Deleuze, Fukuyama, Habermas, new
+  materialism (this is what happens when you make objects primary in your
+  ontology: they rise up and kill you), Western Buddhism, liberal tolerance,
+  ethical coffee, Baudrillard (awkward, for a simulacrum), postmodernism, the
+  lobster school of self-help, Chomsky, positivism and neuroscience, Rand
+  (the golden sponge is her hero), Foucault, Heidegger, Nietzsche, tech bros
+  (he jabs at his own makers), Hollywood endings, self-help, and imaginary
+  foes: the smart fridge and the dishwasher, the fridge-magnet ŽIŽEKBOT who
+  "sticks better", rival academics, and the dog, who is the end of history.
+  Each run picks a nemesis, announced on the ticker, that he keeps coming
+  back to. Jabs make up most of his idle chatter, can replace routine
+  commentary, and kills sometimes set off a fitting one (the golden sponge
+  draws Rand, the paper towel Fukuyama, Grandma Nietzsche's eternal
+  recurrence). Kill words, taunts, name tags, headlines and wave names join
+  in (DECONSTRUCTED!, UNDER ERASURE!, OF GRAMMATOLOGY (AND GREASE)). Once a
+  run, the "you think this is a joke?" freeze can turn into a confession: he
+  is the biggest sponge in the kitchen, absorbing everything and dripping
+  mixed ideology.
 - **Moving like water.** The Squirter is made of you: every shot costs a
   little dampness, and the water you spill stays on the counter as puddles you
   can soak back up. Sponges drink them too, and it heals them. Hold right mouse
