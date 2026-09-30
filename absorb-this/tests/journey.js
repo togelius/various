@@ -137,7 +137,7 @@ function testCurios(){
    inspectCurio();check(r.id+' revisits cannot farm score',score===250&&runCurios.size===1);
   }
   check('Discoveries persist in the save store',JSON.parse(localStorage.getItem('absorb.curios')).length===20);
-  openNotebook();check('Notebook lists all twenty discovered objects',document.querySelectorAll('button[data-curio]').length===20);
+  openNotebook();check('Notebook lists all twenty discovered objects',document.querySelectorAll('button[data-curio]').length===20);check('Finding the whole faculty reveals its diploma',!!document.querySelector('.noteDiploma'));
   document.querySelector('[data-curio="kant"]').click();check('Notebook reopens an already found character',readingCurio.id==='kant'&&document.querySelector('.curioCard').textContent.includes('MODERN MORALITY'));
   const banked=score;openNotebook();document.querySelector('[data-curio="russell"]').click();check('Notebook reading earns no extra score',score===banked);
   fresh();check('New spill resets run discoveries but keeps field notes',runCurios.size===0&&curioFound.size===20);
@@ -149,7 +149,7 @@ function testCurios(){
   pose(r);const eye=[P.x,P.y+P.eyeH,P.z],target=[r.x,r.y+r.eyeY,r.z];
   addBox((eye[0]+target[0])/2,(eye[2]+target[2])/2,1.8,.5,12);check('Scenery blocks discovery through walls',findCurio()!==r);COL.pop();
   pose(r);inspectCurio();start();const saved=score;continueGame();check('PLEASE keeps discoveries and their score',runCurios.has(r.id)&&curioFound.size===20&&score===saved);
-  fresh();state='title';showScreen('title');openNotebook();document.querySelector('[data-curio="russell"]').click();document.querySelector('[data-action="curio-close"]').click();check('Title notebook returns to title without starting a run',state==='title'&&screenKind==='title');
+  fresh();state='title';showScreen('title');openNotebook();dispatchEvent(new KeyboardEvent('keydown',{code:'Enter'}));check('Enter in title notebook does not reset the run',screenKind==='journal'&&state==='title');document.querySelector('[data-curio="russell"]').click();document.querySelector('[data-action="curio-close"]').click();check('Title notebook returns to title without starting a run',state==='title'&&screenKind==='title');
   fresh();state='won';showScreen('won');openNotebook();document.querySelector('[data-action="notebook-back"]').click();check('Ending notebook returns to the completed run',state==='won'&&screenKind==='won');
   check('Discovery tests kept audio muted',muted&&(!master||master.gain.value===0));
  }catch(e){out.push('FAIL '+e.message);}
