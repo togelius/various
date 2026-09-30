@@ -100,6 +100,17 @@ function fightThink(PC, st, mem, p, opts) {
   }
   if (!t) { if (!opts.hurry) hold(st, 'right'); return; }
 
+  // ---- rear awareness: a human turns to a flanker they can see coming
+  var rearT = null, rd = 36;
+  for (var r = 0; r < es.length; r++) {
+    var er = es[r];
+    if (er.state === 'down' || er.state === 'fall') continue;
+    if ((er.x - p.x) * p.facing >= 0) continue;
+    var dr = Math.abs(er.x - p.x) + Math.abs(er.y - p.y) * 0.8;
+    if (dr < rd) { rd = dr; rearT = er; }
+  }
+  if (rearT && (bd > 22 || rearT.state === 'dizzy')) t = rearT;
+
   var dx = t.x - p.x, dy = t.y - p.y, adx = Math.abs(dx), ady = Math.abs(dy);
 
   // ---- threat scan: any enemy mid-swing whose reach covers us
@@ -136,13 +147,24 @@ function fightThink(PC, st, mem, p, opts) {
     }
   }
 
-  // ---- hurt and outnumbered: play it cagey
+  // ---- hurt and outnumbered: heal if you can, keep your feet otherwise.
+  // Backing into a corner is how good players die; keep facing the crowd.
   var standing = 0;
   for (var s = 0; s < es.length; s++) if (es[s].state !== 'down' && es[s].state !== 'fall') standing++;
-  if (p.hp < 32 && standing >= 2 && p.canAct() && p.z <= 0) {
-    if (t.x >= p.x) hold(st, 'left'); else hold(st, 'right');
-    if (ady > 4) { if (dy > 0) hold(st, 'up'); else hold(st, 'down'); }
-    return;
+  if (p.hp < 32 && opts.items) {
+    var food = null, fd = 1e9;
+    for (var f = 0; f < W.items.length; f++) {
+      var fi = W.items[f];
+      if (fi.held || fi.dead || fi.kind !== 'pickup' || fi.z > 8) continue;
+      var fdd = Math.abs(fi.x - p.x) + Math.abs(fi.y - p.y) * 0.7;
+      if (fdd < fd) { fd = fdd; food = fi; }
+    }
+    if (food && fd < 200) {
+      var fx2 = food.x - p.x, fy2 = food.y - p.y;
+      if (Math.abs(fx2) < 10 && Math.abs(fy2) < 8) press(st, 'punch');
+      else approach(st, fx2, fy2, PC);
+      return;
+    }
   }
 
   // ---- airborne: steer at the target, kick on the way through
@@ -161,13 +183,17 @@ function fightThink(PC, st, mem, p, opts) {
   }
 
   // ---- occasionally open with a jump kick from far out
-  if (adx > 60 && ady < 10 && PC.rand.chance(0.03)) { press(st, 'jump'); return; }
+  if (adx > 40 && ady < 10 && PC.rand.chance(0.08) && p.canAct() && p.z <= 0) { press(st, 'jump'); return; }
 
-  // ---- ground fight
+  // ---- ground fight. Approach along a lane offset from the target, so
+  // straight pokes whiff, then square up to strike.
   if (mem.cool > 0) mem.cool--;
   var big = t.isBoss || (t.T && (t.T.armor || 0) >= 2);
-  if (adx > 19) {
-    approach(st, dx, dy, PC);
+  if (adx > 16) {
+    var laneOff = (p.y > (PC.FLOOR_TOP + PC.FLOOR_BOT) / 2) ? -14 : 14;
+    var wantY = adx > 30 ? t.y + laneOff : t.y;
+    if (Math.abs(wantY - p.y) > 4) { if (wantY > p.y) hold(st, 'down'); else hold(st, 'up'); }
+    if (dx > 0) hold(st, 'right'); else hold(st, 'left');
   } else if (adx >= 5 && ady <= 9 && (mem.cool || 0) <= 0 && p.canAct()) {
     var near = 0;
     for (var n = 0; n < es.length; n++) {
@@ -176,6 +202,10 @@ function fightThink(PC, st, mem, p, opts) {
     }
     if (near >= 3 && !big) { press(st, 'punch'); press(st, 'kick'); mem.cool = 34; }
     else { press(st, 'punch'); mem.cool = big ? 7 : 5; }
+  } else if (adx >= 5 && ady <= 9 && p.canAct() && t.atk &&
+      t.atkT >= t.atk.startup + t.atk.active) {
+    // the target is mid-recovery: free damage, no cooldown
+    press(st, 'punch');
   } else if (adx < 5 && ady <= 9 && (mem.cool || 0) <= 0 && p.canAct()) {
     // point blank: jab anyway, and slip to the side to keep facing
     press(st, 'punch');
@@ -241,7 +271,7 @@ const BOOT = function (bag) {
   const origTake = PC.Actor.prototype.takeHit;
   PC.Actor.prototype.takeHit = function (h) {
     const victim = this, from = h.from;
-    const vs = victim.state, hpBefore = victim.hp;
+    const vs = victim.state, hpBefore = victim.hp, vf = victim.facing;
     const r = origTake.call(this, h);
     /* Only a hit that moved the needle counts. takeHit is also called on
      * invulnerable or armored targets, where it politely does nothing. */
@@ -257,9 +287,17 @@ const BOOT = function (bag) {
       else if (vs === 'hurt') S.cheap.whileHurt++;
       else if (vs === 'held') S.cheap.whileHeld++;
       else if (vs === 'attack') S.cheap.whileAttack++;
-      if (victim.__getupEnd && PC.world.time - victim.__getupEnd < 30) S.cheap.postGetup++;
+      const dpg = PC.world.time - victim.__getupEnd;
+      if (victim.__getupEnd && dpg >= 0 && dpg < 30) {
+        S.cheap.postGetup++;
+        (S.pgLog = S.pgLog || []).push({
+          diff: dpg, inv: victim.invuln, st: vs,
+          from: from && (from.type || from.char), hp: Math.round(victim.hp),
+          x: Math.round(victim.x), cam: Math.round(PC.world.camX)
+        });
+      }
       if (from && (from.x < PC.world.camX - 6 || from.x > PC.world.camX + PC.W + 6)) S.cheap.offscreen++;
-      if (from && ((from.x - victim.x) * victim.facing < 0)) S.cheap.fromBehind++;
+      if (from && ((from.x - victim.x) * vf < 0)) S.cheap.fromBehind++;
       if (h.knock) S.cheap.knockAttempts = (S.cheap.knockAttempts || 0) + 1;
       S.lastHit = {
         t: PC.world.time, stage: PC.stage.index, enc: PC.stage.encIndex,

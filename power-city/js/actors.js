@@ -92,6 +92,7 @@
     this.atk = null; this.atkT = 0; this.hitList = null;
     this.combo = 0; this.comboT = 0;
     this.invuln = 0; this.flash = 0;
+    this.poiseT = 0;                // brief stagger immunity after a stagger
     this.dead = false; this.removed = false;
     this.deathT = 0;
     this.weapon = null; this.ammo = 0;
@@ -269,15 +270,24 @@
       this.dizzyT = 110;
       this.setState('dizzy');
       this.vx = h.dir * h.push * 0.6;
+      /* Seeing stars costs you your grip too. */
+      if (this.weaponItem && PC.items) PC.items.drop(this);
       if (W.dropToken) W.dropToken(this);
       return;
     }
 
     /* Poise: the player only goes down to heavy blows. A punk's kick is a
-     * stagger; a bat, a slam or a boss sends you flying. The floor is where
-     * beat 'em ups go to die, so the player visits it rarely and safely. */
+     * stagger; a bat, a slam or a boss sends you flying. And one stagger
+     * buys a beat of stagger immunity, so two thugs alternating jabs
+     * cannot hold a player still forever. The floor is where beat 'em ups
+     * go to die, so the player visits it rarely and safely. */
     var heavyBlow = h.knock && (h.dmg >= 10 || h.launch || (h.from && h.from.isBoss));
     var knocked = (this.team === 0 ? heavyBlow : h.knock) && PC.rand() >= this.knockRes;
+    if (this.team === 0 && this.poiseT > 0 && !knocked && this.z <= 2) {
+      /* standing on poise: the blow lands but does not take over the body */
+      this.vx = h.dir * h.push * 0.5;
+      return;
+    }
     if (knocked || this.z > 2) {
       this.knockDown(h.dir, h.launch || { vx: 2.9, vz: 3.4 });
     } else {
@@ -324,6 +334,7 @@
   Actor.prototype.update = function () {
     var i;
     if (this.flash > 0) this.flash--;
+    if (this.poiseT > 0) this.poiseT--;
     /* A downed player is nobody's target. A long fall can outlast a shield
      * set at knockdown time, so the floor is maintained through the whole
      * trip - fall, floor, get up - plus a beat to move on. */
@@ -355,7 +366,7 @@
         break;
       case 'hurt':
         this.vx *= 0.86; this.vy *= 0.8;
-        if (--this.hurtT <= 0) this.setState('idle');
+        if (--this.hurtT <= 0) { this.setState('idle'); this.poiseT = 20; }
         break;
       case 'fall':
         this.vx *= 0.985;
@@ -544,6 +555,12 @@
       this.hitstop--;
       FX.update();
       return;
+    }
+    /* The last thug of a wave dies in slow motion: half-speed world, full-
+     * speed sparks. Costs a moment, buys the punctuation mark. */
+    if (this.slowmo > 0) {
+      this.slowmo--;
+      if (this.slowmo % 2) { FX.update(); return; }
     }
     for (i = 0; i < this.actors.length; i++) this.actors[i].update();
     PC.items.update();

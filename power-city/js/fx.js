@@ -51,6 +51,13 @@
       this.add({ t: 0, life: 46, kind: 'pop', x: x, y: y, text: String(text), col: col || '#ffe070' });
     },
 
+    /* A red wedge at the player's flank, so being blind-sided comes with a
+     * receipt: where it came from, for the half-second it takes to matter. */
+    rearHit: function (x, y, side) {
+      this.add({ t: 0, life: 18, kind: 'rear', x: x, y: y, side: side || 1 });
+      this.shakeBy(2.5);
+    },
+
     boom: function (x, y) {
       this.add({ t: 0, life: 22, kind: 'boom', x: x, y: y });
       for (var i = 0; i < 14; i++) {
@@ -134,6 +141,14 @@
           }
         } else if (p.kind === 'pop') {
           Art.text(ctx, p.text, x, y, p.col, { align: 'center', shadow: '#301810' });
+        } else if (p.kind === 'rear') {
+          var s = p.side, f = p.t / p.life;
+          ctx.globalAlpha = 1 - f * 0.5;
+          ctx.fillStyle = (p.t >> 1) % 2 ? '#ff4a4a' : '#ffffff';
+          for (var w = 0; w < 3; w++) {
+            ctx.fillRect(x + s * (14 + w * 3) - (s > 0 ? 2 : 0), y - 26 - w * 3, 2, 8 + w * 3);
+          }
+          ctx.globalAlpha = 1;
         }
       }
     }

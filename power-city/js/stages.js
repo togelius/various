@@ -17,51 +17,61 @@
     return e;
   }
 
-  /* groups: [type, count, side, delay] - side -1 comes in from behind you,
-   * +1 from up ahead, 0 means already standing there. */
+  /* groups: [type, count, side, delay, fewer] - side -1 comes in from behind
+   * you, +1 from up ahead. A `fewer` value makes the group reinforcements:
+   * they hold until the live count drops that low, then pour in. `noLock`
+   * encounters chase you without closing the street; `litter` is what the
+   * block drops where there is no fight. */
   PC.STAGES = [
     {
-      name: 'SLUM ALLEY', theme: 'alley', length: 1760, time: 99, music: 'stage1',
+      name: 'SLUM ALLEY', theme: 'alley', length: 1650, time: 99, music: 'stage1',
       intro: 'THEY TOOK YOUR BROTHER. START WHERE THEY LIVE.',
+      litter: [['pickup', 'coin', 380], ['pickup', 'heart', 430], ['prop', 'trash', 660], ['pickup', 'coin', 1100]],
       encounters: [
-        enc(230, [['punk', 2, 1, 0]]),
-        enc(500, [['punk', 2, 1, 0], ['rough', 1, -1, 90]], { items: [['prop', 'crate', 60], ['prop', 'crate', 120]] }),
-        enc(880, [['rough', 2, 1, 0], ['punk', 1, -1, 60]], { items: [['weapon', 'bat', 40]] }),
-        enc(1230, [['punk', 2, 1, 0], ['batter', 1, 1, 70], ['rough', 1, -1, 120]]),
-        enc(1560, [['brute', 1, 1, 0], ['punk', 2, -1, 80]], { boss: 'crusher', bossDelay: 150 })
+        enc(230, [['punk', 2, 1, 0], ['punk', 1, -1, 40, 1]], { items: [['prop', 'trash', 30]] }),
+        enc(500, [['punk', 2, 1, 0], ['rough', 1, -1, 70], ['rough', 1, 1, 60, 2]], { items: [['prop', 'crate', 60], ['prop', 'crate', 120]] }),
+        enc(880, [['batter', 1, 1, 0], ['punk', 2, -1, 60], ['punk', 1, 1, 90, 2]], { items: [['weapon', 'bat', 40]] }),
+        enc(1230, [['rough', 2, 1, 0], ['punk', 1, -1, 30]], { noLock: true }),
+        enc(1560, [['punk', 2, 1, 0], ['punk', 1, -1, 200, 1]], { boss: 'crusher', bossDelay: 150, items: [['prop', 'trash', 80]] })
       ]
     },
     {
-      name: 'DOWNTOWN', theme: 'downtown', length: 1900, time: 99, music: 'stage2',
+      name: 'DOWNTOWN', theme: 'downtown', length: 1790, time: 99, music: 'stage2',
       intro: 'THEY RUN THIS BLOCK OUT OF THE OLD BAR.',
+      litter: [['prop', 'trash', 300], ['pickup', 'coin', 700], ['pickup', 'heart', 760], ['pickup', 'coin', 1150]],
       encounters: [
-        enc(240, [['punk', 2, 1, 0], ['rough', 1, 1, 60]]),
-        enc(520, [['knifer', 2, 1, 0], ['punk', 1, -1, 70]], { items: [['prop', 'drum', 70]] }),
-        enc(900, [['batter', 2, 1, 0], ['rough', 2, -1, 80]], { items: [['weapon', 'pipe', 30], ['pickup', 'heart', 150]] }),
-        enc(1280, [['brute', 1, 1, 0], ['knifer', 1, 1, 40], ['punk', 2, -1, 90]]),
-        enc(1660, [['rough', 2, 1, 0]], { boss: 'viper', bossDelay: 120 })
+        enc(240, [['punk', 2, 1, 0], ['rough', 1, 1, 60], ['rough', 1, -1, 50, 2]]),
+        enc(520, [['knifer', 2, 1, 0], ['punk', 1, -1, 70], ['knifer', 1, 1, 80, 2]], { items: [['prop', 'trash', 70], ['prop', 'drum', 150]] }),
+        enc(740, [['rough', 1, 1, 0], ['punk', 1, -1, 40]], { noLock: true }),
+        enc(900, [['batter', 2, 1, 0], ['rough', 1, -1, 80], ['punk', 2, 1, 100, 2]], { items: [['weapon', 'pipe', 30], ['pickup', 'heart', 150]] }),
+        enc(1280, [['brute', 1, 1, 0], ['knifer', 1, 1, 40], ['punk', 2, -1, 90], ['knifer', 1, 1, 120, 2]], { items: [['prop', 'crate', 60]] }),
+        enc(1660, [['rough', 1, 1, 0], ['batter', 1, -1, 200, 1]], { boss: 'viper', bossDelay: 120, items: [['prop', 'trash', 100], ['prop', 'trash', 180]] })
       ]
     },
     {
-      name: 'THE DOCKS', theme: 'docks', length: 2000, time: 99, music: 'stage3',
+      name: 'THE DOCKS', theme: 'docks', length: 1890, time: 99, music: 'stage3',
       intro: 'CONTAINER SIX. THE ONE WITH THE LIGHT ON.',
+      litter: [['pickup', 'heart', 820], ['pickup', 'coin', 860], ['prop', 'trash', 1180], ['pickup', 'coin', 1220]],
       encounters: [
-        enc(240, [['rough', 2, 1, 0], ['knifer', 1, -1, 50]]),
-        enc(560, [['batter', 2, 1, 0], ['punk', 2, -1, 60]], { items: [['prop', 'crate', 40], ['prop', 'crate', 100], ['prop', 'drum', 160]] }),
-        enc(960, [['brute', 2, 1, 0], ['rough', 1, -1, 70]], { items: [['weapon', 'bat', 50]] }),
-        enc(1380, [['knifer', 2, 1, 0], ['batter', 1, -1, 40], ['rough', 2, 1, 110]], { items: [['pickup', 'heart', 140]] }),
-        enc(1760, [['punk', 2, -1, 0]], { boss: 'jaws', bossDelay: 110 })
+        enc(240, [['rough', 2, 1, 0], ['knifer', 1, -1, 50], ['punk', 1, 1, 60, 2]]),
+        enc(560, [['batter', 2, 1, 0], ['punk', 2, -1, 60], ['punk', 2, 1, 90, 2]], { items: [['prop', 'crate', 40], ['prop', 'crate', 100], ['prop', 'drum', 160]] }),
+        enc(800, [['punk', 2, 1, 0]], { noLock: true }),
+        enc(960, [['brute', 2, 1, 0], ['rough', 1, -1, 70], ['rough', 2, 1, 120, 1]], { items: [['weapon', 'bat', 50]] }),
+        enc(1380, [['knifer', 2, 1, 0], ['batter', 1, -1, 40], ['rough', 2, 1, 110], ['batter', 1, 1, 140, 2]], { items: [['pickup', 'heart', 140]] }),
+        enc(1760, [['punk', 2, -1, 0], ['punk', 2, 1, 150, 1]], { boss: 'jaws', bossDelay: 110, items: [['prop', 'drum', 90]] })
       ]
     },
     {
-      name: 'POWER TOWER', theme: 'tower', length: 1840, time: 99, music: 'stage4',
+      name: 'POWER TOWER', theme: 'tower', length: 1730, time: 99, music: 'stage4',
       intro: 'TOP FLOOR. HE IS EXPECTING YOU.',
+      litter: [['pickup', 'coin', 300], ['prop', 'trash', 340], ['pickup', 'heart', 720], ['pickup', 'coin', 760]],
       encounters: [
-        enc(240, [['rough', 2, 1, 0], ['batter', 1, 1, 60], ['knifer', 1, -1, 100]]),
-        enc(560, [['brute', 2, 1, 0], ['rough', 2, -1, 70]], { items: [['weapon', 'pipe', 40]] }),
-        enc(940, [['knifer', 2, 1, 0], ['batter', 2, -1, 60], ['punk', 2, 1, 130]], { items: [['pickup', 'heart', 120]] }),
-        enc(1320, [['brute', 1, 1, 0], ['rough', 2, 1, 50], ['knifer', 2, -1, 100]], { items: [['prop', 'drum', 60]] }),
-        enc(1680, [], { boss: 'power', bossDelay: 60, escort: [['brute', 1, -1, 260]] })
+        enc(240, [['rough', 2, 1, 0], ['batter', 1, 1, 60], ['knifer', 1, -1, 100], ['punk', 1, 1, 130, 2]]),
+        enc(560, [['brute', 2, 1, 0], ['rough', 2, -1, 70], ['punk', 2, 1, 110, 2]], { items: [['weapon', 'pipe', 40]] }),
+        enc(940, [['knifer', 2, 1, 0], ['batter', 2, -1, 60], ['punk', 2, 1, 130], ['punk', 2, -1, 150, 2]], { items: [['prop', 'crate', 50], ['prop', 'drum', 120], ['pickup', 'heart', 150]] }),
+        enc(1120, [['rough', 2, 1, 0], ['knifer', 1, -1, 50]], { noLock: true }),
+        enc(1320, [['brute', 1, 1, 0], ['rough', 2, 1, 50], ['knifer', 2, -1, 100], ['batter', 1, 1, 140, 2]], { items: [['prop', 'trash', 60], ['prop', 'trash', 140]] }),
+        enc(1680, [], { boss: 'power', bossDelay: 60, escort: [['brute', 1, -1, 280], ['knifer', 2, 1, 320, 1]] })
       ]
     }
   ];
@@ -98,26 +108,37 @@
       this.alarmT = 0;
       this.bossActive = null;
       this.bossBanner = 0;
+      this.bossSub = null;
+      /* The block has things lying on it where there is no fight: coins
+       * on the pavement, a can to kick, dinner behind a window. */
+      if (this.def.litter) {
+        for (var l = 0; l < this.def.litter.length; l++) {
+          var lt = this.def.litter[l];
+          PC.items.spawn(lt[0], lt[1], lt[2], PC.rand.range(PC.FLOOR_TOP + 8, PC.FLOOR_BOT - 4));
+        }
+      }
       this.finishT = 0;
     },
 
     // ---- encounters
     startEncounter: function (e) {
       this.active = e;
-      this.locked = true;
+      /* A `noLock` fight chases you down the street without closing it;
+      * the arena fights lock the camera and turn the street into a ring. */
+      this.locked = !e.noLock;
       this.lockX = W.camX;
       this.pending.length = 0;
       var i, g;
       for (i = 0; i < e.groups.length; i++) {
         g = e.groups[i];
         for (var n = 0; n < g[1]; n++) {
-          this.pending.push({ type: g[0], side: g[2], t: (g[3] || 0) + n * 22 });
+          this.pending.push({ type: g[0], side: g[2], t: (g[3] || 0) + n * 22, fewer: g[4] });
         }
       }
       if (e.escort) {
         for (i = 0; i < e.escort.length; i++) {
           g = e.escort[i];
-          for (var m = 0; m < g[1]; m++) this.pending.push({ type: g[0], side: g[2], t: (g[3] || 0) + m * 24 });
+          for (var m = 0; m < g[1]; m++) this.pending.push({ type: g[0], side: g[2], t: (g[3] || 0) + m * 24, fewer: g[4] });
         }
       }
       if (e.boss) this.pending.push({ type: e.boss, side: 1, t: e.bossDelay || 100, boss: true });
@@ -128,6 +149,7 @@
         }
       }
       this.encT = 0;
+      this.encHurt = false;
       /* A boss deserves a clock of its own. Arriving at the last fight with
        * nine seconds left is not tension, it is a coin-op tax. */
       if (e.boss) {
@@ -200,13 +222,19 @@
         }
       }
 
-      // ---- spawn queue
+      // ---- spawn queue. Reinforcements (a `fewer` threshold) hold until the
+      // live count drops, so a wave thins before the next one lands.
       if (this.active) {
         this.encT++;
+        var alive = W.enemies().length;
         for (i = this.pending.length - 1; i >= 0; i--) {
-          if (this.encT >= this.pending[i].t) {
-            this.spawnOne(this.pending[i]);
+          var q = this.pending[i];
+          var due = this.encT >= q.t &&
+            (q.fewer === undefined || q.fewer === null || alive <= q.fewer);
+          if (due) {
+            this.spawnOne(q);
             this.pending.splice(i, 1);
+            alive++;
           }
         }
         if (!this.pending.length && !W.enemies().length) {
@@ -218,6 +246,15 @@
            * you moving, not to execute you mid-boss. */
           if (this.alarmed) { this.alarmed = false; if (PC.audio) PC.audio.sfx('heal'); }
           this.timeLeft = Math.min(this.def.time, this.timeLeft + 8);
+          /* A fight without a scratch pays a bonus and says so. */
+          if (!this.encHurt) {
+            var pw = W.livePlayers()[0];
+            if (pw) {
+              pw.addScore(2000);
+              FX.pop(pw.x, pw.y - pw.hh - 14, 'PERFECT', '#4ae06a');
+              if (PC.audio) PC.audio.sfx('join');
+            }
+          }
           if (this.encIndex >= this.def.encounters.length) this.cleared = true;
           else if (PC.audio) PC.audio.play(this.def.music);
         }

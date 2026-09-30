@@ -49,16 +49,16 @@
   var EM = PC.ENEMY_MOVES = {
     jab: { pose: 'jab', startup: 8, active: 3, recovery: 16, reach: [4, 24], zlo: 14, zhi: 36, dmg: 5, stun: 12, push: 1.2, stop: 4, sfx: 'swing' },
     hook: { pose: 'hook', startup: 11, active: 4, recovery: 22, reach: [4, 26], zlo: 14, zhi: 40, dmg: 8, stun: 16, push: 2, knock: true, stop: 7, sfx: 'swingHard' },
-    kick: { pose: 'kick', startup: 12, active: 4, recovery: 22, reach: [6, 32], zlo: 6, zhi: 30, dmg: 7, stun: 15, push: 2.4, stop: 6, sfx: 'swing' },
+    kick: { pose: 'kick', startup: 12, active: 4, recovery: 22, reach: [6, 28], zlo: 6, zhi: 30, dmg: 7, stun: 12, push: 2.2, stop: 6, sfx: 'swing' },
     jumpKick: { pose: 'jumpKick', air: true, startup: 2, active: 24, recovery: 4, reach: [4, 30], zlo: -4, zhi: 30, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard' },
-    batSwing: { pose: 'hook', startup: 14, active: 5, recovery: 24, reach: [4, 40], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
+    batSwing: { pose: 'hook', startup: 18, active: 5, recovery: 24, reach: [4, 34], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
     knifeStab: { pose: 'jab', startup: 9, active: 4, recovery: 18, reach: [4, 32], zlo: 14, zhi: 34, dmg: 8, stun: 14, push: 1.4, stop: 6, sfx: 'swing', spark: '#ff8888' },
     slam: { pose: 'hook', startup: 16, active: 5, recovery: 30, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard' },
     charge: { pose: 'knee', startup: 6, active: 30, recovery: 26, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2 },
     pound: { pose: 'upper', startup: 10, active: 8, recovery: 34, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom' },
-    chainSweep: { poses: ['spin0', 'spin1'], frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 26, reach: [0, 38], zlo: 8, zhi: 40, dmg: 10, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
+    chainSweep: { poses: ['spin0', 'spin1'], frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 26, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
     upper: { pose: 'upper', startup: 12, active: 4, recovery: 26, reach: [2, 24], zlo: 6, zhi: 44, dmg: 12, stun: 22, knock: true, launch: { vx: 1.4, vz: 5 }, stop: 10, sfx: 'swingHard' },
-    spin: { poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true, startup: 8, active: 18, recovery: 22, reach: [0, 30], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
+    spin: { poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true, startup: 11, active: 12, recovery: 22, reach: [0, 27], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
   };
 
   // ------------------------------------------------------------- enemy types
@@ -77,17 +77,17 @@
     },
     batter: {
       char: 'batter', hp: 34, speed: 1.0, score: 400, standoff: 26, weapon: 'bat',
-      moves: ['batSwing', 'batSwing', 'kick'], aggr: 0.7, downTime: 34
+      moves: ['batSwing', 'kick', 'hook'], aggr: 0.7, downTime: 34
     },
     brute: {
-      char: 'brute', hp: 64, speed: 0.9, score: 700, standoff: 20, mass: 2.2, armor: 2,
-      knockRes: 0.55, moves: ['slam', 'hook', 'hook'], aggr: 0.6, grabber: 0.35, downTime: 40
+      char: 'brute', hp: 52, speed: 0.9, score: 700, standoff: 20, mass: 2.2, armor: 1,
+      knockRes: 0.4, moves: ['slam', 'hook', 'hook'], aggr: 0.6, grabber: 0.35, downTime: 40
     }
   };
 
   var BOSSES = PC.BOSS_TYPES = {
     crusher: {
-      char: 'boss_crusher', hp: 120, speed: 0.9, score: 5000, standoff: 24, mass: 3.4,
+      char: 'boss_crusher', hp: 120, speed: 0.9, score: 5000, standoff: 20, mass: 3.4,
       armor: 2, knockRes: 0.7, boss: true, downTime: 36,
       moves: ['slam', 'hook', 'hook'], aggr: 0.7, grabber: 0.3,
       phases: [
@@ -96,25 +96,25 @@
       ]
     },
     viper: {
-      char: 'boss_viper', hp: 100, speed: 1.3, score: 6000, standoff: 26, mass: 1.4,
+      char: 'boss_viper', hp: 85, speed: 1.3, score: 6000, standoff: 24, mass: 1.4,
       armor: 1, knockRes: 0.35, boss: true, weapon: 'chain', downTime: 30,
-      moves: ['kick', 'jab', 'chainSweep'], aggr: 0.9, jumpy: 0.25, retreat: 0.12,
+      moves: ['kick', 'jab', 'chainSweep'], aggr: 0.9, jumpy: 0.25, retreat: 0.08,
       phases: [
         { at: 0.5, speedMul: 1.15, addMoves: ['jumpKick'], name: 'VIPER UNSPOOLS' },
-        { at: 0.22, speedMul: 1.25, aggrMul: 1.15, addMoves: ['upper'], name: 'VIPER UNSPOOLS' }
+        { at: 0.22, speedMul: 1.25, aggrMul: 1.15, addMoves: ['slam'], name: 'VIPER UNSPOOLS' }
       ]
     },
     jaws: {
-      char: 'boss_jaws', hp: 130, speed: 1.15, score: 7000, standoff: 26, mass: 2.4,
+      char: 'boss_jaws', hp: 120, speed: 1.15, score: 7000, standoff: 22, mass: 2.4,
       armor: 1, knockRes: 0.45, boss: true, downTime: 34,
-      moves: ['spin', 'hook', 'kick'], aggr: 0.85, grabber: 0.25,
+      moves: ['hook', 'kick', 'spin', 'hook'], aggr: 0.85, grabber: 0.25,
       phases: [
         { at: 0.55, speedMul: 1.15, addMoves: ['charge'], name: 'JAWS LOSES IT' },
         { at: 0.25, speedMul: 1.25, addMoves: ['slam'], name: 'JAWS LOSES IT' }
       ]
     },
     power: {
-      char: 'boss_power', hp: 150, speed: 1.3, score: 12000, standoff: 24, mass: 2,
+      char: 'boss_power', hp: 150, speed: 1.3, score: 12000, standoff: 22, mass: 2,
       armor: 1, knockRes: 0.5, boss: true, downTime: 30,
       moves: ['jab', 'hook', 'spin', 'upper'], aggr: 0.9, jumpy: 0.2, retreat: 0.15,
       phases: [
@@ -172,12 +172,43 @@
     if (killer && killer.addScore) killer.addScore(this.score);
     FX.pop(this.x, this.y - this.hh - 4, this.score, '#ffe070');
     if (this.weaponItem) { Items.drop(this); }
+    /* The fallen leave things behind: food, money, sometimes a weapon. A
+     * street that pays out keeps getting walked. */
+    this.deathLoot();
     if (PC.audio) PC.audio.sfx(this.isBoss ? 'bossDown' : 'ko');
     if (PC.game) PC.game.enemyDown(this);
     if (this.isBoss) { FX.shakeBy(7); FX.flash('#ffffff', 6); }
+    /* The last one down gets a slow-motion curtain call. */
+    if (PC.stage && PC.stage.active && !W.enemies().length) {
+      W.slowmo = this.isBoss ? 48 : 26;
+    }
   };
 
-  Enemy.prototype.onKnockdown = function () { W.dropToken(this); };
+  Enemy.prototype.deathLoot = function () {
+    if (this.isBoss) {
+      /* The boss goes down with a purse: dinner, dinner and a souvenir. */
+      Items.spawn('pickup', 'heart', this.x - 14, this.y, { z: 24, vz: 2 });
+      Items.spawn('pickup', 'heart', this.x + 14, this.y, { z: 30, vz: 2.4 });
+      Items.spawn('weapon', PC.rand.pick(['bat', 'pipe', 'knife', 'chain']),
+        this.x, this.y - 6, { z: 36, vz: 2.2 });
+      return;
+    }
+    var r = PC.rand();
+    var drop = null;
+    if (r < 0.12) drop = 'heart';
+    else if (r < 0.32) drop = 'coin';
+    else if (r < 0.36) drop = PC.rand.pick(['bat', 'pipe', 'knife', 'chain']);
+    if (!drop) return;
+    Items.spawn(drop === 'heart' || drop === 'coin' ? 'pickup' : 'weapon',
+      drop, this.x + PC.rand.range(-8, 8), this.y, { z: 18, vz: 1.6 });
+  };
+
+  /* A hard fall shakes the weapon out of anyone's hands - including the
+   * chain out of VIPER's, which is a fight the player can win twice. */
+  Enemy.prototype.onKnockdown = function () {
+    W.dropToken(this);
+    if (this.weaponItem && PC.rand.chance(0.75)) Items.drop(this);
+  };
 
   // ------------------------------------------------------------------- brain
   Enemy.prototype.control = function () {

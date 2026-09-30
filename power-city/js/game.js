@@ -50,8 +50,8 @@
       var n = this.livePlayerCount();
       var s = PC.stage.index;
       return {
-        hp: (1 + s * 0.16) * (n > 1 ? 1.28 : 1),
-        dmg: 0.7 + s * 0.14,
+        hp: (1 + s * 0.13) * (n > 1 ? 1.28 : 1),
+        dmg: 0.7 + s * 0.11,
         aggr: 0.85 + s * 0.07,
         players: n
       };
@@ -86,6 +86,7 @@
         if (!p || p.dead) continue;
         p.hp -= 5;
         p.flash = 4;
+        if (PC.stage) PC.stage.encHurt = true;
         if (p.hp <= 0) {
           p.hp = 0;
           if (p.grabbedBy) p.grabbedBy.releaseGrab();

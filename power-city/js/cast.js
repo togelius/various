@@ -194,8 +194,24 @@
     return Art.outline(c, '#0a0a12', 1);
   }
 
+  function bakeTrash() {
+    var c = Art.mk(16, 20), x = c.getContext('2d');
+    Art.rect(x, 2, 3, 12, 14, '#5a6a78');
+    Art.rect(x, 3, 3, 3, 14, '#7e8ea0');
+    Art.rect(x, 2, 3, 12, 1, '#3c4854');
+    Art.rect(x, 2, 7, 12, 1, '#3c4854');
+    Art.rect(x, 2, 12, 12, 1, '#3c4854');
+    Art.rect(x, 2, 16, 12, 2, '#4a5666');
+    Art.rect(x, 1, 1, 14, 3, '#8a9aac');
+    Art.rect(x, 6, 2, 4, 1, '#c8d2e0');
+    return Art.outline(c, '#0a0a12', 1);
+  }
+
   P.crate = { hp: 2, dmg: 16, make: bakeCrate };
   P.drum = { hp: 3, dmg: 18, make: bakeDrum, explodes: true };
+  /* Trash cans pay out reliably, because a street you can loot is a street
+   * you enjoy walking down. */
+  P.trash = { hp: 2, dmg: 14, make: bakeTrash, loot: [['coin', 0.5], ['heart', 0.22]] };
 
   // ---------------------------------------------------------------- pickups
   var I = PC.pickups = {};

@@ -178,6 +178,7 @@ PC.STAGES.forEach(function (s, si) {
       ok(!!PC.ENEMY_TYPES[g[0]], el + ' spawns a known enemy (' + g[0] + ')');
       ok(g[1] > 0 && g[1] <= 4, el + ' spawns a sane number of them');
       ok(g[2] === 1 || g[2] === -1, el + ' spawns them from a real side');
+      if (g[4] !== undefined) ok(g[4] >= 1 && g[4] <= 4, el + ' reinforces at a sane live count');
     });
     if (e.boss) {
       sawBoss = true;
@@ -190,6 +191,11 @@ PC.STAGES.forEach(function (s, si) {
     });
   });
   ok(sawBoss, label + ' ends with a boss');
+  (s.litter || []).forEach(function (it, i) {
+    var bank = it[0] === 'weapon' ? PC.weapons : it[0] === 'prop' ? PC.props : PC.pickups;
+    ok(!!bank[it[1]], label + ' litter ' + i + ' drops something real (' + it[0] + '/' + it[1] + ')');
+    ok(it[2] > 20 && it[2] < s.length, label + ' litter ' + i + ' lies on the street');
+  });
 });
 
 // --------------------------------------------------------------- city art
