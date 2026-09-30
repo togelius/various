@@ -244,6 +244,16 @@
         case 'tick':
           this.note({ at: t, dur: 0.05, freq: freq('a5'), duty: 0.25, vol: 0.14 });
           break;
+        case 'alarm':
+          this.note({ at: t, dur: 0.16, freq: 990, duty: 0.5, vol: 0.2 });
+          this.note({ at: t + 0.18, dur: 0.16, freq: 740, duty: 0.5, vol: 0.2 });
+          this.note({ noise: true, at: t, dur: 0.34, freq: 2400, freq2: 900, q: 0.7, vol: 0.08 });
+          break;
+        case 'roar':
+          this.note({ at: t, dur: 0.55, freq: 130, freq2: 42, wave: 'saw', vol: 0.42, slide: 0.4 });
+          this.note({ noise: true, at: t, dur: 0.5, freq: 320, freq2: 90, q: 0.6, vol: 0.3 });
+          this.note({ at: t + 0.12, dur: 0.3, freq: 90, freq2: 60, wave: 'tri', vol: 0.3 });
+          break;
         case 'tally':
           this.note({ at: t, dur: 0.03, freq: freq('e6'), duty: 0.25, vol: 0.1 });
           break;

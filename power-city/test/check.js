@@ -147,6 +147,12 @@ function checkType(k, t, label) {
   ok(t.moves && t.moves.length > 0, label + ' ' + k + ' has moves');
   t.moves.forEach(function (m) { ok(!!PC.ENEMY_MOVES[m], label + ' ' + k + ' move ' + m + ' exists'); });
   if (t.weapon) ok(!!PC.weapons[t.weapon], label + ' ' + k + ' carries a real weapon');
+  (t.phases || []).forEach(function (ph, i) {
+    ok(ph.at > 0 && ph.at < 1, label + ' ' + k + ' phase ' + i + ' turns inside the fight');
+    ok(i === 0 || ph.at < t.phases[i - 1].at, label + ' ' + k + ' phases arrive in order');
+    ok(typeof ph.name === 'string' && ph.name.length > 0, label + ' ' + k + ' phase ' + i + ' is announced');
+    (ph.addMoves || []).forEach(function (m) { ok(!!PC.ENEMY_MOVES[m], label + ' ' + k + ' phase move ' + m + ' exists'); });
+  });
 }
 Object.keys(PC.ENEMY_TYPES).forEach(function (k) { checkType(k, PC.ENEMY_TYPES[k], 'gang'); });
 Object.keys(PC.BOSS_TYPES).forEach(function (k) { checkType(k, PC.BOSS_TYPES[k], 'boss'); });

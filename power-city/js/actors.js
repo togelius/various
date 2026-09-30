@@ -273,7 +273,11 @@
       return;
     }
 
-    var knocked = h.knock && PC.rand() >= this.knockRes;
+    /* Poise: the player only goes down to heavy blows. A punk's kick is a
+     * stagger; a bat, a slam or a boss sends you flying. The floor is where
+     * beat 'em ups go to die, so the player visits it rarely and safely. */
+    var heavyBlow = h.knock && (h.dmg >= 10 || h.launch || (h.from && h.from.isBoss));
+    var knocked = (this.team === 0 ? heavyBlow : h.knock) && PC.rand() >= this.knockRes;
     if (knocked || this.z > 2) {
       this.knockDown(h.dir, h.launch || { vx: 2.9, vz: 3.4 });
     } else {
@@ -294,6 +298,11 @@
     this.z = Math.max(this.z, 0.1);
     this.facing = -dir;
     this.bounced = false;
+    /* The whole trip - fall, floor, get up and a beat to breathe - is the
+     * player's time out. Nobody gets to hit them during it. */
+    if (this.team === 0) {
+      this.invuln = Math.max(this.invuln, (this.downTime || 44) + 52);
+    }
     if (this.onKnockdown) this.onKnockdown();
   };
 
@@ -315,6 +324,13 @@
   Actor.prototype.update = function () {
     var i;
     if (this.flash > 0) this.flash--;
+    /* A downed player is nobody's target. A long fall can outlast a shield
+     * set at knockdown time, so the floor is maintained through the whole
+     * trip - fall, floor, get up - plus a beat to move on. */
+    if (this.team === 0 && !this.dead &&
+      (this.state === 'fall' || this.state === 'down' || this.state === 'getup')) {
+      this.invuln = Math.max(this.invuln, 24);
+    }
     if (this.invuln > 0) this.invuln--;
     if (this.comboT > 0) { this.comboT--; if (!this.comboT) this.combo = 0; }
     this.st++;
@@ -350,7 +366,7 @@
         break;
       case 'getup':
         this.vx *= 0.7;
-        if (this.st > 22) { this.setState('idle'); this.invuln = 12; }
+        if (this.st > 22) { this.setState('idle'); this.invuln = Math.max(this.invuln, 30); }
         break;
       case 'dizzy':
         this.vx *= 0.86; this.vy *= 0.8;
@@ -471,7 +487,8 @@
     var flipped = this.facing < 0;
     if (this.flash > 0 && (this.flash % 2)) {
       Rig.draw(ctx, f, px, py, flipped, Rig.flash(this.char, this.pose(), '#ffffff'));
-    } else if (this.invuln > 0 && (this.anim >> 1) % 2 && this.team === 0 && this.state !== 'getup') {
+    } else if (this.invuln > 0 && (this.anim >> 1) % 2 && this.team === 0 &&
+      this.state !== 'getup' && this.state !== 'fall') {
       ctx.globalAlpha = 0.55;
       Rig.draw(ctx, f, px, py, flipped);
       ctx.globalAlpha = 1;

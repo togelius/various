@@ -73,6 +73,7 @@
     encIndex: 0, active: null, locked: false, lockX: 0,
     pending: [], cleared: false, arrowT: 0, timeLeft: 99, timeT: 0,
     bossActive: null,
+    bossBanner: 0, bossSub: null,
 
     load: function (index) {
       this.index = M.clamp(index, 0, PC.STAGES.length - 1);
@@ -93,6 +94,8 @@
       this.pending.length = 0;
       this.timeLeft = this.def.time;
       this.timeT = 0;
+      this.alarmed = false;
+      this.alarmT = 0;
       this.bossActive = null;
       this.bossBanner = 0;
       this.finishT = 0;
@@ -144,7 +147,7 @@
         return;
       }
       var side = s.side || (PC.rand.chance(0.5) ? 1 : -1);
-      var ex = side > 0 ? W.camX + PC.W + PC.rand.range(10, 40) : W.camX - PC.rand.range(14, 44);
+      var ex = side > 0 ? W.camX + PC.W + PC.rand.range(6, 24) : W.camX - PC.rand.range(10, 26);
       ex = M.clamp(ex, W.minX + 4, W.maxX - 4);
       var ey = PC.rand.range(PC.FLOOR_TOP + 6, PC.FLOOR_BOT - 4);
       var d = PC.game ? PC.game.difficulty() : { hp: 1, dmg: 1, aggr: 1, players: 1 };
@@ -158,12 +161,17 @@
       if (s.boss) {
         this.bossActive = e;
         this.bossBanner = 110;
+        this.bossSub = null;
         e.invuln = 40;
         FX.flash('#ffffff', 5);
         FX.shakeBy(5);
         PC.freeze(22);
         if (PC.audio) PC.audio.sfx('bossIn');
       }
+      /* Fresh legs get a moment of grace and a marker over the head, so
+       * nobody swings in from off the screen. */
+      e.spawnGuard = side < 0 ? 70 : 36;
+      FX.dust(ex, ey, -side, 4);
       return e;
     },
 
@@ -177,7 +185,18 @@
           this.timeT = 0;
           this.timeLeft--;
           if (this.timeLeft <= 10 && this.timeLeft > 0 && PC.audio) PC.audio.sfx('tick');
-          if (this.timeLeft <= 0) { this.timeLeft = 0; if (PC.game) PC.game.timeUp(); }
+          if (this.timeLeft <= 0) {
+            /* Out of clock: not a death sentence, a siren. Health drains
+             * until the street is clear or you are. */
+            this.timeLeft = 0;
+            if (!this.alarmed) {
+              this.alarmed = true;
+              this.alarmT = 0;
+              FX.flash('#ff2020', 8);
+            }
+            if (PC.game) PC.game.clockDrain();
+            if (this.alarmed && ++this.alarmT >= 6 && PC.audio) { this.alarmT = 0; PC.audio.sfx('alarm'); }
+          }
         }
       }
 
@@ -195,6 +214,10 @@
           this.locked = false;
           this.bossActive = null;
           this.arrowT = 1;
+          /* Clearing a fight buys the clock back: the timer is there to keep
+           * you moving, not to execute you mid-boss. */
+          if (this.alarmed) { this.alarmed = false; if (PC.audio) PC.audio.sfx('heal'); }
+          this.timeLeft = Math.min(this.def.time, this.timeLeft + 8);
           if (this.encIndex >= this.def.encounters.length) this.cleared = true;
           else if (PC.audio) PC.audio.play(this.def.music);
         }
@@ -263,7 +286,7 @@
       var slide = Math.round((1 - Math.min(1, (110 - t) / 14)) * 60);
       PC.art.text(ctx, this.bossActive.name, PC.W / 2 - slide, y, '#ff5f6a',
         { align: 'center', scale: 2, tracking: 3, shadow: '#2a0006', shadowDist: 2 });
-      PC.art.text(ctx, 'GANG BOSS', PC.W / 2 + slide, y + 17, '#ffffff', { align: 'center', tracking: 2 });
+      PC.art.text(ctx, this.bossSub || 'GANG BOSS', PC.W / 2 + slide, y + 17, '#ffffff', { align: 'center', tracking: 2 });
     },
 
     drawArrow: function (ctx) {

@@ -78,14 +78,25 @@
 
     enemyDown: function () { },
 
-    timeUp: function () {
+    /* The clock ran out. Nobody dies to a number: the siren starts and
+     * health drains until the fight is finished or they are. */
+    clockDrain: function () {
       for (var i = 0; i < 2; i++) {
         var p = this.players[i];
         if (!p || p.dead) continue;
-        p.invuln = 0;
-        p.takeHit({ dmg: 999, dir: -p.facing, knock: true, x: p.x, y: p.y - 20, stun: 20, push: 2 });
+        p.hp -= 5;
+        p.flash = 4;
+        if (p.hp <= 0) {
+          p.hp = 0;
+          if (p.grabbedBy) p.grabbedBy.releaseGrab();
+          if (p.grabbing) p.releaseGrab();
+          if (p.carry) PC.items.drop(p);
+          p.knockDown(p.facing, { vx: 2, vz: 3 });
+          p.dead = true; p.deathT = 0;
+          p.onDeath();
+        }
       }
-      PC.stage.timeLeft = 0;
+      FX.shakeBy(1);
     },
 
     // ---------------------------------------------------------------- coins
@@ -363,6 +374,7 @@
       FX.draw(ctx, W.camX);
       PC.stage.drawArrow(ctx);
       PC.stage.drawBanner(ctx);
+      Hud.drawAlerts(ctx, this);
       ctx.restore();
 
       Hud.drawTop(ctx, this);

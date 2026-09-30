@@ -11,7 +11,22 @@
   var M = PC.math, FX = PC.fx, W = PC.world, Items = PC.items;
 
   // ---------------------------------------------------------- attack tokens
+  /* The rule that makes a brawler fair: only a few of them may be swinging
+   * at once. Everyone else circles, shuffles into a free lane, or waits at
+   * arm's length looking menacing. But the cap has to grow with the crowd,
+   * or eight thugs turn into a queue. */
   W.tokens = 2;
+  W.tokenCount = function () {
+    var n = 2, alive = 0;
+    for (var i = 0; i < this.actors.length; i++) {
+      var a = this.actors[i];
+      if (a.team === 1 && !a.removed && !a.dead) alive++;
+    }
+    if (alive >= 4) n++;
+    if (PC.stage && PC.stage.index >= 2) n++;
+    if (PC.game && PC.game.livePlayerCount && PC.game.livePlayerCount() > 1) n++;
+    return n;
+  };
   W.tokenHolders = [];
   W.claimToken = function (e) {
     var i = this.tokenHolders.indexOf(e);
@@ -20,8 +35,8 @@
       var h = this.tokenHolders[i];
       if (h.removed || h.dead || (h.state !== 'attack' && h.tokenT-- <= 0)) this.tokenHolders.splice(i, 1);
     }
-    if (this.tokenHolders.length >= this.tokens) return false;
-    e.tokenT = 90;
+    if (this.tokenHolders.length >= this.tokenCount()) return false;
+    e.tokenT = 70;
     this.tokenHolders.push(e);
     return true;
   };
@@ -49,47 +64,63 @@
   // ------------------------------------------------------------- enemy types
   var TYPES = PC.ENEMY_TYPES = {
     punk: {
-      char: 'punk', hp: 30, speed: 0.95, score: 200, standoff: 22,
-      moves: ['jab', 'jab', 'hook', 'kick'], aggr: 0.55, downTime: 46
+      char: 'punk', hp: 24, speed: 1.05, score: 200, standoff: 18,
+      moves: ['jab', 'jab', 'hook', 'kick'], aggr: 0.7, downTime: 32
     },
     rough: {
-      char: 'rough', hp: 28, speed: 1.3, score: 300, standoff: 24,
-      moves: ['jab', 'kick', 'kick'], aggr: 0.75, jumpy: 0.3, downTime: 40
+      char: 'rough', hp: 24, speed: 1.35, score: 300, standoff: 20,
+      moves: ['jab', 'kick', 'kick'], aggr: 0.85, jumpy: 0.3, downTime: 28
     },
     knifer: {
-      char: 'knifer', hp: 26, speed: 1.1, score: 400, standoff: 26, weapon: 'knife',
-      moves: ['knifeStab', 'knifeStab', 'kick'], aggr: 0.6, thrower: 0.25, downTime: 44
+      char: 'knifer', hp: 24, speed: 1.2, score: 400, standoff: 22, weapon: 'knife',
+      moves: ['knifeStab', 'knifeStab', 'kick'], aggr: 0.75, thrower: 0.25, downTime: 30
     },
     batter: {
-      char: 'batter', hp: 38, speed: 0.9, score: 400, standoff: 32, weapon: 'bat',
-      moves: ['batSwing', 'batSwing', 'kick'], aggr: 0.5, downTime: 48
+      char: 'batter', hp: 34, speed: 1.0, score: 400, standoff: 26, weapon: 'bat',
+      moves: ['batSwing', 'batSwing', 'kick'], aggr: 0.7, downTime: 34
     },
     brute: {
-      char: 'brute', hp: 76, speed: 0.8, score: 700, standoff: 22, mass: 2.2, armor: 2,
-      knockRes: 0.55, moves: ['slam', 'hook', 'hook'], aggr: 0.45, grabber: 0.35, downTime: 54
+      char: 'brute', hp: 64, speed: 0.9, score: 700, standoff: 20, mass: 2.2, armor: 2,
+      knockRes: 0.55, moves: ['slam', 'hook', 'hook'], aggr: 0.6, grabber: 0.35, downTime: 40
     }
   };
 
   var BOSSES = PC.BOSS_TYPES = {
     crusher: {
-      char: 'boss_crusher', hp: 168, speed: 0.85, score: 5000, standoff: 26, mass: 3.4,
-      armor: 3, knockRes: 0.82, boss: true, downTime: 44,
-      moves: ['slam', 'hook', 'charge', 'pound'], aggr: 0.6, grabber: 0.3
+      char: 'boss_crusher', hp: 120, speed: 0.9, score: 5000, standoff: 24, mass: 3.4,
+      armor: 2, knockRes: 0.7, boss: true, downTime: 36,
+      moves: ['slam', 'hook', 'hook'], aggr: 0.7, grabber: 0.3,
+      phases: [
+        { at: 0.55, speedMul: 1.2, addMoves: ['charge'], name: 'CRUSHER SEES RED' },
+        { at: 0.25, speedMul: 1.25, aggrMul: 1.2, addMoves: ['pound'], name: 'CRUSHER SEES RED' }
+      ]
     },
     viper: {
-      char: 'boss_viper', hp: 150, speed: 1.55, score: 6000, standoff: 34, mass: 1.4,
-      armor: 1, knockRes: 0.6, boss: true, weapon: 'chain', downTime: 34,
-      moves: ['chainSweep', 'kick', 'chainSweep', 'jumpKick'], aggr: 0.85, jumpy: 0.35, retreat: 0.4
+      char: 'boss_viper', hp: 100, speed: 1.3, score: 6000, standoff: 26, mass: 1.4,
+      armor: 1, knockRes: 0.35, boss: true, weapon: 'chain', downTime: 30,
+      moves: ['kick', 'jab', 'chainSweep'], aggr: 0.9, jumpy: 0.25, retreat: 0.12,
+      phases: [
+        { at: 0.5, speedMul: 1.15, addMoves: ['jumpKick'], name: 'VIPER UNSPOOLS' },
+        { at: 0.22, speedMul: 1.25, aggrMul: 1.15, addMoves: ['upper'], name: 'VIPER UNSPOOLS' }
+      ]
     },
     jaws: {
-      char: 'boss_jaws', hp: 172, speed: 1.25, score: 7000, standoff: 28, mass: 2.4,
-      armor: 2, knockRes: 0.7, boss: true, downTime: 40,
-      moves: ['spin', 'hook', 'kick', 'charge'], aggr: 0.8, thrower: 0.3, grabber: 0.25
+      char: 'boss_jaws', hp: 130, speed: 1.15, score: 7000, standoff: 26, mass: 2.4,
+      armor: 1, knockRes: 0.45, boss: true, downTime: 34,
+      moves: ['spin', 'hook', 'kick'], aggr: 0.85, grabber: 0.25,
+      phases: [
+        { at: 0.55, speedMul: 1.15, addMoves: ['charge'], name: 'JAWS LOSES IT' },
+        { at: 0.25, speedMul: 1.25, addMoves: ['slam'], name: 'JAWS LOSES IT' }
+      ]
     },
     power: {
-      char: 'boss_power', hp: 204, speed: 1.5, score: 12000, standoff: 26, mass: 2,
-      armor: 2, knockRes: 0.78, boss: true, downTime: 32,
-      moves: ['upper', 'jab', 'hook', 'spin', 'charge'], aggr: 0.95, jumpy: 0.3, retreat: 0.3
+      char: 'boss_power', hp: 150, speed: 1.3, score: 12000, standoff: 24, mass: 2,
+      armor: 1, knockRes: 0.5, boss: true, downTime: 30,
+      moves: ['jab', 'hook', 'spin', 'upper'], aggr: 0.9, jumpy: 0.2, retreat: 0.15,
+      phases: [
+        { at: 0.66, speedMul: 1.15, addMoves: ['charge'], name: 'MR. POWER LOSES PATIENCE' },
+        { at: 0.33, speedMul: 1.3, aggrMul: 1.2, addMoves: ['slam'], name: 'MR. POWER LOSES PATIENCE' }
+      ]
     }
   };
 
@@ -105,17 +136,27 @@
       armor: t.armor || 0, knockRes: t.knockRes || 0
     });
     this.type = typeKey;
-    this.T = t;
+    /* The type table is shared by every instance; give this one its own
+     * moves list so phases can add to it without leaking into the next. */
+    this.T = {};
+    for (var k in t) this.T[k] = t[k];
+    this.T.moves = t.moves.slice();
     this.isBoss = !!t.boss;
+    this.phaseIndex = 0;
+    this.baseSpeed = this.speed;
+    this.baseAggr = (t.aggr || 0.5) * (spec.aggrScale || 1);
+    this.aggr = this.baseAggr;
     this.downTime = t.downTime || 44;
     this.think = 0;
     this.intent = 'approach';
     this.lane = 0;
     this.tokenT = 0;
-    this.aggr = (t.aggr || 0.5) * (spec.aggrScale || 1);
     this.dmgScale = 1;
     this.facing = spec.facing || -1;
     this.spawnFade = 0;
+    this.spawnGuard = 0;
+    this.atkCool = 0;
+    this.roarT = 0;
     if (t.weapon) {
       var it = Items.spawn('weapon', t.weapon, this.x, this.y);
       Items.take(this, it);
@@ -141,6 +182,22 @@
   // ------------------------------------------------------------------- brain
   Enemy.prototype.control = function () {
     if (this.dead) return;
+    /* Phase changes: the fight turns halfway, loudly, and on purpose. */
+    if (this.isBoss && this.T.phases) {
+      while (this.phaseIndex < this.T.phases.length &&
+        this.hp / this.maxHp <= this.T.phases[this.phaseIndex].at) {
+        this.enterPhase(this.T.phases[this.phaseIndex]);
+        this.phaseIndex++;
+      }
+    }
+    if (this.spawnGuard > 0) this.spawnGuard--;
+    /* Mid-roar: the taunt pose plays out and nothing else does. */
+    if (this.roarT > 0) {
+      this.roarT--;
+      this.vx = 0; this.vy = 0;
+      this.setState('taunt');
+      return;
+    }
     if (this.state === 'held') { this.vx = 0; return; }
     if (this.hold > 0) { this.hold--; this.vx *= 0.7; this.vy *= 0.7; this.setState('idle'); return; }
     if (!this.canAct()) return;
@@ -170,12 +227,12 @@
         this.vx = mx * speed;
         this.vy = my * speed * 0.66;
         this.setState((mx || my) ? 'walk' : 'idle');
-        if (adx < standoff && Math.abs(dy) < 11) this.tryAttack(p, adx);
+        if (adx < standoff + 6 && Math.abs(dy) < 11) this.tryAttack(p, adx);
         break;
       }
       case 'wait': {
-        // hold at the edge of your reach, drifting in your lane
-        var backX = p.x - this.facing * (standoff + 16);
+        // hold just outside your reach, drifting in your lane, briefly
+        var backX = p.x - this.facing * (standoff + 8);
         this.vx = M.clamp((backX - this.x) * 0.05, -1, 1) * speed * 0.7;
         this.vy = M.clamp((p.y + this.lane - this.y) * 0.06, -1, 1) * speed * 0.5;
         this.setState(Math.abs(this.vx) + Math.abs(this.vy) > 0.15 ? 'walk' : 'idle');
@@ -183,7 +240,7 @@
       }
       case 'flank': {
         var fx = p.x + this.facing * standoff;   // cross to the other side
-        this.vx = M.clamp((fx - this.x) * 0.07, -1, 1) * speed;
+        this.vx = M.clamp((fx - this.x) * 0.12, -1, 1) * speed;
         this.vy = M.clamp((p.y + this.lane - this.y) * 0.1, -1, 1) * speed * 0.7;
         this.setState('walk');
         break;
@@ -207,12 +264,33 @@
     }
   };
 
+  /* A boss at half health is a different fight: faster, meaner, and new
+   * moves on the table. The world stops for the roar so the player sees
+   * the turn happen. */
+  Enemy.prototype.enterPhase = function (ph) {
+    var i;
+    for (i = 0; i < (ph.addMoves || []).length; i++) {
+      if (this.T.moves.indexOf(ph.addMoves[i]) < 0) this.T.moves.push(ph.addMoves[i]);
+    }
+    if (ph.speedMul) this.speed = this.baseSpeed * ph.speedMul;
+    if (ph.aggrMul) this.aggr = Math.min(1, this.baseAggr * ph.aggrMul);
+    this.atk = null;
+    this.roarT = 40;
+    this.invuln = 46;
+    FX.shakeBy(6);
+    FX.flash('#ffd0d0', 4);
+    PC.freeze(20);
+    FX.pop(this.x, this.y - this.hh - 18, '!!', '#ff5f6a');
+    if (PC.audio) PC.audio.sfx('roar');
+    if (PC.stage) { PC.stage.bossBanner = 100; PC.stage.bossSub = ph.name; }
+  };
+
   Enemy.prototype.decide = function (p, adx, dy) {
     var t = this.T, r = PC.rand;
-    this.think = r.int(24, 52);
+    this.think = r.int(14, 32);
     this.lane = r.range(-13, 13);
 
-    if (t.grabber && r.chance(t.grabber) && adx < 60) { this.intent = 'grab'; this.think = 60; return; }
+    if (t.grabber && r.chance(t.grabber) && adx < 60) { this.intent = 'grab'; this.think = 50; return; }
     if (t.thrower && this.weapon && r.chance(t.thrower) && adx > 40 && adx < 150) {
       Items.hurl(this);
       this.setState('throwing'); this.hold = 22;
@@ -227,26 +305,32 @@
       this.intent = 'approach';
       return;
     }
-    if (t.retreat && r.chance(t.retreat) && adx < 30) { this.intent = 'retreat'; this.think = r.int(16, 30); return; }
+    if (t.retreat && r.chance(t.retreat) && adx < 30) { this.intent = 'retreat'; this.think = r.int(12, 24); return; }
 
+    /* The gang presses: approach is the default, a short shuffle the rest of
+     * the time. Nobody orbits a fight for half a minute again. */
     if (r.chance(this.aggr)) this.intent = 'approach';
-    else this.intent = r.chance(0.45) ? 'flank' : 'wait';
+    else this.intent = r.chance(0.25) ? 'flank' : 'wait';
   };
 
   Enemy.prototype.tryAttack = function (p, adx) {
+    /* Nobody swings at a fighter on the floor - they square up and wait,
+     * which reads as menace instead of cruelty. */
+    if (p.state === 'down' || p.state === 'fall' || p.state === 'getup') return;
+    if (this.spawnGuard > 0) return;
     if (this.atkCool > 0) { this.atkCool--; return; }
-    if (!W.claimToken(this)) return;
     var name = PC.rand.pick(this.T.moves);
     var mv = EM[name];
     if (!mv) return;
     if (adx > (mv.reach[1] - 4)) return;
+    if (!W.claimToken(this)) return;
     this.startAttack(mv);
-    this.atkCool = PC.rand.int(14, 40);
+    this.atkCool = PC.rand.int(8, 22);
     this.think = mv.startup + mv.active + mv.recovery + 8;
   };
 
   Enemy.prototype.doGrab = function (p) {
-    if (p.invuln > 0 || p.grabbedBy) return;
+    if (this.spawnGuard > 0 || p.invuln > 0 || p.grabbedBy) return;
     this.grabbing = p;
     p.grabbedBy = this;
     p.setState('held');

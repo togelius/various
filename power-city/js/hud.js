@@ -7,7 +7,7 @@
 (function (global) {
   'use strict';
   var PC = global.PC || (global.PC = {});
-  var Art = PC.art, C = PC.color, W = PC.world;
+  var Art = PC.art, C = PC.color, W = PC.world, M = PC.math;
 
   var Hud = PC.hud = {};
 
@@ -42,6 +42,47 @@
       Art.rect(ctx, x + 1 + i * sw, y + 1, sw - 1, 1, C.shade(col, 0.35));
     }
     Art.rect(ctx, x - 1, y - 1, w + 2, 1, '#585f78');
+  };
+
+  // ------------------------------------------------------------- warnings
+  /* The three things the cabinet owes the player's eyes: who is coming in
+   * from a side they cannot see, who just materialised, and that the clock
+   * has turned hostile. */
+  Hud.drawAlerts = function (ctx, g) {
+    var camX = W.camX;
+
+    // off-screen gang, marked with a chevron at the edge they will enter by
+    var es = W.enemies();
+    for (var i = 0; i < es.length; i++) {
+      var e = es[i];
+      if (e.x >= camX - 2 && e.x <= camX + PC.W + 2) {
+        // on screen: flag the freshly arrived until their grace is up
+        if (e.spawnGuard > 0 && (W.time >> 2) % 2) {
+          PC.art.text(ctx, '!', Math.round(e.x - camX), e.y - e.z - e.hh - 14,
+            '#ffe070', { align: 'center', scale: 2, shadow: '#802000', shadowDist: 1 });
+        }
+        continue;
+      }
+      var dist = e.x < camX ? camX - e.x : e.x - (camX + PC.W);
+      if (dist > 130) continue;
+      var sy = M.clamp(e.y - e.z - 24, PC.FIELD_Y + 8, PC.FIELD_BOT - 8);
+      if ((W.time >> 3) % 2) continue;
+      if (e.x < camX) {
+        ctx.fillStyle = '#ff5f6a';
+        ctx.fillRect(2, Math.round(sy), 6, 2);
+        ctx.fillRect(6, Math.round(sy) - 3, 2, 8);
+      } else {
+        ctx.fillStyle = '#ff5f6a';
+        ctx.fillRect(PC.W - 8, Math.round(sy), 6, 2);
+        ctx.fillRect(PC.W - 8, Math.round(sy) - 3, 2, 8);
+      }
+    }
+
+    // the clock is draining health: say so, loudly, in the middle
+    if (PC.stage.alarmed && (W.time >> 3) % 2) {
+      PC.art.text(ctx, 'HURRY!', PC.W / 2, PC.FIELD_Y + 30, '#ff4a4a',
+        { align: 'center', scale: 3, shadow: '#400000', shadowDist: 2, wobble: 1, phase: W.time * 0.3 });
+    }
   };
 
   // ------------------------------------------------------------------ top bar
@@ -121,7 +162,14 @@
     if (!b || b.removed) return;
     var y = PC.FIELD_Y + 5;
     Art.text(ctx, b.name, PC.W / 2, y, '#ff5f6a', { align: 'center', shadow: '#000000' });
-    Hud.bar(ctx, PC.W / 2 - 66, y + 9, 132, 7, Math.max(0, b.hp / b.maxHp), '#e03040', '#3a1a20');
+    var bx = PC.W / 2 - 66, bw = 132;
+    Hud.bar(ctx, bx, y + 9, bw, 7, Math.max(0, b.hp / b.maxHp), '#e03040', '#3a1a20');
+    /* Ticks where the fight turns, so the player knows how much is left
+     * of each chapter of it. */
+    var ph = (b.T && b.T.phases) || [];
+    for (var i = 0; i < ph.length; i++) {
+      Art.rect(ctx, bx + bw * ph[i].at, y + 9, 1, 7, '#0a0a12');
+    }
   };
 
   // -------------------------------------------------------------- big banners
