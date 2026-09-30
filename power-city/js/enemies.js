@@ -153,7 +153,6 @@
     this.tokenT = 0;
     this.dmgScale = 1;
     this.facing = spec.facing || -1;
-    this.spawnFade = 0;
     this.spawnGuard = 0;
     this.atkCool = 0;
     this.roarT = 0;

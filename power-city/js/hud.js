@@ -83,6 +83,16 @@
       PC.art.text(ctx, 'HURRY!', PC.W / 2, PC.FIELD_Y + 30, '#ff4a4a',
         { align: 'center', scale: 3, shadow: '#400000', shadowDist: 2, wobble: 1, phase: W.time * 0.3 });
     }
+
+    // caught in a bear hug: the one mechanic the cabinet must shout about
+    var ps = W.players();
+    for (var q = 0; q < ps.length; q++) {
+      var pl = ps[q];
+      if (pl.state === 'held' && pl.grabbedBy && (W.time >> 2) % 2) {
+        PC.art.text(ctx, 'MASH!', Math.round(pl.x - camX), pl.y - pl.z - pl.hh - 14,
+          '#ffe070', { align: 'center', scale: 2, shadow: '#802000', shadowDist: 1 });
+      }
+    }
   };
 
   // ------------------------------------------------------------------ top bar
