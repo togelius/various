@@ -131,7 +131,19 @@ With a keyboard and mouse:
 - **Wave modifiers.** From wave 6 a wave may come with conditions: the tap is
   left on (it rains water), moon kitchen (low gravity), googly overload
   (enormous eyes), caffeinated (everything faster), kitchen rave (hue-cycling
-  strobes and lasers) or fun size (tiny sponges, twice as many).
+  strobes and lasers), fun size (tiny sponges, twice as many) or vibrant
+  matter (new materialism: the pickups have agency and scuttle away from you).
+- **Favourite foes.** A quarter of the philosopher's idle chatter picks fights:
+  Derrida (deride, deconstruct, différance, and nothing outside the text
+  except the dog), new materialism (this is what happens when you make
+  objects primary in your ontology: they rise up and kill you), Fukuyama's
+  end of history, Deleuze's rhizome (it's mould), Habermas's ideal speech
+  situation with a spoon, Western Buddhism, ethical coffee and the lobster.
+  Kill words, taunts, name tags, headlines and wave names join in
+  (DECONSTRUCTED!, UNDER ERASURE!, OF GRAMMATOLOGY (AND GREASE)). Once a run,
+  the "you think this is a joke?" freeze can turn into a confession: he is
+  the biggest sponge in the kitchen, absorbing everything and dripping mixed
+  ideology.
 - **Moving like water.** The Squirter is made of you: every shot costs a
   little dampness, and the water you spill stays on the counter as puddles you
   can soak back up. Sponges drink them too, and it heals them. Hold right mouse
