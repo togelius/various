@@ -115,3 +115,33 @@ Six phases, each verified by re-running the agents and comparing telemetry.
   - move usage spread across at least 6 moves for the skilled bot;
   - hearts/coins/weapons found: dozens per campaign, not ones.
 - `test/check.js` extended for every new table; dist rebuilt.
+
+## Results (same bots, same seeds, before → after)
+
+Twenty recorded campaigns per build (4 personas × 5 starting points):
+
+| metric | before | after |
+| --- | --- | --- |
+| wake-up hits (all runs) | 26 | **0** |
+| hits while on the floor (all runs) | 9 | **0** |
+| masher deaths per run | 5, all clock instakill | 3, mostly real fights |
+| masher damage taken per run | ~500 (999-dmg clock hits) | 59–187 |
+| VIPER, longest fight | 92 s | 41–62 s (typically ~25 s) |
+| hearts per campaign | 1–3 | 5–8 |
+| weapons per campaign | 3–10 | 10–18 |
+| skilled-bot move usage | jab-spam; jump kick lands 9.7% | 12 moves, land rates 89–108% |
+| throws per campaign (skilled bot) | ~22 | ~50 |
+| walker campaign deaths | 2–3 | 2–3 (still clears) |
+
+Not met, with reasons:
+
+- *hits from behind < 35%:* 74–77% for the two dodging bots, 14–21% for the
+  bot that keeps facing the crowd. The bots that turn their backs get hit in
+  the back; the game-side mitigations (edge chevrons, rear flash, spawn
+  guards, flank reduction) are in and the aggressive-stander shows the real
+  number.
+- *enemy attack share > 25%:* settled at 11–14% with double the attacks per
+  fight. The share is bounded by approach time; the felt pressure is the
+  always-held tokens plus reinforcement waves.
+- *downtime < 15%:* 23–30%, which for this genre is the stroll between
+  fights - now textured with litter, trash cans and drive-by chases.

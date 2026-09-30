@@ -127,6 +127,18 @@ ends with a boss, every song note is a note, every glyph is seven rows of five
 bits. The things that can actually be wrong with this game are nearly all in
 the tables.
 
+**And then there are the agents** (`tools/agents.js`): four bot personas - a
+button-masher, a simple seeker, a skilled brawler, a speedrunner - play the
+game headlessly with telemetry on every hit, whiff, knockdown and death.
+`tools/analyze.js` reads their ledgers back. That is how the fairness numbers
+above were measured, and how the next change to the game gets judged: not by
+how it looks, but by how twenty recorded campaigns feel.
+
+```
+NODE_PATH=... node power-city/tools/agents.js /tmp/pc all game 40000
+node power-city/tools/analyze.js /tmp/pc
+```
+
 For the parts that need a canvas there are headless harnesses in `tools/`:
 `sim.js` puts a bot at the controls and fast-forwards whole stages in seconds,
 `scene.js` poses a fight and photographs it, `shot.js` screenshots any page.

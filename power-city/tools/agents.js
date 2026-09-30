@@ -372,23 +372,34 @@ const BOOT = function (bag) {
   // ------------------------------------------------------------- the bot
   const bot = PERSONAS[opts.persona];
   bot.mem = {};
+  const bot2 = opts.p2 ? PERSONAS[opts.p2Persona || 'walker'] : null;
+  if (bot2) bot2.mem = {};
   PC.input.poll = function () {
-    const st = this.p[0];
-    for (const a of ['left', 'right', 'up', 'down', 'punch', 'kick', 'jump', 'start']) {
-      st.held[a] = false; st.pressed[a] = false; st.released[a] = false;
+    const g = PC.game;
+    for (const pi of [0, 1]) {
+      const st = this.p[pi];
+      for (const a of ['left', 'right', 'up', 'down', 'punch', 'kick', 'jump', 'start']) {
+        st.held[a] = false; st.pressed[a] = false; st.released[a] = false;
+      }
+      st.tapDir = 0;
     }
-    st.tapDir = 0;
     this.coin = this.pause = this.mute = this.fullscreen = false; this.anyKey = false;
 
-    const g = PC.game;
     if (g.state === 'title' || g.state === 'continue') {
-      if (g.stateT % 90 === 60) { st.pressed.start = true; st.held.start = true; }
+      if (g.stateT % 90 === 60) { this.p[0].pressed.start = true; this.p[0].held.start = true; }
       return;
     }
     if (g.state !== 'play' && g.state !== 'ready') return;
     const p = g.players[0];
-    if (!p || p.dead) return;
-    bot.think(PC, st, bot.mem, p);
+    if (p && !p.dead) bot.think(PC, this.p[0], bot.mem, p);
+    if (bot2) {
+      const p2 = g.players[1];
+      if (!p2 && g.state === 'play' && g.stateT % 90 === 30 && g.credits >= 0) {
+        g.credits++;
+        g.joinPlayer(1);
+      }
+      if (p2 && !p2.dead) bot2.think(PC, this.p[1], bot2.mem, p2);
+    }
   };
 
   // ------------------------------------------------------------- the game
@@ -396,6 +407,7 @@ const BOOT = function (bag) {
   PC.game.loop.stop();
   if (opts.startStage === 'game') {
     PC.game.coin(); PC.game.startGame(0);
+    if (opts.p2) { PC.game.credits++; PC.game.joinPlayer(1); }
   } else {
     PC.game.coin(); PC.game.startGame(0);
     const s = opts.startStage;
@@ -403,6 +415,14 @@ const BOOT = function (bag) {
     PC.stage.load(s);
     const p = PC.game.players[0];
     p.reviveAt(60, PC.FLOOR_BOT - 16); PC.world.add(p);
+    if (opts.p2) {
+      PC.game.players[1] = null;
+      PC.input.p2Joined = false;
+      PC.game.credits++;
+      PC.game.joinPlayer(1);
+      const p2 = PC.game.players[1];
+      if (p2) { p2.reviveAt(90, PC.FLOOR_BOT - 16); PC.world.add(p2); }
+    }
     PC.game.setState('play');
     PC.game.stateT = 200;
   }
@@ -522,6 +542,9 @@ const COLLECT = function () {
   const personaArg = process.argv[3] || 'all';
   const stageArg = process.argv[4] === undefined ? 'game' : process.argv[4];
   const maxFrames = parseInt(process.argv[5] || (stageArg === 'game' ? '150000' : '30000'), 10);
+  const p2Arg = process.argv[6] || '';          // 'two:walker' -> co-op run
+  const twoUp = p2Arg.indexOf('two') === 0;
+  const p2Persona = (p2Arg.split(':')[1] || 'walker');
   fs.mkdirSync(out, { recursive: true });
 
   const personas = personaArg === 'all' ? ['masher', 'walker', 'brawler', 'runner'] : [personaArg];
@@ -536,7 +559,11 @@ const COLLECT = function () {
       page.on('pageerror', e => errs.push(String(e.stack || e).split('\n').slice(0, 3).join(' | ')));
       await page.goto('file://' + path.join(root, 'index.html'));
       await page.waitForTimeout(700);
-      await page.evaluate(BOOT, { src: PERSONA_SRC, persona, startStage: stage === 'game' ? 'game' : parseInt(stage, 10) });
+      await page.evaluate(BOOT, {
+        src: PERSONA_SRC, persona,
+        startStage: stage === 'game' ? 'game' : parseInt(stage, 10),
+        p2: twoUp, p2Persona
+      });
 
       const chunk = 4000;
       for (let done = 0; done < maxFrames; done += chunk) {
@@ -547,7 +574,7 @@ const COLLECT = function () {
       stats.errors = errs;
       stats.avgEnemies = +(stats.enemyFrames / Math.max(1, stats.frames)).toFixed(2);
 
-      const file = path.join(out, `${persona}-s${stage}-${stats.result}.json`);
+      const file = path.join(out, `${persona}${twoUp ? '-coop' : ''}-s${stage}-${stats.result}.json`);
       fs.writeFileSync(file, JSON.stringify(stats, null, 1));
       const enc = stats.encounters;
       console.log(

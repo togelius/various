@@ -1607,8 +1607,24 @@
     return Art.outline(c, '#0a0a12', 1);
   }
 
+  function bakeTrash() {
+    var c = Art.mk(16, 20), x = c.getContext('2d');
+    Art.rect(x, 2, 3, 12, 14, '#5a6a78');
+    Art.rect(x, 3, 3, 3, 14, '#7e8ea0');
+    Art.rect(x, 2, 3, 12, 1, '#3c4854');
+    Art.rect(x, 2, 7, 12, 1, '#3c4854');
+    Art.rect(x, 2, 12, 12, 1, '#3c4854');
+    Art.rect(x, 2, 16, 12, 2, '#4a5666');
+    Art.rect(x, 1, 1, 14, 3, '#8a9aac');
+    Art.rect(x, 6, 2, 4, 1, '#c8d2e0');
+    return Art.outline(c, '#0a0a12', 1);
+  }
+
   P.crate = { hp: 2, dmg: 16, make: bakeCrate };
   P.drum = { hp: 3, dmg: 18, make: bakeDrum, explodes: true };
+  /* Trash cans pay out reliably, because a street you can loot is a street
+   * you enjoy walking down. */
+  P.trash = { hp: 2, dmg: 14, make: bakeTrash, loot: [['coin', 0.5], ['heart', 0.22]] };
 
   // ---------------------------------------------------------------- pickups
   var I = PC.pickups = {};
@@ -2383,6 +2399,16 @@
         case 'tick':
           this.note({ at: t, dur: 0.05, freq: freq('a5'), duty: 0.25, vol: 0.14 });
           break;
+        case 'alarm':
+          this.note({ at: t, dur: 0.16, freq: 990, duty: 0.5, vol: 0.2 });
+          this.note({ at: t + 0.18, dur: 0.16, freq: 740, duty: 0.5, vol: 0.2 });
+          this.note({ noise: true, at: t, dur: 0.34, freq: 2400, freq2: 900, q: 0.7, vol: 0.08 });
+          break;
+        case 'roar':
+          this.note({ at: t, dur: 0.55, freq: 130, freq2: 42, wave: 'saw', vol: 0.42, slide: 0.4 });
+          this.note({ noise: true, at: t, dur: 0.5, freq: 320, freq2: 90, q: 0.6, vol: 0.3 });
+          this.note({ at: t + 0.12, dur: 0.3, freq: 90, freq2: 60, wave: 'tri', vol: 0.3 });
+          break;
         case 'tally':
           this.note({ at: t, dur: 0.03, freq: freq('e6'), duty: 0.25, vol: 0.1 });
           break;
@@ -2696,6 +2722,13 @@
       this.add({ t: 0, life: 46, kind: 'pop', x: x, y: y, text: String(text), col: col || '#ffe070' });
     },
 
+    /* A red wedge at the player's flank, so being blind-sided comes with a
+     * receipt: where it came from, for the half-second it takes to matter. */
+    rearHit: function (x, y, side) {
+      this.add({ t: 0, life: 18, kind: 'rear', x: x, y: y, side: side || 1 });
+      this.shakeBy(2.5);
+    },
+
     boom: function (x, y) {
       this.add({ t: 0, life: 22, kind: 'boom', x: x, y: y });
       for (var i = 0; i < 14; i++) {
@@ -2779,6 +2812,14 @@
           }
         } else if (p.kind === 'pop') {
           Art.text(ctx, p.text, x, y, p.col, { align: 'center', shadow: '#301810' });
+        } else if (p.kind === 'rear') {
+          var s = p.side, f = p.t / p.life;
+          ctx.globalAlpha = 1 - f * 0.5;
+          ctx.fillStyle = (p.t >> 1) % 2 ? '#ff4a4a' : '#ffffff';
+          for (var w = 0; w < 3; w++) {
+            ctx.fillRect(x + s * (14 + w * 3) - (s > 0 ? 2 : 0), y - 26 - w * 3, 2, 8 + w * 3);
+          }
+          ctx.globalAlpha = 1;
         }
       }
     }
@@ -2880,6 +2921,7 @@
     this.atk = null; this.atkT = 0; this.hitList = null;
     this.combo = 0; this.comboT = 0;
     this.invuln = 0; this.flash = 0;
+    this.poiseT = 0;                // brief stagger immunity after a stagger
     this.dead = false; this.removed = false;
     this.deathT = 0;
     this.weapon = null; this.ammo = 0;
@@ -3057,11 +3099,24 @@
       this.dizzyT = 110;
       this.setState('dizzy');
       this.vx = h.dir * h.push * 0.6;
+      /* Seeing stars costs you your grip too. */
+      if (this.weaponItem && PC.items) PC.items.drop(this);
       if (W.dropToken) W.dropToken(this);
       return;
     }
 
-    var knocked = h.knock && PC.rand() >= this.knockRes;
+    /* Poise: the player only goes down to heavy blows. A punk's kick is a
+     * stagger; a bat, a slam or a boss sends you flying. And one stagger
+     * buys a beat of stagger immunity, so two thugs alternating jabs
+     * cannot hold a player still forever. The floor is where beat 'em ups
+     * go to die, so the player visits it rarely and safely. */
+    var heavyBlow = h.knock && (h.dmg >= 10 || h.launch || (h.from && h.from.isBoss));
+    var knocked = (this.team === 0 ? heavyBlow : h.knock) && PC.rand() >= this.knockRes;
+    if (this.team === 0 && this.poiseT > 0 && !knocked && this.z <= 2) {
+      /* standing on poise: the blow lands but does not take over the body */
+      this.vx = h.dir * h.push * 0.5;
+      return;
+    }
     if (knocked || this.z > 2) {
       this.knockDown(h.dir, h.launch || { vx: 2.9, vz: 3.4 });
     } else {
@@ -3082,6 +3137,11 @@
     this.z = Math.max(this.z, 0.1);
     this.facing = -dir;
     this.bounced = false;
+    /* The whole trip - fall, floor, get up and a beat to breathe - is the
+     * player's time out. Nobody gets to hit them during it. */
+    if (this.team === 0) {
+      this.invuln = Math.max(this.invuln, (this.downTime || 44) + 52);
+    }
     if (this.onKnockdown) this.onKnockdown();
   };
 
@@ -3103,6 +3163,14 @@
   Actor.prototype.update = function () {
     var i;
     if (this.flash > 0) this.flash--;
+    if (this.poiseT > 0) this.poiseT--;
+    /* A downed player is nobody's target. A long fall can outlast a shield
+     * set at knockdown time, so the floor is maintained through the whole
+     * trip - fall, floor, get up - plus a beat to move on. */
+    if (this.team === 0 && !this.dead &&
+      (this.state === 'fall' || this.state === 'down' || this.state === 'getup')) {
+      this.invuln = Math.max(this.invuln, 24);
+    }
     if (this.invuln > 0) this.invuln--;
     if (this.comboT > 0) { this.comboT--; if (!this.comboT) this.combo = 0; }
     this.st++;
@@ -3127,7 +3195,7 @@
         break;
       case 'hurt':
         this.vx *= 0.86; this.vy *= 0.8;
-        if (--this.hurtT <= 0) this.setState('idle');
+        if (--this.hurtT <= 0) { this.setState('idle'); this.poiseT = 20; }
         break;
       case 'fall':
         this.vx *= 0.985;
@@ -3138,7 +3206,7 @@
         break;
       case 'getup':
         this.vx *= 0.7;
-        if (this.st > 22) { this.setState('idle'); this.invuln = 12; }
+        if (this.st > 22) { this.setState('idle'); this.invuln = Math.max(this.invuln, 30); }
         break;
       case 'dizzy':
         this.vx *= 0.86; this.vy *= 0.8;
@@ -3259,7 +3327,8 @@
     var flipped = this.facing < 0;
     if (this.flash > 0 && (this.flash % 2)) {
       Rig.draw(ctx, f, px, py, flipped, Rig.flash(this.char, this.pose(), '#ffffff'));
-    } else if (this.invuln > 0 && (this.anim >> 1) % 2 && this.team === 0 && this.state !== 'getup') {
+    } else if (this.invuln > 0 && (this.anim >> 1) % 2 && this.team === 0 &&
+      this.state !== 'getup' && this.state !== 'fall') {
       ctx.globalAlpha = 0.55;
       Rig.draw(ctx, f, px, py, flipped);
       ctx.globalAlpha = 1;
@@ -3315,6 +3384,12 @@
       this.hitstop--;
       FX.update();
       return;
+    }
+    /* The last thug of a wave dies in slow motion: half-speed world, full-
+     * speed sparks. Costs a moment, buys the punctuation mark. */
+    if (this.slowmo > 0) {
+      this.slowmo--;
+      if (this.slowmo % 2) { FX.update(); return; }
     }
     for (i = 0; i < this.actors.length; i++) this.actors[i].update();
     PC.items.update();
@@ -3472,11 +3547,25 @@
             vx: PC.rand.range(-2, 2), vy: -PC.rand.range(0.5, 2), g: 0.16, col: '#b0762e'
           });
         }
-        // a smashed crate sometimes had something in it
-        if (PC.rand.chance(0.4)) {
-          Items.spawn('pickup', PC.rand.chance(0.6) ? 'heart' : 'coin', it.x, it.y, { z: 6 });
+        // what was inside? trash cans pay out; crates sometimes do
+        var loot = this.lootOf(it);
+        if (loot) this.spawn('pickup', loot, it.x, it.y, { z: 14, vz: 1 });
+        else if (PC.rand.chance(0.4)) {
+          this.spawn('pickup', PC.rand.chance(0.6) ? 'heart' : 'coin', it.x, it.y, { z: 6 });
         }
       }
+    },
+
+    /* What a smashed thing pays out, if anything. */
+    lootOf: function (it) {
+      var d = PC.props[it.key];
+      if (!d || !d.loot) return null;
+      var r = PC.rand();
+      for (var i = 0; i < d.loot.length; i++) {
+        if (r < d.loot[i][1]) return d.loot[i][0];
+        r -= d.loot[i][1];
+      }
+      return null;
     },
 
     // ---------------------------------------------------------------- stepping
@@ -3608,16 +3697,16 @@
       dmg: 10, stun: 18, push: 2.2, knock: true, stop: 9, sfx: 'swingHard', score: 60
     },
     upper: {
-      pose: 'upper', wind: 'crouch', startup: 7, active: 4, recovery: 18, reach: [2, 23], zlo: 6, zhi: 44,
-      dmg: 12, stun: 22, push: 1.2, knock: true, launch: { vx: 1.4, vz: 5.2 }, stop: 10,
-      sfx: 'swingHard', score: 80
+      pose: 'upper', wind: 'crouch', startup: 7, active: 4, recovery: 17, reach: [2, 25], zlo: 6, zhi: 44,
+      dmg: 13, stun: 22, push: 1.2, knock: true, launch: { vx: 1.4, vz: 5.2 }, stop: 10,
+      sfx: 'swingHard', lunge: 1.2, score: 80
     },
     kick: {
-      pose: 'kick', startup: 6, active: 4, recovery: 14, reach: [6, 34], zlo: 6, zhi: 30,
+      pose: 'kick', startup: 6, active: 6, recovery: 12, reach: [6, 36], zlo: 6, zhi: 30,
       dmg: 8, stun: 16, push: 2.7, stop: 6, sfx: 'swing', score: 40
     },
     kickHigh: {
-      pose: 'kickHigh', startup: 8, active: 4, recovery: 17, reach: [6, 35], zlo: 18, zhi: 44,
+      pose: 'kickHigh', startup: 7, active: 6, recovery: 16, reach: [6, 35], zlo: 18, zhi: 44,
       dmg: 11, stun: 20, push: 2.4, knock: true, stop: 8, sfx: 'swingHard', score: 70
     },
     elbow: {
@@ -3626,12 +3715,12 @@
     },
     spin: {
       poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true,
-      startup: 4, active: 20, recovery: 18, reach: [0, 30], zlo: 10, zhi: 40,
+      startup: 4, active: 20, recovery: 16, reach: [0, 30], zlo: 10, zhi: 40,
       dmg: 7, stun: 18, push: 2.6, knock: true, stop: 6, sfx: 'whoosh', score: 50
     },
     jumpKick: {
-      pose: 'jumpKick', air: true, startup: 2, active: 22, recovery: 4, reach: [4, 32], zlo: -4, zhi: 30,
-      dmg: 12, stun: 20, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', score: 90
+      pose: 'jumpKick', air: true, startup: 2, active: 14, recovery: 8, reach: [4, 32], zlo: -4, zhi: 30,
+      dmg: 13, stun: 20, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', score: 90
     },
     runKnee: {
       pose: 'knee', startup: 3, active: 8, recovery: 16, reach: [2, 24], zlo: 10, zhi: 36,
@@ -3661,7 +3750,7 @@
   function Player(index, charKey) {
     PC.Actor.call(this, {
       char: charKey, team: 0, hp: 100, x: 60, y: PC.FLOOR_BOT - 14,
-      speed: 1.45, runSpeed: 2.85, mass: 1.2
+      speed: 1.6, runSpeed: 3.0, mass: 1.2
     });
     this.index = index;
     this.lives = 3;
@@ -3676,6 +3765,8 @@
     this.dmgScale = 1;
     this.respawnT = 0;
     this.hitsLanded = 0;
+    this.hitChain = 0;
+    this.chainT = 0;
   }
   Player.prototype = Object.create(PC.Actor.prototype);
   Player.prototype.constructor = Player;
@@ -3689,10 +3780,33 @@
   Player.prototype.onHitLanded = function (t, d) {
     this.addScore(d.score || 20);
     this.hitsLanded++;
+    /* The combo chain: every hit inside a rolling window keeps the count
+     * climbing and the popups escalating. Getting hit resets it, which is
+     * the other half of what the counter is for. */
+    this.hitChain++;
+    this.chainT = 75;
+    if (this.hitChain >= 4) {
+      var col = this.hitChain >= 12 ? '#ff4a4a' : (this.hitChain >= 8 ? '#ff8a20' : '#ffe070');
+      FX.pop(t.x, t.y - t.hh - 10, this.hitChain + ' HITS', col);
+    }
   };
 
   Player.prototype.onDeath = function () {
     if (PC.audio) PC.audio.sfx('playerDown');
+  };
+
+  /* Everything the player feels about being hit: the chain breaks, a hit
+   * from behind flashes a marker so the flanker is found, and the encounter
+   * loses its perfect flag. */
+  Player.prototype.takeHit = function (h) {
+    var rear = h.from && ((h.from.x - this.x) * this.facing < 0);
+    var side = h.from ? (M.sign(h.from.x - this.x) || 1) : 1;
+    var hp = this.hp;
+    PC.Actor.prototype.takeHit.call(this, h);
+    if (this.hp >= hp) return;                 // blocked by invulnerability or armor
+    this.hitChain = 0;
+    if (PC.stage && PC.stage.active) PC.stage.encHurt = true;
+    if (rear) FX.rearHit(this.x, this.y, side);
   };
 
   // ------------------------------------------------------------------ control
@@ -3711,6 +3825,7 @@
     if (pressed.kick) b.kick = 7;
     if (pressed.jump) b.jump = 7;
     if (this.grabCool > 0) this.grabCool--;
+    if (this.chainT > 0) { this.chainT--; if (!this.chainT) this.hitChain = 0; }
 
     if (this.dead) return;
 
@@ -3989,7 +4104,22 @@
   var M = PC.math, FX = PC.fx, W = PC.world, Items = PC.items;
 
   // ---------------------------------------------------------- attack tokens
+  /* The rule that makes a brawler fair: only a few of them may be swinging
+   * at once. Everyone else circles, shuffles into a free lane, or waits at
+   * arm's length looking menacing. But the cap has to grow with the crowd,
+   * or eight thugs turn into a queue. */
   W.tokens = 2;
+  W.tokenCount = function () {
+    var n = 2, alive = 0;
+    for (var i = 0; i < this.actors.length; i++) {
+      var a = this.actors[i];
+      if (a.team === 1 && !a.removed && !a.dead) alive++;
+    }
+    if (alive >= 4) n++;
+    if (PC.stage && PC.stage.index >= 2) n++;
+    if (PC.game && PC.game.livePlayerCount && PC.game.livePlayerCount() > 1) n++;
+    return n;
+  };
   W.tokenHolders = [];
   W.claimToken = function (e) {
     var i = this.tokenHolders.indexOf(e);
@@ -3998,8 +4128,8 @@
       var h = this.tokenHolders[i];
       if (h.removed || h.dead || (h.state !== 'attack' && h.tokenT-- <= 0)) this.tokenHolders.splice(i, 1);
     }
-    if (this.tokenHolders.length >= this.tokens) return false;
-    e.tokenT = 90;
+    if (this.tokenHolders.length >= this.tokenCount()) return false;
+    e.tokenT = 70;
     this.tokenHolders.push(e);
     return true;
   };
@@ -4012,62 +4142,78 @@
   var EM = PC.ENEMY_MOVES = {
     jab: { pose: 'jab', startup: 8, active: 3, recovery: 16, reach: [4, 24], zlo: 14, zhi: 36, dmg: 5, stun: 12, push: 1.2, stop: 4, sfx: 'swing' },
     hook: { pose: 'hook', startup: 11, active: 4, recovery: 22, reach: [4, 26], zlo: 14, zhi: 40, dmg: 8, stun: 16, push: 2, knock: true, stop: 7, sfx: 'swingHard' },
-    kick: { pose: 'kick', startup: 12, active: 4, recovery: 22, reach: [6, 32], zlo: 6, zhi: 30, dmg: 7, stun: 15, push: 2.4, stop: 6, sfx: 'swing' },
+    kick: { pose: 'kick', startup: 12, active: 4, recovery: 22, reach: [6, 28], zlo: 6, zhi: 30, dmg: 7, stun: 12, push: 2.2, stop: 6, sfx: 'swing' },
     jumpKick: { pose: 'jumpKick', air: true, startup: 2, active: 24, recovery: 4, reach: [4, 30], zlo: -4, zhi: 30, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard' },
-    batSwing: { pose: 'hook', startup: 14, active: 5, recovery: 24, reach: [4, 40], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
+    batSwing: { pose: 'hook', startup: 18, active: 5, recovery: 24, reach: [4, 34], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
     knifeStab: { pose: 'jab', startup: 9, active: 4, recovery: 18, reach: [4, 32], zlo: 14, zhi: 34, dmg: 8, stun: 14, push: 1.4, stop: 6, sfx: 'swing', spark: '#ff8888' },
     slam: { pose: 'hook', startup: 16, active: 5, recovery: 30, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard' },
     charge: { pose: 'knee', startup: 6, active: 30, recovery: 26, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2 },
     pound: { pose: 'upper', startup: 10, active: 8, recovery: 34, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom' },
-    chainSweep: { poses: ['spin0', 'spin1'], frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 26, reach: [0, 38], zlo: 8, zhi: 40, dmg: 10, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
+    chainSweep: { poses: ['spin0', 'spin1'], frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 30, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
     upper: { pose: 'upper', startup: 12, active: 4, recovery: 26, reach: [2, 24], zlo: 6, zhi: 44, dmg: 12, stun: 22, knock: true, launch: { vx: 1.4, vz: 5 }, stop: 10, sfx: 'swingHard' },
-    spin: { poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true, startup: 8, active: 18, recovery: 22, reach: [0, 30], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
+    spin: { poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true, startup: 11, active: 12, recovery: 22, reach: [0, 27], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
   };
 
   // ------------------------------------------------------------- enemy types
   var TYPES = PC.ENEMY_TYPES = {
     punk: {
-      char: 'punk', hp: 30, speed: 0.95, score: 200, standoff: 22,
-      moves: ['jab', 'jab', 'hook', 'kick'], aggr: 0.55, downTime: 46
+      char: 'punk', hp: 24, speed: 1.05, score: 200, standoff: 18,
+      moves: ['jab', 'jab', 'hook', 'kick'], aggr: 0.7, downTime: 32
     },
     rough: {
-      char: 'rough', hp: 28, speed: 1.3, score: 300, standoff: 24,
-      moves: ['jab', 'kick', 'kick'], aggr: 0.75, jumpy: 0.3, downTime: 40
+      char: 'rough', hp: 24, speed: 1.35, score: 300, standoff: 20,
+      moves: ['jab', 'kick', 'kick'], aggr: 0.85, jumpy: 0.3, downTime: 28
     },
     knifer: {
-      char: 'knifer', hp: 26, speed: 1.1, score: 400, standoff: 26, weapon: 'knife',
-      moves: ['knifeStab', 'knifeStab', 'kick'], aggr: 0.6, thrower: 0.25, downTime: 44
+      char: 'knifer', hp: 24, speed: 1.2, score: 400, standoff: 22, weapon: 'knife',
+      moves: ['knifeStab', 'knifeStab', 'kick'], aggr: 0.75, thrower: 0.25, downTime: 30
     },
     batter: {
-      char: 'batter', hp: 38, speed: 0.9, score: 400, standoff: 32, weapon: 'bat',
-      moves: ['batSwing', 'batSwing', 'kick'], aggr: 0.5, downTime: 48
+      char: 'batter', hp: 34, speed: 1.0, score: 400, standoff: 26, weapon: 'bat',
+      moves: ['batSwing', 'kick', 'hook'], aggr: 0.7, downTime: 34
     },
     brute: {
-      char: 'brute', hp: 76, speed: 0.8, score: 700, standoff: 22, mass: 2.2, armor: 2,
-      knockRes: 0.55, moves: ['slam', 'hook', 'hook'], aggr: 0.45, grabber: 0.35, downTime: 54
+      char: 'brute', hp: 52, speed: 0.9, score: 700, standoff: 20, mass: 2.2, armor: 1,
+      knockRes: 0.4, moves: ['slam', 'hook', 'hook'], aggr: 0.6, grabber: 0.35, downTime: 40
     }
   };
 
   var BOSSES = PC.BOSS_TYPES = {
     crusher: {
-      char: 'boss_crusher', hp: 168, speed: 0.85, score: 5000, standoff: 26, mass: 3.4,
-      armor: 3, knockRes: 0.82, boss: true, downTime: 44,
-      moves: ['slam', 'hook', 'charge', 'pound'], aggr: 0.6, grabber: 0.3
+      char: 'boss_crusher', hp: 120, speed: 0.9, score: 5000, standoff: 20, mass: 3.4,
+      armor: 2, knockRes: 0.7, boss: true, downTime: 36,
+      moves: ['slam', 'hook', 'hook'], aggr: 0.7, grabber: 0.3,
+      phases: [
+        { at: 0.55, speedMul: 1.2, addMoves: ['charge'], name: 'CRUSHER SEES RED' },
+        { at: 0.25, speedMul: 1.25, aggrMul: 1.2, addMoves: ['pound'], name: 'CRUSHER SEES RED' }
+      ]
     },
     viper: {
-      char: 'boss_viper', hp: 150, speed: 1.55, score: 6000, standoff: 34, mass: 1.4,
-      armor: 1, knockRes: 0.6, boss: true, weapon: 'chain', downTime: 34,
-      moves: ['chainSweep', 'kick', 'chainSweep', 'jumpKick'], aggr: 0.85, jumpy: 0.35, retreat: 0.4
+      char: 'boss_viper', hp: 85, speed: 1.3, score: 6000, standoff: 24, mass: 1.4,
+      armor: 1, knockRes: 0.35, boss: true, weapon: 'chain', downTime: 30,
+      moves: ['kick', 'jab', 'chainSweep'], aggr: 0.9, jumpy: 0.25, retreat: 0.08,
+      phases: [
+        { at: 0.5, speedMul: 1.15, addMoves: ['jumpKick'], name: 'VIPER UNSPOOLS' },
+        { at: 0.22, speedMul: 1.25, aggrMul: 1.15, addMoves: ['slam'], name: 'VIPER UNSPOOLS' }
+      ]
     },
     jaws: {
-      char: 'boss_jaws', hp: 172, speed: 1.25, score: 7000, standoff: 28, mass: 2.4,
-      armor: 2, knockRes: 0.7, boss: true, downTime: 40,
-      moves: ['spin', 'hook', 'kick', 'charge'], aggr: 0.8, thrower: 0.3, grabber: 0.25
+      char: 'boss_jaws', hp: 120, speed: 1.15, score: 7000, standoff: 22, mass: 2.4,
+      armor: 1, knockRes: 0.45, boss: true, downTime: 34,
+      moves: ['hook', 'kick', 'spin', 'hook'], aggr: 0.85, grabber: 0.25,
+      phases: [
+        { at: 0.55, speedMul: 1.15, addMoves: ['charge'], name: 'JAWS LOSES IT' },
+        { at: 0.25, speedMul: 1.25, addMoves: ['slam'], name: 'JAWS LOSES IT' }
+      ]
     },
     power: {
-      char: 'boss_power', hp: 204, speed: 1.5, score: 12000, standoff: 26, mass: 2,
-      armor: 2, knockRes: 0.78, boss: true, downTime: 32,
-      moves: ['upper', 'jab', 'hook', 'spin', 'charge'], aggr: 0.95, jumpy: 0.3, retreat: 0.3
+      char: 'boss_power', hp: 150, speed: 1.3, score: 12000, standoff: 22, mass: 2,
+      armor: 1, knockRes: 0.5, boss: true, downTime: 30,
+      moves: ['jab', 'hook', 'spin', 'upper'], aggr: 0.9, jumpy: 0.2, retreat: 0.15,
+      phases: [
+        { at: 0.66, speedMul: 1.15, addMoves: ['charge'], name: 'MR. POWER LOSES PATIENCE' },
+        { at: 0.33, speedMul: 1.3, aggrMul: 1.2, addMoves: ['slam'], name: 'MR. POWER LOSES PATIENCE' }
+      ]
     }
   };
 
@@ -4083,17 +4229,27 @@
       armor: t.armor || 0, knockRes: t.knockRes || 0
     });
     this.type = typeKey;
-    this.T = t;
+    /* The type table is shared by every instance; give this one its own
+     * moves list so phases can add to it without leaking into the next. */
+    this.T = {};
+    for (var k in t) this.T[k] = t[k];
+    this.T.moves = t.moves.slice();
     this.isBoss = !!t.boss;
+    this.phaseIndex = 0;
+    this.baseSpeed = this.speed;
+    this.baseAggr = (t.aggr || 0.5) * (spec.aggrScale || 1);
+    this.aggr = this.baseAggr;
     this.downTime = t.downTime || 44;
     this.think = 0;
     this.intent = 'approach';
     this.lane = 0;
     this.tokenT = 0;
-    this.aggr = (t.aggr || 0.5) * (spec.aggrScale || 1);
     this.dmgScale = 1;
     this.facing = spec.facing || -1;
     this.spawnFade = 0;
+    this.spawnGuard = 0;
+    this.atkCool = 0;
+    this.roarT = 0;
     if (t.weapon) {
       var it = Items.spawn('weapon', t.weapon, this.x, this.y);
       Items.take(this, it);
@@ -4109,16 +4265,63 @@
     if (killer && killer.addScore) killer.addScore(this.score);
     FX.pop(this.x, this.y - this.hh - 4, this.score, '#ffe070');
     if (this.weaponItem) { Items.drop(this); }
+    /* The fallen leave things behind: food, money, sometimes a weapon. A
+     * street that pays out keeps getting walked. */
+    this.deathLoot();
     if (PC.audio) PC.audio.sfx(this.isBoss ? 'bossDown' : 'ko');
     if (PC.game) PC.game.enemyDown(this);
     if (this.isBoss) { FX.shakeBy(7); FX.flash('#ffffff', 6); }
+    /* The last one down gets a slow-motion curtain call. */
+    if (PC.stage && PC.stage.active && !W.enemies().length) {
+      W.slowmo = this.isBoss ? 48 : 26;
+    }
   };
 
-  Enemy.prototype.onKnockdown = function () { W.dropToken(this); };
+  Enemy.prototype.deathLoot = function () {
+    if (this.isBoss) {
+      /* The boss goes down with a purse: dinner, dinner and a souvenir. */
+      Items.spawn('pickup', 'heart', this.x - 14, this.y, { z: 24, vz: 2 });
+      Items.spawn('pickup', 'heart', this.x + 14, this.y, { z: 30, vz: 2.4 });
+      Items.spawn('weapon', PC.rand.pick(['bat', 'pipe', 'knife', 'chain']),
+        this.x, this.y - 6, { z: 36, vz: 2.2 });
+      return;
+    }
+    var r = PC.rand();
+    var drop = null;
+    if (r < 0.12) drop = 'heart';
+    else if (r < 0.32) drop = 'coin';
+    else if (r < 0.36) drop = PC.rand.pick(['bat', 'pipe', 'knife', 'chain']);
+    if (!drop) return;
+    Items.spawn(drop === 'heart' || drop === 'coin' ? 'pickup' : 'weapon',
+      drop, this.x + PC.rand.range(-8, 8), this.y, { z: 18, vz: 1.6 });
+  };
+
+  /* A hard fall shakes the weapon out of anyone's hands - including the
+   * chain out of VIPER's, which is a fight the player can win twice. */
+  Enemy.prototype.onKnockdown = function () {
+    W.dropToken(this);
+    if (this.weaponItem && PC.rand.chance(0.75)) Items.drop(this);
+  };
 
   // ------------------------------------------------------------------- brain
   Enemy.prototype.control = function () {
     if (this.dead) return;
+    /* Phase changes: the fight turns halfway, loudly, and on purpose. */
+    if (this.isBoss && this.T.phases) {
+      while (this.phaseIndex < this.T.phases.length &&
+        this.hp / this.maxHp <= this.T.phases[this.phaseIndex].at) {
+        this.enterPhase(this.T.phases[this.phaseIndex]);
+        this.phaseIndex++;
+      }
+    }
+    if (this.spawnGuard > 0) this.spawnGuard--;
+    /* Mid-roar: the taunt pose plays out and nothing else does. */
+    if (this.roarT > 0) {
+      this.roarT--;
+      this.vx = 0; this.vy = 0;
+      this.setState('taunt');
+      return;
+    }
     if (this.state === 'held') { this.vx = 0; return; }
     if (this.hold > 0) { this.hold--; this.vx *= 0.7; this.vy *= 0.7; this.setState('idle'); return; }
     if (!this.canAct()) return;
@@ -4148,12 +4351,12 @@
         this.vx = mx * speed;
         this.vy = my * speed * 0.66;
         this.setState((mx || my) ? 'walk' : 'idle');
-        if (adx < standoff && Math.abs(dy) < 11) this.tryAttack(p, adx);
+        if (adx < standoff + 6 && Math.abs(dy) < 11) this.tryAttack(p, adx);
         break;
       }
       case 'wait': {
-        // hold at the edge of your reach, drifting in your lane
-        var backX = p.x - this.facing * (standoff + 16);
+        // hold just outside your reach, drifting in your lane, briefly
+        var backX = p.x - this.facing * (standoff + 8);
         this.vx = M.clamp((backX - this.x) * 0.05, -1, 1) * speed * 0.7;
         this.vy = M.clamp((p.y + this.lane - this.y) * 0.06, -1, 1) * speed * 0.5;
         this.setState(Math.abs(this.vx) + Math.abs(this.vy) > 0.15 ? 'walk' : 'idle');
@@ -4161,7 +4364,7 @@
       }
       case 'flank': {
         var fx = p.x + this.facing * standoff;   // cross to the other side
-        this.vx = M.clamp((fx - this.x) * 0.07, -1, 1) * speed;
+        this.vx = M.clamp((fx - this.x) * 0.12, -1, 1) * speed;
         this.vy = M.clamp((p.y + this.lane - this.y) * 0.1, -1, 1) * speed * 0.7;
         this.setState('walk');
         break;
@@ -4185,12 +4388,33 @@
     }
   };
 
+  /* A boss at half health is a different fight: faster, meaner, and new
+   * moves on the table. The world stops for the roar so the player sees
+   * the turn happen. */
+  Enemy.prototype.enterPhase = function (ph) {
+    var i;
+    for (i = 0; i < (ph.addMoves || []).length; i++) {
+      if (this.T.moves.indexOf(ph.addMoves[i]) < 0) this.T.moves.push(ph.addMoves[i]);
+    }
+    if (ph.speedMul) this.speed = this.baseSpeed * ph.speedMul;
+    if (ph.aggrMul) this.aggr = Math.min(1, this.baseAggr * ph.aggrMul);
+    this.atk = null;
+    this.roarT = 40;
+    this.invuln = 46;
+    FX.shakeBy(6);
+    FX.flash('#ffd0d0', 4);
+    PC.freeze(20);
+    FX.pop(this.x, this.y - this.hh - 18, '!!', '#ff5f6a');
+    if (PC.audio) PC.audio.sfx('roar');
+    if (PC.stage) { PC.stage.bossBanner = 100; PC.stage.bossSub = ph.name; }
+  };
+
   Enemy.prototype.decide = function (p, adx, dy) {
     var t = this.T, r = PC.rand;
-    this.think = r.int(24, 52);
+    this.think = r.int(14, 32);
     this.lane = r.range(-13, 13);
 
-    if (t.grabber && r.chance(t.grabber) && adx < 60) { this.intent = 'grab'; this.think = 60; return; }
+    if (t.grabber && r.chance(t.grabber) && adx < 60) { this.intent = 'grab'; this.think = 50; return; }
     if (t.thrower && this.weapon && r.chance(t.thrower) && adx > 40 && adx < 150) {
       Items.hurl(this);
       this.setState('throwing'); this.hold = 22;
@@ -4205,26 +4429,32 @@
       this.intent = 'approach';
       return;
     }
-    if (t.retreat && r.chance(t.retreat) && adx < 30) { this.intent = 'retreat'; this.think = r.int(16, 30); return; }
+    if (t.retreat && r.chance(t.retreat) && adx < 30) { this.intent = 'retreat'; this.think = r.int(12, 24); return; }
 
+    /* The gang presses: approach is the default, a short shuffle the rest of
+     * the time. Nobody orbits a fight for half a minute again. */
     if (r.chance(this.aggr)) this.intent = 'approach';
-    else this.intent = r.chance(0.45) ? 'flank' : 'wait';
+    else this.intent = r.chance(0.25) ? 'flank' : 'wait';
   };
 
   Enemy.prototype.tryAttack = function (p, adx) {
+    /* Nobody swings at a fighter on the floor - they square up and wait,
+     * which reads as menace instead of cruelty. */
+    if (p.state === 'down' || p.state === 'fall' || p.state === 'getup') return;
+    if (this.spawnGuard > 0) return;
     if (this.atkCool > 0) { this.atkCool--; return; }
-    if (!W.claimToken(this)) return;
     var name = PC.rand.pick(this.T.moves);
     var mv = EM[name];
     if (!mv) return;
     if (adx > (mv.reach[1] - 4)) return;
+    if (!W.claimToken(this)) return;
     this.startAttack(mv);
-    this.atkCool = PC.rand.int(14, 40);
+    this.atkCool = PC.rand.int(8, 22);
     this.think = mv.startup + mv.active + mv.recovery + 8;
   };
 
   Enemy.prototype.doGrab = function (p) {
-    if (p.invuln > 0 || p.grabbedBy) return;
+    if (this.spawnGuard > 0 || p.invuln > 0 || p.grabbedBy) return;
     this.grabbing = p;
     p.grabbedBy = this;
     p.setState('held');
@@ -4301,51 +4531,61 @@
     return e;
   }
 
-  /* groups: [type, count, side, delay] - side -1 comes in from behind you,
-   * +1 from up ahead, 0 means already standing there. */
+  /* groups: [type, count, side, delay, fewer] - side -1 comes in from behind
+   * you, +1 from up ahead. A `fewer` value makes the group reinforcements:
+   * they hold until the live count drops that low, then pour in. `noLock`
+   * encounters chase you without closing the street; `litter` is what the
+   * block drops where there is no fight. */
   PC.STAGES = [
     {
-      name: 'SLUM ALLEY', theme: 'alley', length: 1760, time: 99, music: 'stage1',
+      name: 'SLUM ALLEY', theme: 'alley', length: 1650, time: 99, music: 'stage1',
       intro: 'THEY TOOK YOUR BROTHER. START WHERE THEY LIVE.',
+      litter: [['pickup', 'coin', 380], ['pickup', 'heart', 430], ['prop', 'trash', 660], ['pickup', 'coin', 1100]],
       encounters: [
-        enc(230, [['punk', 2, 1, 0]]),
-        enc(500, [['punk', 2, 1, 0], ['rough', 1, -1, 90]], { items: [['prop', 'crate', 60], ['prop', 'crate', 120]] }),
-        enc(880, [['rough', 2, 1, 0], ['punk', 1, -1, 60]], { items: [['weapon', 'bat', 40]] }),
-        enc(1230, [['punk', 2, 1, 0], ['batter', 1, 1, 70], ['rough', 1, -1, 120]]),
-        enc(1560, [['brute', 1, 1, 0], ['punk', 2, -1, 80]], { boss: 'crusher', bossDelay: 150 })
+        enc(230, [['punk', 2, 1, 0], ['punk', 1, -1, 90]], { items: [['prop', 'trash', 30]] }),
+        enc(500, [['punk', 2, 1, 0], ['rough', 1, -1, 70]], { items: [['prop', 'crate', 60], ['prop', 'crate', 120]] }),
+        enc(880, [['batter', 1, 1, 0], ['punk', 2, -1, 60], ['punk', 1, 1, 90, 2]], { items: [['weapon', 'bat', 40]] }),
+        enc(1230, [['rough', 2, 1, 0], ['punk', 1, -1, 30]], { noLock: true }),
+        enc(1560, [['punk', 2, 1, 0], ['punk', 1, -1, 200, 1]], { boss: 'crusher', bossDelay: 150, items: [['prop', 'trash', 80]] })
       ]
     },
     {
-      name: 'DOWNTOWN', theme: 'downtown', length: 1900, time: 99, music: 'stage2',
+      name: 'DOWNTOWN', theme: 'downtown', length: 1790, time: 99, music: 'stage2',
       intro: 'THEY RUN THIS BLOCK OUT OF THE OLD BAR.',
+      litter: [['prop', 'trash', 300], ['pickup', 'coin', 700], ['pickup', 'heart', 760], ['pickup', 'coin', 1150]],
       encounters: [
-        enc(240, [['punk', 2, 1, 0], ['rough', 1, 1, 60]]),
-        enc(520, [['knifer', 2, 1, 0], ['punk', 1, -1, 70]], { items: [['prop', 'drum', 70]] }),
-        enc(900, [['batter', 2, 1, 0], ['rough', 2, -1, 80]], { items: [['weapon', 'pipe', 30], ['pickup', 'heart', 150]] }),
-        enc(1280, [['brute', 1, 1, 0], ['knifer', 1, 1, 40], ['punk', 2, -1, 90]]),
-        enc(1660, [['rough', 2, 1, 0]], { boss: 'viper', bossDelay: 120 })
+        enc(240, [['punk', 2, 1, 0], ['rough', 1, 1, 60], ['rough', 1, -1, 50, 2]]),
+        enc(520, [['knifer', 2, 1, 0], ['punk', 1, -1, 70], ['knifer', 1, 1, 80, 2]], { items: [['prop', 'trash', 70], ['prop', 'drum', 150]] }),
+        enc(740, [['rough', 1, 1, 0], ['punk', 1, -1, 40]], { noLock: true }),
+        enc(900, [['batter', 2, 1, 0], ['rough', 1, -1, 80], ['punk', 2, 1, 100, 2]], { items: [['weapon', 'pipe', 30], ['pickup', 'heart', 150]] }),
+        enc(1280, [['brute', 1, 1, 0], ['knifer', 1, 1, 40], ['punk', 2, -1, 90], ['knifer', 1, 1, 120, 2]], { items: [['prop', 'crate', 60]] }),
+        enc(1660, [['rough', 1, 1, 0], ['batter', 1, -1, 200, 1]], { boss: 'viper', bossDelay: 120, items: [['prop', 'trash', 100], ['prop', 'trash', 180]] })
       ]
     },
     {
-      name: 'THE DOCKS', theme: 'docks', length: 2000, time: 99, music: 'stage3',
+      name: 'THE DOCKS', theme: 'docks', length: 1890, time: 99, music: 'stage3',
       intro: 'CONTAINER SIX. THE ONE WITH THE LIGHT ON.',
+      litter: [['pickup', 'heart', 820], ['pickup', 'coin', 860], ['prop', 'trash', 1180], ['pickup', 'coin', 1220]],
       encounters: [
-        enc(240, [['rough', 2, 1, 0], ['knifer', 1, -1, 50]]),
-        enc(560, [['batter', 2, 1, 0], ['punk', 2, -1, 60]], { items: [['prop', 'crate', 40], ['prop', 'crate', 100], ['prop', 'drum', 160]] }),
-        enc(960, [['brute', 2, 1, 0], ['rough', 1, -1, 70]], { items: [['weapon', 'bat', 50]] }),
-        enc(1380, [['knifer', 2, 1, 0], ['batter', 1, -1, 40], ['rough', 2, 1, 110]], { items: [['pickup', 'heart', 140]] }),
-        enc(1760, [['punk', 2, -1, 0]], { boss: 'jaws', bossDelay: 110 })
+        enc(240, [['rough', 2, 1, 0], ['knifer', 1, -1, 50], ['punk', 1, 1, 60, 2]]),
+        enc(560, [['batter', 2, 1, 0], ['punk', 2, -1, 60], ['punk', 2, 1, 90, 2]], { items: [['prop', 'crate', 40], ['prop', 'crate', 100], ['prop', 'drum', 160]] }),
+        enc(800, [['punk', 2, 1, 0]], { noLock: true }),
+        enc(960, [['brute', 2, 1, 0], ['rough', 1, -1, 70], ['rough', 2, 1, 120, 1]], { items: [['weapon', 'bat', 50]] }),
+        enc(1380, [['knifer', 2, 1, 0], ['batter', 1, -1, 40], ['rough', 2, 1, 110], ['batter', 1, 1, 140, 2]], { items: [['pickup', 'heart', 140]] }),
+        enc(1760, [['punk', 2, -1, 0], ['punk', 2, 1, 150, 1]], { boss: 'jaws', bossDelay: 110, items: [['prop', 'drum', 90]] })
       ]
     },
     {
-      name: 'POWER TOWER', theme: 'tower', length: 1840, time: 99, music: 'stage4',
+      name: 'POWER TOWER', theme: 'tower', length: 1730, time: 99, music: 'stage4',
       intro: 'TOP FLOOR. HE IS EXPECTING YOU.',
+      litter: [['pickup', 'coin', 300], ['prop', 'trash', 340], ['pickup', 'heart', 720], ['pickup', 'coin', 760]],
       encounters: [
-        enc(240, [['rough', 2, 1, 0], ['batter', 1, 1, 60], ['knifer', 1, -1, 100]]),
-        enc(560, [['brute', 2, 1, 0], ['rough', 2, -1, 70]], { items: [['weapon', 'pipe', 40]] }),
-        enc(940, [['knifer', 2, 1, 0], ['batter', 2, -1, 60], ['punk', 2, 1, 130]], { items: [['pickup', 'heart', 120]] }),
-        enc(1320, [['brute', 1, 1, 0], ['rough', 2, 1, 50], ['knifer', 2, -1, 100]], { items: [['prop', 'drum', 60]] }),
-        enc(1680, [], { boss: 'power', bossDelay: 60, escort: [['brute', 1, -1, 260]] })
+        enc(240, [['rough', 2, 1, 0], ['batter', 1, 1, 60], ['knifer', 1, -1, 100], ['punk', 1, 1, 130, 2]]),
+        enc(560, [['brute', 2, 1, 0], ['rough', 2, -1, 70], ['punk', 2, 1, 110, 2]], { items: [['weapon', 'pipe', 40]] }),
+        enc(940, [['knifer', 2, 1, 0], ['batter', 2, -1, 60], ['punk', 2, 1, 130], ['punk', 2, -1, 150, 2]], { items: [['prop', 'crate', 50], ['prop', 'drum', 120], ['pickup', 'heart', 150]] }),
+        enc(1120, [['rough', 2, 1, 0], ['knifer', 1, -1, 50]], { noLock: true }),
+        enc(1320, [['brute', 1, 1, 0], ['rough', 2, 1, 50], ['knifer', 2, -1, 100], ['batter', 1, 1, 140, 2]], { items: [['prop', 'trash', 60], ['prop', 'trash', 140]] }),
+        enc(1680, [], { boss: 'power', bossDelay: 60, escort: [['brute', 1, -1, 280]] })
       ]
     }
   ];
@@ -4357,6 +4597,7 @@
     encIndex: 0, active: null, locked: false, lockX: 0,
     pending: [], cleared: false, arrowT: 0, timeLeft: 99, timeT: 0,
     bossActive: null,
+    bossBanner: 0, bossSub: null,
 
     load: function (index) {
       this.index = M.clamp(index, 0, PC.STAGES.length - 1);
@@ -4377,28 +4618,41 @@
       this.pending.length = 0;
       this.timeLeft = this.def.time;
       this.timeT = 0;
+      this.alarmed = false;
+      this.alarmT = 0;
       this.bossActive = null;
       this.bossBanner = 0;
+      this.bossSub = null;
+      /* The block has things lying on it where there is no fight: coins
+       * on the pavement, a can to kick, dinner behind a window. */
+      if (this.def.litter) {
+        for (var l = 0; l < this.def.litter.length; l++) {
+          var lt = this.def.litter[l];
+          PC.items.spawn(lt[0], lt[1], lt[2], PC.rand.range(PC.FLOOR_TOP + 8, PC.FLOOR_BOT - 4));
+        }
+      }
       this.finishT = 0;
     },
 
     // ---- encounters
     startEncounter: function (e) {
       this.active = e;
-      this.locked = true;
+      /* A `noLock` fight chases you down the street without closing it;
+      * the arena fights lock the camera and turn the street into a ring. */
+      this.locked = !e.noLock;
       this.lockX = W.camX;
       this.pending.length = 0;
       var i, g;
       for (i = 0; i < e.groups.length; i++) {
         g = e.groups[i];
         for (var n = 0; n < g[1]; n++) {
-          this.pending.push({ type: g[0], side: g[2], t: (g[3] || 0) + n * 22 });
+          this.pending.push({ type: g[0], side: g[2], t: (g[3] || 0) + n * 22, fewer: g[4] });
         }
       }
       if (e.escort) {
         for (i = 0; i < e.escort.length; i++) {
           g = e.escort[i];
-          for (var m = 0; m < g[1]; m++) this.pending.push({ type: g[0], side: g[2], t: (g[3] || 0) + m * 24 });
+          for (var m = 0; m < g[1]; m++) this.pending.push({ type: g[0], side: g[2], t: (g[3] || 0) + m * 24, fewer: g[4] });
         }
       }
       if (e.boss) this.pending.push({ type: e.boss, side: 1, t: e.bossDelay || 100, boss: true });
@@ -4409,6 +4663,7 @@
         }
       }
       this.encT = 0;
+      this.encHurt = false;
       /* A boss deserves a clock of its own. Arriving at the last fight with
        * nine seconds left is not tension, it is a coin-op tax. */
       if (e.boss) {
@@ -4428,7 +4683,7 @@
         return;
       }
       var side = s.side || (PC.rand.chance(0.5) ? 1 : -1);
-      var ex = side > 0 ? W.camX + PC.W + PC.rand.range(10, 40) : W.camX - PC.rand.range(14, 44);
+      var ex = side > 0 ? W.camX + PC.W + PC.rand.range(6, 24) : W.camX - PC.rand.range(10, 26);
       ex = M.clamp(ex, W.minX + 4, W.maxX - 4);
       var ey = PC.rand.range(PC.FLOOR_TOP + 6, PC.FLOOR_BOT - 4);
       var d = PC.game ? PC.game.difficulty() : { hp: 1, dmg: 1, aggr: 1, players: 1 };
@@ -4442,12 +4697,17 @@
       if (s.boss) {
         this.bossActive = e;
         this.bossBanner = 110;
+        this.bossSub = null;
         e.invuln = 40;
         FX.flash('#ffffff', 5);
         FX.shakeBy(5);
         PC.freeze(22);
         if (PC.audio) PC.audio.sfx('bossIn');
       }
+      /* Fresh legs get a moment of grace and a marker over the head, so
+       * nobody swings in from off the screen. */
+      e.spawnGuard = side < 0 ? 70 : 36;
+      FX.dust(ex, ey, -side, 4);
       return e;
     },
 
@@ -4461,17 +4721,34 @@
           this.timeT = 0;
           this.timeLeft--;
           if (this.timeLeft <= 10 && this.timeLeft > 0 && PC.audio) PC.audio.sfx('tick');
-          if (this.timeLeft <= 0) { this.timeLeft = 0; if (PC.game) PC.game.timeUp(); }
+          if (this.timeLeft <= 0) {
+            /* Out of clock: not a death sentence, a siren. Health drains
+             * until the street is clear or you are. */
+            this.timeLeft = 0;
+            if (!this.alarmed) {
+              this.alarmed = true;
+              this.alarmT = 0;
+              FX.flash('#ff2020', 8);
+            }
+            if (PC.game) PC.game.clockDrain();
+            if (this.alarmed && ++this.alarmT >= 6 && PC.audio) { this.alarmT = 0; PC.audio.sfx('alarm'); }
+          }
         }
       }
 
-      // ---- spawn queue
+      // ---- spawn queue. Reinforcements (a `fewer` threshold) hold until the
+      // live count drops, so a wave thins before the next one lands.
       if (this.active) {
         this.encT++;
+        var alive = W.enemies().length;
         for (i = this.pending.length - 1; i >= 0; i--) {
-          if (this.encT >= this.pending[i].t) {
-            this.spawnOne(this.pending[i]);
+          var q = this.pending[i];
+          var due = this.encT >= q.t &&
+            (q.fewer === undefined || q.fewer === null || alive <= q.fewer);
+          if (due) {
+            this.spawnOne(q);
             this.pending.splice(i, 1);
+            alive++;
           }
         }
         if (!this.pending.length && !W.enemies().length) {
@@ -4479,6 +4756,19 @@
           this.locked = false;
           this.bossActive = null;
           this.arrowT = 1;
+          /* Clearing a fight buys the clock back: the timer is there to keep
+           * you moving, not to execute you mid-boss. */
+          if (this.alarmed) { this.alarmed = false; if (PC.audio) PC.audio.sfx('heal'); }
+          this.timeLeft = Math.min(this.def.time, this.timeLeft + 8);
+          /* A fight without a scratch pays a bonus and says so. */
+          if (!this.encHurt) {
+            var pw = W.livePlayers()[0];
+            if (pw) {
+              pw.addScore(2000);
+              FX.pop(pw.x, pw.y - pw.hh - 14, 'PERFECT', '#4ae06a');
+              if (PC.audio) PC.audio.sfx('join');
+            }
+          }
           if (this.encIndex >= this.def.encounters.length) this.cleared = true;
           else if (PC.audio) PC.audio.play(this.def.music);
         }
@@ -4547,7 +4837,7 @@
       var slide = Math.round((1 - Math.min(1, (110 - t) / 14)) * 60);
       PC.art.text(ctx, this.bossActive.name, PC.W / 2 - slide, y, '#ff5f6a',
         { align: 'center', scale: 2, tracking: 3, shadow: '#2a0006', shadowDist: 2 });
-      PC.art.text(ctx, 'GANG BOSS', PC.W / 2 + slide, y + 17, '#ffffff', { align: 'center', tracking: 2 });
+      PC.art.text(ctx, this.bossSub || 'GANG BOSS', PC.W / 2 + slide, y + 17, '#ffffff', { align: 'center', tracking: 2 });
     },
 
     drawArrow: function (ctx) {
@@ -4576,7 +4866,7 @@
 (function (global) {
   'use strict';
   var PC = global.PC || (global.PC = {});
-  var Art = PC.art, C = PC.color, W = PC.world;
+  var Art = PC.art, C = PC.color, W = PC.world, M = PC.math;
 
   var Hud = PC.hud = {};
 
@@ -4611,6 +4901,47 @@
       Art.rect(ctx, x + 1 + i * sw, y + 1, sw - 1, 1, C.shade(col, 0.35));
     }
     Art.rect(ctx, x - 1, y - 1, w + 2, 1, '#585f78');
+  };
+
+  // ------------------------------------------------------------- warnings
+  /* The three things the cabinet owes the player's eyes: who is coming in
+   * from a side they cannot see, who just materialised, and that the clock
+   * has turned hostile. */
+  Hud.drawAlerts = function (ctx, g) {
+    var camX = W.camX;
+
+    // off-screen gang, marked with a chevron at the edge they will enter by
+    var es = W.enemies();
+    for (var i = 0; i < es.length; i++) {
+      var e = es[i];
+      if (e.x >= camX - 2 && e.x <= camX + PC.W + 2) {
+        // on screen: flag the freshly arrived until their grace is up
+        if (e.spawnGuard > 0 && (W.time >> 2) % 2) {
+          PC.art.text(ctx, '!', Math.round(e.x - camX), e.y - e.z - e.hh - 14,
+            '#ffe070', { align: 'center', scale: 2, shadow: '#802000', shadowDist: 1 });
+        }
+        continue;
+      }
+      var dist = e.x < camX ? camX - e.x : e.x - (camX + PC.W);
+      if (dist > 130) continue;
+      var sy = M.clamp(e.y - e.z - 24, PC.FIELD_Y + 8, PC.FIELD_BOT - 8);
+      if ((W.time >> 3) % 2) continue;
+      if (e.x < camX) {
+        ctx.fillStyle = '#ff5f6a';
+        ctx.fillRect(2, Math.round(sy), 6, 2);
+        ctx.fillRect(6, Math.round(sy) - 3, 2, 8);
+      } else {
+        ctx.fillStyle = '#ff5f6a';
+        ctx.fillRect(PC.W - 8, Math.round(sy), 6, 2);
+        ctx.fillRect(PC.W - 8, Math.round(sy) - 3, 2, 8);
+      }
+    }
+
+    // the clock is draining health: say so, loudly, in the middle
+    if (PC.stage.alarmed && (W.time >> 3) % 2) {
+      PC.art.text(ctx, 'HURRY!', PC.W / 2, PC.FIELD_Y + 30, '#ff4a4a',
+        { align: 'center', scale: 3, shadow: '#400000', shadowDist: 2, wobble: 1, phase: W.time * 0.3 });
+    }
   };
 
   // ------------------------------------------------------------------ top bar
@@ -4690,7 +5021,14 @@
     if (!b || b.removed) return;
     var y = PC.FIELD_Y + 5;
     Art.text(ctx, b.name, PC.W / 2, y, '#ff5f6a', { align: 'center', shadow: '#000000' });
-    Hud.bar(ctx, PC.W / 2 - 66, y + 9, 132, 7, Math.max(0, b.hp / b.maxHp), '#e03040', '#3a1a20');
+    var bx = PC.W / 2 - 66, bw = 132;
+    Hud.bar(ctx, bx, y + 9, bw, 7, Math.max(0, b.hp / b.maxHp), '#e03040', '#3a1a20');
+    /* Ticks where the fight turns, so the player knows how much is left
+     * of each chapter of it. */
+    var ph = (b.T && b.T.phases) || [];
+    for (var i = 0; i < ph.length; i++) {
+      Art.rect(ctx, bx + bw * ph[i].at, y + 9, 1, 7, '#0a0a12');
+    }
   };
 
   // -------------------------------------------------------------- big banners
@@ -4759,8 +5097,8 @@
       var n = this.livePlayerCount();
       var s = PC.stage.index;
       return {
-        hp: (1 + s * 0.16) * (n > 1 ? 1.28 : 1),
-        dmg: 0.7 + s * 0.14,
+        hp: (1 + s * 0.13) * (n > 1 ? 1.28 : 1),
+        dmg: 0.7 + s * 0.11,
         aggr: 0.85 + s * 0.07,
         players: n
       };
@@ -4787,14 +5125,26 @@
 
     enemyDown: function () { },
 
-    timeUp: function () {
+    /* The clock ran out. Nobody dies to a number: the siren starts and
+     * health drains until the fight is finished or they are. */
+    clockDrain: function () {
       for (var i = 0; i < 2; i++) {
         var p = this.players[i];
         if (!p || p.dead) continue;
-        p.invuln = 0;
-        p.takeHit({ dmg: 999, dir: -p.facing, knock: true, x: p.x, y: p.y - 20, stun: 20, push: 2 });
+        p.hp -= 5;
+        p.flash = 4;
+        if (PC.stage) PC.stage.encHurt = true;
+        if (p.hp <= 0) {
+          p.hp = 0;
+          if (p.grabbedBy) p.grabbedBy.releaseGrab();
+          if (p.grabbing) p.releaseGrab();
+          if (p.carry) PC.items.drop(p);
+          p.knockDown(p.facing, { vx: 2, vz: 3 });
+          p.dead = true; p.deathT = 0;
+          p.onDeath();
+        }
       }
-      PC.stage.timeLeft = 0;
+      FX.shakeBy(1);
     },
 
     // ---------------------------------------------------------------- coins
@@ -5072,6 +5422,7 @@
       FX.draw(ctx, W.camX);
       PC.stage.drawArrow(ctx);
       PC.stage.drawBanner(ctx);
+      Hud.drawAlerts(ctx, this);
       ctx.restore();
 
       Hud.drawTop(ctx, this);

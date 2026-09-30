@@ -28,8 +28,8 @@
       intro: 'THEY TOOK YOUR BROTHER. START WHERE THEY LIVE.',
       litter: [['pickup', 'coin', 380], ['pickup', 'heart', 430], ['prop', 'trash', 660], ['pickup', 'coin', 1100]],
       encounters: [
-        enc(230, [['punk', 2, 1, 0], ['punk', 1, -1, 40, 1]], { items: [['prop', 'trash', 30]] }),
-        enc(500, [['punk', 2, 1, 0], ['rough', 1, -1, 70], ['rough', 1, 1, 60, 2]], { items: [['prop', 'crate', 60], ['prop', 'crate', 120]] }),
+        enc(230, [['punk', 2, 1, 0], ['punk', 1, -1, 90]], { items: [['prop', 'trash', 30]] }),
+        enc(500, [['punk', 2, 1, 0], ['rough', 1, -1, 70]], { items: [['prop', 'crate', 60], ['prop', 'crate', 120]] }),
         enc(880, [['batter', 1, 1, 0], ['punk', 2, -1, 60], ['punk', 1, 1, 90, 2]], { items: [['weapon', 'bat', 40]] }),
         enc(1230, [['rough', 2, 1, 0], ['punk', 1, -1, 30]], { noLock: true }),
         enc(1560, [['punk', 2, 1, 0], ['punk', 1, -1, 200, 1]], { boss: 'crusher', bossDelay: 150, items: [['prop', 'trash', 80]] })
@@ -71,7 +71,7 @@
         enc(940, [['knifer', 2, 1, 0], ['batter', 2, -1, 60], ['punk', 2, 1, 130], ['punk', 2, -1, 150, 2]], { items: [['prop', 'crate', 50], ['prop', 'drum', 120], ['pickup', 'heart', 150]] }),
         enc(1120, [['rough', 2, 1, 0], ['knifer', 1, -1, 50]], { noLock: true }),
         enc(1320, [['brute', 1, 1, 0], ['rough', 2, 1, 50], ['knifer', 2, -1, 100], ['batter', 1, 1, 140, 2]], { items: [['prop', 'trash', 60], ['prop', 'trash', 140]] }),
-        enc(1680, [], { boss: 'power', bossDelay: 60, escort: [['brute', 1, -1, 280], ['knifer', 2, 1, 320, 1]] })
+        enc(1680, [], { boss: 'power', bossDelay: 60, escort: [['brute', 1, -1, 280]] })
       ]
     }
   ];

@@ -56,7 +56,7 @@
     slam: { pose: 'hook', startup: 16, active: 5, recovery: 30, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard' },
     charge: { pose: 'knee', startup: 6, active: 30, recovery: 26, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2 },
     pound: { pose: 'upper', startup: 10, active: 8, recovery: 34, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom' },
-    chainSweep: { poses: ['spin0', 'spin1'], frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 26, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
+    chainSweep: { poses: ['spin0', 'spin1'], frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 30, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
     upper: { pose: 'upper', startup: 12, active: 4, recovery: 26, reach: [2, 24], zlo: 6, zhi: 44, dmg: 12, stun: 22, knock: true, launch: { vx: 1.4, vz: 5 }, stop: 10, sfx: 'swingHard' },
     spin: { poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true, startup: 11, active: 12, recovery: 22, reach: [0, 27], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
   };
