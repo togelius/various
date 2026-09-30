@@ -118,20 +118,22 @@ Six phases, each verified by re-running the agents and comparing telemetry.
 
 ## Results (same bots, same seeds, before → after)
 
-Twenty recorded campaigns per build (4 personas × 5 starting points):
+Twenty recorded campaigns per build (4 personas × 5 starting points), both
+sides measured by the same fixed harness:
 
 | metric | before | after |
 | --- | --- | --- |
-| wake-up hits (all runs) | 26 | **0** |
-| hits while on the floor (all runs) | 9 | **0** |
-| masher deaths per run | 5, all clock instakill | 3, mostly real fights |
-| masher damage taken per run | ~500 (999-dmg clock hits) | 59–187 |
-| VIPER, longest fight | 92 s | 41–62 s (typically ~25 s) |
-| hearts per campaign | 1–3 | 5–8 |
+| wake-up hits (all 20 runs) | 35 | **0** |
+| hits while on the floor (all 20 runs) | 21 | **0** |
+| masher deaths per run | 5, clock instakills | 3, real fights |
+| masher damage taken per run | ~500 (999-dmg clock hits) | 55–187 |
+| VIPER, longest fight | 92 s | 30–62 s (typically ~25 s) |
+| hearts per campaign | 1–3 | 6–9 |
 | weapons per campaign | 3–10 | 10–18 |
 | skilled-bot move usage | jab-spam; jump kick lands 9.7% | 12 moves, land rates 89–108% |
-| throws per campaign (skilled bot) | ~22 | ~50 |
+| throws per campaign (skilled bot) | ~12 | ~50 |
 | walker campaign deaths | 2–3 | 2–3 (still clears) |
+| co-op | untested | recorded campaign, no crashes, bosses 25–30 s |
 
 Not met, with reasons:
 
