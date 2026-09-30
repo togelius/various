@@ -83,5 +83,25 @@ function testTraversal() {
  return out;
 }
 
-const testResults = [...testJourney(), ...testTraversal()];
+function testLighting() {
+ const out=[],before=richLighting;
+ const check=(name,ok)=>{if(!ok)throw Error(name);out.push('PASS '+name);};
+ try{
+  check('Sun depth framebuffer is complete',shadowReady);
+  richLighting=true;
+  for(let i=0;i<5;i++){
+   reset();state='play';chapter=i;checkpointPosition();render();
+   check('Sunlit district '+(i+1)+' renders without graphics errors',gl.getError()===0&&sunVP.every(Number.isFinite));
+  }
+  const cached=shadowKey;render();check('Stationary scenery shadow is cached',shadowKey===cached);
+  P.x+=16;render();check('Sunlight follows travel',shadowKey!==cached);
+  richLighting=false;render();check('Classic lighting remains available',gl.getError()===0);
+  richLighting=true;chapter=0;chapterClear=false;checkpointPosition();render();const closed=shadowKey;
+  chapterClear=true;render();check('Opening a checkpoint updates its shadow',shadowKey!==closed&&gl.getError()===0);
+ }catch(e){out.push('FAIL '+e.message);}
+ finally{richLighting=before;reset();state='play';}
+ return out;
+}
+
+const testResults = [...testJourney(), ...testTraversal(), ...testLighting()];
 parent.postMessage({type: "absorb-tests", results: testResults}, "*");

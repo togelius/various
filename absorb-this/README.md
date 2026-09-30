@@ -132,6 +132,12 @@ With a keyboard and mouse:
   rims. Warm wood, cool reflective water and matte sponge surfaces have
   different finishes. Glass starts in the lighter setting; G still cycles
   through all three looks.
+- **Sunlit kitchen.** Scenery casts soft-edged directional shadows across
+  the counter. Pendant lights warm the room, hotplates throw orange light
+  onto nearby objects, and water and metal catch window-shaped reflections.
+  The sink has moving ripples and caustic highlights; dust drifts overhead.
+  Title and pause options include **LIGHTING: SUNLIT / CLASSIC**. Classic
+  retains the previous lighting and skips the shadow-map pass.
 - **Infinite continues, if you ask nicely.** On the death screen, type PLEASE
   to return to the current district's checkpoint and retry that wave, keeping
   your score and the Fork's history. If you've already cleared the district,
@@ -178,7 +184,10 @@ There are no external image assets. Everything is procedural meshes—rounded
 boxes, cylinders, spheres, rings and arches—and the
 surfaces are painted in the fragment shader: wood grain along the planks, the
 sponge's pores and scouring pad with the serrated seam between them, brown
-glass with etched white script, the pink label, tiles. Shadows are soft blobs.
+glass with etched white script, the pink label, tiles. Moving objects have
+soft contact shadows; a cached local depth map adds shadows from the scenery
+in Sunlit mode. It updates as you travel or open a checkpoint, with a smaller
+map on touch devices.
 Gibs, bubbles, sauce and water are instanced particles, and splats stay on the
 counter as stains. Signs and packaging are painted into canvas textures.
 Distant props are culled as you travel along the kitchen.

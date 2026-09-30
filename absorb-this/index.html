@@ -310,12 +310,31 @@ const FS = `#version 300 es
 precision highp float;
 in vec3 vW; in vec3 vN; in vec3 vL; in vec3 vU; in vec3 vC; flat in float vMat;
 uniform vec3 uEye; uniform float uFlash; uniform vec4 uSh[40]; uniform int uShN; uniform float uTime;
+uniform mat4 uSunVP; uniform sampler2D uSunDepth; uniform float uShadowOn, uLighting, uViewmodel;
+uniform vec4 uHot[4];
 out vec4 o;
 ${NOISE}
-const vec3 SUN = vec3(-0.34,0.88,0.33);
+#define SUN normalize(mix(vec3(-.34,.88,.33),vec3(-.38,.82,-.43),uLighting))
 const vec3 SUNC = vec3(1.0,0.9,0.76);
-const vec3 FOG = vec3(0.97,0.88,0.74);
-vec3 envc(vec3 r){ return mix(vec3(0.32,0.22,0.15), vec3(1.05,0.97,0.86), smoothstep(-0.35,0.45,r.y)); }
+#define FOG mix(vec3(.97,.88,.74),vec3(.69,.76,.74),uLighting)
+vec3 envc(vec3 r){
+  vec3 old=mix(vec3(.32,.22,.15),vec3(1.05,.97,.86),smoothstep(-.35,.45,r.y));
+  vec3 c=mix(vec3(.2,.14,.08),vec3(.48,.65,.72),smoothstep(-.25,.55,r.y));
+  float pane=smoothstep(.2,.32,r.y)*(1.-smoothstep(.75,.88,r.y))*smoothstep(.35,.52,-r.z);
+  float mullion=1.-.7*(1.-smoothstep(.025,.06,abs(fract(r.x*3.+.5)-.5)));
+  c+=vec3(1.,.86,.57)*pane*mullion*.8;
+  return mix(old,c,uLighting);
+}
+float sunShadow(vec3 n){
+  if(uShadowOn<.5||uViewmodel>.5)return 1.;
+  vec4 p=uSunVP*vec4(vW+n*.055,1.);vec3 q=p.xyz/p.w*.5+.5;
+  if(q.z<=0.||q.z>=1.)return 1.;
+  float edge=min(min(q.x,1.-q.x),min(q.y,1.-q.y));if(edge<=0.)return 1.;
+  float bias=.0005+.0012*(1.-max(dot(n,SUN),0.)),lit=0.;
+  vec2 texel=1./vec2(textureSize(uSunDepth,0));
+  for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)lit+=step(q.z-bias,texture(uSunDepth,q.xy+vec2(x,y)*texel).r);
+  return mix(1.,lit/9.,smoothstep(0.,.06,edge));
+}
 
 vec3 wood(vec3 w, vec3 tint){
   float px = w.x/2.3; float id = floor(px); float fx = fract(px);
@@ -425,6 +444,11 @@ void main(){
     alb = vC*(.94+thread)*(1.-stripe*.16); spec = .02;
   }
 
+  if(uLighting>.5){
+    if(m==1 && n.y>.6)n=normalize(n+vec3(sin(vW.x*24.+sin(vW.z*.4))*.045,0.,sin(vW.z*3.)*.013));
+    if(m==22)n=normalize(n+vec3(cos(vW.x*1.8+uTime)*.065,0.,sin(vW.z*2.6-uTime)*.065));
+    if(m==5){shin=110.;alb*=.9+.1*sin(vL.y*85.);}
+  }
   float dif = max(dot(n,SUN),0.);
   float sh = 1.;
   if(n.y > 0.6){
@@ -434,9 +458,27 @@ void main(){
       sh *= 1. - smoothstep(s.z, s.z*0.3, d)*(1.-dy/14.)*0.6; }
   }
   vec3 amb = mix(vec3(0.24,0.29,0.34), vec3(0.67,0.64,0.58), n.y*0.5+0.5);
+  float sunVis=sunShadow(n);
   vec3 c = alb*(amb*0.62 + SUNC*dif*sh*0.78);
+  if(uLighting>.5){
+    vec3 sky=mix(vec3(.2,.23,.25),vec3(.62,.72,.76),n.y*.5+.5);
+    float crevice=mix(.68,1.,smoothstep(0.,1.8,max(vW.y,0.)));
+    if(n.y>.6)crevice=1.;
+    c=alb*(sky*.55*crevice*mix(.72,1.,sh)+SUNC*dif*sunVis*sh*.92);
+    vec3 lamp=vec3(floor((vW.x+36.)/72.)*72.+12.,30.,5.)-vW;
+    float ld=length(lamp),fall=pow(max(0.,1.-ld/42.),2.);
+    c+=alb*vec3(1.,.62,.28)*max(dot(n,normalize(lamp)),0.)*fall*.55;
+    for(int i=0;i<4;i++){
+      vec3 L=uHot[i].xyz-vW;float d=length(L),f=pow(max(0.,1.-d/11.),2.)*uHot[i].w;
+      c+=vec3(1.,.19,.025)*(alb*.7+.18)*f*(.2+.8*max(dot(n,normalize(L)),0.));
+    }
+    if(vW.x>267.&&vW.x<316.&&vW.z>-19.&&vW.z<12.&&vW.y<3.){
+      float ca=pow(max(0.,sin(vW.x*2.7+sin(vW.z*2.+uTime))*cos(vW.z*2.4-uTime*.5)),10.);
+      c+=vec3(.15,.45,.47)*ca*.18;
+    }
+  }
   vec3 H = normalize(SUN+V);
-  c += SUNC*pow(max(dot(n,H),0.),shin)*spec*sh;
+  c += SUNC*pow(max(dot(n,H),0.),shin)*spec*sh*mix(1.,sunVis,uLighting);
   if(refl > 0.){ float fr = 0.25 + 0.75*pow(1.-max(dot(n,V),0.),3.); c += envc(reflect(-V,n))*refl*fr*(m==5?1.:0.6); }
   if(m==12 || m==19) c += alb*0.32;
   if(m==2 || m==3 || m==19) c += vec3(.25,.42,.5)*pow(1.-max(dot(n,V),0.),3.)*.25;
@@ -540,6 +582,10 @@ function program(vs, fs) {
 const PR_MAIN = program(VS, FS);
 const PR_INST = program(VS.replace('precision highp float;', 'precision highp float;\n#define INST'), FS);
 const PR_POST = program(PVS, PFS);
+const PR_SHADOW = program(`#version 300 es
+layout(location=0) in vec3 aPos;uniform mat4 uVP,uModel;
+void main(){gl_Position=uVP*uModel*vec4(aPos,1.);}`,`#version 300 es
+precision highp float;void main(){}`);
 const PR_TEX = program(`#version 300 es
 layout(location=0) in vec3 aPos; uniform mat4 uVP, uModel; out vec2 vUV; out vec3 vW;
 void main(){ vec4 w = uModel*vec4(aPos,1.); vW = w.xyz; vUV = aPos.xy + 0.5; gl_Position = uVP*w; }`, `#version 300 es
@@ -648,6 +694,8 @@ let W = 0, H = 0, SW = 0, SH = 0, fbo = null, fboTex = null, fboDepth = null;
 const qScale = +new URLSearchParams(location.search).get('scale') || 0;
 const TOUCH = (window.matchMedia && matchMedia('(pointer: coarse)').matches) || navigator.maxTouchPoints > 1;
 if (TOUCH) document.body.classList.add('touch');
+let richLighting=true;
+try{richLighting=localStorage.getItem('absorb.lighting')!=='classic';}catch(e){}
 let rScale = qScale || (TOUCH ? 0.8 : 1);
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
@@ -666,6 +714,62 @@ function resize() {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 }
 addEventListener('resize', resize); resize();
+
+// Cached local sunlight map: scenery casts real shadows; moving characters retain
+// their contact shadows. Rebuild only when the camera travels or a cloth gate opens.
+const SUN_DIR = [-.38, .82, -.43], SUN_LEN = Math.hypot(...SUN_DIR);
+for(let i=0;i<3;i++)SUN_DIR[i]/=SUN_LEN;
+const sunVP=new Float32Array(16), sunView=new Float32Array(16), sunProj=new Float32Array(16);
+const shadowSize=TOUCH?768:1024;
+let shadowTex=gl.createTexture(),shadowFbo=gl.createFramebuffer(),shadowKey='';
+gl.bindTexture(gl.TEXTURE_2D,shadowTex);
+gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,shadowSize,shadowSize,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);
+for(const p of [gl.TEXTURE_MIN_FILTER,gl.TEXTURE_MAG_FILTER])gl.texParameteri(gl.TEXTURE_2D,p,gl.NEAREST);
+for(const p of [gl.TEXTURE_WRAP_S,gl.TEXTURE_WRAP_T])gl.texParameteri(gl.TEXTURE_2D,p,gl.CLAMP_TO_EDGE);
+gl.bindFramebuffer(gl.FRAMEBUFFER,shadowFbo);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,shadowTex,0);
+gl.drawBuffers([gl.NONE]);gl.readBuffer(gl.NONE);
+const shadowReady=gl.checkFramebufferStatus(gl.FRAMEBUFFER)===gl.FRAMEBUFFER_COMPLETE;
+gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+function updateSunShadow(eye) {
+  if(!richLighting||!shadowReady)return;
+  const cx=Math.round(eye[0]/8)*8,key=[cx,chapter,chapterClear,endless,STATIC.length].join('|');
+  if(key===shadowKey)return;
+  shadowKey=key;
+  const z=SUN_DIR,x=[z[2],0,-z[0]],len=Math.hypot(...x);for(let i=0;i<3;i++)x[i]/=len;
+  const y=[z[1]*x[2],z[2]*x[0]-z[0]*x[2],-z[1]*x[0]],at=[cx,4,-1],e=at.map((v,i)=>v+z[i]*90);
+  ident(sunView);for(let i=0;i<3;i++){sunView[i*4]=x[i];sunView[i*4+1]=y[i];sunView[i*4+2]=z[i];}
+  for(let i=0;i<3;i++)sunView[12+i]=-(sunView[i]*e[0]+sunView[4+i]*e[1]+sunView[8+i]*e[2]);
+  ident(sunProj);sunProj[0]=1/72;sunProj[5]=1/52;sunProj[10]=-2/179;sunProj[14]=-181/179;
+  mul(sunVP,sunProj,sunView);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,shadowFbo);gl.viewport(0,0,shadowSize,shadowSize);gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.useProgram(PR_SHADOW.p);gl.uniformMatrix4fv(PR_SHADOW.u.uVP,false,sunVP);
+  const cast=(m,x,y,z,sx,sy,sz,yaw=0,pit=0)=>{
+    ident(tmp);tr(tmp,x,y,z);if(yaw)ry(tmp,yaw);if(pit)rx(tmp,pit);sc(tmp,sx,sy,sz);
+    gl.uniformMatrix4fv(PR_SHADOW.u.uModel,false,tmp);gl.bindVertexArray(m.vao);gl.drawElements(gl.TRIANGLES,m.n,gl.UNSIGNED_SHORT,0);
+  };
+  for(const o of STATIC){
+    // The painted windows are light portals; the room shell must not seal them.
+    if(o.y<.1||o.sy>45||o.sx>90||o.mat===7||o.mat===22||o.sz<.2||Math.abs(o.x-cx)>90+o.sx*.5)continue;
+    cast(o.m,o.x,o.y,o.z,o.sx,o.sy,o.sz,o.yaw,o.pit);
+  }
+  for(const g of GATES)if(Math.abs(g.x-cx)<90&&!chapterGateOpen(g.index))cast(ROUND,g.x,8,-.5,.45,16,42);
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+}
+function toggleLighting() {
+  richLighting=!richLighting;shadowKey='';
+  try{localStorage.setItem('absorb.lighting',richLighting?'sunlit':'classic');}catch(e){}
+}
+function buildKitchenLights() {
+  S(CUBE,148,62,-2,365,.8,90,[.72,.76,.65],0);
+  for(const c of CHAPTERS){
+    const x=c.x+12;
+    S(CYL,x,34,5,.06,27,.06,[.17,.19,.17],5);
+    S(NECK,x,31,5,3.3,3,3.3,[.12,.32,.28],20);
+    S(CYL,x,30.95,5,2.9,.08,2.9,[1.1,.76,.35],7);
+    S(SPH,x,30.9,5,.7,.25,.7,[1.5,1.18,.72],7);
+    S(CUBE,c.x,59,-2,.8,3,86,[.36,.41,.34],1);
+  }
+}
 
 // =====================================================================  draw helpers
 const cur = new Float32Array(16), tmp = new Float32Array(16), stack = [];
@@ -961,6 +1065,7 @@ const PADS = [{ x: -3.2, z: 2.2 }, { x: 8.5, z: 8.4 }];
 
 S(CUBE, -22, 31, -21.93, 12.8, 15.8, 0.12, [0.3, 0.2, 0.12], 0);   // the poster's frame
 buildLongKitchen();
+buildKitchenLights();
 function groundAt(x, z, y) {
   let g = onCounter(x, z) ? 0 : -60;
   for (const c of COL) {
@@ -4338,13 +4443,18 @@ function render() {
   for (const e of enemies) { if (ns >= 40) break; shArr[ns * 4] = e.x; shArr[ns * 4 + 1] = e.z; shArr[ns * 4 + 2] = (e.type === 'bottle' ? 1.0 : e.r * 1.1); shArr[ns * 4 + 3] = e.y + (e.type === 'spoon' ? 0.5 : e.h); ns++; }
   for (const k of pickups) { if (ns >= 40) break; shArr[ns * 4] = k.x; shArr[ns * 4 + 1] = k.z; shArr[ns * 4 + 2] = 0.5; shArr[ns * 4 + 3] = k.y + 0.3; ns++; }
 
+  updateSunShadow(eye);
+  gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,shadowTex);gl.activeTexture(gl.TEXTURE0);
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbo); gl.viewport(0, 0, SW, SH);
-  gl.clearColor(0.97, 0.88, 0.74, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.clearColor(richLighting?.69:.97,richLighting?.76:.88,.74,1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
   for (const pr of [PR_MAIN, PR_INST]) {
     gl.useProgram(pr.p); gl.uniformMatrix4fv(pr.u.uVP, false, VP); gl.uniform3f(pr.u.uEye, eye[0], eye[1], eye[2]);
     gl.uniform4fv(pr.u.uSh, shArr); gl.uniform1i(pr.u.uShN, ns); if (pr.u.uTime) gl.uniform1f(pr.u.uTime, T);
     if (pr.u.uFlash) gl.uniform1f(pr.u.uFlash, 0);
+    gl.uniformMatrix4fv(pr.u.uSunVP,false,sunVP);gl.uniform1i(pr.u.uSunDepth,1);
+    gl.uniform1f(pr.u.uShadowOn,richLighting&&shadowReady?1:0);gl.uniform1f(pr.u.uLighting,richLighting?1:0);gl.uniform1f(pr.u.uViewmodel,0);
+    gl.uniform4fv(pr.u.uHot,new Float32Array(BURNERS.flatMap(b=>[b.x,.8,b.z,Math.max(0,burnerHeat(b)-.4)*1.7])));
   }
   gl.useProgram(PR_MAIN.p); flashU = 0;
   for (const o of STATIC) { if (Math.abs(o.x-eye[0]) > 105 + Math.max(o.sx,o.sz)*.6) continue; ident(cur); part(o.m, o.x, o.y, o.z, o.sx, o.sy, o.sz, o.col, o.mat, o.yaw, o.pit); }
@@ -4371,6 +4481,10 @@ function render() {
   // instanced: cubes / spheres + stains
   gl.useProgram(PR_INST.p);
   const cubes = [], sphs = [];
+  if(richLighting)for(let i=0;i<30;i++){
+    const x=Math.floor(eye[0]/24)*24-24+(i*13.71)%72;
+    sphs.push({x:x+Math.sin(T*.16+i)*.5,y:1+(i*3.17+T*.13)%19,z:-18+(i*7.33)%29,size:.018+(i%3)*.009,life:1,max:1,shrink:false,col:[1.15,1.04,.74],mat:7,ang:0,sx:1,sy:1,sz:1});
+  }
   for (const p of parts) (p.sph ? sphs : cubes).push(p);
   for (const s of stains) sphs.push({ x: s.x, y: s.y, z: s.z, size: 1, life: 1, max: 1, shrink: false, col: s.col, mat: s.water ? 12 : 11, ang: 0, sx: s.sx, sy: 0.012, sz: s.sz });
   let n = fillInst(cubes, instData.cube);
@@ -4389,7 +4503,7 @@ function render() {
   if (state !== 'title') {
     gl.clear(gl.DEPTH_BUFFER_BIT); gl.useProgram(PR_MAIN.p);
     persp(PROJ, fitFov(70 * Math.PI / 180, aspect), aspect, 0.02, 10); mul(VP, PROJ, VIEW); gl.uniformMatrix4fv(PR_MAIN.u.uVP, false, VP);
-    drawViewmodel(eye);
+    gl.uniform1f(PR_MAIN.u.uViewmodel,1);drawViewmodel(eye);gl.uniform1f(PR_MAIN.u.uViewmodel,0);
     persp(PROJ, fov, aspect, 0.05, 500); mul(VP, PROJ, VIEW);
   }
   gl.bindVertexArray(null);
@@ -4539,9 +4653,9 @@ function continueGame() {
   grabPointer();
 }
 function hideScreen() { $('scr').classList.add('off'); }
-function optsHTML() { return `<div class="opts"><button data-o="g">${GLASSN()}</button><button data-o="v">${voiceLabel().split(' (')[0].split(' ·')[0]}</button><button data-o="s">SPEECH: ${TALK_NAMES[talkSpeed]}</button><button data-o="m">${muted ? 'SOUND: OFF' : 'SOUND: ON'}</button></div>`; }
+function optsHTML() { return `<div class="opts"><button data-o="g">${GLASSN()}</button><button data-o="v">${voiceLabel().split(' (')[0].split(' ·')[0]}</button><button data-o="s">SPEECH: ${TALK_NAMES[talkSpeed]}</button><button data-o="m">${muted ? 'SOUND: OFF' : 'SOUND: ON'}</button><button data-o="l">LIGHTING: ${richLighting?'SUNLIT':'CLASSIC'}</button></div>`; }
 $('scr').addEventListener('click', e => { const b = e.target.closest('button[data-o]'); if (!b) return;
-  ({ g: toggleGlass, v: cycleVoice, s: cycleTalk, m: toggleMute })[b.dataset.o](); const o = b.closest('.opts'); if (o) o.outerHTML = optsHTML(); });
+  ({ g: toggleGlass, v: cycleVoice, s: cycleTalk, m: toggleMute, l: toggleLighting })[b.dataset.o](); const o = b.closest('.opts'); if (o) o.outerHTML = optsHTML(); });
 function start() {
   initAudio();
   if (state === 'title' || state === 'dead' || state === 'absorbed' || state === 'won') { reset(); districtSupplies(); continues = 0; state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; say('get wet', true); setTimeout(() => { if(state==='play')zz(Math.random()<.4?'kitchen_0':'start', { force: true }); }, 1400); }
