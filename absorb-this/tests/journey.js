@@ -103,5 +103,59 @@ function testLighting() {
  return out;
 }
 
-const testResults = [...testJourney(), ...testTraversal(), ...testLighting()];
+function testCurios(){
+ const out=[],oldTimer=window.setTimeout,oldRich=richLighting;window.setTimeout=()=>0;
+ const check=(name,ok)=>{if(!ok)throw Error(name);out.push('PASS '+name);};
+ const fresh=()=>{reset();hideScreen();state='play';interT=9999;jokeT=0;ZZ.lock=false;mouseDown=false;for(const k in keys)keys[k]=false;};
+ const pose=r=>{
+  chapter=r.district;P.pud=!!r.lowOnly;P.eyeH=P.pud?.32:1.45;
+  for(const radius of [2.8,3.8,1.8])for(let i=0;i<16;i++){
+   P.x=r.x+Math.sin(i*Math.PI/8)*radius;P.z=r.z+Math.cos(i*Math.PI/8)*radius;P.y=groundAt(P.x,P.z,r.y+.5);P.vx=P.vy=P.vz=0;
+   if(!onCounter(P.x,P.z)||Math.abs(P.y-r.y)>3)continue;
+   const x=P.x,z=P.z;collide(P,PRAD,P.pud?.42:1.2);if(Math.hypot(P.x-x,P.z-z)>.001)continue;
+   const dx=r.x-P.x,dz=r.z-P.z;P.yaw=Math.atan2(-dx,-dz);P.pitch=Math.atan2(r.y+r.eyeY-P.y-P.eyeH,Math.hypot(dx,dz));
+   if(findCurio()===r)return true;
+  }
+  return false;
+ };
+ try{
+  fresh();curioFound.clear();
+  check('Twenty unique philosophical encounters',CURIOS.length===20&&new Set(CURIOS.map(r=>r.id)).size===20);
+  check('Four discoveries in every district',CHAPTERS.every((_,i)=>CURIOS.filter(r=>r.district===i).length===4));
+  check('Undiscovered notebook keeps identities hidden',CURIOS.every(r=>!journalHTML().includes(r.name)));
+  check('Notebook offers optional clues',(journalHTML().match(/A small nudge/g)||[]).length===20);
+  for(const r of CURIOS){
+   fresh();check(r.id+' can be examined from solid unobstructed ground',pose(r));
+   const hp=P.hp,t=T,n=wave,enemy=makeEnemy('sponge',P.x+5,P.z+5);enemies=[enemy];const ex=enemy.x,ez=enemy.z;
+   check(r.id+' opens its own encounter and banks discovery',inspectCurio()&&state==='paused'&&readingCurio===r&&curioFound.has(r.id)&&score===250);
+   tick(2);check(r.id+' reading freezes danger and hotplate time',P.hp===hp&&T===t&&wave===n&&enemy.x===ex&&enemy.z===ez);
+   richLighting=true;render();check(r.id+' close-up renders in Sunlit mode',gl.getError()===0&&stack.length===0);
+   if(['occam','wittgenstein','russell'].includes(r.id)){richLighting=false;render();check(r.id+' close-up renders in Classic mode',gl.getError()===0&&stack.length===0);}
+   check(r.id+' includes a separate hidden footnote',document.querySelector('.curioCard details')?.textContent.includes(r.foot));
+   document.querySelector('[data-action="curio-close"]').click();
+   check(r.id+' resumes the same fight',state==='play'&&screenKind==='play'&&!$('hud').classList.contains('off')&&enemies[0]===enemy);
+   inspectCurio();check(r.id+' revisits cannot farm score',score===250&&runCurios.size===1);
+  }
+  check('Discoveries persist in the save store',JSON.parse(localStorage.getItem('absorb.curios')).length===20);
+  openNotebook();check('Notebook lists all twenty discovered objects',document.querySelectorAll('button[data-curio]').length===20);
+  document.querySelector('[data-curio="kant"]').click();check('Notebook reopens an already found character',readingCurio.id==='kant'&&document.querySelector('.curioCard').textContent.includes('MODERN MORALITY'));
+  const banked=score;openNotebook();document.querySelector('[data-curio="russell"]').click();check('Notebook reading earns no extra score',score===banked);
+  fresh();check('New spill resets run discoveries but keeps field notes',runCurios.size===0&&curioFound.size===20);
+  const spoon=CURIOS.find(r=>r.lowOnly);check('Teaspoon can be found while a puddle',pose(spoon)&&findCurio()===spoon);
+  P.pud=false;check('Hidden teaspoon requires puddle form',findCurio()!==spoon);
+  const r=CURIOS.find(r=>r.id==='occam');pose(r);P.yaw+=Math.PI;check('Looking away does not reveal kitchenware',!findCurio());
+  pose(r);P.x-=20;check('Distant kitchenware does not reveal itself',!findCurio());
+  // A real opaque obstacle between eye and object must block discovery.
+  pose(r);const eye=[P.x,P.y+P.eyeH,P.z],target=[r.x,r.y+r.eyeY,r.z];
+  addBox((eye[0]+target[0])/2,(eye[2]+target[2])/2,1.8,.5,12);check('Scenery blocks discovery through walls',findCurio()!==r);COL.pop();
+  pose(r);inspectCurio();start();const saved=score;continueGame();check('PLEASE keeps discoveries and their score',runCurios.has(r.id)&&curioFound.size===20&&score===saved);
+  fresh();state='title';showScreen('title');openNotebook();document.querySelector('[data-curio="russell"]').click();document.querySelector('[data-action="curio-close"]').click();check('Title notebook returns to title without starting a run',state==='title'&&screenKind==='title');
+  fresh();state='won';showScreen('won');openNotebook();document.querySelector('[data-action="notebook-back"]').click();check('Ending notebook returns to the completed run',state==='won'&&screenKind==='won');
+  check('Discovery tests kept audio muted',muted&&(!master||master.gain.value===0));
+ }catch(e){out.push('FAIL '+e.message);}
+ finally{window.setTimeout=oldTimer;richLighting=oldRich;fresh();}
+ return out;
+}
+
+const testResults = [...testJourney(), ...testTraversal(), ...testLighting(), ...testCurios()];
 parent.postMessage({type: "absorb-tests", results: testResults}, "*");

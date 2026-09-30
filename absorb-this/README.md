@@ -24,7 +24,9 @@ On a phone or tablet: drag on the left half to move, drag on the right half to
 look (or drag from the FIRE button to aim while shooting), and use the buttons
 for jump, dash, puddle and swapping weapons. A surrender button appears when a
 sponge has you, and a pull-the-plug button appears at the cleared drain.
-Pause holds the glass, sound and voice settings. Either orientation works.
+Look closely at small curious kitchenware to reveal **EXAMINE**. Reading pauses
+the fight. The pause screen also holds your **COUNTER CULTURE** notebook,
+glass, lighting, sound and voice settings. Either orientation works.
 On the death screen there's a box to type *please* into.
 
 With a keyboard and mouse:
@@ -37,6 +39,8 @@ With a keyboard and mouse:
 - Hold **E** while a sponge has you to surrender to it
 - At the sink, clear its two waves and hold **E** over the drain to escape
 - **1 / 2 / 3 / 4** or the **mouse wheel** to switch weapons
+- **F** examines curious kitchenware when LOOK CLOSER appears; **J** opens
+  your discovery notebook. **Esc** returns from reading.
 - **G** cycles the glass distortion: murky, clean, none
 - **M** mutes everything, **V** switches Žižek's voice between accented,
   plain English and off, **Esc** pauses
@@ -60,6 +64,17 @@ With a keyboard and mouse:
     bridge, with a wet fast lane below and another ketchup launch above.
   - **The Sink of History:** a recessed basin, rippling water, soap bubbles,
     a working refill tap and the plug that ends the journey.
+- **Counter Culture.** Twenty hidden philosopher kitchenware encounters, four
+  per district, with bespoke procedural models, animated eyes, tiny plaques,
+  original dialogue and extra jokes in the small print. Occam carries a meat
+  cleaver; Russell has a teapot; Kant is a grater playing Call of Duty. There
+  are seventeen more acquaintances in corners, on elevated routes and under
+  clutter. Some require puddle form. Look closely and press **F** (or tap
+  **EXAMINE**) to pause the action and rotate the object in a lit close-up.
+  **J**, or the title/pause notebook button, opens your field notes. Undiscovered
+  entries offer optional hints without naming their occupants. Discoveries
+  stay in this browser across new runs; each is worth 250 curiosity points
+  once per run, and PLEASE keeps that record. None are required to escape.
 - **An escape ending.** Clear wave ten and hold the plug for 1.5 seconds to
   go DOWN THE DRAIN, bank 10,000 points, and record your time. You can start
   another spill or choose STAY & MAKE A BIGGER MESS: endless mode continues
@@ -211,5 +226,7 @@ The dependency-free browser suite runs the actual simulation and WebGL
 renderer in a muted frame with an in-memory save store. It covers the full
 ten-wave progression (including boss splitting), checkpoint continues,
 gates, hotplates, tap, drain ending, endless mode, and movement through the
-low board, launch routes and full counter. It does not replace playing the
+low board, launch routes and full counter. It also checks both lighting modes,
+shadow caching, all twenty discovery locations, paused encounter inspection,
+notebook navigation and discovery/continue persistence. It does not replace playing the
 encounters to judge difficulty and feel.

@@ -196,6 +196,34 @@
   #scr .itinerary span { border:1px solid #af9f7e;padding:5px 9px;background:#18332ba6;border-radius:4px; }
   @media (max-width:700px) { #journey { top:calc(60px + env(safe-area-inset-top, 0px));width:72vw; } #journeyName { font-size:17px; } #journeyNav { left:auto;right:0;top:calc(100% + 4px);margin-left:0;padding:1px 4px; } #journeyGoal {font-size:9px;} #boss {top:144px;} #chal {top:190px;} #hi{display:none;} #rank{position:fixed;left:78px;bottom:124px;width:100px;font-size:11px;} #rank b{font-size:24px;} }
   @media (max-height:520px) and (min-width:701px) { #journey {width:42vw;padding:3px 7px;} #journeyName {font-size:17px;} #journeySteps {display:none;} #boss{top:72px;} #chal{top:122px;max-width:200px;} body.touch #zz:not(.big) .bub{max-width:180px;font-size:12px;} body.touch #zz:not(.big) .face{width:58px;height:58px;} }
+  #curioPrompt{position:absolute;left:50%;bottom:132px;transform:translateX(-50%);background:#19352de8;border:1px solid #e7cb8e;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:900;text-align:center;max-width:75vw;}
+  #curioPrompt[hidden],#tbInspect[hidden]{display:none;}
+  #tbInspect{left:50%;top:39%;transform:translateX(-50%);width:auto;height:auto;padding:9px 14px;font-size:16px;background:#315e4de8;border-color:#f3d38a;}
+  #scr[data-screen="curio"]{background:linear-gradient(90deg,transparent 35%,#11251b70 60%);justify-content:flex-end;align-items:safe center;cursor:default;}
+  #scr .curioCard{width:42vw;max-width:550px;box-sizing:border-box;margin:24px 3vw 24px 0;padding:28px;text-align:left;background:#f5e8ccee;color:#26382e;border:2px solid #c4b18a;border-radius:4px 18px 5px 12px;box-shadow:8px 8px 0 #0b211999;}
+  #scr .curioCard h1{font-size:clamp(30px,3.5vw,52px)!important;line-height:1.08;color:#223c30;transform:none;text-shadow:none;letter-spacing:.015em;}
+  #scr .curioCard .eyebrow{color:#647455;font-size:10px;letter-spacing:.14em;}
+  #scr .curioSchool{font:18px Bangers,Impact,sans-serif;letter-spacing:.06em;color:#815330;}
+  #scr .curioCard blockquote{margin:18px 0;padding-left:15px;border-left:4px solid #b46a35;font-size:19px;font-weight:900;line-height:1.4;}
+  #scr .curioCard p{font-size:14px;line-height:1.55;}
+  #scr .curioCard summary{color:#546345;font-size:12px;}
+  #scr .curioCard .stamp{font:16px Bangers,Impact,sans-serif;color:#ad4c2a;border:2px solid #ad4c2a;padding:8px;transform:rotate(-2deg);}
+  #scr .curioCard .fine{font-size:10px;color:#647455;}
+  #scr .curioCard .actions{gap:8px;justify-content:flex-start;}
+  #scr .curioCard button.action{font-size:20px;padding:9px 13px;}
+  .curioTurn{display:flex;align-items:center;gap:14px;margin:15px 0;font-size:10px;letter-spacing:.12em;}
+  .curioTurn button{width:44px;height:40px;font-size:24px;background:#d4d9bf;color:#304632;border:1px solid #8c9b78;border-radius:4px;cursor:pointer;}
+  #scr .notebook{max-width:1000px;width:100%;cursor:default;}
+  #scr .notebook h1{font-size:clamp(40px,6vw,76px)!important;}
+  .noteDistrict{text-align:left;margin:32px 0;} .noteDistrict h2{font-size:25px!important;} .noteDistrict h2 small{font:13px Nunito,sans-serif;opacity:.7;}
+  .noteGrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .noteEntry{display:block;padding:17px;border:1px solid #85967a;background:#233e32;color:#f8e5bd;text-align:left;border-radius:6px;font:14px Nunito,sans-serif;}
+  button.noteEntry{cursor:pointer;} button.noteEntry:hover,button.noteEntry:focus-visible{background:#375c44;outline:2px solid #f1c77c;}
+  .noteEntry strong{display:block;font:22px Bangers,Impact,sans-serif;letter-spacing:.04em;}.noteEntry span{display:block;font-size:10px;margin-top:8px;}
+  .noteEntry.undiscovered{background:#20352bd9;}.noteEntry.undiscovered strong{font:13px Nunito,sans-serif;opacity:.6;}
+  #scr .noteEntry details{font-size:12px;margin:12px 0 0;} #scr .noteEntry p{font-size:12px;}
+  @media(max-width:700px){#scr[data-screen="curio"]{align-items:flex-start;padding-top:35vh;box-sizing:border-box;background:linear-gradient(transparent 27%,#10231aaa 40%);}#scr .curioCard{width:100%;max-width:none;margin:0 10px 12px;padding:20px;}#scr .curioCard h1{font-size:33px!important;}#scr .curioCard blockquote{font-size:17px;}#scr .noteGrid{grid-template-columns:1fr;}#curioPrompt{bottom:110px;font-size:10px;}}
+  @media(max-height:520px) and (min-width:701px){#scr .curioCard{margin:12px 2vw 12px 0;padding:18px;}#scr .curioCard h1{font-size:30px!important;}#scr .curioCard blockquote{font-size:15px;}#scr .curioCard p{font-size:12px;}}
   #err { position:fixed; inset:0; display:none; align-items:center; justify-content:center; font-size:20px; padding:30px; text-align:center; }
 </style>
 </head>
@@ -206,6 +234,7 @@
   <div id="hit"></div>
   <div id="tl" class="big"><div id="score">0</div><div id="combo"></div><div id="rank"></div><div id="hi"></div></div>
   <div id="wave" class="big"></div>
+  <div id="curioPrompt" hidden></div>
   <div id="journey"><strong id="journeyName"></strong><span id="journeyGoal"></span><div id="journeySteps"></div><div id="journeyNav" hidden><span id="journeyArrow">↑</span><span id="journeyDistance"></span></div></div>
   <div id="ann" class="big"></div>
   <div id="mk" class="big"></div>
@@ -222,7 +251,8 @@
 <div id="touchui" hidden>
   <div id="stick" hidden><i></i></div>
   <button class="tb" id="tbFire">FIRE</button><button class="tb" id="tbJump">JUMP</button><button class="tb" id="tbDash">DASH</button>
-  <button class="tb" id="tbPud">PUDDLE</button><button class="tb" id="tbSwap">SWAP</button><button class="tb" id="tbPause">❚❚</button>
+  <button class="tb" id="tbPud">PUDDLE</button><button class="tb" id="tbSwap">SWAP</button><button class="tb" id="tbInspect" hidden>EXAMINE</button>
+  <button class="tb" id="tbPause">❚❚</button>
   <button class="tb" id="tbSurr" hidden>HOLD TO SURRENDER</button>
 </div>
 <div id="scr"></div>
@@ -310,7 +340,7 @@ const FS = `#version 300 es
 precision highp float;
 in vec3 vW; in vec3 vN; in vec3 vL; in vec3 vU; in vec3 vC; flat in float vMat;
 uniform vec3 uEye; uniform float uFlash; uniform vec4 uSh[40]; uniform int uShN; uniform float uTime;
-uniform mat4 uSunVP; uniform sampler2D uSunDepth; uniform float uShadowOn, uLighting, uViewmodel;
+uniform mat4 uSunVP; uniform sampler2D uSunDepth; uniform float uShadowOn, uLighting, uViewmodel, uInspect;
 uniform vec4 uHot[4];
 out vec4 o;
 ${NOISE}
@@ -480,6 +510,11 @@ void main(){
   vec3 H = normalize(SUN+V);
   c += SUNC*pow(max(dot(n,H),0.),shin)*spec*sh*mix(1.,sunVis,uLighting);
   if(refl > 0.){ float fr = 0.25 + 0.75*pow(1.-max(dot(n,V),0.),3.); c += envc(reflect(-V,n))*refl*fr*(m==5?1.:0.6); }
+  if(uInspect>.5){
+    vec3 key=normalize(V+vec3(-.35,.6,.1));
+    c+=(alb*.8+vec3(.2)*spec)*max(dot(n,key),0.);
+    c+=vec3(.17,.23,.22)*pow(1.-max(dot(n,V),0.),2.);
+  }
   if(m==12 || m==19) c += alb*0.32;
   if(m==2 || m==3 || m==19) c += vec3(.25,.42,.5)*pow(1.-max(dot(n,V),0.),3.)*.25;
   c = mix(c, FOG, (1.-exp(-dist*0.0075))*0.85);
@@ -900,7 +935,7 @@ function buildLongKitchen() {
 
   // Breakfast Republic: toaster, coffee, a low cutting-board shortcut and a biscuit stair.
   S(ROUND,65,4.6,-8,14,9.2,9,[.65,.83,.73],20); addBox(65,-8,7,4.5,9.2);
-  for (const z of [-10,-6]) { S(ROUND,65,9.25,z,11,.15,1.1,[.09,.075,.065],0); S(ROUND,65,10.1,z,9,4.4,.85,[.76,.43,.18],13); }
+  for (const z of [-10,-6]) { S(ROUND,65,9.25,z,11,.15,1.1,[.09,.075,.065],0); S(ROUND,65,10.1,z,9,4.4,.85,[.76,.43,.18],13); addBox(65,z,4.5,.425,12.3,0,9.2); }
   S(ROUND,72.2,5.8,-8,.5,3.5,1,[.19,.24,.22],5); S(SPH,72.6,6,-8,.4,.3,.6,[.86,.21,.09],11);
   kitchenSign(65,4,-3.42,9,3,'TOAST OFFICE','ALL REQUESTS WILL BE RETURNED BROWN','#dd5030');
   mug(90,-8,4.8,8,[.1,.48,.48]);
@@ -1010,6 +1045,195 @@ function drawKitchenMotion(eye) {
   }
 }
 
+// Counter philosophy: small, optional encounters. All speech is invented parody.
+// Positions are fixed so close observation and remembered routes matter.
+const CURIOS = [
+ {id:'diogenes',district:0,x:-29,y:0,z:-18,h:2.3,model:'barrel',color:[.55,.33,.14],name:"Diogenes' Barrel",school:'MINIMUM VIABLE CIVILISATION',stamp:'PLEASE MOVE. YOU ARE IN MY SUNLIGHT.',
+  quote:'I own one barrel and no opinions about your loadout. That is two fewer problems than you have.',
+  story:'A bottle offered him a larger barrel. He asked it to stand somewhere else. The bottle has been describing this as a failed partnership ever since.',
+  foot:'Property listing: open plan, natural ventilation, no landlord. The letting agent has reported it as a threat.',hint:'A very small home in the far left back corner.'},
+ {id:'plato',district:0,x:20,y:0,z:-19,h:1.9,model:'cave',color:[.27,.43,.65],name:"Plato's Cave Mug",school:'THE ALLEGORY OF THE CUPBOARD',stamp:'THE REAL MUG IS SOMEWHERE ELSE.',
+  quote:'You see a mug. I see a troublingly low-resolution instance of Mug.',
+  story:'The tea inside has only ever seen shadows of biscuits. One biscuit escaped, saw the kitchen, and returned to explain. The tea called it elitist and dunked it.',
+  foot:'Dishwasher safe in the realm of appearances. Warranty invalid in the realm of Forms.',hint:'Behind the tall bottles, near the back wall.'},
+ {id:'descartes',district:0,x:18,y:0,z:12,h:1.8,model:'cup',color:[.74,.29,.22],name:"Descartes' Coffee Cup",school:'COGITO ERGO SIP',stamp:'I THINK, THEREFORE I NEED A REFILL.',
+  quote:'I doubt the counter. I doubt the spoon. The headache, unfortunately, is beyond doubt.',
+  story:'He separated mind from body, then discovered that both wanted coffee. A tiny receipt lists two espressos and one service charge for the pineal gland.',
+  foot:'DECAF: the evil demon has become commercially available.',hint:'A little cup beyond the big sponge, beside the biscuit steps.'},
+ {id:'epicurus',district:0,x:7,y:6,z:1,h:1.4,model:'tin',color:[.48,.67,.41],name:"Epicurus' Biscuit Tin",school:'THE GARDEN, WITH A LID',stamp:'ENOUGH IS A SERVING SIZE.',
+  quote:'One biscuit. A friend. No spoon trying to kill us. My demands are famously extravagant.',
+  story:'Everyone assumed the tin contained a wild party. It contains three plain biscuits and a note asking whether you have eaten. The hot sauce bottles are furious about the branding.',
+  foot:'Luxury edition: exactly the same biscuits, eaten without checking your score.',hint:'The original big sponge has something modest on its roof.'},
+ {id:'russell',district:1,x:65,y:9.2,z:-8,h:2.8,model:'teapot',color:[.45,.7,.84],name:"Russell's Orbital Teapot",school:'BURDEN OF PROOF: TWO SUGARS',stamp:'PROVE I AM NOT MAKING TEA.',
+  quote:'You cannot prove there is no tiny teapot orbiting the toaster. You can, however, look up.',
+  story:'An improbably small teapot sits between two pieces of toast, orbiting absolutely nothing of importance. Its existence settles one question and creates several questions for the health inspector.',
+  foot:'The warranty requires proof of nonexistence. Customer support has never issued a refund.',hint:'A ketchup-assisted visit to the Toast Office roof may be illuminating.'},
+ {id:'kierkegaard',district:1,x:98,y:0,z:-18,h:2,model:'doublecup',color:[.72,.62,.43],name:"Kierkegaard's Either/Or Espresso",school:'DREAD, WITH OAT MILK',stamp:'REGULAR / DECAF. BOTH WILL HAUNT YOU.',
+  quote:'Drink it and you will regret it. Do not drink it and you will also regret it. That will be four fifty.',
+  story:'Two cups share one saucer. One contains coffee. The other contains the possibility of coffee. Both are cold because choosing has taken all morning.',
+  foot:'The leap of faith is not a double jump. The cups would appreciate it if you stopped testing this.',hint:'Breakfast has a quiet corner beyond its largest coffee mug.'},
+ {id:'zeno',district:1,x:94,y:2.8,z:13,h:1.1,model:'biscuit',color:[.79,.51,.24],name:"Zeno's Half Biscuit",school:'AN INFINITE SNACK IN A FINITE TIN',stamp:'FIRST, EAT HALF OF WHAT REMAINS.',
+  quote:'You are nearly finished. You will always be nearly finished. This is excellent value.',
+  story:'The crumbs form a trail of increasingly tiny portions. A spoon has been waiting for the last bite since breakfast. The spoon has tenure now.',
+  foot:'Nutritional information: tends toward 120 calories. May contain limits.',hint:'Follow the biscuit staircase all the way up.'},
+ {id:'wittgenstein',district:1,x:75,y:.02,z:9,h:.36,model:'spoon',color:[.69,.75,.75],name:"Wittgenstein's Teaspoon",school:'WHEREOF ONE CANNOT STIR',stamp:'THE LIMITS OF MY SPOON ARE NOT THE LIMITS OF MY SOUP.',lowOnly:true,
+  quote:'A spoon means what you do with it. Please stop trying to open the toaster with me.',
+  story:'It retired beneath the cutting board after a furious argument about whether cereal counts as soup. On the underside: SHOW THE FLY THE WAY OUT OF THE JAM JAR. The fly has requested a diagram.',
+  foot:'The instruction manual consists of one page: try it. The second edition contains corrections.',hint:'Flatten yourself. Some arguments happen beneath the cutting board.'},
+ {id:'occam',district:2,x:164,y:.9,z:12,h:3.2,model:'cleaver',color:[.71,.78,.8],name:"Occam's Meat Cleaver",school:'ENTITIES SHALL NOT BE MULTIPLIED BEYOND NECESSITY',stamp:'ONE CLEAN CUT. SIX FEWER ASSUMPTIONS.',
+  quote:'I used to be a razor. The kitchen had too many premises.',
+  story:'Beside the blade lie two carrots, one carrot, and a considerably simpler explanation. It offers to trim your argument. You decide not to mention the appendix.',
+  foot:'Not suitable for splitting hairs. This is deliberate.',hint:'The stove has a breadboard with a particularly economical argument.'},
+ {id:'hume',district:2,x:125,y:.15,z:-4,h:1.25,model:'pan',color:[.23,.28,.3],name:"Hume's Induction Pan",school:'PAST PERFORMANCE IS NOT A BREAKFAST GUARANTEE',stamp:'IT COOKED YESTERDAY. INTERESTING.',
+  quote:'Every egg so far has fried. Your confidence about the next one is adorable.',
+  story:'The pan distrusts induction. This is awkward, because it is an induction pan. The hob says the connection is necessary. The pan says they have merely been seen together a lot.',
+  foot:'Serving suggestion: expect toast, but be prepared to justify that expectation.',hint:'Look along the left edge of the hob, away from the glowing rings.'},
+ {id:'kant',district:2,x:174,y:0,z:-17,h:3.2,model:'grater',color:[.65,.73,.72],name:"Kant's Categorical Grater",school:'CALL OF DUTY: MODERN MORALITY',stamp:'ACT ONLY ON MAXIMS YOU WOULD GRATE UNIVERSALLY.',
+  quote:'My kill/death ratio is irrelevant. Did I act from duty, or merely for the unlockable camo?',
+  story:'Its online handle is xX_CategoricalImperative_Xx. It refuses to camp unless everyone could camp at once, which it suspects would just be a picnic. The cheese is being treated merely as a means.',
+  foot:'Ranked matchmaking is impossible. Nobody can know the thing-in-itself, and the thing-in-itself keeps using the shotgun.',hint:'A metal object stands beyond the kettle, near the back wall.'},
+ {id:'nietzsche',district:2,x:156,y:0,z:-18,h:2.2,model:'mustard',color:[.92,.69,.13],name:"Nietzsche's Mustard",school:'BEYOND MILD AND HOT',stamp:'THAT WHICH DOES NOT KILL ME NEEDS MORE MUSTARD.',
+  quote:'The ketchup is dead. We have eaten it. Who will wipe this from our hands?',
+  story:'It calls itself the Übercondiment and has designed its own label. Underneath the heroic typography, in very small print: shake well; seek reassurance.',
+  foot:'Eternal recurrence: you put it in the fridge, forget it, buy another, and find this one.',hint:'A very confident little jar lurks behind the kettle.'},
+ {id:'marx',district:3,x:192,y:0,z:-18,h:2.4,model:'jar',color:[.72,.15,.11],name:"Marx's Jam Jar",school:'SEIZE THE MEANS OF PRESERVATION',stamp:'ALL THAT IS SOLID MELTS INTO JAM.',
+  quote:'The fruit does the work. The lid takes the credit. I have written several volumes about this.',
+  story:'The strawberries have formed a union. The label describes this as an exciting new artisanal texture. The lid has offered them exposure on the breakfast menu.',
+  foot:'Ingredients: fruit, sugar, surplus value. May contain a historically necessary stone.',hint:'The dish rack district has a red jar in its left back corner.'},
+ {id:'camus',district:3,x:231,y:0,z:11,h:3,model:'mill',color:[.46,.27,.12],name:"Camus' Pepper Mill",school:'ONE MUST IMAGINE SISYPHUS SEASONED',stamp:'TURN. NOTHING IS FINISHED. TURN AGAIN.',
+  quote:'The soup needs pepper. The soup will always need pepper. We must begin from this.',
+  story:'Each turn drops a few grains onto an empty counter. It has no soup, no audience, and remarkably good posture. It asks if you would like to take a turn. It seems pleased either way.',
+  foot:'Refillable. This is both the selling point and the problem.',hint:'Beyond the stacked plates, something is still grinding away.'},
+ {id:'beauvoir',district:3,x:230,y:5.4,z:4,h:1.6,model:'mitt',color:[.58,.28,.44],name:"Beauvoir's Oven Mitt",school:'THE SECOND OVEN',stamp:'ONE IS NOT BORN AN OVEN MITT.',
+  quote:'I was fabric. They kept handing me hot things. Now apparently that is my nature.',
+  story:'It climbed onto the knife handle to get a better view of its situation. The matching mitt stayed in the drawer. They are still friends, but the conversations have become complicated.',
+  foot:'Care instructions: wash gently. Question the allocation of domestic labour vigorously.',hint:'There is more than ammunition at the far end of the raised dish route.'},
+ {id:'foucault',district:3,x:238,y:0,z:-5,h:1.8,model:'colander',color:[.53,.69,.64],name:"Foucault's Colander",school:'DISCIPLINE AND DRAIN',stamp:'YOU ARE VISIBLE FROM EVERY HOLE.',
+  quote:'You are free to be any shape you like. Provided you pass through these holes.',
+  story:'It insists the drainage pattern is neutral. Every piece of pasta now stands straighter. Nobody has actually seen a guard, but the penne keep correcting one another.',
+  foot:'Inspection record: the inspector is also a colander. An appeal may be lodged through the approved hole.',hint:'Beside the plate rack, a bowl appears to be watching.'},
+ {id:'heraclitus',district:4,x:296,y:.05,z:-17,h:1.2,model:'sieve',color:[.58,.7,.74],name:"Heraclitus' Sieve",school:'YOU CANNOT RINSE THE SAME DISH TWICE',stamp:'NEW WATER. SAME WASHING-UP.',
+  quote:'Everything flows. Except the piece of pasta. We are investigating the piece of pasta.',
+  story:'Under the running tap, the sieve has encountered every drop and retained none of their names. It claims this is a profound metaphysical position. The rice calls it poor administration.',
+  foot:'Returns accepted within thirty days, though technically it will not be the same sieve.',hint:'Follow the running water almost to where it lands.'},
+ {id:'spinoza',district:4,x:322,y:0,z:-7,h:2.5,model:'rack',color:[.56,.36,.18],name:"Spinoza's Spice Rack",school:'ONE SUBSTANCE. SEVERAL LABELS.',stamp:'GOD, OR NATURE, OR POSSIBLY PAPRIKA.',
+  quote:'You call it cumin. You call it coriander. I call it one rack, understood under different attributes.',
+  story:'Every jar is connected by a very small wooden shelf. One jar claims free will. The shelf asks it to move left without taking the others into account.',
+  foot:'Allergens: everything is in everything. Consult the universe.',hint:'Beyond the sink, almost at the right-hand wall.'},
+ {id:'laozi',district:4,x:278,y:.05,z:8,h:1.2,model:'bowl',color:[.53,.68,.65],name:"Laozi's Empty Bowl",school:'THE USEFUL PART IS THE BIT THAT IS NOT THERE',stamp:'DO LESS. SPILL BEAUTIFULLY.',
+  quote:'You have crossed the kitchen by insisting. Have you considered flowing?',
+  story:'The bowl has made no attacks, earned no points, and is having a lovely evening. The scoreboard has filed a formal complaint about its lack of engagement.',
+  foot:'Premium edition: the same emptiness, with a subscription.',hint:'A quiet bowl rests at the near-left corner of the basin.'},
+ {id:'arendt',district:4,x:257,y:0,z:9,h:1.15,model:'tray',color:[.73,.52,.25],name:"Arendt's Public Serving Tray",school:'THE HUMAN CONDIMENT',stamp:'A TABLE IS SOMETHING WE HAVE BETWEEN US.',
+  quote:'Everyone may speak. Nobody may speak for the entire cutlery drawer.',
+  story:'A salt shaker and a pepper shaker share the tray without agreeing about lunch. This is going rather well until a bottle announces that it alone represents the kitchen.',
+  foot:'Minutes of the meeting: six opinions, one overturned spoon, no agreement about who washes up.',hint:'Before the basin, near the soap, two shakers share a little stage.'},
+];
+let curioFound=new Set(),runCurios=new Set(),curioFocus=null,curioFocusT=0,curioPoll=0,readingCurio=null,curioTurn=0,screenKind='title',notebookReturn='pause';
+try{const saved=JSON.parse(localStorage.getItem('absorb.curios')||'[]');if(Array.isArray(saved))curioFound=new Set(saved.filter(id=>CURIOS.some(r=>r.id===id)));}catch(e){}
+
+function buildCurios() {
+  for(const r of CURIOS){
+    const begin=STATIC.length,signBegin=SIGNS.length,c=r.color,metal=[.66,.74,.75],dark=[.065,.07,.065];
+    const put=(m,x,y,z,sx,sy,sz,col=c,mat=20,yaw=0,pit=0)=>S(m,r.x+x,r.y+y,r.z+z,sx,sy,sz,col,mat,yaw,pit);
+    const ring=(y,rad,col=metal)=>put(TORUS,0,y,0,rad,.5,rad,col,5);
+    const cup=(x=0,scale=1)=>{
+      put(CYL,x,0,0,.66*scale,1.45*scale,.66*scale);put(CYL,x,1.46*scale,0,.57*scale,.03,.57*scale,dark,0);
+      put(TORUS,x,1.48*scale,0,.62*scale,.45,.62*scale);put(TORUS,x+.73*scale,.8*scale,0,.42*scale,.5*scale,.42*scale,c,20,0,Math.PI/2);
+    };
+    r.eyeY=r.h*.62;r.eyeZ=.58;r.eyeSize=.16;r.radius=.8;
+    switch(r.model){
+      case 'barrel':
+        put(CYL,0,0,0,.83,2,.83,c,1);for(const y of [.2,1,1.8])ring(y,.86);put(CYL,0,2.02,0,.74,.02,.74,dark,0);
+        put(CYL,-1.1,0,.8,.25,.45,.25,metal,5);r.eyeY=1.3;r.eyeZ=.83;break;
+      case 'cup':case 'cave':
+        cup();if(r.model==='cave'){put(SPH,0,.67,.65,.43,.51,.045,dark,0);put(SPH,0,.66,.7,.13,.2,.035,[.9,.57,.15],7);r.eyeY=1.2;r.eyeZ=.56;}
+        break;
+      case 'tin':
+        put(ROUND,0,.52,0,1.9,1.04,1.5);put(ROUND,0,1.08,0,2,.12,1.6,[.73,.7,.5],5);
+        for(let i=0;i<3;i++)put(CYL,-.55+i*.5,1.15,0,.2,.12,.2,[.76,.51,.27],13);
+        r.eyeY=.7;r.eyeZ=.76;break;
+      case 'teapot':
+        put(SPH,0,1.05,0,.94,.73,.75);put(NECK,.76,1.1,0,.34,1.2,.34,c,20,0,-.75);
+        put(TORUS,-.93,1.1,0,.55,.63,.55,c,20,0,Math.PI/2);ring(.18,1.32);r.eyeY=1.17;r.eyeZ=.72;break;
+      case 'doublecup':
+        cup(-.7,.7);cup(.7,.7);put(CYL,0,-.05,0,1.55,.1,1.05,c,20);r.eyeY=.75;r.eyeZ=.49;r.eyeSize=.13;break;
+      case 'biscuit':
+        for(let i=0;i<5;i++){const a=1/Math.pow(2,i),x=-.65+i*.38;put(ROUND,x,.22*a,0,.55*a,.4*a,.9*a,c,13);}
+        r.eyeY=.29;r.eyeZ=.47;r.eyeSize=.09;break;
+      case 'spoon':
+        put(SPH,-.43,.13,0,.49,.1,.31,metal,5);put(ROUND,.3,.12,0,.95,.13,.15,metal,5);r.eyeY=.23;r.eyeZ=.12;r.eyeSize=.06;r.radius=.65;break;
+      case 'cleaver':
+        put(ROUND,0,.04,0,2.8,.08,1.7,[.63,.39,.19],1);
+        for(let i=0;i<3;i++)put(CYL,-.9+i*.47,.1,.54,.13,.18,.13,[1,.37,.07],11);
+        r.eyeY=1.35;r.eyeZ=.14;r.radius=1.1;break;
+      case 'pan':
+        put(SPH,0,.18,0,1.05,.18,.92,dark,5);ring(.3,.97);put(ROUND,1.65,.2,0,1.7,.24,.28,[.25,.15,.08],1);
+        put(SPH,0,.35,0,.63,.04,.57,[.95,.92,.79],20);put(SPH,.12,.43,-.12,.28,.13,.28,[1,.68,.08],11);
+        r.eyeY=.47;r.eyeZ=.5;r.eyeSize=.13;break;
+      case 'grater':
+        put(ROUND,0,1.08,0,1.45,2.16,.94,metal,5);put(TORUS,0,2.58,0,.47,.43,.35,metal,5,0,Math.PI/2);
+        for(let y=.35;y<1.8;y+=.35)for(let x=-.45;x<=.45;x+=.3)put(SPH,x,y,.483,.07,.1,.012,dark,0);
+        r.eyeY=1.9;r.eyeZ=.5;break;
+      case 'mustard':case 'jar':
+        put(CYL,0,0,0,.7,1.8,.7,c,r.model==='jar'?12:11);ring(.15,.7);put(CYL,0,1.8,0,.76,.24,.76,metal,5);
+        if(r.model==='mustard'){put(ROUND,0,1.4,.7,.95,.14,.04,[.1,.055,.015],0);r.eyeY=1.55;}
+        else {put(CUBE,-.95,0,0,.04,2.4,.04,[.42,.25,.12],1);put(ROUND,-.95,2.3,0,.65,.55,.06,[.8,.14,.1],11);}
+        r.eyeZ=.7;break;
+      case 'mill':
+        put(CYL,0,0,0,.7,.25,.7,c,1);put(NECK,0,.22,0,.64,1.4,.64,c,1);put(SPH,0,1.75,0,.61,.56,.61,c,1);ring(1.28,.33);
+        r.eyeY=1.85;r.eyeZ=.56;break;
+      case 'mitt':
+        put(ROUND,0,.72,0,1.18,1.4,.4,c,21);put(SPH,-.65,.65,0,.35,.48,.2,c,21);put(ROUND,0,.13,0,1.2,.28,.44,[.87,.71,.63],21);
+        r.eyeY=.96;r.eyeZ=.22;break;
+      case 'colander':
+        put(SPH,0,.6,0,.96,.62,.83,c,5);ring(.08,.97);for(const x of [-1,1])put(TORUS,x,.55,0,.27,.25,.25,metal,5,0,Math.PI/2);
+        for(let i=0;i<12;i++){const a=i*Math.PI*2/12;put(SPH,Math.sin(a)*.72,.91,Math.cos(a)*.62,.085,.055,.085,dark,0);}
+        r.eyeY=.69;r.eyeZ=.82;break;
+      case 'sieve':
+        ring(.28,.93);for(let x=-.6;x<.7;x+=.2){put(CUBE,x,.2,0,.023,.025,1.4,metal,5);put(CUBE,0,.2,x,1.4,.025,.023,metal,5);}
+        put(ROUND,1.5,.3,0,1.2,.13,.2,metal,5);r.eyeY=.39;r.eyeZ=.83;r.eyeSize=.12;break;
+      case 'rack':
+        put(ROUND,0,.15,0,2.6,.3,1,c,1);for(let i=0;i<3;i++){const x=(i-1)*.8;put(CYL,x,.3,0,.3,1.3,.3,[.37+i*.22,.44,.18],12);put(CYL,x,1.6,0,.33,.18,.33,metal,5);}
+        put(CUBE,0,1,-.45,2.6,1.8,.13,c,1);r.eyeY=1.12;r.eyeZ=.34;r.eyeSize=.12;break;
+      case 'bowl':
+        put(SPH,0,.38,0,.97,.38,.85);put(CYL,0,.6,0,.82,.06,.68,[.16,.24,.22],0);ring(.64,.89);
+        r.eyeY=.42;r.eyeZ=.81;r.eyeSize=.12;break;
+      case 'tray':
+        put(ROUND,0,.12,0,2.6,.22,1.6,c,5);for(const x of [-.66,.66]){put(CYL,x,.25,0,.26,.7,.26,x<0?[.87,.83,.66]:[.23,.19,.14],20);put(SPH,x,.99,0,.27,.15,.27,metal,5);}
+        r.eyeY=.8;r.eyeZ=.28;r.eyeSize=.1;break;
+    }
+    // Tiny plaques reward getting close; they are not visible map markers.
+    const sign=kitchenSign(r.x,r.y+Math.min(.3,r.h*.2),r.z+r.radius+.14,1.55,.47,r.id.toUpperCase(),r.stamp,'#e4d4ac',0,'CURIOUS KITCHENWARE');
+    sign.curio=r.id;r.signs=SIGNS.slice(signBegin);r.draws=STATIC.slice(begin);
+    addCyl(r.x,r.z,r.radius*.6,r.y+Math.min(r.h,2.2));COL[COL.length-1].bot=r.y;COL[COL.length-1].curio=r.id;
+    SHSTAT.push([r.x,r.z,r.radius*1.25,r.y+.75]);
+  }
+}
+function drawCurio(r,time) {
+  ident(cur);tr(cur,r.x,r.y,r.z);
+  if(r.model==='cleaver'){
+    push();tr(cur,0,.25,0);rz(cur,Math.sin(time*1.2)*.065);
+    part(ROUND,0,1,0,1.9,1.35,.17,r.color,5);part(ROUND,.67,2.22,0,.31,1.25,.25,[.3,.14,.06],1);
+    part(SPH,-.68,1.4,.09,.11,.11,.01,[.035,.055,.055],0);popMatrix();
+  }
+  if(r.model==='teapot'){
+    part(CYL,0,1.74+Math.sin(time*1.6)*.06,0,.54,.13,.54,r.color,20);part(SPH,0,1.98+Math.sin(time*1.6)*.06,0,.16,.16,.16,r.color,20);
+    part(SPH,Math.cos(time*.4)*1.32,.22,Math.sin(time*.4)*1.32,.08,.08,.08,[.96,.81,.47],7);
+  }
+  if(r.model==='mill'){
+    part(CYL,0,2.28,0,.15,.14,.15,[.7,.73,.69],5);part(ROUND,Math.sin(time)*.13,2.32,0,.9,.12,.13,[.68,.73,.71],5,time);
+    for(let i=0;i<4;i++)part(SPH,Math.sin(i*3)*.65,.65-((time*.3+i*.13)%.6),.68,.04,.04,.04,[.06,.04,.02],0);
+  }
+  const blink=Math.sin(time*1.8+CURIOS.indexOf(r)*.83)>.989?.15:1;
+  for(const side of [-1,1]){
+    const x=side*r.eyeSize*1.13,y=r.eyeY,z=r.eyeZ;
+    part(SPH,x,y,z,r.eyeSize,r.eyeSize*blink,r.eyeSize*.7,[1,.98,.88],20);
+    part(SPH,x+Math.sin(time*.7)*r.eyeSize*.16,y,z+r.eyeSize*.61,r.eyeSize*.43,r.eyeSize*.49*blink,r.eyeSize*.2,[.025,.036,.037],0);
+  }
+}
+function drawCurios(eye){for(const r of CURIOS)if(Math.hypot(eye[0]-r.x,eye[2]-r.z)<55)drawCurio(r,T);}
+
 const WHITE = [1, 1, 1];
 function giantBottle(x, z, r, h, mat, cap) {
   S(CYL, x, 0, z, r, h, r, WHITE, mat);
@@ -1066,6 +1290,7 @@ const PADS = [{ x: -3.2, z: 2.2 }, { x: 8.5, z: 8.4 }];
 S(CUBE, -22, 31, -21.93, 12.8, 15.8, 0.12, [0.3, 0.2, 0.12], 0);   // the poster's frame
 buildLongKitchen();
 buildKitchenLights();
+buildCurios();
 function groundAt(x, z, y) {
   let g = onCounter(x, z) ? 0 : -60;
   for (const c of COL) {
@@ -1324,6 +1549,7 @@ let hiScore = 0; try { hiScore = +localStorage.getItem('absorbthis.hi') || 0; } 
 
 function reset() {
   if (SIGNS.length) rerollSigns();
+  runCurios=new Set();curioFocus=null;curioFocusT=0;curioPoll=0;readingCurio=null;
   P = { x: -24, y: 0, z: 17, vx: 0, vy: 0, vz: 0, yaw: -Math.PI/2, pitch: 0.035, onG: true, hp: 100, dashT: 0, dashCd: 0, coyote: 0, w: 0, wNext: 0,
     cool: 0, recoil: 0, switchT: 0, bob: 0, hurtT: 0, absorbT: 0, flashT: 0, ammo: WEAPONS.map(w => w.start), deadT: 0, lowT: 0, jumpHeld: false, fov: 0,
     pud: false, pudT: 0, eyeH: EYE, iT: 0, latch: null, latchT: 0, surr: 0, stillT: 0, endT: 0, endE: null, endShown: false, sipT: 0 };
@@ -3524,7 +3750,7 @@ function escapeKitchen() {
   document.exitPointerLock&&document.exitPointerLock();$('hud').classList.add('off');showScreen('won');
 }
 function kitchenUpdate(dt) {
-  runTime+=dt;
+  curioUpdate(dt);runTime+=dt;
   if(!endless&&chapterClear&&chapter<4&&P.x>=CHAPTERS[chapter+1].x-29)enterDistrict(chapter+1);
   if(P.onG&&P.y<.65){
     for(const b of BURNERS)if(burnerHeat(b)>.72&&(P.x-b.x)**2+(P.z-b.z)**2<4.2**2){
@@ -4416,6 +4642,7 @@ function fillInst(list, arr) {
 // vertical FOV for this aspect: in portrait, widen it so the horizontal view matches a square screen (capped)
 function fitFov(fovy, aspect) { return aspect >= 1 ? fovy : Math.min(1.9, 2 * Math.atan(Math.tan(fovy / 2) / aspect)); }
 function render() {
+  if(screenKind==='curio'&&readingCurio){renderSpecimen();return;}
   const aspect = W / H;
   let eye;
   if (state === 'title') {
@@ -4453,12 +4680,12 @@ function render() {
     gl.uniform4fv(pr.u.uSh, shArr); gl.uniform1i(pr.u.uShN, ns); if (pr.u.uTime) gl.uniform1f(pr.u.uTime, T);
     if (pr.u.uFlash) gl.uniform1f(pr.u.uFlash, 0);
     gl.uniformMatrix4fv(pr.u.uSunVP,false,sunVP);gl.uniform1i(pr.u.uSunDepth,1);
-    gl.uniform1f(pr.u.uShadowOn,richLighting&&shadowReady?1:0);gl.uniform1f(pr.u.uLighting,richLighting?1:0);gl.uniform1f(pr.u.uViewmodel,0);
+    gl.uniform1f(pr.u.uShadowOn,richLighting&&shadowReady?1:0);gl.uniform1f(pr.u.uLighting,richLighting?1:0);gl.uniform1f(pr.u.uViewmodel,0);gl.uniform1f(pr.u.uInspect,0);
     gl.uniform4fv(pr.u.uHot,new Float32Array(BURNERS.flatMap(b=>[b.x,.8,b.z,Math.max(0,burnerHeat(b)-.4)*1.7])));
   }
   gl.useProgram(PR_MAIN.p); flashU = 0;
   for (const o of STATIC) { if (Math.abs(o.x-eye[0]) > 105 + Math.max(o.sx,o.sz)*.6) continue; ident(cur); part(o.m, o.x, o.y, o.z, o.sx, o.sy, o.sz, o.col, o.mat, o.yaw, o.pit); }
-  drawKitchenMotion(eye); drawKitchenSigns(eye);
+  drawKitchenMotion(eye); drawCurios(eye); drawKitchenSigns(eye);
   if (posterDirty) drawPoster();
   gl.useProgram(PR_TEX.p); gl.uniformMatrix4fv(PR_TEX.u.uVP, false, VP); gl.uniform3f(PR_TEX.u.uEye, eye[0], eye[1], eye[2]);
   ident(tmp); tr(tmp, -22, 31, -21.85); sc(tmp, 12, 15, 0.05); gl.uniformMatrix4fv(PR_TEX.u.uModel, false, tmp);
@@ -4535,7 +4762,7 @@ function hud(dt) {
   pops = pops.filter(p => p.t > 0);
   hitT -= dt; const h = $('hit'); h.style.opacity = hitT > 0 ? 1 : 0; h.className = hitKill ? 'kill' : '';
   if (state === 'title') return;
-  journeyHUD();
+  journeyHUD();curioHUD();
   // news ticker
   const run = $('tickrun'); tickX -= dt * 120;
   if (tickX < -tickW || !tickW) { run.textContent = headlines(); tickW = run.offsetWidth; tickX = innerWidth; }
@@ -4573,12 +4800,85 @@ function hud(dt) {
   $('wave').innerHTML = wave ? `WAVE ${wave}<small>${waveActive ? (enemies.length + spawnQ.length) + ' KITCHENWARE REMAIN' : 'CATCH YOUR BREATH'}</small>${MOD ? `<small style="color:var(--foam)">${MODS[MOD].name}</small>` : ''}` : '';
 }
 
+function findCurio() {
+  if(state!=='play')return null;
+  const eye=[P.x,P.y+P.eyeH,P.z],dir=[-Math.sin(P.yaw)*Math.cos(P.pitch),Math.sin(P.pitch),-Math.cos(P.yaw)*Math.cos(P.pitch)];
+  let best=null,nearest=6;
+  for(const r of CURIOS){
+    if(r.lowOnly&&!P.pud)continue;
+    const v=[r.x-eye[0],r.y+r.eyeY-eye[1],r.z-eye[2]],d=Math.hypot(...v);
+    if(d>nearest||d<.1)continue;
+    const dot=v.reduce((n,a,i)=>n+a*dir[i],0)/d;
+    if(dot<Math.cos(.13+Math.min(.15,r.radius/d)))continue;
+    if(rayStatic(...eye,...v.map(a=>a/d),d)<d-r.radius-.22)continue;
+    best=r;nearest=d;
+  }
+  return best;
+}
+function curioUpdate(dt) {
+  curioPoll-=dt;
+  if(curioPoll<=0){curioPoll=.08;const next=findCurio();if(next!==curioFocus)curioFocusT=0;curioFocus=next;}
+  curioFocusT=curioFocus?curioFocusT+dt:0;
+}
+function curioHUD(){
+  const visible=state==='play'&&!!curioFocus&&curioFocusT>.18;
+  $('curioPrompt').hidden=!visible||TOUCH;$('tbInspect').hidden=!visible||!TOUCH;
+  if(visible)$('curioPrompt').textContent=(curioFound.has(curioFocus.id)?'F · VISIT AGAIN':'F · LOOK CLOSER')+' · '+(curioFound.has(curioFocus.id)?curioFocus.name:'CURIOUS KITCHENWARE');
+}
+function inspectCurio(){
+  const r=findCurio();if(!r)return false;
+  if(!runCurios.has(r.id)){runCurios.add(r.id);score+=250;}
+  curioFound.add(r.id);try{localStorage.setItem('absorb.curios',JSON.stringify([...curioFound]));}catch(e){}
+  pauseGame();document.exitPointerLock&&document.exitPointerLock();notebookReturn='pause';readingCurio=r;curioTurn=.12;
+  if('speechSynthesis' in window)speechSynthesis.cancel();zHide();showScreen('curio');return true;
+}
+function openNotebook(){
+  if(state==='play'){pauseGame();document.exitPointerLock&&document.exitPointerLock();notebookReturn='pause';}
+  else if(!['journal','curio'].includes(screenKind))notebookReturn=screenKind;
+  readingCurio=null;showScreen('journal');
+}
+function journalHTML(){
+  return `<div class="box notebook"><p class="eyebrow">FIELD NOTES FROM AN UNREASONABLY LONG KITCHEN</p><h1>COUNTER CULTURE</h1>
+    <p>${curioFound.size}/${CURIOS.length} acquaintances · ${runCurios.size} this spill</p>
+    <p class="fine">Look closely at small kitchenware. ${TOUCH?'Tap EXAMINE when it appears.':'Press F when LOOK CLOSER appears.'} Reading pauses the action. Cleared districts stay quiet until you move on.</p>
+    <div class="actions"><button class="action secondary" data-action="notebook-back">BACK</button></div>
+    ${CHAPTERS.map((c,i)=>`<section class="noteDistrict"><h2>${c.name} <small>${CURIOS.filter(r=>r.district===i&&curioFound.has(r.id)).length}/4</small></h2><div class="noteGrid">${CURIOS.filter(r=>r.district===i).map(r=>curioFound.has(r.id)?`<button class="noteEntry" data-curio="${r.id}"><strong>${r.name}</strong><span>${r.school}</span></button>`:`<div class="noteEntry undiscovered"><strong>Something has not yet explained itself.</strong><details><summary>A small nudge</summary><p>${r.hint}</p></details></div>`).join('')}</div></section>`).join('')}
+    <p class="fine">Everything these objects say is invented. The philosophical baggage is carry-on only.</p></div>`;
+}
+function curioHTML(r){
+  return `<article class="box curioCard"><p class="eyebrow">CURIOUS KITCHENWARE · ${CHAPTERS[r.district].short}</p><h1>${r.name}</h1>
+    <p class="curioSchool">${r.school}</p><blockquote>“${r.quote}”</blockquote><p>${r.story}</p>
+    <details><summary>READ THE SMALL PRINT</summary><p>${r.foot}</p><p class="stamp">${r.stamp}</p></details>
+    <div class="curioTurn"><button data-action="curio-left" aria-label="Turn object left">↶</button><span>TAKE A GOOD LOOK</span><button data-action="curio-right" aria-label="Turn object right">↷</button></div>
+    <div class="actions"><button class="action" data-action="curio-close">${notebookReturn==='pause'?'BACK TO THE MESS':'BACK'}</button><button class="action secondary" data-action="journal">NOTEBOOK ${curioFound.size}/${CURIOS.length}</button></div>
+    <p class="fine">${runCurios.has(r.id)?'NOTED THIS SPILL · +250 CURIOSITY':'FROM YOUR FIELD NOTES'} · THE KITCHEN CAN WAIT.</p></article>`;
+}
+function renderSpecimen(){
+  const r=readingCurio,aspect=W/H,d=Math.max(4,r.h*1.9),ey=[r.x+Math.sin(curioTurn)*d,r.y+r.h*.55+d*.27,r.z+Math.cos(curioTurn)*d];
+  const yaw=Math.atan2(-(r.x-ey[0]),-(r.z-ey[2])),pitch=Math.atan2(r.y+r.h*.55-ey[1],d);
+  ident(VIEW);rx(VIEW,-pitch);ry(VIEW,-yaw);tr(VIEW,-ey[0],-ey[1],-ey[2]);persp(PROJ,fitFov(.85,aspect),aspect,.05,80);
+  if(innerWidth>700)PROJ[8]=.53;else PROJ[9]=-.52;
+  mul(VP,PROJ,VIEW);gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.viewport(0,0,W,H);gl.clearColor(.12,.19,.17,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.BLEND);gl.useProgram(PR_MAIN.p);
+  const u=PR_MAIN.u;gl.uniformMatrix4fv(u.uVP,false,VP);gl.uniform3fv(u.uEye,ey);gl.uniform1f(u.uTime,performance.now()/1000);
+  gl.uniform1f(u.uShadowOn,0);gl.uniform1f(u.uLighting,richLighting?1:0);gl.uniform1f(u.uViewmodel,0);gl.uniform1f(u.uInspect,1);gl.uniform1f(u.uFlash,0);
+  gl.uniform4fv(u.uHot,new Float32Array(16));gl.uniform1i(u.uSunDepth,1);gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,shadowTex);gl.activeTexture(gl.TEXTURE0);
+  gl.uniform4fv(u.uSh,new Float32Array([r.x,r.z,1.5,r.y+.8]));gl.uniform1i(u.uShN,1);
+  ident(cur);part(CYL,r.x,r.y-.15,r.z,2.3,.12,2.3,[.27,.35,.29],20);
+  for(const o of r.draws){ident(cur);part(o.m,o.x,o.y,o.z,o.sx,o.sy,o.sz,o.col,o.mat,o.yaw,o.pit);}
+  drawCurio(r,performance.now()/1000);
+  gl.useProgram(PR_TEX.p);gl.uniformMatrix4fv(PR_TEX.u.uVP,false,VP);gl.uniform3fv(PR_TEX.u.uEye,ey);gl.uniform1i(PR_TEX.u.uTex,0);
+  for(const s of r.signs){ident(tmp);tr(tmp,s.x,s.y,s.z);ry(tmp,s.yaw);sc(tmp,s.width,s.height,.045);gl.uniformMatrix4fv(PR_TEX.u.uModel,false,tmp);gl.bindTexture(gl.TEXTURE_2D,s.tex);gl.bindVertexArray(CUBE.vao);gl.drawElements(gl.TRIANGLES,CUBE.n,gl.UNSIGNED_SHORT,0);}
+  gl.bindVertexArray(null);
+}
+
 // =====================================================================  screens & input
 const TOUCH_CONTROLS = `<div class="keys">
   <b>LEFT THUMB</b><span>drag on the left to scurry (lower left when held upright)</span>
   <b>RIGHT THUMB</b><span>drag on the right to look (drag from FIRE to aim while shooting)</span>
   <b>JUMP · DASH</b><span>jump, and splash dash (you can't be hit mid-splash)</span>
   <b>PUDDLE</b><span>hold to become a puddle: flat, slippery, fast</span>
+  <b>EXAMINE</b><span>look closely at curious kitchenware; tap EXAMINE to read in peace</span>
   <b>SWAP</b><span>squirter · ice shotgun · seltzer launcher · suds-o-matic</span>
   <b>SURRENDER / PLUG</b><span>hold the button to surrender when caught, or pull the plug at the cleared sink</span>
   <b>❚❚</b><span>pause (glass, sound and Žižek's voice are in there)</span></div>`;
@@ -4592,20 +4892,25 @@ const CONTROLS_DESK = `<div class="keys">
   <b>1 2 3 4 / WHEEL</b><span>squirter · ice shotgun · seltzer launcher · suds-o-matic</span>
   <b>G</b><span>glass: murky / clean / none</span>
   <b>M · V</b><span>mute everything · Žižek's voice: accented / plain / off</span>
+  <b>F · J</b><span>examine nearby curious kitchenware · open your discovery notebook</span>
   <b>ESC</b><span>pause</span></div>`;
 const CONTROLS = TOUCH ? TOUCH_CONTROLS : CONTROLS_DESK;
 function showScreen(kind) {
-  const s = $('scr'); s.classList.remove('off'); $('touchui').hidden = true; mouseDown = false;
+  const s = $('scr'); screenKind=kind;s.dataset.screen=kind;s.classList.remove('off'); $('touchui').hidden = true; mouseDown = false;
+  if(kind==='curio'||kind==='journal'){
+    $('hud').classList.add('off');s.innerHTML=kind==='curio'?curioHTML(readingCurio):journalHTML();s.scrollTop=0;return;
+  }
+  readingCurio=null;
   if (kind === 'title') {
     s.innerHTML = `<div class="box startbox"><p class="eyebrow">${pick(TAGLINES)}</p><h1>ABSORB THIS</h1><h2>GET TO THE SINK. PULL THE PLUG.</h2>
       <p>You are <b>DRIP</b>. Five districts of hostile kitchenware stand between you and the drain. Stay damp, make a mess, and escape the cleanup.</p>
       <div class="actions"><button class="action" data-action="start">GET WET →</button></div>
       <div class="itinerary">${CHAPTERS.map((c,i)=>`<span>${i+1} · ${c.short}</span>`).join('')}</div>
-      <p class="fine">Two waves per district · Refill checkpoints · Infinite PLEASE continues</p>${optsHTML()}
+      <p class="fine">Two waves per district · Refill checkpoints · Infinite PLEASE continues</p>${optsHTML()}<div class="actions"><button class="action secondary" data-action="journal">COUNTER CULTURE · NOTEBOOK ${curioFound.size}/${CURIOS.length}</button></div>
       <details><summary>HOW TO BE WATER</summary><p>Slide through wet shortcuts. Jump the hotplates. Follow the gold arrows. At the sink, clear the final waves and hold ${TOUCH?'the plug button':'E'} over the drain.</p>${CONTROLS}</details>
       ${zQuote(ZL.start)}<p class="fine">A cartoon parody of Slavoj Žižek. He never said any of this. Every line is made up.</p></div>`;
   } else if (kind === 'pause') {
-    s.innerHTML = `<div class="box"><h1 style="font-size:90px">PAUSED</h1><h2>THE SPONGES ARE WAITING. PATIENTLY. MOISTLY.</h2>${zQuote(ZL.pause)}${optsHTML()}${CONTROLS}<p class="fine">${voiceLabel()}</p><div class="cta">CLICK TO RESUME</div></div>`;
+    s.innerHTML = `<div class="box"><h1 style="font-size:90px">PAUSED</h1><h2>THE SPONGES ARE WAITING. PATIENTLY. MOISTLY.</h2>${zQuote(ZL.pause)}${optsHTML()}<div class="actions"><button class="action secondary" data-action="journal">COUNTER CULTURE · NOTEBOOK ${curioFound.size}/${CURIOS.length}</button></div>${CONTROLS}<p class="fine">${voiceLabel()}</p><div class="cta">CLICK TO RESUME</div></div>`;
   } else if (kind === 'won') {
     const elapsed=`${Math.floor(runTime/60)}:${String(Math.floor(runTime%60)).padStart(2,'0')}`;
     s.innerHTML=`<div class="box startbox"><p class="eyebrow">THE FOURTH ENDING · ESCAPE</p><h1>DOWN THE DRAIN</h1><h2>YOU LEFT THE KITCHEN WORSE THAN YOU FOUND IT.</h2>
@@ -4614,7 +4919,7 @@ function showScreen(kind) {
       <p class="stat">${score.toLocaleString()} POINTS · ${elapsed} · ${killCount} KITCHENWARE DESTROYED</p>
       <p class="fine">${continues?continues+' PLEASE CONTINUES. DEATH HAS STOPPED TAKING YOUR CALLS.':'ONE LIFE. AN UNREASONABLE AMOUNT OF WATER.'}</p>
       <div class="actions"><button class="action" data-action="restart">ANOTHER SPILL</button><button class="action secondary" data-action="endless">STAY & MAKE A BIGGER MESS</button></div>
-      <p class="endings">${endingsLine()}</p></div>`;
+      <p class="endings">${endingsLine()}</p><div class="actions"><button class="action secondary" data-action="journal">COUNTER CULTURE · NOTEBOOK ${curioFound.size}/${CURIOS.length}</button></div></div>`;
   } else if (kind === 'dead') {
     const best = score >= hiScore && score > 0, fl = deathCause === 'fall';
     s.innerHTML = `<div class="box"><h1 style="font-size:110px">${fl ? 'FLOORED' : 'EVAPORATED'}</h1><h2>${fl ? 'THE FLOOR ENDING' : 'THE EVAPORATED ENDING'}</h2>
@@ -4642,24 +4947,24 @@ function showScreen(kind) {
 function zQuote(bank) { return `<div class="zq"><img alt="" src="${zFace()}"><p><small>${pick(ZNAMES)}</small>"${pick(bank)}"</p></div>`; }
 // asked nicely: same wave again, same score, fresh dampness
 function continueGame() {
-  const keep = { score, wave, ammo: P.ammo.slice(), killCount, continues: continues + 1, forkStatus, chapter, chapterClear, endless, runTime };
+  const keep = { score, wave, ammo: P.ammo.slice(), killCount, continues: continues + 1, forkStatus, chapter, chapterClear, endless, runTime, runCurios:new Set(runCurios) };
   initAudio(); reset();
   score = keep.score; killCount = keep.killCount; continues = keep.continues; forkStatus = keep.forkStatus; P.ammo = keep.ammo.map((a, i) => i === 0 ? a : Math.max(a, WEAPONS[i].start));
-  chapter=keep.chapter;chapterClear=keep.chapterClear;endless=keep.endless;runTime=keep.runTime;wave=keep.wave;checkpointPosition();districtSupplies();
+  runCurios=keep.runCurios;chapter=keep.chapter;chapterClear=keep.chapterClear;endless=keep.endless;runTime=keep.runTime;wave=keep.wave;checkpointPosition();districtSupplies();
   state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; hideScreen();
   headlineNow(`DRIP RETURNS FROM THE DEAD AFTER SAYING PLEASE. CONTINUE NUMBER ${continues}`);
   if(!chapterClear||endless)startWave(Math.max(CHAPTERS[chapter].first,keep.wave)); say('continue', true);
   setTimeout(() => { if (state !== 'play' || continues !== keep.continues) return; ZZ.cool = 0; zz(continues >= 3 ? 'pleaseAgain' : 'please', { force: true }); }, 1500);
   grabPointer();
 }
-function hideScreen() { $('scr').classList.add('off'); }
+function hideScreen() { $('scr').classList.add('off');screenKind='play';readingCurio=null; }
 function optsHTML() { return `<div class="opts"><button data-o="g">${GLASSN()}</button><button data-o="v">${voiceLabel().split(' (')[0].split(' ·')[0]}</button><button data-o="s">SPEECH: ${TALK_NAMES[talkSpeed]}</button><button data-o="m">${muted ? 'SOUND: OFF' : 'SOUND: ON'}</button><button data-o="l">LIGHTING: ${richLighting?'SUNLIT':'CLASSIC'}</button></div>`; }
 $('scr').addEventListener('click', e => { const b = e.target.closest('button[data-o]'); if (!b) return;
   ({ g: toggleGlass, v: cycleVoice, s: cycleTalk, m: toggleMute, l: toggleLighting })[b.dataset.o](); const o = b.closest('.opts'); if (o) o.outerHTML = optsHTML(); });
 function start() {
   initAudio();
   if (state === 'title' || state === 'dead' || state === 'absorbed' || state === 'won') { reset(); districtSupplies(); continues = 0; state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; say('get wet', true); setTimeout(() => { if(state==='play')zz(Math.random()<.4?'kitchen_0':'start', { force: true }); }, 1400); }
-  else if (state === 'paused') state = 'play';
+  else if (state === 'paused') {state = 'play';$('hud').classList.remove('off');}
   hideScreen(); grabPointer();
 }
 function grabPointer() {
@@ -4668,7 +4973,18 @@ function grabPointer() {
 }
 $('scr').addEventListener('click', e => {
   const action=e.target.closest('button[data-action]');
-  if(action){if(action.dataset.action==='endless')continueEndless();else start();return;}
+  const entry=e.target.closest('button[data-curio]');
+  if(entry){const r=CURIOS.find(r=>r.id===entry.dataset.curio);if(r&&curioFound.has(r.id)){readingCurio=r;curioTurn=.12;showScreen('curio');}return;}
+  if(action){
+    const a=action.dataset.action;
+    if(a==='journal')openNotebook();
+    else if(a==='notebook-back')showScreen(notebookReturn);
+    else if(a==='curio-left')curioTurn-=.45;
+    else if(a==='curio-right')curioTurn+=.45;
+    else if(a==='curio-close'){if(notebookReturn==='pause')start();else showScreen(notebookReturn);}
+    else if(a==='endless')continueEndless();else start();return;
+  }
+  if(screenKind==='curio'||screenKind==='journal')return;
   if (e.target.closest('input, button, details, summary')) return;
   if (state === 'dead' && P.deadT < 1.2) return; start();
 });
@@ -4688,6 +5004,9 @@ addEventListener('mousemove', e => {
 });
 addEventListener('wheel', e => { if (state !== 'play') return; const d = e.deltaY > 0 ? 1 : -1; let i = P.wNext; for (let k = 0; k < 4; k++) { i = (i + d + 4) % 4; if (i === 0 || P.ammo[i] > 0) break; } selectWeapon(i); }, { passive: true });
 addEventListener('keydown', e => {
+  if(e.code==='Escape'&&(screenKind==='curio'||screenKind==='journal')){e.preventDefault();if(notebookReturn==='pause')start();else showScreen(notebookReturn);return;}
+  if(e.code==='KeyF'&&!e.repeat&&state==='play'){e.preventDefault();inspectCurio();return;}
+  if(e.code==='KeyJ'&&!e.repeat&&(state==='play'||state==='paused')){e.preventDefault();openNotebook();return;}
   keys[e.code] = true;
   if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
   if (e.code === 'Digit1') selectWeapon(0); if (e.code === 'Digit2') selectWeapon(1); if (e.code === 'Digit3') selectWeapon(2); if (e.code === 'Digit4') selectWeapon(3);
@@ -4758,6 +5077,7 @@ if (TOUCH) {
   hold('tbPud', () => { keys.KeyC = true; }, () => { keys.KeyC = false; });
   hold('tbSurr', () => { keys.KeyE = true; }, () => { keys.KeyE = false; });
   hold('tbSwap', () => { let i = P.wNext; for (let k = 0; k < 4; k++) { i = (i + 1) % 4; if (i === 0 || P.ammo[i] > 0) break; } selectWeapon(i); });
+  hold('tbInspect', () => inspectCurio());
   hold('tbPause', () => pauseGame());
   document.addEventListener('gesturestart', e => e.preventDefault());
 }
@@ -4778,6 +5098,7 @@ function frame(now) {
 }
 // one step of game time (everything but drawing); the frame loop calls it once per frame
 function tick(dt) {
+  if(state==='paused'||screenKind==='curio'||screenKind==='journal')return;
   T += dt;
   if (state === 'play') {
     jokeUpdate(dt);

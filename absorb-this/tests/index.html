@@ -21,7 +21,7 @@ run.onclick=async()=>{
   game=game.slice(0,pointerStart)+'function grabPointer() { locked = true; }\n'+game.slice(pointerEnd);
   game=game.replace('muted = false','muted = true').replaceAll('localStorage','testStorage');
   game=game.replace("'use strict';","'use strict';\nconst testValues=new Map(),testStorage={getItem:k=>testValues.get(k)??null,setItem:(k,v)=>testValues.set(k,String(v))};");
-  game=game.replace(boot,tests);
+  game=game.replace(boot,tests.replaceAll('localStorage','testStorage'));
   frame=document.createElement('iframe');frame.title='Muted game test frame';frame.srcdoc=game;document.body.append(frame);
   status.textContent='Running encounters and traversal…';timer=setTimeout(()=>{status.textContent='Checks timed out. Inspect the browser console for a startup error.';status.className='fail';run.disabled=false;},20000);
  }catch(e){status.textContent=e.message;status.className='fail';run.disabled=false;}
