@@ -705,6 +705,28 @@ const WET_LANES = [{ x: 73, z: 11, hx: 17, hz: 2.3 }, { x: 215, z: 14, hx: 23, h
 const BURNERS = [{ x: 135, z: -9, phase: 0 }, { x: 155, z: -9, phase: 2 }, { x: 135, z: 5, phase: 3 }, { x: 155, z: 5, phase: 1 }];
 const DRAIN = { x: 303, z: -4, r: 2.8 };
 const SIGNS = [], GATES = [];
+// the joke signs pick a fresh slogan every run (the one written on the sign is always in the mix)
+const SIGN_SUBS = {
+  'THE SINK →': ['FOLLOW THE WATER. IT KNOWS SOMETHING', 'NO SHORTCUTS. SOME LONGCUTS', 'ARE WE THERE YET? NO', 'DESTINY IS DOWNHILL', 'FIVE DISTRICTS AND ONE PLUGHOLE', 'THE PLUMBING OF FATE'],
+  'TOAST OFFICE': ['NOW SERVING NUMBER 4. YOU ARE NUMBER 9,000', 'PLEASE TAKE A CRUMB AND WAIT', 'LIGHT, MEDIUM, OR EXISTENTIAL', 'CLOSED FOR BUTTERING', 'WE ARE AWARE OF THE SMOKE', 'APPEALS MUST BE SUBMITTED IN JAM', 'ALL SLICES ARE EQUAL. SOME ARE BURNT'],
+  'I THINK': ['THEREFORE I TOAST', 'THEREFORE I AM DAMP', 'THEREFORE I SPILL', 'THEREFORE NOTHING, IT IS BREAKFAST', 'THEREFORE I AM LATE', 'THEREFORE I SHOULD NOT'],
+  'PUDDLE POST': ['FIRST CLASS: FLAT. SECOND CLASS: FLATTER', 'NO PARCELS THICKER THAN A THOUGHT', 'YOUR LETTER HAS ARRIVED. IT IS WET', 'SLIDE UNDER TO SEND', 'WE DELIVER HORIZONTALLY'],
+  'THE HOT TAKE': ['EVERY OPINION COOKED TO ORDER', 'THE HOB DOES NOT CARE ABOUT YOUR NUANCE', 'JUMP OR SIMMER', 'IF YOU CAN SEE THE GLOW, IT CAN SEE YOU', 'STEAM IS JUST WATER WITH AMBITION', 'NOW SERVING TAKES AT 240 DEGREES'],
+  'DISHCOURSE': ['THE PLATES HAVE A PLATFORM AND THEY WILL USE IT', 'STACK FIRST. ASK QUESTIONS LATER', 'EVERYONE HERE HAS BEEN USED', 'CLEAN, BUT NOT INNOCENT', 'DEBATE CLUB. ALSO DRYING RACK', 'THE SAUCER HAS A SAUCER OF ITS OWN'],
+  'THE SINK OF HISTORY': ['EVERYTHING ENDS UP HERE. ESPECIALLY TEASPOONS', 'THE PLUG IS OPTIONAL. THE DRAIN IS NOT', 'NO LIFEGUARD ON DUTY', 'ONE HOLE. MANY OPINIONS', 'WHERE WATER GOES TO BECOME PLUMBING', 'ABANDON SOAP, ALL YE WHO ENTER'],
+  'DOUBT FLAKES': ['PART OF A BALANCED CRISIS', 'NOW WITH A FREE QUESTION INSIDE', 'THE CEREAL THAT ASKS: WHY BREAKFAST?', 'CRUNCHY OUTSIDE. UNCERTAIN INSIDE', 'SERVING SUGGESTION: DON\'T', 'MAY CONTAIN TRACES OF CONVICTION', 'SOGGY IN MILK. SOGGIER IN THOUGHT'],
+  'HOT TAKES': ['FRESHLY CONTRARIAN', 'MEDIUM, HOT, UNFORGIVABLE', 'NOW 50% MORE OUTRAGE', 'GRIND YOUR OWN AXE', 'BEST BEFORE ANYONE CHECKS'],
+  'SOAP': ['CLEANER THAN THOU', 'SLIPPERY SLOPE CERTIFIED', 'WASHES AWAY ALL EVIDENCE', 'BUBBLES INCLUDED. EXIT NOT', 'NOW WITH REAL LATHER', 'I AM NOT A BATH TOY'],
+};
+const SIGN_TOPS = ['COUNTER AUTHORITY · NO LIABILITY', 'DEPARTMENT OF KITCHEN AFFAIRS', 'NOTICE · THIS SIGN IS WATERPROOF. YOU ARE NOT', 'OFFICIAL · DO NOT LICK', 'BY ORDER OF THE FRIDGE', 'COUNTER NEWS NETWORK APPROVED', 'SPONGES MAY BE WATCHING', 'PLEASE KEEP OFF THE CRUMBS'];
+function rerollSigns() {
+  for (const g of SIGNS) {
+    if (g.sub0 === undefined) { g.sub0 = g.sub; g.top0 = g.top; }
+    const alts = SIGN_SUBS[g.title]; if (!alts) continue;
+    g.sub = pick([g.sub0, ...alts]); if (!g.top0) g.top = pick(SIGN_TOPS);
+    paintSign(g);
+  }
+}
 let chapter = 0, chapterClear = false, endless = false, runTime = 0, drainHold = 0, fountainT = 0;
 const chapterGateOpen = i => endless || chapter > i || (chapter === i && chapterClear);
 const solidEnabled = c => c.gate === undefined || !chapterGateOpen(c.gate);
@@ -1196,6 +1218,7 @@ let continues = 0, pleaseBuf = '', forkStatus = 'rumour';
 let hiScore = 0; try { hiScore = +localStorage.getItem('absorbthis.hi') || 0; } catch (e) { }
 
 function reset() {
+  if (SIGNS.length) rerollSigns();
   P = { x: -24, y: 0, z: 17, vx: 0, vy: 0, vz: 0, yaw: -Math.PI/2, pitch: 0.035, onG: true, hp: 100, dashT: 0, dashCd: 0, coyote: 0, w: 0, wNext: 0,
     cool: 0, recoil: 0, switchT: 0, bob: 0, hurtT: 0, absorbT: 0, flashT: 0, ammo: WEAPONS.map(w => w.start), deadT: 0, lowT: 0, jumpHeld: false, fov: 0,
     pud: false, pudT: 0, eyeH: EYE, iT: 0, latch: null, latchT: 0, surr: 0, stillT: 0, endT: 0, endE: null, endShown: false, sipT: 0 };
