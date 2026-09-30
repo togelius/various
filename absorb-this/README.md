@@ -73,11 +73,13 @@ With a keyboard and mouse:
   music, and he fills the screen to ask: "You think this is a joke?" He also
   hangs on the back wall as a Magritte-style poster that moves its mouth when
   he talks. Shooting it costs you points.
-- **The writing.** About 1,080 invented philosopher lines across 82
-  situations and topics. Most of the lines cut in an early curation pass
-  went back in; only ones that had gone out of date stayed out. There are
-  also 77 name tags, 52 title taglines, 144 news headlines, 73 wave names,
-  and taunts, kill words and combat shouts for every enemy. The kitchen has
+- **The writing.** About 1,640 invented philosopher lines across 82
+  situations and topics (at least nine for each), after most of the lines
+  cut in an early curation pass went back in and a further batch was
+  written for every situation. There are also 107 name tags, 82 title
+  taglines, 204 news headlines, 103 wave names, rotating slogans on the
+  kitchen signs, and taunts, kill words and combat shouts for every enemy.
+  The kitchen has
   its own petty politics: sponges privatise your puddles, airborne bubble
   prisoners form a residents' association, and surface tension screens
   calls from the abyss. New jokes react to nearby sponges drinking water,
