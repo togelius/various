@@ -289,8 +289,8 @@ small and grey when the target resists, big and gold when you've picked
 the right tool.
 
 - **Counters.** The paper towel drinks water (and gets heavier and slower
-  for it); fizz tears it and ice works. You can also lure it onto a glowing
-  hotplate for TOAST. Glass bottles shrug off water and shatter under ice.
+  for it); fizz tears it and ice works. Stove rolls can cross glowing
+  hotplates for TOAST. Glass bottles shrug off water and shatter under ice.
   A soaked sponge drinks your shots, so freeze it. Spoons chill quickly.
   Grandma sips water and splits faster under fizz. From the stove onwards
   some sponges arrive **greasy**: water and ice skid off, but a soap bubble
@@ -325,7 +325,10 @@ the right tool.
   and below half health it sucks you towards the drain. Dashing resists the
   pull, and turning into a puddle makes it much worse, because puddles are
   what drains are for. While it lives, the drain siphons up a fresh seltzer
-  every few seconds if you're low.
+  every few seconds if you're low. Its health bar shows how much blockage
+  remains, and the objective changes to the plug only after it dies.
+  PLEASE preserves its wounds and projectiles, along with your technique
+  history and collected stashes.
 
 The campaign is also a little less forgiving than it was in the previous
 version. Hits do 85% damage instead of 75% and give a shorter grace period,

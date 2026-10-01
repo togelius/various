@@ -1,4 +1,25 @@
-# Kitchen incident build — validation, 2026-10-01
+# Implementation fixes — validation, 2026-10-01
+
+The browser integration suite passed **439 checks**, with no uncaught JavaScript
+errors. The new regressions exercise real fizz shots at the Clog, nearer enemy
+and scenery collisions, naturally moving rolls crossing hotplates, the final
+wave's announcements and health bar, and the complete fizz-to-plug ending.
+All four new regression scenarios fail against the previous `d5c6161` game.
+
+PLEASE is tested through an actual death with a rocket in flight: the rocket
+kills the Clog during the death tableau, then the retry restores the live boss,
+its wounds, timers, hairball ownership and score together. Repeated deaths,
+death after victory, technique history, stash rewards and stale victory
+announcements are also covered.
+
+A full automated campaign (seed 1, 1,200-second limit) escaped in 760.12 simulated
+seconds with five deaths and no JavaScript, WebGL or state-invariant errors.
+This verifies completion for one input policy; it does not establish human
+difficulty. Staged finale checks at 1440 × 900 and touch-enabled 390 × 844 covered
+the blocked-drain objective and health bar, including the compact phone
+navigation marker. No jokes or content collections were removed.
+
+# Kitchen incident build — earlier validation, 2026-10-01
 
 The browser integration suite passed **350 checks**, with no uncaught JavaScript
 errors. This includes the original campaign, exploration, rendering and ending

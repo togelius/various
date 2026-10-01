@@ -197,7 +197,7 @@
   #scr summary { cursor:pointer;letter-spacing:.09em;color:#f2d8a1;font-weight:900; }
   #scr .itinerary { display:flex;justify-content:center;gap:7px;flex-wrap:wrap;margin:15px 0;font-size:12px;font-weight:900;letter-spacing:.06em; }
   #scr .itinerary span { border:1px solid #af9f7e;padding:5px 9px;background:#18332ba6;border-radius:4px; }
-  @media (max-width:700px) { #journey { top:calc(60px + env(safe-area-inset-top, 0px));width:72vw; } #journeyName { font-size:17px; } #journeyNav { left:auto;right:0;top:calc(100% + 4px);margin-left:0;padding:1px 4px; } #journeyGoal {font-size:9px;} #boss {top:144px;} #chal {top:190px;} #hi{display:none;} #rank{position:fixed;left:78px;bottom:124px;width:100px;font-size:11px;} #rank b{font-size:24px;} }
+  @media (max-width:700px) { #journey { top:calc(60px + env(safe-area-inset-top, 0px));width:72vw; } #journeyName { font-size:17px; } #journeyNav { left:auto;right:0;top:calc(100% + 2px);margin-left:0;padding:1px 4px; } #journeyArrow {font-size:16px;line-height:18px;vertical-align:middle;} #journeyDistance {display:inline-block;margin-left:4px;vertical-align:middle;} #journeyGoal {font-size:9px;} #boss {top:144px;} #chal {top:190px;} #hi{display:none;} #rank{position:fixed;left:78px;bottom:124px;width:100px;font-size:11px;} #rank b{font-size:24px;} }
   @media (max-height:520px) and (min-width:701px) { #journey {width:42vw;padding:3px 7px;} #journeyName {font-size:17px;} #journeySteps {display:none;} #boss{top:72px;} #chal{top:122px;max-width:200px;} body.touch #zz:not(.big) .bub{max-width:180px;font-size:12px;} body.touch #zz:not(.big) .face{width:58px;height:58px;} }
   #curioPrompt{position:absolute;left:50%;bottom:132px;transform:translateX(-50%);background:#19352de8;border:1px solid #e7cb8e;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:900;text-align:center;max-width:75vw;}
   #curioPrompt[hidden],#tbInspect[hidden]{display:none;}
@@ -1594,7 +1594,7 @@ const WEAPONS = [
 ];
 let state = 'title';
 let lastVty = '', stashSaid = {};
-const clog = { alive: false, hp: 0, max: 260, x: 0, y: 0, z: 0, r: 2.3, t: 0, siphonT: 0, fedT: 0 };
+let clog = { alive: false, hp: 0, max: 260, x: 0, y: 0, z: 0, r: 2.3, t: 0, siphonT: 0, fedT: 0 };
 let toolTipsSeen = {}, techHist = [], techRun = 0, techLast = '', varietyMult = 1;   // tool tips shown this run; the variety meter
 let P, enemies, globs, rockets, parts, stains, pickups, hazards, pops, splats, soaps = [];
 let score, combo, comboT, multi, multiT, wave, spawnQ, spawnT, waveActive, interT, hitstop, shake, killCount, deathCause, T = 0;
@@ -4844,7 +4844,7 @@ function journeyHUD() {
   const c=CHAPTERS[chapter], next=CHAPTERS[Math.min(4,chapter+1)];
   let goal, target;
   if(endless)goal='ESCAPE BANKED · MAKE A BIGGER MESS';
-  else if(chapterClear&&chapter===4){goal=escapeReady()?(TOUCH?'HOLD THE PLUG BUTTON':'HOLD E · PULL THE PLUG'):'THE DRAIN IS OPEN · GET TO THE SINK';target=DRAIN;}
+  else if(chapterClear&&chapter===4){goal=clog.alive?'DRAIN BLOCKED · BREAK THE CLOG WITH FIZZ OR ICE':escapeReady()?(TOUCH?'HOLD THE PLUG BUTTON':'HOLD E · PULL THE PLUG'):'THE DRAIN IS OPEN · GET TO THE SINK';target=DRAIN;}
   else if(chapterClear){goal='FOLLOW THE ARROWS → '+next.short;target={x:next.x-24,z:17};}
   else goal=waveActive?`CLEAR THIS DISTRICT · WAVE ${wave} OF ${c.last}`:'REFILL. BREATHE. REMAIN A PROBLEM.';
   $('journeyName').textContent=endless?'THE LONG KITCHEN · ENDLESS':`${chapter+1}/5 · ${c.name}`;
@@ -4858,6 +4858,8 @@ function journeyHUD() {
 function spawnEnemy(type) {
   if (type === 'roll') {
     const district=encounterDistrict(), lanes=district===0?ROLL_LANES:[[CHAPTERS[district].x-21,-17],[CHAPTERS[district].x+27,-17]];
+    // Some stove rolls cross the burners; the outer lanes remain in the mix.
+    if (district === 2) for (const x of new Set(BURNERS.map(b => b.x))) lanes.push([x, -17]);
     const L=pick(lanes); enemies.push(makeEnemy('roll',L[0],L[1]));
     announce(pick(['INCOMING!', 'LOOK OUT!', 'OH NO', 'HERE IT COMES', 'TAKE COVER!']), pick(['THE QUICKER PICKER-UPPER', 'TWO-PLY. ZERO MERCY', 'IT WANTS TO CLEAN YOU', 'ABSORBENCY: TOTAL', 'THE ROLL CALL', 'PERFORATED AND PERFECTLY CALM', 'A WALL OF KITCHEN PAPER', 'THE BIG WIPE'])); sfx('whistle'); headlineNow('BREAKING: GIANT PAPER TOWEL ROLL ON THE MOVE. RESIDENTS URGED TO BE LESS WET');
     setTimeout(() => zz('roll', { force: true }), 1000); return;
@@ -5167,9 +5169,9 @@ function enemyRival(e, dt) {
 }
 function kitchenEnemySurfaces(e, dt) {
   e.padCd = Math.max(0, (e.padCd || 0) - dt); e.heatCd = Math.max(0, (e.heatCd || 0) - dt);
-  if (e.dead || e.type === 'roll') return;
+  if (e.dead) return;
   const grounded = e.y <= groundAt(e.x, e.z, e.y + .1) + .08;
-  if (grounded && e.y < .5 && e.padCd <= 0) for (const p of PADS) {
+  if (e.type !== 'roll' && grounded && e.y < .5 && e.padCd <= 0) for (const p of PADS) {
     if (Math.abs(e.x - p.x) < 1.4 && Math.abs(e.z - p.z) < 1.1) {
       const dx = (p.tx ?? HIVE.x) - e.x, dz = (p.tz ?? HIVE.z) - e.z, d = Math.hypot(dx, dz) || 1;
       e.vy = p.power || 25; e.vx = dx / d * (p.speed || 5); e.vz = dz / d * (p.speed || 5);
@@ -5183,8 +5185,11 @@ function kitchenEnemySurfaces(e, dt) {
       if (e.bub > 0) popBubble(e);
       damageEnemy(e, e.type === 'roll' ? 150 : 12, 0, 1, 0, 0, 2, false, 'HOTPLATE');
       if (e.type === 'roll') { pop(e.x, e.y + 4, e.z, pick(['TOAST!', 'SCORCHED!', 'BURNT OFFERING!', 'HOT TAKE!']), false); sfx('sizzle'); zz('rollToast', { force: true }); }
-      if (!e.dead) { e.vy = Math.max(e.vy, 14); e.stun = Math.max(e.stun, .6); e.cd = Math.max(e.cd, .8); releaseKitchenWater(e, 3); }
-      kitchenIncident('heatLift', { actor: e }); break;
+      if (!e.dead) {
+        if (e.type !== 'roll') { e.vy = Math.max(e.vy, 14); e.stun = Math.max(e.stun, .6); e.cd = Math.max(e.cd, .8); }
+        releaseKitchenWater(e, 3);
+      }
+      if (e.type !== 'roll') kitchenIncident('heatLift', { actor: e }); break;
     }
   }
 }
@@ -5495,10 +5500,20 @@ function updateRockets(dt) {
     for (let s = 0; s < steps && r.life > 0; s++) {
       const nx = r.x + r.vx * sdt, ny = r.y + r.vy * sdt, nz = r.z + r.vz * sdt;
       const sp = Math.hypot(r.vx, r.vy, r.vz), len = sp * sdt;
-      const t = rayStatic(r.x, r.y, r.z, r.vx / sp, r.vy / sp, r.vz / sp, len);
+      if (sp === 0) break;
+      const dx = r.vx / sp, dy = r.vy / sp, dz = r.vz / sp;
+      let t = rayStatic(r.x, r.y, r.z, dx, dy, dz, len);
       let boom = t < len;
-      if (!boom) for (const e of enemies) { if (e.dead) continue; if (nearestSphere(e, nx, ny, nz)[0] < 0.35) { boom = true; break; } }
-      if (boom) { const tt = Math.min(t, len) * 0.95; r.life = 0; explode(r.x + r.vx / sp * tt, r.y + r.vy / sp * tt, r.z + r.vz / sp * tt); break; }
+      // Resolve the first contact along the segment, including the separate drain boss.
+      const hitSphere = (x, y, z, radius) => {
+        const ox = r.x - x, oy = r.y - y, oz = r.z - z, c = ox * ox + oy * oy + oz * oz - radius * radius;
+        const b = ox * dx + oy * dy + oz * dz, disc = b * b - c;
+        const hit = c <= 0 ? 0 : disc >= 0 ? -b - Math.sqrt(disc) : Infinity;
+        if (hit >= 0 && hit <= t) { t = hit; boom = true; }
+      };
+      if (clog.alive) hitSphere(clog.x, clog.y, clog.z, clog.r + .35);
+      for (const e of enemies) if (!e.dead) for (const h of hitSpheres(e)) hitSphere(h[0], h[1], h[2], h[3] + .35);
+      if (boom) { const tt = t * 0.95; r.life = 0; explode(r.x + dx * tt, r.y + dy * tt, r.z + dz * tt); break; }
       r.x = nx; r.y = ny; r.z = nz;
     }
     r.life -= dt;
@@ -5790,9 +5805,11 @@ function updateWaves(dt) {
     if (!spawnQ.length && !enemies.length) {
       waveActive = false; interT = 5.5; const bonus = 500 * wave; score += bonus; MOD = null; gs = 1; if (chal) chal.t = Math.min(chal.t, 0.01);
       P.hp = Math.min(100, P.hp + 30); P.ammo[1] = Math.min(WEAPONS[1].max, P.ammo[1] + 6); P.ammo[2] = Math.min(WEAPONS[2].max, P.ammo[2] + 2); P.ammo[3] = Math.min(WEAPONS[3].max, P.ammo[3] + 2);
-      if (!endless && wave >= CHAPTERS[chapter].last) { chapterClear=true; if (chapter === 4) spawnClog(); headlineNow(CHAPTERS[chapter].name+' DECLARES EMERGENCY OVER. NEIGHBOURING DISTRICT INFORMED TOO LATE'); }
+      if (!endless && wave >= CHAPTERS[chapter].last) { chapterClear=true; headlineNow(CHAPTERS[chapter].name+' DECLARES EMERGENCY OVER. NEIGHBOURING DISTRICT INFORMED TOO LATE'); }
       announce(chapterClear&&!endless ? 'DISTRICT CLEAR' : pick(CLEARW), chapterClear&&!endless ? (chapter===4?'GET TO THE DRAIN · HOLD E TO PULL THE PLUG':'CHECKPOINT OPEN → '+CHAPTERS[chapter+1].name) : `+${bonus} · +30 DAMPNESS · ` + pick(['FREE ICE', 'NICE WORK, DRIP', 'THE FRIDGE APPROVES', 'MOIST AND VICTORIOUS', 'HYDRATION RESTORED', 'THE TAP SALUTES YOU', 'DRIP DRIP HOORAY', 'GLASS HALF FULL AGAIN', 'STILL WET, STILL HERE'])); sfx('clear'); say(pick(['counter cleaned', 'spotless', 'the kitchen is quiet. for now', 'wave washed', 'squeaky clean', 'all dried up. except you', 'rinse complete', 'dishes done']), true);
       setTimeout(() => zz('clear', { p: 0.7 }), 2200);
+      // Give the finale the last word instead of immediately overwriting its arrival.
+      if (!endless && chapterClear && chapter === 4) spawnClog();
     }
   } else if (!chapterClear || endless) { interT -= dt; if (interT <= 0) startWave(wave + 1); }
 }
@@ -6128,9 +6145,9 @@ function hud(dt) {
     if (ri > lastRank && ri > 0) { multiText(RANKS[ri][1] + ' · ' + RANKS[ri][2] + '!'); say(RANKS[ri][2].toLowerCase()); if (ri >= 6) zz('rank', { once: true, force: true }); }
     lastRank = ri; $('rank').innerHTML = ri ? `<b>${RANKS[ri][1]}</b>${RANKS[ri][2]}` : '';
   }
-  const boss = enemies.find(e => !e.dead && (e.type === 'mama' || e.type === 'fork'));
+  const boss = clog.alive ? clog : enemies.find(e => !e.dead && (e.type === 'mama' || e.type === 'fork'));
   $('boss').hidden = !boss || state !== 'play';
-  if (boss) { $('bossN').textContent = boss.type === 'fork' ? 'THE FORK (IT EXISTS)' : 'GRANDMA SPONGE'; $('bossF').style.width = Math.max(0, boss.hp / boss.maxHp * 100) + '%'; }
+  if (boss) { $('bossN').textContent = boss === clog ? 'THE CLOG' : boss.type === 'fork' ? 'THE FORK (IT EXISTS)' : 'GRANDMA SPONGE'; $('bossF').style.width = clamp(boss.hp / (boss === clog ? boss.max : boss.maxHp) * 100, 0, 100) + '%'; }
   $('chal').hidden = !chal || state !== 'play';
   if (chal) { const c = CHALS[chal.k]; $('chalD').textContent = c.title + ' · ' + (chal.k === 'bartleby' ? `${c.goal} ${Math.max(0, chal.t).toFixed(1)}s` : `${chal.k === 'horizontal' ? chal.prog.toFixed(1) : chal.prog}/${c.need} ${c.goal}`); $('chalF').style.width = Math.max(0, chal.t / c.dur * 100) + '%'; }
   const drain=escapeReady(), showP=state==='play'&&(P.latchT>0||drain);$('prompt').hidden=!showP;
@@ -6152,7 +6169,7 @@ function hud(dt) {
   if (TOUCH) $('tbSwap').innerHTML = ['SQUIRT', 'ICE', 'FIZZ', 'SUDS'][P.wNext] + '<br>' + (P.wNext === 0 ? '∞' : P.ammo[P.wNext]);
   $('ammo').textContent = w.max === Infinity ? '∞' : P.ammo[P.w];
   $('wlist').innerHTML = ['1 SQUIRT', '2 ICE ' + P.ammo[1], '3 FIZZ ' + P.ammo[2], '4 SUDS ' + P.ammo[3]].map((t, i) => `<span class="${i === P.wNext ? 'on' : ''}">${t}</span>`).join('');
-  $('wave').innerHTML = wave ? `WAVE ${wave}<small>${waveActive ? (enemies.length + spawnQ.length) + ' KITCHENWARE REMAIN' : 'CATCH YOUR BREATH'}</small>${MOD ? `<small style="color:var(--foam)">${MODS[MOD].name}</small>` : ''}` : '';
+  $('wave').innerHTML = wave ? `WAVE ${wave}<small>${clog.alive ? 'THE CLOG BLOCKS THE DRAIN' : waveActive ? (enemies.length + spawnQ.length) + ' KITCHENWARE REMAIN' : 'CATCH YOUR BREATH'}</small>${MOD ? `<small style="color:var(--foam)">${MODS[MOD].name}</small>` : ''}` : '';
 }
 
 function findCurio() {
@@ -6317,23 +6334,25 @@ function cloneRetry(value, seen = new Map([[WET, WET]])) {
   return copy;
 }
 function captureRetry() {
-  return cloneRetry({ player:P, enemies:enemies.filter(e=>!e.dead),
+  return cloneRetry({ player:P, clog, enemies:enemies.filter(e=>!e.dead),
     globs:globs.filter(g=>g.life>0), rockets:rockets.filter(r=>r.life>0), soaps:soaps.filter(s=>s.life>0), parts, stains, pickups, hazards,
     score, killCount, combo, comboT, multi, multiT, wave, spawnQ, spawnT, waveActive, interT,
     continues, forkStatus, chapter, chapterClear, endless, runTime, runCurios,
     MOD, lastMod, gs, tapT, chal, chalNext, lastChal, nemesis, T, fountainT,
     once:ZZ.once, jokeAt, jokeKind, spongeConfessed, lastJokeT, tickNews,
+    techHist, techRun, techLast, varietyMult, toolTipsSeen, stashSaid,
     stories:typeof kitchenStories === 'undefined' ? null : kitchenStories });
 }
 // Asked nicely: the same unfinished fight, rather than doing all the work again.
 function continueGame() {
   const keep = cloneRetry(state === 'dead' && retrySnapshot ? retrySnapshot : captureRetry());
   initAudio(); zHide();
-  ({ enemies, globs, rockets, soaps, parts, stains, pickups, hazards,
+  ({ clog, enemies, globs, rockets, soaps, parts, stains, pickups, hazards,
     score, killCount, combo, comboT, multi, multiT, wave, spawnQ, spawnT, waveActive, interT,
     forkStatus, chapter, chapterClear, endless, runTime, runCurios,
     MOD, lastMod, gs, tapT, chal, chalNext, lastChal, nemesis, T, fountainT,
-    jokeAt, jokeKind, spongeConfessed, lastJokeT, tickNews } = keep);
+    jokeAt, jokeKind, spongeConfessed, lastJokeT, tickNews,
+    techHist, techRun, techLast, varietyMult, toolTipsSeen, stashSaid } = keep);
   if (keep.stories !== null && typeof kitchenStories !== 'undefined') kitchenStories = keep.stories;
   continues = keep.continues + 1; retrySnapshot = null; P = keep.player;
   Object.assign(P, { hp:100, deadT:0, hurtT:0, absorbT:0, absorbUsed:0, latch:null, latchT:0, surr:0,
@@ -6342,10 +6361,12 @@ function continueGame() {
   P.w = P.wNext; checkpointPosition(); P.iT = 3;
   if (!waveActive && !chapterClear) interT = Math.max(1.5, interT);
   for (const p of pops || []) p.el.remove(); pops = []; splats = [];
+  // The death tableau can announce a victory that the restored fight has not earned.
+  for (const id of ['ann', 'mk']) $(id).classList.remove('go');
   hitstop = 0; shake = 0; drainHold = 0; jokeT = 0; ZZ.lock = false; ZZ.once = keep.once; ZZ.nextIdle = T + 12;
   curioFocus = null; curioFocusT = 0; readingCurio = null; deathCause = ''; pleaseBuf = '';
   mouseDown = false; for (const k in keys) keys[k] = false;
-  state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; hideScreen();
+  state = 'play'; $('hud').classList.remove('off'); lastHud = ''; lastVty = null; tickW = 0; hideScreen();
   headlineNow(`DRIP RETURNS FROM THE DEAD AFTER SAYING PLEASE. CONTINUE NUMBER ${continues}`);
   const thisContinue = continues;
   say('continue', true);
