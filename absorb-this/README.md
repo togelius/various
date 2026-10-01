@@ -146,7 +146,8 @@ With a keyboard and mouse:
 - **Žižek's challenges.** Timed dares with a bonus: don't shoot for six seconds
   (I WOULD PREFER NOT TO), eight kills in twelve seconds (ENJOY!), knock
   something off the counter, three googly shots, stay a puddle, soak up your
-  own puddles.
+  own puddles, three kills each a different way (THESIS, ANTITHESIS,
+  SYNTHESIS), or four ice kills (THE COLD WAR, which tops up your ice).
 - **Wave modifiers.** From wave 6 a wave may come with conditions: the tap is
   left on (it rains water), moon kitchen (low gravity), googly overload
   (enormous eyes), caffeinated (everything faster), kitchen rave (hue-cycling
@@ -272,6 +273,47 @@ briefly protect you from another hit; overlapping sponges share a limited
 absorption rate. Heat, sauce and self-inflicted fizz are gentler. Dash,
 puddle, weapons and movement use the same controls. No dispute is a quest,
 and no philosophical position is a required answer.
+
+## The right tool for the job
+
+You can no longer finish the campaign comfortably with the Squirter and
+never lie down. Each tool and ability now has a situation it is good for,
+and the game tells you once, in the feed and in Žižek's voice, the first
+time you use the wrong one.
+
+- **Counters.** The paper towel drinks water (and gets heavier and slower
+  for it); fizz tears it and ice works. You can also lure it onto a glowing
+  hotplate for TOAST. Glass bottles shrug off water and shatter under ice.
+  A soaked sponge drinks your shots, so freeze it. Spoons chill quickly.
+  Grandma sips water and splits faster under fizz. From the stove onwards
+  some sponges arrive **greasy**: water and ice skid off, but a soap bubble
+  degreases them (and traps them as usual). Kitchen hazards ignore all
+  of this.
+- **The Fork** is armoured while it flies. Dodge its last stab and it
+  sticks in the counter for a couple of seconds. While it's stuck,
+  everything does more than double damage.
+- **You cannot hug a puddle.** Turning into a puddle while a sponge is
+  hugging you slips you free, with a moment of protection.
+- **The golden sponge** now outruns you on foot, but it sweats a wet trail.
+  Slide after it as a puddle, or bubble it.
+- **Dialectics versus repetition.** The HUD tracks your recent killing
+  methods (squirt, ice, fizz, soap, edge, bubble, puddle). Four different
+  methods among your last six kills pay ×1.6 (DIALECTICAL!), three pay
+  ×1.3. Twelve kills in a row the same way drop you to ×0.6 until you
+  change, with a diagnosis of repetition compulsion.
+- **Stashes.** Three dead letters wait under the low cutting board in
+  Breakfast Republic, which you can only reach as a puddle (THE PUDDLE
+  POST). A TOP SHELF above the Dish Rack is higher than any jump: rocket-jump
+  up there with fizz. Each stash pays 1,500 the first time.
+- **The Clog.** Clearing the Sink of History is not enough. A mass of hair,
+  noodles, a contact lens and thirty years of ideology now blocks the drain.
+  Water feeds it. Fizz breaks it up, ice and soap help. While it lives, the
+  drain siphons up a fresh seltzer every few seconds if you're low.
+
+The campaign is also a little less forgiving than it was in the previous
+version. Hits do 85% damage instead of 75% and give a shorter grace period,
+and sponges absorb you somewhat faster. Rocket jumps cost a little less, to
+keep the top shelf fair.
 
 ## How it's made
 

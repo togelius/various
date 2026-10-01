@@ -7,21 +7,21 @@ function testForgiveness() {
   const fresh=()=>{reset();hideScreen();state='play';locked=true;mouseDown=false;continues=0;interT=9999;for(const k in keys)keys[k]=false;};
   try {
     fresh();hurt(20,'spoon');const hitHP=P.hp;hurt(20,'bottle');
-    check('An ordinary hit is gentler and protects against an immediate pile-on',hitHP===85&&P.hp===hitHP&&P.iT>=.7);
+    check('An ordinary hit is gentler and protects against an immediate pile-on',hitHP===83&&P.hp===hitHP&&P.iT>=.55);
     const protection=P.iT;keys.ShiftLeft=true;updatePlayer(.01);keys.ShiftLeft=false;
     check('Dashing cannot shorten ordinary-hit protection',P.iT>=protection-.011);
     seepDamage(7,.1,'puddle');
     check('Damage grace also covers sauce and heat',P.hp===hitHP);
-    P.iT=0;hurt(20,'spoon');check('A later hit still matters',P.hp===70);
+    P.iT=0;hurt(20,'spoon');check('A later hit still matters',P.hp===66);
 
     fresh();const sponge=makeEnemy('sponge',P.x,P.z), grandma=makeEnemy('sponge',P.x,P.z,4);
     updatePlayer(.1);absorbPlayer(sponge,.1);absorbPlayer(sponge,.1);absorbPlayer(grandma,.1);
-    check('Overlapping sponges share a maximum absorption budget',near(P.hp,99));
-    updatePlayer(.1);absorbPlayer(sponge,.1);check('Absorption continues gently on later frames',near(P.hp,98.2));
-    P.iT=1;absorbPlayer(grandma,.1);check('A protected return cannot immediately be absorbed',near(P.hp,98.2));
+    check('Overlapping sponges share a maximum absorption budget',near(P.hp,98.5));
+    updatePlayer(.1);absorbPlayer(sponge,.1);check('Absorption continues gently on later frames',near(P.hp,97.4));
+    P.iT=1;absorbPlayer(grandma,.1);check('A protected return cannot immediately be absorbed',near(P.hp,97.4));
     fresh();enemies=[0,.1,-.1].map(dx=>{const e=makeEnemy('sponge',P.x+dx,P.z);e.cd=10;e.spawnT=0;return e;});
     updatePlayer(.1);updateEnemies(.1);
-    check('The actual enemy update uses the shared absorption budget',near(P.hp,99.2));
+    check('The actual enemy update uses the shared absorption budget',near(P.hp,98.9));
     fresh();P.hp=50;explode(P.x,P.y+.5,P.z);
     check('Point-blank fizz remains a launch with survivable self-damage',P.hp>=44.7&&P.vy>=12&&state==='play');
 

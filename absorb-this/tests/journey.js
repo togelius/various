@@ -42,6 +42,9 @@ function testJourney() {
    check('District '+(stage+1)+' opens after two waves',chapterClear);
   }
   check('No eleventh wave before escape',wave===10&&chapter===4&&chapterClear);
+  P.x=DRAIN.x;P.z=DRAIN.z;P.y=0;P.onG=true;check('The Clog blocks the drain',clog.alive&&!escapeReady());
+  const clogHp=clog.hp;clogHit(17,0);check('Water only feeds the Clog',clog.hp>clogHp);
+  let clogGuard=0;while(clog.alive&&clogGuard++<40)clogHit(60,2);check('Fizz breaks up the Clog',!clog.alive&&clogGuard<40);
   P.x=DRAIN.x;P.z=DRAIN.z;P.y=0;P.onG=true;keys.KeyE=false;kitchenUpdate(2);check('Drain requires deliberate input',state==='play');
   keys.KeyE=true;kitchenUpdate(1.6);check('Drain finishes the kitchen',state==='won'&&endings().escaped&&$('hud').classList.contains('off'));
   const banked=score;continueEndless();updateWaves(5);check('Optional endless starts wave eleven',endless&&state==='play'&&wave===11&&score===banked&&!$('hud').classList.contains('off'));
@@ -157,5 +160,5 @@ function testCurios(){
  return out;
 }
 
-const testResults = [...testJourney(), ...testTraversal(), ...testLighting(), ...testCurios(), ...testForgiveness(), ...testSlapstick(), ...testStories()];
+const testResults = [...testJourney(), ...testTraversal(), ...testLighting(), ...testCurios(), ...testForgiveness(), ...testSlapstick(), ...testStories(), ...testTools()];
 parent.postMessage({type: "absorb-tests", results: testResults}, "*");

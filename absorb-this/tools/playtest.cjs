@@ -180,7 +180,17 @@ function controller() {
               const ndx = destination.x - P.x, ndz = destination.z - P.z, nd = Math.hypot(ndx, ndz);
               moveX = nd > 1 ? ndx / nd : 0; moveZ = nd > 1 ? ndz / nd : 0;
               if (config.persona === 'stationary' && !chapterClear) moveX = moveZ = 0;
-              if (target && !chapterClear && config.persona !== 'runner') {
+              if (clog.alive && config.persona !== 'runner' && config.persona !== 'stationary') {
+                // The Clog is not in enemies; a bot that knows the rule fights it with fizz, then ice.
+                const dx = clog.x - P.x, dz = clog.z - P.z, d = Math.hypot(dx, dz);
+                if (d < 9) { moveX = -dx / d; moveZ = -dz / d; } else if (d > 16) { moveX = dx / d; moveZ = dz / d; } else moveX = moveZ = 0;
+                aimYaw = Math.atan2(-dx, -dz) + (roll() * 2 - 1) * profile.error;
+                aimPitch = Math.atan2(clog.y - P.y - P.eyeH, d) + (roll() * 2 - 1) * profile.error;
+                firing = roll() > .12;
+                const weapon = P.ammo[2] > 0 ? 2 : P.ammo[1] > 0 ? 1 : P.ammo[3] > 0 ? 3 : 0;
+                if (P.ammo[2] <= 0 && P.ammo[1] <= 0) { const fizz = pickups.find(k => k.type === 'seltzer'); if (fizz) { const fx = fizz.x - P.x, fz = fizz.z - P.z, fd = Math.hypot(fx, fz) || 1; moveX = fx / fd; moveZ = fz / fd; } }
+                if (weapon !== P.wNext) dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit' + (weapon + 1), key: String(weapon + 1) }));
+              } else if (target && !chapterClear && config.persona !== 'runner') {
                 const dx = target.x - P.x, dz = target.z - P.z;
                 aimYaw = Math.atan2(-dx, -dz) + (roll() * 2 - 1) * profile.error;
                 aimPitch = Math.atan2(target.y - P.y - P.eyeH, Math.hypot(dx, dz)) + (roll() * 2 - 1) * profile.error;

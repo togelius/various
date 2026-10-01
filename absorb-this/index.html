@@ -100,6 +100,7 @@
     font-family:Bangers, Impact, sans-serif; font-weight:400; font-size:18px; letter-spacing:.08em; }
   #tickrun { position:absolute; left:0; top:0; will-change:transform; }
   #rank { font-size:22px; color:#fff; min-height:26px; }
+  #vty { font-size:15px; letter-spacing:.06em; min-height:18px; color:#9de8ff; } #vty.rep { color:#ff9d88; }
   #rank b { font-size:44px; color:var(--water); -webkit-text-stroke:1px var(--ink); margin-right:6px; }
   #prompt { position:absolute; left:50%; top:62%; transform:translateX(-50%); text-align:center; font-size:30px; color:#fff;
     text-shadow:3px 3px 0 var(--ink); animation: pulse .4s infinite alternate; }
@@ -233,7 +234,7 @@
 <div id="hud" class="off">
   <div id="xh"><i></i><i></i><i></i><i></i><b></b></div>
   <div id="hit"></div>
-  <div id="tl" class="big"><div id="score">0</div><div id="combo"></div><div id="rank"></div><div id="hi"></div></div>
+  <div id="tl" class="big"><div id="score">0</div><div id="combo"></div><div id="rank"></div><div id="vty"></div><div id="hi"></div></div>
   <div id="wave" class="big"></div>
   <div id="curioPrompt" hidden></div>
   <div id="journey"><strong id="journeyName"></strong><span id="journeyGoal"></span><div id="journeySteps"></div><div id="journeyNav" hidden><span id="journeyArrow">↑</span><span id="journeyDistance"></span></div></div>
@@ -1014,6 +1015,9 @@ function buildLongKitchen() {
   for(const z of [-17,-5]){S(CUBE,216,2.2,z,37,.3,.3,[.62,.69,.65],5);for(let x=198;x<236;x+=6)S(CUBE,x,1,z,.2,2,.2,[.62,.69,.65],5);}
   S(ROUND,217,4.8,4,28,.3,1.8,[.72,.79,.82],5);addBox(217,4,14,.9,4.95,0,4.65);
   mug(238,-15,3.1,10,[.86,.59,.36]);
+  S(ROUND,226,9.8,4,8,.4,3.4,[.84,.66,.42],1); addBox(226,4,4,1.7,10,0,9.6);
+  for(const x of [222.5,229.5]) S(CUBE,x,9.2,5.4,.25,1.2,.25,[.55,.38,.22],1);
+  kitchenSign(226,11.9,5.75,5.6,1.7,'TOP SHELF','STAFF, ROCKETS AND PHILOSOPHERS ONLY','#f3d7a8');
   kitchenSign(218,19,-21.3,27,5,'DISHCOURSE','EVERY PLATE IS A PLATFORM. UNFORTUNATELY.','#d5dfda');
   PADS.push({x:196,z:7,tx:208,tz:4});S(ROUND,196,.12,7,2.3,.24,1.6,[.94,.19,.05],11);
 
@@ -1553,6 +1557,9 @@ const WEAPONS = [
   { name: 'SUDS-O-MATIC', sub: 'TRAPS THEM IN SOAP · FLOAT THEM OFF THE EDGE', rate: 0.5, max: 16, start: 4 },
 ];
 let state = 'title';
+let lastVty = '', stashSaid = {};
+const clog = { alive: false, hp: 0, max: 260, x: 0, y: 0, z: 0, r: 2.3, t: 0, siphonT: 0, fedT: 0 };
+let toolTipsSeen = {}, techHist = [], techRun = 0, techLast = '', varietyMult = 1;   // tool tips shown this run; the variety meter
 let P, enemies, globs, rockets, parts, stains, pickups, hazards, pops, splats, soaps = [];
 let score, combo, comboT, multi, multiT, wave, spawnQ, spawnT, waveActive, interT, hitstop, shake, killCount, deathCause, T = 0;
 let glassLevel = 0.45, sens = 0.0022;
@@ -1575,18 +1582,24 @@ const CHALS = {
   gaze: { title: 'THE GAZE', goal: 'GOOGLY SHOTS', dur: 15, bonus: 1500, need: 3 },
   horizontal: { title: 'THE HORIZONTAL SUBJECT', goal: 'SECONDS AS A PUDDLE', dur: 20, bonus: 1200, need: 6 },
   negation: { title: 'NEGATION OF THE NEGATION', goal: 'PUDDLES SOAKED UP', dur: 20, bonus: 1200, need: 10 },
+  dialectic: { title: 'THESIS, ANTITHESIS, SYNTHESIS', goal: 'KILLS, EACH A DIFFERENT WAY', dur: 25, bonus: 2500, need: 3 },
+  coldwar: { title: 'THE COLD WAR', goal: 'ICE KILLS', dur: 18, bonus: 1800, need: 4 },
 };
 let chal = null, chalNext = 0, lastChal = null;
 function chalStart() {
   const k = pick(Object.keys(CHALS).filter(q => q !== lastChal)); lastChal = k;
   chal = { k, t: CHALS[k].dur, prog: 0 }; sfx('swap');
   if (k === 'real') P.ammo[3] = Math.max(P.ammo[3], 6);
+  if (k === 'coldwar') P.ammo[1] = Math.max(P.ammo[1], 10);
+  if (k === 'dialectic') chal.seen = [];
   if (!ZZ.lock) { ZZ.cool = 0; zShow(pick(ZL['chal_' + k + '_intro'] || ['A challenge!']), { cool: 4 }); }
 }
 function chalEvent(kind, amt = 1) {
   if (!chal || state !== 'play') return;
   const c = CHALS[chal.k];
   if (chal.k === 'bartleby') { if (kind === 'fire') chalEnd(false); return; }
+  if (chal.k === 'dialectic') { if (kind === 'tech' && !chal.seen.includes(amt)) { chal.seen.push(amt); chal.prog = chal.seen.length; if (chal.prog >= c.need) chalEnd(true); } return; }
+  if (chal.k === 'coldwar') { if (kind === 'tech' && amt === 'ice') { chal.prog++; if (chal.prog >= c.need) chalEnd(true); } return; }
   const want = { enjoy: 'kill', real: 'fall', gaze: 'googly', horizontal: 'puddle', negation: 'soak' }[chal.k];
   if (kind === want) { chal.prog += amt; if (chal.prog >= c.need) chalEnd(true); }
 }
@@ -1620,7 +1633,7 @@ function reset() {
     pud: false, pudT: 0, eyeH: EYE, iT: 0, latch: null, latchT: 0, surr: 0, stillT: 0, endT: 0, endE: null, endShown: false, sipT: 0 };
   enemies = []; globs = []; rockets = []; parts = []; stains = []; pickups = []; hazards = []; splats = []; soaps = [];
   for (const p of pops || []) p.el.remove(); pops = [];
-  score = 0; combo = 0; comboT = 0; multi = 0; multiT = 0; wave = 0; spawnQ = []; spawnT = 0; waveActive = false; interT = 1.6;
+  score = 0; combo = 0; comboT = 0; multi = 0; multiT = 0; techHist = []; techRun = 0; techLast = ''; varietyMult = 1; toolTipsSeen = {}; stashSaid = {}; clog.alive = false; wave = 0; spawnQ = []; spawnT = 0; waveActive = false; interT = 1.6;
   hitstop = 0; shake = 0; killCount = 0; deathCause = '';
   $('feed').innerHTML = '';
   $('rank').innerHTML = '';
@@ -1812,6 +1825,88 @@ let MULTIW = [[], [], ["DOUBLE DIP!", "DOUBLE DUNK!", "TWO-PLY!", "DOUBLE BOILER
 let ZNAMES = ["ŽIŽEKBOT 3000", "VIRTUAL ŽIŽEK", "CECI N'EST PAS UN ŽIŽEK", "ŽIŽEK SIMULACRUM", "ŽIŽEK-SIMULACRA", "OBJET PETIT ŽIŽEK", "ŽIŽEK (DECAFFEINATED)", "IMITATION ŽIŽEK FLAVOUR", "HOLOGRAM ŽIŽEK", "ŽIŽEK (IMAGINARY ORDER)", "ŽIŽEK (TAKEAWAY ORDER)", "I CAN'T BELIEVE IT'S NOT ŽIŽEK", "ACTUAL ŽIŽEK MAY VARY", "MAY CONTAIN TRACES OF ŽIŽEK", "REAL ŽIŽEK SOLD SEPARATELY", "LEGALLY DISTINCT ŽIŽEK", "THE BIG ŽIŽEK DOES NOT EXIST", "A STAIN THAT LOOKS LIKE ŽIŽEK", "FACE OF ŽIŽEK SEEN IN TOAST", "ŽIŽEK FRIDGE MAGNET", "INSTANT ŽIŽEK: JUST ADD WATER", "ŽIŽEK (FROM CONCENTRATE)", "DISHWASHER-SAFE ŽIŽEK", "COUNTER-FEIT ŽIŽEK", "STORE-BRAND ŽIŽEK", "ŽIŽEK, OPEN BOX, SLIGHTLY DAMP", "GENUINE FAKE ŽIŽEK", "ŽIŽEK BOBBLEHEAD", "ŽIŽEK STUNT DOUBLE", "DECOY ŽIŽEK #4", "ŽIŽEK TRIBUTE ACT", "ŽIŽEK (KARAOKE VERSION)", "ŽIŽEK 2 (DIRECT TO VIDEO)", "TEXT-TO-ŽIŽEK", "ŽIŽEK.EXE HAS STOPPED WORKING", "ŽIŽEK_COPY(3).PNG", "ŽIŽEK FREE TRIAL (3 DAYS LEFT)", "ŽIŽEK (MISQUOTED)", "ŽIŽEK, BADLY TRANSLATED", "ŽIŽEK (ARTIST'S IMPRESSION)", "ŽIŽEK FAN FICTION", "INSPIRED BY ŽIŽEK. BARELY.", "ŽIŽEK: SERVING SUGGESTION ONLY", "BATTERIES AND ŽIŽEK NOT INCLUDED", "THE REAL ŽIŽEK IS ELSEWHERE", "ŽIŽEK, IF YOU SQUINT", "ŽIŽEK (NOVELTY SALT SHAKER)", "SOUVENIR ŽIŽEK TEA TOWEL", "ŽIŽEK (OVEN MITT PUPPET)", "SPONGE IN A ŽIŽEK COSTUME", "THREE SPOONS IN A ŽIŽEK COAT", "ŽIŽEK AS REMEMBERED BY A SPONGE", "ŽIŽEK'S REFLECTION IN A SPOON", "FREEZE-DRIED ŽIŽEK", "ŽIŽEK (PARTIALLY HYDROGENATED)", "ŽIŽEK (100% POLYURETHANE)", "SILICA GEL ŽIŽEK: DO NOT EAT", "ŽIŽEK (HAND WASH ONLY)", "ŽIŽEK, NOW WITH GOOGLY EYES", "PRE-OWNED ŽIŽEK", "ŽIŽEK (FLOOR MODEL)", "ŽIŽEK REPLICA (NOT TO SCALE)", "ŽIŽEK ACTION FIGURE (NO ACTION)", "WAX ŽIŽEK (MELTING)", "ŽIŽEK ANIMATRONIC", "ŽIŽEK (TOURING CAST)", "ŽIŽEK EMULATOR", "ŽIŽEK (EARLY ACCESS)", "ŽIŽEK (NPC)", "ŽIŽEK, PARAPHRASED", "ŽIŽEK (DRAMATIZATION)", "HYPOTHETICAL ŽIŽEK", "A MIRAGE OF ŽIŽEK", "ŽIŽEK-ADJACENT", "ŽIŽEK IN NAME ONLY", "ŽIŽEK (CEREAL BOX PRIZE)", "ŽIŽEK (FEVER DREAM)", "ŽIŽEK (LOW-FAT SPREAD)", "ŽIŽEK, REHEATED", "ŽIŽEK (BEST BEFORE LAST THURSDAY)", "ŽIŽEK LITE", "ŽIŽEK ZERO (NO SUGAR)", "ŽIŽEK (SERVES FOUR)", "ŽIŽEK, AS SEEN ON TV", "ŽIŽEK (ONE SIZE FITS ALL)", "ŽIŽEK (SUBTITLES UNAVAILABLE)", "ŽIŽEK (DUBBED)", "ŽIŽEK (ABRIDGED)", "ŽIŽEK (FOOTNOTES ONLY)", "ŽIŽEK, UNPLUGGED", "ŽIŽEK (EXTENDED REMIX)", "LOW-RES ŽIŽEK", "ŽIŽEK (BUFFERING...)", "ŽIŽEK BETA 0.9", "ŽIŽEK (PRINTED ON A MUG)", "ŽIŽEK-SHAPED SPONGE", "ŽIŽEK (MICROWAVE SAFE)", "ŽIŽEK (SHAKE WELL BEFORE USE)", "ŽIŽEK IN A JAR", "ŽIŽEK (PICKLED)", "ŽIŽEK, SOMEWHAT", "ŽIŽEK (SKETCHED ON PAPER TOWEL)", "ŽIŽEK (STEAM-CLEANED)", "UNAUTHORISED ŽIŽEK", "ŽIŽEK'S UNDERSTUDY'S UNDERSTUDY", "ŽIŽEK (AS DESCRIBED OVER THE PHONE)", "ŽIŽEK (SOLD AS SEEN)", "ŽIŽEK (SOUS RATURE)", "ŽIŽEK, DECONSTRUCTED", "ŽIŽEK (ALWAYS ALREADY)", "DIFFÉRANCE ENGINE ŽIŽEK", "ŽIŽEK, THE SPONGE", "ABSORBENT ŽIŽEK", "ŽIŽEK (VIBRANT MATTER)", "ŽIŽEK: A BODY WITHOUT ORGANS", "ŽIŽEK AFTER THE END OF HISTORY", "ŽIŽEK (MIXED IDEOLOGY, DRIPPING)", "ŽIŽEK (WRING BEFORE USE)", "ŽIŽEK (PEER REVIEWED, REJECTED)", "ŽIŽEK (MORE OF A COMMENT)", "ŽIŽEK (COMMITTEE-APPROVED DRAFT)", "ŽIŽEK, UNDEFINED TERMS", "ŽIŽEK (SHORTER BOOK AVAILABLE)", "ŽIŽEK VS. FRIDGE MAGNET ŽIŽEK", "ŽIŽEK (ALWAYS ALREADY ŽIŽEK)", "ŽIŽEK UNDER ERASURE", "ŽIŽEK AT THE END OF HISTORY", "ŽIŽEK (NOT A RHIZOME)", "ŽIŽEK (FALSIFIED)", "ŽIŽEK (DECONSTRUCTED BY FRIDGE MAGNET)", "ŽIŽEK (MINDFULLY IGNORED)", "ŽIŽEK (ETHICALLY SOURCED)", "ŽIŽEK AND SO ON", "ŽIŽEK (SEE PREVIOUS BOOK)", "ŽIŽEK (MISPRONOUNCED BY ROBOT)", "ŽIŽEK (REVISE AND RESUBMIT)", "ŽIŽEK, LOST TO THE DOG", "ŽIŽEK (NEEDS MORE RIGOUR)"];
 // every line below is invented for the game; it is a cartoon parody, not a real quotation
 const ZL = {
+  tip_roll: [
+    "Stop! You are watering the paper towel. Congratulations, you have invented agriculture for kitchen roll. Use fizz. Or walk it over a hotplate and make toast.",
+    "Water against a paper towel. This is like arguing with a sponge by giving it more to drink. The paper towel thanks you for your contribution. Try seltzer.",
+    "You squirt it, it gets heavier, it rolls slower. So the water is not useless, only humiliating. Slow it down, then explode it. This is called strategy.",
+  ],
+  tip_bottle: [
+    "You are trying to persuade a window. Water slides off glass. Glass only listens to one argument: cold, sudden, and in ten pieces. The Ice Shotgun.",
+    "The hot sauce bottle laughs at water. Of course! It is glass. It has spent its whole life being rinsed. Freeze it, and it shatters like a bad theory.",
+    "Water off a bottle's back. The bottle has heard all your liquid arguments before. Change your register. Speak to it in ice.",
+  ],
+  tip_soaked: [
+    "You cannot give more water to a sponge that is already full. This is the paradox of charity. Freeze it instead. A frozen sponge is only a brick with opinions.",
+    "Look, it is drinking your shots. A full sponge is a closed system: everything you give it, it keeps. Ice! Cold is the only thing it cannot absorb.",
+    "This sponge has had enough. Literally. Every squirt is a free refill. Stop subsidising it and get the shotgun.",
+  ],
+  tip_fork: [
+    "Shooting the Fork while it flies is like criticising capitalism on its own social network. Clang, clang, nothing. Dodge its last stab. Then it is stuck, and then it is yours.",
+    "The Fork is armoured while it moves. Every system is. Wait for it to commit: the third stab goes into the counter, and for two seconds, the Real is defenceless.",
+    "Do not fight the Fork in the air. Dash through its stab. A fork can only ever commit to one point at a time. Well. Four.",
+  ],
+  tip_mama: [
+    "Grandma drinks your water and says, lovely, a little warm. Of course she does. Give her fizz. Nothing splits a grandmother faster than carbonation.",
+  ],
+  rollToast: [
+    "Toast! The paper towel has met the hot take. Absorbent ideology, meet a burning argument. Nobody wins, but the kitchen smells of breakfast.",
+    "You lured the paper towel onto the hotplate. This is the cunning of reason: you did not destroy the system, you only guided it towards its own heat.",
+    "The quicker picker-upper is now the quicker burner-upper. I am sorry. That pun was already lying on the counter. I only picked it up.",
+    "Scorched! The paper towel absorbed everything in its life except one lesson: do not stand on the stove when it glows.",
+  ],
+  forkStuck: [
+    "It is stuck! The Fork has committed. This is the tragedy of every fork: four points, and still it can only make one decision at a time. Now!",
+    "Look, prongs deep in the counter. The Real has a weakness after all: follow-through. Hit it while it is embarrassed.",
+    "You dodged and it missed and now it is stuck in the wood. This is what happens to every grand gesture. It ends embedded in the furniture.",
+    "The Fork is stuck! Quickly! In philosophy we call this an aporia. In the kitchen we call it a free hit.",
+  ],
+  slip: [
+    "You cannot hug a puddle. Ask anybody who has tried to hold on to a liquid relationship.",
+    "You became flat and slipped right out of its embrace. This is the secret of every escape: do not resist the hug, become impossible to hold.",
+    "The sponge wanted to absorb you, and you simply changed shape. Very French. Very Deleuzian. Lines of flight across the counter.",
+    "Slipped out! The sponge is still hugging the place where you were. This is what love usually looks like, from the outside.",
+    "A puddle has no edges to hold. The sponge reaches for you and finds only a situation. Well done. Now go.",
+  ],
+  repetition: [
+    "{n} kills in a row with {w}. Freud called this the repetition compulsion. Your family calls it Christmas.",
+    "You have used {w} {n} times in a row. This is not a strategy any more. This is a symptom. Please, try something else. The sponges are also getting bored.",
+    "{n} times! {w}, again, and again, and so on, and so on. Nietzsche asked: could you live this moment over and over forever? You are clearly trying.",
+    "Again {w}. {n} in a row. You know what Einstein said about doing the same thing and expecting different results? Me neither. But I am sure it was about you.",
+    "{n} kills, one tool. You have the soul of a man who orders the same sandwich for thirty years and calls it loyalty.",
+    "{w}, {w}, {w}. {n} times. I see you have found the one thing you like. This is how ideology works: not by force, by habit.",
+    "Repetition compulsion! {n} in a row with {w}. The score now pays you less for each one. Even the scoreboard has a superego.",
+  ],
+  variety: [
+    "Thesis: squirt. Antithesis: ice. Synthesis: a sponge in several pieces. Hegel would weep, and then ask to borrow the shotgun.",
+    "Look at this. Water, ice, fizz, soap, gravity. You are not fighting, you are composing. A dialectical symphony in one act and many sponges.",
+    "Variety! Every tool for its own enemy. Finally, a division of labour that does not end in alienation. Only in wet kitchenware.",
+    "Four different ways to end a sponge in a row. This is what Marx meant: hunt in the morning, fish in the afternoon, freeze a bottle after dinner.",
+    "Dialectical! You negate the negation of the previous negation, and the score multiplies. Hegel never had a multiplier. Maybe that is why he was so grumpy.",
+  ],
+  deadLetter: [
+    "A letter always arrives at its destination, says Lacan. But only if it is flat enough to fit under the board. Postage paid!",
+    "You slid under the cutting board and found the dead letters. Nobody posts anything any more. Only puddles. Only puddles still believe in the mail.",
+    "The Puddle Post! Flat mail only, and you, my friend, are the flattest subject in the Republic. Here are your parcels. Sign for them with a drip.",
+  ],
+  topShelf: [
+    "The top shelf! Where they keep the good stuff, and everything they want to keep from children and philosophers. You blew yourself up to get here. Worth it.",
+    "You rocket-jumped onto the top shelf. In every kitchen, the top shelf is the transcendental: unreachable, dusty, and full of things nobody remembers buying.",
+    "Up here! The view from the top shelf. Below, the plates argue about who is stacked on whom. Up here, only dust and a little soap. This is what elevation looks like.",
+  ],
+  clog: [
+    "And there it is, the Clog. Hair, noodles, a contact lens and thirty years of ideology. Every drain of history ends in something like this. Do not feed it water. Break it.",
+    "The final enemy is not a sponge, not a fork. It is a clog. Of course! The real obstacle is never the villain. It is everything nobody cleaned up.",
+    "Look at it. The return of the repressed, but in plumbing form. Everything you washed away came back, holding hands. Fizz! Ice! Not water!",
+  ],
+  clogFeed: [
+    "You are squirting water into a blocked drain. This is the whole history of reform, in one gesture. The clog grows. Use something that explodes.",
+    "Water makes it bigger! Every drop you give it, it keeps. The clog is the most successful sponge in the kitchen, and it is not even a sponge.",
+  ],
+  clogDead: [
+    "Unclogged! The drain is open, history may flow again. Somewhere a plumber feels a disturbance in the Force and decides to stay home.",
+    "The Clog is gone. Hair, noodles, the contact lens, all of it, scattered like the end of an empire. Now pull the plug. Become somebody else's problem.",
+    "You broke the Clog with fizz. Not with water, not with patience. With carbonated violence. There is a lesson here, and I refuse to say it out loud.",
+  ],
   foe_derrida: [
     "Derrida says every text contains a trace of what it excludes. The sponge contains a trace of everything it ever wiped. Tuesday's lasagna. Deconstruction is simply bad hygiene.",
     "Nothing outside the text? Then please explain the crumbs. They are outside every text. They are under the toaster. *sniff* Philosophy begins under the toaster.",
@@ -3821,6 +3916,56 @@ const ZL = {
     "Failed! You could not stay down. There is a lesson here about pride, but you were standing up before I could finish it.",
     "Twenty seconds, and not enough puddle. The crumbs are offended. They cleared a whole space for you.",
   ],
+  greasy: [
+    "Look at that sponge. It shines! It has been fried. This is the stove district: here even the enemies arrive pre-oiled, like a politician before a debate.",
+    "A greasy sponge. Water slides off it, ice skids off it. It is like trying to criticise a billionaire: everything you throw just lubricates him. You need soap. You need a solvent.",
+    "Grease! The great ideology of the frying pan. It coats everything, it repels water, and it convinces you that this is simply how things taste. Bubble it. Soap is the critique of grease.",
+    "This sponge has been to the deep fryer. It is now waterproof, ice-proof and, I think, slightly delicious. Only detergent can bring it back to the realm of the arguable.",
+  ],
+  tip_greasy: [
+    "It slid off! Of course. Oil and water do not mix. This is not chemistry, this is class consciousness. You need a mediator. Soap: half loves water, half loves grease. Soap is the vanishing mediator!",
+    "Water off a greasy sponge. The sponge has achieved the dream of every corporation: it is perfectly non-stick. Nothing you do sticks to it. Bubble it, and it will be ordinary again.",
+    "You cannot squirt your way through grease. Ask any dishwasher in history. You need the Suds-O-Matic. This is the one time in your life the answer really is: more soap.",
+  ],
+  degrease: [
+    "Degreased! Soap molecules, half for water, half for oil. Soap is the Hegelian molecule: it does not choose a side, it holds both, and then the grease is gone.",
+    "Squeaky clean! Now it is only a sponge again. Ordinary, vulnerable, absorbent. This is what they call the end of the illusion. Shoot it.",
+    "Emulsified! You did not destroy the grease, you surrounded it with something that loves it and something that hates it. This is how every successful revolution actually works.",
+    "Look, the shine is gone. The sponge has been demystified. Marx said all that is solid melts into air. He forgot: all that is greasy melts into foam.",
+    "The vanishing mediator! The soap stands between water and grease, makes them meet, and then disappears down the drain. Nobody thanks the soap. Nobody ever thanks the mediator.",
+  ],
+  chal_dialectic_intro: [
+    "Challenge! Three kills, three different ways, twenty-five seconds. Thesis, antithesis, synthesis. If you only squirt, you are not a dialectician, you are a garden hose.",
+    "Dialectics! Kill three sponges, each one differently. Water, ice, fizz, soap, gravity, a puddle. Hegel did not spend his life writing so you could press one button.",
+    "New challenge: three kills, three techniques. Variety! Not the variety of the supermarket, forty kinds of the same yoghurt. Real variety. Ice and then fire and then falling.",
+    "Thesis, antithesis, synthesis! Three different ways to destroy kitchenware in twenty-five seconds. Fichte invented this formula, by the way. Hegel never used it. Nobody remembers Fichte. Make him proud.",
+  ],
+  chal_dialectic_win: [
+    "Three different kills! Synthesis! Hegel would be very proud, and then he would write eight hundred pages explaining why it was inevitable all along.",
+    "Thesis, antithesis, synthesis, and three dead sponges. This is the only dialectics that has ever produced a measurable result.",
+    "Beautiful. Every kill negated the one before it. This is the cunning of reason, but with a shotgun.",
+    "You did it! Three tools, three kills. You are no longer a specialist. Marx would say: hunt in the morning, freeze in the afternoon, soap after dinner. Communism!",
+  ],
+  chal_dialectic_fail: [
+    "You did the same thing again. And again. The thesis never met its antithesis. It only met itself, many times, like a man at a mirror in a hotel bathroom.",
+    "Failed! No synthesis. Only thesis, thesis, thesis. This is not Hegel. This is a pop song with one chord.",
+    "Not three ways. You are like a philosopher who discovered one idea in 1968 and has been repeating it in every book since. I would never do this. I would never do this. I would never do this.",
+  ],
+  chal_coldwar_intro: [
+    "The Cold War! Four ice kills in eighteen seconds. Here is some ammunition, a gift from the state. Freeze them, and remember: it is never really cold, it is only postponed hot.",
+    "Challenge: four kills with ice. The Cold War was the only war where both sides agreed the fighting must happen somewhere else. Today, it happens on this counter.",
+    "Four ice kills! Mutually assured shattering! I have filled your shotgun. Do not ask who paid for it. In a cold war, nobody asks who paid for it.",
+  ],
+  chal_coldwar_win: [
+    "Four ice kills! The Cold War is over, and you won. Now, of course, comes the boring part: thirty years of people telling you it was the end of history.",
+    "The wall has fallen! Several walls. Sponges, mostly. Fukuyama calls me: is history over? No, Francis. Look, there are more sponges.",
+    "Frozen and shattered, four times. In the end the Cold War was won not by ideas but by refrigeration. Very historically accurate.",
+  ],
+  chal_coldwar_fail: [
+    "The Cold War ended without a winner. Exactly like the real one. Everybody pretends they won, and the sponges keep the nuclear weapons.",
+    "Not enough ice. The thaw came too early. This is détente: nobody wins, everybody is slightly wet.",
+    "You failed the Cold War. Do not worry. Nobody really won the original one either. Some people only got very good at pretending.",
+  ],
   chal_negation_intro: [
     "Negation of the Negation! Soak up ten puddles of your own spilled water in twenty seconds. You spilled yourself. Now unspill yourself.",
     "Soak up ten of your own puddles within twenty seconds. The subject is the one who gets lost and then walks around picking itself up. Pick yourself up. Ten times.",
@@ -4514,6 +4659,10 @@ function districtSupplies() {
     const x=c.x+dx, y=groundAt(x,z,30)+.5; pickups.push({type,x,y,z,vy:0,t:0});
   }
   if(chapter===1||chapter===3){const x=chapter===1?65:216,z=chapter===1?-8:4;pickups.push({type:'seltzer',x,y:groundAt(x,z,30)+.5,z,vy:0,t:0});}
+  // Puddle Post: dead letters under the low board, reachable only flat
+  if(chapter===1)for(const [x,type] of [[70,'soap'],[74,'seltzer'],[78,'shells']])pickups.push({type,x,y:.42,z:11,vy:0,t:0,stash:'letter'});
+  // the top shelf above the plates: staff, rockets and philosophers only
+  if(chapter===3)for(const [x,type] of [[224,'soap'],[226,'shells'],[228,'ice']])pickups.push({type,x,y:10.5,z:4,vy:0,t:0,stash:'shelf'});
 }
 function enterDistrict(i) {
   chapter=i;chapterClear=false;drainHold=0;interT=3;waveActive=false;wave=CHAPTERS[i].first-1;MOD=null;gs=1;
@@ -4524,7 +4673,45 @@ function enterDistrict(i) {
   headlineNow(`DRIP REACHES ${c.name}. LOCAL OBJECTS HAD HOPED THIS WOULD NOT HAPPEN`);
   setTimeout(()=>{if(state==='play'&&chapter===i)zz('kitchen_'+i,{force:true});},1200);
 }
-function escapeReady() { return !endless && chapter===4 && chapterClear && Math.hypot(P.x-DRAIN.x,P.z-DRAIN.z)<DRAIN.r+1.2 && P.y<1.5 && state==='play'; }
+function spawnClog() {
+  Object.assign(clog, { alive: true, hp: 260, x: DRAIN.x, y: 1.3, z: DRAIN.z, t: 0, siphonT: 2, fedT: 0 });
+  announce('THE CLOG', 'HAIR, NOODLES, A CONTACT LENS AND THIRTY YEARS OF IDEOLOGY'); sfx('wave');
+  headlineNow('DRAIN BLOCKED BY UNIDENTIFIED MASS. PLUMBER "ON THE WAY" SINCE TUESDAY');
+  setTimeout(() => { if (state === 'play' && clog.alive) { zz('clog', { force: true }); feed('TIP <em>WATER ONLY FEEDS THE CLOG · FIZZ AND ICE BREAK IT UP</em>'); } }, 1800);
+}
+function clogHit(dmg, w, x, y, z) {
+  if (!clog.alive) return;
+  if (w === 0) {   // you are, quite literally, feeding it
+    clog.hp = Math.min(clog.max * 1.25, clog.hp + dmg * 0.35);
+    if (T - clog.fedT > 0.8) { clog.fedT = T; pop(clog.x, clog.y + 3, clog.z, pick(['IT LIKES THAT', 'NOURISHED', 'THE CLOG THANKS YOU', 'IT IS WORKING (FOR THE CLOG)', 'NOW WITH MORE HAIR']), true); zz('clogFeed', { force: !ZZ.once.clogFeed, p: 0.3 }); ZZ.once.clogFeed = true; }
+    return;
+  }
+  clog.hp -= dmg * (w === 2 ? 2.5 : w === 3 ? 0.8 : 1); clog.flash = 1; sfx('hit');
+  gibs(x ?? clog.x, y ?? clog.y + 1, z ?? clog.z, 5, [[.32, .22, .12], [.85, .74, .32], [.15, .12, .1]], { smin: .06, smax: .16, maxS: 7, maxU: 8 });
+  if (clog.hp <= 0) {
+    clog.alive = false; score += 5000; explode(clog.x, clog.y, clog.z);
+    gibs(clog.x, clog.y + 1, clog.z, 40, [[.32, .22, .12], [.85, .74, .32], [.15, .12, .1]], { smin: .08, smax: .3, maxS: 14, maxU: 14 });
+    announce('UNCLOGGED', 'THE DRAIN IS OPEN · +5000 · HISTORY MAY FLOW'); multiText('PLUMBED!'); say('plumbed');
+    headlineNow('CLOG DEFEATED. DRAIN DECLARES ITSELF "OPEN TO NEW IDEAS"'); zz('clogDead', { force: true });
+  }
+}
+function updateClog(dt) {
+  if (!clog.alive) return;
+  clog.t += dt; clog.flash = Math.max(0, (clog.flash || 0) - dt * 6);
+  clog.siphonT -= dt;   // a seltzer siphon keeps you supplied while it lives, so nobody is stuck without fizz
+  if (clog.siphonT <= 0) { clog.siphonT = 8; if (P.ammo[2] < 4 && !pickups.some(k => k.type === 'seltzer')) { pickups.push({ type: 'seltzer', x: 296, y: 1.5, z: -13, vy: 4, t: 0 }); pop(296, 2.5, -13, pick(['FRESH FIZZ', 'SIPHON REFILL', 'CARBONATION ASSISTANCE']), true); } }
+}
+function drawClog() {
+  if (!clog.alive) return;
+  const k = 0.6 + 0.4 * clog.hp / clog.max, R = clog.r * k, wob = Math.sin(clog.t * 3) * 0.06, fl = clog.flash || 0;
+  const tint = c => c.map(v => v + fl * 0.6);
+  ident(cur); part(SPH, clog.x, clog.y, clog.z, R, R * (0.82 + wob), R, tint([.36, .25, .14]), 13);
+  for (let i = 0; i < 9; i++) { const a = i * 2.4, h = Math.sin(i * 1.7) * 0.5;
+    part(SPH, clog.x + Math.cos(a) * R * .7, clog.y + h * R * .6, clog.z + Math.sin(a) * R * .7, R * .45, R * .38, R * .45, tint(i % 3 ? [.24, .17, .1] : [.5, .38, .2]), 13); }
+  for (let i = 0; i < 6; i++) { const a = i * 1.1 + clog.t * .2; part(TORUS, clog.x + Math.cos(a) * R * .55, clog.y + R * .35 + Math.sin(i) * .3, clog.z + Math.sin(a) * R * .55, .5, .5, .5, tint([.95, .82, .38]), 13, a, 1.2); }
+  for (let i = 0; i < 2; i++) part(SPH, clog.x - .5 + i, clog.y + R * .5, clog.z + R * .78, .26, .26, .2, WHITE, 9);
+}
+function escapeReady() { return !endless && chapter===4 && chapterClear && !clog.alive && Math.hypot(P.x-DRAIN.x,P.z-DRAIN.z)<DRAIN.r+1.2 && P.y<1.5 && state==='play'; }
 function escapeKitchen() {
   if(!escapeReady())return;
   state='won';mouseDown=false;drainHold=0;jokeT=0;ZZ.lock=false;zHide();for(const k in keys)keys[k]=false;
@@ -4577,7 +4764,8 @@ function spawnEnemy(type) {
     headlineNow('BREAKING: FORK SIGHTED. EXPERTS: "WE WERE TOLD IT DID NOT EXIST"'); forkMoment(); return;
   }
   if (type === 'gold') {
-    const sp = encounterSpawn('gold'), e = makeEnemy('sponge', sp[0], sp[1]); e.gold = true; e.hp = e.maxHp = 60; e.speed = 11; e.fleeT = 16; e.vy = 12;
+    const sp = encounterSpawn('gold'), e = makeEnemy('sponge', sp[0], sp[1]); e.gold = true; e.hp = e.maxHp = 60; e.speed = 14.5; e.fleeT = 16; e.vy = 12; e.dripT = 0;
+    if (!toolTipsSeen.gold) { toolTipsSeen.gold = true; feed('TIP <em>TOO FAST ON FOOT · SLIDE AFTER IT AS A PUDDLE, OR BUBBLE IT</em>'); }
     enemies.push(e); sfx('sparkle'); pop(e.x, 2.5, e.z, 'THE SUBLIME OBJECT!', false); headlineNow('BREAKING: GOLDEN SPONGE SIGHTED. EVERYONE ACT NATURAL');
     setTimeout(() => zz('gold', { force: true }), 700); return;
   }
@@ -4587,6 +4775,9 @@ function spawnEnemy(type) {
   if(type==='spoon')e.y+=7;
   if(type==='mama'){e.y+=7;e.vy=14;announce('GRANDMA SPONGE','SHE HAS ABSORBED WORSE THAN YOU');say('Grandma sponge',true);setTimeout(()=>zz('mama',{force:true}),1500);}
   if(type==='sponge'||type==='mama'){e.vy=10;e.vx=rand(-2,2);e.vz=rand(-1,1);}
+  // From the stove onwards some sponges arrive pre-fried: water and ice skid off, soap cuts it.
+  if(type==='sponge'&&e.type==='sponge'&&wave>=5&&Math.random()<(wave<7?.2:.3)){e.greasy=true;
+    if(!toolTipsSeen.greasyArrive){toolTipsSeen.greasyArrive=true;setTimeout(()=>{if(state==='play'){feed('TIP <em>'+TOOL_TIPS.greasy+'</em>');zz('greasy',{force:true});}},900);}}
   enemies.push(e);
   bubbles(e.x, e.y + 0.5, e.z, 8, 0.8);
   sfx('spawn');
@@ -4628,8 +4819,8 @@ function hurt(amount, cause, fx, fz) {
   if (P.iT > 0) { pop(P.x - Math.sin(P.yaw) * 2, P.y + 1.5, P.z - Math.cos(P.yaw) * 2, pick(['MISSED ME!', 'TOO SPLASHY!', 'LIQUID DODGE!']), true); return; }
   if (amount <= 0) return;
   // The kitchen can be overwhelming without every collision becoming a pile-on.
-  amount *= 0.75;
-  P.iT = Math.max(P.iT, 0.7);
+  amount *= 0.85;
+  P.iT = Math.max(P.iT, 0.55);
   P.hp -= amount; P.hurtT = Math.min(1, P.hurtT + amount / 25); shake = Math.max(shake, 0.25 + amount / 60);
   if (fx !== undefined) { const dx = P.x - fx, dz = P.z - fz, d = Math.hypot(dx, dz) || 1; P.vx += dx / d * amount * 0.4; P.vz += dz / d * amount * 0.4; }
   sfx('hurt');
@@ -4645,7 +4836,7 @@ function seepDamage(rate, dt, cause) {
 }
 function absorbPlayer(e, dt) {
   // Several overlapping mouths share a single drain budget for this frame.
-  const rate = e.type === 'mama' || e.s >= 1.8 ? 10 : 8;
+  const rate = e.type === 'mama' || e.s >= 1.8 ? 15 : 11;
   const amount = Math.max(0, rate * dt - (P.absorbUsed || 0));
   if (!amount || P.iT > 0 || state !== 'play') return 0;
   P.absorbUsed = (P.absorbUsed || 0) + amount;
@@ -4675,6 +4866,28 @@ function die(cause) {
   setTimeout(() => { if (state === 'dead') showScreen('dead'); }, 1400);
 }
 
+// Every enemy has a tool it fears and a tool it shrugs off (0 squirter, 1 ice, 2 fizz, 3 soap).
+const soakedSponge = e => e.type === 'sponge' && !e.gold && (e.storedWater || 0) >= 6;
+function toolFactor(e, w) {
+  if (e.type === 'roll') return w === 0 ? 0.25 : w === 2 ? 1.8 : w === 1 ? 1.3 : 1;
+  if (e.type === 'bottle') return w === 0 ? 0.55 : w === 1 ? 1.5 : w === 2 ? 1.2 : 1;
+  if (e.type === 'fork') return e.stuck > 0 ? 2.2 : w === 0 ? 0.35 : w === 1 ? 0.5 : 0.6;
+  if (e.type === 'mama') return w === 0 ? 0.8 : w === 2 ? 1.4 : 1;
+  if (e.greasy) return w === 0 ? 0.3 : w === 1 ? 0.45 : w === 2 ? 0.8 : 1;   // only soap cuts grease
+  if (soakedSponge(e)) return w === 0 ? 0.3 : w === 1 ? 1.6 : 1;
+  if (e.type === 'spoon') return w === 1 ? 1.4 : 1;
+  return 1;
+}
+const RESIST_POPS = { roll: ['IT DRINKS IT', 'THANKS FOR THE REFILL', 'NOW HEAVIER', 'ABSORBED. OBVIOUSLY', 'QUICKER PICKER-UPPER'], bottle: ['WATER OFF A BOTTLE', 'GLASS IS UNMOVED', 'MILDLY RINSED', 'TRY ICE?'], soaked: ['ALREADY FULL', 'GLUG. THANKS', 'IT JUST DRANK THAT', 'NO VACANCY'], fork: ['CLANG', 'TINE-PROOF', 'NOT WHILE IT FLIES', 'WAIT FOR IT TO STICK'], mama: ['GRANDMA SIPS IT', 'SHE LIKES IT WARM'], greasy: ['IT SLID OFF', 'TOO GREASY', 'WATER AND OIL. CLASSIC', 'SKIDDED', 'LUBRICATED RESISTANCE', 'SOAP?'] };
+const EFFECT_POPS = { roll: ['PERFORATED!', 'FIZZ BEATS PAPER!', 'SHREDDED!'], bottle: ['SHATTER!', 'CRACKED!', 'GLASS DISMISSED!'], soaked: ['FREEZER BURN!', 'FROZEN ASSETS!', 'BRAIN FREEZE!'], spoon: ['COLD CUTLERY!', 'CHILLED!'], mama: ['SPLIT DECISION!', 'FIZZY GRANDMA!'], fork: ["WHILE IT'S DOWN!", 'PRONG PUNISHED!'] };
+const TOOL_TIPS = { roll: 'PAPER TOWEL DRINKS WATER · USE FIZZ OR ICE · OR TOAST IT ON A HOTPLATE', bottle: 'GLASS SHRUGS OFF WATER · ICE SHATTERS IT', soaked: 'A FULL SPONGE DRINKS YOUR SHOTS · FREEZE IT', fork: 'THE FORK IS ARMOURED · DODGE ITS LAST STAB · HIT IT WHILE IT IS STUCK', mama: 'GRANDMA SIPS WATER · FIZZ SPLITS HER FASTER', greasy: 'GREASY SPONGES SHED WATER AND ICE · SOAP CUTS GREASE · BUBBLE THEM CLEAN' };
+function toolFeedback(e, f, w) {
+  const k = e.greasy ? 'greasy' : soakedSponge(e) ? 'soaked' : e.type;
+  if (T - (e.toolPopT || -9) < 0.9) return;
+  if (f < 0.7 && RESIST_POPS[k]) { e.toolPopT = T; pop(e.x, e.y + (e.type === 'spoon' ? 1 : e.h) + 1, e.z, pick(RESIST_POPS[k]), true);
+    if (!toolTipsSeen[k] && TOOL_TIPS[k]) { toolTipsSeen[k] = true; feed('TIP <em>' + TOOL_TIPS[k] + '</em>'); zz('tip_' + k, { force: true }); } }
+  else if (f > 1.2 && EFFECT_POPS[k] && Math.random() < 0.5) { e.toolPopT = T; pop(e.x, e.y + (e.type === 'spoon' ? 1 : e.h) + 1, e.z, pick(EFFECT_POPS[k]), true); }
+}
 function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head, source = null) {
   if (e.hp <= 0) return;
   if (e.bub > 0) {
@@ -4686,6 +4899,10 @@ function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head, source = null) {
     }
   }
   if (head) dmg *= 1.75;
+  if (!source && weapon <= 3) {
+    const f = toolFactor(e, weapon); dmg *= f; toolFeedback(e, f, weapon);
+    if (weapon === 0 && (e.type === 'roll' || soakedSponge(e))) e.storedWater = Math.min(24, (e.storedWater || 0) + 0.25);   // you are watering it
+  }
   e.hp -= dmg; e.flash = 1; e.lastHit = weapon; e.lastCause = source;
   const mass = e.type === 'roll' ? 25 : e.type === 'fork' ? 5 : e.type === 'mama' ? 8 : e.type === 'bottle' ? 1.6 : e.s >= 1.8 ? 3 : 1;
   e.vx += dx * knock / mass; e.vz += dz * knock / mass; if (e.type !== 'spoon' && e.type !== 'fork' && e.type !== 'roll') e.vy += Math.max(0, knock * 0.35 / mass + dy * knock / mass);
@@ -4702,6 +4919,23 @@ function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head, source = null) {
   hitmark(e.hp <= 0);
   if (e.hp <= 0) killEnemy(e, weapon, dx, dz, head, false, source);
 }
+// ----- variety: mixing tools pays (DIALECTICS), doing the same thing forever does not (REPETITION COMPULSION)
+const TECH_NAMES = { squirt: 'the Squirter', ice: 'the Ice Shotgun', fizz: 'seltzer', soap: 'soap', edge: 'the edge of the counter', bubble: 'soap bubbles', puddle: 'puddle form' };
+const REPW = ['REPETITION COMPULSION!', 'SAME AGAIN?', 'GROUNDHOG KILL!', 'DÉJÀ SPLASH!', 'ONE-TRICK PONY!', 'THE ETERNAL RETURN OF THE SQUIRT!'];
+function techVariety(tech) {
+  if (tech === 'kitchen' || tech === 'squash') return varietyMult;   // the kitchen's own work is neither credit nor blame
+  chalEvent('tech', tech);
+  techRun = tech === techLast ? techRun + 1 : 1; techLast = tech;
+  techHist.push(tech); if (techHist.length > 6) techHist.shift();
+  const distinct = new Set(techHist).size, was = varietyMult;
+  varietyMult = techRun >= 12 ? 0.6 : distinct >= 4 ? 1.6 : distinct === 3 ? 1.3 : 1;
+  if (varietyMult >= 1.6 && was < 1.6) { multiText('DIALECTICAL!'); say(pick(['dialectical', 'synthesis', 'thesis, antithesis, kaboom', 'sublated'])); zz('variety', { p: 0.6 }); }
+  if ([12, 25, 40, 60, 90].includes(techRun)) {
+    multiText(pick(REPW)); say('repetition compulsion');
+    if (state === 'play' && !ZZ.lock && jokeT <= 0 && ZL.repetition) { ZZ.cool = 0; zShow(ztic(pick(ZL.repetition).replace(/\{n\}/g, techRun).replace(/\{w\}/g, TECH_NAMES[tech] || tech)), { cool: 4 }); }
+  }
+  return varietyMult;
+}
 function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false, source = null) {
   if (e.dead) return;
   e.hp = 0; e.dead = true;
@@ -4713,6 +4947,7 @@ function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false, source
   if (multiT > 0) multi++; else multi = 1; multiT = 0.8;
   const mult = Math.min(10, 1 + Math.floor(combo / 4));
   let pts = base * mult * (head ? 1.5 : 1) * (fell ? 2 : 1);
+  pts *= techVariety(source ? 'kitchen' : fell ? (e.wasBub ? 'bubble' : 'edge') : e.squashed ? 'squash' : P.pud ? 'puddle' : ['squirt', 'ice', 'fizz', 'soap'][weapon] || 'squirt');
   score += Math.round(pts); killCount++;
   const word = pick(KILLW[fell ? (e.wasBub ? 'bubble' : 'fall') : e.squashed ? 'squash' : e.gold ? 'gold' : e.type]);
   if (Math.random() < 0.55) say(word.replace(/[!?.]/g, '').toLowerCase()); else if (Math.random() < 0.5) say(pick(SHOUTS).toLowerCase());
@@ -4818,7 +5053,8 @@ function kitchenEnemySurfaces(e, dt) {
     if (burnerHeat(b) > .72 && (e.x - b.x) ** 2 + (e.z - b.z) ** 2 < 4.2 ** 2) {
       e.heatCd = 1.2;
       if (e.bub > 0) popBubble(e);
-      damageEnemy(e, 12, 0, 1, 0, 0, 2, false, 'HOTPLATE');
+      damageEnemy(e, e.type === 'roll' ? 150 : 12, 0, 1, 0, 0, 2, false, 'HOTPLATE');
+      if (e.type === 'roll') { pop(e.x, e.y + 4, e.z, pick(['TOAST!', 'SCORCHED!', 'BURNT OFFERING!', 'HOT TAKE!']), false); sfx('sizzle'); zz('rollToast', { force: true }); }
       if (!e.dead) { e.vy = Math.max(e.vy, 14); e.stun = Math.max(e.stun, .6); e.cd = Math.max(e.cd, .8); releaseKitchenWater(e, 3); }
       kitchenIncident('heatLift', { actor: e }); break;
     }
@@ -4901,7 +5137,7 @@ function updateEnemies(dt) {
       if (onG) { e.vx *= Math.exp(-dt * 14); e.vz *= Math.exp(-dt * 14); }
       // sponges drink your spilled water too, and it heals them
       let drank = false;
-      if (onG) for (let i = stains.length - 1; i >= 0; i--) { const st = stains[i]; if (!st.water) continue; const sx = st.x - e.x, sz = st.z - e.z;
+      if (onG && !e.gold) for (let i = stains.length - 1; i >= 0; i--) { const st = stains[i]; if (!st.water) continue; const sx = st.x - e.x, sz = st.z - e.z;
         if (sx * sx + sz * sz < e.r * e.r && Math.abs(st.y - e.y) < 0.4) { stains.splice(i, 1); drank = true; e.hp = Math.min(e.maxHp * 1.3, e.hp + 2); e.wet = Math.min(1, e.wet + 0.12); e.storedWater = Math.min(24, e.storedWater + 1); if (Math.random() < 0.1) pop(e.x, e.y + e.h + 0.5, e.z, pick(STAINPOPS), true); } }
       if (drank && alive && playerDist < 16) zz('stolenWater', { p: 0.35 });
       if (drank && e.wet >= .72 && e.propertyCd <= 0 && !e.gold) { e.propertyT = 7; e.propertyCd = 22; kitchenIncident('property', { actor: e }); }
@@ -4923,7 +5159,9 @@ function updateEnemies(dt) {
       }
       if (e.type === 'mama') { e.stT -= dt; if (e.stT <= 0 && enemies.length < 24 && alive) { e.stT = wave < 15 ? 6 : 4.5; const c = makeEnemy('sponge', e.x, e.z, 1); c.y = e.y + e.h; c.vy = 14; c.vx = nx * 6 + rand(-4, 4); c.vz = nz * 6 + rand(-4, 4); c.spawnT = 0.2; enemies.push(c); bubbles(e.x, e.y + e.h, e.z, 10, 1.5); sfx('spawn'); pop(e.x, e.y + e.h + 1, e.z, pick(['SQUEEZE!', 'SAY HELLO TO GRANDMA', 'I MADE ANOTHER ONE', 'GO PLAY, DEAR', 'MORE GRANDCHILDREN!', 'SPONGE-SITTING!', 'HERE, TAKE A CARDIGAN', 'FAMILY REUNION!', 'THE MORE THE MOISTER']), true); } }
       const reach = e.r + PRAD + 0.1;
+      if (e.greasy && Math.random() < dt * 5) part3({ x: e.x + rand(-.5, .5), y: e.y + rand(.2, .7), z: e.z + rand(-.5, .5), vy: rand(-.5, .5), life: 0.9, size: rand(0.05, 0.09), col: [1.1, .72, .16], mat: 12, sph: true, grav: 18, bounce: 0 });   // it drips frying oil
       if (e.gold) {
+        e.dripT -= dt; if (e.dripT <= 0 && e.y < groundAt(e.x, e.z, e.y + .5) + .5 && onCounter(e.x, e.z)) { e.dripT = 0.16; stain(e.x, groundAt(e.x, e.z, e.y + .5), e.z, 1.1, WET); }   // it sweats gold-plated water
         e.fleeT -= dt; if (Math.random() < dt * 12) part3({ x: e.x + rand(-.6, .6), y: e.y + rand(0, 1), z: e.z + rand(-.6, .6), vy: rand(1, 3), life: 0.6, size: rand(0.04, 0.09), col: [1.6, 1.3, 0.4], mat: 7, grav: -1, bounce: 0 });
         if (e.fleeT <= 0) { e.dead = true; bubbles(e.x, e.y + 0.5, e.z, 14, 0.8); pop(e.x, e.y + 2, e.z, 'IT GOT AWAY', false); zz('goldEscape', { force: true }); }
       }
@@ -4934,7 +5172,7 @@ function updateEnemies(dt) {
       }
       if (!rival && dist < reach && P.y < e.y + e.h + 0.2 && P.y + 1.2 > e.y && alive && P.iT <= 0 && !e.gold) {
         P.latch = e; P.latchT = 0.8;
-        if (P.surr > 0) { e.cd = Math.max(e.cd, 0.3); e.vx *= 0.5; e.vz *= 0.5; } if (!ZZ.once.dare) zz('dare', { once: true, force: true });
+        if (P.surr > 0) { e.cd = Math.max(e.cd, 0.3); e.vx *= 0.5; e.vz *= 0.5; } if (!toolTipsSeen.hug) { toolTipsSeen.hug = true; feed('TIP <em>BECOME A PUDDLE TO SLIP FREE · OR HOLD E TO SURRENDER</em>'); } if (!ZZ.once.dare) zz('dare', { once: true, force: true });
         const absorbed = absorbPlayer(e, dt); e.storedWater = Math.min(24, e.storedWater + absorbed * .65); P.hurtT = Math.min(0.6, P.hurtT + dt * 1.2);
         P.absorbT = Math.min(1, P.absorbT + dt * 4); e.wet = Math.min(1, e.wet + dt * 0.8); e.chomp = 1;
         if (Math.random() < dt * 6) sfx('slurp');
@@ -4958,6 +5196,9 @@ function updateEnemies(dt) {
         globs.push({ x: sx, y: sy, z: sz, vx: (tx - sx) / tT, vz: (tz - sz) / tT, vy: (ty - sy + 0.5 * gg * gs * tT * tT) / tT, g: gg, life: 4, owner: e });
         e.sq = 1.35; sfx('glob');
       }
+    } else if (e.type === 'fork' && e.stuck > 0) {
+      e.stuck -= dt; e.vx = e.vz = 0; e.vy = 0; e.y = lerp(e.y, Math.max(g, 0) + 0.7, Math.min(1, dt * 12)); e.flash = Math.max(e.flash, 0.15 * (Math.sin(T * 30) > 0));
+      if (e.stuck <= 0) { e.vy = 9; e.state = 0; e.stT = 0.8; pop(e.x, e.y + 2.4, e.z, pick(['PRONGS FREE', 'UNSTUCK', 'IT IS BACK']), true); }
     } else if (e.type === 'spoon' || e.type === 'fork') {
       const F = e.type === 'fork';
       e.stT -= dt;
@@ -4975,7 +5216,10 @@ function updateEnemies(dt) {
         e.vx = lerp(e.vx, -nx * 3, Math.min(1, dt * 8)); e.vz = lerp(e.vz, -nz * 3, Math.min(1, dt * 8)); e.vy = lerp(e.vy, (targetY + .8 - e.y) * 2, Math.min(1, dt * 5));
         if (e.stT <= 0) { e.state = 2; e.stT = F ? 0.55 : 0.8; const sp = F ? 30 : 24, dy = targetY - e.y, d3 = Math.hypot(dx, dy, dz) || 1; e.vx = dx / d3 * sp; e.vy = dy / d3 * sp; e.vz = dz / d3 * sp; }
       } else {
-        if (e.stT <= 0) { if (F && e.stabs < 2) { e.stabs++; e.state = 1; e.stT = 0.28; } else { e.stabs = 0; e.state = 0; e.stT = F ? rand(1.2, 2.2) : rand(1.5, 3.2); } }
+        if (e.stT <= 0) { if (F && e.stabs < 2) { e.stabs++; e.state = 1; e.stT = 0.28; }
+          else { e.stabs = 0; e.state = 0; e.stT = F ? rand(1.2, 2.2) : rand(1.5, 3.2);
+            if (F && !rival && e.y < Math.max(g, 0) + 3.2) { e.stuck = 2.4; e.vx = e.vy = e.vz = 0; sfx('ting'); shake = Math.max(shake, 0.3);   // the dodged stab ends in the counter
+              pop(e.x, e.y + 2.4, e.z, pick(['STUCK IN THE COUNTER!', 'COMMITTED!', 'PRONGS DEEP!', 'NOW!']), false); zz('forkStuck', { force: !ZZ.once.forkStuck, once: false, p: 0.5 }); } } }
         const dy = (rival ? targetY : P.y + P.eyeH * .6) - e.y;
         if (Math.hypot(dx, dy, dz) < e.r + (rival ? rival.r : PRAD) + .3 && alive) {
           if (rival) damageEnemy(rival, F ? 28 : 16, nx, .4, nz, 9, 0, false, NAMES[e.type] + ' · GRUDGE');
@@ -5080,6 +5324,7 @@ function explode(x, y, z) {
   gibs(x, y, z, 16, [[0.6, 0.9, 0.4], [0.85, 0.95, 0.5]], { mat: 7, smin: 0.06, smax: 0.14, maxS: 16, maxU: 14, lifeMin: 0.3, lifeMax: 0.8 });
   gibs(x, y, z, 12, WATER, { sph: true, mat: 12, smin: 0.08, smax: 0.18, stain: WET });
   const R = 5.2;
+  if (clog.alive) { const cd = Math.hypot(clog.x - x, clog.y - y, clog.z - z) - clog.r; if (cd < R) clogHit(130 * (1 - Math.max(0, cd) / R) + 10, 2); }
   for (const e of enemies) {
     if (e.dead) continue;
     const [sd, sh] = nearestSphere(e, x, y, z);
@@ -5089,7 +5334,7 @@ function explode(x, y, z) {
   if (d < R && state === 'play') {
     const f = 1 - d / R; const n = d || 1;
     P.vx += dx / n * 22 * f; P.vz += dz / n * 22 * f; P.vy += 12 + 12 * f; P.onG = false;
-    const dmg = 7 * f; if (dmg > 1) { hurt(dmg, 'self'); if (state === 'play') { pop(P.x, P.y + 2, P.z, pick(['ROCKET JUMP!', 'FIZZ LIFT!', 'CARBONATED ASCENT!']), true); zz('rocket', { p: 0.5 }); } }
+    const dmg = 6.2 * f; if (dmg > 1) { hurt(dmg, 'self'); if (state === 'play') { pop(P.x, P.y + 2, P.z, pick(['ROCKET JUMP!', 'FIZZ LIFT!', 'CARBONATED ASCENT!']), true); zz('rocket', { p: 0.5 }); } }
   }
 }
 function updateRockets(dt) {
@@ -5139,7 +5384,11 @@ function hitscan(o, d, dmg, knock, weapon, tracer) {
       if (disc > 0) { let t = -b - Math.sqrt(disc); if (t <= 0) t = Math.min(0.3, -b + Math.sqrt(disc)); if (t > 0 && t < bt) { bt = t; best = { e, cy: hs[1], R }; } }
     }
   }
+  let clogT = -1;
+  if (clog.alive) { const ox = o[0] - clog.x, oy = o[1] - clog.y, oz = o[2] - clog.z, b = ox * d[0] + oy * d[1] + oz * d[2], c = ox * ox + oy * oy + oz * oz - clog.r * clog.r, disc = b * b - c;
+    if (disc > 0) { const t = -b - Math.sqrt(disc); if (t > 0 && t < bt) { bt = t; best = null; clogT = t; } } }
   const hx = o[0] + d[0] * bt, hy = o[1] + d[1] * bt, hz = o[2] + d[2] * bt;
+  if (clogT > 0) clogHit(dmg, weapon, hx, hy, hz);
   if (best) {
     const e = best.e;
     const eyeY = e.type === 'bottle' ? e.y + 1.6 : e.type === 'spoon' ? e.y + 0.45 : e.type === 'fork' ? e.y + 0.9 : e.type === 'roll' ? e.y + 2.1 : e.y + e.h * 0.7;
@@ -5196,6 +5445,8 @@ function fire() {
 // ----- soap bubbles: trap an enemy, it floats up and drifts; push it with water or ice, pop it with fizz
 function popFx(x, y, z) { sfx('pop'); gibs(x, y, z, 10, BUBBLE, { sph: true, mat: 16, smin: 0.04, smax: 0.1, maxS: 4, maxU: 4, grav: 6, lifeMin: 0.2, lifeMax: 0.5 }); }
 function trapInBubble(e) {
+  if (e.greasy) { e.greasy = false; e.flash = 0.5; score += 100; bubbles(e.x, e.y + e.h * 0.6, e.z, 14, 1.2); pop(e.x, e.y + e.h + 1.6, e.z, pick(['DEGREASED!', 'SOAP CUTS GREASE!', 'SQUEAKY CLEAN!', 'EMULSIFIED!', 'GREASE DISMISSED!']), false);
+    zz('degrease', { p: 0.5 }); chalEvent('degrease'); }
   if (e.type === 'mama' || e.type === 'roll' || e.type === 'fork') { popFx(e.x, e.y + e.h * 0.5, e.z); pop(e.x, e.y + e.h + 0.8, e.z, pick(['TOO BIG TO BUBBLE', 'NICE TRY', 'I AM NOT A BATH TOY']), true); return; }
   e.bubbleCascade = 0; e.bub = 7; e.wasBub = true; e.stun = 0; e.state = 0; e.vy = 3; e.vx *= 0.2; e.vz *= 0.2; e.popY = undefined;
   const dx = e.x - P.x, dz = e.z - P.z, d = Math.hypot(dx, dz) || 1; e.bdx = dx / d * 1.3 + rand(-0.5, 0.5); e.bdz = dz / d * 1.3 + rand(-0.5, 0.5);
@@ -5224,6 +5475,7 @@ function updateSoaps(dt) {
     let caught = null;
     for (const e of enemies) { if (e.dead || e.bub > 0) continue; if (nearestSphere(e, b.x, b.y, b.z)[0] < b.r) { caught = e; break; } }
     if (caught) { trapInBubble(caught); b.life = 0; continue; }
+    if (clog.alive && Math.hypot(b.x - clog.x, b.y - clog.y, b.z - clog.z) < clog.r + b.r) { clogHit(14, 3, b.x, b.y, b.z); popFx(b.x, b.y, b.z); pop(clog.x, clog.y + 3, clog.z, pick(['LUBRICATED', 'SOAPED LOOSE', 'SLIPPING']), true); b.life = 0; continue; }
     if (hitWall || b.life <= 0) { b.life = 0; popFx(b.x, b.y, b.z); }
   }
   soaps = soaps.filter(b => b.life > 0);
@@ -5246,6 +5498,12 @@ function updatePlayer(dt) {
   else P.surr = Math.max(0, P.surr - dt * 0.6);
   // puddle form: flat, low, slippery and fast, faster still over spilled water
   const wantPud = !!(keys.KeyC || keys.Mouse2);
+  if (wantPud && !P.pud && P.onG && P.latchT > 0 && P.latch) {   // you cannot hug a puddle
+    const e = P.latch, ax = P.x - e.x, az = P.z - e.z, ad = Math.hypot(ax, az) || 1;
+    P.latchT = 0; P.latch = null; P.surr = 0; P.iT = Math.max(P.iT, 0.75); P.vx += ax / ad * 14; P.vz += az / ad * 14; e.cd = Math.max(e.cd, 0.9); e.stun = Math.max(e.stun, 0.5);
+    pop(P.x - Math.sin(P.yaw) * 2, P.y + 1.2, P.z - Math.cos(P.yaw) * 2, pick(['SLIPPED OUT!', 'TOO RUNNY TO HUG!', 'LIQUIDATED THE HUG!', 'NOT HUGGABLE!']), true);
+    zz('slip', { force: !ZZ.once.slip, p: 0.4 }); ZZ.once.slip = true; chalEvent('slip');
+  }
   if (wantPud && !P.pud && P.onG) {
     P.pud = true; sfx('splash'); if (Math.hypot(P.vx, P.vz) > 3) { P.vx *= 1.35; P.vz *= 1.35; }
     gibs(P.x, P.y + 0.2, P.z, 10, WATER, { sph: true, mat: 12, smin: 0.05, smax: 0.12, maxS: 6, maxU: 5, lifeMin: 0.3, lifeMax: 0.7 });
@@ -5351,6 +5609,7 @@ function updatePickups(dt) {
       if (k.type === 'shells') { if (P.ammo[1] >= WEAPONS[1].max) continue; P.ammo[1] = Math.min(WEAPONS[1].max, P.ammo[1] + 10); pop(k.x, k.y + 1, k.z, pick(['+10 ICE · STAY FROSTY', '+10 ICE · COLD AS YOU', '+10 ICE · FREEZE!']), true); }
       if (k.type === 'seltzer') { if (P.ammo[2] >= WEAPONS[2].max) continue; P.ammo[2] = Math.min(WEAPONS[2].max, P.ammo[2] + 3); pop(k.x, k.y + 1, k.z, pick(['+3 FIZZ-TASTIC', '+3 BUBBLE TROUBLE', '+3 SPARKLING VIOLENCE']), true); }
       if (k.type === 'soap') { if (P.ammo[3] >= WEAPONS[3].max) continue; P.ammo[3] = Math.min(WEAPONS[3].max, P.ammo[3] + 4); pop(k.x, k.y + 1, k.z, pick(SOAPW), true); }
+      if (k.stash && !stashSaid[k.stash]) { stashSaid[k.stash] = true; score += 1500; pop(k.x, k.y + 1.6, k.z, k.stash === 'letter' ? 'POSTAGE PAID +1500' : 'TOP SHELF +1500', false); zz(k.stash === 'letter' ? 'deadLetter' : 'topShelf', { force: true }); }
       k.dead = true; sfx('pickup');
     }
   }
@@ -5379,7 +5638,7 @@ function updateWaves(dt) {
     if (!spawnQ.length && !enemies.length) {
       waveActive = false; interT = 5.5; const bonus = 500 * wave; score += bonus; MOD = null; gs = 1; if (chal) chal.t = Math.min(chal.t, 0.01);
       P.hp = Math.min(100, P.hp + 30); P.ammo[1] = Math.min(WEAPONS[1].max, P.ammo[1] + 6); P.ammo[2] = Math.min(WEAPONS[2].max, P.ammo[2] + 2); P.ammo[3] = Math.min(WEAPONS[3].max, P.ammo[3] + 2);
-      if (!endless && wave >= CHAPTERS[chapter].last) { chapterClear=true; headlineNow(CHAPTERS[chapter].name+' DECLARES EMERGENCY OVER. NEIGHBOURING DISTRICT INFORMED TOO LATE'); }
+      if (!endless && wave >= CHAPTERS[chapter].last) { chapterClear=true; if (chapter === 4) spawnClog(); headlineNow(CHAPTERS[chapter].name+' DECLARES EMERGENCY OVER. NEIGHBOURING DISTRICT INFORMED TOO LATE'); }
       announce(chapterClear&&!endless ? 'DISTRICT CLEAR' : pick(CLEARW), chapterClear&&!endless ? (chapter===4?'GET TO THE DRAIN · HOLD E TO PULL THE PLUG':'CHECKPOINT OPEN → '+CHAPTERS[chapter+1].name) : `+${bonus} · +30 DAMPNESS · ` + pick(['FREE ICE', 'NICE WORK, DRIP', 'THE FRIDGE APPROVES', 'MOIST AND VICTORIOUS', 'HYDRATION RESTORED', 'THE TAP SALUTES YOU', 'DRIP DRIP HOORAY', 'GLASS HALF FULL AGAIN', 'STILL WET, STILL HERE'])); sfx('clear'); say(pick(['counter cleaned', 'spotless', 'the kitchen is quiet. for now', 'wave washed', 'squeaky clean', 'all dried up. except you', 'rinse complete', 'dishes done']), true);
       setTimeout(() => zz('clear', { p: 0.7 }), 2200);
     }
@@ -5387,7 +5646,7 @@ function updateWaves(dt) {
 }
 function update(dt) {
   if (state === 'play') updatePlayer(dt);
-  updateEnemies(dt); updateGlobs(dt); updateRockets(dt); updateSoaps(dt); updateParticles(dt); updatePickups(dt);
+  updateEnemies(dt); updateClog(dt); updateGlobs(dt); updateRockets(dt); updateSoaps(dt); updateParticles(dt); updatePickups(dt);
   for (const h of hazards) { h.t -= dt; if (Math.random() < dt * 4) part3({ x: h.x + rand(-h.r, h.r) * 0.7, y: 0.1, z: h.z + rand(-h.r, h.r) * 0.7, vy: rand(1, 3), life: 0.6, size: rand(0.05, 0.12), col: [1.2, 0.4, 0.1], mat: 7, sph: true, grav: -1, bounce: 0 }); }
   hazards = hazards.filter(h => h.t > 0);
   for (const s of splats) s.life -= dt * 0.33;
@@ -5432,7 +5691,7 @@ function drawEnemy(e) {
     const sqy = e.sq * (1 - windup * 0.24), sqx = 1 / Math.sqrt(sqy);
     sc(cur, sqx * s, sqy * s, sqx * s);
     const wt = 1 - e.wet * 0.35, tint = [wt, wt, wt];
-    part(ROUND, 0, 0.45, 0, 1.4, 0.9, 1.0, e.gold ? [2.4, 1.7, 0.45] : tint, e.gold ? 5 : 2);
+    part(ROUND, 0, 0.45, 0, 1.4, 0.9, 1.0, e.gold ? [2.4, 1.7, 0.45] : e.greasy ? [.78 * wt, .52 * wt, .17 * wt] : tint, e.gold || e.greasy ? 5 : 2);
     const ch = 0.05 + e.chomp * 0.16 + (e.type === 'mama' ? 0.08 + Math.sin(e.t * 6) * 0.05 : 0);
     part(ROUND, 0, 0.27, 0.505, 0.56, ch, 0.07, [0.12, 0.02, 0.02], 0);
     for (const sg of [-1, 1]) {
@@ -5630,6 +5889,7 @@ function render() {
   gl.bindVertexArray(CUBE.vao); gl.drawElements(gl.TRIANGLES, CUBE.n, gl.UNSIGNED_SHORT, 0);
   gl.useProgram(PR_MAIN.p);
   for (const e of enemies) drawEnemy(e);
+  drawClog();
   for (const r of rockets) {
     ident(cur); tr(cur, r.x, r.y, r.z); ry(cur, Math.atan2(-r.vx, -r.vz)); rx(cur, Math.atan2(r.vy, Math.hypot(r.vx, r.vz))); rx(cur, -Math.PI / 2);
     part(CYL, 0, -0.35, 0, 0.18, 0.7, 0.18, [0.85, 0.87, 0.9], 5); part(CYL, 0, -0.2, 0, 0.185, 0.35, 0.185, [0.45, 0.8, 0.25], 11);
@@ -5707,6 +5967,8 @@ function hud(dt) {
   run.style.transform = `translateX(${tickX}px)`;
   // style rank
   let ri = 0; for (let i = 0; i < RANKS.length; i++) if (combo >= RANKS[i][0]) ri = i;
+  const vt = varietyMult > 1 ? `DIALECTICS ×${varietyMult}` : varietyMult < 1 ? `REPETITION ×${varietyMult}` : '';
+  if (vt !== lastVty) { lastVty = vt; const v = $('vty'); v.textContent = vt; v.className = varietyMult < 1 ? 'rep' : ''; }
   if (ri !== lastRank) {
     if (ri > lastRank && ri > 0) { multiText(RANKS[ri][1] + ' · ' + RANKS[ri][2] + '!'); say(RANKS[ri][2].toLowerCase()); if (ri >= 6) zz('rank', { once: true, force: true }); }
     lastRank = ri; $('rank').innerHTML = ri ? `<b>${RANKS[ri][1]}</b>${RANKS[ri][2]}` : '';

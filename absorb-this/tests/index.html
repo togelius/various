@@ -13,7 +13,7 @@ const run=document.querySelector('#run'),status=document.querySelector('#status'
 run.onclick=async()=>{
  run.disabled=true;results.textContent='';status.textContent='Loading the kitchen…';frame?.remove();clearTimeout(timer);
  try{
-  const [gameResponse,...testResponses]=await Promise.all(['../index.html','forgiveness.js','slapstick.js','stories.js','journey.js'].map(f=>fetch(f)));
+  const [gameResponse,...testResponses]=await Promise.all(['../index.html','forgiveness.js','slapstick.js','stories.js','tools.js','journey.js'].map(f=>fetch(f)));
   if(!gameResponse.ok||testResponses.some(r=>!r.ok))throw Error('Serve this folder with a local HTTP server first; all test files must be present.');
   let game=await gameResponse.text();const tests=(await Promise.all(testResponses.map(r=>r.text()))).join('\n');
   const boot="showScreen('title');\nrequestAnimationFrame(frame);",pointerStart=game.indexOf('function grabPointer() {'),pointerEnd=game.indexOf("$('scr').addEventListener('click', e => {",pointerStart);
