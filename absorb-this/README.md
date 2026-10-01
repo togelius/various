@@ -18,6 +18,17 @@ raw WebGL2. It loads Bangers and Nunito from Google Fonts if it can and uses
 fallback fonts if not. Your best score is kept in the browser's local storage.
 It plays with a mouse and keyboard or on a touch screen (iPhone, iPad, Android).
 
+
+**Graphics.** Raw WebGL2. The scene renders into a half-float HDR buffer
+where the device supports it (8-bit otherwise), then a post pass adds bloom
+from the buffer's mipmaps, a filmic (ACES) tone curve, a light grade with
+cool shadows and warm highlights, faint film grain, and the glass-bottom
+distortion. The sunlit lighting mode has a shadow-mapped sun, warm bounce
+light off the counter, contact darkening where things meet it, soft wrap
+lighting on sponges and cloth, rim light on the characters, an oiled-wood
+counter, and a room that now continues behind you: painted plaster, a
+tiled wainscot, windows and pictures.
+
 ## Controls
 
 On a phone or tablet: drag on the left half to move, drag on the right half to
