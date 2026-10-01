@@ -9,7 +9,7 @@
 (function (global) {
   'use strict';
   var PC = global.PC || (global.PC = {});
-  var M = PC.math, W = PC.world, FX = PC.fx;
+  var M = PC.math, W = PC.world, FX = PC.fx, City = PC.city;
 
   function enc(x, groups, opts) {
     var e = { x: x, groups: groups, boss: false, items: null };
@@ -109,6 +109,9 @@
       this.bossActive = null;
       this.bossBanner = 0;
       this.bossSub = null;
+      this.front = City.buildFront(this.theme);
+      this.clouds = City.makeClouds(this.theme);
+      this.ambAcc = 0;
       /* The block has things lying on it where there is no fight: coins
        * on the pavement, a can to kick, dinner behind a window. */
       if (this.def.litter) {
@@ -197,9 +200,46 @@
       return e;
     },
 
+    /* The weather each neighbourhood gets: rain on the docks, a drizzle
+     * downtown, dust in the alley, embers on the tower. Runs on the FX
+     * clock, so the sky keeps falling while the world is frozen for a hit. */
+    weather: function () {
+      if (!this.theme || !this.theme.ambient) return;
+      var amb = this.theme.ambient;
+      this.ambAcc += amb.rate;
+      while (this.ambAcc >= 1) {
+        this.ambAcc--;
+        if (amb.kind === 'rain') {
+          FX.add({
+            t: 0, life: 40, kind: 'rain',
+            x: W.camX + PC.rand.range(-60, PC.W + 40),
+            y: PC.FIELD_Y + PC.rand.range(-6, 34),
+            vx: -1.5 - PC.rand.range(0, 0.6), vy: 4.4 + PC.rand.range(0, 0.5), g: 0
+          });
+        } else if (amb.kind === 'ember') {
+          FX.add({
+            t: 0, life: PC.rand.int(60, 110), kind: 'ember',
+            x: W.camX + PC.rand.range(0, PC.W),
+            y: PC.rand.range(PC.FLOOR_TOP - 60, PC.FIELD_BOT - 8),
+            vx: PC.rand.range(-0.15, 0.3), vy: -PC.rand.range(0.2, 0.45), g: 0,
+            col: PC.rand.pick(['#ff8a20', '#ffd23a', '#ff5f6a'])
+          });
+        } else {
+          FX.add({
+            t: 0, life: PC.rand.int(80, 150), kind: 'mote',
+            x: W.camX + PC.rand.range(0, PC.W),
+            y: PC.rand.range(PC.FIELD_Y + 4, PC.FIELD_BOT - 4),
+            vx: PC.rand.range(-0.2, 0.3), vy: -PC.rand.range(0, 0.08), g: 0
+          });
+        }
+      }
+    },
+
     update: function () {
       if (!this.def) return;
       var i;
+
+      this.weather();
 
       // ---- countdown
       if (!this.cleared) {
@@ -301,10 +341,51 @@
       // sky, at a third the speed, tiling forever
       var sx = -Math.floor(camX * 0.34) % this.skyW;
       if (sx > 0) sx -= this.skyW;
-      for (var x = sx; x < PC.W; x += this.skyW) {
+      var x, t, b;
+      for (x = sx; x < PC.W; x += this.skyW) {
         ctx.drawImage(this.sky, Math.round(x), PC.FIELD_Y);
+        // aviation beacons pulse on the skyline towers
+        if (this.sky.beacons) {
+          for (b = 0; b < this.sky.beacons.length; b++) {
+            var bc = this.sky.beacons[b];
+            var bx2 = Math.round(x + bc[0]), by2 = PC.FIELD_Y + bc[1];
+            var pa = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(W.time * 0.06 + bc[0] * 0.7));
+            ctx.save();
+            ctx.globalAlpha = pa * 0.3;
+            ctx.fillStyle = '#ff4a4a';
+            ctx.fillRect(bx2 - 2, by2 - 2, 5, 5);
+            ctx.globalAlpha = pa;
+            ctx.fillRect(bx2, by2, 2, 2);
+            ctx.restore();
+          }
+        }
       }
+      if (this.clouds) City.drawClouds(ctx, this.theme, this.clouds, camX, W.time, PC.W, PC.FIELD_Y);
       ctx.drawImage(this.facade, Math.round(-camX), PC.FIELD_Y);
+      // the neon landmarks breathe, and once in a while one cuts out
+      if (this.theme && this.theme.landmarks) {
+        var lm = this.theme.landmarks;
+        for (t = 0; t < lm.length; t++) {
+          if (lm[t][1] !== 'neon') continue;
+          var nx = lm[t][0] - camX;
+          if (nx < -96 || nx > PC.W + 16) continue;
+          var ph = W.time * 0.13 + lm[t][0];
+          ctx.save();
+          if (Math.sin(ph * 0.37 + lm[t][0] * 0.11) > 0.962) {
+            ctx.globalAlpha = 0.55;
+            ctx.fillStyle = '#14081c';
+            ctx.fillRect(Math.round(nx) + 3, PC.FIELD_Y + 14, 72, 32);
+          } else {
+            var a = 0.05 + 0.05 * (0.5 + 0.5 * Math.sin(ph));
+            ctx.globalAlpha = a;
+            ctx.fillStyle = this.theme.neon;
+            ctx.fillRect(Math.round(nx) + 3, PC.FIELD_Y + 13, 72, 34);
+            ctx.globalAlpha = a * 1.7;
+            ctx.fillRect(Math.round(nx) + 10, PC.FIELD_Y + 17, 58, 26);
+          }
+          ctx.restore();
+        }
+      }
     },
 
     /* A boss walks on to their own title card. Costs two seconds and buys

@@ -928,6 +928,25 @@ canvas#screen {
       [[2, 10], [4, 0]], [[-4, 10], [-7, 0]])
   };
 
+  /* The walk cycle gains its in-between frames, blended from the keyframes:
+   * eight frames of walk instead of four, the difference between a strut
+   * and a glide. Blended poses inherit the keyframes' joint structure, so
+   * every check that validates a pose validates these too. */
+  function blendPose(a, b, t) {
+    var o = {}, k;
+    function pt(p, q) { return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]; }
+    for (k in a) {
+      if (!b[k]) continue;
+      if (typeof a[k][0] === 'number') o[k] = pt(a[k], b[k]);
+      else o[k] = [pt(a[k][0], b[k][0]), pt(a[k][1], b[k][1])];
+    }
+    return o;
+  }
+  POSES.walk4 = blendPose(POSES.walk0, POSES.walk1, 0.5);
+  POSES.walk5 = blendPose(POSES.walk1, POSES.walk2, 0.5);
+  POSES.walk6 = blendPose(POSES.walk2, POSES.walk3, 0.5);
+  POSES.walk7 = blendPose(POSES.walk3, POSES.walk0, 0.5);
+
   // ---------------------------------------------------------------- figures
   /* A character is a palette plus a build. `scale` stretches the whole rig,
    * `bulk` only thickens it - which is the difference between a big man and a
@@ -1383,13 +1402,18 @@ canvas#screen {
       Art.ellipse(x, theme.moon[0] + 4, theme.moon[1] - 2, 9, 9, C.mix(top, bot, 0.25));
     }
     // ---- towers, standing on the horizon
+    var beacons = [];
     var bx = 0;
     while (bx < w) {
       var bw = r.int(12, 26), bh = r.int(Math.floor(hor * 0.3), Math.floor(hor * 0.92));
       var col = C.mix(theme.tower, bot, r.range(0, 0.3));
       Art.rect(x, bx, hor - bh, bw, bh, col);
       if (r.chance(0.3)) Art.rect(x, bx + Math.floor(bw / 2) - 1, hor - bh - r.int(4, 10), 2, 10, col);
-      if (r.chance(0.22)) Art.rect(x, bx + Math.floor(bw / 2) - 1, hor - bh - r.int(6, 12), 2, 2, '#ff4a4a');
+      if (r.chance(0.22)) {
+        var ty = hor - bh - r.int(6, 12);
+        Art.rect(x, bx + Math.floor(bw / 2) - 1, ty, 2, 2, '#ff4a4a');
+        beacons.push([bx + Math.floor(bw / 2), ty]);
+      }
       for (j = hor - bh + 3; j < hor - 2; j += 5) {
         for (i = bx + 2; i < bx + bw - 3; i += 4) {
           if (r.chance(0.4)) Art.rect(x, i, j, 2, 3, r.chance(0.18) ? '#f8e070' : theme.lit);
@@ -1416,6 +1440,7 @@ canvas#screen {
         Art.rect(x, i, hor, r.int(8, 20), rh, C.shade(theme.behind || theme.sky[1], -0.35));
       }
     }
+    c.beacons = beacons;
     return c;
   };
 
@@ -1702,7 +1727,9 @@ canvas#screen {
           // mostly dark glass, a few offices still working
           var col = roll < 0.16 ? C.mix(t.lit, '#ffe0b0', 0.3)
             : roll < 0.34 ? C.mix(t.lit, '#101830', 0.55)
-              : roll < 0.5 ? '#182042' : '#0f1526';
+              : roll < 0.46 ? C.mix(t.lit, '#ff5fa8', 0.4)
+                : roll < 0.58 ? C.mix(t.lit, '#3ad8c8', 0.4)
+                  : roll < 0.72 ? '#182042' : '#0f1526';
           Art.rect(ctx, x + i, j, 12, 14, col);
           if (roll < 0.34) Art.limb(ctx, x + i + 1, j + 12, x + i + 9, j + 2, 2, 2, 'rgba(255,255,255,0.13)');
         }
@@ -1806,7 +1833,8 @@ canvas#screen {
       neon: '#ff8a3a', neon2: '#ffd23a', signTop: 'PAWN', signBot: 'OPEN 24H',
       tag: 'SLUM', tagColor: '#e05a3a', fence: '#4a5a7a',
       modules: ['wall', 'windows', 'escape', 'pipe', 'poster', 'crates', 'door', 'alley', 'windows', 'escape'],
-      landmarks: [[130, 'escape'], [420, 'alley'], [700, 'neon']]
+      landmarks: [[130, 'escape'], [420, 'alley'], [700, 'neon']],
+      ambient: { kind: 'mote', rate: 0.5 }
     },
     downtown: {
       seed: 22,
@@ -1815,7 +1843,8 @@ canvas#screen {
       neon: '#ff5fa8', neon2: '#ffd23a', signTop: 'BAR', signBot: 'STARLIGHT', signStar: true,
       tag: 'POWER CITY', tagColor: '#c840e0', fence: '#3a5fd8',
       modules: ['wall', 'windows', 'door', 'fence', 'shutter', 'neon', 'pipe', 'poster', 'windows'],
-      landmarks: [[60, 'neon'], [180, 'fence'], [330, 'shutter'], [620, 'fence'], [900, 'neon']]
+      landmarks: [[60, 'neon'], [180, 'fence'], [330, 'shutter'], [620, 'fence'], [900, 'neon']],
+      ambient: { kind: 'rain', rate: 0.9 }
     },
     docks: {
       seed: 33,
@@ -1825,7 +1854,8 @@ canvas#screen {
       tag: 'JAWS', tagColor: '#f0a030', fence: '#5f7a8a',
       metal: '#5a6472', rust: '#6a4630', planks: true,
       modules: ['container', 'crates', 'metalWall', 'container', 'crane', 'fence', 'metalWall', 'container'],
-      landmarks: [[150, 'crane'], [430, 'container'], [760, 'crane']]
+      landmarks: [[150, 'crane'], [430, 'container'], [760, 'crane']],
+      ambient: { kind: 'rain', rate: 3.2 }
     },
     tower: {
       seed: 44,
@@ -1834,8 +1864,115 @@ canvas#screen {
       neon: '#ff2a5a', neon2: '#ffffff', signTop: 'POWER', signBot: 'TOWER',
       tag: 'MR POWER', tagColor: '#ff2a5a', fence: '#8a5fd8',
       modules: ['glassWall', 'pillar', 'glassWall', 'neon', 'pillar', 'glassWall'],
-      landmarks: [[100, 'neon'], [500, 'neon']]
+      landmarks: [[100, 'neon'], [500, 'neon']],
+      ambient: { kind: 'ember', rate: 0.35 }
     }
+  };
+
+  // ------------------------------------------------------ the living parts
+  /* Night clouds drift through the gaps in the skyline, slower than the
+   * camera, so the sky reads as weather and not wallpaper. */
+  City.makeClouds = function (theme, n) {
+    var r = PC.RNG((theme.seed || 1) * 7 + 3);
+    var out = [];
+    for (var i = 0; i < (n || 7); i++) {
+      out.push({
+        x: r.range(0, 1600), y: r.range(3, 42), w: r.range(26, 64),
+        h: r.range(4, 9), sp: r.range(0.05, 0.14), a: r.range(0.45, 0.8)
+      });
+    }
+    return out;
+  };
+
+  City.drawClouds = function (ctx, theme, clouds, camX, time, w, top) {
+    var base = C.mix(theme.sky[1], '#a8b0d8', 0.22);
+    var under = C.shade(base, -0.3);
+    ctx.save();
+    for (var i = 0; i < clouds.length; i++) {
+      var c = clouds[i];
+      var cx = (c.x + time * c.sp - camX * 0.42) % 1600;
+      if (cx < 0) cx += 1600;
+      cx -= 90;
+      if (cx > w + 90) continue;
+      ctx.globalAlpha = c.a * 0.75;
+      Art.ellipse(ctx, cx, top + c.y, c.w / 2, c.h, base);
+      Art.ellipse(ctx, cx + c.w * 0.32, top + c.y + 1, c.w / 3, c.h * 0.8, base);
+      ctx.globalAlpha = c.a * 0.4;
+      Art.rect(ctx, cx - c.w / 2, top + c.y + c.h - 1, c.w, 1, under);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  };
+
+  /* The near lane, in silhouette: lamp posts, hydrants and signs passing
+   * faster than the camera - the one depth cue a flat street cannot fake.
+   * Sparse and thin on purpose: a post should flirt with the fighters, not
+   * hide them. */
+  City.buildFront = function (theme) {
+    var c = Art.mk(640, 30), x = c.getContext('2d');
+    var r = PC.RNG((theme.seed || 1) * 31 + 5);
+    var ink = '#07070e';
+    var px = r.range(30, 140);
+    while (px < 600) {
+      var kind = r();
+      if (kind < 0.45) {
+        Art.rect(x, px, 4, 26, ink);            // lamp post
+        Art.rect(x, px + 2, 18, 3, ink);         // arm
+        Art.rect(x, px + 14, 7, 5, ink);         // head
+        Art.rect(x, px + 17, 2, 2, '#ffd070');   // the light itself
+      } else if (kind < 0.78) {
+        Art.rect(x, px, 20, 4, ink);            // hydrant: base
+        Art.rect(x, px + 3, 4, 18, ink);         // body
+        Art.rect(x, px - 1, 8, 4, ink);          // side nut
+        Art.ellipse(x, px + 8, 3, 7, 3, ink);    // cap
+      } else {
+        Art.rect(x, px + 1, 3, 26, ink);         // street sign
+        Art.rect(x, px - 5, 15, 13, ink);
+      }
+      px += r.range(170, 330);
+    }
+    Art.rect(x, 0, 26, 640, 4, ink);             // the curb edge
+    return c;
+  };
+
+  /* The mood coat, in two passes: the tint goes on the street before the
+   * fighters are drawn, so their black keylines stay pure black - a graded
+   * world with vivid people is the whole trick. The vignette goes on last,
+   * over everyone, because a dark top and bottom edge is cinematic rather
+   * than muddy. */
+  City.GRADES = {
+    alley:    { tint: '#ff9a40', a: 0.055, top: 0.18, bot: 0.12 },
+    downtown: { tint: '#5a8aff', a: 0.05,  top: 0.16, bot: 0.12 },
+    docks:    { tint: '#40c8e0', a: 0.055, top: 0.20, bot: 0.14 },
+    tower:    { tint: '#c040ff', a: 0.05,  top: 0.16, bot: 0.14 }
+  };
+
+  City.grade = function (ctx, name) {
+    var g = this.GRADES[name];
+    if (!g) return;
+    ctx.save();
+    ctx.globalAlpha = g.a;
+    ctx.fillStyle = g.tint;
+    ctx.fillRect(0, PC.FIELD_Y, PC.W, PC.FIELD_BOT - PC.FIELD_Y);
+    ctx.restore();
+  };
+
+  City.vignette = function (ctx, name) {
+    var g = this.GRADES[name];
+    if (!g) return;
+    var y0 = PC.FIELD_Y, y1 = PC.FIELD_BOT;
+    ctx.save();
+    var gr = ctx.createLinearGradient(0, y0, 0, y0 + 36);
+    gr.addColorStop(0, 'rgba(3,3,12,' + g.top + ')');
+    gr.addColorStop(1, 'rgba(3,3,12,0)');
+    ctx.fillStyle = gr;
+    ctx.fillRect(0, y0, PC.W, 36);
+    var gr2 = ctx.createLinearGradient(0, y1 - 28, 0, y1);
+    gr2.addColorStop(0, 'rgba(3,3,12,0)');
+    gr2.addColorStop(1, 'rgba(3,3,12,' + g.bot + ')');
+    ctx.fillStyle = gr2;
+    ctx.fillRect(0, y1 - 28, PC.W, 28);
+    ctx.restore();
   };
 
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -2510,6 +2647,21 @@ canvas#screen {
             ctx.fillRect(x + s * (14 + w * 3) - (s > 0 ? 2 : 0), y - 26 - w * 3, 2, 8 + w * 3);
           }
           ctx.globalAlpha = 1;
+        } else if (p.kind === 'rain') {
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = '#b8cfe8';
+          ctx.fillRect(x, y, 1, 4);
+          ctx.globalAlpha = 1;
+        } else if (p.kind === 'ember') {
+          ctx.globalAlpha = 0.75 * (1 - f * 0.7);
+          ctx.fillStyle = p.col;
+          ctx.fillRect(x, y, (p.t % 6 < 3) ? 2 : 1, 1);
+          ctx.globalAlpha = 1;
+        } else if (p.kind === 'mote') {
+          ctx.globalAlpha = 0.28 * (1 - f);
+          ctx.fillStyle = '#c8bca8';
+          ctx.fillRect(x, y, 1, 1);
+          ctx.globalAlpha = 1;
         }
       }
     }
@@ -2985,7 +3137,7 @@ canvas#screen {
     if (this.carry && (this.state === 'idle' || this.state === 'walk' || this.state === 'run')) return 'windup';
     switch (this.state) {
       case 'idle': return (this.anim % 48 < 24) ? 'idle' : 'idle2';
-      case 'walk': return ['walk0', 'walk1', 'walk2', 'walk3'][Math.floor(this.anim / 7) % 4];
+      case 'walk': return ['walk0', 'walk4', 'walk1', 'walk5', 'walk2', 'walk6', 'walk3', 'walk7'][Math.floor(this.anim / 4) % 8];
       case 'run': return ['run0', 'run1', 'run2', 'run3'][Math.floor(this.anim / 5) % 4];
       case 'attack': return this.attackPose();
       case 'hurt': return 'hurt';
@@ -4217,7 +4369,7 @@ canvas#screen {
 (function (global) {
   'use strict';
   var PC = global.PC || (global.PC = {});
-  var M = PC.math, W = PC.world, FX = PC.fx;
+  var M = PC.math, W = PC.world, FX = PC.fx, City = PC.city;
 
   function enc(x, groups, opts) {
     var e = { x: x, groups: groups, boss: false, items: null };
@@ -4317,6 +4469,9 @@ canvas#screen {
       this.bossActive = null;
       this.bossBanner = 0;
       this.bossSub = null;
+      this.front = City.buildFront(this.theme);
+      this.clouds = City.makeClouds(this.theme);
+      this.ambAcc = 0;
       /* The block has things lying on it where there is no fight: coins
        * on the pavement, a can to kick, dinner behind a window. */
       if (this.def.litter) {
@@ -4405,9 +4560,46 @@ canvas#screen {
       return e;
     },
 
+    /* The weather each neighbourhood gets: rain on the docks, a drizzle
+     * downtown, dust in the alley, embers on the tower. Runs on the FX
+     * clock, so the sky keeps falling while the world is frozen for a hit. */
+    weather: function () {
+      if (!this.theme || !this.theme.ambient) return;
+      var amb = this.theme.ambient;
+      this.ambAcc += amb.rate;
+      while (this.ambAcc >= 1) {
+        this.ambAcc--;
+        if (amb.kind === 'rain') {
+          FX.add({
+            t: 0, life: 40, kind: 'rain',
+            x: W.camX + PC.rand.range(-60, PC.W + 40),
+            y: PC.FIELD_Y + PC.rand.range(-6, 34),
+            vx: -1.5 - PC.rand.range(0, 0.6), vy: 4.4 + PC.rand.range(0, 0.5), g: 0
+          });
+        } else if (amb.kind === 'ember') {
+          FX.add({
+            t: 0, life: PC.rand.int(60, 110), kind: 'ember',
+            x: W.camX + PC.rand.range(0, PC.W),
+            y: PC.rand.range(PC.FLOOR_TOP - 60, PC.FIELD_BOT - 8),
+            vx: PC.rand.range(-0.15, 0.3), vy: -PC.rand.range(0.2, 0.45), g: 0,
+            col: PC.rand.pick(['#ff8a20', '#ffd23a', '#ff5f6a'])
+          });
+        } else {
+          FX.add({
+            t: 0, life: PC.rand.int(80, 150), kind: 'mote',
+            x: W.camX + PC.rand.range(0, PC.W),
+            y: PC.rand.range(PC.FIELD_Y + 4, PC.FIELD_BOT - 4),
+            vx: PC.rand.range(-0.2, 0.3), vy: -PC.rand.range(0, 0.08), g: 0
+          });
+        }
+      }
+    },
+
     update: function () {
       if (!this.def) return;
       var i;
+
+      this.weather();
 
       // ---- countdown
       if (!this.cleared) {
@@ -4509,10 +4701,51 @@ canvas#screen {
       // sky, at a third the speed, tiling forever
       var sx = -Math.floor(camX * 0.34) % this.skyW;
       if (sx > 0) sx -= this.skyW;
-      for (var x = sx; x < PC.W; x += this.skyW) {
+      var x, t, b;
+      for (x = sx; x < PC.W; x += this.skyW) {
         ctx.drawImage(this.sky, Math.round(x), PC.FIELD_Y);
+        // aviation beacons pulse on the skyline towers
+        if (this.sky.beacons) {
+          for (b = 0; b < this.sky.beacons.length; b++) {
+            var bc = this.sky.beacons[b];
+            var bx2 = Math.round(x + bc[0]), by2 = PC.FIELD_Y + bc[1];
+            var pa = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(W.time * 0.06 + bc[0] * 0.7));
+            ctx.save();
+            ctx.globalAlpha = pa * 0.3;
+            ctx.fillStyle = '#ff4a4a';
+            ctx.fillRect(bx2 - 2, by2 - 2, 5, 5);
+            ctx.globalAlpha = pa;
+            ctx.fillRect(bx2, by2, 2, 2);
+            ctx.restore();
+          }
+        }
       }
+      if (this.clouds) City.drawClouds(ctx, this.theme, this.clouds, camX, W.time, PC.W, PC.FIELD_Y);
       ctx.drawImage(this.facade, Math.round(-camX), PC.FIELD_Y);
+      // the neon landmarks breathe, and once in a while one cuts out
+      if (this.theme && this.theme.landmarks) {
+        var lm = this.theme.landmarks;
+        for (t = 0; t < lm.length; t++) {
+          if (lm[t][1] !== 'neon') continue;
+          var nx = lm[t][0] - camX;
+          if (nx < -96 || nx > PC.W + 16) continue;
+          var ph = W.time * 0.13 + lm[t][0];
+          ctx.save();
+          if (Math.sin(ph * 0.37 + lm[t][0] * 0.11) > 0.962) {
+            ctx.globalAlpha = 0.55;
+            ctx.fillStyle = '#14081c';
+            ctx.fillRect(Math.round(nx) + 3, PC.FIELD_Y + 14, 72, 32);
+          } else {
+            var a = 0.05 + 0.05 * (0.5 + 0.5 * Math.sin(ph));
+            ctx.globalAlpha = a;
+            ctx.fillStyle = this.theme.neon;
+            ctx.fillRect(Math.round(nx) + 3, PC.FIELD_Y + 13, 72, 34);
+            ctx.globalAlpha = a * 1.7;
+            ctx.fillRect(Math.round(nx) + 10, PC.FIELD_Y + 17, 58, 26);
+          }
+          ctx.restore();
+        }
+      }
     },
 
     /* A boss walks on to their own title card. Costs two seconds and buys
@@ -5108,6 +5341,9 @@ canvas#screen {
       ctx.clip();
       ctx.translate(sx, sy);
       PC.stage.draw(ctx);
+      // the mood tint goes on the street before the fighters, so their
+      // black keylines stay pure black on a graded world
+      if (PC.stage.def) PC.city.grade(ctx, PC.stage.def.theme);
 
       // ---- everything in the street, sorted back to front
       var draws = [], i;
@@ -5126,6 +5362,17 @@ canvas#screen {
       }
 
       FX.draw(ctx, W.camX);
+      // the near lane in silhouette, passing faster than the camera
+      if (PC.stage.front) {
+        var fo = Math.round(-W.camX * 1.25) % 640;
+        if (fo > 0) fo -= 640;
+        for (var fx2 = fo; fx2 < PC.W; fx2 += 640) {
+          ctx.drawImage(PC.stage.front, fx2, PC.FIELD_BOT - 30);
+        }
+      }
+      // the vignette goes over everyone: a dark top and bottom edge reads
+      // as cinema, and the fighters keep the middle of the frame
+      if (PC.stage.def) PC.city.vignette(ctx, PC.stage.def.theme);
       PC.stage.drawArrow(ctx);
       PC.stage.drawBanner(ctx);
       Hud.drawAlerts(ctx, this);

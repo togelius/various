@@ -149,6 +149,21 @@
             ctx.fillRect(x + s * (14 + w * 3) - (s > 0 ? 2 : 0), y - 26 - w * 3, 2, 8 + w * 3);
           }
           ctx.globalAlpha = 1;
+        } else if (p.kind === 'rain') {
+          ctx.globalAlpha = 0.5;
+          ctx.fillStyle = '#b8cfe8';
+          ctx.fillRect(x, y, 1, 4);
+          ctx.globalAlpha = 1;
+        } else if (p.kind === 'ember') {
+          ctx.globalAlpha = 0.75 * (1 - f * 0.7);
+          ctx.fillStyle = p.col;
+          ctx.fillRect(x, y, (p.t % 6 < 3) ? 2 : 1, 1);
+          ctx.globalAlpha = 1;
+        } else if (p.kind === 'mote') {
+          ctx.globalAlpha = 0.28 * (1 - f);
+          ctx.fillStyle = '#c8bca8';
+          ctx.fillRect(x, y, 1, 1);
+          ctx.globalAlpha = 1;
         }
       }
     }

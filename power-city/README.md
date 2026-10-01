@@ -62,7 +62,24 @@ like and a second player never has to be told which keys became theirs.
 | **Crates & drums** | Punch to lift, punch or kick to hurl. Drums explode. |
 
 Get hit four times in a hurry and enemies see stars — that is the moment to
-grab. Caught in a bear hug yourself, mash anything to get out.
+grab. Caught in a bear hug yourself, mash anything to get out — the cabinet
+shouts MASH! at you until you do.
+
+Every hit you land inside a rolling window climbs the combo counter, and the
+popups escalate with it. Clear a fight without taking a scratch and the
+machine pays a PERFECT bonus and says so.
+
+The clock is a siren, not a trap: when it runs out an alarm sounds and health
+drains until the street is clear. Clearing a fight buys time back. Bosses
+arrive with their own clock, their own title card — and a phase change when
+the fight turns, announced by a roar, a freeze and the bar on screen.
+
+The gang holds no cheap cards: nobody swings at you while you are on the
+floor, getting up is safe, one stagger buys a beat of stagger immunity, and
+flankers are marked with chevrons at the screen edge — plus a red flash at
+your back when one of them lands one. Fallen enemies drop food, coins and
+sometimes their weapon; a hard fall shakes the weapon out of anyone's grip,
+VIPER's chain included. Trash cans and crates hold prizes.
 
 ## The stages
 
@@ -78,30 +95,32 @@ Run out of lives and the machine gives you ten seconds to think about it.
 ```
 js/core.js     screen, timing, two-player input, RNG, storage
 js/art.js      the 5x7 arcade font, pixel primitives, the outline pass
-js/rig.js      the articulated fighter: one figure, ~35 poses, baked at boot
+js/rig.js      the articulated fighter: one figure, ~39 poses, baked at boot
 js/cast.js     the cast as palettes; weapons, crates and pickups
-js/city.js     facade modules, parallax skylines, streets, four themes
+js/city.js     facade modules, parallax skylines, weather, the mood grade,
+               the silhouette near-lane, four themes
 js/audio.js    two pulse voices, a triangle bass, a noise channel, a sequencer
 js/music.js    the songs, as sixteenth-note pattern strings
-js/fx.js       hit sparks, dust, score pops, screen shake
+js/fx.js       hit sparks, dust, score pops, rain, embers, screen shake
 js/actors.js   2.5D physics, the hit system, hit-stop, knockdowns
 js/items.js    holding, swinging, throwing and smashing things
 js/player.js   the move list and what the buttons do
-js/enemies.js  the gang, the bosses, and the attack-token system
-js/stages.js   four stages, their encounters, the camera lock
-js/hud.js      score, lives, clock, health, credits
+js/enemies.js  the gang, the bosses, phases, and the attack-token system
+js/stages.js   four stages, their encounters, the camera lock, the weather
+js/hud.js      score, lives, clock, health, credits, warnings
 js/game.js     attract, credits, stage flow, continues, ending
 js/touch.js    the on-screen pad
 ```
 
-### Three decisions the game is built on
+### Six decisions the game is built on
 
 **Nobody draws twenty animation frames per fighter.** There is one
 articulated figure — head, torso, two arms, two legs — and a table of poses
 in a coordinate space where *x* runs forward and *y* runs up from the floor.
 A character is nine colours and a hairstyle. Every pose every character can
 strike is baked into its own canvas at boot with a black keyline grown around
-it, and blitted from then on. Add a pose and the whole city learns it.
+it, and blitted from then on. The eight-frame walk is blended from the four
+keyframes by code. Add a pose and the whole city learns it.
 
 **The freeze is the punch.** When a hit connects the entire world stops for
 four to eleven frames, longer for heavier blows, while the spark and the
@@ -109,10 +128,34 @@ screen shake keep animating. Take that out and the game feels like it is made
 of paper. Everything else about the fight — knockdowns, the dizzy state, the
 bounce a body takes when it lands — hangs off that one pause.
 
-**Only two of them may attack at once.** Enemies must claim one of two tokens
-before they are allowed to swing; everyone else circles, drifts into a free
-lane, or waits at the edge of their reach looking menacing. Eight thugs
-punching on the same frame is not difficulty, it is arithmetic.
+**Only a few of them may attack at once.** Enemies must claim one of the
+attack tokens before they are allowed to swing — two to start, more as the
+crowd grows, more in later stages, more with two players. Everyone else
+circles, drifts into a free lane, or waits at the edge of their reach looking
+menacing. Eight thugs punching on the same frame is not difficulty, it is
+arithmetic.
+
+**The floor is where beat 'em ups go to die.** The player only goes down to
+heavy blows — a punk's kick is a stagger, a bat or a boss sends you flying —
+and the whole trip to the floor and back is nobody's target: no hits while
+you are down, none on the way up, and a beat of poise afterwards so two
+thugs cannot hold you still with alternating jabs. The agents measured it:
+zero wake-up hits across twenty recorded campaigns.
+
+**A street that pays keeps getting walked.** Reinforcements pour in when a
+wave thins, trash cans and crates hold loot, the fallen drop their weapons,
+and there is litter — coins, food — on every stroll, so the walk between
+fights is a sweep, not a wait.
+
+**And the city is alive, not wallpaper.** Rain falls on the docks and
+drizzles downtown, dust drifts in the alley, embers rise on the tower; the
+skyline's beacons pulse, the neon signs breathe and cut out, clouds slide
+behind the skyline, and a silhouette near-lane of lamp posts and hydrants
+passes faster than the camera. Each neighbourhood wears its own colour
+grade — the tint under the fighters, the vignette over the whole picture —
+so the same engine shoots four different nights. `tools/visual-audit.js`
+measures all of it: figure-ground contrast held at ~70/255 with pure-black
+keylines while the average frame got 4.8× richer in colour.
 
 ## Checking it
 

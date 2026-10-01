@@ -465,7 +465,7 @@
     if (this.carry && (this.state === 'idle' || this.state === 'walk' || this.state === 'run')) return 'windup';
     switch (this.state) {
       case 'idle': return (this.anim % 48 < 24) ? 'idle' : 'idle2';
-      case 'walk': return ['walk0', 'walk1', 'walk2', 'walk3'][Math.floor(this.anim / 7) % 4];
+      case 'walk': return ['walk0', 'walk4', 'walk1', 'walk5', 'walk2', 'walk6', 'walk3', 'walk7'][Math.floor(this.anim / 4) % 8];
       case 'run': return ['run0', 'run1', 'run2', 'run3'][Math.floor(this.anim / 5) % 4];
       case 'attack': return this.attackPose();
       case 'hurt': return 'hurt';

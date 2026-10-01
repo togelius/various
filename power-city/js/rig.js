@@ -154,6 +154,25 @@
       [[2, 10], [4, 0]], [[-4, 10], [-7, 0]])
   };
 
+  /* The walk cycle gains its in-between frames, blended from the keyframes:
+   * eight frames of walk instead of four, the difference between a strut
+   * and a glide. Blended poses inherit the keyframes' joint structure, so
+   * every check that validates a pose validates these too. */
+  function blendPose(a, b, t) {
+    var o = {}, k;
+    function pt(p, q) { return [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]; }
+    for (k in a) {
+      if (!b[k]) continue;
+      if (typeof a[k][0] === 'number') o[k] = pt(a[k], b[k]);
+      else o[k] = [pt(a[k][0], b[k][0]), pt(a[k][1], b[k][1])];
+    }
+    return o;
+  }
+  POSES.walk4 = blendPose(POSES.walk0, POSES.walk1, 0.5);
+  POSES.walk5 = blendPose(POSES.walk1, POSES.walk2, 0.5);
+  POSES.walk6 = blendPose(POSES.walk2, POSES.walk3, 0.5);
+  POSES.walk7 = blendPose(POSES.walk3, POSES.walk0, 0.5);
+
   // ---------------------------------------------------------------- figures
   /* A character is a palette plus a build. `scale` stretches the whole rig,
    * `bulk` only thickens it - which is the difference between a big man and a

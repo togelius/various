@@ -147,3 +147,29 @@ Not met, with reasons:
   always-held tokens plus reinforcement waves.
 - *downtime < 15%:* 23–30%, which for this genre is the stroll between
   fights - now textured with litter, trash cans and drive-by chases.
+
+## The look (added after the gameplay pass)
+
+`tools/visual-audit.js` renders every stage with and without the actors
+and measures what an eye would care about. Baseline: readable (figure-ground
+contrast ~70/255, 41% pure-black keyline pixels) but static and grey —
+POWER TOWER ran 103 distinct colours a frame, and nothing on the street
+moved but the fighters.
+
+The art pass: rain on the docks and drizzle downtown, dust in the alley,
+embers on the tower; pulsing skyline beacons; breathing, cutting-out neon;
+drifting clouds behind the skyline; a silhouette near-lane (lamp posts,
+hydrants, signs) scrolling faster than the camera; a per-neighbourhood colour
+gade — tint under the fighters so their keylines stay black, vignette over
+the whole picture; and an eight-frame walk cycle blended from the keyframes.
+
+Measured after:
+
+| metric | before | after |
+| --- | --- | --- |
+| figure-ground contrast (mean) | 70.3 | 69.6 (held) |
+| pure-black keyline share | 41.2% | 41.2% (held) |
+| distinct colours per frame (mean) | 157 | **754** |
+| POWER TOWER colours | 103 | **986** |
+| moving elements per stage | 0 | weather, beacons, neon, clouds, near-lane |
+| walk cycle | 4 frames | 8 blended frames |
