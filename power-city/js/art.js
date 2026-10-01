@@ -221,6 +221,72 @@
     return c;
   };
 
+  /* Light a flat shape. Every opaque pixel on an edge that faces the light
+   * (above, and to the front) is lifted toward a warm white; every pixel on
+   * an edge facing away (below, and behind) is pushed toward a cool dark.
+   * Run on each body part separately, that turns flat fills into the two-
+   * and three-tone modelling the arcade sprites had - a 4px forearm comes
+   * out as one lit row, two base rows and one shadowed row - for no cost at
+   * all at runtime, because sprites are baked once.
+   * opts: { hi, lo, front: +1 (light from the right) | -1 } */
+  Art.bevel = function (cv, opts) {
+    opts = opts || {};
+    var hi = opts.hi === undefined ? 0.28 : opts.hi, lo = opts.lo === undefined ? 0.3 : opts.lo;
+    var fr = opts.front || 1;
+    var x = cv.getContext('2d'), w = cv.width, h = cv.height;
+    var img = x.getImageData(0, 0, w, h), d = img.data, src = new Uint8ClampedArray(d);
+    function a(i, j) { return (i < 0 || j < 0 || i >= w || j >= h) ? 0 : src[(j * w + i) * 4 + 3]; }
+    for (var j = 0; j < h; j++) {
+      for (var i = 0; i < w; i++) {
+        var o = (j * w + i) * 4;
+        if (src[o + 3] < 128) continue;
+        var up = a(i, j - 1) < 128, dn = a(i, j + 1) < 128;
+        var fw = a(i + fr, j) < 128, bk = a(i - fr, j) < 128;
+        var lift = (up ? 1 : 0) + (fw ? 0.55 : 0) - (dn ? 1 : 0) - (bk ? 0.6 : 0);
+        if (up && dn) lift = fw ? 0.3 : 0;            // a one-pixel sliver stays itself
+        if (lift > 0) {
+          var t = Math.min(1, lift) * hi;
+          d[o] += (255 - d[o]) * t; d[o + 1] += (244 - d[o + 1]) * t; d[o + 2] += (224 - d[o + 2]) * t;
+        } else if (lift < 0) {
+          var u = Math.min(1, -lift) * lo;
+          d[o] *= 1 - u; d[o + 1] *= 1 - u; d[o + 2] = d[o + 2] * (1 - u) + 40 * u;
+        }
+      }
+    }
+    x.putImageData(img, 0, 0);
+    return cv;
+  };
+
+  /* Spray paint. The arcade font at double size, fattened a pixel so the
+   * strokes read as bubble letters, given drips where the paint ran off
+   * the bottom of a stroke, lit along the top and keylined in a dark of its
+   * own colour - which is also what keeps a purple thug readable in front
+   * of a purple tag. Drips are placed by a hash of the column, so the same
+   * wall always runs the same way. */
+  Art.graffiti = function (ctx, text, cx, y, col, opts) {
+    opts = opts || {};
+    text = String(text).toUpperCase();
+    var tw = Art.textWidth(text, 2, 0);
+    var c = mk(tw + 8, 30), x = c.getContext('2d');
+    Art.text(x, text, 3, 2, col, { scale: 2, tracking: 0, wobble: opts.wobble || 1.5, phase: opts.phase || 0 });
+    Art.text(x, text, 4, 2, col, { scale: 2, tracking: 0, wobble: opts.wobble || 1.5, phase: opts.phase || 0 });
+    // drips: from the lowest painted pixel of a column, a run downward
+    var img = x.getImageData(0, 0, c.width, c.height).data, seed = opts.seed || 7;
+    for (var i = 0; i < c.width; i++) {
+      var low = -1;
+      for (var j = c.height - 1; j >= 0; j--) if (img[(j * c.width + i) * 4 + 3] > 128) { low = j; break; }
+      if (low < 0) continue;
+      var hsh = ((i * 2654435761) ^ (seed * 40503)) >>> 0;
+      if (hsh % 7 !== 0) continue;
+      var len = 2 + (hsh >> 8) % 6;
+      Art.rect(x, i, low + 1, 1, len, col);
+      Art.rect(x, i, low + len, 2, 2, col);
+    }
+    Art.bevel(c, { hi: 0.35, lo: 0.2 });
+    var inked = Art.outline(c, opts.ink || PC.color.shade(col, -0.7), 1);
+    ctx.drawImage(inked, Math.round(cx - inked.width / 2), Math.round(y - 3));
+  };
+
   // Crop to the tight bounding box of opaque pixels; returns {canvas,ox,oy}.
   Art.trim = function (src) {
     var x = src.getContext('2d');

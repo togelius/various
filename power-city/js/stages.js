@@ -364,8 +364,8 @@
       if (this.clouds) City.drawClouds(ctx, this.theme, this.clouds, camX, W.time, PC.W, PC.FIELD_Y);
       ctx.drawImage(this.facade, Math.round(-camX), PC.FIELD_Y);
       // the neon landmarks breathe, and once in a while one cuts out
-      if (this.theme && this.theme.landmarks) {
-        var lm = this.theme.landmarks;
+      if (this.facade.marks) {
+        var lm = this.facade.marks;                  // where they really landed
         for (t = 0; t < lm.length; t++) {
           if (lm[t][1] !== 'neon') continue;
           var nx = lm[t][0] - camX;

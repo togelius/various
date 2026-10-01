@@ -45,7 +45,7 @@ const fs = require('fs');
       const p = PC.game.players[0];
       p.reviveAt(190, PC.FLOOR_BOT - 16); p.invuln = 0; p.facing = 1;
       W.add(p);
-      W.camX = 200; PC.stage.locked = true; PC.stage.lockX = 200;
+      W.camX = 100; PC.stage.locked = true; PC.stage.lockX = 100;   // the whole posed fight in shot, hero included
       // a posed fight: brawler walking, punk mid-jab, rough airborne, brute
       // walking behind, one dizzy, a crate, a bat on the ground
       const es = [];
@@ -134,13 +134,14 @@ const fs = require('fs');
         if (v > 0 && v < 10) soft++;
         pairs += 2;
       }
-      /* Colours again with the vignette switched off: a smooth vignette
+      /* Colours again with any vignette switched off: a smooth vignette
        * turns every flat colour into dozens of shades, so the raw count
-       * mostly measures the vignette rather than the palette. */
+       * mostly measures the vignette rather than the palette. (The game no
+       * longer has one; this stays so an old build can be measured too.) */
       const realVig = PC.city.vignette;
-      PC.city.vignette = function () { };
+      if (realVig) PC.city.vignette = function () { };
       const V = frame();
-      PC.city.vignette = realVig;
+      if (realVig) PC.city.vignette = realVig;
       const colorsNV = {};
       for (let i = 0; i < V.length; i += 4) colorsNV[(V[i] << 16) | (V[i + 1] << 8) | V[i + 2]] = 1;
 

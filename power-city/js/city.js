@@ -34,11 +34,12 @@
       Art.ellipse(x, theme.moon[0], theme.moon[1], 11, 11, '#f0ecd0');
       Art.ellipse(x, theme.moon[0] + 4, theme.moon[1] - 2, 9, 9, C.mix(top, bot, 0.25));
     }
-    // ---- towers, standing on the horizon
+    // ---- towers, standing on the horizon (from the top floor, only the
+    // far ones still reach above eye level, and not by much)
     var beacons = [];
-    var bx = 0;
+    var bx = 0, tall = theme.below ? [0.06, 0.34] : [0.3, 0.92];
     while (bx < w) {
-      var bw = r.int(12, 26), bh = r.int(Math.floor(hor * 0.3), Math.floor(hor * 0.92));
+      var bw = r.int(12, 26), bh = r.int(Math.floor(hor * tall[0]), Math.floor(hor * tall[1]));
       var col = C.mix(theme.tower, bot, r.range(0, 0.3));
       Art.rect(x, bx, hor - bh, bw, bh, col);
       if (r.chance(0.3)) Art.rect(x, bx + Math.floor(bw / 2) - 1, hor - bh - r.int(4, 10), 2, 10, col);
@@ -55,7 +56,9 @@
       bx += bw + r.int(0, 3);
     }
     // ---- whatever lies below the horizon, for gaps that reach the ground
-    if (theme.water) {
+    if (theme.below) {
+      cityBelow(x, theme, r, w, h, hor);
+    } else if (theme.water) {
       for (j = hor; j < h; j++) {
         Art.rect(x, 0, j, w, 1, C.mix(theme.water, C.shade(theme.water, -0.5), (j - hor) / (h - hor)));
       }
@@ -77,24 +80,88 @@
     return c;
   };
 
+  /* The city at night seen from the top floor: blocks of roofs in rows
+   * that grow taller and further apart as they come toward the glass, the
+   * streets between them strung with sodium lamps and traffic. Rows only -
+   * the sky tiles sideways and scrolls at parallax, so nothing here may
+   * converge on a vanishing point. */
+  function cityBelow(x, t, r, w, h, hor) {
+    var glow = C.mix(t.sky[1], t.lit, 0.32), deep = C.shade(t.sky[0], -0.3);
+    var j, i, k;
+    for (j = hor; j < h; j++) Art.rect(x, 0, j, w, 1, C.mix(glow, deep, Math.min(1, (j - hor) / ((h - hor) * 0.55))));
+    var y = hor + 1, gap = 2, row = 0;
+    while (y < h) {
+      var bandH = Math.round(2 + row * 1.6);
+      var roof = C.mix(C.shade(t.tower, 0.08), deep, Math.min(1, row / 9));
+      // the street: a line of lamps, and the odd car's head- and tail-lights
+      var lamp = row < 3 ? C.mix(t.lit, glow, 0.35) : t.lit;
+      for (i = r.int(0, 3); i < w; i += Math.max(3, 9 - row)) Art.rect(x, i, y, 1, 1, lamp);
+      for (k = 0; k < w / (40 - row * 2); k++) {
+        var cx = r.int(0, w - 3);
+        Art.rect(x, cx, y + (gap > 2 ? 1 : 0), row > 3 ? 2 : 1, 1, r.chance(0.5) ? '#fff4d0' : '#ff3a3a');
+      }
+      y += gap;
+      // the blocks: roofs with their street-facing windows lit below
+      for (i = r.int(-12, 0); i < w; ) {
+        var bw2 = r.int(8 + row * 2, 18 + row * 4), bh2 = Math.min(h - y, bandH + r.int(0, row));
+        Art.rect(x, i, y, bw2 - 1, bh2, roof);
+        Art.rect(x, i, y, bw2 - 1, 1, C.shade(roof, 0.25));                 // the parapet catches the glow
+        for (j = y + 2; j < y + bh2 - 1; j += row > 4 ? 3 : 2) {
+          for (k = i + 1; k < i + bw2 - 2; k += row > 4 ? 3 : 2) {
+            if (r.chance(0.22)) Art.rect(x, k, j, 1, 1, r.chance(0.2) ? '#f8e8b0' : C.mix(t.lit, roof, 0.3));
+          }
+        }
+        if (row > 3 && r.chance(0.15)) Art.rect(x, i + 2, y + 1, 1, 1, '#ff4a4a');  // a roof beacon below us
+        i += bw2 + (row > 5 ? 1 : 0);
+      }
+      y += bh2Max(bandH, row);
+      gap = Math.min(5, 2 + (row >> 1));
+      row++;
+    }
+  }
+  function bh2Max(bandH, row) { return bandH + Math.round(row * 0.7); }
+
   // -------------------------------------------------------- facade modules
   /* Every module paints into the wall strip (0..FIELD_H) starting at x, and
    * returns nothing; the composer knows each module's width up front. */
   var MOD = {};
 
+  /* Brick, laid on one grid for the whole street. Each module used to
+   * restart the coursing at its own left edge and paint past its right,
+   * so the bond broke wherever two modules met. Now every brick sits on
+   * the global grid, clipped to its module, with near-black mortar and a
+   * lit top and shaded bottom on every brick - the reference wall reads as
+   * texture because the mortar is dark, and so does this one. */
   function brick(x, ctx, w, t, r) {
-    var base = t.brick, dark = C.shade(base, -0.3), light = C.shade(base, 0.18);
-    Art.rect(ctx, x, 0, w, FIELD_H, dark);
-    var bw = 12, bh = 6, row = 0;
-    for (var j = 0; j < FIELD_H; j += bh, row++) {
+    var base = t.brick;
+    var mortar = C.shade(base, -0.62);
+    var tones = [base, C.shade(base, 0.07), C.shade(base, -0.07), C.mix(base, t.brickAlt || base, 0.5)];
+    var bw = 12, bh = 6;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x, 0, w, FIELD_H); ctx.clip();
+    Art.rect(ctx, x, 0, w, FIELD_H, mortar);
+    for (var j = 0, row = 0; j < FIELD_H; j += bh, row++) {
       var off = (row % 2) ? bw / 2 : 0;
-      for (var i = -bw; i < w + bw; i += bw) {
-        var px = x + i + off;
-        Art.rect(ctx, px + 1, j + 1, bw - 1, bh - 1, r.chance(0.13) ? C.mix(base, light, 0.6) : base);
+      var first = Math.floor((x - off) / bw) * bw + off;
+      for (var px = first; px < x + w; px += bw) {
+        // a brick's tone comes from where it is, not from the module's dice,
+        // so the same wall looks the same however it was assembled
+        var hsh = ((px * 73856093) ^ (row * 19349663) ^ (t.seed || 1)) >>> 0;
+        var face = tones[hsh % 4];
+        if (hsh % 23 === 0) face = C.shade(base, -0.2);                 // a stained one
+        Art.rect(ctx, px + 1, j + 1, bw - 1, bh - 1, face);
+        Art.rect(ctx, px + 1, j + 1, bw - 1, 1, C.shade(face, 0.2));    // lit top edge
+        Art.rect(ctx, px + 1, j + bh - 1, bw - 1, 1, C.shade(face, -0.2)); // shaded underside
       }
     }
-    // a wash of grime toward the ground
-    for (var k = 0; k < 18; k++) Art.dither(ctx, x, FIELD_H - 26 + k, w, 1, dark, k % 2);
+    // a wash of grime toward the ground, in dither so it stays crisp
+    var grime = C.shade(base, -0.45);
+    // (every other row higher up is a quarter-density fade, then half)
+    for (var k = 0; k < 18; k++) {
+      if (k < 9 && k % 2) continue;
+      Art.dither(ctx, x, FIELD_H - 26 + k, w, 1, grime, k >> 1);
+    }
+    ctx.restore();
   }
 
   MOD.wall = { w: 48, paint: function (ctx, x, t, r) { brick(x, ctx, 48, t, r); } };
@@ -173,8 +240,8 @@
       var tag = t.tag || 'POWER CITY', tw = tag.split(' ');
       var gc = t.tagColor || '#c840e0';
       for (var i = 0; i < tw.length; i++) {
-        Art.text(ctx, tw[i], sx + sw / 2 + (i % 2 ? 3 : -3), sy + 16 + i * 16, gc,
-          { align: 'center', scale: 2, tracking: 0, wobble: 2, phase: i * 1.7, shadow: C.shade(gc, -0.55), shadowDist: 2 });
+        Art.graffiti(ctx, tw[i], sx + sw / 2 + (i % 2 ? 4 : -3), sy + 12 + i * 20, gc,
+          { phase: i * 1.7, seed: Math.round(x) + i });
       }
     }
   };
@@ -350,38 +417,191 @@
     }
   };
 
-  MOD.glassWall = {
+  // ---- the penthouse: black marble, gold trim, and the city through glass
+  var GOLD = '#d8a840', GOLD_HI = '#f8dc80', GOLD_LO = '#7a5418';
+  var STEEL = '#0c0a12';
+
+  /* Black marble, veined. The veins are seeded from the module's x so a
+   * panel always looks the same. */
+  function marble(ctx, x, y, w, h, t) {
+    var base = t.marble || '#1e1a28';
+    Art.rect(ctx, x, y, w, h, base);
+    var r = PC.RNG(Math.round(x) * 131 + y + 7);
+    var vein = C.shade(base, 0.32), vein2 = C.shade(base, 0.14);
+    for (var v = 0; v < Math.max(1, w / 18); v++) {
+      var vx = x + r.range(0, w), vy = y + r.range(0, h * 0.3);
+      var dx = r.range(-0.7, 0.7);
+      for (var k = 0; k < h * 0.9; k++) {
+        vx += dx + r.range(-0.6, 0.6);
+        if (vx < x || vx >= x + w) break;
+        Art.rect(ctx, Math.floor(vx), Math.floor(vy + k), 1, 1, k % 7 < 5 ? vein2 : vein);
+        if (r.chance(0.04)) dx = r.range(-0.8, 0.8);
+      }
+    }
+  }
+  // a gold band: lit top, body, shadow under
+  function trim(ctx, x, y, w) {
+    Art.rect(ctx, x, y, w, 1, GOLD_HI);
+    Art.rect(ctx, x, y + 1, w, 1, GOLD);
+    Art.rect(ctx, x, y + 2, w, 1, GOLD_LO);
+  }
+  // the ceiling and skirting every penthouse module shares, so they line up
+  function frameTopBottom(ctx, x, w, t) {
+    marble(ctx, x, 0, w, 11, t);
+    trim(ctx, x, 11, w);
+    marble(ctx, x, FIELD_H - 9, w, 9, t);
+    trim(ctx, x, FIELD_H - 10, w);
+  }
+
+  /* Floor-to-ceiling glass. The panes are left empty, so the skyline (and
+   * the city far below it) shows straight through at parallax. */
+  MOD.pane = {
     w: 64,
     paint: function (ctx, x, t, r) {
-      Art.rect(ctx, x, 0, 64, FIELD_H, '#1a2038');
-      for (var j = 4; j < FIELD_H - 8; j += 18) {
-        for (var i = 4; i < 60; i += 15) {
-          var roll = r();
-          // mostly dark glass, a few offices still working
-          var col = roll < 0.16 ? C.mix(t.lit, '#ffe0b0', 0.3)
-            : roll < 0.34 ? C.mix(t.lit, '#101830', 0.55)
-              : roll < 0.46 ? C.mix(t.lit, '#ff5fa8', 0.4)
-                : roll < 0.58 ? C.mix(t.lit, '#3ad8c8', 0.4)
-                  : roll < 0.72 ? '#182042' : '#0f1526';
-          Art.rect(ctx, x + i, j, 12, 14, col);
-          if (roll < 0.34) Art.limb(ctx, x + i + 1, j + 12, x + i + 9, j + 2, 2, 2, 'rgba(255,255,255,0.13)');
+      var top = 14, bot = FIELD_H - 10;
+      frameTopBottom(ctx, x, 64, t);
+      // steel mullions with a gold bead down the lit edge
+      Art.rect(ctx, x, top, 3, bot - top, STEEL);
+      Art.rect(ctx, x + 2, top, 1, bot - top, GOLD_LO);
+      Art.rect(ctx, x + 31, top, 2, bot - top, STEEL);
+      Art.rect(ctx, x + 61, top, 3, bot - top, STEEL);
+      Art.rect(ctx, x + 61, top, 1, bot - top, GOLD_LO);
+      // the brass guard rail at hip height
+      Art.rect(ctx, x, bot - 26, 64, 2, GOLD);
+      Art.rect(ctx, x, bot - 26, 64, 1, GOLD_HI);
+      Art.rect(ctx, x, bot - 24, 64, 1, GOLD_LO);
+      for (var p = x + 10; p < x + 60; p += 21) Art.rect(ctx, p, bot - 24, 1, 24, GOLD_LO);
+      // reflections on the glass: two hard diagonal glints, sparse
+      ctx.save();
+      ctx.globalAlpha = 0.16;
+      for (var g = 0; g < 2; g++) {
+        var gx = x + 6 + g * 31 + ((Math.round(x) >> 3) % 9);
+        for (var k = 0; k < 22; k++) {
+          Art.rect(ctx, gx + k, top + 30 - k, g ? 1 : 2, 1, '#e0e8ff');
+          if (k % 3 === 0) Art.rect(ctx, gx + k + 5, top + 33 - k, 1, 1, '#e0e8ff');
         }
       }
-      Art.hatch(ctx, x, 0, 64, FIELD_H, 18, '#39415e', 'h');
-      Art.hatch(ctx, x, 0, 64, FIELD_H, 15, '#39415e', 'v');
-      Art.rect(ctx, x, FIELD_H - 10, 64, 10, '#2c3350');
+      ctx.restore();
     }
   };
 
-  MOD.pillar = {
-    w: 34,
+  /* A black marble column, gold at the capital and the foot. */
+  MOD.column = {
+    w: 24,
     paint: function (ctx, x, t, r) {
-      Art.rect(ctx, x, 0, 34, FIELD_H, '#2a3048');
-      Art.rect(ctx, x + 4, 0, 26, FIELD_H, '#4a5270');
-      Art.rect(ctx, x + 6, 0, 6, FIELD_H, '#5f688a');
-      Art.rect(ctx, x + 24, 0, 4, FIELD_H, '#333a54');
-      Art.rect(ctx, x + 2, FIELD_H - 12, 30, 12, '#5f688a');
-      Art.rect(ctx, x + 2, 0, 30, 10, '#5f688a');
+      frameTopBottom(ctx, x, 24, t);
+      marble(ctx, x + 3, 14, 18, FIELD_H - 24, t);
+      Art.rect(ctx, x + 6, 14, 2, FIELD_H - 24, C.shade(t.marble || '#1e1a28', 0.28));   // the lit flute
+      Art.rect(ctx, x + 18, 14, 3, FIELD_H - 24, C.shade(t.marble || '#1e1a28', -0.4));  // the turned side
+      Art.rect(ctx, x, 14, 24, 4, GOLD); Art.rect(ctx, x, 14, 24, 1, GOLD_HI); Art.rect(ctx, x + 1, 18, 22, 1, GOLD_LO);
+      Art.rect(ctx, x, FIELD_H - 16, 24, 6, GOLD); Art.rect(ctx, x, FIELD_H - 16, 24, 1, GOLD_HI);
+      Art.rect(ctx, x + 2, FIELD_H - 13, 20, 1, GOLD_LO);
+    }
+  };
+
+  /* Bare marble, with a sconce throwing its light up the wall. */
+  MOD.marble = {
+    w: 44,
+    paint: function (ctx, x, t, r) {
+      marble(ctx, x, 0, 44, FIELD_H, t);
+      frameTopBottom(ctx, x, 44, t);
+      // inset panel
+      Art.rect(ctx, x + 5, 22, 34, 1, GOLD_LO); Art.rect(ctx, x + 5, FIELD_H - 20, 34, 1, GOLD_LO);
+      Art.rect(ctx, x + 5, 22, 1, FIELD_H - 41, GOLD_LO); Art.rect(ctx, x + 38, 22, 1, FIELD_H - 41, GOLD_LO);
+      // the sconce and its fan of light, in dither so it stays hard
+      var sx = x + 22, sy = 58;
+      for (var k = 0; k < 14; k++) {
+        var half = 2 + Math.floor(k * 0.7);
+        Art.dither(ctx, sx - half, sy - 2 - k, half * 2, 1, k < 6 ? '#8a6a48' : '#4a3c3c', k);
+      }
+      Art.rect(ctx, sx - 4, sy - 2, 8, 2, GOLD_HI);
+      Art.rect(ctx, sx - 3, sy, 6, 3, GOLD);
+      Art.rect(ctx, sx - 1, sy + 3, 2, 3, GOLD_LO);
+    }
+  };
+
+  /* The lift you came up in: brass doors, the floor dial stopped at 88. */
+  MOD.elevator = {
+    w: 56,
+    paint: function (ctx, x, t, r) {
+      marble(ctx, x, 0, 56, FIELD_H, t);
+      frameTopBottom(ctx, x, 56, t);
+      var dx = x + 8, dy = 36, dw = 40, dh = FIELD_H - 10 - dy;
+      Art.rect(ctx, dx - 3, dy - 3, dw + 6, dh + 3, GOLD_LO);
+      Art.rect(ctx, dx - 2, dy - 2, dw + 4, dh + 2, GOLD);
+      Art.rect(ctx, dx, dy, dw, dh, '#a07a38');
+      for (var i = 0; i < dw; i += 4) Art.rect(ctx, dx + i, dy, 1, dh, '#8a6630');  // brushed brass
+      Art.rect(ctx, dx + 2, dy, 3, dh, '#c89a50');
+      Art.rect(ctx, dx + dw / 2 + 2, dy, 3, dh, '#c89a50');
+      Art.rect(ctx, dx + dw / 2 - 1, dy, 2, dh, '#3a2810');                          // the seam
+      // the dial above
+      Art.ellipse(ctx, x + 28, 25, 9, 6, GOLD);
+      Art.ellipse(ctx, x + 28, 25, 7, 4.5, '#140c08');
+      Art.text(ctx, '88', x + 28, 22, '#ff5a3a', { align: 'center', scale: 1, tracking: 1 });
+      Art.rect(ctx, x + 47, 70, 4, 9, GOLD_LO); Art.rect(ctx, x + 48, 72, 2, 2, '#ff5a3a');  // call button
+    }
+  };
+
+  /* Mr Power, in oils, lit from below. Bald, sure of himself, red tie. */
+  MOD.portrait = {
+    w: 72,
+    paint: function (ctx, x, t, r) {
+      marble(ctx, x, 0, 72, FIELD_H, t);
+      frameTopBottom(ctx, x, 72, t);
+      var px = x + 14, py = 22, pw = 44, ph = 56;
+      Art.rect(ctx, px - 4, py - 4, pw + 8, ph + 8, GOLD_LO);
+      Art.rect(ctx, px - 3, py - 3, pw + 6, ph + 6, GOLD);
+      Art.rect(ctx, px - 3, py - 3, pw + 6, 1, GOLD_HI);
+      Art.rect(ctx, px - 1, py - 1, pw + 2, ph + 2, GOLD_LO);
+      Art.rect(ctx, px, py, pw, ph, '#3a0c18');
+      for (var j = 0; j < ph; j += 2) Art.dither(ctx, px, py + j, pw, 1, '#4a1420', j);   // the canvas weave
+      var cx = px + pw / 2;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(px, py, pw, ph); ctx.clip();
+      // shoulders and suit
+      Art.ellipse(ctx, cx, py + ph + 4, 21, 18, '#14141c');
+      Art.limb(ctx, cx - 5, py + 38, cx, py + 50, 3, 1, '#e8e4dc');
+      Art.limb(ctx, cx + 5, py + 38, cx, py + 50, 3, 1, '#e8e4dc');
+      Art.limb(ctx, cx, py + 40, cx, py + ph - 1, 2, 3, '#c8203a');                    // the tie
+      // the head: bald, heavy-browed, the light from below
+      Art.ellipse(ctx, cx, py + 25, 10, 12, '#b07850');
+      Art.ellipse(ctx, cx - 2, py + 20, 6, 6, '#d09468');
+      Art.rect(ctx, cx - 7, py + 23, 5, 2, '#2a1410'); Art.rect(ctx, cx + 2, py + 23, 5, 2, '#2a1410');
+      Art.rect(ctx, cx - 5, py + 26, 2, 1, '#f0e0c0'); Art.rect(ctx, cx + 3, py + 26, 2, 1, '#f0e0c0');
+      Art.rect(ctx, cx - 4, py + 32, 8, 1, '#5a2418');
+      Art.rect(ctx, cx - 10, py + 25, 2, 4, '#8a5838'); Art.rect(ctx, cx + 8, py + 25, 2, 4, '#8a5838');
+      ctx.restore();
+      // a brass plate
+      Art.rect(ctx, cx - 12, py + ph + 8, 24, 6, GOLD);
+      Art.rect(ctx, cx - 11, py + ph + 10, 22, 1, GOLD_LO);
+      // picture lights
+      Art.rect(ctx, px + 4, py - 9, pw - 8, 3, GOLD);
+      Art.rect(ctx, px + 4, py - 9, pw - 8, 1, GOLD_HI);
+    }
+  };
+
+  /* The name on the building, inside it too. Gold letters, a red bar. */
+  MOD.logo = {
+    w: 104,
+    paint: function (ctx, x, t, r) {
+      marble(ctx, x, 0, 104, FIELD_H, t);
+      frameTopBottom(ctx, x, 104, t);
+      var cx = x + 52;
+      Art.rect(ctx, x + 8, 26, 88, 40, STEEL);
+      Art.rect(ctx, x + 8, 26, 88, 1, GOLD_LO); Art.rect(ctx, x + 8, 65, 88, 1, GOLD_LO);
+      Art.text(ctx, 'POWER', cx + 1, 33, GOLD_LO, { align: 'center', scale: 2, tracking: 2 });
+      Art.text(ctx, 'POWER', cx, 32, GOLD, { align: 'center', scale: 2, tracking: 2 });
+      Art.rect(ctx, x + 14, 50, 76, 3, t.neon || '#c8203a');
+      Art.text(ctx, 'INDUSTRIES', cx, 56, '#c8c0b0', { align: 'center', scale: 1, tracking: 1 });
+      // twin uplights at the foot of the wall
+      for (var s = 0; s < 2; s++) {
+        var lx = x + 20 + s * 64;
+        for (var k = 0; k < 18; k++) {
+          var half = 1 + Math.floor(k * 0.45);
+          Art.dither(ctx, lx - half, FIELD_H - 14 - k, half * 2, 1, k < 8 ? '#6a5040' : '#3a2e34', k);
+        }
+        Art.rect(ctx, lx - 3, FIELD_H - 14, 6, 3, GOLD);
+      }
     }
   };
 
@@ -420,16 +640,43 @@
       }
     }
 
+    if (t.polish) {
+      /* Polished black marble in big square-ish slabs, the joints in gold
+       * leaf. The reflections of the room are laid on after, in build(). */
+      Art.rect(ctx, x0, y, w, 48, slab);
+      for (i = 0; i < bands.length; i++) {
+        var by = y + bands[i], bh = (i + 1 < bands.length ? bands[i + 1] : 48) - bands[i];
+        var step2 = 26 + i * 8;
+        for (j = -((i * 13) % step2); j < w; j += step2) {
+          // every other slab a shade lighter: a checkerboard, receding
+          if (((j + i * 13) / step2 | 0) % 2 === i % 2) Art.rect(ctx, x0 + j, by, step2, bh, C.shade(slab, 0.1));
+          Art.rect(ctx, x0 + j, by, 1, bh, C.shade(GOLD_LO, -0.25));
+        }
+        if (i) Art.rect(ctx, x0, by, w, 1, C.shade(GOLD_LO, -0.15));
+      }
+      // the edge of the floor: a gold nosing, then the dark beyond it
+      trim(ctx, x0, y + 48, w);
+      Art.rect(ctx, x0, y + 51, w, 9, STEEL);
+      for (j = 6; j < w; j += 24) Art.rect(ctx, x0 + j, y + 55, 2, 1, GOLD_LO);
+      return;
+    }
     // curb + road
     Art.rect(ctx, x0, y + 48, w, 3, C.shade(slab, 0.3));
     Art.rect(ctx, x0, y + 51, w, 9, t.road || '#3a3f4c');
     Art.rect(ctx, x0, y + 51, w, 1, '#22262f');
     for (j = 0; j < w; j += 26) Art.rect(ctx, x0 + j, y + 55, 12, 2, '#c8b840');
     if (t.wet) {
-      // a slick of reflected neon on the near pavement
-      ctx.save(); ctx.globalAlpha = 0.09; ctx.fillStyle = t.neon || '#ff5fa8';
-      for (j = 0; j < w; j += 83) ctx.fillRect(x0 + j, y + 33, 30, 14);
-      ctx.restore();
+      /* Puddles, in pixels: a dark pool on the near slabs with the neon
+       * broken across it in a few hard dashes. (Translucent pink boxes
+       * used to stand in for this, and read as stains.) */
+      var pr = PC.RNG((t.seed || 1) * 97);
+      for (j = pr.int(20, 60); j < w; j += pr.int(120, 220)) {
+        var pw = pr.int(16, 30), py = y + pr.int(30, 40);
+        Art.ellipse(ctx, x0 + j, py, pw / 2, 2.4, C.shade(slab, -0.32));
+        Art.rect(ctx, x0 + j - pw / 2 + 4, py - 1, pw - 8, 1, C.shade(slab, -0.45));
+        Art.rect(ctx, x0 + j - 4, py, 3, 1, t.neon || '#ff5fa8');
+        Art.rect(ctx, x0 + j + 2, py + 1, 4, 1, C.mix(t.neon || '#ff5fa8', slab, 0.5));
+      }
     }
   };
 
@@ -443,19 +690,44 @@
     var pos = 0, guard = 0;
     var seq = theme.modules;
     var forced = (theme.landmarks || []).slice();
+    var marks = [];                  // where each module actually landed
     while (pos < width && guard++ < 400) {
       var name = null;
       if (forced.length && pos >= forced[0][0]) name = forced.shift()[1];
       if (!name) name = r.pick(seq);
       var m = MOD[name];
       if (!m) continue;
-      if (pos + m.w > width) m = MOD[theme.filler || 'wall'];
+      if (pos + m.w > width) { m = MOD[theme.filler || 'wall']; name = theme.filler || 'wall'; }
       m.paint(x, pos, theme, r);
+      marks.push([pos, name]);
       pos += m.w;
     }
     City.paintFloor(x, 0, width, theme, r);
+    if (theme.polish) reflect(c, x, width);
+    c.marks = marks;
     return c;
   };
+
+  /* The room, mirrored in the floor: the foot of the wall flipped under
+   * itself, dimmed, and broken into the scanlines a polished floor shows. */
+  function reflect(c, ctx, width) {
+    var fy = FIELD_H, depth = 40;
+    var tmp = Art.mk(width, depth), tx = tmp.getContext('2d');
+    tx.save(); tx.scale(1, -1);
+    tx.drawImage(c, 0, fy - depth, width, depth, 0, -depth, width, depth);
+    tx.restore();
+    // fade with distance from the wall, a row at a time
+    tx.globalCompositeOperation = 'destination-out';
+    for (var j = 0; j < depth; j++) {
+      tx.globalAlpha = Math.min(1, 0.45 + j / depth * 0.75);
+      if (j % 3 === 2) tx.globalAlpha = Math.min(1, tx.globalAlpha + 0.25);
+      tx.fillRect(0, j, width, 1);
+    }
+    ctx.save();
+    ctx.globalAlpha = 0.7;
+    ctx.drawImage(tmp, 0, fy);
+    ctx.restore();
+  }
 
   // --------------------------------------------------------------- themes
   City.THEMES = {
@@ -474,7 +746,7 @@
       brick: '#2f8c8c', floor: '#9aa0ac', road: '#3a3f4c', wet: true,
       sky: ['#050a24', '#101a4a'], tower: '#0e1430', lit: '#f0c840',
       neon: '#ff5fa8', neon2: '#ffd23a', signTop: 'BAR', signBot: 'STARLIGHT', signStar: true,
-      tag: 'POWER CITY', tagColor: '#c840e0', fence: '#3a5fd8',
+      tag: 'POWER CITY', tagColor: '#e83cc0', fence: '#3a5fd8',
       modules: ['wall', 'windows', 'door', 'fence', 'shutter', 'neon', 'pipe', 'poster', 'windows'],
       landmarks: [[60, 'neon'], [180, 'fence'], [330, 'shutter'], [620, 'fence'], [900, 'neon']],
       ambient: { kind: 'rain', rate: 0.9 }
@@ -492,13 +764,14 @@
     },
     tower: {
       seed: 44,
-      brick: '#3a3f5c', floor: '#5a5f7a', road: '#2a2e42',
-      sky: ['#08081a', '#2a1040'], tower: '#12162e', lit: '#e8a83a',
-      neon: '#ff2a5a', neon2: '#ffffff', signTop: 'POWER', signBot: 'TOWER',
+      brick: '#3a3f5c', floor: '#16141e', marble: '#1e1a28', polish: true,
+      sky: ['#06061a', '#3a1440'], tower: '#14102a', lit: '#f0a040', below: true,
+      neon: '#c8203a', neon2: '#ffffff',
       tag: 'MR POWER', tagColor: '#ff2a5a', fence: '#8a5fd8',
-      modules: ['glassWall', 'pillar', 'glassWall', 'neon', 'pillar', 'glassWall'],
-      landmarks: [[100, 'neon'], [500, 'neon']],
-      ambient: { kind: 'ember', rate: 0.35 }
+      modules: ['pane', 'column', 'pane', 'pane', 'column', 'marble', 'column', 'pane', 'pane'],
+      landmarks: [[16, 'elevator'], [600, 'portrait'], [1180, 'portrait'], [1640, 'logo']],
+      filler: 'column', front: 'penthouse',
+      ambient: { kind: 'mote', rate: 0.35 }
     }
   };
 
@@ -517,24 +790,33 @@
     return out;
   };
 
+  /* Drawn in pixels, not alpha: a solid core and a dithered fringe, so a
+   * cloud has an edge you could count and the towers still show through
+   * where it thins. */
+  function cloudBlob(ctx, cx, cy, rx, ry, core, edge) {
+    for (var j = -Math.ceil(ry); j <= Math.ceil(ry); j++) {
+      var f = 1 - (j * j) / (ry * ry);
+      if (f <= 0) continue;
+      var half = Math.round(rx * Math.sqrt(f)), inner = Math.round(half * 0.72);
+      Art.dither(ctx, cx - half, cy + j, half * 2, 1, edge, (cx + j) & 1);
+      if (Math.abs(j) < ry * 0.62) Art.rect(ctx, cx - inner, cy + j, inner * 2, 1, core);
+    }
+  }
+
   City.drawClouds = function (ctx, theme, clouds, camX, time, w, top) {
-    var base = C.mix(theme.sky[1], '#a8b0d8', 0.22);
-    var under = C.shade(base, -0.3);
-    ctx.save();
+    var base = C.mix(theme.sky[1], '#a8b0d8', 0.2);
+    var core = C.mix(theme.sky[0], base, 0.75), under = C.shade(core, -0.25);
     for (var i = 0; i < clouds.length; i++) {
       var c = clouds[i];
       var cx = (c.x + time * c.sp - camX * 0.42) % 1600;
       if (cx < 0) cx += 1600;
-      cx -= 90;
+      cx = Math.round(cx - 90);
       if (cx > w + 90) continue;
-      ctx.globalAlpha = c.a * 0.75;
-      Art.ellipse(ctx, cx, top + c.y, c.w / 2, c.h, base);
-      Art.ellipse(ctx, cx + c.w * 0.32, top + c.y + 1, c.w / 3, c.h * 0.8, base);
-      ctx.globalAlpha = c.a * 0.4;
-      Art.rect(ctx, cx - c.w / 2, top + c.y + c.h - 1, c.w, 1, under);
+      var cy = Math.round(top + c.y);
+      cloudBlob(ctx, cx, cy, c.w / 2, c.h, core, base);
+      cloudBlob(ctx, cx + Math.round(c.w * 0.32), cy + 1, c.w / 3, c.h * 0.8, core, base);
+      Art.rect(ctx, cx - Math.round(c.w * 0.3), cy + Math.round(c.h * 0.6), Math.round(c.w * 0.75), 1, under);
     }
-    ctx.globalAlpha = 1;
-    ctx.restore();
   };
 
   /* The near lane, in silhouette: lamp posts, hydrants and signs passing
@@ -546,6 +828,36 @@
     var r = PC.RNG((theme.seed || 1) * 31 + 5);
     var ink = '#07070e';
     var px = r.range(30, 140);
+    if (theme.front === 'penthouse') {
+      // the top floor's near lane: velvet ropes on brass posts, and palms
+      while (px < 600) {
+        if (r.chance(0.6)) {
+          for (var q = 0; q < 2; q++) {
+            var qx = px + q * 34;
+            Art.rect(x, qx, 8, 3, 18, ink);
+            Art.rect(x, qx - 1, 6, 5, 3, ink);
+            Art.rect(x, qx, 6, 2, 1, '#8a6a30');       // the brass catches light
+            Art.rect(x, qx - 3, 25, 9, 2, ink);
+          }
+          for (var k = 0; k <= 30; k++) {
+            var sag = Math.round(Math.sin(k / 30 * Math.PI) * 5);
+            Art.rect(x, px + 3 + k, 9 + sag, 1, 2, '#3a0814');
+          }
+        } else {
+          // an urn on a plinth
+          Art.rect(x, px - 5, 16, 11, 11, ink);
+          Art.rect(x, px - 6, 15, 13, 2, ink);
+          Art.ellipse(x, px + 0.5, 9, 5.5, 5, ink);
+          Art.rect(x, px - 2, 1, 6, 4, ink);
+          Art.rect(x, px - 4, 0, 10, 2, ink);
+          Art.rect(x, px - 1, 13, 4, 2, ink);
+          Art.rect(x, px + 3, 6, 1, 4, '#8a6a30');       // the gilt catches light
+        }
+        px += r.range(170, 300);
+      }
+      Art.rect(x, 0, 26, 640, 4, ink);
+      return c;
+    }
     while (px < 600) {
       var kind = r();
       if (kind < 0.45) {
@@ -568,44 +880,10 @@
     return c;
   };
 
-  /* The mood coat, in two passes: the tint goes on the street before the
-   * fighters are drawn, so their black keylines stay pure black - a graded
-   * world with vivid people is the whole trick. The vignette goes on last,
-   * over everyone, because a dark top and bottom edge is cinematic rather
-   * than muddy. */
-  City.GRADES = {
-    alley:    { tint: '#ff9a40', a: 0.055, top: 0.18, bot: 0.12 },
-    downtown: { tint: '#5a8aff', a: 0.05,  top: 0.16, bot: 0.12 },
-    docks:    { tint: '#40c8e0', a: 0.055, top: 0.20, bot: 0.14 },
-    tower:    { tint: '#c040ff', a: 0.05,  top: 0.16, bot: 0.14 }
-  };
-
-  City.grade = function (ctx, name) {
-    var g = this.GRADES[name];
-    if (!g) return;
-    ctx.save();
-    ctx.globalAlpha = g.a;
-    ctx.fillStyle = g.tint;
-    ctx.fillRect(0, PC.FIELD_Y, PC.W, PC.FIELD_BOT - PC.FIELD_Y);
-    ctx.restore();
-  };
-
-  City.vignette = function (ctx, name) {
-    var g = this.GRADES[name];
-    if (!g) return;
-    var y0 = PC.FIELD_Y, y1 = PC.FIELD_BOT;
-    ctx.save();
-    var gr = ctx.createLinearGradient(0, y0, 0, y0 + 36);
-    gr.addColorStop(0, 'rgba(3,3,12,' + g.top + ')');
-    gr.addColorStop(1, 'rgba(3,3,12,0)');
-    ctx.fillStyle = gr;
-    ctx.fillRect(0, y0, PC.W, 36);
-    var gr2 = ctx.createLinearGradient(0, y1 - 28, 0, y1);
-    gr2.addColorStop(0, 'rgba(3,3,12,0)');
-    gr2.addColorStop(1, 'rgba(3,3,12,' + g.bot + ')');
-    ctx.fillStyle = gr2;
-    ctx.fillRect(0, y1 - 28, PC.W, 28);
-    ctx.restore();
-  };
+  /* (There was a mood coat here: a 5% tint over the street and a soft
+   * gradient vignette over everything. Pixel art gets its mood from the
+   * palette it is painted in, and smooth gradients over hard pixels are
+   * what made the picture read as soft - a fifth of all neighbouring pixel
+   * pairs were near-duplicates. The palettes below carry the mood now.) */
 
 })(typeof window !== 'undefined' ? window : globalThis);

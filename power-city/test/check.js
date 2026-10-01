@@ -206,9 +206,9 @@ Object.keys(PC.city.THEMES).forEach(function (k) {
   t.modules.forEach(function (m) { ok(!!PC.city.MOD[m], k + ' module ' + m + ' exists'); });
   (t.landmarks || []).forEach(function (l) { ok(!!PC.city.MOD[l[1]], k + ' landmark ' + l[1] + ' exists'); });
   ok(t.sky.length === 2, k + ' has a sky gradient');
-  ok(!!PC.city.GRADES[k], k + ' has a mood grade');
-  ok(/^#[0-9a-f]{6}$/i.test(PC.city.GRADES[k].tint), k + ' grade tint is a colour');
-  ok(PC.city.GRADES[k].a > 0 && PC.city.GRADES[k].a < 0.15, k + ' grade is a coat, not a bucket of paint');
+  // no filters over the pixels: the mood lives in the palette
+  ok(!PC.city.GRADES && !PC.city.vignette, 'no smooth grade or vignette is laid over the pixel art');
+  ok(/^#[0-9a-f]{6}$/i.test(t.brick), k + ' has a brick colour');
   (t.ambient ? [t.ambient] : []).forEach(function (amb) {
     ok(['rain', 'ember', 'mote'].indexOf(amb.kind) >= 0, k + ' has real weather (' + amb.kind + ')');
     ok(amb.rate > 0 && amb.rate < 6, k + ' weather falls at a sane rate');
