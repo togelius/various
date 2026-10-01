@@ -86,6 +86,23 @@ function testTools() {
     check('Touching the Clog hurts and shoves you away', P.hp < hpC && P.vx < 0);
     clog.alive = false; globs = []; enemies = [];
 
+    // Ice freezes, frozen things shatter and slide.
+    fresh(); const big = makeEnemy('sponge', P.x + 10, P.z, 2); big.spawnT = 0; big.y = 0; enemies = [big];
+    for (let i = 0; i < 7; i++) damageEnemy(big, 10, 1, 0, 0, .5, 1, false);
+    check('Enough ice freezes a sponge solid', big.frozen > 0 && big.hp > 0);
+    big.vx = big.vz = 0; const fx0 = big.x; for (let i = 0; i < 20; i++) updateEnemies(1 / 60);
+    check('A frozen sponge does not walk', Math.abs(big.x - fx0) < .05);
+    const kills0 = killCount; while (!big.dead && big.hp > 0) damageEnemy(big, 17, 1, 0, 0, 1, 0, false);
+    check('Hitting a frozen sponge shatters it before it is worn down', big.dead && big.shattered && killCount === kills0 + 1);
+    fresh(); const puck = makeEnemy('sponge', P.x + 10, P.z, 1), pin = makeEnemy('sponge', P.x + 13, P.z, 1); puck.spawnT = pin.spawnT = 0; puck.y = pin.y = 0; enemies = [puck, pin];
+    freezeEnemy(puck); puck.vx = 16; const pinHp = pin.hp; for (let i = 0; i < 20 && !pin.dead; i++) updateEnemies(1 / 60);
+    check('A sliding frozen sponge bowls over another (curling)', pin.dead || pin.hp < pinHp);
+    fresh(); const icy = makeEnemy('sponge', P.x + 6, P.z, 1); icy.spawnT = 0; enemies = [icy]; P.latch = icy; P.latchT = .8; freezeEnemy(icy);
+    check('Freezing a hugging sponge frees you', !P.latch);
+    check('The gold sponge, the roll and the Fork cannot be frozen', !freezable(makeEnemy('roll', 0, 0)) && !freezable(makeEnemy('fork', 0, 0)) && !freezable(Object.assign(makeEnemy('sponge', 0, 0), { gold: true })));
+    for (let i = 0; i < 300; i++) updateEnemies(1 / 60);
+    check('Frozen things thaw', !(icy.frozen > 0));
+
     // Speech: sentence by sentence, with intonation, readable text.
     const plan = speechPlan('Look! This is pure ideology. Why do you squirt the paper towel? And so on, and so on', 0.62, 1.2);
     check('Speech is split into sentences', plan.length === 4 && plan[0].t === 'Look!');

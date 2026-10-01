@@ -294,6 +294,12 @@ the right tool.
   some sponges arrive **greasy**: water and ice skid off, but a soap bubble
   degreases them (and traps them as usual). Kitchen hazards ignore all
   of this.
+- **Freezing.** Enough ice freezes a sponge, spoon, bottle or (with
+  patience) Grandma solid in a block of ice for a few seconds. While it's
+  frozen it can't move or hug you. Its brittleness means other tools do
+  1.5× damage, and once it's low, or takes a big hit, it shatters outright.
+  Hit it hard and it slides like a curling stone into its comrades, or
+  over the edge. Ice alone doesn't shatter it: freeze, then switch.
 - **The Fork** is armoured while it flies. Dodge its last stab and it
   sticks in the counter for a couple of seconds. While it's stuck,
   everything does more than double damage.

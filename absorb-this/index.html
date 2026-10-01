@@ -429,6 +429,9 @@ void main(){
     vec3 ir = 0.5+0.5*cos(6.2832*(fr*1.4 + uTime*0.1 + vec3(0.,0.33,0.67)));
     vec3 c = mix(vec3(0.86,0.92,1.0)*vC, ir, fr*0.75) + pow(max(dot(n,normalize(SUN+V)),0.),40.)*1.4;
     o = vec4(mix(c, FOG, (1.-exp(-dist*0.0075))*0.6), 1.); return; }
+  if(m==24){ float fr = pow(1.-abs(dot(n,V)),2.); float hl = pow(max(dot(n,normalize(SUN+V)),0.),90.);
+    float crack = smoothstep(.92,.97,abs(sin(vW.x*5.1+vW.y*3.7)*sin(vW.z*4.3-vW.y*2.9)));
+    o = vec4(mix(vec3(.55,.8,1.)*vC, vec3(.95,1.,1.), fr*.6+crack*.5) + hl*2.4, clamp(.28 + fr*.55 + hl + crack*.3, 0., .9)); return; }
   if(m==17){ float fr = pow(1.-abs(dot(n,V)),2.5); float hl = pow(max(dot(n,normalize(SUN+V)),0.),60.);
     vec3 ir = 0.5+0.5*cos(6.2832*(fr*1.2 + vW.y*0.15 + uTime*0.15 + vec3(0.,0.33,0.67)));
     o = vec4((mix(vec3(0.9,0.95,1.0), ir, 0.65) + hl*2.)*vC, clamp(0.07 + fr*0.8 + hl, 0., 0.92)); return; }
@@ -862,9 +865,11 @@ function part(m, x, y, z, sx, sy, sz, col, mat, yaw = 0, pit = 0, rol = 0) {
   sc(tmp, sx, sy, sz);
   const u = PR_MAIN.u;
   gl.uniformMatrix4fv(u.uModel, false, tmp); gl.uniform3f(u.uScale, sx, sy, sz);
-  gl.uniform3f(u.uColor, col[0], col[1], col[2]); gl.uniform1f(u.uMat, mat);
+  if (partTint) gl.uniform3f(u.uColor, col[0] * .35 + partTint[0], col[1] * .35 + partTint[1], col[2] * .35 + partTint[2]); else gl.uniform3f(u.uColor, col[0], col[1], col[2]);
+  gl.uniform1f(u.uMat, mat);
   gl.bindVertexArray(m.vao); gl.drawElements(gl.TRIANGLES, m.n, gl.UNSIGNED_SHORT, 0);
 }
+let partTint = null;   // frozen kitchenware is drawn through a sheet of ice
 function setFlash(f) { if (f !== flashU) { flashU = f; gl.uniform1f(PR_MAIN.u.uFlash, f); } }
 
 // =====================================================================  world
@@ -4012,6 +4017,26 @@ const ZL = {
     "Not enough ice. The thaw came too early. This is détente: nobody wins, everybody is slightly wet.",
     "You failed the Cold War. Do not worry. Nobody really won the original one either. Some people only got very good at pretending.",
   ],
+  frozen: [
+    "Frozen! Look at it, perfectly still, like a liberal at a revolution. It wants to act, but first it must wait for the right conditions.",
+    "It is frozen solid. This is the condition of every institution after its founder dies. It stands, it shines, it does nothing. Hit it now, it is brittle.",
+    "On ice! Frozen in the middle of a gesture, like a statue of a man pointing at the future. Statues are wonderful. Statues also break.",
+    "You froze it. Cold storage! This is how Europe treats its problems: put them in the freezer and hope the next generation has a microwave.",
+    "Frozen, stiff, cannot move. Like me, at any party, after somebody says the word 'mindfulness'.",
+  ],
+  shatter: [
+    "Shattered! A thousand little pieces. Each one, I am sure, now claims to be the authentic sponge. This is postmodernism in one second.",
+    "It broke into fragments. Fragments! Every German philosopher dreams of writing only fragments. This sponge has achieved it without writing anything.",
+    "Crushed ice! You froze it, then you hit it. Thesis: cold. Antithesis: violence. Synthesis: a cocktail.",
+    "Look, it shatters like a grand narrative at a conference in 1979. Lyotard would be so proud. Lyotard was always proud when something broke.",
+    "Ice to meet you, and goodbye. Sorry. Somebody has to make the bad jokes. In Slovenia this is the job of philosophers.",
+  ],
+  curling: [
+    "Curling! The only sport where the players sweep the floor in front of the object, hoping it will go where they want. Exactly like a central bank.",
+    "You used one frozen sponge to knock down another. This is the logic of capitalism: the system makes its own victims into its own weapons. Also, it is fun.",
+    "Ice bowling! Strike! Somewhere in Scotland, an old man with a broom stands up and weeps with joy.",
+    "A frozen sponge, sliding into its comrades. This is what happens to every vanguard. It moves very fast, and it hits its own side first.",
+  ],
   chal_negation_intro: [
     "Negation of the Negation! Soak up ten puddles of your own spilled water in twenty seconds. You spilled yourself. Now unspill yourself.",
     "Soak up ten of your own puddles within twenty seconds. The subject is the one who gets lost and then walks around picking itself up. Pick yourself up. Ten times.",
@@ -4958,6 +4983,25 @@ function toolFeedback(e, f, w) {
     if (!toolTipsSeen[k] && TOOL_TIPS[k]) { toolTipsSeen[k] = true; feed('TIP <em>' + TOOL_TIPS[k] + '</em>'); zz('tip_' + k, { force: true }); } }
   else if (f > 1.2 && EFFECT_POPS[k] && Math.random() < 0.5) { e.toolPopT = T; pop(e.x, e.y + (e.type === 'spoon' ? 1 : e.h) + 1, e.z, pick(EFFECT_POPS[k]), true); }
 }
+// ----- ice: enough cold freezes kitchenware solid. Frozen things are brittle, slide like curling stones and shatter.
+function freezable(e) { return !e.gold && (e.type === 'sponge' || e.type === 'mama' || e.type === 'spoon' || e.type === 'bottle'); }
+function freezeAt(e) { return e.type === 'mama' ? 320 : Math.max(26, Math.min(70, e.maxHp * 0.3)); }
+function freezeEnemy(e) {
+  e.frozen = e.type === 'mama' ? 2.6 : 3.6; e.chill = 0; e.stun = 0; e.state = 0; e.vx *= .3; e.vz *= .3; e.cd = Math.max(e.cd || 0, 1);
+  if (P.latch === e) { P.latch = null; P.latchT = 0; P.surr = 0; }
+  sfx('hit'); pop(e.x, e.y + e.h + 1.1, e.z, pick(['FROZEN!', 'ON ICE!', 'COLD STORAGE!', 'CRYOGENIC!', 'CHILLED SOLID!', 'FREEZER BURN!']), false);
+  if (!toolTipsSeen.frozen) { toolTipsSeen.frozen = true; feed('TIP <em>FROZEN THINGS ARE BRITTLE · HIT THEM TO SHATTER · KNOCK THEM INTO EACH OTHER OR OFF THE COUNTER</em>'); }
+  zz('frozen', { p: 0.4 }); chalEvent('freeze');
+}
+function shatterEnemy(e, dx = 0, dz = 0, source = null) {
+  if (e.dead) return;
+  e.shattered = true; e.hp = 0; score += 200; hitmark(true, 2);
+  gibs(e.x, e.y + e.h * .5, e.z, 26, [[.8, .93, 1], [.62, .82, 1], [1, 1, 1]], { mat: 12, smin: 0.06, smax: 0.2, maxS: 12, maxU: 10, dx: dx * 5, dz: dz * 5 });
+  shake = Math.max(shake, 0.25); sfx('splat');
+  pop(e.x, e.y + e.h + 1.4, e.z, pick(['SHATTERED!', 'SMASHED ON ICE!', 'BRITTLE!', 'ICE TO MEET YOU!', 'COLD CASE CLOSED!', 'CRUSHED ICE!']), false);
+  zz('shatter', { p: 0.4 });
+  killEnemy(e, 1, dx, dz, false, false, source);
+}
 function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head, source = null) {
   if (e.hp <= 0) return;
   if (e.bub > 0) {
@@ -4969,13 +5013,14 @@ function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head, source = null) {
     }
   }
   if (head) dmg *= 1.75;
+  if (e.frozen > 0 && weapon !== 1) dmg *= 1.5;   // brittle
   let tf = 1;
   if (!source && weapon <= 3) {
     const f = tf = toolFactor(e, weapon); dmg *= f; toolFeedback(e, f, weapon);
     if (weapon === 0 && (e.type === 'roll' || soakedSponge(e))) e.storedWater = Math.min(24, (e.storedWater || 0) + 0.25);   // you are watering it
   }
   e.hp -= dmg; e.flash = 1; e.lastHit = weapon; e.lastCause = source;
-  const mass = e.type === 'roll' ? 25 : e.type === 'fork' ? 5 : e.type === 'mama' ? 8 : e.type === 'bottle' ? 1.6 : e.s >= 1.8 ? 3 : 1;
+  const mass = (e.type === 'roll' ? 25 : e.type === 'fork' ? 5 : e.type === 'mama' ? 8 : e.type === 'bottle' ? 1.6 : e.s >= 1.8 ? 3 : 1) * (e.frozen > 0 ? 0.45 : 1);
   e.vx += dx * knock / mass; e.vz += dz * knock / mass; if (e.type !== 'spoon' && e.type !== 'fork' && e.type !== 'roll') e.vy += Math.max(0, knock * 0.35 / mass + dy * knock / mass);
   if (knock / mass > 5) e.stun = Math.min(0.6, knock / mass * 0.04);
   const cy = e.y + (e.type === 'spoon' ? 0 : e.h * 0.5);
@@ -4987,11 +5032,13 @@ function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head, source = null) {
   if (head) { if (T - eyePopT > 0.7) { eyePopT = T; pop(e.x, cy + e.h * 0.6 + 0.4, e.z, pick(EYEPOPS), true); } sfx('head'); zz('googly', { p: 0.3 }); }
   else { sfx('hit'); if (T - hitWT > 0.15 && Math.random() < 0.4) { hitWT = T; pop(e.x + rand(-.5, .5), cy + e.h * 0.5 + 0.3, e.z, pick(HITW), true); } }
   if (weapon === 0 && !source && Math.random() < 0.5) gibs(e.x, cy, e.z, 1, WATER, { sph: true, mat: 12, smin: 0.06, smax: 0.12, maxS: 4, maxU: 4, stain: WET });
+  if (weapon === 1 && !source && freezable(e) && !(e.frozen > 0) && e.hp > 0) { e.chill = (e.chill || 0) + dmg; if (e.chill >= freezeAt(e)) freezeEnemy(e); }
+  else if (e.frozen > 0 && e.hp > 0 && weapon !== 1 && (e.hp < e.maxHp * 0.35 || dmg >= 40)) { shatterEnemy(e, dx, dz, source ? source : null); return; }
   hitmark(e.hp <= 0, tf);
   if (e.hp <= 0) killEnemy(e, weapon, dx, dz, head, false, source);
 }
 // ----- variety: mixing tools pays (DIALECTICS), doing the same thing forever does not (REPETITION COMPULSION)
-const TECH_NAMES = { squirt: 'the Squirter', ice: 'the Ice Shotgun', fizz: 'seltzer', soap: 'soap', edge: 'the edge of the counter', bubble: 'soap bubbles', puddle: 'puddle form' };
+const TECH_NAMES = { squirt: 'the Squirter', ice: 'the Ice Shotgun', fizz: 'seltzer', soap: 'soap', edge: 'the edge of the counter', bubble: 'soap bubbles', puddle: 'puddle form', shatter: 'shattering' };
 const REPW = ['REPETITION COMPULSION!', 'SAME AGAIN?', 'GROUNDHOG KILL!', 'DÉJÀ SPLASH!', 'ONE-TRICK PONY!', 'THE ETERNAL RETURN OF THE SQUIRT!'];
 function techVariety(tech) {
   if (tech === 'kitchen' || tech === 'squash') return varietyMult;   // the kitchen's own work is neither credit nor blame
@@ -5018,7 +5065,7 @@ function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false, source
   if (multiT > 0) multi++; else multi = 1; multiT = 0.8;
   const mult = Math.min(10, 1 + Math.floor(combo / 4));
   let pts = base * mult * (head ? 1.5 : 1) * (fell ? 2 : 1);
-  pts *= techVariety(source ? 'kitchen' : fell ? (e.wasBub ? 'bubble' : 'edge') : e.squashed ? 'squash' : P.pud ? 'puddle' : ['squirt', 'ice', 'fizz', 'soap'][weapon] || 'squirt');
+  pts *= techVariety(e.shattered && !source ? 'shatter' : source ? 'kitchen' : fell ? (e.wasBub ? 'bubble' : 'edge') : e.squashed ? 'squash' : P.pud ? 'puddle' : ['squirt', 'ice', 'fizz', 'soap'][weapon] || 'squirt');
   score += Math.round(pts); killCount++;
   const word = pick(KILLW[fell ? (e.wasBub ? 'bubble' : 'fall') : e.squashed ? 'squash' : e.gold ? 'gold' : e.type]);
   if (Math.random() < 0.55) say(word.replace(/[!?.]/g, '').toLowerCase()); else if (Math.random() < 0.5) say(pick(SHOUTS).toLowerCase());
@@ -5154,6 +5201,7 @@ function updateEnemies(dt) {
     kitchenEnemySurfaces(e, dt);
     if (e.dead) continue;
     e.propertyT = Math.max(0, (e.propertyT || 0) - dt); e.propertyCd = Math.max(0, (e.propertyCd || 0) - dt);
+    if (e.chill) e.chill = Math.max(0, e.chill - dt * 18);
     e.t += dt; e.flash = Math.max(0, e.flash - dt * 7); e.stun -= dt; e.spawnT = Math.max(0, e.spawnT - dt); e.chomp = Math.max(0, e.chomp - dt * 3);
     if (e.bub > 0) {
       if (e.bubbleCascade > 0) { e.bubbleCascade -= dt; if (e.bubbleCascade <= 0) { popBubble(e); continue; } }
@@ -5167,6 +5215,29 @@ function updateEnemies(dt) {
       e.px = clamp(e.px + e.pvx * dt, -1, 1); e.py = clamp(e.py + e.pvy * dt, -1, 1); e.pvx *= 0.95; e.pvy *= 0.95;
       if (Math.random() < dt * 0.35) pop(e.x, e.y + e.h + 1.2, e.z, pick(BUBPOPS), true);
       if (e.bub <= 0) popBubble(e, true);
+      continue;
+    }
+    if (e.frozen > 0) {   // an ice puck: no will of its own, barely any friction
+      e.frozen -= dt; e.chill = 0;
+      const lift = e.type === 'spoon' ? 1 : 0, g0 = groundAt(e.x, e.z, e.y - lift + 0.3) + lift, onIce = e.y <= g0 + 0.05;
+      e.vy -= GRAV * gs * dt; if (onIce) { const fr = Math.exp(-dt * 0.8); e.vx *= fr; e.vz *= fr; }
+      const vy0 = e.vy;
+      e.x += e.vx * dt; e.y += e.vy * dt; e.z += e.vz * dt;
+      const sp = Math.hypot(e.vx, e.vz), bumpF = collide(e, e.r * 0.85, e.h);
+      if (bumpF && sp > 10) { shatterEnemy(e, e.vx / sp, e.vz / sp); continue; }
+      const g1 = groundAt(e.x, e.z, e.y - lift + 0.3) + lift;
+      if (e.y < g1) { if (vy0 < -15) { shatterEnemy(e); continue; } e.y = g1; e.vy = 0; }
+      if (sp > 6) for (const o of enemies) {   // curling
+        if (o === e || o.dead || o.bub > 0 || o.type === 'roll') continue;
+        if (Math.hypot(o.x - e.x, o.z - e.z) < o.r + e.r && Math.abs(o.y - e.y) < 2) {
+          damageEnemy(o, 25 + sp * 4, e.vx / sp, .3, e.vz / sp, 8 + sp, 4, false, 'CURLING'); e.vx *= .45; e.vz *= .45; e.curled = (e.curled || 0) + 1;
+          pop(o.x, o.y + o.h + 1, o.z, pick(['CURLING!', 'STRIKE!', 'SWEEP! SWEEP!', 'HURRY HARD!', 'ICE BOWLING!']), false); zz('curling', { p: 0.5 });
+          if (o.frozen > 0) { o.vx += e.vx; o.vz += e.vz; }
+        }
+      }
+      if (Math.random() < dt * 6) part3({ x: e.x + rand(-e.r, e.r), y: e.y + rand(0, e.h), z: e.z + rand(-e.r, e.r), vy: rand(.2, 1), life: .5, size: rand(.03, .06), col: [1.4, 1.6, 1.8], mat: 7, grav: -.5, bounce: 0 });
+      if (e.y < -18 && !e.dead) { killEnemy(e, 4, 0, 0, false, true); continue; }
+      if (e.frozen <= 0) { e.frozen = 0; e.cd = Math.max(e.cd || 0, .6); pop(e.x, e.y + e.h + 1, e.z, pick(['THAWED', 'DEFROSTED', 'BACK TO ROOM TEMPERATURE']), true); }
       continue;
     }
     const tx = rival ? rival.x : px, tz = rival ? rival.z : pz;
@@ -5959,7 +6030,7 @@ function render() {
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, posterTex); gl.uniform1i(PR_TEX.u.uTex, 0);
   gl.bindVertexArray(CUBE.vao); gl.drawElements(gl.TRIANGLES, CUBE.n, gl.UNSIGNED_SHORT, 0);
   gl.useProgram(PR_MAIN.p);
-  for (const e of enemies) drawEnemy(e);
+  for (const e of enemies) { partTint = e.frozen > 0 ? [.42, .6, .78] : null; drawEnemy(e); } partTint = null;
   drawClog();
   for (const r of rockets) {
     ident(cur); tr(cur, r.x, r.y, r.z); ry(cur, Math.atan2(-r.vx, -r.vz)); rx(cur, Math.atan2(r.vy, Math.hypot(r.vx, r.vz))); rx(cur, -Math.PI / 2);
@@ -5987,11 +6058,14 @@ function render() {
   n = fillInst(sphs, instData.sph);
   if (n) { gl.bindBuffer(gl.ARRAY_BUFFER, instBuf.sph); gl.bufferSubData(gl.ARRAY_BUFFER, 0, instData.sph, 0, n * 12); gl.bindVertexArray(ISPH.vao); gl.drawElementsInstanced(gl.TRIANGLES, ISPH.n, gl.UNSIGNED_SHORT, 0, n); }
   // translucent soap film
-  const bubs = enemies.filter(e => e.bub > 0 && !e.dead);
-  if (bubs.length || soaps.length) {
+  const bubs = enemies.filter(e => e.bub > 0 && !e.dead), ices = enemies.filter(e => e.frozen > 0 && !e.dead);
+  if (bubs.length || soaps.length || ices.length) {
     gl.useProgram(PR_MAIN.p); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
     for (const e of bubs) { const R = bubR(e) * (1 + Math.sin(T * 7 + e.t) * 0.04), fl = e.bub < 1.5 && Math.sin(T * 30) > 0; ident(cur); part(SPH, e.x, bubCY(e), e.z, R, R * 0.95, R, fl ? [1.6, 1.3, 1.3] : WHITE, 17); }
     for (const b of soaps) { ident(cur); part(SPH, b.x, b.y, b.z, b.r, b.r, b.r, WHITE, 17); }
+    for (const e of ices) {   // a block of ice, flickering as it thaws
+      const sp = e.type === 'spoon', w = e.type === 'bottle' ? 2.1 : sp ? 1.5 : e.r * 2.15 + .3, H = sp ? 2.4 : e.h * 1.12 + .3, th = e.frozen < 1 && Math.sin(T * 24) > 0;
+      ident(cur); part(ROUND, e.x, e.y + (sp ? .4 : H * .5 - .06), e.z, w, H, w, th ? [1.4, 1.4, 1.5] : WHITE, 24, e.yaw || 0); }
     gl.depthMask(true); gl.disable(gl.BLEND);
   }
   // viewmodel
