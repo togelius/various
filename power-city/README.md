@@ -53,7 +53,7 @@ like and a second player never has to be told which keys became theirs.
 | **Kick** | Slower than a jab, hits harder, pushes further. |
 | **Uppercut** | Up + punch. Launches. Very slow — earn it. |
 | **High kick** | Up + kick. Catches jumpers. |
-| **Jump kick** | Jump, then punch or kick on the way through. |
+| **Jump kick** | Jump, then punch or kick on the way through. One per jump, and a whiff costs you on landing. |
 | **Elbow** | Punch while someone is behind you and nobody is in front. |
 | **Spin kick** | Punch and kick together. Hits both sides, leaves you wide open. |
 | **Run** | Double-tap a direction. Punch out of a run for a flying knee. |
@@ -62,7 +62,11 @@ like and a second player never has to be told which keys became theirs.
 | **Crates & drums** | Punch to lift, punch or kick to hurl. Drums explode. |
 
 Get hit four times in a hurry and enemies see stars — that is the moment to
-grab. Caught in a bear hug yourself, mash anything to get out — the cabinet
+grab. Watch the wind-ups: a thug who cocks a fist, chambers a knee or lifts a
+bat is open, and hitting him then is a **COUNTER** — he goes dizzy on the
+spot. Roughs, knifers, batters and the bosses raise a **guard** after a jab:
+jabs clink off it, but a kick, a heavy, a weapon or a grab goes straight
+through. Throw a body into a crowd and it bowls them over. Caught in a bear hug yourself, mash anything to get out — the cabinet
 shouts MASH! at you until you do.
 
 Every hit you land inside a rolling window climbs the combo counter, and the
@@ -86,7 +90,8 @@ VIPER's chain included. Trash cans and crates hold prizes.
 1. **SLUM ALLEY** — brick, fire escapes and the first boss, **CRUSHER**.
 2. **DOWNTOWN** — the block they run, the bar they run it from, and **VIPER**.
 3. **THE DOCKS** — containers, cranes, black water, **JAWS**.
-4. **POWER TOWER** — glass, neon, and **MR. POWER** on the top floor.
+4. **POWER TOWER** — the penthouse: black marble, gold, his portrait on the
+   wall, the whole city lit up far below the glass, and **MR. POWER**.
 
 Run out of lives and the machine gives you ten seconds to think about it.
 
@@ -97,7 +102,7 @@ js/core.js     screen, timing, two-player input, RNG, storage
 js/art.js      the 5x7 arcade font, pixel primitives, the outline pass
 js/rig.js      the articulated fighter: one figure, ~39 poses, baked at boot
 js/cast.js     the cast as palettes; weapons, crates and pickups
-js/city.js     facade modules, parallax skylines, weather, the mood grade,
+js/city.js     facade modules, parallax skylines, weather, the penthouse,
                the silhouette near-lane, four themes
 js/audio.js    two pulse voices, a triangle bass, a noise channel, a sequencer
 js/music.js    the songs, as sixteenth-note pattern strings
@@ -147,15 +152,16 @@ wave thins, trash cans and crates hold loot, the fallen drop their weapons,
 and there is litter — coins, food — on every stroll, so the walk between
 fights is a sweep, not a wait.
 
-**And the city is alive, not wallpaper.** Rain falls on the docks and
-drizzles downtown, dust drifts in the alley, embers rise on the tower; the
-skyline's beacons pulse, the neon signs breathe and cut out, clouds slide
-behind the skyline, and a silhouette near-lane of lamp posts and hydrants
-passes faster than the camera. Each neighbourhood wears its own colour
-grade — the tint under the fighters, the vignette over the whole picture —
-so the same engine shoots four different nights. `tools/visual-audit.js`
-measures all of it: figure-ground contrast held at ~70/255 with pure-black
-keylines while the average frame got 4.8× richer in colour.
+**And the city is alive, not wallpaper — in hard pixels.** Rain falls on
+the docks and drizzles downtown, dust drifts in the alley and in the
+penthouse lights; the skyline's beacons pulse, the neon signs breathe and cut
+out, clouds slide behind the skyline, and a silhouette near-lane of lamp
+posts, hydrants (velvet ropes and urns, upstairs) passes faster than the
+camera. There is no soft coat over any of it: brick is laid on one grid with
+dark mortar, graffiti is sprayed letter by letter, every body part of every
+fighter is bevelled, and the gang scowls. `tools/visual-audit.js` measures
+it: figure-ground contrast held at ~70/255 while the share of
+near-duplicate neighbouring pixels (the "soft" look) fell from 21% to 4%.
 
 ## Checking it
 
@@ -163,7 +169,7 @@ keylines while the average frame got 4.8× richer in colour.
 node power-city/test/check.js
 ```
 
-2800-odd assertions over the data tables, in plain node with no browser: every
+3100-odd assertions over the data tables, in plain node with no browser: every
 pose has all its joints and stays on the canvas, every move has active frames
 and a pose that exists, every stage names enemies and items that exist and
 ends with a boss, every song note is a note, every glyph is seven rows of five
@@ -178,9 +184,16 @@ above were measured, and how the next change to the game gets judged: not by
 how it looks, but by how twenty recorded campaigns feel.
 
 ```
-NODE_PATH=... node power-city/tools/agents.js /tmp/pc all game 40000
+SEEDS=3 NODE_PATH=... node power-city/tools/agents.js /tmp/pc all game
+NODE_PATH=... node power-city/tools/agents.js /tmp/pc walker game 150000 two:brawler   # co-op
 node power-city/tools/analyze.js /tmp/pc
 ```
+
+Runs are seeded and the bots draw from their own generator (cosmetics -
+sparks, shake, weather - from a third), so a change to the game is judged
+on the same fights before and after. `tools/filmstrip.js` saves the frames
+around counters, guard breaks and bowled crowds; `tools/visual-audit.js`
+scores the look.
 
 For the parts that need a canvas there are headless harnesses in `tools/`:
 `sim.js` puts a bot at the controls and fast-forwards whole stages in seconds,

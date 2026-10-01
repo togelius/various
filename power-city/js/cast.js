@@ -34,6 +34,7 @@
 
   // --------------------------------------------------------------- the gang
   Rig.def('punk', {
+    scowl: true,
     name: 'HOOD', hair: 'flat',
     pal: pal({
       skin: '#e8a878', skinD: '#b0724a', hair: '#e2622a', eye: '#141422',
@@ -44,6 +45,7 @@
   });
 
   Rig.def('rough', {
+    scowl: true,
     name: 'SPIKE', hair: 'spiky',
     pal: pal({
       skin: '#e8a878', skinD: '#b0724a', hair: '#8c3ad8', eye: '#141422',
@@ -54,6 +56,7 @@
   });
 
   Rig.def('knifer', {
+    scowl: true,
     name: 'BLADE', hair: 'cap', sleeves: true,
     pal: pal({
       skin: '#c98a5c', skinD: '#96603a', hair: '#1e2a18', eye: '#141422',
@@ -64,6 +67,7 @@
   });
 
   Rig.def('batter', {
+    scowl: true,
     name: 'SLUGGER', hair: 'mohawk', sleeves: true,
     pal: pal({
       skin: '#e8a878', skinD: '#b0724a', hair: '#f0d63a', eye: '#141422',
@@ -74,6 +78,7 @@
   });
 
   Rig.def('brute', {
+    scowl: true,
     name: 'BREAKER', hair: 'bald', scale: 1.16, bulk: 1.3,
     pal: pal({
       skin: '#b8865a', skinD: '#845a36', hair: '#2b2b1e', eye: '#141422',
@@ -85,6 +90,7 @@
 
   // ---------------------------------------------------------------- bosses
   Rig.def('boss_crusher', {
+    scowl: true,
     name: 'CRUSHER', hair: 'bald', scale: 1.34, bulk: 1.38, boss: true,
     pal: pal({
       skin: '#c08a52', skinD: '#8a5c2e', hair: '#241a12', eye: '#2a0a0a',
@@ -95,6 +101,7 @@
   });
 
   Rig.def('boss_viper', {
+    scowl: true,
     name: 'VIPER', hair: 'pony', scale: 1.06, bulk: 0.95, boss: true,
     pal: pal({
       skin: '#f0b48c', skinD: '#bc7c54', hair: '#20c4a8', eye: '#141422',
@@ -105,6 +112,7 @@
   });
 
   Rig.def('boss_jaws', {
+    scowl: true,
     name: 'JAWS', hair: 'mohawk', scale: 1.2, bulk: 1.16, boss: true,
     pal: pal({
       skin: '#d09060', skinD: '#9a6238', hair: '#e0e0ec', eye: '#141422',
@@ -115,6 +123,7 @@
   });
 
   Rig.def('boss_power', {
+    scowl: true,
     name: 'MR. POWER', hair: 'flat', scale: 1.14, bulk: 1.08, boss: true, sleeves: true,
     pal: pal({
       skin: '#e8b48c', skinD: '#b07a54', hair: '#101018', eye: '#3a0a0a',

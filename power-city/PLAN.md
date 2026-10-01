@@ -173,3 +173,65 @@ Measured after:
 | POWER TOWER colours | 103 | **986** |
 | moving elements per stage | 0 | weather, beacons, neon, clouds, near-lane |
 | walk cycle | 4 frames | 8 blended frames |
+## Second pass: fix the instrument, then play well, feel right, look sharp
+
+### The instrument was lying
+
+The "skilled" brawler bot walked away from every swing — walking sets
+facing — so it died four times as often as a bot that just walks up and
+punches, and every conclusion drawn from it was suspect. Rewritten with a
+human reaction delay, the crowd kept in front, lane slips instead of
+retreats. Runs became seeded, bots got their own random generator and
+cosmetics a third, so two builds now face literally the same fights.
+
+### What the honest instrument found (5 seeds × full campaign)
+
+1. **The jump kick was the whole game.** A bot that did nothing else
+   cleared every seed without dying, taking half the damage of the brawler.
+2. **The difficulty ramp was wired backwards** — the damage multiplier
+   scaled damage enemies *took*: stage-one thugs soaked 1.4× and nobody
+   ever hit harder.
+3. Armed players could not pick up food. Dizzy happened 0.7× a campaign.
+   Wind-ups showed the strike pose, so nothing was readable.
+
+### Fixes, and what they bought
+
+| | before | after (3 seeds, same fights) |
+| --- | --- | --- |
+| jump-kick-only bot | 0 deaths, best of all | 2 deaths, worst skilled bot |
+| brawler deaths / campaign | 13 (bot bug) → 0.6 | 0.7 |
+| walker deaths / campaign | 3.4 | 2.0, now losing lives from stage 2 |
+| runner deaths / campaign | 1.6 | 1.3 |
+| co-op (walker + brawler) | softlocked one seed for 10 min | 3/3 clear, 0.3 deaths |
+| errors | 0 | 0 |
+
+New fight: **counters** (hit a big wind-up → dizzy), a **guard** on the
+tougher thugs (jabs clink off; kicks, heavies, weapons, grabs break it),
+**bowling** (thrown bodies knock over who they hit), five anticipation
+poses, jump-kick landing lag, quick thugs side-stepping jump-ins.
+
+### Feel
+
+Driving the live loop with real key events found presses lost three ways:
+during hit-stop (when everyone mashes), in the gap between a hit landing
+and recovery ending, and when a release and re-press fell between polls.
+Buttons are now latched every frame, follow-ups queued, keydown edges
+counted. Counters, blocks and guards got their own sounds; score pops stack.
+
+### Look
+
+`tools/visual-audit.js` found the picture soft: a fifth of neighbouring
+pixel pairs were near-duplicates, from a full-screen gradient vignette and
+a translucent colour grade over hard pixel art. Both went; the palettes
+carry the mood. Brick re-laid on a global grid with dark mortar, sprayed
+graffiti, bevelled body parts and scowls on the cast, puddles instead of
+pink boxes, pixel-crisp dithered clouds, and POWER TOWER rebuilt from a
+pastel window quilt into the penthouse its title card promises: black
+marble, gold trim, an elevator stopped at 88, Mr Power's portrait, the
+city lit up far below the glass and mirrored in a polished floor.
+
+| | before | after |
+| --- | --- | --- |
+| soft (near-duplicate) pixel pairs, mean | 21.3% | **4.2%** |
+| figure-ground contrast, mean | 67.2 | 69.4 (held) |
+| distinct colours per frame, mean (no vignette) | 210 | **523** |

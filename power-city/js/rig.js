@@ -26,25 +26,27 @@
 
   var POSES = Rig.POSES = {
     // --------------------------------------------------------- standing
-    idle: p([0, 19], [0, 30], [1, 35.5],
-      [[4, 25], [7, 26]], [[-3, 25], [1, 26]],
-      [[3, 10], [5, 0]], [[-3, 10], [-5, 0]]),
-    idle2: p([0, 18.5], [0, 29.5], [1, 35],
-      [[4, 24.5], [7, 25]], [[-3, 24.5], [1, 25]],
-      [[3, 10], [5, 0]], [[-3, 10], [-5, 0]]),
+    // a fighter's guard: fists up by the chin, elbows down, weight low
+    idle: p([0, 18], [0.5, 29], [1.5, 34.5],
+      [[5, 23], [8.5, 28.5]], [[-1, 23], [3.5, 29]],
+      [[4, 9.5], [6.5, 0]], [[-3.5, 9.5], [-6.5, 0]]),
+    idle2: p([0, 17.5], [0.5, 28.5], [1.5, 34],
+      [[5, 22.5], [8.5, 28]], [[-1, 22.5], [3.5, 28.5]],
+      [[4, 9.5], [6.5, 0]], [[-3.5, 9.5], [-6.5, 0]]),
 
     // --------------------------------------------------------- walking
-    walk0: p([0, 18.5], [0, 29.5], [1, 35],
-      [[1, 25], [2, 21]], [[-2, 25], [3, 25]],
+    // walking in guard: the fists stay up and bob with the stride
+    walk0: p([0, 17.5], [0.5, 28.5], [1.5, 34],
+      [[5, 22.5], [8, 27.5]], [[-1, 22.5], [3.5, 28]],
       [[5, 10], [8, 0]], [[-4, 9], [-7, 0]]),
-    walk1: p([0, 19.5], [0, 30.5], [1, 36],
-      [[3, 25], [5, 24]], [[-3, 25], [-1, 22]],
+    walk1: p([0, 18.5], [0.5, 29.5], [1.5, 35],
+      [[5, 23.5], [8.5, 29]], [[-1, 23.5], [3, 29]],
       [[2, 11], [3, 2]], [[-3, 10], [-4, 0]]),
-    walk2: p([0, 18.5], [0, 29.5], [1, 35],
-      [[3, 25], [4, 25]], [[-2, 25], [-3, 21]],
+    walk2: p([0, 17.5], [0.5, 28.5], [1.5, 34],
+      [[5, 22.5], [8.5, 28]], [[-1, 22.5], [3, 27.5]],
       [[-3, 10], [-6, 0]], [[4, 9], [7, 0]]),
-    walk3: p([0, 19.5], [0, 30.5], [1, 36],
-      [[3, 25], [5, 22]], [[-3, 25], [-1, 24]],
+    walk3: p([0, 18.5], [0.5, 29.5], [1.5, 35],
+      [[5, 23.5], [8, 28.5]], [[-1, 23.5], [3.5, 29.5]],
       [[2, 11], [2, 1]], [[-2, 10], [-3, 0]]),
 
     // --------------------------------------------------------- running
@@ -218,7 +220,8 @@
   /* Draw the figure into ctx with the floor point at (ox, oy). Back limbs
    * first, in a darkened palette - the cheapest depth cue there is, and the
    * one every 8-bit brawler used. */
-  function drawFigure(ctx, ch, pose, ox, oy) {
+  function drawFigure(out, ch, pose, ox, oy) {
+    var ctx = out;
     var pal = ch.pal, back = ch._back || (ch._back = shadeAll(pal));
     var s = ch.scale, b = ch.bulk * ch.scale;
     function X(v) { return ox + v * s; }
@@ -237,41 +240,77 @@
 
     function arm(a, sh, P, sleeve) {
       var upper = sleeve ? P.shirt : P.skin;
-      Art.limb(ctx, X(sh[0]), Y(sh[1]), X(a[0][0]), Y(a[0][1]), 5.2 * b, 4 * b, upper);
-      Art.limb(ctx, X(a[0][0]), Y(a[0][1]), X(a[1][0]), Y(a[1][1]), 4 * b, 3.4 * b, P.skin);
-      Art.ellipse(ctx, X(a[1][0]), Y(a[1][1]), 2.6 * b, 2.5 * b, P.skin);      // fist
-      Art.rect(ctx, X(a[1][0] - 2), Y(a[1][1] + 0.6), 4 * b, 1 * s, P.skinD);
+      /* Arms take half of a character's bulk. At full bulk Crusher's arms
+       * came out twice the hero's thickness - balloons that hid his face. */
+      var ab = s * (1 + (ch.bulk - 1) * 0.5);
+      Art.limb(ctx, X(sh[0]), Y(sh[1]), X(a[0][0]), Y(a[0][1]), 5.8 * ab, 4.4 * ab, upper);
+      Art.limb(ctx, X(a[0][0]), Y(a[0][1]), X(a[1][0]), Y(a[1][1]), 4.4 * ab, 3.8 * ab, P.skin);
+      Art.ellipse(ctx, X(a[1][0]), Y(a[1][1]), 3 * ab, 2.8 * ab, P.skin);        // fist
+      Art.rect(ctx, X(a[1][0] - 2), Y(a[1][1] + 0.6), 4.4 * ab, 1 * s, P.skinD);  // knuckles
+    }
+
+    /* Each body part is drawn on its own layer and lit there, then laid
+     * down in order. Lighting the finished figure in one pass would only
+     * catch its silhouette; per part, the arm across the chest keeps its
+     * own lit edge and shadow and the figure reads in depth. */
+    function layer(fn) {
+      var c = Art.mk(out.canvas.width, out.canvas.height);
+      ctx = c.getContext('2d');
+      fn();
+      Art.bevel(c, { hi: 0.3, lo: 0.32 });
+      out.drawImage(c, 0, 0);
+      ctx = out;
     }
 
     // ---- back half
-    leg(pose.lB, hip[0] - 1.5, back);
-    arm(pose.aB, shB, back, ch.sleeves);
+    layer(function () {
+      leg(pose.lB, hip[0] - 1.5, back);
+      arm(pose.aB, shB, back, ch.sleeves);
+    });
 
     // ---- torso
+    layer(function () {
     Art.limb(ctx, X(hip[0]), Y(hip[1] - 2), X(chest[0]), Y(chest[1]), 10 * b, 12 * b, pal.pants);
-    Art.limb(ctx, X(hip[0]), Y(hip[1] + 1), X(chest[0]), Y(chest[1]), 10.6 * b, 13 * b, pal.shirt);
+    // a V, not a box: the waist pinches in under a broad chest
+    Art.limb(ctx, X(hip[0]), Y(hip[1] + 1), X(chest[0]), Y(chest[1]), 9.6 * b, 14 * b, pal.shirt);
     // the rear third sits in its own shade, which is what gives a flat
     // side-on figure any barrel to its chest at all
     Art.limb(ctx, X(hip[0] - 3.4), Y(hip[1] + 1), X(chest[0] - 4), Y(chest[1]), 3.6 * b, 4.6 * b, pal.shirtD);
     // shoulder caps make the silhouette read as a brawler and not a stick
-    Art.ellipse(ctx, X(shF[0] + 0.5), Y(shF[1]), 3.6 * b, 3.2 * b, pal.shirt);
-    Art.ellipse(ctx, X(shB[0]), Y(shB[1]), 3.2 * b, 3 * b, back.shirt);
+    Art.ellipse(ctx, X(shF[0] + 0.5), Y(shF[1]), 4 * b, 3.4 * b, pal.shirt);
+    Art.ellipse(ctx, X(shB[0]), Y(shB[1]), 3.6 * b, 3.2 * b, back.shirt);
     // a vest laces up the front: one seam, two pixels of it
     if (ch.vest) {
       Art.limb(ctx, X(hip[0] + 2.4), Y(hip[1] + 3), X(chest[0] + 3), Y(chest[1] - 1), 1.6 * b, 1.6 * b, pal.trim);
       Art.rect(ctx, X(chest[0] - 1), Y(chest[1] + 1), 5 * b, 1.4 * s, pal.trim);
     }
     Art.limb(ctx, X(hip[0] - 0.2), Y(hip[1] + 1), X(hip[0] + 0.2), Y(hip[1] + 2), 10.8 * b, 10.8 * b, pal.trim);
+    });
 
     // ---- neck + head
     var hx = X(head[0]), hy = Y(head[1]);
+    layer(function () {
     Art.limb(ctx, X(chest[0]), Y(chest[1]), X(head[0]), Y(head[1] - 3), 4.4 * b, 4 * b, pal.skinD);
     Art.ellipse(ctx, hx - 0.3 * s, hy - 0.5 * s, 4.4 * b, 4.8 * s, pal.hair);   // hair mass
     Art.ellipse(ctx, hx + 1.5 * s, hy + 1.1 * s, 3.9 * b, 4.2 * s, pal.skin);   // face
     Art.rect(ctx, hx - 3.4 * s, hy - 0.2 * s, 2.4 * s, 3 * s, pal.hair);        // sideburn
+    /* A bald dome goes down before the features. It used to be painted
+     * after them, which is why the brute and Crusher had no faces. */
+    if (ch.hair === 'bald') {
+      Art.ellipse(ctx, hx + 0.5 * s, hy - 0.5 * s, 4.2 * b, 4.4 * s, pal.skin);
+      Art.rect(ctx, hx - 4 * s, hy + 1 * s, 3 * s, 3 * s, pal.hair);
+      Art.ellipse(ctx, hx - 2.6 * s, hy + 0.6 * s, 1.2 * s, 1.6 * s, pal.skinD);   // ear
+    }
     Art.rect(ctx, hx + 1.6 * s, hy - 0.6 * s, 1.4 * s, 1.8 * s, pal.eye || '#20202e');
     Art.rect(ctx, hx - 0.8 * s, hy - 0.8 * s, 1.2 * s, 1.6 * s, pal.eye || '#20202e');
     Art.rect(ctx, hx + 0.4 * s, hy + 3.4 * s, 3.2 * s, 1 * s, pal.skinD);       // jaw line
+    /* Brows and a mouth: at nine pixels of head, a brow line is most of
+     * what reads as an expression. The gang's sit lower, which is a scowl. */
+    var browC = ch.brow || C.shade(pal.hair, -0.35);
+    var low = ch.scowl ? 0.4 : 0;
+    Art.rect(ctx, hx + 1.1 * s, hy - (1.9 - low) * s, 2.4 * s, 1 * s, browC);
+    Art.rect(ctx, hx - 1.3 * s, hy - (2.1 - low) * s, 1.8 * s, 1 * s, browC);
+    Art.rect(ctx, hx + 2.0 * s, hy + 2.2 * s, 1.8 * s, 0.9 * s, ch.mouth || '#7a3a30');
 
     if (ch.hair === 'spiky') {
       for (var i = -2; i <= 2; i++) {
@@ -282,18 +321,16 @@
       Art.rect(ctx, hx - 4 * s, hy - 6 * s, 8 * s, 3 * s, pal.hair);
     } else if (ch.hair === 'pony') {
       Art.limb(ctx, hx - 3 * s, hy - 2 * s, hx - 9 * s, hy + 3 * s, 4 * s, 2 * s, pal.hair);
-    } else if (ch.hair === 'bald') {
-      Art.ellipse(ctx, hx + 0.5 * s, hy - 0.5 * s, 4.2 * b, 4.4 * s, pal.skin);
-      Art.rect(ctx, hx - 4 * s, hy + 1 * s, 3 * s, 3 * s, pal.hair);
     } else if (ch.hair === 'cap') {
       Art.rect(ctx, hx - 5 * s, hy - 4.5 * s, 10 * b, 3 * s, pal.trim);
       Art.rect(ctx, hx + 2 * s, hy - 2.5 * s, 5 * s, 1.4 * s, pal.trim);
     }
     if (ch.band) Art.rect(ctx, hx - 5 * s, hy - 2.2 * s, 10 * b, 1.6 * s, ch.band);
+    });
 
     // ---- front half
-    leg(pose.lF, hip[0] + 1.5, pal);
-    arm(pose.aF, shF, pal, ch.sleeves);
+    layer(function () { leg(pose.lF, hip[0] + 1.5, pal); });
+    layer(function () { arm(pose.aF, shF, pal, ch.sleeves); });
   }
 
   // ------------------------------------------------------------------ baking

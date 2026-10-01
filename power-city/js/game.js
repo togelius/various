@@ -360,9 +360,6 @@
       ctx.clip();
       ctx.translate(sx, sy);
       PC.stage.draw(ctx);
-      // the mood tint goes on the street before the fighters, so their
-      // black keylines stay pure black on a graded world
-      if (PC.stage.def) PC.city.grade(ctx, PC.stage.def.theme);
 
       // ---- everything in the street, sorted back to front
       var draws = [], i;
@@ -389,9 +386,6 @@
           ctx.drawImage(PC.stage.front, fx2, PC.FIELD_BOT - 30);
         }
       }
-      // the vignette goes over everyone: a dark top and bottom edge reads
-      // as cinema, and the fighters keep the middle of the frame
-      if (PC.stage.def) PC.city.vignette(ctx, PC.stage.def.theme);
       PC.stage.drawArrow(ctx);
       PC.stage.drawBanner(ctx);
       Hud.drawAlerts(ctx, this);
