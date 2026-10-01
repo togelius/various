@@ -145,11 +145,25 @@
             vx: PC.rand.range(-2, 2), vy: -PC.rand.range(0.5, 2), g: 0.16, col: '#b0762e'
           });
         }
-        // a smashed crate sometimes had something in it
-        if (PC.rand.chance(0.4)) {
-          Items.spawn('pickup', PC.rand.chance(0.6) ? 'heart' : 'coin', it.x, it.y, { z: 6 });
+        // what was inside? trash cans pay out; crates sometimes do
+        var loot = this.lootOf(it);
+        if (loot) this.spawn('pickup', loot, it.x, it.y, { z: 14, vz: 1 });
+        else if (PC.rand.chance(0.4)) {
+          this.spawn('pickup', PC.rand.chance(0.6) ? 'heart' : 'coin', it.x, it.y, { z: 6 });
         }
       }
+    },
+
+    /* What a smashed thing pays out, if anything. */
+    lootOf: function (it) {
+      var d = PC.props[it.key];
+      if (!d || !d.loot) return null;
+      var r = PC.rand();
+      for (var i = 0; i < d.loot.length; i++) {
+        if (r < d.loot[i][1]) return d.loot[i][0];
+        r -= d.loot[i][1];
+      }
+      return null;
     },
 
     // ---------------------------------------------------------------- stepping

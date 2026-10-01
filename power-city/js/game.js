@@ -50,8 +50,8 @@
       var n = this.livePlayerCount();
       var s = PC.stage.index;
       return {
-        hp: (1 + s * 0.16) * (n > 1 ? 1.28 : 1),
-        dmg: 0.7 + s * 0.14,
+        hp: (1 + s * 0.13) * (n > 1 ? 1.28 : 1),
+        dmg: 0.7 + s * 0.11,
         aggr: 0.85 + s * 0.07,
         players: n
       };
@@ -78,14 +78,26 @@
 
     enemyDown: function () { },
 
-    timeUp: function () {
+    /* The clock ran out. Nobody dies to a number: the siren starts and
+     * health drains until the fight is finished or they are. */
+    clockDrain: function () {
       for (var i = 0; i < 2; i++) {
         var p = this.players[i];
         if (!p || p.dead) continue;
-        p.invuln = 0;
-        p.takeHit({ dmg: 999, dir: -p.facing, knock: true, x: p.x, y: p.y - 20, stun: 20, push: 2 });
+        p.hp -= 5;
+        p.flash = 4;
+        if (PC.stage) PC.stage.encHurt = true;
+        if (p.hp <= 0) {
+          p.hp = 0;
+          if (p.grabbedBy) p.grabbedBy.releaseGrab();
+          if (p.grabbing) p.releaseGrab();
+          if (p.carry) PC.items.drop(p);
+          p.knockDown(p.facing, { vx: 2, vz: 3 });
+          p.dead = true; p.deathT = 0;
+          p.onDeath();
+        }
       }
-      PC.stage.timeLeft = 0;
+      FX.shakeBy(1);
     },
 
     // ---------------------------------------------------------------- coins
@@ -343,6 +355,9 @@
       ctx.clip();
       ctx.translate(sx, sy);
       PC.stage.draw(ctx);
+      // the mood tint goes on the street before the fighters, so their
+      // black keylines stay pure black on a graded world
+      if (PC.stage.def) PC.city.grade(ctx, PC.stage.def.theme);
 
       // ---- everything in the street, sorted back to front
       var draws = [], i;
@@ -361,8 +376,20 @@
       }
 
       FX.draw(ctx, W.camX);
+      // the near lane in silhouette, passing faster than the camera
+      if (PC.stage.front) {
+        var fo = Math.round(-W.camX * 1.25) % 640;
+        if (fo > 0) fo -= 640;
+        for (var fx2 = fo; fx2 < PC.W; fx2 += 640) {
+          ctx.drawImage(PC.stage.front, fx2, PC.FIELD_BOT - 30);
+        }
+      }
+      // the vignette goes over everyone: a dark top and bottom edge reads
+      // as cinema, and the fighters keep the middle of the frame
+      if (PC.stage.def) PC.city.vignette(ctx, PC.stage.def.theme);
       PC.stage.drawArrow(ctx);
       PC.stage.drawBanner(ctx);
+      Hud.drawAlerts(ctx, this);
       ctx.restore();
 
       Hud.drawTop(ctx, this);

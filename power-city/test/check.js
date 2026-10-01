@@ -147,6 +147,12 @@ function checkType(k, t, label) {
   ok(t.moves && t.moves.length > 0, label + ' ' + k + ' has moves');
   t.moves.forEach(function (m) { ok(!!PC.ENEMY_MOVES[m], label + ' ' + k + ' move ' + m + ' exists'); });
   if (t.weapon) ok(!!PC.weapons[t.weapon], label + ' ' + k + ' carries a real weapon');
+  (t.phases || []).forEach(function (ph, i) {
+    ok(ph.at > 0 && ph.at < 1, label + ' ' + k + ' phase ' + i + ' turns inside the fight');
+    ok(i === 0 || ph.at < t.phases[i - 1].at, label + ' ' + k + ' phases arrive in order');
+    ok(typeof ph.name === 'string' && ph.name.length > 0, label + ' ' + k + ' phase ' + i + ' is announced');
+    (ph.addMoves || []).forEach(function (m) { ok(!!PC.ENEMY_MOVES[m], label + ' ' + k + ' phase move ' + m + ' exists'); });
+  });
 }
 Object.keys(PC.ENEMY_TYPES).forEach(function (k) { checkType(k, PC.ENEMY_TYPES[k], 'gang'); });
 Object.keys(PC.BOSS_TYPES).forEach(function (k) { checkType(k, PC.BOSS_TYPES[k], 'boss'); });
@@ -172,6 +178,7 @@ PC.STAGES.forEach(function (s, si) {
       ok(!!PC.ENEMY_TYPES[g[0]], el + ' spawns a known enemy (' + g[0] + ')');
       ok(g[1] > 0 && g[1] <= 4, el + ' spawns a sane number of them');
       ok(g[2] === 1 || g[2] === -1, el + ' spawns them from a real side');
+      if (g[4] !== undefined) ok(g[4] >= 1 && g[4] <= 4, el + ' reinforces at a sane live count');
     });
     if (e.boss) {
       sawBoss = true;
@@ -184,6 +191,11 @@ PC.STAGES.forEach(function (s, si) {
     });
   });
   ok(sawBoss, label + ' ends with a boss');
+  (s.litter || []).forEach(function (it, i) {
+    var bank = it[0] === 'weapon' ? PC.weapons : it[0] === 'prop' ? PC.props : PC.pickups;
+    ok(!!bank[it[1]], label + ' litter ' + i + ' drops something real (' + it[0] + '/' + it[1] + ')');
+    ok(it[2] > 20 && it[2] < s.length, label + ' litter ' + i + ' lies on the street');
+  });
 });
 
 // --------------------------------------------------------------- city art
@@ -194,6 +206,21 @@ Object.keys(PC.city.THEMES).forEach(function (k) {
   t.modules.forEach(function (m) { ok(!!PC.city.MOD[m], k + ' module ' + m + ' exists'); });
   (t.landmarks || []).forEach(function (l) { ok(!!PC.city.MOD[l[1]], k + ' landmark ' + l[1] + ' exists'); });
   ok(t.sky.length === 2, k + ' has a sky gradient');
+  ok(!!PC.city.GRADES[k], k + ' has a mood grade');
+  ok(/^#[0-9a-f]{6}$/i.test(PC.city.GRADES[k].tint), k + ' grade tint is a colour');
+  ok(PC.city.GRADES[k].a > 0 && PC.city.GRADES[k].a < 0.15, k + ' grade is a coat, not a bucket of paint');
+  (t.ambient ? [t.ambient] : []).forEach(function (amb) {
+    ok(['rain', 'ember', 'mote'].indexOf(amb.kind) >= 0, k + ' has real weather (' + amb.kind + ')');
+    ok(amb.rate > 0 && amb.rate < 6, k + ' weather falls at a sane rate');
+  });
+});
+ok(typeof PC.city.buildFront === 'function', 'the city knows how to draw the near lane');
+ok(typeof PC.city.makeClouds === 'function', 'the city knows how to make clouds');
+ok(typeof PC.city.drawClouds === 'function', 'the city knows how to move clouds');
+
+// the walk cycle is doubled by blending, so the frames must all be real poses
+['walk4', 'walk5', 'walk6', 'walk7'].forEach(function (n) {
+  ok(!!PC.rig.POSES[n], 'the walk cycle has an in-between ' + n);
 });
 
 // ------------------------------------------------------------------ music

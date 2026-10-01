@@ -25,16 +25,16 @@
       dmg: 10, stun: 18, push: 2.2, knock: true, stop: 9, sfx: 'swingHard', score: 60
     },
     upper: {
-      pose: 'upper', wind: 'crouch', startup: 7, active: 4, recovery: 18, reach: [2, 23], zlo: 6, zhi: 44,
-      dmg: 12, stun: 22, push: 1.2, knock: true, launch: { vx: 1.4, vz: 5.2 }, stop: 10,
-      sfx: 'swingHard', score: 80
+      pose: 'upper', wind: 'crouch', startup: 7, active: 4, recovery: 17, reach: [2, 25], zlo: 6, zhi: 44,
+      dmg: 13, stun: 22, push: 1.2, knock: true, launch: { vx: 1.4, vz: 5.2 }, stop: 10,
+      sfx: 'swingHard', lunge: 1.2, score: 80
     },
     kick: {
-      pose: 'kick', startup: 6, active: 4, recovery: 14, reach: [6, 34], zlo: 6, zhi: 30,
+      pose: 'kick', startup: 6, active: 6, recovery: 12, reach: [6, 36], zlo: 6, zhi: 30,
       dmg: 8, stun: 16, push: 2.7, stop: 6, sfx: 'swing', score: 40
     },
     kickHigh: {
-      pose: 'kickHigh', startup: 8, active: 4, recovery: 17, reach: [6, 35], zlo: 18, zhi: 44,
+      pose: 'kickHigh', startup: 7, active: 6, recovery: 16, reach: [6, 35], zlo: 18, zhi: 44,
       dmg: 11, stun: 20, push: 2.4, knock: true, stop: 8, sfx: 'swingHard', score: 70
     },
     elbow: {
@@ -43,12 +43,12 @@
     },
     spin: {
       poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true,
-      startup: 4, active: 20, recovery: 18, reach: [0, 30], zlo: 10, zhi: 40,
+      startup: 4, active: 20, recovery: 16, reach: [0, 30], zlo: 10, zhi: 40,
       dmg: 7, stun: 18, push: 2.6, knock: true, stop: 6, sfx: 'whoosh', score: 50
     },
     jumpKick: {
-      pose: 'jumpKick', air: true, startup: 2, active: 22, recovery: 4, reach: [4, 32], zlo: -4, zhi: 30,
-      dmg: 12, stun: 20, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', score: 90
+      pose: 'jumpKick', air: true, startup: 2, active: 14, recovery: 8, reach: [4, 32], zlo: -4, zhi: 30,
+      dmg: 13, stun: 20, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', score: 90
     },
     runKnee: {
       pose: 'knee', startup: 3, active: 8, recovery: 16, reach: [2, 24], zlo: 10, zhi: 36,
@@ -78,7 +78,7 @@
   function Player(index, charKey) {
     PC.Actor.call(this, {
       char: charKey, team: 0, hp: 100, x: 60, y: PC.FLOOR_BOT - 14,
-      speed: 1.45, runSpeed: 2.85, mass: 1.2
+      speed: 1.6, runSpeed: 3.0, mass: 1.2
     });
     this.index = index;
     this.lives = 3;
@@ -93,6 +93,8 @@
     this.dmgScale = 1;
     this.respawnT = 0;
     this.hitsLanded = 0;
+    this.hitChain = 0;
+    this.chainT = 0;
   }
   Player.prototype = Object.create(PC.Actor.prototype);
   Player.prototype.constructor = Player;
@@ -106,10 +108,33 @@
   Player.prototype.onHitLanded = function (t, d) {
     this.addScore(d.score || 20);
     this.hitsLanded++;
+    /* The combo chain: every hit inside a rolling window keeps the count
+     * climbing and the popups escalating. Getting hit resets it, which is
+     * the other half of what the counter is for. */
+    this.hitChain++;
+    this.chainT = 75;
+    if (this.hitChain >= 4) {
+      var col = this.hitChain >= 12 ? '#ff4a4a' : (this.hitChain >= 8 ? '#ff8a20' : '#ffe070');
+      FX.pop(t.x, t.y - t.hh - 10, this.hitChain + ' HITS', col);
+    }
   };
 
   Player.prototype.onDeath = function () {
     if (PC.audio) PC.audio.sfx('playerDown');
+  };
+
+  /* Everything the player feels about being hit: the chain breaks, a hit
+   * from behind flashes a marker so the flanker is found, and the encounter
+   * loses its perfect flag. */
+  Player.prototype.takeHit = function (h) {
+    var rear = h.from && ((h.from.x - this.x) * this.facing < 0);
+    var side = h.from ? (M.sign(h.from.x - this.x) || 1) : 1;
+    var hp = this.hp;
+    PC.Actor.prototype.takeHit.call(this, h);
+    if (this.hp >= hp) return;                 // blocked by invulnerability or armor
+    this.hitChain = 0;
+    if (PC.stage && PC.stage.active) PC.stage.encHurt = true;
+    if (rear) FX.rearHit(this.x, this.y, side);
   };
 
   // ------------------------------------------------------------------ control
@@ -128,6 +153,7 @@
     if (pressed.kick) b.kick = 7;
     if (pressed.jump) b.jump = 7;
     if (this.grabCool > 0) this.grabCool--;
+    if (this.chainT > 0) { this.chainT--; if (!this.chainT) this.hitChain = 0; }
 
     if (this.dead) return;
 

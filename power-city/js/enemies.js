@@ -11,7 +11,22 @@
   var M = PC.math, FX = PC.fx, W = PC.world, Items = PC.items;
 
   // ---------------------------------------------------------- attack tokens
+  /* The rule that makes a brawler fair: only a few of them may be swinging
+   * at once. Everyone else circles, shuffles into a free lane, or waits at
+   * arm's length looking menacing. But the cap has to grow with the crowd,
+   * or eight thugs turn into a queue. */
   W.tokens = 2;
+  W.tokenCount = function () {
+    var n = 2, alive = 0;
+    for (var i = 0; i < this.actors.length; i++) {
+      var a = this.actors[i];
+      if (a.team === 1 && !a.removed && !a.dead) alive++;
+    }
+    if (alive >= 4) n++;
+    if (PC.stage && PC.stage.index >= 2) n++;
+    if (PC.game && PC.game.livePlayerCount && PC.game.livePlayerCount() > 1) n++;
+    return n;
+  };
   W.tokenHolders = [];
   W.claimToken = function (e) {
     var i = this.tokenHolders.indexOf(e);
@@ -20,8 +35,8 @@
       var h = this.tokenHolders[i];
       if (h.removed || h.dead || (h.state !== 'attack' && h.tokenT-- <= 0)) this.tokenHolders.splice(i, 1);
     }
-    if (this.tokenHolders.length >= this.tokens) return false;
-    e.tokenT = 90;
+    if (this.tokenHolders.length >= this.tokenCount()) return false;
+    e.tokenT = 70;
     this.tokenHolders.push(e);
     return true;
   };
@@ -34,62 +49,78 @@
   var EM = PC.ENEMY_MOVES = {
     jab: { pose: 'jab', startup: 8, active: 3, recovery: 16, reach: [4, 24], zlo: 14, zhi: 36, dmg: 5, stun: 12, push: 1.2, stop: 4, sfx: 'swing' },
     hook: { pose: 'hook', startup: 11, active: 4, recovery: 22, reach: [4, 26], zlo: 14, zhi: 40, dmg: 8, stun: 16, push: 2, knock: true, stop: 7, sfx: 'swingHard' },
-    kick: { pose: 'kick', startup: 12, active: 4, recovery: 22, reach: [6, 32], zlo: 6, zhi: 30, dmg: 7, stun: 15, push: 2.4, stop: 6, sfx: 'swing' },
+    kick: { pose: 'kick', startup: 12, active: 4, recovery: 22, reach: [6, 28], zlo: 6, zhi: 30, dmg: 7, stun: 12, push: 2.2, stop: 6, sfx: 'swing' },
     jumpKick: { pose: 'jumpKick', air: true, startup: 2, active: 24, recovery: 4, reach: [4, 30], zlo: -4, zhi: 30, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard' },
-    batSwing: { pose: 'hook', startup: 14, active: 5, recovery: 24, reach: [4, 40], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
+    batSwing: { pose: 'hook', startup: 18, active: 5, recovery: 24, reach: [4, 34], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
     knifeStab: { pose: 'jab', startup: 9, active: 4, recovery: 18, reach: [4, 32], zlo: 14, zhi: 34, dmg: 8, stun: 14, push: 1.4, stop: 6, sfx: 'swing', spark: '#ff8888' },
     slam: { pose: 'hook', startup: 16, active: 5, recovery: 30, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard' },
     charge: { pose: 'knee', startup: 6, active: 30, recovery: 26, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2 },
     pound: { pose: 'upper', startup: 10, active: 8, recovery: 34, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom' },
-    chainSweep: { poses: ['spin0', 'spin1'], frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 26, reach: [0, 38], zlo: 8, zhi: 40, dmg: 10, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
+    chainSweep: { poses: ['spin0', 'spin1'], frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 30, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
     upper: { pose: 'upper', startup: 12, active: 4, recovery: 26, reach: [2, 24], zlo: 6, zhi: 44, dmg: 12, stun: 22, knock: true, launch: { vx: 1.4, vz: 5 }, stop: 10, sfx: 'swingHard' },
-    spin: { poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true, startup: 8, active: 18, recovery: 22, reach: [0, 30], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
+    spin: { poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true, startup: 11, active: 12, recovery: 22, reach: [0, 27], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
   };
 
   // ------------------------------------------------------------- enemy types
   var TYPES = PC.ENEMY_TYPES = {
     punk: {
-      char: 'punk', hp: 30, speed: 0.95, score: 200, standoff: 22,
-      moves: ['jab', 'jab', 'hook', 'kick'], aggr: 0.55, downTime: 46
+      char: 'punk', hp: 24, speed: 1.05, score: 200, standoff: 18,
+      moves: ['jab', 'jab', 'hook', 'kick'], aggr: 0.7, downTime: 32
     },
     rough: {
-      char: 'rough', hp: 28, speed: 1.3, score: 300, standoff: 24,
-      moves: ['jab', 'kick', 'kick'], aggr: 0.75, jumpy: 0.3, downTime: 40
+      char: 'rough', hp: 24, speed: 1.35, score: 300, standoff: 20,
+      moves: ['jab', 'kick', 'kick'], aggr: 0.85, jumpy: 0.3, downTime: 28
     },
     knifer: {
-      char: 'knifer', hp: 26, speed: 1.1, score: 400, standoff: 26, weapon: 'knife',
-      moves: ['knifeStab', 'knifeStab', 'kick'], aggr: 0.6, thrower: 0.25, downTime: 44
+      char: 'knifer', hp: 24, speed: 1.2, score: 400, standoff: 22, weapon: 'knife',
+      moves: ['knifeStab', 'knifeStab', 'kick'], aggr: 0.75, thrower: 0.25, downTime: 30
     },
     batter: {
-      char: 'batter', hp: 38, speed: 0.9, score: 400, standoff: 32, weapon: 'bat',
-      moves: ['batSwing', 'batSwing', 'kick'], aggr: 0.5, downTime: 48
+      char: 'batter', hp: 34, speed: 1.0, score: 400, standoff: 26, weapon: 'bat',
+      moves: ['batSwing', 'kick', 'hook'], aggr: 0.7, downTime: 34
     },
     brute: {
-      char: 'brute', hp: 76, speed: 0.8, score: 700, standoff: 22, mass: 2.2, armor: 2,
-      knockRes: 0.55, moves: ['slam', 'hook', 'hook'], aggr: 0.45, grabber: 0.35, downTime: 54
+      char: 'brute', hp: 52, speed: 0.9, score: 700, standoff: 20, mass: 2.2, armor: 1,
+      knockRes: 0.4, moves: ['slam', 'hook', 'hook'], aggr: 0.6, grabber: 0.35, downTime: 40
     }
   };
 
   var BOSSES = PC.BOSS_TYPES = {
     crusher: {
-      char: 'boss_crusher', hp: 168, speed: 0.85, score: 5000, standoff: 26, mass: 3.4,
-      armor: 3, knockRes: 0.82, boss: true, downTime: 44,
-      moves: ['slam', 'hook', 'charge', 'pound'], aggr: 0.6, grabber: 0.3
+      char: 'boss_crusher', hp: 120, speed: 0.9, score: 5000, standoff: 20, mass: 3.4,
+      armor: 2, knockRes: 0.7, boss: true, downTime: 36,
+      moves: ['slam', 'hook', 'hook'], aggr: 0.7, grabber: 0.3,
+      phases: [
+        { at: 0.55, speedMul: 1.2, addMoves: ['charge'], name: 'CRUSHER SEES RED' },
+        { at: 0.25, speedMul: 1.25, aggrMul: 1.2, addMoves: ['pound'], name: 'CRUSHER SEES RED' }
+      ]
     },
     viper: {
-      char: 'boss_viper', hp: 150, speed: 1.55, score: 6000, standoff: 34, mass: 1.4,
-      armor: 1, knockRes: 0.6, boss: true, weapon: 'chain', downTime: 34,
-      moves: ['chainSweep', 'kick', 'chainSweep', 'jumpKick'], aggr: 0.85, jumpy: 0.35, retreat: 0.4
+      char: 'boss_viper', hp: 85, speed: 1.3, score: 6000, standoff: 24, mass: 1.4,
+      armor: 1, knockRes: 0.35, boss: true, weapon: 'chain', downTime: 30,
+      moves: ['kick', 'jab', 'chainSweep'], aggr: 0.9, jumpy: 0.25, retreat: 0.08,
+      phases: [
+        { at: 0.5, speedMul: 1.15, addMoves: ['jumpKick'], name: 'VIPER UNSPOOLS' },
+        { at: 0.22, speedMul: 1.25, aggrMul: 1.15, addMoves: ['slam'], name: 'VIPER UNSPOOLS' }
+      ]
     },
     jaws: {
-      char: 'boss_jaws', hp: 172, speed: 1.25, score: 7000, standoff: 28, mass: 2.4,
-      armor: 2, knockRes: 0.7, boss: true, downTime: 40,
-      moves: ['spin', 'hook', 'kick', 'charge'], aggr: 0.8, thrower: 0.3, grabber: 0.25
+      char: 'boss_jaws', hp: 120, speed: 1.15, score: 7000, standoff: 22, mass: 2.4,
+      armor: 1, knockRes: 0.45, boss: true, downTime: 34,
+      moves: ['hook', 'kick', 'spin', 'hook'], aggr: 0.85, grabber: 0.25,
+      phases: [
+        { at: 0.55, speedMul: 1.15, addMoves: ['charge'], name: 'JAWS LOSES IT' },
+        { at: 0.25, speedMul: 1.25, addMoves: ['slam'], name: 'JAWS LOSES IT' }
+      ]
     },
     power: {
-      char: 'boss_power', hp: 204, speed: 1.5, score: 12000, standoff: 26, mass: 2,
-      armor: 2, knockRes: 0.78, boss: true, downTime: 32,
-      moves: ['upper', 'jab', 'hook', 'spin', 'charge'], aggr: 0.95, jumpy: 0.3, retreat: 0.3
+      char: 'boss_power', hp: 150, speed: 1.3, score: 12000, standoff: 22, mass: 2,
+      armor: 1, knockRes: 0.5, boss: true, downTime: 30,
+      moves: ['jab', 'hook', 'spin', 'upper'], aggr: 0.9, jumpy: 0.2, retreat: 0.15,
+      phases: [
+        { at: 0.66, speedMul: 1.15, addMoves: ['charge'], name: 'MR. POWER LOSES PATIENCE' },
+        { at: 0.33, speedMul: 1.3, aggrMul: 1.2, addMoves: ['slam'], name: 'MR. POWER LOSES PATIENCE' }
+      ]
     }
   };
 
@@ -105,17 +136,26 @@
       armor: t.armor || 0, knockRes: t.knockRes || 0
     });
     this.type = typeKey;
-    this.T = t;
+    /* The type table is shared by every instance; give this one its own
+     * moves list so phases can add to it without leaking into the next. */
+    this.T = {};
+    for (var k in t) this.T[k] = t[k];
+    this.T.moves = t.moves.slice();
     this.isBoss = !!t.boss;
+    this.phaseIndex = 0;
+    this.baseSpeed = this.speed;
+    this.baseAggr = (t.aggr || 0.5) * (spec.aggrScale || 1);
+    this.aggr = this.baseAggr;
     this.downTime = t.downTime || 44;
     this.think = 0;
     this.intent = 'approach';
     this.lane = 0;
     this.tokenT = 0;
-    this.aggr = (t.aggr || 0.5) * (spec.aggrScale || 1);
     this.dmgScale = 1;
     this.facing = spec.facing || -1;
-    this.spawnFade = 0;
+    this.spawnGuard = 0;
+    this.atkCool = 0;
+    this.roarT = 0;
     if (t.weapon) {
       var it = Items.spawn('weapon', t.weapon, this.x, this.y);
       Items.take(this, it);
@@ -131,16 +171,63 @@
     if (killer && killer.addScore) killer.addScore(this.score);
     FX.pop(this.x, this.y - this.hh - 4, this.score, '#ffe070');
     if (this.weaponItem) { Items.drop(this); }
+    /* The fallen leave things behind: food, money, sometimes a weapon. A
+     * street that pays out keeps getting walked. */
+    this.deathLoot();
     if (PC.audio) PC.audio.sfx(this.isBoss ? 'bossDown' : 'ko');
     if (PC.game) PC.game.enemyDown(this);
     if (this.isBoss) { FX.shakeBy(7); FX.flash('#ffffff', 6); }
+    /* The last one down gets a slow-motion curtain call. */
+    if (PC.stage && PC.stage.active && !W.enemies().length) {
+      W.slowmo = this.isBoss ? 48 : 26;
+    }
   };
 
-  Enemy.prototype.onKnockdown = function () { W.dropToken(this); };
+  Enemy.prototype.deathLoot = function () {
+    if (this.isBoss) {
+      /* The boss goes down with a purse: dinner, dinner and a souvenir. */
+      Items.spawn('pickup', 'heart', this.x - 14, this.y, { z: 24, vz: 2 });
+      Items.spawn('pickup', 'heart', this.x + 14, this.y, { z: 30, vz: 2.4 });
+      Items.spawn('weapon', PC.rand.pick(['bat', 'pipe', 'knife', 'chain']),
+        this.x, this.y - 6, { z: 36, vz: 2.2 });
+      return;
+    }
+    var r = PC.rand();
+    var drop = null;
+    if (r < 0.12) drop = 'heart';
+    else if (r < 0.32) drop = 'coin';
+    else if (r < 0.36) drop = PC.rand.pick(['bat', 'pipe', 'knife', 'chain']);
+    if (!drop) return;
+    Items.spawn(drop === 'heart' || drop === 'coin' ? 'pickup' : 'weapon',
+      drop, this.x + PC.rand.range(-8, 8), this.y, { z: 18, vz: 1.6 });
+  };
+
+  /* A hard fall shakes the weapon out of anyone's hands - including the
+   * chain out of VIPER's, which is a fight the player can win twice. */
+  Enemy.prototype.onKnockdown = function () {
+    W.dropToken(this);
+    if (this.weaponItem && PC.rand.chance(0.75)) Items.drop(this);
+  };
 
   // ------------------------------------------------------------------- brain
   Enemy.prototype.control = function () {
     if (this.dead) return;
+    /* Phase changes: the fight turns halfway, loudly, and on purpose. */
+    if (this.isBoss && this.T.phases) {
+      while (this.phaseIndex < this.T.phases.length &&
+        this.hp / this.maxHp <= this.T.phases[this.phaseIndex].at) {
+        this.enterPhase(this.T.phases[this.phaseIndex]);
+        this.phaseIndex++;
+      }
+    }
+    if (this.spawnGuard > 0) this.spawnGuard--;
+    /* Mid-roar: the taunt pose plays out and nothing else does. */
+    if (this.roarT > 0) {
+      this.roarT--;
+      this.vx = 0; this.vy = 0;
+      this.setState('taunt');
+      return;
+    }
     if (this.state === 'held') { this.vx = 0; return; }
     if (this.hold > 0) { this.hold--; this.vx *= 0.7; this.vy *= 0.7; this.setState('idle'); return; }
     if (!this.canAct()) return;
@@ -170,12 +257,12 @@
         this.vx = mx * speed;
         this.vy = my * speed * 0.66;
         this.setState((mx || my) ? 'walk' : 'idle');
-        if (adx < standoff && Math.abs(dy) < 11) this.tryAttack(p, adx);
+        if (adx < standoff + 6 && Math.abs(dy) < 11) this.tryAttack(p, adx);
         break;
       }
       case 'wait': {
-        // hold at the edge of your reach, drifting in your lane
-        var backX = p.x - this.facing * (standoff + 16);
+        // hold just outside your reach, drifting in your lane, briefly
+        var backX = p.x - this.facing * (standoff + 8);
         this.vx = M.clamp((backX - this.x) * 0.05, -1, 1) * speed * 0.7;
         this.vy = M.clamp((p.y + this.lane - this.y) * 0.06, -1, 1) * speed * 0.5;
         this.setState(Math.abs(this.vx) + Math.abs(this.vy) > 0.15 ? 'walk' : 'idle');
@@ -183,7 +270,7 @@
       }
       case 'flank': {
         var fx = p.x + this.facing * standoff;   // cross to the other side
-        this.vx = M.clamp((fx - this.x) * 0.07, -1, 1) * speed;
+        this.vx = M.clamp((fx - this.x) * 0.12, -1, 1) * speed;
         this.vy = M.clamp((p.y + this.lane - this.y) * 0.1, -1, 1) * speed * 0.7;
         this.setState('walk');
         break;
@@ -207,12 +294,33 @@
     }
   };
 
+  /* A boss at half health is a different fight: faster, meaner, and new
+   * moves on the table. The world stops for the roar so the player sees
+   * the turn happen. */
+  Enemy.prototype.enterPhase = function (ph) {
+    var i;
+    for (i = 0; i < (ph.addMoves || []).length; i++) {
+      if (this.T.moves.indexOf(ph.addMoves[i]) < 0) this.T.moves.push(ph.addMoves[i]);
+    }
+    if (ph.speedMul) this.speed = this.baseSpeed * ph.speedMul;
+    if (ph.aggrMul) this.aggr = Math.min(1, this.baseAggr * ph.aggrMul);
+    this.atk = null;
+    this.roarT = 40;
+    this.invuln = 46;
+    FX.shakeBy(6);
+    FX.flash('#ffd0d0', 4);
+    PC.freeze(20);
+    FX.pop(this.x, this.y - this.hh - 18, '!!', '#ff5f6a');
+    if (PC.audio) PC.audio.sfx('roar');
+    if (PC.stage) { PC.stage.bossBanner = 100; PC.stage.bossSub = ph.name; }
+  };
+
   Enemy.prototype.decide = function (p, adx, dy) {
     var t = this.T, r = PC.rand;
-    this.think = r.int(24, 52);
+    this.think = r.int(14, 32);
     this.lane = r.range(-13, 13);
 
-    if (t.grabber && r.chance(t.grabber) && adx < 60) { this.intent = 'grab'; this.think = 60; return; }
+    if (t.grabber && r.chance(t.grabber) && adx < 60) { this.intent = 'grab'; this.think = 50; return; }
     if (t.thrower && this.weapon && r.chance(t.thrower) && adx > 40 && adx < 150) {
       Items.hurl(this);
       this.setState('throwing'); this.hold = 22;
@@ -227,26 +335,32 @@
       this.intent = 'approach';
       return;
     }
-    if (t.retreat && r.chance(t.retreat) && adx < 30) { this.intent = 'retreat'; this.think = r.int(16, 30); return; }
+    if (t.retreat && r.chance(t.retreat) && adx < 30) { this.intent = 'retreat'; this.think = r.int(12, 24); return; }
 
+    /* The gang presses: approach is the default, a short shuffle the rest of
+     * the time. Nobody orbits a fight for half a minute again. */
     if (r.chance(this.aggr)) this.intent = 'approach';
-    else this.intent = r.chance(0.45) ? 'flank' : 'wait';
+    else this.intent = r.chance(0.25) ? 'flank' : 'wait';
   };
 
   Enemy.prototype.tryAttack = function (p, adx) {
+    /* Nobody swings at a fighter on the floor - they square up and wait,
+     * which reads as menace instead of cruelty. */
+    if (p.state === 'down' || p.state === 'fall' || p.state === 'getup') return;
+    if (this.spawnGuard > 0) return;
     if (this.atkCool > 0) { this.atkCool--; return; }
-    if (!W.claimToken(this)) return;
     var name = PC.rand.pick(this.T.moves);
     var mv = EM[name];
     if (!mv) return;
     if (adx > (mv.reach[1] - 4)) return;
+    if (!W.claimToken(this)) return;
     this.startAttack(mv);
-    this.atkCool = PC.rand.int(14, 40);
+    this.atkCool = PC.rand.int(8, 22);
     this.think = mv.startup + mv.active + mv.recovery + 8;
   };
 
   Enemy.prototype.doGrab = function (p) {
-    if (p.invuln > 0 || p.grabbedBy) return;
+    if (this.spawnGuard > 0 || p.invuln > 0 || p.grabbedBy) return;
     this.grabbing = p;
     p.grabbedBy = this;
     p.setState('held');
