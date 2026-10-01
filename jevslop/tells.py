@@ -195,11 +195,23 @@ DOCUMENT_TELLS = [
     JevTell(
         "fence_sitting",
         "Fence-sitting balance",
-        1.0,
+        # Low: encyclopedic writing is neutral by policy.
+        0.5,
         "Does `text` lay out several sides or pros and cons of a question and "
         "then end without the author committing to a position of their own?",
         "Balanced survey of views with no committed conclusion.",
         "The author takes a clear position, or the text is not weighing sides.",
+    ),
+    JevTell(
+        "reasons_list",
+        "Reasons-list structure",
+        1.5,
+        "Is `text` organised as a list of separate reasons, factors, benefits "
+        "or tips, where each paragraph presents one item and the paragraphs "
+        "are introduced by words like “First”, “Another”, “Additionally”, "
+        "“Finally”, or by a bold label?",
+        "Body is a sequence of one-item-per-paragraph points.",
+        "Paragraphs build on each other, or follow a narrative or argument.",
     ),
     JevTell(
         "promotional_tone",
@@ -218,7 +230,8 @@ DOCUMENT_SCORES = [
     ScoreTell(
         "no_voice",
         "Absent personal voice",
-        1.5,
+        # Low: reference and technical writing is impersonal by design.
+        0.6,
         "How much of a particular writer's personality comes through in "
         "`text`?",
         [
@@ -231,12 +244,13 @@ DOCUMENT_SCORES = [
     ),
 ]
 
-# Asked for the report, but kept out of the composite score so the composite
-# is built only from specific, inspectable tells.
+# Jev's holistic judgment. It catches slop that dodges every specific tell
+# (e.g. a tidy listicle with no stock vocabulary), so it counts toward the
+# composite, and it is also shown on its own at the top of the report.
 GUT_CHECK = ScoreTell(
     "gut_check",
     "Jev's overall impression",
-    0.0,
+    2.0,
     "How closely does `text` resemble the default prose style of an AI chat "
     "assistant?",
     [
@@ -253,7 +267,7 @@ CODE_TELLS = [
     CodeTell("em_dash", "Em-dash habit", 0.7, 2.0, 10.0, "per 1k words"),
     CodeTell("low_burstiness", "Uniform sentence length", 1.0, 0.60, 0.30, "coefficient of variation"),
     CodeTell("uniform_paragraphs", "Uniform paragraph length", 0.4, 0.30, 0.10, "coefficient of variation"),
-    CodeTell("bold_labels", "Bold-label bullet lists", 1.0, 0.0, 3.0, "lines"),
+    CodeTell("bold_labels", "Bold labels and lead-ins", 1.0, 0.0, 3.0, "paragraphs"),
     CodeTell("emoji_bullets", "Emoji bullets/headings", 1.0, 0.0, 2.0, "lines"),
 ]
 

@@ -20,6 +20,7 @@ export TYPESAFE_API_KEY=...            # from https://console.typesafe.ai/keys
 python jevslop.py essay.txt
 cat essay.txt | python jevslop.py
 python jevslop.py essay.txt --json     # full result as JSON
+python jevslop.py essay.txt --answers  # also show Jev's raw answer to every question
 python jevslop.py essay.txt --dry-run  # code-measured tells only, no API key needed
 ```
 
@@ -53,13 +54,18 @@ paragraphs.
 | Scene-setting opener | “In today's fast-paced digital landscape…” |
 | Recap conclusion | “In conclusion, …” restating what was said |
 | Chatbot residue | “Certainly!”, “I hope this helps”, “Let me know if…” |
-| Fence-sitting balance | Both sides laid out, no position taken |
+| Fence-sitting balance | Both sides laid out, no position taken (low weight) |
+| Reasons-list structure | One reason per paragraph: “First…”, “Another…”, “Finally…” |
 | Brochure tone | “vibrant”, “seamless”, “nestled”, “rich tapestry” |
-| Absent personal voice (Score) | No opinions, experience, humour or odd word choices |
+| Absent personal voice (Score) | No opinions, experience, humour or odd word choices (low weight) |
 
 Jev also gives an overall gut-check Score (“how closely does this resemble
-default chatbot prose?”). It is shown in the report but left out of the
-composite, so the composite is built only from tells you can inspect.
+default chatbot prose?”). It is shown at the top of the report and counts
+toward the composite with a high weight, because it catches slop that
+dodges every specific tell, such as a tidy listicle with no stock vocabulary.
+
+Fence-sitting and absent voice have low weights because neutral reference
+writing (Wikipedia, documentation) shows both by design.
 
 ### Measured in code
 
@@ -72,7 +78,7 @@ matter of frequency is done in Python:
 | Em-dash habit | em dashes per 1,000 words |
 | Uniform sentence length | low variation (“burstiness”) in sentence length |
 | Uniform paragraph length | low variation in paragraph length |
-| Bold-label bullet lists | lines like `- **Scalability:** …` |
+| Bold labels and lead-ins | paragraphs or list items containing **bold** text, e.g. `- **Scalability:** …` |
 | Emoji bullets/headings | lines starting with ✅, 🚀, etc. |
 
 Code-measured tells that need more text than they get (e.g. burstiness on a
@@ -83,10 +89,18 @@ three-sentence text) are skipped rather than guessed.
 Each tell gets a strength from 0 to 1 and a weight. The score is the weighted
 mean × 100: under 15 “probably human”, 15–30 “a few tells”, 30–45
 “suspicious”, 45+ “slop”. Because no text shows every tell, even blatant
-slop lands around 50–60: on `jev-1.13.0`, `samples/slop.txt` scores 55 and
-`samples/human.txt` scores 4. **The weights and thresholds are hand-picked
-and only checked against those two samples.** Run it over texts whose
-origin you know and adjust `tells.py`.
+slop lands around 50–60. On `jev-1.13.0`:
+
+| Text | Score |
+| --- | --- |
+| `samples/slop.txt` (written to be sloppy) | 54 |
+| An unedited chatbot answer on why sourdough is popular | 32 |
+| Wikipedia, *Ada Lovelace* | 6 |
+| Wikipedia, *Sourdough* | 6 |
+| `samples/human.txt` | 3 |
+
+**The weights and thresholds are hand-picked and only checked against these
+five texts.** Run it over texts whose origin you know and adjust `tells.py`.
 
 ## Cost
 

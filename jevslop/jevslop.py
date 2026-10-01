@@ -106,7 +106,7 @@ def analyse(stats: dict, jev: dict | None) -> dict:
             p = jev["doc_nouls"][t.id]
             tells.append({"id": t.id, "name": t.name, "kind": "document",
                           "weight": t.weight, "strength": p})
-        for t in DOCUMENT_SCORES:
+        for t in DOCUMENT_SCORES + [GUT_CHECK]:
             s = jev["doc_scores"][t.id]
             tells.append({"id": t.id, "name": t.name, "kind": "document",
                           "weight": t.weight, "strength": s / (len(t.levels) - 1)})
@@ -143,6 +143,26 @@ def analyse(stats: dict, jev: dict | None) -> dict:
 def _bar(x: float, width: int = 20) -> str:
     n = round(x * width)
     return "█" * n + "·" * (width - n)
+
+
+def print_answers(jev: dict) -> None:
+    """Print every question Jev was asked and its raw answer."""
+    print("\nJev's raw answers, whole text:")
+    for t in DOCUMENT_TELLS:
+        print(f"  {jev['doc_nouls'][t.id]:5.2f}  noul   {t.name}")
+    for t in DOCUMENT_SCORES + [GUT_CHECK]:
+        s = jev["doc_scores"][t.id]
+        print(f"  {s:5.2f}  score  {t.name} (0-{len(t.levels) - 1}: "
+              f"{t.levels[round(s)]})")
+    print("\nJev's raw answers per paragraph (noul = probability the tell is present):")
+    header = " ".join(f"{t.id[:9]:>9}" for t in PARAGRAPH_TELLS)
+    print(f"  {'':>4} {header}")
+    for i, answers in zip(jev["eligible"], jev["para_nouls"]):
+        row = " ".join(f"{answers[t.id]:9.2f}" for t in PARAGRAPH_TELLS)
+        print(f"  ¶{i + 1:<3} {row}")
+    skipped = len(jev["paragraphs"]) - len(jev["eligible"])
+    if skipped:
+        print(f"  ({skipped} paragraphs under {MIN_PARAGRAPH_WORDS} words not asked)")
 
 
 def print_report(result: dict, paras: list[str]) -> None:
@@ -189,6 +209,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("file", nargs="?", help="text file to check (default: stdin)")
     ap.add_argument("--json", action="store_true", help="print the result as JSON")
+    ap.add_argument("--answers", action="store_true",
+                    help="also print Jev's raw answer to every question")
     ap.add_argument("--dry-run", action="store_true",
                     help="only run the code-measured tells; don't call Jev")
     ap.add_argument("--model", default=None, help="Jev model (default: jev-latest)")
@@ -205,6 +227,8 @@ def main() -> int:
     if args.json:
         print(json.dumps(result, indent=2, ensure_ascii=False))
     else:
+        if args.answers and jev:
+            print_answers(jev)
         print_report(result, paragraphs(text))
     return 0
 

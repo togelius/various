@@ -7,7 +7,9 @@ from tells import CODE_TELLS, STOCK_PHRASES
 
 _WORD = re.compile(r"[A-Za-z0-9'’-]+")
 _SENTENCE_END = re.compile(r"(?<=[.!?])[\"'”’)]*\s+(?=[\"'“‘(]*[A-Z0-9])")
-_BOLD_LABEL = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+\*\*[^*]{1,60}?:?\*\*:?")
+# A bold span (**x** or __x__) anywhere in a paragraph or list item: bold
+# labels on bullets and bold lead-ins inside running prose are both tells.
+_BOLD = re.compile(r"(?<![\w*])(\*\*|__)(?=\S)[^*_\n]{1,80}?(?<=\S)\1(?![\w*])")
 _EMOJI = re.compile(
     "^\\s*(?:[-*•#]+\\s*)?[\U0001F300-\U0001FAFF☀-➿⭐✅❌]"
 )
@@ -57,6 +59,9 @@ def measure(text: str) -> dict[str, dict]:
     n_words = max(1, len(words(text)))
     per_k = 1000 / n_words
     lines = text.splitlines()
+    # Paragraphs, with each list item counted as its own block.
+    blocks = [l for p in paragraphs(text) for l in
+              (p.splitlines() if re.match(r"^\s*([-*•]|\d+[.)])\s", p) else [p])]
 
     stock_hits: dict[str, int] = {}
     for phrase, rx in zip(STOCK_PHRASES, _STOCK):
@@ -76,7 +81,7 @@ def measure(text: str) -> dict[str, dict]:
                            {"sentences": len(sent_lengths)}),
         "uniform_paragraphs": (_cv(para_lengths), len(para_lengths) >= 4,
                                {"paragraphs": len(para_lengths)}),
-        "bold_labels": (float(sum(bool(_BOLD_LABEL.match(l)) for l in lines)), True, {}),
+        "bold_labels": (float(sum(bool(_BOLD.search(b)) for b in blocks)), True, {}),
         "emoji_bullets": (float(sum(bool(_EMOJI.match(l)) for l in lines)), True, {}),
     }
 
