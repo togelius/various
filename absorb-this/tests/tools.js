@@ -103,6 +103,14 @@ function testTools() {
     for (let i = 0; i < 300; i++) updateEnemies(1 / 60);
     check('Frozen things thaw', !(icy.frozen > 0));
 
+    // The greasy counter: everything slides, every sponge is greasy, puddles surf.
+    fresh(); MOD = 'grease'; wave = 8; enemies = []; spawnEnemy('sponge');
+    check('On a greasy counter every sponge arrives greasy', enemies[0] && enemies[0].greasy);
+    const skate = () => { P.vx = 0; P.vz = 0; P.onG = true; P.pud = false; P.dashT = 0; P.dashCd = 9; keys.KeyW = true; updatePlayer(1 / 60); keys.KeyW = false; return Math.hypot(P.vx, P.vz); };
+    const greasyStart = skate(); MOD = null; const dryStart = skate();
+    check('Grease turns walking into skating', greasyStart < dryStart * .4);
+    MOD = null;
+
     // Speech: sentence by sentence, with intonation, readable text.
     const plan = speechPlan('Look! This is pure ideology. Why do you squirt the paper towel? And so on, and so on', 0.62, 1.2);
     check('Speech is split into sentences', plan.length === 4 && plan[0].t === 'Look!');

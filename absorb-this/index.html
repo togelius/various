@@ -1606,6 +1606,7 @@ const MODS = {
   caffeine: { name: 'CAFFEINATED', sub: 'EVERYTHING IS FASTER, INCLUDING YOUR HEART', alts: ["TRIPLE-SHOT ESPRESSO", "DECAF IS FOR QUITTERS", "THE JITTERS", "FULL-CAF FURY", "ESPRESSO YOURSELF", "BEAN THERE, DASHED THAT", "CAFFEINE FIEND"] },
   rave: { name: 'KITCHEN RAVE', sub: 'UNTZ UNTZ UNTZ UNTZ', alts: ["DRIP AND BASS", "DISCO DISHWASHER", "DANCE DANCE EVAPORATION", "THE SUDS CLUB", "BASS IN THE SINK", "STROBE SPONGES", "ACID HOUSE (HOT SAUCE REMIX)"] },
   vibrant: { name: 'VIBRANT MATTER', sub: 'THE OBJECTS HAVE AGENCY. YOUR PICKUPS WOULD RATHER NOT BE PICKED UP', alts: ["THE OBJECTS HAVE AGENCY", "FLAT ONTOLOGY, STEEP CONSEQUENCES", "THE LOOT HAS LEGS", "THING THEORY", "DEMOCRACY OF OBJECTS", "THE REVOLT OF THE PICKUPS"] },
+  grease: { name: 'THE GREASY COUNTER', sub: 'EVERYTHING SLIDES. SOAP CUTS GREASE. PUDDLES SURF', alts: ["SLICK TIMES", "OIL CRISIS", "BUTTERFINGERS", "THE SLIPPERY SLOPE", "DEEP-FRIED DIALECTICS", "NON-STICK SOCIETY", "LUBRICATED LATE CAPITALISM"] },
   funsize: { name: 'FUN SIZE', sub: 'TINY SPONGES. TWICE AS MANY', alts: ["TRAVEL SIZE", "SNACK PACK", "KIDS' MENU", "SAMPLE SIZE", "BITE-SIZED BATTALION", "MINI-SPONGE ARMY", "POCKET-SIZED PERIL"] },
 };
 let MOD = null, lastMod = null, gs = 1, tapT = 0, tickNews = [];
@@ -3768,6 +3769,14 @@ const ZL = {
     "The spoons circle you like dancers who want to tell you about their startup. You cannot escape. The music is too loud to say no.",
     "Strobe lights! Every movement becomes a series of still photographs. The sponge is here, then there. Zeno would say it never moves at all. Zeno never went clubbing.",
   ],
+  mod_grease: [
+    "The counter is greased! Everything slides. Welcome to the frictionless market, my friend. Nothing holds, nothing stops, and everybody ends up on the floor.",
+    "Grease everywhere. This is the dream of the libertarian: no friction, no regulation, and the sponges slide straight into the abyss. Help them along.",
+    "A greasy counter! You cannot walk, you can only skate. So do not walk. Become a puddle and surf! The grease is the ideology, and you are the drop that rides it.",
+    "Oil on every surface. In my country we call this 'the transition'. Everybody slips, a few people slide very far, and they are never seen again.",
+    "Slippery! The sponges are greasy too. Soap them, push them, let gravity finish the argument. On grease, the edge of the counter is the best critic.",
+    "Deep-fried dialectics! Here is the lesson: on a slippery surface, the one who wins is not the strongest. It is the one who already lies flat.",
+  ],
   mod_funsize: [
     "Smaller sponges! Same workload! Management has called this a leaner organization.",
     "Fun Size! Tiny sponges, twice as many! Like the fun size chocolate bar. Nobody ever asks, fun for whom? Not for you. Definitely not for you.",
@@ -4870,7 +4879,7 @@ function spawnEnemy(type) {
   if(type==='mama'){e.y+=7;e.vy=14;announce('GRANDMA SPONGE','SHE HAS ABSORBED WORSE THAN YOU');say('Grandma sponge',true);setTimeout(()=>zz('mama',{force:true}),1500);}
   if(type==='sponge'||type==='mama'){e.vy=10;e.vx=rand(-2,2);e.vz=rand(-1,1);}
   // From the stove onwards some sponges arrive pre-fried: water and ice skid off, soap cuts it.
-  if(type==='sponge'&&e.type==='sponge'&&wave>=5&&Math.random()<(wave<7?.2:.3)){e.greasy=true;
+  if(type==='sponge'&&e.type==='sponge'&&(MOD==='grease'||wave>=5&&Math.random()<(wave<7?.2:.3))){e.greasy=true;
     if(!toolTipsSeen.greasyArrive){toolTipsSeen.greasyArrive=true;setTimeout(()=>{if(state==='play'){feed('TIP <em>'+TOOL_TIPS.greasy+'</em>');zz('greasy',{force:true});}},900);}}
   enemies.push(e);
   bubbles(e.x, e.y + 0.5, e.z, 8, 0.8);
@@ -4900,6 +4909,7 @@ function startWave(n) {
   wave = n; MOD = null; gs = 1;
   if (n >= 6 && n % 7 !== 0 && Math.random() < (n < 10 ? 0.5 : 0.7)) { MOD = pick(Object.keys(MODS).filter(k => k !== lastMod)); lastMod = MOD; gs = MOD === 'moon' ? 0.4 : 1; }
   spawnQ = buildWave(n);
+  if (MOD === 'grease') { const cx = CHAPTERS[chapter].x; for (let i = 0; i < 46; i++) { const x = cx + rand(-23, 23), z = rand(-19, 19); if (onCounter(x, z)) stain(x, groundAt(x, z, 30), z, rand(1.2, 2.8), [.62, .47, .15]); } }
   if (MOD === 'funsize') spawnQ = spawnQ.flatMap(t => t === 'sponge' ? ['sponge', 'sponge'] : [t]);
   waveActive = true; spawnT = 0.6;
   announce('WAVE ' + n, waveName(n) + (MOD ? '<br>+ ' + MODS[MOD].name + ' · ' + pick(MODS[MOD].alts) : '')); sfx('wave'); say(waveName(n).toLowerCase(), true);
@@ -5276,7 +5286,7 @@ function updateEnemies(dt) {
       continue;
     }
     if (e.type === 'sponge' || e.type === 'mama') {
-      if (onG) { e.vx *= Math.exp(-dt * 14); e.vz *= Math.exp(-dt * 14); }
+      if (onG) { const fr = MOD === 'grease' ? 2.2 : 14; e.vx *= Math.exp(-dt * fr); e.vz *= Math.exp(-dt * fr); }
       // sponges drink your spilled water too, and it heals them
       let drank = false;
       if (onG && !e.gold) for (let i = stains.length - 1; i >= 0; i--) { const st = stains[i]; if (!st.water) continue; const sx = st.x - e.x, sz = st.z - e.z;
@@ -5661,14 +5671,14 @@ function updatePlayer(dt) {
     for (let i = 0; i < 8; i++) part3({ x: P.x + rand(-.3, .3), y: P.y + rand(0.2, 1), z: P.z + rand(-.3, .3), vx: -dx * 6 + rand(-2, 2), vy: rand(0, 2), vz: -dz * 6 + rand(-2, 2), life: 0.5, size: rand(0.05, 0.12), col: pick(WATER), mat: 12, sph: true, grav: 10, stain: WET });
   }
   if (P.dashT <= 0 && P.pud && P.onG) {
-    let wet = wetLaneAt(P.x, P.z);
+    let wet = wetLaneAt(P.x, P.z) || MOD === 'grease';
     for (const st of stains) if (st.water && (st.x - P.x) ** 2 + (st.z - P.z) ** 2 < 2.6) { wet = true; break; }
     const top = wet ? 24 : 17, acc = wet ? 3 : 2.2, fr = wet ? 0.25 : 0.9;
     if (wl > 0) { P.vx = lerp(P.vx, wx * top, Math.min(1, dt * acc)); P.vz = lerp(P.vz, wz * top, Math.min(1, dt * acc)); }
     else { P.vx *= Math.exp(-dt * fr); P.vz *= Math.exp(-dt * fr); }
     if (Math.hypot(P.vx, P.vz) > 7 && Math.random() < dt * 25) part3({ x: P.x + rand(-.4, .4), y: P.y + 0.1, z: P.z + rand(-.4, .4), vx: -P.vx * 0.2 + rand(-1, 1), vy: rand(1, 3), vz: -P.vz * 0.2 + rand(-1, 1), life: 0.4, size: rand(0.04, 0.09), col: pick(WATER), mat: 12, sph: true, grav: 12, bounce: 0 });
   } else if (P.dashT <= 0) {
-    const sp = 11.5 * (wl > 0 ? Math.max(0.35, mag) : 1), k = P.onG ? 13 : 2.8;
+    const sp = 11.5 * (wl > 0 ? Math.max(0.35, mag) : 1), k = P.onG ? (MOD === 'grease' ? 2.4 : 13) : 2.8;   // on grease you skate
     const ax = wx * sp, az = wz * sp;
     if (P.onG || wl > 0) { P.vx = lerp(P.vx, ax, Math.min(1, dt * k)); P.vz = lerp(P.vz, az, Math.min(1, dt * k)); }
   }

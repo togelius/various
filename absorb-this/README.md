@@ -154,7 +154,9 @@ With a keyboard and mouse:
 - **Wave modifiers.** From wave 6 a wave may come with conditions: the tap is
   left on (it rains water), moon kitchen (low gravity), googly overload
   (enormous eyes), caffeinated (everything faster), kitchen rave (hue-cycling
-  strobes and lasers), fun size (tiny sponges, twice as many) or vibrant
+  strobes and lasers), fun size (tiny sponges, twice as many), the greasy
+  counter (you skate on foot, puddles surf everywhere, kitchenware slides
+  off edges, and every sponge arrives greasy, so bring soap) or vibrant
   matter (new materialism: the pickups have agency and scuttle away from you).
 - **Favourite foes.** The philosopher keeps a rogues' gallery of 24
   nemeses, about 12 jabs each: Derrida, Deleuze, Fukuyama, Habermas, new
