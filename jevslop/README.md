@@ -81,10 +81,12 @@ three-sentence text) are skipped rather than guessed.
 ## Scoring
 
 Each tell gets a strength from 0 to 1 and a weight. The score is the weighted
-mean × 100: under 25 “probably human”, 25–45 “a few tells”, 45–65
-“suspicious”, 65+ “slop”. **The weights and thresholds are hand-picked and
-not yet calibrated.** Run it over texts whose origin you know and adjust
-`tells.py`.
+mean × 100: under 15 “probably human”, 15–30 “a few tells”, 30–45
+“suspicious”, 45+ “slop”. Because no text shows every tell, even blatant
+slop lands around 50–60: on `jev-1.13.0`, `samples/slop.txt` scores 55 and
+`samples/human.txt` scores 4. **The weights and thresholds are hand-picked
+and only checked against those two samples.** Run it over texts whose
+origin you know and adjust `tells.py`.
 
 ## Cost
 

@@ -23,11 +23,13 @@ YES = 0.5
 # they are usually headings, list items or sign-offs.
 MIN_PARAGRAPH_WORDS = 12
 
-# Composite score bands (0-100).
+# Composite score bands (0-100). The composite is a weighted mean over tells
+# that rarely all co-occur (an essay won't have emoji bullets or chatbot
+# residue), so even blatant slop lands around 50-60.
 VERDICTS = [
-    (25, "probably human"),
-    (45, "a few tells"),
-    (65, "suspicious"),
+    (15, "probably human"),
+    (30, "a few tells"),
+    (45, "suspicious"),
     (101, "slop"),
 ]
 
