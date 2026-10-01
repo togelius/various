@@ -154,6 +154,28 @@
       [[2, 10], [4, 0]], [[-4, 10], [-7, 0]])
   };
 
+  /* Anticipation. Every attack used to show its strike pose from the first
+   * frame of its wind-up, so a thug's kick was visibly out a fifth of a
+   * second before it could hurt you, and "react now" looked exactly like
+   * "too late". These are the opposite of each strike - the fist cocked
+   * back, the knee chambered, the bat over the shoulder - so the wind-up
+   * reads as a wind-up and the hit reads as a hit. */
+  POSES.windPunch = p([-1, 19], [-3, 29.5], [-2, 35],
+    [[-3, 26], [-7, 28]], [[2, 25], [5, 27]],
+    [[3, 10], [6, 0]], [[-4, 10], [-8, 0]]);
+  POSES.chamber = p([-1, 19.5], [-3, 30], [-3, 35.5],
+    [[1, 26], [4, 24]], [[-6, 26], [-9, 25]],
+    [[6, 21], [3, 12]], [[-2, 10], [-3, 0]]);
+  POSES.windOver = p([-1, 19], [-3, 30], [-3, 35.5],
+    [[-3, 36], [-7, 41]], [[-5, 34], [-8, 39]],
+    [[4, 10], [7, 0]], [[-4, 10], [-8, 0]]);
+  POSES.windSpin = p([0, 16], [-1, 26], [0, 31.5],
+    [[-3, 24], [-7, 22]], [[3, 23], [-1, 21]],
+    [[4, 8], [7, 0]], [[-4, 8], [-8, 0]]);
+  POSES.windCharge = p([-1, 17], [3, 26], [6, 31],
+    [[2, 21], [-1, 17]], [[-1, 22], [-4, 18]],
+    [[4, 8], [8, 0]], [[-5, 9], [-10, 0]]);
+
   /* The walk cycle gains its in-between frames, blended from the keyframes:
    * eight frames of walk instead of four, the difference between a strut
    * and a glide. Blended poses inherit the keyframes' joint structure, so

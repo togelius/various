@@ -113,7 +113,7 @@
   Actor.prototype.isBusy = function () {
     return this.state === 'attack' || this.state === 'hurt' || this.state === 'fall' ||
       this.state === 'down' || this.state === 'getup' || this.state === 'held' ||
-      this.state === 'throwing' || this.state === 'dizzy';
+      this.state === 'throwing' || this.state === 'dizzy' || this.state === 'guard';
   };
 
   Actor.prototype.canAct = function () {
@@ -127,6 +127,8 @@
 
   // ------------------------------------------------------------------ attacks
   Actor.prototype.startAttack = function (def) {
+    this.chainBroken = false;
+    if (def.air) { this.airAttacked = true; this.airHit = false; }
     this.atk = def;
     this.atkT = 0;
     this.hitList = {};
@@ -213,18 +215,37 @@
   var uid = 0;
 
   Actor.prototype.land = function (t, d) {
+    if (d.air) this.airHit = true;
     var pt = this.strikePoint();
     var cx = M.clamp(pt.x, Math.min(this.x, t.x) - 6, Math.max(this.x, t.x) + 6);
     var cy = t.y - t.z - M.clamp((d.zhi === undefined ? 30 : d.zhi) * this.scale, 8, t.hh) * 0.75;
     var heavy = !!d.knock || d.dmg >= 12;
+    /* A counter: the player catches one of them mid-wind-up. Now that a
+     * wind-up looks like a wind-up, striking into it is a read, and a read
+     * should pay - a thug caught that way loses their footing entirely. */
+    var counter = this.team === 0 && t.team === 1 && t.state === 'attack' &&
+      t.atk && t.atkT < t.atk.startup;
+    // catching a big telegraphed swing is the read that pays most
+    var counterBig = counter && t.atk.startup >= 11;
 
-    t.takeHit({
-      dmg: d.dmg, from: this, knock: d.knock, stun: d.stun || 14,
-      push: d.push === undefined ? 1.6 : d.push, launch: d.launch,
-      dir: this.facing, x: cx, y: cy, heavy: heavy
+    var res = t.takeHit({
+      dmg: d.dmg * (this.dmgOut || 1) * (counter ? 1.3 : 1), from: this, knock: d.knock,
+      stun: d.stun || 14, push: d.push === undefined ? 1.6 : d.push, launch: d.launch,
+      dir: this.facing, x: cx, y: cy, heavy: heavy, counter: counter, counterBig: counterBig,
+      gb: d.gb
     });
+    if (res === 'block') {
+      /* Blocked: a clink, a shove off the guard, and the chain is broken -
+       * a jab into a raised guard should feel like hitting a door. */
+      PC.freeze(3);
+      FX.block(cx, cy);
+      if (PC.audio) PC.audio.sfx('clank');
+      this.vx = -this.facing * 1.4;
+      this.chainBroken = true;
+      return;
+    }
 
-    PC.freeze(d.stop || (heavy ? 7 : 4));
+    PC.freeze((d.stop || (heavy ? 7 : 4)) + (counter ? 5 : 0));
     FX.hit(cx, cy, heavy, d.spark);
     if (PC.audio) PC.audio.sfx(heavy ? 'hitHeavy' : 'hit');
     if (this.onHitLanded) this.onHitLanded(t, d);
@@ -232,11 +253,17 @@
 
   Actor.prototype.takeHit = function (h) {
     if (this.dead || this.invuln > 0) return;
+    /* A raised guard stops light strikes from the front. Kicks, heavies,
+     * weapons, anything from behind - and a grab - get through. */
+    var guarding = this.state === 'guard';
+    var front = h.from && (h.from.x - this.x) * this.facing > 0;
+    if (guarding && front && !h.knock && !h.gb && !h.counter) return 'block';
     var dmg = h.dmg * (this.dmgScale || 1);
     this.hp -= dmg;
     this.flash = 5;
     this.stunned = 0;
 
+    if (h.from) this.lastHitBy = h.from;
     if (this.grabbedBy) { this.grabbedBy.releaseGrab(); }
     if (this.grabbing) this.releaseGrab();
     if (this.carry) { PC.items.drop(this); }
@@ -248,6 +275,23 @@
       this.deathT = 0;
       if (this.onDeath) this.onDeath(h.from);
       return;
+    }
+
+    if (h.counter) {
+      FX.pop(this.x, this.y - this.hh - 10, 'COUNTER', '#7fe0ff');
+      // a boss caught winding up staggers straight through its armor
+      if (this.isBoss) this.armorLeft = 0;
+      else if (!h.knock && h.counterBig) { this.goDizzy(h, 96); return; }
+      else if (!h.knock) h.stun = (h.stun || 14) + 10;   // a light counter: a long stagger
+    }
+    if (guarding) {
+      FX.pop(this.x, this.y - this.hh - 10, 'BREAK', '#ffd23a');
+      this.armorLeft = 0;
+      if (!h.knock) {
+        this.atk = null; this.setState('hurt'); this.hurtT = 26;
+        this.vx = h.dir * h.push; this.facing = -h.dir;
+        return;
+      }
     }
 
     // Big enemies shrug off a couple of hits before they react at all.
@@ -264,15 +308,7 @@
     this.recentHits = (W.time - (this.hitClock || -999) < 75) ? (this.recentHits || 0) + 1 : 1;
     this.hitClock = W.time;
     if (this.team === 1 && !this.isBoss && this.recentHits >= 4 && !h.knock) {
-      this.recentHits = 0;
-      this.atk = null;
-      this.stunned = 1;
-      this.dizzyT = 110;
-      this.setState('dizzy');
-      this.vx = h.dir * h.push * 0.6;
-      /* Seeing stars costs you your grip too. */
-      if (this.weaponItem && PC.items) PC.items.drop(this);
-      if (W.dropToken) W.dropToken(this);
+      this.goDizzy(h, 110);
       return;
     }
 
@@ -292,15 +328,43 @@
       this.knockDown(h.dir, h.launch || { vx: 2.9, vz: 3.4 });
     } else {
       this.atk = null;
+      this.facing = -h.dir;
+      /* Cover up: the guarders take a jab on the chin and raise their
+       * hands. The hit lands; the next one will not, unless it is the
+       * right one. Punks never do this - stage one is for learning. */
+      if (this.team === 1 && this.T && this.T.guard && front && !h.counter &&
+        h.from && h.from.team === 0 && PC.rand() < this.T.guard) {
+        this.setState('guard');
+        this.guardT = 42;
+        this.vx = h.dir * h.push * 0.4;
+        return;
+      }
       this.setState('hurt');
       this.hurtT = h.stun;
       this.vx = h.dir * h.push;
-      this.facing = -h.dir;
       if (this.onHurt) this.onHurt(h);
     }
   };
 
+  Actor.prototype.goDizzy = function (h, frames) {
+    this.recentHits = 0;
+    this.atk = null;
+    this.stunned = 1;
+    this.dizzyT = frames;
+    this.setState('dizzy');
+    this.vx = h.dir * h.push * 0.6;
+    /* Seeing stars costs you your grip too. */
+    if (this.weaponItem && PC.items) PC.items.drop(this);
+    if (W.dropToken) W.dropToken(this);
+  };
+
   Actor.prototype.knockDown = function (dir, launch) {
+    /* Launched hard enough, a body becomes a weapon (see bowl). */
+    if (this.team === 1) {
+      this.bowling = launch.vx >= 3.3 ? 2 : 0;
+      this.bowled = null;
+      this.bowledBy = this.lastHitBy && this.lastHitBy.team === 0 ? this.lastHitBy : null;
+    }
     this.atk = null;
     this.setState('fall');
     this.vx = dir * launch.vx;
@@ -370,6 +434,7 @@
         break;
       case 'fall':
         this.vx *= 0.985;
+        this.bowl();
         break;
       case 'down':
         this.vx *= 0.8;
@@ -382,6 +447,10 @@
       case 'dizzy':
         this.vx *= 0.86; this.vy *= 0.8;
         if (--this.dizzyT <= 0) { this.stunned = 0; this.setState('idle'); }
+        break;
+      case 'guard':
+        this.vx *= 0.7; this.vy *= 0.7;
+        if (--this.guardT <= 0) { this.setState('idle'); this.atkCool = 0; }
         break;
       case 'held':
         this.vx = 0; this.vy = 0;
@@ -439,9 +508,53 @@
       if (PC.audio) PC.audio.sfx('thud');
       FX.shakeBy(2);
     } else if (this.state === 'jump' || this.state === 'attack') {
+      /* A jump attack lands with a price. Connect, and you are back on
+       * your feet at once; whiff, and you are stuck in your landing for a
+       * quarter of a second with the gang right there. That is the whole
+       * difference between a jump kick that opens a fight and one that is
+       * the fight - a bot that did nothing else used to clear the game. */
+      /* The price belongs to the jump, not to whatever state it ends in:
+       * a kick thrown early is over before touchdown, and that whiff has
+       * to cost the same as a late one. */
+      var lag = 0;
+      if (this.airAttacked) {
+        lag = this.airHit ? 4 : 16;
+        this.airAttacked = false;
+      }
       if (this.state === 'attack' && this.atk && this.atk.air) this.atk = null;
-      this.setState('idle');
+      if (lag && this.team === 0) { this.setState('crouch'); this.crouchT = lag; this.vx *= 0.3; }
+      else if (lag) { this.setState('idle'); this.hold = lag; }
+      else this.setState('idle');
       FX.dust(this.x, this.y, this.facing, 2);
+    }
+  };
+
+  /* Bodies as weapons. A thug thrown or launched hard flattens whoever he
+   * flies into - up to two of them, three for a throw - which is what turns
+   * a clinch into crowd control and lining them up into a tactic. */
+  Actor.prototype.bowl = function () {
+    if (!this.bowling || this.z <= 0.5 || Math.abs(this.vx) < 1.6) return;
+    for (var i = 0; i < W.actors.length; i++) {
+      var t = W.actors[i];
+      if (t === this || t.team !== this.team || t.removed || t.dead) continue;
+      if (t.invuln > 0 || t.z > 10) continue;
+      if (t.state === 'down' || t.state === 'fall' || t.state === 'getup' || t.state === 'held') continue;
+      if (Math.abs(t.y - this.y) > 10) continue;
+      if (Math.abs(t.x - this.x) > t.hw + this.hw) continue;
+      if ((t.x - this.x) * this.vx < -4) continue;          // only what lies ahead
+      if (this.bowled && this.bowled.indexOf(t) >= 0) continue;
+      (this.bowled = this.bowled || []).push(t);
+      var dir = M.sign(this.vx) || 1;
+      t.takeHit({
+        dmg: 8, from: this.bowledBy, knock: true, stun: 20, push: 2.4, dir: dir,
+        x: t.x, y: t.y - t.hh * 0.6, heavy: true, launch: { vx: 2.6, vz: 3.0 }
+      });
+      FX.hit(t.x - dir * 4, t.y - t.hh * 0.55, true);
+      PC.freeze(6);
+      if (PC.audio) PC.audio.sfx('hitHeavy');
+      if (this.bowledBy && this.bowledBy.addScore) this.bowledBy.addScore(150);
+      this.vx *= 0.75;
+      if (--this.bowling <= 0) return;
     }
   };
 
@@ -449,6 +562,7 @@
     this.deathT++;
     // fall, lie there, then flicker out
     if (this.state === 'fall') {
+      this.bowl();
       this.x += this.vx; this.vx *= 0.985;
       this.z += this.vz; this.vz -= GRAV;
       if (this.z <= 0) { this.z = 0; this.setState('down'); FX.dust(this.x, this.y, -M.sign(this.vx), 5); }
@@ -470,6 +584,7 @@
       case 'attack': return this.attackPose();
       case 'hurt': return 'hurt';
       case 'dizzy': return 'dizzy';
+      case 'guard': return 'guard';
       case 'fall': return this.z > 0.5 ? 'fall' : 'down';
       case 'down': return 'down';
       case 'getup': return 'getup';

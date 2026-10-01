@@ -9,6 +9,12 @@
   var PC = global.PC || (global.PC = {});
   var Art = PC.art;
 
+  /* Cosmetics draw from their own generator. If a spark or a screen shake
+   * took numbers from R, changing how many sparks a hit throws would
+   * quietly change every enemy decision after it - and every measurement of
+   * how the game plays would move whenever the art did. */
+  var R = PC.fxRand = PC.RNG(0x5FA4C0DE);
+
   var FX = PC.fx = {
     list: [], shake: 0, shakeX: 0, shakeY: 0, flashT: 0, flashCol: '#ffffff',
 
@@ -24,21 +30,34 @@
       this.add({ t: 0, life: heavy ? 11 : 8, x: x, y: y, kind: 'star', heavy: heavy, col: color });
       var n = heavy ? 7 : 4;
       for (var i = 0; i < n; i++) {
-        var a = PC.rand() * Math.PI * 2, sp = PC.rand.range(0.8, heavy ? 3.4 : 2.2);
+        var a = R() * Math.PI * 2, sp = R.range(0.8, heavy ? 3.4 : 2.2);
         this.add({
-          t: 0, life: PC.rand.int(9, 18), kind: 'spark', x: x, y: y,
+          t: 0, life: R.int(9, 18), kind: 'spark', x: x, y: y,
           vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6, g: 0.12, col: color
         });
       }
       if (heavy) this.shakeBy(3.2);
     },
 
+    /* A block: a small cold clink instead of a hit star, so a guarded jab
+     * reads as stopped rather than landed. */
+    block: function (x, y) {
+      this.add({ t: 0, life: 7, x: x, y: y, kind: 'block' });
+      for (var i = 0; i < 3; i++) {
+        var a = R() * Math.PI * 2;
+        this.add({
+          t: 0, life: R.int(5, 9), kind: 'spark', x: x, y: y,
+          vx: Math.cos(a) * 1.4, vy: Math.sin(a), g: 0.05, col: '#9fd8ff'
+        });
+      }
+    },
+
     dust: function (x, y, dir, n) {
       for (var i = 0; i < (n || 4); i++) {
         this.add({
-          t: 0, life: PC.rand.int(10, 20), kind: 'dust', x: x, y: y,
-          vx: dir * PC.rand.range(0.2, 1.1) + PC.rand.range(-0.3, 0.3),
-          vy: -PC.rand.range(0.1, 0.5), g: 0.02, col: '#c8c8d8'
+          t: 0, life: R.int(10, 20), kind: 'dust', x: x, y: y,
+          vx: dir * R.range(0.2, 1.1) + R.range(-0.3, 0.3),
+          vy: -R.range(0.1, 0.5), g: 0.02, col: '#c8c8d8'
         });
       }
     },
@@ -61,11 +80,11 @@
     boom: function (x, y) {
       this.add({ t: 0, life: 22, kind: 'boom', x: x, y: y });
       for (var i = 0; i < 14; i++) {
-        var a = PC.rand() * Math.PI * 2, sp = PC.rand.range(1, 4);
+        var a = R() * Math.PI * 2, sp = R.range(1, 4);
         this.add({
-          t: 0, life: PC.rand.int(12, 26), kind: 'spark', x: x, y: y,
+          t: 0, life: R.int(12, 26), kind: 'spark', x: x, y: y,
           vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.7, g: 0.14,
-          col: PC.rand.pick(['#ffe070', '#ff8a20', '#ffffff'])
+          col: R.pick(['#ffe070', '#ff8a20', '#ffffff'])
         });
       }
       this.shakeBy(6);
@@ -85,8 +104,8 @@
         if (p.t >= p.life) this.list.splice(i, 1);
       }
       if (this.shake > 0) {
-        this.shakeX = (PC.rand() - 0.5) * this.shake * 2;
-        this.shakeY = (PC.rand() - 0.5) * this.shake;
+        this.shakeX = (R() - 0.5) * this.shake * 2;
+        this.shakeY = (R() - 0.5) * this.shake;
         this.shake *= 0.78;
         if (this.shake < 0.25) { this.shake = 0; this.shakeX = 0; this.shakeY = 0; }
       }
@@ -115,6 +134,13 @@
             ctx.fillRect(x - 5, y - 1, 10, 2);
             ctx.fillRect(x - 1, y - 5, 2, 10);
           }
+        } else if (p.kind === 'block') {
+          // a squared bracket of light: the knuckles met a forearm
+          var bs = 3 + Math.round(f * 3);
+          ctx.fillStyle = f < 0.5 ? '#ffffff' : '#9fd8ff';
+          ctx.fillRect(x - bs, y - bs, 2, bs * 2);
+          ctx.fillRect(x + bs - 2, y - bs, 2, bs * 2);
+          ctx.fillRect(x - bs, y - 1, bs * 2, 2);
         } else if (p.kind === 'spark') {
           ctx.fillStyle = f > 0.7 ? '#8a8a9c' : p.col;
           ctx.fillRect(x, y, 2, 2);

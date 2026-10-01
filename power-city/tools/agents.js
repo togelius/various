@@ -20,19 +20,24 @@ const fs = require('fs');
 // from sim.js), brawler (a competent player who uses the whole move list),
 // runner (a speedrunner: only fights when the camera is locked).
 const PERSONA_SRC = `
+/* Bots get their own random numbers. If a bot's whims came out of PC.rand,
+ * one persona's coin flips would change every enemy decision after them and
+ * no two personas would ever have faced the same fight. */
+var BR = null;
+
 var PERSONAS = {
   masher: { mem: {}, think: function (PC, st, mem, p) {
     mem.d = mem.d || { t: 0, x: 0, y: 0 };
     if (--mem.d.t <= 0) {
-      mem.d.x = PC.rand.pick([-1, 0, 0, 1, 1]);
-      mem.d.y = PC.rand.pick([-1, 0, 0, 0, 1]);
-      mem.d.t = PC.rand.int(8, 40);
+      mem.d.x = BR.pick([-1, 0, 0, 1, 1]);
+      mem.d.y = BR.pick([-1, 0, 0, 0, 1]);
+      mem.d.t = BR.int(8, 40);
     }
     if (mem.d.x < 0) st.held.left = true; else if (mem.d.x > 0) st.held.right = true;
     if (mem.d.y < 0) st.held.up = true; else if (mem.d.y > 0) st.held.down = true;
-    if (PC.rand.chance(0.10)) { st.pressed.punch = true; st.held.punch = true; }
-    if (PC.rand.chance(0.05)) { st.pressed.kick = true; st.held.kick = true; }
-    if (PC.rand.chance(0.025)) { st.pressed.jump = true; st.held.jump = true; }
+    if (BR.chance(0.10)) { st.pressed.punch = true; st.held.punch = true; }
+    if (BR.chance(0.05)) { st.pressed.kick = true; st.held.kick = true; }
+    if (BR.chance(0.025)) { st.pressed.jump = true; st.held.jump = true; }
   }},
 
   walker: { mem: {}, think: function (PC, st, mem, p) {
@@ -55,14 +60,32 @@ var PERSONAS = {
     if (p.hp < 25 && W.time % 120 < 40) { st.held.right = false; st.held.left = true; }
   }},
 
-  brawler: { mem: {}, think: function (PC, st, mem, p) { fightThink(PC, st, mem, p, { items: true, aggro: true }); } },
+  brawler: { mem: {}, think: function (PC, st, mem, p) { competentThink(PC, st, mem, p, { items: true }); } },
+
+  /* Dominance probe: jump kick everything, never fight on the ground. If
+   * this clears the game comfortably, one move is the whole game. */
+  jumper: { mem: {}, think: function (PC, st, mem, p) {
+    var es = PC.world.enemies(), t = null, bd = 1e9;
+    for (var i = 0; i < es.length; i++) {
+      var e = es[i]; if (e.state === 'down' || e.state === 'fall') continue;
+      var d = Math.abs(e.x - p.x) + Math.abs(e.y - p.y); if (d < bd) { bd = d; t = e; }
+    }
+    if (p.state === 'held') { if (PC.world.time % 5 === 0) press(st, 'punch'); return; }
+    if (!t) { hold(st, 'right'); return; }
+    var dx = t.x - p.x, dy = t.y - p.y;
+    if (p.z > 0) { if (Math.abs(dx) > 10) hold(st, dx > 0 ? 'right' : 'left'); if (Math.abs(dx) < 34) press(st, 'kick'); return; }
+    if (Math.abs(dy) > 5) { hold(st, dy > 0 ? 'down' : 'up'); return; }
+    if (Math.abs(dx) > 44) { hold(st, dx > 0 ? 'right' : 'left'); return; }
+    if (dx * p.facing < 0) { hold(st, dx > 0 ? 'right' : 'left'); return; }
+    if (p.canAct()) { press(st, 'jump'); hold(st, dx > 0 ? 'right' : 'left'); }
+  }},
+
+  oldbrawler: { mem: {}, think: function (PC, st, mem, p) { fightThink(PC, st, mem, p, { items: true, aggro: true }); } },
 
   runner: { mem: {}, think: function (PC, st, mem, p) {
-    var locked = PC.stage.locked;
     var es = PC.world.enemies();
-    if (!locked && !es.length) { st.held.right = true; mem.lastFight = 0; return; }
     if (!es.length) { st.held.right = true; return; }
-    fightThink(PC, st, mem, p, { items: false, aggro: true, hurry: true });
+    competentThink(PC, st, mem, p, { items: false, hurry: true });
   }}
 };
 
@@ -183,7 +206,7 @@ function fightThink(PC, st, mem, p, opts) {
   }
 
   // ---- occasionally open with a jump kick from far out
-  if (adx > 40 && ady < 10 && PC.rand.chance(0.08) && p.canAct() && p.z <= 0) { press(st, 'jump'); return; }
+  if (adx > 40 && ady < 10 && BR.chance(0.08) && p.canAct() && p.z <= 0) { press(st, 'jump'); return; }
 
   // ---- ground fight. Approach along a lane offset from the target, so
   // straight pokes whiff, then square up to strike.
@@ -215,6 +238,189 @@ function fightThink(PC, st, mem, p, opts) {
     approach(st, 0, dy, PC);
   }
 }
+
+/* A competent player, as a person at the cabinet would actually play.
+ *
+ * It sees the whole screen but answers enemy swings with a human delay:
+ * an attack is only something to react to once it has been on screen for
+ * REACT frames. That makes the 8-frame thug jab undodgeable on reaction -
+ * which is true for people too - so, like people, it wins those exchanges
+ * by striking first: a 3-frame jab beats every wind-up in the gang.
+ *
+ * It keeps the crowd in front. Walking sets facing in this game, so the
+ * old brain's habit of walking away from every swing turned its back on
+ * the fight; this one slips to another lane instead, which keeps facing.
+ * And each move gets used for its job, not at random: the elbow for the
+ * one behind you, the spin when they are on both sides, the clinch on a
+ * dizzy thug, the jump kick to open on someone walking in alone. */
+var REACT = 10;
+
+function competentThink(PC, st, mem, p, opts) {
+  var W = PC.world;
+  mem.gap = (mem.gap || 0) - 1;            // frames since the last button press
+  mem.spinCool = (mem.spinCool || 0) - 1;
+  mem.jumpCool = (mem.jumpCool || 0) - 1;
+  function tap(a) { if (mem.gap > 0) return false; press(st, a); mem.gap = 4; return true; }
+
+  // ---- held: mash, at a rate a person can manage
+  if (p.state === 'held' && p.grabbedBy) { tap('punch'); return; }
+
+  // ---- working a clinch: two knees, then the throw
+  if (p.grabbing) {
+    if ((p.kneeCount || 0) < 2) tap('punch'); else tap('kick');
+    return;
+  }
+
+  var es = W.enemies();
+  function up(e) { return e.state !== 'down' && e.state !== 'fall' && e.state !== 'getup' && !e.dead; }
+  var mid = (PC.FLOOR_TOP + PC.FLOOR_BOT) / 2;
+  function slip(fromY) {
+    // change lane away from the threat; vertical movement keeps facing
+    var goUp = (fromY >= p.y) ? true : false;
+    if (p.y < PC.FLOOR_TOP + 10) goUp = false;
+    if (p.y > PC.FLOOR_BOT - 10) goUp = true;
+    hold(st, goUp ? 'up' : 'down');
+  }
+
+  // ---- airborne: steer at the nearest, kick through them
+  if (p.z > 0) {
+    var at = null, ad = 1e9;
+    for (var a = 0; a < es.length; a++) {
+      if (!up(es[a])) continue;
+      var dd = Math.abs(es[a].x - p.x) + Math.abs(es[a].y - p.y);
+      if (dd < ad) { ad = dd; at = es[a]; }
+    }
+    if (at) {
+      if (Math.abs(at.x - p.x) > 10) hold(st, at.x > p.x ? 'right' : 'left');
+      if (Math.abs(at.x - p.x) < 34 && Math.abs(at.y - p.y) < 10 && p.state !== 'attack') tap('kick');
+    }
+    return;
+  }
+
+  // ---- read the street
+  var front = null, fd = 1e9, rear = null, rd = 1e9, crowdNear = 0, frontNear = 0, rearNear = 0;
+  var threat = null;
+  for (var i = 0; i < es.length; i++) {
+    var e = es[i];
+    if (!up(e)) continue;
+    var ex = e.x - p.x, ey = e.y - p.y, d = Math.abs(ex) + Math.abs(ey) * 0.8;
+    var ahead = ex * p.facing >= 0;
+    if (ahead) { if (d < fd) { fd = d; front = e; } }
+    else { if (d < rd) { rd = d; rear = e; } }
+    if (Math.abs(ex) < 30 && Math.abs(ey) < 10) { crowdNear++; if (ahead) frontNear++; else rearNear++; }
+    // a swing I have had time to see, that will reach me
+    if (e.atk && e.atkT >= REACT && e.atkT < e.atk.startup + e.atk.active) {
+      var reach = (e.atk.reach ? e.atk.reach[1] : 24) * (e.scale || 1);
+      var covers = e.atk.sweep ? Math.abs(ex) < reach + 6 : (ex * e.facing < 0 && Math.abs(ex) < reach + 6);
+      if (covers && Math.abs(ey) < 13) threat = e;
+    }
+  }
+
+  if (!p.canAct()) {
+    // mid-move: the only decision left is whether to carry on the chain
+    if (p.state === 'attack' && p.atk && p.atk.chain && p.atkT >= p.atk.startup + p.atk.active - 1) {
+      var tgt = front;
+      if (tgt && Math.abs(tgt.x - p.x) < 30 && Math.abs(tgt.y - p.y) < 10 &&
+          (tgt.state === 'hurt' || tgt.state === 'dizzy')) tap('punch');
+    }
+    return;
+  }
+
+  // ---- a swing is coming that I can see: strike first if it is in my
+  // reach and still winding up, otherwise get off its lane
+  if (threat) {
+    var tx = threat.x - p.x, rem = threat.atk.startup - threat.atkT;
+    var mine = (tx * p.facing > 0) && Math.abs(tx) <= 25 && Math.abs(threat.y - p.y) <= 9;
+    if (mine && rem > 3 && !(threat.armorLeft > 0)) { tap('punch'); return; }
+    slip(threat.y);
+    return;
+  }
+
+  // ---- surrounded: the spin is for exactly this
+  if (frontNear >= 1 && rearNear >= 1 && crowdNear >= 2 && mem.spinCool <= 0) {
+    press(st, 'punch'); press(st, 'kick'); mem.gap = 4; mem.spinCool = 50; return;
+  }
+  if (crowdNear >= 3 && mem.spinCool <= 0) {
+    press(st, 'punch'); press(st, 'kick'); mem.gap = 4; mem.spinCool = 50; return;
+  }
+
+  // ---- someone at my back: elbow if the front is clear, else turn to them
+  if (rear && Math.abs(rear.x - p.x) < 26 && Math.abs(rear.y - p.y) <= 10) {
+    if (!(front && Math.abs(front.x - p.x) < 26 && Math.abs(front.y - p.y) <= 12)) { tap('punch'); return; }
+    // both sides close but not crowded enough to spin: face the nearer
+    if (rd < fd) { hold(st, rear.x > p.x ? 'right' : 'left'); return; }
+  }
+
+  // ---- pick the target: the front side first, it is where I am facing
+  var t = front;
+  if (!t || (rear && rd < fd - 20)) t = rear;
+
+  // ---- items, when it is safe to bend down
+  var nearestFoe = Math.min(fd, rd);
+  if (opts.items) {
+    var want = null, wd = 1e9;
+    for (var k = 0; k < W.items.length; k++) {
+      var it = W.items[k];
+      if (it.held || it.dead || it.z > 6 || it.flying) continue;
+      var idd = Math.abs(it.x - p.x) + Math.abs(it.y - p.y) * 0.8;
+      var wantIt = (it.kind === 'pickup' && (it.key !== 'heart' || p.hp < 70)) ||
+                   (it.kind === 'weapon' && !p.weapon && !p.carry);
+      if (wantIt && idd < wd) { wd = idd; want = it; }
+    }
+    if (want && (wd < 14 || (wd < 90 && nearestFoe > 60) || (want.kind === 'pickup' && p.hp < 35 && wd < 160))) {
+      var ix = want.x - p.x, iy = want.y - p.y;
+      if (Math.abs(ix) < 9 && Math.abs(iy) < 7) tap('punch');
+      else approach(st, ix, iy, PC);
+      return;
+    }
+  }
+
+  if (!t) { if (!opts.hurry || !es.length) hold(st, 'right'); return; }
+  var dx = t.x - p.x, dy = t.y - p.y, adx = Math.abs(dx), ady = Math.abs(dy);
+  var armored = t.isBoss || (t.armor || 0) >= 1;
+
+  // ---- a dizzy one: take the clinch
+  if (t.state === 'dizzy') {
+    if (ady > 5) hold(st, dy > 0 ? 'down' : 'up');
+    else if (adx > 12 || dx * p.facing < 0) hold(st, dx > 0 ? 'right' : 'left');
+    else tap('punch');
+    return;
+  }
+
+  // ---- a raised guard: kick through it, or step in and take the clinch
+  if (t.state === 'guard') {
+    if (ady > 5) { hold(st, dy > 0 ? 'down' : 'up'); return; }
+    if (dx * p.facing < 0) { hold(st, dx > 0 ? 'right' : 'left'); return; }
+    if (adx <= 13) { tap('punch'); return; }
+    if (adx <= 30) { tap('kick'); return; }
+    hold(st, dx > 0 ? 'right' : 'left'); return;
+  }
+
+  // ---- open on a lone walker-in with a jump kick
+  var others = 0;
+  for (var o = 0; o < es.length; o++) if (es[o] !== t && up(es[o]) && Math.abs(es[o].x - p.x) < 60) others++;
+  if (adx > 30 && adx < 46 && ady < 6 && others === 0 && mem.jumpCool <= 0 && t.state === 'walk') {
+    if (dx * p.facing < 0) { hold(st, dx > 0 ? 'right' : 'left'); return; }
+    press(st, 'jump'); hold(st, dx > 0 ? 'right' : 'left'); mem.jumpCool = 90; mem.gap = 4; return;
+  }
+
+  // ---- line up: same lane first (keeps facing), then close the distance
+  if (ady > 6) { hold(st, dy > 0 ? 'down' : 'up'); if (adx > 30) hold(st, dx > 0 ? 'right' : 'left'); return; }
+  if (dx * p.facing < 0 || adx > 23) { hold(st, dx > 0 ? 'right' : 'left'); return; }
+
+  // ---- in range and squared up
+  if (armored) {
+    // armor eats the first hits, so do not trade: hit them while they
+    // are recovering or reeling, and step off their lane otherwise
+    var open = t.state === 'hurt' || t.state === 'dizzy' ||
+      (t.atk && t.atkT >= t.atk.startup + t.atk.active);
+    if (open || !t.atk) { tap('punch'); return; }
+    slip(t.y);
+    return;
+  }
+  tap('punch');
+}
+
 `;
 
 // Installed once per run: instrumentation + bot + sampler.
@@ -222,6 +428,12 @@ const BOOT = function (bag) {
   const PC = window.PC;
   const src = bag.src, opts = bag;
   eval(src);
+  /* Every run is one seed: the game's generator and the bot's are both set
+   * from it, so a run is reproducible and N seeds are N different nights
+   * at the cabinet rather than one night N times. */
+  const seed = (opts.seed >>> 0) || 1;
+  PC.rand = PC.RNG(seed);
+  BR = PC.RNG(seed ^ 0x51ED5EED);
 
   // ------------------------------------------------------------ the ledger
   const S = window.__stats = {
@@ -248,7 +460,7 @@ const BOOT = function (bag) {
   [PC.MOVES, PC.ENEMY_MOVES].forEach(T => { for (const k in T) moveName.set(T[k], k); });
   function bucket(side, n) {
     const k = side + ':' + n;
-    return S.moves[k] || (S.moves[k] = { starts: 0, hits: 0, dmg: 0 });
+    return S.moves[k] || (S.moves[k] = { starts: 0, connects: 0, hits: 0, dmg: 0 });
   }
 
   // ------------------------------------------------------- method wrapping
@@ -263,8 +475,15 @@ const BOOT = function (bag) {
 
   const origLand = PC.Actor.prototype.land;
   PC.Actor.prototype.land = function (t, d) {
-    if (this.__cur) { this.__cur.hit = true; bucket(this.team === 0 ? 'p' : 'e', this.__cur.n).hits++; }
-    if (this.team === 1 && t.state === 'dizzy') S.dizzyInflicted++;
+    /* 'connects' counts attempts that hit anybody, once each - that is the
+     * land rate. 'hits' counts every body struck, so a spin through three
+     * thugs is one connect and three hits, and hits/starts can pass 100%
+     * without meaning anything about accuracy. */
+    if (this.__cur) {
+      const b = bucket(this.team === 0 ? 'p' : 'e', this.__cur.n);
+      if (!this.__cur.hit) b.connects++;
+      this.__cur.hit = true; b.hits++;
+    }
     return origLand.call(this, t, d);
   };
 
@@ -354,11 +573,16 @@ const BOOT = function (bag) {
   PC.items.take = function (a, it) {
     const r = origTakeItem.call(this, a, it);
     if (r && a.team === 0) {
-      if (it.kind === 'pickup') { if (it.key === 'heart') S.items.hearts++; else S.items.coins++; }
-      else if (it.kind === 'weapon') S.items.weapons++;
+      if (it.kind === 'weapon') S.items.weapons++;
       else if (it.kind === 'prop') S.items.cratesLifted++;
     }
     return r;
+  };
+  // food and money are collected by walking over them, so count at consume
+  const origConsume = PC.items.consume;
+  PC.items.consume = function (a, it) {
+    if (a.team === 0) { if (it.key === 'heart') S.items.hearts++; else S.items.coins++; }
+    return origConsume.call(this, a, it);
   };
   const origHurl = PC.items.hurl;
   PC.items.hurl = function (a) {
@@ -455,6 +679,12 @@ const BOOT = function (bag) {
 
     const es = W.enemies();
     S.enemyFrames += es.length;
+    // count each enemy's entry into the dizzy state, once
+    for (let i = 0; i < es.length; i++) {
+      const e = es[i];
+      if (e.state === 'dizzy' && e.__wasDizzy !== true) S.dizzyInflicted++;
+      e.__wasDizzy = e.state === 'dizzy';
+    }
     if (es.length > S.maxEnemies) S.maxEnemies = es.length;
     for (let i = 0; i < es.length; i++) S.eStates[es.state] = 0; // placeholder, replaced below
     for (let i = 0; i < es.length; i++) S.eStates[es[i].state] = (S.eStates[es[i].state] || 0) + 1;
@@ -537,7 +767,7 @@ const COLLECT = function () {
   return S;
 };
 
-(async () => {
+async function main() {
   const out = process.argv[2] || '/tmp/pc-agents';
   const personaArg = process.argv[3] || 'all';
   const stageArg = process.argv[4] === undefined ? 'game' : process.argv[4];
@@ -545,49 +775,87 @@ const COLLECT = function () {
   const p2Arg = process.argv[6] || '';          // 'two:walker' -> co-op run
   const twoUp = p2Arg.indexOf('two') === 0;
   const p2Persona = (p2Arg.split(':')[1] || 'walker');
+  /* SEEDS=n runs every persona n times from consecutive seeds starting at
+   * SEED0, and JOBS=k runs k of them at once, one browser page each. */
+  const nSeeds = parseInt(process.env.SEEDS || '1', 10);
+  const seed0 = parseInt(process.env.SEED0 || '1', 10);
+  const jobsMax = parseInt(process.env.JOBS || String(Math.max(1, Math.min(6, require('os').cpus().length - 1))), 10);
   fs.mkdirSync(out, { recursive: true });
 
-  const personas = personaArg === 'all' ? ['masher', 'walker', 'brawler', 'runner'] : [personaArg];
-  const stages = stageArg === 'all' ? ['game', '0', '1', '2', '3'] : [stageArg];
+  const personas = personaArg === 'all' ? ['masher', 'walker', 'brawler', 'runner'] : personaArg.split(',');
+  const stages = stageArg === 'all' ? ['game', '0', '1', '2', '3'] : stageArg.split(',');
   const root = path.resolve(__dirname, '..');
   const browser = await chromium.launch();
 
-  for (const persona of personas) {
-    for (const stage of stages) {
-      const page = await browser.newPage({ viewport: { width: 420, height: 340 } });
-      const errs = [];
-      page.on('pageerror', e => errs.push(String(e.stack || e).split('\n').slice(0, 3).join(' | ')));
-      await page.goto('file://' + path.join(root, 'index.html'));
-      await page.waitForTimeout(700);
-      await page.evaluate(BOOT, {
-        src: PERSONA_SRC, persona,
-        startStage: stage === 'game' ? 'game' : parseInt(stage, 10),
-        p2: twoUp, p2Persona
-      });
+  const jobs = [];
+  for (const persona of personas) for (const stage of stages)
+    for (let k = 0; k < nSeeds; k++) jobs.push({ persona, stage, seed: seed0 + k });
 
-      const chunk = 4000;
-      for (let done = 0; done < maxFrames; done += chunk) {
-        const r = await page.evaluate(STEP, Math.min(chunk, maxFrames - done));
-        if (r.result !== 'running') break;
-      }
-      const stats = await page.evaluate(COLLECT);
-      stats.errors = errs;
-      stats.avgEnemies = +(stats.enemyFrames / Math.max(1, stats.frames)).toFixed(2);
-
-      const file = path.join(out, `${persona}${twoUp ? '-coop' : ''}-s${stage}-${stats.result}.json`);
-      fs.writeFileSync(file, JSON.stringify(stats, null, 1));
-      const enc = stats.encounters;
-      console.log(
-        `${persona.padEnd(8)} stage ${String(stage).padEnd(4)} ${stats.result.padEnd(10)}` +
-        ` f=${String(stats.frames).padStart(6)} kills=${String(stats.kills).padStart(3)}` +
-        ` deaths=${stats.deaths} taken=${stats.taken.count}(${Math.round(stats.taken.dmg)})` +
-        ` dealt=${stats.dealt.count}(${Math.round(stats.dealt.dmg)})` +
-        ` cheapDown=${stats.cheap.whileDown} cont=${stats.continues}` +
-        ` encs=${enc.length}` + (errs.length ? ' ERRORS: ' + errs[0] : '')
-      );
-      await page.close();
+  async function runJob(job) {
+    const { persona, stage, seed } = job;
+    const page = await browser.newPage({ viewport: { width: 420, height: 340 } });
+    const errs = [];
+    page.on('pageerror', e => errs.push(String(e.stack || e).split('\n').slice(0, 3).join(' | ')));
+    await page.goto('file://' + path.join(root, 'index.html'));
+    await page.waitForTimeout(500);
+    await page.evaluate(BOOT, {
+      src: PERSONA_SRC, persona, seed,
+      startStage: stage === 'game' ? 'game' : parseInt(stage, 10),
+      p2: twoUp, p2Persona
+    });
+    const chunk = 4000;
+    for (let done = 0; done < maxFrames; done += chunk) {
+      const r = await page.evaluate(STEP, Math.min(chunk, maxFrames - done));
+      if (r.result !== 'running') break;
     }
+    const stats = await page.evaluate(COLLECT);
+    stats.errors = errs;
+    stats.seed = seed;
+    stats.avgEnemies = +(stats.enemyFrames / Math.max(1, stats.frames)).toFixed(2);
+    const file = path.join(out, `${persona}${twoUp ? '-coop' : ''}-s${stage}-seed${seed}-${stats.result}.json`);
+    fs.writeFileSync(file, JSON.stringify(stats, null, 1));
+    console.log(
+      `${persona.padEnd(10)} stage ${String(stage).padEnd(4)} seed ${String(seed).padStart(3)} ${stats.result.padEnd(9)}` +
+      ` f=${String(stats.frames).padStart(6)} deaths=${String(stats.deaths).padStart(2)} cont=${stats.continues}` +
+      ` taken=${stats.taken.count}(${Math.round(stats.taken.dmg)}) rear=${stats.cheap.fromBehind}` +
+      (errs.length ? ' ERRORS: ' + errs[0] : '')
+    );
+    await page.close();
+    job.stats = stats;
   }
+
+  let next = 0;
+  async function worker() { while (next < jobs.length) { const j = jobs[next++]; await runJob(j); } }
+  await Promise.all(Array.from({ length: Math.min(jobsMax, jobs.length) }, worker));
   await browser.close();
+
+  // ------------------------------------------------------------- the summary
+  const med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor((b.length - 1) / 2)] : 0; };
+  const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+  const rows = [];
+  for (const persona of personas) for (const stage of stages) {
+    const runs = jobs.filter(j => j.persona === persona && j.stage === stage && j.stats).map(j => j.stats);
+    if (!runs.length) continue;
+    const bossSecs = [];
+    runs.forEach(r => r.bossFights.forEach(b => bossSecs.push(b.frames / 60)));
+    rows.push({
+      persona, stage, runs: runs.length,
+      cleared: runs.filter(r => r.result === 'ending').length,
+      deaths: +mean(runs.map(r => r.deaths)).toFixed(1),
+      conts: +mean(runs.map(r => r.continues)).toFixed(1),
+      taken: Math.round(mean(runs.map(r => r.taken.dmg))),
+      rearPct: Math.round(100 * mean(runs.map(r => r.cheap.fromBehind / Math.max(1, r.taken.count)))),
+      minutes: +mean(runs.map(r => r.frames / 3600)).toFixed(1),
+      bossMed: Math.round(med(bossSecs)), bossMax: Math.round(Math.max(0, ...bossSecs)),
+      errors: runs.reduce((n, r) => n + r.errors.length, 0)
+    });
+  }
+  console.log('\n' + 'summary (means over seeds; boss seconds over every boss fight)');
+  console.table(rows);
+  fs.writeFileSync(path.join(out, 'summary.json'), JSON.stringify(rows, null, 1));
   console.log('done -> ' + out);
-})();
+}
+
+// Other tools (filmstrip.js) borrow the personas and the instrumentation.
+module.exports = { PERSONA_SRC, BOOT, STEP, COLLECT };
+if (require.main === module) main();

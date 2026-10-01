@@ -47,37 +47,37 @@
 
   // ------------------------------------------------------------ enemy moves
   var EM = PC.ENEMY_MOVES = {
-    jab: { pose: 'jab', startup: 8, active: 3, recovery: 16, reach: [4, 24], zlo: 14, zhi: 36, dmg: 5, stun: 12, push: 1.2, stop: 4, sfx: 'swing' },
-    hook: { pose: 'hook', startup: 11, active: 4, recovery: 22, reach: [4, 26], zlo: 14, zhi: 40, dmg: 8, stun: 16, push: 2, knock: true, stop: 7, sfx: 'swingHard' },
-    kick: { pose: 'kick', startup: 12, active: 4, recovery: 22, reach: [6, 28], zlo: 6, zhi: 30, dmg: 7, stun: 12, push: 2.2, stop: 6, sfx: 'swing' },
+    jab: { pose: 'jab', wind: 'windPunch', startup: 8, active: 3, recovery: 16, reach: [4, 24], zlo: 14, zhi: 36, dmg: 5, stun: 12, push: 1.2, stop: 4, sfx: 'swing' },
+    hook: { pose: 'hook', wind: 'windPunch', startup: 11, active: 4, recovery: 22, reach: [4, 26], zlo: 14, zhi: 40, dmg: 8, stun: 16, push: 2, knock: true, stop: 7, sfx: 'swingHard' },
+    kick: { pose: 'kick', wind: 'chamber', startup: 12, active: 4, recovery: 22, reach: [6, 28], zlo: 6, zhi: 30, dmg: 7, stun: 12, push: 2.2, stop: 6, sfx: 'swing' },
     jumpKick: { pose: 'jumpKick', air: true, startup: 2, active: 24, recovery: 4, reach: [4, 30], zlo: -4, zhi: 30, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard' },
-    batSwing: { pose: 'hook', startup: 18, active: 5, recovery: 24, reach: [4, 34], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
-    knifeStab: { pose: 'jab', startup: 9, active: 4, recovery: 18, reach: [4, 32], zlo: 14, zhi: 34, dmg: 8, stun: 14, push: 1.4, stop: 6, sfx: 'swing', spark: '#ff8888' },
-    slam: { pose: 'hook', startup: 16, active: 5, recovery: 30, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard' },
-    charge: { pose: 'knee', startup: 6, active: 30, recovery: 26, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2 },
-    pound: { pose: 'upper', startup: 10, active: 8, recovery: 34, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom' },
-    chainSweep: { poses: ['spin0', 'spin1'], frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 30, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
-    upper: { pose: 'upper', startup: 12, active: 4, recovery: 26, reach: [2, 24], zlo: 6, zhi: 44, dmg: 12, stun: 22, knock: true, launch: { vx: 1.4, vz: 5 }, stop: 10, sfx: 'swingHard' },
-    spin: { poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true, startup: 11, active: 12, recovery: 22, reach: [0, 27], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
+    batSwing: { pose: 'hook', wind: 'windOver', startup: 18, active: 5, recovery: 24, reach: [4, 34], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
+    knifeStab: { pose: 'jab', wind: 'windPunch', startup: 9, active: 4, recovery: 18, reach: [4, 32], zlo: 14, zhi: 34, dmg: 8, stun: 14, push: 1.4, stop: 6, sfx: 'swing', spark: '#ff8888' },
+    slam: { pose: 'hook', wind: 'windOver', startup: 16, active: 5, recovery: 30, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard' },
+    charge: { pose: 'knee', wind: 'windCharge', startup: 6, active: 30, recovery: 26, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2 },
+    pound: { pose: 'upper', wind: 'windOver', startup: 10, active: 8, recovery: 34, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom' },
+    chainSweep: { poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 30, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
+    upper: { pose: 'upper', wind: 'crouch', startup: 12, active: 4, recovery: 26, reach: [2, 24], zlo: 6, zhi: 44, dmg: 12, stun: 22, knock: true, launch: { vx: 1.4, vz: 5 }, stop: 10, sfx: 'swingHard' },
+    spin: { poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 5, sweep: true, multi: true, startup: 11, active: 12, recovery: 22, reach: [0, 27], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
   };
 
   // ------------------------------------------------------------- enemy types
   var TYPES = PC.ENEMY_TYPES = {
     punk: {
       char: 'punk', hp: 24, speed: 1.05, score: 200, standoff: 18,
-      moves: ['jab', 'jab', 'hook', 'kick'], aggr: 0.7, downTime: 32
+      moves: ['jab', 'jab', 'hook', 'kick'], aggr: 0.7, downTime: 32, dodge: 0.25
     },
     rough: {
       char: 'rough', hp: 24, speed: 1.35, score: 300, standoff: 20,
-      moves: ['jab', 'kick', 'kick'], aggr: 0.85, jumpy: 0.3, downTime: 28
+      moves: ['jab', 'kick', 'kick'], aggr: 0.85, jumpy: 0.3, downTime: 28, dodge: 0.5, guard: 0.3
     },
     knifer: {
       char: 'knifer', hp: 24, speed: 1.2, score: 400, standoff: 22, weapon: 'knife',
-      moves: ['knifeStab', 'knifeStab', 'kick'], aggr: 0.75, thrower: 0.25, downTime: 30
+      moves: ['knifeStab', 'knifeStab', 'kick'], aggr: 0.75, thrower: 0.25, downTime: 30, dodge: 0.4, guard: 0.3
     },
     batter: {
       char: 'batter', hp: 34, speed: 1.0, score: 400, standoff: 26, weapon: 'bat',
-      moves: ['batSwing', 'kick', 'hook'], aggr: 0.7, downTime: 34
+      moves: ['batSwing', 'kick', 'hook'], aggr: 0.7, downTime: 34, dodge: 0.15, guard: 0.25
     },
     brute: {
       char: 'brute', hp: 52, speed: 0.9, score: 700, standoff: 20, mass: 2.2, armor: 1,
@@ -98,7 +98,7 @@
     viper: {
       char: 'boss_viper', hp: 85, speed: 1.3, score: 6000, standoff: 24, mass: 1.4,
       armor: 1, knockRes: 0.35, boss: true, weapon: 'chain', downTime: 30,
-      moves: ['kick', 'jab', 'chainSweep'], aggr: 0.9, jumpy: 0.25, retreat: 0.08,
+      moves: ['kick', 'jab', 'chainSweep'], aggr: 0.9, jumpy: 0.25, retreat: 0.08, dodge: 0.55, guard: 0.4,
       phases: [
         { at: 0.5, speedMul: 1.15, addMoves: ['jumpKick'], name: 'VIPER UNSPOOLS' },
         { at: 0.22, speedMul: 1.25, aggrMul: 1.15, addMoves: ['slam'], name: 'VIPER UNSPOOLS' }
@@ -107,7 +107,7 @@
     jaws: {
       char: 'boss_jaws', hp: 120, speed: 1.15, score: 7000, standoff: 22, mass: 2.4,
       armor: 1, knockRes: 0.45, boss: true, downTime: 34,
-      moves: ['hook', 'kick', 'spin', 'hook'], aggr: 0.85, grabber: 0.25,
+      moves: ['hook', 'kick', 'spin', 'hook'], aggr: 0.85, grabber: 0.25, dodge: 0.2, guard: 0.25,
       phases: [
         { at: 0.55, speedMul: 1.15, addMoves: ['charge'], name: 'JAWS LOSES IT' },
         { at: 0.25, speedMul: 1.25, addMoves: ['slam'], name: 'JAWS LOSES IT' }
@@ -116,7 +116,7 @@
     power: {
       char: 'boss_power', hp: 150, speed: 1.3, score: 12000, standoff: 22, mass: 2,
       armor: 1, knockRes: 0.5, boss: true, downTime: 30,
-      moves: ['jab', 'hook', 'spin', 'upper'], aggr: 0.9, jumpy: 0.2, retreat: 0.15,
+      moves: ['jab', 'hook', 'spin', 'upper'], aggr: 0.9, jumpy: 0.2, retreat: 0.15, dodge: 0.45, guard: 0.45,
       phases: [
         { at: 0.66, speedMul: 1.15, addMoves: ['charge'], name: 'MR. POWER LOSES PATIENCE' },
         { at: 0.33, speedMul: 1.3, aggrMul: 1.2, addMoves: ['slam'], name: 'MR. POWER LOSES PATIENCE' }
@@ -151,7 +151,9 @@
     this.intent = 'approach';
     this.lane = 0;
     this.tokenT = 0;
-    this.dmgScale = 1;
+    /* how hard this one hits, as a multiple of the move table - the
+     * stage difficulty turns it up as the city gets meaner */
+    this.dmgOut = 1;
     this.facing = spec.facing || -1;
     this.spawnGuard = 0;
     this.atkCool = 0;
@@ -236,6 +238,26 @@
     var p = W.nearestPlayer(this.x, this.y);
     if (!p) { this.setState('idle'); this.vx *= 0.8; this.vy *= 0.8; return; }
 
+    /* Sidestep: some of the gang see a jump kick coming and step off its
+     * lane. One roll per jump, so it reads as judgment, not a dodge-bot. */
+    if (this.slipT > 0) {
+      this.slipT--;
+      this.vx = 0; this.vy = this.slipDir * this.speed * 1.7;
+      this.setState('walk');
+      return;
+    }
+    if (p.z > 0 && p.jumpId && p.jumpId !== this.seenJump && (this.T.dodge || 0) > 0) {
+      var jx = this.x - p.x;
+      if (Math.abs(jx) < 66 && Math.abs(p.y - this.y) < 10 && M.sign(jx) === M.sign(p.vx || p.facing)) {
+        this.seenJump = p.jumpId;
+        if (PC.rand() < this.T.dodge) {
+          this.slipT = 13;
+          this.slipDir = this.y > (PC.FLOOR_TOP + PC.FLOOR_BOT) / 2 ? -1 : 1;
+          return;
+        }
+      }
+    }
+
     var dx = p.x - this.x, dy = p.y - this.y;
     var adx = Math.abs(dx);
     this.facing = dx === 0 ? this.facing : M.sign(dx);
@@ -245,6 +267,14 @@
     var t = this.T;
     var standoff = t.standoff;
     var speed = this.speed;
+    /* Arriving: off-screen thugs come on at a run and slow to a stalk once
+     * they are in the fight. Walking in at fighting pace was seconds of
+     * nothing at the start of every wave. */
+    if (this.entering > 0) {
+      this.entering--;
+      if (adx < 110 && this.x > W.camX + 4 && this.x < W.camX + PC.W - 4) this.entering = 0;
+      else speed *= 2.1;
+    }
 
     switch (this.intent) {
       case 'approach': {
@@ -383,7 +413,7 @@
       if (--this.squeezeT <= 0) {
         this.squeezeT = 30;
         v.takeHit({
-          dmg: 6, from: this, knock: false, stun: 6, push: 0, dir: this.facing,
+          dmg: 6 * this.dmgOut, from: this, knock: false, stun: 6, push: 0, dir: this.facing,
           x: v.x, y: v.y - 24, heavy: false
         });
         if (v.grabbedBy === this && !v.dead) { v.setState('held'); v.grabbedBy = this; }
@@ -397,7 +427,7 @@
         this.releaseGrab();
         if (!v.dead) {
           v.takeHit({
-            dmg: 8, from: this, knock: true, stun: 20, push: 3, dir: dir,
+            dmg: 8 * this.dmgOut, from: this, knock: true, stun: 20, push: 3, dir: dir,
             x: v.x, y: v.y - 24, heavy: true, launch: { vx: 4, vz: 3.2 }
           });
         }
@@ -411,7 +441,10 @@
   PC.spawnEnemy = function (typeKey, x, y, opts) {
     var e = new Enemy(typeKey, { x: x, y: y, facing: opts && opts.facing, hpScale: opts && opts.hpScale });
     if (opts && opts.aggrScale) e.aggr *= opts.aggrScale;
-    if (opts && opts.dmgScale) e.dmgScale = opts.dmgScale;
+    /* Difficulty scales the damage they deal. (It used to be handed to
+     * dmgScale, which scales damage *taken* - so early thugs soaked 1.4x
+     * and nobody ever hit harder. The city had no ramp at all.) */
+    if (opts && opts.dmgOut) e.dmgOut = opts.dmgOut;
     W.add(e);
     return e;
   };

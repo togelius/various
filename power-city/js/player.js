@@ -21,7 +21,7 @@
       dmg: 6, stun: 13, push: 1.4, stop: 5, sfx: 'swing', chain: 'hook', score: 30
     },
     hook: {
-      pose: 'hook', startup: 5, active: 4, recovery: 15, reach: [4, 27], zlo: 15, zhi: 40,
+      pose: 'hook', wind: 'windPunch', startup: 5, active: 4, recovery: 15, reach: [4, 27], zlo: 15, zhi: 40,
       dmg: 10, stun: 18, push: 2.2, knock: true, stop: 9, sfx: 'swingHard', score: 60
     },
     upper: {
@@ -30,11 +30,11 @@
       sfx: 'swingHard', lunge: 1.2, score: 80
     },
     kick: {
-      pose: 'kick', startup: 6, active: 6, recovery: 12, reach: [6, 36], zlo: 6, zhi: 30,
-      dmg: 8, stun: 16, push: 2.7, stop: 6, sfx: 'swing', score: 40
+      pose: 'kick', wind: 'chamber', startup: 6, active: 6, recovery: 12, reach: [6, 36], zlo: 6, zhi: 30,
+      dmg: 8, stun: 16, push: 2.7, stop: 6, sfx: 'swing', gb: true, score: 40
     },
     kickHigh: {
-      pose: 'kickHigh', startup: 7, active: 6, recovery: 16, reach: [6, 35], zlo: 18, zhi: 44,
+      pose: 'kickHigh', wind: 'chamber', startup: 7, active: 6, recovery: 16, reach: [6, 35], zlo: 18, zhi: 44,
       dmg: 11, stun: 20, push: 2.4, knock: true, stop: 8, sfx: 'swingHard', score: 70
     },
     elbow: {
@@ -42,33 +42,33 @@
       dmg: 9, stun: 18, push: 2.2, knock: true, stop: 8, sfx: 'swingHard', score: 70
     },
     spin: {
-      poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true,
+      poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 5, sweep: true, multi: true,
       startup: 4, active: 20, recovery: 16, reach: [0, 30], zlo: 10, zhi: 40,
       dmg: 7, stun: 18, push: 2.6, knock: true, stop: 6, sfx: 'whoosh', score: 50
     },
     jumpKick: {
       pose: 'jumpKick', air: true, startup: 2, active: 14, recovery: 8, reach: [4, 32], zlo: -4, zhi: 30,
-      dmg: 13, stun: 20, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', score: 90
+      dmg: 9, stun: 20, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', score: 90
     },
     runKnee: {
       pose: 'knee', startup: 3, active: 8, recovery: 16, reach: [2, 24], zlo: 10, zhi: 36,
-      dmg: 11, stun: 20, push: 3.2, knock: true, stop: 9, sfx: 'swingHard', lunge: 3.4, score: 80
+      dmg: 11, stun: 20, push: 3.2, knock: true, launch: { vx: 3.6, vz: 3.0 }, stop: 9, sfx: 'swingHard', lunge: 3.4, score: 80
     },
     knee: {
       pose: 'knee', startup: 4, active: 3, recovery: 10, reach: [4, 20], zlo: 10, zhi: 32,
       dmg: 7, stun: 10, push: 0, stop: 6, sfx: 'swing', grabMove: true, score: 40
     },
     batSwing: {
-      pose: 'hook', startup: 5, active: 5, recovery: 16, reach: [4, 40], zlo: 10, zhi: 42,
-      dmg: 14, stun: 20, push: 3, knock: true, stop: 10, sfx: 'swingHard', breaks: true, score: 90
+      pose: 'hook', wind: 'windOver', startup: 5, active: 5, recovery: 16, reach: [4, 40], zlo: 10, zhi: 42,
+      dmg: 14, stun: 20, push: 3, knock: true, launch: { vx: 3.4, vz: 3.2 }, stop: 10, sfx: 'swingHard', breaks: true, score: 90
     },
     knifeStab: {
       pose: 'jab', startup: 3, active: 4, recovery: 9, reach: [4, 32], zlo: 14, zhi: 34,
       dmg: 10, stun: 14, push: 1.2, stop: 6, sfx: 'swing', spark: '#ff8888', score: 60
     },
     pipeSwing: {
-      pose: 'hook', startup: 5, active: 5, recovery: 15, reach: [4, 38], zlo: 10, zhi: 42,
-      dmg: 12, stun: 18, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', breaks: true, score: 80
+      pose: 'hook', wind: 'windOver', startup: 5, active: 5, recovery: 15, reach: [4, 38], zlo: 10, zhi: 42,
+      dmg: 12, stun: 18, push: 2.8, knock: true, launch: { vx: 3.4, vz: 3.2 }, stop: 9, sfx: 'swingHard', breaks: true, score: 80
     }
   };
 
@@ -189,7 +189,7 @@
       this.state === 'down' || this.state === 'getup' || this.state === 'held') {
       // The only thing you may do mid-move is chain the next punch.
       if (this.state === 'attack' && b.punch > 0 && this.atk && this.atk.chain &&
-        this.atkT >= this.atk.startup + this.atk.active) {
+        !this.chainBroken && this.atkT >= this.atk.startup + this.atk.active) {
         b.punch = 0;
         this.combo++;
         this.comboT = 40;
@@ -211,7 +211,8 @@
     // ---- airborne
     if (this.z > 0 || this.state === 'jump') {
       if (ax) { this.vx = M.approach(this.vx, ax * this.speed * 1.15, 0.22); this.facing = ax; }
-      if ((b.punch > 0 || b.kick > 0)) {
+      // one air attack per jump: it used to be possible to kick twice
+      if ((b.punch > 0 || b.kick > 0) && !this.airAttacked) {
         b.punch = b.kick = 0;
         this.startAttack(MOVES.jumpKick);
         this.vx = this.facing * Math.max(1.6, Math.abs(this.vx));
@@ -224,6 +225,8 @@
       b.jump = 0;
       this.vz = 4.7;
       this.z = 0.1;
+      this.airAttacked = false;
+      this.jumpId = (this.jumpId || 0) + 1;
       this.setState('jump');
       this.vx = ax * this.speed * 1.2;
       this.vy = ay * this.speed * 0.6;
@@ -376,6 +379,7 @@
     });
     e.thrownBy = this;
     e.isThrown = true;
+    if (e.bowling) e.bowling = 3;   // a thrown body takes three with it
     PC.freeze(10);
     FX.shakeBy(4);
     if (PC.audio) PC.audio.sfx('throw');
