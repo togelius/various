@@ -279,7 +279,9 @@ and no philosophical position is a required answer.
 You can no longer finish the campaign comfortably with the Squirter and
 never lie down. Each tool and ability now has a situation it is good for,
 and the game tells you once, in the feed and in Žižek's voice, the first
-time you use the wrong one.
+time you use the wrong one. After that the hit marker keeps telling you:
+small and grey when the target resists, big and gold when you've picked
+the right tool.
 
 - **Counters.** The paper towel drinks water (and gets heavier and slower
   for it); fizz tears it and ice works. You can also lure it onto a glowing
@@ -307,8 +309,12 @@ time you use the wrong one.
   up there with fizz. Each stash pays 1,500 the first time.
 - **The Clog.** Clearing the Sink of History is not enough. A mass of hair,
   noodles, a contact lens and thirty years of ideology now blocks the drain.
-  Water feeds it. Fizz breaks it up, ice and soap help. While it lives, the
-  drain siphons up a fresh seltzer every few seconds if you're low.
+  Water feeds it. Fizz breaks it up, ice and soap help. It fights back: it
+  spits hairballs (dash or jump), regurgitates greasy sponges (soap them),
+  and below half health it sucks you towards the drain. Dashing resists the
+  pull, and turning into a puddle makes it much worse, because puddles are
+  what drains are for. While it lives, the drain siphons up a fresh seltzer
+  every few seconds if you're low.
 
 The campaign is also a little less forgiving than it was in the previous
 version. Hits do 85% damage instead of 75% and give a shorter grace period,

@@ -28,6 +28,8 @@
     box-shadow:0 0 0 1px rgba(0,0,0,.6); }
   #hit::after { transform:rotate(90deg); }
   #hit.kill::before, #hit.kill::after { background:#ff3b1f; width:40px; left:-20px; }
+  #hit.resist::before, #hit.resist::after { background:#8d949c; width:16px; left:-8px; }
+  #hit.crit::before, #hit.crit::after { background:#ffd23a; width:36px; left:-18px; height:4px; }
   #tl { position:absolute; left:22px; top:16px; text-shadow:3px 3px 0 var(--ink); }
   #score { font-size:46px; line-height:1; }
   #combo { font-size:26px; color:var(--foam); min-height:30px; }
@@ -1678,8 +1680,8 @@ function multiText(t) { const el = $('mk'); el.textContent = t; el.classList.rem
 function feed(html) { const f = $('feed'); const d = document.createElement('div'); d.innerHTML = html; f.prepend(d); while (f.children.length > 6) f.lastChild.remove(); setTimeout(() => d.remove(), 3300); }
 function pop(x, y, z, text, small) { const el = document.createElement('div'); el.className = 'pop' + (small ? ' s' : ''); el.textContent = text; $('pops').appendChild(el); pops.push({ x, y, z, el, t: 1 }); }
 const JOKE_GAP = 180;   // seconds between 'you think this is a joke?' freezes (the fork doesn't wait)
-let jokeN = 0, eyePopT = 0, hitT = 0, hitKill = false, hitWT = 0, jokeAt = 0, jokeT = 0, lastJokeT = -999, lastRank = 0, tickX = 0, tickW = 0;
-function hitmark(kill) { hitT = kill ? 0.3 : 0.12; hitKill = kill; }
+let hitF = 1, jokeN = 0, eyePopT = 0, hitT = 0, hitKill = false, hitWT = 0, jokeAt = 0, jokeT = 0, lastJokeT = -999, lastRank = 0, tickX = 0, tickW = 0;
+function hitmark(kill, f = 1) { hitT = kill ? 0.3 : 0.12; hitKill = kill; hitF = f; }
 
 // =====================================================================  ŽIŽEK
 // A cartoon parody of the philosopher, drawn in code. Every line below is invented for the game.
@@ -3244,6 +3246,21 @@ const ZL = {
     "You were deconstructed. Now you are only a trace, a mark of absence on the counter. Derrida would find you fascinating. The sponge found you delicious.",
     "Différance, at last. Your life was always deferred until the next wave. Now it is deferred permanently. Even Derrida would admit this is a strong reading.",
   ],
+  clogDeath: [
+    "You joined the Clog. Of course! This is how every blockage grows: not from enemies, from people who came too close trying to fix it.",
+    "The Clog took you. Now you are part of the structure. Do not feel bad, this is how most radicals end up. Inside the blockage, with a pension.",
+    "You were sucked into the Clog. You wanted to go down the drain, and you did, partly. This is what we call a compromise.",
+  ],
+  clogBurp: [
+    "It regurgitated a sponge! The return of the repressed, but greasy. Everything you flushed away comes back. Freud was a plumber, really.",
+    "Look, it threw up a sponge, pre-fried. The Clog is a kind of archive: nothing is ever thrown away, only stored badly. Soap it!",
+    "Another sponge from the depths. The drain does not forget. The drain is the unconscious of the kitchen, and it is coughing.",
+  ],
+  clogSuck: [
+    "It is sucking! Do not become a puddle now, my friend. A puddle near a drain is not a tactic. It is a destiny. Dash!",
+    "The Clog pulls you in. Every ideology does this at the end: when argument fails, it simply sucks. Resist! Dash away!",
+    "Suction! This is the gravity of the drain of history. Everyone gets pulled in eventually. The only question is whether you go with fizz or without.",
+  ],
   fallDeath: [
     "You fell from the symbolic order of the counter into the Real of the kitchen floor. The Real, it turns out, has four legs and bad breath.",
     "The fall is not the tragedy. The tragedy is how happy the dog was.",
@@ -4674,7 +4691,7 @@ function enterDistrict(i) {
   setTimeout(()=>{if(state==='play'&&chapter===i)zz('kitchen_'+i,{force:true});},1200);
 }
 function spawnClog() {
-  Object.assign(clog, { alive: true, hp: 260, x: DRAIN.x, y: 1.3, z: DRAIN.z, t: 0, siphonT: 2, fedT: 0 });
+  Object.assign(clog, { alive: true, hp: 260, x: DRAIN.x, y: 1.3, z: DRAIN.z, t: 0, siphonT: 2, fedT: 0, spitT: 3, burpT: 6, suckSaid: false });
   announce('THE CLOG', 'HAIR, NOODLES, A CONTACT LENS AND THIRTY YEARS OF IDEOLOGY'); sfx('wave');
   headlineNow('DRAIN BLOCKED BY UNIDENTIFIED MASS. PLUMBER "ON THE WAY" SINCE TUESDAY');
   setTimeout(() => { if (state === 'play' && clog.alive) { zz('clog', { force: true }); feed('TIP <em>WATER ONLY FEEDS THE CLOG · FIZZ AND ICE BREAK IT UP</em>'); } }, 1800);
@@ -4699,6 +4716,28 @@ function updateClog(dt) {
   if (!clog.alive) return;
   clog.t += dt; clog.flash = Math.max(0, (clog.flash || 0) - dt * 6);
   clog.siphonT -= dt;   // a seltzer siphon keeps you supplied while it lives, so nobody is stuck without fizz
+  if (state === 'play' && !jokeT) {
+    const dx = clog.x - P.x, dz = clog.z - P.z, d = Math.hypot(dx, dz) || 1, angry = clog.hp < clog.max * 0.5;
+    // It spits hairballs: dash or jump out of the way.
+    clog.spitT = (clog.spitT ?? 2.5) - dt;
+    if (clog.spitT <= 0 && d < 34) { clog.spitT = angry ? rand(1.8, 2.6) : rand(2.8, 3.8);
+      const sx = clog.x, sy = clog.y + clog.r, sz = clog.z, tT = clamp(d / 15, 0.5, 1.6), gg = 22;
+      const tx = P.x + P.vx * tT * .6, tz = P.z + P.vz * tT * .6, ty = P.y + P.eyeH * .6;
+      globs.push({ x: sx, y: sy, z: sz, vx: (tx - sx) / tT, vz: (tz - sz) / tT, vy: (ty - sy + 0.5 * gg * gs * tT * tT) / tT, g: gg, life: 4, owner: clog });
+      sfx('glob'); clog.flash = 0.3; if (Math.random() < 0.3) pop(clog.x, clog.y + clog.r + 1.2, clog.z, pick(['HAIRBALL!', 'HOCK', 'PTOO', 'A NOODLE, RETURNED', 'THE REPRESSED RETURNS']), true); }
+    // It regurgitates greasy sponges: the return of the repressed, pre-fried.
+    clog.burpT = (clog.burpT ?? 6) - dt;
+    if (clog.burpT <= 0) { clog.burpT = angry ? 7 : 10;
+      if (enemies.filter(e => !e.dead).length < 5) { const c = makeEnemy('sponge', clog.x + rand(-1, 1), clog.z + rand(-1, 1), 1); c.y = clog.y + clog.r; c.vy = 13; c.vx = -dx / d * 5 + rand(-2, 2); c.vz = -dz / d * 5 + rand(-2, 2); c.greasy = true; c.spawnT = 0; enemies.push(c);
+        bubbles(clog.x, clog.y + clog.r, clog.z, 10, 1); sfx('spawn'); pop(clog.x, clog.y + clog.r + 1.5, clog.z, pick(['BURP', 'REGURGITATED', 'IT CAME BACK UP', 'PRE-OWNED SPONGE']), true); zz('clogBurp', { p: 0.5 }); } }
+    // Below half it starts to suck. Puddles are exactly what drains are for; dashing resists.
+    if (angry && d < 15 && P.dashT <= 0) {
+      const pull = (P.pud ? 7.5 : 3.8) * (1 - d / 15);
+      P.x += dx / d * pull * dt; P.z += dz / d * pull * dt;
+      if (!clog.suckSaid) { clog.suckSaid = true; zz('clogSuck', { force: true }); feed('TIP <em>THE CLOG IS SUCKING · DASH AGAINST IT · PUDDLES GO DOWN DRAINS</em>'); }
+    }
+    if (d < clog.r + PRAD + .2 && P.y < clog.y + clog.r && P.iT <= 0) { hurt(16, 'clog', clog.x, clog.z); P.vx -= dx / d * 12; P.vz -= dz / d * 12; pop(P.x, P.y + 1.6, P.z, pick(['TANGLED!', 'HAIR IN IT', 'EW', 'NOODLED']), true); }
+  }
   if (clog.siphonT <= 0) { clog.siphonT = 8; if (P.ammo[2] < 4 && !pickups.some(k => k.type === 'seltzer')) { pickups.push({ type: 'seltzer', x: 296, y: 1.5, z: -13, vy: 4, t: 0 }); pop(296, 2.5, -13, pick(['FRESH FIZZ', 'SIPHON REFILL', 'CARBONATION ASSISTANCE']), true); } }
 }
 function drawClog() {
@@ -4843,6 +4882,7 @@ function absorbPlayer(e, dt) {
   return seepDamage(amount / dt, dt, e.type);
 }
 const DEATH = {
+  clog: ["You went down the drain, which was the plan, but with a clog wrapped around you, which was not.", "The Clog absorbed you. You are now hair, noodles, a contact lens, thirty years of ideology and a drop of water.", "You became part of the blockage. Every system needs one more drop to fail. You were it.", "Clogged. Somewhere a plumber senses a disturbance and puts the kettle on."],
   stove: ["You became steam. A promotion in altitude, a disaster in every other respect.", "Your hot take was that the hob was safe. The hob has issued a rebuttal.", "You touched the hob to see if it was on. It was. You are now a cloud.", "The Hot Take district runs on heat and opinions. You supplied neither and evaporated.", "You boiled. Somewhere, a kettle is jealous.", "You rose gracefully into the extractor fan, which extracted you."],
   roll: ["You were wiped off the face of the counter.", "The paper towel blotted you up. Blotted! The indignity.", "The quicker picker-upper picked you up. It will not be putting you down.", "You were soaked up by a single sheet. It did not even need the second ply.", "You were rolled over, soaked up and torn off along the dotted line.", "You are now a damp patch on a paper towel in the bin. Congratulations.", "Somewhere in the recycling, a paper towel is slightly damp. That is you now.", "The paper towel roll took you in. Then it took you out, with the rubbish.", "You were absorbed by a roll so large it has its own postcode.", "Two plies. One drop. No contest.", "You tore along the dotted line. Mostly the part that was you."],
   fork: ["There was no fork. Then there was a fork. Then there was no you.", "A fork is the worst possible tool for eating water. It managed anyway.", "You slipped through the prongs twice. The third stab was the charm.", "The fork found you before anyone found the fork.", "You were killed by something that does not exist. Please do not tell the philosopher.", "You went looking for the fork. The fork was also looking for you.", "Stabbed three times by a fork. Once would have been plenty.", "The fork does not officially exist, so your cause of death has been listed as \"misadventure.\"", "You were forked in four places at once. Grimly efficient.", "The fork went through you like you were nothing. Which, now, you are.", "You died proving the experts wrong. They will not be issuing a correction."],
@@ -4899,8 +4939,9 @@ function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head, source = null) {
     }
   }
   if (head) dmg *= 1.75;
+  let tf = 1;
   if (!source && weapon <= 3) {
-    const f = toolFactor(e, weapon); dmg *= f; toolFeedback(e, f, weapon);
+    const f = tf = toolFactor(e, weapon); dmg *= f; toolFeedback(e, f, weapon);
     if (weapon === 0 && (e.type === 'roll' || soakedSponge(e))) e.storedWater = Math.min(24, (e.storedWater || 0) + 0.25);   // you are watering it
   }
   e.hp -= dmg; e.flash = 1; e.lastHit = weapon; e.lastCause = source;
@@ -4916,7 +4957,7 @@ function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head, source = null) {
   if (head) { if (T - eyePopT > 0.7) { eyePopT = T; pop(e.x, cy + e.h * 0.6 + 0.4, e.z, pick(EYEPOPS), true); } sfx('head'); zz('googly', { p: 0.3 }); }
   else { sfx('hit'); if (T - hitWT > 0.15 && Math.random() < 0.4) { hitWT = T; pop(e.x + rand(-.5, .5), cy + e.h * 0.5 + 0.3, e.z, pick(HITW), true); } }
   if (weapon === 0 && !source && Math.random() < 0.5) gibs(e.x, cy, e.z, 1, WATER, { sph: true, mat: 12, smin: 0.06, smax: 0.12, maxS: 4, maxU: 4, stain: WET });
-  hitmark(e.hp <= 0);
+  hitmark(e.hp <= 0, tf);
   if (e.hp <= 0) killEnemy(e, weapon, dx, dz, head, false, source);
 }
 // ----- variety: mixing tools pays (DIALECTICS), doing the same thing forever does not (REPETITION COMPULSION)
@@ -5273,7 +5314,7 @@ function updateGlobs(dt) {
   for (const g of globs) {
     const ox = g.x, oy = g.y, oz = g.z;
     g.vy -= g.g * gs * dt; g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.life -= dt;
-    if (Math.random() < dt * 30) part3({ x: g.x, y: g.y, z: g.z, vx: rand(-1, 1), vy: rand(-1, 1), vz: rand(-1, 1), life: 0.4, size: rand(0.06, 0.12), col: pick(SAUCE), sph: true, grav: 10, stain: SAUCE[0] });
+    if (Math.random() < dt * 30) part3({ x: g.x, y: g.y, z: g.z, vx: rand(-1, 1), vy: rand(-1, 1), vz: rand(-1, 1), life: 0.4, size: rand(0.06, 0.12), col: g.owner === clog ? [.3, .22, .12] : pick(SAUCE), sph: true, grav: 10, stain: g.owner === clog ? [.28, .22, .14] : SAUCE[0] });
     const sx = g.x - ox, sy = g.y - oy, sz = g.z - oz, seg = Math.hypot(sx, sy, sz);
     let victim = null, near = seg + .001;
     const wall = seg > 0 ? rayStatic(ox, oy, oz, sx / seg, sy / seg, sz / seg, seg) : Infinity;
@@ -5295,12 +5336,12 @@ function updateGlobs(dt) {
       g.life = 0; const n = Math.hypot(g.vx, g.vz) || 1;
       if (victim.bub > 0) popBubble(victim);
       damageEnemy(victim, 16, g.vx / n, .3, g.vz / n, 5, 0, false, 'HOT SAUCE · CROSS-FIRE');
-      startKitchenFeud(victim, g.owner);
+      if (g.owner !== clog) startKitchenFeud(victim, g.owner);
       gibs(victim.x, victim.y + victim.h * .5, victim.z, 10, SAUCE, { sph: true, smin: .06, smax: .16, maxS: 5, maxU: 5 }); sfx('splat');
       continue;
     }
     if (playerT >= 0 && playerT <= seg && playerT < wall) {
-      g.life = 0; hurt(14, 'bottle', g.x, g.z); sfx('splat');
+      g.life = 0; hurt(14, g.owner === clog ? 'clog' : 'bottle', g.x, g.z); sfx('splat');
       splats.push({ x: rand(-0.9, 0.9), y: rand(-0.4, 0.6), s: rand(0.18, 0.34), life: 1 }); if (splats.length > 8) splats.shift();
       pop(g.x, g.y + 0.5, g.z, pick(SAUCEPOPS), true); zz('sauceHit', { p: 0.25 });
       continue;
@@ -5894,7 +5935,7 @@ function render() {
     ident(cur); tr(cur, r.x, r.y, r.z); ry(cur, Math.atan2(-r.vx, -r.vz)); rx(cur, Math.atan2(r.vy, Math.hypot(r.vx, r.vz))); rx(cur, -Math.PI / 2);
     part(CYL, 0, -0.35, 0, 0.18, 0.7, 0.18, [0.85, 0.87, 0.9], 5); part(CYL, 0, -0.2, 0, 0.185, 0.35, 0.185, [0.45, 0.8, 0.25], 11);
   }
-  for (const g of globs) { ident(cur); part(SPH, g.x, g.y, g.z, 0.32, 0.32, 0.32, [0.85, 0.12, 0.04], 11); }
+  for (const g of globs) { ident(cur); if (g.owner === clog) { part(SPH, g.x, g.y, g.z, 0.38, 0.34, 0.38, [0.3, 0.21, 0.11], 13); part(TORUS, g.x, g.y + .1, g.z, .3, .3, .3, [.95, .82, .38], 13, g.life * 3, 1.2); } else part(SPH, g.x, g.y, g.z, 0.32, 0.32, 0.32, [0.85, 0.12, 0.04], 11); }
   for (const k of pickups) {
     ident(cur); tr(cur, k.x, k.y + Math.sin(k.t * 3) * 0.15, k.z); ry(cur, k.t * 2);
     if (k.type === 'ice') { part(CUBE, 0, 0, 0, 0.7, 0.7, 0.7, [0.75, 0.9, 1.05], 12, 0, 0.3); part(SPH, 0, 0, 0, 0.18, 0.18, 0.18, [0.6, 0.85, 1.3], 7); }
@@ -5958,7 +5999,7 @@ let lastHud = '';
 function hud(dt) {
   for (const p of pops) { p.t -= dt; if (p.t <= 0) p.el.remove(); }
   pops = pops.filter(p => p.t > 0);
-  hitT -= dt; const h = $('hit'); h.style.opacity = hitT > 0 ? 1 : 0; h.className = hitKill ? 'kill' : '';
+  hitT -= dt; const h = $('hit'); h.style.opacity = hitT > 0 ? 1 : 0; h.className = hitKill ? 'kill' : hitF < 0.7 ? 'resist' : hitF > 1.2 ? 'crit' : '';
   if (state === 'title') return;
   journeyHUD();curioHUD();
   // news ticker

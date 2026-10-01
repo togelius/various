@@ -16,6 +16,9 @@ function testTools() {
     check('Spoons are easier with ice', toolFactor(spoon, 1) > 1.2);
     enemies = [roll]; const w0 = roll.storedWater || 0, hp0 = roll.hp; damageEnemy(roll, 17, 1, 0, 0, 1, 0, false);
     check('Squirting the paper towel waters it', roll.storedWater > w0 && hp0 - roll.hp < 5);
+    check('A resisted hit greys the hit marker', hitF < .7);
+    damageEnemy(roll, 1, 1, 0, 0, 1, 2, false);
+    check('An effective hit gilds the hit marker', hitF > 1.2);
     const hp1 = roll.hp; damageEnemy(roll, 17, 1, 0, 0, 1, 2, false);
     check('Kitchen sources ignore tool factors', (damageEnemy(roll, 10, 0, 1, 0, 0, 2, false, 'HOTPLATE'), true) && hp1 - roll.hp > 17 * 1.5);
 
@@ -68,6 +71,20 @@ function testTools() {
     fresh(); chal = { k: 'coldwar', t: 18, prog: 0 }; for (let i = 0; i < 4; i++) techVariety(i === 1 ? 'squirt' : 'ice');
     check('The Cold War wants ice kills', chal && chal.prog === 3); techVariety('ice');
     check('Four ice kills win the Cold War', !chal);
+
+    // The Clog fights back.
+    fresh(); spawnClog(); P.x = DRAIN.x - 12; P.z = DRAIN.z; P.y = 0; globs = []; enemies = [];
+    clog.spitT = 0; clog.burpT = 0; updateClog(1 / 60);
+    check('The Clog spits hairballs', globs.some(g => g.owner === clog));
+    check('The Clog regurgitates greasy sponges', enemies.some(e => e.greasy));
+    const pullFrom = (pud, dash) => { P.x = DRAIN.x - 8; P.z = DRAIN.z; P.pud = pud; P.dashT = dash ? .2 : 0; clog.hp = clog.max * .4; clog.spitT = clog.burpT = 99; const x0 = P.x; updateClog(1 / 60); return P.x - x0; };
+    const walkPull = pullFrom(false, false), pudPull = pullFrom(true, false), dashPull = pullFrom(false, true);
+    check('An angry Clog sucks you towards the drain', walkPull > 0);
+    check('Puddles get sucked harder', pudPull > walkPull * 1.5);
+    check('Dashing resists the suction', dashPull === 0);
+    P.pud = false; P.dashT = 0; P.iT = 0; const hpC = P.hp; P.x = DRAIN.x - clog.r - .3; updateClog(1 / 60);
+    check('Touching the Clog hurts and shoves you away', P.hp < hpC && P.vx < 0);
+    clog.alive = false; globs = []; enemies = [];
 
     // Stashes that need a particular ability.
     fresh(); chapter = 1; pickups = []; districtSupplies(); const letters = pickups.filter(k => k.stash === 'letter');
