@@ -134,12 +134,15 @@ With a keyboard and mouse:
   journey ends after wave ten unless you opt into endless mode. Clearing a
   wave restores 30 dampness. The "you think this is a
   joke?" freeze comes on wave 3 and then at most every three minutes.
-- **Voices.** Everything is read aloud by the browser's speech synthesis at
-  one and a half times normal speed. Apple's speech engine (Safari, and every
-  browser on iPhone and iPad) runs much faster at the same setting, so there
-  it uses 1.1. The SPEECH button in the options cycles SLOW, NORMAL, FAST and
+- **Voices.** Everything is read aloud by the browser's speech synthesis,
+  by default at 1.2 times normal speed (1.0 on Apple's much faster engine:
+  Safari, and every browser on iPhone and iPad). Lines are spoken sentence
+  by sentence, with a little intonation: exclamations lift, questions rise,
+  short interjections get emphasis, and Žižek speeds up slightly as he gets
+  carried away. Stage directions and dots are turned into pauses, and
+  shouted words are read rather than spelled out. The SPEECH button in the options cycles SLOW, NORMAL, FAST and
   ASSAULT, and remembers your choice. The announcer gets a high-pitched
-  English voice. Žižek gets a low pitch and the most Slavic voice your system has installed (Slovenian,
+  English voice. Žižek gets a low (but not crushed) pitch and the most Slavic voice your system has installed (Slovenian,
   Croatian, Czech, Polish, Russian, ...), reading English with that language's
   pronunciation, which gives him an accent. If there's none he uses English.
   The pause screen shows which voice he got.

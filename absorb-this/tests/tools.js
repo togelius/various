@@ -86,6 +86,13 @@ function testTools() {
     check('Touching the Clog hurts and shoves you away', P.hp < hpC && P.vx < 0);
     clog.alive = false; globs = []; enemies = [];
 
+    // Speech: sentence by sentence, with intonation, readable text.
+    const plan = speechPlan('Look! This is pure ideology. Why do you squirt the paper towel? And so on, and so on', 0.62, 1.2);
+    check('Speech is split into sentences', plan.length === 4 && plan[0].t === 'Look!');
+    check('Questions rise and exclamations lift above statements', plan[2].p > plan[1].p + .1 && plan[0].p > plan[1].p + .1);
+    check('Speech text drops stage directions and spelled-out shouting', speechText('*sniff* ENJOY · Žižek says', false) === 'enjoy, Zhizhek says');
+    check('A Slavic voice keeps the háček', speechText('Žižek', true) === 'Žižek');
+
     // Stashes that need a particular ability.
     fresh(); chapter = 1; pickups = []; districtSupplies(); const letters = pickups.filter(k => k.stash === 'letter');
     check('Dead letters wait under the low board', letters.length === 3 && letters.every(k => k.y < .95 && Math.abs(k.z - 11) < .1));

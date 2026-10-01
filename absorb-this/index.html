@@ -1536,8 +1536,38 @@ function voiceLabel() {
 // Apple's speech engine (every browser on iOS, and Safari) runs far faster at the same rate: 1.5 there is gibberish.
 const APPLE_TTS = /iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1) || (/Safari/.test(navigator.userAgent) && !/Chrome|Chromium|Android|Edg/.test(navigator.userAgent));
 const TALK_RATES = APPLE_TTS ? [0.9, 1, 1.1, 1.25] : [1, 1.2, 1.5, 1.9], TALK_NAMES = ['SLOW', 'NORMAL', 'FAST', 'ASSAULT'];
-let talkSpeed = 2; try { const t = +localStorage.getItem('absorb.talk'); if (t >= 0 && t < 4 && localStorage.getItem('absorb.talk') !== null) talkSpeed = t; } catch (e) { }
+let talkSpeed = 1; try { const t = +localStorage.getItem('absorb.talk'); if (t >= 0 && t < 4 && localStorage.getItem('absorb.talk') !== null) talkSpeed = t; } catch (e) { }
 const talkRate = () => TALK_RATES[talkSpeed];
+// ----- prosody. One flat utterance per paragraph is hard to follow (and Chrome cuts long ones off),
+// so lines are spoken sentence by sentence, with a little intonation per sentence.
+function speechText(text, slavic) {
+  let t = text.replace(/\*[^*]+\*/g, ' ').replace(/\s*[·—–]\s*/g, ', ').replace(/\.\.\.|…/g, '. ').replace(/\s+/g, ' ');
+  t = t.replace(/\b[A-ZÀ-ÞŠŽČĆĐ]{4,}\b/g, w => w.toLowerCase());   // shouted words are read, not spelled
+  if (!slavic) t = t.replace(/Žižek/g, 'Zhizhek').replace(/ŽIŽEK/gi, 'Zhizhek').replace(/Ž/g, 'Zh').replace(/ž/g, 'zh');
+  return t.trim();
+}
+function speechPlan(text, base, rate) {
+  const parts = text.match(/[^.!?]+[.!?]+["'’)\]]*|[^.!?]+$/g) || [text];
+  const out = [];
+  parts.forEach((raw, i) => {
+    const t = raw.trim(); if (!t) return;
+    const words = t.split(/\s+/).length, end = t.slice(-1);
+    let p = base + rand(-0.05, 0.05), r = rate * (1 + Math.min(0.1, i * 0.025)) * rand(0.97, 1.03);   // he gets carried away
+    if (end === '!') { p += 0.14; r *= 1.06; }
+    if (end === '?') { p += 0.22; r *= 0.97; }
+    if (words <= 3) { p += 0.12; r *= 0.92; }   // "Look!", "Of course!", "Pure ideology!"
+    out.push({ t, p: clamp(p, 0.1, 2), r: clamp(r, 0.5, 2.4) });
+  });
+  return out;
+}
+function speakPlan(plan, voice, done) {
+  plan.forEach((s, i) => {
+    const u = new SpeechSynthesisUtterance(s.t); if (voice) { u.voice = voice; u.lang = voice.lang; }
+    u.pitch = s.p; u.rate = s.r; u.volume = 1;
+    if (i === plan.length - 1 && done) u.onend = u.onerror = done;
+    speechSynthesis.speak(u);
+  });
+}
 function cycleTalk() { talkSpeed = (talkSpeed + 1) % 4; try { localStorage.setItem('absorb.talk', talkSpeed); } catch (e) { } multiText('SPEECH: ' + TALK_NAMES[talkSpeed]); if ('speechSynthesis' in window) { speechSynthesis.cancel(); ZZ.speaking = false; } say(TALK_NAMES[talkSpeed].toLowerCase() + ' talking', true); }
 let lastSay = 0;
 function say(text, force) {
@@ -1545,8 +1575,7 @@ function say(text, force) {
   const now = performance.now(); if (!force && now - lastSay < 600) return; lastSay = now;
   try {
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text); if (vAnn) { u.voice = vAnn; u.lang = vAnn.lang; }
-    u.pitch = 1.9; u.rate = talkRate(); u.volume = 1; speechSynthesis.speak(u);
+    speakPlan(speechPlan(speechText(text, false), 1.3, talkRate()), vAnn);
   } catch (e) { }
 }
 
@@ -4481,15 +4510,16 @@ function zVoice(text) {
   if (muted || zVoiceMode === 2 || !('speechSynthesis' in window)) return;
   try {
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text.replace(/\*[^*]+\*/g, ' '));
-    const v = zVoiceMode === 0 ? (vZAccent || vZPlain) : vZPlain; if (v) { u.voice = v; u.lang = v.lang; }
-    u.pitch = 0.3; u.rate = talkRate(); u.volume = 1;
-    u.onend = u.onerror = () => { ZZ.speaking = false; };
-    ZZ.speaking = true; ZZ.spokeAt = nowS(); speechSynthesis.speak(u);
+    const v = zVoiceMode === 0 ? (vZAccent || vZPlain) : vZPlain, slavic = !!(v && v === vZAccent);
+    // Low but not crushed: very low pitches garble vowels in most engines. An accent reading English
+    // is harder to follow, so it gets a slightly gentler pace.
+    const plan = speechPlan(speechText(text, slavic), slavic ? 0.62 : 0.68, talkRate() * (slavic ? 0.92 : 1));
+    ZZ.speaking = true; ZZ.spokeAt = nowS(); ZZ.speakFor = plan.reduce((a, s) => a + s.t.length / (14 * s.r) + 0.35, 2);
+    speakPlan(plan, v, () => { ZZ.speaking = false; });
   } catch (e) { ZZ.speaking = false; }
 }
 function zUpdate(dt) {
-  if (ZZ.speaking && nowS() - ZZ.spokeAt > 2.5 + ZZ.text.length * 0.07) ZZ.speaking = false;
+  if (ZZ.speaking && nowS() - ZZ.spokeAt > (ZZ.speakFor || 2.5 + ZZ.text.length * 0.07)) ZZ.speaking = false;
   if (!ZZ.on) return;
   ZZ.t += dt; const was = Math.floor(ZZ.shown); ZZ.shown += dt * 42;
   if (ZZ.sniffAt >= 0 && ZZ.shown >= ZZ.sniffAt) { sfx('sniff'); ZZ.sniffAt = ZZ.text.indexOf('*sniff*', ZZ.sniffAt + 1); }
