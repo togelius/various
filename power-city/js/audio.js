@@ -185,6 +185,20 @@
         case 'crash':
           this.note({ noise: true, at: t, dur: 0.3, freq: 3200, freq2: 500, q: 0.5, vol: 0.26, filter: 'highpass' });
           break;
+        case 'counter':
+          // the heavy hit, with a bright ring on top: you read it right
+          this.note({ noise: true, at: t, dur: 0.19, freq: 1100, freq2: 150, q: 1, vol: 0.38 });
+          this.note({ at: t, dur: 0.16, freq: 220, freq2: 60, wave: 'tri', vol: 0.3 });
+          this.note({ at: t + 0.02, dur: 0.16, freq: 1320, freq2: 1760, duty: 0.125, vol: 0.13 });
+          break;
+        case 'block':
+          // knuckles on a forearm: dry, short, and nothing like a hit
+          this.note({ noise: true, at: t, dur: 0.05, freq: 2400, q: 2.2, vol: 0.2 });
+          this.note({ at: t, dur: 0.06, freq: 190, freq2: 120, wave: 'tri', vol: 0.18 });
+          break;
+        case 'guard':
+          this.note({ at: t, dur: 0.05, freq: 520, freq2: 380, duty: 0.25, vol: 0.08 });
+          break;
         case 'clank':
           this.note({ at: t, dur: 0.1, freq: 1400, freq2: 700, duty: 0.25, vol: 0.14 });
           this.note({ noise: true, at: t, dur: 0.08, freq: 4000, q: 0.6, vol: 0.1, filter: 'highpass' });

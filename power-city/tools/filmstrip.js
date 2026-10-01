@@ -28,21 +28,22 @@ const { PERSONA_SRC, BOOT } = require('./agents.js');
   await page.waitForTimeout(500);
   await page.evaluate(BOOT, { src: PERSONA_SRC, persona, seed, startStage: stage, p2: false });
 
-  const shots = await page.evaluate((frames) => {
+  const ev = process.env.EV || 'COUNTER|BREAK';
+  const shots = await page.evaluate(({ frames, ev }) => {
     const PC = window.PC, FX = PC.fx;
     // watch the score pops for the words the mechanics print
     const events = [];
     const origPop = FX.pop;
     FX.pop = function (x, y, text, col) {
       const t = String(text);
-      if (/COUNTER|BREAK|HITS/.test(t)) events.push({ f: PC.world.time, what: t });
+      if (new RegExp(ev).test(t)) events.push({ f: PC.world.time, what: t });
       return origPop.call(this, x, y, text, col);
     };
     const origBowl = PC.Actor.prototype.bowl;
     PC.Actor.prototype.bowl = function () {
       const before = this.bowled ? this.bowled.length : 0;
       const r = origBowl.call(this);
-      if ((this.bowled ? this.bowled.length : 0) > before) events.push({ f: PC.world.time, what: 'BOWL' });
+      if ((this.bowled ? this.bowled.length : 0) > before && new RegExp(ev).test('BOWL')) events.push({ f: PC.world.time, what: 'BOWL' });
       return r;
     };
     const kept = [], ring = [];
@@ -63,7 +64,7 @@ const { PERSONA_SRC, BOOT } = require('./agents.js');
       if (window.__stats.result !== 'running') break;
     }
     return { kept, events: events.slice(0, 200) };
-  }, frames);
+  }, { frames, ev });
 
   shots.kept.forEach(k => fs.writeFileSync(path.join(out, k.name + '.png'), Buffer.from(k.url.split(',')[1], 'base64')));
   const tally = {};

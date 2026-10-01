@@ -66,8 +66,34 @@
       this.add({ t: 0, life: 14, kind: 'ring', x: x, y: y, col: col || '#ffffff' });
     },
 
-    pop: function (x, y, text, col) {
-      this.add({ t: 0, life: 46, kind: 'pop', x: x, y: y, text: String(text), col: col || '#ffe070' });
+    /* Score words. A keyed pop (the running combo count) is updated in
+     * place rather than reprinted, and any other pop that would land on a
+     * live one stacks above it - three pops on one thug used to overprint
+     * into an orange smear nobody could read. */
+    pop: function (x, y, text, col, key) {
+      var i, p;
+      text = String(text);
+      if (key) {
+        for (i = 0; i < this.list.length; i++) {
+          p = this.list[i];
+          if (p.kind === 'pop' && p.key === key) {
+            p.x = x; p.y = y; p.text = text; p.col = col || p.col; p.t = 0; p.bump = 3;
+            return p;
+          }
+        }
+      }
+      var w = Art.textWidth(text);
+      for (var tries = 0; tries < 5; tries++) {
+        var clash = false;
+        for (i = 0; i < this.list.length; i++) {
+          p = this.list[i];
+          if (p.kind !== 'pop' || p.key === key && key) continue;
+          if (Math.abs(p.y - y) < 9 && Math.abs(p.x - x) < (w + Art.textWidth(p.text)) / 2 + 2) { clash = true; break; }
+        }
+        if (!clash) break;
+        y -= 9;
+      }
+      return this.add({ t: 0, life: 46, kind: 'pop', x: x, y: y, text: text, col: col || '#ffe070', key: key, bump: 0 });
     },
 
     /* A red wedge at the player's flank, so being blind-sided comes with a
@@ -166,7 +192,9 @@
             ctx.globalAlpha = 1;
           }
         } else if (p.kind === 'pop') {
-          Art.text(ctx, p.text, x, y, p.col, { align: 'center', shadow: '#301810' });
+          // a keyed pop hops a pixel when its number goes up
+          if (p.bump > 0) p.bump--;
+          Art.text(ctx, p.text, x, y - (p.bump > 0 ? 2 : 0), p.col, { align: 'center', shadow: '#301810' });
         } else if (p.kind === 'rear') {
           var s = p.side, f = p.t / p.life;
           ctx.globalAlpha = 1 - f * 0.5;

@@ -239,15 +239,15 @@
        * a jab into a raised guard should feel like hitting a door. */
       PC.freeze(3);
       FX.block(cx, cy);
-      if (PC.audio) PC.audio.sfx('clank');
+      if (PC.audio) PC.audio.sfx('block');
       this.vx = -this.facing * 1.4;
       this.chainBroken = true;
       return;
     }
 
     PC.freeze((d.stop || (heavy ? 7 : 4)) + (counter ? 5 : 0));
-    FX.hit(cx, cy, heavy, d.spark);
-    if (PC.audio) PC.audio.sfx(heavy ? 'hitHeavy' : 'hit');
+    FX.hit(cx, cy, heavy || counter, counter ? '#7fe0ff' : d.spark);
+    if (PC.audio) PC.audio.sfx(counter ? 'counter' : (heavy ? 'hitHeavy' : 'hit'));
     if (this.onHitLanded) this.onHitLanded(t, d);
   };
 
@@ -336,6 +336,7 @@
         h.from && h.from.team === 0 && PC.rand() < this.T.guard) {
         this.setState('guard');
         this.guardT = 42;
+        if (PC.audio) PC.audio.sfx('guard');
         this.vx = h.dir * h.push * 0.4;
         return;
       }
@@ -648,6 +649,11 @@
         if (a.dead && b.dead) continue;
         if (a.state === 'down' || b.state === 'down') continue;
         if (a.grabbing === b || b.grabbing === a) continue;
+        /* The two heroes pass through each other. Shoving your partner was
+         * never a tactic, and two of them walking at each other used to
+         * wedge solid - a co-op run sat on a cleared street for ten minutes
+         * because neither could get by. */
+        if (a.team === 0 && b.team === 0) continue;
         dy = b.y - a.y;
         if (Math.abs(dy) > a.hd + b.hd) continue;
         dx = b.x - a.x;
@@ -666,6 +672,9 @@
   W.update = function () {
     var i;
     this.time++;
+    for (i = 0; i < this.actors.length; i++) {
+      if (this.actors[i].readButtons && !this.actors[i].removed) this.actors[i].readButtons();
+    }
     if (this.hitstop > 0) {
       this.hitstop--;
       FX.update();

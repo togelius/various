@@ -115,7 +115,7 @@
     this.chainT = 75;
     if (this.hitChain >= 4) {
       var col = this.hitChain >= 12 ? '#ff4a4a' : (this.hitChain >= 8 ? '#ff8a20' : '#ffe070');
-      FX.pop(t.x, t.y - t.hh - 10, this.hitChain + ' HITS', col);
+      FX.pop(t.x, t.y - t.hh - 10, this.hitChain + ' HITS', col, 'chain' + this.index);
     }
   };
 
@@ -138,20 +138,52 @@
   };
 
   // ------------------------------------------------------------------ control
+  /* Buttons are read every frame, frozen or not. The world stops for a
+   * hit-stop and for the slow-motion KO, and a press in those frames - the
+   * very moment players mash for the next hit - used to vanish, because
+   * only control() wrote the buffer and control() does not run while the
+   * world is stopped. Presses now latch until the player next acts. */
+  Player.prototype.readButtons = function () {
+    var pr = PC.input.p[this.index].pressed, f = this.fresh || (this.fresh = {});
+    // counted, not flagged: two mashed punches inside one freeze are two
+    if (pr.punch) f.punch = (f.punch || 0) + 1;
+    if (pr.kick) f.kick = (f.kick || 0) + 1;
+    if (pr.jump) f.jump = (f.jump || 0) + 1;
+  };
+
   Player.prototype.control = function () {
     // the fight is over and won: stand there with your arms up
     if (this.celebrate) {
       this.setState('win');
       this.vx = 0; this.vy = 0;
+      this.fresh = {};
       return;
     }
     var inp = PC.input.p[this.index];
-    var held = inp.held, pressed = inp.pressed;
-    var b = this.buffer, k;
-    for (k in b) if (b[k] > 0) b[k]--;
-    if (pressed.punch) b.punch = 7;
-    if (pressed.kick) b.kick = 7;
-    if (pressed.jump) b.jump = 7;
+    var held = inp.held;
+    var b = this.buffer, k, fresh = this.fresh || {};
+    var q = this.queued || (this.queued = {});
+    this.fresh = {};
+    /* The follow-up queue. A button pressed once an attack has started to
+     * land is held through that attack's recovery and comes out the moment
+     * the fighter is free - pressing kick as the hook connects is the most
+     * natural rhythm in the genre, and a 7-frame buffer against a 15-frame
+     * recovery used to eat it. Presses during a wind-up decay as normal, so
+     * mashing does not stack up phantom attacks. */
+    var following = this.state === 'attack' && this.atk && this.atkT >= this.atk.startup;
+    for (k in b) {
+      if (this.state !== 'attack') q[k] = false;
+      if (b[k] > 0 && !q[k]) b[k]--;
+    }
+    var pt = this.pressT || (this.pressT = {});
+    if (fresh.punch) {
+      b.punch = 7; q.punch = following; pt.punch = W.time;
+      // a second press is held for the next link of the chain
+      this.extraPunch = Math.min(1, fresh.punch - 1);
+    }
+    if (fresh.kick) { b.kick = 7; q.kick = following; pt.kick = W.time; }
+    if (fresh.jump) { b.jump = 7; q.jump = following; pt.jump = W.time; }
+    var pressed = fresh;
     if (this.grabCool > 0) this.grabCool--;
     if (this.chainT > 0) { this.chainT--; if (!this.chainT) this.hitChain = 0; }
 
@@ -179,7 +211,10 @@
 
     // ---- the spin kick is both buttons at once. The window is two frames,
     // not the whole buffer, or every fast punch-then-kick becomes a spin.
-    if (b.punch >= 5 && b.kick >= 5 && this.canAct() && this.z <= 0) {
+    // (measured by when they were pressed, not how fresh the buffer is -
+    // a punch and a kick queued apart through a recovery are not a spin)
+    if (b.punch > 0 && b.kick > 0 && Math.abs((pt.punch || 0) - (pt.kick || -99)) <= 2 &&
+      this.canAct() && this.z <= 0) {
       b.punch = b.kick = 0;
       this.startAttack(MOVES.spin);
       return;
@@ -194,6 +229,7 @@
         this.combo++;
         this.comboT = 40;
         this.startAttack(MOVES[this.atk.chain]);
+        if (this.extraPunch > 0) { this.extraPunch--; b.punch = 7; q.punch = true; }
       }
       return;
     }

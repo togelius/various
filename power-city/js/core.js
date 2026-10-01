@@ -137,11 +137,17 @@
 
       function set(pl, act) { if (act) Input.p[pl].held[act] = true; }
       function down(c) { return Input._down[c] || Input._latch[c]; }
+      /* A keydown is a press even if the key was already reading as held:
+       * mash fast enough and a release and the next press both land between
+       * two polls, and the old edge test (held now, not held before) saw
+       * one long press where the player made two. */
+      var struck = [{}, {}];
+      function hit(pl, act, c) { if (act && Input._edge[c]) struck[pl][act] = true; }
 
-      for (code in MAP_P1) if (down(code)) set(0, MAP_P1[code]);
-      for (code in MAP_P2) if (down(code)) set(1, MAP_P2[code]);
+      for (code in MAP_P1) if (down(code)) { set(0, MAP_P1[code]); hit(0, MAP_P1[code], code); }
+      for (code in MAP_P2) if (down(code)) { set(1, MAP_P2[code]); hit(1, MAP_P2[code], code); }
       var arrowsTo = this.p2Joined ? 1 : 0;
-      for (code in MAP_ARROWS) if (down(code)) set(arrowsTo, MAP_ARROWS[code]);
+      for (code in MAP_ARROWS) if (down(code)) { set(arrowsTo, MAP_ARROWS[code]); hit(arrowsTo, MAP_ARROWS[code], code); }
 
       // Gamepads take players in the order the browser lists them.
       var padPlayer = 0;
@@ -166,7 +172,7 @@
         st = this.p[i];
         for (a = 0; a < ACTIONS.length; a++) {
           var act = ACTIONS[a];
-          st.pressed[act] = st.held[act] && !prev[i][act];
+          st.pressed[act] = (st.held[act] && !prev[i][act]) || !!struck[i][act];
           st.released[act] = !st.held[act] && prev[i][act];
         }
         // Double-tap left/right, for the run. Window is 16 frames.

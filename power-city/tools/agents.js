@@ -731,6 +731,12 @@ const BOOT = function (bag) {
       S.bossFights.push(S.__boss); S.__boss = null;
     }
 
+    // softlock: the street is clear but nobody can get to the end of it
+    if (stg.cleared && g.state === 'play') {
+      S.__clearT = (S.__clearT || 0) + 1;
+      if (S.__clearT === 3600) S.softlocks.push({ stage: stg.index, kind: 'cleared-but-stuck', frame: S.frames });
+    } else S.__clearT = 0;
+
     if (stg.timeLeft === 0 && !S.__to) { S.__to = true; S.timeouts++; }
     if (stg.timeLeft > 0) S.__to = false;
 
