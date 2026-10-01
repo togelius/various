@@ -13,9 +13,9 @@ const run=document.querySelector('#run'),status=document.querySelector('#status'
 run.onclick=async()=>{
  run.disabled=true;results.textContent='';status.textContent='Loading the kitchen…';frame?.remove();clearTimeout(timer);
  try{
-  const [gameResponse,testResponse]=await Promise.all([fetch('../index.html'),fetch('journey.js')]);
-  if(!gameResponse.ok||!testResponse.ok)throw Error('Serve this folder with a local HTTP server first.');
-  let game=await gameResponse.text();const tests=await testResponse.text();
+  const [gameResponse,...testResponses]=await Promise.all(['../index.html','forgiveness.js','slapstick.js','stories.js','journey.js'].map(f=>fetch(f)));
+  if(!gameResponse.ok||testResponses.some(r=>!r.ok))throw Error('Serve this folder with a local HTTP server first; all test files must be present.');
+  let game=await gameResponse.text();const tests=(await Promise.all(testResponses.map(r=>r.text()))).join('\n');
   const boot="showScreen('title');\nrequestAnimationFrame(frame);",pointerStart=game.indexOf('function grabPointer() {'),pointerEnd=game.indexOf("$('scr').addEventListener('click', e => {",pointerStart);
   if(!game.includes(boot)||pointerStart<0||pointerEnd<0||!game.includes('muted = false'))throw Error('Game test seams changed; update the harness.');
   game=game.slice(0,pointerStart)+'function grabPointer() { locked = true; }\n'+game.slice(pointerEnd);
@@ -23,7 +23,7 @@ run.onclick=async()=>{
   game=game.replace("'use strict';","'use strict';\nconst testValues=new Map(),testStorage={getItem:k=>testValues.get(k)??null,setItem:(k,v)=>testValues.set(k,String(v))};");
   game=game.replace(boot,tests.replaceAll('localStorage','testStorage'));
   frame=document.createElement('iframe');frame.title='Muted game test frame';frame.srcdoc=game;document.body.append(frame);
-  status.textContent='Running encounters and traversal…';timer=setTimeout(()=>{status.textContent='Checks timed out. Inspect the browser console for a startup error.';status.className='fail';run.disabled=false;},20000);
+  status.textContent='Running encounters, accidents, continues and traversal…';timer=setTimeout(()=>{status.textContent='Checks timed out. Inspect the browser console for a startup error.';status.className='fail';run.disabled=false;},60000);
  }catch(e){status.textContent=e.message;status.className='fail';run.disabled=false;}
 };
 addEventListener('message',e=>{

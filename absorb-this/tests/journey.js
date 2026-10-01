@@ -157,5 +157,5 @@ function testCurios(){
  return out;
 }
 
-const testResults = [...testJourney(), ...testTraversal(), ...testLighting(), ...testCurios()];
+const testResults = [...testJourney(), ...testTraversal(), ...testLighting(), ...testCurios(), ...testForgiveness(), ...testSlapstick(), ...testStories()];
 parent.postMessage({type: "absorb-tests", results: testResults}, "*");

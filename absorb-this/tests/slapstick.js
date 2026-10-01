@@ -1,0 +1,84 @@
+// Actual projectile, AI, collision, resource and wave behavior. No damage mocks.
+function testSlapstick() {
+ const out=[], oldTimer=window.setTimeout, oldRandom=Math.random, colliderCount=COL.length;
+ const check=(name,ok)=>{if(!ok)throw Error(name);out.push('PASS '+name);};
+ window.setTimeout=()=>0;Math.random=()=>.5;
+ const fresh=()=>{reset();state='play';interT=9999;mouseDown=false;for(const k in keys)keys[k]=false;P.x=-24;P.z=17;P.y=0;P.iT=0;};
+ const actor=(type,x,z,s=1)=>{const e=makeEnemy(type,x,z,s);e.spawnT=0;e.cd=99;enemies.push(e);return e;};
+ const step=n=>{for(let i=0;i<n;i++){T+=1/60;updateEnemies(1/60);updateGlobs(1/60);updateParticles(1/60);}};
+ try {
+  fresh();const sauce=actor('bottle',-12,17),victim=actor('sponge',-23,17);sauce.cd=0;
+  updateEnemies(1/60);check('Bottles attach actual projectile ownership',globs.length===1&&globs[0].owner===sauce);
+  for(let i=0;i<120&&globs.length;i++)updateGlobs(1/60);
+  check('Actual arcing sauce hits an intervening sponge',victim.hp<victim.maxHp);
+  check('Sauce impact redirects both actors into a temporary feud',victim.grudge===sauce&&sauce.grudge===victim&&victim.grudgeT>0);
+  check('Shooter is excluded from its own projectile collision',sauce.hp===sauce.maxHp);
+  victim.cd=0;victim.y=0;victim.vx=victim.vz=victim.vy=0;updateEnemies(1/60);
+  check('Offended sponge jumps toward sauce, away from DRIP',victim.vx>0);
+  victim.grudgeT=.01;sauce.grudgeT=.01;victim.cd=sauce.cd=99;updateEnemies(.02);
+  check('Grudges expire without leaving inert enemies',victim.grudge===null&&sauce.grudge===null);
+  fresh();const attacker=actor('sponge',-14,17),defender=actor('bottle',-12.5,17);startKitchenFeud(attacker,defender);attacker.feudCd=0;
+  const health=P.hp;updateEnemies(1/60);
+  check('Rival contact really damages another enemy',defender.hp<defender.maxHp);
+  check('Remote rivalry does not hurt DRIP',P.hp===health);
+  check('A grudge has its own cause and does not masquerade as water fire',defender.lastCause==='SPONGE · GRUDGE'&&!parts.some(p=>p.stain===WET));
+  defender.dead=true;updateEnemies(1/60);check('Dead rival references are cleared',attacker.grudge===null);
+  fresh();const shielded=actor('sponge',-16,17),behindWall=actor('bottle',-22,17);addBox(-18,17,.2,2,4);
+  globs=[{x:-20,y:.45,z:17,vx:120,vy:0,vz:0,g:0,life:1,owner:behindWall}];updateGlobs(.05);COL.pop();
+  check('Sauce cannot tunnel through scenery into enemies',shielded.hp===shielded.maxHp&&globs.length===0);
+  fresh();const beyond=actor('sponge',-21,17),shotOwner=actor('bottle',-28,17);
+  globs=[{x:-26,y:.8,z:17,vx:160,vy:0,vz:0,g:0,life:1,owner:shotOwner}];const before=P.hp;updateGlobs(.05);
+  check('Swept sauce resolves DRIP before a more distant enemy',P.hp<before&&beyond.hp===beyond.maxHp&&globs.length===0);
+  fresh();P.x=-30;const rearSource=actor('bottle',-26,17),frontTarget=actor('sponge',-20,17);
+  globs=[{x:-22,y:.45,z:17,vx:120,vy:0,vz:0,g:0,life:1,owner:rearSource}];updateGlobs(.025);
+  check('DRIP behind the shot does not shield its enemy target',frontTarget.hp<frontTarget.maxHp);
+  fresh();const claimant=actor('sponge',-15,17);for(let i=0;i<7;i++)stain(-15,0,17,.4,WET);claimant.cd=0;updateEnemies(1/60);
+  check('A solitary property claimant guards its puddle instead of chasing',claimant.propertyT>0&&claimant.vx===0&&claimant.vz===0);
+  step(440);check('Claim expires and the sponge resumes normal movement',claimant.propertyT===0&&Math.abs(claimant.x+15)>1);
+  fresh();const wealthy=actor('sponge',-15,17),neighbour=actor('sponge',-12.5,17);
+  for(let i=0;i<7;i++)stain(wealthy.x,0,wealthy.z,.4,WET);
+  updateEnemies(1/60);check('Real water stains saturate sponges and are stored',wealthy.wet>=.72&&wealthy.storedWater===7);
+  check('Saturation provokes a physical property dispute',wealthy.propertyT>0&&wealthy.grudge===neighbour&&neighbour.grudge===wealthy);
+  wealthy.cd=0;wealthy.grudge=null;wealthy.grudgeT=0;wealthy.propertyT=0;wealthy.y=0;wealthy.vx=wealthy.vz=0;updateEnemies(1/60);
+  check('Saturated hopping is slower than dry base speed',Math.hypot(wealthy.vx,wealthy.vz)<wealthy.speed*.8);
+  enemies=[wealthy];wealthy.y=0;wealthy.x=-24;wealthy.z=17;wealthy.squashed=true;const bank=wealthy.storedWater;
+  killEnemy(wealthy,5);check('Squashing returns stored water as collectible stains',stains.filter(s=>s.water).length>=bank&&wealthy.storedWater===0);
+  P.hp=50;P.vx=P.vz=P.vy=0;P.onG=true;updatePlayer(1/60);check('Returned enemy water actually heals DRIP',P.hp>50);
+  const paid=score;killEnemy(wealthy,5);check('Repeated removal cannot duplicate score or water',score===paid);
+  fresh();const roll=actor('roll',-12,10);for(let i=0;i<8;i++)stain(-12,0,10,.5,WET);roll.vz=roll.speed;updateEnemies(1/60);
+  check('Roll stores water and leaves a collectible wake',roll.storedWater>0&&stains.some(s=>s.water&&s.z<roll.z-1.5));
+  updateEnemies(1/60);check('Loaded paper roll slows down',roll.vz<roll.speed);
+  const load=roll.storedWater;killEnemy(roll,0);check('Destroyed roll releases its remaining reserve',roll.storedWater===0&&stains.filter(s=>s.water).length>=load);
+  fresh();const pad=PADS[0],launched=actor('sponge',pad.x,pad.z);updateEnemies(1/60);
+  check('Ordinary enemy uses actual ketchup launcher',launched.vy>20&&launched.padCd>0&&launched.y>0);
+  fresh();chapter=2;T=Math.PI/2/1.05;const b=BURNERS[0],heated=actor('sponge',b.x,b.z);heated.y=.31;heated.storedWater=4;
+  updateEnemies(1/60);check('Hotplate damages and tosses an enemy',heated.hp<heated.maxHp&&heated.vy>10&&heated.heatCd>0);
+  check('Hotplate wrings collectible water from its victim',stains.some(s=>s.water));
+  fresh();const a=actor('sponge',-18,17),bub=actor('sponge',-16,17),normal=actor('sponge',-14,17);
+  trapInBubble(a);trapInBubble(bub);a.y=bub.y=3;a.bdx=8;bub.bdx=0;a.bdz=bub.bdz=0;updateEnemies(1/60);
+  check('Nearby bubbles share momentum and acquire airborne pretensions',bub.bdx>0&&a.upperClass&&bub.upperClass);
+  popBubble(a);check('Bubble pop schedules a neighbouring cascade',bub.bubbleCascade>0);
+  check('Bubble cascade ignores unbubbled bystanders',!(normal.bubbleCascade>0));
+  step(12);check('Neighbouring bubble actually pops after the delay',bub.bub===0);
+  step(80);check('Cascade resolves to finite ordinary actors',enemies.every(e=>[e.x,e.y,e.z,e.vx,e.vy,e.vz,e.hp].every(Number.isFinite)));
+  fresh();const expires=actor('sponge',-18,17),adjacent=actor('sponge',-16,17),distant=actor('sponge',15,17);
+  for(const e of [expires,adjacent,distant]){trapInBubble(e);e.y=3;e.bdx=e.bdz=0;}
+  expires.bub=.001;updateEnemies(1/60);check('Natural bubble expiry starts the same neighbouring cascade',expires.bub===0&&adjacent.bubbleCascade>0);
+  const cascades=kitchenStories.counts.cascade;popBubble(distant);
+  check("An isolated bubble cannot claim a distant group's pending cascade",kitchenStories.counts.cascade===cascades);
+  step(12);check('Natural expiry cascade remains finite and completes',adjacent.bub===0&&enemies.every(e=>Number.isFinite(e.y)));
+  fresh();chapter=2;T=Math.PI/2/1.05;const toast=actor('sponge',BURNERS[0].x,BURNERS[0].z);toast.y=.31;toast.hp=6;
+  updateEnemies(1/60);check('Hotplate kills identify the actual environmental cause',toast.dead&&$('feed').textContent.includes('KITCHEN [HOTPLATE]'));
+  fresh();wave=1;waveActive=true;spawnQ=[];const last=actor('sponge',-12,17);last.hp=10;last.storedWater=8;
+  const owner=actor('bottle',-15,17);owner.dead=true;
+  globs=[{x:-13,y:.45,z:17,vx:60,vy:0,vz:0,g:0,life:1,owner}];updateGlobs(1/30);updateEnemies(1/60);updateWaves(0);
+  check('Environmental friendly-fire kill still completes a wave'+(last.dead&&!waveActive&&enemies.length===0?'':' [last='+last.hp+', dead='+last.dead+', active='+waveActive+', enemies='+enemies.length+', globs='+globs.length+', player='+P.hp+', state='+state+']'),last.dead&&!waveActive&&enemies.length===0);
+  check('Cross-fire kill feed keeps its physical cause while rewarding DRIP',score>=500&&$('feed').textContent.includes('KITCHEN [HOT SAUCE · CROSS-FIRE]'));
+  fresh();const spoon=actor('spoon',-15,17),target=actor('sponge',-14,17);startKitchenFeud(spoon,target);spoon.state=2;spoon.stT=1;spoon.y=.6;
+  updateEnemies(1/60);check('Cutlery lunges can hit their rival',target.hp<target.maxHp);
+  spoon.propertyT=4;target.wet=1;target.propertyT=4;const dampRoll=actor('roll',-12,14);dampRoll.storedWater=8;
+  render();check('Slapstick actors render with balanced transforms and no GL error',stack.length===0&&gl.getError()===0);
+ } catch(e) { out.push('FAIL '+e.message); }
+ finally { COL.length=colliderCount;window.setTimeout=oldTimer;Math.random=oldRandom;fresh();hideScreen();$('hud').classList.remove('off'); }
+ return out;
+}

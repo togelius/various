@@ -71,7 +71,7 @@
   #scr { position:fixed; inset:0; display:flex; align-items:flex-start; justify-content:center; text-align:center; overflow-y:auto;
     background:radial-gradient(ellipse at center, rgba(40,22,10,.55), rgba(20,10,4,.88)); cursor:pointer; }
   #scr.off { display:none; }
-  #scr .box { max-width:760px; padding:24px; margin:auto; }
+  #scr .box { width:100%; min-width:0; box-sizing:border-box; max-width:760px; padding:24px; margin:auto; }
   #scr h1 { font-family:Bangers, Impact, sans-serif; font-weight:400; font-size:clamp(64px,13vw,150px); margin:0; line-height:.9; color:#fff;
     text-shadow:6px 6px 0 var(--scour), 12px 12px 0 var(--foam), 18px 18px 0 var(--ink); transform:rotate(-3deg); letter-spacing:.03em; }
   #scr h2 { font-family:Bangers, Impact, sans-serif; font-weight:400; font-size:clamp(26px,4vw,40px); margin:18px 0 6px; color:var(--foam);
@@ -166,7 +166,7 @@
     #boss { font-size:16px; } #chal { top:52px; min-width:0; } #chalD { font-size:15px; }
   }
   #scr { touch-action:pan-y; }
-  @media (max-height: 520px) {
+  @media (max-height: 520px), (max-width: 700px) {
     #scr h1 { font-size:64px !important; } #scr h2 { font-size:22px; margin-top:10px; } #scr p { font-size:14px; } #scr .stat { font-size:19px; }
     #scr .quip { font-size:16px; } #scr .keys { font-size:13px; } #scr .cta { font-size:30px; } #scr .zq img { width:70px; height:70px; }
   }
@@ -187,7 +187,7 @@
   #scr .startbox { max-width:850px; } #scr .startbox h1 { font-size:clamp(62px,11vw,136px); }
   #scr .eyebrow { font-size:12px;letter-spacing:.25em;font-weight:900;color:#c8e2c3; }
   #scr .actions { display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:18px auto; }
-  #scr button.action { cursor:pointer;font-family:Bangers,Impact,sans-serif;font-size:30px;letter-spacing:.05em;border:3px solid #291e13;border-radius:7px;padding:12px 24px;background:#f9bd4d;color:#291e13;box-shadow:4px 5px 0 #291e13; }
+  #scr button.action { cursor:pointer;max-width:100%;font-family:Bangers,Impact,sans-serif;font-size:30px;letter-spacing:.05em;border:3px solid #291e13;border-radius:7px;padding:12px 24px;background:#f9bd4d;color:#291e13;box-shadow:4px 5px 0 #291e13; }
   #scr button.action:hover, #scr button.action:focus-visible { background:#fff0ac;transform:translateY(-2px);outline:2px solid white; }
   #scr button.action.secondary { background:#b8dcd5;font-size:23px; }
   #scr details { max-width:630px;margin:16px auto;border-top:1px solid #b7a37e;padding-top:12px; }
@@ -1610,7 +1610,9 @@ const KILL_FOES = { gold: ['foe_randian', 'foe_ethical', 'foe_lobster'], roll: [
 const JAB_OK = new Set(['sponge', 'bottle', 'spoon', 'googly', 'multi', 'counter', 'clear', 'low', 'soak', 'ice', 'pad', 'still', 'bubble', 'bubbleCounter', 'rocket', 'sauceHit', 'spoonHit', 'stolenWater', 'edgeSave', 'idle']);
 let nemesis = 'foe_derrida';
 function foeKey() { const r = Math.random(); return r < 0.4 ? nemesis : r < 0.85 ? pick(FOE_KEYS) : 'foe'; }
+let retrySnapshot = null;
 function reset() {
+  retrySnapshot = null;
   if (SIGNS.length) rerollSigns();
   runCurios=new Set();curioFocus=null;curioFocusT=0;curioPoll=0;readingCurio=null;
   P = { x: -24, y: 0, z: 17, vx: 0, vy: 0, vz: 0, yaw: -Math.PI/2, pitch: 0.035, onG: true, hp: 100, dashT: 0, dashCd: 0, coyote: 0, w: 0, wNext: 0,
@@ -1623,6 +1625,7 @@ function reset() {
   $('feed').innerHTML = '';
   $('rank').innerHTML = '';
   if (typeof zReset === 'function') zReset();
+  if (typeof resetKitchenStories === 'function') resetKitchenStories();
   MOD = null; gs = 1; chal = null; chalNext = T + 40; tickNews = []; forkStatus = 'rumour';
   nemesis = pick(FOE_KEYS); if (NEMESIS_NEWS[nemesis]) tickNews.push('TODAY\'S NEMESIS: ' + NEMESIS_NEWS[nemesis]);
   chapter=0;chapterClear=false;endless=false;runTime=0;drainHold=0;fountainT=0;
@@ -3953,6 +3956,320 @@ const ZL = {
     "The fork is gone back to the lid drawer, where things that should not exist are kept. Nobody opens it. Everybody knows it is full.",
   ],
 };
+// The counter remembers its accidents. The archive is per spill; PLEASE preserves it.
+var kitchenStories;
+function resetKitchenStories() {
+  kitchenStories = { time: 0, serial: 0, counts: {}, cool: {}, entries: [], pending: [], nextVoice: 0 };
+}
+function kitchenActorName(e) {
+  if (!e) return 'THE COUNTER';
+  if (!e.dramaId) e.dramaId = ++kitchenStories.serial;
+  const name = e.gold ? 'GOLDEN SPONGE' : (NAMES[e.type] || 'KITCHENWARE');
+  return name + ' #' + e.dramaId + (e.dramaTitle ? ', ' + e.dramaTitle : '');
+}
+function kitchenWords(line, actor, other) {
+  return line.replaceAll('{actor}', actor).replaceAll('{other}', other);
+}
+function kitchenIncident(kind, details = {}) {
+  if (state !== 'play') return false;
+  if (!kitchenStories) resetKitchenStories();
+  const bank = KITCHEN_INCIDENTS[kind]; if (!bank) return false;
+  // In a sauce feud the instigator is the projectile's owner; the physical splash
+  // and pop remain at its victim. Recurring offenders keep their own reputation.
+  const at = details.actor;
+  const a = kind === 'sauceFeud' && details.other ? details.other : at;
+  const other = a === at ? details.other : at, story = kitchenStories;
+  const past = a ? (a.dramaHistory || (a.dramaHistory = {})) : {};
+  let callback = null;
+  if (kind === 'redistribution' && past.property) callback = 'fallenOwner';
+  else if ((kind === 'launch' || kind === 'upperClass') && (past.launch || past.upperClass)) callback = 'repeatElevation';
+  else if (kind === 'sauceFeud' && past.sauceFeud) callback = 'reoffender';
+  else if (kind === 'redistribution' && a && a.type === 'roll') callback = 'wetPaper';
+  past[kind] = (past[kind] || 0) + 1;
+  story.counts[kind] = (story.counts[kind] || 0) + 1;
+  if (a && !a.dramaTitle) a.dramaTitle = pick(bank.titles);
+  // Keep actors' memories even offscreen; tell incidents where they can be witnessed.
+  const x = details.x ?? (at && at.x), z = details.z ?? (at && at.z);
+  if (!Number.isFinite(x) || !Number.isFinite(z) || Math.hypot(x - P.x, z - P.z) > 38) return false;
+  if (story.time < (story.cool[kind] || 0)) return false;
+  story.cool[kind] = story.time + (callback ? 3 : 6);
+  const material = callback ? KITCHEN_CALLBACKS[callback] : bank;
+  const actorName = kitchenActorName(a), otherName = kitchenActorName(other);
+  const text = kitchenWords(pick(material.lines), actorName, otherName);
+  const news = kitchenWords(pick(material.news), actorName, otherName);
+  const entry = { kind, callback, actor: actorName, other: otherName, wave, district: chapter, text, news };
+  story.entries.push(entry); if (story.entries.length > 48) story.entries.shift();
+  story.pending.push({ text, expires: story.time + 45 });
+  if (story.pending.length > 6) story.pending.shift();
+  headlineNow(news);
+  pop(x, (details.y ?? (at && at.y) ?? 0) + ((at && at.h) || 1) + .9, z,
+    kitchenWords(pick(material.pops), actorName, otherName), true);
+  return true;
+}
+function updateKitchenStories(dt) {
+  if (!kitchenStories || state !== 'play') return;
+  const s = kitchenStories; s.time += dt;
+  s.pending = s.pending.filter(p => p.expires > s.time);
+  // Original barks, interruptions, nemeses and idle banks still run. Incidents get a turn
+  // when the host has finished; a missed speech remains available in the notebook.
+  if (!s.pending.length || s.time < s.nextVoice || ZZ.on || ZZ.lock || jokeT > 0 || nowS() < ZZ.cool) return;
+  zShow(ztic(s.pending.shift().text)); s.nextVoice = s.time + 18;
+}
+function kitchenMinutesHTML() {
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const entries = kitchenStories ? kitchenStories.entries : [];
+  return `<details class="noteDistrict"><summary>MINUTES OF THE DISAGREEMENT · ${entries.length} RECENT INCIDENTS</summary>
+    <p class="fine">The last 48 incidents this spill, preserved through PLEASE. The facts are provisional. The explanations are worse.</p>
+    ${entries.length ? entries.slice().reverse().map(e => `<article class="noteEntry"><strong>${esc(e.news)}</strong><p>${esc(e.text)}</p><span>${esc(CHAPTERS[e.district].short)} · WAVE ${e.wave} · ${esc(e.actor)}</span></article>`).join('') : '<p>The counter has not yet incriminated itself. Give it a moment.</p>'}</details>`;
+}
+// Original invented parody for Absorb This. These are fictional lines, not quotations.
+// Incident banks contain 133 entries; four callback banks add 16, for 149 total.
+// {actor} and {other} are supplied by the incident system; every bank also works
+// without requiring any philosopher, faction, or ideology to be objectively right.
+const KITCHEN_INCIDENTS = {
+  sauceFeud: {
+    titles: [
+      'AMBASSADOR OF UNREQUESTED SEASONING',
+      'DEPUTY BOTTLE FOR COLLATERAL FLAVOUR',
+      'THE RIGHT HONOURABLE CAPS LOCK',
+    ],
+    pops: [
+      'WRONG DISH!',
+      'CONDIMENTAL DISPUTE!',
+      'PLEASE SEASON RESPONSIBLY!',
+      'TAKE THAT UP WITH THE BOTTLE!',
+      'INTERNAL SAUCE REVIEW!',
+    ],
+    news: [
+      '{actor} SEASONS A COLLEAGUE WITHOUT CONSULTATION; COLLEAGUE BEGINS CONSULTING WITH VIOLENCE',
+      'KITCHEN ALLIANCE FRACTURES OVER WHETHER FRIENDLY FIRE COUNTS AS A MARINADE',
+      'HOT SAUCE BOTTLE CLAIMS SPLASH WAS A TEAM-BUILDING EXERCISE; TEAM BEGINS DISASSEMBLING',
+      'RETALIATION RECLASSIFIED AS FEEDBACK BY CONDIMENT RESOURCES',
+      'BOTTLE REQUESTS THAT ALL COMPLAINTS BE SUBMITTED FROM OUTSIDE SPLASH RANGE',
+    ],
+    lines: [
+      'The bottle hit its own side! For one glorious instant the kitchen had a common enemy, and then somebody opened a condiment.',
+      'A little sauce lands on a colleague and suddenly solidarity has an ingredients list. I warned them about emulsions. They thought I meant politics.',
+      'Observe the retaliation. Finally, a kitchen discussion in which somebody responds to the specific point that was just made.',
+      'Hobbes imagined a war of all against all. He forgot the intermediate stage: everybody against the idiot holding the hot sauce.',
+      'This is what the bottle calls an internal matter. Of course it is internal. The sauce is already inside the disagreement.',
+      '{actor} has introduced nuance into the battle. Nuance is orange, it burns, and nobody wants it explained a second time.',
+    ],
+  },
+  property: {
+    titles: [
+      'BARON VON SOAKENHOLD',
+      'REGISTERED PUDDLE OCCUPANT',
+      'CHIEF EXECUTIVE HOLE',
+    ],
+    pops: [
+      'NO COMMUNAL SIPPING!',
+      'THIS WET IS OCCUPIED!',
+      'SHOW YOUR SLOSH PERMIT!',
+      'BOUNDARY DISPUTE!',
+      'PRIVATE PORES!',
+    ],
+    news: [
+      '{actor} ANNOUNCES EXCLUSIVE RIGHTS TO THE WATER IT HAPPENS TO BE STANDING BESIDE',
+      'WET SPONGE CHARGES OTHER SPONGES WITH AGGRAVATED THIRST',
+      'LOCAL PUDDLE ACQUIRES A BORDER, A GUARD AND NO NEW WATER',
+      'SPONGE PROPERTY DISPUTE ESCALATES AFTER BOTH PARTIES PRESENT THE SAME RECEIPT: "I AM WET"',
+      'WATERFRONT DEVELOPMENT OPPOSES OTHER SPONGES ON CHARACTER GROUNDS',
+    ],
+    lines: [
+      'The sponge drinks a puddle and immediately invents trespassing. Remarkable. Most civilizations require at least a fence before becoming unbearable.',
+      '{actor} says the water is private. Look, the water has not signed anything. It is still trying to be approximately level.',
+      'Locke says property begins when you mix your labour with something. This sponge has mixed itself with breakfast water. Apparently that qualifies as a legal education.',
+      'Two sponges fighting over water, while being made almost entirely of holes. I refuse to call this a metaphor until somebody pays the repair bill.',
+      'I support the right to a little personal space. The sponge agrees. Unfortunately its personal space includes every wet thing it can see.',
+      'A guard has appeared beside the puddle. No new water, no better water, but now an administrative experience. The kitchen is developing.',
+    ],
+  },
+  redistribution: {
+    titles: [
+      'THE LEAKING TREASURER',
+      'PUBLIC REFILL OFFICER',
+      'FORMERLY CLOSED RESERVOIR',
+    ],
+    pops: [
+      'UNSCHEDULED REFUND!',
+      'THE WATER IS BACK!',
+      'LIQUID ASSETS RELEASED!',
+      'OPEN-PORE POLICY!',
+      'PLEASE COLLECT YOURSELF!',
+    ],
+    news: [
+      '{actor} RELEASES WATER; PREVIOUS CLAIMS OF PERMANENT OWNERSHIP UNDER REVIEW',
+      'ABSORBENCY SECTOR ANNOUNCES SURPRISE WITHDRAWALS',
+      'STORED WATER RETURNS TO COUNTER, DECLINES TO DISCUSS ITS TIME INSIDE',
+      'LOCAL REFILL OPENS WITHOUT A RIBBON-CUTTING; RIBBON ALREADY DAMP',
+      'KITCHEN ACCOUNTANTS CONFIRM THAT LIQUID ASSETS WERE, ON THIS OCCASION, ACTUALLY LIQUID',
+    ],
+    lines: [
+      'There is the water again! It spent all that time inside absorbent material and has emerged with no qualifications, no references, but excellent dampness.',
+      '{actor} has released its reserves. You see, I predicted this. I also predicted the opposite, but I keep those notes in a different drawer.',
+      'At last, an economic policy you can walk through and get healthier. Please do not quote me to the finance department. They will remove the water.',
+      'The reservoir is open. Hurry, before somebody argues that free water undermines the dignity of being thirsty.',
+      'Do not get sentimental. Some of that water may once have been you. Some may have been tea. Identity becomes very difficult near a sink.',
+      'The water is available again. Hegel calls this a return enriched by its passage through the other. The health inspector has a much less flattering term.',
+    ],
+  },
+  upperClass: {
+    titles: [
+      'COUNTESS OF UPPER SUDSBURY',
+      'DUKE OF THE SECOND BUBBLE',
+      'HER FOAMING EXCELLENCY',
+    ],
+    pops: [
+      'AIRS AND GRACES!',
+      'NOBILITY: INFLATED!',
+      'THE PEERAGE IS DRIFTING!',
+      'MIND THE FAMILY BUBBLE!',
+      'ELEVATED COMPANY!',
+    ],
+    news: [
+      '{actor} JOINS AIRBORNE ARISTOCRACY; PEDIGREE TRACED BACK TO THE SOAP NOZZLE',
+      'BUBBLE PEERAGE INSISTS SOCIAL MOBILITY SHOULD STOP NOW THAT IT HAS ARRIVED',
+      'UPPER COUNTER SOCIETY DRIFTS TOGETHER, DESCRIBES THIS AS SHARED VALUES',
+      'NEW NOBILITY ASKS SERVANTS TO FETCH A FLOOR',
+      'AIRBORNE HOUSEHOLDS DECLARE THEMSELVES WELL CONNECTED; PHYSICS CONFIRMS',
+    ],
+    lines: [
+      'They have been above you for three seconds and already they have hereditary titles. Give them another three and they will claim the soap is their ancestral land.',
+      'Bourdieu speaks of distinction. Here it is very simple: you are down there, they are up there, and everybody smells of the same washing-up liquid.',
+      'Look at the aristocracy moving together. Such social cohesion! Admittedly, someone is pushing the bubbles, but this has never disqualified a ruling class.',
+      '{actor} has joined high society. Membership requires one bubble and absolutely no plan for what happens after the bubble.',
+      'Do not sneer at the floating nobles. It takes extraordinary personal achievement to be shot with exactly the right kind of soap.',
+      'They call it a distinguished circle. I can see at least three circles, all extremely temporary. This is my objection to genealogical research.',
+    ],
+  },
+  cascade: {
+    titles: [
+      'CHAIR OF THE DESCENDING COMMITTEE',
+      'ACTING MINISTER FOR POP',
+      'FORMER CLOUD RESIDENT',
+    ],
+    pops: [
+      'COLLECTIVE DESCENT!',
+      'THE NEXT BUBBLE PLEASE!',
+      'CONFIDENCE HAS POPPED!',
+      'DOWNWARD NETWORKING!',
+      'SUDDENLY GROUNDED!',
+    ],
+    news: [
+      'BUBBLE FAILURE SPREADS; EXPERTS HAD ASSUMED THE OTHER BUBBLES WERE DIFFERENT',
+      '{actor} PARTICIPATES IN UNSCHEDULED GROUP DESCENT',
+      'AIRBORNE COMMITTEE DISCOVERS ITS MEMBERS SHARE MORE THAN AN AGENDA',
+      'SOAP NETWORK ISSUES URGENT PATCH: THE COUNTER IS BELOW YOU',
+      'LOCAL CHAIN REACTION PRAISED FOR FOLLOW-THROUGH',
+    ],
+    lines: [
+      'One bubble pops and the others follow. Finally, peer review with a visible result.',
+      'They each believed they occupied a private little world. Very touching. Their private little worlds were right next to one another.',
+      'You see the chain reaction? I have published arguments that work like this. Remove one attractive sentence and suddenly the whole chapter is on the floor.',
+      'The bubbles are dropping their occupants. An excellent reminder that a support structure does not need to be persuaded. Sometimes it merely needs to be punctured.',
+      'A moment ago this was a community in the air. Now it is several urgent individual relationships with gravity. Same people, different meeting.',
+      'I would call this a collapse of confidence, but confidence is still intact. They are extremely confident that down is happening.',
+    ],
+  },
+  heatLift: {
+    titles: [
+      'PROFESSOR OF APPLIED YELP',
+      'THE VISITING SIZZLE SCHOLAR',
+      'ACTING KETTLE CONSULTANT',
+    ],
+    pops: [
+      'HOTPLATE PROMOTION!',
+      'THE HOB HAS SPOKEN!',
+      'LEAVE WITH A SIZZLE!',
+      'THERMAL DISAGREEMENT!',
+      'TOO HOT TO REMAIN!',
+    ],
+    news: [
+      '{actor} RECEIVES HANDS-ON LESSON FROM SURFACE LABELLED HOT',
+      'HOTPLATE CONTRIBUTES TO DEBATE BY RAISING A PARTICIPANT',
+      'LOCAL KITCHENWARE DISCOVERS THAT A RED CIRCLE IS MORE THAN BRANDING',
+      'STOVE DEPARTMENT REPORTS SUCCESSFUL TRANSFER FROM HEAT TO PANIC',
+      'RESEARCHER FINDS STRONG LINK BETWEEN STANDING ON BURNER AND LEAVING BURNER',
+    ],
+    lines: [
+      'The hotplate has offered a practical objection. Notice how quickly the recipient stops demanding a more rigorous definition of hot.',
+      '{actor} has been introduced to the stove. Normally introductions are shorter, but this one covers considerable vertical distance.',
+      'We often say ideas must be tested in the crucible of experience. I meant this figuratively. The kitchen continues to disappoint me by taking notes.',
+      'Hume asks whether the next event must resemble the last. An excellent question. Please conduct the experiment from beside the burner.',
+      'There! A heated exchange in which one participant actually leaves the discussion. Most academic versions only threaten to.',
+      'The hob is very persuasive. No bibliography, no footnotes, just a bright circle and an immediate desire to be somewhere else.',
+    ],
+  },
+  launch: {
+    titles: [
+      'CAPTAIN OF CONDIMENT AVIATION',
+      'FIRST SECRETARY FOR UP',
+      'THE UNBOOKED PASSENGER',
+    ],
+    pops: [
+      'SAUCE CLASS UPGRADE!',
+      'UNEXPECTED DEPARTURE!',
+      'KETCHUP CHECK-IN!',
+      'NOW BOARDING: YOU!',
+      'PLEASE REMAIN AIRBORNE!',
+    ],
+    news: [
+      '{actor} JOINS PACKET AIRLINES; BAGGAGE POLICY STILL BEING INVENTED',
+      'KETCHUP PACKET EXPANDS INTO TRANSPORT FOLLOWING PRESSURE FROM ABOVE',
+      'LOCAL ENEMY RECEIVES A DIFFERENT KIND OF TAKEAWAY',
+      'CONDIMENT LAUNCH PROGRAMME ACHIEVES ALTITUDE, DECLINES TO PREDICT ARRIVAL',
+      'KITCHENWARE DISCOVERS THE BUSINESS END OF A SERVING SUGGESTION',
+    ],
+    lines: [
+      'The ketchup has launched somebody else! I knew public transport would improve once we let the condiments handle it. I did not say it would be safe.',
+      '{actor} is travelling by packet. No ticket, no itinerary, and yet somehow a very definite opinion about the service.',
+      'The enemy arrived with intentions. The ketchup supplied a trajectory. Between them they have accidentally produced a plan.',
+      'This is the great promise of the kitchen: with enough pressure beneath you, anybody can rise. The landing remains a private matter.',
+      'A sachet of ketchup has briefly become more influential than every philosopher in the room. I am preparing a devastating response from a safe distance.',
+      'You see that departure? Nothing on the packet said it could not be an airport. This is why philosophers should read the small print with engineers present.',
+    ],
+  },
+};
+
+// Rare callbacks. Only choose these after the event system confirms the relevant
+// actor history: previous ownership then releasing stored water; repeated elevation; repeated
+// sauce trouble; or a paper roll's prior water handling.
+const KITCHEN_CALLBACKS = {
+  fallenOwner: {
+    pops: ['THE DEED IS LEAKING!'],
+    news: ['{actor}, PREVIOUSLY AN AUTHORITY ON OWNERSHIP, RELEASES ITS HOLDINGS THROUGH SEVERAL HOLES'],
+    lines: [
+      'Ah, the proprietor is leaking. It still owns the puddle, presumably. Property law becomes wonderfully optimistic when the property is running away through your bottom.',
+      'That is the one who guarded the water! A moment ago it was private property. Now it is a public splash. The deed has not kept up with the plumbing.',
+    ],
+  },
+  repeatElevation: {
+    pops: ['FREQUENT FLIER FOAM!'],
+    news: ['{actor} ELEVATED AGAIN; PREVIOUS FLIGHT NOW COUNTS AS EXPERIENCE'],
+    lines: [
+      'Up again! The first ascent was an accident. The second is already being described as a career.',
+      'Our airborne acquaintance returns. This is repetition with a difference: it now has a much stronger opinion about being airborne.',
+    ],
+  },
+  reoffender: {
+    pops: ['SAME BOTTLE. NEW COMPLAINT.'],
+    news: ['{actor} INVOLVED IN ANOTHER SAUCE DISPUTE; PREVIOUS APOLOGY STILL WARM'],
+    lines: [
+      'Again with the sauce! At this point the splash is no longer a mistake. It is an organizational culture.',
+      'We have met this problem before. Same bottle, same broad gesture, another colleague discovering why the apology comes in bulk.',
+    ],
+  },
+  wetPaper: {
+    pops: ['PAPER TRAIL: SOAKED!'],
+    news: ['{actor} REAPPEARS IN WATER AFFAIR; INVESTIGATORS ADVISED TO USE PENCIL'],
+    lines: [
+      'The paper towel and the water have history. Unfortunately the paper towel was also keeping the records, so the archive is difficult to consult.',
+      'That roll has already handled some of this business. In most institutions experience makes you indispensable. Here it makes you noticeably heavier.',
+    ],
+  },
+};
+
 var ZZ = { on: false, text: '', shown: 0, hideAt: 0, t: 0, gest: null, gT: 0, gDur: 0.8, nextG: 1, cool: 0, once: {}, big: false, lock: false,
   speaking: false, spokeAt: 0, nextIdle: 0, phase: 0 };
 let greyV = 0;
@@ -4157,7 +4474,7 @@ const NAMES = { sponge: 'SPONGE', bottle: 'HOT SAUCE', spoon: 'SPOON', mama: 'GR
 const WICON = ['SQUIRTER', 'ICE SHOTGUN', 'SELTZER', 'SUDS-O-MATIC', 'THE FLOOR', 'THE ROLL'];
 function makeEnemy(type, x, z, s = 1) {
   const e = { type, x, y: 0, z, vx: 0, vy: 0, vz: 0, yaw: Math.atan2(P.x - x, P.z - z), t: Math.random() * 10, s, flash: 0, sq: 1, sqv: 0,
-    cd: rand(0.5, 1.5), state: 0, stT: rand(1.5, 3), stun: 0, wet: 0, spawnT: 0.45, px: 0, py: -0.5, pvx: 0, pvy: 0, lvx: 0, lvy: 0, lvz: 0, orbit: Math.random() < 0.5 ? 1 : -1, chomp: 0, lastHit: -1 };
+    cd: rand(0.5, 1.5), state: 0, stT: rand(1.5, 3), stun: 0, wet: 0, spawnT: 0.45, px: 0, py: -0.5, pvx: 0, pvy: 0, lvx: 0, lvy: 0, lvz: 0, orbit: Math.random() < 0.5 ? 1 : -1, chomp: 0, lastHit: -1, grudge: null, grudgeT: 0, feudCd: 0, storedWater: 0, propertyT: 0, propertyCd: 0, padCd: 0, heatCd: 0, leakT: 0 };
   if (type === 'sponge') { const big = s >= 3.5; e.hp = s >= 3.5 ? 1100 : s >= 1.8 ? 200 : s < 0.8 ? 18 : 40; e.r = 0.8 * s; e.h = 0.9 * s; e.speed = big ? 5 : s >= 1.8 ? 7 : s < 0.8 ? 11 : 8.5; if (big) e.type = 'mama'; }
   if (type === 'roll') { e.hp = 420; e.r = 2.6; e.h = 3; e.speed = 8.5; e.len = 4.4; e.rot = 0; e.hitCd = 0; e.vz = 1.5; e.yaw = 0; }
   if (type === 'fork') { e.hp = wave < 14 ? 700 : 900; e.r = 1.3; e.h = 1.4; e.speed = 14; e.stabs = 0; e.summonT = 7; e.stT = 3; }
@@ -4221,7 +4538,7 @@ function kitchenUpdate(dt) {
   if(!endless&&chapterClear&&chapter<4&&P.x>=CHAPTERS[chapter+1].x-29)enterDistrict(chapter+1);
   if(P.onG&&P.y<.65){
     for(const b of BURNERS)if(burnerHeat(b)>.72&&(P.x-b.x)**2+(P.z-b.z)**2<4.2**2){
-      P.hp-=12*dt;P.hurtT=Math.max(P.hurtT,.24);if(P.hp<=0)die('stove');break;
+      seepDamage(6,dt,'stove');break;
     }
     if(Math.hypot(P.x-299,P.z+17)<2.5){P.hp=Math.min(100,P.hp+12*dt);fountainT-=dt;if(fountainT<=0){fountainT=.65;pop(299,1.6,-17,'FREE REFILL. SUSPICIOUS.',true);sfx('sip');}}
   }
@@ -4309,11 +4626,30 @@ function startWave(n) {
 function hurt(amount, cause, fx, fz) {
   if (state !== 'play') return;
   if (P.iT > 0) { pop(P.x - Math.sin(P.yaw) * 2, P.y + 1.5, P.z - Math.cos(P.yaw) * 2, pick(['MISSED ME!', 'TOO SPLASHY!', 'LIQUID DODGE!']), true); return; }
+  if (amount <= 0) return;
+  // The kitchen can be overwhelming without every collision becoming a pile-on.
+  amount *= 0.75;
+  P.iT = Math.max(P.iT, 0.7);
   P.hp -= amount; P.hurtT = Math.min(1, P.hurtT + amount / 25); shake = Math.max(shake, 0.25 + amount / 60);
   if (fx !== undefined) { const dx = P.x - fx, dz = P.z - fz, d = Math.hypot(dx, dz) || 1; P.vx += dx / d * amount * 0.4; P.vz += dz / d * amount * 0.4; }
   sfx('hurt');
   gibs(P.x, P.y + 0.6, P.z, 5, WATER, { sph: true, mat: 12, smin: 0.06, smax: 0.14, maxS: 5, maxU: 6 });
   if (P.hp <= 0) die(cause);
+}
+function seepDamage(rate, dt, cause) {
+  if (state !== 'play' || P.iT > 0) return 0;
+  const amount = Math.max(0, rate * dt);
+  P.hp -= amount; P.hurtT = Math.min(0.6, P.hurtT + dt * 0.7);
+  if (P.hp <= 0) die(cause);
+  return amount;
+}
+function absorbPlayer(e, dt) {
+  // Several overlapping mouths share a single drain budget for this frame.
+  const rate = e.type === 'mama' || e.s >= 1.8 ? 10 : 8;
+  const amount = Math.max(0, rate * dt - (P.absorbUsed || 0));
+  if (!amount || P.iT > 0 || state !== 'play') return 0;
+  P.absorbUsed = (P.absorbUsed || 0) + amount;
+  return seepDamage(amount / dt, dt, e.type);
 }
 const DEATH = {
   stove: ["You became steam. A promotion in altitude, a disaster in every other respect.", "Your hot take was that the hob was safe. The hob has issued a rebuttal.", "You touched the hob to see if it was on. It was. You are now a cloud.", "The Hot Take district runs on heat and opinions. You supplied neither and evaporated.", "You boiled. Somewhere, a kettle is jealous.", "You rose gracefully into the extractor fan, which extracted you."],
@@ -4329,6 +4665,8 @@ const DEATH = {
 };
 function die(cause) {
   if (state !== 'play') return;
+  // Capture before the death animation keeps simulating collisions and projectiles.
+  retrySnapshot = captureRetry();
   state = 'dead'; deathCause = cause; P.deadT = 0; P.hp = 0; recordEnding(cause === 'fall' ? 'floor' : 'evaporated'); zHide();
   sfx(cause === 'fall' ? 'fall' : 'die'); say(cause === 'fall' ? 'floor' : 'evaporated', true);
   gibs(P.x, P.y + 0.6, P.z, 30, WATER, { sph: true, mat: 12, smin: 0.08, smax: 0.2, stain: WATER[0] });
@@ -4337,10 +4675,10 @@ function die(cause) {
   setTimeout(() => { if (state === 'dead') showScreen('dead'); }, 1400);
 }
 
-function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head) {
+function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head, source = null) {
   if (e.hp <= 0) return;
   if (e.bub > 0) {
-    if (weapon === 2) popBubble(e);
+    if (weapon === 2) { popBubble(e); if (e.dead) return; }
     else {
       e.vx += dx * knock * 0.5; e.vz += dz * knock * 0.5; e.bdx = e.vx; e.bdz = e.vz; e.vy += 0.4; e.flash = 0.4; sfx('hit'); hitmark(false);
       if (T - hitWT > 0.12) { hitWT = T; pop(e.x, e.y + e.h + 0.8, e.z, pick(['BOINK', 'BOOP', 'BWOMP', 'BLOOP', 'BONK (SOAPY)']), true); }
@@ -4348,7 +4686,7 @@ function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head) {
     }
   }
   if (head) dmg *= 1.75;
-  e.hp -= dmg; e.flash = 1; e.lastHit = weapon;
+  e.hp -= dmg; e.flash = 1; e.lastHit = weapon; e.lastCause = source;
   const mass = e.type === 'roll' ? 25 : e.type === 'fork' ? 5 : e.type === 'mama' ? 8 : e.type === 'bottle' ? 1.6 : e.s >= 1.8 ? 3 : 1;
   e.vx += dx * knock / mass; e.vz += dz * knock / mass; if (e.type !== 'spoon' && e.type !== 'fork' && e.type !== 'roll') e.vy += Math.max(0, knock * 0.35 / mass + dy * knock / mass);
   if (knock / mass > 5) e.stun = Math.min(0.6, knock / mass * 0.04);
@@ -4360,12 +4698,14 @@ function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head) {
   if (head) chalEvent('googly');
   if (head) { if (T - eyePopT > 0.7) { eyePopT = T; pop(e.x, cy + e.h * 0.6 + 0.4, e.z, pick(EYEPOPS), true); } sfx('head'); zz('googly', { p: 0.3 }); }
   else { sfx('hit'); if (T - hitWT > 0.15 && Math.random() < 0.4) { hitWT = T; pop(e.x + rand(-.5, .5), cy + e.h * 0.5 + 0.3, e.z, pick(HITW), true); } }
-  if (weapon === 0 && Math.random() < 0.5) gibs(e.x, cy, e.z, 1, WATER, { sph: true, mat: 12, smin: 0.06, smax: 0.12, maxS: 4, maxU: 4, stain: WET });
+  if (weapon === 0 && !source && Math.random() < 0.5) gibs(e.x, cy, e.z, 1, WATER, { sph: true, mat: 12, smin: 0.06, smax: 0.12, maxS: 4, maxU: 4, stain: WET });
   hitmark(e.hp <= 0);
-  if (e.hp <= 0) killEnemy(e, weapon, dx, dz, head);
+  if (e.hp <= 0) killEnemy(e, weapon, dx, dz, head, false, source);
 }
-function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false) {
+function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false, source = null) {
+  if (e.dead) return;
   e.hp = 0; e.dead = true;
+  if (!fell && e.storedWater > 0) { releaseKitchenWater(e, e.storedWater); kitchenIncident('redistribution', { actor: e }); }
   if (e.type === 'fork') { forkStatus = 'defeated'; headlineNow('FORK DEFEATED. INSTITUTE FOR FORK DENIAL CLAIMS VINDICATION'); }
   const cy = e.y + (e.type === 'spoon' ? 0 : e.h * 0.5);
   const base = e.gold ? 5000 : { sponge: e.s < 0.8 ? 60 : 100, bottle: 150, spoon: 120, mama: 2500, roll: 1500, fork: 5000 }[e.type] * (e.s >= 1.8 && e.type === 'sponge' ? 2 : 1);
@@ -4378,7 +4718,7 @@ function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false) {
   if (Math.random() < 0.55) say(word.replace(/[!?.]/g, '').toLowerCase()); else if (Math.random() < 0.5) say(pick(SHOUTS).toLowerCase());
   chalEvent('kill'); if (fell) chalEvent('fall');
   pop(e.x, cy + 0.8, e.z, word);
-  feed(`DRIP <em>[${WICON[fell ? 4 : weapon] || 'SQUIRTER'}]</em> ${e.gold ? 'GOLDEN SPONGE' : NAMES[e.type]}${head ? ' <em>· GOOGLY</em>' : ''}`);
+  feed(`${source ? 'KITCHEN' : 'DRIP'} <em>[${source || WICON[fell ? 4 : weapon] || 'SQUIRTER'}]</em> ${e.gold ? 'GOLDEN SPONGE' : NAMES[e.type]}${head ? ' <em>· GOOGLY</em>' : ''}`);
   if (multi >= 2) { const t = pick(MULTIW[Math.min(multi, 8)]); multiText(t); if (multi > 2 || Math.random() < 0.4) say(t.replace('!', '').toLowerCase()); zz('multi', { p: 0.35 }); }
   else if (combo > 0 && combo % 10 === 0) { multiText(`${combo} KILL STREAK!`); say(pick(['unstoppable', 'soaking wet', 'hydration nation', 'moist and furious'])); }
   if (fell) zz(e.wasBub ? 'bubbleCounter' : 'counter', { p: 0.65 });
@@ -4434,11 +4774,82 @@ function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false) {
   }
 }
 
+// The kitchen's actors share physical affordances. Grudges expire, and returned water
+// uses the same collectible stains as missed shots: no extra controls or economy.
+function releaseKitchenWater(e, amount) {
+  const n = Math.min(24, Math.ceil(Math.min(amount, e.storedWater || 0)));
+  if (!n) return 0;
+  e.storedWater = Math.max(0, e.storedWater - n);
+  for (let i = 0; i < n; i++) {
+    const a = i * 2.39996, r = .35 + (i % 4) * .28;
+    const x = e.x + Math.cos(a) * r, z = e.z + Math.sin(a) * r;
+    const y = groundAt(x, z, Math.max(e.y + .5, 1));
+    if (onCounter(x, z) && y > -1) stain(x, y, z, .85, WET);
+  }
+  bubbles(e.x, e.y + .2, e.z, Math.min(12, n * 2), .7);
+  return n;
+}
+function startKitchenFeud(e, other, kind = 'sauceFeud') {
+  if (!e || !other || e === other || e.dead || other.dead || e.gold || e.type === 'roll' || other.type === 'roll') return;
+  const fresh = e.grudge !== other || e.grudgeT <= 0;
+  e.grudge = other; e.grudgeT = 6; e.feudCd = Math.max(e.feudCd || 0, .3);
+  // Being interrupted is useful to DRIP; even the offender turns away to argue.
+  if (!other.gold) { other.grudge = e; other.grudgeT = 6; }
+  if (fresh) kitchenIncident(kind, { actor: e, other });
+}
+function enemyRival(e, dt) {
+  e.grudgeT = Math.max(0, (e.grudgeT || 0) - dt); e.feudCd = Math.max(0, (e.feudCd || 0) - dt);
+  if (!e.grudge || e.grudge.dead || e.grudgeT <= 0 || !enemies.includes(e.grudge) || Math.hypot(e.x - e.grudge.x, e.z - e.grudge.z) > 40) { e.grudge = null; e.grudgeT = 0; }
+  return e.grudge;
+}
+function kitchenEnemySurfaces(e, dt) {
+  e.padCd = Math.max(0, (e.padCd || 0) - dt); e.heatCd = Math.max(0, (e.heatCd || 0) - dt);
+  if (e.dead || e.type === 'roll') return;
+  const grounded = e.y <= groundAt(e.x, e.z, e.y + .1) + .08;
+  if (grounded && e.y < .5 && e.padCd <= 0) for (const p of PADS) {
+    if (Math.abs(e.x - p.x) < 1.4 && Math.abs(e.z - p.z) < 1.1) {
+      const dx = (p.tx ?? HIVE.x) - e.x, dz = (p.tz ?? HIVE.z) - e.z, d = Math.hypot(dx, dz) || 1;
+      e.vy = p.power || 25; e.vx = dx / d * (p.speed || 5); e.vz = dz / d * (p.speed || 5);
+      e.padCd = 2.5; e.cd = Math.max(e.cd, .8); e.popY = Math.max(e.popY || 0, e.y + 3); e.stun = .35;
+      sfx('pad'); kitchenIncident('launch', { actor: e, x: p.x, y: .3, z: p.z }); break;
+    }
+  }
+  if (e.heatCd <= 0 && e.y < 1) for (const b of BURNERS) {
+    if (burnerHeat(b) > .72 && (e.x - b.x) ** 2 + (e.z - b.z) ** 2 < 4.2 ** 2) {
+      e.heatCd = 1.2;
+      if (e.bub > 0) popBubble(e);
+      damageEnemy(e, 12, 0, 1, 0, 0, 2, false, 'HOTPLATE');
+      if (!e.dead) { e.vy = Math.max(e.vy, 14); e.stun = Math.max(e.stun, .6); e.cd = Math.max(e.cd, .8); releaseKitchenWater(e, 3); }
+      kitchenIncident('heatLift', { actor: e }); break;
+    }
+  }
+}
+function updateBubbleSociety(dt) {
+  const crowd = enemies.filter(e => !e.dead && e.bub > 0);
+  for (let i = 0; i < crowd.length; i++) for (let j = i + 1; j < crowd.length; j++) {
+    const a = crowd[i], b = crowd[j], dx = b.x - a.x, dz = b.z - a.z, dy = bubCY(b) - bubCY(a);
+    const d = Math.hypot(dx, dy, dz), reach = bubR(a) + bubR(b) + .3;
+    if (d > reach || d < .01) continue;
+    const k = Math.min(.16, dt * 2), vx = (a.bdx + b.bdx) * .5, vz = (a.bdz + b.bdz) * .5;
+    a.bdx = lerp(a.bdx, vx, k); b.bdx = lerp(b.bdx, vx, k); a.bdz = lerp(a.bdz, vz, k); b.bdz = lerp(b.bdz, vz, k);
+    // A loose cluster shares momentum, without a rigid constraint or persistent graph.
+    const push = Math.max(0, reach - .45 - d) * dt;
+    a.x -= dx / d * push; a.z -= dz / d * push; b.x += dx / d * push; b.z += dz / d * push;
+    if (!a.upperClass || !b.upperClass) { a.upperClass = b.upperClass = true; kitchenIncident('upperClass', { actor: a, other: b }); }
+  }
+}
 function updateEnemies(dt) {
   const px = P.x, pz = P.z;
+  updateBubbleSociety(dt);
   for (const e of enemies) {
+    if (e.dead) continue;
+    const rival = enemyRival(e, dt);
+    kitchenEnemySurfaces(e, dt);
+    if (e.dead) continue;
+    e.propertyT = Math.max(0, (e.propertyT || 0) - dt); e.propertyCd = Math.max(0, (e.propertyCd || 0) - dt);
     e.t += dt; e.flash = Math.max(0, e.flash - dt * 7); e.stun -= dt; e.spawnT = Math.max(0, e.spawnT - dt); e.chomp = Math.max(0, e.chomp - dt * 3);
     if (e.bub > 0) {
+      if (e.bubbleCascade > 0) { e.bubbleCascade -= dt; if (e.bubbleCascade <= 0) { popBubble(e); continue; } }
       e.bub -= dt;
       const gb = groundAt(e.x, e.z, e.y + 0.1), ty = Math.max(gb, 0) + (e.type === 'spoon' ? 4 : 3.2) + Math.sin(e.t * 1.7) * 0.4;
       e.vy = lerp(e.vy, (ty - e.y) * 1.2, Math.min(1, dt * 2));
@@ -4448,10 +4859,13 @@ function updateEnemies(dt) {
       e.yaw += dt * 0.8; e.pvx += (Math.random() - 0.5) * dt * 40; e.pvy += (Math.random() - 0.5) * dt * 40;
       e.px = clamp(e.px + e.pvx * dt, -1, 1); e.py = clamp(e.py + e.pvy * dt, -1, 1); e.pvx *= 0.95; e.pvy *= 0.95;
       if (Math.random() < dt * 0.35) pop(e.x, e.y + e.h + 1.2, e.z, pick(BUBPOPS), true);
-      if (e.bub <= 0) popBubble(e);
+      if (e.bub <= 0) popBubble(e, true);
       continue;
     }
-    const dx = px - e.x, dz = pz - e.z, dist = Math.hypot(dx, dz) || 1e-3;
+    const tx = rival ? rival.x : px, tz = rival ? rival.z : pz;
+    const targetY = rival ? rival.y + rival.h * .5 : P.y + .7;
+    const playerDist = Math.hypot(px - e.x, pz - e.z);
+    const dx = tx - e.x, dz = tz - e.z, dist = Math.hypot(dx, dz) || 1e-3;
     let nx = dx / dist, nz = dz / dist;
     // after bumping into scenery, walk around it for a while instead of straight at the player
     e.detourT = (e.detourT || 0) - dt;
@@ -4461,18 +4875,20 @@ function updateEnemies(dt) {
     const onG = e.y <= g + 0.02;
     const alive = state === 'play';
     e.tauntT = (e.tauntT === undefined ? rand(1, 7) : e.tauntT) - dt;
-    if (e.tauntT <= 0) { e.tauntT = rand(6, 13); if (dist < 24 && alive) pop(e.x, e.y + (e.type === 'spoon' ? 1 : e.type === 'fork' ? 2.6 : e.h + 0.7), e.z, pick(TAUNTS[e.gold ? 'gold' : e.type]), true); }
+    if (e.tauntT <= 0) { e.tauntT = rand(6, 13); if (playerDist < 24 && alive) pop(e.x, e.y + (e.type === 'spoon' ? 1 : e.type === 'fork' ? 2.6 : e.h + 0.7), e.z, pick(TAUNTS[e.gold ? 'gold' : e.type]), true); }
     if (e.type === 'roll') {
       e.yaw = 0; e.vx = 0; e.hitCd -= dt;
-      e.vz = Math.min(e.speed, e.vz + dt * 2.5); e.z += e.vz * dt; e.rot += e.vz * dt / 1.5;
+      e.vz = Math.min(e.speed * (1 - Math.min(.42, e.storedWater * .025)), e.vz + dt * 2.5); e.z += e.vz * dt; e.rot += e.vz * dt / 1.5;
       if (e.z > CZ1 + 1.2) { e.vy -= GRAV * gs * dt; e.y += e.vy * dt; }
       else if (Math.random() < dt * 8) part3({ x: e.x + rand(-2, 2), y: 0.1, z: e.z + 1.4, vx: rand(-1, 1), vy: rand(1, 3), vz: e.vz * 0.5, life: 0.5, size: rand(0.05, 0.1), col: [0.95, 0.95, 0.9], grav: 20 });
       // it soaks up every puddle it rolls over, and flattens anything small enough
-      for (let i = stains.length - 1; i >= 0; i--) { const st = stains[i]; if (Math.abs(st.x - e.x) < e.len / 2 && Math.abs(st.z - e.z) < 1.5) stains.splice(i, 1); }
+      for (let i = stains.length - 1; i >= 0; i--) { const st = stains[i]; if (Math.abs(st.x - e.x) < e.len / 2 && Math.abs(st.z - e.z) < 1.5) { if (st.water) e.storedWater = Math.min(24, e.storedWater + 1); stains.splice(i, 1); } }
       for (const o of enemies) {
         if (o === e || o.dead || o.bub > 0 || o.type === 'roll' || o.type === 'spoon' || o.type === 'fork' || o.type === 'mama') continue;
         if (Math.abs(o.x - e.x) < e.len / 2 + o.r * 0.4 && Math.abs(o.z - e.z) < 1.5 + o.r * 0.4 && o.y < 2.4) { o.squashed = true; killEnemy(o, 5, 0, 1); }
       }
+      e.leakT -= dt;
+      if (e.storedWater >= 3 && e.leakT <= 0) { e.leakT = .7; const behind = { x: e.x, y: e.y, z: e.z - 2.1, storedWater: 2 }; releaseKitchenWater(behind, 2); e.storedWater -= 2; if (!e.trickled) { e.trickled = true; kitchenIncident('redistribution', { actor: e }); } }
       if (alive && e.hitCd <= 0 && Math.abs(P.x - e.x) < e.len / 2 + PRAD && Math.abs(P.z - e.z) < 1.5 + PRAD && P.y < e.y + 3) {
         e.hitCd = 1.2;
         if (P.iT > 0) hurt(0, 'roll');
@@ -4486,19 +4902,24 @@ function updateEnemies(dt) {
       // sponges drink your spilled water too, and it heals them
       let drank = false;
       if (onG) for (let i = stains.length - 1; i >= 0; i--) { const st = stains[i]; if (!st.water) continue; const sx = st.x - e.x, sz = st.z - e.z;
-        if (sx * sx + sz * sz < e.r * e.r && Math.abs(st.y - e.y) < 0.4) { stains.splice(i, 1); drank = true; e.hp = Math.min(e.maxHp * 1.3, e.hp + 2); e.wet = Math.min(1, e.wet + 0.12); if (Math.random() < 0.1) pop(e.x, e.y + e.h + 0.5, e.z, pick(STAINPOPS), true); } }
-      if (drank && alive && dist < 16) zz('stolenWater', { p: 0.35 });
+        if (sx * sx + sz * sz < e.r * e.r && Math.abs(st.y - e.y) < 0.4) { stains.splice(i, 1); drank = true; e.hp = Math.min(e.maxHp * 1.3, e.hp + 2); e.wet = Math.min(1, e.wet + 0.12); e.storedWater = Math.min(24, e.storedWater + 1); if (Math.random() < 0.1) pop(e.x, e.y + e.h + 0.5, e.z, pick(STAINPOPS), true); } }
+      if (drank && alive && playerDist < 16) zz('stolenWater', { p: 0.35 });
+      if (drank && e.wet >= .72 && e.propertyCd <= 0 && !e.gold) { e.propertyT = 7; e.propertyCd = 22; kitchenIncident('property', { actor: e }); }
+      if (e.propertyT > 0 && !rival) {
+        const intruder = enemies.find(o => o !== e && !o.dead && !o.gold && !(o.bub > 0) && (o.type === 'sponge' || o.type === 'mama') && Math.hypot(o.x - e.x, o.z - e.z) < 4);
+        if (intruder) startKitchenFeud(e, intruder, 'property');
+      }
       e.cd -= dt;
-      if (onG && e.cd <= 0 && e.stun <= 0 && alive) {
+      if (onG && e.cd <= 0 && e.stun <= 0 && alive && (e.propertyT <= 0 || rival)) {
         const big = e.type === 'mama';
         const lunge = dist < 5 && !big;
-        const sp = e.speed * (lunge ? 1.5 : 1) * rand(0.85, 1.15);
+        const sp = e.speed * (lunge ? 1.5 : 1) * rand(0.85, 1.15) * (1 - e.wet * .38);
         const side = rand(-0.35, 0.35);
         let hx = nx, hz = nz;
         if (e.gold) { hx = -nx; hz = -nz + (e.z > 15 ? -1.2 : 0) + (e.z < -17 ? 1.2 : 0); hx += e.x > CX1-5 ? -1.2 : e.x < CX0+5 ? 1.2 : 0; const hl = Math.hypot(hx, hz) || 1; hx /= hl; hz /= hl; }
         e.vx = (hx * Math.cos(side) - hz * Math.sin(side)) * sp; e.vz = (hz * Math.cos(side) + hx * Math.sin(side)) * sp;
-        e.vy = big ? 13 : lunge ? rand(6, 8) : rand(7, 10);
-        e.cd = big ? rand(0.5, 0.8) : rand(0.08, 0.3); e.sq = 0.6; if (dist < 25) sfx('hop');
+        e.vy = (big ? 13 : lunge ? rand(6, 8) : rand(7, 10)) * (1 - e.wet * .28);
+        e.cd = (big ? rand(0.5, 0.8) : rand(0.08, 0.3)) + e.wet * .24; e.sq = 0.6; if (playerDist < 25) sfx('hop');
       }
       if (e.type === 'mama') { e.stT -= dt; if (e.stT <= 0 && enemies.length < 24 && alive) { e.stT = wave < 15 ? 6 : 4.5; const c = makeEnemy('sponge', e.x, e.z, 1); c.y = e.y + e.h; c.vy = 14; c.vx = nx * 6 + rand(-4, 4); c.vz = nz * 6 + rand(-4, 4); c.spawnT = 0.2; enemies.push(c); bubbles(e.x, e.y + e.h, e.z, 10, 1.5); sfx('spawn'); pop(e.x, e.y + e.h + 1, e.z, pick(['SQUEEZE!', 'SAY HELLO TO GRANDMA', 'I MADE ANOTHER ONE', 'GO PLAY, DEAR', 'MORE GRANDCHILDREN!', 'SPONGE-SITTING!', 'HERE, TAKE A CARDIGAN', 'FAMILY REUNION!', 'THE MORE THE MOISTER']), true); } }
       const reach = e.r + PRAD + 0.1;
@@ -4506,11 +4927,15 @@ function updateEnemies(dt) {
         e.fleeT -= dt; if (Math.random() < dt * 12) part3({ x: e.x + rand(-.6, .6), y: e.y + rand(0, 1), z: e.z + rand(-.6, .6), vy: rand(1, 3), life: 0.6, size: rand(0.04, 0.09), col: [1.6, 1.3, 0.4], mat: 7, grav: -1, bounce: 0 });
         if (e.fleeT <= 0) { e.dead = true; bubbles(e.x, e.y + 0.5, e.z, 14, 0.8); pop(e.x, e.y + 2, e.z, 'IT GOT AWAY', false); zz('goldEscape', { force: true }); }
       }
-      if (dist < reach && P.y < e.y + e.h + 0.2 && P.y + 1.2 > e.y && alive && P.iT <= 0 && !e.gold) {
+      if (rival && dist < reach + rival.r && Math.abs(targetY - (e.y + e.h * .5)) < e.h + rival.h && e.feudCd <= 0 && alive) {
+        e.feudCd = .85; e.chomp = 1;
+        damageEnemy(rival, e.type === 'mama' ? 18 : 10, nx, .2, nz, 7, 0, false, NAMES[e.type] + ' · GRUDGE');
+        releaseKitchenWater(e, 1);
+      }
+      if (!rival && dist < reach && P.y < e.y + e.h + 0.2 && P.y + 1.2 > e.y && alive && P.iT <= 0 && !e.gold) {
         P.latch = e; P.latchT = 0.8;
         if (P.surr > 0) { e.cd = Math.max(e.cd, 0.3); e.vx *= 0.5; e.vz *= 0.5; } if (!ZZ.once.dare) zz('dare', { once: true, force: true });
-        const dmg = (e.type === 'mama' ? (wave < 15 ? 24 : 30) : e.s >= 1.8 ? 24 : 16) * dt;
-        P.hp -= dmg; P.hurtT = Math.min(0.6, P.hurtT + dt * 1.2); if (P.hp <= 0) die(e.type);
+        const absorbed = absorbPlayer(e, dt); e.storedWater = Math.min(24, e.storedWater + absorbed * .65); P.hurtT = Math.min(0.6, P.hurtT + dt * 1.2);
         P.absorbT = Math.min(1, P.absorbT + dt * 4); e.wet = Math.min(1, e.wet + dt * 0.8); e.chomp = 1;
         if (Math.random() < dt * 6) sfx('slurp');
         P.vx -= nx * 20 * dt; P.vz -= nz * 20 * dt;
@@ -4528,9 +4953,9 @@ function updateEnemies(dt) {
         e.cd = rand(1.8, 2.8); e.state = 0;
         const sx = e.x, sy = e.y + 3.3, sz = e.z;
         const tT = clamp(dist / 16, 0.45, 1.6);
-        const tx = px + P.vx * tT * 0.6, tz = pz + P.vz * tT * 0.6, ty = P.y + 0.6;
+        const tx = (rival ? rival.x : px) + (rival ? rival.vx : P.vx) * tT * .6, tz = (rival ? rival.z : pz) + (rival ? rival.vz : P.vz) * tT * .6, ty = targetY;
         const gg = 22;
-        globs.push({ x: sx, y: sy, z: sz, vx: (tx - sx) / tT, vz: (tz - sz) / tT, vy: (ty - sy + 0.5 * gg * gs * tT * tT) / tT, g: gg, life: 4 });
+        globs.push({ x: sx, y: sy, z: sz, vx: (tx - sx) / tT, vz: (tz - sz) / tT, vy: (ty - sy + 0.5 * gg * gs * tT * tT) / tT, g: gg, life: 4, owner: e });
         e.sq = 1.35; sfx('glob');
       }
     } else if (e.type === 'spoon' || e.type === 'fork') {
@@ -4540,20 +4965,21 @@ function updateEnemies(dt) {
       if (e.climbT > 0) { e.climbT -= dt; ty = Math.max(ty, e.climbTop || 7.5); }   // fly over the local scenery
       if (F && alive) { e.summonT -= dt; if (e.summonT <= 0 && enemies.length < 22) { e.summonT = 9; for (let i = 0; i < 3; i++) { const c = makeEnemy('spoon', e.x + rand(-2, 2), e.z + rand(-2, 2)); c.y = e.y; enemies.push(c); } pop(e.x, e.y + 2.8, e.z, pick(['CUTLERY DRAWER, ASSEMBLE!', 'SPOONS! TO ME!', 'MY LOYAL SCOOPS!']), false); sfx('ting'); } }
       if (e.state === 0) {
-        const ang = Math.atan2(e.z - pz, e.x - px) + e.orbit * dt * (F ? 0.9 : 1.4);
+        const ang = Math.atan2(e.z - tz, e.x - tx) + e.orbit * dt * (F ? 0.9 : 1.4);
         const R = F ? 10 : 7, cap = F ? 20 : 16;
-        const tx = px + Math.cos(ang) * R, tz = pz + Math.sin(ang) * R;
-        e.vx = lerp(e.vx, (tx - e.x) * 3, Math.min(1, dt * 3)); e.vz = lerp(e.vz, (tz - e.z) * 3, Math.min(1, dt * 3)); e.vy = lerp(e.vy, (ty + 1 - e.y) * 3, Math.min(1, dt * 3));
+        const ox = (rival ? rival.x : px) + Math.cos(ang) * R, oz = (rival ? rival.z : pz) + Math.sin(ang) * R;
+        e.vx = lerp(e.vx, (ox - e.x) * 3, Math.min(1, dt * 3)); e.vz = lerp(e.vz, (oz - e.z) * 3, Math.min(1, dt * 3)); e.vy = lerp(e.vy, (ty + 1 - e.y) * 3, Math.min(1, dt * 3));
         const hs = Math.hypot(e.vx, e.vz); if (hs > cap) { e.vx *= cap / hs; e.vz *= cap / hs; }
         if (e.stT <= 0 && dist < (F ? 22 : 16) && alive) { e.state = 1; e.stT = F ? 0.6 : 0.45; sfx('whoosh'); }
       } else if (e.state === 1) {
-        e.vx = lerp(e.vx, -nx * 3, Math.min(1, dt * 8)); e.vz = lerp(e.vz, -nz * 3, Math.min(1, dt * 8)); e.vy = lerp(e.vy, (P.y + 1.5 - e.y) * 2, Math.min(1, dt * 5));
-        if (e.stT <= 0) { e.state = 2; e.stT = F ? 0.55 : 0.8; const sp = F ? 30 : 24, dy = P.y + 0.7 - e.y, d3 = Math.hypot(dx, dy, dz) || 1; e.vx = dx / d3 * sp; e.vy = dy / d3 * sp; e.vz = dz / d3 * sp; }
+        e.vx = lerp(e.vx, -nx * 3, Math.min(1, dt * 8)); e.vz = lerp(e.vz, -nz * 3, Math.min(1, dt * 8)); e.vy = lerp(e.vy, (targetY + .8 - e.y) * 2, Math.min(1, dt * 5));
+        if (e.stT <= 0) { e.state = 2; e.stT = F ? 0.55 : 0.8; const sp = F ? 30 : 24, dy = targetY - e.y, d3 = Math.hypot(dx, dy, dz) || 1; e.vx = dx / d3 * sp; e.vy = dy / d3 * sp; e.vz = dz / d3 * sp; }
       } else {
         if (e.stT <= 0) { if (F && e.stabs < 2) { e.stabs++; e.state = 1; e.stT = 0.28; } else { e.stabs = 0; e.state = 0; e.stT = F ? rand(1.2, 2.2) : rand(1.5, 3.2); } }
-        const dy = P.y + P.eyeH * 0.6 - e.y;
-        if (Math.hypot(dx, dy, dz) < e.r + PRAD + 0.3 && alive) {
-          hurt(F ? (wave < 14 ? 17 : 22) : 12, e.type, e.x, e.z); sfx('ting'); zz('spoonHit', { p: F ? 0 : 0.3 });
+        const dy = (rival ? targetY : P.y + P.eyeH * .6) - e.y;
+        if (Math.hypot(dx, dy, dz) < e.r + (rival ? rival.r : PRAD) + .3 && alive) {
+          if (rival) damageEnemy(rival, F ? 28 : 16, nx, .4, nz, 9, 0, false, NAMES[e.type] + ' · GRUDGE');
+          else hurt(F ? (wave < 14 ? 17 : 22) : 12, e.type, e.x, e.z); sfx('ting'); zz('spoonHit', { p: F ? 0 : 0.3 });
           pop(e.x, e.y + 0.6, e.z, pick(F ? ['STABBED!', 'FORKED!', 'PRONGED!', 'FOUR HOLES!'] : ['BONK', 'TING!', 'CLANG', 'STIR!']), true);
           e.state = 0; e.stabs = 0; e.stT = F ? rand(0.8, 1.6) : rand(1.8, 3); e.vx = -e.vx * 0.5; e.vz = -e.vz * 0.5; e.vy = 6;
         }
@@ -4568,7 +4994,7 @@ function updateEnemies(dt) {
     const gg = groundAt(e.x, e.z, e.y);
     if (e.type !== 'spoon' && e.type !== 'fork') {
       if (e.y < gg && e.popY !== undefined) { const drop = e.popY - gg; e.popY = undefined; if (drop > 1.5) { e.y = gg; damageEnemy(e, drop * 10, 0, 0, 0, 0, 3, false); pop(e.x, e.y + e.h + 0.6, e.z, pick(['SPLAT', 'OOF', 'GRAVITY!', 'THUD']), true); } }
-      if (e.y < gg) { if (e.vy < -8) { e.sq = 0.55; if (e.type === 'mama') { shake = Math.max(shake, 0.5 * clamp(1 - dist / 25, 0, 1)); sfx('land'); if (dist < 6 && P.onG && alive) hurt(10, 'mama', e.x, e.z); } } e.y = gg; e.vy = Math.max(0, e.vy); }
+      if (e.y < gg) { if (e.vy < -8) { e.sq = 0.55; if (e.type === 'mama') { shake = Math.max(shake, 0.5 * clamp(1 - dist / 25, 0, 1)); sfx('land'); if (Math.hypot(P.x - e.x, P.z - e.z) < 6 && P.onG && alive) hurt(10, 'mama', e.x, e.z); } } e.y = gg; e.vy = Math.max(0, e.vy); }
     } else if (e.y < gg + 1.0) { e.y = gg + 1.0; e.vy = Math.abs(e.vy) * 0.3; }
     // squash/stretch spring
     const tgt = onG ? 1 : clamp(1 + e.vy * 0.025, 0.8, 1.3);
@@ -4584,7 +5010,7 @@ function updateEnemies(dt) {
   }
   // separation
   for (let i = 0; i < enemies.length; i++) for (let j = i + 1; j < enemies.length; j++) {
-    const a = enemies[i], b = enemies[j]; if (a.type === 'roll' || b.type === 'roll' || (a.type === 'spoon' || a.type === 'fork') !== (b.type === 'spoon' || b.type === 'fork')) continue;
+    const a = enemies[i], b = enemies[j]; if (a.dead || b.dead || a.type === 'roll' || b.type === 'roll' || (a.type === 'spoon' || a.type === 'fork') !== (b.type === 'spoon' || b.type === 'fork')) continue;
     const dx = b.x - a.x, dz = b.z - a.z, m = (a.r + b.r) * 0.9, d2 = dx * dx + dz * dz;
     if (d2 < m * m && d2 > 1e-6) { const d = Math.sqrt(d2), p = (m - d) * 0.5, ux = dx / d, uz = dz / d; a.x -= ux * p; a.z -= uz * p; b.x += ux * p; b.z += uz * p; }
   }
@@ -4593,7 +5019,7 @@ function updateEnemies(dt) {
     if (e.type === 'spoon' || e.type === 'fork' || e.type === 'roll' || e.dead || e.bub > 0) continue;
     const dx = P.x - e.x, dz = P.z - e.z, m = e.r * 0.9 + PRAD, d2 = dx * dx + dz * dz;
     if (d2 < m * m && P.y < e.y + e.h - 0.2 && P.y + 1.2 > e.y) { const d = Math.sqrt(d2) || 1e-3; P.x += dx / d * (m - d) * 0.7; P.z += dz / d * (m - d) * 0.7; }
-    else if (d2 < m * m && P.y >= e.y + e.h - 0.2 && P.vy <= 0) { P.y = e.y + e.h; P.vy = 9; e.sq = 0.5; sfx('hop'); pop(e.x, e.y + e.h + 0.5, e.z, 'BOING', true); }
+    else if (d2 < m * m && P.y >= e.y + e.h - 0.2 && P.vy <= 0) { P.y = e.y + e.h; P.vy = 9; e.sq = 0.5; releaseKitchenWater(e, 3); sfx('hop'); pop(e.x, e.y + e.h + 0.5, e.z, 'BOING', true); }
   }
   enemies = enemies.filter(e => !e.dead);
 }
@@ -4601,17 +5027,42 @@ function updateEnemies(dt) {
 // =====================================================================  projectiles
 function updateGlobs(dt) {
   for (const g of globs) {
+    const ox = g.x, oy = g.y, oz = g.z;
     g.vy -= g.g * gs * dt; g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.life -= dt;
     if (Math.random() < dt * 30) part3({ x: g.x, y: g.y, z: g.z, vx: rand(-1, 1), vy: rand(-1, 1), vz: rand(-1, 1), life: 0.4, size: rand(0.06, 0.12), col: pick(SAUCE), sph: true, grav: 10, stain: SAUCE[0] });
-    const dx = P.x - g.x, dy = P.y + P.eyeH * 0.6 - g.y, dz = P.z - g.z;
-    if (state === 'play' && dx * dx + dy * dy + dz * dz < 0.95 * 0.95) {
+    const sx = g.x - ox, sy = g.y - oy, sz = g.z - oz, seg = Math.hypot(sx, sy, sz);
+    let victim = null, near = seg + .001;
+    const wall = seg > 0 ? rayStatic(ox, oy, oz, sx / seg, sy / seg, sz / seg, seg) : Infinity;
+    const hitDistance = (x, y, z, radius) => {
+      const ax = ox - x, ay = oy - y, az = oz - z, c = ax * ax + ay * ay + az * az - radius * radius;
+      const along = seg > 0 ? (ax * sx + ay * sy + az * sz) / seg : 0, disc = along * along - c;
+      const t = c <= 0 ? 0 : disc >= 0 && seg > 0 ? -along - Math.sqrt(disc) : Infinity;
+      return t >= 0 ? t : Infinity;
+    };
+    const playerT = state === 'play' ? hitDistance(P.x, P.y + P.eyeH * .6, P.z, .95) : Infinity;
+    for (const e of enemies) {
+      if (e.dead || e === g.owner) continue;
+      for (const h of hitSpheres(e)) {
+        const t = hitDistance(h[0], h[1], h[2], h[3] + .16);
+        if (t >= 0 && t <= seg && t < near && t < wall) { victim = e; near = t; }
+      }
+    }
+    if (victim && near <= playerT) {
+      g.life = 0; const n = Math.hypot(g.vx, g.vz) || 1;
+      if (victim.bub > 0) popBubble(victim);
+      damageEnemy(victim, 16, g.vx / n, .3, g.vz / n, 5, 0, false, 'HOT SAUCE · CROSS-FIRE');
+      startKitchenFeud(victim, g.owner);
+      gibs(victim.x, victim.y + victim.h * .5, victim.z, 10, SAUCE, { sph: true, smin: .06, smax: .16, maxS: 5, maxU: 5 }); sfx('splat');
+      continue;
+    }
+    if (playerT >= 0 && playerT <= seg && playerT < wall) {
       g.life = 0; hurt(14, 'bottle', g.x, g.z); sfx('splat');
       splats.push({ x: rand(-0.9, 0.9), y: rand(-0.4, 0.6), s: rand(0.18, 0.34), life: 1 }); if (splats.length > 8) splats.shift();
       pop(g.x, g.y + 0.5, g.z, pick(SAUCEPOPS), true); zz('sauceHit', { p: 0.25 });
       continue;
     }
     const gr = groundAt(g.x, g.z, g.y);
-    let hitS = g.y <= gr;
+    let hitS = g.y <= gr || wall < seg;
     if (!hitS) for (const c of COL) {
     if (!solidEnabled(c)) continue; if (g.y > c.top || g.y < c.bot) continue; if (c.k === 0) { if ((g.x - c.x) ** 2 + (g.z - c.z) ** 2 < c.r * c.r) { hitS = true; break; } } else { const px = g.x - c.x, pz = g.z - c.z; if (Math.abs(px * c.c - pz * c.s) < c.hx && Math.abs(px * c.s + pz * c.c) < c.hz) { hitS = true; break; } } }
     if (hitS || g.life <= 0) {
@@ -4638,7 +5089,7 @@ function explode(x, y, z) {
   if (d < R && state === 'play') {
     const f = 1 - d / R; const n = d || 1;
     P.vx += dx / n * 22 * f; P.vz += dz / n * 22 * f; P.vy += 12 + 12 * f; P.onG = false;
-    const dmg = 14 * f; if (dmg > 1) { P.hp -= dmg; P.hurtT = Math.min(1, P.hurtT + 0.3); if (P.hp <= 0) die('self'); else { pop(P.x, P.y + 2, P.z, pick(['ROCKET JUMP!', 'FIZZ LIFT!', 'CARBONATED ASCENT!']), true); zz('rocket', { p: 0.5 }); } }
+    const dmg = 7 * f; if (dmg > 1) { hurt(dmg, 'self'); if (state === 'play') { pop(P.x, P.y + 2, P.z, pick(['ROCKET JUMP!', 'FIZZ LIFT!', 'CARBONATED ASCENT!']), true); zz('rocket', { p: 0.5 }); } }
   }
 }
 function updateRockets(dt) {
@@ -4650,7 +5101,7 @@ function updateRockets(dt) {
       const t = rayStatic(r.x, r.y, r.z, r.vx / sp, r.vy / sp, r.vz / sp, len);
       let boom = t < len;
       if (!boom) for (const e of enemies) { if (e.dead) continue; if (nearestSphere(e, nx, ny, nz)[0] < 0.35) { boom = true; break; } }
-      if (boom) { const tt = Math.min(t, len) * 0.95; explode(r.x + r.vx / sp * tt, r.y + r.vy / sp * tt, r.z + r.vz / sp * tt); r.life = 0; break; }
+      if (boom) { const tt = Math.min(t, len) * 0.95; r.life = 0; explode(r.x + r.vx / sp * tt, r.y + r.vy / sp * tt, r.z + r.vz / sp * tt); break; }
       r.x = nx; r.y = ny; r.z = nz;
     }
     r.life -= dt;
@@ -4746,13 +5197,20 @@ function fire() {
 function popFx(x, y, z) { sfx('pop'); gibs(x, y, z, 10, BUBBLE, { sph: true, mat: 16, smin: 0.04, smax: 0.1, maxS: 4, maxU: 4, grav: 6, lifeMin: 0.2, lifeMax: 0.5 }); }
 function trapInBubble(e) {
   if (e.type === 'mama' || e.type === 'roll' || e.type === 'fork') { popFx(e.x, e.y + e.h * 0.5, e.z); pop(e.x, e.y + e.h + 0.8, e.z, pick(['TOO BIG TO BUBBLE', 'NICE TRY', 'I AM NOT A BATH TOY']), true); return; }
-  e.bub = 7; e.wasBub = true; e.stun = 0; e.state = 0; e.vy = 3; e.vx *= 0.2; e.vz *= 0.2; e.popY = undefined;
+  e.bubbleCascade = 0; e.bub = 7; e.wasBub = true; e.stun = 0; e.state = 0; e.vy = 3; e.vx *= 0.2; e.vz *= 0.2; e.popY = undefined;
   const dx = e.x - P.x, dz = e.z - P.z, d = Math.hypot(dx, dz) || 1; e.bdx = dx / d * 1.3 + rand(-0.5, 0.5); e.bdz = dz / d * 1.3 + rand(-0.5, 0.5);
   sfx('bloop'); pop(e.x, e.y + e.h + 1, e.z, pick(['BUBBLED!', 'IN THE SUDS!', 'SOAP OPERA!', 'LATHERED!', 'BATH TIME!', 'SUDDENLY: SUDS']), true);
   zz(enemies.filter(o => !o.dead && o.bub > 0).length >= 3 ? 'bubbleCrowd' : 'bubble', { p: 0.35 });
 }
-function popBubble(e) {
-  e.bub = 0; e.popY = e.y; e.stun = 0.6; e.vy = 2;
+function popBubble(e, wasActive = e.bub > 0) {
+  if (e.dead) return;
+  let spread = 0;
+  if (wasActive) for (const o of enemies) {
+    if (o === e || o.dead || !(o.bub > 0) || o.bubbleCascade > 0) continue;
+    if (Math.hypot(e.x - o.x, bubCY(e) - bubCY(o), e.z - o.z) < bubR(e) + bubR(o) + .35) { o.bubbleCascade = .12; spread++; }
+  }
+  if (spread) kitchenIncident('cascade', { actor: e });
+  e.bubbleCascade = 0; e.bub = 0; e.popY = e.y; e.stun = 0.6; e.vy = 2;
   popFx(e.x, bubCY(e), e.z); pop(e.x, e.y + e.h + 1, e.z, pick(['POP!', 'POP!', 'PLOP!', 'BLOOP!', 'PFFT!', 'BURST!', 'BUBBLE TROUBLE!']), true);
   if (e.type === 'spoon') { e.popY = undefined; damageEnemy(e, 15, 0, 0, 0, 0, 3, false); }
 }
@@ -4776,6 +5234,7 @@ function camBob() { return P.onG ? Math.sin(P.bob * 2) * 0.06 * Math.min(1, Math
 const keys = {};
 let mouseDown = false, locked = false, lockAt = 0, tensionT = -9;
 function updatePlayer(dt) {
+  P.absorbUsed = 0;
   const f = clamp((keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) + stickV.y, -1, 1);
   const s = clamp((keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + stickV.x, -1, 1);
   const mag = Math.min(1, Math.hypot(f, s));
@@ -4798,7 +5257,7 @@ function updatePlayer(dt) {
   if (P.pud) chalEvent('puddle', dt);
   if ((keys.ShiftLeft || keys.ShiftRight) && P.dashCd <= 0) {
     const dx = wl > 0 ? wx : -sy, dz = wl > 0 ? wz : -cy;
-    P.vx = dx * 30; P.vz = dz * 30; if (P.vy < 2) P.vy = 2; P.dashT = 0.16; P.dashCd = 0.85; P.iT = 0.25; sfx('dash'); P.fov = 1;
+    P.vx = dx * 30; P.vz = dz * 30; if (P.vy < 2) P.vy = 2; P.dashT = 0.16; P.dashCd = 0.85; P.iT = Math.max(P.iT, 0.35); sfx('dash'); P.fov = 1;
     for (let i = 0; i < 8; i++) part3({ x: P.x + rand(-.3, .3), y: P.y + rand(0.2, 1), z: P.z + rand(-.3, .3), vx: -dx * 6 + rand(-2, 2), vy: rand(0, 2), vz: -dz * 6 + rand(-2, 2), life: 0.5, size: rand(0.05, 0.12), col: pick(WATER), mat: 12, sph: true, grav: 10, stain: WET });
   }
   if (P.dashT <= 0 && P.pud && P.onG) {
@@ -4860,7 +5319,7 @@ function updatePlayer(dt) {
     }
   }
   if (P.y < 0.35 && P.onG) for (const h of hazards) {
-    if ((P.x - h.x) ** 2 + (P.z - h.z) ** 2 < h.r * h.r) { P.hp -= 16 * dt; P.hurtT = Math.min(1, P.hurtT + dt * 1.5); if (Math.random() < dt * 5) sfx('sizzle'); if (P.hp <= 0) die('puddle'); break; }
+    if ((P.x - h.x) ** 2 + (P.z - h.z) ** 2 < h.r * h.r) { seepDamage(7,dt,'puddle'); if (Math.random() < dt * 5) sfx('sizzle'); break; }
   }
   if (P.y < -8 && state === 'play') die('fall');
   P.hurtT = Math.max(0, P.hurtT - dt * 1.4); P.absorbT = Math.max(0, P.absorbT - dt * 1.6);
@@ -4887,7 +5346,7 @@ function updatePickups(dt) {
       if (fd < 7 && Math.random() < dt * 0.25) pop(k.x, k.y + 1, k.z, pick(VIBRANT_POPS), true);
     }
     const dx = P.x - k.x, dy = P.y + 0.5 - k.y, dz = P.z - k.z;
-    if (dx * dx + dy * dy + dz * dz < 2.2 && state === 'play') {
+    if (dx * dx + dy * dy + dz * dz < 4 && state === 'play') {
       if (k.type === 'ice') { if (P.hp >= 100) continue; P.hp = Math.min(100, P.hp + 25); pop(k.x, k.y + 1, k.z, pick(['ICE ICE BABY! +25', 'COOL! +25 DAMPNESS', 'CHILL OUT +25']), true); zz('ice', { p: 0.35 }); }
       if (k.type === 'shells') { if (P.ammo[1] >= WEAPONS[1].max) continue; P.ammo[1] = Math.min(WEAPONS[1].max, P.ammo[1] + 10); pop(k.x, k.y + 1, k.z, pick(['+10 ICE · STAY FROSTY', '+10 ICE · COLD AS YOU', '+10 ICE · FREEZE!']), true); }
       if (k.type === 'seltzer') { if (P.ammo[2] >= WEAPONS[2].max) continue; P.ammo[2] = Math.min(WEAPONS[2].max, P.ammo[2] + 3); pop(k.x, k.y + 1, k.z, pick(['+3 FIZZ-TASTIC', '+3 BUBBLE TROUBLE', '+3 SPARKLING VIOLENCE']), true); }
@@ -4937,6 +5396,7 @@ function update(dt) {
     kitchenUpdate(dt); if(state!=='play')return;
     updateWaves(dt);
     if (T > ZZ.nextIdle) { ZZ.nextIdle = T + rand(22, 36); if (!zz(forkStatus !== 'rumour' && Math.random() < 0.3 ? 'forkAfter' : Math.random() < 0.6 ? foeKey() : 'idle')) ZZ.nextIdle = T + 3; }   // busy? try again shortly
+    updateKitchenStories(dt);
     chalUpdate(dt);
     if (MOD === 'tap') { tapT -= dt; while (tapT <= 0) { tapT += 0.06; part3({ x: clamp(P.x + rand(-15, 15), CX0+1, CX1-1), y: rand(14, 20), z: clamp(P.z + rand(-14, 10), -21, 20.5), vy: -6, life: 3, size: rand(0.08, 0.14), col: pick(WATER), mat: 12, sph: true, stain: WET, grav: 30, bounce: 0 }); } }
     comboT -= dt; if (comboT <= 0) combo = 0;
@@ -4961,6 +5421,9 @@ function drawEyes(e, y, z, R, spread, brow) {
 }
 function drawEnemy(e) {
   ident(cur); tr(cur, e.x, e.y, e.z); ry(cur, e.yaw);
+  if (e.propertyT > 0) { part(CYL, e.r + .25, 0, 0, .035, 1.9, .035, [.4,.25,.12], 0); part(CUBE, e.r + .62, 1.65, 0, .7, .45, .03, [1,.22,.1], 11); }
+  if (e.grudgeT > 0 && e.grudge && !e.grudge.dead) part(TORUS, 0, e.h + .5, 0, .35, .35, .09, [1,.25,.03], 7, 0, Math.PI / 2);
+  if (e.wet > .72) rz(cur, Math.sin(e.t * 4) * .075);
   const pop_ = e.spawnT > 0 ? 1 - e.spawnT / 0.45 : 1;
   setFlash(e.flash);
   if (e.type === 'sponge' || e.type === 'mama') {
@@ -5007,7 +5470,7 @@ function drawEnemy(e) {
     const L = e.len, sp = 0.3 + 0.7 * pop_;
     sc(cur, sp, sp, sp);
     push(); tr(cur, 0, 1.5, 0); rz(cur, Math.PI / 2); ry(cur, e.rot);
-    part(CYL, 0, -L / 2, 0, 1.5, L, 1.5, WHITE, 18);
+    part(CYL, 0, -L / 2, 0, 1.5, L, 1.5, e.storedWater > 2 ? [.73,.86,1] : WHITE, 18);
     part(CYL, 0, -L / 2 - 0.02, 0, 0.5, L + 0.04, 0.5, [0.62, 0.44, 0.26], 13);
     part(CYL, 0, -L / 2 - 0.04, 0, 0.36, L + 0.08, 0.36, [0.08, 0.06, 0.05], 0);
     popMatrix();
@@ -5317,6 +5780,7 @@ function journalHTML(){
     <p>${curioFound.size}/${CURIOS.length} acquaintances · ${runCurios.size} this spill</p>
     <p class="fine">Look closely at small kitchenware. ${TOUCH?'Tap EXAMINE when it appears.':'Press F when LOOK CLOSER appears.'} Reading pauses the action. Cleared districts stay quiet until you move on.</p>
     <div class="actions"><button class="action secondary" data-action="notebook-back">BACK</button></div>
+    ${kitchenMinutesHTML()}
     ${CHAPTERS.map((c,i)=>`<section class="noteDistrict"><h2>${c.name} <small>${CURIOS.filter(r=>r.district===i&&curioFound.has(r.id)).length}/4</small></h2><div class="noteGrid">${CURIOS.filter(r=>r.district===i).map(r=>curioFound.has(r.id)?`<button class="noteEntry" data-curio="${r.id}"><strong>${r.name}</strong><span>${r.school}</span></button>`:`<div class="noteEntry undiscovered"><strong>Something has not yet explained itself.</strong><details><summary>A small nudge</summary><p>${r.hint}</p></details></div>`).join('')}</div></section>`).join('')}
     ${curioFound.size===CURIOS.length?'<section class="noteDiploma"><p class="eyebrow">THE ENTIRE FACULTY HAS BEEN CONSULTED</p><h2>DOCTOR OF COUNTER PHILOSOPHY</h2><p>You are now qualified to disagree with every object in the room. Employability remains unchanged.</p><p class="fine">Accredited by the University of the Third Drawer. Graduation robes: one tea towel.</p></section>':''}
     <p class="fine">Everything these objects say is invented. The philosophical baggage is carry-on only.</p></div>`;
@@ -5383,6 +5847,7 @@ function showScreen(kind) {
       <div class="actions"><button class="action" data-action="start">GET WET →</button></div>
       <div class="itinerary">${CHAPTERS.map((c,i)=>`<span>${i+1} · ${c.short}</span>`).join('')}</div>
       <p class="fine">Two waves per district · Refill checkpoints · Infinite PLEASE continues</p>${optsHTML()}<div class="actions"><button class="action secondary" data-action="journal">COUNTER CULTURE · NOTEBOOK ${curioFound.size}/${CURIOS.length}</button></div>
+      <p class="fine">A forgiving mess: brief protection after hits. PLEASE keeps defeated enemies defeated and damaged enemies damaged.</p>
       <details><summary>HOW TO BE WATER</summary><p>Slide through wet shortcuts. Jump the hotplates. Follow the gold arrows. At the sink, clear the final waves and hold ${TOUCH?'the plug button':'E'} over the drain.</p>${CONTROLS}</details>
       ${zQuote(ZL.start)}<p class="fine">A cartoon parody of Slavoj Žižek. He never said any of this. Every line is made up.</p></div>`;
   } else if (kind === 'pause') {
@@ -5406,6 +5871,8 @@ function showScreen(kind) {
       ${zQuote(fl ? ZL.fallDeath : ZL[deathCause + 'Death'] || ZL.death)}
       <p class="endings">${endingsLine()}</p>${endings().absorbed ? '' : '<p class="fine">HINT: WHEN A SPONGE HAS YOU, HOLD E.</p>'}
       <p class="stat" style="color:#fff">OR TYPE <b style="color:var(--foam)">PLEASE</b> TO RETURN TO THE ${CHAPTERS[chapter].short} CHECKPOINT</p>
+      <div class="actions"><button class="action" data-action="continue">PLEASE · KEEP MY PROGRESS</button></div>
+      <p class="fine">Completed kills, boss damage and remaining enemies stay as you left them. Fresh water, full ammo, three seconds to breathe.</p>
       ${TOUCH ? '<p><input class="plz" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="ask nicely"></p>' : ''}
       <p class="fine">INFINITE CONTINUES, IF YOU ASK NICELY.${continues ? ` CONTINUES USED: ${continues}. DIGNITY REMAINING: NONE.` : ''}</p>
       <div class="cta">CLICK TO RE-CONDENSE</div></div>`;
@@ -5421,16 +5888,51 @@ function showScreen(kind) {
   if (TOUCH) s.querySelectorAll('.cta').forEach(c => { c.textContent = c.textContent.replace('CLICK', 'TAP'); });
 }
 function zQuote(bank) { return `<div class="zq"><img alt="" src="${zFace()}"><p><small>${pick(ZNAMES)}</small>"${pick(bank)}"</p></div>`; }
-// asked nicely: same wave again, same score, fresh dampness
+// Clone the whole graph together: an offended sponge must still recognize its bottle.
+function cloneRetry(value, seen = new Map([[WET, WET]])) {
+  if (value === null || typeof value !== 'object') return value;
+  if (seen.has(value)) return seen.get(value);
+  const copy = value instanceof Set ? new Set() : value instanceof Map ? new Map() : Array.isArray(value) ? [] : {};
+  seen.set(value, copy);
+  if (value instanceof Set) for (const item of value) copy.add(cloneRetry(item, seen));
+  else if (value instanceof Map) for (const [key, item] of value) copy.set(cloneRetry(key, seen), cloneRetry(item, seen));
+  else for (const key of Object.keys(value)) copy[key] = cloneRetry(value[key], seen);
+  return copy;
+}
+function captureRetry() {
+  return cloneRetry({ player:P, enemies:enemies.filter(e=>!e.dead),
+    globs:globs.filter(g=>g.life>0), rockets:rockets.filter(r=>r.life>0), soaps:soaps.filter(s=>s.life>0), parts, stains, pickups, hazards,
+    score, killCount, combo, comboT, multi, multiT, wave, spawnQ, spawnT, waveActive, interT,
+    continues, forkStatus, chapter, chapterClear, endless, runTime, runCurios,
+    MOD, lastMod, gs, tapT, chal, chalNext, lastChal, nemesis, T, fountainT,
+    once:ZZ.once, jokeAt, jokeKind, spongeConfessed, lastJokeT, tickNews,
+    stories:typeof kitchenStories === 'undefined' ? null : kitchenStories });
+}
+// Asked nicely: the same unfinished fight, rather than doing all the work again.
 function continueGame() {
-  const keep = { score, wave, ammo: P.ammo.slice(), killCount, continues: continues + 1, forkStatus, chapter, chapterClear, endless, runTime, runCurios:new Set(runCurios) };
-  initAudio(); reset();
-  score = keep.score; killCount = keep.killCount; continues = keep.continues; forkStatus = keep.forkStatus; P.ammo = keep.ammo.map((a, i) => i === 0 ? a : Math.max(a, WEAPONS[i].start));
-  runCurios=keep.runCurios;chapter=keep.chapter;chapterClear=keep.chapterClear;endless=keep.endless;runTime=keep.runTime;wave=keep.wave;checkpointPosition();districtSupplies();
+  const keep = cloneRetry(state === 'dead' && retrySnapshot ? retrySnapshot : captureRetry());
+  initAudio(); zHide();
+  ({ enemies, globs, rockets, soaps, parts, stains, pickups, hazards,
+    score, killCount, combo, comboT, multi, multiT, wave, spawnQ, spawnT, waveActive, interT,
+    forkStatus, chapter, chapterClear, endless, runTime, runCurios,
+    MOD, lastMod, gs, tapT, chal, chalNext, lastChal, nemesis, T, fountainT,
+    jokeAt, jokeKind, spongeConfessed, lastJokeT, tickNews } = keep);
+  if (keep.stories !== null && typeof kitchenStories !== 'undefined') kitchenStories = keep.stories;
+  continues = keep.continues + 1; retrySnapshot = null; P = keep.player;
+  Object.assign(P, { hp:100, deadT:0, hurtT:0, absorbT:0, absorbUsed:0, latch:null, latchT:0, surr:0,
+    pud:false, pudT:0, eyeH:EYE, dashT:-1, dashCd:0, teeter:0, jumpHeld:false, endT:0, endE:null, endShown:false,
+    cool:0, switchT:0, recoil:0, flashT:0, ammo:WEAPONS.map(w=>w.max) });
+  P.w = P.wNext; checkpointPosition(); P.iT = 3;
+  if (!waveActive && !chapterClear) interT = Math.max(1.5, interT);
+  for (const p of pops || []) p.el.remove(); pops = []; splats = [];
+  hitstop = 0; shake = 0; drainHold = 0; jokeT = 0; ZZ.lock = false; ZZ.once = keep.once; ZZ.nextIdle = T + 12;
+  curioFocus = null; curioFocusT = 0; readingCurio = null; deathCause = ''; pleaseBuf = '';
+  mouseDown = false; for (const k in keys) keys[k] = false;
   state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; hideScreen();
   headlineNow(`DRIP RETURNS FROM THE DEAD AFTER SAYING PLEASE. CONTINUE NUMBER ${continues}`);
-  if(!chapterClear||endless)startWave(Math.max(CHAPTERS[chapter].first,keep.wave)); say('continue', true);
-  setTimeout(() => { if (state !== 'play' || continues !== keep.continues) return; ZZ.cool = 0; zz(continues >= 3 ? 'pleaseAgain' : 'please', { force: true }); }, 1500);
+  const thisContinue = continues;
+  say('continue', true);
+  setTimeout(() => { if (state !== 'play' || continues !== thisContinue) return; ZZ.cool = 0; zz(continues >= 3 ? 'pleaseAgain' : 'please', { force: true }); }, 1500);
   grabPointer();
 }
 function hideScreen() { $('scr').classList.add('off');screenKind='play';readingCurio=null; }
@@ -5458,7 +5960,7 @@ $('scr').addEventListener('click', e => {
     else if(a==='curio-left')curioTurn-=.45;
     else if(a==='curio-right')curioTurn+=.45;
     else if(a==='curio-close'){if(notebookReturn==='pause')start();else showScreen(notebookReturn);}
-    else if(a==='endless')continueEndless();else start();return;
+    else if(a==='continue')continueGame();else if(a==='endless')continueEndless();else start();return;
   }
   if(screenKind==='curio'||screenKind==='journal')return;
   if (e.target.closest('input, button, details, summary')) return;

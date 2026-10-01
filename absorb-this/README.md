@@ -13,6 +13,13 @@ Now the counter is a **very long kitchen**: five districts, ten waves, and a
 sink at the far end. Get there, clear the final kitchenware, and pull the plug.
 The kitchen will call it a successful transfer of responsibilities.
 
+The kitchenware now has problems with **each other**, too. Dodge a bottle's
+shot and it can start a feud with a sponge. Waterlogged sponges stake little
+flags beside their claims and quarrel with neighbours. Paper towels swallow
+water, slow down, leak it back out, and flatten the parties to the dispute.
+The news calls this progress. Everything is still a silly shooter: ordinary
+running, missed shots and general panic can start the accidents.
+
 Open `index.html` in a browser. It is one file with no dependencies, written in
 raw WebGL2. It loads Bangers and Nunito from Google Fonts if it can and uses
 fallback fonts if not. Your best score is kept in the browser's local storage.
@@ -38,7 +45,8 @@ sponge has you, and a pull-the-plug button appears at the cleared drain.
 Look closely at small curious kitchenware to reveal **EXAMINE**. Reading pauses
 the fight. The pause screen also holds your **COUNTER CULTURE** notebook,
 glass, lighting, sound and voice settings. Either orientation works.
-On the death screen there's a box to type *please* into.
+On the death screen, tap **PLEASE · KEEP MY PROGRESS**, or type *please* into
+the box.
 
 With a keyboard and mouse:
 
@@ -185,9 +193,14 @@ With a keyboard and mouse:
   Title and pause options include **LIGHTING: SUNLIT / CLASSIC**. Classic
   retains the previous lighting and skips the shadow-map pass.
 - **Infinite continues, if you ask nicely.** On the death screen, type PLEASE
-  to return to the current district's checkpoint and retry that wave, keeping
+  to return to the current district's checkpoint and resume that wave, keeping
   your score and the Fork's history. If you've already cleared the district,
   its exit stays open. You return with fresh dampness and usable ammunition.
+  There is also a **PLEASE** button. The unfinished fight now keeps your work:
+  defeated enemies stay defeated, bosses keep their wounds, and only the
+  remaining reinforcements arrive. You return with full ammunition and three
+  seconds of protection. The kitchen even remembers who was arguing with whom.
+  Clicking elsewhere to start a new spill remains available.
 - **Surrender.** When a sponge has latched onto you, hold E to stop fighting.
   That's the third ending. The death screen tracks which of the four endings
   you've found.
@@ -223,6 +236,42 @@ With a keyboard and mouse:
   out multi-kills (DOUBLE DIP, TRIPLE SCRUB, ... DISHPOCALYPSE). An announcer
   reads them in a very deep voice using the browser's speech synthesis, if it
   has one.
+
+## The kitchen has other problems
+
+All the existing commentary, philosophical acquaintances, enemy types and
+endings are still here. These additions give them more opportunities to make
+a mess:
+
+- **Friendly fire and grudges.** Sauce can hit kitchenware. The offended
+  creatures temporarily pursue and attack each other; a bottle can become
+  the target of its own argument. Grudges wear off, and dead opponents do
+  not leave anyone standing around waiting for an apology.
+- **Private puddles.** Drinking still heals sponges. It also makes them
+  bloated and slower. A sufficiently soaked sponge plants a little flag,
+  guards its claim for a while, and picks disputes with nearby sponges.
+  Squashing or destroying a water-filled enemy returns water you can soak up.
+  Bouncing on one can wring some out, too.
+- **Trickle-down, unfortunately literal.** A paper roll collects water and
+  gets heavier. A loaded roll leaves a wet wake; destroying it releases its
+  reserves. The old habit of flattening smaller enemies remains intact.
+- **Shared kitchen hazards.** Ketchup packets can launch pursuing creatures.
+  A hotplate can scorch and toss an enemy, wringing out some stored water.
+  The kitchen's physical arguments now apply to more participants.
+- **The airborne peerage.** Nearby soap bubbles share motion. Popping one can
+  set off a delayed cascade through its neighbours. Their occupants acquire
+  extravagant titles, with very little preparation for descending again.
+- **Institutional memory.** New headlines and philosopher reactions refer to
+  incidents that actually happened, including repeat offenders and former
+  puddle proprietors. Open the notebook and expand **MINUTES OF THE
+  DISAGREEMENT** to read the latest 48 reports from this spill. PLEASE keeps
+  the record; a new spill starts another set of allegations.
+
+The campaign is also more forgiving. Ordinary impacts do less damage and
+briefly protect you from another hit; overlapping sponges share a limited
+absorption rate. Heat, sauce and self-inflicted fizz are gentler. Dash,
+puddle, weapons and movement use the same controls. No dispute is a quest,
+and no philosophical position is a required answer.
 
 ## How it's made
 
@@ -261,3 +310,14 @@ low board, launch routes and full counter. It also checks both lighting modes,
 shadow caching, all twenty discovery locations, paused encounter inspection,
 notebook navigation and discovery/continue persistence. It does not replace playing the
 encounters to judge difficulty and feel.
+
+The browser suite also exercises friendly fire, grudges, saturation, water
+recovery, launches, bubble cascades and death snapshots. With Node, Playwright
+and Chromium available, `node tools/check-browser.cjs` runs that page and
+returns a failing exit status for any failed check or uncaught JavaScript error.
+
+`node tools/playtest.cjs --seeds 1,2,3 --personas casual` runs reproducible
+behavioral campaigns using the actual simulation, aiming and firing. It does
+not delete enemies or grant invulnerability. It has known navigation routes
+and other limitations; see [tools/README.md](tools/README.md) before treating
+its results as evidence about player experience.
