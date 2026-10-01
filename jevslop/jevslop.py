@@ -21,6 +21,8 @@ from textstats import measure, paragraphs, words
 # Jev's budget is 32k tokens for state plus the longest question. Leave room.
 MAX_DOCUMENT_WORDS = 18000
 MAX_CONCURRENT_REQUESTS = 8
+# jev-1.13 list price: input tokens only, output is free.
+USD_PER_MILLION_INPUT_TOKENS = 0.042
 
 
 def _noul(tell: JevTell):
@@ -60,13 +62,14 @@ async def ask_jev(text: str, model: str | None) -> dict:
     para_questions = {t.id: _noul(t) for t in PARAGRAPH_TELLS}
 
     sem = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
-    usage = {"input_tokens": 0}
+    usage = {"input_tokens": 0, "requests": 0}
 
     async with AsyncTypeSafeClient(model=model) as client:
         async def call(state, questions):
             async with sem:
                 r = await client.system_one(state=state, questions=questions)
             usage["input_tokens"] += r.usage.input_tokens or 0
+            usage["requests"] += 1
             return r
 
         doc_task = call({"text": doc_text}, doc_questions)
@@ -176,7 +179,10 @@ def print_report(result: dict, paras: list[str]) -> None:
             print(f"  ¶{p['index'] + 1} [{', '.join(p['tells'])}]\n     {snippet}")
 
     if "usage" in result:
-        print(f"\n{result['model']}, {result['usage']['input_tokens']} input tokens")
+        tokens = result["usage"]["input_tokens"]
+        cost = tokens * USD_PER_MILLION_INPUT_TOKENS / 1e6
+        print(f"\n{result['model']}, {result['usage']['requests']} requests, "
+              f"{tokens} input tokens ≈ ${cost:.6f}")
 
 
 def main() -> int:
