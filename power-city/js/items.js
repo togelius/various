@@ -82,6 +82,22 @@
       FX.ring(it.x, it.y - 6, '#ffe070');
     },
 
+    /* Food and money are collected by walking over them. A button press for
+     * a coin is a chore, and with a bat in hand the punch button swings
+     * instead - so an armed player used to stand on a heart hitting air.
+     * Hearts wait on the ground for whoever is actually hurt. */
+    collect: function (it) {
+      var d = PC.pickups[it.key];
+      for (var i = 0; i < W.actors.length; i++) {
+        var a = W.actors[i];
+        if (a.team !== 0 || a.dead || a.removed || a.state === 'held') continue;
+        if (Math.abs(a.x - it.x) > 11 || Math.abs(a.y - it.y) > 8 || a.z > 10) continue;
+        if (d.heal && a.hp >= a.maxHp) continue;   // food waits for the hurt
+        this.consume(a, it);
+        return;
+      }
+    },
+
     drop: function (a) {
       var it = a.carry || a.weaponItem;
       if (!it) return;
@@ -106,7 +122,7 @@
       it.z = a.carry ? 26 : 20;
       if (a.carry) { it.vx = a.facing * 4.2; it.vz = 0.8; it.spinV = a.facing * 0.22; }
       else { it.vx = a.facing * 5.4; it.vz = 0.15; it.spinV = a.facing * 0.5; }
-      it.dmg = a.carry ? PC.props[it.key].dmg : (PC.weapons[it.key].dmg + 4);
+      it.dmg = (a.carry ? PC.props[it.key].dmg : (PC.weapons[it.key].dmg + 4)) * (a.dmgOut || 1);
       a.carry = null;
       if (a.weaponItem === it) { a.weapon = null; a.weaponItem = null; a.ammo = 0; }
       if (PC.audio) PC.audio.sfx('whoosh');
@@ -191,6 +207,7 @@
           it.life++;
           if (it.life > 620) it.blink = 1;
           if (it.life > 780) it.dead = true;
+          if (it.z < 4 && !it.dead) this.collect(it);
         }
         if (it.x < W.minX + 4 || it.x > W.maxX - 4) { it.x = M.clamp(it.x, W.minX + 4, W.maxX - 4); if (it.flying) it.vx = 0; }
       }

@@ -603,11 +603,17 @@
 
       function set(pl, act) { if (act) Input.p[pl].held[act] = true; }
       function down(c) { return Input._down[c] || Input._latch[c]; }
+      /* A keydown is a press even if the key was already reading as held:
+       * mash fast enough and a release and the next press both land between
+       * two polls, and the old edge test (held now, not held before) saw
+       * one long press where the player made two. */
+      var struck = [{}, {}];
+      function hit(pl, act, c) { if (act && Input._edge[c]) struck[pl][act] = true; }
 
-      for (code in MAP_P1) if (down(code)) set(0, MAP_P1[code]);
-      for (code in MAP_P2) if (down(code)) set(1, MAP_P2[code]);
+      for (code in MAP_P1) if (down(code)) { set(0, MAP_P1[code]); hit(0, MAP_P1[code], code); }
+      for (code in MAP_P2) if (down(code)) { set(1, MAP_P2[code]); hit(1, MAP_P2[code], code); }
       var arrowsTo = this.p2Joined ? 1 : 0;
-      for (code in MAP_ARROWS) if (down(code)) set(arrowsTo, MAP_ARROWS[code]);
+      for (code in MAP_ARROWS) if (down(code)) { set(arrowsTo, MAP_ARROWS[code]); hit(arrowsTo, MAP_ARROWS[code], code); }
 
       // Gamepads take players in the order the browser lists them.
       var padPlayer = 0;
@@ -632,7 +638,7 @@
         st = this.p[i];
         for (a = 0; a < ACTIONS.length; a++) {
           var act = ACTIONS[a];
-          st.pressed[act] = st.held[act] && !prev[i][act];
+          st.pressed[act] = (st.held[act] && !prev[i][act]) || !!struck[i][act];
           st.released[act] = !st.held[act] && prev[i][act];
         }
         // Double-tap left/right, for the run. Window is 16 frames.
@@ -1242,6 +1248,28 @@
       [[3, 27], [4, 32]], [[-3, 27], [-1, 31]],
       [[2, 10], [4, 0]], [[-4, 10], [-7, 0]])
   };
+
+  /* Anticipation. Every attack used to show its strike pose from the first
+   * frame of its wind-up, so a thug's kick was visibly out a fifth of a
+   * second before it could hurt you, and "react now" looked exactly like
+   * "too late". These are the opposite of each strike - the fist cocked
+   * back, the knee chambered, the bat over the shoulder - so the wind-up
+   * reads as a wind-up and the hit reads as a hit. */
+  POSES.windPunch = p([-1, 19], [-3, 29.5], [-2, 35],
+    [[-3, 26], [-7, 28]], [[2, 25], [5, 27]],
+    [[3, 10], [6, 0]], [[-4, 10], [-8, 0]]);
+  POSES.chamber = p([-1, 19.5], [-3, 30], [-3, 35.5],
+    [[1, 26], [4, 24]], [[-6, 26], [-9, 25]],
+    [[6, 21], [3, 12]], [[-2, 10], [-3, 0]]);
+  POSES.windOver = p([-1, 19], [-3, 30], [-3, 35.5],
+    [[-3, 36], [-7, 41]], [[-5, 34], [-8, 39]],
+    [[4, 10], [7, 0]], [[-4, 10], [-8, 0]]);
+  POSES.windSpin = p([0, 16], [-1, 26], [0, 31.5],
+    [[-3, 24], [-7, 22]], [[3, 23], [-1, 21]],
+    [[4, 8], [7, 0]], [[-4, 8], [-8, 0]]);
+  POSES.windCharge = p([-1, 17], [3, 26], [6, 31],
+    [[2, 21], [-1, 17]], [[-1, 22], [-4, 18]],
+    [[4, 8], [8, 0]], [[-5, 9], [-10, 0]]);
 
   /* The walk cycle gains its in-between frames, blended from the keyframes:
    * eight frames of walk instead of four, the difference between a strut
@@ -2477,6 +2505,20 @@
         case 'crash':
           this.note({ noise: true, at: t, dur: 0.3, freq: 3200, freq2: 500, q: 0.5, vol: 0.26, filter: 'highpass' });
           break;
+        case 'counter':
+          // the heavy hit, with a bright ring on top: you read it right
+          this.note({ noise: true, at: t, dur: 0.19, freq: 1100, freq2: 150, q: 1, vol: 0.38 });
+          this.note({ at: t, dur: 0.16, freq: 220, freq2: 60, wave: 'tri', vol: 0.3 });
+          this.note({ at: t + 0.02, dur: 0.16, freq: 1320, freq2: 1760, duty: 0.125, vol: 0.13 });
+          break;
+        case 'block':
+          // knuckles on a forearm: dry, short, and nothing like a hit
+          this.note({ noise: true, at: t, dur: 0.05, freq: 2400, q: 2.2, vol: 0.2 });
+          this.note({ at: t, dur: 0.06, freq: 190, freq2: 120, wave: 'tri', vol: 0.18 });
+          break;
+        case 'guard':
+          this.note({ at: t, dur: 0.05, freq: 520, freq2: 380, duty: 0.25, vol: 0.08 });
+          break;
         case 'clank':
           this.note({ at: t, dur: 0.1, freq: 1400, freq2: 700, duty: 0.25, vol: 0.14 });
           this.note({ noise: true, at: t, dur: 0.08, freq: 4000, q: 0.6, vol: 0.1, filter: 'highpass' });
@@ -2817,6 +2859,12 @@
   var PC = global.PC || (global.PC = {});
   var Art = PC.art;
 
+  /* Cosmetics draw from their own generator. If a spark or a screen shake
+   * took numbers from R, changing how many sparks a hit throws would
+   * quietly change every enemy decision after it - and every measurement of
+   * how the game plays would move whenever the art did. */
+  var R = PC.fxRand = PC.RNG(0x5FA4C0DE);
+
   var FX = PC.fx = {
     list: [], shake: 0, shakeX: 0, shakeY: 0, flashT: 0, flashCol: '#ffffff',
 
@@ -2832,21 +2880,34 @@
       this.add({ t: 0, life: heavy ? 11 : 8, x: x, y: y, kind: 'star', heavy: heavy, col: color });
       var n = heavy ? 7 : 4;
       for (var i = 0; i < n; i++) {
-        var a = PC.rand() * Math.PI * 2, sp = PC.rand.range(0.8, heavy ? 3.4 : 2.2);
+        var a = R() * Math.PI * 2, sp = R.range(0.8, heavy ? 3.4 : 2.2);
         this.add({
-          t: 0, life: PC.rand.int(9, 18), kind: 'spark', x: x, y: y,
+          t: 0, life: R.int(9, 18), kind: 'spark', x: x, y: y,
           vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6, g: 0.12, col: color
         });
       }
       if (heavy) this.shakeBy(3.2);
     },
 
+    /* A block: a small cold clink instead of a hit star, so a guarded jab
+     * reads as stopped rather than landed. */
+    block: function (x, y) {
+      this.add({ t: 0, life: 7, x: x, y: y, kind: 'block' });
+      for (var i = 0; i < 3; i++) {
+        var a = R() * Math.PI * 2;
+        this.add({
+          t: 0, life: R.int(5, 9), kind: 'spark', x: x, y: y,
+          vx: Math.cos(a) * 1.4, vy: Math.sin(a), g: 0.05, col: '#9fd8ff'
+        });
+      }
+    },
+
     dust: function (x, y, dir, n) {
       for (var i = 0; i < (n || 4); i++) {
         this.add({
-          t: 0, life: PC.rand.int(10, 20), kind: 'dust', x: x, y: y,
-          vx: dir * PC.rand.range(0.2, 1.1) + PC.rand.range(-0.3, 0.3),
-          vy: -PC.rand.range(0.1, 0.5), g: 0.02, col: '#c8c8d8'
+          t: 0, life: R.int(10, 20), kind: 'dust', x: x, y: y,
+          vx: dir * R.range(0.2, 1.1) + R.range(-0.3, 0.3),
+          vy: -R.range(0.1, 0.5), g: 0.02, col: '#c8c8d8'
         });
       }
     },
@@ -2855,8 +2916,34 @@
       this.add({ t: 0, life: 14, kind: 'ring', x: x, y: y, col: col || '#ffffff' });
     },
 
-    pop: function (x, y, text, col) {
-      this.add({ t: 0, life: 46, kind: 'pop', x: x, y: y, text: String(text), col: col || '#ffe070' });
+    /* Score words. A keyed pop (the running combo count) is updated in
+     * place rather than reprinted, and any other pop that would land on a
+     * live one stacks above it - three pops on one thug used to overprint
+     * into an orange smear nobody could read. */
+    pop: function (x, y, text, col, key) {
+      var i, p;
+      text = String(text);
+      if (key) {
+        for (i = 0; i < this.list.length; i++) {
+          p = this.list[i];
+          if (p.kind === 'pop' && p.key === key) {
+            p.x = x; p.y = y; p.text = text; p.col = col || p.col; p.t = 0; p.bump = 3;
+            return p;
+          }
+        }
+      }
+      var w = Art.textWidth(text);
+      for (var tries = 0; tries < 5; tries++) {
+        var clash = false;
+        for (i = 0; i < this.list.length; i++) {
+          p = this.list[i];
+          if (p.kind !== 'pop' || p.key === key && key) continue;
+          if (Math.abs(p.y - y) < 9 && Math.abs(p.x - x) < (w + Art.textWidth(p.text)) / 2 + 2) { clash = true; break; }
+        }
+        if (!clash) break;
+        y -= 9;
+      }
+      return this.add({ t: 0, life: 46, kind: 'pop', x: x, y: y, text: text, col: col || '#ffe070', key: key, bump: 0 });
     },
 
     /* A red wedge at the player's flank, so being blind-sided comes with a
@@ -2869,11 +2956,11 @@
     boom: function (x, y) {
       this.add({ t: 0, life: 22, kind: 'boom', x: x, y: y });
       for (var i = 0; i < 14; i++) {
-        var a = PC.rand() * Math.PI * 2, sp = PC.rand.range(1, 4);
+        var a = R() * Math.PI * 2, sp = R.range(1, 4);
         this.add({
-          t: 0, life: PC.rand.int(12, 26), kind: 'spark', x: x, y: y,
+          t: 0, life: R.int(12, 26), kind: 'spark', x: x, y: y,
           vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.7, g: 0.14,
-          col: PC.rand.pick(['#ffe070', '#ff8a20', '#ffffff'])
+          col: R.pick(['#ffe070', '#ff8a20', '#ffffff'])
         });
       }
       this.shakeBy(6);
@@ -2893,8 +2980,8 @@
         if (p.t >= p.life) this.list.splice(i, 1);
       }
       if (this.shake > 0) {
-        this.shakeX = (PC.rand() - 0.5) * this.shake * 2;
-        this.shakeY = (PC.rand() - 0.5) * this.shake;
+        this.shakeX = (R() - 0.5) * this.shake * 2;
+        this.shakeY = (R() - 0.5) * this.shake;
         this.shake *= 0.78;
         if (this.shake < 0.25) { this.shake = 0; this.shakeX = 0; this.shakeY = 0; }
       }
@@ -2923,6 +3010,13 @@
             ctx.fillRect(x - 5, y - 1, 10, 2);
             ctx.fillRect(x - 1, y - 5, 2, 10);
           }
+        } else if (p.kind === 'block') {
+          // a squared bracket of light: the knuckles met a forearm
+          var bs = 3 + Math.round(f * 3);
+          ctx.fillStyle = f < 0.5 ? '#ffffff' : '#9fd8ff';
+          ctx.fillRect(x - bs, y - bs, 2, bs * 2);
+          ctx.fillRect(x + bs - 2, y - bs, 2, bs * 2);
+          ctx.fillRect(x - bs, y - 1, bs * 2, 2);
         } else if (p.kind === 'spark') {
           ctx.fillStyle = f > 0.7 ? '#8a8a9c' : p.col;
           ctx.fillRect(x, y, 2, 2);
@@ -2948,7 +3042,9 @@
             ctx.globalAlpha = 1;
           }
         } else if (p.kind === 'pop') {
-          Art.text(ctx, p.text, x, y, p.col, { align: 'center', shadow: '#301810' });
+          // a keyed pop hops a pixel when its number goes up
+          if (p.bump > 0) p.bump--;
+          Art.text(ctx, p.text, x, y - (p.bump > 0 ? 2 : 0), p.col, { align: 'center', shadow: '#301810' });
         } else if (p.kind === 'rear') {
           var s = p.side, f = p.t / p.life;
           ctx.globalAlpha = 1 - f * 0.5;
@@ -3094,7 +3190,7 @@
   Actor.prototype.isBusy = function () {
     return this.state === 'attack' || this.state === 'hurt' || this.state === 'fall' ||
       this.state === 'down' || this.state === 'getup' || this.state === 'held' ||
-      this.state === 'throwing' || this.state === 'dizzy';
+      this.state === 'throwing' || this.state === 'dizzy' || this.state === 'guard';
   };
 
   Actor.prototype.canAct = function () {
@@ -3108,6 +3204,8 @@
 
   // ------------------------------------------------------------------ attacks
   Actor.prototype.startAttack = function (def) {
+    this.chainBroken = false;
+    if (def.air) { this.airAttacked = true; this.airHit = false; }
     this.atk = def;
     this.atkT = 0;
     this.hitList = {};
@@ -3194,30 +3292,55 @@
   var uid = 0;
 
   Actor.prototype.land = function (t, d) {
+    if (d.air) this.airHit = true;
     var pt = this.strikePoint();
     var cx = M.clamp(pt.x, Math.min(this.x, t.x) - 6, Math.max(this.x, t.x) + 6);
     var cy = t.y - t.z - M.clamp((d.zhi === undefined ? 30 : d.zhi) * this.scale, 8, t.hh) * 0.75;
     var heavy = !!d.knock || d.dmg >= 12;
+    /* A counter: the player catches one of them mid-wind-up. Now that a
+     * wind-up looks like a wind-up, striking into it is a read, and a read
+     * should pay - a thug caught that way loses their footing entirely. */
+    var counter = this.team === 0 && t.team === 1 && t.state === 'attack' &&
+      t.atk && t.atkT < t.atk.startup;
+    // catching a big telegraphed swing is the read that pays most
+    var counterBig = counter && t.atk.startup >= 11;
 
-    t.takeHit({
-      dmg: d.dmg, from: this, knock: d.knock, stun: d.stun || 14,
-      push: d.push === undefined ? 1.6 : d.push, launch: d.launch,
-      dir: this.facing, x: cx, y: cy, heavy: heavy
+    var res = t.takeHit({
+      dmg: d.dmg * (this.dmgOut || 1) * (counter ? 1.3 : 1), from: this, knock: d.knock,
+      stun: d.stun || 14, push: d.push === undefined ? 1.6 : d.push, launch: d.launch,
+      dir: this.facing, x: cx, y: cy, heavy: heavy, counter: counter, counterBig: counterBig,
+      gb: d.gb
     });
+    if (res === 'block') {
+      /* Blocked: a clink, a shove off the guard, and the chain is broken -
+       * a jab into a raised guard should feel like hitting a door. */
+      PC.freeze(3);
+      FX.block(cx, cy);
+      if (PC.audio) PC.audio.sfx('block');
+      this.vx = -this.facing * 1.4;
+      this.chainBroken = true;
+      return;
+    }
 
-    PC.freeze(d.stop || (heavy ? 7 : 4));
-    FX.hit(cx, cy, heavy, d.spark);
-    if (PC.audio) PC.audio.sfx(heavy ? 'hitHeavy' : 'hit');
+    PC.freeze((d.stop || (heavy ? 7 : 4)) + (counter ? 5 : 0));
+    FX.hit(cx, cy, heavy || counter, counter ? '#7fe0ff' : d.spark);
+    if (PC.audio) PC.audio.sfx(counter ? 'counter' : (heavy ? 'hitHeavy' : 'hit'));
     if (this.onHitLanded) this.onHitLanded(t, d);
   };
 
   Actor.prototype.takeHit = function (h) {
     if (this.dead || this.invuln > 0) return;
+    /* A raised guard stops light strikes from the front. Kicks, heavies,
+     * weapons, anything from behind - and a grab - get through. */
+    var guarding = this.state === 'guard';
+    var front = h.from && (h.from.x - this.x) * this.facing > 0;
+    if (guarding && front && !h.knock && !h.gb && !h.counter) return 'block';
     var dmg = h.dmg * (this.dmgScale || 1);
     this.hp -= dmg;
     this.flash = 5;
     this.stunned = 0;
 
+    if (h.from) this.lastHitBy = h.from;
     if (this.grabbedBy) { this.grabbedBy.releaseGrab(); }
     if (this.grabbing) this.releaseGrab();
     if (this.carry) { PC.items.drop(this); }
@@ -3229,6 +3352,23 @@
       this.deathT = 0;
       if (this.onDeath) this.onDeath(h.from);
       return;
+    }
+
+    if (h.counter) {
+      FX.pop(this.x, this.y - this.hh - 10, 'COUNTER', '#7fe0ff');
+      // a boss caught winding up staggers straight through its armor
+      if (this.isBoss) this.armorLeft = 0;
+      else if (!h.knock && h.counterBig) { this.goDizzy(h, 96); return; }
+      else if (!h.knock) h.stun = (h.stun || 14) + 10;   // a light counter: a long stagger
+    }
+    if (guarding) {
+      FX.pop(this.x, this.y - this.hh - 10, 'BREAK', '#ffd23a');
+      this.armorLeft = 0;
+      if (!h.knock) {
+        this.atk = null; this.setState('hurt'); this.hurtT = 26;
+        this.vx = h.dir * h.push; this.facing = -h.dir;
+        return;
+      }
     }
 
     // Big enemies shrug off a couple of hits before they react at all.
@@ -3245,15 +3385,7 @@
     this.recentHits = (W.time - (this.hitClock || -999) < 75) ? (this.recentHits || 0) + 1 : 1;
     this.hitClock = W.time;
     if (this.team === 1 && !this.isBoss && this.recentHits >= 4 && !h.knock) {
-      this.recentHits = 0;
-      this.atk = null;
-      this.stunned = 1;
-      this.dizzyT = 110;
-      this.setState('dizzy');
-      this.vx = h.dir * h.push * 0.6;
-      /* Seeing stars costs you your grip too. */
-      if (this.weaponItem && PC.items) PC.items.drop(this);
-      if (W.dropToken) W.dropToken(this);
+      this.goDizzy(h, 110);
       return;
     }
 
@@ -3273,15 +3405,44 @@
       this.knockDown(h.dir, h.launch || { vx: 2.9, vz: 3.4 });
     } else {
       this.atk = null;
+      this.facing = -h.dir;
+      /* Cover up: the guarders take a jab on the chin and raise their
+       * hands. The hit lands; the next one will not, unless it is the
+       * right one. Punks never do this - stage one is for learning. */
+      if (this.team === 1 && this.T && this.T.guard && front && !h.counter &&
+        h.from && h.from.team === 0 && PC.rand() < this.T.guard) {
+        this.setState('guard');
+        this.guardT = 42;
+        if (PC.audio) PC.audio.sfx('guard');
+        this.vx = h.dir * h.push * 0.4;
+        return;
+      }
       this.setState('hurt');
       this.hurtT = h.stun;
       this.vx = h.dir * h.push;
-      this.facing = -h.dir;
       if (this.onHurt) this.onHurt(h);
     }
   };
 
+  Actor.prototype.goDizzy = function (h, frames) {
+    this.recentHits = 0;
+    this.atk = null;
+    this.stunned = 1;
+    this.dizzyT = frames;
+    this.setState('dizzy');
+    this.vx = h.dir * h.push * 0.6;
+    /* Seeing stars costs you your grip too. */
+    if (this.weaponItem && PC.items) PC.items.drop(this);
+    if (W.dropToken) W.dropToken(this);
+  };
+
   Actor.prototype.knockDown = function (dir, launch) {
+    /* Launched hard enough, a body becomes a weapon (see bowl). */
+    if (this.team === 1) {
+      this.bowling = launch.vx >= 3.3 ? 2 : 0;
+      this.bowled = null;
+      this.bowledBy = this.lastHitBy && this.lastHitBy.team === 0 ? this.lastHitBy : null;
+    }
     this.atk = null;
     this.setState('fall');
     this.vx = dir * launch.vx;
@@ -3351,6 +3512,7 @@
         break;
       case 'fall':
         this.vx *= 0.985;
+        this.bowl();
         break;
       case 'down':
         this.vx *= 0.8;
@@ -3363,6 +3525,10 @@
       case 'dizzy':
         this.vx *= 0.86; this.vy *= 0.8;
         if (--this.dizzyT <= 0) { this.stunned = 0; this.setState('idle'); }
+        break;
+      case 'guard':
+        this.vx *= 0.7; this.vy *= 0.7;
+        if (--this.guardT <= 0) { this.setState('idle'); this.atkCool = 0; }
         break;
       case 'held':
         this.vx = 0; this.vy = 0;
@@ -3420,9 +3586,53 @@
       if (PC.audio) PC.audio.sfx('thud');
       FX.shakeBy(2);
     } else if (this.state === 'jump' || this.state === 'attack') {
+      /* A jump attack lands with a price. Connect, and you are back on
+       * your feet at once; whiff, and you are stuck in your landing for a
+       * quarter of a second with the gang right there. That is the whole
+       * difference between a jump kick that opens a fight and one that is
+       * the fight - a bot that did nothing else used to clear the game. */
+      /* The price belongs to the jump, not to whatever state it ends in:
+       * a kick thrown early is over before touchdown, and that whiff has
+       * to cost the same as a late one. */
+      var lag = 0;
+      if (this.airAttacked) {
+        lag = this.airHit ? 4 : 16;
+        this.airAttacked = false;
+      }
       if (this.state === 'attack' && this.atk && this.atk.air) this.atk = null;
-      this.setState('idle');
+      if (lag && this.team === 0) { this.setState('crouch'); this.crouchT = lag; this.vx *= 0.3; }
+      else if (lag) { this.setState('idle'); this.hold = lag; }
+      else this.setState('idle');
       FX.dust(this.x, this.y, this.facing, 2);
+    }
+  };
+
+  /* Bodies as weapons. A thug thrown or launched hard flattens whoever he
+   * flies into - up to two of them, three for a throw - which is what turns
+   * a clinch into crowd control and lining them up into a tactic. */
+  Actor.prototype.bowl = function () {
+    if (!this.bowling || this.z <= 0.5 || Math.abs(this.vx) < 1.6) return;
+    for (var i = 0; i < W.actors.length; i++) {
+      var t = W.actors[i];
+      if (t === this || t.team !== this.team || t.removed || t.dead) continue;
+      if (t.invuln > 0 || t.z > 10) continue;
+      if (t.state === 'down' || t.state === 'fall' || t.state === 'getup' || t.state === 'held') continue;
+      if (Math.abs(t.y - this.y) > 10) continue;
+      if (Math.abs(t.x - this.x) > t.hw + this.hw) continue;
+      if ((t.x - this.x) * this.vx < -4) continue;          // only what lies ahead
+      if (this.bowled && this.bowled.indexOf(t) >= 0) continue;
+      (this.bowled = this.bowled || []).push(t);
+      var dir = M.sign(this.vx) || 1;
+      t.takeHit({
+        dmg: 8, from: this.bowledBy, knock: true, stun: 20, push: 2.4, dir: dir,
+        x: t.x, y: t.y - t.hh * 0.6, heavy: true, launch: { vx: 2.6, vz: 3.0 }
+      });
+      FX.hit(t.x - dir * 4, t.y - t.hh * 0.55, true);
+      PC.freeze(6);
+      if (PC.audio) PC.audio.sfx('hitHeavy');
+      if (this.bowledBy && this.bowledBy.addScore) this.bowledBy.addScore(150);
+      this.vx *= 0.75;
+      if (--this.bowling <= 0) return;
     }
   };
 
@@ -3430,6 +3640,7 @@
     this.deathT++;
     // fall, lie there, then flicker out
     if (this.state === 'fall') {
+      this.bowl();
       this.x += this.vx; this.vx *= 0.985;
       this.z += this.vz; this.vz -= GRAV;
       if (this.z <= 0) { this.z = 0; this.setState('down'); FX.dust(this.x, this.y, -M.sign(this.vx), 5); }
@@ -3451,6 +3662,7 @@
       case 'attack': return this.attackPose();
       case 'hurt': return 'hurt';
       case 'dizzy': return 'dizzy';
+      case 'guard': return 'guard';
       case 'fall': return this.z > 0.5 ? 'fall' : 'down';
       case 'down': return 'down';
       case 'getup': return 'getup';
@@ -3514,6 +3726,11 @@
         if (a.dead && b.dead) continue;
         if (a.state === 'down' || b.state === 'down') continue;
         if (a.grabbing === b || b.grabbing === a) continue;
+        /* The two heroes pass through each other. Shoving your partner was
+         * never a tactic, and two of them walking at each other used to
+         * wedge solid - a co-op run sat on a cleared street for ten minutes
+         * because neither could get by. */
+        if (a.team === 0 && b.team === 0) continue;
         dy = b.y - a.y;
         if (Math.abs(dy) > a.hd + b.hd) continue;
         dx = b.x - a.x;
@@ -3532,6 +3749,9 @@
   W.update = function () {
     var i;
     this.time++;
+    for (i = 0; i < this.actors.length; i++) {
+      if (this.actors[i].readButtons && !this.actors[i].removed) this.actors[i].readButtons();
+    }
     if (this.hitstop > 0) {
       this.hitstop--;
       FX.update();
@@ -3636,6 +3856,22 @@
       FX.ring(it.x, it.y - 6, '#ffe070');
     },
 
+    /* Food and money are collected by walking over them. A button press for
+     * a coin is a chore, and with a bat in hand the punch button swings
+     * instead - so an armed player used to stand on a heart hitting air.
+     * Hearts wait on the ground for whoever is actually hurt. */
+    collect: function (it) {
+      var d = PC.pickups[it.key];
+      for (var i = 0; i < W.actors.length; i++) {
+        var a = W.actors[i];
+        if (a.team !== 0 || a.dead || a.removed || a.state === 'held') continue;
+        if (Math.abs(a.x - it.x) > 11 || Math.abs(a.y - it.y) > 8 || a.z > 10) continue;
+        if (d.heal && a.hp >= a.maxHp) continue;   // food waits for the hurt
+        this.consume(a, it);
+        return;
+      }
+    },
+
     drop: function (a) {
       var it = a.carry || a.weaponItem;
       if (!it) return;
@@ -3660,7 +3896,7 @@
       it.z = a.carry ? 26 : 20;
       if (a.carry) { it.vx = a.facing * 4.2; it.vz = 0.8; it.spinV = a.facing * 0.22; }
       else { it.vx = a.facing * 5.4; it.vz = 0.15; it.spinV = a.facing * 0.5; }
-      it.dmg = a.carry ? PC.props[it.key].dmg : (PC.weapons[it.key].dmg + 4);
+      it.dmg = (a.carry ? PC.props[it.key].dmg : (PC.weapons[it.key].dmg + 4)) * (a.dmgOut || 1);
       a.carry = null;
       if (a.weaponItem === it) { a.weapon = null; a.weaponItem = null; a.ammo = 0; }
       if (PC.audio) PC.audio.sfx('whoosh');
@@ -3745,6 +3981,7 @@
           it.life++;
           if (it.life > 620) it.blink = 1;
           if (it.life > 780) it.dead = true;
+          if (it.z < 4 && !it.dead) this.collect(it);
         }
         if (it.x < W.minX + 4 || it.x > W.maxX - 4) { it.x = M.clamp(it.x, W.minX + 4, W.maxX - 4); if (it.flying) it.vx = 0; }
       }
@@ -3845,7 +4082,7 @@
       dmg: 6, stun: 13, push: 1.4, stop: 5, sfx: 'swing', chain: 'hook', score: 30
     },
     hook: {
-      pose: 'hook', startup: 5, active: 4, recovery: 15, reach: [4, 27], zlo: 15, zhi: 40,
+      pose: 'hook', wind: 'windPunch', startup: 5, active: 4, recovery: 15, reach: [4, 27], zlo: 15, zhi: 40,
       dmg: 10, stun: 18, push: 2.2, knock: true, stop: 9, sfx: 'swingHard', score: 60
     },
     upper: {
@@ -3854,11 +4091,11 @@
       sfx: 'swingHard', lunge: 1.2, score: 80
     },
     kick: {
-      pose: 'kick', startup: 6, active: 6, recovery: 12, reach: [6, 36], zlo: 6, zhi: 30,
-      dmg: 8, stun: 16, push: 2.7, stop: 6, sfx: 'swing', score: 40
+      pose: 'kick', wind: 'chamber', startup: 6, active: 6, recovery: 12, reach: [6, 36], zlo: 6, zhi: 30,
+      dmg: 8, stun: 16, push: 2.7, stop: 6, sfx: 'swing', gb: true, score: 40
     },
     kickHigh: {
-      pose: 'kickHigh', startup: 7, active: 6, recovery: 16, reach: [6, 35], zlo: 18, zhi: 44,
+      pose: 'kickHigh', wind: 'chamber', startup: 7, active: 6, recovery: 16, reach: [6, 35], zlo: 18, zhi: 44,
       dmg: 11, stun: 20, push: 2.4, knock: true, stop: 8, sfx: 'swingHard', score: 70
     },
     elbow: {
@@ -3866,33 +4103,33 @@
       dmg: 9, stun: 18, push: 2.2, knock: true, stop: 8, sfx: 'swingHard', score: 70
     },
     spin: {
-      poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true,
+      poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 5, sweep: true, multi: true,
       startup: 4, active: 20, recovery: 16, reach: [0, 30], zlo: 10, zhi: 40,
       dmg: 7, stun: 18, push: 2.6, knock: true, stop: 6, sfx: 'whoosh', score: 50
     },
     jumpKick: {
       pose: 'jumpKick', air: true, startup: 2, active: 14, recovery: 8, reach: [4, 32], zlo: -4, zhi: 30,
-      dmg: 13, stun: 20, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', score: 90
+      dmg: 9, stun: 20, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', score: 90
     },
     runKnee: {
       pose: 'knee', startup: 3, active: 8, recovery: 16, reach: [2, 24], zlo: 10, zhi: 36,
-      dmg: 11, stun: 20, push: 3.2, knock: true, stop: 9, sfx: 'swingHard', lunge: 3.4, score: 80
+      dmg: 11, stun: 20, push: 3.2, knock: true, launch: { vx: 3.6, vz: 3.0 }, stop: 9, sfx: 'swingHard', lunge: 3.4, score: 80
     },
     knee: {
       pose: 'knee', startup: 4, active: 3, recovery: 10, reach: [4, 20], zlo: 10, zhi: 32,
       dmg: 7, stun: 10, push: 0, stop: 6, sfx: 'swing', grabMove: true, score: 40
     },
     batSwing: {
-      pose: 'hook', startup: 5, active: 5, recovery: 16, reach: [4, 40], zlo: 10, zhi: 42,
-      dmg: 14, stun: 20, push: 3, knock: true, stop: 10, sfx: 'swingHard', breaks: true, score: 90
+      pose: 'hook', wind: 'windOver', startup: 5, active: 5, recovery: 16, reach: [4, 40], zlo: 10, zhi: 42,
+      dmg: 14, stun: 20, push: 3, knock: true, launch: { vx: 3.4, vz: 3.2 }, stop: 10, sfx: 'swingHard', breaks: true, score: 90
     },
     knifeStab: {
       pose: 'jab', startup: 3, active: 4, recovery: 9, reach: [4, 32], zlo: 14, zhi: 34,
       dmg: 10, stun: 14, push: 1.2, stop: 6, sfx: 'swing', spark: '#ff8888', score: 60
     },
     pipeSwing: {
-      pose: 'hook', startup: 5, active: 5, recovery: 15, reach: [4, 38], zlo: 10, zhi: 42,
-      dmg: 12, stun: 18, push: 2.8, knock: true, stop: 9, sfx: 'swingHard', breaks: true, score: 80
+      pose: 'hook', wind: 'windOver', startup: 5, active: 5, recovery: 15, reach: [4, 38], zlo: 10, zhi: 42,
+      dmg: 12, stun: 18, push: 2.8, knock: true, launch: { vx: 3.4, vz: 3.2 }, stop: 9, sfx: 'swingHard', breaks: true, score: 80
     }
   };
 
@@ -3939,7 +4176,7 @@
     this.chainT = 75;
     if (this.hitChain >= 4) {
       var col = this.hitChain >= 12 ? '#ff4a4a' : (this.hitChain >= 8 ? '#ff8a20' : '#ffe070');
-      FX.pop(t.x, t.y - t.hh - 10, this.hitChain + ' HITS', col);
+      FX.pop(t.x, t.y - t.hh - 10, this.hitChain + ' HITS', col, 'chain' + this.index);
     }
   };
 
@@ -3962,20 +4199,52 @@
   };
 
   // ------------------------------------------------------------------ control
+  /* Buttons are read every frame, frozen or not. The world stops for a
+   * hit-stop and for the slow-motion KO, and a press in those frames - the
+   * very moment players mash for the next hit - used to vanish, because
+   * only control() wrote the buffer and control() does not run while the
+   * world is stopped. Presses now latch until the player next acts. */
+  Player.prototype.readButtons = function () {
+    var pr = PC.input.p[this.index].pressed, f = this.fresh || (this.fresh = {});
+    // counted, not flagged: two mashed punches inside one freeze are two
+    if (pr.punch) f.punch = (f.punch || 0) + 1;
+    if (pr.kick) f.kick = (f.kick || 0) + 1;
+    if (pr.jump) f.jump = (f.jump || 0) + 1;
+  };
+
   Player.prototype.control = function () {
     // the fight is over and won: stand there with your arms up
     if (this.celebrate) {
       this.setState('win');
       this.vx = 0; this.vy = 0;
+      this.fresh = {};
       return;
     }
     var inp = PC.input.p[this.index];
-    var held = inp.held, pressed = inp.pressed;
-    var b = this.buffer, k;
-    for (k in b) if (b[k] > 0) b[k]--;
-    if (pressed.punch) b.punch = 7;
-    if (pressed.kick) b.kick = 7;
-    if (pressed.jump) b.jump = 7;
+    var held = inp.held;
+    var b = this.buffer, k, fresh = this.fresh || {};
+    var q = this.queued || (this.queued = {});
+    this.fresh = {};
+    /* The follow-up queue. A button pressed once an attack has started to
+     * land is held through that attack's recovery and comes out the moment
+     * the fighter is free - pressing kick as the hook connects is the most
+     * natural rhythm in the genre, and a 7-frame buffer against a 15-frame
+     * recovery used to eat it. Presses during a wind-up decay as normal, so
+     * mashing does not stack up phantom attacks. */
+    var following = this.state === 'attack' && this.atk && this.atkT >= this.atk.startup;
+    for (k in b) {
+      if (this.state !== 'attack') q[k] = false;
+      if (b[k] > 0 && !q[k]) b[k]--;
+    }
+    var pt = this.pressT || (this.pressT = {});
+    if (fresh.punch) {
+      b.punch = 7; q.punch = following; pt.punch = W.time;
+      // a second press is held for the next link of the chain
+      this.extraPunch = Math.min(1, fresh.punch - 1);
+    }
+    if (fresh.kick) { b.kick = 7; q.kick = following; pt.kick = W.time; }
+    if (fresh.jump) { b.jump = 7; q.jump = following; pt.jump = W.time; }
+    var pressed = fresh;
     if (this.grabCool > 0) this.grabCool--;
     if (this.chainT > 0) { this.chainT--; if (!this.chainT) this.hitChain = 0; }
 
@@ -4003,7 +4272,10 @@
 
     // ---- the spin kick is both buttons at once. The window is two frames,
     // not the whole buffer, or every fast punch-then-kick becomes a spin.
-    if (b.punch >= 5 && b.kick >= 5 && this.canAct() && this.z <= 0) {
+    // (measured by when they were pressed, not how fresh the buffer is -
+    // a punch and a kick queued apart through a recovery are not a spin)
+    if (b.punch > 0 && b.kick > 0 && Math.abs((pt.punch || 0) - (pt.kick || -99)) <= 2 &&
+      this.canAct() && this.z <= 0) {
       b.punch = b.kick = 0;
       this.startAttack(MOVES.spin);
       return;
@@ -4013,11 +4285,12 @@
       this.state === 'down' || this.state === 'getup' || this.state === 'held') {
       // The only thing you may do mid-move is chain the next punch.
       if (this.state === 'attack' && b.punch > 0 && this.atk && this.atk.chain &&
-        this.atkT >= this.atk.startup + this.atk.active) {
+        !this.chainBroken && this.atkT >= this.atk.startup + this.atk.active) {
         b.punch = 0;
         this.combo++;
         this.comboT = 40;
         this.startAttack(MOVES[this.atk.chain]);
+        if (this.extraPunch > 0) { this.extraPunch--; b.punch = 7; q.punch = true; }
       }
       return;
     }
@@ -4035,7 +4308,8 @@
     // ---- airborne
     if (this.z > 0 || this.state === 'jump') {
       if (ax) { this.vx = M.approach(this.vx, ax * this.speed * 1.15, 0.22); this.facing = ax; }
-      if ((b.punch > 0 || b.kick > 0)) {
+      // one air attack per jump: it used to be possible to kick twice
+      if ((b.punch > 0 || b.kick > 0) && !this.airAttacked) {
         b.punch = b.kick = 0;
         this.startAttack(MOVES.jumpKick);
         this.vx = this.facing * Math.max(1.6, Math.abs(this.vx));
@@ -4048,6 +4322,8 @@
       b.jump = 0;
       this.vz = 4.7;
       this.z = 0.1;
+      this.airAttacked = false;
+      this.jumpId = (this.jumpId || 0) + 1;
       this.setState('jump');
       this.vx = ax * this.speed * 1.2;
       this.vy = ay * this.speed * 0.6;
@@ -4200,6 +4476,7 @@
     });
     e.thrownBy = this;
     e.isThrown = true;
+    if (e.bowling) e.bowling = 3;   // a thrown body takes three with it
     PC.freeze(10);
     FX.shakeBy(4);
     if (PC.audio) PC.audio.sfx('throw');
@@ -4292,37 +4569,37 @@
 
   // ------------------------------------------------------------ enemy moves
   var EM = PC.ENEMY_MOVES = {
-    jab: { pose: 'jab', startup: 8, active: 3, recovery: 16, reach: [4, 24], zlo: 14, zhi: 36, dmg: 5, stun: 12, push: 1.2, stop: 4, sfx: 'swing' },
-    hook: { pose: 'hook', startup: 11, active: 4, recovery: 22, reach: [4, 26], zlo: 14, zhi: 40, dmg: 8, stun: 16, push: 2, knock: true, stop: 7, sfx: 'swingHard' },
-    kick: { pose: 'kick', startup: 12, active: 4, recovery: 22, reach: [6, 28], zlo: 6, zhi: 30, dmg: 7, stun: 12, push: 2.2, stop: 6, sfx: 'swing' },
+    jab: { pose: 'jab', wind: 'windPunch', startup: 8, active: 3, recovery: 16, reach: [4, 24], zlo: 14, zhi: 36, dmg: 5, stun: 12, push: 1.2, stop: 4, sfx: 'swing' },
+    hook: { pose: 'hook', wind: 'windPunch', startup: 11, active: 4, recovery: 22, reach: [4, 26], zlo: 14, zhi: 40, dmg: 8, stun: 16, push: 2, knock: true, stop: 7, sfx: 'swingHard' },
+    kick: { pose: 'kick', wind: 'chamber', startup: 12, active: 4, recovery: 22, reach: [6, 28], zlo: 6, zhi: 30, dmg: 7, stun: 12, push: 2.2, stop: 6, sfx: 'swing' },
     jumpKick: { pose: 'jumpKick', air: true, startup: 2, active: 24, recovery: 4, reach: [4, 30], zlo: -4, zhi: 30, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard' },
-    batSwing: { pose: 'hook', startup: 18, active: 5, recovery: 24, reach: [4, 34], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
-    knifeStab: { pose: 'jab', startup: 9, active: 4, recovery: 18, reach: [4, 32], zlo: 14, zhi: 34, dmg: 8, stun: 14, push: 1.4, stop: 6, sfx: 'swing', spark: '#ff8888' },
-    slam: { pose: 'hook', startup: 16, active: 5, recovery: 30, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard' },
-    charge: { pose: 'knee', startup: 6, active: 30, recovery: 26, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2 },
-    pound: { pose: 'upper', startup: 10, active: 8, recovery: 34, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom' },
-    chainSweep: { poses: ['spin0', 'spin1'], frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 30, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
-    upper: { pose: 'upper', startup: 12, active: 4, recovery: 26, reach: [2, 24], zlo: 6, zhi: 44, dmg: 12, stun: 22, knock: true, launch: { vx: 1.4, vz: 5 }, stop: 10, sfx: 'swingHard' },
-    spin: { poses: ['spin0', 'spin1'], frameT: 5, sweep: true, multi: true, startup: 11, active: 12, recovery: 22, reach: [0, 27], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
+    batSwing: { pose: 'hook', wind: 'windOver', startup: 18, active: 5, recovery: 24, reach: [4, 34], zlo: 10, zhi: 42, dmg: 11, stun: 18, push: 2.6, knock: true, stop: 8, sfx: 'swingHard', breaks: true },
+    knifeStab: { pose: 'jab', wind: 'windPunch', startup: 9, active: 4, recovery: 18, reach: [4, 32], zlo: 14, zhi: 34, dmg: 8, stun: 14, push: 1.4, stop: 6, sfx: 'swing', spark: '#ff8888' },
+    slam: { pose: 'hook', wind: 'windOver', startup: 16, active: 5, recovery: 30, reach: [4, 32], zlo: 4, zhi: 44, dmg: 14, stun: 24, push: 3.4, knock: true, stop: 11, sfx: 'swingHard' },
+    charge: { pose: 'knee', wind: 'windCharge', startup: 6, active: 30, recovery: 26, reach: [2, 26], zlo: 8, zhi: 40, dmg: 13, stun: 22, push: 3.6, knock: true, stop: 10, sfx: 'swingHard', lunge: 4.2 },
+    pound: { pose: 'upper', wind: 'windOver', startup: 10, active: 8, recovery: 34, sweep: true, multi: true, reach: [0, 40], zlo: 0, zhi: 20, dmg: 12, stun: 22, push: 3, knock: true, stop: 10, sfx: 'boom' },
+    chainSweep: { poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 6, sweep: true, multi: true, startup: 12, active: 22, recovery: 30, reach: [0, 34], zlo: 8, zhi: 40, dmg: 9, stun: 20, push: 3, knock: true, stop: 8, sfx: 'whoosh' },
+    upper: { pose: 'upper', wind: 'crouch', startup: 12, active: 4, recovery: 26, reach: [2, 24], zlo: 6, zhi: 44, dmg: 12, stun: 22, knock: true, launch: { vx: 1.4, vz: 5 }, stop: 10, sfx: 'swingHard' },
+    spin: { poses: ['spin0', 'spin1'], wind: 'windSpin', frameT: 5, sweep: true, multi: true, startup: 11, active: 12, recovery: 22, reach: [0, 27], zlo: 10, zhi: 40, dmg: 9, stun: 18, push: 2.6, knock: true, stop: 7, sfx: 'whoosh' }
   };
 
   // ------------------------------------------------------------- enemy types
   var TYPES = PC.ENEMY_TYPES = {
     punk: {
       char: 'punk', hp: 24, speed: 1.05, score: 200, standoff: 18,
-      moves: ['jab', 'jab', 'hook', 'kick'], aggr: 0.7, downTime: 32
+      moves: ['jab', 'jab', 'hook', 'kick'], aggr: 0.7, downTime: 32, dodge: 0.25
     },
     rough: {
       char: 'rough', hp: 24, speed: 1.35, score: 300, standoff: 20,
-      moves: ['jab', 'kick', 'kick'], aggr: 0.85, jumpy: 0.3, downTime: 28
+      moves: ['jab', 'kick', 'kick'], aggr: 0.85, jumpy: 0.3, downTime: 28, dodge: 0.5, guard: 0.3
     },
     knifer: {
       char: 'knifer', hp: 24, speed: 1.2, score: 400, standoff: 22, weapon: 'knife',
-      moves: ['knifeStab', 'knifeStab', 'kick'], aggr: 0.75, thrower: 0.25, downTime: 30
+      moves: ['knifeStab', 'knifeStab', 'kick'], aggr: 0.75, thrower: 0.25, downTime: 30, dodge: 0.4, guard: 0.3
     },
     batter: {
       char: 'batter', hp: 34, speed: 1.0, score: 400, standoff: 26, weapon: 'bat',
-      moves: ['batSwing', 'kick', 'hook'], aggr: 0.7, downTime: 34
+      moves: ['batSwing', 'kick', 'hook'], aggr: 0.7, downTime: 34, dodge: 0.15, guard: 0.25
     },
     brute: {
       char: 'brute', hp: 52, speed: 0.9, score: 700, standoff: 20, mass: 2.2, armor: 1,
@@ -4343,7 +4620,7 @@
     viper: {
       char: 'boss_viper', hp: 85, speed: 1.3, score: 6000, standoff: 24, mass: 1.4,
       armor: 1, knockRes: 0.35, boss: true, weapon: 'chain', downTime: 30,
-      moves: ['kick', 'jab', 'chainSweep'], aggr: 0.9, jumpy: 0.25, retreat: 0.08,
+      moves: ['kick', 'jab', 'chainSweep'], aggr: 0.9, jumpy: 0.25, retreat: 0.08, dodge: 0.55, guard: 0.4,
       phases: [
         { at: 0.5, speedMul: 1.15, addMoves: ['jumpKick'], name: 'VIPER UNSPOOLS' },
         { at: 0.22, speedMul: 1.25, aggrMul: 1.15, addMoves: ['slam'], name: 'VIPER UNSPOOLS' }
@@ -4352,7 +4629,7 @@
     jaws: {
       char: 'boss_jaws', hp: 120, speed: 1.15, score: 7000, standoff: 22, mass: 2.4,
       armor: 1, knockRes: 0.45, boss: true, downTime: 34,
-      moves: ['hook', 'kick', 'spin', 'hook'], aggr: 0.85, grabber: 0.25,
+      moves: ['hook', 'kick', 'spin', 'hook'], aggr: 0.85, grabber: 0.25, dodge: 0.2, guard: 0.25,
       phases: [
         { at: 0.55, speedMul: 1.15, addMoves: ['charge'], name: 'JAWS LOSES IT' },
         { at: 0.25, speedMul: 1.25, addMoves: ['slam'], name: 'JAWS LOSES IT' }
@@ -4361,7 +4638,7 @@
     power: {
       char: 'boss_power', hp: 150, speed: 1.3, score: 12000, standoff: 22, mass: 2,
       armor: 1, knockRes: 0.5, boss: true, downTime: 30,
-      moves: ['jab', 'hook', 'spin', 'upper'], aggr: 0.9, jumpy: 0.2, retreat: 0.15,
+      moves: ['jab', 'hook', 'spin', 'upper'], aggr: 0.9, jumpy: 0.2, retreat: 0.15, dodge: 0.45, guard: 0.45,
       phases: [
         { at: 0.66, speedMul: 1.15, addMoves: ['charge'], name: 'MR. POWER LOSES PATIENCE' },
         { at: 0.33, speedMul: 1.3, aggrMul: 1.2, addMoves: ['slam'], name: 'MR. POWER LOSES PATIENCE' }
@@ -4396,7 +4673,9 @@
     this.intent = 'approach';
     this.lane = 0;
     this.tokenT = 0;
-    this.dmgScale = 1;
+    /* how hard this one hits, as a multiple of the move table - the
+     * stage difficulty turns it up as the city gets meaner */
+    this.dmgOut = 1;
     this.facing = spec.facing || -1;
     this.spawnGuard = 0;
     this.atkCool = 0;
@@ -4481,6 +4760,26 @@
     var p = W.nearestPlayer(this.x, this.y);
     if (!p) { this.setState('idle'); this.vx *= 0.8; this.vy *= 0.8; return; }
 
+    /* Sidestep: some of the gang see a jump kick coming and step off its
+     * lane. One roll per jump, so it reads as judgment, not a dodge-bot. */
+    if (this.slipT > 0) {
+      this.slipT--;
+      this.vx = 0; this.vy = this.slipDir * this.speed * 1.7;
+      this.setState('walk');
+      return;
+    }
+    if (p.z > 0 && p.jumpId && p.jumpId !== this.seenJump && (this.T.dodge || 0) > 0) {
+      var jx = this.x - p.x;
+      if (Math.abs(jx) < 66 && Math.abs(p.y - this.y) < 10 && M.sign(jx) === M.sign(p.vx || p.facing)) {
+        this.seenJump = p.jumpId;
+        if (PC.rand() < this.T.dodge) {
+          this.slipT = 13;
+          this.slipDir = this.y > (PC.FLOOR_TOP + PC.FLOOR_BOT) / 2 ? -1 : 1;
+          return;
+        }
+      }
+    }
+
     var dx = p.x - this.x, dy = p.y - this.y;
     var adx = Math.abs(dx);
     this.facing = dx === 0 ? this.facing : M.sign(dx);
@@ -4490,6 +4789,14 @@
     var t = this.T;
     var standoff = t.standoff;
     var speed = this.speed;
+    /* Arriving: off-screen thugs come on at a run and slow to a stalk once
+     * they are in the fight. Walking in at fighting pace was seconds of
+     * nothing at the start of every wave. */
+    if (this.entering > 0) {
+      this.entering--;
+      if (adx < 110 && this.x > W.camX + 4 && this.x < W.camX + PC.W - 4) this.entering = 0;
+      else speed *= 2.1;
+    }
 
     switch (this.intent) {
       case 'approach': {
@@ -4628,7 +4935,7 @@
       if (--this.squeezeT <= 0) {
         this.squeezeT = 30;
         v.takeHit({
-          dmg: 6, from: this, knock: false, stun: 6, push: 0, dir: this.facing,
+          dmg: 6 * this.dmgOut, from: this, knock: false, stun: 6, push: 0, dir: this.facing,
           x: v.x, y: v.y - 24, heavy: false
         });
         if (v.grabbedBy === this && !v.dead) { v.setState('held'); v.grabbedBy = this; }
@@ -4642,7 +4949,7 @@
         this.releaseGrab();
         if (!v.dead) {
           v.takeHit({
-            dmg: 8, from: this, knock: true, stun: 20, push: 3, dir: dir,
+            dmg: 8 * this.dmgOut, from: this, knock: true, stun: 20, push: 3, dir: dir,
             x: v.x, y: v.y - 24, heavy: true, launch: { vx: 4, vz: 3.2 }
           });
         }
@@ -4656,7 +4963,10 @@
   PC.spawnEnemy = function (typeKey, x, y, opts) {
     var e = new Enemy(typeKey, { x: x, y: y, facing: opts && opts.facing, hpScale: opts && opts.hpScale });
     if (opts && opts.aggrScale) e.aggr *= opts.aggrScale;
-    if (opts && opts.dmgScale) e.dmgScale = opts.dmgScale;
+    /* Difficulty scales the damage they deal. (It used to be handed to
+     * dmgScale, which scales damage *taken* - so early thugs soaked 1.4x
+     * and nobody ever hit harder. The city had no ramp at all.) */
+    if (opts && opts.dmgOut) e.dmgOut = opts.dmgOut;
     W.add(e);
     return e;
   };
@@ -4846,7 +5156,7 @@
       var e = PC.spawnEnemy(s.type, ex, ey, {
         facing: side > 0 ? -1 : 1,
         hpScale: s.boss ? (d.players > 1 ? 1.4 : 1) : d.hp,
-        dmgScale: d.dmg, aggrScale: d.aggr
+        dmgOut: d.dmg, aggrScale: d.aggr
       });
       if (s.boss) {
         this.bossActive = e;
@@ -4861,6 +5171,7 @@
       /* Fresh legs get a moment of grace and a marker over the head, so
        * nobody swings in from off the screen. */
       e.spawnGuard = side < 0 ? 70 : 36;
+      e.entering = 75;
       FX.dust(ex, ey, -side, 4);
       return e;
     },
@@ -4877,24 +5188,24 @@
         if (amb.kind === 'rain') {
           FX.add({
             t: 0, life: 40, kind: 'rain',
-            x: W.camX + PC.rand.range(-60, PC.W + 40),
-            y: PC.FIELD_Y + PC.rand.range(-6, 34),
-            vx: -1.5 - PC.rand.range(0, 0.6), vy: 4.4 + PC.rand.range(0, 0.5), g: 0
+            x: W.camX + PC.fxRand.range(-60, PC.W + 40),
+            y: PC.FIELD_Y + PC.fxRand.range(-6, 34),
+            vx: -1.5 - PC.fxRand.range(0, 0.6), vy: 4.4 + PC.fxRand.range(0, 0.5), g: 0
           });
         } else if (amb.kind === 'ember') {
           FX.add({
-            t: 0, life: PC.rand.int(60, 110), kind: 'ember',
-            x: W.camX + PC.rand.range(0, PC.W),
-            y: PC.rand.range(PC.FLOOR_TOP - 60, PC.FIELD_BOT - 8),
-            vx: PC.rand.range(-0.15, 0.3), vy: -PC.rand.range(0.2, 0.45), g: 0,
-            col: PC.rand.pick(['#ff8a20', '#ffd23a', '#ff5f6a'])
+            t: 0, life: PC.fxRand.int(60, 110), kind: 'ember',
+            x: W.camX + PC.fxRand.range(0, PC.W),
+            y: PC.fxRand.range(PC.FLOOR_TOP - 60, PC.FIELD_BOT - 8),
+            vx: PC.fxRand.range(-0.15, 0.3), vy: -PC.fxRand.range(0.2, 0.45), g: 0,
+            col: PC.fxRand.pick(['#ff8a20', '#ffd23a', '#ff5f6a'])
           });
         } else {
           FX.add({
-            t: 0, life: PC.rand.int(80, 150), kind: 'mote',
-            x: W.camX + PC.rand.range(0, PC.W),
-            y: PC.rand.range(PC.FIELD_Y + 4, PC.FIELD_BOT - 4),
-            vx: PC.rand.range(-0.2, 0.3), vy: -PC.rand.range(0, 0.08), g: 0
+            t: 0, life: PC.fxRand.int(80, 150), kind: 'mote',
+            x: W.camX + PC.fxRand.range(0, PC.W),
+            y: PC.fxRand.range(PC.FIELD_Y + 4, PC.FIELD_BOT - 4),
+            vx: PC.fxRand.range(-0.2, 0.3), vy: -PC.fxRand.range(0, 0.08), g: 0
           });
         }
       }
@@ -5338,10 +5649,15 @@
     difficulty: function () {
       var n = this.livePlayerCount();
       var s = PC.stage.index;
+      /* The ramp. With the damage multiplier finally reaching the damage
+       * enemies deal, this is a real curve: stage one gentle enough to
+       * learn on, the city meaner every stage after it. Measured with the
+       * agents: the naive bot should start losing lives on stage two, the
+       * competent one should feel stage four. */
       return {
-        hp: (1 + s * 0.13) * (n > 1 ? 1.28 : 1),
-        dmg: 0.7 + s * 0.11,
-        aggr: 0.85 + s * 0.07,
+        hp: (1 + s * 0.12) * (n > 1 ? 1.28 : 1),
+        dmg: 0.75 + s * 0.16,
+        aggr: 0.9 + s * 0.08,
         players: n
       };
     },

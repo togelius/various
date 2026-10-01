@@ -49,10 +49,15 @@
     difficulty: function () {
       var n = this.livePlayerCount();
       var s = PC.stage.index;
+      /* The ramp. With the damage multiplier finally reaching the damage
+       * enemies deal, this is a real curve: stage one gentle enough to
+       * learn on, the city meaner every stage after it. Measured with the
+       * agents: the naive bot should start losing lives on stage two, the
+       * competent one should feel stage four. */
       return {
-        hp: (1 + s * 0.13) * (n > 1 ? 1.28 : 1),
-        dmg: 0.7 + s * 0.11,
-        aggr: 0.85 + s * 0.07,
+        hp: (1 + s * 0.12) * (n > 1 ? 1.28 : 1),
+        dmg: 0.75 + s * 0.16,
+        aggr: 0.9 + s * 0.08,
         players: n
       };
     },

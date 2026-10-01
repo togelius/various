@@ -36,7 +36,7 @@ const fs = require('fs');
       return PC.Screen.ctx.getImageData(0, 0, PC.W, PC.H).data;
     }
 
-    const results = {};
+    const results = {}, shots = {};
     for (let s = 0; s < PC.STAGES.length; s++) {
       PC.game.coin(); PC.game.startGame(0);
       PC.game.stageIndex = s;
@@ -118,6 +118,35 @@ const fs = require('fs');
         if (dl > 10 && dl < 25) faint++;
       }
 
+      /* Softness: the share of neighbouring pixel pairs that differ, but
+       * only slightly. Pixel art is flat runs (no difference) and hard
+       * edges (big ones); smooth gradients, alpha blends and resampling
+       * live in between. This is the number that goes up when an effect
+       * starts to smear the picture. */
+      let soft = 0, pairs = 0;
+      function chan(d, i, j) {
+        return Math.max(Math.abs(d[i] - d[j]), Math.abs(d[i + 1] - d[j + 1]), Math.abs(d[i + 2] - d[j + 2]));
+      }
+      for (let y = FY; y < FB - 1; y++) for (let x = 0; x < PC.W - 1; x++) {
+        const i = (y * PC.W + x) * 4;
+        const h = chan(A, i, i + 4), v = chan(A, i, i + PC.W * 4);
+        if (h > 0 && h < 10) soft++;
+        if (v > 0 && v < 10) soft++;
+        pairs += 2;
+      }
+      /* Colours again with the vignette switched off: a smooth vignette
+       * turns every flat colour into dozens of shades, so the raw count
+       * mostly measures the vignette rather than the palette. */
+      const realVig = PC.city.vignette;
+      PC.city.vignette = function () { };
+      const V = frame();
+      PC.city.vignette = realVig;
+      const colorsNV = {};
+      for (let i = 0; i < V.length; i += 4) colorsNV[(V[i] << 16) | (V[i + 1] << 8) | V[i + 2]] = 1;
+
+      frame();   // the real thing, vignette and all, is what gets saved
+      shots[PC.stage.def.name] = PC.Screen.canvas.toDataURL('image/png');
+
       results[PC.stage.def.name] = {
         figureContrast: +(contrastSum / Math.max(1, maskCount)).toFixed(1),
         faintPct: +(100 * faint / Math.max(1, maskCount)).toFixed(1),
@@ -125,22 +154,29 @@ const fs = require('fs');
         floorLum: +(fl / fn).toFixed(1),
         wallBusy: +(busy / bn).toFixed(2),
         colors: Object.keys(colors).length,
+        colorsNoVignette: Object.keys(colorsNV).length,
+        softPct: +(100 * soft / pairs).toFixed(2),
         spritePx: maskCount
       };
-      // save the pair for human eyes
-      PC.game.render();
     }
-    return results;
+    return { results, shots };
   });
+  const shots = report.shots;
+  const report_ = report.results;
 
-  console.log(JSON.stringify(report, null, 1));
-  const totals = Object.keys(report).reduce((t, k) => {
-    for (const m in report[k]) t[m] = (t[m] || 0) + report[k][m];
+  // the frames, for human eyes - the numbers are only a check on them
+  for (const name in shots) {
+    const file = path.join(out, name.toLowerCase().replace(/[^a-z]+/g, '-') + '.png');
+    fs.writeFileSync(file, Buffer.from(shots[name].split(',')[1], 'base64'));
+  }
+  console.log(JSON.stringify(report_, null, 1));
+  const totals = Object.keys(report_).reduce((t, k) => {
+    for (const m in report_[k]) t[m] = (t[m] || 0) + report_[k][m];
     return t;
   }, {});
-  const n = Object.keys(report).length;
+  const n = Object.keys(report_).length;
   console.log('\n--- means over stages ---');
-  for (const m of ['figureContrast', 'faintPct', 'outlinePct', 'floorLum', 'wallBusy', 'colors']) {
+  for (const m of ['figureContrast', 'faintPct', 'outlinePct', 'floorLum', 'wallBusy', 'colors', 'colorsNoVignette', 'softPct']) {
     console.log(m.padEnd(16), (totals[m] / n).toFixed(2));
   }
   if (errs.length) { console.log('ERRORS:', errs.join(' | ')); process.exitCode = 1; }

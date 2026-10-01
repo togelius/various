@@ -181,7 +181,7 @@
       var e = PC.spawnEnemy(s.type, ex, ey, {
         facing: side > 0 ? -1 : 1,
         hpScale: s.boss ? (d.players > 1 ? 1.4 : 1) : d.hp,
-        dmgScale: d.dmg, aggrScale: d.aggr
+        dmgOut: d.dmg, aggrScale: d.aggr
       });
       if (s.boss) {
         this.bossActive = e;
@@ -196,6 +196,7 @@
       /* Fresh legs get a moment of grace and a marker over the head, so
        * nobody swings in from off the screen. */
       e.spawnGuard = side < 0 ? 70 : 36;
+      e.entering = 75;
       FX.dust(ex, ey, -side, 4);
       return e;
     },
@@ -212,24 +213,24 @@
         if (amb.kind === 'rain') {
           FX.add({
             t: 0, life: 40, kind: 'rain',
-            x: W.camX + PC.rand.range(-60, PC.W + 40),
-            y: PC.FIELD_Y + PC.rand.range(-6, 34),
-            vx: -1.5 - PC.rand.range(0, 0.6), vy: 4.4 + PC.rand.range(0, 0.5), g: 0
+            x: W.camX + PC.fxRand.range(-60, PC.W + 40),
+            y: PC.FIELD_Y + PC.fxRand.range(-6, 34),
+            vx: -1.5 - PC.fxRand.range(0, 0.6), vy: 4.4 + PC.fxRand.range(0, 0.5), g: 0
           });
         } else if (amb.kind === 'ember') {
           FX.add({
-            t: 0, life: PC.rand.int(60, 110), kind: 'ember',
-            x: W.camX + PC.rand.range(0, PC.W),
-            y: PC.rand.range(PC.FLOOR_TOP - 60, PC.FIELD_BOT - 8),
-            vx: PC.rand.range(-0.15, 0.3), vy: -PC.rand.range(0.2, 0.45), g: 0,
-            col: PC.rand.pick(['#ff8a20', '#ffd23a', '#ff5f6a'])
+            t: 0, life: PC.fxRand.int(60, 110), kind: 'ember',
+            x: W.camX + PC.fxRand.range(0, PC.W),
+            y: PC.fxRand.range(PC.FLOOR_TOP - 60, PC.FIELD_BOT - 8),
+            vx: PC.fxRand.range(-0.15, 0.3), vy: -PC.fxRand.range(0.2, 0.45), g: 0,
+            col: PC.fxRand.pick(['#ff8a20', '#ffd23a', '#ff5f6a'])
           });
         } else {
           FX.add({
-            t: 0, life: PC.rand.int(80, 150), kind: 'mote',
-            x: W.camX + PC.rand.range(0, PC.W),
-            y: PC.rand.range(PC.FIELD_Y + 4, PC.FIELD_BOT - 4),
-            vx: PC.rand.range(-0.2, 0.3), vy: -PC.rand.range(0, 0.08), g: 0
+            t: 0, life: PC.fxRand.int(80, 150), kind: 'mote',
+            x: W.camX + PC.fxRand.range(0, PC.W),
+            y: PC.fxRand.range(PC.FIELD_Y + 4, PC.FIELD_BOT - 4),
+            vx: PC.fxRand.range(-0.2, 0.3), vy: -PC.fxRand.range(0, 0.08), g: 0
           });
         }
       }
