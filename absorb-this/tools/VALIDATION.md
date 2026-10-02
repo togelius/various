@@ -1,3 +1,54 @@
+# Comedy broadcasts — validation, 2026-10-02
+
+The final browser integration suite passes **478 desktop checks** and **481
+touch-emulation checks**, with no uncaught JavaScript or WebGL errors. Testing
+stayed muted. The game source SHA-256 is
+`8d4b512a75f563d707608dc3ee6ac58049028e0346106139d24e4416905defbc`.
+
+The new regressions exercise a real ice volley, a defeated sponge bowling into
+another enemy, water pushing the frozen body, melting without duplicate rewards,
+PLEASE restoring moving bodies and their collision history, and wave clears
+that do not wait for props. Heat commentary distinguishes paper from bottles,
+and bowling footage credits the sliding actor with its original identity.
+
+Replay checks cover recorded lead-up and aftermath, bounded frame buffers,
+independent snapshots, unchanged live physics/score/health during rendering,
+automatic completion, pause/skip, held-key repeat, notebook-only mode, notebook
+rewatching, the arriving Clog, lost mouse capture, held touch gestures, and waiting
+for an active speaker. Original delayed wave commentary survives a broadcast;
+interrupted full-text remarks survive PLEASE. Native speech timing was not
+listened to.
+
+Staged visual checks covered 1280 × 800 desktop, 390 × 844 portrait, and
+844 × 390 landscape. The final two layouts used a touch-enabled Chromium
+context; captions and controls fit without horizontal scrolling. These are
+browser emulation checks, not a claim about real-device comfort. The recorded
+bowling fixture contains 62 frames and about 0.94 MB of JSON. The runtime keeps
+at most five clips, 64 frames per clip, and 42 rolling frames, with sampled
+particles and no references to the live actor graph.
+
+All **58 original uppercase array/object constants** were compared byte-for-byte
+with `67d8511` and remain unchanged, including the philosopher, incident, callback,
+taunt, death, kill-word, curio, weapon and modifier collections. The new broadcast
+remarks are additional material.
+
+Six full automated campaigns on that exact source reached the drain, each with
+ten automatic broadcasts and no JavaScript, WebGL or state-invariant errors:
+
+| Policy | Seed | Result | Deaths / PLEASE continues | Simulated seconds |
+| --- | ---: | --- | ---: | ---: |
+| casual | 1 | Escaped | 1 | 806.22 |
+| casual | 2 | Escaped | 3 | 615.48 |
+| casual | 3 | Escaped | 1 | 916.87 |
+| practiced | 1 | Escaped | 0 | 441.38 |
+| practiced | 2 | Escaped | 0 | 438.25 |
+| practiced | 3 | Escaped | 0 | 476.75 |
+
+Command: `node tools/playtest.cjs --seeds 1,2,3 --personas casual,practiced
+--seconds 1200 --output /tmp/comedy-campaigns.json`. These policies drive the real
+input and simulation paths and know the front-lane route. Their successful runs
+verify progression; they do not establish human enjoyment or difficulty.
+
 # Implementation fixes — validation, 2026-10-01
 
 The browser integration suite passed **439 checks**, with no uncaught JavaScript

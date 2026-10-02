@@ -20,6 +20,19 @@ water, slow down, leak it back out, and flatten the parties to the dispute.
 The news calls this progress. Everything is still a silly shooter: ordinary
 running, missed shots and general panic can start the accidents.
 
+**Counter News Network now has a sports department.** After a wave, it replays
+a recorded highlight in slow motion, then holds the impact while Žižek offers
+an unsolicited interpretation. Accidents, cascades and ice bowling take
+precedence over ordinary kills. The live kitchen waits, and you can skip or
+pause the broadcast. The notebook keeps the last five clips and a complete
+transcript of presenter and philosopher remarks, including interrupted lines.
+Muted commentary appears immediately. Choose **REPLAYS: NOTEBOOK ONLY** in the
+settings if you prefer to watch later.
+
+Lethal ice shots also leave a short-lived frozen body. It keeps sliding,
+bounces off clutter, and can bowl over another enemy. Shoot it with water to
+give it another shove. Its kill already counts; it never holds up the wave.
+
 Open `index.html` in a browser. It is one file with no dependencies, written in
 raw WebGL2. It loads Bangers and Nunito from Google Fonts if it can and uses
 fallback fonts if not. Your best score is kept in the browser's local storage.
@@ -63,6 +76,11 @@ With a keyboard and mouse:
 - **G** cycles the glass distortion: murky, clean, none
 - **M** mutes everything, **V** switches Žižek's voice between accented,
   plain English and off, **Esc** pauses
+- During a replay: **Space** or **click** skips, **Enter** pauses/resumes,
+  and **Esc** holds the broadcast. Touch screens have pause and back buttons.
+  Find **COUNTER NEWS CATCH-UP** inside the notebook to watch again or read
+  the full transcript. Clips and transcripts last for this run, including
+  PLEASE continues; they are not saved after reloading the page.
 
 ## What's in it
 

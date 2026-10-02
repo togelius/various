@@ -13,6 +13,12 @@ Chromium executable. The cloud environment already provides these. No package
 manifest or lockfile is needed by the game itself. `--browser` or
 `CHROMIUM_PATH` selects another installed browser.
 
+The browser integration suite can also exercise touch handlers with
+`node tools/check-browser.cjs --touch` (start the repository HTTP server first,
+as for the ordinary `check-browser.cjs` command). This includes held joystick
+and fire gestures across the automatic replay, pause and skip transitions.
+It is browser touch emulation, not a real-device ergonomics test.
+
 From the `absorb-this` directory:
 
 ```sh
