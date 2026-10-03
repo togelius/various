@@ -141,7 +141,11 @@ function audio() {
     if (AC.state === 'suspended') AC.resume();
   } catch (e) { AC = null; }
 }
-function setMuted(m) { muted = m; if (master) master.gain.value = m ? 0 : 0.5; store.set('muted', m ? 1 : 0); }
+function setMuted(m) {
+  muted = m; if (master) master.gain.value = m ? 0 : 0.5; store.set('muted', m ? 1 : 0);
+  // (M works with the pause menu up too, so its button says what M just did)
+  const b = document.getElementById('soundBtn'); if (b) b.textContent = m ? 'Sound off' : 'Sound on';
+}
 // a note: waveform, start and end pitch, length, volume, delay
 function tone(type, f0, f1, dur, vol, when) {
   if (!AC || muted || !(vol > 0.002)) return;
@@ -3865,7 +3869,8 @@ function showPanel(kind) {
       controlsList(), actions(primary, G.best ? el('span', 'muted', 'Best ' + fmtTime(G.best)) : el('span')));
   } else if (kind === 'pause') {
     primary = button('play', 'Resume', resume);
-    const snd = button('ghost', muted ? 'Sound off' : 'Sound on', () => { setMuted(!muted); snd.textContent = muted ? 'Sound off' : 'Sound on'; });
+    const snd = button('ghost', muted ? 'Sound off' : 'Sound on', () => setMuted(!muted));
+    snd.id = 'soundBtn';
     const mus = button('ghost', MUS.on ? 'Music on' : 'Music off', () => { MUS.on = !MUS.on; store.set('music', MUS.on ? 1 : 0); mus.textContent = MUS.on ? 'Music on' : 'Music off'; });
     const more = [snd, mus];
     if (IN.mode === 'keys') {
