@@ -1,0 +1,17 @@
+{
+  "name": "various — browser games + roguelike",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "static-server",
+      "command": "python3 -m http.server 8000",
+      "description": "Serves the repo over HTTP so the browser games are playable. Open e.g. http://localhost:8000/vanguard-zero/ , /power-city/ , /grift-city/ , /ananke/ , /annamatic/ , /scriptprof/ . (roguelius is a terminal game: run `python3 roguelius/roguelius.py`.)"
+    }
+  ],
+  "ports": [
+    {
+      "name": "static-server",
+      "port": 8000
+    }
+  ]
+}
