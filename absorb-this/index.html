@@ -229,10 +229,30 @@
   @media(max-width:700px){#scr[data-screen="curio"]{align-items:flex-start;padding-top:35vh;box-sizing:border-box;background:linear-gradient(transparent 27%,#10231aaa 40%);}#scr .curioCard{width:100%;max-width:none;margin:0 10px 12px;padding:20px;}#scr .curioCard h1{font-size:33px!important;}#scr .curioCard blockquote{font-size:17px;}#scr .noteGrid{grid-template-columns:1fr;}#curioPrompt{bottom:110px;font-size:10px;}}
   @media(max-height:520px) and (min-width:701px){#scr .curioCard{margin:12px 2vw 12px 0;padding:18px;}#scr .curioCard h1{font-size:30px!important;}#scr .curioCard blockquote{font-size:15px;}#scr .curioCard p{font-size:12px;}}
   #err { position:fixed; inset:0; display:none; align-items:center; justify-content:center; font-size:20px; padding:30px; text-align:center; }
+  body.broadcast #hud,body.broadcast #touchui{visibility:hidden;}
+  #replay{position:fixed;inset:0;z-index:30;pointer-events:none;color:#fff1cc;display:flex;flex-direction:column;justify-content:space-between;padding:22px;box-sizing:border-box;text-shadow:0 2px 3px #000;}
+  #replay[hidden]{display:none;}
+  .replayTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;}
+  .replayBadge{background:#90382b;padding:8px 13px;border:2px solid #ffd883;transform:rotate(-2deg);font:22px Bangers,Impact,sans-serif;letter-spacing:.08em;}
+  .replayTop small{display:block;font:10px Nunito,sans-serif;letter-spacing:.1em;margin-top:3px;}
+  .replayButtons{display:flex;gap:8px;pointer-events:auto;}
+  #replay button{font:800 12px Nunito,sans-serif;min-height:44px;background:#203e32;color:#fff1cc;border:2px solid #ffd883;border-radius:5px;padding:8px 12px;cursor:pointer;}
+  #replay button:focus-visible{outline:3px solid white;}
+  .replayCaption{background:#112e27ed;border-left:5px solid #ffd883;padding:14px 20px;max-width:760px;box-shadow:0 5px 30px #0008;}
+  #replayTitle{font:clamp(23px,3.5vw,40px) Bangers,Impact,sans-serif;margin:0 0 5px;letter-spacing:.03em;}
+  #replayLine{font:700 clamp(14px,1.6vw,18px)/1.4 Nunito,sans-serif;margin:0;}
+  #replayWho{display:block;font:900 10px Nunito,sans-serif;color:#ffd883;letter-spacing:.13em;margin-bottom:4px;}
+  #replayClock{font:10px Nunito,sans-serif;letter-spacing:.08em;margin:8px 0 0;color:#e9dab6;}
+  @media(max-width:600px){#replay{padding:12px;}.replayBadge{font-size:17px;padding:6px 9px;}.replayButtons{gap:5px;}#replay button{font-size:10px;padding:6px 8px;}.replayCaption{padding:10px 12px;}}
+  @media(max-height:430px){#replay{padding:10px;}.replayCaption{max-width:650px;padding:8px 12px;}#replayTitle{font-size:23px;}#replayLine{font-size:13px;}}
 </style>
 </head>
 <body>
 <canvas id="c" aria-label="Absorb This: a first-person shooter on a kitchen counter"></canvas>
+<div id="replay" hidden aria-label="Counter News Network instant replay">
+  <div class="replayTop"><div class="replayBadge">INSTANT REPLAY<small>COUNTER NEWS NETWORK</small></div><div class="replayButtons"><button id="replayHold">PAUSE REPLAY</button><button id="replaySkip">BACK TO THE MESS</button></div></div>
+  <div class="replayCaption"><h2 id="replayTitle"></h2><span id="replayWho"></span><p id="replayLine"></p><p id="replayClock"></p></div>
+</div>
 <div id="hud" class="off">
   <div id="xh"><i></i><i></i><i></i><i></i><b></b></div>
   <div id="hit"></div>
@@ -1576,6 +1596,7 @@ function speakPlan(plan, voice, done) {
 function cycleTalk() { talkSpeed = (talkSpeed + 1) % 4; try { localStorage.setItem('absorb.talk', talkSpeed); } catch (e) { } multiText('SPEECH: ' + TALK_NAMES[talkSpeed]); if ('speechSynthesis' in window) { speechSynthesis.cancel(); ZZ.speaking = false; } say(TALK_NAMES[talkSpeed].toLowerCase() + ' talking', true); }
 let lastSay = 0;
 function say(text, force) {
+  if (state !== 'title' && state !== 'replay') archiveComment('THE PRESENTER', text);
   if (muted || !('speechSynthesis' in window) || ZZ.speaking) return;
   const now = performance.now(); if (!force && now - lastSay < 600) return; lastSay = now;
   try {
@@ -1593,6 +1614,14 @@ const WEAPONS = [
   { name: 'SUDS-O-MATIC', sub: 'TRAPS THEM IN SOAP · FLOAT THEM OFF THE EDGE', rate: 0.5, max: 16, start: 4 },
 ];
 let state = 'title';
+// Broadcasts record pictures of a run, never a second simulation of it.
+let iceBodies = [], comedyTranscript = [], comedySerial = 0;
+let replayRing = [], replayBest = null, replayPending = 0, replaySampleT = 0, replayTime = 0;
+let replayArchive = [], replayPlayback = null, replayDrawing = false, replayCamera = null;
+let broadcastBarks = [];
+let clearTouchControls = () => {};
+let autoReplays = true;
+try { autoReplays = localStorage.getItem('absorbthis.replays') !== 'off'; } catch (e) { }
 let lastVty = '', stashSaid = {};
 let clog = { alive: false, hp: 0, max: 260, x: 0, y: 0, z: 0, r: 2.3, t: 0, siphonT: 0, fedT: 0 };
 let toolTipsSeen = {}, techHist = [], techRun = 0, techLast = '', varietyMult = 1;   // tool tips shown this run; the variety meter
@@ -1663,6 +1692,8 @@ function foeKey() { const r = Math.random(); return r < 0.4 ? nemesis : r < 0.85
 let retrySnapshot = null;
 function reset() {
   retrySnapshot = null;
+  iceBodies = []; comedyTranscript = []; comedySerial = 0; replayArchive = []; broadcastBarks = [];
+  resetReplayRecording(); replayPlayback = null; $('replay').hidden = true; document.body.classList.remove('broadcast');
   if (SIGNS.length) rerollSigns();
   runCurios=new Set();curioFocus=null;curioFocusT=0;curioPoll=0;readingCurio=null;
   P = { x: -24, y: 0, z: 17, vx: 0, vy: 0, vz: 0, yaw: -Math.PI/2, pitch: 0.035, onG: true, hp: 100, dashT: 0, dashCd: 0, coyote: 0, w: 0, wNext: 0,
@@ -1681,6 +1712,265 @@ function reset() {
   chapter=0;chapterClear=false;endless=false;runTime=0;drainHold=0;fountainT=0;
 }
 reset();
+
+// =====================================================================  the kitchen's sports department
+function archiveComment(who, text) {
+  comedyTranscript.push({ who, text, wave, district: chapter, time: runTime || 0 });
+}
+function comedyEscape(text) {
+  return String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function resetReplayRecording() {
+  replayRing = []; replayBest = null; replayPending = 0; replaySampleT = 0; replayTime = 0;
+}
+function toggleReplays() {
+  autoReplays = !autoReplays;
+  try { localStorage.setItem('absorbthis.replays', autoReplays ? 'on' : 'off'); } catch (e) { }
+}
+function afterBroadcast(fn) {
+  if (replayPlayback) { if (!replayPlayback.notebook) replayPlayback.after.push(fn); }
+  else fn();
+}
+// Only visual values cross into a recording. No owners, AI references, hit sets,
+// DOM nodes or live objects can be reached from a frame.
+function replayVisual(o) {
+  const copy = {};
+  for (const [k, v] of Object.entries(o)) {
+    if (v === null || ['number', 'string', 'boolean'].includes(typeof v)) copy[k] = v;
+    else if (Array.isArray(v) && v.every(n => typeof n === 'number')) copy[k] = v.slice();
+  }
+  if (o.grudge && !o.grudge.dead) copy.grudge = { dead: false };
+  return copy;
+}
+function replayFrame() {
+  const sampledParts = parts.filter((p, i) => i % Math.max(1, Math.ceil(parts.length / 128)) === 0);
+  return { at: replayTime, T, P: replayVisual(P), MOD, chapter, chapterClear, endless, drainHold,
+    enemies: enemies.filter(e => !e.dead).map(replayVisual), iceBodies: iceBodies.map(replayVisual),
+    clog: replayVisual(clog), rockets: rockets.map(replayVisual), soaps: soaps.map(replayVisual),
+    globs: globs.map(g => ({ ...replayVisual(g), fromClog: g.owner === clog })),
+    parts: sampledParts.map(replayVisual), stains: stains.slice(-100).map(replayVisual), pickups: pickups.map(replayVisual) };
+}
+const REPLAY_REMARKS = {
+  bowling: ['POSTHUMOUS EMPLOYEE OF THE MONTH', [
+    '{actor} has been defeated, yet continues working. Finally, the ideal employee.',
+    'First you turn the worker into a thing. Then you blame the thing for hitting management.',
+    'The employee has lost its agency but gained considerable momentum. An excellent career move.'
+  ]],
+  ice: ['COLD CASE REFUSES TO CLOSE', [
+    'Observe {actor}. Officially finished. Materially, still very much in the way.',
+    'We have abolished the enemy. Unfortunately, we have retained its means of production.',
+    'The freezer calls this preservation. The employee would have preferred a union.'
+  ]],
+  curling: ['KITCHEN RECOGNISES WINTER SPORT', [
+    'Nobody agreed on the rules. Nevertheless, somebody is now the ball.',
+    'An irresistible argument meets an insufficiently immovable object.',
+    'The frozen participant has entered the debate sideways. Already, a significant contribution.'
+  ]],
+  shatter: ['THE ARGUMENT HAS BECOME SEVERAL SMALLER ARGUMENTS', [
+    'One convincing counterexample. Hundreds of unconvinced fragments.',
+    'The opposition has fragmented. Each piece insists it is the original movement.',
+    'At last, a genuinely pluralistic position. You will find it all over the counter.'
+  ]],
+  toast: ['LOCAL PAPER PUBLISHES ITSELF WELL DONE', [
+    'The paper met the hot take. For once, the criticism was materially devastating.',
+    'The kitchen calls this a heated debate. Notice that only one participant is allowed to be paper.',
+    'The roll promised to absorb every opinion. It had not considered the temperature.'
+  ]],
+  scorch: ['HOT TAKE EXCEEDS SAFE OPERATING TEMPERATURE', [
+    '{actor} approached the debate in good faith. The burner approached it at several hundred degrees.',
+    'We asked for a warm reception. This is an institutional overreaction.',
+    'The position was untenable. The thermostat has now supplied the peer review.'
+  ]],
+  fall: ['FLOOR WELCOMES LATEST EXPERT', [
+    '{actor} has left the discourse. The floor has agreed to host the next panel.',
+    'A downwardly mobile kitchen professional. The counter denies any structural involvement.',
+    'Gravity is the only institution here that delivers exactly what it promises.'
+  ]],
+  multi: ['SEVERAL POSITIONS VACATED SIMULTANEOUSLY', [
+    'A collective solution! None of the participants remembers consenting to the collective.',
+    'The committee has reached a consensus. It is mostly on the counter.',
+    'Notice how quickly disagreement ends when the participants become particles.'
+  ]],
+  kill: ['THE COUNTER WOULD LIKE ANOTHER LOOK', [
+    '{actor} was absolutely certain of its position. The position is now available.',
+    'The kitchen assures us that this was cleaning. We have retained the footage.',
+    'A small victory for water. An enormous administrative problem for the kitchen.'
+  ]]
+};
+function noteReplay(kind, actor, details = {}) {
+  if (state !== 'play' || (!waveActive && !replayPending) || replayRing.length < 4 || !actor) return;
+  if (Math.hypot(actor.x - P.x, actor.z - P.z) > 42) return;
+  const ranks = { bowling: 9, curling: 9, cascade: 8, toast: 8, scorch: 7, shatter: 6, sauceFeud: 7, upperClass: 7, launch: 6, heatLift: 6, redistribution: 5, property: 4, multi: 5, fall: 4, ice: 3, kill: 1 };
+  const rank = (ranks[kind] || 2) + (details.callback ? 2 : 0) + Math.min(3, Math.max(0, (details.count || 1) - 1));
+  if (replayBest && replayBest.rank >= rank) return;
+  const bank = REPLAY_REMARKS[kind] || REPLAY_REMARKS.kill;
+  const name = kitchenActorName(actor);
+  replayBest = { kind, rank, wave, district: chapter, actor: name, actorId: actor.replayId,
+    focus: [actor.x, Math.max(0, actor.y) + actor.h * .5, actor.z],
+    title: details.title || bank[0], line: details.line || pick(bank[1]).replaceAll('{actor}', name),
+    eventAt: replayTime, until: replayTime + 1.1, frames: replayRing.slice(-40) };
+}
+function recordReplay(dt) {
+  if (!waveActive && !replayPending) return;
+  replayTime += dt; replaySampleT -= dt;
+  if (replaySampleT <= 0) {
+    replaySampleT += .05;
+    const frame = replayFrame(); replayRing.push(frame); if (replayRing.length > 42) replayRing.shift();
+    if (replayBest && frame.at <= replayBest.until && replayBest.frames.length < 64) replayBest.frames.push(frame);
+  }
+  if (replayPending && jokeT <= 0 && !ZZ.lock) {
+    replayPending = Math.max(0, replayPending - dt);
+    if (!replayPending) {
+      const clip = replayBest;
+      resetReplayRecording();
+      if (clip && clip.frames.length >= 5) {
+        replayArchive.push(clip); if (replayArchive.length > 5) replayArchive.shift();
+        if (autoReplays) beginReplay(clip);
+      }
+    }
+  }
+}
+function beginReplay(clip, notebook = false) {
+  if (replayPlayback || !clip.frames.length) return;
+  const duration = clip.frames.at(-1).at - clip.frames[0].at;
+  replayPlayback = { clip, elapsed: 0, duration, hold: Math.max(1.8, clip.line.length / 23 - duration / .65),
+    paused: false, notebook, after: [], returnState: state, returnScreen: screenKind };
+  state = 'replay'; mouseDown = false; for (const k in keys) keys[k] = false;
+  stickV.x = stickV.y = 0; clearTouchControls(); zHide(); hideScreen();
+  document.body.classList.add('broadcast'); $('replay').hidden = false;
+  $('replayTitle').textContent = clip.title; $('replayWho').textContent = 'ŽIŽEKBOT · SPORTS DESK';
+  $('replayLine').textContent = clip.line; $('replaySkip').textContent = notebook ? 'BACK TO NOTEBOOK' : 'BACK TO THE MESS';
+  holdReplay(false); updateReplay(0);
+  if (!clip.broadcasted) {
+    archiveComment('COUNTER NEWS NETWORK · REPLAY', clip.title);
+    archiveComment('ŽIŽEKBOT · SPORTS DESK', clip.line); clip.broadcasted = true;
+  }
+  zVoice(clip.line);
+}
+function holdReplay(paused) {
+  if (!replayPlayback) return;
+  replayPlayback.paused = paused;
+  $('replayHold').textContent = paused ? 'RESUME REPLAY' : 'PAUSE REPLAY';
+  if (paused) zHide();
+  updateReplay(0);
+}
+function updateReplay(dt) {
+  const r = replayPlayback; if (!r) return;
+  if (!r.paused) r.elapsed += dt;
+  const left = Math.max(0, r.duration / .65 + r.hold - r.elapsed);
+  $('replayClock').textContent = `WAVE ${r.clip.wave} · ${r.paused ? 'PAUSED · ENTER TO RESUME' : left <= r.hold ? 'THE PANEL IS CONSIDERING THE EVIDENCE' : 'SLOW MOTION · RECORDED FOOTAGE'} · ${TOUCH ? 'TAP BACK TO SKIP' : r.paused ? 'SPACE TO SKIP' : 'SPACE TO SKIP · ENTER TO PAUSE'} · THE KITCHEN IS WAITING`;
+  // Speech can be slower than reading, especially with the accented voice.
+  // zUpdate supplies the existing speech watchdog; skip always remains immediate.
+  if (left <= 0 && !ZZ.speaking) finishReplay();
+}
+function finishReplay() {
+  const r = replayPlayback; if (!r) return;
+  replayPlayback = null; zHide(); $('replay').hidden = true; document.body.classList.remove('broadcast');
+  mouseDown = false; for (const k in keys) keys[k] = false; stickV.x = stickV.y = 0; clearTouchControls();
+  state = r.returnState;
+  if (r.notebook) { showScreen(r.returnScreen); return; }
+  broadcastBarks.push(...r.after);
+  P.iT = Math.max(P.iT, 2); interT = 2.5;
+  ZZ.cool = nowS() + 2; ZZ.nextIdle = T + 8;
+  if (clog.alive) announce('THE CLOG IS STILL HERE', 'FIZZ CLEARS THE DRAIN · WATER FEEDS THE CLOG');
+  else if (chapterClear && !endless) announce('DISTRICT CLEAR', chapter < 4 ? 'CHECKPOINT OPEN → ' + CHAPTERS[chapter + 1].name : 'GET TO THE DRAIN · HOLD E TO PULL THE PLUG');
+  if (!locked && !TOUCH) { state = 'paused'; showScreen('pause'); }
+}
+$('replaySkip').addEventListener('click', finishReplay);
+$('replayHold').addEventListener('click', () => holdReplay(!replayPlayback?.paused));
+function replayActors(a, b, mix) {
+  const next = new Map(b.map(e => [e.replayId, e]));
+  return a.map(e => {
+    const n = next.get(e.replayId); if (!n) return e;
+    return { ...e, x: lerp(e.x, n.x, mix), y: lerp(e.y, n.y, mix), z: lerp(e.z, n.z, mix), yaw: angLerp(e.yaw, n.yaw, mix), t: lerp(e.t, n.t, mix) };
+  });
+}
+function renderReplay() {
+  const r = replayPlayback, frames = r.clip.frames;
+  // Let the aftermath play, then hold the actual impact for the panel's verdict.
+  const at = r.elapsed * .65 <= r.duration ? frames[0].at + r.elapsed * .65 : Math.min(frames.at(-1).at, r.clip.eventAt + .1);
+  let i = 0; while (i < frames.length - 1 && frames[i + 1].at <= at) i++;
+  const f = frames[i], n = frames[Math.min(i + 1, frames.length - 1)], mix = n.at > f.at ? (at - f.at) / (n.at - f.at) : 0;
+  const live = { P, enemies, iceBodies, clog, rockets, globs, soaps, parts, stains, pickups, pops, splats, T, MOD, chapter, chapterClear, endless, drainHold, shake, greyV };
+  try {
+    replayDrawing = true;
+    ({ T, MOD, chapter, chapterClear, endless, drainHold } = f);
+    P = { ...f.P, fov: 0, hurtT: 0, absorbT: 0, pudT: 0 };
+    enemies = replayActors(f.enemies, n.enemies.concat(n.iceBodies), mix);
+    iceBodies = replayActors(f.iceBodies, n.iceBodies, mix);
+    clog = f.clog; rockets = f.rockets; soaps = f.soaps; parts = f.parts; stains = f.stains; pickups = f.pickups;
+    globs = f.globs.map(g => ({ ...g, owner: g.fromClog ? clog : null }));
+    pops = []; splats = []; shake = 0; greyV = 0;
+    // A fixed camera keeps the lead-up and the consequences in the same shot.
+    // Place it on the player's side of the incident, stopping before scenery.
+    const target = r.clip.focus, first = frames[0].P;
+    const dx = first.x - target[0], dz = first.z - target[2], len = Math.hypot(dx, dz) || 1;
+    let eye, longest = -1;
+    for (const angle of [0, Math.PI / 3, -Math.PI / 3, Math.PI]) {
+      const c = Math.cos(angle), s = Math.sin(angle);
+      const off = [(dx * c - dz * s) / len * 12, 6.5, (dz * c + dx * s) / len * 12];
+      const dist = Math.hypot(...off), dir = off.map(v => v / dist);
+      const reach = Math.max(.5, rayStatic(...target, ...dir, dist) - .4);
+      if (reach > longest) { longest = reach; eye = target.map((v, j) => v + dir[j] * reach); }
+      if (reach > 10) break;
+    }
+    replayCamera = { eye, yaw: Math.atan2(-(target[0] - eye[0]), -(target[2] - eye[2])), pitch: Math.atan2(target[1] - eye[1], Math.hypot(target[0] - eye[0], target[2] - eye[2])) };
+    render();
+  } finally {
+    ({ P, enemies, iceBodies, clog, rockets, globs, soaps, parts, stains, pickups, pops, splats, T, MOD, chapter, chapterClear, endless, drainHold, shake, greyV } = live);
+    replayCamera = null; replayDrawing = false;
+  }
+}
+function broadcastNotebookHTML() {
+  return `<details class="noteDistrict"><summary>COUNTER NEWS CATCH-UP · ${replayArchive.length} REPLAYS · ${comedyTranscript.length} REMARKS</summary>
+    <p class="fine">The last five wave highlights, and every presenter / Žižek remark this spill, including interrupted lines. PLEASE keeps the transcript. A new spill starts a new edition.</p>
+    ${replayArchive.map((c, i) => `<button class="noteEntry" data-replay="${i}"><strong>▶ ${comedyEscape(c.title)}</strong><span>WAVE ${c.wave} · ${comedyEscape(c.actor)}</span></button>`).reverse().join('')}
+    <details><summary>READ THE COMPLETE TRANSCRIPT</summary>${comedyTranscript.slice().reverse().map(e => `<article class="noteEntry"><strong>${comedyEscape(e.who)}</strong><p>${comedyEscape(e.text)}</p><span>WAVE ${e.wave} · ${comedyEscape(CHAPTERS[e.district]?.short || 'THE KITCHEN')}</span></article>`).join('') || '<p>The microphone is still dry.</p>'}</details></details>`;
+}
+
+// A lethal ice shot earns its kill immediately. The frozen body is a prop,
+// never an extra enemy or another opportunity to collect that kill's score.
+function leaveIceBody(e, dx, dz) {
+  kitchenActorName(e); // A defeated actor keeps the same name in its second career.
+  const len = Math.hypot(dx, dz) || 1, speed = clamp(Math.hypot(e.vx, e.vz), 19, 28);
+  const body = { ...replayVisual(e), iceProp: true, dead: false, hp: 0, bub: 0, frozen: 5.5, life: 5.5,
+    vx: (dx || dz ? dx / len : -Math.sin(P.yaw)) * speed,
+    vz: (dx || dz ? dz / len : -Math.cos(P.yaw)) * speed, vy: Math.min(3, Math.max(0, e.vy)),
+    spawnT: 0, flash: 0, sq: 1, struck: new Set(), bounces: 0 };
+  iceBodies.push(body); if (iceBodies.length > 12) iceBodies.shift();
+}
+function updateIceBodies(dt) {
+  // Substeps keep a fast puck from tunnelling through a sponge or a thin wall.
+  const steps = Math.max(1, Math.ceil(dt * 60)), step = dt / steps;
+  for (let n = 0; n < steps; n++) for (const b of iceBodies.slice()) {
+    if (b.life <= 0) continue;
+    b.life -= step; b.frozen = b.life; b.t += step;
+    const oldX = b.vx, oldZ = b.vz, speed = Math.hypot(oldX, oldZ);
+    b.vy -= GRAV * gs * step; b.vx *= Math.exp(-step * .35); b.vz *= Math.exp(-step * .35);
+    b.x += b.vx * step; b.y += b.vy * step; b.z += b.vz * step;
+    if (collide(b, b.r * .85, b.h)) {
+      b.vx = (2 * b.vx - oldX) * .75; b.vz = (2 * b.vz - oldZ) * .75;
+      if (++b.bounces > 3) b.life = 0;
+    }
+    const floor = groundAt(b.x, b.z, b.y + .35);
+    if (b.y < floor) { b.y = floor; b.vy = 0; }
+    if (speed > 5) for (const e of enemies) {
+      if (e.dead || b.struck.has(e.replayId) || Math.abs(e.y - b.y) > Math.max(2, b.h)) continue;
+      if (Math.hypot(e.x - b.x, e.z - b.z) >= e.r + b.r) continue;
+      b.struck.add(e.replayId);
+      damageEnemy(e, 25 + speed * 3, oldX / speed, .35, oldZ / speed, speed + 8, 4, false, 'ICE BOWLING');
+      noteReplay('bowling', b, { count: b.struck.size });
+      pop(e.x, e.y + e.h + 1, e.z, pick(['STRIKE!', 'POSTHUMOUS PROMOTION!', 'STILL ON THE PAYROLL!', 'ICE BOWLING!']), true);
+      zz('curling', { p: .5 }); b.vx *= .8; b.vz *= .8;
+    }
+    if (b.y < -18) b.life = 0;
+    if (b.life <= 0) {
+      gibs(b.x, b.y + b.h * .5, b.z, 9, [[.7,.9,1]], { mat: 12, smin: .08, smax: .22, maxS: 5, maxU: 5 });
+      if (onCounter(b.x, b.z)) stain(b.x, Math.max(0, b.y), b.z, b.r, WET);
+    }
+  }
+  iceBodies = iceBodies.filter(b => b.life > 0);
+}
 
 // =====================================================================  particles
 function part3(o) {
@@ -4223,6 +4513,7 @@ function kitchenIncident(kind, details = {}) {
   const text = kitchenWords(pick(material.lines), actorName, otherName);
   const news = kitchenWords(pick(material.news), actorName, otherName);
   const entry = { kind, callback, actor: actorName, other: otherName, wave, district: chapter, text, news };
+  noteReplay(kind, at, { title: news, line: text, callback });
   story.entries.push(entry); if (story.entries.length > 48) story.entries.shift();
   story.pending.push({ text, expires: story.time + 45 });
   if (story.pending.length > 6) story.pending.shift();
@@ -4532,7 +4823,10 @@ function zz(key, o = {}) {
 function zShow(text, o = {}) {
   ZZ.on = true; ZZ.text = text; ZZ.shown = 0; ZZ.big = !!o.big; ZZ.sniffAt = text.indexOf('*sniff*');
   ZZ.hideAt = nowS() + 1.8 + text.length * 0.055; ZZ.cool = ZZ.hideAt + (o.cool === undefined ? 5 : o.cool);
-  $('zz').className = 'on' + (ZZ.big ? ' big' : ''); $('zztext').textContent = ''; $('zzwho').textContent = pick(ZNAMES);
+  $('zz').className = 'on' + (ZZ.big ? ' big' : ''); $('zzwho').textContent = pick(ZNAMES);
+  archiveComment($('zzwho').textContent, text);
+  if (muted || zVoiceMode === 2) ZZ.shown = text.length;
+  $('zztext').textContent = text.slice(0, Math.floor(ZZ.shown));
   zVoice(text);
 }
 function zHide() {
@@ -4699,7 +4993,7 @@ const RANKS = [[0, '', ''], [3, 'D', 'DAMP'], [6, 'C', 'CLAMMY'], [10, 'B', 'BRI
 const NAMES = { sponge: 'SPONGE', bottle: 'HOT SAUCE', spoon: 'SPOON', mama: 'GRANDMA SPONGE', roll: 'PAPER TOWEL', fork: 'THE FORK' };
 const WICON = ['SQUIRTER', 'ICE SHOTGUN', 'SELTZER', 'SUDS-O-MATIC', 'THE FLOOR', 'THE ROLL'];
 function makeEnemy(type, x, z, s = 1) {
-  const e = { type, x, y: 0, z, vx: 0, vy: 0, vz: 0, yaw: Math.atan2(P.x - x, P.z - z), t: Math.random() * 10, s, flash: 0, sq: 1, sqv: 0,
+  const e = { replayId: ++comedySerial, type, x, y: 0, z, vx: 0, vy: 0, vz: 0, yaw: Math.atan2(P.x - x, P.z - z), t: Math.random() * 10, s, flash: 0, sq: 1, sqv: 0,
     cd: rand(0.5, 1.5), state: 0, stT: rand(1.5, 3), stun: 0, wet: 0, spawnT: 0.45, px: 0, py: -0.5, pvx: 0, pvy: 0, lvx: 0, lvy: 0, lvz: 0, orbit: Math.random() < 0.5 ? 1 : -1, chomp: 0, lastHit: -1, grudge: null, grudgeT: 0, feudCd: 0, storedWater: 0, propertyT: 0, propertyCd: 0, padCd: 0, heatCd: 0, leakT: 0 };
   if (type === 'sponge') { const big = s >= 3.5; e.hp = s >= 3.5 ? 1100 : s >= 1.8 ? 200 : s < 0.8 ? 18 : 40; e.r = 0.8 * s; e.h = 0.9 * s; e.speed = big ? 5 : s >= 1.8 ? 7 : s < 0.8 ? 11 : 8.5; if (big) e.type = 'mama'; }
   if (type === 'roll') { e.hp = 420; e.r = 2.6; e.h = 3; e.speed = 8.5; e.len = 4.4; e.rot = 0; e.hitCd = 0; e.vz = 1.5; e.yaw = 0; }
@@ -4758,7 +5052,7 @@ function spawnClog() {
   Object.assign(clog, { alive: true, hp: 260, x: DRAIN.x, y: 1.3, z: DRAIN.z, t: 0, siphonT: 2, fedT: 0, spitT: 3, burpT: 6, suckSaid: false });
   announce('THE CLOG', 'HAIR, NOODLES, A CONTACT LENS AND THIRTY YEARS OF IDEOLOGY'); sfx('wave');
   headlineNow('DRAIN BLOCKED BY UNIDENTIFIED MASS. PLUMBER "ON THE WAY" SINCE TUESDAY');
-  setTimeout(() => { if (state === 'play' && clog.alive) { zz('clog', { force: true }); feed('TIP <em>WATER ONLY FEEDS THE CLOG · FIZZ AND ICE BREAK IT UP</em>'); } }, 1800);
+  setTimeout(() => afterBroadcast(() => { if (state === 'play' && clog.alive) { zz('clog', { force: true }); feed('TIP <em>WATER ONLY FEEDS THE CLOG · FIZZ AND ICE BREAK IT UP</em>'); } }), 1800);
 }
 function clogHit(dmg, w, x, y, z) {
   if (!clog.alive) return;
@@ -4908,6 +5202,7 @@ function buildWave(n) {
   return q;
 }
 function startWave(n) {
+  resetReplayRecording();
   wave = n; MOD = null; gs = 1;
   if (n >= 6 && n % 7 !== 0 && Math.random() < (n < 10 ? 0.5 : 0.7)) { MOD = pick(Object.keys(MODS).filter(k => k !== lastMod)); lastMod = MOD; gs = MOD === 'moon' ? 0.4 : 1; }
   spawnQ = buildWave(n);
@@ -5079,6 +5374,8 @@ function killEnemy(e, weapon, dx = 0, dz = 0, head = false, fell = false, source
   let pts = base * mult * (head ? 1.5 : 1) * (fell ? 2 : 1);
   pts *= techVariety(e.shattered && !source ? 'shatter' : source ? 'kitchen' : fell ? (e.wasBub ? 'bubble' : 'edge') : e.squashed ? 'squash' : P.pud ? 'puddle' : ['squirt', 'ice', 'fizz', 'soap'][weapon] || 'squirt');
   score += Math.round(pts); killCount++;
+  if (!fell && !e.shattered && freezable(e) && (weapon === 1 || e.frozen > 0)) leaveIceBody(e, dx, dz);
+  if (source !== 'ICE BOWLING' && source !== 'CURLING') noteReplay(source === 'HOTPLATE' ? (e.type === 'roll' ? 'toast' : 'scorch') : fell ? 'fall' : e.shattered ? 'shatter' : multi >= 2 ? 'multi' : weapon === 1 && freezable(e) ? 'ice' : 'kill', e, { count: multi });
   const word = pick(KILLW[fell ? (e.wasBub ? 'bubble' : 'fall') : e.squashed ? 'squash' : e.gold ? 'gold' : e.type]);
   if (Math.random() < 0.55) say(word.replace(/[!?.]/g, '').toLowerCase()); else if (Math.random() < 0.5) say(pick(SHOUTS).toLowerCase());
   chalEvent('kill'); if (fell) chalEvent('fall');
@@ -5246,6 +5543,7 @@ function updateEnemies(dt) {
         if (o === e || o.dead || o.bub > 0 || o.type === 'roll') continue;
         if (Math.hypot(o.x - e.x, o.z - e.z) < o.r + e.r && Math.abs(o.y - e.y) < 2) {
           damageEnemy(o, 25 + sp * 4, e.vx / sp, .3, e.vz / sp, 8 + sp, 4, false, 'CURLING'); e.vx *= .45; e.vz *= .45; e.curled = (e.curled || 0) + 1;
+          noteReplay('curling', e, { count: e.curled });
           pop(o.x, o.y + o.h + 1, o.z, pick(['CURLING!', 'STRIKE!', 'SWEEP! SWEEP!', 'HURRY HARD!', 'ICE BOWLING!']), false); zz('curling', { p: 0.5 });
           if (o.frozen > 0) { o.vx += e.vx; o.vz += e.vz; }
         }
@@ -5543,7 +5841,7 @@ function nearestSphere(e, x, y, z) { let bd = 1e9, bh = null; for (const h of hi
 function hitscan(o, d, dmg, knock, weapon, tracer) {
   const tW = rayStatic(o[0], o[1], o[2], d[0], d[1], d[2], 90);
   let best = null, bt = tW;
-  for (const e of enemies) {
+  for (const e of enemies.concat(iceBodies)) {
     if (e.dead) continue;
     for (const hs of hitSpheres(e)) {
       const R = hs[3] * (TOUCH ? 1.3 : 1), ox = o[0] - hs[0], oy = o[1] - hs[1], oz = o[2] - hs[2];
@@ -5563,7 +5861,11 @@ function hitscan(o, d, dmg, knock, weapon, tracer) {
     if (MOD === 'googly' && e.type !== 'roll') head = head || hy > best.cy - 0.15;
     if (e.bub > 0) head = false;
     const hn = Math.hypot(d[0], d[2]) || 1;
-    damageEnemy(e, dmg, d[0] / hn, d[1], d[2] / hn, knock, weapon, head);
+    if (e.iceProp) {
+      const speed = Math.min(32, Math.hypot(e.vx, e.vz) + (weapon === 1 ? 2 : 9));
+      e.vx = d[0] / hn * speed; e.vz = d[2] / hn * speed; e.vy = Math.max(e.vy, 1);
+      gibs(hx, hy, hz, 2, [[.7,.9,1]], { mat: 12, smin: .04, smax: .09, maxS: 3, maxU: 3 });
+    } else damageEnemy(e, dmg, d[0] / hn, d[1], d[2] / hn, knock, weapon, head);
   } else if (bt < 90) {
     if (hz < -21.4 && hx > -28.2 && hx < -15.8 && hy > 23.3 && hy < 38.7) posterHit(hx, hy, hz);
     if (weapon === 0) gibs(hx, hy, hz, 4, WATER, { sph: true, mat: 12, smin: 0.04, smax: 0.1, maxS: 4, maxU: 5, lifeMin: 0.3, lifeMax: 0.8, stain: WET });
@@ -5807,15 +6109,16 @@ function updateWaves(dt) {
       P.hp = Math.min(100, P.hp + 30); P.ammo[1] = Math.min(WEAPONS[1].max, P.ammo[1] + 6); P.ammo[2] = Math.min(WEAPONS[2].max, P.ammo[2] + 2); P.ammo[3] = Math.min(WEAPONS[3].max, P.ammo[3] + 2);
       if (!endless && wave >= CHAPTERS[chapter].last) { chapterClear=true; headlineNow(CHAPTERS[chapter].name+' DECLARES EMERGENCY OVER. NEIGHBOURING DISTRICT INFORMED TOO LATE'); }
       announce(chapterClear&&!endless ? 'DISTRICT CLEAR' : pick(CLEARW), chapterClear&&!endless ? (chapter===4?'GET TO THE DRAIN · HOLD E TO PULL THE PLUG':'CHECKPOINT OPEN → '+CHAPTERS[chapter+1].name) : `+${bonus} · +30 DAMPNESS · ` + pick(['FREE ICE', 'NICE WORK, DRIP', 'THE FRIDGE APPROVES', 'MOIST AND VICTORIOUS', 'HYDRATION RESTORED', 'THE TAP SALUTES YOU', 'DRIP DRIP HOORAY', 'GLASS HALF FULL AGAIN', 'STILL WET, STILL HERE'])); sfx('clear'); say(pick(['counter cleaned', 'spotless', 'the kitchen is quiet. for now', 'wave washed', 'squeaky clean', 'all dried up. except you', 'rinse complete', 'dishes done']), true);
-      setTimeout(() => zz('clear', { p: 0.7 }), 2200);
+      setTimeout(() => afterBroadcast(() => zz('clear', { p: 0.7 })), 2200);
       // Give the finale the last word instead of immediately overwriting its arrival.
       if (!endless && chapterClear && chapter === 4) spawnClog();
+      if (replayBest) { replayPending = 1.25; P.iT = Math.max(P.iT, 2); }
     }
-  } else if (!chapterClear || endless) { interT -= dt; if (interT <= 0) startWave(wave + 1); }
+  } else if ((!chapterClear || endless) && !replayPending) { interT -= dt; if (interT <= 0) startWave(wave + 1); }
 }
 function update(dt) {
   if (state === 'play') updatePlayer(dt);
-  updateEnemies(dt); updateClog(dt); updateGlobs(dt); updateRockets(dt); updateSoaps(dt); updateParticles(dt); updatePickups(dt);
+  updateEnemies(dt); updateIceBodies(dt); updateClog(dt); updateGlobs(dt); updateRockets(dt); updateSoaps(dt); updateParticles(dt); updatePickups(dt);
   for (const h of hazards) { h.t -= dt; if (Math.random() < dt * 4) part3({ x: h.x + rand(-h.r, h.r) * 0.7, y: 0.1, z: h.z + rand(-h.r, h.r) * 0.7, vy: rand(1, 3), life: 0.6, size: rand(0.05, 0.12), col: [1.2, 0.4, 0.1], mat: 7, sph: true, grav: -1, bounce: 0 }); }
   hazards = hazards.filter(h => h.t > 0);
   for (const s of splats) s.life -= dt * 0.33;
@@ -5823,6 +6126,7 @@ function update(dt) {
   if (state === 'play') {
     kitchenUpdate(dt); if(state!=='play')return;
     updateWaves(dt);
+    if (broadcastBarks.length && !ZZ.on && !ZZ.lock && nowS() >= ZZ.cool) broadcastBarks.shift()();
     if (T > ZZ.nextIdle) { ZZ.nextIdle = T + rand(22, 36); if (!zz(forkStatus !== 'rumour' && Math.random() < 0.3 ? 'forkAfter' : Math.random() < 0.6 ? foeKey() : 'idle')) ZZ.nextIdle = T + 3; }   // busy? try again shortly
     updateKitchenStories(dt);
     chalUpdate(dt);
@@ -6007,10 +6311,13 @@ function fillInst(list, arr) {
 // vertical FOV for this aspect: in portrait, widen it so the horizontal view matches a square screen (capped)
 function fitFov(fovy, aspect) { return aspect >= 1 ? fovy : Math.min(1.9, 2 * Math.atan(Math.tan(fovy / 2) / aspect)); }
 function render() {
+  if (replayPlayback && !replayDrawing) { renderReplay(); return; }
   if(screenKind==='curio'&&readingCurio){renderSpecimen();return;}
   const aspect = W / H;
   let eye;
-  if (state === 'title') {
+  if (replayCamera) {
+    eye = replayCamera.eye; camYaw = replayCamera.yaw; camPitch = replayCamera.pitch;
+  } else if (state === 'title') {
     const a = T * 0.08;
     eye = [4 + Math.sin(a) * 22, 5 + Math.sin(T * 0.3) * 1.5, 4 + Math.cos(a) * 16];
     camYaw = Math.atan2(-(4 - eye[0]), -(-2 - eye[2])); camPitch = -0.12;
@@ -6058,6 +6365,7 @@ function render() {
   gl.bindVertexArray(CUBE.vao); gl.drawElements(gl.TRIANGLES, CUBE.n, gl.UNSIGNED_SHORT, 0);
   gl.useProgram(PR_MAIN.p);
   for (const e of enemies) { partTint = e.frozen > 0 ? [.42, .6, .78] : null; drawEnemy(e); } partTint = null;
+  for (const e of iceBodies) { partTint = [.42, .6, .78]; drawEnemy(e); } partTint = null;
   drawClog();
   for (const r of rockets) {
     ident(cur); tr(cur, r.x, r.y, r.z); ry(cur, Math.atan2(-r.vx, -r.vz)); rx(cur, Math.atan2(r.vy, Math.hypot(r.vx, r.vz))); rx(cur, -Math.PI / 2);
@@ -6085,7 +6393,7 @@ function render() {
   n = fillInst(sphs, instData.sph);
   if (n) { gl.bindBuffer(gl.ARRAY_BUFFER, instBuf.sph); gl.bufferSubData(gl.ARRAY_BUFFER, 0, instData.sph, 0, n * 12); gl.bindVertexArray(ISPH.vao); gl.drawElementsInstanced(gl.TRIANGLES, ISPH.n, gl.UNSIGNED_SHORT, 0, n); }
   // translucent soap film
-  const bubs = enemies.filter(e => e.bub > 0 && !e.dead), ices = enemies.filter(e => e.frozen > 0 && !e.dead);
+  const bubs = enemies.filter(e => e.bub > 0 && !e.dead), ices = enemies.filter(e => e.frozen > 0 && !e.dead).concat(iceBodies);
   if (bubs.length || soaps.length || ices.length) {
     gl.useProgram(PR_MAIN.p); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
     for (const e of bubs) { const R = bubR(e) * (1 + Math.sin(T * 7 + e.t) * 0.04), fl = e.bub < 1.5 && Math.sin(T * 30) > 0; ident(cur); part(SPH, e.x, bubCY(e), e.z, R, R * 0.95, R, fl ? [1.6, 1.3, 1.3] : WHITE, 17); }
@@ -6096,7 +6404,7 @@ function render() {
     gl.depthMask(true); gl.disable(gl.BLEND);
   }
   // viewmodel
-  if (state !== 'title') {
+  if (state !== 'title' && !replayDrawing) {
     gl.clear(gl.DEPTH_BUFFER_BIT); gl.useProgram(PR_MAIN.p);
     persp(PROJ, fitFov(70 * Math.PI / 180, aspect), aspect, 0.02, 10); mul(VP, PROJ, VIEW); gl.uniformMatrix4fv(PR_MAIN.u.uVP, false, VP);
     gl.uniform1f(PR_MAIN.u.uViewmodel,1);drawViewmodel(eye);gl.uniform1f(PR_MAIN.u.uViewmodel,0);
@@ -6128,6 +6436,7 @@ function render() {
 // =====================================================================  HUD
 let lastHud = '';
 function hud(dt) {
+  if (replayPlayback) return;
   for (const p of pops) { p.t -= dt; if (p.t <= 0) p.el.remove(); }
   pops = pops.filter(p => p.t > 0);
   hitT -= dt; const h = $('hit'); h.style.opacity = hitT > 0 ? 1 : 0; h.className = hitKill ? 'kill' : hitF < 0.7 ? 'resist' : hitF > 1.2 ? 'crit' : '';
@@ -6214,6 +6523,7 @@ function journalHTML(){
     <p>${curioFound.size}/${CURIOS.length} acquaintances · ${runCurios.size} this spill</p>
     <p class="fine">Look closely at small kitchenware. ${TOUCH?'Tap EXAMINE when it appears.':'Press F when LOOK CLOSER appears.'} Reading pauses the action. Cleared districts stay quiet until you move on.</p>
     <div class="actions"><button class="action secondary" data-action="notebook-back">BACK</button></div>
+    ${broadcastNotebookHTML()}
     ${kitchenMinutesHTML()}
     ${CHAPTERS.map((c,i)=>`<section class="noteDistrict"><h2>${c.name} <small>${CURIOS.filter(r=>r.district===i&&curioFound.has(r.id)).length}/4</small></h2><div class="noteGrid">${CURIOS.filter(r=>r.district===i).map(r=>curioFound.has(r.id)?`<button class="noteEntry" data-curio="${r.id}"><strong>${r.name}</strong><span>${r.school}</span></button>`:`<div class="noteEntry undiscovered"><strong>Something has not yet explained itself.</strong><details><summary>A small nudge</summary><p>${r.hint}</p></details></div>`).join('')}</div></section>`).join('')}
     ${curioFound.size===CURIOS.length?'<section class="noteDiploma"><p class="eyebrow">THE ENTIRE FACULTY HAS BEEN CONSULTED</p><h2>DOCTOR OF COUNTER PHILOSOPHY</h2><p>You are now qualified to disagree with every object in the room. Employability remains unchanged.</p><p class="fine">Accredited by the University of the Third Drawer. Graduation robes: one tea towel.</p></section>':''}
@@ -6334,7 +6644,7 @@ function cloneRetry(value, seen = new Map([[WET, WET]])) {
   return copy;
 }
 function captureRetry() {
-  return cloneRetry({ player:P, clog, enemies:enemies.filter(e=>!e.dead),
+  return cloneRetry({ player:P, clog, iceBodies, enemies:enemies.filter(e=>!e.dead),
     globs:globs.filter(g=>g.life>0), rockets:rockets.filter(r=>r.life>0), soaps:soaps.filter(s=>s.life>0), parts, stains, pickups, hazards,
     score, killCount, combo, comboT, multi, multiT, wave, spawnQ, spawnT, waveActive, interT,
     continues, forkStatus, chapter, chapterClear, endless, runTime, runCurios,
@@ -6347,7 +6657,7 @@ function captureRetry() {
 function continueGame() {
   const keep = cloneRetry(state === 'dead' && retrySnapshot ? retrySnapshot : captureRetry());
   initAudio(); zHide();
-  ({ clog, enemies, globs, rockets, soaps, parts, stains, pickups, hazards,
+  ({ clog, iceBodies, enemies, globs, rockets, soaps, parts, stains, pickups, hazards,
     score, killCount, combo, comboT, multi, multiT, wave, spawnQ, spawnT, waveActive, interT,
     forkStatus, chapter, chapterClear, endless, runTime, runCurios,
     MOD, lastMod, gs, tapT, chal, chalNext, lastChal, nemesis, T, fountainT,
@@ -6355,6 +6665,7 @@ function continueGame() {
     techHist, techRun, techLast, varietyMult, toolTipsSeen, stashSaid } = keep);
   if (keep.stories !== null && typeof kitchenStories !== 'undefined') kitchenStories = keep.stories;
   continues = keep.continues + 1; retrySnapshot = null; P = keep.player;
+  resetReplayRecording(); broadcastBarks = [];
   Object.assign(P, { hp:100, deadT:0, hurtT:0, absorbT:0, absorbUsed:0, latch:null, latchT:0, surr:0,
     pud:false, pudT:0, eyeH:EYE, dashT:-1, dashCd:0, teeter:0, jumpHeld:false, endT:0, endE:null, endShown:false,
     cool:0, switchT:0, recoil:0, flashT:0, ammo:WEAPONS.map(w=>w.max) });
@@ -6374,9 +6685,9 @@ function continueGame() {
   grabPointer();
 }
 function hideScreen() { $('scr').classList.add('off');screenKind='play';readingCurio=null; }
-function optsHTML() { return `<div class="opts"><button data-o="g">${GLASSN()}</button><button data-o="v">${voiceLabel().split(' (')[0].split(' ·')[0]}</button><button data-o="s">SPEECH: ${TALK_NAMES[talkSpeed]}</button><button data-o="m">${muted ? 'SOUND: OFF' : 'SOUND: ON'}</button><button data-o="l">LIGHTING: ${richLighting?'SUNLIT':'CLASSIC'}</button></div>`; }
+function optsHTML() { return `<div class="opts"><button data-o="g">${GLASSN()}</button><button data-o="v">${voiceLabel().split(' (')[0].split(' ·')[0]}</button><button data-o="s">SPEECH: ${TALK_NAMES[talkSpeed]}</button><button data-o="m">${muted ? 'SOUND: OFF' : 'SOUND: ON'}</button><button data-o="l">LIGHTING: ${richLighting?'SUNLIT':'CLASSIC'}</button><button data-o="r">REPLAYS: ${autoReplays?'AUTO':'NOTEBOOK ONLY'}</button></div>`; }
 $('scr').addEventListener('click', e => { const b = e.target.closest('button[data-o]'); if (!b) return;
-  ({ g: toggleGlass, v: cycleVoice, s: cycleTalk, m: toggleMute, l: toggleLighting })[b.dataset.o](); const o = b.closest('.opts'); if (o) o.outerHTML = optsHTML(); });
+  ({ g: toggleGlass, v: cycleVoice, s: cycleTalk, m: toggleMute, l: toggleLighting, r: toggleReplays })[b.dataset.o](); const o = b.closest('.opts'); if (o) o.outerHTML = optsHTML(); });
 function start() {
   initAudio();
   if (state === 'title' || state === 'dead' || state === 'absorbed' || state === 'won') { reset(); districtSupplies(); continues = 0; state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; say('get wet', true); setTimeout(() => { if(state==='play')zz(Math.random()<.4?'kitchen_0':'start', { force: true }); }, 1400); }
@@ -6388,6 +6699,8 @@ function grabPointer() {
   try { const r = cv.requestPointerLock({ unadjustedMovement: true }); if (r && r.catch) r.catch(() => cv.requestPointerLock()); } catch (e) { cv.requestPointerLock(); }
 }
 $('scr').addEventListener('click', e => {
+  const clipButton = e.target.closest('button[data-replay]');
+  if (clipButton) { const clip = replayArchive[Number(clipButton.dataset.replay)]; if (clip) beginReplay(clip, true); return; }
   const action=e.target.closest('button[data-action]');
   const entry=e.target.closest('button[data-curio]');
   if(entry){const r=CURIOS.find(r=>r.id===entry.dataset.curio);if(r&&curioFound.has(r.id)){readingCurio=r;curioTurn=.12;showScreen('curio');}return;}
@@ -6405,11 +6718,12 @@ $('scr').addEventListener('click', e => {
   if (state === 'dead' && P.deadT < 1.2) return; start();
 });
 $('scr').addEventListener('input', e => { if (e.target.classList.contains('plz') && /please/i.test(e.target.value)) { e.target.blur(); continueGame(); } });
-cv.addEventListener('mousedown', e => { if (state === 'play' && !locked) start(); if (e.button === 0) mouseDown = true; if (e.button === 2) keys.Mouse2 = true; });
+cv.addEventListener('mousedown', e => { if (replayPlayback) { if (e.button === 0) finishReplay(); return; } if (state === 'play' && !locked) start(); if (e.button === 0) mouseDown = true; if (e.button === 2) keys.Mouse2 = true; });
 addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; if (e.button === 2) keys.Mouse2 = false; });
 addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === cv; lockAt = performance.now();
+  if (!locked && replayPlayback) holdReplay(true);
   if (!locked && state === 'play') { state = 'paused'; mouseDown = false; showScreen('pause'); }
 });
 addEventListener('mousemove', e => {
@@ -6420,6 +6734,14 @@ addEventListener('mousemove', e => {
 });
 addEventListener('wheel', e => { if (state !== 'play') return; const d = e.deltaY > 0 ? 1 : -1; let i = P.wNext; for (let k = 0; k < 4; k++) { i = (i + d + 4) % 4; if (i === 0 || P.ammo[i] > 0) break; } selectWeapon(i); }, { passive: true });
 addEventListener('keydown', e => {
+  if (replayPlayback) {
+    if (e.repeat) return;
+    if (e.code === 'Space') { e.preventDefault(); finishReplay(); }
+    else if (e.code === 'Escape') holdReplay(true);
+    else if (e.code === 'Enter') { e.preventDefault(); holdReplay(!replayPlayback.paused); }
+    else if (e.code === 'KeyM') toggleMute();
+    return;
+  }
   if(e.code==='Escape'&&(screenKind==='curio'||screenKind==='journal')){e.preventDefault();if(notebookReturn==='pause')start();else showScreen(notebookReturn);return;}
   if(e.code==='KeyF'&&!e.repeat&&state==='play'){e.preventDefault();inspectCurio();return;}
   if(e.code==='KeyJ'&&!e.repeat&&(state==='play'||state==='paused')){e.preventDefault();openNotebook();return;}
@@ -6452,22 +6774,25 @@ function cycleVoice() {
   if (state === 'play' && zVoiceMode < 2) { ZZ.cool = 0; zShow(zVoiceMode === 0 ? 'Now I speak like myself. More or less. *sniff*' : 'Now I speak like a BBC newsreader. This is how ideology sounds: neutral.', { cool: 3 }); }
 }
 function pauseGame() { if (state !== 'play') return; state = 'paused'; mouseDown = false; for (const k in keys) keys[k] = false; stickV.x = stickV.y = 0; showScreen('pause'); }
-document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { if (replayPlayback) holdReplay(true); else pauseGame(); } });
 
 // ----- touch: floating stick on the left, drag to look on the right, buttons for the rest
 const stickV = { x: 0, y: 0 };
 if (TOUCH) {
   const ui = $('touchui'), st = $('stick'), knob = st.firstElementChild;
   let stickId = null, sx0 = 0, sy0 = 0; const looks = new Map();
+  clearTouchControls = () => { stickId = null; looks.clear(); st.hidden = true; knob.style.transform = ''; stickV.x = stickV.y = 0; ui.querySelectorAll('.on').forEach(b => b.classList.remove('on')); };
   const TS = 0.0058;
   ui.addEventListener('pointerdown', e => {
     e.preventDefault();
+    if (state !== 'play') return;
     if (e.target.closest('.tb')) return;
     const portrait = innerHeight > innerWidth;
     if (e.clientX < innerWidth * (portrait ? 0.5 : 0.42) && (!portrait || e.clientY > innerHeight * 0.45) && stickId === null) { stickId = e.pointerId; sx0 = e.clientX; sy0 = e.clientY; st.style.left = sx0 + 'px'; st.style.top = sy0 + 'px'; st.hidden = false; knob.style.transform = ''; }
     else looks.set(e.pointerId, [e.clientX, e.clientY]);
   });
   addEventListener('pointermove', e => {
+    if (state !== 'play') return;
     if (e.pointerId === stickId) {
       let dx = e.clientX - sx0, dy = e.clientY - sy0; const d = Math.hypot(dx, dy), R = 60; if (d > R) { dx *= R / d; dy *= R / d; }
       knob.style.transform = `translate(${dx}px, ${dy}px)`; stickV.x = dx / R; stickV.y = -dy / R;
@@ -6482,7 +6807,7 @@ if (TOUCH) {
   addEventListener('pointerup', end); addEventListener('pointercancel', end);
   const hold = (id, on, off) => {
     const b = $(id);
-    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); b.classList.add('on'); on(e); });
+    b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (state !== 'play') return; b.classList.add('on'); on(e); });
     const up = e => { b.classList.remove('on'); if (off) off(e); };
     b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', up);
   };
@@ -6514,12 +6839,14 @@ function frame(now) {
 }
 // one step of game time (everything but drawing); the frame loop calls it once per frame
 function tick(dt) {
+  if (replayPlayback) { updateReplay(dt); return; }
   if(state==='paused'||screenKind==='curio'||screenKind==='journal')return;
   T += dt;
   if (state === 'play') {
     jokeUpdate(dt);
     const sdt = (jokeT > 0 ? dt * 0.05 : hitstop > 0 ? dt * 0.12 : dt) * (MOD === 'caffeine' ? 1.3 : 1); hitstop -= dt; update(sdt);
     if (jokeAt && T > jokeAt && state === 'play') { jokeAt = 0; if (jokeKind === 'sponge') { jokeKind = null; spongeConfessed = true; jokeMoment(pick(SPONGE_OPEN), ZL.selfSponge, ["CECI N'EST PAS UNE ÉPONGE", 'OR IS IT']); } else jokeMoment(); }
+    if (state === 'play') recordReplay(dt);
   }
   else if (state === 'absorbing' || state === 'absorbed') {
     P.endT += dt; P.absorbT = 1; updateParticles(dt);

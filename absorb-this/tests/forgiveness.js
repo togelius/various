@@ -75,7 +75,7 @@ function testForgiveness() {
     fresh();chapter=2;chapterClear=true;wave=6;waveActive=false;P.hp=1;hurt(20,'spoon');continueGame();
     check('Death while travelling keeps a cleared district open',chapterClear&&wave===6&&!waveActive&&chapterGateOpen(2));
     fresh();P.hp=1;hurt(20,'spoon');showScreen('dead');
-    check('Death keeps the written PLEASE ritual and adds a direct progress-preserving button',document.querySelector('[data-action="continue"]')&&$('scr').textContent.includes('OR TYPE PLEASE')&&$('scr').textContent.includes('CLICK TO RE-CONDENSE'));
+    check('Death keeps the written PLEASE ritual and adds a direct progress-preserving button',document.querySelector('[data-action="continue"]')&&$('scr').textContent.includes('OR TYPE PLEASE')&&$('scr').textContent.includes((TOUCH?'TAP':'CLICK')+' TO RE-CONDENSE'));
     document.querySelector('[data-action="continue"]').click();check('PLEASE button resumes the saved encounter',state==='play'&&continues===1);
     fresh();check('A new spill clears the old death snapshot',retrySnapshot===null);
   } catch(e) { out.push('FAIL '+e.message); }

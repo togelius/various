@@ -10,7 +10,7 @@ const base = process.env.ABSORB_BASE_URL || 'http://127.0.0.1:8000/absorb-this/'
     args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--num-raster-threads=1'],
   });
   try {
-    const page = await browser.newPage({ viewport: { width: 900, height: 650 } });
+    const page = await browser.newPage({ viewport: { width: 900, height: 650 }, hasTouch: process.argv.includes('--touch') });
     const errors = [];
     page.on('pageerror', e => { errors.push(e.message); console.error('PAGE ERROR:', e.message); });
     await page.goto(new URL('tests/', base).href, { waitUntil: 'domcontentloaded' });
