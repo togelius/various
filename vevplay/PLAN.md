@@ -60,7 +60,19 @@ python evaluate.py data/bollard-hop --game bollard-hop
 
 Decide which questions to keep. Keep a question if its AUC is above about
 0.75, or its accuracy clearly beats the "always say the commonest answer"
-baseline. Drop or reword the rest, and re-label. Questions with no answer in
+baseline. Drop or reword the rest, and re-label.
+
+First results on CPU (151 samples; table in `README.md`): `arc_color`,
+`prompt_shown`, `wobbling`, `player_hurt` and `screen_mode` are strong.
+Two-frame motion (`player_motion`, `scroll`), 3×3 position
+(`player_region`), the tiny charge meter and the direction questions are
+weak. Things to try at scale:
+- Ask direction questions only when the matching presence question is
+  above 0.5. `pickup_direction` names a direction even with nothing there.
+- Replace the 3×3 grid with two separate 3-way choices (left/center/right,
+  top/middle/bottom).
+- Ask about motion with a larger frame gap (0.3 s instead of 0.1 s), or
+  drop motion questions and give the controller two successive feature vectors. Questions with no answer in
 this game (health, enemies, pickups) can't be judged on Bollard Hop; judge
 them in step 4.
 
