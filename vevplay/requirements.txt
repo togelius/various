@@ -1,0 +1,7 @@
+typesafe-sdk>=0.7
+playwright>=1.40
+pillow
+# for step 3 (student network and evolution)
+torch
+cma
+# Vev itself (GPU): pip install git+https://github.com/Xiaooolong/vev
