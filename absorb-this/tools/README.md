@@ -103,3 +103,36 @@ persona dies. Replay the same source/profile/seed to check reproducibility.
 Inspect where decisions failed: a game bottleneck, a policy limitation and a
 broken input adapter call for different responses. Keep the ordinary browser
 regression tests as a separate layer; these policies do not replace them.
+
+## Persona bots
+
+`personas.cjs` is a second harness built on the same seams and deterministic
+clock. It plays with eight small utility policies that share one body but want
+different things, in the spirit of procedural personas:
+
+| Persona | Wants |
+| --- | --- |
+| `casual` | the old casual bot: water, ice when scared |
+| `tactician` | does what the tips say: right tool per enemy, freeze then switch, soap the grease, dodge the Fork, slip hugs |
+| `surfer` | lies down whenever it can and moves as a puddle |
+| `slapstick` | lets the kitchen do it: bubbles, freezes, shoves and edges |
+| `explorer` | curios, stashes and the top shelf (it rocket-jumps), fights only when threatened |
+| `pacifist` | never fires; flees, dashes and slips |
+| `masher` | presses everything at random (a fuzzing child) |
+| `speedrunner` | the tactician, skipping every broadcast |
+
+It steps the game in chunks so it can take screenshots at interesting moments
+(district entries, first freeze, shatter, bubble, deaths, replays, the Clog,
+curios, long waves, victory) and wraps shipping functions for telemetry without
+changing them. Each report records kills by technique, shots per weapon, how
+often commentary is on screen and how much text per minute, pops per minute,
+replay time, challenges, curios and stashes, wave durations, deaths and causes,
+how each fall happened, and, if a run times out, every enemy still alive.
+
+```sh
+node tools/personas.cjs --personas tactician,explorer,pacifist --seeds 1,2 --seconds 900 --out /tmp/personas
+```
+
+It writes `report.json` and one folder of PNGs per run. Like `playtest.cjs`,
+it reads privileged state with bounded perception and acts only through
+synthetic input; it is evidence about policies, not people.

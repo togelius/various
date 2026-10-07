@@ -45,6 +45,7 @@
   #mk { position:absolute; left:0; right:0; top:36%; text-align:center; font-size:58px; color:var(--foam);
     text-shadow:4px 4px 0 var(--ink); opacity:0; }
   #mk.go { animation: mk 1.1s ease-out forwards; }
+  #mk.low { top:58%; }
   @keyframes mk { 0%{opacity:1; transform:scale(1.8) rotate(4deg);} 15%{transform:scale(1) rotate(-3deg);} 70%{opacity:1;} 100%{opacity:0; transform:translateY(-40px);} }
   #feed { position:absolute; right:22px; top:92px; text-align:right; font-weight:900; font-size:15px; }
   #feed div { background:rgba(29,19,12,.72); padding:4px 10px; margin-bottom:4px; border-radius:4px; display:inline-block; clear:both; float:right;
@@ -1019,7 +1020,7 @@ function buildLongKitchen() {
   S(ROUND,145,-.15,-4,45,.6,32,[.17,.24,.27],5); addBox(145,-4,22.5,16,.15);
   for(const b of BURNERS) {addCyl(b.x,b.z,4.5,.31);S(CYL,b.x,.16,b.z,4.5,.15,4.5,[.055,.065,.07],0);for(let r=1;r<=4;r++)S(TORUS,b.x,.33,b.z,r,r*.5,r,[.18,.22,.25],5);}
   for(let i=0;i<4;i++)S(CYL,132+i*8,.4,14,.75,.45,.75,[.3,.34,.33],5);
-  S(SPH,145,5.5,-17,5.6,5.5,4.7,[.77,.3,.12],20);addCyl(145,-17,5,10);
+  S(SPH,145,5.5,-17,5.6,5.5,4.7,[.77,.3,.12],20);addCyl(145,-17,5,10);addBox(145,-21,5.2,1,10);   // fill the cusps where the kettle meets the wall: sponges wedged themselves in there for good
   S(TORUS,145,12,-17,4.3,4.3,4.3,[.14,.17,.17],5,0,Math.PI/2);
   S(CYL,145,10.5,-17,2,.5,2,[.66,.72,.68],5); S(SPH,145,11.3,-17,.6,.5,.6,[.13,.14,.12],11);
   S(NECK,150,6,-17,1.5,6,1.5,[.78,.36,.13],20,0,-1.1);
@@ -1563,6 +1564,14 @@ const APPLE_TTS = /iP(hone|ad|od)/.test(navigator.userAgent) || (/Macintosh/.tes
 const TALK_RATES = APPLE_TTS ? [0.9, 1, 1.1, 1.25] : [1, 1.2, 1.5, 1.9], TALK_NAMES = ['SLOW', 'NORMAL', 'FAST', 'ASSAULT'];
 let talkSpeed = 1; try { const t = +localStorage.getItem('absorb.talk'); if (t >= 0 && t < 4 && localStorage.getItem('absorb.talk') !== null) talkSpeed = t; } catch (e) { }
 const talkRate = () => TALK_RATES[talkSpeed];
+// How much room Žižek leaves between remarks. NONSTOP is the original firehose (a remark on screen about two
+// thirds of the time); the pause grows with the length of what he just said, so a monologue earns a silence.
+const ZTALK = [{ n: 'NONSTOP', gap: 5, per: 0, idle: 1, breath: 0 }, { n: 'CHATTY', gap: 7, per: .03, idle: 1.35, breath: 3 }, { n: 'MEASURED', gap: 12, per: .05, idle: 2, breath: 7 }];
+// Remarks that explain a rule or answer a choice the player just made always get through.
+const Z_URGENT = /^(tip_|mod_|chal|clog|fork|rank|bored|leap|bartleby|greasy|mute|voice)/;
+let zTalk = 1; try { const t = localStorage.getItem('absorb.ztalk'); if (t !== null && ZTALK[+t]) zTalk = +t; } catch (e) { }
+const talkGap = text => ZTALK[zTalk].gap + String(text).length * ZTALK[zTalk].per;
+function cycleZTalk() { zTalk = (zTalk + 1) % ZTALK.length; try { localStorage.setItem('absorb.ztalk', zTalk); } catch (e) { } multiText('ŽIŽEK: ' + ZTALK[zTalk].n); }
 // ----- prosody. One flat utterance per paragraph is hard to follow (and Chrome cuts long ones off),
 // so lines are spoken sentence by sentence, with a little intonation per sentence.
 function speechText(text, slavic) {
@@ -1624,6 +1633,7 @@ let autoReplays = true;
 try { autoReplays = localStorage.getItem('absorbthis.replays') !== 'off'; } catch (e) { }
 let lastVty = '', stashSaid = {};
 let clog = { alive: false, hp: 0, max: 260, x: 0, y: 0, z: 0, r: 2.3, t: 0, siphonT: 0, fedT: 0 };
+let peaceT = 0, boredT = 0, districtShots = 0, boredSaid = false, fewT = 0;   // Bartleby: time since DRIP last fired; shots this district
 let toolTipsSeen = {}, techHist = [], techRun = 0, techLast = '', varietyMult = 1;   // tool tips shown this run; the variety meter
 let P, enemies, globs, rockets, parts, stains, pickups, hazards, pops, splats, soaps = [];
 let score, combo, comboT, multi, multiT, wave, spawnQ, spawnT, waveActive, interT, hitstop, shake, killCount, deathCause, T = 0;
@@ -1701,6 +1711,7 @@ function reset() {
     pud: false, pudT: 0, eyeH: EYE, iT: 0, latch: null, latchT: 0, surr: 0, stillT: 0, endT: 0, endE: null, endShown: false, sipT: 0 };
   enemies = []; globs = []; rockets = []; parts = []; stains = []; pickups = []; hazards = []; splats = []; soaps = [];
   for (const p of pops || []) p.el.remove(); pops = [];
+  peaceT = 0; boredT = 0; districtShots = 0; boredSaid = false; fewT = 0;
   score = 0; combo = 0; comboT = 0; multi = 0; multiT = 0; techHist = []; techRun = 0; techLast = ''; varietyMult = 1; toolTipsSeen = {}; stashSaid = {}; clog.alive = false; wave = 0; spawnQ = []; spawnT = 0; waveActive = false; interT = 1.6;
   hitstop = 0; shake = 0; killCount = 0; deathCause = '';
   $('feed').innerHTML = '';
@@ -2000,8 +2011,10 @@ function bubbles(x, y, z, n, spread = 1) {
 }
 
 // =====================================================================  HUD helpers
-function announce(t, sub) { const el = $('ann'); el.innerHTML = t + (sub ? `<small>${sub}</small>` : ''); el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); }
-function multiText(t) { const el = $('mk'); el.textContent = t; el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); }
+let annAt = -9;
+function announce(t, sub) { annAt = nowS(); const el = $('ann'); el.innerHTML = t + (sub ? `<small>${sub}</small>` : ''); el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); }
+function multiText(t) { const el = $('mk'); el.textContent = t; el.classList.toggle('low', nowS() - annAt < 2.2);   // never print over an announcement
+  el.classList.remove('go'); void el.offsetWidth; el.classList.add('go'); }
 function feed(html) { const f = $('feed'); const d = document.createElement('div'); d.innerHTML = html; f.prepend(d); while (f.children.length > 6) f.lastChild.remove(); setTimeout(() => d.remove(), 3300); }
 function pop(x, y, z, text, small) { const el = document.createElement('div'); el.className = 'pop' + (small ? ' s' : ''); el.textContent = text; $('pops').appendChild(el); pops.push({ x, y, z, el, t: 1 }); }
 const JOKE_GAP = 180;   // seconds between 'you think this is a joke?' freezes (the fork doesn't wait)
@@ -4336,6 +4349,21 @@ const ZL = {
     "Ice bowling! Strike! Somewhere in Scotland, an old man with a broom stands up and weeps with joy.",
     "A frozen sponge, sliding into its comrades. This is what happens to every vanguard. It moves very fast, and it hits its own side first.",
   ],
+  bored: [
+    "You stopped shooting, and look: the sponges are turning on each other. Of course! An ideology without an enemy is like a sponge without water. It will find something to absorb, even its own comrade.",
+    "Carl Schmitt, very bad man, one good idea: the political is the distinction between friend and enemy. Take yourself away as the enemy, and the kitchen simply appoints a new one. Usually the sponge standing closest.",
+    "Do not act. Just think! I have been saying this for decades and everybody laughs. Now look. You are doing nothing, and the kitchen is destroying itself. Who is laughing now? The sponges are not laughing. They are fighting.",
+  ],
+  bartlebyDistrict: [
+    "You cleared the whole district without firing a single shot. I would prefer not to! Bartleby the scrivener, the patron saint of the refusal, smiles in his little office. The sponges did everything themselves. This is what we call the cunning of reason. Or laziness. In philosophy these are the same thing.",
+    "Not one shot! The district is liberated, and you did nothing. This is the most radical act possible: you refused to participate, and the system collapsed under its own contradictions. Marx promised this. He did not promise it would happen in a kitchen.",
+    "Look at the score: a bonus for doing nothing. Finally, a game that rewards the true intellectual. Sitting, watching, refusing, and still somehow taking credit for everything.",
+  ],
+  leap: [
+    "Look at it. The last one. Nobody to fight, nobody fighting it. This is the situation Kierkegaard described: the anxiety of pure freedom. And now, the leap of faith. Off the counter. It is very brave. It is also very wet.",
+    "The final sponge stands alone, and it asks the only serious philosophical question: if nobody attacks me, what am I for? It walks towards the edge. Camus would say imagine Sisyphus happy. Here, imagine the floor.",
+    "You refused to give it an enemy, so it must give itself a meaning. And the only meaning available, in a kitchen, is gravity. Goodbye, my friend. You were the last of your ideology.",
+  ],
   chal_negation_intro: [
     "Negation of the Negation! Soak up ten puddles of your own spilled water in twenty seconds. You spilled yourself. Now unspill yourself.",
     "Soak up ten of your own puddles within twenty seconds. The subject is the one who gets lost and then walks around picking itself up. Pick yourself up. Ten times.",
@@ -4543,6 +4571,23 @@ function kitchenMinutesHTML() {
 // {actor} and {other} are supplied by the incident system; every bank also works
 // without requiring any philosopher, faction, or ideology to be objectively right.
 const KITCHEN_INCIDENTS = {
+  boredFeud: {
+    titles: ['MINISTER FOR MANUFACTURED THREATS', 'THE DESIGNATED ADVERSARY', 'CHAIR OF THE SUBCOMMITTEE ON SOMEBODY ELSE'],
+    pops: ['BORED!', 'NEW ENEMY ACQUIRED!', 'FRIEND/ENEMY DISTINCTION!', 'IT WAS YOUR TURN!'],
+    news: [
+      'WITH DRIP REFUSING TO PARTICIPATE, {actor} DECLARES {other} AN EXISTENTIAL THREAT',
+      'KITCHEN UNITY COLLAPSES WITHIN SECONDS OF LOSING ITS COMMON ENEMY',
+      '{actor} ACCUSES {other} OF BEING SUSPICIOUSLY ABSORBENT',
+      'NO SHOTS FIRED; CASUALTIES CONTINUE TO RISE',
+    ],
+    lines: [
+      'Look! You stopped shooting, and immediately they need a new enemy. Carl Schmitt said the political begins with the distinction between friend and enemy. He did not say the enemy has to be you.',
+      'This is the secret of every alliance: it is held together by the thing it fights. Remove the drop of water and the sponges discover each other. {actor} has discovered {other}. Violently.',
+      'You do nothing, and the kitchen tears itself apart. Do not act. Just think. I have been saying this for twenty years and finally a drop of water has listened.',
+      '{actor} attacks {other} for no reason except that {other} was nearby. Congratulations, you have witnessed the entire history of foreign policy.',
+      'Bartleby the scrivener would be proud. I would prefer not to, you say, and the sponges, who prefer everything, start preferring each other\'s destruction.',
+    ],
+  },
   sauceFeud: {
     titles: [
       'AMBASSADOR OF UNREQUESTED SEASONING',
@@ -4814,6 +4859,8 @@ function zz(key, o = {}) {
   const bank = ZL[key]; if (!bank) return false;
   if (o.once && ZZ.once[key]) return false;
   if (!o.force && (nowS() < ZZ.cool || ZZ.on)) return false;
+  // in the calmer modes even a forced reaction lets the last remark finish and leaves a breath after it
+  if (o.force && zTalk && !Z_URGENT.test(key) && (nowS() < ZZ.breath || (ZZ.on && nowS() - ZZ.shownAt < 4))) return false;
   if (o.p !== undefined && Math.random() > o.p) return false;
   ZZ.once[key] = true;
   // routine commentary is fair game for a jab at somebody instead
@@ -4822,7 +4869,8 @@ function zz(key, o = {}) {
 }
 function zShow(text, o = {}) {
   ZZ.on = true; ZZ.text = text; ZZ.shown = 0; ZZ.big = !!o.big; ZZ.sniffAt = text.indexOf('*sniff*');
-  ZZ.hideAt = nowS() + 1.8 + text.length * 0.055; ZZ.cool = ZZ.hideAt + (o.cool === undefined ? 5 : o.cool);
+  ZZ.hideAt = nowS() + 1.8 + text.length * 0.055; ZZ.cool = ZZ.hideAt + (o.cool === undefined ? talkGap(text) : Math.max(o.cool, zTalk ? talkGap(text) * .6 : 0));
+  ZZ.shownAt = nowS(); ZZ.breath = ZZ.hideAt + ZTALK[zTalk].breath;
   $('zz').className = 'on' + (ZZ.big ? ' big' : ''); $('zzwho').textContent = pick(ZNAMES);
   archiveComment($('zzwho').textContent, text);
   if (muted || zVoiceMode === 2) ZZ.shown = text.length;
@@ -5040,6 +5088,7 @@ function districtSupplies() {
   if(chapter===3)for(const [x,type] of [[224,'soap'],[226,'shells'],[228,'ice']])pickups.push({type,x,y:10.5,z:4,vy:0,t:0,stash:'shelf'});
 }
 function enterDistrict(i) {
+  districtShots=0;peaceT=0;
   chapter=i;chapterClear=false;drainHold=0;interT=3;waveActive=false;wave=CHAPTERS[i].first-1;MOD=null;gs=1;
   hazards=[];globs=[];rockets=[];soaps=[];pickups=[];chal=null;
   P.hp=Math.max(P.hp,80);P.ammo=P.ammo.map((a,k)=>Math.max(a,WEAPONS[k].start));P.iT=2;
@@ -5140,6 +5189,8 @@ function journeyHUD() {
   if(endless)goal='ESCAPE BANKED · MAKE A BIGGER MESS';
   else if(chapterClear&&chapter===4){goal=clog.alive?'DRAIN BLOCKED · BREAK THE CLOG WITH FIZZ OR ICE':escapeReady()?(TOUCH?'HOLD THE PLUG BUTTON':'HOLD E · PULL THE PLUG'):'THE DRAIN IS OPEN · GET TO THE SINK';target=DRAIN;}
   else if(chapterClear){goal='FOLLOW THE ARROWS → '+next.short;target={x:next.x-24,z:17};}
+  else if(waveActive&&fewT>6){const left=enemies.filter(e=>!e.dead);const t=left.reduce((a,e)=>!a||Math.hypot(e.x-P.x,e.z-P.z)<Math.hypot(a.x-P.x,a.z-P.z)?e:a,null);
+    if(t){goal=left.length===1?'ONE LEFT · FOLLOW THE ARROW':`${left.length} LEFT · FOLLOW THE ARROW`;target=t;}else goal=`CLEAR THIS DISTRICT · WAVE ${wave} OF ${c.last}`;}
   else goal=waveActive?`CLEAR THIS DISTRICT · WAVE ${wave} OF ${c.last}`:'REFILL. BREATHE. REMAIN A PROBLEM.';
   $('journeyName').textContent=endless?'THE LONG KITCHEN · ENDLESS':`${chapter+1}/5 · ${c.name}`;
   $('journeyGoal').textContent=goal;
@@ -5340,7 +5391,7 @@ function damageEnemy(e, dmg, dx, dy, dz, knock, weapon, head, source = null) {
   else { sfx('hit'); if (T - hitWT > 0.15 && Math.random() < 0.4) { hitWT = T; pop(e.x + rand(-.5, .5), cy + e.h * 0.5 + 0.3, e.z, pick(HITW), true); } }
   if (weapon === 0 && !source && Math.random() < 0.5) gibs(e.x, cy, e.z, 1, WATER, { sph: true, mat: 12, smin: 0.06, smax: 0.12, maxS: 4, maxU: 4, stain: WET });
   if (weapon === 1 && !source && freezable(e) && !(e.frozen > 0) && e.hp > 0) { e.chill = (e.chill || 0) + dmg; if (e.chill >= freezeAt(e)) freezeEnemy(e); }
-  else if (e.frozen > 0 && e.hp > 0 && weapon !== 1 && (e.hp < e.maxHp * 0.35 || dmg >= 40)) { shatterEnemy(e, dx, dz, source ? source : null); return; }
+  else if (e.frozen > 0 && weapon !== 1 && (e.hp <= 0 || e.hp < e.maxHp * 0.35 || dmg >= 40)) { shatterEnemy(e, dx, dz, source ? source : null); return; }   // a finishing blow on ice is a shatter too
   hitmark(e.hp <= 0, tf);
   if (e.hp <= 0) killEnemy(e, weapon, dx, dz, head, false, source);
 }
@@ -5560,6 +5611,11 @@ function updateEnemies(dt) {
     let nx = dx / dist, nz = dz / dist;
     // after bumping into scenery, walk around it for a while instead of straight at the player
     e.detourT = (e.detourT || 0) - dt;
+    // no progress for a while (a pocket between it and its target)? detour longer, alternating sides
+    if ((e.type === 'sponge' || e.type === 'mama') && !(e.propertyT > 0)) {
+      if (!e.prog || Math.hypot(e.x - e.prog[0], e.z - e.prog[1]) > 1.5) e.prog = [e.x, e.z, 0];
+      else if ((e.prog[2] += dt) > 3 && dist > 6) { e.prog[2] = 0; e.dsign = -(e.dsign || 1); e.detourT = 2.2; }
+    }
     if (e.detourT > 0) { const a = e.dsign * 1.35, c = Math.cos(a), s_ = Math.sin(a); const rx_ = nx * c - nz * s_, rz_ = nz * c + nx * s_; nx = rx_; nz = rz_; }
     e.yaw = angLerp(e.yaw, Math.atan2(dx, dz), Math.min(1, dt * 8));
     const g = groundAt(e.x, e.z, e.y + 0.1);
@@ -5877,7 +5933,7 @@ function fire() {
   const w = P.w, W_ = WEAPONS[w];
   if (P.cool > 0 || P.switchT > 0) return;
   if (P.ammo[w] <= 0) { P.cool = 0.3; sfx('empty'); pop(P.x, P.y + 1.4, P.z, 'OUT OF ' + ['', 'ICE', 'FIZZ', 'SOAP'][w] + '!', true); P.wNext = 0; P.switchT = 0.3; return; }
-  chalEvent('fire');
+  chalEvent('fire'); peaceT = 0; districtShots++;
   P.cool = W_.rate; if (W_.max !== Infinity) P.ammo[w]--;
   const B = camBasis();
   const eye = [P.x, P.y + P.eyeH + camBob(), P.z];
@@ -6031,7 +6087,7 @@ function updatePlayer(dt) {
       const dx = st.x - P.x, dz = st.z - P.z, r = R + st.sx * 0.5; if (dx * dx + dz * dz < r * r) { stains.splice(i, 1); got += 0.4 + st.sx * 0.6; chalEvent('soak'); } }
     if (got > 0) {
       P.hp = Math.min(100, P.hp + got);
-      if (P.sipT <= 0) { P.sipT = 0.6; sfx('sip'); pop(P.x - Math.sin(P.yaw) * 2, P.y + 1.2, P.z - Math.cos(P.yaw) * 2, pick(['+SIP', 'SLURP (YOURS)', 'REHYDRATED', 'WASTE NOT', 'RECYCLED!']), true); }
+      if (P.sipT <= 0) { P.sipT = 0.6; sfx('sip'); if (T - (P.sipPopT || -9) > 2.2) P.sipPopT = T, pop(P.x - Math.sin(P.yaw) * 2, P.y + 1.2, P.z - Math.cos(P.yaw) * 2, pick(['+SIP', 'SLURP (YOURS)', 'REHYDRATED', 'WASTE NOT', 'RECYCLED!']), true); }
       if (!zz('soak', { once: true, force: true })) zz('soak', { p: 0.02 });
     }
   }
@@ -6100,14 +6156,56 @@ function updateParticles(dt) {
   }
   parts = parts.filter(p => p.life > 0);
 }
+// ----- Bartleby: if DRIP refuses to fight, bored kitchenware invents an enemy among itself (Carl Schmitt, but wetter)
+function updateBoredom(dt) {
+  if (state !== 'play' || !waveActive || jokeT > 0) return;
+  peaceT += dt; if (peaceT < 25) return;
+  // the last one, with nobody to fight and nobody fighting it, takes the leap of faith (off the front of the counter)
+  const lone = !spawnQ.length && enemies.filter(e => !e.dead);
+  if (lone && lone.length === 1 && peaceT > 35 && !lone[0].gold) {
+    const e = lone[0];
+    if (!e.leapT) { e.leapT = 0.01; pop(e.x, e.y + e.h + 1.4, e.z, pick(['WHAT AM I EVEN FOR?', 'NOBODY TO FIGHT', 'THE ABYSS LOOKS BACK', 'A LEAP OF FAITH']), false); zz('leap', { force: true }); }
+    e.leapT += dt; e.grudge = null; e.z += 4.5 * dt; e.x += Math.sin(e.leapT * 2) * dt;
+    if (e.leapT > 12 && !e.dead) killEnemy(e, 4, 0, 1, false, true, 'LEAP OF FAITH');   // it found another way out
+    return;
+  }
+  boredT -= dt; if (boredT > 0) return;
+  boredT = rand(3.5, 6);
+  const idle = enemies.filter(e => !e.dead && !e.gold && e.type !== 'roll' && !(e.bub > 0) && !(e.frozen > 0) && !(e.grudgeT > 0) && e.spawnT <= 0);
+  let best = null, bd = 16;
+  for (let i = 0; i < idle.length; i++) for (let j = i + 1; j < idle.length; j++) { const d = Math.hypot(idle[i].x - idle[j].x, idle[i].z - idle[j].z); if (d < bd) { bd = d; best = [idle[i], idle[j]]; } }
+  if (!best) return;
+  startKitchenFeud(best[0], best[1], 'boredFeud');
+  pop(best[0].x, best[0].y + best[0].h + 1.2, best[0].z, pick(['BORED!', 'YOU LOOK SUSPICIOUS', 'SOMEBODY HAS TO BE THE ENEMY', 'NOTHING PERSONAL', 'IT WAS YOUR TURN']), true);
+  if (!boredSaid) { boredSaid = true; zz('bored', { force: true }); }
+}
+// ----- stragglers: the last few kitchenware should never hide forever. Point at them; fetch the truly stuck.
+function updateStragglers(dt) {
+  const left = waveActive && !spawnQ.length ? enemies.filter(e => !e.dead) : [];
+  fewT = left.length && left.length <= 2 ? fewT + dt : 0;
+  if (!left.length || left.length > 3 || state !== 'play') return;
+  for (const e of left) {
+    if (e.gold || e.bub > 0) continue;
+    if (!e.anchor || Math.hypot(e.x - e.anchor[0], e.z - e.anchor[1]) > 1.5) { e.anchor = [e.x, e.z]; e.stillT = 0; continue; }
+    e.stillT = (e.stillT || 0) + dt; if (e.stillT < 18) continue;
+    const ey = e.y + (e.type === 'spoon' || e.type === 'fork' ? 0 : e.h * .55), dx = e.x - P.x, dy = ey - P.y - P.eyeH, dz = e.z - P.z, l = Math.hypot(dx, dy, dz) || 1;
+    const hidden = l > 35 || rayStatic(P.x, P.y + P.eyeH, P.z, dx / l, dy / l, dz / l, l) < l - e.r;
+    if (!hidden) { e.stillT = 10; continue; }
+    const sp = encounterSpawn(e.type); e.x = sp[0]; e.z = sp[1]; e.y = groundAt(e.x, e.z, 30) + (e.type === 'spoon' ? 7 : 3); e.vx = e.vz = 0; e.vy = 6; e.anchor = null; e.stillT = 0; e.stuck = 0;
+    bubbles(e.x, e.y, e.z, 10, 1); pop(e.x, e.y + e.h + 1.2, e.z, pick(['FOUND BEHIND THE KETTLE', 'DISCOVERED IN THE CUTLERY DRAWER', 'BACK FROM A LONG SILENCE', 'RETURNED BY THE AUTHORITIES']), false);
+    feed('KITCHEN <em>A HIDING ' + (e.type === 'mama' ? 'GRANDMA' : e.type.toUpperCase()) + ' HAS BEEN ESCORTED BACK INTO THE ARGUMENT</em>');
+  }
+}
 function updateWaves(dt) {
+  updateBoredom(dt); updateStragglers(dt);
   if (waveActive) {
     spawnT -= dt;
     if (spawnT <= 0 && spawnQ.length && enemies.length < Math.min(22, 8 + wave * 2)) { spawnEnemy(spawnQ.shift()); spawnT = rand(0.45, 0.95) * Math.max(0.5, 1.1 - wave * 0.04); }
     if (!spawnQ.length && !enemies.length) {
       waveActive = false; interT = 5.5; const bonus = 500 * wave; score += bonus; MOD = null; gs = 1; if (chal) chal.t = Math.min(chal.t, 0.01);
       P.hp = Math.min(100, P.hp + 30); P.ammo[1] = Math.min(WEAPONS[1].max, P.ammo[1] + 6); P.ammo[2] = Math.min(WEAPONS[2].max, P.ammo[2] + 2); P.ammo[3] = Math.min(WEAPONS[3].max, P.ammo[3] + 2);
-      if (!endless && wave >= CHAPTERS[chapter].last) { chapterClear=true; headlineNow(CHAPTERS[chapter].name+' DECLARES EMERGENCY OVER. NEIGHBOURING DISTRICT INFORMED TOO LATE'); }
+      if (!endless && wave >= CHAPTERS[chapter].last) { chapterClear=true; headlineNow(CHAPTERS[chapter].name+' DECLARES EMERGENCY OVER. NEIGHBOURING DISTRICT INFORMED TOO LATE');
+        if (districtShots === 0) { score += 5000; setTimeout(() => { if (state === 'play') { multiText('I WOULD PREFER NOT TO · +5000'); headlineNow('DISTRICT LIBERATED BY NOBODY. NOBODY UNAVAILABLE FOR COMMENT'); afterBroadcast(() => zz('bartlebyDistrict', { force: true })); } }, 2600); } }
       announce(chapterClear&&!endless ? 'DISTRICT CLEAR' : pick(CLEARW), chapterClear&&!endless ? (chapter===4?'GET TO THE DRAIN · HOLD E TO PULL THE PLUG':'CHECKPOINT OPEN → '+CHAPTERS[chapter+1].name) : `+${bonus} · +30 DAMPNESS · ` + pick(['FREE ICE', 'NICE WORK, DRIP', 'THE FRIDGE APPROVES', 'MOIST AND VICTORIOUS', 'HYDRATION RESTORED', 'THE TAP SALUTES YOU', 'DRIP DRIP HOORAY', 'GLASS HALF FULL AGAIN', 'STILL WET, STILL HERE'])); sfx('clear'); say(pick(['counter cleaned', 'spotless', 'the kitchen is quiet. for now', 'wave washed', 'squeaky clean', 'all dried up. except you', 'rinse complete', 'dishes done']), true);
       setTimeout(() => afterBroadcast(() => zz('clear', { p: 0.7 })), 2200);
       // Give the finale the last word instead of immediately overwriting its arrival.
@@ -6127,7 +6225,7 @@ function update(dt) {
     kitchenUpdate(dt); if(state!=='play')return;
     updateWaves(dt);
     if (broadcastBarks.length && !ZZ.on && !ZZ.lock && nowS() >= ZZ.cool) broadcastBarks.shift()();
-    if (T > ZZ.nextIdle) { ZZ.nextIdle = T + rand(22, 36); if (!zz(forkStatus !== 'rumour' && Math.random() < 0.3 ? 'forkAfter' : Math.random() < 0.6 ? foeKey() : 'idle')) ZZ.nextIdle = T + 3; }   // busy? try again shortly
+    if (T > ZZ.nextIdle) { ZZ.nextIdle = T + rand(22, 36) * ZTALK[zTalk].idle; if (!zz(forkStatus !== 'rumour' && Math.random() < 0.3 ? 'forkAfter' : Math.random() < 0.6 ? foeKey() : 'idle')) ZZ.nextIdle = T + 3; }   // busy? try again shortly
     updateKitchenStories(dt);
     chalUpdate(dt);
     if (MOD === 'tap') { tapT -= dt; while (tapT <= 0) { tapT += 0.06; part3({ x: clamp(P.x + rand(-15, 15), CX0+1, CX1-1), y: rand(14, 20), z: clamp(P.z + rand(-14, 10), -21, 20.5), vy: -6, life: 3, size: rand(0.08, 0.14), col: pick(WATER), mat: 12, sph: true, stain: WET, grav: 30, bounce: 0 }); } }
@@ -6685,9 +6783,9 @@ function continueGame() {
   grabPointer();
 }
 function hideScreen() { $('scr').classList.add('off');screenKind='play';readingCurio=null; }
-function optsHTML() { return `<div class="opts"><button data-o="g">${GLASSN()}</button><button data-o="v">${voiceLabel().split(' (')[0].split(' ·')[0]}</button><button data-o="s">SPEECH: ${TALK_NAMES[talkSpeed]}</button><button data-o="m">${muted ? 'SOUND: OFF' : 'SOUND: ON'}</button><button data-o="l">LIGHTING: ${richLighting?'SUNLIT':'CLASSIC'}</button><button data-o="r">REPLAYS: ${autoReplays?'AUTO':'NOTEBOOK ONLY'}</button></div>`; }
+function optsHTML() { return `<div class="opts"><button data-o="g">${GLASSN()}</button><button data-o="v">${voiceLabel().split(' (')[0].split(' ·')[0]}</button><button data-o="s">SPEECH: ${TALK_NAMES[talkSpeed]}</button><button data-o="z">ŽIŽEK: ${ZTALK[zTalk].n}</button><button data-o="m">${muted ? 'SOUND: OFF' : 'SOUND: ON'}</button><button data-o="l">LIGHTING: ${richLighting?'SUNLIT':'CLASSIC'}</button><button data-o="r">REPLAYS: ${autoReplays?'AUTO':'NOTEBOOK ONLY'}</button></div>`; }
 $('scr').addEventListener('click', e => { const b = e.target.closest('button[data-o]'); if (!b) return;
-  ({ g: toggleGlass, v: cycleVoice, s: cycleTalk, m: toggleMute, l: toggleLighting, r: toggleReplays })[b.dataset.o](); const o = b.closest('.opts'); if (o) o.outerHTML = optsHTML(); });
+  ({ g: toggleGlass, v: cycleVoice, s: cycleTalk, z: cycleZTalk, m: toggleMute, l: toggleLighting, r: toggleReplays })[b.dataset.o](); const o = b.closest('.opts'); if (o) o.outerHTML = optsHTML(); });
 function start() {
   initAudio();
   if (state === 'title' || state === 'dead' || state === 'absorbed' || state === 'won') { reset(); districtSupplies(); continues = 0; state = 'play'; $('hud').classList.remove('off'); lastHud = ''; tickW = 0; say('get wet', true); setTimeout(() => { if(state==='play')zz(Math.random()<.4?'kitchen_0':'start', { force: true }); }, 1400); }

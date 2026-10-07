@@ -111,6 +111,44 @@ function testTools() {
     check('Grease turns walking into skating', greasyStart < dryStart * .4);
     MOD = null;
 
+    // A finishing blow on ice is a shatter, not an ordinary kill.
+    fresh(); const brittle = makeEnemy('sponge', P.x + 8, P.z, 1); brittle.spawnT = 0; enemies = [brittle]; freezeEnemy(brittle);
+    damageEnemy(brittle, 60, 1, 0, 0, 1, 0, false);
+    check('A lethal water hit on a frozen sponge shatters it', brittle.dead && brittle.shattered);
+
+    // Bartleby: refuse to fight and the kitchen invents its own enemy.
+    fresh(); waveActive = true; const b1 = makeEnemy('sponge', P.x + 20, P.z, 1), b2 = makeEnemy('sponge', P.x + 23, P.z, 1); b1.spawnT = b2.spawnT = 0; enemies = [b1, b2]; spawnQ = [];
+    peaceT = 10; boredT = 0; updateBoredom(1 / 60);
+    check('Ten peaceful seconds do not bore the kitchen yet', !b1.grudge && !b2.grudge);
+    peaceT = 30; boredT = 0; updateBoredom(1 / 60);
+    check('A long refusal to fight starts a feud between neighbours', b1.grudge === b2 && b2.grudge === b1);
+    fresh(); waveActive = true; spawnQ = []; const last1 = makeEnemy('bottle', P.x + 12, 4, 1); last1.spawnT = 0; enemies = [last1]; peaceT = 40;
+    for (let i = 0; i < 60 * 13 && !last1.dead; i++) { updateBoredom(1 / 60); updateEnemies(1 / 60); }
+    check('The last kitchenware, left in peace, takes a leap of faith', last1.dead);
+    fresh(); waveActive = true; enemies = []; spawnQ = []; wave = CHAPTERS[chapter].last; districtShots = 0; const sB = score; updateWaves(1 / 60);
+    check('Clearing a district without a shot pays the Bartleby bonus', chapterClear && score >= sB + 5000);
+    fresh(); waveActive = true; enemies = []; spawnQ = []; wave = CHAPTERS[chapter].last; districtShots = 3; const sC = score; updateWaves(1 / 60);
+    check('Firing in a district forfeits the Bartleby bonus', chapterClear && score < sC + 5000);
+
+    // The kettle cusp is closed, and stragglers are pointed at or fetched.
+    // These three set-ups used to leave a sponge wedged behind the kettle, out of sight, forever.
+    const pocketed = [[139, -19, 160, 17, 10], [151, -19, 136.5, 17, 10], [138, -21, 160, 17, 40]].filter(([sx, sz, px, pz, hp]) => {
+      fresh(); chapter = 2; P.x = px; P.z = pz; P.y = 0; const e = makeEnemy('sponge', sx, sz, 1); e.y = 0; e.spawnT = 0; e.hp = hp; enemies = [e];
+      let last = [e.x, e.z], still = 0;
+      for (let i = 0; i < 60 * 45; i++) { updateEnemies(1 / 60); if (i % 60 === 0) { still = Math.hypot(e.x - last[0], e.z - last[1]) < .3 ? still + 1 : 0; last = [e.x, e.z]; } }
+      return !e.dead && still > 20 && e.z < -15;
+    });
+    check('Sponges no longer get stuck behind the kettle', pocketed.length === 0);
+    fresh(); waveActive = true; spawnQ = []; const hid = makeEnemy('sponge', P.x + 60, -21, 1); hid.spawnT = 0; enemies = [hid];
+    for (let i = 0; i < 60 * 7; i++) updateStragglers(1 / 60);
+    journeyHUD();
+    check('With one enemy left the objective points at it', fewT > 6 && $('journeyGoal').textContent.includes('ONE LEFT') && !$('journeyNav').hidden);
+    hid.x = P.x + 60; hid.z = -21; const hx = hid.x; for (let i = 0; i < 60 * 20; i++) updateStragglers(1 / 60);
+    check('A hidden, motionless straggler is escorted back into play', Math.hypot(hid.x - hx, hid.z + 21) > 2);
+    fresh(); waveActive = true; spawnQ = []; const seenOne = makeEnemy('bottle', P.x + 8, P.z, 1); seenOne.spawnT = 0; enemies = [seenOne];
+    const sx0 = seenOne.x; for (let i = 0; i < 60 * 25; i++) updateStragglers(1 / 60);
+    check('A visible stationary enemy is left where it is', seenOne.x === sx0);
+
     // Speech: sentence by sentence, with intonation, readable text.
     const plan = speechPlan('Look! This is pure ideology. Why do you squirt the paper towel? And so on, and so on', 0.62, 1.2);
     check('Speech is split into sentences', plan.length === 4 && plan[0].t === 'Look!');

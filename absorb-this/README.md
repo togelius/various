@@ -164,6 +164,11 @@ With a keyboard and mouse:
   Croatian, Czech, Polish, Russian, ...), reading English with that language's
   pronunciation, which gives him an accent. If there's none he uses English.
   The pause screen shows which voice he got.
+- **How much he talks.** The ŽIŽEK button in the options sets how much room
+  he leaves between remarks: NONSTOP (the original firehose, with a remark
+  on screen about two thirds of the time), CHATTY (the default) or MEASURED.
+  The pause after a remark grows with its length, so a long monologue earns
+  a silence. Nothing is cut; you just hear it over more spills.
 - **Žižek's challenges.** Timed dares with a bonus: don't shoot for six seconds
   (I WOULD PREFER NOT TO), eight kills in twelve seconds (ENJOY!), knock
   something off the counter, three googly shots, stay a puddle, soak up your
@@ -267,6 +272,18 @@ All the existing commentary, philosophical acquaintances, enemy types and
 endings are still here. These additions give them more opportunities to make
 a mess:
 
+- **I would prefer not to.** Stop shooting for 25 seconds during a wave and
+  the bored kitchenware starts inventing enemies among itself: neighbours
+  pick feuds with each other every few seconds, and the incidents, headlines
+  and replays notice. Clear a whole district without firing a single shot and
+  you get a 5,000-point Bartleby bonus. (Žižek has opinions about doing
+  nothing.)
+- **Nobody hides forever.** When one or two kitchenware are left, the
+  objective panel's arrow points at the nearest one after a few seconds. A
+  straggler that stays hidden and motionless is escorted back into the
+  argument. Sponges that make no progress towards you change their detour
+  instead of pressing into a corner, and the gap where the Hot Take's kettle
+  meets the wall is closed.
 - **Friendly fire and grudges.** Sauce can hit kitchenware. The offended
   creatures temporarily pursue and attack each other; a bottle can become
   the target of its own argument. Grudges wear off, and dead opponents do
@@ -317,7 +334,8 @@ the right tool.
 - **Freezing.** Enough ice freezes a sponge, spoon, bottle or (with
   patience) Grandma solid in a block of ice for a few seconds. While it's
   frozen it can't move or hug you. Its brittleness means other tools do
-  1.5× damage, and once it's low, or takes a big hit, it shatters outright.
+  1.5× damage, and once it's low, takes a big hit or takes a finishing blow,
+  it shatters outright.
   Hit it hard and it slides like a curling stone into its comrades, or
   over the edge. Ice alone doesn't shatter it: freeze, then switch.
 - **The Fork** is armoured while it flies. Dodge its last stab and it
