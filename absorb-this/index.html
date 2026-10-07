@@ -5227,7 +5227,7 @@ function spawnEnemy(type) {
   if(type==='sponge'||type==='mama'){e.vy=10;e.vx=rand(-2,2);e.vz=rand(-1,1);}
   // From the stove onwards some sponges arrive pre-fried: water and ice skid off, soap cuts it.
   if(type==='sponge'&&e.type==='sponge'&&(MOD==='grease'||wave>=5&&Math.random()<(wave<7?.2:.3))){e.greasy=true;
-    if(!toolTipsSeen.greasyArrive){toolTipsSeen.greasyArrive=true;setTimeout(()=>{if(state==='play'){feed('TIP <em>'+TOOL_TIPS.greasy+'</em>');zz('greasy',{force:true});}},900);}}
+    if(!toolTipsSeen.greasyArrive){toolTipsSeen.greasyArrive=toolTipsSeen.greasy=true;setTimeout(()=>{if(state==='play'){feed('TIP <em>'+TOOL_TIPS.greasy+'</em>');zz('greasy',{force:true});}},900);}}
   enemies.push(e);
   bubbles(e.x, e.y + 0.5, e.z, 8, 0.8);
   sfx('spawn');
