@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clack Stack art preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap">
+<style>
+  :root { --bg: #EDE3D3; --ink: #1E2541; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+    font-family: Fredoka, ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif; }
+  canvas { display: block; }
+  body.full { overflow: hidden; }
+  body.full canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<script src="art.js"></script>
+<script>
+'use strict';
+/* Art preview: ?view=scene | title | gallery | sky (default: scene, title, gallery stacked)
+   &night=1 (late-game night scene: a tower past the ceiling, the room scrolled down under
+   the stars and moon) &still=1 (no animation) &t=seconds (time to freeze at)
+   view=sky: the room top and the sky above it at skyT 0 / 0.5 / 1, side by side */
+const Q = new URLSearchParams(location.search);
+const VIEW = Q.get('view') || 'all';
+const STILL = Q.get('still') === '1';
+const NIGHT = Q.get('night') === '1';
+const T0 = Q.has('t') ? +Q.get('t') : 1.3;
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const H3 = Math.sqrt(3) / 2;
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+window.__artReady = false;
+window.__artErrors = [];
+
+function mkView(w, h) {
+  const c = document.createElement('canvas');
+  c.width = Math.round(w * DPR); c.height = Math.round(h * DPR);
+  c.style.width = w + 'px'; c.style.height = h + 'px';
+  document.body.appendChild(c);
+  const ctx = c.getContext('2d');
+  return { c, ctx, w, h };
+}
+
+/* ------------------------------------------------------------ the game-like scene */
+// tower in lattice units: origin = centre of the car top, y up, centroids
+const TOWER = [
+  ['sq', 'yellow', -1.5, 0.5, 0, 0], ['sq', 'blue', -0.5, 0.5, 0, 1], ['marble', 'green', 0.5, 0.5, 0, 0], ['sq', 'red', 1.5, 0.5, 0, 0],
+  ['sq', 'lightBlue', -1.5, 1.5, 0, 2], ['sq', 'orange', -0.5, 1.5, 0, 0], ['sq', 'purple', 0.5, 1.5, 0, 0], ['sq', 'green', 1.5, 1.5, 0, 1],
+  ['tri', 'red', -1.5, 2 + H3 / 3, 0, 0], ['tri', 'yellow', -0.5, 2 + H3 / 3, 0, 1], ['tri', 'blue', 0.5, 2 + H3 / 3, 0, 0], ['tri', 'green', 1.5, 2 + H3 / 3, 0, 1],
+  ['tri', 'orange', -1, 2 + 2 * H3 / 3, Math.PI, 0], ['tri', 'purple', 0, 2 + 2 * H3 / 3, Math.PI, 1], ['tri', 'lightBlue', 1, 2 + 2 * H3 / 3, Math.PI, 0],
+  ['sq', 'blue', -1, 2.5 + H3, 0, 0], ['sq', 'yellow', 0, 2.5 + H3, 0, 0], ['sq', 'red', 1, 2.5 + H3, 0, 2],
+  ['cube', 'orange', -0.5, 4 + H3, 0, 0], ['sq', 'purple', 1, 3.5 + H3, 0, 1], ['tri', 'green', 1, 4 + H3 + H3 / 3, 0, 0],
+];
+const RINGS_ON = [[-0.5, 1.5], [0, 2.5 + H3]];
+const GHOST = ['sq', 0, 5.5 + H3];
+// a crash pile on the rug (screen-relative, filled per layout)
+const PILE = [];
+(function () {
+  let a = 12345;
+  const r = () => { a = (a * 1103515245 + 12345) & 0x7fffffff; return a / 0x7fffffff; };
+  const cols = ['red', 'orange', 'yellow', 'green', 'blue', 'lightBlue', 'purple'];
+  for (let i = 0; i < 15; i++) {
+    PILE.push({ shape: r() < 0.3 ? 'tri' : r() < 0.1 ? 'marble' : 'sq', color: cols[(r() * 7) | 0],
+      u: r() * 2.6 - 1.3, v: r() * 1.0, rot: r() * 6.28, variant: (r() * 3) | 0 });
+  }
+})();
+
+function sceneLayout(W, H, night) {
+  const groundY = Math.round(H * 0.905); // the game's CFG.GROUND_FRAC
+  const handTop = W > H ? 54 : 84;
+  let L = clamp(Math.min(W / 7.5, (groundY - handTop) / 10.2), 20, 72);
+  if (night) L = 30;
+  return { groundY, L };
+}
+
+function towerTiles(cx, baseY, L, flex, out) {
+  out.length = 0;
+  const top = 6;
+  for (const t of TOWER) {
+    const y = t[3];
+    out.push({ shape: t[0], color: t[1], cx: cx + (t[2] + flex * (y / top) * (y / top)) * L, cy: baseY - y * L, rot: t[4], variant: t[5] });
+  }
+  return out;
+}
+
+function nightTower(cx, baseY, L, rows, flex, out) {
+  // a tall late-game tower: two-wide trunk with triangle bands, built to `rows` L
+  out.length = 0;
+  const cols = ['red', 'orange', 'yellow', 'green', 'blue', 'lightBlue', 'purple'];
+  let y = 0, k = 0;
+  while (y < rows) {
+    const f = (yy) => flex * (yy / rows) * (yy / rows);
+    if (k % 4 === 3) {
+      out.push({ shape: 'tri', color: cols[k % 7], cx: cx + (-0.5 + f(y)) * L, cy: baseY - (y + H3 / 3) * L, rot: 0, variant: 0 });
+      out.push({ shape: 'tri', color: cols[(k + 2) % 7], cx: cx + (0.5 + f(y)) * L, cy: baseY - (y + H3 / 3) * L, rot: 0, variant: 1 });
+      out.push({ shape: 'tri', color: cols[(k + 4) % 7], cx: cx + (0 + f(y)) * L, cy: baseY - (y + 2 * H3 / 3) * L, rot: Math.PI, variant: 0 });
+      y += H3;
+      out.push({ shape: 'sq', color: cols[(k + 1) % 7], cx: cx + f(y) * L, cy: baseY - (y + 0.5) * L, rot: 0, variant: 0 });
+      y += 1;
+    } else {
+      out.push({ shape: k % 5 === 2 ? 'marble' : 'sq', color: cols[k % 7], cx: cx + (-0.5 + f(y)) * L, cy: baseY - (y + 0.5) * L, rot: 0, variant: k % 3 });
+      out.push({ shape: 'sq', color: cols[(k + 3) % 7], cx: cx + (0.5 + f(y)) * L, cy: baseY - (y + 0.5) * L, rot: 0, variant: (k + 1) % 3 });
+      y += 1;
+    }
+    k++;
+  }
+  out.top = y;
+  return out;
+}
+
+const TT = [];
+function drawScene(ctx, W, H, t, night) {
+  const { groundY, L } = sceneLayout(W, H, night);
+  Art.resize(W, H, DPR, groundY);
+  const cx = Math.round(W / 2);
+  const flex = Math.sin(t * 2.1) * 0.12;
+  let camY = 0, skyT = 0, tiles, baseY, topY;
+  if (night) {
+    // a "moon" level: the camera has scrolled far enough up that the room (0.4 parallax)
+    // sits in the lower part of the screen under the night sky; the tower reaches up to
+    // 3.6 L under the hand
+    const handY = 90;
+    camY = 1.6 * H;
+    const rows = Math.max(26, (groundY + camY - 0.5 * L - handY) / L - 3.6);
+    nightTower(0, 0, L, rows, flex, TT);
+    topY = TT.top;
+    camY = Math.max(camY, handY + (3.6 + topY) * L - (groundY - 0.5 * L));
+    skyT = 1;
+    baseY = groundY + camY - 0.5 * L;
+    tiles = nightTower(cx, baseY, L, rows, flex, TT);
+  } else {
+    baseY = groundY - 0.5 * L;
+    tiles = towerTiles(cx, baseY, L, flex, TT);
+    topY = 6.87;
+  }
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  Art.drawRoom(ctx, W, H, groundY, camY, skyT);
+  Art.drawRug(ctx, W, H, groundY, camY);
+  Art.drawLight(ctx, tiles, L, groundY, camY, 1);
+  const gy = groundY + camY;
+  // shadows, cars
+  Art.drawShadowBlob(ctx, cx, gy + 0.05 * L, 2.4 * L, 0.22 * L, 0.55);
+  if (night) Art.drawCar(ctx, cx, baseY, 0, L, 'red', { t });
+  else { Art.drawCar(ctx, cx - L, baseY, 0, L, 'green', { t }); Art.drawCar(ctx, cx + L, baseY, 0, L, 'red', { t }); }
+  // the tower: all bodies (multiply) first, then all details
+  for (const p of tiles) Art.drawTile(ctx, p.shape, p.color, p.cx, p.cy, p.rot, L, { layer: 'body', variant: p.variant, night });
+  for (const p of tiles) Art.drawTile(ctx, p.shape, p.color, p.cx, p.cy, p.rot, L, { layer: 'detail', variant: p.variant, night });
+  if (!night) {
+    for (const r of RINGS_ON) Art.drawRing(ctx, cx + (r[0] + flex * (r[1] / 6) ** 2) * L, baseY - r[1] * L, L, 1, t);
+    Art.drawGear(ctx, cx + 0.5 * L, baseY - 0.5 * L, L, t * 2);
+  }
+  // goal ribbon + icon
+  const G = night ? topY + 1.4 : 7.4;
+  const ry = baseY - G * L;
+  const isz = Math.max(30, 0.95 * L);
+  Art.drawRibbon(ctx, 8, W - 14 - isz, ry, L, 0, t);
+  Art.drawGoalIcon(ctx, night ? 'moon' : 'armchair', W - 8 - isz / 2, ry, isz);
+  // floating ring
+  if (!night) Art.drawRing(ctx, cx + 3.05 * L, baseY - 4.2 * L, L, 0, t);
+  // ghost + hand holding the next tile
+  const gx = night ? 0 : GHOST[1], gyL = night ? topY + 0.5 : GHOST[2];
+  const ghostX = cx + (gx + flex * (gyL / topY) ** 2) * L, ghostY = baseY - gyL * L;
+  Art.drawTile(ctx, 'sq', 'lightBlue', ghostX, ghostY, 0, L, { ghost: 'gold', night });
+  const handX = ghostX + Math.sin(t * 1.7) * 0.06 * L;
+  const handY = night ? 90 : baseY - (gyL + 2.6) * L;
+  ctx.save();
+  ctx.globalAlpha = 0.35; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.setLineDash([2, 6]);
+  ctx.beginPath(); ctx.moveTo(handX, handY + L); ctx.lineTo(ghostX, ghostY - 0.5 * L); ctx.stroke();
+  ctx.restore();
+  Art.drawTile(ctx, 'sq', 'lightBlue', handX, handY + 0.5 * L, 0, L, { night });
+  Art.drawHand(ctx, handX, handY, L, 0, t);
+  // crash pile in front, left: overlapping pieces mix like filters
+  if (!night) {
+    const px = Math.max(1.6 * L, cx - 3.2 * L), py = gy + Math.min(0.9 * L, (H - gy) * 0.55);
+    Art.drawShadowBlob(ctx, px + 0.3 * L, py + 0.25 * L, 1.9 * L, 0.35 * L, 0.5);
+    for (const p of PILE) Art.drawTile(ctx, p.shape, p.color, px + p.u * L, py - p.v * 0.55 * L, p.rot, L * 0.8, { layer: 'body', variant: p.variant });
+    for (const p of PILE) Art.drawTile(ctx, p.shape, p.color, px + p.u * L, py - p.v * 0.55 * L, p.rot, L * 0.8, { layer: 'detail', variant: p.variant });
+  }
+  return { L, groundY, camY };
+}
+
+/* ------------------------------------------------------------ the sky: day / dusk / night */
+function drawSkyScene(ctx, W, H) {
+  const groundY = Math.round(H * 0.905);
+  Art.resize(W, H, DPR, groundY);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const camY = 1.6 * H;
+  const ts = [0, 0.5, 1];
+  for (let i = 0; i < 3; i++) {
+    ctx.save();
+    ctx.beginPath(); ctx.rect(i * W / 3, 0, W / 3, H); ctx.clip();
+    Art.drawRoom(ctx, W, H, groundY, camY, ts[i]);
+    ctx.restore();
+    label(ctx, i * W / 3 + 10, 10, 'skyT ' + ts[i], 14, ts[i] > 0.6 ? '#F6F1D9' : '#1E2541');
+  }
+  ctx.fillStyle = 'rgba(30,37,65,0.6)';
+  ctx.fillRect(W / 3 - 1, 0, 2, H); ctx.fillRect(2 * W / 3 - 1, 0, 2, H);
+}
+
+/* ------------------------------------------------------------ the title scene */
+const wob = new Array(10).fill(0);
+function drawTitleScene(ctx, W, H, t) {
+  const groundY = Math.round(H * 0.905);
+  Art.resize(W, H, DPR, groundY);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  Art.drawRoom(ctx, W, H, groundY, 0, 0);
+  Art.drawRug(ctx, W, H, groundY, 0);
+  const B = Art.titleBuild;
+  const titleBottom = W > H ? H * 0.32 : H * 0.36;
+  const L = clamp(Math.min(W / 10.5, (groundY - titleBottom) / 7.2), 16, 80);
+  const ox = W / 2 + 0.3 * L;
+  const tiles = B.tiles.map((p) => ({ shape: p.shape, color: p.color, cx: ox + p.x * L, cy: groundY - p.y * L, rot: p.rot, variant: p.variant }));
+  tiles.push({ shape: 'cube', color: 'orange', cx: ox + B.cube.x * L, cy: groundY - B.cube.y * L, rot: 0 });
+  Art.drawLight(ctx, tiles, L, groundY, 0, 1);
+  Art.drawShadowBlob(ctx, ox, groundY + 0.1 * L, 4.8 * L, 0.3 * L, 0.5);
+  for (const p of tiles) Art.drawTile(ctx, p.shape, p.color, p.cx, p.cy, p.rot, L, { layer: 'body', variant: p.variant });
+  for (const p of tiles) Art.drawTile(ctx, p.shape, p.color, p.cx, p.cy, p.rot, L, { layer: 'detail', variant: p.variant, glint: p.shape === 'crown' ? (t * 0.5) % 1 : 0 });
+  for (const r of B.rings) Art.drawRing(ctx, ox + r.x * L, groundY - r.y * L, L, 1, t);
+  // letters (poke one now and then)
+  for (let i = 0; i < 10; i++) wob[i] = Math.max(0, Math.sin(t * 3 - i * 0.9)) ** 12;
+  const tw = Math.min(W - 32, 900);
+  Art.drawTitle(ctx, W / 2, W > H ? H * 0.15 : H * 0.17, tw, t, wob);
+  // the tile box with best scores, lying on the rug
+  const bw = clamp(Math.min(W * 0.3, H * 0.42), 120, 260);
+  Art.drawTileBox(ctx, W - bw * 0.62 - 6, H - 8, bw, ['BEST 12,480', 'LEVEL 7 · 98 cm', 'STREAK 9']);
+  ctx.save();
+  ctx.font = '700 ' + Math.round(clamp(W * 0.07, 26, 54)) + 'px Fredoka, ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const s = 1 + 0.06 * Math.sin(t * 6);
+  ctx.translate(W / 2, W > H ? H * 0.31 : H * 0.33); ctx.scale(s, s);
+  ctx.lineJoin = 'round'; ctx.lineWidth = 7; ctx.strokeStyle = '#ffffff'; ctx.strokeText('TAP!', 0, 0);
+  ctx.fillStyle = '#1E2541'; ctx.fillText('TAP!', 0, 0);
+  ctx.restore();
+}
+
+/* ------------------------------------------------------------ the gallery */
+function label(ctx, x, y, s, size, color) {
+  ctx.save();
+  ctx.font = '600 ' + (size || 13) + 'px Fredoka, ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif';
+  ctx.fillStyle = color || '#1E2541'; ctx.textBaseline = 'top';
+  ctx.fillText(s, x, y);
+  ctx.restore();
+}
+
+function drawGallery(ctx, W) {
+  // returns the height used; drawn at a fixed time so it is stable
+  const t = T0;
+  const pad = 16;
+  const COLS = Art.TILE_COLORS;
+  const L = clamp(Math.floor((W - 2 * pad - 90) / (COLS.length * 1.25)), 26, 64);
+  const cell = L * 1.25;
+  let y = pad;
+  const panel = (h, col) => { ctx.fillStyle = col || '#EDE3D3'; ctx.fillRect(0, y, W, h); };
+  const head = (s) => { label(ctx, pad, y, s, 18); y += 28; };
+
+  head('Tiles: shape x colour (multiply body + detail)');
+  const rows = [['sq', 0, 'square v0'], ['sq', 1, 'square v1'], ['sq', 2, 'square v2'], ['tri', 0, 'tri up v0'],
+    ['tri', 1, 'tri up v1'], ['tri-down', 0, 'tri down'], ['marble', 0, 'marble'], ['crown', 0, 'crown']];
+  for (const r of rows) {
+    label(ctx, pad, y + cell / 2 - 7, r[2], 12);
+    for (let i = 0; i < COLS.length; i++) {
+      const x = pad + 90 + i * cell + cell / 2;
+      const shape = r[0] === 'tri-down' ? 'tri' : r[0];
+      const rot = r[0] === 'tri-down' ? Math.PI : 0;
+      Art.drawTile(ctx, shape, COLS[i], x, y + cell / 2, rot, L, { variant: r[1] });
+    }
+    y += cell;
+  }
+  label(ctx, pad, y + L, 'cube', 12);
+  Art.drawTile(ctx, 'cube', 'orange', pad + 90 + L * 1.4, y + L * 1.3, 0, L);
+  // overlap mixing demo
+  const mx = pad + 90 + L * 4.2, my = y + L * 1.2;
+  label(ctx, mx - L * 0.6, y + 2, 'overlaps mix (multiply)', 12);
+  const ov = [['blue', -0.3, 0.1], ['yellow', 0.25, -0.15], ['red', 0.6, 0.35], ['lightBlue', 1.2, 0.0], ['purple', 1.6, 0.3]];
+  for (const o of ov) Art.drawTile(ctx, 'sq', o[0], mx + o[1] * L, my + o[2] * L, o[2] * 0.6, L, { layer: 'body' });
+  for (const o of ov) Art.drawTile(ctx, 'sq', o[0], mx + o[1] * L, my + o[2] * L, o[2] * 0.6, L, { layer: 'detail' });
+  y += L * 2.7;
+
+  // outline white / gold / red, filled with the held piece's colour; on wall, rug, armchair, night
+  head('Ghosts on wall / rug / armchair / night');
+  const gh = ['white', 'gold', 'red'];
+  const gbg = [['#F2EEE8', false], ['#E7DCCB', false], ['#B3244A', false], ['#1B2140', true]];
+  const gcols = [['lightBlue', 'yellow'], ['purple', 'orange'], ['green', 'blue'], ['red', 'lightBlue']];
+  const gx = Math.min(L * 3.3, (W - 2 * pad) / 3);
+  for (let r = 0; r < gbg.length; r++) {
+    panel(L * 1.45, gbg[r][0]);
+    for (let i = 0; i < 3; i++) {
+      const x0 = pad + i * gx;
+      Art.drawTile(ctx, 'sq', gcols[r][0], x0 + L * 0.6, y + L * 0.72, 0, L, { ghost: gh[i], night: gbg[r][1] });
+      Art.drawTile(ctx, 'tri', gcols[r][1], x0 + L * 1.75, y + L * 0.8, 0, L, { ghost: gh[i], night: gbg[r][1] });
+      if (gx > L * 3) Art.drawTile(ctx, 'cube', 'orange', x0 + L * 2.75, y + L * 0.75, 0, L * 0.4, { ghost: gh[i], night: gbg[r][1] });
+      if (r === 0) label(ctx, x0 + 2, y + 2, gh[i], 11);
+    }
+    y += L * 1.45;
+  }
+  y += 12;
+
+  head('Options: flash / tint / glint / alpha / layer');
+  const opts = [['flash .3', { flash: 0.3 }], ['flash .6', { flash: 0.6 }], ['flash 1', { flash: 1 }], ['tint .5', { tint: 0.5 }],
+    ['tint 1', { tint: 1 }], ['alpha .5', { alpha: 0.5 }], ['body', { layer: 'body' }], ['detail', { layer: 'detail' }]];
+  for (let i = 0; i < opts.length; i++) {
+    const x = pad + (i % 8) * cell * 1.15 + cell / 2;
+    Art.drawTile(ctx, 'sq', COLS[i % 7], x, y + cell / 2, 0, L, opts[i][1]);
+    label(ctx, x - L / 2, y + cell, opts[i][0], 11);
+  }
+  y += cell + 22;
+  for (let i = 0; i < 5; i++) {
+    const g = [0.1, 0.3, 0.5, 0.7, 0.9][i];
+    const x = pad + i * cell * 1.15 + cell / 2;
+    Art.drawTile(ctx, 'crown', 'orange', x, y + cell / 2, 0, L, { glint: g });
+    label(ctx, x - L / 2, y + cell, 'glint ' + g, 11);
+  }
+  y += cell + 26;
+
+  head('Night (source-over, glow baked into the body sprite)');
+  panel(cell * 2.3, '#1B2140');
+  const nl = y;
+  for (let i = 0; i < COLS.length; i++) {
+    const x = pad + i * cell + cell / 2;
+    Art.drawTile(ctx, 'sq', COLS[i], x, nl + cell * 0.6, 0, L, { night: true, variant: i % 3 });
+    Art.drawTile(ctx, 'tri', COLS[i], x, nl + cell * 1.65, i % 2 ? Math.PI : 0, L, { night: true });
+  }
+  Art.drawTile(ctx, 'cube', 'orange', pad + 7.6 * cell, nl + cell * 1.1, 0, L * 0.8, { night: true });
+  y += cell * 2.3 + 16;
+
+  head('Cube net fold 0 .. 1 (last = drawTile cube)');
+  const nL = clamp(Math.floor((W - 2 * pad) / 6 / 7), 6, 18);
+  for (let i = 0; i <= 5; i++) {
+    const f = i / 5;
+    Art.drawCubeNet(ctx, pad + (i + 0.5) * (W - 2 * pad) / 6, y + nL * 5.2, nL, f, 0);
+    label(ctx, pad + (i + 0.5) * (W - 2 * pad) / 6 - 10, y + nL * 9, 'fold ' + f.toFixed(1), 11);
+  }
+  Art.drawTile(ctx, 'cube', 'orange', pad + 5.5 * (W - 2 * pad) / 6, y + nL * 5.2, 0, nL, { ghost: 'white' });
+  y += nL * 9 + 26;
+  const fs = [0.3, 0.5, 0.65, 0.8, 0.92];
+  const fl = Math.min(L * 0.5, (W - 2 * pad) / 5 / 6.5);
+  for (let i = 0; i < fs.length; i++) {
+    Art.drawCubeNet(ctx, pad + (i + 0.5) * (W - 2 * pad) / 5, y + fl * 5.2, fl, fs[i], 0);
+    label(ctx, pad + (i + 0.5) * (W - 2 * pad) / 5 - 10, y + fl * 8.6, 'fold ' + fs[i], 11);
+  }
+  y += fl * 8.6 + 26;
+
+  head('Goal icons');
+  const keys = ['melon', 'box', 'armchair', 'eggchair', 'table', 'armback', 'window', 'eggtop', 'ac', 'you', 'lamp', 'shelf', 'grownup', 'door', 'ceiling', 'roof', 'clouds', 'moon'];
+  const isz = 52, per = Math.max(1, Math.floor((W - 2 * pad) / 78));
+  for (let i = 0; i < keys.length; i++) {
+    const x = pad + (i % per) * 78 + 39, yy = y + Math.floor(i / per) * 84 + 30;
+    Art.drawGoalIcon(ctx, keys[i], x, yy, isz);
+    label(ctx, x - 26, yy + 30, keys[i], 11);
+  }
+  y += Math.ceil(keys.length / per) * 84 + 10;
+
+  head('Cars, rings, gear, ribbon');
+  panel(L * 2.4, '#EDE3D3');
+  Art.drawCar(ctx, pad + L * 1.3, y + L * 0.9, 0, L, 'red', {});
+  Art.drawCar(ctx, pad + L * 3.4, y + L * 0.9, 0, L, 'green', {});
+  Art.drawCar(ctx, pad + L * 5.9, y + L * 0.9, 0, L, 'red', { squash: 1 });
+  label(ctx, pad + L * 5.2, y + L * 1.5, 'squash 1', 11);
+  Art.drawCar(ctx, pad + L * 8.3, y + L * 0.9, -0.12, L, 'green', {});
+  y += L * 2.0;
+  for (let i = 0; i < 4; i++) Art.drawRing(ctx, pad + L * (0.7 + i * 1.1), y + L * 0.8, L, 0, t + i * 0.7);
+  Art.drawTile(ctx, 'sq', 'yellow', pad + L * 5.2, y + L * 0.8, 0, L);
+  Art.drawRing(ctx, pad + L * 5.2, y + L * 0.8, L, 1, t);
+  Art.drawTile(ctx, 'marble', 'purple', pad + L * 6.6, y + L * 0.8, 0, L);
+  Art.drawGear(ctx, pad + L * 6.6, y + L * 0.8, L, 0.3);
+  for (let i = 0; i < 3; i++) Art.drawGear(ctx, pad + L * (7.8 + i * 0.6), y + L * 0.8, L, i * 0.4);
+  y += L * 1.7;
+  const tears = [0, 0.15, 0.4, 0.7, 1];
+  for (let i = 0; i < tears.length; i++) {
+    const x0 = pad + i * (W - 2 * pad) / 5, x1 = x0 + (W - 2 * pad) / 5 - 18;
+    Art.drawRibbon(ctx, x0 + 6, x1, y + 14, L * 0.7, tears[i], t);
+    label(ctx, x0 + 6, y + 50, 'tear ' + tears[i], 11);
+  }
+  // torn halves swing down from their pins
+  y += Math.max(72, 0.5 * (W - 2 * pad) / 5 + 36);
+
+  head('Hand (open 0 / .5 / 1), arm, foot sequence');
+  const hy = y;
+  const hh = L * 3.6;
+  panel(hh, '#E6E1D8');
+  const cells = 7, cw = (W - 2 * pad) / cells;
+  for (let i = 0; i < 3; i++) {
+    const x = pad + cw * (i + 0.5);
+    ctx.save(); ctx.beginPath(); ctx.rect(x - cw / 2, hy, cw, hh); ctx.clip();
+    Art.drawTile(ctx, 'sq', 'purple', x, hy + L * 1.9 + i * 0.1 * L, 0, L);
+    // hand draws its sleeve up past the top of the screen: translate so "screen top" is the panel top
+    ctx.translate(0, hy);
+    Art.drawHand(ctx, x, L * 1.4, L, [0, 0.5, 1][i], t);
+    ctx.restore();
+  }
+  {
+    ctx.save(); ctx.beginPath(); ctx.rect(pad + cw * 3, hy, cw * 1.6, hh); ctx.clip();
+    ctx.translate(pad + cw * 3, 0);
+    Art.drawTile(ctx, 'cube', 'orange', cw * 1.0 + L * 0.2, hy + hh - L * 1.2, 0, L * 0.5);
+    Art.drawArm(ctx, cw * 1.0 - L * 0.37, hy + hh - L * 1.1, L, t);
+    ctx.restore();
+  }
+  const ft = [0.75, 0.9, 1];
+  for (let i = 0; i < 3; i++) {
+    const x = pad + cw * (4.9 + i * 0.72);
+    ctx.save(); ctx.beginPath(); ctx.rect(x - cw * 0.36, hy, cw * 0.72, hh); ctx.clip();
+    ctx.translate(x, hy);
+    Art.drawFoot(ctx, 0, hh - 8, L * 0.4, ft[i], i % 2 ? 1 : -1);
+    ctx.restore();
+    label(ctx, x - 20, hy + hh + 4 + (cw < 90 ? (i % 2) * 13 : 0), 'foot ' + ft[i], 11);
+  }
+  y += hh + 26;
+
+  // the shove pulse (driven by t) squashes the hand against the face and sinks the elbow
+  head('Arm: SMASH / title shove');
+  const ah = L * 2.6;
+  panel(ah, '#EDE3D3');
+  const an = W > 700 ? 4 : 2, aw = (W - 2 * pad) / an, aL = Math.min(L * 1.1, aw / 3.2);
+  for (let i = 0; i < an; i++) {
+    const x0 = pad + i * aw;
+    ctx.save(); ctx.beginPath(); ctx.rect(x0, y, aw - 4, ah); ctx.clip();
+    const cxq = x0 + aw - aL * 1.2, cyq = y + ah - aL * 1.15;
+    Art.drawTile(ctx, 'cube', 'orange', cxq, cyq, 0, aL * 0.8);
+    Art.drawArm(ctx, cxq - aL * 0.8 - 0.07 * 1.6 * aL, cyq + aL * 0.25, aL, i * 0.12 / Math.max(1, an - 1));
+    ctx.restore();
+    label(ctx, x0 + 4, y + 4, 't ' + (i * 0.12 / Math.max(1, an - 1)).toFixed(2), 11);
+  }
+  y += ah + 16;
+  return y + pad;
+}
+
+/* ------------------------------------------------------------ boot */
+function boot() {
+  const W = window.innerWidth, H = window.innerHeight;
+  const views = [];
+  if (VIEW === 'scene' || VIEW === 'title' || VIEW === 'sky') document.body.classList.add('full');
+  if (VIEW === 'sky') views.push(['sky', mkView(W, H)]);
+  if (VIEW === 'scene' || VIEW === 'all') views.push(['scene', mkView(W, H)]);
+  if (VIEW === 'title' || VIEW === 'all') views.push(['title', mkView(W, H)]);
+  if (VIEW === 'gallery' || VIEW === 'all') {
+    const probe = document.createElement('canvas').getContext('2d');
+    // measure the gallery's height with a throwaway pass, then draw it for real
+    const gh = drawGallery(probe, W);
+    const v = mkView(W, gh);
+    v.ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    v.ctx.fillStyle = '#F2EEE8'; v.ctx.fillRect(0, 0, W, gh);
+    drawGallery(v.ctx, W);
+  }
+  const t0 = performance.now();
+  const frame = () => {
+    const t = STILL ? T0 : T0 + (performance.now() - t0) / 1000;
+    for (const [k, v] of views) {
+      if (k === 'scene') drawScene(v.ctx, v.w, v.h, t, NIGHT);
+      else if (k === 'title') drawTitleScene(v.ctx, v.w, v.h, t);
+      else if (k === 'sky') drawSkyScene(v.ctx, v.w, v.h);
+    }
+  };
+  frame();
+  // a few extra frames so sprites built under the per-frame budget settle at their exact size
+  let n = 0;
+  const settle = () => { frame(); if (++n < 6) requestAnimationFrame(settle); else { window.__artReady = true; if (!STILL) loop(); } };
+  const loop = () => { frame(); requestAnimationFrame(loop); };
+  requestAnimationFrame(settle);
+}
+window.addEventListener('error', (e) => window.__artErrors.push(String(e.message)));
+boot();
+</script>
+</body>
+</html>

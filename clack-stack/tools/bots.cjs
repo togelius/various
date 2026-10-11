@@ -1,0 +1,457 @@
+#!/usr/bin/env node
+'use strict';
+// M3 acceptance (DESIGN.md 14): tower dynamics, crash and debris, played by bots through REAL mouse events at
+// positions read from CS.slots(). All runs: ?ts=4&level=N&seed=N&autostart=1 (390x844, muted, no hint).
+//   node clack-stack/tools/bots.cjs                     (everything, seeds 1-10)
+//   node clack-stack/tools/bots.cjs --only=edge,save    (calib, perfect, edge, save)
+//   node clack-stack/tools/bots.cjs --seeds=3-5 --verbose
+// Checks:
+//   calib    CS.calib() reports a bump peak of 0.35 α ± 0.03 on the reference tower (and the other targets)
+//   perfect  PerfectBot (level 3; taps the PERFECT centre of the supported slot that keeps |cₓ| smallest, never on a
+//            TIPPY ghost while another slot is safe, HOLD once if none is) reaches 10 L with zero crashes in 10/10 seeds
+//            (if the ghost turns TIPPY while it aims, it applies the rule again without that slot). M4: level 3's
+//            ribbon is at 6 L, so on the way the crown drops into the hand: the bot HOLDs it (OVERTIME) and builds on;
+//            with the crown in the HOLD box, a tile with no safe slot is thrown away at the screen edge (a MISS)
+//   edge     EdgeBot (always the rightmost slot) crashes within 30 tiles in 10/10 seeds, and every crash is
+//            preceded by a tipwarn at least 0.5 s earlier (game time): the last tipwarn before it, i.e. the warning that
+//            was up when it went (the tell re-arms below 0.4 α)
+//   save     SaveBot (rightmost until a tipwarn, then drops on the far side) logs at least one save over the seeds;
+//            and every save is honest: nothing in the air, the tower physically leaned >= 0.6 α, and no crash follows
+//            within 2 s unless a new tile landed (or a hazard hit) after the save (checked for every save in every run)
+//   debris   (in every run) the debris count never goes above 60, no visible piece ever vanishes (the cap only drops
+//            pieces that have faded out), and everything a crash threw is asleep 3 s later
+//   dyn      (in every run, every 120 Hz step) the flex never bends past 0.35 L, and the top's lateral speed stays
+//            <= 2.8 L/s until the tower is past its tipping angle (past α it is uncapped: reported separately)
+//   tippy    TIPPY is honest: random drops (random slot, random offset within ±0.5 L, so any grade) on level 3 and 7
+//            towers; a drop whose ghost was not TIPPY never ends in a crash (drops the fuse followed up are skipped;
+//            M7: level 7 has the bump car, and TIPPY looks ahead to a hit inside its horizon, but a crash after a later
+//            bump or foot hit is the hazard's and is counted apart)
+//   --trace  prints each PerfectBot decision and the run's releases and events
+//   --literal  (report only, never fails) also runs the bare rule of DESIGN 14: no TIPPY veto, no HOLD
+// Exits non-zero on any failure, page error or console error.
+const { launch, gamePage, until } = require('./lib.cjs');
+
+const argv = process.argv.slice(2);
+const ONLY = (argv.find(a => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
+const want = n => !ONLY.length || ONLY.includes(n);
+const VERBOSE = argv.includes('--verbose') || argv.includes('--trace');
+const TRACE = argv.includes('--trace');
+const LITERAL = argv.includes('--literal');
+const SEEDS = (() => {
+  const a = (argv.find(x => x.startsWith('--seeds=')) || '--seeds=1-10').slice(8).split('-').map(Number);
+  const out = []; for (let s = a[0]; s <= (a[1] || a[0]); s++) out.push(s); return out;
+})();
+const VIEW = { width: 390, height: 844 };
+const TAP_Y = Math.round(VIEW.height * 0.55);
+const MASS = { sq: 1, marble: 1, tri: 0.45, crown: 0.45, cube: 3 };
+let failures = 0;
+function check(name, ok, detail) {
+  if (!ok) failures++;
+  console.log((ok ? 'PASS ' : 'FAIL ') + name + (detail ? '  ' + detail : ''));
+}
+const log = (...a) => { if (VERBOSE) console.log('   ', ...a); };
+
+// In-page monitor: the largest debris count seen, and for every crash how many of the pieces it threw (and any
+// older ones) are still awake 3 s (game time) later.
+function installMonitor() {
+  window.__mon = { maxDebris: 0, checks: [], pending: [], seen: 0, rel: [], relId: 0 };
+  const M = window.__mon;
+  (function loop() {
+    const st = CS.state(), ev = CS.events, lr = CS.lastRelease;
+    if (lr && lr.id > M.relId) { M.relId = lr.id; M.rel.push(lr); }
+    if (st.debris > M.maxDebris) M.maxDebris = st.debris;
+    for (; M.seen < ev.length; M.seen++) if (ev[M.seen].type === 'crash') M.pending.push(ev[M.seen].t);
+    while (M.pending.length && st.t >= M.pending[0] + 3) {
+      const t = M.pending.shift();
+      const mine = CS.debris().filter(d => d.born <= t + 1 && !d.fading);
+      const aw = mine.filter(d => !d.sleep);
+      const sl = mine.filter(d => d.sleep && d.sleepT >= 0).sort((a, b) => b.sleepT - a.sleepT)[0];
+      const settle = sl ? sl.sleepT - t : 0, slowest = sl ? `${sl.shape}${sl.plowed ? ' (shoved)' : ''} born +${(sl.born - t).toFixed(2)}` : '';
+      M.checks.push({ t, at: st.t, awake: aw.length, settle, slowest, what: aw.map(d => `${d.shape}@${d.x.toFixed(2)},${d.y.toFixed(2)} v${d.vx.toFixed(2)},${d.vy.toFixed(2)} w${d.w.toFixed(2)} born ${d.born.toFixed(2)}`).join('; ') });
+    }
+    requestAnimationFrame(loop);
+  })();
+}
+
+async function openGame(browser, params) {
+  const g = await gamePage(browser, VIEW, Object.assign({ ts: 4, autostart: 1, mute: 1, nohint: 1 }, params));
+  await until(g.page, () => window.CS && CS.state().handReady && CS.state().phase === 'play', null, 15000);
+  await g.page.evaluate(installMonitor);
+  return g;
+}
+// ready to drop: play phase, a tile in the hand, the base not rolling in
+async function waitReady(page, timeout) {
+  await until(page, () => { const s = CS.state(); return s.phase === 'play' && s.handReady && !s.locked; }, null, timeout || 20000);
+}
+async function tapAt(page, x) { await page.mouse.move(x, TAP_Y); await page.mouse.down(); await page.mouse.up(); }
+async function lastId(page) { return page.evaluate(() => (CS.lastRelease ? CS.lastRelease.id : 0)); }
+async function waitRelease(page, prev) { await until(page, id => CS.lastRelease && CS.lastRelease.id > id, prev, 8000); }
+// game-time wait (polls frames)
+async function waitGame(page, dt) {
+  const t0 = await page.evaluate(() => CS.state().t);
+  await until(page, t => CS.state().t >= t, t0 + dt, 20000);
+}
+// the run's debris/dynamics stats, and every save with what followed it (crashes within 2 s, and landings or hazard
+// hits between)
+async function monitor(page) {
+  return page.evaluate(() => {
+    const ev = CS.events, st = CS.state();
+    const saves = ev.filter(e => e.type === 'save').map(s => {
+      const crash = ev.find(e => e.type === 'crash' && e.t > s.t && e.t <= s.t + 2);
+      const landed = crash ? ev.some(e => (e.type === 'land' || e.type === 'bump' || e.type === 'foot') && e.t > s.t && e.t <= crash.t) : false;
+      return { t: s.t, inAir: s.inAir, level: s.level, crashAfter: crash ? +(crash.t - s.t).toFixed(3) : null, landedBetween: landed };
+    });
+    return { maxDebris: __mon.maxDebris, checks: __mon.checks.slice(), dyn: st.dyn, saves };
+  });
+}
+// --trace: the run's releases and events in game-time order
+async function traceRun(page, seed) {
+  if (!TRACE) return;
+  const { rel, ev } = await page.evaluate(() => ({ rel: __mon.rel.slice(), ev: CS.events.filter(e => /land|crash|tipwarn|miss|save|topple|brace|lost/.test(e.type)) }));
+  const rows = rel.map(r => ({ t: r.t, s: `release #${r.id} ${r.piece} -> ${r.ghostKey || 'MISS'} ${r.grade} dx ${r.dx === null ? '-' : r.dx.toFixed(3)} src ${r.src}${r.tippy ? ' TIPPY' : ''}` }))
+    .concat(ev.map(e => ({ t: e.t, s: `  ${e.type} ${JSON.stringify(Object.assign({}, e, { t: undefined, type: undefined }))}` })))
+    .sort((a, b) => a.t - b.t);
+  for (const r of rows) console.log(`      s${seed} t=${r.t.toFixed(3)} ${r.s}`);
+}
+
+// ---------------------------------------------------------------- PerfectBot
+// DESIGN 14: always taps the PERFECT centre of the supported slot that keeps |cₓ| smallest. Like a player it reads
+// the ghost, with one rule on top: it never drops on a TIPPY ghost (the red '!': the look-ahead says this drop, with
+// its landing kick, tips the tower over) while another slot is safe, and when every slot for the piece in hand is
+// TIPPY it swaps once via HOLD and chooses again. No other vetoes, no throw-aways. It waits for the tower to calm
+// down (within the fuse) so the centre it reads is the centre it taps.
+async function perfectBot(browser, seed, literal) {
+  const { page, errors, context } = await openGame(browser, { seed, level: 3 });
+  const r = { seed, tiles: 0, top: 0, crashes: 0, topples: 0, perfect: 0, lands: 0, swaps: 0, tippyDrops: 0, dodges: 0, misses: 0, crownHeld: 0, thrown: 0, errors };
+  // among the slots that are not TIPPY: the supported one (a hanging one if no supported slot is safe) that keeps
+  // |cₓ| smallest; ties: the higher, then by key. CS.slots().tippy = the ghost's TIPPY at the slot's PERFECT centre.
+  const pick = avoid => page.evaluate(m => {
+    const st = CS.state(), sl = CS.slots().filter(s => m.avoid.indexOf(s.key) < 0), mass = m[st.piece] || 1;
+    const after = s => Math.abs((st.M * st.com.x + mass * s.lx) / (st.M + mass));
+    const best = list => {
+      const sup = list.filter(s => s.supported), pool = sup.length ? sup : list.slice();
+      pool.sort((a, b) => after(a) - after(b) || b.ly - a.ly || (a.key < b.key ? -1 : 1));
+      return pool[0] || null;
+    };
+    const literal = best(sl), slot = m.literal ? literal : best(sl.filter(s => !s.tippy));
+    return { st, slot, literal, after: slot ? after(slot) : null, dodged: !!(slot && literal && slot.key !== literal.key) };
+  }, Object.assign({ literal: !!literal, avoid: avoid || [] }, MASS));
+  // move the hand to the slot's PERFECT centre (following it if the tower sways) and read the ghost there
+  const aim = async slot => {
+    let x = slot.sx, g = null;
+    for (let tries = 0; tries < 3; tries++) {
+      await page.mouse.move(x, TAP_Y);
+      g = await page.evaluate(key => new Promise(res => requestAnimationFrame(() => {
+        const gh = CS.ghost(), s = CS.slots().find(q => q.key === key);
+        res({ key: gh && gh.key, gold: !!gh && gh.color === 'gold', tippy: !!gh && !!gh.tippy, sx: s ? s.sx : null, crown: CS.state().piece === 'crown' });
+      })), slot.key);
+      if (g.crown) break;
+      if (g.key === slot.key && g.gold) break;
+      if (g.sx === null) break;
+      x = g.sx;
+    }
+    return g;
+  };
+  let heldFor = -1;                                                // the release id the last HOLD was spent on
+  try {
+    for (let k = 0; k < 160; k++) {
+      await waitReady(page);
+      // calm: the rock at rest and the sway small; a bounded wait in game time (the fuse is 2.0 s on level 3), so a
+      // busy machine never lets the fuse drop the tile while the bot is still aiming
+      await until(page, () => { const s = CS.state(); return (s.inAir === 0 && Math.abs(s.omega) < 0.02 && Math.abs(s.flexV) < 0.12) || s.t >= s.readyAt + 0.8; }, null, 8000).catch(() => {});
+      let p = await pick();
+      const relId = await lastId(page);
+      // M4: the crown dropped into the hand at the ribbon: bank it (OVERTIME) and build on toward 10 L
+      if (p.st.piece === 'crown' && p.st.held !== 'crown') {
+        if (TRACE) console.log(`      s${seed} #${k} HOLD the crown at ${p.st.top.toFixed(2)} L (OVERTIME)`);
+        await page.keyboard.press('Shift'); r.crownHeld++; heldFor = relId;
+        await page.waitForTimeout(10);
+        continue;
+      }
+      const crownHeld = p.st.held === 'crown';
+      if (!p.slot && crownHeld && !literal) {
+        // the HOLD box keeps the crown: a tile with no safe slot is thrown away instead
+        if (TRACE) console.log(`      s${seed} #${k} throw away ${p.st.piece} (all TIPPY, the crown is held)`);
+        await page.mouse.move(3, TAP_Y); await page.mouse.down(); await page.mouse.up(); r.thrown++;
+        await waitRelease(page, relId).catch(() => {});
+        continue;
+      }
+      if (!p.slot && heldFor !== relId && !literal) {
+        // every slot for this piece is TIPPY (or there is none): HOLD once (one swap per release) and choose again
+        if (TRACE) console.log(`      s${seed} #${k} HOLD ${p.st.piece}${p.literal ? ' (all TIPPY; best ' + p.literal.key + ')' : ' (no slot)'}`);
+        await page.keyboard.press('Shift'); r.swaps++; heldFor = relId;
+        await page.waitForTimeout(10);
+        p = await pick();
+      }
+      if (!p.slot && p.literal) p.slot = p.literal;                   // nothing safe after the swap either: the plain rule
+      if (!p.slot) {
+        // no slot at all for this piece (a cube with no room) and the swap is spent: the fuse drops it (a MISS)
+        if (TRACE) console.log(`      s${seed} #${k} no slot for ${p.st.piece}: waiting for the fuse`);
+        await waitRelease(page, relId).catch(() => {});
+        continue;
+      }
+      if (p.dodged) r.dodges++;
+      let g = await aim(p.slot);
+      // the ghost turned TIPPY while aiming (the tower moved since the pick): the rule again, without that slot
+      for (let again = 0, avoid = []; !literal && g && g.tippy && again < 2; again++) {
+        avoid.push(p.slot.key);
+        const q = await pick(avoid);
+        if (!q.slot) break;
+        if (TRACE) console.log(`      s${seed} #${k} ${p.slot.key} TIPPY at aim: -> ${q.slot.key}`);
+        p = q; g = await aim(p.slot);
+      }
+      if (g && g.crown) continue;                   // the crown arrived while aiming: bank it first (top of the loop)
+      if (g && g.tippy) r.tippyDrops++;
+      if (TRACE) console.log(`      s${seed} #${k} ${p.st.piece} (held ${p.st.held}) cx ${p.st.com.x.toFixed(2)} top ${p.st.top.toFixed(2)} -> ${p.slot.key}${p.slot.supported ? '' : ' (hanging)'} cx' ${p.after === null ? '-' : p.after.toFixed(2)}${p.dodged ? ' (not ' + p.literal.key + ': TIPPY)' : ''}${g && g.tippy ? ' TIPPY' : ''}`);
+      const prev = await lastId(page);
+      await page.mouse.down(); await page.mouse.up();
+      await waitRelease(page, prev).catch(() => {});
+      r.tiles++;
+      const st = await page.evaluate(() => CS.state());
+      r.top = Math.max(r.top, st.top);
+      if (st.crashes > 0) break;
+      if (st.top >= 10 - 1e-9) break;
+    }
+    await until(page, () => CS.state().inAir === 0, null, 5000).catch(() => {});
+    await waitGame(page, 1.5).catch(() => {});     // let the last landing's rock play out: a crash after it counts
+    const s = await page.evaluate(() => ({ st: CS.state(), ev: CS.events.filter(e => e.type === 'land' || e.type === 'crash' || e.type === 'topple' || e.type === 'miss') }));
+    r.top = Math.max(r.top, s.st.top); r.crashes = s.st.crashes;
+    r.topples = s.ev.filter(e => e.type === 'topple').length;
+    r.misses = s.ev.filter(e => e.type === 'miss').length;
+    r.fuse = (await page.evaluate(() => __mon.rel.filter(q => q.src === 'fuse').length));
+    const lands = s.ev.filter(e => e.type === 'land');
+    r.lands = lands.length; r.perfect = lands.filter(e => e.grade === 'perfect').length;
+    r.mon = await monitor(page);
+    await traceRun(page, seed);
+  } finally { await context.close(); }
+  return r;
+}
+
+// ---------------------------------------------------------------- EdgeBot / SaveBot
+// EdgeBot: always the rightmost slot (its centre). SaveBot: the same, but right after a tipwarn it drops on the
+// far side (the slot that pulls the committed CoM furthest back), as fast as the hand allows.
+async function edgeBot(browser, seed, save) {
+  const { page, errors, context } = await openGame(browser, { seed, level: 3 });
+  const r = { seed, drops: 0, crashes: [], saves: 0, counters: 0, errors, firstCrashAt: null };
+  const WANT_CRASHES = save ? 3 : 2, MAX_DROPS = save ? 90 : 70;
+  try {
+    let seenWarn = 0, crashes = 0, dropsSinceCrash = 0;
+    while (r.drops < MAX_DROPS) {
+      await waitReady(page);
+      const info = await page.evaluate(n => {
+        const ev = CS.events, warns = ev.filter(e => e.type === 'tipwarn');
+        return { st: CS.state(), sl: CS.slots(), warns: warns.length, lastWarn: warns[warns.length - 1] || null, crashes: ev.filter(e => e.type === 'crash').length };
+      }, seenWarn);
+      if (info.crashes > crashes) {
+        // a crash: let it play out (and let the monitor check the pile 3 s later) before building again
+        crashes = info.crashes; dropsSinceCrash = 0;
+        if (r.firstCrashAt === null) r.firstCrashAt = r.drops;
+        if (crashes >= WANT_CRASHES) break;
+        const ct = await page.evaluate(() => CS.events.filter(e => e.type === 'crash').pop().t);
+        await until(page, t => CS.state().t >= t, ct + 3.2, 20000);
+        seenWarn = await page.evaluate(() => CS.events.filter(e => e.type === 'tipwarn').length);
+        continue;
+      }
+      if (!info.sl.length) { await page.keyboard.press('Shift'); await page.waitForTimeout(10); continue; }
+      let slot;
+      const counter = save && info.warns > seenWarn && info.st.tip >= 0.3;
+      if (counter) {
+        // far side: pull the committed centre of mass back the other way
+        const side = info.lastWarn.side || 1;
+        slot = info.sl.slice().sort((a, b) => side * (a.lx - b.lx))[0];
+        r.counters++;
+        log(`seed ${seed}: counter on ${slot.key} (tip ${info.st.tip.toFixed(2)}, side ${side})`);
+      } else {
+        slot = info.sl.slice().sort((a, b) => b.sx - a.sx)[0];
+      }
+      if (info.warns > seenWarn && (!save || info.st.tip < 0.3)) seenWarn = info.warns;
+      if (counter) seenWarn = info.warns;
+      const prev = await lastId(page);
+      await tapAt(page, slot.sx);
+      await waitRelease(page, prev).catch(() => {});
+      r.drops++; dropsSinceCrash++;
+      // SaveBot, after its counterweight: hands off while the tower decides (a save, a crash, or 1.5 s: within the fuse)
+      if (counter) await until(page, t => { const s = CS.state(); return s.saves > t.s || s.crashes > t.c || s.t >= t.t + 1.5; },
+        { c: info.st.crashes, s: info.st.saves, t: info.st.t }, 15000).catch(() => {});
+    }
+    await waitGame(page, 3.3).catch(() => {});
+    const ev = await page.evaluate(() => CS.events.filter(e => e.type === 'crash' || e.type === 'tipwarn' || e.type === 'save' || e.type === 'topple'));
+    for (const c of ev.filter(e => e.type === 'crash')) {
+      // the warning that was up when it went: the LAST tipwarn before the crash (the tell re-arms below 0.4, so an
+      // earlier one belongs to a swing the tower came back from)
+      const warns = ev.filter(e => e.type === 'tipwarn' && e.t <= c.t);
+      const last = warns.length ? warns[warns.length - 1].t : null;
+      r.crashes.push({ t: c.t, tiles: c.tiles, top: c.top, warnLead: last === null ? null : c.t - last });
+    }
+    r.saves = ev.filter(e => e.type === 'save').length;
+    r.topples = ev.filter(e => e.type === 'topple').length;
+    r.mon = await monitor(page);
+  } finally { await context.close(); }
+  return r;
+}
+
+// ---------------------------------------------------------------- TIPPY honesty
+// Random drops with real mouse events; after each one, hands off until the tower is still again or has crashed. The
+// ghost's TIPPY at the moment of release (CS.lastRelease.tippy) must predict the crash: never a crash without it.
+async function tippyHonesty(browser, seed, drops) {
+  const level = seed % 2 ? 3 : 7;
+  const { page, errors, context } = await openGame(browser, { seed, level });
+  const r = { seed, level, ok: 0, fn: [], tp: 0, fp: 0, skipped: 0, hazard: 0, errors };
+  let rnd = seed * 7919 + 17; const rand = () => (rnd = (rnd * 16807) % 2147483647) / 2147483647;
+  try {
+    for (let k = 0; k < drops; k++) {
+      await until(page, () => { const s = CS.state(); return s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0; }, null, 20000);
+      const info = await page.evaluate(() => ({ sl: CS.slots(), L: CS.cam().L, crashes: CS.state().crashes, top: CS.state().top }));
+      if (!info.sl.length) { await page.keyboard.press('Shift'); await page.waitForTimeout(20); continue; }
+      const s = info.sl[(rand() * info.sl.length) | 0];
+      const prev = await lastId(page);
+      await page.mouse.move(s.sx + (rand() - 0.5) * info.L, TAP_Y);
+      await page.mouse.down(); await page.mouse.up();
+      await waitRelease(page, prev).catch(() => {});
+      const rel = await page.evaluate(() => CS.lastRelease);
+      if (!rel || rel.id <= prev || !rel.ghostKey) continue;
+      // hands off: still again, crashed, or the fuse dropped the next tile first (then the outcome is not this drop's)
+      const out = await page.evaluate(a => new Promise(res => {
+        (function poll() {
+          const st = CS.state(), lr = CS.lastRelease;
+          if (st.crashes > a.c) return res('crash');
+          if (lr && lr.id > a.id) return res('skip');
+          if (st.inAir === 0 && st.still && st.t > a.t + 0.5) return res('still');
+          if (st.t > a.t + 8) return res('skip');
+          requestAnimationFrame(poll);
+        })();
+      }), { c: info.crashes, id: rel.id, t: rel.t });
+      const hz = out === 'crash' ? await page.evaluate(t => CS.events.some(e => (e.type === 'bump' || e.type === 'foot') && e.hit && e.t >= t), rel.t) : false;
+      if (out === 'skip') r.skipped++;
+      else if (out === 'crash' && !rel.tippy && hz) r.hazard++;      // M7: a bump or a foot hit it after the drop
+      else if (out === 'crash' && !rel.tippy) r.fn.push(`${rel.piece} -> ${rel.ghostKey} ${rel.grade} dx ${rel.dx.toFixed(3)} on a ${info.top.toFixed(1)} L tower`);
+      else if (out === 'crash') r.tp++;
+      else if (rel.tippy) r.fp++;
+      else r.ok++;
+      if (out === 'crash') await until(page, () => { const s = CS.state(); return s.phase === 'play' && !s.locked; }, null, 20000);
+    }
+    r.mon = await monitor(page);
+  } finally { await context.close(); }
+  return r;
+}
+
+function dynChecks(name, runs) {
+  const dyn = runs.map(r => r.mon && r.mon.dyn).filter(Boolean);
+  if (!dyn.length) return;
+  const vTop = Math.max(...dyn.map(d => d.vTop)), sMax = Math.max(...dyn.map(d => d.sMax)), vTip = Math.max(...dyn.map(d => d.vTip));
+  const n = dyn.reduce((a, d) => a + d.n, 0), nTip = dyn.reduce((a, d) => a + d.nTip, 0);
+  check(`${name}: flex |s| <= 0.35 L`, sMax <= 0.35 + 1e-9, `max |s| ${sMax.toFixed(3)} L`);
+  check(`${name}: top lateral speed <= 2.8 L/s (until past α)`, vTop <= 2.8 + 1e-6,
+    `max ${vTop.toFixed(3)} L/s over ${n} steps; past α (uncapped, gravity takes over): ${nTip} steps, max ${vTip.toFixed(2)} L/s`);
+  const pops = dyn.reduce((a, d) => a + d.pops, 0);
+  check(`${name}: no visible debris piece ever vanishes (the cap drops only faded ones)`, pops === 0, `${pops} pops`);
+  const saves = runs.flatMap(r => (r.mon && r.mon.saves || []).map(s => Object.assign({ seed: r.seed }, s)));
+  if (saves.length) {
+    const bad = saves.filter(s => s.inAir > 0 || s.level < 0.6 || (s.crashAfter !== null && !s.landedBetween));
+    check(`${name}: every SAVE honest (nothing in the air, leaned >= 0.6 α, no crash within 2 s without a new landing)`, bad.length === 0,
+      `${saves.length} saves; ${saves.filter(s => s.crashAfter !== null).length} followed by a crash within 2 s` +
+      (bad.length ? '; BAD: ' + bad.map(s => `s${s.seed} t=${s.t} inAir ${s.inAir} lean ${s.level} crash +${s.crashAfter}`).join(', ') : ''));
+  }
+}
+function debrisChecks(name, runs) {
+  dynChecks(name, runs);
+  const maxD = Math.max(0, ...runs.map(r => r.mon ? r.mon.maxDebris : 0));
+  const checks = runs.flatMap(r => (r.mon ? r.mon.checks : []).map(c => Object.assign({ seed: r.seed }, c)));
+  const bad = checks.filter(c => c.awake > 0);
+  check(`${name}: debris count never above 60`, maxD <= 60, `max ${maxD}`);
+  const worstC = checks.slice().sort((a, b) => (b.settle || 0) - (a.settle || 0))[0] || { settle: 0, slowest: '' };
+  const worst = worstC.settle || 0;
+  if (checks.length) check(`${name}: all debris asleep within 3 s of each crash`, bad.length === 0,
+    `${checks.length - bad.length}/${checks.length} piles asleep, the slowest after ${worst.toFixed(2)} s (${worstC.slowest})` + (bad.length ? ' (awake: ' + bad.map(c => `seed ${c.seed} t=${c.t.toFixed(2)}: ${c.awake} [${c.what}]`).join(', ') + ')' : ''));
+}
+
+(async () => {
+  const browser = await launch();
+  try {
+    if (want('calib')) {
+      const { page, errors, context } = await openGame(browser, { seed: 1, level: 3 });
+      const c = await page.evaluate(() => CS.calib());
+      await context.close();
+      const p = c.peaks;
+      check('calib: bump peak 0.35 α ± 0.03 on the reference tower', c.calibrated && Math.abs(c.bumpPeak - 0.35) <= 0.03, `bump ${c.bumpPeak} α`);
+      check('calib: CLACK 0.45 α, foot 0.5 α, PERFECT ≤ 0.10 α', Math.abs(p.clack - 0.45) <= 0.03 && Math.abs(p.foot - 0.5) <= 0.03 && p.perfect <= 0.10,
+        `clack ${p.clack}, foot ${p.foot}, perfect ${p.perfect}; GREAT ${p.great} (target 0.25), CLACK flex ${p.clackFlex} L; K ${c.K.toFixed(1)}, Kf ${c.Kf.toFixed(3)}; ${c.ms} ms`);
+      check('calib: no page or console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+    }
+    if (want('perfect')) {
+      const runs = [];
+      for (const seed of SEEDS) {
+        const r = await perfectBot(browser, seed);
+        runs.push(r);
+        log(`perfect seed ${seed}: top ${r.top.toFixed(2)} L in ${r.tiles} drops, ${r.perfect}/${r.lands} PERFECT, crashes ${r.crashes}, topples ${r.topples}, TIPPY dodged ${r.dodges}, HOLD swaps ${r.swaps}, TIPPY drops ${r.tippyDrops}, misses ${r.misses} (${r.thrown} thrown away), fuse drops ${r.fuse}, crown held ${r.crownHeld}`);
+      }
+      const ok = runs.filter(r => r.top >= 10 - 1e-9 && r.crashes === 0);
+      check(`PerfectBot: reaches 10 L with zero crashes (level 3, ts=4)`, ok.length === runs.length,
+        `${ok.length}/${runs.length}: ` + runs.map(r => `s${r.seed} ${r.top.toFixed(1)}L/${r.tiles}t${r.crashes ? ' CRASH' : ''}${r.topples ? ' topple' : ''}`).join(', '));
+      const pr = runs.reduce((a, r) => a + r.perfect, 0), ln = runs.reduce((a, r) => a + r.lands, 0);
+      console.log(`     (PERFECT on ${pr}/${ln} landings)`);
+      debrisChecks('PerfectBot', runs);
+      const errs = runs.flatMap(r => r.errors);
+      check('PerfectBot: no page or console errors', errs.length === 0, errs.slice(0, 3).join(' | '));
+    }
+    if (LITERAL) {
+      // report only: the bare rule of DESIGN 14 (no TIPPY veto, no HOLD) paints itself into corners the lattice
+      // cannot get out of (both columns capped by triangle apexes, every supported slot on one side)
+      const runs = [];
+      for (const seed of SEEDS) { const r = await perfectBot(browser, seed, true); runs.push(r); log(`literal seed ${seed}: top ${r.top.toFixed(2)} L, ${r.tiles} drops, crashes ${r.crashes}`); }
+      const ok = runs.filter(r => r.top >= 10 - 1e-9 && r.crashes === 0);
+      console.log(`INFO literal PerfectBot (no TIPPY veto, no HOLD): ${ok.length}/${runs.length} reach 10 L with zero crashes: ` +
+        runs.map(r => `s${r.seed} ${r.top.toFixed(1)}L${r.crashes ? ' CRASH' : ''}`).join(', '));
+    }
+    if (want('edge')) {
+      const runs = [];
+      for (const seed of SEEDS) {
+        const r = await edgeBot(browser, seed, false);
+        runs.push(r);
+        log(`edge seed ${seed}: first crash after ${r.firstCrashAt} drops; crashes ${r.crashes.map(c => `${c.tiles} tiles top ${c.top.toFixed(1)} warned ${c.warnLead === null ? '-' : c.warnLead.toFixed(2) + ' s'} before`).join('; ')}`);
+      }
+      const within = runs.filter(r => r.firstCrashAt !== null && r.firstCrashAt <= 30);
+      check('EdgeBot: crashes within 30 tiles', within.length === runs.length,
+        `${within.length}/${runs.length}: ` + runs.map(r => `s${r.seed}:${r.firstCrashAt === null ? 'none' : r.firstCrashAt}`).join(' '));
+      const all = runs.flatMap(r => r.crashes.map(c => Object.assign({ seed: r.seed }, c)));
+      const warned = all.filter(c => c.warnLead !== null && c.warnLead >= 0.5 - 1e-6);
+      check('EdgeBot: every crash preceded by tipwarn >= 0.5 s earlier', all.length > 0 && warned.length === all.length,
+        `${warned.length}/${all.length}; leads ${all.map(c => c.warnLead === null ? 'none' : c.warnLead.toFixed(2)).join(' ')}`);
+      debrisChecks('EdgeBot', runs);
+      const errs = runs.flatMap(r => r.errors);
+      check('EdgeBot: no page or console errors', errs.length === 0, errs.slice(0, 3).join(' | '));
+    }
+    if (want('save')) {
+      const runs = [];
+      for (const seed of SEEDS) {
+        const r = await edgeBot(browser, seed, true);
+        runs.push(r);
+        log(`save seed ${seed}: ${r.drops} drops, ${r.counters} counters, saves ${r.saves}, crashes ${r.crashes.length}`);
+      }
+      const saves = runs.reduce((a, r) => a + r.saves, 0);
+      check('SaveBot: at least one save across the seeds', saves >= 1, `${saves} saves (` + runs.map(r => `s${r.seed}:${r.saves}`).join(' ') + `), ${runs.reduce((a, r) => a + r.counters, 0)} counterweights`);
+      debrisChecks('SaveBot', runs);
+      const errs = runs.flatMap(r => r.errors);
+      check('SaveBot: no page or console errors', errs.length === 0, errs.slice(0, 3).join(' | '));
+    }
+    if (want('tippy')) {
+      const runs = [];
+      for (const seed of SEEDS) {
+        const r = await tippyHonesty(browser, seed, 14);
+        runs.push(r);
+        log(`tippy seed ${seed} (level ${r.level}): safe ${r.ok}, TIPPY and crashed ${r.tp}, TIPPY but stood ${r.fp}, NOT TIPPY and crashed ${r.fn.length}, hazard crashes ${r.hazard}, skipped ${r.skipped}`);
+      }
+      const sum = k => runs.reduce((a, r) => a + (Array.isArray(r[k]) ? r[k].length : r[k]), 0);
+      const fn = runs.flatMap(r => r.fn.map(x => `s${r.seed}: ${x}`));
+      check('TIPPY: a drop whose ghost was not TIPPY never crashes the tower', fn.length === 0 && sum('ok') + sum('tp') >= 60,
+        `${sum('ok')} safe drops stood, ${sum('tp')} TIPPY drops crashed, ${sum('fp')} TIPPY drops stood, ${fn.length} un-TIPPY drops crashed, ${sum('hazard')} crashed by a later bump/foot, ${sum('skipped')} skipped` + (fn.length ? ' (' + fn.slice(0, 4).join('; ') + ')' : ''));
+      dynChecks('TIPPY runs', runs);
+      const errs = runs.flatMap(r => r.errors);
+      check('TIPPY: no page or console errors', errs.length === 0, errs.slice(0, 3).join(' | '));
+    }
+  } finally {
+    await browser.close();
+  }
+  console.log(failures ? `BOTS: ${failures} check(s) failed` : 'BOTS: all checks passed');
+  process.exitCode = failures ? 1 : 0;
+})().catch(e => { console.error(e); process.exitCode = 1; });

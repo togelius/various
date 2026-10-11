@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clack Stack audio</title>
+<style>
+  :root {
+    --bg: #f4f1ec; --panel: #ffffff; --ink: #1e2541; --mute: #6b6f80; --line: #e2ddd4;
+    --accent: #ff7a1a; --accent-ink: #ffffff; --gold: #ffc531; --ok: #2ebf4f; --bad: #e8323c; --meter-bg: #1e2541;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14172a; --panel: #1e2238; --ink: #eef0f7; --mute: #9aa0b8; --line: #2e3350;
+      --accent: #ff8a33; --accent-ink: #14172a; --meter-bg: #0c0e1a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14172a; --panel: #1e2238; --ink: #eef0f7; --mute: #9aa0b8; --line: #2e3350;
+    --accent: #ff8a33; --accent-ink: #14172a; --meter-bg: #0c0e1a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.4 ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: 0.5px; }
+  h1 small { font-size: 13px; color: var(--mute); font-weight: 400; letter-spacing: 0; }
+  #stats { font: 12px/1.3 ui-monospace, Menlo, monospace; color: var(--mute); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  section h2 { margin: 0 0 8px; font-size: 15px; text-transform: uppercase; letter-spacing: 1px; color: var(--mute); }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
+  button { font: inherit; font-size: 14px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 8px; padding: 7px 11px; cursor: pointer; min-height: 36px; }
+  button:hover { border-color: var(--accent); }
+  button:active { transform: translateY(1px); }
+  button.big { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; padding: 10px 18px; font-size: 16px; }
+  button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  label { font-size: 13px; color: var(--mute); display: inline-flex; gap: 6px; align-items: center; }
+  label b { color: var(--ink); font-weight: 600; min-width: 2.5em; display: inline-block; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 140px; accent-color: var(--accent); }
+  select { font: inherit; font-size: 13px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  #meter { width: 100%; height: 64px; display: block; border-radius: 8px; background: var(--meter-bg); }
+  .hint { font-size: 12px; color: var(--mute); margin: 4px 0 0; }
+  .wide { grid-column: 1 / -1; }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>CLACK STACK audio <small>every sound of <code>dev/audio.js</code>, synthesised live</small></h1>
+    <div class="row">
+      <button id="mute">Mute</button>
+      <span id="stats">click anything to unlock audio</span>
+    </div>
+  </header>
+
+  <section class="wide" style="margin-bottom:12px">
+    <canvas id="meter" height="64"></canvas>
+    <p class="hint">Output after the compressor and safety clipper: waveform, peak (dBFS, held 1.5 s); the red line is -1 dBFS. <kbd>Space</kbd> zzip + clack (combo climbs), <kbd>M</kbd> mute, <kbd>X</kbd> miss.</p>
+  </section>
+
+  <div class="grid">
+    <section>
+      <h2>The clack</h2>
+      <div class="row">
+        <label>combo <input id="combo" type="range" min="0" max="30" value="0"><b id="comboV">0</b></label>
+        <label>note <b id="noteV">C5</b></label>
+      </div>
+      <div class="row">
+        <label>grade <select id="grade"><option>perfect</option><option selected>great</option><option>clack</option></select></label>
+        <label>edges <select id="edges"><option>1</option><option>2</option><option>3</option></select></label>
+        <label>piece <select id="mass"><option value="0.45">triangle 0.45</option><option value="1" selected>square 1</option><option value="3">cube 3</option></select></label>
+      </div>
+      <div class="row"><label>pan <input id="pan" type="range" min="-1" max="1" step="0.1" value="0"><b id="panV">0</b></label></div>
+      <div class="row">
+        <button class="big" id="clack">CLACK</button>
+        <button id="zzclack">zzip → clack</button>
+        <label><input id="climb" type="checkbox" checked> combo climbs</label>
+      </div>
+      <div class="row">
+        <button id="run">a run of 12 drops</button>
+        <button id="mg">40 clacks in 1 s</button>
+        <button id="combos">DOUBLE / TRIPLE / PERFECT</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Small sounds</h2>
+      <div class="row">
+        <button data-s="zzip">zzip</button><button data-s="miss">miss</button><button data-s="aww">aww</button>
+        <button id="missAww">miss + aww</button><button data-s="poke">poke</button><button data-s="uiClick">uiClick</button>
+      </div>
+      <div class="row">
+        <button id="tally1">tally</button><button id="tally20">tally ×20</button><button id="fold">cube folds 0..4</button>
+      </div>
+      <div class="row">
+        <button data-f="half">fuse ½</button><button data-f="threeq">fuse ¾</button><button data-f="last">fuse last</button>
+        <button id="clock">clock 5..1</button>
+      </div>
+      <div class="row">
+        <button data-s="ring">ring</button><button data-s="gear">gear</button><button data-s="crown">crown</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Big moments</h2>
+      <div class="row">
+        <label>tiles <input id="crashN" type="range" min="1" max="60" value="24"><b id="crashNV">24</b></label>
+        <label>x <input id="crashX" type="range" min="-1" max="1" step="0.1" value="0"><b id="crashXV">0</b></label>
+      </div>
+      <div class="row">
+        <button class="big" id="crash">CRASH</button><button data-s="whistle">whistle</button><button data-s="save">save</button>
+      </div>
+      <div class="row">
+        <button id="smash">SMASH + tally</button><button data-s="ribbon">ribbon</button><button data-s="newBest">new best</button>
+      </div>
+      <div class="row">
+        <button id="cube">cube lands (clack + boom)</button><button data-s="boom">boom</button>
+      </div>
+      <div class="row">
+        <button id="bump">bump car (honk … bonk)</button><button data-s="honk">honk</button><button data-s="bonk">bonk</button>
+      </div>
+      <div class="row">
+        <label>whooo <input id="whoooD" type="range" min="0.3" max="2.5" step="0.1" value="1"><b id="whoooDV">1.0 s</b></label>
+        <button id="foot">foot (whooo … thump)</button><button data-s="thump">thump</button>
+      </div>
+      <div class="row"><button id="stress">crash + smash + 30 clacks</button><button id="flood">flood 60 voices</button></div>
+    </section>
+
+    <section>
+      <h2>Tipping: creak</h2>
+      <div class="row">
+        <label>θ/α <input id="creak" type="range" min="0" max="1.05" step="0.01" value="0"><b id="creakV">0.00</b></label>
+        <label><input id="wobble" type="checkbox"> wobble</label>
+      </div>
+      <p class="hint">Fed to <code>Sfx.creak()</code> every frame, like the game. Silent to 0.4, volume ((l−0.4)/0.6)², heartbeat above 0.9. When the calls stop (the game paused) it fades out by itself within ~0.3 s.</p>
+    </section>
+
+    <section>
+      <h2>Groove</h2>
+      <div class="row">
+        <button class="big" id="mStart">start</button><button id="mStop">stop</button><button id="duck">duck 1 s</button>
+      </div>
+      <div class="row" id="mults">
+        <span class="hint" style="margin:0">multiplier</span>
+        <button data-m="1" class="on">×1</button><button data-m="2">×2</button><button data-m="3">×3</button><button data-m="4">×4</button><button data-m="5">×5</button>
+      </div>
+      <div class="row">
+        <label>level <input id="level" type="range" min="1" max="20" value="1"><b id="levelV">1</b></label>
+        <label>tempo <b id="bpmV">120</b> BPM</label>
+      </div>
+      <p class="hint">×1 kick + shaker, ×2 + bass, ×3 + marimba, ×4 + claps, ×5 + sparkle. Clacks are in C pentatonic like the groove.</p>
+    </section>
+
+    <section>
+      <h2>Haptics</h2>
+      <div class="row"><button data-h="8">vibrate(8)</button><button data-h="20">vibrate(20)</button><button data-h="[30,40,30]">[30,40,30]</button></div>
+      <p class="hint">Only does something on phones that support <code>navigator.vibrate</code>.</p>
+    </section>
+  </div>
+</main>
+
+<script>
+  // Tap the master output into an analyser for the meter (dev page only; the game never does this).
+  (() => {
+    const conn = AudioNode.prototype.connect;
+    let tapped = false;
+    AudioNode.prototype.connect = function (dst) {
+      const r = conn.apply(this, arguments);
+      if (!tapped && dst instanceof AudioDestinationNode && this instanceof GainNode) {
+        tapped = true;
+        const a = this.context.createAnalyser(); a.fftSize = 2048;
+        const z = this.context.createGain(); z.gain.value = 0;
+        conn.call(this, a); conn.call(a, z); conn.call(z, dst);
+        window.__analyser = a;
+      }
+      return r;
+    };
+  })();
+</script>
+<script src="audio.js"></script>
+<script>
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const NOTES = ['C5', 'D5', 'E5', 'G5', 'A5', 'C6', 'D6', 'E6', 'G6', 'A6'];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const u = () => Sfx.unlock();
+  let combo = 0, mult = 1;
+
+  document.addEventListener('pointerdown', u, true);
+  document.addEventListener('keydown', u, true);
+
+  const opt = () => ({ combo, mass: +$('mass').value, pan: +$('pan').value, edges: +$('edges').value, grade: $('grade').value });
+  const setCombo = (c) => { combo = c; $('combo').value = Math.min(30, c); $('comboV').textContent = c; $('noteV').textContent = NOTES[c % 10]; };
+  const clackNow = () => { Sfx.clack(opt()); if ($('climb').checked) setCombo(combo + 1 + (opt().grade === 'perfect' ? 1 : 0) + (opt().edges - 1)); };
+  const drop = async () => { Sfx.zzip(+$('pan').value); await sleep(70); clackNow(); };
+
+  $('combo').oninput = (e) => setCombo(+e.target.value);
+  $('pan').oninput = (e) => { $('panV').textContent = (+e.target.value).toFixed(1); };
+  $('clack').onclick = clackNow;
+  $('zzclack').onclick = drop;
+  $('run').onclick = async () => {
+    for (let i = 0; i < 12; i++) {
+      Sfx.zzip(Math.sin(i) * 0.5); await sleep(70);
+      const g = i % 4 === 3 ? 'perfect' : 'great', e = i % 5 === 4 ? 2 : 1;
+      Sfx.clack({ combo, mass: i % 3 ? 1 : 0.45, pan: Math.sin(i) * 0.5, edges: e, grade: g });
+      setCombo(combo + 1 + (g === 'perfect') + (e - 1));
+      await sleep(430);
+    }
+  };
+  $('mg').onclick = async () => { for (let i = 0; i < 40; i++) { Sfx.clack({ combo: i, mass: 1, pan: Math.sin(i), edges: 1 + (i % 3), grade: ['perfect', 'great', 'clack'][i % 3] }); await sleep(25); } };
+  $('combos').onclick = async () => {
+    for (const [e, g] of [[2, 'great'], [3, 'great'], [1, 'perfect'], [3, 'perfect']]) { Sfx.zzip(0); await sleep(70); Sfx.clack({ combo, mass: 1, edges: e, grade: g }); await sleep(600); }
+  };
+
+  document.querySelectorAll('[data-s]').forEach((b) => { b.onclick = () => Sfx[b.dataset.s](0); });
+  document.querySelectorAll('[data-f]').forEach((b) => { b.onclick = () => Sfx.fuseTick(b.dataset.f); });
+  document.querySelectorAll('[data-h]').forEach((b) => { b.onclick = () => Sfx.haptic(JSON.parse(b.dataset.h)); });
+  $('missAww').onclick = () => { Sfx.miss(0); Sfx.aww(); setCombo(0); };
+  $('tally1').onclick = () => Sfx.tally(combo);
+  $('tally20').onclick = async () => { for (let i = 0; i < 20; i++) { Sfx.tally(i); await sleep(45); } };
+  $('fold').onclick = async () => { for (let i = 0; i < 5; i++) { Sfx.cubeFold(i); await sleep(36); } };
+  $('clock').onclick = async () => { for (let n = 5; n >= 1; n--) { Sfx.clockTick(n); await sleep(1000); } };
+  $('crashN').oninput = (e) => { $('crashNV').textContent = e.target.value; };
+  $('crashX').oninput = (e) => { $('crashXV').textContent = (+e.target.value).toFixed(1); };
+  $('crash').onclick = () => { Sfx.crash(+$('crashN').value, +$('crashX').value); Sfx.haptic([30, 40, 30]); setCombo(0); };
+  $('smash').onclick = async () => { Sfx.smash(); await sleep(450); for (let i = 0; i < 18; i++) { Sfx.tally(i); await sleep(45); } };
+  $('cube').onclick = async () => { for (let i = 0; i < 5; i++) { Sfx.cubeFold(i); await sleep(36); } await sleep(150); Sfx.zzip(0); await sleep(70); Sfx.clack({ combo, mass: 3, edges: 2, grade: 'great' }); Sfx.boom(); };
+  $('bump').onclick = async () => { Sfx.honk(); await sleep(1200); Sfx.bonk(); };
+  $('whoooD').oninput = (e) => { $('whoooDV').textContent = (+e.target.value).toFixed(1) + ' s'; };
+  $('foot').onclick = async () => { const d = +$('whoooD').value; Sfx.whooo(d); await sleep(d * 1000); Sfx.thump(); };
+  $('stress').onclick = async () => { Sfx.crash(40, 0); Sfx.smash(); for (let i = 0; i < 30; i++) { Sfx.clack({ combo: i, edges: 3, grade: 'perfect', mass: 3 }); await sleep(20); } };
+  $('flood').onclick = () => { for (let i = 0; i < 60; i++) Sfx.ring(); };
+
+  // creak: fed every frame like the game does
+  $('creak').oninput = (e) => { $('creakV').textContent = (+e.target.value).toFixed(2); };
+  let ph = 0;
+  (function frame() {
+    let lv = +$('creak').value;
+    if ($('wobble').checked) { ph += 1 / 60; lv = Math.max(0, Math.min(1.05, lv + 0.12 * Math.sin(ph * 3))); }
+    Sfx.creak(lv);
+    requestAnimationFrame(frame);
+  })();
+
+  // music
+  const bpm = () => Math.min(150, 120 + 3 * (+$('level').value - 1));
+  $('mStart').onclick = () => { u(); Sfx.music.setMult(mult); Sfx.music.setLevel(+$('level').value); Sfx.music.start(); };
+  $('mStop').onclick = () => Sfx.music.stop();
+  $('duck').onclick = () => Sfx.music.duck(1);
+  document.querySelectorAll('[data-m]').forEach((b) => { b.onclick = () => {
+    mult = +b.dataset.m; Sfx.music.setMult(mult);
+    document.querySelectorAll('[data-m]').forEach((x) => x.classList.toggle('on', x === b));
+  }; });
+  $('level').oninput = (e) => { $('levelV').textContent = e.target.value; $('bpmV').textContent = bpm(); Sfx.music.setLevel(+e.target.value); };
+
+  // mute + keys
+  const syncMute = () => { $('mute').textContent = Sfx.muted ? 'Unmute' : 'Mute'; $('mute').classList.toggle('on', Sfx.muted); };
+  $('mute').onclick = () => { Sfx.setMuted(!Sfx.muted); syncMute(); };
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    if (e.code === 'Space') { e.preventDefault(); drop(); }
+    else if (e.key === 'm' || e.key === 'M') { Sfx.setMuted(!Sfx.muted); syncMute(); }
+    else if (e.key === 'x' || e.key === 'X') { Sfx.miss(0); Sfx.aww(); setCombo(0); }
+  });
+
+  // meter + stats
+  const cv = $('meter'), g = cv.getContext('2d');
+  let hold = 0, holdT = 0, buf = null;
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  (function draw() {
+    const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = 64;
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = css('--meter-bg'); g.fillRect(0, 0, W, H);
+    const a = window.__analyser;
+    let pk = 0;
+    if (a) {
+      if (!buf) buf = new Float32Array(a.fftSize);
+      a.getFloatTimeDomainData(buf);
+      g.strokeStyle = '#5ec8f2'; g.lineWidth = 1.5; g.beginPath();
+      const ww = W - 140;
+      for (let i = 0; i < buf.length; i++) { const x = i / buf.length * ww, y = H / 2 - buf[i] * (H / 2 - 4); if (i) g.lineTo(x, y); else g.moveTo(x, y); pk = Math.max(pk, Math.abs(buf[i])); }
+      g.stroke();
+    }
+    const now = performance.now();
+    if (pk >= hold || now - holdT > 1500) { hold = pk; holdT = now; }
+    const dbv = (x) => 20 * Math.log10(Math.max(x, 1e-6));
+    const bx = W - 130, bw = 120, lvl = (d) => Math.max(0, Math.min(1, (d + 48) / 48));
+    g.fillStyle = '#2e3350'; g.fillRect(bx, 18, bw, 14);
+    g.fillStyle = pk > 0.891 ? '#e8323c' : pk > 0.5 ? '#ffc531' : '#2ebf4f'; g.fillRect(bx, 18, bw * lvl(dbv(pk)), 14);
+    g.fillStyle = '#fff'; g.fillRect(bx + bw * lvl(dbv(hold)) - 1, 16, 2, 18);
+    g.fillStyle = '#e8323c'; g.fillRect(bx + bw * lvl(-1), 14, 1, 22);
+    g.fillStyle = '#eef0f7'; g.font = '12px ui-monospace, monospace';
+    g.fillText('peak ' + (hold > 1e-5 ? dbv(hold).toFixed(1) + ' dBFS' : '-inf'), bx, 50);
+    const s = Sfx.stats();
+    $('stats').textContent = `state ${s.state} · voices ${s.voices} · peak voices ${s.peakVoices} · layers ${s.layers} · ${s.muted ? 'muted' : 'sound on'}`;
+    requestAnimationFrame(draw);
+  })();
+  syncMute();
+</script>
+</body>
+</html>
