@@ -158,7 +158,9 @@ async function perfectBot(browser, seed, literal) {
       await waitReady(page);
       // calm: the rock at rest and the sway small; a bounded wait in game time (the fuse is 2.0 s on level 3), so a
       // busy machine never lets the fuse drop the tile while the bot is still aiming
-      await until(page, () => { const s = CS.state(); return (s.inAir === 0 && Math.abs(s.omega) < 0.02 && Math.abs(s.flexV) < 0.12) || s.t >= s.readyAt + 0.8; }, null, 8000).catch(() => {});
+      // (at rest: theta back at 0 too, since a tall tower rocking on its base edge has omega ~0 at the end of each
+      // swing; up to 1.5 s, 0.5 s inside the level-3 fuse, as an edge landing at 9-10 L rocks for about 1.2 s)
+      await until(page, () => { const s = CS.state(); return (s.inAir === 0 && Math.abs(s.theta) < 0.002 && Math.abs(s.omega) < 0.02 && Math.abs(s.flexV) < 0.12) || s.t >= s.readyAt + 1.5; }, null, 8000).catch(() => {});
       let p = await pick();
       const relId = await lastId(page);
       // M4: the crown dropped into the hand at the ribbon: bank it (OVERTIME) and build on toward 10 L
@@ -203,7 +205,20 @@ async function perfectBot(browser, seed, literal) {
       if (g && g.crown) continue;                   // the crown arrived while aiming: bank it first (top of the loop)
       if (g && g.tippy) r.tippyDrops++;
       if (TRACE) console.log(`      s${seed} #${k} ${p.st.piece} (held ${p.st.held}) cx ${p.st.com.x.toFixed(2)} top ${p.st.top.toFixed(2)} -> ${p.slot.key}${p.slot.supported ? '' : ' (hanging)'} cx' ${p.after === null ? '-' : p.after.toFixed(2)}${p.dodged ? ' (not ' + p.literal.key + ': TIPPY)' : ''}${g && g.tippy ? ' TIPPY' : ''}`);
-      const prev = await lastId(page);
+      // the last read, just before the press: a tower still rocking may have carried the slot off its PERFECT centre
+      // since the aim; follow it (the TIPPY rule above has had its say)
+      let prev = relId;
+      for (let again = 0; again < 4; again++) {
+        const q = await page.evaluate(key => {
+          const gh = CS.ghost(), s = CS.slots().find(o => o.key === key);
+          return { key: gh && gh.key, gold: !!gh && gh.color === 'gold', sx: s ? s.sx : null, id: CS.lastRelease ? CS.lastRelease.id : 0 };
+        }, p.slot.key);
+        prev = q.id;
+        if (!g || g.crown || again === 3 || (q.key === p.slot.key && q.gold) || q.sx === null) break;
+        if (TRACE) console.log(`      s${seed} #${k} ${p.slot.key} moved off its centre before the press: aim again`);
+        g = await aim(Object.assign({}, p.slot, { sx: q.sx }));
+      }
+      if (g && g.crown) continue;
       await page.mouse.down(); await page.mouse.up();
       await waitRelease(page, prev).catch(() => {});
       r.tiles++;

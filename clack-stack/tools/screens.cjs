@@ -4,10 +4,12 @@
 // the crown in hand, OVERTIME, the SMASH, the level announcement, pause, a bump warning, the foot, the tall-tower
 // gauge, night (L15), TIME! and the results card with a NEW BEST. Driven by real input; CS.setClock ends runs.
 //   node clack-stack/tools/screens.cjs [outDir] [--sizes=390x844,844x390]
-// Writes outDir/<size>/NN-name.png and outDir/sheet-<size>.png. Fails on page or console errors.
+// Writes outDir/<size>/NN-name.png and outDir/sheet-<size>.png. Fails on page or console errors, and if a word pop
+// or announcement breaks the rules while the level is played through (lib.cjs wordMonitor: none over the HUD or over
+// another pop, none over the ghost or born over the build top, at most two words up, each <= 0.6 s).
 const path = require('path');
 const fs = require('fs');
-const { launch, gamePage, until } = require('./lib.cjs');
+const { launch, gamePage, until, wordMonitor } = require('./lib.cjs');
 
 const argv = process.argv.slice(2);
 const out = path.resolve(argv.find(a => !a.startsWith('--')) || path.join(require('os').tmpdir(), 'clack-screens'));
@@ -69,6 +71,7 @@ async function drop(page, H, tall, noHold) {
       {
         const { page, errors, context } = await gamePage(browser, { width: W, height: H }, { seed: 4, mute: 1, nohint: 1, autostart: 1, ts: 2 }, { realClock: true });
         await ready(page);
+        await page.evaluate(wordMonitor);
         for (let k = 0; k < 40 && !(await page.evaluate(() => CS.state().crownInHand)); k++) await drop(page, H, true, true);
         await page.evaluate(() => { PARAM.ts = 1; });
         await ready(page);
@@ -110,6 +113,9 @@ async function drop(page, H, tall, noHold) {
         await until(page, () => CS.state().over && CS.state().over.open, null, 5000);
         await page.waitForTimeout(800);
         await shot(page, 'results-new-best');
+        const wv = await page.evaluate(() => window.__wv);
+        if (wv.bad.length) { bad++; console.log(`word pops ${W}x${H}: ` + wv.bad.join('; ')); }
+        else console.log(`word pops ${W}x${H}: ${wv.settled} words + announcements checked, none over the HUD, another pop, the ghost or the build top`);
         if (errors.length) { bad++; console.log(errors.join('\n')); }
         await context.close();
       }

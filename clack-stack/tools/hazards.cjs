@@ -137,6 +137,9 @@ async function buildLow(page, n, maxTop) {
       const { page } = g;
       await page.evaluate(() => { PARAM.ts = 4; });
       await buildLow(page, 6, 3);
+      // the hand waits at the screen edge: what the fuse lets go of there falls on the rug, so the tower stands still
+      // for the hazards (a tile landing on it now could set it rocking, or fell it, just before the hit)
+      await page.mouse.move(3, Math.round(page.viewportSize().height * 0.55));
       // run up to just before the first honk at normal speed for the frames
       await until(page, () => { const h = CS.state().hazard; return h.inS !== null && h.inS < 1.5; }, null, 30000);
       await page.evaluate(() => { PARAM.ts = 1; });
@@ -157,15 +160,18 @@ async function buildLow(page, n, maxTop) {
         await page.waitForTimeout(90);
         const after = await page.evaluate(() => ({ th: CS.state().theta, om: CS.state().omega, tiles: CS.state().tiles }));
         const f3 = path.join(out, `${kind}-hit.png`); await page.screenshot({ path: f3 }); shots.push(f3);
-        rec.push({ kind: e.type, side: e.side, hit: e.hit, before, after });
+        rec.push({ kind: e.type, side: e.side, hit: e.hit, dw: e.dw, before, after });
         await page.evaluate(() => { PARAM.ts = 4; });
         await until(page, () => { const h = CS.state().hazard; return h.inS !== null && h.inS < 1.5 && h.inS > 1.3; }, null, 30000).catch(() => {});
         await page.evaluate(() => { PARAM.ts = 1; });
       }
-      // the push goes toward the far side: theta (positive = over the right wheel) moves opposite to the side it came from
-      const ok = rec.length === 2 && rec.every(r => r.hit && Math.sign(r.after.th || r.after.om) === -r.side);
+      // the push goes toward the far side: the kick it gives (the event's dw, theta positive = over the right wheel) is
+      // opposite to the side it came from; and a tower that stood still moves that way (one still rocking from the
+      // last drop is judged by the kick alone)
+      const still = r => Math.abs(r.before.th) < 1e-6 && Math.abs(r.before.om) < 1e-6;
+      const ok = rec.length === 2 && rec.every(r => r.hit && Math.sign(r.dw) === -r.side && (!still(r) || Math.sign(r.after.th || r.after.om) === -r.side));
       check('hit: a bump and a foot each rock the standing tower toward the far side', ok,
-        rec.map(r => `${r.kind} from ${r.side > 0 ? 'right' : 'left'}: θ ${r.before.th.toFixed(4)} -> ${r.after.th.toFixed(4)} (ω ${r.after.om.toFixed(3)})`).join('; '));
+        rec.map(r => `${r.kind} from ${r.side > 0 ? 'right' : 'left'}: kick dω ${r.dw}; θ ${r.before.th.toFixed(4)} -> ${r.after.th.toFixed(4)} (ω ${r.after.om.toFixed(3)})`).join('; '));
       console.log('     frames: ' + shots.map(f => path.basename(f)).join(' '));
       errorsAll.push(...g.errors); await g.context.close();
     }

@@ -26,7 +26,9 @@ const FRAMES = +opt('frames', 36);
     // centred columns up to `tall` L, then the rightmost slot every time until it goes
     let crashed = false;
     for (let k = 0; k < 90 && !crashed; k++) {
-      await until(page, () => { const s = CS.state(); return s.phase !== 'play' || (s.handReady && !s.locked); }, null, 20000);
+      // (and nothing in the air: the tile that reaches the ribbon swaps the crown into the hand as it lands; with the
+      // hand hovering above the ribbon the flights are long enough for a tap read before it to drop the crown)
+      await until(page, () => { const s = CS.state(); return s.phase !== 'play' || (s.handReady && !s.locked && s.inAir === 0); }, null, 20000);
       const info = await page.evaluate(() => ({ st: CS.state(), sl: CS.slots() }));
       if (info.st.phase !== 'play' || info.st.crashes) break;
       // M4: past the ribbon the crown drops into the hand: bank it (OVERTIME) so the tower can go on and go over

@@ -36,6 +36,9 @@
 //           0.2 s of play resuming
 //   buzzer  a crown released with time on the clock that lands after the clock hits 0.0 still crowns: bonus, +3 s,
 //           the SMASH and the next level (the run goes on)
+//   camera  the SMASH of a tower tall enough to scroll the camera (844x390 L9, 390x844 L13): when the cube hits, the
+//           cube and the rug line are on screen; TIME! on a 10 L tower (844x390): on the results card at least half
+//           the pile is on screen (it stays pokeable), and AGAIN parks the new cars on the rug in view
 // Exits non-zero on any failure, page error or console error.
 const { launch, gamePage, until } = require('./lib.cjs');
 
@@ -90,11 +93,12 @@ async function finish(g) {
   await g.context.close();
 }
 // a builder: taps the PERFECT centre of the highest supported slot nearest the middle (squares and triangles; a cube
-// goes where it fits); stops when cond() (in page) is true
+// goes where it fits); stops when cond() (in page) is true. It looks once what it dropped has landed (a landing can
+// change what is in the hand: the crown drops in when the ribbon tears)
 async function buildUntil(page, cond, maxTaps) {
   for (let k = 0; k < (maxTaps || 60); k++) {
     if (await page.evaluate(cond)) return true;
-    await until(page, () => { const s = CS.state(); return (s.phase === 'play' && s.handReady && !s.locked) || s.phase === 'over'; }, null, 20000);
+    await until(page, () => { const s = CS.state(); return (s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0) || s.phase === 'over'; }, null, 20000);
     if (await page.evaluate(cond)) return true;
     const p = await page.evaluate(() => {
       const st = CS.state(), sl = CS.slots().filter(s => s.supported && !s.tippy);
@@ -516,8 +520,15 @@ async function ringChecks(browser) {
     const r = await page.evaluate(() => CS.events.find(e => e.type === 'ring'));
     if (r) got = r;
   }
-  check('rings: RingBot collects a ring: +2 s on the clock, +50 × mult', !!got && got.pts === 50 * got.mult && Math.abs(got.clock - got.clock0 - 2) < 1e-6,
-    got ? `ring at ${got.x.toFixed(2)},${got.y} by ${got.key}: +${got.pts} (×${got.mult}), clock ${got.clock0.toFixed(2)} -> ${got.clock.toFixed(2)}` : 'no ring collected');
+  // the +2 s flies from the ring into the clock and counts when it gets there (a 'clock' event from the ring, ~0.4 s on)
+  let add = null;
+  if (got) {
+    await waitGame(page, 0.6);
+    add = await page.evaluate(t => CS.events.find(e => e.type === 'clock' && e.src === 'ring' && e.t >= t - 1e-9), got.t);
+  }
+  check('rings: RingBot collects a ring: +2 s on the clock (flown in within 0.5 s), +50 × mult',
+    !!got && got.pts === 50 * got.mult && !!add && Math.abs(add.clock - add.clock0 - 2) < 1e-6 && add.t - got.t <= 0.5,
+    got ? `ring at ${got.x.toFixed(2)},${got.y} by ${got.key}: +${got.pts} (×${got.mult}); ` + (add ? `clock ${add.clock0.toFixed(2)} -> ${add.clock.toFixed(2)} ${(add.t - got.t).toFixed(2)} s later` : 'no time added') : 'no ring collected');
   await finish(g);
 }
 
@@ -683,6 +694,73 @@ function orderCheck() {
   check('order: every level logs goal, then crown, then smash, then level', bad.length === 0 && levels >= 10, `${levels} levels completed over all runs` + (bad.length ? '; ' + bad.slice(0, 4).join('; ') : ''));
 }
 
+// ---------------------------------------------------------------- the camera at the SMASH and at TIME! on a tall tower
+// (fixture: a 2-wide column of squares n L tall, built with the lattice functions; the drops that matter are real)
+async function columnFixture(page, n) {
+  return page.evaluate((n) => {
+    for (let a = 0; a < n; a++) for (const i of [-2, 0]) {
+      const c = S.B.cands.find(q => q.key === 'sq:' + i + ',' + a + ',0');
+      if (!c) return false;
+      addTile(S.B, c.pose, { shape: 'sq', color: a % 2 ? 'blue' : 'yellow', variant: 0, mass: 1, k: 1 / 6, depth: c.depth, flight: false, landT: -1 });
+      genSlots(S.B);
+    }
+    recomputeTower(); massProps(S.B, true, COMMIT); S.clock = 60;
+    return true;
+  }, n);
+}
+async function cameraChecks(browser) {
+  for (const [w, h, level] of [[844, 390, 9], [390, 844, 13]]) {
+    const view = { width: w, height: h };
+    const g = await open(browser, { seed: 5, autostart: 1, level, big: 1 }, { view }); g.tag = 'smashcam';
+    const { page } = g;
+    await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked);
+    const ok = await columnFixture(page, (await page.evaluate(() => S.G)));
+    await page.evaluate(() => checkGoal());
+    await waitGame(page, 1.2);
+    // the camera's view on the frame the cube hits
+    await page.evaluate(() => {
+      window.__hit = null;
+      (function f() {
+        try { if (!window.__hit && CS.events.some(e => e.type === 'smash')) window.__hit = { cubeY: CUBE.on ? CAM.baseY - (CUBE.y + 0.5) * CAM.L : null, rugY: CAM.baseY, H: CAM.H, camY: CAM.camY }; } catch (e) { }
+        if (!window.__hit) requestAnimationFrame(f);
+      })();
+    });
+    const pre = await page.evaluate(() => ({ camY: CAM.camY, crown: CS.state().crownInHand }));
+    const sl = await page.evaluate(() => CS.slots().sort((a, b) => b.y - a.y)[0] || null);
+    if (sl) { await page.mouse.move(sl.sx, h * 0.3); await page.mouse.down(); await page.mouse.up(); }
+    await until(page, () => !!window.__hit, null, 6000).catch(() => {});
+    const r = await page.evaluate(() => window.__hit);
+    check(`camera: ${w}x${h} L${level}: when the SMASH cube hits a tower that had scrolled the camera, the cube and the rug are on screen`,
+      ok && pre.crown && pre.camY > 20 && !!r && r.cubeY !== null && r.cubeY >= 0 && r.cubeY <= r.H && r.rugY <= r.H,
+      JSON.stringify({ scrolledBefore: +pre.camY.toFixed(0), hit: r && { cubeY: r.cubeY && +r.cubeY.toFixed(0), rugY: +r.rugY.toFixed(0), H: r.H, camY: +r.camY.toFixed(0) } }));
+    await finish(g);
+  }
+  {
+    const view = { width: 844, height: 390 };
+    const g = await open(browser, { seed: 5, autostart: 1, level: 9, big: 1, ts: 2 }, { view }); g.tag = 'overcam';
+    const { page } = g;
+    await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked);
+    await columnFixture(page, 10);
+    await waitGame(page, 1.0);
+    const camY = await page.evaluate(() => CAM.camY);
+    await page.evaluate(() => CS.setClock(0.05));
+    await until(page, () => CS.state().over && CS.state().over.open, null, 8000).catch(() => {});
+    await waitGame(page, 0.6);
+    const r = await page.evaluate(() => {
+      const on = DEBRIS.filter(d => { const y = CAM.baseY - (d.y + 0.5) * CAM.L, x = CAM.originX + d.x * CAM.L; return y >= 0 && y <= CAM.H && x >= 0 && x <= CAM.W; }).length;
+      return { on, n: DEBRIS.length, rugY: CAM.baseY, H: CAM.H };
+    });
+    check('camera: TIME! on a 10 L tower (844x390): on the results card the rug and at least half the pile are on screen',
+      camY > 20 && r.n > 0 && r.on >= r.n / 2 && r.rugY <= r.H, JSON.stringify(Object.assign({ scrolledBefore: +camY.toFixed(0) }, r)));
+    const a = (await ui(page)).again;
+    await page.mouse.click(a.x + a.w / 2, a.y + a.h / 2);
+    await until(page, () => CS.state().phase === 'play', null, 4000).catch(() => {});
+    const p = await page.evaluate(() => ({ ph: CS.state().phase, rugY: CAM.baseY, H: CAM.H }));
+    check('camera: AGAIN after it: the new cars roll in on the rug in view', p.ph === 'play' && p.rugY <= p.H, JSON.stringify(p));
+    await finish(g);
+  }
+}
+
 (async () => {
   const browser = await launch();
   try {
@@ -715,6 +793,7 @@ function orderCheck() {
     if (want('crownwait')) await crownWaitChecks(browser);
     if (want('pending')) await pendingChecks(browser);
     if (want('buzzer')) await buzzerChecks(browser);
+    if (want('camera')) await cameraChecks(browser);
     if (want('order') || want('tapper')) orderCheck();
     check('flow: no page or console errors', allErrors.length === 0, allErrors.slice(0, 3).join(' | '));
   } finally {

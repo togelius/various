@@ -4,7 +4,7 @@
 // at positions read from CS.slots() and CS.cam().
 //   node clack-stack/tools/feel.cjs            (all checks)
 //   node clack-stack/tools/feel.cjs --quick    (fewer honesty releases)
-//   node clack-stack/tools/feel.cjs --only=softlock,fuse,hitstop,audio   (just those sections; also mouse,touch,keys,honesty)
+//   node clack-stack/tools/feel.cjs --only=softlock,fuse,hitstop,audio   (just those sections; also mouse,touch,keys,honesty,stale)
 // Checks:
 //   1. a release exactly at a slot's sx lands PERFECT, 0.18-0.42 s (game time) after release   [mouse, touch tap, touch drag]
 //   2. a release at sx + 0.18 L lands GREAT                                                      [mouse, touch tap]
@@ -20,6 +20,8 @@
 //      mouse: a click just after the fuse let go is spent (no blind second drop); a player's own early click is still held
 //   9. ghost honesty inside a PERFECT hit-stop (the drawn ghost follows the hand while game time is frozen)
 //  10. audio is running after the first touch / click / key under the default autoplay policy
+//  11. the ghost never goes stale for a mouse player: click TAP on the title off-centre (and RESUME after a pause)
+//      and press without moving: the drop goes to the ghost that was showing (CS.ghost() before = lastRelease after)
 // Exits non-zero on any failure, page error or console error.
 const { launch, gamePage, until } = require('./lib.cjs');
 
@@ -360,6 +362,41 @@ async function hitStopGhost(browser) {
   } finally { await context.close(); }
 }
 
+// 11. a mouse that clicks TAP (or RESUME) off-centre and then presses without moving drops into the ghost it saw
+async function staleGhost(browser) {
+  const { page, errors, context } = await gamePage(browser, { width: 844, height: 390 }, { seed: 12, mute: 1, nohint: 1 }, { realClock: true });
+  try {
+    await page.waitForTimeout(300);
+    const tap = await page.evaluate(() => ({ y: CAM.tapY }));
+    await page.mouse.click(515, tap.y);
+    await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked, null, 5000);
+    await page.waitForTimeout(150);
+    const a = await page.evaluate(() => ({ g: CS.ghost(), hx: CS.cam().handX }));
+    const id0 = await lastId(page);
+    await page.mouse.down(); await page.mouse.up();
+    const ra = await waitRelease(page, id0);
+    check('stale: after the title tap at x 515 (off-centre, over a slot), a press without moving drops into the ghost shown', ra.ghostKey === (a.g && a.g.key) && Math.abs(a.hx - 515) < 1 && !!(a.g && a.g.key),
+      `hand at ${a.hx.toFixed(0)}, ghost ${a.g && a.g.key}, dropped into ${ra.ghostKey}`);
+    // pause, then RESUME clicked near its left end, then a press without moving
+    await until(page, () => CS.state().handReady && CS.state().inAir === 0, null, 4000);
+    await page.keyboard.press('p');
+    await until(page, () => CS.state().phase === 'paused', null, 2000);
+    const r = await page.evaluate(() => CS.ui().resume);
+    const rx = r.x + 18;
+    await page.mouse.move(rx, r.y + r.h / 2);
+    await page.mouse.down(); await page.mouse.up();
+    await until(page, () => CS.state().phase === 'play' && CS.state().handReady, null, 3000);
+    await page.waitForTimeout(150);
+    const b = await page.evaluate(() => ({ g: CS.ghost(), hx: CS.cam().handX }));
+    const id1 = await lastId(page);
+    await page.mouse.down(); await page.mouse.up();
+    const rb = await waitRelease(page, id1);
+    check('stale: after RESUME clicked at its left end, a press without moving drops into the ghost shown', rb.ghostKey === (b.g && b.g.key) && Math.abs(b.hx - rx) < 1,
+      `hand at ${b.hx.toFixed(0)} (resume clicked at ${rx.toFixed(0)}), ghost ${b.g && b.g.key}, dropped into ${rb.ghostKey}`);
+    check('stale: no page or console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+  } finally { await context.close(); }
+}
+
 // 10. audio starts on the FIRST gesture of each kind under Chromium's default autoplay policy
 //     (a touch pointerdown is not a user activation; the lift is)
 async function audioUnlock() {
@@ -487,6 +524,7 @@ async function audioUnlock() {
     if (want('softlock')) await noSoftLock(browser);
     if (want('fuse')) { await fuseHold(browser); await fuseClick(browser); }
     if (want('hitstop')) await hitStopGhost(browser);
+    if (want('stale')) await staleGhost(browser);
   } finally {
     await browser.close();
   }
