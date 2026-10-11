@@ -842,7 +842,8 @@ async function WIRING(browser) {
   for (const l of logs) {
     for (const e of l.ev) {
       const m = MAP[e.type];
-      if (e.type === 'miss') { seen.miss = (seen.miss || 0) + 1; if (e.t < l.end - 2 && (!at(l, 'miss', e.t, 2) || !at(l, 'aww', e.t, 2))) fail(l.tag + ': a MISS at ' + e.t.toFixed(3) + ' without miss() + aww() when the tile hit'); continue; }
+      // (the aww at most every 2.5 s: a MISS within 2.5 s of the last one's aww gets the tok alone)
+      if (e.type === 'miss') { seen.miss = (seen.miss || 0) + 1; if (e.t < l.end - 2 && (!at(l, 'miss', e.t, 2) || !l.calls.some((c) => c.k === 'aww' && c.t >= e.t - 2.5 - 1e-3 && c.t <= e.t + 2))) fail(l.tag + ': a MISS at ' + e.t.toFixed(3) + ' without miss() when the tile hit (and an aww() then, or in the 2.5 s before)'); continue; }
       if (!m) continue;
       seen[e.type] = (seen[e.type] || 0) + 1;
       for (const k of m) if (!at(l, k, e.t)) fail(l.tag + ': ' + e.type + ' at ' + e.t.toFixed(3) + ' without Sfx.' + k + '() in the same step');

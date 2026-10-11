@@ -29,6 +29,9 @@
   #ui .btn.tog.on::after { content: 'ON'; background: #2EBF4F; }
   #ui .btn.tog.sm { font-size: 13px; gap: 4px; padding: 0 6px; border-radius: 12px; }
   #ui .btn:active:not([disabled]) { transform: translateY(3px); box-shadow: 0 1px 0 #1E2541; }
+  #ui .btn.pulse { animation: csPulse 0.8s ease-in-out infinite; }
+  @keyframes csPulse { 50% { transform: scale(1.07); background: #FFE07A; } }
+  @media (prefers-reduced-motion: reduce) { #ui .btn.pulse { animation: none; } }
   #ui .btn[disabled] { opacity: 0.55; cursor: default; }
   #ui .btn:focus { outline: none; }
   #ui .btn:focus-visible { outline: 3px solid #FFFFFF; outline-offset: 2px; box-shadow: 0 4px 0 #1E2541, 0 0 0 7px rgba(47,91,234,0.7); }
@@ -53,9 +56,8 @@ const CFG = {
   // slot validity (3.3)
   BOUND_X: 6, SHRINK: 0.02, OCC_SHRINK: 0.15, MAX_DEPTH: 2,
   // fall and yank (3.5)
-  // (FALL_MIN: the hand hovers 2.3 L over the build now, so nearly every drop is short and takes the minimum; 0.24 s
-  // keeps the fall readable and a dooming drop's tip tell up >= 0.5 s before the crash, as with the old long drops)
-  FALL_BASE: 0.12, FALL_PER_L: 0.025, FALL_MIN: 0.24, FALL_MAX: 0.34,
+  // (the hand hovers 2.3 L over the build, so nearly every drop is short and takes FALL_MIN: 0.25 s from release to CLACK)
+  FALL_BASE: 0.12, FALL_PER_L: 0.025, FALL_MIN: 0.18, FALL_MAX: 0.34,
   FALL_GAP: 0.3,                            // L above the slot where the magnet takes over
   LEAN_T: 0.04, LEAN_RAD: 4 * Math.PI / 180, SHIVER_PX: 1,
   YANK_T: 0.07, LAND_GAP: 0.03, NEXT_T: 0.18, PENDING_T: 0.3, START_READY: 0.2,
@@ -85,6 +87,9 @@ const CFG = {
   // tile HAND_HOVER_RIB over it (the held square's bottom 0.4 L above the ribbon); never higher than just under the
   // HUD (handTop); it eases there
   HAND_HOVER: 2.3, HAND_HOVER_RIB: 1.4, HAND_Y_EASE: 7, HAND_HOP_EASE: 30,
+  // a crash or a TOPPLE: the hand flinches up (to FLINCH_UP L under its highest line), fingers spread, out of the way
+  // of the burst, and stays up until the new car has parked
+  FLINCH_UP: 0.5, FLINCH_OPEN: 0.5,
   // controls (4)
   HAND_EASE: 0.04, KEY_SPEED: 10, KEY_RAMP: 0.06, DETENT_T: 0.12,
   // scoring (7)
@@ -111,10 +116,19 @@ const CFG = {
   SHAKE_CLACK: 1.5, SHAKE_CLACK_T: 0.08, HITSTOP_PERFECT: 0.04, HITSTOP_CUBE: 0.09, SHAKE_CUBE: 6,
   WORD_T: 0.5, PULSE_T: 0.3, CUBE_FOLD_DT: 0.036, CUBE_NET_SCALE: 0.22,
   WORD_MAX: 0.6, WORDS_MAX: 2, ANNOUNCE_MAX: 1.0,   // word pops: life cap, at most this many alive; announcements' life cap
+  // a MISS is a playful BONK!, the two-note "aww" at most every AWW_GAP s (a small kid misses a lot: never a stream
+  // of sad sounds); BIG_OFFER_N misses within BIG_OFFER_T s in normal mode: a BIG MAGNETS button pulses in the corner
+  // for BIG_OFFER_SHOW s (one tap switches the run over), once a run
+  AWW_GAP: 2.5, BIG_OFFER_N: 6, BIG_OFFER_T: 10, BIG_OFFER_SHOW: 8,
   // tower dynamics (3.6): a rocking block about the active wheel + one flex spring on the top
   ROCK_DAMP: 0.8, SLAP_KEEP: 0.6, SLAP_FLEX: 0.3, REST_W: 0.08, CAR_K: 1 / 3,
   GF: { perfect: 0.3, great: 1.0, clack: 1.5 }, KICK_BIG: 0.5, LEVER_DX: 0.6,
   CRASH_MARGIN: 0.22, CRASH_MARGIN_BIG: 0.45,
+  // past α a tower teeters before it goes: it turns over its wheel no faster than TIP_W rad/s until it is lost (a far
+  // overhang landing with its kick would otherwise fell it 0.2 s after the CLACK, before the tell is any use; DESIGN
+  // 3.6: past α the player has a moment to counterweight). The look-ahead (TIPPY, the tell, SAVE) runs this same
+  // physics, so it stays honest; a crash going over is free again
+  TIP_W: 0.7,
   FLEX_WN: 9, FLEX_WN_H: 0.06, FLEX_ZETA: 0.15, FLEX_ZETA_L7: 0.10, FLEX_MAX: 0.35, TOP_VMAX: 2.8, PERFECT_SV: 0.6,
   // a kick works against I_eff = I_ref^(1-e) · I_P^e (I_P the live inertia about the pivot): e = 0 would make the rock
   // grow like H³ (one CLACK fells a 10 L tower), e = 1 (the live I_P) topples 4 L towers; 0.35 keeps the rock growing
@@ -138,6 +152,16 @@ const CFG = {
   DEBRIS_MAX: 60, DEBRIS_FADE: 0.4, DEBRIS_REST: 0.35, DEBRIS_FRIC: 0.6, DEBRIS_G: 28, DEBRIS_VT: 14, DEBRIS_SLEEP: 0.15, DEBRIS_LATE: 1.8, DEBRIS_DEADLINE: 2.3, MISS_VX: 3, RING_ROLL: 1.6, PUSH_VMAX: 4,
   DEBRIS_FLAT: 0.03, DEBRIS_TIP: 8, DEBRIS_TURN: 2.5, CLEAR_V: 2.4, CLEAR_SLACK: 0.12,   // resting = an edge on the rug; the parked base clears its span
   WALL_PULL: 30, WALL_V: 2, WALL_SLACK: 0.05,                         // the pile stays in view
+  // depth: the mess spreads toward the viewer over the rug in front of the base (z: L of screen-down depth; nearer
+  // pieces drawn a little bigger), so the pile lies in front of the build, as in the photos. The parked base keeps
+  // CLEAR_PAD L beside it clear: a piece lying there slides forward until it is below the car's plate (CLEAR_TOP L
+  // under it), or (no rug in front, a short landscape screen) out sideways. A car in the mess fades CAR_FADE s after it
+  // has hit the rug (only the live base reads as a car); AGAIN clears the rug over AGAIN_FADE s
+  DEB_Z_RATE: 3.5, DEB_Z_SCALE: 0.05, DEB_Z_MAX: 3.2, CLEAR_PAD: 0.6, CLEAR_TOP: 0.1, CAR_FADE: 0.6, AGAIN_FADE: 0.4,
+  CUBE_FADE: 3,                             // (and the boy takes his cube back: it never piles up into a wall of cubes)
+  // a tile (or ring) that has come to rest falls flat on the rug: drawn squashed to LAY_K of its height about its
+  // edge on the rug (the build stands up, the mess lies down); the cube and the cars stay on their feet
+  LAY_K: 0.3,
   // TOPPLE: a build with no square or triangle slot left anywhere bursts and a new base rolls in
   // (the same path M3's crash uses; 3.6 Crash)
   TOPPLE_DELAY: 0.3, TOPPLE_FREEZE: 0.1, TOPPLE_SHAKE: 10, ROLL_WAIT: 0.2, ROLL_T: 0.45,
@@ -4694,10 +4718,10 @@ const S = {
   ghost: null, ghostKey: null, ghostDx: 0, ghostTippy: false, crownHigh: false, cubeSeated: false,
   inputType: 'mouse', firstInput: false, hintOn: false, hintT: 0, pausedFrom: 'play',
   scoreShown: 0, scoreBumpT: -1, multBumpT: -1, titleT: 0, titleWobble: new Array(10).fill(0),
-  slowLeft: 0, lastBonk: -1, savedAt: -1,
+  slowLeft: 0, lastBonk: -1, savedAt: -1, lastAww: -1e9, missT: [], bigOfferAt: -1, bigOffered: false,
   // M4 / M7: rings, run stats, the clock, the crown, sky
   rings: [], tallest: 0, bestGoal: 0, bestGoalName: '', ringsGot: 0, crowns: 0, clockFrom: 0, lastTick: 6, clockBumpT: -1,
-  crownFlying: false, crownOwed: false, holdDenyT: -1, baseHidden: false, overtime: false, skyT: 0, night: false, titleT0: 0, couple: false, carOff: 0,
+  crownFlying: false, crownOwed: false, holdDenyT: -1, baseHidden: false, flinch: false, flinchAt: -1, overtime: false, skyT: 0, night: false, titleT0: 0, couple: false, carOff: 0,
 };
 const HAND = { x: 0, dx: 0, piece: null, ready: false, readyAt: 0, releasedAt: -1, pending: null, fuseT: 0, fuseMarks: 0,
   lastSrc: null, swapUsed: false, keyV: 0, detentT: 0, detentKey: null, dropAt: -1, crownAt: -1, waveAt: -1 };
@@ -4751,6 +4775,8 @@ function rockStep(D, dt) {
     // θ'' = M g r'x / I_P − 0.8 θ', r' = (C − P) rotated by θ
     const I = side > 0 ? D.IR : D.IL, rx = cxE - side * D.w;
     D.omega += (D.M * CFG.GRAV * (rx * Math.cos(D.theta) + ry * Math.sin(D.theta)) / I - CFG.ROCK_DAMP * D.omega) * dt;
+    // (the teeter: past α, going further over no faster than TIP_W)
+    if (!D.crashing && D.theta * side > 0 && Math.abs(D.theta) >= Math.max(0, D.alphaSide) && D.omega * side > CFG.TIP_W) D.omega = side * CFG.TIP_W;
     const th0 = D.theta;
     D.theta += D.omega * dt;
     if ((th0 > 0 && D.theta <= 0) || (th0 < 0 && D.theta >= 0)) {
@@ -5081,7 +5107,7 @@ function stepTower(dt) {
     } else {
       const prev = TW.ox;
       if (r >= 1) {
-        TW.ox = 0; S.rollT0 = -1;
+        TW.ox = 0; S.rollT0 = -1; S.flinch = false;                               // (the hand comes back down)
         Sfx.clack({ combo: 0, mass: 1.5, pan: 0, edges: 2, grade: 'clack' });      // the car parks
         addShake(2, 0.1);
       } else TW.ox = S.rollFrom * (1 - easeOutCubic(Math.max(0, r)));
@@ -5119,6 +5145,7 @@ function doCrash() {
   S.slowLeft = REDUCED ? 0 : CFG.CRASH_SLOW;
   FX.hitStop = Math.max(FX.hitStop, CFG.CRASH_FREEZE);
   S.toppleAt = -1; S.lockUntil = Infinity; HAND.pending = null; S.ghost = null; S.ghostKey = null;
+  S.flinch = true; S.flinchAt = S.gt;
   S.crashes++;
   const prevCombo = S.combo;
   S.combo = 0; S.mult = 1; S.streak = 0; Sfx.music.setMult(1);
@@ -5145,7 +5172,7 @@ function doCrash() {
   for (const f of S.flights) {
     flightPose(f, FP);
     spawnDebris({ shape: f.piece.shape, color: f.piece.color, variant: f.piece.variant, x: FP.x, y: FP.y, rot: FP.rot,
-      vx: side * (1 + S.drng() * 2), vy: -1 - S.drng() * 2, w: -side * (5 + S.drng() * 6) });
+      vx: side * (1 + S.drng() * 2), vy: -1 - S.drng() * 2, w: -side * (5 + S.drng() * 6), zT: debrisZT() });
     logEvent('lost', { id: f.id, key: f.key });
   }
   S.flights.length = 0; S.lastLandAt = -1e9;
@@ -5194,8 +5221,8 @@ function stepUnzip() {
     vx = clamp(vx, -CFG.CRASH_VMAX, CFG.CRASH_VMAX); vy = clamp(vy, -CFG.CRASH_VMAX, CFG.CRASH_VMAX);   // a pop, not a launch
     const spin = CFG.CRASH_SPIN_MIN + (CFG.CRASH_SPIN_MAX - CFG.CRASH_SPIN_MIN) * r();
     spawnDebris({ shape: t.shape || (P.type === 'cube' ? 'cube' : P.type === 'sq' ? 'sq' : 'tri'), color: t.color, variant: t.variant,
-      x: _w.x, y: _w.y, rot: TW.theta + P.rot0, vx, vy, w: -side * back * spin, gear: !!t.gearAt });
-    if (t.ring) spawnDebris({ shape: 'ring', x: _w.x, y: _w.y + 0.1, vx: clamp(vx * 1.3 + side * 2, -4, 4), vy: vy + 1, w: 0 });
+      x: _w.x, y: _w.y, rot: TW.theta + P.rot0, vx, vy, w: -side * back * spin, gear: !!t.gearAt, zT: debrisZT() });
+    if (t.ring) spawnDebris({ shape: 'ring', x: _w.x, y: _w.y + 0.1, vx: clamp(vx * 1.3 + side * 2, -4, 4), vy: vy + 1, w: 0, zT: debrisZT() });
     CR.sx += _w.x; CR.n++;
   }
   if (CR.left.length) return;
@@ -5205,7 +5232,7 @@ function stepUnzip() {
     const lx = B.cars === 1 ? 0 : (c ? 1 : -1);
     toWorld(lx, CFG.CAR_CY, _w);
     spawnDebris({ shape: 'car', color: B.cars === 1 || c ? 'red' : 'green', x: _w.x, y: _w.y, rot: TW.theta,
-      vx: 0.4 * TW.omega * (_w.y - py) + side * (0.6 + 1.2 * r()), vy: 3.6 + 1.6 * r(), w: -side * (5 + 3 * r()) });
+      vx: 0.4 * TW.omega * (_w.y - py) + side * (0.6 + 1.2 * r()), vy: 3.6 + 1.6 * r(), w: -side * (5 + 3 * r()), zT: debrisZT() });
   }
   const cx = CR.n ? CR.sx / CR.n : 0;
   dustPuff(px, 1.6); dustPuff(cx + side * 1.2, 1.3);
@@ -5252,9 +5279,10 @@ function doTopple() {
     const dx = _w.x - S.comX, dir = dx > 0.05 ? 1 : dx < -0.05 ? -1 : (S.drng() < 0.5 ? -1 : 1);
     spawnDebris({ shape: t.shape || (P.type === 'cube' ? 'cube' : P.type === 'sq' ? 'sq' : 'tri'), color: t.color, variant: t.variant,
       x: _w.x, y: _w.y, rot: TW.theta + P.rot0,
-      vx: dx * 1.1 + dir * (0.6 + 2.2 * S.drng()), vy: 1.2 + 3.5 * S.drng() + 0.12 * P.cy, w: (S.drng() - 0.5) * 16, gear: !!t.gearAt });
+      vx: dx * 1.1 + dir * (0.6 + 2.2 * S.drng()), vy: 1.2 + 3.5 * S.drng() + 0.12 * P.cy, w: (S.drng() - 0.5) * 16, gear: !!t.gearAt, zT: debrisZT() });
   }
   const prevTop = S.top;
+  S.flinch = true; S.flinchAt = S.gt;
   S.combo = 0; S.mult = 1; S.streak = 0; Sfx.music.setMult(1);
   logEvent('topple', { tiles: n, top: +prevTop.toFixed(3) });
   w2s(0, Math.min(prevTop, S.G) * 0.6, _s);
@@ -5385,9 +5413,15 @@ function doRelease(src) {
     CS.lastRelease = { id, ghostKey: slot.key, grade, dx: adx, dxSigned: dxs, t: S.gt, inAir: S.flights.length, src, piece: piece.shape, readyAt, tippy: tippyNow };
   } else {
     S.combo = 0; S.mult = 1; S.streak = 0; Sfx.music.setMult(1);      // a MISS resets the combo: the groove drops back to x1
-    spawnDebris({ shape: piece.shape, color: piece.color, variant: piece.variant, x: hx, y: y0, vx: 0, vy: 0, w: 0, bonk: true, miss: true, oops: crown });
+    spawnDebris({ shape: piece.shape, color: piece.color, variant: piece.variant, x: hx, y: y0, vx: 0, vy: 0, w: 0, bonk: true, miss: true, oops: crown,
+      zT: debrisZT(), zHold: true });
     logEvent('miss', { id, x: hx, crown });
     S.misses++;
+    // a run of misses in normal mode (a small player): offer BIG MAGNETS right now
+    S.missT.push(S.gt); if (S.missT.length > CFG.BIG_OFFER_N) S.missT.shift();
+    if (!S.big && !S.bigOffered && S.missT.length >= CFG.BIG_OFFER_N && S.gt - S.missT[0] <= CFG.BIG_OFFER_T + 1e-9) {
+      S.bigOffered = true; S.bigOfferAt = S.gt; logEvent('offerbig', { misses: S.misses });
+    }
     CS.lastRelease = { id, ghostKey: null, grade: 'miss', dx: null, dxSigned: null, t: S.gt, inAir: S.flights.length, src, piece: piece.shape, readyAt };
   }
   return true;
@@ -5537,8 +5571,11 @@ function spawnDebris(o) {
   const d = { shape, base, color: o.color || 'blue', variant: o.variant | 0, x: o.x || 0, y: o.y == null ? 3 : o.y,
     ang: o.ang || (o.rot ? -o.rot : 0), vx: o.vx || 0, vy: o.vy || 0, w: o.w || 0, verts: DEB_SHAPES[base], I: DEB_I[base],
     r: DEB_R[base], bonk: !!o.bonk, miss: !!o.miss, oops: !!o.oops, sleep: false, rest: 0, alpha: 1, fading: false, fadeRate: 1 / CFG.DEBRIS_FADE, hit: false, age: 0,
-    born: S.gt, gear: !!o.gear, ground: false, flat: false, crx: 0, sleepT: -1, clearDir: 0, cleared: false, plowed: false, pulled: false,
-    away: !!o.away };      // away: flung clear of the scene (the title shove): no walls hold it in view
+    born: S.gt, gear: !!o.gear, ground: false, flat: false, crx: 0, sleepT: -1, hitT: -1, clearDir: 0, cleared: false, plowed: false, pulled: false,
+    away: !!o.away,        // away: flung clear of the scene (the title shove): no walls hold it in view
+    // depth (L, toward the viewer) and where it is heading; zHold: it stays in the build's plane until it has hit
+    // something (a MISS bonks off the build top first)
+    z: o.z || 0, zT: o.zT == null ? (o.z || 0) : o.zT, zHold: !!o.zHold, lay: 1 };
   DEBRIS.push(d);
   return d;
 }
@@ -5560,20 +5597,64 @@ function underBase(d, half) {
   const bx = d.x - TW.ox;
   return Math.min(bx + x1, half) - Math.max(bx + x0, -half);
 }
+// the rug in front of the base the mess may spread over (L of depth): a piece there stays on screen at the level's most
+// zoomed-in view
+function debrisZMax() {
+  const L = S.B ? Math.max(zoomEmpty(), CAM.L) : CAM.L;
+  return clamp((CAM.H - CAM.safe.b - CAM.groundY) / L - 0.12, 0, CFG.DEB_Z_MAX);
+}
+// a depth for a piece thrown by a burst: spread over the rug in front
+function debrisZT() { return debrisZMax() * (0.12 + 0.88 * S.drng()); }
+// how far forward a piece lying on the rug must be for its top to show under the parked car's plate (L)
+function debrisZClear(d) {
+  let top = d.r;
+  if (d.verts) {
+    const c = Math.cos(d.ang), s = Math.sin(d.ang), V = d.verts;
+    top = -Infinity;
+    for (let k = 0; k < V.length; k += 2) { const ry = V[k] * s + V[k + 1] * c; if (ry > top) top = ry; }
+  }
+  const h = (d.y + top + 0.5) * d.lay;          // its height over the rug (lying flat: squashed)
+  return Math.max(0, (h - 0.32 + CFG.CLEAR_TOP) / Math.max(0.5, 1 - CFG.DEB_Z_SCALE * h));
+}
+// a piece's screen point (its centre) at its depth: drawn at scale sc about the rug line at that depth (seen: where
+// it shows, lying flat included; else where drawDebris draws it before the squash)
+const _ds = { x: 0, y: 0, s: 1 };
+function debrisScreen(d, out, seen) {
+  const L = CAM.L, sc = 1 + CFG.DEB_Z_SCALE * d.z;
+  out.x = CAM.originX + d.x * L; out.y = CAM.baseY + d.z * L - (d.y + 0.5) * L * sc * (seen ? d.lay : 1); out.s = sc;
+  return out;
+}
 function stepDebris(dt) {
   const FLOOR = -0.5;
-  // the parked base keeps its span clear: a piece lying on the rug under the car (one that landed there after the
-  // car rolled in, or that the plough missed) slides out sideways, away from the base centre, until it is clear
-  const clearHalf = S.phase === 'play' && S.rollT0 < 0 && S.B ? S.B.half : 0, halfW = debrisHalfW();
+  const parked = S.phase === 'play' && S.rollT0 < 0 && S.B, clearHalf = parked ? S.B.half + CFG.CLEAR_PAD : 0, halfW = debrisHalfW();
+  const zMax = debrisZMax();
   for (let i = DEBRIS.length - 1; i >= 0; i--) {
     const d = DEBRIS[i];
     d.age += dt;
     if (d.fading) { d.alpha -= dt * d.fadeRate; if (d.alpha <= 0) { DEBRIS.splice(i, 1); continue; } }
+    // a car in the mess fades soon after it has hit the rug (only the live base reads as a car); a cube once it has
+    // lain still a while (the boy takes it back)
+    else if (d.base === 'car' ? d.sleep || (d.hitT >= 0 && S.gt - d.hitT > CFG.CAR_FADE) : d.base === 'cube' && d.sleep && S.gt - d.sleepT > CFG.CUBE_FADE) { d.fading = true; d.fadeRate = 2; }
+    // depth: toward where it is heading (asleep too: a piece the base shoved slides forward on the rug)
+    if (d.zHold && (d.hit || d.ground)) d.zHold = false;
+    if (d.z !== d.zT && !d.zHold) { d.z += (d.zT - d.z) * Math.min(1, CFG.DEB_Z_RATE * dt); if (Math.abs(d.zT - d.z) < 0.002) d.z = d.zT; }
+    // lying down once at rest (standing again once it is flicked or shoved up off the rug)
+    const layT = d.sleep && d.base !== 'cube' && d.base !== 'car' ? CFG.LAY_K : 1;
+    if (d.lay !== layT) { d.lay += (layT - d.lay) * Math.min(1, dt * (layT < d.lay ? 9 : 20)); if (Math.abs(layT - d.lay) < 0.004) d.lay = layT; }
+    // the parked base keeps its span (and CLEAR_PAD beside it) clear: a piece lying there that would show over the car
+    // (it landed there after the car rolled in, or the plough missed it) slides forward on the rug until it is in
+    // front of it; with no rug in front to use, it slides out sideways, away from the base centre
+    let zc = 0, sideways = false;
+    if (clearHalf && !d.fading && (d.ground || d.sleep) && d.zT < (zc = debrisZClear(d)) - 1e-6 && underBase(d, clearHalf) > CFG.CLEAR_SLACK) {
+      if (zc > zMax) sideways = true;
+      // (forward once it has settled and lain down: then it needs only a little rug)
+      else if (d.sleep && d.lay === layT) { d.zT = Math.min(zMax, zc + 0.1 + 0.3 * S.drng()); d.cleared = true; }
+    }
     // soft walls at the edges of the view, so the mess stays on screen, whole, at the most zoomed-in view (on a
     // screen too narrow for that beside the base, just clear of the base: the base's span wins). A piece flung away
     // has none: it may come to rest off the screen (the oldest pieces, it is the first to fade when the cap nears)
-    const wall = d.away ? 1e9 : Math.max(halfW - d.r, clearHalf ? clearHalf + d.r : 0);
-    if (clearHalf && (d.ground || d.sleep) && underBase(d, clearHalf) > CFG.CLEAR_SLACK) {
+    const wall = d.away ? 1e9 : Math.max(halfW - d.r, parked ? (sideways ? clearHalf : S.B.half) + d.r : 0);
+    if (sideways) {
       if (d.sleep) wakeDebris(d);
       const bx = d.x - TW.ox, dir = bx > 1e-3 ? 1 : bx < -1e-3 ? -1 : (d.clearDir || (d.clearDir = S.drng() < 0.5 ? -1 : 1));
       if (d.vx * dir < CFG.CLEAR_V) d.vx = dir * CFG.CLEAR_V;
@@ -5592,7 +5673,7 @@ function stepDebris(dt) {
       const prof = buildProfile(d.x);
       if (prof > FLOOR + 0.01 && d.y - d.r <= prof) {
         const dir = d.x >= S.comX ? 1 : -1;
-        d.y = prof + d.r; d.vx = dir * CFG.MISS_VX; d.vy = 2.5; d.w = -dir * (4 + S.drng() * 8); d.bonk = false;
+        d.y = prof + d.r; d.vx = dir * CFG.MISS_VX; d.vy = 2.5; d.w = -dir * (4 + S.drng() * 8); d.bonk = false; d.zHold = false;
         // a MISS says so; the tile the hand lets go of at TIME! just bonks off what stands
         if (d.miss) missFx(d);
         else if (S.gt - S.lastBonk > 0.1) { S.lastBonk = S.gt; Sfx.bonk(); }
@@ -5657,7 +5738,7 @@ function stepDebris(dt) {
           dustPuff(d.x, Math.min(1.4, -vy0 / 9) * (d.base === 'cube' || d.base === 'car' ? 1.4 : 1));
           d.w *= 0.55;                                         // a hard landing on a rug eats spin (no endless hopping)
         }
-        if (!d.hit && impact) { d.hit = true; d.w += (S.drng() - 0.5) * 4; if (d.miss && d.bonk) { d.bonk = false; missFx(d); } }
+        if (!d.hit && impact) { d.hit = true; d.hitT = S.gt; d.w += (S.drng() - 0.5) * 4; if (d.miss && d.bonk) { d.bonk = false; missFx(d); } }
         // settled: still for a moment, or (a deadline, so a pile is quiet ~2.5 s after a crash) old and nearly still
         const late = flat && d.age > CFG.DEBRIS_DEADLINE && Math.abs(d.vx) < 0.6 && Math.abs(d.vy) < 0.6 && Math.abs(d.w) < 1.2;
         if (late) d.rest = CFG.DEBRIS_SLEEP + 1;
@@ -5722,6 +5803,7 @@ function plowDebris(x0, x1, dt, halfLen, toss) {
   const front = x1 + dir * (half + 0.1);
   for (const d of DEBRIS) {
     if (d.fading || d.y > 0.4 + d.r) continue;             // only what lies on the rug
+    if (d.z > 0.05 && d.z >= debrisZClear(d) - 0.05) continue;   // (and in its path: not on the rug in front of it)
     const reach = d.r * 0.7, lead = (d.x - front) * dir;
     if (lead > reach || lead < -(2 * half + 0.2 + reach)) continue;
     if (toss) {
@@ -5827,8 +5909,9 @@ function startGame(mode) {        // mode: 'auto' (?autostart: the base is alrea
   S.flights.length = 0; S.lastLandAt = -1e9; S.toppleAt = S.lockUntil = S.rollT0 = -1;
   crashReset();
   S.score = 0; S.scoreShown = 0; S.combo = 0; S.mult = 1; S.streak = 0; S.bestStreak = 0; S.perfects = 0; S.landed = 0;
+  S.lastAww = -1e9; S.missT.length = 0; S.bigOfferAt = -1; S.bigOffered = false;
   S.crashes = 0; S.saves = 0; S.braces = 0; S.misses = 0; S.tallest = 0; S.bestGoal = 0; S.bestGoalName = ''; S.ringsGot = 0; S.crowns = 0;
-  S.clock = CFG.CLOCK_START; S.lastTick = 6; S.crownFlying = false; S.crownOwed = false; S.baseHidden = false;
+  S.clock = CFG.CLOCK_START; S.lastTick = 6; S.crownFlying = false; S.crownOwed = false; S.baseHidden = false; S.flinch = false;
   S.queue.length = 0; S.bag.length = 0; S.held = null; S.lastColor = null; S.squaresDealt = 0; S.cubeWait = false; S.allTippy = false;
   S.firstRunSquares = PREFS.played ? 0 : 4;
   S.ghost = null; S.ghostKey = null; S.firstInput = false;
@@ -5840,7 +5923,9 @@ function startGame(mode) {        // mode: 'auto' (?autostart: the base is alrea
     DEBRIS.length = 0; fxClear();
     S.clockFrom = S.gt;
   } else {
-    // the base rolls in (the old pile is shoved aside); the clock starts when it is parked
+    // the base rolls in (the old pile is shoved aside); the clock starts when it is parked. AGAIN: a clean rug, as
+    // the title promises (the old run's pile fades as the new cars come)
+    if (mode === 'again') for (const d of DEBRIS) if (!d.fading || d.fadeRate < 1 / CFG.AGAIN_FADE) { d.fading = true; d.fadeRate = 1 / CFG.AGAIN_FADE; }
     fxClear();
     newBase(-1, 0, true);
     S.clockFrom = S.lockUntil;
@@ -5903,20 +5988,41 @@ function takeNext() {
   while (S.queue.length < 2) S.queue.push(makePiece(nextShape()));
   return S.queue.shift();
 }
-// the cube waits in NEXT until the build has a seat for it (a flat top under both its bottom edges): the ballast goes
-// in square, never balanced half over an edge. Decided while the hand refills (the tile just let go is reserved by
-// then): the cube in NEXT comes to the hand if there is a seat now (the tile that was coming waits in NEXT instead);
-// a cube on its way to the hand with no seat left goes back to NEXT and the tile after it comes
+// The hand never gets a piece that cannot land. Decided while the hand refills (the tile just let go is reserved by
+// then), by how well each piece fits the build now: 3 a cube with a seat (a flat top under both its bottom edges: the
+// ballast goes in square, never balanced half over an edge), 2 any other piece with a slot, 1 a cube with only a
+// half-over-an-edge slot, 0 no slot at all (a square over a build capped with up-triangles: wherever the hand went the
+// ghost would be a red X, and the fuse would drop a MISS nobody could have avoided).
+// The piece in NEXT comes to the hand instead when it fits better (the cube when it has a seat now; the tile after a
+// cube with no seat; a triangle for a square with nowhere to go), and the one that was coming waits in NEXT. When
+// neither fits: if the HOLD box has one that does, the box pulses (stepAllTippy: "HOLD IT!", the fuse waits); else the
+// hand takes a fresh piece that fits (the dead one goes to the back of the queue, it comes again later)
 function cubeSeat() {
   if (!S.B) return true;
   for (const c of S.B.cands) if (seatedCube(c)) return true;
   return false;
 }
-function cubeToHand() {
+function fitScore(p) {
+  if (!p || !S.B) return 2;
+  if (p.shape === 'crown') return triSlotOpen() ? 2 : 0;
+  if (p.shape === 'cube') { let any = false; for (const c of S.B.cands) if (c.type === 'cube') { if (seatedCube(c)) return 3; any = true; } return any ? 1 : 0; }
+  for (const c of S.B.cands) if (slotTypeOk(p.shape, c.type)) return 2;
+  return 0;
+}
+function refillPick() {
   const p = HAND.piece, q = S.queue[0];
-  if (!p || !q || p.shape === 'crown' || (p.shape === 'cube') === (q.shape === 'cube')) return;
-  const seat = cubeSeat();
-  if (q.shape === 'cube' ? seat : !seat) { S.queue[0] = p; HAND.piece = q; }
+  if (!p || p.shape === 'crown' || !S.B) return;
+  const fp = fitScore(p);
+  if (q && fitScore(q) > fp) { S.queue[0] = p; HAND.piece = q; if (fp === 0) logEvent('deal', { why: 'dead', piece: p.shape, to: q.shape, via: 'next' }); return; }
+  if (fp > 0 || (S.held && fitScore(S.held) > 0)) return;
+  // nothing dealt fits: a triangle if one can go anywhere, else a square (no square or triangle slot: a TOPPLE is
+  // already on its way)
+  let tri = false, sq = false;
+  for (const c of S.B.cands) { if (c.type === 'up' || c.type === 'dn') tri = true; else if (c.type === 'sq') sq = true; }
+  if (!tri && !sq) return;
+  if (p.shape === 'cube') S.cubeWait = true; else S.queue.push(p);
+  HAND.piece = makePiece(tri ? 'tri' : 'sq');
+  logEvent('deal', { why: 'dead', piece: p.shape, to: HAND.piece.shape, via: 'fresh' });
 }
 function makeCrown() { return { shape: 'crown', color: 'orange', variant: 0 }; }
 const CROWN_SHOW = makeCrown();          // for the HUD (an owed crown in NEXT)
@@ -5994,7 +6100,7 @@ function crownSync() {
   const open = triSlotOpen();
   if (S.crownOwed) { if (open) giveCrown(); return; }
   if (!open && HAND.piece && HAND.piece.shape === 'crown') {
-    HAND.piece = takeNext(); HAND.crownAt = -1; HAND.fuseT = 0; HAND.fuseMarks = 0;
+    HAND.piece = takeNext(); HAND.crownAt = -1; HAND.fuseT = 0; HAND.fuseMarks = 0; refillPick();
     S.crownOwed = true; logEvent('crownwait', { level: S.level, top: +S.top.toFixed(3) });
     computeGhost();
   }
@@ -6070,17 +6176,17 @@ function burstRight(power) {
     const low = 1 - clamp(P.cy / top, 0, 1);              // the cube hits the bottom: low tiles go fastest
     const vx = power * (0.55 + 0.45 * low) * (0.7 + 0.6 * r()), vy = 2 + 4.5 * r() + 0.12 * Math.min(P.cy, 10);
     spawnDebris({ shape: t.shape || (P.type === 'cube' ? 'cube' : P.type === 'sq' ? 'sq' : 'tri'), color: t.color, variant: t.variant,
-      x: _w.x, y: _w.y, rot: TW.theta + P.rot0, vx: clamp(vx, -7, 7), vy: clamp(vy, -6, 7), w: -(5 + 9 * r()) * (r() < 0.15 ? -1 : 1), gear: !!t.gearAt });
+      x: _w.x, y: _w.y, rot: TW.theta + P.rot0, vx: clamp(vx, -7, 7), vy: clamp(vy, -6, 7), w: -(5 + 9 * r()) * (r() < 0.15 ? -1 : 1), gear: !!t.gearAt, zT: debrisZT() });
   }
   for (const t of tiles) {
     t.gone = true;
-    if (t.ring && rings-- > 0) { toWorld(t.ring.x, t.ring.y, _w); spawnDebris({ shape: 'ring', x: _w.x, y: _w.y, vx: power * 0.6 * (0.6 + 0.8 * r()), vy: 2 + 3 * r(), w: 0 }); }
+    if (t.ring && rings-- > 0) { toWorld(t.ring.x, t.ring.y, _w); spawnDebris({ shape: 'ring', x: _w.x, y: _w.y, vx: power * 0.6 * (0.6 + 0.8 * r()), vy: 2 + 3 * r(), w: 0, zT: debrisZT() }); }
   }
   for (let c = 0; c < S.B.cars; c++) {
     const lx = S.B.cars === 1 ? 0 : (c ? 1 : -1);
     toWorld(lx, CFG.CAR_CY, _w);
     spawnDebris({ shape: 'car', color: S.B.cars === 1 || c ? 'red' : 'green', x: _w.x, y: _w.y, rot: TW.theta,
-      vx: power * 0.45 * (0.8 + 0.4 * r()), vy: 2.2 + 1.5 * r(), w: -(4 + 3 * r()) });
+      vx: power * 0.45 * (0.8 + 0.4 * r()), vy: 2.2 + 1.5 * r(), w: -(4 + 3 * r()), zT: debrisZT() });
   }
   S.baseHidden = true;
   for (const r2 of S.rings) if (r2.got) r2.tile = null;
@@ -6207,7 +6313,8 @@ function enterOver() {
   // the hand lets go of its tile (it clatters onto whatever stands) and waves
   if (HAND.piece && HAND.ready && S.B) {
     const p = HAND.piece;
-    spawnDebris({ shape: p.shape, color: p.color, variant: p.variant, x: handWorldX(), y: worldYAtScreen(CAM.handY + heldOffset(p.shape) * CAM.L), vx: 0, vy: 0, w: 0, bonk: true });
+    spawnDebris({ shape: p.shape, color: p.color, variant: p.variant, x: handWorldX(), y: worldYAtScreen(CAM.handY + heldOffset(p.shape) * CAM.L), vx: 0, vy: 0, w: 0, bonk: true,
+      zT: debrisZT(), zHold: true });
   }
   HAND.piece = null; HAND.ready = false;
   Sfx.whistle(); Sfx.music.stop(); Sfx.haptic([40, 40, 40]);
@@ -6286,12 +6393,12 @@ function pokePile(x, y) {
   const L = CAM.L;
   for (const d of DEBRIS) {
     if (d.fading) continue;
-    w2s(d.x, d.y, _s);
-    const dist = Math.hypot(_s.x - x, _s.y - y);
+    debrisScreen(d, _ds, true);
+    const dist = Math.hypot(_ds.x - x, _ds.y - y);
     if (dist < bd) { bd = dist; best = d; }
   }
   if (!best || bd > L * (best.r + 0.6)) return false;
-  w2s(best.x, best.y, _s);
+  debrisScreen(best, _s, true);
   const dir = _s.x >= x ? 1 : -1;
   wakeDebris(best); best.hit = false;
   best.vx = dir * (1.2 + 1.6 * S.drng()); best.vy = 3.5 + 2.5 * S.drng(); best.w = -dir * (6 + 6 * S.drng());
@@ -6340,9 +6447,9 @@ function burstTitle() {
     // rug, not under the old build's heap)
     spawnDebris({ shape: p.shape, color: p.color, variant: p.variant, x, y, rot: p.rot, away: true,
       vx: (3.2 + 6.5 * near * (0.5 + 0.5 * low)) * (0.75 + 0.6 * r()) * (r() < 0.1 ? -0.4 : 1), vy: 3.2 + 4 * r() + 0.3 * Math.max(0, y),
-      w: -(5 + 8 * r()) * (r() < 0.2 ? -1 : 1) });
+      w: -(5 + 8 * r()) * (r() < 0.2 ? -1 : 1), zT: debrisZT() });
   }
-  for (const g of TB.rings) spawnDebris({ shape: 'ring', x: g.x + ST.dx, y: g.y - 0.5, vx: 3 + 3 * r(), vy: 3.5 + 2 * r(), w: 0, away: true });
+  for (const g of TB.rings) spawnDebris({ shape: 'ring', x: g.x + ST.dx, y: g.y - 0.5, vx: 3 + 3 * r(), vy: 3.5 + 2 * r(), w: 0, away: true, zT: debrisZT() });
   cubeRecoil(-2);
   Sfx.boom(); Sfx.crash(TB.tiles.length, 0.1); Sfx.whistle(); Sfx.music.duck(1); Sfx.haptic([30, 40, 30]);
   addShake(CFG.CRASH_SHAKE, CFG.CRASH_SHAKE_T);
@@ -6370,7 +6477,7 @@ function crashReset() { CR.stage = ''; CR.left.length = 0; S.slowLeft = 0; TIP.l
 function toMenu() {
   S.phase = 'title'; S.flights.length = 0; DEBRIS.length = 0; fxClear(); S.toppleAt = S.lockUntil = S.rollT0 = -1;
   towerReset(); crashReset(); CUBE.on = false; HZ.car = HZ.foot = null; HZ.every = 0; FX.banner = null; FX.tally = null;
-  OV.stage = ''; S.baseHidden = false; S.titleT0 = S.rt; S.held = null;
+  OV.stage = ''; S.baseHidden = false; S.titleT0 = S.rt; S.held = null; S.flinch = false;
   CAM.camY = 0; CAM.baseY = CAM.groundY;
   Sfx.music.stop();
   syncOverlay();
@@ -6479,13 +6586,14 @@ function stepAllTippy() {
     n++;
     if (!slotTippy(c, HAND.piece, 0, 'perfect')) { safe = true; break; }
   }
-  S.allTippy = n > 0 && !safe;
+  // (and the tile in the hand has no slot at all while the one in HOLD has: refillPick left it there for a swap)
+  S.allTippy = (n > 0 && !safe) || (n === 0 && !HAND.swapUsed && !!S.held && fitScore(S.held) > 0);
 }
 function stepPlay(dt) {
   if (S.toppleAt >= 0 && S.gt >= S.toppleAt - 1e-9) doTopple();
   const locked = S.gt < S.lockUntil;
   // (the cube comes now if it has a seat, before the hand shows its tile)
-  if (!HAND.ready && S.gt < HAND.releasedAt + CFG.NEXT_T - 0.09) cubeToHand();
+  if (!HAND.ready && S.gt < HAND.releasedAt + CFG.NEXT_T - 0.09) refillPick();
   // the next tile reaches the hand 0.18 s after release
   if (!HAND.ready && S.gt >= HAND.releasedAt + CFG.NEXT_T - 1e-9) {
     HAND.ready = true; HAND.readyAt = S.gt; HAND.fuseT = 0; HAND.fuseMarks = 0;
@@ -6687,7 +6795,7 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const CAM = { W: 390, H: 844, dpr: 1, L: 52, camY: 0, groundY: 760, handY: 90, handTop: 90, hs: 1, originX: 195, baseY: 760, portrait: true,
   safe: { t: 0, r: 0, b: 0, l: 0 }, hudBottom: 64, titleX: 195, titleY: 120, titleW: 360, tapY: 280, tapF: 39, titleBottom: 300 };
-const UI = { pause: null, mute: null, hold: null, next: null, clock: null, score: null, resume: null, menu: null, muteT: null, big: null, again: null, menuR: null, bigR: null };
+const UI = { pause: null, mute: null, hold: null, next: null, clock: null, score: null, resume: null, menu: null, muteT: null, big: null, again: null, menuR: null, bigR: null, bigP: null };
 const DEBUG = { on: PARAM.debug };
 let lastOrient = null;
 function readSafe() {
@@ -6737,6 +6845,8 @@ function layout() {
     CAM.hudBottom = top + 56 * hs;
     CAM.handTop = top + 60 * hs;
   }
+  // the mid-run BIG MAGNETS offer: the bottom-left corner
+  UI.bigP = { x: g + sf.l, y: H - sf.b - 12 - 46, w: Math.min(200, W - 2 * g - sf.l - sf.r), h: 46 };
   UI.resume = { x: W / 2 - 110, y: Math.round(H * 0.45), w: 220, h: 64 };
   UI.menu = { x: W / 2 - 80, y: Math.round(H * 0.45) + 80, w: 160, h: 48 };
   // the title: mute top-right, BIG MAGNETS bottom-left (the tile box with the best scores sits bottom-right)
@@ -6843,7 +6953,7 @@ function updateCamera(dt, snap) {
   // the hand hovers over the build (or the ribbon), under the HUD at the highest
   // (empty, between a release and the next tile, it hops up at once: the release that brings the goal near sends it
   // over the ribbon, and the ribbon never runs through the tile it shows next)
-  const yT = handYTarget(), ke = !HAND.ready && yT < CAM.handY ? CFG.HAND_HOP_EASE : CFG.HAND_Y_EASE;
+  const yT = handYTarget(), ke = (!HAND.ready || S.flinch) && yT < CAM.handY ? CFG.HAND_HOP_EASE : CFG.HAND_Y_EASE;
   CAM.handY = snap ? yT : CAM.handY + (yT - CAM.handY) * (1 - Math.exp(-ke * dt));
 }
 // where the hand hovers, as a screen y: HAND_HOVER L over the build top (with the tiles in the air); once the goal
@@ -6851,6 +6961,8 @@ function updateCamera(dt, snap) {
 // GOAL_NEAR of it); never above handTop (just under the HUD: there the zoom and the scroll take over)
 function handYTarget() {
   if (!S.B || S.phase === 'title' || S.phase === 'start') return CAM.handTop;
+  // a crash or a TOPPLE: up out of the way of the burst (never down into it), until the new car has parked
+  if (S.flinch) return Math.min(CAM.handY, CAM.handTop + CFG.FLINCH_UP * CAM.L);
   const going = S.phase === 'crash' || S.baseHidden || (S.phase === 'paused' && S.pausedFrom === 'crash');
   const top = going ? 0 : camTop();
   const h = goalNear(top) ? Math.max(top + CFG.HAND_HOVER, S.G + CFG.HAND_HOVER_RIB) : top + CFG.HAND_HOVER;
@@ -7241,37 +7353,57 @@ function drawFuse(x, y, L, u) {
 function drawDebrisShadows() {
   const L = CAM.L;
   for (const d of DEBRIS) {
-    const h = Math.max(0, d.y + 0.5);
+    const h = Math.max(0, d.y + 0.5), sc = 1 + CFG.DEB_Z_SCALE * d.z;
     w2s(d.x, -0.5, _s);
-    Art.drawShadowBlob(ctx, _s.x, _s.y + 2, L * d.r * (1 + h * 0.15), L * 0.12, d.alpha * 0.28 / (1 + h * 0.6));
+    Art.drawShadowBlob(ctx, _s.x, _s.y + d.z * L + 2, L * sc * d.r * (1 + h * 0.15), L * sc * 0.12, d.alpha * 0.28 / (1 + h * 0.6));
   }
 }
+// the mess far to near (a nearer piece over a farther one); one reused list, nearly sorted from the last frame
+const DORD = [];
+function debrisOrder() {
+  const n = DEBRIS.length;
+  DORD.length = n;
+  for (let i = 0; i < n; i++) DORD[i] = DEBRIS[i];
+  for (let i = 1; i < n; i++) { const d = DORD[i]; let j = i - 1; while (j >= 0 && DORD[j].z > d.z) { DORD[j + 1] = DORD[j]; j--; } DORD[j + 1] = d; }
+  return DORD;
+}
 function drawDebris() {
-  const L = CAM.L;
-  for (const d of DEBRIS) {
-    if (d.base === 'car') {
-      // drawCar's anchor is the plate top: 0.25 L above the car's CoM, turned with it
-      w2s(d.x - 0.25 * Math.sin(d.ang), d.y + 0.25 * Math.cos(d.ang), _s);
-      if (d.alpha < 1) { ctx.save(); ctx.globalAlpha = d.alpha; }
-      CARO.squash = 0; CARO.t = S.gt; CARO.roll = 0;
-      Art.drawCar(ctx, _s.x, _s.y, -d.ang, L, d.color, CARO);
-      if (d.alpha < 1) ctx.restore();
-      continue;
-    }
-    w2s(d.x, d.y, _s);
-    if (d.base === 'ring') {
-      ctx.save(); ctx.globalAlpha = d.alpha;
-      Art.drawRing(ctx, _s.x, _s.y, L, 1, S.gt);
-      // a bright fleck turning with it, so it reads as rolling
-      ctx.fillStyle = '#FFD6EA'; ctx.beginPath();
-      ctx.arc(_s.x + Math.cos(-d.ang) * L * 0.27, _s.y + Math.sin(-d.ang) * L * 0.27, Math.max(1.5, L * 0.035), 0, Math.PI * 2); ctx.fill();
+  const L0 = CAM.L, ord = debrisOrder();
+  for (let i = 0; i < ord.length; i++) {
+    const d = ord[i];
+    debrisScreen(d, _s);
+    const L = L0 * _s.s;
+    if (d.lay < 1) {
+      // lying flat: squashed about the rug line at its depth (Art draws in the current transform)
+      const fy = CAM.baseY + d.z * L0;
+      ctx.save(); ctx.translate(0, fy); ctx.scale(1, d.lay); ctx.translate(0, -fy);
+      drawDebrisPiece(d, L);
       ctx.restore();
-      continue;
-    }
-    if (d.shape === 'cube') Art.drawTile(ctx, 'cube', 'orange', _s.x, _s.y, -d.ang, L, tileOpts(d.alpha, d.variant, 'both'));
-    else Art.drawTile(ctx, d.shape, d.color, _s.x, _s.y, -d.ang, L, tileOpts(d.alpha, d.variant, 'both'));
-    if (d.gear) { if (d.alpha < 1) { ctx.save(); ctx.globalAlpha = d.alpha; } Art.drawGear(ctx, _s.x, _s.y, L, -d.ang); if (d.alpha < 1) ctx.restore(); }
+    } else drawDebrisPiece(d, L);
   }
+}
+// one piece of the mess at its screen point _s (debrisScreen), size L
+function drawDebrisPiece(d, L) {
+  if (d.base === 'car') {
+    // drawCar's anchor is the plate top: 0.25 L above the car's CoM, turned with it
+    if (d.alpha < 1) { ctx.save(); ctx.globalAlpha = d.alpha; }
+    CARO.squash = 0; CARO.t = S.gt; CARO.roll = 0;
+    Art.drawCar(ctx, _s.x - 0.25 * L * Math.sin(d.ang), _s.y - 0.25 * L * Math.cos(d.ang), -d.ang, L, d.color, CARO);
+    if (d.alpha < 1) ctx.restore();
+    return;
+  }
+  if (d.base === 'ring') {
+    ctx.save(); ctx.globalAlpha = d.alpha;
+    Art.drawRing(ctx, _s.x, _s.y, L, 1, S.gt);
+    // a bright fleck turning with it, so it reads as rolling
+    ctx.fillStyle = '#FFD6EA'; ctx.beginPath();
+    ctx.arc(_s.x + Math.cos(-d.ang) * L * 0.27, _s.y + Math.sin(-d.ang) * L * 0.27, Math.max(1.5, L * 0.035), 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    return;
+  }
+  if (d.shape === 'cube') Art.drawTile(ctx, 'cube', 'orange', _s.x, _s.y, -d.ang, L, tileOpts(d.alpha, d.variant, 'both'));
+  else Art.drawTile(ctx, d.shape, d.color, _s.x, _s.y, -d.ang, L, tileOpts(d.alpha, d.variant, 'both'));
+  if (d.gear) { if (d.alpha < 1) { ctx.save(); ctx.globalAlpha = d.alpha; } Art.drawGear(ctx, _s.x, _s.y, L, -d.ang); if (d.alpha < 1) ctx.restore(); }
 }
 // rug fluff where things hit: a ring of soft dots that spreads and fades
 function drawPuffs() {
@@ -7405,6 +7537,12 @@ function drawHandAndHeld() {
   if (HAND.dropAt >= 0 && S.gt - HAND.dropAt < 0.4) y -= (1 - easeOutBack(clamp((S.gt - HAND.dropAt) / 0.4, 0, 1), 1.2)) * (CAM.handY + 2 * L);
   const waving = S.phase === 'over';
   if (waving) { open = 1; x += Math.sin((S.gt - HAND.waveAt) * 14) * 0.3 * L; }
+  // the flinch: "whoa!", fingers spread (still pinching the tile), a little shiver as it jerks up
+  else if (S.flinch && S.flinchAt >= 0) {
+    const u = S.gt - S.flinchAt;
+    open = Math.max(open, CFG.FLINCH_OPEN * clamp(u / 0.06, 0, 1));
+    if (u < 0.5) x += Math.sin(u * 60) * 0.05 * L * (1 - u / 0.5);
+  }
   if (p && !waving) {
     let scale = 1, alpha = 1, dy = 0;
     if (!HAND.ready) { const k = clamp((since - (CFG.NEXT_T - 0.08)) / 0.08, 0, 1); scale = 0.55 + 0.45 * k; alpha = k; }
@@ -8002,7 +8140,7 @@ function drawPause() {
 }
 
 // ---- the overlay buttons (real, focusable buttons over the canvas: BIG MAGNETS, RESUME / MENU, AGAIN / MENU)
-const OVL = { big: null, resume: null, menuP: null, again: null, menuR: null, bigR: null };
+const OVL = { big: null, resume: null, menuP: null, again: null, menuR: null, bigR: null, bigP: null };
 const MAGNET_SVG = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 3h4v9a3 3 0 0 0 6 0V3h4v9a7 7 0 0 1-14 0z" fill="#E8323C" stroke="#1E2541" stroke-width="1.6" stroke-linejoin="round"/><path d="M5 3h4v3H5zM15 3h4v3h-4z" fill="#E9EDF5" stroke="#1E2541" stroke-width="1.6"/></svg>';
 function bindOverlay() {
   const root = document.getElementById('ui');
@@ -8028,6 +8166,7 @@ function bindOverlay() {
     S.big = !S.big; PREFS.big = S.big; savePrefs();
     Sfx.clack({ combo: S.big ? 7 : 2, mass: 1, pan: 0.3, edges: 2, grade: 'clack' });
   });
+  OVL.bigP = mk('tog pulse', MAGNET_SVG + '<span>BIG MAGNETS</span>', 'Big magnets now (easier, for small hands)', () => bigMidRun());
 }
 function placeBtn(b, on, r) {
   if (!b) return;
@@ -8055,6 +8194,7 @@ function syncOverlay() {
   placeBtn(OVL.again, res, RC.again);
   placeBtn(OVL.menuR, res, RC.menu);
   placeBtn(OVL.bigR, res && OV.offerBig, RC.big);
+  placeBtn(OVL.bigP, bigOfferOn(), UI.bigP);
   if (res && OV.offerBig) {
     const on = String(!!S.big);
     if (OVL.bigR.getAttribute('aria-pressed') !== on) { OVL.bigR.setAttribute('aria-pressed', on); OVL.bigR.classList.toggle('on', S.big); }
@@ -8205,6 +8345,7 @@ function popObstacles(ribbon, words) {
   OBSTN = 0;
   obstUI(UI.pause); obstUI(UI.mute); obstUI(UI.score, CAM.portrait ? 0 : 24 * CAM.hs); obstUI(UI.next); obstUI(UI.hold);
   obstUI(UI.clock, S.overtime ? 30 * CAM.hs : 0);
+  if (bigOfferOn()) obstUI(UI.bigP);
   if (S.allTippy) obstUI(UI.hold, (CAM.portrait ? 0 : UI.clock.y + UI.clock.h - UI.hold.y - UI.hold.h) + 30 * CAM.hs);
   if (RIB.stub) obstPush(RIB.sx0 - 4, RIB.sy0 - 4, RIB.sx1 + 4, RIB.sy1 + 4);
   // the ghost as it is now (with room for a pop's 1.4x pop-in: POPM is the pop being placed)
@@ -8590,9 +8731,9 @@ function goalPop(name, icon, bonus) {
   FX.words.push(w);
   return sp.y;
 }
-// a small score pop at the tile ("+150")
-function scorePop(text, x, y, color) {
-  FX.words.push({ text, sub: '', subColor: '', x, y, color, t0: S.gt, life: 0.6, size: 0.72, kind: 'score', maxW: 0 });
+// a small score pop at the tile ("+150"; a MISS's "BONK!": size, outline colour)
+function scorePop(text, x, y, color, size, stroke) {
+  FX.words.push({ text, sub: '', subColor: '', x, y, color, t0: S.gt, life: 0.6, size: size || 0.72, kind: 'score', maxW: 0, stroke: stroke || '#ffffff' });
 }
 function confettiBurst(x, y, n) {
   for (let k = 0; k < n; k++) {
@@ -8602,11 +8743,43 @@ function confettiBurst(x, y, n) {
   }
 }
 function missFx(d) {
-  w2s(d.x, d.y, _s);
+  debrisScreen(d, _s, true);
   Sfx.miss(clamp((_s.x - CAM.W / 2) / (CAM.W / 2), -1, 1));
-  Sfx.aww();
-  if (d.oops) placedPop('OOPS!', '', _s.y - CAM.L * 0.6, '#FFC531', 1.0, 0.6);
-  else placedPop('MISS', '', _s.y - CAM.L * 0.6, '#9AA3B5', 0.8, 0.5);
+  // (the aww at most every AWW_GAP s: a run of misses is a run of bonks, not a scolding)
+  if (S.gt - S.lastAww >= CFG.AWW_GAP - 1e-9) { S.lastAww = S.gt; Sfx.aww(); }
+  if (d.oops) { placedPop('OOPS!', '', _s.y - CAM.L * 0.6, '#FFC531', 1.0, 0.6); return; }
+  // a small "BONK!" right where it hit, in its colour (like a "+25" at a tile), unless that is over the ghost or the
+  // build: then beside it, away from the build, or (no room) in free air like a word
+  const L = CAM.L, m = popMeasure('BONK!', '', 0.72), hw = m.w / 2 + 4, y = _s.y - 0.55 * L, col = colorHex(d.shape === 'cube' ? 'orange' : d.color);
+  ghostRect(true); buildBoxes();
+  const clear = x => {
+    const x0 = x - hw, x1 = x + hw, y0 = y - m.up - 30, y1 = y + m.dn;
+    if (x0 < CAM.safe.l + 4 || x1 > CAM.W - CAM.safe.r - 4) return false;
+    if (GHOSTR.on && x0 < GHOSTR.x1 + 6 && x1 > GHOSTR.x0 - 6 && y0 < GHOSTR.y1 + 6 && y1 > GHOSTR.y0 - 6) return false;
+    for (let i = 0; i < BBOXN; i++) { const k = i * 4; if (x0 < BBOX[k + 2] && x1 > BBOX[k] && y0 < BBOX[k + 3] && y1 > BBOX[k + 1]) return false; }
+    return true;
+  };
+  const away = _s.x >= CAM.originX + TW.ox * L ? 1 : -1, x0 = clamp(_s.x, CAM.safe.l + 4 + hw, CAM.W - CAM.safe.r - 4 - hw);
+  for (const x of [x0, x0 + away * hw, x0 + away * 2 * hw]) if (clear(x)) { scorePop('BONK!', x, y, col, 0.72, '#1E2541'); return; }
+  placedPop('BONK!', '', y, col, 0.72, 0.5);
+}
+// BIG MAGNETS, offered in the middle of a run that misses a lot (normal mode): one tap and the rest of the run is
+// BIG MAGNETS (it counts for that mode's best score)
+function bigOfferOn() {
+  const ph = S.phase;
+  return S.bigOfferAt >= 0 && !S.big && S.gt - S.bigOfferAt < CFG.BIG_OFFER_SHOW && (ph === 'play' || ph === 'crash' || ph === 'smash');
+}
+function bigMidRun() {
+  if (!bigOfferOn()) return;
+  S.big = true; PREFS.big = true; savePrefs(); S.bigOfferAt = -1;
+  // no hazards (one on its way passes by), no fuse, wider magnets, gentler kicks, a slower clock: all from S.big
+  HZ.every = 0; HZ.kind = ''; HZ.warned = false; HZ.foot = null;
+  if (HZ.car && HZ.car.stage === 'in') HZ.car.stage = 'through';
+  HAND.fuseT = 0; HAND.fuseMarks = 0; TIPPY.key = null; ATP.piece = null; DOOM.t = -1; DOOM.at = -1;
+  logEvent('bigmagnets', { level: S.level, misses: S.misses });
+  Sfx.clack({ combo: 7, mass: 1, pan: -0.6, edges: 3, grade: 'perfect' }); Sfx.haptic(15);
+  announcePop('BIG MAGNETS!', 'EASY CLACKS', '#FFC531', 1.15, 0.9, '#ffffff');
+  if (S.phase === 'play') computeGhost();
 }
 // The CLACK: flash, glowing joined edges, sparks, squash, shake, haptic, popups, PERFECT ring + hit-stop.
 function juiceLand(f, t, pts, edgesC, prevMult) {
@@ -8816,7 +8989,7 @@ function drawFxTop() {
     w.dim = big && GHOSTR.on && w.x0 < GHOSTR.x1 && w.x1 > GHOSTR.x0 && w.y0 < GHOSTR.y1 && w.y1 > GHOSTR.y0;
     if (w.dim) { a *= 0.25; if (w.kind === 'word') w.life = Math.min(w.life, age + 0.1); }
     ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.scale(sc, sc);
-    if (w.kind === 'score') outlinedText(w.text, 0, 0, base, w.color, '#ffffff', 'center', base * 0.22);
+    if (w.kind === 'score') outlinedText(w.text, 0, 0, base, w.color, w.stroke || '#ffffff', 'center', base * 0.22);
     else if (w.kind === 'chip') outlinedText(w.text, 0, 0, Math.min(base, 26), w.color, '#1E2541', 'center', 6);
     else {
       outlinedText(w.text, 0, 0, base, w.color, '#1E2541', 'center', base * 0.24);
@@ -8878,7 +9051,8 @@ const CS = window.CS = {
       return { key: t.pose.key, type: t.pose.type, shape: t.shape, color: t.color, sx: _s.x, sy: _s.y, ring: !!t.ring };
     });
   },
-  debris() { return DEBRIS.map(d => ({ shape: d.shape, x: d.x, y: d.y, ang: d.ang, vx: d.vx, vy: d.vy, w: d.w, sleep: d.sleep, sleepT: d.sleepT, plowed: !!d.plowed, ground: d.ground, fading: d.fading, born: d.born, alpha: d.alpha })); },
+  // (z: depth toward the viewer, L; sx, sy: its screen centre, CSS px)
+  debris() { return DEBRIS.map(d => { debrisScreen(d, _ds, true); return { shape: d.shape, x: d.x, y: d.y, z: d.z, zT: d.zT, sx: _ds.x, sy: _ds.y, ang: d.ang, vx: d.vx, vy: d.vy, w: d.w, sleep: d.sleep, sleepT: d.sleepT, plowed: !!d.plowed, ground: d.ground, fading: d.fading, born: d.born, alpha: d.alpha }; }); },
   slots() {
     if (!S.B || !HAND.piece) return [];
     updateCandWorld();

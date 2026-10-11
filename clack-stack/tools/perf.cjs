@@ -72,10 +72,11 @@ async function tallTower(browser, view) {
       for (const view of [{ width: 390, height: 844 }, { width: 1366, height: 1024 }]) {
         const { g, st } = await tallTower(browser, view);
         const { page } = g;
-        // 60 debris pieces on the rug beside it (the test hook)
+        // 60 debris pieces on the rug beside it (the test hook). (A cube in the mess fades 3 s after it comes to rest,
+        // as the game's own cubes do, so the scene keeps the few a real pile has: three)
         await page.evaluate(() => {
-          const sh = ['sq', 'tri', 'sq', 'cube', 'sq'], cols = Art.TILE_COLORS;
-          for (let i = 0; i < 60; i++) CS.spawnDebris({ shape: sh[i % 5], color: cols[i % 7], x: (i % 2 ? 1 : -1) * (2 + (i % 13) * 0.25), y: 0.2 + (i % 3) * 0.6, rot: i, vx: 0, vy: 0, w: 0 });
+          const sh = ['sq', 'tri', 'sq', 'marble', 'sq'], cols = Art.TILE_COLORS;
+          for (let i = 0; i < 60; i++) CS.spawnDebris({ shape: i % 20 === 3 ? 'cube' : sh[i % 5], color: cols[i % 7], x: (i % 2 ? 1 : -1) * (2 + (i % 13) * 0.25), y: 0.2 + (i % 3) * 0.6, rot: i, vx: 0, vy: 0, w: 0 });
           PARAM.ts = 1;
         });
         await page.waitForTimeout(1500);

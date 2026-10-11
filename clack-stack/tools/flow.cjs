@@ -228,7 +228,7 @@ async function timeSmashChecks(browser) {
     const before = st.smash.length === 1 && st.over.length === 1 && st.smash[0] - st.over[0] <= 1.2;
     check(`over: TIME! at ${view.width}x${view.height} L${level} (L ${L.toFixed(0)} px): the cube smashes the build before the card`, before && st.standing === 0 && st.cube !== 'push',
       `smash at +${st.smash.length ? (st.smash[0] - st.over[0]).toFixed(2) : '-'} s, standing ${st.standing}, cube ${st.cube}`);
-    check(`over: TIME! at ${view.width}x${view.height}: no MISS feedback for the tile the hand lets go of`, !st.words.includes('MISS'), st.words.join(' | '));
+    check(`over: TIME! at ${view.width}x${view.height}: no MISS feedback for the tile the hand lets go of`, !st.words.includes('MISS') && !st.words.includes('BONK!'), st.words.join(' | '));
     await until(page, () => CS.state().over && CS.state().over.open, null, 5000);
     await page.keyboard.press('Enter');
     await until(page, () => CS.state().phase === 'play' && !CS.state().locked, null, 5000);
@@ -267,8 +267,8 @@ async function overChecks(browser) {
   const poke = await page.evaluate(() => {
     const d = CS.debris().filter(q => !q.fading && q.sleep);
     if (!d.length) return null;
-    const p = d[0]; const c = CS.cam();
-    return { x: c.originX + p.x * c.L, y: c.baseY - (p.y + 0.5) * c.L };
+    const p = d[0];
+    return { x: p.sx, y: p.sy };             // (its screen centre: the pile lies at depth on the rug in front)
   });
   if (poke) {
     const awake0 = await page.evaluate(() => CS.state().debrisAwake);
@@ -287,6 +287,9 @@ async function overChecks(browser) {
   const tr = await gt(page);
   check('over: AGAIN after the lockout reaches play within 1 s with score 0', tb - ta <= 1 && rb - ra <= 1500 && sc === 0, `game ${(tb - ta).toFixed(2)} s, score ${sc}`);
   check('over: AGAIN puts a car on the rug with a tile in hand in under 1 s', tr - ta < 1, `+${(tr - ta).toFixed(2)} s`);
+  // and on a clean rug: the last run's pile has faded by the time the car is parked
+  const left = await page.evaluate(() => DEBRIS.filter(d => d.alpha > 0.05).length);
+  check('over: AGAIN starts on a clean rug (the old pile fades as the new cars come)', left === 0, `${left} pieces still showing`);
   // Space restarts too, and R; Esc / MENU go to the title
   await page.evaluate(() => CS.setClock(0.3));
   await until(page, () => CS.state().over && CS.state().over.open, null, 8000);
@@ -747,7 +750,7 @@ async function cameraChecks(browser) {
     await until(page, () => CS.state().over && CS.state().over.open, null, 8000).catch(() => {});
     await waitGame(page, 0.6);
     const r = await page.evaluate(() => {
-      const on = DEBRIS.filter(d => { const y = CAM.baseY - (d.y + 0.5) * CAM.L, x = CAM.originX + d.x * CAM.L; return y >= 0 && y <= CAM.H && x >= 0 && x <= CAM.W; }).length;
+      const on = CS.debris().filter(d => d.sy >= 0 && d.sy <= CAM.H && d.sx >= 0 && d.sx <= CAM.W).length;
       return { on, n: DEBRIS.length, rugY: CAM.baseY, H: CAM.H };
     });
     check('camera: TIME! on a 10 L tower (844x390): on the results card the rug and at least half the pile are on screen',

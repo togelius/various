@@ -22,6 +22,13 @@
 //  10. audio is running after the first touch / click / key under the default autoplay policy
 //  11. the ghost never goes stale for a mouse player: click TAP on the title off-centre (and RESUME after a pause)
 //      and press without moving: the drop goes to the ghost that was showing (CS.ghost() before = lastRelease after)
+//  12. never a dead piece: a one-car base capped with two up-triangles has no square slot anywhere; whatever the bag
+//      deals, every tile that reaches the hand has a slot (the hand takes a triangle instead of the square), so no
+//      MISS is ever forced, then 20 more drops
+//  13. a crash or a TOPPLE: the hand flinches up out of the burst (never down into it) and stays up until the new car
+//      has parked
+//  14. the new base parks clear of the pile: 2.5 s after it has parked (after crashes, at 390x844 and 844x390) no piece
+//      of the mess shows over the car (its plate and wheels) or within 0.5 L of its ends; the old car has faded
 // Exits non-zero on any failure, page error or console error.
 const { launch, gamePage, until } = require('./lib.cjs');
 
@@ -253,6 +260,138 @@ async function noSoftLock(browser) {
     check('topple: debris stays within the 60-piece cap', maxDebris <= 60, `max ${maxDebris}`);
     check('topple: no page or console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   } finally { await context.close(); }
+}
+
+// 12. never a dead piece
+async function deadPiece(browser) {
+  const { page, errors, context } = await gamePage(browser, { width: 390, height: 844 }, { seed: 3, ts: 2, mute: 1, nohint: 1, autostart: 1, level: 3 });
+  try {
+    await until(page, () => window.CS && CS.state().handReady);
+    // every time a tile reaches the hand: does it have a slot? (the HOLD IT! pulse would excuse one: not used here)
+    await page.evaluate(() => {
+      window.__dead = { ready: 0, dead: [] }; let was = false;
+      (function l() {
+        try {
+          const s = CS.state(), on = s.phase === 'play' && s.handReady && !s.locked;
+          if (on && !was) { __dead.ready++; if (!CS.slots().length && !s.allTippy) __dead.dead.push({ t: +s.t.toFixed(2), piece: s.piece, held: s.held }); }
+          was = on;
+        } catch (e) { /* booting */ }
+        requestAnimationFrame(l);
+      })();
+    });
+    const ready = () => until(page, () => { const s = CS.state(); return s.phase === 'play' && s.handReady && s.inAir === 0 && !s.locked; }, null, 8000);
+    const tap = async x => { const prev = await lastId(page); await page.mouse.move(x, 500); await page.mouse.down(); await page.mouse.up(); await waitRelease(page, prev).catch(() => {}); };
+    // cap the car with two up-triangles (anything else is thrown away off the left edge)
+    let capped = false;
+    for (let k = 0; k < 60 && !capped; k++) {
+      await ready();
+      const info = await page.evaluate(() => ({ st: CS.state(), sl: CS.slots(), keys: CS.tiles().map(t => t.key) }));
+      if (info.keys.includes('up:-2,0,0') && info.keys.includes('up:0,0,0')) { capped = true; break; }
+      const want = info.st.piece === 'tri' ? info.sl.find(q => q.key === 'up:-2,0,0' || q.key === 'up:0,0,0') : null;
+      await tap(want ? want.sx : 4);
+    }
+    const deals0 = await page.evaluate(() => CS.events.filter(e => e.type === 'deal').length);
+    // then 20 drops on whatever slot the tile in the hand has (the notch first)
+    for (let k = 0; k < 20; k++) {
+      await ready();
+      const sl = await page.evaluate(() => CS.slots().filter(q => !q.tippy).sort((a, b) => (b.type === 'dn') - (a.type === 'dn') || a.ly - b.ly));
+      await tap(sl.length ? sl[0].sx : 4);
+    }
+    await until(page, () => CS.state().inAir === 0, null, 8000).catch(() => {});
+    const r = await page.evaluate(() => ({ dead: __dead.dead, ready: __dead.ready, deals: CS.events.filter(e => e.type === 'deal'), misses: CS.events.filter(e => e.type === 'miss').length }));
+    check('dead piece: a tile with no slot never reaches the hand (a capped base deals a triangle instead)', capped && r.dead.length === 0 && r.deals.length >= 1,
+      `capped ${capped}; ${r.ready} tiles reached the hand, ${r.dead.length} with no slot ${JSON.stringify(r.dead.slice(0, 4))}; ${r.deals.length} re-deals (${deals0} while capping): ` +
+      r.deals.slice(0, 4).map(d => `${d.piece} -> ${d.to} (${d.via})`).join(', '));
+    check('dead piece: no page or console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+  } finally { await context.close(); }
+}
+
+// 13. the hand flinches up during a crash (EdgeBot on level 3) and comes back down once the new car has parked
+async function flinch(browser) {
+  const { page, errors, context } = await gamePage(browser, { width: 390, height: 844 }, { seed: 2, ts: 1, mute: 1, nohint: 1, autostart: 1, level: 3 });
+  try {
+    await until(page, () => window.CS && CS.state().handReady);
+    await page.evaluate(() => {
+      window.__fl = { pre: null, min: 1e9, max: -1e9, parkY: null, after: null };
+      (function l() {
+        try {
+          const s = CS.state(), c = CS.cam(), F = __fl;
+          if (s.phase === 'play' && s.crashes === 0) F.pre = c.handY;
+          if (s.phase === 'crash') { F.min = Math.min(F.min, c.handY); F.max = Math.max(F.max, c.handY); F.top = c.handTop; F.L = c.L; }
+          if (s.crashes > 0 && s.phase === 'play' && F.parkY === null) { F.parkY = c.handY; F.parkT = s.t; }
+          if (F.parkT && s.t > F.parkT + 0.8 && F.after === null) F.after = c.handY;
+        } catch (e) { /* booting */ }
+        requestAnimationFrame(l);
+      })();
+    });
+    for (let k = 0; k < 30; k++) {
+      await until(page, () => { const s = CS.state(); return (s.phase === 'play' && s.handReady && !s.locked) || s.crashes > 0; }, null, 8000);
+      if (await page.evaluate(() => CS.state().crashes > 0)) break;
+      const sl = await page.evaluate(() => CS.slots().sort((a, b) => b.sx - a.sx)[0]);
+      const prev = await lastId(page);
+      await page.mouse.move(sl ? sl.sx : 4, 500); await page.mouse.down(); await page.mouse.up();
+      await waitRelease(page, prev).catch(() => {});
+    }
+    await until(page, () => window.__fl.after !== null, null, 10000).catch(() => {});
+    const F = await page.evaluate(() => window.__fl);
+    // during the crash the hand never goes lower than it was (it only rises, to just under the HUD); after the car
+    // has parked it comes back down to hover over the new base
+    const ok = F.pre !== null && F.max <= F.pre + 1 && F.min <= F.top + 0.6 * F.L + 1 && F.after !== null && F.after > F.min + F.L;
+    check('flinch: during a crash the hand goes up out of the burst, never down into it; back down once the new car has parked', ok,
+      `hand y before ${F.pre && F.pre.toFixed(0)}, during the crash ${F.min.toFixed(0)}-${F.max.toFixed(0)} (top line ${F.top}), parked ${F.parkY && F.parkY.toFixed(0)}, 0.8 s later ${F.after && F.after.toFixed(0)}`);
+    check('flinch: no page or console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+  } finally { await context.close(); }
+}
+
+// 14. the new base parks clear of the pile (EdgeBot crashes on level 3, then on level 1's two cars)
+async function pileClear(browser, view) {
+  const bad = [], seen = [];
+  let errs = [];
+  for (const level of [3, 1]) {
+    const { page, errors, context } = await gamePage(browser, view, { seed: 4, ts: 2, mute: 1, nohint: 1, autostart: 1, level });
+    try {
+      await until(page, () => window.CS && CS.state().handReady);
+      for (let crash = 1; crash <= 2; crash++) {
+        for (let k = 0; k < 40; k++) {
+          await until(page, c => { const s = CS.state(); return (s.phase === 'play' && s.handReady && !s.locked) || s.crashes >= c; }, crash, 8000);
+          if (await page.evaluate(c => CS.state().crashes >= c, crash)) break;
+          const sl = await page.evaluate(() => CS.slots().sort((a, b) => b.sx - a.sx)[0]);
+          const prev = await lastId(page);
+          await page.mouse.move(sl ? sl.sx : 4, view.height * 0.5); await page.mouse.down(); await page.mouse.up();
+          await waitRelease(page, prev).catch(() => {});
+        }
+        await until(page, c => CS.state().crashes >= c && CS.state().phase === 'play' && !CS.state().locked, crash, 8000);
+        const t0 = await page.evaluate(() => CS.state().t);
+        await until(page, t => CS.state().t >= t, t0 + 2.5, 8000);
+        // the screen boxes: the parked car (plate top to wheel bottoms, its ends + 0.5 L) against every piece as drawn
+        const r = await page.evaluate(() => {
+          const L = CAM.L, half = S.B.half, cx = CAM.originX + TW.ox * L;
+          const car = { x0: cx - (half + 0.5) * L, x1: cx + (half + 0.5) * L, y0: CAM.baseY - 0.5 * L, y1: CAM.baseY };
+          const over = [];
+          let n = 0;
+          for (const d of DEBRIS) {
+            if (d.alpha < 0.3 || !d.sleep) continue;            // (the pile: what lies still; a fresh MISS may be bouncing by)
+            n++;
+            const sc = 1 + CFG.DEB_Z_SCALE * d.z, Ld = L * sc, fy = CAM.baseY + d.z * L, px = CAM.originX + d.x * L, py = fy - (d.y + 0.5) * Ld;
+            const V = d.verts || [-d.r, -d.r, d.r, -d.r, d.r, d.r, -d.r, d.r], c = Math.cos(d.ang), s = Math.sin(d.ang);
+            let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+            for (let k = 0; k < V.length; k += 2) {
+              const rx = V[k] * c - V[k + 1] * s, ry = V[k] * s + V[k + 1] * c, X = px + rx * Ld, Y = fy + (py - ry * Ld - fy) * d.lay;
+              x0 = Math.min(x0, X); x1 = Math.max(x1, X); y0 = Math.min(y0, Y); y1 = Math.max(y1, Y);
+            }
+            if (x0 < car.x1 && x1 > car.x0 && y0 < car.y1 && y1 > car.y0) over.push(d.shape + '@' + d.x.toFixed(2) + ',z' + d.z.toFixed(2));
+          }
+          return { n, over, cars: DEBRIS.filter(d => d.shape === 'car' && d.alpha > 0.05 && d.sleep).length };
+        });
+        seen.push(`L${level} crash ${crash}: ${r.n} pieces`);
+        if (r.over.length || r.cars) bad.push(`L${level} crash ${crash}: ${r.over.length} over the car (${r.over.slice(0, 4).join(' ')}), ${r.cars} old cars showing`);
+      }
+      errs = errs.concat(errors);
+    } finally { await context.close(); }
+  }
+  check(`pile ${view.width}x${view.height}: the new base parks clear of the mess (nothing over the car or at its ends; old cars faded)`, bad.length === 0,
+    (bad.length ? bad.join('; ') : seen.join('; ')));
+  check(`pile ${view.width}x${view.height}: no page or console errors`, errs.length === 0, errs.slice(0, 3).join(' | '));
 }
 
 // 8. one lift = at most one drop: a finger held past the fuse lets the fuse drop once; the lift then drops nothing
@@ -525,6 +664,9 @@ async function audioUnlock() {
     if (want('fuse')) { await fuseHold(browser); await fuseClick(browser); }
     if (want('hitstop')) await hitStopGhost(browser);
     if (want('stale')) await staleGhost(browser);
+    if (want('dead')) await deadPiece(browser);
+    if (want('flinch')) await flinch(browser);
+    if (want('pile')) for (const view of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) await pileClear(browser, view);
   } finally {
     await browser.close();
   }
