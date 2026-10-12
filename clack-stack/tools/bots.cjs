@@ -26,6 +26,11 @@
 //            towers; a drop whose ghost was not TIPPY never ends in a crash (drops the fuse followed up are skipped;
 //            M7: level 7 has the bump car, and TIPPY looks ahead to a hit inside its horizon, but a crash after a later
 //            bump or foot hit is the hazard's and is counted apart)
+//   exact    (with tippy) the look-ahead behind TIPPY, the tip tell and SAVE is the game's own future, step for step:
+//            at every release (a click between frames, and the fuse's drop inside a step) CS.lookahead's θ for the
+//            next 1.5 s equals the tower's real θ after each step, exactly, up to a crash or the next release, on
+//            level 3 and level 7 (the bump car) towers. (The look-ahead once landed every tile a step late when asked
+//            between frames: a drop on the edge of tipping could show safe and fall, now and then: a flaky TIPPY run)
 //   --trace  prints each PerfectBot decision and the run's releases and events
 //   --literal  (report only, never fails) also runs the bare rule of DESIGN 14: no TIPPY veto, no HOLD
 // Exits non-zero on any failure, page error or console error.
@@ -350,6 +355,61 @@ async function tippyHonesty(browser, seed, drops) {
   return r;
 }
 
+// ---------------------------------------------------------------- the look-ahead, step for step
+async function lookaheadExact(browser, seed, level, drops) {
+  const { page, errors, context } = await openGame(browser, { seed, level, ts: 2 });
+  const r = { seed, level, rel: 0, compared: 0, steps: 0, bad: [], ctx: { true: 0, false: 0 }, errors };
+  let rnd = seed * 104729 + 7; const rand = () => (rnd = (rnd * 16807) % 2147483647) / 2147483647;
+  try {
+    await page.evaluate(() => {
+      const X = window.__la = { cur: null, done: [] };
+      const close = why => { if (X.cur) { X.cur.end = why; X.done.push(X.cur); X.cur = null; } };
+      const rel = window.doRelease;
+      window.doRelease = function () {
+        const ok = rel.apply(this, arguments);
+        if (ok && S.flights.length) {
+          close('next release');
+          const la = CS.lookahead(1.5);
+          X.cur = { t: S.gt, rocked: la.rocked, pred: la.theta, real: [], crashes: S.crashes };
+        }
+        return ok;
+      };
+      const st = window.step;
+      window.step = function () {
+        const g0 = S.gt, c0 = S.crashes;
+        st.apply(this, arguments);
+        if (!X.cur || S.gt === g0) return;
+        if (S.crashes !== c0 || S.phase !== 'play') { close('crash or phase'); return; }
+        X.cur.real.push(TW.theta);
+        if (X.cur.real.length >= X.cur.pred.length) close('horizon');
+      };
+    });
+    for (let k = 0; k < drops; k++) {
+      await until(page, () => { const s = CS.state(); return s.phase === 'play' && s.handReady && !s.locked; }, null, 20000);
+      const info = await page.evaluate(() => ({ sl: CS.slots(), L: CS.cam().L }));
+      if (!info.sl.length) { await page.keyboard.press('Shift'); await page.waitForTimeout(20); continue; }
+      const sl = info.sl[(rand() * info.sl.length) | 0];
+      await page.mouse.move(sl.sx + (rand() - 0.5) * info.L, TAP_Y);
+      await page.mouse.down(); await page.mouse.up();
+      // (now and then hands off long enough for the fuse to drop one: a release inside a step)
+      await page.waitForTimeout(rand() < 0.35 ? 1100 : 120 + rand() * 200);
+    }
+    await page.waitForTimeout(600);
+    const res = await page.evaluate(() => window.__la.done.concat(window.__la.cur ? [window.__la.cur] : []).map(x => {
+      let first = -1;
+      for (let i = 0; i < x.real.length; i++) if (x.pred[i] !== x.real[i]) { first = i; break; }
+      return { rocked: x.rocked, n: x.real.length, first, end: x.end, d: first >= 0 ? x.pred[first] - x.real[first] : 0 };
+    }));
+    for (const x of res) {
+      r.rel++;
+      if (x.n < 30) continue;          // (a release right after another: nothing to compare)
+      r.compared++; r.steps += x.n; r.ctx[x.rocked]++;
+      if (x.first >= 0) r.bad.push(`step ${x.first}/${x.n} (${x.rocked ? 'between frames' : 'inside a step'}, Δθ ${x.d.toExponential(2)}, ended by ${x.end})`);
+    }
+  } finally { await context.close(); }
+  return r;
+}
+
 function dynChecks(name, runs) {
   const dyn = runs.map(r => r.mon && r.mon.dyn).filter(Boolean);
   if (!dyn.length) return;
@@ -463,6 +523,16 @@ function debrisChecks(name, runs) {
       dynChecks('TIPPY runs', runs);
       const errs = runs.flatMap(r => r.errors);
       check('TIPPY: no page or console errors', errs.length === 0, errs.slice(0, 3).join(' | '));
+      // the look-ahead is the game's own future, step for step
+      const ex = [];
+      for (const [seed, level] of [[3, 3], [4, 7], [5, 3], [6, 7]]) { const x = await lookaheadExact(browser, seed, level, 18); ex.push(x); log(`lookahead seed ${seed} L${level}: ${x.compared}/${x.rel} releases compared over ${x.steps} steps, ${x.bad.length} diverged`); }
+      const bad = ex.flatMap(x => x.bad.map(b => `s${x.seed} L${x.level} ${b}`)), comp = ex.reduce((a, x) => a + x.compared, 0);
+      const between = ex.reduce((a, x) => a + x.ctx.true, 0), inside = ex.reduce((a, x) => a + x.ctx.false, 0);
+      check('TIPPY: the look-ahead equals the real tower step for step (θ exactly) after every release, between frames and inside a step',
+        bad.length === 0 && comp >= 40 && between >= 20 && inside >= 3,
+        `${comp} releases compared over ${ex.reduce((a, x) => a + x.steps, 0)} steps (${between} clicked between frames, ${inside} dropped by the fuse inside a step)` + (bad.length ? '; DIVERGED: ' + bad.slice(0, 4).join('; ') : ''));
+      const errs2 = ex.flatMap(x => x.errors);
+      check('TIPPY: look-ahead runs: no page or console errors', errs2.length === 0, errs2.slice(0, 3).join(' | '));
     }
   } finally {
     await browser.close();

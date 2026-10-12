@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // M5 / M8 acceptance (DESIGN.md 14): performance, the FPS watchdog, per-frame allocation, reduced motion.
-//   node clack-stack/tools/perf.cjs [--only=jsms,watchdog,alloc,reduced]
+//   node clack-stack/tools/perf.cjs [--only=jsms,watchdog,alloc,reduced,resize]
 // Checks:
 //   jsms      with a 15 L tower (built by real clicks, BIG MAGNETS so it stands) and 60 debris spawned (the cap keeps
 //             52-60 of them: the oldest fade out as the cap nears), CS.perf().jsMs
@@ -13,6 +13,10 @@
 //             unoptimised code; the draw path builds no objects, arrays, closures, gradients or strings per frame:
 //             options objects, font strings, HUD strings and gradients are all reused or cached.)
 //   reduced   prefers-reduced-motion: a crash has no slow motion and its shake is half the size
+//   resize    a burst of 24 resize events (one task, the window "dragged") lays the game out 24 times but rebuilds
+//             Art's static layers (room, floor warp, stars) not once during it and exactly once after it settles; and
+//             after each of a run of real viewport changes the very next frame has the new geometry (canvas and
+//             camera at the new size) and its room and rug still cover the whole screen (old layers stretched)
 // Exits non-zero on any failure, page error or console error.
 const { launch, gamePage, until } = require('./lib.cjs');
 
@@ -162,6 +166,56 @@ async function tallTower(browser, view) {
         else check('reduced: without it, a crash has its slow motion and its full 14 px shake', r.crashes > 0 && r.slow && Math.abs(r.shake - 14) < 0.01, JSON.stringify(r));
         errorsAll.push(...errors); await context.close();
       }
+    }
+    if (want('resize')) {
+      const g = await gamePage(browser, { width: 1366, height: 1024 }, { seed: 6, autostart: 1, mute: 1, nohint: 1, level: 3 });
+      const { page } = g;
+      await until(page, () => window.CS && CS.state().phase === 'play' && CS.state().handReady, null, 15000);
+      await page.waitForTimeout(400);
+      // 1. a burst: 24 resize events in one task with the window size stepping (innerWidth / innerHeight faked)
+      const burst = await page.evaluate(() => new Promise(res => {
+        const r0 = CS.perf().artRebuilds, times = [];
+        // (innerWidth / innerHeight are the window's own replaceable accessors: saved, shadowed, put back as they were)
+        const own = (o, k) => { for (let p = o; p; p = Object.getPrototypeOf(p)) { const d = Object.getOwnPropertyDescriptor(p, k); if (d) return d; } return null; };
+        const dW = own(window, 'innerWidth'), dH = own(window, 'innerHeight');
+        const lay = window.layout;
+        window.layout = function () { const t = performance.now(); const v = lay.apply(this, arguments); times.push(performance.now() - t); return v; };
+        for (let i = 0; i < 24; i++) {
+          Object.defineProperty(window, 'innerWidth', { value: 1300 - 12 * i, configurable: true });
+          Object.defineProperty(window, 'innerHeight', { value: 1000 - 9 * i, configurable: true });
+          window.dispatchEvent(new Event('resize'));
+        }
+        const during = CS.perf().artRebuilds - r0, cam = CS.cam();
+        setTimeout(() => {
+          const after = CS.perf().artRebuilds - r0, stale = CS.perf().artStale;
+          window.layout = lay;
+          Object.defineProperty(window, 'innerWidth', dW); Object.defineProperty(window, 'innerHeight', dH);
+          window.dispatchEvent(new Event('resize'));
+          times.sort((a, b) => a - b);
+          res({ during, after, stale, camW: cam.W, camH: cam.H, layouts: times.length, medMs: +times[times.length >> 1].toFixed(2), maxMs: +times[times.length - 1].toFixed(2) });
+        }, 600);
+      }));
+      check('resize: a burst of 24 resize events lays out 24 times, rebuilds Art\'s layers not once during it and once after it settles',
+        burst.layouts === 24 && burst.during === 0 && burst.after === 1 && !burst.stale && burst.camW === 1300 - 12 * 23 && burst.camH === 1000 - 9 * 23, JSON.stringify(burst));
+      await page.waitForTimeout(500);
+      // 2. real viewport changes: the frame right after each has the new geometry and a covered screen
+      const sizes = [[1280, 960], [1024, 768], [844, 390], [390, 844], [1366, 1024]];
+      const bad = [];
+      for (const [w, h] of sizes) {
+        await page.setViewportSize({ width: w, height: h });
+        const f = await page.evaluate(() => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(() => {
+          const c = document.getElementById('c'), x = c.getContext('2d'), W = innerWidth, H = innerHeight, d = c.width / W;
+          const pts = [[1, 1], [W - 2, 1], [1, H - 2], [W - 2, H - 2], [W / 2, H - 2], [W / 2, H / 2]];
+          const alpha = pts.map(([px, py]) => x.getImageData(Math.round(px * d), Math.round(py * d), 1, 1).data[3]);
+          res({ W, H, canvasW: c.width, dpr: d, cam: [CS.cam().W, CS.cam().H], stale: CS.perf().artStale, alpha });
+        }))));
+        if (f.cam[0] !== w || f.cam[1] !== h || f.canvasW !== Math.round(w * f.dpr) || f.alpha.some(a => a !== 255)) bad.push(`${w}x${h}: ${JSON.stringify(f)}`);
+      }
+      await page.waitForTimeout(400);
+      const end = await page.evaluate(() => CS.perf());
+      check('resize: after each real viewport change the next frame has the new geometry and its room and rug cover the screen; the layers then settle at the new size',
+        bad.length === 0 && !end.artStale, bad.slice(0, 2).join(' | ') || `${sizes.length} sizes, ${end.artRebuilds} rebuilds in all`);
+      errorsAll.push(...g.errors); await g.context.close();
     }
   } finally {
     await browser.close();

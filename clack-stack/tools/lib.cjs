@@ -62,7 +62,9 @@ function wordMonitor() {
         if (ws.length > 2 && V.bad.length < 20) V.bad.push(ws.length + ' words alive: ' + ws.map((w) => w.text).join(' / '));
         const tiles = CS.tiles();
         let top = 1e9; for (const t of tiles) top = Math.min(top, t.sy);
-        const topBox = tiles.filter((t) => t.sy < top + 0.6 * L).map((t) => ({ x0: t.sx - 0.5 * L, x1: t.sx + 0.5 * L, y0: t.sy - 0.5 * L, y1: t.sy + 0.5 * L }));
+        // (each tile's real outline: a triangle reaches 2/3 of its height from its centroid on its apex side, 1/3 on its
+        // flat side)
+        const topBox = tiles.filter((t) => t.sy < top + 0.6 * L).map((t) => { const e = t.ext || [0.5, 0.5, 0.5, 0.5]; return { x0: t.sx - e[0] * L, x1: t.sx + e[2] * L, y0: t.sy - e[1] * L, y1: t.sy + e[3] * L }; });
         for (const w of all) {
           if (!w.box) continue;
           const id = w.text + '@' + (CS.state().t - w.age).toFixed(4);

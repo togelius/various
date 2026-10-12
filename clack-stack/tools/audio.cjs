@@ -19,7 +19,8 @@
 //   sounds), not silent, duration in the specified range, starts from silence, fades to 0 before
 //   the end, no DC; a stop-click test renders each sound twice, once with every source's stop()
 //   disabled: identical output proves no source is stopped while still audible. Plus: tock pitch
-//   per combo, body vs mass, edge runs, PERFECT ting, zzip sweep, whistle glide, crash panning and
+//   per combo, body vs mass, edge runs, PERFECT ting (and its climb with the PERFECT streak: a pentatonic step a PERFECT, an
+//   octave up from the 6th), the streak milestone fanfare (longer each tier), zzip sweep, whistle glide, crash panning and
 //   clatter count, creak curve + heartbeat, music layers / tempo / duck; one pan law (a clack's total power at
 //   pan 0, 0.02 and 0.5 within 0.5 dB); the balance as ears and small speakers hear it, like with like: a
 //   pan-0.15 clack's loudest 50 ms at least 6 dB over the x5 groove's loudest 50 ms (A-weighted and phone-weighted),
@@ -106,7 +107,7 @@ const REALTIME = async ({ SOAK }) => {
   // ---- 1. API shape
   const KEYS = ['unlock', 'setMuted', 'muted', 'clack', 'zzip', 'miss', 'aww', 'poke', 'creak', 'save', 'crash', 'whistle', 'smash',
     'tally', 'ribbon', 'crown', 'ring', 'gear', 'cubeFold', 'boom', 'honk', 'bonk', 'whooo', 'thump', 'fuseTick', 'clockTick',
-    'newBest', 'uiClick', 'haptic', 'music', 'stats'];
+    'newBest', 'streak', 'uiClick', 'haptic', 'music', 'stats'];
   if (typeof Sfx !== 'object' || !Sfx) { fail('Sfx is not a global object'); return { F, info }; }
   const own = Object.keys(Sfx).sort().join(','), want = KEYS.slice().sort().join(',');
   if (own !== want) fail('Sfx keys differ: ' + own);
@@ -121,7 +122,8 @@ const REALTIME = async ({ SOAK }) => {
     Sfx.clack({ combo: 3, mass: 1, pan: 0.2, edges: 2, grade: 'great' }); Sfx.zzip(-0.3); Sfx.miss(0.5); Sfx.aww(); Sfx.poke(0.1);
     Sfx.creak(0.7); Sfx.save(); Sfx.whistle(); Sfx.tally(4); Sfx.ribbon(); Sfx.crown(); Sfx.ring(); Sfx.gear();
     Sfx.cubeFold(2); Sfx.boom(); Sfx.honk(); Sfx.bonk(); Sfx.whooo(0.6); Sfx.thump(); Sfx.fuseTick('half'); Sfx.fuseTick('threeq');
-    Sfx.fuseTick('last'); Sfx.clockTick(5); Sfx.clockTick(2); Sfx.newBest(); Sfx.uiClick(); Sfx.haptic(8); Sfx.haptic([30, 40, 30]);
+    Sfx.fuseTick('last'); Sfx.clockTick(5); Sfx.clockTick(2); Sfx.newBest(); Sfx.streak(1); Sfx.streak(4); Sfx.uiClick(); Sfx.haptic(8); Sfx.haptic([30, 40, 30]);
+    Sfx.clack({ combo: 4, mass: 1, edges: 1, grade: 'perfect', streak: 12 });
     Sfx.crash(12, 0.4); Sfx.smash(); Sfx.creak(0);
     Sfx.music.setLevel(3); Sfx.music.setMult(2); Sfx.music.duck(0.5); Sfx.music.start(); Sfx.music.stop(); Sfx.stats();
   };
@@ -465,6 +467,9 @@ const OFFLINE = async ({ SRC }) => {
     ['clock-5', (S) => S.clockTick(5), 20, 100, 110],
     ['clock-1', (S) => S.clockTick(1), 20, 100, 110],
     ['newBest', (S) => S.newBest(), 900, 1600, 1700],
+    ['streak-1', (S) => S.streak(1), 500, 1200, 1300],
+    ['streak-4', (S) => S.streak(4), 500, 1300, 1400],
+    ['clack-perfect-hot', (S) => S.clack({ combo: 4, mass: 1, edges: 1, grade: 'perfect', streak: 30 }), 140, 300, 360],
     ['uiClick', (S) => S.uiClick(), 10, 50, 60],
     ['heartbeat', [[0, (S) => S.creak(0.95)], [0.02, (S) => S.creak(0)], [0.1, (S) => S.creak(0)], [0.3, (S) => S.creak(0)], [0.7, (S) => S.creak(0)], [0.9, (S) => S.creak(0)]], 150, 380, 420],
   ];
@@ -559,6 +564,27 @@ const OFFLINE = async ({ SRC }) => {
     R.edgeRunDb = [+g2.toFixed(1), +g3.toFixed(1)]; R.tingDb = +gt.toFixed(1);
     if (g2 < 15 || g3 < 15) fail('TRIPLE: extra notes a fifth up at +28/+56 ms missing (' + R.edgeRunDb + ' dB over a single)');
     if (gt < 20) fail('PERFECT ting at 2093 Hz only ' + R.tingDb + ' dB over a GREAT');
+    // you can hear your streak: the ting climbs a pentatonic step a PERFECT (C7 D7 E7 G7 A7), an octave up from the 6th
+    const TING = [2093, 2093, 2349.3, 2637, 3136, 3520, 4186];
+    R.tingClimb = [];
+    for (const n of [1, 2, 3, 4, 5, 6, 20]) {
+      const a = await render(0.8, [[AT, (S) => S.clack({ combo: 2, mass: 1, edges: 1, grade: 'perfect', streak: n })]]), m = mono(a.L, a.R);
+      const want = TING[Math.min(n, 6)], mags = [2093, 2349.3, 2637, 3136, 3520, 4186].map((f) => goertzel(m, f, ...w(0.06, 0.24)));
+      const best = [2093, 2349.3, 2637, 3136, 3520, 4186][mags.indexOf(Math.max(...mags))];
+      R.tingClimb.push(Math.round(best));
+      if (Math.abs(best - want) > 1) fail('streak ' + n + ': the ting rings at ' + Math.round(best) + ' Hz, want ' + want);
+    }
+  }
+  // ------------------------------------------------ a streak milestone's fanfare: a run up into a bell chord, longer and
+  // higher each tier, in key (its strongest partials are pentatonic notes)
+  {
+    R.streakFanfare = [];
+    for (const tier of [1, 2, 3, 4]) {
+      const a = await render(1.6, [[AT, (S) => S.streak(tier)]]), m = mono(a.L, a.R), A = analyse(a.L, a.R);
+      R.streakFanfare.push({ tier, dur40: Math.round(A.dur40), pk: +A.pkDb.toFixed(1) });
+    }
+    const d = R.streakFanfare.map((x) => x.dur40);
+    if (!(d[3] > d[0])) fail('streak fanfare does not grow with the tier: ' + JSON.stringify(R.streakFanfare));
   }
 
   // ------------------------------------------------ one pan law: a sound's total power does not step with the pan
@@ -944,7 +970,8 @@ async function WIRING(browser) {
     console.log(`offline: ${Object.keys(S).length} sounds, loudest single ${Math.max(...pks)} dBFS, crash+smash ${B.R.crashSmashPk} dBFS, ` +
       `40 clacks/s over x5 music ${B.R.rapidPk} dBFS; tock pitches ${B.R.tock.join('')}; pan law ${JSON.stringify(B.R.panLawDb)} dB; ` +
       `clack over x5 (50 ms, pan 0.15) ${B.R.music.like.overA} dB(A) / ${B.R.music.like.overPhone} dB (phone); aww ${B.R.awwA400} dB(A) vs clack ${B.R.music.like.clackA400}; ` +
-      `x1 under a clack ${B.R.music.balance.x1UnderClackA} dB(A); hold fallback ratio ${B.R.holdFallbackMinRatio}`);
+      `x1 under a clack ${B.R.music.balance.x1UnderClackA} dB(A); hold fallback ratio ${B.R.holdFallbackMinRatio}; ting by streak 1-6,20 ${B.R.tingClimb.join(' ')} Hz; ` +
+      `streak fanfares ${JSON.stringify(B.R.streakFanfare)}`);
   }
   if (A) console.log(`realtime: voices max ${A.info.crashSmashMaxVoices} (flood ${A.info.flood}); grid ${A.info.grid120 && A.info.grid120.offGridMs.toFixed(6)} ms` +
     (A.info.slowThread ? `; slow thread: ${A.info.slowThread.late}/${A.info.slowThread.starts} late starts, flam ${A.info.slowThread.flamMs} ms` : '') +

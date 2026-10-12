@@ -4,7 +4,7 @@
 // at positions read from CS.slots() and CS.cam().
 //   node clack-stack/tools/feel.cjs            (all checks)
 //   node clack-stack/tools/feel.cjs --quick    (fewer honesty releases)
-//   node clack-stack/tools/feel.cjs --only=softlock,fuse,hitstop,audio   (just those sections; also mouse,touch,keys,honesty,stale)
+//   node clack-stack/tools/feel.cjs --only=softlock,fuse,hitstop,audio   (just those sections; also mouse,touch,keys,honesty,stale,streak,pops)
 // Checks:
 //   1. a release exactly at a slot's sx lands PERFECT, 0.18-0.42 s (game time) after release   [mouse, touch tap, touch drag]
 //   2. a release at sx + 0.18 L lands GREAT                                                      [mouse, touch tap]
@@ -29,8 +29,31 @@
 //      has parked
 //  14. the new base parks clear of the pile: 2.5 s after it has parked (after crashes, at 390x844 and 844x390) no piece
 //      of the mess shows over the car (its plate and wheels) or within 0.5 L of its ends; the old car has faded
+//  15. (with 7) a TOPPLE is told first: every topple comes 0.3-0.6 s after its 'toppletell' (the clack that closed the
+//      last slot); through the tell the "NO ROOM!" sign is drawn on screen clear of the tile in the hand and the
+//      ribbon's label, the build shivers (its drawn offset changes from frame to frame), the creak is fed at >= 0.6
+//      and nothing is released (the sign's letters at least 0.85 of a "+25"'s on a landscape phone too); the TOPPLE!
+//      word then pops alone (no landing word left under it), clear of the hand and
+//      the tile in it as the hand flinches up
+//  16. the PERFECT streak (--only=streak; a bot taps the PERFECT centre of the most central safe slot, 390x844 touch):
+//      milestones at 5, 10, 20 (30 if reached) each log one 'streak' event and pop their word ("ON FIRE!",
+//      "UNSTOPPABLE!", "MAGNET MASTER!", "LEGENDARY!") with Sfx.streak(tier 1..4); the PERFECT word grows and warms
+//      with the streak (bigger and redder at 8+ in a row than at 1); every PERFECT clack passes its streak to Sfx.clack
+//      (the ting climbs); the word-pop rules hold all the way (lib wordMonitor); and the landing pops (the milestones,
+//      placed as big as they can be first, aside) sit by the landing: most of them placed by the near search, their
+//      median centre within 3.5 L of the tile that landed
+//  17. a landing-pop soak (--only=pops; 390x844 touch, two seeded games of 160 drops each at a quick human pace: most
+//      taps at the PERFECT centre of a central safe slot, some anywhere on a slot, a few anywhere): the word-pop rules
+//      hold for every pop (lib wordMonitor: never born over the ghost or the build top, never drawn over the ghost,
+//      clear of the HUD and the pops still up); no landing's word covers its own "+N" score pop (at most 1 in 100 more
+//      than a quarter of it); a streak milestone is never fitted smaller than the size it was placed at, nor drawn smaller
+//      than the median PERFECT; most words placed by the near search; never two landing words drawn over each other
+//  18. (with 17) streak milestones on short landscape phones: a PERFECT bot to a streak of 30 at 844x390 and 667x375;
+//      every 'streak' event pops its word, on screen and not see-through, at least as big as the median PERFECT of
+//      that game (one on the landing that tears the ribbon or crowns, sharing the screen with that announcement: at
+//      least 0.9 of it); the word-pop rules hold all the way
 // Exits non-zero on any failure, page error or console error.
-const { launch, gamePage, until } = require('./lib.cjs');
+const { launch, gamePage, until, wordMonitor } = require('./lib.cjs');
 
 const QUICK = process.argv.includes('--quick');
 const ONLY = (process.argv.find(a => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
@@ -214,6 +237,49 @@ async function noSoftLock(browser) {
         for (; seen < ev.length; seen++) if (ev[seen].type === 'topple') __tp.push({ t: ev[seen].t, unlock: null });
         for (const p of __tp) if (p.unlock === null && !st.locked && st.t > p.t) p.unlock = st.t;
         requestAnimationFrame(l); })();
+      // 15. the tell, every frame of it: the sign, the shiver, the creak, and no release
+      const T = window.__tell = { frames: 0, signFrames: 0, overHand: 0, offScreen: 0, overLabel: 0, dxs: new Set(), creakMax: 0, released: 0, creakNow: 0,
+        topFrames: 0, topWords: 0, topOverWord: [], topOverHand: [] };
+      const cr = Sfx.creak;
+      Sfx.creak = function (v) { T.creakNow = v; return cr.apply(this, arguments); };
+      let relId = -1;
+      (function m() {
+        try {
+          const st = CS.state();
+          if (st.phase === 'play' && st.tell > 0) {
+            T.frames++;
+            const tl = CS.tell(), cam = CS.cam(), L = cam.L;
+            if (tl) {
+              T.signFrames++; T.dxs.add(Math.round(tl.dx * 100));
+              const b = tl.box, hx = cam.handX;
+              if (b.x0 < hx + 0.6 * L && b.x1 > hx - 0.6 * L && b.y0 < cam.handY + 1.2 * L && b.y1 > cam.handY - 0.8 * L) T.overHand++;
+              if (b.x0 < 0 || b.x1 > cam.W || b.y0 < 0 || b.y1 > cam.H) T.offScreen++;
+              const lb = CS.ribbon().label;
+              if (lb && b.x0 < lb.x1 && b.x1 > lb.x0 && b.y0 < lb.y1 && b.y1 > lb.y0) T.overLabel++;
+            }
+            if (T.creakNow > T.creakMax) T.creakMax = T.creakNow;
+            const id = CS.lastRelease ? CS.lastRelease.id : 0;
+            if (relId >= 0 && id !== relId) T.released++;
+            relId = id;
+          } else relId = -1;
+          // the TOPPLE! word, its first 0.35 s: no other landing word still showing under it, clear of the hand and the
+          // tile in it (the hand flinching up past it included)
+          const tp = CS.events.filter(e => e.type === 'topple').pop();
+          if (tp && st.t - tp.t >= 0 && st.t - tp.t < 0.35) {
+            T.topFrames++;
+            const cam = CS.cam(), L = cam.L, ws = FX.words.filter(w => w.kind === 'word' && w.x1 && S.gt - w.t0 <= w.life);
+            const vis = w => { const u = (S.gt - w.t0) / w.life; return (u < 0.6 ? 1 : Math.max(0, 1 - (u - 0.6) / 0.4)) * (w.dim ? 0.25 : 1) > 0.1; };
+            const tw = ws.find(w => w.text === 'TOPPLE!');
+            if (tw) {
+              T.topWords++;
+              for (const o of ws) if (o !== tw && vis(o) && o.x0 < tw.x1 && tw.x0 < o.x1 && o.y0 < tw.y1 && tw.y0 < o.y1 && T.topOverWord.length < 4) T.topOverWord.push(o.text + ' at +' + (st.t - tp.t).toFixed(2));
+              const hx = cam.handX;
+              if (HAND.piece && tw.x0 < hx + 0.6 * L && tw.x1 > hx - 0.6 * L && tw.y0 < cam.handY + 1.2 * L && tw.y1 > cam.handY - 0.8 * L && T.topOverHand.length < 4) T.topOverHand.push('+' + (st.t - tp.t).toFixed(2));
+            }
+          }
+        } catch (e) { /* booting */ }
+        requestAnimationFrame(m);
+      })();
     });
     const kind = p => (p === 'sq' || p === 'marble' ? 'sq' : p === 'tri' ? 'tri' : 'cube');
     let stuck = 0, drops = 0, maxDebris = 0, step = 0, resets = 0, diverged = 0, thrown = 0;
@@ -258,8 +324,283 @@ async function noSoftLock(browser) {
     check('no soft-lock: dead ends TOPPLE and the new base takes tiles again', r.topples >= 1 && stuck === 0 && okGaps,
       `${drops} drops (${thrown} thrown away, ${diverged} off-recipe), ${r.topples} topples (${r.gaps.map(g => `top ${g.top.toFixed(1)} L, ${g.tiles} tiles, +${g.fromLand.toFixed(2)} s after the last clack, new base ready +${g.unlock === null ? '-' : g.unlock.toFixed(2)} s, ${g.landed ? 'takes tiles' : 'NO TILE LANDED'}`).join('; ')}); settled dead builds seen: ${stuck}`);
     check('topple: debris stays within the 60-piece cap', maxDebris <= 60, `max ${maxDebris}`);
+    // 15. the tell before each topple
+    const tell = await page.evaluate(() => {
+      const ev = CS.events, tp = ev.filter(e => e.type === 'topple');
+      const T = window.__tell;
+      return { leads: tp.map(t => { const tt = ev.filter(e => e.type === 'toppletell' && e.t <= t.t).pop(); return tt ? +(t.t - tt.t).toFixed(3) : null; }),
+        frames: T.frames, signFrames: T.signFrames, overHand: T.overHand, offScreen: T.offScreen, overLabel: T.overLabel, shiver: T.dxs.size, creakMax: +T.creakMax.toFixed(2), released: T.released,
+        topFrames: T.topFrames, topWords: T.topWords, topOverWord: T.topOverWord, topOverHand: T.topOverHand };
+    });
+    check('topple: every TOPPLE is told 0.3-0.6 s ahead (toppletell at the clack that closes the last slot)',
+      tell.leads.length >= 1 && tell.leads.every(l => l !== null && l >= 0.3 - 1e-6 && l <= 0.6), `leads ${tell.leads.join(' ')} s`);
+    check('topple: through the tell the NO ROOM! sign shows on screen clear of the tile in the hand and the ribbon\'s label, the build shivers, it creaks (>= 0.6), nothing is released',
+      tell.frames > 0 && tell.signFrames >= tell.frames - 1 && tell.overHand === 0 && tell.offScreen === 0 && tell.overLabel === 0 && tell.shiver >= Math.min(4, tell.frames) && tell.creakMax >= 0.6 && tell.released === 0,
+      JSON.stringify(Object.assign({}, tell, { topFrames: undefined, topWords: undefined, topOverWord: undefined, topOverHand: undefined })));
+    check('topple: the TOPPLE! word pops alone (the landing word under it gone) and clear of the hand and the tile in it as the hand flinches up',
+      tell.topFrames > 0 && tell.topWords >= tell.topFrames - 2 && tell.topOverWord.length === 0 && tell.topOverHand.length === 0,
+      `${tell.topWords}/${tell.topFrames} frames with the word; over a word: ${tell.topOverWord.join(', ') || 'none'}; over the hand: ${tell.topOverHand.join(', ') || 'none'}`);
     check('topple: no page or console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   } finally { await context.close(); }
+  // the sign on a landscape phone (the build zoomed small there, the words not): its letters at least 0.85 of a
+  // landing's "+25", the plate taller than it
+  const sizes = [];
+  for (const view of [{ width: 844, height: 390 }, { width: 667, height: 375 }, { width: 390, height: 844 }]) {
+    const g = await gamePage(browser, view, { seed: 7, mute: 1, nohint: 1, autostart: 1, level: 3 });
+    try {
+      await until(g.page, () => window.CS && CS.state().handReady, null, 15000);
+      // (a 5-row column, as tall as the dead end's build: the camera zooms out to it)
+      await g.page.evaluate(() => {
+        for (let a = 0; a < 5; a++) for (const i of [-2, 0]) {
+          const c = S.B.cands.find(q => q.key === 'sq:' + i + ',' + a + ',0');
+          if (c) { addTile(S.B, c.pose, { shape: 'sq', color: 'blue', variant: 0, mass: 1, k: 1 / 6, depth: c.depth, flight: false, landT: -1 }); genSlots(S.B); }
+        }
+        recomputeTower(); massProps(S.B, true, COMMIT);
+      });
+      await g.page.waitForTimeout(1500);
+      sizes.push(await g.page.evaluate(() => { tellPlace(); const score = clamp(CAM.W / 15, 20, 36) * 0.72; return { W: CAM.W, H: CAM.H, L: +CAM.L.toFixed(1), fs: TELL.fs, h: Math.round(TELL.h), score: +score.toFixed(1) }; }));
+    } finally { await g.context.close(); }
+  }
+  check('topple: the NO ROOM! sign reads on a phone, landscape too (letters >= 0.85 of a "+25" score pop\'s, the plate taller than it)',
+    sizes.every(z => z.fs >= 0.85 * z.score && z.h > z.score), sizes.map(z => `${z.W}x${z.H} (L ${z.L}): ${z.fs} px on a ${z.h} px plate, "+25" ${z.score} px`).join('; '));
+}
+
+// 16. the PERFECT streak: milestones, escalation, the climbing ting, and landing pops by the landing (390x844 touch)
+async function streakRun(browser) {
+  const { page, errors, context } = await gamePage(browser, { width: 390, height: 844 }, { seed: 2, mute: 1, nohint: 1, autostart: 1, level: 1 }, { touch: true });
+  try {
+    await until(page, () => window.CS && CS.state().handReady && !CS.state().locked);
+    await page.evaluate(wordMonitor);
+    await page.evaluate(() => {
+      const R = window.__sk = { streakCalls: [], clacks: [], words: [] };
+      const st = Sfx.streak, cl = Sfx.clack;
+      Sfx.streak = function (n) { R.streakCalls.push({ n, t: CS.state().t }); return st.apply(this, arguments); };
+      Sfx.clack = function (o) { if (o && o.grade === 'perfect') R.clacks.push({ streak: o.streak, now: CS.state().streak }); return cl.apply(this, arguments); };
+      // every landing word, the frame it first shows: its text, size, colour, centre, near flag, and the tile it is for
+      const seen = new Set();
+      (function f() {
+        try {
+          const now = CS.state().t;
+          for (const w of CS.words()) {
+            if (w.kind !== 'word') continue;
+            const id = w.text + '@' + (now - w.age).toFixed(4);
+            if (seen.has(id)) continue;
+            seen.add(id);
+            const land = CS.events.filter(e => e.type === 'land').pop(), L = CS.cam().L;
+            const tile = land ? CS.tiles().find(t => t.key === land.key) : null;
+            R.words.push({ text: w.text, sub: w.sub, size: w.size, color: w.color, near: w.near, streak: CS.state().streak, x: w.x, y: w.y,
+              dist: tile ? Math.hypot(w.x - tile.sx, w.y - tile.sy) / L : null, landT: land ? land.t : null, age: w.age });
+          }
+        } catch (e) { /* booting */ }
+        requestAnimationFrame(f);
+      })();
+    });
+    let maxStreak = 0;
+    for (let k = 0; k < 140; k++) {
+      await until(page, () => { const s = CS.state(); return s.phase === 'over' || (s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0); }, null, 20000);
+      if ((await page.evaluate(() => CS.state().phase)) === 'over') break;
+      await until(page, () => Math.abs(CS.state().omega) < 0.02 && Math.abs(CS.state().flexV) < 0.1, null, 1500).catch(() => {});
+      const info = await page.evaluate(() => ({ st: CS.state(), sl: CS.slots() }));
+      maxStreak = Math.max(maxStreak, info.st.streak);
+      if (maxStreak >= 30 && info.st.streak === 0) break;
+      const ok = info.sl.filter(q => !q.tippy && (q.supported || info.st.piece === 'crown'));
+      const pool = ok.length ? ok : info.sl;
+      if (!pool.length) { await page.keyboard.press('Shift'); continue; }
+      pool.sort((a, b) => Math.abs(a.x) - Math.abs(b.x) + (b.supported - a.supported) * 10);
+      const prev = await lastId(page);
+      const sx = await page.evaluate(key => (CS.slots().find(q => q.key === key) || {}).sx, pool[0].key);
+      if (sx === undefined) continue;
+      await page.touchscreen.tap(sx, 420);
+      const rel = await waitRelease(page, prev).catch(() => null);
+      if (rel) await waitOutcome(page, rel.id).catch(() => {});
+      const s2 = await page.evaluate(() => CS.state().streak);
+      maxStreak = Math.max(maxStreak, s2);
+      if (s2 >= 31) break;
+    }
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => ({ ev: CS.events.filter(e => e.type === 'streak'), R: window.__sk, wv: window.__wv, lands: CS.events.filter(e => e.type === 'land').length,
+      perfects: CS.events.filter(e => e.type === 'land' && e.grade === 'perfect').length }));
+    const want = [5, 10, 20, 30].filter(n => n <= maxStreak), names = { 5: 'ON FIRE!', 10: 'UNSTOPPABLE!', 20: 'MAGNET MASTER!', 30: 'LEGENDARY!' }, tier = { 5: 1, 10: 2, 20: 3, 30: 4 };
+    const evN = r.ev.map(e => e.n), firstRun = want.map(n => r.ev.find(e => e.n === n));
+    const wordFor = n => r.R.words.find(w => w.text === names[n] && w.sub.startsWith('PERFECT ×' + n));
+    check('streak: a bot reaches a PERFECT streak of at least 20', maxStreak >= 20, `best streak ${maxStreak}; ${r.perfects}/${r.lands} landings PERFECT`);
+    check('streak: milestones at 5, 10, 20 (30) each log a streak event with their word, tier and fanfare, and pop that word',
+      want.length >= 3 && firstRun.every((e, i) => e && e.word === names[want[i]] && e.tier === tier[want[i]]) && evN.every(n => n === 5 || n === 10 || n === 20 || n % 10 === 0) &&
+      want.every(n => !!wordFor(n)) && want.every(n => r.R.streakCalls.some(c => c.n === tier[n])),
+      `events ${r.ev.map(e => e.n + ':' + e.word).join(', ')}; Sfx.streak tiers ${r.R.streakCalls.map(c => c.n).join(' ')}; words ${want.map(n => (wordFor(n) || {}).text || 'MISSING').join(' / ')}`);
+    const perfW = r.R.words.filter(w => w.text === 'PERFECT!');
+    const at1 = perfW.filter(w => w.streak === 1), hot = perfW.filter(w => w.streak >= 8);
+    const green = c => parseInt(c.slice(1), 16) >> 8 & 255;   // (the green channel falls as gold warms to red-orange)
+    check('streak: the PERFECT word grows and warms with the streak (8+ in a row: bigger, redder than the first)',
+      at1.length > 0 && hot.length > 0 && Math.min(...hot.map(w => w.size)) > Math.max(...at1.map(w => w.size)) + 0.05 && Math.max(...hot.map(w => green(w.color))) < Math.min(...at1.map(w => green(w.color))) - 20,
+      `first: size ${at1.map(w => w.size.toFixed(2)).join(' ')} ${at1.map(w => w.color).join(' ')}; 8+: size ${hot.slice(0, 4).map(w => w.size.toFixed(2)).join(' ')} ${hot.slice(0, 4).map(w => w.color).join(' ')}`);
+    const badT = r.R.clacks.filter(c => c.streak !== c.now);
+    check('streak: every PERFECT clack passes its streak to the ting (it climbs)', r.R.clacks.length >= 20 && badT.length === 0 && Math.max(...r.R.clacks.map(c => c.streak)) >= 20,
+      `${r.R.clacks.length} PERFECT clacks, highest streak passed ${Math.max(0, ...r.R.clacks.map(c => c.streak))}${badT.length ? ', mismatched ' + badT.length : ''}`);
+    check('streak: the word-pop rules hold through the run (never over the ghost or the build top, at most 2 alive, clear of the HUD)',
+      r.wv.bad.length === 0 && r.wv.maxAlive <= 2 && r.wv.n >= 20, `${r.wv.n} pops, max ${r.wv.maxAlive} alive; ${r.wv.bad.slice(0, 4).join(' | ')}`);
+    // (a milestone is placed as big as it can be first, wherever that is: it is not counted here)
+    const land = r.R.words.filter(w => w.dist !== null && w.landT !== null && !Object.values(names).includes(w.text));
+    const nearN = land.filter(w => w.near).length, dists = land.map(w => w.dist).sort((a, b) => a - b), med = dists.length ? dists[dists.length >> 1] : 99;
+    check('streak: on a phone the landing pops (the milestones aside) sit by the landing (most placed by the near search; median within 3.5 L of the tile)',
+      land.length >= 20 && nearN >= 0.6 * land.length && med <= 3.5, `${nearN}/${land.length} near, median ${med.toFixed(2)} L, 90th ${dists.length ? dists[Math.floor(dists.length * 0.9)].toFixed(2) : '-'} L`);
+    check('streak: no page or console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
+  } finally { await context.close(); }
+}
+
+// 17. the landing-pop soak: per word pop, the score pop it was born with and how big it is drawn (as drawFxTop fits it)
+function popSoakMonitor() {
+  const M = window.__ps = { words: [], scoreChecked: 0, scoreCovered: [], stacked: 0, stackedEx: [] };
+  const seen = new WeakSet(), textW = (px, t) => { ctx.font = font(px); return ctx.measureText(t).width; };
+  (function f() {
+    try {
+      // two landing words drawn over each other this frame (both still showing: alpha over 0.15 as drawFxTop fades it)
+      const vis = FX.words.filter(w => w.kind === 'word' && w.x1 && S.gt - w.t0 <= w.life).filter(w => {
+        const u = (S.gt - w.t0) / w.life; return (u < 0.6 ? 1 : Math.max(0, 1 - (u - 0.6) / 0.4)) * (w.dim ? 0.25 : 1) > 0.15;
+      });
+      for (let i = 0; i < vis.length; i++) for (let j = i + 1; j < vis.length; j++) {
+        const a = vis[i], b = vis[j];
+        if (a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1) { M.stacked++; if (M.stackedEx.length < 4) M.stackedEx.push(a.text + ' / ' + b.text + ' at ' + S.gt.toFixed(2)); }
+      }
+      for (const w of FX.words) {
+        if (w.kind !== 'word') continue;
+        if (!seen.has(w)) { seen.add(w); w.__r = { text: w.text, near: !!w.near, size: w.size }; M.words.push(w.__r); }
+        const r = w.__r;
+        if (r.done || S.gt - w.t0 < 0.2 || !w.x1) continue;
+        r.done = true;
+        const full = Math.max(20, Math.min(36, CAM.W / 15)) * w.size;
+        let k = 1;
+        { const lw = (w.lines ? Math.max(...w.lines.map(l => textW(full, l))) : textW(full, w.text)) * (w.cx || 1), tw = Math.max(lw, w.sub ? textW(full * 0.55, w.sub) : 0), need = tw * (w.pin || 1.4); if (w.maxW && need > w.maxW) k = Math.max(w.kmin || 0.75, w.maxW / need); }
+        r.px = full * k; r.k = k;
+        const sp = FX.words.find(q => q.kind === 'score' && q.t0 === w.t0);
+        if (!sp) continue;
+        M.scoreChecked++;
+        const b = Math.max(20, Math.min(36, CAM.W / 15)) * sp.size, u = Math.min(1, (S.gt - sp.t0) / sp.life), tw = textW(b, sp.text);
+        const y = sp.y - 30 * (1 - Math.pow(1 - u, 3)), x = Math.max(tw / 2, Math.min(CAM.W - tw / 2, sp.x));
+        const ix = Math.max(0, Math.min(x + tw / 2, w.x1) - Math.max(x - tw / 2, w.x0)), iy = Math.max(0, Math.min(y + b / 2, w.y1) - Math.max(y - b / 2, w.y0));
+        const c = ix * iy / (tw * b);
+        if (c > 0.25) M.scoreCovered.push(w.text + ' over ' + sp.text + ' ' + Math.round(c * 100) + '%');
+      }
+    } catch (e) { M.err = String(e); }
+    requestAnimationFrame(f);
+  })();
+}
+async function popSoakGame(browser, seed, drops) {
+  const { page, errors, context } = await gamePage(browser, { width: 390, height: 844 }, { seed, mute: 1, nohint: 1, autostart: 1, level: 3 }, { touch: true });
+  try {
+    await until(page, () => window.CS && CS.state().handReady && !CS.state().locked, null, 15000);
+    await page.evaluate(wordMonitor); await page.evaluate(popSoakMonitor);
+    let rnd = seed * 7919 + 3, n = 0, prev = 0;
+    const rand = () => { rnd = (rnd * 16807) % 2147483647; return rnd / 2147483647; };
+    for (let k = 0; k < drops * 3 && n < drops; k++) {
+      const ok = await until(page, () => { const s = CS.state(); return s.phase === 'play' && !s.locked && s.handReady && s.inAir === 0; }, null, 15000).then(() => true).catch(() => false);
+      if (!ok) continue;
+      await page.waitForTimeout(60 + rand() * 220);
+      const info = await page.evaluate(() => ({ sl: CS.slots(), cam: CS.cam(), st: CS.state() }));
+      if (info.st.phase !== 'play' || info.st.locked || !info.st.handReady) continue;
+      const L = info.cam.L, safe = info.sl.filter(q => !q.tippy && q.supported), r = rand();
+      let x;
+      if (safe.length && r < 0.75) { safe.sort((a, b) => Math.abs(a.x) - Math.abs(b.x) + (b.y - a.y) * 0.3); x = safe[0].sx + (rand() - 0.5) * 0.1 * L; }
+      else if (info.sl.length && r < 0.97) x = info.sl[(rand() * info.sl.length) | 0].sx + (rand() - 0.5) * 0.9 * L;
+      else x = 4 + rand() * (info.cam.W - 8);
+      await page.touchscreen.tap(Math.max(2, Math.min(info.cam.W - 2, x)), Math.min(info.cam.H - 10, info.cam.handY + 3 * L));
+      const rel = await waitRelease(page, prev).catch(() => null);
+      if (rel) { prev = rel.id; n++; }
+    }
+    await page.waitForTimeout(700);
+    const r = await page.evaluate(() => ({ wv: window.__wv, ps: window.__ps }));
+    return { drops: n, wv: r.wv, ps: r.ps, errors };
+  } finally { await context.close(); }
+}
+async function popSoak(browser) {
+  const runs = await Promise.all([popSoakGame(browser, 1, 160), popSoakGame(browser, 2, 160)]);
+  const bad = [].concat(...runs.map(r => r.wv.bad)), words = [].concat(...runs.map(r => r.ps.words.filter(w => w.done)));
+  const nWords = runs.reduce((a, r) => a + r.wv.n, 0), checked = runs.reduce((a, r) => a + r.ps.scoreChecked, 0), covered = [].concat(...runs.map(r => r.ps.scoreCovered));
+  const MILE = /^(ON FIRE|UNSTOPPABLE|MAGNET MASTER|LEGENDARY)!$/, miles = words.filter(w => MILE.test(w.text)), perf = words.filter(w => w.text === 'PERFECT!').map(w => w.px).sort((a, b) => a - b);
+  const perfMed = perf.length ? perf[perf.length >> 1] : 0, nearN = words.filter(w => w.near).length;
+  check('pops: soak, 2 x 160 quick touch drops at 390x844: the word-pop rules hold for every pop (never born over the ghost or the build top, never drawn over the ghost)',
+    runs.every(r => r.drops >= 150) && nWords >= 200 && bad.length === 0, `${runs.map(r => r.drops).join(' + ')} drops, ${nWords} word pops; ${bad.slice(0, 5).join(' | ')}`);
+  check('pops: no landing\'s word covers its own "+N" score pop (more than a quarter of it: at most 1 in 100)',
+    checked >= 150 && covered.length <= Math.floor(checked / 100), `${covered.length} of ${checked} covered; ${covered.slice(0, 4).join(' | ')}`);
+  check('pops: a streak milestone is never fitted smaller than the size it was placed at, nor drawn smaller than the median PERFECT',
+    miles.length >= 3 && miles.every(w => w.k >= 0.999 && w.px >= perfMed), `${miles.length} milestones at ${miles.map(w => (+w.px).toFixed(1) + (w.near ? 'n' : 'f')).join(' ')} px; median PERFECT ${perfMed.toFixed(1)} px`);
+  check('pops: most landing words are placed by the near search', words.length >= 150 && nearN >= 0.6 * words.length, `${nearN}/${words.length} near`);
+  const stacked = runs.reduce((a, r) => a + r.ps.stacked, 0);
+  check('pops: a quick drop never shows two landing words over each other (the word before gives way at once where the new one pops in)',
+    stacked === 0, `${stacked} frames; ${[].concat(...runs.map(r => r.ps.stackedEx)).slice(0, 4).join(' | ')}`);
+  const errs = [].concat(...runs.map(r => r.errors));
+  check('pops: no page or console errors', errs.length === 0, errs.slice(0, 3).join(' | '));
+}
+
+// 18. streak milestones on short landscape phones (--only=pops): a PERFECT bot (taps the PERFECT centre of the most
+// central safe slot) to a streak of 30 at 844x390 and 667x375; every 'streak' event pops its word, drawn on screen (not
+// see-through over the ghost) at least as big as the median PERFECT of that game (0.9 of it on a landing that also tears
+// the ribbon or crowns), whether in clear air, on two lines, condensed, or over the build's body under its top row; the
+// word-pop rules hold all the way (lib wordMonitor)
+function mileMonitor() {
+  const M = window.__mm = { words: [] };
+  const seen = new WeakSet(), tw = (px, t) => { ctx.font = font(px); return ctx.measureText(t).width; };
+  (function f() {
+    try {
+      for (const w of FX.words) {
+        if (w.kind !== 'word' || seen.has(w) || !w.x1) continue;
+        seen.add(w);
+        // (as drawFxTop draws it: fitted to its room at its pop-in, never under its kmin)
+        const full = Math.max(20, Math.min(36, CAM.W / 15)) * w.size;
+        const lw = (w.lines ? Math.max(...w.lines.map(l => tw(full, l))) : tw(full, w.text)) * (w.cx || 1), need = Math.max(lw, w.sub ? tw(full * 0.55, w.sub) : 0) * (w.pin || 1.4);
+        const k = w.maxW && need > w.maxW ? Math.max(w.kmin || 0.75, w.maxW / need) : 1;
+        M.words.push({ text: w.text, t0: w.t0, px: full * k, near: !!w.near, lines: w.lines ? w.lines.join(' / ') : '', cx: w.cx || 1, dim: !!w.dim,
+          on: w.x0 >= -1 && w.x1 <= CAM.W + 1 && w.y0 >= -1 && w.y1 <= CAM.H + 1 });
+      }
+    } catch (e) { M.err = String(e); }
+    requestAnimationFrame(f);
+  })();
+}
+async function mileGame(browser, view, seed) {
+  const { page, errors, context } = await gamePage(browser, view, { seed, mute: 1, nohint: 1, autostart: 1, level: 1, ts: 2 }, { touch: true });
+  try {
+    await until(page, () => window.CS && CS.state().handReady && !CS.state().locked, null, 15000);
+    await page.evaluate(wordMonitor); await page.evaluate(mileMonitor);
+    let maxStreak = 0;
+    for (let k = 0; k < 160 && maxStreak < 30; k++) {
+      const ok = await until(page, () => { const s = CS.state(); return s.phase === 'over' || (s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0); }, null, 20000).then(() => true).catch(() => false);
+      if (!ok || (await page.evaluate(() => CS.state().phase)) === 'over') break;
+      await until(page, () => Math.abs(CS.state().omega) < 0.02 && Math.abs(CS.state().flexV) < 0.1, null, 1500).catch(() => {});
+      const info = await page.evaluate(() => ({ st: CS.state(), sl: CS.slots() }));
+      const safe = info.sl.filter(q => !q.tippy && (q.supported || info.st.piece === 'crown')), pool = safe.length ? safe : info.sl;
+      if (!pool.length) { await page.keyboard.press('Shift'); continue; }
+      pool.sort((a, b) => Math.abs(a.x) - Math.abs(b.x) + (b.supported - a.supported) * 10);
+      const prev = await lastId(page);
+      const sx = await page.evaluate(key => (CS.slots().find(q => q.key === key) || {}).sx, pool[0].key);
+      if (sx === undefined) continue;
+      await page.touchscreen.tap(sx, Math.round(view.height * 0.5));
+      const rel = await waitRelease(page, prev).catch(() => null);
+      if (rel) await waitOutcome(page, rel.id).catch(() => {});
+      maxStreak = Math.max(maxStreak, await page.evaluate(() => CS.state().streak));
+    }
+    await page.waitForTimeout(300);
+    const r = await page.evaluate(() => ({ ev: CS.events.filter(e => e.type === 'streak'), ann: CS.events.filter(e => e.type === 'goal' || e.type === 'crown').map(e => e.t), mm: window.__mm, wv: window.__wv }));
+    return { view, seed, maxStreak, ev: r.ev, ann: r.ann, mm: r.mm, wv: r.wv, errors };
+  } finally { await context.close(); }
+}
+async function mileLandscape(browser) {
+  const runs = await Promise.all([mileGame(browser, { width: 844, height: 390 }, 2), mileGame(browser, { width: 667, height: 375 }, 3)]);
+  for (const g of runs) {
+    const tag = `${g.view.width}x${g.view.height}`, perf = g.mm.words.filter(w => w.text === 'PERFECT!').map(w => w.px).sort((a, b) => a - b);
+    const med = perf.length ? perf[perf.length >> 1] : 0;
+    // (a milestone on the landing that tears the ribbon or crowns shares the screen with that announcement, placed first
+    // in the middle of it: there it may give a tenth of that size back)
+    const per = g.ev.map(e => {
+      const w = g.mm.words.find(q => q.text === e.word && Math.abs(q.t0 - e.t) < 1e-3), ann = g.ann.some(t => Math.abs(t - e.t) < 1e-3);
+      return { n: e.n, word: e.word, w, ann, ok: !!w && w.on && !w.dim && w.px >= (ann ? 0.9 : 1) * med - 0.05 };
+    });
+    check(`pops: ${tag} landscape phone, PERFECT bot to a streak of 30: every streak milestone pops its word on screen, at least as big as the median PERFECT`,
+      g.maxStreak >= 20 && per.length >= 3 && per.every(p => p.ok) && perf.length >= 10,
+      `best streak ${g.maxStreak}; median PERFECT ${med.toFixed(1)} px; ${per.map(p => p.n + ' ' + (p.w ? p.w.px.toFixed(1) + 'px' + (p.w.lines ? ' 2 lines' : '') + (p.w.cx < 1 ? ' condensed' : '') + (p.ann ? ' with the goal/crown' : '') + (p.w.near ? ' near' : '') + (p.w.dim ? ' DIM' : '') + (p.w.on ? '' : ' OFF-SCREEN') : 'MISSING')).join(', ')}`);
+    check(`pops: ${tag} the word-pop rules hold through the streak (never over the ghost or the build top, at most 2 alive, clear of the HUD)`,
+      g.wv.bad.length === 0 && g.wv.maxAlive <= 2 && !g.mm.err, `${g.wv.n} pops; ${g.wv.bad.slice(0, 4).join(' | ')}${g.mm.err ? ' monitor: ' + g.mm.err : ''}`);
+    check(`pops: ${tag} no page or console errors`, g.errors.length === 0, g.errors.slice(0, 3).join(' | '));
+  }
 }
 
 // 12. never a dead piece
@@ -660,6 +1001,8 @@ async function audioUnlock() {
       await context.close();
     }
     if (want('honesty')) await honesty(browser);
+    if (want('streak')) await streakRun(browser);
+    if (want('pops')) { await popSoak(browser); await mileLandscape(browser); }
     if (want('softlock')) await noSoftLock(browser);
     if (want('fuse')) { await fuseHold(browser); await fuseClick(browser); }
     if (want('hitstop')) await hitStopGhost(browser);

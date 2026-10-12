@@ -25,7 +25,8 @@
 // 11. (fixes since the component build) a skyT ramp 0 -> 1 never costs a frame over 16 ms; the stained-glass
 //     light lands on open rug beside the base; a down triangle is lit from the top-left like an up one; the
 //     cube's red top reads red; car wheels turn with o.roll; night tiles stand out from a lamp-lit wall too;
-//     the holding arm slants from the upper right (it is not a vertical pole) and bends at an elbow;
+//     the holding arm slants from the upper right (it is not a vertical pole) and bends at an elbow, and with the hand
+//     low its upper arm on screen is at most twice its forearm (a child's arm reaching in);
 //     on wide layouts the tile box (the L2 goal) is in the room clear of the 4 L base.
 'use strict';
 const path = require('path');
@@ -535,13 +536,17 @@ async function run(browser, vp) {
     }
     {
       // the cube net: drawn every frame the cube waits in the hand (flat) and while it falls (folding)
+      // (the median of 41 timed frames, after a warm-up over every argument the timed frames use: a single
+      // garbage-collector pause or scheduler hiccup inside one sub-millisecond sample used to drag the mean of 40 over
+      // the budget now and then; the median still catches a net that is slow on every frame)
       const raf = () => new Promise((r) => requestAnimationFrame(r));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const bench = async (fn) => {
-        for (let i = 0; i < 10; i++) fn(i);
-        let tot = 0;
-        for (let i = 0; i < 40; i++) { await raf(); const t0 = performance.now(); fn(i); tot += performance.now() - t0; ctx.getImageData(0, 0, 1, 1); }
-        return tot / 40;
+        for (let i = 0; i < 41; i++) fn(i);
+        const ts = [];
+        for (let i = 0; i < 41; i++) { await raf(); const t0 = performance.now(); fn(i); ts.push(performance.now() - t0); ctx.getImageData(0, 0, 1, 1); }
+        ts.sort((a, b) => a - b);
+        return ts[20];
       };
       const tile = await bench(() => Art.drawTile(ctx, 'cube', 'orange', 150, 300, 0, 45));
       const flat = await bench(() => Art.drawCubeNet(ctx, 150, 150, 24, 0, 0));
@@ -752,7 +757,8 @@ async function run(browser, vp) {
         if (dd < worst) { worst = dd; at = col + ' on ' + bg; }
       }
       out.nightLit = { worst: Math.round(worst), at };
-      if (worst < 40) fail('a night tile does not stand out by 40 luminance: ' + JSON.stringify(out.nightLit));
+      // (40 is the floor; the lit glass keeps a comfortable margin over it: 52)
+      if (worst < 52) fail('a night tile does not stand out by 40 luminance with a margin (52): ' + JSON.stringify(out.nightLit));
     }
     {
       // the holding arm comes down from the upper right (it slants, it is not a vertical pole) and bends at the
@@ -772,6 +778,18 @@ async function run(browser, vp) {
       out.arm = { hand: Math.round(hx), forearmDeg: Math.round(fore * 57.3), upperDeg: Math.round(upper * 57.3), xMid: Math.round(xB) };
       if (!(xB > hx + 1.0 * L)) fail('the holding arm does not slant in from the upper right: ' + JSON.stringify(out.arm));
       if (!(Math.abs(upper - fore) > 0.2)) fail('the holding arm has no elbow (one straight pole): ' + JSON.stringify(out.arm));
+      // a child's arm reaching in, not a pole: with the hand this low, the elbow (the centre line's farthest point from
+      // the wrist-to-screen-edge chord) splits it so the upper arm on screen is at most twice the forearm
+      const line = [];
+      for (let y = Math.round(yw - 0.1 * L); y >= 2; y -= 3) { const x = navyX(y); if (x === x) line.push([x, y]); }
+      if (line.length > 6) {
+        const [ax, ay] = line[0], [bx, by] = line[line.length - 1], cl = Math.hypot(bx - ax, by - ay);
+        let e = 0, ed = -1;
+        for (let i = 1; i < line.length - 1; i++) { const d = Math.abs((bx - ax) * (ay - line[i][1]) - (ax - line[i][0]) * (by - ay)) / cl; if (d > ed) { ed = d; e = i; } }
+        const fl = Math.hypot(line[e][0] - ax, line[e][1] - ay), ul = Math.hypot(bx - line[e][0], by - line[e][1]);
+        out.arm.upperOverFore = +(ul / fl).toFixed(2);
+        if (!(ul <= 2 * fl)) fail('the holding arm is mostly a long upper arm (a pole), not a child\'s arm reaching in: ' + JSON.stringify(out.arm));
+      } else fail('the holding arm\'s centre line was not found: ' + line.length + ' rows');
       ctx.setTransform(1, 0, 0, 1, 0, 0);
     }
     return out;

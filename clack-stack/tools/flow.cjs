@@ -4,7 +4,8 @@
 // (CS.setClock is the one test hook used to end a run early, as DESIGN 14 says).
 //   node clack-stack/tools/flow.cjs                 (everything)
 //   node clack-stack/tools/flow.cjs --only=tapper,order   (title,tapper,order,clock,over,best,pause,mute,crown,rings,
-//                                                          crownwait,pending,buzzer)
+//                                                          crownwait,pending,buzzer,camera,hand,prefs,offline,
+//                                                          goalsign,armicon)
 //   node clack-stack/tools/flow.cjs --seeds=1-10 --verbose
 // Checks:
 //   title   a title tap reaches `play` within 1.2 s (game and real time) and the base is parked with a tile in hand
@@ -22,8 +23,20 @@
 //           out to the floor (1920x1080 L15, 1366x1024 L16) TIME!'s cube still smashes the build before the card, with
 //           no MISS for the dropped tile and no cube left over in the next run
 //   best    clackstack.best holds the higher score of two runs; a big=1 run writes only clackstack.bestBig
-//   pause   P, Esc, a hidden tab and an orientation change all give `paused` with the clock frozen; RESUME (mouse,
-//           touch) and P resume; MENU from the pause goes to the title
+//   pause   P, Esc, a hidden tab, the window losing focus (a mouse or keyboard player) and an orientation change all
+//           give `paused` with the clock frozen; RESUME (mouse, touch) and P resume; MENU from the pause goes to the
+//           title; a touch player's window blur (phones blur on their own now and then) does not pause
+//   hand    a keyboard player's hand does not carry into the next run: slid to the right, AGAIN (R) starts with the
+//           hand over the middle of the base, and so does MENU then a new game
+//   prefs   stored best scores and prefs are type-checked field by field on load: junk (strings, negatives, null,
+//           NaN-like, objects, arrays, non-JSON) falls back to each field's default, good fields are kept, and the
+//           game boots, draws the title's best-score lid and plays with no errors
+//   goalsign on a tall phone and a short one (390x844, 360x740), L1 and L3 built to the goal: the goal's sign is on
+//           screen and covers no tile of the build nor its cars (on a short rug band it is laid out compact)
+//   armicon the goal's icon on the ribbon is never under the holding arm, the hand low at a level start and moved by
+//           the mouse across the screen (1366x1024, 844x390, 390x844; L1 and L3): it moves to the ribbon's other end
+//   offline opened with the network down (no font stub), at 390x844 touch and 844x390 mouse: the title, a start and a
+//           few drops log no console error or warning (the web font is not asked for); back online it is asked for once
 //   mute    M mutes; the setting survives a reload; the HUD mute button toggles it
 //   crown   the crown drops into the hand at the goal; a crown MISS gives a fresh crown (OOPS); HOLD on the crown
 //           starts OVERTIME (tiles above the ribbon score double); crowning gives +3 s and the bonus
@@ -38,7 +51,13 @@
 //           the SMASH and the next level (the run goes on)
 //   camera  the SMASH of a tower tall enough to scroll the camera (844x390 L9, 390x844 L13): when the cube hits, the
 //           cube and the rug line are on screen; TIME! on a 10 L tower (844x390): on the results card at least half
-//           the pile is on screen (it stays pokeable), and AGAIN parks the new cars on the rug in view
+//           the pile is on screen (it stays pokeable), and AGAIN parks the new cars on the rug in view; past the zoom
+//           floor with the goal still far (390x844 L16, 1366x1024 L16) the camera keeps only 2-3 L of air between the
+//           build top and the hand's highest line (the base stays in view longer), and with the goal near the ribbon
+//           is framed under that line; and as real drops bring the goal near on a 31-row tower (L16, 390x844,
+//           844x390, 1366x1024), calm drops and quick ones (the next tile dropped while the one before is still in
+//           the air), the ribbon is never drawn, however faintly, through the tile in the hand nor along its bottom
+//           edge (it fades out before it reaches it)
 // Exits non-zero on any failure, page error or console error.
 const { launch, gamePage, until } = require('./lib.cjs');
 
@@ -386,6 +405,17 @@ async function pauseChecks(browser) {
   const dims = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: innerWidth, sh: document.documentElement.scrollHeight, ih: innerHeight }));
   await page.mouse.click(r.x, r.y);
   const resumedRot = await page.evaluate(() => CS.state().phase);
+  // the window losing focus: a mouse player (the last input was a click), then a keyboard player
+  await page.mouse.move(r.x, r.y);
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  st = await page.evaluate(() => CS.state().phase); f = await frozen();
+  res.push(['window blur (mouse player)', st === 'paused' && f.ok, `${st}, clock ${f.a} -> ${f.b}`]);
+  await page.keyboard.press('p');
+  await page.keyboard.press('ArrowLeft');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  st = await page.evaluate(() => CS.state().phase); f = await frozen();
+  res.push(['window blur (keyboard player)', st === 'paused' && f.ok, `${st}, clock ${f.a} -> ${f.b}`]);
+  await page.keyboard.press('p');
   for (const [k, ok, d] of res) check(`pause: ${k} gives paused with the clock frozen`, ok, d);
   check('pause: P, the RESUME button and P resume (and coming back to the tab stays paused)', resumedP === 'play' && resumedBtn === 'play' && stillPaused === 'paused' && resumedRot === 'play',
     `P ${resumedP}, RESUME ${resumedBtn}, visible again ${stillPaused}, after rotation ${resumedRot}`);
@@ -407,7 +437,199 @@ async function pauseChecks(browser) {
   await h.page.touchscreen.tap(rr.x, rr.y);
   const b = await h.page.evaluate(() => CS.state().phase);
   check('pause: touch on the pause button pauses, touch on RESUME resumes', a === 'paused' && b === 'play', `${a} -> ${b}`);
+  // a touch player's window blur (a phone's notification shade, a long-press callout) leaves the game running
+  await h.page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await h.page.waitForTimeout(100);
+  const c = await h.page.evaluate(() => CS.state().phase);
+  check('pause: a touch player\'s window blur does not pause (phones blur on their own; a real app switch hides the page)', c === 'play', c);
   await finish(h);
+}
+
+// ---------------------------------------------------------------- the hand does not carry over between runs
+async function handChecks(browser) {
+  const g = await open(browser, { seed: 14, autostart: 1, level: 2 }); g.tag = 'hand';
+  const { page } = g;
+  await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked);
+  const slide = async (key, ms) => { await page.keyboard.down(key); await page.waitForTimeout(ms); await page.keyboard.up(key); await page.waitForTimeout(80); };
+  const handAt = () => page.evaluate(() => ({ hx: HAND.x, dx: HAND.dx, mid: CS.cam().originX, L: CS.cam().L, ph: CS.state().phase }));
+  await slide('ArrowRight', 700);
+  const a0 = await handAt();
+  await page.evaluate(() => CS.setClock(0.3));
+  await until(page, () => CS.state().over && CS.state().over.open, null, 8000);
+  await page.keyboard.press('r');
+  await until(page, () => CS.state().phase === 'play', null, 3000);
+  const a1 = await handAt();
+  check('hand: a keyboard player slid right; AGAIN (R) starts the new run with the hand over the middle of the base',
+    a0.hx - a0.mid > a0.L && Math.abs(a1.hx - a1.mid) < 1 && Math.abs(a1.dx - a1.mid) < 1, `slid to ${(a0.hx - a0.mid).toFixed(0)} px off the middle; after AGAIN ${(a1.hx - a1.mid).toFixed(1)} px`);
+  await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked, null, 4000);
+  await slide('ArrowLeft', 700);
+  const b0 = await handAt();
+  await page.evaluate(() => CS.setClock(0.3));
+  await until(page, () => CS.state().over && CS.state().over.open, null, 8000);
+  await page.keyboard.press('Escape');
+  await until(page, () => CS.state().phase === 'title', null, 3000);
+  await page.waitForTimeout(150);
+  await page.keyboard.press('Space');
+  await until(page, () => CS.state().phase === 'play', null, 4000);
+  const b1 = await handAt();
+  check('hand: slid left, then MENU and a new game: the hand starts over the middle of the base',
+    b0.mid - b0.hx > b0.L && Math.abs(b1.hx - b1.mid) < 1, `slid to ${(b0.hx - b0.mid).toFixed(0)} px; after MENU + start ${(b1.hx - b1.mid).toFixed(1)} px`);
+  await finish(g);
+}
+
+// ---------------------------------------------------------------- stored records are type-checked on load
+async function prefsChecks(browser) {
+  const cases = [
+    { name: 'junk fields', best: { score: '9999', level: -3, cm: null, streak: 1e400 }, prefs: { big: 'yes', mute: 1, seenHint: null, played: true },
+      wantBest: { score: 0, level: 0, cm: 0, streak: 0 }, wantPrefs: { big: false, mute: false, seenHint: false, played: true } },
+    { name: 'good fields kept, bad ones dropped', best: { score: 1234, level: '7', cm: 88.5, streak: { n: 3 }, extra: 5 }, prefs: { big: false, mute: true, seenHint: 'no', played: [] },
+      wantBest: { score: 1234, level: 0, cm: 88.5, streak: 0 }, wantPrefs: { big: false, mute: true, seenHint: false, played: false } },
+    { name: 'not JSON / an array / null', bestRaw: '{oops', prefsRaw: '[true,true]', bigRaw: 'null',
+      wantBest: { score: 0, level: 0, cm: 0, streak: 0 }, wantPrefs: { big: false, mute: false, seenHint: false, played: false } },
+  ];
+  for (const c of cases) {
+    const ctx = await browser.newContext({ viewport: VIEW });
+    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, route => route.fulfill({ status: 200, contentType: 'text/css', body: '' }));
+    await ctx.addInitScript(c2 => {
+      try {
+        if (sessionStorage.getItem('seeded')) return;
+        sessionStorage.setItem('seeded', '1');
+        localStorage.setItem('clackstack.best', c2.bestRaw || JSON.stringify(c2.best));
+        localStorage.setItem('clackstack.prefs', c2.prefsRaw || JSON.stringify(c2.prefs));
+        if (c2.bigRaw) localStorage.setItem('clackstack.bestBig', c2.bigRaw);
+      } catch (e) { /* no storage */ }
+    }, c);
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+    page.on('console', m => { if (m.type() === 'error') errors.push('console.error: ' + m.text()); });
+    await page.goto(require('./lib.cjs').gameUrl({ mute: 1, nohint: 1, seed: 3 }), { waitUntil: 'load' });
+    await until(page, () => window.CS && CS.state().phase === 'title', null, 15000);
+    await page.waitForTimeout(200);
+    const r = await page.evaluate(() => ({ best: CS.best().normal, big: CS.best().big, prefs: Object.assign({}, PREFS), lid: loadBestCached().lines.join(' | '), bigOn: CS.state().big }));
+    // and it plays: start, drop a tile
+    await page.keyboard.press('Space');
+    await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked, null, 6000).catch(() => {});
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(600);
+    const played = await page.evaluate(() => CS.events.some(e => e.type === 'land' || e.type === 'miss'));
+    const same = (a, b) => Object.keys(b).every(k => a[k] === b[k]) && Object.keys(a).every(k => k in b);
+    const okBest = same(r.best, c.wantBest), okPrefs = Object.keys(c.wantPrefs).every(k => r.prefs[k] === c.wantPrefs[k] || (k === 'played' && r.prefs.played === true && c.wantPrefs.played === false));
+    check(`prefs: ${c.name}: each stored field type-checked on load (numbers finite and >= 0, booleans boolean), the defaults for the rest; the game plays`,
+      okBest && same(r.big, { score: 0, level: 0, cm: 0, streak: 0 }) && okPrefs && r.bigOn === (c.wantPrefs.big === true) && !/NaN|undefined|Infinity/.test(r.lid) && played && errors.length === 0,
+      `best ${JSON.stringify(r.best)}, prefs ${JSON.stringify(r.prefs)}, lid "${r.lid}", played ${played}${errors.length ? ', ' + errors[0] : ''}`);
+    await ctx.close();
+  }
+}
+
+// ---------------------------------------------------------------- the goal's sign
+// a tall phone and a short one (390x844, 360x740), L1 and L3 built to the goal by real clicks: 0.35 s after the ribbon
+// tears, the goal's sign is on screen and covers no standing tile, nor the cars under the build (the rug band under
+// them may be short: the sign is then laid out compact to fit there)
+async function goalSignChecks(browser) {
+  for (const view of [{ width: 390, height: 844 }, { width: 360, height: 740 }]) for (const level of [1, 3]) {
+    const g = await open(browser, { seed: 3, autostart: 1, level, ts: 2 }, { view, realClock: false }); g.tag = 'goalsign';
+    const { page } = g;
+    await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked, null, 15000);
+    // (a builder that takes any slot when no safe one is left: a PERFECT tower can leave only tippy or hanging slots)
+    let torn = false;
+    for (let k = 0; k < 60 && !torn; k++) {
+      await until(page, () => { const s = CS.state(); return s.goalTorn || (s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0); }, null, 20000).catch(() => {});
+      const p = await page.evaluate(() => {
+        const st = CS.state(), sl = CS.slots(), safe = sl.filter(q => q.supported && !q.tippy), pool = safe.length ? safe : sl;
+        pool.sort((a, b) => b.y - a.y || Math.abs(a.x) - Math.abs(b.x));
+        return { torn: st.goalTorn, sx: pool.length ? pool[0].sx : null };
+      });
+      if (p.torn) { torn = true; break; }
+      if (p.sx === null) { await page.keyboard.press('Shift'); continue; }
+      await page.mouse.click(p.sx, view.height * 0.55);
+      await waitGame(page, 0.25);
+    }
+    const gev = await page.evaluate(() => { const e = CS.events.filter(q => q.type === 'goal').pop(); return e ? e.t : null; });
+    let r = null;
+    if (torn && gev !== null) {
+      await until(page, t => CS.state().t >= t, gev + 0.35, 8000).catch(() => {});
+      r = await page.evaluate(() => {
+        const sg = CS.words().find(w => w.kind === 'announce' && /^TALLER/.test(w.text)), c = CS.cam(), L = c.L, b = sg && sg.box;
+        if (!b) return { sign: null };
+        const over = CS.tiles().filter(t => { const e = t.ext; return b.x0 < t.sx + e[2] * L && b.x1 > t.sx - e[0] * L && b.y0 < t.sy + e[3] * L && b.y1 > t.sy - e[1] * L; }).length;
+        // the cars: the base's width, from the plate the bottom row stands on down to the wheels on the rug
+        const half = S.B ? S.B.half : 1, cx0 = c.originX - (half + 0.1) * L, cx1 = c.originX + (half + 0.1) * L;
+        const car = b.x0 < cx1 && b.x1 > cx0 && b.y0 < c.baseY + 0.4 * L && b.y1 > c.baseY;
+        return { sign: [b.x0, b.y0, b.x1, b.y1].map(Math.round), on: b.x0 >= 0 && b.x1 <= c.W && b.y0 >= 0 && b.y1 <= c.H, over, car, baseY: Math.round(c.baseY), L: +L.toFixed(1) };
+      });
+    }
+    check(`goal sign: ${view.width}x${view.height} L${level}: the sign is on screen and covers no tile of the build, nor its cars`,
+      torn && r && r.sign && r.on && r.over === 0 && !r.car, JSON.stringify({ torn, r }));
+    await finish(g);
+  }
+}
+
+// ---------------------------------------------------------------- the ribbon's icon and the arm
+// the goal's icon on the ribbon is never under the holding arm: at a level start (the hand low, the arm stretched) with
+// the hand moved by the mouse across the screen, at 1366x1024, 844x390 and 390x844, L1 and L3
+async function armIconChecks(browser) {
+  for (const view of [{ width: 1366, height: 1024 }, { width: 844, height: 390 }, { width: 390, height: 844 }]) {
+    const bad = [];
+    let n = 0;
+    for (const level of [1, 3]) {
+      const g = await open(browser, { seed: 4, autostart: 1, level }, { view, realClock: false }); g.tag = 'armicon';
+      const { page } = g;
+      await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked, null, 15000);
+      for (const fx of [0.08, 0.15, 0.25, 0.35, 0.5, 0.65, 0.85]) {
+        await page.mouse.move(Math.round(view.width * fx), Math.round(view.height * 0.55));
+        await waitGame(page, 0.45);
+        const r = await page.evaluate(() => {
+          const rb = CS.ribbon(), a = CS.arm();
+          if (!rb.on || !rb.icon || !a.ok || rb.a < 0.5) return null;
+          const seg = (px, py, ax, ay, bx, by) => { const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy, t = l2 > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0; return Math.hypot(px - ax - t * dx, py - ay - t * dy); };
+          const ic = rb.icon, fore = seg(ic.x, ic.y, a.wx, a.wy, a.ex, a.ey) - a.rf, up = seg(ic.x, ic.y, a.ex, a.ey, a.sx, a.sy) - a.ru;
+          return { gap: Math.round(Math.min(fore, up) - ic.r), icon: [ic.x, ic.y].map(Math.round), elbow: [a.ex, a.ey].map(Math.round) };
+        });
+        if (!r) continue;
+        n++;
+        if (r.gap < 0 && bad.length < 4) bad.push(`L${level} hand at ${Math.round(fx * 100)}%: icon ${r.icon} elbow ${r.elbow} (${r.gap} px)`);
+      }
+      await finish(g);
+    }
+    check(`arm: ${view.width}x${view.height}: the goal's icon on the ribbon is never under the holding arm (hand low at a level start, moved across the screen)`,
+      n >= 4 && bad.length === 0, `${n} poses; ${bad.join(' | ') || 'icon clear in all'}`);
+  }
+}
+
+// ---------------------------------------------------------------- offline
+// opened offline (no font stub: the network is simply down), the page asks for nothing it cannot have: no console
+// error or warning, no page error, at 390x844 touch and 844x390 mouse, through the title and a few drops; back online,
+// it asks for the web font once
+async function offlineChecks(browser) {
+  for (const [view, touch] of [[{ width: 390, height: 844 }, true], [{ width: 844, height: 390 }, false]]) {
+    const ctx = await browser.newContext({ viewport: view, hasTouch: touch, isMobile: touch });
+    const fontReqs = [];
+    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, route => { fontReqs.push(route.request().url()); route.fulfill({ status: 200, contentType: 'text/css', body: '' }); });
+    await ctx.setOffline(true);
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', e => errors.push('pageerror: ' + e.message));
+    page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') errors.push('console.' + m.type() + ': ' + m.text()); });
+    await page.goto(require('./lib.cjs').gameUrl({ mute: 1, nohint: 1, seed: 4 }), { waitUntil: 'load' });
+    await until(page, () => window.CS && CS.state().phase === 'title', null, 15000);
+    await page.waitForTimeout(300);
+    if (touch) await page.touchscreen.tap(view.width / 2, view.height * 0.55); else await page.mouse.click(view.width / 2, view.height * 0.55);
+    await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked, null, 8000).catch(() => {});
+    for (let k = 0; k < 3; k++) {
+      const sl = await page.evaluate(() => { const a = CS.slots().filter(q => q.supported); return a.length ? a[0].sx : null; });
+      if (sl === null) break;
+      if (touch) await page.touchscreen.tap(sl, view.height * 0.6); else await page.mouse.click(sl, view.height * 0.6);
+      await page.waitForTimeout(500);
+    }
+    const offReqs = fontReqs.length, played = await page.evaluate(() => CS.events.some(e => e.type === 'land'));
+    await ctx.setOffline(false);
+    await page.waitForTimeout(500);
+    check(`offline: ${view.width}x${view.height} ${touch ? 'touch' : 'mouse'}: opened offline, the page plays with no console error or warning and asks for no web font; back online it asks for it once`,
+      errors.length === 0 && played && offReqs === 0 && fontReqs.length === 1,
+      `font requests offline ${offReqs}, after ${fontReqs.length}; played ${played}${errors.length ? '; ' + errors.slice(0, 2).join(' | ') : ''}`);
+    await ctx.close();
+  }
 }
 
 // ---------------------------------------------------------------- mute
@@ -762,6 +984,93 @@ async function cameraChecks(browser) {
     check('camera: AGAIN after it: the new cars roll in on the rug in view', p.ph === 'play' && p.rugY <= p.H, JSON.stringify(p));
     await finish(g);
   }
+  // past the zoom floor, the goal far: 2-3 L of air over the build top (to the hand's highest line); the goal near:
+  // the ribbon framed under that line
+  for (const view of [{ width: 390, height: 844 }, { width: 1366, height: 1024 }]) {
+    const g = await open(browser, { seed: 5, autostart: 1, level: 16, big: 1 }, { view }); g.tag = 'aircam';
+    const { page } = g;
+    await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked);
+    const air = async (rows) => {
+      await page.evaluate((rows) => {
+        for (let a = 0; a < rows; a++) for (const i of [-2, 0]) {
+          const c = S.B.cands.find(q => q.key === 'sq:' + i + ',' + a + ',0');
+          if (!c) continue;
+          addTile(S.B, c.pose, { shape: 'sq', color: a % 2 ? 'blue' : 'yellow', variant: 0, mass: 1, k: 1 / 6, depth: c.depth, flight: false, landT: -1 });
+          genSlots(S.B);
+        }
+        recomputeTower(); massProps(S.B, true, COMMIT); S.clock = 60;
+      }, rows);
+      await waitGame(page, 1.5);
+      return page.evaluate(() => {
+        const c = CS.cam(), st = CS.state(), topY = c.baseY - (st.top + 0.5) * c.L;
+        return { L: +c.L.toFixed(1), camY: +c.camY.toFixed(0), top: +st.top.toFixed(1), G: st.goal, air: +((topY - c.handTop) / c.L).toFixed(2), ribY: +(c.baseY - (st.goal + 0.5) * c.L).toFixed(0), handTop: c.handTop, gauge: gaugeOn() };
+      });
+    };
+    const far = await air(await page.evaluate(() => Math.ceil(S.G - 8)));
+    const near = await air(await page.evaluate(() => Math.ceil(S.G - 2)));
+    check(`camera: ${view.width}x${view.height} L16 past the zoom floor: 2-3 L of air over the build with the goal far, the ribbon framed when near`,
+      far.gauge && far.camY > 0 && far.air >= 2 && far.air <= 3 && near.top >= near.G - 3.2 && near.ribY >= near.handTop - 2 && near.ribY <= view.height,
+      `far ${JSON.stringify(far)}; near ${JSON.stringify(near)}`);
+    await finish(g);
+  }
+  // the goal coming near past the zoom floor: a 31-row tower (G 35), then real drops on the top; every frame with a
+  // tile showing in the hand, the ribbon is never drawn through it (handY + 0.1 L .. its bottom - 0.1 L) or along its
+  // bottom edge (within 0.12 L of it), however faint. Calm drops (each tile at rest first), and quick ones (the next
+  // tile dropped the moment it is in the hand, the one before still in the air)
+  for (const quick of [false, true]) for (const view of [{ width: 390, height: 844 }, { width: 844, height: 390 }, { width: 1366, height: 1024 }]) {
+    const g = await open(browser, { seed: 5, autostart: 1, level: 16, big: 1 }, { view }); g.tag = 'ribnear';
+    const { page } = g;
+    await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked);
+    await page.evaluate(() => {
+      for (let a = 0; a < 31; a++) for (const i of [-2, 0]) {
+        const c = S.B.cands.find(q => q.key === 'sq:' + i + ',' + a + ',0');
+        if (!c) continue;
+        addTile(S.B, c.pose, { shape: 'sq', color: a % 2 ? 'blue' : 'yellow', variant: 0, mass: 1, k: 1 / 6, depth: c.depth, flight: false, landT: -1 });
+        genSlots(S.B);
+      }
+      recomputeTower(); massProps(S.B, true, COMMIT); S.clock = 60;
+      const R = window.__rib = { frames: 0, through: [], edge: [], inAir: 0 };
+      (function f() {
+        try {
+          if ((S.phase === 'play' || S.phase === 'crash') && HAND.piece && heldAlpha() > 0.3 && HAND.piece.shape !== 'crown') {
+            const L = CAM.L, rb = CS.ribbon();
+            if (rb.on && rb.a > 0.01) {
+              R.frames++;
+              if (S.flights.length) R.inAir++;
+              const d = (rb.y - CAM.handY) / L, bot = heldTileBottom(HAND.piece.shape), o = { t: +S.gt.toFixed(2), d: +d.toFixed(2), a: +rb.a.toFixed(2), air: S.flights.length };
+              if (d > 0.1 && d < bot - 0.1) { if (R.through.length < 6) R.through.push(o); }
+              else if (d >= bot - 0.1 && d <= bot + 0.12) { if (R.edge.length < 6) R.edge.push(o); }
+            }
+          }
+        } catch (e) { R.err = String(e); }
+        requestAnimationFrame(f);
+      })();
+    });
+    await waitGame(page, 1.5);
+    let drops = 0;
+    const top0 = await page.evaluate(() => S.top);
+    for (let k = 0; k < (quick ? 6 : 4); k++) {
+      if (quick) await until(page, () => { const s = CS.state(); return s.phase === 'play' && s.handReady && !s.locked; }, null, 10000);
+      else {
+        await until(page, () => { const s = CS.state(); return s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0; }, null, 10000);
+        await waitGame(page, 0.7);
+      }
+      // (quick: the slot on top of the column, or of the tile still falling onto it)
+      const pick = () => page.evaluate(() => { const sl = CS.slots().filter(q => q.type === 'sq' && (q.supported || S.flights.length)); sl.sort((a, b) => b.y - a.y || Math.abs(a.x) - Math.abs(b.x)); return { sl: sl[0] || null, piece: CS.state().piece }; });
+      let s = await pick();
+      if (!s.sl || (s.piece !== 'sq' && s.piece !== 'marble')) { await page.keyboard.press('Shift'); await waitGame(page, 0.1); s = await pick(); }
+      if (!s.sl || (s.piece !== 'sq' && s.piece !== 'marble')) continue;
+      await page.mouse.click(s.sl.sx, view.height * 0.6);
+      drops++;
+      await waitGame(page, quick ? 0.05 : 1.5);
+    }
+    await waitGame(page, 1.5);
+    const r = await page.evaluate(() => ({ R: window.__rib, top: S.top, G: S.G, near: goalNear(S.top) }));
+    check(`camera: ${view.width}x${view.height} the goal coming near past the zoom floor (${quick ? 'quick drops, a tile still in the air' : 'calm drops'}): the ribbon is never drawn through the tile in the hand nor along its bottom edge`,
+      drops >= 3 && r.top > top0 && r.near && r.R.frames > 60 && r.R.through.length === 0 && r.R.edge.length === 0 && !r.R.err && (!quick || r.R.inAir > 0),
+      `${drops} drops, top ${top0} -> ${r.top} (goal ${r.G}), ${r.R.frames} frames (${r.R.inAir} with a tile in the air): through ${JSON.stringify(r.R.through)}, at its edge ${JSON.stringify(r.R.edge)}${r.R.err ? ' ' + r.R.err : ''}`);
+    await finish(g);
+  }
 }
 
 (async () => {
@@ -797,6 +1106,11 @@ async function cameraChecks(browser) {
     if (want('pending')) await pendingChecks(browser);
     if (want('buzzer')) await buzzerChecks(browser);
     if (want('camera')) await cameraChecks(browser);
+    if (want('hand')) await handChecks(browser);
+    if (want('prefs')) await prefsChecks(browser);
+    if (want('offline')) await offlineChecks(browser);
+    if (want('goalsign')) await goalSignChecks(browser);
+    if (want('armicon')) await armIconChecks(browser);
     if (want('order') || want('tapper')) orderCheck();
     check('flow: no page or console errors', allErrors.length === 0, allErrors.slice(0, 3).join(' | '));
   } finally {

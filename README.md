@@ -64,6 +64,14 @@ subdirectory with its own README:
   Pickup weapons you use up, checkpoints, splats, a ledge to grab. Raw WebGL2, one HTML file, made for a phone held sideways and
   playable on a laptop with the keys and the mouse. Open
   `tall-order/index.html`.
+- **[clack-stack/](clack-stack/)** — Clack Stack, a fast tower-building race
+  with see-through magnetic tiles on a living-room rug. Move the little striped
+  hand, let go, and the magnet yanks each square or triangle into place with a
+  CLACK. Build on a wobbly toy-car base until the tower is taller than the
+  watermelon bag, the armchair, the window, you. Then crown it with the orange
+  triangle and smash it with the cube, before the clock runs out. Includes a BIG
+  MAGNETS mode for small children. One HTML file, made for a phone or a laptop. Open
+  `clack-stack/index.html`.
 
 ## Repository policy
 

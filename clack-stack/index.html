@@ -79,7 +79,7 @@ const CFG = {
   // the camera frames the goal only once the build is within GOAL_NEAR L of it (L1's 4 L goal always): a far goal
   // would shrink a small tower to the bottom of an empty screen. Until then it frames the build (and GOAL_NEAR L of
   // air over it) and the ribbon shows above the hand, or as a stub under the HUD while it is out of the view
-  GOAL_NEAR: 3.2, GOAL_NEAR_ALWAYS: 4,
+  GOAL_NEAR: 3.2, GOAL_NEAR_ALWAYS: 4, SCROLL_RAMP: 2,
   // groundY / H, the wheel contact line inside the rug band. Portrait shows more rug in front of the base
   // (the rug fills the photos and the mess piles up there), so the build stands in the middle of a phone
   GROUND_FRAC: 0.905, GROUND_FRAC_P: 0.78,
@@ -113,7 +113,7 @@ const CFG = {
   HUD_H: 64, GUTTER: 16,
   // juice (8)
   FLASH_T: 0.12, FLASH_A: 0.6, GLOW_T: 0.2, SPARKS: 8, SQUASH: 0.04, SQUASH_T: 0.07,
-  SHAKE_CLACK: 1.5, SHAKE_CLACK_T: 0.08, HITSTOP_PERFECT: 0.04, HITSTOP_CUBE: 0.09, SHAKE_CUBE: 6,
+  SHAKE_CLACK: 1.5, SHAKE_CLACK_T: 0.08, HITSTOP_PERFECT: 0.04, HITSTOP_CUBE: 0.09, SHAKE_CUBE: 6, HITSTOP_STREAK: 0.07,
   WORD_T: 0.5, PULSE_T: 0.3, CUBE_FOLD_DT: 0.036, CUBE_NET_SCALE: 0.22,
   WORD_MAX: 0.6, WORDS_MAX: 2, ANNOUNCE_MAX: 1.0,   // word pops: life cap, at most this many alive; announcements' life cap
   // a MISS is a playful BONK!, the two-note "aww" at most every AWW_GAP s (a small kid misses a lot: never a stream
@@ -154,17 +154,20 @@ const CFG = {
   WALL_PULL: 30, WALL_V: 2, WALL_SLACK: 0.05,                         // the pile stays in view
   // depth: the mess spreads toward the viewer over the rug in front of the base (z: L of screen-down depth; nearer
   // pieces drawn a little bigger), so the pile lies in front of the build, as in the photos. The parked base keeps
-  // CLEAR_PAD L beside it clear: a piece lying there slides forward until it is below the car's plate (CLEAR_TOP L
-  // under it), or (no rug in front, a short landscape screen) out sideways. A car in the mess fades CAR_FADE s after it
+  // CLEAR_PAD L beside it clear: a piece lying there slides forward until its top shows under the car, plate and
+  // wheels (CLEAR_TOP L under the rug line the wheels stand on), or (no rug in front, a short landscape screen) out
+  // sideways. A car in the mess fades CAR_FADE s after it
   // has hit the rug (only the live base reads as a car); AGAIN clears the rug over AGAIN_FADE s
-  DEB_Z_RATE: 3.5, DEB_Z_SCALE: 0.05, DEB_Z_MAX: 3.2, CLEAR_PAD: 0.6, CLEAR_TOP: 0.1, CAR_FADE: 0.6, AGAIN_FADE: 0.4,
+  DEB_Z_RATE: 3.5, DEB_Z_SCALE: 0.05, DEB_Z_MAX: 3.2, CLEAR_PAD: 0.7, CLEAR_TOP: 0.04, CAR_FADE: 0.6, AGAIN_FADE: 0.4,
   CUBE_FADE: 3,                             // (and the boy takes his cube back: it never piles up into a wall of cubes)
   // a tile (or ring) that has come to rest falls flat on the rug: drawn squashed to LAY_K of its height about its
   // edge on the rug (the build stands up, the mess lies down); the cube and the cars stay on their feet
   LAY_K: 0.3,
   // TOPPLE: a build with no square or triangle slot left anywhere bursts and a new base rolls in
   // (the same path M3's crash uses; 3.6 Crash)
-  TOPPLE_DELAY: 0.3, TOPPLE_FREEZE: 0.1, TOPPLE_SHAKE: 10, ROLL_WAIT: 0.2, ROLL_T: 0.45,
+  // (the dead end is told for TOPPLE_DELAY before it goes: the tower shivers harder and harder, a "NO ROOM!" sign pops
+  // up over its top and it creaks; releases are held from the moment the tile that closes the last slot is let go)
+  TOPPLE_DELAY: 0.42, TOPPLE_FREEZE: 0.1, TOPPLE_SHAKE: 10, ROLL_WAIT: 0.2, ROLL_T: 0.45,
   // the gauge (9): shown once the zoom bottoms out and the camera scrolls
   GAUGE_W: 26,
   // the FPS watchdog (M8)
@@ -253,7 +256,46 @@ function font(px, w) {
   if (!f) { f = (w || 700) + ' ' + Math.round(px) + 'px ' + FONT_STACK; FONT_CACHE.set(k, f); }
   return f;
 }
-function loadStore(key, def) { try { const v = localStorage.getItem(key); return v ? Object.assign({}, def, JSON.parse(v)) : Object.assign({}, def); } catch (e) { return Object.assign({}, def); } }
+// a text's width in a font (bold, px rounded as font() does), measured once: placing a pop measures its words, and
+// setting ctx.font is not cheap on a phone. Forgotten when a web font arrives (the widths change)
+const TEXTW = new Map();
+let TEXTWN = 0;
+function textW(px, text) {
+  const f = font(px);
+  let m = TEXTW.get(f);
+  if (!m) { m = new Map(); TEXTW.set(f, m); }
+  let w = m.get(text);
+  if (w === undefined) {
+    if (++TEXTWN > 600) { TEXTW.clear(); TEXTWN = 0; m = new Map(); TEXTW.set(f, m); }
+    ctx.font = f; w = ctx.measureText(text).width; m.set(text, w);
+  }
+  return w;
+}
+// The first use of a font size costs the canvas a millisecond or more (a few on a phone): while the title is up, one
+// size a frame of the bold face the pops and words use is set once, so a hot streak's new sizes cost nothing in play
+const FONTWARM = { px: 10, max: 64 };
+function warmFont() {
+  if (FONTWARM.px > FONTWARM.max) return;
+  ctx.font = font(FONTWARM.px++); ctx.measureText('A');
+}
+try { document.fonts.addEventListener('loadingdone', () => { TEXTW.clear(); TEXTWN = 0; FONTWARM.px = 10; }); } catch (e) { /* no font loading API */ }
+// a stored record, read field by field against its defaults: a number must be a finite number >= 0, a boolean a
+// boolean; a field that is missing, of another type (a hand-edited or corrupted store: "12", null, NaN, -5, an
+// object) falls back to its default on its own, and fields the defaults do not name are dropped
+function loadStore(key, def) {
+  const out = Object.assign({}, def);
+  try {
+    const v = localStorage.getItem(key), o = v ? JSON.parse(v) : null;
+    if (o && typeof o === 'object' && !Array.isArray(o)) {
+      for (const k of Object.keys(def)) {
+        if (!Object.prototype.hasOwnProperty.call(o, k)) continue;
+        const d = def[k], x = o[k];
+        if (typeof d === 'number' ? typeof x === 'number' && isFinite(x) && x >= 0 : typeof d === 'boolean' ? typeof x === 'boolean' : typeof x === typeof d) out[k] = x;
+      }
+    }
+  } catch (e) { /* storage blocked or not JSON: the defaults */ }
+  return out;
+}
 function saveStore(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* storage blocked */ } }
 function rrect(c, x, y, w, h, r) {
   r = Math.min(r, w / 2, h / 2);
@@ -603,14 +645,24 @@ const Art = (() => {
     return [-L / 2, -L / 2, L / 2, L / 2];
   }
 
-  function bodyGrad(g, base, L, a) {
+  // (lit: the night's lit glass, a flatter light across it, so its darkest corner still stands out from the wall)
+  function bodyGrad(g, base, L, a, lit) {
     const gr = g.createLinearGradient(-L / 2, -L / 2, L / 2, L / 2);
-    gr.addColorStop(0, rgba(lighten(base, 0.12), a));
-    gr.addColorStop(1, rgba(darken(base, 0.08), a));
+    gr.addColorStop(0, rgba(lighten(base, lit ? 0.08 : 0.12), a));
+    gr.addColorStop(1, rgba(lit ? darken(base, 0.01) : darken(base, 0.08), a));
     return gr;
   }
 
   const NIGHT_PAD = 0.24; // glow halo around night sprites, in L
+  // how far a night tile's glass is lifted toward white: at least 0.38 (orange 0.46: its X-diamond inset darkens most
+  // of the square), and as far as it takes to reach a luminance of NIGHT_LUM (blue 0.5, red and purple a little over
+  // 0.38; the light colours stay at 0.38)
+  const NIGHT_LUM = 172;
+  function nightLift(h) {
+    let t = h === PAL.orange ? 0.46 : 0.38;
+    for (; t < 0.7; t += 0.02) { const c = rgbOf(lighten(h, t)); if (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2] >= NIGHT_LUM) break; }
+    return t;
+  }
   function buildTile(L, kind, shape, color, pat) {
     if (shape === 'cube') return buildCube(L, kind);
     const bb = shapeBounds(shape, L);
@@ -640,8 +692,10 @@ const Art = (() => {
       g.beginPath(); polyPath(g, outer, r); g.fill();
       g.restore();
       // lighter and denser than by day: lit glass must stand out from the dark sky AND from the
-      // lamp-lit wall and console behind a tower at night (40+ luminance either way)
-      g.fillStyle = bodyGrad(g, lighten(nb, 0.38), L, 0.92);
+      // lamp-lit wall and console behind a tower at night (40+ luminance either way, with room to
+      // spare: the dark colours, blue above all, are lifted further, to the same lit brightness, and the
+      // light across the glass is flatter than by day)
+      g.fillStyle = bodyGrad(g, lighten(nb, nightLift(nb)), L, 0.92, true);
       g.beginPath(); polyPath(g, outer, r); g.fill();
       g.fillStyle = rgba(lighten(nb, 0.1), 0.15);
       g.beginPath(); polyPath(g, outer, r); polyPath(g, shapePts(shape, L, 0.1 * L), r * 0.5); g.fill('evenodd');
@@ -1453,12 +1507,14 @@ const Art = (() => {
     return finish(s);
   }
 
-  // draws the sleeve along local -y from y0 (cuff end) to yTop (negative, far end)
-  function sleeveRun(ctx, L, y0, yTop) {
+  // draws the sleeve along local -y from y0 (cuff end) to yTop (negative, far end); phase: how far along the
+  // sleeve (px) local y = 0 is, so the stripes run on unbroken from one piece of a bent sleeve to the next
+  function sleeveRun(ctx, L, y0, yTop, phase) {
     const s = getSprite(9100, qOf(L), buildSleeve);
     if (!s) return;
     const f = L / s.L, segH = s.h * f;
     let y = y0 - segH;
+    if (phase) y += (((phase - y0) % segH) + segH) % segH;
     let guard = 0;
     while (y + segH > yTop && guard++ < 64) {
       ctx.drawImage(s.c, -s.ox * f, y, s.w * f, segH);
@@ -1531,12 +1587,17 @@ const Art = (() => {
   }
 
   const FINGER_LEN = [0.33, 0.36, 0.34, 0.28];
+  // (returns where the arm went, for the caller to keep things it must not hide clear of it: the wrist, the elbow and
+  // the shoulder in screen px and the arm's half-widths there; one reused object, valid until the next call)
+  const ARMJ = { ok: false, wx: 0, wy: 0, ex: 0, ey: 0, sx: 0, sy: 0, rf: 0, ru: 0, bow: 0 };
   function drawHand(ctx, x, y, L, open, t) {
-    if (!okL(L) || !fin(x) || !fin(y)) return;
+    ARMJ.ok = false;
+    if (!okL(L) || !fin(x) || !fin(y)) return ARMJ;
     open = open > 0 ? Math.min(1, open) : 0;
     t = fin(t) ? t : 0;
     ctx.save();
     try { handBody(ctx, x, y, L, open, t); } finally { ctx.restore(); }
+    return ARMJ;
   }
   // the elbow: a navy ball with a soft light (one unit-space gradient, placed by the transform)
   let elbowGrad = null;
@@ -1556,16 +1617,68 @@ const Art = (() => {
   /* The holding arm. It comes from a shoulder above the top edge toward the right (the boy kneels
    * at the right of the build, photo 1), so it slants and its angle follows the hand. The forearm is
    * a child's (2.6 L) and the elbow always shows: within reach the arm bends by plain two-segment IK;
-   * beyond it the upper arm stretches up to the shoulder (mostly off the top) and the elbow keeps a
-   * 35 degree bend, pointing out to the lower right, so it never reads as a straight pole. In
-   * landscape the shoulder sits left of the corner HUD column, so the arm comes down beside it.
-   * The hand turns part of the way toward the shoulder, about its grip on the tile. */
+   * beyond it (a low hand) the child stretches: the forearm grows with the reach (up to ARM_FORE_MAX
+   * times), the upper arm takes the rest up to the shoulder (mostly off the top) and the elbow keeps a
+   * 35 degree bend, pointing out to the lower right. The upper arm is drawn coming toward the viewer:
+   * it widens on its way off the screen and bows out a little (upperArm), so a long reach reads as a
+   * child's arm reaching in from above the camera, never as a straight pole. In landscape the
+   * shoulder sits left of the corner HUD column, so the arm comes down beside it. The hand turns part
+   * of the way toward the shoulder, about its grip on the tile. */
   const ARM_FORE = 2.6, ARM_UPPER = 2.8, ARM_GAMMA = Math.PI - 0.61;   // elbow angle when stretched (145 deg)
+  const ARM_REACH = Math.sqrt(ARM_FORE * ARM_FORE + ARM_UPPER * ARM_UPPER - 2 * ARM_FORE * ARM_UPPER * Math.cos(ARM_GAMMA));
+  const ARM_FORE_MAX = 1.75, ARM_FORE_K = 0.55, ARM_TAPER = 0.09, ARM_TAPER_MAX = 1.55, ARM_BOW = 0.08, ARM_N = 10;
+  // the upper arm from the elbow E toward the shoulder S (and 1.5 L on past it): a gentle bow away from the wrist side
+  // (side: +1 / -1), widening along its length. Straight pieces of sleeve (the stripes running on across them), each a
+  // little wider than the arm there, clipped to the arm's one smooth outline (no steps at the joins)
+  const UA = new Float64Array((ARM_N + 2) * 2), UW = new Float64Array(ARM_N + 2), UC = new Float64Array(ARM_N + 2);
+  const UN = new Float64Array((ARM_N + 2) * 2), ARM_SEGS = [0, 3, 6, 9, ARM_N + 1];
+  const armW = (L, s) => Math.min(ARM_TAPER_MAX, 1 + ARM_TAPER * Math.max(0, s - 1.2 * L) / L);
+  function upperArm(ctx, L, ex, ey, sx, sy, side) {
+    const dx = sx - ex, dy = sy - ey, len = Math.max(1e-3, Math.hypot(dx, dy));
+    const nx = -dy / len * side, ny = dx / len * side, bow = ARM_BOW * len;
+    const cx = (ex + sx) / 2 + nx * bow, cy = (ey + sy) / 2 + ny * bow;
+    for (let i = 0; i <= ARM_N; i++) {
+      const t = i / ARM_N, u = 1 - t;
+      UA[2 * i] = u * u * ex + 2 * u * t * cx + t * t * sx; UA[2 * i + 1] = u * u * ey + 2 * u * t * cy + t * t * sy;
+    }
+    // (on past the shoulder along the curve's end tangent, off the screen)
+    let tx = sx - cx, ty = sy - cy; const tl = Math.max(1e-3, Math.hypot(tx, ty)); tx /= tl; ty /= tl;
+    UA[2 * ARM_N + 2] = sx + tx * 1.5 * L; UA[2 * ARM_N + 3] = sy + ty * 1.5 * L;
+    let c = 0;
+    for (let i = 0; i <= ARM_N + 1; i++) {
+      UC[i] = c; UW[i] = 0.31 * L * armW(L, c);
+      if (i <= ARM_N) c += Math.hypot(UA[2 * i + 2] - UA[2 * i], UA[2 * i + 3] - UA[2 * i + 1]);
+      // (the offset to the outline there: the normal of the path, as long as the half-width)
+      const a = i > 0 ? i - 1 : 0, b = i <= ARM_N ? i + 1 : ARM_N + 1, qx = UA[2 * b] - UA[2 * a], qy = UA[2 * b + 1] - UA[2 * a + 1];
+      const k = UW[i] / Math.max(1e-3, Math.hypot(qx, qy));
+      UN[2 * i] = -qy * k; UN[2 * i + 1] = qx * k;
+    }
+    // the outline: each point pushed out both ways along the normal of the path there
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(UA[0] + UN[0], UA[1] + UN[1]);
+    for (let i = 1; i <= ARM_N + 1; i++) ctx.lineTo(UA[2 * i] + UN[2 * i], UA[2 * i + 1] + UN[2 * i + 1]);
+    for (let i = ARM_N + 1; i >= 0; i--) ctx.lineTo(UA[2 * i] - UN[2 * i], UA[2 * i + 1] - UN[2 * i + 1]);
+    ctx.closePath();
+    ctx.clip();
+    // (the sleeve in ARM_SEGS straight runs along the chords, each as wide as the widest of the arm it covers: the
+    // outline is the smooth one, and few runs keep the canvas calls, and their boxed numbers, down)
+    for (let k = 0; k + 1 < ARM_SEGS.length; k++) {
+      const i = ARM_SEGS[k], j = ARM_SEGS[k + 1];
+      const x0 = UA[2 * i], y0 = UA[2 * i + 1], px = UA[2 * j] - x0, py = UA[2 * j + 1] - y0, l = Math.max(1e-3, Math.hypot(px, py));
+      let wmax = 0;
+      for (let q = i; q <= j; q++) if (UW[q] > wmax) wmax = UW[q];
+      sleeveSeg(ctx, L, x0, y0, px / l, py / l, l + 0.06 * L, k ? 0.08 * L : 0, 1.1 * wmax / (0.31 * L), UC[i]);
+    }
+    ctx.restore();
+  }
   function handBody(ctx, x, y, L, open, t) {
     const LEN = FINGER_LEN;
     const hy = y - open * 0.12 * L;
     const W = LAY.W > 0 ? LAY.W : x + 6 * L, H = LAY.H > 0 ? LAY.H : 2 * W;
-    const sx = W > 1.1 * H ? W - Math.max(130, 0.16 * W) : W * 0.88 + 0.6 * L, sy = -2.6 * L - 20;
+    // (landscape: the shoulder also follows the hand a little way, so a hand far to the left is reached for at a
+    // slant from up and right of it, not from across the whole screen)
+    const sx = W > 1.1 * H ? Math.min(W - Math.max(130, 0.16 * W), x + 6.5 * L) : W + 0.5 * L, sy = -2.4 * L - 20;
     const lean = Math.atan2(sx - x, (hy - 0.62 * L) - sy);
     const tilt = clamp(0.55 * lean, -0.5, 0.5) + Math.sin(t * 1.9) * 0.02;
     const wx = x + 0.62 * L * Math.sin(tilt), wy = hy - 0.62 * L * Math.cos(tilt);
@@ -1573,8 +1686,8 @@ const Art = (() => {
     let ux0 = sx - wx, uy0 = sy - wy;
     const d = Math.max(1e-3, Math.hypot(ux0, uy0));
     ux0 /= d; uy0 /= d;
-    const b = ARM_FORE * L, cg = Math.cos(ARM_GAMMA);
-    let a = ARM_UPPER * L, beta;
+    const b = ARM_FORE * L * clamp(1 + ARM_FORE_K * (d / (ARM_REACH * L) - 1), 1, ARM_FORE_MAX), cg = Math.cos(ARM_GAMMA);
+    let a = b * ARM_UPPER / ARM_FORE, beta;
     if (d * d >= a * a + b * b - 2 * a * b * cg) {
       // out of reach: the upper arm takes the length, the elbow keeps its bend (law of cosines, then sines)
       a = 0.5 * (2 * b * cg + Math.sqrt(4 * b * b * cg * cg - 4 * (b * b - d * d)));
@@ -1586,10 +1699,11 @@ const Art = (() => {
     if (fx0 * -uy0 + fy0 * ux0 < 0) { fx0 = ux0 * cb + uy0 * sb; fy0 = -ux0 * sb + uy0 * cb; }
     const ex = wx + fx0 * b, ey = wy + fy0 * b;
     // upper arm (from the elbow up past the shoulder), the elbow, then the forearm over them
-    let ux = sx - ex, uy = sy - ey;
-    const lu = Math.max(1e-3, Math.hypot(ux, uy));
-    ux /= lu; uy /= lu;
-    sleeveSeg(ctx, L, ex, ey, ux, uy, lu + 1.5 * L, 0);
+    // (the bow away from the wrist's side of the elbow-shoulder line)
+    const wside = (sx - ex) * (wy - ey) - (sy - ey) * (wx - ex);
+    upperArm(ctx, L, ex, ey, sx, sy, wside > 0 ? 1 : -1);
+    ARMJ.ok = true; ARMJ.wx = wx; ARMJ.wy = wy; ARMJ.ex = ex; ARMJ.ey = ey; ARMJ.sx = sx; ARMJ.sy = sy;
+    ARMJ.rf = 0.31 * L + 2; ARMJ.ru = 0.31 * L * ARM_TAPER_MAX + 2; ARMJ.bow = ARM_BOW * Math.hypot(sx - ex, sy - ey);
     elbowBall(ctx, ex, ey, 0.31 * L);
     let fx = ex - wx, fy = ey - wy;
     const lf = Math.max(1e-3, Math.hypot(fx, fy));
@@ -1695,14 +1809,15 @@ const Art = (() => {
   }
 
   // one straight run of sleeve from P along (dx, dy), cut square at both ends: from `over`
-  // behind P to `len` ahead of it
-  function sleeveSeg(ctx, L, px, py, dx, dy, len, over) {
+  // behind P to `len` ahead of it; kw widens it (1: a child's sleeve), phase: see sleeveRun
+  function sleeveSeg(ctx, L, px, py, dx, dy, len, over, kw, phase) {
     const w = 0.62 * L;
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(Math.atan2(dx, -dy));
+    if (kw && kw !== 1) ctx.scale(kw, 1);
     ctx.beginPath(); ctx.rect(-w / 2 - 2, -len, w + 4, len + over); ctx.clip();
-    sleeveRun(ctx, L, over, -len);
+    sleeveRun(ctx, L, over, -len, phase || 0);
     ctx.restore();
   }
 
@@ -3504,6 +3619,11 @@ const Sfx = (() => {
   // burst at a time; an event less than one burst ahead can be overtaken by the next burst before it
   // lands. Set from baseLatency at unlock (6 ms where the browser does not report it).
   let LAT = 0.006;
+  // go() starts a sound (not a music step) at least COMMIT_PAD past the bare minimum: the clock ticks a render
+  // quantum (128 frames, ~3 ms) at a time, and one tick in the middle of committing its parts would otherwise push
+  // the parts after it one quantum later than the ones before (a flam). One quantum and a millisecond (set at
+  // unlock from the sample rate)
+  let COMMIT_PAD = 0.004;
   const MUSIC_VOL = 0.115;   // music bus level: the groove sits well under the sfx (the x5 groove's loudest 50 ms 6+ dB under a clack)
   const DUCK_TO = 0.3;       // music gain while ducked (crash, smash)
   const TRIM = 0.8;          // after the compressor: undoes its automatic make-up gain (~+3.8 dB)
@@ -3700,8 +3820,9 @@ const Sfx = (() => {
     v.q = null;
     const i = todo.indexOf(v);
     if (i >= 0) todo.splice(i, 1);
-    const late = ac.currentTime + LAT - v.first;
-    if (late > 0 && grid) return -1;
+    const now = ac.currentTime;
+    if (grid && now + LAT - v.first > 0) return -1;
+    const late = grid ? 0 : now + LAT + COMMIT_PAD - v.first;
     const sh0 = late > 0 ? late : 0;
     let sh = sh0;
     for (let k = 0; k < q.length; k += 2) {
@@ -3888,14 +4009,33 @@ const Sfx = (() => {
       play(v, pick(SNAP), tk, 1 + 0.07 * k, 0.26);
       marimba(v, fk, tk, 0.26 * loud(fk), 0.15);
     }
-    if (grade === 'perfect') ting(v, t + 0.012);
+    if (grade === 'perfect') ting(v, t + 0.012, o.streak);
   }
-  function ting(v, t) {   // PERFECT: C7 + G7 (2093 / 3136 Hz), 250 ms, with a beating shimmer and two glints
-    tone(v, 'sine', 2093, t, 0.002, 0.1, 0.3);
-    tone(v, 'sine', 2097.5, t, 0.002, 0.05, 0.26);
-    tone(v, 'sine', 3136, t, 0.002, 0.07, 0.25);
-    tone(v, 'sine', 2637, t + 0.045, 0.002, 0.035, 0.12);
-    tone(v, 'sine', 4186, t + 0.085, 0.002, 0.025, 0.1);
+  // PERFECT: C7 + G7 (2093 / 3136 Hz), 250 ms, with a beating shimmer and two glints. You can hear your streak: from
+  // the 2nd PERFECT in a row (o.streak, this one counted) each ting is a pentatonic step higher, an octave up (C8) from
+  // the 6th; the glints stay under 6 kHz (the top one drops an octave as the root climbs), and from the 10th a third
+  // glint rings on the climb
+  const TING_UP = [0, 0, 2, 4, 7, 9, 12];
+  function ting(v, t, streak) {
+    const n = Math.max(1, Math.floor(fin(streak, 1))), k = Math.pow(2, TING_UP[Math.min(n, 6)] / 12), lv = 1 / Math.sqrt(k);
+    tone(v, 'sine', 2093 * k, t, 0.002, 0.1 * lv, 0.3);
+    tone(v, 'sine', 2097.5 * k, t, 0.002, 0.05 * lv, 0.26);
+    tone(v, 'sine', 3136 * k, t, 0.002, 0.07 * lv * lv, 0.25);
+    tone(v, 'sine', 2637 * k, t + 0.045, 0.002, 0.035 * lv, 0.12);
+    tone(v, 'sine', 4186 * (k > 1.4 ? k / 2 : k), t + 0.085, 0.002, 0.025, 0.1);
+    if (n >= 10) tone(v, 'sine', 3136 * (k > 1.4 ? k / 2 : k), t + 0.125, 0.002, 0.022, 0.1);
+  }
+  // a PERFECT-streak milestone (tier 1..4: 5, 10, 20, 30 in a row): a quick marimba run up the pentatonic from A5, one
+  // note longer each tier, into a two-bell chord with a little sparkle over it (all in key with the groove)
+  function streak(n) {
+    if (!live()) return;
+    const tier = clamp(Math.round(fin(n, 1)), 1, 4), run = 4 + tier, pf = (i) => midiHz(pentMidi(i));
+    const v = voice(2, 0.95 + 0.05 * tier, 0), t = v.t0;
+    for (let k = 0; k < run; k++) { const f = pf(4 + k); marimba(v, f, t + k * 0.045, 0.2 * loud(f), 0.14); }
+    const tc = t + run * 0.045 + 0.015, top = pf(4 + run), under = pf(2 + run);
+    bell(v, top, tc, 0.125 * loud(top), 0.65);
+    bell(v, under, tc + 0.012, 0.085 * loud(under), 0.55);
+    for (let k = 0; k < 2 + tier; k++) { const f = pf(10 + ((k * 2) % 5)); tone(v, 'sine', f, tc + 0.07 + k * 0.055, 0.002, 0.035 * loud(f), 0.1); }
   }
 
   /* ---------------------------------------------------------------- small sounds */
@@ -4392,6 +4532,9 @@ const Sfx = (() => {
       if (!AC) return;
       try { ac = new AC({ latencyHint: 'interactive' }); } catch (e) { ac = new AC(); }
       LAT = clamp(fin(ac.baseLatency, 0), 0.006, 0.04);
+      // (an offline render's clock stands still while the main thread commits: no pad)
+      const offline = typeof OfflineAudioContext !== 'undefined' && ac instanceof OfflineAudioContext;
+      COMMIT_PAD = offline ? 0 : 128 / (fin(ac.sampleRate, 44100) || 44100) + 0.001;
       build();
       ac.onstatechange = onState;
       if (typeof document !== 'undefined' && document.addEventListener) document.addEventListener('visibilitychange', onVis);
@@ -4450,6 +4593,7 @@ const Sfx = (() => {
     fuseTick: guard('fuseTick', fuseTick),
     clockTick: guard('clockTick', clockTick),
     newBest: guard('newBest', newBest),
+    streak: guard('streak', streak),
     uiClick: guard('uiClick', uiClick),
     haptic: guard('haptic', (p) => {
       if (!unlocked || typeof navigator === 'undefined' || !navigator.vibrate) return;
@@ -4708,6 +4852,7 @@ const S = {
   lrng: mulberry32(PARAM.seed ^ 0x0A1B2C3D),      // ring spots
   hrng: mulberry32(PARAM.seed ^ 0x77E1F00D),      // hazard sides
   toppleAt: -1, lockUntil: -1, rollT0: -1, rollFrom: 0,   // dead-end TOPPLE / crash: releases wait until the new base is in
+  tellAt: -1,                                               // when the dead end's tell began (toppleAt >= 0)
   level: 1, goalLevel: 1, G: 4, goalName: '', goalIcon: 'melon', goalTorn: false, goalTornAt: 0,
   big: PARAM.big, cars: 2,
   score: 0, combo: 0, mult: 1, streak: 0, bestStreak: 0, perfects: 0, landed: 0, crashes: 0, saves: 0, braces: 0, misses: 0,
@@ -4975,26 +5120,42 @@ function predLand(D, P, m, k, dxs, grade, marble) {
   kickFlex(D, CAL.Kf, m, dxs, grade, S.big);
   if (marble) { D.braceT = CFG.BRACE_T; D.omega *= CFG.BRACE_W; }
 }
-function predictCrash(horizon, extra) {
+// It is the game's own future, step for step: each simulated step lands what is due at its time and takes a hazard hit
+// before it rocks, in step()'s order. Asked between two steps (a click, a frame, after stepTower: ROCKED) the tower has
+// already rocked for S.gt and the first step simulated is the next one; asked inside a step before stepTower (a landing,
+// the fuse, the hand's TIPPY check) the first is this step's own rock. (It used to rock first and land after even
+// between steps: every landing came one step late, and a drop on the edge of tipping could be called safe and fall.)
+// A tower still past its tipping angle when the horizon runs out counts as going over.
+// (trace: a test hook's array; each simulated step's θ is pushed onto it, and the look-ahead runs on past a rest)
+function predictCrash(horizon, extra, trace) {
   const D = Object.assign(PRED, TW), fl = S.flights, margin = S.big ? CFG.CRASH_MARGIN_BIG : CFG.CRASH_MARGIN;
   D.crashing = false;
-  let fi = 0, t = S.gt, ex = extra || null;
+  let fi = 0, t = ROCKED ? S.gt + CFG.STEP : S.gt, ex = extra || null;
   // the next hazard is on a fixed schedule: when it hits inside the horizon, the look-ahead takes the hit too (so the
-  // tip tell warns of a bump the tower will not survive, and TIPPY is honest about it)
+  // tip tell warns of a bump the tower will not survive, and TIPPY is honest about it). (Inside a step its clock has
+  // not ticked yet for this step: the hit comes one step sooner than hazardHitAt says)
   let hz = hazardHitAt();
-  for (let i = 0, n = Math.round(horizon / CFG.STEP); i < n; i++) {
+  if (hz >= 0 && !ROCKED) hz -= CFG.STEP;
+  const n = Math.round(horizon / CFG.STEP);
+  // (a hit past the horizon never comes into it: without it the look-ahead can stop as soon as all is at rest)
+  if (hz > t + n * CFG.STEP + 1e-9) hz = -1;
+  for (let i = 0; i < n; i++, t += CFG.STEP) {
     while (fi < fl.length && t >= fl[fi].landAt - 1e-9) {
       const f = fl[fi++];
       predLand(D, f.pose, f.tile.mass, f.tile.k, f.dxs, f.grade, f.piece.shape === 'marble');
     }
     if (ex && fi >= fl.length && t >= ex.landAt - 1e-9) { predLand(D, ex.pose, ex.mass, ex.k, ex.dxs, ex.grade, ex.marble); ex = null; }
     if (hz >= 0 && t >= hz - 1e-9) { hazardKick(HZ.kind, -HZ.side, D); hz = -1; }
-    rockStep(D, CFG.STEP); t += CFG.STEP;
+    rockStep(D, CFG.STEP);
+    if (trace) trace.push(D.theta);
     if (D.theta !== 0 && Math.abs(D.theta) > Math.max(0, D.alphaSide) + margin) { PRED_SIDE.v = D.theta > 0 ? 1 : -1; return t - S.gt; }
-    if (fi >= fl.length && !ex && hz < 0 && D.theta === 0 && D.omega === 0 && Math.abs(D.cx + D.s * D.FW) <= D.w) return -1;
+    if (!trace && fi >= fl.length && !ex && hz < 0 && D.theta === 0 && D.omega === 0 && Math.abs(D.cx + D.s * D.FW) <= D.w) return -1;
   }
+  if (D.tipping && !ex && fi >= fl.length) { PRED_SIDE.v = D.theta > 0 ? 1 : -1; return t - S.gt; }
   return -1;
 }
+// true between two steps (the tower has rocked for S.gt); false inside a step from its clock tick to the tower's rock
+let ROCKED = true;
 const PRED_SIDE = { v: 1 };
 const DOOM = { t: -1, side: 1, at: -1 };    // predicted time to crash (-1 = none) and when it was last checked
 function checkDoom() { DOOM.t = predictCrash(CFG.DOOM_HORIZON); DOOM.side = PRED_SIDE.v; DOOM.at = S.gt; }
@@ -5116,6 +5277,7 @@ function stepTower(dt) {
   }
   if (S.phase === 'play' || CR.stage === 'fall' || CR.stage === 'unzip') {
     rockStep(TW, dt);
+    ROCKED = true;
     if (S.phase === 'play') {
       // test stats (CS.state().dyn): the top's lateral speed while the cap applies, and the flex, every step
       const vt = Math.abs(TW.sv + TW.omega * (TW.H + 0.5) * Math.cos(TW.theta)), as = Math.abs(TW.s);
@@ -5268,7 +5430,8 @@ function newBase(fromSide, wait, couple) {
 // The build bursts into debris, the combo resets, and a new base rolls in toward the same goal.
 function doTopple() {
   const B = S.B;
-  S.toppleAt = -1;
+  logEvent('toppleburst', { told: S.tellAt >= 0 ? +(S.gt - S.tellAt).toFixed(4) : null });
+  S.toppleAt = -1; S.tellAt = -1;
   const tiles = B.tiles.filter(t => !t.flight), n = tiles.length;
   const keep = Math.min(n, CFG.DEBRIS_MAX);
   debrisRoom(keep);
@@ -5282,11 +5445,17 @@ function doTopple() {
       vx: dx * 1.1 + dir * (0.6 + 2.2 * S.drng()), vy: 1.2 + 3.5 * S.drng() + 0.12 * P.cy, w: (S.drng() - 0.5) * 16, gear: !!t.gearAt, zT: debrisZT() });
   }
   const prevTop = S.top;
-  S.flinch = true; S.flinchAt = S.gt;
+  S.flinch = true; S.flinchAt = S.gt; HAND.pending = null;
   S.combo = 0; S.mult = 1; S.streak = 0; Sfx.music.setMult(1);
   logEvent('topple', { tiles: n, top: +prevTop.toFixed(3) });
+  // TOPPLE! is the one word now: the landing's word still up goes at once (it would show under it), and the word is
+  // placed for the hand where it flinches to, clear of it and the tile in it
+  for (let i = 0; i < FX.words.length; i++) { const o = FX.words[i]; if (o.kind === 'word') o.life = Math.min(o.life, S.gt - o.t0); }
   w2s(0, Math.min(prevTop, S.G) * 0.6, _s);
+  const hy = CAM.handY, fy = Math.min(CAM.handY, CAM.handTop + CFG.FLINCH_UP * CAM.L);
+  CAM.handY = fy; POP_HELD.on = true; POP_HELD.y0 = fy; POP_HELD.y1 = hy;
   placedPop('TOPPLE!', '', _s.y, '#ffffff', 1.3, CFG.WORD_MAX);
+  POP_HELD.on = false; CAM.handY = hy;
   addShake(CFG.TOPPLE_SHAKE, 0.5);
   FX.hitStop = Math.max(FX.hitStop, CFG.TOPPLE_FREEZE);
   Sfx.crash(n, clamp(keep ? sumX / keep / 4 : 0, -1, 1)); Sfx.whistle(); Sfx.music.duck(1); Sfx.music.setMult(1);
@@ -5408,6 +5577,10 @@ function doRelease(src) {
       t0: S.gt, T, landAt, yankAt: landAt - CFG.YANK_T, x0: hx, y0, leanDir: dxs > 1e-9 ? 1 : dxs < -1e-9 ? -1 : 0,
       zz: false, folds: 0 });
     genSlots(S.B);
+    // the last square or triangle slot has just been taken (a dead end: it TOPPLEs once this lands): nothing more is
+    // let go meanwhile (the next tile could only MISS). A press meanwhile is not taken: it is dropped at the TOPPLE
+    // (held for the new base it would let go over a build the player has not seen yet)
+    if (!crown && !S.B.cands.some(c => c.type !== 'cube')) S.lockUntil = Infinity;
     massProps(S.B, true, COMMIT);        // the tip tell looks ahead to where this one is going
     checkDoom();
     CS.lastRelease = { id, ghostKey: slot.key, grade, dx: adx, dxSigned: dxs, t: S.gt, inAir: S.flights.length, src, piece: piece.shape, readyAt, tippy: tippyNow };
@@ -5467,8 +5640,9 @@ function land(f) {
   // dead end (no square or triangle slot anywhere): let this clack ring, then TOPPLE. Releases wait meanwhile.
   // (not for the crown: the SMASH takes the build away anyway)
   if (live && !crown && !S.flights.length && S.toppleAt < 0 && !S.B.cands.some(c => c.type !== 'cube')) {
-    S.toppleAt = S.gt + CFG.TOPPLE_DELAY; S.lockUntil = Infinity;
+    S.toppleAt = S.gt + CFG.TOPPLE_DELAY; S.tellAt = S.gt; S.lockUntil = Infinity;
     debrisFadeFor(Math.min(S.B.tiles.length, CFG.DEBRIS_MAX), CFG.TOPPLE_DELAY * 0.9);   // room for the burst, faded in time
+    logEvent('toppletell', { in: CFG.TOPPLE_DELAY, top: +S.top.toFixed(3) });
   }
   applyKick(t, f.dxs, f.grade);
   // a counterweight (for SAVE): landed on the far side of the CoM from the way it is leaning now (the physical lean,
@@ -5498,11 +5672,12 @@ function land(f) {
   if (brace) doBrace(t);
   // (TIME! is up: tiles in the air land and score, nothing more)
   const ring = live ? collectRings(t) : null;
+  // (the moment's announcement first, the goal's sign or CROWNED!, then this landing's word in the room it leaves: a
+  // streak milestone on the landing that tears the ribbon or crowns still shows)
+  if (live) { if (crown) doCrown(f, t); else checkGoal(); }
   landingPop(f, edgesC, ot, brace, ring);
   if (S.hintOn) { S.hintOn = false; PREFS.seenHint = true; savePrefs(); }
-  if (!live) return;
-  if (crown) doCrown(f, t);
-  else { checkGoal(); crownSync(); }
+  if (live && !crown) crownSync();
 }
 // height profile of the standing build at world x (for MISS bonks and the red X); floor = -0.5
 function buildProfile(xw) {
@@ -5605,7 +5780,7 @@ function debrisZMax() {
 }
 // a depth for a piece thrown by a burst: spread over the rug in front
 function debrisZT() { return debrisZMax() * (0.12 + 0.88 * S.drng()); }
-// how far forward a piece lying on the rug must be for its top to show under the parked car's plate (L)
+// how far forward a piece lying on the rug must be for its top to show under the parked car, its wheels included (L)
 function debrisZClear(d) {
   let top = d.r;
   if (d.verts) {
@@ -5614,7 +5789,7 @@ function debrisZClear(d) {
     for (let k = 0; k < V.length; k += 2) { const ry = V[k] * s + V[k + 1] * c; if (ry > top) top = ry; }
   }
   const h = (d.y + top + 0.5) * d.lay;          // its height over the rug (lying flat: squashed)
-  return Math.max(0, (h - 0.32 + CFG.CLEAR_TOP) / Math.max(0.5, 1 - CFG.DEB_Z_SCALE * h));
+  return Math.max(0, (h + CFG.CLEAR_TOP) / Math.max(0.5, 1 - CFG.DEB_Z_SCALE * h));
 }
 // a piece's screen point (its centre) at its depth: drawn at scale sc about the rug line at that depth (seen: where
 // it shows, lying flat included; else where drawDebris draws it before the squash)
@@ -5933,8 +6108,10 @@ function startGame(mode) {        // mode: 'auto' (?autostart: the base is alrea
   makeRings(); hazReset();
   HAND.piece = takeNext(); HAND.ready = false; HAND.releasedAt = S.gt - CFG.NEXT_T + CFG.START_READY; HAND.dropAt = mode === 'auto' ? -1 : S.gt;
   HAND.pending = null; HAND.lastSrc = null; HAND.fuseT = 0; HAND.fuseMarks = 0; HAND.swapUsed = false; HAND.keyV = 0; HAND.detentT = 0;
-  HAND.crownAt = -1;
-  if (mode === 'auto' || HAND.x === 0) HAND.x = HAND.dx = CAM.originX;
+  HAND.crownAt = -1; HAND.detentKey = null; KEYS.left = KEYS.right = false;
+  // every run starts with the hand over the middle of the base (a keyboard player's slide does not carry over from
+  // the last run, AGAIN or MENU); a mouse player's hand goes where the pointer is, so the first ghost is honest
+  HAND.x = HAND.dx = CAM.originX;
   handToPointer();
   S.hintOn = !PARAM.nohint && !PREFS.seenHint; S.hintT = 0;
   S.phase = 'play';
@@ -6465,6 +6642,8 @@ function pauseGame() {
     syncOverlay();
   }
 }
+// a window blur pauses a mouse or keyboard player's game (see bindInput), never a touch player's
+function blurPauses() { return S.inputType !== 'touch'; }
 function resumeGame() {
   if (S.phase !== 'paused') return;
   S.phase = S.pausedFrom || 'play';
@@ -6783,11 +6962,15 @@ function bindInput() {
   canvas.addEventListener('dblclick', e => { if (e.cancelable) e.preventDefault(); });
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
-  window.addEventListener('blur', () => { KEYS.left = KEYS.right = false; });
+  // the window losing focus (another window, the address bar, alt-tab) pauses like a hidden tab: a desktop player
+  // whose game kept running behind another window would come back to TIME!. Not for a touch player: phones blur the
+  // window on their own now and then while the page stays in front (the notification shade, a long-press callout, a
+  // system sheet), and every real app switch there also hides the page, which pauses it anyway
+  window.addEventListener('blur', () => { KEYS.left = KEYS.right = false; if (blurPauses()) pauseGame(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) pauseGame(); });
   bindOverlay();
-  window.addEventListener('resize', () => layout());
-  window.addEventListener('orientationchange', () => { pauseGame(); setTimeout(layout, 60); });
+  window.addEventListener('resize', () => layout(true));
+  window.addEventListener('orientationchange', () => { pauseGame(); setTimeout(() => layout(true), 60); });
 }
 
 /* ==== CAMERA & RENDER ==== */
@@ -6804,7 +6987,33 @@ function readSafe() {
     return { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
   } catch (e) { return { t: 0, r: 0, b: 0, l: 0 }; }
 }
-function layout() {
+// Art's static layers (the room, the floor warp, the stars: tens of ms to build) follow the screen once a stream of
+// resize events has settled (ART_SETTLE ms after the last one: a window dragged to a new size rebuilds them once, not
+// every event). Everything else is laid out at once, so the next frame has the new geometry; until the rebuild that
+// frame draws the old layers stretched over the new screen (drawBackdrop)
+const ARTSZ = { W: 0, H: 0, G: 0, dpr: 0, timer: 0, rebuilds: 0 };
+const ART_SETTLE = 150;
+function artResize() {
+  if (ARTSZ.timer) { clearTimeout(ARTSZ.timer); ARTSZ.timer = 0; }
+  if (ARTSZ.W === CAM.W && ARTSZ.H === CAM.H && ARTSZ.G === CAM.groundY && ARTSZ.dpr === CAM.dpr) return;
+  ARTSZ.W = CAM.W; ARTSZ.H = CAM.H; ARTSZ.G = CAM.groundY; ARTSZ.dpr = CAM.dpr; ARTSZ.rebuilds++;
+  Art.resize(CAM.W, CAM.H, CAM.dpr, CAM.groundY);
+}
+function artStale() { return ARTSZ.W !== CAM.W || ARTSZ.H !== CAM.H || ARTSZ.G !== CAM.groundY; }
+// the room and the rug. Stale layers (a resize still settling) are drawn for the size they were built for, stretched:
+// across to the new width; the room down to the new ground line; the rug from the ground line down past the new bottom
+function drawBackdrop() {
+  const W = CAM.W, H = CAM.H, G = CAM.groundY;
+  if (!artStale()) { Art.drawRoom(ctx, W, H, G, CAM.camY, S.skyT); Art.drawRug(ctx, W, H, G, CAM.camY); return; }
+  const W0 = ARTSZ.W, H0 = ARTSZ.H, G0 = ARTSZ.G, kx = W / W0, ky = G / G0, kr = Math.max(ky, (H - G) / Math.max(1, H0 - G0));
+  ctx.save(); ctx.scale(kx, ky);
+  Art.drawRoom(ctx, W0, H0, G0, CAM.camY / ky, S.skyT);
+  ctx.restore();
+  ctx.save(); ctx.translate(0, G + CAM.camY); ctx.scale(kx, kr); ctx.translate(0, -(G0 + CAM.camY / kr));
+  Art.drawRug(ctx, W0, H0, G0, CAM.camY / kr);
+  ctx.restore();
+}
+function layout(fromResize) {
   const W = Math.max(200, window.innerWidth), H = Math.max(200, window.innerHeight);
   const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
   const orient = W < H ? 'p' : 'l';
@@ -6856,7 +7065,9 @@ function layout() {
   // (landscape: the lettering runs the full width of the top, so mute sits over the toggle, clear of the build)
   UI.muteT = CAM.portrait ? { x: W - g - sf.r - 44, y: top + 10, w: 44, h: 44 } : { x: UI.big.x, y: UI.big.y - 52, w: 44, h: 44 };
   layoutTitle();
-  Art.resize(W, H, dpr, CAM.groundY);
+  // (the first layout builds at once; a resize waits for the stream of them to settle)
+  if (fromResize && ARTSZ.W > 0) { if (ARTSZ.timer) clearTimeout(ARTSZ.timer); ARTSZ.timer = setTimeout(artResize, ART_SETTLE); }
+  else artResize();
   layoutCard();
   if (S.B && S.phase !== 'title' && S.phase !== 'start' && !(S.phase === 'paused' && S.pausedFrom === 'start')) updateCamera(0, true);
   else CAM.handY = CAM.handTop;
@@ -6927,6 +7138,16 @@ function goalNear(top) { return S.G - top <= CFG.GOAL_NEAR + 1e-9 || S.G <= CFG.
 // hand's hover over it, and the ribbon once it is near; a far goal is not framed (GOAL_NEAR L of air over the build
 // instead, so nothing jumps when it comes near): the tower stays big in the middle of the screen
 function zoomPad(top) { return Math.max((goalNear(top) ? S.G : top + CFG.GOAL_NEAR) + CFG.ZOOM_GOAL_PAD, top + CFG.ZOOM_TOP_PAD); }
+// past the zoom floor every L of air over the build scrolls the base that much further off the bottom, so the scroll
+// frames only ZOOM_TOP_PAD (the build top 2.5 L under the hand's highest line, the hand hovering just under it), not
+// the zoom's GOAL_NEAR of air; as the goal comes within SCROLL_RAMP L of a tile short of being near, the air grows
+// back to what the zoom frames, so the ribbon is in the view (with the hand over it) by the time the hand hops, and
+// nothing jumps more than the hop itself (the last tile before the near line is framed as the zoom frames it)
+function scrollPad(top) {
+  if (goalNear(top)) return zoomPad(top);
+  const k = clamp((S.G - top - CFG.GOAL_NEAR - 1) / CFG.SCROLL_RAMP, 0, 1);
+  return lerp(zoomPad(top), top + CFG.ZOOM_TOP_PAD, k);
+}
 function zoomAt(top) { return Math.min(CAM.W / CFG.ZOOM_DIV, (CAM.groundY - CAM.handTop) / zoomPad(top)); }
 function zoomRaw() { return zoomAt(camTop()); }
 // the most zoomed-in view of this level (an empty base): what a pile or a ring must fit in to stay on screen
@@ -6943,9 +7164,9 @@ function updateCamera(dt, snap) {
   // car going over, the pile) comes back into view at once, whatever height the camera had scrolled to; the crash's
   // slow motion and the shove give the pan time
   if (ph === 'crash' || ph === 'over' || (ph === 'smash' && SM.stage !== 'wait')) kc = snap ? 1 : 1 - Math.exp(-12 * dt);
-  // past the zoom floor the camera scrolls up instead, framing the same height the zoom would
+  // past the zoom floor the camera scrolls up instead (framing less air over the build than the zoom: scrollPad)
   else if (raw < CFG.ZOOM_MIN) {
-    cy = Math.max(0, zoomPad(top) * CAM.L - (CAM.groundY - CAM.handTop));
+    cy = Math.max(0, scrollPad(top) * CAM.L - (CAM.groundY - CAM.handTop));
     if (cy > CAM.camY && !snap) kc = 1 - Math.exp(-CFG.ZOOM_EASE_OUT * dt);       // (up: making room, as zooming out)
   }
   CAM.camY += (cy - CAM.camY) * kc;
@@ -7002,8 +7223,7 @@ function render() {
   const sh = shakeOffset();
   ctx.translate(sh.x, sh.y);
   const ph = S.phase === 'paused' ? S.pausedFrom : S.phase;
-  Art.drawRoom(ctx, W, H, CAM.groundY, CAM.camY, S.skyT);
-  Art.drawRug(ctx, W, H, CAM.groundY, CAM.camY);
+  drawBackdrop();
   if (ph === 'title' || ph === 'start') {
     // the title build stands until the cube hits it; then only the flying mess
     if (ph === 'title' || !ST.hit) drawTitleScene();
@@ -7034,6 +7254,14 @@ function render() {
   drawPulses();
   drawDebrisShadows();
   drawPuffs();
+  // a dead end's tell: the build shivers, harder and harder, until it TOPPLEs (drawn only: the physics is still)
+  const tellK = toppleTell(), shiver = tellK > 0 && showBase;
+  if (shiver) {
+    w2s(TW.ox, -0.5, _s);
+    const a = L * (0.02 + 0.05 * tellK), ph = S.gt * 88;
+    TELL.dx = Math.sin(ph) * a; TELL.rot = Math.sin(ph * 0.77 + 1.3) * 0.01 * tellK;
+    ctx.save(); ctx.translate(_s.x + TELL.dx, _s.y); ctx.rotate(TELL.rot); ctx.translate(-_s.x, -_s.y);
+  }
   // cars
   if (showBase) for (let c = 0; c < B.cars; c++) {
     const lx = B.cars === 1 ? 0 : (c ? 1 : -1);
@@ -7043,8 +7271,9 @@ function render() {
     Art.drawCar(ctx, _s.x, _s.y, TW.theta, L, B.cars === 1 || c ? 'red' : 'green', CARO);
   }
   // standing build: bodies first so overlaps mix, then details. Past 0.8 of the tipping angle the outlines blush red.
-  const blush = CR.stage === 'fall' || CR.stage === 'unzip' ? 1 : TIP.level > CFG.BLUSH_AT && S.phase === 'play'
+  let blush = CR.stage === 'fall' || CR.stage === 'unzip' ? 1 : TIP.level > CFG.BLUSH_AT && S.phase === 'play'
     ? clamp((TIP.level - CFG.BLUSH_AT) / (1 - CFG.BLUSH_AT), 0, 1) * (0.7 + 0.3 * Math.sin(S.rt * 18)) : 0;
+  if (shiver) blush = Math.max(blush, (0.25 + 0.45 * tellK) * (0.6 + 0.4 * Math.sin(S.gt * 30)));
   if (showBase) for (let pass = 0; pass < 2; pass++) {
     for (const t of B.tiles) {
       if (t.flight || t.gone) continue;
@@ -7067,6 +7296,8 @@ function render() {
     }
   }
   drawGlows();
+  drawGoldGlow();
+  if (shiver) ctx.restore();
   // the BRACE poke: the arm reaches in over the build, under the ghost (the aim stays in view)
   drawPokes();
   drawRings();
@@ -7092,6 +7323,7 @@ function render() {
   drawCubeArm();
   if (!(S.phase === 'over' && OV.stage === 'results')) drawHandAndHeld();
   drawFxTop();
+  if (shiver) drawTellSign(tellK); else TELL.on = false;
   ctx.setTransform(CAM.dpr, 0, 0, CAM.dpr, 0, 0);
   drawTipVignette();
   drawHazardArrow();
@@ -7106,13 +7338,101 @@ function render() {
   syncOverlay();
 }
 const FP = { x: 0, y: 0, rot: 0, k: 0, fold: 1 };
+// ---- the dead end's tell (TOPPLE_DELAY s before the TOPPLE): 0 at the clack that closed the last slot, 1 at the burst;
+// 0 when there is none. The sign: "NO ROOM!" on a red plate just over the build top (beside it, away from the hand, if
+// the tile in the hand is in the way), popping in and shivering with the build
+const TELLX = [];
+const TELL = { on: false, dx: 0, rot: 0, x0: 0, y0: 0, x1: 0, y1: 0, cx: 0, cy: 0, w: 0, h: 0, fs: 0 };
+function toppleTell() {
+  if (S.toppleAt < 0 || S.tellAt < 0 || S.phase !== 'play' && !(S.phase === 'paused' && S.pausedFrom === 'play')) return 0;
+  return clamp((S.gt - S.tellAt) / Math.max(1e-3, S.toppleAt - S.tellAt), 0, 1);
+}
+// where the sign goes (TELL.x0..y1, its box at its natural size; the pops keep clear of it): over the build top; else
+// (the tile in the hand or the ribbon's label in the way there) beside the hand, the side nearer the top first, or
+// shifted along clear of the label; else under the hand. On screen, under the HUD. (A desktop screen gets it bigger.)
+function tellPlace() {
+  // (its letters about as big as a landing's "+25": a landscape phone zooms the build small, not the words)
+  const L = CAM.L, big = Math.min(CAM.W, CAM.H) >= 700, fs = TELL.fs = Math.round(clamp(Math.max(L * 0.4, clamp(CAM.W / 15, 20, 36) * 0.66), big ? 22 : 17, big ? 32 : 24));
+  ctx.font = font(fs);
+  const w = TELL.w = ctx.measureText('NO ROOM!').width + fs * 1.3, h = TELL.h = fs * 1.6;
+  const e = buildExtent();
+  // the top tile's x (the highest standing tile)
+  let tx = CAM.originX + TW.ox * L, ty = e.top;
+  if (S.B) {
+    let best = -1e9;
+    for (const t of S.B.tiles) {
+      if (t.flight || t.gone) continue;
+      toWorld(t.pose.cx, t.pose.maxY, _w);
+      if (_w.y > best) { best = _w.y; w2s(_w.x, _w.y, _s2); tx = _s2.x; }
+    }
+  }
+  const held = { x0: HAND.dx - 0.7 * L, y0: CAM.handY - 0.9 * L, x1: HAND.dx + 0.7 * L, y1: CAM.handY + 1.25 * L };
+  const xl = CAM.safe.l + 6 + w / 2, xr = CAM.W - CAM.safe.r - 6 - w / 2, yT = CAM.hudBottom + 4 + h / 2;
+  const lab = RIB.label, isz = clamp(L * 0.8, 26, 44);
+  const clear = (x, y) => {
+    if (x < xl - 0.5 || x > xr + 0.5) return false;
+    const x0 = x - w / 2, x1 = x + w / 2, y0 = y - h / 2, y1 = y + h / 2;
+    if (x0 < held.x1 && x1 > held.x0 && y0 < held.y1 && y1 > held.y0) return false;
+    // (the ribbon's icon at its left end, and its label)
+    if (RIB.on && x0 < RIB.icx + isz / 2 + 4 && x1 > RIB.icx - isz / 2 - 4 && y0 < RIB.y + isz / 2 + 4 && y1 > RIB.y - isz / 2 - 4) return false;
+    return !(lab && x0 < RIB.lx1 + 6 && x1 > RIB.lx0 - 6 && y0 < RIB.ly1 + 4 && y1 > RIB.ly0 - 4);
+  };
+  const cy0 = Math.max(ty - 0.3 * L - h / 2, yT), cx0 = clamp(tx, xl, xr);
+  let cx = cx0, cy = cy0;
+  if (!clear(cx, cy)) {
+    // (at the same height, just past what is in the way, the nearest to the top first: beside the hand, the label or
+    // the ribbon's icon; else under the hand)
+    const xs = TELLX;
+    xs.length = 0;
+    xs.push(held.x1 + 6 + w / 2, held.x0 - 6 - w / 2);
+    if (lab) xs.push(RIB.lx1 + 6 + w / 2, RIB.lx0 - 6 - w / 2);
+    if (RIB.on) xs.push(RIB.icx + isz / 2 + 4 + w / 2, RIB.icx - isz / 2 - 4 - w / 2);
+    let done = false, bd = Infinity;
+    for (const x of xs) if (Math.abs(x - tx) < bd && clear(x, cy0)) { cx = x; bd = Math.abs(x - tx); done = true; }
+    if (!done) {
+      const yb = Math.max(cy0, held.y1 + 4 + h / 2);
+      cx = clear(cx0, yb) ? cx0 : clamp(HAND.dx, xl, xr); cy = yb;
+    }
+  }
+  TELL.cx = cx; TELL.cy = Math.max(cy, yT);
+  TELL.x0 = cx - w / 2; TELL.x1 = cx + w / 2; TELL.y0 = TELL.cy - h / 2; TELL.y1 = TELL.cy + h / 2;
+}
+function drawTellSign(k) {
+  tellPlace();
+  TELL.on = true;
+  const age = S.gt - S.tellAt, sc = 0.6 + 0.4 * easeOutBack(clamp(age / 0.16, 0, 1), 2.4), w = TELL.w, h = TELL.h;
+  ctx.save();
+  ctx.translate(TELL.cx + TELL.dx * 1.5, TELL.cy); ctx.rotate(-0.06 + TELL.rot * 3); ctx.scale(sc, sc);
+  ctx.shadowColor = 'rgba(30,37,65,0.35)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+  rrect(ctx, -w / 2, -h / 2, w, h, h * 0.32); ctx.fillStyle = '#E8323C'; ctx.fill();
+  ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.lineWidth = 3; ctx.strokeStyle = '#1E2541'; ctx.stroke();
+  ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  rrect(ctx, -w / 2 + 3.5, -h / 2 + 3.5, w - 7, h - 7, h * 0.24); ctx.stroke();
+  ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = font(TELL.fs);
+  ctx.fillText('NO ROOM!', 0, 1);
+  ctx.restore();
+}
 // where the ribbon and its label (or its stub) were drawn this frame (the first-run hint and the pops keep clear)
-const RIB = { on: false, y: 0, x0: 0, x1: 0, label: false, lx0: 0, lx1: 0, ly0: 0, ly1: 0, stub: false, sx0: 0, sy0: 0, sx1: 0, sy1: 0 };
+const RIB = { on: false, y: 0, x0: 0, x1: 0, a: 0, icx: 0, isz: 0, label: false, lx0: 0, lx1: 0, ly0: 0, ly1: 0, stub: false, sx0: 0, sy0: 0, sx1: 0, sy1: 0 };
+// how far under the hand line (L) the ribbon is back in full under a tile in the hand (a square's bottom is at 1 L; the
+// hand hovers HAND_HOVER_RIB over a near goal)
+const RIB_UNDER = 0.4;
+// how much the tile in the hand shows (0..1: the next one fades in over the last 0.08 s of the NEXT_T after a release;
+// lead: as it will lead s from now) and its bottom edge (L under the hand line, untilted)
+function heldAlpha(lead) {
+  if (!HAND.piece || S.phase === 'over' || S.phase === 'title' || S.phase === 'start') return 0;
+  if (HAND.ready) return 1;
+  return clamp((S.gt + (lead || 0) - HAND.releasedAt - (CFG.NEXT_T - 0.08)) / 0.08, 0, 1);
+}
+function heldTileBottom(shape) { return shape === 'tri' || shape === 'crown' ? H3 : 2 * heldOffset(shape); }
 // goal ribbon at G with the room object's icon and its name at its left end (the arm comes down from the upper
-// right). It shows below the tile in the hand, or (the goal still far) above the hand, never through the tile or the
-// hand: it fades while the hand hops over it. Out of the view above (under the HUD), a stub pinned under the HUD
+// right; at its right end while the arm lies over the left one). It shows below the tile in the hand, or (the goal
+// still far) above the hand, never through the tile or along its bottom edge, nor through the hand: it fades while the
+// hand hops over it. Out of the view above (under the HUD), a stub pinned under the HUD
 // stands for it: the icon and how far up it is
 const LBL = { a: -1, side: 0 };      // the label's eased alpha and which end it is at (-1 left, 1 right)
+const ICON = { side: -1, s: -1 };      // the icon's end (-1 left, 1 right) and its eased place there (0 left .. 1 right)
 function lblHits(x0, y0, x1, y1) {
   const L = CAM.L;
   if (GHOSTR.on && x0 < GHOSTR.x1 + 4 && x1 > GHOSTR.x0 - 4 && y0 < GHOSTR.y1 + 4 && y1 > GHOSTR.y0 - 4) return true;
@@ -7129,7 +7449,15 @@ function drawRibbon() {
   const y = _s.y, x0 = Math.max(isz + 8, CAM.originX - (half + 1.6) * L), x1 = Math.min(CAM.W - 6, CAM.originX + (half + 1.6) * L);
   const tear = S.goalTorn ? clamp((S.gt - S.goalTornAt) / 0.35, 0, 1) : 0;
   const above = CAM.handY - 0.85 * L, below = CAM.handY + 1.15 * L;
-  const room = clamp(Math.max(above - y, y - below) / (0.35 * L) + 1, 0, 1);
+  let room = clamp(Math.max(above - y, y - below) / (0.35 * L) + 1, 0, 1);
+  // (under a tile in the hand: gone before it reaches the tile's bottom edge, back in full RIB_UNDER L under it, where
+  // the hand hovers over a near goal; before the next tile shows in the hand, the ribbon has given way where it comes)
+  const ha = heldAlpha(0.08);
+  if (ha > 0 && y > CAM.handY) {
+    // (a square's bottom for any tile: the ribbon comes and goes at the same height whatever is in the hand)
+    const bot = CAM.handY + Math.max(1, heldTileBottom(HAND.piece.shape)) * L;
+    room = Math.min(room, lerp(1, clamp((y - bot - 0.13 * L) / ((RIB_UNDER - 0.13) * L), 0, 1), ha));
+  }
   // a new goal fades in once its base has rolled in
   const fresh = S.rollT0 >= 0 ? 0 : 1;
   const fade = S.goalTorn ? clamp(1 - (S.gt - S.goalTornAt - 0.8) / 0.4, 0, 1) : fresh;
@@ -7139,18 +7467,32 @@ function drawRibbon() {
     if (fade * ban > 0) drawGoalStub(isz, fade * ban);
     return;
   }
-  if (fade * room <= 0) return;
-  RIB.on = true; RIB.y = y; RIB.x0 = x0 - isz * 1.05; RIB.x1 = x1;
+  if (fade * room <= 0.004) return;
+  // the icon: at the left end; at the right end while the holding arm (it comes down from the upper right) lies over
+  // the left one and not over the right one (eased across, it never blinks)
+  const ixL = x0 - isz * 0.55, ixR = x1 + isz * 0.55, rr = isz / 2 + 3;
+  const canR = ixR + isz / 2 + 4 <= CAM.W - CAM.safe.r;
+  if (!canR) ICON.side = -1;
+  else if (ICON.side < 0) { if (armCovers(ixL, y, rr) && !armCovers(ixR, y, rr)) ICON.side = 1; }
+  else if (!armCovers(ixL, y, rr + 0.25 * L) || armCovers(ixR, y, rr)) ICON.side = -1;
+  ICON.s = ICON.s < 0 ? (ICON.side > 0 ? 1 : 0) : ICON.s + ((ICON.side > 0 ? 1 : 0) - ICON.s) * Math.min(1, S.frameDt * 12);
+  if (!canR) ICON.s = 0;
+  const is = ICON.s;
+  RIB.on = true; RIB.y = y; RIB.x0 = is < 0.999 ? x0 - isz * 1.05 : x0; RIB.x1 = is > 0.001 ? x1 + isz * 1.05 : x1; RIB.a = fade * room;
+  RIB.icx = is < 0.5 ? ixL : ixR; RIB.isz = isz;
   ctx.save(); ctx.globalAlpha = fade * room;
   Art.drawRibbon(ctx, x0, x1, y, L, tear, S.gt);
-  Art.drawGoalIcon(ctx, S.goalIcon, x0 - isz * 0.55, y, isz);
+  if (is < 0.999) { ctx.globalAlpha = fade * room * (1 - is); Art.drawGoalIcon(ctx, S.goalIcon, ixL, y, isz); }
+  if (is > 0.001) { ctx.globalAlpha = fade * room * is; Art.drawGoalIcon(ctx, S.goalIcon, ixR, y, isz); }
+  ctx.globalAlpha = fade * room;
   if (!S.goalTorn) {
     // the label: the room object's name by the icon; it moves to the ribbon's other end (or waits) while the ghost or
     // the drop line is where it would be
     const txt = S.goalName, fs = clamp(L * 0.3, 11, 15);
     ctx.font = font(fs);
     const tw = ctx.measureText(txt).width + 14, lh = fs * 0.75;
-    let lx = clamp(x0 + tw / 2 - isz * 0.3, tw / 2 + 4, CAM.W - tw / 2 - 4), side = -1;
+    const lxL = clamp(x0 + tw / 2 - isz * 0.3, tw / 2 + 4, CAM.W - tw / 2 - 4), lxR = clamp(x1 - tw / 2 + isz * 0.3, tw / 2 + 4, CAM.W - tw / 2 - 4);
+    let lx = ICON.side > 0 ? lxR : lxL, side = ICON.side > 0 ? 1 : -1;
     let ly = y - isz * 0.5 - fs * 0.9, la = 1;
     if (y < CAM.handY) {
       // the ribbon above the hand (the goal still far): over it, or (no room under the HUD) under it, clear of the hand
@@ -7166,8 +7508,8 @@ function drawRibbon() {
       la = clamp((S.G - (ly + lh - y) / L - S.top) / 0.5, 0, 1);
     }
     if (la > 0.01 && lblHits(lx - tw / 2, ly - lh, lx + tw / 2, ly + lh)) {
-      const ox = clamp(x1 - tw / 2 + isz * 0.3, tw / 2 + 4, CAM.W - tw / 2 - 4);
-      if (!lblHits(ox - tw / 2, ly - lh, ox + tw / 2, ly + lh)) { lx = ox; side = 1; } else la = 0;
+      const ox = side > 0 ? lxL : lxR;
+      if (!lblHits(ox - tw / 2, ly - lh, ox + tw / 2, ly + lh)) { lx = ox; side = -side; } else la = 0;
     }
     // (eased, so a label that has to move or wait does not blink; moving to the other end, it fades in there)
     if (side !== LBL.side) { LBL.side = side; if (LBL.a > 0) LBL.a = 0; }
@@ -7259,7 +7601,7 @@ function drawGhost() {
     dropLine(hx, handBottom, _s.x, topY, gold ? '#FFC531' : '#ffffff');
     const o = tileOpts(1, 0, 'both'); o.ghost = S.ghostTippy ? 'red' : gold ? 'gold' : 'white';
     Art.drawTile(ctx, artShapeForType(g.type, piece), piece.color, _s.x, _s.y, TW.theta + g.pose.rot0, L, o);
-    if (gold && PERF.gloss) sparkle(_s.x, _s.y, L);
+    if (gold && PERF.gloss) sparkle(_s.x, _s.y, L, streakHeat(S.streak + 1));
     if (g.edges >= 2) edgeChip(_s.x + L * 0.42, topY - 4, g.edges >= 3 ? '×3' : '×2');
     if (S.ghostTippy) tippyChip(_s.x - L * 0.42, topY - 4);
     // this slot collects a ring: a glowing ring icon on the ghost
@@ -7318,17 +7660,20 @@ function dropLine(x0, y0, x1, y1, col) {
   ctx.strokeStyle = col; ctx.globalAlpha = 0.9; ctx.lineWidth = 2; ctx.stroke();
   ctx.restore();
 }
-function sparkle(x, y, L) {
-  const t = S.rt * 6;
-  ctx.save(); ctx.fillStyle = '#FFE38A'; ctx.globalAlpha = 0.9;
-  for (let k = 0; k < 3; k++) {
-    const a = t + k * 2.1, r = L * (0.38 + 0.12 * Math.sin(t * 1.7 + k));
-    const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r * 0.8, s = 2.5 + 1.5 * Math.sin(t * 3 + k);
+// the gold ghost's sparkle; h: the heat the PERFECT it promises would have (a streak going: more of it, bigger, warmer)
+function sparkle(x, y, L, h) {
+  const t = S.rt * 6, n = 3 + Math.round(3 * h), g = 1 + 0.35 * h;
+  ctx.save(); ctx.fillStyle = h > 0.02 ? SPARK_HEX[Math.round(h * 10)] : '#FFE38A'; ctx.globalAlpha = 0.9;
+  for (let k = 0; k < n; k++) {
+    const a = t + k * TAU_G / n, r = L * (0.38 + 0.12 * Math.sin(t * 1.7 + k)) * (1 + 0.15 * h);
+    const px = x + Math.cos(a) * r, py = y + Math.sin(a) * r * 0.8, s = (2.5 + 1.5 * Math.sin(t * 3 + k)) * g;
     ctx.beginPath(); ctx.moveTo(px, py - s * 2); ctx.lineTo(px + s * 0.6, py); ctx.lineTo(px, py + s * 2); ctx.lineTo(px - s * 0.6, py); ctx.closePath(); ctx.fill();
     ctx.beginPath(); ctx.moveTo(px - s * 2, py); ctx.lineTo(px, py + s * 0.6); ctx.lineTo(px + s * 2, py); ctx.lineTo(px, py - s * 0.6); ctx.closePath(); ctx.fill();
   }
   ctx.restore();
 }
+const TAU_G = Math.PI * 2;
+const SPARK_HEX = ['#FFE38A', '#FFDC80', '#FFD476', '#FFCB6C', '#FFC062', '#FFB458', '#FFA750', '#FF9A4A', '#FF8E46', '#FF8343', '#FF7A42'];
 function edgeChip(x, y, text) {
   ctx.save();
   ctx.font = font(13); const w = ctx.measureText(text).width + 12;
@@ -7560,7 +7905,24 @@ function drawHandAndHeld() {
       if (HAND.ready && !S.big && S.firstInput && S.phase === 'play' && S.gt >= S.lockUntil) drawFuse(x, y + off, L, HAND.fuseT / levelInfo(S.level).fuse);
     }
   }
-  Art.drawHand(ctx, x, y, L, open, S.gt);
+  const j = Art.drawHand(ctx, x, y, L, open, S.gt);
+  ARMG.ok = !!(j && j.ok);
+  if (ARMG.ok) { ARMG.wx = j.wx; ARMG.wy = j.wy; ARMG.ex = j.ex; ARMG.ey = j.ey; ARMG.sx = j.sx; ARMG.sy = j.sy; ARMG.rf = j.rf; ARMG.ru = j.ru; ARMG.bow = j.bow; }
+}
+// where the holding arm was drawn on the last frame (Art.drawHand's joints, CSS px): what must not hide under it
+// (the ribbon's icon) keeps clear of it
+const ARMG = { ok: false, wx: 0, wy: 0, ex: 0, ey: 0, sx: 0, sy: 0, rf: 0, ru: 0, bow: 0 };
+const SEGT = { d: 0, t: 0 };
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy, t = l2 > 0 ? clamp(((px - ax) * dx + (py - ay) * dy) / l2, 0, 1) : 0;
+  SEGT.t = t; SEGT.d = Math.hypot(px - ax - t * dx, py - ay - t * dy);
+  return SEGT.d;
+}
+// does the arm (its forearm, elbow and upper arm, bowing out up to `bow`) come within r of (x, y)?
+function armCovers(x, y, r) {
+  if (!ARMG.ok || S.phase === 'over') return false;
+  if (segDist(x, y, ARMG.wx, ARMG.wy, ARMG.ex, ARMG.ey) < r + ARMG.rf) return true;
+  return segDist(x, y, ARMG.ex, ARMG.ey, ARMG.sx, ARMG.sy) < r + ARMG.ru + ARMG.bow * 4 * SEGT.t * (1 - SEGT.t);
 }
 // the boy's cube on the rug and the striped arm shoving it (or pulling back after a shove)
 function drawCubeArm() {
@@ -8234,13 +8596,14 @@ function drawDebug() {
 
 /* ==== FX ==== */
 const FX = { sparks: [], glows: [], rings: [], words: [], pulses: [], confetti: [], pokes: [], puffs: [], dizzy: null,
-  clockPops: [], flyers: [], banner: null, tally: null, bestTri: null,
+  clockPops: [], flyers: [], banner: null, tally: null, bestTri: null, stars: [], gold: null,
   shakeAmp: 0, shakeT0: 0, shakeDur: 0, hitStop: 0, squashAt: -1, squashAmt: 0, carSquash: 0 };
 const REDUCED = (() => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
 function fxClear() {
   FX.sparks.length = 0; FX.glows.length = 0; FX.rings.length = 0; FX.words.length = 0; FX.pulses.length = 0; FX.confetti.length = 0;
   FX.pokes.length = 0; FX.puffs.length = 0; FX.dizzy = null; FX.shakeAmp = 0; FX.hitStop = 0; FX.squashAt = -1;
   FX.clockPops.length = 0; FX.flyers.length = 0; FX.banner = null; FX.tally = null; FX.bestTri = null;
+  FX.stars.length = 0; FX.gold = null;
 }
 // a puff of rug fluff where something hits the rug (world x), size ~1
 function dustPuff(xw, size) {
@@ -8267,7 +8630,7 @@ function colorHex(name) { return Art.PAL[name] || name || '#888888'; }
 // WORD_MAX s and at most WORDS_MAX are alive (an older one gives way at once). An 'announce' (the goal, the crown,
 // OVERTIME) may be bigger and stay a little longer, but keeps clear of the crown's target. And whatever is drawn
 // where the ghost is now (the player aimed under it) turns see-through (drawFxTop).
-const SPOT = { x: 0, y: 0, maxW: 0, clear: true };
+const SPOT = { x: 0, y: 0, maxW: 0, clear: true, pin: 1.4, near: false, kmin: 0.75 };
 const EXT = { x0: 0, x1: 0, top: 0 };
 // the screen extent of the standing build (cars and tiles in the air included) and the screen y of its top
 function buildExtent() {
@@ -8324,14 +8687,25 @@ function ghostTopY(e) {
   return y - 4;
 }
 // width and height (px) a pop needs at its natural size
-const POPM = { w: 0, h: 0, up: 0, dn: 0, grow: 0.2 };     // grow: how much wider each side it pops in (1.4x: 0.2)
-function popMeasure(text, sub, size) {
-  const base = clamp(CAM.W / 15, 20, 36) * size;
-  ctx.font = font(base);
-  let w = ctx.measureText(text).width;
-  if (sub) { ctx.font = font(base * 0.55); w = Math.max(w, ctx.measureText(sub).width); }
-  POPM.w = w + 16; POPM.h = base * (sub ? 1.75 : 1.15); POPM.up = base * 0.6; POPM.dn = base * (sub ? 1.2 : 0.6); POPM.grow = 0.2;
+const POPM = { w: 0, h: 0, up: 0, dn: 0, grow: 0.2, size: 1 };     // grow: how much wider each side it pops in (1.4x: 0.2)
+// (lines: the word set on two lines, e.g. ['MAGNET', 'MASTER!'] (a streak milestone on a short landscape screen);
+// each line after the first adds POP_LINE of the size under it. cx: the word set condensed to that share of its width)
+const POP_LINE = 0.95;
+function popMeasure(text, sub, size, lines, cx) {
+  POPM.size = size || 1;
+  const base = clamp(CAM.W / 15, 20, 36) * size, more = lines ? (lines.length - 1) * POP_LINE * base : 0;
+  let w = 0;
+  if (lines) { for (let i = 0; i < lines.length; i++) w = Math.max(w, textW(base, lines[i])); } else w = textW(base, text);
+  w *= cx || 1;
+  if (sub) w = Math.max(w, textW(base * 0.55, sub));
+  POPM.w = w + 16; POPM.h = base * (sub ? 1.75 : 1.15) + more; POPM.up = base * 0.6; POPM.dn = base * (sub ? 1.2 : 0.6) + more; POPM.grow = 0.2;
   return POPM;
+}
+// a word split in two lines at the space nearest its middle (null: one word)
+function popLines(text) {
+  let best = -1;
+  for (let i = 0; i < text.length; i++) if (text[i] === ' ' && (best < 0 || Math.abs(i - text.length / 2) < Math.abs(best - text.length / 2))) best = i;
+  return best < 0 ? null : [text.slice(0, best), text.slice(best + 1)];
 }
 // what a pop keeps clear of besides the build: the HUD boxes (landscape: they run down the corners, with the
 // "CROWN ×2" chip under the clock), the ribbon band (words only) and the pops still alive (a new one never lands
@@ -8341,6 +8715,9 @@ const OBST = [];
 let OBSTN = 0;
 function obstPush(x0, y0, x1, y1) { const i = OBSTN * 4; OBST[i] = x0; OBST[i + 1] = y0; OBST[i + 2] = x1; OBST[i + 3] = y1; OBSTN++; }
 function obstUI(r, extra) { if (r) obstPush(r.x - 6, r.y - 6, r.x + r.w + 6, r.y + r.h + 6 + (extra || 0)); }
+// (POP_HELD: the hand and the tile in it too, all the way between the hand lines y0 and y1 it is moving between, as
+// big as the pop pops in)
+const POP_HELD = { on: false, y0: 0, y1: 0 };
 function popObstacles(ribbon, words) {
   OBSTN = 0;
   obstUI(UI.pause); obstUI(UI.mute); obstUI(UI.score, CAM.portrait ? 0 : 24 * CAM.hs); obstUI(UI.next); obstUI(UI.hold);
@@ -8348,6 +8725,7 @@ function popObstacles(ribbon, words) {
   if (bigOfferOn()) obstUI(UI.bigP);
   if (S.allTippy) obstUI(UI.hold, (CAM.portrait ? 0 : UI.clock.y + UI.clock.h - UI.hold.y - UI.hold.h) + 30 * CAM.hs);
   if (RIB.stub) obstPush(RIB.sx0 - 4, RIB.sy0 - 4, RIB.sx1 + 4, RIB.sy1 + 4);
+  if (S.toppleAt >= 0 && S.tellAt >= 0 && S.phase === 'play') { tellPlace(); obstPush(TELL.x0 - 10, TELL.y0 - 8, TELL.x1 + 10, TELL.y1 + 8); }
   // the ghost as it is now (with room for a pop's 1.4x pop-in: POPM is the pop being placed)
   if (GHOSTR.on) obstPush(GHOSTR.x0 - 6 - POPM.grow * POPM.w, GHOSTR.y0 - 6 - 2 * POPM.grow * POPM.dn, GHOSTR.x1 + 6 + POPM.grow * POPM.w, GHOSTR.y1 + 6 + 2 * POPM.grow * POPM.up + 24);
   if (ribbon && RIB.on) {
@@ -8357,8 +8735,14 @@ function popObstacles(ribbon, words) {
   for (let i = 0; i < FX.words.length; i++) {
     const w = FX.words[i];
     if (w.kind === 'chip' && S.gt - w.t0 < w.life) { obstPush(w.x - 34, w.y - 20, w.x + 34, w.y + 16); continue; }
-    if (w.kind === 'score' || (w.kind === 'word' && !words) || !(w.bx1 > w.bx0) || S.gt - w.t0 > w.life - 0.12) continue;
+    // (a landing's word keeps clear of the score pops before its own; its own moves out of its way: fitScorePop)
+    if (w.kind === 'score') { if (POP_SCORES && w.t0 !== S.gt && w.bx1 > w.bx0 && S.gt - w.t0 < w.life - 0.12) obstPush(w.bx0 - 4, w.by0 - 34, w.bx1 + 4, w.by1 + 4); continue; }
+    if ((w.kind === 'word' && !words) || !(w.bx1 > w.bx0) || S.gt - w.t0 > w.life - 0.12) continue;
     obstPush(w.bx0 - 6, w.by0 - 4 - 24, w.bx1 + 6, w.by1 + 4);   // (it rises 24 px over its life)
+  }
+  if (POP_HELD.on && HAND.piece) {
+    const L = CAM.L, gw = POPM.grow * POPM.w;
+    obstPush(HAND.dx - 0.8 * L - gw, POP_HELD.y0 - 0.95 * L - 2 * POPM.grow * POPM.dn, HAND.dx + 0.8 * L + gw, POP_HELD.y1 + 1.25 * L + 2 * POPM.grow * POPM.up + 24);
   }
 }
 function popHit(x0, y0, x1, y1) {
@@ -8385,10 +8769,13 @@ function fitY(x, w, y, lo, hi, drift) {
 }
 // free air for a pop about the screen height ly (see above); SPOT.maxW: the room it may use. Clear of the ribbon
 // too if it can be; if nothing is clear even over the ribbon, the roomier side under the HUD corner there.
-function popSpot(ly, needW, needH) {
-  SPOT.clear = true;
+function popSpot(ly, needW, needH, lx, mile) {
+  SPOT.clear = true; SPOT.pin = 1.4; SPOT.near = false; SPOT.kmin = POP_MINK;
   // the ghost as it is now (a landing has just made new slots): the pop keeps clear of it
   if (S.phase === 'play') { computeGhost(); ghostRect(true); }
+  // a landing's pop: in free air close beside the tile that landed (at its height if it can), smaller (never under
+  // POP_MINK) and with a gentler pop-in if that is what it takes; the far spots below only when nothing near is clear
+  if (lx != null && (popSpotNear(lx, ly, true, mile, false) || popSpotNear(lx, ly, false, mile, true))) return SPOT;
   if (popSpotTry(ly, needW, needH, true) || popSpotTry(ly, needW, needH, false) || popSpotRug(needW, needH)) return SPOT;
   SPOT.clear = false;
   // (the roomier side of the build at that height: placedPop shows a word there only if it is clear of the ghost and
@@ -8407,6 +8794,171 @@ function popSpot(ly, needW, needH) {
   }
   SPOT.x = x; SPOT.y = y; SPOT.maxW = r;
   return SPOT;
+}
+// ---- near the landing. Candidate centres are tried nearest first (NEAR_OFF: offsets in px, sorted by a distance that
+// counts height twice as much as sideways, and below the tile a little more: beside the tile at its height first,
+// then just over it), up to NEAR_MAX L away; for each, the pop as drawn at its pop-in size (its text fitted to the
+// size tried, the 6 px of outline each side included) is clear of the hard keep-outs: the build (every tile and the
+// base, with NEAR_PAD L to spare plus as far as the tower may still sway at that height), the ghost and every slot the
+// hand could take from where it is (with the sway: a slot rocking under the hand becomes the ghost), the drop line
+// and the tile in the hand, and the score pops of the landings before; and settled (its rise included) of the HUD,
+// the ribbon (first pass) and the pops still up. The open slots (where the next tile likely goes) and this landing's
+// own "+25" (it can still move: fitScorePop) are soft keep-outs: a spot clear of them is taken if it is at most
+// NEAR_SOFT L farther.
+// The sizes, largest first: [scale, pop-in]; each finds its nearest spot, and the largest whose spot is at most
+// NEAR_SLACK L farther than the nearest of them all wins (a celebration stays big if it only has to stand a little
+// farther off). (A word grown by a hot streak may give its growth back to stay by the landing: down to the smallest
+// a lone PERFECT is drawn, POP_MINK of size 1.05; that is the last size tried; but the hotter the streak, the farther
+// it may stand to keep its size, NEAR_HOT L more at full heat.) A streak milestone is tried at one size at a time
+// (milePop): full size, a gentler pop-in at most
+const NEAR_MAX = 4.5, NEAR_SLACK = 1.2, NEAR_HOT = 1.0, NEAR_PAD = 0.12, NEAR_SOFT = 0.9;
+const NEAR_D = new Float64Array(8), NEAR_X = new Float64Array(8), NEAR_Y = new Float64Array(8);
+const NEAR_SIZES = [[1, 1.4], [0.88, 1.3], [0.75, 1.2], [0.75, 1.1], [0, 1.1]];
+const NEAR_SIZES_MILE = [[1, 1.4], [1, 1.25], [1, 1.1]];
+// (a word grown by the streak's heat would rather pop in gently than shrink back: its growth is what shows the heat)
+const NEAR_SIZES_HOT = [[1, 1.4], [1, 1.15], [0.88, 1.15], [0.75, 1.15], [0, 1.1]];
+let NEAR_OFF = null;
+function nearOffsets() {
+  if (NEAR_OFF) return NEAR_OFF;
+  const a = [];
+  for (let dy = -420; dy <= 160; dy += 6) for (let dx = -480; dx <= 480; dx += 6) {
+    const d = Math.hypot(dx, 2 * dy) + (dy > 0 ? 0.6 * dy : 0);
+    if (d <= 900) a.push(d, dx, dy);
+  }
+  const idx = [];
+  for (let i = 0; i < a.length; i += 3) idx.push(i);
+  idx.sort((p, q) => a[p] - a[q]);
+  NEAR_OFF = new Float32Array(idx.length * 3);
+  for (let k = 0; k < idx.length; k++) { NEAR_OFF[3 * k] = a[idx[k]]; NEAR_OFF[3 * k + 1] = a[idx[k] + 1]; NEAR_OFF[3 * k + 2] = a[idx[k] + 2]; }
+  return NEAR_OFF;
+}
+const NB = [];   // the hard keep-outs at pop-in size (flat x0 y0 x1 y1)
+let NBN = 0;
+const SB = [];   // the soft ones: the open slots, and this landing's score pop
+let SBN = 0;
+// (only what the search can reach is kept: NB_REACH, the region the candidate boxes can touch)
+const NB_REACH = { x0: 0, y0: 0, x1: 0, y1: 0 };
+function nbPush(x0, y0, x1, y1) {
+  if (x0 > NB_REACH.x1 || x1 < NB_REACH.x0 || y0 > NB_REACH.y1 || y1 < NB_REACH.y0) return;
+  const i = NBN * 4; NB[i] = x0; NB[i + 1] = y0; NB[i + 2] = x1; NB[i + 3] = y1; NBN++;
+}
+function sbPush(x0, y0, x1, y1) {
+  if (x0 > NB_REACH.x1 || x1 < NB_REACH.x0 || y0 > NB_REACH.y1 || y1 < NB_REACH.y0) return;
+  const i = SBN * 4; SB[i] = x0; SB[i + 1] = y0; SB[i + 2] = x1; SB[i + 3] = y1; SBN++;
+}
+function nbHit(x0, y0, x1, y1) {
+  for (let i = 0; i < NBN; i++) { const k = i * 4; if (x0 < NB[k + 2] && x1 > NB[k] && y0 < NB[k + 3] && y1 > NB[k + 1]) return true; }
+  return false;
+}
+function sbHit(x0, y0, x1, y1) {
+  for (let i = 0; i < SBN; i++) { const k = i * 4; if (x0 < SB[k + 2] && x1 > SB[k] && y0 < SB[k + 3] && y1 > SB[k + 1]) return true; }
+  return false;
+}
+// how far (L, on screen) a point h L over the wheels may still move while a pop pops in (measured: a landing's kick
+// moves the ghost about 0.1 s of its rate): the rock (its rate, and its angle coming back) and the flex of the top
+function swayAt(h) {
+  const ft = TW.H > 0 ? clamp(h / TW.H, 0, 1) : 0;
+  return Math.min(0.6, (0.1 * Math.abs(TW.omega) + 0.3 * Math.abs(TW.theta)) * Math.max(0, h) + 0.1 * Math.abs(TW.sv) * ft * ft);
+}
+// the screen box of an open slot as the ghost there would be drawn, grown by m px
+function slotBox(c, m, out) {
+  const L = CAM.L;
+  w2s(c.wx, c.wy, _s2);
+  const hw = (c.type === 'cube' ? 1.2 : 0.55) * L;
+  out[0] = _s2.x - hw - m; out[2] = _s2.x + hw + m;
+  out[1] = _s2.y - (c.type === 'up' ? 2 * H3 / 3 : c.type === 'dn' ? H3 / 3 : c.type === 'cube' ? 1.2 : 0.5) * L - m;
+  out[3] = _s2.y + (c.type === 'up' ? H3 / 3 : c.type === 'dn' ? 2 * H3 / 3 : c.type === 'cube' ? 1 : 0.5) * L + m;
+  return out;
+}
+const _sbx = [0, 0, 0, 0];
+// the score pops still up (their 30 px rise included), as keep-outs for a landing's word (POP_SCORES: placedPop)
+let POP_SCORES = false;
+function nearKeepOuts(lx, ly, hwMax, upMax, dnMax) {
+  const L = CAM.L, maxD = NEAR_MAX * L;
+  NB_REACH.x0 = lx - maxD - hwMax - 2; NB_REACH.x1 = lx + maxD + hwMax + 2;
+  NB_REACH.y0 = ly - maxD / 2 - upMax - 2; NB_REACH.y1 = ly + 160 + dnMax + 2;
+  NBN = 0; SBN = 0;
+  // the build: each tile with NEAR_PAD and half the sway at its height (brushing a swaying tile is no worse than the
+  // pad), and the landing's squash (it presses everything down by its share of the height for SQUASH_T s)
+  buildBoxes();
+  const hTop = (S.top || 0) + 0.5, sq = FX.squashAt >= 0 && S.gt - FX.squashAt < CFG.SQUASH_T ? FX.squashAmt : 0;
+  for (let i = 0; i < BBOXN; i++) {
+    const k = i * 4, h = Math.max(0, (CAM.baseY - BBOX[k + 1]) / L - 0.5), pad = (NEAR_PAD + 0.5 * swayAt(Math.min(h, hTop))) * L;
+    nbPush(BBOX[k] - pad, BBOX[k + 1] - pad, BBOX[k + 2] + pad, BBOX[k + 3] + pad + sq * h * L);
+  }
+  // the ghost and every slot the hand could take from where it is, the tower swaying
+  const swTop = swayAt(hTop), m = 8 + (0.08 + swTop) * L, sqG = sq * (hTop + 1) * L;
+  if (GHOSTR.on) nbPush(GHOSTR.x0 - m, GHOSTR.y0 - m, GHOSTR.x1 + m, GHOSTR.y1 + m + sqG);
+  if (S.B && HAND.piece && S.phase === 'play') {
+    updateCandWorld();
+    const hx = handWorldX(), reach = captureR(HAND.piece.shape) + CFG.HYST + 0.1 + swTop;
+    for (const c of S.B.cands) {
+      if (!acceptForHand(c)) continue;
+      if (Math.abs(c.wx - hx) <= reach) { slotBox(c, m, _sbx); nbPush(_sbx[0], _sbx[1], _sbx[2], _sbx[3] + sqG); continue; }
+      slotBox(c, 4, _sbx); sbPush(_sbx[0], _sbx[1], _sbx[2], _sbx[3]);
+    }
+  }
+  // the drop line and the tile in the hand
+  const gTop = ghostTopY(buildExtent());
+  nbPush(HAND.x - 0.75 * L, CAM.handY - 1.1 * L, HAND.x + 0.75 * L, Math.max(CAM.handY + 1.25 * L, gTop + 1.2 * L));
+  // the score pops still up: an older one where it is (hard), this landing's own a soft one (it can still move out of
+  // the word's way: fitScorePop)
+  if (POP_SCORES) for (let i = 0; i < FX.words.length; i++) {
+    const w = FX.words[i];
+    if (w.kind !== 'score' || !(w.bx1 > w.bx0) || S.gt - w.t0 >= w.life - 0.12) continue;
+    if (w.t0 === S.gt) sbPush(w.bx0 - 4, w.by0 - 34, w.bx1 + 4, w.by1 + 4); else nbPush(w.bx0 - 4, w.by0 - 34, w.bx1 + 4, w.by1 + 4);
+  }
+}
+// (again: the pass before, with the ribbon's band, built this landing's keep-outs already)
+function popSpotNear(lx, ly, ribbon, mile, again) {
+  const L = CAM.L, W = CAM.W, sf = CAM.safe;
+  const w0 = POPM.w, up0 = POPM.up, dn0 = POPM.dn, tw0 = Math.max(1, w0 - 16);
+  const left = sf.l + 6, right = W - sf.r - 6 - (gaugeOn() ? CFG.GAUGE_W + 8 : 0);
+  const top = CAM.hudBottom + 6, bot = Math.min(CAM.H - sf.b - 6, CAM.baseY + 0.45 * L);
+  const sizes = mile ? NEAR_SIZES_MILE : POPM.size > 1.14 ? NEAR_SIZES_HOT : NEAR_SIZES;
+  if (!again) nearKeepOuts(lx, ly, tw0 * 0.7 + 10, up0 * 1.4 + 26, dn0 * 1.4 + 2);
+  const off = nearOffsets(), maxD = NEAR_MAX * L, kHot = POP_MINK * 1.05 / Math.max(1.05, POPM.size), soft = NEAR_SOFT * L;
+  // (a word grown by a hot streak keeps its growth if it can: it may stand up to NEAR_HOT L farther still for it)
+  const slack = (NEAR_SLACK + NEAR_HOT * clamp((POPM.size - 1.05) / 0.3, 0, 1)) * L;
+  const scores = POP_SCORES;
+  POP_SCORES = false;           // (in NB and SB already, as hard or soft)
+  let nearest = Infinity;
+  // (a milestone tries its smallest box first, on a coarser grid: where that finds nothing, no bigger one can)
+  const nv = sizes.length;
+  for (let q = 0; q < nv; q++) {
+    const v = mile ? (q ? q - 1 : nv - 1) : q;
+    if (mile && q === 1 && NEAR_D[nv - 1] === Infinity) { for (let r = 0; r < nv - 1; r++) NEAR_D[r] = Infinity; break; }
+    NEAR_D[v] = Infinity;
+    const k = sizes[v][0] || kHot, pin = sizes[v][1];
+    if (!sizes[v][0] && kHot >= POP_MINK - 1e-9) continue;
+    // (as drawFxTop draws it: the text fitted to tw0·k at the pop-in, 6 px of outline each side; 2 px to spare)
+    const w = w0 * k, up = up0 * k, dn = dn0 * k, hw = tw0 * k * pin / 2 + 8, upP = up * pin + 2, dnP = dn * pin + 2;
+    POPM.w = w; POPM.up = up; POPM.dn = dn; POPM.grow = (pin - 1) / 2;
+    popObstacles(ribbon, false);
+    let hardD = -1, hardX = 0, hardY = 0;
+    for (let j = 0; j < off.length; j += 3) {
+      const d = off[j];
+      if (d > maxD || d >= nearest + slack || (hardD >= 0 && d > hardD + soft)) break;
+      if (mile && (off[j + 1] % 12 || off[j + 2] % 12)) continue;
+      const x = lx + off[j + 1], y = ly + off[j + 2];
+      if (x - hw < left || x + hw > right || y - Math.max(upP, up + 24) < top || y + dnP > bot) continue;
+      if (nbHit(x - hw, y - upP, x + hw, y + dnP)) continue;
+      if (popHit(x - w / 2, y - up - 24, x + w / 2, y + dn)) continue;
+      if (SBN && sbHit(x - hw, y - upP, x + hw, y + dnP)) { if (hardD < 0) { hardD = d; hardX = x; hardY = y; } continue; }
+      NEAR_D[v] = d; NEAR_X[v] = x; NEAR_Y[v] = y;
+      break;
+    }
+    // (only over an open slot: counted NEAR_SOFT farther than it is)
+    if (NEAR_D[v] === Infinity && hardD >= 0) { NEAR_D[v] = hardD + soft; NEAR_X[v] = hardX; NEAR_Y[v] = hardY; }
+    if (NEAR_D[v] < nearest) nearest = NEAR_D[v];
+  }
+  POPM.w = w0; POPM.up = up0; POPM.dn = dn0; POPM.grow = 0.2; POP_SCORES = scores;
+  if (nearest === Infinity) return false;
+  let bestV = 0;
+  while (NEAR_D[bestV] > nearest + slack) bestV++;
+  const k = sizes[bestV][0] || kHot, pin = sizes[bestV][1];
+  SPOT.x = NEAR_X[bestV]; SPOT.y = NEAR_Y[bestV]; SPOT.maxW = tw0 * k * pin; SPOT.pin = pin; SPOT.near = true; SPOT.clear = true; SPOT.kmin = Math.min(POP_MINK, k);
+  return true;
 }
 // the last clear air: the rug in front of the base (a phone shows a band of it; the mess may lie there)
 function popSpotRug(needW, needH) {
@@ -8522,56 +9074,177 @@ function popGiveWay(x0, x1, y) {
 function popBox(w) {
   if (w.goal) { w.bx0 = w.x - w.goal.w / 2; w.bx1 = w.x + w.goal.w / 2; w.by0 = w.y - w.goal.h / 2; w.by1 = w.y + w.goal.h / 2; return; }
   let base = clamp(CAM.W / 15, 20, 36) * w.size;
-  ctx.font = font(base);
-  let tw = ctx.measureText(w.text).width, subW = 0;
-  if (w.sub) { ctx.font = font(base * 0.55); subW = ctx.measureText(w.sub).width; }
-  const need = Math.max(tw, subW) * 1.4;
-  if (w.maxW && need > w.maxW) { const f = w.maxW / need; base *= f; tw *= f; subW *= f; }
+  let tw = 0, subW = w.sub ? textW(base * 0.55, w.sub) : 0;
+  if (w.lines) { for (let i = 0; i < w.lines.length; i++) tw = Math.max(tw, textW(base, w.lines[i])); } else tw = textW(base, w.text);
+  tw *= w.cx || 1;
+  const need = Math.max(tw, subW) * (w.pin || 1.4);
+  if (w.maxW && need > w.maxW) { const f = Math.max(w.kind === 'word' ? (w.kmin || 0) : 0, w.maxW / need); base *= f; tw *= f; subW *= f; }
   const half = Math.max(tw, subW) / 2 + 6, x = half * 2 < CAM.W ? clamp(w.x, half, CAM.W - half) : CAM.W / 2;
-  w.bx0 = x - half; w.bx1 = x + half; w.by0 = w.y - base * 0.6; w.by1 = w.y + base * (w.sub ? 1.2 : 0.6);
+  w.bx0 = x - half; w.bx1 = x + half; w.by0 = w.y - base * 0.6; w.by1 = w.y + base * (w.sub ? 1.2 : 0.6) + (w.lines ? (w.lines.length - 1) * POP_LINE * base : 0);
 }
-// a pop: kind 'word' (default), 'announce' or 'score'
-function wordPop(text, x, y, color, size, life, maxW, sub, subColor, kind) {
+// a pop: kind 'word' (default), 'announce' or 'score' (lines: set on two lines; kmin: a word is never fitted to its
+// room smaller than that share of its size: POP_MINK if not given; cx: set condensed, popMeasure)
+function wordPop(text, x, y, color, size, life, maxW, sub, subColor, kind, pin, lines, kmin, cx) {
   kind = kind || 'word';
   const sz = size || 1;
   life = Math.min(kind === 'word' ? CFG.WORD_MAX : CFG.ANNOUNCE_MAX, life || CFG.WORD_T);
+  const w = { text, sub: sub || '', subColor: subColor || '#ffffff', x, y, color: color || '#ffffff', t0: S.gt, life, size: sz, kind,
+    maxW: maxW || CAM.W - 24, bx0: 0, bx1: 0, by0: 0, by1: 0, hx: HAND.x, pin: pin || 1.4, near: false, lines: lines || null, kmin: kmin || 0, cx: cx || 1 };
+  popBox(w);
   if (kind === 'word') {
-    // one landing, one pop: the word before gives way (it is gone in 0.1 s), and never more than WORDS_MAX up
-    for (let i = 0; i < FX.words.length; i++) { const w = FX.words[i]; if (w.kind === 'word') w.life = Math.min(w.life, S.gt - w.t0 + 0.1); }
+    // one landing, one pop: the word before gives way (it is gone in 0.1 s; at once if it is where this one pops in:
+    // a quick drop never shows two words on top of each other), and never more than WORDS_MAX up
+    const p = (w.pin - 1) / 2, gx = (w.bx1 - w.bx0) * p, gy = (w.by1 - w.by0) * p;
+    for (let i = 0; i < FX.words.length; i++) {
+      const o = FX.words[i];
+      if (o.kind !== 'word') continue;
+      const age = S.gt - o.t0, over = o.bx1 > o.bx0 && o.bx0 < w.bx1 + gx && o.bx1 > w.bx0 - gx && o.by0 - 24 < w.by1 + gy && o.by1 > w.by0 - gy - 24;
+      o.life = Math.min(o.life, age + (over ? 0 : 0.1));
+    }
     let n = 1;
     for (let i = FX.words.length - 1; i >= 0; i--) {
-      const w = FX.words[i];
-      if (w.kind !== 'word' || S.gt - w.t0 >= w.life) continue;
+      const o = FX.words[i];
+      if (o.kind !== 'word' || S.gt - o.t0 >= o.life) continue;
       if (++n > CFG.WORDS_MAX) FX.words.splice(i, 1);
     }
   }
-  const w = { text, sub: sub || '', subColor: subColor || '#ffffff', x, y, color: color || '#ffffff', t0: S.gt, life, size: sz, kind,
-    maxW: maxW || CAM.W - 24, bx0: 0, bx1: 0, by0: 0, by1: 0, hx: HAND.x };
-  popBox(w);
   FX.words.push(w);
-  return y;
+  return w;
 }
 // a pop placed in free air near the screen height ly
 // (squeezed out of clear air, as a short landscape screen can be: an announcement that has been up a while gives
 // way; one that has only just come up (the same moment: the crown placed) keeps the stage and the word is not shown)
-function placedPop(text, sub, ly, color, size, life, subColor) {
-  const m = popMeasure(text, sub, size), sp = popSpot(ly, m.w, m.h);
-  if (!sp.clear) {
-    // no clear air anywhere: a word that would sit on the ghost or the build is not shown (the clack, the sparks and
-    // the score say it)
-    const bw = Math.min(m.w, sp.maxW) * 1.4, bx0 = sp.x - bw / 2, bx1 = sp.x + bw / 2, by0 = sp.y - POPM.up * 1.4 - 24, by1 = sp.y + POPM.dn * 1.4;
-    if (GHOSTR.on && bx0 < GHOSTR.x1 && bx1 > GHOSTR.x0 && by0 < GHOSTR.y1 && by1 > GHOSTR.y0) return;
-    buildBoxes();
-    for (let i = 0; i < BBOXN; i++) { const k = i * 4; if (bx0 < BBOX[k + 2] && bx1 > BBOX[k] && by0 < BBOX[k + 3] && by1 > BBOX[k + 1]) return; }
-    const w = Math.min(m.w, sp.maxW), x0 = sp.x - w / 2, x1 = sp.x + w / 2, y0 = sp.y - POPM.up - 24, y1 = sp.y + POPM.dn;
-    for (let i = 0; i < FX.words.length; i++) {
-      const o = FX.words[i];
-      if (o.kind !== 'announce' || !(o.bx1 > o.bx0) || S.gt - o.t0 >= o.life || !(x0 < o.bx1 && x1 > o.bx0 && y0 < o.by1 && y1 > o.by0 - 24)) continue;
-      if (S.gt - o.t0 < 0.35) return;
-      o.life = Math.min(o.life, S.gt - o.t0 + 0.1);
-    }
+function placedPop(text, sub, ly, color, size, life, subColor, lx, mile) {
+  if (mile) { milePop(text, sub, ly, color, size, life, subColor, lx); return; }
+  POP_SCORES = true;
+  const m = popMeasure(text, sub, size), sp = popSpot(ly, m.w, m.h, lx, false);
+  POP_SCORES = false;
+  if (!sp.clear && !squeezeOk(sp, m.w)) return;
+  const w = wordPop(text, sp.x, sp.y, color, size, life, sp.maxW, sub, subColor, 'word', sp.pin, null, sp.kmin);
+  w.near = sp.near;
+}
+// no clear air anywhere (SPOT: the roomier side of the build there): a word that would sit on the ghost or the build is
+// not shown (the clack, the sparks and the score say it); an announcement in its way that has been up a while gives way
+function squeezeOk(sp, needW) {
+  const bw = Math.min(needW, sp.maxW) * 1.4, bx0 = sp.x - bw / 2, bx1 = sp.x + bw / 2, by0 = sp.y - POPM.up * 1.4 - 24, by1 = sp.y + POPM.dn * 1.4;
+  if (GHOSTR.on && bx0 < GHOSTR.x1 && bx1 > GHOSTR.x0 && by0 < GHOSTR.y1 && by1 > GHOSTR.y0) return false;
+  buildBoxes();
+  for (let i = 0; i < BBOXN; i++) { const k = i * 4; if (bx0 < BBOX[k + 2] && bx1 > BBOX[k] && by0 < BBOX[k + 3] && by1 > BBOX[k + 1]) return false; }
+  const w = Math.min(needW, sp.maxW), x0 = sp.x - w / 2, x1 = sp.x + w / 2, y0 = sp.y - POPM.up - 24, y1 = sp.y + POPM.dn;
+  for (let i = 0; i < FX.words.length; i++) {
+    const o = FX.words[i];
+    if (o.kind !== 'announce' || !(o.bx1 > o.bx0) || S.gt - o.t0 >= o.life || !(x0 < o.bx1 && x1 > o.bx0 && y0 < o.by1 && y1 > o.by0 - 24)) continue;
+    if (S.gt - o.t0 < 0.35) return false;
+    o.life = Math.min(o.life, S.gt - o.t0 + 0.1);
   }
-  wordPop(text, sp.x, sp.y, color, size, life, sp.maxW, sub, subColor, 'word');
+  return true;
+}
+// A streak milestone's word ("MAGNET MASTER!" over "PERFECT ×20"): the big moment is always shown, and as big as there
+// is room for. In clear air (by the landing, a gentler pop-in at most, else farther off): at full size, then in its
+// narrower layout (two lines for two words: a short landscape screen has room beside the build for a narrow word, not a
+// wide one; one long word set condensed to MILE_CX), then smaller in MILE_K steps down to MILE_MIN (a lone PERFECT at
+// its natural size), both layouts each step; placed, it is never fitted smaller than its step (a far spot narrower
+// than its 1.1x pop-in is passed over, or fitted down to MILE_MIN at most). If none of that is clear (a short landscape
+// phone and a short tower): at MILE_MIN over the build's body, under its top row, clear of the ghost and the hand;
+// then, smaller still in MILE_LOW steps (sizes, about a PERFECT as it is mostly drawn), down to the smallest a PERFECT
+// is ever drawn (MILE_LAST), in clear air or over the body.
+const MILE_K = [1, 0.88, 0.76, 0], MILE_MIN = 1.05, MILE_LOW = [1, 0.95, 0.9, 0], MILE_LAST = POP_MINK * 1.05, MILE_CX = 0.86;
+const MILE = { text: '', sub: '', ly: 0, lx: 0, color: '', size: 1, life: 0, subColor: '', lines: null, cx: 1 };
+function milePop(text, sub, ly, color, size, life, subColor, lx) {
+  const M = MILE;
+  M.text = text; M.sub = sub; M.ly = ly; M.lx = lx; M.color = color; M.size = size; M.life = life; M.subColor = subColor;
+  M.lines = popLines(text); M.cx = M.lines ? 1 : MILE_CX;
+  const floor = Math.min(1, MILE_MIN / size), last = Math.min(floor, MILE_LAST / size);
+  for (let i = 0; i < MILE_K.length; i++) {
+    const f = Math.max(floor, MILE_K[i]);
+    if (i && f >= Math.max(floor, MILE_K[i - 1]) - 1e-9) continue;
+    if (mileAir(f, floor)) return;
+  }
+  if (mileBody(floor)) return;
+  for (let i = 0; i < MILE_LOW.length; i++) {
+    const f = Math.max(last, Math.min(floor, MILE_LOW[i] / size));
+    if (f < floor - 1e-6 && (mileAir(f, f) || mileBody(f))) return;
+  }
+}
+// in clear air at f of its size (as it is, then its narrower layout), fitted no smaller than fMin; true if placed
+function mileAir(f, fMin) {
+  const M = MILE;
+  for (let j = 0; j < 2; j++) {
+    const lines = j ? M.lines : null, cx = j ? M.cx : 1;
+    POP_SCORES = true;
+    const m = popMeasure(M.text, M.sub, M.size * f, lines, cx), sp = popSpot(M.ly, m.w, m.h, M.lx, true);
+    POP_SCORES = false;
+    if (!sp.clear) continue;
+    const tw = m.w - 16;
+    let k = 1;
+    if (!sp.near && sp.maxW < tw * 1.4) {
+      // (a far spot narrower than its 1.4x pop-in: it pops in less instead, down to 1.1x, then it is fitted smaller)
+      sp.pin = clamp(sp.maxW / tw, 1.1, 1.4);
+      k = Math.min(1, sp.maxW / (tw * sp.pin));
+      if (f * k < fMin - 1e-6) continue;
+    }
+    const w = wordPop(M.text, sp.x, sp.y, M.color, M.size * f, M.life, sp.maxW, M.sub, M.subColor, 'word', sp.pin, lines, k, cx);
+    w.near = sp.near;
+    return true;
+  }
+  return false;
+}
+// over the build's body at f of its size (its narrower layout, else as it is; a gentle pop-in, and it does not drift up
+// toward the top row as a word does): under the top row, as near it as the HUD and the pops up allow, down over the
+// cars at most; true if placed
+function mileBody(f) {
+  const M = MILE, L = CAM.L, sf = CAM.safe, pin = 1.1, e = buildExtent();
+  topRow();
+  for (let j = 0; j < 2; j++) {
+    const lines = j ? null : M.lines, cx = j ? 1 : M.cx;
+    const m = popMeasure(M.text, M.sub, M.size * f, lines, cx), tw = m.w - 16, hw = tw * pin / 2 + 8, up = m.up * pin, dn = m.dn * pin;
+    if (2 * hw > CAM.W - sf.l - sf.r - 12) continue;
+    const lo = Math.max(e.top, TOPB.bot) + 6 + up, hi = CAM.H - sf.b - 6 - dn;
+    if (hi < lo) continue;
+    const x = clamp((e.x0 + e.x1) / 2, sf.l + 6 + hw, CAM.W - sf.r - 6 - hw);
+    POPM.grow = (pin - 1) / 2;
+    popObstacles(false, false);
+    const y = fitY(x, tw * pin, lo, lo, hi, 0);
+    if (y !== y || mileBlocked(x - hw, y - up, x + hw, y + dn)) continue;
+    const w = wordPop(M.text, x, y, M.color, M.size * f, M.life, tw * pin, M.sub, M.subColor, 'word', pin, lines, 1, cx);
+    w.near = false; w.rise = 0;
+    return true;
+  }
+  return false;
+}
+// the build's top row on screen: the standing tiles whose centres are within 0.65 L of the highest centre (TOPB.b: their
+// boxes, flat x0 y0 x1 y1; TOPB.bot: the lowest bottom edge among them)
+const TOPB = { b: [], n: 0, bot: 0 };
+function topRow() {
+  const L = CAM.L;
+  TOPB.n = 0; TOPB.bot = -1e9;
+  if (!S.B || S.baseHidden) return TOPB;
+  let minY = 1e9;
+  for (const t of S.B.tiles) { if (t.gone || t.flight) continue; toWorld(t.pose.cx, t.pose.cy, _w); w2s(_w.x, _w.y, _s2); if (_s2.y < minY) minY = _s2.y; }
+  for (const t of S.B.tiles) {
+    if (t.gone || t.flight) continue;
+    const P = t.pose;
+    toWorld(P.cx, P.cy, _w); w2s(_w.x, _w.y, _s2);
+    if (_s2.y > minY + 0.65 * L) continue;
+    const i = TOPB.n * 4, b = _s2.y + (P.cy - P.minY) * L;
+    TOPB.b[i] = _s2.x - (P.cx - P.minX) * L; TOPB.b[i + 1] = _s2.y - (P.maxY - P.cy) * L; TOPB.b[i + 2] = _s2.x + (P.maxX - P.cx) * L; TOPB.b[i + 3] = b;
+    TOPB.n++;
+    if (b > TOPB.bot) TOPB.bot = b;
+  }
+  return TOPB;
+}
+// (is the box over the ghost, the build's top row, or the hand and the tile in it?)
+function mileBlocked(x0, y0, x1, y1) {
+  const L = CAM.L;
+  if (S.phase === 'play') { computeGhost(); ghostRect(true); }
+  if (GHOSTR.on && x0 < GHOSTR.x1 + 6 && x1 > GHOSTR.x0 - 6 && y0 < GHOSTR.y1 + 6 && y1 > GHOSTR.y0 - 6) return true;
+  if (HAND.piece && x0 < HAND.dx + 0.8 * L && x1 > HAND.dx - 0.8 * L && y0 < CAM.handY + 1.25 * L && y1 > CAM.handY - 0.95 * L) return true;
+  topRow();
+  for (let i = 0; i < TOPB.n; i++) {
+    const k = i * 4;
+    if (x0 < TOPB.b[k + 2] + 4 && x1 > TOPB.b[k] - 4 && y0 < TOPB.b[k + 3] + 4 && y1 > TOPB.b[k + 1] - 4) return true;
+  }
+  return false;
 }
 function announcePop(text, sub, color, size, life, subColor) {
   const m = popMeasure(text, sub, size), sp = announceSpot(m.w, m.h);
@@ -8583,10 +9256,12 @@ function announcePop(text, sub, color, size, life, subColor) {
 // "TALLER THAN" small over the name, the name as big as fits (two lines rather than shrinking, never under 26 px on a
 // phone), the bonus under it. Clear of the crown's target: it drops into the hand the same moment.
 const GOAL_REF = 100;
-function goalLayout(name, bonus, maxW, maxH) {
+// (compact: tighter, with a smaller icon: what fits the band of rug a short phone shows in front of the base)
+function goalLayout(name, bonus, maxW, maxH, compact) {
   if (!maxH) maxH = Math.max(110, 0.36 * CAM.H);
   const W = CAM.W, L = CAM.L;
-  const g = { name, lines: [name], fs: 0, fsS: 0, fsB: 0, isz: 0, w: 0, h: 0, stack: false, tw: 0, bonus, small: 'TALLER THAN' };
+  const g = { name, lines: [name], fs: 0, fsS: 0, fsB: 0, isz: 0, w: 0, h: 0, stack: false, tw: 0, bonus, small: 'TALLER THAN',
+    padL: compact ? 12 : 16, gap: compact ? 8 : 12, padY: compact ? 14 : 22 };
   ctx.font = font(GOAL_REF);
   const words = name.split(' '), one = ctx.measureText(name).width;
   // the best two-line break: the one that makes the longer line shortest
@@ -8596,12 +9271,12 @@ function goalLayout(name, bonus, maxW, maxH) {
     if (m < twoW) { twoW = m; two = [a, b]; }
   }
   const sW = ctx.measureText(g.small).width, bW = ctx.measureText(bonus).width;
-  const isz = g.isz = clamp(1.2 * L, 44, 80), fsMin = Math.min(W, CAM.H) < 600 ? 26 : 32, fsMax = Math.max(fsMin, Math.round(clamp(Math.min(W / 9.5, CAM.H / 8.5), 26, 50)));
+  const isz = g.isz = compact ? clamp(0.95 * L, 36, 60) : clamp(1.2 * L, 44, 80), fsMin = Math.min(W, CAM.H) < 600 ? 26 : 32, fsMax = Math.max(fsMin, Math.round(clamp(Math.min(W / 9.5, CAM.H / 8.5), 26, 50)));
   const tryFit = (fs, lines, lw, stack) => {
     const fsS = Math.max(13, fs * 0.42), fsB = Math.max(16, fs * 0.52);
     const textW = Math.max(lw * fs, sW * fsS, bW * fsB) / GOAL_REF;
     const textH = fsS * 1.2 + lines.length * fs * 1.02 + fsB * 1.25;
-    const w = stack ? textW + 32 : isz + 12 + textW + 32, h = stack ? isz + 6 + textH + 22 : Math.max(isz, textH) + 22;
+    const w = stack ? textW + 2 * g.padL : isz + g.gap + textW + 2 * g.padL, h = stack ? isz + 6 + textH + g.padY : Math.max(isz, textH) + g.padY;
     if (w > maxW || h > maxH) return false;
     g.fs = fs; g.fsS = fsS; g.fsB = fsB; g.lines = lines; g.tw = textW; g.w = w; g.h = h; g.stack = stack;
     return true;
@@ -8628,8 +9303,8 @@ function drawGoalSign(g, icon) {
   ctx.fillStyle = '#E8323C'; ctx.fillRect(-w / 2, -h / 2, w / 2 - 10, 6); ctx.fillRect(10, -h / 2, w / 2, 6);
   ctx.restore();
   let cx, top;
-  if (g.stack) { Art.drawGoalIcon(ctx, icon, 0, -h / 2 + 12 + g.isz / 2, g.isz); cx = 0; top = -h / 2 + 12 + g.isz + 6; }
-  else { Art.drawGoalIcon(ctx, icon, -w / 2 + 16 + g.isz / 2, 0, g.isz); cx = -w / 2 + 16 + g.isz + 12 + g.tw / 2; top = -(g.fsS * 1.2 + g.lines.length * g.fs * 1.02 + g.fsB * 1.25) / 2; }
+  if (g.stack) { Art.drawGoalIcon(ctx, icon, 0, -h / 2 + g.padY / 2 + 1 + g.isz / 2, g.isz); cx = 0; top = -h / 2 + g.padY / 2 + 1 + g.isz + 6; }
+  else { Art.drawGoalIcon(ctx, icon, -w / 2 + g.padL + g.isz / 2, 0, g.isz); cx = -w / 2 + g.padL + g.isz + g.gap + g.tw / 2; top = -(g.fsS * 1.2 + g.lines.length * g.fs * 1.02 + g.fsB * 1.25) / 2; }
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = font(g.fsS, 700); ctx.fillStyle = 'rgba(30,37,65,0.72)';
   ctx.fillText(g.small, cx, top + g.fsS * 0.62);
@@ -8638,10 +9313,11 @@ function drawGoalSign(g, icon) {
   for (let i = 0; i < g.lines.length; i++) { ctx.fillText(g.lines[i], cx, y + g.fs * 0.55); y += g.fs * 1.02; }
   outlinedText(g.bonus, cx, y + g.fsB * 0.66, g.fsB, '#FFC531', '#1E2541', 'center', Math.max(4, g.fsB * 0.26));
 }
-// where the goal's sign goes: above the hand if there is room (a tall phone); else beside the build where there is
-// room (landscape: the sign wraps to fit the side); else on the rug in front of the base (a phone with the hand up
-// under the HUD); else under the ribbon over the tower body. Clear of the HUD, the pops alive, the hand and the drop
-// line, and the crown's target slots (with the sign's pop-in growth). Returns the layout it settled on (SPOT: where)
+// where the goal's sign goes, clear of the build: above the hand if there is room (a tall phone: over the ribbon); else
+// beside the build where there is room (landscape: the sign wraps to fit the side); else on the rug in front of the
+// base (a phone with the hand up under the HUD: laid out smaller to fit there if it must); only if none of that is
+// clear, as low as it goes, over the cars. Clear of the HUD, the pops alive, the hand and the drop line, and the
+// crown's target slots (with the sign's pop-in growth). Returns the layout it settled on (SPOT: where)
 function goalSpot(name, bonus) {
   const L = CAM.L, W = CAM.W, sf = CAM.safe, grow = 0.15;
   let g = goalLayout(name, bonus, Math.min(W - sf.l - sf.r - 24, 620));
@@ -8703,19 +9379,26 @@ function goalSpot(name, bonus) {
       }
     }
   }
-  obstacles(g);
-  // 3. on the rug in front of the base (under the wheels and the pile's shadows)
-  const rTop = CAM.baseY + 0.45 * L, rBot = CAM.H - sf.b - 6;
-  if (rBot - rTop >= g.h + 10) {
-    const y = fitY(W / 2, g.w, rTop + g.h / 2 + 10, rTop + g.h / 2 + 10, rBot - g.h / 2, 10);
-    if (y === y) { SPOT.x = W / 2; SPOT.y = y; return g; }
+  // 3. on the rug in front of the base (under the wheels and the pile's shadows), laid out for the rug's height if it
+  // has to be (a phone with the hand up under the HUD: a smaller name, on more lines, still never under the minimum)
+  const rTop = CAM.baseY + 0.45 * L, rBot = CAM.H - sf.b - 6, fsMin = Math.min(W, CAM.H) < 600 ? 26 : 32;
+  for (let pass = 0; pass < 3; pass++) {
+    const g3 = pass ? goalLayout(name, bonus, Math.min(W - sf.l - sf.r - 24, 620), rBot - rTop - 10, pass > 1) : g;
+    if (pass && (g3.fs < fsMin || g3.h > rBot - rTop - 10)) continue;
+    obstacles(g3);
+    if (rBot - rTop >= g3.h + 10) {
+      const y = fitY(W / 2, g3.w, rTop + g3.h / 2 + 10, rTop + g3.h / 2 + 10, rBot - g3.h / 2, 10);
+      if (y === y) { SPOT.x = W / 2; SPOT.y = y; return g3; }
+    }
   }
-  // 4. under the ribbon, over the tower body
-  w2s(0, Math.max(S.G, S.top), _s2);
-  const lo = CAM.handY + 1.6 * L + g.h / 2, hi = Math.min(CAM.H - sf.b, CAM.baseY) - g.h / 2 - 10;
-  const want = clamp(_s2.y + 1.3 * L + 20 + g.h / 2, lo, Math.max(lo, hi));
-  let y = fitY(W / 2, g.w, want, lo, Math.max(lo, hi), 10);
-  if (y !== y) y = want;
+  // 4. (nothing clear anywhere) as low as it goes, over the cars and the tower's lowest rows: the top of the build,
+  // where the crown is going, stays in view (the compact layout if that is lower: it covers less)
+  const gc = goalLayout(name, bonus, Math.min(W - sf.l - sf.r - 24, 620), 0, true);
+  if (gc.fs >= fsMin && gc.h < g.h) g = gc;
+  obstacles(g);
+  const lo = CAM.handY + 1.6 * L + g.h / 2, hi = CAM.H - sf.b - g.h / 2 - 6;
+  let y = fitY(W / 2, g.w, Math.max(lo, hi), lo, Math.max(lo, hi), 10);
+  if (y !== y) y = Math.max(lo, hi);
   SPOT.x = W / 2; SPOT.y = y;
   return g;
 }
@@ -8732,8 +9415,33 @@ function goalPop(name, icon, bonus) {
   return sp.y;
 }
 // a small score pop at the tile ("+150"; a MISS's "BONK!": size, outline colour)
+// (bx0..by1: its box at its full size where it is born; a landing's word keeps clear of it and of its rise)
 function scorePop(text, x, y, color, size, stroke) {
-  FX.words.push({ text, sub: '', subColor: '', x, y, color, t0: S.gt, life: 0.6, size: size || 0.72, kind: 'score', maxW: 0, stroke: stroke || '#ffffff' });
+  const sz = size || 0.72, base = clamp(CAM.W / 15, 20, 36) * sz;
+  const half = textW(base, text) / 2 + 6, cx = half * 2 < CAM.W ? clamp(x, half, CAM.W - half) : CAM.W / 2;
+  FX.words.push({ text, sub: '', subColor: '', x, y, color, t0: S.gt, life: 0.6, size: sz, kind: 'score', maxW: 0, stroke: stroke || '#ffffff',
+    bx0: cx - half, bx1: cx + half, by0: y - base * 0.6, by1: y + base * 0.6 });
+}
+// this landing's "+25", if its word (placed after it) covers it: to the other side of the tile, or over it, or under
+// it, wherever the word (as big as it pops in, and its rise) leaves it clear
+function fitScorePop() {
+  let sp = null, w = null;
+  for (let i = FX.words.length - 1; i >= 0; i--) {
+    const o = FX.words[i];
+    if (o.t0 !== S.gt) continue;
+    if (!sp && o.kind === 'score') sp = o; else if (!w && o.kind === 'word') w = o;
+  }
+  if (!sp || !w || !(w.bx1 > w.bx0)) return;
+  const L = CAM.L, pin = w.pin || 1.4, hw = (w.bx1 - w.bx0) / 2 * pin + 4, cx = (w.bx0 + w.bx1) / 2, cy = (w.by0 + w.by1) / 2;
+  const wy0 = cy - (cy - w.by0) * pin - 28, wy1 = cy + (w.by1 - cy) * pin + 4, half = (sp.bx1 - sp.bx0) / 2, bh = (sp.by1 - sp.by0) / 2;
+  const clear = (x, y) => x - half >= 0 && x + half <= CAM.W && y - bh - 30 >= CAM.hudBottom && !(x - half < cx + hw && x + half > cx - hw && y - bh - 30 < wy1 && y + bh > wy0);
+  const x0 = LANDAT.x, y0 = LANDAT.y, cand = [sp.x, sp.y, x0 - 0.7 * L, y0 - 0.1 * L, x0, y0 - 0.85 * L, x0, y0 + 0.55 * L, x0 + 1.3 * L, y0 - 0.1 * L, x0 - 1.3 * L, y0 - 0.1 * L];
+  for (let i = 0; i < cand.length; i += 2) {
+    const x = clamp(cand[i], half, CAM.W - half), y = cand[i + 1];
+    if (!clear(x, y)) continue;
+    if (i) { sp.x = x; sp.y = y; sp.bx0 = x - half; sp.bx1 = x + half; sp.by0 = y - bh; sp.by1 = y + bh; }
+    return;
+  }
 }
 function confettiBurst(x, y, n) {
   for (let k = 0; k < n; k++) {
@@ -8787,7 +9495,7 @@ function juiceLand(f, t, pts, edgesC, prevMult) {
   toWorld(P.cx, P.cy, _w); w2s(_w.x, _w.y, _s);
   const sx = _s.x, sy = _s.y, pan = clamp((sx - CAM.W / 2) / (CAM.W / 2), -1, 1);
   const hex = colorHex(cube ? 'orange' : f.piece.color);
-  Sfx.clack({ combo: S.combo, mass: t.mass, pan, edges: edgesC, grade: f.grade });
+  Sfx.clack({ combo: S.combo, mass: t.mass, pan, edges: edgesC, grade: f.grade, streak: perfect ? S.streak : 0 });
   Sfx.haptic(perfect ? 20 : 8);
   FX.glows.push({ edges: f.slot.matched, t0: S.gt });
   // sparks along the joined edges, in a lighter shade of the tile colour
@@ -8807,36 +9515,128 @@ function juiceLand(f, t, pts, edgesC, prevMult) {
   if (cube) { FX.hitStop = Math.max(FX.hitStop, CFG.HITSTOP_CUBE); addShake(CFG.SHAKE_CUBE, 0.25); Sfx.boom(); }
   else addShake(CFG.SHAKE_CLACK * (1 + 0.25 * (edgesC - 1)), CFG.SHAKE_CLACK_T);
   if (perfect) {
-    FX.hitStop = Math.max(FX.hitStop, CFG.HITSTOP_PERFECT);
-    FX.rings.push({ x: sx, y: sy, t0: S.gt, L });
+    // (S.streak already counts this one) the ring, the star burst and the hit-stop grow and warm with the streak
+    const h = streakHeat(S.streak);
+    FX.hitStop = Math.max(FX.hitStop, CFG.HITSTOP_PERFECT + 0.02 * h);
+    FX.rings.push({ x: sx, y: sy, t0: S.gt, L: L * (1 + 0.45 * h), heat: h });
+    if (h >= 0.45) FX.rings.push({ x: sx, y: sy, t0: S.gt + 0.07, L: L * (1.2 + 0.5 * h), heat: h });
+    starBurst(sx, sy, L, h);
   }
-  LANDAT.y = sy;
+  LANDAT.y = sy; LANDAT.x = sx;
   scorePop('+' + pts, clamp(sx + L * 0.7, 40, CAM.W - 40), sy - L * 0.1, hex);
   S.scoreBumpT = S.rt;
   if (S.mult > prevMult) { S.multBumpT = S.rt; FX.words.push({ text: '×' + S.mult + '!', sub: '', subColor: '', x: UI.score.x + 17 * CAM.hs, y: UI.score.y + 64 * CAM.hs, color: '#FFC531', t0: S.gt, life: 0.7, size: 0.75, kind: 'chip', maxW: 0 }); Sfx.music.setMult(S.mult); }
 }
 // The one word pop of a landing: "PERFECT!" (what else it did goes on the small line under it: at most two items, the
-// ring first, then DOUBLE / TRIPLE, BRACED, OVERTIME, then the streak at its milestones), else "DOUBLE / TRIPLE CLACK!",
-// else "RING +2s", "BRACED!" or "×2 OVERTIME" alone; nothing for a plain clack
-const LANDAT = { y: 0 };
-function streakMilestone(n) { return n === 3 || n === 5 || (n >= 10 && n % 5 === 0); }
+// ring first, then DOUBLE / TRIPLE, BRACED, OVERTIME, then the streak from 3 in a row), growing and warming with the
+// streak; at a streak milestone its name instead ("ON FIRE!", with "PERFECT ×5" under it, a fanfare and the golden
+// glow); else "DOUBLE / TRIPLE CLACK!", else "RING +2s", "BRACED!" or "×2 OVERTIME" alone; nothing for a plain clack
+const LANDAT = { x: 0, y: 0 };
 function landingPop(f, edgesC, ot, brace, ring) {
   const perfect = f.grade === 'perfect';
   let main = '', color = '#FFC531', size = 1.05, sub = '', n = 0;
   const add = t => { if (n >= 2) return; sub = sub ? sub + '  ·  ' + t : t; n++; };
   const RING_TXT = 'RING +' + CFG.TIME_RING + 's';
+  const mile = perfect ? streakMilestone(S.streak) : '';
   if (perfect) {
-    main = 'PERFECT!';
-    if (ring) add(RING_TXT);
-    if (edgesC >= 2) add(edgesC >= 3 ? 'TRIPLE ×3' : 'DOUBLE ×2');
+    const h = streakHeat(S.streak);
+    main = mile || 'PERFECT!'; color = heatHex(h); size = (mile ? 1.2 : 1.05) + 0.3 * h;
+    // (a milestone's line is its streak alone: the big word needs the room; the ring, the clacks, a brace and OVERTIME
+    // are said by the clock's flyer, the score and the sounds)
+    if (mile) add('PERFECT ×' + S.streak);
+    else {
+      if (ring) add(RING_TXT);
+      if (edgesC >= 2) add(edgesC >= 3 ? 'TRIPLE ×3' : 'DOUBLE ×2');
+    }
   } else if (edgesC >= 2) {
     main = edgesC >= 3 ? 'TRIPLE CLACK!' : 'DOUBLE CLACK!'; color = '#ffffff'; size = edgesC >= 3 ? 1.05 : 0.95;
     if (ring) add(RING_TXT);
   } else if (ring) { main = RING_TXT; color = '#FF7DBA'; size = 0.95; }
-  if (brace) { if (main) add('BRACED!'); else { main = 'BRACED!'; color = '#B8F27C'; size = 0.95; } }
-  if (ot) { if (main) add('OVERTIME ×2'); else { main = '×2 OVERTIME'; size = 0.8; } }
-  if (perfect && streakMilestone(S.streak)) add('STREAK ' + S.streak);
-  if (main) placedPop(main, sub, LANDAT.y, color, size, CFG.WORD_MAX, '#ffffff');
+  if (brace && !mile) { if (main) add('BRACED!'); else { main = 'BRACED!'; color = '#B8F27C'; size = 0.95; } }
+  if (ot && !mile) { if (main) add('OVERTIME ×2'); else { main = '×2 OVERTIME'; size = 0.8; } }
+  if (perfect && !mile && S.streak >= 3) add('STREAK ' + S.streak);
+  if (mile) {
+    // (a long milestone on a narrow phone: no bigger than still fits the screen at the smallest a word is drawn)
+    const m = popMeasure(main, sub, size), lim = (CAM.W - CAM.safe.l - CAM.safe.r - 24) / (1.4 * POP_MINK);
+    if (m.w > lim) size *= lim / m.w;
+  }
+  if (main) { placedPop(main, sub, LANDAT.y, color, size, CFG.WORD_MAX, '#ffffff', LANDAT.x, !!mile); fitScorePop(); }
+  if (mile) {
+    // the milestone: a fanfare, a buzz, a short hit-stop and the golden glow running up the joined edges
+    Sfx.streak(streakTier(S.streak)); Sfx.haptic([20, 30, 40]);
+    FX.hitStop = Math.max(FX.hitStop, CFG.HITSTOP_STREAK);
+    goldGlow();
+    logEvent('streak', { n: S.streak, word: mile, tier: streakTier(S.streak) });
+  }
+}
+// ---- the PERFECT streak: the 30th PERFECT in a row must not look and sound like the first. Its heat (0..1) grows with
+// the streak, fast at first (2 in a row already shows) and full at 30; the PERFECT word, its ring, its star burst and the
+// gold ghost's sparkle grow and warm from gold through orange to a hot red-orange, and the ting climbs (Sfx.clack's
+// streak). Milestones at 5, 10, 20, 30 (then every 10) pop their own word with a fanfare (Sfx.streak) and a golden glow
+// that runs up the tower's joined edges
+function streakHeat(n) { return n <= 1 ? 0 : Math.min(1, Math.sqrt((n - 1) / 29)); }
+const HEAT_HEX = [];
+{
+  const st = [[0, '#FFC531'], [0.5, '#FF8E1C'], [1, '#FF4A2E']];
+  for (let i = 0; i <= 30; i++) {
+    const h = i / 30, k = h <= 0.5 ? 0 : 1, a = hexRgb(st[k][1]), b = hexRgb(st[k + 1][1]), u = (h - st[k][0]) / (st[k + 1][0] - st[k][0]);
+    HEAT_HEX.push('#' + [0, 1, 2].map(j => Math.round(lerp(a[j], b[j], u)).toString(16).padStart(2, '0')).join('').toUpperCase());
+  }
+}
+function heatHex(h) { return HEAT_HEX[Math.round(clamp(h, 0, 1) * 30)]; }
+const STREAK_MILES = { 5: 'ON FIRE!', 10: 'UNSTOPPABLE!', 20: 'MAGNET MASTER!', 30: 'LEGENDARY!' };
+function streakMilestone(n) { return STREAK_MILES[n] || (n > 30 && n % 10 === 0 ? 'LEGENDARY!' : ''); }
+function streakTier(n) { return n >= 30 ? 4 : n >= 20 ? 3 : n >= 10 ? 2 : 1; }
+// little stars bursting out of a PERFECT landing: 3 for a lone PERFECT, up to 13 (bigger, faster, hotter) at heat 1
+function starBurst(x, y, L, h) {
+  const n = 3 + Math.round(10 * h), col = heatHex(h);
+  if (FX.stars.length > 40) FX.stars.splice(0, FX.stars.length - 40);
+  for (let k = 0; k < n; k++) {
+    const a = -Math.PI / 2 + (k / n - 0.5) * (2.2 + 2 * h) + (Math.random() - 0.5) * 0.4, v = L * (3 + 4 * h) * (0.7 + 0.5 * Math.random());
+    FX.stars.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t0: S.gt, life: 0.4 + 0.25 * h + Math.random() * 0.1,
+      r: Math.max(3, L * (0.07 + 0.06 * h)) * (0.8 + 0.4 * Math.random()), rot: Math.random() * 6, w: (Math.random() - 0.5) * 12, color: k % 3 === 2 ? '#FFF6D8' : col });
+  }
+}
+// the golden glow of a streak milestone: every joined edge of the standing build (tile on tile, tile on car), lit in
+// turn from the base up over GOLD_RISE s, each fading over GOLD_T
+const GOLD_RISE = 0.32, GOLD_T = 0.4;
+function goldGlow() {
+  const B = S.B;
+  if (!B || S.baseHidden) return;
+  const edges = [];
+  let top = 0.5;
+  for (const ent of B.emap.values()) {
+    if (ent.length < 2) continue;
+    let ok = true;
+    for (const o of ent) if (o.owner !== CAR_OWNER && (o.owner.flight || o.owner.gone)) { ok = false; break; }
+    if (!ok) continue;
+    const e = ent[0].e;
+    edges.push(e);
+    top = Math.max(top, e.y1, e.y2);
+  }
+  FX.gold = { t0: S.gt, edges, top };
+}
+function drawGoldGlow() {
+  const G = FX.gold;
+  if (!G) return;
+  const age = S.gt - G.t0;
+  if (age > GOLD_RISE + GOLD_T) return;
+  ctx.save(); ctx.lineCap = 'round';
+  for (let pass = PERF.gloss ? 0 : 1; pass < 2; pass++) {
+    ctx.globalCompositeOperation = pass ? 'source-over' : 'lighter';
+    ctx.lineWidth = pass ? 3 : 12;
+    ctx.strokeStyle = pass ? '#FFF1B0' : '#FFC531';
+    for (const e of G.edges) {
+      const u = (age - GOLD_RISE * Math.min(e.y1, e.y2) / G.top) / GOLD_T;
+      if (u <= 0 || u >= 1) continue;
+      ctx.globalAlpha = Math.sin(Math.PI * u) * (pass ? 1 : 0.55);
+      ctx.beginPath();
+      toWorld(e.x1, e.y1, _w); w2s(_w.x, _w.y, _s); ctx.moveTo(_s.x, _s.y);
+      toWorld(e.x2, e.y2, _w); w2s(_w.x, _w.y, _s); ctx.lineTo(_s.x, _s.y);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
 function stepFx(dt) {
   const g = CAM.L * 18;
@@ -8852,11 +9652,17 @@ function stepFx(dt) {
   }
   for (let i = FX.glows.length - 1; i >= 0; i--) if (S.gt - FX.glows[i].t0 > CFG.GLOW_T) FX.glows.splice(i, 1);
   for (let i = FX.rings.length - 1; i >= 0; i--) if (S.gt - FX.rings[i].t0 > 0.35) FX.rings.splice(i, 1);
+  for (let i = FX.stars.length - 1; i >= 0; i--) {
+    const s = FX.stars[i];
+    if (S.gt - s.t0 > s.life) { FX.stars.splice(i, 1); continue; }
+    s.vy += g * 0.6 * dt; s.vx *= 1 - 2.5 * dt; s.vy *= 1 - 1.5 * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.rot += s.w * dt;
+  }
   for (let i = FX.pulses.length - 1; i >= 0; i--) if (S.gt - FX.pulses[i].t0 > CFG.PULSE_T) FX.pulses.splice(i, 1);
   for (let i = FX.words.length - 1; i >= 0; i--) if (S.gt - FX.words[i].t0 > FX.words[i].life) FX.words.splice(i, 1);
   for (let i = FX.puffs.length - 1; i >= 0; i--) if (S.gt - FX.puffs[i].t0 > 0.6) FX.puffs.splice(i, 1);
   for (let i = FX.pokes.length - 1; i >= 0; i--) if (S.gt - FX.pokes[i].t0 > CFG.POKE_T) FX.pokes.splice(i, 1);
   if (FX.dizzy && S.gt - FX.dizzy.t0 > 1.8) FX.dizzy = null;
+  if (FX.gold && S.gt - FX.gold.t0 > GOLD_RISE + GOLD_T) FX.gold = null;
   for (let i = FX.clockPops.length - 1; i >= 0; i--) if (S.gt - FX.clockPops[i].t0 > 0.9) FX.clockPops.splice(i, 1);
   // a time bonus counts when it reaches the clock
   for (let i = FX.flyers.length - 1; i >= 0; i--) { const f = FX.flyers[i]; if (S.gt - f.t0 >= f.dur) { addClock(f.amt, f.src); FX.flyers.splice(i, 1); } }
@@ -8864,10 +9670,13 @@ function stepFx(dt) {
   if (S.scoreShown < S.score) S.scoreShown = Math.min(S.score, S.scoreShown + Math.max(1, (S.score - S.scoreShown) * 14 * dt));
   else S.scoreShown = S.score;
 }
-function star(x, y, r, rot, col) {
+// (lw: its navy outline; a small star gets a thinner one: a fixed 1.5 px line round a 3 px star reads as a dark speck)
+function star(x, y, r, rot, col, lw) {
   ctx.beginPath();
   for (let k = 0; k < 10; k++) { const a = rot + k * Math.PI / 5, rr = k % 2 ? r * 0.45 : r; ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
-  ctx.closePath(); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#1E2541'; ctx.stroke();
+  ctx.closePath(); ctx.fillStyle = col; ctx.fill();
+  if (lw === undefined) lw = 1.5;
+  if (lw >= 0.3) { ctx.lineWidth = lw; ctx.strokeStyle = '#1E2541'; ctx.stroke(); }
 }
 function drawGlows() {
   if (!FX.glows.length) return;
@@ -8932,12 +9741,20 @@ function drawFxTop() {
     ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(tx, ty); ctx.stroke();
   }
   for (const r of FX.rings) {
-    const u = clamp((S.gt - r.t0) / 0.35, 0, 1), e = easeOutCubic(u);
+    if (S.gt < r.t0) continue;
+    const u = clamp((S.gt - r.t0) / 0.35, 0, 1), e = easeOutCubic(u), h = r.heat || 0;
     ctx.globalAlpha = 1 - u;
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5 * (1 - u) + 1;
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = (5 + 3 * h) * (1 - u) + 1;
     ctx.beginPath(); ctx.arc(r.x, r.y, r.L * (0.45 + 1.4 * e), 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = r.ring ? '#D6247F' : '#FFC531'; ctx.lineWidth = 2 * (1 - u) + 0.5;
+    ctx.strokeStyle = r.ring ? '#D6247F' : heatHex(h); ctx.lineWidth = (2 + 3 * h) * (1 - u) + 0.5;
     ctx.beginPath(); ctx.arc(r.x, r.y, r.L * (0.35 + 1.1 * e), 0, Math.PI * 2); ctx.stroke();
+  }
+  for (const st of FX.stars) {
+    const u = (S.gt - st.t0) / st.life;
+    ctx.globalAlpha = u < 0.6 ? 1 : clamp((1 - u) / 0.4, 0, 1);
+    // (born at 3/4 of its size: it bursts out a star, not a speck; the outline thins with its size)
+    const r = st.r * (u < 0.15 ? 0.75 + u / 0.6 : 1);
+    star(st.x, st.y, r, st.rot, st.color, clamp(0.2 * r, 0.6, 1.5));
   }
   if (!(S.phase === 'over' && OV.stage === 'results')) drawConfetti();
   if (FX.dizzy) {
@@ -8969,31 +9786,35 @@ function drawFxTop() {
       ctx.restore();
       continue;
     }
-    const big = w.kind === 'word' || w.kind === 'announce';
-    const sc = big ? 1.4 - 0.4 * easeOutBack(k, 2.2) : 0.8 + 0.2 * easeOutBack(k);
+    const big = w.kind === 'word' || w.kind === 'announce', pin = w.pin || 1.4;
+    const sc = big ? pin - (pin - 1) * easeOutBack(k, 2.2) : 0.8 + 0.2 * easeOutBack(k);
     const fadeStart = big ? 0.6 : 0.5;
     let a = u < fadeStart ? 1 : clamp(1 - (u - fadeStart) / (1 - fadeStart), 0, 1);
-    const y = w.kind === 'chip' ? w.y : w.y - (big ? 24 : 30) * easeOutCubic(clamp(u, 0, 1));
+    const y = w.kind === 'chip' ? w.y : w.y - (w.rise !== undefined ? w.rise : big ? 24 : 30) * easeOutCubic(clamp(u, 0, 1));
     let base = clamp(CAM.W / 15, 20, 36) * w.size;
-    ctx.font = font(base);
-    let tw = ctx.measureText(w.text).width, subW = 0;
-    if (w.sub) { ctx.font = font(base * 0.55); subW = ctx.measureText(w.sub).width; }
+    let tw = 0, subW = 0;
+    if (w.lines) { for (let i = 0; i < w.lines.length; i++) tw = Math.max(tw, textW(base, w.lines[i])); } else tw = textW(base, w.text);
+    if (w.cx) tw *= w.cx;
+    if (w.sub) subW = textW(base * 0.55, w.sub);
+    const more = w.lines ? (w.lines.length - 1) * POP_LINE : 0;
     // (it fits its room at the 1.4x it pops in at, so the pop never spills over what it was placed beside)
-    const need = Math.max(tw, subW) * (big ? 1.4 : 1);
+    const need = Math.max(tw, subW) * (big ? pin : 1);
     // (fitted to its room, but a word never below POP_MINK of its size)
-    if (w.maxW && need > w.maxW) { const f = Math.max(w.kind === 'word' ? POP_MINK : 0, w.maxW / need); base *= f; tw *= f; subW *= f; }
+    if (w.maxW && need > w.maxW) { const f = Math.max(w.kind === 'word' ? (w.kmin || POP_MINK) : 0, w.maxW / need); base *= f; tw *= f; subW *= f; }
     const half = Math.max(tw, subW) * sc / 2 + 6, x = half * 2 < CAM.W ? clamp(w.x, half, CAM.W - half) : CAM.W / 2;   // never off-screen
     // a word over the ghost as it is now (the player moved the aim under it) gives way: see-through, gone in 0.1 s
     // (an announcement stays, see-through)
-    w.x0 = x - half; w.x1 = x + half; w.y0 = y - base * 0.6 * sc; w.y1 = y + base * (w.sub ? 1.2 : 0.6) * sc;
+    w.x0 = x - half; w.x1 = x + half; w.y0 = y - base * 0.6 * sc; w.y1 = y + base * ((w.sub ? 1.2 : 0.6) + more) * sc;
     w.dim = big && GHOSTR.on && w.x0 < GHOSTR.x1 && w.x1 > GHOSTR.x0 && w.y0 < GHOSTR.y1 && w.y1 > GHOSTR.y0;
     if (w.dim) { a *= 0.25; if (w.kind === 'word') w.life = Math.min(w.life, age + 0.1); }
     ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.scale(sc, sc);
     if (w.kind === 'score') outlinedText(w.text, 0, 0, base, w.color, w.stroke || '#ffffff', 'center', base * 0.22);
     else if (w.kind === 'chip') outlinedText(w.text, 0, 0, Math.min(base, 26), w.color, '#1E2541', 'center', 6);
     else {
-      outlinedText(w.text, 0, 0, base, w.color, '#1E2541', 'center', base * 0.24);
-      if (w.sub) outlinedText(w.sub, 0, base * 0.88, Math.max(12, base * 0.55), w.subColor, '#1E2541', 'center', Math.max(3, base * 0.17));
+      if (w.lines) for (let i = 0; i < w.lines.length; i++) outlinedText(w.lines[i], 0, i * POP_LINE * base, base, w.color, '#1E2541', 'center', base * 0.24);
+      else if (w.cx && w.cx !== 1) { ctx.save(); ctx.scale(w.cx, 1); outlinedText(w.text, 0, 0, base, w.color, '#1E2541', 'center', base * 0.24); ctx.restore(); }
+      else outlinedText(w.text, 0, 0, base, w.color, '#1E2541', 'center', base * 0.24);
+      if (w.sub) outlinedText(w.sub, 0, base * (0.88 + more), Math.max(12, base * 0.55), w.subColor, '#1E2541', 'center', Math.max(3, base * 0.17));
     }
     ctx.restore();
   }
@@ -9040,7 +9861,9 @@ const CS = window.CS = {
       hazard: { every: HZ.every, kind: HZ.kind, side: HZ.side, inS: HZ.every ? +(HZ.next - HZ.clock).toFixed(3) : null, warned: HZ.warned },
       skyT: S.skyT, night: S.night, smashStage: S.phase === 'smash' ? SM.stage : null,
       over: S.phase === 'over' ? { stage: OV.stage, open: resultsOpen(), shown: OV.shown, newBest: OV.newBest, final: OV.final } : null,
-      startHit: S.phase === 'start' ? ST.hit : null, allTippy: S.allTippy, cubeWait: S.cubeWait };
+      startHit: S.phase === 'start' ? ST.hit : null, allTippy: S.allTippy, cubeWait: S.cubeWait,
+      // a dead end's tell: 0..1 through it (0: none)
+      tell: toppleTell() };
   },
   best() { return { normal: loadBest(false), big: loadBest(true) }; },
   // the standing tiles with their live screen centroids (CSS px), for pixel checks
@@ -9048,7 +9871,9 @@ const CS = window.CS = {
     if (!S.B || S.baseHidden) return [];
     return S.B.tiles.filter(t => !t.flight && !t.gone).map(t => {
       toWorld(t.pose.cx, t.pose.cy, _w); w2s(_w.x, _w.y, _s);
-      return { key: t.pose.key, type: t.pose.type, shape: t.shape, color: t.color, sx: _s.x, sy: _s.y, ring: !!t.ring };
+      // ext: how far its outline reaches from its centroid (L: left, up, right, down; untilted)
+      const P = t.pose;
+      return { key: P.key, type: P.type, shape: t.shape, color: t.color, sx: _s.x, sy: _s.y, ring: !!t.ring, ext: [P.cx - P.minX, P.maxY - P.cy, P.maxX - P.cx, P.cy - P.minY] };
     });
   },
   // (z: depth toward the viewer, L; sx, sy: its screen centre, CSS px)
@@ -9088,12 +9913,14 @@ const CS = window.CS = {
   },
   // the goal ribbon, its label and its stub as drawn on the last frame
   ribbon() {
-    return { on: RIB.on, y: RIB.y, x0: RIB.x0, x1: RIB.x1, label: RIB.label ? { x0: RIB.lx0, y0: RIB.ly0, x1: RIB.lx1, y1: RIB.ly1 } : null,
+    return { on: RIB.on, y: RIB.y, x0: RIB.x0, x1: RIB.x1, a: RIB.on ? RIB.a : 0, icon: RIB.on ? { x: RIB.icx, y: RIB.y, r: RIB.isz / 2 } : null, label: RIB.label ? { x0: RIB.lx0, y0: RIB.ly0, x1: RIB.lx1, y1: RIB.ly1 } : null,
       stub: RIB.stub ? { x0: RIB.sx0, y0: RIB.sy0, x1: RIB.sx1, y1: RIB.sy1 } : null };
   },
+  // the dead end's "NO ROOM!" sign as drawn on the last frame (CSS px) and the build's shiver (px, rad); null if none
+  tell() { return TELL.on ? { box: { x0: TELL.x0, y0: TELL.y0, x1: TELL.x1, y1: TELL.y1 }, dx: TELL.dx, rot: TELL.rot, k: toppleTell() } : null; },
   // the word pops alive now (text, kind, screen position)
   // (aimMoved: the hand has moved since the pop was born: a pop the aim then moved under turns see-through)
-  words() { return FX.words.map(w => ({ text: w.text, sub: w.sub, kind: w.kind, x: w.x, y: w.y, age: S.gt - w.t0, life: w.life, box: w.x1 ? { x0: w.x0, y0: w.y0, x1: w.x1, y1: w.y1 } : null, dim: !!w.dim, aimMoved: w.hx !== undefined && Math.abs(HAND.x - w.hx) > 1 })); },
+  words() { return FX.words.map(w => ({ text: w.text, sub: w.sub, kind: w.kind, x: w.x, y: w.y, age: S.gt - w.t0, life: w.life, size: w.size, color: w.color, near: !!w.near, pin: w.pin, lines: w.lines ? w.lines.slice() : null, box: w.x1 ? { x0: w.x0, y0: w.y0, x1: w.x1, y1: w.y1 } : null, dim: !!w.dim, aimMoved: w.hx !== undefined && Math.abs(HAND.x - w.hx) > 1 })); },
   // the boot calibration (3.6): fitted constants, and the peaks they give on the reference tower (θ/α; flex in L)
   calib() {
     const p = calibPeaks() || {};
@@ -9103,12 +9930,19 @@ const CS = window.CS = {
       targets: { great: CFG.CAL_GREAT, clack: CFG.CAL_CLACK, clackFlex: CFG.CAL_FLEX, perfect: CFG.CAL_PERFECT, bump: CFG.CAL_BUMP, foot: CFG.CAL_FOOT } };
   },
   setClock(s) { S.clock = clamp(+s || 0, 0, CFG.CLOCK_MAX); return S.clock; },
+  // the look-ahead (TIPPY, the tip tell, SAVE) from right now: θ after each simulated step, sec seconds of it (it stops
+  // at a predicted crash), and the crash time it predicts (-1: none)
+  lookahead(sec) { const tr = []; const at = predictCrash(+sec || 1, null, tr); return { theta: tr, crashIn: at, rocked: ROCKED }; },
   spawnDebris(o) { const d = spawnDebris(o); return d ? DEBRIS.length : 0; },
-  perf() { return { jsMs: PERF.jsMs, fps: PERF.fps, lightPass: PERF.lightPass, gloss: PERF.gloss, frameMs: PERF.frameMs, drops: PERF.drops }; },
+  perf() { return { jsMs: PERF.jsMs, fps: PERF.fps, lightPass: PERF.lightPass, gloss: PERF.gloss, frameMs: PERF.frameMs, drops: PERF.drops,
+    // Art's static layers: how many times they were rebuilt for a new size, and whether a rebuild is still settling
+    artRebuilds: ARTSZ.rebuilds, artStale: artStale() || ARTSZ.dpr !== CAM.dpr }; },
   audio() { return Sfx.stats(); },
   selftest() { return runSelftest(); },
   // stop the main loop for good (tools/art.cjs and tools/audio.cjs drive Art and Sfx directly on this page)
   halt() { HALT = true; Sfx.music.stop(); Sfx.creak(0); return true; },
+  // the holding arm as drawn on the last frame: wrist, elbow, shoulder (CSS px) and its half-widths there
+  arm() { return Object.assign({}, ARMG); },
   cam() { return { L: CAM.L, camY: CAM.camY, groundY: CAM.groundY, handY: CAM.handY, handTop: CAM.handTop, hudBottom: CAM.hudBottom, W: CAM.W, H: CAM.H, originX: CAM.originX, baseY: CAM.baseY, handX: HAND.dx }; },
   ui() { const o = {}; for (const k in UI) if (UI[k]) o[k] = Object.assign({}, UI[k]); o.card = Object.assign({}, RC.card); return o; },   // HUD boxes and buttons (CSS px)
 };
@@ -9311,6 +10145,7 @@ function step(dt) {
   if (FX.hitStop > 0) { FX.hitStop = Math.max(0, FX.hitStop - dt); return; }
   if (S.slowLeft > 0) { S.slowLeft -= dt; dt *= CFG.CRASH_SLOW_K; }      // a crash going over, at 0.4x
   S.gt += dt;
+  ROCKED = false;               // (until stepTower has rocked the tower for this step: predictCrash)
   switch (S.phase) {
     case 'start': stepStart(dt); break;
     case 'play': case 'crash':
@@ -9332,6 +10167,7 @@ function step(dt) {
       updateCamera(dt, false);
       break;
   }
+  ROCKED = true;
   stepArm(dt);
   stepHazardActors(dt);
   stepSky(dt);
@@ -9356,19 +10192,31 @@ function frame(now) {
     if (n >= 120) acc = 0;
   }
   S.frame++;
+  if (S.phase === 'title' || S.phase === 'start') warmFont();
   try { render(); } catch (e) { ctx.setTransform(1, 0, 0, 1, 0, 0); throw e; }
   // the creak follows how close the tower is to going over (continuous; Sfx maps 0.4..1 to its volume)
-  Sfx.creak(S.phase === 'play' ? Math.min(1, TIP.level) : 0);
+  // (and through a dead end's tell, rising toward the TOPPLE, under the heartbeat)
+  Sfx.creak(S.phase === 'play' ? Math.min(1, Math.max(TIP.level, S.toppleAt >= 0 ? 0.68 + 0.2 * toppleTell() : 0)) : 0);
   const js = performance.now() - t0;
   PERF.jsMs = PERF.jsMs * 0.95 + js * 0.05;
   if (dt > 0) PERF.fps = PERF.fps * 0.95 + (1 / dt) * 0.05;
 }
-function init() {
+// the web font: asked for only when the browser is online (offline the request could only fail, and log that it did);
+// a page opened offline asks for it when the connection comes back. The game reads the same in the fallback face
+let FONT_ASKED = false;
+function askFont() {
+  if (FONT_ASKED) return;
   try {
+    if (navigator.onLine === false) return;
+    FONT_ASKED = true;
     const l = document.createElement('link');
     l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap';
     document.head.appendChild(l);
   } catch (e) { /* offline is fine */ }
+}
+function init() {
+  askFont();
+  try { if (!FONT_ASKED) window.addEventListener('online', askFont); } catch (e) { /* no events: the fallback face */ }
   S.big = PARAM.big || PREFS.big === true;
   S.titleT0 = S.rt;
   try { if (window.matchMedia('(pointer: coarse)').matches) S.inputType = 'touch'; } catch (e) { /* keep mouse */ }
@@ -9377,6 +10225,7 @@ function init() {
   // after layout(): its big allocations (the room, the rug, the sprite caches) pay off the page's start-up GC debt
   // first, so no collector pause lands inside the timed fit (CS.calib().ms)
   calibrate();
+  nearOffsets();        // (the landing pop's search table: built now, not at the first PERFECT)
   bindInput();
   if (PARAM.autostart) startGame('auto');
   if (PARAM.selftest) {

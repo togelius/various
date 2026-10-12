@@ -1,5 +1,11 @@
 # CLACK STACK: final design
 
+> This is the design the game was built from. It came out of six competing concepts,
+> judged for fun, for fidelity to the photos and for how buildable they were. The game
+> follows it closely. Playtesting changed some details: the hand hovers just above the
+> build, word pops stay off the tower, PERFECT streaks escalate, and a dead end gives a
+> warning before it topples. `README.md` describes what shipped.
+
 *A fast tower-building race with see-through magnetic tiles, set on the living-room rug from the photos.*
 
 Deliverables: `clack-stack/index.html` (one file, no dependencies, no image assets, Canvas 2D, WebAudio), `clack-stack/README.md` in the house style, and one bullet in the top-level `README.md`. Work happens on `main`, per the repo policy.
