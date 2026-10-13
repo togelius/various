@@ -145,11 +145,10 @@ const CFG = {
   SAVE_WIN: 1.5,                            // ... and a counterweight landed within this long of the lean being at >= SAVE_AT
   TIPPY_HORIZON: 4,                         // TIPPY looks this far past the aimed tile's landing (a tower near α topples slowly)
   BRACE_T: 0.3, BRACE_W: 0.3, BRACE_PTS: 20, POKE_T: 0.38, SLAP_THUMP_W: 0.35,
-  // TRUSS (15.2): a down-triangle landing in the notch of two up-triangles on one base row braces the tower up to the
-  // notch's top (only that order: an up-triangle closing a notch around a down-triangle hung off the other one is not
-  // a TRUSS, trussNotches; the gold hints only ever point to the down-triangle's move): TRUSS_PTS × mult, the
-  // wobble × TRUSS_W, a lock chord, and the joints under the brace line light up from the base (over TRUSS_RISE s,
-  // each flashing for TRUSS_FLASH s), then keep a faint steady glint (alpha TRUSS_GLINT)
+  // TRUSS (15.2): a down-triangle between two up-triangles standing on one base row (Δ∇Δ, built in either order:
+  // the ▼ into the notch, or the second Δ beside a ▼ hung off the first, trussNotches) braces the tower up to the
+  // notch's top: the wobble × TRUSS_W, a lock chord, and the joints under the brace line light up from the base (over
+  // TRUSS_RISE s, each flashing for TRUSS_FLASH s), then keep a faint steady glint (alpha TRUSS_GLINT)
   TRUSS_PTS: 150, TRUSS_W: 0.3, TRUSS_FLASH: 0.5, TRUSS_RISE: 0.22, TRUSS_GLINT: 0.42,
   // the red TIPPY ghost (15.4) shows on levels up to TIPPY_SHOW_MAX and in BIG MAGNETS; later, balance is the player's job
   TIPPY_SHOW_MAX: 3,
@@ -181,6 +180,7 @@ const CFG = {
   WOB_TAU: 1.5, WOB_TAU_H: 6, WOB_TAU_LAM: Infinity, WOB_DRAIN: 0.19, WOB_POS_P: 0,
   WOB_GEAR: 0.8, WOB_GEAR_Q: 0.3, WAH_EVERY: 0.05,
   WOB_SWAY: 0.25, WOB_SWAY_T: 0.12, WOB_AMBER: 0.4, WOB_FUSE: 0.4,
+  WOB_CAP_G: { perfect: 1, great: 1, clack: 1 }, WOB_FUSE_RED: false, WOB_THIN_W: 1.5, WOB_THIN_H: 1e9, WOB_CAP_THIN: 0.5, WOB_TAU_THIN: 1,
   // SNAP (15.3): the segment cartwheels off (the braced part stands); no TRUSS yet: a full crash
   SNAP_SHAKE: 8, SNAP_STOP: 0.08, SNAP_VMAX: 5.5, SNAP_UNZIP: 0.12,   // (the segment lets go top first over SNAP_UNZIP s)
   // the crown gamble (15.6): CROWN NOW or GO HIGHER (the chip on the HOLD box); the first-ever crown's hint stays up
@@ -4847,34 +4847,75 @@ function evalCand(B, P) {
   // matches a slant (every slant is a triangle's) counts as supported. notch: a down-triangle meeting two slants; truss:
   // landing here fills a notch between two up-triangles (15.2); hint: shown faintly while a triangle is in the hand
   const tri = P.type === 'up' || P.type === 'dn', firm = tri && !bottom && slants >= 1;
-  const truss = notch && trussNotches(B, P, null, TRUSS_TMP).length > 0;
+  const truss = (notch || (P.type === 'up' && bottom && slants >= 1)) && trussNotches(B, P, null, TRUSS_TMP).length > 0;
+  const half = !truss && P.type === 'up' && bottom && halfNotch(B, P);
   return { key: P.key, type: P.type, pose: P, edges, depth, supported: bottom || edges >= 2 || firm, bottom, matched, wx: P.cx, wy: P.cy,
-    firm, notch, truss, hint: notch || firm || truss };
+    firm, notch, truss, half, hint: notch || firm || truss || half };
 }
-// The notch a triangle at pose P fills into a TRUSS (15.2): P is a down-triangle and both its slants are held by
-// up-triangles standing on its own base row (a notch's two up-triangles always do). Only that: the same Δ∇Δ built the
-// other way round (a down-triangle hung off one up-triangle, then the second up-triangle) fills no notch, and neither
-// does an up-triangle hung off a down-triangle. Fills out (an array) with P or nothing. self: the tile at P when it is
-// in the build already (a landing; else null: a candidate, which counts the tiles in the air as built, as the ghost
-// does; a landing counts only the tiles already down)
+// The notches a triangle at pose P closes into a TRUSS (15.2): a down-triangle between two up-triangles standing on its
+// own base row (Δ∇Δ, each Δ resting on its bottom edge). Either order counts: the ▼ dropped into the notch of two Δ,
+// or the second Δ closing the shape around a ▼ hung off the first (the same shape, the same brace). An up-triangle hung
+// off a side-hang by its slant stands on nothing, so it never makes one. Fills out (an array) with the down-triangles'
+// poses (the brace line goes to their top). self: the tile at P when it is in the build already (a landing; else
+// null: a candidate, which counts the tiles in the air as built, as the ghost does; a landing counts only the tiles
+// already down)
 const TRUSS_TMP = [];
 function trussNotches(B, P, self, out) {
+  return trussCore(B, P, o => o !== self && o.pose !== P && !(self && o.flight), out);
+}
+// ...with built(o): tile o (not the car, not the one landing at P) counts as there
+function trussCore(B, P, built, out) {
   out.length = 0;
-  if (P.type !== 'dn') return out;
+  if (P.type === 'dn') { if (notchHeld(B, P, null, built)) out.push(P); return out; }
+  if (P.type !== 'up' || !upStands(B, P, built)) return out;
+  for (let j = 1; j < 3; j++) {                       // its two slants (edges[1], edges[2])
+    const ent = B.emap.get(P.edges[j].key);
+    if (!ent) continue;
+    for (let k = 0; k < ent.length; k++) {
+      const o = ent[k].owner;
+      if (o.isCar || o.type !== 'dn' || !built(o) || o.pose.a !== P.a || o.pose.b !== P.b) continue;
+      if (notchHeld(B, o.pose, P, built)) out.push(o.pose);
+    }
+  }
+  return out;
+}
+// an up-triangle at pose U rests on its bottom edge: a car top or a built tile's top edge under it
+function upStands(B, U, built) {
+  const ent = B.emap.get(U.edges[0].key);
+  if (!ent) return false;
+  for (let k = 0; k < ent.length; k++) { const o = ent[k].owner; if (o.pose !== U && (o.isCar || built(o))) return true; }
+  return false;
+}
+// both slants of the down-triangle D held by up-triangles standing on its row (U: one of them, the pose landing now)
+function notchHeld(B, D, U, built) {
   let n = 0;
-  for (const e of P.edges) {
+  for (let j = 0; j < 3; j++) {
+    const e = D.edges[j];
     if (e.role === 'top') continue;
+    if (U && (U.edges[1].key === e.key || U.edges[2].key === e.key)) { n++; continue; }
     const ent = B.emap.get(e.key);
     if (!ent) continue;
     for (let k = 0; k < ent.length; k++) {
       const o = ent[k].owner;
-      if (o === self || o.isCar || (self && o.flight)) continue;
-      if (o.type === 'up' && o.pose.a === P.a && o.pose.b === P.b) { n++; break; }
+      if (o.isCar || o.type !== 'up' || o.pose === D || !built(o) || o.pose.a !== D.a || o.pose.b !== D.b) continue;
+      if (upStands(B, o.pose, built)) { n++; break; }
     }
   }
-  if (n === 2) out.push(P);
-  return out;
+  return n === 2;
 }
+// Half a TRUSS (the ghost's faint hint, 15.1): an up-triangle standing at U beside an up-triangle standing on its row
+// with the down-triangle's spot between them still open (the second Δ of a notch)
+function halfNotch(B, U) {
+  for (let d = -1; d <= 1; d += 2) {
+    const D = getPose('dn', U.i + d, U.a, U.b), far = D.edges[d > 0 ? 0 : 2];      // the far Δ's slant
+    const ent = B.emap.get(far.key);
+    if (!ent || ent.length !== 1) continue;           // (two owners: the ▼ is there already)
+    const o = ent[0].owner;
+    if (!o.isCar && o.type === 'up' && o.pose.a === U.a && o.pose.b === U.b && upStands(B, o.pose, NOT_CAR)) return true;
+  }
+  return false;
+}
+const NOT_CAR = o => !o.isCar;
 // The three generators (3.3). Called only when the build changes.
 function genSlots(B) {
   const raw = new Map();
@@ -4955,9 +4996,9 @@ const TW = { theta: 0, omega: 0, s: 0, sv: 0, H: 1, squash: 0, ox: 0,
 // at wq rad/s whose amplitude eases to WOB_SWAY·W. It is drawn and the slots are placed at x + q·((y − yb) / Hs)² above
 // yb (toWorld), on top of the flex. Only a look and a moving target: the rock and its look-ahead never see it (the
 // tower's physics stays exactly the game's own future); the wobble's own danger is the SNAP (land()).
-const WOB = { W: 0, yb: 0, Hu: 0, w: 1, lam: 0, Hs: 1, q: 0, qv: 0, wq: 9, dir: 1, top: 0, glowAt: -1 };
+const WOB = { W: 0, yb: 0, Hu: 0, w: 1, lam: 0, thin: 0, Hs: 1, q: 0, qv: 0, wq: 9, dir: 1, top: 0, glowAt: -1 };
 function towerReset() {
-  WOB.W = 0; WOB.glowAt = -1; WOB.q = 0; WOB.qv = 0; WOB.yb = 0; WOB.Hu = 0; WOB.w = 1; WOB.lam = 0; WOB.Hs = 1; WOB.top = 0;
+  WOB.W = 0; WOB.glowAt = -1; WOB.q = 0; WOB.qv = 0; WOB.yb = 0; WOB.Hu = 0; WOB.w = 1; WOB.lam = 0; WOB.thin = 0; WOB.Hs = 1; WOB.top = 0;
   TW.theta = TW.omega = TW.s = TW.sv = TW.squash = TW.ox = TW.braceT = 0; TW.H = 1; TW.side = 0;
   TW.tipping = TW.crashing = false; TW.evSlap = 0; TW.evRest = false;
 }
@@ -5292,7 +5333,7 @@ function segMeasure(B, yb, inc, extra, out) {
   }
   if (extra) { if (extra.maxY > top) top = extra.maxY; if (extra.minY >= yb - 1e-9 && extra.minY > cut) cut = extra.minY; }
   const Hu = Math.max(0, top - yb), dy = CFG.WOB_DY;
-  let w = Infinity;
+  let w = Infinity, thin = 0;
   for (let y = yb + dy / 2; y <= top - dy / 2 + 1e-9 && y < cut - 1e-9; y += dy) {
     let n = 0;
     for (let k = 0; k <= tiles.length; k++) {
@@ -5310,8 +5351,9 @@ function segMeasure(B, yb, inc, extra, out) {
     }
     if (b > a) len += b - a;
     if (len < w) w = len;
+    if (len < CFG.WOB_THIN_W) thin += dy;
   }
-  out.Hu = Hu; out.top = top;
+  out.Hu = Hu; out.top = top; out.thin = thin;
   out.w = Math.max(CFG.WOB_W_MIN, w === Infinity ? CFG.WOB_W_MIN : w);
   out.lam = Hu / out.w;
   return out;
@@ -5335,13 +5377,13 @@ function wobDecay(W, dt, tau) {
   const k = CFG.WOB_DRAIN * tau, e = Math.exp(-dt / tau);
   return Math.max(0, (W + k) * e - k);
 }
-function wobTau(Hu, lam) { return CFG.WOB_TAU * Math.max(1, Hu / CFG.WOB_TAU_H) * Math.max(1, lam / CFG.WOB_TAU_LAM); }
-function wobCap(lam) { return Math.min(CFG.WOB_CAP_TOP, CFG.WOB_DW_MAX + CFG.WOB_CAP_K * Math.max(0, lam - CFG.WOB_CAP_L)); }
-function wobDelta(grade, shape, lam, pos) {
+function wobTau(Hu, lam, thin) { return CFG.WOB_TAU * Math.max(1, Hu / CFG.WOB_TAU_H) * Math.max(1, lam / CFG.WOB_TAU_LAM) * (thin >= CFG.WOB_THIN_H ? CFG.WOB_TAU_THIN : 1); }
+function wobCap(lam, thin) { return thin >= CFG.WOB_THIN_H ? CFG.WOB_CAP_THIN : Math.min(CFG.WOB_CAP_TOP, CFG.WOB_DW_MAX + CFG.WOB_CAP_K * Math.max(0, lam - CFG.WOB_CAP_L)); }
+function wobDelta(grade, shape, lam, pos, thin) {
   const d = Math.max(0, lam - CFG.WOB_LAM0);
-  const a = CFG.WOB_A[grade];
+  const a = CFG.WOB_A[grade], g = CFG.WOB_CAP_G[grade];
   const pk = CFG.WOB_POS_P > 0 && pos !== undefined ? Math.pow(clamp(pos, 0, 1), CFG.WOB_POS_P) : 1;
-  return Math.min(wobCap(lam), (a === undefined ? CFG.WOB_A.clack : a) * d * d * (shape === 'cube' ? CFG.WOB_CUBE : 1)) * pk * (S.big ? CFG.WOB_BIG : 1);
+  return Math.min(wobCap(lam, thin || 0) * (g === undefined ? 1 : g), (a === undefined ? CFG.WOB_A.clack : a) * d * d * (shape === 'cube' ? CFG.WOB_CUBE : 1)) * pk * (S.big ? CFG.WOB_BIG : 1);
 }
 // a tile at pose P lands in the segment: it sits on or above the brace line (what would come off with a SNAP)
 function inSegment(P, yb) { return P.minY >= yb - 1e-9; }
@@ -5349,7 +5391,7 @@ function inSegment(P, yb) { return P.minY >= yb - 1e-9; }
 // step: what snapAhead() assumes); the sway eases to WOB_SWAY·W, a spring at the segment's own frequency, and the top's
 // lateral speed (flex + rock + sway) keeps the TOP_VMAX cap
 function stepWobble(dt) {
-  if (WOB.W > 0) { WOB.W = wobDecay(WOB.W, dt, wobTau(WOB.Hu, WOB.lam)); if (WOB.W < 1e-4) WOB.W = 0; }
+  if (WOB.W > 0) { WOB.W = wobDecay(WOB.W, dt, wobTau(WOB.Hu, WOB.lam, WOB.thin)); if (WOB.W < 1e-4) WOB.W = 0; }
 }
 function stepSway(dt) {
   const wq = WOB.wq, A = CFG.WOB_SWAY * WOB.W;
@@ -5367,20 +5409,9 @@ function stepSway(dt) {
 }
 // One more landing in the wobble's order of things (snapAhead): did tile T (in the build, landing now with the tiles
 // marked down) close a notch into a TRUSS? The rule of trussNotches, with "already down" = isDown
+const TRUSS_AH = [];
 function trussAhead(B, P, isDown) {
-  if (P.type !== 'dn') return false;
-  let n = 0;
-  for (const e of P.edges) {
-    if (e.role === 'top') continue;
-    const ent = B.emap.get(e.key);
-    if (!ent) continue;
-    for (let k = 0; k < ent.length; k++) {
-      const o = ent[k].owner;
-      if (o.isCar || o.pose === P || !isDown(o)) continue;
-      if (o.type === 'up' && o.pose.a === P.a && o.pose.b === P.b) { n++; break; }
-    }
-  }
-  return n === 2;
+  return trussCore(B, P, o => o.pose !== P && isDown(o), TRUSS_AH).length > 0;
 }
 // The wobble's look-ahead: the tiles in the air land in order at their times with their locked grades (and then
 // `extra`, a tile being aimed: {pose, grade, shape, landAt}), with land()'s rules: W decayed to each landing's step (at
@@ -5389,15 +5420,15 @@ function trussAhead(B, P, isDown) {
 // SNAPs a tower with no TRUSS (a full crash), 'part' when the braced part would stand, else ''; WRUN holds the segment
 // and W once they are all down. (Conservative by a step: each decay stops one fixed step short of its landing, as a
 // landing's step can be.)
-const SNAPM = { Hu: 0, w: 1, lam: 0, top: 0 };
-const WRUN = { W: 0, lam: 0, Hu: 0, w: 1, yb: 0, t: 0 };
+const SNAPM = { Hu: 0, w: 1, lam: 0, top: 0, thin: 0 };
+const WRUN = { W: 0, lam: 0, Hu: 0, w: 1, yb: 0, t: 0, thin: 0 };
 let SNAP_STAMP = 0;
 function snapAhead(extra) {
   const B = S.B;
-  WRUN.W = WOB.W; WRUN.lam = WOB.lam; WRUN.Hu = WOB.Hu; WRUN.w = WOB.w; WRUN.yb = WOB.yb; WRUN.t = S.gt;
+  WRUN.W = WOB.W; WRUN.lam = WOB.lam; WRUN.Hu = WOB.Hu; WRUN.w = WOB.w; WRUN.yb = WOB.yb; WRUN.t = S.gt; WRUN.thin = WOB.thin;
   if (!B || S.phase !== 'play') return '';
   const stamp = ++SNAP_STAMP, isDown = t => !t.gone && (!t.flight || t._sd === stamp);
-  let W = WOB.W, t0 = S.gt, yb = B.yb, Hu = WOB.Hu, lam = WOB.lam, w = WOB.w;
+  let W = WOB.W, t0 = S.gt, yb = B.yb, Hu = WOB.Hu, lam = WOB.lam, w = WOB.w, thin = WOB.thin;
   const fl = S.flights, n = fl.length + (extra ? 1 : 0);
   let res = '';
   for (let i = 0; i < n; i++) {
@@ -5405,24 +5436,24 @@ function snapAhead(extra) {
     const grade = f ? f.grade : extra.grade, at = f ? f.landAt : extra.landAt;
     if (shape === 'crown') break;                       // the crown lands: the SMASH
     const dt = Math.max(0, at - t0 - CFG.STEP);
-    W = wobDecay(W, dt, wobTau(Hu, lam)); t0 += dt;
+    W = wobDecay(W, dt, wobTau(Hu, lam, thin)); t0 += dt;
     if (f) f.tile._sd = stamp;
-    if (P.type === 'dn' && trussAhead(B, P, isDown)) {
+    if ((P.type === 'dn' || P.type === 'up') && trussAhead(B, P, isDown)) {
       if (P.maxY > yb) yb = P.maxY;
       W *= CFG.TRUSS_W;
       segMeasure(B, yb, isDown, f ? null : P, SNAPM);
-      Hu = SNAPM.Hu; lam = SNAPM.lam; w = SNAPM.w;
+      Hu = SNAPM.Hu; lam = SNAPM.lam; w = SNAPM.w; thin = SNAPM.thin;
     } else {
       segMeasure(B, yb, isDown, f ? null : P, SNAPM);
-      Hu = SNAPM.Hu; lam = SNAPM.lam; w = SNAPM.w;
+      Hu = SNAPM.Hu; lam = SNAPM.lam; w = SNAPM.w; thin = SNAPM.thin;
       if (inSegment(P, yb)) {
         if (shape === 'marble') W *= CFG.WOB_GEAR;
-        else W = Math.min(1, W + wobDelta(grade, shape, lam, Hu > 0 ? (P.maxY - yb) / Hu : 1));
+        else W = Math.min(1, W + wobDelta(grade, shape, lam, Hu > 0 ? (P.maxY - yb) / Hu : 1, thin));
         if (W >= 1 - 1e-9) { res = yb > 0 ? 'part' : 'full'; break; }
       }
     }
   }
-  WRUN.W = W; WRUN.lam = lam; WRUN.Hu = Hu; WRUN.w = w; WRUN.yb = yb; WRUN.t = t0;
+  WRUN.W = W; WRUN.lam = lam; WRUN.Hu = Hu; WRUN.w = w; WRUN.yb = yb; WRUN.t = t0; WRUN.thin = thin;
   return res;
 }
 // The wobble's warning (15.3), for the glow, the creak and the fuse: what the segment is about to be once the tiles in
@@ -5443,7 +5474,7 @@ function wobAhead() {
   WAH.snap = snapAhead(null);
   const W = WAH.snap ? 1 : WRUN.W;
   const sh = HAND.piece && HAND.piece.shape !== 'crown' ? HAND.piece.shape : 'sq';
-  const next = sh === 'marble' ? 0 : wobDelta('clack', sh, (WRUN.Hu + 1) / Math.max(CFG.WOB_W_MIN, WRUN.w), 1);
+  const next = sh === 'marble' ? 0 : wobDelta('clack', sh, (WRUN.Hu + 1) / Math.max(CFG.WOB_W_MIN, WRUN.w), 1, WRUN.thin + (WRUN.w < CFG.WOB_THIN_W ? 1 : 0));
   WAH.W = W;
   WAH.red = !!WAH.snap || (W > 0 && W + next >= 1 - 1e-9);
   WAH.glow = WAH.red ? 'red' : W >= CFG.WOB_AMBER ? 'amber' : '';
@@ -6180,7 +6211,7 @@ function land(f) {
   const gear = live && !crown && !notches && f.piece.shape === 'marble' && inSegment(t.pose, S.B.yb);
   if (gear) { WOB.W *= CFG.WOB_GEAR; WOB.q *= CFG.WOB_GEAR_Q; WOB.qv *= CFG.WOB_GEAR_Q; }
   else if (live && !crown && !notches && inSegment(t.pose, S.B.yb)) {
-    dW = wobDelta(f.grade, f.piece.shape, WOB.lam, WOB.Hu > 0 ? (t.pose.maxY - S.B.yb) / WOB.Hu : 1);
+    dW = wobDelta(f.grade, f.piece.shape, WOB.lam, WOB.Hu > 0 ? (t.pose.maxY - S.B.yb) / WOB.Hu : 1, WOB.thin);
     WOB.W = Math.min(1, WOB.W + dW);
     if (Math.abs(WOB.q) < 1e-3) WOB.dir = f.dxs > 1e-9 ? 1 : f.dxs < -1e-9 ? -1 : (t.pose.cx >= TW.cx ? 1 : -1);
   }
@@ -7364,7 +7395,7 @@ function stepPlay(dt) {
   // (the warning: the glow is on from the moment a shaking drop is let go; WOB.glowAt: since when, for the SNAP's log)
   const wa = wobAhead();
   if (wa.glow && S.phase === 'play') { if (WOB.glowAt < 0) WOB.glowAt = S.gt; } else WOB.glowAt = -1;
-  S.fuseWait = Math.max(WOB.W, wa.W) > CFG.WOB_FUSE && S.phase === 'play';
+  S.fuseWait = (CFG.WOB_FUSE_RED ? wa.red : Math.max(WOB.W, wa.W) > CFG.WOB_FUSE) && S.phase === 'play';
   // (and while the crown waits in the hand with GO HIGHER up, the choice is the player's: the fuse never makes it, and
   // never lets a crown go where it could only MISS)
   const crownWait = !!HAND.piece && HAND.piece.shape === 'crown' && (goHigherOn() || !S.ghost);
@@ -8237,8 +8268,8 @@ function trussChip(x, y) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('TRUSS', lx + 7 + tw / 2, 1);
   ctx.restore();
 }
-// the faint outlines of the triangle moves (15.1): every notch and every firm side slot (not the ghost's own), the ones
-// that would close a TRUSS in gold. Inset a little, so an outline never sits on a tile's edge
+// the faint outlines of the triangle moves (15.1): every notch, every firm side slot and the partner Δ beside a lone Δ
+// (not the ghost's own), the ones that would close a TRUSS in gold. Inset a little, so an outline never sits on a tile's edge
 const HINT_DASH = [5, 4];
 function drawTriHints() {
   const cands = S.B.cands, L = CAM.L, gk = S.ghostKey;
@@ -10009,11 +10040,13 @@ function mileAir(f, fMin) {
 function mileBody(f) {
   const M = MILE, L = CAM.L, sf = CAM.safe, pin = 1.1, e = buildExtent();
   topRow();
+  // (the landing's squash presses the top row down onto the word for SQUASH_T s: by its share of the height)
+  const sq = FX.squashAt >= 0 && S.gt - FX.squashAt < CFG.SQUASH_T ? FX.squashAmt : 0, sqPad = sq * ((S.top || 0) + 0.5) * L;
   for (let j = 0; j < 2; j++) {
     const lines = j ? null : M.lines, cx = j ? 1 : M.cx;
     const m = popMeasure(M.text, M.sub, M.size * f, lines, cx), tw = m.w - 16, hw = tw * pin / 2 + 8, up = m.up * pin, dn = m.dn * pin;
     if (2 * hw > CAM.W - sf.l - sf.r - 12) continue;
-    const lo = Math.max(e.top, TOPB.bot) + 6 + up, hi = CAM.H - sf.b - 6 - dn;
+    const lo = Math.max(e.top, TOPB.bot + sqPad) + 6 + up, hi = CAM.H - sf.b - 6 - dn;
     if (hi < lo) continue;
     const x = clamp((e.x0 + e.x1) / 2, sf.l + 6 + hw, CAM.W - sf.r - 6 - hw);
     POPM.grow = (pin - 1) / 2;
@@ -10822,7 +10855,7 @@ const CS = window.CS = {
       if (!acceptForHand(c)) continue;
       w2s(c.wx, c.wy, _s);
       out.push({ key: c.key, type: c.type, x: c.wx, y: c.wy, sx: _s.x, sy: _s.y, edges: c.edges, supported: c.supported, depth: c.depth,
-        firm: !!c.firm, notch: !!c.notch, truss: !!c.truss, hint: !!c.hint, bottom: !!c.bottom,
+        firm: !!c.firm, notch: !!c.notch, truss: !!c.truss, half: !!c.half, hint: !!c.hint, bottom: !!c.bottom,
         // tippy: what the ghost shows with the hand at this slot's PERFECT centre (the full look-ahead)
         lx: c.pose.cx, ly: c.pose.cy, tippy: S.phase === 'play' ? slotTippy(c, HAND.piece, 0, 'perfect') : wouldTip(c, HAND.piece.shape) });
     }
@@ -11108,7 +11141,7 @@ function runSelftest() {
     // (the squares below the band would stand at -0.5 and 0.5: these sit half a tile over)
     ok(sq.length === 3 && [-1, 0, 1].every((x, k) => Math.abs(sq[k] - x) < 1e-9), '13: ▼Δ▼Δ▼ offers squares at x ' + sq.map(x => x.toFixed(2)).join(', ') + ' (want -1, 0, 1)');
   }
-  // 14 (15.2). TRUSS: only a notch filled between two up-triangles on one base row
+  // 14 (15.2). TRUSS: Δ∇Δ on one base row, both Δ standing, in either order
   {
     const B = newBuild(1);
     place(B, 'up:-2,0,0');
@@ -11130,15 +11163,25 @@ function runSelftest() {
     genSlots(B);
     // nothing on top of it is a TRUSS: a square on its flat top, an up-triangle on it
     ok(!B.cands.some(c => c.truss), '14: a slot over the filled notch counts as a TRUSS: ' + B.cands.filter(c => c.truss).map(c => c.key).join(', '));
-    // only a down-triangle filling the notch: no up-triangle is ever a TRUSS, not the one hung off an outer side-hang
-    // (up:-4, beside the car) nor one closing a Δ∇Δ around a hanging down-triangle the other way round
+    // an up-triangle hung off an outer side-hang (up:-4, beside the car) stands on nothing: no TRUSS
     const O = newBuild(1);
     ['up:-2,0,0', 'up:0,0,0', 'dn:-1,0,0', 'dn:-3,0,0', 'dn:1,0,0'].forEach(k => place(O, k));
     for (const k of ['up:-4,0,0', 'up:2,0,0']) { const c = find(O, k); ok(c && !c.truss, '14: ' + k + ' (hung off a side-hang) ' + (c ? 'counts as a TRUSS' : 'not offered')); }
+    // the other order, the same shape: Δ, then ▼ hung off it, then the second Δ standing beside closes it (a TRUSS at h)
     const W = newBuild(2); place(W, 'up:0,0,0'); place(W, 'dn:-1,0,0');
     const u = find(W, 'up:-2,0,0');
-    ok(u && !u.truss && u.edges === 2, '14: the up-triangle closing a Δ∇Δ around a hanging down-triangle: ' + (u ? 'truss ' + u.truss + ', edges ' + u.edges : 'not offered') + ' (want no TRUSS, 2 edges)');
-    ok(!W.cands.some(c => c.truss), '14: a TRUSS slot around a hanging down-triangle: ' + W.cands.filter(c => c.truss).map(c => c.key).join(', '));
+    ok(u && u.truss && u.edges === 2, '14: the up-triangle closing a Δ∇Δ around a hanging down-triangle: ' + (u ? 'truss ' + u.truss + ', edges ' + u.edges : 'not offered') + ' (want a TRUSS, 2 edges)');
+    ok(W.cands.filter(c => c.truss).map(c => c.key).join() === 'up:-2,0,0', '14: TRUSS slots around a hanging down-triangle: ' + W.cands.filter(c => c.truss).map(c => c.key).join(', ') + ' (want up:-2,0,0)');
+    {
+      const P2 = getPose('up', -2, 0, 0), t2 = addTile(W, P2, { depth: 0, flight: false });
+      const g2 = trussNotches(W, P2, t2, TRUSS_TMP);
+      ok(g2.length === 1 && g2[0].key === 'dn:-1,0,0' && Math.abs(g2[0].maxY - H3) < 1e-12, '14: the second Δ landing closes ' + g2.map(D => D.key).join(', ') + ' (want dn:-1,0,0, top h)');
+    }
+    // the hints: beside a lone Δ, both first moves of its notch show (the partner Δ standing, the ▼ hung off it)
+    const Hh = newBuild(2); place(Hh, 'up:0,0,0');
+    const hs = ['up:-2,0,0', 'up:2,0,0', 'dn:-1,0,0', 'dn:1,0,0'].map(k => find(Hh, k));
+    ok(hs.every(c => c && c.hint && !c.truss) && hs[0].half && hs[1].half, '14: the moves beside a lone Δ hinted: ' + hs.map(c => c ? c.key + (c.hint ? '' : ' unhinted') + (c.half ? ' half' : '') : '?').join(', '));
+    ok(!find(Hh, 'up:-4,0,0').half, '14: an up-triangle two away from the lone Δ counts as half a notch');
     // squares on two columns with a triangle row: an up-triangle on a square is no TRUSS, the notch on that row is
     const R = newBuild(1);
     ['sq:-2,0,0', 'sq:0,0,0', 'up:-2,1,0'].forEach(k => place(R, k));

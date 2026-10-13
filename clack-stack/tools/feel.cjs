@@ -422,6 +422,9 @@ async function streakRun(browser) {
       await until(page, () => { const s = CS.state(); return s.phase === 'over' || (s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0); }, null, 20000);
       if ((await page.evaluate(() => CS.state().phase)) === 'over') break;
       await until(page, () => Math.abs(CS.state().omega) < 0.02 && Math.abs(CS.state().flexV) < 0.1, null, 1500).catch(() => {});
+      // (and, as a player keeping a streak would, while the joints glow: the centre spire would SNAP and end the run's
+      // streak (15.3); one landing on an unlit tower can never SNAP it)
+      await until(page, () => !CS.state().glow, null, 8000).catch(() => {});
       const info = await page.evaluate(() => ({ st: CS.state(), sl: CS.slots() }));
       maxStreak = Math.max(maxStreak, info.st.streak);
       if (maxStreak >= 30 && info.st.streak === 0) break;
@@ -588,6 +591,7 @@ async function mileGame(browser, view, seed) {
       const ok = await until(page, () => { const s = CS.state(); return s.phase === 'over' || (s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0); }, null, 20000).then(() => true).catch(() => false);
       if (!ok || (await page.evaluate(() => CS.state().phase)) === 'over') break;
       await until(page, () => Math.abs(CS.state().omega) < 0.02 && Math.abs(CS.state().flexV) < 0.1, null, 1500).catch(() => {});
+      await until(page, () => !CS.state().glow, null, 8000).catch(() => {});   // (as streakRun: no SNAP ends the streak)
       const info = await page.evaluate(() => ({ st: CS.state(), sl: CS.slots() }));
       const safe = info.sl.filter(q => !q.tippy && (q.supported || info.st.piece === 'crown')), pool = safe.length ? safe : info.sl;
       if (!pool.length) { await page.keyboard.press('Shift'); continue; }
@@ -726,6 +730,9 @@ async function pileClear(browser, view) {
     try {
       await until(page, () => window.CS && CS.state().handReady);
       await noHazards(page);
+      // (the ribbon out of reach (fixture): a right-hand column on two cars can reach the 4 L goal before it goes over,
+      // and the crown then in the hand would only be thrown away here)
+      await page.evaluate(() => { S.G = 99; });
       for (let crash = 1; crash <= 2; crash++) {
         for (let k = 0; k < 40; k++) {
           await until(page, c => { const s = CS.state(); return (s.phase === 'play' && s.handReady && !s.locked) || s.crashes >= c; }, crash, 8000);

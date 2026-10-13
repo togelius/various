@@ -99,6 +99,7 @@ const POLICY = {
   rhythm: { base: 'stack', gap: 0.6 }, nobrace: { base: 'brace', lam: 1e9, wait: 0.6 },
   bracer: { base: 'brace', lam: 2.5, wait: 1e9, gap: 0.6 }, careful: { base: 'balance', below: 0.3 },
   brace15: { base: 'brace', lam: 1.5, wait: 0.6 }, brace4: { base: 'brace', lam: 4, wait: 0.6 },
+  spire: { base: 'spire', red: true },
 };
 // what runs at each pace (the controls that already have a pace of their own run at bot speed only)
 const AT = {
@@ -170,9 +171,22 @@ function botInit() {
     if (P.gap && CS.lastRelease && st.t - CS.lastRelease.t < P.gap - GAP_LEAD - 1e-9) return { act: 'wait', why: 'pace' };
     // (W as the screen shows it: the glow counts the tiles already let go, state().Wahead)
     if (P.below !== undefined && st.Wahead >= P.below) return { act: 'wait', why: 'W ' + st.Wahead.toFixed(2) };
+    // (the glow as the screen shows it: wait while it pulses red, "one more drop could SNAP it")
+    if (P.red && st.glow === 'red') return { act: 'wait', why: 'red' };
     const sl = CS.slots(), rs = B.reach(sl, st.big ? 1.0 : 0.6);
     const none = () => canSwap ? { act: 'hold', why: 'no slot' } : { act: 'none', why: 'no slot, swap spent' };
     if (P.base === 'stack') { const s = highest(rs); return s ? { act: 'drop', slot: s } : none(); }
+    if (P.base === 'spire') {
+      // one centred column: squares (and the cube) on the highest, most central supported slot; a triangle goes to HOLD
+      // (with HOLD full of one: low, on the side that keeps the balance)
+      if (st.piece === 'tri') {
+        if (st.held !== 'tri' && canSwap) return { act: 'hold', why: 'keep the triangle' };
+        const low = rs.slice().sort((a, b) => (a.y - b.y) || B.after(st, a) - B.after(st, b))[0];
+        return low ? { act: 'drop', slot: low, why: 'triangle low' } : none();
+      }
+      const s = rs.filter(q => q.supported).sort((a, b) => (b.y - 1.5 * Math.abs(b.lx)) - (a.y - 1.5 * Math.abs(a.lx)))[0];
+      return s ? { act: 'drop', slot: s, why: 'spire' } : none();
+    }
     if (P.base === 'balance') { const s = B.balance(st, rs); return s ? { act: 'drop', slot: s } : none(); }
     // BraceBot
     if (st.Wahead > P.wait) return { act: 'wait', why: 'W ' + st.Wahead.toFixed(2) };

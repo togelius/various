@@ -10,8 +10,8 @@
 //             averages 8 ms or less over 5 s in headless Chromium (390x844 and 1366x1024)
 //   watchdog  with the CPU throttled (frames over 22 ms for 2 s) the watchdog drops the stained-glass light pass, and
 //             2 s later the gloss; a normal machine keeps both
-//   alloc     steady play (a tower standing, the hand still, debris asleep; the wobble off as in jsms, or the fuse's drop
-//             onto the builder's column could SNAP it in the middle of the sampling): the sampled JS allocation per frame
+//   alloc     steady play (a tower standing, the hand still, debris asleep, the fuse held; the wobble off as in jsms):
+//             the sampled JS allocation per frame
 //             stays small: under 48 KB a frame. (What is left is V8 boxing numbers at canvas API calls and in
 //             unoptimised code; the draw path builds no objects, arrays, closures, gradients or strings per frame:
 //             options objects, font strings, HUD strings and gradients are all reused or cached.)
@@ -124,7 +124,9 @@ async function tallTower(browser, view) {
       const { page } = g;
       await until(page, () => window.CS && CS.state().phase === 'play' && CS.state().handReady, null, 15000);
       await buildTo(page, 4, 40);
-      await page.evaluate(() => { PARAM.ts = 1; });
+      // (the fuse held: the window is the steady frame, the draw path. A fuse drop in it brought a landing's one-off
+      // pop search, whose cost hung on whether V8 had optimised it yet: 0.25 or 1.7 MB, run to run)
+      await page.evaluate(() => { PARAM.ts = 1; LEVELS[S.level].fuse = 1e9; });
       await page.mouse.move(195, 300);
       await until(page, () => { const s = CS.state(); return s.still && s.debrisAwake === 0 && s.inAir === 0; }, null, 20000).catch(() => {});
       await page.waitForTimeout(1500);
