@@ -896,3 +896,98 @@ Bots drive the game through **real pointer events** at `slots()` screen position
 | fx | 140 |
 | audio | 300 |
 | test hooks | 70 |
+---
+
+## 15. Revision 2: braces, firm triangles and the crown gamble
+
+Playtesting the first version showed two problems. First, there was no strategy: with good aim, a PERFECT barely moves the tower, so stacking straight up was as safe as balancing and faster. Second, on a two-wide tower a triangle mostly capped a column. This revision gives triangles a job, which is bracing the tower, and makes the crown gamble a visible choice. Where it conflicts with §1–14, this section wins.
+
+### 15.1 Triangles snap firm
+
+- **Firm snap.** A triangle that shares an edge with another triangle is held firm, as two real tiles are. A triangle slot that matches a slant of another triangle counts as **supported** for slot choice. The depth rule is unchanged: a side-hang still adds 1, and the limit stays at 2.
+- **New slot generator.** An up-triangle can share an exposed slant of a down-triangle: the up-triangle to its lower left or lower right. It is held firm through that slant.
+- Squares still never go on slants, and nothing stands on a point.
+- **Ghost hints.** While a triangle is in the hand, every notch slot (two edges) and every firm side slot shows as a faint outline, so the moves are visible. When a drop would complete a brace (15.2), the ghost shows a small "TRUSS" chip.
+
+### 15.2 TRUSS: a filled notch braces the tower
+
+- **A TRUSS** forms when a down-triangle lands in a notch, meeting the slants of two up-triangles on the same base row.
+- **The brace line** moves up to the top edge of that TRUSS: `y_b = max(y_b, notch top)`. The tower below the brace line is **locked**.
+- **On a TRUSS:**
+  - 150 × mult points;
+  - the wobble drops, `W ×= 0.3` (15.3);
+  - a bright lock chord, and the joints below the line flash and then keep a faint steady glint.
+- **The cost** is height (a triangle row is 0.87 L, not 1 L) and width: on a two-wide tower the notch leaves one flat edge, in the middle. The two outer side-hangs (firm now) widen it back to three flat edges, shifted half a tile. So a cheap brace (3 triangles) narrows the tower, and a full one (5) keeps it wide.
+
+### 15.3 Wobble: tall, thin, unbraced towers sway and snap
+
+This replaces "a PERFECT barely moves the tower".
+
+- **Segment.** The **unbraced segment** is everything above the brace line (or above the car, before any TRUSS). `Hu` = build top − `y_b`.
+- **Width.** `w` = the narrowest width of the segment. Sample at heights 0.25 L, 0.75 L, … above `y_b`, up to 0.25 L under the top; at each height take the length of the x-span covered by tiles; take the minimum, floored at 1 L.
+- **Slenderness:** `λ = Hu / w`.
+- **Wobble W** (from 0 up to 1) rises with every landing in the segment:
+
+  `ΔW = a[grade] · max(0, λ − 1)² · (1.5 for a cube)`
+
+  with a = 0.09 (PERFECT), 0.14 (GREAT) and 0.20 (CLACK). W decays as `W ← W·e^(−dt/τ)` with τ = 1.0 s.
+
+  Rule of thumb: on a two-wide tower you can stack quickly to about 5 L. By about 6 L you must slow down or brace, and past about 8 L you must brace. A four-wide base needs no brace until about 12 L.
+- **What you see:**
+  - the segment sways, with amplitude about 0.25 L × W at its top, driving the existing flex visuals and keeping the lateral speed cap;
+  - joint lines in the segment glow amber from W 0.4 and pulsing red from W 0.7, with the creak;
+  - the braced part below stays still.
+- **SNAP.** When W reaches 1, the magnets let go at the brace line. The unbraced segment cartwheels off as debris and the braced part stays standing ("SNAP!"). If there is no TRUSS yet, that is a full crash. The combo resets.
+- **The fuse waits while W > 0.5.** Waiting for the tower to settle costs clock time, not a forced drop. That trade-off is the point.
+- **BIG MAGNETS:** ΔW × 0.4.
+- **Tuning.** The a values, τ and the thresholds are starting points. Tune them until §15.7 holds.
+
+### 15.4 Tipping and the red ghost
+
+- The rock over the wheels, the tip tell (wheel lift, creak, red edge) and SAVE stay as they are.
+- The red TIPPY ghost is shown only in levels 1–3 and in BIG MAGNETS. From level 4 on, judging balance is the player's job.
+
+### 15.5 Bases
+
+| Levels | Base | Width |
+|---|---|---|
+| 1–3 | two cars | 4 L |
+| 4–7 | one long car | 3 L |
+| 8 and later | one car | 2 L |
+
+- The long car is drawn like the others: a 3 L plate, with wheels 0.2 L in from each end.
+- The goal heights stay as in §6.
+- The piece bag becomes 6 squares and 4 triangles, plus the cube from level 2.
+
+### 15.6 CROWN NOW or GO HIGHER
+
+- **Choice.** When the ribbon tears, the crown drops into the hand, as before; a child just places it. At the same moment a big pulsing **GO HIGHER ↑** chip appears on the HOLD box, showing the crown's value.
+- **OVERTIME.** Tapping the chip, or HOLD (Shift), banks the crown and starts OVERTIME:
+  - tiles above the ribbon score double;
+  - the HOLD box shows the live crown multiplier, ×1.5, ×2, … (+0.5 per whole L the build top is above the ribbon);
+  - taking the crown back (HOLD again) and placing it pays out.
+- **A SNAP or crash in OVERTIME:**
+  - if the build top is still at or above the ribbon, the crown is kept and its multiplier falls to match the new top;
+  - otherwise the crown is lost and the ribbon is restored.
+- **First time.** The first time a player ever gets the crown, a one-line hint appears: "PLACE IT — or GO HIGHER for more!" (saved as seen).
+- **BIG MAGNETS:** no chip; the crown is simply in the hand.
+
+### 15.7 Acceptance: the strategy bots
+
+`tools/strategy.cjs` drives the real game through real input, with the real clock and fuse. Every bot aims perfectly. They differ in policy:
+
+| Bot | Policy |
+|---|---|
+| **StackBot** | always the highest slot, as fast as possible |
+| **BalanceBot** | the slot that keeps the centre of mass most central, as fast as possible |
+| **PatientBot** | like StackBot, but waits until W < 0.3 before each drop |
+| **BraceBot** | a simple brace policy: when λ ≥ 2.5 and a triangle is in the hand (or held), build or complete a notch, using HOLD to keep triangles; waits while W > 0.6; otherwise balance-greedy |
+
+Targets, over 10 seeds:
+
+| Test | Requirement |
+|---|---|
+| **level=8** (two-wide, goal 11 L), share reaching the goal before the clock runs out | BraceBot ≥ 8/10; StackBot ≤ 3/10; BalanceBot ≤ 3/10; PatientBot ≥ 4/10, taking on average ≥ 35% longer than BraceBot |
+| **level=5** (three-wide, goal 8 L) | BraceBot ≥ 9/10; StackBot ≤ 6/10 |
+| **level=1** | all four bots reach the goal 10/10 (the opening stays easy) |
+| **BIG MAGNETS** | RandomTapper still clears L1 within 15 s, 10/10 |
