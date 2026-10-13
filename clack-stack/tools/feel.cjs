@@ -15,19 +15,22 @@
 //   6. ghost honesty: 500 seeded random releases, many with two tiles in the air:
 //      lastRelease.ghostKey == the landed key, every time; misses land nowhere. (M3: a tile still in the air when
 //      the tower crashes is `lost` with it; such releases must coincide with a crash and are counted apart.)
-//   7. no soft-locks: a dead end (no square/triangle slot anywhere) TOPPLEs and a new base takes tiles again
+//   7. no soft-locks: a dead end (no square/triangle slot anywhere) TOPPLEs and a new base takes tiles again (on one car:
+//      level 8, hazards off; DESIGN 15.5 moved the one-car base there from level 3; the wobble off, 15.3: the recipe's
+//      narrow build would SNAP first)
 //   8. touch: a finger held past the fuse gives exactly one drop; its lift drops nothing
 //      mouse: a click just after the fuse let go is spent (no blind second drop); a player's own early click is still held
 //   9. ghost honesty inside a PERFECT hit-stop (the drawn ghost follows the hand while game time is frozen)
 //  10. audio is running after the first touch / click / key under the default autoplay policy
 //  11. the ghost never goes stale for a mouse player: click TAP on the title off-centre (and RESUME after a pause)
 //      and press without moving: the drop goes to the ghost that was showing (CS.ghost() before = lastRelease after)
-//  12. never a dead piece: a one-car base capped with two up-triangles has no square slot anywhere; whatever the bag
+//  12. never a dead piece: a one-car base (level 8, hazards off) capped with two up-triangles has no square slot anywhere; whatever the bag
 //      deals, every tile that reaches the hand has a slot (the hand takes a triangle instead of the square), so no
 //      MISS is ever forced, then 20 more drops
 //  13. a crash or a TOPPLE: the hand flinches up out of the burst (never down into it) and stays up until the new car
 //      has parked
-//  14. the new base parks clear of the pile: 2.5 s after it has parked (after crashes, at 390x844 and 844x390) no piece
+//  14. the new base parks clear of the pile: 2.5 s after it has parked (after crashes on one car, the long car and two
+//      cars, at 390x844 and 844x390) no piece
 //      of the mess shows over the car (its plate and wheels) or within 0.5 L of its ends; the old car has faded
 //  15. (with 7) a TOPPLE is told first: every topple comes 0.3-0.6 s after its 'toppletell' (the clack that closed the
 //      last slot); through the tell the "NO ROOM!" sign is drawn on screen clear of the tile in the hand and the
@@ -78,6 +81,11 @@ async function settle(page) {
   await until(page, () => new Promise(r => { const a = CS.cam().L; requestAnimationFrame(() => requestAnimationFrame(() => r(Math.abs(CS.cam().L - a) < 0.01))); }), null, 8000);
 }
 async function lastId(page) { return page.evaluate(() => (CS.lastRelease ? CS.lastRelease.id : 0)); }
+// DESIGN 15.5: a one-car (2 L) base comes only from level 8, which has the bump car and the foot. The checks built on
+// one car (the dead end, the dead piece, the pile) play level 8 with its hazards switched off for the level, so a
+// bump or a stomp never decides them
+const ONE_CAR = 8;
+async function noHazards(page) { await page.evaluate(() => { HZ.every = 0; HZ.kind = ''; HZ.warned = false; }); }
 async function waitRelease(page, prevId) { await until(page, id => CS.lastRelease && CS.lastRelease.id > id, prevId, 4000); return page.evaluate(() => CS.lastRelease); }
 async function waitOutcome(page, id) {
   await until(page, i => CS.events.some(e => e.id === i && (e.type === 'land' || e.type === 'miss')), id, 4000);
@@ -227,9 +235,14 @@ async function honesty(browser) {
 //    next recipe slot, HOLD banks or brings the right shape, anything else is thrown away at the screen edge.)
 const DEAD_END = ['up:-2,0,0', 'sq:0,0,0', 'up:0,1,0', 'dn:-1,1,0', 'sq:-1,1,1', 'sq:1,1,1', 'sq:1,2,1', 'up:1,3,1', 'up:-1,2,1', 'dn:-2,2,1', 'up:-2,2,2'];
 async function noSoftLock(browser) {
-  const { page, errors, context } = await gamePage(browser, { width: 390, height: 844 }, { seed: 7, ts: 4, mute: 1, nohint: 1, autostart: 1, level: 3 });
+  const { page, errors, context } = await gamePage(browser, { width: 390, height: 844 }, { seed: 7, ts: 4, mute: 1, nohint: 1, autostart: 1, level: ONE_CAR });
   try {
     await until(page, () => window.CS && CS.state().handReady);
+    await noHazards(page);
+    // (DESIGN 15.3: the recipe's narrow build SNAPs long before it closes its last slot (a 1-wide spire of two squares
+    // has λ 3 to 5). This check is the dead end's TOPPLE, not the wobble (tools/wobble.cjs): the wobble is off here, a
+    // test fixture)
+    await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; });
     // when each topple's new base takes drops again (game time)
     await page.evaluate(() => {
       window.__tp = []; let seen = 0;
@@ -605,9 +618,10 @@ async function mileLandscape(browser) {
 
 // 12. never a dead piece
 async function deadPiece(browser) {
-  const { page, errors, context } = await gamePage(browser, { width: 390, height: 844 }, { seed: 3, ts: 2, mute: 1, nohint: 1, autostart: 1, level: 3 });
+  const { page, errors, context } = await gamePage(browser, { width: 390, height: 844 }, { seed: 3, ts: 2, mute: 1, nohint: 1, autostart: 1, level: ONE_CAR });
   try {
     await until(page, () => window.CS && CS.state().handReady);
+    await noHazards(page);
     // every time a tile reaches the hand: does it have a slot? (the HOLD IT! pulse would excuse one: not used here)
     await page.evaluate(() => {
       window.__dead = { ready: 0, dead: [] }; let was = false;
@@ -632,6 +646,15 @@ async function deadPiece(browser) {
       await tap(want ? want.sx : 4);
     }
     const deals0 = await page.evaluate(() => CS.events.filter(e => e.type === 'deal').length);
+    // (the bag has 4 triangles in 10 now: a triangle may well come next and fill the notch before any square has met
+    // the capped base. Triangles are thrown away off the left edge until a square has come to it, so the re-deal is
+    // seen whatever the bag deals)
+    for (let k = 0; k < 20; k++) {
+      await ready();
+      const q = await page.evaluate(() => ({ deals: CS.events.filter(e => e.type === 'deal').length, keys: CS.tiles().map(t => t.key) }));
+      if (q.deals > deals0 || !q.keys.includes('up:-2,0,0') || !q.keys.includes('up:0,0,0') || q.keys.length !== 2) break;
+      await tap(4);
+    }
     // then 20 drops on whatever slot the tile in the hand has (the notch first)
     for (let k = 0; k < 20; k++) {
       await ready();
@@ -684,19 +707,23 @@ async function flinch(browser) {
   } finally { await context.close(); }
 }
 
-// 14. the new base parks clear of the pile (EdgeBot crashes on level 3, then on level 1's two cars)
+// 14. the new base parks clear of the pile (EdgeBot crashes on level 8's one car, level 4's long car, level 1's two cars)
 async function pileClear(browser, view) {
   const bad = [], seen = [];
   let errs = [];
-  for (const level of [3, 1]) {
+  // (one car, the long car, two cars)
+  for (const level of [ONE_CAR, 4, 1]) {
     const { page, errors, context } = await gamePage(browser, view, { seed: 4, ts: 2, mute: 1, nohint: 1, autostart: 1, level });
     try {
       await until(page, () => window.CS && CS.state().handReady);
+      await noHazards(page);
       for (let crash = 1; crash <= 2; crash++) {
         for (let k = 0; k < 40; k++) {
           await until(page, c => { const s = CS.state(); return (s.phase === 'play' && s.handReady && !s.locked) || s.crashes >= c; }, crash, 8000);
           if (await page.evaluate(c => CS.state().crashes >= c, crash)) break;
-          const sl = await page.evaluate(() => CS.slots().sort((a, b) => b.sx - a.sx)[0]);
+          // (squares only: a triangle, held firm now (DESIGN 15.1), is thrown away off the left edge, so the tower
+          // goes over the right wheel before it reaches the ribbon)
+          const sl = await page.evaluate(() => /tri|crown/.test(CS.state().piece) ? null : CS.slots().sort((a, b) => b.sx - a.sx)[0]);
           const prev = await lastId(page);
           await page.mouse.move(sl ? sl.sx : 4, view.height * 0.5); await page.mouse.down(); await page.mouse.up();
           await waitRelease(page, prev).catch(() => {});

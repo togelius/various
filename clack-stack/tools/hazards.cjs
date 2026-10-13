@@ -100,6 +100,10 @@ async function buildLow(page, n, maxTop) {
       for (const view of [VIEW, { width: 844, height: 390 }]) {
         const g = await open(browser, { seed: 34, ts: 2, level: 15 }, view);
         await buildLow(g.page, 9, 6);
+        // (the measure needs the tower as it was drawn: no fuse drop meanwhile (fixture: the fuse off), the tower and
+        // its wobble settled: DESIGN 15.3's sway moves the tiles and its joint glow is drawn over them)
+        await g.page.evaluate(() => { S.firstInput = false; HAND.fuseT = 0; });
+        await until(g.page, () => { const s = CS.state(); return s.inAir === 0 && s.still && s.W < 0.05; }, null, 8000).catch(() => {});
         await g.page.waitForTimeout(300);
         await g.page.screenshot({ path: path.join(out, `night-${view.width}x${view.height}.png`) });
         // body pixel at each tile vs the same pixel of the background alone (the room and the rug as this frame drew

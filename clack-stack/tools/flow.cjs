@@ -45,6 +45,7 @@
 //           not deal in order; the goal-crossing drop and everything after are real clicks): the crown is owed, not
 //           put in the hand (no OOPS loop), the hand keeps building, the crown drops in as soon as a landing opens a
 //           triangle slot, and crowning it SMASHes to L10; a crown in HOLD stays there while no triangle slot exists
+//           (the wobble of DESIGN 15.3 off: the 2-wide fixture would SNAP; wobble.cjs tests the crown with SNAPs)
 //   pending a press 0.1 s before the new base parks (after a SMASH, and on the intro roll-in) drops a tile within
 //           0.2 s of play resuming
 //   buzzer  a crown released with time on the clock that lands after the clock hits 0.0 still crowns: bonus, +3 s,
@@ -57,7 +58,7 @@
 //           is framed under that line; and as real drops bring the goal near on a 31-row tower (L16, 390x844,
 //           844x390, 1366x1024), calm drops and quick ones (the next tile dropped while the one before is still in
 //           the air), the ribbon is never drawn, however faintly, through the tile in the hand nor along its bottom
-//           edge (it fades out before it reaches it)
+//           edge (it fades out before it reaches it) (that tower with the wobble off: 15.3 would SNAP it on the first drop)
 // Exits non-zero on any failure, page error or console error.
 const { launch, gamePage, until } = require('./lib.cjs');
 
@@ -678,8 +679,9 @@ async function crownChecks(browser) {
   const n0 = await page.evaluate(() => CS.events.filter(e => e.type === 'land').length);
   await buildUntil(page, () => CS.events.some(e => e.type === 'land' && e.ot), 8);
   const otl = await page.evaluate(() => CS.events.filter(e => e.type === 'land' && e.ot).slice(-1)[0] || null);
-  const exp = otl ? { perfect: 25, great: 15, clack: 10 }[otl.grade] * Math.min(3, otl.edges) * otl.mult * 2 : null;
-  check('crown: in OVERTIME a tile landing above the ribbon scores double', otl && otl.pts === exp, otl ? `${otl.grade} ×${otl.edges} edges ×${otl.mult}: ${otl.pts} (want ${exp})` : 'no overtime landing');
+  // (pm: the multiplier the landing scored at; mult: after its own combo step)
+  const exp = otl ? { perfect: 25, great: 15, clack: 10 }[otl.grade] * Math.min(3, otl.edges) * otl.pm * 2 : null;
+  check('crown: in OVERTIME a tile landing above the ribbon scores double', otl && otl.pts === exp, otl ? `${otl.grade} ×${otl.edges} edges ×${otl.pm}: ${otl.pts} (want ${exp})` : 'no overtime landing');
   // swap the crown back and place it: CROWN bonus with k, +3 s, then the SMASH
   await until(page, () => { const s = CS.state(); return s.phase === 'play' && s.handReady && !s.locked; });
   await page.keyboard.press('Shift');
@@ -705,14 +707,15 @@ async function ringChecks(browser) {
     const g = await open(browser, { seed: 16 + level, autostart: 1, level }); g.tag = 'rings ' + level;
     await until(g.page, () => CS.state().phase === 'play');
     const st = await g.page.evaluate(() => CS.state());
-    const want = level <= 3 ? 1 : 2, half = st.cars === 1 ? 1 : 2;
+    const want = level <= 3 ? 1 : 2, half = st.baseHalf;      // (DESIGN 15.5: 2 L on L1-L3, the 1.5 L long car on L4-L7, 1 L from L8)
     if (st.rings.length !== want) bad.push(`L${level}: ${st.rings.length} rings`);
     for (const r of st.rings) if (r.y < 0.35 * st.goal - 1e-6 || r.y > 0.75 * st.goal + 1e-6 || Math.abs(r.x) < half + 0.7 || Math.abs(r.x) > half + 2 + 1e-6) bad.push(`L${level}: ring at ${r.x.toFixed(2)},${r.y.toFixed(2)}`);
     if (st.rings.length === 2 && Math.sign(st.rings[0].x) === Math.sign(st.rings[1].x)) bad.push(`L${level}: both rings on one side`);
     await finish(g);
   }
   check('rings: 1 on L1-L3 and 2 after, 0.35-0.75 G high, 1-2 L outside the base, two on opposite sides', bad.length === 0, bad.join('; '));
-  // RingBot (L3, one car): a 2-wide trunk to the ring's height, then squares hung out toward it
+  // RingBot (L3): a 2-wide trunk to the ring's height on the two columns at the base's edge on the ring's side (both
+  // columns of a one-car base; DESIGN 15.5 put two cars, 4 L, under level 3), then squares hung out toward it
   const g = await open(browser, { seed: 21, ts: 2, autostart: 1, level: 3 }); g.tag = 'ringbot';
   const { page } = g;
   await until(page, () => CS.state().phase === 'play' && CS.state().handReady);
@@ -727,9 +730,9 @@ async function ringChecks(browser) {
       const hit = sl.find(inside);
       if (hit) return { slot: hit, why: 'ring' };
       if (st.piece !== 'sq' && st.piece !== 'marble') return { throw: true };
-      // the trunk: the lowest square on the two columns over the car; then a hanging square on the ring's row
-      const row = Math.floor(ring.y);
-      const trunk = sl.filter(s => s.type === 'sq' && s.supported && Math.abs(s.lx) < 0.6 && s.ly < row + 0.6).sort((a, b) => a.ly - b.ly)[0];
+      // the trunk: the lowest square on the two edge columns over the car; then a hanging square on the ring's row
+      const row = Math.floor(ring.y), c1 = side * (st.baseHalf - 0.5), c2 = side * (st.baseHalf - 1.5);
+      const trunk = sl.filter(s => s.type === 'sq' && s.supported && (Math.abs(s.lx - c1) < 0.1 || Math.abs(s.lx - c2) < 0.1) && s.ly < row + 0.6).sort((a, b) => a.ly - b.ly)[0];
       if (trunk) return { slot: trunk, why: 'trunk' };
       const hang = sl.filter(s => s.type === 'sq' && Math.abs(s.ly - (row + 0.5)) < 0.01 && Math.sign(s.lx) === side).sort((a, b) => Math.abs(a.lx - ring.x) - Math.abs(b.lx - ring.x))[0];
       if (hang) return { slot: hang, why: 'hang' };
@@ -779,10 +782,15 @@ async function lockFixture(page) {
     return { top: S.top, G: S.G, slots: CS.slots().map(s => s.key) };
   }, LOCK_KEYS);
 }
+// (DESIGN 15.3: a 2-wide fixture tower 11-35 L tall is far past where the wobble SNAPs it on the next real drop. The
+// checks that build one test the crown, the ribbon and the camera, not the wobble (tools/wobble.cjs): it is off there,
+// a test fixture)
+async function noWobble(page) { await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; }); }
 async function crownWaitChecks(browser) {
   const g = await open(browser, { seed: 1, autostart: 1, level: 9, ts: 2 }); g.tag = 'crownwait';
   const { page } = g;
   await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked);
+  await noWobble(page);
   const fx = await lockFixture(page);
   if (fx.fail || fx.slots.join() !== 'up:-2,11,2') { check('crownwait: fixture build', false, JSON.stringify(fx)); await finish(g); return; }
   await waitGame(page, 0.3);
@@ -1021,6 +1029,7 @@ async function cameraChecks(browser) {
     const g = await open(browser, { seed: 5, autostart: 1, level: 16, big: 1 }, { view }); g.tag = 'ribnear';
     const { page } = g;
     await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked);
+    await noWobble(page);
     await page.evaluate(() => {
       for (let a = 0; a < 31; a++) for (const i of [-2, 0]) {
         const c = S.B.cands.find(q => q.key === 'sq:' + i + ',' + a + ',0');

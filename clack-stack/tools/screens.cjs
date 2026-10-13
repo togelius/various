@@ -2,7 +2,11 @@
 'use strict';
 // Screenshots of every screen, to LOOK at (portrait and landscape): the title (and BIG MAGNETS on), the shove, play,
 // the crown in hand, OVERTIME, the SMASH, the level announcement, pause, a bump warning, the foot, the tall-tower
-// gauge, night (L15), TIME! and the results card with a NEW BEST. Driven by real input; CS.setClock ends runs.
+// gauge, night (L15), TIME! and the results card with a NEW BEST; and (revision 2, DESIGN 15) the long car of L4, a
+// triangle in the hand over a notch (the faint outlines of the triangle moves, the TRUSS chip), the TRUSS's lock flash
+// and the glint it leaves, the wobble's amber and red joints and its sway, the SNAP, the GO HIGHER chip with the first
+// crown's hint, and OVERTIME's badge on the HOLD box. Driven by real input (the wobble shots on fixture builds);
+// CS.setClock ends runs.
 //   node clack-stack/tools/screens.cjs [outDir] [--sizes=390x844,844x390]
 // Writes outDir/<size>/NN-name.png and outDir/sheet-<size>.png. Fails on page or console errors, and if a word pop
 // or announcement breaks the rules while the level is played through (lib.cjs wordMonitor: none over the HUD or over
@@ -34,6 +38,37 @@ async function drop(page, H, tall, noHold) {
   await until(page, () => Math.abs(CS.state().omega) < 0.03, null, 1500).catch(() => {});
   const x = await page.evaluate(k => (CS.slots().find(q => q.key === k) || {}).sx, s.key);
   await page.mouse.move(x || s.sx, H * 0.55); await page.mouse.down(); await page.mouse.up();
+}
+
+// a fixture build: tiles placed by slot key with the lattice functions, a brace line where a TRUSS would put it
+function fixture(page, keys, yb) {
+  return page.evaluate(([keys, yb]) => {
+    const B = S.B, cols = ['blue', 'yellow', 'red', 'green', 'lightBlue', 'purple', 'orange'];
+    keys.forEach((k, i) => {
+      genSlots(B);
+      const c = B.cands.find(q => q.key === k);
+      if (!c) throw new Error('fixture: no slot ' + k);
+      const shape = c.type === 'up' || c.type === 'dn' ? 'tri' : c.type;
+      addTile(B, c.pose, { shape, color: cols[(i * 3) % 7], variant: 0, mass: CFG.MASS[shape], k: CFG.KROT[shape], depth: c.depth, flight: false, landT: -1 });
+    });
+    if (yb) { B.yb = yb; B.trusses++; lockJoints(B); }
+    genSlots(B); recomputeTower(); massProps(B, true, COMMIT); computeGhost();
+  }, [keys, yb || 0]);
+}
+// a real click at slot `key`'s live centre with a square in the hand (before: run in the page just before the press)
+async function tapKey(page, key, H, before) {
+  await ready(page);
+  await page.evaluate(() => { if (HAND.piece && HAND.piece.shape !== 'sq' && HAND.piece.shape !== 'crown') { HAND.piece = { shape: 'sq', color: 'yellow', variant: 1 }; computeGhost(); } });
+  const sx = await page.evaluate(k => { const q = CS.slots().find(o => o.key === k); return q ? q.sx : null; }, key);
+  if (sx === null) throw new Error('screens: no slot ' + key);
+  await page.mouse.move(sx, H * 0.55);
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => r())));
+  if (before) await page.evaluate(before);
+  const x = await page.evaluate(k => { const q = CS.slots().find(o => o.key === k); return q ? q.sx : null; }, key);
+  const id = await page.evaluate(() => CS.lastRelease ? CS.lastRelease.id : 0);
+  await page.mouse.move(x === null ? sx : x, H * 0.55); await page.mouse.down(); await page.mouse.up();
+  await until(page, i => CS.lastRelease && CS.lastRelease.id > i, id, 5000);
+  await until(page, () => CS.state().inAir === 0, null, 5000);
 }
 
 (async () => {
@@ -166,6 +201,99 @@ async function drop(page, H, tall, noHold) {
         await page.evaluate(() => { PARAM.ts = 1; });
         await page.waitForTimeout(300);
         await shot(page, 'night-L15');
+        if (errors.length) { bad++; console.log(errors.join('\n')); }
+        await context.close();
+      }
+      // 6. revision 2 on the long car (L4): the car row filled with squares, two up-triangles side by side on it, and the
+      // next triangle over the notch between them (the faint outlines of the triangle moves, the TRUSS chip), dropped:
+      // the lock flash, then the glint it leaves. What does not fit that plan is thrown away off the left edge
+      {
+        const { page, errors, context } = await gamePage(browser, { width: W, height: H }, { seed: 12, mute: 1, nohint: 1, autostart: 1, ts: 2, level: 4 });
+        await ready(page);
+        await page.evaluate(() => { PARAM.ts = 1; });
+        await page.waitForTimeout(300);
+        await shot(page, 'long-car');
+        await page.evaluate(() => { PARAM.ts = 2; });
+        const PLAN_SQ = ['sq:-3,0,0', 'sq:-1,0,0', 'sq:1,0,0', 'sq:1,1,0'], PLAN_UP = ['up:-3,1,0', 'up:-1,1,0'];
+        let trussed = false;
+        for (let k = 0; k < 50 && !trussed; k++) {
+          await ready(page);
+          const p = await page.evaluate(pl => {
+            const st = CS.state(), sl = CS.slots(), by = k => sl.find(q => q.key === k);
+            if (st.piece === 'tri') { const t = sl.find(q => q.truss); if (t) return { slot: t, truss: true }; }
+            const want = st.piece === 'tri' ? pl.up : st.piece === 'sq' || st.piece === 'marble' ? pl.sq : [];
+            for (const k of want) if (by(k)) return { slot: by(k) };
+            return { slot: null };
+          }, { sq: PLAN_SQ, up: PLAN_UP });
+          if (!p.slot) { await page.mouse.move(3, H * 0.55); await page.mouse.down(); await page.mouse.up(); await gameT(page, 0.3); continue; }
+          await until(page, () => Math.abs(CS.state().omega) < 0.03, null, 1500).catch(() => {});
+          const x = await page.evaluate(k => (CS.slots().find(q => q.key === k) || {}).sx, p.slot.key);
+          await page.mouse.move(x || p.slot.sx, H * 0.55);
+          if (p.truss) {
+            await page.evaluate(() => { PARAM.ts = 1; });
+            await page.waitForTimeout(250);
+            await shot(page, 'truss-chip-hints');
+            await page.evaluate(() => { PARAM.ts = 0.25; });
+            await page.mouse.down(); await page.mouse.up();
+            await until(page, () => CS.events.some(e => e.type === 'truss'), null, 8000);
+            await page.waitForTimeout(240);
+            await shot(page, 'truss-lock');
+            await page.evaluate(() => { PARAM.ts = 1; });
+            await page.waitForTimeout(1200);
+            await shot(page, 'truss-glint');
+            trussed = true;
+          } else { await page.mouse.down(); await page.mouse.up(); }
+        }
+        if (!trussed) { bad++; console.log(`truss ${W}x${H}: no TRUSS came up in 50 drops`); }
+        if (errors.length) { bad++; console.log(errors.join('\n')); }
+        await context.close();
+      }
+      // 7. revision 2: the wobble, the SNAP and the crown gamble (DESIGN 15.3, 15.6) on fixtures (tiles placed with the
+      // lattice functions; W set where a shot needs it): a 2-wide tower braced at 3.9 L with a column on the brace
+      // swaying amber (W 0.55), then red (W 0.9, the fuse ring waiting); the SNAP (the segment flying off, the brace
+      // standing); then on L1 the crown at the ribbon with the GO HIGHER chip and the first crown's hint, and the
+      // OVERTIME badge on the HOLD box after a click on the chip
+      {
+        const { page, errors, context } = await gamePage(browser, { width: W, height: H }, { seed: 21, mute: 1, autostart: 1, ts: 1, level: 8, nohint: 1 }, { realClock: true });
+        await ready(page);
+        await page.evaluate(() => { HZ.every = 0; HZ.kind = ''; });
+        const col = []; for (let a = 0; a < 3; a++) col.push('sq:-2,' + a + ',0', 'sq:0,' + a + ',0');
+        await fixture(page, col.concat(['up:-2,3,0', 'up:0,3,0', 'dn:-1,3,0', 'sq:-1,3,1', 'sq:-3,3,1', 'sq:1,3,1', 'sq:-1,4,1', 'sq:-1,5,1']), 3 + Math.sqrt(3) / 2);
+        // (a first tile, so the fuse runs and shows it waits)
+        await tapKey(page, 'sq:-3,4,1', H);
+        await ready(page);
+        await page.mouse.move(W / 2 + 0.2 * (await page.evaluate(() => CS.cam().L)), H * 0.55);
+        await page.evaluate(() => { WOB.W = 0.62; });
+        await page.waitForTimeout(250);
+        await shot(page, 'wobble-amber');
+        await page.evaluate(() => { WOB.W = 0.95; });
+        await page.waitForTimeout(260);
+        await shot(page, 'wobble-red');
+        await page.evaluate(() => { LEVELS[8].fuse = 1e9; });
+        await tapKey(page, 'sq:-1,6,1', H, () => { WOB.W = 0.999; });
+        await until(page, () => CS.events.some(e => e.type === 'snap'), null, 5000);
+        await page.waitForTimeout(160);
+        await shot(page, 'snap');
+        if (errors.length) { bad++; console.log(errors.join('\n')); }
+        await context.close();
+      }
+      {
+        const { page, errors, context } = await gamePage(browser, { width: W, height: H }, { seed: 22, mute: 1, autostart: 1, ts: 1, level: 1 }, { realClock: true });
+        await ready(page);
+        const rows = []; for (let a = 0; a < 4; a++) for (const i of [-4, -2, 0, 2]) rows.push('sq:' + i + ',' + a + ',0');
+        await fixture(page, rows.concat(['up:-2,4,0', 'up:0,4,0', 'dn:-1,4,0', 'sq:-1,4,1']), 4 + Math.sqrt(3) / 2);
+        await tapKey(page, 'sq:2,4,0', H);
+        await until(page, () => CS.state().crownInHand && CS.state().handReady, null, 5000);
+        await page.mouse.move(W / 2 - 0.3 * (await page.evaluate(() => CS.cam().L)), H * 0.55);
+        await page.waitForTimeout(450);
+        await shot(page, 'go-higher');
+        const ch = await page.evaluate(() => CS.ui().goHigher || null);
+        if (!ch) { bad++; console.log(`go higher ${W}x${H}: no chip`); }
+        else { await page.mouse.move(ch.x + ch.w / 2, ch.y + ch.h / 2); await page.mouse.down(); await page.mouse.up(); }
+        await tapKey(page, 'sq:-1,5,1', H, () => { WOB.W = 0; });
+        await ready(page);
+        await page.waitForTimeout(400);
+        await shot(page, 'overtime-badge');
         if (errors.length) { bad++; console.log(errors.join('\n')); }
         await context.close();
       }

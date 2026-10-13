@@ -3,12 +3,15 @@
 // M5 / M8 acceptance (DESIGN.md 14): performance, the FPS watchdog, per-frame allocation, reduced motion.
 //   node clack-stack/tools/perf.cjs [--only=jsms,watchdog,alloc,reduced,resize]
 // Checks:
-//   jsms      with a 15 L tower (built by real clicks, BIG MAGNETS so it stands) and 60 debris spawned (the cap keeps
+//   jsms      with a 15 L tower (built by real clicks, BIG MAGNETS so it stands; DESIGN 15.3: a 2-wide 15 L tower is
+//             far past where the wobble SNAPs it, so the wobble is off while the builder builds, a test fixture: this
+//             check measures drawing a tall tower, the wobble is tools/wobble.cjs's) and 60 debris spawned (the cap keeps
 //             52-60 of them: the oldest fade out as the cap nears), CS.perf().jsMs
 //             averages 8 ms or less over 5 s in headless Chromium (390x844 and 1366x1024)
 //   watchdog  with the CPU throttled (frames over 22 ms for 2 s) the watchdog drops the stained-glass light pass, and
 //             2 s later the gloss; a normal machine keeps both
-//   alloc     steady play (a tower standing, the hand still, debris asleep): the sampled JS allocation per frame
+//   alloc     steady play (a tower standing, the hand still, debris asleep; the wobble off as in jsms, or the fuse's drop
+//             onto the builder's column could SNAP it in the middle of the sampling): the sampled JS allocation per frame
 //             stays small: under 48 KB a frame. (What is left is V8 boxing numbers at canvas API calls and in
 //             unoptimised code; the draw path builds no objects, arrays, closures, gradients or strings per frame:
 //             options objects, font strings, HUD strings and gradients are all reused or cached.)
@@ -38,6 +41,7 @@ async function gameWait(page, dt) {
 const MASS = { sq: 1, marble: 1, tri: 0.45, crown: 0.45, cube: 3 };
 async function buildTo(page, top, maxTaps) {
   const h = page.viewportSize().height;
+  await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; });
   for (let k = 0; k < (maxTaps || 200); k++) {
     await until(page, () => { const s = CS.state(); return s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0; }, null, 30000);
     await until(page, () => { const s = CS.state(); return (Math.abs(s.omega) < 0.02 && Math.abs(s.flexV) < 0.12) || s.t >= s.readyAt + 0.8; }, null, 8000).catch(() => {});

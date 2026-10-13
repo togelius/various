@@ -27,7 +27,10 @@
 //     cube's red top reads red; car wheels turn with o.roll; night tiles stand out from a lamp-lit wall too;
 //     the holding arm slants from the upper right (it is not a vertical pole) and bends at an elbow, and with the hand
 //     low its upper arm on screen is at most twice its forearm (a child's arm reaching in);
-//     on wide layouts the tile box (the L2 goal) is in the room clear of the 4 L base.
+//     on wide layouts the tile box (the L2 goal) is in the room clear of the 4 L base;
+// 12. (revision 2, DESIGN 15.5) drawCar's o.len: the long car (len 3) is a 3 L plate, 1 L longer than a 2 L car, with its
+//     wheels 0.2 L in from each end (a tyre at ±1.3 L, none at ±0.8 L), and its wheels turn with o.roll; any o.len
+//     (junk included) draws safely.
 'use strict';
 const path = require('path');
 let pw;
@@ -148,8 +151,9 @@ async function run(browser, vp) {
     // the fold omitted, or not a number at all
     call('drawCubeNet', [W / 2, H / 2, 30]);
     for (const f of [undefined, 'abc', '0.5', {}, null, [0.5], true]) for (const L of [8, 40]) call('drawCubeNet', [W / 2, H / 2, L, f, 0]);
-    for (const col of ['red', 'green', 'blue']) for (const L of [8, 40, 120]) for (const o of [undefined, {}, { squash: 1, t: 2 }, { squash: 0.5 }])
+    for (const col of ['red', 'green', 'blue']) for (const L of [8, 40, 120]) for (const o of [undefined, {}, { squash: 1, t: 2 }, { squash: 0.5 }, { len: 3 }, { len: 3, squash: 1, roll: 2 }, { len: 2 }])
       call('drawCar', [W / 2, G - 0.5 * L, -0.1, L, col, o]);
+    for (const len of [0, 1, 2.5, 99, -3, NaN, Infinity, '3', null, {}, [3]]) call('drawCar', [W / 2, G - 20, 0.2, 40, 'red', { len, roll: 1 }]);
     for (const L of [8, 40, 120]) for (const op of [0, 0.4, 1, 3]) call('drawHand', [W / 2, 120, L, op, 1.7]);
     call('drawHand', [W / 2, 120, 40]);
     for (const L of [8, 40, 120]) call('drawArm', [W / 3, G - L, L, 0.4]);
@@ -747,6 +751,35 @@ async function run(browser, vp) {
       if (out.wheelTurn < 2) fail('car wheels do not turn with o.roll: ' + out.wheelTurn);
     }
     {
+      // 12. the long car: a 3 L plate (1 L longer than a 2 L car's ink), tyres 0.2 L in from its ends, wheels that turn
+      const L = 50, cx = 250, cy = 150;
+      const draw = (o) => {
+        ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0); Art.drawCar(ctx, cx, cy, 0, L, 'red', o);
+      };
+      // the ink's horizontal extent along the plate's front face (0.15 L under the plate top)
+      const extent = () => {
+        const y = Math.round((cy + 0.15 * L) * dpr), d = ctx.getImageData(0, y, c.width, 1).data;
+        let x0 = -1, x1 = -1;
+        for (let x = 0; x < c.width; x++) if (d[4 * x] + d[4 * x + 1] + d[4 * x + 2] < 3 * 235) { if (x0 < 0) x0 = x; x1 = x; }
+        return (x1 - x0) / dpr / L;
+      };
+      // dark tyre at a point (0.3 L under the plate top, where the near wheel's tyre is)
+      const tyre = (dx) => { const p = ctx.getImageData(Math.round((cx + dx * L) * dpr), Math.round((cy + 0.3 * L + 0.16 * L) * dpr), 1, 1).data; return p[0] + p[1] + p[2] < 3 * 80; };
+      draw({ len: 2 }); const e2 = extent(), t2 = [tyre(-0.8), tyre(0.8)];
+      draw({ len: 3 }); const e3 = extent(), t3 = [tyre(-1.3), tyre(1.3)], t3in = [tyre(-0.8), tyre(0.8)];
+      out.longCar = { ink2: +e2.toFixed(2), ink3: +e3.toFixed(2), tyres2: t2, tyres3: t3, tyres3At08: t3in };
+      if (Math.abs(e3 - e2 - 1) > 0.12) fail('the long car is not 1 L longer than a 2 L car: ink ' + e2.toFixed(2) + ' L vs ' + e3.toFixed(2) + ' L');
+      if (!t2[0] || !t2[1]) fail('the 2 L car has no tyres at ±0.8 L');
+      if (!t3[0] || !t3[1] || t3in[0] || t3in[1]) fail('the long car\'s tyres are not 0.2 L in from its ends (±1.3 L): ' + JSON.stringify(out.longCar));
+      const grab = (roll) => { draw({ len: 3, roll }); return ctx.getImageData(Math.round((cx + 1.1 * L) * dpr), Math.round((cy + 0.1 * L) * dpr), Math.round(0.4 * L * dpr), Math.round(0.4 * L * dpr)).data; };
+      const a = grab(0), b = grab(0.35);
+      let diff = 0;
+      for (let i = 0; i < a.length; i += 4) diff += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]);
+      out.longCar.wheelTurn = +(diff / (a.length / 4)).toFixed(2);
+      if (out.longCar.wheelTurn < 2) fail('the long car\'s wheels do not turn with o.roll: ' + out.longCar.wheelTurn);
+    }
+    {
       // night tiles stand out by 40+ luminance against the night sky AND a lamp-lit wall
       let worst = 999, at = '';
       for (const bg of ['#141936', '#6E6A72']) for (const col of COLS) {
@@ -853,7 +886,7 @@ async function tileBoxCheck(browser, vp) {
       console.log(tag + ': shake gaps ' + res.shakeGapPx + ' px, ghost ' + JSON.stringify(res.ghost) + ', night room ' + JSON.stringify(res.nightRoom) +
         ', cube extrusion ' + JSON.stringify(res.cubeExtrusion) + ', cube net ms ' + JSON.stringify(res.cubeNetMs));
       console.log(tag + ': skyT ramp ' + JSON.stringify(res.skyRamp) + ', light on open rug ' + res.lightOpenPx + ' px, triangles ' + JSON.stringify(res.triLight) +
-        ', cube top ' + res.cubeTop + ', wheel turn ' + res.wheelTurn + ', night lit ' + JSON.stringify(res.nightLit) + ', arm ' + JSON.stringify(res.arm));
+        ', cube top ' + res.cubeTop + ', wheel turn ' + res.wheelTurn + ', long car ' + JSON.stringify(res.longCar) + ', night lit ' + JSON.stringify(res.nightLit) + ', arm ' + JSON.stringify(res.arm));
       for (const f of res.fails) console.log('  FAIL ' + f);
       for (const e of errors) console.log('  ERROR ' + e);
       bad += res.fails.length + errors.length;

@@ -145,6 +145,36 @@ const CFG = {
   SAVE_WIN: 1.5,                            // ... and a counterweight landed within this long of the lean being at >= SAVE_AT
   TIPPY_HORIZON: 4,                         // TIPPY looks this far past the aimed tile's landing (a tower near α topples slowly)
   BRACE_T: 0.3, BRACE_W: 0.3, BRACE_PTS: 20, POKE_T: 0.38, SLAP_THUMP_W: 0.35,
+  // TRUSS (15.2): a down-triangle landing in the notch of two up-triangles on one base row (or the up-triangle that
+  // closes such a notch around a hanging down-triangle) braces the tower up to the notch's top: TRUSS_PTS × mult, the
+  // wobble × TRUSS_W, a lock chord, and the joints under the brace line light up from the base (over TRUSS_RISE s,
+  // each flashing for TRUSS_FLASH s), then keep a faint steady glint (alpha TRUSS_GLINT)
+  TRUSS_PTS: 150, TRUSS_W: 0.3, TRUSS_FLASH: 0.5, TRUSS_RISE: 0.22, TRUSS_GLINT: 0.42,
+  // the red TIPPY ghost (15.4) shows on levels up to TIPPY_SHOW_MAX and in BIG MAGNETS; later, balance is the player's job
+  TIPPY_SHOW_MAX: 3,
+  // WOBBLE (15.3): the unbraced segment (everything above the brace line y_b) has height Hu and slenderness λ = Hu / w
+  // (w: its narrowest width, sampled every WOB_DY from WOB_DY/2 above y_b, floored at WOB_W_MIN). Every landing in it
+  // raises the wobble W (0..1) by ΔW = min(WOB_DW_MAX, WOB_A[grade]·max(0, λ − WOB_LAM0)² (× WOB_CUBE for the cube)),
+  // × WOB_BIG in BIG MAGNETS; W decays as e^(−t/WOB_TAU). The segment sways WOB_SWAY·W L at its top (easing to it over
+  // WOB_SWAY_T s), its joints glow amber from WOB_AMBER and pulse red from WOB_RED with the creak; the fuse waits while
+  // W > WOB_FUSE. At W = 1 it SNAPs.
+  // Tuned on tools/strategy.cjs (15.7; §15.3's a = 0.09/0.14/0.20, λ − 1 and τ = 1 s were starting points):
+  //  - λ's floor 2: a two-wide tower stacks freely to 4 L and fast to ~5 L; the 0.45 slope makes 5.5 L (λ 2.75) a full
+  //    shake, so by ~6 L the player must slow down or brace. A four-wide base is calm to 8 L (λ 2), so the opening (and
+  //    a small child's spire on it: 2 L before it wobbles) stays easy.
+  //  - one landing shakes it by at most WOB_DW_MAX: a SNAP never comes out of a still tower (it needs W of 0.75, the red
+  //    pulse, when the tile lands), and a patient player who lets it settle can always go on, at ~1-2 s a pair of tiles
+  //    once every landing is a full shake. Bracing is the fast way past ~6 L: a TRUSS starts a new, short segment.
+  //  - τ = 2 s makes that wait cost clock time (a fast stacker's shakes pile up: five full ones in a row SNAP a still
+  //    tower), and the fuse holds from W 0.4 (the amber glow) so a settling tower never gets a forced drop.
+  WOB_A: { perfect: 0.45, great: 0.7, clack: 1.0 }, WOB_CUBE: 1.5, WOB_BIG: 0.4, WOB_TAU: 2.0, WOB_DY: 0.5, WOB_W_MIN: 1,
+  WOB_LAM0: 2, WOB_DW_MAX: 0.25,
+  WOB_SWAY: 0.25, WOB_SWAY_T: 0.12, WOB_AMBER: 0.4, WOB_RED: 0.75, WOB_FUSE: 0.4,
+  // SNAP (15.3): the segment cartwheels off (the braced part stands); no TRUSS yet: a full crash
+  SNAP_SHAKE: 8, SNAP_STOP: 0.08, SNAP_VMAX: 5.5, SNAP_UNZIP: 0.12,   // (the segment lets go top first over SNAP_UNZIP s)
+  // the crown gamble (15.6): CROWN NOW or GO HIGHER (the chip on the HOLD box); the first-ever crown's hint stays up
+  // CROWN_HINT_T s (or until the crown leaves the hand)
+  CROWN_HINT_T: 4,
   // crash (3.6, 8): freeze, slow motion while it goes over, burst, new car
   CRASH_FREEZE: 0.12, CRASH_SLOW: 0.35, CRASH_SLOW_K: 0.4, CRASH_SHAKE: 14, CRASH_SHAKE_T: 0.5, CRASH_CAR: 0.7,
   CRASH_MIN_W: 1.3, CRASH_SPIN_MIN: 4, CRASH_SPIN_MAX: 12, CRASH_UNZIP: 0.13, CRASH_VMAX: 5.5,
@@ -175,16 +205,19 @@ const CFG = {
 };
 // level-complete time bonus (6): L1-L6 +10 s, L7-L10 +9 s, L11 on +8 s
 function levelTime(n) { return n <= 6 ? 10 : n <= 10 ? 9 : 8; }
+// the base (15.5): two coupled cars (4 L) on L1-L3, one long car (3 L) on L4-L7, one car (2 L) from L8; BIG MAGNETS
+// keeps two cars through L4. len: the length of each car (L)
 function carsFor(n, big) { return big && n <= 4 ? 2 : levelInfo(n).cars; }
-// Level table (6). icon keys match Art.drawGoalIcon.
+function carLenFor(n, big) { return carsFor(n, big) === 2 ? 2 : levelInfo(n).len || 2; }
+// Level table (6, 15.5). icon keys match Art.drawGoalIcon.
 const LEVELS = [null,
   { cars: 2, G: 4, name: 'THE WATERMELON BAG', icon: 'melon', fuse: 2.4, rings: 1 },
   { cars: 2, G: 5, name: 'THE TILE BOX', icon: 'box', fuse: 2.2, rings: 1 },
-  { cars: 1, G: 6, name: 'THE ARMCHAIR SEAT', icon: 'armchair', fuse: 2.0, rings: 1 },
-  { cars: 1, G: 7, name: 'THE EGG CHAIR SEAT', icon: 'eggchair', fuse: 1.8, rings: 2 },
-  { cars: 1, G: 8, name: 'THE SIDE TABLE', icon: 'table', fuse: 1.7, rings: 2, hazard: 12 },
-  { cars: 1, G: 9, name: 'THE ARMCHAIR BACK', icon: 'armback', fuse: 1.6, rings: 2, hazard: 11 },
-  { cars: 1, G: 10, name: 'THE WINDOW SILL', icon: 'window', fuse: 1.5, rings: 2, hazard: 10, zeta: 0.10 },
+  { cars: 2, G: 6, name: 'THE ARMCHAIR SEAT', icon: 'armchair', fuse: 2.0, rings: 1 },
+  { cars: 1, len: 3, G: 7, name: 'THE EGG CHAIR SEAT', icon: 'eggchair', fuse: 1.8, rings: 2 },
+  { cars: 1, len: 3, G: 8, name: 'THE SIDE TABLE', icon: 'table', fuse: 1.7, rings: 2, hazard: 12 },
+  { cars: 1, len: 3, G: 9, name: 'THE ARMCHAIR BACK', icon: 'armback', fuse: 1.6, rings: 2, hazard: 11 },
+  { cars: 1, len: 3, G: 10, name: 'THE WINDOW SILL', icon: 'window', fuse: 1.5, rings: 2, hazard: 10, zeta: 0.10 },
   { cars: 1, G: 11, name: 'THE TOP OF THE EGG CHAIR', icon: 'eggtop', fuse: 1.4, rings: 2, hazard: 10, foot: true },
   { cars: 1, G: 13, name: 'THE AIR CONDITIONER', icon: 'ac', fuse: 1.3, rings: 2, hazard: 9, foot: true },
   { cars: 1, G: 15, name: 'YOU!', icon: 'you', fuse: 1.2, rings: 2, hazard: 9, foot: true },
@@ -1348,83 +1381,87 @@ const Art = (() => {
     }
   }
 
-  function buildCar(L, part, colorName) {
-    const s = makeSprite(L, -1.32 * L, -0.4 * L, 1.32 * L, 0.56 * L, 2);
+  // hl: half the car's length in L (1 for a 2 L car, 1.5 for the long 3 L car); wheels 0.2 L in from each end
+  function buildCar(L, part, colorName, hl) {
+    hl = hl || 1;
+    const X = hl * L, n = Math.round(4 * hl);                  // the plate's half-length (px) and its grid cells
+    const s = makeSprite(L, -X - 0.32 * L, -0.4 * L, X + 0.32 * L, 0.56 * L, 2);
     if (!s) return null;
     const g = s.g;
     const base = PAL[colorName], fc = FRAME[colorName];
-    const yb = -0.21 * L, yf = 0.05 * L, sk = 0.08 * L, y2 = 0.23 * L;
-    const top = [-L, yf, L, yf, L + sk, yb, -L + sk, yb];
+    const yb = -0.21 * L, yf = 0.05 * L, sk = 0.08 * L, y2 = 0.23 * L, wx = X - 0.2 * L;
+    const top = [-X, yf, X, yf, X + sk, yb, -X + sk, yb];
     if (part === 0) {
-      carWheel(g, -0.8 * L + sk, 0.26 * L, 0.19 * L, true);
-      carWheel(g, 0.8 * L + sk, 0.26 * L, 0.19 * L, true);
+      carWheel(g, -wx + sk, 0.26 * L, 0.19 * L, true);
+      carWheel(g, wx + sk, 0.26 * L, 0.19 * L, true);
     } else if (part === 1) {
-      const gr = g.createLinearGradient(-L, yb, L, y2);
+      const gr = g.createLinearGradient(-X, yb, X, y2);
       gr.addColorStop(0, rgba(lighten(base, 0.15), 0.6));
       gr.addColorStop(1, rgba(darken(base, 0.05), 0.6));
       g.fillStyle = gr;
       g.beginPath(); polyPath(g, top, 0.05 * L); g.fill();
       g.fillStyle = rgba(darken(base, 0.08), 0.8);
-      g.beginPath(); rrect(g, -L, yf - 0.01 * L, 2 * L, y2 - yf + 0.01 * L, 0.04 * L); g.fill();
+      g.beginPath(); rrect(g, -X, yf - 0.01 * L, 2 * X, y2 - yf + 0.01 * L, 0.04 * L); g.fill();
       // tow hooks: loop on the right, peg on the left
       g.strokeStyle = rgba(base, 0.8); g.lineWidth = 0.05 * L;
-      g.beginPath(); g.arc(L + 0.13 * L, 0.03 * L, 0.07 * L, 0, TAU); g.stroke();
+      g.beginPath(); g.arc(X + 0.13 * L, 0.03 * L, 0.07 * L, 0, TAU); g.stroke();
       g.fillStyle = rgba(base, 0.8);
-      g.fillRect(L - 0.02 * L, 0.0, 0.1 * L, 0.08 * L);
-      g.fillRect(-L - 0.12 * L, 0.02 * L, 0.14 * L, 0.08 * L);
-      g.beginPath(); rrect(g, -L - 0.1 * L, -0.16 * L, 0.07 * L, 0.2 * L, 0.03 * L); g.fill();
+      g.fillRect(X - 0.02 * L, 0.0, 0.1 * L, 0.08 * L);
+      g.fillRect(-X - 0.12 * L, 0.02 * L, 0.14 * L, 0.08 * L);
+      g.beginPath(); rrect(g, -X - 0.1 * L, -0.16 * L, 0.07 * L, 0.2 * L, 0.03 * L); g.fill();
     } else {
-      // frame of the top plate and the 2x4 inner grid
+      // frame of the top plate and the 2 x n inner grid (half-L cells: 2x4 on a 2 L car, 2x6 on the long one)
       g.lineJoin = 'round';
       g.strokeStyle = rgba(fc, 0.9); g.lineWidth = 0.05 * L;
       g.beginPath(); polyPath(g, top, 0.05 * L); g.stroke();
       g.lineWidth = 0.032 * L; g.strokeStyle = rgba(fc, 0.75);
       g.beginPath();
-      for (let i = 1; i < 4; i++) {
-        const f = i / 4;
-        g.moveTo(-L + 2 * L * f, yf); g.lineTo(-L + sk + 2 * L * f, yb);
+      for (let i = 1; i < n; i++) {
+        const f = i / n;
+        g.moveTo(-X + 2 * X * f, yf); g.lineTo(-X + sk + 2 * X * f, yb);
       }
-      g.moveTo(-L + sk / 2, (yf + yb) / 2); g.lineTo(L + sk / 2, (yf + yb) / 2);
+      g.moveTo(-X + sk / 2, (yf + yb) / 2); g.lineTo(X + sk / 2, (yf + yb) / 2);
       g.stroke();
       g.strokeStyle = rgba(lighten(base, 0.6), 0.55); g.lineWidth = Math.max(0.6, 0.012 * L);
       g.beginPath();
-      for (let i = 0; i <= 4; i++) {
-        const f = i / 4;
-        g.moveTo(-L + 2 * L * f + 0.02 * L, yf - 0.02 * L); g.lineTo(-L + sk + 2 * L * f + 0.02 * L, yb + 0.02 * L);
+      for (let i = 0; i <= n; i++) {
+        const f = i / n;
+        g.moveTo(-X + 2 * X * f + 0.02 * L, yf - 0.02 * L); g.lineTo(-X + sk + 2 * X * f + 0.02 * L, yb + 0.02 * L);
       }
       g.stroke();
       // front face: lip highlight, pockets, dark bottom edge
       g.fillStyle = 'rgba(255,255,255,0.45)';
-      g.fillRect(-L + 0.03 * L, yf, 2 * L - 0.06 * L, Math.max(0.8, 0.02 * L));
+      g.fillRect(-X + 0.03 * L, yf, 2 * X - 0.06 * L, Math.max(0.8, 0.02 * L));
       g.fillStyle = rgba(darken(fc, 0.5), 0.45);
-      for (let i = 0; i < 4; i++) g.fillRect(-L + (0.3 + i * 0.47) * L, yf + 0.07 * L, 0.2 * L, 0.04 * L);
+      const pstep = (2 * hl - 0.59) / (n - 1);
+      for (let i = 0; i < n; i++) g.fillRect(-X + (0.3 + i * pstep) * L, yf + 0.07 * L, 0.2 * L, 0.04 * L);
       g.fillStyle = rgba(darken(fc, 0.4), 0.7);
-      g.fillRect(-L + 0.02 * L, y2 - 0.025 * L, 2 * L - 0.04 * L, 0.025 * L);
+      g.fillRect(-X + 0.02 * L, y2 - 0.025 * L, 2 * X - 0.04 * L, 0.025 * L);
       g.strokeStyle = rgba(fc, 0.95); g.lineWidth = Math.max(0.8, 0.02 * L);
-      g.beginPath(); rrect(g, -L, yf - 0.01 * L, 2 * L, y2 - yf + 0.01 * L, 0.04 * L); g.stroke();
+      g.beginPath(); rrect(g, -X, yf - 0.01 * L, 2 * X, y2 - yf + 0.01 * L, 0.04 * L); g.stroke();
       // hooks outline + highlight
       g.strokeStyle = rgba(fc, 0.95); g.lineWidth = Math.max(0.7, 0.016 * L);
-      g.beginPath(); g.arc(L + 0.13 * L, 0.03 * L, 0.095 * L, 0, TAU); g.stroke();
-      g.beginPath(); g.arc(L + 0.13 * L, 0.03 * L, 0.045 * L, 0, TAU); g.stroke();
-      g.beginPath(); rrect(g, -L - 0.1 * L, -0.16 * L, 0.07 * L, 0.2 * L, 0.03 * L); g.stroke();
+      g.beginPath(); g.arc(X + 0.13 * L, 0.03 * L, 0.095 * L, 0, TAU); g.stroke();
+      g.beginPath(); g.arc(X + 0.13 * L, 0.03 * L, 0.045 * L, 0, TAU); g.stroke();
+      g.beginPath(); rrect(g, -X - 0.1 * L, -0.16 * L, 0.07 * L, 0.2 * L, 0.03 * L); g.stroke();
       g.fillStyle = rgba(lighten(base, 0.5), 0.8);
-      g.beginPath(); g.ellipse(-L - 0.065 * L, -0.155 * L, 0.035 * L, 0.015 * L, 0, 0, TAU); g.fill();
+      g.beginPath(); g.ellipse(-X - 0.065 * L, -0.155 * L, 0.035 * L, 0.015 * L, 0, 0, TAU); g.fill();
       // near wheels: radius 0.2L, 0.2L in from each end, contact 0.5L below the plate top
-      carWheel(g, -0.8 * L, 0.3 * L, 0.2 * L, false);
-      carWheel(g, 0.8 * L, 0.3 * L, 0.2 * L, false);
+      carWheel(g, -wx, 0.3 * L, 0.2 * L, false);
+      carWheel(g, wx, 0.3 * L, 0.2 * L, false);
     }
     return finish(s);
   }
 
   // three spokes on each near hub and a fleck on the tyre, turned by ang (radians, clockwise)
-  function hubMarks(ctx, L, ang) {
-    const r = 0.074 * L, ca = Math.cos(ang), sa = Math.sin(ang);
+  function hubMarks(ctx, L, ang, hl) {
+    const r = 0.074 * L, ca = Math.cos(ang), sa = Math.sin(ang), wx = (hl - 0.2) * L;
     ctx.lineCap = 'round';
     ctx.strokeStyle = 'rgba(44,44,50,0.8)';
     ctx.lineWidth = Math.max(0.8, 0.024 * L);
     ctx.beginPath();
     for (let w = -1; w <= 1; w += 2) {
-      const cx = w * 0.8 * L, cy = 0.3 * L;
+      const cx = w * wx, cy = 0.3 * L;
       // spokes at ang, ang + 120 and ang + 240 degrees (each turned 120 degrees from the last)
       let c = ca, s = sa;
       for (let k = 0; k < 3; k++) {
@@ -1437,31 +1474,32 @@ const Art = (() => {
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
     ctx.beginPath();
     for (let w = -1; w <= 1; w += 2) {
-      const fx = w * 0.8 * L + ca * 0.155 * L, fy = 0.3 * L + sa * 0.155 * L;
+      const fx = w * wx + ca * 0.155 * L, fy = 0.3 * L + sa * 0.155 * L;
       ctx.moveTo(fx + 0.022 * L, fy); ctx.arc(fx, fy, 0.022 * L, 0, TAU);
     }
     ctx.fill();
   }
+  // o.len: the car's length in L, 2 (default) or 3 (the long car of levels 4-7; any length from 2.5 up draws it)
   function drawCar(ctx, x, y, rot, L, color, o) {
     if (!okL(L) || !fin(x) || !fin(y)) return;
     const cn = color === 'green' ? 'green' : 'red';
     const ci = COLOR_IDX[cn];
-    const q = qOf(L);
+    const q = qOf(L), hl = o && fin(o.len) && o.len >= 2.5 ? 1.5 : 1;
     const sq = o && o.squash > 0 ? Math.min(1, o.squash) : 0;
     ctx.save();
     try {
       ctx.translate(x, y);
       if (rot && fin(rot)) rotQ(ctx, rot);
       if (sq) { ctx.translate(0, 0.5 * L); ctx.scale(1 + 0.08 * sq, 1 - 0.22 * sq); ctx.translate(0, -0.5 * L); }
-      const b0 = 9000 + ci * 4;
-      blit(ctx, getSprite(b0, q, buildCar, 0, cn), L);
+      const b0 = (hl > 1 ? 9040 : 9000) + ci * 4;
+      blit(ctx, getSprite(b0, q, buildCar, 0, cn, hl), L);
       ctx.globalCompositeOperation = 'multiply';
-      blit(ctx, getSprite(b0 + 1, q, buildCar, 1, cn), L);
+      blit(ctx, getSprite(b0 + 1, q, buildCar, 1, cn, hl), L);
       ctx.globalCompositeOperation = 'source-over';
-      blit(ctx, getSprite(b0 + 2, q, buildCar, 2, cn), L);
+      blit(ctx, getSprite(b0 + 2, q, buildCar, 2, cn, hl), L);
       // the near wheels turn as the car rolls: o.roll = distance rolled in L (angle = roll / r)
       const roll = o && fin(o.roll) ? o.roll : 0;
-      hubMarks(ctx, L, roll / 0.2);
+      hubMarks(ctx, L, roll / 0.2, hl);
     } finally {
       ctx.restore();
     }
@@ -4376,6 +4414,39 @@ const Sfx = (() => {
     own(v, o, [o, g], w1 + 0.012);
     play(v, pick(SNAP), w1 + 0.02, 1.1, 0.22);
   }
+  function snap(n, x) {   // a SNAP (15.3): the magnets let go at the brace line: a sharp double crack, a falling twang, a short clatter
+    if (!live()) return;
+    n = clamp(Math.round(fin(n, 6)), 1, 60); x = clamp(fin(x, 0), -1, 1);
+    duck(0.6);
+    const v = voice(1, 1.0, 0), t = v.t0, trim = stereoTrim(v);
+    const P = [];
+    for (let k = 0; k < 3; k++) P.push(panTo(v, x + (k - 1) * 0.3, trim));
+    const C = P[1];
+    play(v, snapN(0), t, 1.25, 0.4, C);
+    play(v, snapN(1), t + 0.018, 1.05, 0.32, C);
+    noise(v, t, 0.001, 0.22, 0.05, [['highpass', 2500, 0.7]], { to: C });
+    tone(v, 'triangle', 988, t + 0.02, 0.002, 0.11 * loud(988), 0.3, { f2: 247, glide: 0.28, to: C });
+    tone(v, 'sine', 140, t + 0.03, 0.003, 0.22, 0.16, { f2: 70, glide: 0.14, to: C });
+    const cnt = clamp(Math.round(6 + n * 0.8), 8, 22);
+    for (let k = 0; k < cnt; k++) {
+      const u = (k + rnd()) / cnt, tk = t + 0.12 + 0.5 * Math.pow(u, 1.3);
+      clatter(v, tk, (0.7 - 0.4 * u) * (0.55 + 0.45 * rnd()), pick(P), true);
+    }
+  }
+  function lock() {   // a TRUSS locks the tower: a double latch snap, then a bright C-G-C'-E' chord with a bell on top
+    if (!live()) return;
+    const v = voice(1, 1.1, 0), t = v.t0;
+    play(v, pick(SNAP), t, 1.3, 0.24);
+    play(v, pick(SNAP), t + 0.04, 1.55, 0.2);
+    tone(v, 'sine', 3136, t + 0.04, 0.0008, 0.04, 0.02);
+    const tc = t + 0.065;
+    [523.25, 783.99, 1046.5, 1318.51].forEach((f, k) => {
+      tone(v, 'triangle', f, tc + 0.014 * k, 0.003, 0.085 * loud(f), 0.62);
+      tone(v, 'sine', f * 2, tc + 0.014 * k, 0.002, 0.022, 0.25);
+    });
+    bell(v, 2093, tc + 0.05, 0.075, 0.7);
+    bell(v, 2637.02, tc + 0.11, 0.05, 0.55);
+  }
   function newBest() {   // pentatonic run up into a bright chord with bells and sparkle
     if (!live()) return;
     const v = voice(2, 1.8, 0), t = v.t0;
@@ -4584,6 +4655,8 @@ const Sfx = (() => {
     crown: guard('crown', crown),
     ring: guard('ring', ring),
     gear: guard('gear', gear),
+    lock: guard('lock', lock),
+    snap: guard('snap', snap),
     cubeFold: guard('cubeFold', cubeFold),
     boom: guard('boom', boom),
     honk: guard('honk', honk),
@@ -4696,8 +4769,12 @@ function stripMinY(poly, x0, x1) {
   return m;
 }
 // A build: car-top edges + tiles (built and in-flight) + the edge map + the current candidates.
-function newBuild(cars) {
-  const B = { cars, half: cars === 1 ? 1 : 2, tiles: [], emap: new Map(), carEdges: [], cands: [], ver: 0, nextId: 1 };
+// cars: 1 or 2 (two coupled 2 L cars); len: one car's length (2, or 3 for the long car). half: half the car top (L).
+// yb: the brace line (15.2), the top of the highest TRUSS (0: none yet); lock: the joints under it (edges)
+function newBuild(cars, len) {
+  len = cars === 2 ? 2 : len || 2;
+  const B = { cars, len, half: cars === 2 ? 2 : len / 2, tiles: [], emap: new Map(), carEdges: [], cands: [], ver: 0, nextId: 1,
+    yb: 0, trusses: 0, lock: [], lockPts: [], lockAt: -1 };
   for (let i = -2 * B.half; i < 2 * B.half; i += 2) {
     const e = mkEdge('top', i, 0, 0, i + 2, 0, 0);
     B.carEdges.push(e); emapAdd(B, e, CAR_OWNER);
@@ -4752,7 +4829,37 @@ function evalCand(B, P) {
     if (d < depth) depth = d;
   }
   if (depth > CFG.MAX_DEPTH) return null;
-  return { key: P.key, type: P.type, pose: P, edges, depth, supported: bottom || edges >= 2, bottom, matched, wx: P.cx, wy: P.cy };
+  // firm (15.1): a triangle sharing an edge with another triangle is held as two real tiles are, so a triangle slot that
+  // matches a slant (every slant is a triangle's) counts as supported. notch: a down-triangle meeting two slants; truss:
+  // landing here fills a notch between two up-triangles (15.2); hint: shown faintly while a triangle is in the hand
+  const tri = P.type === 'up' || P.type === 'dn', firm = tri && !bottom && slants >= 1;
+  const truss = notch && trussNotches(B, P, null, TRUSS_TMP).length > 0;
+  return { key: P.key, type: P.type, pose: P, edges, depth, supported: bottom || edges >= 2 || firm, bottom, matched, wx: P.cx, wy: P.cy,
+    firm, notch, truss, hint: notch || firm || truss };
+}
+// The notch a triangle at pose P fills into a TRUSS (15.2): P is a down-triangle and both its slants are held by
+// up-triangles standing on its own base row (a notch's two up-triangles always do). Only that: the same Δ∇Δ built the
+// other way round (a down-triangle hung off one up-triangle, then the second up-triangle) fills no notch, and neither
+// does an up-triangle hung off a down-triangle. Fills out (an array) with P or nothing. self: the tile at P when it is
+// in the build already (a landing; else null: a candidate, which counts the tiles in the air as built, as the ghost
+// does; a landing counts only the tiles already down)
+const TRUSS_TMP = [];
+function trussNotches(B, P, self, out) {
+  out.length = 0;
+  if (P.type !== 'dn') return out;
+  let n = 0;
+  for (const e of P.edges) {
+    if (e.role === 'top') continue;
+    const ent = B.emap.get(e.key);
+    if (!ent) continue;
+    for (let k = 0; k < ent.length; k++) {
+      const o = ent[k].owner;
+      if (o === self || o.isCar || (self && o.flight)) continue;
+      if (o.type === 'up' && o.pose.a === P.a && o.pose.b === P.b) { n++; break; }
+    }
+  }
+  if (n === 2) out.push(P);
+  return out;
 }
 // The three generators (3.3). Called only when the build changes.
 function genSlots(B) {
@@ -4774,6 +4881,8 @@ function genSlots(B) {
       case 'right': add('sq', e.pi, e.pa, e.pb); break;
       case 'slantL': case 'slantR':                         // 3. a down-triangle sharing an up-triangle's slant
         if (owner.type === 'up') add('dn', e.pi - 1, e.pa, e.pb);
+        // 4 (15.1). an up-triangle sharing a down-triangle's slant: to its lower right (slantR) or lower left (slantL)
+        else if (owner.type === 'dn') add('up', e.role === 'slantR' ? e.pi : e.pi - 2, e.pa, e.pb);
         break;
     }
   }
@@ -4827,13 +4936,23 @@ const TW = { theta: 0, omega: 0, s: 0, sv: 0, H: 1, squash: 0, ox: 0,
   M: 1.5, cx: 0, cy: -0.25, w: 0.8, IR: 1, IL: 1, FW: 0, top: 0, n: 0, wn: 9, zeta: 0.15, braceT: 0,
   side: 0, alphaSide: 1, tipping: false, crashing: false, evSlap: 0, evRest: false, slapX: 0,
   Sx: 0, Sy: 0, Sq: 0, Sk: 0, Syy: 0 };    // raw mass sums (Σm x, Σm y, Σm(x²+y²), Σm k, Σm y² of tiles)
+// The wobble of the unbraced segment (15.3). W 0..1; the segment's measure (recomputeTower): yb its foot (the brace
+// line), Hu its height, w its narrowest width, lam = Hu / w. The sway: q (L, at the segment's top) and qv (L/s), a spring
+// at wq rad/s whose amplitude eases to WOB_SWAY·W. It is drawn and the slots are placed at x + q·((y − yb) / Hs)² above
+// yb (toWorld), on top of the flex. Only a look and a moving target: the rock and its look-ahead never see it (the
+// tower's physics stays exactly the game's own future); the wobble's own danger is the SNAP (land()).
+const WOB = { W: 0, yb: 0, Hu: 0, w: 1, lam: 0, Hs: 1, q: 0, qv: 0, wq: 9, dir: 1, top: 0 };
 function towerReset() {
+  WOB.W = 0; WOB.q = 0; WOB.qv = 0; WOB.yb = 0; WOB.Hu = 0; WOB.w = 1; WOB.lam = 0; WOB.Hs = 1; WOB.top = 0;
   TW.theta = TW.omega = TW.s = TW.sv = TW.squash = TW.ox = TW.braceT = 0; TW.H = 1; TW.side = 0;
   TW.tipping = TW.crashing = false; TW.evSlap = 0; TW.evRest = false;
 }
 function toWorld(lx, ly, out) {
   let x = lx, y = ly;
   if (TW.s !== 0 && ly > 0) { const f = ly / TW.H; x += TW.s * f * f; }
+  // the wobble's sway (15.3): the unbraced segment only; the braced part below the brace line stays still
+  // (a slot over a short segment's top sways no more than 1.2× its height would: it follows the top, not a lever)
+  if (WOB.q !== 0 && ly > WOB.yb) { const f = Math.min(1.2, (ly - WOB.yb) / WOB.Hs); x += WOB.q * f * f; }
   if (TW.squash !== 0) y = ly * (1 - TW.squash);
   if (TW.theta !== 0) {
     const px = TW.theta > 0 ? TW.w : -TW.w, py = -0.5, c = Math.cos(TW.theta), s = Math.sin(TW.theta), dx = x - px, dy = y - py;
@@ -4843,6 +4962,17 @@ function toWorld(lx, ly, out) {
   return out;
 }
 const _w = { x: 0, y: 0 }, _w2 = { x: 0, y: 0 }, _s = { x: 0, y: 0 }, _s2 = { x: 0, y: 0 };
+// the wobble's sway at a tile (for what keeps clear of the build: the pops): SWP.off its offset now and SWP.pad its reach
+// to either side of its rest place, in px (a pop placed clear of the reach stays clear while the segment sways)
+const SWP = { off: 0, pad: 0 };
+function wobSway(P) {
+  SWP.off = 0; SWP.pad = 0;
+  if ((WOB.q === 0 && WOB.W === 0) || P.maxY <= WOB.yb) return SWP;
+  const fc = P.cy > WOB.yb ? Math.min(1.2, (P.cy - WOB.yb) / WOB.Hs) : 0, ft = Math.min(1.2, (P.maxY - WOB.yb) / WOB.Hs);
+  SWP.off = WOB.q * fc * fc * CAM.L;
+  SWP.pad = ft * ft * Math.max(Math.abs(WOB.q), CFG.WOB_SWAY * WOB.W) * CAM.L;
+  return SWP;
+}
 
 // Game state (FLOW & SCORING owns the rest of it).
 const S = {
@@ -4854,7 +4984,7 @@ const S = {
   toppleAt: -1, lockUntil: -1, rollT0: -1, rollFrom: 0,   // dead-end TOPPLE / crash: releases wait until the new base is in
   tellAt: -1,                                               // when the dead end's tell began (toppleAt >= 0)
   level: 1, goalLevel: 1, G: 4, goalName: '', goalIcon: 'melon', goalTorn: false, goalTornAt: 0,
-  big: PARAM.big, cars: 2,
+  big: PARAM.big, cars: 2, carLen: 2, trusses: 0, snaps: 0, fuseWait: false, crownHintAt: -1,
   score: 0, combo: 0, mult: 1, streak: 0, bestStreak: 0, perfects: 0, landed: 0, crashes: 0, saves: 0, braces: 0, misses: 0,
   clock: CFG.CLOCK_START,
   B: null, flights: [], lastLandAt: -1e9, releaseId: 0,
@@ -4876,9 +5006,11 @@ const HAND = { x: 0, dx: 0, piece: null, ready: false, readyAt: 0, releasedAt: -
 function massProps(B, withFlight, out) {
   const cm = CFG.CAR_MASS, ccy = CFG.CAR_CY, tiles = B.tiles;
   let M = 0, Sx = 0, Sy = 0, Sq = 0, Sk = 0, top = 0, n = 0;
+  // (a car's mass and inertia grow with its length: the long car is 1.5 cars; k = len²/12, 1/3 for a 2 L car)
+  const len = B.cars === 2 ? 2 : B.len || 2, cmass = cm * len / 2, ck = CFG.CAR_K * len * len / 4;
   for (let c = 0; c < B.cars; c++) {
     const x = B.cars === 1 ? 0 : (c ? 1 : -1);
-    M += cm; Sx += cm * x; Sy += cm * ccy; Sq += cm * (x * x + ccy * ccy); Sk += cm * CFG.CAR_K;
+    M += cmass; Sx += cmass * x; Sy += cmass * ccy; Sq += cmass * (x * x + ccy * ccy); Sk += cmass * ck;
   }
   for (let k = 0; k < tiles.length; k++) {
     const t = tiles[k];
@@ -5105,6 +5237,158 @@ function recomputeTower() {
   S.alpha = Math.atan2(TW.w - Math.abs(TW.cx), TW.cy + 0.5);
   TW.wn = CFG.FLEX_WN / (1 + CFG.FLEX_WN_H * TW.H);
   TW.zeta = Math.max(S.level, S.goalLevel) >= 7 ? CFG.FLEX_ZETA_L7 : CFG.FLEX_ZETA;
+  segUpdate();
+}
+
+/* ---- WOBBLE (15.3) ---- */
+// The x-interval a convex polygon covers at height y (SPAN.x0..x1); false if it does not reach y. (A sample height
+// y_b + 0.25 + 0.5 k never meets a lattice vertex a + b·√3/2 exactly, so no edge is ever degenerate there.)
+const SPAN = { x0: 0, x1: 0 };
+function polySpanAt(poly, y) {
+  const n = poly.length >> 1;
+  let x0 = Infinity, x1 = -Infinity;
+  for (let k = 0; k < n; k++) {
+    const k2 = k + 1 === n ? 0 : k + 1, ya = poly[2 * k + 1], yb = poly[2 * k2 + 1];
+    if (ya === yb || (ya - y) * (yb - y) > 0) continue;
+    const x = poly[2 * k] + (poly[2 * k2] - poly[2 * k]) * (y - ya) / (yb - ya);
+    if (x < x0) x0 = x; if (x > x1) x1 = x;
+  }
+  if (!(x1 > x0)) return false;
+  SPAN.x0 = x0; SPAN.x1 = x1;
+  return true;
+}
+// The unbraced segment's measure (15.3), for the tiles that count as built (inc(t); plus `extra`, a pose being aimed):
+// Hu = the build top − y_b; w = the narrowest width, sampled at y_b + 0.25, + 0.75, … up to 0.25 under the top, each
+// the length of the x-span the tiles cover there (the union of their spans), floored at 1 L; lam = Hu / w.
+// The samples stop under the base of the highest tile (the segment's last layer): the width that counts is the width
+// carrying what is on top. (§15.3's rule of thumb is about a tower's width: 2 wide stacks fast to ~5 L, must slow
+// down or brace by ~6 L and brace past ~8 L; 4 wide needs no brace to ~12 L. Sampled through the last layer too, the
+// first tile of every new row would measure a 2-wide tower 1 L wide, λ = Hu, and SNAP it at ~4 L however slowly it
+// was built; a lone square on a 4-wide level-1 tower likewise. A spire of two or more tiles is still its own width.)
+const SEGI = [];          // interval scratch (x0, x1 pairs)
+function segMeasure(B, yb, inc, extra, out) {
+  const tiles = B.tiles;
+  let top = 0, cut = -Infinity;
+  for (let k = 0; k < tiles.length; k++) {
+    const t = tiles[k];
+    if (!inc(t)) continue;
+    const P = t.pose;
+    if (P.maxY > top) top = P.maxY;
+    if (P.minY >= yb - 1e-9 && P.minY > cut) cut = P.minY;
+  }
+  if (extra) { if (extra.maxY > top) top = extra.maxY; if (extra.minY >= yb - 1e-9 && extra.minY > cut) cut = extra.minY; }
+  const Hu = Math.max(0, top - yb), dy = CFG.WOB_DY;
+  let w = Infinity;
+  for (let y = yb + dy / 2; y <= top - dy / 2 + 1e-9 && y < cut - 1e-9; y += dy) {
+    let n = 0;
+    for (let k = 0; k <= tiles.length; k++) {
+      const P = k < tiles.length ? (inc(tiles[k]) ? tiles[k].pose : null) : extra;
+      if (!P || P.minY >= y || P.maxY <= y || !polySpanAt(P.poly, y)) continue;
+      // insertion into the sorted interval list
+      let j = n;
+      while (j > 0 && SEGI[2 * j - 2] > SPAN.x0) { SEGI[2 * j] = SEGI[2 * j - 2]; SEGI[2 * j + 1] = SEGI[2 * j - 1]; j--; }
+      SEGI[2 * j] = SPAN.x0; SEGI[2 * j + 1] = SPAN.x1; n++;
+    }
+    let len = 0, a = -Infinity, b = -Infinity;
+    for (let j = 0; j < n; j++) {
+      const x0 = SEGI[2 * j], x1 = SEGI[2 * j + 1];
+      if (x0 > b) { if (b > a) len += b - a; a = x0; b = x1; } else if (x1 > b) b = x1;
+    }
+    if (b > a) len += b - a;
+    if (len < w) w = len;
+  }
+  out.Hu = Hu; out.top = top;
+  out.w = Math.max(CFG.WOB_W_MIN, w === Infinity ? CFG.WOB_W_MIN : w);
+  out.lam = Hu / out.w;
+  return out;
+}
+const standingTile = t => !t.flight && !t.gone;
+// the live segment: measured on the standing build at every landing, TRUSS, SNAP and new base
+function segUpdate() {
+  const B = S.B;
+  if (!B) return;
+  WOB.yb = B.yb;
+  segMeasure(B, B.yb, standingTile, null, WOB);
+  WOB.Hs = Math.max(1, WOB.Hu);
+  WOB.wq = CFG.FLEX_WN / (1 + CFG.FLEX_WN_H * WOB.Hu);
+}
+// ΔW of one landing in the segment (15.3): a[grade]·max(0, λ − λ's floor)² (× 1.5 the cube), at most WOB_DW_MAX (× 0.4
+// in BIG MAGNETS)
+function wobDelta(grade, shape, lam) {
+  const d = Math.max(0, lam - CFG.WOB_LAM0);
+  const a = CFG.WOB_A[grade];
+  return Math.min(CFG.WOB_DW_MAX, (a === undefined ? CFG.WOB_A.clack : a) * d * d * (shape === 'cube' ? CFG.WOB_CUBE : 1)) * (S.big ? CFG.WOB_BIG : 1);
+}
+// a tile at pose P lands in the segment: it sits on or above the brace line (what would come off with a SNAP)
+function inSegment(P, yb) { return P.minY >= yb - 1e-9; }
+// The wobble each fixed step of play: W decays (before the step's landings, so a landing adds to W decayed to its own
+// step: what snapAhead() assumes); the sway eases to WOB_SWAY·W, a spring at the segment's own frequency, and the top's
+// lateral speed (flex + rock + sway) keeps the TOP_VMAX cap
+function stepWobble(dt) {
+  if (WOB.W > 0) { WOB.W *= Math.exp(-dt / CFG.WOB_TAU); if (WOB.W < 1e-4) WOB.W = 0; }
+}
+function stepSway(dt) {
+  const wq = WOB.wq, A = CFG.WOB_SWAY * WOB.W;
+  if (A <= 0 && WOB.q === 0 && WOB.qv === 0) return;
+  WOB.qv -= wq * wq * WOB.q * dt; WOB.q += WOB.qv * dt;
+  const E = Math.hypot(WOB.q, WOB.qv / wq), k = 1 - Math.exp(-dt / CFG.WOB_SWAY_T), E2 = E + (A - E) * k;
+  if (E < 1e-6) { WOB.q = 0; WOB.qv = WOB.dir * wq * E2; }
+  else { const r = E2 / E; WOB.q *= r; WOB.qv *= r; }
+  if (A <= 0 && E2 < 2e-3) { WOB.q = 0; WOB.qv = 0; return; }
+  // the cap: the top moves no faster than TOP_VMAX with everything on it (not past α: there gravity has it)
+  if (!TW.tipping && !TW.crashing) {
+    const vr = TW.sv + TW.omega * (TW.H + 0.5) * Math.cos(TW.theta), lo = -CFG.TOP_VMAX - vr, hi = CFG.TOP_VMAX - vr;
+    if (WOB.qv > hi) WOB.qv = Math.max(0, hi); else if (WOB.qv < lo) WOB.qv = Math.min(0, lo);
+  }
+}
+// One more landing in the wobble's order of things (snapAhead): did tile T (in the build, landing now with the tiles
+// marked down) close a notch into a TRUSS? The rule of trussNotches, with "already down" = isDown
+function trussAhead(B, P, isDown) {
+  if (P.type !== 'dn') return false;
+  let n = 0;
+  for (const e of P.edges) {
+    if (e.role === 'top') continue;
+    const ent = B.emap.get(e.key);
+    if (!ent) continue;
+    for (let k = 0; k < ent.length; k++) {
+      const o = ent[k].owner;
+      if (o.isCar || o.pose === P || !isDown(o)) continue;
+      if (o.type === 'up' && o.pose.a === P.a && o.pose.b === P.b) { n++; break; }
+    }
+  }
+  return n === 2;
+}
+// The wobble's look-ahead: the tiles in the air land in order at their times with their locked grades (and then
+// `extra`, a tile being aimed: {pose, grade, shape, landAt}), with land()'s rules: W decayed to each landing's step,
+// a TRUSS takes it × TRUSS_W and raises the brace line, a landing in the segment adds ΔW at the λ it leaves. Returns
+// 'full' when one of them SNAPs a tower with no TRUSS (a full crash), 'part' when the braced part would stand, else ''.
+// (Conservative by a step: each decay stops one fixed step short of its landing, as a landing's step can be.)
+const SNAPM = { Hu: 0, w: 1, lam: 0, top: 0 };
+let SNAP_STAMP = 0;
+function snapAhead(extra) {
+  const B = S.B;
+  if (!B || S.phase !== 'play') return '';
+  const stamp = ++SNAP_STAMP, isDown = t => !t.gone && (!t.flight || t._sd === stamp);
+  let W = WOB.W, t0 = S.gt, yb = B.yb;
+  const fl = S.flights, n = fl.length + (extra ? 1 : 0);
+  for (let i = 0; i < n; i++) {
+    const f = i < fl.length ? fl[i] : null, P = f ? f.pose : extra.pose, shape = f ? f.piece.shape : extra.shape;
+    const grade = f ? f.grade : extra.grade, at = f ? f.landAt : extra.landAt;
+    if (shape === 'crown') return '';                    // the crown lands: the SMASH
+    const dt = Math.max(0, at - t0 - CFG.STEP);
+    W *= Math.exp(-dt / CFG.WOB_TAU); t0 += dt;
+    if (P.type === 'dn' && trussAhead(B, P, isDown)) {
+      if (P.maxY > yb) yb = P.maxY;
+      W *= CFG.TRUSS_W;
+    } else if (inSegment(P, yb)) {
+      if (f) f.tile._sd = stamp;
+      segMeasure(B, yb, isDown, f ? null : P, SNAPM);
+      W = Math.min(1, W + wobDelta(grade, shape, SNAPM.lam));
+      if (W >= 1 - 1e-9) return yb > 0 ? 'part' : 'full';
+    }
+    if (f) f.tile._sd = stamp;
+  }
+  return '';
 }
 
 // Look-ahead (the tell's honesty): run the game's own rockStep forward from the live state, landing the tiles
@@ -5247,6 +5531,162 @@ function doBrace(t) {
   Sfx.gear();
 }
 
+// TRUSS (15.2): the landing tile closed one or more notches (trussNotches). The brace line moves up to the highest
+// notch's top, everything under it is locked: TRUSS_PTS × mult a notch, the wobble drops, a lock chord, and the joints
+// under the line flash from the base up and then keep a faint glint. Returns the points.
+function doTruss(t, notches) {
+  const B = S.B, n = notches.length;
+  let yb = B.yb;
+  for (let k = 0; k < n; k++) if (notches[k].maxY > yb) yb = notches[k].maxY;
+  const pts = CFG.TRUSS_PTS * n * S.mult;
+  B.yb = yb; B.trusses += n; B.lockAt = S.gt; S.trusses += n;
+  S.score += pts; S.scoreBumpT = S.rt;
+  // the wobble drops (15.3) and the segment now starts at the new brace line (its sway eases off with it)
+  WOB.W *= CFG.TRUSS_W; WOB.q *= CFG.TRUSS_W; WOB.qv *= CFG.TRUSS_W;
+  segUpdate();
+  lockJoints(B);
+  logEvent('truss', { key: t.pose.key, notches: notches.map(D => D.key), yb: +yb.toFixed(4), pts, n, mult: S.mult, joints: B.lock.length });
+  Sfx.lock(); Sfx.haptic([12, 24, 12]);
+  return pts;
+}
+// SNAP (15.3): the wobble reached 1 on the landing of tile t. The magnets let go at the brace line: everything on or above
+// it (inSegment: the tiles standing there, the ones in the air to slots there, t itself) cartwheels off the way the
+// segment swayed, and the braced part stays standing. With no TRUSS yet that is a full crash. The combo resets. The
+// crown (15.6): kept while the build top is still at or above the ribbon (its multiplier falls with the top), else lost
+// and the ribbon tied up again.
+function doSnap(f, t) {
+  const B = S.B, yb = B.yb;
+  S.snaps++;
+  const lam = WOB.lam, Hu = WOB.Hu, w = WOB.w;
+  if (!(yb > 0)) {
+    logEvent('snap', { full: true, tiles: B.tiles.filter(standingTile).length, top: +S.top.toFixed(3), yb: 0, lam: +lam.toFixed(3), Hu: +Hu.toFixed(3), w: +w.toFixed(3) });
+    doCrash(true);
+    return;
+  }
+  const dir = WOB.q > 0 ? 1 : WOB.q < 0 ? -1 : WOB.dir || 1, r = S.drng;
+  const off = B.tiles.filter(x => !x.gone && !x.flight && inSegment(x.pose, yb));
+  const lostF = S.flights.filter(x => inSegment(x.pose, yb));
+  let rings = 0;
+  for (const x of off) if (x.ring) rings++;
+  // the pile makes room in time: the oldest pieces past the cap fade out while the segment lets go (no visible piece
+  // vanishes); the segment's tiles hang where they were (the magnets letting go, the hit-stop) and go top first
+  debrisFadeFor(off.length + lostF.length + Math.min(rings, 4), CFG.SNAP_UNZIP * 0.9);
+  let sumX = 0;
+  const hs = Math.max(1, WOB.Hu);
+  for (const x of off) {
+    const P = x.pose, up = Math.max(0, P.cy - yb), f2 = Math.min(1, up / WOB.Hs);
+    toWorld(P.cx, P.cy, _w); sumX += _w.x;
+    const back = r() < 0.15 ? -1 : 1;
+    const vx = clamp(dir * back * (1.2 + 1.8 * r() + 0.3 * up) + WOB.qv * f2 * f2 + (r() - 0.5) * 0.8, -CFG.SNAP_VMAX, CFG.SNAP_VMAX);
+    const vy = clamp(1.2 + 2.2 * r() + 0.15 * up, -CFG.SNAP_VMAX, CFG.SNAP_VMAX);
+    const o = { shape: x.shape || (P.type === 'cube' ? 'cube' : P.type === 'sq' ? 'sq' : 'tri'), color: x.color, variant: x.variant,
+      x: _w.x, y: _w.y, rot: TW.theta + P.rot0, vx, vy, w: -dir * back * (6 + 6 * r()), gear: !!x.gearAt, zT: debrisZT(), art: artShapeForType(P.type, x) };
+    const ring = x.ring && rings-- > 0 ? { shape: 'ring', x: _w.x, y: _w.y + 0.1, vx: clamp(vx * 1.2, -4, 4), vy: vy + 1, w: 0, zT: debrisZT() } : null;
+    SNAPQ.push({ o, ring, at: S.gt + CFG.SNAP_UNZIP * clamp(1 - up / hs, 0, 1) * (0.8 + 0.2 * r()) });
+    if (x.ring) { x.ring.got = false; x.ring.tile = null; }      // (the ring floats again where it was, as after a crash)
+    x.gone = true;
+  }
+  let crownLost = false;
+  for (const fl of lostF) {
+    flightPose(fl, FP);
+    SNAPQ.push({ o: { shape: fl.piece.shape, color: fl.piece.color, variant: fl.piece.variant, x: FP.x, y: FP.y, rot: FP.rot,
+      vx: dir * (1 + r() * 2), vy: -0.5 - r() * 1.5, w: -dir * (5 + r() * 6), zT: debrisZT(), art: artShapeForType(fl.pose.type, fl.piece) }, ring: null, at: S.gt + CFG.SNAP_UNZIP });
+    logEvent('lost', { id: fl.id, key: fl.key });
+    fl.tile.gone = true;
+    if (fl.piece.shape === 'crown') crownLost = true;
+  }
+  // the build without the segment: tiles, edges, slots, mass, the locked joints (the line itself stays)
+  B.tiles = B.tiles.filter(x => !x.gone);
+  rebuildEdges(B);
+  if (lostF.length) {
+    for (let i = S.flights.length - 1; i >= 0; i--) if (lostF.indexOf(S.flights[i]) >= 0) S.flights.splice(i, 1);
+    S.lastLandAt = S.flights.length ? S.flights[S.flights.length - 1].landAt : -1e9;
+  }
+  FX.pokes = FX.pokes.filter(p => !p.tile.gone);
+  recomputeTower();
+  genSlots(B);
+  lockJoints(B);
+  massProps(B, true, COMMIT);
+  WOB.W = 0; WOB.q = 0; WOB.qv = 0;
+  // the braced part springs back
+  TW.s *= 0.3; TW.sv *= 0.3;
+  const prevCombo = S.combo;
+  S.combo = 0; S.mult = 1; S.streak = 0; Sfx.music.setMult(1);
+  // the dead end it may have been is gone with the segment
+  const open = B.cands.some(c => c.type !== 'cube');
+  if (open && S.toppleAt >= 0) { S.toppleAt = -1; S.tellAt = -1; }
+  if (open && S.lockUntil === Infinity && !S.crownFlying) S.lockUntil = S.gt;
+  if (!open && S.toppleAt < 0 && !S.flights.length) {
+    S.toppleAt = S.gt + CFG.TOPPLE_DELAY; S.tellAt = S.gt; S.lockUntil = Infinity;
+    logEvent('toppletell', { in: CFG.TOPPLE_DELAY, top: +S.top.toFixed(3) });
+  }
+  // the crown: in the hand, in HOLD, owed or in the air
+  if (S.goalTorn) {
+    if (S.top >= S.G - 1e-9) {
+      if (crownLost) { S.crownFlying = false; if (S.lockUntil === Infinity) S.lockUntil = S.gt; giveCrown(); }
+    } else { if (crownLost && S.lockUntil === Infinity) S.lockUntil = S.gt; loseCrown(); }
+  }
+  checkDoom();
+  logEvent('snap', { full: false, tiles: off.length, lost: lostF.length, top: +S.top.toFixed(3), yb: +yb.toFixed(4), lam: +lam.toFixed(3), Hu: +Hu.toFixed(3), w: +w.toFixed(3),
+    combo: prevCombo, crown: S.goalTorn ? 'kept' : 'none' });
+  // juice: a crack and a short clatter, a shake, the brace line flashes, SNAP! where the hand can read it
+  const pan = clamp(off.length ? (sumX / off.length) / 4 : 0, -1, 1);
+  Sfx.snap(off.length + lostF.length, pan); Sfx.haptic([20, 30, 20]);
+  addShake(CFG.SNAP_SHAKE, 0.3);
+  FX.hitStop = Math.max(FX.hitStop, CFG.SNAP_STOP);
+  const lineE = B.lock.filter(e => Math.abs(e.y1 - yb) < 1e-6 && Math.abs(e.y2 - yb) < 1e-6);
+  if (lineE.length) FX.glows.push({ edges: lineE, t0: S.gt });
+  B.lockAt = S.gt;
+  announcePop('SNAP!', 'THE BRACE HELD', '#FF9A3D', 1.25, 0.9, '#ffffff');
+  if (S.phase === 'play') computeGhost();
+}
+// the SNAPped segment's tiles letting go, top first (doSnap): each hangs where it was until its moment, then flies as debris
+const SNAPQ = [];
+function stepSnapQ() {
+  for (let i = SNAPQ.length - 1; i >= 0; i--) {
+    const q = SNAPQ[i];
+    if (S.gt < q.at - 1e-9) continue;
+    SNAPQ.splice(i, 1);
+    spawnDebris(q.o);
+    if (q.ring) spawnDebris(q.ring);
+  }
+}
+function drawSnapQ() {
+  if (!SNAPQ.length) return;
+  const L = CAM.L;
+  for (let pass = 0; pass < 2; pass++) for (const q of SNAPQ) {
+    w2s(q.o.x, q.o.y, _s);
+    const o = tileOpts(1, q.o.variant, pass ? 'detail' : 'body');
+    Art.drawTile(ctx, q.o.art, q.o.color, _s.x, _s.y, q.o.rot, L, o);
+  }
+}
+// the edge map from scratch (a SNAP took tiles out of the build)
+function rebuildEdges(B) {
+  B.emap = new Map();
+  for (const e of B.carEdges) emapAdd(B, e, CAR_OWNER);
+  for (const x of B.tiles) for (const e of x.pose.edges) emapAdd(B, e, x);
+}
+// the joints under the brace line: every edge two standing tiles (or a tile and the car) share, at or under y_b; and
+// their corners (lockPts: x, y pairs), where the glint sits like a rivet
+function lockJoints(B) {
+  B.lock.length = 0; B.lockPts.length = 0;
+  if (!(B.yb > 0)) return;
+  for (const ent of B.emap.values()) {
+    if (ent.length < 2) continue;
+    const e = ent[0].e;
+    if (Math.max(e.y1, e.y2) > B.yb + 1e-9) continue;
+    let ok = true;
+    for (const o of ent) if (o.owner !== CAR_OWNER && (o.owner.flight || o.owner.gone)) { ok = false; break; }
+    if (ok) B.lock.push(e);
+  }
+  const seen = new Set();
+  for (const e of B.lock) for (let j = 0; j < 2; j++) {
+    const k = j ? e.qi + ',' + e.qa + ',' + e.qb : e.pi + ',' + e.pa + ',' + e.pb;
+    if (seen.has(k)) continue;
+    seen.add(k); B.lockPts.push(j ? e.x2 : e.x1, j ? e.y2 : e.y1);
+  }
+}
+
 // The tower each fixed step: squash, a new base rolling in (it shoves the mess aside), rock + flex, tip tell, crash.
 function stepTower(dt) {
   const u = (S.gt - FX.squashAt) / CFG.SQUASH_T;
@@ -5279,8 +5719,10 @@ function stepTower(dt) {
     rockStep(TW, dt);
     ROCKED = true;
     if (S.phase === 'play') {
-      // test stats (CS.state().dyn): the top's lateral speed while the cap applies, and the flex, every step
-      const vt = Math.abs(TW.sv + TW.omega * (TW.H + 0.5) * Math.cos(TW.theta)), as = Math.abs(TW.s);
+      stepSway(dt);
+      // test stats (CS.state().dyn): the top's lateral speed while the cap applies (flex + rock + the wobble's sway),
+      // and the flex, every step
+      const vt = Math.abs(TW.sv + TW.omega * (TW.H + 0.5) * Math.cos(TW.theta) + WOB.qv), as = Math.abs(TW.s);
       if (TW.tipping) { if (vt > DYN.vTip) DYN.vTip = vt; DYN.nTip++; }
       else { if (vt > DYN.vTop) DYN.vTop = vt; DYN.n++; }
       if (as > DYN.sMax) DYN.sMax = as;
@@ -5298,8 +5740,9 @@ function stepTower(dt) {
 // the combo resets and a new car rolls in 0.7 s later toward the same goal. The clock keeps running.
 const CR = { stage: '', t0: 0, side: 1, burstAt: 0, exc: 0, word: '', unzip0: 0, left: [], sx: 0, n: 0 };
 const CRASH_WORDS = ['TIMBER!', 'WHOOPS!', 'UH-OH!', 'KA-BLAM!', 'OOPSIE!', 'TIMBER!'];
-function doCrash() {
-  const side = TW.theta > 0 ? 1 : -1, n = TW.n;
+// snap: a SNAP with no TRUSS to hold it (15.3): the same crash, going over the way the segment swayed, "SNAP!"
+function doCrash(snap) {
+  const side = TW.theta > 0 ? 1 : TW.theta < 0 ? -1 : snap ? (WOB.q > 0 ? 1 : WOB.q < 0 ? -1 : WOB.dir || 1) : -1, n = TW.n;
   TW.crashing = true;
   if (TW.omega * side < CFG.CRASH_MIN_W) TW.omega = side * CFG.CRASH_MIN_W;   // so the slow motion shows it going
   S.phase = 'crash'; CR.stage = 'fall'; CR.t0 = S.gt; CR.side = side; CR.exc = EXC.id;
@@ -5311,15 +5754,16 @@ function doCrash() {
   S.crashes++;
   const prevCombo = S.combo;
   S.combo = 0; S.mult = 1; S.streak = 0; Sfx.music.setMult(1);
-  logEvent('crash', { tiles: n, top: +S.top.toFixed(3), theta: +TW.theta.toFixed(4), alpha: +TW.alphaSide.toFixed(4), side, exc: EXC.id, combo: prevCombo });
+  logEvent('crash', { tiles: n, top: +S.top.toFixed(3), theta: +TW.theta.toFixed(4), alpha: +TW.alphaSide.toFixed(4), side, exc: EXC.id, combo: prevCombo, snap: !!snap });
   EXC.on = false; TIP.warned = false; DOOM.t = -1;
   toWorld(TW.cx, TW.cy, _w);
   Sfx.crash(Math.max(1, n), clamp(_w.x / 4, -1, 1)); Sfx.whistle(); Sfx.music.duck(1); Sfx.haptic([30, 40, 30]);
+  if (snap) Sfx.snap(Math.max(1, n), clamp(_w.x / 4, -1, 1));        // (the SNAP's own crack and twang over it)
   addShake(CFG.CRASH_SHAKE, CFG.CRASH_SHAKE_T);
   // the pile makes room now for everything this crash will throw (the tiles in the air now, the burst later): the
   // oldest pieces fade out during the freeze + slow motion instead of vanishing at the burst
   debrisFadeFor(S.flights.length + crashPieces(), (CR.burstAt - S.gt) * 0.9);
-  CR.word = CRASH_WORDS[(S.drng() * CRASH_WORDS.length) | 0];
+  CR.word = snap ? 'SNAP!' : CRASH_WORDS[(S.drng() * CRASH_WORDS.length) | 0];
   // the word goes up high on the side away from the fall, so it never covers the tower going over
   const lostCrown = S.goalTorn || S.overtime;
   // (and below the HUD corners and any pop still up there)
@@ -5393,7 +5837,7 @@ function stepUnzip() {
   for (let c = 0; c < B.cars; c++) {
     const lx = B.cars === 1 ? 0 : (c ? 1 : -1);
     toWorld(lx, CFG.CAR_CY, _w);
-    spawnDebris({ shape: 'car', color: B.cars === 1 || c ? 'red' : 'green', x: _w.x, y: _w.y, rot: TW.theta,
+    spawnDebris({ shape: 'car', color: B.cars === 1 || c ? 'red' : 'green', x: _w.x, y: _w.y, rot: TW.theta, len: B.len,
       vx: 0.4 * TW.omega * (_w.y - py) + side * (0.6 + 1.2 * r()), vy: 3.6 + 1.6 * r(), w: -side * (5 + 3 * r()), zT: debrisZT() });
   }
   const cx = CR.n ? CR.sx / CR.n : 0;
@@ -5412,7 +5856,7 @@ function stepCrash() {
 // A fresh base waits off one edge, then rolls in. Releases wait for it (a press in the last 0.3 s is kept).
 const COUPLE_EDGE = [{ x1: 0, y1: -0.02, x2: 0, y2: -0.22 }];      // where the two cars' tow hooks meet
 function newBase(fromSide, wait, couple) {
-  S.B = newBuild(S.cars); genSlots(S.B);
+  S.B = newBuild(S.cars, S.carLen); genSlots(S.B);
   S.baseHidden = false;
   towerReset(); recomputeTower();
   TIP.level = 0; EXC.on = false; DOOM.t = -1;
@@ -5525,7 +5969,7 @@ function ghostTippy(c, piece, dxs) {
   TIPPY.key = c.key; TIPPY.shape = piece.shape; TIPPY.grade = grade; TIPPY.dx = dxs; TIPPY.B = S.B; TIPPY.ver = S.B.ver; TIPPY.nf = S.flights.length; TIPPY.at = S.gt;
   return (TIPPY.v = slotTippy(c, piece, dxs, grade));
 }
-const VF = { landAt: 0, pose: null, mass: 1, k: 1 / 6, dxs: 0, grade: 'perfect', marble: false };
+const VF = { landAt: 0, pose: null, mass: 1, k: 1 / 6, dxs: 0, grade: 'perfect', marble: false, shape: 'sq' };
 function slotTippy(c, piece, dxs, grade) {
   if (wouldTip(c, piece.shape)) return true;
   // the same fall time and landing order as doRelease
@@ -5533,8 +5977,18 @@ function slotTippy(c, piece, dxs, grade) {
   const T = clamp(CFG.FALL_BASE + CFG.FALL_PER_L * d, CFG.FALL_MIN, CFG.FALL_MAX);
   VF.landAt = Math.max(S.gt + T + CFG.YANK_T, S.lastLandAt + CFG.LAND_GAP);
   VF.pose = c.pose; VF.mass = CFG.MASS[piece.shape] || 1; VF.k = CFG.KROT[piece.shape] || 1 / 6;
-  VF.dxs = dxs; VF.grade = grade; VF.marble = piece.shape === 'marble';
+  VF.dxs = dxs; VF.grade = grade; VF.marble = piece.shape === 'marble'; VF.shape = piece.shape;
+  // (and the wobble: this drop, or one already in the air, SNAPs a tower no TRUSS holds: that is a crash too, 15.3)
+  if (snapAhead(VF) === 'full') return true;
   return predictCrash(VF.landAt - S.gt + CFG.TIPPY_HORIZON, VF) >= 0;
+}
+// what a drop at slot c now would do to the wobble ('full' / 'part' SNAP, or ''): CS.ghost(), the debug overlay
+function slotSnap(c, piece, dxs) {
+  const y0 = worldYAtScreen(CAM.handY + heldOffset(piece.shape) * CAM.L), d = Math.max(0, y0 - c.wy);
+  const T = clamp(CFG.FALL_BASE + CFG.FALL_PER_L * d, CFG.FALL_MIN, CFG.FALL_MAX);
+  VF.landAt = Math.max(S.gt + T + CFG.YANK_T, S.lastLandAt + CFG.LAND_GAP);
+  VF.pose = c.pose; VF.grade = gradeFor(Math.abs(dxs)); VF.shape = piece.shape;
+  return snapAhead(VF);
 }
 // adding this tile (after the ones in the air) would put the centre of mass outside the wheels
 function wouldTip(c, shape) {
@@ -5637,9 +6091,20 @@ function land(f) {
   recomputeTower();
   genSlots(S.B);
   if (S.top > S.tallest) S.tallest = S.top;
+  // a TRUSS (15.2), only in play (not for the tiles still landing at TIME!, nor the crown)
+  const notches = live && !crown && trussNotches(S.B, t.pose, t, TRUSS_TMP).length ? TRUSS_TMP.slice() : null;
+  // the wobble (15.3): a landing in the unbraced segment (not the one that braces it) shakes it by ΔW at the λ it
+  // leaves; at W = 1 the segment SNAPs (after this landing's clack)
+  let dW = 0;
+  if (live && !crown && !notches && inSegment(t.pose, S.B.yb)) {
+    dW = wobDelta(f.grade, f.piece.shape, WOB.lam);
+    WOB.W = Math.min(1, WOB.W + dW);
+    if (Math.abs(WOB.q) < 1e-3) WOB.dir = f.dxs > 1e-9 ? 1 : f.dxs < -1e-9 ? -1 : (t.pose.cx >= TW.cx ? 1 : -1);
+  }
+  const snapNow = dW > 0 && WOB.W >= 1 - 1e-9;
   // dead end (no square or triangle slot anywhere): let this clack ring, then TOPPLE. Releases wait meanwhile.
-  // (not for the crown: the SMASH takes the build away anyway)
-  if (live && !crown && !S.flights.length && S.toppleAt < 0 && !S.B.cands.some(c => c.type !== 'cube')) {
+  // (not for the crown: the SMASH takes the build away anyway; nor for a SNAP: that takes the segment away)
+  if (live && !crown && !snapNow && !S.flights.length && S.toppleAt < 0 && !S.B.cands.some(c => c.type !== 'cube')) {
     S.toppleAt = S.gt + CFG.TOPPLE_DELAY; S.tellAt = S.gt; S.lockUntil = Infinity;
     debrisFadeFor(Math.min(S.B.tiles.length, CFG.DEBRIS_MAX), CFG.TOPPLE_DELAY * 0.9);   // room for the burst, faded in time
     logEvent('toppletell', { in: CFG.TOPPLE_DELAY, top: +S.top.toFixed(3) });
@@ -5666,17 +6131,22 @@ function land(f) {
   S.mult = Math.min(CFG.MULT_MAX, 1 + Math.floor(S.combo / CFG.COMBO_STEP));
   S.score += pts; S.landed++;
   if (perfect) { S.perfects++; S.streak++; if (S.streak > S.bestStreak) S.bestStreak = S.streak; } else S.streak = 0;
-  logEvent('land', { id: f.id, key: f.key, grade: f.grade, edges: f.slot.edges, dx: Math.abs(f.dxs), pts, combo: S.combo, mult: S.mult, shape: f.piece.shape, dt: S.gt - f.t0, ot });
+  logEvent('land', { id: f.id, key: f.key, grade: f.grade, edges: f.slot.edges, dx: Math.abs(f.dxs), pts, combo: S.combo, mult: S.mult, pm: prevMult, shape: f.piece.shape, dt: S.gt - f.t0, ot,
+    W: +WOB.W.toFixed(4), dW: +dW.toFixed(4), lam: +WOB.lam.toFixed(3), yb: +S.B.yb.toFixed(4) });
   juiceLand(f, t, pts, edgesC, prevMult);
   const brace = f.piece.shape === 'marble';
   if (brace) doBrace(t);
+  // (the joints under an earlier brace line take in the tiles that land under it later)
+  const trussPts = notches ? doTruss(t, notches) : 0;
+  if (!trussPts && S.B.yb > 0) lockJoints(S.B);
+  if (S.hintOn) { S.hintOn = false; PREFS.seenHint = true; savePrefs(); }
+  if (snapNow) { doSnap(f, t); return; }
   // (TIME! is up: tiles in the air land and score, nothing more)
   const ring = live ? collectRings(t) : null;
   // (the moment's announcement first, the goal's sign or CROWNED!, then this landing's word in the room it leaves: a
   // streak milestone on the landing that tears the ribbon or crowns still shows)
   if (live) { if (crown) doCrown(f, t); else checkGoal(); }
-  landingPop(f, edgesC, ot, brace, ring);
-  if (S.hintOn) { S.hintOn = false; PREFS.seenHint = true; savePrefs(); }
+  landingPop(f, edgesC, ot, brace, ring, trussPts);
   if (live && !crown) crownSync();
 }
 // height profile of the standing build at world x (for MISS bonks and the red X); floor = -0.5
@@ -5708,10 +6178,12 @@ const DEB_SHAPES = {
   cube: [-1, -1, 1, -1, 1, 1, -1, 1],
   // a car base about its CoM (0.25 L under the plate top): plate corners, then the wheel bottoms
   car: [-1, 0.25, 1, 0.25, 1, 0.07, 0.95, -0.17, 0.65, -0.25, -0.65, -0.25, -0.95, -0.17, -1, 0.07],
+  // the long car (levels 4-7: a 3 L plate)
+  carL: [-1.5, 0.25, 1.5, 0.25, 1.5, 0.07, 1.45, -0.17, 1.15, -0.25, -1.15, -0.25, -1.45, -0.17, -1.5, 0.07],
   ring: null,
 };
-const DEB_I = { sq: 1 / 6, tri: 1 / 12, cube: 2 / 3, car: 0.36, ring: 0.31 * 0.31 };   // I / m
-const DEB_R = { sq: 0.5, tri: 0.5, cube: 1, car: 1, ring: 0.31 };
+const DEB_I = { sq: 1 / 6, tri: 1 / 12, cube: 2 / 3, car: 0.36, carL: 0.76, ring: 0.31 * 0.31 };   // I / m
+const DEB_R = { sq: 0.5, tri: 0.5, cube: 1, car: 1, carL: 1.5, ring: 0.31 };
 const CONTACT = new Float64Array(16), CPN = new Float64Array(8), CPT = new Float64Array(8), CTGT = new Float64Array(8);
 // the cap has to drop a piece right now: the most faded one (normally already invisible: see debrisFadeFor), else
 // the oldest
@@ -5743,9 +6215,10 @@ function spawnDebris(o) {
   const base = shape === 'tri' || shape === 'crown' ? 'tri' : shape === 'cube' ? 'cube' : shape === 'car' ? 'car' : shape === 'ring' ? 'ring' : 'sq';
   while (DEBRIS.length >= CFG.DEBRIS_MAX) removeOldestDebris();
   if (DEBRIS.length > CFG.DEBRIS_MAX - 8) { for (const d of DEBRIS) if (!d.fading) { d.fading = true; break; } }
-  const d = { shape, base, color: o.color || 'blue', variant: o.variant | 0, x: o.x || 0, y: o.y == null ? 3 : o.y,
-    ang: o.ang || (o.rot ? -o.rot : 0), vx: o.vx || 0, vy: o.vy || 0, w: o.w || 0, verts: DEB_SHAPES[base], I: DEB_I[base],
-    r: DEB_R[base], bonk: !!o.bonk, miss: !!o.miss, oops: !!o.oops, sleep: false, rest: 0, alpha: 1, fading: false, fadeRate: 1 / CFG.DEBRIS_FADE, hit: false, age: 0,
+  const geo = base === 'car' && o.len >= 2.5 ? 'carL' : base;       // (len: a car's length, 3 = the long car)
+  const d = { shape, base, color: o.color || 'blue', variant: o.variant | 0, x: o.x || 0, y: o.y == null ? 3 : o.y, len: geo === 'carL' ? 3 : 2,
+    ang: o.ang || (o.rot ? -o.rot : 0), vx: o.vx || 0, vy: o.vy || 0, w: o.w || 0, verts: DEB_SHAPES[geo], I: DEB_I[geo],
+    r: DEB_R[geo], bonk: !!o.bonk, miss: !!o.miss, oops: !!o.oops, sleep: false, rest: 0, alpha: 1, fading: false, fadeRate: 1 / CFG.DEBRIS_FADE, hit: false, age: 0,
     born: S.gt, gear: !!o.gear, ground: false, flat: false, crx: 0, sleepT: -1, hitT: -1, clearDir: 0, cleared: false, plowed: false, pulled: false,
     away: !!o.away,        // away: flung clear of the scene (the title shove): no walls hold it in view
     // depth (L, toward the viewer) and where it is heading; zHold: it stays in the build's plane until it has hit
@@ -5964,10 +6437,14 @@ function stepRing(d, dt, FLOOR) {
   const lim = CFG.DEBRIS_FRIC * CFG.DEBRIS_G * dt * 3;   // μ·N, N ~ the weight carried this step (more on a bounce)
   const j = clamp(-slip / 2, -lim, lim);                 // a hoop: half the slip goes into spin
   d.vx += j; d.w += j / d.r;
-  const dv = CFG.RING_ROLL * dt * (d.age > CFG.DEBRIS_DEADLINE ? 4 : 1);
+  // (the rug's pile catches a late roller, as it does a tile: a ring flung far by a tall crash still lies still within 3 s)
+  const dv = CFG.RING_ROLL * dt * (d.age > CFG.DEBRIS_LATE ? 4 : 1);
   if (Math.abs(d.vx) <= dv) d.vx = 0; else d.vx -= Math.sign(d.vx) * dv;
   if (Math.abs(d.vx + d.w * d.r) < 0.05) d.w = -d.vx / d.r;
-  if (Math.abs(d.vx) < 0.06 && Math.abs(d.vy) < 0.1) { d.rest += dt; if (d.rest > CFG.DEBRIS_SLEEP) { d.sleep = true; d.sleepT = S.gt; d.vx = d.vy = d.w = 0; } }
+  // (and, as a tile does, a ring still creeping along past the deadline lies still at once)
+  const late = d.age > CFG.DEBRIS_DEADLINE && Math.abs(d.vx) < 0.6 && Math.abs(d.vy) < 0.6;
+  if (late) d.rest = CFG.DEBRIS_SLEEP + 1;
+  if (late || (Math.abs(d.vx) < 0.06 && Math.abs(d.vy) < 0.1)) { d.rest += dt; if (d.rest > CFG.DEBRIS_SLEEP) { d.sleep = true; d.sleepT = S.gt; d.vx = d.vy = d.w = 0; } }
   else d.rest = 0;
 }
 // a new base rolling in shoves whatever lies in its way (the old car included) out ahead of its bumper
@@ -6002,7 +6479,7 @@ function plowDebris(x0, x1, dt, halfLen, toss) {
 }
 
 /* ==== FLOW & SCORING ==== */
-const PREFS = loadStore('clackstack.prefs', { big: false, mute: false, seenHint: false, played: false });
+const PREFS = loadStore('clackstack.prefs', { big: false, mute: false, seenHint: false, played: false, seenCrownHint: false });
 function savePrefs() { saveStore('clackstack.prefs', PREFS); }
 // best scores (7): one record per mode (BIG MAGNETS has its own); every field keeps its own best
 const BEST_DEF = { score: 0, level: 0, cm: 0, streak: 0 };
@@ -6032,7 +6509,7 @@ function addClock(sec, src) {
 // (the screen edge wins over the 2 L: a ring always sits inside the view the level opens with)
 function ringHalfW() { return CAM.W / 2 / zoomEmpty(); }
 function makeRings() {
-  const n = levelInfo(S.level).rings, half = S.cars === 1 ? 1 : 2, lim = Math.max(half + 0.75, ringHalfW() - 0.5);
+  const n = levelInfo(S.level).rings, half = S.cars === 2 ? 2 : S.carLen / 2, lim = Math.max(half + 0.75, ringHalfW() - 0.5);
   S.rings.length = 0;
   let side = S.lrng() < 0.5 ? -1 : 1;
   for (let k = 0; k < n; k++) {
@@ -6079,13 +6556,14 @@ function collectRings(t) {
 // ---- a run
 function startGame(mode) {        // mode: 'auto' (?autostart: the base is already parked), 'intro' (after the title shove), 'again'
   const lv = PARAM.level;
-  S.cars = carsFor(lv, S.big);
+  SNAPQ.length = 0;
+  S.cars = carsFor(lv, S.big); S.carLen = carLenFor(lv, S.big);
   setGoal(lv);
   S.flights.length = 0; S.lastLandAt = -1e9; S.toppleAt = S.lockUntil = S.rollT0 = -1;
   crashReset();
   S.score = 0; S.scoreShown = 0; S.combo = 0; S.mult = 1; S.streak = 0; S.bestStreak = 0; S.perfects = 0; S.landed = 0;
   S.lastAww = -1e9; S.missT.length = 0; S.bigOfferAt = -1; S.bigOffered = false;
-  S.crashes = 0; S.saves = 0; S.braces = 0; S.misses = 0; S.tallest = 0; S.bestGoal = 0; S.bestGoalName = ''; S.ringsGot = 0; S.crowns = 0;
+  S.crashes = 0; S.saves = 0; S.braces = 0; S.trusses = 0; S.snaps = 0; S.misses = 0; S.crownHintAt = -1; S.tallest = 0; S.bestGoal = 0; S.bestGoalName = ''; S.ringsGot = 0; S.crowns = 0;
   S.clock = CFG.CLOCK_START; S.lastTick = 6; S.crownFlying = false; S.crownOwed = false; S.baseHidden = false; S.flinch = false;
   S.queue.length = 0; S.bag.length = 0; S.held = null; S.lastColor = null; S.squaresDealt = 0; S.cubeWait = false; S.allTippy = false;
   S.firstRunSquares = PREFS.played ? 0 : 4;
@@ -6093,7 +6571,7 @@ function startGame(mode) {        // mode: 'auto' (?autostart: the base is alrea
   OV.stage = ''; FX.banner = null; FX.flyers.length = 0; FX.tally = null;
   if (CUBE.stage === 'push') CUBE.on = false;     // a shove still under way belongs to the run that ended
   if (mode === 'auto') {
-    S.B = newBuild(S.cars); genSlots(S.B);
+    S.B = newBuild(S.cars, S.carLen); genSlots(S.B);
     towerReset(); recomputeTower();
     DEBRIS.length = 0; fxClear();
     S.clockFrom = S.gt;
@@ -6123,7 +6601,10 @@ function startGame(mode) {        // mode: 'auto' (?autostart: the base is alrea
   PREFS.played = true; savePrefs();
   Sfx.music.start(); Sfx.music.setLevel(lv); Sfx.music.setMult(1);
 }
-function bagComp() { if (S.big) return [7, 2, 1]; if (S.level >= 2) return [6, 3, 1]; return [7, 3, 0]; }
+// the bag (15.5, tuned on tools/strategy.cjs): 7 squares and 3 triangles, plus the cube from L2 (BIG MAGNETS keeps its
+// own: 7, 2 and the cube). Three triangles a bag is one brace (Δ∇Δ) a bag, enough that bracing is the fast way up a
+// two-wide tower; with four, a column capped by a triangle every few tiles sends the stack out over the side
+function bagComp() { if (S.big) return [7, 2, 1]; if (S.level >= 2) return [7, 3, 1]; return [7, 3, 0]; }
 function refillBag() {
   const c = bagComp(), bag = [];
   for (let k = 0; k < c[0]; k++) bag.push('sq');
@@ -6224,12 +6705,14 @@ function doSwap() {
 // the crown bonus for a crown whose base is k whole L above the ribbon (also the live OVERTIME preview)
 function crownK(base) { return Math.max(0, Math.floor(base - S.G + 1e-9)); }
 function crownMult(k) { return 1 + CFG.CROWN_K * k; }
-// the highest base a crown could get right now (OVERTIME's live "CROWN ×1.5")
-function crownBaseNow() {
-  let b = -1;
-  if (S.B) for (const c of S.B.cands) if ((c.type === 'up' || c.type === 'dn') && c.pose.maxY >= S.G - 1e-9 && c.pose.minY > b) b = c.pose.minY;
-  return b;
-}
+// The crown gamble (15.6): the crown's multiplier is ×(1 + 0.5 k), k the whole L the build top stands above the ribbon,
+// live: the GO HIGHER chip and the HOLD box show it, and placing the crown pays it (a SNAP that lowers the top lowers it)
+function crownKNow() { return S.goalTorn && S.B ? crownK(S.top) : 0; }
+function crownValue(k) { return Math.round(CFG.CROWN_PTS * S.level * crownMult(k)); }
+// the GO HIGHER chip: the crown in the hand with a swap open, in normal mode (BIG MAGNETS: the crown is simply placed)
+function goHigherOn() { return !S.big && S.phase === 'play' && !!HAND.piece && HAND.piece.shape === 'crown' && !HAND.swapUsed && S.goalTorn; }
+// the first crown a player ever gets: a one-line hint, once (saved as seen)
+function crownHintOn() { return S.crownHintAt >= 0 && S.gt - S.crownHintAt < CFG.CROWN_HINT_T && goHigherOn(); }
 
 // ---- the goal (3.7): the ribbon tears at G, the bonus is paid, the orange CROWN drops straight into the hand
 function checkGoal() {
@@ -6260,6 +6743,8 @@ function giveCrown() {
   // the tile it replaces goes back to the front of the queue (the hand may be between tiles: then it is the next one)
   if (HAND.piece && HAND.piece.shape !== 'crown') S.queue.unshift(HAND.piece);
   HAND.piece = makeCrown(); HAND.crownAt = S.gt; HAND.fuseT = 0; HAND.fuseMarks = 0; HAND.swapUsed = false;
+  // (the first crown ever: "PLACE IT — or GO HIGHER for more!", 15.6)
+  if (!S.big && !PREFS.seenCrownHint && !PARAM.nohint) { S.crownHintAt = S.gt; PREFS.seenCrownHint = true; savePrefs(); logEvent('crownhint', {}); }
   Sfx.crown();
   computeGhost();
 }
@@ -6284,7 +6769,10 @@ function crownSync() {
 }
 // the crown has landed: CROWN bonus (+50 % per whole L of its base above the ribbon), +3 s, then the SMASH
 function doCrown(f, t) {
-  const k = crownK(t.pose.minY), pts = Math.round(CFG.CROWN_PTS * S.level * crownMult(k));
+  // (k: the build top under the crown, as the chip and the HOLD box showed it)
+  let top = 0;
+  for (const x of S.B.tiles) if (x !== t && !x.flight && !x.gone && x.pose.maxY > top) top = x.pose.maxY;
+  const k = crownK(top), pts = crownValue(k);
   const c0 = S.clock;
   S.score += pts; S.crowns++; S.crownFlying = false;
   addClock(CFG.TIME_CROWN);
@@ -6362,7 +6850,7 @@ function burstRight(power) {
   for (let c = 0; c < S.B.cars; c++) {
     const lx = S.B.cars === 1 ? 0 : (c ? 1 : -1);
     toWorld(lx, CFG.CAR_CY, _w);
-    spawnDebris({ shape: 'car', color: S.B.cars === 1 || c ? 'red' : 'green', x: _w.x, y: _w.y, rot: TW.theta,
+    spawnDebris({ shape: 'car', color: S.B.cars === 1 || c ? 'red' : 'green', x: _w.x, y: _w.y, rot: TW.theta, len: S.B.len,
       vx: power * 0.45 * (0.8 + 0.4 * r()), vy: 2.2 + 1.5 * r(), w: -(4 + 3 * r()), zT: debrisZT() });
   }
   S.baseHidden = true;
@@ -6461,7 +6949,7 @@ function smashHit() {
 function nextLevel() {
   SM.leveled = true; S.crownOwed = false;
   const n = S.level + 1;
-  S.cars = carsFor(n, S.big);
+  S.cars = carsFor(n, S.big); S.carLen = carLenFor(n, S.big);
   setGoal(n);
   S.bag.length = 0;                    // the next bag is dealt with the new level's mix (from L2 the cube is in it)
   makeRings(); hazReset();
@@ -6765,11 +7253,14 @@ function stepAllTippy() {
     n++;
     if (!slotTippy(c, HAND.piece, 0, 'perfect')) { safe = true; break; }
   }
-  // (and the tile in the hand has no slot at all while the one in HOLD has: refillPick left it there for a swap)
-  S.allTippy = (n > 0 && !safe) || (n === 0 && !HAND.swapUsed && !!S.held && fitScore(S.held) > 0);
+  // (and the tile in the hand has no slot at all while the one in HOLD has: refillPick left it there for a swap). Every
+  // slot TIPPY is a balance tell like the red ghost: from L4 (not in BIG MAGNETS) the fuse runs on and the box keeps still
+  S.allTippy = (n > 0 && !safe && tippyVisible()) || (n === 0 && !HAND.swapUsed && !!S.held && fitScore(S.held) > 0);
 }
 function stepPlay(dt) {
   if (S.toppleAt >= 0 && S.gt >= S.toppleAt - 1e-9) doTopple();
+  // the wobble settles (before this step's landings add to it: 15.3)
+  if (S.phase === 'play') stepWobble(dt);
   const locked = S.gt < S.lockUntil;
   // (the cube comes now if it has a seat, before the hand shows its tile)
   if (!HAND.ready && S.gt < HAND.releasedAt + CFG.NEXT_T - 0.09) refillPick();
@@ -6784,8 +7275,10 @@ function stepPlay(dt) {
     HAND.pending = null;
   }
   // fuse (not in BIG MAGNETS; starts once the player has dropped something; holds while the new base rolls in)
+  // (and waits while the wobble is over WOB_FUSE: letting the tower settle costs clock time, never a forced drop, 15.3)
   stepAllTippy();
-  if (HAND.ready && !locked && !S.big && S.firstInput && S.phase === 'play' && !S.allTippy) {
+  S.fuseWait = WOB.W > CFG.WOB_FUSE && S.phase === 'play';
+  if (HAND.ready && !locked && !S.big && S.firstInput && S.phase === 'play' && !S.allTippy && !S.fuseWait) {
     const fuse = levelInfo(S.level).fuse;
     HAND.fuseT += dt;
     const u = HAND.fuseT / fuse;
@@ -6856,12 +7349,12 @@ function onPointerDown(e) {
   if (hit(UI.pause, x, y)) { pauseGame(); return; }
   if (hit(UI.mute, x, y)) { toggleMute(); return; }
   if (!touch) {
-    if (e.button === 2 || hit(UI.hold, x, y)) { doSwap(); return; }
+    if (e.button === 2 || hit(UI.hold, x, y) || hit(UI.goHigher, x, y)) { doSwap(); return; }
     if (e.button !== 0) return;
     setHandX(x); requestDrop('mouse');
     return;
   }
-  if (hit(UI.hold, x, y)) { doSwap(); return; }
+  if (hit(UI.hold, x, y) || hit(UI.goHigher, x, y)) { doSwap(); return; }
   touchId = e.pointerId; touchSpent = false; setHandX(x);
   try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
 }
@@ -6978,7 +7471,8 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const CAM = { W: 390, H: 844, dpr: 1, L: 52, camY: 0, groundY: 760, handY: 90, handTop: 90, hs: 1, originX: 195, baseY: 760, portrait: true,
   safe: { t: 0, r: 0, b: 0, l: 0 }, hudBottom: 64, titleX: 195, titleY: 120, titleW: 360, tapY: 280, tapF: 39, titleBottom: 300 };
-const UI = { pause: null, mute: null, hold: null, next: null, clock: null, score: null, resume: null, menu: null, muteT: null, big: null, again: null, menuR: null, bigR: null, bigP: null };
+const UI = { pause: null, mute: null, hold: null, next: null, clock: null, score: null, resume: null, menu: null, muteT: null, big: null, again: null, menuR: null, bigR: null, bigP: null,
+  goHigher: null, crownHint: null };
 const DEBUG = { on: PARAM.debug };
 let lastOrient = null;
 function readSafe() {
@@ -7197,7 +7691,7 @@ function artShapeForType(type, piece) {
   return piece && piece.shape === 'crown' ? 'crown' : 'tri';
 }
 const TO = {};          // scratch drawTile options (no per-tile allocation)
-const CARO = { squash: 0, t: 0, roll: 0 };   // scratch drawCar options
+const CARO = { squash: 0, t: 0, roll: 0, len: 2 };   // scratch drawCar options
 function tileOpts(alpha, variant, layer) {
   TO.alpha = alpha; TO.variant = variant; TO.layer = layer; TO.flash = 0; TO.tint = 0; TO.ghost = null; TO.night = S.night; TO.glint = 0;
   return TO;
@@ -7267,7 +7761,7 @@ function render() {
     const lx = B.cars === 1 ? 0 : (c ? 1 : -1);
     toWorld(lx, 0, _w); w2s(_w.x + (S.couple ? (c ? S.carOff : -S.carOff) : 0), _w.y, _s);
     // the wheels turn with the distance rolled in (a base rolling in, two cars coupling)
-    CARO.squash = FX.carSquash; CARO.t = S.gt; CARO.roll = TW.ox + (S.couple ? (c ? S.carOff : -S.carOff) : 0);
+    CARO.squash = FX.carSquash; CARO.t = S.gt; CARO.roll = TW.ox + (S.couple ? (c ? S.carOff : -S.carOff) : 0); CARO.len = B.len;
     Art.drawCar(ctx, _s.x, _s.y, TW.theta, L, B.cars === 1 || c ? 'red' : 'green', CARO);
   }
   // standing build: bodies first so overlaps mix, then details. Past 0.8 of the tipping angle the outlines blush red.
@@ -7295,6 +7789,9 @@ function render() {
       }
     }
   }
+  if (showBase && B.lock.length && ph !== 'crash') drawLock(B);
+  if (showBase && ph === 'play') drawWobble(B);
+  drawSnapQ();
   drawGlows();
   drawGoldGlow();
   if (shiver) ctx.restore();
@@ -7572,7 +8069,7 @@ function drawRings() {
   }
 }
 // the ghost's screen box as drawn this frame (on = a slot ghost is showing)
-const GHOSTR = { on: false, x0: 0, y0: 0, x1: 0, y1: 0, cx: 0, cy: 0, top: 0 };
+const GHOSTR = { on: false, x0: 0, y0: 0, x1: 0, y1: 0, cx: 0, cy: 0, top: 0, px0: 0, px1: 0 };
 function ghostShown() { return HAND.ready && !!HAND.piece && S.phase === 'play' && S.gt >= S.lockUntil; }
 // the ghost's screen box this frame (render() fills it before anything that keeps clear of the ghost is drawn).
 // soon: also while the hand refills (a pop placed now keeps clear of where the ghost shows when the tile arrives)
@@ -7584,6 +8081,8 @@ function ghostRect(soon) {
   const topY = _s.y - (g.type === 'up' ? 2 * H3 / 3 : g.type === 'dn' ? H3 / 3 : g.type === 'cube' ? 1 : 0.5) * L;
   const hw = (g.type === 'cube' ? 1.2 : 0.55) * L, bot = _s.y + (g.type === 'up' ? H3 / 3 : g.type === 'dn' ? 2 * H3 / 3 : g.type === 'cube' ? 1 : 0.5) * L;
   GHOSTR.on = true; GHOSTR.x0 = _s.x - hw; GHOSTR.x1 = _s.x + hw; GHOSTR.y0 = topY - (g.type === 'cube' ? 0.2 * L : 0); GHOSTR.y1 = bot;
+  // (px0..px1: everywhere the wobble's sway can carry it, for what is placed to keep clear of it)
+  const sw = wobSway(g.pose); GHOSTR.px0 = GHOSTR.x0 - sw.off - sw.pad; GHOSTR.px1 = GHOSTR.x1 - sw.off + sw.pad;
   GHOSTR.cx = _s.x; GHOSTR.cy = _s.y; GHOSTR.top = topY;
 }
 function drawGhost() {
@@ -7592,6 +8091,8 @@ function drawGhost() {
   // bottom of the held tile: a triangle hangs apex-up from the hand line (full height H3); squares and the net are centred
   const handBottom = CAM.handY + (piece.shape === 'tri' || piece.shape === 'crown' ? H3 : heldOffset(piece.shape) * 2) * L;
   const hx = HAND.x;
+  // (a triangle in the hand: the notches and the firm side slots, faintly, so the moves are visible)
+  if (piece.shape === 'tri') drawTriHints();
   ctx.save();
   if (S.ghost) {
     const g = S.ghost;
@@ -7599,11 +8100,14 @@ function drawGhost() {
     const gold = Math.abs(S.ghostDx) <= perfectWin();
     const topY = GHOSTR.top;
     dropLine(hx, handBottom, _s.x, topY, gold ? '#FFC531' : '#ffffff');
-    const o = tileOpts(1, 0, 'both'); o.ghost = S.ghostTippy ? 'red' : gold ? 'gold' : 'white';
+    const tippy = tippyShown();
+    const o = tileOpts(1, 0, 'both'); o.ghost = tippy ? 'red' : gold ? 'gold' : 'white';
     Art.drawTile(ctx, artShapeForType(g.type, piece), piece.color, _s.x, _s.y, TW.theta + g.pose.rot0, L, o);
     if (gold && PERF.gloss) sparkle(_s.x, _s.y, L, streakHeat(S.streak + 1));
     if (g.edges >= 2) edgeChip(_s.x + L * 0.42, topY - 4, g.edges >= 3 ? '×3' : '×2');
-    if (S.ghostTippy) tippyChip(_s.x - L * 0.42, topY - 4);
+    if (tippy) tippyChip(_s.x - L * 0.42, topY - 4);
+    // this drop completes a brace (15.2): a TRUSS chip over the ghost
+    if (g.truss && piece.shape !== 'crown') trussChip(_s.x, topY - 4 - 25);
     // this slot collects a ring: a glowing ring icon on the ghost
     const r = piece.shape !== 'crown' ? ringFor(g.pose) : null;
     if (r) {
@@ -7621,6 +8125,54 @@ function drawGhost() {
     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 6;
     ctx.beginPath(); ctx.moveTo(hx - r, _s.y - r); ctx.lineTo(hx + r, _s.y + r); ctx.moveTo(hx + r, _s.y - r); ctx.lineTo(hx - r, _s.y + r); ctx.stroke();
     ctx.strokeStyle = '#E8323C'; ctx.lineWidth = 3.5; ctx.stroke();
+  }
+  ctx.restore();
+}
+// the red TIPPY ghost shows on L1-L3 and in BIG MAGNETS only (15.4): later, judging the balance is the player's job
+function tippyVisible() { return S.big || S.level <= CFG.TIPPY_SHOW_MAX; }
+function tippyShown() { return S.ghostTippy && tippyVisible(); }
+// TRUSS: a gold chip with a padlock over a ghost whose drop would close a notch into a brace
+function trussChip(x, y) {
+  ctx.save();
+  ctx.font = font(13);
+  const tw = textW(13, 'TRUSS'), w = tw + 30, h = 20, b = 1 + 0.06 * Math.sin(S.rt * 9);
+  ctx.translate(x, y); ctx.scale(b, b);
+  rrect(ctx, -w / 2, -h / 2, w, h, 10);
+  ctx.fillStyle = '#FFC531'; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = '#1E2541'; ctx.stroke();
+  // the padlock: a shackle over a little body
+  const lx = -w / 2 + 12;
+  ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(lx, -1.5, 3.2, Math.PI, 0); ctx.stroke();
+  ctx.fillStyle = '#1E2541'; ctx.fillRect(lx - 4.5, -1.5, 9, 7);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('TRUSS', lx + 7 + tw / 2, 1);
+  ctx.restore();
+}
+// the faint outlines of the triangle moves (15.1): every notch and every firm side slot (not the ghost's own), the ones
+// that would close a TRUSS in gold. Inset a little, so an outline never sits on a tile's edge
+const HINT_DASH = [5, 4];
+function drawTriHints() {
+  const cands = S.B.cands, L = CAM.L, gk = S.ghostKey;
+  let nw = 0, ng = 0;
+  for (let k = 0; k < cands.length; k++) { const c = cands[k]; if (c.hint && c.key !== gk) { if (c.truss) ng++; else nw++; } }
+  if (!nw && !ng) return;
+  ctx.save();
+  ctx.lineJoin = 'round'; ctx.setLineDash(HINT_DASH);
+  for (let set = 0; set < 2; set++) {
+    if (set ? !ng : !nw) continue;
+    ctx.beginPath();
+    for (let k = 0; k < cands.length; k++) {
+      const c = cands[k];
+      if (!c.hint || c.key === gk || !!c.truss !== !!set) continue;
+      const P = c.pose, poly = P.poly, kk = 0.8;
+      for (let j = 0; j < P.n; j++) {
+        toWorld(P.cx + (poly[2 * j] - P.cx) * kk, P.cy + (poly[2 * j + 1] - P.cy) * kk, _w); w2s(_w.x, _w.y, _s2);
+        if (j) ctx.lineTo(_s2.x, _s2.y); else ctx.moveTo(_s2.x, _s2.y);
+      }
+      ctx.closePath();
+    }
+    ctx.globalAlpha = 0.32; ctx.strokeStyle = '#1E2541'; ctx.lineWidth = Math.max(3.5, 0.075 * L); ctx.stroke();
+    ctx.globalAlpha = set ? 0.75 + 0.2 * Math.sin(S.rt * 5) : 0.7; ctx.strokeStyle = set ? '#FFD86B' : '#ffffff';
+    ctx.lineWidth = Math.max(2, 0.038 * L); ctx.stroke();
   }
   ctx.restore();
 }
@@ -7682,12 +8234,19 @@ function edgeChip(x, y, text) {
   ctx.fillStyle = '#FFC531'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, x, y);
   ctx.restore();
 }
-function drawFuse(x, y, L, u) {
+// wait: the fuse is held while the tower settles (W > 0.5, 15.3): a pulsing amber ring
+function drawFuse(x, y, L, u, wait) {
   u = clamp(u, 0, 1);
-  if (u <= 0.02) return;
+  if (u <= 0.02 && !wait) return;
   const r = L * 0.72, left = 1 - u;
   ctx.save();
   ctx.lineCap = 'round';
+  if (wait) {
+    ctx.strokeStyle = '#FF9F1C'; ctx.globalAlpha = 0.35 + 0.25 * Math.sin(S.rt * 7); ctx.lineWidth = 3;
+    ctx.setLineDash(DASH_WAIT); ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash(NO_DASH);
+    ctx.globalAlpha = 1;
+    if (u <= 0.02) { ctx.restore(); return; }
+  }
   ctx.strokeStyle = 'rgba(30,37,65,0.1)'; ctx.lineWidth = 3;
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
   ctx.strokeStyle = left < 0.25 ? '#E8323C' : left < 0.5 ? '#FF7A1A' : '#1E2541';
@@ -7695,6 +8254,7 @@ function drawFuse(x, y, L, u) {
   ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * left); ctx.stroke();
   ctx.restore();
 }
+const DASH_WAIT = [5, 5], NO_DASH = [];
 function drawDebrisShadows() {
   const L = CAM.L;
   for (const d of DEBRIS) {
@@ -7732,7 +8292,7 @@ function drawDebrisPiece(d, L) {
   if (d.base === 'car') {
     // drawCar's anchor is the plate top: 0.25 L above the car's CoM, turned with it
     if (d.alpha < 1) { ctx.save(); ctx.globalAlpha = d.alpha; }
-    CARO.squash = 0; CARO.t = S.gt; CARO.roll = 0;
+    CARO.squash = 0; CARO.t = S.gt; CARO.roll = 0; CARO.len = d.len;
     Art.drawCar(ctx, _s.x - 0.25 * L * Math.sin(d.ang), _s.y - 0.25 * L * Math.cos(d.ang), -d.ang, L, d.color, CARO);
     if (d.alpha < 1) ctx.restore();
     return;
@@ -7902,7 +8462,7 @@ function drawHandAndHeld() {
         if (p.shape === 'crown' && PERF.gloss) o.glint = (S.rt * 0.8) % 1;
         Art.drawTile(ctx, p.shape, p.color, x, y + off + dy, 0, L * scale, o);
       }
-      if (HAND.ready && !S.big && S.firstInput && S.phase === 'play' && S.gt >= S.lockUntil) drawFuse(x, y + off, L, HAND.fuseT / levelInfo(S.level).fuse);
+      if (HAND.ready && !S.big && S.firstInput && S.phase === 'play' && S.gt >= S.lockUntil) drawFuse(x, y + off, L, HAND.fuseT / levelInfo(S.level).fuse, S.fuseWait);
     }
   }
   const j = Art.drawHand(ctx, x, y, L, open, S.gt);
@@ -8125,27 +8685,13 @@ function drawHUD() {
     rrect(ctx, h.x - 3, h.y - 3, h.w + 6, h.h + 6, 15); ctx.lineWidth = 3.5; ctx.strokeStyle = p > 0.5 ? '#E8323C' : '#FFC531'; ctx.stroke();
     const below = CAM.portrait ? h.y + h.h : Math.max(h.y + h.h, ck.y + ck.h), t = 'HOLD IT!';
     ctx.font = font(12 * hs); const w = ctx.measureText(t).width + 14, cx = Math.min(h.x + h.w - w / 2, CAM.W - CAM.safe.r - w / 2 - 2);
-    const cy = below + 13 * hs + (S.overtime && S.held && S.held.shape === 'crown' ? 24 * hs : 0);
+    const cy = below + 13 * hs;
     ctx.translate(cx, cy); ctx.scale(1 + 0.08 * p, 1 + 0.08 * p);
     rrect(ctx, -w / 2, -10 * hs, w, 20 * hs, 10 * hs); ctx.fillStyle = '#E8323C'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#1E2541'; ctx.stroke();
     ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, 0, 1);
     ctx.restore();
   }
-  if (S.overtime && S.held && S.held.shape === 'crown') {
-    const h = UI.hold, k = crownK(crownBaseNow());
-    if (HUDT.crK !== k) { HUDT.crK = k; HUDT.cr = 'CROWN ×' + crownMult(k); }
-    const t = HUDT.cr;
-    ctx.save();
-    ctx.globalAlpha = 0.6 + 0.4 * Math.sin(S.rt * 6);
-    rrect(ctx, h.x - 2, h.y - 2, h.w + 4, h.h + 4, 14); ctx.lineWidth = 3; ctx.strokeStyle = '#FFC531'; ctx.stroke();
-    ctx.globalAlpha = 1;
-    // under the HOLD box (portrait) or under the clock that sits below it (landscape)
-    const below = CAM.portrait ? h.y + h.h : Math.max(h.y + h.h, ck.y + ck.h);
-    ctx.font = font(12 * hs); const w = ctx.measureText(t).width + 14, cx = Math.min(h.x + h.w - w / 2, CAM.W - CAM.safe.r - w / 2 - 2), cy = below + 13 * hs;
-    rrect(ctx, cx - w / 2, cy - 10 * hs, w, 20 * hs, 10 * hs); ctx.fillStyle = '#FFC531'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#1E2541'; ctx.stroke();
-    ctx.fillStyle = '#1E2541'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, cx, cy + 1);
-    ctx.restore();
-  }
+  drawCrownChip();
   // "+2 s" and friends rising from the clock
   for (const c of FX.clockPops) {
     const u = (S.gt - c.t0) / 0.9;
@@ -8153,6 +8699,72 @@ function drawHUD() {
     ctx.save(); ctx.globalAlpha = u < 0.7 ? 1 : (1 - u) / 0.3;
     outlinedText(c.text, ck.x + ck.w / 2 + ck.w * 0.45, ck.y + ck.h + 6 + 16 * easeOutCubic(u), 16 * hs, '#2EBF4F', '#ffffff', 'center', 4);
     ctx.restore();
+  }
+}
+// The crown gamble on the HOLD box (15.6). The crown in the hand (normal mode): a big pulsing GO HIGHER ↑ chip with the
+// crown's value now; tapping it (or HOLD) banks the crown for OVERTIME. The crown in HOLD (or back in the hand): the
+// live multiplier and value. The chip sits on the lower part of the box, inside the HUD strip; UI.goHigher is its tap box.
+// The first crown ever: a one-line hint under it
+const CCHIP = { k: -1, v: -1, a: '', b: '', mode: '', cx: 0, cy: 0, w: 0, h: 0, f1: 14, f2: 11 };
+const CHINT = { x0: 0, y0: 0, x1: 0, y1: 0, fs: 13, text: 'PLACE IT — or GO HIGHER for more!' };
+// the chip's mode now: 'go' (the crown in the hand, a swap open), 'ot' (OVERTIME: the crown held, or taken back), ''
+function crownChipMode() {
+  const ph = S.phase === 'paused' ? S.pausedFrom : S.phase;
+  if (ph !== 'play' || !S.goalTorn || S.big) return '';
+  if (goHigherOn()) return 'go';
+  const held = !!S.held && S.held.shape === 'crown', inHand = !!HAND.piece && HAND.piece.shape === 'crown';
+  return S.overtime && (held || inHand) ? 'ot' : '';
+}
+// its words and place (CCHIP), and the hint's plate under the HUD (CHINT); false when there is no chip
+function crownChipGeom() {
+  const mode = crownChipMode();
+  if (!mode) return false;
+  const hs = CAM.hs, h = UI.hold, go = mode === 'go', k = crownKNow(), v = crownValue(k);
+  if (CCHIP.k !== k || CCHIP.v !== v || CCHIP.mode !== mode) {
+    CCHIP.k = k; CCHIP.v = v; CCHIP.mode = mode;
+    CCHIP.a = go ? 'GO HIGHER ↑' : '×' + crownMult(k);
+    CCHIP.b = go ? 'CROWN ' + (k > 0 ? '×' + crownMult(k) + ' ' : '') + v.toLocaleString('en-US') : '';
+  }
+  // GO HIGHER: a big two-line chip over the box's lower part; OVERTIME: a badge on the box's bottom edge under the
+  // held crown (it stays in view), its live multiplier
+  CCHIP.f1 = Math.round(14 * hs); CCHIP.f2 = Math.round(11 * hs);
+  CCHIP.w = (go ? Math.max(textW(CCHIP.f1, CCHIP.a), textW(CCHIP.f2, CCHIP.b)) : textW(CCHIP.f1, CCHIP.a)) + (go ? 18 : 14) * hs;
+  CCHIP.h = Math.round((go ? 36 : 20) * hs);
+  CCHIP.cx = Math.min(h.x + h.w / 2, CAM.W - CAM.safe.r - 4 - CCHIP.w / 2); CCHIP.cy = go ? h.y + h.h * 0.62 : h.y + h.h + 1 - CCHIP.h / 2;
+  const ck = UI.clock, fs = CHINT.fs = Math.round(13 * hs), tw = textW(fs, CHINT.text) + 20, th = Math.round(24 * hs);
+  const below = CAM.portrait ? h.y + h.h : Math.max(h.y + h.h, ck.y + ck.h);
+  CHINT.x1 = Math.min(CAM.W - CAM.safe.r - 6, CCHIP.cx + CCHIP.w / 2); CHINT.x0 = Math.max(CAM.safe.l + 6, CHINT.x1 - tw);
+  CHINT.y0 = below + 8 * hs; CHINT.y1 = CHINT.y0 + th;
+  return true;
+}
+function drawCrownChip() {
+  UI.goHigher = null; UI.crownHint = null;
+  if (!crownChipGeom()) return;
+  const go = CCHIP.mode === 'go', cx = CCHIP.cx, cy = CCHIP.cy, w = CCHIP.w, ht = CCHIP.h;
+  const pulse = go ? 1 + 0.07 * Math.sin(S.rt * 8) : 1;
+  if (go) UI.goHigher = { x: cx - w / 2, y: cy - ht / 2, w, h: ht };
+  ctx.save();
+  ctx.translate(cx, cy); ctx.scale(pulse, pulse);
+  if (go) { ctx.globalAlpha = 0.35 + 0.25 * Math.sin(S.rt * 8); rrect(ctx, -w / 2 - 4, -ht / 2 - 4, w + 8, ht + 8, ht / 2 + 4); ctx.fillStyle = '#FFE07A'; ctx.fill(); ctx.globalAlpha = 1; }
+  rrect(ctx, -w / 2, -ht / 2, w, ht, ht / 2);
+  ctx.fillStyle = '#FFC531'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1E2541'; ctx.stroke();
+  ctx.fillStyle = '#1E2541'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = font(CCHIP.f1, 700); ctx.fillText(CCHIP.a, 0, go ? -ht * 0.17 : 1);
+  if (go) { ctx.font = font(CCHIP.f2, 700); ctx.fillStyle = '#6B3F00'; ctx.fillText(CCHIP.b, 0, ht * 0.25); }
+  ctx.restore();
+  // the first crown ever: the hint, under the HUD on the right (see-through where the hand and its tile pass under it)
+  if (crownHintOn()) {
+    const x0 = CHINT.x0, x1 = CHINT.x1, y0 = CHINT.y0, th = CHINT.y1 - CHINT.y0;
+    const u = S.gt - S.crownHintAt, a = clamp(u / 0.2, 0, 1) * clamp((CFG.CROWN_HINT_T - u) / 0.3, 0, 1);
+    const L = CAM.L, over = HAND.dx + 0.7 * L > x0 && HAND.dx - 0.7 * L < x1 && CAM.handY < y0 + th && CAM.handY + 1.2 * L > y0;
+    ctx.save(); ctx.globalAlpha = a * (over ? 0.45 : 0.95);
+    rrect(ctx, x0, y0, x1 - x0, th, th / 2); ctx.fillStyle = '#1E2541'; ctx.fill();
+    const tx = clamp(cx, x0 + 14, x1 - 14);
+    ctx.beginPath(); ctx.moveTo(tx - 6, y0 + 1); ctx.lineTo(tx, y0 - 6); ctx.lineTo(tx + 6, y0 + 1); ctx.closePath(); ctx.fill();
+    ctx.font = font(CHINT.fs, 700); ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(CHINT.text, (x0 + x1) / 2, y0 + th / 2 + 1);
+    ctx.restore();
+    UI.crownHint = { x: x0, y: y0, w: x1 - x0, h: th };
   }
 }
 function drawPieceBox(r, piece, label, a) {
@@ -8579,16 +9191,22 @@ function drawDebug() {
     ctx.beginPath();
     for (let k = 0; k < P.n; k++) { toWorld(P.poly[2 * k], P.poly[2 * k + 1], _w); w2s(_w.x, _w.y, _s); if (k) ctx.lineTo(_s.x, _s.y); else ctx.moveTo(_s.x, _s.y); }
     ctx.closePath();
-    ctx.strokeStyle = c.supported ? 'rgba(20,150,60,0.8)' : 'rgba(230,120,20,0.9)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = c.truss ? 'rgba(200,150,0,0.95)' : c.supported ? 'rgba(20,150,60,0.8)' : 'rgba(230,120,20,0.9)'; ctx.lineWidth = c.truss ? 2 : 1; ctx.stroke();
     toWorld(P.cx, P.cy, _w); w2s(_w.x, _w.y, _s);
-    ctx.fillStyle = '#1E2541'; ctx.fillText('d' + c.depth + ' e' + c.edges, _s.x, _s.y);
+    ctx.fillStyle = '#1E2541'; ctx.fillText('d' + c.depth + ' e' + c.edges + (c.firm ? ' F' : '') + (c.truss ? ' T' : ''), _s.x, _s.y);
+  }
+  // the brace line y_b (15.2)
+  if (S.B.yb > 0) {
+    toWorld(-S.B.half - 0.5, S.B.yb, _w); w2s(_w.x, _w.y, _s); toWorld(S.B.half + 0.5, S.B.yb, _w); w2s(_w.x, _w.y, _s2);
+    ctx.strokeStyle = 'rgba(200,150,0,0.9)'; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(_s.x, _s.y); ctx.lineTo(_s2.x, _s2.y); ctx.stroke(); ctx.setLineDash([]);
   }
   toWorld(S.comX, S.comY, _w); w2s(_w.x, _w.y, _s);
   ctx.fillStyle = '#E8323C'; ctx.beginPath(); ctx.arc(_s.x, _s.y, 5, 0, 7); ctx.fill();
   for (let s = -1; s <= 1; s += 2) { w2s(s * S.wheelX, -0.5, _s); ctx.fillStyle = (TW.theta > 0 ? 1 : TW.theta < 0 ? -1 : 0) === s ? '#E8323C' : '#1E2541'; ctx.fillRect(_s.x - 3, _s.y - 3, 6, 6); }
   ctx.textAlign = 'left'; ctx.font = font(12, 600); ctx.fillStyle = '#1E2541';
   const lines = ['alpha ' + (S.alpha * 180 / Math.PI).toFixed(1) + '°  theta ' + (TW.theta * 180 / Math.PI).toFixed(2) + '°  tip ' + TIP.level.toFixed(2) + '  flex ' + TW.s.toFixed(3),
-    'cands ' + S.B.cands.length + '  tiles ' + S.B.tiles.length + '  top ' + S.top.toFixed(2) + '  L ' + L.toFixed(1),
+    'cands ' + S.B.cands.length + '  tiles ' + S.B.tiles.length + '  top ' + S.top.toFixed(2) + '  L ' + L.toFixed(1) + '  y_b ' + S.B.yb.toFixed(2) + '  W ' + WOB.W.toFixed(2) + '  λ ' + WOB.lam.toFixed(2) + ' (Hu ' + WOB.Hu.toFixed(2) + ' / w ' + WOB.w.toFixed(2) + ')',
     'ghost ' + (S.ghostKey || 'MISS') + '  dx ' + S.ghostDx.toFixed(3), 'jsMs ' + PERF.jsMs.toFixed(2) + '  fps ' + PERF.fps.toFixed(0)];
   for (let k = 0; k < lines.length; k++) ctx.fillText(lines[k], 12, CAM.H - 80 + k * 15);
   ctx.restore();
@@ -8641,7 +9259,8 @@ function buildExtent() {
     if (t.gone) continue;
     const P = t.pose;
     toWorld(P.cx, P.cy, _w); w2s(_w.x, _w.y, _s2);
-    const a = _s2.x - (P.cx - P.minX) * L - 2, b = _s2.x + (P.maxX - P.cx) * L + 2, c = _s2.y - (P.maxY - P.cy) * L;
+    const sw = wobSway(P), cx = _s2.x - sw.off;
+    const a = cx - (P.cx - P.minX) * L - 2 - sw.pad, b = cx + (P.maxX - P.cx) * L + 2 + sw.pad, c = _s2.y - (P.maxY - P.cy) * L;
     if (a < x0) x0 = a; if (b > x1) x1 = b; if (c < top) top = c;
   }
   EXT.x0 = x0; EXT.x1 = x1; EXT.top = top;
@@ -8661,7 +9280,8 @@ function buildBoxes() {
     if (t.gone) continue;
     const P = t.pose;
     toWorld(P.cx, P.cy, _w); w2s(_w.x, _w.y, _s2);
-    push(_s2.x - (P.cx - P.minX) * L - 2, _s2.y - (P.maxY - P.cy) * L, _s2.x + (P.maxX - P.cx) * L + 2, _s2.y + (P.cy - P.minY) * L);
+    const sw = wobSway(P), cx = _s2.x - sw.off;
+    push(cx - (P.cx - P.minX) * L - 2 - sw.pad, _s2.y - (P.maxY - P.cy) * L, cx + (P.maxX - P.cx) * L + 2 + sw.pad, _s2.y + (P.cy - P.minY) * L);
   }
 }
 // the build's left and right edges (screen x) between the heights y0 and y1; BAND.n = 0 if none of it is there
@@ -8721,13 +9341,19 @@ const POP_HELD = { on: false, y0: 0, y1: 0 };
 function popObstacles(ribbon, words) {
   OBSTN = 0;
   obstUI(UI.pause); obstUI(UI.mute); obstUI(UI.score, CAM.portrait ? 0 : 24 * CAM.hs); obstUI(UI.next); obstUI(UI.hold);
-  obstUI(UI.clock, S.overtime ? 30 * CAM.hs : 0);
+  obstUI(UI.clock);
+  // the crown gamble's chip on the HOLD box, and the first crown's hint under the HUD (15.6)
+  if (crownChipGeom()) {
+    obstPush(CCHIP.cx - CCHIP.w / 2 - 8, CCHIP.cy - CCHIP.h / 2 - 8, CCHIP.cx + CCHIP.w / 2 + 8, CCHIP.cy + CCHIP.h / 2 + 8);
+    if (crownHintOn()) obstPush(CHINT.x0 - 6, CHINT.y0 - 12, CHINT.x1 + 6, CHINT.y1 + 6);
+  }
   if (bigOfferOn()) obstUI(UI.bigP);
   if (S.allTippy) obstUI(UI.hold, (CAM.portrait ? 0 : UI.clock.y + UI.clock.h - UI.hold.y - UI.hold.h) + 30 * CAM.hs);
   if (RIB.stub) obstPush(RIB.sx0 - 4, RIB.sy0 - 4, RIB.sx1 + 4, RIB.sy1 + 4);
   if (S.toppleAt >= 0 && S.tellAt >= 0 && S.phase === 'play') { tellPlace(); obstPush(TELL.x0 - 10, TELL.y0 - 8, TELL.x1 + 10, TELL.y1 + 8); }
   // the ghost as it is now (with room for a pop's 1.4x pop-in: POPM is the pop being placed)
-  if (GHOSTR.on) obstPush(GHOSTR.x0 - 6 - POPM.grow * POPM.w, GHOSTR.y0 - 6 - 2 * POPM.grow * POPM.dn, GHOSTR.x1 + 6 + POPM.grow * POPM.w, GHOSTR.y1 + 6 + 2 * POPM.grow * POPM.up + 24);
+  // (and where the wobble's sway can carry it, 15.3)
+  if (GHOSTR.on) obstPush(GHOSTR.px0 - 6 - POPM.grow * POPM.w, GHOSTR.y0 - 6 - 2 * POPM.grow * POPM.dn, GHOSTR.px1 + 6 + POPM.grow * POPM.w, GHOSTR.y1 + 6 + 2 * POPM.grow * POPM.up + 24);
   if (ribbon && RIB.on) {
     const L = CAM.L;
     obstPush(-1e4, Math.min(RIB.y - 0.4 * L, RIB.label ? RIB.ly0 : 1e9) - 4, 1e4, Math.max(RIB.y + 0.4 * L, RIB.label ? RIB.ly1 : -1e9) + 4);
@@ -8858,7 +9484,9 @@ function sbHit(x0, y0, x1, y1) {
 // moves the ghost about 0.1 s of its rate): the rock (its rate, and its angle coming back) and the flex of the top
 function swayAt(h) {
   const ft = TW.H > 0 ? clamp(h / TW.H, 0, 1) : 0;
-  return Math.min(0.6, (0.1 * Math.abs(TW.omega) + 0.3 * Math.abs(TW.theta)) * Math.max(0, h) + 0.1 * Math.abs(TW.sv) * ft * ft);
+  // (and the wobble's sway, 15.3: how far it can carry the segment at that height)
+  const fw = h > WOB.yb ? Math.min(1.2, (h - WOB.yb) / WOB.Hs) : 0, wob = fw * fw * Math.max(Math.abs(WOB.q), CFG.WOB_SWAY * WOB.W);
+  return Math.min(0.6, (0.1 * Math.abs(TW.omega) + 0.3 * Math.abs(TW.theta)) * Math.max(0, h) + 0.1 * Math.abs(TW.sv) * ft * ft + wob);
 }
 // the screen box of an open slot as the ghost there would be drawn, grown by m px
 function slotBox(c, m, out) {
@@ -8976,7 +9604,9 @@ const POP_MINK = 0.75;
 function popSpotTry(ly, needW, needH, ribbon) {
   const L = CAM.L, W = CAM.W, sf = CAM.safe, e = buildExtent(), minW = needW * 1.4 * POP_MINK;
   const left = sf.l + 8, right = W - sf.r - 8 - (gaugeOn() ? CFG.GAUGE_W + 8 : 0);
-  const yMin = CAM.hudBottom + 8 + needH / 2, yMax = Math.min(CAM.H - sf.b - 8, CAM.baseY) - needH / 2;
+  // (a pop hangs further below its centre than above it, its sub-line and a second line included, and pops in at up to
+  // 1.4x: low on a short landscape screen it must still be on screen as it pops in)
+  const yMin = CAM.hudBottom + 8 + needH / 2, yMax = Math.min(Math.min(CAM.H - sf.b - 8, CAM.baseY) - needH / 2, CAM.H - sf.b - 2 - 1.4 * POPM.dn);
   const heldBottom = CAM.handY + 1.2 * L, gTop = ghostTopY(e);
   popObstacles(ribbon, false);
   // 1. beside the build at the height it goes: the side with more room there (the side away from the hand when both
@@ -9127,7 +9757,7 @@ function placedPop(text, sub, ly, color, size, life, subColor, lx, mile) {
 // not shown (the clack, the sparks and the score say it); an announcement in its way that has been up a while gives way
 function squeezeOk(sp, needW) {
   const bw = Math.min(needW, sp.maxW) * 1.4, bx0 = sp.x - bw / 2, bx1 = sp.x + bw / 2, by0 = sp.y - POPM.up * 1.4 - 24, by1 = sp.y + POPM.dn * 1.4;
-  if (GHOSTR.on && bx0 < GHOSTR.x1 && bx1 > GHOSTR.x0 && by0 < GHOSTR.y1 && by1 > GHOSTR.y0) return false;
+  if (GHOSTR.on && bx0 < GHOSTR.px1 && bx1 > GHOSTR.px0 && by0 < GHOSTR.y1 && by1 > GHOSTR.y0) return false;
   buildBoxes();
   for (let i = 0; i < BBOXN; i++) { const k = i * 4; if (bx0 < BBOX[k + 2] && bx1 > BBOX[k] && by0 < BBOX[k + 3] && by1 > BBOX[k + 1]) return false; }
   const w = Math.min(needW, sp.maxW), x0 = sp.x - w / 2, x1 = sp.x + w / 2, y0 = sp.y - POPM.up - 24, y1 = sp.y + POPM.dn;
@@ -9160,11 +9790,42 @@ function milePop(text, sub, ly, color, size, life, subColor, lx) {
     if (i && f >= Math.max(floor, MILE_K[i - 1]) - 1e-9) continue;
     if (mileAir(f, floor)) return;
   }
-  if (mileBody(floor)) return;
+  if (mileBody(floor) || mileTop(floor)) return;
   for (let i = 0; i < MILE_LOW.length; i++) {
     const f = Math.max(last, Math.min(floor, MILE_LOW[i] / size));
     if (f < floor - 1e-6 && (mileAir(f, f) || mileBody(f))) return;
   }
+  mileTop(last);
+}
+// before it would shrink (a short landscape phone, the hand hanging low over a low build, no air beside the build or
+// over its body at its size): the band under the HUD, over the arm and the fingers (never the tile in them), clear of
+// the HUD, the ribbon's stub and the pops up; a gentle pop-in that does not drift; true if placed
+function mileTop(f) {
+  const M = MILE, L = CAM.L, sf = CAM.safe, pin = 1.1;
+  for (let j = 0; j < 2; j++) {
+    const lines = j ? null : M.lines, cx = j ? 1 : M.cx;
+    const m = popMeasure(M.text, M.sub, M.size * f, lines, cx), tw = m.w - 16, hw = tw * pin / 2 + 8, up = m.up * pin, dn = m.dn * pin;
+    if (2 * hw > CAM.W - sf.l - sf.r - 12) continue;
+    const lo = sf.t + 6 + up, hi = CAM.handY - 0.3 * L - dn;
+    if (hi < lo) continue;
+    POPM.grow = (pin - 1) / 2;
+    popObstacles(false, false);
+    topRow();
+    for (const xc of [CAM.W / 2, HAND.dx < CAM.W / 2 ? CAM.W - sf.r - hw - 6 : sf.l + hw + 6]) {
+      const x = clamp(xc, sf.l + 6 + hw, CAM.W - sf.r - 6 - hw), y = fitY(x, tw * pin, lo, lo, hi, 0);
+      if (y !== y) continue;
+      const x0 = x - hw, x1 = x + hw, y0 = y - up, y1 = y + dn;
+      if (GHOSTR.on && x0 < GHOSTR.px1 + 6 && x1 > GHOSTR.px0 - 6 && y0 < GHOSTR.y1 + 6 && y1 > GHOSTR.y0 - 6) continue;
+      if (HAND.piece && x0 < HAND.dx + 0.6 * L && x1 > HAND.dx - 0.6 * L && y1 > CAM.handY - 0.3 * L) continue;
+      let top = false;
+      for (let i = 0; i < TOPB.n && !top; i++) { const k = i * 4; top = x0 < TOPB.b[k + 2] + 4 && x1 > TOPB.b[k] - 4 && y0 < TOPB.b[k + 3] + 4 && y1 > TOPB.b[k + 1] - 4; }
+      if (top) continue;
+      const w = wordPop(M.text, x, y, M.color, M.size * f, M.life, tw * pin, M.sub, M.subColor, 'word', pin, lines, 1, cx);
+      w.near = false; w.rise = 0;
+      return true;
+    }
+  }
+  return false;
 }
 // in clear air at f of its size (as it is, then its narrower layout), fitted no smaller than fMin; true if placed
 function mileAir(f, fMin) {
@@ -9226,8 +9887,8 @@ function topRow() {
     const P = t.pose;
     toWorld(P.cx, P.cy, _w); w2s(_w.x, _w.y, _s2);
     if (_s2.y > minY + 0.65 * L) continue;
-    const i = TOPB.n * 4, b = _s2.y + (P.cy - P.minY) * L;
-    TOPB.b[i] = _s2.x - (P.cx - P.minX) * L; TOPB.b[i + 1] = _s2.y - (P.maxY - P.cy) * L; TOPB.b[i + 2] = _s2.x + (P.maxX - P.cx) * L; TOPB.b[i + 3] = b;
+    const i = TOPB.n * 4, b = _s2.y + (P.cy - P.minY) * L, sw = wobSway(P), cx = _s2.x - sw.off;
+    TOPB.b[i] = cx - (P.cx - P.minX) * L - sw.pad; TOPB.b[i + 1] = _s2.y - (P.maxY - P.cy) * L; TOPB.b[i + 2] = cx + (P.maxX - P.cx) * L + sw.pad; TOPB.b[i + 3] = b;
     TOPB.n++;
     if (b > TOPB.bot) TOPB.bot = b;
   }
@@ -9237,7 +9898,7 @@ function topRow() {
 function mileBlocked(x0, y0, x1, y1) {
   const L = CAM.L;
   if (S.phase === 'play') { computeGhost(); ghostRect(true); }
-  if (GHOSTR.on && x0 < GHOSTR.x1 + 6 && x1 > GHOSTR.x0 - 6 && y0 < GHOSTR.y1 + 6 && y1 > GHOSTR.y0 - 6) return true;
+  if (GHOSTR.on && x0 < GHOSTR.px1 + 6 && x1 > GHOSTR.px0 - 6 && y0 < GHOSTR.y1 + 6 && y1 > GHOSTR.y0 - 6) return true;
   if (HAND.piece && x0 < HAND.dx + 0.8 * L && x1 > HAND.dx - 0.8 * L && y0 < CAM.handY + 1.25 * L && y1 > CAM.handY - 0.95 * L) return true;
   topRow();
   for (let i = 0; i < TOPB.n; i++) {
@@ -9463,7 +10124,7 @@ function missFx(d) {
   const clear = x => {
     const x0 = x - hw, x1 = x + hw, y0 = y - m.up - 30, y1 = y + m.dn;
     if (x0 < CAM.safe.l + 4 || x1 > CAM.W - CAM.safe.r - 4) return false;
-    if (GHOSTR.on && x0 < GHOSTR.x1 + 6 && x1 > GHOSTR.x0 - 6 && y0 < GHOSTR.y1 + 6 && y1 > GHOSTR.y0 - 6) return false;
+    if (GHOSTR.on && x0 < GHOSTR.px1 + 6 && x1 > GHOSTR.px0 - 6 && y0 < GHOSTR.y1 + 6 && y1 > GHOSTR.y0 - 6) return false;
     for (let i = 0; i < BBOXN; i++) { const k = i * 4; if (x0 < BBOX[k + 2] && x1 > BBOX[k] && y0 < BBOX[k + 3] && y1 > BBOX[k + 1]) return false; }
     return true;
   };
@@ -9530,9 +10191,10 @@ function juiceLand(f, t, pts, edgesC, prevMult) {
 // The one word pop of a landing: "PERFECT!" (what else it did goes on the small line under it: at most two items, the
 // ring first, then DOUBLE / TRIPLE, BRACED, OVERTIME, then the streak from 3 in a row), growing and warming with the
 // streak; at a streak milestone its name instead ("ON FIRE!", with "PERFECT ×5" under it, a fanfare and the golden
-// glow); else "DOUBLE / TRIPLE CLACK!", else "RING +2s", "BRACED!" or "×2 OVERTIME" alone; nothing for a plain clack
+// glow); else "DOUBLE / TRIPLE CLACK!", else "RING +2s", "BRACED!" or "×2 OVERTIME" alone; nothing for a plain clack.
+// A TRUSS (15.2) takes the word unless it is a milestone: "TRUSS!" over its bonus (and PERFECT or the ring)
 const LANDAT = { x: 0, y: 0 };
-function landingPop(f, edgesC, ot, brace, ring) {
+function landingPop(f, edgesC, ot, brace, ring, truss) {
   const perfect = f.grade === 'perfect';
   let main = '', color = '#FFC531', size = 1.05, sub = '', n = 0;
   const add = t => { if (n >= 2) return; sub = sub ? sub + '  ·  ' + t : t; n++; };
@@ -9555,6 +10217,13 @@ function landingPop(f, edgesC, ot, brace, ring) {
   if (brace && !mile) { if (main) add('BRACED!'); else { main = 'BRACED!'; color = '#B8F27C'; size = 0.95; } }
   if (ot && !mile) { if (main) add('OVERTIME ×2'); else { main = '×2 OVERTIME'; size = 0.8; } }
   if (perfect && !mile && S.streak >= 3) add('STREAK ' + S.streak);
+  // a TRUSS (15.2) takes the word: "TRUSS!" with its bonus, and what else the landing was, on the line under it
+  if (truss && !mile) {
+    const was = perfect ? 'PERFECT' : ring ? RING_TXT : '';
+    main = 'TRUSS!'; color = '#8FE3FF'; size = 1.15; sub = ''; n = 0;
+    add('+' + truss);
+    if (was) add(was);
+  }
   if (mile) {
     // (a long milestone on a narrow phone: no bigger than still fits the screen at the smallest a word is drawn)
     const m = popMeasure(main, sub, size), lim = (CAM.W - CAM.safe.l - CAM.safe.r - 24) / (1.4 * POP_MINK);
@@ -9677,6 +10346,83 @@ function star(x, y, r, rot, col, lw) {
   ctx.closePath(); ctx.fillStyle = col; ctx.fill();
   if (lw === undefined) lw = 1.5;
   if (lw >= 0.3) { ctx.lineWidth = lw; ctx.strokeStyle = '#1E2541'; ctx.stroke(); }
+}
+// the locked joints under the brace line (15.2): at a TRUSS they light up from the base to the line (TRUSS_RISE s), each
+// flashing white-hot over TRUSS_FLASH s, then all keep a faint steady glint
+function drawLock(B) {
+  const E = B.lock, yb = Math.max(0.5, B.yb), age = S.gt - B.lockAt, rise = CFG.TRUSS_RISE, fl = CFG.TRUSS_FLASH;
+  const flashing = age >= 0 && age < rise + fl;
+  ctx.save(); ctx.lineCap = 'round';
+  // the steady glint: a pale gold line on every locked joint and a bright rivet at each corner (each shimmering a little)
+  const L = CAM.L, A = CFG.TRUSS_GLINT;
+  ctx.globalAlpha = A; ctx.strokeStyle = '#FFE59A'; ctx.lineWidth = Math.max(2, 0.05 * L);
+  ctx.beginPath();
+  for (let k = 0; k < E.length; k++) {
+    const e = E[k];
+    toWorld(e.x1, e.y1, _w); w2s(_w.x, _w.y, _s); ctx.moveTo(_s.x, _s.y);
+    toWorld(e.x2, e.y2, _w); w2s(_w.x, _w.y, _s); ctx.lineTo(_s.x, _s.y);
+  }
+  ctx.stroke();
+  const V = B.lockPts, r = Math.max(1.8, 0.055 * L);
+  ctx.fillStyle = '#FFF8DC';
+  for (let k = 0; k < V.length; k += 2) {
+    toWorld(V[k], V[k + 1], _w); w2s(_w.x, _w.y, _s);
+    ctx.globalAlpha = A * 2 * (0.8 + 0.2 * Math.sin(S.rt * 2.2 + k * 1.7));
+    ctx.beginPath(); ctx.arc(_s.x, _s.y, r, 0, 6.2832); ctx.fill();
+  }
+  // the flash, joint by joint from the base up
+  if (flashing) {
+    for (let pass = PERF.gloss ? 0 : 1; pass < 2; pass++) {
+      ctx.globalCompositeOperation = pass ? 'source-over' : 'lighter';
+      ctx.strokeStyle = pass ? '#ffffff' : '#FFE9A0'; ctx.lineWidth = pass ? Math.max(2.5, 0.06 * CAM.L) : Math.max(10, 0.3 * CAM.L);
+      for (let k = 0; k < E.length; k++) {
+        const e = E[k], u = (age - rise * clamp((e.y1 + e.y2) / 2 / yb, 0, 1)) / fl;
+        if (u < 0 || u >= 1) continue;
+        ctx.globalAlpha = (pass ? 0.95 : 0.45) * (1 - u) * (1 - u);
+        ctx.beginPath();
+        toWorld(e.x1, e.y1, _w); w2s(_w.x, _w.y, _s); ctx.moveTo(_s.x, _s.y);
+        toWorld(e.x2, e.y2, _w); w2s(_w.x, _w.y, _s); ctx.lineTo(_s.x, _s.y);
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+}
+// the wobble (15.3): the joints of the unbraced segment glow amber from W 0.4 and pulse red from 0.7 (the creak with
+// them); drawn through toWorld, so they sway with it. The joints: every edge two standing tiles (or a tile and the car)
+// share, on or above the brace line (cached per build version)
+const WJ = { B: null, ver: -1, yb: -1, edges: [] };
+function wobbleJoints(B) {
+  if (WJ.B === B && WJ.ver === B.ver && WJ.yb === B.yb) return WJ.edges;
+  WJ.B = B; WJ.ver = B.ver; WJ.yb = B.yb; WJ.edges.length = 0;
+  for (const ent of B.emap.values()) {
+    if (ent.length < 2) continue;
+    const e = ent[0].e;
+    if ((e.y1 + e.y2) / 2 < B.yb - 1e-9) continue;
+    let ok = true;
+    for (const o of ent) if (o.owner !== CAR_OWNER && (o.owner.flight || o.owner.gone)) { ok = false; break; }
+    if (ok) WJ.edges.push(e);
+  }
+  return WJ.edges;
+}
+function drawWobble(B) {
+  const W = WOB.W;
+  if (W < CFG.WOB_AMBER) return;
+  const E = wobbleJoints(B);
+  if (!E.length) return;
+  const L = CAM.L, red = W >= CFG.WOB_RED, k = red ? 1 : (W - CFG.WOB_AMBER) / (CFG.WOB_RED - CFG.WOB_AMBER);
+  const pulse = red ? 0.6 + 0.4 * Math.sin(S.rt * 16) : 1;
+  ctx.save(); ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = 0; i < E.length; i++) {
+    const e = E[i];
+    toWorld(e.x1, e.y1, _w); w2s(_w.x, _w.y, _s); ctx.moveTo(_s.x, _s.y);
+    toWorld(e.x2, e.y2, _w); w2s(_w.x, _w.y, _s); ctx.lineTo(_s.x, _s.y);
+  }
+  if (PERF.gloss) { ctx.globalAlpha = (0.22 + 0.33 * k) * pulse; ctx.strokeStyle = red ? '#FF5A4E' : '#FFB020'; ctx.lineWidth = Math.max(8, 0.28 * L); ctx.stroke(); }
+  ctx.globalAlpha = (0.55 + 0.45 * k) * pulse; ctx.strokeStyle = red ? '#E8323C' : '#FF9F1C'; ctx.lineWidth = Math.max(3, 0.09 * L); ctx.stroke();
+  ctx.globalAlpha = (0.35 + 0.4 * k) * pulse; ctx.strokeStyle = red ? '#FFD2CC' : '#FFF0C2'; ctx.lineWidth = Math.max(1, 0.025 * L); ctx.stroke();
+  ctx.restore();
 }
 function drawGlows() {
   if (!FX.glows.length) return;
@@ -9850,8 +10596,10 @@ const CS = window.CS = {
       locked: S.gt < S.lockUntil, slotsLeft: S.B ? S.B.cands.filter(c => c.type !== 'cube').length : 0,
       // M3: the rock and flex, the CoM (with the flex), the tip tell, crash/save/brace counts, debris still moving
       omega: TW.omega, flex: TW.s, flexV: TW.sv, com: { x: TW.cx + TW.s * TW.FW, y: TW.cy }, M: TW.M, wheelX: TW.w,
+      // (the build with the tiles in the air counted in: where it is about to be)
+      comAir: { x: COMMIT.cx, M: COMMIT.M },
       tip: TIP.level, tipSide: TIP.side, crashStage: CR.stage, slow: S.slowLeft > 0,
-      still: TW.theta === 0 && TW.omega === 0 && Math.abs(TW.sv) < 0.05 && Math.abs(TW.s) < 0.02,
+      still: TW.theta === 0 && TW.omega === 0 && Math.abs(TW.sv) < 0.05 && Math.abs(TW.s) < 0.02 && Math.abs(WOB.q) < 0.02 && Math.abs(WOB.qv) < 0.05,
       crashes: S.crashes, saves: S.saves, braces: S.braces, debrisAwake: DEBRIS.filter(d => !d.sleep && !d.fading).length,
       dyn: Object.assign({}, DYN),
       // M4 / M7: the goal and the crown, the clock, rings, hazards, the sky, the results
@@ -9862,6 +10610,15 @@ const CS = window.CS = {
       skyT: S.skyT, night: S.night, smashStage: S.phase === 'smash' ? SM.stage : null,
       over: S.phase === 'over' ? { stage: OV.stage, open: resultsOpen(), shown: OV.shown, newBest: OV.newBest, final: OV.final } : null,
       startHit: S.phase === 'start' ? ST.hit : null, allTippy: S.allTippy, cubeWait: S.cubeWait,
+      // revision 2: the base (cars, each car's length, half the car top in L), the brace line y_b and the TRUSSes (this
+      // build's, the run's), the wobble (a stub until it is built), whether the red TIPPY ghost shows on this level
+      carLen: S.carLen, baseHalf: S.B ? S.B.half : null, yb: S.B ? S.B.yb : 0, trusses: S.trusses, buildTrusses: S.B ? S.B.trusses : 0,
+      lockJoints: S.B ? S.B.lock.length : 0, W: WOB.W, tippyVisible: tippyVisible(),
+      // the wobble (15.3): the unbraced segment's height Hu, narrowest width w and slenderness lam (y_b is its foot),
+      // the sway at its top (L, L/s), SNAPs this run, the fuse waiting for it to settle
+      lam: WOB.lam, Hu: WOB.Hu, w: WOB.w, sway: WOB.q, swayV: WOB.qv, snaps: S.snaps, fuseWait: !!S.fuseWait,
+      // the crown gamble (15.6): the GO HIGHER chip shown, the live crown multiplier and value
+      goHigher: goHigherOn(), crownMult: crownMult(crownKNow()), crownValue: crownValue(crownKNow()),
       // a dead end's tell: 0..1 through it (0: none)
       tell: toppleTell() };
   },
@@ -9886,6 +10643,7 @@ const CS = window.CS = {
       if (!acceptForHand(c)) continue;
       w2s(c.wx, c.wy, _s);
       out.push({ key: c.key, type: c.type, x: c.wx, y: c.wy, sx: _s.x, sy: _s.y, edges: c.edges, supported: c.supported, depth: c.depth,
+        firm: !!c.firm, notch: !!c.notch, truss: !!c.truss, hint: !!c.hint, bottom: !!c.bottom,
         // tippy: what the ghost shows with the hand at this slot's PERFECT centre (the full look-ahead)
         lx: c.pose.cx, ly: c.pose.cy, tippy: S.phase === 'play' ? slotTippy(c, HAND.piece, 0, 'perfect') : wouldTip(c, HAND.piece.shape) });
     }
@@ -9898,7 +10656,10 @@ const CS = window.CS = {
     w2s(g.wx, g.wy, _s);
     const adx = Math.abs(S.ghostDx);
     return { key: g.key, type: g.type, x: g.wx, y: g.wy, sx: _s.x, sy: _s.y, edges: g.edges, supported: g.supported, dx: S.ghostDx,
-      color: adx <= perfectWin() ? 'gold' : 'white', miss: false, tippy: S.ghostTippy,
+      color: adx <= perfectWin() ? 'gold' : 'white', miss: false, tippy: S.ghostTippy, tippyShown: tippyShown(), truss: !!g.truss,
+      // what dropping now would do to the wobble (15.3): 'full' (a SNAP with no TRUSS: a crash), 'part' (the segment
+      // SNAPs off, the braced part stands) or ''
+      snap: slotSnap(g, HAND.piece, S.ghostDx),
       // the box the ghost was drawn in on the last frame (CSS px)
       box: GHOSTR.on ? { x0: GHOSTR.x0, y0: GHOSTR.y0, x1: GHOSTR.x1, y1: GHOSTR.y1 } : null };
   },
@@ -10015,7 +10776,7 @@ function runSelftest() {
     let overlapBad = 0, keyBad = 0, edgeBad = 0, checks = 0, first = '';
     const area = (A, Bp) => polyClipArea(A, Bp);
     for (let n = 0; n < 1000; n++) {
-      const B = newBuild(rng() < 0.5 ? 1 : 2);
+      const r0 = rng(), B = r0 < 0.34 ? newBuild(1) : r0 < 0.67 ? newBuild(1, 3) : newBuild(2);
       genSlots(B);
       for (let k = 0; k < 40; k++) {
         if (!B.cands.length) break;
@@ -10064,7 +10825,7 @@ function runSelftest() {
     let flips = 0, first = '';
     const builds = [];
     for (let n = 0; n < 40; n++) {
-      const B = newBuild(n % 2 ? 1 : 2); genSlots(B);
+      const B = n % 3 === 0 ? newBuild(1) : n % 3 === 1 ? newBuild(1, 3) : newBuild(2); genSlots(B);
       const nt = 5 + (n % 8) * 4;
       for (let k = 0; k < nt && B.cands.length; k++) { const c = B.cands[(rng() * B.cands.length) | 0]; addTile(B, c.pose, { depth: c.depth }); genSlots(B); }
       builds.push(B);
@@ -10115,6 +10876,148 @@ function runSelftest() {
     let goneAt = -1;
     for (let i = 0; i < 6 / CFG.STEP; i++) { rockStep(Bt, CFG.STEP); if (lost(Bt)) { goneAt = i * CFG.STEP; break; } }
     ok(goneAt > 0.3 && Bt.theta > 0, '10: a tower with its CoM outside the wheels ' + (goneAt < 0 ? 'never went over' : 'went over after ' + goneAt.toFixed(2) + ' s (want > 0.3 s, to the right)'));
+  }
+  // ---- revision 2 (DESIGN 15)
+  const flatTops = B => {
+    const xs = [];
+    for (const ent of B.emap.values()) if (ent.length === 1 && ent[0].e.role === 'top' && ent[0].owner !== CAR_OWNER) xs.push({ x: (ent[0].e.x1 + ent[0].e.x2) / 2, y: ent[0].e.y1 });
+    return xs.sort((a, b) => a.x - b.x);
+  };
+  // 11 (15.1). firm side-hangs: a down-triangle hanging off one up-triangle's slant is supported (held firm), at depth 1
+  {
+    const B = newBuild(1); place(B, 'up:-2,0,0');
+    const h = find(B, 'dn:-1,0,0'), l = find(B, 'dn:-3,0,0');
+    ok(h && h.edges === 1 && h.supported && h.firm && h.depth === 1, '11: the side-hang right of a lone up-triangle is ' + (h ? 'edges ' + h.edges + ', supported ' + h.supported + ', depth ' + h.depth : 'missing') + ' (want 1 edge, supported, depth 1)');
+    ok(l && l.edges === 1 && l.supported && l.firm && l.depth === 1, '11: the side-hang left of a lone up-triangle is ' + (l ? 'edges ' + l.edges + ', supported ' + l.supported + ', depth ' + l.depth : 'missing') + ' (want 1 edge, supported, depth 1)');
+    // supported for slot choice: with the hand over it, a triangle goes into the side-hang even though a slot standing
+    // on the car (the up-triangle beside it) is about as near
+    const pick = chooseSlot(B.cands, l ? l.wx : -1, CFG.R, null, c => slotTypeOk('tri', c.type));
+    ok(pick && pick.key === 'dn:-3,0,0', '11: a hand over the left side-hang picks ' + (pick ? pick.key : 'nothing') + ' (want dn:-3,0,0)');
+    // squares still never go on slants; a square beside it is still hanging
+    ok(!B.cands.some(c => c.type === 'sq' && c.matched.some(e => e.role === 'slantL' || e.role === 'slantR')), '11: a square slot on a slant');
+    const sq = find(B, 'sq:0,0,0');
+    ok(sq && sq.supported && !sq.firm, '11: the square on the car beside it is ' + (sq ? 'supported ' + sq.supported : 'missing'));
+  }
+  // 12 (15.1). the new generator: an up-triangle sharing a down-triangle's exposed slant, to its lower left or right
+  {
+    const B = newBuild(1);
+    ['up:-2,0,0', 'up:0,0,0', 'dn:-1,0,0', 'dn:-3,0,0', 'dn:1,0,0'].forEach(k => place(B, k));
+    const l = find(B, 'up:-4,0,0'), r = find(B, 'up:2,0,0');
+    ok(l && l.edges === 1 && l.supported && l.firm && l.depth === 2 && !l.bottom, '12: up-triangle lower left of a down-triangle: ' + (l ? 'edges ' + l.edges + ', supported ' + l.supported + ', depth ' + l.depth : 'not offered') + ' (want 1 edge, firm, depth 2)');
+    ok(r && r.edges === 1 && r.supported && r.firm && r.depth === 2, '12: up-triangle lower right of a down-triangle: ' + (r ? 'edges ' + r.edges + ', depth ' + r.depth : 'not offered'));
+    if (l) ok(l.matched.length === 1 && l.matched[0].role === 'slantR', '12: the lower-left up-triangle is held by its right slant');
+    // one more side-hang off it would be depth 3: not offered
+    place(B, 'up:-4,0,0');
+    ok(!find(B, 'dn:-5,0,0'), '12: a down-triangle hanging off the depth-2 up-triangle (depth 3) is offered');
+    // on a wide base the same slot stands on the car and also meets the slant: 2 edges (a DOUBLE)
+    const W = newBuild(2); place(W, 'up:0,0,0'); place(W, 'dn:1,0,0');
+    const c = find(W, 'up:2,0,0');
+    ok(c && c.edges === 2 && c.bottom, '12: up-triangle on the car beside a hanging down-triangle: ' + (c ? 'edges ' + c.edges : 'not offered') + ' (want 2 edges)');
+  }
+  // 13 (15.2). a two-wide Δ∇Δ leaves one flat edge, centred; ▼Δ▼Δ▼ (the outer side-hangs) three, shifted half a tile
+  {
+    const B = newBuild(1);
+    ['up:-2,0,0', 'up:0,0,0', 'dn:-1,0,0'].forEach(k => place(B, k));
+    let f = flatTops(B);
+    ok(f.length === 1 && Math.abs(f[0].x) < 1e-9 && Math.abs(f[0].y - H3) < 1e-12, '13: Δ∇Δ on two wide leaves flat edges at x ' + f.map(q => q.x.toFixed(2)).join(', ') + ' (want one, at 0)');
+    let sq = B.cands.filter(c => c.type === 'sq');
+    ok(sq.length === 1 && sq[0].key === 'sq:-1,0,1' && sq[0].supported, '13: Δ∇Δ offers squares ' + sq.map(c => c.key).join(', ') + ' (want sq:-1,0,1 alone)');
+    ['dn:-3,0,0', 'dn:1,0,0'].forEach(k => place(B, k));
+    f = flatTops(B);
+    ok(f.length === 3 && [-1, 0, 1].every((x, k) => Math.abs(f[k].x - x) < 1e-9 && Math.abs(f[k].y - H3) < 1e-12), '13: ▼Δ▼Δ▼ leaves flat edges at x ' + f.map(q => q.x.toFixed(2)).join(', ') + ' (want -1, 0, 1 at y = h)');
+    sq = B.cands.filter(c => c.type === 'sq' && Math.abs(c.pose.minY - H3) < 1e-9).map(c => c.pose.cx).sort((a, b) => a - b);
+    // (the squares below the band would stand at -0.5 and 0.5: these sit half a tile over)
+    ok(sq.length === 3 && [-1, 0, 1].every((x, k) => Math.abs(sq[k] - x) < 1e-9), '13: ▼Δ▼Δ▼ offers squares at x ' + sq.map(x => x.toFixed(2)).join(', ') + ' (want -1, 0, 1)');
+  }
+  // 14 (15.2). TRUSS: only a notch filled between two up-triangles on one base row
+  {
+    const B = newBuild(1);
+    place(B, 'up:-2,0,0');
+    const hang = find(B, 'dn:-1,0,0');
+    ok(hang && !hang.truss, '14: a down-triangle hanging off one up-triangle counts as a TRUSS');
+    place(B, 'up:0,0,0');
+    const n = find(B, 'dn:-1,0,0');
+    ok(n && n.truss && n.notch && n.edges === 2, '14: the notch between two up-triangles ' + (n ? 'truss ' + n.truss : 'missing'));
+    for (const k of ['dn:-3,0,0', 'dn:1,0,0']) { const c = find(B, k); ok(c && !c.truss, '14: the outer side-hang ' + k + ' counts as a TRUSS'); }
+    ok(!B.cands.some(c => c.truss && c.key !== 'dn:-1,0,0'), '14: another TRUSS slot: ' + B.cands.filter(c => c.truss).map(c => c.key).join(', '));
+    // the landing: the notch's tile closes exactly one notch, at y_b = h; a tile in the air does not count yet
+    const P = getPose('dn', -1, 0, 0), t = addTile(B, P, { depth: 0, flight: true });
+    const up0 = B.tiles.find(q => q.pose.key === 'up:0,0,0');
+    up0.flight = true;
+    ok(trussNotches(B, P, t, TRUSS_TMP).length === 0, '14: a notch whose up-triangle is still in the air counts at landing');
+    up0.flight = false; t.flight = false;
+    const got = trussNotches(B, P, t, TRUSS_TMP);
+    ok(got.length === 1 && Math.abs(got[0].maxY - H3) < 1e-12, '14: landing in the notch closes ' + got.length + ' notch(es)');
+    genSlots(B);
+    // nothing on top of it is a TRUSS: a square on its flat top, an up-triangle on it
+    ok(!B.cands.some(c => c.truss), '14: a slot over the filled notch counts as a TRUSS: ' + B.cands.filter(c => c.truss).map(c => c.key).join(', '));
+    // only a down-triangle filling the notch: no up-triangle is ever a TRUSS, not the one hung off an outer side-hang
+    // (up:-4, beside the car) nor one closing a Δ∇Δ around a hanging down-triangle the other way round
+    const O = newBuild(1);
+    ['up:-2,0,0', 'up:0,0,0', 'dn:-1,0,0', 'dn:-3,0,0', 'dn:1,0,0'].forEach(k => place(O, k));
+    for (const k of ['up:-4,0,0', 'up:2,0,0']) { const c = find(O, k); ok(c && !c.truss, '14: ' + k + ' (hung off a side-hang) ' + (c ? 'counts as a TRUSS' : 'not offered')); }
+    const W = newBuild(2); place(W, 'up:0,0,0'); place(W, 'dn:-1,0,0');
+    const u = find(W, 'up:-2,0,0');
+    ok(u && !u.truss && u.edges === 2, '14: the up-triangle closing a Δ∇Δ around a hanging down-triangle: ' + (u ? 'truss ' + u.truss + ', edges ' + u.edges : 'not offered') + ' (want no TRUSS, 2 edges)');
+    ok(!W.cands.some(c => c.truss), '14: a TRUSS slot around a hanging down-triangle: ' + W.cands.filter(c => c.truss).map(c => c.key).join(', '));
+    // squares on two columns with a triangle row: an up-triangle on a square is no TRUSS, the notch on that row is
+    const R = newBuild(1);
+    ['sq:-2,0,0', 'sq:0,0,0', 'up:-2,1,0'].forEach(k => place(R, k));
+    ok(!find(R, 'up:0,1,0').truss, '14: an up-triangle on a square counts as a TRUSS');
+    place(R, 'up:0,1,0');
+    const rn = find(R, 'dn:-1,1,0');
+    ok(rn && rn.truss && Math.abs(rn.pose.maxY - (1 + H3)) < 1e-12, '14: the notch on the second row is not a TRUSS (or its top is not at 1 + h)');
+  }
+  // 15 (15.5). base widths per level: 4 L (two cars) on L1-L3, 3 L (the long car) on L4-L7, 2 L from L8; BIG MAGNETS two
+  //     cars through L4. The long car: 3 car-top edges, 3 squares and 3 up-triangles on it empty, wheels at ±1.3 L
+  {
+    const want = [0, 4, 4, 4, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2];
+    const bad = [];
+    for (let n = 1; n < want.length; n++) {
+      for (const big of [false, true]) {
+        const B = newBuild(carsFor(n, big), carLenFor(n, big)), w = 2 * B.half, wv = big && n <= 4 ? 4 : want[n];
+        if (Math.abs(w - wv) > 1e-9 || B.carEdges.length !== wv) bad.push((big ? 'BIG ' : '') + 'L' + n + ': ' + w + ' L, ' + B.carEdges.length + ' edges (want ' + wv + ')');
+      }
+    }
+    ok(!bad.length, '15: base widths: ' + bad.join('; '));
+    const B = newBuild(1, 3); genSlots(B);
+    const sq = B.cands.filter(c => c.type === 'sq').map(c => c.pose.cx).sort((a, b) => a - b), up = B.cands.filter(c => c.type === 'up').length;
+    ok(sq.length === 3 && [-1, 0, 1].every((x, k) => Math.abs(sq[k] - x) < 1e-9) && up === 3, '15: the empty long car offers squares at ' + sq.join(', ') + ' and ' + up + ' up-triangles (want -1, 0, 1 and 3)');
+    const D = massProps(B, false, {});
+    ok(Math.abs(D.w - 1.3) < 1e-12 && Math.abs(D.M - CFG.CAR_MASS * 1.5) < 1e-12, '15: the long car rocks on wheels at ±' + D.w + ' L, mass ' + D.M + ' (want ±1.3, ' + CFG.CAR_MASS * 1.5 + ')');
+    const T = massProps(newBuild(2), false, {}), O = massProps(newBuild(1), false, {});
+    ok(Math.abs(T.w - 1.8) < 1e-12 && Math.abs(O.w - 0.8) < 1e-12, '15: wheels at ±' + T.w + ' (two cars) and ±' + O.w + ' (one car)');
+  }
+  // 16 (15.3). the unbraced segment's measure: Hu, its narrowest width w (the union of the tiles' spans at y_b + 0.25,
+  //     + 0.75, …, under its last layer), λ = Hu / w; and ΔW
+  {
+    const m = B => segMeasure(B, B.yb, standingTile, null, {}), near = (a, b) => Math.abs(a - b) < 1e-9;
+    const B = newBuild(1);
+    for (let a = 0; a < 5; a++) { place(B, 'sq:-2,' + a + ',0'); place(B, 'sq:0,' + a + ',0'); }
+    let r = m(B);
+    ok(near(r.Hu, 5) && near(r.w, 2) && near(r.lam, 2.5), '16: 2 wide × 5 L: Hu ' + r.Hu + ', w ' + r.w + ', λ ' + r.lam + ' (want 5, 2, 2.5)');
+    place(B, 'sq:-2,5,0'); r = m(B);
+    ok(near(r.Hu, 6) && near(r.w, 2), '16: a lone square on top: Hu ' + r.Hu + ', w ' + r.w + ' (want 6, 2: its layer carries nothing yet)');
+    place(B, 'sq:-2,6,0'); r = m(B);
+    ok(near(r.Hu, 7) && near(r.w, 1) && near(r.lam, 7), '16: a spire of two squares on it: w ' + r.w + ', λ ' + r.lam + ' (want 1, 7)');
+    // a Δ∇Δ band, built without its brace (y_b stays 0 here), then a square on its flat top: the band narrows to
+    // 2 − 0.75·2/√3 at the sample 0.75 into it
+    const T = newBuild(1);
+    ['sq:-2,0,0', 'sq:0,0,0', 'up:-2,1,0', 'up:0,1,0', 'dn:-1,1,0'].forEach(k => place(T, k));
+    r = m(T);
+    ok(near(r.w, 2) && near(r.Hu, 1 + H3), '16: Δ∇Δ on top (the last layer): w ' + r.w + ', Hu ' + r.Hu.toFixed(3) + ' (want 2, 1 + h)');
+    place(T, 'sq:-1,1,1'); r = m(T);
+    ok(Math.abs(r.w - (2 - 1.5 / Math.sqrt(3))) < 1e-9 && near(r.Hu, 2 + H3), '16: a square on the band: w ' + r.w.toFixed(4) + ' (want ' + (2 - 1.5 / Math.sqrt(3)).toFixed(4) + ')');
+    // the brace line: the segment starts there
+    T.yb = 1 + H3; r = m(T);
+    ok(near(r.Hu, 1) && near(r.w, 1) && near(r.lam, 1), '16: above the brace line: Hu ' + r.Hu.toFixed(3) + ', w ' + r.w + ' (want 1, 1)');
+    // ΔW = min(cap, a[grade]·(λ − λ's floor)²·(1.5 cube)), × 0.4 in BIG MAGNETS: the slope half a λ over the floor, the
+    // cap (a cube there, and any spire), nothing at or under the floor
+    const k = S.big ? CFG.WOB_BIG : 1, l0 = CFG.WOB_LAM0, cap = CFG.WOB_DW_MAX;
+    const want = [Math.min(cap, CFG.WOB_A.perfect * 0.25) * k, Math.min(cap, CFG.WOB_A.clack * 0.25 * CFG.WOB_CUBE) * k, cap * k, 0, 0];
+    const got = [wobDelta('perfect', 'sq', l0 + 0.5), wobDelta('clack', 'cube', l0 + 0.5), wobDelta('perfect', 'sq', 20), wobDelta('great', 'tri', l0), wobDelta('clack', 'sq', 0.5)];
+    ok(got.every((x, i) => near(x, want[i])),
+      '16: ΔW: ' + got.map(x => x.toFixed(4)).join(', ') + ' (want ' + want.map(x => x.toFixed(4)).join(', ') + ')');
   }
   return { pass: fails.length === 0, failures: fails, ms: Math.round(performance.now() - t0) };
 }
@@ -10168,6 +11071,7 @@ function step(dt) {
       break;
   }
   ROCKED = true;
+  stepSnapQ();
   stepArm(dt);
   stepHazardActors(dt);
   stepSky(dt);
@@ -10196,7 +11100,8 @@ function frame(now) {
   try { render(); } catch (e) { ctx.setTransform(1, 0, 0, 1, 0, 0); throw e; }
   // the creak follows how close the tower is to going over (continuous; Sfx maps 0.4..1 to its volume)
   // (and through a dead end's tell, rising toward the TOPPLE, under the heartbeat)
-  Sfx.creak(S.phase === 'play' ? Math.min(1, Math.max(TIP.level, S.toppleAt >= 0 ? 0.68 + 0.2 * toppleTell() : 0)) : 0);
+  // (and the wobble: its joints creak from W 0.4, 15.3)
+  Sfx.creak(S.phase === 'play' ? Math.min(1, Math.max(TIP.level, WOB.W, S.toppleAt >= 0 ? 0.68 + 0.2 * toppleTell() : 0)) : 0);
   const js = performance.now() - t0;
   PERF.jsMs = PERF.jsMs * 0.95 + js * 0.05;
   if (dt > 0) PERF.fps = PERF.fps * 0.95 + (1 / dt) * 0.05;

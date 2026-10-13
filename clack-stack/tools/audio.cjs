@@ -106,7 +106,7 @@ const REALTIME = async ({ SOAK }) => {
   const T = window.__T;
   // ---- 1. API shape
   const KEYS = ['unlock', 'setMuted', 'muted', 'clack', 'zzip', 'miss', 'aww', 'poke', 'creak', 'save', 'crash', 'whistle', 'smash',
-    'tally', 'ribbon', 'crown', 'ring', 'gear', 'cubeFold', 'boom', 'honk', 'bonk', 'whooo', 'thump', 'fuseTick', 'clockTick',
+    'tally', 'ribbon', 'crown', 'ring', 'gear', 'lock', 'snap', 'cubeFold', 'boom', 'honk', 'bonk', 'whooo', 'thump', 'fuseTick', 'clockTick',
     'newBest', 'streak', 'uiClick', 'haptic', 'music', 'stats'];
   if (typeof Sfx !== 'object' || !Sfx) { fail('Sfx is not a global object'); return { F, info }; }
   const own = Object.keys(Sfx).sort().join(','), want = KEYS.slice().sort().join(',');
@@ -120,7 +120,7 @@ const REALTIME = async ({ SOAK }) => {
 
   const typical = () => {
     Sfx.clack({ combo: 3, mass: 1, pan: 0.2, edges: 2, grade: 'great' }); Sfx.zzip(-0.3); Sfx.miss(0.5); Sfx.aww(); Sfx.poke(0.1);
-    Sfx.creak(0.7); Sfx.save(); Sfx.whistle(); Sfx.tally(4); Sfx.ribbon(); Sfx.crown(); Sfx.ring(); Sfx.gear();
+    Sfx.creak(0.7); Sfx.save(); Sfx.whistle(); Sfx.tally(4); Sfx.ribbon(); Sfx.crown(); Sfx.ring(); Sfx.gear(); Sfx.lock(); Sfx.snap(8, 0.3);
     Sfx.cubeFold(2); Sfx.boom(); Sfx.honk(); Sfx.bonk(); Sfx.whooo(0.6); Sfx.thump(); Sfx.fuseTick('half'); Sfx.fuseTick('threeq');
     Sfx.fuseTick('last'); Sfx.clockTick(5); Sfx.clockTick(2); Sfx.newBest(); Sfx.streak(1); Sfx.streak(4); Sfx.uiClick(); Sfx.haptic(8); Sfx.haptic([30, 40, 30]);
     Sfx.clack({ combo: 4, mass: 1, edges: 1, grade: 'perfect', streak: 12 });
@@ -158,7 +158,7 @@ const REALTIME = async ({ SOAK }) => {
   const junk = [undefined, null, NaN, Infinity, -Infinity, -5, 1e9, 'x', {}, []];
   for (const j of junk) {
     Sfx.clack(j); Sfx.clack({ combo: j, mass: j, pan: j, edges: j, grade: j }); Sfx.zzip(j); Sfx.miss(j); Sfx.poke(j); Sfx.creak(j);
-    Sfx.crash(j, j); Sfx.tally(j); Sfx.cubeFold(j); Sfx.whooo(j); Sfx.fuseTick(j); Sfx.clockTick(j); Sfx.haptic(j);
+    Sfx.crash(j, j); Sfx.snap(j, j); Sfx.tally(j); Sfx.cubeFold(j); Sfx.whooo(j); Sfx.fuseTick(j); Sfx.clockTick(j); Sfx.haptic(j);
     Sfx.music.setLevel(j); Sfx.music.setMult(j); Sfx.music.duck(j); Sfx.setMuted(false);
   }
   Sfx.clack(); Sfx.clack({ combo: -7 }); Sfx.clack({ combo: 1234567, edges: 3, grade: 'perfect', mass: 3 }); Sfx.creak(0);
@@ -319,7 +319,8 @@ const REALTIME = async ({ SOAK }) => {
       if (i % 20 === 0) Sfx.music.setMult(1 + ((i / 20) % 5)), Sfx.music.setLevel(1 + ((i / 20) % 12));
       if (i % 40 === 10) { Sfx.crash(30, 0); }
       if (i % 40 === 30) { Sfx.smash(); for (let k = 0; k < 10; k++) Sfx.tally(k); }
-      if (i % 25 === 5) { Sfx.ring(); Sfx.gear(); Sfx.fuseTick('last'); Sfx.clockTick(3); }
+      if (i % 25 === 5) { Sfx.ring(); Sfx.gear(); Sfx.lock(); Sfx.fuseTick('last'); Sfx.clockTick(3); }
+      if (i % 40 === 20) Sfx.snap(12, -0.4);
       if (i % 60 === 45) { Sfx.ribbon(); Sfx.crown(); Sfx.cubeFold(i % 5); Sfx.boom(); Sfx.honk(); Sfx.bonk(); Sfx.whooo(0.5); Sfx.thump(); Sfx.save(); Sfx.miss(0); Sfx.aww(); }
       maxS = Math.max(maxS, Sfx.stats().voices);
       i++;
@@ -455,6 +456,8 @@ const OFFLINE = async ({ SRC }) => {
     ['crown', (S) => S.crown(), 500, 1300, 1400],
     ['ring', (S) => S.ring(), 300, 800, 900],
     ['gear', (S) => S.gear(), 600, 900, 950],
+    ['lock', (S) => S.lock(), 400, 900, 1000],
+    ['snap', (S) => S.snap(10, 0.2), 400, 900, 1000],
     ['cubeFold', (S) => S.cubeFold(4), 15, 50, 60],
     ['boom', (S) => S.boom(), 200, 500, 600],
     ['honk', (S) => S.honk(), 250, 330, 340],
@@ -862,7 +865,7 @@ async function WIRING(browser) {
   const called = (k) => all.some((c) => c.k === k);
   const at = (l, k, t, dt) => l.calls.some((c) => c.k === k && c.t >= t - 5e-4 && c.t <= t + (dt || 5e-4));
   // events -> the sound made in the same step (miss: when the dropped tile hits; level: the music's tempo)
-  const MAP = { land: ['clack'], crash: ['crash'], save: ['save'], ring: ['ring'], brace: ['gear'], goal: ['ribbon'], crown: ['crown'], smash: ['smash'],
+  const MAP = { land: ['clack'], crash: ['crash'], save: ['save'], ring: ['ring'], brace: ['gear'], truss: ['lock'], snap: ['snap'], goal: ['ribbon'], crown: ['crown'], smash: ['smash'],
     bump: ['bonk'], honk: ['honk'], stomp: ['whooo'], foot: ['thump'], level: ['music.setLevel'], shove: ['boom', 'crash'], over: ['whistle', 'music.stop'] };
   const seen = {};
   for (const l of logs) {
