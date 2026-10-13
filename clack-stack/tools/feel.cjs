@@ -74,7 +74,7 @@ function check(name, ok, detail) {
 // (M4: a level can end mid-run: the crown lands and the SMASH sweeps the build away; wait until play resumes on the
 // next level's base, so the slot read here is still there when the finger comes down)
 async function settle(page) {
-  await until(page, () => { const s = CS.state(); return s.phase === 'play' && !s.locked && s.handReady && s.inAir === 0; }, null, 8000);
+  await until(page, () => { const s = CS.state(); return s.phase === 'play' && !s.locked && s.handReady && s.inAir === 0 && !s.crownGrace; }, null, 8000);
   // the tower calm again (a level's new base, or a rock after a CLACK), within the fuse
   await until(page, () => { const s = CS.state(); return s.still || s.t >= s.readyAt + 1.0; }, null, 4000).catch(() => {});
   // let the zoom finish easing, so the slot under the finger stays put between reading sx and the tap
@@ -183,7 +183,8 @@ async function honesty(browser) {
       for (let k = 0; k < PER_SESSION && releases < HONESTY_N; k++) {
         const quick = rand() < 0.5;                 // quick: click before the next tile arrives (buffered -> two in the air)
         // (M4: not while a SMASH or a new base locks releases: a press there is not a release to check)
-        await until(page, () => { const s = CS.state(); return s.phase === 'play' && !s.locked; }, null, 8000);
+        // (nor in the crown's first moments in the hand: CROWN_GRACE drops a press then, 15.6)
+        await until(page, () => { const s = CS.state(); return s.phase === 'play' && !s.locked && !s.crownGrace; }, null, 8000);
         if (!quick) await until(page, () => CS.state().handReady, null, 4000);
         const info = await page.evaluate(() => ({ slots: CS.slots(), cam: CS.cam() }));
         let x;
@@ -192,10 +193,18 @@ async function honesty(browser) {
         x = Math.max(1, Math.min(info.cam.W - 1, x));
         const prev = await lastId(page);
         await page.mouse.move(x, 420);
+        const tPress = await page.evaluate(() => S.gt);
         let pre;
         if (!quick) pre = await page.evaluate(() => new Promise(r => requestAnimationFrame(() => { const g = CS.ghost(); r(g ? g.key : '-'); })));
         await page.mouse.down(); await page.mouse.up();
-        const rel = await waitRelease(page, prev);
+        // (a press in the crown's first CROWN_GRACE s in the hand, the crown having come with the landing of the tile
+        // that tore the ribbon, is dropped by design (15.6: no tap already on its way places the crown). Not a
+        // release, not counted)
+        const rel = await waitRelease(page, prev).catch(async e => {
+          if (await page.evaluate(t => { const s = CS.state(); return s.crownInHand && s.crownAt >= t - CFG.CROWN_GRACE && s.crownAt <= t + 0.1; }, tPress)) return null;
+          throw e;
+        });
+        if (!rel) continue;
         releases++;
         rels.push(rel);
         if (rel.inAir >= 2) twoInAir++;

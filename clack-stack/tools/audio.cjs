@@ -26,8 +26,8 @@
 //   pan-0.15 clack's loudest 50 ms at least 6 dB over the x5 groove's loudest 50 ms (A-weighted and phone-weighted),
 //   the x1 groove still audible, the "aww" under a clack; and without AudioParam.cancelAndHoldAtTime (Firefox) a
 //   second duck during the first one's recovery does not step the music.
-// Part D, wiring: the game is played through real input (title shove, drops, a miss, a crash, hazards, the
-//   goal and the SMASH, TIME! and the results) with every Sfx call recorded; every sound the design asks for is
+// Part D, wiring: the game is played through real input (title shove, drops, a miss, a crash, hazards, a TRUSS
+//   and a SNAP, the goal and the SMASH, TIME! and the results) with every Sfx call recorded; every sound the design asks for is
 //   called at its moment (DESIGN 8 and 10), the creak is fed every frame, the music starts, follows the level
 //   and the multiplier and stops.
 // Fails (exit 1) on any check, pageerror or console.error.
@@ -835,13 +835,50 @@ async function WIRING(browser) {
     logs.push(await page.evaluate(() => ({ tag: 'D1', end: S.gt, calls: __rec.calls, ev: CS.events.slice(), frames: __rec.frames, creak: __rec.creak, creakPlay: __rec.creakPlay, creakMax: __rec.creakMax })));
     await ctx.close();
   }
-  // ---- D2: level 8, hazards (bump car, foot), cubes and marble squares in the bag
+  // ---- D2: level 8, hazards (bump car, foot), cubes and marble squares in the bag. The build stops 2 L under the
+  // ribbon and the fuse is held then (a fixture), so the run stays on level 8 (a goal would start level 9 and its
+  // hazard schedule afresh) until both hazards have hit: it waits for the foot itself, not a fixed time
   {
     const { ctx, page } = await dOpen(browser, { seed: 36, ts: 4, level: 8, autostart: 1 });
     await dUntil(page, () => CS.state().phase === 'play' && CS.state().handReady);
-    await dBuild(page, 14);
-    await dGame(page, 22);
+    await dBuild(page, 14, () => CS.state().top >= CS.state().goal - 2);
+    await page.evaluate(() => { LEVELS[8].fuse = 1e9; });
+    await dUntil(page, () => ['bump', 'foot'].every((k) => CS.events.some((e) => e.type === k)) || CS.state().phase === 'over', null, 60000).catch(() => {});
+    await dGame(page, 1.5);
     logs.push(await page.evaluate(() => ({ tag: 'D2', end: S.gt, calls: __rec.calls, ev: CS.events.slice(), frames: __rec.frames, creak: __rec.creak, creakPlay: __rec.creakPlay, creakMax: __rec.creakMax })));
+    await ctx.close();
+  }
+  // ---- D4: a TRUSS and a SNAP (15.2, 15.3), by real taps on a fixture build (level 8, hazards off): a down-triangle
+  // into the notch of two up-triangles (the lock), then a square on the braced column with the wobble at the edge
+  {
+    const { ctx, page } = await dOpen(browser, { seed: 5, ts: 1, level: 8, autostart: 1 });
+    await dUntil(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked);
+    await page.evaluate(() => {
+      HZ.every = 0; HZ.kind = ''; LEVELS[8].fuse = 1e9;
+      const B = S.B;
+      for (const k of ['sq:-2,0,0', 'sq:0,0,0', 'sq:-2,1,0', 'sq:0,1,0', 'up:-2,2,0', 'up:0,2,0']) {
+        genSlots(B);
+        const c = B.cands.find((q) => q.key === k), shape = c.type === 'sq' ? 'sq' : 'tri';
+        addTile(B, c.pose, { shape, color: 'blue', variant: 0, mass: CFG.MASS[shape], k: CFG.KROT[shape], depth: c.depth, flight: false, landT: -1 });
+      }
+      genSlots(B); recomputeTower(); massProps(B, true, COMMIT);
+    });
+    const tapKey = async (key, shape, before) => {
+      await dReady(page);
+      const x = await page.evaluate(([key, shape]) => { HAND.piece = { shape, color: 'red', variant: 0 }; computeGhost(); const s = CS.slots().find((q) => q.key === key); return s ? s.sx : null; }, [key, shape]);
+      if (x === null) return false;
+      await page.mouse.move(x, VIEWD.height * 0.5); await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
+      if (before) await page.evaluate(before);
+      await page.mouse.down(); await page.mouse.up();
+      await dGame(page, 0.6);
+      return true;
+    };
+    await tapKey('dn:-1,2,0', 'tri');
+    await tapKey('sq:-1,2,1', 'sq');
+    await tapKey('sq:-1,3,1', 'sq');
+    await tapKey('sq:-1,4,1', 'sq', () => { WOB.W = 0.999; const sw = stepWobble; let seen = false; stepWobble = function (dt) { if (S.flights.length) seen = true; if (!seen || S.flights.length) { WOB.W = 0.999; return; } stepWobble = sw; return sw(dt); }; });
+    await dGame(page, 0.8);
+    logs.push(await page.evaluate(() => ({ tag: 'D4', end: S.gt, calls: __rec.calls, ev: CS.events.slice(), frames: __rec.frames, creak: __rec.creak, creakPlay: __rec.creakPlay, creakMax: __rec.creakMax })));
     await ctx.close();
   }
   // ---- D3: an EdgeBot on level 3 (one car): the tower tips (the creak) and crashes
@@ -898,7 +935,7 @@ async function WIRING(browser) {
     // the creak is fed every frame of play
     if (l.creakPlay < 0.9 * l.frames) fail(l.tag + ': creak() fed on ' + l.creakPlay + ' of ' + l.frames + ' frames of play');
   }
-  const d1 = logs[0], d3 = logs[2];
+  const d1 = logs[0], d3 = logs.find((l) => l.tag === 'D3');
   if (!(d3.creakMax > 0.5)) fail('D3: the creak never rose (max level ' + d3.creakMax + ') before the crash');
   const kinds = d1.calls.filter((c) => c.k === 'fuseTick').map((c) => c.a);
   for (const k of ['half', 'threeq', 'last']) if (!kinds.includes(k)) fail('D1: no fuseTick(' + k + ') (got ' + kinds.join() + ')');
@@ -913,7 +950,7 @@ async function WIRING(browser) {
   for (const k of ['poke', 'uiClick', 'whistle', 'tally', 'newBest', 'haptic', 'music.setLevel', 'music.setMult', 'music.duck', 'unlock']) if (!called(k)) fail('Sfx.' + k + '() is never called');
   const haps = all.filter((c) => c.k === 'haptic').map((c) => JSON.stringify(c.a));
   if (!haps.includes('20') || !haps.includes('[30,40,30]')) fail('haptics: no vibrate(20) on a PERFECT or [30,40,30] on a crash (got ' + [...new Set(haps)].join(' ') + ')');
-  for (const k of ['land', 'miss', 'crash', 'goal', 'crown', 'smash', 'level', 'bump', 'honk', 'stomp', 'foot', 'shove', 'over']) if (!seen[k]) fail('the run never reached a ' + k + ' (the wiring check needs one)');
+  for (const k of ['land', 'miss', 'crash', 'goal', 'crown', 'smash', 'level', 'bump', 'honk', 'stomp', 'foot', 'shove', 'over', 'truss', 'snap']) if (!seen[k]) fail('the run never reached a ' + k + ' (the wiring check needs one)');
   info.seen = seen;
   info.calls = {};
   for (const c of all) info.calls[c.k] = (info.calls[c.k] || 0) + 1;

@@ -3,7 +3,7 @@
 // M3 acceptance (DESIGN.md 14): tower dynamics, crash and debris, played by bots through REAL mouse events at
 // positions read from CS.slots(). All runs: ?ts=4&level=N&seed=N&autostart=1 (390x844, muted, no hint).
 //   node clack-stack/tools/bots.cjs                     (everything, seeds 1-10)
-//   node clack-stack/tools/bots.cjs --only=edge,save    (calib, perfect, edge, save)
+//   node clack-stack/tools/bots.cjs --only=edge,save    (calib, perfect, perfect8, edge, save, tippy)
 //   node clack-stack/tools/bots.cjs --seeds=3-5 --verbose
 // Checks:
 //   calib    CS.calib() reports a bump peak of 0.35 α ± 0.03 on the reference tower (and the other targets)
@@ -13,6 +13,8 @@
 //            (if the ghost turns TIPPY while it aims, it applies the rule again without that slot). M4: level 3's
 //            ribbon is at 6 L, so on the way the crown drops into the hand: the bot HOLDs it (OVERTIME) and builds on;
 //            with the crown in the HOLD box, a tile with no safe slot is thrown away at the screen edge (a MISS)
+//   perfect8 PerfectBot on one car (level 8, the first one-car level since DESIGN 15.5; hazards, the fuse and the wobble
+//            off): the M3 guarantee, 10 L with zero crashes in 10/10 seeds
 //   edge     EdgeBot (always the rightmost slot; on one car: level 8 with its hazards off, DESIGN 15.5 having put two
 //            cars under level 3) crashes within 30 tiles in 10/10 seeds, and every crash is
 //            preceded by a tipwarn at least 0.5 s earlier (game time): the last tipwarn before it, i.e. the warning that
@@ -27,7 +29,8 @@
 //   dyn      (in every run, every 120 Hz step) the flex never bends past 0.35 L, and the top's lateral speed stays
 //            <= 2.8 L/s until the tower is past its tipping angle (past α it is uncapped: reported separately)
 //   tippy    TIPPY is honest: random drops (random slot, random offset within ±0.5 L, so any grade) on level 3 and 7
-//            towers; a drop whose ghost was not TIPPY never ends in a crash (drops the fuse followed up are skipped;
+//            towers (the fuse held: each drop's outcome is read once the tower is still); a drop whose ghost was not
+//            TIPPY never ends in a crash (drops followed up before the tower was still are skipped;
 //            M7: level 7 has the bump car, and TIPPY looks ahead to a hit inside its horizon, but a crash after a later
 //            bump or foot hit is the hazard's and is counted apart). (From level 4 the red ghost is not drawn, DESIGN
 //            15.4; the look-ahead behind it still runs and CS.lastRelease.tippy still reports it). (15.3: a drop that
@@ -137,8 +140,12 @@ async function traceRun(page, seed) {
 // its landing kick, tips the tower over) while another slot is safe, and when every slot for the piece in hand is
 // TIPPY it swaps once via HOLD and chooses again. No other vetoes, no throw-aways. It waits for the tower to calm
 // down (within the fuse) so the centre it reads is the centre it taps.
-async function perfectBot(browser, seed, literal) {
-  const { page, errors, context } = await openGame(browser, { seed, level: 3 });
+async function perfectBot(browser, seed, literal, level) {
+  level = level || 3;
+  const { page, errors, context } = await openGame(browser, { seed, level });
+  // (level 8: the one-car guarantee of M3, the hazards and the fuse held as fixtures: the bot's calm wait runs past
+  // the 1.4 s fuse there)
+  if (level !== 3) { await noHazards(page); await page.evaluate(lv => { LEVELS[lv].fuse = 1e9; }, level); }
   // (DESIGN 15.3: this checks the rock, tip and crash of M3 for a player who aims perfectly and keeps the centre of
   // mass central. Its most-central rule stacks a 2-wide column up the middle of the 4 L base, λ 4-5 at 8-10 L, which the
   // wobble SNAPs (by design: that is what bracing is for, tools/strategy.cjs). The wobble is off here, a test fixture;
@@ -334,6 +341,9 @@ async function edgeBot(browser, seed, save) {
 async function tippyHonesty(browser, seed, drops) {
   const level = seed % 2 ? 3 : 7;
   const { page, errors, context } = await openGame(browser, { seed, level });
+  // (the fuse held, a fixture: a drop's outcome is read once the tower is still, and the wobble takes a while to settle
+  // (15.3); with the fuse running it would drop the next tile first and the drop would be skipped)
+  await page.evaluate(lv => { LEVELS[lv].fuse = 1e9; }, level);
   const r = { seed, level, ok: 0, fn: [], tp: 0, fp: 0, skipped: 0, hazard: 0, errors };
   let rnd = seed * 7919 + 17; const rand = () => (rnd = (rnd * 16807) % 2147483647) / 2147483647;
   try {
@@ -491,6 +501,22 @@ function debrisChecks(name, runs) {
       debrisChecks('PerfectBot', runs);
       const errs = runs.flatMap(r => r.errors);
       check('PerfectBot: no page or console errors', errs.length === 0, errs.slice(0, 3).join(' | '));
+    }
+    if (want('perfect8')) {
+      // the M3 guarantee on one car (the first one-car level since DESIGN 15.5 is 8): perfect, balance-greedy play
+      // reaches 10 L with no crash (hazards, the fuse and the wobble off: the rock, tip and crash of M3 alone)
+      const runs = [];
+      for (const seed of SEEDS) {
+        const r = await perfectBot(browser, seed, false, 8);
+        runs.push(r);
+        log(`perfect8 seed ${seed}: top ${r.top.toFixed(2)} L in ${r.tiles} drops, ${r.perfect}/${r.lands} PERFECT, crashes ${r.crashes}, topples ${r.topples}, TIPPY dodged ${r.dodges}, HOLD swaps ${r.swaps}, misses ${r.misses}`);
+      }
+      const ok = runs.filter(r => r.top >= 10 - 1e-9 && r.crashes === 0);
+      check(`PerfectBot: reaches 10 L with zero crashes on one car (level 8, hazards, fuse and wobble off, ts=4)`, ok.length === runs.length,
+        `${ok.length}/${runs.length}: ` + runs.map(r => `s${r.seed} ${r.top.toFixed(1)}L/${r.tiles}t${r.crashes ? ' CRASH' : ''}${r.topples ? ' topple' : ''}`).join(', '));
+      debrisChecks('PerfectBot (one car)', runs);
+      const errs = runs.flatMap(r => r.errors);
+      check('PerfectBot (one car): no page or console errors', errs.length === 0, errs.slice(0, 3).join(' | '));
     }
     if (LITERAL) {
       // report only: the bare rule of DESIGN 14 (no TIPPY veto, no HOLD) paints itself into corners the lattice

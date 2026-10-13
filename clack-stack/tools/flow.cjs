@@ -661,8 +661,8 @@ async function crownChecks(browser) {
   check('crown: the ribbon tears and the crown drops into the hand', st0.st.crownInHand && st0.goal === 1 && st0.st.goalTorn, `goal events ${st0.goal}, crown in hand ${st0.st.crownInHand}`);
   check('crown: only triangle slots reaching the ribbon are offered', st0.slots.length > 0 && st0.slots.every(s => (s.type === 'up' || s.type === 'dn') && s.ly + (s.type === 'up' ? 2 : 1) * 0.866 / 3 >= st0.st.goal - 1e-6),
     st0.slots.map(s => s.key).join(' '));
-  // a crown MISS: OOPS, a fresh crown
-  await until(page, () => CS.state().inAir === 0 && CS.state().handReady);
+  // a crown MISS: OOPS, a fresh crown (once the crown has been in the hand for CROWN_GRACE: a tap before is not taken)
+  await until(page, () => CS.state().inAir === 0 && CS.state().handReady && !CS.state().crownGrace);
   const far = await page.evaluate(() => { const sl = CS.slots(), c = CS.cam(); let best = 4, bd = -1; for (let px = 6; px < c.W - 6; px += 2) { const xw = (px - c.originX) / c.L, d = Math.min(...sl.map(s => Math.abs(s.x - xw))); if (d > bd) { bd = d; best = px; } } return { px: best, d: bd }; });
   if (far.d > 1.45) {
     await page.mouse.move(far.px, VIEW.height * 0.55); await page.mouse.down(); await page.mouse.up();
@@ -830,6 +830,7 @@ async function crownWaitChecks(browser) {
     `${taps} taps; crown misses ${b.crownMiss}; crown slots ${b.slots.join(' ')}`);
   const c = given ? await page.evaluate(() => CS.slots().sort((p, q) => q.y - p.y)[0] || null) : null;
   if (c) {
+    await until(page, () => !CS.state().crownGrace, null, 3000);   // a tap within CROWN_GRACE of the crown's arrival is dropped (15.6)
     await page.mouse.move(c.sx, VIEW.height * 0.55); await page.mouse.down(); await page.mouse.up();
     await until(page, () => CS.events.some(e => e.type === 'level'), null, 6000).catch(() => {});
     const e = await page.evaluate(() => ({ crown: CS.events.filter(e => e.type === 'crown').length, smash: CS.events.filter(e => e.type === 'smash').length, level: CS.state().level,
@@ -893,7 +894,7 @@ async function buzzerChecks(browser) {
   const { page } = g;
   await until(page, () => CS.state().phase === 'play' && CS.state().handReady);
   await buildUntil(page, () => CS.state().crownInHand, 40);
-  await until(page, () => { const s = CS.state(); return s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0; }, null, 8000);
+  await until(page, () => { const s = CS.state(); return s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0 && !s.crownGrace; }, null, 8000);
   const c = await page.evaluate(() => CS.slots().sort((a, b) => b.y - a.y)[0] || null);
   if (!c) { check('buzzer: crown slot', false, 'none'); await finish(g); return; }
   await page.mouse.move(c.sx, VIEW.height * 0.55); await page.mouse.down(); await page.mouse.up();

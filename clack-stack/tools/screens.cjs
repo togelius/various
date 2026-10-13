@@ -250,7 +250,8 @@ async function tapKey(page, key, H, before) {
       }
       // 7. revision 2: the wobble, the SNAP and the crown gamble (DESIGN 15.3, 15.6) on fixtures (tiles placed with the
       // lattice functions; W set where a shot needs it): a 2-wide tower braced at 3.9 L with a column on the brace
-      // swaying amber (W 0.55), then red (W 0.9, the fuse ring waiting); the SNAP (the segment flying off, the brace
+      // swaying amber (W 0.62), then red (W 0.95 on the slender column: one more landing could SNAP it; the wash over
+      // its tiles, the fuse ring waiting); the SNAP (the segment flying off, the brace
       // standing); then on L1 the crown at the ribbon with the GO HIGHER chip and the first crown's hint, and the
       // OVERTIME badge on the HOLD box after a click on the chip
       {
@@ -260,7 +261,8 @@ async function tapKey(page, key, H, before) {
         const col = []; for (let a = 0; a < 3; a++) col.push('sq:-2,' + a + ',0', 'sq:0,' + a + ',0');
         await fixture(page, col.concat(['up:-2,3,0', 'up:0,3,0', 'dn:-1,3,0', 'sq:-1,3,1', 'sq:-3,3,1', 'sq:1,3,1', 'sq:-1,4,1', 'sq:-1,5,1']), 3 + Math.sqrt(3) / 2);
         // (a first tile, so the fuse runs and shows it waits)
-        await tapKey(page, 'sq:-3,4,1', H);
+        // (on the column: λ 4, so W 0.95 is red, one more landing could SNAP it)
+        await tapKey(page, 'sq:-1,6,1', H);
         await ready(page);
         await page.mouse.move(W / 2 + 0.2 * (await page.evaluate(() => CS.cam().L)), H * 0.55);
         await page.evaluate(() => { WOB.W = 0.62; });
@@ -270,7 +272,8 @@ async function tapKey(page, key, H, before) {
         await page.waitForTimeout(260);
         await shot(page, 'wobble-red');
         await page.evaluate(() => { LEVELS[8].fuse = 1e9; });
-        await tapKey(page, 'sq:-1,6,1', H, () => { WOB.W = 0.999; });
+        if ((await page.evaluate(() => CS.state().glow)) !== 'red') { bad++; console.log(`wobble ${W}x${H}: the red shot is not red (${await page.evaluate(() => CS.state().glow)})`); }
+        await tapKey(page, 'sq:-1,7,1', H, () => { WOB.W = 0.999; const sw = stepWobble; let seen = false; stepWobble = function (dt) { if (S.flights.length) seen = true; if (!seen || S.flights.length) { WOB.W = 0.999; return; } stepWobble = sw; return sw(dt); }; });
         await until(page, () => CS.events.some(e => e.type === 'snap'), null, 5000);
         await page.waitForTimeout(160);
         await shot(page, 'snap');
