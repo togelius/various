@@ -41,7 +41,7 @@ async function gameWait(page, dt) {
 const MASS = { sq: 1, marble: 1, tri: 0.45, crown: 0.45, cube: 3 };
 async function buildTo(page, top, maxTaps) {
   const h = page.viewportSize().height;
-  await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; });
+  await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; CFG.WOB_CAP_THIN = 0; });
   for (let k = 0; k < (maxTaps || 200); k++) {
     await until(page, () => { const s = CS.state(); return s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0; }, null, 30000);
     await until(page, () => { const s = CS.state(); return (Math.abs(s.omega) < 0.02 && Math.abs(s.flexV) < 0.12) || s.t >= s.readyAt + 0.8; }, null, 8000).catch(() => {});

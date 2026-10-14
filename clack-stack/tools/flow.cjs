@@ -39,7 +39,7 @@
 //           few drops log no console error or warning (the web font is not asked for); back online it is asked for once
 //   mute    M mutes; the setting survives a reload; the HUD mute button toggles it
 //   crown   the crown drops into the hand at the goal; a crown MISS gives a fresh crown (OOPS); HOLD on the crown
-//           starts OVERTIME (tiles above the ribbon score double); crowning gives +3 s and the bonus
+//           starts OVERTIME (tiles above the ribbon score double); crowning gives +3 s (+1 s a whole L climbed) and the bonus
 //   rings   rings sit 0.35-0.75 G high, outside the base, 1 on L1-L3 and 2 after; RingBot collects one: +2 s, +50×mult
 //   crownwait  a build that tears the ribbon with NO triangle slot left anywhere (L9, a fixture build the bag would
 //           not deal in order; the goal-crossing drop and everything after are real clicks): the crown is owed, not
@@ -48,7 +48,7 @@
 //           (the wobble of DESIGN 15.3 off: the 2-wide fixture would SNAP; wobble.cjs tests the crown with SNAPs)
 //   pending a press 0.1 s before the new base parks (after a SMASH, and on the intro roll-in) drops a tile within
 //           0.2 s of play resuming
-//   buzzer  a crown released with time on the clock that lands after the clock hits 0.0 still crowns: bonus, +3 s,
+//   buzzer  a crown released with time on the clock that lands after the clock hits 0.0 still crowns: bonus, +3 s (+1 s a whole L),
 //           the SMASH and the next level (the run goes on)
 //   camera  the SMASH of a tower tall enough to scroll the camera (844x390 L9, 390x844 L13): when the cube hits, the
 //           cube and the rug line are on screen; TIME! on a 10 L tower (844x390): on the results card at least half
@@ -682,7 +682,7 @@ async function crownChecks(browser) {
   // (pm: the multiplier the landing scored at; mult: after its own combo step)
   const exp = otl ? { perfect: 25, great: 15, clack: 10 }[otl.grade] * Math.min(3, otl.edges) * otl.pm * 2 : null;
   check('crown: in OVERTIME a tile landing above the ribbon scores double', otl && otl.pts === exp, otl ? `${otl.grade} ×${otl.edges} edges ×${otl.pm}: ${otl.pts} (want ${exp})` : 'no overtime landing');
-  // swap the crown back and place it: CROWN bonus with k, +3 s, then the SMASH
+  // swap the crown back and place it: CROWN bonus with k, +3 s + 1 s a whole L climbed (review 2), then the SMASH
   await until(page, () => { const s = CS.state(); return s.phase === 'play' && s.handReady && !s.locked; });
   await page.keyboard.press('Shift');
   const back = await page.evaluate(() => CS.state().crownInHand);
@@ -690,9 +690,9 @@ async function crownChecks(browser) {
   if (back && sl.length) { await page.mouse.move(sl[0].sx, VIEW.height * 0.55); await page.mouse.down(); await page.mouse.up(); }
   await until(page, () => CS.events.some(e => e.type === 'crown'), null, 4000).catch(() => {});
   const cr = await page.evaluate(() => ({ e: CS.events.find(e => e.type === 'crown'), clock: CS.state().clock, ph: CS.state().phase }));
-  const k = cr.e ? cr.e.k : -1;
-  check('crown: crowning pays 100 × level × (1 + 0.5 k), +3 s, then the SMASH', back && cr.e && cr.e.pts === Math.round(100 * 1 * (1 + 0.5 * k)) && Math.abs(cr.e.clock - cr.e.clock0 - 3) < 1e-6 && cr.ph === 'smash',
-    cr.e ? `k ${k}, ${cr.e.pts} pts, clock ${cr.e.clock0.toFixed(2)} -> ${cr.e.clock.toFixed(2)}, ${cr.ph}` : 'no crown');
+  const k = cr.e ? cr.e.k : -1, sec = await page.evaluate(k => CFG.TIME_CROWN + CFG.CROWN_SEC * k, k);
+  check('crown: crowning pays 100 × level × (1 + 0.5 k), +(3 + k) s, then the SMASH', back && cr.e && cr.e.pts === Math.round(100 * 1 * (1 + 0.5 * k)) && cr.e.sec === sec && Math.abs(cr.e.clock - Math.min(60, cr.e.clock0 + sec)) < 1e-6 && cr.ph === 'smash',
+    cr.e ? `k ${k}, ${cr.e.pts} pts, clock ${cr.e.clock0.toFixed(2)} -> ${cr.e.clock.toFixed(2)} (+${cr.e.sec} s, want +${sec}), ${cr.ph}` : 'no crown');
   await until(page, () => CS.state().phase === 'play', null, 5000);
   const lv = await page.evaluate(() => CS.state());
   check('crown: the next level begins (L2, the cube in the bag, goal 5 L)', lv.level === 2 && lv.goal === 5 && !lv.goalTorn && !lv.overtime, `level ${lv.level}, G ${lv.goal}`);
@@ -785,7 +785,7 @@ async function lockFixture(page) {
 // (DESIGN 15.3: a 2-wide fixture tower 11-35 L tall is far past where the wobble SNAPs it on the next real drop. The
 // checks that build one test the crown, the ribbon and the camera, not the wobble (tools/wobble.cjs): it is off there,
 // a test fixture)
-async function noWobble(page) { await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; }); }
+async function noWobble(page) { await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; CFG.WOB_CAP_THIN = 0; }); }
 async function crownWaitChecks(browser) {
   const g = await open(browser, { seed: 1, autostart: 1, level: 9, ts: 2 }); g.tag = 'crownwait';
   const { page } = g;
@@ -902,8 +902,8 @@ async function buzzerChecks(browser) {
   const flying = await page.evaluate(() => { const f = S.crownFlying; if (f) CS.setClock(0.01); return f; });
   await until(page, () => CS.events.some(e => e.type === 'crown' || e.type === 'over'), null, 5000).catch(() => {});
   const e = await page.evaluate(() => ({ crown: CS.events.find(e => e.type === 'crown') || null, over: CS.events.filter(e => e.type === 'over').length, ph: CS.state().phase }));
-  check('buzzer: a crown in the air when the clock hits 0.0 lands, crowns (+3 s) and SMASHes', flying && !!e.crown && e.crown.clock0 === 0 && e.crown.clock === 3 && e.over === 0 && e.ph === 'smash',
-    JSON.stringify({ flying, crown: e.crown && { clock0: e.crown.clock0, clock: e.crown.clock, pts: e.crown.pts }, over: e.over, ph: e.ph }));
+  check('buzzer: a crown in the air when the clock hits 0.0 lands, crowns (+3 s, + 1 s a whole L above the ribbon) and SMASHes', flying && !!e.crown && e.crown.clock0 === 0 && e.crown.clock === 3 + e.crown.k && e.over === 0 && e.ph === 'smash',
+    JSON.stringify({ flying, crown: e.crown && { clock0: e.crown.clock0, clock: e.crown.clock, k: e.crown.k, pts: e.crown.pts }, over: e.over, ph: e.ph }));
   await until(page, () => CS.state().phase === 'play' || CS.state().phase === 'over', null, 6000).catch(() => {});
   const n = await page.evaluate(() => ({ ph: CS.state().phase, level: CS.state().level, clock: CS.state().clock }));
   check('buzzer: the run goes on at L2 with the level bonus on the clock', n.ph === 'play' && n.level === 2 && n.clock > 10, JSON.stringify(n));

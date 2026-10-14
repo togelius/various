@@ -251,7 +251,7 @@ async function noSoftLock(browser) {
     // (DESIGN 15.3: the recipe's narrow build SNAPs long before it closes its last slot (a 1-wide spire of two squares
     // has λ 3 to 5). This check is the dead end's TOPPLE, not the wobble (tools/wobble.cjs): the wobble is off here, a
     // test fixture)
-    await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; });
+    await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; CFG.WOB_CAP_THIN = 0; });
     // when each topple's new base takes drops again (game time)
     await page.evaluate(() => {
       window.__tp = []; let seen = 0;

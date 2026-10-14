@@ -27,7 +27,7 @@ const FRAMES = +opt('frames', 36);
     await until(page, () => window.CS && CS.state().handReady);
     // (a tip crash: the wobble of DESIGN 15.3 is off, a fixture, or the centred column would SNAP before it goes over;
     // tools/screens.cjs has the SNAP)
-    await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; });
+    await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; CFG.WOB_CAP_THIN = 0; });
     // centred columns up to `tall` L, then the rightmost slot every time until it goes
     let crashed = false;
     for (let k = 0; k < 90 && !crashed; k++) {

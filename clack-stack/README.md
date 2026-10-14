@@ -20,27 +20,48 @@ on the peak, and the boy's cube comes in from the side and SMASHes the tower
 for a bonus. The next level is taller and on a narrower base, and the clock
 keeps running.
 
-The tower is one wobbly thing on wheels. Drop off-centre and it rocks; hang
-too much off one side and the far wheel lifts, it creaks and the edge of the
-screen glows red. Drop a tile on the other side quickly and it slaps back
-down for a SAVE. Otherwise it goes over, and the tiles crash and slide across
-the rug. A crash costs time, never the run. The run ends when the clock does.
+The tower stands on wheels. Drop off-centre and it rocks; hang too much off
+one side and the far wheel lifts, it creaks and the edge of the screen glows
+red. Drop a tile on the other side quickly and it slaps back down for a SAVE.
+Otherwise it goes over, and the tiles crash and slide across the rug. A crash
+costs time, never the run. The run ends when the clock does.
+
+Tall, thin towers wobble. Every drop shakes the part above your last brace,
+more for a sloppy drop and much more for a tall, skinny tower. The joints glow
+amber, then pulse red when one more drop could make the magnets let go. If
+that happens, the tower SNAPs: everything above the brace cartwheels off and
+the braced part stays standing. A wobbling tower settles if you wait (the
+fuse waits with you), but the clock doesn't. A spire one tile wide is TOO THIN
+and hardly settles at all. Bracing is what the triangles are for. Two
+triangles pointing up leave a notch, and a third one dropped in point-down
+makes a TRUSS that locks everything below it. Triangles snap firmly to each
+other, so you can also hang one off a triangle's side to widen the tower
+again. The ghost marks the triangle spots, and a gold TRUSS chip shows when a
+drop will brace. The base gets narrower as you go: two cars on levels 1–3,
+a long car on levels 4–7, then a single car. From level 4 there is no red
+warning on the ghost, so judging the balance is up to you.
 
 Landing dead centre is a PERFECT. PERFECTs and multi-edge clacks build a combo
 and a multiplier up to ×5, and the music adds a layer for each step. A streak of
 PERFECTs heats up, and you get ON FIRE!, UNSTOPPABLE!, MAGNET MASTER! and
 LEGENDARY! along the way. Magenta rings float near the tower; hang a tile out to
-reach one for two extra seconds. A marble-run square braces the tower when the
+reach one for two extra seconds. A marble-run square steadies the tower when the
 hand pokes the gear in. The cube arrives as a flat net and folds itself up in
-mid-air. You can put a piece on HOLD. If you hold the crown, you get OVERTIME:
-everything above the ribbon scores double and the crown bonus grows, until you
-crown it or it all comes down. From level 5 a toy car comes zooming in to bump
+mid-air. You can put a piece on HOLD.
+
+When the crown arrives you can place it at once, or tap GO HIGHER and keep
+building. In OVERTIME, everything above the ribbon scores double, and the
+crown's multiplier and the time it gives back grow with every row you add.
+A SNAP that leaves you below the ribbon loses the crown. A brace above the
+ribbon makes it SAFE. From level 5 a toy car comes zooming in to bump
 the base, and from level 8 a grown-up's bare foot stomps down beside it. Past
 the ceiling the room opens up to the sky, then to night.
 
 **BIG MAGNETS** (the button on the title screen, or **B**) is the mode for small
-children. It has a bigger magnet reach, no fuse and no hazards, crashes are
-harder to cause, the clock is slower, and it keeps its own best score. A child
+children. It has a bigger magnet reach, no fuse and no hazards. Crashes are
+harder to cause and the wobble is much gentler. The red warning stays on the
+ghost, and the crown just goes on top. The clock is slower, and it keeps its
+own best score. A child
 who misses a lot in normal mode is offered it during the run and on the results card.
 
 Open `index.html` in a browser. It is one file with no dependencies. It loads
@@ -59,8 +80,10 @@ keyboard. Best scores and settings are kept in the browser's local storage.
 - **P** or **Esc** pauses, **M** mutes, **Space / Enter** starts and plays again.
 
 The dashed ghost below the hand shows exactly where the tile will land: gold for
-a PERFECT, white for a clack, red if the tile would tip the tower, and a cross
-if there is nothing to land on.
+a PERFECT, white for a clack, and a cross if there is nothing to land on. On
+levels 1–3 and in BIG MAGNETS it also turns red if the tile would tip the
+tower. A gold TRUSS chip means the drop will brace, and TOO THIN means you are
+building a spire.
 
 ## How it's made
 
@@ -93,17 +116,26 @@ every clack is in tune with it, and it gets faster with each level.
 `tools/` holds the Playwright scripts the game was built and checked with. They
 drive the real page through real mouse, touch and keyboard events: the lattice
 self-test, the feel of a drop and the ghost's honesty, bots that play perfectly,
-play recklessly and try for SAVEs, the whole game flow, the hazards, the art and
-audio modules, performance, and screenshot sheets of every screen. From the
-repository root, for example:
+play recklessly and try for SAVEs, the whole game flow, the hazards, the
+wobble, the art and audio modules, performance, and screenshot sheets of every
+screen.
+
+`strategy.cjs` checks that the choices matter. Bots with perfect aim and
+different policies race to the goal on levels 1, 5, 7 and 8, at bot speed and
+at a human pace. One stacks as high as it can, one keeps the centre of mass
+central, one waits for the wobble to settle, one builds a one-wide spire, and
+one braces with triangles. Only the one that braces reliably gets there quickly.
+From the repository root, for example:
 
 ```sh
 node clack-stack/tools/selftest.cjs
 node clack-stack/tools/feel.cjs --quick
 node clack-stack/tools/bots.cjs --only=perfect,edge
+node clack-stack/tools/strategy.cjs --only=level8 --seeds=1-3
 node clack-stack/tools/screens.cjs /tmp/clack-screens
 ```
 
 They need Node and the `playwright` package with a Chromium. `?seed=N`, `?level=N`,
 `?big=1`, `?mute=1` and `?debug` work on the page itself. `DESIGN.md` is the
-design the game was built from.
+design the game was built from. Section 15 covers the second revision (braces,
+wobble and the crown gamble), which came out of playtesting.

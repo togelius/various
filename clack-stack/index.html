@@ -94,7 +94,7 @@ const CFG = {
   HAND_EASE: 0.04, KEY_SPEED: 10, KEY_RAMP: 0.06, DETENT_T: 0.12,
   // scoring (7)
   PTS: { perfect: 25, great: 15, clack: 10 }, COMBO_STEP: 6, MULT_MAX: 5, EDGE_CAP: 3,
-  GOAL_PTS: 20, RING_PTS: 50, CROWN_PTS: 100, CROWN_K: 0.5, TALLY_PTS: 5, OVERTIME_X: 2,
+  GOAL_PTS: 20, RING_PTS: 50, CROWN_PTS: 100, CROWN_K: 0.5, CROWN_SEC: 1, TALLY_PTS: 5, OVERTIME_X: 2,
   // clock economy (6): runs on game time, capped, paused during a SMASH; BIG MAGNETS drains it at 0.6x
   CLOCK_START: 30, CLOCK_MAX: 60, CLOCK_RUNS: true, CLOCK_BIG: 0.6, TIME_RING: 2, TIME_CROWN: 3,
   // rings (3.7): 1 L1-L3 then 2, 0.35-0.75 G high, 1-2 L outside the base edge; collected with 0.15 L slack
@@ -149,38 +149,48 @@ const CFG = {
   // the ▼ into the notch, or the second Δ beside a ▼ hung off the first, trussNotches) braces the tower up to the
   // notch's top: the wobble × TRUSS_W, a lock chord, and the joints under the brace line light up from the base (over
   // TRUSS_RISE s, each flashing for TRUSS_FLASH s), then keep a faint steady glint (alpha TRUSS_GLINT)
-  TRUSS_PTS: 150, TRUSS_W: 0.3, TRUSS_FLASH: 0.5, TRUSS_RISE: 0.22, TRUSS_GLINT: 0.42,
+  // The bonus pays for what the brace saves: TRUSS_PTS × mult × clamp(λ / TRUSS_LAM, 0, TRUSS_MAX), λ the slenderness of
+  // the segment it braced (rounded to 5): a brace on a calm, stocky segment (a four-wide base, λ under 1) pays a
+  // third or less; a slender one (λ 3 and up) the full bonus and more
+  TRUSS_PTS: 150, TRUSS_LAM: 3, TRUSS_MAX: 1.5, TRUSS_W: 0.3, TRUSS_FLASH: 0.5, TRUSS_RISE: 0.22, TRUSS_GLINT: 0.42,
   // the red TIPPY ghost (15.4) shows on levels up to TIPPY_SHOW_MAX and in BIG MAGNETS; later, balance is the player's job
   TIPPY_SHOW_MAX: 3,
   // WOBBLE (15.3): the unbraced segment (everything above the brace line y_b) has height Hu and slenderness λ = Hu / w
   // (w: its narrowest width, sampled every WOB_DY from WOB_DY/2 above y_b, floored at WOB_W_MIN). Every landing in it
   // raises the wobble W (0..1) by
-  //   ΔW = min(cap(λ), WOB_A[grade]·max(0, λ − WOB_LAM0)² (× WOB_CUBE for the cube)) (× WOB_BIG in BIG MAGNETS),
-  //   cap(λ) = min(WOB_CAP_TOP, WOB_DW_MAX + WOB_CAP_K·max(0, λ − WOB_CAP_L)): the most one landing can shake it
-  // (a marble square's gear steadies it instead: W × WOB_GEAR). It settles as dW/dt = −W/τ − WOB_DRAIN (exponential, and
-  // a still tower stops dead), τ = WOB_TAU·max(1, Hu / WOB_TAU_H)·max(1, λ / WOB_TAU_LAM). The segment sways WOB_SWAY·W L at
-  // its top (easing to it over WOB_SWAY_T s); its joints glow amber once W, with the tiles in the air down, reaches
-  // WOB_AMBER, and pulse red (a red wash over its tiles, the creak) while one more landing could SNAP it; the fuse waits
-  // while that W > WOB_FUSE. At W = 1 it SNAPs.
-  // Tuned on tools/strategy.cjs (15.7 and its controls; §15.3's a = 0.09/0.14/0.20, λ − 1 and τ = 1 s were starting
-  // points). The design: stacking a slender tower at a steady human pace (a drop every 0.6 s) must fail, patience must
-  // work but cost clock time, and a TRUSS (a new, short segment) is the fast way up:
+  //   ΔW = min(cap(λ)·WOB_CAP_G[grade], WOB_A[grade]·max(0, λ − WOB_LAM0)² (× WOB_CUBE for the cube)) (× WOB_BIG in BIG),
+  //   cap(λ) = min(WOB_CAP_TOP, WOB_DW_MAX + WOB_CAP_K·max(0, λ − WOB_CAP_L)): the most one CLACK can shake it, a
+  //   PERFECT shaking WOB_CAP_G.perfect of that (aim pays at every height)
+  // and settles as dW/dt = −W/τ − WOB_DRAIN (exponential, and a still tower stops dead), τ = WOB_TAU·max(1, Hu /
+  // WOB_TAU_H)·max(1, λ / WOB_TAU_LAM). TOO THIN: a segment with a one-wide stretch (spans under WOB_THIN_W) of
+  // WOB_THIN_H or more shakes WOB_CAP_THIN·WOB_CAP_G[grade] on every landing and settles only by a slow drain,
+  // WOB_DRAIN_THIN·√(WOB_THIN_H / stretch) per second (the longer the spire, the slower). (A marble square's gear
+  // steadies it instead: W × WOB_GEAR.) The segment sways WOB_SWAY·W L at its top (easing to it over WOB_SWAY_T s); its
+  // joints glow amber once W, with the tiles in the air down, reaches WOB_AMBER, and pulse red (a red wash over its
+  // tiles, the creak) while one more CLACK could SNAP it; the fuse waits while that W > WOB_FUSE. At W = 1 it SNAPs.
+  // Tuned on tools/strategy.cjs (15.7, its controls, and the review of revision 2: the one-wide spire, PatientBot's
+  // tower, was the fastest way up on levels 4-8 and patience on it the dominant strategy):
   //  - λ's floor 2.4: a two-wide tower stacks freely to ~5 L (the rule of thumb), a four-wide base is calm to ~10 L.
-  //  - the cap rises with the slenderness, 0.3 at λ 3 to 0.5 at λ 5: a steady 0.6 s rhythm on a spire or a tall
-  //    two-wide tower piles its shakes up past 1 (it SNAPs by ~8 L). One landing never adds more than
-  //    0.5 < 1 − WOB_AMBER: a SNAP never comes out of a still tower, and the amber glow is always on before it.
-  //  - τ 1.5 s, growing with the segment over 6 L (tall things sway slowly: 2.75 s at 11 L), and the drain: a short
-  //    segment over a TRUSS settles at once, a tall unbraced one costs clock; a player who waits for the glow to fade
-  //    (W under 0.3) goes on at ~1-1.5 s a tile on the slenderest tower, so patience works; one who does not wait is
-  //    SNAPped. (Without the drain, waiting that long on a tall spire fed it to the bump car and the foot.)
+  //  - the CLACK cap rises with the slenderness, 0.42 at λ 3 to 0.69 at λ 5, a PERFECT 0.72 of it (0.3 to 0.5): a
+  //    steady 0.6 s rhythm on a tall two-wide tower piles its shakes up past 1 (it SNAPs by ~8 L); a gold drop buys
+  //    room in the red, a CLACK there SNAPs it. No landing adds 1, so a still tower never SNAPs, and red (computed for
+  //    a CLACK) is always on before a SNAP.
+  //  - τ 1.5 s, growing with a segment over 6 L and with λ over 4 (tall, slender things sway slowly), and the drain:
+  //    a short segment over a TRUSS settles at once; a tall unbraced two-wide one costs clock (bracing pays: on level 8
+  //    NoBraceBot gets there about half the time, BraceBot every time, in half the time).
+  //  - TOO THIN from a 2 L one-wide stretch: 0.38 a PERFECT and ~4-5 s to settle each, so a spire is the slow way up on
+  //    every base (SpireBot 1.5-3× BraceBot's time on levels 5, 7 and 8, at a human pace too, or it runs out of clock);
+  //    0.38 + BraceBot's 0.6 stays under 1, and a 3-triangle brace's one flat top takes 2 squares before it counts as
+  //    thin (the outer side-hangs widen it to three tops, 15.2).
   //  - the fuse holds from W 0.4 (the amber glow): a settling tower never gets a forced drop.
   //  - a marble square's gear takes a fifth off W and most of the sway (more, and a stacker's spire rode it to the goal).
   WOB_A: { perfect: 0.45, great: 0.7, clack: 1.0 }, WOB_CUBE: 1.5, WOB_BIG: 0.4, WOB_DY: 0.5, WOB_W_MIN: 1,
-  WOB_LAM0: 2.4, WOB_DW_MAX: 0.3, WOB_CAP_L: 3, WOB_CAP_K: 0.1, WOB_CAP_TOP: 0.5,
-  WOB_TAU: 1.5, WOB_TAU_H: 6, WOB_TAU_LAM: Infinity, WOB_DRAIN: 0.19, WOB_POS_P: 0,
+  WOB_LAM0: 2.4, WOB_DW_MAX: 0.42, WOB_CAP_L: 3, WOB_CAP_K: 0.139, WOB_CAP_TOP: 0.69,
+  WOB_CAP_G: { perfect: 0.72, great: 0.86, clack: 1 },
+  WOB_TAU: 1.5, WOB_TAU_H: 6, WOB_TAU_LAM: 4, WOB_DRAIN: 0.19, WOB_POS_P: 0,
+  WOB_THIN_W: 1.5, WOB_THIN_H: 2, WOB_CAP_THIN: 0.53, WOB_DRAIN_THIN: 0.1,
   WOB_GEAR: 0.8, WOB_GEAR_Q: 0.3, WAH_EVERY: 0.05,
   WOB_SWAY: 0.25, WOB_SWAY_T: 0.12, WOB_AMBER: 0.4, WOB_FUSE: 0.4,
-  WOB_CAP_G: { perfect: 1, great: 1, clack: 1 }, WOB_FUSE_RED: false, WOB_THIN_W: 1.5, WOB_THIN_H: 1e9, WOB_CAP_THIN: 0.5, WOB_TAU_THIN: 1,
   // SNAP (15.3): the segment cartwheels off (the braced part stands); no TRUSS yet: a full crash
   SNAP_SHAKE: 8, SNAP_STOP: 0.08, SNAP_VMAX: 5.5, SNAP_UNZIP: 0.12,   // (the segment lets go top first over SNAP_UNZIP s)
   // the crown gamble (15.6): CROWN NOW or GO HIGHER (the chip on the HOLD box); the first-ever crown's hint stays up
@@ -5333,7 +5343,7 @@ function segMeasure(B, yb, inc, extra, out) {
   }
   if (extra) { if (extra.maxY > top) top = extra.maxY; if (extra.minY >= yb - 1e-9 && extra.minY > cut) cut = extra.minY; }
   const Hu = Math.max(0, top - yb), dy = CFG.WOB_DY;
-  let w = Infinity, thin = 0;
+  let w = Infinity, thin = 0, run = 0;
   for (let y = yb + dy / 2; y <= top - dy / 2 + 1e-9 && y < cut - 1e-9; y += dy) {
     let n = 0;
     for (let k = 0; k <= tiles.length; k++) {
@@ -5351,7 +5361,7 @@ function segMeasure(B, yb, inc, extra, out) {
     }
     if (b > a) len += b - a;
     if (len < w) w = len;
-    if (len < CFG.WOB_THIN_W) thin += dy;
+    if (len < CFG.WOB_THIN_W) { run += dy; if (run > thin) thin = run; } else run = 0;
   }
   out.Hu = Hu; out.top = top; out.thin = thin;
   out.w = Math.max(CFG.WOB_W_MIN, w === Infinity ? CFG.WOB_W_MIN : w);
@@ -5368,22 +5378,28 @@ function segUpdate() {
   WOB.Hs = Math.max(1, WOB.Hu);
   WOB.wq = CFG.FLEX_WN / (1 + CFG.FLEX_WN_H * WOB.Hu);
 }
-// ΔW of one landing in the segment (15.3): a[grade]·max(0, λ − λ's floor)² (× 1.5 the cube), at most WOB_DW_MAX (× 0.4
-// in BIG MAGNETS)
+// ΔW of one landing in the segment (15.3): a[grade]·max(0, λ − λ's floor)² (× 1.5 the cube), at most cap(λ)·WOB_CAP_G[grade];
+// TOO THIN: WOB_CAP_THIN·WOB_CAP_G[grade] (× 0.4 in BIG MAGNETS)
 // W after dt s of settling at time constant tau: W·e^(−dt/τ), less WOB_DRAIN per second (a still tower stops dead,
-// the way friction stops a sway: the exact solution of dW/dt = −W/τ − WOB_DRAIN, floored at 0)
-function wobDecay(W, dt, tau) {
+// the way friction stops a sway: the exact solution of dW/dt = −W/τ − WOB_DRAIN, floored at 0); TOO THIN: only the
+// slow drain, WOB_DRAIN_THIN·√(WOB_THIN_H / stretch) per second
+function wobDecay(W, dt, tau, thin) {
   if (W <= 0) return 0;
+  if (wobThin(thin)) return Math.max(0, W - CFG.WOB_DRAIN_THIN * Math.sqrt(CFG.WOB_THIN_H / thin) * dt);
   const k = CFG.WOB_DRAIN * tau, e = Math.exp(-dt / tau);
   return Math.max(0, (W + k) * e - k);
 }
-function wobTau(Hu, lam, thin) { return CFG.WOB_TAU * Math.max(1, Hu / CFG.WOB_TAU_H) * Math.max(1, lam / CFG.WOB_TAU_LAM) * (thin >= CFG.WOB_THIN_H ? CFG.WOB_TAU_THIN : 1); }
-function wobCap(lam, thin) { return thin >= CFG.WOB_THIN_H ? CFG.WOB_CAP_THIN : Math.min(CFG.WOB_CAP_TOP, CFG.WOB_DW_MAX + CFG.WOB_CAP_K * Math.max(0, lam - CFG.WOB_CAP_L)); }
+// TOO THIN (15.3, review 2): the segment's longest one-wide stretch is WOB_THIN_H or more
+function wobThin(thin) { return (thin || 0) >= CFG.WOB_THIN_H - 1e-9; }
+function wobTau(Hu, lam) { return CFG.WOB_TAU * Math.max(1, Hu / CFG.WOB_TAU_H) * Math.max(1, lam / CFG.WOB_TAU_LAM); }
+function wobCap(lam, thin) { return wobThin(thin) ? CFG.WOB_CAP_THIN : Math.min(CFG.WOB_CAP_TOP, CFG.WOB_DW_MAX + CFG.WOB_CAP_K * Math.max(0, lam - CFG.WOB_CAP_L)); }
 function wobDelta(grade, shape, lam, pos, thin) {
   const d = Math.max(0, lam - CFG.WOB_LAM0);
   const a = CFG.WOB_A[grade], g = CFG.WOB_CAP_G[grade];
   const pk = CFG.WOB_POS_P > 0 && pos !== undefined ? Math.pow(clamp(pos, 0, 1), CFG.WOB_POS_P) : 1;
-  return Math.min(wobCap(lam, thin || 0) * (g === undefined ? 1 : g), (a === undefined ? CFG.WOB_A.clack : a) * d * d * (shape === 'cube' ? CFG.WOB_CUBE : 1)) * pk * (S.big ? CFG.WOB_BIG : 1);
+  const cap = wobCap(lam, thin) * (g === undefined ? 1 : g);
+  const raw = wobThin(thin) ? cap : (a === undefined ? CFG.WOB_A.clack : a) * d * d * (shape === 'cube' ? CFG.WOB_CUBE : 1);
+  return Math.min(cap, raw) * pk * (S.big ? CFG.WOB_BIG : 1);
 }
 // a tile at pose P lands in the segment: it sits on or above the brace line (what would come off with a SNAP)
 function inSegment(P, yb) { return P.minY >= yb - 1e-9; }
@@ -5391,7 +5407,7 @@ function inSegment(P, yb) { return P.minY >= yb - 1e-9; }
 // step: what snapAhead() assumes); the sway eases to WOB_SWAY·W, a spring at the segment's own frequency, and the top's
 // lateral speed (flex + rock + sway) keeps the TOP_VMAX cap
 function stepWobble(dt) {
-  if (WOB.W > 0) { WOB.W = wobDecay(WOB.W, dt, wobTau(WOB.Hu, WOB.lam, WOB.thin)); if (WOB.W < 1e-4) WOB.W = 0; }
+  if (WOB.W > 0) { WOB.W = wobDecay(WOB.W, dt, wobTau(WOB.Hu, WOB.lam, WOB.thin), WOB.thin); if (WOB.W < 1e-4) WOB.W = 0; }
 }
 function stepSway(dt) {
   const wq = WOB.wq, A = CFG.WOB_SWAY * WOB.W;
@@ -5436,7 +5452,7 @@ function snapAhead(extra) {
     const grade = f ? f.grade : extra.grade, at = f ? f.landAt : extra.landAt;
     if (shape === 'crown') break;                       // the crown lands: the SMASH
     const dt = Math.max(0, at - t0 - CFG.STEP);
-    W = wobDecay(W, dt, wobTau(Hu, lam, thin)); t0 += dt;
+    W = wobDecay(W, dt, wobTau(Hu, lam, thin), thin); t0 += dt;
     if (f) f.tile._sd = stamp;
     if ((P.type === 'dn' || P.type === 'up') && trussAhead(B, P, isDown)) {
       if (P.maxY > yb) yb = P.maxY;
@@ -5459,8 +5475,8 @@ function snapAhead(extra) {
 // The wobble's warning (15.3), for the glow, the creak and the fuse: what the segment is about to be once the tiles in
 // the air are down (WAH.W, so the glow comes on as a shaking drop is let go, not as it lands) and whether one more
 // drop on top now could SNAP it (WAH.red: W then + the biggest shake one more landing could add, a CLACK of the tile in
-// the hand one layer higher, reaches 1). Since one landing shakes by at most WOB_CAP_TOP < 1 − WOB_AMBER, a SNAP is
-// always told by the amber glow from at least one release before. Refreshed every WAH_EVERY s or when the build or the
+// the hand one layer higher, reaches 1). No landing shakes by 1 or more, so a still tower never SNAPs, and any SNAP
+// is told by the red glow from at least the release before. Refreshed every WAH_EVERY s or when the build or the
 // flights change.
 const WAH = { B: null, ver: -1, nf: -1, f0: -1, at: -1e9, W: 0, red: false, glow: '', snap: '' };
 function wobAhead() {
@@ -5625,18 +5641,19 @@ function doBrace(t) {
 // TRUSS (15.2): the landing tile closed one or more notches (trussNotches). The brace line moves up to the highest
 // notch's top, everything under it is locked: TRUSS_PTS × mult a notch, the wobble drops, a lock chord, and the joints
 // under the line flash from the base up and then keep a faint glint. Returns the points.
+function trussPts(lam, n) { return 5 * Math.round(CFG.TRUSS_PTS * n * S.mult * clamp(lam / CFG.TRUSS_LAM, 0, CFG.TRUSS_MAX) / 5); }
 function doTruss(t, notches) {
-  const B = S.B, n = notches.length;
+  const B = S.B, n = notches.length, lam0 = WOB.lam;
   let yb = B.yb;
   for (let k = 0; k < n; k++) if (notches[k].maxY > yb) yb = notches[k].maxY;
-  const pts = CFG.TRUSS_PTS * n * S.mult;
+  const pts = trussPts(lam0, n);
   B.yb = yb; B.trusses += n; B.lockAt = S.gt; S.trusses += n;
   S.score += pts; S.scoreBumpT = S.rt;
   // the wobble drops (15.3) and the segment now starts at the new brace line (its sway eases off with it)
   WOB.W *= CFG.TRUSS_W; WOB.q *= CFG.TRUSS_W; WOB.qv *= CFG.TRUSS_W;
   segUpdate();
   lockJoints(B);
-  logEvent('truss', { key: t.pose.key, notches: notches.map(D => D.key), yb: +yb.toFixed(4), pts, n, mult: S.mult, joints: B.lock.length, W: +WOB.W.toFixed(4), Hu: +WOB.Hu.toFixed(3), lam: +WOB.lam.toFixed(3) });
+  logEvent('truss', { key: t.pose.key, notches: notches.map(D => D.key), yb: +yb.toFixed(4), pts, n, mult: S.mult, lam0: +lam0.toFixed(3), joints: B.lock.length, W: +WOB.W.toFixed(4), Hu: +WOB.Hu.toFixed(3), lam: +WOB.lam.toFixed(3), thin: +WOB.thin.toFixed(2) });
   Sfx.lock(); Sfx.haptic([12, 24, 12]);
   return pts;
 }
@@ -6246,7 +6263,7 @@ function land(f) {
   S.score += pts; S.landed++;
   if (perfect) { S.perfects++; S.streak++; if (S.streak > S.bestStreak) S.bestStreak = S.streak; } else S.streak = 0;
   logEvent('land', { id: f.id, key: f.key, grade: f.grade, edges: f.slot.edges, dx: Math.abs(f.dxs), pts, combo: S.combo, mult: S.mult, pm: prevMult, shape: f.piece.shape, dt: S.gt - f.t0, ot,
-    W: +WOB.W.toFixed(4), dW: +dW.toFixed(4), lam: +WOB.lam.toFixed(3), Hu: +WOB.Hu.toFixed(3), yb: +S.B.yb.toFixed(4), gear });
+    W: +WOB.W.toFixed(4), dW: +dW.toFixed(4), lam: +WOB.lam.toFixed(3), Hu: +WOB.Hu.toFixed(3), thin: +WOB.thin.toFixed(2), yb: +S.B.yb.toFixed(4), gear });
   juiceLand(f, t, pts, edgesC, prevMult);
   const brace = f.piece.shape === 'marble';
   if (brace) doBrace(t);
@@ -6823,6 +6840,9 @@ function crownMult(k) { return 1 + CFG.CROWN_K * k; }
 // live: the GO HIGHER chip and the HOLD box show it, and placing the crown pays it (a SNAP that lowers the top lowers it)
 function crownKNow() { return S.goalTorn && S.B ? crownK(S.top) : 0; }
 function crownValue(k) { return Math.round(CFG.CROWN_PTS * S.level * crownMult(k)); }
+// ...and the clock it gives back: TIME_CROWN s, + CROWN_SEC s a whole L above the ribbon (an OVERTIME metre costs clock,
+// a placed crown pays it back: GO HIGHER is a real trade, not a trap)
+function crownSec(k) { return CFG.TIME_CROWN + CFG.CROWN_SEC * k; }
 // the GO HIGHER chip: the crown in the hand with a swap open, in normal mode (BIG MAGNETS: the crown is simply placed)
 function crownGrace() { return !S.big && !!HAND.piece && HAND.piece.shape === 'crown' && HAND.crownAt >= 0 && S.gt - HAND.crownAt < CFG.CROWN_GRACE; }
 function goHigherOn() { return !S.big && S.phase === 'play' && !!HAND.piece && HAND.piece.shape === 'crown' && !HAND.swapUsed && S.goalTorn; }
@@ -6890,8 +6910,8 @@ function doCrown(f, t) {
   const k = crownK(top), pts = crownValue(k);
   const c0 = S.clock;
   S.score += pts; S.crowns++; S.crownFlying = false;
-  addClock(CFG.TIME_CROWN);
-  logEvent('crown', { level: S.level, k, pts, key: t.pose.key, overtime: S.overtime, clock0: c0, clock: S.clock });
+  addClock(crownSec(k));
+  logEvent('crown', { level: S.level, k, pts, sec: crownSec(k), key: t.pose.key, overtime: S.overtime, clock0: c0, clock: S.clock });
   Sfx.crown(); Sfx.haptic([10, 30, 10]);
   FX.hitStop = Math.max(FX.hitStop, CFG.CROWN_STOP);
   t.glintAt = S.gt;
@@ -7395,7 +7415,7 @@ function stepPlay(dt) {
   // (the warning: the glow is on from the moment a shaking drop is let go; WOB.glowAt: since when, for the SNAP's log)
   const wa = wobAhead();
   if (wa.glow && S.phase === 'play') { if (WOB.glowAt < 0) WOB.glowAt = S.gt; } else WOB.glowAt = -1;
-  S.fuseWait = (CFG.WOB_FUSE_RED ? wa.red : Math.max(WOB.W, wa.W) > CFG.WOB_FUSE) && S.phase === 'play';
+  S.fuseWait = Math.max(WOB.W, wa.W) > CFG.WOB_FUSE && S.phase === 'play';
   // (and while the crown waits in the hand with GO HIGHER up, the choice is the player's: the fuse never makes it, and
   // never lets a crown go where it could only MISS)
   const crownWait = !!HAND.piece && HAND.piece.shape === 'crown' && (goHigherOn() || !S.ghost);
@@ -8227,8 +8247,14 @@ function drawGhost() {
     if (gold && PERF.gloss) sparkle(_s.x, _s.y, L, streakHeat(S.streak + 1));
     if (g.edges >= 2) edgeChip(_s.x + L * 0.42, topY - 4, g.edges >= 3 ? '×3' : '×2');
     if (tippy) tippyChip(_s.x - L * 0.42, topY - 4);
-    // this drop completes a brace (15.2): a TRUSS chip over the ghost
+    // this drop completes a brace (15.2): a TRUSS chip over the ghost; it lands on a segment TOO THIN (a one-wide
+    // stretch, 15.3): an orange chip says why the tower will shake so (widen it, or brace under it)
     if (g.truss && piece.shape !== 'crown') trussChip(_s.x, topY - 4 - 25);
+    else if (piece.shape !== 'crown' && piece.shape !== 'marble' && ghostThin(g)) {
+      // (beside the ghost, at its middle: over it is where the hand and the falling tile are)
+      const tw = textW(12, 'TOO THIN') + 18, gx0 = GHOSTR.x0, gx1 = GHOSTR.x1, my = (GHOSTR.y0 + GHOSTR.y1) / 2;
+      thinChip(gx0 - tw / 2 - 6 >= CAM.safe.l + 4 ? gx0 - tw / 2 - 6 : gx1 + tw / 2 + 6, my);
+    }
     // this slot collects a ring: a glowing ring icon on the ghost
     const r = piece.shape !== 'crown' ? ringFor(g.pose) : null;
     if (r) {
@@ -8252,6 +8278,30 @@ function drawGhost() {
 // the red TIPPY ghost shows on L1-L3 and in BIG MAGNETS only (15.4): later, judging the balance is the player's job
 function tippyVisible() { return S.big || S.level <= CFG.TIPPY_SHOW_MAX; }
 function tippyShown() { return S.ghostTippy && tippyVisible(); }
+// TOO THIN (15.3): the ghost's landing would be on a segment with a one-wide stretch of WOB_THIN_H (measured as it
+// would stand, the tiles in the air counted); cached per slot and build
+const GTHIN = { key: null, B: null, ver: -1, nf: -1, v: false }, GTM = { Hu: 0, w: 1, lam: 0, top: 0, thin: 0 };
+const notGone = t => !t.gone;
+function ghostThin(c) {
+  const B = S.B;
+  if (!B) return false;
+  if (GTHIN.key === c.key && GTHIN.B === B && GTHIN.ver === B.ver && GTHIN.nf === S.flights.length) return GTHIN.v;
+  GTHIN.key = c.key; GTHIN.B = B; GTHIN.ver = B.ver; GTHIN.nf = S.flights.length;
+  if (c.truss || !inSegment(c.pose, B.yb)) return (GTHIN.v = false);
+  segMeasure(B, B.yb, notGone, c.pose, GTM);
+  return (GTHIN.v = wobThin(GTM.thin));
+}
+function thinChip(x, y) {
+  ctx.save();
+  ctx.font = font(12);
+  const tw = textW(12, 'TOO THIN'), w = tw + 18, h = 19, b = 1 + 0.05 * Math.sin(S.rt * 7);
+  ctx.translate(x, y); ctx.scale(b, b);
+  rrect(ctx, -w / 2, -h / 2, w, h, h / 2);
+  ctx.fillStyle = '#FF9F1C'; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = '#1E2541'; ctx.stroke();
+  ctx.fillStyle = '#1E2541'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('TOO THIN', 0, 1);
+  ctx.restore();
+}
 // TRUSS: a gold chip with a padlock over a ghost whose drop would close a notch into a brace
 function trussChip(x, y) {
   ctx.save();
@@ -8856,11 +8906,11 @@ function drawHUD() {
   }
 }
 // The crown gamble (15.6). The crown in the hand (normal mode): a big pulsing GO HIGHER ↑ chip with the crown's value
-// now, beside the HOLD box (on the HUD row left of NEXT where it fits, else under NEXT and HOLD: never over the NEXT
-// preview, which a GO HIGHER decision wants to see); tapping it (or HOLD) banks the crown for OVERTIME. The crown in
-// HOLD: the live multiplier on the box's bottom edge, with a padlock when the brace line is at or over the ribbon (a
-// SNAP keeps the crown: SAFE), else pulsing with the wobble's warning. UI.goHigher is the chip's tap box. The first
-// crown ever: a hint under it
+// now and the clock it gives back, beside the HOLD box (on the HUD row left of NEXT where it fits, else under NEXT
+// and HOLD: never over the NEXT preview, which a GO HIGHER decision wants to see); tapping it (or HOLD) banks the crown
+// for OVERTIME. The crown in HOLD: the live multiplier and its clock on the box's bottom edge, with a padlock when the
+// brace line is at or over the ribbon (a SNAP keeps the crown: SAFE), else pulsing with the wobble's warning.
+// UI.goHigher is the chip's tap box. The first crown ever: a hint under it
 const CCHIP = { k: -1, v: -1, a: '', b: '', mode: '', cx: 0, cy: 0, w: 0, h: 0, f1: 14, f2: 11, safe: false };
 const CHINT = { x0: 0, y0: 0, x1: 0, y1: 0, fs: 13, text: 'PLACE IT — or GO HIGHER for more!', text2: 'the crown uses up your HOLD' };
 // the chip's mode now: 'go' (the crown in the hand, a swap open), 'ot' (OVERTIME: the crown in HOLD), ''
@@ -8878,8 +8928,9 @@ function crownChipGeom() {
   const hs = CAM.hs, h = UI.hold, n = UI.next, go = mode === 'go', k = crownKNow(), v = crownValue(k);
   if (CCHIP.k !== k || CCHIP.v !== v || CCHIP.mode !== mode) {
     CCHIP.k = k; CCHIP.v = v; CCHIP.mode = mode;
-    CCHIP.a = go ? 'GO HIGHER ↑' : '×' + crownMult(k);
-    CCHIP.b = go ? 'CROWN ' + (k > 0 ? '×' + crownMult(k) + ' ' : '') + v.toLocaleString('en-US') : '';
+    // (the trade, on the chip: the crown's value and the clock it gives back, +1 s a whole L climbed)
+    CCHIP.a = go ? 'GO HIGHER ↑' : '×' + crownMult(k) + ' +' + crownSec(k) + 's';
+    CCHIP.b = go ? 'CROWN ' + (k > 0 ? '×' + crownMult(k) + ' ' : '') + v.toLocaleString('en-US') + ' · +' + crownSec(k) + ' s' : '';
   }
   CCHIP.safe = !go && !!S.B && S.B.yb >= S.G - 1e-9;
   CCHIP.f1 = Math.round(14 * hs); CCHIP.f2 = Math.round(11 * hs);
@@ -10825,7 +10876,7 @@ const CS = window.CS = {
       Wahead: WAH.W, glow: S.phase === 'play' ? WAH.glow : '', glowFor: WOB.glowAt >= 0 ? S.gt - WOB.glowAt : -1,
       // the wobble (15.3): the unbraced segment's height Hu, narrowest width w and slenderness lam (y_b is its foot),
       // the sway at its top (L, L/s), SNAPs this run, the fuse waiting for it to settle
-      lam: WOB.lam, Hu: WOB.Hu, w: WOB.w, sway: WOB.q, swayV: WOB.qv, snaps: S.snaps, fuseWait: !!S.fuseWait,
+      lam: WOB.lam, Hu: WOB.Hu, w: WOB.w, thin: WOB.thin, tooThin: wobThin(WOB.thin), sway: WOB.q, swayV: WOB.qv, snaps: S.snaps, fuseWait: !!S.fuseWait,
       // the crown gamble (15.6): the GO HIGHER chip shown, the live crown multiplier and value
       goHigher: goHigherOn(), crownMult: crownMult(crownKNow()), crownValue: crownValue(crownKNow()),
       // the chip's mode ('go', 'ot': the badge on HOLD, ''), SAFE (OVERTIME with the brace line at or over the ribbon:
@@ -10836,13 +10887,14 @@ const CS = window.CS = {
   },
   best() { return { normal: loadBest(false), big: loadBest(true) }; },
   // the standing tiles with their live screen centroids (CSS px), for pixel checks
-  tiles() {
+  tiles(withAir) {
     if (!S.B || S.baseHidden) return [];
-    return S.B.tiles.filter(t => !t.flight && !t.gone).map(t => {
+    // (withAir: the tiles still falling to their slots too, air: true)
+    return S.B.tiles.filter(t => !t.gone && (withAir || !t.flight)).map(t => {
       toWorld(t.pose.cx, t.pose.cy, _w); w2s(_w.x, _w.y, _s);
       // ext: how far its outline reaches from its centroid (L: left, up, right, down; untilted)
       const P = t.pose;
-      return { key: P.key, type: P.type, shape: t.shape, color: t.color, sx: _s.x, sy: _s.y, ring: !!t.ring, ext: [P.cx - P.minX, P.maxY - P.cy, P.maxX - P.cx, P.cy - P.minY] };
+      return { key: P.key, type: P.type, shape: t.shape, color: t.color, sx: _s.x, sy: _s.y, ring: !!t.ring, air: !!t.flight, ext: [P.cx - P.minX, P.maxY - P.cy, P.maxX - P.cx, P.cy - P.minY] };
     });
   },
   // (z: depth toward the viewer, L; sx, sy: its screen centre, CSS px)
@@ -10868,7 +10920,7 @@ const CS = window.CS = {
     w2s(g.wx, g.wy, _s);
     const adx = Math.abs(S.ghostDx);
     return { key: g.key, type: g.type, x: g.wx, y: g.wy, sx: _s.x, sy: _s.y, edges: g.edges, supported: g.supported, dx: S.ghostDx,
-      color: adx <= perfectWin() ? 'gold' : 'white', miss: false, tippy: S.ghostTippy, tippyShown: tippyShown(), truss: !!g.truss,
+      color: adx <= perfectWin() ? 'gold' : 'white', miss: false, tippy: S.ghostTippy, tippyShown: tippyShown(), truss: !!g.truss, tooThin: !!S.B && ghostThin(g),
       // what dropping now would do to the wobble (15.3): 'full' (a SNAP with no TRUSS: a crash), 'part' (the segment
       // SNAPs off, the braced part stands) or ''
       snap: slotSnap(g, HAND.piece, S.ghostDx),
@@ -11233,17 +11285,32 @@ function runSelftest() {
     // the brace line: the segment starts there
     T.yb = 1 + H3; r = m(T);
     ok(near(r.Hu, 1) && near(r.w, 1) && near(r.lam, 1), '16: above the brace line: Hu ' + r.Hu.toFixed(3) + ', w ' + r.w + ' (want 1, 1)');
-    // ΔW = min(cap(λ), a[grade]·(λ − λ's floor)²·(1.5 cube)), × 0.4 in BIG MAGNETS: the slope half a λ over the floor,
-    // the cap (a cube there, and any spire: cap(λ) = min(top, base + k·(λ − λ_c)), rising with the slenderness),
-    // nothing at or under the floor; the settling time τ(Hu, λ) = τ₀·max(1, Hu / H_τ)·max(1, λ / λ_τ)
-    const k = S.big ? CFG.WOB_BIG : 1, l0 = CFG.WOB_LAM0;
+    // ΔW = min(cap(λ)·g[grade], a[grade]·(λ − λ's floor)²·(1.5 cube)), × 0.4 in BIG MAGNETS: the slope half a λ over the
+    // floor, the cap (a cube there, any tall segment: cap(λ) = min(top, base + k·(λ − λ_c)), rising with the
+    // slenderness, a PERFECT g of it), nothing at or under the floor; the settling time τ(Hu, λ) = τ₀·max(1, Hu /
+    // H_τ)·max(1, λ / λ_τ); TOO THIN (a one-wide stretch of WOB_THIN_H): the thin cap on every landing, and only the
+    // slow drain
+    const k = S.big ? CFG.WOB_BIG : 1, l0 = CFG.WOB_LAM0, G = CFG.WOB_CAP_G;
     const cap = l => Math.min(CFG.WOB_CAP_TOP, CFG.WOB_DW_MAX + CFG.WOB_CAP_K * Math.max(0, l - CFG.WOB_CAP_L));
-    const want = [Math.min(cap(l0 + 0.5), CFG.WOB_A.perfect * 0.25) * k, Math.min(cap(l0 + 0.5), CFG.WOB_A.clack * 0.25 * CFG.WOB_CUBE) * k, cap(20) * k, cap(5) * k, 0, 0];
-    const got = [wobDelta('perfect', 'sq', l0 + 0.5), wobDelta('clack', 'cube', l0 + 0.5), wobDelta('perfect', 'sq', 20), wobDelta('perfect', 'sq', 5), wobDelta('great', 'tri', l0), wobDelta('clack', 'sq', 0.5)];
-    ok(got.every((x, i) => near(x, want[i])) && cap(20) <= 1 - CFG.WOB_AMBER + 1e-9,
-      '16: ΔW: ' + got.map(x => x.toFixed(4)).join(', ') + ' (want ' + want.map(x => x.toFixed(4)).join(', ') + '; the most one landing can add, ' + cap(20) + ', must stay under 1 − amber)');
+    const want = [Math.min(cap(l0 + 0.5) * G.perfect, CFG.WOB_A.perfect * 0.25) * k, Math.min(cap(l0 + 0.5), CFG.WOB_A.clack * 0.25 * CFG.WOB_CUBE) * k,
+      cap(20) * G.perfect * k, cap(5) * G.great * k, 0, 0, CFG.WOB_CAP_THIN * G.perfect * k, CFG.WOB_CAP_THIN * k];
+    const got = [wobDelta('perfect', 'sq', l0 + 0.5), wobDelta('clack', 'cube', l0 + 0.5), wobDelta('perfect', 'sq', 20), wobDelta('great', 'sq', 5),
+      wobDelta('great', 'tri', l0), wobDelta('clack', 'sq', 0.5), wobDelta('perfect', 'sq', 1, 1, CFG.WOB_THIN_H), wobDelta('clack', 'sq', 9, 1, CFG.WOB_THIN_H + 3)];
+    ok(got.every((x, i) => near(x, want[i])) && cap(20) < 1 && CFG.WOB_CAP_THIN < 1 && G.perfect < G.great && G.great < G.clack,
+      '16: ΔW: ' + got.map(x => x.toFixed(4)).join(', ') + ' (want ' + want.map(x => x.toFixed(4)).join(', ') + '; no landing may add 1 (' + cap(20) + ', ' + CFG.WOB_CAP_THIN + '), and aim must pay)');
     const tau = (Hu, l) => CFG.WOB_TAU * Math.max(1, Hu / CFG.WOB_TAU_H) * Math.max(1, l / CFG.WOB_TAU_LAM);
     ok([[2, 1], [8, 4], [14, 7]].every(([H, l]) => near(wobTau(H, l), tau(H, l))), '16: τ(Hu, λ): ' + [[2, 1], [8, 4], [14, 7]].map(([H, l]) => wobTau(H, l).toFixed(3)).join(', '));
+    const th = CFG.WOB_THIN_H, dr = wobDecay(0.9, 1, 1.5, th), dr4 = wobDecay(0.9, 1, 1.5, 2 * th);
+    ok(near(dr, 0.9 - CFG.WOB_DRAIN_THIN) && near(dr4, 0.9 - CFG.WOB_DRAIN_THIN * Math.SQRT1_2) && wobDecay(0.9, 1, 1.5, th - 0.5) < dr,
+      '16: TOO THIN settles by the slow drain only: ' + [dr, dr4].map(x => x.toFixed(4)).join(', '));
+    // the stretch: a spire of 4 squares on a two-wide base: 3 L of it under its last layer, one wide
+    const Sp = newBuild(1);
+    for (let a = 0; a < 2; a++) { place(Sp, 'sq:-2,' + a + ',0'); place(Sp, 'sq:0,' + a + ',0'); }
+    for (let a = 2; a < 6; a++) place(Sp, 'sq:-2,' + a + ',0');
+    r = m(Sp);
+    ok(near(r.thin, 3) && near(r.w, 1), '16: a spire of 4 on a two-wide base: one-wide stretch ' + r.thin + ' (want 3)');
+    r = m(B);
+    ok(near(r.thin, 1), '16: a spire of two on a two-wide tower: one-wide stretch ' + r.thin + ' (want 1: its top layer carries nothing)');
   }
   return { pass: fails.length === 0, failures: fails, ms: Math.round(performance.now() - t0) };
 }

@@ -8,10 +8,12 @@
 //   node clack-stack/tools/wobble.cjs                 (everything)
 //   node clack-stack/tools/wobble.cjs --only=snap,gamble   (dw, decay, fuse, sway, glow, lead, snap, full, gamble, crown, big)
 // Checks (τ(Hu, λ) = WOB_TAU · max(1, Hu / WOB_TAU_H) · max(1, λ / WOB_TAU_LAM): the segment's settling time;
-// cap(λ) = min(WOB_CAP_TOP, WOB_DW_MAX + WOB_CAP_K · max(0, λ − WOB_CAP_L)): the most one landing shakes it):
-//   dw      every landing in the unbraced segment adds ΔW = min(cap(λ), a[grade]·max(0, λ − WOB_LAM0)²·(WOB_CUBE for the
-//           cube)) (× the landing's height in the segment ^ WOB_POS_P) to W decayed since the landing
-//           before (at the τ of the segment it left); a marble square's gear takes W × WOB_GEAR instead; a TRUSS takes
+// cap(λ) = min(WOB_CAP_TOP, WOB_DW_MAX + WOB_CAP_K · max(0, λ − WOB_CAP_L)): the most one CLACK shakes it, a grade
+// g[grade] = WOB_CAP_G of it; TOO THIN (a one-wide stretch of WOB_THIN_H or more): WOB_CAP_THIN·g[grade] on every
+// landing, and it settles only by WOB_DRAIN_THIN·√(WOB_THIN_H / stretch) a second):
+//   dw      every landing in the unbraced segment adds ΔW = min(cap(λ)·g[grade], a[grade]·max(0, λ − WOB_LAM0)²·(WOB_CUBE
+//           for the cube)) (TOO THIN: the thin shake) (× the landing's height in the segment ^ WOB_POS_P) to W decayed
+//           since the landing before (at the τ of the segment it left); a marble square's gear takes W × WOB_GEAR instead; a TRUSS takes
 //           it × TRUSS_W, a SNAP to 0: checked on every landing of a balance-greedy player on level 8 (hazards off, the
 //           ribbon out of reach); λ, Hu, w and y_b in CS.state() agree with the last landing (reads after a TRUSS,
 //           SNAP, crash or a new level skipped)
@@ -125,13 +127,16 @@ const WCFG = page => page.evaluate(() => { const o = {}; for (const k of Object.
 const inf = v => (v === 'Inf' ? Infinity : v);
 const tauOf = (C, Hu, lam) => C.WOB_TAU * Math.max(1, Hu / inf(C.WOB_TAU_H)) * Math.max(1, lam / inf(C.WOB_TAU_LAM));
 // W after dt s at settling time tau: dW/dt = −W/τ − WOB_DRAIN, floored at 0; and the time it takes to fall from W0 to W1
-const decayOf = (C, W, dt, tau) => W <= 0 ? 0 : Math.max(0, (W + C.WOB_DRAIN * tau) * Math.exp(-dt / tau) - C.WOB_DRAIN * tau);
+// (TOO THIN: the segment's longest one-wide stretch is WOB_THIN_H or more; it then settles by the slow drain only)
+const thinOf = (C, thin) => (thin || 0) >= C.WOB_THIN_H - 1e-9;
+const decayOf = (C, W, dt, tau, thin) => W <= 0 ? 0 : thinOf(C, thin) ? Math.max(0, W - C.WOB_DRAIN_THIN * Math.sqrt(C.WOB_THIN_H / thin) * dt) :
+  Math.max(0, (W + C.WOB_DRAIN * tau) * Math.exp(-dt / tau) - C.WOB_DRAIN * tau);
 const fallT = (C, W0, W1, tau) => tau * Math.log((W0 + C.WOB_DRAIN * tau) / (W1 + C.WOB_DRAIN * tau));
-const capOf = (C, lam) => Math.min(C.WOB_CAP_TOP, C.WOB_DW_MAX + C.WOB_CAP_K * Math.max(0, lam - inf(C.WOB_CAP_L)));
-const dWOf = (C, grade, shape, lam, pos, big) => {
-  const d = Math.max(0, lam - C.WOB_LAM0), a = C.WOB_A[grade];
+const capOf = (C, lam, thin) => thinOf(C, thin) ? C.WOB_CAP_THIN : Math.min(C.WOB_CAP_TOP, C.WOB_DW_MAX + C.WOB_CAP_K * Math.max(0, lam - inf(C.WOB_CAP_L)));
+const dWOf = (C, grade, shape, lam, pos, big, thin) => {
+  const d = Math.max(0, lam - C.WOB_LAM0), a = C.WOB_A[grade], cap = capOf(C, lam, thin) * C.WOB_CAP_G[grade];
   const pk = C.WOB_POS_P > 0 ? Math.pow(Math.max(0, Math.min(1, pos)), C.WOB_POS_P) : 1;
-  return Math.min(capOf(C, lam), a * d * d * (shape === 'cube' ? C.WOB_CUBE : 1)) * pk * (big ? C.WOB_BIG : 1);
+  return Math.min(cap, thinOf(C, thin) ? cap : a * d * d * (shape === 'cube' ? C.WOB_CUBE : 1)) * pk * (big ? C.WOB_BIG : 1);
 };
 const HGT = { sq: 1, up: H3, dn: H3, cube: 2 };
 function maxY(key) { const m = /^(\w+):/.exec(key); return minY(key) + (HGT[m[1]] || 1); }
@@ -168,26 +173,26 @@ async function dwCheck(browser) {
     const trussAt = new Set(ev.filter(e => e.type === 'truss').map(e => e.key + '@' + e.t));
     let prev = null;
     for (const e of ev) {
-      if (e.type === 'start' || e.type === 'crash' || e.type === 'snap') { prev = { t: e.t, W: 0, Hu: 0, lam: 0 }; continue; }
-      if (e.type === 'truss') { if (prev) { prev.W *= C.TRUSS_W; prev.Hu = e.Hu; prev.lam = e.lam; } continue; }
+      if (e.type === 'start' || e.type === 'crash' || e.type === 'snap') { prev = { t: e.t, W: 0, Hu: 0, lam: 0, thin: 0 }; continue; }
+      if (e.type === 'truss') { if (prev) { prev.W *= C.TRUSS_W; prev.Hu = e.Hu; prev.lam = e.lam; prev.thin = e.thin; } continue; }
       if (prev) {
-        const dec = decayOf(C, prev.W, e.t - prev.t, tauOf(C, prev.Hu, prev.lam));
+        const dec = decayOf(C, prev.W, e.t - prev.t, tauOf(C, prev.Hu, prev.lam), prev.thin);
         // (the landing that closes a notch braces the tower: no ΔW, the TRUSS takes W × TRUSS_W after it; a marble
         // square's gear steadies it: × WOB_GEAR)
         const inSeg = minY(e.key) >= e.yb - 1e-6 && !trussAt.has(e.key + '@' + e.t);
         const gear = inSeg && e.shape === 'marble';
-        const dWwant = inSeg && !gear ? dWOf(C, e.grade, e.shape, e.lam, e.Hu > 0 ? (maxY(e.key) - e.yb) / e.Hu : 1, false) : 0;
+        const dWwant = inSeg && !gear ? dWOf(C, e.grade, e.shape, e.lam, e.Hu > 0 ? (maxY(e.key) - e.yb) / e.Hu : 1, false, e.thin) : 0;
         const want = gear ? dec * C.WOB_GEAR : Math.min(1, dec + dWwant);
         rows.push({ seed, e, want, dWwant, gear });
         if (Math.abs(e.W - want) > 3e-3 + 2e-3 * want || Math.abs(e.dW - dWwant) > 1e-3 + 2e-3 * dWwant || !!e.gear !== gear) bad.push(`s${seed} t=${e.t} ${e.key} ${e.grade}: W ${e.W} (want ${want.toFixed(4)}), dW ${e.dW} (want ${dWwant.toFixed(4)} at λ ${e.lam}, Hu ${e.Hu})${gear ? ' gear' : ''}`);
       }
-      prev = { t: e.t, W: e.W, Hu: e.Hu, lam: e.lam };
+      prev = { t: e.t, W: e.W, Hu: e.Hu, lam: e.lam, thin: e.thin };
     }
     await close(g);
   }
-  const pos = rows.filter(r => r.e.dW > 0).length, grades = new Set(rows.filter(r => r.e.dW > 0).map(r => r.e.grade)), capped = rows.filter(r => r.e.dW > 0 && Math.abs(r.e.dW - capOf(C, r.e.lam)) < 1e-3).length;
-  check('dw: every landing adds ΔW = min(cap(λ), a[grade]·max(0, λ − λ₀)²(·cube)) to W decayed e^(−Δt/τ(Hu, λ)) (gear × WOB_GEAR, TRUSS × TRUSS_W, SNAP 0)', bad.length === 0 && pos >= 20,
-    `${rows.length} landings, ${pos} with ΔW > 0 (${capped} at the cap; grades ${[...grades].join(', ')}), ${rows.filter(r => r.gear).length} gears, max W ${Math.max(...rows.map(r => r.e.W)).toFixed(3)}` + (bad.length ? '; BAD: ' + bad.slice(0, 4).join('; ') : ''));
+  const pos = rows.filter(r => r.e.dW > 0).length, grades = new Set(rows.filter(r => r.e.dW > 0).map(r => r.e.grade)), capped = rows.filter(r => r.e.dW > 0 && Math.abs(r.e.dW - capOf(C, r.e.lam, r.e.thin) * C.WOB_CAP_G[r.e.grade]) < 1e-3).length, thin = rows.filter(r => thinOf(C, r.e.thin)).length;
+  check('dw: every landing adds ΔW = min(cap(λ)·g[grade], a[grade]·max(0, λ − λ₀)²(·cube)) (TOO THIN: the thin shake) to W decayed e^(−Δt/τ(Hu, λ)) (TOO THIN: the slow drain; gear × WOB_GEAR, TRUSS × TRUSS_W, SNAP 0)', bad.length === 0 && pos >= 20,
+    `${rows.length} landings, ${pos} with ΔW > 0 (${capped} at the cap, ${thin} TOO THIN; grades ${[...grades].join(', ')}), ${rows.filter(r => r.gear).length} gears, max W ${Math.max(...rows.map(r => r.e.W)).toFixed(3)}` + (bad.length ? '; BAD: ' + bad.slice(0, 4).join('; ') : ''));
   const mis = st0.filter(s => Math.abs(s.lam - s.ev) > 2e-3 || Math.abs(s.yb - s.evyb) > 1e-3 || Math.abs(s.Hu - s.evHu) > 2e-3 || Math.abs(s.lam - s.Hu / s.w) > 1e-9 || s.w < 1 - 1e-9);
   check('dw: CS.state() λ = Hu / w (w >= 1 L), Hu and y_b agree with the last landing', st0.length >= 10 && mis.length === 0, `${st0.length} reads` + (mis.length ? '; ' + JSON.stringify(mis.slice(0, 2)) : ''));
 }
@@ -321,11 +326,12 @@ async function glowCheck(browser) {
   await page.evaluate(() => { HZ.every = 0; HZ.kind = ''; LEVELS[8].fuse = 1e9; });
   // a slender column: 2 wide to 4 L, then one wide to 8 L (λ 8: the next landing shakes by the cap)
   await fixture(page, COL2(4).concat(['sq:-2,4,0', 'sq:-2,5,0', 'sq:-2,6,0', 'sq:-2,7,0']));
-  const rd = await page.evaluate(() => { HAND.piece = { shape: 'sq', color: 'blue', variant: 0 }; return { lam: WOB.lam, Hu: WOB.Hu, w: WOB.w }; });
-  const capNext = capOf(C, (rd.Hu + 1) / rd.w);
+  const rd = await page.evaluate(() => { HAND.piece = { shape: 'sq', color: 'blue', variant: 0 }; return { lam: WOB.lam, Hu: WOB.Hu, w: WOB.w, thin: WOB.thin }; });
+  // (the next landing's shake as the glow reckons it: a CLACK one layer up, the one-wide stretch one longer)
+  const capNext = capOf(C, (rd.Hu + 1) / rd.w, rd.thin + (rd.w < C.WOB_THIN_W ? 1 : 0)) * C.WOB_CAP_G.clack;
   const read = W => page.evaluate(W => { WOB.W = W; WAH.at = -1e9; return new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r({ glow: CS.state().glow, Wahead: CS.state().Wahead, W: CS.state().W })))); }, W);
   const lo = await read(C.WOB_AMBER * 0.6), am = await read(Math.max(C.WOB_AMBER + 0.02, 1 - capNext - 0.08)), rdd = await read(1 - capNext + 0.03);
-  check(`glow: on a slender column (λ ${rd.lam.toFixed(1)}): '' under ${C.WOB_AMBER}, 'amber' from it, 'red' once W + the next landing's shake (${capNext.toFixed(2)}) reaches 1`,
+  check(`glow: on a slender column (λ ${rd.lam.toFixed(1)}${thinOf(C, rd.thin) ? ', TOO THIN' : ''}): '' under ${C.WOB_AMBER}, 'amber' from it, 'red' once W + the next CLACK's shake (${capNext.toFixed(2)}) reaches 1`,
     lo.glow === '' && am.glow === 'amber' && rdd.glow === 'red', `W ${lo.W.toFixed(2)}: '${lo.glow}', W ${am.W.toFixed(2)}: '${am.glow}', W ${rdd.W.toFixed(2)}: '${rdd.glow}'`);
   await page.evaluate(() => { WOB.W = 0; });
   await close(g);
@@ -578,7 +584,7 @@ async function bigCheck(browser) {
   const C = await WCFG(page);
   const dw = await page.evaluate(() => [wobDelta('perfect', 'sq', 2.5), wobDelta('clack', 'cube', 3), wobDelta('great', 'sq', 9)]);
   const wantB = [dWOf(C, 'perfect', 'sq', 2.5, 1, true), dWOf(C, 'clack', 'cube', 3, 1, true), dWOf(C, 'great', 'sq', 9, 1, true)];
-  check(`big: ΔW × ${C.WOB_BIG}`, dw.every((x, i) => Math.abs(x - wantB[i]) < 1e-9) && Math.abs(wantB[2] - capOf(C, 9) * C.WOB_BIG) < 1e-9,
+  check(`big: ΔW × ${C.WOB_BIG}`, dw.every((x, i) => Math.abs(x - wantB[i]) < 1e-9) && Math.abs(wantB[2] - capOf(C, 9) * C.WOB_CAP_G.great * C.WOB_BIG) < 1e-9,
     dw.map(x => x.toFixed(4)).join(', ') + ' (want ' + wantB.map(x => x.toFixed(4)).join(', ') + ')');
   await close(g);
 }

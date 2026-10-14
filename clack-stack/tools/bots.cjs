@@ -150,7 +150,7 @@ async function perfectBot(browser, seed, literal, level) {
   // mass central. Its most-central rule stacks a 2-wide column up the middle of the 4 L base, λ 4-5 at 8-10 L, which the
   // wobble SNAPs (by design: that is what bracing is for, tools/strategy.cjs). The wobble is off here, a test fixture;
   // tools/wobble.cjs and tools/strategy.cjs play it)
-  await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; });
+  await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; CFG.WOB_CAP_THIN = 0; });
   const r = { seed, tiles: 0, top: 0, crashes: 0, topples: 0, perfect: 0, lands: 0, swaps: 0, tippyDrops: 0, dodges: 0, misses: 0, crownHeld: 0, thrown: 0, errors };
   // among the slots that are not TIPPY: the supported one (a hanging one if no supported slot is safe) that keeps
   // |cₓ| smallest; ties: the higher, then by key. CS.slots().tippy = the ghost's TIPPY at the slot's PERFECT centre.

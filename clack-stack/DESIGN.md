@@ -991,3 +991,33 @@ Targets, over 10 seeds:
 | **level=5** (three-wide, goal 8 L) | BraceBot ≥ 9/10; StackBot ≤ 6/10 |
 | **level=1** | all four bots reach the goal 10/10 (the opening stays easy) |
 | **BIG MAGNETS** | RandomTapper still clears L1 within 15 s, 10/10 |
+
+### 15.8 As built
+
+Tuning against the bots, plus two rounds of review (one by a strategy critic that hunts for dominant lines), changed some of the details above. This is what shipped:
+
+- **Wobble.**
+  - Each landing's shake is `a[grade] · max(0, λ − 2.4)²` (a = 0.45 / 0.7 / 1.0), capped. The cap rises with slenderness, from 0.42 at λ 3 to 0.69, and a PERFECT only gets 72% of it, so aim always pays.
+  - The wobble settles with a time constant τ = 1.5 s, longer for tall or slender segments, plus a steady drain, so a still tower stops dead.
+- **TOO THIN.**
+  - A one-wide stretch of 2 L or more in the unbraced segment shakes by a fixed amount on every landing, and settles only by a slow drain that is slower the longer the spire. The ghost shows a "TOO THIN" chip.
+  - Without this rule, a centred one-wide spire that paused on red beat both balancing and bracing.
+- **Red** means one more CLACK could SNAP the tower. Every SNAP in the bot runs came after at least 0.3 s of glow.
+- **The fuse** waits from amber, W 0.4, not 0.5.
+- **TRUSS.**
+  - It counts in either order: the down-triangle into the notch, or the second up-triangle beside a hung one.
+  - It pays 150 × mult × clamp(λ / 3, 0, 1.5), so a brace on a slender segment pays most.
+- **The bag** is 7 squares and 3 triangles, plus the cube from level 2.
+- **GO HIGHER.**
+  - Placing the crown gives back 3 s plus 1 s per whole L above the ribbon, so a good gamble pays in clock as well as points.
+  - The chip shows the trade, for example "CROWN ×1.5 · +4 s".
+  - In OVERTIME the badge shows SAFE (a padlock) while the brace line is at or over the ribbon, because a SNAP then keeps the crown.
+  - For 0.4 s after the crown arrives, a tap can't drop it, so the choice is deliberate.
+- **The bots.** `tools/strategy.cjs` runs every test at bot speed and at a human pace (a 0.3 s reaction before every act), and adds:
+  - RhythmBot: stacks at a steady 0.6 s;
+  - SpireBot: a centred one-wide column that drops whenever the glow isn't red;
+  - CarefulBot: patience on a two-wide tower;
+  - NoBraceBot;
+  - a level 7 test.
+
+  BraceBot keeps the tower level and two wide and completes notches whenever it can. On level 8, at both speeds, BraceBot reaches the goal 10/10. StackBot gets 0/10 and BalanceBot at most 2/10. SpireBot gets 0/10, and CarefulBot gets there but takes about three times as long at bot speed.
