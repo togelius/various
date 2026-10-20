@@ -101,7 +101,7 @@ async function buildLow(page, n, maxTop) {
         const g = await open(browser, { seed: 34, ts: 2, level: 15 }, view);
         await buildLow(g.page, 9, 6);
         // (the measure needs the tower as it was drawn: no fuse drop meanwhile (fixture: the fuse off), the tower and
-        // its wobble settled: DESIGN 15.3's sway moves the tiles and its joint glow is drawn over them)
+        // its sway settled: DESIGN 16.2's sway moves the tiles)
         await g.page.evaluate(() => { S.firstInput = false; HAND.fuseT = 0; });
         await until(g.page, () => { const s = CS.state(); return s.inAir === 0 && s.still && s.W < 0.05; }, null, 8000).catch(() => {});
         await g.page.waitForTimeout(300);

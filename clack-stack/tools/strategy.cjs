@@ -1,27 +1,30 @@
 #!/usr/bin/env node
 'use strict';
-// DESIGN.md 15.7 acceptance: the strategy bots. The bots play the real game through REAL mouse input at the slot
-// positions CS.slots() reports, with the real clock and the real fuse (no CS.setClock), seeds 1-10. Every bot aims
-// perfectly: it taps a slot's live centre (and checks the ghost is that slot first); they differ only in policy.
+// DESIGN.md 16.6 acceptance (revision 3, rules you can see): the strategy bots. The bots play the real game through
+// REAL mouse input at the spot positions CS.slots() reports, with the real clock and the real fuse (no CS.setClock),
+// seeds 1-10. Every bot aims perfectly: it taps a spot's live centre (and checks the ghost is that spot first); they
+// differ only in policy. Each reads only what the screen shows: the spots (the dotted outlines), the tiles, how hard
+// the tower sways (W, the swing at its top), the swaying part's height and width (λ), the ghost weight, the piece in
+// the hand and in HOLD.
 //   node clack-stack/tools/strategy.cjs                         (every test, at bot speed and at human pace, seeds 1-10)
-//   node clack-stack/tools/strategy.cjs --only=level8,brace     (tests: level8 level7 level5 level1 big; bots: stack
-//                                                                 balance patient brace rhythm nobrace bracer careful
-//                                                                 spire brace15 brace4; a name of each kind narrows it)
+//   node clack-stack/tools/strategy.cjs --only=level8,brace     (tests: level8 level1 big, and on request level7
+//                                                                 level5; bots: stack balance patient brace rhythm
+//                                                                 nobrace bracer careful spire brace15 brace4; a name
+//                                                                 of each kind narrows it)
 //   node clack-stack/tools/strategy.cjs --seeds=1-3             (or --seeds=2,5,7)
 //   options: --paces=0,0.3 (0: bot speed; R > 0: human pace, a reaction of R s of game time before every act; the
 //            default runs both), --jobs=N (games played side by side, default 3 on 4+ cores), --ts=N (game time
 //            scale, default 1: real time), --verbose, --trace
 //
-// The bots (15.7). A slot is "reachable" when the ghost picks it with the hand at its centre (the game's own rule,
-// 3.4: supported before hanging, then nearest, then higher): a hanging slot right over a supported one is not offered.
-//   StackBot    always the highest reachable slot, as fast as possible
-//   BalanceBot  the reachable slot that keeps the centre of mass (with the tiles in the air) most central, as fast as
-//               possible (ties: the higher)
-//   PatientBot  like StackBot, but waits until W < 0.3 before each drop (StackBot's slot is the top of a one-wide
-//               spire: since the review of revision 2 a spire is the slow way up by design, so PatientBot is reported,
-//               and CarefulBot, patience on a two-wide tower, carries 15.7's "patience works but costs time")
-//   BraceBot    a brace rule a good player can follow (it reads only what the screen shows: the slots, the tiles, W, λ,
-//               the piece in the hand and in HOLD):
+// The bots. A spot is "reachable" when the ghost picks it with the hand at its centre (16.3: the nearest spot, then
+// the higher); every spot drawn is. A swaying spot is aimed at where it is at rest, the middle of its swing (16.2).
+//   StackBot    always the highest spot, as fast as possible (on one car: a one-wide column straight up)
+//   BalanceBot  the spot that keeps the weight (with the tiles in the air) most central, as fast as possible (ties:
+//               the higher): stacking a two-wide tower straight up
+//   PatientBot  StackBot's spot, but waits until W < 0.2 before each drop (the one-wide spire, waiting for it to settle)
+//   CarefulBot  BalanceBot's spot, waiting until W < 0.2 before each drop, never bracing (waiting without bracing; at
+//               W 0.3 the top of a tall two-wide part still swings about a tile: 0.2 is a tower that has settled)
+//   BraceBot    a brace rule a good player can follow:
 //                 - wait while W > 0.6
 //                 - a triangle in the hand and the gold TRUSS spot open: drop it there (a notch is always completed,
 //                   in either order: the down-triangle into the notch, or the second up-triangle beside a hung one)
@@ -40,47 +43,41 @@
 //                   in a band two tiles wide over the middle of the base (balance-greedy among the lowest; over a narrow
 //                   3-triangle brace the squares hanging beside it count too; with nothing in the band, its tops a
 //                   notch waiting for its down-triangle: beside the band, balance-greedy, not far out past the base's
-//                   edge). (15.7 said balance-greedy; that builds a
-//                   one-wide centre spire on the long car's odd width and on a 3-triangle brace's one flat top, the slow
-//                   way up since the review of revision 2)
-//   SpireBot    one centred column (squares and the cube on the highest, most central supported slot; triangles to
-//               HOLD, else low where they keep the balance); drops as soon as the glow is not red (review of
-//               revision 2: the one-wide spire must be the slow way up, not the dominant strategy)
+//                   edge)
+//   SpireBot    one centred column (squares and the cube on the highest, most central supported spot; triangles to
+//               HOLD, else low where they keep the balance), as fast as possible: the one-wide spire straight up
 //   RandomTapper (BIG MAGNETS) a tap at a uniform x within ±2.5 L of the base centre every 0.7 s game time
-// The controls (review of revision 2: the wobble must be beaten by bracing, not by tapping at a steady human pace):
-//   RhythmBot      StackBot's slot at a steady 0.6 s from one release to the next (a normal human pace), never
+// The controls:
+//   RhythmBot      StackBot's spot at a steady 0.6 s from one release to the next (a normal human pace), never
 //                  reading W
 //   NoBraceBot     BraceBot with the bracing off (no notch is ever built; it still waits while W > 0.6, still keeps
 //                  triangles in HOLD and still fills a gold TRUSS spot if one turns up)
-//   BraceRhythmBot BraceBot's slot choice at the steady 0.6 s pace, never reading W
-//   CarefulBot     BalanceBot's slot, waiting until W < 0.3 before each drop, never bracing (patience on a wide tower)
+//   BraceRhythmBot BraceBot's spot choice at the steady 0.6 s pace, never reading W
 //   BraceBot λ1.5 / λ4  BraceBot bracing from λ 1.5, or only from λ 4 (when to brace: reported, not a target)
-// (Every bot reads W as the screen shows it: with the tiles already let go, state().Wahead, the glow's own measure.
-// Read before they land, a bot's second tile was let go on a tower already shaking from its first)
-// Tests and targets (over the seeds). Bot speed (pace 0), 15.7 and the controls:
-//   level8  (two wide, goal 11 L): share reaching the goal before the clock runs out: BraceBot >= 8/10, StackBot <= 3/10,
-//           BalanceBot <= 3/10, CarefulBot >= 4/10 and taking on average >= 35% longer than BraceBot (15.7's
-//           PatientBot row, see above); RhythmBot <= 3/10; NoBraceBot on average >= 25% longer than BraceBot (or
-//           NoBraceBot <= 6/10), these two over the seeds and as many more (11-20: the comparison's own spread is wide);
-//           BraceRhythmBot >= 8/10; SpireBot on average >= 25% longer than BraceBot, or <= 3/10
-//   level7  (three wide, goal 10 L): BraceBot >= 9/10; SpireBot >= 25% longer than BraceBot, or <= 3/10
-//   level5  (three wide, goal 8 L): BraceBot >= 9/10, StackBot <= 6/10, RhythmBot <= 6/10; SpireBot as on level 7
-//   level1  the four 15.7 bots reach the goal 10/10 (the opening stays easy)
+// (Every bot reads W as the screen is about to show it: with the tiles already let go, state().Wahead. Read before
+// they land, a bot's second tile was let go on a tower already swaying from its first)
+// Reaching the goal: the ribbon torn and the crown placed on it, the level cleared (a tower that falls before its
+// crown lands has not got there: the crash ties the ribbon up again). The bots place the crown at once.
+// Tests and targets (over the seeds), at bot speed (pace 0) and at a human pace (pace R > 0: every act waits R s of
+// game time after the bot first wants it):
+//   level8  (one car, two wide, goal 11 L), share reaching the goal before the clock runs out: BraceBot >= 8/10;
+//           StackBot, BalanceBot and SpireBot (stacking straight up: one wide or two) <= 3/10 each; at bot speed,
+//           waiting without bracing gets there but is clearly slower: CarefulBot >= 4/10 and taking on average >= 35%
+//           longer than BraceBot, and NoBraceBot (BraceBot's own build with the bracing off) >= 4/10 and >= 35% longer;
+//           RhythmBot <= 3/10, BraceRhythmBot >= 8/10; PatientBot and the brace trigger reported. (At a human pace
+//           CarefulBot and NoBraceBot are reported: the reactions dominate there, the bracer's extra triangles and its
+//           HOLD swaps each cost one, about what the waiting costs, and the 30 s clock and the 1.4 s fuse cap how much
+//           slower anyone can be)
+//   level1  every bot 10/10 (the opening stays easy)
 //   big     big=1: RandomTapper clears L1 (the SMASH) within 15 s, 10/10
-// Human pace (pace R > 0: every act waits R s of game time after the bot first wants it):
-//   level8  BraceBot >= 8/10, StackBot <= 3/10, BalanceBot <= 3/10, SpireBot as above; CarefulBot, PatientBot and
-//           NoBraceBot are reported, not targets (at a human pace the reactions dominate a wide tower's time: the
-//           CarefulBot comparison swung from +24% to +48% on 10 seeds, review 2, a coin toss on its 25% line)
-//   level7  BraceBot >= 9/10, SpireBot as above
-//   level5  BraceBot >= 9/10, StackBot <= 6/10, SpireBot as above
-//   level1  the four 15.7 bots 10/10
+//   level7, level5 (the long car), on request: reported
+//   every crash in every run happens with the weight past a wheel (16.6: one way to fall)
 // ("On average": the typical time to the goal, the median over all the runs with a run that ended at TIME! counting
 // the whole clock it used: it does not swing on which seeds happen to crash, nor on the one run that crashed and
-// recovered (a mean did both, review 1). The median over the runs that got there is printed too.) A run ends when the
-// ribbon tears (the goal) or at TIME!. The tables: goals, median and mean game time to the goal over the runs that got
-// there, the typical time over all (s, from the start), SNAPs (full / with the braced part left standing), crashes (all,
-// SNAPs with no TRUSS included), TRUSSes, share of PERFECT landings, tallest. Exits non-zero if a target fails, or on
-// any page or console error.
+// recovered. The median over the runs that got there is printed too.) A run ends at the goal or at TIME!. The
+// tables: goals, median and mean game time to the goal over the runs that got there, the typical time over all (s,
+// from the start), crashes, TRUSSes, share of PERFECT landings, tallest. Exits non-zero if a target fails, or on any
+// page or console error.
 const os = require('os');
 const { launch, gamePage, until } = require('./lib.cjs');
 
@@ -92,7 +89,7 @@ const BOTS = ['stack', 'balance', 'patient', 'brace', 'rhythm', 'nobrace', 'brac
 const onlyT = ONLY.filter(x => TESTS.includes(x)), onlyB = ONLY.filter(x => BOTS.includes(x));
 const bad = ONLY.filter(x => !TESTS.includes(x) && !BOTS.includes(x));
 if (bad.length) { console.error('unknown --only name(s): ' + bad.join(', ') + ' (tests: ' + TESTS.join(' ') + '; bots: ' + BOTS.join(' ') + ')'); process.exit(2); }
-const wantT = t => !onlyT.length || onlyT.includes(t), wantB = b => !onlyB.length || onlyB.includes(b);
+const wantT = t => onlyT.length ? onlyT.includes(t) : DEFAULT_T.includes(t), wantB = b => !onlyB.length || onlyB.includes(b);
 const SEEDS = (() => {
   const s = arg('seeds', '1-10');
   if (s.includes(',')) return s.split(',').map(Number);
@@ -101,7 +98,6 @@ const SEEDS = (() => {
   return out;
 })();
 const PACES = arg('paces', arg('pace', '0,0.3')).split(',').map(Number);
-const EXTRA = SEEDS.map(s => s + Math.max(...SEEDS));      // the extra seeds of the two wide-spread comparisons
 const JOBS = Math.max(1, +arg('jobs', Math.max(1, Math.min(3, os.cpus().length - 1))));
 const TS = +arg('ts', 1);
 const VERBOSE = argv.includes('--verbose') || argv.includes('--trace');
@@ -115,36 +111,36 @@ const NAME = { stack: 'StackBot', balance: 'BalanceBot', patient: 'PatientBot', 
 // sq: 'level' (BraceBot's squares: level and two wide), widen (a spare triangle widens a 3-triangle brace), early (a
 // second triangle with nowhere else to go starts a notch whatever λ), red (waits while the glow is red)
 const POLICY = {
-  stack: { base: 'stack' }, balance: { base: 'balance' }, patient: { base: 'stack', below: 0.3 },
+  stack: { base: 'stack' }, balance: { base: 'balance' }, patient: { base: 'stack', below: 0.2 },
   brace: { base: 'brace', lam: 2.5, wait: 0.6, sq: 'level', widen: 1, early: 1, span: 1.05, side: 1.55 },
   rhythm: { base: 'stack', gap: 0.6 }, nobrace: { base: 'brace', lam: 1e9, wait: 0.6, sq: 'level', widen: 1, span: 1.05, side: 1.55 },
-  bracer: { base: 'brace', lam: 2.5, wait: 1e9, gap: 0.6, sq: 'level', widen: 1, early: 1, span: 1.05, side: 1.55 }, careful: { base: 'balance', below: 0.3 },
+  bracer: { base: 'brace', lam: 2.5, wait: 1e9, gap: 0.6, sq: 'level', widen: 1, early: 1, span: 1.05, side: 1.55 }, careful: { base: 'balance', below: 0.2 },
   brace15: { base: 'brace', lam: 1.5, wait: 0.6, sq: 'level', widen: 1, early: 1, span: 1.05, side: 1.55 }, brace4: { base: 'brace', lam: 4, wait: 0.6, sq: 'level', widen: 1, early: 1, span: 1.05, side: 1.55 },
-  spire: { base: 'spire', red: true },
+  spire: { base: 'spire' },
 };
 // what runs at each pace (the controls that already have a pace of their own run at bot speed only)
 const AT = {
   0: { level8: ['stack', 'balance', 'patient', 'brace', 'rhythm', 'nobrace', 'bracer', 'careful', 'spire', 'brace15', 'brace4'],
-    level7: ['stack', 'brace', 'spire'], level5: ['stack', 'balance', 'patient', 'brace', 'rhythm', 'spire'], level1: ['stack', 'balance', 'patient', 'brace'] },
+    level7: ['stack', 'brace', 'spire'], level5: ['stack', 'balance', 'brace', 'spire'], level1: ['stack', 'balance', 'patient', 'brace', 'careful', 'spire'] },
   h: { level8: ['stack', 'balance', 'brace', 'nobrace', 'careful', 'patient', 'spire'], level7: ['brace', 'spire'], level5: ['stack', 'brace', 'spire'],
-    level1: ['stack', 'balance', 'patient', 'brace'] },
+    level1: ['stack', 'balance', 'patient', 'brace', 'careful', 'spire'] },
 };
-// the wide-spread comparison runs over the seeds and as many more: bracing pays (bot speed)
-const EXTRA_AT = { 0: ['brace', 'nobrace'], h: [] };
+// (level7 and level5 run only when asked for by name)
+const DEFAULT_T = ['level8', 'level1', 'big'];
 
 // ---------------------------------------------------------------- the policies (run in the page, CS hooks only)
 function botInit() {
   const B = window.__bot = { swapRel: -1 };
   const GAP_LEAD = 0.15;          // s: a steady-pace bot decides this much before its press is due (the aim takes time)
   const MASS = { sq: 1, marble: 1, tri: 0.45, crown: 0.45, cube: 3 };
-  // the ghost's own choice with the hand at x (3.4, without the shown ghost's hysteresis): supported, nearest, higher
+  // the ghost's own choice with the hand at x (16.3, without the shown ghost's hysteresis): the nearest spot, then the higher
   B.reach = (sl, R) => sl.filter(s => {
     let best = null;
     for (const o of sl) {
       if (Math.abs(o.x - s.x) > R) continue;
       if (!best) { best = o; continue; }
       const dO = Math.abs(o.x - s.x), dB = Math.abs(best.x - s.x);
-      const better = o.supported !== best.supported ? o.supported : Math.abs(dO - dB) > 1e-9 ? dO < dB : Math.abs(o.y - best.y) > 1e-9 ? o.y > best.y : o.key < best.key;
+      const better = Math.abs(dO - dB) > 1e-9 ? dO < dB : Math.abs(o.y - best.y) > 1e-9 ? o.y > best.y : o.key < best.key;
       if (better) best = o;
     }
     return best === s;
@@ -195,12 +191,17 @@ function botInit() {
     const rel = CS.lastRelease ? CS.lastRelease.id : 0, canSwap = B.swapRel !== rel;
     // (a steady pace: the decision a little ahead, so the aim is done when the press is due, playOne)
     if (P.gap && CS.lastRelease && st.t - CS.lastRelease.t < P.gap - GAP_LEAD - 1e-9) return { act: 'wait', why: 'pace' };
-    // (W as the screen shows it: the glow counts the tiles already let go, state().Wahead)
+    // (W as the screen is about to show it: with the tiles already let go, state().Wahead)
     if (P.below !== undefined && st.Wahead >= P.below) return { act: 'wait', why: 'W ' + st.Wahead.toFixed(2) };
-    // (the glow as the screen shows it: wait while it pulses red, "one more drop could SNAP it")
-    if (P.red && st.glow === 'red') return { act: 'wait', why: 'red' };
-    const sl = CS.slots(), rs = B.reach(sl, st.big ? 1.0 : 0.6);
+    const sl = CS.slots(true), rs = B.reach(sl, st.big ? 1.0 : 0.6);
     const none = () => canSwap ? { act: 'hold', why: 'no slot' } : { act: 'none', why: 'no slot, swap spent' };
+    // the crown: placed at once, on the highest spot (its CROWN_GRACE over); a crown in HOLD is taken back first
+    if (st.piece === 'crown') {
+      if (st.crownGrace) return { act: 'wait', why: 'crown grace' };
+      const s = highest(B.reach(sl, st.big ? 1.6 : 1.2));
+      return s ? { act: 'drop', slot: s, why: 'crown' } : { act: 'wait', why: 'no crown spot' };
+    }
+    if (st.held === 'crown' && canSwap) return { act: 'hold', why: 'the crown back' };
     if (P.base === 'stack') { const s = highest(rs); return s ? { act: 'drop', slot: s } : none(); }
     if (P.base === 'spire') {
       // one centred column: squares (and the cube) on the highest, most central supported slot; a triangle goes to HOLD
@@ -211,6 +212,8 @@ function botInit() {
         return low ? { act: 'drop', slot: low, why: 'triangle low' } : none();
       }
       const s = rs.filter(q => q.supported).sort((a, b) => (b.y - 1.5 * Math.abs(b.lx)) - (a.y - 1.5 * Math.abs(a.lx)))[0];
+      // (the ghost weight as the screen shows it: wait while it is red, "this drop tips the tower")
+      if (s && P.red) { const full = CS.slots().find(q => q.key === s.key); if (full && full.tippy) return { act: 'wait', why: 'red' }; }
       return s ? { act: 'drop', slot: s, why: 'spire' } : none();
     }
     if (P.base === 'balance') { const s = B.balance(st, rs); return s ? { act: 'drop', slot: s } : none(); }
@@ -328,7 +331,8 @@ async function playOne(browser, test, bot, seed, pace) {
           const p0 = performance.now();
           let want = -1;
           (function poll() {
-            const st = CS.state(), g = CS.events.find(e => e.type === 'goal');
+            // (the goal: the crown placed on the torn ribbon, the level cleared)
+            const st = CS.state(), g = CS.events.find(e => e.type === 'crown');
             if (g) return res({ act: 'goal', t: g.t });
             if (st.phase === 'over') return res({ act: 'over', t: st.t });
             const x = window.__bot.decide(P);
@@ -351,13 +355,14 @@ async function playOne(browser, test, bot, seed, pace) {
         }
         // drop: the hand to the slot's live centre; the ghost must be that slot (else clear the shown ghost's
         // hysteresis and aim again), then press where the slot is now
+        // (a swaying spot is aimed at where it is at rest, the middle of its swing: rsx, 16.2)
         const key = d.slot.key;
-        let x = d.slot.sx;
+        let x = d.slot.rsx;
         for (let k = 0; k < 3; k++) {
           await page.mouse.move(x, TAP_Y);
           const g = await page.evaluate(key => new Promise(res => requestAnimationFrame(() => {
-            const gh = CS.ghost(), s = CS.slots().find(q => q.key === key);
-            res({ ok: !!gh && gh.key === key, sx: s ? s.sx : null });
+            const gh = CS.ghost(), s = CS.slots(true).find(q => q.key === key);
+            res({ ok: !!gh && gh.key === key, sx: s ? s.rsx : null });
           })), key);
           if (g.sx === null) break;
           x = g.sx;
@@ -367,7 +372,7 @@ async function playOne(browser, test, bot, seed, pace) {
         }
         // (a steady pace: the press waits for its moment, gap s of game time after the last release)
         if (P.gap) await page.evaluate(gap => new Promise(res => { (function f() { const lr = CS.lastRelease; if (!lr || CS.state().t >= lr.t + gap - 1e-9 || CS.state().phase !== 'play') return res(); requestAnimationFrame(f); })(); }), P.gap);
-        const now = await page.evaluate(key => { const s = CS.slots().find(q => q.key === key); return { sx: s ? s.sx : null, id: CS.lastRelease ? CS.lastRelease.id : 0 }; }, key);
+        const now = await page.evaluate(key => { const s = CS.slots(true).find(q => q.key === key); return { sx: s ? s.rsx : null, id: CS.lastRelease ? CS.lastRelease.id : 0 }; }, key);
         if (now.sx !== null) { x = now.sx; await page.mouse.move(x, TAP_Y); }
         await page.mouse.down(); await page.mouse.up();
         r.drops++;
@@ -376,21 +381,20 @@ async function playOne(browser, test, bot, seed, pace) {
     }
     const s = await page.evaluate(() => {
       const ev = CS.events, lands = ev.filter(e => e.type === 'land');
-      return { snapsFull: ev.filter(e => e.type === 'snap' && e.full).length, snapsPart: ev.filter(e => e.type === 'snap' && !e.full).length,
-        crashes: ev.filter(e => e.type === 'crash').length, tipCrashes: ev.filter(e => e.type === 'crash' && !e.snap).length,
+      return { ribbons: ev.filter(e => e.type === 'goal').length,
+        crashes: ev.filter(e => e.type === 'crash').length, notPast: ev.filter(e => e.type === 'crash' && !e.past).map(e => e.t.toFixed(2) + ' weight ' + e.weight + ' wheel ' + e.wheel),
         trusses: ev.filter(e => e.type === 'truss').reduce((a, e) => a + (e.n || 1), 0), topples: ev.filter(e => e.type === 'topple').length,
         lands: lands.length, perfect: lands.filter(e => e.grade === 'perfect').length, misses: ev.filter(e => e.type === 'miss').length,
-        top: CS.state().tallest, maxW: lands.reduce((a, e) => Math.max(a, e.W || 0), 0),
-        glowShort: ev.filter(e => e.type === 'snap' && !(e.glowFor >= 0.3)).length };
+        top: CS.state().tallest, maxW: lands.reduce((a, e) => Math.max(a, e.W || 0), 0) };
     });
     Object.assign(r, s);
-    if (TRACE) r.events = await page.evaluate(() => CS.events.filter(e => /land|snap|crash|truss|goal|topple|miss/.test(e.type)).map(e => e.t.toFixed(2) + ' ' + e.type + ' ' +
+    if (TRACE) r.events = await page.evaluate(() => CS.events.filter(e => /land|crash|truss|goal|crown|topple|miss|bump|foot/.test(e.type)).map(e => e.t.toFixed(2) + ' ' + e.type + ' ' +
       (e.type === 'land' ? e.key + ' ' + e.grade + ' W ' + e.W + ' dW ' + e.dW + ' λ ' + e.lam + ' yb ' + e.yb.toFixed(2) : JSON.stringify(Object.assign({}, e, { t: undefined, type: undefined })))));
   } catch (e) {
     r.errors.push('tool: ' + (e && e.message ? e.message.split('\n')[0] : e));
   } finally { await context.close(); }
   if (VERBOSE) console.log(`  ${test} ${NAME[bot]} pace ${pace} seed ${seed}: ${r.end}${r.tGoal !== null ? ' in ' + r.tGoal.toFixed(1) + ' s' : r.smash !== null ? ' in ' + r.smash.toFixed(1) + ' s' : ''}; ` +
-    `${r.drops} drops, ${r.holds} holds, tallest ${(r.top || 0).toFixed(1)} L, snaps ${r.snapsFull}/${r.snapsPart}, crashes ${r.crashes}, trusses ${r.trusses}, PERFECT ${r.perfect}/${r.lands}`);
+    `${r.drops} drops, ${r.holds} holds, tallest ${(r.top || 0).toFixed(1)} L, crashes ${r.crashes}, trusses ${r.trusses}, PERFECT ${r.perfect}/${r.lands}`);
   if (TRACE) { for (const l of r.trace) console.log('     > ' + l); for (const l of r.events || []) console.log('     | ' + l); }
   return r;
 }
@@ -413,14 +417,14 @@ const pad = (s, n) => String(s).padEnd(n), lpad = (s, n) => String(s).padStart(n
 const median = a => { if (!a.length) return null; const b = a.slice().sort((x, y) => x - y), m = b.length >> 1; return b.length & 1 ? b[m] : (b[m - 1] + b[m]) / 2; };
 function table(title, rows) {
   console.log('\n' + title);
-  console.log(pad('bot', 15) + lpad('goal', 7) + lpad('median', 9) + lpad('mean', 9) + lpad('typical', 9) + lpad('snaps f/p', 11) + lpad('crashes', 9) + lpad('trusses', 9) + lpad('PERFECT', 9) + lpad('tallest', 9));
+  console.log(pad('bot', 15) + lpad('goal', 7) + lpad('median', 9) + lpad('mean', 9) + lpad('typical', 9) + lpad('crashes', 9) + lpad('trusses', 9) + lpad('PERFECT', 9) + lpad('tallest', 9));
   for (const [bot, rs] of rows) {
     const ok = rs.filter(r => r.goal || r.smash !== null), times = ok.map(r => r.goal ? r.tGoal : r.smash);
     const mean = times.length ? times.reduce((a, b) => a + b, 0) / times.length : null, med = median(times), avg = stats(rs).avg;
     const sum = k => rs.reduce((a, r) => a + (r[k] || 0), 0);
     const lands = sum('lands');
     console.log(pad(NAME[bot], 15) + lpad(ok.length + '/' + rs.length, 7) + lpad(med === null ? '-' : med.toFixed(1) + ' s', 9) + lpad(mean === null ? '-' : mean.toFixed(1) + ' s', 9) + lpad(avg === null || bot === 'tapper' ? '-' : avg.toFixed(1) + ' s', 9) +
-      lpad(sum('snapsFull') + '/' + sum('snapsPart'), 11) + lpad(sum('crashes'), 9) + lpad(sum('trusses'), 9) +
+      lpad(sum('crashes'), 9) + lpad(sum('trusses'), 9) +
       lpad(lands ? Math.round(100 * sum('perfect') / lands) + '%' : '-', 9) + lpad((rs.reduce((a, r) => a + (r.top || 0), 0) / rs.length).toFixed(1) + ' L', 9));
   }
 }
@@ -432,7 +436,8 @@ const stats = rs => {
   return { n: ok.length, of: rs.length, mean: t.length ? t.reduce((a, b) => a + b, 0) / t.length : null, med: median(t), avg: all.length === rs.length ? median(all) : null };
 };
 
-(async () => {
+module.exports = { botInit, POLICY };
+if (require.main === module) (async () => {
   const browser = await launch();
   const t0 = Date.now();
   const res = {};
@@ -441,13 +446,11 @@ const stats = rs => {
     for (const pace of PACES) {
       const at = AT[pace > 0 ? 'h' : 0];
       for (const test of ['level8', 'level7', 'level5', 'level1']) if (wantT(test)) for (const bot of at[test]) if (wantB(bot)) for (const seed of SEEDS) jobs.push({ test, bot, seed, pace });
-      // (the wide-spread comparison over twice the seeds: does bracing pay (bot speed))
-      if (wantT('level8')) for (const bot of EXTRA_AT[pace > 0 ? 'h' : 0]) if (wantB(bot)) for (const seed of EXTRA) jobs.push({ test: 'level8', bot, seed, pace, extra: true });
     }
     if (wantT('big') && !onlyB.length) for (const seed of SEEDS) jobs.push({ test: 'big', bot: 'tapper', seed, pace: 0 });
     console.log(`strategy: ${jobs.length} games (seeds ${SEEDS.join(',')}, paces ${PACES.join(', ')}), ${JOBS} at a time, ts ${TS}`);
     const out = await runAll(browser, jobs);
-    for (const r of out) { const k = r.test + '@' + r.pace + (r.extra ? '+' : ''); (res[k] = res[k] || {}); (res[k][r.bot] = res[k][r.bot] || []).push(r); }
+    for (const r of out) { const k = r.test + '@' + r.pace; (res[k] = res[k] || {}); (res[k][r.bot] = res[k][r.bot] || []).push(r); }
   } finally { await browser.close(); }
 
   const titles = { level8: 'level=8: one car (2 L wide), goal 11 L, fuse 1.4 s, bump car + foot', level7: 'level=7: the long car (3 L wide), goal 10 L, fuse 1.5 s, bump car',
@@ -465,55 +468,44 @@ const stats = rs => {
   for (const pace of PACES) {
     const tag = pace > 0 ? `[pace ${pace}] ` : '';
     const g = (test, bot) => { const k = test + '@' + pace; return res[k] && res[k][bot] ? stats(res[k][bot]) : null; };
-    // (a comparison over the seeds and the extra ones, when they ran)
-    const both = (test, bot) => (res[test + '@' + pace] && res[test + '@' + pace][bot] || []).concat((res[test + '@' + pace + '+'] || {})[bot] || []);
-    const b8 = g('level8', 'brace'), s8 = g('level8', 'stack'), a8 = g('level8', 'balance'), p8 = g('level8', 'patient');
+    const b8 = g('level8', 'brace'), s8 = g('level8', 'stack'), a8 = g('level8', 'balance'), p8 = g('level8', 'patient'), sp8 = g('level8', 'spire');
     const r8 = g('level8', 'rhythm'), nb8 = g('level8', 'nobrace'), br8 = g('level8', 'bracer'), c8 = g('level8', 'careful');
     if (b8) check(tag + 'level=8: BraceBot reaches the goal >= 8/10', b8.n >= frac(8, 10), fmt(b8));
-    if (s8) check(tag + 'level=8: StackBot <= 3/10', s8.n <= frac(3, 10), fmt(s8));
-    if (a8) check(tag + 'level=8: BalanceBot <= 3/10', a8.n <= frac(3, 10), fmt(a8));
-    if (p8) console.log(`INFO ${tag}level=8: PatientBot (StackBot's one-wide spire, waiting for W < 0.3) ${fmt(p8)}${ratio(p8, b8)}`);
+    if (s8) check(tag + 'level=8: StackBot (stacking straight up, the highest spot) <= 3/10', s8.n <= frac(3, 10), fmt(s8));
+    if (a8) check(tag + 'level=8: BalanceBot (stacking a two-wide tower straight up) <= 3/10', a8.n <= frac(3, 10), fmt(a8));
+    if (sp8) check(tag + 'level=8: SpireBot (the one-wide spire straight up) <= 3/10', sp8.n <= frac(3, 10), fmt(sp8));
+    if (p8) console.log(`INFO ${tag}level=8: PatientBot (StackBot's one-wide spire, waiting for W < 0.2) ${fmt(p8)}${ratio(p8, b8)}`);
     if (pace === 0) {
       if (c8 && b8) {
-        check(tag + 'level=8: CarefulBot (patience on a two-wide tower, never bracing) >= 4/10', c8.n >= frac(4, 10), fmt(c8));
+        check(tag + 'level=8: CarefulBot (waiting without bracing) gets there, >= 4/10', c8.n >= frac(4, 10), fmt(c8));
         check(tag + 'level=8: CarefulBot takes on average >= 35% longer than BraceBot', slower(c8, b8, 1.35), `CarefulBot ${fmt(c8)}, BraceBot ${fmt(b8)}${ratio(c8, b8)}`);
       }
       if (r8) check(tag + 'level=8: RhythmBot (stacking straight up at a steady 0.6 s, never bracing) <= 3/10', r8.n <= frac(3, 10), fmt(r8));
       if (br8) check(tag + 'level=8: BraceRhythmBot (bracing at the steady 0.6 s, never reading W) >= 8/10', br8.n >= frac(8, 10), fmt(br8));
       if (nb8 && b8) {
-        const nb = stats(both('level8', 'nobrace')), bb = stats(both('level8', 'brace')), m = both('level8', 'brace').length;
-        check(tag + `level=8: NoBraceBot takes on average >= 25% longer than BraceBot, or NoBraceBot <= 60% (bracing pays; over ${m} seeds)`, slower(nb, bb, 1.25) || nb.n <= 0.6 * nb.of + 1e-9, `NoBraceBot ${fmt(nb)}, BraceBot ${fmt(bb)}${ratio(nb, bb)}`);
+        check(tag + 'level=8: NoBraceBot (BraceBot\'s own build, never bracing) gets there, >= 4/10', nb8.n >= frac(4, 10), fmt(nb8));
+        check(tag + 'level=8: NoBraceBot takes on average >= 35% longer than BraceBot', slower(nb8, b8, 1.35), `NoBraceBot ${fmt(nb8)}, BraceBot ${fmt(b8)}${ratio(nb8, b8)}`);
       }
     } else {
       if (nb8 && b8) console.log(`INFO ${tag}level=8: NoBraceBot ${fmt(nb8)}, BraceBot ${fmt(b8)}${ratio(nb8, b8)}`);
-      if (c8 && b8) console.log(`INFO ${tag}level=8: CarefulBot (patience on a two-wide tower) ${fmt(c8)}, BraceBot ${fmt(b8)}${ratio(c8, b8)}`);
+      if (c8 && b8) console.log(`INFO ${tag}level=8: CarefulBot (waiting without bracing) ${fmt(c8)}, BraceBot ${fmt(b8)}${ratio(c8, b8)}`);
     }
     // (when to brace matters: the same BraceBot bracing from λ 1.5 or only from λ 4, reported)
     const e15 = g('level8', 'brace15'), e4 = g('level8', 'brace4');
     if (b8 && (e15 || e4)) console.log(`INFO ${tag}level=8: the brace trigger: λ 1.5 ${e15 ? fmt(e15) : '-'}; λ 2.5 ${fmt(b8)}; λ 4 ${e4 ? fmt(e4) : '-'}`);
-    // (the one-wide spire is the slow way up on every base: 25% slower than BraceBot, or it mostly fails)
-    for (const test of ['level8', 'level7', 'level5']) {
-      const sp = g(test, 'spire'), bb = g(test, 'brace');
-      if (sp && bb) check(tag + `${test.replace('level', 'level=')}: SpireBot (one centred column, dropping when the glow is not red) takes on average >= 25% longer than BraceBot, or <= 3/10`,
-        slower(sp, bb, 1.25) || sp.n <= frac(3, 10), `SpireBot ${fmt(sp)}, BraceBot ${fmt(bb)}${ratio(sp, bb)}`);
-    }
-    const b7 = g('level7', 'brace');
-    if (b7) check(tag + 'level=7: BraceBot reaches the goal >= 9/10', b7.n >= frac(9, 10), fmt(b7));
-    const b5 = g('level5', 'brace'), s5 = g('level5', 'stack'), r5 = g('level5', 'rhythm');
-    if (b5) check(tag + 'level=5: BraceBot reaches the goal >= 9/10', b5.n >= frac(9, 10), fmt(b5));
-    if (s5) check(tag + 'level=5: StackBot <= 6/10', s5.n <= frac(6, 10), fmt(s5));
-    if (r5) check(tag + 'level=5: RhythmBot <= 6/10', r5.n <= frac(6, 10), fmt(r5));
-    for (const bot of ['stack', 'balance', 'patient', 'brace']) { const x = g('level1', bot); if (x) check(tag + `level=1: ${NAME[bot]} reaches the goal ${n}/${n}`, x.n === x.of, fmt(x)); }
+    // (the long car, on request: reported)
+    for (const test of ['level7', 'level5']) for (const bot of ['brace', 'stack', 'balance', 'spire']) { const x = g(test, bot); if (x) console.log(`INFO ${tag}${test.replace('level', 'level=')}: ${NAME[bot]} ${fmt(x)}`); }
+    for (const bot of AT[pace > 0 ? 'h' : 0].level1) { const x = g('level1', bot); if (x) check(tag + `level=1: ${NAME[bot]} reaches the goal ${n}/${n}`, x.n === x.of, fmt(x)); }
   }
   if (res['big@0']) {
     const rs = res['big@0'].tapper, ok = rs.filter(r => r.smash !== null && r.smash <= 15 + 1e-9);
     check(`BIG MAGNETS: RandomTapper clears L1 within 15 s, ${n}/${n}`, ok.length === rs.length,
       `${ok.length}/${rs.length}: ` + rs.map(r => `s${r.seed} ${r.smash === null ? r.end : r.smash.toFixed(1) + ' s'}`).join(', '));
   }
-  // the wobble's warning: every SNAP came after at least 0.3 s of the glow (15.3)
+  // one way to fall (16.6): every crash in every run happened with the weight past a wheel
   const all = Object.values(res).flatMap(t => Object.values(t).flat());
-  const snaps = all.reduce((a, r) => a + (r.snapsFull || 0) + (r.snapsPart || 0), 0), short = all.reduce((a, r) => a + (r.glowShort || 0), 0);
-  check('every SNAP was told by the glow for >= 0.3 s first', short === 0, `${snaps} SNAPs, ${short} with less`);
+  const crashes = all.reduce((a, r) => a + (r.crashes || 0), 0), notPast = all.flatMap(r => (r.notPast || []).map(x => `${r.test} ${NAME[r.bot]} s${r.seed} ${x}`));
+  check('every crash happened with the weight past a wheel', notPast.length === 0, `${crashes} crashes${notPast.length ? '; not past: ' + notPast.slice(0, 3).join(' | ') : ''}`);
   const errs = all.flatMap(r => r.errors.map(e => `${r.test} ${NAME[r.bot]} s${r.seed}: ${e}`));
   check('no page, console or tool errors', errs.length === 0, errs.slice(0, 4).join(' | '));
   console.log(`\nSTRATEGY: ${failures ? failures + ' target(s) failed' : 'all targets met'} (${((Date.now() - t0) / 60000).toFixed(1)} min)`);

@@ -25,9 +25,9 @@ const FRAMES = +opt('frames', 36);
   try {
     const { page, errors, context } = await gamePage(browser, { width: W, height: H }, { seed, ts: 4, level, mute: 1, nohint: 1, autostart: 1 });
     await until(page, () => window.CS && CS.state().handReady);
-    // (a tip crash: the wobble of DESIGN 15.3 is off, a fixture, or the centred column would SNAP before it goes over;
-    // tools/screens.cjs has the SNAP)
-    await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; CFG.WOB_CAP_THIN = 0; });
+    // (the overhang's own tip: the sway of DESIGN 16.2 is off, a fixture, or the centred column's swing would tip it
+    // first; tools/screens.cjs has a swaying tower going over)
+    await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; });
     // centred columns up to `tall` L, then the rightmost slot every time until it goes
     let crashed = false;
     for (let k = 0; k < 90 && !crashed; k++) {

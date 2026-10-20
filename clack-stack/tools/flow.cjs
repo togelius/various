@@ -45,7 +45,7 @@
 //           not deal in order; the goal-crossing drop and everything after are real clicks): the crown is owed, not
 //           put in the hand (no OOPS loop), the hand keeps building, the crown drops in as soon as a landing opens a
 //           triangle slot, and crowning it SMASHes to L10; a crown in HOLD stays there while no triangle slot exists
-//           (the wobble of DESIGN 15.3 off: the 2-wide fixture would SNAP; wobble.cjs tests the crown with SNAPs)
+//           (the sway of DESIGN 16.2 off: the 2-wide fixture's swing would tip it; wobble.cjs tests the sway)
 //   pending a press 0.1 s before the new base parks (after a SMASH, and on the intro roll-in) drops a tile within
 //           0.2 s of play resuming
 //   buzzer  a crown released with time on the clock that lands after the clock hits 0.0 still crowns: bonus, +3 s (+1 s a whole L),
@@ -58,7 +58,7 @@
 //           is framed under that line; and as real drops bring the goal near on a 31-row tower (L16, 390x844,
 //           844x390, 1366x1024), calm drops and quick ones (the next tile dropped while the one before is still in
 //           the air), the ribbon is never drawn, however faintly, through the tile in the hand nor along its bottom
-//           edge (it fades out before it reaches it) (that tower with the wobble off: 15.3 would SNAP it on the first drop)
+//           edge (it fades out before it reaches it) (that tower with the sway off: 16.2's swing would tip it on the first drop)
 // Exits non-zero on any failure, page error or console error.
 const { launch, gamePage, until } = require('./lib.cjs');
 
@@ -782,20 +782,30 @@ async function lockFixture(page) {
     return { top: S.top, G: S.G, slots: CS.slots().map(s => s.key) };
   }, LOCK_KEYS);
 }
-// (DESIGN 15.3: a 2-wide fixture tower 11-35 L tall is far past where the wobble SNAPs it on the next real drop. The
-// checks that build one test the crown, the ribbon and the camera, not the wobble (tools/wobble.cjs): it is off there,
-// a test fixture)
-async function noWobble(page) { await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; CFG.WOB_CAP_THIN = 0; }); }
+// (DESIGN 16.2: a 2-wide fixture tower 11-35 L tall is far past where the sway's swing tips it after the next real
+// drop. The checks that build one test the crown, the ribbon and the camera, not the sway (tools/wobble.cjs): it is off
+// there, a test fixture)
+async function noWobble(page) { await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; }); }
 async function crownWaitChecks(browser) {
   const g = await open(browser, { seed: 1, autostart: 1, level: 9, ts: 2 }); g.tag = 'crownwait';
   const { page } = g;
   await until(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked);
   await noWobble(page);
   const fx = await lockFixture(page);
-  if (fx.fail || fx.slots.join() !== 'up:-2,11,2') { check('crownwait: fixture build', false, JSON.stringify(fx)); await finish(g); return; }
+  // (DESIGN 16.3: since revision 3 a triangle can always flip against a slant, so a build never runs out of triangle
+  // spots by itself; the fixture keeps them closed but the one that tears the ribbon (genSlots wrapped), until the kid's
+  // building below lifts it)
+  const fx2 = await page.evaluate(() => {
+    const g0 = genSlots;
+    window.__triOnly = ['up:-2,11,2'];
+    genSlots = function (B) { g0(B); if (window.__triOnly) B.cands = B.cands.filter(c => (c.type !== 'up' && c.type !== 'dn') || window.__triOnly.includes(c.key)); return B.cands; };
+    genSlots(S.B); computeGhost();
+    return CS.slots().map(s => s.key);
+  });
+  if (fx.fail || fx2.join() !== 'up:-2,11,2') { check('crownwait: fixture build', false, JSON.stringify(fx) + ' ' + fx2.join()); await finish(g); return; }
   await waitGame(page, 0.3);
   const sl = await page.evaluate(() => CS.slots().find(s => s.key === 'up:-2,11,2'));
-  await page.mouse.move(sl.sx, VIEW.height * 0.55); await page.mouse.down(); await page.mouse.up();
+  await page.mouse.move(sl.rsx, VIEW.height * 0.55); await page.mouse.down(); await page.mouse.up();
   await until(page, () => CS.events.some(e => e.type === 'goal'), null, 4000).catch(() => {});
   await waitGame(page, 0.3);
   const a = await page.evaluate(() => { const s = CS.state(); return { goal: CS.events.filter(e => e.type === 'goal').length, owed: s.crownOwed, inHand: s.crownInHand, piece: s.piece,
@@ -813,6 +823,8 @@ async function crownWaitChecks(browser) {
   const h = await page.evaluate(() => ({ held: CS.state().held, inHand: CS.state().crownInHand }));
   check('crownwait: a crown in HOLD stays there while no triangle slot exists (Shift bonks)', h.held === 'crown' && !h.inHand, JSON.stringify(h));
   await page.evaluate(k => { S.held = k.held; S.overtime = k.ot; S.crownOwed = k.owed; }, hold);
+  // (the fixture lifted: the next landing opens triangle spots again)
+  await page.evaluate(() => { window.__triOnly = null; });
   // a kid just keeps building: squares (and the cube) go on the open slot, anything else is thrown off to the side
   let given = null, taps = 0;
   for (let k = 0; k < 30 && !given; k++) {

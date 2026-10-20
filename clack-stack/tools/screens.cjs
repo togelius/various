@@ -2,11 +2,12 @@
 'use strict';
 // Screenshots of every screen, to LOOK at (portrait and landscape): the title (and BIG MAGNETS on), the shove, play,
 // the crown in hand, OVERTIME, the SMASH, the level announcement, pause, a bump warning, the foot, the tall-tower
-// gauge, night (L15), TIME! and the results card with a NEW BEST; and (revision 2, DESIGN 15) the long car of L4, a
-// triangle in the hand over a notch (the faint outlines of the triangle moves, the TRUSS chip), the TRUSS's lock flash
-// and the glint it leaves, the wobble's amber and red joints and its sway, the SNAP, the GO HIGHER chip with the first
-// crown's hint, and OVERTIME's badge on the HOLD box. Driven by real input (the wobble shots on fixture builds);
-// CS.setClock ends runs.
+// gauge, night (L15), TIME! and the results card with a NEW BEST; (revision 2, DESIGN 15) the long car of L4, a
+// triangle in the hand over a notch (the TRUSS spot, the TRUSS chip), the TRUSS's lock flash and the glint it leaves,
+// the GO HIGHER chip with the first crown's hint, and OVERTIME's badge on the HOLD box; and (revision 3, DESIGN 16) the
+// plumb weight on the wheel span with the ghost weight, every spot for a square, a swaying tower and its swing tipping
+// it over a wheel, and the first-play hint. Driven by real input (the sway shots on fixture builds); CS.setClock ends
+// runs.
 //   node clack-stack/tools/screens.cjs [outDir] [--sizes=390x844,844x390]
 // Writes outDir/<size>/NN-name.png and outDir/sheet-<size>.png. Fails on page or console errors, and if a word pop
 // or announcement breaks the rules while the level is played through (lib.cjs wordMonitor: none over the HUD or over
@@ -36,8 +37,8 @@ async function drop(page, H, tall, noHold) {
   if (s === 'crown') return;
   if (!s) { if (noHold) { await page.mouse.move(3, H * 0.55); await page.mouse.down(); await page.mouse.up(); } else await page.keyboard.press('Shift'); return; }
   await until(page, () => Math.abs(CS.state().omega) < 0.03, null, 1500).catch(() => {});
-  const x = await page.evaluate(k => (CS.slots().find(q => q.key === k) || {}).sx, s.key);
-  await page.mouse.move(x || s.sx, H * 0.55); await page.mouse.down(); await page.mouse.up();
+  const x = await page.evaluate(k => (CS.slots().find(q => q.key === k) || {}).rsx, s.key);
+  await page.mouse.move(x || s.rsx, H * 0.55); await page.mouse.down(); await page.mouse.up();
 }
 
 // a fixture build: tiles placed by slot key with the lattice functions, a brace line where a TRUSS would put it
@@ -55,16 +56,17 @@ function fixture(page, keys, yb) {
     genSlots(B); recomputeTower(); massProps(B, true, COMMIT); computeGhost();
   }, [keys, yb || 0]);
 }
-// a real click at slot `key`'s live centre with a square in the hand (before: run in the page just before the press)
+// a real click at slot `key`'s centre (where it is at rest: the middle of its swing) with a square in the hand
+// (before: run in the page just before the press)
 async function tapKey(page, key, H, before) {
   await ready(page);
   await page.evaluate(() => { if (HAND.piece && HAND.piece.shape !== 'sq' && HAND.piece.shape !== 'crown') { HAND.piece = { shape: 'sq', color: 'yellow', variant: 1 }; computeGhost(); } });
-  const sx = await page.evaluate(k => { const q = CS.slots().find(o => o.key === k); return q ? q.sx : null; }, key);
+  const sx = await page.evaluate(k => { const q = CS.slots().find(o => o.key === k); return q ? q.rsx : null; }, key);
   if (sx === null) throw new Error('screens: no slot ' + key);
   await page.mouse.move(sx, H * 0.55);
   await page.evaluate(() => new Promise(r => requestAnimationFrame(() => r())));
   if (before) await page.evaluate(before);
-  const x = await page.evaluate(k => { const q = CS.slots().find(o => o.key === k); return q ? q.sx : null; }, key);
+  const x = await page.evaluate(k => { const q = CS.slots().find(o => o.key === k); return q ? q.rsx : null; }, key);
   const id = await page.evaluate(() => CS.lastRelease ? CS.lastRelease.id : 0);
   await page.mouse.move(x === null ? sx : x, H * 0.55); await page.mouse.down(); await page.mouse.up();
   await until(page, i => CS.lastRelease && CS.lastRelease.id > i, id, 5000);
@@ -248,35 +250,62 @@ async function tapKey(page, key, H, before) {
         if (errors.length) { bad++; console.log(errors.join('\n')); }
         await context.close();
       }
-      // 7. revision 2: the wobble, the SNAP and the crown gamble (DESIGN 15.3, 15.6) on fixtures (tiles placed with the
-      // lattice functions; W set where a shot needs it): a 2-wide tower braced at 3.9 L with a column on the brace
-      // swaying amber (W 0.62), then red (W 0.95 on the slender column: one more landing could SNAP it; the wash over
-      // its tiles, the fuse ring waiting); the SNAP (the segment flying off, the brace
-      // standing); then on L1 the crown at the ribbon with the GO HIGHER chip and the first crown's hint, and the
-      // OVERTIME badge on the HOLD box after a click on the chip
+      // 7. revision 3: the sway, the plumb weight and the one way to fall (DESIGN 16) on fixtures (tiles placed with the
+      // lattice functions; W set where a shot needs it): a square in the hand over a 2-wide tower braced at 3.9 L (every
+      // spot dotted, the ghost, the weight on the wheel span with the ghost weight and its swing) and the column on the
+      // brace swaying (W 0.6); an unbraced tower's swing tipping it over a wheel (W 1); then on L1 the crown at the ribbon
+      // with the GO HIGHER chip and the first crown's hint, and the OVERTIME badge on the HOLD box after a click on the chip
       {
         const { page, errors, context } = await gamePage(browser, { width: W, height: H }, { seed: 21, mute: 1, autostart: 1, ts: 1, level: 8, nohint: 1 }, { realClock: true });
         await ready(page);
-        await page.evaluate(() => { HZ.every = 0; HZ.kind = ''; });
+        await page.evaluate(() => { HZ.every = 0; HZ.kind = ''; LEVELS[8].fuse = 1e9; });
         const col = []; for (let a = 0; a < 3; a++) col.push('sq:-2,' + a + ',0', 'sq:0,' + a + ',0');
         await fixture(page, col.concat(['up:-2,3,0', 'up:0,3,0', 'dn:-1,3,0', 'sq:-1,3,1', 'sq:-3,3,1', 'sq:1,3,1', 'sq:-1,4,1', 'sq:-1,5,1']), 3 + Math.sqrt(3) / 2);
-        // (a first tile, so the fuse runs and shows it waits)
-        // (on the column: λ 4, so W 0.95 is red, one more landing could SNAP it)
         await tapKey(page, 'sq:-1,6,1', H);
         await ready(page);
-        await page.mouse.move(W / 2 + 0.2 * (await page.evaluate(() => CS.cam().L)), H * 0.55);
-        await page.evaluate(() => { WOB.W = 0.62; });
+        await page.evaluate(() => { HAND.piece = { shape: 'sq', color: 'yellow', variant: 0 }; computeGhost(); });
+        const sp = await page.evaluate(() => { const s = CS.slots(true).find(q => q.key === 'sq:1,4,1'); return s ? s.rsx : null; });
+        await page.mouse.move(sp || W / 2, H * 0.55);
         await page.waitForTimeout(250);
-        await shot(page, 'wobble-amber');
-        await page.evaluate(() => { WOB.W = 0.95; });
-        await page.waitForTimeout(260);
-        await shot(page, 'wobble-red');
-        await page.evaluate(() => { LEVELS[8].fuse = 1e9; });
-        if ((await page.evaluate(() => CS.state().glow)) !== 'red') { bad++; console.log(`wobble ${W}x${H}: the red shot is not red (${await page.evaluate(() => CS.state().glow)})`); }
-        await tapKey(page, 'sq:-1,7,1', H, () => { WOB.W = 0.999; const sw = stepWobble; let seen = false; stepWobble = function (dt) { if (S.flights.length) seen = true; if (!seen || S.flights.length) { WOB.W = 0.999; return; } stepWobble = sw; return sw(dt); }; });
-        await until(page, () => CS.events.some(e => e.type === 'snap'), null, 5000);
-        await page.waitForTimeout(160);
-        await shot(page, 'snap');
+        await shot(page, 'spots-weight');
+        const sh = await page.evaluate(() => ({ spots: CS.spots(), slots: CS.slots(true).map(s => s.key), w: CS.weightBox(), gw: CS.state().weight.ghost }));
+        const drawn = sh.spots.keys.concat(sh.spots.ghost ? [sh.spots.ghost] : []).sort().join(), offered = sh.slots.slice().sort().join();
+        if (drawn !== offered || !sh.w || !sh.gw) { bad++; console.log(`spots ${W}x${H}: drawn ${drawn} vs offered ${offered}; weight ${!!sh.w}, ghost weight ${!!sh.gw}`); }
+        await page.mouse.move(W / 2 + 0.2 * (await page.evaluate(() => CS.cam().L)), H * 0.55);
+        await page.evaluate(() => { WOB.W = 0.6; });
+        await page.waitForTimeout(450);
+        await shot(page, 'sway');
+        if (errors.length) { bad++; console.log(errors.join('\n')); }
+        await context.close();
+      }
+      // the swing tipping a tower: no brace, a column on the left of one car, W 1 and no more drops (the braced tower
+      // above barely moves its weight: its swaying part is short and light)
+      {
+        const { page, errors, context } = await gamePage(browser, { width: W, height: H }, { seed: 21, mute: 1, autostart: 1, ts: 1, level: 8, nohint: 1 }, { realClock: true });
+        await ready(page);
+        await page.evaluate(() => { HZ.every = 0; HZ.kind = ''; LEVELS[8].fuse = 1e9; });
+        await fixture(page, ['sq:-2,0,0', 'sq:0,0,0', 'sq:-2,1,0', 'sq:0,1,0', 'sq:-2,2,0', 'sq:-2,3,0', 'sq:-2,4,0', 'sq:-2,5,0', 'sq:-2,6,0']);
+        await page.mouse.move(W * 0.7, H * 0.55);
+        await page.waitForTimeout(600);
+        await page.evaluate(() => { WOB.W = 1; });
+        await until(page, () => CS.state().phase === 'crash', null, 6000).catch(() => {});
+        await page.waitForTimeout(100);
+        await shot(page, 'sway-tip');
+        if ((await page.evaluate(() => { const c = CS.events.find(e => e.type === 'crash'); return c ? c.past : null; })) !== true) { bad++; console.log(`sway tip ${W}x${H}: no crash with the weight past a wheel`); }
+        if (errors.length) { bad++; console.log(errors.join('\n')); }
+        await context.close();
+      }
+      // the first-play hint: keep the weight between the wheels (fresh prefs, after the first landing)
+      {
+        const { page, errors, context } = await gamePage(browser, { width: W, height: H }, { seed: 23, mute: 1, autostart: 1, ts: 1, level: 1 }, { realClock: true });
+        await ready(page);
+        await drop(page, H);
+        await until(page, () => CS.state().hintNow === 'weight', null, 5000).catch(() => {});
+        await page.waitForTimeout(500);
+        await shot(page, 'hint-weight');
+        const tb = await page.evaluate(() => ({ tip: CS.tipBox(), g: CS.ghost(), w: CS.weightBox() }));
+        const hit = (a, b) => a && b && a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+        if (!tb.tip || hit(tb.tip.box, tb.g && tb.g.box) || hit(tb.tip.box, tb.w)) { bad++; console.log(`hint ${W}x${H}: ${tb.tip ? 'over the ghost or the weight' : 'not shown'}`); }
         if (errors.length) { bad++; console.log(errors.join('\n')); }
         await context.close();
       }

@@ -20,26 +20,30 @@ on the peak, and the boy's cube comes in from the side and SMASHes the tower
 for a bonus. The next level is taller and on a narrower base, and the clock
 keeps running.
 
-The tower stands on wheels. Drop off-centre and it rocks; hang too much off
-one side and the far wheel lifts, it creaks and the edge of the screen glows
-red. Drop a tile on the other side quickly and it slaps back down for a SAVE.
-Otherwise it goes over, and the tiles crash and slide across the rug. A crash
-costs time, never the run. The run ends when the clock does.
+The tower stands on wheels, and one rule decides whether it stands: **keep the
+weight between the wheels.** A small brass plumb weight hangs on a thread from
+the build's centre of weight, just above the car, and the car's plate is marked
+with the wheel span: green in the middle, amber then red toward each wheel.
+While you aim, a faint ghost weight shows where the weight will settle after
+this drop, with its swing marked on the plate; it turns red if the drop would
+tip the tower. If the weight goes past a wheel, the far wheel lifts, it creaks,
+the edge of the screen glows red, and the tower goes over unless the weight
+comes straight back (drop a tile on the other side quickly and it slaps back
+down for a SAVE). The tiles crash and slide across the rug. That is the only
+way a tower falls. A crash costs time, never the run. The run ends when the
+clock does.
 
-Tall, thin towers wobble. Every drop shakes the part above your last brace,
-more for a sloppy drop and much more for a tall, skinny tower. The joints glow
-amber, then pulse red when one more drop could make the magnets let go. If
-that happens, the tower SNAPs: everything above the brace cartwheels off and
-the braced part stays standing. A wobbling tower settles if you wait (the
-fuse waits with you), but the clock doesn't. A spire one tile wide is TOO THIN
-and hardly settles at all. Bracing is what the triangles are for. Two
-triangles pointing up leave a notch, and a third one dropped in point-down
-makes a TRUSS that locks everything below it. Triangles snap firmly to each
-other, so you can also hang one off a triangle's side to widen the tower
-again. The ghost marks the triangle spots, and a gold TRUSS chip shows when a
-drop will brace. The base gets narrower as you go: two cars on levels 1–3,
-a long car on levels 4–7, then a single car. From level 4 there is no red
-warning on the ghost, so judging the balance is up to you.
+Tall towers sway. Every drop on the part above your last brace makes it sway
+more, more for a sloppy drop and more for a tall, thin part, and it settles
+over a second or two when you wait. The sway carries the weight with it, so a
+tall unbraced tower stacked in a hurry swings its weight past a wheel and
+falls by the same rule. Bracing is what the triangles are for. Two triangles
+pointing up leave a notch, and a third one dropped in point-down (or the
+second one dropped beside a hung one) makes a TRUSS that locks everything
+below it: only what is above the brace sways, and much less. The notch spot
+shows gold with a padlock, and a gold TRUSS chip shows when a drop will brace.
+The base gets narrower as you go: two cars on levels 1–3, a long car on
+levels 4–7, then a single car.
 
 Landing dead centre is a PERFECT. PERFECTs and multi-edge clacks build a combo
 and a multiplier up to ×5, and the music adds a layer for each step. A streak of
@@ -52,16 +56,16 @@ mid-air. You can put a piece on HOLD.
 When the crown arrives you can place it at once, or tap GO HIGHER and keep
 building. In OVERTIME, everything above the ribbon scores double, and the
 crown's multiplier and the time it gives back grow with every row you add.
-A SNAP that leaves you below the ribbon loses the crown. A brace above the
-ribbon makes it SAFE. From level 5 a toy car comes zooming in to bump
+A crash loses the crown. From level 5 a toy car comes zooming in to bump
 the base, and from level 8 a grown-up's bare foot stomps down beside it. Past
 the ceiling the room opens up to the sky, then to night.
 
 **BIG MAGNETS** (the button on the title screen, or **B**) is the mode for small
 children. It has a bigger magnet reach, no fuse and no hazards. Crashes are
-harder to cause and the wobble is much gentler. The red warning stays on the
-ghost, and the crown just goes on top. The clock is slower, and it keeps its
-own best score. A child
+harder to cause and the sway is much gentler. Every spot stands on something
+(a top, a gap, a slant), so a tap beside the tower lands on the column next to
+it instead of hanging a tile off the side. The weight shows as always, and the
+crown just goes on top. The clock is slower, and it keeps its own best score. A child
 who misses a lot in normal mode is offered it during the run and on the results card.
 
 Open `index.html` in a browser. It is one file with no dependencies. It loads
@@ -79,11 +83,16 @@ keyboard. Best scores and settings are kept in the browser's local storage.
   spot); **Space**, **↓** or **Enter** drops; **Shift**, **↑** or **C** holds.
 - **P** or **Esc** pauses, **M** mutes, **Space / Enter** starts and plays again.
 
-The dashed ghost below the hand shows exactly where the tile will land: gold for
-a PERFECT, white for a clack, and a cross if there is nothing to land on. On
-levels 1–3 and in BIG MAGNETS it also turns red if the tile would tip the
-tower. A gold TRUSS chip means the drop will brace, and TOO THIN means you are
-building a spire.
+Every place the piece in your hand can go is drawn as a faint dotted outline:
+a square goes on any free flat top or beside any free upright side, a triangle
+point-up on any free flat top or flipped against any free slanted side of
+another triangle. A piece falls straight down, so it never goes under
+anything, and pieces never overlap. The outline nearest your finger is the
+bright ghost, exactly where the tile will land: gold for a PERFECT, white for
+a clack, and a cross if there is no outline near your finger. (On a swaying
+tower, aim at the middle of a spot's swing.) The ghost weight at the car says
+where the weight will settle, and a gold TRUSS chip means the drop will brace.
+The first time each idea comes up, a one-line hint says it once.
 
 ## How it's made
 
@@ -117,14 +126,17 @@ every clack is in tune with it, and it gets faster with each level.
 drive the real page through real mouse, touch and keyboard events: the lattice
 self-test, the feel of a drop and the ghost's honesty, bots that play perfectly,
 play recklessly and try for SAVEs, the whole game flow, the hazards, the
-wobble, the art and audio modules, performance, and screenshot sheets of every
-screen.
+sway and the plumb weight (`wobble.cjs`: it moves the weight, and a crash only
+ever happens with the weight past a wheel), the art and audio modules,
+performance, and screenshot sheets of every screen. The spots drawn are checked
+to be exactly the spots the game offers (`CS.slots()`).
 
 `strategy.cjs` checks that the choices matter. Bots with perfect aim and
-different policies race to the goal on levels 1, 5, 7 and 8, at bot speed and
-at a human pace. One stacks as high as it can, one keeps the centre of mass
-central, one waits for the wobble to settle, one builds a one-wide spire, and
-one braces with triangles. Only the one that braces reliably gets there quickly.
+different policies race to clear level 8 (one car, two wide, the crown placed
+on the 11 L ribbon) and level 1, at bot speed and at a human pace. Stacking
+straight up, one wide or two, falls before the goal; waiting for the sway to
+settle without bracing gets there, but slowly; the bot that braces with
+triangles gets there reliably and quickly. Levels 5 and 7 run on request.
 From the repository root, for example:
 
 ```sh
@@ -138,4 +150,6 @@ node clack-stack/tools/screens.cjs /tmp/clack-screens
 They need Node and the `playwright` package with a Chromium. `?seed=N`, `?level=N`,
 `?big=1`, `?mute=1` and `?debug` work on the page itself. `DESIGN.md` is the
 design the game was built from. Section 15 covers the second revision (braces,
-wobble and the crown gamble), which came out of playtesting.
+wobble and the crown gamble) and section 16 the third (rules you can see: the
+plumb weight, the sway and every spot shown), both of which came out of
+playtesting.

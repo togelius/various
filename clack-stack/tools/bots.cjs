@@ -7,37 +7,37 @@
 //   node clack-stack/tools/bots.cjs --seeds=3-5 --verbose
 // Checks:
 //   calib    CS.calib() reports a bump peak of 0.35 α ± 0.03 on the reference tower (and the other targets)
-//   perfect  PerfectBot (level 3, two cars since DESIGN 15.5, the wobble of 15.3 off (it would SNAP the bot's 2-wide
-//            middle column at 8-10 L: the wobble is wobble.cjs's and strategy.cjs's); taps the PERFECT centre of the supported slot that keeps |cₓ| smallest, never on a
+//   perfect  PerfectBot (level 3, two cars since DESIGN 15.5, the sway of 16.2 off (its swing would tip the bot's 2-wide
+//            middle column at 8-10 L: the sway is wobble.cjs's and strategy.cjs's); taps the PERFECT centre of the supported slot that keeps |cₓ| smallest, never on a
 //            TIPPY ghost while another slot is safe, HOLD once if none is) reaches 10 L with zero crashes in 10/10 seeds
 //            (if the ghost turns TIPPY while it aims, it applies the rule again without that slot). M4: level 3's
 //            ribbon is at 6 L, so on the way the crown drops into the hand: the bot HOLDs it (OVERTIME) and builds on;
 //            with the crown in the HOLD box, a tile with no safe slot is thrown away at the screen edge (a MISS)
-//   perfect8 PerfectBot on one car (level 8, the first one-car level since DESIGN 15.5; hazards, the fuse and the wobble
+//   perfect8 PerfectBot on one car (level 8, the first one-car level since DESIGN 15.5; hazards, the fuse and the sway
 //            off): the M3 guarantee, 10 L with zero crashes in 10/10 seeds
 //   edge     EdgeBot (always the rightmost slot; on one car: level 8 with its hazards off, DESIGN 15.5 having put two
 //            cars under level 3) crashes within 30 tiles in 10/10 seeds, and every crash is
 //            preceded by a tipwarn at least 0.5 s earlier (game time): the last tipwarn before it, i.e. the warning that
-//            was up when it went (the tell re-arms below 0.4 α). (A SNAP with no TRUSS, 15.3, is a crash with its own
-//            tell, the wobble's: counted apart)
+//            was up when it went (the tell re-arms below 0.4 α); and every crash with the weight past a wheel (16.1)
 //   save     SaveBot (as EdgeBot, level 8 hazards off; rightmost until a tipwarn, then drops on the far side) logs at
 //            least one save over the seeds;
 //            and every save is honest: nothing in the air, the tower physically leaned >= 0.6 α, and no crash follows
 //            within 2 s unless a new tile landed (or a hazard hit) after the save (checked for every save in every run)
 //   debris   (in every run) the debris count never goes above 60, no visible piece ever vanishes (the cap only drops
 //            pieces that have faded out), and everything a crash threw is asleep 3 s later
-//   dyn      (in every run, every 120 Hz step) the flex never bends past 0.35 L, and the top's lateral speed stays
-//            <= 2.8 L/s until the tower is past its tipping angle (past α it is uncapped: reported separately)
+//   dyn      (in every run, every 120 Hz step) the flex never bends past 0.35 L, and the top's lateral speed (rock + flex)
+//            stays <= 2.8 L/s until the tower is past its tipping angle (past α it is uncapped: reported separately). (The
+//            sway of 16.2 is not under the cap: a swaying spot is chosen and graded where it is at rest)
 //   tippy    TIPPY is honest: random drops (random slot, random offset within ±0.5 L, so any grade) on level 3 and 7
 //            towers (the fuse held: each drop's outcome is read once the tower is still); a drop whose ghost was not
 //            TIPPY never ends in a crash (drops followed up before the tower was still are skipped;
 //            M7: level 7 has the bump car, and TIPPY looks ahead to a hit inside its horizon, but a crash after a later
-//            bump or foot hit is the hazard's and is counted apart). (From level 4 the red ghost is not drawn, DESIGN
-//            15.4; the look-ahead behind it still runs and CS.lastRelease.tippy still reports it). (15.3: a drop that
-//            would SNAP a tower no TRUSS holds is a crash too, and TIPPY says so: the wobble's look-ahead is in it)
+//            bump or foot hit is the hazard's and is counted apart). (TIPPY is the ghost weight's red, on every level,
+//            16.1; CS.lastRelease.tippy reports it. The look-ahead has the sway in it: a swing that tips the tower is a
+//            TIPPY drop too)
 //   exact    (with tippy) the look-ahead behind TIPPY, the tip tell and SAVE is the game's own future, step for step:
 //            at every release (a click between frames, and the fuse's drop inside a step) CS.lookahead's θ for the
-//            next 1.5 s equals the tower's real θ after each step, exactly, up to a crash, a SNAP or the next release, on
+//            next 1.5 s equals the tower's real θ after each step, exactly, up to a crash or the next release, on
 //            level 3 and level 7 (the bump car) towers. (The look-ahead once landed every tile a step late when asked
 //            between frames: a drop on the edge of tipping could show safe and fall, now and then: a flaky TIPPY run)
 //   --trace  prints each PerfectBot decision and the run's releases and events
@@ -146,11 +146,11 @@ async function perfectBot(browser, seed, literal, level) {
   // (level 8: the one-car guarantee of M3, the hazards and the fuse held as fixtures: the bot's calm wait runs past
   // the 1.4 s fuse there)
   if (level !== 3) { await noHazards(page); await page.evaluate(lv => { LEVELS[lv].fuse = 1e9; }, level); }
-  // (DESIGN 15.3: this checks the rock, tip and crash of M3 for a player who aims perfectly and keeps the centre of
-  // mass central. Its most-central rule stacks a 2-wide column up the middle of the 4 L base, λ 4-5 at 8-10 L, which the
-  // wobble SNAPs (by design: that is what bracing is for, tools/strategy.cjs). The wobble is off here, a test fixture;
-  // tools/wobble.cjs and tools/strategy.cjs play it)
-  await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; CFG.WOB_CAP_THIN = 0; });
+  // (DESIGN 16.2: this checks the rock, tip and crash of M3 for a player who aims perfectly and keeps the centre of
+  // mass central. Its most-central rule stacks a 2-wide column up the middle of the 4 L base, λ 4-5 at 8-10 L, which
+  // sways until its swing tips it (by design: that is what bracing is for, tools/strategy.cjs). The sway is off here, a
+  // test fixture; tools/wobble.cjs and tools/strategy.cjs play it)
+  await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; });
   const r = { seed, tiles: 0, top: 0, crashes: 0, topples: 0, perfect: 0, lands: 0, swaps: 0, tippyDrops: 0, dodges: 0, misses: 0, crownHeld: 0, thrown: 0, errors };
   // among the slots that are not TIPPY: the supported one (a hanging one if no supported slot is safe) that keeps
   // |cₓ| smallest; ties: the higher, then by key. CS.slots().tippy = the ghost's TIPPY at the slot's PERFECT centre.
@@ -167,12 +167,12 @@ async function perfectBot(browser, seed, literal, level) {
   }, Object.assign({ literal: !!literal, avoid: avoid || [] }, MASS));
   // move the hand to the slot's PERFECT centre (following it if the tower sways) and read the ghost there
   const aim = async slot => {
-    let x = slot.sx, g = null;
+    let x = slot.rsx, g = null;
     for (let tries = 0; tries < 3; tries++) {
       await page.mouse.move(x, TAP_Y);
       g = await page.evaluate(key => new Promise(res => requestAnimationFrame(() => {
         const gh = CS.ghost(), s = CS.slots().find(q => q.key === key);
-        res({ key: gh && gh.key, gold: !!gh && gh.color === 'gold', tippy: !!gh && !!gh.tippy, sx: s ? s.sx : null, crown: CS.state().piece === 'crown' });
+        res({ key: gh && gh.key, gold: !!gh && gh.color === 'gold', tippy: !!gh && !!gh.tippy, sx: s ? s.rsx : null, crown: CS.state().piece === 'crown' });
       })), slot.key);
       if (g.crown) break;
       if (g.key === slot.key && g.gold) break;
@@ -240,12 +240,12 @@ async function perfectBot(browser, seed, literal, level) {
       for (let again = 0; again < 4; again++) {
         const q = await page.evaluate(key => {
           const gh = CS.ghost(), s = CS.slots().find(o => o.key === key);
-          return { key: gh && gh.key, gold: !!gh && gh.color === 'gold', sx: s ? s.sx : null, id: CS.lastRelease ? CS.lastRelease.id : 0 };
+          return { key: gh && gh.key, gold: !!gh && gh.color === 'gold', sx: s ? s.rsx : null, id: CS.lastRelease ? CS.lastRelease.id : 0 };
         }, p.slot.key);
         prev = q.id;
         if (!g || g.crown || again === 3 || (q.key === p.slot.key && q.gold) || q.sx === null) break;
         if (TRACE) console.log(`      s${seed} #${k} ${p.slot.key} moved off its centre before the press: aim again`);
-        g = await aim(Object.assign({}, p.slot, { sx: q.sx }));
+        g = await aim(Object.assign({}, p.slot, { rsx: q.sx }));
       }
       if (g && g.crown) continue;
       await page.mouse.down(); await page.mouse.up();
@@ -326,7 +326,7 @@ async function edgeBot(browser, seed, save) {
       // earlier one belongs to a swing the tower came back from)
       const warns = ev.filter(e => e.type === 'tipwarn' && e.t <= c.t);
       const last = warns.length ? warns[warns.length - 1].t : null;
-      r.crashes.push({ t: c.t, tiles: c.tiles, top: c.top, warnLead: last === null ? null : c.t - last, snap: !!c.snap });
+      r.crashes.push({ t: c.t, tiles: c.tiles, top: c.top, warnLead: last === null ? null : c.t - last, past: !!c.past });
     }
     r.saves = ev.filter(e => e.type === 'save').length;
     r.topples = ev.filter(e => e.type === 'topple').length;
@@ -408,11 +408,10 @@ async function lookaheadExact(browser, seed, level, drops) {
       };
       const st = window.step;
       window.step = function () {
-        const g0 = S.gt, c0 = S.crashes, s0 = S.snaps;
+        const g0 = S.gt, c0 = S.crashes;
         st.apply(this, arguments);
         if (!X.cur || S.gt === g0) return;
-        // (a SNAP takes the segment's mass off the tower, like a crash an event outside the rock's look-ahead: 15.3)
-        if (S.crashes !== c0 || S.snaps !== s0 || S.phase !== 'play') { close('crash, SNAP or phase'); return; }
+        if (S.crashes !== c0 || S.phase !== 'play') { close('crash or phase'); return; }
         X.cur.real.push(TW.theta);
         if (X.cur.real.length >= X.cur.pred.length) close('horizon');
       };
@@ -512,7 +511,7 @@ function debrisChecks(name, runs) {
         log(`perfect8 seed ${seed}: top ${r.top.toFixed(2)} L in ${r.tiles} drops, ${r.perfect}/${r.lands} PERFECT, crashes ${r.crashes}, topples ${r.topples}, TIPPY dodged ${r.dodges}, HOLD swaps ${r.swaps}, misses ${r.misses}`);
       }
       const ok = runs.filter(r => r.top >= 10 - 1e-9 && r.crashes === 0);
-      check(`PerfectBot: reaches 10 L with zero crashes on one car (level 8, hazards, fuse and wobble off, ts=4)`, ok.length === runs.length,
+      check(`PerfectBot: reaches 10 L with zero crashes on one car (level 8, hazards, fuse and sway off, ts=4)`, ok.length === runs.length,
         `${ok.length}/${runs.length}: ` + runs.map(r => `s${r.seed} ${r.top.toFixed(1)}L/${r.tiles}t${r.crashes ? ' CRASH' : ''}${r.topples ? ' topple' : ''}`).join(', '));
       debrisChecks('PerfectBot (one car)', runs);
       const errs = runs.flatMap(r => r.errors);
@@ -537,12 +536,11 @@ function debrisChecks(name, runs) {
       const within = runs.filter(r => r.firstCrashAt !== null && r.firstCrashAt <= 30);
       check('EdgeBot: crashes within 30 tiles', within.length === runs.length,
         `${within.length}/${runs.length}: ` + runs.map(r => `s${r.seed}:${r.firstCrashAt === null ? 'none' : r.firstCrashAt}`).join(' '));
-      // (a SNAP with no TRUSS is a crash too, DESIGN 15.3, but not a tip: its tell is the wobble's glowing joints and
-      // creak, not the tip warning. Counted apart)
-      const allC = runs.flatMap(r => r.crashes.map(c => Object.assign({ seed: r.seed }, c))), all = allC.filter(c => !c.snap);
+      // (one way to fall, DESIGN 16.1: every crash is a tip, with the weight past a wheel)
+      const all = runs.flatMap(r => r.crashes.map(c => Object.assign({ seed: r.seed }, c)));
       const warned = all.filter(c => c.warnLead !== null && c.warnLead >= 0.5 - 1e-6);
-      check('EdgeBot: every crash (tipping over) preceded by tipwarn >= 0.5 s earlier', all.length > 0 && warned.length === all.length,
-        `${warned.length}/${all.length}; leads ${all.map(c => c.warnLead === null ? 'none' : c.warnLead.toFixed(2)).join(' ')}; SNAP crashes ${allC.length - all.length}`);
+      check('EdgeBot: every crash (tipping over) preceded by tipwarn >= 0.5 s earlier, with the weight past a wheel', all.length > 0 && warned.length === all.length && all.every(c => c.past),
+        `${warned.length}/${all.length}; leads ${all.map(c => c.warnLead === null ? 'none' : c.warnLead.toFixed(2)).join(' ')}; past ${all.filter(c => c.past).length}/${all.length}`);
       debrisChecks('EdgeBot', runs);
       const errs = runs.flatMap(r => r.errors);
       check('EdgeBot: no page or console errors', errs.length === 0, errs.slice(0, 3).join(' | '));

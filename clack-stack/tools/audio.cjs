@@ -27,7 +27,7 @@
 //   the x1 groove still audible, the "aww" under a clack; and without AudioParam.cancelAndHoldAtTime (Firefox) a
 //   second duck during the first one's recovery does not step the music.
 // Part D, wiring: the game is played through real input (title shove, drops, a miss, a crash, hazards, a TRUSS
-//   and a SNAP, the goal and the SMASH, TIME! and the results) with every Sfx call recorded; every sound the design asks for is
+//   the goal and the SMASH, TIME! and the results) with every Sfx call recorded; every sound the design asks for is
 //   called at its moment (DESIGN 8 and 10), the creak is fed every frame, the music starts, follows the level
 //   and the multiplier and stops.
 // Fails (exit 1) on any check, pageerror or console.error.
@@ -106,7 +106,7 @@ const REALTIME = async ({ SOAK }) => {
   const T = window.__T;
   // ---- 1. API shape
   const KEYS = ['unlock', 'setMuted', 'muted', 'clack', 'zzip', 'miss', 'aww', 'poke', 'creak', 'save', 'crash', 'whistle', 'smash',
-    'tally', 'ribbon', 'crown', 'ring', 'gear', 'lock', 'snap', 'cubeFold', 'boom', 'honk', 'bonk', 'whooo', 'thump', 'fuseTick', 'clockTick',
+    'tally', 'ribbon', 'crown', 'ring', 'gear', 'lock', 'cubeFold', 'boom', 'honk', 'bonk', 'whooo', 'thump', 'fuseTick', 'clockTick',
     'newBest', 'streak', 'uiClick', 'haptic', 'music', 'stats'];
   if (typeof Sfx !== 'object' || !Sfx) { fail('Sfx is not a global object'); return { F, info }; }
   const own = Object.keys(Sfx).sort().join(','), want = KEYS.slice().sort().join(',');
@@ -120,7 +120,7 @@ const REALTIME = async ({ SOAK }) => {
 
   const typical = () => {
     Sfx.clack({ combo: 3, mass: 1, pan: 0.2, edges: 2, grade: 'great' }); Sfx.zzip(-0.3); Sfx.miss(0.5); Sfx.aww(); Sfx.poke(0.1);
-    Sfx.creak(0.7); Sfx.save(); Sfx.whistle(); Sfx.tally(4); Sfx.ribbon(); Sfx.crown(); Sfx.ring(); Sfx.gear(); Sfx.lock(); Sfx.snap(8, 0.3);
+    Sfx.creak(0.7); Sfx.save(); Sfx.whistle(); Sfx.tally(4); Sfx.ribbon(); Sfx.crown(); Sfx.ring(); Sfx.gear(); Sfx.lock();
     Sfx.cubeFold(2); Sfx.boom(); Sfx.honk(); Sfx.bonk(); Sfx.whooo(0.6); Sfx.thump(); Sfx.fuseTick('half'); Sfx.fuseTick('threeq');
     Sfx.fuseTick('last'); Sfx.clockTick(5); Sfx.clockTick(2); Sfx.newBest(); Sfx.streak(1); Sfx.streak(4); Sfx.uiClick(); Sfx.haptic(8); Sfx.haptic([30, 40, 30]);
     Sfx.clack({ combo: 4, mass: 1, edges: 1, grade: 'perfect', streak: 12 });
@@ -158,7 +158,7 @@ const REALTIME = async ({ SOAK }) => {
   const junk = [undefined, null, NaN, Infinity, -Infinity, -5, 1e9, 'x', {}, []];
   for (const j of junk) {
     Sfx.clack(j); Sfx.clack({ combo: j, mass: j, pan: j, edges: j, grade: j }); Sfx.zzip(j); Sfx.miss(j); Sfx.poke(j); Sfx.creak(j);
-    Sfx.crash(j, j); Sfx.snap(j, j); Sfx.tally(j); Sfx.cubeFold(j); Sfx.whooo(j); Sfx.fuseTick(j); Sfx.clockTick(j); Sfx.haptic(j);
+    Sfx.crash(j, j); Sfx.tally(j); Sfx.cubeFold(j); Sfx.whooo(j); Sfx.fuseTick(j); Sfx.clockTick(j); Sfx.haptic(j);
     Sfx.music.setLevel(j); Sfx.music.setMult(j); Sfx.music.duck(j); Sfx.setMuted(false);
   }
   Sfx.clack(); Sfx.clack({ combo: -7 }); Sfx.clack({ combo: 1234567, edges: 3, grade: 'perfect', mass: 3 }); Sfx.creak(0);
@@ -320,7 +320,6 @@ const REALTIME = async ({ SOAK }) => {
       if (i % 40 === 10) { Sfx.crash(30, 0); }
       if (i % 40 === 30) { Sfx.smash(); for (let k = 0; k < 10; k++) Sfx.tally(k); }
       if (i % 25 === 5) { Sfx.ring(); Sfx.gear(); Sfx.lock(); Sfx.fuseTick('last'); Sfx.clockTick(3); }
-      if (i % 40 === 20) Sfx.snap(12, -0.4);
       if (i % 60 === 45) { Sfx.ribbon(); Sfx.crown(); Sfx.cubeFold(i % 5); Sfx.boom(); Sfx.honk(); Sfx.bonk(); Sfx.whooo(0.5); Sfx.thump(); Sfx.save(); Sfx.miss(0); Sfx.aww(); }
       maxS = Math.max(maxS, Sfx.stats().voices);
       i++;
@@ -457,7 +456,6 @@ const OFFLINE = async ({ SRC }) => {
     ['ring', (S) => S.ring(), 300, 800, 900],
     ['gear', (S) => S.gear(), 600, 900, 950],
     ['lock', (S) => S.lock(), 400, 900, 1000],
-    ['snap', (S) => S.snap(10, 0.2), 400, 900, 1000],
     ['cubeFold', (S) => S.cubeFold(4), 15, 50, 60],
     ['boom', (S) => S.boom(), 200, 500, 600],
     ['honk', (S) => S.honk(), 250, 330, 340],
@@ -848,8 +846,8 @@ async function WIRING(browser) {
     logs.push(await page.evaluate(() => ({ tag: 'D2', end: S.gt, calls: __rec.calls, ev: CS.events.slice(), frames: __rec.frames, creak: __rec.creak, creakPlay: __rec.creakPlay, creakMax: __rec.creakMax })));
     await ctx.close();
   }
-  // ---- D4: a TRUSS and a SNAP (15.2, 15.3), by real taps on a fixture build (level 8, hazards off): a down-triangle
-  // into the notch of two up-triangles (the lock), then a square on the braced column with the wobble at the edge
+  // ---- D4: a TRUSS (15.2), by real taps on a fixture build (level 8, hazards off): a down-triangle into the notch of
+  // two up-triangles (the lock), then squares on the braced column
   {
     const { ctx, page } = await dOpen(browser, { seed: 5, ts: 1, level: 8, autostart: 1 });
     await dUntil(page, () => CS.state().phase === 'play' && CS.state().handReady && !CS.state().locked);
@@ -876,7 +874,6 @@ async function WIRING(browser) {
     await tapKey('dn:-1,2,0', 'tri');
     await tapKey('sq:-1,2,1', 'sq');
     await tapKey('sq:-1,3,1', 'sq');
-    await tapKey('sq:-1,4,1', 'sq', () => { WOB.W = 0.999; const sw = stepWobble; let seen = false; stepWobble = function (dt) { if (S.flights.length) seen = true; if (!seen || S.flights.length) { WOB.W = 0.999; return; } stepWobble = sw; return sw(dt); }; });
     await dGame(page, 0.8);
     logs.push(await page.evaluate(() => ({ tag: 'D4', end: S.gt, calls: __rec.calls, ev: CS.events.slice(), frames: __rec.frames, creak: __rec.creak, creakPlay: __rec.creakPlay, creakMax: __rec.creakMax })));
     await ctx.close();
@@ -902,7 +899,7 @@ async function WIRING(browser) {
   const called = (k) => all.some((c) => c.k === k);
   const at = (l, k, t, dt) => l.calls.some((c) => c.k === k && c.t >= t - 5e-4 && c.t <= t + (dt || 5e-4));
   // events -> the sound made in the same step (miss: when the dropped tile hits; level: the music's tempo)
-  const MAP = { land: ['clack'], crash: ['crash'], save: ['save'], ring: ['ring'], brace: ['gear'], truss: ['lock'], snap: ['snap'], goal: ['ribbon'], crown: ['crown'], smash: ['smash'],
+  const MAP = { land: ['clack'], crash: ['crash'], save: ['save'], ring: ['ring'], brace: ['gear'], truss: ['lock'], goal: ['ribbon'], crown: ['crown'], smash: ['smash'],
     bump: ['bonk'], honk: ['honk'], stomp: ['whooo'], foot: ['thump'], level: ['music.setLevel'], shove: ['boom', 'crash'], over: ['whistle', 'music.stop'] };
   const seen = {};
   for (const l of logs) {
@@ -950,7 +947,7 @@ async function WIRING(browser) {
   for (const k of ['poke', 'uiClick', 'whistle', 'tally', 'newBest', 'haptic', 'music.setLevel', 'music.setMult', 'music.duck', 'unlock']) if (!called(k)) fail('Sfx.' + k + '() is never called');
   const haps = all.filter((c) => c.k === 'haptic').map((c) => JSON.stringify(c.a));
   if (!haps.includes('20') || !haps.includes('[30,40,30]')) fail('haptics: no vibrate(20) on a PERFECT or [30,40,30] on a crash (got ' + [...new Set(haps)].join(' ') + ')');
-  for (const k of ['land', 'miss', 'crash', 'goal', 'crown', 'smash', 'level', 'bump', 'honk', 'stomp', 'foot', 'shove', 'over', 'truss', 'snap']) if (!seen[k]) fail('the run never reached a ' + k + ' (the wiring check needs one)');
+  for (const k of ['land', 'miss', 'crash', 'goal', 'crown', 'smash', 'level', 'bump', 'honk', 'stomp', 'foot', 'shove', 'over', 'truss']) if (!seen[k]) fail('the run never reached a ' + k + ' (the wiring check needs one)');
   info.seen = seen;
   info.calls = {};
   for (const c of all) info.calls[c.k] = (info.calls[c.k] || 0) + 1;

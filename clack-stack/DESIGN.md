@@ -1080,3 +1080,75 @@ The drop feel, PERFECT and combos, levels, bases, hazards (which now show by pus
   | 1 | all bots 10/10 |
   | BIG MAGNETS | RandomTapper clears level 1 within 15 s, 10/10 |
 - **All other tools pass,** each updated only where these rules legitimately change what it measures.
+
+### 16.7 As built
+
+Tuning against the bots (a fast in-page simulation first, then `tools/strategy.cjs` itself) and a look at every new
+thing on screen in both orientations changed some of the details above. This is what shipped:
+
+- **The plumb weight.**
+  - A brass bob on a thread hangs straight down from a small brass pin at the centre of weight (the flex and the sway in
+    it, and turned with the tower when it rocks), its tip just over the car plate.
+  - The wheel span is a strip on the plate's face: green over the middle half of the span, amber then red over the last
+    quarter at each end, dark red past the wheels, a navy tick over each wheel. Past a wheel, the bob flashes red.
+  - The ghost weight is a dotted bob where the weight settles after the aimed drop (the tiles in the air counted), and
+    a capsule over the strip marks how far the weight will swing on the way (the look-ahead's lowest and highest weight
+    position). Both turn red when the look-ahead says the drop tips the tower: it replaces the red TIPPY ghost on every
+    level. Every spot tipping the tower still holds the fuse and pulses the HOLD box ("HOLD IT!"), now on every level
+    too, since the warning shows on every level.
+- **One way to fall.** A crash happens only when the tower turns over a wheel, with the weight past it (the crash event
+  logs where the weight hung). The rock physics had one change: a tall tower's own pull with its weight just past a
+  wheel was so weak that a swing past the wheel and back barely lifted it, and the player saw the weight past the wheel
+  and nothing happen. So with the weight past the wheel it turns over at TIP_ACC = 10 rad/s² at least (still no faster
+  than TIP_W past α): a weight that stays past a wheel for about 0.35 s takes the tower over; one that swings straight
+  back lifts the far wheel and slaps down. The SNAP, its sound, the joint glow, TOO THIN and the fuse waiting on the
+  wobble are gone. TOPPLE stays, the last resort.
+- **The sway.**
+  - The part over the brace line rocks on the end of its bottom row it leans toward, as the tower rocks on a wheel: it
+    turns by q / Hs, so it is drawn (tiles turned with it), its spots placed and its weight moved exactly as one body.
+    With no TRUSS, the part is the whole build and it rocks on the car plate.
+  - Its top swings SWAY_ANG · W · Hs (SWAY_ANG = 0.34, Hs the part's height) at 11 / (1 + 0.1 · Hu) rad/s: a 6 L
+    part swings once every 0.9 s, an 11 L one every 1.2 s. W is §15.8's, with smaller steps (WOB_DW_MAX 0.27,
+    WOB_CAP_K 0.09, WOB_CAP_TOP 0.45): a careful player who lets it settle keeps W near 0.5, a hurried one drives it to
+    1. The sway is not under the 2.8 L/s top-speed cap (see the next point).
+  - A swaying spot is chosen and graded where it is at rest, the middle of its swing (`CS.slots()` gives it as
+    `rx`/`rsx`). At these amplitudes the top of a tall part moves a tile or more, and choosing by the live position made
+    the ghost jump between neighbouring spots under a still finger. The ghost and the outlines are drawn where the spots
+    are now.
+  - A TRUSS cuts W and the swing × TRUSS_W on its landing, and the part above it starts at the new brace line.
+- **Placing.**
+  - No depth limit and no "supported before hanging": the nearest spot to the finger wins (the hysteresis kept), a tie
+    the higher. A spot's centre stays within BOUND_X = 3.5 L of the base's centre (the view is at least 7.5 L wide):
+    without the depth limit a long hung arm offered spots off the screen.
+  - One spot per column: of the spots for one kind of piece at the same x only one can be reached by a piece falling
+    straight down, so only that one is offered and drawn: the one standing on a top (a gap fills from the bottom, a tile
+    beside a taller column lands on the step under it), else the highest (a tile sliding down a bare side sticks where
+    it first meets it). This replaces the old "falls through into the gap" filter.
+  - Every spot for the piece in the hand is a dotted outline (round dots, a navy halo under white); a TRUSS spot is the
+    pulsing gold fill with its padlock, as before. `CS.spots()` reports what was drawn; `screens.cjs` checks it equals
+    `CS.slots()`.
+- **Hints.** One navy box with a gold rim, up for at least 1.6 s and gone after 4.5 s or the first drop after that,
+  placed on the rug under the car, else beside the tower (on two lines if that fits), else under the HUD, never over
+  the ghost, the weight, the hand, the ribbon or the HUD. "Keep the weight between the wheels!" comes after the first
+  landing, "Tall towers sway. Fill a triangle notch to brace them." with the first swing of 0.3 L at the top, and "Drop
+  a triangle into the notch to lock the tower." with the first triangle in the hand while a TRUSS spot is open. Each is
+  saved as seen; `?nohint=1` skips them.
+- **The crown.** With the SNAP gone, a crash in OVERTIME simply loses the crown (as any crash does) and the SAFE badge
+  is gone.
+- **BIG MAGNETS: every spot stands on something** (a top, a gap held on two sides, a triangle's slant); none hangs.
+  Without revision 2's "supported first", a small child's taps just beside the tower hung tiles off it instead of
+  landing on the column next to them (the RandomTapper's slowest seed went from 9 s to 17 s, over the 15 s it must
+  clear level 1 in). The outlines show exactly these spots, so the rule stays one you can see; normal play keeps
+  §16.3's spots.
+- **The bots.**
+  - The goal counts when the crown is placed (the level cleared): a tower that tears the ribbon and falls before its
+    crown lands has not got there, since the crash ties the ribbon up again. Every bot places the crown at once.
+  - They aim at a swaying spot's rest place.
+  - SpireBot now stacks its centred column as fast as it can (it used to wait for the red glow); PatientBot is the spire
+    that waits for the sway to settle.
+  - Level 5 and level 7 run on request only; the targets are §16.6's.
+  - CarefulBot and PatientBot wait for W < 0.2, not 0.3: at W 0.3 the top of a tall two-wide part still swings about a
+    tile, so 0.2 is the tower that has settled.
+- **Test fixtures.** With no depth limit and spots beside every free side, a run no longer dead-ends by itself, so
+  `feel.cjs`'s TOPPLE check builds its dead end (four drops, then no spot in bounds for the closing one) and
+  `flow.cjs`'s crown-wait check offers only one triangle spot for a moment. Both lift the fixture afterwards.

@@ -54,7 +54,9 @@ const CFG = {
   // grading (3.5)
   PERFECT: 0.10, GREAT: 0.25, PERFECT_BIG: 0.18, GREAT_BIG: 0.35,
   // slot validity (3.3)
-  BOUND_X: 6, SHRINK: 0.02, OCC_SHRINK: 0.15, MAX_DEPTH: 2,
+  // (BOUND_X: a spot's centre at most this far out from the base's centre: the view is at least 7.5 L wide (ZOOM_DIV), so
+  // every spot is on the screen and in the hand's reach, 16.3; revision 2's hang depth kept them this close before)
+  BOUND_X: 3.5, SHRINK: 0.02, OCC_SHRINK: 0.15,
   // fall and yank (3.5)
   // (the hand hovers 2.3 L over the build, so nearly every drop is short and takes FALL_MIN: 0.25 s from release to CLACK)
   FALL_BASE: 0.12, FALL_PER_L: 0.025, FALL_MIN: 0.18, FALL_MAX: 0.34,
@@ -68,7 +70,8 @@ const CFG = {
   // the cube is ballast (3.7, 11): dealt only while the build is low (its top at most CUBE_TOP L when it enters the
   // queue, two pieces before the hand: a fresh base); drawn from the bag later, it waits for the next low build
   CUBE_TOP: 1.5,
-  // every slot for the tile in the hand TIPPY: the fuse waits and the HOLD box pulses (the gamble is visible);
+  // every spot for the tile in the hand tips the tower (the ghost weight red at each): the fuse waits and the HOLD box
+  // pulses (the gamble is visible);
   // checked this often (s)
   ALLTIPPY_EVERY: 0.2,
   // camera (9)
@@ -129,6 +132,10 @@ const CFG = {
   // 3.6: past α the player has a moment to counterweight). The look-ahead (TIPPY, the tell, SAVE) runs this same
   // physics, so it stays honest; a crash going over is free again
   TIP_W: 0.7,
+  // (and a weight past the wheel turns the tower over at TIP_ACC rad/s² at least: past a wheel it goes, unless the
+  // weight comes straight back, 16.1. A tall tower's own pull there is slow enough that a swing just past a wheel and
+  // back barely lifted it, and the player saw the weight past the wheel and nothing happen)
+  TIP_ACC: 10,
   FLEX_WN: 9, FLEX_WN_H: 0.06, FLEX_ZETA: 0.15, FLEX_ZETA_L7: 0.10, FLEX_MAX: 0.35, TOP_VMAX: 2.8, PERFECT_SV: 0.6,
   // a kick works against I_eff = I_ref^(1-e) · I_P^e (I_P the live inertia about the pivot): e = 0 would make the rock
   // grow like H³ (one CLACK fells a 10 L tower), e = 1 (the live I_P) topples 4 L towers; 0.35 keeps the rock growing
@@ -147,52 +154,35 @@ const CFG = {
   BRACE_T: 0.3, BRACE_W: 0.3, BRACE_PTS: 20, POKE_T: 0.38, SLAP_THUMP_W: 0.35,
   // TRUSS (15.2): a down-triangle between two up-triangles standing on one base row (Δ∇Δ, built in either order:
   // the ▼ into the notch, or the second Δ beside a ▼ hung off the first, trussNotches) braces the tower up to the
-  // notch's top: the wobble × TRUSS_W, a lock chord, and the joints under the brace line light up from the base (over
+  // notch's top: the sway × TRUSS_W, a lock chord, and the joints under the brace line light up from the base (over
   // TRUSS_RISE s, each flashing for TRUSS_FLASH s), then keep a faint steady glint (alpha TRUSS_GLINT)
   // The bonus pays for what the brace saves: TRUSS_PTS × mult × clamp(λ / TRUSS_LAM, 0, TRUSS_MAX), λ the slenderness of
   // the segment it braced (rounded to 5): a brace on a calm, stocky segment (a four-wide base, λ under 1) pays a
   // third or less; a slender one (λ 3 and up) the full bonus and more
   TRUSS_PTS: 150, TRUSS_LAM: 3, TRUSS_MAX: 1.5, TRUSS_W: 0.3, TRUSS_FLASH: 0.5, TRUSS_RISE: 0.22, TRUSS_GLINT: 0.42,
-  // the red TIPPY ghost (15.4) shows on levels up to TIPPY_SHOW_MAX and in BIG MAGNETS; later, balance is the player's job
-  TIPPY_SHOW_MAX: 3,
-  // WOBBLE (15.3): the unbraced segment (everything above the brace line y_b) has height Hu and slenderness λ = Hu / w
-  // (w: its narrowest width, sampled every WOB_DY from WOB_DY/2 above y_b, floored at WOB_W_MIN). Every landing in it
-  // raises the wobble W (0..1) by
+  // SWAY (16.2): the part over the brace line y_b (the top of the highest TRUSS, or the car top) has height Hu and
+  // slenderness λ = Hu / w (w: its narrowest width, sampled every WOB_DY from WOB_DY/2 above y_b, floored at WOB_W_MIN).
+  // Every landing on it raises the sway's strength W (0..1) by
   //   ΔW = min(cap(λ)·WOB_CAP_G[grade], WOB_A[grade]·max(0, λ − WOB_LAM0)² (× WOB_CUBE for the cube)) (× WOB_BIG in BIG),
-  //   cap(λ) = min(WOB_CAP_TOP, WOB_DW_MAX + WOB_CAP_K·max(0, λ − WOB_CAP_L)): the most one CLACK can shake it, a
-  //   PERFECT shaking WOB_CAP_G.perfect of that (aim pays at every height)
-  // and settles as dW/dt = −W/τ − WOB_DRAIN (exponential, and a still tower stops dead), τ = WOB_TAU·max(1, Hu /
-  // WOB_TAU_H)·max(1, λ / WOB_TAU_LAM). TOO THIN: a segment with a one-wide stretch (spans under WOB_THIN_W) of
-  // WOB_THIN_H or more shakes WOB_CAP_THIN·WOB_CAP_G[grade] on every landing and settles only by a slow drain,
-  // WOB_DRAIN_THIN·√(WOB_THIN_H / stretch) per second (the longer the spire, the slower). (A marble square's gear
-  // steadies it instead: W × WOB_GEAR.) The segment sways WOB_SWAY·W L at its top (easing to it over WOB_SWAY_T s); its
-  // joints glow amber once W, with the tiles in the air down, reaches WOB_AMBER, and pulse red (a red wash over its
-  // tiles, the creak) while one more CLACK could SNAP it; the fuse waits while that W > WOB_FUSE. At W = 1 it SNAPs.
-  // Tuned on tools/strategy.cjs (15.7, its controls, and the review of revision 2: the one-wide spire, PatientBot's
-  // tower, was the fastest way up on levels 4-8 and patience on it the dominant strategy):
-  //  - λ's floor 2.4: a two-wide tower stacks freely to ~5 L (the rule of thumb), a four-wide base is calm to ~10 L.
-  //  - the CLACK cap rises with the slenderness, 0.42 at λ 3 to 0.69 at λ 5, a PERFECT 0.72 of it (0.3 to 0.5): a
-  //    steady 0.6 s rhythm on a tall two-wide tower piles its shakes up past 1 (it SNAPs by ~8 L); a gold drop buys
-  //    room in the red, a CLACK there SNAPs it. No landing adds 1, so a still tower never SNAPs, and red (computed for
-  //    a CLACK) is always on before a SNAP.
-  //  - τ 1.5 s, growing with a segment over 6 L and with λ over 4 (tall, slender things sway slowly), and the drain:
-  //    a short segment over a TRUSS settles at once; a tall unbraced two-wide one costs clock (bracing pays: on level 8
-  //    NoBraceBot gets there about half the time, BraceBot every time, in half the time).
-  //  - TOO THIN from a 2 L one-wide stretch: 0.38 a PERFECT and ~4-5 s to settle each, so a spire is the slow way up on
-  //    every base (SpireBot 1.5-3× BraceBot's time on levels 5, 7 and 8, at a human pace too, or it runs out of clock);
-  //    0.38 + BraceBot's 0.6 stays under 1, and a 3-triangle brace's one flat top takes 2 squares before it counts as
-  //    thin (the outer side-hangs widen it to three tops, 15.2).
-  //  - the fuse holds from W 0.4 (the amber glow): a settling tower never gets a forced drop.
-  //  - a marble square's gear takes a fifth off W and most of the sway (more, and a stacker's spire rode it to the goal).
+  //   cap(λ) = min(WOB_CAP_TOP, WOB_DW_MAX + WOB_CAP_K·max(0, λ − WOB_CAP_L)): the most one CLACK can add, a PERFECT
+  //   adding WOB_CAP_G.perfect of that (aim pays at every height)
+  // and W settles as dW/dt = −W/τ − WOB_DRAIN (exponential, and a still tower stops dead), τ = WOB_TAU·max(1, Hu /
+  // WOB_TAU_H)·max(1, λ / WOB_TAU_LAM). (A marble square's gear steadies it: W × WOB_GEAR, the swing × WOB_GEAR_Q; a
+  // TRUSS cuts it × TRUSS_W.) The part sways: it rocks on the brace line, its top swinging SWAY_ANG·W·Hs L (Hs = max(1,
+  // Hu); easing to it over WOB_SWAY_T s) at SWAY_WN / (1 + SWAY_WN_H·Hu) rad/s (tall things sway slowly), and its weight
+  // goes with it: the centre of weight includes the sway, so a swing that carries it past a wheel tips the tower (the
+  // one way to fall, 16.1). Tuned on tools/strategy.cjs (16.6): on level 8 (one car, two wide) a one-wide spire and
+  // fast stacking straight up swing the weight past a wheel before the goal; bracing, or waiting for the sway to settle,
+  // gets there (the wait costing clock).
   WOB_A: { perfect: 0.45, great: 0.7, clack: 1.0 }, WOB_CUBE: 1.5, WOB_BIG: 0.4, WOB_DY: 0.5, WOB_W_MIN: 1,
-  WOB_LAM0: 2.4, WOB_DW_MAX: 0.42, WOB_CAP_L: 3, WOB_CAP_K: 0.139, WOB_CAP_TOP: 0.69,
+  WOB_LAM0: 2.4, WOB_DW_MAX: 0.27, WOB_CAP_L: 3, WOB_CAP_K: 0.09, WOB_CAP_TOP: 0.45,
   WOB_CAP_G: { perfect: 0.72, great: 0.86, clack: 1 },
-  WOB_TAU: 1.5, WOB_TAU_H: 6, WOB_TAU_LAM: 4, WOB_DRAIN: 0.19, WOB_POS_P: 0,
-  WOB_THIN_W: 1.5, WOB_THIN_H: 2, WOB_CAP_THIN: 0.53, WOB_DRAIN_THIN: 0.1,
+  WOB_TAU: 1.5, WOB_TAU_H: 6, WOB_TAU_LAM: 4, WOB_DRAIN: 0.19,
   WOB_GEAR: 0.8, WOB_GEAR_Q: 0.3, WAH_EVERY: 0.05,
-  WOB_SWAY: 0.25, WOB_SWAY_T: 0.12, WOB_AMBER: 0.4, WOB_FUSE: 0.4,
-  // SNAP (15.3): the segment cartwheels off (the braced part stands); no TRUSS yet: a full crash
-  SNAP_SHAKE: 8, SNAP_STOP: 0.08, SNAP_VMAX: 5.5, SNAP_UNZIP: 0.12,   // (the segment lets go top first over SNAP_UNZIP s)
+  SWAY_ANG: 0.34, SWAY_WN: 11, SWAY_WN_H: 0.1, WOB_SWAY_T: 0.12,
+  // the one-time hints (16.4): up at least TIP_MIN s, gone after TIP_T s (or a drop after TIP_MIN); the sway's comes
+  // with the first sway of TIP_SWAY L at the top
+  TIP_T: 4.5, TIP_MIN: 1.6, TIP_SWAY: 0.3,
   // the crown gamble (15.6): CROWN NOW or GO HIGHER (the chip on the HOLD box); the first-ever crown's hint stays up
   // CROWN_HINT_T s (or until the crown leaves the hand)
   CROWN_HINT_T: 4,
@@ -4438,25 +4428,6 @@ const Sfx = (() => {
     own(v, o, [o, g], w1 + 0.012);
     play(v, pick(SNAP), w1 + 0.02, 1.1, 0.22);
   }
-  function snap(n, x) {   // a SNAP (15.3): the magnets let go at the brace line: a sharp double crack, a falling twang, a short clatter
-    if (!live()) return;
-    n = clamp(Math.round(fin(n, 6)), 1, 60); x = clamp(fin(x, 0), -1, 1);
-    duck(0.6);
-    const v = voice(1, 1.0, 0), t = v.t0, trim = stereoTrim(v);
-    const P = [];
-    for (let k = 0; k < 3; k++) P.push(panTo(v, x + (k - 1) * 0.3, trim));
-    const C = P[1];
-    play(v, snapN(0), t, 1.25, 0.4, C);
-    play(v, snapN(1), t + 0.018, 1.05, 0.32, C);
-    noise(v, t, 0.001, 0.22, 0.05, [['highpass', 2500, 0.7]], { to: C });
-    tone(v, 'triangle', 988, t + 0.02, 0.002, 0.11 * loud(988), 0.3, { f2: 247, glide: 0.28, to: C });
-    tone(v, 'sine', 140, t + 0.03, 0.003, 0.22, 0.16, { f2: 70, glide: 0.14, to: C });
-    const cnt = clamp(Math.round(6 + n * 0.8), 8, 22);
-    for (let k = 0; k < cnt; k++) {
-      const u = (k + rnd()) / cnt, tk = t + 0.12 + 0.5 * Math.pow(u, 1.3);
-      clatter(v, tk, (0.7 - 0.4 * u) * (0.55 + 0.45 * rnd()), pick(P), true);
-    }
-  }
   function lock() {   // a TRUSS locks the tower: a double latch snap, then a bright C-G-C'-E' chord with a bell on top
     if (!live()) return;
     const v = voice(1, 1.1, 0), t = v.t0;
@@ -4680,7 +4651,6 @@ const Sfx = (() => {
     ring: guard('ring', ring),
     gear: guard('gear', gear),
     lock: guard('lock', lock),
-    snap: guard('snap', snap),
     cubeFold: guard('cubeFold', cubeFold),
     boom: guard('boom', boom),
     honk: guard('honk', honk),
@@ -4852,7 +4822,8 @@ function evalCand(B, P) {
     const d = o.depth + (inherit ? 0 : 1);
     if (d < depth) depth = d;
   }
-  if (depth > CFG.MAX_DEPTH) return null;
+  // (revision 3, 16.3: no depth limit; balance, through the plumb weight, is what stops a long overhang. depth is kept
+  // for the debug overlay only)
   // firm (15.1): a triangle sharing an edge with another triangle is held as two real tiles are, so a triangle slot that
   // matches a slant (every slant is a triangle's) counts as supported. notch: a down-triangle meeting two slants; truss:
   // landing here fills a notch between two up-triangles (15.2); hint: shown faintly while a triangle is in the hand
@@ -4953,32 +4924,37 @@ function genSlots(B) {
   }
   const all = [];
   for (const P of raw.values()) { const c = evalCand(B, P); if (c) all.push(c); }
-  // "Tapping into a gap drops it all the way in": a slot not standing on anything (held by its sides only)
-  // directly over a supported slot of the same type is not offered; the falling tile drops into the lower one.
-  const floors = new Set();
-  for (const c of all) if (c.supported) for (const e of c.pose.edges) if (e.role === 'top') floors.add(c.type + e.key);
-  const cands = [];
+  // One spot per column (16.3): a piece falls straight down from the hand, so of the spots for one kind of piece
+  // (squares, triangles, cubes) at the same x only one can be reached: the one standing on a top (it falls past the
+  // side spots above it and lands there: a gap fills from the bottom, a tile beside a column lands on the step under
+  // it), else the highest (a tile sliding down a bare side sticks where it first meets it). The others are not offered,
+  // so every spot drawn is one the hand can choose.
+  const best = new Map();
   for (const c of all) {
-    let through = false;
-    if (!c.bottom) for (const e of c.pose.edges) if (e.role === 'bottom' && floors.has(c.type + e.key)) { through = true; break; }
-    if (!through) cands.push(c);
+    const k = (c.type === 'up' || c.type === 'dn' ? 'tri' : c.type) + ':' + c.pose.i;
+    const o = best.get(k);
+    if (!o || (c.bottom !== o.bottom ? c.bottom : c.pose.cy > o.pose.cy + 1e-9 || (Math.abs(c.pose.cy - o.pose.cy) <= 1e-9 && c.key < o.key))) best.set(k, c);
   }
+  const cands = [];
+  for (const c of all) if (best.get((c.type === 'up' || c.type === 'dn' ? 'tri' : c.type) + ':' + c.pose.i) === c) cands.push(c);
   B.cands = cands; B.ver++;
   return cands;
 }
-// One function for the ghost and the drop (3.4). c.wx / c.wy are the live world centroid.
+// One function for the ghost and the drop (3.4, 16.3). c.wx / c.wy are the live world centroid, c.rx the x it sways
+// about (16.2: a swaying spot is chosen where it is at rest, the middle of its swing, so the ghost stays on it under a
+// still finger as it swings; with no sway rx = wx)
 function chooseSlot(cands, handX, R, ghostKey, accept) {
   let best = null, bAdj = 0;
   for (let k = 0; k < cands.length; k++) {
     const c = cands[k];
     if (accept && !accept(c)) continue;
-    const dx = Math.abs(c.wx - handX), bonus = c.key === ghostKey ? CFG.HYST : 0;
+    const dx = Math.abs((c.rx === undefined ? c.wx : c.rx) - handX), bonus = c.key === ghostKey ? CFG.HYST : 0;
     if (dx - bonus > R) continue;           // the shown ghost keeps its bonus at the edge of reach too (no flicker)
     const adj = dx - bonus;
     if (!best) { best = c; bAdj = adj; continue; }
+    // (16.3: simply the spot nearest the hand; a tie goes to the higher one, the first a falling tile would meet)
     let better;
-    if (c.supported !== best.supported) better = c.supported;
-    else if (Math.abs(adj - bAdj) > 1e-9) better = adj < bAdj;
+    if (Math.abs(adj - bAdj) > 1e-9) better = adj < bAdj;
     else if (Math.abs(c.wy - best.wy) > 1e-9) better = c.wy > best.wy;
     else better = c.key < best.key;
     if (better) { best = c; bAdj = adj; }
@@ -5001,24 +4977,32 @@ const TW = { theta: 0, omega: 0, s: 0, sv: 0, H: 1, squash: 0, ox: 0,
   M: 1.5, cx: 0, cy: -0.25, w: 0.8, IR: 1, IL: 1, FW: 0, top: 0, n: 0, wn: 9, zeta: 0.15, braceT: 0,
   side: 0, alphaSide: 1, tipping: false, crashing: false, evSlap: 0, evRest: false, slapX: 0,
   Sx: 0, Sy: 0, Sq: 0, Sk: 0, Syy: 0 };    // raw mass sums (Σm x, Σm y, Σm(x²+y²), Σm k, Σm y² of tiles)
-// The wobble of the unbraced segment (15.3). W 0..1; the segment's measure (recomputeTower): yb its foot (the brace
-// line), Hu its height, w its narrowest width, lam = Hu / w. The sway: q (L, at the segment's top) and qv (L/s), a spring
-// at wq rad/s whose amplitude eases to WOB_SWAY·W. It is drawn and the slots are placed at x + q·((y − yb) / Hs)² above
-// yb (toWorld), on top of the flex. Only a look and a moving target: the rock and its look-ahead never see it (the
-// tower's physics stays exactly the game's own future); the wobble's own danger is the SNAP (land()).
-const WOB = { W: 0, yb: 0, Hu: 0, w: 1, lam: 0, thin: 0, Hs: 1, q: 0, qv: 0, wq: 9, dir: 1, top: 0, glowAt: -1 };
+// The sway of the part above the brace line (16.2). W 0..1, the sway's strength: every drop on that part raises it
+// (more for a sloppy grade and a tall, slender part) and it settles when left alone. The part's measure
+// (recomputeTower): yb its foot (the brace line: the top of the highest TRUSS, or the car top), Hu its height, w its
+// narrowest width, lam = Hu / w; its mass sums (Sm, Sx, Sy: Σm, Σm·x, Σm·y of the tiles whose centre is over yb) and
+// the ends of its bottom row (x0, x1). The sway: q (L, at the part's top) and qv (L/s), a slow spring at wq rad/s whose
+// amplitude eases to SWAY_ANG·W·Hs. The part rocks on the brace line as the tower rocks on its wheels: it turns by
+// q / Hs rad about the end of its bottom row it leans toward (toWorld), so it is drawn, its slots are placed and its
+// weight moves with it: the centre of weight includes the sway (swayOff), and the rock and its look-ahead see it. A
+// sway that carries the weight past a wheel tips the tower by the one rule (16.1).
+const WOB = { W: 0, yb: 0, Hu: 0, w: 1, lam: 0, Hs: 1, q: 0, qv: 0, wq: 3, dir: 1, top: 0, Sm: 0, Sx: 0, Sy: 0, x0: 0, x1: 0 };
 function towerReset() {
-  WOB.W = 0; WOB.glowAt = -1; WOB.q = 0; WOB.qv = 0; WOB.yb = 0; WOB.Hu = 0; WOB.w = 1; WOB.lam = 0; WOB.thin = 0; WOB.Hs = 1; WOB.top = 0;
+  WOB.W = 0; WOB.q = 0; WOB.qv = 0; WOB.yb = 0; WOB.Hu = 0; WOB.w = 1; WOB.lam = 0; WOB.Hs = 1; WOB.top = 0;
+  WOB.Sm = WOB.Sx = WOB.Sy = WOB.x0 = WOB.x1 = 0;
   TW.theta = TW.omega = TW.s = TW.sv = TW.squash = TW.ox = TW.braceT = 0; TW.H = 1; TW.side = 0;
   TW.tipping = TW.crashing = false; TW.evSlap = 0; TW.evRest = false;
 }
 function toWorld(lx, ly, out) {
   let x = lx, y = ly;
+  // the sway (16.2): the part over the brace line turns about the end of its bottom row it leans toward; the braced
+  // part below stays still
+  if (WOB.q !== 0 && ly > WOB.yb) {
+    const ph = WOB.q / WOB.Hs, c = Math.cos(ph), s = Math.sin(ph), xh = WOB.q > 0 ? WOB.x1 : WOB.x0, dx = lx - xh, dy = ly - WOB.yb;
+    x = xh + dx * c + dy * s; y = WOB.yb - dx * s + dy * c;
+  }
   if (TW.s !== 0 && ly > 0) { const f = ly / TW.H; x += TW.s * f * f; }
-  // the wobble's sway (15.3): the unbraced segment only; the braced part below the brace line stays still
-  // (a slot over a short segment's top sways no more than 1.2× its height would: it follows the top, not a lever)
-  if (WOB.q !== 0 && ly > WOB.yb) { const f = Math.min(1.2, (ly - WOB.yb) / WOB.Hs); x += WOB.q * f * f; }
-  if (TW.squash !== 0) y = ly * (1 - TW.squash);
+  if (TW.squash !== 0) y = y * (1 - TW.squash);
   if (TW.theta !== 0) {
     const px = TW.theta > 0 ? TW.w : -TW.w, py = -0.5, c = Math.cos(TW.theta), s = Math.sin(TW.theta), dx = x - px, dy = y - py;
     x = px + dx * c + dy * s; y = py - dx * s + dy * c;
@@ -5026,16 +5010,48 @@ function toWorld(lx, ly, out) {
   out.x = x + TW.ox; out.y = y;
   return out;
 }
+// the sway's turn of a tile at pose P (rad, added to the tower's own θ where it is drawn)
+function swayRot(P) { return WOB.q !== 0 && P.cy > WOB.yb ? WOB.q / WOB.Hs : 0; }
+// what the sway does to the centre of weight: Σm·Δx and Σm·Δy of the part over the brace line turned by the sway Wo
+// (q, its hinge) (SWO; divide by the build's mass). Wo null: none (the boot calibration's reference tower)
+const SWO = { x: 0, y: 0 };
+function swayOff(Wo, q) {
+  if (q === undefined) q = Wo ? Wo.q : 0;
+  if (!Wo || q === 0 || !(Wo.Sm > 0)) { SWO.x = 0; SWO.y = 0; return SWO; }
+  const ph = q / Wo.Hs, c = Math.cos(ph) - 1, s = Math.sin(ph), xh = q > 0 ? Wo.x1 : Wo.x0;
+  const ax = Wo.Sx - xh * Wo.Sm, ay = Wo.Sy - Wo.yb * Wo.Sm;
+  SWO.x = c * ax + s * ay; SWO.y = -s * ax + c * ay;
+  return SWO;
+}
+// the most the sway Wo can move the centre of weight sideways (Σm·Δx) at its amplitude now or the one it is easing to
+function swayReach(Wo) {
+  if (!Wo || !(Wo.Sm > 0)) return 0;
+  const A = Math.max(Math.hypot(Wo.q, Wo.qv / Wo.wq), CFG.SWAY_ANG * Wo.W * Wo.Hs);
+  if (A < 1e-6) return 0;
+  const a = Math.abs(swayOff(Wo, A).x), b = Math.abs(swayOff(Wo, -A).x);
+  return Math.max(a, b);
+}
+// The centre of weight of the rock state D with the sway Wo (local frame: CWX.x, CWX.y), and where the plumb weight
+// hangs in the world (CWX.wx: its x on the rug, the tower's tilt and a new base rolling in included)
+const CWX = { x: 0, y: 0, wx: 0 };
+function comOf(D, Wo) {
+  const o = swayOff(Wo);
+  CWX.x = D.cx + D.s * D.FW + o.x / D.M; CWX.y = D.cy + o.y / D.M;
+  CWX.wx = CWX.x;
+  if (D.theta !== 0) { const px = D.theta > 0 ? D.w : -D.w; CWX.wx = px + (CWX.x - px) * Math.cos(D.theta) + (CWX.y + 0.5) * Math.sin(D.theta); }
+  CWX.wx += D.ox || 0;
+  return CWX;
+}
 const _w = { x: 0, y: 0 }, _w2 = { x: 0, y: 0 }, _s = { x: 0, y: 0 }, _s2 = { x: 0, y: 0 };
-// the wobble's sway at a tile (for what keeps clear of the build: the pops): SWP.off its offset now and SWP.pad its reach
-// to either side of its rest place, in px (a pop placed clear of the reach stays clear while the segment sways)
+// the sway at a tile (for what keeps clear of the build: the pops): SWP.off its offset now and SWP.pad its reach to
+// either side of its rest place, in px (a pop placed clear of the reach stays clear while the part sways)
 const SWP = { off: 0, pad: 0 };
 function wobSway(P) {
   SWP.off = 0; SWP.pad = 0;
   if ((WOB.q === 0 && WOB.W === 0) || P.maxY <= WOB.yb) return SWP;
   const fc = P.cy > WOB.yb ? Math.min(1.2, (P.cy - WOB.yb) / WOB.Hs) : 0, ft = Math.min(1.2, (P.maxY - WOB.yb) / WOB.Hs);
-  SWP.off = WOB.q * fc * fc * CAM.L;
-  SWP.pad = ft * ft * Math.max(Math.abs(WOB.q), CFG.WOB_SWAY * WOB.W) * CAM.L;
+  SWP.off = WOB.q * fc * CAM.L;
+  SWP.pad = ft * Math.max(Math.abs(WOB.q), CFG.SWAY_ANG * WOB.W * WOB.Hs) * CAM.L;
   return SWP;
 }
 
@@ -5049,7 +5065,7 @@ const S = {
   toppleAt: -1, lockUntil: -1, rollT0: -1, rollFrom: 0,   // dead-end TOPPLE / crash: releases wait until the new base is in
   tellAt: -1,                                               // when the dead end's tell began (toppleAt >= 0)
   level: 1, goalLevel: 1, G: 4, goalName: '', goalIcon: 'melon', goalTorn: false, goalTornAt: 0,
-  big: PARAM.big, cars: 2, carLen: 2, trusses: 0, snaps: 0, fuseWait: false, crownHintAt: -1,
+  big: PARAM.big, cars: 2, carLen: 2, trusses: 0, crownHintAt: -1,
   score: 0, combo: 0, mult: 1, streak: 0, bestStreak: 0, perfects: 0, landed: 0, crashes: 0, saves: 0, braces: 0, misses: 0,
   clock: CFG.CLOCK_START,
   B: null, flights: [], lastLandAt: -1e9, releaseId: 0,
@@ -5104,19 +5120,25 @@ function propsFromSums(o) {
   return o;
 }
 // tipping angle on one side of the lean: the CoM sits right over that wheel
-function alphaFor(D, side, cx) { return Math.atan2(D.w - side * cx, D.cy + 0.5); }
+function alphaFor(D, side, cx, cy) { return Math.atan2(D.w - side * cx, (cy === undefined ? D.cy : cy) + 0.5); }
 
-// One fixed step of rock + flex (3.6). Pure on D, so the boot calibration runs exactly the game's physics.
-// D.evSlap = |omega| when it slapped down onto both wheels this step (else 0); D.evRest = came to rest this step.
-function rockStep(D, dt) {
+// One fixed step of rock + flex (3.6). Pure on D (and the sway Wo, read only), so the boot calibration runs exactly
+// the game's physics. D.evSlap = |omega| when it slapped down onto both wheels this step (else 0); D.evRest = came to
+// rest this step.
+function rockStep(D, dt, Wo) {
   D.evSlap = 0; D.evRest = false;
-  const cxE = D.cx + D.s * D.FW, ry = D.cy + 0.5;   // the CoM includes the flex
+  const cw = comOf(D, Wo || null), cxE = cw.x, ry = cw.y + 0.5;   // the centre of weight includes the flex and the sway
   const side = D.theta > 0 ? 1 : D.theta < 0 ? -1 : D.omega > 0 ? 1 : D.omega < 0 ? -1 : cxE > D.w ? 1 : cxE < -D.w ? -1 : 0;
   D.side = side;
   if (side) {
     // θ'' = M g r'x / I_P − 0.8 θ', r' = (C − P) rotated by θ
     const I = side > 0 ? D.IR : D.IL, rx = cxE - side * D.w;
-    D.omega += (D.M * CFG.GRAV * (rx * Math.cos(D.theta) + ry * Math.sin(D.theta)) / I - CFG.ROCK_DAMP * D.omega) * dt;
+    // (past the wheel gravity takes over: with the weight beyond the wheel it turns on, it turns over at TIP_ACC
+    // rad/s² at least, so a weight that swings past a wheel tips the tower unless it swings straight back, 16.1)
+    const tq = D.M * CFG.GRAV * (rx * Math.cos(D.theta) + ry * Math.sin(D.theta));
+    let acc = tq / I;
+    if (tq * side > 0 && acc * side < CFG.TIP_ACC) acc = side * CFG.TIP_ACC;
+    D.omega += (acc - CFG.ROCK_DAMP * D.omega) * dt;
     // (the teeter: past α, going further over no faster than TIP_W)
     if (!D.crashing && D.theta * side > 0 && Math.abs(D.theta) >= Math.max(0, D.alphaSide) && D.omega * side > CFG.TIP_W) D.omega = side * CFG.TIP_W;
     const th0 = D.theta;
@@ -5131,7 +5153,7 @@ function rockStep(D, dt) {
     }
   }
   const lean = D.theta > 0 ? 1 : D.theta < 0 ? -1 : side;
-  D.alphaSide = lean ? alphaFor(D, lean, cxE) : Math.atan2(D.w - Math.abs(cxE), ry);
+  D.alphaSide = lean ? alphaFor(D, lean, cxE, ry - 0.5) : Math.atan2(D.w - Math.abs(cxE), ry);
   D.tipping = lean !== 0 && Math.abs(D.theta) >= Math.max(0, D.alphaSide);
   // flex: one damped spring on the top's lateral offset; a brace (marble + gear) takes it to 0 over 0.3 s
   const wn = D.wn;
@@ -5175,7 +5197,7 @@ function kickFlex(D, Kf, m, dxs, grade, big) {
   else D.sv += Kf * m * dxs * CFG.GF[grade] * (big ? CFG.KICK_BIG : 1);
 }
 function applyKick(tile, dxSigned, grade) {
-  const cxE = TW.cx + TW.s * TW.FW;
+  const cxE = comOf(TW, WOB).x;
   TW.omega += kickOmega(TW, CAL.K, tile.mass, tile.pose.cx, cxE, dxSigned, grade, S.big);
   kickFlex(TW, CAL.Kf, tile.mass, dxSigned, grade, S.big);
 }
@@ -5305,7 +5327,7 @@ function recomputeTower() {
   segUpdate();
 }
 
-/* ---- WOBBLE (15.3) ---- */
+/* ---- SWAY (16.2) ---- */
 // The x-interval a convex polygon covers at height y (SPAN.x0..x1); false if it does not reach y. (A sample height
 // y_b + 0.25 + 0.5 k never meets a lattice vertex a + b·√3/2 exactly, so no edge is ever degenerate there.)
 const SPAN = { x0: 0, x1: 0 };
@@ -5322,28 +5344,30 @@ function polySpanAt(poly, y) {
   SPAN.x0 = x0; SPAN.x1 = x1;
   return true;
 }
-// The unbraced segment's measure (15.3), for the tiles that count as built (inc(t); plus `extra`, a pose being aimed):
-// Hu = the build top − y_b; w = the narrowest width, sampled at y_b + 0.25, + 0.75, … up to 0.25 under the top, each
-// the length of the x-span the tiles cover there (the union of their spans), floored at 1 L; lam = Hu / w.
-// The samples stop under the base of the highest tile (the segment's last layer): the width that counts is the width
-// carrying what is on top. (§15.3's rule of thumb is about a tower's width: 2 wide stacks fast to ~5 L, must slow
-// down or brace by ~6 L and brace past ~8 L; 4 wide needs no brace to ~12 L. Sampled through the last layer too, the
-// first tile of every new row would measure a 2-wide tower 1 L wide, λ = Hu, and SNAP it at ~4 L however slowly it
-// was built; a lone square on a 4-wide level-1 tower likewise. A spire of two or more tiles is still its own width.)
+// The swaying part's measure (16.2), for the tiles that count as built (inc(t); plus `extra`, a pose being aimed, of
+// mass em): Hu = the build top − y_b; w = the narrowest width, sampled at y_b + 0.25, + 0.75, … up to 0.25 under the
+// top, each the length of the x-span the tiles cover there (the union of their spans), floored at 1 L; lam = Hu / w.
+// The samples stop under the base of the highest tile (the part's last layer): the width that counts is the width
+// carrying what is on top. And the part's mass sums and hinge: Sm, Sx, Sy over the tiles whose centre is over y_b (what
+// the sway moves), x0..x1 the ends of its bottom row (what it rocks on).
 const SEGI = [];          // interval scratch (x0, x1 pairs)
-function segMeasure(B, yb, inc, extra, out) {
+function segMeasure(B, yb, inc, extra, out, em) {
   const tiles = B.tiles;
-  let top = 0, cut = -Infinity;
-  for (let k = 0; k < tiles.length; k++) {
-    const t = tiles[k];
-    if (!inc(t)) continue;
-    const P = t.pose;
+  let top = 0, cut = -Infinity, Sm = 0, Sx = 0, Sy = 0, lo = Infinity, x0 = 0, x1 = 0;
+  for (let k = 0; k <= tiles.length; k++) {
+    const t = k < tiles.length ? tiles[k] : null;
+    if (t ? !inc(t) : !extra) continue;
+    const P = t ? t.pose : extra, m = t ? t.mass : em || 1;
     if (P.maxY > top) top = P.maxY;
     if (P.minY >= yb - 1e-9 && P.minY > cut) cut = P.minY;
+    if (P.cy > yb) {
+      Sm += m; Sx += m * P.cx; Sy += m * P.cy;
+      if (P.minY < lo - 1e-6) { lo = P.minY; x0 = P.minX; x1 = P.maxX; }
+      else if (P.minY < lo + 1e-6) { if (P.minX < x0) x0 = P.minX; if (P.maxX > x1) x1 = P.maxX; }
+    }
   }
-  if (extra) { if (extra.maxY > top) top = extra.maxY; if (extra.minY >= yb - 1e-9 && extra.minY > cut) cut = extra.minY; }
   const Hu = Math.max(0, top - yb), dy = CFG.WOB_DY;
-  let w = Infinity, thin = 0, run = 0;
+  let w = Infinity;
   for (let y = yb + dy / 2; y <= top - dy / 2 + 1e-9 && y < cut - 1e-9; y += dy) {
     let n = 0;
     for (let k = 0; k <= tiles.length; k++) {
@@ -5356,192 +5380,189 @@ function segMeasure(B, yb, inc, extra, out) {
     }
     let len = 0, a = -Infinity, b = -Infinity;
     for (let j = 0; j < n; j++) {
-      const x0 = SEGI[2 * j], x1 = SEGI[2 * j + 1];
-      if (x0 > b) { if (b > a) len += b - a; a = x0; b = x1; } else if (x1 > b) b = x1;
+      const xa = SEGI[2 * j], xb = SEGI[2 * j + 1];
+      if (xa > b) { if (b > a) len += b - a; a = xa; b = xb; } else if (xb > b) b = xb;
     }
     if (b > a) len += b - a;
     if (len < w) w = len;
-    if (len < CFG.WOB_THIN_W) { run += dy; if (run > thin) thin = run; } else run = 0;
   }
-  out.Hu = Hu; out.top = top; out.thin = thin;
+  out.Hu = Hu; out.top = top; out.yb = yb;
   out.w = Math.max(CFG.WOB_W_MIN, w === Infinity ? CFG.WOB_W_MIN : w);
   out.lam = Hu / out.w;
+  out.Hs = Math.max(1, Hu);
+  out.wq = CFG.SWAY_WN / (1 + CFG.SWAY_WN_H * Hu);
+  out.Sm = Sm; out.Sx = Sx; out.Sy = Sy; out.x0 = x0; out.x1 = x1;
   return out;
 }
 const standingTile = t => !t.flight && !t.gone;
-// the live segment: measured on the standing build at every landing, TRUSS, SNAP and new base
+// the live part: measured on the standing build at every landing, TRUSS and new base
 function segUpdate() {
   const B = S.B;
   if (!B) return;
-  WOB.yb = B.yb;
   segMeasure(B, B.yb, standingTile, null, WOB);
-  WOB.Hs = Math.max(1, WOB.Hu);
-  WOB.wq = CFG.FLEX_WN / (1 + CFG.FLEX_WN_H * WOB.Hu);
 }
-// ΔW of one landing in the segment (15.3): a[grade]·max(0, λ − λ's floor)² (× 1.5 the cube), at most cap(λ)·WOB_CAP_G[grade];
-// TOO THIN: WOB_CAP_THIN·WOB_CAP_G[grade] (× 0.4 in BIG MAGNETS)
+// ΔW of one landing on the swaying part (16.2): a[grade]·max(0, λ − λ's floor)² (× 1.5 the cube), at most
+// cap(λ)·WOB_CAP_G[grade] (× WOB_BIG in BIG MAGNETS)
 // W after dt s of settling at time constant tau: W·e^(−dt/τ), less WOB_DRAIN per second (a still tower stops dead,
-// the way friction stops a sway: the exact solution of dW/dt = −W/τ − WOB_DRAIN, floored at 0); TOO THIN: only the
-// slow drain, WOB_DRAIN_THIN·√(WOB_THIN_H / stretch) per second
-function wobDecay(W, dt, tau, thin) {
+// the way friction stops a sway: the exact solution of dW/dt = −W/τ − WOB_DRAIN, floored at 0)
+function wobDecay(W, dt, tau) {
   if (W <= 0) return 0;
-  if (wobThin(thin)) return Math.max(0, W - CFG.WOB_DRAIN_THIN * Math.sqrt(CFG.WOB_THIN_H / thin) * dt);
   const k = CFG.WOB_DRAIN * tau, e = Math.exp(-dt / tau);
   return Math.max(0, (W + k) * e - k);
 }
-// TOO THIN (15.3, review 2): the segment's longest one-wide stretch is WOB_THIN_H or more
-function wobThin(thin) { return (thin || 0) >= CFG.WOB_THIN_H - 1e-9; }
 function wobTau(Hu, lam) { return CFG.WOB_TAU * Math.max(1, Hu / CFG.WOB_TAU_H) * Math.max(1, lam / CFG.WOB_TAU_LAM); }
-function wobCap(lam, thin) { return wobThin(thin) ? CFG.WOB_CAP_THIN : Math.min(CFG.WOB_CAP_TOP, CFG.WOB_DW_MAX + CFG.WOB_CAP_K * Math.max(0, lam - CFG.WOB_CAP_L)); }
-function wobDelta(grade, shape, lam, pos, thin) {
+function wobCap(lam) { return Math.min(CFG.WOB_CAP_TOP, CFG.WOB_DW_MAX + CFG.WOB_CAP_K * Math.max(0, lam - CFG.WOB_CAP_L)); }
+function wobDelta(grade, shape, lam) {
   const d = Math.max(0, lam - CFG.WOB_LAM0);
   const a = CFG.WOB_A[grade], g = CFG.WOB_CAP_G[grade];
-  const pk = CFG.WOB_POS_P > 0 && pos !== undefined ? Math.pow(clamp(pos, 0, 1), CFG.WOB_POS_P) : 1;
-  const cap = wobCap(lam, thin) * (g === undefined ? 1 : g);
-  const raw = wobThin(thin) ? cap : (a === undefined ? CFG.WOB_A.clack : a) * d * d * (shape === 'cube' ? CFG.WOB_CUBE : 1);
-  return Math.min(cap, raw) * pk * (S.big ? CFG.WOB_BIG : 1);
+  const cap = wobCap(lam) * (g === undefined ? 1 : g);
+  const raw = (a === undefined ? CFG.WOB_A.clack : a) * d * d * (shape === 'cube' ? CFG.WOB_CUBE : 1);
+  return Math.min(cap, raw) * (S.big ? CFG.WOB_BIG : 1);
 }
-// a tile at pose P lands in the segment: it sits on or above the brace line (what would come off with a SNAP)
+// a tile at pose P lands on the swaying part: it sits on or above the brace line
 function inSegment(P, yb) { return P.minY >= yb - 1e-9; }
-// The wobble each fixed step of play: W decays (before the step's landings, so a landing adds to W decayed to its own
-// step: what snapAhead() assumes); the sway eases to WOB_SWAY·W, a spring at the segment's own frequency, and the top's
-// lateral speed (flex + rock + sway) keeps the TOP_VMAX cap
+// One fixed step of the sway Wo (16.2): a spring at the part's own frequency (slower the taller it is) whose amplitude
+// eases to SWAY_ANG·W·Hs. (Not under the top's TOP_VMAX cap: a swaying spot is chosen and graded where it is at rest,
+// so its speed never makes the PERFECT a timing gamble. D: the rock, for the look-ahead's symmetry)
+function swayStep(Wo, D, dt) {
+  const wq = Wo.wq, A = CFG.SWAY_ANG * Wo.W * Wo.Hs;
+  if (A <= 0 && Wo.q === 0 && Wo.qv === 0) return;
+  Wo.qv -= wq * wq * Wo.q * dt; Wo.q += Wo.qv * dt;
+  const E = Math.hypot(Wo.q, Wo.qv / wq), k = 1 - Math.exp(-dt / CFG.WOB_SWAY_T), E2 = E + (A - E) * k;
+  if (E < 1e-6) { Wo.q = 0; Wo.qv = Wo.dir * wq * E2; }
+  else { const r = E2 / E; Wo.q *= r; Wo.qv *= r; }
+  if (A <= 0 && E2 < 2e-3) { Wo.q = 0; Wo.qv = 0; return; }
+}
+// The sway each fixed step of play: W settles (before the step's landings, so a landing adds to W settled to its own
+// step, as the look-ahead does)
 function stepWobble(dt) {
-  if (WOB.W > 0) { WOB.W = wobDecay(WOB.W, dt, wobTau(WOB.Hu, WOB.lam, WOB.thin), WOB.thin); if (WOB.W < 1e-4) WOB.W = 0; }
+  if (WOB.W > 0) { WOB.W = wobDecay(WOB.W, dt, wobTau(WOB.Hu, WOB.lam)); if (WOB.W < 1e-4) WOB.W = 0; }
 }
-function stepSway(dt) {
-  const wq = WOB.wq, A = CFG.WOB_SWAY * WOB.W;
-  if (A <= 0 && WOB.q === 0 && WOB.qv === 0) return;
-  WOB.qv -= wq * wq * WOB.q * dt; WOB.q += WOB.qv * dt;
-  const E = Math.hypot(WOB.q, WOB.qv / wq), k = 1 - Math.exp(-dt / CFG.WOB_SWAY_T), E2 = E + (A - E) * k;
-  if (E < 1e-6) { WOB.q = 0; WOB.qv = WOB.dir * wq * E2; }
-  else { const r = E2 / E; WOB.q *= r; WOB.qv *= r; }
-  if (A <= 0 && E2 < 2e-3) { WOB.q = 0; WOB.qv = 0; return; }
-  // the cap: the top moves no faster than TOP_VMAX with everything on it (not past α: there gravity has it)
-  if (!TW.tipping && !TW.crashing) {
-    const vr = TW.sv + TW.omega * (TW.H + 0.5) * Math.cos(TW.theta), lo = -CFG.TOP_VMAX - vr, hi = CFG.TOP_VMAX - vr;
-    if (WOB.qv > hi) WOB.qv = Math.max(0, hi); else if (WOB.qv < lo) WOB.qv = Math.min(0, lo);
-  }
-}
-// One more landing in the wobble's order of things (snapAhead): did tile T (in the build, landing now with the tiles
-// marked down) close a notch into a TRUSS? The rule of trussNotches, with "already down" = isDown
+// One landing in the sway's order of things (the live land() and the look-ahead share it): tile pose P (shape, grade,
+// its landing's signed hand offset dxs) lands on the build where isDown(t) says which tiles are down (P's own tile
+// among them, or P is `extra`, not in the build). A TRUSS raises the brace line and takes the sway × TRUSS_W; a marble
+// square's gear takes W × WOB_GEAR and the swing × WOB_GEAR_Q; any other landing on the swaying part adds ΔW at the λ
+// it leaves. Wo is re-measured. Returns ΔW (or -1: a TRUSS, -2: the gear). notches: the TRUSS's notches when the
+// caller has them (land()), else found here
 const TRUSS_AH = [];
-function trussAhead(B, P, isDown) {
-  return trussCore(B, P, o => o.pose !== P && isDown(o), TRUSS_AH).length > 0;
-}
-// The wobble's look-ahead: the tiles in the air land in order at their times with their locked grades (and then
-// `extra`, a tile being aimed: {pose, grade, shape, landAt}), with land()'s rules: W decayed to each landing's step (at
-// the segment's own settling time then), a TRUSS takes it × TRUSS_W and raises the brace line, a marble square's gear
-// takes it × WOB_GEAR, any other landing in the segment adds ΔW at the λ it leaves. Returns 'full' when one of them
-// SNAPs a tower with no TRUSS (a full crash), 'part' when the braced part would stand, else ''; WRUN holds the segment
-// and W once they are all down. (Conservative by a step: each decay stops one fixed step short of its landing, as a
-// landing's step can be.)
-const SNAPM = { Hu: 0, w: 1, lam: 0, top: 0, thin: 0 };
-const WRUN = { W: 0, lam: 0, Hu: 0, w: 1, yb: 0, t: 0, thin: 0 };
-let SNAP_STAMP = 0;
-function snapAhead(extra) {
-  const B = S.B;
-  WRUN.W = WOB.W; WRUN.lam = WOB.lam; WRUN.Hu = WOB.Hu; WRUN.w = WOB.w; WRUN.yb = WOB.yb; WRUN.t = S.gt; WRUN.thin = WOB.thin;
-  if (!B || S.phase !== 'play') return '';
-  const stamp = ++SNAP_STAMP, isDown = t => !t.gone && (!t.flight || t._sd === stamp);
-  let W = WOB.W, t0 = S.gt, yb = B.yb, Hu = WOB.Hu, lam = WOB.lam, w = WOB.w, thin = WOB.thin;
-  const fl = S.flights, n = fl.length + (extra ? 1 : 0);
-  let res = '';
-  for (let i = 0; i < n; i++) {
-    const f = i < fl.length ? fl[i] : null, P = f ? f.pose : extra.pose, shape = f ? f.piece.shape : extra.shape;
-    const grade = f ? f.grade : extra.grade, at = f ? f.landAt : extra.landAt;
-    if (shape === 'crown') break;                       // the crown lands: the SMASH
-    const dt = Math.max(0, at - t0 - CFG.STEP);
-    W = wobDecay(W, dt, wobTau(Hu, lam, thin), thin); t0 += dt;
-    if (f) f.tile._sd = stamp;
-    if ((P.type === 'dn' || P.type === 'up') && trussAhead(B, P, isDown)) {
-      if (P.maxY > yb) yb = P.maxY;
-      W *= CFG.TRUSS_W;
-      segMeasure(B, yb, isDown, f ? null : P, SNAPM);
-      Hu = SNAPM.Hu; lam = SNAPM.lam; w = SNAPM.w; thin = SNAPM.thin;
-    } else {
-      segMeasure(B, yb, isDown, f ? null : P, SNAPM);
-      Hu = SNAPM.Hu; lam = SNAPM.lam; w = SNAPM.w; thin = SNAPM.thin;
-      if (inSegment(P, yb)) {
-        if (shape === 'marble') W *= CFG.WOB_GEAR;
-        else W = Math.min(1, W + wobDelta(grade, shape, lam, Hu > 0 ? (P.maxY - yb) / Hu : 1, thin));
-        if (W >= 1 - 1e-9) { res = yb > 0 ? 'part' : 'full'; break; }
-      }
-    }
+function wobLand(Wo, B, P, shape, grade, dxs, isDown, extra, notches) {
+  const em = CFG.MASS[shape] || 1;
+  if (shape === 'crown') { segMeasure(B, Wo.yb, isDown, extra ? P : null, Wo, em); return 0; }
+  const tri = P.type === 'dn' || P.type === 'up';
+  const ns = notches !== undefined ? notches : tri ? trussCore(B, P, o => o.pose !== P && isDown(o), TRUSS_AH) : null;
+  if (ns && ns.length) {
+    let yb = Wo.yb;
+    for (let k = 0; k < ns.length; k++) if (ns[k].maxY > yb) yb = ns[k].maxY;
+    Wo.W *= CFG.TRUSS_W; Wo.q *= CFG.TRUSS_W; Wo.qv *= CFG.TRUSS_W;
+    segMeasure(B, yb, isDown, extra ? P : null, Wo, em);
+    return -1;
   }
-  WRUN.W = W; WRUN.lam = lam; WRUN.Hu = Hu; WRUN.w = w; WRUN.yb = yb; WRUN.t = t0; WRUN.thin = thin;
-  return res;
+  segMeasure(B, Wo.yb, isDown, extra ? P : null, Wo, em);
+  if (!inSegment(P, Wo.yb)) return 0;
+  if (shape === 'marble') { Wo.W *= CFG.WOB_GEAR; Wo.q *= CFG.WOB_GEAR_Q; Wo.qv *= CFG.WOB_GEAR_Q; return -2; }
+  const dW = wobDelta(grade, shape, Wo.lam);
+  Wo.W = Math.min(1, Wo.W + dW);
+  if (Math.abs(Wo.q) < 1e-3) Wo.dir = dxs > 1e-9 ? 1 : dxs < -1e-9 ? -1 : (P.cx * Wo.Sm >= Wo.Sx ? 1 : -1);
+  return dW;
 }
-// The wobble's warning (15.3), for the glow, the creak and the fuse: what the segment is about to be once the tiles in
-// the air are down (WAH.W, so the glow comes on as a shaking drop is let go, not as it lands) and whether one more
-// drop on top now could SNAP it (WAH.red: W then + the biggest shake one more landing could add, a CLACK of the tile in
-// the hand one layer higher, reaches 1). No landing shakes by 1 or more, so a still tower never SNAPs, and any SNAP
-// is told by the red glow from at least the release before. Refreshed every WAH_EVERY s or when the build or the
-// flights change.
-const WAH = { B: null, ver: -1, nf: -1, f0: -1, at: -1e9, W: 0, red: false, glow: '', snap: '' };
+// The sway once the tiles in the air are down (for what the screen is about to show: state().Wahead, the bots' read
+// of the sway; W only, the tiles landing at their times and grades). Refreshed every WAH_EVERY s or when the build or
+// the flights change.
+const WAH = { B: null, ver: -1, nf: -1, f0: -1, at: -1e9, W: 0 };
+const WAW = Object.assign({}, WOB);
+let WAH_STAMP = 0;
 function wobAhead() {
   const B = S.B;
-  if (!B || S.phase !== 'play') { WAH.W = WOB.W; WAH.red = false; WAH.glow = ''; WAH.snap = ''; return WAH; }
-  const nf = S.flights.length, f0 = nf ? S.flights[0].id : -1;
-  // (with nothing in the air there is nothing to run forward: W is the live W, fresh every call, so the fuse and
-  // the glow let go the moment it decays past them)
-  if (nf && WAH.B === B && WAH.ver === B.ver && WAH.nf === nf && WAH.f0 === f0 && S.gt - WAH.at < CFG.WAH_EVERY) return WAH;
+  if (!B || S.phase !== 'play' || !S.flights.length) { WAH.W = WOB.W; WAH.B = null; return WAH; }
+  const nf = S.flights.length, f0 = S.flights[0].id;
+  if (WAH.B === B && WAH.ver === B.ver && WAH.nf === nf && WAH.f0 === f0 && S.gt - WAH.at < CFG.WAH_EVERY) return WAH;
   WAH.B = B; WAH.ver = B.ver; WAH.nf = nf; WAH.f0 = f0; WAH.at = S.gt;
-  WAH.snap = snapAhead(null);
-  const W = WAH.snap ? 1 : WRUN.W;
-  const sh = HAND.piece && HAND.piece.shape !== 'crown' ? HAND.piece.shape : 'sq';
-  const next = sh === 'marble' ? 0 : wobDelta('clack', sh, (WRUN.Hu + 1) / Math.max(CFG.WOB_W_MIN, WRUN.w), 1, WRUN.thin + (WRUN.w < CFG.WOB_THIN_W ? 1 : 0));
-  WAH.W = W;
-  WAH.red = !!WAH.snap || (W > 0 && W + next >= 1 - 1e-9);
-  WAH.glow = WAH.red ? 'red' : W >= CFG.WOB_AMBER ? 'amber' : '';
+  Object.assign(WAW, WOB);
+  const stamp = ++WAH_STAMP, isDown = t => !t.gone && (!t.flight || t._wd === stamp);
+  let t0 = S.gt;
+  for (const f of S.flights) {
+    if (f.piece.shape === 'crown') break;
+    const dt = Math.max(0, f.landAt - t0 - CFG.STEP);
+    WAW.W = wobDecay(WAW.W, dt, wobTau(WAW.Hu, WAW.lam)); t0 += dt;
+    f.tile._wd = stamp;
+    wobLand(WAW, B, f.pose, f.piece.shape, f.grade, f.dxs, isDown, false);
+  }
+  WAH.W = WAW.W;
   return WAH;
 }
 
-// Look-ahead (the tell's honesty): run the game's own rockStep forward from the live state, landing the tiles
-// already in the air at their locked times with their locked grades (and, for TIPPY, one more tile that is only
-// being aimed: `extra`, landing after them). Returns the time to a crash, or -1.
-const PRED = Object.assign({}, TW);
-function predLand(D, P, m, k, dxs, grade, marble) {
+// Look-ahead (the tell's honesty): run the game's own rockStep and sway forward from the live state, landing the
+// tiles already in the air at their locked times with their locked grades (and, for the ghost weight, one more tile
+// that is only being aimed: `extra`, landing after them). Returns the time to a crash, or -1.
+const PRED = Object.assign({}, TW), PW = Object.assign({}, WOB);
+function predMass(D, P, m, k) {
   D.M += m; D.Sx += m * P.cx; D.Sy += m * P.cy; D.Sq += m * (P.cx * P.cx + P.cy * P.cy); D.Sk += m * k; D.Syy += m * P.cy * P.cy;
   if (P.maxY > D.top) D.top = P.maxY;
   propsFromSums(D);
   D.wn = CFG.FLEX_WN / (1 + CFG.FLEX_WN_H * D.H);
-  D.omega += kickOmega(D, CAL.K, m, P.cx, D.cx + D.s * D.FW, dxs, grade, S.big);
+}
+function predKick(D, Wo, P, m, dxs, grade, marble) {
+  D.omega += kickOmega(D, CAL.K, m, P.cx, comOf(D, Wo).x, dxs, grade, S.big);
   kickFlex(D, CAL.Kf, m, dxs, grade, S.big);
   if (marble) { D.braceT = CFG.BRACE_T; D.omega *= CFG.BRACE_W; }
 }
-// It is the game's own future, step for step: each simulated step lands what is due at its time and takes a hazard hit
-// before it rocks, in step()'s order. Asked between two steps (a click, a frame, after stepTower: ROCKED) the tower has
-// already rocked for S.gt and the first step simulated is the next one; asked inside a step before stepTower (a landing,
-// the fuse, the hand's TIPPY check) the first is this step's own rock. (It used to rock first and land after even
-// between steps: every landing came one step late, and a drop on the edge of tipping could be called safe and fall.)
-// A tower still past its tipping angle when the horizon runs out counts as going over.
+// It is the game's own future, step for step: each simulated step settles the sway, lands what is due at its time and
+// takes a hazard hit before it rocks and sways, in step()'s order. Asked between two steps (a click, a frame, after
+// stepTower: ROCKED) the tower has already rocked for S.gt and the first step simulated is the next one; asked inside
+// a step before stepTower (a landing, the fuse, the hand's check) the first is this step's own rock (its settling and
+// landings already done). A tower still past its tipping angle when the horizon runs out counts as going over.
 // (trace: a test hook's array; each simulated step's θ is pushed onto it, and the look-ahead runs on past a rest)
+// RANGE: where the plumb weight hangs (world x) from the moment `extra` lands (or from now, without one): lo, hi
+const RANGE = { lo: 0, hi: 0, on: false };
+let PRED_STAMP = 0;
 function predictCrash(horizon, extra, trace) {
-  const D = Object.assign(PRED, TW), fl = S.flights, margin = S.big ? CFG.CRASH_MARGIN_BIG : CFG.CRASH_MARGIN;
+  const D = Object.assign(PRED, TW), Wo = Object.assign(PW, WOB), fl = S.flights, margin = S.big ? CFG.CRASH_MARGIN_BIG : CFG.CRASH_MARGIN, B = S.B;
   D.crashing = false;
-  let fi = 0, t = ROCKED ? S.gt + CFG.STEP : S.gt, ex = extra || null;
+  const stamp = ++PRED_STAMP, isDown = t => !t.gone && (!t.flight || t._pd === stamp);
+  let fi = 0, t = ROCKED ? S.gt + CFG.STEP : S.gt, ex = extra || null, first = !ROCKED;
+  RANGE.on = !ex; RANGE.lo = Infinity; RANGE.hi = -Infinity;
   // the next hazard is on a fixed schedule: when it hits inside the horizon, the look-ahead takes the hit too (so the
-  // tip tell warns of a bump the tower will not survive, and TIPPY is honest about it). (Inside a step its clock has
-  // not ticked yet for this step: the hit comes one step sooner than hazardHitAt says)
+  // tip tell warns of a bump the tower will not survive, and the ghost weight is honest about it). (Inside a step its
+  // clock has not ticked yet for this step: the hit comes one step sooner than hazardHitAt says)
   let hz = hazardHitAt();
   if (hz >= 0 && !ROCKED) hz -= CFG.STEP;
   const n = Math.round(horizon / CFG.STEP);
   // (a hit past the horizon never comes into it: without it the look-ahead can stop as soon as all is at rest)
   if (hz > t + n * CFG.STEP + 1e-9) hz = -1;
+  const out = (at) => { PRED_SIDE.v = D.theta > 0 ? 1 : -1; if (RANGE.on) { const w = comOf(D, Wo).wx; if (w < RANGE.lo) RANGE.lo = w; if (w > RANGE.hi) RANGE.hi = w; } return at; };
   for (let i = 0; i < n; i++, t += CFG.STEP) {
+    if (!first && Wo.W > 0 && S.phase === 'play') Wo.W = wobDecay(Wo.W, CFG.STEP, wobTau(Wo.Hu, Wo.lam));
+    first = false;
     while (fi < fl.length && t >= fl[fi].landAt - 1e-9) {
       const f = fl[fi++];
-      predLand(D, f.pose, f.tile.mass, f.tile.k, f.dxs, f.grade, f.piece.shape === 'marble');
+      predMass(D, f.pose, f.tile.mass, f.tile.k);
+      f.tile._pd = stamp;
+      if (S.phase === 'play') wobLand(Wo, B, f.pose, f.piece.shape, f.grade, f.dxs, isDown, false);
+      predKick(D, Wo, f.pose, f.tile.mass, f.dxs, f.grade, f.piece.shape === 'marble');
     }
-    if (ex && fi >= fl.length && t >= ex.landAt - 1e-9) { predLand(D, ex.pose, ex.mass, ex.k, ex.dxs, ex.grade, ex.marble); ex = null; }
+    if (ex && fi >= fl.length && t >= ex.landAt - 1e-9) {
+      predMass(D, ex.pose, ex.mass, ex.k);
+      if (S.phase === 'play') wobLand(Wo, B, ex.pose, ex.shape, ex.grade, ex.dxs, isDown, true);
+      predKick(D, Wo, ex.pose, ex.mass, ex.dxs, ex.grade, ex.marble);
+      ex = null; RANGE.on = true;
+    }
     if (hz >= 0 && t >= hz - 1e-9) { hazardKick(HZ.kind, -HZ.side, D); hz = -1; }
-    rockStep(D, CFG.STEP);
+    rockStep(D, CFG.STEP, Wo);
+    swayStep(Wo, D, CFG.STEP);
     if (trace) trace.push(D.theta);
-    if (D.theta !== 0 && Math.abs(D.theta) > Math.max(0, D.alphaSide) + margin) { PRED_SIDE.v = D.theta > 0 ? 1 : -1; return t - S.gt; }
-    if (!trace && fi >= fl.length && !ex && hz < 0 && D.theta === 0 && D.omega === 0 && Math.abs(D.cx + D.s * D.FW) <= D.w) return -1;
+    if (RANGE.on) { const w = comOf(D, Wo).wx; if (w < RANGE.lo) RANGE.lo = w; if (w > RANGE.hi) RANGE.hi = w; }
+    if (D.theta !== 0 && Math.abs(D.theta) > Math.max(0, D.alphaSide) + margin) return out(t - S.gt);
+    // (at rest with nothing more to come and the sway unable to carry the weight past a wheel: it stays up. The weight's
+    // range is then the settled weight ± the most the sway can still move it)
+    if (!trace && fi >= fl.length && !ex && hz < 0 && D.theta === 0 && D.omega === 0) {
+      const x0 = D.cx + D.s * D.FW, r = swayReach(Wo) / D.M;
+      if (Math.abs(x0) + r <= D.w) {
+        if (RANGE.on) { const a = x0 - r + (D.ox || 0), b = x0 + r + (D.ox || 0); if (a < RANGE.lo) RANGE.lo = a; if (b > RANGE.hi) RANGE.hi = b; }
+        return -1;
+      }
+    }
   }
-  if (D.tipping && !ex && fi >= fl.length) { PRED_SIDE.v = D.theta > 0 ? 1 : -1; return t - S.gt; }
+  if (D.tipping && !ex && fi >= fl.length) return out(t - S.gt);
   return -1;
 }
 // true between two steps (the tower has rocked for S.gt); false inside a step from its clock tick to the tower's rock
@@ -5566,7 +5587,7 @@ function updateTip() {
     if (Math.abs(C.cx) > C.w) { if (lv < 1) { lv = 1; side = C.cx > 0 ? 1 : -1; } }
     else if (side) { const a = alphaFor(C, side, C.cx), l2 = a > 0.005 ? Math.abs(TW.theta) / a : 2; if (l2 > lv) lv = l2; }
   } else if (!side) {
-    const cxE = TW.cx + TW.s * TW.FW;                  // resting with the CoM outside a wheel: about to go
+    const cxE = comOf(TW, WOB).x;                      // resting with the weight past a wheel: about to go
     if (Math.abs(cxE) > TW.w) { lv = 1; side = cxE > 0 ? 1 : -1; }
   }
   // the look-ahead says it is going over: warn now, while a counterweight can still help
@@ -5575,8 +5596,9 @@ function updateTip() {
 }
 function stepTip() {
   const hzSoon = hazardSoon(CFG.DOOM_HORIZON);
-  if ((TW.theta !== 0 || TW.omega !== 0 || DOOM.t >= 0 || hzSoon) && S.gt - DOOM.at >= CFG.DOOM_EVERY) checkDoom();
-  else if (TW.theta === 0 && TW.omega === 0 && !S.flights.length && !hzSoon) DOOM.t = -1;
+  const swaying = WOB.q !== 0 || WOB.W > 0;
+  if ((TW.theta !== 0 || TW.omega !== 0 || DOOM.t >= 0 || hzSoon || swaying) && S.gt - DOOM.at >= CFG.DOOM_EVERY) checkDoom();
+  else if (TW.theta === 0 && TW.omega === 0 && !S.flights.length && !hzSoon && !swaying) DOOM.t = -1;
   updateTip();
   // the SAVE is paid the moment the wheel slaps back down from a countered lean (DESIGN 8: the slap, the thump,
   // the whoosh), if nothing is in the air and the look-ahead (the game's own physics: with no new input it cannot
@@ -5628,7 +5650,7 @@ function doSave() {
 }
 
 // The gear (3.7): a marble square lands, the hand pokes the green gear into its porthole: the rock is damped and the
-// wobble steadies (land(): W × WOB_GEAR, its sway × WOB_GEAR_Q); "STEADY!". (Not a brace: the brace line is the TRUSS's)
+// sway steadies (land(): W × WOB_GEAR, its swing × WOB_GEAR_Q); "STEADY!". (Not a brace: the brace line is the TRUSS's)
 function doBrace(t) {
   const pts = CFG.BRACE_PTS * S.mult;
   S.score += pts; S.braces++;
@@ -5639,146 +5661,22 @@ function doBrace(t) {
 }
 
 // TRUSS (15.2): the landing tile closed one or more notches (trussNotches). The brace line moves up to the highest
-// notch's top, everything under it is locked: TRUSS_PTS × mult a notch, the wobble drops, a lock chord, and the joints
+// notch's top, everything under it is locked: TRUSS_PTS × mult a notch, the sway drops, a lock chord, and the joints
 // under the line flash from the base up and then keep a faint glint. Returns the points.
 function trussPts(lam, n) { return 5 * Math.round(CFG.TRUSS_PTS * n * S.mult * clamp(lam / CFG.TRUSS_LAM, 0, CFG.TRUSS_MAX) / 5); }
-function doTruss(t, notches) {
-  const B = S.B, n = notches.length, lam0 = WOB.lam;
+function doTruss(t, notches, lam0) {
+  const B = S.B, n = notches.length;
   let yb = B.yb;
   for (let k = 0; k < n; k++) if (notches[k].maxY > yb) yb = notches[k].maxY;
   const pts = trussPts(lam0, n);
   B.yb = yb; B.trusses += n; B.lockAt = S.gt; S.trusses += n;
   S.score += pts; S.scoreBumpT = S.rt;
-  // the wobble drops (15.3) and the segment now starts at the new brace line (its sway eases off with it)
-  WOB.W *= CFG.TRUSS_W; WOB.q *= CFG.TRUSS_W; WOB.qv *= CFG.TRUSS_W;
+  // (the sway was cut × TRUSS_W by the landing, wobLand) and the swaying part now starts at the new brace line
   segUpdate();
   lockJoints(B);
-  logEvent('truss', { key: t.pose.key, notches: notches.map(D => D.key), yb: +yb.toFixed(4), pts, n, mult: S.mult, lam0: +lam0.toFixed(3), joints: B.lock.length, W: +WOB.W.toFixed(4), Hu: +WOB.Hu.toFixed(3), lam: +WOB.lam.toFixed(3), thin: +WOB.thin.toFixed(2) });
+  logEvent('truss', { key: t.pose.key, notches: notches.map(D => D.key), yb: +yb.toFixed(4), pts, n, mult: S.mult, lam0: +lam0.toFixed(3), joints: B.lock.length, W: +WOB.W.toFixed(4), Hu: +WOB.Hu.toFixed(3), lam: +WOB.lam.toFixed(3) });
   Sfx.lock(); Sfx.haptic([12, 24, 12]);
   return pts;
-}
-// SNAP (15.3): the wobble reached 1 on the landing of tile t. The magnets let go at the brace line: everything on or above
-// it (inSegment: the tiles standing there, the ones in the air to slots there, t itself) cartwheels off the way the
-// segment swayed, and the braced part stays standing. With no TRUSS yet that is a full crash. The combo resets. The
-// crown (15.6): kept while the build top is still at or above the ribbon (its multiplier falls with the top), else lost
-// and the ribbon tied up again.
-function doSnap(f, t) {
-  const B = S.B, yb = B.yb;
-  S.snaps++;
-  const lam = WOB.lam, Hu = WOB.Hu, w = WOB.w;
-  // (glowFor: how long the warning glow had been on, 15.3)
-  const glowFor = WOB.glowAt >= 0 ? +(S.gt - WOB.glowAt).toFixed(4) : 0;
-  if (!(yb > 0)) {
-    logEvent('snap', { full: true, tiles: B.tiles.filter(standingTile).length, top: +S.top.toFixed(3), yb: 0, lam: +lam.toFixed(3), Hu: +Hu.toFixed(3), w: +w.toFixed(3), glowFor });
-    doCrash(true);
-    return;
-  }
-  const dir = WOB.q > 0 ? 1 : WOB.q < 0 ? -1 : WOB.dir || 1, r = S.drng;
-  const off = B.tiles.filter(x => !x.gone && !x.flight && inSegment(x.pose, yb));
-  const lostF = S.flights.filter(x => inSegment(x.pose, yb));
-  let rings = 0;
-  for (const x of off) if (x.ring) rings++;
-  // the pile makes room in time: the oldest pieces past the cap fade out while the segment lets go (no visible piece
-  // vanishes); the segment's tiles hang where they were (the magnets letting go, the hit-stop) and go top first
-  debrisFadeFor(off.length + lostF.length + Math.min(rings, 4), CFG.SNAP_UNZIP * 0.9);
-  let sumX = 0;
-  const hs = Math.max(1, WOB.Hu);
-  for (const x of off) {
-    const P = x.pose, up = Math.max(0, P.cy - yb), f2 = Math.min(1, up / WOB.Hs);
-    toWorld(P.cx, P.cy, _w); sumX += _w.x;
-    const back = r() < 0.15 ? -1 : 1;
-    const vx = clamp(dir * back * (1.2 + 1.8 * r() + 0.3 * up) + WOB.qv * f2 * f2 + (r() - 0.5) * 0.8, -CFG.SNAP_VMAX, CFG.SNAP_VMAX);
-    const vy = clamp(1.2 + 2.2 * r() + 0.15 * up, -CFG.SNAP_VMAX, CFG.SNAP_VMAX);
-    const o = { shape: x.shape || (P.type === 'cube' ? 'cube' : P.type === 'sq' ? 'sq' : 'tri'), color: x.color, variant: x.variant,
-      x: _w.x, y: _w.y, rot: TW.theta + P.rot0, vx, vy, w: -dir * back * (6 + 6 * r()), gear: !!x.gearAt, zT: debrisZT(), art: artShapeForType(P.type, x) };
-    const ring = x.ring && rings-- > 0 ? { shape: 'ring', x: _w.x, y: _w.y + 0.1, vx: clamp(vx * 1.2, -4, 4), vy: vy + 1, w: 0, zT: debrisZT() } : null;
-    SNAPQ.push({ o, ring, at: S.gt + CFG.SNAP_UNZIP * clamp(1 - up / hs, 0, 1) * (0.8 + 0.2 * r()) });
-    if (x.ring) { x.ring.got = false; x.ring.tile = null; }      // (the ring floats again where it was, as after a crash)
-    x.gone = true;
-  }
-  let crownLost = false;
-  for (const fl of lostF) {
-    flightPose(fl, FP);
-    SNAPQ.push({ o: { shape: fl.piece.shape, color: fl.piece.color, variant: fl.piece.variant, x: FP.x, y: FP.y, rot: FP.rot,
-      vx: dir * (1 + r() * 2), vy: -0.5 - r() * 1.5, w: -dir * (5 + r() * 6), zT: debrisZT(), art: artShapeForType(fl.pose.type, fl.piece) }, ring: null, at: S.gt + CFG.SNAP_UNZIP });
-    logEvent('lost', { id: fl.id, key: fl.key });
-    fl.tile.gone = true;
-    if (fl.piece.shape === 'crown') crownLost = true;
-  }
-  // the build without the segment: tiles, edges, slots, mass, the locked joints (the line itself stays)
-  B.tiles = B.tiles.filter(x => !x.gone);
-  rebuildEdges(B);
-  if (lostF.length) {
-    for (let i = S.flights.length - 1; i >= 0; i--) if (lostF.indexOf(S.flights[i]) >= 0) S.flights.splice(i, 1);
-    S.lastLandAt = S.flights.length ? S.flights[S.flights.length - 1].landAt : -1e9;
-  }
-  FX.pokes = FX.pokes.filter(p => !p.tile.gone);
-  recomputeTower();
-  genSlots(B);
-  lockJoints(B);
-  massProps(B, true, COMMIT);
-  WOB.W = 0; WOB.q = 0; WOB.qv = 0;
-  // the braced part springs back
-  TW.s *= 0.3; TW.sv *= 0.3;
-  const prevCombo = S.combo;
-  S.combo = 0; S.mult = 1; S.streak = 0; Sfx.music.setMult(1);
-  // the dead end it may have been is gone with the segment
-  const open = B.cands.some(c => c.type !== 'cube');
-  if (open && S.toppleAt >= 0) { S.toppleAt = -1; S.tellAt = -1; }
-  if (open && S.lockUntil === Infinity && !S.crownFlying) S.lockUntil = S.gt;
-  if (!open && S.toppleAt < 0 && !S.flights.length) {
-    S.toppleAt = S.gt + CFG.TOPPLE_DELAY; S.tellAt = S.gt; S.lockUntil = Infinity;
-    logEvent('toppletell', { in: CFG.TOPPLE_DELAY, top: +S.top.toFixed(3) });
-  }
-  // the crown: in the hand, in HOLD, owed or in the air
-  const atStake = S.goalTorn;
-  if (S.goalTorn) {
-    if (S.top >= S.G - 1e-9) {
-      if (crownLost) { S.crownFlying = false; if (S.lockUntil === Infinity) S.lockUntil = S.gt; giveCrown(); }
-    } else { if (crownLost && S.lockUntil === Infinity) S.lockUntil = S.gt; loseCrown(); }
-  }
-  checkDoom();
-  const crown = !atStake ? 'none' : S.goalTorn ? 'kept' : 'lost';
-  logEvent('snap', { full: false, tiles: off.length, lost: lostF.length, top: +S.top.toFixed(3), yb: +yb.toFixed(4), lam: +lam.toFixed(3), Hu: +Hu.toFixed(3), w: +w.toFixed(3),
-    combo: prevCombo, crown, crownMult: crown === 'kept' ? crownMult(crownKNow()) : 0, glowFor });
-  // juice: a crack and a short clatter, a shake, the brace line flashes, SNAP! where the hand can read it
-  const pan = clamp(off.length ? (sumX / off.length) / 4 : 0, -1, 1);
-  Sfx.snap(off.length + lostF.length, pan); Sfx.haptic([20, 30, 20]);
-  addShake(CFG.SNAP_SHAKE, 0.3);
-  FX.hitStop = Math.max(FX.hitStop, CFG.SNAP_STOP);
-  const lineE = B.lock.filter(e => Math.abs(e.y1 - yb) < 1e-6 && Math.abs(e.y2 - yb) < 1e-6);
-  if (lineE.length) FX.glows.push({ edges: lineE, t0: S.gt });
-  B.lockAt = S.gt;
-  // (the line under it says what became of the crown, if one was at stake: lost, or kept at its new multiplier)
-  const k = crown === 'kept' ? crownKNow() : 0;
-  announcePop('SNAP!', crown === 'lost' ? 'NO CROWN!' : crown === 'kept' ? (k > 0 ? 'CROWN ×' + crownMult(k) : 'CROWN KEPT') : 'THE BRACE HELD', '#FF9A3D', 1.25, 0.9, '#ffffff');
-  if (S.phase === 'play') computeGhost();
-}
-// the SNAPped segment's tiles letting go, top first (doSnap): each hangs where it was until its moment, then flies as debris
-const SNAPQ = [];
-function stepSnapQ() {
-  for (let i = SNAPQ.length - 1; i >= 0; i--) {
-    const q = SNAPQ[i];
-    if (S.gt < q.at - 1e-9) continue;
-    SNAPQ.splice(i, 1);
-    spawnDebris(q.o);
-    if (q.ring) spawnDebris(q.ring);
-  }
-}
-function drawSnapQ() {
-  if (!SNAPQ.length) return;
-  const L = CAM.L;
-  for (let pass = 0; pass < 2; pass++) for (const q of SNAPQ) {
-    w2s(q.o.x, q.o.y, _s);
-    const o = tileOpts(1, q.o.variant, pass ? 'detail' : 'body');
-    Art.drawTile(ctx, q.o.art, q.o.color, _s.x, _s.y, q.o.rot, L, o);
-  }
-}
-// the edge map from scratch (a SNAP took tiles out of the build)
-function rebuildEdges(B) {
-  B.emap = new Map();
-  for (const e of B.carEdges) emapAdd(B, e, CAR_OWNER);
-  for (const x of B.tiles) for (const e of x.pose.edges) emapAdd(B, e, x);
 }
 // the joints under the brace line: every edge two standing tiles (or a tile and the car) share, at or under y_b; and
 // their corners (lockPts: x, y pairs), where the glint sits like a rivet
@@ -5830,13 +5728,13 @@ function stepTower(dt) {
     }
   }
   if (S.phase === 'play' || CR.stage === 'fall' || CR.stage === 'unzip') {
-    rockStep(TW, dt);
+    rockStep(TW, dt, WOB);
     ROCKED = true;
     if (S.phase === 'play') {
-      stepSway(dt);
-      // test stats (CS.state().dyn): the top's lateral speed while the cap applies (flex + rock + the wobble's sway),
-      // and the flex, every step
-      const vt = Math.abs(TW.sv + TW.omega * (TW.H + 0.5) * Math.cos(TW.theta) + WOB.qv), as = Math.abs(TW.s);
+      swayStep(WOB, TW, dt);
+      // test stats (CS.state().dyn): the top's lateral speed while the cap applies (flex + rock: the sway of 16.2 is not
+      // under it, a swaying spot being chosen and graded where it is at rest), and the flex, every step
+      const vt = Math.abs(TW.sv + TW.omega * (TW.H + 0.5) * Math.cos(TW.theta)), as = Math.abs(TW.s);
       if (TW.tipping) { if (vt > DYN.vTip) DYN.vTip = vt; DYN.nTip++; }
       else { if (vt > DYN.vTop) DYN.vTop = vt; DYN.n++; }
       if (as > DYN.sMax) DYN.sMax = as;
@@ -5854,9 +5752,10 @@ function stepTower(dt) {
 // the combo resets and a new car rolls in 0.7 s later toward the same goal. The clock keeps running.
 const CR = { stage: '', t0: 0, side: 1, burstAt: 0, exc: 0, word: '', unzip0: 0, left: [], sx: 0, n: 0 };
 const CRASH_WORDS = ['TIMBER!', 'WHOOPS!', 'UH-OH!', 'KA-BLAM!', 'OOPSIE!', 'TIMBER!'];
-// snap: a SNAP with no TRUSS to hold it (15.3): the same crash, going over the way the segment swayed, "SNAP!"
-function doCrash(snap) {
-  const side = TW.theta > 0 ? 1 : TW.theta < 0 ? -1 : snap ? (WOB.q > 0 ? 1 : WOB.q < 0 ? -1 : WOB.dir || 1) : -1, n = TW.n;
+// (the one way a tower falls, 16.1: its weight past a wheel; the log says where the weight hung)
+function doCrash() {
+  const side = TW.theta > 0 ? 1 : TW.theta < 0 ? -1 : -1, n = TW.n;
+  const cw = comOf(TW, WOB), wx = cw.wx - TW.ox;
   TW.crashing = true;
   if (TW.omega * side < CFG.CRASH_MIN_W) TW.omega = side * CFG.CRASH_MIN_W;   // so the slow motion shows it going
   S.phase = 'crash'; CR.stage = 'fall'; CR.t0 = S.gt; CR.side = side; CR.exc = EXC.id;
@@ -5868,16 +5767,16 @@ function doCrash(snap) {
   S.crashes++;
   const prevCombo = S.combo;
   S.combo = 0; S.mult = 1; S.streak = 0; Sfx.music.setMult(1);
-  logEvent('crash', { tiles: n, top: +S.top.toFixed(3), theta: +TW.theta.toFixed(4), alpha: +TW.alphaSide.toFixed(4), side, exc: EXC.id, combo: prevCombo, snap: !!snap });
+  logEvent('crash', { tiles: n, top: +S.top.toFixed(3), theta: +TW.theta.toFixed(4), alpha: +TW.alphaSide.toFixed(4), side, exc: EXC.id, combo: prevCombo,
+    weight: +wx.toFixed(4), wheel: +(side * TW.w).toFixed(4), past: wx * side > TW.w, W: +WOB.W.toFixed(4), sway: +WOB.q.toFixed(4) });
   EXC.on = false; TIP.warned = false; DOOM.t = -1;
   toWorld(TW.cx, TW.cy, _w);
   Sfx.crash(Math.max(1, n), clamp(_w.x / 4, -1, 1)); Sfx.whistle(); Sfx.music.duck(1); Sfx.haptic([30, 40, 30]);
-  if (snap) Sfx.snap(Math.max(1, n), clamp(_w.x / 4, -1, 1));        // (the SNAP's own crack and twang over it)
   addShake(CFG.CRASH_SHAKE, CFG.CRASH_SHAKE_T);
   // the pile makes room now for everything this crash will throw (the tiles in the air now, the burst later): the
   // oldest pieces fade out during the freeze + slow motion instead of vanishing at the burst
   debrisFadeFor(S.flights.length + crashPieces(), (CR.burstAt - S.gt) * 0.9);
-  CR.word = snap ? 'SNAP!' : CRASH_WORDS[(S.drng() * CRASH_WORDS.length) | 0];
+  CR.word = CRASH_WORDS[(S.drng() * CRASH_WORDS.length) | 0];
   // the word goes up high on the side away from the fall, so it never covers the tower going over
   const lostCrown = S.goalTorn || S.overtime;
   // (and below the HUD corners and any pop still up there)
@@ -5941,7 +5840,7 @@ function stepUnzip() {
     vx = clamp(vx, -CFG.CRASH_VMAX, CFG.CRASH_VMAX); vy = clamp(vy, -CFG.CRASH_VMAX, CFG.CRASH_VMAX);   // a pop, not a launch
     const spin = CFG.CRASH_SPIN_MIN + (CFG.CRASH_SPIN_MAX - CFG.CRASH_SPIN_MIN) * r();
     spawnDebris({ shape: t.shape || (P.type === 'cube' ? 'cube' : P.type === 'sq' ? 'sq' : 'tri'), color: t.color, variant: t.variant,
-      x: _w.x, y: _w.y, rot: TW.theta + P.rot0, vx, vy, w: -side * back * spin, gear: !!t.gearAt, zT: debrisZT() });
+      x: _w.x, y: _w.y, rot: TW.theta + swayRot(P) + P.rot0, vx, vy, w: -side * back * spin, gear: !!t.gearAt, zT: debrisZT() });
     if (t.ring) spawnDebris({ shape: 'ring', x: _w.x, y: _w.y + 0.1, vx: clamp(vx * 1.3 + side * 2, -4, 4), vy: vy + 1, w: 0, zT: debrisZT() });
     CR.sx += _w.x; CR.n++;
   }
@@ -5999,7 +5898,7 @@ function doTopple() {
     toWorld(P.cx, P.cy, _w); sumX += _w.x;
     const dx = _w.x - S.comX, dir = dx > 0.05 ? 1 : dx < -0.05 ? -1 : (S.drng() < 0.5 ? -1 : 1);
     spawnDebris({ shape: t.shape || (P.type === 'cube' ? 'cube' : P.type === 'sq' ? 'sq' : 'tri'), color: t.color, variant: t.variant,
-      x: _w.x, y: _w.y, rot: TW.theta + P.rot0,
+      x: _w.x, y: _w.y, rot: TW.theta + swayRot(P) + P.rot0,
       vx: dx * 1.1 + dir * (0.6 + 2.2 * S.drng()), vy: 1.2 + 3.5 * S.drng() + 0.12 * P.cy, w: (S.drng() - 0.5) * 16, gear: !!t.gearAt, zT: debrisZT() });
   }
   const prevTop = S.top;
@@ -6029,6 +5928,9 @@ function captureR(shape) { const crown = shape === 'crown'; return S.big ? (crow
 function acceptForHand(c) {
   const sh = HAND.piece ? HAND.piece.shape : 'sq';
   if (!slotTypeOk(sh, c.type)) return false;
+  // BIG MAGNETS: every spot stands on something (a top, a gap held on two sides, a triangle's slant), none hangs: a
+  // small child's taps beside the tower build it up (the outlines show exactly these, 16.3)
+  if (S.big && sh !== 'crown' && !c.supported) return false;
   if (sh === 'crown' && S.crownHigh) return c.pose.maxY >= S.G - 1e-9;
   // the cube goes in square where it can: seated on both its bottom edges (no half-width overhang: the heavy ballast
   // balanced over an edge felled small towers again and again); any cube slot only if there is no seat
@@ -6047,7 +5949,7 @@ function updateCandWorld() {
   let high = false, seat = false;
   for (let k = 0; k < cands.length; k++) {
     const c = cands[k];
-    toWorld(c.pose.cx, c.pose.cy, _w); c.wx = _w.x; c.wy = _w.y;
+    toWorld(c.pose.cx, c.pose.cy, _w); c.wx = _w.x; c.wy = _w.y; c.rx = _w.x - swayDx(c.pose.cx, c.pose.cy, WOB.q);
     if ((c.type === 'up' || c.type === 'dn') && c.pose.maxY >= S.G - 1e-9) high = true;
     if (c.type === 'cube') { if (c.seated === undefined) c.seated = seatedCube(c); if (c.seated) seat = true; }
   }
@@ -6062,18 +5964,16 @@ function heldOffset(shape) {
   return 0.5;
 }
 function gradeFor(adx) { return adx <= perfectWin() + 1e-9 ? 'perfect' : adx <= greatWin() + 1e-9 ? 'great' : 'clack'; }
-// The hand's offset from slot c that the grade (and the landing's lever) is judged on, signed like c.wx − hx: from where
-// the slot is at rest, less the reach of the wobble's sway there (15.3). A still hand anywhere the swaying slot swings
-// through is dead on, so the sway stays a warning and its cost the shake, never a timing gamble on the PERFECT. (Never
-// more than the offset from the slot's live place: the ghost is drawn there.)
-function slotDx(c, hx) {
-  const live = c.wx - hx;
-  if ((WOB.q === 0 && WOB.qv === 0) || c.pose.cy <= WOB.yb) return live;
-  const f = Math.min(1.2, (c.pose.cy - WOB.yb) / WOB.Hs), ff = f * f;
-  const rest = live - WOB.q * ff, reach = Math.hypot(WOB.q, WOB.qv / WOB.wq) * ff;
-  const m = Math.max(0, Math.abs(rest) - reach);
-  return rest >= 0 ? m : -m;
+// the sway's sideways move of a point (lx, ly) of the tower, with the part over the brace line swayed by q
+function swayDx(lx, ly, q) {
+  if (q === 0 || ly <= WOB.yb) return 0;
+  const ph = q / WOB.Hs, xh = q > 0 ? WOB.x1 : WOB.x0;
+  return (lx - xh) * (Math.cos(ph) - 1) + (ly - WOB.yb) * Math.sin(ph);
 }
+// The hand's offset from slot c that the grade (and the landing's lever) is judged on, signed like c.wx − hx: from where
+// the slot is at rest, the middle of its swing (16.2), as the choice is. A still hand over the middle of a swaying spot's
+// swing is dead on, so the sway's cost is the swing of the weight, never a timing gamble on the PERFECT.
+function slotDx(c, hx) { return (c.rx === undefined ? c.wx : c.rx) - hx; }
 function computeGhost() {
   if (!S.B || !HAND.piece || S.phase !== 'play') { S.ghost = null; return null; }
   updateCandWorld();
@@ -6083,38 +5983,40 @@ function computeGhost() {
   S.ghostTippy = !!g && ghostTippy(g, HAND.piece, S.ghostDx);
   return g;
 }
-// TIPPY (3.4), honest about the landing kick: dropping this tile now (after the ones in the air, with the grade the
-// hand would get right now) puts the centre of mass outside the wheels, or the look-ahead says the tower goes over.
-// A gold, un-TIPPY ghost is therefore safe to take. The display is cached per (slot, grade, hand offset to 0.02 L,
-// build) and refreshed at 10 Hz; a release computes it afresh (CS.lastRelease.tippy).
+// The ghost weight (16.1), honest about the landing kick and the sway: dropping this tile now (after the ones in the
+// air, with the grade the hand would get right now) settles the weight at GW.settle, and on the way the weight swings
+// between GW.lo and GW.hi (the look-ahead, world x); GW.tip: that carries it past a wheel and the tower goes over (it
+// settles past one, or the look-ahead says it falls). Cached per (slot, grade, hand offset to 0.02 L, build) and
+// refreshed at 10 Hz; a release computes it afresh (CS.lastRelease.tippy).
 const TIPPY = { key: null, shape: '', grade: '', dx: 0, B: null, ver: -1, nf: -1, at: -1e9, v: false };
+const GW = { on: false, settle: 0, lo: 0, hi: 0, tip: false };
 function ghostTippy(c, piece, dxs) {
   const grade = gradeFor(Math.abs(dxs));
   if (TIPPY.key === c.key && TIPPY.shape === piece.shape && TIPPY.grade === grade && Math.abs(TIPPY.dx - dxs) < 0.02 && TIPPY.B === S.B &&
     TIPPY.ver === S.B.ver && TIPPY.nf === S.flights.length && S.gt - TIPPY.at < CFG.DOOM_EVERY) return TIPPY.v;
   TIPPY.key = c.key; TIPPY.shape = piece.shape; TIPPY.grade = grade; TIPPY.dx = dxs; TIPPY.B = S.B; TIPPY.ver = S.B.ver; TIPPY.nf = S.flights.length; TIPPY.at = S.gt;
-  return (TIPPY.v = slotTippy(c, piece, dxs, grade));
+  TIPPY.v = slotTippy(c, piece, dxs, grade, GW);
+  GW.on = true;
+  return TIPPY.v;
 }
 const VF = { landAt: 0, pose: null, mass: 1, k: 1 / 6, dxs: 0, grade: 'perfect', marble: false, shape: 'sq' };
-function slotTippy(c, piece, dxs, grade) {
-  if (wouldTip(c, piece.shape)) return true;
-  // the same fall time and landing order as doRelease
-  const y0 = worldYAtScreen(CAM.handY + heldOffset(piece.shape) * CAM.L), d = Math.max(0, y0 - c.wy);
-  const T = clamp(CFG.FALL_BASE + CFG.FALL_PER_L * d, CFG.FALL_MIN, CFG.FALL_MAX);
-  VF.landAt = Math.max(S.gt + T + CFG.YANK_T, S.lastLandAt + CFG.LAND_GAP);
-  VF.pose = c.pose; VF.mass = CFG.MASS[piece.shape] || 1; VF.k = CFG.KROT[piece.shape] || 1 / 6;
-  VF.dxs = dxs; VF.grade = grade; VF.marble = piece.shape === 'marble'; VF.shape = piece.shape;
-  // (and the wobble: this drop, or one already in the air, SNAPs a tower no TRUSS holds: that is a crash too, 15.3)
-  if (snapAhead(VF) === 'full') return true;
-  return predictCrash(VF.landAt - S.gt + CFG.TIPPY_HORIZON, VF) >= 0;
-}
-// what a drop at slot c now would do to the wobble ('full' / 'part' SNAP, or ''): CS.ghost(), the debug overlay
-function slotSnap(c, piece, dxs) {
-  const y0 = worldYAtScreen(CAM.handY + heldOffset(piece.shape) * CAM.L), d = Math.max(0, y0 - c.wy);
-  const T = clamp(CFG.FALL_BASE + CFG.FALL_PER_L * d, CFG.FALL_MIN, CFG.FALL_MAX);
-  VF.landAt = Math.max(S.gt + T + CFG.YANK_T, S.lastLandAt + CFG.LAND_GAP);
-  VF.pose = c.pose; VF.grade = gradeFor(Math.abs(dxs)); VF.shape = piece.shape;
-  return snapAhead(VF);
+// (out: the ghost weight's settle / lo / hi / tip filled in)
+function slotTippy(c, piece, dxs, grade, out) {
+  const C = COMMIT, m = CFG.MASS[piece.shape] || 1, settle = (C.M * C.cx + m * c.pose.cx) / (C.M + m) + TW.ox;
+  if (out) { out.settle = settle; out.lo = out.hi = settle; }
+  let tip = wouldTip(c, piece.shape);
+  if (!tip) {
+    // the same fall time and landing order as doRelease
+    const y0 = worldYAtScreen(CAM.handY + heldOffset(piece.shape) * CAM.L), d = Math.max(0, y0 - c.wy);
+    const T = clamp(CFG.FALL_BASE + CFG.FALL_PER_L * d, CFG.FALL_MIN, CFG.FALL_MAX);
+    VF.landAt = Math.max(S.gt + T + CFG.YANK_T, S.lastLandAt + CFG.LAND_GAP);
+    VF.pose = c.pose; VF.mass = m; VF.k = CFG.KROT[piece.shape] || 1 / 6;
+    VF.dxs = dxs; VF.grade = grade; VF.marble = piece.shape === 'marble'; VF.shape = piece.shape;
+    tip = predictCrash(VF.landAt - S.gt + CFG.TIPPY_HORIZON, VF) >= 0;
+    if (out && RANGE.on && RANGE.hi >= RANGE.lo) { out.lo = Math.min(settle, RANGE.lo); out.hi = Math.max(settle, RANGE.hi); }
+  }
+  if (out) out.tip = tip;
+  return tip;
 }
 // adding this tile (after the ones in the air) would put the centre of mass outside the wheels
 function wouldTip(c, shape) {
@@ -6135,6 +6037,7 @@ function doRelease(src) {
   const readyAt = HAND.readyAt;
   const y0 = worldYAtScreen(CAM.handY + heldOffset(piece.shape) * CAM.L);
   HAND.ready = false; HAND.releasedAt = S.gt; HAND.pending = null; HAND.swapUsed = false; HAND.lastSrc = src;
+  tipDrop();
   HAND.fuseT = 0; HAND.fuseMarks = 0;
   const crown = piece.shape === 'crown';
   // a crown MISS: the hand catches a fresh crown (OOPS!) if there is a triangle slot to aim for (else it is owed,
@@ -6199,7 +6102,7 @@ function flightPose(f, out) {
     out.x = x; out.y = y; out.rot = rot; out.k = 0;
   } else {
     const k = clamp((S.gt - f.yankAt) / CFG.YANK_T, 0, 1), e = k * k * k;
-    const target = TW.theta + (P.type === 'dn' ? (f.leanDir < 0 ? -Math.PI : Math.PI) : 0);
+    const target = TW.theta + swayRot(P) + (P.type === 'dn' ? (f.leanDir < 0 ? -Math.PI : Math.PI) : 0);
     const shiver = k < 0.45 ? ((S.frame & 1) ? 1 : -1) * CFG.SHIVER_PX / CAM.L : 0;
     out.x = f.x0 + (sx - f.x0) * e + shiver; out.y = yEnd + (sy - yEnd) * e; out.rot = lean + (target - lean) * e; out.k = e;
   }
@@ -6214,28 +6117,22 @@ function stepFlights() {
   while (S.flights.length && S.gt >= S.flights[0].landAt - 1e-9) land(S.flights.shift());
 }
 function land(f) {
-  const t = f.tile, cxBefore = TW.cx + TW.s * TW.FW, live = S.phase === 'play', crown = f.piece.shape === 'crown';
+  const t = f.tile, cxBefore = comOf(TW, WOB).x, live = S.phase === 'play', crown = f.piece.shape === 'crown';
   t.flight = false; t.landT = S.gt;
   recomputeTower();
   genSlots(S.B);
   if (S.top > S.tallest) S.tallest = S.top;
   // a TRUSS (15.2), only in play (not for the tiles still landing at TIME!, nor the crown)
   const notches = live && !crown && trussNotches(S.B, t.pose, t, TRUSS_TMP).length ? TRUSS_TMP.slice() : null;
-  // the wobble (15.3): a landing in the unbraced segment (not the one that braces it) shakes it by ΔW at the λ it
-  // leaves; at W = 1 the segment SNAPs (after this landing's clack)
-  let dW = 0;
-  // (a marble square's gear (3.7) steadies it instead: W × WOB_GEAR, the sway × WOB_GEAR_Q)
-  const gear = live && !crown && !notches && f.piece.shape === 'marble' && inSegment(t.pose, S.B.yb);
-  if (gear) { WOB.W *= CFG.WOB_GEAR; WOB.q *= CFG.WOB_GEAR_Q; WOB.qv *= CFG.WOB_GEAR_Q; }
-  else if (live && !crown && !notches && inSegment(t.pose, S.B.yb)) {
-    dW = wobDelta(f.grade, f.piece.shape, WOB.lam, WOB.Hu > 0 ? (t.pose.maxY - S.B.yb) / WOB.Hu : 1, WOB.thin);
-    WOB.W = Math.min(1, WOB.W + dW);
-    if (Math.abs(WOB.q) < 1e-3) WOB.dir = f.dxs > 1e-9 ? 1 : f.dxs < -1e-9 ? -1 : (t.pose.cx >= TW.cx ? 1 : -1);
-  }
-  const snapNow = dW > 0 && WOB.W >= 1 - 1e-9;
-  // dead end (no square or triangle slot anywhere): let this clack ring, then TOPPLE. Releases wait meanwhile.
-  // (not for the crown: the SMASH takes the build away anyway; nor for a SNAP: that takes the segment away)
-  if (live && !crown && !snapNow && !S.flights.length && S.toppleAt < 0 && !S.B.cands.some(c => c.type !== 'cube')) {
+  // the sway (16.2): a landing on the swaying part (not the one that braces it) sways it more, by ΔW at the λ it
+  // leaves; a TRUSS cuts it (× TRUSS_W) and a marble square's gear (3.7) steadies it (W × WOB_GEAR, the swing ×
+  // WOB_GEAR_Q). (lam0: the part's slenderness with this tile on it, before any brace: what a TRUSS pays for)
+  const lam0 = WOB.lam;
+  const wr = live && !crown ? wobLand(WOB, S.B, t.pose, f.piece.shape, f.grade, f.dxs, standingTile, false, notches) : 0;
+  const dW = wr > 0 ? wr : 0, gear = wr === -2;
+  // dead end (no square or triangle slot anywhere): let this clack ring, then TOPPLE, the last resort. Releases wait
+  // meanwhile. (not for the crown: the SMASH takes the build away anyway)
+  if (live && !crown && !S.flights.length && S.toppleAt < 0 && !S.B.cands.some(c => c.type !== 'cube')) {
     S.toppleAt = S.gt + CFG.TOPPLE_DELAY; S.tellAt = S.gt; S.lockUntil = Infinity;
     debrisFadeFor(Math.min(S.B.tiles.length, CFG.DEBRIS_MAX), CFG.TOPPLE_DELAY * 0.9);   // room for the burst, faded in time
     logEvent('toppletell', { in: CFG.TOPPLE_DELAY, top: +S.top.toFixed(3) });
@@ -6263,15 +6160,14 @@ function land(f) {
   S.score += pts; S.landed++;
   if (perfect) { S.perfects++; S.streak++; if (S.streak > S.bestStreak) S.bestStreak = S.streak; } else S.streak = 0;
   logEvent('land', { id: f.id, key: f.key, grade: f.grade, edges: f.slot.edges, dx: Math.abs(f.dxs), pts, combo: S.combo, mult: S.mult, pm: prevMult, shape: f.piece.shape, dt: S.gt - f.t0, ot,
-    W: +WOB.W.toFixed(4), dW: +dW.toFixed(4), lam: +WOB.lam.toFixed(3), Hu: +WOB.Hu.toFixed(3), thin: +WOB.thin.toFixed(2), yb: +S.B.yb.toFixed(4), gear });
+    W: +WOB.W.toFixed(4), dW: +dW.toFixed(4), lam: +WOB.lam.toFixed(3), lam0: +lam0.toFixed(3), Hu: +WOB.Hu.toFixed(3), yb: +S.B.yb.toFixed(4), gear });
   juiceLand(f, t, pts, edgesC, prevMult);
   const brace = f.piece.shape === 'marble';
   if (brace) doBrace(t);
   // (the joints under an earlier brace line take in the tiles that land under it later)
-  const trussPts = notches ? doTruss(t, notches) : 0;
+  const trussPts = notches ? doTruss(t, notches, lam0) : 0;
   if (!trussPts && S.B.yb > 0) lockJoints(S.B);
   if (S.hintOn) { S.hintOn = false; PREFS.seenHint = true; savePrefs(); }
-  if (snapNow) { doSnap(f, t); return; }
   // (TIME! is up: tiles in the air land and score, nothing more)
   const ring = live ? collectRings(t) : null;
   // (the moment's announcement first, the goal's sign or CROWNED!, then this landing's word in the room it leaves: a
@@ -6610,7 +6506,8 @@ function plowDebris(x0, x1, dt, halfLen, toss) {
 }
 
 /* ==== FLOW & SCORING ==== */
-const PREFS = loadStore('clackstack.prefs', { big: false, mute: false, seenHint: false, played: false, seenCrownHint: false });
+const PREFS = loadStore('clackstack.prefs', { big: false, mute: false, seenHint: false, played: false, seenCrownHint: false,
+  seenWeightTip: false, seenSwayTip: false, seenNotchTip: false });
 function savePrefs() { saveStore('clackstack.prefs', PREFS); }
 // best scores (7): one record per mode (BIG MAGNETS has its own); every field keeps its own best
 const BEST_DEF = { score: 0, level: 0, cm: 0, streak: 0 };
@@ -6687,14 +6584,13 @@ function collectRings(t) {
 // ---- a run
 function startGame(mode) {        // mode: 'auto' (?autostart: the base is already parked), 'intro' (after the title shove), 'again'
   const lv = PARAM.level;
-  SNAPQ.length = 0;
   S.cars = carsFor(lv, S.big); S.carLen = carLenFor(lv, S.big);
   setGoal(lv);
   S.flights.length = 0; S.lastLandAt = -1e9; S.toppleAt = S.lockUntil = S.rollT0 = -1;
   crashReset();
   S.score = 0; S.scoreShown = 0; S.combo = 0; S.mult = 1; S.streak = 0; S.bestStreak = 0; S.perfects = 0; S.landed = 0;
   S.lastAww = -1e9; S.missT.length = 0; S.bigOfferAt = -1; S.bigOffered = false;
-  S.crashes = 0; S.saves = 0; S.braces = 0; S.trusses = 0; S.snaps = 0; S.misses = 0; S.crownHintAt = -1; S.tallest = 0; S.bestGoal = 0; S.bestGoalName = ''; S.ringsGot = 0; S.crowns = 0;
+  S.crashes = 0; S.saves = 0; S.braces = 0; S.trusses = 0; S.misses = 0; S.crownHintAt = -1; S.tallest = 0; S.bestGoal = 0; S.bestGoalName = ''; S.ringsGot = 0; S.crowns = 0;
   S.clock = CFG.CLOCK_START; S.lastTick = 6; S.crownFlying = false; S.crownOwed = false; S.baseHidden = false; S.flinch = false;
   S.queue.length = 0; S.bag.length = 0; S.held = null; S.lastColor = null; S.squaresDealt = 0; S.cubeWait = false; S.allTippy = false;
   S.firstRunSquares = PREFS.played ? 0 : 4;
@@ -6723,6 +6619,7 @@ function startGame(mode) {        // mode: 'auto' (?autostart: the base is alrea
   HAND.x = HAND.dx = CAM.originX;
   handToPointer();
   S.hintOn = !PARAM.nohint && !PREFS.seenHint; S.hintT = 0;
+  TIPH.id = ''; TIPH.on = false;
   S.phase = 'play';
   updateCamera(0, mode === 'auto');
   // AGAIN: the new cars roll in on the rug in view, wherever the camera was (TIME! brings it down; a pause may not have)
@@ -6837,7 +6734,7 @@ function doSwap() {
 function crownK(base) { return Math.max(0, Math.floor(base - S.G + 1e-9)); }
 function crownMult(k) { return 1 + CFG.CROWN_K * k; }
 // The crown gamble (15.6): the crown's multiplier is ×(1 + 0.5 k), k the whole L the build top stands above the ribbon,
-// live: the GO HIGHER chip and the HOLD box show it, and placing the crown pays it (a SNAP that lowers the top lowers it)
+// live: the GO HIGHER chip and the HOLD box show it, and placing the crown pays it
 function crownKNow() { return S.goalTorn && S.B ? crownK(S.top) : 0; }
 function crownValue(k) { return Math.round(CFG.CROWN_PTS * S.level * crownMult(k)); }
 // ...and the clock it gives back: TIME_CROWN s, + CROWN_SEC s a whole L above the ribbon (an OVERTIME metre costs clock,
@@ -6976,7 +6873,7 @@ function burstRight(power) {
     const low = 1 - clamp(P.cy / top, 0, 1);              // the cube hits the bottom: low tiles go fastest
     const vx = power * (0.55 + 0.45 * low) * (0.7 + 0.6 * r()), vy = 2 + 4.5 * r() + 0.12 * Math.min(P.cy, 10);
     spawnDebris({ shape: t.shape || (P.type === 'cube' ? 'cube' : P.type === 'sq' ? 'sq' : 'tri'), color: t.color, variant: t.variant,
-      x: _w.x, y: _w.y, rot: TW.theta + P.rot0, vx: clamp(vx, -7, 7), vy: clamp(vy, -6, 7), w: -(5 + 9 * r()) * (r() < 0.15 ? -1 : 1), gear: !!t.gearAt, zT: debrisZT() });
+      x: _w.x, y: _w.y, rot: TW.theta + swayRot(P) + P.rot0, vx: clamp(vx, -7, 7), vy: clamp(vy, -6, 7), w: -(5 + 9 * r()) * (r() < 0.15 ? -1 : 1), gear: !!t.gearAt, zT: debrisZT() });
   }
   for (const t of tiles) {
     t.gone = true;
@@ -7131,7 +7028,7 @@ function stepOver(dt) {
     stepFlights();                                     // tiles in flight land (and score)
     if (CR.stage === 'fall' && S.gt >= CR.burstAt - 1e-9) burstCrash();
     else if (CR.stage === 'unzip') stepUnzip();
-    if (S.B && !S.baseHidden && !CR.stage) { rockStep(TW, dt); if (Math.abs(TW.theta) > TW.alphaSide + 0.3) TW.theta = Math.sign(TW.theta) * (TW.alphaSide + 0.3); }
+    if (S.B && !S.baseHidden && !CR.stage) { rockStep(TW, dt, WOB); if (Math.abs(TW.theta) > TW.alphaSide + 0.3) TW.theta = Math.sign(TW.theta) * (TW.alphaSide + 0.3); }
     if (!OV.smashed && u >= CFG.OVER_SMASH && !S.flights.length && CR.stage !== 'fall' && CR.stage !== 'unzip') {
       OV.smashed = true;
       if (S.B && !S.baseHidden) { shoveIn(); debrisFadeFor(smashPieces(), 0.1); }
@@ -7389,12 +7286,12 @@ function stepAllTippy() {
     if (!slotTippy(c, HAND.piece, 0, 'perfect')) { safe = true; break; }
   }
   // (and the tile in the hand has no slot at all while the one in HOLD has: refillPick left it there for a swap). Every
-  // slot TIPPY is a balance tell like the red ghost: from L4 (not in BIG MAGNETS) the fuse runs on and the box keeps still
-  S.allTippy = (n > 0 && !safe && tippyVisible()) || (n === 0 && !HAND.swapUsed && !!S.held && fitScore(S.held) > 0);
+  // spot tipping the tower shows on the ghost weight, on every level (16.1)
+  S.allTippy = (n > 0 && !safe) || (n === 0 && !HAND.swapUsed && !!S.held && fitScore(S.held) > 0);
 }
 function stepPlay(dt) {
   if (S.toppleAt >= 0 && S.gt >= S.toppleAt - 1e-9) doTopple();
-  // the wobble settles (before this step's landings add to it: 15.3)
+  // the sway settles (before this step's landings add to it: 16.2)
   if (S.phase === 'play') stepWobble(dt);
   const locked = S.gt < S.lockUntil;
   // (the cube comes now if it has a seat, before the hand shows its tile)
@@ -7410,16 +7307,11 @@ function stepPlay(dt) {
     HAND.pending = null;
   }
   // fuse (not in BIG MAGNETS; starts once the player has dropped something; holds while the new base rolls in)
-  // (and waits while the wobble is over WOB_FUSE: letting the tower settle costs clock time, never a forced drop, 15.3)
   stepAllTippy();
-  // (the warning: the glow is on from the moment a shaking drop is let go; WOB.glowAt: since when, for the SNAP's log)
-  const wa = wobAhead();
-  if (wa.glow && S.phase === 'play') { if (WOB.glowAt < 0) WOB.glowAt = S.gt; } else WOB.glowAt = -1;
-  S.fuseWait = Math.max(WOB.W, wa.W) > CFG.WOB_FUSE && S.phase === 'play';
   // (and while the crown waits in the hand with GO HIGHER up, the choice is the player's: the fuse never makes it, and
   // never lets a crown go where it could only MISS)
   const crownWait = !!HAND.piece && HAND.piece.shape === 'crown' && (goHigherOn() || !S.ghost);
-  if (HAND.ready && !locked && !S.big && S.firstInput && S.phase === 'play' && !S.allTippy && !S.fuseWait && !crownWait) {
+  if (HAND.ready && !locked && !S.big && S.firstInput && S.phase === 'play' && !S.allTippy && !crownWait) {
     const fuse = levelInfo(S.level).fuse;
     HAND.fuseT += dt;
     const u = HAND.fuseT / fuse;
@@ -7430,6 +7322,7 @@ function stepPlay(dt) {
   }
   stepFlights();
   if (S.hintOn) S.hintT += dt;
+  stepTips();
   if (S.phase === 'smash') return;           // a SMASH pauses the clock (and the hazards)
   stepHazards(dt);
   // the clock (runs from the moment the base is parked; a crash costs time, never the run)
@@ -7882,7 +7775,7 @@ function render() {
     const P = t.pose;
     toWorld(P.cx, P.cy, _w); w2s(_w.x, _w.y, _s);
     let o = LIGHT[n]; if (!o) o = LIGHT[n] = { shape: 'sq', color: 'red', cx: 0, cy: 0, rot: 0 };
-    o.shape = artShapeForType(P.type, t); o.color = t.color; o.cx = _s.x; o.cy = _s.y; o.rot = TW.theta + P.rot0; n++;
+    o.shape = artShapeForType(P.type, t); o.color = t.color; o.cx = _s.x; o.cy = _s.y; o.rot = TW.theta + swayRot(P) + P.rot0; n++;
   }
   LIGHT.length = n;
   if (PERF.lightPass && n) Art.drawLight(ctx, LIGHT, L, CAM.groundY, CAM.camY, night ? 0.6 : 1);
@@ -7920,8 +7813,8 @@ function render() {
         if (t.glintAt >= 0 && S.gt - t.glintAt < 0.6) o.glint = (S.gt - t.glintAt) / 0.6;
         else if (t.shape === 'crown' && PERF.gloss) o.glint = (S.rt * 0.45) % 1;
       }
-      Art.drawTile(ctx, artShapeForType(P.type, t), t.color, _s.x, _s.y, TW.theta + P.rot0, L, o);
-      if (pass && t.gearAt && S.gt - t.gearAt >= GEAR_IN) Art.drawGear(ctx, _s.x, _s.y, L, TW.theta + gearSpin(S.gt - t.gearAt - GEAR_IN));
+      Art.drawTile(ctx, artShapeForType(P.type, t), t.color, _s.x, _s.y, TW.theta + swayRot(P) + P.rot0, L, o);
+      if (pass && t.gearAt && S.gt - t.gearAt >= GEAR_IN) Art.drawGear(ctx, _s.x, _s.y, L, TW.theta + swayRot(P) + gearSpin(S.gt - t.gearAt - GEAR_IN));
       if (pass && t.ring) {
         // the ring clacks flat onto the tile's face where it hung
         toWorld(t.ring.x, t.ring.y, _w); w2s(_w.x, _w.y, _s2);
@@ -7931,8 +7824,7 @@ function render() {
     }
   }
   if (showBase && B.lock.length && ph !== 'crash') drawLock(B);
-  if (showBase && ph === 'play') drawWobble(B);
-  drawSnapQ();
+  drawWeight();
   drawGlows();
   drawGoldGlow();
   if (shiver) ctx.restore();
@@ -7970,6 +7862,7 @@ function render() {
   if (S.phase !== 'paused') { drawTally(); drawBanner(); }
   drawFlyers();
   if (S.hintOn && S.phase === 'play') drawHint();
+  drawTipHint();
   if (DEBUG.on) drawDebug();
   if (results) { drawResults(); drawConfetti(); }
   if (S.phase === 'paused') drawPause();
@@ -8222,18 +8115,18 @@ function ghostRect(soon) {
   const topY = _s.y - (g.type === 'up' ? 2 * H3 / 3 : g.type === 'dn' ? H3 / 3 : g.type === 'cube' ? 1 : 0.5) * L;
   const hw = (g.type === 'cube' ? 1.2 : 0.55) * L, bot = _s.y + (g.type === 'up' ? H3 / 3 : g.type === 'dn' ? 2 * H3 / 3 : g.type === 'cube' ? 1 : 0.5) * L;
   GHOSTR.on = true; GHOSTR.x0 = _s.x - hw; GHOSTR.x1 = _s.x + hw; GHOSTR.y0 = topY - (g.type === 'cube' ? 0.2 * L : 0); GHOSTR.y1 = bot;
-  // (px0..px1: everywhere the wobble's sway can carry it, for what is placed to keep clear of it)
+  // (px0..px1: everywhere the sway can carry it, for what is placed to keep clear of it)
   const sw = wobSway(g.pose); GHOSTR.px0 = GHOSTR.x0 - sw.off - sw.pad; GHOSTR.px1 = GHOSTR.x1 - sw.off + sw.pad;
   GHOSTR.cx = _s.x; GHOSTR.cy = _s.y; GHOSTR.top = topY;
 }
 function drawGhost() {
-  if (!ghostShown()) return;
+  if (!ghostShown()) { SPOTS.keys.length = 0; SPOTS.ghost = null; SPOTS.frame = S.frame; return; }
   const L = CAM.L, piece = HAND.piece;
   // bottom of the held tile: a triangle hangs apex-up from the hand line (full height H3); squares and the net are centred
   const handBottom = CAM.handY + (piece.shape === 'tri' || piece.shape === 'crown' ? H3 : heldOffset(piece.shape) * 2) * L;
   const hx = HAND.x;
-  // (a triangle in the hand: the notches and the firm side slots, faintly, so the moves are visible)
-  if (piece.shape === 'tri') drawTriHints();
+  // (every spot the piece in the hand can go, faintly dotted, so the moves are visible: 16.3)
+  drawSpots();
   ctx.save();
   if (S.ghost) {
     const g = S.ghost;
@@ -8241,20 +8134,13 @@ function drawGhost() {
     const gold = Math.abs(S.ghostDx) <= perfectWin();
     const topY = GHOSTR.top;
     dropLine(hx, handBottom, _s.x, topY, gold ? '#FFC531' : '#ffffff');
-    const tippy = tippyShown();
-    const o = tileOpts(1, 0, 'both'); o.ghost = tippy ? 'red' : gold ? 'gold' : 'white';
-    Art.drawTile(ctx, artShapeForType(g.type, piece), piece.color, _s.x, _s.y, TW.theta + g.pose.rot0, L, o);
+    // (whether it tips the tower is the ghost weight's to say, at the car: 16.1)
+    const o = tileOpts(1, 0, 'both'); o.ghost = gold ? 'gold' : 'white';
+    Art.drawTile(ctx, artShapeForType(g.type, piece), piece.color, _s.x, _s.y, TW.theta + swayRot(g.pose) + g.pose.rot0, L, o);
     if (gold && PERF.gloss) sparkle(_s.x, _s.y, L, streakHeat(S.streak + 1));
     if (g.edges >= 2) edgeChip(_s.x + L * 0.42, topY - 4, g.edges >= 3 ? '×3' : '×2');
-    if (tippy) tippyChip(_s.x - L * 0.42, topY - 4);
-    // this drop completes a brace (15.2): a TRUSS chip over the ghost; it lands on a segment TOO THIN (a one-wide
-    // stretch, 15.3): an orange chip says why the tower will shake so (widen it, or brace under it)
+    // this drop completes a brace (15.2): a TRUSS chip over the ghost
     if (g.truss && piece.shape !== 'crown') trussChip(_s.x, topY - 4 - 25);
-    else if (piece.shape !== 'crown' && piece.shape !== 'marble' && ghostThin(g)) {
-      // (beside the ghost, at its middle: over it is where the hand and the falling tile are)
-      const tw = textW(12, 'TOO THIN') + 18, gx0 = GHOSTR.x0, gx1 = GHOSTR.x1, my = (GHOSTR.y0 + GHOSTR.y1) / 2;
-      thinChip(gx0 - tw / 2 - 6 >= CAM.safe.l + 4 ? gx0 - tw / 2 - 6 : gx1 + tw / 2 + 6, my);
-    }
     // this slot collects a ring: a glowing ring icon on the ghost
     const r = piece.shape !== 'crown' ? ringFor(g.pose) : null;
     if (r) {
@@ -8275,33 +8161,6 @@ function drawGhost() {
   }
   ctx.restore();
 }
-// the red TIPPY ghost shows on L1-L3 and in BIG MAGNETS only (15.4): later, judging the balance is the player's job
-function tippyVisible() { return S.big || S.level <= CFG.TIPPY_SHOW_MAX; }
-function tippyShown() { return S.ghostTippy && tippyVisible(); }
-// TOO THIN (15.3): the ghost's landing would be on a segment with a one-wide stretch of WOB_THIN_H (measured as it
-// would stand, the tiles in the air counted); cached per slot and build
-const GTHIN = { key: null, B: null, ver: -1, nf: -1, v: false }, GTM = { Hu: 0, w: 1, lam: 0, top: 0, thin: 0 };
-const notGone = t => !t.gone;
-function ghostThin(c) {
-  const B = S.B;
-  if (!B) return false;
-  if (GTHIN.key === c.key && GTHIN.B === B && GTHIN.ver === B.ver && GTHIN.nf === S.flights.length) return GTHIN.v;
-  GTHIN.key = c.key; GTHIN.B = B; GTHIN.ver = B.ver; GTHIN.nf = S.flights.length;
-  if (c.truss || !inSegment(c.pose, B.yb)) return (GTHIN.v = false);
-  segMeasure(B, B.yb, notGone, c.pose, GTM);
-  return (GTHIN.v = wobThin(GTM.thin));
-}
-function thinChip(x, y) {
-  ctx.save();
-  ctx.font = font(12);
-  const tw = textW(12, 'TOO THIN'), w = tw + 18, h = 19, b = 1 + 0.05 * Math.sin(S.rt * 7);
-  ctx.translate(x, y); ctx.scale(b, b);
-  rrect(ctx, -w / 2, -h / 2, w, h, h / 2);
-  ctx.fillStyle = '#FF9F1C'; ctx.fill();
-  ctx.lineWidth = 2; ctx.strokeStyle = '#1E2541'; ctx.stroke();
-  ctx.fillStyle = '#1E2541'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('TOO THIN', 0, 1);
-  ctx.restore();
-}
 // TRUSS: a gold chip with a padlock over a ghost whose drop would close a notch into a brace
 function trussChip(x, y) {
   ctx.save();
@@ -8318,23 +8177,26 @@ function trussChip(x, y) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('TRUSS', lx + 7 + tw / 2, 1);
   ctx.restore();
 }
-// the faint outlines of the triangle moves (15.1): every notch, every firm side slot and the partner Δ beside a lone Δ
-// (not the ghost's own), the ones that would close a TRUSS in gold. Inset a little, so an outline never sits on a tile's edge
-const HINT_DASH = [5, 4];
-function drawTriHints() {
+// Every spot the piece in the hand can go (16.3), the ones chooseSlot picks from (CS.slots()): a faint dotted outline
+// each (not the ghost's own), the ones that would close a TRUSS a pulsing gold fill with a padlock. Inset a little, so an
+// outline never sits on a tile's edge
+const SPOT_DOT = [0.5, 6];
+const SPOTS = { keys: [], ghost: null, frame: -1 };     // what was drawn (CS.spots())
+function drawSpots() {
   const cands = S.B.cands, L = CAM.L, gk = S.ghostKey;
   let nw = 0, ng = 0;
-  for (let k = 0; k < cands.length; k++) { const c = cands[k]; if (c.hint && c.key !== gk) { if (c.truss) ng++; else nw++; } }
+  SPOTS.keys.length = 0; SPOTS.ghost = S.ghost ? gk : null; SPOTS.frame = S.frame;
+  for (let k = 0; k < cands.length; k++) { const c = cands[k]; if (c.key !== gk && acceptForHand(c)) { SPOTS.keys.push(c.key); if (c.truss && HAND.piece.shape !== 'crown') ng++; else nw++; } }
   if (!nw && !ng) return;
   ctx.save();
-  ctx.lineJoin = 'round'; ctx.setLineDash(HINT_DASH);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   for (let set = 0; set < 2; set++) {
     if (set ? !ng : !nw) continue;
     ctx.beginPath();
     for (let k = 0; k < cands.length; k++) {
       const c = cands[k];
-      if (!c.hint || c.key === gk || !!c.truss !== !!set) continue;
-      const P = c.pose, poly = P.poly, kk = 0.8;
+      if (c.key === gk || !acceptForHand(c) || !!(c.truss && HAND.piece.shape !== 'crown') !== !!set) continue;
+      const P = c.pose, poly = P.poly, kk = P.type === 'cube' ? 0.9 : 0.8;
       for (let j = 0; j < P.n; j++) {
         toWorld(P.cx + (poly[2 * j] - P.cx) * kk, P.cy + (poly[2 * j + 1] - P.cy) * kk, _w); w2s(_w.x, _w.y, _s2);
         if (j) ctx.lineTo(_s2.x, _s2.y); else ctx.moveTo(_s2.x, _s2.y);
@@ -8344,14 +8206,15 @@ function drawTriHints() {
     const pu = 0.5 + 0.5 * Math.sin(S.rt * 6);
     if (set) {
       // the TRUSS spot is the tell itself: a pulsing gold fill (solid, so it reads at a glance on any tile) under the outline
-      ctx.setLineDash(NO_DASH);
       ctx.globalAlpha = 0.42 + 0.3 * pu; ctx.fillStyle = '#FFC531'; ctx.fill();
       ctx.globalAlpha = 0.6; ctx.strokeStyle = '#1E2541'; ctx.lineWidth = Math.max(4, 0.09 * L); ctx.stroke();
       ctx.globalAlpha = 1; ctx.strokeStyle = '#FFF3C4'; ctx.lineWidth = Math.max(2.5, 0.05 * L); ctx.stroke();
-      ctx.setLineDash(HINT_DASH);
     } else {
-      ctx.globalAlpha = 0.32; ctx.strokeStyle = '#1E2541'; ctx.lineWidth = Math.max(3.5, 0.075 * L); ctx.stroke();
-      ctx.globalAlpha = 0.7; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(2, 0.038 * L); ctx.stroke();
+      // dotted: round dots, a navy halo under white ones (they read on the wall, the rug and any tile)
+      ctx.setLineDash(SPOT_DOT);
+      ctx.globalAlpha = 0.35; ctx.strokeStyle = '#1E2541'; ctx.lineWidth = Math.max(5, 0.1 * L); ctx.stroke();
+      ctx.globalAlpha = 0.85; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(2.8, 0.055 * L); ctx.stroke();
+      ctx.setLineDash(NO_DASH);
     }
   }
   // and the TRUSS chip's padlock inside each gold spot, bobbing with the pulse
@@ -8359,7 +8222,7 @@ function drawTriHints() {
     ctx.globalAlpha = 1;
     for (let k = 0; k < cands.length; k++) {
       const c = cands[k];
-      if (!c.hint || !c.truss || c.key === gk) continue;
+      if (!c.truss || c.key === gk || !acceptForHand(c)) continue;
       toWorld(c.pose.cx, c.pose.cy, _w); w2s(_w.x, _w.y, _s2);
       padlock(_s2.x, _s2.y + 0.04 * L, clamp(0.3 * L, 9, 22) * (1 + 0.08 * Math.sin(S.rt * 6)));
     }
@@ -8377,15 +8240,6 @@ function padlock(x, y, s) {
   rrect(ctx, x - bw / 2, by, bw, bh, s * 0.1);
   ctx.fillStyle = '#1E2541'; ctx.fill(); ctx.lineWidth = s * 0.08; ctx.strokeStyle = '#ffffff'; ctx.stroke();
   ctx.beginPath(); ctx.arc(x, by + bh * 0.42, s * 0.075, 0, Math.PI * 2); ctx.fillStyle = '#FFC531'; ctx.fill();
-  ctx.restore();
-}
-// TIPPY: a small red "!" on the ghost (this tile would put the CoM outside the wheels)
-function tippyChip(x, y) {
-  const r = 10, b = 1 + 0.12 * Math.sin(S.rt * 14);
-  ctx.save(); ctx.translate(x, y); ctx.scale(b, b);
-  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = '#E8323C'; ctx.fill();
-  ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff'; ctx.stroke();
-  ctx.font = font(15); ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('!', 0, 1);
   ctx.restore();
 }
 // Tip tell: a red vignette pulses on the side it is falling toward once θ/α passes 0.6 (screen space)
@@ -8437,7 +8291,7 @@ function edgeChip(x, y, text) {
   ctx.fillStyle = '#FFC531'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, x, y);
   ctx.restore();
 }
-// wait: the fuse is held while the tower settles (W, with the tiles in the air, over WOB_FUSE, 15.3): a pulsing amber ring
+// wait: the fuse is held (every spot for the piece in the hand would tip the tower, stepAllTippy): a pulsing amber ring
 function drawFuse(x, y, L, u, wait) {
   u = clamp(u, 0, 1);
   if (u <= 0.02 && !wait) return;
@@ -8554,6 +8408,97 @@ function drawPokes() {
 // The first-run hint: a finger (or the arrow keys) showing the move, and its words. Laid out in free space each
 // frame: between the tile in the hand and the slots on the build (the ghost and wherever it can go), clear of the
 // ribbon and its label; on a short screen the words go beside the finger instead. HINT keeps the boxes (CS.hint()).
+// ---- the one-time hints (16.4): the first time each idea comes up, one line (saved as seen), up for at least TIP_MIN s,
+// gone after TIP_T s or the first drop after TIP_MIN; never over the ghost, the weight, the hand or the HUD
+const TIPS = {
+  weight: { pref: 'seenWeightTip', text: 'Keep the weight between the wheels!' },
+  sway: { pref: 'seenSwayTip', text: 'Tall towers sway. Fill a triangle notch to brace them.' },
+  notch: { pref: 'seenNotchTip', text: 'Drop a triangle into the notch to lock the tower.' },
+};
+const TIPH = { id: '', text: '', t0: -1, a: 0, on: false, dropped: false, x0: 0, y0: 0, x1: 0, y1: 0, l1: null, l2: null, w1: 0, w2: 0, fs: 0, src: '' };
+function tipsOn() { return !PARAM.nohint; }
+function showTip(id) {
+  const d = TIPS[id];
+  if (!d || PREFS[d.pref] || TIPH.id || !tipsOn()) return false;
+  PREFS[d.pref] = true; savePrefs();
+  TIPH.id = id; TIPH.text = d.text; TIPH.t0 = S.gt; TIPH.dropped = false; TIPH.l1 = null;
+  logEvent('tip', { id });
+  return true;
+}
+// each step of play: what is up fades on its time or a drop; a new idea's hint comes up once nothing else is
+// (the first landing: the weight; the first real sway: bracing; a triangle in the hand with a TRUSS spot open: the notch)
+function stepTips() {
+  if (TIPH.id) {
+    const u = S.gt - TIPH.t0;
+    if (u >= CFG.TIP_T || (TIPH.dropped && u >= CFG.TIP_MIN)) { TIPH.id = ''; TIPH.on = false; }
+    return;
+  }
+  if (!tipsOn() || S.phase !== 'play' || S.hintOn) return;
+  if (!PREFS.seenWeightTip && S.landed >= 1 && !S.flights.length) { showTip('weight'); return; }
+  if (!PREFS.seenSwayTip && Math.hypot(WOB.q, WOB.qv / WOB.wq) >= CFG.TIP_SWAY) { showTip('sway'); return; }
+  if (!PREFS.seenNotchTip && HAND.ready && HAND.piece && HAND.piece.shape === 'tri' && S.B && S.B.cands.some(c => c.truss)) showTip('notch');
+}
+function tipDrop() { if (TIPH.id) TIPH.dropped = true; }
+// the hint's words: one or two lines that fit the screen, in a navy box, placed in the first clear spot: on the rug
+// under the car, beside the build, under the HUD
+const TIPT = { ok: false, x: 0, y: 0, two: false };
+function drawTipHint() {
+  TIPH.on = false;
+  if (!TIPH.id || S.phase !== 'play') return;
+  const u = S.gt - TIPH.t0, end = TIPH.dropped ? Math.max(CFG.TIP_MIN, u) + 0.3 : CFG.TIP_T;
+  const a = clamp(u / 0.25, 0, 1) * clamp((Math.min(CFG.TIP_T, end) - u) / 0.3, 0, 1);
+  TIPH.a = a;
+  if (a <= 0) return;
+  const W = CAM.W, L = CAM.L, sf = CAM.safe, fs = Math.round(clamp(W / 24, 14, 19)), maxW = W - sf.l - sf.r - 32;
+  ctx.save();
+  ctx.font = font(fs, 700);
+  // the words on one line, and on two (at the sentence break if there is one, else at the word nearest the middle)
+  if (!TIPH.l1 || TIPH.fs !== fs || TIPH.src !== TIPH.text) {
+    TIPH.fs = fs; TIPH.src = TIPH.text;
+    const t = TIPH.text, dot = t.indexOf('. ');
+    let cut = dot > 0 ? dot + 1 : -1;
+    if (cut < 0) { const m = t.length / 2; let best = -1; for (let i = 0; i < t.length; i++) if (t[i] === ' ' && (best < 0 || Math.abs(i - m) < Math.abs(best - m))) best = i; cut = best; }
+    TIPH.l1 = [t]; TIPH.l2 = [t.slice(0, cut).trim(), t.slice(cut).trim()];
+    TIPH.w1 = ctx.measureText(t).width; TIPH.w2 = Math.max(ctx.measureText(TIPH.l2[0]).width, ctx.measureText(TIPH.l2[1]).width);
+  }
+  const lh = fs * 1.3;
+  KEEP.length = 0;
+  keepOut(0, 0, W, CAM.hudBottom + 4);
+  keepOut(HAND.dx - 0.8 * L, CAM.handY - 0.9 * L, HAND.dx + 0.8 * L, CAM.handY + 1.4 * L);
+  if (GHOSTR.on) keepOut(Math.min(GHOSTR.x0, GHOSTR.px0), GHOSTR.y0, Math.max(GHOSTR.x1, GHOSTR.px1), GHOSTR.y1);
+  if (WEIGHT.on) keepOut(WEIGHT.x0, WEIGHT.y0, WEIGHT.x1, WEIGHT.y1);
+  const e = buildExtent();
+  keepOut(e.x0, e.top - 4, e.x1, CAM.groundY + 0.2 * L);
+  if (RIB.on) keepOut(RIB.x0, RIB.y - 6, RIB.x1, RIB.y + 6);
+  if (RIB.label) keepOut(RIB.lx0, RIB.ly0, RIB.lx1, RIB.ly1);
+  if (RIB.stub) keepOut(RIB.sx0, RIB.sy0, RIB.sx1, RIB.sy1);
+  if (UI.crownHint) keepOut(UI.crownHint.x, UI.crownHint.y, UI.crownHint.x + UI.crownHint.w, UI.crownHint.y + UI.crownHint.h);
+  TIPT.ok = false;
+  let bw = 0, bh = 0, two = false;
+  const tryAt = (cx, y0) => {
+    if (TIPT.ok || cx - bw / 2 < sf.l + 6 || cx + bw / 2 > W - sf.r - 6 || y0 < CAM.hudBottom + 4 || y0 + bh > CAM.H - sf.b - 4 || !keepClear(cx - bw / 2, y0, cx + bw / 2, y0 + bh)) return;
+    TIPT.ok = true; TIPT.x = cx; TIPT.y = y0; TIPT.two = two;
+  };
+  const mid = CAM.originX + TW.ox * L;
+  // 1. on the rug under the car (the weight's own place), 2. beside the build, from the car's height up, 3. under the
+  // HUD; each on one line where it fits, else on two
+  for (let pass = 0; pass < 3 && !TIPT.ok; pass++) for (let n = 1; n <= 2 && !TIPT.ok; n++) {
+    two = n === 2; bw = (two ? TIPH.w2 : TIPH.w1) + 24; bh = lh * n + 12;
+    if (bw > maxW + 24) continue;
+    if (pass === 0) for (let y = CAM.groundY + 0.3 * L; y <= CAM.H - bh - 4 && !TIPT.ok; y += 8) tryAt(clamp(mid, sf.l + 6 + bw / 2, W - sf.r - 6 - bw / 2), y);
+    else if (pass === 1) for (let y = CAM.groundY - bh; y >= CAM.hudBottom + 4 && !TIPT.ok; y -= 10) { tryAt(e.x1 + 10 + bw / 2, y); tryAt(e.x0 - 10 - bw / 2, y); }
+    else for (let y = CAM.hudBottom + 8; y <= CAM.H / 2 && !TIPT.ok; y += 10) tryAt(W / 2, y);
+  }
+  if (!TIPT.ok) { two = TIPH.w1 + 24 > maxW + 24; bw = (two ? TIPH.w2 : TIPH.w1) + 24; bh = lh * (two ? 2 : 1) + 12; TIPT.x = W / 2; TIPT.y = CAM.hudBottom + 8; TIPT.two = two; }
+  const lines = TIPT.two ? TIPH.l2 : TIPH.l1, x0 = TIPT.x - bw / 2, y0 = TIPT.y;
+  ctx.globalAlpha = a * 0.94;
+  rrect(ctx, x0, y0, bw, bh, Math.min(14, bh / 2)); ctx.fillStyle = '#1E2541'; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = '#FFC531'; ctx.stroke();
+  ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], TIPT.x, y0 + 6 + lh * (i + 0.5) + 1);
+  ctx.restore();
+  TIPH.on = true; TIPH.x0 = x0; TIPH.y0 = y0; TIPH.x1 = x0 + bw; TIPH.y1 = y0 + bh;
+}
 const HINT = { on: false, lx0: 0, ly0: 0, lx1: 0, ly1: 0, fx0: 0, fy0: 0, fx1: 0, fy1: 0 };
 const KEEP = [];   // keep-out boxes for the hint's words, x0 y0 x1 y1 (flat, reused)
 function keepOut(x0, y0, x1, y1) { KEEP.push(x0, y0, x1, y1); }
@@ -8665,7 +8610,7 @@ function drawHandAndHeld() {
         if (p.shape === 'crown' && PERF.gloss) o.glint = (S.rt * 0.8) % 1;
         Art.drawTile(ctx, p.shape, p.color, x, y + off + dy, 0, L * scale, o);
       }
-      if (HAND.ready && !S.big && S.firstInput && S.phase === 'play' && S.gt >= S.lockUntil) drawFuse(x, y + off, L, HAND.fuseT / levelInfo(S.level).fuse, S.fuseWait);
+      if (HAND.ready && !S.big && S.firstInput && S.phase === 'play' && S.gt >= S.lockUntil) drawFuse(x, y + off, L, HAND.fuseT / levelInfo(S.level).fuse, S.allTippy);
       if (p.shape === 'crown' && S.phase === 'play') drawHandCrownBadge(x, y + off + dy);
     }
   }
@@ -8908,10 +8853,9 @@ function drawHUD() {
 // The crown gamble (15.6). The crown in the hand (normal mode): a big pulsing GO HIGHER ↑ chip with the crown's value
 // now and the clock it gives back, beside the HOLD box (on the HUD row left of NEXT where it fits, else under NEXT
 // and HOLD: never over the NEXT preview, which a GO HIGHER decision wants to see); tapping it (or HOLD) banks the crown
-// for OVERTIME. The crown in HOLD: the live multiplier and its clock on the box's bottom edge, with a padlock when the
-// brace line is at or over the ribbon (a SNAP keeps the crown: SAFE), else pulsing with the wobble's warning.
+// for OVERTIME. The crown in HOLD: the live multiplier and its clock on the box's bottom edge (a crash loses it).
 // UI.goHigher is the chip's tap box. The first crown ever: a hint under it
-const CCHIP = { k: -1, v: -1, a: '', b: '', mode: '', cx: 0, cy: 0, w: 0, h: 0, f1: 14, f2: 11, safe: false };
+const CCHIP = { k: -1, v: -1, a: '', b: '', mode: '', cx: 0, cy: 0, w: 0, h: 0, f1: 14, f2: 11 };
 const CHINT = { x0: 0, y0: 0, x1: 0, y1: 0, fs: 13, text: 'PLACE IT — or GO HIGHER for more!', text2: 'the crown uses up your HOLD' };
 // the chip's mode now: 'go' (the crown in the hand, a swap open), 'ot' (OVERTIME: the crown in HOLD), ''
 function crownChipMode() {
@@ -8932,9 +8876,8 @@ function crownChipGeom() {
     CCHIP.a = go ? 'GO HIGHER ↑' : '×' + crownMult(k) + ' +' + crownSec(k) + 's';
     CCHIP.b = go ? 'CROWN ' + (k > 0 ? '×' + crownMult(k) + ' ' : '') + v.toLocaleString('en-US') + ' · +' + crownSec(k) + ' s' : '';
   }
-  CCHIP.safe = !go && !!S.B && S.B.yb >= S.G - 1e-9;
   CCHIP.f1 = Math.round(14 * hs); CCHIP.f2 = Math.round(11 * hs);
-  CCHIP.w = (go ? Math.max(textW(CCHIP.f1, CCHIP.a), textW(CCHIP.f2, CCHIP.b)) : textW(CCHIP.f1, CCHIP.a) + (CCHIP.safe ? 14 * hs : 0)) + (go ? 18 : 14) * hs;
+  CCHIP.w = (go ? Math.max(textW(CCHIP.f1, CCHIP.a), textW(CCHIP.f2, CCHIP.b)) : textW(CCHIP.f1, CCHIP.a)) + (go ? 18 : 14) * hs;
   CCHIP.h = Math.round((go ? 36 : 20) * hs);
   const w = CCHIP.w, ht = CCHIP.h, sl = CAM.safe.l + 6, sr = CAM.W - CAM.safe.r - 4;
   if (go) {
@@ -8960,24 +8903,16 @@ function drawCrownChip() {
   const go = CCHIP.mode === 'go', cx = CCHIP.cx, cy = CCHIP.cy, w = CCHIP.w, ht = CCHIP.h, hs = CAM.hs;
   const pulse = go ? 1 + 0.07 * Math.sin(S.rt * 8) : 1;
   if (go) UI.goHigher = { x: cx - w / 2, y: cy - ht / 2, w, h: ht };
-  // OVERTIME: the badge says what a SNAP would do now: SAFE (padlock: the brace line is at or over the ribbon), or
-  // the wobble's warning on it (amber, red)
-  const warn = !go && !CCHIP.safe && S.phase === 'play' ? WAH.glow : '';
-  const wp = warn === 'red' ? 0.5 + 0.5 * Math.sin(S.rt * 16) : warn ? 0.5 + 0.5 * Math.sin(S.rt * 7) : 0;
   ctx.save();
   ctx.translate(cx, cy); ctx.scale(pulse, pulse);
   if (go) { ctx.globalAlpha = 0.35 + 0.25 * Math.sin(S.rt * 8); rrect(ctx, -w / 2 - 4, -ht / 2 - 4, w + 8, ht + 8, ht / 2 + 4); ctx.fillStyle = '#FFE07A'; ctx.fill(); ctx.globalAlpha = 1; }
-  if (warn) { ctx.globalAlpha = 0.35 + 0.45 * wp; rrect(ctx, -w / 2 - 4, -ht / 2 - 4, w + 8, ht + 8, ht / 2 + 4); ctx.fillStyle = warn === 'red' ? '#FF3B30' : '#FF9F1C'; ctx.fill(); ctx.globalAlpha = 1; }
   rrect(ctx, -w / 2, -ht / 2, w, ht, ht / 2);
-  ctx.fillStyle = warn === 'red' ? '#FF8A80' : '#FFC531'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1E2541'; ctx.stroke();
+  ctx.fillStyle = '#FFC531'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#1E2541'; ctx.stroke();
   ctx.fillStyle = '#1E2541'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = font(CCHIP.f1, 700);
   if (go) {
     ctx.fillText(CCHIP.a, 0, -ht * 0.17);
     ctx.font = font(CCHIP.f2, 700); ctx.fillStyle = '#6B3F00'; ctx.fillText(CCHIP.b, 0, ht * 0.25);
-  } else if (CCHIP.safe) {
-    ctx.fillText(CCHIP.a, 7 * hs, 1);
-    padlock(-w / 2 + 11 * hs, 1, 12 * hs);
   } else ctx.fillText(CCHIP.a, 0, 1);
   ctx.restore();
   // the first crown ever: the hint, under the HUD on the right (see-through where the hand and its tile pass under it)
@@ -9587,7 +9522,7 @@ function popObstacles(ribbon, words) {
   if (RIB.stub) obstPush(RIB.sx0 - 4, RIB.sy0 - 4, RIB.sx1 + 4, RIB.sy1 + 4);
   if (S.toppleAt >= 0 && S.tellAt >= 0 && S.phase === 'play') { tellPlace(); obstPush(TELL.x0 - 10, TELL.y0 - 8, TELL.x1 + 10, TELL.y1 + 8); }
   // the ghost as it is now (with room for a pop's 1.4x pop-in: POPM is the pop being placed)
-  // (and where the wobble's sway can carry it, 15.3)
+  // (and where the sway can carry it, 16.2)
   if (GHOSTR.on) obstPush(GHOSTR.px0 - 6 - POPM.grow * POPM.w, GHOSTR.y0 - 6 - 2 * POPM.grow * POPM.dn, GHOSTR.px1 + 6 + POPM.grow * POPM.w, GHOSTR.y1 + 6 + 2 * POPM.grow * POPM.up + 24);
   if (ribbon && RIB.on) {
     const L = CAM.L;
@@ -9719,8 +9654,8 @@ function sbHit(x0, y0, x1, y1) {
 // moves the ghost about 0.1 s of its rate): the rock (its rate, and its angle coming back) and the flex of the top
 function swayAt(h) {
   const ft = TW.H > 0 ? clamp(h / TW.H, 0, 1) : 0;
-  // (and the wobble's sway, 15.3: how far it can carry the segment at that height)
-  const fw = h > WOB.yb ? Math.min(1.2, (h - WOB.yb) / WOB.Hs) : 0, wob = fw * fw * Math.max(Math.abs(WOB.q), CFG.WOB_SWAY * WOB.W);
+  // (and the sway, 16.2: how far it can carry the swaying part at that height)
+  const fw = h > WOB.yb ? Math.min(1.2, (h - WOB.yb) / WOB.Hs) : 0, wob = fw * Math.max(Math.abs(WOB.q), CFG.SWAY_ANG * WOB.W * WOB.Hs);
   return Math.min(0.6, (0.1 * Math.abs(TW.omega) + 0.3 * Math.abs(TW.theta)) * Math.max(0, h) + 0.1 * Math.abs(TW.sv) * ft * ft + wob);
 }
 // the screen box of an open slot as the ghost there would be drawn, grown by m px
@@ -10431,7 +10366,7 @@ function juiceLand(f, t, pts, edgesC, prevMult) {
 // fanfare and the golden glow); else "DOUBLE / TRIPLE CLACK!", else "RING +2s", "STEADY!" or "×2 OVERTIME" alone;
 // nothing for a plain clack. A TRUSS (15.2) takes the word: "TRUSS!" over its bonus (and PERFECT or the ring); on a
 // milestone it goes on the milestone's line ("PERFECT ×5 · TRUSS +750")
-// ("STEADY!": in revision 2 a brace is the TRUSS; the gear steadies the wobble, 15.3)
+// ("STEADY!": a brace is the TRUSS; the gear steadies the sway, 16.2)
 const GEAR_WORD = 'STEADY!';
 const LANDAT = { x: 0, y: 0 };
 function landingPop(f, edgesC, ot, brace, ring, truss) {
@@ -10628,58 +10563,130 @@ function drawLock(B) {
   }
   ctx.restore();
 }
-// the wobble's warning (15.3, wobAhead): the joints of the unbraced segment glow amber once W (with the tiles in the
-// air down) reaches WOB_AMBER, and pulse red, with a red wash over the segment's tiles, while one more drop could SNAP it
-// (the creak with them); drawn through toWorld, so they sway with it. The halo is drawn in every quality mode (it is the
-// warning, not decoration), and the wash reads on tiles of any colour. The joints: every edge two standing tiles (or a
-// tile and the car) share, on or above the brace line (cached per build version)
-const WJ = { B: null, ver: -1, yb: -1, edges: [] };
-function wobbleJoints(B) {
-  if (WJ.B === B && WJ.ver === B.ver && WJ.yb === B.yb) return WJ.edges;
-  WJ.B = B; WJ.ver = B.ver; WJ.yb = B.yb; WJ.edges.length = 0;
-  for (const ent of B.emap.values()) {
-    if (ent.length < 2) continue;
-    const e = ent[0].e;
-    if ((e.y1 + e.y2) / 2 < B.yb - 1e-9) continue;
-    let ok = true;
-    for (const o of ent) if (o.owner !== CAR_OWNER && (o.owner.flight || o.owner.gone)) { ok = false; break; }
-    if (ok) WJ.edges.push(e);
+// ---- the plumb weight (16.1): where the build's weight is, against the wheels it stands on
+// a point of the tower frame under the tower's tilt only (the car, and the centre of weight once the flex and the sway
+// are in it), plus a new base rolling in
+function rotOnly(lx, ly, out) {
+  let x = lx, y = ly;
+  if (TW.theta !== 0) {
+    const px = TW.theta > 0 ? TW.w : -TW.w, py = -0.5, c = Math.cos(TW.theta), s = Math.sin(TW.theta), dx = x - px, dy = y - py;
+    x = px + dx * c + dy * s; y = py - dx * s + dy * c;
   }
-  return WJ.edges;
+  out.x = x + TW.ox; out.y = y;
+  return out;
 }
-function drawWobble(B) {
-  const wa = WAH, W = wa.W;
-  if (!wa.glow) return;
-  const E = wobbleJoints(B);
-  const L = CAM.L, red = wa.glow === 'red', k = red ? 1 : clamp((W - CFG.WOB_AMBER) / Math.max(0.05, 1 - CFG.WOB_DW_MAX - CFG.WOB_AMBER), 0, 1);
-  const pulse = red ? 0.8 + 0.2 * Math.sin(S.rt * 16) : 1;           // red throbs, but is never fainter than amber
-  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  if (red) {
-    // the wash: the segment's tiles (on or above the brace line) under a pulsing red
-    ctx.beginPath();
-    for (const t of B.tiles) {
-      if (t.flight || t.gone || !inSegment(t.pose, B.yb)) continue;
-      const P = t.pose, poly = P.poly;
-      for (let j = 0; j < P.n; j++) {
-        toWorld(poly[2 * j], poly[2 * j + 1], _w); w2s(_w.x, _w.y, _s);
-        if (j) ctx.lineTo(_s.x, _s.y); else ctx.moveTo(_s.x, _s.y);
-      }
-      ctx.closePath();
-    }
-    ctx.globalAlpha = 0.24 + 0.12 * (0.5 + 0.5 * Math.sin(S.rt * 16)); ctx.fillStyle = '#FF2A2A'; ctx.fill();
+// shown while the build stands in play, and while it goes over (the moment that says why)
+function weightShown() {
+  return !!S.B && !S.baseHidden && !S.couple && (S.phase === 'play' || (S.phase === 'crash' && CR.stage === 'fall') || (S.phase === 'paused' && S.pausedFrom === 'play'));
+}
+const ZONE_G = '#3FBF5A', ZONE_A = '#FFB020', ZONE_R = '#E8323C', ZONE_X = '#9E0F19';
+const WZ = { g: null, L: 0, w: 0, half: 0 };
+// the wheel span on the car plate: green between the wheels, the last quarter of the span at each end amber, then
+// red, and past the wheels dark red; a navy tick over each wheel. In the tower frame: it tilts with the car. lo..hi
+// (world x, optional): the ghost weight's swing, a capsule over the strip (red when it tips the tower)
+function drawWheelSpan(lo, hi, tip) {
+  const B = S.B, L = CAM.L, w = TW.w, half = B.half;
+  rotOnly(0, 0, _w); w2s(_w.x, _w.y, _s);
+  ctx.save();
+  ctx.translate(_s.x, _s.y); ctx.rotate(TW.theta);
+  const y0 = 0.025 * L, h = Math.max(6, 0.13 * L), x0 = -(half - 0.04) * L, x1 = (half - 0.04) * L;
+  if (!WZ.g || WZ.L !== L || WZ.w !== w || WZ.half !== half) {
+    const g = ctx.createLinearGradient(x0, 0, x1, 0), u = v => clamp((v * L - x0) / (x1 - x0), 0, 1);
+    g.addColorStop(0, ZONE_X); g.addColorStop(u(-w - 0.001), ZONE_X); g.addColorStop(u(-w), ZONE_R);
+    g.addColorStop(u(-0.75 * w), ZONE_A); g.addColorStop(u(-0.5 * w), ZONE_G); g.addColorStop(u(0.5 * w), ZONE_G);
+    g.addColorStop(u(0.75 * w), ZONE_A); g.addColorStop(u(w), ZONE_R); g.addColorStop(u(w + 0.001), ZONE_X); g.addColorStop(1, ZONE_X);
+    WZ.g = g; WZ.L = L; WZ.w = w; WZ.half = half;
   }
-  if (E.length) {
-    ctx.beginPath();
-    for (let i = 0; i < E.length; i++) {
-      const e = E[i];
-      toWorld(e.x1, e.y1, _w); w2s(_w.x, _w.y, _s); ctx.moveTo(_s.x, _s.y);
-      toWorld(e.x2, e.y2, _w); w2s(_w.x, _w.y, _s); ctx.lineTo(_s.x, _s.y);
-    }
-    ctx.globalAlpha = (0.3 + 0.35 * k) * pulse; ctx.strokeStyle = red ? '#FF3B30' : '#FFB020'; ctx.lineWidth = Math.max(8, 0.3 * L); ctx.stroke();
-    ctx.globalAlpha = (0.6 + 0.4 * k) * pulse; ctx.strokeStyle = red ? '#D7141E' : '#FF9F1C'; ctx.lineWidth = Math.max(3.5, 0.1 * L); ctx.stroke();
-    ctx.globalAlpha = (0.55 + 0.45 * k) * pulse; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = Math.max(1.5, 0.035 * L); ctx.stroke();
+  rrect(ctx, x0, y0, x1 - x0, h, h / 2);
+  ctx.fillStyle = WZ.g; ctx.fill();
+  ctx.lineWidth = 1.5; ctx.strokeStyle = '#1E2541'; ctx.stroke();
+  // the wheels
+  ctx.fillStyle = '#1E2541';
+  for (let k = -1; k <= 1; k += 2) ctx.fillRect(k * w * L - 1.5, y0 - 2, 3, h + 4);
+  if (lo !== undefined && hi >= lo) {
+    const a = (lo - TW.ox) * L, b = (hi - TW.ox) * L, r = h / 2 + 2;
+    rrect(ctx, Math.min(a, b - 0.01) - r, y0 - 2, Math.max(2 * r, b - a + 2 * r), h + 4, r);
+    ctx.globalAlpha = 0.9; ctx.lineWidth = 3.5; ctx.strokeStyle = '#1E2541'; ctx.stroke();
+    ctx.lineWidth = 2; ctx.strokeStyle = tip ? '#FF5A5F' : '#ffffff'; ctx.stroke();
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
+}
+// the brass plumb bob, its tip at (x, y) px, h px tall; ghost: drawn as a dotted outline (tip: red)
+function plumbBob(x, y, h, ghost, tip) {
+  const w = 0.64 * h;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.quadraticCurveTo(x + 0.18 * w, y - 0.35 * h, x + w / 2, y - 0.66 * h);
+  ctx.quadraticCurveTo(x + w / 2, y - 0.86 * h, x + 0.2 * w, y - 0.88 * h);
+  ctx.lineTo(x + 0.2 * w, y - h); ctx.lineTo(x - 0.2 * w, y - h); ctx.lineTo(x - 0.2 * w, y - 0.88 * h);
+  ctx.quadraticCurveTo(x - w / 2, y - 0.86 * h, x - w / 2, y - 0.66 * h);
+  ctx.quadraticCurveTo(x - 0.18 * w, y - 0.35 * h, x, y);
+  ctx.closePath();
+  if (ghost) {
+    ctx.fillStyle = tip ? 'rgba(232,50,60,0.55)' : 'rgba(255,255,255,0.35)'; ctx.fill();
+    ctx.setLineDash(SPOT_DOT); ctx.lineCap = 'round';
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(30,37,65,0.55)'; ctx.stroke();
+    ctx.lineWidth = 2.2; ctx.strokeStyle = tip ? '#FFD0D2' : '#ffffff'; ctx.stroke();
+    ctx.setLineDash(NO_DASH);
+    return;
+  }
+  const g = ctx.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
+  g.addColorStop(0, '#FFE7A3'); g.addColorStop(0.35, '#E9B54A'); g.addColorStop(1, '#8F5E17');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.lineWidth = 1.6; ctx.strokeStyle = '#1E2541'; ctx.stroke();
+  // a ring round its waist, as on a real one
+  ctx.beginPath(); ctx.moveTo(x - 0.42 * w, y - 0.6 * h); ctx.lineTo(x + 0.42 * w, y - 0.6 * h);
+  ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(30,37,65,0.55)'; ctx.stroke();
+}
+// where the bob's tip hangs at world x: just over the car plate's top there (the plate tilts with the tower)
+function plateTopAt(xw) {
+  const B = S.B;
+  rotOnly(-B.half, 0, _w); const ax = _w.x, ay = _w.y;
+  rotOnly(B.half, 0, _w2); const bx = _w2.x, by = _w2.y;
+  return ay + (by - ay) * (xw - ax) / (bx - ax || 1);
+}
+// WEIGHT: the live weight's screen box on the last frame (for what keeps clear of it: the hints)
+const WEIGHT = { on: false, x0: 0, y0: 0, x1: 0, y1: 0, gx: 0, past: false };
+function drawWeight() {
+  WEIGHT.on = false;
+  if (!weightShown()) return;
+  const L = CAM.L, ghost = ghostShown() && !!S.ghost && GW.on && HAND.piece && HAND.piece.shape !== 'crown';
+  drawWheelSpan(ghost ? GW.lo : undefined, ghost ? GW.hi : undefined, ghost && GW.tip);
+  const cw = comOf(TW, WOB), wx = cw.wx, past = Math.abs(cw.wx - TW.ox) > TW.w + 1e-9;
+  rotOnly(cw.x, cw.y, _w); w2s(_w.x, _w.y, _s);
+  const cxs = _s.x, cys = _s.y;
+  const h = clamp(0.5 * L, 18, 32), tipY = plateTopAt(wx) + 0.06;
+  w2s(wx, tipY, _s2);
+  const bx = _s2.x, by = _s2.y;
+  ctx.save();
+  // the thread, from the centre of weight straight down (a plumb line hangs true however the tower leans)
+  if (by - h - 2 > cys + 4) {
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cxs, cys); ctx.lineTo(bx, by - h);
+    ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.stroke();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(30,37,65,0.85)'; ctx.stroke();
+  }
+  // the centre of weight: a brass pin
+  ctx.beginPath(); ctx.arc(cxs, cys, Math.max(3, 0.07 * L), 0, Math.PI * 2);
+  ctx.fillStyle = '#E9B54A'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#1E2541'; ctx.stroke();
+  // the ghost weight: where it settles after the aimed drop
+  if (ghost) {
+    w2s(GW.settle, plateTopAt(GW.settle) + 0.06, _s2);
+    plumbBob(_s2.x, _s2.y, h, true, GW.tip);
+    WEIGHT.gx = _s2.x;
+  }
+  plumbBob(bx, by, h, false, false);
+  if (past) {
+    // past a wheel: it is going over (the bob flashes red)
+    ctx.globalAlpha = 0.5 + 0.5 * Math.sin(S.rt * 18);
+    ctx.beginPath(); ctx.arc(bx, by - 0.55 * h, 0.55 * h, 0, Math.PI * 2); ctx.lineWidth = 3; ctx.strokeStyle = ZONE_R; ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+  WEIGHT.on = true; WEIGHT.past = past;
+  WEIGHT.x0 = Math.min(bx, ghost ? WEIGHT.gx : bx) - 0.4 * h - 4; WEIGHT.x1 = Math.max(bx, ghost ? WEIGHT.gx : bx) + 0.4 * h + 4;
+  WEIGHT.y0 = by - h - 4; WEIGHT.y1 = by + 0.15 * L + 6;
 }
 function drawGlows() {
   if (!FX.glows.length) return;
@@ -10852,7 +10859,11 @@ const CS = window.CS = {
       // releases wait (TOPPLE / new base rolling in); square + triangle slots left in the build (0 = dead end)
       locked: S.gt < S.lockUntil, slotsLeft: S.B ? S.B.cands.filter(c => c.type !== 'cube').length : 0,
       // M3: the rock and flex, the CoM (with the flex), the tip tell, crash/save/brace counts, debris still moving
-      omega: TW.omega, flex: TW.s, flexV: TW.sv, com: { x: TW.cx + TW.s * TW.FW, y: TW.cy }, M: TW.M, wheelX: TW.w,
+      omega: TW.omega, flex: TW.s, flexV: TW.sv, com: { x: comOf(TW, WOB).x, y: CWX.y }, M: TW.M, wheelX: TW.w,
+      // the plumb weight (16.1): where it hangs (world x, from the base's centre), the wheels at ±wheel, and whether it
+      // is past one now; the ghost weight for the aimed drop (settle, its swing lo..hi, tip: it would go over)
+      weight: { x: comOf(TW, WOB).wx - TW.ox, wheel: TW.w, past: Math.abs(CWX.wx - TW.ox) > TW.w, shown: WEIGHT.on,
+        ghost: ghostShown() && S.ghost && GW.on ? { settle: GW.settle - TW.ox, lo: GW.lo - TW.ox, hi: GW.hi - TW.ox, tip: GW.tip } : null },
       // (the build with the tiles in the air counted in: where it is about to be)
       comAir: { x: COMMIT.cx, M: COMMIT.M },
       tip: TIP.level, tipSide: TIP.side, crashStage: CR.stage, slow: S.slowLeft > 0,
@@ -10868,20 +10879,21 @@ const CS = window.CS = {
       over: S.phase === 'over' ? { stage: OV.stage, open: resultsOpen(), shown: OV.shown, newBest: OV.newBest, final: OV.final } : null,
       startHit: S.phase === 'start' ? ST.hit : null, allTippy: S.allTippy, cubeWait: S.cubeWait,
       // revision 2: the base (cars, each car's length, half the car top in L), the brace line y_b and the TRUSSes (this
-      // build's, the run's), the wobble W (15.3), whether the red TIPPY ghost shows on this level
+      // build's, the run's), the sway's strength W (16.2)
       carLen: S.carLen, baseHalf: S.B ? S.B.half : null, yb: S.B ? S.B.yb : 0, trusses: S.trusses, buildTrusses: S.B ? S.B.trusses : 0,
-      lockJoints: S.B ? S.B.lock.length : 0, W: WOB.W, tippyVisible: tippyVisible(),
-      // the wobble's warning (wobAhead): W once the tiles in the air are down, the glow ('amber', 'red': one more drop
-      // could SNAP it, or ''), how long it has been on (s, -1: off)
-      Wahead: WAH.W, glow: S.phase === 'play' ? WAH.glow : '', glowFor: WOB.glowAt >= 0 ? S.gt - WOB.glowAt : -1,
-      // the wobble (15.3): the unbraced segment's height Hu, narrowest width w and slenderness lam (y_b is its foot),
-      // the sway at its top (L, L/s), SNAPs this run, the fuse waiting for it to settle
-      lam: WOB.lam, Hu: WOB.Hu, w: WOB.w, thin: WOB.thin, tooThin: wobThin(WOB.thin), sway: WOB.q, swayV: WOB.qv, snaps: S.snaps, fuseWait: !!S.fuseWait,
+      lockJoints: S.B ? S.B.lock.length : 0, W: WOB.W,
+      // W once the tiles in the air are down (wobAhead: what the screen is about to show)
+      Wahead: wobAhead().W,
+      // the sway (16.2): the swaying part's height Hu, narrowest width w and slenderness lam (y_b is its foot), the sway
+      // at its top (L, L/s) and its amplitude now (L)
+      lam: WOB.lam, Hu: WOB.Hu, w: WOB.w, sway: WOB.q, swayV: WOB.qv, swayAmp: Math.hypot(WOB.q, WOB.qv / WOB.wq),
       // the crown gamble (15.6): the GO HIGHER chip shown, the live crown multiplier and value
       goHigher: goHigherOn(), crownMult: crownMult(crownKNow()), crownValue: crownValue(crownKNow()),
       // the chip's mode ('go', 'ot': the badge on HOLD, ''), SAFE (OVERTIME with the brace line at or over the ribbon:
       // a SNAP keeps the crown), and the moment the crown came into the hand
-      crownChip: crownChipMode(), crownSafe: crownChipMode() === 'ot' && !!S.B && S.B.yb >= S.G - 1e-9, crownAt: HAND.crownAt, crownGrace: crownGrace(),
+      crownChip: crownChipMode(), crownAt: HAND.crownAt, crownGrace: crownGrace(),
+      // the one-time hints (16.4): the one showing now ('' none)
+      hintNow: S.phase === 'play' && TIPH.on ? TIPH.id : '',
       // a dead end's tell: 0..1 through it (0: none)
       tell: toppleTell() };
   },
@@ -10899,17 +10911,19 @@ const CS = window.CS = {
   },
   // (z: depth toward the viewer, L; sx, sy: its screen centre, CSS px)
   debris() { return DEBRIS.map(d => { debrisScreen(d, _ds, true); return { shape: d.shape, x: d.x, y: d.y, z: d.z, zT: d.zT, sx: _ds.x, sy: _ds.y, ang: d.ang, vx: d.vx, vy: d.vy, w: d.w, sleep: d.sleep, sleepT: d.sleepT, plowed: !!d.plowed, ground: d.ground, fading: d.fading, born: d.born, alpha: d.alpha }; }); },
-  slots() {
+  // (noTip: skip each slot's look-ahead, tippy left undefined: a cheap read)
+  slots(noTip) {
     if (!S.B || !HAND.piece) return [];
     updateCandWorld();
     const out = [];
     for (const c of S.B.cands) {
       if (!acceptForHand(c)) continue;
       w2s(c.wx, c.wy, _s);
-      out.push({ key: c.key, type: c.type, x: c.wx, y: c.wy, sx: _s.x, sy: _s.y, edges: c.edges, supported: c.supported, depth: c.depth,
+      // (rx, rsx: where it is at rest, the middle of its swing: what the hand aims at, 16.2; x, sx: where it is drawn now)
+      out.push({ key: c.key, type: c.type, x: c.wx, y: c.wy, sx: _s.x, sy: _s.y, rx: c.rx, rsx: CAM.originX + c.rx * CAM.L, edges: c.edges, supported: c.supported, depth: c.depth,
         firm: !!c.firm, notch: !!c.notch, truss: !!c.truss, half: !!c.half, hint: !!c.hint, bottom: !!c.bottom,
         // tippy: what the ghost shows with the hand at this slot's PERFECT centre (the full look-ahead)
-        lx: c.pose.cx, ly: c.pose.cy, tippy: S.phase === 'play' ? slotTippy(c, HAND.piece, 0, 'perfect') : wouldTip(c, HAND.piece.shape) });
+        lx: c.pose.cx, ly: c.pose.cy, tippy: noTip ? undefined : S.phase === 'play' ? slotTippy(c, HAND.piece, 0, 'perfect') : wouldTip(c, HAND.piece.shape) });
     }
     return out;
   },
@@ -10920,13 +10934,18 @@ const CS = window.CS = {
     w2s(g.wx, g.wy, _s);
     const adx = Math.abs(S.ghostDx);
     return { key: g.key, type: g.type, x: g.wx, y: g.wy, sx: _s.x, sy: _s.y, edges: g.edges, supported: g.supported, dx: S.ghostDx,
-      color: adx <= perfectWin() ? 'gold' : 'white', miss: false, tippy: S.ghostTippy, tippyShown: tippyShown(), truss: !!g.truss, tooThin: !!S.B && ghostThin(g),
-      // what dropping now would do to the wobble (15.3): 'full' (a SNAP with no TRUSS: a crash), 'part' (the segment
-      // SNAPs off, the braced part stands) or ''
-      snap: slotSnap(g, HAND.piece, S.ghostDx),
+      color: adx <= perfectWin() ? 'gold' : 'white', miss: false, tippy: S.ghostTippy, truss: !!g.truss,
+      // the ghost weight (16.1, world x from the base's centre): where the weight settles, its swing, and whether it tips
+      weight: GW.on ? { settle: GW.settle - TW.ox, lo: GW.lo - TW.ox, hi: GW.hi - TW.ox, tip: GW.tip } : null,
       // the box the ghost was drawn in on the last frame (CSS px)
       box: GHOSTR.on ? { x0: GHOSTR.x0, y0: GHOSTR.y0, x1: GHOSTR.x1, y1: GHOSTR.y1 } : null };
   },
+  // the spots drawn on the last frame (16.3): the dotted outlines' keys and the ghost's
+  spots() { return { keys: SPOTS.keys.slice(), ghost: SPOTS.ghost, frame: SPOTS.frame }; },
+  // the one-time hint (16.4) as drawn on the last frame: its id, text and box (CSS px), or null
+  tipBox() { return TIPH.on ? { id: TIPH.id, text: TIPH.text, box: { x0: TIPH.x0, y0: TIPH.y0, x1: TIPH.x1, y1: TIPH.y1 } } : null; },
+  // the plumb weight's box on the last frame (the live and the ghost bob, CSS px), or null
+  weightBox() { return WEIGHT.on ? { x0: WEIGHT.x0, y0: WEIGHT.y0, x1: WEIGHT.x1, y1: WEIGHT.y1, past: WEIGHT.past } : null; },
   // the first-run hint's boxes on the last frame: its words and the finger (or keys)
   hint() { return HINT.on ? { label: { x0: HINT.lx0, y0: HINT.ly0, x1: HINT.lx1, y1: HINT.ly1 }, finger: { x0: HINT.fx0, y0: HINT.fy0, x1: HINT.fx1, y1: HINT.fy1 } } : null; },
   // the level banner (or TIME!) as drawn on the last frame: its word and its goal line (CSS px)
@@ -11019,20 +11038,25 @@ function runSelftest() {
     const pick = chooseSlot(B.cands, -0.5, CFG.R, null, c => c.type === 'sq');
     ok(pick && pick.key === 'sq:-2,0,0', '4b: hand over the gap picks ' + (pick ? pick.key : 'nothing') + ' (want sq:-2,0,0, TRIPLE)');
   }
-  // 5 + 6. hanging squares at depth 1 and 2 are offered off a column side, depth 3 is not; nothing under the arm
+  // 5 + 6. hanging squares are offered off a column side at any depth (16.3: no depth limit), one spot a column (the
+  // highest of the bare side's spots: a tile sliding down it sticks where it first meets it); nothing under the arm
   {
     const B = newBuild(1);
     ['sq:-2,0,0', 'sq:0,0,0', 'sq:-2,1,0', 'sq:0,1,0'].forEach(k => place(B, k));
     const d1 = find(B, 'sq:2,1,0');
     ok(d1 && d1.depth === 1 && !d1.supported, '5: depth-1 hanging square not offered (or wrong depth/support)');
+    ok(!find(B, 'sq:2,0,0'), '5b: one spot a column: the lower side spot beside a bare column is offered too');
     place(B, 'sq:2,1,0');
     const d2 = find(B, 'sq:4,1,0');
     ok(d2 && d2.depth === 2 && !d2.supported, '5: depth-2 hanging square not offered (or wrong depth/support)');
     ok(!find(B, 'sq:2,0,0'), '6: a slot under the overhanging arm is offered');
     place(B, 'sq:4,1,0');
-    ok(!find(B, 'sq:6,1,0'), '5: depth-3 hanging square is offered');
+    ok(!!find(B, 'sq:6,1,0'), '5: a third hanging square (depth 3) is not offered (16.3: no depth limit)');
     ok(!find(B, 'sq:4,0,0'), '6: a slot under the overhanging arm (depth 2) is offered');
-    ok(B.cands.every(c => c.depth <= 2), '5: a candidate with depth > 2 exists');
+    // one spot a column, a top first: a step beside a taller column takes the tile on its top, not on the side above it
+    const St = newBuild(2);
+    ['sq:-2,0,0', 'sq:-2,1,0', 'sq:-2,2,0', 'sq:0,0,0'].forEach(k => place(St, k));
+    ok(!!find(St, 'sq:0,1,0') && !find(St, 'sq:0,2,0'), '5c: beside a taller column the step\'s top is the spot (the side spot over it is not offered)');
   }
   // 7. 1,000 seeded random builds of 40 tiles
   {
@@ -11170,9 +11194,9 @@ function runSelftest() {
     ok(l && l.edges === 1 && l.supported && l.firm && l.depth === 2 && !l.bottom, '12: up-triangle lower left of a down-triangle: ' + (l ? 'edges ' + l.edges + ', supported ' + l.supported + ', depth ' + l.depth : 'not offered') + ' (want 1 edge, firm, depth 2)');
     ok(r && r.edges === 1 && r.supported && r.firm && r.depth === 2, '12: up-triangle lower right of a down-triangle: ' + (r ? 'edges ' + r.edges + ', depth ' + r.depth : 'not offered'));
     if (l) ok(l.matched.length === 1 && l.matched[0].role === 'slantR', '12: the lower-left up-triangle is held by its right slant');
-    // one more side-hang off it would be depth 3: not offered
+    // one more side-hang off it (depth 3) is offered too (16.3: no depth limit)
     place(B, 'up:-4,0,0');
-    ok(!find(B, 'dn:-5,0,0'), '12: a down-triangle hanging off the depth-2 up-triangle (depth 3) is offered');
+    ok(!!find(B, 'dn:-5,0,0'), '12: a down-triangle hanging off the depth-2 up-triangle (depth 3) is not offered');
     // on a wide base the same slot stands on the car and also meets the slant: 2 edges (a DOUBLE)
     const W = newBuild(2); place(W, 'up:0,0,0'); place(W, 'dn:1,0,0');
     const c = find(W, 'up:2,0,0');
@@ -11286,31 +11310,26 @@ function runSelftest() {
     T.yb = 1 + H3; r = m(T);
     ok(near(r.Hu, 1) && near(r.w, 1) && near(r.lam, 1), '16: above the brace line: Hu ' + r.Hu.toFixed(3) + ', w ' + r.w + ' (want 1, 1)');
     // ΔW = min(cap(λ)·g[grade], a[grade]·(λ − λ's floor)²·(1.5 cube)), × 0.4 in BIG MAGNETS: the slope half a λ over the
-    // floor, the cap (a cube there, any tall segment: cap(λ) = min(top, base + k·(λ − λ_c)), rising with the
-    // slenderness, a PERFECT g of it), nothing at or under the floor; the settling time τ(Hu, λ) = τ₀·max(1, Hu /
-    // H_τ)·max(1, λ / λ_τ); TOO THIN (a one-wide stretch of WOB_THIN_H): the thin cap on every landing, and only the
-    // slow drain
+    // floor, the cap (a cube there, any tall part: cap(λ) = min(top, base + k·(λ − λ_c)), rising with the slenderness,
+    // a PERFECT g of it), nothing at or under the floor; the settling time τ(Hu, λ) = τ₀·max(1, Hu / H_τ)·max(1, λ / λ_τ)
     const k = S.big ? CFG.WOB_BIG : 1, l0 = CFG.WOB_LAM0, G = CFG.WOB_CAP_G;
     const cap = l => Math.min(CFG.WOB_CAP_TOP, CFG.WOB_DW_MAX + CFG.WOB_CAP_K * Math.max(0, l - CFG.WOB_CAP_L));
     const want = [Math.min(cap(l0 + 0.5) * G.perfect, CFG.WOB_A.perfect * 0.25) * k, Math.min(cap(l0 + 0.5), CFG.WOB_A.clack * 0.25 * CFG.WOB_CUBE) * k,
-      cap(20) * G.perfect * k, cap(5) * G.great * k, 0, 0, CFG.WOB_CAP_THIN * G.perfect * k, CFG.WOB_CAP_THIN * k];
+      cap(20) * G.perfect * k, cap(5) * G.great * k, 0, 0];
     const got = [wobDelta('perfect', 'sq', l0 + 0.5), wobDelta('clack', 'cube', l0 + 0.5), wobDelta('perfect', 'sq', 20), wobDelta('great', 'sq', 5),
-      wobDelta('great', 'tri', l0), wobDelta('clack', 'sq', 0.5), wobDelta('perfect', 'sq', 1, 1, CFG.WOB_THIN_H), wobDelta('clack', 'sq', 9, 1, CFG.WOB_THIN_H + 3)];
-    ok(got.every((x, i) => near(x, want[i])) && cap(20) < 1 && CFG.WOB_CAP_THIN < 1 && G.perfect < G.great && G.great < G.clack,
-      '16: ΔW: ' + got.map(x => x.toFixed(4)).join(', ') + ' (want ' + want.map(x => x.toFixed(4)).join(', ') + '; no landing may add 1 (' + cap(20) + ', ' + CFG.WOB_CAP_THIN + '), and aim must pay)');
+      wobDelta('great', 'tri', l0), wobDelta('clack', 'sq', 0.5)];
+    ok(got.every((x, i) => near(x, want[i])) && cap(20) < 1 && G.perfect < G.great && G.great < G.clack,
+      '16: ΔW: ' + got.map(x => x.toFixed(4)).join(', ') + ' (want ' + want.map(x => x.toFixed(4)).join(', ') + '; aim must pay)');
     const tau = (Hu, l) => CFG.WOB_TAU * Math.max(1, Hu / CFG.WOB_TAU_H) * Math.max(1, l / CFG.WOB_TAU_LAM);
     ok([[2, 1], [8, 4], [14, 7]].every(([H, l]) => near(wobTau(H, l), tau(H, l))), '16: τ(Hu, λ): ' + [[2, 1], [8, 4], [14, 7]].map(([H, l]) => wobTau(H, l).toFixed(3)).join(', '));
-    const th = CFG.WOB_THIN_H, dr = wobDecay(0.9, 1, 1.5, th), dr4 = wobDecay(0.9, 1, 1.5, 2 * th);
-    ok(near(dr, 0.9 - CFG.WOB_DRAIN_THIN) && near(dr4, 0.9 - CFG.WOB_DRAIN_THIN * Math.SQRT1_2) && wobDecay(0.9, 1, 1.5, th - 0.5) < dr,
-      '16: TOO THIN settles by the slow drain only: ' + [dr, dr4].map(x => x.toFixed(4)).join(', '));
-    // the stretch: a spire of 4 squares on a two-wide base: 3 L of it under its last layer, one wide
-    const Sp = newBuild(1);
-    for (let a = 0; a < 2; a++) { place(Sp, 'sq:-2,' + a + ',0'); place(Sp, 'sq:0,' + a + ',0'); }
-    for (let a = 2; a < 6; a++) place(Sp, 'sq:-2,' + a + ',0');
-    r = m(Sp);
-    ok(near(r.thin, 3) && near(r.w, 1), '16: a spire of 4 on a two-wide base: one-wide stretch ' + r.thin + ' (want 3)');
-    r = m(B);
-    ok(near(r.thin, 1), '16: a spire of two on a two-wide tower: one-wide stretch ' + r.thin + ' (want 1: its top layer carries nothing)');
+    // the swaying part's mass sums and hinge (16.2): the tiles whose centre is over the brace line, the ends of its
+    // bottom row; and the sway moves the weight: turned by q / Hs about the end it leans to, exactly as the drawing
+    r = m(T);
+    ok(near(r.Sm, 1) && near(r.Sx, 0) && near(r.Sy, 1.5 + H3) && near(r.x0, -0.5) && near(r.x1, 0.5), '16: the part over the brace line: Σm ' + r.Sm + ', Σmx ' + r.Sx + ', ends ' + r.x0 + '..' + r.x1);
+    const Wt = Object.assign({}, r, { q: 0.4 }), o = swayOff(Wt), ph = 0.4 / r.Hs;
+    ok(near(o.x, (0 - 0.5) * (Math.cos(ph) - 1) + 0.5 * Math.sin(ph)) && near(swayOff(Object.assign({}, r, { q: 0 })).x, 0), '16: the sway moves the weight: Σm·Δx ' + o.x.toFixed(4));
+    const Wd = { W: 0.9, q: 0, qv: 0 };
+    ok(near(wobDecay(0.9, 1, 1.5), Math.max(0, (0.9 + CFG.WOB_DRAIN * 1.5) * Math.exp(-1 / 1.5) - CFG.WOB_DRAIN * 1.5)) && Wd.W === 0.9, '16: W settles as e^(−t/τ) less the drain');
   }
   return { pass: fails.length === 0, failures: fails, ms: Math.round(performance.now() - t0) };
 }
@@ -11364,7 +11383,6 @@ function step(dt) {
       break;
   }
   ROCKED = true;
-  stepSnapQ();
   stepArm(dt);
   stepHazardActors(dt);
   stepSky(dt);
@@ -11393,8 +11411,8 @@ function frame(now) {
   try { render(); } catch (e) { ctx.setTransform(1, 0, 0, 1, 0, 0); throw e; }
   // the creak follows how close the tower is to going over (continuous; Sfx maps 0.4..1 to its volume)
   // (and through a dead end's tell, rising toward the TOPPLE, under the heartbeat)
-  // (and the wobble: its joints creak from W 0.4, 15.3)
-  Sfx.creak(S.phase === 'play' ? Math.min(1, Math.max(TIP.level, WAH.glow ? Math.max(WAH.W, WAH.red ? 0.85 : 0) : WOB.W, S.toppleAt >= 0 ? 0.68 + 0.2 * toppleTell() : 0)) : 0);
+  // (and a swaying tower as its swing carries the weight toward a wheel, 16.2)
+  Sfx.creak(S.phase === 'play' ? Math.min(1, Math.max(TIP.level, WOB.W > 0.05 && S.B ? Math.abs(comOf(TW, WOB).wx - TW.ox) / TW.w : 0, S.toppleAt >= 0 ? 0.68 + 0.2 * toppleTell() : 0)) : 0);
   const js = performance.now() - t0;
   PERF.jsMs = PERF.jsMs * 0.95 + js * 0.05;
   if (dt > 0) PERF.fps = PERF.fps * 0.95 + (1 / dt) * 0.05;

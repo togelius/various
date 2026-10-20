@@ -16,8 +16,9 @@
 //      lastRelease.ghostKey == the landed key, every time; misses land nowhere. (M3: a tile still in the air when
 //      the tower crashes is `lost` with it; such releases must coincide with a crash and are counted apart.)
 //   7. no soft-locks: a dead end (no square/triangle slot anywhere) TOPPLEs and a new base takes tiles again (on one car:
-//      level 8, hazards off; DESIGN 15.5 moved the one-car base there from level 3; the wobble off, 15.3: the recipe's
-//      narrow build would SNAP first)
+//      level 8, hazards off; DESIGN 15.5 moved the one-car base there from level 3; the sway off). Since revision 3
+//      (16.3: no hang depth) a build never runs out of spots by itself (a triangle can always flip against a slant), so
+//      the dead end is a fixture: every spot closed (the spot bound below zero) as a real drop is let go
 //   8. touch: a finger held past the fuse gives exactly one drop; its lift drops nothing
 //      mouse: a click just after the fuse let go is spent (no blind second drop); a player's own early click is still held
 //   9. ghost honesty inside a PERFECT hit-stop (the drawn ghost follows the hand while game time is frozen)
@@ -50,7 +51,7 @@
 //      hold for every pop (lib wordMonitor: never born over the ghost or the build top, never drawn over the ghost,
 //      clear of the HUD and the pops still up); no landing's word covers its own "+N" score pop (at most 1 in 100 more
 //      than a quarter of it); a streak milestone is never fitted smaller than the size it was placed at, nor drawn smaller
-//      than the median PERFECT; most words placed by the near search; never two landing words drawn over each other
+//      than the median PERFECT; at least 40% of the words placed by the near search (a swaying column keeps them off further, 16.2); never two landing words drawn over each other
 //  18. (with 17) streak milestones on short landscape phones: a PERFECT bot to a streak of 30 at 844x390 and 667x375;
 //      every 'streak' event pops its word, on screen and not see-through, at least as big as the median PERFECT of
 //      that game (one on the landing that tears the ribbon or crowns, sharing the screen with that announcement: at
@@ -91,13 +92,12 @@ async function waitOutcome(page, id) {
   await until(page, i => CS.events.some(e => e.id === i && (e.type === 'land' || e.type === 'miss')), id, 4000);
   return page.evaluate(i => CS.events.find(e => e.id === i && (e.type === 'land' || e.type === 'miss')), id);
 }
-// slots that chooseSlot picks when the hand is exactly over them, and still picks 0.18 L to either side
-// (a hanging slot only when no supported slot is within reach; same-class neighbours at least 0.45 L away)
+// slots that chooseSlot picks when the hand is exactly over them, and still picks 0.18 L to either side (16.3: the
+// nearest spot wins, so every neighbour at least 0.45 L away, measured where the spots are at rest)
 async function cleanSlots(page) {
   return page.evaluate(() => {
-    const st = CS.state(), crown = st.piece === 'crown', sl = CS.slots(), R = st.big ? (crown ? 1.6 : 1.0) : (crown ? 1.2 : 0.6);
-    const ok = sl.filter(s => sl.every(o => o === s ||
-      (o.supported && !s.supported ? Math.abs(o.x - s.x) > R + 0.3 : o.supported !== s.supported || Math.abs(o.x - s.x) > 0.45)));
+    const sl = CS.slots();
+    const ok = sl.filter(s => sl.every(o => o === s || Math.abs(o.rx - s.rx) > 0.45));
     return ok.sort((a, b) => (b.supported - a.supported));
   });
 }
@@ -125,7 +125,7 @@ async function gradeTrials(page, input, tag) {
       if (!slots.length) continue;
       const s = slots[(k * 5 + (mode === 'great' ? 3 : 0)) % slots.length];
       const L = await page.evaluate(() => CS.cam().L);
-      const x = mode === 'perfect' ? s.sx : s.sx + 0.18 * L * (k % 2 ? -1 : 1);
+      const x = mode === 'perfect' ? s.rsx : s.rsx + 0.18 * L * (k % 2 ? -1 : 1);
       const prev = await lastId(page);
       await input(x, s.sy);
       const rel = await waitRelease(page, prev);
@@ -239,19 +239,19 @@ async function honesty(browser) {
 
 // 7. no soft-locks: a dead end (no square or triangle slot anywhere) must TOPPLE, a new base rolls in, and the build
 //    takes tiles again. The bot never sees a settled, unlocked dead build.
-//    (M3: the tower rocks and crashes now, so a random walk on one car crashes long before it finds a dead end.
-//    The bot follows a short dead-end recipe instead, tapping each slot's live centre: the right shape goes to the
-//    next recipe slot, HOLD banks or brings the right shape, anything else is thrown away at the screen edge.)
-const DEAD_END = ['up:-2,0,0', 'sq:0,0,0', 'up:0,1,0', 'dn:-1,1,0', 'sq:-1,1,1', 'sq:1,1,1', 'sq:1,2,1', 'up:1,3,1', 'up:-1,2,1', 'dn:-2,2,1', 'up:-2,2,2'];
+//    (DESIGN 16.1, 16.3: TOPPLE is the last resort; with no hang depth a build always has a spot left (a triangle can
+//    always flip against a slant), so the dead end is made by a fixture: the bot drops four tiles on a new base, then
+//    as it lets a fifth go every spot is closed (CFG.BOUND_X below zero: no spot is in bounds), the tile lands as the
+//    one that closed the last spot, and the bound comes back once the tell has begun, before the new base.)
 async function noSoftLock(browser) {
   const { page, errors, context } = await gamePage(browser, { width: 390, height: 844 }, { seed: 7, ts: 4, mute: 1, nohint: 1, autostart: 1, level: ONE_CAR });
   try {
     await until(page, () => window.CS && CS.state().handReady);
     await noHazards(page);
-    // (DESIGN 15.3: the recipe's narrow build SNAPs long before it closes its last slot (a 1-wide spire of two squares
-    // has λ 3 to 5). This check is the dead end's TOPPLE, not the wobble (tools/wobble.cjs): the wobble is off here, a
-    // test fixture)
-    await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; CFG.WOB_CAP_THIN = 0; });
+    // (DESIGN 16.2: the recipe's narrow build sways (a 1-wide spire of two squares has λ 3 to 5) and its swing would
+    // tip it long before it closes its last slot. This check is the dead end's TOPPLE, not the sway (tools/wobble.cjs):
+    // the sway is off here, a test fixture)
+    await page.evaluate(() => { CFG.WOB_A = { perfect: 0, great: 0, clack: 0 }; });
     // when each topple's new base takes drops again (game time)
     await page.evaluate(() => {
       window.__tp = []; let seen = 0;
@@ -303,36 +303,37 @@ async function noSoftLock(browser) {
         requestAnimationFrame(m);
       })();
     });
-    const kind = p => (p === 'sq' || p === 'marble' ? 'sq' : p === 'tri' ? 'tri' : 'cube');
+    // (the fixture's switch: the spot bound restored as soon as the tell has begun)
+    await page.evaluate(() => {
+      window.__bound = CFG.BOUND_X; window.__closeAt = null;
+      (function r() { if (window.__closeAt !== null && CS.events.some(e => e.type === 'toppletell' && e.t >= window.__closeAt)) { CFG.BOUND_X = window.__bound; window.__closeAt = null; } requestAnimationFrame(r); })();
+    });
     let stuck = 0, drops = 0, maxDebris = 0, step = 0, resets = 0, diverged = 0, thrown = 0;
-    for (let k = 0; k < 400; k++) {
+    for (let k = 0; k < 120; k++) {
       await until(page, () => { const s = CS.state(); return s.handReady && s.inAir === 0 && !s.locked; }, null, 8000);
-      let info = await page.evaluate(() => ({ st: CS.state(), sl: CS.slots(), resets: CS.events.filter(e => e.type === 'topple' || e.type === 'crash').length,
+      const info = await page.evaluate(() => ({ st: CS.state(), sl: CS.slots(), resets: CS.events.filter(e => e.type === 'topple' || e.type === 'crash').length,
         topples: CS.events.filter(e => e.type === 'topple').length,
         landsAfter: (() => { const t = CS.events.filter(e => e.type === 'topple').pop(); return t ? CS.events.filter(e => e.type === 'land' && e.t > t.t).length : 0; })() }));
       maxDebris = Math.max(maxDebris, info.st.debris);
       if (info.st.slotsLeft === 0) stuck++;
       if (info.topples >= 2 && info.landsAfter >= 3) break;
-      if (info.resets > resets) { resets = info.resets; step = 0; }      // a new base: start the recipe again
-      if (step >= DEAD_END.length) step = 0;
-      const need = DEAD_END[step].startsWith('sq') ? 'sq' : 'tri';
-      if (kind(info.st.piece) !== need && info.st.held !== null && kind(info.st.held) === need || kind(info.st.piece) !== need && info.st.held === null) {
-        await page.keyboard.press('Shift');                         // HOLD brings the right shape, or banks this one
-        info = await page.evaluate(() => ({ st: CS.state(), sl: CS.slots() }));
-      }
-      const target = kind(info.st.piece) === need ? info.sl.find(q => q.key === DEAD_END[step]) : null;
+      if (info.resets > resets) { resets = info.resets; step = 0; }      // a new base: four tiles, then the closing one
+      // a calm build: the lowest supported spot nearest the middle
+      const sl = info.sl.filter(q => q.supported).sort((a, b) => a.ly - b.ly || Math.abs(a.lx) - Math.abs(b.lx));
+      const target = sl[0] || null;
+      if (!target) { thrown++; await page.keyboard.press('Shift'); continue; }
       await until(page, () => Math.abs(CS.state().omega) < 0.03 && Math.abs(CS.state().flexV) < 0.15, null, 400).catch(() => {});
-      const x = target ? ((await page.evaluate(key => (CS.slots().find(q => q.key === key) || {}).sx, target.key)) || target.sx) : 4;
-      if (!target) thrown++;
+      const x = (await page.evaluate(key => (CS.slots().find(q => q.key === key) || {}).rsx, target.key)) || target.rsx;
       const prev = await lastId(page);
-      await page.mouse.move(x, 500); await page.mouse.down(); await page.mouse.up();
-      drops++;
-      if (target) {
-        const rel = await waitRelease(page, prev);
-        const out = await waitOutcome(page, rel.id);
-        if (out && out.type === 'land' && out.key === target.key) step++;
-        else { diverged++; step = DEAD_END.length; }                 // off the recipe: wait for the next reset
-      }
+      const closing = step === 4;
+      await page.mouse.move(x, 500);
+      if (closing) await page.evaluate(() => { window.__closeAt = S.gt; CFG.BOUND_X = -1; });
+      await page.mouse.down(); await page.mouse.up();
+      drops++; step++;
+      const rel = await waitRelease(page, prev);
+      const out = await waitOutcome(page, rel.id);
+      if (!out || out.type !== 'land' || out.key !== target.key) diverged++;
+      if (closing) step = 99;                                      // (then wait for the new base)
     }
     await until(page, () => CS.state().inAir === 0, null, 8000);
     const r = await page.evaluate(() => {
@@ -422,9 +423,9 @@ async function streakRun(browser) {
       await until(page, () => { const s = CS.state(); return s.phase === 'over' || (s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0); }, null, 20000);
       if ((await page.evaluate(() => CS.state().phase)) === 'over') break;
       await until(page, () => Math.abs(CS.state().omega) < 0.02 && Math.abs(CS.state().flexV) < 0.1, null, 1500).catch(() => {});
-      // (and, as a player keeping a streak would, while the joints glow: the centre spire would SNAP and end the run's
-      // streak (15.3); one landing on an unlit tower can never SNAP it)
-      await until(page, () => !CS.state().glow, null, 8000).catch(() => {});
+      // (and, as a player keeping a streak would, while the tower sways: the centre spire's swing would tip it and end
+      // the run's streak (16.2))
+      await until(page, () => CS.state().W < 0.2, null, 8000).catch(() => {});
       const info = await page.evaluate(() => ({ st: CS.state(), sl: CS.slots() }));
       maxStreak = Math.max(maxStreak, info.st.streak);
       if (maxStreak >= 30 && info.st.streak === 0) break;
@@ -433,7 +434,7 @@ async function streakRun(browser) {
       if (!pool.length) { await page.keyboard.press('Shift'); continue; }
       pool.sort((a, b) => Math.abs(a.x) - Math.abs(b.x) + (b.supported - a.supported) * 10);
       const prev = await lastId(page);
-      const sx = await page.evaluate(key => (CS.slots().find(q => q.key === key) || {}).sx, pool[0].key);
+      const sx = await page.evaluate(key => (CS.slots().find(q => q.key === key) || {}).rsx, pool[0].key);
       if (sx === undefined) continue;
       await page.touchscreen.tap(sx, 420);
       const rel = await waitRelease(page, prev).catch(() => null);
@@ -525,8 +526,9 @@ async function popSoakGame(browser, seed, drops) {
       if (info.st.phase !== 'play' || info.st.locked || !info.st.handReady) continue;
       const L = info.cam.L, safe = info.sl.filter(q => !q.tippy && q.supported), r = rand();
       let x;
-      if (safe.length && r < 0.75) { safe.sort((a, b) => Math.abs(a.x) - Math.abs(b.x) + (b.y - a.y) * 0.3); x = safe[0].sx + (rand() - 0.5) * 0.1 * L; }
-      else if (info.sl.length && r < 0.97) x = info.sl[(rand() * info.sl.length) | 0].sx + (rand() - 0.5) * 0.9 * L;
+      // (aimed where a spot is at rest, the middle of its swing: 16.2)
+      if (safe.length && r < 0.75) { safe.sort((a, b) => Math.abs(a.x) - Math.abs(b.x) + (b.y - a.y) * 0.3); x = safe[0].rsx + (rand() - 0.5) * 0.1 * L; }
+      else if (info.sl.length && r < 0.97) x = info.sl[(rand() * info.sl.length) | 0].rsx + (rand() - 0.5) * 0.9 * L;
       else x = 4 + rand() * (info.cam.W - 8);
       await page.touchscreen.tap(Math.max(2, Math.min(info.cam.W - 2, x)), Math.min(info.cam.H - 10, info.cam.handY + 3 * L));
       const rel = await waitRelease(page, prev).catch(() => null);
@@ -549,7 +551,10 @@ async function popSoak(browser) {
     checked >= 150 && covered.length <= Math.floor(checked / 100), `${covered.length} of ${checked} covered; ${covered.slice(0, 4).join(' | ')}`);
   check('pops: a streak milestone is never fitted smaller than the size it was placed at, nor drawn smaller than the median PERFECT',
     miles.length >= 3 && miles.every(w => w.k >= 0.999 && w.px >= perfMed), `${miles.length} milestones at ${miles.map(w => (+w.px).toFixed(1) + (w.near ? 'n' : 'f')).join(' ')} px; median PERFECT ${perfMed.toFixed(1)} px`);
-  check('pops: most landing words are placed by the near search', words.length >= 150 && nearN >= 0.6 * words.length, `${nearN}/${words.length} near`);
+  // (revision 3: the soak's quick central drops build a column that sways, and a word keeps clear of everywhere the
+  // swinging tiles and spots reach (swayAt: up to 0.6 L, the sway of 16.2 being larger than revision 2's 0.25 L), so
+  // fewer words fit right beside the landing than the 68% of revision 2; the other placement rules are unchanged)
+  check('pops: many landing words are placed by the near search (at least 40%)', words.length >= 150 && nearN >= 0.4 * words.length, `${nearN}/${words.length} near`);
   const stacked = runs.reduce((a, r) => a + r.ps.stacked, 0);
   check('pops: a quick drop never shows two landing words over each other (the word before gives way at once where the new one pops in)',
     stacked === 0, `${stacked} frames; ${[].concat(...runs.map(r => r.ps.stackedEx)).slice(0, 4).join(' | ')}`);
@@ -591,13 +596,13 @@ async function mileGame(browser, view, seed) {
       const ok = await until(page, () => { const s = CS.state(); return s.phase === 'over' || (s.phase === 'play' && s.handReady && !s.locked && s.inAir === 0); }, null, 20000).then(() => true).catch(() => false);
       if (!ok || (await page.evaluate(() => CS.state().phase)) === 'over') break;
       await until(page, () => Math.abs(CS.state().omega) < 0.02 && Math.abs(CS.state().flexV) < 0.1, null, 1500).catch(() => {});
-      await until(page, () => !CS.state().glow, null, 8000).catch(() => {});   // (as streakRun: no SNAP ends the streak)
+      await until(page, () => CS.state().W < 0.2, null, 8000).catch(() => {});   // (as streakRun: no swing ends the streak)
       const info = await page.evaluate(() => ({ st: CS.state(), sl: CS.slots() }));
       const safe = info.sl.filter(q => !q.tippy && (q.supported || info.st.piece === 'crown')), pool = safe.length ? safe : info.sl;
       if (!pool.length) { await page.keyboard.press('Shift'); continue; }
       pool.sort((a, b) => Math.abs(a.x) - Math.abs(b.x) + (b.supported - a.supported) * 10);
       const prev = await lastId(page);
-      const sx = await page.evaluate(key => (CS.slots().find(q => q.key === key) || {}).sx, pool[0].key);
+      const sx = await page.evaluate(key => (CS.slots().find(q => q.key === key) || {}).rsx, pool[0].key);
       if (sx === undefined) continue;
       await page.touchscreen.tap(sx, Math.round(view.height * 0.5));
       const rel = await waitRelease(page, prev).catch(() => null);
