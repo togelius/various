@@ -22,7 +22,7 @@ The drafts were written *before* the review. Where they disagree with this docum
 1. **Research.** Seven briefs: the PCG part of *Artificial Intelligence and Games* (2nd edition, chapters 7–9 and 14, with §6.5 and §13.2.2); Julian's work on level generation, quality-diversity and procedural personas; the data-games and LLM-generation line; roguelike and roguelite systems; Calvino, Borges and museum practice; the technical and art pipeline; museum floor plans and space syntax.
 2. **Drafting.** Seven section drafts written inside one shared frame. The layout drafter built and measured a generator prototype; the difficulty drafter prototyped the door sequencer.
 3. **Review.** Six critics attacked the drafts, each from one lens: fun, PCG research, museal tone and sensitivity, feasibility in this repo, cross-draft consistency, and a new player on a phone. This document is the design after that review.
-4. **Verification.** Six further checks of this document: every reference against the paper itself, every claim about the book against its pages, the technical claims against current documentation, every number against the drafts and prototypes, and a cold read against the brief.
+4. **Verification.** Further checks of this document: every reference against the paper itself, every claim about the book against its pages, the technical claims against current documentation, every number against the drafts and prototypes, and a cold read against the brief.
 
 ---
 
@@ -38,7 +38,7 @@ Each department is one level, with its own:
 - exhibits, asleep on their plinths until you give them a reason not to be;
 - one rule that holds only there.
 
-The labels tell you what you need. The tombstone line (the catalogue line under the title: maker, date, medium, credit line, number) is the stat card; a plain *Behaviour* line says what a thing does; the paragraph under it is for reading. You fight, slip past, or leave before the night watch begins its rounds. You may register one object from each department into your own small collection, which grows in the Entrance Hall between visits. When you finally reach the revolving doors, the Registrar would very much like to accession *you*.
+The labels tell you what you need. The tombstone line (the catalogue line under the title: maker, date, medium, dimensions, credit line, number) is the stat card; a plain *Behaviour* line says what a thing does; the paragraph under it is for reading. You fight, slip past, or leave before the night watch begins its rounds. From each department whose Certificate you earn, by defeating or viewing its Centrepiece, you may register one object into your own small collection, which grows in the Entrance Hall between visits. When you finally reach the revolving doors, the Registrar would very much like to accession *you*.
 
 **The museum feels infinite.** Its lobby directory lists departments without end, and most of its doors are closed for reinstallation. The departments you can actually enter are a curated collection, written inside an authored vocabulary of behaviours, rules and rooms, played by simulated visitors, and accepted, edited or refused by a human curator. Whether, when and how that collection becomes literally infinite is the first decision (D1).
 
@@ -68,7 +68,7 @@ You have three choices with the breakwater:
 - **View it.** Stand at the lectern beside it for four turns while it sleeps; that earns the Certificate, and a dust sheet goes over it for the night.
 - **Walk out** past it, through the coda room to the exit doors.
 
-Whatever you choose, the closing bell rings on schedule, and after it the night staff start waking whatever is nearest to you.
+Whatever you choose, the closing bell rings on schedule, and some turns later the night watch begins its rounds, waking whatever is nearest to you.
 
 (This department is worked in full, labels and all, in [`design/samples.md`](design/samples.md) §1, with four others. The sample predates the Behaviour line and the four-turn view.)
 
@@ -91,7 +91,7 @@ FLOOR 3         2 departments
    │
 STAIR HALL
    │
-THE EXIT        main hall · the museum shop · the revolving doors · the Registrar
+THE EXIT        main hall · the revolving doors · the Registrar
 ```
 
 - **Depth sets power; the department sets texture.** Departments arrive in random order, so any department can be anyone's third.
@@ -112,7 +112,7 @@ THE EXIT        main hall · the museum shop · the revolving doors · the Regis
   - One object from the Collection may be borrowed into each later run, normalised so that it helps without carrying the run.
   - This is the brief's "keep a single item from each department", made safe.
 - **The Catalogue.** Everything you have seen is catalogued. Repeat encounters reveal more of an exhibit's numbers.
-- **A small store of options, not power** (the brief's Vampire Survivors store, selling options instead of stats; D11), paid in Stamps earned by Certificates and escapes. Purchases are fully refundable and every one can be toggled off.
+- **A small store of options, not power** (the brief's Vampire Survivors store, selling options instead of stats; D11), paid in Stamps earned by Certificates, escapes and first-time discoveries. Purchases are fully refundable and every one can be toggled off.
 - **Patron membership** (offered in place of the brief's "minor stat bump"; D11). An opt-in assist in labelled tiers, available from the first run and shown on the record of every assisted run.
 - **Trustees' Directives.** Pick-your-own difficulty modifiers, after the first escape.
 - **Death becomes an exhibit:** "Figure of a Visitor, Reaching (Run 14). Painted plaster. Found in Room 412 at opening, near the Pendulum Warden. Accessioned by the night staff."
@@ -144,12 +144,12 @@ Every exhibit and object carries a museum label in four parts:
 
 | Part | What it carries |
 |---|---|
-| **Tombstone line** | title · maker or attribution · date · medium · credit line · number. It is the stat card. |
+| **Tombstone line** | Under the title: maker or attribution · date · medium · dimensions · credit line · number. It is the stat card. |
 | **Behaviour line** | Plain, fixed wording generated from the department's data and checked against it. |
 | **Paragraph** | Literature. It may be strange; it may not contradict the Behaviour line. |
 | **Pictograms** | One per mechanical fact, because most players will not read. |
 
-Text is load-bearing because sixteen-pixel sprites cannot carry period or provenance. In CrawLLM's user study, participants picked a generated theme's epoch from four options with only 43% average accuracy (chance: 25%), the worst of the descriptors tested, and the authors argue that themes typically came through only when every detail was highly specific.
+Text is load-bearing because sixteen-pixel sprites cannot carry period or provenance. In CrawLLM's user study, participants picked a generated theme's epoch from four options (chance: 25%) with 43% average accuracy, the worst of the descriptors tested. From the dungeon-crawler screenshots alone it was about a quarter, near chance, against about two-thirds from short text descriptions of enemies (unweighted means from the paper's Table II). The authors argue that themes typically came through only when every detail was highly specific.
 
 ### 3. Everything on display is asleep
 
@@ -188,9 +188,9 @@ The rules that follow from this:
 
 Fourteen decisions. The first thirteen are in the order that the rest depends on them:
 - **D1–D3** decide what kind of generative project this is.
-- **D4–D8** decide what kind of game it is.
-- **D9–D13** decide how it is built and what gets built first.
-- **D14** decides how layouts are generated. It was added after the review and constrains little else, so it comes last.
+- **D4–D11** decide what kind of game it is.
+- **D12–D13** decide how it is built and what gets built first.
+- **D14** decides how layouts are generated. It constrains little else, so it comes last.
 
 Each decision gives the question, why it matters, the options with their trade-offs, a recommendation with its reason, and what changes if the recommendation is not taken. Smaller choices, each with the default we would take, are in §4.
 
@@ -229,7 +229,7 @@ Our own reject logs would be the first real measurement.
 
 **Options:**
 
-- **(a) Hand-authored set** of 12–20 departments, written with Claude in sessions. The best depth and the lowest risk. A pool of 20 drawn eight at a time is about 80% seen after three runs and over 90% after five, after which the Directory carries all the infinity. A pool this small also cannot feed the full sequencer (§9.3), so runs get shorter.
+- **(a) Hand-authored set** of 12–20 departments, written with Claude in sessions. The best depth and the lowest risk. A pool of 20 drawn eight at a time is about 80% seen after three runs and over 90% after five, after which the Directory carries all the infinity. A pool this small cannot feed 3-door offers (§9.3); below 20 departments, runs also get shorter.
 - **(b) Curated Permanent Collection.** Departments are written offline inside the grammar (for v1, by Claude sessions using the validators as a lint, D13; later, by the batch pipeline once the grammar is frozen), simulated, then accepted, edited or refused by Julian, and shipped as accession-numbered data. About 24–30 at launch, growing through updates. Safe and deterministic, and it keeps the single-file build. Novelty for a dedicated player depends on how often updates come.
 - **(c) Runtime generation at the door.** The fiction is literally true. It needs:
   - a server or the player's own API key (a browser cannot hold a key);
@@ -257,14 +257,14 @@ Our own reject logs would be the first real measurement.
 **Recommendation: build v1 as (b) plus the Directory, and treat (e) and (f) as the roadmap, decided from data.** Five cheap things in v1 keep (f) open, and none of them changes the v1 game:
 1. write the launch modules in the rule language;
 2. log every simulation-gate run in a form a surrogate can learn from;
-3. run the automated pipeline in shadow beside curation, so the dud rate gets measured;
+3. once the grammar is frozen, run the batch pipeline (D13(b)) in shadow beside the authoring aid, so the dud rate gets measured;
 4. keep finished runs locally and offer an opt-in "Donate this visit to the Archive";
 5. log door choices.
 
-**Why.** One spoiled department costs a whole 50–75 minute run, and only offline rejection can push the dud rate near zero before we know what it is. Generating text and specs is cheap, by estimate: about $0.21 for one department in a single interactive pass on Claude Opus 5.5, and about $33 via the Batch API for a launch batch that drafts about 400 frames to present 48 candidates and accept about 30 ([`design/pipeline.md`](design/pipeline.md) §3.11). The binding costs are Julian's time and simulation compute. In v1, made with the authoring aid (D13), that time is editing per department. Once the batch pipeline runs, it is curation, estimated at about 15–30 hours per 48-candidate batch for a thorough review, against the pipeline draft's 8.
+**Why.** One spoiled department costs a whole 50–75 minute run, and only offline rejection can push the dud rate near zero before we know what it is. Generating text and specs is cheap, by estimate: about $0.21 for one department in a single interactive pass on Claude Opus 5.5 ([`research/tech-art.md`](research/tech-art.md) §3.6), and about $33 via the Batch API for a launch batch that drafts about 400 frames to present 48 candidates and accept about 30 ([`design/pipeline.md`](design/pipeline.md) §3.11). The binding costs are Julian's time and simulation compute. In v1, made with the authoring aid (D13), that time is editing per department. Once the batch pipeline runs, it is curation, estimated at about 15–30 hours per 48-candidate batch for a thorough review, against the pipeline draft's 8.
 
 **If Julian picks otherwise:**
-- *(a):* v1 uses the same authoring aid as (b) but stops at about 15 departments and never builds the batch pipeline. Runs shrink to five or six departments (D6, §9.3).
+- *(a):* v1 uses the same authoring aid as (b) but stops at about 15 departments and never builds the batch pipeline. Runs shrink to about five departments, since six need a pool of about 18 (D6's estimate from the drafts, not rerun; §9.3).
 - *(c):* the server, the per-request gate and moderation move into v1. The first two departments of every run must still come from a pack, so a run never starts by waiting.
 - *(f) from the start:* this becomes a research platform first (D3c). The slice in D13 still comes first, because the rule language must be designed against modules that are known to be fun.
 
@@ -294,7 +294,7 @@ Our own reject logs would be the first real measurement.
   Julian reviews the survivors. A generated module first appears as a secondary rule or inside a Temporary Exhibition, labelled "uncatalogued mechanism", and is accessioned into the permanent grammar only after review.
 - **(d) Runtime-generated mechanics.** Not recommended. It loses learnability and every guarantee at once.
 
-**Recommendation: (b) for v1, (c) as the main research track.** Archetypes (how exhibits move and fight) stay closed, because mastery rests on them. Modules are the layer that makes a department feel different, and each one is local: it touches only the departments that carry it. At v1's 8 modules a given module still appears in about three runs in four; at the drafts' 13 it was about half, and the share keeps falling as the library grows. A weak generated module therefore costs less than a weak archetype, which nearly every run depends on. The evaluator (fires, matters, teachable) is specified and gets built in M4. The slice writes its four modules in the rule language; if they do not fit it naturally, fall back to (a) before v1.
+**Recommendation: (b) for v1, (c) as the main research track.** Archetypes (how exhibits move and fight) stay closed, because mastery rests on them. Modules are the layer that makes a department feel different, and each one is local: it touches only the departments that carry it. At v1's 8 modules a given module still appears in about seven runs in ten; at the drafts' 13 it was about half, and the share keeps falling as the library grows. A weak generated module therefore costs less than a weak archetype, which nearly every run depends on. The evaluator (fires, matters, teachable) is specified; M4 builds and tests the first two (§14). The slice writes its four modules in the rule language; if they do not fit it naturally, fall back to (a) before v1.
 
 **If (a):** nothing in v1 changes except the interpreter, and D1(f) loses its first enabler.
 
@@ -315,7 +315,7 @@ Our own reject logs would be the first real measurement.
 - **(c) A research platform first.** Build the Open Stacks server, surrogate and automated curator early, with the game as their front end.
 
 **Recommendation: (b).** It costs a few days and keeps every angle in §13 open. Several of those angles involve Julian's own lines of work, including:
-- door choices as free choice data: each choice prefers the chosen placard to each unchosen one, judged before play from placard features. That is related to, but not the same as, the post-play pairwise reports of experience-driven PCG (Pedersen, Togelius & Yannakakis 2010), and it mixes taste with perceived risk;
+- door choices as revealed preferences: each choice ranks the chosen placard above each unchosen one, judged before play from placard features. That is related to, but not the same as, the post-play pairwise reports of experience-driven PCG (Pedersen, Togelius & Yannakakis 2010), and it mixes taste with perceived risk;
 - a surrogate of the persona battery;
 - learning a curator from a curation log;
 - knowledge transfer under generated content.
@@ -331,7 +331,7 @@ Our own reject logs would be the first real measurement.
   - the best cases are guarded by wardens;
   - the Signature piece comes only from defeating the Centrepiece.
 
-  Stealth is the main mode only in departments whose rule makes it so (Guarded, Darkness).
+  Stealth is the main mode only in departments whose challenge type makes it so (Guarded, Darkness).
 - **(b) Stealth first** (Invisible Inc., Thief). Combat is a failure state and stays thin; guards and light are universal.
 - **(c) Parity**, as drafted.
 
@@ -370,14 +370,14 @@ When the shared layer is that heavy, every department plays as the same heavy si
 
 **Why it matters.** Run length sets department size, the clock, the pool size the sequencer needs, and whether this is a phone game.
 
-**What was measured.** The clock and the run length were first sized on tours of 150, 220 and 280 tiles, by department size. On 3,600 generated layouts the layout prototype measured median tours of 59–77, 84–108 and 115–177 tiles, roughly half. At an assumed 80 turns per minute (itself unmeasured), eight departments then make about 40–45 minutes, not 82, and below the 50–75 minute target. At 50–60 turns per minute, plausible once fights, reading and decisions are counted, the same layouts make about 55–70 minutes. Turns per minute is the first number the slice gate measures.
+**What was measured.** The clock and the run length were first sized on tours of 150, 220 and 280 tiles, by department size. On 3,600 generated layouts the layout prototype measured median tours of 59–77, 84–108 and 115–177 tiles, roughly half. At an assumed 80 turns per minute (itself unmeasured), a median department then takes about 3–3.5 minutes, and a run of eight, with the Entrance Hall, door choices, Stair Halls and the Exit (about 15–18 minutes between them), about 40–45 minutes: not 82, and below the 50–75 minute target. At 50–60 turns per minute, plausible once fights, reading and decisions are counted, the same layouts make about 50–65 minutes, because the halls, doors and Exit take about the same minutes whatever the turn rate. Turns per minute is the first number the slice gate measures.
 
 **Options:**
 
 *Departments per run:*
 - **5 larger departments.** Half the content and calibration. At most five challenge types per run, and it reads as a small museum.
 - **6 (2/2/2).** Fits a smaller pool (about 18, by the drafts' estimate; not rerun).
-- **8 on three floors (3/3/2).** Matches the brief's "infinite collection of departments, organized in no discernible manner", carries the challenge-type variety guarantee, and puts the floor breaks where SPD puts its progression beats. Needs a pool of about 20 for 2-door offers and about 28 for 3-door offers (§9.3).
+- **8 on three floors (3/3/2).** Long enough to read as a large museum rather than a short tour, carries the challenge-type variety guarantee, and puts the floor breaks where SPD puts its progression beats. Needs a pool of about 20 for 2-door offers and about 28 for 3-door offers (§9.3).
 - **12.** The most "infinite"; departments too short for their own arc; centrepiece fatigue.
 
 *Route choice:*
@@ -385,7 +385,7 @@ When the shared layer is that heavy, every department plays as the same heavy si
 - **Doors with placards** (Hades).
 - **A full map** (Slay the Spire).
 
-**Recommendation: 8 departments on three floors, doors with placards, plus a per-floor Directory at each Stair Hall** showing the coming floor's challenge icons, and one size class in v1. Set the final count and the clock at the first-playable gate from measured turns per minute. If departments come in at about 6–9 minutes, keep 8 (about 50–75 minutes a run); if well over, drop to 6; if well under, make departments larger rather than adding more.
+**Recommendation: 8 departments on three floors, doors with placards, plus a per-floor Directory at each Stair Hall** showing the coming floor's challenge icons, and one size class in v1. Set the final count and the clock at the first-playable gate from measured turns per minute. If departments come in at about 4–7 minutes, keep 8 (about 50–75 minutes a run, once the halls, doors and Exit add their 15–18 minutes); if well over, drop to 6; if well under, make departments larger rather than adding more.
 
 **If 5 or 6:** Stair Halls come every two departments, and per-department danger rises to keep run-clear rates. **If a full map:** placards need a compact rendering on phones.
 
@@ -396,7 +396,7 @@ When the shared layer is that heavy, every department plays as the same heavy si
 **Recommendation, as one package:**
 - **You are a visitor who stayed past closing.** Your class is the trade you bring with you (D9): a night guard from another museum, a copyist, a conservator, a docent. Here you are a visitor like any other.
 - **Staff are never harmed.** That covers daytime guards, the night watch and the Registrar.
-  - Daytime guards police you *only in Guarded departments*. Elsewhere they are neutral people who give directions.
+  - Daytime guards appear *only in Guarded departments*, where they police you. Elsewhere the only guard is the vestibule guard, a neutral person who gives directions (§6.5).
   - **The night watch** is the end of the closing clock in every department. It is non-lethal itself; its rounds wake the exhibits nearest to you.
 - **Capture has one rule:** you are walked to the department's exit doors, keep what you carry and any Certificate already earned, and lose the department's unfound highlights. No confiscation, no teleport back to the entrance.
 - **Retiring counts as dying** for everything that persists. Otherwise retiring at low health beats dying, and players feel obliged to do it.
@@ -421,7 +421,7 @@ When the shared layer is that heavy, every department plays as the same heavy si
 **Options:**
 - **(a) Wholly fictional, and silent.** No real cultures and no provenance mechanics. Safe, but the tone pillar's provenance rule would then have no mechanic behind it.
 - **(b) Fictional, with provenance as a light mechanic from v1:**
-  - **Conditions of gift.** The worked samples already contain four, among them a bell given "on condition that it not be rung", a lever given "on condition that it be used rather than displayed". Honour one for a relation (a shortcut, a loan, a reputation); breach it for raw power and a closed room.
+  - **Conditions of gift.** The worked samples already contain four, among them a bell given "on condition that it not be rung" and a lever given "on condition that it be used rather than displayed". Honour one for a relation (a shortcut, a loan, a reputation); breach it for raw power and a closed room.
   - **A Returns desk.** Objects whose credit line reads "found in the collection, circumstances unrecorded" are strong but carry a claim. Returning one trades power for a relation.
   - **Lands inhabited by practice and correspondence.** A town present through its harbour office's letters and its sweepers' brooms, never through costume, ritual or bodies.
   - **A Lenders family**, later: at most one per run, its keepers unharmable, with loans, refusals and closed rooms.
@@ -442,10 +442,10 @@ When the shared layer is that heavy, every department plays as the same heavy si
   - **Handling Clearance**, the strength analogue, which also opens locked cases;
   - the department's **Certificate**: more hit points and one perk from three.
 - **Guaranteed quotas.** Two kits and one Clearance card per department, from decks keyed to depth. They are never hidden in secret rooms, and they are shown on a "Highlights of this collection" card, as SPD tells its players its guarantees.
-- **Perks.** 12–16 general, triggered perks in a few playstyle families (close work, at a distance, quiet feet, old hand). Perks tied to challenge types would rarely pay, because the sequencer seldom repeats a challenge type within a run.
+- **Perks.** 12–16 general, triggered perks in a few playstyle families (close work, at a distance, quiet feet, old hand). Perks tied to challenge types would rarely pay, because each challenge type fills only one or two of a run's eight departments (§9.3).
 - **Classes.** The **Night Guard** at launch.
   - The **Copyist** second, after the first playable. Its verb is *sketching*: studying a sleeping exhibit for a few turns gives a page, *After the Escapement Hound*, which grants a weaker copy of its ability.
-  - Then the Conservator and the Docent.
+  - Then the Conservator and the Docent. Their names must be separated from the Stair Hall Conservator and the topic-NPC docent (§6.5) in the naming pass (default 27).
   - The Courier comes later (D8).
 
 **Options against this:**
@@ -466,7 +466,7 @@ When the shared layer is that heavy, every department plays as the same heavy si
 **Recommendation:**
 - **The mechanics move into the Behaviour line.** It sits on the tombstone, generated from the department's data in fixed plain words ("Moves only on every second turn. Follows anything that ticks."), and is checked exactly.
 - **The paragraph is then free to be literature, in varied registers.** It must not contradict the Behaviour line. Its house rule: *the object may be absurd; the sentence may not be witty.*
-- **For a player's first three runs, the Behaviour line also shows in the proximity strip**, under the title.
+- **For a player's first three runs, the Behaviour line also shows in the proximity strip**, as a third row under the pictograms (default 24).
 - **Consumables are identified as in SPD:** a per-run seal shuffle over a small fixed set of kinds, identified by use, by reading the department's labels, or by a catalogue card. It is cheap and it is the best part of the identification game.
 - **Equipment is known on pickup in the first playable.**
 - **In v1, equipment adopts the museal split.**
@@ -479,7 +479,7 @@ When the shared layer is that heavy, every department plays as the same heavy si
 - **No equipment identification at all.** Simplest; loses a museal verb.
 - **Mechanics as pictograms only, with no Behaviour line.** Purest prose, but the label stops being the interface.
 
-**If the six-rung ladder:** about six more identification states in the interface and in the first-run glyph count (D5). **If no equipment identification:** attribution bands and forgeries leave the item tables. **If pictograms only:** the exact check moves to the pictograms, and the paragraph has to carry the mechanics again.
+**If the six-rung ladder:** about six more identification states in the interface and in the first-run glyph count (D5). **If no equipment identification:** attribution bands and forgeries leave the item tables. **If pictograms only:** the exact check moves to the pictograms, and whatever a pictogram cannot say (conditions, timings, counts) falls back to the paragraph, which then stops being free prose.
 
 ### D11. What persists between runs?
 
@@ -501,9 +501,9 @@ When the shared layer is that heavy, every department plays as the same heavy si
 
 *v1.x:*
 - **Stamps and a Gift Shop of options, not power**, offered in place of the third idea: the store sells options, not stats. It sells alternate starting kits, Information Desk choices, lenses that bias which departments the doors offer, and similar. Every item is refundable and can be toggled.
-- **Trustees' Directives** as the heat ladder (Hades' term for opt-in difficulty modifiers) after the first escape. The values are fitted by simulation, not declared.
+- **Trustees' Directives** as the heat ladder after the first escape (in Hades, heat is the difficulty level that its opt-in Pact conditions add up to). The values are fitted by simulation, not declared.
 - **The Atlas** of families by ordinal, as a completion record.
-- **Lost Property** (one object from your last death, claimable in the next run), **Today's Exhibition** (a daily seed) and **conduct feats** (Brogue-style self-imposed challenges, recorded but unrewarded).
+- **Lost Property** (one object from your last death, claimable in the next run), **Today's Exhibition** (a daily seed) and **conduct feats** (Brogue-style self-imposed challenges that grant no power: a ribbon, and a few Stamps on first completion).
 
 *v2:*
 - **Commissions.** Players compose a department request from index cards collected in runs, and it is realised offline.
@@ -533,7 +533,7 @@ The recommendation prefers options to stats because depth calibration pins the m
 - **Graphics.**
   - 16×16 tiles.
   - Sprites as palette-indexed grids drawn in code, with archetype silhouettes, ornament overlays, department palette ramps, and seeded mask-generated beings after Bollinger.
-  - **Offline LLM-authored 16×16 grids for signature exhibits**, validated by code. In a research probe, five such grids written without looking at any image all rendered recognisably (five grids, written and judged by the Claude session that made them; not yet judged by people).
+  - **Offline LLM-authored 16×16 grids for signature exhibits**, validated by code. In a research probe, five such grids written without looking at any image all rendered recognisably (written and judged by the Claude session that made them; not yet judged by people).
   - At most six meaning-carrying colours, with shape always carrying meaning too.
 - **Sound.** The repo's own SNES-style synthesiser and tracker from `vanguard-zero/`, with a short motif per department.
 - **Language models only offline**, in tools. The game never calls one at runtime in v1.
@@ -544,7 +544,7 @@ The recommendation prefers options to stats because depth calibration pins the m
 - **TypeScript with a bundler.** Types, at the cost of running straight from `file://`.
 - **Diffusion-model sprites.** The closest precedent, CrawLLM, documents inconsistent characters and wall/floor confusion. Reserve diffusion, if anywhere, for an optional close-up view of the paintings on the walls.
 
-**If Godot or a bundler:** the simulation gate needs a headless build of the same core, and the single-file `file://` build goes. **If landscape or desktop first:** the label strip and the placards get room to breathe, and the phone becomes a port.
+**If Godot:** the simulation gate needs a headless build of the same core, and the single-file `file://` build goes. **If TypeScript with a bundler:** every run, in the browser or in Node, needs a build step first, but the single-file build can stay. **If landscape or desktop first:** the label strip and the placards get room to breathe, and the phone becomes a port.
 
 ### D13. What is built first, and how are v1's departments made?
 
@@ -586,13 +586,13 @@ Estimated at about ten weeks of AI-assisted sessions to the slice gate, playtest
 
 **Options:**
 - **(a) Constructive programmes at runtime, with validation, repair and a certified fallback.** Each department names an architectural programme. A mission graph is embedded, furnished and populated in one pass, then checked by validators and a worst-case runner, repaired locally, reseeded, or replaced by a certified layout (§10.3). Measured at about 7–9 ms median per layout in Node, with no retries in 3,600 layouts (§10.4). Every visit gets a new floor plan, and its quality is whatever the validators can check.
-- **(b) Search or quality-diversity at runtime.** Evolve each layout per visit against fitness and descriptors. More control over feel, but at the prototype's speed a 50 ms phone budget fits about five candidate layouts, and a searched layout is harder to certify.
+- **(b) Search or quality-diversity at runtime.** Evolve each layout per visit against fitness and descriptors. More control over feel, but at the prototype's desktop speed in Node a 50 ms budget fits about five candidate layouts, fewer on a phone (unmeasured, §10.4), and a searched layout is harder to certify.
 - **(c) Pre-generated, curated layouts per department.** Generate offline, keep a few elites per department, ship them in the pack. Every layout can be played by the persona battery and approved. But a department then plays the same, or nearly, on every visit; layouts become content to curate; and the pack grows.
-- **(d) (a) at runtime, with quality-diversity offline over each programme's parameters**, as [`design/layout.md`](design/layout.md) §13.4 proposes. MAP-Elites runs over a programme's knobs (loop distance, number of sections, case density and the like), with route structure and museal texture as the archive's axes and playability alone as the fitness: the share of seeds that pass validation without repair (default 36). The archive holds generators, not levels, in the manner of Earle et al. 2022. Each elite becomes a *knob preset*; at runtime a department draws a preset and jitters it. About 15 core-hours, overnight, for all programmes and sizes.
+- **(d) (a) at runtime, with quality-diversity offline over each programme's parameters**, as [`design/layout.md`](design/layout.md) §13.4 proposes. MAP-Elites runs over a programme's knobs (loop distance, number of sections, case density and the like), with route structure and museal texture as the archive's axes and playability alone as the fitness: the share of seeds that pass validation without repair (default 36). The prototype needed no repair in any of its 3,600 layouts, so near the hand-set knobs this fitness is flat, and the archive works mostly as illumination until some knob settings start to need repairs. The archive holds generators, not levels, in the manner of Earle et al. 2022. Each elite becomes a *knob preset*; at runtime a department draws a preset and jitters it. About 15 core-hours, overnight, for the drafts' six programmes in three sizes (18 archives); v1's four programmes in one size need about 3–4.
 
-**Recommendation: (d), with (a) alone in the slice.** Runtime construction is fast, can be certified, and gives every visit a new floor plan, which is what "rearranges itself every night" promises. Quality-diversity over parameters rather than levels lets descriptors and, later, the persona battery shape the layouts without spending runtime on search. The curator can also pin presets per department in S6, which keeps the useful part of (c). The slice ships hand-set knobs; the archive comes with v1's programmes. Space-syntax descriptors for it are research angle 10 (§13.3).
+**Recommendation: (d), with (a) alone in the slice.** Runtime construction is fast, can be certified, and gives every visit a new floor plan, which is what the pitch promises when it says the departments rearrange themselves every night. Quality-diversity over parameters rather than levels lets descriptors and, later, the persona battery shape the layouts without spending runtime on search. The curator can also pin presets per department in S6, which keeps the useful part of (c). The slice ships hand-set knobs; the archive comes with v1's programmes. Space-syntax descriptors for it are research angle 10 (§13.3).
 
-**If (a) alone:** knobs stay hand-set; nothing else changes, and (d) can be added later without touching the runtime. **If (b):** budget phone time first; search needs a Web Worker or a much faster generator. **If (c):** layouts become curated content with their own review cost, departments lose their night-to-night variation, and "rearranges itself every night" is true only of the order.
+**If (a) alone:** knobs stay hand-set; nothing else changes, and (d) can be added later without touching the runtime. **If (b):** budget phone time first; search needs a Web Worker or a much faster generator. **If (c):** layouts become curated content with their own review cost, departments lose their night-to-night variation, and the pitch's promise that departments rearrange themselves every night holds only for their order.
 
 ---
 
@@ -621,18 +621,18 @@ These came out of the drafts and the review. Most are settled by a decision abov
 | # | Default | Why, and where |
 |---|---|---|
 | 12 | Eight consumable kinds in the first playable, ten in v1, twelve in the full game. One list, owned by CS. About 4–5 placed per department. Shops only at Stair Halls | review/fun MINOR 2; review/consistency B1 |
-| 13 | A "Signature piece" (one name for the drafts' keepable, Signature piece and accession pick) may carry one rider tied to its department's rule, from a closed list | S D-S3(b) |
+| 13 | A "Signature piece" (one name for the drafts' keepable, keepable artifact and Signature piece) may carry one rider tied to its department's rule, from a closed list. It is the natural accession pick, but any object found in the department may be accessioned instead | S D-S3(b) |
 | 14 | One size class of department in v1 (Wings strictly beat Cabinets when every door at a depth is tuned to the same death rate) | review/fun MAJOR 5 |
-| 15 | The Stair Hall café offers one of three: rest, a free Restoration level, or something museal that competes (a Loan Desk swap, a perk reroll). "Catalogue everything" was dominated | Diff R11; review/fun MINOR 7 |
+| 15 | The Stair Hall café offers one of three: rest, a free Restoration level (one kit's upgrade on one item), or something museal that competes (a perk reroll, or a swap at the Handling Desk: a carried item for one of three catalogued ones). "Catalogue everything" was dominated | Diff R11; review/fun MINOR 7 |
 
 ### Run structure and difficulty
 
 | # | Default | Why, and where |
 |---|---|---|
-| 16 | The target death curve rises within each floor and relaxes after each Stair Hall: 3, 5, 7 \| 6, 8, 10 \| 10, 12 \| Exit 15 (% per department: the median across the six personas, at median skill). That gives about 45% run clears at median skill. **Plus a novice gate:** a simulated novice's death rate may not exceed about 2.5–3× the target at any depth | Diff §3.9; review/pcg M3 |
+| 16 | The target death curve rises within each floor, dips after the first Stair Hall and holds level after the second: 3, 5, 7 \| 6, 8, 10 \| 10, 12 \| Exit 15 (% per department: the median across the six personas, at median skill). That gives about 45% run clears at median skill. **Plus a novice gate:** a simulated novice's death rate may not exceed about 2.5–3× the target at any depth | Diff §3.9; review/pcg M3 |
 | 17 | Challenge types: swarm, artillery, guarded, darkness, hazard, locks and attrition as primaries; social only as a secondary until the Lenders exist. One table, owned by Diff | Diff R6; review/consistency |
 | 18 | Every department's first encounters come from an easy "orientation" pool and teach its rule. Once a player has documented a rule in the Catalogue, a "Members' entrance" lets them skip the teaching gallery | Diff §3.6; review/fun MINOR 5 |
-| 19 | No hidden difficulty adaptation. The door offers prefer departments the player has not seen recently. An openly labelled "Curator's Recommendation" door is a research option | Diff R12; review/pcg M6 |
+| 19 | No hidden difficulty adaptation. The door offers prefer departments the player has not been offered recently. An openly labelled "Curator's Recommendation" door is a research option | Diff R12; review/pcg M6 |
 | 20 | Heat is pick-your-own Trustees' Directives, mostly *adding* complications (crowds, champions, a power cut) rather than removing tools, with values fitted by simulation | Diff §7 |
 | 21 | Patron membership: one model. Opt-in damage reduction in labelled tiers, from run 1, in Settings, never blocking content | review/consistency M5 |
 | 22 | A first-department rule for first-time players: no sealed Centrepiece hall, a gentler clock, a fixed easy layout. This is onboarding, not adaptation | review/newplayer M2 |
@@ -642,7 +642,7 @@ These came out of the drafts and the review. Most are settled by a decision abov
 | # | Default | Why, and where |
 |---|---|---|
 | 23 | An authored **Orientation Gallery** before the first department of the first run (about three minutes, five rooms, the Guard at Post One). In runs 1–3, the staff guard in each department's vestibule speaks its one essential line ("Water's turning. Get up the stairs.") | review/newplayer §7 |
-| 24 | A two-row proximity strip on phones: a short title (≤ 18 characters) with state and pips, then pictograms. The full label opens on tap | review/newplayer B2 |
+| 24 | A two-row proximity strip on phones: a short title (≤ 18 characters) with state and pips, then pictograms; in runs 1–3 a third row carries the Behaviour line (D10). The full label opens on tap | review/newplayer B2 |
 | 25 | Every timed hazard gets a countdown beside the clock dial. Every informative sound has a visual twin and a caption. Edge markers for off-screen threats; auto-pan when a telegraph targets you | review/newplayer M4–M5 |
 | 26 | At most six meaning-carrying colours; meaning always carried by shape as well; a colour-blindness check in the screenshot tests; a readable-font option with size steps | review/newplayer M8 |
 | 27 | A naming pass and a one-page glossary: "Loan", "Catalogue", "Guard", "Exhibition" and "After" each meant several things in the drafts. "Centrepiece" replaces "Masterpiece" | review/newplayer M7; review/museal m1 |
@@ -663,7 +663,7 @@ These came out of the drafts and the review. Most are settled by a decision abov
 |---|---|---|
 | 33 | Language models write names, prose and choices among grammar ids. They never write numbers, layouts or code that runs | P §2.2 |
 | 34 | Diversity comes from what each generation call is given (domain pairs, constraint cards, register, target), never from sampling temperature (which current Claude models reject) and never by generating one department from another | P §3.2; tech-art F5 |
-| 35 | The department-level archive is called what it is, a *stratified coverage grid*. MAP-Elites runs where evaluation is cheap: encounters and bestiaries (an analogue of Mech-Elites), Centrepiece assemblies, and items and perk builds | review/pcg M2 |
+| 35 | The department-level archive is called what it is, a *stratified coverage grid*. MAP-Elites runs where evaluation is cheap: encounters and bestiaries (an analogue of Mech-Elites), Centrepiece assemblies, items and perk builds, and each layout programme's knobs (D14) | review/pcg M2 |
 | 36 | Fitness for any search is playability only. Skill gap and route divergence are *bands*, not objectives | review/pcg M3; Khalifa et al. 2018 |
 | 37 | One machine-readable registry of the grammar. It generates the documentation tables, the language-model enums, the pictogram list and the test stubs, and a lint rejects unknown ids | review/feasibility M6 |
 | 38 | One simulation-gate table, owned by Diff, with stated statistical power (about 200 seeds per depth, not 50) | review/pcg M4 |
@@ -674,7 +674,7 @@ These came out of the drafts and the review. Most are settled by a decision abov
 
 | # | Default | Why, and where |
 |---|---|---|
-| 41 | Saves are state snapshots stamped with the code version, not action-log replays, which break on every deploy. Two alternating localStorage slots with checksums; `navigator.storage.persist()` where the browser grants it; an installable web app; and an export code ("visitor's card"), the only safeguard in an ordinary Safari tab (§11) | review/feasibility M7; tech-art F15 |
+| 41 | Saves are state snapshots stamped with the code version, not action-log replays, which break on every deploy. Two alternating localStorage slots with checksums; `navigator.storage.persist()` where the browser grants it; an installable web app; and an export code ("visitor's card"), the only guaranteed safeguard in an ordinary Safari tab (§11) | review/feasibility M7; tech-art F15 |
 | 42 | One canonical hosted build (GitHub Pages, top level, installable), still playable from `file://` | review/feasibility F5 |
 | 43 | Share codes and daily seeds carry the slice of meta state that changes doors and pools; without it, the same seed does not give the same run | review/feasibility M1 |
 
@@ -698,14 +698,14 @@ You enter a gallery. Cases line the walls. Some hold objects; some hold exhibits
 - skirt the swarm along the far wall;
 - open the vitrine with your Clearance, or break it and deal with whatever the noise wakes.
 
-What wakes up fights by rules you can read: dice for ordinary blows, and exact, telegraphed numbers for anything dangerous. The clock keeps the evening finite. At the end of the department a Centrepiece waits, to be fought, viewed or left alone. Then three doors offer three kinds of trouble.
+What wakes up fights by rules you can read: dice for ordinary blows, and exact, telegraphed numbers for anything dangerous. The clock keeps the evening finite. At the end of the department a Centrepiece waits, to be fought, viewed or left alone. Then two or three doors offer different kinds of trouble.
 
 **The choices a player makes,** in one list:
 - **In a gallery:** what to wake and in what order; fight, slip past or leave; open a case with Clearance or break it.
 - **At the Centrepiece:** fight it for the Certificate and the Signature piece, view it for the Certificate alone, or walk out.
 - **Between departments:** which door, by its placard; which object to accession; which perk of three.
 - **At a Stair Hall:** one café service of three (rest, a free Restoration level, or something museal); what to buy at the kiosk; what to ask of the Conservator and the Registrar.
-- **Across the run:** where Restoration kits and Clearance go; when to use, or risk using, an unidentified consumable.
+- **Across the run:** where Restoration kits go; whether to carry an item heavier than your Clearance handles, at a penalty; when to use, or risk using, an unidentified consumable.
 - **Between runs:** which object to borrow as the Loan; later, which options to buy and which Directives to accept.
 
 ### 5.2 What every department shares, and what departments own
@@ -745,7 +745,7 @@ The full specification is [`design/core-systems.md`](design/core-systems.md), wi
 
 **Consumables.** Kinds such as *Consolidant* (heals), *Fixative* (roots whatever it lands on), *Solvent* (dissolves case glass silently), *Catalogue Card* (identifies), *Floor Plan* and *"Quiet, Please"* (settles everything nearby). Each department gives them its own local names: "Rainwater, Collected at Slack Tide"; "Notice: Clocks Stopped for Cleaning".
 
-**Two worked numbers.** At department 4, circling a sculpture court to win back 10 health costs about 110 turns, a sixth of the drafted open hours, and after the bell it costs twice that. That is the answer to pillar-dancing (circling an obstacle to regenerate while a slower exhibit follows). A surprise attack on a sleeping exhibit always hits, for maximum damage.
+**Two worked numbers.** At department 4, circling a sculpture court to win back 10 health costs about 110 turns: a sixth of the time before the bell in the drafts' clock (about 650 turns), nearer a third on the measured, shorter layouts, and twice that after the bell. That is the answer to pillar-dancing (circling an obstacle to regenerate while a slower exhibit follows). A surprise attack on a sleeping exhibit always hits, for maximum damage.
 
 ---
 
@@ -793,7 +793,7 @@ Later families: Memory, Scale, Absence, Writing, Attendance, Lenders.
 - an art form or practice;
 - the museum's own machinery.
 
-The subject biases skins and materials, never rules or difficulty.
+The subject biases skins and materials, never rules or difficulty. This is how the brief's enemies, items and NPCs are drawn from a department's topic. Each species is a closed archetype, named, drawn and labelled from the subject: the marble doorstep and the ambulant bronze bollard of *A Town Known Only at Low Water*. Each item is a set of closed primitives given the subject's objects and credit lines, consumables take local names (§5.3), and topic NPCs are skinned the same way (§6.5).
 
 ### 6.3 The grammar, by size
 
@@ -801,7 +801,7 @@ The subject biases skins and materials, never rules or difficulty.
 |---|---|---|---|
 | Behaviour archetypes | 10 | 16 | 35 |
 | Rule modules | 4 | 8 | 24 |
-| Item primitives | 12 | 20 | 30, plus 4 drawbacks |
+| Item primitives | 12 | 20 | 40, plus 5 drawbacks |
 | Consumable kinds | 8 | 10 | 12 |
 | Perks | 8 | 12–16 | 32 |
 | Layout programmes | 3 (on 2 embedders) | 4 | 12 |
@@ -846,7 +846,7 @@ The full tables are in [`design/vocabulary.md`](design/vocabulary.md).
 
 ### 6.5 People
 
-**Staff** are the same in every department, and are never harmed (D7):
+**Staff** are the museum's own people, and are never harmed (D7):
 - the vestibule guard, who speaks a department's one essential line in runs 1–3;
 - daytime guards, in Guarded departments only;
 - the night watch;
@@ -984,10 +984,10 @@ The V&A (2013) and the British Museum (2022) publish word budgets for gallery te
 |---|---|---|
 | Intro panel | 150–180 words | about 50 |
 | Section panel | 130–150 | about 100 |
-| Object label | 50–60 | about 60 |
+| Object label | 50–60 | 60 |
 | Gateway label (an object of outstanding interest that introduces a section) | — | about 120 |
 
-Visitors to the British Museum's permanent galleries stop at about four to six objects per room. The worked samples average about 1,700 words of player-facing text per department. So:
+In the British Museum's permanent galleries, most visitors stop at only a few objects, often about four to six per room. The worked samples average about 1,700 words of player-facing text per department. So:
 - intro panels appear as a banner of their first sentence plus the rule sentence (at most about 50 words), with the full text a tap away;
 - labels are read near, short and optional;
 - nothing a player needs is ever only in prose.
@@ -1028,7 +1028,7 @@ The sequencer alternates registers as it alternates challenge types. Museum fati
 
 ### 8.5 The audio guide
 
-The museum has Calvino's list and his hidden Venice. Its Marco Polo is an audio guide:
+In *Invisible Cities* the cities are spoken by Marco Polo to Kublai Khan. Here the voice is an audio guide:
 - a narrator recorded in the daytime and heard at night;
 - about thirty short interludes in the Stair Halls in v1;
 - numbered stops in departments later, with unlisted stop numbers as a hidden tour.
@@ -1050,12 +1050,12 @@ The detail is in [`design/difficulty.md`](design/difficulty.md). The defaults th
 
 Departments arrive in random order, so a role's numbers are a function of run depth. They grow in lockstep with the median player build: enemy health rises with player damage, and enemy damage after armour rises with player health. A fodder hit costs about 6–9% of maximum health at every depth, a brute hit about 20%.
 
-**What rises with depth is composition, not stats:**
+**What rises with depth, beyond that lockstep, is composition:**
 - the encounter budget;
 - pack sizes;
 - which roles may appear (controllers and wardens unlock gradually);
 - elite "champions";
-- occasional *touring* exhibits from a deeper department. These are always optional and always announced on a placard: "Touring from *Works on Paper, Kept Dark*".
+- occasional *touring* exhibits: an exhibit lent from another department in the pool, keeping its home skin and wake trigger, at the stats of a depth two deeper than the current one. These are always optional and always announced on their label: "Touring from *Works on Paper, Kept Dark*".
 
 **The encounter budget** is measured in *fodder equivalents*: what a role costs the median player in a head-on duel, in units of one fodder's cost (about 14% of maximum health):
 
@@ -1063,7 +1063,7 @@ Departments arrive in random order, so a role's numbers are a function of run de
 |---|---|---|---|---|---|---|
 | Fodder equivalents | 1 | 2.5 | 4 | 4 | 2 | 7 |
 
-The vocabulary draft also has a support role (heralds, healers, spawners) that this table does not yet price. One reconciled role table is `BUILD.md` work ([`design/README.md`](design/README.md)).
+The vocabulary draft also has support (heralds, healers, spawners), swarm and ambusher roles that this table does not yet price, and costs several shared roles differently (artillery 2, controller 3, warden 3). One reconciled role table is `BUILD.md` work ([`design/README.md`](design/README.md)).
 
 ```
 budget(department d, depth t) = E0 × base(t) × e^{b(d)}
@@ -1077,7 +1077,7 @@ budget(department d, depth t) = E0 × base(t) × e^{b(d)}
 
 This costs one calibration parameter per department, not one per department per depth. Computed offline and stored in the pack as an integer table, so the runtime does no floating-point arithmetic.
 
-**Calibration.** b(d) is fitted by simulation, so that the median across six simulated personas dies at the target rate at every depth the department can appear at. Using the median across personas matters: a Guarded department is *meant* to be hard on the persona that fights everything.
+**Calibration.** b(d) is fitted by simulation as the single scalar that brings the median across six simulated personas closest to the target death rate over every depth the department can appear at (least squares on the logit scale). A department that still misses the target by more than 0.35 logits at any of those depths scales wrongly with depth, and its spec goes back for repair. Using the median across personas matters: a Guarded department is *meant* to be hard on the persona that fights everything.
 
 ### 9.2 The target, and what it means for players
 
@@ -1100,7 +1100,7 @@ Calibration pins only the median, so a novice gate (default 16) bounds novice de
 
 **How the graph is built.** The doors are drawn from a hidden graph, generated one floor at a time at the Entrance Hall and each Stair Hall, conditioned on what the player actually visited. (A whole-run graph with the variety rules failed on nearly every seed in the prototype; per floor, the constraint problem shrinks to nine nodes.)
 
-**Hard rules:**
+**Hard rules** (if a floor cannot be built, the sequencer relaxes the fourth, then the last two, and logs it; it never relaxes the first three):
 - no department twice in a run;
 - no primary challenge type twice in a row;
 - the doors out of one room offer different primary types;
@@ -1125,7 +1125,7 @@ Calibration pins only the median, so a novice gate (default 16) bounds novice de
 - All seven types were offered on placards in every run.
 - The sequencer relaxed the repeat rule in 43% of runs, which is where the five-type runs come from; in 2% it also dropped the family and programme rule and raised the complexity cap by one. It never relaxed the no-consecutive-type or distinct-doors rules.
 - Random door choice is not a worst case: a player who prefers familiar types would see fewer. Whether players pick for variety is unmeasured; the door-choice logs (D3) will show it.
-- If "six or more types" is wanted reliably, social needs a launch family, or the repeat rule stays strict and the pool grows.
+- If "six or more types" is wanted reliably, social needs a launch family. Growing the pool helps little: at 34 departments the prototype still relaxed the repeat rule in 36% of runs and visited only five types in 24%.
 
 **Minimum pool sizes**, from the same prototype, 200 runs per size, 8 departments per run:
 
@@ -1179,7 +1179,7 @@ Each department is built by one **architectural programme**, a small parameteris
 
 Six more are sketched for later: courtyard, diorama hall, period rooms, spiral ramp, temporary-exhibition route, conservation basement. Each programme's sketch is in [`research/museum-layouts.md`](research/museum-layouts.md) §3.3.
 
-**What the prototype measured.** Four of the six launch programmes share one macro structure and differ mainly in their central filler, so they are really three shapes. Hence two embedders and three programmes in the first playable, and four programmes in v1.
+**What the prototype measured.** Four of the six programmes (grand hall, case labyrinth, storage stacks, sculpture court) share one quadrangle scaffold and differ mainly in their central filler, so the six are really three shapes: a line (enfilade), a hub (rotunda) and the quadrangle. The first playable has two of those embedders, the line and the quadrangle, carrying three programmes (enfilade, case labyrinth, sculpture court). v1 adds the rotunda, for four programmes on three embedders; the grand hall of §1.2 and the storage stacks come later.
 
 ### 10.2 The museum's own tactical furniture
 
@@ -1291,6 +1291,7 @@ D11 carries the substance. The detail is in [`design/meta.md`](design/meta.md), 
 | Channel | Cap |
 |---|---|
 | The Loan | At most 6 points of median run-clear rate |
+| Lost Property (v1.x) | At most 3 points, on the run after a death |
 | Each Gift Shop item | ±2 points |
 | Patron tiers | A target hazard multiplier each |
 
@@ -1301,9 +1302,9 @@ Three details:
 
 **Persistence.** Meta state is about 30 KB at run 30:
 - two alternating localStorage slots with checksums;
-- `navigator.storage.persist()`, which Safari grants by heuristics, chiefly to Home Screen web apps (Liu 2023). It is not documented as protection against WebKit deleting a site's script-writable storage after seven days of Safari use without interaction with the site (Wilander 2020);
-- an installable web app, which keeps its own counter of days of use and which WebKit lists as exempt from the seven-day cap;
-- an export code of about 195 characters, framed as a visitor's card, which is the only real safeguard in an ordinary Safari tab.
+- `navigator.storage.persist()`, which WebKit grants by heuristics "like whether the website is opened as a Home Screen Web App" (Liu 2023). Even when it is granted, WebKit says only that a persistent origin "might be excluded" from eviction, which it defines to include deletion after a period without user interaction. In a Safari tab that deletion covers all script-writable storage after seven days of Safari use without interaction with the site (Wilander 2020);
+- an installable web app added to the Home Screen, which keeps its own counter of days of use, reset by using the app; WebKit says it does not expect such an app's data to be deleted (Wilander 2020);
+- an export code of about 195 characters, framed as a visitor's card, which is the only guaranteed safeguard in an ordinary Safari tab. It holds progression (kinds unlocked, Signature pieces, the Atlas, Stamps and purchases), not history: run records, death figures and fine Catalogue levels are lost if storage is cleared.
 
 ---
 
@@ -1315,9 +1316,9 @@ The detail is in [`research/tech-art.md`](research/tech-art.md), which also cost
 
 - **Tiles and sprites.** 16×16 tiles at integer zoom. Sprites are palette-indexed character grids drawn in code, as in `vanguard-zero/`.
 - **Silhouettes are fixed by archetype**, so a kiter always looks like a kiter in any department.
-- **Departments differ in palette, wall colour, floor material and ornament.** The research probe rendered three galleries with identical sprites, tiles and layout, and they read as three places from palette alone. They also blurred live and dormant exhibits, which is why a few semantic colours are reserved, and shape always carries meaning too.
+- **Departments differ in palette, wall colour, floor material and ornament.** The research probe rendered three galleries with identical sprites, tiles and layout, and, judged by the session that made them and not yet by people, they read as three places from palette, wall colour and floor material alone. They also blurred live and dormant exhibits, which is why a few semantic colours are reserved, and shape always carries meaning too.
 - **Cheap museal identity.** Plinths, vitrines, label plaques, paintings hung in a row, and dithered spotlight pools make a screen read as a gallery even with placeholder art.
-- **Beings.** Seeded mask-generated beings after Dave Bollinger's pixel-robot generator: one mask per species gives a recognisable family with individual variation.
+- **Beings.** Seeded mask-generated beings after Dave Bollinger's pixel-robot generator: one mask per archetype fixes the silhouette, and the seed gives each species and individual its own fill.
 - **Signature exhibits** can have 16×16 grids written offline by a language model and validated by code (the probe, and its limits, are in D12).
 
 ![Five language-model-written 16×16 sprites and three beings, under three department palettes](prototypes/art-probe/sprites_by_department.png)
@@ -1362,9 +1363,9 @@ That buys, together:
 **What it rules out.** Five things that break the contract, each with its fix:
 - exponentials at runtime: the encounter budget is an integer table (§9.1), and the sequencer's soft weights become integer tables;
 - float embeddings at runtime: theme distances are precomputed in the pack and quantised to integers;
-- doors that depend on meta state left out of share codes (#43);
-- random streams keyed by content digest, so text edits reshuffled layouts (#40);
-- save replays across deploys (#41).
+- doors that depend on meta state left out of share codes (default 43);
+- random streams keyed by content digest, which would let a text edit reshuffle a layout (default 40);
+- save replays across deploys (default 41).
 
 **The current models, for the offline pipeline.** Checked against Anthropic's documentation on 20 October 2026.
 
@@ -1400,18 +1401,18 @@ That buys, together:
 ### 13.2 The generators in the AI&G 2e taxonomy
 
 The table uses seven of the taxonomy's eleven dimensions. The other four, briefly:
-- **Spatiality.** Layout is the only spatial generator; the sequencer's door graph is a route, not a map.
+- **Spatiality.** Layout is the only generator of spaces. The pipeline's 16×16 signature grids (S5) and the mask-generated beings are spatial only as small 2D objects, and the sequencer's door graph is a route, not a map.
 - **Determinism.** Every generator is stochastic but seeded, except the language-model stages, which cannot be reproduced, so their outputs are stored (§12.3).
-- **Controllability.** All are controllable: through recipes and constraint cards (pipeline), programme parameters, depth and seed (layout), and hard rules and weights (sequencer).
-- **Iterativity.** The pipeline and the sequencer are iterative; layout iterates only to repair; the rest are single-pass.
+- **Controllability.** All are controllable: through recipes and constraint cards (pipeline), programme parameters and depth (layout; the seed varies the result without controlling it), and hard rules and weights (sequencer).
+- **Iterativity.** The pipeline, the balancer (which fits b(d) by repeated simulation) and the sequencer are iterative. Layout iterates at runtime only to repair, though its offline knob archive (D14) is iterative search. Behaviour lines, the Directory and minor labels are single-pass.
 
 | Generator | Necessary or optional | Functional or decorative | When | Testing | Learning | Autonomy | Adaptivity |
 |---|---|---|---|---|---|---|---|
-| Department pipeline (S1–S5 with S3) | The slot is necessary; any one department is optional, until it is on a run's path | Spec functional; frame and skin decorative | Offline | Generate-and-test: validators and simulation | A trained model inside an authored grammar, with search: a hybrid, like MarioGPT or GAVEL | Mixed-initiative: Julian curates (S6), toward the computer-initiative end of Fig. 7.3. Revising by language moves it toward the middle | Agnostic |
+| Department pipeline (S1–S5, gated by S3's simulation) | The slot is necessary; any one department is optional, until it is on a run's path | Spec functional; frame and skin decorative | Offline | Generate-and-test: validators and simulation | A trained model inside an authored grammar, with search: a hybrid, like MarioGPT or GAVEL | Mixed-initiative: Julian curates (S6), toward the computer-initiative end of Fig. 7.3. Sending a department back with written notes for the model to revise (S6's "revise") moves it toward the middle | Agnostic |
 | Labels and Behaviour lines | Optional: players need not read them | **Functional**: they state mechanics, so they must be correct. Minor runtime labels are decorative | Offline | Exact check against the spec | Trained, for the prose | — | — |
 | Balancer | Necessary | Functional | Offline | Calibrated by simulation | Authored | Autonomous | Agnostic |
-| Layout | Necessary | Functional | Runtime | Constructive, then generate-and-test with repair and fallback | Authored | Autonomous | Agnostic |
-| Sequencer | Necessary: every run passes through its doors | Functional | Runtime | Constrained search with relaxation | Authored | Autonomous | Adapts *offers* to play history. Not experience-driven in the strict sense, though its target curve is a model-based (top-down) experience model |
+| Layout | Necessary | Functional | Runtime, from knob presets found offline (D14) | Constructive, then generate-and-test with repair and fallback; offline, quality-diversity search over knobs | Authored | Autonomous; the curator may pin presets (S6) | Agnostic |
+| Sequencer | Necessary: every run passes through its doors | Functional | Runtime | Constrained search with relaxation | Authored | Autonomous | Adapts *offers* to play history. Not experience-driven in the strict sense, though its soft weights (complexity rising with depth, moderate thematic distance) are a model-based (top-down) experience model |
 | Directory and minor labels | Optional | Decorative | Runtime | Static lexicon checks | Authored | — | — |
 
 ### 13.3 Research angles, ranked
@@ -1447,10 +1448,10 @@ The detail is in [`review/feasibility.md`](review/feasibility.md) §§3–4. It 
 | M1 | 1–3 | Layout ported from the prototype: enfilade and quadrangle embedders, vestibule, validation, fallback | 3 programmes × 1,000 seeds: no unreachable exit, fallback ≤ 1%, 95th percentile ≤ 25 ms in Node |
 | M2 | 2–4 | Look and read: renderer, walls, palettes, ~20 silhouettes, light pools, label panel and strip, ~25 pictograms, touch and keys | No horizontal scroll at 390×844; every hostile sprite carries the reserved hostile mark; three people pick "museum or dungeon" on blind screenshots |
 | M3 | 3–6 | Exhibits wake: awareness, presence ring, light, cases, combat with telegraphs and odds, 10 archetypes, 8 consumable kinds, the clock | Shown hit chance matches 10,000 rolls within one point; shown special damage equals dealt damage in every case; each archetype's counterplay bot beats its naive bot |
-| M4 | 5–8 | Three departments (S.9, A.4, M.11) as hand-authored packs; their four modules; two fight Centrepieces and one heist; Certificates and 8 perks | Each module fires in ≥ 90% of 100 seeds; the rule-aware bot beats the rule-blind one; no soft-lock in a 10,000-turn soak; every Behaviour line matches its spec |
+| M4 | 5–8 | Three departments (S.9, A.4, M.11) as hand-authored packs; their four modules, written in the rule language and run by its interpreter (D2); two fight Centrepieces and one heist; Certificates and 8 perks | Each module fires in ≥ 90% of 100 seeds; the rule-aware bot beats the rule-blind one; no soft-lock in a 10,000-turn soak; every Behaviour line matches its spec |
 | M5 | 7–9 | A run: Entrance Hall, doors and placards, one Stair Hall, the Exit, the death label, one accession slot, saves and export, a static Directory | Explorer bot completes a run in ≥ 30% of seeds; a reload resumes with an identical hash; persistence passes in WebKit |
 | M6 | 9 | Sound | — |
-| M7 | 10 | **The slice gate**: Julian plus 3–5 players who have not seen the design, on phones and laptops, with sessions logged | Wake causes correctly named ≥ 70% of the time; at least 3 of 5 players describe the departments by their rules, not their art; no median department over about 9 minutes (8 × 9 ≈ 75, the top of the target). **Decided here from data:** departments per run, the clock budget, which stealth rules survive, whether the Copyist comes next, how v1's departments get made |
+| M7 | 10 | **The slice gate**: Julian plus 3–5 players who have not seen the design, on phones and laptops, with sessions logged | Wake causes correctly named ≥ 70% of the time; at least 3 of 5 players describe the departments by their rules, not their art; no median department over about 7 minutes (8 × 7, plus about 18 minutes of halls, door choices and the Exit, ≈ 75, the top of the target). **Decided here from data:** departments per run, the clock budget, which stealth rules survive, whether the Copyist comes next, how v1's departments get made |
 | P0 | any week after M3 | The pipeline spike, S1–S2 only, 20 recipes, off the critical path | Schema compiles; pass rate after repair, cost and Julian's minutes per department recorded; nothing in the game imports it |
 
 **After the gate, in order:**
@@ -1539,10 +1540,10 @@ The detail is in [`review/feasibility.md`](review/feasibility.md) §§3–4. It 
 | **Presence ring** | The radius within which sleeping exhibits notice you |
 | **Pips** | An exhibit's waking meter: three, filled by your presence and noise |
 | **The bell, the night watch** | The two stages of the closing clock |
-| **Stair Hall** | The rest room between floors: café, kiosk, Conservator, Registrar's desk |
+| **Stair Hall** | The hall between floors where you rest: café, kiosk, Conservator, Registrar's desk |
 | **Coins** | The in-run currency, spent at the kiosk, the Conservator and the Registrar's desk (default 45) |
 | **Fellow visitor, docent** | The people a department may draw from its subject (§6.5) |
-| **Cabinet, Wing** | The drafts' smaller and larger department sizes; v1 has one size (default 14) |
+| **Cabinet, Department, Wing** | The drafts' three department sizes, smallest to largest (the middle one shares its name with a level); v1 has one size (default 14) |
 | **Placard** | A door's label: the next department's name, blurb, challenge icons and Centrepiece |
 | **Directory** | The lobby's endless list of departments, nearly all closed |
 | **Permanent Collection** | The curated, shipped departments |
@@ -1550,8 +1551,10 @@ The detail is in [`review/feasibility.md`](review/feasibility.md) §§3–4. It 
 | **Accession** | Registering one object per department into Your Collection; its kind joins future pools |
 | **Loan** | One object from Your Collection borrowed into a run, normalised |
 | **Catalogue, Atlas** | What you have seen and learned; the family-by-ordinal completion record |
-| **Trustees' Directives** | Pick-your-own difficulty modifiers: the game's heat (Hades' term) |
+| **Trustees' Directives** | Pick-your-own difficulty modifiers: the game's heat, in Hades' sense |
 | **Patron membership** | The opt-in assist |
+| **Stamps, Gift Shop** | The between-runs currency, earned by Certificates, escapes and first-time discoveries, and the Entrance Hall store that sells options for it, not power (v1.x, D11) |
+| **Information Desk** | The Entrance Hall station where a visit starts: class, Loan and one start-of-run option |
 | **Registrar** | The museum's registrar, your service desk all evening, and the Exit's final encounter. Has no hit points |
 | **Lenders** | A later family of departments about a living community with voice, loans and consent (the drafts' "Peoples") |
 
@@ -1559,7 +1562,7 @@ The detail is in [`review/feasibility.md`](review/feasibility.md) §§3–4. It 
 
 ## 17. References
 
-The works this document cites directly. Every research brief in [`research/`](research/) has its own source list, with how deeply each source was read. "Unverified" marks details that could not be confirmed.
+The works this document cites directly. Every research brief in [`research/`](research/) has its own source list, with how deeply each source was read.
 
 **The book and surveys**
 - G. N. Yannakakis and J. Togelius. *Artificial Intelligence and Games*, 2nd ed. Springer, 2025. Chapters 7–9 and 14, §6.5 and §13.2.2 were read in full from the authors' PDF at gameaibook.org. Page numbers follow that PDF. Chapters 7–9 paginate the same in the Springer print; chapter 14 runs two pages later there (pp. 423–438), so p. 430 here is about p. 432 in print.
@@ -1582,6 +1585,7 @@ The works this document cites directly. Every research brief in [`research/`](re
 - M. Zammit, A. Liapis and G. N. Yannakakis. CrawLLM: theming games with large language models. *IEEE Conference on Games*, 2024. And: CrawLLM: an LLM-based pipeline for game asset generation. *IEEE Transactions on Games* 18(1):185–196, 2026, which holds the user study and the 43% epoch figure.
 - Y. Nie, M. Middleton, T. Merino, N. Kanagaraja, A. Kumar, Z. Zhuang and J. Togelius. Moonshine: distilling game content generators into steerable generative models. *AAAI*, 2025.
 - J. Lehman, J. Gordon, S. Jain, K. Ndousse, C. Yeh and K. O. Stanley. Evolution through large models. arXiv:2206.08896, 2022.
+- S. Sudhakaran, M. González-Duque, M. Freiberger, C. Glanois, E. Najarro and S. Risi. MarioGPT: open-ended text2level generation through large language models. *NeurIPS*, 2023.
 - Y. Wen, C. Huang, H. Zhou, Z. Zeng, Y. Weng, T. Merino, J. Togelius, M. Kreminski and S. Earle. The garden of forking paths: threading narrative archetype as a semantic signal through gameplay planning. arXiv:2605.01245, 2026.
 - J. Grinblat and C. B. Bucklew. Subverting historical cause & effect: generation of mythic biographies in Caves of Qud. *FDG*, 2017.
 - K. Compton. So you want to build a generator… Blog post, 2016.
@@ -1621,7 +1625,8 @@ The works this document cites directly. Every research brief in [`research/`](re
 
 **Engineering**
 - J. Wilander. Full third-party cookie blocking and more. WebKit blog, 24 March 2020.
-- S. Liu. Updates to storage policy. WebKit blog, August 2023.
+- S. Liu. Updates to storage policy. WebKit blog, 10 August 2023.
+- D. Bollinger's mask-based pixel robot and spaceship generators, read through Z. Fedoran's JavaScript port, *pixel-sprite-generator* (2014).
 - Anthropic, Claude API documentation (pricing, models, structured outputs, Batch), consulted 20 October 2026.
 
 **Games referred to:** Shattered Pixel Dungeon (E. Debenham), Brogue (B. Walker; Community Edition), Dungeon Crawl Stone Soup, Caves of Qud, Hoplite, Into the Breach, Slay the Spire, Hades, Vampire Survivors, Dead Cells, The Binding of Isaac, Balatro, Spelunky, Unexplored, Invisible Inc., Thief.

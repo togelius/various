@@ -51,7 +51,7 @@ The numbers in brackets point to `DESIGN.md`: D1–D14 are decisions; #1–#45 a
 - **One simulation-gate table**, owned here and reconciled with `pipeline.md`'s G1–G10, at about 200 seeds per depth (#38).
 - **The sequencer prototype** used two Social-primary departments, which the lean forbids. Rerun with seven primary types:
   - six or more distinct types in 73.5% of runs, not 94.5%;
-  - five in all of them.
+  - at least five in every run.
 
   The minimum pool sizes (16 for 2-door offers, 24 for 3-door) came from the same run. Rerun under the seven-type lean, the smallest pools that build every run are 20 and 28. `DESIGN.md` §9.3 and [`../prototypes/README.md`](../prototypes/README.md) have the details.
 - **R12's framing of experience-driven PCG** is corrected (`review/pcg.md` M6; #19).
@@ -72,7 +72,7 @@ The numbers in brackets point to `DESIGN.md`: D1–D14 are decisions; #1–#45 a
   - "keeps the 2.6× effect" becomes "motivated by";
   - the Picbreeder-VLM context claim is a hypothesis;
   - Word2World's 90% is 9 of 10 worlds;
-  - the oatmeal ratio is an intraclass correlation in all but name;
+  - the oatmeal ratio (§9.2: a ratio of mean distances, with a contract of O ≥ 2.0) is replaced by a per-descriptor intraclass correlation, ICC(1) (`DESIGN.md` §7.2), so the 2.0 threshold does not carry over;
   - ELMER was read from its abstract.
 
 ### `layout.md`

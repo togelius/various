@@ -4,7 +4,7 @@ Seven briefs written before any design. Each lists its sources with how deeply e
 
 | Brief | Topic |
 |---|---|
-| [`book-pcg.md`](book-pcg.md) | The PCG part of *Artificial Intelligence and Games*, 2nd ed. (chapters 7–9, §13.2.2, chapter 14), read for this game: the taxonomy applied to each generator, method fit, orchestration, an evaluation plan |
+| [`book-pcg.md`](book-pcg.md) | The PCG part of *Artificial Intelligence and Games*, 2nd ed. (chapters 7–9 and 14, with §6.5 and §13.2.2), read for this game: the taxonomy applied to each generator, method fit, orchestration, an evaluation plan |
 | [`papers-levels.md`](papers-levels.md) | Julian's and co-authors' work on level and dungeon generation, quality-diversity, experience-driven PCG, procedural personas and evaluating generators (53 sources) |
 | [`papers-semantic.md`](papers-semantic.md) | Data games, orchestration and LLM-based generation; the option space for "infinite departments" |
 | [`roguelike-systems.md`](roguelike-systems.md) | Shattered Pixel Dungeon (from its source code and its developer's writing), Brogue, DCSS, Slay the Spire, Hades, Vampire Survivors, Dead Cells and others; meta-progression models |
@@ -17,7 +17,7 @@ Seven briefs written before any design. Each lists its sources with how deeply e
 Found in review, and in a verification pass over `DESIGN.md` on 20 October 2026. `DESIGN.md` carries the corrected versions; the briefs are left as written.
 
 - **`book-pcg.md` F12 and D3** say generated rules are "ruled out by p. 300". They are not. Page 300 says the video-game *rule* generators it surveys (Togelius and Schmidhuber's Pac-Man-like games, Mechanic Miner, VGDL, answer-set programming) have not yet produced games anyone but their makers would want to play. It reads this as evidence that rule sets are hard to evaluate, partly because of real-time play. The same page credits GAVEL's LLM-plus-search generation of playable board games, and p. 299 says rules are almost impossible to evaluate in isolation. See `DESIGN.md` pillar 1 and D2.
-- **Book page numbers** in `book-pcg.md` follow the authors' PDF. Chapters 7–9 match the Springer print; chapter 14 runs two pages later in print, so p. 430 is about p. 432 there.
+- **Book page numbers** in `book-pcg.md` follow the authors' PDF. Chapters 7–12 match the Springer print. Chapters 3–6 run two pages earlier in print and chapters 13–15 two pages later, so the §6.5 pages (pp. 215–220) are about pp. 213–218 there, p. 413 is about p. 415, and p. 430 is about p. 432.
 - **CrawLLM's extended version**, cited as an unverified preprint in `book-pcg.md`, `papers-semantic.md` and `tech-art.md`, is published: M. Zammit, A. Liapis and G. N. Yannakakis, "CrawLLM: An LLM-Based Pipeline for Game Asset Generation", *IEEE Transactions on Games* 18(1):185–196, 2026. Its epoch question had four options, so chance was 25%, and its "only when all such details were highly specific" is qualified by "typically" and offered as an argued reading of qualitative data.
 - **`literature-museology.md`**:
   - The sample label "Ledger of Debts Forgiven" gives the ledger page tabs of dyed fish-skin. The museal reviewer flagged fish-skin as a material tied to specific Indigenous makers, so the generator's materials-to-avoid list should include it.
