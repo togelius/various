@@ -1,0 +1,223 @@
+programme | metric | p1 | p5 | p50 | p95 | p99
+enfilade | W | 33 | 34 | 43 | 48 | 48
+enfilade | H | 15 | 16 | 21 | 30 | 33
+enfilade | floor | 368 | 395 | 555 | 903 | 944
+enfilade | rooms | 6 | 6 | 8 | 13 | 13
+enfilade | mu | 1 | 1 | 2 | 4 | 5
+enfilade | loops | 3 | 3 | 6 | 15 | 19
+enfilade | pillar | 1 | 2 | 4 | 11 | 14
+enfilade | circuit | 1 | 1 | 2 | 4 | 5
+enfilade | choke | 0.000 | 0.000 | 0.003 | 0.010 | 0.012
+enfilade | gateShare | 0.00 | 0.00 | 0.00 | 0.14 | 0.17
+enfilade | narrow | 0.02 | 0.03 | 0.06 | 0.09 | 0.10
+enfilade | defensible | 0.02 | 0.02 | 0.04 | 0.05 | 0.06
+enfilade | open | 0.71 | 0.72 | 0.76 | 0.80 | 0.80
+enfilade | glass | 0.46 | 0.53 | 0.67 | 0.76 | 0.78
+enfilade | tort | 0.97 | 0.97 | 0.97 | 0.98 | 0.98
+enfilade | tortExit | 1.00 | 1.00 | 1.00 | 1.06 | 1.09
+enfilade | tour | 49 | 52 | 83 | 138 | 156
+enfilade | dExit | 32 | 34 | 42 | 48 | 49
+enfilade | aShare | 0.00 | 0.00 | 0.00 | 0.18 | 0.18
+enfilade | bShare | 0.00 | 0.00 | 0.00 | 0.00 | 0.00
+enfilade | cShare | 0.25 | 0.27 | 0.64 | 1.00 | 1.00
+enfilade | dShare | 0.00 | 0.00 | 0.33 | 0.60 | 0.67
+enfilade | elev | 0.00 | 0.00 | 0.00 | 0.00 | 0.00
+enfilade | introExits | 2 | 2 | 2 | 2 | 2
+enfilade | deadEnds | 0 | 0 | 0 | 2 | 2
+enfilade | roomsToC | 3 | 3 | 3 | 5 | 5
+enfilade | hubDom | 1.00 | 1.00 | 1.31 | 1.78 | 1.85
+enfilade | integContrast | 1.00 | 1.00 | 1.21 | 1.37 | 1.40
+enfilade | arenaMinRing | 99 | 99 | 99 | 99 | 99
+enfilade | vista% | 100 | introOnCycle% 100
+enfilade | ms (full) p50/p95/max | 7.4 | 12.2 | 46.9
+enfilade | ms (no openness) p50/p95/max | 6.2 | 10.9 | 15.9
+enfilade | stage ms p50 | embed 0.18 · addLoops 0.49 · aspace 0.00 · analyse0 0.89 · repair+analyse1 0.86 · curate 2.32 · analyseFinal 2.13 · populate 0.29
+enfilade | fails 0 / 600, retries 0, layouts with a local repair 0
+enfilade | size Cabinet | W×H p50 37×19 | floor p5/p50/p95 374/435/502 | rooms p5/p50/p95 6/6/6 | tour p5/p50/p95 49/59/76 | dExit p50 37
+enfilade | size Department | W×H p50 44×23 | floor p5/p50/p95 464/562/652 | rooms p5/p50/p95 7/8/9 | tour p5/p50/p95 63/84/104 | dExit p50 43
+enfilade | size Wing | W×H p50 48×26 | floor p5/p50/p95 571/732/935 | rooms p5/p50/p95 9/11/13 | tour p5/p50/p95 93/119/148 | dExit p50 47
+rotunda | W | 31 | 31 | 35 | 39 | 41
+rotunda | H | 27 | 27 | 31 | 36 | 38
+rotunda | floor | 406 | 447 | 631 | 936 | 1034
+rotunda | rooms | 6 | 6 | 8 | 10 | 10
+rotunda | mu | 1 | 2 | 2 | 4 | 4
+rotunda | loops | 5 | 6 | 9 | 14 | 15
+rotunda | pillar | 3 | 4 | 6 | 11 | 12
+rotunda | circuit | 1 | 2 | 2 | 4 | 4
+rotunda | choke | 0.000 | 0.000 | 0.000 | 0.010 | 0.012
+rotunda | gateShare | 0.00 | 0.00 | 0.13 | 0.30 | 0.43
+rotunda | narrow | 0.03 | 0.04 | 0.06 | 0.09 | 0.10
+rotunda | defensible | 0.01 | 0.02 | 0.03 | 0.05 | 0.06
+rotunda | open | 0.71 | 0.74 | 0.78 | 0.82 | 0.84
+rotunda | glass | 0.52 | 0.61 | 0.74 | 0.81 | 0.84
+rotunda | tort | 0.93 | 0.93 | 0.97 | 0.97 | 0.97
+rotunda | tortExit | 1.00 | 1.00 | 1.06 | 1.19 | 1.23
+rotunda | tour | 54 | 61 | 93 | 145 | 165
+rotunda | dExit | 23 | 24 | 30 | 38 | 39
+rotunda | aShare | 0.00 | 0.00 | 0.14 | 0.25 | 0.33
+rotunda | bShare | 0.00 | 0.00 | 0.00 | 0.11 | 0.13
+rotunda | cShare | 0.44 | 0.44 | 0.57 | 0.67 | 0.67
+rotunda | dShare | 0.00 | 0.20 | 0.29 | 0.56 | 0.56
+rotunda | elev | 0.00 | 0.00 | 0.00 | 0.00 | 0.00
+rotunda | introExits | 2 | 2 | 3 | 3 | 3
+rotunda | deadEnds | 0 | 0 | 0 | 1 | 1
+rotunda | roomsToC | 1 | 1 | 2 | 3 | 3
+rotunda | hubDom | 1.29 | 1.29 | 1.33 | 1.80 | 1.82
+rotunda | integContrast | 1.19 | 1.19 | 1.30 | 1.40 | 1.44
+rotunda | arenaMinRing | 99 | 99 | 99 | 99 | 99
+rotunda | vista% | 100 | introOnCycle% 100
+rotunda | ms (full) p50/p95/max | 7.7 | 12.2 | 21.6
+rotunda | ms (no openness) p50/p95/max | 6.5 | 10.4 | 28.8
+rotunda | stage ms p50 | embed 0.16 · addLoops 0.52 · aspace 0.00 · analyse0 0.88 · repair+analyse1 0.87 · curate 2.53 · analyseFinal 2.32 · populate 0.29
+rotunda | fails 0 / 600, retries 0, layouts with a local repair 0
+rotunda | size Cabinet | W×H p50 33×30 | floor p5/p50/p95 414/512/598 | rooms p5/p50/p95 6/7/7 | tour p5/p50/p95 56/77/99 | dExit p50 27
+rotunda | size Department | W×H p50 35×31 | floor p5/p50/p95 498/650/834 | rooms p5/p50/p95 6/8/9 | tour p5/p50/p95 66/94/134 | dExit p50 30
+rotunda | size Wing | W×H p50 37×33 | floor p5/p50/p95 610/804/998 | rooms p5/p50/p95 8/9/10 | tour p5/p50/p95 87/115/153 | dExit p50 30
+grand_hall | W | 33 | 35 | 39 | 44 | 45
+grand_hall | H | 19 | 20 | 27 | 34 | 36
+grand_hall | floor | 452 | 474 | 705 | 1003 | 1087
+grand_hall | rooms | 5 | 5 | 7 | 10 | 10
+grand_hall | mu | 1 | 1 | 2 | 5 | 5
+grand_hall | loops | 7 | 8 | 15 | 25 | 27
+grand_hall | pillar | 3 | 4 | 12 | 19 | 21
+grand_hall | circuit | 1 | 2 | 4 | 8 | 9
+grand_hall | choke | 0.000 | 0.000 | 0.003 | 0.010 | 0.012
+grand_hall | gateShare | 0.08 | 0.13 | 0.17 | 0.50 | 0.50
+grand_hall | narrow | 0.04 | 0.06 | 0.10 | 0.18 | 0.20
+grand_hall | defensible | 0.02 | 0.02 | 0.04 | 0.06 | 0.07
+grand_hall | open | 0.71 | 0.72 | 0.77 | 0.82 | 0.83
+grand_hall | glass | 0.81 | 0.83 | 0.89 | 0.92 | 0.93
+grand_hall | tort | 0.97 | 0.97 | 1.09 | 1.27 | 1.32
+grand_hall | tortExit | 1.04 | 1.08 | 1.21 | 1.41 | 1.50
+grand_hall | tour | 59 | 64 | 103 | 209 | 235
+grand_hall | dExit | 25 | 26 | 33 | 40 | 43
+grand_hall | aShare | 0.13 | 0.17 | 0.20 | 0.43 | 0.50
+grand_hall | bShare | 0.00 | 0.00 | 0.00 | 0.17 | 0.20
+grand_hall | cShare | 0.20 | 0.20 | 0.40 | 0.50 | 0.57
+grand_hall | dShare | 0.00 | 0.00 | 0.40 | 0.50 | 0.63
+grand_hall | elev | 0.04 | 0.04 | 0.09 | 0.17 | 0.19
+grand_hall | introExits | 2 | 2 | 2 | 3 | 3
+grand_hall | deadEnds | 0 | 0 | 1 | 2 | 2
+grand_hall | roomsToC | 2 | 2 | 3 | 3 | 4
+grand_hall | hubDom | 1.25 | 1.25 | 2.08 | 2.92 | 3.33
+grand_hall | integContrast | 1.20 | 1.20 | 1.51 | 1.65 | 1.69
+grand_hall | arenaMinRing | 99 | 99 | 99 | 99 | 99
+grand_hall | vista% | 100 | introOnCycle% 100
+grand_hall | ms (full) p50/p95/max | 8.7 | 15.5 | 63.4
+grand_hall | ms (no openness) p50/p95/max | 7.6 | 13.4 | 27.7
+grand_hall | stage ms p50 | embed 0.18 · addLoops 0.56 · aspace 0.05 · analyse0 1.03 · repair+analyse1 1.01 · curate 2.88 · analyseFinal 2.54 · populate 0.31
+grand_hall | fails 0 / 600, retries 0, layouts with a local repair 0
+grand_hall | size Cabinet | W×H p50 36×22 | floor p5/p50/p95 455/523/601 | rooms p5/p50/p95 5/5/5 | tour p5/p50/p95 60/70/78 | dExit p50 28
+grand_hall | size Department | W×H p50 39×27 | floor p5/p50/p95 559/705/897 | rooms p5/p50/p95 6/7/9 | tour p5/p50/p95 78/103/176 | dExit p50 35
+grand_hall | size Wing | W×H p50 42×32 | floor p5/p50/p95 798/912/1068 | rooms p5/p50/p95 10/10/10 | tour p5/p50/p95 142/177/224 | dExit p50 36
+case_labyrinth | W | 31 | 32 | 37 | 42 | 43
+case_labyrinth | H | 19 | 19 | 25 | 33 | 33
+case_labyrinth | floor | 405 | 421 | 581 | 817 | 894
+case_labyrinth | rooms | 5 | 5 | 6 | 10 | 10
+case_labyrinth | mu | 1 | 1 | 2 | 5 | 5
+case_labyrinth | loops | 6 | 7 | 11 | 18 | 20
+case_labyrinth | pillar | 3 | 4 | 8 | 13 | 15
+case_labyrinth | circuit | 1 | 1 | 3 | 6 | 7
+case_labyrinth | choke | 0.000 | 0.000 | 0.004 | 0.013 | 0.015
+case_labyrinth | gateShare | 0.13 | 0.14 | 0.20 | 0.50 | 0.55
+case_labyrinth | narrow | 0.16 | 0.17 | 0.22 | 0.28 | 0.31
+case_labyrinth | defensible | 0.02 | 0.02 | 0.03 | 0.05 | 0.05
+case_labyrinth | open | 0.65 | 0.67 | 0.73 | 0.80 | 0.81
+case_labyrinth | glass | 0.78 | 0.81 | 0.88 | 0.92 | 0.93
+case_labyrinth | tort | 0.97 | 1.00 | 1.13 | 1.38 | 1.53
+case_labyrinth | tortExit | 1.04 | 1.08 | 1.28 | 1.81 | 2.04
+case_labyrinth | tour | 54 | 59 | 104 | 199 | 232
+case_labyrinth | dExit | 21 | 22 | 32 | 49 | 54
+case_labyrinth | aShare | 0.17 | 0.20 | 0.22 | 0.50 | 0.50
+case_labyrinth | bShare | 0.00 | 0.00 | 0.00 | 0.17 | 0.20
+case_labyrinth | cShare | 0.20 | 0.20 | 0.40 | 0.50 | 0.57
+case_labyrinth | dShare | 0.00 | 0.00 | 0.40 | 0.50 | 0.50
+case_labyrinth | elev | 0.00 | 0.00 | 0.00 | 0.00 | 0.00
+case_labyrinth | introExits | 2 | 2 | 2 | 3 | 3
+case_labyrinth | deadEnds | 0 | 0 | 1 | 2 | 2
+case_labyrinth | roomsToC | 2 | 2 | 2 | 3 | 4
+case_labyrinth | hubDom | 1.25 | 1.25 | 2.00 | 2.92 | 3.21
+case_labyrinth | integContrast | 1.20 | 1.20 | 1.50 | 1.64 | 1.69
+case_labyrinth | arenaMinRing | 99 | 99 | 99 | 99 | 99
+case_labyrinth | vista% | 100 | introOnCycle% 100
+case_labyrinth | ms (full) p50/p95/max | 7.2 | 11.4 | 16.7
+case_labyrinth | ms (no openness) p50/p95/max | 6.1 | 9.8 | 16.4
+case_labyrinth | stage ms p50 | embed 0.21 · addLoops 0.42 · aspace 0.04 · analyse0 0.85 · repair+analyse1 0.80 · curate 2.21 · analyseFinal 2.17 · populate 0.31
+case_labyrinth | fails 0 / 600, retries 0, layouts with a local repair 0
+case_labyrinth | size Cabinet | W×H p50 34×20 | floor p5/p50/p95 406/455/514 | rooms p5/p50/p95 5/5/5 | tour p5/p50/p95 55/66/83 | dExit p50 25
+case_labyrinth | size Department | W×H p50 37×25 | floor p5/p50/p95 436/582/751 | rooms p5/p50/p95 6/6/9 | tour p5/p50/p95 76/104/173 | dExit p50 35
+case_labyrinth | size Wing | W×H p50 40×30 | floor p5/p50/p95 624/723/865 | rooms p5/p50/p95 10/10/10 | tour p5/p50/p95 126/166/220 | dExit p50 37
+storage_stacks | W | 33 | 35 | 40 | 44 | 45
+storage_stacks | H | 19 | 20 | 27 | 34 | 36
+storage_stacks | floor | 432 | 459 | 628 | 900 | 967
+storage_stacks | rooms | 5 | 5 | 6 | 10 | 10
+storage_stacks | mu | 1 | 1 | 2 | 5 | 5
+storage_stacks | loops | 7 | 10 | 17 | 28 | 32
+storage_stacks | pillar | 3 | 4 | 9 | 21 | 27
+storage_stacks | circuit | 2 | 3 | 7 | 13 | 15
+storage_stacks | choke | 0.000 | 0.000 | 0.004 | 0.012 | 0.015
+storage_stacks | gateShare | 0.10 | 0.13 | 0.20 | 0.50 | 0.50
+storage_stacks | narrow | 0.07 | 0.10 | 0.19 | 0.28 | 0.31
+storage_stacks | defensible | 0.04 | 0.06 | 0.09 | 0.17 | 0.20
+storage_stacks | open | 0.56 | 0.59 | 0.65 | 0.72 | 0.77
+storage_stacks | glass | 0.09 | 0.13 | 0.22 | 0.33 | 0.42
+storage_stacks | tort | 0.97 | 0.97 | 0.98 | 1.30 | 1.35
+storage_stacks | tortExit | 1.06 | 1.11 | 1.24 | 1.42 | 1.48
+storage_stacks | tour | 58 | 63 | 97 | 205 | 231
+storage_stacks | dExit | 24 | 27 | 34 | 41 | 43
+storage_stacks | aShare | 0.14 | 0.17 | 0.20 | 0.50 | 0.50
+storage_stacks | bShare | 0.00 | 0.00 | 0.00 | 0.17 | 0.20
+storage_stacks | cShare | 0.20 | 0.20 | 0.40 | 0.50 | 0.57
+storage_stacks | dShare | 0.00 | 0.00 | 0.40 | 0.50 | 0.60
+storage_stacks | elev | 0.00 | 0.00 | 0.00 | 0.00 | 0.00
+storage_stacks | introExits | 2 | 2 | 2 | 3 | 3
+storage_stacks | deadEnds | 0 | 0 | 1 | 2 | 2
+storage_stacks | roomsToC | 2 | 2 | 2 | 3 | 4
+storage_stacks | hubDom | 1.25 | 1.25 | 2.05 | 2.92 | 3.21
+storage_stacks | integContrast | 1.20 | 1.20 | 1.50 | 1.65 | 1.68
+storage_stacks | arenaMinRing | 99 | 99 | 99 | 99 | 99
+storage_stacks | vista% | 100 | introOnCycle% 100
+storage_stacks | ms (full) p50/p95/max | 8.0 | 12.7 | 21.1
+storage_stacks | ms (no openness) p50/p95/max | 6.7 | 11.0 | 16.4
+storage_stacks | stage ms p50 | embed 0.18 · addLoops 0.48 · aspace 0.04 · analyse0 0.93 · repair+analyse1 0.89 · curate 2.69 · analyseFinal 2.33 · populate 0.27
+storage_stacks | fails 0 / 600, retries 0, layouts with a local repair 0
+storage_stacks | size Cabinet | W×H p50 37×23 | floor p5/p50/p95 438/502/567 | rooms p5/p50/p95 5/5/5 | tour p5/p50/p95 59/70/78 | dExit p50 29
+storage_stacks | size Department | W×H p50 39×27 | floor p5/p50/p95 497/628/829 | rooms p5/p50/p95 6/6/9 | tour p5/p50/p95 76/97/184 | dExit p50 35
+storage_stacks | size Wing | W×H p50 43×32 | floor p5/p50/p95 688/815/951 | rooms p5/p50/p95 10/10/10 | tour p5/p50/p95 137/169/223 | dExit p50 38
+sculpture_court | W | 33 | 35 | 40 | 44 | 46
+sculpture_court | H | 19 | 20 | 27 | 34 | 36
+sculpture_court | floor | 452 | 482 | 719 | 1023 | 1100
+sculpture_court | rooms | 5 | 5 | 7 | 10 | 10
+sculpture_court | mu | 1 | 1 | 2 | 5 | 5
+sculpture_court | loops | 11 | 12 | 28 | 51 | 54
+sculpture_court | pillar | 8 | 11 | 26 | 48 | 51
+sculpture_court | circuit | 1 | 1 | 3 | 5 | 6
+sculpture_court | choke | 0.000 | 0.000 | 0.003 | 0.010 | 0.012
+sculpture_court | gateShare | 0.10 | 0.14 | 0.17 | 0.50 | 0.50
+sculpture_court | narrow | 0.05 | 0.06 | 0.11 | 0.16 | 0.18
+sculpture_court | defensible | 0.02 | 0.03 | 0.06 | 0.12 | 0.13
+sculpture_court | open | 0.64 | 0.65 | 0.72 | 0.79 | 0.80
+sculpture_court | glass | 0.27 | 0.37 | 0.57 | 0.79 | 0.82
+sculpture_court | tort | 0.97 | 0.97 | 0.98 | 1.25 | 1.29
+sculpture_court | tortExit | 1.04 | 1.08 | 1.21 | 1.37 | 1.41
+sculpture_court | tour | 58 | 63 | 108 | 203 | 224
+sculpture_court | dExit | 24 | 26 | 33 | 39 | 42
+sculpture_court | aShare | 0.14 | 0.20 | 0.20 | 0.43 | 0.50
+sculpture_court | bShare | 0.00 | 0.00 | 0.00 | 0.17 | 0.20
+sculpture_court | cShare | 0.20 | 0.20 | 0.40 | 0.50 | 0.57
+sculpture_court | dShare | 0.00 | 0.00 | 0.40 | 0.50 | 0.60
+sculpture_court | elev | 0.00 | 0.00 | 0.00 | 0.00 | 0.00
+sculpture_court | introExits | 2 | 2 | 2 | 3 | 3
+sculpture_court | deadEnds | 0 | 0 | 1 | 2 | 2
+sculpture_court | roomsToC | 2 | 2 | 2 | 3 | 4
+sculpture_court | hubDom | 1.25 | 1.25 | 2.08 | 2.92 | 3.21
+sculpture_court | integContrast | 1.20 | 1.20 | 1.51 | 1.65 | 1.68
+sculpture_court | arenaMinRing | 99 | 99 | 99 | 99 | 99
+sculpture_court | vista% | 100 | introOnCycle% 100
+sculpture_court | ms (full) p50/p95/max | 8.4 | 14.5 | 22.1
+sculpture_court | ms (no openness) p50/p95/max | 7.4 | 12.8 | 47.2
+sculpture_court | stage ms p50 | embed 0.20 · addLoops 0.58 · aspace 0.04 · analyse0 1.05 · repair+analyse1 1.00 · curate 2.87 · analyseFinal 2.14 · populate 0.29
+sculpture_court | fails 0 / 600, retries 0, layouts with a local repair 0
+sculpture_court | size Cabinet | W×H p50 36×22 | floor p5/p50/p95 457/532/617 | rooms p5/p50/p95 5/5/5 | tour p5/p50/p95 59/70/78 | dExit p50 28
+sculpture_court | size Department | W×H p50 40×27 | floor p5/p50/p95 566/719/904 | rooms p5/p50/p95 6/7/9 | tour p5/p50/p95 78/108/172 | dExit p50 34
+sculpture_court | size Wing | W×H p50 43×33 | floor p5/p50/p95 811/922/1085 | rooms p5/p50/p95 10/10/10 | tour p5/p50/p95 136/171/215 | dExit p50 36
