@@ -134,9 +134,11 @@ to be exactly the spots the game offers (`CS.slots()`).
 `strategy.cjs` checks that the choices matter. Bots with perfect aim and
 different policies race to clear level 8 (one car, two wide, the crown placed
 on the 11 L ribbon) and level 1, at bot speed and at a human pace. Stacking
-straight up, one wide or two, falls before the goal; waiting for the sway to
-settle without bracing gets there, but slowly; the bot that braces with
-triangles gets there reliably and quickly. Levels 5 and 7 run on request.
+straight up, one wide or two, falls before the goal (0-1 in 10); waiting for
+the sway to settle without bracing gets there, but slowly (8 in 10, about 80%
+longer at bot speed); the bot that braces with triangles gets there reliably
+and quickly (10 in 10). It also checks that every crash happened with the
+weight past a wheel. Levels 5 and 7 run on request.
 From the repository root, for example:
 
 ```sh

@@ -1150,6 +1150,31 @@ thing on screen in both orientations changed some of the details above. This is 
   - Level 5 and level 7 run on request only; the targets are §16.6's.
   - CarefulBot and PatientBot wait for W < 0.2, not 0.3: at W 0.3 the top of a tall two-wide part still swings about a
     tile, so 0.2 is the tower that has settled.
+  - BalanceBot and CarefulBot never take a gold TRUSS spot while another is open. Balance-greedy alone often dropped a
+    triangle into a central notch: bracing by accident, which let "stacking straight up" through 4 times in 10.
+- **Results** (`tools/strategy.cjs`, seeds 1–10, goal = the crown placed; typical = the median time over all ten runs, a
+  run that ran out of time counting the whole clock):
+
+  | Level 8 | bot speed | | human pace (0.3 s) | |
+  |---|---|---|---|---|
+  | BraceBot | 10/10 | 10.2 s | 10/10 | 18.9 s |
+  | StackBot (straight up) | 0/10 | | 0/10 | |
+  | BalanceBot (two wide, straight up) | 0/10 | | 0/10 | |
+  | RhythmBot (straight up, steady 0.6 s) | 0/10 | | | |
+  | SpireBot (one-wide spire) | 1/10 | | 0/10 | |
+  | PatientBot (the spire, waiting) | 1/10 | | 0/10 | |
+  | CarefulBot (waiting, no bracing) | 8/10 | 18.3 s (+79%) | 8/10 | 23.9 s (+26%) |
+  | NoBraceBot (BraceBot's build, no bracing) | 6/10 | 23.9 s (+134%) | 5/10 | 30 s (+58%) |
+  | BraceRhythmBot | 10/10 | 19.3 s | | |
+  | BraceBot λ 1.5 / λ 4 | 10/10, 10/10 | | | |
+
+  Level 1: every bot 10/10 at both paces. BIG MAGNETS: the RandomTapper clears level 1 10/10, slowest 12.1 s. All
+  459 crashes happened with the weight past a wheel.
+- **Where it falls short of §16.6.** At a human pace, waiting without bracing is slower than bracing, but not by the
+  margin it is at bot speed (CarefulBot +26% typical, +16% on the goals' median, against +79% at bot speed). The 0.3 s
+  reaction before every act dominates both, the bracer pays one for each extra triangle and HOLD swap, and the 30 s
+  clock and the 1.4 s fuse cap how much slower anyone can be. So the tool reports the human-pace comparison and checks
+  it at bot speed.
 - **Test fixtures.** With no depth limit and spots beside every free side, a run no longer dead-ends by itself, so
   `feel.cjs`'s TOPPLE check builds its dead end (four drops, then no spot in bounds for the closing one) and
   `flow.cjs`'s crown-wait check offers only one triangle spot for a moment. Both lift the fixture afterwards.
