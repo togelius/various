@@ -12,3 +12,14 @@ They are critiques, not verified facts. Their counts and estimates (lines of cod
 | [`feasibility.md`](feasibility.md) | A technical lead building this in this repo with AI assistants | 50,000–70,000 lines as drafted, with no production plan. A three-department slice, milestones with acceptance tests, and 20 technical claims checked |
 | [`consistency.md`](consistency.md) | An editor checking that seven drafts are one design | Two rulebooks; three gate tables; a run 1 that cannot be built. The full disagreement tables and a glossary of overloaded terms |
 | [`newplayer.md`](newplayer.md) | A UX designer playing on a 390×844 phone | Nothing teaches the shared systems; the label strip cannot hold its promise; threats are bigger than the screen; colours collide. An onboarding and progressive-disclosure plan |
+
+## Errata
+
+Found in a verification pass over `DESIGN.md` on 20 October 2026. The critiques are left as written; `DESIGN.md` carries the corrections.
+
+- **`pcg.md` M1** says p. 300 of AI&G 2e is "about whole-game rule generation". The passage closes §9.5, *Rules and Mechanics*, and is about the video-game rule generators listed just before it; whole-game generation is §9.6. Its conclusion, that p. 300 does not rule out generated rules, stands.
+- **`pcg.md` §4**, the "good new departments" table, labels its columns "Run 5 / Run 10 / Run 20". The values are for the run *after* 5, 10 and 20 runs. Its hybrid row also counts 8 curated departments plus 2 generated ones in an 8-department run; with 6 curated plus 2 generated, the row reads 3.3–3.8, 1.9–2.4 and 1.4–1.9.
+- **`feasibility.md`, technical claim 4**, calls `tech-art.md`'s Sonnet 5.5 cache-read price of $0.10 wrong and gives $0.20. The $0.20 came from a stale cached table; Anthropic's pricing page gives $0.10 (0.05× input). No design decision depends on it.
+- **`feasibility.md` §1.2** gives "about 8,000 words of barks". That is the meta draft's whole writing budget; the barks are about 4,200 of it.
+- **`feasibility.md`** gives the curation estimate as 20–30 hours per 48-candidate batch in its summary and 15–25 in MAJOR 3. `DESIGN.md` uses 15–30.
+- **`pcg.md` M1** repeats the vocabulary draft's "a given signature module appears in only about 49% of runs". That holds for 13 modules over 30 departments; at v1's 8 it is about three runs in four.

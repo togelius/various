@@ -1,6 +1,6 @@
 # Critique: the PCG design, read as Julian would read it
 
-*Lens: a PCG researcher reading a design that says it is inspired by his work (search-based PCG, experience-driven PCG, quality-diversity, procedural personas, data games, orchestration, LLM PCG, AI&G 2e chs. 7–9). Review only; no draft was changed.*
+*Lens: a PCG researcher reading a design that says it is inspired by their work (search-based PCG, experience-driven PCG, quality-diversity, procedural personas, data games, orchestration, LLM PCG, AI&G 2e chs. 7–9). Review only; no draft was changed.*
 
 **What I read.**
 - In full: `brief.md`, `direction.md`, `design/pipeline.md`, `design/vocabulary.md`, `design/difficulty.md` (except §4), and the research briefs `book-pcg.md`, `papers-levels.md` and `papers-semantic.md`.
@@ -92,7 +92,7 @@ Abbreviations follow the drafts: P = pipeline, V = vocabulary, D = difficulty, L
    - **(b) A learned surrogate of S3.** This makes gating cheap enough for a nightly buffer, and later for runtime (see M4). "Surrogate models of simulation" is an open problem in Gravina et al. 2019 (PL F16).
    - **(c) Distillation.** Train an in-browser generator on the corpus the offline pipeline produces (ELM, Moonshine; PS F13, F19). That removes the server, the API key and the non-determinism together.
 
-**Why it matters.** This is the headline question in Julian's brief: "literally infinite … (how? LLMs?)". He will see that all five options in D-P1 share the same frozen verbs, and that the evidence was chosen to make (c) look bad. He will then discount the lean even where it is right.
+**Why it matters.** This is the headline question in Julian's brief: "literally infinite … (how? LLMs?)". Julian will see that all five options in D-P1 share the same frozen verbs, and that the evidence was chosen to make (c) look bad, and will then discount the lean even where it is right.
 
 **Resolution.**
 - Keep E as the v1 lean.
@@ -109,7 +109,7 @@ Abbreviations follow the drafts: P = pipeline, V = vocabulary, D = difficulty, L
 
 **Where:** direction pillar 1; V contract 1, §6, §11.2, §11.4, D-V8; BK F12 ("(c) is ruled out by p. 300"); S §8.2.
 
-**Error (fix it).** AI&G 2e p. 300 does not rule out generated rules. I checked the extracted text (ch. 9, lines 579–581 and what precedes them). The page says that no attempt to generate *video games* has produced games anyone would want to play. On the same page, it says a combination of LLMs and search-based PCG "has been used to create novel, playable and interesting games" [1135] (GAVEL), and it presents Mechanic Miner as evolving mechanics through simulated playthroughs. The page is about whole-game rule generation. The book's stated obstacle is that rules "are almost impossible to evaluate in isolation" (p. 299). That obstacle disappears for a module inside a fixed, fully simulated game, because the module is evaluated in context by limited agents. Citing p. 300 for a ban will read to Julian, a GAVEL co-author, as a misreading of his own book.
+**Error (fix it).** AI&G 2e p. 300 does not rule out generated rules. I checked the extracted text (ch. 9, lines 579–581 and what precedes them). The page says that no attempt to generate *video games* has produced games anyone would want to play. On the same page, it says a combination of LLMs and search-based PCG "has been used to create novel, playable and interesting games" [1135] (GAVEL), and it presents Mechanic Miner as evolving mechanics through simulated playthroughs. The page is about whole-game rule generation. The book's stated obstacle is that rules "are almost impossible to evaluate in isolation" (p. 299). That obstacle disappears for a module inside a fixed, fully simulated game, because the module is evaluated in context by limited agents. Citing p. 300 for a ban will read to Julian, a GAVEL co-author, as a misreading of their own book.
 
 **Design disagreement (present as options).**
 - **The vocabulary already makes modules its variation layer.** V §11.2 says archetypes are "the stable layer that mastery rests on; modules are the layer that makes a run feel different". A given signature module appears in only about 49% of runs. Modules are therefore exactly where generating new content costs the least learnability.
@@ -302,7 +302,7 @@ Caveat: door choice mixes preference with perceived risk and build fit, because 
 
 #### m1. Citation overreach
 
-Several of these papers are co-authored by Julian, so he will check them.
+Several of these papers are co-authored by Julian, who will check them.
 
 | Where | Claim | What the source or brief supports | Fix |
 |---|---|---|---|
@@ -352,7 +352,7 @@ S6 sits at the computer-initiative end of the mixed-initiative spectrum. Moving 
 - repair suggestions after a reject;
 - live S3 or surrogate feedback while Julian edits.
 
-The study would measure designer agreement and time saved. With active learning, the automated curator (R5) can send Julian the departments it is least sure about, which cuts his hours, P's own binding constraint.
+The study would measure designer agreement and time saved. With active learning, the automated curator (R5) can send Julian the departments it is least sure about, which cuts Julian's hours, P's own binding constraint.
 
 ---
 
@@ -363,7 +363,7 @@ Call it **the Open Stacks**. It is P's Infinite Accession plus the parts that ma
 1. **Persistent shared generation.** A department is generated once on first request, stored forever under a TX number, credited to the visitor who opened it, and replayable by anyone. This is P §1.6, unchanged.
 2. **Verbs that grow.** Modules live in a DSL (M1 (b)). An offline LLM-plus-simulation loop proposes new modules continuously, seeded from the unmatched-concept queue and from frames the compiler could not express. V1–V4, the micro-arenas and intro-template synthesis filter them. A generated module enters Temporary Exhibitions first, as an "uncatalogued mechanism", and is accessioned into the Permanent vocabulary only after Julian reviews it. Archetypes stay closed, so mastery still rests on a stable layer.
 3. **A cheap gate.** A learned surrogate (M4) pre-screens thousands of candidate specs per night. The full S3 gate runs only on survivors.
-4. **An automated curator** trained on Julian's curation log, and judged by agreement with him on held-out batches. It uses active learning: Julian audits the uncertain cases and a random sample.
+4. **An automated curator** trained on Julian's curation log, and judged by agreement with Julian on held-out batches. It uses active learning: Julian audits the uncertain cases and a random sample.
 5. **Promotion by players.** Door choices as revealed preference (M6), completion against calibration, and the report button. Promotion into the Permanent Collection and deaccessioning both run as an Acquisitions Committee in the fiction.
 6. **Optional placement and an exit valve.** At most one Temporary Exhibition per transition, never in positions 1–2, always with a free `exit_jump`. This is P §7.1, unchanged.
 7. **A route to no server.** Once the corpus holds thousands of gated departments, distil an in-browser steerable generator (ELM, Moonshine) and ship the surrogate as the runtime gate. That restores determinism and the single-file convention.
@@ -395,7 +395,7 @@ The useful quantity is **good new departments visited per run**: new visits mult
 | Curated + 2 Temporary Exhibitions per run | 3.0–3.5 | 1.7–2.2 | 1.3–1.8 |
 | Cost: dud visits per run in the hybrid (minutes each, behind `exit_jump`) | 0.2–0.7 | 0.2–0.7 | 0.2–0.7 |
 
-Julian should decide on this trade-off: about one-and-a-half extra good new departments per run, against a fraction of a dud visit. The current table shows him only the dud side.
+Julian should decide on this trade-off: about one-and-a-half extra good new departments per run, against a fraction of a dud visit. The current table shows Julian only the dud side.
 
 ---
 

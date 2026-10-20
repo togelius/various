@@ -20,3 +20,21 @@ The sequencer's first headline run (`seq_floor.py 30 2 200`) used two Social-pri
 | 7 | 11 |
 
 All 7 types were offered in every run, and a relaxed rule was used in 86 runs.
+
+The minimum pool sizes in the drafts (16 departments for 2-door offers, 24 for 3-door) also came from the run with Social primaries. Rerun without them, 200 runs per size, 8 departments per run (`python3 seq_floor.py N 0 200`, adding `narrow` for 2-door offers):
+
+| Pool | 3-door offers: runs built | 2-door offers: runs built |
+|---|---|---|
+| 16 | | 191 |
+| 18 | | 199 |
+| 20 | | 200 |
+| 22 | | 200 |
+| 24 | 195 | |
+| 26 | 199 | |
+| 28 | 200 | |
+| 30 | 200 | |
+| 34 | 200 | |
+
+A run that fails has exhausted every relaxation. `DESIGN.md` §9.3 takes 20 and 28 as the minimum pools.
+
+The layout timings vary by about 10% between runs. A rerun on 20 October 2026 gave medians of 7.6–9.4 ms, 95th percentiles of 13.0–17.4 ms and slowest single layouts of 16–82 ms per programme; every non-timing line matched `stats_final.txt` exactly.

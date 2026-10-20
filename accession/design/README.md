@@ -19,7 +19,7 @@ These seven drafts were written in parallel, inside one shared frame, before the
 
 ## What `DESIGN.md` supersedes, draft by draft
 
-The numbers in brackets point to `DESIGN.md`: D1–D13 are decisions; #1–#43 are the defaults in §4.
+The numbers in brackets point to `DESIGN.md`: D1–D14 are decisions; #1–#45 are the defaults in §4.
 
 ### `core-systems.md`
 - **The universal stealth model.** Five awareness states, 13 wake triggers, per-material noise against hearing classes, five lux bands and the tiptoe toggle are replaced by:
@@ -35,6 +35,8 @@ The numbers in brackets point to `DESIGN.md`: D1–D13 are decisions; #1–#43 a
 - **The clock** has two stages, with its budget set from measured layouts and measured turns per minute (#6, D6).
 - **Perks** are 12–16 general triggered perks in playstyle families, not tied to challenge types (D9).
 - **The sketch** belongs to the Copyist class, not to everyone (D9).
+- **NPCs** (§11). The fellow visitor and the docent's gallery talk carry over as topic NPCs; tours stay with the later Attendance family; the clerk's kiosk in every department's coda goes, because shops are only at Stair Halls (#12, #44, #45; `DESIGN.md` §6.5).
+- **A fodder hit** costs 6–9% of maximum health, not 7–9%: `difficulty.md` owns the role table.
 - **Equipment** is known on pickup in the first playable. In v1, attribution is an object's hidden quality band, revealed by cataloguing, up or down (D10).
 - **Mechanical truths** move to a Behaviour line on the tombstone (D10).
 - **Retirement** counts as death for meta purposes (D7).
@@ -42,7 +44,7 @@ The numbers in brackets point to `DESIGN.md`: D1–D13 are decisions; #1–#43 a
 - **The death label** uses no "Bequest"; it gets a medium line (`DESIGN.md` §11).
 
 ### `difficulty.md`
-- **Run length.** The 82-minute run rested on tour lengths about 40% longer than `layout.md` measured. The target is now 50–75 minutes, set at the slice gate (D6).
+- **Run length.** The 82-minute run rested on tours of 150, 220 and 280 tiles, roughly twice what `layout.md` measured (medians 59–77, 84–108 and 115–177). The target is now 50–75 minutes, set at the slice gate from measured turns per minute (D6).
 - **Size classes** are cut from v1 (#14).
 - **The Registrar** has no hit points; the Exit is a retrospective (D7).
 - **The challenge-type fitness terms.** Skill gap and route divergence are bands, not objectives, and a novice gate is added (#16, #36).
@@ -51,7 +53,7 @@ The numbers in brackets point to `DESIGN.md`: D1–D13 are decisions; #1–#43 a
   - six or more distinct types in 73.5% of runs, not 94.5%;
   - five in all of them.
 
-  `DESIGN.md` §9.3 has the details.
+  The minimum pool sizes (16 for 2-door offers, 24 for 3-door) came from the same run. Rerun under the seven-type lean, the smallest pools that build every run are 20 and 28. `DESIGN.md` §9.3 and [`../prototypes/README.md`](../prototypes/README.md) have the details.
 - **R12's framing of experience-driven PCG** is corrected (`review/pcg.md` M6; #19).
 - **Patron membership** is merged with `meta.md`'s model (#21).
 
@@ -62,7 +64,9 @@ The numbers in brackets point to `DESIGN.md`: D1–D13 are decisions; #1–#43 a
 - **Simulation-gate cost.** It is about 1.4–4.8 CPU-hours per department (`difficulty.md`), not 34 core-minutes, and 50 seeds per depth cannot resolve the calibration tolerance (#38).
 - **Random streams** are keyed by version pins, not content digest (#40).
 - **Unprocessed Batch requests** expire at 24 hours; a multi-stage batch takes one to three days.
-- **The curation estimate** is probably 20–30 hours per 48-candidate batch, not 8.
+- **The curation estimate** is probably about 15–30 hours per 48-candidate batch, not 8.
+- **Batch cost.** The §1 table says about $35 per batch and §3.11 about $33; `cost.py` gives $32.78. `DESIGN.md` uses about $33.
+- **Structured outputs** (§3.4, S2's model line) do not strictly "guarantee that every id exists": enum capitalisation is not guaranteed, and a refusal or a `max_tokens` cut-off can break the shape. Check the stop reason, then compare ids without regard to case (`DESIGN.md` §12.3).
 - **v1's departments** are made in authoring-aid mode, with the batch pipeline after a grammar freeze (D13).
 - **Citations to soften** (`review/pcg.md` m1):
   - "keeps the 2.6× effect" becomes "motivated by";
@@ -74,7 +78,9 @@ The numbers in brackets point to `DESIGN.md`: D1–D13 are decisions; #1–#43 a
 ### `layout.md`
 - **Programmes.** The six launch programmes are three macro shapes. The slice has two embedders and three programmes; v1 has four (`DESIGN.md` §10.1).
 - **Khalifa et al. 2019** *compared* limited agents with other methods; the draft says it "recommended" them.
-- **Layout-archive fitness.** Persona fitness for layout elites is too noisy at the drafted budget. Use structural fitness, or re-evaluate elites on fresh seeds (`review/pcg.md` M2).
+- **Layout-archive fitness** (§13.4) is playability alone, the share of seeds that pass validation without repair (#36), with route structure and texture as the axes. Persona fitness for layout elites was too noisy at the drafted budget anyway (`review/pcg.md` M2). The archive itself is D14's recommended option.
+- **`L_tour`.** §17.2 says the measured tours are "about 40% lower" than assumed; its own table gives 37–62% lower, about half.
+- **Kiosks** are only at Stair Halls (#12); the coda keeps its room and exit doors.
 - **The staff telephone** follows the retirement rule (D7).
 
 ### `vocabulary.md`
