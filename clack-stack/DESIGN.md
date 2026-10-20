@@ -1021,3 +1021,62 @@ Tuning against the bots, plus two rounds of review (one by a strategy critic tha
   - a level 7 test.
 
   BraceBot keeps the tower level and two wide and completes notches whenever it can. On level 8, at both speeds, BraceBot reaches the goal 10/10. StackBot gets 0/10 and BalanceBot at most 2/10. SpireBot gets 0/10, and CarefulBot gets there but takes about three times as long at bot speed.
+
+---
+
+## 16. Revision 3: rules you can see
+
+Playtest verdict on revision 2: the feel is great, but the player could not tell why the tower fell or where a piece could go. Revision 2 had three ways to fall (tipping, wobble SNAP and dead-end TOPPLE) and several hidden placement rules (hang depth, supported before hanging, overlap and occlusion), all decided by numbers the player never sees. Revision 3 keeps strategy but makes every rule visible. Where it conflicts with §1–15, this section wins.
+
+### 16.1 One way to fall: the plumb weight
+
+- **The weight.** The build's centre of weight, including the sway, is drawn as a small brass plumb weight on a thread. It hangs just above the car plate, at the centre of weight's x position.
+- **The wheel span.** It is marked on the car plate. The zone between the wheels is tinted green, and the last 25% at each end goes amber, then red.
+- **The rule.** The tower falls when the weight swings past a wheel. That is the only way it falls. The existing rock physics already does this; now it is shown. The far wheel lifting, the creak and SAVE stay.
+- **Ghost preview.** While aiming, a faint ghost weight shows where the weight will settle after this drop, on every level and in both modes. This replaces the red TIPPY ghost.
+- **Removed:** the wobble SNAP, its amber and red joint glow, TOO THIN and its chip, and the fuse waiting on wobble.
+- **TOPPLE** becomes a last resort, for when no square or triangle spot exists anywhere. That should almost never happen now (16.2).
+
+### 16.2 Sway: what tall towers do, and what braces fix
+
+- **What sways.** The part above the brace line (the top of the highest TRUSS, or the car) sways side to side. The sway grows with every drop on that part: more for a sloppy drop, and more the taller and thinner the part is. It settles over a second or two when you wait.
+- **Sway moves the weight.** A tall, thin, unbraced tower therefore swings its weight toward the wheels. Stack too fast and the swing carries the weight past a wheel, and the tower falls by the one rule above.
+- **TRUSS.** Filling a notch between two up-triangles, in either order, locks everything below it. Nothing below the brace line sways, the swing above is cut (×0.3), and the bonus is paid as in §15.8.
+- **Tuning.** The sway constants are retuned so that, on level 8 (two wide), stacking a one-wide spire straight up falls before the goal unless you brace or wait a long time.
+
+### 16.3 Placing: every legal spot is shown
+
+- **All spots visible.** While a piece is in the hand, every place it can go is drawn as a faint dotted outline. The spot that will be used (the one nearest the finger) is the bright ghost. If no outline is under or near your finger, there is nothing there.
+- **Squares** go on any free flat top, or beside any free upright side.
+- **Triangles** go point-up on any free flat top, or flipped to fit against any free slanted side of another triangle.
+- **Spot choice** is simply the outline nearest the finger, with the existing hysteresis. "Supported before hanging" is removed.
+- **The hang depth limit is removed.** Balance, through the plumb weight, is what stops long overhangs.
+- **Kept, because you can see them:** pieces can't overlap, and a piece can't go under something, because it falls from above.
+
+### 16.4 Say each idea once
+
+The first time each idea comes up, a one-line hint appears (saved as seen) and fades after a few seconds or a drop. Hints never cover the ghost or the weight.
+
+| When | Hint |
+|---|---|
+| First play | "Keep the weight between the wheels!" |
+| First real sway | "Tall towers sway. Fill a triangle notch to brace them." |
+| First triangle in the hand next to another up-triangle | "Drop a triangle into the notch to lock the tower." |
+| First crown | the existing GO HIGHER hint |
+
+### 16.5 Unchanged
+
+The drop feel, PERFECT and combos, levels, bases, hazards (which now show by pushing the weight), the crown gamble, BIG MAGNETS (gentler sway, weight shown), and the art and audio. Remove stale words and strings for the removed systems ("SNAP!", "TOO THIN", "NO ROOM" outside the last resort).
+
+### 16.6 Acceptance
+
+- **A crash happens only one way.** Every crash in every bot run happens with the weight past a wheel.
+- **No hidden placement rules.** For the piece in the hand, the spots offered by `CS.slots()` are exactly the outlines drawn.
+- **Strategy, with `tools/strategy.cjs` retuned to these rules** (seeds 1–10, bot speed and a human pace of a 0.3 s reaction):
+
+  | Level | Requirement |
+  |---|---|
+  | 8 | the brace bot reaches the goal ≥ 8/10; stacking straight up and the one-wide spire ≤ 3/10 each; waiting without bracing gets there but is clearly slower |
+  | 1 | all bots 10/10 |
+  | BIG MAGNETS | RandomTapper clears level 1 within 15 s, 10/10 |
+- **All other tools pass,** each updated only where these rules legitimately change what it measures.
