@@ -72,6 +72,11 @@ subdirectory with its own README:
   triangle and smash it with the cube, before the clock runs out. Includes a BIG
   MAGNETS mode for small children. One HTML file, made for a phone or a laptop. Open
   `clack-stack/index.html`.
+- **[accession/](accession/)** — ACCESSION (working title), a turn-based
+  roguelike set in an endless museum whose departments rearrange every night.
+  Design phase only: `accession/DESIGN.md` holds the design sketch and the
+  decisions to make before building, backed by research briefs, section drafts,
+  an adversarial review and a few measured prototypes.
 
 ## Repository policy
 
