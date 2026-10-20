@@ -105,14 +105,14 @@ THE EXIT        main hall · the revolving doors · the Registrar
 
 ### 1.4 Between runs
 
-- **Accession.** On leaving a department that you earned a Certificate in, you may register one object you found there into **Your Collection**.
+- **Accession.** On leaving a department that you earned a Certificate in, you may register one piece of equipment you acquired there into **Your Collection**.
   - Your Collection is a gallery in the Entrance Hall, where your objects stand on plinths with labels written from the run: "Selected by Visitor 1,204 in Run 14, from *A Town Known Only at Low Water*."
   - The object is lent straight back to you for the rest of the evening, so registering it costs nothing.
   - Its *kind* joins future runs' loot pools.
   - One object from the Collection may be borrowed into each later run, normalised so that it helps without carrying the run.
   - This is the brief's "keep a single item from each department", made safe.
 - **The Catalogue.** Everything you have seen is catalogued. Repeat encounters reveal more of an exhibit's numbers.
-- **A small store of options, not power** (the brief's Vampire Survivors store, selling options instead of stats; D11), paid in Stamps earned by Certificates, escapes and first-time discoveries. Purchases are fully refundable and every one can be toggled off.
+- **A small store of options, not power** (the brief's Vampire Survivors store, selling options instead of stats; D11), paid in Stamps earned by Certificates, escapes, first-time discoveries and first completions of conduct feats. Purchases are fully refundable and every one can be toggled off.
 - **Patron membership** (offered in place of the brief's "minor stat bump"; D11). An opt-in assist in labelled tiers, available from the first run and shown on the record of every assisted run.
 - **Trustees' Directives.** Pick-your-own difficulty modifiers, after the first escape.
 - **Death becomes an exhibit:** "Figure of a Visitor, Reaching (Run 14). Painted plaster. Found in Room 412 at opening, near the Pendulum Warden. Accessioned by the night staff."
@@ -162,7 +162,7 @@ The game happens after hours.
 
 Random order means a department may never fix its own difficulty.
 - **Power comes from depth.** Roles scale with run depth.
-- **Calibration.** Each department is calibrated by simulation to a target death rate at every depth it can appear at.
+- **Calibration.** Each department is calibrated by simulation to a target death rate across the depths it can appear at.
 - **The department contributes everything else:** its rule, its challenge type, its architecture and its voice.
 
 ### 5. An infinite index, a curated collection
@@ -396,7 +396,7 @@ When the shared layer is that heavy, every department plays as the same heavy si
 **Recommendation, as one package:**
 - **You are a visitor who stayed past closing.** Your class is the trade you bring with you (D9): a night guard from another museum, a copyist, a conservator, a docent. Here you are a visitor like any other.
 - **Staff are never harmed.** That covers daytime guards, the night watch and the Registrar.
-  - Daytime guards appear *only in Guarded departments*, where they police you. Elsewhere the only guard is the vestibule guard, a neutral person who gives directions (§6.5).
+  - Daytime guards appear *only in Guarded departments*, where they police you. Elsewhere, until the night watch begins its rounds, the only guard is the vestibule guard, a neutral person who gives directions (§6.5).
   - **The night watch** is the end of the closing clock in every department. It is non-lethal itself; its rounds wake the exhibits nearest to you.
 - **Capture has one rule:** you are walked to the department's exit doors, keep what you carry and any Certificate already earned, and lose the department's unfound highlights. No confiscation, no teleport back to the entrance.
 - **Retiring counts as dying** for everything that persists. Otherwise retiring at low health beats dying, and players feel obliged to do it.
@@ -442,7 +442,7 @@ When the shared layer is that heavy, every department plays as the same heavy si
   - **Handling Clearance**, the strength analogue, which also opens locked cases;
   - the department's **Certificate**: more hit points and one perk from three.
 - **Guaranteed quotas.** Two kits and one Clearance card per department, from decks keyed to depth. They are never hidden in secret rooms, and they are shown on a "Highlights of this collection" card, as SPD tells its players its guarantees.
-- **Perks.** 12–16 general, triggered perks in a few playstyle families (close work, at a distance, quiet feet, old hand). Perks tied to challenge types would rarely pay, because each challenge type fills only one or two of a run's eight departments (§9.3).
+- **Perks.** 12–16 general, triggered perks in a few playstyle families (close work, at a distance, quiet feet, old hand). Perks tied to challenge types would rarely pay, because each challenge type fills at most two of a run's eight departments, and in most runs at least one type fills none (§9.3).
 - **Classes.** The **Night Guard** at launch.
   - The **Copyist** second, after the first playable. Its verb is *sketching*: studying a sleeping exhibit for a few turns gives a page, *After the Escapement Hound*, which grants a weaker copy of its ability.
   - Then the Conservator and the Docent. Their names must be separated from the Stair Hall Conservator and the topic-NPC docent (§6.5) in the naming pass (default 27).
@@ -466,7 +466,7 @@ When the shared layer is that heavy, every department plays as the same heavy si
 **Recommendation:**
 - **The mechanics move into the Behaviour line.** It sits on the tombstone, generated from the department's data in fixed plain words ("Moves only on every second turn. Follows anything that ticks."), and is checked exactly.
 - **The paragraph is then free to be literature, in varied registers.** It must not contradict the Behaviour line. Its house rule: *the object may be absurd; the sentence may not be witty.*
-- **For a player's first three runs, the Behaviour line also shows in the proximity strip**, as a third row under the pictograms (default 24).
+- **For a player's first three runs, the Behaviour line also shows in the proximity strip**, below the pictograms, wrapped over as many rows as it needs (default 24).
 - **Consumables are identified as in SPD:** a per-run seal shuffle over a small fixed set of kinds, identified by use, by reading the department's labels, or by a catalogue card. It is cheap and it is the best part of the identification game.
 - **Equipment is known on pickup in the first playable.**
 - **In v1, equipment adopts the museal split.**
@@ -544,7 +544,7 @@ The recommendation prefers options to stats because depth calibration pins the m
 - **TypeScript with a bundler.** Types, at the cost of running straight from `file://`.
 - **Diffusion-model sprites.** The closest precedent, CrawLLM, documents inconsistent characters and wall/floor confusion. Reserve diffusion, if anywhere, for an optional close-up view of the paintings on the walls.
 
-**If Godot:** the simulation gate needs a headless build of the same core, and the single-file `file://` build goes. **If TypeScript with a bundler:** every run, in the browser or in Node, needs a build step first, but the single-file build can stay. **If landscape or desktop first:** the label strip and the placards get room to breathe, and the phone becomes a port.
+**If Godot:** the simulation gate needs a headless build of the same core, and the single-file `file://` build goes. **If TypeScript with a bundler:** every browser run needs a build step first (Node 22.18 and later can run TypeScript directly by stripping types), but the single-file build can stay. **If landscape or desktop first:** the label strip and the placards get room to breathe, and the phone becomes a port.
 
 ### D13. What is built first, and how are v1's departments made?
 
@@ -620,10 +620,10 @@ These came out of the drafts and the review. Most are settled by a decision abov
 
 | # | Default | Why, and where |
 |---|---|---|
-| 12 | Eight consumable kinds in the first playable, ten in v1, twelve in the full game. One list, owned by CS. About 4–5 placed per department. Shops only at Stair Halls | review/fun MINOR 2; review/consistency B1 |
-| 13 | A "Signature piece" (one name for the drafts' keepable, keepable artifact and Signature piece) may carry one rider tied to its department's rule, from a closed list. It is the natural accession pick, but any object found in the department may be accessioned instead | S D-S3(b) |
+| 12 | Eight consumable kinds in the first playable, ten in v1, twelve in the full game. One list, owned by CS. About 4–5 placed per department. In-run shops (kiosks) only at Stair Halls | review/fun MINOR 2; review/consistency B1 |
+| 13 | A "Signature piece" (one name for the drafts' keepable, keepable artifact and Signature piece) may carry one rider tied to its department's rule, from a closed list. It is the natural accession pick, but any other equipment acquired in the department may be accessioned instead; consumables, kits and Clearance cards may not | S D-S3(b) |
 | 14 | One size class of department in v1 (Wings strictly beat Cabinets when every door at a depth is tuned to the same death rate) | review/fun MAJOR 5 |
-| 15 | The Stair Hall café offers one of three: rest, a free Restoration level (one kit's upgrade on one item), or something museal that competes (a perk reroll, or a swap at the Handling Desk: a carried item for one of three catalogued ones). "Catalogue everything" was dominated | Diff R11; review/fun MINOR 7 |
+| 15 | The Stair Hall café offers one of three: rest, a free Restoration level (one kit's upgrade on one item), or something museal that competes (a perk reroll, or a swap of one carried item for one of three catalogued ones). "Catalogue everything" was dominated | Diff R11; review/fun MINOR 7 |
 
 ### Run structure and difficulty
 
@@ -642,7 +642,7 @@ These came out of the drafts and the review. Most are settled by a decision abov
 | # | Default | Why, and where |
 |---|---|---|
 | 23 | An authored **Orientation Gallery** before the first department of the first run (about three minutes, five rooms, the Guard at Post One). In runs 1–3, the staff guard in each department's vestibule speaks its one essential line ("Water's turning. Get up the stairs.") | review/newplayer §7 |
-| 24 | A two-row proximity strip on phones: a short title (≤ 18 characters) with state and pips, then pictograms; in runs 1–3 a third row carries the Behaviour line (D10). The full label opens on tap | review/newplayer B2 |
+| 24 | A two-row proximity strip on phones: a short title (≤ 18 characters) with state and pips, then pictograms; in runs 1–3 the Behaviour line follows below them, wrapped over as many rows as it needs (D10). The full label opens on tap | review/newplayer B2 |
 | 25 | Every timed hazard gets a countdown beside the clock dial. Every informative sound has a visual twin and a caption. Edge markers for off-screen threats; auto-pan when a telegraph targets you | review/newplayer M4–M5 |
 | 26 | At most six meaning-carrying colours; meaning always carried by shape as well; a colour-blindness check in the screenshot tests; a readable-font option with size steps | review/newplayer M8 |
 | 27 | A naming pass and a one-page glossary: "Loan", "Catalogue", "Guard", "Exhibition" and "After" each meant several things in the drafts. "Centrepiece" replaces "Masterpiece" | review/newplayer M7; review/museal m1 |
@@ -674,7 +674,7 @@ These came out of the drafts and the review. Most are settled by a decision abov
 
 | # | Default | Why, and where |
 |---|---|---|
-| 41 | Saves are state snapshots stamped with the code version, not action-log replays, which break on every deploy. Two alternating localStorage slots with checksums; `navigator.storage.persist()` where the browser grants it; an installable web app; and an export code ("visitor's card"), the only guaranteed safeguard in an ordinary Safari tab (§11) | review/feasibility M7; tech-art F15 |
+| 41 | Saves are state snapshots stamped with the code version, not action-log replays, which break on every deploy. Two alternating localStorage slots with checksums; `navigator.storage.persist()` where the browser grants it; an installable web app; and an export code ("visitor's card"), the only guaranteed safeguard in an ordinary Safari tab short of downloading the full archive file (§11) | review/feasibility M7; tech-art F15 |
 | 42 | One canonical hosted build (GitHub Pages, top level, installable), still playable from `file://` | review/feasibility F5 |
 | 43 | Share codes and daily seeds carry the slice of meta state that changes doors and pools; without it, the same seed does not give the same run | review/feasibility M1 |
 
@@ -745,7 +745,7 @@ The full specification is [`design/core-systems.md`](design/core-systems.md), wi
 
 **Consumables.** Kinds such as *Consolidant* (heals), *Fixative* (roots whatever it lands on), *Solvent* (dissolves case glass silently), *Catalogue Card* (identifies), *Floor Plan* and *"Quiet, Please"* (settles everything nearby). Each department gives them its own local names: "Rainwater, Collected at Slack Tide"; "Notice: Clocks Stopped for Cleaning".
 
-**Two worked numbers.** At department 4, circling a sculpture court to win back 10 health costs about 110 turns: a sixth of the time before the bell in the drafts' clock (about 650 turns), nearer a third on the measured, shorter layouts, and twice that after the bell. That is the answer to pillar-dancing (circling an obstacle to regenerate while a slower exhibit follows). A surprise attack on a sleeping exhibit always hits, for maximum damage.
+**Two worked numbers.** At department 4, circling a sculpture court to win back 10 health costs about 110 turns before the bell and about twice that after it. The 110 turns are a sixth of the time before the bell in the drafts' clock (about 650 turns), and nearer a third on the measured, shorter layouts. That is the answer to pillar-dancing (circling an obstacle to regenerate while a slower exhibit follows). A surprise attack on a sleeping exhibit always hits, for maximum damage.
 
 ---
 
@@ -793,7 +793,7 @@ Later families: Memory, Scale, Absence, Writing, Attendance, Lenders.
 - an art form or practice;
 - the museum's own machinery.
 
-The subject biases skins and materials, never rules or difficulty. This is how the brief's enemies, items and NPCs are drawn from a department's topic. Each species is a closed archetype, named, drawn and labelled from the subject: the marble doorstep and the ambulant bronze bollard of *A Town Known Only at Low Water*. Each item is a set of closed primitives given the subject's objects and credit lines, consumables take local names (§5.3), and topic NPCs are skinned the same way (§6.5).
+The subject biases skins and materials, never rules or difficulty. This is how the brief's enemies, items and NPCs are drawn from a department's topic. Each species is a closed archetype with its modifiers and role, named, drawn and labelled from the subject: the marble doorstep and the ambulant bronze bollard of *A Town Known Only at Low Water*. Each item is a set of closed primitives given the subject's objects and credit lines, consumables take local names (§5.3), and topic NPCs are skinned the same way (§6.5).
 
 ### 6.3 The grammar, by size
 
@@ -1063,7 +1063,7 @@ Departments arrive in random order, so a role's numbers are a function of run de
 |---|---|---|---|---|---|---|
 | Fodder equivalents | 1 | 2.5 | 4 | 4 | 2 | 7 |
 
-The vocabulary draft also has support (heralds, healers, spawners), swarm and ambusher roles that this table does not yet price, and costs several shared roles differently (artillery 2, controller 3, warden 3). One reconciled role table is `BUILD.md` work ([`design/README.md`](design/README.md)).
+The vocabulary draft also has support (heralds, healers, spawners), swarm and ambusher roles that this table does not yet price, and costs four shared roles differently (skirmisher 2, artillery 2, controller 3, warden 3). One reconciled role table is `BUILD.md` work ([`design/README.md`](design/README.md)).
 
 ```
 budget(department d, depth t) = E0 × base(t) × e^{b(d)}
@@ -1077,7 +1077,7 @@ budget(department d, depth t) = E0 × base(t) × e^{b(d)}
 
 This costs one calibration parameter per department, not one per department per depth. Computed offline and stored in the pack as an integer table, so the runtime does no floating-point arithmetic.
 
-**Calibration.** b(d) is fitted by simulation as the single scalar that brings the median across six simulated personas closest to the target death rate over every depth the department can appear at (least squares on the logit scale). A department that still misses the target by more than 0.35 logits at any of those depths scales wrongly with depth, and its spec goes back for repair. Using the median across personas matters: a Guarded department is *meant* to be hard on the persona that fights everything.
+**Calibration.** b(d) is fitted by simulation as the single scalar that brings the median across six simulated personas closest to the target death rate at three calibration depths spread across those the department can appear at, such as 2, 5 and 8 for a mid-complexity department (least squares on the logit scale). A department that still misses the target by more than 0.35 logits at any calibration depth scales wrongly with depth, and its spec goes back for repair. Using the median across personas matters: a Guarded department is *meant* to be hard on the persona that fights everything.
 
 ### 9.2 The target, and what it means for players
 
@@ -1230,7 +1230,7 @@ On 6 programmes × 3 sizes × 200 seeds = 3,600 layouts, in Node 22 on one deskt
 | Median time per layout | about 7–9 ms |
 | 95th percentile | about 11–17 ms |
 | Slowest single layout | 16–82 ms, across two runs |
-| Retries | none needed |
+| Local repairs and retries | none needed |
 
 The 50 ms budget is for a phone and has not yet been measured on one.
 
@@ -1304,7 +1304,7 @@ Three details:
 - two alternating localStorage slots with checksums;
 - `navigator.storage.persist()`, which WebKit grants by heuristics "like whether the website is opened as a Home Screen Web App" (Liu 2023). Even when it is granted, WebKit says only that a persistent origin "might be excluded" from eviction, which it defines to include deletion after a period without user interaction. In a Safari tab that deletion covers all script-writable storage after seven days of Safari use without interaction with the site (Wilander 2020);
 - an installable web app added to the Home Screen, which keeps its own counter of days of use, reset by using the app; WebKit says it does not expect such an app's data to be deleted (Wilander 2020);
-- an export code of about 195 characters, framed as a visitor's card, which is the only guaranteed safeguard in an ordinary Safari tab. It holds progression (kinds unlocked, Signature pieces, the Atlas, Stamps and purchases), not history: run records, death figures and fine Catalogue levels are lost if storage is cleared.
+- an export code of about 195 characters, framed as a visitor's card, which is the only guaranteed safeguard in an ordinary Safari tab short of downloading the full archive (the whole meta state as a 30–100 KB file, [`design/meta.md`](design/meta.md) §14.5). The card holds progression (kinds unlocked, Signature pieces, the Atlas, Stamps and purchases), not history: run records, death figures and fine Catalogue levels survive cleared storage only in that archive file.
 
 ---
 
@@ -1553,7 +1553,7 @@ The detail is in [`review/feasibility.md`](review/feasibility.md) §§3–4. It 
 | **Catalogue, Atlas** | What you have seen and learned; the family-by-ordinal completion record |
 | **Trustees' Directives** | Pick-your-own difficulty modifiers: the game's heat, in Hades' sense |
 | **Patron membership** | The opt-in assist |
-| **Stamps, Gift Shop** | The between-runs currency, earned by Certificates, escapes and first-time discoveries, and the Entrance Hall store that sells options for it, not power (v1.x, D11) |
+| **Stamps, Gift Shop** | The between-runs currency, earned by Certificates, escapes, first-time discoveries and first completions of conduct feats, and the Entrance Hall store that sells options for it, not power (v1.x, D11) |
 | **Information Desk** | The Entrance Hall station where a visit starts: class, Loan and one start-of-run option |
 | **Registrar** | The museum's registrar, your service desk all evening, and the Exit's final encounter. Has no hit points |
 | **Lenders** | A later family of departments about a living community with voice, loans and consent (the drafts' "Peoples") |

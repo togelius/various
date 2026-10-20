@@ -46,7 +46,7 @@ The numbers in brackets point to `DESIGN.md`: D1–D14 are decisions; #1–#45 a
 ### `difficulty.md`
 - **Run length.** The 82-minute run rested on tours of 150, 220 and 280 tiles, roughly twice what `layout.md` measured (medians 59–77, 84–108 and 115–177). The target is now 50–75 minutes, set at the slice gate from measured turns per minute (D6).
 - **Size classes** are cut from v1 (#14).
-- **The Registrar** has no hit points; the Exit is a retrospective (D7).
+- **The Registrar** has no hit points; the Exit is a retrospective (D7). The Exit's Gift Shop goes: in-run shops are only at Stair Halls (#12), and "the Gift Shop" names the between-runs store (D11).
 - **The challenge-type fitness terms.** Skill gap and route divergence are bands, not objectives, and a novice gate is added (#16, #36).
 - **One simulation-gate table**, owned here and reconciled with `pipeline.md`'s G1–G10, at about 200 seeds per depth (#38).
 - **The sequencer prototype** used two Social-primary departments, which the lean forbids. Rerun with seven primary types:
