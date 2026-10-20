@@ -20,7 +20,7 @@
 // the higher); every spot drawn is. A swaying spot is aimed at where it is at rest, the middle of its swing (16.2).
 //   StackBot    always the highest spot, as fast as possible (on one car: a one-wide column straight up)
 //   BalanceBot  the spot that keeps the weight (with the tiles in the air) most central, as fast as possible (ties:
-//               the higher): stacking a two-wide tower straight up
+//               the higher), never a gold TRUSS spot while another is open: stacking a two-wide tower straight up
 //   PatientBot  StackBot's spot, but waits until W < 0.2 before each drop (the one-wide spire, waiting for it to settle)
 //   CarefulBot  BalanceBot's spot, waiting until W < 0.2 before each drop, never bracing (waiting without bracing; at
 //               W 0.3 the top of a tall two-wide part still swings about a tile: 0.2 is a tower that has settled)
@@ -216,7 +216,9 @@ function botInit() {
       if (s && P.red) { const full = CS.slots().find(q => q.key === s.key); if (full && full.tippy) return { act: 'wait', why: 'red' }; }
       return s ? { act: 'drop', slot: s, why: 'spire' } : none();
     }
-    if (P.base === 'balance') { const s = B.balance(st, rs); return s ? { act: 'drop', slot: s } : none(); }
+    // (never a gold TRUSS spot while another is open: these two never brace. Balance-greedy alone often drops a
+    // triangle into a central notch, and that is bracing by accident, not stacking straight up)
+    if (P.base === 'balance') { const nt = rs.filter(q => !q.truss), s = B.balance(st, nt.length ? nt : rs); return s ? { act: 'drop', slot: s } : none(); }
     // BraceBot
     if (st.Wahead > P.wait) return { act: 'wait', why: 'W ' + st.Wahead.toFixed(2) };
     const tri = st.piece === 'tri', heldTri = st.held === 'tri', brace = st.lam >= P.lam, level = P.sq === 'level';

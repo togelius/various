@@ -1107,8 +1107,9 @@ thing on screen in both orientations changed some of the details above. This is 
   - The part over the brace line rocks on the end of its bottom row it leans toward, as the tower rocks on a wheel: it
     turns by q / Hs, so it is drawn (tiles turned with it), its spots placed and its weight moved exactly as one body.
     With no TRUSS, the part is the whole build and it rocks on the car plate.
-  - Its top swings SWAY_ANG · W · Hs (SWAY_ANG = 0.34, Hs the part's height) at 11 / (1 + 0.1 · Hu) rad/s: a 6 L
-    part swings once every 0.9 s, an 11 L one every 1.2 s. W is §15.8's, with smaller steps (WOB_DW_MAX 0.27,
+  - Its top swings SWAY_ANG · W · Hs (SWAY_ANG = 0.34, Hs the part's height) at 13 / (1 + 0.04 · Hu) rad/s: a 6 L
+    part swings back and forth once every 0.6 s, an 11 L one every 0.7 s. (A slower swing let a fast stacker outrun it:
+    a two-wide tower stacked straight up at full speed reached the goal in about one swing.) W is §15.8's, with smaller steps (WOB_DW_MAX 0.27,
     WOB_CAP_K 0.09, WOB_CAP_TOP 0.45): a careful player who lets it settle keeps W near 0.5, a hurried one drives it to
     1. The sway is not under the 2.8 L/s top-speed cap (see the next point).
   - A swaying spot is chosen and graded where it is at rest, the middle of its swing (`CS.slots()` gives it as

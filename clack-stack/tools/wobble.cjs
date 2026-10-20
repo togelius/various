@@ -141,8 +141,9 @@ async function dwCheck(browser) {
     C = await WCFG(page);
     // (hazards off; the ribbon out of reach: the crown and the next level would take the build away mid-check)
     await page.evaluate(() => { HZ.every = 0; HZ.kind = ''; S.G = 99; });
-    // a balance-greedy player that waits for W < 0.4 (so it builds tall enough for λ to matter)
-    for (let k = 0; k < 45; k++) {
+    // a balance-greedy player that waits for W < 0.4 (so it builds tall enough for λ to matter; 60 drops: with the
+    // sway's crashes, enough of them are read with nothing in the air)
+    for (let k = 0; k < 60; k++) {
       await until(page, () => { const s = CS.state(); return (s.phase === 'play' && s.handReady && !s.locked && s.W < 0.4) || s.phase === 'over'; }, null, 20000).catch(() => {});
       const st = await page.evaluate(() => { CS.setClock(60); return CS.state(); });     // (the clock kept up: no TIME!)
       if (st.phase !== 'play') break;
