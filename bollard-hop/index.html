@@ -97,9 +97,10 @@
       <div class="dots" aria-hidden="true">
         <span style="background:#8e7fb0"></span><span style="background:#e3c83c"></span><span style="background:#43936c"></span><span style="background:#9d8bc0"></span><span style="background:#dc9c20"></span><span style="background:#bf5530"></span>
       </div>
+      <div class="hint">Stora Östergatan · Ystad</div>
       <h1>Bollard Hop</h1>
       <p><strong>Hold</strong> to crouch. The dotted arc shows where you'll land. <strong>Let go</strong> to hop.</p>
-      <p>Land on the ring on top for a perfect. Land off-center and you wobble, so hop again before you slide off.</p>
+      <p>Land on the ring on top for a perfect. Land off-center and you wobble, so hop again before you slide off. Arya follows along and tells you what she thinks.</p>
       <button id="startBtn" type="button">Start hopping</button>
       <div class="hint">Mouse, touch or space bar</div>
     </div>
@@ -169,6 +170,7 @@
   // ---------- state ----------
   let balls, kid, camX, score, combo, phase = 'title', charge = 0, charging = false;
   let pops = [], overT = 0, reason = '', toddler = { x: 40, t: 0 }, time = 0, shake = 0;
+  let speech = null, sayT = 9, fullT = 0, standT = 0, gulls = [], gullT = 3;
   let best = 0;
   try { best = +localStorage.getItem('bollardHopBest') || 0; } catch (e) {}
   $('best').textContent = 'Best ' + best;
@@ -227,6 +229,14 @@
     return { pts, hit: null };
   }
 
+  // Arya's running commentary. Forced lines interrupt; others wait their turn.
+  const cap = w => w[0].toUpperCase() + w.slice(1);
+  function say(lines, force) {
+    if (!force && sayT < 1.3) return;
+    const text = Array.isArray(lines) ? lines[Math.floor(Math.random() * lines.length)] : lines;
+    speech = { text, t: 0 }; sayT = 0;
+  }
+
   // ---------- input ----------
   function press() {
     if (phase !== 'play') return;
@@ -240,6 +250,7 @@
     [kid.vx, kid.vy] = jumpVel(charge);
     kid.st = 'air';
     b.squish = 0.5;
+    if (charge < 0.3 && Math.random() < 0.6) say(['Tiny hop!', 'Hop!', 'Boing!']);
     beep(300 + charge * 300, 0.18, 'triangle', 0.1, 1.8);
     charge = 0;
   }
@@ -247,6 +258,8 @@
     if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
     reset();
     phase = 'play';
+    speech = null; sayT = 9;
+    say(['Go go go!', 'Hop hop!', 'Ball! Ball!', 'Me watch!'], true);
     $('titleScreen').hidden = true; $('overScreen').hidden = true;
   }
   $('startBtn').addEventListener('click', start);
@@ -279,13 +292,18 @@
         combo++;
         score += 1 + combo;
         pops.push({ x: b.cx, y: b.cy - b.r - 110, text: combo > 1 ? `Perfect ×${combo}  +${1 + combo}` : 'Perfect! +2', t: 0, hot: true });
+        const name = cap(PAL[b.ci].n);
+        say(combo >= 3 ? ['Again! Again!', 'So good!', 'Clap clap!', 'Wooow!'] : ['Wow!', 'Yay!', 'Whee!', `${name} ball!`]);
         beep(660, 0.12, 'sine', 0.12); setTimeout(() => beep(990, 0.18, 'sine', 0.1), 70);
       } else {
         combo = 0; score += 1;
         pops.push({ x: b.cx, y: b.cy - b.r - 110, text: '+1', t: 0 });
+        say(['Uh-oh!', 'Careful!', 'Wobbly!', `${cap(PAL[b.ci].n)} ball!`]);
         beep(330, 0.1, 'sine', 0.1);
       }
       $('score').textContent = score;
+      if (score >= 10 && score - (perfect ? 1 + combo : 1) < 10) say('One, two… TEN!', true);
+      else if (score >= 25 && score - (perfect ? 1 + combo : 1) < 25) say('So many!', true);
       while (balls[balls.length - 1].cx < camX + viewW + 600) genBall();
     } else {
       beep(260, 0.08, 'sine', 0.07);
@@ -303,6 +321,7 @@
     time += dt;
     if (phase === 'over') {
       overT += dt;
+      if (overT > 1.6 && overT - dt <= 1.6) say(['Again!', 'Up! Up!', 'My turn!', 'Kiss it better?'], true);
       if (overT > 0.8 && $('overScreen').hidden) {
         $('reason').textContent = reason;
         $('finalScore').textContent = score;
@@ -312,8 +331,12 @@
     }
     if (!balls) return;
 
+    sayT += dt;
+    if (speech) { speech.t += dt; if (speech.t > 1.9) speech = null; }
     if (charging) {
       charge = Math.min(1, charge + dt * 0.8);
+      fullT = charge >= 1 ? fullT + dt : 0;
+      if (fullT > 0.5 && fullT - dt <= 0.5) say(['Big jump!', 'So big!']);
     }
 
     const k = kid;
@@ -323,10 +346,13 @@
       k.dv *= 1 - dt * 0.2;
       k.d += k.dv * dt;
       k.x = b.cx + k.d; k.y = surfY(b, k.x);
+      standT = charging ? 0 : standT + dt;
+      if (standT > 4) { standT = 0; say(['Jump!', 'Hop! Hop!', 'Go!']); }
       if (Math.abs(k.d) > b.r * SLIDE_OFF) {
         k.st = 'fall'; k.vx = Math.sign(k.d) * 150 + k.dv * 0.3; k.vy = -60;
         charging = false;
         reason = `Slid off the ${PAL[b.ci].n} ball`;
+        say('Oopsie!', true);
       }
     } else if (k.st === 'air') {
       const px = k.x, py = k.y;
@@ -342,11 +368,12 @@
         if (dx * dx + dy * dy < b.r * b.r) {
           k.st = 'fall'; k.vx = -Math.abs(k.vx) * 0.3; k.vy = Math.max(k.vy, 0);
           reason = `Bonked into the ${PAL[b.ci].n} ball`;
+          say('Bonk!', true);
           beep(140, 0.12, 'square', 0.06);
           break;
         }
       }
-      if (k.st === 'air' && k.y >= GROUND) { k.y = GROUND; k.st = 'down'; reason = 'Fell short, onto the paving'; gameOver(); }
+      if (k.st === 'air' && k.y >= GROUND) { k.y = GROUND; k.st = 'down'; reason = 'Fell short, onto the paving'; say('Uh-oh! Owie?', true); gameOver(); }
     } else if (k.st === 'fall') {
       k.vy += GRAV * dt; k.x += k.vx * dt; k.y += k.vy * dt;
       k.rot += Math.sign(k.vx || 1) * dt * 5;
@@ -361,13 +388,24 @@
     camX += (target - camX) * Math.min(1, dt * 3);
 
     // Little sibling toddles along the pavement behind.
-    const tgt = phase === 'over' ? k.x - 45 : k.x - 150;
+    const tgt = phase === 'over' ? k.x - 45 : k.x - 115;
     const gapT = tgt - toddler.x;
-    const sp = Math.abs(gapT) > 350 ? 260 : 75;
+    const sp = Math.abs(gapT) > 220 ? 400 : 160;
+    if (sp > 300 && phase === 'play') say(['Wait for me!', 'Wait! Wait!']);
     const step = Math.sign(gapT) * Math.min(Math.abs(gapT), sp * dt);
     toddler.x += step;
     toddler.moving = Math.abs(gapT) > 4;
-    if (toddler.moving) toddler.t += dt * (sp > 100 ? 14 : 8);
+    if (toddler.moving) toddler.t += dt * (sp > 300 ? 20 : 13);
+
+    // Seagulls drift over from the harbour.
+    gullT -= dt;
+    if (gullT <= 0) {
+      gullT = 7 + Math.random() * 9;
+      gulls.push({ x: viewW + 30, y: 18 + Math.random() * 40, v: 30 + Math.random() * 30, ph: Math.random() * 6 });
+      if (phase === 'play' && Math.random() < 0.45) say(['Birdie!', 'Bird! Bird!']);
+    }
+    for (const g of gulls) { g.x -= g.v * dt; g.ph += dt * 7; }
+    gulls = gulls.filter(g => g.x > -40);
 
     for (const p of pops) p.t += dt;
     pops = pops.filter(p => p.t < 1.1);
@@ -375,73 +413,179 @@
   }
 
   // ---------- drawing: scene ----------
+  const SHOPS = ['Konditori', 'Bokhandel', 'Apotek', 'Skor & Väskor', 'Leksaker', 'Café', 'Blommor',
+    'Glass', 'Optiker', 'Klädbutik', 'Järnhandel', 'Bageri', 'Presenter', 'Tobak & Tidningar'];
+  const PASTELS = ['#ecc77c', '#e8b3a0', '#f1dc9c', '#c9d3b1', '#e9d8c0', '#d7b8c8'];
+
+  function drawSky() {
+    const g = ctx.createLinearGradient(0, top, 0, 120);
+    g.addColorStop(0, '#cddbe3'); g.addColorStop(1, '#eceee8');
+    ctx.fillStyle = g; ctx.fillRect(0, top, viewW, 160 - top);
+    // S:ta Maria kyrka, the church tower that looks out over Ystad
+    const px = camX * 0.12, CP = 1900;
+    for (let i = Math.floor((px - 200) / CP); i <= Math.floor((px + viewW + 200) / CP); i++) {
+      const cx = i * CP + 650 - px;
+      ctx.fillStyle = '#8c4a36'; ctx.fillRect(cx - 22, 40, 44, 140);
+      ctx.fillStyle = '#7a3f2e';
+      for (let y = 46; y < 180; y += 7) ctx.fillRect(cx - 22, y, 44, 1);
+      ctx.fillStyle = '#e9e1cf'; ctx.beginPath(); ctx.arc(cx, 60, 6.5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#3a2a22'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(cx, 60); ctx.lineTo(cx, 56); ctx.moveTo(cx, 60); ctx.lineTo(cx + 3, 61); ctx.stroke();
+      ctx.fillStyle = '#4b2a20';
+      for (const dx of [-12, 8]) { rrect(cx + dx, 74, 5, 12, [3, 3, 0, 0]); ctx.fill(); }
+      // copper cupola and spire
+      ctx.fillStyle = '#6fa58f';
+      ctx.fillRect(cx - 24, 36, 48, 5);
+      ctx.beginPath(); ctx.moveTo(cx - 16, 36); ctx.quadraticCurveTo(cx, 14, cx + 16, 36); ctx.fill();
+      ctx.fillRect(cx - 5, 14, 10, 8);
+      ctx.beginPath(); ctx.moveTo(cx - 5, 15); ctx.lineTo(cx, -6); ctx.lineTo(cx + 5, 15); ctx.fill();
+      ctx.fillStyle = '#c9a43c'; ctx.fillRect(cx - 0.8, -12, 1.6, 7);
+    }
+    // seagulls
+    ctx.strokeStyle = '#59606a'; ctx.lineWidth = 1.6; ctx.lineCap = 'round';
+    for (const g of gulls) {
+      const f = Math.sin(g.ph) * 3;
+      ctx.beginPath();
+      ctx.moveTo(g.x - 9, g.y - 2 + f); ctx.quadraticCurveTo(g.x - 4, g.y - 6 + f * 0.5, g.x, g.y);
+      ctx.quadraticCurveTo(g.x + 4, g.y - 6 + f * 0.5, g.x + 9, g.y - 2 + f);
+      ctx.stroke();
+    }
+  }
+
+  function swedishFlag(x, y) {
+    ctx.strokeStyle = '#d9d6cc'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 30, y - 34); ctx.stroke();
+    const fx = x - 30, fy = y - 34, w = 34, h = 22, n = 8;
+    for (let k = 0; k < n; k++) {
+      const u = k / n, wav = Math.sin(time * 4 + u * 5) * 2.5 * u, wav2 = Math.sin(time * 4 + (u + 1 / n) * 5) * 2.5 * (u + 1 / n);
+      const x1 = fx - u * w, x2 = fx - (u + 1 / n) * w;
+      const strip = (y0, y1, c) => {
+        ctx.fillStyle = c; ctx.beginPath();
+        ctx.moveTo(x1, fy + y0 + wav); ctx.lineTo(x2 - 0.5, fy + y0 + wav2);
+        ctx.lineTo(x2 - 0.5, fy + y1 + wav2); ctx.lineTo(x1, fy + y1 + wav); ctx.fill();
+      };
+      const cross = u * w >= 10 && u * w < 16;
+      strip(0, h, cross ? '#f4c400' : '#1f5fa8');
+      if (!cross) strip(h * 0.4, h * 0.6, '#f4c400');
+    }
+  }
+
   function drawFacade() {
     const px = camX * 0.45, SW = 470;
-    ctx.fillStyle = '#efe9da';
-    ctx.fillRect(0, top, viewW, 330 - top);
     const i0 = Math.floor(px / SW) - 1, i1 = Math.floor((px + viewW) / SW) + 1;
+    ctx.textAlign = 'left';
     for (let i = i0; i <= i1; i++) {
-      const x0 = i * SW - px, h1 = hash(i), h2 = hash(i + 91), h3 = hash(i + 37);
-      // lighter upper wall with a recessed arch panel
-      ctx.fillStyle = '#f3eee2';
-      ctx.fillRect(x0 + 18, top, SW - 36, 150 - top);
-      ctx.strokeStyle = '#ddd3bd'; ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(x0 + 40, 140); ctx.lineTo(x0 + 40, 30);
-      ctx.quadraticCurveTo(x0 + SW / 2, -12, x0 + SW - 40, 30);
-      ctx.lineTo(x0 + SW - 40, 140); ctx.stroke();
-      // lower wall band
-      ctx.fillStyle = '#e9e3d6';
-      ctx.fillRect(x0, 150, SW, 145);
-      // shop window
-      const wx = x0 + 44, wy = 156, ww = SW - 88, wh = 132;
-      ctx.fillStyle = '#b9b5ab'; ctx.fillRect(wx - 5, wy - 5, ww + 10, wh + 10);
+      const x0 = i * SW - px, h1 = hash(i), h2 = hash(i + 91), h3 = hash(i + 37), h4 = hash(i + 53);
+      const shop = SHOPS[Math.floor(hash(i + 7) * SHOPS.length)];
       if (h1 < 0.5) {
-        const g = ctx.createLinearGradient(0, wy, 0, wy + wh);
-        g.addColorStop(0, '#f1f3ef'); g.addColorStop(1, '#dde3e1');
-        ctx.fillStyle = g; ctx.fillRect(wx, wy, ww, wh);
-        for (const lx of [0.35, 0.62]) {
-          const rg = ctx.createRadialGradient(wx + ww * lx, wy + 18, 2, wx + ww * lx, wy + 18, 60);
-          rg.addColorStop(0, 'rgba(255,236,200,.9)'); rg.addColorStop(1, 'rgba(255,236,200,0)');
-          ctx.fillStyle = rg; ctx.fillRect(wx, wy, ww, wh);
+        // Half-timbered house (korsvirkeshus), the kind Ystad is known for
+        const tp = 78 + h4 * 16, wall = PASTELS[Math.floor(h3 * PASTELS.length)];
+        ctx.fillStyle = '#a2412e';
+        ctx.beginPath(); ctx.moveTo(x0 - 2, tp + 2); ctx.lineTo(x0 + 10, tp - 30); ctx.lineTo(x0 + SW - 10, tp - 30); ctx.lineTo(x0 + SW + 2, tp + 2); ctx.fill();
+        ctx.fillStyle = '#8a3324';
+        for (let y = tp - 24; y < tp; y += 6) ctx.fillRect(x0 + 6, y, SW - 12, 1.5);
+        ctx.fillStyle = wall; ctx.fillRect(x0, tp, SW, 294 - tp);
+        const T = '#4b3427', posts = 9, pw = SW / posts;
+        // upper floor windows, white small-paned
+        for (let k = 0; k < posts; k++) {
+          const wx = x0 + k * pw;
+          if (k % 2 === 1) {
+            const wy = tp + 10, wh = 146 - tp - 18;
+            ctx.fillStyle = '#f7f4ec'; ctx.fillRect(wx + 12, wy, pw - 24, wh);
+            ctx.fillStyle = '#4e5a5e'; ctx.fillRect(wx + 15, wy + 3, pw - 30, wh - 6);
+            ctx.fillStyle = '#f7f4ec'; ctx.fillRect(wx + pw / 2 - 1, wy, 2, wh); ctx.fillRect(wx + 12, wy + wh / 2 - 1, pw - 24, 2);
+          } else if (k > 0 && hash(i * 9 + k) < 0.6) {
+            ctx.strokeStyle = T; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(wx, 148); ctx.lineTo(wx + pw, tp + 4); ctx.stroke();
+          }
         }
-        if (h2 < 0.7) {
-          const pw = 90, ph = 108, pxx = wx + ww * (0.3 + h3 * 0.4) - pw / 2;
+        ctx.fillStyle = T;
+        ctx.fillRect(x0, tp, SW, 5); ctx.fillRect(x0, 146, SW, 6); ctx.fillRect(x0, 289, SW, 5);
+        for (let k = 0; k <= posts; k++) ctx.fillRect(x0 + k * pw - 2.5, tp, 5, 294 - tp);
+        // ground floor: small-paned shop window, door, painted sign board
+        const wx = x0 + pw + 8, ww = pw * 5 - 16;
+        ctx.fillStyle = '#f7f4ec'; ctx.fillRect(wx - 4, 178, ww + 8, 104);
+        ctx.fillStyle = h2 < 0.5 ? '#5b5650' : '#e8ebe6'; ctx.fillRect(wx, 182, ww, 96);
+        if (h2 >= 0.5) {
+          ctx.fillStyle = '#d0202e'; ctx.font = '800 20px Nunito, system-ui, sans-serif';
+          ctx.fillText('REA', wx + ww * 0.55, 236);
+        } else {
+          for (let c = 0; c < 6; c++) { ctx.fillStyle = ['#c9b48a', '#e9e1cc', '#8fa6b8'][c % 3]; ctx.fillRect(wx + 20 + c * 14, 224, 10, 30 + (c % 2) * 10); }
+        }
+        ctx.fillStyle = '#f7f4ec';
+        for (let m = 1; m < 6; m++) ctx.fillRect(wx + (ww * m) / 6 - 1, 182, 2, 96);
+        ctx.fillRect(wx, 228, ww, 2);
+        const dx = x0 + pw * 6 + 10;
+        ctx.fillStyle = h3 < 0.5 ? '#2f5d6b' : '#3f6b43'; ctx.fillRect(dx, 186, pw - 20, 103);
+        ctx.fillStyle = 'rgba(255,255,255,.15)'; ctx.fillRect(dx + 5, 194, pw - 30, 40); ctx.fillRect(dx + 5, 240, pw - 30, 40);
+        ctx.fillStyle = '#1f3b2c'; rrect(wx + 10, 156, ww - 20, 18, 2); ctx.fill();
+        ctx.fillStyle = '#e2c46a'; ctx.font = 'italic 700 13px Georgia, "Times New Roman", serif'; ctx.textAlign = 'center';
+        ctx.fillText(shop, wx + ww / 2, 169); ctx.textAlign = 'left';
+        if (h4 > 0.55) swedishFlag(x0 + SW - pw * 1.5, tp + 40);
+      } else {
+        // Rendered stone building with a big modern shop window
+        const tp = 38 + h4 * 10, wall = ['#efe9da', '#f2e3c4', '#e6ddd2'][Math.floor(h3 * 3)];
+        ctx.fillStyle = wall; ctx.fillRect(x0, tp, SW, 294 - tp);
+        ctx.fillStyle = 'rgba(80,60,40,.12)'; ctx.fillRect(x0, tp, SW, 7);
+        ctx.fillStyle = '#d9cfbb'; ctx.fillRect(x0 - 3, tp - 4, SW + 6, 5);
+        for (let k = 0; k < 5; k++) {
+          const wx = x0 + 40 + k * 82, wy = tp + 14, wh = 120 - tp;
+          ctx.fillStyle = '#fbf9f3'; ctx.fillRect(wx, wy, 44, wh);
+          ctx.fillStyle = '#56636a'; ctx.fillRect(wx + 4, wy + 4, 36, wh - 8);
+          ctx.fillStyle = '#fbf9f3'; ctx.fillRect(wx + 21, wy, 2, wh);
+          ctx.fillStyle = '#d9cfbb'; ctx.fillRect(wx - 4, wy + wh, 52, 4);
+        }
+        ctx.fillStyle = '#3a3431'; ctx.font = '600 15px Georgia, "Times New Roman", serif';
+        ctx.fillText(shop.toUpperCase().split('').join(' '), x0 + 46, 147);
+        if (h4 < 0.5) {
+          ctx.fillStyle = '#1d5ba6'; rrect(x0 + SW - 162, 133, 118, 17, 2); ctx.fill();
+          ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; rrect(x0 + SW - 160, 135, 114, 13, 1.5); ctx.stroke();
+          ctx.fillStyle = '#fff'; ctx.font = '700 9px Nunito, system-ui, sans-serif'; ctx.textAlign = 'center';
+          ctx.fillText('STORA ÖSTERGATAN', x0 + SW - 103, 145); ctx.textAlign = 'left';
+        }
+        const wx = x0 + 44, wy = 156, ww = SW - 88, wh = 132;
+        ctx.fillStyle = '#b9b5ab'; ctx.fillRect(wx - 5, wy - 5, ww + 10, wh + 10);
+        if (h2 < 0.55) {
+          const g = ctx.createLinearGradient(0, wy, 0, wy + wh);
+          g.addColorStop(0, '#f1f3ef'); g.addColorStop(1, '#dde3e1');
+          ctx.fillStyle = g; ctx.fillRect(wx, wy, ww, wh);
+          for (const lx of [0.35, 0.62]) {
+            const rg = ctx.createRadialGradient(wx + ww * lx, wy + 18, 2, wx + ww * lx, wy + 18, 60);
+            rg.addColorStop(0, 'rgba(255,236,200,.9)'); rg.addColorStop(1, 'rgba(255,236,200,0)');
+            ctx.fillStyle = rg; ctx.fillRect(wx, wy, ww, wh);
+          }
+          const pw = 116, ph = 108, pxx = wx + ww * (0.3 + h3 * 0.4) - pw / 2;
           ctx.fillStyle = '#fbfbf8'; ctx.fillRect(pxx, wy + 14, pw, ph);
           ctx.strokeStyle = '#555'; ctx.lineWidth = 1.2; ctx.strokeRect(pxx, wy + 14, pw, ph);
-          ctx.fillStyle = '#d0202e';
-          ctx.font = '800 24px Nunito, system-ui, sans-serif'; ctx.textAlign = 'center';
-          ctx.fillText('SALE', pxx + pw / 2, wy + 72);
+          ctx.fillStyle = '#d0202e'; ctx.textAlign = 'center';
+          ctx.font = '800 30px Nunito, system-ui, sans-serif'; ctx.fillText('REA', pxx + pw / 2, wy + 66);
+          ctx.font = '800 13px Nunito, system-ui, sans-serif'; ctx.fillText('upp till −50 %', pxx + pw / 2, wy + 90);
+          ctx.textAlign = 'left';
+        } else {
+          const g = ctx.createLinearGradient(0, wy, 0, wy + wh);
+          g.addColorStop(0, '#5a5550'); g.addColorStop(1, '#3a3633');
+          ctx.fillStyle = g; ctx.fillRect(wx, wy, ww, wh);
+          ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.fillRect(wx, wy + 30, ww, 26);
+          ctx.strokeStyle = '#8b8378'; ctx.lineWidth = 2;
+          const rx = wx + ww * (0.45 + h3 * 0.2);
+          ctx.beginPath(); ctx.moveTo(rx, wy + 60); ctx.lineTo(rx + 90, wy + 60); ctx.stroke();
+          for (let c = 0; c < 7; c++) {
+            ctx.fillStyle = ['#e9e1cc', '#d8cdb3', '#f3efe4'][c % 3];
+            ctx.fillRect(rx + 4 + c * 12, wy + 62, 9, 40 + (c % 2) * 8);
+          }
         }
-      } else {
-        const g = ctx.createLinearGradient(0, wy, 0, wy + wh);
-        g.addColorStop(0, '#5a5550'); g.addColorStop(1, '#3a3633');
-        ctx.fillStyle = g; ctx.fillRect(wx, wy, ww, wh);
-        // reflection of the street opposite
-        ctx.fillStyle = 'rgba(255,255,255,.07)';
-        ctx.fillRect(wx, wy + 30, ww, 26);
-        // clothes rail
-        ctx.strokeStyle = '#8b8378'; ctx.lineWidth = 2;
-        const rx = wx + ww * (0.45 + h3 * 0.2);
-        ctx.beginPath(); ctx.moveTo(rx, wy + 60); ctx.lineTo(rx + 90, wy + 60); ctx.stroke();
-        for (let c = 0; c < 7; c++) {
-          ctx.fillStyle = ['#e9e1cc', '#d8cdb3', '#f3efe4'][c % 3];
-          ctx.fillRect(rx + 4 + c * 12, wy + 62, 9, 40 + (c % 2) * 8);
+        ctx.fillStyle = 'rgba(255,255,255,.18)';
+        ctx.beginPath(); ctx.moveTo(wx + ww * 0.12, wy); ctx.lineTo(wx + ww * 0.2, wy); ctx.lineTo(wx + ww * 0.08, wy + wh); ctx.lineTo(wx, wy + wh); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#b9b5ab';
+        for (const m of [0.18, 0.82]) ctx.fillRect(wx + ww * m - 3, wy, 6, wh);
+        ctx.fillStyle = '#b1b3b3'; ctx.fillRect(x0 + 6, tp, 9, 300 - tp);
+        ctx.fillStyle = '#9fa1a1'; ctx.fillRect(x0 + 4, 292, 13, 8);
+        if (h2 > 0.62) {
+          const bx = x0 + SW - 22;
+          ctx.fillStyle = '#3f8752'; rrect(bx - 16, 240, 34, 92, 3); ctx.fill();
+          ctx.fillStyle = '#35744a'; ctx.fillRect(bx - 12, 250, 26, 34);
+          ctx.fillStyle = '#e8e4d6'; ctx.fillRect(bx - 8, 244, 10, 4);
         }
-      }
-      ctx.fillStyle = 'rgba(255,255,255,.18)';
-      ctx.beginPath(); ctx.moveTo(wx + ww * 0.12, wy); ctx.lineTo(wx + ww * 0.2, wy); ctx.lineTo(wx + ww * 0.08, wy + wh); ctx.lineTo(wx, wy + wh); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = '#b9b5ab';
-      for (const m of [0.18, 0.82]) ctx.fillRect(wx + ww * m - 3, wy, 6, wh);
-      // drainpipe
-      ctx.fillStyle = '#b1b3b3'; ctx.fillRect(x0 + 6, top, 9, 300 - top);
-      ctx.fillStyle = '#9fa1a1'; ctx.fillRect(x0 + 4, 292, 13, 8);
-      // occasional green utility cabinet
-      if (h2 > 0.62) {
-        const bx = x0 + SW - 22;
-        ctx.fillStyle = '#3f8752'; rrect(bx - 16, 240, 34, 92, 3); ctx.fill();
-        ctx.fillStyle = '#35744a'; ctx.fillRect(bx - 12, 250, 26, 34);
-        ctx.fillStyle = '#e8e4d6'; ctx.fillRect(bx - 8, 244, 10, 4);
       }
     }
     // granite plinth
@@ -623,6 +767,24 @@
     ctx.restore();
   }
 
+  function drawSpeech() {
+    if (!speech) return;
+    const x = toddler.x - camX, y = 393 - 74;
+    const a = speech.t < 0.12 ? speech.t / 0.12 : speech.t > 1.6 ? Math.max(0, (1.9 - speech.t) / 0.3) : 1;
+    const pop = speech.t < 0.12 ? 0.8 + 0.2 * a : 1;
+    ctx.save(); ctx.globalAlpha = a;
+    ctx.translate(x, y); ctx.scale(pop, pop);
+    ctx.font = '800 15px Nunito, system-ui, sans-serif';
+    const w = ctx.measureText(speech.text).width + 20, h = 26, bx = Math.max(-w / 2, -x + 6 - 0);
+    ctx.fillStyle = '#fffaf0'; ctx.strokeStyle = 'rgba(43,37,34,.55)'; ctx.lineWidth = 1.5;
+    rrect(bx, -h, w, h, 13); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-5, -1); ctx.lineTo(2, 9); ctx.lineTo(6, -1); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(2, 9); ctx.lineTo(6, 0); ctx.stroke();
+    ctx.fillStyle = '#2b2522'; ctx.textAlign = 'center';
+    ctx.fillText(speech.text, bx + w / 2, -8);
+    ctx.restore();
+  }
+
   function drawCharge() {
     if (!charging || kid.st !== 'stand') return;
     const x = kid.x - camX - 32, y = kid.y - 80;
@@ -681,6 +843,7 @@
     ctx.fillStyle = '#efe9da'; ctx.fillRect(0, 0, cv.width, cv.height);
     const sx = shake ? (Math.random() - 0.5) * 8 * shake : 0;
     ctx.setTransform(dpr * S, 0, 0, dpr * S, sx * dpr, OY * dpr);
+    drawSky();
     drawFacade();
     drawGround();
     drawToddler();
@@ -689,6 +852,7 @@
     drawArc();
     drawCharge();
     drawPops();
+    drawSpeech();
   }
 
   // Title screen shows a live street with the kid perched on the first ball.

@@ -32,8 +32,8 @@ subdirectory with its own README:
   cream rug: steer a needle, weave the diamonds, keep the thread from running
   out. One HTML file. Open `weft/index.html`.
 - **[bollard-hop/](bollard-hop/)** — Bollard Hop, a one-button game about
-  hopping along a row of rubber ball bollards on a shopping street, with a
-  predicted jump arc. One HTML file. Open `bollard-hop/index.html`.
+  hopping along the rubber ball bollards on Stora Östergatan in Ystad, while
+  little sister Arya comments. One HTML file. Open `bollard-hop/index.html`.
 - **[gasp/](gasp/)** — GASP!, a fast parkour roguelike starring a talking,
   emotionally expressive papier-mâché fish head hopping across an office to
   find the elevator down. Procedural floors, relics, a mood on its face and
