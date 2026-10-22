@@ -1303,3 +1303,115 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
 - **Additions for legibility:** a red "PAST THE WHEEL!" tag by the weight as the tower goes over and the same reason on the results card; the weight's strip pinned to the bottom edge when the car is off the screen; the ghost tile red when the drop tips; the clack edges shining; the hand keeps its column while the camera zooms.
 - **Marks past the ceiling**: the roof (36 L), the clouds (42) and the moon (50).
 - **BIG MAGNETS** has no end but MENU, and keeps its best as it grows.
+
+---
+
+## 18. Revision 5: tiles connect the way real tiles do
+
+**Why.** Revision 4's rule, "a tile lands on whatever is under it", was enforced perfectly and was still wrong. Triangles balanced on other triangles' points, and squares sat half a tile off the grid. The tests checked that the game obeyed the spec, never that the spec made sense. The user chose this direction: squares stay on whole tiles, triangles may sit half a tile over, and every tile connects edge to edge the way the real tiles do. This section replaces §17 wherever they conflict. The weight, the camera, the marks, the art and the sound stay.
+
+> **The whole game:** build one tower as high as you can from one box of tiles. Every tile falls straight down from the hand and has to meet the tower edge to edge, the way real magnet tiles do; if it can't, it falls off. If the weight goes past a wheel, the tower falls and the run ends.
+
+### 18.1 The geometry
+
+- **Lattice.** Positions are lattice points (i, a, b) with x = i/2 and y = a + b·√3/2, the existing lattice. The car top is the flat edge from x = −2 to 2 at y = 0, two coupled cars. The rug is everything else at floor level.
+- **Squares** are always upright and on **whole-tile columns only**: the left edge sits at a whole number x (−2, −1, 0, 1, …).
+- **Triangles** can be point-up (▲) or point-down (▼), at **half-tile steps**: the left end of the base, or of the top edge for a ▼, sits at a multiple of ½. Being off the whole-tile grid is what triangles are for, as in the photo's wall, where triangle rows shift by half a tile and squares carry on above.
+
+### 18.2 The drop and the fit
+
+The hand holds the tile above the tower. Let go and the tile falls straight down at the hand's position until it first touches something: the car top, a tile, or the rug. Where it stops, it either **fits** or **falls off**.
+
+| Piece | Fits when | Like a real tile |
+|---|---|---|
+| Square | its whole bottom edge lies on flat tops (the car top, a square's top, a ▼'s top), with no gap and nothing but flat top under it | it sits flat |
+| ▲ | its whole base lies on flat tops, as for a square | it sits flat on its base |
+| ▼ | at least one of its two lower sides lies exactly against a free slanted side of a triangle; both sides means it sits in a notch | it snaps onto a triangle's side; a real ▼ can't stand on its point |
+
+- **Falls off.** Anything else falls off. That covers touching only at a point (one triangle's point on another's base, a ▼'s point on a flat top), resting half on a top and half on air, or a ▼ that doesn't meet a triangle's side. The tile tumbles to the rug and is lost from the box.
+- **The rug.** If nothing is under it at all, it falls to the rug and is lost.
+- **No hidden rules.** There are no depth limits, spot rankings or bounds beyond these. Tiles never overlap, and a tile can't get under something, because it falls from above.
+- **No mid-air sticking.** Tiles never stick to the side of something while falling. Sides clack when they end up touching.
+
+### 18.3 Choosing the piece's way up
+
+- **Turning triangles.** Triangles arrive point-up. **FLIP** turns the triangle in the hand between ▲ and ▼, and nothing else turns.
+- **Controls:**
+  - touch: a large FLIP button, bottom right, shown only while a triangle is in the hand;
+  - keys: ↑ or W;
+  - mouse: right-click or the scroll wheel.
+- **Snapping.** The hand moves in whole-tile steps while it holds a square and half-tile steps while it holds a triangle, so the column the tile will fall in is always the one shown.
+
+### 18.4 Making it clear
+
+- **The ghost.** The ghost is the exact result of letting go now, from the same function as the real drop.
+  - **When it fits:** the tile is drawn where it will sit. The edges it will meet shine, with a ×2 / ×3 chip for several, and a column the tile's width runs from the hand down to it.
+  - **When it doesn't:** the tile is drawn red and dashed where it would first touch. Red dots mark the contact, and a short reason sits beside it: "ONLY A POINT", "HALF ON AIR" or "NO SIDE TO HOLD". If the other way up would fit there, the FLIP button pulses with "FLIP?".
+  - **Over the rug:** the tile lies on the rug with a red cross, as before.
+- **Every fit.** While aiming, every column where the tile in the hand, the way up it is now, would fit has a faint outline of where it would sit. This is the same function evaluated at every column. It is not a separate rule.
+- **First-time hints,** each shown once and saved:
+
+  | When | Hint |
+  |---|---|
+  | the first tile | "Let go: it falls straight down." |
+  | the first triangle | "Triangles sit flat, or snap onto a triangle's side. FLIP turns them." |
+  | the first falls-off | "It has to meet the tower edge to edge." |
+  | after the first landing | "Keep the weight between the wheels!" |
+
+### 18.5 The box, the weight, the pace
+
+- **The box.** A run has one box of tiles: 60 to start with, about 70% squares and 30% triangles, shuffled, with NEXT shown. The tile-set box from the photo sits on the rug with a counter, for example "■ 31 ▲ 12". When it is empty and the last tile has landed, the run ends with the tower standing, "THE BOX IS EMPTY!". A tile that falls off or lands on the rug is gone from the box: that is the cost of a bad drop, and there is no throwing tiles away to wait.
+- **The weight** works as in §17.2: one way to lose, a large plumb weight over the marked wheel span, and a ghost weight that turns red if this drop would tip the tower (including its landing kick). A crash ends the run.
+- **The fuse** works as in §17.3. The ring around the hand runs from 3 s down to 1.2 s as the tower grows; when it runs out, the hand lets go where it is.
+- **Removed:** sway, wobble, TRUSS and braces (§15 and §17). The tower moves only by its rock on the wheels after a landing kick, and the weight shows where it will settle. Triangle rows are now about geometry (getting back to whole tiles after a shift) and balance, not hidden stiffness.
+- **Score** is the best height reached in the run, in cm, as in §17.4, with the room's marks.
+
+### 18.6 BIG MAGNETS (for small children)
+
+- **Magnet pull.** The magnets pull a tile into the nearest place it fits, within one tile of the hand, and the ghost shows that place.
+- **Self-turning triangles.** A triangle turns itself to fit, point-up if both ways fit, so the FLIP button is hidden.
+- **No pressure.** There is no fuse and the box never empties. A crash rolls in a new car and the run goes on, as in §17.5.
+
+### 18.7 Architecture: the rules as a pure, testable module
+
+- **One module.** All of §18.1–18.2 lives in one section of `index.html` between `/* ==== RULES:BEGIN ==== */` and `/* ==== RULES:END ==== */`. It has no DOM, canvas, timing or randomness, and exposes:
+  - `Rules.newBuild()`
+  - `Rules.drop(build, piece, way, col)`, which returns `{fits, pose, reason, contact, edges}` or `{rug: true}`
+  - `Rules.place(build, result)`
+  - `Rules.fitsAll(build, piece, way)`, which gives every column's result
+  - `Rules.tiles(build)`
+- **Shared by everything.** The game, the ghost, the outlines, BIG MAGNETS' pull and the tests all go through it. Node tools load it by extracting that section and running it in a `vm` context, so most tests run in Node with no browser, thousands of times a second.
+
+### 18.8 Testing (built before the game is called done)
+
+1. **An independent oracle**, `tools/oracle.cjs`, written from this section alone and never from the game's code. It uses a different method: exact arithmetic in ℚ(√3) on numbers (p + q√3)/2, polygon intersection to find the first contact, and its own fit checks. A disagreement between the game and the oracle is a bug in one of them; the spec decides which.
+2. **Exhaustive small-scope enumeration**, `tools/enumerate.cjs`. Every sequence of drops up to depth 4 on the real base, at every column and both ways up, deduplicated by state, plus depth 5 or more on a 2-wide strip. At every node:
+   - the game agrees with the oracle;
+   - no overlaps;
+   - every placed tile satisfies its fit rule;
+   - every square is on a whole-tile column;
+   - nothing rests on a point alone.
+3. **Random properties,** `tools/fuzz.cjs`: long random and bot-driven runs (hundreds of tiles) with the same invariants and the oracle agreement.
+4. **Plausibility review.** `tools/gallery.cjs` renders many random and bot-built end states with the real renderer into contact sheets. A reviewer with no spec checks them for anything that looks physically wrong or confusing, and the review repeats until a round finds nothing.
+5. **Browser tests**, `tools/feel.cjs`, through real input:
+   - touch, mouse, keys and FLIP;
+   - the ghost and the outlines matching the release and the landing;
+   - falls-off reasons, the box counter, the box running empty, the crash, the results and AGAIN;
+   - BIG MAGNETS' pull and self-turning;
+   - the hints once;
+   - layout at 390x844, 844x390 and 1366x1024;
+   - no console errors.
+6. **Strategy**, `tools/strategy.cjs`: whole runs, seeds 1–10, through real input.
+
+   | Bot | Policy |
+   |---|---|
+   | SpamBot | fixed x, as fast as possible |
+   | RandomBot | random column, random way up |
+   | StackBot | the highest fit |
+   | CarefulBot | balance-aware, keeps flat whole-tile tops for squares, plans triangle rows, flips sensibly |
+
+   Ranked by median best height: CarefulBot > StackBot > RandomBot and SpamBot, with CarefulBot at least 1.5× each of the others. Every crash happens with the weight past a wheel, and every tile placed in every run passes the plausibility invariants.
+7. **Legibility, `tools/learn/`.** A fresh agent with no access to the code or this design learns the game only by playing it through screenshots, using a small driver: start, move the hand, FLIP, let go, screenshot. Then it writes down the rules as it understands them and takes a quiz of held-out positions, shown with the ghost and outlines hidden (`?noghost=1`). For each one it predicts: does it fit or fall off, and if it fits, where it sits; and does the tower tip. The target is at least 85% correct, and every wrong answer is read as a legibility bug in the game, not a failing of the agent.
+8. **Screens:** a contact sheet of every state at both phone orientations.
+
+The old suites stay with their versions: `classic/tools/` for revision 3. Revision 4's tools are replaced.
