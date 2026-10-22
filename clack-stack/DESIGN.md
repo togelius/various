@@ -1183,7 +1183,7 @@ thing on screen in both orientations changed some of the details above. This is 
 
 ## 17. Revision 4: one tower, three rules
 
-**Why.** Playtesting revision 3 showed the player still couldn't tell why crashes happened or where tiles could go. The SMASH arm (a reward) looked like a random push. The clock was the only way to lose, so spamming the button beat careful play. The accumulated systems buried the part that works: dropping tiles, the clack, the look. Revision 4 rebuilds the rules small enough to explain in two sentences. It keeps the art, the sound and the feel. The old rules stay playable in `classic/` (tag `clack-stack-classic`). This section replaces §1–16 wherever they conflict. In particular, the timer, levels, crown, SMASH, HOLD, OVERTIME, rings, hazards, the cube, the marble square and the depth and spot rules are all gone.
+**Why.** Playtesting revision 3 showed the player still couldn't tell why crashes happened or where tiles could go. The SMASH arm (a reward) looked like a random push. The clock was the only way to lose, so spamming the button beat careful play. The accumulated systems buried the part that works: dropping tiles, the clack, the look. Revision 4 rebuilds the rules small enough to explain in two sentences. It keeps the art, the sound and the feel. The old rules stay playable in `classic/` (commit d1b7018). This section replaces §1–16 wherever they conflict. In particular, the timer, levels, crown, SMASH, HOLD, OVERTIME, rings, hazards, the cube, the marble square and the depth and spot rules are all gone.
 
 > **The whole game:** build one tower as high as you can. Every tile falls straight down from the hand and lands on whatever is under it. If the weight goes past a wheel, the tower falls and the run is over.
 

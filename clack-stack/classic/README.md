@@ -13,6 +13,6 @@ This is the version of Clack Stack before the rules were rebuilt from scratch. I
 
 `DESIGN.md` here is the design as it stood then (sections 1–16). Open `index.html` in a browser.
 
-The tests in `tools/` drive this copy: `node clack-stack/classic/tools/selftest.cjs`, and so on. The same version is also tagged `clack-stack-classic` in git.
+The tests in `tools/` drive this copy: `node clack-stack/classic/tools/selftest.cjs`, and so on.
 
 The current game is one level up, in `../index.html`.
