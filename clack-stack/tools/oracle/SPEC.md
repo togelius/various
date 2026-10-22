@@ -1,4 +1,4 @@
-# Oracle specification: Clack Stack tile rules (revision 5)
+# Oracle specification: Clack Stack tile rules (revision 5b)
 
 You are writing an **independent oracle** for the placement rules of a game about stacking translucent magnetic tiles (squares and equilateral triangles with equal edges) into a flat wall standing on a toy car. You get only this file. You must not read any other file in the repository or anything else about the game. Your oracle is compared, drop by drop, against the game's own implementation; when the two disagree, this text decides which one is wrong. **Where this text does not decide a case, do not guess silently.** Log it in `ambiguities.md` (case, coordinates, what you chose and why).
 
@@ -43,53 +43,26 @@ At the resting position:
 - **Contact segments** are the maximal segments of positive length shared between the tile's boundary and the boundary of a placed tile or of the car top. Report each segment once, per neighbour.
 - **Contact points** are the points where the tile's boundary touches another boundary but that lie on no contact segment.
 
-## 5. Fit, reason and strips
+## 5. Fit and reason (revision 5b)
 
-The tile at its resting position either **fits** (outcome `'fit'`) or **falls off** (outcome `'off'`, with a reason).
+At its resting position the tile either **fits** (outcome `'fit'`) or **falls off** (outcome `'off'`). There is one reason: **ONLY A POINT**.
 
 ### 5a. Square and ▲
 
-Let B be the bottom edge (for a ▲, the base), from x0 to x0 + 1 at height y0.
-
-For each x in B, let `S(x)` be the y of the highest boundary point of the placed tiles or car top that lies directly below B or on it at that x. If nothing lies below B at that x, then x is **over nothing**.
-
-Decide in this order. The first that applies is the reason:
-1. **ONLY A POINT:** the set of x where S(x) = y0 has zero length (the tile touches only at isolated points).
-2. **OVER THE EDGE:** some x in B is over nothing.
-3. **NOT LEVEL:** S(x) < y0 somewhere in B. Report `gap = max over B of (y0 − S(x))` as `[p, q]` meaning (p + q√3)/2.
-4. Otherwise the whole bottom edge lies on flat tops at height y0, which may be several tops meeting end to end, and an apex point under a seam is fine. Then check the strips (§5c):
-   - a square needs **both** of its strips on the tower;
-   - a ▲ needs **at least one**;
-   - if not, the reason is **TOO FAR OUT**.
-5. Otherwise it **fits**.
+- **The test.** Let B be the bottom edge (for a ▲, the base) at height y0. The tile fits iff some segment of B of positive length lies on a horizontal top edge of a placed tile or of the car: a square's top edge, a ▼'s top edge, or the car top. Otherwise it is off with ONLY A POINT.
+- **The rest of B** may be over a lower top, over a slant, or over nothing.
+- **gap.** For every x in B, let `S(x)` be the y of the highest boundary point of the placed tiles or car directly below B or on it at that x; if nothing lies below B at x, S(x) is undefined there. When the tile fits, report `gap` = the maximum of (y0 − S(x)) over the x in B where S(x) is defined and S(x) < y0. If there is no such x, report `gap = null`.
 
 ### 5b. ▼
 
-The ▼'s lower left side runs from its top-left corner down to its point, and its lower right side from its point up to its top-right corner.
-
-1. **NO SIDE:** neither lower side coincides exactly, along its whole length, with a slanted side of a placed ▲. Its left side can only coincide with a ▲'s right slant, and its right side with a ▲'s left slant. Both sides coinciding is a notch.
-2. **TOO FAR OUT:** at least one side coincides, but neither of its strips is on the tower (§5c).
-3. Otherwise it **fits**.
-
-### 5c. Strips: "on the tower" (half off, never more)
-
-- **Strips.** The x-axis is cut into half-tile strips `[n/2, n/2 + ½]`, and every tile covers exactly two of them, its left and right strip.
-- **Recording.** Every placed tile records, for each of its two strips, whether that strip is **on the tower**.
-- **The car.** Its strips, for x within [−half, half], are on the tower.
-- **A square or ▲ being placed:** its strip is on the tower iff, across that strip's full width, its bottom edge lies on a flat top whose own strip there is on the tower. That flat top is the car top, the top edge of a square, or the top edge of a ▼.
-- **A ▼ being placed:**
-  - A strip where one of its lower sides coincides with a ▲'s slant is on the tower iff that ▲'s strip at the same x-range is on the tower.
-  - A strip with no such side, the **free half** of a ▼ held by one side, is on the tower iff a flat top lies directly under that strip at exactly the height of the ▼'s point, covering the strip's full width, and that top's strip there is on the tower (a small pocket). Otherwise it is over air.
-- **Reporting.** Report `strips: [leftOn, rightOn]` for every result, fit or off.
+- **The test.** The ▼ fits iff at least one of its lower sides coincides exactly, along its whole length, with a slanted side of a placed ▲. Otherwise it is off with ONLY A POINT.
+- **gap** is always null.
 
 ## 6. Choosing the way for triangles when `way` is omitted
 
-1. If ▼ fits, the result is ▼.
-2. Else if ▲ fits, the result is ▲.
-3. Else if ▼'s reason is TOO FAR OUT, the result is ▼ (off, TOO FAR OUT).
-4. Else the result is ▲, off, with ▲'s reason.
-
-Note what you observe about whether ▲ and ▼ can both fit at the same col.
+- **One way fits.** If exactly one way fits, that way.
+- **Both fit.** If both fit, the way whose resting position is lower. If they are equally low, ▼. Report in `ambiguities.md` whether this ever happens.
+- **Neither fits.** If neither fits, ▲ (off, ONLY A POINT).
 
 ## 7. Placing
 
@@ -106,10 +79,9 @@ Note what you observe about whether ▲ and ▼ can both fit at the same col.
   "outcome": "fit" | "off",
   "way": "up" | "down" | null,
   "verts": [[X,p,q], ...],
-  "reason": null | "NO SIDE" | "ONLY A POINT" | "OVER THE EDGE" | "NOT LEVEL" | "TOO FAR OUT",
+  "reason": null | "ONLY A POINT",
   "contacts": { "segments": [[[X,p,q],[X,p,q]], ...], "points": [[X,p,q], ...] },
   "shine": [[[X,p,q],[X,p,q]], ...],
-  "strips": [true|false, true|false],
   "gap": [p,q] | null
 }
 ```
@@ -119,7 +91,7 @@ Note what you observe about whether ▲ and ▼ can both fit at the same col.
 - Each segment's two endpoints are sorted lexicographically, and the segment list is sorted.
 - `points` are sorted and exclude points lying on any contact segment.
 - `shine` equals `contacts.segments` when the outcome is fit, and `[]` when off.
-- `gap` is set only for NOT LEVEL.
+- `gap` is as defined in §5.
 
 ## 9. Golden cases
 
@@ -127,20 +99,18 @@ Each case is a sequence of drops on a bare car with half = 2, given as piece@x w
 
 | # | Drops | Last drop's outcome |
 |---|---|---|
-| 1 | ■1, then ▲1.5 | off, OVER THE EDGE |
-| 2 | ▲−2, ▲−1, ▲0, ▼−1.5, ▼−0.5, then ■−1 | fit (it spans two ▼ tops meeting over ▲−1's apex) |
+| 1 | ■1, then ▲1.5 | fit (half its base on the square; the other half past the car) |
+| 2 | ▲−2, ▲−1, ▲0, ▼−1.5, ▼−0.5, then ■−1 | fit |
 | 3 | ▲−1.5, ▲−0.5, then ■−1 | off, ONLY A POINT |
-| 4 | ▲1, then ▼1.5 | fit (hung by one side; free half over air beyond the car) |
-| 5 | ▲1, ▼1.5, ▲1.5, then ▼2 | off, TOO FAR OUT |
-| 6 | ■−1, ■−1, ▲−1, ▼−1.5, ▲−1.5, then ▼−2 | off, TOO FAR OUT |
-| 7 | ■−2, ▲−0.5, ▼−1, then ▲−1.5 | off, NOT LEVEL, gap = 1 − √3/2 |
+| 4 | ▲1, then ▼1.5 | fit |
+| 5 | ▼0 alone on the bare car | off, ONLY A POINT |
+| 6 | ■−1, ■−1, ▲−1, ▼−1.5, ▲−1.5, then ▼−2 | fit |
+| 7 | ■−2, ▲−0.5, ▼−1, then ▲−1.5 | fit, gap = 1 − √3/2 |
 | 8 | ■−1, ■0, then ▲−0.5 | fit |
-| 9 | ▲−1, ▼−0.5, then ▲0 | off, NOT LEVEL |
+| 9 | ▲−1, ▼−0.5, then ▲0 | fit, gap = √3/2 |
 | 10 | ▲0, then ▲0 | off, ONLY A POINT |
 | 11 | a square at col −1 | throws |
 | 12 | ■−1, ■0; ▲−1, ▲0, ▼−0.5, ▼−1.5, ▼0.5; ▲−1.5, ▲−0.5, ▲0.5, ▼−1, ▼0; ■−1, ■0 | every drop fits |
-
-Notes on case 6: the second ■−1 lands on the first. ▲−1 sits on top of the column. ▼−1.5 hangs on ▲−1's left side, and its left strip is over air. ▲−1.5 sits on ▼−1.5's top. ▼−2 would hang on ▲−1.5's left side, which is over air, and it has no pocket.
 
 If any golden case disagrees with your reading of §1–8, log it in `ambiguities.md`. Do not change the expectation.
 

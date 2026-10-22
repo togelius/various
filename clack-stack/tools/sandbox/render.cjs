@@ -212,7 +212,9 @@ function svgFor(spec) {
         out.push(`<polyline points="${X(tl.x)},${Y(tl.y)} ${X(pt.x)},${Y(pt.y)} ${X(tr.x)},${Y(tr.y)}" fill="none" stroke="${RED}" stroke-width="4" stroke-linejoin="round"/>`);
         out.push(`<circle cx="${X(pt.x)}" cy="${Y(pt.y)}" r="6" fill="${RED}"/>`);
       }
-      if (r.reason === 'ONLY A POINT') for (const q of r.contacts.points) {
+      // the points where its bottom touches: contact points, and ends of side contacts, on its bottom line
+      const bottomPts = r.contacts.points.concat(...r.contacts.segments).filter(q => q[1] === r.pose.y[0] && q[2] === r.pose.y[1] && q[0] >= hand.col && q[0] <= hand.col + 2);
+      if (r.reason === 'ONLY A POINT') for (const q of bottomPts.filter((q, i, a) => a.findIndex(z => z.join() === q.join()) === i)) {
         const v = P(q);
         out.push(`<circle cx="${X(v.x)}" cy="${Y(v.y)}" r="6.5" fill="${RED}" stroke="#fff" stroke-width="1.5"/>`);
       }
@@ -285,3 +287,15 @@ async function renderSheet(items, cols, opts) {
 async function close() { if (browser) { const b = browser; browser = null; await b.close(); } }
 
 module.exports = { renderBuild, renderSheet, svgFor, model, close, COLORS };
+
+// node tools/sandbox/render.cjs '<spec JSON or [specs]>' out.png [cols]
+if (require.main === module) {
+  const [json, outPath, cols] = process.argv.slice(2);
+  if (!json || !outPath) { console.error("usage: node tools/sandbox/render.cjs '<spec JSON or [specs]>' out.png [cols]"); process.exit(2); }
+  const spec = JSON.parse(json.trim().startsWith('{') || json.trim().startsWith('[') ? json : require('fs').readFileSync(json, 'utf8'));
+  (Array.isArray(spec) ? renderSheet(spec, +cols || 3) : renderBuild(spec)).then(async png => {
+    require('fs').writeFileSync(outPath, png);
+    console.log('wrote ' + outPath);
+    await close();
+  }).catch(async e => { console.error(e); await close(); process.exit(1); });
+}

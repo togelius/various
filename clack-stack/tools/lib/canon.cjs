@@ -71,6 +71,8 @@ function parseDrop(s) {
   const col = Math.round(parseFloat(m[2]) * 2);
   return m[1] === '■' ? { piece: 'sq', col, way: null } : { piece: 'tri', col, way: m[1] === '▲' ? 'up' : 'down' };
 }
+// a result in a few words: '▼ off TOO FAR OUT', '■ fit'
+function fmtOutcome(r) { return (r.way === null ? '■' : r.way === 'up' ? '▲' : r.way === 'down' ? '▼' : '?') + ' ' + r.outcome + (r.reason ? ' ' + r.reason : ''); }
 function fmtDrop(e) { return (e.piece === 'sq' ? '■' : e.way === 'down' ? '▼' : e.way === 'up' ? '▲' : '△') + (e.col / 2); }
 
 // exact ℚ(√3) values (p + q√3)/2 for drawing and reports
@@ -79,10 +81,14 @@ function yOf(p, q) { return (p + q * R3) / 2; }
 function fmtH(pq) {
   if (!pq) return 'null';
   const [p, q] = pq, a = p / 2;
-  const parts = [];
-  if (a) parts.push(String(a));
-  if (q) parts.push((q < 0 ? '−' : parts.length ? '+' : '') + (Math.abs(q) === 1 ? '' : Math.abs(q)) + '√3/2');
-  return (parts.join(' ') || '0') + ' (' + yOf(p, q).toFixed(3) + ')';
+  // (p + q√3)/2 = a + (q/2)√3
+  const k = q / 2, root = k === 0 ? '' : Math.abs(q) === 1 ? '√3/2' : Math.abs(q) === 2 ? '√3' : Math.abs(q) % 2 ? Math.abs(q) + '√3/2' : Math.abs(k) + '√3';
+  let txt;
+  if (!a && !k) txt = '0';
+  else if (!k) txt = String(a);
+  else if (!a) txt = (k < 0 ? '−' : '') + root;
+  else txt = (a < 0 ? '−' + -a : a) + (k < 0 ? ' − ' : ' + ') + root;
+  return txt + ' (' + yOf(p, q).toFixed(3) + ')';
 }
 
-module.exports = { FIELDS, canon, str, diff, lex, mirrorCol, mirrorResult, translateResult, mirrorLog, translateLog, replay, parseDrop, fmtDrop, yOf, fmtH };
+module.exports = { FIELDS, canon, str, diff, lex, mirrorCol, mirrorResult, translateResult, mirrorLog, translateLog, replay, parseDrop, fmtDrop, fmtOutcome, yOf, fmtH };

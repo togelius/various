@@ -1317,56 +1317,41 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
 - **Lattice.** Positions are lattice points (i, a, b) with x = i/2 and y = a + b·h, where h = √3/2. The car top is the flat edge from x = −2 to 2 at y = 0 (two coupled cars, drawn as four whole-tile panels like the toy car's moulded grid).
 - **Squares** are upright, on **whole-tile columns** only: the left edge at x ∈ {−2, −1, 0, 1}.
 - **Triangles** are point-up (▲) or point-down (▼), at **half-tile steps**: the left end of the base (for a ▼, of its top edge) at a multiple of ½.
-- **Half-tile strips.** For the support rule the tower is read in half-tile strips (x from n/2 to n/2 + ½). Every tile covers exactly two strips.
 
 ### 18.2 The drop and the fit
 
-- **The drop.** Let go and the tile falls straight down from above the tower. It stops at the first height where falling any further would make it overlap something; "overlap" means sharing area. It never reaches a pocket under an overhang. Edges and corners may meet, and sliding past a vertical side, or past a corner at the tile's own end, doesn't stop it. Where it stops, it either **fits** or **falls off**.
-- **Only from above.** Tiles can't be slid under anything, so order matters. A ▼ hung beside a ▲ closes the space under its free half. To make a ▲▼▲ row, lay the two ▲s first, then drop the ▼ between them.
+- **The drop.** Let go and the tile falls straight down from above the tower. It stops at the first height where falling any further would make it overlap something; "overlap" means sharing area. It never reaches a pocket under an overhang. Edges and corners may meet, and sliding past a vertical side, or past a corner at the tile's own end, doesn't stop it.
+- **Only from above.** Tiles can't be slid under anything, so order matters. A ▼ hung beside a ▲ closes the space under its free half.
 
-| Piece | Fits when | Like a real tile |
+**The one fit rule: edge to edge.** Where it stops, a tile **stays** if it meets the tower **edge to edge, along at least half an edge**: the magnets on that shared edge hold it, as with real tiles.
+
+| Piece | Stays when | Falls off when |
 |---|---|---|
-| Square | every point of its bottom edge lies on flat tops at one height (one top, or two or three meeting end to end; a ▲'s point at a seam between two ▼ tops is fine), **and** both its strips are on the tower (below) | it sits flat, with tower under its whole width |
-| ▲ | its whole base lies on flat tops at one height, as for a square, **and** at least one of its strips is on the tower | it sits flat on its base and may stick out half a tile |
-| ▼ | one of its lower sides lies along the whole length of a ▲'s slanted side (two such sides: it sits in a notch); its point then rests where that ▲'s base ends; **and** at least one of its strips is on the tower | it snaps onto a triangle's side; a real ▼ can't stand on its point |
+| Square or ▲ | part of its bottom edge, at least half of it, lies on a flat top: the car, a square's top or a ▼'s top. The rest may be over a lower step, a slant, or the air past the car. | it touches only at corners or points, for example a triangle's point under its bottom |
+| ▼ | one of its lower sides lies against a ▲'s side, whole; two such sides means it sits in a notch | it touches only at its point |
 
-**On the tower (half off, never more).**
-- The car's strips (x from −2 to 2) are on the tower.
-- A strip of a placed tile is on the tower if, across that strip's full width, the tile rests on something that is on the tower there. For a square or a ▲ that means its bottom edge lies on that thing's top. For a ▼ it means its lower side lies against a ▲'s slant over that strip.
-- The free half of a ▼ held by one side is on the tower only if a flat top that is on the tower lies directly under it, at the height of the ▼'s point (a small pocket).
-- Every other strip is **over air**. So a square never sticks out over air, and a triangle may stick out half a tile but never more. That rules out chains of hung triangles carrying squares out over the rug.
-
-**Why it falls off.** Each reason has its own mark on the ghost. If several apply, the first in this list is shown.
-
-| Reason | Applies to | When | Mark on the ghost |
-|---|---|---|---|
-| NO SIDE | ▼ | no lower side lies against a ▲'s slant | its lower sides red, a dot at its point |
-| ONLY A POINT | ■ ▲ | its bottom touches only at corners or points | red dots at those points |
-| OVER THE EDGE | ■ ▲ | part of its bottom is over nothing | that part red, with a small drop arrow |
-| NOT LEVEL | ■ ▲ | part of its bottom is over a slant or a lower top | the gap filled with a red wedge; a gap under 0.3 L is also outlined, so a 0.134 L near miss is plain at any zoom |
-| TOO FAR OUT | any | it would fit, but breaks "half off, never more" | its over-air strip shaded red |
-
-- **Contacts.** "Edge to edge" means contact along segments of positive length; two half edges count. Every contact segment shines, and a clack counts each neighbour touched (×2, ×3).
-
-**Proven by the prototype** (§18.8 re-proves each of these):
-- whether a tile fits depends only on the visible top outline and the over-air strips;
-- a triangle never fits both ways up at the same column;
-- a fitted ▼'s point always rests on a flat top;
-- some triangle fits somewhere on every reachable build;
-- the photo's wall (rows of ▲▼▲ shifted by half, then squares again) can be built.
+- **Fall-off reason.** There is one: **ONLY A POINT**. The ghost marks the contact points with red dots.
+- **Why half an edge.** On this lattice every contact along an edge is half an edge or a whole edge, and a half edge always reaches the tile's middle, so a tile held by half an edge is balanced at worst on a knife-edge. The magnets hold it.
+- **History.** The first version of this section had five reasons. Two blind checks rejected them (§18.10): a panel of fresh agents and a plausibility review, who knew only the photos and what the tiles are. They agreed with every fall at a point, and with none of the falls of tiles held by an edge.
+- **What still limits overhangs:**
+  - squares stay on whole-tile columns over the car;
+  - the hand can't aim a triangle more than half a tile past the car;
+  - the weight: an overhang that carries the tower's weight past a wheel tips the tower.
+- **Contacts.** Every contact segment shines, and a clack counts each neighbour touched (×2, ×3). A thin gap under part of a tile (for example 0.134 L between a square top and a triangle-row top) is drawn as a dark sliver, so it doesn't read as a joint.
+- **Both ways.** If a triangle could stay both ways up at a column (the enumeration reports whether this ever happens), it takes the way that lands lower, and ▼ if both land at the same height.
 
 ### 18.3 The hand
 
 - **Snapping.** The hand moves in whole-tile steps while it holds a square and in half-tile steps while it holds a triangle, so the tile always falls in the column shown.
 - **Range.** It stays over the car: square left edges −2…1, triangle left edges −2.5…1.5. A tile can't be aimed at the bare rug.
-- **Triangles turn themselves.** At the hand's column a triangle shows the way up that fits there, because at most one way can. It turns over 80 ms as the hand changes column. If neither way fits, it shows ▼ in red with TOO FAR OUT when that is the only thing stopping a ▼; otherwise it shows ▲ in red with ▲'s reason. There is no FLIP control.
+- **Triangles turn themselves.** At the hand's column a triangle shows the way up that fits there, because at most one way can. It turns over 80 ms as the hand changes column. If neither way fits, it shows ▲ in red with ONLY A POINT. There is no FLIP control.
 - **No dead tiles.** If the tile coming into the hand fits nowhere (either way up, for a triangle), the hand puts it back in the box and takes the next tile of the other shape, visibly, with NEXT and the counter updating. If the box holds none of the other shape, it is dealt anyway.
 
 ### 18.4 Making it clear
 
 - **The ghost.** The ghost is the exact result of letting go now, from the same function as the real drop.
   - When it fits, the tile is drawn where it will sit, its contact segments shine (with a ×2 / ×3 chip for several neighbours), and a column the tile's width runs from the hand down to it.
-  - When it falls off, the tile is drawn red and dashed where it would stop, with its reason and its mark (§18.2).
+  - When it falls off, the tile is drawn red and dashed where it would stop, with ONLY A POINT and red dots at the points it touches.
 - **Every fit.** While aiming, every place the tile in the hand fits is marked faintly. This is the same function at every column, not a separate rule.
   - Squares: an outline of each fit; they never overlap.
   - ▲: a bracket along each flat stretch it can sit on.
@@ -1379,9 +1364,7 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
   | the first tile | "Let go: it falls straight down." |
   | after the first landing | "Keep the weight between the wheels!" |
   | the first triangle | "Triangles sit flat, or hang on a triangle's side." |
-  | the first tile that falls off | "It has to meet the tower edge to edge." |
-  | the first TOO FAR OUT | "Squares need tower under their whole width. Triangles can stick out half a tile." |
-  | the first NOT LEVEL | "Tops are only level with the same number of triangle rows under them." |
+  | the first tile that falls off | "Tiles hold by their edges. A point isn't enough." |
   | the first time a ▲ or ■ falls off because something is over its spot | "Tiles only go in from the top." |
   | the first time the sway passes 0.3 | "Tall and thin sways. Let it settle." |
 - **No grade words.** The clacks and the ×2 / ×3 stay.
@@ -1418,7 +1401,7 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
 
 - **`clack-stack/rules.js`** is the one source of the rules in §18.1–18.3: pure, with no DOM, time or randomness. It must run in an empty `vm` context with only `Math`, and the build fails otherwise. Its API:
   - `newBuild({half = 2})` takes half the base width in tiles; tests also use 1 and 50.
-  - `drop(build, piece, col, way?)`, where piece is 'sq' or 'tri', col is the tile's left x in half tiles (odd cols throw for squares), and way ('up' or 'down') forces a triangle's way for tests. It returns one shape: `{outcome: 'fit'|'off', way: 'up'|'down', pose, verts, reason, contacts: {segments, points}, shine, strips: [on, on], gap}`. Without `way`, a triangle takes the way that fits, otherwise the way §18.3 shows.
+  - `drop(build, piece, col, way?)`, where piece is 'sq' or 'tri', col is the tile's left x in half tiles (odd cols throw for squares), and way ('up' or 'down') forces a triangle's way for tests. It returns one shape: `{outcome: 'fit'|'off', way: 'up'|'down', pose, verts, reason, contacts: {segments, points}, shine, gap}` (`gap`: the largest thin gap under part of a staying tile, for drawing the sliver). Without `way`, a triangle takes the way that fits, otherwise the way §18.3 shows.
   - `place(build, result)` returns a new build and never changes its argument.
   - `fitsAll(build, piece)` returns every column's result.
   - `key(build)` is canonical and independent of tile order.
@@ -1463,11 +1446,11 @@ The strategy bots test depth.
        - I7: locality;
        - I8: replaying the drop log rebuilds the same build;
        - I9: re-dropping a top tile puts it back;
-       - I10: state: no overlap, all on the lattice, squares on whole tiles, everything joined to the car by positive-length contacts, fit rules, half off never more;
+       - I10: state: no overlap, all on the lattice, squares on whole tiles, everything joined to the car by positive-length contacts, every tile holding by at least half an edge, no tile held only at points;
        - I11: at most one way up fits at a column;
        - I12: pull obeys §18.6;
        - I13: the shine explains the outcome;
-     - and every mutant in `tools/rules/mutants.json` killed, at least 15 of them (squares at half steps, half support allowed, ▼ on its point, ▼ needing both sides, an apex counting as flat, the car longer, one column checked, a tolerance on flat, the half-off rule dropped, and others).
+     - and every mutant in `tools/rules/mutants.json` killed, at least 15 of them (squares at half steps, a point counting as holding, ▼ on its point, ▼ needing both sides, a whole edge required, the car longer, one column checked, a tolerance on contact, the hand range widened, and others).
   2. The intuition panel: three fresh agents who see only the photos and a plain description of the tiles judge at least 120 sandbox pictures of a tile about to fall, answering STAYS, FALLS OFF or UNSURE. It passes at 90% majority agreement overall and 75% in every stratum. Every disagreement goes to the designer as a question; if he keeps the rule, the case becomes a golden case to teach.
   3. One plausibility round on sandbox renders (below).
 - **G3 Integration.** Browser tests through real input, at 390x844, 844x390 and 1366x1024, with no console errors:
@@ -1526,21 +1509,36 @@ The strategy bots test depth.
 
 ### 18.9 Golden cases
 
-Each is a small picture of a build, a tile in the hand, and the outcome. Cases 10 and 11 are the user's own complaints about revision 4 and must stay impossible.
+Each is a small picture of a build, a tile in the hand, and the outcome. Positions are the tile's left x (for a ▼, its top edge's left end), in order of dropping, on the bare 4 L car. Case 10 is the user's complaint about revision 4 and must stay impossible: a triangle on a triangle's point. Case 11 is the other complaint: a square half a tile off.
 
 | # | Case | Outcome |
 |---|---|---|
-| 1 | ▲ with half its base over the end of a square | falls off: OVER THE EDGE |
-| 2 | square across two ▼ tops that meet over a ▲'s point | fits |
-| 3 | square bridging two ▲ points at its corners | falls off: ONLY A POINT |
-| 4 | ▼ hung by one side off the outermost ▲ of a row, its free half over air | fits |
-| 5 | past the car: ▲ at the end, ▼ hung on it, ▲ on that ▼'s top, then another ▼ hung outward | the last ▼ falls off: TOO FAR OUT |
-| 6 | a stair inside the car span: ■ −1, ■ −1, ▲ −1 on top, ▼ −1.5 (hung), ▲ −1.5, then ▼ −2 | the last ▼ falls off: TOO FAR OUT |
-| 7 | the 0.134 L near miss (■ −2, ▲ −0.5, ▼ −1, then ▲ −1.5) | falls off: NOT LEVEL, the gap marked |
-| 8 | ▲ at a half step across two level squares | fits |
-| 9 | ▲ −1, ▼ −0.5 (hung), then ▲ 0 | falls off: NOT LEVEL (it lands on the ▼'s top, half over the car) |
-| 10 | revision 4's triangle on a triangle's point | falls off: ONLY A POINT |
-| 11 | revision 4's square half a tile off | impossible: squares only move in whole tiles |
-| 12 | the photo's wall: ■ −1, ■ 0; ▲ −1, ▲ 0, ▼ −0.5, ▼ −1.5, ▼ 0.5; ▲ −1.5, ▲ −0.5, ▲ 0.5, ▼ −1, ▼ 0; ■ −1, ■ 0 | every tile fits |
+| 1 | ■1, then ▲1.5: a ▲ half on a square at the car's end, half past it | stays (held by half an edge) |
+| 2 | ▲−2, ▲−1, ▲0, ▼−1.5, ▼−0.5, then ■−1: a square across two ▼ tops that meet over a ▲'s point | stays |
+| 3 | ▲−1.5, ▲−0.5, then ■−1: a square bridging two ▲ points at its corners | falls off: ONLY A POINT |
+| 4 | ▲1, then ▼1.5: a ▼ hung by one side off the end ▲ | stays |
+| 5 | ▼0 on the bare car: a ▼ standing on its point | falls off: ONLY A POINT |
+| 6 | ■−1, ■−1, ▲−1, ▼−1.5, ▲−1.5, then ▼−2: a leaning wall like the photo's | stays |
+| 7 | ■−2, ▲−0.5, ▼−1, then ▲−1.5: half on the square, the other half 0.134 L above a ▼'s top | stays, and the thin gap is drawn as a sliver |
+| 8 | ■−1, ■0, then ▲−0.5: a ▲ at a half step across two level squares | stays |
+| 9 | ▲−1, ▼−0.5, then ▲0: a ▲ half on a hung ▼'s top | stays |
+| 10 | ▲0, then ▲0: revision 4's triangle on a triangle's point | falls off: ONLY A POINT |
+| 11 | a square at x −0.5 | impossible: squares only move in whole tiles |
+| 12 | ■−1, ■0; ▲−1, ▲0, ▼−0.5, ▼−1.5, ▼0.5; ▲−1.5, ▲−0.5, ▲0.5, ▼−1, ▼0; ■−1, ■0: the photo's wall | every tile stays |
 
-All positions are the tile's left x (for a ▼, its top edge's left end), in order of dropping, on the bare 4 L car.
+### 18.10 What the first sense check found (G2, round 1)
+
+The first rules had five fall-off reasons: NO SIDE, ONLY A POINT, OVER THE EDGE, NOT LEVEL and TOO FAR OUT. The last three came from "half off, never more" and from requiring a whole flat seat. The rules module matched the sealed oracle on 6.07 million comparisons to depth 10, and all 29 mutants were killed, so the code did what the spec said. Two blind checks then tested the spec itself.
+
+**Intuition panel** (three fresh agents who saw only the photos and a description of the tiles; 151 pictures of a tile about to fall):
+- Agreement with the rules was 64%, against a bar of 90%.
+- Every tile the rules kept was judged to stay (74 of 74).
+- Every fall at a point was recognised.
+- None of the 51 falls of a tile held by an edge was judged a fall:
+  - half on a top with its middle over the end (30);
+  - near misses (9);
+  - TOO FAR OUT (14, of which 13 lay wholly over the car).
+
+**Plausibility review** (three calibrated reviewers; each flagged at least 3 of 4 planted defects and no golden picture): 8 pictures had their outcome disputed by all three reviewers, all of them falls of tiles held by an edge.
+
+**Changes:** the rule became "edge to edge, along at least half an edge", with one reason, ONLY A POINT, and golden cases 1, 5, 6, 7 and 9 changed. The reviewers also found defects in the review gallery's drawn fall paths, and those were fixed before round 2.
