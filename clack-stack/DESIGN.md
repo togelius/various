@@ -1178,3 +1178,69 @@ thing on screen in both orientations changed some of the details above. This is 
 - **Test fixtures.** With no depth limit and spots beside every free side, a run no longer dead-ends by itself, so
   `feel.cjs`'s TOPPLE check builds its dead end (four drops, then no spot in bounds for the closing one) and
   `flow.cjs`'s crown-wait check offers only one triangle spot for a moment. Both lift the fixture afterwards.
+
+---
+
+## 17. Revision 4: one tower, three rules
+
+**Why.** Playtesting revision 3 showed the player still couldn't tell why crashes happened or where tiles could go. The SMASH arm (a reward) looked like a random push. The clock was the only way to lose, so spamming the button beat careful play. The accumulated systems buried the part that works: dropping tiles, the clack, the look. Revision 4 rebuilds the rules small enough to explain in two sentences. It keeps the art, the sound and the feel. The old rules stay playable in `classic/` (tag `clack-stack-classic`). This section replaces §1–16 wherever they conflict. In particular, the timer, levels, crown, SMASH, HOLD, OVERTIME, rings, hazards, the cube, the marble square and the depth and spot rules are all gone.
+
+> **The whole game:** build one tower as high as you can. Every tile falls straight down from the hand and lands on whatever is under it. If the weight goes past a wheel, the tower falls and the run is over.
+
+### 17.1 Placing: the tile falls straight down
+
+- **The grid.** The hand's position snaps to half-tile steps, and that is the only grid.
+- **The drop.** Let go and the tile drops straight down at that x and stops at its first contact with anything below: a top, a point, a slant, the car, or the rug. Tiles never overlap and never stick to the side of something in mid-air.
+- **Squares** are always upright.
+- **Triangles** fall point-up. The exception is a notch the triangle fits exactly point-down (a V between two slants), where it drops in point-down. That is the only special case.
+- **Off the base.** If what's under the hand is the rug, the ghost shows the tile lying on the rug with a cross, and dropping it there just loses the tile.
+- **What is shown.** The ghost is the exact landing result, computed with the same function as the real drop. A faint vertical guide column runs from the hand down to the ghost, so you can see what the tile will hit. A tile is always placeable, and the only question is where it lands.
+- **Overhangs.** A tile that lands resting partly on something and partly over air hangs there, held by the magnet on the edge it touches. The weight shows what that does.
+- **Clacks.** Every edge the landed tile shares with a neighbour clacks: DOUBLE and TRIPLE as before. Landing flush on a flat top with full support is a PERFECT.
+
+### 17.2 Falling: the weight
+
+- **The rule.** The build's centre of weight, sway included, is a large, always-visible plumb weight hanging over the car. The car shows its wheel span, green between the wheels and red at them.
+- **Ghost weight.** While aiming, a ghost weight shows where the weight will settle after this drop, and it turns red if the drop would tip the tower.
+- **Losing.** If the weight passes a wheel, the tower tips over, which is the existing rock physics with the wheel lift and creak as the warning. The run ends with a glorious crash. There is no other way to lose: no hazards, nothing pushes the car, and the arm only ever holds tiles.
+
+### 17.3 Pace and strategy
+
+- **The fuse.** A ring around the hand empties, and the hand drops the tile where it is when the ring runs out. The ring starts at about 3 s and shrinks with height to about 1.2 s. This keeps the game fast with no clock. Nothing else is timed.
+- **Sway.** The part above the highest brace sways more with each landing, more the taller and thinner that part is, and the sway moves the weight. It settles over time, but the fuse limits how long you can wait.
+- **Braces.** A triangle dropped point-down into a notch between two point-up triangles is a TRUSS. It locks the tower below it, which stops swaying, and calms the sway above.
+- **Where the strategy is.** You choose between height now and balance later: where to put the triangles you're dealt (as caps, braces or counterweights), when to widen, and when to brace.
+- **The deal.** About 7 squares to 3 triangles, never the same colour twice in a row, with the next piece shown. There is no HOLD.
+
+### 17.4 Score and the room
+
+- **Score** is the tower's height in cm (one tile is 7.5 cm), as best height. Clack points can stay as a secondary score if they help the feel, but height is what the results card leads with.
+- **Height marks.** The room objects are height marks the tower passes on the way up: the watermelon bag, the tile box, the armchair seat, the egg chair, the side table, the window sill, YOU (112 cm), the floor lamp, the bookshelf, A GROWN-UP, the door, the ceiling, then the sky and night. Passing one is a celebration ("TALLER THAN THE ARMCHAIR!"). The camera zooms out and scrolls as it does now.
+- **Base.** One base: two coupled cars, 4 L. Narrowing is no longer needed, because height itself brings the sway.
+
+### 17.5 Flow and modes
+
+- **Flow:** title, then the run, then the crash, then the results card (height, best, the marks passed), then AGAIN in one tap. The start shove can stay as the title flourish only.
+- **First-time hints**, once each: "Let go: the tile falls straight down." "Keep the weight between the wheels!" "Fill a notch with a triangle to brace."
+- **BIG MAGNETS:**
+  - no fuse;
+  - gentler sway;
+  - a crash rolls in a new car and the run goes on (best height counts);
+  - the ghost weight shows as usual.
+
+### 17.6 Acceptance
+
+`tools/` is a fresh, small suite. The old suite lives in `classic/tools/`.
+
+- **selftest:** the drop function lands squares and triangles correctly on flat tops, points, slants, notches and over edges. The ghost equals the landing for thousands of random builds and hand positions. Tiles never overlap.
+- **feel and flow:** title, run, crash, results and AGAIN through real input on touch, mouse and keys; no console errors; the fuse; hints shown once; BIG MAGNETS keeps going after a crash.
+- **strategy (whole runs from the title, seeds 1–10, real input):**
+
+  | Bot | What it does |
+  |---|---|
+  | SpamBot | clicks at a fixed x as fast as it can |
+  | StackBot | always aims for the highest landing |
+  | CarefulBot | balance-greedy, braces with triangles when it can, never lets the ghost weight go red |
+
+  Each bot's median best height must rank CarefulBot > StackBot > SpamBot, with CarefulBot at least 1.5× SpamBot. Every crash happens with the weight past a wheel.
+- **screens:** a contact sheet at 390x844 and 844x390 of the title, aiming a square, aiming a triangle over a notch, a hang over an edge, the off-base cross, the weight going amber, the crash and the results card.
