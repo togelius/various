@@ -64,14 +64,14 @@ subdirectory with its own README:
   Pickup weapons you use up, checkpoints, splats, a ledge to grab. Raw WebGL2, one HTML file, made for a phone held sideways and
   playable on a laptop with the keys and the mouse. Open
   `tall-order/index.html`.
-- **[clack-stack/](clack-stack/)** — Clack Stack, a fast tower-building race
-  with see-through magnetic tiles on a living-room rug. Move the little striped
-  hand, let go, and the magnet yanks each square or triangle into place with a
-  CLACK. Build on a wobbly toy-car base until the tower is taller than the
-  watermelon bag, the armchair, the window, you. Then crown it with the orange
-  triangle and smash it with the cube, before the clock runs out. Includes a BIG
-  MAGNETS mode for small children. One HTML file, made for a phone or a laptop. Open
-  `clack-stack/index.html`.
+- **[clack-stack/](clack-stack/)** — Clack Stack: build one tower of
+  see-through magnetic tiles on a toy-car base, as high as you can. Every tile
+  falls straight down from a little striped hand and clacks onto whatever is
+  under it. If the brass weight swings past a wheel, the tower comes down. Brace
+  tall towers with triangles, and climb past the watermelon bag, the armchair
+  and you. A BIG MAGNETS mode is for small children, and the older rules (clock,
+  levels, crown and smash) stay playable in `clack-stack/classic/`. One HTML
+  file, made for a phone or a laptop. Open `clack-stack/index.html`.
 - **[accession/](accession/)** — ACCESSION (working title), a turn-based
   roguelike set in an endless museum whose departments rearrange every night.
   Design phase only: `accession/DESIGN.md` holds the design sketch and the
