@@ -1,35 +1,44 @@
-/* CLACK STACK rules, revision 5 (DESIGN.md §18.1–18.3 and §18.7; the precise reading is tools/oracle/SPEC.md).
-   The one source of where a tile can go and why it falls off. Pure: no DOM, no time, no randomness, no globals but
-   the language's own. It runs in an empty vm context (tools/lib/rules-vm.cjs) and is inlined into index.html between
-   the RULES markers by tools/build.cjs.
+/* CLACK STACK rules, revision 5b (DESIGN.md §18.1–18.3 and §18.7; the precise reading is tools/oracle/SPEC.md, which
+   wins on rules). The one source of where a tile can go and why it falls off. Pure: no DOM, no time, no randomness,
+   no globals but the language's own. It runs in an empty vm context (tools/lib/rules-vm.cjs) and is inlined into
+   index.html between the RULES markers by tools/build.cjs.
+
+   The one rule (SPEC §5): a tile stays if it meets the tower edge to edge along at least half an edge.
+   - A square or ▲ stays when part of its bottom edge (on this lattice, half of it or all of it) lies on a flat top:
+     the car, a square's top or a ▼'s top. The rest may be over a lower top, a slant or nothing.
+   - A ▼ stays when one of its lower sides lies whole against a ▲'s side (two such sides: it sits in a notch).
+   Otherwise it falls off, and there is one reason: ONLY A POINT.
 
    Numbers are exact. A point is a lattice point (X, a, b): x = X/2, y = a + b·h with h = √3/2. The comparison format
    writes it as SPEC's [X, p, q] with y = (p + q√3)/2, so p = 2a and q = b. Two heights are compared in integers
    (sign of 2·Δa + Δb·√3), never in floating point.
 
-   A tile is { t: 'sq' | 'up' | 'dn', c: col, a, b, on: [left strip on the tower, right strip on the tower] }:
+   A tile is { t: 'sq' | 'up' | 'dn', c: col, a, b }:
    - 'sq' its lower-left corner at (c, a, b);
    - 'up' (▲) its base from (c, a, b) to (c + 2, a, b), apex (c + 1, a, b + 1);
    - 'dn' (▼) its point at (c + 1, a, b), its top edge from (c, a, b + 1) to (c + 2, a, b + 1).
-   Every tile covers two half-tile strips: strip s is x from s/2 to s/2 + 1/2, and a tile at col c covers c and c + 1. */
+   Every tile spans two half-tile columns: column s is x from s/2 to s/2 + 1/2, and a tile at col c spans c and c + 1.
+   Over one column a tile's top is a straight line, and the topmost thing in a column lies above every other thing in
+   it at both of the column's ends (two tiles that span a column and don't overlap can't cross inside it). */
 var RULES = (function () {
   'use strict';
 
-  // the reasons a tile falls off, in precedence order (DESIGN §18.2)
-  var REASONS = ['NO SIDE', 'ONLY A POINT', 'OVER THE EDGE', 'NOT LEVEL', 'TOO FAR OUT'];
+  // the reasons a tile falls off (DESIGN §18.2): one
+  var REASONS = ['ONLY A POINT'];
 
   // sign of (a1 + b1·h) − (a2 + b2·h), h = √3/2: the sign of 2·da + db·√3, decided in integers
-  function cmpH(a1, b1, a2, b2) {
-    var da = a1 - a2, db = b1 - b2;
-    if (da === 0 && db === 0) return 0;
-    if (da >= 0 && db >= 0) return 1;
-    if (da <= 0 && db <= 0) return -1;
-    var l = 4 * da * da, r = 3 * db * db; // never equal: √3 is irrational
-    return da > 0 ? (l > r ? 1 : -1) : (l > r ? -1 : 1);
+  function cmpH(a1, b1, a2, b2) { return sgn3(2 * (a1 - a2), b1 - b2); }
+  // sign of p + q·√3
+  function sgn3(p, q) {
+    if (p === 0 && q === 0) return 0;
+    if (p >= 0 && q >= 0) return 1;
+    if (p <= 0 && q <= 0) return -1;
+    var l = p * p, r = 3 * q * q; // never equal: √3 is irrational
+    return p > 0 ? (l > r ? 1 : -1) : (l > r ? -1 : 1);
   }
 
-  // Over each of its two strips (0 left, 1 right) a tile's top and underside are straight, so each is given by its
-  // height at the strip's left and right end, as lattice offsets [a_left, b_left, a_right, b_right] from the tile's (a, b).
+  // Over each of its two columns (0 left, 1 right) a tile's top and underside are straight, so each is given by its
+  // height at the column's left and right end, as lattice offsets [a_left, b_left, a_right, b_right] from (a, b).
   var TOP = {
     sq: [[1, 0, 1, 0], [1, 0, 1, 0]],
     up: [[0, 0, 0, 1], [0, 1, 0, 0]],
@@ -40,10 +49,12 @@ var RULES = (function () {
     up: [[0, 0, 0, 0], [0, 0, 0, 0]],
     dn: [[0, 1, 0, 0], [0, 0, 0, 1]]
   };
+  // a top is flat (and so can hold a bottom edge) for squares and ▼; a ▲'s top is two slants
+  var FLAT = { sq: true, up: false, dn: true };
   var WAY = { sq: null, up: 'up', dn: 'down' };
 
   // ---- builds (immutable) ----
-  // { half, tiles: [tile] in placing order, log: [{piece, col, way}], idx: per strip the tiles covering it }
+  // { half, tiles: [tile] in placing order, log: [{piece, col, way}], idx: per half-tile column the tiles spanning it }
   function off(B) { return 2 * B.half + 1; }
   function freezeBuild(B) {
     for (var k = 0; k < B.idx.length; k++) if (B.idx[k]) Object.freeze(B.idx[k]);
@@ -57,42 +68,39 @@ var RULES = (function () {
     for (var k = 0; k < 4 * half + 2; k++) idx.push(null);
     return freezeBuild({ half: half, tiles: [], log: [], idx: idx });
   }
-  function inStrip(B, s) { var k = s + off(B); return k >= 0 && k < B.idx.length ? B.idx[k] : null; }
+  function inCol(B, s) { var k = s + off(B); return k >= 0 && k < B.idx.length ? B.idx[k] : null; }
   function carIn(B, s) { return s >= -2 * B.half && s < 2 * B.half; }
 
   // ---- the drop and the fit ----
-  // One strip s under a tile whose underside starts at height (ra, rb): is anything there (any), the highest top at
-  // the strip's two ends (env), and whether a single flat top lies at exactly (ra, rb) across the whole strip (flat)
-  // and whether that top's own strip is on the tower (on).
-  function stripAt(B, s, ra, rb) {
-    var any = false, e0a = 0, e0b = 0, e1a = 0, e1b = 0, flatOn = null;
-    if (carIn(B, s)) {
-      any = true;
-      if (ra === 0 && rb === 0) flatOn = true;
-    }
-    var list = inStrip(B, s);
+  // The topmost thing in column s: whether there is anything (any), its top at the column's two ends (e0, e1), and
+  // whether it is a flat top (the car, a square, a ▼).
+  function colTop(B, s) {
+    var any = false, e0a = 0, e0b = 0, e1a = 0, e1b = 0, flat = false;
+    if (carIn(B, s)) { any = true; flat = true; }
+    var list = inCol(B, s);
     if (list) for (var k = 0; k < list.length; k++) {
-      var t = list[k], jt = s - t.c, top = TOP[t.t][jt];
+      var t = list[k], top = TOP[t.t][s - t.c];
       var ta0 = t.a + top[0], tb0 = t.b + top[1], ta1 = t.a + top[2], tb1 = t.b + top[3];
-      if (!any || cmpH(ta0, tb0, e0a, e0b) > 0) { e0a = ta0; e0b = tb0; }
-      if (!any || cmpH(ta1, tb1, e1a, e1b) > 0) { e1a = ta1; e1b = tb1; }
+      // the topmost tile is above the others at both ends, so comparing the left end decides (ties: the same height
+      // at the left end means touching there, and then the right end decides)
+      var c0 = any ? cmpH(ta0, tb0, e0a, e0b) : 1;
+      if (c0 > 0 || (c0 === 0 && cmpH(ta1, tb1, e1a, e1b) > 0)) { e0a = ta0; e0b = tb0; e1a = ta1; e1b = tb1; flat = FLAT[t.t]; }
       any = true;
-      if (ta0 === ra && tb0 === rb && ta1 === ra && tb1 === rb) flatOn = t.on[jt];
     }
-    return { any: any, e0a: e0a, e0b: e0b, e1a: e1a, e1b: e1b, flat: flatOn !== null, on: flatOn === true };
+    return { any: any, e0a: e0a, e0b: e0b, e1a: e1a, e1b: e1b, flat: flat };
   }
   // the ▲ at col c whose base is at (a, b), or null
   function upAt(B, c, a, b) {
-    var list = inStrip(B, c + 1);
+    var list = inCol(B, c + 1);
     if (list) for (var k = 0; k < list.length; k++) {
       var t = list[k];
       if (t.t === 'up' && t.c === c && t.a === a && t.b === b) return t;
     }
     return null;
   }
-  // Where a tile of type `type` at col stops, and whether it fits there. The tile falls from far above; over each of
-  // its strips the gap between its underside and a thing's top is linear, so it stops at the largest
-  // (top − underside) over its two strips, both ends of each, and every thing in them (the car and the tiles).
+  // Where a tile of type `type` at col stops, and whether it stays there. The tile falls from far above; over each of
+  // its columns the gap between its underside and a thing's top is linear, so it stops at the largest
+  // (top − underside) over its two columns, both ends of each, and every thing in them (the car and the tiles).
   function core(B, type, col) {
     var bot = BOT[type], ra = 0, rb = 0, hit = false;
     for (var j = 0; j < 2; j++) {
@@ -101,7 +109,7 @@ var RULES = (function () {
         var ca = -u[2 * e], cb = -u[2 * e + 1];
         if (!hit || cmpH(ca, cb, ra, rb) > 0) { ra = ca; rb = cb; hit = true; }
       }
-      var list = inStrip(B, s);
+      var list = inCol(B, s);
       if (list) for (var k = 0; k < list.length; k++) {
         var t = list[k], top = TOP[t.t][s - t.c];
         for (var e2 = 0; e2 < 2; e2++) {
@@ -111,33 +119,27 @@ var RULES = (function () {
       }
     }
     if (!hit) throw new Error('drop: nothing at all below col ' + col);
-    var L, R, reason = null, gap = null, onL, onR;
     if (type === 'dn') {
-      // a ▼ hangs on a ▲'s slant: its left side on the right slant of a ▲ at col − 1, its right side on the left
-      // slant of a ▲ at col + 1, both with their base at the ▼'s point
-      var upL = upAt(B, col - 1, ra, rb), upR = upAt(B, col + 1, ra, rb);
-      onL = upL ? upL.on[1] : stripAt(B, col, ra, rb).on;
-      onR = upR ? upR.on[0] : stripAt(B, col + 1, ra, rb).on;
-      if (!upL && !upR) reason = 'NO SIDE';
-      else if (!onL && !onR) reason = 'TOO FAR OUT';
-      return { a: ra, b: rb, reason: reason, gap: null, on0: onL, on1: onR, sides: (upL ? 1 : 0) + (upR ? 2 : 0) };
+      // a ▼ hangs on a ▲'s side: its left side on the right side of a ▲ at col − 1, its right side on the left side
+      // of a ▲ at col + 1, both with their base at the ▼'s point
+      var sides = (upAt(B, col - 1, ra, rb) ? 1 : 0) + (upAt(B, col + 1, ra, rb) ? 2 : 0);
+      return { a: ra, b: rb, fit: sides > 0, gap: null, held: sides };
     }
-    // a square or a ▲: its bottom edge is flat at (ra, rb)
-    L = stripAt(B, col, ra, rb); R = stripAt(B, col + 1, ra, rb);
-    onL = L.on; onR = R.on;
-    if (!L.flat && !R.flat) reason = 'ONLY A POINT';
-    else if (!L.any || !R.any) reason = 'OVER THE EDGE';
-    else if (!L.flat || !R.flat) {
-      reason = 'NOT LEVEL';
-      // the deepest point under the bottom edge: the lowest strip end (a flat strip's ends are at the edge itself)
-      var ga = L.e0a, gb = L.e0b;
-      if (cmpH(L.e1a, L.e1b, ga, gb) < 0) { ga = L.e1a; gb = L.e1b; }
-      if (cmpH(R.e0a, R.e0b, ga, gb) < 0) { ga = R.e0a; gb = R.e0b; }
-      if (cmpH(R.e1a, R.e1b, ga, gb) < 0) { ga = R.e1a; gb = R.e1b; }
-      gap = [2 * (ra - ga), rb - gb];
+    // a square or a ▲: its bottom edge is flat at (ra, rb); it stays when a flat top lies at exactly that height
+    // under one of its columns (half its bottom edge) or both (all of it)
+    var held = 0, lo = null;
+    for (var j2 = 0; j2 < 2; j2++) {
+      var T = colTop(B, col + j2);
+      if (!T.any) continue; // nothing below here: no gap is measured over the air
+      if (T.flat && T.e0a === ra && T.e0b === rb && T.e1a === ra && T.e1b === rb) held |= 1 << j2;
+      if (!lo || cmpH(T.e0a, T.e0b, lo[0], lo[1]) < 0) lo = [T.e0a, T.e0b];
+      if (cmpH(T.e1a, T.e1b, lo[0], lo[1]) < 0) lo = [T.e1a, T.e1b];
     }
-    else if (type === 'sq' ? !(onL && onR) : !(onL || onR)) reason = 'TOO FAR OUT';
-    return { a: ra, b: rb, reason: reason, gap: gap, on0: onL, on1: onR, sides: 0 };
+    var fit = held > 0, gap = null;
+    // the gap (SPEC §5a): how far the deepest part of what lies under the bottom edge is below it, for drawing the
+    // sliver; the deepest is at an end of a column (the tops are straight over a column)
+    if (fit && lo && cmpH(lo[0], lo[1], ra, rb) < 0) gap = [2 * (ra - lo[0]), rb - lo[1]];
+    return { a: ra, b: rb, fit: fit, gap: gap, held: held };
   }
 
   // ---- geometry for the contacts ----
@@ -198,7 +200,7 @@ var RULES = (function () {
       }
     }
     for (var s = c - 1; s <= c + 2; s++) {
-      var list = inStrip(B, s);
+      var list = inCol(B, s);
       if (list) for (k = 0; k < list.length; k++) {
         var N = list[k];
         if (s !== Math.max(N.c, c - 1)) continue; // each neighbour once
@@ -239,9 +241,8 @@ var RULES = (function () {
       if (col < -h2 || col > h2 - 2) throw new Error('drop: square col ' + col + ' is off the car');
       if (way !== undefined && way !== null) throw new Error('drop: a square has no way up');
     } else {
-      // The hand aims triangles at cols −2·half − 1 … 2·half − 1 (SPEC §2, cols()), but golden case 5 drops a ▼
-      // at col 2·half, wholly past the car, and expects TOO FAR OUT: so a triangle is evaluated at any col with
-      // something below it, and throws only over nothing at all (SPEC §3).
+      // the hand aims a triangle at most half a tile past either end of the car (SPEC §2)
+      if (col < -h2 - 1 || col > h2 - 1) throw new Error('drop: triangle col ' + col + ' is outside the hand\'s range');
       if (way !== undefined && way !== null && way !== 'up' && way !== 'down') throw new Error("drop: way must be 'up' or 'down'");
     }
   }
@@ -250,33 +251,39 @@ var RULES = (function () {
     var V = vertsOf(type, col, k.a, k.b), verts = [];
     for (var i = 0; i < V.length; i++) verts.push(out(V[i]));
     verts.sort(lex);
-    var C = contacts(B, T), fit = k.reason === null, shine = [];
-    if (fit) for (var j = 0; j < C.segments.length; j++) shine.push([C.segments[j][0].slice(), C.segments[j][1].slice()]);
+    var C = contacts(B, T), shine = [];
+    if (k.fit) for (var j = 0; j < C.segments.length; j++) shine.push([C.segments[j][0].slice(), C.segments[j][1].slice()]);
     return {
-      outcome: fit ? 'fit' : 'off',
+      outcome: k.fit ? 'fit' : 'off',
       way: WAY[type],
       pose: { type: type === 'dn' ? 'down' : type, col: col, y: [2 * k.a, k.b] },
       verts: verts,
-      reason: k.reason,
+      reason: k.fit ? null : REASONS[0],
       contacts: C,
       shine: shine,
-      strips: [k.on0, k.on1],
       gap: k.gap
     };
   }
-  // drop(build, piece, col, way?): where the tile stops and whether it fits (SPEC §8's format, plus pose)
+  // SPEC §6: the way a triangle takes when no way is given, from whether each way fits and where each rests (its
+  // lowest point, [p, q]): the one that fits; if both fit, the lower, and ▼ when they are equally low; if neither, ▲
+  function pickWay(upFit, upY, downFit, downY) {
+    if (upFit && downFit) return sgn3(upY[0] - downY[0], upY[1] - downY[1]) < 0 ? 'up' : 'down';
+    if (upFit) return 'up';
+    if (downFit) return 'down';
+    return 'up';
+  }
+  // the same choice from two drop results (forced 'up' and forced 'down' at one col)
+  function chooseWay(up, down) {
+    return pickWay(up.outcome === 'fit', up.pose.y, down.outcome === 'fit', down.pose.y);
+  }
+  // drop(build, piece, col, way?): where the tile stops and whether it stays (SPEC §8's format, plus pose)
   function drop(B, piece, col, way) {
     checkDrop(B, piece, col, way);
     if (piece === 'sq') return result(B, 'sq', col, core(B, 'sq', col));
     if (way === 'up') return result(B, 'up', col, core(B, 'up', col));
     if (way === 'down') return result(B, 'dn', col, core(B, 'dn', col));
-    // no way given: the way that fits (at most one can), else what §18.3's hand shows
-    var d = core(B, 'dn', col);
-    if (d.reason === null) return result(B, 'dn', col, d);
-    var u = core(B, 'up', col);
-    if (u.reason === null) return result(B, 'up', col, u);
-    if (d.reason === 'TOO FAR OUT') return result(B, 'dn', col, d);
-    return result(B, 'up', col, u);
+    var u = core(B, 'up', col), d = core(B, 'dn', col);
+    return pickWay(u.fit, [2 * u.a, u.b], d.fit, [2 * d.a, d.b]) === 'up' ? result(B, 'up', col, u) : result(B, 'dn', col, d);
   }
   // place(build, result): a new build with the fitted tile added; the old build is unchanged
   function place(B, r) {
@@ -285,8 +292,8 @@ var RULES = (function () {
     if (type !== 'sq' && type !== 'up' && type !== 'dn') throw new Error('place: no pose');
     checkDrop(B, type === 'sq' ? 'sq' : 'tri', p.col, type === 'sq' ? null : WAY[type]);
     var k = core(B, type, p.col);
-    if (k.reason !== null || 2 * k.a !== p.y[0] || k.b !== p.y[1]) throw new Error('place: that result is not a fit on this build');
-    var t = Object.freeze({ t: type, c: p.col, a: k.a, b: k.b, on: Object.freeze([k.on0, k.on1]) });
+    if (!k.fit || 2 * k.a !== p.y[0] || k.b !== p.y[1]) throw new Error('place: that result is not a fit on this build');
+    var t = Object.freeze({ t: type, c: p.col, a: k.a, b: k.b });
     var idx = B.idx.slice(), o = off(B);
     for (var j = 0; j < 2; j++) idx[p.col + j + o] = (idx[p.col + j + o] || []).concat([t]);
     var log = B.log.concat([Object.freeze({ piece: type === 'sq' ? 'sq' : 'tri', col: p.col, way: WAY[type] })]);
@@ -319,23 +326,23 @@ var RULES = (function () {
         if (c < lo || c > hi) continue;
         var r = drop(B, piece, c);
         if (r.outcome !== 'fit') continue;
-        if (!best || cmpH(r.pose.y[0] / 2, r.pose.y[1], best.pose.y[0] / 2, best.pose.y[1]) < 0) best = r;
+        if (!best || sgn3(r.pose.y[0] - best.pose.y[0], r.pose.y[1] - best.pose.y[1]) < 0) best = r;
       }
       if (best) return best;
     }
     return here;
   }
-  // the placed tiles, for drawing and checking: piece, way, col, y, verts and strips, in placing order
+  // the placed tiles, for drawing and checking: piece, way, col, y ([p, q] of its lowest point) and verts, in placing order
   function tiles(B) {
     var res = [];
     for (var i = 0; i < B.tiles.length; i++) {
       var t = B.tiles[i], V = vertsOf(t.t, t.c, t.a, t.b), verts = [];
       for (var k = 0; k < V.length; k++) verts.push(out(V[k]));
-      res.push({ piece: t.t === 'sq' ? 'sq' : 'tri', way: WAY[t.t], col: t.c, y: [2 * t.a, t.b], verts: verts, strips: [t.on[0], t.on[1]] });
+      res.push({ piece: t.t === 'sq' ? 'sq' : 'tri', way: WAY[t.t], col: t.c, y: [2 * t.a, t.b], verts: verts });
     }
     return res;
   }
 
-  return { REASONS: REASONS, newBuild: newBuild, drop: drop, place: place, fitsAll: fitsAll, key: key, pull: pull, tiles: tiles, cols: colsFor };
+  return { REASONS: REASONS, newBuild: newBuild, drop: drop, place: place, fitsAll: fitsAll, key: key, pull: pull, tiles: tiles, cols: colsFor, chooseWay: chooseWay };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = RULES;

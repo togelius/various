@@ -1,5 +1,5 @@
 'use strict';
-// Independent exact geometry for the invariants (DESIGN §18.8 I10, I13): it shares no code with rules.js and reads
+// Independent exact geometry for the invariants (DESIGN §18.8 I10, I13, and the gap of SPEC §5a), revision 5b: it shares no code with rules.js and reads
 // only the public results (tiles(), drop()). Coordinates are scaled by 2: a point [X, p, q] is (X, p + q√3), so every
 // x is an integer and every y is in ℤ[√3]; numbers a + b√3 are pairs [a, b] and compared exactly.
 
@@ -85,7 +85,10 @@ function mergeSegs(segs) {
 }
 
 // ---- the state of a build (I10) ----
-// T: rules.tiles(build). Returns a list of problems (empty when the build is sound) and the recomputed strips.
+// T: rules.tiles(build). Returns a list of problems (empty when the build is sound) and, per tile, how it holds:
+// {by: 'car' | tile indexes, len: the length of bottom edge held, in half tiles (1 or 2), sides: ▼ sides held (0..2)}.
+// Revision 5b (SPEC §5): a square or ▲ holds when part of its bottom edge (at least half) lies on a flat top below it:
+// the car top, a square's top or a ▼'s top; a ▼ holds when a lower side lies whole on a ▲'s side.
 function checkState(T, half) {
   const errs = [], n = T.length;
   const polys = T.map(t => shape(t.piece, t.way, t.col, t.y));
@@ -95,6 +98,7 @@ function checkState(T, half) {
     for (const v of t.verts) if (!v.every(Number.isInteger) || v[1] % 2 !== 0) errs.push(`tile ${i}: vertex ${JSON.stringify(v)} is off the lattice`);
     for (const v of polys[i]) if (sgn(v[1], v[2]) < 0) errs.push(`tile ${i}: below the car top`);
     if (t.piece === 'sq' && (t.col % 2 !== 0 || t.col < -2 * half || t.col > 2 * half - 2)) errs.push(`tile ${i}: square at col ${t.col}`);
+    if (t.piece === 'tri' && (t.col < -2 * half - 1 || t.col > 2 * half - 1)) errs.push(`tile ${i}: triangle at col ${t.col}, outside the hand's range`);
   });
   for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) if (overlap(polys[i], polys[j])) errs.push(`tiles ${i} and ${j} overlap`);
   // joined to the car by positive-length contacts
@@ -103,57 +107,79 @@ function checkState(T, half) {
   for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) if (contactSegs(polys[i], polys[j]).length) { adj[i].push(j); adj[j].push(i); }
   while (queue.length) { const i = queue.shift(); for (const j of adj[i]) if (!reached[j]) { reached[j] = true; queue.push(j); } }
   reached.forEach((r, i) => { if (!r) errs.push(`tile ${i} is not joined to the car`); });
-  // the fit rules and "half off, never more", recomputed from the geometry
-  const S = strips(T, half);
-  T.forEach((t, i) => {
-    const s = S[i];
-    if (JSON.stringify(s.on) !== JSON.stringify(t.strips)) errs.push(`tile ${i} (${t.piece}${t.way ? ' ' + t.way : ''} col ${t.col}): strips ${JSON.stringify(t.strips)}, recomputed ${JSON.stringify(s.on)}`);
-    if (t.way === 'down') { if (!s.sides) errs.push(`tile ${i}: a ▼ on no ▲ side`); }
-    else if (!(s.flat[0] && s.flat[1])) errs.push(`tile ${i}: its bottom is not on flat tops`);
-    const ons = s.on.filter(Boolean).length;
-    if (t.piece === 'sq' ? ons < 2 : ons < 1) errs.push(`tile ${i}: ${ons} strip(s) on the tower`);
-  });
-  return { errs, strips: S };
-}
-// the flat tops of a build (car, square tops, ▼ tops) and each tile's strips on the tower, from the geometry alone
-function strips(T, half) {
-  const memo = new Array(T.length).fill(null);
-  // the flat top covering strip s at height y (scaled [p, q]): returns its 'on' for s, or null
-  function flatAt(s, y, except) {
-    if (y[0] === 0 && y[1] === 0 && s >= -2 * half && s < 2 * half) return true;
-    for (let k = 0; k < T.length; k++) {
-      if (k === except) continue;
-      const t = T[k];
-      if (t.way === 'up') continue;
-      const top = t.piece === 'sq' ? [t.y[0] + 2, t.y[1]] : [t.y[0], t.y[1] + 1];
-      if (top[0] !== y[0] || top[1] !== y[1]) continue;
-      if (s !== t.col && s !== t.col + 1) continue;
-      return on(k)[s - t.col];
-    }
-    return null;
-  }
-  function info(i) {
+  // every tile holds by at least half an edge (never only at points)
+  const holds = T.map((t, i) => holdOf(T, polys, i, half));
+  holds.forEach((h, i) => {
     const t = T[i];
-    if (memo[i]) return memo[i];
-    memo[i] = { on: [false, false], flat: [false, false], sides: 0, busy: true }; // a cycle would be a bug: reads as off
-    const r = { on: [false, false], flat: [false, false], sides: 0 };
-    if (t.way === 'down') {
-      // left side on the right slant of a ▲ at col − 1, right side on the left slant of a ▲ at col + 1, base at our point
-      for (let k = 0; k < T.length; k++) {
-        const u = T[k];
-        if (u.way !== 'up' || u.y[0] !== t.y[0] || u.y[1] !== t.y[1]) continue;
-        if (u.col === t.col - 1) { r.sides |= 1; r.on[0] = on(k)[1]; }
-        if (u.col === t.col + 1) { r.sides |= 2; r.on[1] = on(k)[0]; }
+    if (t.way === 'down') { if (!h.sides) errs.push(`tile ${i} (▼ col ${t.col}): no lower side lies whole on a ▲'s side`); }
+    else if (!h.len) errs.push(`tile ${i} (${t.piece === 'sq' ? '■' : '▲'} col ${t.col}): its bottom touches no flat top along an edge`);
+    else if (h.short) errs.push(`tile ${i}: a bottom contact shorter than half an edge`);
+  });
+  return { errs, holds };
+}
+// how tile i holds, from the geometry alone (see checkState)
+function holdOf(T, polys, i, half) {
+  const t = T[i], P = polys[i], r = { by: [], len: 0, sides: 0, short: false };
+  if (t.way === 'down') {
+    const sides = [[P[2], P[0]], [P[0], P[1]]]; // [top-left, point], [point, top-right]
+    sides.forEach((sd, k) => {
+      for (let j = 0; j < T.length; j++) {
+        if (j === i || T[j].way !== 'up') continue;
+        if (covers(sd, contactSegs(P, polys[j]))) { r.sides |= 1 << k; r.by.push(j); }
       }
-      for (let j = 0; j < 2; j++) if (!(r.sides & (1 << j))) { const f = flatAt(t.col + j, t.y, i); r.on[j] = f === true; }
-    } else {
-      for (let j = 0; j < 2; j++) { const f = flatAt(t.col + j, t.y, i); r.flat[j] = f !== null; r.on[j] = f === true; }
-    }
-    memo[i] = r;
+    });
+    r.sides = (r.sides & 1) + ((r.sides >> 1) & 1);
     return r;
   }
-  function on(k) { return info(k).on; }
-  return T.map((t, i) => info(i));
+  const bottom = [P[0], P[1]];
+  const take = segs => { for (const s of segs) { const L = Math.abs(s[1][0] - s[0][0]); r.len += L; if (L < 1) r.short = true; } return segs.length > 0; };
+  if (take(carSegs(P, half).filter(s => onLine(s, bottom)))) r.by.push('car');
+  for (let j = 0; j < T.length; j++) {
+    if (j === i || T[j].way === 'up') continue; // a ▲'s top is two slants, never flat
+    const Q = polys[j], top = T[j].piece === 'sq' ? [Q[3], Q[2]] : [Q[2], Q[1]];
+    const s = edgeOverlap(bottom, top);
+    if (s && take([normSeg(s)])) r.by.push(j);
+  }
+  return r;
+}
+// does segment s lie on the line of edge e?
+function onLine(s, e) { const d = vec(e[0], e[1]); return sgn(...cross(d, vec(e[0], s[0]))) === 0 && sgn(...cross(d, vec(e[0], s[1]))) === 0; }
+
+// ---- the gap (SPEC §5a), from the polygons ----
+// For a square or ▲ resting with its bottom at y0 = [p, q] (scaled: p + q√3) over cols col..col+2: over each half-tile
+// column the topmost thing below (the car, or the tile whose upper boundary over the column is highest) gives S at the
+// column's two ends; the gap is y0 minus the lowest of those, as SPEC's [p, q], or null when nothing is below y0.
+// Columns with nothing below are skipped. (S is straight over a column, so its deepest point is at an end; where S
+// jumps at a vertical side this is the supremum of y0 − S(x).)
+function gapOf(T, half, col, y0) {
+  const polys = T.map(t => shape(t.piece, t.way, t.col, t.y));
+  let lo = null;
+  for (let s = col; s <= col + 1; s++) {
+    let best = s >= -2 * half && s < 2 * half ? [[0, 0], [0, 0]] : null;
+    for (const P of polys) {
+      const e = upperOver(P, s);
+      if (!e) continue;
+      if (!best || cmp(add(e[0], e[1]), add(best[0], best[1])) > 0) best = e;
+    }
+    if (!best) continue;
+    for (const v of best) if (!lo || cmp(v, lo) < 0) lo = v;
+  }
+  if (!lo || cmp(lo, y0) >= 0) return null;
+  return sub(y0, lo);
+}
+// the upper boundary of polygon P over the column X s..s+1, as its heights at the two ends, or null if P doesn't span it
+function upperOver(P, s) {
+  let best = null;
+  for (const [A, B] of edges(P)) {
+    if (A[0] === B[0]) continue;
+    const [L, R] = A[0] < B[0] ? [A, B] : [B, A];
+    if (L[0] > s || R[0] < s + 1) continue;
+    // the edge's heights at s and s + 1 (lattice edges span 1 or 2 columns; a 2-column edge is flat)
+    const at = X => X === L[0] ? Y(L) : X === R[0] ? Y(R) : Y(L);
+    const e = [at(s), at(s + 1)];
+    if (!best || cmp(add(e[0], e[1]), add(best[0], best[1])) > 0) best = e;
+  }
+  return best;
 }
 
 // the tile's boundary edges; does segment s lie on one of them?
@@ -190,4 +216,4 @@ function covers(E, segs) {
   return cmp(reach, L) >= 0;
 }
 
-module.exports = { sgn, onSegment, shape, edges, overlap, contactSegs, carSegs, checkState, strips, onBoundary, covers, lex, normSeg };
+module.exports = { sgn, onSegment, shape, edges, overlap, contactSegs, carSegs, checkState, holdOf, gapOf, onBoundary, covers, lex, normSeg };

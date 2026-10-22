@@ -1,9 +1,9 @@
 'use strict';
-// The comparison format of tools/oracle/SPEC.md §8, made canonical so two implementations can be compared by string,
+// The comparison format of tools/oracle/SPEC.md §8 (revision 5b: seven fields, no strips), made canonical so two implementations can be compared by string,
 // plus the mirror (x -> −x) and translation (x -> x + dX/2) of results, columns, drop logs and builds.
 // A point is [X, p, q]: x = X/2, y = (p + q√3)/2.
 
-const FIELDS = ['outcome', 'way', 'verts', 'reason', 'contacts', 'shine', 'strips', 'gap'];
+const FIELDS = ['outcome', 'way', 'verts', 'reason', 'contacts', 'shine', 'gap'];
 
 function lex(a, b) { return a[0] - b[0] || a[1] - b[1] || a[2] - b[2]; }
 function pt(p) { return [p[0] | 0, p[1] | 0, p[2] | 0]; }
@@ -21,7 +21,6 @@ function canon(r) {
     reason: r.reason === undefined ? null : r.reason,
     contacts: { segments: sortSegs((r.contacts && r.contacts.segments) || []), points: sortPts((r.contacts && r.contacts.points) || []) },
     shine: sortSegs(r.shine || []),
-    strips: [!!(r.strips && r.strips[0]), !!(r.strips && r.strips[1])],
     gap: r.gap ? [r.gap[0] | 0, r.gap[1] | 0] : null
   };
 }
@@ -43,13 +42,13 @@ function mirrorCol(col) { return -col - 2; }
 function mapPts(r, f) {
   const c = canon(r);
   return canon({
-    outcome: c.outcome, way: c.way, reason: c.reason, gap: c.gap, strips: c.strips,
+    outcome: c.outcome, way: c.way, reason: c.reason, gap: c.gap,
     verts: c.verts.map(f),
     contacts: { segments: c.contacts.segments.map(s => [f(s[0]), f(s[1])]), points: c.contacts.points.map(f) },
     shine: c.shine.map(s => [f(s[0]), f(s[1])])
   });
 }
-function mirrorResult(r) { const m = mapPts(r, p => [-p[0], p[1], p[2]]); m.strips = [m.strips[1], m.strips[0]]; return m; }
+function mirrorResult(r) { return mapPts(r, p => [-p[0], p[1], p[2]]); }
 function translateResult(r, dX) { return mapPts(r, p => [p[0] + dX, p[1], p[2]]); }
 function mirrorLog(log) { return log.map(e => ({ piece: e.piece, col: mirrorCol(e.col), way: e.way })); }
 function translateLog(log, dX) { return log.map(e => ({ piece: e.piece, col: e.col + dX, way: e.way })); }
@@ -71,7 +70,7 @@ function parseDrop(s) {
   const col = Math.round(parseFloat(m[2]) * 2);
   return m[1] === '■' ? { piece: 'sq', col, way: null } : { piece: 'tri', col, way: m[1] === '▲' ? 'up' : 'down' };
 }
-// a result in a few words: '▼ off TOO FAR OUT', '■ fit'
+// a result in a few words: '▼ off ONLY A POINT', '■ fit'
 function fmtOutcome(r) { return (r.way === null ? '■' : r.way === 'up' ? '▲' : r.way === 'down' ? '▼' : '?') + ' ' + r.outcome + (r.reason ? ' ' + r.reason : ''); }
 function fmtDrop(e) { return (e.piece === 'sq' ? '■' : e.way === 'down' ? '▼' : e.way === 'up' ? '▲' : '△') + (e.col / 2); }
 

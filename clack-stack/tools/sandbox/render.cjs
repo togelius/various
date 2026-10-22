@@ -1,11 +1,10 @@
 'use strict';
-// The rules sandbox renderer (DESIGN §18.8 G2): draws a build from rules.js alone, as plain outlined shapes in the
-// tiles' colours on white, with the tile in the hand, its dotted fall line and, optionally, the outcome:
-// - fits: the tile where it will sit, its contact segments shining (gold), a ×2 / ×3 chip for several neighbours;
-// - falls off: the tile red and dashed where it stops, its reason, and the reason's mark (§18.2's table):
-//   NO SIDE its lower sides red and a dot at its point; ONLY A POINT red dots at the points; OVER THE EDGE the part
-//   over nothing red with a drop arrow; NOT LEVEL the gap filled with a red wedge (outlined when under 0.3 L);
-//   TOO FAR OUT its over-air strips shaded red.
+// The rules sandbox renderer (DESIGN §18.8 G2), revision 5b: draws a build from rules.js alone, as plain outlined
+// shapes in the tiles' colours on white, with the tile in the hand, its dotted fall line and, optionally, the outcome:
+// - stays: the tile where it will sit, its contact segments shining (gold), a ×2 / ×3 chip for several neighbours;
+// - falls off: the tile red and dashed where it stops, ONLY A POINT, and red dots at the points it touches.
+// A thin gap (under 0.3 tile, e.g. 0.134 or 0.268) between part of a tile's bottom and the flat top below it is drawn
+// as a dark sliver, under placed tiles and under the tile that stays, so it doesn't read as a joint (§18.2).
 //
 //   const S = require('./tools/sandbox/render.cjs');
 //   const png = await S.renderBuild({ drops: ['■1'], hand: '▲1.5', outcome: true, title: '…', caption: '…' });
@@ -14,16 +13,15 @@
 //
 // A spec: { half = 2, drops: ['■1', '▲-0.5', …] or log: [{piece, col, way}], hand: '▲1.5' or {piece, col, way?}
 //   (way omitted: the way the rules choose), outcome = true, fits = false (faint marks at every place the hand's tile
-//   fits), air = true (faint hatching on placed tiles' over-air strips), title, caption, L = px per tile,
-//   R = a rules module (default: rules.js through the vm loader) }.
-const path = require('path');
+//   fits), slivers = true, title, caption, L = px per tile, R = a rules module (default: rules.js through the vm
+//   loader) }.
 const canon = require('../lib/canon.cjs');
 let pw;
 try { pw = require('playwright'); } catch (e) { pw = require('/opt/node-tools/node_modules/playwright'); }
 
 const COLORS = ['#E8323C', '#2F5BEA', '#FFD21F', '#2EBF4F', '#FF7A1A', '#5EC8F2', '#8A4FE0'];
 const STROKE = { '#FFD21F': '#D9A800', '#5EC8F2': '#2FA6D6' }; // pale colours get a deeper outline on white
-const RED = '#E8323C', GOLD = '#FFC531', INK = '#1E2541';
+const RED = '#E8323C', GOLD = '#FFC531', INK = '#1E2541', SLIVER = '#2b2f3f';
 const R3 = Math.sqrt(3);
 const yOf = (p, q) => (p + q * R3) / 2;
 const P = v => ({ x: v[0] / 2, y: yOf(v[1], v[2]) });
@@ -61,16 +59,36 @@ function topOf(poly, x) {
   }
   return best;
 }
-// the build's top outline at x (the car top is y = 0 over [−half, half]); null over nothing
-function outlineAt(polys, half, x) {
-  let best = x >= -half - 1e-12 && x <= half + 1e-12 ? 0 : null;
-  for (const p of polys) {
-    const xs = p.map(v => v.x), lo = Math.min(...xs), hi = Math.max(...xs);
-    if (x <= lo || x >= hi) continue;
-    const t = topOf(p, x);
-    if (t !== null && (best === null || t > best)) best = t;
+// Thin gaps (§18.2): under each half of the flat bottom of a square or ▲ (its bottom at yb from x0 to x0 + 1), the
+// topmost thing below it (other polygons whose top over that half is not above yb, and the car top); where that is
+// below the bottom by less than `thin` at both ends of the half, the space between is a sliver. Returns polygons.
+function sliversUnder(x0, yb, others, half, thin) {
+  const out = [], eps = 1e-7, T = thin || 0.3;
+  for (let j = 0; j < 2; j++) {
+    const xs = x0 + j / 2, xe = xs + 0.5;
+    let best = xs >= -half - eps && xe <= half + eps ? [0, 0] : null;
+    for (const p of others) {
+      const xsP = p.map(v => v.x);
+      if (Math.min(...xsP) > xs + eps || Math.max(...xsP) < xe - eps) continue;
+      const a = topOf(p, xs + 1e-9), b = topOf(p, xe - 1e-9);
+      if (a === null || b === null || (a + b) / 2 > yb + eps) continue;
+      if (!best || a + b > best[0] + best[1]) best = [a, b];
+    }
+    if (!best) continue;
+    const d0 = yb - best[0], d1 = yb - best[1];
+    if (d0 > 1e-6 && d1 > 1e-6 && d0 < T && d1 < T) out.push([{ x: xs, y: yb }, { x: xe, y: yb }, { x: xe, y: best[1] }, { x: xs, y: best[0] }]);
   }
-  return best;
+  return out;
+}
+// the thin gaps under every square and ▲ of a set of polygons ({poly, flat: true when its bottom is a flat edge})
+function sliversOf(items, half, thin) {
+  const out = [];
+  items.forEach((it, i) => {
+    if (!it.flat) return;
+    const ys = it.poly.map(v => v.y), yb = Math.min(...ys), x0 = Math.min(...it.poly.map(v => v.x));
+    out.push(...sliversUnder(x0, yb, items.filter((_, k) => k !== i).map(o => o.poly), half, thin));
+  });
+  return out;
 }
 
 // Everything a picture needs, from the rules: the build's tiles, the hand, the result (or the throw)
@@ -93,9 +111,8 @@ function model(spec) {
 function svgFor(spec) {
   const M = model(spec);
   const L = spec.L || 56, half = M.half, h = R3 / 2;
-  const showOutcome = spec.outcome !== false, air = spec.air !== false;
-  const polys = M.tiles.map(t => t.verts.map(P));
-  const ordered = M.tiles.map(t => shapeAt(t.piece, t.way, t.col, yOf(t.y[0], t.y[1])));
+  const showOutcome = spec.outcome !== false;
+  const polys = M.tiles.map(t => shapeAt(t.piece, t.way, t.col, yOf(t.y[0], t.y[1])));
   // the hand: its tile's bottom 1.1 tiles above everything (and above the landing)
   let top = 0;
   for (const p of polys) for (const v of p) top = Math.max(top, v.y);
@@ -114,36 +131,29 @@ function svgFor(spec) {
   const pts = poly => poly.map(v => X(v.x) + ',' + Y(v.y)).join(' ');
   const out = [];
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="system-ui, 'DejaVu Sans', sans-serif">`);
-  out.push(`<defs><pattern id="air" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="#8a8f9c" stroke-width="1.6"/></pattern>` +
-    `<marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${RED}"/></marker>` +
-    `<marker id="arrowG" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7d8597"/></marker></defs>`);
+  out.push(`<defs><marker id="arrowG" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7d8597"/></marker></defs>`);
   out.push(`<rect width="${W}" height="${H}" fill="#fff"/>`);
   // the floor and the car: a plain plate with four whole-tile panels and two wheels
   out.push(`<line x1="0" x2="${W}" y1="${Y(-0.62)}" y2="${Y(-0.62)}" stroke="#c9ccd3" stroke-width="1.5"/>`);
   out.push(`<rect x="${X(-half)}" y="${Y(0)}" width="${(2 * half * L).toFixed(1)}" height="${(0.36 * L).toFixed(1)}" fill="#f1f2f5" stroke="#6b7080" stroke-width="1.5"/>`);
   for (let i = -half + 1; i < half; i++) out.push(`<line x1="${X(i)}" x2="${X(i)}" y1="${Y(0)}" y2="${Y(-0.36)}" stroke="#a3a8b4" stroke-width="1"/>`);
   for (const wx of [-half + 0.45, half - 0.45]) out.push(`<circle cx="${X(wx)}" cy="${Y(-0.46)}" r="${(0.15 * L).toFixed(1)}" fill="#fff" stroke="#6b7080" stroke-width="1.5"/>`);
-  // the placed tiles, and the strips of them that are over air (faint hatching)
+  const sliver = poly => `<polygon points="${pts(poly)}" fill="${SLIVER}" fill-opacity="0.88" stroke="${SLIVER}" stroke-width="0.8" stroke-linejoin="round"/>`;
+  // the placed tiles, and the thin gaps under them
   M.tiles.forEach((t, i) => {
-    const c = COLORS[i % COLORS.length], poly = ordered[i];
+    const c = COLORS[i % COLORS.length], poly = polys[i];
     out.push(`<polygon points="${pts(poly)}" fill="${c}" fill-opacity="0.2" stroke="${STROKE[c] || c}" stroke-width="2.2" stroke-linejoin="round"/>`);
-    if (air) t.strips.forEach((on, j) => {
-      if (on) return;
-      const xs = t.col / 2 + j / 2;
-      out.push(`<clipPath id="c${i}_${j}"><rect x="${X(xs)}" y="0" width="${(L / 2).toFixed(1)}" height="${H}"/></clipPath>` +
-        `<polygon points="${pts(poly)}" fill="url(#air)" fill-opacity="0.55" clip-path="url(#c${i}_${j})"/>`);
-    });
   });
+  if (spec.slivers !== false) for (const s of sliversOf(M.tiles.map((t, i) => ({ poly: polys[i], flat: t.way !== 'down' })), half)) out.push(sliver(s));
   // every place the hand's tile fits (faint): squares an outline, ▲ a bracket along the base, ▼ a chevron on its slant
   for (const f of M.fits) {
-    const v = f.verts.map(P), xs = f.pose.col / 2, yb = yOf(f.pose.y[0], f.pose.y[1]);
+    const xs = f.pose.col / 2, yb = yOf(f.pose.y[0], f.pose.y[1]);
     if (f.pose.type === 'sq') out.push(`<polygon points="${pts(shapeAt('sq', null, f.pose.col, yb))}" fill="none" stroke="#7d8597" stroke-width="1.2" stroke-dasharray="2 3"/>`);
     else if (f.pose.type === 'up') out.push(`<polyline points="${X(xs + 0.06)},${Y(yb + 0.1)} ${X(xs + 0.06)},${Y(yb + 0.03)} ${X(xs + 0.94)},${Y(yb + 0.03)} ${X(xs + 0.94)},${Y(yb + 0.1)}" fill="none" stroke="#7d8597" stroke-width="2"/>`);
     else {
       const cx = xs + 0.5, cy = yb + h * 0.55;
       out.push(`<polyline points="${X(cx - 0.12)},${Y(cy + 0.08)} ${X(cx)},${Y(cy - 0.06)} ${X(cx + 0.12)},${Y(cy + 0.08)}" fill="none" stroke="#7d8597" stroke-width="2"/>`);
     }
-    void v;
   }
   const handColor = COLORS[M.tiles.length % COLORS.length];
   // the fall line: the tile's width, dotted, from the hand down to where it stops
@@ -177,6 +187,8 @@ function svgFor(spec) {
     const r = M.res, poly = shapeAt(hand.piece, r.way, hand.col, yOf(r.pose.y[0], r.pose.y[1]));
     const yb = Math.min(...poly.map(v => v.y)), xL = hand.col / 2;
     if (r.outcome === 'fit') {
+      // a thin gap under part of it: a dark sliver
+      if (r.way !== 'down' && spec.slivers !== false) for (const s of sliversUnder(xL, yb, polys, half)) out.push(sliver(s));
       out.push(`<polygon points="${pts(poly)}" fill="${handColor}" fill-opacity="0.32" stroke="${STROKE[handColor] || handColor}" stroke-width="2.6" stroke-linejoin="round"/>`);
       for (const s of r.shine) {
         const a = P(s[0]), b = P(s[1]);
@@ -188,41 +200,13 @@ function svgFor(spec) {
         out.push(`<g transform="translate(${X(xL + 1.05)},${Y(top3 + 0.05)})"><rect x="0" y="-15" width="30" height="20" rx="10" fill="${GOLD}"/><text x="15" y="0" text-anchor="middle" font-size="13" font-weight="700" fill="${INK}">×${r.shine.length}</text></g>`);
       }
     } else {
-      // NOT LEVEL: the gap between its bottom and the outline below, as a red wedge
-      if (r.reason === 'NOT LEVEL') {
-        for (let j = 0; j < 2; j++) {
-          const xs = xL + j / 2, xe = xs + 0.5;
-          const sa = outlineAt(polys, half, xs + 1e-7), sb = outlineAt(polys, half, xe - 1e-7);
-          if (sa === null || sb === null || (sa > yb - 1e-9 && sb > yb - 1e-9)) continue;
-          const wedge = [{ x: xs, y: yb }, { x: xe, y: yb }, { x: xe, y: sb }, { x: xs, y: sa }];
-          const g = canon.yOf(r.gap[0], r.gap[1]);
-          out.push(`<polygon points="${pts(wedge)}" fill="${RED}" fill-opacity="0.55"${g < 0.3 ? ` stroke="${RED}" stroke-width="2"` : ''}/>`);
-          if (g < 0.3) out.push(`<rect x="${X(xs) - 4}" y="${Y(yb) - 4}" width="${(L / 2 + 8).toFixed(1)}" height="${((yb - Math.min(sa, sb)) * L + 8).toFixed(1)}" fill="none" stroke="${RED}" stroke-width="1.6" rx="4"/>`);
-        }
-      }
-      // TOO FAR OUT: its over-air strips shaded red
-      if (r.reason === 'TOO FAR OUT') r.strips.forEach((on, j) => {
-        if (on) return;
-        const xs = xL + j / 2;
-        out.push(`<clipPath id="g${j}"><rect x="${X(xs)}" y="0" width="${(L / 2).toFixed(1)}" height="${H}"/></clipPath><polygon points="${pts(poly)}" fill="${RED}" fill-opacity="0.38" clip-path="url(#g${j})"/>`);
-      });
       out.push(`<polygon points="${pts(poly)}" fill="${RED}" fill-opacity="0.07" stroke="${RED}" stroke-width="2.4" stroke-dasharray="7 5" stroke-linejoin="round"/>`);
-      if (r.reason === 'NO SIDE') {
-        const [pt, tr, tl] = poly; // point, top-right, top-left
-        out.push(`<polyline points="${X(tl.x)},${Y(tl.y)} ${X(pt.x)},${Y(pt.y)} ${X(tr.x)},${Y(tr.y)}" fill="none" stroke="${RED}" stroke-width="4" stroke-linejoin="round"/>`);
-        out.push(`<circle cx="${X(pt.x)}" cy="${Y(pt.y)}" r="6" fill="${RED}"/>`);
-      }
-      // the points where its bottom touches: contact points, and ends of side contacts, on its bottom line
-      const bottomPts = r.contacts.points.concat(...r.contacts.segments).filter(q => q[1] === r.pose.y[0] && q[2] === r.pose.y[1] && q[0] >= hand.col && q[0] <= hand.col + 2);
-      if (r.reason === 'ONLY A POINT') for (const q of bottomPts.filter((q, i, a) => a.findIndex(z => z.join() === q.join()) === i)) {
+      // ONLY A POINT: a red dot at every point it touches (contact points, and the ends of side contacts on its bottom)
+      const onBottom = q => r.way !== 'down' && q[1] === r.pose.y[0] && q[2] === r.pose.y[1] && q[0] >= hand.col && q[0] <= hand.col + 2;
+      const dots = r.contacts.points.concat([].concat(...r.contacts.segments).filter(onBottom));
+      for (const q of dots.filter((q, i, a) => a.findIndex(z => z.join() === q.join()) === i)) {
         const v = P(q);
         out.push(`<circle cx="${X(v.x)}" cy="${Y(v.y)}" r="6.5" fill="${RED}" stroke="#fff" stroke-width="1.5"/>`);
-      }
-      if (r.reason === 'OVER THE EDGE') for (let j = 0; j < 2; j++) {
-        const xs = xL + j / 2, mid = xs + 0.25;
-        if (outlineAt(polys, half, mid) !== null) continue;
-        out.push(`<line x1="${X(xs)}" y1="${Y(yb)}" x2="${X(xs + 0.5)}" y2="${Y(yb)}" stroke="${RED}" stroke-width="5" stroke-linecap="round"/>`);
-        out.push(`<line x1="${X(mid)}" y1="${Y(yb - 0.1)}" x2="${X(mid)}" y2="${Y(yb - 0.55)}" stroke="${RED}" stroke-width="2.5" marker-end="url(#arrow)"/>`);
       }
       // the reason, beside the ghost
       const top3 = Math.max(...poly.map(v => v.y));
@@ -237,7 +221,7 @@ function svgFor(spec) {
 function verdict(M) {
   if (M.err) return { text: 'IMPOSSIBLE (throws)', color: RED };
   if (!M.res) return { text: '', color: INK };
-  return M.res.outcome === 'fit' ? { text: 'FITS', color: '#1d8f3a' } : { text: 'FALLS OFF: ' + M.res.reason, color: RED };
+  return M.res.outcome === 'fit' ? { text: 'STAYS', color: '#1d8f3a' } : { text: 'FALLS OFF: ' + M.res.reason, color: RED };
 }
 function cellHTML(spec, opts) {
   const { svg, W, M } = svgFor(spec);
@@ -286,7 +270,7 @@ async function renderSheet(items, cols, opts) {
 }
 async function close() { if (browser) { const b = browser; browser = null; await b.close(); } }
 
-module.exports = { renderBuild, renderSheet, svgFor, model, close, COLORS };
+module.exports = { renderBuild, renderSheet, svgFor, model, close, COLORS, sliversUnder, sliversOf, topOf, SLIVER };
 
 // node tools/sandbox/render.cjs '<spec JSON or [specs]>' out.png [cols]
 if (require.main === module) {
