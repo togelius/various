@@ -1321,7 +1321,7 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
 
 ### 18.2 The drop and the fit
 
-- **The drop.** Let go and the tile falls straight down. It stops at the lowest height where it overlaps nothing; "overlap" means sharing area. Edges and corners may meet, and sliding past a vertical side, or past a corner at the tile's own end, doesn't stop it. Where it stops, it either **fits** or **falls off**.
+- **The drop.** Let go and the tile falls straight down from above the tower. It stops at the first height where falling any further would make it overlap something; "overlap" means sharing area. It never reaches a pocket under an overhang. Edges and corners may meet, and sliding past a vertical side, or past a corner at the tile's own end, doesn't stop it. Where it stops, it either **fits** or **falls off**.
 - **Only from above.** Tiles can't be slid under anything, so order matters. A ▼ hung beside a ▲ closes the space under its free half. To make a ▲▼▲ row, lay the two ▲s first, then drop the ▼ between them.
 
 | Piece | Fits when | Like a real tile |
@@ -1359,7 +1359,7 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
 
 - **Snapping.** The hand moves in whole-tile steps while it holds a square and in half-tile steps while it holds a triangle, so the tile always falls in the column shown.
 - **Range.** It stays over the car: square left edges −2…1, triangle left edges −2.5…1.5. A tile can't be aimed at the bare rug.
-- **Triangles turn themselves.** At the hand's column a triangle shows the way up that fits there, because at most one way can. It turns over 80 ms as the hand changes column. If neither way fits, it shows point-up in red with its reason. There is no FLIP control.
+- **Triangles turn themselves.** At the hand's column a triangle shows the way up that fits there, because at most one way can. It turns over 80 ms as the hand changes column. If neither way fits, it shows ▼ in red with TOO FAR OUT when that is the only thing stopping a ▼; otherwise it shows ▲ in red with ▲'s reason. There is no FLIP control.
 - **No dead tiles.** If the tile coming into the hand fits nowhere (either way up, for a triangle), the hand puts it back in the box and takes the next tile of the other shape, visibly, with NEXT and the counter updating. If the box holds none of the other shape, it is dealt anyway.
 
 ### 18.4 Making it clear
@@ -1418,7 +1418,7 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
 
 - **`clack-stack/rules.js`** is the one source of the rules in §18.1–18.3: pure, with no DOM, time or randomness. It must run in an empty `vm` context with only `Math`, and the build fails otherwise. Its API:
   - `newBuild({half = 2})` takes half the base width in tiles; tests also use 1 and 50.
-  - `drop(build, piece, col)`, where piece is 'sq' or 'tri' and col is in half tiles (odd cols throw for squares). It returns one shape: `{outcome: 'fit'|'off', way: 'up'|'down', pose, verts, reason, contacts: {segments, points}, shine, strips: [on, on], gap}`. For a triangle it picks the way that fits, otherwise point-up.
+  - `drop(build, piece, col, way?)`, where piece is 'sq' or 'tri', col is the tile's left x in half tiles (odd cols throw for squares), and way ('up' or 'down') forces a triangle's way for tests. It returns one shape: `{outcome: 'fit'|'off', way: 'up'|'down', pose, verts, reason, contacts: {segments, points}, shine, strips: [on, on], gap}`. Without `way`, a triangle takes the way that fits, otherwise the way §18.3 shows.
   - `place(build, result)` returns a new build and never changes its argument.
   - `fitsAll(build, piece)` returns every column's result.
   - `key(build)` is canonical and independent of tile order.
@@ -1535,10 +1535,12 @@ Each is a small picture of a build, a tile in the hand, and the outcome. Cases 1
 | 3 | square bridging two ▲ points at its corners | falls off: ONLY A POINT |
 | 4 | ▼ hung by one side off the outermost ▲ of a row, its free half over air | fits |
 | 5 | past the car: ▲ at the end, ▼ hung on it, ▲ on that ▼'s top, then another ▼ hung outward | the last ▼ falls off: TOO FAR OUT |
-| 6 | a stair inside the car span (■ −1, ■ −1, ▲ −1 on top, ▼ −1.5, ▲ −1.5, ▼ −2), then ■ −2 | falls off: TOO FAR OUT |
+| 6 | a stair inside the car span: ■ −1, ■ −1, ▲ −1 on top, ▼ −1.5 (hung), ▲ −1.5, then ▼ −2 | the last ▼ falls off: TOO FAR OUT |
 | 7 | the 0.134 L near miss (■ −2, ▲ −0.5, ▼ −1, then ▲ −1.5) | falls off: NOT LEVEL, the gap marked |
 | 8 | ▲ at a half step across two level squares | fits |
 | 9 | ▲ −1, ▼ −0.5 (hung), then ▲ 0 | falls off: NOT LEVEL (it lands on the ▼'s top, half over the car) |
 | 10 | revision 4's triangle on a triangle's point | falls off: ONLY A POINT |
 | 11 | revision 4's square half a tile off | impossible: squares only move in whole tiles |
-| 12 | the photo's wall: ■ ■, a ▲▼▲ row, a shifted ▲▼▲ row, ■ ■ again | every tile fits |
+| 12 | the photo's wall: ■ −1, ■ 0; ▲ −1, ▲ 0, ▼ −0.5, ▼ −1.5, ▼ 0.5; ▲ −1.5, ▲ −0.5, ▲ 0.5, ▼ −1, ▼ 0; ■ −1, ■ 0 | every tile fits |
+
+All positions are the tile's left x (for a ▼, its top edge's left end), in order of dropping, on the bare 4 L car.
