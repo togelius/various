@@ -1,0 +1,66 @@
+/* ACCESSION — layout and type. The board draws itself on a canvas; everything else is DOM.
+   Meaning-carrying colours are the reserved semantic tokens (BUILD.md §7.2, §9.1). */
+:root {
+  --bg: #15131a; --panel: #1f1c25; --panel2: #2a2631; --line: #3b3644; --ink: #ece6d8; --muted: #a39d90;
+  --hostile: #d8484e; --hazard: #f08a2c; --readable: #f2e3bc; --item: #e8c04a; --player: #5aa7e8;
+  --text-scale: 1;
+  --label-font: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+}
+:root[data-font="plain"] { --label-font: system-ui, -apple-system, "Segoe UI", sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+  font: calc(16px * var(--text-scale))/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden;
+  -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+button { font: inherit; color: var(--ink); }
+#app { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr auto auto; grid-template-columns: 1fr;
+  grid-template-areas: "top" "board" "strip" "bar"; padding-top: env(safe-area-inset-top); }
+#top { grid-area: top; display: flex; align-items: center; gap: 8px; padding: 4px 8px; min-width: 0; background: var(--panel); border-bottom: 1px solid var(--line); min-height: 52px; }
+#board { grid-area: board; position: relative; min-height: 0; touch-action: none; overflow: hidden; }
+#board canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+#strip { grid-area: strip; min-height: 64px; padding: 6px 12px; background: var(--panel); border-top: 1px solid var(--line); cursor: pointer; }
+#bar { grid-area: bar; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px;
+  padding: 6px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); background: var(--panel); }
+.btn { min-width: 44px; min-height: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; cursor: pointer; }
+.btn:active { background: #3a3542; }
+.btn.small { font-size: 0.85em; }
+.hp { flex: 1; min-width: 0; }
+.hp .barbg { height: 10px; background: #3a2226; border-radius: 5px; overflow: hidden; }
+.hp .barfg { height: 100%; background: var(--hostile); }
+.hp .num { font-size: 0.8em; color: var(--muted); }
+.badge { font-size: 0.8em; color: var(--readable); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; white-space: nowrap; flex: none; }
+.dial { width: 40px; height: 40px; flex: none; }
+#top .btn { min-height: 44px; }
+.strip-title { display: flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.strip-sub { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 0.85em; margin-top: 2px; flex-wrap: wrap; min-width: 0; }
+.strip-sub .behaviour { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
+#strip { overflow: hidden; }
+.behaviour { color: var(--ink); font-size: 0.9em; }
+.picto { vertical-align: middle; flex: none; }
+.log { color: var(--muted); font-size: 0.9em; }
+/* The label panel: a bottom sheet on phones, a column on wide screens. */
+#sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 72%; overflow-y: auto; background: #f3ecdc; color: #231f1a;
+  border-radius: 14px 14px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,0.5); padding: 14px 16px max(16px, env(safe-area-inset-bottom)); transform: translateY(105%); transition: transform .18s ease-out; z-index: 10; }
+#sheet.open { transform: none; }
+:root[data-motion="reduce"] #sheet { transition: none; }
+.label h2 { font: 600 1.2em/1.25 var(--label-font); margin: 0 0 4px; display: flex; gap: 8px; align-items: center; }
+.label .tomb { font: 0.85em/1.35 var(--label-font); color: #4a4238; margin: 4px 0 8px; }
+.label .closeup { float: right; width: 128px; height: 128px; margin: 0 0 8px 12px; image-rendering: pixelated; background: #e4dccb; border: 1px solid #c9bfa9; }
+.label .pictos { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; align-items: center; }
+.label .pictos span { display: inline-flex; align-items: center; gap: 3px; font-size: 0.85em; background: #2a2631; color: #ece6d8; border-radius: 6px; padding: 2px 6px; }
+.label .beh { font-weight: 600; margin: 8px 0; }
+.label .odds { font-size: 0.92em; background: #e6dcc6; border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+.label .para { font: 1em/1.5 var(--label-font); clear: both; }
+.label .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.label .acts .btn { background: #2a2631; color: #ece6d8; }
+.overlay { position: fixed; inset: 0; background: rgba(10,9,13,0.92); z-index: 20; overflow-y: auto; padding: max(16px, env(safe-area-inset-top)) 16px 24px; display: none; }
+.overlay.open { display: block; }
+.overlay h2 { margin-top: 0; }
+.systems li { margin: 10px 0; list-style: none; display: flex; gap: 10px; align-items: flex-start; }
+.systems { padding: 0; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+.note { color: var(--muted); font-size: 0.9em; }
+@media (min-width: 900px) and (min-aspect-ratio: 4/3) {
+  #app { grid-template-columns: 1fr 380px; grid-template-rows: auto 1fr auto; grid-template-areas: "top top" "board side" "bar side"; }
+  #strip { display: none; }
+  #sheet { position: static; grid-area: side; transform: none; max-height: none; border-radius: 0; box-shadow: none; border-left: 1px solid var(--line); }
+}

@@ -1,0 +1,20 @@
+# kind: exhibit
+# silhouette: figure
+# species: M.11.5 Logbook Trolley, Self-Propelled (plodder)
+# source: hand, drawn in this repository, 2026-10-23
+................
+................
+................
+....oooooooooo..
+....o45o54o45o..
+....o45o54o45o..
+...oooooooooooo.
+...o3333333333o.
+...o2222222222o.
+...o1111111111o.
+...oooooooooooo.
+....o1o....o1o..
+...o111o..o111o.
+...oo1oo..oo1oo.
+....ooo....ooo..
+................

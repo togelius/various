@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accession hash check</title>
+<style>
+  body { font: 16px/1.5 system-ui, -apple-system, sans-serif; margin: 16px; background: #15131a; color: #ece6d8; }
+  .pass { color: #7fd17f; } .fail { color: #ff7b7b; } code, pre { font: 14px ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Same game in every browser?</h1>
+<p>This page replays fixed seeds and action lists through the game's rules and compares the results with the hashes recorded in Node. Every line should say PASS.</p>
+<p><code id="ua"></code></p>
+<pre id="out">Running…</pre>
+<!-- core -->
+<script src="tools/monkey.js"></script>
+<script src="test/golden/golden.js"></script>
+<script>
+'use strict';
+document.getElementById('ua').textContent = navigator.userAgent + ' · build __BUILD__';
+const lines = [];
+let all = true;
+const finish = () => {
+  const out = document.getElementById('out');
+  out.textContent = lines.join('\n') + '\n\n' + (all ? 'ALL PASS' : 'SOMETHING DIFFERS');
+  out.className = all ? 'pass' : 'fail';
+  document.title = all ? 'PASS' : 'FAIL';
+};
+window.addEventListener('error', e => { all = false; lines.push('FAIL while loading: ' + e.message); finish(); });
+setTimeout(() => {
+  try {
+    for (const [name, g] of Object.entries(GOLDEN)) {
+      try {
+        const t0 = performance.now();
+        const r = Monkey.run(g.seed, g.actions);
+        const ms = Math.round(performance.now() - t0);
+        let first = -1;
+        for (let i = 0; i < g.checkpoints.length; i++) if (r.checkpoints[i] !== g.checkpoints[i]) { first = i; break; }
+        const ok = r.hash === g.hash && first < 0;
+        all = all && ok;
+        lines.push((ok ? 'PASS ' : 'FAIL ') + name + ': ' + g.actions + ' actions, hash ' + r.hash + (ok ? '' : ' (expected ' + g.hash + (first >= 0 ? ', first differs by action ' + (first + 1) * 1000 : '') + ')') + ', ' + ms + ' ms');
+      } catch (e) {
+        all = false;
+        lines.push('FAIL ' + name + ': threw ' + e.message + ' ' + String(e.stack || '').split('\n')[1]);
+      }
+    }
+  } finally { finish(); }
+}, 50);
+</script>
+</body>
+</html>

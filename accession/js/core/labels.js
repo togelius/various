@@ -1,0 +1,71 @@
+// ACCESSION — what a label says about a thing on the board (BUILD.md §8.8): the title,
+// state, tombstone, pictograms, Behaviour line, odds readout and paragraph, built from the
+// pack, the registry and the rules' own numbers.
+'use strict';
+const Labels = (() => {
+  function speciesOf(state, a) {
+    const pack = Packs.get(state.dept.acc);
+    if (!pack) return null;
+    if (pack.centrepiece && pack.centrepiece.id === a.sp) return pack.centrepiece;
+    return pack.species.find(s => s.id === a.sp) || null;
+  }
+
+  function stateIcons(a) {
+    if (a.uid === 'you') return [];
+    if (a.mode === 'dormant') return a.pips ? Array.from({ length: 3 }, (_, i) => i < a.pips ? 'pip' : 'pip_empty') : ['asleep'];
+    return [a.mode === 'hunting' ? 'hunting' : a.mode === 'returning' ? 'returning' : 'alert'];
+  }
+
+  // Brogue's sentence, computed from the live numbers (BUILD.md §8.1).
+  function odds(state, a) {
+    const you = state.actors[0];
+    const toYou = Combat.hitChance(a, you), toIt = Combat.hitChance(you, a);
+    const mean = Int.idiv(a.dmin + a.dmax, 2), worst = Math.max(1, a.dmax - you.pad);
+    const typical = Math.max(1, mean - you.pad), yourMean = Math.max(1, Int.idiv(you.dmin + you.dmax, 2) - a.pad);
+    const lines = [
+      `It has a ${toYou}% chance to hit you, typically hits for ${Math.max(1, Int.idiv(100 * typical, Math.max(1, you.hp)))}% of your current health, and at worst could defeat you in ${Int.ceilDiv(you.hp, worst)} hits.`,
+      `You have a ${toIt}% chance to hit it, and typically need ${Int.ceilDiv(a.hp, yourMean)} hits to destroy it.`,
+    ];
+    if (Combat.surprised(you, a)) lines.push(`A surprise attack now would deal ${Math.max(N.DMG_MIN_ON_HIT, you.dmax - a.pad)}.`);
+    return lines;
+  }
+
+  function of(state, uid) {
+    const a = Actors.byUid(state, uid);
+    if (!a || a.gone || a.uid === 'you') return null;
+    const sp = speciesOf(state, a), you = state.actors[0];
+    const near = Grid.chebyshev(you.x, you.y, a.x, a.y) <= N.READ_RANGE;
+    const pictos = [
+      { icon: 'heart', text: `${a.hp}/${a.maxHp}` }, { icon: 'acc', text: String(a.acc) }, { icon: 'eva', text: String(a.eva) },
+      { icon: 'padding', text: String(a.pad) }, { icon: 'damage', text: `${a.dmin}–${a.dmax}` },
+    ];
+    if (sp && sp.trigger && Registry.TRIGGERS[sp.trigger]) pictos.unshift({ icon: Registry.TRIGGERS[sp.trigger].icon, text: 'wakes' });
+    pictos.unshift({ icon: 'ring', text: 'ring' });
+    const adjacent = Step.adjacent(state, you, a);
+    return {
+      uid, title: sp ? sp.name : a.sp, stateIcons: stateIcons(a), tomb: sp ? sp.tomb : null, number: sp ? sp.id.replace(/^([A-Z]+)(\d+)/, '$1.$2') : '',
+      pictos, behaviour: sp ? Registry.behaviour(sp) : '', odds: odds(state, a),
+      paragraph: near && sp ? sp.paragraph : '', far: near ? '' : 'Come closer to read the label.',
+      closeup: sp ? { sprite: sp.sprite, dept: state.dept.acc } : null,
+      actions: adjacent ? [{ id: 'attack', text: `Attack: ${Combat.hitChance(you, a)}%, ${Math.max(1, you.dmin - a.pad)}–${Math.max(1, you.dmax - a.pad)} damage` }] : [],
+    };
+  }
+
+  // The strip: the nearest readable exhibit within 2 tiles and in sight, hunting first.
+  function strip(state) {
+    const you = state.actors[0], m = state.dept;
+    let best = null, bestKey = null;
+    for (const a of state.actors) {
+      if (a.gone || a.uid === 'you') continue;
+      const d = Grid.chebyshev(you.x, you.y, a.x, a.y);
+      if (d > N.READ_RANGE || !Grid.los(m, you.x, you.y, a.x, a.y)) continue;
+      const key = (a.mode === 'hunting' ? 0 : a.mode === 'dormant' ? 2 : 1) * 100 + d;
+      if (best === null || key < bestKey) { best = a; bestKey = key; }
+    }
+    if (!best) return null;
+    const l = of(state, best.uid);
+    return { uid: best.uid, title: l.title, stateIcons: l.stateIcons, pictos: l.pictos.slice(0, 2).map(p => p.icon), behaviour: l.behaviour };
+  }
+
+  return { of, strip, speciesOf, stateIcons };
+})();

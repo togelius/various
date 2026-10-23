@@ -1,0 +1,2599 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accession hash check</title>
+<style>
+  body { font: 16px/1.5 system-ui, -apple-system, sans-serif; margin: 16px; background: #15131a; color: #ece6d8; }
+  .pass { color: #7fd17f; } .fail { color: #ff7b7b; } code, pre { font: 14px ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Same game in every browser?</h1>
+<p>This page replays fixed seeds and action lists through the game's rules and compares the results with the hashes recorded in Node. Every line should say PASS.</p>
+<p><code id="ua"></code></p>
+<pre id="out">Running…</pre>
+<script>
+// ACCESSION — random streams. A stream is named by a path; its 32-bit state lives in
+// state.rng[path], so a snapshot resumes every stream exactly (BUILD.md §3.2).
+'use strict';
+const Rng = (() => {
+  // 32-bit string hash (the layout prototype's hashStr).
+  function hash32(s) {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < s.length; i++) {
+      const ch = s.charCodeAt(i);
+      h1 = Math.imul(h1 ^ ch, 2654435761);
+      h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return (h1 ^ h2) >>> 0;
+  }
+
+  // One mulberry32 step: returns [value, nextState], both uint32.
+  function advance(a) {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return [(t ^ (t >>> 14)) >>> 0, a >>> 0];
+  }
+
+  // A stream bound to one state object. Creating it is cheap; the state is the record.
+  function stream(state, path) {
+    const table = state.rng;
+    if (!(path in table)) table[path] = hash32(state.seed + '/' + path);
+    const u32 = () => { const r = advance(table[path]); table[path] = r[1]; return r[0]; };
+    const int = (lo, hi) => lo + (u32() % (hi - lo + 1));
+    return {
+      path, u32, int,
+      chance: permille => u32() % 1000 < permille,
+      d100: () => 1 + (u32() % 100),
+      pick: arr => arr[u32() % arr.length],
+      shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) { const j = u32() % (i + 1); const t = arr[i]; arr[i] = arr[j]; arr[j] = t; }
+        return arr;
+      },
+      // weights: non-negative integers; returns an index.
+      weighted(weights) {
+        let total = 0;
+        for (const w of weights) total += w;
+        let r = u32() % total;
+        for (let i = 0; i < weights.length; i++) { if (r < weights[i]) return i; r -= weights[i]; }
+        return weights.length - 1;
+      },
+    };
+  }
+
+  return { hash32, advance, stream };
+})();
+
+</script>
+<script>
+// ACCESSION — the state object: canonical serialisation, hashing, cloning and the
+// plain-data check (BUILD.md §3.1, §3.5).
+'use strict';
+const State = (() => {
+  const isPlainObject = v => Object.prototype.toString.call(v) === '[object Object]';
+
+  // Returns the path of the first value that is not plain data, or null: null, booleans,
+  // strings, safe integers, arrays without holes, and plain objects without undefined.
+  function plainData(v, path) {
+    path = path || 'state';
+    if (v === null || typeof v === 'boolean' || typeof v === 'string') return null;
+    if (typeof v === 'number') return Number.isSafeInteger(v) && !Object.is(v, -0) ? null : path;
+    if (Array.isArray(v)) {
+      for (let i = 0; i < v.length; i++) { if (!(i in v)) return path + '[' + i + ']'; const p = plainData(v[i], path + '[' + i + ']'); if (p) return p; }
+      return null;
+    }
+    if (isPlainObject(v)) {
+      for (const k of Object.keys(v)) { if (v[k] === undefined) return path + '.' + k; const p = plainData(v[k], path + '.' + k); if (p) return p; }
+      return null;
+    }
+    return path;
+  }
+
+  // Canonical JSON: sorted keys, no whitespace. Anything that is not plain data throws.
+  function canon(v) {
+    if (v === null) return 'null';
+    const t = typeof v;
+    if (t === 'boolean' || t === 'string') return JSON.stringify(v);
+    if (t === 'number') { if (!Number.isSafeInteger(v) || Object.is(v, -0)) throw new Error('State.canon: not a safe integer: ' + v); return String(v); }
+    if (Array.isArray(v)) {
+      let s = '[';
+      for (let i = 0; i < v.length; i++) { if (!(i in v)) throw new Error('State.canon: array hole'); s += (i ? ',' : '') + canon(v[i]); }
+      return s + ']';
+    }
+    if (isPlainObject(v)) {
+      const keys = Object.keys(v).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      let s = '{';
+      for (let i = 0; i < keys.length; i++) {
+        if (v[keys[i]] === undefined) throw new Error('State.canon: undefined at ' + keys[i]);
+        s += (i ? ',' : '') + JSON.stringify(keys[i]) + ':' + canon(v[keys[i]]);
+      }
+      return s + '}';
+    }
+    throw new Error('State.canon: not plain data (' + Object.prototype.toString.call(v) + ')');
+  }
+
+  // 32-bit FNV-1a over UTF-16 code units.
+  function fnv1a(s) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+
+  const hash = state => fnv1a(canon(state));
+  const clone = state => JSON.parse(canon(state));
+
+  return { canon, fnv1a, hash, clone, plainData };
+})();
+
+</script>
+<script>
+// ACCESSION — the numbers of record. BUILD.md §8.10 is the source; tools/lint-numbers.js
+// fails the build if this file and that table differ.
+'use strict';
+const N = Object.freeze({
+  TICKS_PER_TURN: 100, // ticks in one turn
+  COST_STEP: 100, // step
+  COST_WAIT: 100, // wait or one turn of rest
+  COST_ATTACK: 100, // attack
+  COST_ATTACK_HEAVY: 150, // attack with a Heavy weapon
+  COST_DOOR: 100, // open or close a door
+  COST_OPEN_CASE: 200, // open a case
+  COST_BASH: 100, // one bash (Heavy: 150 for two)
+  COST_TAKE: 100, // take or drop
+  COST_USE: 100, // drink, read a consumable, throw, use an instrument (reading a label costs nothing)
+  COST_BASH_HEAVY: 150, // one Heavy swing at glass, counting as two bashes
+  COST_EQUIP: 100, // equip a weapon, curio or instrument
+  COST_EQUIP_GARMENT: 300, // equip a garment
+  COST_PUSH: 100, // push a jar
+  COST_VIEW: 100, // one viewing turn
+  SPECIAL_RECOVERY: 100, // extra cost of the action after a special
+  SPEED_FAST_PCT: 50, // fast actors' cost
+  SPEED_SLOW_PCT: 200, // slow actors' cost
+  HIT_BASE: 75, // hit chance at equal Acc and Eva
+  HIT_PER_POINT: 5, // per point of Acc − Eva
+  HIT_MIN: 10, // floor
+  HIT_MAX: 95, // ceiling
+  HIT_FIXED_TARGET: 20, // against a fixed target
+  HIT_DAZED_ATTACKER: -20, // dazed attacker
+  DMG_MIN_ON_HIT: 1, // minimum damage on a hit
+  SURPRISE_LIGHT_PCT: 150, // Light weapon surprise multiplier
+  PLAYER_HP: 20, // starting max HP
+  HP_PER_GRADE: 5, // max HP per grade above I
+  CERT_HEAL: 5, // heal on a Certificate
+  PLAYER_ACC: 3, // starting Acc
+  PLAYER_EVA: 2, // starting Eva
+  GRADE_START: 1, // grade at the start of a run
+  GRADE_MAX: 7, // grade after six Certificates
+  SHORT_ACC: 2, // Acc lost per grade short, weapons
+  SHORT_PAD: 1, // Padding lost per grade short, garments
+  REGEN_NUM: 400, // regeneration: turns per HP = max(MIN, floor(NUM / maxHP))
+  REGEN_MIN: 4, // regeneration floor
+  REGEN_BELL_MULT: 2, // interval multiplier after the bell
+  BENCH_MULT: 2, // regeneration multiplier on a bench
+  PIPS_TO_WAKE: 3, // pips that wake any exhibit
+  PIP_DECAY_TURNS: 10, // turns without stimulus per pip lost, before the bell
+  RING_STILL: 2, // ring radius while standing still
+  RING_MOVING: 3, // ring radius when acting or moving
+  RING_LOUD_FLOOR: 2, // added on shards or water
+  RING_MIN: 1, // the smallest the ring can be made
+  NOISE_SOFT: 3, // soft noise range, walking tiles
+  NOISE_LOUD: 6, // loud noise range
+  NOISE_CRASH: 10, // crash noise range
+  NOISE_DOOR: 3, // extra tiles through a closed door
+  SIGHT_PLAYER: 12, // your sight range
+  SIGHT_EXHIBIT: 8, // an awake exhibit's sight range
+  AWAKE_IDLE_TURNS: 20, // awake without stimulus, then returning
+  LOSE_TRACK_TURNS: 8, // hunter out of sight, then searching
+  SEARCH_TURNS: 3, // turns searching your last-known tile
+  REINSTALL_TURNS: 3, // turns reinstalling before sleeping
+  ALLY_HIT_RANGE: 5, // ally_hit range
+  CLOCK_MULT_PCT: 250, // B = round10(MULT × L_tour / 100 + ADD)
+  CLOCK_ADD: 100,
+  STAGE_GAP_PCT: 15, // G = max(MIN, round10(PCT × B / 100))
+  STAGE_GAP_MIN: 60,
+  NIGHT_WAKE_EVERY: 30, // turns between night-watch bells
+  NIGHT_WAKE_COUNT: 3, // exhibits woken per night-watch bell
+  WATCHMAN_RETURN: 20, // turns before a defeated Watchman returns
+  SEAL_HEAL_PCT: 25, // Centrepiece heal when a hall is unsealed, % of its maximum
+  SEAL_LIFT_TURNS: 50, // a seal lifts after this long without the Centrepiece reaching you or dealing damage
+  VIEW_TURNS: 4, // viewing turns for a Certificate
+  VIEW_DISTANCE: 3, // walking tiles from the lectern's reading tile to the Centrepiece
+  TREASURE_SEAL_HP_PCT: 34, // a treasure hall also seals when its Centrepiece falls to this share of its health
+  TREASURE_SEAL_TURNS: 12, // turns after a treasure's case is touched before its hall seals
+  CAUSE_RECORDS: 64, // cause records kept in the state
+  READ_RANGE: 2, // tiles from a label to read it
+  TOTE_SLOTS: 16, // tote size
+  CURIO_SLOTS: 2, // curio slots
+  KITS_PER_DEPT: 2, // Restoration kits per department
+  CONSUMABLES_PER_DEPT: 5, // ambient consumables per department
+  EQUIPMENT_PER_DEPT: 2, // ambient weapons and garments per department
+  CURIO_OR_INSTRUMENT_PER_DEPT: 1,
+  ID_LABELS_PER_DEPT: 2, // identifying labels per department, minimum
+  CASE_EMPTY_ONE_IN: 6, // one case in N is "on loan elsewhere"
+  CONSOLIDANT_NOW_PCT: 50, // Consolidant, immediate heal
+  CONSOLIDANT_HOT_PCT: 25, // Consolidant, heal over time
+  CONSOLIDANT_HOT_TURNS: 5,
+  FIXATIVE_TURNS: 4, // fixed
+  FUMIGANT_TURNS: 10, // cloud duration
+  FUMIGANT_SIZE: 5, // cloud side
+  COUGH_TURNS: 5, // coughing
+  QUIET_RANGE: 8, // "Quiet, Please" range
+  DECK: [20, 8, 10, 8, 14, 8, 8, 5], // Consolidant, Fixative, Fumigant, Solvent, Catalogue Card, Floor Plan, "Quiet, Please", Re-admission Ticket
+  GLASS_BASHES: [1, 2, 3], // Plate, Laminated, Security
+  GLASS_MIX_D1: [70, 30, 0], // Plate, Laminated, Security % at depth 1; provisional
+  GLASS_MIX_D2: [70, 30, 0],
+  GLASS_MIX_D3: [40, 40, 20],
+  GLASS_MIX_D4: [40, 40, 20],
+  GLASS_MIX_D5: [30, 40, 30],
+  GLASS_MIX_D6: [30, 40, 30], // the Exit uses depth 6's mix
+  SHARD_SPREAD: 1, // floor tiles on your side that get shards when glass breaks
+  FORM_LIGHT: [0, 3, 1, 100, 2, -1], // weapon: min = t + a, max = b·t + c, cost, Acc, grade offset
+  FORM_BALANCED: [1, 3, 3, 100, 0, 0],
+  FORM_HEAVY: [2, 4, 4, 150, -1, 1],
+  FORM_REACH: [0, 3, 1, 100, 0, 0],
+  GARMENT_LIGHT: [-1, 1, 0], // Padding = tier + a, Eva, grade offset
+  GARMENT_STANDARD: [0, 0, 0],
+  GARMENT_HEAVY: [1, -1, 1],
+  TIER_LOW_BY_DEPTH: [1, 1, 2, 2, 3, 3, 4], // the lower tier on offer at depths 1–7
+  TIER_LOW_PCT: 60, // share of items at the lower tier
+  TUNING_FORK: [3, 40, 8], // charges, recharge turns, range
+  PIN_DRIVER: [4, 30, 5], // charges, recharge turns, range; damage [t, 2t + 2]
+  WINDOW_POLE: [4, 40, 2], // charges, recharge turns, range
+  LAMP_OBSERVE_RANGE: 4, // the Day Curator's Lamp, lit
+  LAMP_RING: 1, // added to your ring while the Lamp is lit
+  UNOBSERVED_STEP: 2, // tiles a turn for an unobserved mover
+  DEMO_PERIOD: 12, // turns between demonstrations
+  DEMO_PERIOD_INTRO: 8, // in an Intro gallery
+  DEMO_PERIOD_HALL: 8, // in the Centrepiece hall
+  DEMO_LINE_DMG: [4, 7, 10], // gross damage of a demonstration line; provisional
+  DEMO_WARNING: 2, // turns of warning bell
+  DEMO_WINDOW: 3, // minimum safe window at a forced crossing
+  ALARM_TURNS: 30, // an alarm's length
+  ALARM_CLOCK_ADVANCE: 30, // turns each alarm brings the bell closer
+  WEATHER_SHARE_PCT: 20, // cases holding weather
+  WEATHER_TURNS: 10, // fog or rain duration
+  RAIN_STOP_TURNS: 2, // a soaked clockwork exhibit stops
+  COPY_GROUP: [3, 4], // smallest and largest copy group
+  COPY_WEAKEN_PCT: 33, // health and damage lost by a spare whose original falls; provisional
+  COPY_WEAKEN_ACC: 2, // Acc lost likewise; provisional
+  PERK_ELBOW_ROOM: [3, 5], // Padding at ranks 1 and 2
+  PERK_SECOND_WIND_PCT: [25, 40],
+  PERK_SINGLE_FILE_DMG: 3,
+  PERK_DUCK_AND_COVER: 50, // ticks saved
+  PERK_SECOND_WIND_BELOW_PCT: 25,
+  PERK_SECOND_WIND_TURNS: 5,
+  PERK_LIGHT_FINGERS_COST: 100, // ticks to open a case with Light Fingers
+  DEPTS_PER_RUN: 6,
+  DEPTS_PER_FLOOR: 2,
+  EXIT_DEPTH: 7, // the Exit's depth for the role curves
+  SAVE_SLOTS: 2, // alternating IndexedDB slots
+  ROLE_FODDER_HP: [7, 16, 28],
+  ROLE_FODDER_ACC: [2, 3, 4],
+  ROLE_FODDER_EVA: [1, 2, 3],
+  ROLE_FODDER_DMG: [[1, 4], [3, 8], [5, 13]],
+  ROLE_FODDER_PAD: [0, 1, 2],
+  ROLE_SKIRMISHER_HP: [12, 24, 42],
+  ROLE_SKIRMISHER_ACC: [3, 4, 5],
+  ROLE_SKIRMISHER_EVA: [3, 4, 5],
+  ROLE_SKIRMISHER_DMG: [[2, 5], [4, 9], [7, 14]],
+  ROLE_SKIRMISHER_PAD: [0, 1, 2],
+  ROLE_ARTILLERY_HP: [10, 20, 35],
+  ROLE_ARTILLERY_ACC: [4, 5, 6],
+  ROLE_ARTILLERY_EVA: [1, 2, 3],
+  ROLE_ARTILLERY_DMG: [[2, 5], [4, 11], [7, 16]],
+  ROLE_ARTILLERY_PAD: [0, 0, 1],
+  ROLE_BRUTE_HP: [15, 35, 65], // attacks cost 150
+  ROLE_BRUTE_ACC: [1, 2, 3],
+  ROLE_BRUTE_EVA: [0, 1, 2],
+  ROLE_BRUTE_DMG: [[3, 7], [6, 14], [10, 22]],
+  ROLE_BRUTE_PAD: [1, 2, 3],
+  ROLE_CONTROLLER_HP: [12, 26, 46],
+  ROLE_CONTROLLER_ACC: [3, 4, 5],
+  ROLE_CONTROLLER_EVA: [2, 3, 4],
+  ROLE_CONTROLLER_DMG: [[1, 3], [2, 5], [3, 8]],
+  ROLE_CONTROLLER_PAD: [0, 1, 2],
+  ROLE_WARDEN_HP: [21, 49, 91],
+  ROLE_WARDEN_ACC: [3, 4, 5],
+  ROLE_WARDEN_EVA: [2, 3, 4],
+  ROLE_WARDEN_DMG: [[2, 5], [4, 10], [7, 15]],
+  ROLE_WARDEN_PAD: [1, 2, 3],
+  ROLE_WARDEN_SPECIAL: [6, 12, 17], // gross special damage (§8.1), every third action
+  ROLE_ARTILLERY_SPECIAL: [5, 11, 16], // gross damage of a telegraphed artillery shot
+  MEDIAN_PADDING: [1, 2, 3], // the median visitor's Padding; provisional
+  ROLE_SUPPORT_HP: [10, 20, 35], // new for the slice: provisional
+  ROLE_SUPPORT_ACC: [2, 3, 4],
+  ROLE_SUPPORT_EVA: [2, 3, 4],
+  ROLE_SUPPORT_DMG: [[1, 2], [1, 3], [2, 4]],
+  ROLE_SUPPORT_PAD: [0, 1, 1],
+  ROLE_SWARM_HP: [2, 4, 7], // per body; new for the slice: provisional
+  ROLE_SWARM_ACC: [2, 3, 4],
+  ROLE_SWARM_EVA: [1, 2, 3],
+  ROLE_SWARM_DMG: [[1, 2], [1, 3], [2, 4]],
+  ROLE_SWARM_PAD: [0, 0, 0],
+  ROLE_AMBUSHER_HP: [12, 24, 42], // new for the slice: provisional
+  ROLE_AMBUSHER_ACC: [4, 5, 6],
+  ROLE_AMBUSHER_EVA: [2, 3, 4],
+  ROLE_AMBUSHER_DMG: [[3, 6], [5, 11], [8, 16]],
+  ROLE_AMBUSHER_PAD: [0, 1, 2],
+  ROLE_CENTREPIECE_HP: [45, 105, 195], // shared pool for an ensemble
+  ROLE_CENTREPIECE_PAD: [1, 2, 3],
+  ROLE_CENTREPIECE_ACC: [3, 4, 5], // provisional
+  ROLE_CENTREPIECE_EVA: [1, 2, 3], // provisional
+  ROLE_CENTREPIECE_DMG: [[3, 6], [5, 11], [8, 17]], // basic blows; provisional
+  ROLE_CENTREPIECE_SPECIAL_PCT: [25, 30, 35], // gross special damage = pct(MEDIAN_MAX_HP, this) + MEDIAN_PADDING, at that depth
+  ROLE_ARTILLERY_RANGE: 6,
+  ROLE_CONTROLLER_SPECIAL_EVERY: 3, // a status special every third action
+  MEDIAN_MAX_HP: [20, 25, 30, 35, 40, 45, 50], // at depths 1–7, assuming a Certificate in each earlier department; provisional
+});
+
+</script>
+<script>
+// ACCESSION — integer helpers with stated rounding (BUILD.md §3.3).
+'use strict';
+const Int = (() => {
+  const idiv = (a, b) => Math.floor(a / b);                 // floor division
+  const ceilDiv = (a, b) => Math.ceil(a / b);
+  const round10 = (num, den) => 10 * Math.floor((Math.floor(num / den) + 5) / 10);   // to the nearest 10, halves up
+  const pct = (a, p) => Math.floor(a * p / 100);
+  return { idiv, ceilDiv, round10, pct };
+})();
+
+</script>
+<script>
+// ACCESSION — the tile grid: what each tile character means, line of sight, walking
+// distance and steps. A department's map is an array of row strings (BUILD.md §4.1).
+'use strict';
+const Grid = (() => {
+  // Tile characters. Movement and sight follow the movement × sight matrix
+  // (design/vocabulary.md §7.1); the registry describes each one to the player.
+  const TILES = {
+    '#': { name: 'wall' },
+    '.': { name: 'floor', walk: 1, see: 1 },
+    ',': { name: 'archway', walk: 1, see: 1 },
+    '+': { name: 'closed door', walk: 1, door: 1 },
+    "'": { name: 'open door', walk: 1, see: 1, door: 1 },
+    'S': { name: 'staff door', walk: 1, door: 1, staff: 1 },
+    'E': { name: 'entrance', walk: 1, see: 1 },
+    'X': { name: 'exit door', walk: 1, see: 1 },
+    'v': { name: 'vitrine', see: 1, glass: 1 },
+    'k': { name: 'broken case', walk: 1, see: 1, loud: 1 },
+    'x': { name: 'shards', walk: 1, see: 1, loud: 1 },
+    'w': { name: 'pool', walk: 1, see: 1, loud: 1, slow: 1 },
+    'p': { name: 'plinth', see: 1 },
+    'f': { name: 'low furniture', see: 1 },
+    'l': { name: 'lectern', see: 1 },
+    'b': { name: 'bench', walk: 1, see: 1, bench: 1 },
+    'o': { name: 'column' },
+    'H': { name: 'shelving' },
+    '|': { name: 'partition' },
+    '~': { name: 'balustrade', see: 1 },
+    '=': { name: 'rope line', walk: 1, see: 1 },
+  };
+  const WALK = new Uint8Array(128), SEE = new Uint8Array(128);
+  for (const ch of Object.keys(TILES)) {
+    const c = ch.charCodeAt(0);
+    WALK[c] = TILES[ch].walk ? 1 : 0;
+    SEE[c] = TILES[ch].see ? 1 : 0;
+  }
+
+  // Directions in a fixed order: N, NE, E, SE, S, SW, W, NW.
+  const DX = [0, 1, 1, 1, 0, -1, -1, -1], DY = [-1, -1, 0, 1, 1, 1, 0, -1];
+
+  const inside = (m, x, y) => x >= 0 && y >= 0 && x < m.w && y < m.h;
+  const code = (m, x, y) => inside(m, x, y) ? m.tiles[y].charCodeAt(x) : 35; // '#'
+  const ch = (m, x, y) => String.fromCharCode(code(m, x, y));
+  const walkable = (m, x, y) => WALK[code(m, x, y)] === 1;
+  const seeThrough = (m, x, y) => SEE[code(m, x, y)] === 1;
+  function set(m, x, y, c) { const row = m.tiles[y]; m.tiles[y] = row.slice(0, x) + c + row.slice(x + 1); }
+
+  // A step from (x, y) in direction d: the target must be walkable, and a diagonal step
+  // may not cut past a tile you could not step onto.
+  function canStep(m, x, y, d) {
+    const nx = x + DX[d], ny = y + DY[d];
+    if (!walkable(m, nx, ny)) return false;
+    if (DX[d] !== 0 && DY[d] !== 0) return walkable(m, nx, y) && walkable(m, x, ny);
+    return true;
+  }
+
+  // Line of sight between two tiles: a Bresenham line, always traced from the endpoint
+  // that comes first in row-major order, so sight is symmetric. Endpoints never block.
+  function los(m, x0, y0, x1, y1) {
+    if (y1 < y0 || (y1 === y0 && x1 < x0)) { let t = x0; x0 = x1; x1 = t; t = y0; y0 = y1; y1 = t; }
+    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0), sx = x1 > x0 ? 1 : -1, sy = y1 > y0 ? 1 : -1;
+    let err = dx - dy, x = x0, y = y0;
+    for (;;) {
+      if (x === x1 && y === y1) return true;
+      if (!(x === x0 && y === y0) && !seeThrough(m, x, y)) return false;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x += sx; }
+      if (e2 < dx) { err += dx; y += sy; }
+    }
+  }
+
+  const chebyshev = (x0, y0, x1, y1) => Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+
+  // Walking distance from one or more start tiles, by the step rule, out to maxDist.
+  // extra(x, y) may add a cost for entering a tile (closed doors for noise). Returns an
+  // Int32Array of distances, -1 where unreached. Not part of the state.
+  function distances(m, starts, maxDist, extra) {
+    const n = m.w * m.h, dist = new Int32Array(n).fill(-1);
+    // Bucketed Dijkstra: costs are small integers.
+    const buckets = [[]];
+    for (const [x, y] of starts) { dist[y * m.w + x] = 0; buckets[0].push(y * m.w + x); }
+    for (let d = 0; d < buckets.length && d <= maxDist; d++) {
+      const b = buckets[d];
+      if (!b) continue;
+      for (let i = 0; i < b.length; i++) {
+        const p = b[i];
+        if (dist[p] !== d) continue;
+        const x = p % m.w, y = (p - x) / m.w;
+        for (let k = 0; k < 8; k++) {
+          if (!canStep(m, x, y, k)) continue;
+          const nx = x + DX[k], ny = y + DY[k], q = ny * m.w + nx;
+          const nd = d + 1 + (extra ? extra(nx, ny) : 0);
+          if (nd > maxDist || (dist[q] !== -1 && dist[q] <= nd)) continue;
+          dist[q] = nd;
+          while (buckets.length <= nd) buckets.push([]);
+          buckets[nd].push(q);
+        }
+      }
+    }
+    return dist;
+  }
+
+  return { TILES, DX, DY, inside, code, ch, walkable, seeThrough, set, canStep, los, chebyshev, distances };
+})();
+
+</script>
+<script>
+// ACCESSION — what you can see and what your ring covers (BUILD.md §8.2).
+'use strict';
+const Vision = (() => {
+  const within = (dx, dy, r) => dx * dx + dy * dy <= r * r + r;
+
+  // Visible tiles as a Uint8Array (1 = visible), from your tile. Not stored in the state.
+  function visible(state) {
+    const m = state.dept, you = state.actors[0], r = N.SIGHT_PLAYER, out = new Uint8Array(m.w * m.h);
+    for (let y = Math.max(0, you.y - r); y <= Math.min(m.h - 1, you.y + r); y++)
+      for (let x = Math.max(0, you.x - r); x <= Math.min(m.w - 1, you.x + r); x++)
+        if (within(x - you.x, y - you.y, r) && Grid.los(m, you.x, you.y, x, y)) out[y * m.w + x] = 1;
+    return out;
+  }
+
+  // Your ring's radius: by your last action that cost time, plus a loud floor.
+  function ringRadius(state) {
+    const you = state.actors[0];
+    let r = you.still ? N.RING_STILL : N.RING_MOVING;
+    const t = Grid.TILES[Grid.ch(state.dept, you.x, you.y)];
+    if (t && t.loud) r += N.RING_LOUD_FLOOR;
+    return Math.max(N.RING_MIN, r);
+  }
+
+  // The tiles your ring covers: exactly those where a sleeping exhibit would gain a pip
+  // (BUILD.md §8.2): within its walking distance and in line of sight. A tile you cannot
+  // step onto (a case, a plinth) is one step beyond its nearest neighbour you could.
+  function ring(state) {
+    const m = state.dept, you = state.actors[0], r = ringRadius(state);
+    const d = Grid.distances(m, [[you.x, you.y]], r), out = new Uint8Array(m.w * m.h);
+    for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
+      const i = y * m.w + x;
+      let dist = d[i];
+      if (dist < 0 && !Grid.walkable(m, x, y)) {
+        for (let k = 0; k < 8; k++) {
+          const nx = x + Grid.DX[k], ny = y + Grid.DY[k];
+          if (!Grid.inside(m, nx, ny)) continue;
+          const nd = d[ny * m.w + nx];
+          if (nd >= 0 && Grid.walkable(m, nx, ny) && (dist < 0 || nd + 1 < dist)) dist = nd + 1;
+        }
+        if (dist > r) dist = -1;
+      }
+      if (dist >= 0 && Grid.los(m, you.x, you.y, x, y)) out[i] = 1;
+    }
+    return out;
+  }
+
+  // Marks what you can see now as seen, in state.dept.seen (one character a tile).
+  function remember(state) {
+    const m = state.dept, v = visible(state);
+    let seen = m.seen && m.seen.length === m.w * m.h ? m.seen : '0'.repeat(m.w * m.h);
+    let changed = false;
+    const chars = seen.split('');
+    for (let i = 0; i < v.length; i++) if (v[i] && chars[i] !== '1') { chars[i] = '1'; changed = true; }
+    if (changed || seen !== m.seen) m.seen = chars.join('');
+  }
+
+  return { within, visible, ringRadius, ring, remember };
+})();
+
+</script>
+<script>
+// ACCESSION — the cause records kept in the state for death recaps (BUILD.md §3.4).
+'use strict';
+const Causes = (() => {
+  // Records are copied in, so nothing outside the state can reach into it.
+  function record(state, rec) {
+    state.causes.push(JSON.parse(JSON.stringify(rec)));
+    if (state.causes.length > N.CAUSE_RECORDS) state.causes.splice(0, state.causes.length - N.CAUSE_RECORDS);
+  }
+  return { record };
+})();
+
+</script>
+<script>
+// ACCESSION — status effects on actors, as { id, until } with until a turn number.
+'use strict';
+const Status = (() => {
+  const has = (a, id) => !!(a.statuses && a.statuses.some(s => s.id === id));
+  function add(a, id, turns, now) {
+    if (!a.statuses) a.statuses = [];
+    const s = a.statuses.find(s => s.id === id);
+    if (s) s.until = Math.max(s.until, now + turns); else a.statuses.push({ id, until: now + turns });
+  }
+  // Called on each turn boundary: expire what has run out.
+  function tick(state, ev) {
+    for (const a of state.actors) {
+      if (!a.statuses || !a.statuses.length) continue;
+      const keep = [];
+      for (const s of a.statuses) {
+        if (s.until <= state.turn) ev.push({ k: 'status_ended', turn: state.turn, who: a.uid, status: s.id });
+        else keep.push(s);
+      }
+      a.statuses = keep;
+    }
+  }
+  return { has, add, tick };
+})();
+
+</script>
+<script>
+// ACCESSION — actors: lookup, occupancy, action costs and the scheduler.
+'use strict';
+const Actors = (() => {
+  const at = (state, x, y) => { for (const a of state.actors) if (!a.gone && a.x === x && a.y === y) return a; return null; };
+  const byUid = (state, uid) => { for (const a of state.actors) if (a.uid === uid) return a; return null; };
+  // Speed scales every action's cost (BUILD.md §8.1).
+  const cost = (a, base) => a.speed === 'fast' ? Int.pct(base, N.SPEED_FAST_PCT) : a.speed === 'slow' ? Int.pct(base, N.SPEED_SLOW_PCT) : base;
+  // A blow with a Heavy weapon, or from a brute, costs more (§8.1, §8.10).
+  const attackCost = a => cost(a, a.weaponForm === 'heavy' || a.role === 'brute' ? N.COST_ATTACK_HEAVY : N.COST_ATTACK);
+  // Sleeping exhibits are not scheduled (§8.1).
+  const scheduled = a => !a.gone && a.mode !== 'dormant';
+  // The scheduler: the smallest next tick; ties to you, then to spawn order (array order).
+  function next(state) {
+    let best = null;
+    for (const a of state.actors) if (scheduled(a) && (best === null || a.next < best.next)) best = a;
+    return best;
+  }
+  return { at, byUid, cost, attackCost, scheduled, next };
+})();
+
+</script>
+<script>
+// ACCESSION — waking (BUILD.md §8.2). M0 holds only the transitions; the ring, noise,
+// pips and special triggers arrive in M3.
+'use strict';
+const Wake = (() => {
+  // Straight to hunting (damage, the ring, being seen). An exhibit that was asleep is
+  // scheduled one action from now: waking costs a beat. Each actor keeps its own story.
+  function toHunting(state, a, cause, ev) {
+    const was = a.mode;
+    a.mode = 'hunting';
+    a.pips = 0;
+    if (was === 'dormant') { a.next = state.tick + Actors.cost(a, N.COST_STEP); a.woke = { turn: state.turn, cause: copy(cause) }; }
+    a.hunted = { turn: state.turn, cause: copy(cause) };
+    ev.push({ k: 'hunting', turn: state.turn, who: a.uid, was, cause: copy(cause) });
+    Causes.record(state, { turn: state.turn, k: 'hunting', who: a.uid, was, cause });
+  }
+  const copy = c => JSON.parse(JSON.stringify(c));
+  return { toHunting };
+})();
+
+</script>
+<script>
+// ACCESSION — ordinary blows: hit chance, damage, Padding, surprise (BUILD.md §8.1).
+// Every roll is drawn from the attacker's own stream, and every result carries its cause.
+'use strict';
+const Combat = (() => {
+  const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+
+  function hitChance(att, def) {
+    let mods = 0;
+    if (Status.has(def, 'fixed')) mods += N.HIT_FIXED_TARGET;
+    if (Status.has(att, 'dazed')) mods += N.HIT_DAZED_ATTACKER;
+    return clamp(N.HIT_BASE + N.HIT_PER_POINT * (att.acc - def.eva) + mods, N.HIT_MIN, N.HIT_MAX);
+  }
+
+  // Is the defender unaware of the attacker? Only exhibits can be surprised.
+  const surprised = (att, def) => def.uid !== 'you' && def.mode !== 'hunting';
+
+  // Resolve one attack. Returns the events; the caller has already paid the cost.
+  function attack(state, att, def, ev) {
+    const rng = Rng.stream(state, 'combat/' + att.uid);
+    const chance = hitChance(att, def);
+    const cause = { k: 'attack', by: att.uid, at: def.uid, chance };
+    if (surprised(att, def)) {
+      let dmg = att.dmax;
+      if (att.weaponForm === 'light') dmg = Int.pct(dmg, N.SURPRISE_LIGHT_PCT);
+      cause.surprise = 1;
+      return hurt(state, def, net(dmg, def.pad, cause), Object.assign(cause, { raw: dmg, pad: def.pad }), ev);
+    }
+    const roll = rng.d100();
+    cause.roll = roll;
+    if (roll > chance) { ev.push({ k: 'missed', turn: state.turn, by: att.uid, at: def.uid, cause: copy(cause) }); return; }
+    const raw = rng.int(att.dmin, att.dmax);
+    hurt(state, def, net(raw, def.pad, cause), Object.assign(cause, { raw, pad: def.pad }), ev);
+  }
+
+  // Damage after Padding, at least the minimum; the cause records when the floor applied.
+  function net(raw, pad, cause) {
+    if (raw - pad < N.DMG_MIN_ON_HIT) { cause.floor = N.DMG_MIN_ON_HIT; return N.DMG_MIN_ON_HIT; }
+    return raw - pad;
+  }
+
+  function hurt(state, who, amount, cause, ev) {
+    who.hp -= amount;
+    if (who.hp < 0) who.hp = 0;
+    ev.push({ k: 'damaged', turn: state.turn, who: who.uid, amount, hp: who.hp, cause: copy(cause) });
+    Causes.record(state, { turn: state.turn, k: 'damaged', who: who.uid, amount, cause });
+    if (who.uid !== 'you' && who.mode !== 'hunting') Wake.toHunting(state, who, { k: 'damage', by: cause.by }, ev);
+    if (who.hp === 0) die(state, who, cause, ev);
+  }
+
+  function die(state, who, cause, ev) {
+    who.gone = 1;
+    ev.push({ k: 'died', turn: state.turn, who: who.uid, cause: copy(cause) });
+    Causes.record(state, { turn: state.turn, k: 'died', who: who.uid, cause });
+    if (who.uid === 'you') state.over = { k: 'died', turn: state.turn, by: cause.by || null };
+  }
+
+  const copy = c => JSON.parse(JSON.stringify(c));
+
+  return { hitChance, surprised, attack, hurt };
+})();
+
+</script>
+<script>
+// ACCESSION — exhibit numbers from role and depth (BUILD.md §8.10): the role curves are
+// anchored at depths 1, 4 and 8 and interpolated linearly, rounding down.
+'use strict';
+const Roles = (() => {
+  const ANCHORS = [1, 4, 8];
+  function at(values, depth) {
+    if (depth <= ANCHORS[0]) return values[0];
+    for (let i = 0; i + 1 < ANCHORS.length; i++) {
+      const a = ANCHORS[i], b = ANCHORS[i + 1];
+      if (depth <= b) return values[i] + Int.idiv((values[i + 1] - values[i]) * (depth - a), b - a);
+    }
+    return values[values.length - 1];
+  }
+  // Every role has all five rows; a missing one is an error, never a silent default.
+  function row(role, what) {
+    const key = 'ROLE_' + role.toUpperCase() + '_' + what;
+    if (!(key in N)) throw new Error('Roles: missing number ' + key);
+    return N[key];
+  }
+  function stats(role, depth) {
+    const dmg = row(role, 'DMG');
+    return {
+      role, hp: at(row(role, 'HP'), depth), acc: at(row(role, 'ACC'), depth), eva: at(row(role, 'EVA'), depth),
+      pad: at(row(role, 'PAD'), depth), dmin: at(dmg.map(d => d[0]), depth), dmax: at(dmg.map(d => d[1]), depth),
+    };
+  }
+  const ROLES = ['fodder', 'skirmisher', 'artillery', 'brute', 'controller', 'warden', 'support', 'swarm', 'ambusher', 'centrepiece'];
+  return { at, stats, ROLES };
+})();
+
+</script>
+<script>
+// ACCESSION — step(state, action) → events: the only function that changes the state
+// (BUILD.md §3.1). It applies your action, then lets every other actor act until it is
+// your turn again, resolving turn boundaries on the way (§8.1).
+'use strict';
+const Step = (() => {
+  const refuse = (state, reason) => [{ k: 'refused', turn: state.turn, reason }];
+
+  // Can a reach b with a blow? Adjacent, and not across a corner you could not step past.
+  function adjacent(state, a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) !== 1) return false;
+    if (dx === 0 || dy === 0) return true;
+    const m = state.dept;
+    return Grid.walkable(m, b.x, a.y) && Grid.walkable(m, a.x, b.y);
+  }
+
+  const dirOf = (dx, dy) => { for (let d = 0; d < 8; d++) if (Grid.DX[d] === dx && Grid.DY[d] === dy) return d; return -1; };
+
+  // Moving into a tile: attack what stands there, open a closed door, or walk. Returns the
+  // cost in ticks, or a refusal string.
+  function moveInto(state, a, d, ev) {
+    const m = state.dept, nx = a.x + Grid.DX[d], ny = a.y + Grid.DY[d];
+    const other = Actors.at(state, nx, ny);
+    if (other) {
+      if (!adjacent(state, a, other)) return 'You cannot reach it past the corner.';
+      if (a.uid !== 'you' && other.uid !== 'you') return 'blocked';
+      Combat.attack(state, a, other, ev);
+      return Actors.attackCost(a);
+    }
+    if (Grid.ch(m, nx, ny) === '+' && Grid.canStep(m, a.x, a.y, d)) {
+      Grid.set(m, nx, ny, "'");
+      ev.push({ k: 'opened', turn: state.turn, who: a.uid, x: nx, y: ny });
+      return Actors.cost(a, N.COST_DOOR);
+    }
+    if (!Grid.canStep(m, a.x, a.y, d)) return 'Something is in the way.';
+    ev.push({ k: 'moved', turn: state.turn, who: a.uid, from: [a.x, a.y], to: [nx, ny] });
+    a.x = nx; a.y = ny;
+    return Actors.cost(a, N.COST_STEP);
+  }
+
+  // Your action. Returns the cost, or a refusal string.
+  function yours(state, action, ev) {
+    const you = state.actors[0];
+    switch (action.a) {
+      case 'move': {
+        if (!(action.dir >= 0 && action.dir < 8)) return 'No such direction.';
+        return moveInto(state, you, action.dir, ev);
+      }
+      case 'wait':
+        ev.push({ k: 'waited', turn: state.turn, who: 'you' });
+        return N.COST_WAIT;
+      case 'attack': {
+        const t = Actors.byUid(state, action.uid);
+        if (!t || t.gone || t === you) return 'There is nothing there to attack.';
+        if (!adjacent(state, you, t)) return 'It is out of reach.';
+        return moveInto(state, you, dirOf(t.x - you.x, t.y - you.y), ev);
+      }
+      default:
+        return 'Unknown action.';
+    }
+  }
+
+  // One exhibit's turn. M0: a hunting exhibit closes in and strikes; others wait.
+  function act(state, a, ev) {
+    const you = state.actors[0];
+    let cost = Actors.cost(a, N.COST_WAIT);
+    if (a.mode === 'hunting') {
+      if (adjacent(state, a, you)) {
+        Combat.attack(state, a, you, ev);
+        cost = Actors.attackCost(a);
+      } else {
+        const r = chase(state, a, you, ev);
+        if (r !== null) cost = r;
+      }
+    }
+    a.next += cost;
+  }
+
+  // Step along the walking-distance gradient toward the target; ties broken on the
+  // exhibit's own ai stream. Returns the cost, or null if it cannot move.
+  function chase(state, a, target, ev) {
+    const m = state.dept, dist = Grid.distances(m, [[target.x, target.y]], 64);
+    const here = dist[a.y * m.w + a.x];
+    if (here <= 0) return null;
+    const options = [];
+    for (let d = 0; d < 8; d++) {
+      if (!Grid.canStep(m, a.x, a.y, d)) continue;
+      const nx = a.x + Grid.DX[d], ny = a.y + Grid.DY[d], v = dist[ny * m.w + nx];
+      if (v < 0 || v >= here || Actors.at(state, nx, ny)) continue;
+      options.push(d);
+    }
+    if (!options.length) return null;
+    const d = options.length === 1 ? options[0] : Rng.stream(state, 'ai/' + a.uid).pick(options);
+    const r = moveInto(state, a, d, ev);
+    return typeof r === 'number' ? r : null;
+  }
+
+  // Turn-boundary effects, in the fixed order of §8.1.
+  function boundary(state, ev) {
+    Status.tick(state, ev);
+    regenerate(state, ev);
+  }
+
+  function regenerate(state, ev) {
+    const you = state.actors[0];
+    if (you.gone || you.hp >= you.maxHp) return;
+    const every = Math.max(N.REGEN_MIN, Int.idiv(N.REGEN_NUM, you.maxHp));
+    if (state.turn % every === 0) { you.hp++; ev.push({ k: 'regenerated', turn: state.turn, who: 'you', hp: you.hp }); }
+  }
+
+  // Run the world until it is your turn again.
+  function advance(state, ev) {
+    for (;;) {
+      if (state.over) return;
+      const a = Actors.next(state);
+      const boundaryTick = (state.turn + 1) * N.TICKS_PER_TURN;
+      if (boundaryTick <= a.next) { state.turn++; state.tick = boundaryTick; boundary(state, ev); continue; }
+      state.tick = a.next;
+      if (a.uid === 'you') return;
+      act(state, a, ev);
+    }
+  }
+
+  function step(state, action) {
+    if (state.over) return refuse(state, 'The visit is over.');
+    const ev = [];
+    const cost = yours(state, action, ev);
+    if (typeof cost === 'string') return refuse(state, cost);
+    const you = state.actors[0];
+    you.next += cost;
+    // Your ring is set by your last action that cost time (BUILD.md §8.2).
+    if (cost > 0) you.still = STILL.includes(action.a);
+    advance(state, ev);
+    Vision.remember(state);
+    return ev;
+  }
+  const STILL = ['wait', 'rest', 'view', 'sit'];
+
+  // Every legal action for you now (BUILD.md §4.2). step() refuses exactly the others.
+  function legal(state) {
+    if (state.over) return [];
+    const you = state.actors[0], out = [{ a: 'wait' }];
+    for (let d = 0; d < 8; d++) {
+      const nx = you.x + Grid.DX[d], ny = you.y + Grid.DY[d], other = Actors.at(state, nx, ny);
+      if (other ? adjacent(state, you, other) : (Grid.canStep(state.dept, you.x, you.y, d))) out.push({ a: 'move', dir: d });
+    }
+    for (const a of state.actors) if (a !== you && !a.gone && adjacent(state, you, a)) out.push({ a: 'attack', uid: a.uid });
+    return out;
+  }
+
+  return { step, adjacent, legal };
+})();
+
+</script>
+<script>
+// ACCESSION — a path for a tap (BUILD.md §4.2): the UI turns it into single moves, so a
+// replay never holds a path. Shortest by the step rule, round other actors; ties broken in
+// direction order, so the same tap always gives the same path.
+'use strict';
+const Path = (() => {
+  function to(state, tx, ty) {
+    const m = state.dept, you = state.actors[0];
+    if (!Grid.inside(m, tx, ty) || (tx === you.x && ty === you.y)) return [];
+    const target = Grid.walkable(m, tx, ty) ? [[tx, ty]] : [];
+    if (!target.length) return [];
+    const d = Grid.distances(m, target, m.w * m.h);
+    const out = [];
+    let x = you.x, y = you.y, here = d[y * m.w + x];
+    if (here < 0) return [];
+    while (here > 0) {
+      let best = -1;
+      for (let k = 0; k < 8; k++) {
+        if (!Grid.canStep(m, x, y, k)) continue;
+        const nx = x + Grid.DX[k], ny = y + Grid.DY[k], v = d[ny * m.w + nx];
+        if (v < 0 || v >= here) continue;
+        const busy = Actors.at(state, nx, ny);
+        if (busy && !(nx === tx && ny === ty)) continue;
+        best = k; break;
+      }
+      if (best < 0) break;
+      x += Grid.DX[best]; y += Grid.DY[best]; here = d[y * m.w + x];
+      out.push([x, y]);
+    }
+    return out;
+  }
+  const dirTo = (a, b) => { for (let k = 0; k < 8; k++) if (a[0] + Grid.DX[k] === b[0] && a[1] + Grid.DY[k] === b[1]) return k; return -1; };
+  return { to, dirTo };
+})();
+
+</script>
+<script>
+// ACCESSION — the closing clock's budget (BUILD.md §8.4): the bell at B, the night watch at
+// B + G, from the department's tour length.
+'use strict';
+const Clock = (() => {
+  function budget(ltour) {
+    const B = Int.round10(N.CLOCK_MULT_PCT * ltour + N.CLOCK_ADD * 100, 100);
+    const G = Math.max(N.STAGE_GAP_MIN, Int.round10(N.STAGE_GAP_PCT * B, 100));
+    return { B, G };
+  }
+  return { budget };
+})();
+
+</script>
+<script>
+// ACCESSION — layout construction kit, ported from prototypes/layout/proto.js: a working
+// grid of character codes and room ids, rooms, openings, loops and the a-space pass
+// (design/layout.md §§4–5). Generation is atomic, so its streams are local, not stored.
+'use strict';
+const LBuild = (() => {
+  const CH = s => s.charCodeAt(0);
+  const T = {
+    WALL: CH('#'), FLOOR: CH('.'), ARCH: CH(','), DOOR: CH('+'), STAFF: CH('S'), VIT: CH('v'), LOWF: CH('f'),
+    PLINTH: CH('p'), COL: CH('o'), SHELF: CH('H'), PART: CH('|'), CRATE: CH('c'), VOID: CH('~'), BENCH: CH('b'),
+    CPL: CH('C'), ENT: CH('E'), EXIT: CH('X'), LECT: CH('l'), POOL: CH('w'),
+  };
+  // Public walking (staff doors closed) and sight, for generation and analysis.
+  const WALK = new Uint8Array(128), SEE = new Uint8Array(128), BLOCK = new Uint8Array(128), GLASS = new Uint8Array(128);
+  for (const c of '.,+EXbw') WALK[CH(c)] = 1;
+  WALK[T.STAFF] = 2;
+  for (const c of '.,bwEXvfp~l') SEE[CH(c)] = 1;
+  for (const c of 'vfp~loH|cC') BLOCK[CH(c)] = 1;
+  for (const c of 'vfp~l') GLASS[CH(c)] = 1;
+  const PUBLIC = 1, ALL = 3;
+  const walk = (c, mode) => (WALK[c] & mode) !== 0;
+
+  function grid(W, H) {
+    const t = new Uint8Array(W * H).fill(T.WALL), room = new Int16Array(W * H);
+    return {
+      W, H, t, room,
+      in: (x, y) => x >= 0 && y >= 0 && x < W && y < H,
+      get(x, y) { return x >= 0 && y >= 0 && x < W && y < H ? t[y * W + x] : T.WALL; },
+      set(x, y, c) { t[y * W + x] = c; },
+      rid(x, y) { return x >= 0 && y >= 0 && x < W && y < H ? room[y * W + x] : 0; },
+      rows() { const out = []; for (let y = 0; y < H; y++) { let s = ''; for (let x = 0; x < W; x++) s += String.fromCharCode(t[y * W + x]); out.push(s); } return out; },
+    };
+  }
+
+  // A local stream with the prototype's helper names, derived like every other stream.
+  function stream(seed, path) {
+    const holder = { seed, rng: {} }, s = Rng.stream(holder, path);
+    return { u32: s.u32, int: s.int, pm: p => s.chance(p), pick: s.pick, shuffle: s.shuffle };
+  }
+
+  const newLayout = () => ({ G: null, rooms: [null], edges: [], meta: {}, log: [] });
+
+  function addRect(L, role, x0, y0, x1, y1, tags, clip) {
+    const id = L.rooms.length, r = { id, role, kind: 'rect', x0, y0, x1, y1, tags: tags || {} };
+    L.rooms.push(r);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      if (clip && clip(x, y)) continue;
+      L.G.set(x, y, T.FLOOR); L.G.room[y * L.G.W + x] = id;
+    }
+    return r;
+  }
+  const centreOf = r => ({ x: (r.x0 + r.x1) >> 1, y: (r.y0 + r.y1) >> 1 });
+
+  function wallCandidates(L, a, b) {
+    const G = L.G, A = L.rooms[a], B = L.rooms[b], out = [];
+    const x0 = Math.max(1, Math.min(A.x0, B.x0) - 1), x1 = Math.min(G.W - 2, Math.max(A.x1, B.x1) + 1);
+    const y0 = Math.max(1, Math.min(A.y0, B.y0) - 1), y1 = Math.min(G.H - 2, Math.max(A.y1, B.y1) + 1);
+    const ok = (x, y, r) => G.rid(x, y) === r && WALK[G.get(x, y)] === 1;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      if (G.get(x, y) !== T.WALL) continue;
+      if ((ok(x - 1, y, a) && ok(x + 1, y, b)) || (ok(x - 1, y, b) && ok(x + 1, y, a))) out.push({ x, y, dir: 'v' });
+      else if ((ok(x, y - 1, a) && ok(x, y + 1, b)) || (ok(x, y - 1, b) && ok(x, y + 1, a))) out.push({ x, y, dir: 'h' });
+    }
+    return out;
+  }
+
+  // Open a wall between rooms a and b: 3 wide where possible, near a target line if given.
+  function connect(L, a, b, o) {
+    o = o || {};
+    let width = o.width || 3;
+    const type = o.type || T.ARCH;
+    const cands = wallCandidates(L, a, b);
+    if (!cands.length) return null;
+    const key = (x, y) => y * L.G.W + x, set = new Set(cands.map(c => key(c.x, c.y)));
+    let good = cands;
+    if (width === 3) {
+      const g3 = cands.filter(c => c.dir === 'v' ? set.has(key(c.x, c.y - 1)) && set.has(key(c.x, c.y + 1)) : set.has(key(c.x - 1, c.y)) && set.has(key(c.x + 1, c.y)));
+      if (g3.length) good = g3; else width = 1;
+    }
+    let c;
+    const tdist = g => (o.target.x == null ? 0 : Math.abs(g.x - o.target.x)) + (o.target.y == null ? 0 : Math.abs(g.y - o.target.y));
+    if (o.target && width === 3) {
+      let b3 = 1e9, b1 = 1e9;
+      for (const g of good) b3 = Math.min(b3, tdist(g));
+      for (const g of cands) b1 = Math.min(b1, tdist(g));
+      if (b3 > 1 && b1 === 0) { good = cands; width = 1; }
+    }
+    if (o.target) { let best = 1e9; for (const g of good) { const d = tdist(g); if (d < best) { best = d; c = g; } } }
+    else if (o.rng) c = o.rng.pick(good);
+    else c = good[(good.length - 1) >> 1];
+    const tiles = [[c.x, c.y]];
+    if (width === 3) { if (c.dir === 'v') tiles.push([c.x, c.y - 1], [c.x, c.y + 1]); else tiles.push([c.x - 1, c.y], [c.x + 1, c.y]); }
+    for (const [x, y] of tiles) L.G.set(x, y, type);
+    const e = { a, b, type: String.fromCharCode(type), width, tiles, why: o.why || 'graph' };
+    L.edges.push(e);
+    return e;
+  }
+
+  // 8-way breadth-first distances on the working grid, diagonals not cutting corners.
+  function bfs(G, starts, mode, blockedRoom) {
+    const N = G.W * G.H, D = new Int32Array(N).fill(-1), q = new Int32Array(N), W = G.W;
+    let h = 0, t = 0;
+    for (const s of starts) if (D[s] < 0) { D[s] = 0; q[t++] = s; }
+    while (h < t) {
+      const i = q[h++], x = i % W, y = (i - x) / W;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= W || yy >= G.H) continue;
+        const j = yy * W + xx;
+        if (D[j] >= 0) continue;
+        if (!walk(G.t[j], mode) || (blockedRoom && G.room[j] === blockedRoom)) continue;
+        if (dx && dy && (!walk(G.t[y * W + xx], mode) || !walk(G.t[yy * W + x], mode))) continue;
+        D[j] = D[i] + 1; q[t++] = j;
+      }
+    }
+    return D;
+  }
+
+  function adjacentPairs(L) {
+    const G = L.G, m = new Map();
+    for (let y = 1; y < G.H - 1; y++) for (let x = 1; x < G.W - 1; x++) {
+      if (G.get(x, y) !== T.WALL) continue;
+      let p = null;
+      const l = G.rid(x - 1, y), r = G.rid(x + 1, y), u = G.rid(x, y - 1), d = G.rid(x, y + 1);
+      if (l && r && l !== r && WALK[G.get(x - 1, y)] === 1 && WALK[G.get(x + 1, y)] === 1) p = [Math.min(l, r), Math.max(l, r)];
+      else if (u && d && u !== d && WALK[G.get(x, y - 1)] === 1 && WALK[G.get(x, y + 1)] === 1) p = [Math.min(u, d), Math.max(u, d)];
+      if (p) { const k = p[0] + ':' + p[1]; if (!m.has(k)) m.set(k, p); }
+    }
+    return [...m.values()];
+  }
+
+  // Brogue-style addLoops at room-pair granularity: open a wall between adjacent rooms
+  // when walking between them is longer than d.
+  function addLoops(L, d, rng, o) {
+    o = o || {};
+    const pairs = rng.shuffle(adjacentPairs(L).sort((p, q) => p[0] - q[0] || p[1] - q[1]));
+    let added = 0;
+    for (const [a, b] of pairs) {
+      const A = L.rooms[a], B = L.rooms[b];
+      if (o.allow && !o.allow(A, B)) continue;
+      const cands = wallCandidates(L, a, b);
+      if (!cands.length) continue;
+      const c = cands[(cands.length - 1) >> 1], G = L.G;
+      const s1 = c.dir === 'v' ? [c.x - 1, c.y] : [c.x, c.y - 1], s2 = c.dir === 'v' ? [c.x + 1, c.y] : [c.x, c.y + 1];
+      const D = bfs(G, [s1[1] * G.W + s1[0]], PUBLIC);
+      const dist = D[s2[1] * G.W + s2[0]];
+      if (dist >= 0 && dist <= d) continue;
+      if (connect(L, a, b, { width: o.width || 3, type: o.type || T.ARCH, why: 'addLoops' })) added++;
+    }
+    return added;
+  }
+
+  // A 2-high staff corridor along the top edge (programme geometry is offset by 3).
+  function addStaffBand(L, rng, nDoors) {
+    const G = L.G, r = addRect(L, 'staff', 1, 1, G.W - 2, 2, { staff: true });
+    const touching = L.rooms.filter(q => q && q.id !== r.id && q.role !== 'staff' && wallCandidates(L, r.id, q.id).length);
+    rng.shuffle(touching);
+    let n = 0;
+    for (const q of touching) { if (n >= nDoors) break; if (connect(L, r.id, q.id, { width: 1, type: T.STAFF, rng, why: 'staff' })) n++; }
+    return r;
+  }
+
+  // n rooms with 1-tile walls over a run of `total` tiles, near-equal widths with jitter.
+  function splitN(rng, total, n, minW) {
+    n = Math.max(1, Math.min(n, Math.floor((total + 1) / (minW + 1))));
+    const base = Math.floor((total - (n - 1)) / n), ws = new Array(n).fill(base);
+    let left = total - (n - 1) - base * n;
+    for (let i = 0; left > 0; i = (i + 1) % n, left--) ws[i]++;
+    for (let k = 0; k < n; k++) { const i = rng.int(0, n - 1), j = rng.int(0, n - 1), d = rng.int(0, 2); if (i !== j && ws[i] - d >= minW) { ws[i] -= d; ws[j] += d; } }
+    return ws;
+  }
+
+  function placeExits(L, room, rng, n, side) {
+    const G = L.G, xs = [];
+    if (side === 'S') { for (let x = room.x0; x <= room.x1; x++) if (G.get(x, room.y1 + 1) === T.WALL && room.y1 + 1 === G.H - 1) xs.push([x, room.y1 + 1]); }
+    else { for (let y = room.y0; y <= room.y1; y++) if (G.get(room.x1 + 1, y) === T.WALL && room.x1 + 1 === G.W - 1) xs.push([room.x1 + 1, y]); }
+    const ex = [];
+    if (!xs.length) return ex;
+    const step = Math.max(3, Math.floor(xs.length / n));
+    for (let k = 0; k < n; k++) { const p = xs[Math.min(xs.length - 1, 1 + k * step)]; if (ex.every(e => Math.abs(e[0] - p[0]) + Math.abs(e[1] - p[1]) >= 3)) ex.push(p); }
+    for (const [x, y] of ex) G.set(x, y, T.EXIT);
+    return ex;
+  }
+
+  function closeEdge(L, e) { for (const [x, y] of e.tiles) L.G.set(x, y, T.WALL); L.edges.splice(L.edges.indexOf(e), 1); }
+
+  // Cheap structural check on the public room graph: all rooms reached, the coda reachable
+  // without the centre, the Intro with two exits and on a cycle.
+  function roomCheck(L) {
+    const pub = L.rooms.filter(r => r && r.role !== 'staff'), adj = new Map(pub.map(r => [r.id, []]));
+    for (const e of L.edges) if (e.type !== 'S' && adj.has(e.a) && adj.has(e.b)) { adj.get(e.a).push(e.b); adj.get(e.b).push(e.a); }
+    const intro = pub.find(r => r.role === 'intro'), centre = pub.find(r => r.role === 'centre'), coda = pub.find(r => r.role === 'coda');
+    const reach = (from, skipRoom, skipEdge) => {
+      const seen = new Set([from]), q = [from];
+      while (q.length) {
+        const v = q.pop();
+        for (const w of adj.get(v)) {
+          if (w === skipRoom) continue;
+          if (skipEdge && ((v === skipEdge[0] && w === skipEdge[1]) || (v === skipEdge[1] && w === skipEdge[0]))) continue;
+          if (!seen.has(w)) { seen.add(w); q.push(w); }
+        }
+      }
+      return seen;
+    };
+    const all = reach(intro.id);
+    if (pub.some(r => !all.has(r.id))) return false;
+    if (!reach(intro.id, centre.id).has(coda.id) && centre !== intro) return false;
+    const nb = [...new Set(adj.get(intro.id))];
+    if (nb.length < 2) return false;
+    return nb.some(w => reach(intro.id, 0, [intro.id, w]).has(w));
+  }
+
+  function lineTiles(x0, y0, x1, y1) {
+    const out = [];
+    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0), sx = x1 > x0 ? 1 : -1, sy = y1 > y0 ? 1 : -1;
+    let err = dx - dy, x = x0, y = y0;
+    for (;;) { out.push([x, y]); if (x === x1 && y === y1) break; const e2 = 2 * err; if (e2 > -dy) { err -= dy; x += sx; } if (e2 < dx) { err += dx; y += sy; } }
+    return out;
+  }
+
+  // Turn section rooms into dead ends (one opening) until n are made, keeping the room
+  // graph valid; they become study rooms.
+  function aSpacePass(L, n, rng) {
+    if (!n) return 0;
+    const onVista = r => { if (!L.meta.cpl) return false; const [ex, ey] = L.meta.entrance, [cx, cy] = L.meta.cpl; return lineTiles(ex, ey, cx, cy).some(([x, y]) => L.G.rid(x, y) === r.id); };
+    const cand = rng.shuffle(L.rooms.filter(r => r && r.role === 'section' && !r.tags.central && !r.tags.deadEnd && r.kind === 'rect' && (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1) <= 70 && !onVista(r)));
+    let made = 0;
+    for (const r of cand) {
+      if (made >= n) break;
+      const es = L.edges.filter(e => (e.a === r.id || e.b === r.id) && e.type !== 'S');
+      if (es.length < 2) continue;
+      const keep = es.slice().sort((a, b) => a.width - b.width)[0];
+      const removed = es.filter(e => e !== keep);
+      const saved = removed.map(e => ({ e, t: e.tiles.map(([x, y]) => L.G.get(x, y)) }));
+      for (const e of removed) closeEdge(L, e);
+      if (roomCheck(L)) {
+        r.role = 'study'; r.tags.deadEnd = true; r.tags.noLoops = true;
+        if (keep.width === 1) { for (const [x, y] of keep.tiles) L.G.set(x, y, T.DOOR); keep.type = '+'; }
+        made++;
+      } else for (const { e, t } of saved) { e.tiles.forEach(([x, y], k) => L.G.set(x, y, t[k])); L.edges.push(e); }
+    }
+    return made;
+  }
+
+  return { T, WALK, SEE, BLOCK, GLASS, PUBLIC, ALL, walk, grid, stream, newLayout, addRect, centreOf, wallCandidates, connect, bfs,
+    adjacentPairs, addLoops, addStaffBand, splitN, placeExits, closeEdge, roomCheck, lineTiles, aSpacePass };
+})();
+
+</script>
+<script>
+// ACCESSION — the slice's layout programmes, ported from prototypes/layout/proto.js:
+// the enfilade, and the quadrangle scaffold with its case-labyrinth and sculpture-court
+// fillers (design/layout.md §§4.0, 4.1, 4.4, 4.6). Size 0 is Cabinet.
+'use strict';
+const LProgrammes = (() => {
+  const B = LBuild, T = B.T;
+
+  // The Centrepiece's 2×2 footprint, its top-left tile at L.meta.cpl.
+  function footprint(L) {
+    const [x, y] = L.meta.cpl;
+    for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) L.G.set(x + dx, y + dy, T.CPL);
+  }
+
+  function embedEnfilade(L, K, rng) {
+    const oy = K.staff ? 3 : 0;
+    const maxRow = 44 - K.introW - K.cW;
+    const wN = [];
+    for (let i = 0; i < K.nN; i++) wN.push(rng.int(6, 9));
+    const len = a => a.reduce((s, w) => s + w, 0) + a.length - 1;
+    while (len(wN) > maxRow) { let m = 0; for (let i = 1; i < wN.length; i++) if (wN[i] > wN[m]) m = i; if (wN[m] <= 5) wN.pop(); else wN[m]--; }
+    const rowLen = len(wN);
+    const wS = B.splitN(rng, rowLen, K.nS, 5);
+    const xs = K.introW + 2, xe = xs + rowLen - 1;
+    const cab = K.cabinets > 0 ? 5 : 0;
+    const yN0 = 1 + oy + cab, yN1 = yN0 + K.hN - 1, yS0 = yN1 + 2, yS1 = yS0 + K.hS - 1;
+    const W = xe + 1 + K.cW + 2, H = yS1 + 2;
+    L.G = B.grid(W, H);
+    const intro = B.addRect(L, 'intro', 1, yN0, K.introW, yS1);
+    const N = [], S = [];
+    let x = xs;
+    for (const w of wN) { N.push(B.addRect(L, 'section', x, yN0, x + w - 1, yN1, { row: 'N' })); x += w + 1; }
+    x = xs;
+    for (const w of wS) { S.push(B.addRect(L, 'section', x, yS0, x + w - 1, yS1, { row: 'S', long: !K.rows2 })); x += w + 1; }
+    if (cab) {
+      for (const n of rng.shuffle(N.slice()).slice(0, K.cabinets)) {
+        const w = Math.min(n.x1 - n.x0 + 1, rng.int(4, 6)), x0 = n.x0 + rng.int(0, n.x1 - n.x0 + 1 - w);
+        const c = B.addRect(L, 'study', x0, yN0 - 5, x0 + w - 1, yN0 - 2, { noLoops: true, deadEnd: true, cabinet: true });
+        B.connect(L, c.id, n.id, { width: 1, type: T.DOOR, rng });
+      }
+    }
+    const C = B.addRect(L, 'centre', xe + 2, yN0, xe + 1 + K.cW, yN1, { onRing: true });
+    const coda = B.addRect(L, 'coda', xe + 2, yS0, xe + 1 + K.cW, yS1);
+    const axN = yN0 + (K.hN >> 1), axS = yS0 + (K.hS >> 1);
+    L.G.set(0, axN, T.ENT); L.meta.entrance = [0, axN];
+    B.connect(L, intro.id, N[0].id, { target: { x: null, y: axN } });
+    for (let i = 0; i + 1 < N.length; i++) B.connect(L, N[i].id, N[i + 1].id, { target: { x: null, y: axN } });
+    B.connect(L, N[N.length - 1].id, C.id, { target: { x: null, y: axN } });
+    const sw = K.hS >= 5 ? 3 : 1;
+    B.connect(L, intro.id, S[0].id, { width: sw, target: { x: null, y: axS } });
+    for (let i = 0; i + 1 < S.length; i++) B.connect(L, S[i].id, S[i + 1].id, { width: sw, target: rng.pm(K.alignS) ? { x: null, y: axS } : null, rng });
+    B.connect(L, S[S.length - 1].id, coda.id, { width: sw, target: { x: null, y: axS } });
+    B.connect(L, C.id, coda.id, { width: 3, rng });
+    const pairs = [];
+    for (const n of N) for (const s of S) if (B.wallCandidates(L, n.id, s.id).length >= 3) pairs.push([n, s]);
+    rng.shuffle(pairs);
+    for (let i = 0; i < Math.min(K.cross, pairs.length); i++) B.connect(L, pairs[i][0].id, pairs[i][1].id, { width: rng.pm(500) ? 3 : 1, type: T.ARCH, rng, why: 'crosslink' });
+    L.meta.cpl = [C.x1 - 1, axN]; footprint(L);
+    L.meta.vistaRequired = true; L.meta.formal = true; L.meta.axisY = axN;
+    L.meta.exits = B.placeExits(L, coda, rng, K.exits, 'E');
+    if (K.staff) B.addStaffBand(L, rng, K.staffDoors);
+  }
+
+  // The quadrangle scaffold: Intro, a filled central space, the Centrepiece apse, and
+  // bands of rooms north and south, the coda at the east end of the south band.
+  function embedHallScaffold(L, K, rng, fill) {
+    const oy = K.staff ? 3 : 0, yTop = 1 + oy;
+    const introX1 = K.introW, cx0 = introX1 + 2, cx1 = cx0 + K.cW - 1, ax0 = cx1 + 2, ax1 = ax0 + K.apseW - 1;
+    const W = ax1 + 2;
+    const nY0 = yTop, nY1 = nY0 + K.bandH - 1;
+    const cy0 = K.bandN ? nY1 + 2 : yTop, cy1 = cy0 + K.cH - 1;
+    const sY0 = cy1 + 2, sY1 = sY0 + K.bandH - 1, H = sY1 + 2;
+    L.G = B.grid(W, H);
+    const axis = K.axis != null ? cy0 + K.axis : cy0 + (K.cH >> 1);
+    const intro = B.addRect(L, 'intro', 1, cy0, introX1, cy1);
+    const central = B.addRect(L, 'section', cx0, cy0, cx1, cy1, { central: true, filled: true });
+    const win = K.access === 'window';
+    const aH = win ? K.cH : Math.min(K.cH, K.apseH);
+    const apse = win ? B.addRect(L, 'centre', ax0, cy0, ax1, cy1, { apse: true, noLoops: true })
+      : B.addRect(L, 'centre', ax0, axis - (aH >> 1), ax1, axis - (aH >> 1) + aH - 1, { apse: true, noLoops: true });
+    const northRooms = [];
+    if (K.bandN) { let x = 1; for (const w of B.splitN(rng, (win ? ax1 : cx1), win ? Math.max(3, K.nBandN) : K.nBandN, 5)) { northRooms.push(B.addRect(L, 'section', x, nY0, x + w - 1, nY1, { band: 'N' })); x += w + 1; } }
+    const southRooms = [];
+    {
+      const codaW = K.apseW + rng.int(3, 6);
+      const runLen = ax1 - codaW - 1;
+      let x = 1;
+      for (const w of B.splitN(rng, runLen, K.nBandS, 5)) { southRooms.push(B.addRect(L, 'section', x, sY0, x + w - 1, sY1, { band: 'S' })); x += w + 1; }
+      southRooms.push(B.addRect(L, 'coda', x, sY0, ax1, sY1, { band: 'S' }));
+    }
+    fill(L, central, K, rng, axis);
+    L.G.set(0, axis, T.ENT); L.meta.entrance = [0, axis];
+    B.connect(L, intro.id, central.id, { target: { x: null, y: axis } });
+    if (win) {
+      for (let y = axis - 1; y <= axis + 1; y++) L.G.set(cx1 + 1, y, T.VIT);
+      const nLast = northRooms[northRooms.length - 1];
+      const via = (nLast && B.wallCandidates(L, nLast.id, apse.id).length) ? nLast : null;
+      if (via) B.connect(L, via.id, apse.id, { width: 3, rng, why: 'apseAccess' });
+    } else B.connect(L, central.id, apse.id, { target: { x: null, y: axis } });
+    for (const band of [northRooms, southRooms]) {
+      for (let i = 0; i + 1 < band.length; i++) B.connect(L, band[i].id, band[i + 1].id, { width: rng.pm(500) ? 3 : 1, rng });
+      for (let i = 0; i < band.length; i++) {
+        const r = band[i], must = r.role === 'coda' || i <= 1 || i >= band.length - 2;
+        if (B.wallCandidates(L, r.id, intro.id).length) B.connect(L, r.id, intro.id, { width: 3, rng });
+        if (must || rng.pm(K.bandLinks)) B.connect(L, r.id, central.id, { width: rng.pm(600) ? 3 : 1, rng });
+      }
+    }
+    const coda = southRooms[southRooms.length - 1];
+    if (win && !L.edges.some(e => e.a === apse.id || e.b === apse.id)) B.connect(L, coda.id, apse.id, { width: 3, rng, why: 'apseAccess' });
+    L.meta.cpl = [apse.x1 - 1, axis]; footprint(L);
+    L.meta.axisY = axis;
+    L.meta.exits = B.placeExits(L, coda, rng, K.exits, 'S');
+    if (K.staff) B.addStaffBand(L, rng, K.staffDoors);
+    return central;
+  }
+
+  // A glass maze of 2×2 cells: a random spanning tree, extra connectors, then walls
+  // closed on the shortest path until crossing it is tortuous enough.
+  function fillLabyrinth(L, c, K, rng, axis) {
+    const G = L.G, nx = ((c.x1 - c.x0 + 2) / 3) | 0, ny = ((c.y1 - c.y0 + 2) / 3) | 0;
+    for (let y = c.y0; y <= c.y1; y++) for (let x = c.x0; x <= c.x1; x++) if ((x - c.x0) % 3 === 2 || (y - c.y0) % 3 === 2) G.set(x, y, T.VIT);
+    const E = new Uint8Array(nx * ny).fill(1), S = new Uint8Array(nx * ny).fill(1);
+    const setWall = (i, j, dir, closed) => {
+      if (dir === 'E') { E[j * nx + i] = closed; const x = c.x0 + 3 * i + 2; for (const y of [c.y0 + 3 * j, c.y0 + 3 * j + 1]) G.set(x, y, closed ? T.VIT : T.FLOOR); }
+      else { S[j * nx + i] = closed; const y = c.y0 + 3 * j + 2; for (const x of [c.x0 + 3 * i, c.x0 + 3 * i + 1]) G.set(x, y, closed ? T.VIT : T.FLOOR); }
+    };
+    const nbrs = (i, j) => {
+      const o = [];
+      if (i + 1 < nx && !E[j * nx + i]) o.push([i + 1, j]);
+      if (i > 0 && !E[j * nx + i - 1]) o.push([i - 1, j]);
+      if (j + 1 < ny && !S[j * nx + i]) o.push([i, j + 1]);
+      if (j > 0 && !S[(j - 1) * nx + i]) o.push([i, j - 1]);
+      return o;
+    };
+    const mid = ((axis - c.y0) / 3) | 0;
+    const seen = new Uint8Array(nx * ny), st = [[0, mid]];
+    seen[mid * nx] = 1;
+    while (st.length) {
+      const [i, j] = st[st.length - 1];
+      const nb = rng.shuffle([[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]].filter(([a, b]) => a >= 0 && b >= 0 && a < nx && b < ny && !seen[b * nx + a]));
+      if (!nb.length) { st.pop(); continue; }
+      const [a, b] = nb[0];
+      seen[b * nx + a] = 1;
+      if (a !== i) setWall(Math.min(a, i), j, 'E', 0); else setWall(i, Math.min(b, j), 'S', 0);
+      st.push([a, b]);
+    }
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
+      if (i + 1 < nx && E[j * nx + i] && rng.pm(K.loopP)) setWall(i, j, 'E', 0);
+      if (j + 1 < ny && S[j * nx + i] && rng.pm(K.loopP)) setWall(i, j, 'S', 0);
+    }
+    const bfsCells = () => {
+      const D = new Int32Array(nx * ny).fill(-1), P = new Int32Array(nx * ny).fill(-1), q = [mid * nx];
+      D[mid * nx] = 0;
+      for (let h = 0; h < q.length; h++) {
+        const v = q[h], i = v % nx, j = (v - i) / nx;
+        for (const [a, b] of nbrs(i, j)) { const w = b * nx + a; if (D[w] < 0) { D[w] = D[v] + 1; P[w] = v; q.push(w); } }
+      }
+      return { D, P };
+    };
+    for (let k = 0; k < 40; k++) {
+      const { D, P } = bfsCells(), goal = mid * nx + nx - 1;
+      if (D[goal] * 1000 >= K.tortMin * (nx - 1)) break;
+      const path = [];
+      for (let v = goal; P[v] >= 0; v = P[v]) path.push([P[v], v]);
+      let closed = false;
+      for (const [u, v] of rng.shuffle(path)) {
+        const ui = u % nx, uj = (u - ui) / nx, vi = v % nx, vj = (v - vi) / nx;
+        const dir = ui !== vi ? 'E' : 'S', i = Math.min(ui, vi), j = Math.min(uj, vj);
+        setWall(i, j, dir, 1);
+        if (bfsCells().D.every(d => d >= 0)) { closed = true; break; }
+        setWall(i, j, dir, 0);
+      }
+      if (!closed) break;
+    }
+    for (let k = 0; k < K.clearings; k++) {
+      const i = rng.int(1, nx - 3), j = rng.int(0, ny - 2);
+      for (let y = c.y0 + 3 * j; y <= c.y0 + 3 * j + 4; y++) for (let x = c.x0 + 3 * i; x <= c.x0 + 3 * i + 4; x++) G.set(x, y, T.FLOOR);
+      G.set(c.x0 + 3 * i + 2, c.y0 + 3 * j + 2, rng.pm(500) ? T.COL : T.PART);
+    }
+    for (let j = 0; j + 1 < ny; j++) for (let i = 0; i + 1 < nx; i++) {
+      const x = c.x0 + 3 * i + 2, y = c.y0 + 3 * j + 2;
+      if (G.get(x, y) === T.VIT && rng.pm(K.opaquePosts)) G.set(x, y, T.COL);
+    }
+    { const { D } = bfsCells(); L.meta.crossing = Math.floor(D[mid * nx + nx - 1] * 1000 / (nx - 1)); L.meta.tortMin = K.tortMin; }
+    L.meta.vistaRequired = true;
+  }
+
+  // Poisson-disc plinths and columns, an optional loggia of columns, an optional pool.
+  function fillCourt(L, c, K, rng, axis) {
+    const G = L.G;
+    let ix0 = c.x0, iy0 = c.y0, ix1 = c.x1, iy1 = c.y1;
+    if (K.loggia) {
+      for (let x = c.x0 + 1; x <= c.x1 - 1; x += 2) { G.set(x, c.y0 + 1, T.COL); G.set(x, c.y1 - 1, T.COL); }
+      for (let y = c.y0 + 3; y <= c.y1 - 3; y += 2) if (Math.abs(y - axis) > 1) { G.set(c.x0 + 1, y, T.COL); G.set(c.x1 - 1, y, T.COL); }
+      ix0 += 3; iy0 += 3; ix1 -= 3; iy1 -= 3;
+    }
+    const mid = (c.x0 + c.x1) >> 1;
+    const pool = [];
+    if (K.pool) {
+      const pw = K.poolW;
+      for (let y = axis - 1; y <= axis + 1; y++) for (let x = mid - (pw >> 1); x <= mid + (pw >> 1); x++) { G.set(x, y, T.VOID); pool.push([x, y]); }
+    }
+    const pts = [];
+    const okp = (x, y) => x >= ix0 + 1 && x <= ix1 - 1 && y >= iy0 + 1 && y <= iy1 - 1 && y !== axis && G.get(x, y) === T.FLOOR &&
+      pts.every(([a, b]) => (a - x) * (a - x) + (b - y) * (b - y) >= K.spacing * K.spacing) &&
+      pool.every(([a, b]) => Math.max(Math.abs(a - x), Math.abs(b - y)) >= 2);
+    for (let t = 0; t < K.tries; t++) {
+      const x = rng.int(ix0 + 1, ix1 - 1), y = rng.int(iy0 + 1, iy1 - 1);
+      if (!okp(x, y)) continue;
+      const mirror = K.symmetry ? 2 * axis - y : null;
+      if (mirror != null && (mirror === y || !okp(x, mirror))) continue;
+      const kind = rng.pm(K.lowShare) ? T.PLINTH : T.COL;
+      pts.push([x, y]); G.set(x, y, kind);
+      if (mirror != null) { pts.push([x, mirror]); G.set(x, mirror, kind); }
+    }
+    L.meta.vistaRequired = true; L.meta.bright = true;
+  }
+
+  // Knobs per programme; s is the size class (0 Cabinet, 1 Department, 2 Wing).
+  const PROGRAMMES = {
+    enfilade: {
+      d: 20,
+      knobs(r, s) {
+        const rows2 = s === 2 ? 1 : s === 1 ? (r.pm(400) ? 1 : 0) : 0;
+        const nN = s === 0 ? 2 : s === 1 ? (rows2 ? 2 : 3) : r.int(3, 4);
+        const K = { rows2, nN, nS: rows2 ? nN : (s === 0 ? 1 : r.int(1, 2)), hN: r.int(7, 9 + s), introW: r.int(6, 8), cW: r.int(9, 11),
+          alignS: r.int(600, 1000), cross: r.int(0, 1 + s), cabinets: s === 0 ? 0 : r.int(0, s), exits: r.int(2, 3),
+          staff: r.pm(700) ? 1 : 0, staffDoors: r.int(2, 3), hS: 0 };
+        K.hS = K.rows2 ? K.hN - 1 + (K.hN & 1) : 5;
+        return K;
+      },
+      embed: embedEnfilade,
+    },
+    case_labyrinth: {
+      d: 20,
+      knobs(r, s) {
+        const nx = r.int(5 + s, 6 + s), ny = r.int(4, 4 + (s > 0 ? 1 : 0));
+        return { introW: r.int(6, 7), cW: 3 * nx - 1, cH: 3 * ny - 1, axis: 3 * (ny >> 1), apseW: r.int(7, 9), apseH: r.pick([7, 9]),
+          bandH: r.int(5, 6), bandN: s === 0 ? 0 : s === 2 ? 1 : (r.pm(500) ? 1 : 0), access: r.pm(500) ? 'window' : 'axis',
+          nBandS: s === 0 ? 1 : s === 1 ? 2 : 3, nBandN: s === 2 ? 3 : r.int(1, 2), bandLinks: r.int(200, 600),
+          studies: s === 0 ? 0 : s === 1 ? 1 : r.int(1, 2), tortMin: r.int(1300, 1700), loopP: r.int(80, 300), clearings: r.int(0, 1),
+          opaquePosts: r.int(0, 300), exits: r.int(2, 3), staff: r.pm(500) ? 1 : 0, staffDoors: 2 };
+      },
+      embed: (L, K, r) => embedHallScaffold(L, K, r, fillLabyrinth),
+    },
+    sculpture_court: {
+      d: 20,
+      knobs(r, s) {
+        return { introW: r.int(6, 7), cW: r.int(16 + 3 * s, 20 + 3 * s), cH: r.pick([11, 13, 15, 17].slice(s, s + 2)), apseW: r.int(7, 9),
+          apseH: r.pick([7, 9]), bandH: r.int(5, 6), bandN: s === 0 ? 0 : s === 2 ? 1 : (r.pm(500) ? 1 : 0), access: r.pm(500) ? 'window' : 'axis',
+          nBandS: s === 0 ? 1 : s === 1 ? 2 : 3, nBandN: s === 2 ? 3 : r.int(1, 2), bandLinks: r.int(300, 700),
+          studies: s === 0 ? 0 : s === 1 ? 1 : r.int(1, 2), loggia: r.pm(500) ? 1 : 0, pool: r.pm(600) ? 1 : 0, poolW: r.pick([3, 5]),
+          spacing: r.int(3, 5), tries: r.int(30, 80), symmetry: r.pm(500) ? 1 : 0, lowShare: r.int(100, 400), exits: r.int(2, 3),
+          staff: r.pm(500) ? 1 : 0, staffDoors: 2 };
+      },
+      embed: (L, K, r) => embedHallScaffold(L, K, r, fillCourt),
+    },
+  };
+
+  return { PROGRAMMES, embedEnfilade, embedHallScaffold, fillLabyrinth, fillCourt };
+})();
+
+</script>
+<script>
+// ACCESSION — curation, ported from prototypes/layout/proto.js: walkways reserved
+// between a room's openings, wall runs of cases, tactical seasoning, the Centrepiece
+// hall's lectern and furniture (design/layout.md §6).
+'use strict';
+const LCurate = (() => {
+  const B = LBuild, T = B.T;
+  const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+  function roomTiles(L, r) {
+    const G = L.G, out = [];
+    for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) if (G.rid(x, y) === r.id) out.push(y * G.W + x);
+    return out;
+  }
+  function roomOpenings(L, r) {
+    const G = L.G, W = G.W, out = [];
+    for (const i of roomTiles(L, r)) {
+      const x = i % W, y = (i - x) / W;
+      for (const [dx, dy] of N4) { const c = G.get(x + dx, y + dy); if (c === T.ARCH || c === T.DOOR || c === T.STAFF || c === T.ENT || c === T.EXIT) { out.push(i); break; } }
+    }
+    return out;
+  }
+  // 4-connected distances inside one room, walkable tiles only.
+  function bfsRoom(G, r, starts) {
+    const W = G.W, D = new Map(), q = starts.slice();
+    for (const s of starts) D.set(s, 0);
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h], x = i % W, y = (i - x) / W;
+      for (const [dx, dy] of N4) {
+        const j = (y + dy) * W + x + dx;
+        if (D.has(j) || G.room[j] !== r.id || B.WALK[G.t[j]] !== 1) continue;
+        D.set(j, D.get(i) + 1); q.push(j);
+      }
+    }
+    return D;
+  }
+  function reserveWalkways(L, r, formal) {
+    const G = L.G, W = G.W, res = new Set(), ops = roomOpenings(L, r);
+    for (const o of ops) { const x = o % W, y = (o - x) / W; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) res.add((y + dy) * W + x + dx); }
+    for (let a = 0; a < ops.length; a++) {
+      const D = bfsRoom(G, r, [ops[a]]);
+      for (let b = a + 1; b < ops.length; b++) {
+        let cur = ops[b];
+        if (!D.has(cur)) continue;
+        while (D.get(cur) > 0) {
+          res.add(cur);
+          if (formal) { res.add(cur + 1); res.add(cur - 1); res.add(cur + W); res.add(cur - W); }
+          const x = cur % W, y = (cur - x) / W;
+          for (const [dx, dy] of N4) { const j = (y + dy) * W + x + dx; if (D.has(j) && D.get(j) === D.get(cur) - 1) { cur = j; break; } }
+        }
+        res.add(cur);
+      }
+    }
+    return { res, ops };
+  }
+  function roomStillCirculates(L, r, ops) {
+    if (!ops.length) return true;
+    const D = bfsRoom(L.G, r, [ops[0]]);
+    if (!ops.every(o => D.has(o))) return false;
+    const G = L.G, W = G.W;
+    for (const i of roomTiles(L, r)) {
+      if (G.t[i] !== T.VIT && G.t[i] !== T.PLINTH) continue;
+      const x = i % W, y = (i - x) / W;
+      let ok = false;
+      for (const [dx, dy] of N4) if (D.has((y + dy) * W + x + dx)) ok = true;
+      if (!ok) return false;
+    }
+    return true;
+  }
+
+  function curate(L, seed, base, gates, perturbRoom) {
+    const G = L.G, W = G.W;
+    const noOpaque = new Set();
+    if (L.meta.vistaRequired) { const [ex, ey] = L.meta.entrance, [cx, cy] = L.meta.cpl; for (const [x, y] of B.lineTiles(ex, ey, cx, cy)) noOpaque.add(y * W + x); }
+    for (const r of L.rooms) {
+      if (!r || r.role === 'staff') continue;
+      const rng = B.stream(seed, base + '/room/' + (r.key || r.role + r.id) + '/curate' + (perturbRoom === r.id ? '/perturbed' : ''));
+      const tiles = roomTiles(L, r);
+      const { res, ops } = reserveWalkways(L, r, !!L.meta.formal);
+      const free = i => G.t[i] === T.FLOOR && !res.has(i) && !gates.has(i);
+      const tryPut = (i, c) => {
+        if (!free(i)) return false;
+        if (!B.SEE[c] && noOpaque.has(i)) return false;
+        const old = G.t[i];
+        G.t[i] = c;
+        if (!roomStillCirculates(L, r, ops)) { G.t[i] = old; return false; }
+        return true;
+      };
+      if (!r.tags.filled) {
+        const p = r.role === 'study' ? 650 : r.role === 'coda' ? 250 : r.role === 'centre' ? 0 : 450;
+        for (const i of tiles) {
+          const x = i % W, y = (i - x) / W;
+          const wallN = N4.filter(([dx, dy]) => G.get(x + dx, y + dy) === T.WALL).length;
+          if (wallN !== 1) continue;
+          if ((x + y) % 3 === 0) continue;
+          if (rng.pm(p)) tryPut(i, T.VIT);
+        }
+      }
+      const floorN = tiles.filter(i => B.WALK[G.t[i]] === 1).length;
+      const wallAdj = i => { const x = i % W, y = (i - x) / W; return N4.some(([dx, dy]) => G.get(x + dx, y + dy) === T.WALL); };
+      const cheb = (i, px, py) => { const x = i % W, y = (i - x) / W; return Math.max(Math.abs(x - px), Math.abs(y - py)); };
+      if (r.role === 'centre') {
+        const [px, py] = L.meta.cpl;
+        const ring = tiles.filter(i => free(i) && wallAdj(i));
+        for (const i of rng.shuffle(ring.slice())) if (G.t[i] === T.FLOOR && cheb(i, px, py) >= 4 && tryPut(i, T.COL)) break;
+        for (const i of rng.shuffle(ring.slice())) if (G.t[i] === T.FLOOR && cheb(i, px, py) >= 4 && tryPut(i, T.VIT)) break;
+        placeLectern(L, r, tiles, tryPut);
+        const view = L.meta.viewTile;
+        for (const [x, y] of [[px - 5, py - 1], [px - 5, py + 1]]) if (G.rid(x, y) === r.id && G.t[y * W + x] === T.FLOOR && !(view && view[0] === x && view[1] === y)) G.t[y * W + x] = T.BENCH;
+        continue;
+      }
+      if (floorN >= 36 && r.role !== 'coda') {
+        const has = c => tiles.some(i => (c === 'op' ? B.BLOCK[G.t[i]] && !B.GLASS[G.t[i]] : B.GLASS[G.t[i]]) && G.t[i] !== T.CPL);
+        const cand = tiles.filter(i => free(i)).map(i => {
+          const x = i % W, y = (i - x) / W;
+          let d = 99;
+          for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (G.get(x + dx, y + dy) === T.WALL) d = Math.min(d, Math.max(Math.abs(dx), Math.abs(dy)));
+          return [i, d];
+        }).sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+        if (!has('op')) {
+          for (const [i] of cand) if (tryPut(i, L.meta.formal ? T.COL : T.PART)) {
+            if (L.meta.formal && r.kind === 'rect') { const x = i % W, y = (i - x) / W, my = 2 * L.meta.axisY - y; if (my !== y && G.rid(x, my) === r.id) tryPut(my * W + x, T.COL); }
+            break;
+          }
+        }
+        if (!has('gl')) { for (const [i] of cand) if (tryPut(i, T.VIT)) break; }
+        for (let pass = 0; pass < 3; pass++) {
+          const blk = tiles.filter(i => B.BLOCK[G.t[i]]).concat(ops);
+          const bare = tiles.filter(i => B.WALK[G.t[i]] === 1 && blk.every(b => cheb(i, b % W, (b - b % W) / W) > 6));
+          if (!bare.length) break;
+          tryPut(bare[bare.length >> 1], rng.pm(500) ? T.COL : T.VIT);
+        }
+      }
+      if (r.role === 'intro') {
+        const [ex, ey] = L.meta.entrance;
+        for (const [x, y] of [[ex + 2, ey - 2], [ex + 2, ey + 2]]) if (G.rid(x, y) === r.id && free(y * W + x)) { tryPut(y * W + x, T.LECT); break; }
+      }
+    }
+  }
+
+  // Walking distance from every tile to the Centrepiece's footprint (BUILD.md §8.2): one
+  // more than the distance to the nearest tile beside it that can be stepped onto.
+  function toFootprint(L) {
+    const G = L.G, W = G.W, [px, py] = L.meta.cpl, starts = [];
+    for (let y = py - 1; y <= py + 2; y++) for (let x = px - 1; x <= px + 2; x++) {
+      const i = y * W + x;
+      if (B.WALK[G.t[i]] === 1 && G.t[i] !== T.CPL) starts.push(i);
+    }
+    const D = B.bfs(G, starts, B.PUBLIC);
+    return i => (D[i] < 0 ? -1 : D[i] + 1);
+  }
+
+  // The lectern: a viewing tile exactly VIEW_DISTANCE walking tiles from the Centrepiece,
+  // in line of sight of it, with the lectern beside it (BUILD.md §8.7).
+  function placeLectern(L, r, tiles, tryPut) {
+    const G = L.G, W = G.W, [px, py] = L.meta.cpl;
+    let dist = toFootprint(L);
+    for (const v of tiles) {
+      if (G.t[v] !== T.FLOOR || dist(v) !== N.VIEW_DISTANCE) continue;
+      const vx = v % W, vy = (v - vx) / W;
+      if (!LAnalyse.los(G, vx, vy, px, py)) continue;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const l = (vy + dy) * W + vx + dx, lx = vx + dx, ly = vy + dy;
+        // Against a wall, so it never makes a short loop in the arena (LV8).
+        let walled = false;
+        for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (G.get(lx + i, ly + j) === T.WALL) walled = true;
+        if (!walled || G.room[l] !== r.id || !tryPut(l, T.LECT)) continue;
+        dist = toFootprint(L);
+        if (dist(v) === N.VIEW_DISTANCE && LAnalyse.los(G, vx, vy, px, py)) { L.meta.lectern = [vx + dx, vy + dy]; L.meta.viewTile = [vx, vy]; return true; }
+        G.t[l] = T.FLOOR;
+        dist = toFootprint(L);
+      }
+    }
+    return false;
+  }
+
+  return { roomTiles, roomOpenings, curate, toFootprint };
+})();
+
+</script>
+<script>
+// ACCESSION — layout analysis, ported from prototypes/layout/proto.js: reachability,
+// gate cells, holes and loops, the room graph, L_tour, the vista, the Centrepiece's
+// optionality and the arena ring (design/layout.md §13.1). Its results are read by the
+// validators and the report; only integers from it enter the game state.
+'use strict';
+const LAnalyse = (() => {
+  const B = LBuild, T = B.T;
+
+  function adjacency(G, mode, mask) {
+    const W = G.W, N = W * G.H, start = new Int32Array(N + 1), list = [];
+    for (let i = 0; i < N; i++) {
+      start[i] = list.length;
+      if (mask && !mask[i]) continue;
+      if (!B.walk(G.t[i], mode)) continue;
+      const x = i % W, y = (i - x) / W;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= W || yy >= G.H) continue;
+        const j = yy * W + xx;
+        if (!B.walk(G.t[j], mode) || (mask && !mask[j])) continue;
+        if (dx && dy && (!B.walk(G.t[y * W + xx], mode) || !B.walk(G.t[yy * W + x], mode))) continue;
+        list.push(j);
+      }
+    }
+    start[N] = list.length;
+    return { start, list: Int32Array.from(list) };
+  }
+
+  // Iterative Tarjan: a gate is an articulation point whose second-largest split
+  // component has at least 4 tiles.
+  function chokepoints(G, root, adj) {
+    const N = G.W * G.H, disc = new Int32Array(N).fill(-1), low = new Int32Array(N), size = new Int32Array(N), par = new Int32Array(N).fill(-1), it = new Int32Array(N);
+    const sep = new Map();
+    let t = 0;
+    const st = [root];
+    disc[root] = low[root] = t++; size[root] = 1; it[root] = adj.start[root];
+    while (st.length) {
+      const v = st[st.length - 1];
+      if (it[v] < adj.start[v + 1]) {
+        const w = adj.list[it[v]++];
+        if (disc[w] < 0) { par[w] = v; disc[w] = low[w] = t++; size[w] = 1; it[w] = adj.start[w]; st.push(w); }
+        else if (w !== par[v]) low[v] = Math.min(low[v], disc[w]);
+      } else {
+        st.pop();
+        const p = par[v];
+        if (p >= 0) {
+          low[p] = Math.min(low[p], low[v]); size[p] += size[v];
+          if (low[v] >= disc[p]) { if (!sep.has(p)) sep.set(p, []); sep.get(p).push(size[v]); }
+        }
+      }
+    }
+    const gates = new Set();
+    for (const [v, s] of sep) {
+      const comps = v === root ? s.slice() : s.concat([t - 1 - s.reduce((a, b) => a + b, 0)]);
+      if (comps.length < 2) continue;
+      comps.sort((a, b) => b - a);
+      if (comps[1] >= 4) gates.add(v);
+    }
+    return gates;
+  }
+
+  function los(G, x0, y0, x1, y1) {
+    const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0), sx = x1 > x0 ? 1 : -1, sy = y1 > y0 ? 1 : -1;
+    let err = dx - dy, x = x0, y = y0;
+    while (x !== x1 || y !== y1) {
+      if ((x !== x0 || y !== y0) && !B.SEE[G.t[y * G.W + x]]) return false;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x += sx; }
+      if (e2 < dx) { err += dx; y += sy; }
+    }
+    return true;
+  }
+
+  function roomGraph(L, reachRooms) {
+    const nodes = [...reachRooms].sort((a, b) => a - b), idx = new Map(nodes.map((r, i) => [r, i])), n = nodes.length, adj = nodes.map(() => new Set());
+    for (const e of L.edges) {
+      if (e.type === 'S') continue;
+      if (!idx.has(e.a) || !idx.has(e.b) || e.a === e.b) continue;
+      adj[idx.get(e.a)].add(idx.get(e.b)); adj[idx.get(e.b)].add(idx.get(e.a));
+    }
+    let E2 = 0;
+    adj.forEach(s => { E2 += s.size; });
+    const E = E2 >> 1;
+    const reach = (skipA, skipB) => {
+      const seen = new Uint8Array(n), q = [skipA];
+      seen[skipA] = 1;
+      while (q.length) { const v = q.pop(); for (const w of adj[v]) { if ((v === skipA && w === skipB) || (v === skipB && w === skipA)) continue; if (!seen[w]) { seen[w] = 1; q.push(w); } } }
+      return seen[skipB] === 1;
+    };
+    const ringDeg = new Array(n).fill(0);
+    let bridges = 0;
+    for (let v = 0; v < n; v++) for (const w of adj[v]) if (v < w) { if (reach(v, w)) { ringDeg[v]++; ringDeg[w]++; } else bridges++; }
+    const types = { a: 0, b: 0, c: 0, d: 0 }, typeOf = [];
+    for (let v = 0; v < n; v++) { const deg = adj[v].size; const t = deg <= 1 ? 'a' : ringDeg[v] === 0 ? 'b' : ringDeg[v] === 2 ? 'c' : ringDeg[v] >= 3 ? 'd' : 'b'; types[t]++; typeOf.push(t); }
+    return { nodes, n, E, mu: E - n + 1, types, typeOf, adj, idx, bridges, ringDeg };
+  }
+
+  function analyse(L) {
+    const G = L.G, W = G.W, N = W * G.H;
+    const [ex, ey] = L.meta.entrance, e = ey * W + ex;
+    const D = B.bfs(G, [e], B.PUBLIC);
+    const open = new Uint8Array(N);
+    let floorN = 0;
+    for (let i = 0; i < N; i++) if (D[i] >= 0) { open[i] = 1; floorN++; }
+    const adj = adjacency(G, B.PUBLIC, open);
+    const gates = chokepoints(G, e, adj);
+    // Holes: 8-connected non-open components not touching the border; a small ring is a pillar loop.
+    const seen = new Uint8Array(N);
+    let pillar = 0, circuit = 0;
+    for (let i = 0; i < N; i++) {
+      if (open[i] || seen[i]) continue;
+      const comp = [i];
+      seen[i] = 1;
+      let border = false;
+      for (let k = 0; k < comp.length; k++) {
+        const j = comp[k], x = j % W, y = (j - x) / W;
+        if (x === 0 || y === 0 || x === W - 1 || y === G.H - 1) border = true;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const xx = x + dx, yy = y + dy;
+          if (xx < 0 || yy < 0 || xx >= W || yy >= G.H) continue;
+          const q = yy * W + xx;
+          if (!open[q] && !seen[q]) { seen[q] = 1; comp.push(q); }
+        }
+      }
+      if (border) continue;
+      const ring = new Set();
+      for (const j of comp) { const x = j % W, y = (j - x) / W; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const q = (y + dy) * W + x + dx; if (open[q]) ring.add(q); } }
+      if (ring.size <= 16) pillar++; else circuit++;
+    }
+    const reachRooms = new Set();
+    for (let i = 0; i < N; i++) if (open[i] && G.room[i]) reachRooms.add(G.room[i]);
+    const RG = roomGraph(L, reachRooms);
+    const roomTiles = LCurate.roomTiles;
+    // L_tour: nearest-neighbour tour over gallery centres, then the Centrepiece hall, then the nearest exit.
+    const galleries = [...reachRooms].sort((a, b) => a - b).map(id => L.rooms[id]).filter(r => r.role !== 'coda' && r.role !== 'centre' && r.role !== 'staff');
+    const pt = r => { const c = B.centreOf(r); let best = -1, bd = 1e9; for (const i of roomTiles(L, r)) { if (!open[i]) continue; const x = i % W, y = (i - x) / W, d = Math.abs(x - c.x) + Math.abs(y - c.y); if (d < bd) { bd = d; best = i; } } return best; };
+    const centreRoom = L.rooms.find(r => r && r.role === 'centre');
+    let cur = e, tour = 0;
+    const order = [];
+    const left = galleries.map(r => ({ r, i: pt(r) })).filter(g => g.i >= 0);
+    while (left.length) {
+      const Dc = B.bfs(G, [cur], B.PUBLIC);
+      let bi = 0;
+      for (let k = 1; k < left.length; k++) if (Dc[left[k].i] < Dc[left[bi].i]) bi = k;
+      tour += Dc[left[bi].i]; cur = left[bi].i; order.push(left[bi].r.id); left.splice(bi, 1);
+    }
+    {
+      const Dc = B.bfs(G, [cur], B.PUBLIC), cp = pt(centreRoom);
+      tour += Dc[cp]; cur = cp; order.push(centreRoom.id);
+      const D2 = B.bfs(G, [cur], B.PUBLIC);
+      let m = 1e9;
+      for (const [x, y] of L.meta.exits) if (D2[y * W + x] >= 0) m = Math.min(m, D2[y * W + x]);
+      tour += m;
+    }
+    const [cx, cy] = L.meta.cpl;
+    const intro = L.rooms.find(r => r && r.role === 'intro');
+    let vista = false;
+    for (const i of roomTiles(L, intro)) { if (!open[i]) continue; const x = i % W; if (los(G, x, (i - x) / W, cx, cy)) { vista = true; break; } }
+    const Dno = B.bfs(G, [e], B.PUBLIC, centreRoom.id);
+    const optionalC = L.meta.exits.some(([x, y]) => Dno[y * W + x] >= 0);
+    const allRooms = L.rooms.filter(r => r && r.role !== 'staff');
+    const allReached = allRooms.every(r => reachRooms.has(r.id));
+    const exitsReached = L.meta.exits.length >= 2 && L.meta.exits.every(([x, y]) => D[y * W + x] >= 0);
+    let dExit = 1e9;
+    for (const [x, y] of L.meta.exits) if (D[y * W + x] >= 0) dExit = Math.min(dExit, D[y * W + x]);
+    const introIdx = RG.idx.get(intro.id);
+    const introExits = introIdx === undefined ? 0 : RG.adj[introIdx].size;
+    const introOnCycle = introIdx !== undefined && RG.ringDeg[introIdx] >= 2;
+    const deadEnds = L.rooms.filter(r => r && r.tags.deadEnd && reachRooms.has(r.id)).length;
+    // The arena ring: the smallest ring of walkable tiles round a free-standing blocker group in the hall.
+    let arenaMinRing = 99, arenaBlock = null;
+    {
+      const cr = centreRoom, seenA = new Set();
+      for (const i0 of roomTiles(L, cr)) {
+        const c0 = G.t[i0];
+        if (B.WALK[c0] === 1 || c0 === T.CPL || seenA.has(i0)) continue;
+        const comp = [i0];
+        seenA.add(i0);
+        let attached = false;
+        for (let k = 0; k < comp.length; k++) {
+          const j = comp[k], x = j % W, y = (j - x) / W;
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            const q = (y + dy) * W + x + dx, cq = G.t[q];
+            if (cq === T.WALL) attached = true;
+            else if (B.WALK[cq] !== 1 && cq !== T.CPL && G.room[q] === cr.id && !seenA.has(q)) { seenA.add(q); comp.push(q); }
+          }
+        }
+        if (attached) continue;
+        const ring = new Set();
+        for (const j of comp) { const x = j % W, y = (j - x) / W; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const q = (y + dy) * W + x + dx; if (B.WALK[G.t[q]] === 1 || G.t[q] === T.CPL) ring.add(q); } }
+        if (ring.size < arenaMinRing) { arenaMinRing = ring.size; arenaBlock = comp.map(j => { const x = j % W; return [x, (j - x) / W]; }); }
+      }
+    }
+    // Glass ratio: see-through blockers among the interior blockers next to public floor.
+    let blockers = 0, glass = 0;
+    for (let i = 0; i < N; i++) {
+      if (!B.BLOCK[G.t[i]] || G.t[i] === T.CPL) continue;
+      const x = i % W, y = (i - x) / W;
+      let near = false;
+      for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1; dx++) if (G.in(x + dx, y + dy) && open[(y + dy) * W + x + dx]) { near = true; break; }
+      if (!near) continue;
+      blockers++;
+      if (B.GLASS[G.t[i]]) glass++;
+    }
+    // Narrow share: floor tiles whose horizontal or vertical free run is at most 2.
+    let narrow = 0;
+    for (let i = 0; i < N; i++) {
+      if (!open[i]) continue;
+      const x = i % W, y = (i - x) / W;
+      let h = 1, v = 1;
+      for (let k = 1; x + k < W && open[i + k]; k++) h++;
+      for (let k = 1; x - k >= 0 && open[i - k]; k++) h++;
+      for (let k = 1; y + k < G.H && open[i + k * W]; k++) v++;
+      for (let k = 1; y - k >= 0 && open[i - k * W]; k++) v++;
+      if (Math.min(h, v) <= 2) narrow++;
+    }
+    // Rooms from the Intro to the Centrepiece hall on the room graph.
+    let roomsToC = -1;
+    if (introIdx !== undefined && RG.idx.has(centreRoom.id)) {
+      const Dd = new Array(RG.n).fill(-1), q = [introIdx];
+      Dd[introIdx] = 0;
+      for (let h = 0; h < q.length; h++) for (const w of RG.adj[q[h]]) if (Dd[w] < 0) { Dd[w] = Dd[q[h]] + 1; q.push(w); }
+      roomsToC = Dd[RG.idx.get(centreRoom.id)];
+    }
+    return {
+      blockers, glass, narrow, roomsToC,
+      W, H: G.H, floor: floorN, pillar, circuit, loops: pillar + circuit, gates, gatesN: gates.size,
+      tour, order, vista, optionalC, allReached, exitsReached, dExit, rooms: RG.n, mu: RG.mu, arenaBlock,
+      aShare: RG.n ? RG.types.a / RG.n : 0, introExits, introOnCycle, deadEnds, arenaMinRing, D, openMask: open, RG,
+    };
+  }
+
+  return { analyse, los, roomGraph };
+})();
+
+</script>
+<script>
+// ACCESSION — layout generation, top level (design/layout.md §§2, 9, 10): embed the
+// programme, add loops, make a-spaces, repair, curate, validate; up to 4 reseeds, then a
+// certified fallback. Every step is logged in words, and every failed check names the
+// tiles at fault, so a failing plan explains itself.
+'use strict';
+const Layout = (() => {
+  const B = LBuild, T = B.T;
+  const PIN = 2;                 // the layout version: bump on any change that alters layouts
+  const RESEEDS = 4;
+  // Certified fallbacks: one seed per programme, re-certified by test/m1.test.js.
+  const FALLBACK = { enfilade: 1, case_labyrinth: 1, sculpture_court: 1 };
+
+  const xy = (G, i) => { const x = i % G.W; return [x, (i - x) / G.W]; };
+  const fail = (why, tiles) => ({ why, tiles: tiles || [] });
+
+  // Identity checks per programme (design/layout.md §13.2), as integer comparisons.
+  const IDENTITY = {
+    enfilade: (L, A) => A.roomsToC < 3 ? `only ${A.roomsToC} rooms from the Intro to the Centrepiece hall (at least 3)`
+      : (100 * A.glass < 40 * A.blockers || 100 * A.glass > 85 * A.blockers) ? `glass is ${A.glass} of ${A.blockers} blockers (40–85%)` : null,
+    case_labyrinth: (L, A) => 4 * A.glass < 3 * A.blockers ? `glass is ${A.glass} of ${A.blockers} blockers (at least 75%)`
+      : 100 * A.narrow < 15 * A.floor ? `only ${A.narrow} of ${A.floor} floor tiles are narrow (at least 15%)`
+      : L.meta.crossing < L.meta.tortMin ? `the maze is crossed too directly (${L.meta.crossing} against ${L.meta.tortMin} per thousand)` : null,
+    sculpture_court: (L, A) => A.pillar < 8 ? `only ${A.pillar} pillar loops (at least 8)` : null,
+  };
+
+  // The validators layout alone can decide (design/layout.md §9.1). Each returns null, or
+  // a sentence and the tiles at fault.
+  const CHECKS = [
+    ['LV1', (L, A) => {
+      if (A.allReached && A.exitsReached) return null;
+      const G = L.G, tiles = [];
+      for (const rm of L.rooms) if (rm && rm.role !== 'staff' && !LCurate.roomTiles(L, rm).some(i => A.openMask[i])) tiles.push(...LCurate.roomTiles(L, rm).slice(0, 4).map(i => xy(G, i)));
+      for (const [x, y] of L.meta.exits) if (A.D[y * G.W + x] < 0) tiles.push([x, y]);
+      return fail('not every room and exit can be reached from the entrance', tiles);
+    }],
+    ['LV3', (L, A) => A.optionalC ? null : fail('no exit can be reached without passing through the Centrepiece hall', L.meta.exits)],
+    ['LV4', (L, A) => A.introExits >= 2 && A.introOnCycle ? null
+      : fail(`the Intro has ${A.introExits} onward openings and ${A.introOnCycle ? 'is' : 'is not'} on a loop`, [L.meta.entrance])],
+    ['LV5', (L, A) => A.allReached ? null : fail('a public room can only be reached through the staff layer')],
+    ['LV8', (L, A) => {
+      if (A.arenaMinRing < 16) return fail(`a free-standing block in the Centrepiece hall makes a loop of only ${A.arenaMinRing} tiles`, A.arenaBlock || []);
+      if (!L.meta.viewTile) return fail('no lectern could be placed at the viewing distance from the Centrepiece', [L.meta.cpl]);
+      const G = L.G, [vx, vy] = L.meta.viewTile, d = LCurate.toFootprint(L)(vy * G.W + vx);
+      if (d !== N.VIEW_DISTANCE || !LAnalyse.los(G, vx, vy, L.meta.cpl[0], L.meta.cpl[1])) return fail(`the viewing tile is ${d} walking tiles from the Centrepiece, not ${N.VIEW_DISTANCE}, or out of its sight`, [L.meta.viewTile]);
+      return null;
+    }],
+    ['LV9', (L, A) => !L.meta.vistaRequired || A.vista ? null : fail('the Centrepiece cannot be seen from the Intro', [L.meta.entrance, L.meta.cpl])],
+    ['LV10', (L, A, pre) => {
+      const G = L.G;
+      for (const g of pre.gates) if (B.BLOCK[G.t[g]]) return fail('a fixture blocks a gate cell', [xy(G, g)]);
+      for (let i = 0; i < G.W * G.H; i++) {
+        if (G.t[i] !== T.VIT || !G.room[i]) continue;
+        const [x, y] = xy(G, i);
+        let ok = false;
+        for (let dy = -1; dy <= 1 && !ok; dy++) for (let dx = -1; dx <= 1; dx++) if (A.openMask[(y + dy) * G.W + x + dx]) { ok = true; break; }
+        if (!ok) return fail('a case cannot be reached', [[x, y]]);
+      }
+      return null;
+    }],
+    ['LV14', (L, A) => {
+      const why = IDENTITY[L.meta.programme] && IDENTITY[L.meta.programme](L, A);
+      if (why) return fail(why);
+      if (L.meta.vistaRequired && !A.vista) return fail('no vista from the Intro');
+      return null;
+    }],
+  ];
+
+  // Opens a way into each unreachable room, then puts the Intro on a loop: first by opening
+  // the Intro into a neighbour, then by linking the Intro's neighbour onward
+  // (design/layout.md §10.1). Every repair is logged.
+  function repair(L, A) {
+    if (!A.allReached) {
+      for (const r of L.rooms) {
+        if (!r || r.role === 'staff' || LCurate.roomTiles(L, r).some(i => A.openMask[i])) continue;
+        for (const q of L.rooms) if (q && q !== r && q.role !== 'staff' && LCurate.roomTiles(L, q).some(i => A.openMask[i]) && B.connect(L, r.id, q.id, { width: 1, why: 'repair' })) { L.log.push({ check: 'LV1', room: r.id, op: `opened a way into unreachable room ${r.id} (${r.role})` }); break; }
+      }
+      A = LAnalyse.analyse(L);
+    }
+    if (!A.introOnCycle || A.introExits < 2) {
+      const intro = L.rooms.find(r => r && r.role === 'intro');
+      const linked = new Set(L.edges.filter(e => e.a === intro.id || e.b === intro.id).map(e => e.a === intro.id ? e.b : e.a));
+      for (const q of L.rooms) {
+        if (!q || q === intro || q.role === 'staff' || q.role === 'coda' || q.tags.deadEnd || linked.has(q.id)) continue;
+        if (B.connect(L, intro.id, q.id, { width: 3, why: 'repair:introCycle' })) { L.log.push({ check: 'LV4', room: q.id, op: `opened the Intro into room ${q.id}` }); break; }
+      }
+      A = LAnalyse.analyse(L);
+      if (!A.introOnCycle) {
+        let done = false;
+        for (const id of linked) {
+          const q = L.rooms[id];
+          if (q.tags.deadEnd) continue;
+          for (const r2 of L.rooms) {
+            if (!r2 || r2 === q || r2 === intro || r2.role === 'staff' || r2.tags.deadEnd || r2.tags.noLoops) continue;
+            if (L.edges.some(e => (e.a === q.id && e.b === r2.id) || (e.b === q.id && e.a === r2.id))) continue;
+            if (B.connect(L, q.id, r2.id, { width: 3, why: 'repair:introCycle' })) { L.log.push({ check: 'LV4', room: q.id, op: `linked room ${q.id} onward to room ${r2.id} to put the Intro on a loop` }); done = true; break; }
+          }
+          if (done) break;
+        }
+        A = LAnalyse.analyse(L);
+      }
+    }
+    return A;
+  }
+
+  // opts.plant(L) lets tests break a plan at a chosen stage ('afterAspace' or 'afterCurate').
+  function attempt(programme, size, seed, base, opts) {
+    opts = opts || {};
+    const P = LProgrammes.PROGRAMMES[programme];
+    const K = P.knobs(B.stream(seed, base + '/knobs'), size);
+    const L = B.newLayout();
+    L.meta.programme = programme;
+    P.embed(L, K, B.stream(seed, base + '/embed'));
+    B.addLoops(L, P.d, B.stream(seed, base + '/openings'), {
+      allow: (a, b) => !a.tags.noLoops && !b.tags.noLoops && a.role !== 'staff' && b.role !== 'staff' && !((a.role === 'intro' && b.role === 'coda') || (a.role === 'coda' && b.role === 'intro')),
+    });
+    B.aSpacePass(L, K.studies || 0, B.stream(seed, base + '/aspace'));
+    if (opts.plant && opts.plant.stage === 'afterAspace') opts.plant.fn(L);
+    let A = repair(L, LAnalyse.analyse(L));
+    roleKeys(L, A);
+    LCurate.curate(L, seed, base, A.gates, opts.perturbRoom);
+    const pre = { gates: A.gates };
+    if (opts.plant && opts.plant.stage === 'afterCurate') opts.plant.fn(L, pre);
+    A = LAnalyse.analyse(L);
+    const failed = [];
+    for (const [id, f] of CHECKS) { const r = f(L, A, pre); if (r) failed.push({ id, why: r.why, tiles: r.tiles }); }
+    return { L, A, K, failed };
+  }
+
+  // Role keys name rooms without dots (BUILD.md §3.2): sections in tour order.
+  function roleKeys(L, A) {
+    let s = 0, st = 0;
+    for (const id of A.order) { const r = L.rooms[id]; if (r.role === 'section') r.key = 's' + (++s); else if (r.role === 'study') r.key = 'study' + (++st); }
+    for (const r of L.rooms) if (r && !r.key) r.key = r.role === 'section' ? 's' + (++s) : r.role === 'study' ? 'study' + (++st) : r.role;
+  }
+
+  // The certified fallback for a programme: always the same plan.
+  function fallback(programme, size, opts) {
+    return attempt(programme, size, FALLBACK[programme], `layout/fallback/${programme}@${PIN}/a0`, opts && { plant: opts.plantFallback });
+  }
+
+  // Generate one department's plan. opts: { acc, depth } name the streams.
+  function generate(programme, size, seed, opts) {
+    opts = opts || {};
+    const key = `layout/${opts.acc || programme}@${PIN}/d${opts.depth || 1}`;
+    const tries = [];
+    for (let k = 0; k <= RESEEDS; k++) {
+      const r = attempt(programme, size, seed, key + '/a' + k, opts);
+      tries.push(r.failed);
+      if (!r.failed.length) return finish(r, { attempt: k, fallback: false, tries, key });
+    }
+    const r = fallback(programme, size, opts);
+    if (r.failed.length) throw new Error(`Layout: the certified fallback for ${programme} failed: ${r.failed.map(f => f.id + ' ' + f.why).join('; ')}`);
+    return finish(r, { attempt: RESEEDS + 1, fallback: true, tries, key });
+  }
+
+  // The plan as plain data for the state (BUILD.md §4.1), plus the analysis for checks.
+  function finish(r, info) {
+    const { L, A } = r, G = L.G;
+    const rooms = [];
+    for (const rm of L.rooms) if (rm) rooms.push({ id: rm.id, key: rm.key, role: rm.role, x0: rm.x0, y0: rm.y0, x1: rm.x1, y1: rm.y1, tags: Object.keys(rm.tags).filter(k => rm.tags[k]).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)) });
+    const roomOf = [];
+    for (let y = 0; y < G.H; y++) { const row = []; for (let x = 0; x < G.W; x++) row.push(G.room[y * G.W + x]); roomOf.push(row); }
+    return {
+      plan: { programme: L.meta.programme, pin: PIN, w: G.W, h: G.H, tiles: G.rows(), rooms, roomOf, entrance: L.meta.entrance.slice(),
+        exits: L.meta.exits.map(e => e.slice()), cpl: L.meta.cpl.slice(), lectern: L.meta.lectern ? L.meta.lectern.slice() : null,
+        viewTile: L.meta.viewTile ? L.meta.viewTile.slice() : null, ltour: A.tour, tourOrder: A.order.slice() },
+      analysis: A, failed: r.failed, log: L.log, attempt: info.attempt, fallback: info.fallback, tries: info.tries, knobs: r.K,
+    };
+  }
+
+  // Room numbers D·100 + n in tour order: galleries in L_tour order, then the Centrepiece
+  // hall, then the coda (design/layout.md §8.1). Staff rooms are not numbered.
+  function number(plan, depth) {
+    const out = {};
+    let n = 1;
+    for (const id of plan.tourOrder) out[id] = depth * 100 + n++;
+    for (const rm of plan.rooms) if (rm.role === 'coda') out[rm.id] = depth * 100 + n++;
+    return out;
+  }
+
+  // A plan as text, with the given tiles marked '!' (for failure reports).
+  function text(plan, tiles) {
+    const rows = plan.tiles.slice();
+    for (const [x, y] of tiles || []) if (y >= 0 && y < rows.length) rows[y] = rows[y].slice(0, x) + '!' + rows[y].slice(x + 1);
+    return rows.join('\n');
+  }
+
+  return { PIN, FALLBACK, generate, fallback, attempt, number, text, CHECKS };
+})();
+
+</script>
+<script>
+// ACCESSION — building a fresh state (BUILD.md §4.1).
+'use strict';
+const Setup = (() => {
+  const SAVE_VERSION = 1;
+
+  // The visitor at the start of a run: a T1 Balanced weapon and a T1 Standard garment
+  // (BUILD.md §8.1), from the forms in the numbers table.
+  function you(x, y) {
+    const t = 1, F = N.FORM_BALANCED, G = N.GARMENT_STANDARD;
+    return {
+      uid: 'you', sp: 'visitor', size: 1, x, y, hp: N.PLAYER_HP, maxHp: N.PLAYER_HP, next: 0, still: false,
+      acc: N.PLAYER_ACC + F[4], eva: N.PLAYER_EVA + G[1], pad: t + G[0], dmin: t + F[0], dmax: F[1] * t + F[2],
+      weaponForm: 'balanced', statuses: [],
+    };
+  }
+
+  // A state for one room: map rows, your position, and exhibit records from a pack.
+  function room(seed, spec) {
+    const state = {
+      v: SAVE_VERSION, seed, rng: {}, tick: 0, turn: 0,
+      dept: { acc: spec.acc, depth: spec.depth || 1, w: spec.map[0].length, h: spec.map.length, tiles: spec.map.slice() },
+      actors: [you(spec.you[0], spec.you[1])],
+      causes: [], over: null,
+    };
+    let n = 0;
+    for (const e of spec.exhibits) {
+      n++;
+      state.actors.push(Object.assign({
+        uid: spec.acc + '.' + state.dept.depth + '.' + (e.room || 'room') + '.' + n,
+        size: 1, next: 0, pips: 0, statuses: [],
+      }, e.stats, { sp: e.sp, x: e.at[0], y: e.at[1], mode: e.mode || 'dormant', maxHp: e.stats.hp }));
+    }
+    return state;
+  }
+
+  return { SAVE_VERSION, you, room };
+})();
+
+</script>
+<script>
+// ACCESSION — the grammar registry (BUILD.md §5.1): the nine universal systems and the
+// slice's triggers, archetypes, modifiers and modules, each with the clause its Behaviour
+// line is built from. A clause states exactly what the rule code does; the scenario tests
+// named in `tests` prove it (they arrive with the rule, in M3 and M4).
+'use strict';
+const Registry = (() => {
+  // DECISIONS.md, "Nine universal systems": the sentence the player is taught.
+  const SYSTEMS = [
+    { id: 'moving', icon: 'damage', name: 'Moving and fighting', sentence: 'Tap to move; bump into something to attack it. Ordinary blows roll dice, and the odds are shown before you commit. Dangerous moves are marked on the floor with their exact damage, and never miss. Your health recovers slowly.' },
+    { id: 'waking', icon: 'ring', name: 'Waking', sentence: 'Every exhibit is asleep, stirring or awake. Being close or making noise fills its three pips; the ring around you shows what counts as close. A species may have one extra trigger, shown as one icon.' },
+    { id: 'cases', icon: 'touch_case', name: 'Cases', sentence: 'You can see through glass but not walk through it. Open a case if your grade allows, or break it, loudly.' },
+    { id: 'clock', icon: 'period', name: 'The clock', sentence: 'At the bell your recovery slows; later the night watch begins its rounds, waking whatever is nearest to you.' },
+    { id: 'kit', icon: 'kit', name: 'Your kit', sentence: 'A weapon, a garment, two curios and an instrument. Restoration kits improve them.' },
+    { id: 'consumables', icon: 'seal', name: 'Consumables', sentence: 'A handful of kinds, unlabelled until you have used one or read about it.' },
+    { id: 'grade', icon: 'certificate', name: 'Grade', sentence: 'Each department’s Certificate, earned by defeating or viewing its Centrepiece, raises your grade by one: more health, a perk chosen from three, heavier objects, higher-grade cases.' },
+    { id: 'labels', icon: 'reads', name: 'Labels', sentence: 'Every exhibit and object has one: a plain Behaviour line that states exactly what it does, and a paragraph that is only for reading.' },
+    { id: 'doors', icon: 'highlight', name: 'Doors', sentence: 'Each department ends in doors whose placards say what kind of trouble lies behind each.' },
+  ];
+  const MAX_SYSTEMS = 10;
+
+  // Special triggers: at most one per species (BUILD.md §8.2).
+  const TRIGGERS = {
+    axis: { icon: 'axis', clause: 'also wakes when you stand in its row or column within 8 tiles, in sight' },
+    period: { icon: 'period', clause: 'wakes on the bell to perform, then sleeps again' },
+    tether: { icon: 'tether', clause: 'wakes at once when you come within 2 tiles of what it guards' },
+    touch_case: { icon: 'touch_case', clause: 'wakes at once when its case is opened, bashed or touched' },
+    ally_hit: { icon: 'ally_hit', clause: 'wakes at once when one of its group within 5 tiles is struck' },
+    alarm: { icon: 'alarm', clause: 'wakes at once when the alarm is raised' },
+    awake: { icon: 'awake', clause: 'never sleeps' },
+  };
+
+  // Archetypes in the slice (design/vocabulary.md §2.1, trimmed per BUILD.md §5.5).
+  const ARCHETYPES = {
+    plodder: { clause: 'Walks one tile at a time and strikes from beside you.' },
+    darter: { clause: 'Moves two tiles a turn; strikes, then steps back one.', speed: 'fast' },
+    kiter: { clause: 'Keeps 3 to 5 tiles from you and shoots; backs away when you are beside it.', ranged: true },
+    axis_sniper: { clause: 'Aims along its row or column for a turn, with the line shown, then fires a beam up to 10 tiles that passes through glass.', ranged: true },
+    splitter: { clause: 'A blow that does not destroy it splits it in two, each with half its health, at most twice.' },
+    mote_swarm: { clause: 'Comes as several bodies that each fall to one blow; they move up to two tiles a turn and surround you.' },
+    herald: { clause: 'On seeing you it calls for one turn, shown, then wakes every sleeping exhibit within 6 tiles.' },
+    tethered_warden: { clause: 'Never goes more than 2 tiles from what it guards; strikes hard; heals and settles when you leave.' },
+    reflector: { clause: 'Sends beams and shots back along their line and shields whatever stands behind it; weak in a fight.' },
+    mimic_vitrine: { clause: 'Looks like a case. Touched, it grips you (you cannot move for 2 turns) and strikes, then fights slowly.' },
+    night_watchman: { clause: 'Comes for you wherever you are; if defeated, it returns 20 turns later.' },
+    unobserved_mover: { clause: 'Moves two tiles a turn, but only while you cannot see it; strikes hard from beside you.' },
+    patrol_guard: { clause: 'Walks a fixed round. On seeing you it raises the alarm for one turn, then gives chase; after 20 turns without you it goes back to its round.' },
+    demonstrator: { clause: 'Keeps to its track and never chases. On the bell it performs the demonstration on its label.' },
+    conservator_healer: { clause: 'Stays behind its allies and spends a turn, shown, restoring one; backs away when you come close.' },
+    completing_guardian: { clause: 'Grows one limb for every two galleries you have walked, up to four; each limb is a special. Leaving its room heals it and drops one limb.' },
+    mp_ensemble: { clause: 'Several pieces share one health pool. When a piece falls, the others take on its special.' },
+    mp_tableau: { clause: 'Stays in its frame and alternates shown lines and bursts; takes double damage while it summons.' },
+  };
+
+  // Modifiers, trimmed to what the slice implements (BUILD.md §5.5).
+  const MODIFIERS = {
+    glass: { clause: 'Its body does not block sight; it leaves shards when destroyed.' },
+    clockwork: { clause: 'Shows its next move as an arrow and cannot be dazed; rain stops it for 2 turns.' },
+    old_repair: { clause: 'One side is a later repair and takes double damage.' },
+    marble: { clause: 'Moves at half speed.' },
+    plaster: { clause: 'A cast: when destroyed it crumbles into dust that blocks sight for 3 turns.' },
+  };
+
+  const MODULES = {
+    unobserved_motion: { sentence: 'The animals move only when you cannot see them.' },
+    alarm_network: { sentence: 'The waders raise the alarm when they see you; then the whole court is awake.' },
+    copies_weaken: { sentence: 'When an original is broken, its spares lose heart.' },
+    hourly_demonstration: { sentence: 'On the bell, the stations exchange signals down the length of the gallery.' },
+    weather_cases: { sentence: 'Some cases hold weather. Break one, and the weather gets out.' },
+  };
+
+  // The Behaviour line for a species: archetype, modifiers, waking (BUILD.md §5.3).
+  function behaviour(sp) {
+    const parts = [ARCHETYPES[sp.archetype] ? ARCHETYPES[sp.archetype].clause : ''];
+    for (const m of sp.modifiers || []) if (MODIFIERS[m]) parts.push(MODIFIERS[m].clause);
+    const t = sp.trigger && TRIGGERS[sp.trigger];
+    if (t && sp.trigger === 'awake') parts.push('It never sleeps.');
+    else parts.push('Wakes when you stay inside your ring or make noise near it' + (t ? '; ' + t.clause : '') + '.');
+    return parts.filter(Boolean).join(' ');
+  }
+
+  return { SYSTEMS, MAX_SYSTEMS, TRIGGERS, ARCHETYPES, MODIFIERS, MODULES, behaviour };
+})();
+
+</script>
+<script>
+// ACCESSION — the department packs: content files register themselves here (BUILD.md §5.2).
+'use strict';
+const Packs = (() => {
+  const all = [];
+  function add(p) { all.push(p); }
+  const get = acc => all.find(p => p.acc === acc) || null;
+  const list = () => all.slice();
+  function species(acc, id) { const p = get(acc); return p ? p.species.find(s => s.id === id) || null : null; }
+  return { add, get, list, species };
+})();
+
+</script>
+<script>
+// ACCESSION — every sentence about the rules is made here, from events and data
+// (BUILD.md §3.4). M0 covers moving, fighting and doors.
+'use strict';
+const Text = (() => {
+  const name = uid => uid === 'you' ? 'You' : 'The training dummy';
+  const lower = uid => uid === 'you' ? 'you' : 'the training dummy';
+  function event(e) {
+    switch (e.k) {
+      case 'damaged': {
+        const c = e.cause;
+        const sum = `${c.raw} − ${c.pad} Padding${c.floor ? `, at least ${c.floor}` : ''}`;
+        if (c.surprise) return `${name(c.by)} caught ${lower(e.who)} unawares: ${e.amount} damage (${sum}).`;
+        return `${name(c.by)} hit ${lower(e.who)} for ${e.amount} (rolled ${c.roll} against ${c.chance}%; ${sum}).`;
+      }
+      case 'missed': return `${name(e.by)} missed ${lower(e.at)} (rolled ${e.cause.roll} against ${e.cause.chance}%).`;
+      case 'died': return e.who === 'you' ? 'You fell.' : `${name(e.who)} broke apart.`;
+      case 'hunting': return e.cause.k === 'damage' ? `${name(e.who)} woke: it was struck.` : `${name(e.who)} is hunting you.`;
+      case 'opened': return e.who === 'you' ? 'You opened the door.' : null;
+      case 'refused': return e.reason;
+      default: return null;
+    }
+  }
+  return { event };
+})();
+
+</script>
+<script>
+// ACCESSION — what a label says about a thing on the board (BUILD.md §8.8): the title,
+// state, tombstone, pictograms, Behaviour line, odds readout and paragraph, built from the
+// pack, the registry and the rules' own numbers.
+'use strict';
+const Labels = (() => {
+  function speciesOf(state, a) {
+    const pack = Packs.get(state.dept.acc);
+    if (!pack) return null;
+    if (pack.centrepiece && pack.centrepiece.id === a.sp) return pack.centrepiece;
+    return pack.species.find(s => s.id === a.sp) || null;
+  }
+
+  function stateIcons(a) {
+    if (a.uid === 'you') return [];
+    if (a.mode === 'dormant') return a.pips ? Array.from({ length: 3 }, (_, i) => i < a.pips ? 'pip' : 'pip_empty') : ['asleep'];
+    return [a.mode === 'hunting' ? 'hunting' : a.mode === 'returning' ? 'returning' : 'alert'];
+  }
+
+  // Brogue's sentence, computed from the live numbers (BUILD.md §8.1).
+  function odds(state, a) {
+    const you = state.actors[0];
+    const toYou = Combat.hitChance(a, you), toIt = Combat.hitChance(you, a);
+    const mean = Int.idiv(a.dmin + a.dmax, 2), worst = Math.max(1, a.dmax - you.pad);
+    const typical = Math.max(1, mean - you.pad), yourMean = Math.max(1, Int.idiv(you.dmin + you.dmax, 2) - a.pad);
+    const lines = [
+      `It has a ${toYou}% chance to hit you, typically hits for ${Math.max(1, Int.idiv(100 * typical, Math.max(1, you.hp)))}% of your current health, and at worst could defeat you in ${Int.ceilDiv(you.hp, worst)} hits.`,
+      `You have a ${toIt}% chance to hit it, and typically need ${Int.ceilDiv(a.hp, yourMean)} hits to destroy it.`,
+    ];
+    if (Combat.surprised(you, a)) lines.push(`A surprise attack now would deal ${Math.max(N.DMG_MIN_ON_HIT, you.dmax - a.pad)}.`);
+    return lines;
+  }
+
+  function of(state, uid) {
+    const a = Actors.byUid(state, uid);
+    if (!a || a.gone || a.uid === 'you') return null;
+    const sp = speciesOf(state, a), you = state.actors[0];
+    const near = Grid.chebyshev(you.x, you.y, a.x, a.y) <= N.READ_RANGE;
+    const pictos = [
+      { icon: 'heart', text: `${a.hp}/${a.maxHp}` }, { icon: 'acc', text: String(a.acc) }, { icon: 'eva', text: String(a.eva) },
+      { icon: 'padding', text: String(a.pad) }, { icon: 'damage', text: `${a.dmin}–${a.dmax}` },
+    ];
+    if (sp && sp.trigger && Registry.TRIGGERS[sp.trigger]) pictos.unshift({ icon: Registry.TRIGGERS[sp.trigger].icon, text: 'wakes' });
+    pictos.unshift({ icon: 'ring', text: 'ring' });
+    const adjacent = Step.adjacent(state, you, a);
+    return {
+      uid, title: sp ? sp.name : a.sp, stateIcons: stateIcons(a), tomb: sp ? sp.tomb : null, number: sp ? sp.id.replace(/^([A-Z]+)(\d+)/, '$1.$2') : '',
+      pictos, behaviour: sp ? Registry.behaviour(sp) : '', odds: odds(state, a),
+      paragraph: near && sp ? sp.paragraph : '', far: near ? '' : 'Come closer to read the label.',
+      closeup: sp ? { sprite: sp.sprite, dept: state.dept.acc } : null,
+      actions: adjacent ? [{ id: 'attack', text: `Attack: ${Combat.hitChance(you, a)}%, ${Math.max(1, you.dmin - a.pad)}–${Math.max(1, you.dmax - a.pad)} damage` }] : [],
+    };
+  }
+
+  // The strip: the nearest readable exhibit within 2 tiles and in sight, hunting first.
+  function strip(state) {
+    const you = state.actors[0], m = state.dept;
+    let best = null, bestKey = null;
+    for (const a of state.actors) {
+      if (a.gone || a.uid === 'you') continue;
+      const d = Grid.chebyshev(you.x, you.y, a.x, a.y);
+      if (d > N.READ_RANGE || !Grid.los(m, you.x, you.y, a.x, a.y)) continue;
+      const key = (a.mode === 'hunting' ? 0 : a.mode === 'dormant' ? 2 : 1) * 100 + d;
+      if (best === null || key < bestKey) { best = a; bestKey = key; }
+    }
+    if (!best) return null;
+    const l = of(state, best.uid);
+    return { uid: best.uid, title: l.title, stateIcons: l.stateIcons, pictos: l.pictos.slice(0, 2).map(p => p.icon), behaviour: l.behaviour };
+  }
+
+  return { of, strip, speciesOf, stateIcons };
+})();
+
+</script>
+<script>
+// ACCESSION — a department visit's starting state: the generated plan from a pack's
+// programme, you at the entrance, the pack's exhibits placed asleep. M2's placement is a
+// stand-in for M4's population pass: one of each species, in the sections, outside the
+// safe zone, never on a gate cell.
+'use strict';
+const Dept = (() => {
+  const SAFE = 8;
+
+  function create(seed, acc, depth) {
+    const pack = Packs.get(acc);
+    const r = Layout.generate(pack.programme, 0, seed, { acc, depth });
+    const plan = r.plan, nums = Layout.number(plan, depth);
+    const tiles = plan.tiles.map(row => row.replace(/C/g, '.'));
+    const state = {
+      v: Setup.SAVE_VERSION, seed, rng: {}, tick: 0, turn: 0,
+      dept: { acc, depth, pin: plan.pin, programme: plan.programme, w: plan.w, h: plan.h, tiles, ltour: plan.ltour,
+        rooms: plan.rooms.map(rm => ({ id: rm.id, role: rm.role, number: nums[rm.id] || 0, x0: rm.x0, y0: rm.y0, x1: rm.x1, y1: rm.y1 })),
+        roomOf: plan.roomOf, entrance: plan.entrance, exits: plan.exits, lectern: plan.lectern, seen: '' },
+      actors: [Setup.you(plan.entrance[0] + 1, plan.entrance[1])],
+      causes: [], over: null,
+    };
+    const m = state.dept, d = Grid.distances(m, [plan.entrance], 999);
+    const free = [];
+    for (let y = 1; y < m.h - 1; y++) for (let x = 1; x < m.w - 1; x++) {
+      const i = y * m.w + x, rm = plan.rooms.find(q => q.id === plan.roomOf[y][x]);
+      if (m.tiles[y][x] === '.' && d[i] > SAFE && rm && (rm.role === 'section' || rm.role === 'study')) free.push([x, y]);
+    }
+    const holder = { seed, rng: {} }, pick = Rng.stream(holder, `place/${acc}/d${depth}`);
+    pick.shuffle(free);
+    let n = 0;
+    for (const sp of pack.species) {
+      const at = free.find(([x, y]) => !state.actors.some(a => Math.abs(a.x - x) < 3 && Math.abs(a.y - y) < 3));
+      if (!at) break;
+      add(state, sp, at, ++n, Roles.stats(sp.role, depth));
+    }
+    // The Centrepiece stands where the plan put its plinth.
+    const c = pack.centrepiece;
+    add(state, c, plan.cpl, ++n, Roles.stats('centrepiece', depth));
+    return state;
+  }
+
+  function add(state, sp, at, n, stats) {
+    const m = state.dept, rid = m.roomOf[at[1]][at[0]], rm = m.rooms.find(q => q.id === rid);
+    state.actors.push(Object.assign({
+      uid: `${m.acc}.${m.depth}.${rm ? rm.role : 'room'}${rid}.${n}`, sp: sp.id, size: sp.size || 1,
+      x: at[0], y: at[1], next: 0, mode: 'dormant', pips: 0, statuses: [],
+    }, stats, { maxHp: stats.hp }));
+  }
+
+  return { create };
+})();
+
+</script>
+<script>
+// ACCESSION — the view model: a plain description of what to draw, derived from the state
+// (BUILD.md §6.1). Both board views read this and nothing else, and bots see only this.
+'use strict';
+const ViewModel = (() => {
+  function derive(state, ui) {
+    ui = ui || {};
+    const m = state.dept, you = state.actors[0], n = m.w * m.h;
+    const now = Vision.visible(state), vis = new Uint8Array(n);
+    for (let i = 0; i < n; i++) vis[i] = now[i] ? 2 : (m.seen && m.seen.charCodeAt(i) === 49 ? 1 : 0);
+    const ring = Vision.ring(state);
+    const actors = [];
+    for (const a of state.actors) {
+      if (a.gone) continue;
+      const size = a.size || 1;
+      let seen = false;
+      for (let dy = 0; dy < size && !seen; dy++) for (let dx = 0; dx < size; dx++) if (now[(a.y + dy) * m.w + a.x + dx]) { seen = true; break; }
+      if (!seen && a.uid !== 'you') continue;
+      const sp = a.uid === 'you' ? null : Labels.speciesOf(state, a);
+      actors.push({ uid: a.uid, sprite: a.uid === 'you' ? 'visitor' : (sp ? sp.sprite : 'seated_clerk'), x: a.x, y: a.y, size,
+        mode: a.uid === 'you' ? 'you' : a.mode, pips: a.pips || 0, hostile: a.uid !== 'you', hp: a.hp, maxHp: a.maxHp });
+    }
+    const pack = typeof Packs !== 'undefined' ? Packs.get(m.acc) : null;
+    const clock = m.ltour ? Object.assign({ turn: state.turn }, Clock.budget(m.ltour)) : null;
+    return {
+      dept: pack ? pack.palette : 'T0', w: m.w, h: m.h, tiles: m.tiles, vis, ring, actors, marks: [],
+      you: { x: you.x, y: you.y, hp: you.hp, maxHp: you.maxHp, grade: you.grade || 1 }, turn: state.turn, over: state.over,
+      camera: { x: you.x, y: you.y }, clock, path: ui.path || null, selection: ui.selection || null, selectedTile: ui.selectedTile || null,
+    };
+  }
+  return { derive };
+})();
+
+</script>
+<script>
+// ACCESSION — the M0 test room: two rooms, a door, a column and three training exhibits
+// with depth-1 fodder numbers (BUILD.md §8.10). Not a department.
+'use strict';
+const TestRoom = (() => {
+  const fodder = () => Roles.stats('fodder', 1);
+  const spec = {
+    acc: 'T0', depth: 1,
+    map: [
+      '################',
+      '#......#.......#',
+      '#..o...#...o...#',
+      '#......+.......#',
+      '#..v...#.......#',
+      '#......#..v....#',
+      '################',
+    ],
+    you: [2, 3],
+    exhibits: [
+      { sp: 'training_dummy', at: [5, 1], mode: 'hunting', stats: fodder() },
+      { sp: 'training_dummy', at: [12, 5], mode: 'hunting', stats: fodder() },
+      { sp: 'training_dummy', at: [9, 1], mode: 'dormant', stats: fodder() },
+    ],
+  };
+  return { spec, create: seed => Setup.room(seed, spec) };
+})();
+
+</script>
+<script>
+// ACCESSION — S.9 Animals Not Yet Seen by the Day Staff (design/samples.md §3, trimmed per
+// BUILD.md §5.5). Paragraphs are only for reading; the rules are in the Behaviour lines.
+'use strict';
+Packs.add({
+  acc: 'S9', number: 'S.9', title: 'Animals Not Yet Seen by the Day Staff', family: 'Specimens', palette: 'S9',
+  programme: 'sculpture_court', claim: { primary: 'guarded', secondary: null },
+  houseRule: 'Please keep the exhibits in view.',
+  blurb: 'Every specimen here was catalogued from the night staff’s round books. The day curators accessioned the descriptions in good faith.',
+  modules: [{ id: 'unobserved_motion' }, { id: 'alarm_network' }],
+  species: [
+    { id: 'S9.1', sprite: 'grazer', archetype: 'unobserved_mover', role: 'ambusher', modifiers: [], trigger: null,
+      name: 'Long-Necked Grazer',
+      tomb: { maker: 'Mounted by the preparators from Round Book 3', date: 'Collected after the Great Reshelving', medium: 'Hide over a carved lime form', dims: 'H. 2.4 m', credit: 'Accessioned on the night staff’s report' },
+      paragraph: 'Reported, not observed. Round Book 3 places the grazer at the north end of the court at the start of one round and at the south end at the start of the next, and never anywhere in between. The keeper who made the entry added that they once kept their eyes on it for a whole round, and that it did not move at all. The day staff measured the floor for marks. There were none.' },
+    { id: 'S9.2', sprite: 'wader', archetype: 'patrol_guard', role: 'warden', modifiers: [], trigger: 'awake',
+      name: 'Lantern-Crop Wader',
+      tomb: { maker: 'Mounted from the first entry in Round Book 1', date: 'Collected after the Great Reshelving', medium: 'Feathers, hide, wire; crop lined with luminous paint by the preparators', dims: 'H. 1.1 m', credit: 'Accessioned on the night staff’s report' },
+      paragraph: 'Reported, not observed. The wader keeps the same round as the night staff, in the same direction, pausing at the same lecterns, and the night staff describe it as the only colleague who has never been late. Its crop glows faintly, which they find companionable. When it meets something on its round that was not there the last time, the round books say, it stands quite still for a moment and then calls.' },
+    { id: 'S9.3', sprite: 'dawn_caller', archetype: 'herald', role: 'support', modifiers: [], trigger: null,
+      name: 'Dawn-Caller on a Perch',
+      tomb: { maker: 'Mounted from Round Book 5', date: 'Collected after the Great Reshelving', medium: 'Feathers, wire; perch of varnished applewood', dims: 'H. 64 cm', credit: 'Accessioned on the night staff’s report' },
+      paragraph: 'Reported, once. Round Book 5 records that the caller called a single time, at the sight of a new keeper on a first round, and that when the keeper looked round every animal in the court was standing up. The entry lists them all by name. The day staff consider it the best-documented night in the department, because it was countersigned by four keepers, all of whom were, by then, awake.' },
+    { id: 'S9.4', sprite: 'brooder', archetype: 'tethered_warden', role: 'warden', modifiers: [], trigger: 'tether',
+      name: 'Ground-Nesting Brooder, With Its Nest',
+      tomb: { maker: 'Mounted from Round Book 7', date: 'Collected after the Great Reshelving', medium: 'Hide, feathers, wire; nest of round-book pages', dims: 'L. 1.3 m', credit: 'Accessioned on the night staff’s report' },
+      paragraph: 'Reported, not observed. The brooder built its nest from the pages of Round Book 9, which a keeper had left on a bench, and the Museum has displayed the two together ever since. The night staff describe it as the easiest animal in the court to work beside: it has never been more than two paces from the nest, and they simply sweep around it. They do not recommend reaching into the nest.' },
+    { id: 'S9.5', sprite: 'tortoise', archetype: 'mimic_vitrine', role: 'ambusher', modifiers: [], trigger: 'touch_case',
+      name: 'Cabinet-Backed Tortoise',
+      tomb: { maker: 'Entered twice in Round Book 2, once as furniture', date: 'Collected after the Great Reshelving', medium: 'Domed carapace with a hinged lid; horn, hide', dims: 'L. 1.4 m', credit: 'Accessioned on the night staff’s report' },
+      paragraph: 'Reported, and then reported again. Round Book 2 lists this as a specimen cabinet in the morning and as a tortoise at night, in the same hand, with the note “same object, please advise”. The day staff advised that it was a cabinet. The keeper who opened it to check was held by the wrist for some minutes and released, eventually, without the specimen inside.' },
+    { id: 'S9.6', sprite: 'hopper', archetype: 'darter', role: 'skirmisher', modifiers: [], trigger: null,
+      name: 'Long-Footed Hopper',
+      tomb: { maker: 'Mounted from Round Book 4', date: 'Collected after the Great Reshelving', medium: 'Hide, wire; hind feet of carved boxwood', dims: 'H. 30 cm each', credit: 'Accessioned on the night staff’s report' },
+      paragraph: 'Reported, not observed. Round Book 4 calls the hoppers the court’s nuisance. They come in close, nip, and are back out of reach before a keeper can turn round, and then they do it again from the other side. The night staff kept them out of the waders’ way by keeping them busy. The preparators mounted four, which they believe is all of them, and wrote that down as well.' },
+  ],
+  centrepiece: { id: 'S9.12', sprite: 'composite', archetype: 'completing_guardian', form: 'treasure', size: 2,
+    name: 'The Composite, Assembled From the Round Books',
+    tomb: { maker: 'Mounted by the preparators from every description in Round Books 1–8 that matched no other specimen', date: 'After the Great Reshelving', medium: 'Hide, feathers, horn, wire, carved lime; parts added as descriptions were found', dims: 'H. 2.9 m', credit: 'Accessioned on the night staff’s report' },
+    paragraph: 'Reported in pieces. The preparators built it from the descriptions no other mount accounted for: a neck from Round Book 2, legs from Round Book 6, a tail from a note in a margin. They added each part as its description turned up in the galleries, and they do not believe it is finished. The night staff say it is more complete on nights when more of the court has been walked.' },
+});
+
+</script>
+<script>
+// ACCESSION — A.4 Things Kept in Duplicate, Before the Repeal (design/samples.md §4, trimmed
+// per BUILD.md §5.5). Paragraphs are only for reading; the rules are in the Behaviour lines.
+'use strict';
+Packs.add({
+  acc: 'A4', number: 'A.4', title: 'Things Kept in Duplicate, Before the Repeal', family: 'Copies', palette: 'A4',
+  programme: 'case_labyrinth', claim: { primary: 'swarm', secondary: 'locks' },
+  houseRule: 'Every object shall be issued with a spare.',
+  blurb: 'For the length of the Duplicate Ordinance, every object the Museum made or acquired had to be issued with a certified spare.',
+  modules: [{ id: 'copies_weaken' }],
+  species: [
+    { id: 'A4.1', sprite: 'seated_clerk', archetype: 'plodder', role: 'fodder', modifiers: ['marble'], trigger: 'ally_hit',
+      name: 'Seated Clerk of the Ordinance Office',
+      tomb: { maker: 'Workshop of the Office’s own carver', date: 'During the Duplicate Ordinance', medium: 'Marble; pen hand replaced', dims: 'H. 118 cm', credit: 'Transferred from the Ordinance Office' },
+      paragraph: 'The Ordinance Office commissioned a figure of a clerk at work to sit at its counter, and was then obliged by its own rule to commission a spare. It commissioned three. The original sat behind glass and the spares sat at the counter, where they turned out to be better at the work. Keepers note that the spares have kept their posture only while the original keeps its own. The one time it was knocked over, all three slumped.' },
+    { id: 'A4.1a', sprite: 'seated_clerk', archetype: 'plodder', role: 'fodder', modifiers: ['plaster'], trigger: 'ally_hit',
+      name: 'Seated Clerk, Certified Spare',
+      tomb: { maker: 'After A.4.1', date: 'During the Duplicate Ordinance', medium: 'Plaster cast after the marble; base stamped CERTIFIED TRUE COPY', dims: 'H. 118 cm', credit: 'Transferred from the Ordinance Office' },
+      paragraph: 'Spare (a) of three. For the original, see the case at the end of this row.' },
+    { id: 'A4.2', sprite: 'flimsies', archetype: 'mote_swarm', role: 'swarm', modifiers: [], trigger: null,
+      name: 'Carbon Flimsies, in Bundles',
+      tomb: { maker: 'The Ordinance Office typing pool', date: 'During the Duplicate Ordinance', medium: 'Onionskin and carbon, tied with pink tape', dims: 'Each sheet 33 × 21 cm', credit: 'Transferred from the Ordinance Office' },
+      paragraph: 'Every form issued under the Ordinance had a spare typed underneath it on carbon paper, and the spares were kept, which is why there are so many. Released from their bundles, the registry staff report, they drift in a body towards anything that moves and settle on it.' },
+    { id: 'A4.3', sprite: 'copying_bell', archetype: 'herald', role: 'support', modifiers: [], trigger: null,
+      name: 'Copying-Room Bell',
+      tomb: { maker: 'Supplied to the Ordinance Office', date: 'During the Duplicate Ordinance', medium: 'Bell metal on a cast-iron stand', dims: 'H. 140 cm', credit: 'Transferred from the Ordinance Office' },
+      paragraph: 'The bell was rung whenever a spare was found to be without a spare of its own, and the whole Office stood up. It still rings at the sight of anyone it does not know, and nobody in the Copying Room has ever slept through it.' },
+    { id: 'A4.4', sprite: 'trustee_bust', archetype: 'splitter', role: 'brute', modifiers: ['marble'], trigger: 'ally_hit',
+      name: 'Bust of the Proposing Trustee',
+      tomb: { maker: 'Workshop of the Office’s own carver', date: 'During the Duplicate Ordinance', medium: 'Marble', dims: 'H. 64 cm', credit: 'Transferred from the Ordinance Office' },
+      paragraph: 'The original, kept under glass so that it would never be handled. The Trustee’s family asked for a spare for themselves and were refused, on the grounds that the spares were the Museum’s.' },
+    { id: 'A4.4a', sprite: 'trustee_bust', archetype: 'splitter', role: 'brute', modifiers: ['plaster'], trigger: 'ally_hit',
+      name: 'Bust of the Proposing Trustee, Certified Spare',
+      tomb: { maker: 'After A.4.4', date: 'During the Duplicate Ordinance', medium: 'Plaster cast after the marble; stamped CERTIFIED TRUE COPY', dims: 'H. 64 cm', credit: 'Transferred from the Ordinance Office' },
+      paragraph: 'The Trustee who proposed the Ordinance sat for one bust and was issued with two spares, as the rule required. The spares were handled and damaged often, and under the Ordinance a damaged spare had to be replaced at once with two. The night staff report that the spares now attend to this themselves.' },
+    { id: 'A4.5', sprite: 'countersigning_clerk', archetype: 'conservator_healer', role: 'support', modifiers: ['clockwork'], trigger: null,
+      name: 'Countersigning Clerk, Automaton',
+      tomb: { maker: 'Made for the Ordinance Office by the Workshops of the Line', date: 'During the Duplicate Ordinance', medium: 'Brass, steel; escapement; pen arm and inkwell', dims: 'H. 132 cm', credit: 'Transferred from the Ordinance Office' },
+      paragraph: 'No spare was valid until it had been countersigned, so the Office had a clerk built to do it, and the human clerks went home. The Office’s records say it countersigns anything damaged within its reach, taking a moment over each signature. It does not like to be approached while it is signing. It has never been countersigned itself.' },
+  ],
+  centrepiece: { id: 'A4.12', sprite: 'ordinance_original', archetype: 'mp_ensemble', form: 'fight', size: 1,
+    name: 'The Duplicate Ordinance, With Its Four Certified Copies',
+    tomb: { maker: 'Drafted by the Ordinance Office; copies by the typing pool', date: 'Signed after the Night of the Unlocked Door; repealed after the Second Inventory', medium: 'Ink on paper, five sheets, each framed on its own lectern', dims: 'Each sheet 42 × 30 cm', credit: 'Transferred from the Ordinance Office' },
+    paragraph: 'The Ordinance required that it be issued with spares like everything else, so there are five of it. Only one was signed by the Trustees; the other four were certified as true by the Office, which is not the same thing. They have always been displayed together. The Office’s own note, pinned to the first lectern, advises dealing with the signed original first.' },
+});
+
+</script>
+<script>
+// ACCESSION — M.11 Long Galleries, Considered as Telegraph Lines (design/samples.md §2,
+// trimmed per BUILD.md §5.5). Paragraphs are only for reading; the rules are in the Behaviour lines.
+'use strict';
+Packs.add({
+  acc: 'M11', number: 'M.11', title: 'Long Galleries, Considered as Telegraph Lines', family: 'Machines', palette: 'M11',
+  programme: 'enfilade', claim: { primary: 'artillery', secondary: 'hazard' },
+  houseRule: 'The line is cleared on the bell.',
+  blurb: 'The building was once too long for a voice to cross, so its longest galleries were fitted as signalling lines.',
+  modules: [{ id: 'hourly_demonstration' }, { id: 'weather_cases' }],
+  species: [
+    { id: 'M11.1', sprite: 'heliograph', archetype: 'axis_sniper', role: 'artillery', modifiers: ['glass'], trigger: 'axis',
+      name: 'Heliograph, Landing Pattern',
+      tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Silvered glass; iron tripod; canvas hood', dims: 'H. 168 cm', credit: 'Transferred from the Line Superintendent’s Office' },
+      paragraph: 'A heliograph speaks along a straight line and only along it. This one stood at the landing where the long gallery turns, and could talk to the station ahead or the station behind but never round the corner, which the logbooks complain about at length. Its operators wore smoked spectacles and stood well to one side. Keepers report that it still takes a moment to gather the light before it sends.' },
+    { id: 'M11.2', sprite: 'semaphore', archetype: 'demonstrator', role: 'controller', modifiers: ['clockwork'], trigger: 'period',
+      name: 'Semaphore Station, Two-Armed',
+      tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Painted oak arms; brass, steel; escapement; timetable card in a frame', dims: 'H. 240 cm', credit: 'Transferred from the Line Superintendent’s Office' },
+      paragraph: 'The station’s timetable is pinned to its own frame, in a clerk’s hand, and it is still followed: the arms are raised on the bell and swept down the line, and at no other time. Between bells the station travels its short rail at the side of the gallery and waits. The logbooks record eleven injuries to linesmen who knew the timetable perfectly well and stood in the line anyway.' },
+    { id: 'M11.3', sprite: 'signal_lamp', archetype: 'kiter', role: 'artillery', modifiers: ['old_repair'], trigger: null,
+      name: 'Signal Lamp on a Walking Tripod',
+      tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Iron, oil reservoir, shutter of tinplate; right rear leg a later repair in pine', dims: 'H. 152 cm', credit: 'Transferred from the Line Superintendent’s Office' },
+      paragraph: 'Where a heliograph could not reach, a lamp was walked out to a better position. The Line’s records say this one was built to keep a fixed distance from whatever it was signalling to, backing away if anyone came too close, so that its beam would never need re-aiming. The linesmen called it the Courtier, and did not explain why.' },
+    { id: 'M11.4', sprite: 'reflecting_dish', archetype: 'reflector', role: 'controller', modifiers: [], trigger: null,
+      name: 'Reflecting Dish, on a Cart',
+      tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Polished tinplate, oak cart, iron wheels', dims: 'Diam. 110 cm', credit: 'Transferred from the Line Superintendent’s Office' },
+      paragraph: 'Dishes like this were wheeled into the line to turn a signal down a side gallery. The Line was proud of them. A dish returned a lamp’s beam along exactly the path it came, so a careless operator could find their own signal coming straight back at them, and several did. Keepers report that it is happiest with a station standing behind it.' },
+    { id: 'M11.5', sprite: 'logbook_trolley', archetype: 'plodder', role: 'fodder', modifiers: [], trigger: null,
+      name: 'Logbook Trolley, Self-Propelled',
+      tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Oak, iron; logbooks 14–22', dims: 'H. 96 cm', credit: 'Gift of the Retired Line Superintendent' },
+      paragraph: 'The trolley carried the day’s logbooks from station to station so that every operator could sign them. Keepers report that it follows the nearest person at a steady walking pace, which on a busy day was the right speed and on a quiet night is not. Logbooks 14 to 22 are still aboard. They record nine years of signals and not one message. Please do not sign them.' },
+  ],
+  centrepiece: { id: 'M11.11', sprite: 'great_board', archetype: 'mp_tableau', form: 'fight', size: 2,
+    name: 'The Great Board of the Central Station',
+    tomb: { maker: 'Painted by the Workshops of the Line, with later panels', date: 'Before the Second Calibration; repainted until the line closed', medium: 'Oil on boards, forty hinged panels; iron frame', dims: 'H. 3.2 m, W. 3.6 m', credit: 'Transferred from the Central Station' },
+    paragraph: 'Every signal on the line arrived here and was posted on the Board by hand, so that the Central Station could see the state of the whole building at a glance. The Board shows times of sending and times of arrival, and nothing else. The clerks who kept it were trained to step out of its row whenever a panel changed.' },
+});
+
+</script>
+<script>
+// ACCESSION — the monkey: random legal actions (Step.legal) chosen on its own seeded
+// stream, for soak and cross-engine hash runs (BUILD.md §3.5, §10.1). Loaded by tests and
+// the hash page.
+'use strict';
+const Monkey = (() => {
+  // Plays `count` actions. When a visit ends (you die, or the room is cleared), a new one
+  // starts on the next seed. Returns a hash folded over every finished visit and every
+  // checkpoint. opts.cloneEachStep replaces the state with State.clone after every step.
+  function run(seed, count, opts) {
+    opts = opts || {};
+    const make = opts.make || (s => TestRoom.create(s));
+    const pick = { seed: seed, rng: {} };
+    const r = Rng.stream(pick, 'monkey');
+    let state = make(seed), visit = 0, fold = 0x811c9dc5;
+    const checkpoints = [];
+    const mix = h => { fold = State.fnv1a(fold + ':' + h); };
+    for (let i = 1; i <= count; i++) {
+      const legal = Step.legal(state);
+      // Mostly moves, as a player's are; waits and attacks often enough to matter.
+      const roll = r.int(0, 99), moves = legal.filter(a => a.a === 'move'), attacks = legal.filter(a => a.a === 'attack');
+      const action = roll < 15 || !moves.length ? { a: 'wait' } : roll < 25 && attacks.length ? r.pick(attacks) : r.pick(moves);
+      Step.step(state, action);
+      if (opts.cloneEachStep) state = State.clone(state);
+      if (opts.check) opts.check(state, i);
+      const cleared = state.actors.every(a => a.gone || a.uid === 'you');
+      if (state.over || cleared) { mix(State.hash(state)); visit++; state = make(seed + visit); }
+      if (i % 1000 === 0) { mix(State.hash(state)); checkpoints.push(fold); }
+    }
+    mix(State.hash(state));
+    return { hash: fold, checkpoints, visits: visit };
+  }
+  return { run };
+})();
+
+</script>
+<script>
+// ACCESSION — golden runs: expected hashes for fixed seeds and action lists (BUILD.md §3.5).
+// Regenerate only on purpose (node tools/golden.js), and log why in DEVELOPMENT.md.
+'use strict';
+const GOLDEN = {
+ "m0Monkey": {
+  "seed": 20261023,
+  "actions": 10000,
+  "hash": 1695131025,
+  "checkpoints": [
+   2750761924,
+   1232998628,
+   3795260745,
+   1622736574,
+   3084628268,
+   1800436467,
+   1640213721,
+   3607221220,
+   479529993,
+   3140211285
+  ],
+  "visits": 40
+ }
+};
+
+</script>
+<script>
+'use strict';
+document.getElementById('ua').textContent = navigator.userAgent + ' · build dev';
+const lines = [];
+let all = true;
+const finish = () => {
+  const out = document.getElementById('out');
+  out.textContent = lines.join('\n') + '\n\n' + (all ? 'ALL PASS' : 'SOMETHING DIFFERS');
+  out.className = all ? 'pass' : 'fail';
+  document.title = all ? 'PASS' : 'FAIL';
+};
+window.addEventListener('error', e => { all = false; lines.push('FAIL while loading: ' + e.message); finish(); });
+setTimeout(() => {
+  try {
+    for (const [name, g] of Object.entries(GOLDEN)) {
+      try {
+        const t0 = performance.now();
+        const r = Monkey.run(g.seed, g.actions);
+        const ms = Math.round(performance.now() - t0);
+        let first = -1;
+        for (let i = 0; i < g.checkpoints.length; i++) if (r.checkpoints[i] !== g.checkpoints[i]) { first = i; break; }
+        const ok = r.hash === g.hash && first < 0;
+        all = all && ok;
+        lines.push((ok ? 'PASS ' : 'FAIL ') + name + ': ' + g.actions + ' actions, hash ' + r.hash + (ok ? '' : ' (expected ' + g.hash + (first >= 0 ? ', first differs by action ' + (first + 1) * 1000 : '') + ')') + ', ' + ms + ' ms');
+      } catch (e) {
+        all = false;
+        lines.push('FAIL ' + name + ': threw ' + e.message + ' ' + String(e.stack || '').split('\n')[1]);
+      }
+    }
+  } finally { finish(); }
+}, 50);
+</script>
+</body>
+</html>

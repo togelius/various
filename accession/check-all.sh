@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# ACCESSION — every lint and test, then both builds and the browser checks (BUILD.md §10.2).
+# Usage: ./check-all.sh            (browser checks run when Playwright is found)
+#        ./check-all.sh --no-browser
+set -u
+cd "$(dirname "$0")"
+# A step that exits 77 could not run (Playwright missing): SKIPPED, which fails the run
+# unless --allow-skip is given. Milestone acceptance never uses --allow-skip.
+pass=(); fail=(); skip=()
+allow_skip=0; for a in "$@"; do [ "$a" = "--allow-skip" ] && allow_skip=1; done
+run() {
+  local name="$1"; shift; local out code
+  out="$("$@" 2>&1)"; code=$?
+  if [ $code -eq 0 ]; then pass+=("$name"); echo "ok    $name: $(echo "$out" | tail -n 1)"
+  elif [ $code -eq 77 ]; then skip+=("$name"); echo "SKIP  $name: $(echo "$out" | tail -n 1)"
+  else fail+=("$name"); echo "FAIL  $name"; echo "$out" | sed 's/^/      /'; fi
+}
+
+run lint-core      node tools/lint-core.js
+run lint-numbers   node tools/lint-numbers.js
+[ -f tools/lint-registry.js ] && run lint-registry node tools/lint-registry.js
+[ -f tools/build-art.js ] && run art-up-to-date node tools/build-art.js --check
+run tests          node test/run.js
+run build          python3 tools/build-single.py
+[ -x tools/revert-test.sh ] && run revert-3d tools/revert-test.sh
+if [ "${1:-}" != "--no-browser" ]; then
+  [ -f dist/accession.html ] || true
+  for s in tools/browser/check-*.mjs; do [ -f "$s" ] && run "$(basename "$s" .mjs)" node "$s"; done
+fi
+
+echo
+failed_names=""; [ ${#fail[@]} -gt 0 ] && failed_names=" (${fail[*]})"
+skipped_names=""; [ ${#skip[@]} -gt 0 ] && skipped_names=" (${skip[*]})"
+echo "check-all: ${#pass[@]} passed, ${#skip[@]} skipped${skipped_names}, ${#fail[@]} failed${failed_names}"
+[ ${#fail[@]} -eq 0 ] && { [ ${#skip[@]} -eq 0 ] || [ $allow_skip -eq 1 ]; }
