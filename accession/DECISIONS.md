@@ -1,6 +1,6 @@
 # ACCESSION: decisions, round 1
 
-*Julian's answers to the fourteen decisions in [`DESIGN.md`](DESIGN.md) (23 October 2026), what follows from them, the implementation alternatives Julian asked about, the playtesting plan, and the questions still open before building. Where this file and `DESIGN.md` disagree, this file wins. Nothing is built yet.*
+*Julian's answers to the fourteen decisions in [`DESIGN.md`](DESIGN.md) (23 October 2026), what follows from them, the implementation alternatives Julian asked about, the playtesting plan, and Julian's answers to the follow-up questions. Where this file and `DESIGN.md` disagree, this file wins. The build contract that follows from it is [`BUILD.md`](BUILD.md).*
 
 ## The principle
 
@@ -215,7 +215,7 @@ A probe drew two generated departments both ways, at phone and laptop sizes, wit
    - it is the repo's convention.
 
    If Unity is wanted later, the core ports to C# mechanically (the spike shows identical hashes), and the presentation work happens on the Mac.
-2. **Play top-down.** 16×16 art in 32-pixel tiles (12 across a phone), with zoom steps up to 43-pixel tiles for comfortable tapping.
+2. **Play top-down.** 16×16 art in 32-pixel tiles (12 across a phone), with a 48-pixel zoom step (3×) for comfortable tapping.
 3. **Use bigger art where the screen has room for it,** not on the board:
    - **A 64×64 close-up of each exhibit in its label,** like a catalogue photograph.
    - **Centrepieces** two tiles by two.
@@ -263,20 +263,12 @@ No single kind of bot answers every question, so testing comes in layers. Each l
 
 **Run length is checked automatically.** At the slice gate a three-term time model is fitted to the human sessions: minutes = turns ÷ turns per minute + labels opened × seconds per label + fixed hall time. Bots then report their turns and label opens every night, and the build warns when the predicted median run leaves 30 ± 5 minutes.
 
-## Questions for Julian
+## Answered, 23 October 2026
 
-Each has a recommendation, so "yes to all" is a complete answer.
+1. **Stack:** the web stack.
+2. **View:** try the 3D board view, built so that reverting to top-down is easy. The board is drawn by one of two interchangeable renderers over the same view model. Top-down stays the reference that every test runs against, and one setting switches between them. Removing the 3D view means deleting one renderer file, its vendor folder and a short list of named lines, and a test keeps that list from growing (`BUILD.md` §6.3).
+3. **Art:** 16-pixel sprites on the board with 64-pixel close-ups in the labels; image-model output only as offline reference, recorded in the asset ledger.
+4. **Run shape:** six departments on three floors of two.
+5. **Simplifications:** all four accepted. The grade replaces Clearance and experience points; light belongs to Light and Darkness departments; equipment attribution is cut from v1; consumables are identified gently.
 
-1. **Stack.** Stay with the web stack (recommended), or move to Unity and work on the Mac?
-2. **View.** Play top-down, with 3D only for set pieces (recommended)? Or try the steep 3D board view as an experiment after M2?
-3. **Art.**
-   - 16-pixel sprites on the board with 64-pixel close-ups in the labels (recommended)?
-   - May image-model output be used at all, given the provenance theme? The recommendation is offline references only, recorded in the ledger.
-4. **Run shape.** Six departments on three floors of two (recommended)?
-5. **Simplifications.** All recommended:
-   - the grade replaces Clearance (and experience points);
-   - light becomes owned by Light and Darkness departments;
-   - equipment attribution is cut from v1;
-   - consumables are identified gently.
-
-Once these are answered, the next document is `BUILD.md` (at most about 10,000 words, with one table of numbers that a lint checks against the code), and then milestone M0.
+The build contract is [`BUILD.md`](BUILD.md).
