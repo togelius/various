@@ -86,7 +86,8 @@ const UI = (() => {
   function top(m) {
     const pct = m.maxHp ? Math.max(0, Math.round(100 * m.hp / m.maxHp)) : 0;
     els.hpbar.style.width = pct + '%';
-    els.hpnum.textContent = `Health ${m.hp} / ${m.maxHp}`;
+    els.hpnum.innerHTML = `${P('heart', 12)}<span>${m.hp} / ${m.maxHp}</span>`;
+    els.hpnum.setAttribute('aria-label', `Health ${m.hp} of ${m.maxHp}`);
     els.badge.innerHTML = `<span class="badge-name">Handling Clearance</span><span class="badge-grade">Grade ${roman(m.grade)}</span>`;
     dial(m.clock);
   }
@@ -123,9 +124,10 @@ const UI = (() => {
     const summary = s ? `<div class="summary"><div class="strip-title">${s.stateIcons.map(i => P(i, 14)).join('')}<span>${esc(s.title)}</span></div>
       <div class="strip-sub">${s.pictos.map(p => P(p, 14)).join('')}${s.behaviour ? `<span class="behaviour">${esc(s.behaviour)}</span>` : ''}</div></div>` : '';
     els.strip.innerHTML = summary + `<div class="log">${(lines || []).map(l => `<div class="line">${esc(l)}</div>`).join('')}</div>`;
-    // The laptop's log scrolls inside its own box; keep the newest sentence in view.
-    const log = els.strip.querySelector('.log');
-    if (log) log.scrollTop = log.scrollHeight;
+    // The laptop's log scrolls inside its own box: keep the newest entry in view from its
+    // first sentence, even when it is taller than the box.
+    const log = els.strip.querySelector('.log'), last = log && log.lastElementChild;
+    if (last) log.scrollTop = Math.min(log.scrollHeight - log.clientHeight, last.getBoundingClientRect().top - log.getBoundingClientRect().top + log.scrollTop);
   }
 
   // The full label. Its state icons sit on a dark chip, as the pictograms do, so every

@@ -326,13 +326,14 @@ const Board3D = (() => {
           legend[id].group = d.group;
           own.push([id, mine]);
         }
-        // Shown: the pixels that end up showing the item itself or something of its own group
-        // (an actor's own marks, a telegraph's number), not the scene and not anything else.
-        // Self: the pixels showing the item itself, or a telegraph's number laid over it.
+        // Shown: the pixels that end up showing the item, its own group or any mark; only the
+        // scene or another actor's sprite counts as hiding it. Self: the pixels showing the
+        // item itself or another group's mark, so an actor its own marks bury is caught too.
         for (const [id, mine] of own) {
+          const g = legend[id].group, top = i => legend[ids[i]];
           legend[id].alone = mine.length;
-          legend[id].onTop = mine.filter(i => legend[ids[i]] && legend[ids[i]].group === legend[id].group).length;
-          legend[id].self = mine.filter(i => ids[i] === id || (legend[ids[i]] && /^telegraph:/.test(legend[ids[i]].id))).length;
+          legend[id].onTop = mine.filter(i => top(i) && (top(i).group === g || top(i).kind === 'mark')).length;
+          legend[id].self = mine.filter(i => ids[i] === id || (top(i) && top(i).kind === 'mark' && top(i).group !== g)).length;
         }
       }
       return { w, h, ids, legend };

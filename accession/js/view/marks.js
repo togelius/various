@@ -81,10 +81,20 @@ const Marks = (() => {
     // Each actor's marks: the reserved base bar (hostile red, your blue), its state glyph or
     // pips above it, a hit cue, and the selection bracket.
     group = null;
+    // An actor counts as on the board when at least a quarter of its square shows each way
+    // in the clear part; a hostile on the board keeps its bar inside the part that shows, and
+    // any other hostile gets an edge arrow instead (below).
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(Math.max(lo, hi), v));
+    const shows = r => ({ x0: Math.max(0, r.x), x1: Math.min(width, r.x + r.w), y0: Math.max(0, r.y), y1: Math.min(bottom, r.y + r.h) });
+    const inClear = r => { const v = shows(r); return v.x1 - v.x0 >= r.w / 4 && v.y1 - v.y0 >= r.h / 4; };
     const hit = new Set((vm.cues && vm.cues.hit) || []);
     for (const { a, r } of placed) {
       group = a.uid;
-      const bar = { x: r.x + r.w * 0.2, y: r.y + r.h - 3, w: r.w * 0.6, h: 2 };
+      let bar = { x: r.x + r.w * 0.2, y: r.y + r.h - 3, w: r.w * 0.6, h: 2 };
+      if (inClear(r)) {
+        const v = shows(r), w = Math.min(bar.w, v.x1 - v.x0);
+        bar = { x: clamp(bar.x, v.x0, v.x1 - w), y: clamp(bar.y, v.y0, v.y1 - 3), w, h: 2 };
+      }
       add(a.hostile ? 'mark' : 'own', a.hostile ? 'hostile:' + a.uid : 'you-bar', a.x, a.y, bar, ctx => {
         ctx.fillStyle = a.hostile ? S().hostile : S().player; ctx.fillRect(bar.x, bar.y, bar.w, bar.h);
       });
@@ -119,20 +129,31 @@ const Marks = (() => {
       add('mark', 'selection', vm.selectedTile.x, vm.selectedTile.y, r, ctx => bracket(ctx, r.x, r.y, r.w, r.h));
     }
 
-    // Off-screen threats (§7.2): a hostile you can see whose centre is outside the clear part
-    // of the board gets a hostile-red arrow at the nearest clear edge, pointing towards it.
-    const k = 10;
+    // Off-screen threats (§7.2): a hostile you can see that lies wholly outside the clear part
+    // of the board gets a hostile-red arrow at the nearest clear edge, pointing towards it,
+    // slid along the edge until it covers no actor and no other arrow.
+    const k = 10, taken = placed.filter(p => inClear(p.r)).map(p => p.r);
+    const free = (x, y) => !taken.some(q => x + k > q.x && x - k < q.x + q.w && y + k > q.y && y - k < q.y + q.h);
     for (const { a, r } of placed) {
+      if (!a.hostile || inClear(r)) continue;
+      group = a.uid;
       const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
-      if (!a.hostile || (cx >= 0 && cy >= 0 && cx < width && cy < bottom)) continue;
-      const ex = Math.max(k, Math.min(width - k, cx)), ey = Math.max(k, Math.min(bottom - k, cy)), ang = Math.atan2(cy - ey, cx - ex);
-      add('mark', 'edge:' + a.uid, a.x, a.y, { x: ex - k, y: ey - k, w: 2 * k, h: 2 * k }, ctx => {
-        ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang);
+      let ex = clamp(cx, k, width - k), ey = clamp(cy, k, bottom - k);
+      const alongX = ey <= k || ey >= bottom - k;
+      for (let step = 1; step < 40 && !free(ex, ey); step++) {
+        const d = (step % 2 ? 1 : -1) * Math.ceil(step / 2) * (2 * k + 2);
+        if (alongX) ex = clamp(cx + d, k, width - k); else ey = clamp(cy + d, k, bottom - k);
+      }
+      taken.push({ x: ex - k, y: ey - k, w: 2 * k, h: 2 * k });
+      const ang = Math.atan2(cy - ey, cx - ex), at = { x: ex, y: ey };
+      add('mark', 'edge:' + a.uid, a.x, a.y, { x: at.x - k, y: at.y - k, w: 2 * k, h: 2 * k }, ctx => {
+        ctx.save(); ctx.translate(at.x, at.y); ctx.rotate(ang);
         ctx.fillStyle = S().hostile; ctx.strokeStyle = '#000000'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.moveTo(k, 0); ctx.lineTo(-k * 0.7, -k * 0.8); ctx.lineTo(-k * 0.7, k * 0.8); ctx.closePath(); ctx.fill(); ctx.stroke();
         ctx.restore();
       });
     }
+    group = null;
 
     // The telegraph numbers go on last, so no actor covers them.
     for (const m of tele) {

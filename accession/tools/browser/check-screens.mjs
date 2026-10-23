@@ -6,7 +6,7 @@
 // in the view model is on the board or marked at its edge. Each view first asserts that it
 // is the active one, so a silent fallback cannot pass.
 import { open, root } from './lib.mjs';
-import { layout, targets, board, nextStep, labelVisible, freeTile } from './measure.mjs';
+import { layout, targets, board, nextStep, labelVisible, freeTile, actionButton } from './measure.mjs';
 import path from 'node:path';
 
 const SIZES = [[390, 844], [1280, 800]];
@@ -33,6 +33,14 @@ for (const [w, h] of SIZES) {
       await page.evaluate(t => window.ACCESSION.tap(t), st.tile);
       await settle(page);
     }
+    // Every text size: nothing overflows and the health number is whole.
+    for (const size of ['1', '1.15', '1.3']) {
+      await page.evaluate(v => window.ACCESSION.setting('text', v), size);
+      const hp = await page.evaluate(() => { const e = document.getElementById('hpnum'); return { cut: e.scrollWidth > e.clientWidth + 1, text: e.textContent }; });
+      if (hp.cut) bad(`${w}×${h} ${sc.dept} text ${size}: the health number "${hp.text}" is cut short`);
+      for (const p of [...await page.evaluate(layout), ...await page.evaluate(targets)]) bad(`${w}×${h} ${sc.dept} text ${size}: ${p}`);
+    }
+    await page.evaluate(() => window.ACCESSION.setting('text', '1'));
     const views = await page.evaluate(() => window.ACCESSION.views.list());
     for (const v of views) {
       await page.evaluate(id => window.ACCESSION.setting('board', id), v.id);
@@ -93,8 +101,9 @@ for (const [w, h] of SIZES) {
         const title = await page.evaluate(uid => Labels.of(window.ACCESSION.state, uid).title, near.uid);
         if (!await page.evaluate(labelVisible, title)) bad(`${tag}: tapping ${near.uid} did not show its label`);
         const adjacent = await page.evaluate(uid => Step.adjacent(window.ACCESSION.state, window.ACCESSION.state.actors[0], Actors.byUid(window.ACCESSION.state, uid)), near.uid);
-        const acts = await page.evaluate(() => document.querySelectorAll('#sheet [data-label-act]').length);
-        if (adjacent && !acts) bad(`${tag}: the label of an adjacent exhibit has no action button`);
+        const btn = await page.evaluate(actionButton);
+        if (adjacent && !btn.seen) bad(`${tag}: the label of an adjacent exhibit shows no action button a player can see (${btn.count} in the page)`);
+        else if (adjacent && (btn.seen.w < 44 || btn.seen.h < 44)) bad(`${tag}: the action button "${btn.seen.text}" is ${Math.round(btn.seen.w)}×${Math.round(btn.seen.h)}`);
         if (!adjacent) bad(`${tag}: could not stand beside an exhibit to check its action button`);
         // With the label open, you and the exhibit stay in view above it, so a second tap
         // on the exhibit can still act (§7.1).

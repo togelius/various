@@ -70,6 +70,23 @@ for (const [W, Hh] of SIZES) {
       if (!await page.evaluate(logVisible)) bad(`${tag}: after clicking a wall, the newest sentence is not on screen`);
     }
     else bad(`${tag}: no wall tile on screen to click`);
+    // In the laptop layout, the log box overflows with six long entries at the largest text
+    // size, each taller than the box: the newest must still be in view from its first line.
+    if (W >= 900 && v === views[0]) {
+      const r = await page.evaluate(() => {
+        document.documentElement.style.setProperty('--text-scale', '1.3');
+        const long = i => `Entry ${i}. ` + 'The Lantern-Crop Wader hit you for 3 (rolled 59 against 85%; 4 − 1 Padding). '.repeat(4);
+        const lines = [0, 1, 2, 3, 4, 5].map(long);
+        UI.strip(null, lines, true);
+        const l = document.querySelector('#strip .log'), last = l.lastElementChild, box = l.getBoundingClientRect(), top = last.getBoundingClientRect().top;
+        const out = { over: l.scrollHeight > l.clientHeight, tall: last.getBoundingClientRect().height > l.clientHeight, inView: top >= box.top - 1 && top < box.bottom };
+        document.documentElement.style.setProperty('--text-scale', '1');
+        return out;
+      });
+      if (!r.over || !r.tall) bad(`${tag}: the long log entries did not overflow the log box, so its scrolling went untested`);
+      if (!r.inView) bad(`${tag}: with the log full, the newest entry is not in view from its first line`);
+      await clickEl('[data-act="wait"]');
+    }
     // Then tap visible tiles towards the nearest exhibit until it is within 2 tiles.
     let target = null;
     for (let i = 0; i < 40 && !target; i++) {

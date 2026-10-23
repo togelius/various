@@ -34,7 +34,7 @@ button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; 
 .hp { flex: 1; min-width: 0; }
 .hp .barbg { height: 10px; background: #2b2a3a; border-radius: 5px; overflow: hidden; }
 .hp .barfg { height: 100%; background: var(--player); }
-.hp .num { font-size: 0.8em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hp .num { display: flex; align-items: center; gap: 4px; font-size: 0.8em; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .dial { width: 40px; height: 40px; flex: none; }
 .badge { display: flex; flex-direction: column; align-items: center; line-height: 1.15; color: var(--readable); border: 1px solid var(--line);
   border-radius: 6px; padding: 2px 6px; white-space: nowrap; flex: none; }
@@ -3089,10 +3089,20 @@ const Marks = (() => {
     // Each actor's marks: the reserved base bar (hostile red, your blue), its state glyph or
     // pips above it, a hit cue, and the selection bracket.
     group = null;
+    // An actor counts as on the board when at least a quarter of its square shows each way
+    // in the clear part; a hostile on the board keeps its bar inside the part that shows, and
+    // any other hostile gets an edge arrow instead (below).
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(Math.max(lo, hi), v));
+    const shows = r => ({ x0: Math.max(0, r.x), x1: Math.min(width, r.x + r.w), y0: Math.max(0, r.y), y1: Math.min(bottom, r.y + r.h) });
+    const inClear = r => { const v = shows(r); return v.x1 - v.x0 >= r.w / 4 && v.y1 - v.y0 >= r.h / 4; };
     const hit = new Set((vm.cues && vm.cues.hit) || []);
     for (const { a, r } of placed) {
       group = a.uid;
-      const bar = { x: r.x + r.w * 0.2, y: r.y + r.h - 3, w: r.w * 0.6, h: 2 };
+      let bar = { x: r.x + r.w * 0.2, y: r.y + r.h - 3, w: r.w * 0.6, h: 2 };
+      if (inClear(r)) {
+        const v = shows(r), w = Math.min(bar.w, v.x1 - v.x0);
+        bar = { x: clamp(bar.x, v.x0, v.x1 - w), y: clamp(bar.y, v.y0, v.y1 - 3), w, h: 2 };
+      }
       add(a.hostile ? 'mark' : 'own', a.hostile ? 'hostile:' + a.uid : 'you-bar', a.x, a.y, bar, ctx => {
         ctx.fillStyle = a.hostile ? S().hostile : S().player; ctx.fillRect(bar.x, bar.y, bar.w, bar.h);
       });
@@ -3127,20 +3137,31 @@ const Marks = (() => {
       add('mark', 'selection', vm.selectedTile.x, vm.selectedTile.y, r, ctx => bracket(ctx, r.x, r.y, r.w, r.h));
     }
 
-    // Off-screen threats (§7.2): a hostile you can see whose centre is outside the clear part
-    // of the board gets a hostile-red arrow at the nearest clear edge, pointing towards it.
-    const k = 10;
+    // Off-screen threats (§7.2): a hostile you can see that lies wholly outside the clear part
+    // of the board gets a hostile-red arrow at the nearest clear edge, pointing towards it,
+    // slid along the edge until it covers no actor and no other arrow.
+    const k = 10, taken = placed.filter(p => inClear(p.r)).map(p => p.r);
+    const free = (x, y) => !taken.some(q => x + k > q.x && x - k < q.x + q.w && y + k > q.y && y - k < q.y + q.h);
     for (const { a, r } of placed) {
+      if (!a.hostile || inClear(r)) continue;
+      group = a.uid;
       const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
-      if (!a.hostile || (cx >= 0 && cy >= 0 && cx < width && cy < bottom)) continue;
-      const ex = Math.max(k, Math.min(width - k, cx)), ey = Math.max(k, Math.min(bottom - k, cy)), ang = Math.atan2(cy - ey, cx - ex);
-      add('mark', 'edge:' + a.uid, a.x, a.y, { x: ex - k, y: ey - k, w: 2 * k, h: 2 * k }, ctx => {
-        ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang);
+      let ex = clamp(cx, k, width - k), ey = clamp(cy, k, bottom - k);
+      const alongX = ey <= k || ey >= bottom - k;
+      for (let step = 1; step < 40 && !free(ex, ey); step++) {
+        const d = (step % 2 ? 1 : -1) * Math.ceil(step / 2) * (2 * k + 2);
+        if (alongX) ex = clamp(cx + d, k, width - k); else ey = clamp(cy + d, k, bottom - k);
+      }
+      taken.push({ x: ex - k, y: ey - k, w: 2 * k, h: 2 * k });
+      const ang = Math.atan2(cy - ey, cx - ex), at = { x: ex, y: ey };
+      add('mark', 'edge:' + a.uid, a.x, a.y, { x: at.x - k, y: at.y - k, w: 2 * k, h: 2 * k }, ctx => {
+        ctx.save(); ctx.translate(at.x, at.y); ctx.rotate(ang);
         ctx.fillStyle = S().hostile; ctx.strokeStyle = '#000000'; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.moveTo(k, 0); ctx.lineTo(-k * 0.7, -k * 0.8); ctx.lineTo(-k * 0.7, k * 0.8); ctx.closePath(); ctx.fill(); ctx.stroke();
         ctx.restore();
       });
     }
+    group = null;
 
     // The telegraph numbers go on last, so no actor covers them.
     for (const m of tele) {
@@ -7498,13 +7519,14 @@ const Board3D = (() => {
           legend[id].group = d.group;
           own.push([id, mine]);
         }
-        // Shown: the pixels that end up showing the item itself or something of its own group
-        // (an actor's own marks, a telegraph's number), not the scene and not anything else.
-        // Self: the pixels showing the item itself, or a telegraph's number laid over it.
+        // Shown: the pixels that end up showing the item, its own group or any mark; only the
+        // scene or another actor's sprite counts as hiding it. Self: the pixels showing the
+        // item itself or another group's mark, so an actor its own marks bury is caught too.
         for (const [id, mine] of own) {
+          const g = legend[id].group, top = i => legend[ids[i]];
           legend[id].alone = mine.length;
-          legend[id].onTop = mine.filter(i => legend[ids[i]] && legend[ids[i]].group === legend[id].group).length;
-          legend[id].self = mine.filter(i => ids[i] === id || (legend[ids[i]] && /^telegraph:/.test(legend[ids[i]].id))).length;
+          legend[id].onTop = mine.filter(i => top(i) && (top(i).group === g || top(i).kind === 'mark')).length;
+          legend[id].self = mine.filter(i => ids[i] === id || (top(i) && top(i).kind === 'mark' && top(i).group !== g)).length;
         }
       }
       return { w, h, ids, legend };
@@ -7632,7 +7654,8 @@ const UI = (() => {
   function top(m) {
     const pct = m.maxHp ? Math.max(0, Math.round(100 * m.hp / m.maxHp)) : 0;
     els.hpbar.style.width = pct + '%';
-    els.hpnum.textContent = `Health ${m.hp} / ${m.maxHp}`;
+    els.hpnum.innerHTML = `${P('heart', 12)}<span>${m.hp} / ${m.maxHp}</span>`;
+    els.hpnum.setAttribute('aria-label', `Health ${m.hp} of ${m.maxHp}`);
     els.badge.innerHTML = `<span class="badge-name">Handling Clearance</span><span class="badge-grade">Grade ${roman(m.grade)}</span>`;
     dial(m.clock);
   }
@@ -7669,9 +7692,10 @@ const UI = (() => {
     const summary = s ? `<div class="summary"><div class="strip-title">${s.stateIcons.map(i => P(i, 14)).join('')}<span>${esc(s.title)}</span></div>
       <div class="strip-sub">${s.pictos.map(p => P(p, 14)).join('')}${s.behaviour ? `<span class="behaviour">${esc(s.behaviour)}</span>` : ''}</div></div>` : '';
     els.strip.innerHTML = summary + `<div class="log">${(lines || []).map(l => `<div class="line">${esc(l)}</div>`).join('')}</div>`;
-    // The laptop's log scrolls inside its own box; keep the newest sentence in view.
-    const log = els.strip.querySelector('.log');
-    if (log) log.scrollTop = log.scrollHeight;
+    // The laptop's log scrolls inside its own box: keep the newest entry in view from its
+    // first sentence, even when it is taller than the box.
+    const log = els.strip.querySelector('.log'), last = log && log.lastElementChild;
+    if (last) log.scrollTop = Math.min(log.scrollHeight - log.clientHeight, last.getBoundingClientRect().top - log.getBoundingClientRect().top + log.scrollTop);
   }
 
   // The full label. Its state icons sit on a dark chip, as the pictograms do, so every
@@ -7823,8 +7847,14 @@ const Main = (() => {
   }
   function setZoom(i) { settings.zoom = String(i); store.set('zoom', settings.zoom); renderer.setZoom(i); draw(); }
 
-  // The log: the newest sentence shows on a phone's strip until the next action.
-  function say(s) { history.push(s); while (history.length > HISTORY) history.shift(); fresh = true; }
+  // The log: the newest entry shows on a phone's strip until the next action. Once the
+  // death is logged, nothing else is, so the cause stays in view.
+  let deathLogged = false;
+  function say(s) {
+    if (deathLogged) return;
+    history.push(s); while (history.length > HISTORY) history.shift(); fresh = true;
+    if (state && state.over) deathLogged = true;
+  }
 
   // Everything the player does goes through here. An action from anywhere but a walk stops
   // the walk and drops the path preview; afterwards the open label is brought up to date,
@@ -7925,17 +7955,20 @@ const Main = (() => {
     renderer.draw(vm);
   }
 
+  // A camera centred on a tile shows half whole tiles either side of it, where half comes
+  // from the clear length in tiles; vertically, room is kept above the top row for the
+  // state glyphs and, in 3D, for sprites standing taller than their tile.
   function focus(you, a) {
     const tr = renderer.tileRect(you.x, you.y), b = board.getBoundingClientRect();
     if (!tr || !tr.rect.w) return { x: you.x, y: you.y };
-    const cols = Math.floor(b.width / tr.rect.w), rows = Math.floor((b.height - UI.sheetCover()) / tr.rect.h);
-    const axis = (p, q, n, span) => {
+    const t = tr.rect.w, d = tr.rect.h, above = Math.max(8, Math.floor(t / 3)) + (t - d);
+    const half = (len, step) => Math.max(0, Math.floor((len / step - 1) / 2));
+    const axis = (p, q, n, h) => {
       const lo = Math.min(p, q), hi = Math.max(p + 1, q + n);
-      if (hi - lo <= span) return Math.floor((lo + hi - 1) / 2);
-      const reach = Math.max(0, Math.floor((span - n) / 2));
-      return p < q ? q - reach : q + n - 1 + reach;
+      if (hi - lo <= 2 * h + 1) return Math.floor((lo + hi - 1) / 2);
+      return p < q ? q + n - 1 - h : q + h;
     };
-    return { x: axis(you.x, a.x, a.size, cols), y: axis(you.y, a.y, a.size, rows) };
+    return { x: axis(you.x, a.x, a.size, half(b.width, t)), y: axis(you.y, a.y, a.size, half(b.height - UI.sheetCover() - 2 * above, d)) };
   }
 
   // Examine (x): the nearest readable thing first, then each visible exhibit in turn.

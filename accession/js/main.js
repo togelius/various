@@ -65,8 +65,14 @@ const Main = (() => {
   }
   function setZoom(i) { settings.zoom = String(i); store.set('zoom', settings.zoom); renderer.setZoom(i); draw(); }
 
-  // The log: the newest sentence shows on a phone's strip until the next action.
-  function say(s) { history.push(s); while (history.length > HISTORY) history.shift(); fresh = true; }
+  // The log: the newest entry shows on a phone's strip until the next action. Once the
+  // death is logged, nothing else is, so the cause stays in view.
+  let deathLogged = false;
+  function say(s) {
+    if (deathLogged) return;
+    history.push(s); while (history.length > HISTORY) history.shift(); fresh = true;
+    if (state && state.over) deathLogged = true;
+  }
 
   // Everything the player does goes through here. An action from anywhere but a walk stops
   // the walk and drops the path preview; afterwards the open label is brought up to date,
@@ -167,17 +173,20 @@ const Main = (() => {
     renderer.draw(vm);
   }
 
+  // A camera centred on a tile shows half whole tiles either side of it, where half comes
+  // from the clear length in tiles; vertically, room is kept above the top row for the
+  // state glyphs and, in 3D, for sprites standing taller than their tile.
   function focus(you, a) {
     const tr = renderer.tileRect(you.x, you.y), b = board.getBoundingClientRect();
     if (!tr || !tr.rect.w) return { x: you.x, y: you.y };
-    const cols = Math.floor(b.width / tr.rect.w), rows = Math.floor((b.height - UI.sheetCover()) / tr.rect.h);
-    const axis = (p, q, n, span) => {
+    const t = tr.rect.w, d = tr.rect.h, above = Math.max(8, Math.floor(t / 3)) + (t - d);
+    const half = (len, step) => Math.max(0, Math.floor((len / step - 1) / 2));
+    const axis = (p, q, n, h) => {
       const lo = Math.min(p, q), hi = Math.max(p + 1, q + n);
-      if (hi - lo <= span) return Math.floor((lo + hi - 1) / 2);
-      const reach = Math.max(0, Math.floor((span - n) / 2));
-      return p < q ? q - reach : q + n - 1 + reach;
+      if (hi - lo <= 2 * h + 1) return Math.floor((lo + hi - 1) / 2);
+      return p < q ? q + n - 1 - h : q + h;
     };
-    return { x: axis(you.x, a.x, a.size, cols), y: axis(you.y, a.y, a.size, rows) };
+    return { x: axis(you.x, a.x, a.size, half(b.width, t)), y: axis(you.y, a.y, a.size, half(b.height - UI.sheetCover() - 2 * above, d)) };
   }
 
   // Examine (x): the nearest readable thing first, then each visible exhibit in turn.

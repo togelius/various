@@ -14,7 +14,8 @@
 import { open } from './lib.mjs';
 import { board, nextStep } from './measure.mjs';
 
-const SCENES = [{ dept: 'M11', seed: 3, prog: 'enfilade' }, { dept: 'A4', seed: 7, prog: 'case labyrinth' }, { dept: 'S9', seed: 5, prog: 'sculpture court' }];
+// The sculpture court runs at a device pixel ratio of 2, as on a phone.
+const SCENES = [{ dept: 'M11', seed: 3, prog: 'enfilade', dpr: 1 }, { dept: 'A4', seed: 7, prog: 'case labyrinth', dpr: 1 }, { dept: 'S9', seed: 5, prog: 'sculpture court', dpr: 2 }];
 const lines = [], problems = [];
 const bad = s => problems.push(s);
 
@@ -50,6 +51,18 @@ const measure = page => page.evaluate(() => {
   const overlays = Object.values(full.legend).filter(l => l.alone);
   const low = overlays.filter(l => l.onTop / l.alone < 0.9).map(l => `${l.kind} ${l.id} ${Math.round(100 * l.onTop / l.alone)}%`)
     .concat(overlays.filter(l => l.kind === 'actor' && l.self / l.alone < 0.75).map(l => `actor ${l.id}, under its own marks, ${Math.round(100 * l.self / l.alone)}%`));
+  // What the 2D layer really painted: wherever the id buffer has an actor or a mark, the
+  // overlay canvas has paint (read at its own pixel ratio).
+  const over = document.querySelector('#board canvas.board-over'), k = over.width / full.w;
+  const od = over.getContext('2d').getImageData(0, 0, over.width, over.height).data;
+  let want = 0, got = 0;
+  for (let y = 0; y < full.h; y++) for (let x = 0; x < full.w; x++) {
+    const l = full.legend[full.ids[y * full.w + x]];
+    if (!l || (l.kind !== 'actor' && l.kind !== 'mark')) continue;
+    want++;
+    if (od[(Math.floor((y + 0.5) * k) * over.width + Math.floor((x + 0.5) * k)) * 4 + 3] > 0) got++;
+  }
+  const painted = want ? got / want : 0;
   // The page as composited: the 2D layer is the topmost element over every actor and mark.
   const top = R.inspect().filter(d => d.kind !== 'tile').filter(d => {
     const b = document.getElementById('board').getBoundingClientRect(), cx = d.rect.x + d.rect.w / 2, cy = d.rect.y + d.rect.h / 2;
@@ -57,7 +70,7 @@ const measure = page => page.evaluate(() => {
     const e = document.elementFromPoint(cx, cy);
     return !(e && e.classList.contains('board-over'));
   }).map(d => d.id);
-  return { frame, tiles, hidden, worst, overlays: overlays.length, low, doors, top };
+  return { frame, tiles, hidden, worst, overlays: overlays.length, low, doors, top, painted };
 });
 
 function report(tag, m, b) {
@@ -69,12 +82,13 @@ function report(tag, m, b) {
   m.low.forEach(l => bad(`${tag}: ${l} of its pixels show over the scene`));
   m.doors.forEach(d => bad(`${tag}: the ${d} has no visible mat`));
   m.top.forEach(d => bad(`${tag}: ${d} is not on the topmost layer of the board`));
+  if (m.painted < 0.95) bad(`${tag}: the 2D layer has paint under only ${Math.round(100 * m.painted)}% of the actors' and marks' pixels`);
   b.problems.forEach(p => bad(`${tag}: ${p}`));
 }
 
 for (const sc of SCENES) {
   const t0 = Date.now();
-  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 390, height: 844 }, dpr: 1, query: `?dept=${sc.dept}&seed=${sc.seed}&board=board3d` });
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 390, height: 844 }, dpr: sc.dpr, query: `?dept=${sc.dept}&seed=${sc.seed}&board=board3d` });
   await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
   const load = await page.evaluate(async () => { const t = performance.now(); await window.ACCESSION.renderer.ready.catch(() => {}); return performance.now() - t; });
   const tag = `${sc.dept} (${sc.prog})`;
@@ -95,6 +109,25 @@ for (const sc of SCENES) {
     const m = await measure(page);
     report(`${tag} zoom ${z}`, m, await page.evaluate(board));
   }
+  // A melee frame: you directly north of an exhibit that has just been struck awake, so its
+  // state glyph lies over you. Marks over another actor do not count as hiding it.
+  const melee = await page.evaluate(() => {
+    const A = window.ACCESSION, s = A.state;
+    for (const a of A.vm().actors.filter(q => q.uid !== 'you')) {
+      const x = a.x, y = a.y - 1, path = Grid.walkable(s.dept, x, y) && !Actors.at(s, x, y) ? Path.to(s, x, y) : [];
+      if (!path.length || path.length > 12) continue;
+      for (const [px, py] of path) { const me = s.actors[0], d = Path.dirTo([me.x, me.y], [px, py]); if (d < 0 || A.act({ a: 'move', dir: d }).some(e => e.k === 'refused')) break; }
+      const me = s.actors[0];
+      if (me.x !== x || me.y !== y || Actors.byUid(s, a.uid).gone) continue;
+      A.act({ a: 'attack', uid: a.uid });
+      return a.uid;
+    }
+    return null;
+  });
+  if (melee) {
+    await page.evaluate(() => window.ACCESSION.setZoom(0));
+    report(`${tag} melee beside ${melee}`, await measure(page), await page.evaluate(board));
+  } else lines.push(`${tag}: no exhibit with a free tile to its north within reach; melee frame skipped`);
   await page.evaluate(() => window.ACCESSION.setZoom(0));
   // Context loss and restore.
   const loss = await page.evaluate(async () => {

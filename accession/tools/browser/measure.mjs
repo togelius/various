@@ -47,8 +47,32 @@ export function labelVisible(title) {
   return seen(h) && (!title || h.textContent.includes(title));
 }
 
-// Is the log on screen as it should be: its newest line the newest sentence in the history,
-// really seen; on a laptop, the last six sentences listed?
+// The label's action buttons: how many there are, and the size of the first one a player
+// can really see and tap, or null.
+export function actionButton() {
+  const seen = e => {
+    if (!e) return false;
+    const r = e.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    for (let p = e; p && p !== document.documentElement; p = p.parentElement) {
+      const cs = getComputedStyle(p);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return false;
+      if (p !== e && cs.overflow !== 'visible') {
+        const q = p.getBoundingClientRect();
+        if (r.bottom <= q.top || r.top >= q.bottom || r.right <= q.left || r.left >= q.right) return false;
+      }
+    }
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    if (cx < 0 || cy < 0 || cx >= window.innerWidth || cy >= window.innerHeight) return false;
+    const top = document.elementFromPoint(cx, cy);
+    return !!top && (top === e || e.contains(top));
+  };
+  const all = [...document.querySelectorAll('#sheet [data-label-act]')], b = all.find(seen);
+  return { count: all.length, seen: b ? { w: b.getBoundingClientRect().width, h: b.getBoundingClientRect().height, text: b.textContent } : null };
+}
+
+// Is the log on screen as it should be: its newest line the newest entry in the history,
+// really seen from its first line; in the laptop layout, the last six entries listed?
 export function logVisible() {
   const seen = e => {
     if (!e) return false;
@@ -69,7 +93,11 @@ export function logVisible() {
   };
   const history = window.ACCESSION.history, lines = [...document.querySelectorAll('#strip .log .line')], last = lines[lines.length - 1];
   if (!last || !history.length || last.textContent !== history[history.length - 1] || !seen(last)) return false;
-  if (window.innerWidth >= 900 && lines.filter(l => getComputedStyle(l).display !== 'none').length !== Math.min(6, history.length)) return false;
+  // The newest entry is in view from its first line.
+  const box = last.parentElement.getBoundingClientRect(), top = last.getBoundingClientRect().top;
+  if (top < box.top - 1 || top >= box.bottom) return false;
+  const laptop = matchMedia('(min-width: 900px) and (min-aspect-ratio: 4/3)').matches;
+  if (laptop && lines.filter(l => getComputedStyle(l).display !== 'none').length !== Math.min(6, history.length)) return false;
   return true;
 }
 
@@ -122,31 +150,42 @@ export function board() {
   const disc = Math.min(...drawn.filter(d => d.kind === 'tile').slice(0, 1).map(t => 2 * R.tileRect(t.x, t.y).tapRadius));
   const problems = [];
   let hostiles = 0;
+  // Every actor shows at least a quarter of its square each way in the clear part of the
+  // board, or (a hostile) is marked by an edge arrow; a hostile that shows has its bar in view.
+  const partly = q => Math.min(b.right, q.x + q.w) - Math.max(b.left, q.x) >= q.w / 4 && Math.min(clearBottom, q.y + q.h) - Math.max(b.top, q.y) >= q.h / 4;
   for (const a of vm.actors) {
-    const shown = drawn.find(d => d.kind === 'actor' && d.id === a.uid && inside(d.rect));
+    const shown = drawn.find(d => d.kind === 'actor' && d.id === a.uid && partly(d.rect));
     const edge = drawn.find(d => d.kind === 'mark' && d.id === 'edge:' + a.uid && inside(d.rect));
     if (!shown && !(a.hostile && edge)) problems.push(`${a.uid} is in the view model but not on the board or at its edge`);
     if (shown && a.hostile) {
       hostiles++;
-      if (!drawn.find(d => d.kind === 'mark' && d.id === 'hostile:' + a.uid && inside(d.rect))) problems.push(`${a.uid} is hostile and on screen but has no hostile mark`);
+      if (!drawn.find(d => d.kind === 'mark' && d.id === 'hostile:' + a.uid && inside(d.rect))) problems.push(`${a.uid} is hostile and on screen but has no hostile mark in view`);
     }
   }
   // Every mark the view model holds is drawn: telegraphs, the path preview and the selection.
   const onBoard = (x, y) => { const c = R.tileRect(x, y).centre; return c.x >= b.left && c.y >= b.top && c.x < b.right && c.y < clearBottom; };
   for (const m of vm.marks) if (onBoard(m.x, m.y) && !drawn.find(d => d.kind === 'mark' && d.id === m.kind + ':' + m.x + ',' + m.y && inside(d.rect))) problems.push(`mark ${m.kind} at ${m.x},${m.y} is not drawn`);
-  for (const [x, y] of vm.path || []) if (onBoard(x, y) && !drawn.find(d => d.id === 'path:' + x + ',' + y)) problems.push(`path tile ${x},${y} is not drawn`);
+  // A path dot lies on its own tile; the selection bracket on the selected tile or exhibit.
+  const within = (q, r) => { const cx = q.x + q.w / 2, cy = q.y + q.h / 2; return cx >= r.x && cy >= r.y && cx < r.x + r.w && cy < r.y + r.h; };
+  for (const [x, y] of vm.path || []) if (onBoard(x, y) && !drawn.find(d => d.id === 'path:' + x + ',' + y && inside(d.rect) && within(d.rect, R.tileRect(x, y).rect))) problems.push(`path tile ${x},${y} has no dot on it`);
   const sel = vm.selectedTile || (vm.selection && vm.actors.find(a => a.uid === vm.selection));
-  if (sel && onBoard(sel.x, sel.y) && !drawn.find(d => d.id === 'selection')) problems.push('the selection is not drawn');
+  if (sel) {
+    const target = vm.selectedTile ? R.tileRect(sel.x, sel.y).rect : (drawn.find(d => d.kind === 'actor' && d.id === sel.uid) || {}).rect;
+    if (onBoard(sel.x, sel.y) && !(target && drawn.find(d => d.id === 'selection' && d.x === sel.x && d.y === sel.y && inside(d.rect) && within(d.rect, target)))) problems.push(`the selection at ${sel.x},${sel.y} is not drawn on it`);
+  }
   return { tiles: radii.length, p10, min: radii[0] || 0, disc, hostiles, actors: vm.actors.length, path: (vm.path || []).length, selection: !!(vm.selection || vm.selectedTile), problems };
 }
 
 // Walk towards the nearest exhibit until one is in sight and within reach, by tapping
 // visible tiles as a player would. Returns the exhibit's uid, or null.
+// With reach 1 the walk ends only where a blow would reach (Step.adjacent, which refuses a
+// diagonal past a corner), not merely one tile away.
 export function nextStep(reach) {
   const A = window.ACCESSION, s = A.state, you = s.actors[0], vm = A.vm(), R = A.renderer;
   const cheb = a => Actors.dist(Actors.byUid(s, a.uid), you.x, you.y);
   const seen = vm.actors.filter(a => a.uid !== 'you').sort((p, q) => cheb(p) - cheb(q));
-  if (seen.length && cheb(seen[0]) <= reach) return { done: seen[0].uid };
+  const near = reach === 1 ? seen.find(a => Step.adjacent(s, you, Actors.byUid(s, a.uid))) : seen.find(a => cheb(a) <= reach);
+  if (near) return { done: near.uid };
   const targets = s.actors.filter(a => a.uid !== 'you' && !a.gone).map(a => ({ a, p: Path.to(s, a.x, a.y) })).filter(t => t.p.length).sort((p, q) => p.p.length - q.p.length);
   if (!targets.length) return { stuck: 'no exhibit can be reached' };
   const path = targets[0].p.slice(0, -1);

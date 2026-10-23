@@ -27,7 +27,7 @@ button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; 
 .hp { flex: 1; min-width: 0; }
 .hp .barbg { height: 10px; background: #2b2a3a; border-radius: 5px; overflow: hidden; }
 .hp .barfg { height: 100%; background: var(--player); }
-.hp .num { font-size: 0.8em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hp .num { display: flex; align-items: center; gap: 4px; font-size: 0.8em; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .dial { width: 40px; height: 40px; flex: none; }
 .badge { display: flex; flex-direction: column; align-items: center; line-height: 1.15; color: var(--readable); border: 1px solid var(--line);
   border-radius: 6px; padding: 2px 6px; white-space: nowrap; flex: none; }
