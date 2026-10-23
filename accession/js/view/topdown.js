@@ -1,13 +1,19 @@
 // ACCESSION — TopDownView: the reference board, Canvas 2D (BUILD.md §6.2). It draws the
 // view model and answers which tile is under a point; it never reads the state.
 'use strict';
-Views.register('topdown', host => {
+Views.register('topdown', 'Flat', host => {
   const canvas = document.createElement('canvas');
   canvas.className = 'board-canvas';
   host.appendChild(canvas);
   const ctx = canvas.getContext('2d');
-  const ZOOM = [32, 44];
-  let zoom = 0, tile = ZOOM[0], ox = 0, oy = 0, last = null;
+  const ZOOM = [32, 48];
+  let zoom = 0, tile = ZOOM[0], ox = 0, oy = 0, last = null, drawn = [], size = { width: 0, height: 0 };
+  // inspect(): everything drawn in the last frame, in board CSS pixels made client-relative
+  // on request, so tests can check what is on screen without reading pixels.
+  const note = (kind, id, x, y, px, py, w, h) => {
+    if (px + w <= 0 || py + h <= 0 || px >= size.width || py >= size.height) return;
+    drawn.push({ kind, id, x, y, rect: { x: px, y: py, w, h } });
+  };
 
   function resize() {
     const r = host.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
@@ -96,8 +102,9 @@ Views.register('topdown', host => {
   }
 
   function draw(vm) {
-    last = vm;
+    last = vm; drawn = [];
     const r = resize(), P = ART.palettes.dept[vm.dept] || ART.palettes.dept.T0, t = tile;
+    size = { width: r.width, height: r.height };
     ctx.fillStyle = '#0d0c10'; ctx.fillRect(0, 0, r.width, r.height);
     ox = Math.floor(r.width / 2 - (vm.camera.x + 0.5) * t);
     oy = Math.floor(r.height / 2 - (vm.camera.y + 0.5) * t);
@@ -108,68 +115,22 @@ Views.register('topdown', host => {
       if (!v) continue;
       const px = ox + x * t, py = oy + y * t;
       drawTile(vm, P, x, y, px, py);
+      note('tile', x + ',' + y, x, y, px, py, t, t);
       if (v === 1) { ctx.fillStyle = 'rgba(8,7,12,0.58)'; ctx.fillRect(px, py, t, t); }
     }
-    // Your ring: the tiles that count as close.
-    ctx.strokeStyle = ART.palettes.semantic.player; ctx.globalAlpha = 0.55; ctx.lineWidth = 1;
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-      if (!vm.ring[y * vm.w + x]) continue;
-      const px = ox + x * t, py = oy + y * t, at = (i, j) => i >= 0 && j >= 0 && i < vm.w && j < vm.h && vm.ring[j * vm.w + i];
-      ctx.beginPath();
-      if (!at(x, y - 1)) { ctx.moveTo(px, py + 0.5); ctx.lineTo(px + t, py + 0.5); }
-      if (!at(x, y + 1)) { ctx.moveTo(px, py + t - 0.5); ctx.lineTo(px + t, py + t - 0.5); }
-      if (!at(x - 1, y)) { ctx.moveTo(px + 0.5, py); ctx.lineTo(px + 0.5, py + t); }
-      if (!at(x + 1, y)) { ctx.moveTo(px + t - 0.5, py); ctx.lineTo(px + t - 0.5, py + t); }
-      ctx.stroke();
-      ctx.fillStyle = 'rgba(90,167,232,0.07)'; ctx.fillRect(px, py, t, t);
-    }
-    ctx.globalAlpha = 1;
-    // Path preview.
-    if (vm.path) { ctx.fillStyle = ART.palettes.semantic.player; for (const [x, y] of vm.path) ctx.fillRect(ox + x * t + t / 2 - 2, oy + y * t + t / 2 - 2, 4, 4); }
-    // Telegraphs: the exact damage you would take, in the hazard colour.
-    for (const m of vm.marks) {
-      if (m.kind !== 'telegraph') continue;
-      const px = ox + m.x * t, py = oy + m.y * t;
-      ctx.fillStyle = 'rgba(240,138,44,0.35)'; ctx.fillRect(px, py, t, t);
-      ctx.strokeStyle = ART.palettes.semantic.hazard; ctx.lineWidth = 2; ctx.strokeRect(px + 1, py + 1, t - 2, t - 2);
-      ctx.fillStyle = '#fff'; ctx.font = `bold ${Math.floor(t * 0.42)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(m.dmg), px + t / 2, py + t / 2);
-    }
-    // Actors.
-    for (const a of vm.actors) {
-      const n = a.size || 1, px = ox + a.x * t, py = oy + a.y * t, sz = t * n;
-      const img = Sprites.board(a.sprite, vm.dept);
-      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(px + sz * 0.15, py + sz * 0.84, sz * 0.7, sz * 0.12);
-      if (img) ctx.drawImage(img, px, py, sz, sz);
-      else { ctx.fillStyle = a.hostile ? '#d8484e' : '#5aa7e8'; ctx.fillRect(px + 4, py + 4, sz - 8, sz - 8); }
-      // The reserved mark: a hostile base bar, your blue one.
-      ctx.fillStyle = a.hostile ? ART.palettes.semantic.hostile : ART.palettes.semantic.player;
-      ctx.fillRect(px + sz * 0.2, py + sz - 3, sz * 0.6, 2);
-      if (a.hostile) stateGlyph(a, px, py, sz);
-      if (vm.selection === a.uid) bracket(px, py, sz);
-    }
-    if (vm.selectedTile) bracket(ox + vm.selectedTile.x * t, oy + vm.selectedTile.y * t, t);
+    const rectOf = (x, y) => ({ x: ox + x * t, y: oy + y * t, w: t, h: t });
+    Marks.ring(ctx, vm, rectOf, x0, y0, x1, y1);
+    Marks.path(ctx, vm, rectOf);
+    const tele = Marks.telegraphs(ctx, vm, rectOf);
+    const placed = Marks.order(vm.actors).map(a => ({ a, px: ox + a.x * t, py: oy + a.y * t, sz: t * (a.size || 1) }));
+    for (const p of placed) keep(Marks.actor(ctx, p.a, vm.dept, p.px, p.py, p.sz));
+    for (const p of placed) Marks.actorMarks(ctx, vm, p.a, p.px, p.py, p.sz, t).forEach(keep);
+    Marks.selectedTile(ctx, vm, rectOf).forEach(keep);
+    Marks.edges(ctx, placed, r.width, r.height).forEach(keep);
+    Marks.telegraphNumbers(ctx, tele);
+    tele.forEach(keep);
   }
-
-  function stateGlyph(a, px, py, sz) {
-    const g = Math.max(8, Math.floor(tile / 3)), y = py - g + 2;
-    if (a.mode === 'dormant' && !a.pips) Pictograms.draw(ctx, 'asleep', px + sz - g, y, g);
-    else if (a.mode === 'dormant') { for (let i = 0; i < 3; i++) Pictograms.draw(ctx, i < a.pips ? 'pip' : 'pip_empty', px + sz / 2 - 1.5 * g + i * g, y, g); }
-    else if (a.mode === 'hunting') Pictograms.draw(ctx, 'hunting', px + sz / 2 - g / 2, y, g);
-    else if (a.mode === 'returning') Pictograms.draw(ctx, 'returning', px + sz / 2 - g / 2, y, g);
-    else Pictograms.draw(ctx, 'alert', px + sz / 2 - g / 2, y, g);
-  }
-
-  function bracket(px, py, s) {
-    ctx.strokeStyle = ART.palettes.semantic.readable; ctx.lineWidth = 2;
-    const k = Math.floor(s / 4);
-    ctx.beginPath();
-    ctx.moveTo(px + 1, py + k); ctx.lineTo(px + 1, py + 1); ctx.lineTo(px + k, py + 1);
-    ctx.moveTo(px + s - k, py + 1); ctx.lineTo(px + s - 1, py + 1); ctx.lineTo(px + s - 1, py + k);
-    ctx.moveTo(px + 1, py + s - k); ctx.lineTo(px + 1, py + s - 1); ctx.lineTo(px + k, py + s - 1);
-    ctx.moveTo(px + s - k, py + s - 1); ctx.lineTo(px + s - 1, py + s - 1); ctx.lineTo(px + s - 1, py + s - k);
-    ctx.stroke();
-  }
+  const keep = d => note(d.kind, d.id, d.x, d.y, d.rect.x, d.rect.y, d.rect.w, d.rect.h);
 
   function pick(cx, cy) {
     const r = canvas.getBoundingClientRect();
@@ -177,14 +138,20 @@ Views.register('topdown', host => {
     if (!last || x < 0 || y < 0 || x >= last.w || y >= last.h) return null;
     return { x, y };
   }
+  // A tile's centre and rectangle in client CSS pixels, and the radius of the disc round
+  // its centre that pick() maps to it.
   function tileRect(x, y) {
+    const r = canvas.getBoundingClientRect(), px = r.left + ox + x * tile, py = r.top + oy + y * tile;
+    return { centre: { x: px + tile / 2, y: py + tile / 2 }, rect: { x: px, y: py, w: tile, h: tile }, tapRadius: tile / 2 };
+  }
+  function inspect() {
     const r = canvas.getBoundingClientRect();
-    return { x: r.left + ox + x * tile, y: r.top + oy + y * tile, w: tile, h: tile };
+    return drawn.map(d => Object.assign({}, d, { rect: { x: r.left + d.rect.x, y: r.top + d.rect.y, w: d.rect.w, h: d.rect.h } }));
   }
   return {
-    id: 'topdown', draw, pick, tileRect, zooms: ZOOM,
+    id: 'topdown', ready: Promise.resolve(), draw, pick, tileRect, inspect, zooms: ZOOM,
+    get zoom() { return zoom; },
     setZoom(step) { zoom = Math.max(0, Math.min(ZOOM.length - 1, step)); tile = ZOOM[zoom]; },
-    zoomStep: () => zoom,
     dispose: () => canvas.remove(),
   };
 });

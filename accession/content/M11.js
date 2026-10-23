@@ -4,7 +4,7 @@
 Packs.add({
   acc: 'M11', number: 'M.11', title: 'Long Galleries, Considered as Telegraph Lines', family: 'Machines', palette: 'M11',
   programme: 'enfilade', claim: { primary: 'artillery', secondary: 'hazard' },
-  houseRule: 'The line is cleared on the bell.',
+  houseRule: 'The line is cleared on the chime.',
   blurb: 'The building was once too long for a voice to cross, so its longest galleries were fitted as signalling lines.',
   modules: [{ id: 'hourly_demonstration' }, { id: 'weather_cases' }],
   species: [
@@ -15,7 +15,7 @@ Packs.add({
     { id: 'M11.2', sprite: 'semaphore', archetype: 'demonstrator', role: 'controller', modifiers: ['clockwork'], trigger: 'period',
       name: 'Semaphore Station, Two-Armed',
       tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Painted oak arms; brass, steel; escapement; timetable card in a frame', dims: 'H. 240 cm', credit: 'Transferred from the Line Superintendent’s Office' },
-      paragraph: 'The station’s timetable is pinned to its own frame, in a clerk’s hand, and it is still followed: the arms are raised on the bell and swept down the line, and at no other time. Between bells the station travels its short rail at the side of the gallery and waits. The logbooks record eleven injuries to linesmen who knew the timetable perfectly well and stood in the line anyway.' },
+      paragraph: 'The station’s timetable is pinned to its own frame, in a clerk’s hand, and it is still followed: the arms are raised on the chime and swept down the line, and at no other time. Between chimes the station travels its short rail at the side of the gallery and waits. The logbooks record eleven injuries to linesmen who knew the timetable perfectly well and stood in the line anyway.' },
     { id: 'M11.3', sprite: 'signal_lamp', archetype: 'kiter', role: 'artillery', modifiers: ['old_repair'], trigger: null,
       name: 'Signal Lamp on a Walking Tripod',
       tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Iron, oil reservoir, shutter of tinplate; right rear leg a later repair in pine', dims: 'H. 152 cm', credit: 'Transferred from the Line Superintendent’s Office' },

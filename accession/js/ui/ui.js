@@ -8,6 +8,8 @@ const UI = (() => {
 
   function build(app, h) {
     handlers = h;
+    // The reserved colours have one source, art/palettes.json; CSS reads them from here.
+    for (const [k, v] of Object.entries(ART.palettes.semantic)) document.documentElement.style.setProperty('--' + k, v);
     app.innerHTML = `
       <div id="top">
         <div class="hp"><div class="barbg"><div class="barfg" id="hpbar"></div></div><div class="num" id="hpnum"></div></div>
@@ -48,23 +50,28 @@ const UI = (() => {
     return els.board;
   }
 
+  // An overlay's heading, with Close always on screen however long the overlay is.
+  const head = title => `<div class="ohead"><h2>${esc(title)}</h2><button class="btn" data-close>Close</button></div>`;
+
   function toggle(id, on) { els[id].classList.toggle('open', on); }
+  function closeOverlays() { toggle('how', false); toggle('settings', false); }
 
   function renderHow() {
-    els.how.innerHTML = `<h2>How the museum works</h2><ul class="systems">` +
-      Registry.SYSTEMS.map(s => `<li>${P(s.icon, 24, '#f2e3bc')}<div><b>${esc(s.name)}.</b> ${esc(s.sentence)}</div></li>`).join('') +
-      `</ul><button class="btn" data-close>Close</button>`;
+    els.how.innerHTML = head('How the museum works') + `<ul class="systems">` +
+      Registry.SYSTEMS.map(s => `<li>${P(s.icon, 24, ART.palettes.semantic.readable)}<div><b>${esc(s.name)}.</b> ${esc(s.sentence)}</div></li>`).join('') + `</ul>`;
   }
 
-  function renderSettings(opts) {
+  // The Board line is built from the registered views and hidden when there is only one.
+  function renderSettings(opts, views) {
     const choice = (key, value, text) => `<button class="btn" data-set="${key}" data-value="${value}" aria-pressed="${opts[key] === value}">${opts[key] === value ? '● ' : ''}${esc(text)}</button>`;
-    els.settings.innerHTML = `<h2>Settings</h2>
-      <div class="row"><b>Board</b> ${choice('board', 'topdown', 'Flat')} ${choice('board', 'board3d', '3D')}</div>
-      ${opts.boardNote ? `<p class="note">${esc(opts.boardNote)}</p>` : ''}
+    const shown = Views.active().id;
+    els.settings.innerHTML = head('Settings') + `
+      ${views.length > 1 ? `<div class="row" id="set-board"><b>Board</b> ${views.map(v => choice('board', v.id, v.label)).join(' ')}</div>` : ''}
+      ${opts.boardNote && shown !== opts.board ? `<p class="note">${esc(opts.boardNote)}</p>` : ''}
+      <div class="row"><b>Walk</b> ${choice('walk', 'one', 'One tap')} ${choice('walk', 'two', 'Tap twice')}</div>
       <div class="row"><b>Text size</b> ${choice('text', '1', 'Normal')} ${choice('text', '1.15', 'Larger')} ${choice('text', '1.3', 'Largest')}</div>
       <div class="row"><b>Label font</b> ${choice('font', 'book', 'Book')} ${choice('font', 'plain', 'Plain')}</div>
-      <div class="row"><b>Motion</b> ${choice('motion', 'full', 'Full')} ${choice('motion', 'reduce', 'Reduced')}</div>
-      <button class="btn" data-close>Close</button>`;
+      <div class="row"><b>Motion</b> ${choice('motion', 'full', 'Full')} ${choice('motion', 'reduce', 'Reduced')}</div>`;
   }
 
   // The top bar.
@@ -123,5 +130,5 @@ const UI = (() => {
   }
   function closeLabel() { els.sheet.classList.remove('open'); handlers.closedLabel && handlers.closedLabel(); }
 
-  return { build, top, strip, label, closeLabel, renderSettings, toggle };
+  return { build, top, strip, label, closeLabel, closeOverlays, renderSettings, toggle };
 })();

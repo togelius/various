@@ -1,224 +1,335 @@
-// ACCESSION — Board3DView: the optional 3D board (BUILD.md §6). It draws the same view
-// model as TopDownView and decides nothing. A steep camera, half-height walls, a cutaway
-// for walls in front of anything visible, x-ray silhouettes, billboarded 16×16 sprites and
-// ground-plane picking (research/isometric.md §6). Removing this file and the three.js
+// ACCESSION — Board3DView: the optional 3D board (BUILD.md §6.2). It draws the same view
+// model as TopDownView and decides nothing. An orthographic camera 60° above the floor,
+// from the south so north stays up; walls, cases and furniture as solid blocks; your ring,
+// the path, telegraphs, actors and their marks on a 2D layer above the scene, so a wall
+// can hide floor but never an exhibit or a mark. Removing this file and the three.js
 // placeholder in index.html removes the 3D view (tools/remove-3d.sh).
 'use strict';
 const Board3D = (() => {
-  const ELEV = 60, AZ = 45, WALL_H = 1.5, ZOOM = [48, 64];
+  const ELEV = 60, AZ = 0, ZOOM = [40, 52];
+  // Heights in tile edges. From due south at 60°, a block of height h hides h ÷ tan 60° of
+  // the tile behind it, so walls are 1.2 (69% hidden), not the 1.5 the probe measured
+  // from the south-east, which would hide 87% of every room's back row.
+  const H = { wall: 1.2, column: 1.2, partition: 1.0, caseBase: 0.25, caseTop: 0.85, plinth: 0.5, furniture: 0.45,
+    bench: 0.3, lectern: 0.7, rail: 0.5, rope: 0.4 };
+  const COS = Math.cos(ELEV * Math.PI / 180), SIN = Math.sin(ELEV * Math.PI / 180);
   let loading = null;
 
-  // three.js arrives as an inert <script type="text/x-three"> block (inlined in dist/, or
-  // naming the vendored file in development) and is run on first use.
-  function ensureThree(onReady) {
-    if (window.THREE) return true;
+  // three.js arrives as an inert <script type="text/x-three"> block, inlined in dist/ or
+  // naming the vendored file in development, and is run on first use.
+  function loadThree() {
+    if (window.THREE) return Promise.resolve();
+    if (loading) return loading;
     const block = document.querySelector('script[type="text/x-three"]');
-    if (!block) throw new Error('three.js is not part of this build');
-    if (block.textContent.trim()) {
+    if (!block) return Promise.reject(new Error('three.js is not part of this build'));
+    loading = new Promise((res, rej) => {
       const s = document.createElement('script');
-      s.textContent = block.textContent;
+      if (block.textContent.trim()) s.textContent = block.textContent;
+      else { s.src = block.dataset.src; s.onload = () => res(); s.onerror = () => rej(new Error('three.js could not be loaded')); }
       document.head.appendChild(s);
-      if (!window.THREE) throw new Error('three.js did not start');
-      return true;
-    }
-    if (!loading) {
-      loading = new Promise((res, rej) => { const s = document.createElement('script'); s.src = block.dataset.src; s.onload = res; s.onerror = () => rej(new Error('three.js could not be loaded')); document.head.appendChild(s); });
-    }
-    loading.then(onReady, () => {});
-    return false;
+      if (s.textContent) { if (window.THREE) res(); else rej(new Error('three.js did not start')); }
+    });
+    loading.catch(() => { loading = null; });
+    return loading;
   }
 
   function factory(host) {
-    const canvas = document.createElement('canvas');
-    canvas.className = 'board-canvas';
-    host.appendChild(canvas);
-    const probe = canvas.getContext('webgl2') || canvas.getContext('webgl');
-    if (!probe) { canvas.remove(); throw new Error('WebGL is unavailable'); }
-    let ready = false, three = null, lastVm = null, zoom = 0, tile = ZOOM[0];
-    let T, renderer, scene, camera, layers, texCache;
-    const api = {
-      id: 'board3d', zooms: ZOOM,
-      draw(vm) { lastVm = vm; if (ready) render(vm); },
-      pick(cx, cy) { return ready && lastVm ? pick(cx, cy) : null; },
-      tileRect(x, y) { return ready ? tileRect(x, y) : { x: 0, y: 0, w: 0, h: 0 }; },
-      setZoom(step) { zoom = Math.max(0, Math.min(ZOOM.length - 1, step)); tile = ZOOM[zoom]; if (lastVm) api.draw(lastVm); },
-      zoomStep: () => zoom,
-      dispose() { if (three) three.renderer.dispose(); canvas.remove(); },
-      stats: () => (three ? { calls: three.renderer.info.render.calls, triangles: three.renderer.info.render.triangles } : null),
-    };
-    const start = () => { three = setup(canvas); ready = true; if (lastVm) render(lastVm); };
-    if (ensureThree(start)) start();
+    const canvas = document.createElement('canvas'), over = document.createElement('canvas');
+    canvas.className = 'board-canvas'; over.className = 'board-canvas board-over';
+    const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, depth: true, stencil: false, preserveDrawingBuffer: false });
+    if (!gl) throw new Error('WebGL 2 is unavailable');
+    host.appendChild(canvas); host.appendChild(over);
+    const octx = over.getContext('2d');
+    let T = null, renderer = null, scene = null, camera = null, meshes = null;
+    let lastVm = null, zoom = 0, s = ZOOM[0], size = { width: 0, height: 0 }, drawn = [], flat = null, disposed = false;
+    let centre = { x: 0, y: 0 };
 
-    // ---------------------------------------------------------------- scene
-    function setup(cv) {
+    const ready = loadThree().then(() => {
+      if (disposed) return;
       T = window.THREE;
-      renderer = new T.WebGLRenderer({ canvas: cv, antialias: true });
+      renderer = new T.WebGLRenderer({ canvas, context: gl, antialias: false });
       renderer.outputColorSpace = T.SRGBColorSpace;
       scene = new T.Scene();
       camera = new T.OrthographicCamera(-1, 1, 1, -1, 0.1, 200);
-      scene.add(new T.AmbientLight(0xffffff, 1.6));
-      const sun = new T.DirectionalLight(0xffffff, 1.4);
-      sun.position.set(-3, 10, -5);
-      scene.add(sun);
-      layers = new T.Group();
-      scene.add(layers);
-      texCache = new Map();
-      return { renderer };
+      meshes = {
+        floor: mesh(new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide })),
+        solid: mesh(new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide })),
+        glass: mesh(new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide, transparent: true, opacity: 0.35, depthWrite: false })),
+      };
+      // Listeners added after three.js's own, so it has restored its state before we redraw.
+      canvas.addEventListener('webglcontextlost', lost);
+      canvas.addEventListener('webglcontextrestored', restored);
+      if (lastVm) render(lastVm);
+    });
+    function mesh(material) { const m = new T.Mesh(new T.BufferGeometry(), material); m.frustumCulled = false; scene.add(m); return m; }
+
+    // ------------------------------------------------------------ context loss
+    // While the context is lost the flat board stands in, at the same zoom step.
+    function lost(e) {
+      e.preventDefault();
+      if (flat || disposed) return;
+      canvas.style.visibility = over.style.visibility = 'hidden';
+      flat = Views.make('topdown', host);
+      flat.setZoom(zoom);
+      if (lastVm) flat.draw(lastVm);
+    }
+    function restored() {
+      if (!flat) return;
+      flat.dispose(); flat = null;
+      canvas.style.visibility = over.style.visibility = '';
+      if (lastVm) render(lastVm);
     }
 
-    const col = h => new T.Color(h);
-    function texture(key, make) {
-      if (!texCache.has(key)) {
-        const c = make();
-        const t = new T.CanvasTexture(c);
-        t.magFilter = T.NearestFilter; t.minFilter = T.NearestFilter; t.colorSpace = T.SRGBColorSpace;
-        texCache.set(key, t);
+    // ------------------------------------------------------------ geometry
+    // Every frame's scene is three merged meshes (floor, solid, glass) with per-vertex
+    // colours and per-vertex ids for idBuffer(). Faces are shaded by direction: tops in the
+    // palette's top colour, south faces in its face colour, the sides darker.
+    const lin = hex => { const c = new T.Color(hex); return [c.r, c.g, c.b]; };
+    const scale = (c, f) => [c[0] * f, c[1] * f, c[2] * f];
+    function batch() { return { pos: [], col: [], ids: [] }; }
+    function quad(b, p, c, id) {
+      const r = (id >> 16) & 255, g = (id >> 8) & 255, bl = id & 255;
+      for (const i of [0, 1, 2, 0, 2, 3]) { b.pos.push(p[i][0], p[i][1], p[i][2]); b.col.push(c[0], c[1], c[2]); b.ids.push(r / 255, g / 255, bl / 255); }
+    }
+    function block(b, x0, z0, x1, z1, y0, y1, top, side, id) {
+      quad(b, [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]], top, id);
+      quad(b, [[x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]], side, id);
+      const d = scale(side, 0.78);
+      quad(b, [[x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]], d, id);
+      quad(b, [[x1, y0, z0], [x1, y0, z1], [x1, y1, z1], [x1, y1, z0]], d, id);
+      quad(b, [[x0, y0, z0], [x1, y0, z0], [x1, y1, z0], [x0, y1, z0]], scale(side, 0.6), id);
+    }
+    function column(b, cx, cz, r, h, top, side, id) {
+      const n = 8, pt = k => [cx + r * Math.cos((k + 0.5) * Math.PI * 2 / n), cz + r * Math.sin((k + 0.5) * Math.PI * 2 / n)];
+      for (let k = 0; k < n; k++) {
+        const [ax, az] = pt(k), [bx, bz] = pt(k + 1), f = 0.62 + 0.38 * Math.max(0, Math.sin((k + 1) * Math.PI * 2 / n));
+        quad(b, [[ax, 0, az], [bx, 0, bz], [bx, h, bz], [ax, h, az]], scale(side, f), id);
+        quad(b, [[cx, h, cz], [ax, h, az], [bx, h, bz], [cx, h, cz]], top, id);
       }
-      return texCache.get(key);
     }
-    function glyphCanvas(id) { const c = document.createElement('canvas'); c.width = c.height = 32; Pictograms.draw(c.getContext('2d'), id, 0, 0, 32); return c; }
-    function numberCanvas(n) {
-      const c = document.createElement('canvas'); c.width = c.height = 64;
-      const x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.font = 'bold 40px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-      x.lineWidth = 6; x.strokeStyle = '#000000'; x.strokeText(String(n), 32, 34); x.fillText(String(n), 32, 34);
-      return c;
-    }
-
-    // Disposes of everything built for the last frame. Geometry and materials are shared
-    // and cached; only meshes are rebuilt.
-    const geo = {}, mat = {};
-    function g(key, make) { return geo[key] || (geo[key] = make()); }
-    function m(key, make) { return mat[key] || (mat[key] = make()); }
-
-    function box(w, h, d) { return g(`box${w},${h},${d}`, () => new T.BoxGeometry(w, h, d)); }
-    function lambert(hex, opts) { return m(`l${hex}${opts ? JSON.stringify(opts) : ''}`, () => new T.MeshLambertMaterial(Object.assign({ color: col(hex) }, opts || {}))); }
-    function basic(hex, opts) { return m(`b${hex}${opts ? JSON.stringify(opts) : ''}`, () => new T.MeshBasicMaterial(Object.assign({ color: col(hex) }, opts || {}))); }
-
-    function addBox(x, y, w, h, d, material, lift) {
-      const mesh = new T.Mesh(box(w, h, d), material);
-      mesh.position.set(x + 0.5, (lift || 0) + h / 2, y + 0.5);
-      layers.add(mesh);
-      return mesh;
-    }
-    function addFlat(x, y, size, material, lift) {
-      const mesh = new T.Mesh(g(`plane${size}`, () => { const p = new T.PlaneGeometry(size, size); p.rotateX(-Math.PI / 2); return p; }), material);
-      mesh.position.set(x + 0.5, lift || 0.002, y + 0.5);
-      layers.add(mesh);
-      return mesh;
-    }
-    function addSprite(texKey, make, x, y, size, opts) {
-      const sm = m(`s${texKey}${opts && opts.xray ? 'x' : ''}`, () => new T.SpriteMaterial({ map: texture(texKey, make), transparent: true,
-        depthTest: !(opts && opts.xray), depthWrite: !(opts && opts.xray), opacity: opts && opts.xray ? 0.35 : 1 }));
-      const s = new T.Sprite(sm);
-      s.center.set(0.5, 0);
-      s.scale.set(size, size, 1);
-      s.position.set(x + size / 2, (opts && opts.lift) || 0.02, y + size / 2);
-      if (opts && opts.xray) s.renderOrder = 10;
-      layers.add(s);
-      return s;
+    function upload(m, b) {
+      const g = new T.BufferGeometry();
+      g.setAttribute('position', new T.Float32BufferAttribute(b.pos, 3));
+      g.setAttribute('color', new T.Float32BufferAttribute(b.col, 3));
+      g.userData.ids = new T.Float32BufferAttribute(b.ids, 3);
+      m.geometry.dispose(); m.geometry = g;
     }
 
-    // ---------------------------------------------------------------- frame
-    function render(vm) {
-      const P = ART.palettes.dept[vm.dept] || ART.palettes.dept.T0;
-      while (layers.children.length) layers.remove(layers.children[0]);
-      const r = host.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
-      renderer.setPixelRatio(dpr);
-      renderer.setSize(r.width, r.height, false);
-      scene.background = col('#0d0c10');
-      // Camera: orthographic, ELEV above the floor, from the south-east, centred on the target.
-      const halfW = r.width / tile / 2, halfH = r.height / tile / 2;
-      Object.assign(camera, { left: -halfW, right: halfW, top: halfH, bottom: -halfH });
-      camera.updateProjectionMatrix();
-      const el = ELEV * Math.PI / 180, az = AZ * Math.PI / 180, dist = 60;
-      const tx = vm.camera.x + 0.5, tz = vm.camera.y + 0.5;
-      camera.position.set(tx + Math.sin(az) * Math.cos(el) * dist, Math.sin(el) * dist, tz + Math.cos(az) * Math.cos(el) * dist);
-      camera.lookAt(tx, 0, tz);
-      camera.updateMatrixWorld();
-
-      // Cutaway: a wall just in front of a visible actor or of you (camera side) is a stub.
-      const cut = new Set();
-      for (const a of vm.actors) { const n = a.size || 1; for (let dx = 0; dx <= n; dx++) for (let dy = 0; dy <= n; dy++) cut.add((a.y + dy) * vm.w + a.x + dx); }
-      const dim = (hex, f) => { const c = col(hex); c.multiplyScalar(f); return '#' + c.getHexString(); };
+    // Ids: 0 is nothing; floor tiles are 1 + index; anything standing on a tile is
+    // 1 + w·h + index. Actors and marks follow from 1 + 2·w·h (idBuffer()).
+    function build(vm) {
+      const P = ART.palettes.dept[vm.dept] || ART.palettes.dept.T0, n = vm.w * vm.h;
+      const fl = batch(), so = batch(), gl_ = batch();
       for (let y = 0; y < vm.h; y++) for (let x = 0; x < vm.w; x++) {
         const v = vm.vis[y * vm.w + x];
         if (!v) continue;
-        const k = v === 1 ? 0.45 : 1, ch = vm.tiles[y][x];
-        const floor = dim(((x + y) & 1) ? P.floor2 : P.floor, k);
-        if (ch === '#' || ch === '+' || ch === 'S') {
-          const stub = cut.has(y * vm.w + x);
-          const h = stub ? 0.18 : WALL_H;
-          const body = ch === '#' ? dim(P.wall, k) : dim(ch === 'S' ? '#5c5560' : '#7a5232', k);
-          addBox(x, y, 1, h, 1, lambert(body));
-          addBox(x, y, 1, 0.04, 1, lambert(dim(P.wallTop, k)), h);
+        const k = v === 1 ? 0.45 : 1, ch = vm.tiles[y][x], i = y * vm.w + x, fid = 1 + i, oid = 1 + n + i;
+        const C = hex => scale(lin(hex), k);
+        const top = C(P.wallTop), face = C(P.wall);
+        if (ch === '#') { block(so, x, y, x + 1, y + 1, 0, H.wall, top, face, oid); continue; }
+        if (ch === '+' || ch === 'S') {
+          block(so, x, y, x + 1, y + 1, 0, H.wall, top, top, oid);
+          block(so, x + 0.12, y + 0.98, x + 0.88, y + 1.0, 0.0, H.wall - 0.1, C(ch === 'S' ? '#5c5560' : '#7a5232'), C(ch === 'S' ? '#5c5560' : '#7a5232'), oid);
           continue;
         }
-        addFlat(x, y, 1, lambert(ch === '~' || ch === 'w' ? dim('#2b4f66', k) : floor));
+        const floor = C(ch === '~' || ch === 'w' ? '#2b4f66' : ((x + y) & 1) ? P.floor2 : P.floor);
+        quad(fl, [[x, 0, y], [x + 1, 0, y], [x + 1, 0, y + 1], [x, 0, y + 1]], floor, fid);
+        const wood = C('#6b4a2e');
         switch (ch) {
-          case 'v': addBox(x + 0.06, y + 0.06, 0.88, 0.25, 0.88, lambert(dim(P.floor, 0.6 * k)));
-            addBox(x + 0.06, y + 0.06, 0.88, 0.6, 0.88, lambert(P.glass, { transparent: true, opacity: 0.4 }), 0.25); break;
-          case 'k': addBox(x + 0.06, y + 0.06, 0.88, 0.25, 0.88, lambert(dim(P.floor, 0.6 * k))); break;
-          case 'p': addBox(x + 0.15, y + 0.15, 0.7, 0.5, 0.7, lambert(dim(P['3'], k))); break;
-          case 'o': { const c = new T.Mesh(g('col', () => new T.CylinderGeometry(0.3, 0.32, WALL_H, 12)), lambert(dim(P.wall, k)));
-            c.position.set(x + 0.5, WALL_H / 2, y + 0.5); layers.add(c); break; }
-          case 'b': addBox(x + 0.1, y + 0.3, 0.8, 0.3, 0.4, lambert(dim('#6b4a2e', k))); break;
-          case 'l': addBox(x + 0.25, y + 0.25, 0.5, 0.7, 0.5, lambert(dim('#8a6440', k))); break;
-          case 'f': case 'c': addBox(x + 0.08, y + 0.08, 0.84, 0.45, 0.84, lambert(dim('#6b4a2e', k))); break;
-          case 'H': case '|': addBox(x, y, 1, 1.1, 1, lambert(dim(ch === 'H' ? '#4b4038' : P.wall, k))); break;
-          case '=': addBox(x, y + 0.45, 1, 0.08, 0.1, lambert('#9a2a3a'), 0.4); break;
+          case 'v': block(so, x + 0.06, y + 0.06, x + 0.94, y + 0.94, 0, H.caseBase, C(P.floor2), scale(C(P.floor), 0.6), oid);
+            block(gl_, x + 0.08, y + 0.08, x + 0.92, y + 0.92, H.caseBase, H.caseTop, C(P.glass), C(P.glass), oid); break;
+          case 'k': block(so, x + 0.06, y + 0.06, x + 0.94, y + 0.94, 0, H.caseBase, C(P.floor2), scale(C(P.floor), 0.6), oid); break;
+          case 'p': block(so, x + 0.15, y + 0.15, x + 0.85, y + 0.85, 0, H.plinth, C(P['3'] || '#a89ead'), scale(C(P['3'] || '#a89ead'), 0.8), oid); break;
+          case 'o': column(so, x + 0.5, y + 0.5, 0.32, H.column, top, face, oid); break;
+          case 'b': block(so, x + 0.1, y + 0.3, x + 0.9, y + 0.7, 0, H.bench, C('#8a6440'), wood, oid); break;
+          case 'l': block(so, x + 0.25, y + 0.25, x + 0.75, y + 0.75, 0, H.lectern, C('#8a6440'), C('#5a3e26'), oid); break;
+          case 'f': case 'c': block(so, x + 0.08, y + 0.08, x + 0.92, y + 0.92, 0, H.furniture, C('#8a6440'), wood, oid); break;
+          case 'H': block(so, x, y, x + 1, y + 1, 0, H.partition, C('#5e5048'), C('#4b4038'), oid); break;
+          case '|': block(so, x + 0.3, y, x + 0.7, y + 1, 0, H.partition, top, face, oid); break;
+          case '~': block(so, x, y + 0.45, x + 1, y + 0.55, 0, H.rail, C('#b9a57a'), C('#8c7a52'), oid); break;
+          case '=': block(so, x + 0.45, y + 0.45, x + 0.55, y + 0.55, 0, H.rope, C('#c9b98a'), C('#8c7a52'), oid);
+            block(so, x, y + 0.48, x + 1, y + 0.52, H.rope - 0.08, H.rope - 0.02, C('#9a2a3a'), C('#9a2a3a'), oid); break;
         }
       }
-      // Your ring and the path preview, flat on the floor.
-      for (let i = 0; i < vm.w * vm.h; i++) if (vm.ring[i]) { const x = i % vm.w; addFlat(x, (i - x) / vm.w, 0.94, basic(ART.palettes.semantic.player, { transparent: true, opacity: 0.16, depthWrite: false }), 0.006); }
-      if (vm.path) for (const [x, y] of vm.path) addFlat(x, y, 0.18, basic(ART.palettes.semantic.player), 0.01);
-      // Telegraphs: the exact damage you would take, in the hazard colour.
-      for (const mk of vm.marks) {
-        if (mk.kind !== 'telegraph') continue;
-        addFlat(mk.x, mk.y, 0.96, basic(ART.palettes.semantic.hazard, { transparent: true, opacity: 0.55, depthWrite: false }), 0.012);
-        addSprite('n' + mk.dmg, () => numberCanvas(mk.dmg), mk.x + 0.2, mk.y + 0.2, 0.6, { lift: 0.05 });
-      }
-      // Actors: billboards, with an x-ray copy that shows through anything in front.
-      for (const a of vm.actors) {
-        const n = a.size || 1, key = 'a' + a.sprite + '/' + vm.dept;
-        const make = () => Sprites.board(a.sprite, vm.dept) || glyphCanvas('special');
-        addSprite(key, make, a.x, a.y, n);
-        addSprite(key, make, a.x, a.y, n, { xray: true });
-        addFlat(a.x + (n - 1) / 2, a.y + (n - 1) / 2, 0.6, basic(a.hostile ? ART.palettes.semantic.hostile : ART.palettes.semantic.player), 0.015);
-        if (a.hostile) {
-          const id = a.mode === 'dormant' ? (a.pips ? 'pip' : 'asleep') : a.mode === 'hunting' ? 'hunting' : a.mode === 'returning' ? 'returning' : 'alert';
-          const s = addSprite('g' + id, () => glyphCanvas(id), a.x + n / 2 - 0.2, a.y + n / 2 - 0.2, 0.4, { lift: n + 0.15 });
-          if (a.mode === 'dormant' && a.pips) s.scale.set(0.25 * a.pips + 0.15, 0.25, 1);
-        }
-        if (vm.selection === a.uid) addFlat(a.x + (n - 1) / 2, a.y + (n - 1) / 2, n * 1.05, basic(ART.palettes.semantic.readable, { transparent: true, opacity: 0.35, depthWrite: false }), 0.008);
-      }
-      if (vm.selectedTile) addFlat(vm.selectedTile.x, vm.selectedTile.y, 1, basic(ART.palettes.semantic.readable, { transparent: true, opacity: 0.35, depthWrite: false }), 0.008);
-      renderer.render(scene, camera);
+      upload(meshes.floor, fl); upload(meshes.solid, so); upload(meshes.glass, gl_);
     }
 
-    // ---------------------------------------------------------------- picking
-    function ndc(cx, cy) { const r = canvas.getBoundingClientRect(); return new T.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1); }
+    // ------------------------------------------------------------ camera and frame
+    function place(vm, r) {
+      const halfW = r.width / s / 2, halfH = r.height / s / 2;
+      Object.assign(camera, { left: -halfW, right: halfW, top: halfH, bottom: -halfH });
+      camera.updateProjectionMatrix();
+      const tx = vm.camera.x + 0.5, tz = vm.camera.y + 0.5, dist = 60, az = AZ * Math.PI / 180;
+      camera.position.set(tx + Math.sin(az) * COS * dist, SIN * dist, tz + Math.cos(az) * COS * dist);
+      camera.up.set(0, 1, 0);
+      camera.lookAt(tx, 0, tz);
+      camera.updateMatrixWorld();
+      // From due south a tile is an s × s·sin(60°) rectangle; its centre on the board:
+      centre = { x: r.width / 2, y: r.height / 2, tx, tz };
+    }
+    // A floor point (wx, wz) in board CSS pixels.
+    const screen = (wx, wz) => ({ x: centre.x + (wx - centre.tx) * s, y: centre.y + (wz - centre.tz) * s * SIN });
+    function rectOf(x, y) { const a = screen(x, y); return { x: a.x, y: a.y, w: s, h: s * SIN }; }
+    // An actor's billboard: s·n square, standing on the south edge of its footprint.
+    function actorRect(a) { const n = a.size || 1, f = screen(a.x + n / 2, a.y + n); return { x: f.x - n * s / 2, y: f.y - n * s, w: n * s, h: n * s }; }
+
+    function resize() {
+      const r = host.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+      renderer.setPixelRatio(dpr);
+      renderer.setSize(r.width, r.height, false);
+      const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+      if (over.width !== w || over.height !== h) { over.width = w; over.height = h; }
+      octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      octx.imageSmoothingEnabled = false;
+      size = { width: r.width, height: r.height };
+      return r;
+    }
+
+    function render(vm) {
+      if (flat) { flat.draw(vm); return; }
+      const r = resize();
+      scene.background = new T.Color('#0d0c10');
+      build(vm); place(vm, r);
+      renderer.render(scene, camera);
+      overlay(vm);
+    }
+
+    // The 2D layer: ring, path and telegraph fills on the floor; actors back to front;
+    // then every actor's marks, the selection and the telegraph numbers on top.
+    function overlay(vm) {
+      octx.clearRect(0, 0, size.width, size.height);
+      drawn = [];
+      const keep = d => { const q = d.rect; if (q.x + q.w > 0 && q.y + q.h > 0 && q.x < size.width && q.y < size.height) drawn.push(d); };
+      for (let y = 0; y < vm.h; y++) for (let x = 0; x < vm.w; x++) if (vm.vis[y * vm.w + x]) keep({ kind: 'tile', id: x + ',' + y, x, y, rect: rectOf(x, y) });
+      Marks.ring(octx, vm, rectOf, 0, 0, vm.w - 1, vm.h - 1);
+      Marks.path(octx, vm, rectOf);
+      const tele = Marks.telegraphs(octx, vm, rectOf);
+      const placed = Marks.order(vm.actors).map(a => ({ a, q: actorRect(a) }));
+      for (const p of placed) keep(Marks.actor(octx, p.a, vm.dept, p.q.x, p.q.y, p.q.w));
+      for (const p of placed) Marks.actorMarks(octx, vm, p.a, p.q.x, p.q.y, p.q.w, s).forEach(keep);
+      Marks.selectedTile(octx, vm, rectOf).forEach(keep);
+      Marks.edges(octx, placed.map(p => ({ a: p.a, px: p.q.x, py: p.q.y, sz: p.q.w })), size.width, size.height).forEach(keep);
+      Marks.telegraphNumbers(octx, tele);
+      tele.forEach(keep);
+    }
+
+    // ------------------------------------------------------------ picking
+    // The nearest actor whose billboard covers the point, else the floor tile under it.
     function pick(cx, cy) {
-      const ray = new T.Raycaster();
-      ray.setFromCamera(ndc(cx, cy), camera);
-      // An actor's billboard first, so tapping its head picks its tile, not the floor behind.
-      const sprites = layers.children.filter(o => o.isSprite && o.material.depthTest && o.scale.x >= 1);
-      const hit = ray.intersectObjects(sprites, false)[0];
-      if (hit) { const o = hit.object; return { x: Math.floor(o.position.x - o.scale.x / 2 + 0.001), y: Math.floor(o.position.z - o.scale.x / 2 + 0.001) }; }
-      const p = new T.Vector3();
-      if (!ray.ray.intersectPlane(new T.Plane(new T.Vector3(0, 1, 0), 0), p)) return null;
-      const x = Math.floor(p.x), y = Math.floor(p.z);
+      const b = canvas.getBoundingClientRect(), px = cx - b.left, py = cy - b.top;
+      const hits = Marks.order(lastVm.actors).reverse();
+      for (const a of hits) { const q = actorRect(a); if (px >= q.x && py >= q.y && px < q.x + q.w && py < q.y + q.h) return { x: a.x, y: a.y }; }
+      const x = Math.floor(centre.tx + (px - centre.x) / s), y = Math.floor(centre.tz + (py - centre.y) / (s * SIN));
       if (x < 0 || y < 0 || x >= lastVm.w || y >= lastVm.h) return null;
       return { x, y };
     }
     function tileRect(x, y) {
-      const r = canvas.getBoundingClientRect(), v = new T.Vector3(x + 0.5, 0, y + 0.5).project(camera);
-      const sx = r.left + (v.x + 1) / 2 * r.width, sy = r.top + (1 - v.y) / 2 * r.height;
-      return { x: sx - tile / 2, y: sy - tile / 2, w: tile, h: tile };
+      const b = canvas.getBoundingClientRect(), q = rectOf(x, y);
+      return { centre: { x: b.left + q.x + q.w / 2, y: b.top + q.y + q.h / 2 }, rect: { x: b.left + q.x, y: b.top + q.y, w: q.w, h: q.h }, tapRadius: Math.min(q.w, q.h) / 2 };
+    }
+    function inspect() {
+      const b = canvas.getBoundingClientRect();
+      return drawn.map(d => ({ kind: d.kind, id: d.id, x: d.x, y: d.y, rect: { x: b.left + d.rect.x, y: b.top + d.rect.y, w: d.rect.w, h: d.rect.h } }));
     }
 
+    // ------------------------------------------------------------ the id buffer
+    // One id per CSS pixel of the board, for the occlusion check (BUILD.md §6.3). The scene
+    // is drawn again with its ids as flat colours; glass is left out, being see-through.
+    // With { floorOnly: true } only the floor is drawn; otherwise the actors and marks of
+    // the 2D layer are painted on top from inspect(), actors by their sprites' opaque pixels.
+    function idBuffer(opts) {
+      opts = opts || {};
+      const vm = lastVm, n = vm.w * vm.h, w = Math.round(size.width), h = Math.round(size.height);
+      const rt = new T.WebGLRenderTarget(w, h);
+      const swap = [], basic = new T.MeshBasicMaterial({ vertexColors: true, side: T.DoubleSide });
+      for (const k of ['floor', 'solid', 'glass']) {
+        const m = meshes[k], g = m.geometry;
+        swap.push([m, m.material, g.getAttribute('color'), m.visible]);
+        if (g.userData.ids) g.setAttribute('color', g.userData.ids);
+        m.material = basic;
+        m.visible = k === 'floor' || (k === 'solid' && !opts.floorOnly);
+      }
+      // The target has its own size, one texel per CSS pixel, whatever the pixel ratio.
+      const bg = scene.background;
+      scene.background = null; renderer.setClearColor(0x000000, 1);
+      renderer.setRenderTarget(rt); renderer.render(scene, camera);
+      const px = new Uint8Array(w * h * 4);
+      renderer.readRenderTargetPixels(rt, 0, 0, w, h, px);
+      renderer.setRenderTarget(null);
+      scene.background = bg;
+      for (const [m, mat, col, vis] of swap) { m.material = mat; if (col) m.geometry.setAttribute('color', col); m.visible = vis; }
+      rt.dispose(); basic.dispose();
+      const ids = new Uint32Array(w * h), legend = {};
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const o = ((h - 1 - y) * w + x) * 4;
+        ids[y * w + x] = (px[o] << 16) | (px[o + 1] << 8) | px[o + 2];
+      }
+      for (let i = 0; i < n; i++) {
+        const x = i % vm.w, y = (i - x) / vm.w;
+        legend[1 + i] = { kind: 'floor', x, y };
+        legend[1 + n + i] = { kind: 'solid', x, y };
+      }
+      if (!opts.floorOnly) {
+        let next = 1 + 2 * n;
+        for (const d of drawn) {
+          if (d.kind === 'tile') continue;
+          const id = next++;
+          legend[id] = { kind: d.kind, id: d.id, x: d.x, y: d.y };
+          const a = d.kind === 'actor' ? vm.actors.find(q => q.uid === d.id) : null;
+          const mask = a ? spriteMask(a.sprite, vm.dept) : null;
+          const x0 = Math.max(0, Math.floor(d.rect.x)), y0 = Math.max(0, Math.floor(d.rect.y));
+          const x1 = Math.min(w, Math.ceil(d.rect.x + d.rect.w)), y1 = Math.min(h, Math.ceil(d.rect.y + d.rect.h));
+          for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+            if (mask) {
+              const u = Math.floor((x + 0.5 - d.rect.x) / d.rect.w * mask.n), v = Math.floor((y + 0.5 - d.rect.y) / d.rect.h * mask.n);
+              if (u < 0 || v < 0 || u >= mask.n || v >= mask.n || !mask.on[v * mask.n + u]) continue;
+            }
+            ids[y * w + x] = id;
+          }
+        }
+      }
+      return { w, h, ids, legend };
+    }
+    const masks = new Map();
+    function spriteMask(sprite, dept) {
+      const key = sprite + '/' + dept;
+      if (!masks.has(key)) {
+        const c = Sprites.board(sprite, dept);
+        if (!c) return null;
+        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, on = new Uint8Array(c.width * c.height);
+        for (let i = 0; i < on.length; i++) on[i] = d[i * 4 + 3] > 127 ? 1 : 0;
+        masks.set(key, { n: c.width, on });
+      }
+      return masks.get(key);
+    }
+
+    const api = {
+      id: 'board3d', ready, zooms: ZOOM,
+      get zoom() { return zoom; },
+      draw(vm) { lastVm = vm; if (renderer) render(vm); },
+      pick(cx, cy) { if (flat) return flat.pick(cx, cy); return renderer && lastVm ? pick(cx, cy) : null; },
+      tileRect(x, y) { if (flat) return flat.tileRect(x, y); return renderer ? tileRect(x, y) : null; },
+      inspect() { if (flat) return flat.inspect(); return renderer ? inspect() : []; },
+      idBuffer() { return renderer && !flat && lastVm ? idBuffer(arguments[0]) : null; },
+      setZoom(step) { zoom = Math.max(0, Math.min(ZOOM.length - 1, step)); s = ZOOM[zoom]; if (flat) flat.setZoom(zoom); },
+      standIn: () => !!flat,
+      stats: () => (renderer ? { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles } : null),
+      // Gives the WebGL context back at once, so switching views back and forth never
+      // runs into the browser's limit on live contexts.
+      dispose() {
+        disposed = true;
+        canvas.removeEventListener('webglcontextlost', lost);
+        canvas.removeEventListener('webglcontextrestored', restored);
+        if (flat) flat.dispose();
+        if (renderer) { for (const m of Object.values(meshes)) { m.geometry.dispose(); m.material.dispose(); } renderer.dispose(); }
+        const ext = gl.getExtension('WEBGL_lose_context');
+        if (ext) ext.loseContext();
+        canvas.remove(); over.remove();
+      },
+    };
     return api;
   }
 
-  Views.register('board3d', factory);
-  return { ELEV, AZ, WALL_H, ZOOM };
+  Views.register('board3d', '3D', factory);
+  return { ELEV, AZ, ZOOM, H };
 })();

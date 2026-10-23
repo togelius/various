@@ -34,6 +34,18 @@ module.exports = ({ test, assert, root, fs, path }) => {
     assert.match(r.stdout, /TICKS_PER_TURN/);
   });
 
+  test('lint-registry passes, and fails on an unledgered file or a ledger entry with no file', () => {
+    assert.equal(run('tools/lint-registry.js', []).status, 0);
+    const led = JSON.parse(fs.readFileSync(path.join(root, 'art/ledger.json'), 'utf8'));
+    const f = path.join(tmp, 'ledger.json');
+    fs.writeFileSync(f, JSON.stringify(Object.assign({}, led, { entries: led.entries.filter(e => e.file !== 'art/sprites/wader.txt') })));
+    let r = run('tools/lint-registry.js', ['--ledger', f]);
+    assert.equal(r.status, 1); assert.match(r.stdout, /art\/sprites\/wader\.txt has no entry/);
+    fs.writeFileSync(f, JSON.stringify(Object.assign({}, led, { entries: led.entries.concat([{ file: 'art/sprites/ghost.txt', source: 'code', author: 'x', licence: 'MIT' }]) })));
+    r = run('tools/lint-registry.js', ['--ledger', f]);
+    assert.equal(r.status, 1); assert.match(r.stdout, /ghost\.txt is listed but not on disk/);
+  });
+
   test('index.html lists exactly the core and content files on disk', () => {
     const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
     const listed = new Set([...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map(m => m[1]).filter(f => f.startsWith('js/core/') || f.startsWith('content/')));

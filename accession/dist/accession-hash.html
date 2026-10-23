@@ -611,13 +611,27 @@ const Combat = (() => {
   const surprised = (att, def) => def.uid !== 'you' && def.mode !== 'hunting';
 
   // Resolve one attack. Returns the events; the caller has already paid the cost.
+  // Every roll an attacker could make against a defender, after Padding (BUILD.md §8.1):
+  // how many there are, their sum, and the least and most. The odds readout uses these.
+  function netRolls(att, def) {
+    let n = 0, sum = 0, min = 0, max = 0;
+    for (let r = att.dmin; r <= att.dmax; r++) {
+      const d = Math.max(N.DMG_MIN_ON_HIT, r - def.pad);
+      if (!n || d < min) min = d;
+      if (d > max) max = d;
+      n++; sum += d;
+    }
+    return { n, sum, min, max };
+  }
+  // A surprise blow's raw damage: the maximum, ×1.5 rounded down with a Light weapon.
+  function surpriseRaw(att) { return att.weaponForm === 'light' ? Int.pct(att.dmax, N.SURPRISE_LIGHT_PCT) : att.dmax; }
+
   function attack(state, att, def, ev) {
     const rng = Rng.stream(state, 'combat/' + att.uid);
     const chance = hitChance(att, def);
     const cause = { k: 'attack', by: att.uid, at: def.uid, chance };
     if (surprised(att, def)) {
-      let dmg = att.dmax;
-      if (att.weaponForm === 'light') dmg = Int.pct(dmg, N.SURPRISE_LIGHT_PCT);
+      const dmg = surpriseRaw(att);
       cause.surprise = 1;
       return hurt(state, def, net(dmg, def.pad, cause), Object.assign(cause, { raw: dmg, pad: def.pad }), ev);
     }
@@ -652,7 +666,7 @@ const Combat = (() => {
 
   const copy = c => JSON.parse(JSON.stringify(c));
 
-  return { hitChance, surprised, attack, hurt };
+  return { hitChance, surprised, netRolls, surpriseRaw, attack, hurt };
 })();
 
 </script>
@@ -2081,7 +2095,7 @@ const Registry = (() => {
   // Special triggers: at most one per species (BUILD.md §8.2).
   const TRIGGERS = {
     axis: { icon: 'axis', clause: 'also wakes when you stand in its row or column within 8 tiles, in sight' },
-    period: { icon: 'period', clause: 'wakes on the bell to perform, then sleeps again' },
+    period: { icon: 'period', clause: 'wakes on the chime to perform, then sleeps again' },
     tether: { icon: 'tether', clause: 'wakes at once when you come within 2 tiles of what it guards' },
     touch_case: { icon: 'touch_case', clause: 'wakes at once when its case is opened, bashed or touched' },
     ally_hit: { icon: 'ally_hit', clause: 'wakes at once when one of its group within 5 tiles is struck' },
@@ -2104,7 +2118,7 @@ const Registry = (() => {
     night_watchman: { clause: 'Comes for you wherever you are; if defeated, it returns 20 turns later.' },
     unobserved_mover: { clause: 'Moves two tiles a turn, but only while you cannot see it; strikes hard from beside you.' },
     patrol_guard: { clause: 'Walks a fixed round. On seeing you it raises the alarm for one turn, then gives chase; after 20 turns without you it goes back to its round.' },
-    demonstrator: { clause: 'Keeps to its track and never chases. On the bell it performs the demonstration on its label.' },
+    demonstrator: { clause: 'Keeps to its track and never chases. On the chime it performs the demonstration on its label.' },
     conservator_healer: { clause: 'Stays behind its allies and spends a turn, shown, restoring one; backs away when you come close.' },
     completing_guardian: { clause: 'Grows one limb for every two galleries you have walked, up to four; each limb is a special. Leaving its room heals it and drops one limb.' },
     mp_ensemble: { clause: 'Several pieces share one health pool. When a piece falls, the others take on its special.' },
@@ -2124,7 +2138,7 @@ const Registry = (() => {
     unobserved_motion: { sentence: 'The animals move only when you cannot see them.' },
     alarm_network: { sentence: 'The waders raise the alarm when they see you; then the whole court is awake.' },
     copies_weaken: { sentence: 'When an original is broken, its spares lose heart.' },
-    hourly_demonstration: { sentence: 'On the bell, the stations exchange signals down the length of the gallery.' },
+    hourly_demonstration: { sentence: 'On the chime, the stations exchange signals down the length of the gallery.' },
     weather_cases: { sentence: 'Some cases hold weather. Break one, and the weather gets out.' },
   };
 
@@ -2201,18 +2215,24 @@ const Labels = (() => {
     return [a.mode === 'hunting' ? 'hunting' : a.mode === 'returning' ? 'returning' : 'alert'];
   }
 
-  // Brogue's sentence, computed from the live numbers (BUILD.md §8.1).
+  // The odds readout (BUILD.md §8.1), by exact enumeration of the rolls, all integer.
+  // "Typically" is the mean net hit as a share of your current health, rounded half up.
+  const halfUp = (num, den) => Int.idiv(2 * num + den, 2 * den);
+  const hits = n => n + (n === 1 ? ' hit' : ' hits');
   function odds(state, a) {
-    const you = state.actors[0];
-    const toYou = Combat.hitChance(a, you), toIt = Combat.hitChance(you, a);
-    const mean = Int.idiv(a.dmin + a.dmax, 2), worst = Math.max(1, a.dmax - you.pad);
-    const typical = Math.max(1, mean - you.pad), yourMean = Math.max(1, Int.idiv(you.dmin + you.dmax, 2) - a.pad);
+    const you = state.actors[0], hp = Math.max(1, you.hp);
+    const theirs = Combat.netRolls(a, you), mine = Combat.netRolls(you, a);
     const lines = [
-      `It has a ${toYou}% chance to hit you, typically hits for ${Math.max(1, Int.idiv(100 * typical, Math.max(1, you.hp)))}% of your current health, and at worst could defeat you in ${Int.ceilDiv(you.hp, worst)} hits.`,
-      `You have a ${toIt}% chance to hit it, and typically need ${Int.ceilDiv(a.hp, yourMean)} hits to destroy it.`,
+      `It has a ${Combat.hitChance(a, you)}% chance to hit you, typically hits for ${halfUp(100 * theirs.sum, theirs.n * hp)}% of your current health, and at worst could defeat you in ${hits(Int.ceilDiv(hp, theirs.max))}.`,
+      `You have a ${Combat.hitChance(you, a)}% chance to hit it, and typically need ${hits(Int.ceilDiv(a.hp * mine.n, mine.sum))} to destroy it.`,
     ];
-    if (Combat.surprised(you, a)) lines.push(`A surprise attack now would deal ${Math.max(N.DMG_MIN_ON_HIT, you.dmax - a.pad)}.`);
+    if (Combat.surprised(you, a)) lines.push(`A surprise attack now would hit for certain, for ${Math.max(N.DMG_MIN_ON_HIT, Combat.surpriseRaw(you) - a.pad)}.`);
     return lines;
+  }
+
+  function attackText(you, a) {
+    const r = Combat.netRolls(you, a);
+    return `Attack: ${Combat.hitChance(you, a)}%, ${r.min === r.max ? r.min : r.min + '–' + r.max} damage`;
   }
 
   function of(state, uid) {
@@ -2232,7 +2252,7 @@ const Labels = (() => {
       pictos, behaviour: sp ? Registry.behaviour(sp) : '', odds: odds(state, a),
       paragraph: near && sp ? sp.paragraph : '', far: near ? '' : 'Come closer to read the label.',
       closeup: sp ? { sprite: sp.sprite, dept: state.dept.acc } : null,
-      actions: adjacent ? [{ id: 'attack', text: `Attack: ${Combat.hitChance(you, a)}%, ${Math.max(1, you.dmin - a.pad)}–${Math.max(1, you.dmax - a.pad)} damage` }] : [],
+      actions: adjacent ? [{ id: 'attack', text: attackText(you, a) }] : [],
     };
   }
 
@@ -2469,7 +2489,7 @@ Packs.add({
 Packs.add({
   acc: 'M11', number: 'M.11', title: 'Long Galleries, Considered as Telegraph Lines', family: 'Machines', palette: 'M11',
   programme: 'enfilade', claim: { primary: 'artillery', secondary: 'hazard' },
-  houseRule: 'The line is cleared on the bell.',
+  houseRule: 'The line is cleared on the chime.',
   blurb: 'The building was once too long for a voice to cross, so its longest galleries were fitted as signalling lines.',
   modules: [{ id: 'hourly_demonstration' }, { id: 'weather_cases' }],
   species: [
@@ -2480,7 +2500,7 @@ Packs.add({
     { id: 'M11.2', sprite: 'semaphore', archetype: 'demonstrator', role: 'controller', modifiers: ['clockwork'], trigger: 'period',
       name: 'Semaphore Station, Two-Armed',
       tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Painted oak arms; brass, steel; escapement; timetable card in a frame', dims: 'H. 240 cm', credit: 'Transferred from the Line Superintendent’s Office' },
-      paragraph: 'The station’s timetable is pinned to its own frame, in a clerk’s hand, and it is still followed: the arms are raised on the bell and swept down the line, and at no other time. Between bells the station travels its short rail at the side of the gallery and waits. The logbooks record eleven injuries to linesmen who knew the timetable perfectly well and stood in the line anyway.' },
+      paragraph: 'The station’s timetable is pinned to its own frame, in a clerk’s hand, and it is still followed: the arms are raised on the chime and swept down the line, and at no other time. Between chimes the station travels its short rail at the side of the gallery and waits. The logbooks record eleven injuries to linesmen who knew the timetable perfectly well and stood in the line anyway.' },
     { id: 'M11.3', sprite: 'signal_lamp', archetype: 'kiter', role: 'artillery', modifiers: ['old_repair'], trigger: null,
       name: 'Signal Lamp on a Walking Tripod',
       tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Iron, oil reservoir, shutter of tinplate; right rear leg a later repair in pine', dims: 'H. 152 cm', credit: 'Transferred from the Line Superintendent’s Office' },

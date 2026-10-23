@@ -15,13 +15,27 @@ const Combat = (() => {
   const surprised = (att, def) => def.uid !== 'you' && def.mode !== 'hunting';
 
   // Resolve one attack. Returns the events; the caller has already paid the cost.
+  // Every roll an attacker could make against a defender, after Padding (BUILD.md §8.1):
+  // how many there are, their sum, and the least and most. The odds readout uses these.
+  function netRolls(att, def) {
+    let n = 0, sum = 0, min = 0, max = 0;
+    for (let r = att.dmin; r <= att.dmax; r++) {
+      const d = Math.max(N.DMG_MIN_ON_HIT, r - def.pad);
+      if (!n || d < min) min = d;
+      if (d > max) max = d;
+      n++; sum += d;
+    }
+    return { n, sum, min, max };
+  }
+  // A surprise blow's raw damage: the maximum, ×1.5 rounded down with a Light weapon.
+  function surpriseRaw(att) { return att.weaponForm === 'light' ? Int.pct(att.dmax, N.SURPRISE_LIGHT_PCT) : att.dmax; }
+
   function attack(state, att, def, ev) {
     const rng = Rng.stream(state, 'combat/' + att.uid);
     const chance = hitChance(att, def);
     const cause = { k: 'attack', by: att.uid, at: def.uid, chance };
     if (surprised(att, def)) {
-      let dmg = att.dmax;
-      if (att.weaponForm === 'light') dmg = Int.pct(dmg, N.SURPRISE_LIGHT_PCT);
+      const dmg = surpriseRaw(att);
       cause.surprise = 1;
       return hurt(state, def, net(dmg, def.pad, cause), Object.assign(cause, { raw: dmg, pad: def.pad }), ev);
     }
@@ -56,5 +70,5 @@ const Combat = (() => {
 
   const copy = c => JSON.parse(JSON.stringify(c));
 
-  return { hitChance, surprised, attack, hurt };
+  return { hitChance, surprised, netRolls, surpriseRaw, attack, hurt };
 })();

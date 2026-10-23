@@ -329,7 +329,7 @@ The design in [`DECISIONS.md`](DECISIONS.md) (Autosave) is the contract. The mec
 
 `tools/lint-registry.js` fails the build when:
 - there are more than ten universal systems;
-- an id is unknown or duplicated, or is referenced by no pack, scenario test or arena fixture;
+- an id is unknown or duplicated, or is referenced by no pack, scenario test or arena fixture (from M3, when scenario tests exist);
 - a pack uses an id not in the registry;
 - a Behaviour-line clause has no test;
 - a species has more than one special trigger;
@@ -479,7 +479,7 @@ renderer.tileRect(x, y)              → { centre, rect, tapRadius } in CSS pixe
 renderer.zooms, renderer.zoom        the view's zoom table, and the index in use
 renderer.setZoom(index)
 renderer.inspect()                   → [{ kind: 'tile' | 'actor' | 'mark', id, x, y, rect }] drawn in the last frame
-renderer.idBuffer()                  3D only: → { w, h, ids, legend } for the occlusion check
+renderer.idBuffer(opts)              3D only: → { w, h, ids, legend } for the occlusion check; { floorOnly: true } draws the floor alone
 renderer.dispose()
 ```
 
@@ -490,9 +490,9 @@ renderer.dispose()
 
 **Board3DView** (`board3d.js`, three.js):
 - **Camera:** orthographic, 60° above the floor, from the south, so north stays up as in top-down. Scale s is CSS pixels per tile edge, the same everywhere on screen; a tile shows as an s × 0.87s rectangle. Zoom table: s = 40 and s = 52, the second giving a 44-px disc inside each tile.
-- **Units and heights.** One tile edge is 1 unit. Walls, door frames and staff doors 1.5 (half the probe's 3-unit walls; at 60° that hid 1–2% of floor in the probe); columns 1.5; partitions 1.1; vitrine base 0.25 with glass up to 0.85; plinth 0.5; bench 0.3; lectern 0.7.
-- **Actors and overlays are never hidden.** Sprites (16×16 billboards, nearest-neighbour, 2×2 for a Centrepiece) are drawn after the scene, back to front, with depth testing off, and so are the overlays: telegraphs and their numbers, the hostile mark, pips and state glyphs, the selection, the ring and the path preview. Walls can hide floor, never a visible exhibit or a mark. There is no cutaway and no x-ray in the slice; the occlusion check (§6.3) says whether one is needed.
-- **Lighting:** flat ambient plus one directional light, with no shadows, so that no lighting effect implies a line-of-sight rule.
+- **Units and heights.** One tile edge is 1 unit. Walls, door frames, staff doors and columns 1.2; partitions and shelving 1.0; vitrine base 0.25 with glass up to 0.85; plinth 0.5; bench 0.3; lectern 0.7. From due south at 60°, a block of height h hides h ÷ tan 60° of the tile behind it. The probe's 1.5 hid 1–2% of the floor from the south-east, but from due south it would hide 87% of every room's back row and fail the occlusion check; 1.2 hides 69%.
+- **Actors and overlays are never hidden.** Sprites (16×16, nearest-neighbour, an s × s square standing on the south edge of the actor's tile, 2s × 2s for a Centrepiece) are drawn on a 2D layer above the WebGL scene, back to front, and so are the overlays: telegraphs and their numbers, the hostile mark, pips and state glyphs, the selection, the ring and the path preview. Both views draw these with the same code (`js/view/marks.js`), so they look the same. Walls can hide floor, never a visible exhibit or a mark. There is no cutaway and no x-ray in the slice; the occlusion check (§6.3) says whether one is needed.
+- **Lighting:** faces are shaded by direction (tops in the palette's top colour, south faces in its wall colour, the sides darker), a fixed light baked into the vertex colours, with no shadows, so that no lighting effect implies a line-of-sight rule.
 - **`pick`** returns the anchor tile of the nearest actor whose sprite covers the point; otherwise the floor tile where the ray meets the floor plane, ignoring walls; otherwise null.
 - **Budget.** Device pixel ratio capped at 2, antialiasing off, and it renders only on change.
 - **Context loss.** On `webglcontextlost` the board shows the top-down view at once; on `webglcontextrestored` the 3D view rebuilds from the last vm.
@@ -1186,7 +1186,7 @@ The support, swarm and ambusher rows and the Centrepiece's Acc, Eva and damage a
 - the reserved semantic colours (hostile, hazard, readable, item, player) never appear in a department palette, which a test checks.
 
 **Close-ups:**
-- every exhibit and Centrepiece has a 64×64 close-up (`art/closeups/*.txt`), shown in its label like a catalogue photograph;
+- every exhibit and Centrepiece has a 64×64 close-up (`art/closeups/*.txt`), shown in its label like a catalogue photograph. A close-up has a colour layer and a shade layer (lit, shadow, deep shadow). `tools/make-closeups.js` writes a first one from the board sprite (Scale2x to 64, lit from the upper left, with a cast shadow) and never overwrites, so each can be redrawn by hand;
 - Centrepieces occupy 2×2 tiles on the board.
 
 **Pictograms** are drawn in code.
@@ -1203,7 +1203,7 @@ The support, swarm and ambusher rows and the Centrepiece's Acc, Eva and damage a
 
 ### 9.3 The asset ledger
 
-`art/ledger.json` has one entry per file in `art/` and `vendor/`, with:
+`art/ledger.json` has one entry per file in `art/`, `vendor/` and `tools/vendor/`, with:
 - `file`, `kind`;
 - `source`: `hand`, `code`, `cc0`, `vendored` or `reference`;
 - `author` or `model` and `prompt`;

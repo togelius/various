@@ -1,3 +1,5 @@
 three 0.180.0
 esbuild 0.25.10
-sha256 dd4a8b301505b39a0cb782008b7700bc9a83571f12c23b580d05d8985248f382
+exports BufferGeometry,Color,DoubleSide,Float32BufferAttribute,Mesh,MeshBasicMaterial,OrthographicCamera,SRGBColorSpace,Scene,WebGLRenderTarget,WebGLRenderer
+bytes 482356
+sha256 1be2220d599739492251c61300c2b48e3404fb088ca0f196f17f47ad6ffd1f36

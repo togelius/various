@@ -1,5 +1,7 @@
 // ACCESSION — input: one button and optional keys become intents (BUILD.md §7.1). A tap
-// is resolved to a tile by the active renderer; main.js decides what the tap means.
+// is resolved to a tile by the active renderer; main.js decides what the tap means. Keys:
+// arrows, vi-keys or numpad move; . waits; x examines; r reads; Enter confirms; i, m and
+// 1–6 are the bag, the floor plan and the quickslots.
 'use strict';
 const Input = (() => {
   const KEYS = { ArrowUp: 0, ArrowRight: 2, ArrowDown: 4, ArrowLeft: 6, k: 0, l: 2, j: 4, h: 6, y: 7, u: 1, b: 5, n: 3,
@@ -14,7 +16,11 @@ const Input = (() => {
     window.addEventListener('keydown', e => {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
       if (e.key === '.' || e.code === 'Numpad5') { on.key({ a: 'wait' }); e.preventDefault(); return; }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === 'x') { on.examine(); e.preventDefault(); return; }
+      if (e.key === 'r') { on.read(); e.preventDefault(); return; }
+      if (e.key === 'Enter') { if (e.target && e.target.tagName === 'BUTTON') return; on.confirm(); e.preventDefault(); return; }
+      if (e.key === 'i' || e.key === 'm' || /^[1-6]$/.test(e.key)) { on.later(e.key); e.preventDefault(); return; }
       if (e.key === 'Escape') { on.escape(); return; }
       const d = e.key in KEYS ? KEYS[e.key] : e.code in KEYS ? KEYS[e.code] : -1;
       if (d >= 0) { on.key({ a: 'move', dir: d }); e.preventDefault(); }

@@ -1,0 +1,12 @@
+# Files that may mention the 3D board view (BUILD.md §6.3). test/guard-3d.test.js fails on
+# any other file under index.html, js/, css/, tools/, test/ or art/ that does, so that
+# tools/remove-3d.sh stays a complete revert.
+index.html
+js/view/board3d.js
+tools/vendor-three.sh
+tools/browser/check-3d.mjs
+tools/remove-3d.sh
+tools/revert-test.sh
+tools/3d-allowlist.txt
+art/ledger.json
+test/guard-3d.test.js

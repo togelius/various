@@ -16,18 +16,24 @@ const Labels = (() => {
     return [a.mode === 'hunting' ? 'hunting' : a.mode === 'returning' ? 'returning' : 'alert'];
   }
 
-  // Brogue's sentence, computed from the live numbers (BUILD.md §8.1).
+  // The odds readout (BUILD.md §8.1), by exact enumeration of the rolls, all integer.
+  // "Typically" is the mean net hit as a share of your current health, rounded half up.
+  const halfUp = (num, den) => Int.idiv(2 * num + den, 2 * den);
+  const hits = n => n + (n === 1 ? ' hit' : ' hits');
   function odds(state, a) {
-    const you = state.actors[0];
-    const toYou = Combat.hitChance(a, you), toIt = Combat.hitChance(you, a);
-    const mean = Int.idiv(a.dmin + a.dmax, 2), worst = Math.max(1, a.dmax - you.pad);
-    const typical = Math.max(1, mean - you.pad), yourMean = Math.max(1, Int.idiv(you.dmin + you.dmax, 2) - a.pad);
+    const you = state.actors[0], hp = Math.max(1, you.hp);
+    const theirs = Combat.netRolls(a, you), mine = Combat.netRolls(you, a);
     const lines = [
-      `It has a ${toYou}% chance to hit you, typically hits for ${Math.max(1, Int.idiv(100 * typical, Math.max(1, you.hp)))}% of your current health, and at worst could defeat you in ${Int.ceilDiv(you.hp, worst)} hits.`,
-      `You have a ${toIt}% chance to hit it, and typically need ${Int.ceilDiv(a.hp, yourMean)} hits to destroy it.`,
+      `It has a ${Combat.hitChance(a, you)}% chance to hit you, typically hits for ${halfUp(100 * theirs.sum, theirs.n * hp)}% of your current health, and at worst could defeat you in ${hits(Int.ceilDiv(hp, theirs.max))}.`,
+      `You have a ${Combat.hitChance(you, a)}% chance to hit it, and typically need ${hits(Int.ceilDiv(a.hp * mine.n, mine.sum))} to destroy it.`,
     ];
-    if (Combat.surprised(you, a)) lines.push(`A surprise attack now would deal ${Math.max(N.DMG_MIN_ON_HIT, you.dmax - a.pad)}.`);
+    if (Combat.surprised(you, a)) lines.push(`A surprise attack now would hit for certain, for ${Math.max(N.DMG_MIN_ON_HIT, Combat.surpriseRaw(you) - a.pad)}.`);
     return lines;
+  }
+
+  function attackText(you, a) {
+    const r = Combat.netRolls(you, a);
+    return `Attack: ${Combat.hitChance(you, a)}%, ${r.min === r.max ? r.min : r.min + '–' + r.max} damage`;
   }
 
   function of(state, uid) {
@@ -47,7 +53,7 @@ const Labels = (() => {
       pictos, behaviour: sp ? Registry.behaviour(sp) : '', odds: odds(state, a),
       paragraph: near && sp ? sp.paragraph : '', far: near ? '' : 'Come closer to read the label.',
       closeup: sp ? { sprite: sp.sprite, dept: state.dept.acc } : null,
-      actions: adjacent ? [{ id: 'attack', text: `Attack: ${Combat.hitChance(you, a)}%, ${Math.max(1, you.dmin - a.pad)}–${Math.max(1, you.dmax - a.pad)} damage` }] : [],
+      actions: adjacent ? [{ id: 'attack', text: attackText(you, a) }] : [],
     };
   }
 

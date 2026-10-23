@@ -4,15 +4,14 @@
   dist/accession.html       the game
   dist/accession-hash.html  the cross-browser hash check (tools/hash-template.html)
 
---no-3d builds the game without the 3D board view and three.js, as
-dist/accession-no3d.html, to prove the game stands without them (BUILD.md §6.3).
-three.js is inlined as an inert <script type="text/x-three"> block that board3d.js runs
-on first use, so it costs nothing until 3D is switched on.
+An inert placeholder, <script type="text/x-NAME" data-src="FILE"></script>, is inlined
+as an inert block holding FILE's text, which the code that owns it runs on first use
+(BUILD.md §6.4). The rule is generic, so removing a placeholder from index.html removes
+the file from the build and nothing here needs editing.
 """
-import os, re, sys
+import os, re
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-no3d = '--no-3d' in sys.argv[1:]
 build = os.environ.get('ACCESSION_BUILD', 'dev')
 
 def read(rel):
@@ -22,15 +21,11 @@ def inline(html):
     def css(m):
         return '<style>\n' + read(m.group(1)) + '\n</style>'
     def js(m):
-        if no3d and m.group(1) == 'js/view/board3d.js':
-            return ''
         return '<script>\n' + read(m.group(1)).replace('</script', '<\\/script') + '\n</script>'
-    def three(m):
-        if no3d:
-            return ''
-        return '<script type="text/x-three" id="three-src">\n' + read(m.group(1)).replace('</script', '<\\/script') + '\n</script>'
+    def inert(m):
+        return '<script type="text/x-%s">\n%s\n</script>' % (m.group(1), read(m.group(2)).replace('</script', '<\\/script'))
     html = re.sub(r'<link rel="stylesheet" href="([^"]+)">', css, html)
-    html = re.sub(r'<script type="text/x-three" data-src="([^"]+)"></script>', three, html)
+    html = re.sub(r'<script type="text/x-([a-z0-9-]+)" data-src="([^"]+)"></script>', inert, html)
     html = re.sub(r'<script src="([^"]+)"></script>', js, html)
     return html.replace('__BUILD__', build)
 
@@ -41,7 +36,6 @@ def write(name, html):
     print('wrote', os.path.relpath(out, root), len(html.encode('utf-8')) // 1024, 'KB')
 
 index = read('index.html')
-write('accession-no3d.html' if no3d else 'accession.html', inline(index))
-if not no3d:
-    core = '\n'.join(m.group(0) for m in re.finditer(r'<script src="((?:js/core|content)/[^"]+)"></script>', index))
-    write('accession-hash.html', inline(read('tools/hash-template.html').replace('<!-- core -->', core)))
+write('accession.html', inline(index))
+core = '\n'.join(m.group(0) for m in re.finditer(r'<script src="((?:js/core|content)/[^"]+)"></script>', index))
+write('accession-hash.html', inline(read('tools/hash-template.html').replace('<!-- core -->', core)))

@@ -21,7 +21,7 @@ const Registry = (() => {
   // Special triggers: at most one per species (BUILD.md §8.2).
   const TRIGGERS = {
     axis: { icon: 'axis', clause: 'also wakes when you stand in its row or column within 8 tiles, in sight' },
-    period: { icon: 'period', clause: 'wakes on the bell to perform, then sleeps again' },
+    period: { icon: 'period', clause: 'wakes on the chime to perform, then sleeps again' },
     tether: { icon: 'tether', clause: 'wakes at once when you come within 2 tiles of what it guards' },
     touch_case: { icon: 'touch_case', clause: 'wakes at once when its case is opened, bashed or touched' },
     ally_hit: { icon: 'ally_hit', clause: 'wakes at once when one of its group within 5 tiles is struck' },
@@ -44,7 +44,7 @@ const Registry = (() => {
     night_watchman: { clause: 'Comes for you wherever you are; if defeated, it returns 20 turns later.' },
     unobserved_mover: { clause: 'Moves two tiles a turn, but only while you cannot see it; strikes hard from beside you.' },
     patrol_guard: { clause: 'Walks a fixed round. On seeing you it raises the alarm for one turn, then gives chase; after 20 turns without you it goes back to its round.' },
-    demonstrator: { clause: 'Keeps to its track and never chases. On the bell it performs the demonstration on its label.' },
+    demonstrator: { clause: 'Keeps to its track and never chases. On the chime it performs the demonstration on its label.' },
     conservator_healer: { clause: 'Stays behind its allies and spends a turn, shown, restoring one; backs away when you come close.' },
     completing_guardian: { clause: 'Grows one limb for every two galleries you have walked, up to four; each limb is a special. Leaving its room heals it and drops one limb.' },
     mp_ensemble: { clause: 'Several pieces share one health pool. When a piece falls, the others take on its special.' },
@@ -64,7 +64,7 @@ const Registry = (() => {
     unobserved_motion: { sentence: 'The animals move only when you cannot see them.' },
     alarm_network: { sentence: 'The waders raise the alarm when they see you; then the whole court is awake.' },
     copies_weaken: { sentence: 'When an original is broken, its spares lose heart.' },
-    hourly_demonstration: { sentence: 'On the bell, the stations exchange signals down the length of the gallery.' },
+    hourly_demonstration: { sentence: 'On the chime, the stations exchange signals down the length of the gallery.' },
     weather_cases: { sentence: 'Some cases hold weather. Break one, and the weather gets out.' },
   };
 
