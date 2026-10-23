@@ -1,10 +1,13 @@
 'use strict';
-// The rules sandbox renderer (DESIGN §18.8 G2), revision 5b: draws a build from rules.js alone, as plain outlined
+// The rules sandbox renderer (DESIGN §18.8 G2), revision 5c: draws a build from rules.js alone, as plain outlined
 // shapes in the tiles' colours on white, with the tile in the hand, its dotted fall line and, optionally, the outcome:
 // - stays: the tile where it will sit, its contact segments shining (gold), a ×2 / ×3 chip for several neighbours;
-// - falls off: the tile red and dashed where it stops, ONLY A POINT, and red dots at the points it touches.
-// A thin gap (under 0.3 tile, e.g. 0.134 or 0.268) between part of a tile's bottom and the flat top below it is drawn
-// as a dark sliver, under placed tiles and under the tile that stays, so it doesn't read as a joint (§18.2).
+// - falls off, ONLY A POINT: the tile red and dashed where it stops, and red dots at the points it touches;
+// - falls off, TIPS OVER (§18.2, §18.4): the tile red and dashed where it stops, the part that would tip (the tiles of
+//   rules' tips.members, the new tile among them) outlined in red, a red dot at the pivot, and a small plumb line from
+//   the part's centre of weight down past the pivot, labelled TIPS OVER.
+// A thin gap (under 0.3 tile, e.g. 0.134 or 0.268) between part of a tile's bottom and the flat top below it is left
+// OPEN (§18.2): no fill, only a fine dotted outline, so it reads as air, not as a joint or an extra piece.
 //
 //   const S = require('./tools/sandbox/render.cjs');
 //   const png = await S.renderBuild({ drops: ['■1'], hand: '▲1.5', outcome: true, title: '…', caption: '…' });
@@ -19,9 +22,13 @@ const canon = require('../lib/canon.cjs');
 let pw;
 try { pw = require('playwright'); } catch (e) { pw = require('/opt/node-tools/node_modules/playwright'); }
 
-const COLORS = ['#E8323C', '#2F5BEA', '#FFD21F', '#2EBF4F', '#FF7A1A', '#5EC8F2', '#8A4FE0'];
+// the tiles' colours; red is left out (revision 5c) because red is what marks a tile that falls off and the part
+// that would tip
+const COLORS = ['#2F5BEA', '#FFD21F', '#2EBF4F', '#FF7A1A', '#5EC8F2', '#8A4FE0'];
 const STROKE = { '#FFD21F': '#D9A800', '#5EC8F2': '#2FA6D6' }; // pale colours get a deeper outline on white
-const RED = '#E8323C', GOLD = '#FFC531', INK = '#1E2541', SLIVER = '#2b2f3f';
+const RED = '#E8323C', GOLD = '#FFC531', INK = '#1E2541', SLIVER = '#4a5068';
+// a thin gap, drawn open: no fill, a fine dotted outline (shared with tools/review/lib.cjs)
+function gapSVG(pts) { return `<polygon points="${pts}" fill="none" stroke="${SLIVER}" stroke-width="0.9" stroke-dasharray="1.2 2.2" stroke-linejoin="round"/>`; }
 const R3 = Math.sqrt(3);
 const yOf = (p, q) => (p + q * R3) / 2;
 const P = v => ({ x: v[0] / 2, y: yOf(v[1], v[2]) });
@@ -79,6 +86,15 @@ function sliversUnder(x0, yb, others, half, thin) {
     if (d0 > 1e-6 && d1 > 1e-6 && d0 < T && d1 < T) out.push([{ x: xs, y: yb }, { x: xe, y: yb }, { x: xe, y: best[1] }, { x: xs, y: best[0] }]);
   }
   return out;
+}
+// the centre of weight of a part ([{piece, poly}]): squares weigh 1, triangles √3/4 (their areas), each at its centroid
+function weightCentre(items) {
+  let W = 0, x = 0, y = 0;
+  for (const it of items) {
+    const w = it.piece === 'sq' ? 1 : R3 / 4, c = it.poly.reduce((a, v) => ({ x: a.x + v.x / it.poly.length, y: a.y + v.y / it.poly.length }), { x: 0, y: 0 });
+    W += w; x += w * c.x; y += w * c.y;
+  }
+  return { x: x / W, y: y / W };
 }
 // the thin gaps under every square and ▲ of a set of polygons ({poly, flat: true when its bottom is a flat edge})
 function sliversOf(items, half, thin) {
@@ -138,7 +154,7 @@ function svgFor(spec) {
   out.push(`<rect x="${X(-half)}" y="${Y(0)}" width="${(2 * half * L).toFixed(1)}" height="${(0.36 * L).toFixed(1)}" fill="#f1f2f5" stroke="#6b7080" stroke-width="1.5"/>`);
   for (let i = -half + 1; i < half; i++) out.push(`<line x1="${X(i)}" x2="${X(i)}" y1="${Y(0)}" y2="${Y(-0.36)}" stroke="#a3a8b4" stroke-width="1"/>`);
   for (const wx of [-half + 0.45, half - 0.45]) out.push(`<circle cx="${X(wx)}" cy="${Y(-0.46)}" r="${(0.15 * L).toFixed(1)}" fill="#fff" stroke="#6b7080" stroke-width="1.5"/>`);
-  const sliver = poly => `<polygon points="${pts(poly)}" fill="${SLIVER}" fill-opacity="0.88" stroke="${SLIVER}" stroke-width="0.8" stroke-linejoin="round"/>`;
+  const sliver = poly => gapSVG(pts(poly));
   // the placed tiles, and the thin gaps under them
   M.tiles.forEach((t, i) => {
     const c = COLORS[i % COLORS.length], poly = polys[i];
@@ -187,7 +203,7 @@ function svgFor(spec) {
     const r = M.res, poly = shapeAt(hand.piece, r.way, hand.col, yOf(r.pose.y[0], r.pose.y[1]));
     const yb = Math.min(...poly.map(v => v.y)), xL = hand.col / 2;
     if (r.outcome === 'fit') {
-      // a thin gap under part of it: a dark sliver
+      // a thin gap under part of it: left open, a fine dotted outline
       if (r.way !== 'down' && spec.slivers !== false) for (const s of sliversUnder(xL, yb, polys, half)) out.push(sliver(s));
       out.push(`<polygon points="${pts(poly)}" fill="${handColor}" fill-opacity="0.32" stroke="${STROKE[handColor] || handColor}" stroke-width="2.6" stroke-linejoin="round"/>`);
       for (const s of r.shine) {
@@ -199,6 +215,24 @@ function svgFor(spec) {
         const top3 = Math.max(...poly.map(v => v.y));
         out.push(`<g transform="translate(${X(xL + 1.05)},${Y(top3 + 0.05)})"><rect x="0" y="-15" width="30" height="20" rx="10" fill="${GOLD}"/><text x="15" y="0" text-anchor="middle" font-size="13" font-weight="700" fill="${INK}">×${r.shine.length}</text></g>`);
       }
+    } else if (r.reason === 'TIPS OVER' && r.tips) {
+      // TIPS OVER: the part that would tip outlined in red (the new tile, red and dashed where it would stop, among
+      // it), a red dot at the pivot, and a plumb line from the part's centre of weight down past the pivot
+      const t = r.tips, n = M.tiles.length, partPolys = t.members.map(i => i === n ? poly : polys[i]);
+      out.push(`<polygon points="${pts(poly)}" fill="${RED}" fill-opacity="0.07" stroke="${RED}" stroke-width="2.4" stroke-dasharray="7 5" stroke-linejoin="round"/>`);
+      for (const pp of partPolys) out.push(`<polygon points="${pts(pp)}" fill="${RED}" fill-opacity="0.10" stroke="${RED}" stroke-opacity="0.25" stroke-width="9" stroke-linejoin="round"/>`);
+      for (const pp of partPolys) out.push(`<polygon points="${pts(pp)}" fill="none" stroke="${RED}" stroke-width="3" stroke-linejoin="round"/>`);
+      const cw = weightCentre(t.members.map(i => i === n ? { piece: hand.piece, poly } : { piece: M.tiles[i].piece, poly: polys[i] }));
+      const pv = P(t.pivot), cx = typeof t.com === 'number' ? t.com : cw.x, yBob = Math.min(pv.y, cw.y) - 0.42;
+      out.push(`<line x1="${X(cx)}" y1="${Y(cw.y)}" x2="${X(cx)}" y2="${Y(yBob)}" stroke="${RED}" stroke-width="1.6"/>`);
+      out.push(`<circle cx="${X(cx)}" cy="${Y(cw.y)}" r="3.2" fill="#fff" stroke="${RED}" stroke-width="1.6"/>`);
+      out.push(`<path d="M${X(cx - 0.07)},${Y(yBob)} L${X(cx + 0.07)},${Y(yBob)} L${X(cx)},${Y(yBob - 0.15)} z" fill="${RED}"/>`);
+      // a faint level line from the pivot out to the plumb line shows how far past the pivot the weight hangs
+      out.push(`<line x1="${X(pv.x)}" y1="${Y(pv.y)}" x2="${X(cx)}" y2="${Y(pv.y)}" stroke="${RED}" stroke-width="1" stroke-dasharray="2 3" opacity="0.8"/>`);
+      out.push(`<circle cx="${X(pv.x)}" cy="${Y(pv.y)}" r="6.5" fill="${RED}" stroke="#fff" stroke-width="1.5"/>`);
+      const top3 = Math.max(...poly.map(v => v.y));
+      const tx = Math.min(Math.max(xL + 0.5, x0 + 1.0), x1 - 1.0);
+      out.push(`<text x="${X(tx)}" y="${Y(top3 + 0.14)}" text-anchor="middle" font-size="13" font-weight="800" fill="${RED}" stroke="#fff" stroke-width="3" paint-order="stroke">TIPS OVER</text>`);
     } else {
       out.push(`<polygon points="${pts(poly)}" fill="${RED}" fill-opacity="0.07" stroke="${RED}" stroke-width="2.4" stroke-dasharray="7 5" stroke-linejoin="round"/>`);
       // ONLY A POINT: a red dot at every point it touches (contact points, and the ends of side contacts on its bottom)
@@ -270,7 +304,7 @@ async function renderSheet(items, cols, opts) {
 }
 async function close() { if (browser) { const b = browser; browser = null; await b.close(); } }
 
-module.exports = { renderBuild, renderSheet, svgFor, model, close, COLORS, sliversUnder, sliversOf, topOf, SLIVER };
+module.exports = { renderBuild, renderSheet, svgFor, model, close, COLORS, sliversUnder, sliversOf, topOf, SLIVER, gapSVG, weightCentre };
 
 // node tools/sandbox/render.cjs '<spec JSON or [specs]>' out.png [cols]
 if (require.main === module) {

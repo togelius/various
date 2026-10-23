@@ -1,6 +1,7 @@
 'use strict';
-// The golden sheet (DESIGN §18.8 G0), revision 5b: all 12 golden cases of §18.9 / SPEC §9, each with its build, the tile in the
-// hand above it with its fall line, and the outcome drawn. Writes tools/oracle/golden.png and any extra paths given:
+// The golden sheet (DESIGN §18.8 G0), revision 5c: all 16 golden cases of §18.9 / SPEC §9, each with its build, the tile in
+// the hand above it with its fall line, and the outcome drawn, with a caption in plain words. Writes
+// tools/oracle/golden.png and any extra paths given:
 //   node tools/sandbox/golden-sheet.cjs [out.png ...]
 const fs = require('fs');
 const path = require('path');
@@ -18,12 +19,14 @@ function items() {
 }
 async function main() {
   const outs = [path.join(__dirname, '..', 'oracle', 'golden.png')].concat(process.argv.slice(2));
-  const png = await S.renderSheet(items(), 3, {
-    title: 'CLACK STACK revision 5b: the golden cases',
+  const png = await S.renderSheet(items(), 4, {
+    title: 'CLACK STACK revision 5c: the golden cases',
     subtitle: 'Each picture shows the tiles on the car, the next tile in the hand with dotted lines down to where it will land, and what happens when it is let go. ' +
-      'A tile stays when it meets the tower edge to edge, along at least half an edge: it is drawn in place, and the edges it meets shine gold (×2 when it meets two tiles). ' +
+      'A tile stays when it meets the tower edge to edge, along at least half an edge, and nothing tips: it is drawn in place, and the edges it meets shine gold (×2 when it meets two tiles). ' +
       'A tile that touches only at points falls off: it is drawn red and dashed where it stops, with ONLY A POINT and a red dot at each point it touches. ' +
-      'A thin gap under part of a tile is filled dark, so it does not look like a joint.',
+      'A tile that would make part of the tower lean too far past what holds it up falls off too: it is drawn red and dashed, the part that would tip is outlined in red, ' +
+      'the red dot is the corner it would tip over, and the small plumb line hangs from that part\'s centre of weight, past the corner (TIPS OVER). ' +
+      'A thin gap under part of a tile is left open, with a fine dotted outline: it is air, not a piece.',
     dpr: 1.5
   });
   for (const o of outs) { fs.mkdirSync(path.dirname(o), { recursive: true }); fs.writeFileSync(o, png); console.log('wrote ' + o + ' (' + png.length + ' bytes)'); }

@@ -14,3 +14,6 @@ sentence, and `SEALED` gets the new hash in the same edit.
 - Revision 5b, round 1 (2026-10-22): revision 5b: SPEC changed; oracle updated in isolation. `oracle.cjs`,
   `test-golden.cjs` and `ambiguities.md` were replaced by the 5b oracle author's delivery (written from SPEC.md 5b
   alone), and `SEALED` holds its sha256.
+- Revision 5c, round 1 (2026-10-23): revision 5c: SPEC changed (balance); oracle updated in isolation. `oracle.cjs`,
+  `test-golden.cjs` and `ambiguities.md` were replaced by the 5c oracle author's delivery (written from SPEC.md 5c
+  alone), and `SEALED` holds its sha256.

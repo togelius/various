@@ -1,19 +1,23 @@
-/* CLACK STACK rules, revision 5b (DESIGN.md §18.1–18.3 and §18.7; the precise reading is tools/oracle/SPEC.md, which
+/* CLACK STACK rules, revision 5c (DESIGN.md §18.1–18.3 and §18.7; the precise reading is tools/oracle/SPEC.md, which
    wins on rules). The one source of where a tile can go and why it falls off. Pure: no DOM, no time, no randomness,
    no globals but the language's own. It runs in an empty vm context (tools/lib/rules-vm.cjs) and is inlined into
    index.html between the RULES markers by tools/build.cjs.
 
-   The one rule (SPEC §5): a tile stays if it meets the tower edge to edge along at least half an edge.
-   - A square or ▲ stays when part of its bottom edge (on this lattice, half of it or all of it) lies on a flat top:
-     the car, a square's top or a ▼'s top. The rest may be over a lower top, a slant or nothing.
-   - A ▼ stays when one of its lower sides lies whole against a ▲'s side (two such sides: it sits in a notch).
-   Otherwise it falls off, and there is one reason: ONLY A POINT.
+   Two rules, tested in this order (SPEC §5):
+   1. Edge to edge (§5a, §5b): a tile stays only if it meets the tower edge to edge along at least half an edge.
+      - A square or ▲ needs part of its bottom edge (on this lattice, half of it or all of it) on a flat top: the car,
+        a square's top or a ▼'s top. The rest may be over a lower top, a slant or nothing.
+      - A ▼ needs one of its lower sides whole against a ▲'s side (two such sides: it sits in a notch).
+      Otherwise it falls off: ONLY A POINT.
+   2. Everything balances (§5c): with the tile added, every tile's part (the tile and everything resting on it, all
+      the way up) must have its weight over what holds it up, give or take the magnets' grip: it may lean past the end
+      of its support by a moment of up to a quarter of the length of edge it rests on. Otherwise: TIPS OVER.
 
    Numbers are exact. A point is a lattice point (X, a, b): x = X/2, y = a + b·h with h = √3/2. The comparison format
    writes it as SPEC's [X, p, q] with y = (p + q√3)/2, so p = 2a and q = b. Two heights are compared in integers
-   (sign of 2·Δa + Δb·√3), never in floating point.
+   (sign of 2·Δa + Δb·√3), and every balance sum is an integer pair (u + v√3), never a float.
 
-   A tile is { t: 'sq' | 'up' | 'dn', c: col, a, b }:
+   A tile is { t: 'sq' | 'up' | 'dn', c: col, a, b, i: its index in the build }:
    - 'sq' its lower-left corner at (c, a, b);
    - 'up' (▲) its base from (c, a, b) to (c + 2, a, b), apex (c + 1, a, b + 1);
    - 'dn' (▼) its point at (c + 1, a, b), its top edge from (c, a, b + 1) to (c + 2, a, b + 1).
@@ -23,8 +27,9 @@
 var RULES = (function () {
   'use strict';
 
-  // the reasons a tile falls off (DESIGN §18.2): one
-  var REASONS = ['ONLY A POINT'];
+  // the reasons a tile falls off, in the order they are tested (DESIGN §18.2)
+  var REASONS = ['ONLY A POINT', 'TIPS OVER'];
+  var R3 = Math.sqrt(3); // for drawing only (tips.com); never in a decision
 
   // sign of (a1 + b1·h) − (a2 + b2·h), h = √3/2: the sign of 2·da + db·√3, decided in integers
   function cmpH(a1, b1, a2, b2) { return sgn3(2 * (a1 - a2), b1 - b2); }
@@ -54,11 +59,13 @@ var RULES = (function () {
   var WAY = { sq: null, up: 'up', dn: 'down' };
 
   // ---- builds (immutable) ----
-  // { half, tiles: [tile] in placing order, log: [{piece, col, way}], idx: per half-tile column the tiles spanning it }
+  // { half, tiles: [tile] in placing order, log: [{piece, col, way}], idx: per half-tile column the tiles spanning it,
+  //   anc: per tile i, an array over the tiles before it, 1 where tile i rests on that tile, directly or through others
+  //   (a tile only ever rests on tiles placed before it), agg: per tile, the sums of its part (see BALANCE) }
   function off(B) { return 2 * B.half + 1; }
   function freezeBuild(B) {
     for (var k = 0; k < B.idx.length; k++) if (B.idx[k]) Object.freeze(B.idx[k]);
-    Object.freeze(B.idx); Object.freeze(B.tiles); Object.freeze(B.log);
+    Object.freeze(B.idx); Object.freeze(B.tiles); Object.freeze(B.log); Object.freeze(B.anc); Object.freeze(B.agg);
     return Object.freeze(B);
   }
   function newBuild(opts) {
@@ -66,7 +73,7 @@ var RULES = (function () {
     if (typeof half !== 'number' || half !== Math.floor(half) || half < 1) throw new Error('newBuild: half must be a whole number of tiles, at least 1');
     var idx = [];
     for (var k = 0; k < 4 * half + 2; k++) idx.push(null);
-    return freezeBuild({ half: half, tiles: [], log: [], idx: idx });
+    return freezeBuild({ half: half, tiles: [], log: [], idx: idx, anc: [], agg: [] });
   }
   function inCol(B, s) { var k = s + off(B); return k >= 0 && k < B.idx.length ? B.idx[k] : null; }
   function carIn(B, s) { return s >= -2 * B.half && s < 2 * B.half; }
@@ -98,9 +105,9 @@ var RULES = (function () {
     }
     return null;
   }
-  // Where a tile of type `type` at col stops, and whether it stays there. The tile falls from far above; over each of
-  // its columns the gap between its underside and a thing's top is linear, so it stops at the largest
-  // (top − underside) over its two columns, both ends of each, and every thing in them (the car and the tiles).
+  // Where a tile of type `type` at col stops, and whether it meets the tower edge to edge there. The tile falls from
+  // far above; over each of its columns the gap between its underside and a thing's top is linear, so it stops at the
+  // largest (top − underside) over its two columns, both ends of each, and every thing in them (the car and the tiles).
   function core(B, type, col) {
     var bot = BOT[type], ra = 0, rb = 0, hit = false;
     for (var j = 0; j < 2; j++) {
@@ -137,7 +144,7 @@ var RULES = (function () {
     }
     var fit = held > 0, gap = null;
     // the gap (SPEC §5a): how far the deepest part of what lies under the bottom edge is below it, for drawing the
-    // sliver; the deepest is at an end of a column (the tops are straight over a column)
+    // thin gap open; the deepest is at an end of a column (the tops are straight over a column)
     if (fit && lo && cmpH(lo[0], lo[1], ra, rb) < 0) gap = [2 * (ra - lo[0]), rb - lo[1]];
     return { a: ra, b: rb, fit: fit, gap: gap, held: held };
   }
@@ -187,9 +194,10 @@ var RULES = (function () {
     if (dx !== 0) return (q[0] - p1[0]) * (q[0] - p2[0]) <= 0;
     return cmpH(q[1], q[2], p1[1], p1[2]) * cmpH(q[1], q[2], p2[1], p2[2]) <= 0;
   }
-  // every contact of tile T (resting, not yet placed) with the car top and the tiles that reach its x range
+  // every contact of tile T (resting, not yet placed) with the car top and the tiles that reach its x range: the
+  // comparison format's {segments, points}, and per touching tile what they share (nb: [{t, m}], for the balance)
   function contacts(B, T) {
-    var VT = vertsOf(T.t, T.c, T.a, T.b), segs = [], pts = [], c = T.c, h2 = 2 * B.half, k, m;
+    var VT = vertsOf(T.t, T.c, T.a, T.b), segs = [], pts = [], nb = [], c = T.c, h2 = 2 * B.half, k, m;
     // the car: the region x in [−half, half], y ≤ 0; tiles never go below y = 0
     if (T.a === 0 && T.b === 0) {
       if (T.t === 'dn') { if (c + 1 >= -h2 && c + 1 <= h2) pts.push([c + 1, 0, 0]); }
@@ -199,13 +207,17 @@ var RULES = (function () {
         else if (lo === hi) pts.push([lo, 0, 0]);
       }
     }
+    // T's height range, to skip the tiles wholly above or below it: [a, b] of its lowest and highest points
+    var ta = T.a, tb = T.b, ua = T.t === 'sq' ? T.a + 1 : T.a, ub = T.t === 'sq' ? T.b : T.b + 1;
     for (var s = c - 1; s <= c + 2; s++) {
       var list = inCol(B, s);
       if (list) for (k = 0; k < list.length; k++) {
         var N = list[k];
         if (s !== Math.max(N.c, c - 1)) continue; // each neighbour once
+        if (cmpH(N.a, N.b, ua, ub) > 0 || cmpH(N.t === 'sq' ? N.a + 1 : N.a, N.t === 'sq' ? N.b : N.b + 1, ta, tb) < 0) continue;
         m = meet(T, VT, N);
         if (!m) continue;
+        nb.push({ t: N, m: m });
         if (m.seg) segs.push(m.seg); else pts.push(m.pt);
       }
     }
@@ -221,7 +233,129 @@ var RULES = (function () {
       if (!on) P.push(out(q));
     }
     P.sort(lex);
-    return { segments: S, points: P };
+    return { segments: S, points: P, nb: nb };
+  }
+
+  // ---- BALANCE (SPEC §5c) ----
+  // U rests on V when, over a half-tile column both span, U's underside meets V's top at an end of the column: they
+  // touch there and, just inside the column, U's inside lies straight above V's (over one column two tiles are two
+  // stacked intervals, so equal ends mean touching, never crossing). Side by side, two tiles share no column. This
+  // is only ever asked with U the tile being dropped, which is above every placed tile it shares a column with (it
+  // came down from above); for two tiles in either order it would also need U on top, because where a ▲ sits on a
+  // ▼'s top their corners meet at the column's end with the ▼ below.
+  function restsOn(U, V) {
+    for (var s = Math.max(U.c, V.c); s <= Math.min(U.c, V.c) + 1; s++) {
+      var u = BOT[U.t][s - U.c], v = TOP[V.t][s - V.c];
+      if ((U.a + u[0] === V.a + v[0] && U.b + u[1] === V.b + v[1]) || (U.a + u[2] === V.a + v[2] && U.b + u[3] === V.b + v[3])) return true;
+    }
+    return false;
+  }
+  // U rests on the car: its underside at height 0 at an end of a column over the car
+  function restsOnCar(B, U) {
+    for (var s = U.c; s <= U.c + 1; s++) {
+      if (!carIn(B, s)) continue;
+      var u = BOT[U.t][s - U.c];
+      if ((U.a + u[0] === 0 && U.b + u[1] === 0) || (U.a + u[2] === 0 && U.b + u[3] === 0)) return true;
+    }
+    return false;
+  }
+  // A part's sums, all integers. Weights are taken ×4 (a square 4, a triangle √3) and x in half tiles (X, a tile's
+  // middle at X = col + 1), so the moment of the part past X0, 4·(sS − nS·X0) + √3·(sT − nT·X0), is 8 times SPEC's m.
+  // Its support is kept as its least and greatest X (x0, x1), the lowest support point at each (pL, pR) and L2, twice
+  // the length of edge it rests on (a flat contact |ΔX|, a slanted one 2·|ΔX|): the grip L/4 is L2/8 in the same
+  // units. So a part tips when 4·(…) + √3·(…) > L2, decided in integers.
+  function newAgg() { return { nS: 0, nT: 0, sS: 0, sT: 0, x0: 0, x1: 0, pL: null, pR: null, L2: 0 }; }
+  function cloneAgg(g) { return { nS: g.nS, nT: g.nT, sS: g.sS, sT: g.sT, x0: g.x0, x1: g.x1, pL: g.pL, pR: g.pR, L2: g.L2 }; }
+  function addWeight(g, T) { if (T.t === 'sq') { g.nS++; g.sS += T.c + 1; } else { g.nT++; g.sT += T.c + 1; } }
+  function addPoint(g, p) {
+    if (!g.pL || p[0] < g.x0 || (p[0] === g.x0 && cmpH(p[1], p[2], g.pL[1], g.pL[2]) < 0)) { g.x0 = p[0]; g.pL = p; }
+    if (!g.pR || p[0] > g.x1 || (p[0] === g.x1 && cmpH(p[1], p[2], g.pR[1], g.pR[2]) < 0)) { g.x1 = p[0]; g.pR = p; }
+  }
+  function addContact(g, d) { addPoint(g, d.lo); if (d.hi) addPoint(g, d.hi); g.L2 += d.L2; }
+  // the lean of a part: null when its weight is over its support (exactly over an end included), else its side and
+  // 8m = A + Q·√3
+  function leanOf(g) {
+    var A = 4 * (g.sS - g.nS * g.x1), Q = g.sT - g.nT * g.x1;
+    if (sgn3(A, Q) > 0) return { side: 'right', A: A, Q: Q };
+    A = 4 * (g.nS * g.x0 - g.sS); Q = g.nT * g.x0 - g.sT;
+    if (sgn3(A, Q) > 0) return { side: 'left', A: A, Q: Q };
+    return null;
+  }
+  // it tips when it leans past its grip: m > L/4, that is A + Q·√3 > L2
+  function tipsOf(g) {
+    if (!g.pL) return null; // no support at all (not reachable: every tile that meets the tower rests on something)
+    var l = leanOf(g);
+    return l && sgn3(l.A - g.L2, l.Q) > 0 ? l : null;
+  }
+  // The balance with tile N (not placed yet; it met the tower edge to edge) added to build B. D: what N rests on, with
+  // each shared contact; anc: the tiles under N all the way down. Only the parts of those tiles gain N (nothing can
+  // rest on a tile that fell from above), and every other part of B already balances (place() checks every tile it
+  // adds), so these and N's own part are the ones tested. Returns {D, anc, own, aggs: [{i, g}], fails: [index]}.
+  function balance(B, N, nb) {
+    var n = B.tiles.length, D = [], h2 = 2 * B.half, j, k;
+    if (restsOnCar(B, N)) {
+      if (N.t === 'dn') D.push({ i: -1, lo: [N.c + 1, 0, 0], hi: null, L2: 0 });
+      else {
+        var lo = Math.max(N.c, -h2), hi = Math.min(N.c + 2, h2);
+        D.push(lo < hi ? { i: -1, lo: [lo, 0, 0], hi: [hi, 0, 0], L2: hi - lo } : { i: -1, lo: [lo, 0, 0], hi: null, L2: 0 });
+      }
+    }
+    for (k = 0; k < nb.length; k++) {
+      var V = nb[k].t, m = nb[k].m;
+      if (!restsOn(N, V)) continue;
+      if (m.pt) D.push({ i: V.i, lo: m.pt, hi: null, L2: 0 });
+      else {
+        var p = m.seg[0], q = m.seg[1], dX = q[0] > p[0] ? q[0] - p[0] : p[0] - q[0];
+        D.push({ i: V.i, lo: p, hi: q, L2: p[1] === q[1] && p[2] === q[2] ? dX : 2 * dX });
+      }
+    }
+    var anc = [];
+    for (j = 0; j < n; j++) anc.push(0);
+    for (k = 0; k < D.length; k++) {
+      var di = D[k].i;
+      if (di < 0) continue;
+      anc[di] = 1;
+      var A = B.anc[di];
+      for (j = 0; j < di; j++) if (A[j]) anc[j] = 1;
+    }
+    // N's own part: N alone, on everything it rests on
+    var own = newAgg(), aggs = [], fails = [];
+    addWeight(own, N);
+    for (k = 0; k < D.length; k++) addContact(own, D[k]);
+    if (tipsOf(own)) fails.push(n);
+    for (j = 0; j < n; j++) {
+      if (!anc[j]) continue;
+      var g = cloneAgg(B.agg[j]);
+      addWeight(g, N);
+      for (k = 0; k < D.length; k++) {
+        var i = D[k].i;
+        // a tile inside j's part holds nothing up from outside it
+        if (i >= 0 && (i === j || B.anc[i][j])) continue;
+        addContact(g, D[k]);
+      }
+      aggs.push({ i: j, g: g });
+      if (tipsOf(g)) fails.push(j);
+    }
+    return { D: D, anc: anc, own: own, aggs: aggs, fails: fails };
+  }
+  // what the result says when something tips (DESIGN §18.7): the base is the failing tile whose lowest point is lowest
+  // (ties: the smaller col); its part's members (N's index is the build's length), the side it leans to, the lowest
+  // support point at that end (the pivot, SPEC's [X, p, q]) and its centre of weight in x (a number, for drawing)
+  function tipsReport(B, N, bal) {
+    var n = B.tiles.length, best = -1, k, u;
+    for (k = 0; k < bal.fails.length; k++) {
+      var j = bal.fails[k], t = j === n ? N : B.tiles[j];
+      if (best < 0) { best = j; continue; }
+      var bt = best === n ? N : B.tiles[best], c = cmpH(t.a, t.b, bt.a, bt.b);
+      if (c < 0 || (c === 0 && t.c < bt.c)) best = j;
+    }
+    var g = bal.own;
+    for (k = 0; k < bal.aggs.length; k++) if (bal.aggs[k].i === best) g = bal.aggs[k].g;
+    var l = tipsOf(g), members = [];
+    if (best < n) { members.push(best); for (u = best + 1; u < n; u++) if (B.anc[u][best]) members.push(u); }
+    members.push(n);
+    var W = g.nS + g.nT * R3 / 4, M = (g.sS + g.sT * R3 / 4) / 2;
+    return { base: best, members: members, side: l.side, pivot: out(l.side === 'right' ? g.pR : g.pL), com: M / W };
   }
 
   // ---- the API ----
@@ -232,7 +366,7 @@ var RULES = (function () {
     return cols;
   }
   function checkDrop(B, piece, col, way) {
-    if (!B || typeof B.half !== 'number' || !B.idx) throw new Error('drop: not a build');
+    if (!B || typeof B.half !== 'number' || !B.idx || !B.anc) throw new Error('drop: not a build');
     if (piece !== 'sq' && piece !== 'tri') throw new Error("drop: piece must be 'sq' or 'tri'");
     if (typeof col !== 'number' || col !== Math.floor(col)) throw new Error('drop: col must be a whole number of half tiles');
     var h2 = 2 * B.half;
@@ -246,44 +380,75 @@ var RULES = (function () {
       if (way !== undefined && way !== null && way !== 'up' && way !== 'down') throw new Error("drop: way must be 'up' or 'down'");
     }
   }
-  function result(B, type, col, k) {
-    var T = { t: type, c: col, a: k.a, b: k.b };
+  // Everything about a tile of type `type` dropped at col on B (evaluate1), kept for the last few builds asked about
+  // (MEMO_N), so the hand's every-frame fitsAll and ghost drop cost nothing
+  // after the first, without the cache growing with the number of builds a caller keeps. A build never changes, so a
+  // kept answer is always right; results are copied out of it, so nothing a caller does to a result can reach it.
+  var MEMO = [], MEMO_N = 8;
+  function evaluate(B, type, col) {
+    var memo = null, i;
+    for (i = 0; i < MEMO.length; i++) if (MEMO[i].B === B) { memo = MEMO[i].m; break; }
+    if (!memo) { memo = {}; MEMO.push({ B: B, m: memo }); if (MEMO.length > MEMO_N) MEMO.shift(); }
+    var mk = type + col, e = memo[mk];
+    if (!e) e = memo[mk] = evaluate1(B, type, col);
+    return e;
+  }
+  // where it stops (k), its contacts (C), and whether it fits: it meets the tower edge to edge (core) and, with it,
+  // everything balances (when not, k.fit is false and k.tips says what tips)
+  function evaluate1(B, type, col) {
+    var k = core(B, type, col), T = { t: type, c: col, a: k.a, b: k.b, i: B.tiles.length };
+    var C = contacts(B, T);
+    k.tips = null; k.bal = null;
+    if (k.fit) {
+      k.bal = balance(B, T, C.nb);
+      if (k.bal.fails.length) { k.tips = tipsReport(B, T, k.bal); k.fit = false; k.gap = null; }
+    }
+    return { T: T, k: k, C: C };
+  }
+  function result(B, e) {
+    var k = e.k, type = e.T.t, col = e.T.c;
     var V = vertsOf(type, col, k.a, k.b), verts = [];
     for (var i = 0; i < V.length; i++) verts.push(out(V[i]));
     verts.sort(lex);
-    var C = contacts(B, T), shine = [];
+    var C = { segments: [], points: [] }, shine = [], j, tp = k.tips;
+    for (j = 0; j < e.C.segments.length; j++) C.segments.push([e.C.segments[j][0].slice(), e.C.segments[j][1].slice()]);
+    for (j = 0; j < e.C.points.length; j++) C.points.push(e.C.points[j].slice());
     if (k.fit) for (var j = 0; j < C.segments.length; j++) shine.push([C.segments[j][0].slice(), C.segments[j][1].slice()]);
     return {
       outcome: k.fit ? 'fit' : 'off',
       way: WAY[type],
       pose: { type: type === 'dn' ? 'down' : type, col: col, y: [2 * k.a, k.b] },
       verts: verts,
-      reason: k.fit ? null : REASONS[0],
+      reason: k.fit ? null : k.tips ? REASONS[1] : REASONS[0],
       contacts: C,
       shine: shine,
-      gap: k.gap
+      gap: k.gap ? k.gap.slice() : null,
+      tips: tp ? { base: tp.base, members: tp.members.slice(), side: tp.side, pivot: tp.pivot.slice(), com: tp.com } : null
     };
   }
-  // SPEC §6: the way a triangle takes when no way is given, from whether each way fits and where each rests (its
-  // lowest point, [p, q]): the one that fits; if both fit, the lower, and ▼ when they are equally low; if neither, ▲
-  function pickWay(upFit, upY, downFit, downY) {
+  // SPEC §6: the way a triangle takes when no way is given, from whether each way fits, where each rests (its lowest
+  // point, [p, q]) and whether each tips over: the one that fits; if both fit, the lower, and ▼ when they are equally
+  // low; if neither fits, the one that tips over if exactly one does (it meets the tower edge to edge), else ▲
+  function pickWay(upFit, upY, downFit, downY, upTips, downTips) {
     if (upFit && downFit) return sgn3(upY[0] - downY[0], upY[1] - downY[1]) < 0 ? 'up' : 'down';
     if (upFit) return 'up';
+    if (!downFit && !upTips !== !downTips) return upTips ? 'up' : 'down';
     if (downFit) return 'down';
     return 'up';
   }
   // the same choice from two drop results (forced 'up' and forced 'down' at one col)
   function chooseWay(up, down) {
-    return pickWay(up.outcome === 'fit', up.pose.y, down.outcome === 'fit', down.pose.y);
+    return pickWay(up.outcome === 'fit', up.pose.y, down.outcome === 'fit', down.pose.y, up.reason === REASONS[1], down.reason === REASONS[1]);
   }
-  // drop(build, piece, col, way?): where the tile stops and whether it stays (SPEC §8's format, plus pose)
+  // drop(build, piece, col, way?): where the tile stops and whether it stays (SPEC §8's format, plus pose; tips as
+  // DESIGN §18.7 gives it)
   function drop(B, piece, col, way) {
     checkDrop(B, piece, col, way);
-    if (piece === 'sq') return result(B, 'sq', col, core(B, 'sq', col));
-    if (way === 'up') return result(B, 'up', col, core(B, 'up', col));
-    if (way === 'down') return result(B, 'dn', col, core(B, 'dn', col));
-    var u = core(B, 'up', col), d = core(B, 'dn', col);
-    return pickWay(u.fit, [2 * u.a, u.b], d.fit, [2 * d.a, d.b]) === 'up' ? result(B, 'up', col, u) : result(B, 'dn', col, d);
+    if (piece === 'sq') return result(B, evaluate(B, 'sq', col));
+    if (way === 'up') return result(B, evaluate(B, 'up', col));
+    if (way === 'down') return result(B, evaluate(B, 'dn', col));
+    var u = evaluate(B, 'up', col), d = evaluate(B, 'dn', col);
+    return pickWay(u.k.fit, [2 * u.k.a, u.k.b], d.k.fit, [2 * d.k.a, d.k.b], !!u.k.tips, !!d.k.tips) === 'up' ? result(B, u) : result(B, d);
   }
   // place(build, result): a new build with the fitted tile added; the old build is unchanged
   function place(B, r) {
@@ -291,13 +456,18 @@ var RULES = (function () {
     var p = r.pose, type = p && (p.type === 'down' ? 'dn' : p.type);
     if (type !== 'sq' && type !== 'up' && type !== 'dn') throw new Error('place: no pose');
     checkDrop(B, type === 'sq' ? 'sq' : 'tri', p.col, type === 'sq' ? null : WAY[type]);
-    var k = core(B, type, p.col);
+    var k = evaluate(B, type, p.col).k;
     if (!k.fit || 2 * k.a !== p.y[0] || k.b !== p.y[1]) throw new Error('place: that result is not a fit on this build');
-    var t = Object.freeze({ t: type, c: p.col, a: k.a, b: k.b });
-    var idx = B.idx.slice(), o = off(B);
-    for (var j = 0; j < 2; j++) idx[p.col + j + o] = (idx[p.col + j + o] || []).concat([t]);
+    var n = B.tiles.length, t = Object.freeze({ t: type, c: p.col, a: k.a, b: k.b, i: n });
+    var idx = B.idx.slice(), o = off(B), j;
+    for (j = 0; j < 2; j++) idx[p.col + j + o] = (idx[p.col + j + o] || []).concat([t]);
     var log = B.log.concat([Object.freeze({ piece: type === 'sq' ? 'sq' : 'tri', col: p.col, way: WAY[type] })]);
-    return freezeBuild({ half: B.half, tiles: B.tiles.concat([t]), log: log, idx: idx });
+    // the balance sums: the parts under the new tile gain it, and it starts its own
+    var agg = B.agg.slice(), A = k.bal.aggs;
+    for (j = 0; j < A.length; j++) agg[A[j].i] = Object.freeze(A[j].g);
+    agg.push(Object.freeze(k.bal.own));
+    var anc = B.anc.concat([Object.freeze(k.bal.anc)]);
+    return freezeBuild({ half: B.half, tiles: B.tiles.concat([t]), log: log, idx: idx, anc: anc, agg: agg });
   }
   // every column's result for a piece, left to right
   function fitsAll(B, piece, way) {
