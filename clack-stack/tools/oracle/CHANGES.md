@@ -11,3 +11,6 @@ sentence, and `SEALED` gets the new hash in the same edit.
   half 1, 2, 3 and 50 found only the same class, open question A1, so neither side was changed.
 - Round 3 (2026-10-22): no changes. The tier-1 rerun (depth 10, 6,069,990 I1 checks, 490.7 s) and a 769,948-drop steered
   fuzz (notch, edge, low and high landings, to 45 tiles on half 1, 2, 3, 4 and 50) found only open question A1 again.
+- Revision 5b, round 1 (2026-10-22): revision 5b: SPEC changed; oracle updated in isolation. `oracle.cjs`,
+  `test-golden.cjs` and `ambiguities.md` were replaced by the 5b oracle author's delivery (written from SPEC.md 5b
+  alone), and `SEALED` holds its sha256.

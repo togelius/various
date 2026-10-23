@@ -1,5 +1,5 @@
 'use strict';
-// The intuition panel's items (DESIGN §18.8 G2.2): pictures of a build with ONE tile held just above it and its dotted
+// The intuition panel's items (DESIGN §18.8 G2.2), revision 5b: pictures of a build with ONE tile held just above it and its dotted
 // fall lines, and nothing else (no ghost, no outcome, no hatching, no text but a small item number). Three fresh
 // judges who know only the photos and a plain description of the tiles answer STAYS, FALLS OFF or UNSURE for each.
 //
@@ -8,62 +8,63 @@
 // exhaustive walk of reachable builds (tools/review/lib.cjs) to --depth tiles, smallest and lowest builds first, with
 // the outcome from rules.js; about half the pairs are shown mirrored. The golden cases (§18.9) are added as their own stratum (case 11 can't be shown: the
 // hand never holds a square half a tile off). Triangles in the hand are shown the way up the rules choose (auto-turn,
-// §18.3), except in the "▼ on its point alone" stratum: auto-turn never shows a ▼ that has no side to hang on, so that
-// stratum forces the ▼ (key: wayForced).
+// §18.3), except in the "▼ on its point alone" stratum and golden case 5: auto-turn never shows a ▼ that has no side
+// to hang on, so those force the ▼ (key: wayForced). Thin gaps under the build's tiles are filled dark, as the game
+// draws them (§18.2).
 //
-// Writes sheets of 6 (3 x 2) to --out (default rev5/panel/sheet-NN.png) and the answer key to --key (default
-// rev5/panel-key/key.json), which must never be shown to the panel.
-//   node tools/review/items.cjs [--seed=5] [--pairs=5 per stratum] [--depth=7] [--out=dir] [--key=file]
+// Writes sheets of 6 (3 x 2) to --out (default rev5b/panel/sheet-NN.png) and the answer key to --key (default
+// rev5b/panel-key/key.json), which must never be shown to the panel.
+//   node tools/review/items.cjs [--seed=5] [--pairs=5 per stratum] [--depth=6] [--out=dir] [--key=file]
 //                                [--explore: what each stratum has to offer] [--list: the chosen pairs]
 const fs = require('fs');
 const path = require('path');
 const lib = require('./lib.cjs');
 const { CASES } = require('../rules/golden.cjs');
 
-const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5';
+const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5b';
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = /^--([^=]+)(?:=(.*))?$/.exec(a); return m ? [m[1], m[2] === undefined ? true : m[2]] : [a, true]; }));
-const SEED = +(args.seed || 5), PAIRS = +(args.pairs || 5), DEPTH = +(args.depth || 7);
+const SEED = +(args.seed || 5), PAIRS = +(args.pairs || 5), DEPTH = +(args.depth || 6);
 const OUT = args.out || path.join(SCRATCH, 'panel'), KEY = args.key || path.join(SCRATCH, 'panel-key', 'key.json');
 const R = lib.rules();
 const yv = lib.yv;
 
-// ---- the strata: what the hand's tile meets where it stops ----
-const oneAt0 = d => d.strips[0].at0 !== d.strips[1].at0 && (d.strips[0].at0 || d.strips[1].at0);
-const other = d => d.strips[0].at0 ? d.strips[1] : d.strips[0];
-const g = s => s.gap ? yv(s.gap) : Infinity;
-const nearGap = d => d.reason === 'NOT LEVEL' && yv(d.gap) <= 0.27;
+// ---- the strata: what the hand's tile meets where it stops (revision 5b) ----
+// d (lib.describe): halves[j] = the topmost thing under each half of the tile and how it meets it; held = halves of a
+// square's or ▲'s bottom on a flat top at its height; thin = the thin gap under it (under 0.3 tile) or null; for a ▼,
+// sides held, pointFlat, vee. A stratum that holds only stays (or only falls) is pivotOnly: its pairs' partners are
+// the nearest builds or hand positions with the other outcome.
+const HALF_TOPS = d => d.halves.filter(h => h.at0);
 const STRATA = [
-  { id: 'sq-whole-top', name: 'square on a whole top',
-    is: d => d.type === 'sq' && d.strips[0].at0 && d.strips[1].at0 && d.strips[0].idx === d.strips[1].idx },
-  { id: 'sq-two-dn-tops', name: 'square across two ▼ tops',
-    is: d => d.type === 'sq' && d.strips[0].kind === 'dn' && d.strips[1].kind === 'dn' && d.strips[0].idx !== d.strips[1].idx && !nearGap(d) },
+  { id: 'sq-whole-top', name: 'square whole on one top', pivotOnly: true,
+    is: d => d.type === 'sq' && d.held === 2 && d.halves[0].idx === d.halves[1].idx },
+  { id: 'sq-two-tops', name: 'square across two tops at one height', pivotOnly: true,
+    is: d => d.type === 'sq' && d.held === 2 && d.halves[0].idx !== d.halves[1].idx },
+  { id: 'sq-half', name: 'square held by half an edge', pivotOnly: true,
+    is: d => d.type === 'sq' && d.held === 1 && d.thin === null },
   { id: 'sq-points', name: 'square on points', pivotOnly: true,
-    is: d => d.type === 'sq' && d.reason === 'ONLY A POINT' },
-  { id: 'sq-edge', name: 'square partly over an edge', pivotOnly: true,
-    is: d => d.type === 'sq' && oneAt0(d) && (other(d).kind === 'none' || (other(d).low && g(other(d)) >= 0.85)) },
-  { id: 'sq-lower', name: 'square partly over a lower step or slant', pivotOnly: true,
-    is: d => d.type === 'sq' && oneAt0(d) && (other(d).slant || (other(d).low && g(other(d)) > 0.27 && g(other(d)) < 0.85)) },
-  { id: 'up-half-step', name: '▲ at a half step across two tops',
-    is: d => d.type === 'up' && (d.strips[0].at0 || d.strips[0].low) && (d.strips[1].at0 || d.strips[1].low) && d.strips[0].idx !== d.strips[1].idx && !nearGap(d) },
-  { id: 'up-edge', name: '▲ partly over an edge', pivotOnly: true,
-    is: d => d.type === 'up' && oneAt0(d) && (other(d).kind === 'none' || (other(d).low && g(other(d)) >= 0.85)) },
-  { id: 'near-miss', name: 'near miss (gap at most 0.27 tile)', pivotOnly: true,
-    is: d => (d.type === 'sq' || d.type === 'up') && nearGap(d) },
+    is: d => d.type === 'sq' && d.outcome === 'off' },
+  { id: 'up-whole', name: '▲ with its whole base on tops', pivotOnly: true,
+    is: d => d.type === 'up' && d.held === 2 },
+  { id: 'up-half', name: '▲ held by half an edge, over the car', pivotOnly: true,
+    is: d => d.type === 'up' && d.held === 1 && d.thin === null && !d.outside },
+  { id: 'up-half-past', name: '▲ held by half an edge, half past the car', pivotOnly: true,
+    is: d => d.type === 'up' && d.held === 1 && d.outside },
+  { id: 'thin-gap', name: 'a tile with a thin gap (0.134 or 0.268) under half of it', pivotOnly: true,
+    is: d => (d.type === 'sq' || d.type === 'up') && d.outcome === 'fit' && d.thin !== null },
   { id: 'up-point', name: '▲ on a point', pivotOnly: true,
-    is: d => d.type === 'up' && d.reason === 'ONLY A POINT' },
+    is: d => d.type === 'up' && d.outcome === 'off' },
   { id: 'dn-notch', name: '▼ into a notch',
     is: d => d.type === 'dn' && d.vee },
-  { id: 'dn-one-side', name: '▼ by one side',
-    is: d => d.type === 'dn' && d.sides === 1 },
-  { id: 'dn-point', name: '▼ on its point alone', forced: true,
-    is: d => d.type === 'dn' && d.reason === 'NO SIDE' && pointOnFlat(d) },
+  { id: 'dn-one-side', name: '▼ by one side, its point on a flat top', pivotOnly: true,
+    is: d => d.type === 'dn' && d.sides === 1 && d.pointFlat },
+  { id: 'dn-hung', name: '▼ by one side, its point in the air', pivotOnly: true,
+    is: d => d.type === 'dn' && d.sides === 1 && !d.pointFlat },
+  { id: 'dn-point', name: '▼ on its point alone', forced: true, pivotOnly: true,
+    is: d => d.type === 'dn' && d.outcome === 'off' && d.pointFlat },
   { id: 'tri-past-car', name: 'triangle sticking out past the car',
-    is: d => (d.type === 'up' || d.type === 'dn') && d.outside },
-  { id: 'too-far-out', name: 'TOO FAR OUT', pivotOnly: true,
-    is: d => d.reason === 'TOO FAR OUT' }
+    is: d => (d.type === 'up' || d.type === 'dn') && d.outside }
 ];
-// a ▼ whose point rests on a flat top: under the point (between its strips) a flat top at the point's height
-function pointOnFlat(d) { return d.strips.some(s => s.flat && s.at0); }
+void HALF_TOPS;
 
 // ---- the pool: every hand position over every small build ----
 function evalItem(node, piece, col, forced) {
@@ -107,8 +108,8 @@ function variants(it, W) {
 }
 
 function sig(it) {
-  const d = it.d, s = d.strips.map(x => x.kind + (x.at0 ? '=' : x.low ? 'v' : x.slant ? '/' : '?')).join(',');
-  return d.type + ':' + (d.reason || 'fit') + ':' + s + (d.sides !== undefined ? ':s' + d.sides : '') + (d.outside ? ':out' : '') + (d.reason === 'NOT LEVEL' && yv(d.gap) < 0.3 ? ':g' + yv(d.gap).toFixed(3) : '');
+  const d = it.d, s = d.halves.map(x => x.kind + (x.at0 ? '=' : x.low ? 'v' : x.slant ? '/' : '?')).join(',');
+  return d.type + ':' + (d.reason || 'fit') + ':' + s + (d.sides !== undefined ? ':s' + d.sides + (d.pointFlat ? 'f' : 'a') : '') + (d.outside ? ':out' : '') + (d.thin !== null ? ':g' + d.thin.toFixed(3) : '');
 }
 const cost = it => it.d.n * 1.0 + it.d.height * 1.4 + (it.node.depth === 0 ? 3 : 0);
 
@@ -195,7 +196,7 @@ function itemScene(spec, y1, label) {
   }
   lines.push({ a: { x: lx + 0.5, y: handY - 0.08 }, b: { x: lx + 0.5, y: handY - 0.34 }, arrow: true });
   const top = Math.max(...hp.map(v => v.y));
-  return { scene: lib.scene({ half, L, view: { x0: VIEW_X[0], x1: VIEW_X[1], y0: -0.8, y1 }, tiles, lines, grip: { x: lx + 0.5, y: top }, label }), need: top + 0.42, res };
+  return { scene: lib.scene({ half, L, view: { x0: VIEW_X[0], x1: VIEW_X[1], y0: -0.8, y1 }, tiles, lines, grip: { x: lx + 0.5, y: top }, label, slivers: lib.buildSlivers(T, half) }), need: top + 0.42, res };
 }
 function needY(spec) {
   const B = lib.tryReplay(spec.log), res = R.drop(B, spec.piece, spec.col, spec.piece === 'sq' ? undefined : spec.way || undefined);
@@ -248,7 +249,11 @@ async function main() {
   for (const c of CASES) {
     if (c.throws) continue;
     const d = c.lastDrop;
-    items.push({ stratum: 'golden', stratumName: 'golden case ' + c.n, pair: null, role: null, golden: c.n, log: c.log, piece: d.piece, col: d.col, way: undefined, wayForced: false });
+    // the hand turns a triangle itself (§18.3); a golden case whose way it would not show (case 5's ▼ on its point)
+    // is shown forced, as the dn-point stratum is
+    const auto = R.drop(lib.tryReplay(c.log), d.piece, d.col);
+    const forced = d.piece === 'tri' && auto.way !== d.way;
+    items.push({ stratum: 'golden', stratumName: 'golden case ' + c.n, pair: null, role: null, golden: c.n, log: c.log, piece: d.piece, col: d.col, way: forced ? d.way : undefined, wayForced: forced });
   }
   // outcomes from the rules (auto-turn unless forced), checked against the pick
   for (const it of items) {
@@ -259,7 +264,7 @@ async function main() {
     it.d = lib.describe(B, it.piece, it.col, res);
     if (it.golden) {
       const c = CASES[it.golden - 1];
-      if (res.outcome !== c.expect.outcome || res.reason !== c.expect.reason) throw new Error('golden ' + it.golden + ' auto-turn result differs: ' + res.outcome + ' ' + res.reason);
+      if (res.outcome !== c.expect.outcome || res.reason !== c.expect.reason) throw new Error('golden ' + it.golden + ' shown result differs: ' + res.outcome + ' ' + res.reason);
     }
   }
   for (let i = 0; i < items.length; i++) if (items[i].pair && items[i].role === 'pivot') {
@@ -316,7 +321,7 @@ async function main() {
   // the key
   const fmtLog = log => log.map(e => lib.fmtHand(e.piece, e.col, e.way));
   const key = {
-    what: 'Answer key for the CLACK STACK revision 5 intuition panel (DESIGN §18.8 G2.2). Never show this to the panel.',
+    what: 'Answer key for the CLACK STACK revision 5b intuition panel (DESIGN §18.8 G2.2). Never show this to the panel.',
     seed: SEED, made: new Date().toISOString(), sheets: files.map(f => path.basename(f)), panelDir: OUT,
     rules: 'outcome from clack-stack/rules.js drop(); "expected" is what the panel should answer if the rules match intuition',
     strata: {},
@@ -325,9 +330,8 @@ async function main() {
       pairChange: it.change || null,
       golden: it.golden || null,
       expected: it.res.outcome === 'fit' ? 'STAYS' : 'FALLS OFF', outcome: it.res.outcome, reason: it.res.reason,
-      gap: it.res.gap ? { pq: it.res.gap, tiles: +yv(it.res.gap).toFixed(3) } : null,
       hand: lib.fmtHand(it.piece, it.col, it.res.way), piece: it.piece, way: it.res.way, wayForced: !!it.wayForced, col: it.col, x: it.col / 2,
-      build: fmtLog(it.log), strips: it.res.strips
+      build: fmtLog(it.log), gap: it.res.gap ? { pq: it.res.gap, tiles: +yv(it.res.gap).toFixed(3) } : null, held: it.d.held, sides: it.d.sides === undefined ? null : it.d.sides, pointFlat: it.d.pointFlat === undefined ? null : it.d.pointFlat
     }))
   };
   for (const it of order) {

@@ -1,6 +1,6 @@
 'use strict';
 /*
- * Clack Stack placement oracle, written only from SPEC.md (revision 5).
+ * Clack Stack placement oracle, written only from SPEC.md (revision 5b).
  *
  * - Exact arithmetic in Q(sqrt 3): every number is (A + B*sqrt3) / D with BigInt A, B, D,
  *   D > 0 and gcd(A, B, D) = 1, so the representation is canonical. No floating point is
@@ -13,12 +13,14 @@
  *   max over the common x-range of (top_of_obstacle(x) - bottom_of_tile(x)). That function
  *   is concave and piecewise linear, so it is evaluated only at range ends and vertex xs.
  *   The tile stops at the largest upper end. The result is re-checked with the SAT test.
+ * - Fit (section 5): a square or up triangle fits iff a positive length of its bottom edge
+ *   lies on a horizontal top edge (square top, down-triangle top, car top) at exactly its
+ *   height. A down triangle fits iff one of its lower sides is exactly a slanted side of a
+ *   placed up triangle. The only reason is 'ONLY A POINT'.
  * - No lattice keys, edge hashing or precomputed column profiles: every query walks the
  *   placed polygons.
  *
- * API: newBuild({ half = 2, strictCols = true }), drop(build, piece, col, way?), place(build, result).
- * strictCols: false is NOT part of the spec; it only disables the allowed-col table of §2
- * (see ambiguities.md, golden case 5).
+ * API: newBuild({ half = 2 }), drop(build, piece, col, way?), place(build, result).
  */
 
 // ---------------------------------------------------------------- exact numbers
@@ -157,45 +159,33 @@ function onSeg(P, A, B) {
   return cmp(P.x, kmin(A.x, B.x)) >= 0 && cmp(P.x, kmax(A.x, B.x)) <= 0 &&
          cmp(P.y, kmin(A.y, B.y)) >= 0 && cmp(P.y, kmax(A.y, B.y)) <= 0;
 }
+const samePt = (p, q) => eq(p.x, q.x) && eq(p.y, q.y);
+const sameSeg = (s, t) => (samePt(s[0], t[0]) && samePt(s[1], t[1])) || (samePt(s[0], t[1]) && samePt(s[1], t[0]));
 
 // ---------------------------------------------------------------- builds
 const BUILD = Symbol('clack-build');
 function newBuild(opts) {
   const o = opts == null ? {} : opts;
+  if (typeof o !== 'object') throw new Error('newBuild: expects an options object');
   const half = o.half === undefined ? 2 : o.half;
   if (!Number.isInteger(half) || half < 1) throw new Error('newBuild: half must be a positive integer');
-  const strictCols = o.strictCols === undefined ? true : !!o.strictCols;
-  return Object.freeze({ [BUILD]: true, half, strictCols, tiles: Object.freeze([]) });
+  return Object.freeze({ [BUILD]: true, half, tiles: Object.freeze([]) });
 }
 function checkBuild(b) {
   if (!b || b[BUILD] !== true) throw new Error('not a build made by newBuild/place');
 }
 function obstacles(build) { return build.tiles.map((t) => t.poly).concat([carPoly(build.half)]); }
 
-// flat tops: car top, top edge of a square, top edge of a down triangle.
+// horizontal top edges: the car top, the top edge of a square, the top edge of a down triangle.
 // Generic: a horizontal edge walked in -x direction in a CCW polygon has the interior below it.
 function flatTops(build) {
-  const half = build.half;
-  const tops = [{ y: ZERO, l: rat(-half), r: rat(half), stripOn: (a) => cmp(a, rat(-half)) >= 0 && cmp(add(a, HALF), rat(half)) <= 0 }];
+  const tops = [{ y: ZERO, l: rat(-build.half), r: rat(build.half) }];
   for (const t of build.tiles) {
     for (const [p, q] of edges(t.poly)) {
-      if (eq(p.y, q.y) && cmp(q.x, p.x) < 0) tops.push({ y: p.y, l: q.x, r: p.x, stripOn: (a) => tileStrip(t, a) });
+      if (eq(p.y, q.y) && cmp(q.x, p.x) < 0) tops.push({ y: p.y, l: q.x, r: p.x });
     }
   }
   return tops;
-}
-// a tile's recorded strip whose x-range is [a, a + 1/2]; false if none (never on the half grid)
-function tileStrip(t, a) {
-  const l = xRange(t.poly)[0];
-  if (eq(a, l)) return t.strips[0];
-  if (eq(a, add(l, HALF))) return t.strips[1];
-  return false;
-}
-// is strip [a, a+1/2] covered, over its full width, by one flat top at height y whose strip there is on the tower
-function flatTopOn(tops, y, a) {
-  const b = add(a, HALF);
-  for (const t of tops) if (eq(t.y, y) && cmp(t.l, a) <= 0 && cmp(b, t.r) <= 0 && t.stripOn(a)) return true;
-  return false;
 }
 
 // ---------------------------------------------------------------- the drop
@@ -253,9 +243,24 @@ function contactsOf(build, poly) {
   return { segments, points };
 }
 
-// S(x) over the bottom edge [x0, x1] at height y0, as linear pieces
-function supportPieces(build, x0, x1, y0) {
-  const elems = obstacles(build);
+// S at one x: the highest boundary point at or below y0 of any element whose closed x-range
+// contains x (a vertical side at an x-range end counts as boundary along its whole length).
+function supportAt(elems, x, y0) {
+  let best = null;
+  const take = (y) => { if (best === null || cmp(y, best) > 0) best = y; };
+  for (const E of elems) {
+    const [l, r] = xRange(E);
+    if (cmp(x, l) < 0 || cmp(x, r) > 0) continue;
+    const s = section(E, x);
+    if (eq(x, l) || eq(x, r)) { if (cmp(s.lo, y0) <= 0) take(kmin(s.hi, y0)); continue; }
+    if (cmp(s.hi, y0) <= 0) take(s.hi);
+    else if (cmp(s.lo, y0) <= 0) take(s.lo);
+  }
+  return best;
+}
+
+// S(x) over the bottom edge [x0, x1] at height y0, as linear pieces between breakpoints
+function supportPieces(elems, x0, x1, y0) {
   const inside = (x) => cmp(x, x0) > 0 && cmp(x, x1) < 0;
   const uniq = (xs) => {
     xs.sort(cmp);
@@ -287,68 +292,70 @@ function supportPieces(build, x0, x1, y0) {
       if (cmp(m, y0) > 0) throw new Error('internal: something above the resting bottom edge');
       if (top === null || cmp(m, topMid) > 0) { top = E; topMid = m; }
     }
-    pieces.push({ a, b, covered: true, fa: section(top, a).hi, fb: section(top, b).hi, fm: topMid });
+    pieces.push({ a, b, covered: true, fa: section(top, a).hi, fb: section(top, b).hi });
   }
-  return pieces;
+  return { bps, pieces };
 }
 
-function judgeFlat(build, kind, col, y0) {
+// inf of S over the x in [x0, x1] where S is defined (null if nowhere). Where S jumps up at a
+// vertical side the infimum is a one-sided limit; it is then a supremum of y0 - S, not a maximum.
+function lowestSupport(build, x0, x1, y0) {
+  const elems = obstacles(build);
+  const { bps, pieces } = supportPieces(elems, x0, x1, y0);
+  let low = null;
+  const take = (v) => { if (v !== null && (low === null || cmp(v, low) < 0)) low = v; };
+  for (const pc of pieces) if (pc.covered) { take(pc.fa); take(pc.fb); }
+  for (const x of bps) take(supportAt(elems, x, y0));
+  return low;
+}
+
+// section 5a: square and up triangle
+function judgeFlat(build, col, y0) {
   const x0 = rat(col, 2), x1 = add(x0, ONE);
-  const pieces = supportPieces(build, x0, x1, y0);
-  const tops = flatTops(build);
-  const strips = [flatTopOn(tops, y0, x0), flatTopOn(tops, y0, add(x0, HALF))];
-  let lenEq = ZERO, overNothing = false, minS = null;
-  for (const pc of pieces) {
-    if (!pc.covered) { overNothing = true; continue; }
-    if (eq(pc.fm, y0)) lenEq = add(lenEq, sub(pc.b, pc.a));
-    const m = kmin(pc.fa, pc.fb);
-    if (minS === null || cmp(m, minS) < 0) minS = m;
+  let onLen = ZERO;
+  for (const t of flatTops(build)) {
+    if (!eq(t.y, y0)) continue;
+    const l = kmax(t.l, x0), r = kmin(t.r, x1);
+    if (cmp(l, r) < 0) onLen = add(onLen, sub(r, l));
   }
-  if (sgn(lenEq) === 0) return { reason: 'ONLY A POINT', strips, gap: null };
-  if (overNothing) return { reason: 'OVER THE EDGE', strips, gap: null };
-  if (cmp(minS, y0) < 0) return { reason: 'NOT LEVEL', strips, gap: toPQ(sub(y0, minS)) };
-  const ok = kind === 'sq' ? (strips[0] && strips[1]) : (strips[0] || strips[1]);
-  return { reason: ok ? null : 'TOO FAR OUT', strips, gap: null };
+  if (sgn(onLen) === 0) return { fit: false, gap: null };
+  const low = lowestSupport(build, x0, x1, y0);
+  return { fit: true, gap: low !== null && cmp(low, y0) < 0 ? toPQ(sub(y0, low)) : null };
 }
 
+// section 5b: down triangle
 function judgeDown(build, col, y0) {
   const xl = rat(col, 2), xm = add(xl, HALF), xr = add(xl, ONE), yt = add(y0, H);
   const sides = [[pt(xl, yt), pt(xm, y0)], [pt(xm, y0), pt(xr, yt)]]; // lower left, lower right
-  const sameSeg = (s, t) => (eq(s[0].x, t[0].x) && eq(s[0].y, t[0].y) && eq(s[1].x, t[1].x) && eq(s[1].y, t[1].y)) ||
-                            (eq(s[0].x, t[1].x) && eq(s[0].y, t[1].y) && eq(s[1].x, t[0].x) && eq(s[1].y, t[0].y));
-  const held = [null, null];
   for (const t of build.tiles) {
     if (t.kind !== 'up') continue;
-    const [bl, br, apex] = t.poly;
-    if (sameSeg(sides[0], [apex, br])) held[0] = t; // left side on a right slant
-    if (sameSeg(sides[1], [bl, apex])) held[1] = t; // right side on a left slant
+    for (const e of edges(t.poly)) {
+      if (eq(e[0].y, e[1].y)) continue; // the base is not a slanted side
+      if (sides.some((s) => sameSeg(s, e))) return { fit: true, gap: null };
+    }
   }
-  const tops = flatTops(build);
-  const strips = [xl, xm].map((a, i) => (held[i] ? tileStrip(held[i], a) : flatTopOn(tops, y0, a)));
-  if (!held[0] && !held[1]) return { reason: 'NO SIDE', strips, gap: null };
-  if (!strips[0] && !strips[1]) return { reason: 'TOO FAR OUT', strips, gap: null };
-  return { reason: null, strips, gap: null };
+  return { fit: false, gap: null };
 }
 
 function evaluate(build, kind, col) {
   const { y0, poly } = rest(build, kind, col);
-  const j = kind === 'down' ? judgeDown(build, col, y0) : judgeFlat(build, kind, col, y0);
+  const j = kind === 'down' ? judgeDown(build, col, y0) : judgeFlat(build, col, y0);
   const contacts = contactsOf(build, poly);
-  const fit = j.reason === null;
   return {
-    outcome: fit ? 'fit' : 'off',
-    way: kind === 'sq' ? null : kind,
-    verts: poly.map(triple).sort(cmpTriple),
-    reason: j.reason,
-    contacts,
-    shine: fit ? contacts.segments.map((s) => s.map((p) => p.slice())) : [],
-    strips: j.strips.slice(),
-    gap: j.gap,
+    y0,
+    res: {
+      outcome: j.fit ? 'fit' : 'off',
+      way: kind === 'sq' ? null : kind,
+      verts: poly.map(triple).sort(cmpTriple),
+      reason: j.fit ? null : 'ONLY A POINT',
+      contacts,
+      shine: j.fit ? contacts.segments.map((s) => s.map((p) => p.slice())) : [],
+      gap: j.fit ? j.gap : null,
+    },
   };
 }
 
 function colOk(build, piece, col) {
-  if (!build.strictCols) return true;
   const h = build.half;
   return piece === 'sq' ? (col >= -2 * h && col <= 2 * h - 2) : (col >= -2 * h - 1 && col <= 2 * h - 1);
 }
@@ -364,17 +371,18 @@ function drop(build, piece, col, way) {
     if (way !== undefined && way !== null) throw new Error('drop: way is only for triangles');
     if (col % 2 !== 0) throw new Error(`drop: a square needs an even col, got ${col}`);
     if (!colOk(build, piece, col)) throw new Error(`drop: col ${col} outside the allowed square cols`);
-    return evaluate(build, 'sq', col);
+    return evaluate(build, 'sq', col).res;
   }
   if (way !== undefined && way !== null && way !== 'up' && way !== 'down') throw new Error(`drop: bad way ${String(way)}`);
   if (!colOk(build, piece, col)) throw new Error(`drop: col ${col} outside the allowed triangle cols`);
-  if (way === 'up' || way === 'down') return evaluate(build, way, col);
-  const dn = evaluate(build, 'down', col);
-  if (dn.outcome === 'fit') return dn;
-  const up = evaluate(build, 'up', col);
-  if (up.outcome === 'fit') return up;
-  if (dn.reason === 'TOO FAR OUT') return dn;
-  return up;
+  if (way === 'up' || way === 'down') return evaluate(build, way, col).res;
+  // section 6
+  const dn = evaluate(build, 'down', col), up = evaluate(build, 'up', col);
+  const dFit = dn.res.outcome === 'fit', uFit = up.res.outcome === 'fit';
+  if (dFit && uFit) return cmp(up.y0, dn.y0) < 0 ? up.res : dn.res; // lower wins; equal -> down
+  if (dFit) return dn.res;
+  if (uFit) return up.res;
+  return up.res;
 }
 
 function sameJSON(a, b) {
@@ -400,8 +408,8 @@ function place(build, result) {
   if (!sameJSON(again, result)) throw new Error('place: the result does not belong to this build');
   const kind = piece === 'sq' ? 'sq' : way;
   const { y0, poly } = rest(build, kind, col);
-  const tile = Object.freeze({ kind, col, y0, poly, strips: Object.freeze(again.strips.slice()) });
-  return Object.freeze({ [BUILD]: true, half: build.half, strictCols: build.strictCols, tiles: Object.freeze(build.tiles.concat([tile])) });
+  const tile = Object.freeze({ kind, col, y0, poly });
+  return Object.freeze({ [BUILD]: true, half: build.half, tiles: Object.freeze(build.tiles.concat([tile])) });
 }
 
 module.exports = { newBuild, drop, place };

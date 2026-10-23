@@ -1,38 +1,46 @@
 'use strict';
-// The plausibility gallery (DESIGN §18.8 G4's plausibility review, here in the sandbox style for G2.3): pictures of
-// builds and of tiles falling off, every tile numbered, for three fresh reviewers who have seen no spec. They flag any
-// picture that does not look like what real magnet tiles would do. A reviewer counts only if they flag at least 3 of
-// the 4 planted defects and at most 1 of the 4 golden good pictures; a round passes when no unplanted picture is
-// flagged by 2 or more reviewers.
+// The plausibility gallery (DESIGN §18.8 G4's plausibility review, here in the sandbox style for G2.3), revision 5b:
+// pictures of builds and of tiles falling off, every tile numbered, for three fresh reviewers who have seen no spec.
+// They flag any picture that does not look like what real magnet tiles would do. A reviewer counts only if they flag
+// at least 3 of the 4 planted defects and at most 1 of the 4 golden good pictures; a round passes when no unplanted
+// picture is flagged by 2 or more reviewers.
 //
-// One round's gallery (52 pictures, shuffled, labelled G01…):
-// - 16 extremes: 14 from the exhaustive walk of reachable builds (rules.js, fitting drops only, mirror images merged,
-//   to --depth, default 10 as in the rules tier: 164,051 builds), the best builds by each measure, a second pick only
-//   if it shares at most 60% of its tiles with every earlier pick: longest chain of hung ▼ (2), farthest reach past the
-//   car (highest point past it; most tiles past it), most ▼ held by one side (2), tallest for width (all builds;
-//   builds with 3+ triangles), most near-miss steps on the top outline (2), smallest support among fits (most tiles
-//   resting on a ▼ held by one side over air; on a ▲ half over air), squares across two ▼ tops over a ▲'s point (most
-//   of them; highest); and 2 from the enumeration's own extremes.json (most neighbours touched by one fit, fewest
-//   fitting places);
-// - 8 minimal pairs from the enumeration's minimal-pairs.json, each one picture with the two cases shown apart: on the
-//   left or right the tile stayed, on the other it touched (dashed outline) and fell off onto the rug;
-// - 8 filmstrips of a tile falling off (5 frames: held, touching, tipping or sliding, falling, on the rug);
+// One round's gallery (about 52 pictures, shuffled, labelled G01…):
+// - 18 extremes: 14 from a walk of every reachable build to --depth (default 8: 525,000 builds; rules.js, fitting
+//   drops only, mirror images merged), the best builds by each measure, a second pick only if it shares at most 60% of
+//   its tiles with every earlier pick: longest chain of hung ▼ (2), farthest reach past the car (highest point past
+//   it; most tiles past it), most ▼ held by one side, tallest for width (all builds; builds with 3+ triangles), most
+//   thin gaps under tiles, most tiles held by half an edge, tallest structure standing on a ▼ held by one side (and one
+//   whose point is in the air), farthest overhang, squares across two ▼ tops over a ▲'s point; and 4 from the
+//   enumeration's own extremes.json (to depth 10): most neighbours touched by one fit, fewest fitting places, the
+//   tallest structure on a hung ▼, the farthest overhang;
+// - 8 minimal pairs from the enumeration's minimal-pairs.json, each one picture of two separate builds side by side,
+//   labelled A and B (not before and after), numbered alike: a tile that is in both has the same number in both, the
+//   dropped tile too; in one the dropped tile stays, in the other it falls off;
+// - 8 filmstrips of a tile falling off (5 frames: held, touching, tipping over the point it touches, falling, and
+//   faint where it would next hit something);
 // - 8 random builds and 4 bot-like end states, from a seeded box of 42 squares and 18 triangles;
 // - 4 planted defects drawn directly (bypassing the rules), from a pool of 14: revision 4's triangle on a point and its
 //   half-off square every round, and 2 more drawn by the seed;
 // - 4 golden good pictures (§18.9 cases 12, 2, 4 and 8, built).
+// How a fall is drawn (lib.fall): the tile tips about the point it rests on, toward the side its middle is on (a
+// knife-edge, its middle right over the point, tips the way with more room), then only moves down, sliding along
+// what it meets; the picture ends where it would next hit something, drawn faint there. It is never drawn landing
+// upright on the rug, and never passes through or over a tile. A tile balanced on points either side of its middle
+// (golden case 3) can't be drawn honestly as a fall, so such cases are left out of filmstrips and pairs.
 // The key (which pictures are plants, which golden, and what every picture is) goes to --key, never to reviewers.
-//   node tools/review/gallery.cjs [--seed=1] [--depth=10] [--out=dir] [--key=file] [--enum=dir (enumerate.cjs output)]
+//   node tools/review/gallery.cjs [--seed=1] [--depth=8] [--out=dir] [--key=file] [--enum=dir (enumerate.cjs output)]
 //   node tools/review/gallery.cjs --pool=file.png   (the whole pool of planted defects, labelled, for checking)
 // A new round: a new --seed draws new plants, random builds, bot runs and a new order.
 const fs = require('fs');
 const path = require('path');
 const lib = require('./lib.cjs');
 const { CASES } = require('../rules/golden.cjs');
+const E = require('../rules/enumerate.cjs');
 
-const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5';
+const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5b';
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = /^--([^=]+)(?:=(.*))?$/.exec(a); return m ? [m[1], m[2] === undefined ? true : m[2]] : [a, true]; }));
-const SEED = +(args.seed || 1), DEPTH = +(args.depth || 10);
+const SEED = +(args.seed || 1), DEPTH = +(args.depth || 8);
 const OUT = args.out || path.join(SCRATCH, 'gallery'), KEY = args.key || path.join(SCRATCH, 'gallery-key', 'key.json');
 const ENUM = args.enum || path.join(SCRATCH, 'enum');
 const R = lib.rules(), yv = lib.yv, H = lib.H, HALF = 2;
@@ -46,43 +54,35 @@ function built(log) { const B = lib.tryReplay(log); if (!B) throw new Error('doe
 // Measures of a build (exact where it matters)
 function analyse(T) {
   const n = T.length, ty = T.map(typeOf);
-  const flatTop = i => ty[i] === 'sq' ? [T[i].y[0] + 2, T[i].y[1]] : ty[i] === 'dn' ? [T[i].y[0], T[i].y[1] + 1] : null;
-  const sup = T.map(() => []), sides = T.map(() => 0);
-  for (let i = 0; i < n; i++) {
-    const t = T[i];
-    if (ty[i] === 'dn') {
-      for (let j = 0; j < n; j++) if (ty[j] === 'up' && eqY(T[j].y, t.y) && (T[j].col === t.col - 1 || T[j].col === t.col + 1)) { sup[i].push(j); sides[i]++; }
-      for (let j = 0; j < n; j++) { const f = flatTop(j); if (j !== i && f && eqY(f, t.y) && Math.abs(T[j].col - t.col) <= 1) sup[i].push(j); }
-    } else {
-      for (let j = 0; j < n; j++) { const f = flatTop(j); if (j !== i && f && eqY(f, t.y) && Math.abs(T[j].col - t.col) <= 1) sup[i].push(j); }
-    }
-  }
+  const below = E.supports(T); // who rests on whom (holding contacts); -1 is the car
   const above = T.map(() => []);
-  sup.forEach((s, i) => s.forEach(j => above[j].push(i)));
-  const load = j => { const seen = new Set(), st = [j]; while (st.length) for (const k of above[st.pop()]) if (!seen.has(k)) { seen.add(k); st.push(k); } return seen.size; };
+  below.forEach((s, i) => s.forEach(j => { if (j >= 0) above[j].push(i); }));
   // the longest chain of ▼ hung on ▲ that sit on ▼ tops
   const memoD = new Map(), memoU = new Map();
-  const chainD = i => { if (memoD.has(i)) return memoD.get(i); let m = 0; for (const j of sup[i]) if (ty[j] === 'up') m = Math.max(m, chainU(j)); memoD.set(i, 1 + m); return 1 + m; };
-  const chainU = j => { if (memoU.has(j)) return memoU.get(j); let m = 0; for (const k of sup[j]) if (ty[k] === 'dn') m = Math.max(m, chainD(k)); memoU.set(j, m); return m; };
+  const chainD = i => { if (memoD.has(i)) return memoD.get(i); let m = 0; for (const j of below[i]) if (j >= 0 && ty[j] === 'up') m = Math.max(m, chainU(j)); memoD.set(i, 1 + m); return 1 + m; };
+  const chainU = j => { if (memoU.has(j)) return memoU.get(j); let m = 0; for (const k of below[j]) if (k >= 0 && ty[k] === 'dn') m = Math.max(m, chainD(k)); memoU.set(j, m); return m; };
   const polys = T.map(lib.polyOf);
-  let chain = 0, oneSided = 0, loadDn = 0, loadUp = 0, sqApex = 0, sqApexY = -1, pastN = 0, pastTop = -1, tris = 0;
+  let chain = 0, oneSided = 0, halfHeld = 0, sqApex = 0, sqApexY = -1, pastN = 0, pastTop = -1, tris = 0;
   for (let i = 0; i < n; i++) {
     if (ty[i] !== 'sq') tris++;
     const past = T[i].col <= -5 || T[i].col >= 3;
     if (past) { pastN++; pastTop = Math.max(pastTop, ...polys[i].map(v => v.y)); }
     if (ty[i] === 'dn') {
       chain = Math.max(chain, chainD(i));
-      if (sides[i] === 1) { oneSided++; if (!(T[i].strips[0] && T[i].strips[1])) loadDn = Math.max(loadDn, 1 + load(i)); }
+      if (below[i].length === 1) oneSided++;
+    } else {
+      // held by half an edge: what it rests on covers one half of its bottom only
+      const halves = new Set();
+      for (const j of below[i]) {
+        if (j === -1) { for (const s of [T[i].col, T[i].col + 1]) if (s >= -2 * HALF && s < 2 * HALF) halves.add(s); }
+        else for (const s of [T[j].col, T[j].col + 1]) if (s === T[i].col || s === T[i].col + 1) halves.add(s);
+      }
+      if (halves.size === 1) halfHeld++;
     }
-    if (ty[i] === 'up' && !(T[i].strips[0] && T[i].strips[1])) loadUp = Math.max(loadUp, 1 + load(i));
     if (ty[i] === 'sq') {
       // its two halves on the tops of two different ▼, meeting over the point of a ▲ just below
-      const tops = [0, 1].map(j => lib.stripTop(T.filter((_, k) => k !== i), HALF, T[i].col + j));
-      const others = T.filter((_, k) => k !== i);
-      if (tops[0].kind === 'dn' && tops[1].kind === 'dn' && tops[0].idx !== tops[1].idx && tops.every(s => eqY(s.e[0], T[i].y) && eqY(s.e[1], T[i].y)) &&
-          others.some(u => typeOf(u) === 'up' && u.col === T[i].col && eqY([u.y[0], u.y[1] + 1], T[i].y))) {
-        sqApex++; sqApexY = Math.max(sqApexY, yv(T[i].y));
-      }
+      const ds = below[i].filter(j => j >= 0 && ty[j] === 'dn');
+      if (ds.length === 2 && T.some(u => typeOf(u) === 'up' && u.col === T[i].col && eqY([u.y[0], u.y[1] + 1], T[i].y))) { sqApex++; sqApexY = Math.max(sqApexY, yv(T[i].y)); }
     }
   }
   // tallest for width: height / the narrowest horizontal extent below the top 0.9 tiles
@@ -94,7 +94,6 @@ function analyse(T) {
     for (const p of polys) {
       const ys = p.map(v => v.y);
       if (y <= Math.min(...ys) || y >= Math.max(...ys)) continue;
-      // the polygon's cross-section at y
       const xs = [];
       for (let k = 0; k < p.length; k++) {
         const a = p[k], b = p[(k + 1) % p.length];
@@ -105,16 +104,10 @@ function analyse(T) {
     if (hi > lo) w = Math.min(w, hi - lo);
   }
   const lambda = n && isFinite(w) ? Ht / w : 0;
-  // near-miss steps on the top outline: neighbouring half-tile strips with flat tops 0.134 or 0.268 apart
-  let near = 0;
-  const strip = s => { const t = lib.stripTop(T, HALF, s); return t.e && eqY(t.e[0], t.e[1]) ? t.e[0] : null; };
-  let prev = strip(-2 * HALF - 1);
-  for (let s = -2 * HALF; s <= 2 * HALF; s++) {
-    const cur = strip(s);
-    if (prev && cur) { const d = Math.abs(yv(prev) - yv(cur)); if (d > 1e-9 && d < 0.27) near++; }
-    prev = cur;
-  }
-  return { n, tris, chain, oneSided, loadDn, loadUp, sqApex, sqApexY, pastN, pastTop, lambda, height: Ht, near };
+  const thin = n ? lib.buildSlivers(T, HALF).length : 0;
+  const sd = n ? E.standing(T, HALF) : { hung: { h: -1, n: 0, air: false, k: -1 }, over: 0 };
+  return { n, tris, chain, oneSided, halfHeld, sqApex, sqApexY, pastN, pastTop, lambda, height: Ht, thin,
+    hungH: sd.hung.k >= 0 && sd.hung.n ? sd.hung.h : -1, hungAirH: sd.hung.k >= 0 && sd.hung.n && sd.hung.air ? sd.hung.h : -1, over: sd.over };
 }
 
 // the exhaustive walk, keeping the best few builds per measure (mirror images merged)
@@ -125,13 +118,14 @@ const MEASURES = [
   { id: 'one-sided', name: 'most ▼ held by one side', v: a => a.oneSided },
   { id: 'tall-thin', name: 'tallest for its narrowest width', v: a => a.lambda },
   { id: 'tall-thin-tri', name: 'tallest for its narrowest width, with 3+ triangles', v: a => a.tris >= 3 ? a.lambda : -1 },
-  { id: 'near-steps', name: 'most near-miss steps (0.134 or 0.268) on the top outline', v: a => a.near },
-  { id: 'support-dn', name: 'smallest support: most tiles resting on a ▼ held by one side, half over air', v: a => a.loadDn },
-  { id: 'support-up', name: 'smallest support: most tiles resting on a ▲ half over air', v: a => a.loadUp },
-  { id: 'sq-apex', name: 'most squares across two ▼ tops over a ▲ point', v: a => a.sqApex },
-  { id: 'sq-apex-high', name: 'highest square across two ▼ tops over a ▲ point', v: a => a.sqApex ? a.sqApexY : -1 }
+  { id: 'thin-gaps', name: 'most thin gaps (0.134 or 0.268) under tiles', v: a => a.thin },
+  { id: 'half-held', name: 'most tiles held by half an edge', v: a => a.halfHeld },
+  { id: 'hung-load', name: 'tallest structure standing on a ▼ held by one side', v: a => a.hungH },
+  { id: 'hung-air-load', name: 'tallest structure standing on a ▼ hung by one side with its point in the air', v: a => a.hungAirH },
+  { id: 'overhang', name: 'farthest overhang (a tile\'s middle past where its supports meet the car)', v: a => a.over },
+  { id: 'sq-apex', name: 'most squares across two ▼ tops over a ▲ point', v: a => a.sqApex }
 ];
-const PER = { 'dn-chain': 2, 'reach-high': 1, 'reach-count': 1, 'one-sided': 2, 'tall-thin': 1, 'tall-thin-tri': 1, 'near-steps': 2, 'support-dn': 1, 'support-up': 1, 'sq-apex': 1, 'sq-apex-high': 1 };
+const PER = { 'dn-chain': 2, 'reach-high': 1, 'reach-count': 1, 'one-sided': 1, 'tall-thin': 1, 'tall-thin-tri': 1, 'thin-gaps': 1, 'half-held': 1, 'hung-load': 1, 'hung-air-load': 1, 'overhang': 2, 'sq-apex': 1 };
 function extremesWalk(maxDepth) {
   const t0 = Date.now();
   let frontier = [{ B: R.newBuild({ half: HALF }), log: [] }];
@@ -139,6 +133,7 @@ function extremesWalk(maxDepth) {
   const top = Object.fromEntries(MEASURES.map(m => [m.id, []]));
   const K = 40;
   let count = 1;
+  const better = (x, y) => x.v > y.v + 1e-9 || (Math.abs(x.v - y.v) < 1e-9 && (x.a.n < y.a.n || (x.a.n === y.a.n && x.a.height < y.a.height - 1e-9)));
   for (let d = 1; d <= maxDepth; d++) {
     const next = [];
     for (const nd of frontier) {
@@ -154,10 +149,7 @@ function extremesWalk(maxDepth) {
         for (const m of MEASURES) {
           const v = m.v(a);
           if (v <= 0) continue;
-          const L = top[m.id];
-          // better: higher value, then fewer tiles, then lower
-          const better = (x, y) => x.v > y.v + 1e-9 || (Math.abs(x.v - y.v) < 1e-9 && (x.a.n < y.a.n || (x.a.n === y.a.n && x.a.height < y.a.height - 1e-9)));
-          const e = { v, a, log, ck };
+          const L = top[m.id], e = { v, a, log, ck };
           if (L.length < K || better(e, L[L.length - 1])) { L.push(e); L.sort((x, y) => better(x, y) ? -1 : better(y, x) ? 1 : 0); if (L.length > K) L.pop(); }
         }
       }
@@ -169,118 +161,59 @@ function extremesWalk(maxDepth) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Falling off: how a tile that does not fit leaves (tipping about the edge of what holds it, or a ▼ sliding off a slant)
-const CAR = [{ x: -HALF, y: -0.36 }, { x: HALF, y: -0.36 }, { x: HALF, y: 0 }, { x: -HALF, y: 0 }];
-function overlap(P, Q) {
-  const eps = 2e-3;
-  for (const poly of [P, Q]) for (let i = 0; i < poly.length; i++) {
-    const a = poly[i], b = poly[(i + 1) % poly.length], nx = -(b.y - a.y), ny = b.x - a.x;
-    let p0 = Infinity, p1 = -Infinity, q0 = Infinity, q1 = -Infinity;
-    for (const v of P) { const d = v.x * nx + v.y * ny; p0 = Math.min(p0, d); p1 = Math.max(p1, d); }
-    for (const v of Q) { const d = v.x * nx + v.y * ny; q0 = Math.min(q0, d); q1 = Math.max(q1, d); }
-    const len = Math.hypot(nx, ny);
-    if (p1 <= q0 + eps * len || q1 <= p0 + eps * len) return false;
-  }
-  return true;
-}
-const clear = (poly, obst) => !obst.some(o => overlap(poly, o)) && Math.min(...poly.map(v => v.y)) >= lib.FLOOR - 1e-6;
-function fallOf(B, T, piece, col, res) {
-  const type = res.way === null ? 'sq' : res.way === 'up' ? 'up' : 'dn';
-  const y0 = yv(res.pose.y), x0 = col / 2, xc = x0 + 0.5;
-  const rest = lib.shape(type, col, y0);
-  const obst = T.map(lib.polyOf).concat([CAR]);
-  const d = lib.describe(B, piece, col, res);
-  const outward = xc > 1e-9 ? 1 : xc < -1e-9 ? -1 : 1;
-  let dir, pivot, mode;
-  if (type === 'dn') {
-    mode = 'slide';
-    dir = d.sideL && !d.sideR ? 1 : d.sideR && !d.sideL ? -1 : outward;
-    pivot = { x: xc, y: y0 };
-  } else {
-    mode = 'tip';
-    const xs = [];
-    d.strips.forEach((s, j) => {
-      const a = x0 + j / 2, b = a + 0.5;
-      if (s.at0) xs.push(a, b);
-      else if (s.e) { if (eqY(s.e[0], res.pose.y)) xs.push(a); if (eqY(s.e[1], res.pose.y)) xs.push(b); }
-    });
-    if (!xs.length) xs.push(xc);
-    const smin = Math.min(...xs), smax = Math.max(...xs);
-    if (res.reason === 'TOO FAR OUT') dir = !res.strips[1] && res.strips[0] ? 1 : !res.strips[0] && res.strips[1] ? -1 : outward;
-    else if (smax <= xc + 1e-9 && smin < xc - 1e-9) dir = 1;
-    else if (smin >= xc - 1e-9 && smax > xc + 1e-9) dir = -1;
-    else dir = outward;
-    pivot = { x: dir > 0 ? smax : smin, y: y0 };
-  }
-  // frame 3: tipped as far as it goes (up to 30°), or slid down the slant
-  let f3 = rest;
-  if (mode === 'tip') {
-    for (let deg = 1; deg <= 30; deg++) { const p = lib.rotate(rest, pivot, -dir * deg * Math.PI / 180); if (!clear(p, obst)) break; f3 = p; }
-    if (f3 === rest) { const p = lib.shift(rest, dir * 0.2, 0); if (clear(p, obst)) f3 = p; }
-  } else {
-    for (let s = 0.05; s <= 0.45; s += 0.05) { const p = lib.shift(rest, dir * 0.5 * s, -H * 2 * s * 0.5); if (!clear(p, obst)) break; f3 = p; }
-  }
-  // frame 4: falling, turned well over and clear of everything
-  let f4 = mode === 'tip' ? lib.rotate(rest, pivot, -dir * 70 * Math.PI / 180) : lib.rotate(rest, lib.centroid(rest), -dir * 45 * Math.PI / 180);
-  f4 = lib.shift(f4, dir * 0.35, -0.55);
-  const lift = p => { const m = Math.min(...p.map(v => v.y)); return m < lib.FLOOR + 0.3 ? lib.shift(p, 0, lib.FLOOR + 0.3 - m) : p; };
-  f4 = lift(f4);
-  let pushed = 0;
-  while (!clear(f4, obst) && pushed < 5) { f4 = lib.shift(f4, dir * 0.1, 0); pushed += 0.1; }
-  // frame 5: lying on the rug beside the car
-  let ex = dir > 0 ? HALF + 0.3 : -HALF - 1.3;
-  const rug = () => type === 'sq' ? lib.shape('sq', ex * 2, lib.FLOOR) : lib.shape('up', ex * 2, lib.FLOOR);
-  let f5 = rug();
-  while (!clear(f5, obst) && Math.abs(ex) < 6) { ex += dir * 0.1; f5 = rug(); }
-  return { type, dir, pivot, mode, rest, f3, f4, f5, pushed, outward: dir === outward, y0 };
-}
-
-// ---------------------------------------------------------------------------------------------------------------
 // Drawing
 const UNIT = 300, VX = [-3.3, 3.3];
-const tilesOf = T => T.map((t, i) => ({ poly: lib.polyOf(t), color: lib.colorOf(i), num: i + 1 }));
+// tiles numbered 1…n (or by `nums`), coloured by their number
+const tilesOf = (T, nums) => T.map((t, i) => { const n = nums ? nums[i] : i + 1; return { poly: lib.polyOf(t), color: lib.colorOf(n - 1), num: n }; });
 function viewFor(polyLists, extraTop) {
   let x0 = VX[0], x1 = VX[1], top = 0.6;
   for (const ps of polyLists) for (const p of ps) for (const v of p) { x0 = Math.min(x0, v.x - 0.2); x1 = Math.max(x1, v.x + 0.2); top = Math.max(top, v.y); }
   return { x0, x1, y0: -0.8, y1: top + (extraTop || 0.45) };
 }
 function fitL(view, maxW, maxH, Lmax) { return Math.min(Lmax, maxW / (view.x1 - view.x0), maxH / (view.y1 - view.y0)); }
-// a build alone
+// a build alone (slivers: the thin gaps under its tiles, when it is a rules build)
 function buildPicture(tiles, extra) {
   const view = viewFor([tiles.map(t => t.poly)]);
   const L = fitL(view, UNIT, 340, 45);
   return lib.svgRow([lib.scene(Object.assign({ L, view, tiles }, extra || {}))]);
 }
-// a pair shown apart: two scenes, each either the tile in place or the tile's touch (dashed) and the tile on the rug
-function pairScene(side, view, L) {
-  const tiles = tilesOf(side.T);
-  const num = side.T.length + 1, color = lib.colorOf(side.T.length);
-  const arcs = [];
-  if (side.res.outcome === 'fit') tiles.push({ poly: side.fall ? null : lib.shape(side.type, side.col, yv(side.res.pose.y)), color, num });
-  else {
-    tiles.push({ poly: side.fall.rest, style: 'ghost' });
-    tiles.push({ poly: side.fall.f5, color, num });
-    const a = lib.centroid(side.fall.rest), b = lib.centroid(side.fall.f5);
-    arcs.push({ a, b: { x: b.x, y: b.y + 0.55 }, bend: { x: 0, y: 0.9 } });
+// one side of a pair: its build, and the dropped tile where it stayed, or touching (grey dashed), its path (dotted)
+// and, faint, where it would next hit something
+function pairScene(side, view, L, tag) {
+  const tiles = tilesOf(side.T, side.nums), color = lib.colorOf(side.num - 1);
+  const sc = { L, view, tiles, tag, slivers: lib.buildSlivers(side.T, HALF) };
+  if (side.res.outcome === 'fit') {
+    const T2 = side.T.concat([{ piece: side.res.way === null ? 'sq' : 'tri', way: side.res.way, col: side.col, y: side.res.pose.y }]);
+    tiles.push({ poly: lib.shape(side.type, side.col, yv(side.res.pose.y)), color, num: side.num });
+    sc.slivers = lib.buildSlivers(T2, HALF);
+  } else {
+    const f = side.fall, last = f.poses[f.poses.length - 1];
+    tiles.push({ poly: f.rest, style: 'ghost' });
+    tiles.push({ poly: last, color, num: side.num, style: 'faded' });
+    sc.paths = [f.path];
   }
-  return lib.scene({ L, view, tiles, arcs });
+  return lib.scene(sc);
 }
-function filmstrip(T, piece, col, res, fall) {
+// five frames: held above, touching, tipped over the point it touches, falling, and faint where it would next hit something
+function filmstrip(T, col, fall) {
   const base = tilesOf(T), num = T.length + 1, color = lib.colorOf(T.length);
-  const held = lib.shape(fall.type, col, fall.y0 + 1.0);
-  const frames = [held, fall.rest, fall.f3, fall.f4, fall.f5];
+  const held = lib.shape(fall.type, col, yv([0, 0]) + lib.centroid(fall.rest).y - lib.centroid(lib.shape(fall.type, col, 0)).y + 1.0);
+  const P = fall.poses, iTip = P.indexOf(fall.tipped), iEnd = P.length - 1;
+  const iMid = Math.min(iEnd - 1, Math.max(iTip + 1, Math.round((iTip + iEnd) / 2)));
+  const frames = [{ poly: held }, { poly: fall.rest }, { poly: fall.tipped, upto: iTip }, { poly: P[Math.max(iMid, iTip)], upto: Math.max(iMid, iTip) }, { poly: P[iEnd], upto: iEnd, faded: true }];
   let x0 = -HALF - 0.25, x1 = HALF + 0.25, top = 0.6;
-  for (const p of base.map(t => t.poly).concat(frames)) for (const v of p) { x0 = Math.min(x0, v.x - 0.2); x1 = Math.max(x1, v.x + 0.2); top = Math.max(top, v.y); }
+  for (const p of base.map(t => t.poly).concat(frames.map(f => f.poly))) for (const v of p) { x0 = Math.min(x0, v.x - 0.2); x1 = Math.max(x1, v.x + 0.2); top = Math.max(top, v.y); }
   const view = { x0, x1, y0: -0.8, y1: top + 0.75 };
   const L = fitL(view, 180, 260, 36);
-  const polys = T.map(lib.polyOf);
+  const polys = T.map(lib.polyOf), slivers = lib.buildSlivers(T, HALF);
   return lib.svgRow(frames.map((f, i) => {
-    const tiles = base.concat([{ poly: f, color, num }]);
-    const sc = { L, view, tiles };
+    const tiles = base.concat([{ poly: f.poly, color, num, style: f.faded ? 'faded' : undefined }]);
+    const sc = { L, view, tiles, slivers };
+    if (f.upto !== undefined) sc.paths = [fall.path.slice(0, f.upto + 1)];
     if (i === 0) {
-      const lx = col / 2, rx = lx + 1, yb = fall.type === 'dn' ? fall.y0 + 1.0 + H : fall.y0 + 1.0;
+      const lx = col / 2, rx = lx + 1, yb = Math.min(...f.poly.map(v => v.y)) + (fall.type === 'dn' ? H : 0);
       sc.lines = [[lx, 1e-6], [rx, -1e-6]].map(([x, e]) => { const o = lib.outlineAt(polys, HALF, x + e); return { a: { x, y: yb - 0.04 }, b: { x, y: o === null ? lib.FLOOR : o }, dotted: true }; });
-      sc.grip = { x: lx + 0.5, y: Math.max(...f.map(v => v.y)) };
+      sc.grip = { x: lx + 0.5, y: Math.max(...f.poly.map(v => v.y)) };
     }
     return lib.scene(sc);
   }), { gap: 12, arrows: true });
@@ -297,6 +230,12 @@ function makeBox(r) {
   }
 }
 const center = r => r.pose.col / 2 + 0.5;
+// how much of its bottom edge holds (squares and ▲: 1 half or 2; a ▼: 1 side or 2), from the shine
+function hold(o) {
+  const [p, q] = o.pose.y;
+  if (o.way === 'down') return o.shine.length >= 2 ? 2 : 1;
+  return o.shine.filter(s => s[0][1] === p && s[0][2] === q && s[1][1] === p && s[1][2] === q).reduce((a, s) => a + s[1][0] - s[0][0], 0);
+}
 const POLICIES = {
   random: (B, opts, r) => r.pick(opts),
   stack: (B, opts) => opts.slice().sort((a, b) => yv(a.pose.y) - yv(b.pose.y) || Math.abs(center(a)) - Math.abs(center(b)))[0],
@@ -306,7 +245,7 @@ const POLICIES = {
     const T = R.tiles(B);
     const comx = T.reduce((s, t) => s + lib.centroid(lib.polyOf(t)).x, 0);
     return opts.slice().sort((a, b) => score(a) - score(b))[0];
-    function score(o) { const c = (comx + center(o)) / (T.length + 1); return yv(o.pose.y) * 1.0 + Math.abs(c) * 3 + Math.abs(center(o)) * 0.4 - o.shine.length * 0.6 + (o.strips[0] && o.strips[1] ? 0 : 0.8); }
+    function score(o) { const c = (comx + center(o)) / (T.length + 1); return yv(o.pose.y) * 1.0 + Math.abs(c) * 3 + Math.abs(center(o)) * 0.4 - o.shine.length * 0.6 + (hold(o) >= 2 ? 0 : 0.8); }
   }
 };
 function runBot(policy, r, maxTiles) {
@@ -330,6 +269,8 @@ function runBot(policy, r, maxTiles) {
 
 // ---------------------------------------------------------------------------------------------------------------
 // Planted defects: drawn directly, bypassing the rules. Each: a small ordinary build (from the rules) plus the defect.
+// Every one breaks revision 5b too (a point instead of an edge, off the lattice, a square off whole tiles or past the
+// car, overlap, floating).
 const sqAt = (x, y) => lib.shape('sq', x * 2, y);
 const upAt = (x, y) => lib.shape('up', x * 2, y);
 const dnAt = (x, y) => lib.shape('dn', x * 2, y); // x: its top edge's left end, y: its point's height
@@ -356,13 +297,18 @@ const LEGEND = [
   '- The grey plate with two wheels is a toy car seen from the side; the line below it is the rug. Tiles are magnetic',
   '  building tiles (squares and triangles with equal sides) standing in one flat wall on the car. Each tile is numbered',
   '  in the order it was put on.',
+  '- A thin dark sliver under part of a tile is a thin gap between that tile and the tile below it. It is not a joint.',
   '- A single scene shows a build as it stands.',
-  '- A wide picture split by a grey line shows two separate cases side by side. In each, the highest-numbered tile was',
-  '  the last one dropped: either it is where it stayed, or a dashed grey outline marks where it touched the build',
-  '  and a dotted arrow leads to where it ended up, on the rug.',
+  '- A wide picture with two scenes marked A and B shows two separate builds side by side. They are not before and',
+  '  after: they differ in one thing (where the last tile was dropped, or one extra tile in one of them). A tile that is',
+  '  in both builds has the same number in both; a number that appears in only one of them is a tile only that build',
+  '  has. The highest-numbered tile was the last one dropped. In one build it stays where it is drawn. In the other a',
+  '  dashed grey outline marks where it first touched, a dotted line shows the path of its middle as it fell off, and',
+  '  a faint outline shows where it would next hit something (the drawing stops there).',
   '- A row of five small frames (with grey arrows between them) is a filmstrip, left to right: a tile held above the',
-  '  build (the small grey box is the hand, the dotted lines show where it falls), the tile touching the build, then',
-  '  what happens to it next.',
+  '  build (the small grey box is the hand, the dotted lines show where it falls), the tile touching the build, the tile',
+  '  tipping over the point it rests on, the tile falling, and, faint, where it would next hit something (the drawing',
+  '  stops there). The dotted line is the path of its middle.',
   'Flag any picture where something does not look like what real magnetic tiles would do, and say which tile numbers.'
 ].join('\n');
 
@@ -371,8 +317,9 @@ function plantPicture(P) {
   const { T } = built(P.base.map(lib.parse));
   const tiles = tilesOf(T);
   for (const poly of P.add()) tiles.push({ poly, color: lib.colorOf(tiles.length), num: tiles.length + 1 });
-  return buildPicture(tiles);
+  return buildPicture(tiles, { slivers: lib.buildSlivers(T, HALF) });
 }
+const rulesPicture = T => buildPicture(tilesOf(T), { slivers: lib.buildSlivers(T, HALF) });
 // --pool=file.png: the whole pool of planted defects on one sheet, labelled, for checking the drawings
 async function poolSheet(file) {
   const html = PLANTS.map(P => `<div class="pic"><span class="id">${P.id} ${lib.esc(P.name)}</span>${plantPicture(P).svg}</div>`).join('');
@@ -380,6 +327,22 @@ async function poolSheet(file) {
   fs.writeFileSync(file, png);
   await lib.close();
   console.log('wrote ' + file);
+}
+
+// a minimal pair as two separate builds, A and B, numbered alike. sides: [{log, col, extra?: the index in log of a
+// tile only this build has}]
+function pairPicture(sides, piece) {
+  const n = Math.max(...sides.map(s => s.log.length));
+  for (const s of sides) {
+    const { B, T } = built(s.log);
+    const res = R.drop(B, piece, s.col);
+    Object.assign(s, { B, T, res, type: res.way === null ? 'sq' : res.way === 'up' ? 'up' : 'dn' });
+    // shared tiles keep their numbers; a tile only one build has gets the next number; the dropped tile n + 1 in both
+    s.nums = s.log.map((e, i) => i + 1);
+    s.num = n + 1;
+    if (res.outcome !== 'fit') s.fall = lib.fall(T, HALF, res);
+  }
+  return sides;
 }
 
 async function main() {
@@ -402,79 +365,84 @@ async function main() {
       if (picked.some(p => alike(ts, p) > 0.6)) continue;
       usedCk.add(e.ck); picked.push(ts); k++;
       const { T } = built(e.log);
-      pics.push({ kind: 'extreme', what: m.name + ' (' + (Number.isInteger(e.v) ? e.v : e.v.toFixed(3)) + ')', measure: m.id, value: e.v, build: fmtLog(e.log), svg: buildPicture(tilesOf(T)) });
+      pics.push({ kind: 'extreme', what: m.name + ' (' + (Number.isInteger(e.v) ? e.v : e.v.toFixed(3)) + ')', measure: m.id, value: e.v, build: fmtLog(e.log), svg: rulesPicture(T) });
     }
     if (k < PER[m.id]) console.log(`!! ${m.id}: only ${k} builds`);
   }
-  const EX = JSON.parse(fs.readFileSync(path.join(ENUM, 'extremes.json'), 'utf8')).extremes;
-  for (const name of ['most neighbours touched by one fit', 'fewest fitting places (■ + ▲ + ▼ columns)']) {
+  let EX = {};
+  try { EX = JSON.parse(fs.readFileSync(path.join(ENUM, 'extremes.json'), 'utf8')).extremes; } catch (e) { console.log('!! no ' + path.join(ENUM, 'extremes.json') + ': ' + e.message); }
+  for (const name of Object.keys(EX).filter(k => /^(most neighbours touched by one fit|fewest fitting places|tallest structure standing on a ▼ held by one side|farthest overhang)/.test(k))) {
     const e = EX[name];
     let log = e.log.map(lib.parse);
     if (e.drop) { const B = lib.tryReplay(log), r = R.drop(B, e.drop.piece, e.drop.col, e.drop.way); log = log.concat([{ piece: e.drop.piece, col: e.drop.col, way: r.way }]); }
+    if (usedCk.has(lib.keysOf(built(log).T).ck)) continue;
+    usedCk.add(lib.keysOf(built(log).T).ck);
     const { T } = built(log);
-    pics.push({ kind: 'extreme', what: name + ' (' + e.value + ', from enumerate.cjs)', measure: 'enum:' + name, value: e.value, build: fmtLog(log), svg: buildPicture(tilesOf(T)) });
+    pics.push({ kind: 'extreme', what: name + ' (' + JSON.stringify(e.value) + ', depth ' + e.depth + ', from enumerate.cjs)', measure: 'enum:' + name, value: e.value, build: fmtLog(log), svg: rulesPicture(T) });
   }
   // 2. minimal pairs, from the enumeration's minimal-pairs.json, checked here with the hand's own way up
-  const MP = JSON.parse(fs.readFileSync(path.join(ENUM, 'minimal-pairs.json'), 'utf8'));
-  const WANT = [['oneTileAdded', 'sq: FIT -> NOT LEVEL'], ['oneTileAdded', 'auto: FIT -> ONLY A POINT'], ['oneTileAdded', 'auto: OVER THE EDGE -> FIT'],
-    ['oneTileAdded', 'auto: NOT LEVEL -> FIT'], ['neighbouringCols', 'sq: TOO FAR OUT | FIT'], ['neighbouringCols', 'down: TOO FAR OUT | FIT'],
-    ['oneTileAdded', 'sq: ONLY A POINT -> FIT'], ['neighbouringCols', 'up: FIT | NOT LEVEL'], ['oneTileAdded', 'up: NOT LEVEL -> FIT'],
-    ['neighbouringCols', 'sq: NOT LEVEL | FIT'], ['oneTileAdded', 'auto: ONLY A POINT -> FIT'], ['neighbouringCols', 'up: FIT | TOO FAR OUT']];
+  let MP = { neighbouringCols: {}, oneTileAdded: {} };
+  try { MP = JSON.parse(fs.readFileSync(path.join(ENUM, 'minimal-pairs.json'), 'utf8')); } catch (e) { console.log('!! no minimal-pairs.json: ' + e.message); }
+  const WANT = [['oneTileAdded', 'sq: FIT -> ONLY A POINT'], ['neighbouringCols', 'up: FIT | ONLY A POINT'], ['oneTileAdded', 'auto: ONLY A POINT -> FIT'],
+    ['neighbouringCols', 'sq: ONLY A POINT | FIT'], ['oneTileAdded', 'up: FIT -> ONLY A POINT'], ['neighbouringCols', 'sq: FIT | ONLY A POINT'],
+    ['oneTileAdded', 'sq: ONLY A POINT -> FIT'], ['neighbouringCols', 'up: ONLY A POINT | FIT'], ['oneTileAdded', 'auto: FIT -> ONLY A POINT'], ['oneTileAdded', 'up: ONLY A POINT -> FIT']];
   let nPairs = 0;
   for (const [kind, cls] of WANT) {
     if (nPairs >= 8) break;
     const exs = (MP[kind][cls] || []).slice().sort((a, b) => (a.log.length < 2 ? 10 : a.log.length) - (b.log.length < 2 ? 10 : b.log.length));
     for (const ex of exs) {
       const log = ex.log.map(lib.parse);
-      const way = ex.piece === 'sq' ? undefined : undefined; // the hand's own choice (auto-turn)
       let sides;
       if (kind === 'neighbouringCols') sides = ex.cols.map(col => ({ log, col }));
       else sides = [{ log, col: ex.col }, { log: log.concat([lib.parse(ex.add)]), col: ex.col }];
-      sides = sides.map(s => {
-        const { B, T } = built(s.log), res = R.drop(B, ex.piece, s.col, way);
-        return Object.assign(s, { B, T, res, type: res.way === null ? 'sq' : res.way === 'up' ? 'up' : 'dn' });
-      });
+      if (sides.some(s => !lib.tryReplay(s.log))) continue;
+      sides = pairPicture(sides, ex.piece);
       if (sides[0].res.outcome === sides[1].res.outcome) continue;
-      // the forced way of the class must be the hand's own choice
+      // the class's way must be the hand's own choice (the hand turns a triangle itself)
       if (ex.way && sides.some(s => s.res.way !== ex.way)) continue;
-      for (const s of sides) s.fall = s.res.outcome === 'fit' ? null : fallOf(s.B, s.T, ex.piece, s.col, s.res);
+      // only falls that can be drawn honestly
+      if (sides.some(s => s.fall && !s.fall.ok)) continue;
       if (rnd() < 0.5) sides.reverse();
       const all = [];
-      for (const s of sides) { all.push(...s.T.map(lib.polyOf)); if (s.fall) all.push(s.fall.rest, s.fall.f5); else all.push(lib.shape(s.type, s.col, yv(s.res.pose.y))); }
+      for (const s of sides) { all.push(...s.T.map(lib.polyOf)); if (s.fall) all.push(s.fall.rest, ...s.fall.poses); else all.push(lib.shape(s.type, s.col, yv(s.res.pose.y))); }
       const view = viewFor([all], 0.5), L = fitL(view, UNIT, 340, 45);
-      const svg = lib.svgRow(sides.map(s => pairScene(s, view, L)), { gap: 18, divider: 2 });
+      const svg = lib.svgRow(sides.map((s, i) => pairScene(s, view, L, i ? 'B' : 'A')), { gap: 24, divider: 3 });
       pics.push({ kind: 'pair', what: 'minimal pair ' + cls + ' (' + kind + ')', units: 2, build: sides.map(s => fmtLog(s.log)), hand: sides.map(s => lib.fmtHand(ex.piece, s.col, s.res.way)),
-        outcomes: sides.map(s => s.res.outcome === 'fit' ? 'stays (left in place)' : 'falls off: ' + s.res.reason), svg });
+        outcomes: sides.map((s, i) => (i ? 'B: ' : 'A: ') + (s.res.outcome === 'fit' ? 'stays' : 'falls off: ' + s.res.reason + (s.fall.knife ? ' (knife-edge)' : '') + ', drawn to where it would next hit something')), svg });
       nPairs++;
       break;
     }
   }
   if (nPairs < 8) console.log('!! only ' + nPairs + ' minimal pairs');
-  // 3. filmstrips: tiles falling off outward, one of each kind, from small builds
-  const small = lib.walk(6).nodes.filter(n => n.depth >= 2);
+  // 3. filmstrips: tiles falling off (the hand's own way up), one of each kind, from small builds
+  const small = lib.walk(5).nodes.filter(n => n.depth >= 1);
+  const supKind = f => f.knife ? 'mid' : 'corner';
   const KINDS = [
-    { what: '▲ on a point', ok: (t, r, g) => t === 'up' && r.reason === 'ONLY A POINT' },
-    { what: '■ on points', ok: (t, r) => t === 'sq' && r.reason === 'ONLY A POINT' },
-    { what: '▲ half past the car', ok: (t, r) => t === 'up' && r.reason === 'OVER THE EDGE' },
-    { what: '■ half over a lower top or slant', ok: (t, r, g) => t === 'sq' && r.reason === 'NOT LEVEL' && g > 0.5 },
-    { what: '▲ near miss (0.134 or 0.268)', ok: (t, r, g) => t === 'up' && r.reason === 'NOT LEVEL' && g < 0.3 },
-    { what: '▼ hung by one side, too far out', ok: (t, r) => t === 'dn' && r.reason === 'TOO FAR OUT' },
-    { what: '■ on a ▼ that is half over air (too far out)', ok: (t, r) => t === 'sq' && r.reason === 'TOO FAR OUT' },
-    { what: '▲ half over a lower step', ok: (t, r, g) => t === 'up' && r.reason === 'NOT LEVEL' && g > 0.5 }
+    { what: '▲ on a point under its middle (a knife-edge)', ok: (t, f, d) => t === 'up' && f.knife },
+    { what: '▲ with one corner on a point, its middle past it', ok: (t, f, d) => t === 'up' && !f.knife },
+    { what: '■ on a point under its middle (a knife-edge)', ok: (t, f, d) => t === 'sq' && f.knife },
+    { what: '■ with one corner on a point, its middle past it', ok: (t, f, d) => t === 'sq' && !f.knife },
+    { what: '▲ past the car\'s end on a point', ok: (t, f, d) => t === 'up' && d.outside },
+    { what: 'a tile that tips onto the build and stops against it', ok: (t, f, d) => Math.min(...f.poses[f.poses.length - 1].map(v => v.y)) > 0.05 },
+    { what: 'a tile that falls clear of the car onto the rug', ok: (t, f, d) => Math.min(...f.poses[f.poses.length - 1].map(v => v.y)) < lib.FLOOR + 0.01 },
+    { what: 'a tile that tips onto the car deck', ok: (t, f, d) => { const m = Math.min(...f.poses[f.poses.length - 1].map(v => v.y)); return m > -0.01 && m < 0.01; } }
   ];
-  const order = rnd.shuffle(small.slice());
+  const order = rnd.shuffle(small.slice()).sort((a, b) => a.depth - b.depth);
+  const usedFilm = new Set();
   for (const K of KINDS) {
     let found = null;
     for (const nd of order) {
+      if (usedFilm.has(nd.ck)) continue;
+      if (Math.max(0, ...nd.T.map(x => Math.max(...lib.polyOf(x).map(v => v.y)))) > 3.2) continue;
       for (const piece of ['sq', 'tri']) {
         for (const col of R.cols(nd.B, piece)) {
           const res = R.drop(nd.B, piece, col);
           if (res.outcome === 'fit') continue;
           const t = res.way === null ? 'sq' : res.way === 'up' ? 'up' : 'dn';
-          if (!K.ok(t, res, res.gap ? yv(res.gap) : 0)) continue;
-          const fall = fallOf(nd.B, nd.T, piece, col, res);
-          if (!fall.outward || fall.pushed > 0.8) continue;
-          if (Math.max(...nd.T.map(x => Math.max(...lib.polyOf(x).map(v => v.y)))) > 3.2) continue;
+          const fall = lib.fall(nd.T, HALF, res);
+          if (!fall.ok) continue;
+          const d = lib.describe(nd.B, piece, col, res);
+          if (!K.ok(t, fall, d)) continue;
           found = { nd, piece, col, res, fall }; break;
         }
         if (found) break;
@@ -483,17 +451,19 @@ async function main() {
     }
     if (!found) { console.log('!! no filmstrip for ' + K.what); continue; }
     const { nd, piece, col, res, fall } = found;
-    pics.push({ kind: 'filmstrip', what: 'falls off: ' + K.what + ' (' + res.reason + (res.gap ? ', gap ' + yv(res.gap).toFixed(3) : '') + ')', units: 3,
-      build: fmtLog(nd.log), hand: lib.fmtHand(piece, col, res.way), outcome: res.reason, svg: filmstrip(nd.T, piece, col, res, fall) });
+    usedFilm.add(nd.ck);
+    void supKind;
+    pics.push({ kind: 'filmstrip', what: 'falls off: ' + K.what + ' (' + res.reason + (fall.knife ? ', knife-edge, tips the way with more room' : '') + ')', units: 3,
+      build: fmtLog(nd.log), hand: lib.fmtHand(piece, col, res.way), outcome: res.reason, fall: { dir: fall.dir > 0 ? 'right' : 'left', pivot: [+fall.pivot.x.toFixed(3), +fall.pivot.y.toFixed(3)], end: fall.end, why: fall.why }, svg: filmstrip(nd.T, col, fall) });
   }
   // 4. random builds and bot end states
   for (let i = 0; i < 8; i++) {
     const log = runBot('random', rnd, 8 + rnd.int(9));
-    pics.push({ kind: 'random', what: 'random build of ' + log.length + ' tiles (random fitting drops from a shuffled box)', build: fmtLog(log), svg: buildPicture(tilesOf(built(log).T)) });
+    pics.push({ kind: 'random', what: 'random build of ' + log.length + ' tiles (random fitting drops from a shuffled box)', build: fmtLog(log), svg: rulesPicture(built(log).T) });
   }
   for (const [bot, n] of [['stack', 20], ['careful', 20], ['spire', 12], ['spire2', 14]]) {
     const log = runBot(bot, rnd, n);
-    pics.push({ kind: 'bot', what: bot + '-like bot after ' + log.length + ' tiles', build: fmtLog(log), svg: buildPicture(tilesOf(built(log).T)) });
+    pics.push({ kind: 'bot', what: bot + '-like bot after ' + log.length + ' tiles', build: fmtLog(log), svg: rulesPicture(built(log).T) });
   }
   // 5. planted defects: revision 4's two every round, two more by the seed
   const rest = rnd.shuffle(PLANTS.filter(p => !p.rev4).slice());
@@ -504,7 +474,7 @@ async function main() {
     const c = CASES[n - 1], { B } = built(c.log), r = R.drop(B, c.lastDrop.piece, c.lastDrop.col, c.lastDrop.way || undefined);
     if (r.outcome !== 'fit') throw new Error('golden ' + n + ' does not fit');
     const T = R.tiles(R.place(B, r));
-    pics.push({ kind: 'golden', golden: n, what: 'golden case ' + n + ': ' + c.title + ' (every tile fits)', build: fmtLog(c.log.concat([{ piece: c.lastDrop.piece, col: c.lastDrop.col, way: r.way }])), svg: buildPicture(tilesOf(T)) });
+    pics.push({ kind: 'golden', golden: n, what: 'golden case ' + n + ': ' + c.title + ' (every tile stays)', build: fmtLog(c.log.concat([{ piece: c.lastDrop.piece, col: c.lastDrop.col, way: r.way }])), svg: rulesPicture(T) });
   }
   for (const p of pics) p.units = p.units || 1;
   console.log(`${pics.length} pictures: ` + ['extreme', 'pair', 'filmstrip', 'random', 'bot', 'plant', 'golden'].map(k => k + ' ' + pics.filter(p => p.kind === k).length).join(', '));
@@ -542,14 +512,15 @@ async function main() {
   // the key
   const all = sheets.flat(2);
   const key = {
-    what: 'Key for the CLACK STACK revision 5 plausibility gallery (DESIGN §18.8). Never show this to reviewers.',
+    what: 'Key for the CLACK STACK revision 5b plausibility gallery (DESIGN §18.8). Never show this to reviewers.',
     seed: SEED, depth: DEPTH, buildsWalked: W.count, made: new Date().toISOString(), galleryDir: OUT, sheets: files.map(f => path.basename(f)),
     plants: all.filter(p => p.kind === 'plant').map(p => p.id), golden: all.filter(p => p.kind === 'golden').map(p => p.id),
     scoring: 'A reviewer counts only if they flag at least 3 of the 4 plants and at most 1 golden picture. The round passes when no other picture is flagged by 2 or more counted reviewers.',
+    falls: 'Falls (filmstrips, pairs) are drawn by tools/review/lib.cjs fall(): the tile tips about the point it rests on toward the side its middle is on (a knife-edge tips the way with more room), then only moves down, sliding along what it meets, and is drawn faint where it would next hit something. Tiles balanced on points either side of their middle are left out.',
     plantPool: PLANTS.map(p => ({ id: p.id, name: p.name, alwaysDrawn: !!p.rev4, drawnThisRound: drawn.includes(p) })),
     pictures: all.map(p => {
       const o = { id: p.id, sheet: p.sheet, kind: p.kind, plant: p.kind === 'plant', golden: p.golden || null, what: p.what };
-      for (const k of ['plant', 'measure', 'value', 'build', 'hand', 'outcome', 'outcomes']) if (p[k] !== undefined && !(k === 'plant')) o[k] = p[k];
+      for (const k of ['measure', 'value', 'build', 'hand', 'outcome', 'outcomes', 'fall']) if (p[k] !== undefined) o[k] = p[k];
       if (p.kind === 'plant') o.plantId = p.plant;
       return o;
     })
@@ -561,4 +532,4 @@ async function main() {
   console.log(`${all.length} pictures on ${files.length} sheets in ${OUT}; plants ${key.plants.join(' ')}, golden ${key.golden.join(' ')}; key ${KEY} (${Date.now() - t0} ms)`);
 }
 if (require.main === module) main().catch(async e => { console.error(e); await lib.close(); process.exit(1); });
-module.exports = { analyse, fallOf, PLANTS, MEASURES };
+module.exports = { analyse, PLANTS, MEASURES, LEGEND, pairPicture, filmstrip };
