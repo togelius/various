@@ -11,10 +11,11 @@ const Combat = (() => {
     return clamp(N.HIT_BASE + N.HIT_PER_POINT * (att.acc - def.eva) + mods, N.HIT_MIN, N.HIT_MAX);
   }
 
-  // Is the defender unaware of the attacker? Only exhibits can be surprised.
-  const surprised = (att, def) => def.uid !== 'you' && def.mode !== 'hunting';
+  // Surprise (BUILD.md §8.1): an exhibit is caught unawares while asleep or stirring (mode
+  // dormant), or awake and it has not seen you since it last woke (`sawYou`, Wake). Hunting,
+  // searching, returning and reinstalling exhibits never are, and neither are you.
+  const surprised = (att, def) => def.uid !== 'you' && (def.mode === 'dormant' || (def.mode === 'awake' && !def.sawYou));
 
-  // Resolve one attack. Returns the events; the caller has already paid the cost.
   // Every roll an attacker could make against a defender, after Padding (BUILD.md §8.1):
   // how many there are, their sum, and the least and most. The odds readout uses these.
   function netRolls(att, def) {
@@ -29,13 +30,23 @@ const Combat = (() => {
   }
   // A surprise blow's raw damage: the maximum, ×1.5 rounded down with a Light weapon.
   function surpriseRaw(att) { return att.weaponForm === 'light' ? Int.pct(att.dmax, N.SURPRISE_LIGHT_PCT) : att.dmax; }
+  // What a surprise blow would deal now, after Padding, as { min, max }: one figure, or
+  // against a Centrepiece the rolled range, since its surprise blow rolls damage (§8.1).
+  function surpriseNet(att, def) {
+    if (Actors.centrepiece(def)) { const r = netRolls(att, def); return { min: r.min, max: r.max }; }
+    const d = Math.max(N.DMG_MIN_ON_HIT, surpriseRaw(att) - def.pad);
+    return { min: d, max: d };
+  }
 
+  // Resolve one attack, pushing its events onto ev; the caller has already paid the cost.
   function attack(state, att, def, ev) {
     const rng = Rng.stream(state, 'combat/' + att.uid);
     const chance = hitChance(att, def);
     const cause = { k: 'attack', by: att.uid, at: def.uid, chance };
+    // A surprise blow always hits, and the target then hunts you (hurt). Against a Centrepiece
+    // it rolls its damage, and the hunt it starts is the encounter.
     if (surprised(att, def)) {
-      const dmg = surpriseRaw(att);
+      const dmg = Actors.centrepiece(def) ? rng.int(att.dmin, att.dmax) : surpriseRaw(att);
       cause.surprise = 1;
       return hurt(state, def, net(dmg, def.pad, cause), Object.assign(cause, { raw: dmg, pad: def.pad }), ev);
     }
@@ -70,5 +81,5 @@ const Combat = (() => {
 
   const copy = c => JSON.parse(JSON.stringify(c));
 
-  return { hitChance, surprised, netRolls, surpriseRaw, attack, hurt };
+  return { hitChance, surprised, netRolls, surpriseRaw, surpriseNet, attack, hurt };
 })();

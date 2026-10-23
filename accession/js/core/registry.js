@@ -9,7 +9,7 @@ const Registry = (() => {
     { id: 'moving', icon: 'damage', name: 'Moving and fighting', sentence: 'Tap to move; bump into something to attack it. Ordinary blows roll dice, and the odds are shown before you commit. Dangerous moves are marked on the floor with their exact damage, and never miss. Your health recovers slowly.' },
     { id: 'waking', icon: 'ring', name: 'Waking', sentence: 'Every exhibit is asleep, stirring or awake. Being close or making noise fills its three pips; the ring around you shows what counts as close. A species may have one extra trigger, shown as one icon.' },
     { id: 'cases', icon: 'touch_case', name: 'Cases', sentence: 'You can see through glass but not walk through it. Open a case if your grade allows, or break it, loudly.' },
-    { id: 'clock', icon: 'period', name: 'The clock', sentence: 'At the bell your recovery slows; later the night watch begins its rounds, waking whatever is nearest to you.' },
+    { id: 'clock', icon: 'clock', name: 'The clock', sentence: 'At the bell your recovery slows; later the night watch begins its rounds, waking whatever is nearest to you.' },
     { id: 'kit', icon: 'kit', name: 'Your kit', sentence: 'A weapon, a garment, two curios and an instrument. Restoration kits improve them.' },
     { id: 'consumables', icon: 'seal', name: 'Consumables', sentence: 'A handful of kinds, unlabelled until you have used one or read about it.' },
     { id: 'grade', icon: 'certificate', name: 'Grade', sentence: 'Each department’s Certificate, earned by defeating or viewing its Centrepiece, raises your grade by one: more health, a perk chosen from three, heavier objects, higher-grade cases.' },

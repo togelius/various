@@ -9,12 +9,14 @@ const Pictograms = (() => {
     ring:      ['..xxxx..', '.x....x.', 'x......x', 'x..xx..x', 'x..xx..x', 'x......x', '.x....x.', '..xxxx..'],
     noise:     ['...xx...', '..x..x..', '.x....x.', '.x..x.x.', '.x.xx.x.', '..x.xx..', '...xx...', '..xx....'],
     axis:      ['........', '......x.', 'xxxxxxxx', 'xxxxxxxx', '......x.', '........', '........', '........'],
-    period:    ['...xx...', '..xxxx..', '.xxxxxx.', '.xx.xxx.', '.xx..xx.', 'xxxxxxxx', '...xx...', '........'],
+    period:    ['x.x...x.', 'x.x.x..x', 'x.x..x.x', 'xxx..x.x', '.x..x..x', '.x....x.', '.x......', 'xxx.....'],
     tether:    ['.xx.....', 'x..x....', 'x..x....', '.xxxx...', '...x..x.', '....xx.x', '....x..x', '.....xx.'],
     touch_case:['xxxxxxxx', 'x......x', 'x.xx...x', 'x.xx...x', 'x.xxxx.x', 'x.xxxx.x', 'x..xx..x', 'xxxxxxxx'],
     ally_hit:  ['........', '.xx..xx.', 'x..xx..x', 'x..xx..x', 'x..xx..x', '.xx..xx.', '........', '........'],
     alarm:     ['...xx...', '..xxxx..', '..xxxx..', '.xxxxxx.', '.xxxxxx.', 'xxxxxxxx', '...xx...', '........'],
     awake:     ['........', '..xxxx..', '.x....x.', 'x..xx..x', 'x..xx..x', '.x....x.', '..xxxx..', '........'],
+    // the clock (its bell and night watch); the module's chime is 'period', a struck fork
+    clock:     ['..xxxx..', '.x....x.', 'x..x...x', 'x..x...x', 'x..xxx.x', 'x......x', '.x....x.', '..xxxx..'],
     // states
     asleep:    ['xxxx....', '...x....', '..x.....', '.x......', 'xxxx.xxx', '.......x', '......x.', '.....xxx'],
     pip:       ['........', '..xxxx..', '.xxxxxx.', '.xxxxxx.', '.xxxxxx.', '.xxxxxx.', '..xxxx..', '........'],
@@ -41,14 +43,16 @@ const Pictograms = (() => {
     reads:     ['xxxxxxx.', 'x.....xx', 'x.xxx.xx', 'x.....xx', 'x.xx..xx', 'x....xxx', 'xxxxxxx.', '.....xx.'],
     bench:     ['........', '........', 'xxxxxxxx', 'xxxxxxxx', '.x....x.', '.x....x.', '.x....x.', '........'],
   };
+  // Each pictogram's colour is a key of the reserved semantic set (BUILD.md §8.8, §9.1):
+  // hostile, hazard, readable, item or player. Stat figures are 'readable'.
   const COLOUR = {
     ring: 'hostile', noise: 'hostile', axis: 'hostile', period: 'hostile', tether: 'hostile', touch_case: 'hostile',
-    ally_hit: 'hostile', alarm: 'hostile', awake: 'hostile', asleep: 'readable', pip: 'hostile', pip_empty: 'hostile',
-    alert: 'hostile', hunting: 'hostile', returning: 'readable', heart: 'hostile', acc: 'neutral', eva: 'neutral', padding: 'neutral',
-    damage: 'neutral', ranged: 'neutral', fast: 'neutral', slow: 'neutral', special: 'hazard', seal: 'item', kit: 'item',
+    ally_hit: 'hostile', alarm: 'hostile', awake: 'hostile', clock: 'hazard', asleep: 'readable', pip: 'hostile', pip_empty: 'hostile',
+    alert: 'hostile', hunting: 'hostile', returning: 'readable', heart: 'hostile', acc: 'readable', eva: 'readable', padding: 'readable',
+    damage: 'readable', ranged: 'readable', fast: 'readable', slow: 'readable', special: 'hazard', seal: 'item', kit: 'item',
     certificate: 'item', highlight: 'item', grade: 'readable', reads: 'readable', bench: 'readable',
   };
-  const colourOf = (id, override) => override || (COLOUR[id] === 'neutral' ? '#d6d0c4' : ART.palettes.semantic[COLOUR[id]]);
+  const colourOf = (id, override) => override || ART.palettes.semantic[COLOUR[id]];
 
   // An SVG string at `px` CSS pixels.
   function svg(id, px, colour) {
@@ -66,5 +70,5 @@ const Pictograms = (() => {
     ctx.fillStyle = colourOf(id, colour);
     for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) if (g[j][i] === 'x') ctx.fillRect(x + i * s, y + j * s, s, s);
   }
-  return { G, svg, draw, ids: Object.keys(G) };
+  return { G, COLOUR, svg, draw, ids: Object.keys(G) };
 })();

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // ACCESSION — regenerates test/golden/golden.js. Run only when a rule changed on purpose,
 // and say why in DEVELOPMENT.md's validation log.
+// Usage: node tools/golden.js [--check]   (--check compares with the file, writes nothing,
+// and fails on any difference)
 'use strict';
 const fs = require('node:fs'), path = require('node:path');
 const root = path.join(__dirname, '..');
@@ -12,5 +14,10 @@ for (const [name, r] of Object.entries(RUNS)) {
   out[name] = { seed: r.seed, actions: r.actions, hash: res.hash, checkpoints: res.checkpoints, visits: res.visits };
   console.log(name, res.hash);
 }
-fs.writeFileSync(path.join(root, 'test/golden/golden.js'),
-  "// ACCESSION — golden runs: expected hashes for fixed seeds and action lists (BUILD.md §3.5).\n// Regenerate only on purpose (node tools/golden.js), and log why in DEVELOPMENT.md.\n'use strict';\nconst GOLDEN = " + JSON.stringify(out, null, 1) + ';\n');
+const file = path.join(root, 'test/golden/golden.js');
+const text = "// ACCESSION — golden runs: expected hashes for fixed seeds and action lists (BUILD.md §3.5).\n// Regenerate only on purpose (node tools/golden.js), and log why in DEVELOPMENT.md.\n'use strict';\nconst GOLDEN = " + JSON.stringify(out, null, 1) + ';\n';
+if (process.argv.includes('--check')) {
+  const cur = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  if (cur !== text) { console.log('golden: the runs differ from test/golden/golden.js'); process.exit(1); }
+  console.log('golden: every run matches test/golden/golden.js');
+} else fs.writeFileSync(file, text);

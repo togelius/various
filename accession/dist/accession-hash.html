@@ -251,7 +251,7 @@ const N = Object.freeze({
   DEMO_PERIOD_INTRO: 8, // in an Intro gallery
   DEMO_PERIOD_HALL: 8, // in the Centrepiece hall
   DEMO_LINE_DMG: [4, 7, 10], // gross damage of a demonstration line; provisional
-  DEMO_WARNING: 2, // turns of warning bell
+  DEMO_WARNING: 2, // turns of warning chime
   DEMO_WINDOW: 3, // minimum safe window at a forced crossing
   ALARM_TURNS: 30, // an alarm's length
   ALARM_CLOCK_ADVANCE: 30, // turns each alarm brings the bell closer
@@ -554,8 +554,25 @@ const Status = (() => {
 // ACCESSION — actors: lookup, occupancy, action costs and the scheduler.
 'use strict';
 const Actors = (() => {
-  const at = (state, x, y) => { for (const a of state.actors) if (!a.gone && a.x === x && a.y === y) return a; return null; };
+  // An actor covers size × size tiles from its top-left anchor (BUILD.md §4.1): a
+  // Centrepiece is 2×2. Occupancy, distance, reach and sight all use the footprint.
+  const covers = (a, x, y) => { const s = a.size || 1; return x >= a.x && y >= a.y && x < a.x + s && y < a.y + s; };
+  // The actor whose footprint covers (x, y), skipping `except` if given.
+  const at = (state, x, y, except) => { for (const a of state.actors) if (a !== except && !a.gone && covers(a, x, y)) return a; return null; };
   const byUid = (state, uid) => { for (const a of state.actors) if (a.uid === uid) return a; return null; };
+  // Chebyshev distance from (x, y) to the nearest tile of a's footprint (§4.1).
+  function dist(a, x, y) {
+    const s = a.size || 1, nx = Math.min(Math.max(x, a.x), a.x + s - 1), ny = Math.min(Math.max(y, a.y), a.y + s - 1);
+    return Math.max(Math.abs(nx - x), Math.abs(ny - y));
+  }
+  // Is any tile of a's footprint in line of sight from (x, y)? It is observed if any is (§4.1).
+  function inSight(state, a, x, y) {
+    const s = a.size || 1;
+    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) if (Grid.los(state.dept, x, y, a.x + dx, a.y + dy)) return true;
+    return false;
+  }
+  // A Centrepiece is known by its role (Roles.stats('centrepiece', …)), whatever its size.
+  const centrepiece = a => a.role === 'centrepiece';
   // Speed scales every action's cost (BUILD.md §8.1).
   const cost = (a, base) => a.speed === 'fast' ? Int.pct(base, N.SPEED_FAST_PCT) : a.speed === 'slow' ? Int.pct(base, N.SPEED_SLOW_PCT) : base;
   // A blow with a Heavy weapon, or from a brute, costs more (§8.1, §8.10).
@@ -568,13 +585,18 @@ const Actors = (() => {
     for (const a of state.actors) if (scheduled(a) && (best === null || a.next < best.next)) best = a;
     return best;
   }
-  return { at, byUid, cost, attackCost, scheduled, next };
+  return { covers, at, byUid, dist, inSight, centrepiece, cost, attackCost, scheduled, next };
 })();
 
 </script>
 <script>
 // ACCESSION — waking (BUILD.md §8.2). M0 holds only the transitions; the ring, noise,
 // pips and special triggers arrive in M3.
+//
+// An exhibit's `sawYou` (true, or absent) says it has seen you since it last woke; an awake
+// exhibit without it is surprised by a blow (§8.1, Combat.surprised). M3's sight check sets
+// it where an exhibit sees you, and every waking clears it. M2 has no exhibit sight and no
+// 'awake' mode, so nothing sets it yet.
 'use strict';
 const Wake = (() => {
   // Straight to hunting (damage, the ring, being seen). An exhibit that was asleep is
@@ -607,10 +629,11 @@ const Combat = (() => {
     return clamp(N.HIT_BASE + N.HIT_PER_POINT * (att.acc - def.eva) + mods, N.HIT_MIN, N.HIT_MAX);
   }
 
-  // Is the defender unaware of the attacker? Only exhibits can be surprised.
-  const surprised = (att, def) => def.uid !== 'you' && def.mode !== 'hunting';
+  // Surprise (BUILD.md §8.1): an exhibit is caught unawares while asleep or stirring (mode
+  // dormant), or awake and it has not seen you since it last woke (`sawYou`, Wake). Hunting,
+  // searching, returning and reinstalling exhibits never are, and neither are you.
+  const surprised = (att, def) => def.uid !== 'you' && (def.mode === 'dormant' || (def.mode === 'awake' && !def.sawYou));
 
-  // Resolve one attack. Returns the events; the caller has already paid the cost.
   // Every roll an attacker could make against a defender, after Padding (BUILD.md §8.1):
   // how many there are, their sum, and the least and most. The odds readout uses these.
   function netRolls(att, def) {
@@ -625,13 +648,23 @@ const Combat = (() => {
   }
   // A surprise blow's raw damage: the maximum, ×1.5 rounded down with a Light weapon.
   function surpriseRaw(att) { return att.weaponForm === 'light' ? Int.pct(att.dmax, N.SURPRISE_LIGHT_PCT) : att.dmax; }
+  // What a surprise blow would deal now, after Padding, as { min, max }: one figure, or
+  // against a Centrepiece the rolled range, since its surprise blow rolls damage (§8.1).
+  function surpriseNet(att, def) {
+    if (Actors.centrepiece(def)) { const r = netRolls(att, def); return { min: r.min, max: r.max }; }
+    const d = Math.max(N.DMG_MIN_ON_HIT, surpriseRaw(att) - def.pad);
+    return { min: d, max: d };
+  }
 
+  // Resolve one attack, pushing its events onto ev; the caller has already paid the cost.
   function attack(state, att, def, ev) {
     const rng = Rng.stream(state, 'combat/' + att.uid);
     const chance = hitChance(att, def);
     const cause = { k: 'attack', by: att.uid, at: def.uid, chance };
+    // A surprise blow always hits, and the target then hunts you (hurt). Against a Centrepiece
+    // it rolls its damage, and the hunt it starts is the encounter.
     if (surprised(att, def)) {
-      const dmg = surpriseRaw(att);
+      const dmg = Actors.centrepiece(def) ? rng.int(att.dmin, att.dmax) : surpriseRaw(att);
       cause.surprise = 1;
       return hurt(state, def, net(dmg, def.pad, cause), Object.assign(cause, { raw: dmg, pad: def.pad }), ev);
     }
@@ -666,7 +699,7 @@ const Combat = (() => {
 
   const copy = c => JSON.parse(JSON.stringify(c));
 
-  return { hitChance, surprised, netRolls, surpriseRaw, attack, hurt };
+  return { hitChance, surprised, netRolls, surpriseRaw, surpriseNet, attack, hurt };
 })();
 
 </script>
@@ -710,34 +743,59 @@ const Roles = (() => {
 const Step = (() => {
   const refuse = (state, reason) => [{ k: 'refused', turn: state.turn, reason }];
 
-  // Can a reach b with a blow? Adjacent, and not across a corner you could not step past.
+  // Can a reach b with a blow? Some tile of a's footprint is next to some tile of b's
+  // (BUILD.md §4.1), and a diagonal blow may not cross a corner you could not step past.
   function adjacent(state, a, b) {
-    const dx = b.x - a.x, dy = b.y - a.y;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) !== 1) return false;
-    if (dx === 0 || dy === 0) return true;
-    const m = state.dept;
-    return Grid.walkable(m, b.x, a.y) && Grid.walkable(m, a.x, b.y);
+    const m = state.dept, sa = a.size || 1, sb = b.size || 1;
+    for (let ay = a.y; ay < a.y + sa; ay++) for (let ax = a.x; ax < a.x + sa; ax++)
+      for (let by = b.y; by < b.y + sb; by++) for (let bx = b.x; bx < b.x + sb; bx++) {
+        const dx = bx - ax, dy = by - ay;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== 1) continue;
+        if (dx === 0 || dy === 0) return true;
+        if (Grid.walkable(m, bx, ay) && Grid.walkable(m, ax, by)) return true;
+      }
+    return false;
   }
 
-  const dirOf = (dx, dy) => { for (let d = 0; d < 8; d++) if (Grid.DX[d] === dx && Grid.DY[d] === dy) return d; return -1; };
+  // The first actor other than a on a tile a would cover with its anchor at (x, y).
+  function blocker(state, a, x, y) {
+    const s = a.size || 1;
+    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) { const o = Actors.at(state, x + dx, y + dy, a); if (o) return o; }
+    return null;
+  }
+  // Can a's whole footprint step in direction d? Each of its tiles follows the step rule
+  // (§8.2), so it moves only where all its tiles can go (§4.1).
+  function fits(m, a, d) {
+    const s = a.size || 1;
+    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) if (!Grid.canStep(m, a.x + dx, a.y + dy, d)) return false;
+    return true;
+  }
 
-  // Moving into a tile: attack what stands there, open a closed door, or walk. Returns the
-  // cost in ticks, or a refusal string.
+  // A blow from a at b. Returns the cost.
+  function strike(state, a, b, ev) {
+    Combat.attack(state, a, b, ev);
+    return Actors.attackCost(a);
+  }
+
+  // Moving into a tile: attack what stands there (any tile of its footprint, §7.1), open a
+  // closed door, or walk. Returns the cost in ticks, or a refusal string.
   function moveInto(state, a, d, ev) {
-    const m = state.dept, nx = a.x + Grid.DX[d], ny = a.y + Grid.DY[d];
-    const other = Actors.at(state, nx, ny);
+    const m = state.dept, s = a.size || 1, nx = a.x + Grid.DX[d], ny = a.y + Grid.DY[d];
+    const other = blocker(state, a, nx, ny);
     if (other) {
       if (!adjacent(state, a, other)) return 'You cannot reach it past the corner.';
       if (a.uid !== 'you' && other.uid !== 'you') return 'blocked';
-      Combat.attack(state, a, other, ev);
-      return Actors.attackCost(a);
+      return strike(state, a, other, ev);
     }
-    if (Grid.ch(m, nx, ny) === '+' && Grid.canStep(m, a.x, a.y, d)) {
-      Grid.set(m, nx, ny, "'");
-      ev.push({ k: 'opened', turn: state.turn, who: a.uid, x: nx, y: ny });
-      return Actors.cost(a, N.COST_DOOR);
+    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) {
+      const x = nx + dx, y = ny + dy;
+      if (Grid.ch(m, x, y) === '+' && Grid.canStep(m, a.x + dx, a.y + dy, d)) {
+        Grid.set(m, x, y, "'");
+        ev.push({ k: 'opened', turn: state.turn, who: a.uid, x, y });
+        return Actors.cost(a, N.COST_DOOR);
+      }
     }
-    if (!Grid.canStep(m, a.x, a.y, d)) return 'Something is in the way.';
+    if (!fits(m, a, d)) return 'Something is in the way.';
     ev.push({ k: 'moved', turn: state.turn, who: a.uid, from: [a.x, a.y], to: [nx, ny] });
     a.x = nx; a.y = ny;
     return Actors.cost(a, N.COST_STEP);
@@ -758,7 +816,7 @@ const Step = (() => {
         const t = Actors.byUid(state, action.uid);
         if (!t || t.gone || t === you) return 'There is nothing there to attack.';
         if (!adjacent(state, you, t)) return 'It is out of reach.';
-        return moveInto(state, you, dirOf(t.x - you.x, t.y - you.y), ev);
+        return strike(state, you, t, ev);
       }
       default:
         return 'Unknown action.';
@@ -770,10 +828,8 @@ const Step = (() => {
     const you = state.actors[0];
     let cost = Actors.cost(a, N.COST_WAIT);
     if (a.mode === 'hunting') {
-      if (adjacent(state, a, you)) {
-        Combat.attack(state, a, you, ev);
-        cost = Actors.attackCost(a);
-      } else {
+      if (adjacent(state, a, you)) cost = strike(state, a, you, ev);
+      else {
         const r = chase(state, a, you, ev);
         if (r !== null) cost = r;
       }
@@ -781,17 +837,43 @@ const Step = (() => {
     a.next += cost;
   }
 
+  // Walking distance for a 2×2 body (§4.1), by anchor tile: 0 wherever its whole footprint
+  // stands beside the target without covering it, counting out to maxDist in steps its
+  // whole footprint can take. Actors never block it. An Int32Array, -1 where unreached.
+  function bodyDistances(state, a, target, maxDist) {
+    const m = state.dept, s = a.size || 1, ts = target.size || 1, dist = new Int32Array(m.w * m.h).fill(-1), queue = [];
+    const body = { x: 0, y: 0, size: s };
+    const stands = () => { for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) if (!Grid.walkable(m, body.x + dx, body.y + dy)) return false; return true; };
+    const covers = (x, y) => x < target.x + ts && target.x < x + s && y < target.y + ts && target.y < y + s;
+    for (let y = target.y - s; y <= target.y + ts; y++) for (let x = target.x - s; x <= target.x + ts; x++) {
+      body.x = x; body.y = y;
+      if (Grid.inside(m, x, y) && !covers(x, y) && stands() && adjacent(state, body, target)) { dist[y * m.w + x] = 0; queue.push(y * m.w + x); }
+    }
+    for (let i = 0; i < queue.length; i++) {
+      const p = queue[i];
+      if (dist[p] >= maxDist) continue;
+      body.x = p % m.w; body.y = Int.idiv(p, m.w);
+      for (let d = 0; d < 8; d++) {
+        if (!fits(m, body, d)) continue;
+        const r = (body.y + Grid.DY[d]) * m.w + body.x + Grid.DX[d];
+        if (dist[r] < 0) { dist[r] = dist[p] + 1; queue.push(r); }
+      }
+    }
+    return dist;
+  }
+
   // Step along the walking-distance gradient toward the target; ties broken on the
   // exhibit's own ai stream. Returns the cost, or null if it cannot move.
   function chase(state, a, target, ev) {
-    const m = state.dept, dist = Grid.distances(m, [[target.x, target.y]], 64);
+    const m = state.dept, big = (a.size || 1) > 1;
+    const dist = big ? bodyDistances(state, a, target, 64) : Grid.distances(m, [[target.x, target.y]], 64);
     const here = dist[a.y * m.w + a.x];
     if (here <= 0) return null;
     const options = [];
     for (let d = 0; d < 8; d++) {
-      if (!Grid.canStep(m, a.x, a.y, d)) continue;
+      if (!fits(m, a, d)) continue;
       const nx = a.x + Grid.DX[d], ny = a.y + Grid.DY[d], v = dist[ny * m.w + nx];
-      if (v < 0 || v >= here || Actors.at(state, nx, ny)) continue;
+      if (v < 0 || v >= here || blocker(state, a, nx, ny)) continue;
       options.push(d);
     }
     if (!options.length) return null;
@@ -845,9 +927,11 @@ const Step = (() => {
   function legal(state) {
     if (state.over) return [];
     const you = state.actors[0], out = [{ a: 'wait' }];
+    // The same tests as moveInto: an actor on any tile of the step is struck if it can be
+    // reached; otherwise the step (or the door it opens) must follow the step rule.
     for (let d = 0; d < 8; d++) {
-      const nx = you.x + Grid.DX[d], ny = you.y + Grid.DY[d], other = Actors.at(state, nx, ny);
-      if (other ? adjacent(state, you, other) : (Grid.canStep(state.dept, you.x, you.y, d))) out.push({ a: 'move', dir: d });
+      const other = blocker(state, you, you.x + Grid.DX[d], you.y + Grid.DY[d]);
+      if (other ? adjacent(state, you, other) : fits(state.dept, you, d)) out.push({ a: 'move', dir: d });
     }
     for (const a of state.actors) if (a !== you && !a.gone && adjacent(state, you, a)) out.push({ a: 'attack', uid: a.uid });
     return out;
@@ -859,16 +943,29 @@ const Step = (() => {
 </script>
 <script>
 // ACCESSION — a path for a tap (BUILD.md §4.2): the UI turns it into single moves, so a
-// replay never holds a path. Shortest by the step rule, round other actors; ties broken in
-// direction order, so the same tap always gives the same path.
+// replay never holds a path. Shortest by the step rule, round other actors' footprints and
+// never through one; ties broken in direction order, so the same tap always gives the same
+// path. If actors close every way, it goes as far as the way is clear.
 'use strict';
 const Path = (() => {
   function to(state, tx, ty) {
     const m = state.dept, you = state.actors[0];
     if (!Grid.inside(m, tx, ty) || (tx === you.x && ty === you.y)) return [];
-    const target = Grid.walkable(m, tx, ty) ? [[tx, ty]] : [];
+    // A tap on any tile of an actor aims at its whole footprint: the path ends with the
+    // step into its nearest tile, which is a blow (§7.1).
+    const aim = Actors.at(state, tx, ty, you), target = [];
+    if (aim) { for (let dy = 0; dy < (aim.size || 1); dy++) for (let dx = 0; dx < (aim.size || 1); dx++) if (Grid.walkable(m, aim.x + dx, aim.y + dy)) target.push([aim.x + dx, aim.y + dy]); }
+    else if (Grid.walkable(m, tx, ty)) target.push([tx, ty]);
     if (!target.length) return [];
-    const d = Grid.distances(m, target, m.w * m.h);
+    // Every other actor's tiles cost more than the whole map, so the path goes round them.
+    const n = m.w * m.h, busy = new Uint8Array(n);
+    for (const a of state.actors) {
+      if (a === you || a === aim || a.gone) continue;
+      for (let dy = 0; dy < (a.size || 1); dy++) for (let dx = 0; dx < (a.size || 1); dx++) if (Grid.inside(m, a.x + dx, a.y + dy)) busy[(a.y + dy) * m.w + a.x + dx] = 1;
+    }
+    let d = Grid.distances(m, target, n, (x, y) => busy[y * m.w + x] ? n : 0);
+    // No way round: follow the plain walking distance and stop where an actor stands.
+    if (d[you.y * m.w + you.x] < 0) d = Grid.distances(m, target, n);
     const out = [];
     let x = you.x, y = you.y, here = d[y * m.w + x];
     if (here < 0) return [];
@@ -877,9 +974,7 @@ const Path = (() => {
       for (let k = 0; k < 8; k++) {
         if (!Grid.canStep(m, x, y, k)) continue;
         const nx = x + Grid.DX[k], ny = y + Grid.DY[k], v = d[ny * m.w + nx];
-        if (v < 0 || v >= here) continue;
-        const busy = Actors.at(state, nx, ny);
-        if (busy && !(nx === tx && ny === ty)) continue;
+        if (v < 0 || v >= here || busy[ny * m.w + nx]) continue;
         best = k; break;
       }
       if (best < 0) break;
@@ -2038,17 +2133,23 @@ const Setup = (() => {
   const SAVE_VERSION = 1;
 
   // The visitor at the start of a run: a T1 Balanced weapon and a T1 Standard garment
-  // (BUILD.md §8.1), from the forms in the numbers table.
-  function you(x, y) {
-    const t = 1, F = N.FORM_BALANCED, G = N.GARMENT_STANDARD;
+  // (BUILD.md §8.1), from the forms in the numbers table. `form` ('light', 'balanced' or
+  // 'heavy'; Balanced if absent) swaps the T1 weapon, for tests and scenarios. Reach comes
+  // with its two-tile blow.
+  const FORMS = { light: N.FORM_LIGHT, balanced: N.FORM_BALANCED, heavy: N.FORM_HEAVY };
+  function you(x, y, form) {
+    form = form || 'balanced';
+    const t = 1, F = FORMS[form], G = N.GARMENT_STANDARD;
+    if (!F) throw new Error('Setup.you: no weapon form ' + form);
     return {
       uid: 'you', sp: 'visitor', size: 1, x, y, hp: N.PLAYER_HP, maxHp: N.PLAYER_HP, next: 0, still: false,
       acc: N.PLAYER_ACC + F[4], eva: N.PLAYER_EVA + G[1], pad: t + G[0], dmin: t + F[0], dmax: F[1] * t + F[2],
-      weaponForm: 'balanced', statuses: [],
+      weaponForm: form, statuses: [],
     };
   }
 
-  // A state for one room: map rows, your position, and exhibit records from a pack.
+  // A state for one room: map rows, your position, and exhibit records from a pack. An
+  // exhibit record may give its size (2 for a Centrepiece, §4.1) and its stats a role.
   function room(seed, spec) {
     const state = {
       v: SAVE_VERSION, seed, rng: {}, tick: 0, turn: 0,
@@ -2061,7 +2162,7 @@ const Setup = (() => {
       n++;
       state.actors.push(Object.assign({
         uid: spec.acc + '.' + state.dept.depth + '.' + (e.room || 'room') + '.' + n,
-        size: 1, next: 0, pips: 0, statuses: [],
+        size: e.size || 1, next: 0, pips: 0, statuses: [],
       }, e.stats, { sp: e.sp, x: e.at[0], y: e.at[1], mode: e.mode || 'dormant', maxHp: e.stats.hp }));
     }
     return state;
@@ -2083,7 +2184,7 @@ const Registry = (() => {
     { id: 'moving', icon: 'damage', name: 'Moving and fighting', sentence: 'Tap to move; bump into something to attack it. Ordinary blows roll dice, and the odds are shown before you commit. Dangerous moves are marked on the floor with their exact damage, and never miss. Your health recovers slowly.' },
     { id: 'waking', icon: 'ring', name: 'Waking', sentence: 'Every exhibit is asleep, stirring or awake. Being close or making noise fills its three pips; the ring around you shows what counts as close. A species may have one extra trigger, shown as one icon.' },
     { id: 'cases', icon: 'touch_case', name: 'Cases', sentence: 'You can see through glass but not walk through it. Open a case if your grade allows, or break it, loudly.' },
-    { id: 'clock', icon: 'period', name: 'The clock', sentence: 'At the bell your recovery slows; later the night watch begins its rounds, waking whatever is nearest to you.' },
+    { id: 'clock', icon: 'clock', name: 'The clock', sentence: 'At the bell your recovery slows; later the night watch begins its rounds, waking whatever is nearest to you.' },
     { id: 'kit', icon: 'kit', name: 'Your kit', sentence: 'A weapon, a garment, two curios and an instrument. Restoration kits improve them.' },
     { id: 'consumables', icon: 'seal', name: 'Consumables', sentence: 'A handful of kinds, unlabelled until you have used one or read about it.' },
     { id: 'grade', icon: 'certificate', name: 'Grade', sentence: 'Each department’s Certificate, earned by defeating or viewing its Centrepiece, raises your grade by one: more health, a perk chosen from three, heavier objects, higher-grade cases.' },
@@ -2174,9 +2275,12 @@ const Packs = (() => {
 // (BUILD.md §3.4). M0 covers moving, fighting and doors.
 'use strict';
 const Text = (() => {
-  const name = uid => uid === 'you' ? 'You' : 'The training dummy';
-  const lower = uid => uid === 'you' ? 'you' : 'the training dummy';
-  function event(e) {
+  // event(e, nameOf): nameOf(uid) gives an actor's name in mid-sentence ('the Lantern-Crop
+  // Wader'; Labels.nameOf(state) makes one). Without it, or where it gives null, an exhibit
+  // is the test room's 'the training dummy'. Called as a map callback, the index is ignored.
+  function event(e, nameOf) {
+    const lower = uid => uid === 'you' ? 'you' : (typeof nameOf === 'function' && nameOf(uid)) || 'the training dummy';
+    const name = uid => { const s = lower(uid); return s.charAt(0).toUpperCase() + s.slice(1); };
     switch (e.k) {
       case 'damaged': {
         const c = e.cause;
@@ -2226,20 +2330,23 @@ const Labels = (() => {
       `It has a ${Combat.hitChance(a, you)}% chance to hit you, typically hits for ${halfUp(100 * theirs.sum, theirs.n * hp)}% of your current health, and at worst could defeat you in ${hits(Int.ceilDiv(hp, theirs.max))}.`,
       `You have a ${Combat.hitChance(you, a)}% chance to hit it, and typically need ${hits(Int.ceilDiv(a.hp * mine.n, mine.sum))} to destroy it.`,
     ];
-    if (Combat.surprised(you, a)) lines.push(`A surprise attack now would hit for certain, for ${Math.max(N.DMG_MIN_ON_HIT, Combat.surpriseRaw(you) - a.pad)}.`);
+    if (Combat.surprised(you, a)) lines.push(`A surprise attack now would hit for certain, for ${range(Combat.surpriseNet(you, a))}.`);
     return lines;
   }
 
+  // The Attack button says what a blow would do now (§7.1): a surprise blow hits for
+  // certain (§8.1), so it shows no chance.
+  const range = r => r.min === r.max ? String(r.min) : r.min + '–' + r.max;
   function attackText(you, a) {
-    const r = Combat.netRolls(you, a);
-    return `Attack: ${Combat.hitChance(you, a)}%, ${r.min === r.max ? r.min : r.min + '–' + r.max} damage`;
+    if (Combat.surprised(you, a)) return `Attack: certain hit, ${range(Combat.surpriseNet(you, a))} damage`;
+    return `Attack: ${Combat.hitChance(you, a)}%, ${range(Combat.netRolls(you, a))} damage`;
   }
 
   function of(state, uid) {
     const a = Actors.byUid(state, uid);
     if (!a || a.gone || a.uid === 'you') return null;
     const sp = speciesOf(state, a), you = state.actors[0];
-    const near = Grid.chebyshev(you.x, you.y, a.x, a.y) <= N.READ_RANGE;
+    const near = Actors.dist(a, you.x, you.y) <= N.READ_RANGE;
     const pictos = [
       { icon: 'heart', text: `${a.hp}/${a.maxHp}` }, { icon: 'acc', text: String(a.acc) }, { icon: 'eva', text: String(a.eva) },
       { icon: 'padding', text: String(a.pad) }, { icon: 'damage', text: `${a.dmin}–${a.dmax}` },
@@ -2256,15 +2363,18 @@ const Labels = (() => {
     };
   }
 
-  // The strip: the nearest readable exhibit within 2 tiles and in sight, hunting first.
+  // The strip (§8.8): the nearest readable exhibit within 2 tiles of its nearest tile and
+  // with any tile in sight, in this priority: hunting or awake exhibits (every mode but
+  // dormant), then sleeping ones; nearest first within each, then spawn order. Case
+  // contents and plaques join in M3.
   function strip(state) {
-    const you = state.actors[0], m = state.dept;
+    const you = state.actors[0];
     let best = null, bestKey = null;
     for (const a of state.actors) {
       if (a.gone || a.uid === 'you') continue;
-      const d = Grid.chebyshev(you.x, you.y, a.x, a.y);
-      if (d > N.READ_RANGE || !Grid.los(m, you.x, you.y, a.x, a.y)) continue;
-      const key = (a.mode === 'hunting' ? 0 : a.mode === 'dormant' ? 2 : 1) * 100 + d;
+      const d = Actors.dist(a, you.x, you.y);
+      if (d > N.READ_RANGE || !Actors.inSight(state, a, you.x, you.y)) continue;
+      const key = (a.mode === 'dormant' ? 1 : 0) * 100 + d;
       if (best === null || key < bestKey) { best = a; bestKey = key; }
     }
     if (!best) return null;
@@ -2272,7 +2382,17 @@ const Labels = (() => {
     return { uid: best.uid, title: l.title, stateIcons: l.stateIcons, pictos: l.pictos.slice(0, 2).map(p => p.icon), behaviour: l.behaviour };
   }
 
-  return { of, strip, speciesOf, stateIcons };
+  // Names for Text.event: nameOf(state) → (uid → 'the' and the species name as written, or
+  // null for you and for anything with no species in a pack, such as the test room's dummies).
+  function nameOf(state) {
+    return uid => {
+      if (uid === 'you') return null;
+      const a = Actors.byUid(state, uid), sp = a ? speciesOf(state, a) : null;
+      return sp ? 'the ' + sp.name.replace(/^The /, '') : null;
+    };
+  }
+
+  return { of, strip, speciesOf, stateIcons, nameOf };
 })();
 
 </script>
@@ -2352,10 +2472,17 @@ const ViewModel = (() => {
       actors.push({ uid: a.uid, sprite: a.uid === 'you' ? 'visitor' : (sp ? sp.sprite : 'seated_clerk'), x: a.x, y: a.y, size,
         mode: a.uid === 'you' ? 'you' : a.mode, pips: a.pips || 0, hostile: a.uid !== 'you', hp: a.hp, maxHp: a.maxHp });
     }
+    // One-turn animation cues (§6.1), from ui.events, the events of the last step: the tile
+    // each listed actor moved from (its first move, if it made several) and who was hit.
+    const listed = actors.map(a => a.uid), cues = { movedFrom: [], hit: [] };
+    for (const e of ui.events || []) {
+      if (e.k === 'moved' && listed.includes(e.who) && !cues.movedFrom.some(c => c.uid === e.who)) cues.movedFrom.push({ uid: e.who, x: e.from[0], y: e.from[1] });
+      else if (e.k === 'damaged' && listed.includes(e.who) && !cues.hit.includes(e.who)) cues.hit.push(e.who);
+    }
     const pack = typeof Packs !== 'undefined' ? Packs.get(m.acc) : null;
     const clock = m.ltour ? Object.assign({ turn: state.turn }, Clock.budget(m.ltour)) : null;
     return {
-      dept: pack ? pack.palette : 'T0', w: m.w, h: m.h, tiles: m.tiles, vis, ring, actors, marks: [],
+      dept: pack ? pack.palette : 'T0', w: m.w, h: m.h, tiles: m.tiles, vis, ring, actors, marks: [], cues,
       you: { x: you.x, y: you.y, hp: you.hp, maxHp: you.maxHp, grade: you.grade || 1 }, turn: state.turn, over: state.over,
       camera: { x: you.x, y: you.y }, clock, path: ui.path || null, selection: ui.selection || null, selectedTile: ui.selectedTile || null,
     };

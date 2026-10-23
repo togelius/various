@@ -8,7 +8,7 @@
    "author": "Claude, in a Claude Code session, for Julian Togelius",
    "licence": "MIT (repository)",
    "derivedFrom": null,
-   "changes": "Reserved colours chosen by a search that passes the colour check (BUILD.md §11 M2); A.4 and M.11 floors darkened slightly for it",
+   "changes": "Reserved colours chosen by a search that passes the colour check (BUILD.md §11 M2); A.4 and M.11 floors darkened slightly for it; 2026-10-23: S.9 3 and w, A.4 3 and w, and M.11 w recoloured, each by the least change, to stand off every reserved colour by CIEDE2000 ΔE ≥ 10 (≥ 5 under each colour-vision simulation): S.9 3 #c49a6c→#ba9e78, w #ecdcc0→#ecdaba; A.4 3 #ddd6cb→#d1c6b9, w #f4f1ea→#ece1e8; M.11 w #e8eef2→#e0eef8",
    "approvedBy": null,
    "date": "2026-10-23"
   },
@@ -41,7 +41,7 @@
    "author": "Claude, in a Claude Code session: typed as a palette-indexed text grid, no image model",
    "licence": "MIT (repository)",
    "derivedFrom": null,
-   "changes": null,
+   "changes": "Redrawn to the shared herald outline, 2026-10-23 (BUILD.md §9.1: silhouettes fixed by archetype)",
    "approvedBy": null,
    "date": "2026-10-23"
   },
@@ -63,7 +63,7 @@
    "author": "Claude, in a Claude Code session: typed as a palette-indexed text grid, no image model",
    "licence": "MIT (repository)",
    "derivedFrom": null,
-   "changes": null,
+   "changes": "Redrawn to the shared herald outline, 2026-10-23 (BUILD.md §9.1: silhouettes fixed by archetype)",
    "approvedBy": null,
    "date": "2026-10-23"
   },
@@ -129,7 +129,7 @@
    "author": "Claude, in a Claude Code session: typed as a palette-indexed text grid, no image model",
    "licence": "MIT (repository)",
    "derivedFrom": null,
-   "changes": null,
+   "changes": "Redrawn to the shared plodder outline, 2026-10-23 (BUILD.md §9.1: silhouettes fixed by archetype)",
    "approvedBy": null,
    "date": "2026-10-23"
   },
@@ -184,7 +184,7 @@
    "author": "Claude, in a Claude Code session: typed as a palette-indexed text grid, no image model",
    "licence": "MIT (repository)",
    "derivedFrom": null,
-   "changes": null,
+   "changes": "Redrawn to the shared plodder outline, 2026-10-23 (BUILD.md §9.1: silhouettes fixed by archetype)",
    "approvedBy": null,
    "date": "2026-10-23"
   },
@@ -283,7 +283,7 @@
    "author": "tools/make-closeups.js",
    "licence": "MIT (repository)",
    "derivedFrom": "art/sprites/copying_bell.txt",
-   "changes": "Scale2x to 64, lit from the upper left, cast shadow; a placeholder until redrawn",
+   "changes": "Scale2x to 64, lit from the upper left, cast shadow; regenerated (make-closeups.js --force) from the sprite redrawn to the shared herald outline, 2026-10-23; a placeholder until redrawn",
    "approvedBy": null,
    "date": "2026-10-23"
   },
@@ -305,7 +305,7 @@
    "author": "tools/make-closeups.js",
    "licence": "MIT (repository)",
    "derivedFrom": "art/sprites/dawn_caller.txt",
-   "changes": "Scale2x to 64, lit from the upper left, cast shadow; a placeholder until redrawn",
+   "changes": "Scale2x to 64, lit from the upper left, cast shadow; regenerated (make-closeups.js --force) from the sprite redrawn to the shared herald outline, 2026-10-23; a placeholder until redrawn",
    "approvedBy": null,
    "date": "2026-10-23"
   },
@@ -371,7 +371,7 @@
    "author": "tools/make-closeups.js",
    "licence": "MIT (repository)",
    "derivedFrom": "art/sprites/logbook_trolley.txt",
-   "changes": "Scale2x to 64, lit from the upper left, cast shadow; a placeholder until redrawn",
+   "changes": "Scale2x to 64, lit from the upper left, cast shadow; regenerated (make-closeups.js --force) from the sprite redrawn to the shared plodder outline, 2026-10-23; a placeholder until redrawn",
    "approvedBy": null,
    "date": "2026-10-23"
   },
@@ -426,7 +426,7 @@
    "author": "tools/make-closeups.js",
    "licence": "MIT (repository)",
    "derivedFrom": "art/sprites/seated_clerk.txt",
-   "changes": "Scale2x to 64, lit from the upper left, cast shadow; a placeholder until redrawn",
+   "changes": "Scale2x to 64, lit from the upper left, cast shadow; regenerated (make-closeups.js --force) from the sprite redrawn to the shared plodder outline, 2026-10-23; a placeholder until redrawn",
    "approvedBy": null,
    "date": "2026-10-23"
   },

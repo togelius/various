@@ -19,10 +19,17 @@ const ViewModel = (() => {
       actors.push({ uid: a.uid, sprite: a.uid === 'you' ? 'visitor' : (sp ? sp.sprite : 'seated_clerk'), x: a.x, y: a.y, size,
         mode: a.uid === 'you' ? 'you' : a.mode, pips: a.pips || 0, hostile: a.uid !== 'you', hp: a.hp, maxHp: a.maxHp });
     }
+    // One-turn animation cues (§6.1), from ui.events, the events of the last step: the tile
+    // each listed actor moved from (its first move, if it made several) and who was hit.
+    const listed = actors.map(a => a.uid), cues = { movedFrom: [], hit: [] };
+    for (const e of ui.events || []) {
+      if (e.k === 'moved' && listed.includes(e.who) && !cues.movedFrom.some(c => c.uid === e.who)) cues.movedFrom.push({ uid: e.who, x: e.from[0], y: e.from[1] });
+      else if (e.k === 'damaged' && listed.includes(e.who) && !cues.hit.includes(e.who)) cues.hit.push(e.who);
+    }
     const pack = typeof Packs !== 'undefined' ? Packs.get(m.acc) : null;
     const clock = m.ltour ? Object.assign({ turn: state.turn }, Clock.budget(m.ltour)) : null;
     return {
-      dept: pack ? pack.palette : 'T0', w: m.w, h: m.h, tiles: m.tiles, vis, ring, actors, marks: [],
+      dept: pack ? pack.palette : 'T0', w: m.w, h: m.h, tiles: m.tiles, vis, ring, actors, marks: [], cues,
       you: { x: you.x, y: you.y, hp: you.hp, maxHp: you.maxHp, grade: you.grade || 1 }, turn: state.turn, over: state.over,
       camera: { x: you.x, y: you.y }, clock, path: ui.path || null, selection: ui.selection || null, selectedTile: ui.selectedTile || null,
     };

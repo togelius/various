@@ -76,7 +76,7 @@ const Main = (() => {
     fresh = false;
     const ev = Step.step(state, action);
     ui.events = ev;
-    const nameOf = Labels.nameOf ? Labels.nameOf(state) : undefined;
+    const nameOf = Labels.nameOf(state);
     const lines = ev.map(e => Text.event(e, nameOf)).filter(Boolean);
     if (lines.length) say(lines.slice(-2).join(' '));
     if (state.over && !ev.some(e => e.k === 'died' && e.who === 'you')) say('You fell.');

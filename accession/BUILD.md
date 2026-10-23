@@ -478,10 +478,15 @@ renderer.pick(clientX, clientY)      → { x, y } or null (below)
 renderer.tileRect(x, y)              → { centre, rect, tapRadius } in CSS pixels
 renderer.zooms, renderer.zoom        the view's zoom table, and the index in use
 renderer.setZoom(index)
+renderer.setInset(px)                how much of the board's foot the phone's label sheet covers; the camera centres in the rest
 renderer.inspect()                   → [{ kind: 'tile' | 'actor' | 'mark', id, x, y, rect }] drawn in the last frame
-renderer.idBuffer(opts)              3D only: → { w, h, ids, legend } for the occlusion check; { floorOnly: true } draws the floor alone
+renderer.idBuffer(opts)              3D only: → { w, h, ids, legend } for the occlusion check; { floorOnly: true } draws the
+                                     floor alone, { scene: true } the floor and what stands on it, and the default adds every
+                                     actor and mark, each legend entry recording its pixels alone and those shown over the scene
 renderer.dispose()
 ```
+
+**The display list.** Both views build their overlays with `Marks.list()` (`js/view/marks.js`): the ring, one-turn cues, the path preview, telegraphs, actors back to front, each actor's marks, the selection, edge arrows for hostiles off the board, and the telegraph numbers last. Each item carries its own paint function, so a view paints the list, `inspect()` reports it, and the 3D id buffer repaints each item alone, so the checks measure exactly what was drawn.
 
 **TopDownView** (`topdown.js`, Canvas 2D) is the reference:
 - 16×16 art drawn at 32 px a tile on a phone (2×, 12 tiles across 390 px), with a second zoom step at 48 px (3×, about 8 across);
@@ -493,7 +498,7 @@ renderer.dispose()
 - **Units and heights.** One tile edge is 1 unit. Walls, door frames, staff doors and columns 1.2; partitions and shelving 1.0; vitrine base 0.25 with glass up to 0.85; plinth 0.5; bench 0.3; lectern 0.7. From due south at 60°, a block of height h hides h ÷ tan 60° of the tile behind it. The probe's 1.5 hid 1–2% of the floor from the south-east, but from due south it would hide 87% of every room's back row and fail the occlusion check; 1.2 hides 69%.
 - **Actors and overlays are never hidden.** Sprites (16×16, nearest-neighbour, an s × s square standing on the south edge of the actor's tile, 2s × 2s for a Centrepiece) are drawn on a 2D layer above the WebGL scene, back to front, and so are the overlays: telegraphs and their numbers, the hostile mark, pips and state glyphs, the selection, the ring and the path preview. Both views draw these with the same code (`js/view/marks.js`), so they look the same. Walls can hide floor, never a visible exhibit or a mark. There is no cutaway and no x-ray in the slice; the occlusion check (§6.3) says whether one is needed.
 - **Lighting:** faces are shaded by direction (tops in the palette's top colour, south faces in its wall colour, the sides darker), a fixed light baked into the vertex colours, with no shadows, so that no lighting effect implies a line-of-sight rule.
-- **`pick`** returns the anchor tile of the nearest actor whose sprite covers the point; otherwise the floor tile where the ray meets the floor plane, ignoring walls; otherwise null.
+- **`pick`** returns the anchor tile of the nearest actor with an opaque sprite pixel under the point; otherwise the floor tile where the ray meets the floor plane, ignoring walls; otherwise null.
 - **Budget.** Device pixel ratio capped at 2, antialiasing off, and it renders only on change.
 - **Context loss.** On `webglcontextlost` the board shows the top-down view at once; on `webglcontextrestored` the 3D view rebuilds from the last vm.
 
@@ -506,7 +511,7 @@ renderer.dispose()
 - **The revert test.** `check-all.sh` copies the repository to a temporary directory, runs `tools/remove-3d.sh` there, then builds and runs the Node tests and the browser smoke and screen checks there. They must all pass.
 - **The guard.** A test scans `index.html`, `js/`, `css/`, `tools/`, `test/` and `art/` for `board3d`, `Board3D`, `THREE`, `x-three`, `vendor/three` and a `'3d'` id, and fails on any file not in the allowlist committed beside the script.
 - **The 3D checks** (Playwright, Chromium with software WebGL, which works here through SwiftShader) run on fixed scenes in all three slice programmes, at both zoom steps, and each first asserts that `Views.active()` is the 3D view, so a silent fallback cannot pass them.
-  - **Occlusion.** From `idBuffer()`: fail if more than 2% of the visible tiles without a mark show less than 25% of their floor pixels; marks and actors are drawn on top, and a test confirms each shows at least 90% of its pixels.
+  - **Occlusion.** From `idBuffer()`: fail if more than 2% of the visible tiles without a mark show less than 25% of their floor pixels (a tile's own case, plinth or bench counts as showing it); marks and actors are drawn on top, and a test confirms each shows at least 90% of its pixels over the scene.
   - **Tap tolerance.** For every visible tile on screen, the radius of the largest disc round its centre in which every sampled `pick` returns that tile, or an actor standing on it (as `research/isometric.md` §1 measured). Fail if the 10th percentile is below 12 px at the default zoom or below 22 px at the 44-px step. The same check runs in top-down.
   - **Consistency.** Every actor and mark in the vm appears in `inspect()` with a rect inside the board, in both views.
   - **Context loss.** `WEBGL_lose_context` forces a loss and a restore; the board keeps drawing.
@@ -564,12 +569,12 @@ renderer.dispose()
   - the clock dial, with the bell and night-watch segments and module countdowns beside it;
   - the grade badge;
   - the alarm bell, when a department owns one.
-- **The board.**
-- **A two-row strip:** a short title with the state and pips, then pictograms. In runs 1–3 the Behaviour line follows (DESIGN default 24).
+- **The board,** with Zoom as a button in its top-right corner.
+- **A two-row strip:** a short title with the state and pips, then pictograms. In runs 1–3 the Behaviour line follows (DESIGN default 24). The newest log sentence takes its place until the next action.
 - **Bottom bar:** Wait · Bag · Q1 · Q2 · Q3 · Map.
-- **The label panel** opens as a bottom sheet.
+- **The label panel** opens as a bottom sheet. While it is open the camera centres you and the selected exhibit in the part of the board it leaves clear, and closing it keeps the selection, so tapping the exhibit again still acts.
 
-**Laptop:** the board on the left, with the panel, log and six quickslots in a right column.
+**Laptop:** the board on the left, with Wait · Bag · Map under it; the strip with the last six log sentences, the label panel and six quickslots in a right column.
 
 **Other screens:**
 - the Entrance Hall;
@@ -1091,7 +1096,7 @@ The first department is drawn on the `doors` stream from all three. After that, 
 | DEMO_PERIOD_INTRO | 8 | in an Intro gallery |
 | DEMO_PERIOD_HALL | 8 | in the Centrepiece hall |
 | DEMO_LINE_DMG | 4 / 7 / 10 | gross damage of a demonstration line; provisional |
-| DEMO_WARNING | 2 | turns of warning bell |
+| DEMO_WARNING | 2 | turns of warning chime |
 | DEMO_WINDOW | 3 | minimum safe window at a forced crossing |
 | ALARM_TURNS | 30 | an alarm's length |
 | ALARM_CLOCK_ADVANCE | 30 | turns each alarm brings the bell closer |

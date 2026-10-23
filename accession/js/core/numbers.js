@@ -117,7 +117,7 @@ const N = Object.freeze({
   DEMO_PERIOD_INTRO: 8, // in an Intro gallery
   DEMO_PERIOD_HALL: 8, // in the Centrepiece hall
   DEMO_LINE_DMG: [4, 7, 10], // gross damage of a demonstration line; provisional
-  DEMO_WARNING: 2, // turns of warning bell
+  DEMO_WARNING: 2, // turns of warning chime
   DEMO_WINDOW: 3, // minimum safe window at a forced crossing
   ALARM_TURNS: 30, // an alarm's length
   ALARM_CLOCK_ADVANCE: 30, // turns each alarm brings the bell closer

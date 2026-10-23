@@ -1,15 +1,15 @@
 {
-  "_doc": "Palettes for the palette-indexed sprite grids in art/sprites. Exhibit sprites use the letters o (outline), 1 2 3 (material dark, mid, light), 4 5 (accent dark, light), w (highlight) and k (deep shadow); each department maps them to its own colours. The semantic set is reserved for meaning and never appears in a department palette (BUILD.md §9.1). Source: hand, chosen in this repository.",
+  "_doc": "Palettes for the palette-indexed sprite grids in art/sprites. Exhibit sprites use the letters o (outline), 1 2 3 (material dark, mid, light), 4 5 (accent dark, light), w (highlight) and k (deep shadow); each department maps them to its own colours. The semantic set is reserved for meaning and never appears in a department palette (BUILD.md §9.1): every department colour stands off every reserved colour by CIEDE2000 ΔE ≥ 10, and ≥ 5 under each colour-vision simulation (test/colours.test.js). Source: hand, chosen in this repository.",
   "semantic": { "hostile": "#d61e05", "hazard": "#d59356", "readable": "#f3f1e8", "item": "#f0d50f", "player": "#7092d8" },
   "player": { "o": "#101626", "d": "#1d3f73", "b": "#2f68b0", "l": "#5aa7e8", "y": "#e8c04a", "k": "#1a1a22", "g": "#4a4e5c", "w": "#d8ecff" },
   "dept": {
     "T0":  { "name": "test room", "o": "#16131a", "1": "#4b4452", "2": "#776d80", "3": "#a89ead", "4": "#3f5a4a", "5": "#6f8f74", "w": "#d9d2dc", "k": "#0c0a0e",
              "wall": "#3a3442", "wallTop": "#5a5266", "floor": "#5e574c", "floor2": "#565046", "glass": "#8fc3cf" },
-    "S9":  { "name": "taxidermy fawn, moss olive", "o": "#1c130c", "1": "#5c3f26", "2": "#8c6440", "3": "#c49a6c", "4": "#4d5527", "5": "#7f8a44", "w": "#ecdcc0", "k": "#0e0906",
+    "S9":  { "name": "taxidermy fawn, moss olive", "o": "#1c130c", "1": "#5c3f26", "2": "#8c6440", "3": "#ba9e78", "4": "#4d5527", "5": "#7f8a44", "w": "#ecdaba", "k": "#0e0906",
              "wall": "#6b6a66", "wallTop": "#8d8b85", "floor": "#2f3138", "floor2": "#363842", "glass": "#9cc9cf" },
-    "A4":  { "name": "plaster cast, duplicator mauve", "o": "#2a2622", "1": "#8f877b", "2": "#bdb4a6", "3": "#ddd6cb", "4": "#5e4a68", "5": "#8b7397", "w": "#f4f1ea", "k": "#1a1714",
+    "A4":  { "name": "plaster cast, duplicator mauve", "o": "#2a2622", "1": "#8f877b", "2": "#bdb4a6", "3": "#d1c6b9", "4": "#5e4a68", "5": "#8b7397", "w": "#ece1e8", "k": "#1a1714",
              "wall": "#6f7d68", "wallTop": "#909e88", "floor": "#816d3e", "floor2": "#816c3d", "glass": "#a6d0d6" },
-    "M11": { "name": "tinplate, signal pink", "o": "#14171c", "1": "#4a525e", "2": "#7c8794", "3": "#b2bcc6", "4": "#8a4a5c", "5": "#b8768a", "w": "#e8eef2", "k": "#0a0c10",
+    "M11": { "name": "tinplate, signal pink", "o": "#14171c", "1": "#4a525e", "2": "#7c8794", "3": "#b2bcc6", "4": "#8a4a5c", "5": "#b8768a", "w": "#e0eef8", "k": "#0a0c10",
              "wall": "#b8ad92", "wallTop": "#d6ccb2", "floor": "#69492e", "floor2": "#5f4228", "glass": "#9fd0dc" }
   }
 }

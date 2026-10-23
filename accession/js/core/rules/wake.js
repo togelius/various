@@ -1,5 +1,10 @@
 // ACCESSION — waking (BUILD.md §8.2). M0 holds only the transitions; the ring, noise,
 // pips and special triggers arrive in M3.
+//
+// An exhibit's `sawYou` (true, or absent) says it has seen you since it last woke; an awake
+// exhibit without it is surprised by a blow (§8.1, Combat.surprised). M3's sight check sets
+// it where an exhibit sees you, and every waking clears it. M2 has no exhibit sight and no
+// 'awake' mode, so nothing sets it yet.
 'use strict';
 const Wake = (() => {
   // Straight to hunting (damage, the ring, being seen). An exhibit that was asleep is

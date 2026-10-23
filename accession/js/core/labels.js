@@ -27,20 +27,23 @@ const Labels = (() => {
       `It has a ${Combat.hitChance(a, you)}% chance to hit you, typically hits for ${halfUp(100 * theirs.sum, theirs.n * hp)}% of your current health, and at worst could defeat you in ${hits(Int.ceilDiv(hp, theirs.max))}.`,
       `You have a ${Combat.hitChance(you, a)}% chance to hit it, and typically need ${hits(Int.ceilDiv(a.hp * mine.n, mine.sum))} to destroy it.`,
     ];
-    if (Combat.surprised(you, a)) lines.push(`A surprise attack now would hit for certain, for ${Math.max(N.DMG_MIN_ON_HIT, Combat.surpriseRaw(you) - a.pad)}.`);
+    if (Combat.surprised(you, a)) lines.push(`A surprise attack now would hit for certain, for ${range(Combat.surpriseNet(you, a))}.`);
     return lines;
   }
 
+  // The Attack button says what a blow would do now (§7.1): a surprise blow hits for
+  // certain (§8.1), so it shows no chance.
+  const range = r => r.min === r.max ? String(r.min) : r.min + '–' + r.max;
   function attackText(you, a) {
-    const r = Combat.netRolls(you, a);
-    return `Attack: ${Combat.hitChance(you, a)}%, ${r.min === r.max ? r.min : r.min + '–' + r.max} damage`;
+    if (Combat.surprised(you, a)) return `Attack: certain hit, ${range(Combat.surpriseNet(you, a))} damage`;
+    return `Attack: ${Combat.hitChance(you, a)}%, ${range(Combat.netRolls(you, a))} damage`;
   }
 
   function of(state, uid) {
     const a = Actors.byUid(state, uid);
     if (!a || a.gone || a.uid === 'you') return null;
     const sp = speciesOf(state, a), you = state.actors[0];
-    const near = Grid.chebyshev(you.x, you.y, a.x, a.y) <= N.READ_RANGE;
+    const near = Actors.dist(a, you.x, you.y) <= N.READ_RANGE;
     const pictos = [
       { icon: 'heart', text: `${a.hp}/${a.maxHp}` }, { icon: 'acc', text: String(a.acc) }, { icon: 'eva', text: String(a.eva) },
       { icon: 'padding', text: String(a.pad) }, { icon: 'damage', text: `${a.dmin}–${a.dmax}` },
@@ -57,15 +60,18 @@ const Labels = (() => {
     };
   }
 
-  // The strip: the nearest readable exhibit within 2 tiles and in sight, hunting first.
+  // The strip (§8.8): the nearest readable exhibit within 2 tiles of its nearest tile and
+  // with any tile in sight, in this priority: hunting or awake exhibits (every mode but
+  // dormant), then sleeping ones; nearest first within each, then spawn order. Case
+  // contents and plaques join in M3.
   function strip(state) {
-    const you = state.actors[0], m = state.dept;
+    const you = state.actors[0];
     let best = null, bestKey = null;
     for (const a of state.actors) {
       if (a.gone || a.uid === 'you') continue;
-      const d = Grid.chebyshev(you.x, you.y, a.x, a.y);
-      if (d > N.READ_RANGE || !Grid.los(m, you.x, you.y, a.x, a.y)) continue;
-      const key = (a.mode === 'hunting' ? 0 : a.mode === 'dormant' ? 2 : 1) * 100 + d;
+      const d = Actors.dist(a, you.x, you.y);
+      if (d > N.READ_RANGE || !Actors.inSight(state, a, you.x, you.y)) continue;
+      const key = (a.mode === 'dormant' ? 1 : 0) * 100 + d;
       if (best === null || key < bestKey) { best = a; bestKey = key; }
     }
     if (!best) return null;
@@ -73,5 +79,15 @@ const Labels = (() => {
     return { uid: best.uid, title: l.title, stateIcons: l.stateIcons, pictos: l.pictos.slice(0, 2).map(p => p.icon), behaviour: l.behaviour };
   }
 
-  return { of, strip, speciesOf, stateIcons };
+  // Names for Text.event: nameOf(state) → (uid → 'the' and the species name as written, or
+  // null for you and for anything with no species in a pack, such as the test room's dummies).
+  function nameOf(state) {
+    return uid => {
+      if (uid === 'you') return null;
+      const a = Actors.byUid(state, uid), sp = a ? speciesOf(state, a) : null;
+      return sp ? 'the ' + sp.name.replace(/^The /, '') : null;
+    };
+  }
+
+  return { of, strip, speciesOf, stateIcons, nameOf };
 })();

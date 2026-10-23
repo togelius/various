@@ -1,7 +1,8 @@
 // The colour check (BUILD.md §7.2, §9.1, §11 M2): under normal vision and the Machado et
 // al. (2009) simulations of protanopia, deuteranopia and tritanopia, the five reserved
 // colours differ pairwise by CIEDE2000 ΔE ≥ 15, and each differs by ΔE ≥ 10 from every
-// department's floor and wall colours. No reserved colour appears in a department palette.
+// department's floor and wall colours. No reserved colour appears in a department palette:
+// every department colour stands off every reserved colour by ΔE ≥ 10 (≥ 5 simulated).
 module.exports = ({ test, assert, root, path }) => {
   const C = require(path.join(root, 'tools/colour.js'));
   const P = require(path.join(root, 'art/palettes.json'));
@@ -32,9 +33,17 @@ module.exports = ({ test, assert, root, path }) => {
     assert.deepEqual(fails, []);
   });
 
-  test('no department palette uses a reserved colour', () => {
-    const reserved = new Set(Object.values(S).map(v => v.toLowerCase()));
-    for (const [dk, d] of Object.entries(P.dept)) for (const [key, v] of Object.entries(d))
-      if (typeof v === 'string' && v.startsWith('#')) assert.ok(!reserved.has(v.toLowerCase()), `${dk}.${key} is the reserved ${v}`);
+  // §9.1 "never appears", read perceptually: not merely a different hex, but a colour no one
+  // would take for the reserved one. Every hex entry of every department palette counts,
+  // sprite ramps and accents as well as walls and floors. The player palette is exempt: the
+  // visitor is meant to be player-coloured.
+  test('no department palette comes near a reserved colour', () => {
+    const fails = [];
+    for (const k of C.KINDS) for (const n of names) for (const [dk, d] of Object.entries(P.dept)) for (const [key, v] of Object.entries(d)) {
+      if (typeof v !== 'string' || !v.startsWith('#')) continue;
+      const e = C.deltaE2000(C.lab(S[n], k), C.lab(v, k)), min = k === 'normal' ? 10 : 5;
+      if (e < min) fails.push(`${k}: ${n} vs ${dk}.${key} ${v} ΔE ${e.toFixed(1)}`);
+    }
+    assert.deepEqual(fails, []);
   });
 };

@@ -4,17 +4,23 @@ const Setup = (() => {
   const SAVE_VERSION = 1;
 
   // The visitor at the start of a run: a T1 Balanced weapon and a T1 Standard garment
-  // (BUILD.md §8.1), from the forms in the numbers table.
-  function you(x, y) {
-    const t = 1, F = N.FORM_BALANCED, G = N.GARMENT_STANDARD;
+  // (BUILD.md §8.1), from the forms in the numbers table. `form` ('light', 'balanced' or
+  // 'heavy'; Balanced if absent) swaps the T1 weapon, for tests and scenarios. Reach comes
+  // with its two-tile blow.
+  const FORMS = { light: N.FORM_LIGHT, balanced: N.FORM_BALANCED, heavy: N.FORM_HEAVY };
+  function you(x, y, form) {
+    form = form || 'balanced';
+    const t = 1, F = FORMS[form], G = N.GARMENT_STANDARD;
+    if (!F) throw new Error('Setup.you: no weapon form ' + form);
     return {
       uid: 'you', sp: 'visitor', size: 1, x, y, hp: N.PLAYER_HP, maxHp: N.PLAYER_HP, next: 0, still: false,
       acc: N.PLAYER_ACC + F[4], eva: N.PLAYER_EVA + G[1], pad: t + G[0], dmin: t + F[0], dmax: F[1] * t + F[2],
-      weaponForm: 'balanced', statuses: [],
+      weaponForm: form, statuses: [],
     };
   }
 
-  // A state for one room: map rows, your position, and exhibit records from a pack.
+  // A state for one room: map rows, your position, and exhibit records from a pack. An
+  // exhibit record may give its size (2 for a Centrepiece, §4.1) and its stats a role.
   function room(seed, spec) {
     const state = {
       v: SAVE_VERSION, seed, rng: {}, tick: 0, turn: 0,
@@ -27,7 +33,7 @@ const Setup = (() => {
       n++;
       state.actors.push(Object.assign({
         uid: spec.acc + '.' + state.dept.depth + '.' + (e.room || 'room') + '.' + n,
-        size: 1, next: 0, pips: 0, statuses: [],
+        size: e.size || 1, next: 0, pips: 0, statuses: [],
       }, e.stats, { sp: e.sp, x: e.at[0], y: e.at[1], mode: e.mode || 'dormant', maxHp: e.stats.hp }));
     }
     return state;
