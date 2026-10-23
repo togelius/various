@@ -7,6 +7,8 @@
 'use strict';
 const Board3D = (() => {
   const ELEV = 60, AZ = 0, ZOOM = [40, 52];
+  // Tiles drawn as plain floor on purpose (the tile-art test checks every other tile has a case).
+  const PLAIN = ['.', ','];
   // Heights in tile edges. From due south at 60°, a block of height h hides h ÷ tan 60° of
   // the tile behind it, so walls are 1.2 (69% hidden), not the 1.5 the probe measured
   // from the south-east, which would hide 87% of every room's back row.
@@ -41,8 +43,8 @@ const Board3D = (() => {
     host.appendChild(canvas); host.appendChild(over);
     const octx = over.getContext('2d');
     let T = null, renderer = null, scene = null, camera = null, meshes = null;
-    let lastVm = null, zoom = 0, s = ZOOM[0], size = { width: 0, height: 0 }, drawn = [], flat = null, disposed = false;
-    let centre = { x: 0, y: 0 };
+    let lastVm = null, zoom = 0, s = ZOOM[0], size = { width: 0, height: 0 }, items = [], tiles = [], flat = null, disposed = false;
+    let centre = { x: 0, y: 0 }, inset = 0;
 
     const ready = loadThree().then(() => {
       if (disposed) return;
@@ -70,7 +72,7 @@ const Board3D = (() => {
       if (flat || disposed) return;
       canvas.style.visibility = over.style.visibility = 'hidden';
       flat = Views.make('topdown', host);
-      flat.setZoom(zoom);
+      flat.setZoom(zoom); flat.setInset(inset);
       if (lastVm) flat.draw(lastVm);
     }
     function restored() {
@@ -134,8 +136,16 @@ const Board3D = (() => {
         }
         const floor = C(ch === '~' || ch === 'w' ? '#2b4f66' : ((x + y) & 1) ? P.floor2 : P.floor);
         quad(fl, [[x, 0, y], [x + 1, 0, y], [x + 1, 0, y + 1], [x, 0, y + 1]], floor, fid);
-        const wood = C('#6b4a2e');
+        const wood = C('#6b4a2e'), mark = (f, c) => quad(fl, [[x + f, 0.004, y + f], [x + 1 - f, 0.004, y + f], [x + 1 - f, 0.004, y + 1 - f], [x + f, 0.004, y + 1 - f]], c, fid);
         switch (ch) {
+          // Entrance and exit: a readable-coloured mat, as the flat board marks them.
+          case 'E': case 'X': mark(0.3, scale(lin(ART.palettes.semantic.readable), 0.55 * k)); break;
+          // An open door: the leaf swung back against the west jamb.
+          case "'": block(so, x, y + 0.04, x + 0.12, y + 0.96, 0, H.wall - 0.1, C('#7a5232'), C('#7a5232'), oid); break;
+          // Shards: glass specks on the floor.
+          case 'x': for (let j = 0; j < 6; j++) { const u = ((x * 7 + j * 5) % 13 + 1) / 16, w = ((y * 5 + j * 7) % 13 + 1) / 16;
+            quad(fl, [[x + u, 0.004, y + w], [x + u + 0.07, 0.004, y + w], [x + u + 0.07, 0.004, y + w + 0.07], [x + u, 0.004, y + w + 0.07]], C(P.glass), fid); } break;
+          case 'C': block(so, x + 0.15, y + 0.15, x + 0.85, y + 0.85, 0, H.plinth, C(P['3'] || '#a89ead'), scale(C(P['3'] || '#a89ead'), 0.8), oid); break;
           case 'v': block(so, x + 0.06, y + 0.06, x + 0.94, y + 0.94, 0, H.caseBase, C(P.floor2), scale(C(P.floor), 0.6), oid);
             block(gl_, x + 0.08, y + 0.08, x + 0.92, y + 0.92, H.caseBase, H.caseTop, C(P.glass), C(P.glass), oid); break;
           case 'k': block(so, x + 0.06, y + 0.06, x + 0.94, y + 0.94, 0, H.caseBase, C(P.floor2), scale(C(P.floor), 0.6), oid); break;
@@ -155,9 +165,10 @@ const Board3D = (() => {
     }
 
     // ------------------------------------------------------------ camera and frame
+    // The target sits at the centre of the part of the board the bottom inset leaves clear.
     function place(vm, r) {
-      const halfW = r.width / s / 2, halfH = r.height / s / 2;
-      Object.assign(camera, { left: -halfW, right: halfW, top: halfH, bottom: -halfH });
+      const halfW = r.width / s / 2, cy = Math.max(s, r.height - inset) / 2;
+      Object.assign(camera, { left: -halfW, right: halfW, top: cy / s, bottom: -(r.height - cy) / s });
       camera.updateProjectionMatrix();
       const tx = vm.camera.x + 0.5, tz = vm.camera.y + 0.5, dist = 60, az = AZ * Math.PI / 180;
       camera.position.set(tx + Math.sin(az) * COS * dist, SIN * dist, tz + Math.cos(az) * COS * dist);
@@ -165,7 +176,7 @@ const Board3D = (() => {
       camera.lookAt(tx, 0, tz);
       camera.updateMatrixWorld();
       // From due south a tile is an s × s·sin(60°) rectangle; its centre on the board:
-      centre = { x: r.width / 2, y: r.height / 2, tx, tz };
+      centre = { x: r.width / 2, y: cy, tx, tz };
     }
     // A floor point (wx, wz) in board CSS pixels.
     const screen = (wx, wz) => ({ x: centre.x + (wx - centre.tx) * s, y: centre.y + (wz - centre.tz) * s * SIN });
@@ -194,31 +205,30 @@ const Board3D = (() => {
       overlay(vm);
     }
 
-    // The 2D layer: ring, path and telegraph fills on the floor; actors back to front;
-    // then every actor's marks, the selection and the telegraph numbers on top.
+    // The 2D layer: the shared display list (marks.js), painted over the scene.
     function overlay(vm) {
       octx.clearRect(0, 0, size.width, size.height);
-      drawn = [];
-      const keep = d => { const q = d.rect; if (q.x + q.w > 0 && q.y + q.h > 0 && q.x < size.width && q.y < size.height) drawn.push(d); };
-      for (let y = 0; y < vm.h; y++) for (let x = 0; x < vm.w; x++) if (vm.vis[y * vm.w + x]) keep({ kind: 'tile', id: x + ',' + y, x, y, rect: rectOf(x, y) });
-      Marks.ring(octx, vm, rectOf, 0, 0, vm.w - 1, vm.h - 1);
-      Marks.path(octx, vm, rectOf);
-      const tele = Marks.telegraphs(octx, vm, rectOf);
-      const placed = Marks.order(vm.actors).map(a => ({ a, q: actorRect(a) }));
-      for (const p of placed) keep(Marks.actor(octx, p.a, vm.dept, p.q.x, p.q.y, p.q.w));
-      for (const p of placed) Marks.actorMarks(octx, vm, p.a, p.q.x, p.q.y, p.q.w, s).forEach(keep);
-      Marks.selectedTile(octx, vm, rectOf).forEach(keep);
-      Marks.edges(octx, placed.map(p => ({ a: p.a, px: p.q.x, py: p.q.y, sz: p.q.w })), size.width, size.height).forEach(keep);
-      Marks.telegraphNumbers(octx, tele);
-      tele.forEach(keep);
+      tiles = [];
+      for (let y = 0; y < vm.h; y++) for (let x = 0; x < vm.w; x++) {
+        if (!vm.vis[y * vm.w + x]) continue;
+        const q = rectOf(x, y);
+        if (q.x + q.w > 0 && q.y + q.h > 0 && q.x < size.width && q.y < size.height) tiles.push({ kind: 'tile', id: x + ',' + y, x, y, rect: q });
+      }
+      items = Marks.list(vm, rectOf, actorRect, s, size.width, size.height);
+      for (const it of items) it.paint(octx);
     }
 
     // ------------------------------------------------------------ picking
-    // The nearest actor whose billboard covers the point, else the floor tile under it.
+    // The nearest actor with an opaque sprite pixel under the point, else the floor tile
+    // under it (walls are ignored: they never take a tap).
     function pick(cx, cy) {
       const b = canvas.getBoundingClientRect(), px = cx - b.left, py = cy - b.top;
-      const hits = Marks.order(lastVm.actors).reverse();
-      for (const a of hits) { const q = actorRect(a); if (px >= q.x && py >= q.y && px < q.x + q.w && py < q.y + q.h) return { x: a.x, y: a.y }; }
+      for (const a of Marks.order(lastVm.actors).reverse()) {
+        const q = actorRect(a);
+        if (px < q.x || py < q.y || px >= q.x + q.w || py >= q.y + q.h) continue;
+        const m = Sprites.mask(a.sprite, lastVm.dept);
+        if (!m || m.on[Math.floor((py - q.y) / q.h * m.n) * m.n + Math.floor((px - q.x) / q.w * m.n)]) return { x: a.x, y: a.y };
+      }
       const x = Math.floor(centre.tx + (px - centre.x) / s), y = Math.floor(centre.tz + (py - centre.y) / (s * SIN));
       if (x < 0 || y < 0 || x >= lastVm.w || y >= lastVm.h) return null;
       return { x, y };
@@ -229,14 +239,18 @@ const Board3D = (() => {
     }
     function inspect() {
       const b = canvas.getBoundingClientRect();
-      return drawn.map(d => ({ kind: d.kind, id: d.id, x: d.x, y: d.y, rect: { x: b.left + d.rect.x, y: b.top + d.rect.y, w: d.rect.w, h: d.rect.h } }));
+      return tiles.map(d => ({ kind: d.kind, id: d.id, x: d.x, y: d.y, rect: { x: b.left + d.rect.x, y: b.top + d.rect.y, w: d.rect.w, h: d.rect.h } }))
+        .concat(Marks.inspected(items, b.left, b.top, size.width, size.height));
     }
 
     // ------------------------------------------------------------ the id buffer
     // One id per CSS pixel of the board, for the occlusion check (BUILD.md §6.3). The scene
     // is drawn again with its ids as flat colours; glass is left out, being see-through.
-    // With { floorOnly: true } only the floor is drawn; otherwise the actors and marks of
-    // the 2D layer are painted on top from inspect(), actors by their sprites' opaque pixels.
+    // With { floorOnly: true } only the floor is drawn, and with { scene: true } the floor
+    // and what stands on it. Otherwise every actor and mark of the display list is also
+    // repainted alone, in drawing order, and takes the pixels it covers; its legend entry
+    // records how many pixels it covers alone and how many of those end up showing an actor
+    // or a mark rather than the scene (§6.3: walls may hide floor, never an actor or a mark).
     function idBuffer(opts) {
       opts = opts || {};
       const vm = lastVm, n = vm.w * vm.h, w = Math.round(size.width), h = Math.round(size.height);
@@ -269,42 +283,36 @@ const Board3D = (() => {
         legend[1 + i] = { kind: 'floor', x, y };
         legend[1 + n + i] = { kind: 'solid', x, y };
       }
-      if (!opts.floorOnly) {
+      if (!opts.floorOnly && !opts.scene) {
         let next = 1 + 2 * n;
-        for (const d of drawn) {
-          if (d.kind === 'tile') continue;
+        const own = [];
+        const scratch = document.createElement('canvas');
+        scratch.width = w; scratch.height = h;
+        const sx = scratch.getContext('2d');
+        sx.imageSmoothingEnabled = false;
+        for (const d of items) {
+          if (d.kind !== 'actor' && d.kind !== 'mark') continue;
           const id = next++;
           legend[id] = { kind: d.kind, id: d.id, x: d.x, y: d.y };
-          const a = d.kind === 'actor' ? vm.actors.find(q => q.uid === d.id) : null;
-          const mask = a ? spriteMask(a.sprite, vm.dept) : null;
-          const x0 = Math.max(0, Math.floor(d.rect.x)), y0 = Math.max(0, Math.floor(d.rect.y));
-          const x1 = Math.min(w, Math.ceil(d.rect.x + d.rect.w)), y1 = Math.min(h, Math.ceil(d.rect.y + d.rect.h));
-          for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
-            if (mask) {
-              const u = Math.floor((x + 0.5 - d.rect.x) / d.rect.w * mask.n), v = Math.floor((y + 0.5 - d.rect.y) / d.rect.h * mask.n);
-              if (u < 0 || v < 0 || u >= mask.n || v >= mask.n || !mask.on[v * mask.n + u]) continue;
-            }
-            ids[y * w + x] = id;
-          }
+          const x0 = Math.max(0, Math.floor(d.rect.x) - 2), y0 = Math.max(0, Math.floor(d.rect.y) - 2);
+          const x1 = Math.min(w, Math.ceil(d.rect.x + d.rect.w) + 2), y1 = Math.min(h, Math.ceil(d.rect.y + d.rect.h) + 2);
+          if (x1 <= x0 || y1 <= y0) continue;
+          sx.clearRect(x0, y0, x1 - x0, y1 - y0);
+          sx.save(); d.paint(sx); sx.restore();
+          const a = sx.getImageData(x0, y0, x1 - x0, y1 - y0).data, mine = [];
+          for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (a[((y - y0) * (x1 - x0) + x - x0) * 4 + 3] > 32) { ids[y * w + x] = id; mine.push(y * w + x); }
+          own.push([id, mine]);
+        }
+        for (const [id, mine] of own) {
+          legend[id].alone = mine.length;
+          legend[id].onTop = mine.filter(i => ids[i] > 2 * n).length;
         }
       }
       return { w, h, ids, legend };
     }
-    const masks = new Map();
-    function spriteMask(sprite, dept) {
-      const key = sprite + '/' + dept;
-      if (!masks.has(key)) {
-        const c = Sprites.board(sprite, dept);
-        if (!c) return null;
-        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, on = new Uint8Array(c.width * c.height);
-        for (let i = 0; i < on.length; i++) on[i] = d[i * 4 + 3] > 127 ? 1 : 0;
-        masks.set(key, { n: c.width, on });
-      }
-      return masks.get(key);
-    }
 
     const api = {
-      id: 'board3d', ready, zooms: ZOOM,
+      id: 'board3d', ready, zooms: ZOOM, PLAIN,
       get zoom() { return zoom; },
       draw(vm) { lastVm = vm; if (renderer) render(vm); },
       pick(cx, cy) { if (flat) return flat.pick(cx, cy); return renderer && lastVm ? pick(cx, cy) : null; },
@@ -312,6 +320,7 @@ const Board3D = (() => {
       inspect() { if (flat) return flat.inspect(); return renderer ? inspect() : []; },
       idBuffer() { return renderer && !flat && lastVm ? idBuffer(arguments[0]) : null; },
       setZoom(step) { zoom = Math.max(0, Math.min(ZOOM.length - 1, step)); s = ZOOM[zoom]; if (flat) flat.setZoom(zoom); },
+      setInset(px) { inset = Math.max(0, px || 0); if (flat) flat.setInset(inset); },
       standIn: () => !!flat,
       stats: () => (renderer ? { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles } : null),
       // Gives the WebGL context back at once, so switching views back and forth never

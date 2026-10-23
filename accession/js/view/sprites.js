@@ -94,5 +94,18 @@ const Sprites = (() => {
     return cache.get(key);
   }
 
-  return { board, closeup, scale2x };
+  // Which pixels of a board sprite are opaque, for picking and the id buffer: { n, on }.
+  function mask(name, deptKey) {
+    const key = 'm/' + name + '/' + deptKey;
+    if (!cache.has(key)) {
+      const c = board(name, deptKey);
+      if (!c) return null;
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, on = new Uint8Array(c.width * c.height);
+      for (let i = 0; i < on.length; i++) on[i] = d[i * 4 + 3] > 127 ? 1 : 0;
+      cache.set(key, { n: c.width, on });
+    }
+    return cache.get(key);
+  }
+
+  return { board, closeup, mask, scale2x };
 })();

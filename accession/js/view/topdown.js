@@ -7,13 +7,9 @@ Views.register('topdown', 'Flat', host => {
   host.appendChild(canvas);
   const ctx = canvas.getContext('2d');
   const ZOOM = [32, 48];
-  let zoom = 0, tile = ZOOM[0], ox = 0, oy = 0, last = null, drawn = [], size = { width: 0, height: 0 };
-  // inspect(): everything drawn in the last frame, in board CSS pixels made client-relative
-  // on request, so tests can check what is on screen without reading pixels.
-  const note = (kind, id, x, y, px, py, w, h) => {
-    if (px + w <= 0 || py + h <= 0 || px >= size.width || py >= size.height) return;
-    drawn.push({ kind, id, x, y, rect: { x: px, y: py, w, h } });
-  };
+  // Tiles drawn as plain floor on purpose (the tile-art test checks every other tile has a case).
+  const PLAIN = ['.', ','];
+  let zoom = 0, tile = ZOOM[0], ox = 0, oy = 0, last = null, items = [], tiles = [], size = { width: 0, height: 0 }, inset = 0;
 
   function resize() {
     const r = host.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
@@ -101,36 +97,31 @@ Views.register('topdown', 'Flat', host => {
     }
   }
 
+  // The camera centres on vm.camera within the part of the board not covered by the
+  // bottom inset (the label sheet on a phone).
   function draw(vm) {
-    last = vm; drawn = [];
+    last = vm;
     const r = resize(), P = ART.palettes.dept[vm.dept] || ART.palettes.dept.T0, t = tile;
     size = { width: r.width, height: r.height };
     ctx.fillStyle = '#0d0c10'; ctx.fillRect(0, 0, r.width, r.height);
     ox = Math.floor(r.width / 2 - (vm.camera.x + 0.5) * t);
-    oy = Math.floor(r.height / 2 - (vm.camera.y + 0.5) * t);
+    oy = Math.floor(Math.max(t, r.height - inset) / 2 - (vm.camera.y + 0.5) * t);
     const x0 = Math.max(0, Math.floor(-ox / t)), y0 = Math.max(0, Math.floor(-oy / t));
     const x1 = Math.min(vm.w - 1, Math.ceil((r.width - ox) / t)), y1 = Math.min(vm.h - 1, Math.ceil((r.height - oy) / t));
+    tiles = [];
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
       const v = vm.vis[y * vm.w + x];
       if (!v) continue;
       const px = ox + x * t, py = oy + y * t;
       drawTile(vm, P, x, y, px, py);
-      note('tile', x + ',' + y, x, y, px, py, t, t);
+      tiles.push({ kind: 'tile', id: x + ',' + y, x, y, rect: { x: px, y: py, w: t, h: t } });
       if (v === 1) { ctx.fillStyle = 'rgba(8,7,12,0.58)'; ctx.fillRect(px, py, t, t); }
     }
     const rectOf = (x, y) => ({ x: ox + x * t, y: oy + y * t, w: t, h: t });
-    Marks.ring(ctx, vm, rectOf, x0, y0, x1, y1);
-    Marks.path(ctx, vm, rectOf);
-    const tele = Marks.telegraphs(ctx, vm, rectOf);
-    const placed = Marks.order(vm.actors).map(a => ({ a, px: ox + a.x * t, py: oy + a.y * t, sz: t * (a.size || 1) }));
-    for (const p of placed) keep(Marks.actor(ctx, p.a, vm.dept, p.px, p.py, p.sz));
-    for (const p of placed) Marks.actorMarks(ctx, vm, p.a, p.px, p.py, p.sz, t).forEach(keep);
-    Marks.selectedTile(ctx, vm, rectOf).forEach(keep);
-    Marks.edges(ctx, placed, r.width, r.height).forEach(keep);
-    Marks.telegraphNumbers(ctx, tele);
-    tele.forEach(keep);
+    const actorRect = a => ({ x: ox + a.x * t, y: oy + a.y * t, w: t * (a.size || 1), h: t * (a.size || 1) });
+    items = Marks.list(vm, rectOf, actorRect, t, r.width, r.height);
+    for (const it of items) it.paint(ctx);
   }
-  const keep = d => note(d.kind, d.id, d.x, d.y, d.rect.x, d.rect.y, d.rect.w, d.rect.h);
 
   function pick(cx, cy) {
     const r = canvas.getBoundingClientRect();
@@ -146,12 +137,15 @@ Views.register('topdown', 'Flat', host => {
   }
   function inspect() {
     const r = canvas.getBoundingClientRect();
-    return drawn.map(d => Object.assign({}, d, { rect: { x: r.left + d.rect.x, y: r.top + d.rect.y, w: d.rect.w, h: d.rect.h } }));
+    const on = tiles.filter(d => d.rect.x + d.rect.w > 0 && d.rect.y + d.rect.h > 0 && d.rect.x < size.width && d.rect.y < size.height)
+      .map(d => ({ kind: d.kind, id: d.id, x: d.x, y: d.y, rect: { x: r.left + d.rect.x, y: r.top + d.rect.y, w: d.rect.w, h: d.rect.h } }));
+    return on.concat(Marks.inspected(items, r.left, r.top, size.width, size.height));
   }
   return {
-    id: 'topdown', ready: Promise.resolve(), draw, pick, tileRect, inspect, zooms: ZOOM,
+    id: 'topdown', ready: Promise.resolve(), draw, pick, tileRect, inspect, zooms: ZOOM, PLAIN,
     get zoom() { return zoom; },
     setZoom(step) { zoom = Math.max(0, Math.min(ZOOM.length - 1, step)); tile = ZOOM[zoom]; },
+    setInset(px) { inset = Math.max(0, px || 0); },
     dispose: () => canvas.remove(),
   };
 });

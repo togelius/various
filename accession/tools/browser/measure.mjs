@@ -2,18 +2,41 @@
 // Each export is a function run with page.evaluate; it reads the DOM, the renderer's
 // inspect() and pick(), and the view model, never pixels.
 
-// Elements that break the layout: horizontal scroll, or anything outside #board that runs
-// past the window's edges.
+// Elements that break the layout: horizontal scroll, anything outside #board that runs past
+// the window's edges, and any box whose content is wider than the box itself (which is how
+// a scroll container such as the label sheet or an overlay would scroll sideways). Text cut
+// short on purpose with an ellipsis is allowed.
 export function layout() {
   const w = window.innerWidth, out = [];
   if (document.documentElement.scrollWidth > w || document.body.scrollWidth > w) out.push(`page scrolls sideways (${document.documentElement.scrollWidth} > ${w})`);
-  for (const e of document.querySelectorAll('#app *, #sheet *, .overlay.open *')) {
-    if (e.closest('#board')) continue;
+  const name = e => `${e.tagName.toLowerCase()}${e.id ? '#' + e.id : ''}${typeof e.className === 'string' && e.className ? '.' + e.className.split(' ').join('.') : ''}`;
+  const boxes = [...document.querySelectorAll('#app, #app *, #sheet, #sheet *, .overlay.open, .overlay.open *')];
+  for (const e of boxes) {
+    if (e.closest('#board') || e.tagName === 'CANVAS' || e.closest('svg')) continue;
     const r = e.getBoundingClientRect(), cs = getComputedStyle(e);
-    if (!r.width || !r.height || cs.visibility === 'hidden' || r.bottom <= 0 || r.top >= window.innerHeight) continue;
-    if (r.right > w + 1 || r.left < -1) out.push(`${e.tagName.toLowerCase()}${e.id ? '#' + e.id : ''}.${e.className} runs past the window (${Math.round(r.left)}–${Math.round(r.right)})`);
+    if (!r.width || !r.height || cs.visibility === 'hidden' || cs.display === 'none') continue;
+    if (e.scrollWidth > e.clientWidth + 1 && cs.textOverflow !== 'ellipsis' && e.clientWidth > 0) out.push(`${name(e)} holds content ${e.scrollWidth - e.clientWidth} px wider than itself`);
+    if (r.bottom <= 0 || r.top >= window.innerHeight) continue;
+    if (r.right > w + 1 || r.left < -1) out.push(`${name(e)} runs past the window (${Math.round(r.left)}–${Math.round(r.right)})`);
   }
   return out;
+}
+
+// Is a label showing for this title: its panel displayed, on screen, with the title in it?
+export function labelVisible(title) {
+  const l = document.querySelector('#sheet .label'), h = l && l.querySelector('h2');
+  if (!l || !h) return false;
+  const r = l.getBoundingClientRect(), cs = getComputedStyle(document.getElementById('sheet'));
+  return r.width > 0 && r.height > 0 && r.top < window.innerHeight && r.bottom > 0 && cs.display !== 'none' && cs.visibility !== 'hidden'
+    && (!title || h.textContent.includes(title));
+}
+
+// Is the newest log sentence on screen as text?
+export function logVisible() {
+  const lines = document.querySelectorAll('#strip .log .line'), last = lines[lines.length - 1];
+  if (!last || !last.textContent.trim()) return false;
+  const r = last.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= window.innerHeight && getComputedStyle(last).display !== 'none';
 }
 
 // Interactive targets under 44×44 CSS pixels that are on screen.
@@ -66,7 +89,12 @@ export function board() {
       if (!drawn.find(d => d.kind === 'mark' && d.id === 'hostile:' + a.uid && inside(d.rect))) problems.push(`${a.uid} is hostile and on screen but has no hostile mark`);
     }
   }
-  for (const m of vm.marks) if (!drawn.find(d => d.kind === 'mark' && d.id === m.kind + ':' + m.x + ',' + m.y && inside(d.rect))) problems.push(`mark ${m.kind} at ${m.x},${m.y} is not drawn`);
+  // Every mark the view model holds is drawn: telegraphs, the path preview and the selection.
+  const onBoard = (x, y) => { const c = R.tileRect(x, y).centre; return c.x >= b.left && c.y >= b.top && c.x < b.right && c.y < b.bottom; };
+  for (const m of vm.marks) if (onBoard(m.x, m.y) && !drawn.find(d => d.kind === 'mark' && d.id === m.kind + ':' + m.x + ',' + m.y && inside(d.rect))) problems.push(`mark ${m.kind} at ${m.x},${m.y} is not drawn`);
+  for (const [x, y] of vm.path || []) if (onBoard(x, y) && !drawn.find(d => d.id === 'path:' + x + ',' + y)) problems.push(`path tile ${x},${y} is not drawn`);
+  const sel = vm.selectedTile || (vm.selection && vm.actors.find(a => a.uid === vm.selection));
+  if (sel && onBoard(sel.x, sel.y) && !drawn.find(d => d.id === 'selection')) problems.push('the selection is not drawn');
   return { tiles: radii.length, p10, min: radii[0] || 0, disc, hostiles, actors: vm.actors.length, problems };
 }
 

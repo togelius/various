@@ -6,7 +6,7 @@
 // in the view model is on the board or marked at its edge. Each view first asserts that it
 // is the active one, so a silent fallback cannot pass.
 import { open, root } from './lib.mjs';
-import { layout, targets, board, nextStep } from './measure.mjs';
+import { layout, targets, board, nextStep, labelVisible } from './measure.mjs';
 import path from 'node:path';
 
 const SIZES = [[390, 844], [1280, 800]];
@@ -68,8 +68,19 @@ for (const [w, h] of SIZES) {
       const near = await page.evaluate(() => { const vm = window.ACCESSION.vm(); return vm.actors.find(a => a.uid !== 'you') || null; });
       if (near) {
         await page.evaluate(a => window.ACCESSION.tap({ x: a.x, y: a.y }), near);
-        const open_ = await page.evaluate(() => document.getElementById('sheet').classList.contains('open') || getComputedStyle(document.getElementById('sheet')).position === 'static');
-        if (!open_) bad(`${tag}: tapping ${near.uid} did not open its label`);
+        const title = await page.evaluate(uid => Labels.of(window.ACCESSION.state, uid).title, near.uid);
+        if (!await page.evaluate(labelVisible, title)) bad(`${tag}: tapping ${near.uid} did not show its label`);
+        // With the label open, you and the exhibit stay in view above it, so a second tap
+        // on the exhibit can still act (§7.1).
+        const hidden = await page.evaluate(uid => {
+          const A = window.ACCESSION, R = A.renderer, out = [];
+          for (const a of A.vm().actors.filter(q => q.uid === 'you' || q.uid === uid)) {
+            const c = R.tileRect(a.x, a.y).centre, e = document.elementFromPoint(c.x, c.y);
+            if (!e || !e.closest('#board')) out.push(a.uid);
+          }
+          return out;
+        }, near.uid);
+        if (hidden.length) bad(`${tag} label open: ${hidden.join(' and ')} hidden behind the label`);
         for (const p of [...await page.evaluate(layout), ...await page.evaluate(targets)]) bad(`${tag} label open: ${p}`);
         await page.keyboard.press('Escape');
       } else bad(`${tag}: no exhibit in sight to open a label`);

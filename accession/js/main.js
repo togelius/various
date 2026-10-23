@@ -11,7 +11,10 @@ const Main = (() => {
     board: params.get('board') || store.get('board', 'topdown'), walk: store.get('walk', 'one'), zoom: store.get('zoom', '0'),
     text: store.get('text', '1'), font: store.get('font', 'book'), motion: store.get('motion', 'full'), boardNote: '',
   };
-  let state, renderer, ui = { path: null, selection: null, selectedTile: null }, walking = null, log = '';
+  // ui: what the view model needs from the interface (the selection, the path preview and
+  // the last step's events, for one-turn cues). history: the log's recent sentences.
+  let state, renderer, ui = { path: null, selection: null, selectedTile: null, events: null }, walking = null, fresh = false;
+  const history = [], HISTORY = 6;
 
   function newVisit() {
     const seed = Number(params.get('seed')) || 1;
@@ -23,14 +26,17 @@ const Main = (() => {
   const app = document.getElementById('app');
   const board = UI.build(app, {
     bar(act) {
+      stopWalking();
       if (act === 'wait') act_({ a: 'wait' });
       else if (act === 'zoom') setZoom((renderer.zoom + 1) % renderer.zooms.length);
       else { say('Not in this build yet.'); draw(); }
     },
-    openLabel() { const s = Labels.strip(state); if (s) select(s.uid, true); },
-    labelAction(id) { if (id === 'attack' && ui.selection) attackSelected(); },
-    closedLabel() { ui.selection = null; draw(); },
+    openLabel() { stopWalking(); const s = Labels.strip(state); if (s) select(s.uid, true); },
+    labelAction(id) { stopWalking(); if (id === 'attack' && ui.selection) attackSelected(); },
+    // Closing the label keeps the selection, so tapping the exhibit again still acts (§7.1).
+    closedLabel() { draw(); },
     setting(key, value) {
+      stopWalking();
       settings[key] = value; store.set(key, value);
       if (key === 'board') makeView();
       applySettings(); draw();
@@ -59,16 +65,26 @@ const Main = (() => {
   }
   function setZoom(i) { settings.zoom = String(i); store.set('zoom', settings.zoom); renderer.setZoom(i); draw(); }
 
-  // The strip shows the latest sentence until the next action, then the nearest label.
-  function say(s) { log = s; }
+  // The log: the newest sentence shows on a phone's strip until the next action.
+  function say(s) { history.push(s); while (history.length > HISTORY) history.shift(); fresh = true; }
 
-  // Everything the player does goes through here.
-  function act_(action) {
-    log = '';
+  // Everything the player does goes through here. An action from anywhere but a walk stops
+  // the walk and drops the path preview; afterwards the open label is brought up to date,
+  // or closed if its exhibit is gone.
+  function act_(action, fromWalk) {
+    if (!fromWalk) { stopWalking(); ui.path = null; ui.selectedTile = null; }
+    fresh = false;
     const ev = Step.step(state, action);
-    const lines = ev.map(Text.event).filter(Boolean);
+    ui.events = ev;
+    const nameOf = Labels.nameOf ? Labels.nameOf(state) : undefined;
+    const lines = ev.map(e => Text.event(e, nameOf)).filter(Boolean);
     if (lines.length) say(lines.slice(-2).join(' '));
-    if (state.over) say('You fell. ' + log);
+    if (state.over && !ev.some(e => e.k === 'died' && e.who === 'you')) say('You fell.');
+    if (ui.selection) {
+      const l = Labels.of(state, ui.selection);
+      if (!l) { ui.selection = null; UI.closeLabel(); }
+      else if (UI.labelShown() === ui.selection) UI.label(l);
+    }
     draw();
     return ev;
   }
@@ -82,7 +98,7 @@ const Main = (() => {
 
   function attackSelected() {
     const a = Actors.byUid(state, ui.selection), you = state.actors[0];
-    if (a && !a.gone && Step.adjacent(state, you, a)) { act_({ a: 'attack', uid: a.uid }); if (Actors.byUid(state, ui.selection).gone) { ui.selection = null; UI.closeLabel(); } else select(ui.selection, true); }
+    if (a && !a.gone && Step.adjacent(state, you, a)) act_({ a: 'attack', uid: a.uid });
   }
 
   // A tap: on an exhibit, examine it (a second tap on a selected adjacent exhibit attacks);
@@ -90,6 +106,7 @@ const Main = (() => {
   // tile previews the path and a second tap on the same tile goes.
   function tap(t) {
     if (walking) { stopWalking(); return; }
+    if (state.over) { say('You fell. The run is over.'); draw(); return; }
     const you = state.actors[0], vm = ViewModel.derive(state, ui);
     const hit = vm.actors.find(a => t.x >= a.x && t.y >= a.y && t.x < a.x + a.size && t.y < a.y + a.size);
     if (hit && hit.uid === 'you') { act_({ a: 'wait' }); return; }
@@ -103,65 +120,95 @@ const Main = (() => {
     const path = Path.to(state, t.x, t.y);
     if (!path.length) { say('There is no way there from here.'); draw(); return; }
     if (settings.walk === 'two' && !(ui.selectedTile && ui.selectedTile.x === t.x && ui.selectedTile.y === t.y)) {
-      ui.selectedTile = t; ui.path = path; ui.selection = null; draw(); return;
+      ui.selection = null; UI.closeLabel();
+      ui.selectedTile = t; ui.path = path; draw(); return;
     }
     ui.selectedTile = null; ui.path = null; ui.selection = null; UI.closeLabel();
     walk(path);
   }
 
-  // Walk a path one move at a time; stop when anything new appears or an event names you.
+  // Walk a path one move at a time. Stop when anything new appears in sight, a pip or state
+  // changes, the next tile is taken (a walk never turns into an attack), or an event is
+  // about you: a blow, a miss, a wake, a door, a refusal.
+  const STOPS = new Set(['refused', 'opened', 'hunting', 'damaged', 'missed', 'died']);
   function walk(path) {
     const seen = () => ViewModel.derive(state, {}).actors.map(a => a.uid + a.mode + a.pips).join();
     let before = seen(), i = 0;
     const stepOnce = () => {
-      if (i >= path.length || state.over) { walking = null; return; }
+      walking = null;
+      if (i >= path.length || state.over) return;
       const here = [state.actors[0].x, state.actors[0].y], d = Path.dirTo(here, path[i]);
-      if (d < 0) { walking = null; return; }
-      const ev = act_({ a: 'move', dir: d });
+      if (d < 0 || Actors.at(state, path[i][0], path[i][1])) { draw(); return; }
+      const ev = act_({ a: 'move', dir: d }, true);
       i++;
       const after = seen();
-      if (ev.some(e => e.k === 'refused' || e.k === 'damaged' || e.k === 'hunting' || e.k === 'opened') || after !== before) { walking = null; return; }
+      if (ev.some(e => STOPS.has(e.k) || (e.k === 'status_ended' && e.who === 'you')) || after !== before) return;
       before = after;
       walking = setTimeout(stepOnce, settings.motion === 'reduce' ? 0 : 70);
     };
-    stepOnce();
+    walking = setTimeout(stepOnce, 0);
   }
   function stopWalking() { clearTimeout(walking); walking = null; }
 
+  // The interface first, then the board, so the board is measured at its final size; the
+  // label sheet's cover is passed on so the camera keeps you and the exhibit above it.
   function draw() {
     const vm = ViewModel.derive(state, ui);
-    renderer.draw(vm);
+    // While a label is open the camera centres between you and its exhibit, in the part of
+    // the board the phone's sheet leaves clear.
+    const open = UI.labelShown() && vm.actors.find(a => a.uid === UI.labelShown());
+    if (open) vm.camera = { x: Math.floor((2 * vm.you.x + 2 * open.x + open.size - 1) / 4), y: Math.floor((2 * vm.you.y + 2 * open.y + open.size - 1) / 4) };
     UI.top({ hp: vm.you.hp, maxHp: vm.you.maxHp, grade: vm.you.grade, clock: vm.clock });
-    const s = Labels.strip(state);
-    UI.strip(log ? { log } : s);
+    UI.strip(Labels.strip(state), history, fresh);
+    renderer.setInset(UI.sheetCover());
+    renderer.draw(vm);
+  }
+
+  // Examine (x): the nearest readable thing first, then each visible exhibit in turn.
+  // Read (r): always the nearest label, never the next one.
+  function nearestSeen() {
+    const you = state.actors[0], s = Labels.strip(state);
+    if (s) return s.uid;
+    const seen = ViewModel.derive(state, {}).actors.filter(a => a.uid !== 'you')
+      .map(a => ({ uid: a.uid, d: Math.max(Math.abs(a.x - you.x), Math.abs(a.y - you.y)) })).sort((p, q) => p.d - q.d);
+    return seen.length ? seen[0].uid : null;
+  }
+  function examine() {
+    stopWalking();
+    const seen = ViewModel.derive(state, {}).actors.filter(a => a.uid !== 'you').map(a => a.uid), at = seen.indexOf(ui.selection);
+    if (!seen.length) { say('Nothing here to examine.'); draw(); return; }
+    select(ui.selection && at >= 0 && UI.labelShown() ? seen[(at + 1) % seen.length] : nearestSeen(), true);
+  }
+  function read() {
+    stopWalking();
+    const uid = nearestSeen();
+    if (uid) select(uid, true); else { say('Nothing in sight to read.'); draw(); }
   }
 
   state = newVisit();
   makeView();
   applySettings();
   Input.attach(board, () => renderer, {
-    tap, key(a) { stopWalking(); act_(a); },
-    examine, read: examine,
+    tap, key(a) { act_(a); }, examine, read,
+    blocked: () => UI.overlayOpen(),
     confirm() {
       if (ui.selectedTile && ui.path) tap(ui.selectedTile);
-      else if (ui.selection) { const a = Actors.byUid(state, ui.selection); if (a && Step.adjacent(state, state.actors[0], a)) attackSelected(); }
+      else if (ui.selection) attackSelected();
     },
     later() { say('Not in this build yet.'); draw(); },
-    escape() { UI.closeLabel(); UI.closeOverlays(); ui.selection = null; ui.path = null; ui.selectedTile = null; draw(); },
+    escape() { stopWalking(); UI.closeOverlays(); ui.selection = null; ui.path = null; ui.selectedTile = null; UI.closeLabel(); draw(); },
   });
-  // Examine: the nearest readable thing first, then each visible exhibit in turn.
-  function examine() {
-    const s = Labels.strip(state), seen = ViewModel.derive(state, {}).actors.filter(a => a.uid !== 'you').map(a => a.uid);
-    if (!seen.length) { say('Nothing here to examine.'); draw(); return; }
-    const first = s ? s.uid : seen[0], at = seen.indexOf(ui.selection);
-    select(ui.selection && at >= 0 ? seen[(at + 1) % seen.length] : first, true);
-  }
-  window.addEventListener('resize', () => draw());
+  // Any change to the board's size redraws it, not only a window resize: the strip grows
+  // and shrinks with what it says.
+  let pending = 0;
+  const redraw = () => { if (!pending) pending = requestAnimationFrame(() => { pending = 0; draw(); }); };
+  window.addEventListener('resize', redraw);
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(redraw).observe(board);
   say(`Room ${state.dept.rooms ? state.dept.rooms.find(r => r.role === 'intro').number : ''}. Tap a tile to walk; tap an exhibit to read its label.`);
   draw();
   window.ACCESSION = {
     get state() { return state; }, act: act_, tap, vm: () => ViewModel.derive(state, ui), get renderer() { return renderer; },
-    views: Views, setZoom, busy: () => !!walking,
+    views: Views, setZoom, busy: () => !!walking, get history() { return history.slice(); },
     setting: (k, v) => { settings[k] = v; if (k === 'board') makeView(); applySettings(); draw(); },
   };
   return {};

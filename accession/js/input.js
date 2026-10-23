@@ -15,14 +15,18 @@ const Input = (() => {
     board.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('keydown', e => {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
-      if (e.key === '.' || e.code === 'Numpad5') { on.key({ a: 'wait' }); e.preventDefault(); return; }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'Escape') { on.escape(); return; }
+      // While an overlay covers the board, keys do nothing to the game.
+      if (on.blocked()) return;
+      // The numpad moves whether NumLock is on (key '1'–'9') or off (arrows).
+      if (e.code && e.code.startsWith('Numpad') && e.code in KEYS) { on.key({ a: 'move', dir: KEYS[e.code] }); e.preventDefault(); return; }
+      if (e.key === '.' || e.code === 'Numpad5' || e.code === 'NumpadDecimal') { on.key({ a: 'wait' }); e.preventDefault(); return; }
       if (e.key === 'x') { on.examine(); e.preventDefault(); return; }
       if (e.key === 'r') { on.read(); e.preventDefault(); return; }
       if (e.key === 'Enter') { if (e.target && e.target.tagName === 'BUTTON') return; on.confirm(); e.preventDefault(); return; }
       if (e.key === 'i' || e.key === 'm' || /^[1-6]$/.test(e.key)) { on.later(e.key); e.preventDefault(); return; }
-      if (e.key === 'Escape') { on.escape(); return; }
-      const d = e.key in KEYS ? KEYS[e.key] : e.code in KEYS ? KEYS[e.code] : -1;
+      const d = e.key in KEYS ? KEYS[e.key] : -1;
       if (d >= 0) { on.key({ a: 'move', dir: d }); e.preventDefault(); }
     });
   }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ACCESSION — every lint and test, then both builds and the browser checks (BUILD.md §10.2).
-# Usage: ./check-all.sh            (browser checks run when Playwright is found)
-#        ./check-all.sh --no-browser
+# Usage: ./check-all.sh                            every step; all must pass
+#        ./check-all.sh --no-browser --allow-skip    without the browser checks (not for acceptance)
 set -u
 cd "$(dirname "$0")"
 # A step that exits 77 could not run (Playwright missing): SKIPPED, which fails the run
@@ -23,10 +23,14 @@ run lint-numbers   node tools/lint-numbers.js
 run tests          node test/run.js
 run build          python3 tools/build-single.py
 [ -x tools/revert-test.sh ] && run revert-3d tools/revert-test.sh
-if [ "${1:-}" != "--no-browser" ]; then
-  [ -f dist/accession.html ] || true
-  for s in tools/browser/check-*.mjs; do [ -f "$s" ] && run "$(basename "$s" .mjs)" node "$s"; done
-fi
+# --no-browser does not run the browser checks: each prints SKIPPED, so the run fails
+# unless --allow-skip is also given (BUILD.md §10.2).
+no_browser=0; for a in "$@"; do [ "$a" = "--no-browser" ] && no_browser=1; done
+for s in tools/browser/check-*.mjs; do
+  [ -f "$s" ] || continue
+  if [ $no_browser -eq 1 ]; then skip+=("$(basename "$s" .mjs)"); echo "SKIP  $(basename "$s" .mjs): --no-browser"
+  else run "$(basename "$s" .mjs)" node "$s"; fi
+done
 
 echo
 failed_names=""; [ ${#fail[@]} -gt 0 ] && failed_names=" (${fail[*]})"

@@ -1,11 +1,15 @@
 /* ACCESSION — layout and type. The board draws itself on a canvas; everything else is DOM.
-   Meaning-carrying colours are the reserved semantic tokens (BUILD.md §7.2, §9.1). */
+   Meaning-carrying colours are the reserved semantic tokens (BUILD.md §7.2, §9.1).
+   Phone: top bar, board, strip, bottom bar, with the label as a bottom sheet.
+   Laptop: the board on the left; the strip and log, the label and six quickslots on the right. */
 :root {
   --bg: #15131a; --panel: #1f1c25; --panel2: #2a2631; --line: #3b3644; --ink: #ece6d8; --muted: #a39d90;
+  --paper: #f3ecdc; --paper-ink: #231f1a; --paper-muted: #4a4238; --paper-line: #d9cfb9;
   /* The reserved colours (hostile, hazard, readable, item, player) are set by ui.js from
      art/palettes.json, their one source. */
   --text-scale: 1;
   --label-font: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  color-scheme: dark;
 }
 :root[data-font="plain"] { --label-font: system-ui, -apple-system, "Segoe UI", sans-serif; }
 * { box-sizing: border-box; }
@@ -13,57 +17,103 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
   font: calc(16px * var(--text-scale))/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden;
   -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
 button { font: inherit; color: var(--ink); }
-#app { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr auto auto; grid-template-columns: 1fr;
+button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; }
+#app { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr auto auto; grid-template-columns: minmax(0, 1fr);
   grid-template-areas: "top" "board" "strip" "bar"; padding-top: env(safe-area-inset-top); }
-#top { grid-area: top; display: flex; align-items: center; gap: 8px; padding: 4px 8px; min-width: 0; background: var(--panel); border-bottom: 1px solid var(--line); min-height: 52px; }
+
+/* The top bar. */
+#top { grid-area: top; display: flex; align-items: center; gap: 8px; padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
+  min-width: 0; background: var(--panel); border-bottom: 1px solid var(--line); min-height: 52px; }
+.hp { flex: 1; min-width: 0; }
+.hp .barbg { height: 10px; background: #2b2a3a; border-radius: 5px; overflow: hidden; }
+.hp .barfg { height: 100%; background: var(--player); }
+.hp .num { font-size: 0.8em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dial { width: 40px; height: 40px; flex: none; }
+.badge { display: flex; flex-direction: column; align-items: center; line-height: 1.15; color: var(--readable); border: 1px solid var(--line);
+  border-radius: 6px; padding: 2px 6px; white-space: nowrap; flex: none; }
+.badge-name { font-size: 0.62em; letter-spacing: 0.02em; color: var(--muted); }
+.badge-grade { font-size: 0.85em; font-weight: 600; }
+#top .btn { min-height: 44px; }
+
+/* The board, with Zoom in its top-right corner. */
 #board { grid-area: board; position: relative; min-height: 0; touch-action: none; overflow: hidden; }
 #board canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
-#strip { grid-area: strip; min-height: 64px; padding: 6px 12px; background: var(--panel); border-top: 1px solid var(--line); cursor: pointer; }
+.zoom { grid-area: board; justify-self: end; align-self: start; margin: 8px max(8px, env(safe-area-inset-right)) 0 0; z-index: 2;
+  background: rgba(31, 28, 37, 0.85); }
+
+/* The strip: the nearest label and the log. A phone shows the newest sentence until the
+   next action, then the nearest label. */
+#strip { grid-area: strip; min-height: 64px; padding: 6px max(12px, env(safe-area-inset-right)) 6px max(12px, env(safe-area-inset-left));
+  background: var(--panel); border-top: 1px solid var(--line); cursor: pointer; overflow: hidden; min-width: 0; }
+.strip-title { display: flex; align-items: center; gap: 6px; font-weight: 600; min-width: 0; }
+.strip-title span { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.strip-sub { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 0.85em; margin-top: 2px; flex-wrap: wrap; min-width: 0; }
+.strip-sub .behaviour { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
+.behaviour { color: var(--ink); font-size: 0.9em; }
+.picto { vertical-align: middle; flex: none; }
+.log { color: var(--muted); font-size: 0.9em; overflow-wrap: anywhere; }
+.log .line { display: none; }
+.log .line:last-child { display: block; }
+#strip.has-summary:not(.fresh) .log, #strip.fresh .summary { display: none; }
+
+/* The quickslots: three in the phone's bottom bar, six in the laptop's column. */
+#slots { display: none; }
 #bar { grid-area: bar; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px;
   padding: 6px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); background: var(--panel); }
 .btn { min-width: 44px; min-height: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; cursor: pointer; }
 .btn:active { background: #3a3542; }
 .btn.small { font-size: 0.85em; }
-.hp { flex: 1; min-width: 0; }
-.hp .barbg { height: 10px; background: #3a2226; border-radius: 5px; overflow: hidden; }
-.hp .barfg { height: 100%; background: var(--player); }
-.hp .num { font-size: 0.8em; color: var(--muted); }
-.badge { font-size: 0.8em; color: var(--readable); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; white-space: nowrap; flex: none; }
-.dial { width: 40px; height: 40px; flex: none; }
-#top .btn { min-height: 44px; }
-.strip-title { display: flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.strip-sub { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 0.85em; margin-top: 2px; flex-wrap: wrap; min-width: 0; }
-.strip-sub .behaviour { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
-#strip { overflow: hidden; }
-.behaviour { color: var(--ink); font-size: 0.9em; }
-.picto { vertical-align: middle; flex: none; }
-.log { color: var(--muted); font-size: 0.9em; }
+.slot { color: var(--muted); }
+
 /* The label panel: a bottom sheet on phones, a column on wide screens. */
-#sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 72%; overflow-y: auto; background: #f3ecdc; color: #231f1a;
-  border-radius: 14px 14px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,0.5); padding: 14px 16px max(16px, env(safe-area-inset-bottom)); transform: translateY(105%); transition: transform .18s ease-out; z-index: 10; }
+#sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 64%; overflow-y: auto; overflow-x: hidden; background: var(--paper); color: var(--paper-ink);
+  border-radius: 14px 14px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,0.5); padding: 14px max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  transform: translateY(105%); transition: transform .18s ease-out; z-index: 10; }
 #sheet.open { transform: none; }
 :root[data-motion="reduce"] #sheet { transition: none; }
+#sheet .hint { color: var(--paper-muted); font-style: italic; margin: 4px 0; }
+.label { overflow-wrap: anywhere; }
 .label h2 { font: 600 1.2em/1.25 var(--label-font); margin: 0 0 4px; display: flex; gap: 8px; align-items: center; }
-.label .tomb { font: 0.85em/1.35 var(--label-font); color: #4a4238; margin: 4px 0 8px; }
+.label .chip { display: inline-flex; gap: 2px; background: var(--panel2); border-radius: 6px; padding: 3px 5px; flex: none; }
+.label .tomb { font: 0.85em/1.35 var(--label-font); color: var(--paper-muted); margin: 4px 0 8px; }
 .label .closeup { float: right; width: 128px; height: 128px; margin: 0 0 8px 12px; image-rendering: pixelated; background: #e4dccb; border: 1px solid #c9bfa9; }
 .label .pictos { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; align-items: center; }
-.label .pictos span { display: inline-flex; align-items: center; gap: 3px; font-size: 0.85em; background: #2a2631; color: #ece6d8; border-radius: 6px; padding: 2px 6px; }
+.label .pictos span { display: inline-flex; align-items: center; gap: 3px; font-size: 0.85em; background: var(--panel2); color: var(--ink); border-radius: 6px; padding: 2px 6px; }
 .label .beh { font-weight: 600; margin: 8px 0; }
 .label .odds { font-size: 0.92em; background: #e6dcc6; border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
 .label .para { font: 1em/1.5 var(--label-font); clear: both; }
-.label .acts { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px -16px 0; padding: 8px 16px; position: sticky; bottom: calc(-1 * max(16px, env(safe-area-inset-bottom))); background: #f3ecdc; border-top: 1px solid #d9cfb9; }
-.label .acts .btn { background: #2a2631; color: #ece6d8; }
-.overlay { position: fixed; inset: 0; background: rgba(10,9,13,0.92); z-index: 20; overflow-y: auto; padding: max(16px, env(safe-area-inset-top)) 16px 24px; display: none; }
+/* The actions stay in view at the foot of the panel; side shadows paint the band across
+   the panel's padding without making its content wider. */
+.label .acts { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; padding: 8px 0; position: sticky; bottom: calc(-1 * max(16px, env(safe-area-inset-bottom)));
+  background: var(--paper); border-top: 1px solid var(--paper-line); box-shadow: -16px 0 0 var(--paper), 16px 0 0 var(--paper); }
+.label .acts .btn { background: var(--panel2); color: var(--ink); }
+
+/* Overlays: Settings and "How the museum works". */
+.overlay { position: fixed; inset: 0; background: rgba(10,9,13,0.96); z-index: 20; overflow-y: auto; overflow-x: hidden;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 24px max(16px, env(safe-area-inset-left)); display: none; overflow-wrap: anywhere; }
 .overlay.open { display: block; }
 .overlay h2 { margin: 0; }
 .ohead { position: sticky; top: calc(-1 * max(16px, env(safe-area-inset-top))); display: flex; justify-content: space-between; align-items: center; gap: 12px;
   margin: 0 -16px; padding: 8px 16px; background: rgba(10,9,13,0.98); border-bottom: 1px solid var(--line); z-index: 1; }
+.ohead-btns { display: flex; gap: 8px; flex: none; }
 .systems li { margin: 10px 0; list-style: none; display: flex; gap: 10px; align-items: flex-start; }
+.systems li > div { min-width: 0; }
 .systems { padding: 0; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
 .note { color: var(--muted); font-size: 0.9em; }
+
 @media (min-width: 900px) and (min-aspect-ratio: 4/3) {
-  #app { grid-template-columns: 1fr 380px; grid-template-rows: auto 1fr auto; grid-template-areas: "top top" "board side" "bar side"; }
-  #strip { display: none; }
-  #sheet { position: static; grid-area: side; transform: none; max-height: none; border-radius: 0; box-shadow: none; border-left: 1px solid var(--line); }
+  #app { grid-template-columns: minmax(0, 1fr) 380px; grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "top top" "board strip" "board side" "board slots" "bar slots"; }
+  #strip { cursor: default; border-top: none; border-left: 1px solid var(--line); max-height: 34vh; overflow-y: auto; }
+  #strip .summary, #strip .log, #strip.fresh .summary, #strip.has-summary:not(.fresh) .log { display: block; }
+  #strip .log { margin-top: 6px; }
+  #strip .log .line { display: block; padding: 2px 0; border-top: 1px solid var(--line); }
+  #strip .log .line:last-child { color: var(--ink); }
+  .strip-title span { white-space: normal; }
+  #sheet { position: static; grid-area: side; transform: none; max-height: none; border-radius: 0; box-shadow: none; border-left: 1px solid var(--line); min-height: 0; }
+  .label .acts { bottom: calc(-1 * max(16px, env(safe-area-inset-bottom))); }
+  #slots { display: grid; grid-area: slots; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 8px; background: var(--panel); border-left: 1px solid var(--line); align-content: end; }
+  #bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #bar .slot { display: none; }
 }

@@ -8,7 +8,7 @@ The build contract is [`BUILD.md`](BUILD.md); this file records what has been bu
 |---|---|
 | Play (development) | open `index.html` in a browser |
 | Play (single file) | `python3 tools/build-single.py`, then open `dist/accession.html` |
-| Everything | `./check-all.sh` (add `--no-browser` to skip Playwright) |
+| Everything | `./check-all.sh` (`--no-browser --allow-skip` leaves out the Playwright checks; never for acceptance) |
 | Tests only | `node test/run.js [filter]` |
 | Cross-browser hash | open `dist/accession-hash.html` in Safari, Firefox or Chrome: every line should say PASS |
 | Regenerate golden hashes | `node tools/golden.js` (only when a rule changed on purpose; log why below) |
@@ -37,6 +37,8 @@ The build contract is [`BUILD.md`](BUILD.md); this file records what has been bu
 | Hash page in Safari (Mac) | open `dist/accession-hash.html` | pending |
 | Hash page in Safari (iPhone) | open the hosted hash page | pending |
 | Hash page in Firefox | open `dist/accession-hash.html` | pending |
+| The game on the iPhone, both board views | open the hosted or Artifact build; walk, read a label, switch Board in Settings | pending |
+| 3D cost on the iPhone and the Mac | Settings → Board: 3D; note how smooth walking feels; leave the page in the background for a minute mid-department and come back | pending |
 
 ## Validation log
 
