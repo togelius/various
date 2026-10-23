@@ -1,0 +1,5 @@
+node_modules/
+shots/*
+!shots/sheet_*.png
+!shots/crop_sc_phone_native.png
+!shots/voxel_llm_test.png

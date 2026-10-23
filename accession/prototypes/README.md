@@ -10,6 +10,11 @@ These are throwaway scripts from the research and drafting phase. They back spec
 | `space-syntax/` | The twelve ASCII programme sketches from `research/museum-layouts.md` and the metrics measured on them | `python3 metrics.py .` |
 | `art-probe/` | The art probe from `research/tech-art.md`: language-model-written 16×16 index grids under three palettes, Bollinger-style mask beings, three gallery mock-ups and a pixel-font legibility sheet | `python3 -I museum_probe.py FONTDIR OUTDIR` (needs Pillow and the fonts named in the script, from Google Fonts) |
 | `bench/` | A micro-benchmark of rot.js map generation, field of view and pathfinding in Node | `node rotbench.cjs /path/to/rot.js` |
+| `art-probe/diffusion/` | The second art probe (`research/art-sources.md`): six museum-exhibit prompts through SDXL 1.0 with an LCM-LoRA and a pixel-art LoRA on CPU, reduced to 16, 32 and 48 pixels in a fixed palette. `contact_sheet.png` compares them with the code-drawn sprites and a CC0 pack; `manifest.json` records models, licences, prompts, seeds and timings | `python -I scripts/gen.py ...` then `scripts/postprocess.py` (see each script's header; needs about 8 GB of weights, downloaded separately) |
+| `iso-probe/` | Top-down 2D against isometric 3D (three.js) on two generated layouts, at phone and laptop sizes, with occlusion and tap-target measurements (`research/isometric.md`). Start with `shots/sheet_sc_phone.png` | `npm install`, then `node run_all.mjs` and `node sweep.mjs` (Playwright with Chromium) |
+| `csharp-spike/` | A toy rules core (seeded random numbers, sleeping monsters, bump combat, `Step(state, action)`, a state hash) as a .NET Standard library of the kind Unity uses, with NUnit tests and a line-for-line JavaScript port that gives identical hashes (`research/unity.md`) | `dotnet test Core.Tests`; `dotnet run --project Bench -c Release`; `node js/sim.js` |
+| `bench/godot/` | The same flood fill (a 40×27 grid, 10,000 times) in typed and untyped GDScript and in Node (`research/engines.md`) | `godot --headless --script flood_typed.gd`; `node flood.cjs` |
+| `save-kill/` | Does a save survive the whole browser being killed? Writes to localStorage and IndexedDB, kills Chromium after a delay, relaunches and reads both back | `node savekill.cjs 3` (Playwright with Chromium; Linux) |
 
 The sequencer's first headline run (`seq_floor.py 30 2 200`) used two Social-primary departments, which the design's lean forbids, because social is a secondary type only. The rerun without them (`python3 seq_floor.py 30 0 200`) gave these results over 200 runs, and they are the ones `DESIGN.md` §9.3 reports:
 
@@ -38,3 +43,31 @@ The minimum pool sizes in the drafts (16 departments for 2-door offers, 24 for 3
 A run that fails has exhausted every relaxation. `DESIGN.md` §9.3 takes 20 and 28 as the minimum pools.
 
 The layout timings vary by about 10% between runs. A rerun on 20 October 2026 gave medians of 7.6–9.4 ms, 95th percentiles of 13.0–17.4 ms and slowest single layouts of 16–82 ms per programme; every non-timing line matched `stats_final.txt` exactly.
+
+## Six-department runs
+
+`difficulty/seq6.py` reruns the sequencer for the 30-minute run of `DECISIONS.md`: six departments, no Social primaries, 200 runs per pool size. Its strictest rule is "at most one primary type repeats, at least three departments apart"; strict all-different was tried first and almost never built. Runs built, out of 200, by pool size and shape:
+
+| Pool | 2/2/2, 2-door | 2/2/2, 3-door | 3/3, 2-door |
+|---|---|---|---|
+| 12 | 191 | | 199 |
+| 14 | 200 | 197 | 200 |
+| 16 | 200 | 198 | 200 |
+| 18 | 200 | 199 | 200 |
+| 20 | 200 | 199 | 200 |
+| 24 | 200 | 200 | 200 |
+| 30 | | 200 | |
+
+With three floors of two and a pool of at least 20, every built run met at least five distinct primary types, and about a third met six (60–69 of 200 with 2-door offers, 67–79 with 3-door). With two floors of three and 2-door offers, one run at a pool of 20 met only four; from a pool of 14 at most 12 of 200 met six, and none at 24. Two floors of three with 3-door offers (100 runs per size) built every run at 20, 24 and 30, with six types in 19–24 of 100.
+
+## Browser kills
+
+`save-kill/savekill.cjs`, run on 23 October 2026 in Chromium with 3 trials per delay:
+
+| Kill after the save | localStorage kept it | IndexedDB kept it |
+|---|---|---|
+| 0, 50, 250, 1,000, 2,000 or 4,000 ms | 0 of 18 | 18 of 18 |
+| 8,000 ms | 3 of 3 | 3 of 3 |
+
+WebKit could not be tested here.
+

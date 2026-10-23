@@ -1,0 +1,11 @@
+{
+  "name": "accession-iso-probe",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Top-down vs isometric 3D readability probe for ACCESSION",
+  "license": "MIT",
+  "dependencies": {
+    "esbuild": "^0.25.10",
+    "three": "^0.180.0"
+  }
+}

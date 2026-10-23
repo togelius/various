@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Top-down probe</title>
+<style>html,body{margin:0;height:100%;background:#0d0c10;overflow:hidden}canvas{position:absolute;left:0;top:0}</style>
+</head><body>
+<canvas id="c"></canvas>
+<script src="layouts.js"></script><script src="common.js"></script><script src="ui.js"></script>
+<script>
+'use strict';
+// Top-down 2D: 16x16 flat-colour tiles drawn at 1x into an offscreen canvas, then scaled by an
+// integer factor (zoom x devicePixelRatio) with smoothing off, camera centred on the player.
+const Q = new URLSearchParams(location.search);
+const NAME = Q.get('layout') || 'sculpture_court_6_1';
+const ZOOM = +(Q.get('zoom') || 2);
+const LABELS = Q.get('labels') === '1';
+const L = ACC.parse(LAYOUTS[NAME]);
+const R = ACC.resolve(L, NAME);
+const P = UI.PAL;
+UI.build({ title: R.title.split(',')[0] });
+const T = 16;
+const world = document.createElement('canvas'); world.width = L.W * T; world.height = L.H * T;
+const g = world.getContext('2d');
+const rect = (x, y, w, h, c) => { g.fillStyle = c; g.fillRect(x, y, w, h); };
+const disc = (ox, oy, cx, cy, r, c) => { for (let j = 0; j < T; j++) for (let i = 0; i < T; i++) { const dx = i + 0.5 - cx, dy = j + 0.5 - cy; if (dx * dx + dy * dy <= r * r) rect(ox + i, oy + j, 1, 1, c); } };
+const isWallish = c => c === '#' || c === ',' || c === '+' || c === 'S' || c === 'E' || c === 'X';
+
+function floor(x, y) { rect(x * T, y * T, T, T, ((x + y) & 1) ? P.floorB : P.floorA); }
+function tile(x, y) {
+  const ch = L.at(x, y), ox = x * T, oy = y * T;
+  const horiz = isWallish(L.at(x - 1, y)) || isWallish(L.at(x + 1, y)); // door/arch in a horizontal wall
+  switch (ch) {
+    case '#': {
+      rect(ox, oy, T, T, P.wallCap);
+      if (L.at(x, y + 1) !== '#' && y + 1 < L.H) rect(ox, oy + 11, T, 5, P.wallFace); // 3/4 face hint
+      break;
+    }
+    case ',': floor(x, y); if (horiz) rect(ox, oy + 7, T, 2, '#8a7860'); else rect(ox + 7, oy, 2, T, '#8a7860'); break;
+    case '+': case 'S': {
+      floor(x, y); const c = ch === '+' ? P.door : P.staffDoor;
+      if (horiz) { rect(ox, oy + 5, T, 6, '#2a1d12'); rect(ox, oy + 6, T, 4, c); } else { rect(ox + 5, oy, 6, T, '#2a1d12'); rect(ox + 6, oy, 4, T, c); }
+      if (ch === 'S') rect(ox + 7, oy + 7, 2, 2, '#c9b28a');
+      break;
+    }
+    case 'E': floor(x, y); rect(ox + 2, oy + 2, 12, 12, P.mat); rect(ox + 6, oy + 5, 4, 6, '#d8ecd9'); rect(ox + 10, oy + 7, 2, 2, '#d8ecd9'); break;
+    case 'X': {
+      floor(x, y);
+      if (horiz) { rect(ox, oy + 4, T, 8, '#163d27'); rect(ox + 1, oy + 5, 14, 6, P.exit); rect(ox + 5, oy + 6, 6, 4, P.placard); }
+      else { rect(ox + 4, oy, 8, T, '#163d27'); rect(ox + 5, oy + 1, 6, 14, P.exit); rect(ox + 6, oy + 5, 4, 6, P.placard); }
+      break;
+    }
+    case 'v': {
+      floor(x, y);
+      rect(ox + 1, oy + 1, 14, 14, P.vitrineBase);
+      rect(ox + 2, oy + 2, 12, 12, '#d6e6ee');
+      break; // glass glint is drawn after any exhibit inside
+    }
+    case 'o': {
+      floor(x, y);
+      if (ACC.oKind(L, x, y) === 'column') {
+        disc(ox, oy, 8.5, 8.5, 6.5, 'rgba(0,0,0,0.30)');
+        disc(ox, oy, 8, 8, 6.5, P.columnLine);
+        disc(ox, oy, 8, 8, 5.5, P.column);
+        disc(ox, oy, 7, 7, 2.5, '#fbf8f1');
+      } else {
+        rect(ox + 2, oy + 2, 12, 12, P.columnLine); rect(ox + 3, oy + 3, 10, 10, P.plinth);
+        if (!R.exhibits.some(e => e.x === x && e.y === y)) { // decorative statue (not an exhibit)
+          rect(ox + 6, oy + 3, 4, 3, '#8f897d'); rect(ox + 7, oy + 4, 2, 1, P.statue);
+          rect(ox + 5, oy + 6, 6, 6, '#8f897d'); rect(ox + 6, oy + 7, 4, 4, P.statue);
+        }
+      }
+      break;
+    }
+    case 'p': floor(x, y); rect(ox + 2, oy + 2, 12, 12, '#7a7468'); rect(ox + 3, oy + 3, 10, 10, P.lowPlinth); rect(ox + 3, oy + 3, 10, 1, '#fffaf0'); break;
+    case 'b': floor(x, y); rect(ox + 1, oy + 4, 14, 8, '#3d2817'); rect(ox + 2, oy + 5, 12, 6, P.bench); rect(ox + 2, oy + 5, 12, 1, '#9a7250'); break;
+    case '~': {
+      rect(ox, oy, T, T, P.pool);
+      rect(ox + 2, oy + 4, 6, 1, P.poolHi); rect(ox + 8, oy + 10, 6, 1, P.poolHi);
+      if (L.at(x, y - 1) !== '~') rect(ox, oy, T, 2, P.rim); if (L.at(x, y + 1) !== '~') rect(ox, oy + 14, T, 2, P.rim);
+      if (L.at(x - 1, y) !== '~') rect(ox, oy, 2, T, P.rim); if (L.at(x + 1, y) !== '~') rect(ox + 14, oy, 2, T, P.rim);
+      break;
+    }
+    case '|': floor(x, y); rect(ox + 5, oy, 6, T, '#2c322e'); rect(ox + 6, oy, 4, T, P.partition); break;
+    case 'l': floor(x, y); rect(ox + 3, oy + 4, 10, 8, '#3a2716'); rect(ox + 4, oy + 5, 8, 6, P.lectern); rect(ox + 4, oy + 5, 8, 2, '#a0784e'); break;
+    case 'C': {
+      floor(x, y); rect(ox + 1, oy + 1, 14, 14, P.goldDark); rect(ox + 2, oy + 2, 12, 12, P.gold);
+      for (let k = 0; k < 4; k++) rect(ox + 8 - k, oy + 4 + k, 2 * k, 1, P.goldHi), rect(ox + 8 - k, oy + 11 - k, 2 * k, 1, P.goldHi);
+      break;
+    }
+    case 'I': case 'K': case 's': floor(x, y); rect(ox + 4, oy + 5, 8, 6, '#3a3424'); rect(ox + 5, oy + 6, 6, 4, P.panel); rect(ox + 6, oy + 7, 4, 1, '#3a3424'); break;
+    default: floor(x, y);
+  }
+}
+for (let y = 0; y < L.H; y++) for (let x = 0; x < L.W; x++) tile(x, y);
+
+// Telegraph (under figures), tap target and path.
+for (const [x, y] of R.telegraphTiles) { g.fillStyle = 'rgba(232,58,58,0.50)'; g.fillRect(x * T, y * T, T, T); g.strokeStyle = '#ff6b6b'; g.lineWidth = 1; g.strokeRect(x * T + 0.5, y * T + 0.5, T - 1, T - 1); }
+for (const [x, y] of R.tapPath.slice(0, -1)) rect(x * T + 7, y * T + 7, 2, 2, P.tap);
+{ const [x, y] = R.tap; g.strokeStyle = P.tap; g.lineWidth = 1; g.strokeRect(x * T + 0.5, y * T + 0.5, T - 1, T - 1); g.strokeRect(x * T + 2.5, y * T + 2.5, T - 5, T - 5); }
+
+// Figures: 16x16 pixel sprites. Shape carries meaning too: the player is hooded, exhibits are squat.
+function figure(x, y, kind, state) {
+  const ox = x * T, oy = y * T;
+  const c = kind === 'player' ? [P.player, P.playerHead, P.playerLine] : [P[state], P[state + 'Head'], P[state + 'Line']];
+  rect(ox + 4, oy + 13, 8, 2, 'rgba(0,0,0,0.35)');
+  if (kind === 'player') {
+    rect(ox + 4, oy + 6, 8, 8, c[2]); rect(ox + 5, oy + 7, 6, 6, c[0]);
+    rect(ox + 5, oy + 1, 6, 6, c[2]); rect(ox + 6, oy + 2, 4, 4, c[0]); rect(ox + 7, oy + 3, 2, 3, c[1]);
+  } else {
+    rect(ox + 3, oy + 7, 10, 7, c[2]); rect(ox + 4, oy + 8, 8, 5, c[0]);
+    rect(ox + 5, oy + 2, 6, 6, c[2]); rect(ox + 6, oy + 3, 4, 4, c[1]); rect(ox + 6, oy + 4, 1, 1, c[2]); rect(ox + 9, oy + 4, 1, 1, c[2]);
+    if (state === 'asleep') { rect(ox + 11, oy, 4, 1, '#ffffff'); rect(ox + 13, oy + 1, 1, 1, '#ffffff'); rect(ox + 12, oy + 2, 1, 1, '#ffffff'); rect(ox + 11, oy + 3, 4, 1, '#ffffff'); rect(ox + 10, oy, 1, 4, P.asleepLine); }
+    if (state === 'stirring') { rect(ox + 10, oy, 2, 2, P.stirring); rect(ox + 12, oy, 2, 2, P.stirring); rect(ox + 14, oy, 2, 2, '#4a3208'); }
+    if (state === 'awake') { rect(ox + 13, oy, 2, 3, '#ffffff'); rect(ox + 13, oy + 4, 2, 1, '#ffffff'); rect(ox + 12, oy, 1, 5, P.awakeLine); }
+  }
+}
+for (const e of R.exhibits) {
+  figure(e.x, e.y, 'exhibit', e.state);
+  if (L.at(e.x, e.y) === 'v') { g.fillStyle = 'rgba(191,230,255,0.35)'; g.fillRect(e.x * T + 2, e.y * T + 2, 12, 12); }
+}
+figure(R.player[0], R.player[1], 'player');
+// Glass glints on every vitrine, over whatever is inside.
+for (let y = 0; y < L.H; y++) for (let x = 0; x < L.W; x++) if (L.at(x, y) === 'v') {
+  const ox = x * T, oy = y * T; rect(ox + 2, oy + 2, 12, 1, P.glassEdge); rect(ox + 2, oy + 2, 1, 12, P.glassEdge);
+  for (let k = 0; k < 4; k++) rect(ox + 10 - k, oy + 4 + k, 1, 1, '#ffffff');
+}
+// Line of sight: tiles the player cannot see are dimmed (remembered, not current).
+g.fillStyle = P.fog;
+for (let y = 0; y < L.H; y++) for (let x = 0; x < L.W; x++) if (!R.vis[y * L.W + x]) g.fillRect(x * T, y * T, T, T);
+
+// Compose: integer scale, camera centred on the player's tile.
+const cv = document.getElementById('c'), dpr = devicePixelRatio || 1;
+cv.style.width = UI.VW + 'px'; cv.style.height = UI.VH + 'px';
+cv.width = Math.round(UI.VW * dpr); cv.height = Math.round(UI.VH * dpr);
+const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false;
+ctx.fillStyle = P.void; ctx.fillRect(0, 0, cv.width, cv.height);
+const pr = UI.playRect(), k = ZOOM * dpr, [px, py] = R.player;
+const dx = Math.round(pr.cx * dpr - (px * T + T / 2) * k), dy = Math.round(pr.cy * dpr - (py * T + T / 2) * k);
+ctx.drawImage(world, dx, dy, world.width * k, world.height * k);
+// Screen-resolution overlays: presence ring, telegraph damage number.
+ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.5 * dpr; ctx.setLineDash([6 * dpr, 5 * dpr]);
+ctx.beginPath(); ctx.arc(dx + (px * T + T / 2) * k, dy + (py * T + T / 2) * k, 3.5 * T * k, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+{ const tt = R.telegraphTiles[Math.floor((R.telegraphTiles.length - 1) / 2)];
+  const sx = dx + (tt[0] * T + T / 2) * k, sy = dy + (tt[1] * T + T / 2) * k;
+  ctx.font = `800 ${14 * dpr}px -apple-system,system-ui,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3 * dpr; ctx.strokeStyle = '#2a0808'; ctx.strokeText(String(R.telegraph.dmg), sx, sy); ctx.fillStyle = '#ffffff'; ctx.fillText(String(R.telegraph.dmg), sx, sy); }
+if (LABELS) {
+  const put = (x, y, text) => { const d = document.createElement('div'); d.className = 'lbl'; d.textContent = text;
+    d.style.left = ((dx + (x * T + T / 2) * k) / dpr) + 'px'; d.style.top = ((dy + y * T * k) / dpr - 2) + 'px'; document.body.appendChild(d); };
+  for (const e of R.exhibits) put(e.x, e.y, e.id);
+  put(px, py, 'you');
+}
+// Metrics for the shooting script.
+const tilePx = T * ZOOM;
+let onScreen = 0, onScreenWalk = 0;
+for (let y = 0; y < L.H; y++) for (let x = 0; x < L.W; x++) {
+  const sx = (dx + (x * T + T / 2) * k) / dpr, sy = (dy + (y * T + T / 2) * k) / dpr;
+  if (sx >= 0 && sx < pr.w && sy >= pr.y && sy < pr.y + pr.h) { onScreen++; if (ACC.walkable(L, x, y)) onScreenWalk++; }
+}
+window.__metrics = {
+  view: 'topdown', layout: NAME, zoom: ZOOM, viewport: [UI.VW, UI.VH], innerWidth, dpr, play: pr,
+  tilePx, tilesAcross: +(pr.w / tilePx).toFixed(2), tilesDown: +(pr.h / tilePx).toFixed(2),
+  mapTilesOnScreen: onScreen, walkableOnScreen: onScreenWalk,
+  reach: { E: Math.floor((pr.w / 2) / tilePx), N: Math.floor((pr.h / 2) / tilePx) },
+  tapToleranceRadius: tilePx / 2,
+  exhibitsOnScreen: R.exhibits.filter(e => { const sx = (dx + (e.x * T + T / 2) * k) / dpr, sy = (dy + (e.y * T + T / 2) * k) / dpr; return sx >= 0 && sx < pr.w && sy >= pr.y && sy < pr.y + pr.h; }).map(e => e.id),
+};
+window.__ready = true;
+</script>
+</body></html>

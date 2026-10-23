@@ -1,0 +1,43 @@
+// voxels.js: two voxel models written by hand as text slices (bottom layer first), the way a language
+// model would write them, without previewing. 10x10 footprint; '.' is empty.
+window.VOX = {
+  palette: { a: '#c0663a', b: '#2a2420', c: '#e8dcc0', p: '#d9d2c3', q: '#b9b1a1', s: '#f2efe8', t: '#d8d2c6', g: '#d4a72c', e: '#3a3530' },
+  models: {
+    amphora: [
+      ['..........', '..........', '..........', '....aa....', '...aaaa...', '...aaaa...', '....aa....', '..........', '..........', '..........'],
+      ['..........', '..........', '..........', '....bb....', '...bbbb...', '...bbbb...', '....bb....', '..........', '..........', '..........'],
+      ['..........', '..........', '...aaaa...', '..aaaaaa..', '..aaaaaa..', '..aaaaaa..', '..aaaaaa..', '...aaaa...', '..........', '..........'],
+      ['..........', '...aaaa...', '..aaaaaa..', '.aaaaaaaa.', '.aaaaaaaa.', '.aaaaaaaa.', '.aaaaaaaa.', '..aaaaaa..', '...aaaa...', '..........'],
+      ['...aaaa...', '..aaaaaa..', '.aaaaaaaa.', 'aaaaaaaaaa', 'aaaaaaaaaa', 'aaaaaaaaaa', 'aaaaaaaaaa', '.aaaaaaaa.', '..aaaaaa..', '...aaaa...'],
+      ['...bbbb...', '..bbbbbb..', '.bbbbbbbb.', 'bbbbbbbbbb', 'bbbbbbbbbb', 'bbbbbbbbbb', 'bbbbbbbbbb', '.bbbbbbbb.', '..bbbbbb..', '...bbbb...'],
+      ['...cbcb...', '..bcbcbc..', '.cbcbcbcb.', 'bcbcbcbcbc', 'cbcbcbcbcb', 'bcbcbcbcbc', 'cbcbcbcbcb', '.cbcbcbcb.', '..bcbcbc..', '...cbcb...'],
+      ['...bbbb...', '..bbbbbb..', '.bbbbbbbb.', 'bbbbbbbbbb', 'bbbbbbbbbb', 'bbbbbbbbbb', 'bbbbbbbbbb', '.bbbbbbbb.', '..bbbbbb..', '...bbbb...'],
+      ['...aaaa...', '..aaaaaa..', '.aaaaaaaa.', 'aaaaaaaaaa', 'aaaaaaaaaa', 'aaaaaaaaaa', 'aaaaaaaaaa', '.aaaaaaaa.', '..aaaaaa..', '...aaaa...'],
+      ['..........', '...aaaa...', '..aaaaaa..', '.aaaaaaaa.', '.aaaaaaaa.', '.aaaaaaaa.', '.aaaaaaaa.', '..aaaaaa..', '...aaaa...', '..........'],
+      ['..........', '..........', '...aaaa...', '.a.aaaa.a.', '.a.aaaa.a.', '...aaaa...', '...aaaa...', '..........', '..........', '..........'],
+      ['..........', '..........', '..........', '.a..bb..a.', '.a..bb..a.', '....bb....', '..........', '..........', '..........', '..........'],
+      ['..........', '..........', '..........', '.aa.aa.aa.', '.aaaaaaaa.', '....aa....', '..........', '..........', '..........', '..........'],
+      ['..........', '..........', '...aaaa...', '..aa..aa..', '..aa..aa..', '...aaaa...', '..........', '..........', '..........', '..........'],
+    ],
+    saint: [
+      ['..........', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '..........'],
+      ['..........', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '..........'],
+      ['..........', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '.pppppppp.', '..........'],
+      ['..........', '.qqqqqqqq.', '.qqqqqqqq.', '.qqqqqqqq.', '.qqqqqqqq.', '.qqqqqqqq.', '.qqqqqqqq.', '.qqqqqqqq.', '.qqqqqqqq.', '..........'],
+      ['..........', '..........', '...tttt...', '..tttttt..', '..tttttt..', '..tttttt..', '..tttttt..', '...tttt...', '..........', '..........'],
+      ['..........', '..........', '...ssss...', '..ssssss..', '..ssssss..', '..ssssss..', '..ssssss..', '...ssss...', '..........', '..........'],
+      ['..........', '..........', '...ssss...', '..ssssss..', '..ssssss..', '..ssssss..', '...ssss...', '..........', '..........', '..........'],
+      ['..........', '..........', '...ssss...', '...ssss...', '..ssssss..', '..ssssss..', '...ssss...', '..........', '..........', '..........'],
+      ['..........', '..........', '...ssss...', '...ssss...', '...ssss...', '...ssss...', '...ssss...', '..........', '..........', '..........'],
+      ['..........', '..........', '...ssss...', '...ssss...', '...ssss...', '...ssss...', '...ssss...', '..........', '..........', '..........'],
+      ['..........', '..........', '...ssss...', '..ssssss..', '..stssts..', '..ssssss..', '...ssss...', '..........', '..........', '..........'],
+      ['..........', '..........', '..ssssss..', '.ssssssss.', '.sstsstss.', '.ssssssss.', '..ssssss..', '..........', '..........', '..........'],
+      ['..........', '..........', '...ssss...', '..ssssss..', '..ssssss..', '..ssssss..', '...ssss...', '..........', '..........', '..........'],
+      ['..........', '..........', '..........', '...ssss...', '...ssss...', '...ssss...', '..........', '..........', '..........', '..........'],
+      ['..........', '..........', '...ssss...', '...ssss...', '...esse...', '...ssss...', '...ssss...', '..........', '..........', '..........'],
+      ['..........', '..........', '...ssss...', '...ssss...', '...ssss...', '...ssss...', '...ssss...', '..........', '..........', '..........'],
+      ['..........', '..........', '...ssss...', '...ssss...', '...ssss...', '...ssss...', '...ssss...', '..........', '..........', '..........'],
+      ['..........', '...gggg...', '..g....g..', '..g....g..', '..g....g..', '..g....g..', '...gggg...', '..........', '..........', '..........'],
+    ],
+  },
+};

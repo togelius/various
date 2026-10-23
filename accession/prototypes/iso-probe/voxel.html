@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Voxel test</title>
+<style>html,body{margin:0;background:#1b1a20;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js"}}</script>
+</head><body>
+<script src="voxels.js"></script>
+<script type="module">
+import * as THREE from 'three';
+const W = innerWidth, H = innerHeight;
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setPixelRatio(devicePixelRatio); r.setSize(W, H); r.setClearColor('#1b1a20'); document.body.appendChild(r.domElement);
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xf2efff, 0x5a4a3a, 2.0));
+const sun = new THREE.DirectionalLight(0xfff1dc, 2.4); sun.position.set(-6, 14, 9); scene.add(sun);
+let ox = 0, count = 0;
+for (const [name, layers] of Object.entries(VOX.models)) {
+  const cells = [];
+  layers.forEach((rows, z) => rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') cells.push([x, z, y, ch]); })));
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), cells.length);
+  const m = new THREE.Matrix4(), c = new THREE.Color();
+  cells.forEach(([x, z, y, ch], i) => { m.makeTranslation(ox + x, z + 0.5, y); mesh.setMatrixAt(i, m); mesh.setColorAt(i, c.set(VOX.palette[ch])); });
+  scene.add(mesh); ox += 16; count += cells.length;
+}
+const el = 35.264 * Math.PI / 180, az = 45 * Math.PI / 180, s = 22;
+const cam = new THREE.OrthographicCamera(-W / 2 / s, W / 2 / s, H / 2 / s, -H / 2 / s, 0.1, 500);
+const tgt = new THREE.Vector3(12.5, 7, 4.5);
+cam.position.copy(tgt).add(new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).multiplyScalar(120)); cam.lookAt(tgt);
+r.render(scene, cam);
+window.__metrics = { voxels: count }; window.__ready = true;
+</script></body></html>

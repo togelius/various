@@ -1,0 +1,3953 @@
+[
+ {
+  "out": "shots/sc_phone_topdown_2x.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "zoom": 2
+  },
+  "vp": "phone",
+  "tReady": 225,
+  "metrics": {
+   "view": "topdown",
+   "layout": "sculpture_court_6_1",
+   "zoom": 2,
+   "viewport": [
+    390,
+    844
+   ],
+   "innerWidth": 390,
+   "dpr": 3,
+   "play": {
+    "x": 0,
+    "y": 40,
+    "w": 390,
+    "h": 692,
+    "cx": 195,
+    "cy": 386
+   },
+   "tilePx": 32,
+   "tilesAcross": 12.19,
+   "tilesDown": 21.63,
+   "mapTilesOnScreen": 273,
+   "walkableOnScreen": 209,
+   "reach": {
+    "E": 6,
+    "N": 10
+   },
+   "tapToleranceRadius": 16,
+   "exhibitsOnScreen": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E"
+   ]
+  },
+  "measure": null,
+  "logs": []
+ },
+ {
+  "out": "shots/sc_phone_topdown_3x.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "zoom": 3
+  },
+  "vp": "phone",
+  "tReady": 197,
+  "metrics": {
+   "view": "topdown",
+   "layout": "sculpture_court_6_1",
+   "zoom": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "innerWidth": 390,
+   "dpr": 3,
+   "play": {
+    "x": 0,
+    "y": 40,
+    "w": 390,
+    "h": 692,
+    "cx": 195,
+    "cy": 386
+   },
+   "tilePx": 48,
+   "tilesAcross": 8.13,
+   "tilesDown": 14.42,
+   "mapTilesOnScreen": 135,
+   "walkableOnScreen": 106,
+   "reach": {
+    "E": 4,
+    "N": 7
+   },
+   "tapToleranceRadius": 24,
+   "exhibitsOnScreen": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E"
+   ]
+  },
+  "measure": null,
+  "logs": []
+ },
+ {
+  "out": "shots/sc_phone_iso_s32_full.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 32,
+   "mode": "full"
+  },
+  "vp": "phone",
+  "tReady": 2992,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 183,
+   "drawCalls": 40,
+   "triangles": 23464,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 376,
+    "walkableOnScreen": 284,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 26.1
+    },
+    "reach": {
+     "N": 8,
+     "S": 8,
+     "E": 8,
+     "W": 8,
+     "NE": 4,
+     "NW": 13,
+     "SE": 12,
+     "SW": 4
+    },
+    "floorOnScreen": {
+     "n": 284,
+     "hidden": 136,
+     "partly": 34,
+     "clear": 114,
+     "hiddenPct": 47.9,
+     "partlyPct": 12,
+     "clearPct": 40.1
+    },
+    "floorInLosOnScreen": {
+     "n": 135,
+     "hidden": 36,
+     "partly": 21,
+     "clear": 78,
+     "hiddenPct": 26.7,
+     "partlyPct": 15.6,
+     "clearPct": 57.8
+    },
+    "tap": {
+     "medianTolCss": 0,
+     "p10TolCss": 0,
+     "p90TolCss": 11.1,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 56.7,
+     "medianAreaCss2": 205
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.7,
+      "areaCssPx": 216
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 417
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 0.52,
+      "areaCssPx": 415
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 0.98,
+      "areaCssPx": 416
+     },
+     {
+      "id": "E",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 0.39,
+      "areaCssPx": 334
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/sc_phone_iso_s32_cutaway.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 32,
+   "mode": "cutaway"
+  },
+  "vp": "phone",
+  "tReady": 2733,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "cutaway",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 145,
+   "drawCalls": 40,
+   "triangles": 23464,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "cutaway",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 376,
+    "walkableOnScreen": 284,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 26.1
+    },
+    "reach": {
+     "N": 8,
+     "S": 8,
+     "E": 8,
+     "W": 8,
+     "NE": 4,
+     "NW": 13,
+     "SE": 12,
+     "SW": 4
+    },
+    "floorOnScreen": {
+     "n": 284,
+     "hidden": 112,
+     "partly": 45,
+     "clear": 127,
+     "hiddenPct": 39.4,
+     "partlyPct": 15.8,
+     "clearPct": 44.7
+    },
+    "floorInLosOnScreen": {
+     "n": 135,
+     "hidden": 23,
+     "partly": 27,
+     "clear": 85,
+     "hiddenPct": 17,
+     "partlyPct": 20,
+     "clearPct": 63
+    },
+    "tap": {
+     "medianTolCss": 1.5,
+     "p10TolCss": 0,
+     "p90TolCss": 11.1,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 49.3,
+     "medianAreaCss2": 404
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.7,
+      "areaCssPx": 216
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 417
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 0.52,
+      "areaCssPx": 415
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 0.98,
+      "areaCssPx": 416
+     },
+     {
+      "id": "E",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 334
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/sc_phone_iso_s32_xray.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 32,
+   "mode": "xray"
+  },
+  "vp": "phone",
+  "tReady": 2753,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "xray",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 151,
+   "drawCalls": 42,
+   "triangles": 25912,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "xray",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 376,
+    "walkableOnScreen": 284,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 26.1
+    },
+    "reach": {
+     "N": 8,
+     "S": 8,
+     "E": 8,
+     "W": 8,
+     "NE": 4,
+     "NW": 13,
+     "SE": 12,
+     "SW": 4
+    },
+    "floorOnScreen": {
+     "n": 284,
+     "hidden": 112,
+     "partly": 38,
+     "clear": 134,
+     "hiddenPct": 39.4,
+     "partlyPct": 13.4,
+     "clearPct": 47.2
+    },
+    "floorInLosOnScreen": {
+     "n": 135,
+     "hidden": 23,
+     "partly": 26,
+     "clear": 86,
+     "hiddenPct": 17,
+     "partlyPct": 19.3,
+     "clearPct": 63.7
+    },
+    "tap": {
+     "medianTolCss": 1.5,
+     "p10TolCss": 0,
+     "p90TolCss": 11.1,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 49.3,
+     "medianAreaCss2": 467
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.7,
+      "areaCssPx": 216
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 417
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 0.52,
+      "areaCssPx": 415
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 0.98,
+      "areaCssPx": 416
+     },
+     {
+      "id": "E",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 334
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/sc_phone_iso_s32_low.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 32,
+   "mode": "low"
+  },
+  "vp": "phone",
+  "tReady": 2436,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "low",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 142,
+   "drawCalls": 40,
+   "triangles": 23212,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "low",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 376,
+    "walkableOnScreen": 284,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 26.1
+    },
+    "reach": {
+     "N": 8,
+     "S": 8,
+     "E": 8,
+     "W": 8,
+     "NE": 4,
+     "NW": 13,
+     "SE": 12,
+     "SW": 4
+    },
+    "floorOnScreen": {
+     "n": 284,
+     "hidden": 14,
+     "partly": 80,
+     "clear": 190,
+     "hiddenPct": 4.9,
+     "partlyPct": 28.2,
+     "clearPct": 66.9
+    },
+    "floorInLosOnScreen": {
+     "n": 135,
+     "hidden": 4,
+     "partly": 35,
+     "clear": 96,
+     "hiddenPct": 3,
+     "partlyPct": 25.9,
+     "clearPct": 71.1
+    },
+    "tap": {
+     "medianTolCss": 10.7,
+     "p10TolCss": 0,
+     "p90TolCss": 11.2,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 14.8,
+     "medianAreaCss2": 548
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.7,
+      "areaCssPx": 216
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 417
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 0.52,
+      "areaCssPx": 415
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 0.98,
+      "areaCssPx": 416
+     },
+     {
+      "id": "E",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 334
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/sc_phone_iso_s48_full.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 48,
+   "mode": "full"
+  },
+  "vp": "phone",
+  "tReady": 3094,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 159,
+   "drawCalls": 40,
+   "triangles": 23464,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 192,
+    "walkableOnScreen": 153,
+    "tileDiamondCss": {
+     "w": 67.9,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 5,
+     "S": 5,
+     "E": 5,
+     "W": 5,
+     "NE": 2,
+     "NW": 9,
+     "SE": 8,
+     "SW": 2
+    },
+    "floorOnScreen": {
+     "n": 153,
+     "hidden": 56,
+     "partly": 27,
+     "clear": 70,
+     "hiddenPct": 36.6,
+     "partlyPct": 17.6,
+     "clearPct": 45.8
+    },
+    "floorInLosOnScreen": {
+     "n": 94,
+     "hidden": 19,
+     "partly": 19,
+     "clear": 56,
+     "hiddenPct": 20.2,
+     "partlyPct": 20.2,
+     "clearPct": 59.6
+    },
+    "tap": {
+     "medianTolCss": 4,
+     "p10TolCss": 0,
+     "p90TolCss": 16.6,
+     "pctTolGe22": 0,
+     "pctTolGe12": 45.8,
+     "pctCentreCovered": 48.4,
+     "medianAreaCss2": 919
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.7,
+      "areaCssPx": 484
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 936
+     },
+     {
+      "id": "C",
+      "onScreen": false,
+      "visibleFrac": 0.36,
+      "areaCssPx": 84
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 0.98,
+      "areaCssPx": 936
+     },
+     {
+      "id": "E",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 0.39,
+      "areaCssPx": 749
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/sc_phone_iso_s48_cutaway.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 48,
+   "mode": "cutaway"
+  },
+  "vp": "phone",
+  "tReady": 3085,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "cutaway",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 161,
+   "drawCalls": 40,
+   "triangles": 23464,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "cutaway",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 192,
+    "walkableOnScreen": 153,
+    "tileDiamondCss": {
+     "w": 67.9,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 5,
+     "S": 5,
+     "E": 5,
+     "W": 5,
+     "NE": 2,
+     "NW": 9,
+     "SE": 8,
+     "SW": 2
+    },
+    "floorOnScreen": {
+     "n": 153,
+     "hidden": 40,
+     "partly": 34,
+     "clear": 79,
+     "hiddenPct": 26.1,
+     "partlyPct": 22.2,
+     "clearPct": 51.6
+    },
+    "floorInLosOnScreen": {
+     "n": 94,
+     "hidden": 7,
+     "partly": 24,
+     "clear": 63,
+     "hiddenPct": 7.4,
+     "partlyPct": 25.5,
+     "clearPct": 67
+    },
+    "tap": {
+     "medianTolCss": 12,
+     "p10TolCss": 0,
+     "p90TolCss": 16.6,
+     "pctTolGe22": 0,
+     "pctTolGe12": 50.3,
+     "pctCentreCovered": 39.2,
+     "medianAreaCss2": 1068
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.7,
+      "areaCssPx": 484
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 936
+     },
+     {
+      "id": "C",
+      "onScreen": false,
+      "visibleFrac": 0.36,
+      "areaCssPx": 84
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 0.98,
+      "areaCssPx": 936
+     },
+     {
+      "id": "E",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 749
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/sc_phone_iso_s48_xray.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 48,
+   "mode": "xray"
+  },
+  "vp": "phone",
+  "tReady": 2674,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "xray",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 145,
+   "drawCalls": 42,
+   "triangles": 25912,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "xray",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 192,
+    "walkableOnScreen": 153,
+    "tileDiamondCss": {
+     "w": 67.9,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 5,
+     "S": 5,
+     "E": 5,
+     "W": 5,
+     "NE": 2,
+     "NW": 9,
+     "SE": 8,
+     "SW": 2
+    },
+    "floorOnScreen": {
+     "n": 153,
+     "hidden": 40,
+     "partly": 30,
+     "clear": 83,
+     "hiddenPct": 26.1,
+     "partlyPct": 19.6,
+     "clearPct": 54.2
+    },
+    "floorInLosOnScreen": {
+     "n": 94,
+     "hidden": 7,
+     "partly": 23,
+     "clear": 64,
+     "hiddenPct": 7.4,
+     "partlyPct": 24.5,
+     "clearPct": 68.1
+    },
+    "tap": {
+     "medianTolCss": 14.2,
+     "p10TolCss": 0,
+     "p90TolCss": 16.6,
+     "pctTolGe22": 0,
+     "pctTolGe12": 52.3,
+     "pctCentreCovered": 39.2,
+     "medianAreaCss2": 1096
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.7,
+      "areaCssPx": 484
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 936
+     },
+     {
+      "id": "C",
+      "onScreen": false,
+      "visibleFrac": 0.36,
+      "areaCssPx": 84
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 0.98,
+      "areaCssPx": 936
+     },
+     {
+      "id": "E",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 749
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/sc_phone_iso_s48_low.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 48,
+   "mode": "low"
+  },
+  "vp": "phone",
+  "tReady": 3127,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "low",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 168,
+   "drawCalls": 40,
+   "triangles": 23212,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "low",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 192,
+    "walkableOnScreen": 153,
+    "tileDiamondCss": {
+     "w": 67.9,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 5,
+     "S": 5,
+     "E": 5,
+     "W": 5,
+     "NE": 2,
+     "NW": 9,
+     "SE": 8,
+     "SW": 2
+    },
+    "floorOnScreen": {
+     "n": 153,
+     "hidden": 6,
+     "partly": 44,
+     "clear": 103,
+     "hiddenPct": 3.9,
+     "partlyPct": 28.8,
+     "clearPct": 67.3
+    },
+    "floorInLosOnScreen": {
+     "n": 94,
+     "hidden": 2,
+     "partly": 25,
+     "clear": 67,
+     "hiddenPct": 2.1,
+     "partlyPct": 26.6,
+     "clearPct": 71.3
+    },
+    "tap": {
+     "medianTolCss": 16.1,
+     "p10TolCss": 0,
+     "p90TolCss": 16.6,
+     "pctTolGe22": 0,
+     "pctTolGe12": 66,
+     "pctCentreCovered": 17,
+     "medianAreaCss2": 1221
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.7,
+      "areaCssPx": 484
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 936
+     },
+     {
+      "id": "C",
+      "onScreen": false,
+      "visibleFrac": 0.36,
+      "areaCssPx": 84
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 0.98,
+      "areaCssPx": 936
+     },
+     {
+      "id": "E",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 749
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/sc_mac_topdown_2x.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "zoom": 2
+  },
+  "vp": "mac",
+  "tReady": 179,
+  "metrics": {
+   "view": "topdown",
+   "layout": "sculpture_court_6_1",
+   "zoom": 2,
+   "viewport": [
+    1440,
+    900
+   ],
+   "innerWidth": 1440,
+   "dpr": 2,
+   "play": {
+    "x": 0,
+    "y": 40,
+    "w": 1440,
+    "h": 748,
+    "cx": 720,
+    "cy": 414
+   },
+   "tilePx": 32,
+   "tilesAcross": 45,
+   "tilesDown": 23.38,
+   "mapTilesOnScreen": 782,
+   "walkableOnScreen": 574,
+   "reach": {
+    "E": 22,
+    "N": 11
+   },
+   "tapToleranceRadius": 16,
+   "exhibitsOnScreen": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E"
+   ]
+  },
+  "measure": null,
+  "logs": []
+ },
+ {
+  "out": "shots/sc_mac_topdown_3x.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "zoom": 3
+  },
+  "vp": "mac",
+  "tReady": 201,
+  "metrics": {
+   "view": "topdown",
+   "layout": "sculpture_court_6_1",
+   "zoom": 3,
+   "viewport": [
+    1440,
+    900
+   ],
+   "innerWidth": 1440,
+   "dpr": 2,
+   "play": {
+    "x": 0,
+    "y": 40,
+    "w": 1440,
+    "h": 748,
+    "cx": 720,
+    "cy": 414
+   },
+   "tilePx": 48,
+   "tilesAcross": 30,
+   "tilesDown": 15.58,
+   "mapTilesOnScreen": 405,
+   "walkableOnScreen": 330,
+   "reach": {
+    "E": 15,
+    "N": 7
+   },
+   "tapToleranceRadius": 24,
+   "exhibitsOnScreen": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E"
+   ]
+  },
+  "measure": null,
+  "logs": []
+ },
+ {
+  "out": "shots/sc_mac_iso_s32_full.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 32,
+   "mode": "full"
+  },
+  "vp": "mac",
+  "tReady": 3097,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    1440,
+    900
+   ],
+   "dpr": 2,
+   "renderMs": 139,
+   "drawCalls": 41,
+   "triangles": 23466,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 926,
+    "walkableOnScreen": 668,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 26.1
+    },
+    "reach": {
+     "N": 29,
+     "S": 27,
+     "E": 27,
+     "W": 29,
+     "NE": 15,
+     "NW": 14,
+     "SE": 13,
+     "SW": 15
+    },
+    "floorOnScreen": {
+     "n": 668,
+     "hidden": 350,
+     "partly": 72,
+     "clear": 246,
+     "hiddenPct": 52.4,
+     "partlyPct": 10.8,
+     "clearPct": 36.8
+    },
+    "floorInLosOnScreen": {
+     "n": 252,
+     "hidden": 83,
+     "partly": 36,
+     "clear": 133,
+     "hiddenPct": 32.9,
+     "partlyPct": 14.3,
+     "clearPct": 52.8
+    },
+    "tap": {
+     "medianTolCss": 0,
+     "p10TolCss": 0,
+     "p90TolCss": 11.1,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 59.4,
+     "medianAreaCss2": 90
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.7,
+      "areaCssPx": 216
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 417
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 0.52,
+      "areaCssPx": 415
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 0.98,
+      "areaCssPx": 416
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 417
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 0.39,
+      "areaCssPx": 334
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/sc_mac_iso_s32_cutaway.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 32,
+   "mode": "cutaway"
+  },
+  "vp": "mac",
+  "tReady": 3129,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "cutaway",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    1440,
+    900
+   ],
+   "dpr": 2,
+   "renderMs": 145,
+   "drawCalls": 41,
+   "triangles": 23466,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "cutaway",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 926,
+    "walkableOnScreen": 668,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 26.1
+    },
+    "reach": {
+     "N": 29,
+     "S": 27,
+     "E": 27,
+     "W": 29,
+     "NE": 15,
+     "NW": 14,
+     "SE": 13,
+     "SW": 15
+    },
+    "floorOnScreen": {
+     "n": 668,
+     "hidden": 325,
+     "partly": 84,
+     "clear": 259,
+     "hiddenPct": 48.7,
+     "partlyPct": 12.6,
+     "clearPct": 38.8
+    },
+    "floorInLosOnScreen": {
+     "n": 252,
+     "hidden": 70,
+     "partly": 42,
+     "clear": 140,
+     "hiddenPct": 27.8,
+     "partlyPct": 16.7,
+     "clearPct": 55.6
+    },
+    "tap": {
+     "medianTolCss": 0,
+     "p10TolCss": 0,
+     "p90TolCss": 11.1,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 56.3,
+     "medianAreaCss2": 206
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.7,
+      "areaCssPx": 216
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 417
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 0.52,
+      "areaCssPx": 415
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 0.98,
+      "areaCssPx": 416
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 417
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 334
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/sc_mac_iso_s48_full.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 48,
+   "mode": "full"
+  },
+  "vp": "mac",
+  "tReady": 4073,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    1440,
+    900
+   ],
+   "dpr": 2,
+   "renderMs": 143,
+   "drawCalls": 41,
+   "triangles": 23466,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 656,
+    "walkableOnScreen": 481,
+    "tileDiamondCss": {
+     "w": 67.9,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 20,
+     "S": 18,
+     "E": 18,
+     "W": 20,
+     "NE": 10,
+     "NW": 10,
+     "SE": 9,
+     "SW": 10
+    },
+    "floorOnScreen": {
+     "n": 481,
+     "hidden": 233,
+     "partly": 55,
+     "clear": 193,
+     "hiddenPct": 48.4,
+     "partlyPct": 11.4,
+     "clearPct": 40.1
+    },
+    "floorInLosOnScreen": {
+     "n": 234,
+     "hidden": 77,
+     "partly": 34,
+     "clear": 123,
+     "hiddenPct": 32.9,
+     "partlyPct": 14.5,
+     "clearPct": 52.6
+    },
+    "tap": {
+     "medianTolCss": 0,
+     "p10TolCss": 0,
+     "p90TolCss": 16.6,
+     "pctTolGe22": 0,
+     "pctTolGe12": 39.1,
+     "pctCentreCovered": 55.5,
+     "medianAreaCss2": 464
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.7,
+      "areaCssPx": 484
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 936
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 0.52,
+      "areaCssPx": 935
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 0.98,
+      "areaCssPx": 936
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 937
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 0.39,
+      "areaCssPx": 749
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/sc_mac_iso_s48_cutaway.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 48,
+   "mode": "cutaway"
+  },
+  "vp": "mac",
+  "tReady": 3956,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "cutaway",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    1440,
+    900
+   ],
+   "dpr": 2,
+   "renderMs": 146,
+   "drawCalls": 41,
+   "triangles": 23466,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "cutaway",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 656,
+    "walkableOnScreen": 481,
+    "tileDiamondCss": {
+     "w": 67.9,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 20,
+     "S": 18,
+     "E": 18,
+     "W": 20,
+     "NE": 10,
+     "NW": 10,
+     "SE": 9,
+     "SW": 10
+    },
+    "floorOnScreen": {
+     "n": 481,
+     "hidden": 209,
+     "partly": 66,
+     "clear": 206,
+     "hiddenPct": 43.5,
+     "partlyPct": 13.7,
+     "clearPct": 42.8
+    },
+    "floorInLosOnScreen": {
+     "n": 234,
+     "hidden": 65,
+     "partly": 39,
+     "clear": 130,
+     "hiddenPct": 27.8,
+     "partlyPct": 16.7,
+     "clearPct": 55.6
+    },
+    "tap": {
+     "medianTolCss": 0,
+     "p10TolCss": 0,
+     "p90TolCss": 16.6,
+     "pctTolGe22": 0,
+     "pctTolGe12": 41.4,
+     "pctCentreCovered": 51.1,
+     "medianAreaCss2": 772
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.7,
+      "areaCssPx": 484
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 936
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 0.52,
+      "areaCssPx": 935
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 0.98,
+      "areaCssPx": 936
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 937
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 749
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/sc_phone_topdown_2x_labels.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "zoom": 2,
+   "labels": 1
+  },
+  "vp": "phone",
+  "tReady": 172,
+  "metrics": {
+   "view": "topdown",
+   "layout": "sculpture_court_6_1",
+   "zoom": 2,
+   "viewport": [
+    390,
+    844
+   ],
+   "innerWidth": 390,
+   "dpr": 3,
+   "play": {
+    "x": 0,
+    "y": 40,
+    "w": 390,
+    "h": 692,
+    "cx": 195,
+    "cy": 386
+   },
+   "tilePx": 32,
+   "tilesAcross": 12.19,
+   "tilesDown": 21.63,
+   "mapTilesOnScreen": 273,
+   "walkableOnScreen": 209,
+   "reach": {
+    "E": 6,
+    "N": 10
+   },
+   "tapToleranceRadius": 16,
+   "exhibitsOnScreen": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E"
+   ]
+  },
+  "measure": null,
+  "logs": []
+ },
+ {
+  "out": "shots/sc_phone_iso_s32_full_labels.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 32,
+   "mode": "full",
+   "labels": 1
+  },
+  "vp": "phone",
+  "tReady": 2595,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 132,
+   "drawCalls": 40,
+   "triangles": 23464,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": null,
+  "logs": []
+ },
+ {
+  "out": "shots/sc_phone_3d_elev60_s32_full.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 32,
+   "mode": "full",
+   "elev": 60
+  },
+  "vp": "phone",
+  "tReady": 2678,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "scale": 32,
+   "elev": 60,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 121,
+   "drawCalls": 40,
+   "triangles": 23464,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "scale": 32,
+   "elev": 60,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 300,
+    "walkableOnScreen": 234,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 8,
+     "S": 8,
+     "E": 8,
+     "W": 8,
+     "NE": 4,
+     "NW": 9,
+     "SE": 8,
+     "SW": 4
+    },
+    "floorOnScreen": {
+     "n": 234,
+     "hidden": 38,
+     "partly": 25,
+     "clear": 171,
+     "hiddenPct": 16.2,
+     "partlyPct": 10.7,
+     "clearPct": 73.1
+    },
+    "floorInLosOnScreen": {
+     "n": 135,
+     "hidden": 9,
+     "partly": 15,
+     "clear": 111,
+     "hiddenPct": 6.7,
+     "partlyPct": 11.1,
+     "clearPct": 82.2
+    },
+    "tap": {
+     "medianTolCss": 13.6,
+     "p10TolCss": 0,
+     "p90TolCss": 14.9,
+     "pctTolGe22": 0,
+     "pctTolGe12": 55.6,
+     "pctCentreCovered": 21.4,
+     "medianAreaCss2": 799
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.83,
+      "areaCssPx": 178
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 344
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 343
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 344
+     },
+     {
+      "id": "E",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 264
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/sc_phone_iso2to1_s32_full.png",
+  "query": {
+   "layout": "sculpture_court_6_1",
+   "scale": 32,
+   "mode": "full",
+   "elev": 30
+  },
+  "vp": "phone",
+  "tReady": 2613,
+  "metrics": {
+   "view": "iso",
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "scale": 32,
+   "elev": 30,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 130,
+   "drawCalls": 40,
+   "triangles": 23464,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "scale": 32,
+   "elev": 30,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 381,
+    "walkableOnScreen": 285,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 22.6
+    },
+    "reach": {
+     "N": 8,
+     "S": 8,
+     "E": 8,
+     "W": 8,
+     "NE": 4,
+     "NW": 15,
+     "SE": 14,
+     "SW": 4
+    },
+    "floorOnScreen": {
+     "n": 285,
+     "hidden": 149,
+     "partly": 50,
+     "clear": 86,
+     "hiddenPct": 52.3,
+     "partlyPct": 17.5,
+     "clearPct": 30.2
+    },
+    "floorInLosOnScreen": {
+     "n": 135,
+     "hidden": 45,
+     "partly": 30,
+     "clear": 60,
+     "hiddenPct": 33.3,
+     "partlyPct": 22.2,
+     "clearPct": 44.4
+    },
+    "tap": {
+     "medianTolCss": 0,
+     "p10TolCss": 0,
+     "p90TolCss": 10.1,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 66,
+     "medianAreaCss2": 121
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.69,
+      "areaCssPx": 220
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 424
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 0.09,
+      "areaCssPx": 423
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 0.54,
+      "areaCssPx": 425
+     },
+     {
+      "id": "E",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 0.03,
+      "areaCssPx": 343
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_topdown_2x.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "zoom": 2
+  },
+  "vp": "phone",
+  "tReady": 116,
+  "metrics": {
+   "view": "topdown",
+   "layout": "enfilade_3_0",
+   "zoom": 2,
+   "viewport": [
+    390,
+    844
+   ],
+   "innerWidth": 390,
+   "dpr": 3,
+   "play": {
+    "x": 0,
+    "y": 40,
+    "w": 390,
+    "h": 692,
+    "cx": 195,
+    "cy": 386
+   },
+   "tilePx": 32,
+   "tilesAcross": 12.19,
+   "tilesDown": 21.63,
+   "mapTilesOnScreen": 247,
+   "walkableOnScreen": 190,
+   "reach": {
+    "E": 6,
+    "N": 10
+   },
+   "tapToleranceRadius": 16,
+   "exhibitsOnScreen": [
+    "A",
+    "B",
+    "D",
+    "E"
+   ]
+  },
+  "measure": null,
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_topdown_3x.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "zoom": 3
+  },
+  "vp": "phone",
+  "tReady": 127,
+  "metrics": {
+   "view": "topdown",
+   "layout": "enfilade_3_0",
+   "zoom": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "innerWidth": 390,
+   "dpr": 3,
+   "play": {
+    "x": 0,
+    "y": 40,
+    "w": 390,
+    "h": 692,
+    "cx": 195,
+    "cy": 386
+   },
+   "tilePx": 48,
+   "tilesAcross": 8.13,
+   "tilesDown": 14.42,
+   "mapTilesOnScreen": 135,
+   "walkableOnScreen": 100,
+   "reach": {
+    "E": 4,
+    "N": 7
+   },
+   "tapToleranceRadius": 24,
+   "exhibitsOnScreen": [
+    "A",
+    "B",
+    "D",
+    "E"
+   ]
+  },
+  "measure": null,
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_iso_s32_full.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 32,
+   "mode": "full"
+  },
+  "vp": "phone",
+  "tReady": 2635,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 153,
+   "drawCalls": 45,
+   "triangles": 14796,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 329,
+    "walkableOnScreen": 246,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 26.1
+    },
+    "reach": {
+     "N": 8,
+     "S": 8,
+     "E": 8,
+     "W": 8,
+     "NE": 4,
+     "NW": 13,
+     "SE": 12,
+     "SW": 4
+    },
+    "floorOnScreen": {
+     "n": 246,
+     "hidden": 150,
+     "partly": 27,
+     "clear": 69,
+     "hiddenPct": 61,
+     "partlyPct": 11,
+     "clearPct": 28
+    },
+    "floorInLosOnScreen": {
+     "n": 107,
+     "hidden": 50,
+     "partly": 15,
+     "clear": 42,
+     "hiddenPct": 46.7,
+     "partlyPct": 14,
+     "clearPct": 39.3
+    },
+    "tap": {
+     "medianTolCss": 0,
+     "p10TolCss": 0,
+     "p90TolCss": 11.1,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 66.7,
+     "medianAreaCss2": 0
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.72,
+      "areaCssPx": 215
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0.06,
+      "areaCssPx": 416
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 416
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 416
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 418
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 334
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_iso_s32_cutaway.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 32,
+   "mode": "cutaway"
+  },
+  "vp": "phone",
+  "tReady": 2321,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "cutaway",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 120,
+   "drawCalls": 45,
+   "triangles": 14688,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "cutaway",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 329,
+    "walkableOnScreen": 246,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 26.1
+    },
+    "reach": {
+     "N": 8,
+     "S": 8,
+     "E": 8,
+     "W": 8,
+     "NE": 4,
+     "NW": 13,
+     "SE": 12,
+     "SW": 4
+    },
+    "floorOnScreen": {
+     "n": 246,
+     "hidden": 87,
+     "partly": 51,
+     "clear": 108,
+     "hiddenPct": 35.4,
+     "partlyPct": 20.7,
+     "clearPct": 43.9
+    },
+    "floorInLosOnScreen": {
+     "n": 107,
+     "hidden": 12,
+     "partly": 22,
+     "clear": 73,
+     "hiddenPct": 11.2,
+     "partlyPct": 20.6,
+     "clearPct": 68.2
+    },
+    "tap": {
+     "medianTolCss": 4.3,
+     "p10TolCss": 0,
+     "p90TolCss": 11.2,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 39.8,
+     "medianAreaCss2": 419
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.82,
+      "areaCssPx": 215
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0.11,
+      "areaCssPx": 416
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 416
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 416
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0.97,
+      "areaCssPx": 418
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 334
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_iso_s32_xray.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 32,
+   "mode": "xray"
+  },
+  "vp": "phone",
+  "tReady": 2554,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "xray",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 190,
+   "drawCalls": 47,
+   "triangles": 17244,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "xray",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 329,
+    "walkableOnScreen": 246,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 26.1
+    },
+    "reach": {
+     "N": 8,
+     "S": 8,
+     "E": 8,
+     "W": 8,
+     "NE": 4,
+     "NW": 13,
+     "SE": 12,
+     "SW": 4
+    },
+    "floorOnScreen": {
+     "n": 246,
+     "hidden": 87,
+     "partly": 26,
+     "clear": 133,
+     "hiddenPct": 35.4,
+     "partlyPct": 10.6,
+     "clearPct": 54.1
+    },
+    "floorInLosOnScreen": {
+     "n": 107,
+     "hidden": 12,
+     "partly": 11,
+     "clear": 84,
+     "hiddenPct": 11.2,
+     "partlyPct": 10.3,
+     "clearPct": 78.5
+    },
+    "tap": {
+     "medianTolCss": 9,
+     "p10TolCss": 0,
+     "p90TolCss": 11.2,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 39.8,
+     "medianAreaCss2": 549
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.82,
+      "areaCssPx": 215
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0.11,
+      "areaCssPx": 416
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 416
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 416
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 418
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 334
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_iso_s32_low.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 32,
+   "mode": "low"
+  },
+  "vp": "phone",
+  "tReady": 2128,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "low",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 171,
+   "drawCalls": 45,
+   "triangles": 14448,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "low",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 329,
+    "walkableOnScreen": 246,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 26.1
+    },
+    "reach": {
+     "N": 8,
+     "S": 8,
+     "E": 8,
+     "W": 8,
+     "NE": 4,
+     "NW": 13,
+     "SE": 12,
+     "SW": 4
+    },
+    "floorOnScreen": {
+     "n": 246,
+     "hidden": 3,
+     "partly": 74,
+     "clear": 169,
+     "hiddenPct": 1.2,
+     "partlyPct": 30.1,
+     "clearPct": 68.7
+    },
+    "floorInLosOnScreen": {
+     "n": 107,
+     "hidden": 1,
+     "partly": 24,
+     "clear": 82,
+     "hiddenPct": 0.9,
+     "partlyPct": 22.4,
+     "clearPct": 76.6
+    },
+    "tap": {
+     "medianTolCss": 11,
+     "p10TolCss": 3.2,
+     "p90TolCss": 11.2,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 4.1,
+     "medianAreaCss2": 591
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.82,
+      "areaCssPx": 215
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0.11,
+      "areaCssPx": 416
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 416
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 416
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0.94,
+      "areaCssPx": 418
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 334
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_iso_s48_full.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 48,
+   "mode": "full"
+  },
+  "vp": "phone",
+  "tReady": 2815,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 148,
+   "drawCalls": 39,
+   "triangles": 14756,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 180,
+    "walkableOnScreen": 139,
+    "tileDiamondCss": {
+     "w": 67.9,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 5,
+     "S": 5,
+     "E": 5,
+     "W": 5,
+     "NE": 2,
+     "NW": 9,
+     "SE": 8,
+     "SW": 2
+    },
+    "floorOnScreen": {
+     "n": 139,
+     "hidden": 72,
+     "partly": 24,
+     "clear": 43,
+     "hiddenPct": 51.8,
+     "partlyPct": 17.3,
+     "clearPct": 30.9
+    },
+    "floorInLosOnScreen": {
+     "n": 69,
+     "hidden": 29,
+     "partly": 13,
+     "clear": 27,
+     "hiddenPct": 42,
+     "partlyPct": 18.8,
+     "clearPct": 39.1
+    },
+    "tap": {
+     "medianTolCss": 0,
+     "p10TolCss": 0,
+     "p90TolCss": 16.5,
+     "pctTolGe22": 0,
+     "pctTolGe12": 30.2,
+     "pctCentreCovered": 62.6,
+     "medianAreaCss2": 149
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.71,
+      "areaCssPx": 484
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0.06,
+      "areaCssPx": 936
+     },
+     {
+      "id": "C",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 937
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 937
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 749
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_iso_s48_cutaway.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 48,
+   "mode": "cutaway"
+  },
+  "vp": "phone",
+  "tReady": 2761,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "cutaway",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 141,
+   "drawCalls": 39,
+   "triangles": 14648,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "cutaway",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 180,
+    "walkableOnScreen": 139,
+    "tileDiamondCss": {
+     "w": 67.9,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 5,
+     "S": 5,
+     "E": 5,
+     "W": 5,
+     "NE": 2,
+     "NW": 9,
+     "SE": 8,
+     "SW": 2
+    },
+    "floorOnScreen": {
+     "n": 139,
+     "hidden": 31,
+     "partly": 37,
+     "clear": 71,
+     "hiddenPct": 22.3,
+     "partlyPct": 26.6,
+     "clearPct": 51.1
+    },
+    "floorInLosOnScreen": {
+     "n": 69,
+     "hidden": 4,
+     "partly": 15,
+     "clear": 50,
+     "hiddenPct": 5.8,
+     "partlyPct": 21.7,
+     "clearPct": 72.5
+    },
+    "tap": {
+     "medianTolCss": 7.5,
+     "p10TolCss": 0,
+     "p90TolCss": 16.6,
+     "pctTolGe22": 0,
+     "pctTolGe12": 48.9,
+     "pctCentreCovered": 29.5,
+     "medianAreaCss2": 1270
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.81,
+      "areaCssPx": 484
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0.11,
+      "areaCssPx": 936
+     },
+     {
+      "id": "C",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 937
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0.97,
+      "areaCssPx": 937
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 749
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_iso_s48_xray.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 48,
+   "mode": "xray"
+  },
+  "vp": "phone",
+  "tReady": 2776,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "xray",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 142,
+   "drawCalls": 41,
+   "triangles": 17204,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "xray",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 180,
+    "walkableOnScreen": 139,
+    "tileDiamondCss": {
+     "w": 67.9,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 5,
+     "S": 5,
+     "E": 5,
+     "W": 5,
+     "NE": 2,
+     "NW": 9,
+     "SE": 8,
+     "SW": 2
+    },
+    "floorOnScreen": {
+     "n": 139,
+     "hidden": 31,
+     "partly": 21,
+     "clear": 87,
+     "hiddenPct": 22.3,
+     "partlyPct": 15.1,
+     "clearPct": 62.6
+    },
+    "floorInLosOnScreen": {
+     "n": 69,
+     "hidden": 4,
+     "partly": 7,
+     "clear": 58,
+     "hiddenPct": 5.8,
+     "partlyPct": 10.1,
+     "clearPct": 84.1
+    },
+    "tap": {
+     "medianTolCss": 16.3,
+     "p10TolCss": 0,
+     "p90TolCss": 16.6,
+     "pctTolGe22": 0,
+     "pctTolGe12": 59,
+     "pctCentreCovered": 29.5,
+     "medianAreaCss2": 1302
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.81,
+      "areaCssPx": 484
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0.11,
+      "areaCssPx": 936
+     },
+     {
+      "id": "C",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 937
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 937
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 749
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_iso_s48_low.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 48,
+   "mode": "low"
+  },
+  "vp": "phone",
+  "tReady": 2349,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "low",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 152,
+   "drawCalls": 39,
+   "triangles": 14408,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "low",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 180,
+    "walkableOnScreen": 139,
+    "tileDiamondCss": {
+     "w": 67.9,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 5,
+     "S": 5,
+     "E": 5,
+     "W": 5,
+     "NE": 2,
+     "NW": 9,
+     "SE": 8,
+     "SW": 2
+    },
+    "floorOnScreen": {
+     "n": 139,
+     "hidden": 2,
+     "partly": 38,
+     "clear": 99,
+     "hiddenPct": 1.4,
+     "partlyPct": 27.3,
+     "clearPct": 71.2
+    },
+    "floorInLosOnScreen": {
+     "n": 69,
+     "hidden": 1,
+     "partly": 15,
+     "clear": 53,
+     "hiddenPct": 1.4,
+     "partlyPct": 21.7,
+     "clearPct": 76.8
+    },
+    "tap": {
+     "medianTolCss": 16.3,
+     "p10TolCss": 4.3,
+     "p90TolCss": 16.6,
+     "pctTolGe22": 0,
+     "pctTolGe12": 67.6,
+     "pctCentreCovered": 3.6,
+     "medianAreaCss2": 1329
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.81,
+      "areaCssPx": 484
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0.11,
+      "areaCssPx": 936
+     },
+     {
+      "id": "C",
+      "onScreen": false,
+      "visibleFrac": null,
+      "areaCssPx": 0
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 937
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0.94,
+      "areaCssPx": 937
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 749
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_mac_topdown_2x.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "zoom": 2
+  },
+  "vp": "mac",
+  "tReady": 168,
+  "metrics": {
+   "view": "topdown",
+   "layout": "enfilade_3_0",
+   "zoom": 2,
+   "viewport": [
+    1440,
+    900
+   ],
+   "innerWidth": 1440,
+   "dpr": 2,
+   "play": {
+    "x": 0,
+    "y": 40,
+    "w": 1440,
+    "h": 748,
+    "cx": 720,
+    "cy": 414
+   },
+   "tilePx": 32,
+   "tilesAcross": 45,
+   "tilesDown": 23.38,
+   "mapTilesOnScreen": 720,
+   "walkableOnScreen": 523,
+   "reach": {
+    "E": 22,
+    "N": 11
+   },
+   "tapToleranceRadius": 16,
+   "exhibitsOnScreen": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E"
+   ]
+  },
+  "measure": null,
+  "logs": []
+ },
+ {
+  "out": "shots/enf_mac_topdown_3x.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "zoom": 3
+  },
+  "vp": "mac",
+  "tReady": 152,
+  "metrics": {
+   "view": "topdown",
+   "layout": "enfilade_3_0",
+   "zoom": 3,
+   "viewport": [
+    1440,
+    900
+   ],
+   "innerWidth": 1440,
+   "dpr": 2,
+   "play": {
+    "x": 0,
+    "y": 40,
+    "w": 1440,
+    "h": 748,
+    "cx": 720,
+    "cy": 414
+   },
+   "tilePx": 48,
+   "tilesAcross": 30,
+   "tilesDown": 15.58,
+   "mapTilesOnScreen": 450,
+   "walkableOnScreen": 369,
+   "reach": {
+    "E": 15,
+    "N": 7
+   },
+   "tapToleranceRadius": 24,
+   "exhibitsOnScreen": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E"
+   ]
+  },
+  "measure": null,
+  "logs": []
+ },
+ {
+  "out": "shots/enf_mac_iso_s32_full.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 32,
+   "mode": "full"
+  },
+  "vp": "mac",
+  "tReady": 2749,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    1440,
+    900
+   ],
+   "dpr": 2,
+   "renderMs": 129,
+   "drawCalls": 45,
+   "triangles": 14796,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 720,
+    "walkableOnScreen": 523,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 26.1
+    },
+    "reach": {
+     "N": 29,
+     "S": 27,
+     "E": 27,
+     "W": 29,
+     "NE": 15,
+     "NW": 14,
+     "SE": 13,
+     "SW": 15
+    },
+    "floorOnScreen": {
+     "n": 523,
+     "hidden": 313,
+     "partly": 47,
+     "clear": 163,
+     "hiddenPct": 59.8,
+     "partlyPct": 9,
+     "clearPct": 31.2
+    },
+    "floorInLosOnScreen": {
+     "n": 201,
+     "hidden": 93,
+     "partly": 20,
+     "clear": 88,
+     "hiddenPct": 46.3,
+     "partlyPct": 10,
+     "clearPct": 43.8
+    },
+    "tap": {
+     "medianTolCss": 0,
+     "p10TolCss": 0,
+     "p90TolCss": 11.1,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 64.6,
+     "medianAreaCss2": 0
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.72,
+      "areaCssPx": 215
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0.06,
+      "areaCssPx": 416
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 416
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 416
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 418
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 334
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_mac_iso_s32_cutaway.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 32,
+   "mode": "cutaway"
+  },
+  "vp": "mac",
+  "tReady": 2567,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "cutaway",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    1440,
+    900
+   ],
+   "dpr": 2,
+   "renderMs": 138,
+   "drawCalls": 45,
+   "triangles": 14688,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "cutaway",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 720,
+    "walkableOnScreen": 523,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 26.1
+    },
+    "reach": {
+     "N": 29,
+     "S": 27,
+     "E": 27,
+     "W": 29,
+     "NE": 15,
+     "NW": 14,
+     "SE": 13,
+     "SW": 15
+    },
+    "floorOnScreen": {
+     "n": 523,
+     "hidden": 245,
+     "partly": 74,
+     "clear": 204,
+     "hiddenPct": 46.8,
+     "partlyPct": 14.1,
+     "clearPct": 39
+    },
+    "floorInLosOnScreen": {
+     "n": 201,
+     "hidden": 54,
+     "partly": 28,
+     "clear": 119,
+     "hiddenPct": 26.9,
+     "partlyPct": 13.9,
+     "clearPct": 59.2
+    },
+    "tap": {
+     "medianTolCss": 0,
+     "p10TolCss": 0,
+     "p90TolCss": 11.1,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 51.1,
+     "medianAreaCss2": 349
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.82,
+      "areaCssPx": 215
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0.11,
+      "areaCssPx": 416
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 416
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 416
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0.97,
+      "areaCssPx": 418
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 334
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_mac_iso_s48_full.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 48,
+   "mode": "full"
+  },
+  "vp": "mac",
+  "tReady": 3424,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    1440,
+    900
+   ],
+   "dpr": 2,
+   "renderMs": 145,
+   "drawCalls": 45,
+   "triangles": 14796,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 590,
+    "walkableOnScreen": 451,
+    "tileDiamondCss": {
+     "w": 67.9,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 20,
+     "S": 18,
+     "E": 18,
+     "W": 20,
+     "NE": 10,
+     "NW": 10,
+     "SE": 9,
+     "SW": 10
+    },
+    "floorOnScreen": {
+     "n": 451,
+     "hidden": 257,
+     "partly": 44,
+     "clear": 150,
+     "hiddenPct": 57,
+     "partlyPct": 9.8,
+     "clearPct": 33.3
+    },
+    "floorInLosOnScreen": {
+     "n": 201,
+     "hidden": 93,
+     "partly": 20,
+     "clear": 88,
+     "hiddenPct": 46.3,
+     "partlyPct": 10,
+     "clearPct": 43.8
+    },
+    "tap": {
+     "medianTolCss": 0,
+     "p10TolCss": 0,
+     "p90TolCss": 16.6,
+     "pctTolGe22": 0,
+     "pctTolGe12": 32.4,
+     "pctCentreCovered": 62.1,
+     "medianAreaCss2": 0
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.71,
+      "areaCssPx": 484
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0.06,
+      "areaCssPx": 936
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 936
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 937
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 937
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 749
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_mac_iso_s48_cutaway.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 48,
+   "mode": "cutaway"
+  },
+  "vp": "mac",
+  "tReady": 3388,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "cutaway",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    1440,
+    900
+   ],
+   "dpr": 2,
+   "renderMs": 164,
+   "drawCalls": 45,
+   "triangles": 14688,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "cutaway",
+   "scale": 48,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 590,
+    "walkableOnScreen": 451,
+    "tileDiamondCss": {
+     "w": 67.9,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 20,
+     "S": 18,
+     "E": 18,
+     "W": 20,
+     "NE": 10,
+     "NW": 10,
+     "SE": 9,
+     "SW": 10
+    },
+    "floorOnScreen": {
+     "n": 451,
+     "hidden": 189,
+     "partly": 71,
+     "clear": 191,
+     "hiddenPct": 41.9,
+     "partlyPct": 15.7,
+     "clearPct": 42.4
+    },
+    "floorInLosOnScreen": {
+     "n": 201,
+     "hidden": 54,
+     "partly": 28,
+     "clear": 119,
+     "hiddenPct": 26.9,
+     "partlyPct": 13.9,
+     "clearPct": 59.2
+    },
+    "tap": {
+     "medianTolCss": 4.3,
+     "p10TolCss": 0,
+     "p90TolCss": 16.6,
+     "pctTolGe22": 0,
+     "pctTolGe12": 40.8,
+     "pctCentreCovered": 46.1,
+     "medianAreaCss2": 899
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.81,
+      "areaCssPx": 484
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0.11,
+      "areaCssPx": 936
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 936
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 937
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0.97,
+      "areaCssPx": 937
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 749
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_topdown_2x_labels.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "zoom": 2,
+   "labels": 1
+  },
+  "vp": "phone",
+  "tReady": 139,
+  "metrics": {
+   "view": "topdown",
+   "layout": "enfilade_3_0",
+   "zoom": 2,
+   "viewport": [
+    390,
+    844
+   ],
+   "innerWidth": 390,
+   "dpr": 3,
+   "play": {
+    "x": 0,
+    "y": 40,
+    "w": 390,
+    "h": 692,
+    "cx": 195,
+    "cy": 386
+   },
+   "tilePx": 32,
+   "tilesAcross": 12.19,
+   "tilesDown": 21.63,
+   "mapTilesOnScreen": 247,
+   "walkableOnScreen": 190,
+   "reach": {
+    "E": 6,
+    "N": 10
+   },
+   "tapToleranceRadius": 16,
+   "exhibitsOnScreen": [
+    "A",
+    "B",
+    "D",
+    "E"
+   ]
+  },
+  "measure": null,
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_iso_s32_full_labels.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 32,
+   "mode": "full",
+   "labels": 1
+  },
+  "vp": "phone",
+  "tReady": 2460,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "scale": 32,
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 130,
+   "drawCalls": 45,
+   "triangles": 14796,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": null,
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_3d_elev60_s32_full.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 32,
+   "mode": "full",
+   "elev": 60
+  },
+  "vp": "phone",
+  "tReady": 2435,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "scale": 32,
+   "elev": 60,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 134,
+   "drawCalls": 45,
+   "triangles": 14796,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "scale": 32,
+   "elev": 60,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 279,
+    "walkableOnScreen": 213,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 39.2
+    },
+    "reach": {
+     "N": 8,
+     "S": 8,
+     "E": 8,
+     "W": 8,
+     "NE": 4,
+     "NW": 9,
+     "SE": 8,
+     "SW": 4
+    },
+    "floorOnScreen": {
+     "n": 213,
+     "hidden": 54,
+     "partly": 17,
+     "clear": 142,
+     "hiddenPct": 25.4,
+     "partlyPct": 8,
+     "clearPct": 66.7
+    },
+    "floorInLosOnScreen": {
+     "n": 107,
+     "hidden": 19,
+     "partly": 11,
+     "clear": 77,
+     "hiddenPct": 17.8,
+     "partlyPct": 10.3,
+     "clearPct": 72
+    },
+    "tap": {
+     "medianTolCss": 8.1,
+     "p10TolCss": 0,
+     "p90TolCss": 14.8,
+     "pctTolGe22": 0,
+     "pctTolGe12": 44.6,
+     "pctCentreCovered": 26.8,
+     "medianAreaCss2": 699
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.85,
+      "areaCssPx": 178
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0.96,
+      "areaCssPx": 344
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 344
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 344
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 344
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 264
+     }
+    ]
+   }
+  },
+  "logs": []
+ },
+ {
+  "out": "shots/enf_phone_iso2to1_s32_full.png",
+  "query": {
+   "layout": "enfilade_3_0",
+   "scale": 32,
+   "mode": "full",
+   "elev": 30
+  },
+  "vp": "phone",
+  "tReady": 2293,
+  "metrics": {
+   "view": "iso",
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "scale": 32,
+   "elev": 30,
+   "az": 45,
+   "wallH": 3,
+   "viewport": [
+    390,
+    844
+   ],
+   "dpr": 3,
+   "renderMs": 125,
+   "drawCalls": 45,
+   "triangles": 14796,
+   "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+  },
+  "measure": {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "scale": 32,
+   "elev": 30,
+   "az": 45,
+   "wallH": 3,
+   "radius": 7,
+   "sradius": 5,
+   "viewport": {
+    "mapTilesOnScreen": 330,
+    "walkableOnScreen": 246,
+    "tileDiamondCss": {
+     "w": 45.3,
+     "h": 22.6
+    },
+    "reach": {
+     "N": 8,
+     "S": 8,
+     "E": 8,
+     "W": 8,
+     "NE": 4,
+     "NW": 15,
+     "SE": 14,
+     "SW": 4
+    },
+    "floorOnScreen": {
+     "n": 246,
+     "hidden": 156,
+     "partly": 46,
+     "clear": 44,
+     "hiddenPct": 63.4,
+     "partlyPct": 18.7,
+     "clearPct": 17.9
+    },
+    "floorInLosOnScreen": {
+     "n": 107,
+     "hidden": 56,
+     "partly": 23,
+     "clear": 28,
+     "hiddenPct": 52.3,
+     "partlyPct": 21.5,
+     "clearPct": 26.2
+    },
+    "tap": {
+     "medianTolCss": 0,
+     "p10TolCss": 0,
+     "p90TolCss": 9.8,
+     "pctTolGe22": 0,
+     "pctTolGe12": 0,
+     "pctCentreCovered": 77.2,
+     "medianAreaCss2": 0
+    },
+    "figures": [
+     {
+      "id": "A",
+      "onScreen": true,
+      "visibleFrac": 0.21,
+      "areaCssPx": 221
+     },
+     {
+      "id": "B",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 425
+     },
+     {
+      "id": "C",
+      "onScreen": true,
+      "visibleFrac": 0.71,
+      "areaCssPx": 424
+     },
+     {
+      "id": "D",
+      "onScreen": true,
+      "visibleFrac": 1,
+      "areaCssPx": 424
+     },
+     {
+      "id": "E",
+      "onScreen": true,
+      "visibleFrac": 0,
+      "areaCssPx": 424
+     },
+     {
+      "id": "you",
+      "onScreen": true,
+      "visibleFrac": 0.74,
+      "areaCssPx": 343
+     }
+    ]
+   }
+  },
+  "logs": []
+ }
+]

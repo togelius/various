@@ -1,6 +1,6 @@
 # Research briefs
 
-Seven briefs written before any design. Each lists its sources with how deeply each was read (full text, method and results, abstract, or citation only), and marks anything it could not confirm as unverified.
+Seven briefs written before any design, and five written afterwards to compare implementation options. Each lists its sources with how deeply each was read (full text, method and results, abstract, or citation only), and marks anything it could not confirm as unverified.
 
 | Brief | Topic |
 |---|---|
@@ -11,6 +11,16 @@ Seven briefs written before any design. Each lists its sources with how deeply e
 | [`literature-museology.md`](literature-museology.md) | Calvino, Borges and their kin; museum practice (label grammar, word budgets, attribution qualifiers, visitor studies); sensitivities; six sample labels |
 | [`tech-art.md`](tech-art.md) | Platform, determinism, 16-bit art without an art team, label text, audio, and the cost and latency of LLM generation. The probe images are in [`../prototypes/art-probe/`](../prototypes/art-probe/) |
 | [`museum-layouts.md`](museum-layouts.md) | Museum architecture, space syntax, roguelike level-generation code (SPD, Brogue, DCSS, Unexplored), and twelve architectural programmes with sketches |
+
+Written on 23 October 2026, after Julian's decisions, for [`../DECISIONS.md`](../DECISIONS.md):
+
+| Brief | Topic |
+|---|---|
+| [`unity.md`](unity.md) | Unity 6 driven by its command line or MCP, against the web stack: licensing in cloud containers, web builds on phones, autosave, look and feel, testability, and a C# port of a toy core |
+| [`engines.md`](engines.md) | Godot 4.7, Phaser, PixiJS, three.js and others, measured here; autosave on the web, including a browser-kill test; a one-button-mouse input model |
+| [`isometric.md`](isometric.md) | Top-down 2D against isometric 3D, rendered from generated layouts and measured for occlusion and tap targets |
+| [`art-sources.md`](art-sources.md) | Bigger sprites, open image models and their licences, CC0 and paid packs, provenance, and a CPU image-generation probe |
+| [`playtesting.md`](playtesting.md) | Automated playtesting, 2014–2026, with a ten-layer plan for ACCESSION that keeps every result explainable |
 
 ## Errata
 

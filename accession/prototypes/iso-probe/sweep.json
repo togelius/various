@@ -1,0 +1,700 @@
+{
+ "summary": [
+  {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "elev": 30,
+   "az": 45,
+   "wallH": 3,
+   "floor": {
+    "n": 702,
+    "hidden": 400,
+    "partly": 129,
+    "clear": 173,
+    "hiddenPct": 57,
+    "partlyPct": 18.4,
+    "clearPct": 24.6
+   },
+   "figurePositions": {
+    "n": 702,
+    "hidden": 399,
+    "partly": 96,
+    "clear": 207,
+    "hiddenPct": 56.8,
+    "partlyPct": 13.7,
+    "clearPct": 29.5
+   }
+  },
+  {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "elev": 30,
+   "az": 45,
+   "wallH": 1.5,
+   "floor": {
+    "n": 702,
+    "hidden": 261,
+    "partly": 125,
+    "clear": 316,
+    "hiddenPct": 37.2,
+    "partlyPct": 17.8,
+    "clearPct": 45
+   },
+   "figurePositions": {
+    "n": 702,
+    "hidden": 167,
+    "partly": 164,
+    "clear": 371,
+    "hiddenPct": 23.8,
+    "partlyPct": 23.4,
+    "clearPct": 52.8
+   }
+  },
+  {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "floor": {
+    "n": 702,
+    "hidden": 374,
+    "partly": 73,
+    "clear": 255,
+    "hiddenPct": 53.3,
+    "partlyPct": 10.4,
+    "clearPct": 36.3
+   },
+   "figurePositions": {
+    "n": 702,
+    "hidden": 313,
+    "partly": 110,
+    "clear": 279,
+    "hiddenPct": 44.6,
+    "partlyPct": 15.7,
+    "clearPct": 39.7
+   }
+  },
+  {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 1.5,
+   "floor": {
+    "n": 702,
+    "hidden": 151,
+    "partly": 210,
+    "clear": 341,
+    "hiddenPct": 21.5,
+    "partlyPct": 29.9,
+    "clearPct": 48.6
+   },
+   "figurePositions": {
+    "n": 702,
+    "hidden": 164,
+    "partly": 50,
+    "clear": 488,
+    "hiddenPct": 23.4,
+    "partlyPct": 7.1,
+    "clearPct": 69.5
+   }
+  },
+  {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "elev": 45,
+   "az": 45,
+   "wallH": 3,
+   "floor": {
+    "n": 702,
+    "hidden": 281,
+    "partly": 89,
+    "clear": 332,
+    "hiddenPct": 40,
+    "partlyPct": 12.7,
+    "clearPct": 47.3
+   },
+   "figurePositions": {
+    "n": 702,
+    "hidden": 306,
+    "partly": 28,
+    "clear": 368,
+    "hiddenPct": 43.6,
+    "partlyPct": 4,
+    "clearPct": 52.4
+   }
+  },
+  {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "elev": 45,
+   "az": 45,
+   "wallH": 1.5,
+   "floor": {
+    "n": 702,
+    "hidden": 155,
+    "partly": 74,
+    "clear": 473,
+    "hiddenPct": 22.1,
+    "partlyPct": 10.5,
+    "clearPct": 67.4
+   },
+   "figurePositions": {
+    "n": 702,
+    "hidden": 127,
+    "partly": 64,
+    "clear": 511,
+    "hiddenPct": 18.1,
+    "partlyPct": 9.1,
+    "clearPct": 72.8
+   }
+  },
+  {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "elev": 60,
+   "az": 45,
+   "wallH": 3,
+   "floor": {
+    "n": 702,
+    "hidden": 152,
+    "partly": 79,
+    "clear": 471,
+    "hiddenPct": 21.7,
+    "partlyPct": 11.3,
+    "clearPct": 67.1
+   },
+   "figurePositions": {
+    "n": 702,
+    "hidden": 169,
+    "partly": 13,
+    "clear": 520,
+    "hiddenPct": 24.1,
+    "partlyPct": 1.9,
+    "clearPct": 74.1
+   }
+  },
+  {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "elev": 60,
+   "az": 45,
+   "wallH": 1.5,
+   "floor": {
+    "n": 702,
+    "hidden": 6,
+    "partly": 179,
+    "clear": 517,
+    "hiddenPct": 0.9,
+    "partlyPct": 25.5,
+    "clearPct": 73.6
+   },
+   "figurePositions": {
+    "n": 702,
+    "hidden": 0,
+    "partly": 150,
+    "clear": 552,
+    "hiddenPct": 0,
+    "partlyPct": 21.4,
+    "clearPct": 78.6
+   }
+  },
+  {
+   "layout": "sculpture_court_6_1",
+   "mode": "low",
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "floor": {
+    "n": 702,
+    "hidden": 29,
+    "partly": 214,
+    "clear": 459,
+    "hiddenPct": 4.1,
+    "partlyPct": 30.5,
+    "clearPct": 65.4
+   },
+   "figurePositions": {
+    "n": 702,
+    "hidden": 44,
+    "partly": 41,
+    "clear": 617,
+    "hiddenPct": 6.3,
+    "partlyPct": 5.8,
+    "clearPct": 87.9
+   }
+  },
+  {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "floor": {
+    "n": 702,
+    "hidden": 374,
+    "partly": 73,
+    "clear": 255,
+    "hiddenPct": 53.3,
+    "partlyPct": 10.4,
+    "clearPct": 36.3
+   },
+   "figurePositions": {
+    "n": 702,
+    "hidden": 313,
+    "partly": 110,
+    "clear": 279,
+    "hiddenPct": 44.6,
+    "partlyPct": 15.7,
+    "clearPct": 39.7
+   }
+  },
+  {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "elev": 35.264,
+   "az": 135,
+   "wallH": 3,
+   "floor": {
+    "n": 702,
+    "hidden": 381,
+    "partly": 67,
+    "clear": 254,
+    "hiddenPct": 54.3,
+    "partlyPct": 9.5,
+    "clearPct": 36.2
+   },
+   "figurePositions": {
+    "n": 702,
+    "hidden": 321,
+    "partly": 106,
+    "clear": 275,
+    "hiddenPct": 45.7,
+    "partlyPct": 15.1,
+    "clearPct": 39.2
+   }
+  },
+  {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "elev": 35.264,
+   "az": 225,
+   "wallH": 3,
+   "floor": {
+    "n": 702,
+    "hidden": 379,
+    "partly": 62,
+    "clear": 261,
+    "hiddenPct": 54,
+    "partlyPct": 8.8,
+    "clearPct": 37.2
+   },
+   "figurePositions": {
+    "n": 702,
+    "hidden": 317,
+    "partly": 100,
+    "clear": 285,
+    "hiddenPct": 45.2,
+    "partlyPct": 14.2,
+    "clearPct": 40.6
+   }
+  },
+  {
+   "layout": "sculpture_court_6_1",
+   "mode": "full",
+   "elev": 35.264,
+   "az": 315,
+   "wallH": 3,
+   "floor": {
+    "n": 702,
+    "hidden": 373,
+    "partly": 67,
+    "clear": 262,
+    "hiddenPct": 53.1,
+    "partlyPct": 9.5,
+    "clearPct": 37.3
+   },
+   "figurePositions": {
+    "n": 702,
+    "hidden": 311,
+    "partly": 104,
+    "clear": 287,
+    "hiddenPct": 44.3,
+    "partlyPct": 14.8,
+    "clearPct": 40.9
+   }
+  },
+  {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "elev": 30,
+   "az": 45,
+   "wallH": 3,
+   "floor": {
+    "n": 523,
+    "hidden": 321,
+    "partly": 94,
+    "clear": 108,
+    "hiddenPct": 61.4,
+    "partlyPct": 18,
+    "clearPct": 20.7
+   },
+   "figurePositions": {
+    "n": 523,
+    "hidden": 313,
+    "partly": 103,
+    "clear": 107,
+    "hiddenPct": 59.8,
+    "partlyPct": 19.7,
+    "clearPct": 20.5
+   }
+  },
+  {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "elev": 30,
+   "az": 45,
+   "wallH": 1.5,
+   "floor": {
+    "n": 523,
+    "hidden": 220,
+    "partly": 53,
+    "clear": 250,
+    "hiddenPct": 42.1,
+    "partlyPct": 10.1,
+    "clearPct": 47.8
+   },
+   "figurePositions": {
+    "n": 523,
+    "hidden": 123,
+    "partly": 136,
+    "clear": 264,
+    "hiddenPct": 23.5,
+    "partlyPct": 26,
+    "clearPct": 50.5
+   }
+  },
+  {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "floor": {
+    "n": 523,
+    "hidden": 313,
+    "partly": 45,
+    "clear": 165,
+    "hiddenPct": 59.8,
+    "partlyPct": 8.6,
+    "clearPct": 31.5
+   },
+   "figurePositions": {
+    "n": 523,
+    "hidden": 249,
+    "partly": 99,
+    "clear": 175,
+    "hiddenPct": 47.6,
+    "partlyPct": 18.9,
+    "clearPct": 33.5
+   }
+  },
+  {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 1.5,
+   "floor": {
+    "n": 523,
+    "hidden": 132,
+    "partly": 139,
+    "clear": 252,
+    "hiddenPct": 25.2,
+    "partlyPct": 26.6,
+    "clearPct": 48.2
+   },
+   "figurePositions": {
+    "n": 523,
+    "hidden": 123,
+    "partly": 29,
+    "clear": 371,
+    "hiddenPct": 23.5,
+    "partlyPct": 5.5,
+    "clearPct": 70.9
+   }
+  },
+  {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "elev": 45,
+   "az": 45,
+   "wallH": 3,
+   "floor": {
+    "n": 523,
+    "hidden": 245,
+    "partly": 53,
+    "clear": 225,
+    "hiddenPct": 46.8,
+    "partlyPct": 10.1,
+    "clearPct": 43
+   },
+   "figurePositions": {
+    "n": 523,
+    "hidden": 250,
+    "partly": 27,
+    "clear": 246,
+    "hiddenPct": 47.8,
+    "partlyPct": 5.2,
+    "clearPct": 47
+   }
+  },
+  {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "elev": 45,
+   "az": 45,
+   "wallH": 1.5,
+   "floor": {
+    "n": 523,
+    "hidden": 117,
+    "partly": 44,
+    "clear": 362,
+    "hiddenPct": 22.4,
+    "partlyPct": 8.4,
+    "clearPct": 69.2
+   },
+   "figurePositions": {
+    "n": 523,
+    "hidden": 114,
+    "partly": 27,
+    "clear": 382,
+    "hiddenPct": 21.8,
+    "partlyPct": 5.2,
+    "clearPct": 73
+   }
+  },
+  {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "elev": 60,
+   "az": 45,
+   "wallH": 3,
+   "floor": {
+    "n": 523,
+    "hidden": 140,
+    "partly": 24,
+    "clear": 359,
+    "hiddenPct": 26.8,
+    "partlyPct": 4.6,
+    "clearPct": 68.6
+   },
+   "figurePositions": {
+    "n": 523,
+    "hidden": 140,
+    "partly": 10,
+    "clear": 373,
+    "hiddenPct": 26.8,
+    "partlyPct": 1.9,
+    "clearPct": 71.3
+   }
+  },
+  {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "elev": 60,
+   "az": 45,
+   "wallH": 1.5,
+   "floor": {
+    "n": 523,
+    "hidden": 11,
+    "partly": 128,
+    "clear": 384,
+    "hiddenPct": 2.1,
+    "partlyPct": 24.5,
+    "clearPct": 73.4
+   },
+   "figurePositions": {
+    "n": 523,
+    "hidden": 0,
+    "partly": 136,
+    "clear": 387,
+    "hiddenPct": 0,
+    "partlyPct": 26,
+    "clearPct": 74
+   }
+  },
+  {
+   "layout": "enfilade_3_0",
+   "mode": "low",
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "floor": {
+    "n": 523,
+    "hidden": 5,
+    "partly": 147,
+    "clear": 371,
+    "hiddenPct": 1,
+    "partlyPct": 28.1,
+    "clearPct": 70.9
+   },
+   "figurePositions": {
+    "n": 523,
+    "hidden": 4,
+    "partly": 6,
+    "clear": 513,
+    "hiddenPct": 0.8,
+    "partlyPct": 1.1,
+    "clearPct": 98.1
+   }
+  },
+  {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "elev": 35.264,
+   "az": 45,
+   "wallH": 3,
+   "floor": {
+    "n": 523,
+    "hidden": 313,
+    "partly": 45,
+    "clear": 165,
+    "hiddenPct": 59.8,
+    "partlyPct": 8.6,
+    "clearPct": 31.5
+   },
+   "figurePositions": {
+    "n": 523,
+    "hidden": 249,
+    "partly": 99,
+    "clear": 175,
+    "hiddenPct": 47.6,
+    "partlyPct": 18.9,
+    "clearPct": 33.5
+   }
+  },
+  {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "elev": 35.264,
+   "az": 135,
+   "wallH": 3,
+   "floor": {
+    "n": 523,
+    "hidden": 311,
+    "partly": 35,
+    "clear": 177,
+    "hiddenPct": 59.5,
+    "partlyPct": 6.7,
+    "clearPct": 33.8
+   },
+   "figurePositions": {
+    "n": 523,
+    "hidden": 246,
+    "partly": 97,
+    "clear": 180,
+    "hiddenPct": 47,
+    "partlyPct": 18.5,
+    "clearPct": 34.4
+   }
+  },
+  {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "elev": 35.264,
+   "az": 225,
+   "wallH": 3,
+   "floor": {
+    "n": 523,
+    "hidden": 302,
+    "partly": 37,
+    "clear": 184,
+    "hiddenPct": 57.7,
+    "partlyPct": 7.1,
+    "clearPct": 35.2
+   },
+   "figurePositions": {
+    "n": 523,
+    "hidden": 239,
+    "partly": 97,
+    "clear": 187,
+    "hiddenPct": 45.7,
+    "partlyPct": 18.5,
+    "clearPct": 35.8
+   }
+  },
+  {
+   "layout": "enfilade_3_0",
+   "mode": "full",
+   "elev": 35.264,
+   "az": 315,
+   "wallH": 3,
+   "floor": {
+    "n": 523,
+    "hidden": 313,
+    "partly": 43,
+    "clear": 167,
+    "hiddenPct": 59.8,
+    "partlyPct": 8.2,
+    "clearPct": 31.9
+   },
+   "figurePositions": {
+    "n": 523,
+    "hidden": 249,
+    "partly": 97,
+    "clear": 177,
+    "hiddenPct": 47.6,
+    "partlyPct": 18.5,
+    "clearPct": 33.8
+   }
+  }
+ ],
+ "rotation": {
+  "sculpture_court_6_1": {
+   "azimuths": [
+    45,
+    135,
+    225,
+    315
+   ],
+   "floor": {
+    "n": 702,
+    "hiddenDefaultPct": 53.1,
+    "hiddenInAllFourPct": 11.1,
+    "hiddenInAtLeastOnePct": 86.9,
+    "recoverableByRotatingPct": 42
+   },
+   "figurePositions": {
+    "n": 702,
+    "hiddenDefaultPct": 44.6,
+    "hiddenInAllFourPct": 14.7,
+    "hiddenInAtLeastOnePct": 72.2,
+    "recoverableByRotatingPct": 29.9
+   }
+  },
+  "enfilade_3_0": {
+   "azimuths": [
+    45,
+    135,
+    225,
+    315
+   ],
+   "floor": {
+    "n": 523,
+    "hiddenDefaultPct": 59.7,
+    "hiddenInAllFourPct": 19.5,
+    "hiddenInAtLeastOnePct": 92.4,
+    "recoverableByRotatingPct": 40.2
+   },
+   "figurePositions": {
+    "n": 523,
+    "hiddenDefaultPct": 47.6,
+    "hiddenInAllFourPct": 14,
+    "hiddenInAtLeastOnePct": 77.1,
+    "recoverableByRotatingPct": 33.7
+   }
+  }
+ }
+}

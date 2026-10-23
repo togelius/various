@@ -2,6 +2,8 @@
 
 *A turn-based roguelike about getting out of a museum too large to have a floor plan. Working title. Design phase: nothing is built yet. Revision 2, 20 October 2026.*
 
+> **Julian's answers to these decisions (23 October 2026) are in [`DECISIONS.md`](DECISIONS.md), which overrides this document where they differ:** 30-minute runs of six small departments, nine universal systems, a visible grade instead of experience points, a three-part meta, the web stack, and a top-down board.
+
 This is the agenda for the conversation Julian asked for before anything is built.
 
 - **Section 3** lists the fourteen decisions that shape everything else. They are ordered by how much they constrain, and each has options, a recommendation and what changes if the recommendation is not taken.

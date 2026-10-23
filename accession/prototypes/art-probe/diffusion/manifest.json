@@ -1,0 +1,561 @@
+{
+ "probe": "ACCESSION art probe, 2026-10-23: CPU text-to-image for museum-exhibit sprites",
+ "machine": {
+  "cpu": "4-core Intel Xeon @ 2.80GHz (AVX-512, VNNI; no AMX, no AVX512-BF16)",
+  "ram_gb": 15,
+  "gpu": null,
+  "python": "3.13.16"
+ },
+ "weights": {
+  "stabilityai/stable-diffusion-xl-base-1.0": {
+   "sha": "462165984030d82259a11f4367a4eed129e94a7b",
+   "seconds": 58.4,
+   "licence": "CreativeML Open RAIL++-M (2023-07-26)",
+   "files": "fp16 safetensors only (unet, text_encoder, text_encoder_2, vae)",
+   "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0"
+  },
+  "latent-consistency/lcm-lora-sdxl": {
+   "sha": "a18548dd4956b174ec5b0d78d340c8dae0a129cd",
+   "seconds": 6.7,
+   "licence": "openrail++ (model card tag)",
+   "url": "https://huggingface.co/latent-consistency/lcm-lora-sdxl",
+   "adapter_weight": 1.0
+  },
+  "nerijs/pixel-art-xl": {
+   "sha": "8bf4a4d9ea283e00a51fafda8e0539f8248ea037",
+   "seconds": 4.5,
+   "licence": "creativeml-openrail-m (model card tag)",
+   "url": "https://huggingface.co/nerijs/pixel-art-xl",
+   "adapter_weight": 1.2,
+   "training_data_per_metadata": "pixelbuildings128: 23 images x 50 repeats, captions such as \"a red couch\", \"a wooden barrel\"; base sdxl_base_v0-9; finished 2023-07-20; image sources not stated"
+  }
+ },
+ "settings": {
+  "scheduler": "LCMScheduler",
+  "steps": 6,
+  "guidance_scale": 1.0,
+  "resolution": 768,
+  "dtype": "float32",
+  "loras": "fused, then unloaded",
+  "generator": "torch.Generator(\"cpu\").manual_seed(seed)"
+ },
+ "images": [
+  {
+   "id": "doorstep",
+   "file": "raw/doorstep_s101.png",
+   "seed": 101,
+   "prompt": "pixel art, a marble doorstep, a single carved white marble step block, single object, centered, full view, plain white background, game sprite",
+   "negative_prompt": null,
+   "res": 768,
+   "steps": 6,
+   "guidance": 1.0,
+   "unet_seconds": 223.0,
+   "peak_rss_gb": 13.5,
+   "vae_seconds": 19.5,
+   "seconds": 242.5,
+   "text_encode_s": 6.9,
+   "load_s": 42.9,
+   "torch": "2.14.1+cpu",
+   "threads": 4,
+   "sha256_raw": "1b82c29d8e0bc5a740a96661a777a79def768074793c966bc8c32bfcb0b1d119",
+   "postprocess": {
+    "bg_rgb": [
+     246,
+     247,
+     247
+    ],
+    "object_share": 0.656,
+    "crop": [
+     -23,
+     -10,
+     786
+    ],
+    "colours_16": 6,
+    "colours_32": 6,
+    "colours_48": 8
+   },
+   "sprites": [
+    "out/sprites/doorstep_s101_16.png",
+    "out/sprites/doorstep_s101_32.png",
+    "out/sprites/doorstep_s101_32clean.png",
+    "out/sprites/doorstep_s101_48.png"
+   ]
+  },
+  {
+   "id": "bollard",
+   "file": "raw/bollard_s101.png",
+   "seed": 101,
+   "prompt": "pixel art, a bronze mooring bollard, short and stout, green patina, single object, centered, full view, plain white background, game sprite",
+   "negative_prompt": null,
+   "res": 768,
+   "steps": 6,
+   "guidance": 1.0,
+   "unet_seconds": 168.2,
+   "peak_rss_gb": 13.5,
+   "vae_seconds": 17.1,
+   "seconds": 185.3,
+   "text_encode_s": 6.9,
+   "load_s": 42.9,
+   "torch": "2.14.1+cpu",
+   "threads": 4,
+   "sha256_raw": "abb600b6d0caa32e1c9542f1ec655c8c602ea73747e0ae5a63d3fa89552d6fe9",
+   "postprocess": {
+    "bg_rgb": [
+     250,
+     251,
+     252
+    ],
+    "object_share": 0.132,
+    "crop": [
+     6,
+     149,
+     668
+    ],
+    "colours_16": 6,
+    "colours_32": 6,
+    "colours_48": 9
+   },
+   "sprites": [
+    "out/sprites/bollard_s101_16.png",
+    "out/sprites/bollard_s101_32.png",
+    "out/sprites/bollard_s101_32clean.png",
+    "out/sprites/bollard_s101_48.png"
+   ]
+  },
+  {
+   "id": "hound",
+   "file": "raw/hound_s101.png",
+   "seed": 101,
+   "prompt": "pixel art, a clockwork hound, a brass mechanical dog with gears, single object, centered, full view, plain white background, game sprite",
+   "negative_prompt": null,
+   "res": 768,
+   "steps": 6,
+   "guidance": 1.0,
+   "unet_seconds": 242.8,
+   "peak_rss_gb": 13.5,
+   "vae_seconds": 24.4,
+   "seconds": 267.2,
+   "text_encode_s": 6.9,
+   "load_s": 42.9,
+   "torch": "2.14.1+cpu",
+   "threads": 4,
+   "sha256_raw": "f08c93888645877e26f47cc5146f2dd031c2d5717851667ec798ede5e58703e0",
+   "postprocess": {
+    "bg_rgb": [
+     249,
+     250,
+     251
+    ],
+    "object_share": 0.213,
+    "crop": [
+     165,
+     124,
+     508
+    ],
+    "colours_16": 9,
+    "colours_32": 10,
+    "colours_48": 11
+   },
+   "sprites": [
+    "out/sprites/hound_s101_16.png",
+    "out/sprites/hound_s101_32.png",
+    "out/sprites/hound_s101_32clean.png",
+    "out/sprites/hound_s101_48.png"
+   ]
+  },
+  {
+   "id": "moth",
+   "file": "raw/moth_s101.png",
+   "seed": 101,
+   "prompt": "pixel art, a pinned moth specimen, wings spread, on a pin, single object, centered, full view, plain white background, game sprite",
+   "negative_prompt": null,
+   "res": 768,
+   "steps": 6,
+   "guidance": 1.0,
+   "unet_seconds": 78.6,
+   "peak_rss_gb": 13.5,
+   "vae_seconds": 16.6,
+   "seconds": 95.2,
+   "text_encode_s": 6.9,
+   "load_s": 42.9,
+   "torch": "2.14.1+cpu",
+   "threads": 4,
+   "sha256_raw": "f0429aad0f64b2061f715a849d996f35569d3deaab717341076385163686d194",
+   "postprocess": {
+    "bg_rgb": [
+     249,
+     250,
+     251
+    ],
+    "object_share": 0.212,
+    "crop": [
+     87,
+     81,
+     611
+    ],
+    "colours_16": 8,
+    "colours_32": 10,
+    "colours_48": 10
+   },
+   "sprites": [
+    "out/sprites/moth_s101_16.png",
+    "out/sprites/moth_s101_32.png",
+    "out/sprites/moth_s101_32clean.png",
+    "out/sprites/moth_s101_48.png"
+   ]
+  },
+  {
+   "id": "crane",
+   "file": "raw/crane_s101.png",
+   "seed": 101,
+   "prompt": "pixel art, a small model harbour crane, wooden and iron toy model, single object, centered, full view, plain white background, game sprite",
+   "negative_prompt": null,
+   "res": 768,
+   "steps": 6,
+   "guidance": 1.0,
+   "unet_seconds": 83.3,
+   "peak_rss_gb": 13.5,
+   "vae_seconds": 16.0,
+   "seconds": 99.3,
+   "text_encode_s": 6.9,
+   "load_s": 42.9,
+   "torch": "2.14.1+cpu",
+   "threads": 4,
+   "sha256_raw": "70d96b012f7956520ceb4453445a02f6a9772b89abe09c0309de08701f6ff9fe",
+   "postprocess": {
+    "bg_rgb": [
+     251,
+     251,
+     252
+    ],
+    "object_share": 0.18,
+    "crop": [
+     94,
+     172,
+     550
+    ],
+    "colours_16": 7,
+    "colours_32": 11,
+    "colours_48": 11
+   },
+   "sprites": [
+    "out/sprites/crane_s101_16.png",
+    "out/sprites/crane_s101_32.png",
+    "out/sprites/crane_s101_32clean.png",
+    "out/sprites/crane_s101_48.png"
+   ]
+  },
+  {
+   "id": "bell",
+   "file": "raw/bell_s101.png",
+   "seed": 101,
+   "prompt": "pixel art, a brass bell mounted on a red floating buoy, single object, centered, full view, plain white background, game sprite",
+   "negative_prompt": null,
+   "res": 768,
+   "steps": 6,
+   "guidance": 1.0,
+   "unet_seconds": 79.4,
+   "peak_rss_gb": 13.5,
+   "vae_seconds": 17.1,
+   "seconds": 96.5,
+   "text_encode_s": 6.9,
+   "load_s": 42.9,
+   "torch": "2.14.1+cpu",
+   "threads": 4,
+   "sha256_raw": "24e05cde7fdf5f65a034f225e72ea8926d76b5cdde760522166470fa29e4c83b",
+   "postprocess": {
+    "bg_rgb": [
+     246,
+     246,
+     244
+    ],
+    "object_share": 0.526,
+    "crop": [
+     -16,
+     -19,
+     804
+    ],
+    "colours_16": 5,
+    "colours_32": 6,
+    "colours_48": 10
+   },
+   "sprites": [
+    "out/sprites/bell_s101_16.png",
+    "out/sprites/bell_s101_32.png",
+    "out/sprites/bell_s101_32clean.png",
+    "out/sprites/bell_s101_48.png"
+   ]
+  },
+  {
+   "id": "doorstep",
+   "file": "raw/doorstep_s202.png",
+   "seed": 202,
+   "prompt": "pixel art, a marble doorstep, a single carved white marble step block, single object, centered, full view, plain white background, game sprite",
+   "negative_prompt": null,
+   "res": 768,
+   "steps": 6,
+   "guidance": 1.0,
+   "unet_seconds": 79.0,
+   "peak_rss_gb": 13.4,
+   "vae_seconds": 17.2,
+   "seconds": 96.2,
+   "text_encode_s": 0.0,
+   "load_s": 42.3,
+   "torch": "2.14.1+cpu",
+   "threads": 4,
+   "sha256_raw": "85323f22a6dac128aed658ba1abae14a38dbd032e015ea027352dc1bf52a46af",
+   "postprocess": {
+    "bg_rgb": [
+     246,
+     248,
+     251
+    ],
+    "object_share": 0.887,
+    "crop": [
+     -28,
+     -36,
+     830
+    ],
+    "colours_16": 6,
+    "colours_32": 9,
+    "colours_48": 9
+   },
+   "sprites": [
+    "out/sprites/doorstep_s202_16.png",
+    "out/sprites/doorstep_s202_32.png",
+    "out/sprites/doorstep_s202_32clean.png",
+    "out/sprites/doorstep_s202_48.png"
+   ]
+  },
+  {
+   "id": "bollard",
+   "file": "raw/bollard_s202.png",
+   "seed": 202,
+   "prompt": "pixel art, a bronze mooring bollard, short and stout, green patina, single object, centered, full view, plain white background, game sprite",
+   "negative_prompt": null,
+   "res": 768,
+   "steps": 6,
+   "guidance": 1.0,
+   "unet_seconds": 77.1,
+   "peak_rss_gb": 13.4,
+   "vae_seconds": 15.7,
+   "seconds": 92.8,
+   "text_encode_s": 0.0,
+   "load_s": 42.3,
+   "torch": "2.14.1+cpu",
+   "threads": 4,
+   "sha256_raw": "c8fbd15ae5c848322b17d038313a11bdcadbd579a3e3cf5b3aa1880f883bb490",
+   "postprocess": {
+    "bg_rgb": [
+     224,
+     229,
+     231
+    ],
+    "object_share": 0.07,
+    "crop": [
+     138,
+     175,
+     394
+    ],
+    "colours_16": 5,
+    "colours_32": 8,
+    "colours_48": 9
+   },
+   "sprites": [
+    "out/sprites/bollard_s202_16.png",
+    "out/sprites/bollard_s202_32.png",
+    "out/sprites/bollard_s202_32clean.png",
+    "out/sprites/bollard_s202_48.png"
+   ]
+  },
+  {
+   "id": "hound",
+   "file": "raw/hound_s202.png",
+   "seed": 202,
+   "prompt": "pixel art, a clockwork hound, a brass mechanical dog with gears, single object, centered, full view, plain white background, game sprite",
+   "negative_prompt": null,
+   "res": 768,
+   "steps": 6,
+   "guidance": 1.0,
+   "unet_seconds": 77.2,
+   "peak_rss_gb": 13.4,
+   "vae_seconds": 16.4,
+   "seconds": 93.6,
+   "text_encode_s": 0.0,
+   "load_s": 42.3,
+   "torch": "2.14.1+cpu",
+   "threads": 4,
+   "sha256_raw": "d2bcb8896267b503b2dabba68af5d988b8f928bd4965d75ecdd6432a6a23c97d",
+   "postprocess": {
+    "bg_rgb": [
+     249,
+     250,
+     251
+    ],
+    "object_share": 0.357,
+    "crop": [
+     43,
+     1,
+     685
+    ],
+    "colours_16": 9,
+    "colours_32": 10,
+    "colours_48": 11
+   },
+   "sprites": [
+    "out/sprites/hound_s202_16.png",
+    "out/sprites/hound_s202_32.png",
+    "out/sprites/hound_s202_32clean.png",
+    "out/sprites/hound_s202_48.png"
+   ]
+  }
+ ],
+ "palette_16": [
+  [
+   "outline",
+   "#16131c"
+  ],
+  [
+   "shadow",
+   "#3b3546"
+  ],
+  [
+   "stone",
+   "#6f6a78"
+  ],
+  [
+   "marble",
+   "#aaa4ae"
+  ],
+  [
+   "cream",
+   "#e8e3d8"
+  ],
+  [
+   "white",
+   "#fbf8f0"
+  ],
+  [
+   "umber",
+   "#4a2e1f"
+  ],
+  [
+   "bronze",
+   "#8a5a32"
+  ],
+  [
+   "brass",
+   "#c8913f"
+  ],
+  [
+   "gold",
+   "#f2d27a"
+  ],
+  [
+   "verdigris_d",
+   "#2b4f4a"
+  ],
+  [
+   "verdigris",
+   "#4f8f7f"
+  ],
+  [
+   "glass",
+   "#a6d8c8"
+  ],
+  [
+   "oxblood",
+   "#6e2328"
+  ],
+  [
+   "vermilion",
+   "#c8503a"
+  ],
+  [
+   "ultramarine",
+   "#34508a"
+  ]
+ ],
+ "postprocess": "scripts/postprocess.py: border flood-fill background, square crop, CIELAB nearest palette colour, block-vote downscale to 48/32/16, optional clean (drop isolated pixels, 1-px outline)",
+ "cc0_comparison": {
+  "pack": "Kenney Tiny Dungeon 1.0",
+  "url": "https://kenney.nl/assets/tiny-dungeon",
+  "licence": "CC0 1.0 (License.txt in the pack, copied to out/kenney_tiny-dungeon_License.txt)",
+  "zip_sha256": "c109438ab06f65fd80f9b2686a4cf9c7c11dc64444b47333ec71d602f8bb5fc7",
+  "tiles_shown": [
+   84,
+   96,
+   121,
+   122,
+   110,
+   65,
+   63,
+   89
+  ]
+ },
+ "outputs": [
+  "out/contact_sheet.png",
+  "out/kenney_index.png",
+  "out/phone_mockup_390x844_dpr3.png",
+  "out/raw/bell_s101.png",
+  "out/raw/bollard_s101.png",
+  "out/raw/bollard_s202.png",
+  "out/raw/crane_s101.png",
+  "out/raw/doorstep_s101.png",
+  "out/raw/doorstep_s202.png",
+  "out/raw/hound_s101.png",
+  "out/raw/hound_s202.png",
+  "out/raw/moth_s101.png",
+  "out/sprites/bell_s101_16.png",
+  "out/sprites/bell_s101_32.png",
+  "out/sprites/bell_s101_32clean.png",
+  "out/sprites/bell_s101_48.png",
+  "out/sprites/bollard_s101_16.png",
+  "out/sprites/bollard_s101_32.png",
+  "out/sprites/bollard_s101_32clean.png",
+  "out/sprites/bollard_s101_48.png",
+  "out/sprites/bollard_s202_16.png",
+  "out/sprites/bollard_s202_32.png",
+  "out/sprites/bollard_s202_32clean.png",
+  "out/sprites/bollard_s202_48.png",
+  "out/sprites/crane_s101_16.png",
+  "out/sprites/crane_s101_32.png",
+  "out/sprites/crane_s101_32clean.png",
+  "out/sprites/crane_s101_48.png",
+  "out/sprites/doorstep_s101_16.png",
+  "out/sprites/doorstep_s101_32.png",
+  "out/sprites/doorstep_s101_32clean.png",
+  "out/sprites/doorstep_s101_48.png",
+  "out/sprites/doorstep_s202_16.png",
+  "out/sprites/doorstep_s202_32.png",
+  "out/sprites/doorstep_s202_32clean.png",
+  "out/sprites/doorstep_s202_48.png",
+  "out/sprites/hound_s101_16.png",
+  "out/sprites/hound_s101_32.png",
+  "out/sprites/hound_s101_32clean.png",
+  "out/sprites/hound_s101_48.png",
+  "out/sprites/hound_s202_16.png",
+  "out/sprites/hound_s202_32.png",
+  "out/sprites/hound_s202_32clean.png",
+  "out/sprites/hound_s202_48.png",
+  "out/sprites/moth_s101_16.png",
+  "out/sprites/moth_s101_32.png",
+  "out/sprites/moth_s101_32clean.png",
+  "out/sprites/moth_s101_48.png"
+ ],
+ "software": {
+  "torch": "2.14.1+cpu",
+  "diffusers": "0.41.0",
+  "transformers": "5.20.2",
+  "peft": "0.21.2",
+  "huggingface_hub": "1.33.0",
+  "pillow": "13.0.0",
+  "numpy": "2.5.4",
+  "safetensors": "0.8.0"
+ },
+ "notes": [
+  "First attempt (guidance 1.5 with CFG, VAE decode in the same process as the fp32 UNet) was OOM-killed at 13.7 GB anon RSS.",
+  "Working run: prompts encoded first and text encoders freed; UNet produces latents; UNet freed before VAE decode.",
+  "Model weights, latents and cached prompt embeddings were deleted after the probe; download_log.json and licence/README texts kept."
+ ]
+}
