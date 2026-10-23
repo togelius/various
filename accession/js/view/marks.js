@@ -131,19 +131,23 @@ const Marks = (() => {
 
     // Off-screen threats (§7.2): a hostile you can see that lies wholly outside the clear part
     // of the board gets a hostile-red arrow at the nearest clear edge, pointing towards it,
-    // slid along the edge until it covers no actor and no other arrow.
-    const k = 10, taken = placed.filter(p => inClear(p.r)).map(p => p.r);
-    const free = (x, y) => !taken.some(q => x + k > q.x && x - k < q.x + q.w && y + k > q.y && y - k < q.y + q.h);
+    // slid along the edge from there until it covers no visible actor and no other arrow (or,
+    // if the whole edge is taken, where it overlaps least).
+    const k = 10, taken = placed.filter(p => { const v = shows(p.r); return v.x1 > v.x0 && v.y1 > v.y0; }).map(p => p.r);
+    const overlap = (x, y) => taken.reduce((n, q) => n + Math.max(0, Math.min(x + k, q.x + q.w) - Math.max(x - k, q.x)) * Math.max(0, Math.min(y + k, q.y + q.h) - Math.max(y - k, q.y)), 0);
     for (const { a, r } of placed) {
       if (!a.hostile || inClear(r)) continue;
       group = a.uid;
-      const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
-      let ex = clamp(cx, k, width - k), ey = clamp(cy, k, bottom - k);
-      const alongX = ey <= k || ey >= bottom - k;
-      for (let step = 1; step < 40 && !free(ex, ey); step++) {
+      const cx = r.x + r.w / 2, cy = r.y + r.h / 2, x0 = clamp(cx, k, width - k), y0 = clamp(cy, k, bottom - k);
+      const alongX = y0 <= k || y0 >= bottom - k, steps = 2 * Math.ceil((alongX ? width : bottom) / (2 * k + 2));
+      let ex = x0, ey = y0, best = overlap(ex, ey), bx = ex, by = ey;
+      for (let step = 1; step <= steps && best > 0; step++) {
         const d = (step % 2 ? 1 : -1) * Math.ceil(step / 2) * (2 * k + 2);
-        if (alongX) ex = clamp(cx + d, k, width - k); else ey = clamp(cy + d, k, bottom - k);
+        if (alongX) ex = clamp(x0 + d, k, width - k); else ey = clamp(y0 + d, k, bottom - k);
+        const o = overlap(ex, ey);
+        if (o < best) { best = o; bx = ex; by = ey; }
       }
+      ex = bx; ey = by;
       taken.push({ x: ex - k, y: ey - k, w: 2 * k, h: 2 * k });
       const ang = Math.atan2(cy - ey, cx - ex), at = { x: ex, y: ey };
       add('mark', 'edge:' + a.uid, a.x, a.y, { x: at.x - k, y: at.y - k, w: 2 * k, h: 2 * k }, ctx => {

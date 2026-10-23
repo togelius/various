@@ -237,7 +237,7 @@ const Board3D = (() => {
         if (q.x + q.w > 0 && q.y + q.h > 0 && q.x < size.width && q.y < size.height) tiles.push({ kind: 'tile', id: x + ',' + y, x, y, rect: q });
       }
       items = Marks.list(vm, rectOf, actorRect, s, size.width, size.height, size.height - inset);
-      for (const it of items) it.paint(octx);
+      for (const it of items) { octx.save(); it.paint(octx); octx.restore(); }
     }
 
     // ------------------------------------------------------------ picking
@@ -328,12 +328,12 @@ const Board3D = (() => {
         }
         // Shown: the pixels that end up showing the item, its own group or any mark; only the
         // scene or another actor's sprite counts as hiding it. Self: the pixels showing the
-        // item itself or another group's mark, so an actor its own marks bury is caught too.
+        // item itself (or a telegraph's number laid over it), however it is covered.
         for (const [id, mine] of own) {
           const g = legend[id].group, top = i => legend[ids[i]];
           legend[id].alone = mine.length;
           legend[id].onTop = mine.filter(i => top(i) && (top(i).group === g || top(i).kind === 'mark')).length;
-          legend[id].self = mine.filter(i => ids[i] === id || (top(i) && top(i).kind === 'mark' && top(i).group !== g)).length;
+          legend[id].self = mine.filter(i => ids[i] === id || (top(i) && /^telegraph:/.test(top(i).id))).length;
         }
       }
       return { w, h, ids, legend };
@@ -350,6 +350,8 @@ const Board3D = (() => {
       setZoom(step) { zoom = Math.max(0, Math.min(ZOOM.length - 1, step)); s = ZOOM[zoom]; if (flat) flat.setZoom(zoom); },
       setInset(px) { inset = Math.max(0, px || 0); if (flat) flat.setInset(inset); },
       standIn: () => !!flat,
+      // For the 3D checks: the last frame's display list and the 2D layer's canvas.
+      displayList: () => items.slice(), overlayCanvas: () => over,
       stats: () => (renderer ? { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles } : null),
       // Gives the WebGL context back at once, so switching views back and forth never
       // runs into the browser's limit on live contexts.

@@ -86,9 +86,8 @@ const UI = (() => {
   function top(m) {
     const pct = m.maxHp ? Math.max(0, Math.round(100 * m.hp / m.maxHp)) : 0;
     els.hpbar.style.width = pct + '%';
-    els.hpnum.innerHTML = `${P('heart', 12)}<span>${m.hp} / ${m.maxHp}</span>`;
-    els.hpnum.setAttribute('aria-label', `Health ${m.hp} of ${m.maxHp}`);
-    els.badge.innerHTML = `<span class="badge-name">Handling Clearance</span><span class="badge-grade">Grade ${roman(m.grade)}</span>`;
+    els.hpnum.innerHTML = `${P('heart', 12)}<span><span class="sr">Health </span>${m.hp} / ${m.maxHp}</span>`;
+    els.badge.innerHTML = `<span class="badge-name">Handling Clearance<span class="sr">,</span></span><span class="badge-grade">Grade ${roman(m.grade)}</span>`;
     dial(m.clock);
   }
   const roman = n => ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'][n] || String(n);

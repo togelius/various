@@ -48,21 +48,35 @@ const measure = page => page.evaluate(() => {
     const x = i % vm.w, y = (i - x) / vm.w, ch = vm.tiles[y][x];
     if ((ch === 'E' || ch === 'X') && total >= 20 && !(sc.get(id + n) > 0)) doors.push(`${ch} at ${x},${y}`);
   }
+  // The 75% rule applies to actors wholly on the board; one cut by an edge shows its bar or
+  // arrow over the little that is left.
+  const bb = document.getElementById('board').getBoundingClientRect(), clearBottom = bb.bottom - UI.sheetCover();
+  const whole = new Set(R.inspect().filter(d => d.kind === 'actor' && d.rect.x >= bb.left && d.rect.y >= bb.top && d.rect.x + d.rect.w <= bb.right && d.rect.y + d.rect.h <= clearBottom).map(d => d.id));
   const overlays = Object.values(full.legend).filter(l => l.alone);
   const low = overlays.filter(l => l.onTop / l.alone < 0.9).map(l => `${l.kind} ${l.id} ${Math.round(100 * l.onTop / l.alone)}%`)
-    .concat(overlays.filter(l => l.kind === 'actor' && l.self / l.alone < 0.75).map(l => `actor ${l.id}, under its own marks, ${Math.round(100 * l.self / l.alone)}%`));
-  // What the 2D layer really painted: wherever the id buffer has an actor or a mark, the
-  // overlay canvas has paint (read at its own pixel ratio).
-  const over = document.querySelector('#board canvas.board-over'), k = over.width / full.w;
-  const od = over.getContext('2d').getImageData(0, 0, over.width, over.height).data;
-  let want = 0, got = 0;
+    .concat(overlays.filter(l => l.kind === 'actor' && whole.has(l.id) && l.self / l.alone < 0.75).map(l => `actor ${l.id} shows only ${Math.round(100 * l.self / l.alone)}% of itself`));
+  // What the 2D layer really painted: the overlay canvas, at its own pixel ratio, against a
+  // reference painted here from the same display list, item by item in list order, each in
+  // isolation. Wherever the id buffer has an actor or a mark, the two must match.
+  const over = R.overlayCanvas(), k = over.width / full.w, ref = document.createElement('canvas');
+  ref.width = over.width; ref.height = over.height;
+  const rx = ref.getContext('2d');
+  rx.setTransform(k, 0, 0, k, 0, 0); rx.imageSmoothingEnabled = false;
+  for (const it of R.displayList()) { rx.save(); it.paint(rx); rx.restore(); }
+  const od = over.getContext('2d').getImageData(0, 0, over.width, over.height).data, rd = rx.getImageData(0, 0, ref.width, ref.height).data;
+  let want = 0, same = 0;
   for (let y = 0; y < full.h; y++) for (let x = 0; x < full.w; x++) {
     const l = full.legend[full.ids[y * full.w + x]];
     if (!l || (l.kind !== 'actor' && l.kind !== 'mark')) continue;
     want++;
-    if (od[(Math.floor((y + 0.5) * k) * over.width + Math.floor((x + 0.5) * k)) * 4 + 3] > 0) got++;
+    let diff = 0;
+    for (let j = Math.floor(y * k); j < Math.floor((y + 1) * k); j++) for (let i = Math.floor(x * k); i < Math.floor((x + 1) * k); i++) {
+      const o = (j * over.width + i) * 4;
+      for (let c = 0; c < 4; c++) diff = Math.max(diff, Math.abs(od[o + c] - rd[o + c]));
+    }
+    if (diff <= 48) same++;
   }
-  const painted = want ? got / want : 0;
+  const painted = want ? same / want : 0;
   // The page as composited: the 2D layer is the topmost element over every actor and mark.
   const top = R.inspect().filter(d => d.kind !== 'tile').filter(d => {
     const b = document.getElementById('board').getBoundingClientRect(), cx = d.rect.x + d.rect.w / 2, cy = d.rect.y + d.rect.h / 2;
@@ -82,7 +96,7 @@ function report(tag, m, b) {
   m.low.forEach(l => bad(`${tag}: ${l} of its pixels show over the scene`));
   m.doors.forEach(d => bad(`${tag}: the ${d} has no visible mat`));
   m.top.forEach(d => bad(`${tag}: ${d} is not on the topmost layer of the board`));
-  if (m.painted < 0.95) bad(`${tag}: the 2D layer has paint under only ${Math.round(100 * m.painted)}% of the actors' and marks' pixels`);
+  if (m.painted < 0.98) bad(`${tag}: the 2D layer matches the display list at only ${(100 * m.painted).toFixed(1)}% of the actors' and marks' pixels`);
   b.problems.forEach(p => bad(`${tag}: ${p}`));
 }
 

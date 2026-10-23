@@ -11,8 +11,10 @@ export function layout() {
   if (document.documentElement.scrollWidth > w || document.body.scrollWidth > w) out.push(`page scrolls sideways (${document.documentElement.scrollWidth} > ${w})`);
   const name = e => `${e.tagName.toLowerCase()}${e.id ? '#' + e.id : ''}${typeof e.className === 'string' && e.className ? '.' + e.className.split(' ').join('.') : ''}`;
   const boxes = [...document.querySelectorAll('#app, #app *, #sheet, #sheet *, .overlay.open, .overlay.open *')];
+  // Text clipped away for screen readers only (a clip rect) is not laid out for the eye.
+  const hiddenForReaders = e => { for (let p = e; p; p = p.parentElement) { const c = getComputedStyle(p).clip; if (c && c !== 'auto') return true; } return false; };
   for (const e of boxes) {
-    if (e.closest('#board') || e.tagName === 'CANVAS' || e.closest('svg')) continue;
+    if (e.closest('#board') || e.tagName === 'CANVAS' || e.closest('svg') || hiddenForReaders(e)) continue;
     const r = e.getBoundingClientRect(), cs = getComputedStyle(e);
     if (!r.width || !r.height || cs.visibility === 'hidden' || cs.display === 'none') continue;
     if (e.scrollWidth > e.clientWidth + 1 && cs.textOverflow !== 'ellipsis' && e.clientWidth > 0) out.push(`${name(e)} holds content ${e.scrollWidth - e.clientWidth} px wider than itself`);
@@ -165,6 +167,12 @@ export function board() {
   // Every mark the view model holds is drawn: telegraphs, the path preview and the selection.
   const onBoard = (x, y) => { const c = R.tileRect(x, y).centre; return c.x >= b.left && c.y >= b.top && c.x < b.right && c.y < clearBottom; };
   for (const m of vm.marks) if (onBoard(m.x, m.y) && !drawn.find(d => d.kind === 'mark' && d.id === m.kind + ':' + m.x + ',' + m.y && inside(d.rect))) problems.push(`mark ${m.kind} at ${m.x},${m.y} is not drawn`);
+  // No two edge arrows lie on each other.
+  const edges = drawn.filter(d => d.id.startsWith('edge:'));
+  for (let i = 0; i < edges.length; i++) for (let j = i + 1; j < edges.length; j++) {
+    const p = edges[i].rect, q = edges[j].rect;
+    if (p.x < q.x + q.w && q.x < p.x + p.w && p.y < q.y + q.h && q.y < p.y + p.h) problems.push(`${edges[i].id} and ${edges[j].id} lie on each other`);
+  }
   // A path dot lies on its own tile; the selection bracket on the selected tile or exhibit.
   const within = (q, r) => { const cx = q.x + q.w / 2, cy = q.y + q.h / 2; return cx >= r.x && cy >= r.y && cx < r.x + r.w && cy < r.y + r.h; };
   for (const [x, y] of vm.path || []) if (onBoard(x, y) && !drawn.find(d => d.id === 'path:' + x + ',' + y && inside(d.rect) && within(d.rect, R.tileRect(x, y).rect))) problems.push(`path tile ${x},${y} has no dot on it`);

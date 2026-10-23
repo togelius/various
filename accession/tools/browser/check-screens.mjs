@@ -10,6 +10,8 @@ import { layout, targets, board, nextStep, labelVisible, freeTile, actionButton 
 import path from 'node:path';
 
 const SIZES = [[390, 844], [1280, 800]];
+// The narrowest phones in common use, for the top bar at every text size.
+const NARROW = [[360, 740], [375, 667]];
 const SCENES = [{ dept: 'M11', seed: 3 }, { dept: 'S9', seed: 5 }, { dept: 'A4', seed: 7 }];
 const P10 = { default: 12, big: 22 };
 const shots = process.argv.includes('--shot');
@@ -128,6 +130,19 @@ for (const [w, h] of SIZES) {
   }
 }
 for (const l of lines) console.log(l);
+for (const [w, h] of NARROW) {
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: w, height: h }, dpr: 2, query: '?dept=S9&seed=5' });
+  await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
+  for (const size of ['1', '1.15', '1.3']) {
+    await page.evaluate(v => window.ACCESSION.setting('text', v), size);
+    const hp = await page.evaluate(() => { const e = document.getElementById('hpnum'), d = document.getElementById('dial').getBoundingClientRect(), r = e.lastElementChild.getBoundingClientRect(); return { cut: e.scrollWidth > e.clientWidth + 1 || r.right > d.left, text: e.textContent }; });
+    if (hp.cut) bad(`${w}×${h} text ${size}: the health number "${hp.text}" is cut short or runs into the dial`);
+    for (const p of [...await page.evaluate(layout), ...await page.evaluate(targets)]) bad(`${w}×${h} text ${size}: ${p}`);
+  }
+  lines.push(`${w}×${h}: top bar checked at every text size`);
+  if (errors.length) bad(`${w}×${h}: console errors: ${errors.join('; ')}`);
+  await browser.close();
+}
 for (const p of problems) console.log('PROBLEM ' + p);
 console.log(problems.length ? `screens: ${problems.length} problem(s)` : `screens: ${lines.length} board measurements, both sizes, every view, no problems`);
 process.exit(problems.length ? 1 : 0);

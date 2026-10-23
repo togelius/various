@@ -120,7 +120,7 @@ Views.register('topdown', 'Flat', host => {
     const rectOf = (x, y) => ({ x: ox + x * t, y: oy + y * t, w: t, h: t });
     const actorRect = a => ({ x: ox + a.x * t, y: oy + a.y * t, w: t * (a.size || 1), h: t * (a.size || 1) });
     items = Marks.list(vm, rectOf, actorRect, t, r.width, r.height, r.height - inset);
-    for (const it of items) it.paint(ctx);
+    for (const it of items) { ctx.save(); it.paint(ctx); ctx.restore(); }
   }
 
   function pick(cx, cy) {

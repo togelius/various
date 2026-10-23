@@ -45,6 +45,7 @@ const Main = (() => {
 
   function applySettings() {
     document.documentElement.style.setProperty('--text-scale', settings.text);
+    document.documentElement.dataset.text = settings.text;
     document.documentElement.dataset.font = settings.font;
     document.documentElement.dataset.motion = settings.motion;
     UI.renderSettings(settings, Views.list());
@@ -163,8 +164,8 @@ const Main = (() => {
   function draw() {
     const vm = ViewModel.derive(state, ui);
     // While a label is open the camera centres between you and its exhibit in the part of
-    // the board the phone's sheet leaves clear; if both cannot fit, it keeps the exhibit in
-    // view and leans as far towards you as it can.
+    // the board the phone's sheet leaves clear; if both cannot fit, it keeps you in view and
+    // leans as far towards the exhibit as it can (the label shows the exhibit's picture).
     const open = UI.labelShown() && vm.actors.find(a => a.uid === UI.labelShown());
     if (open) vm.camera = focus(vm.you, open);
     UI.top({ hp: vm.you.hp, maxHp: vm.you.maxHp, grade: vm.you.grade, clock: vm.clock });
@@ -184,7 +185,7 @@ const Main = (() => {
     const axis = (p, q, n, h) => {
       const lo = Math.min(p, q), hi = Math.max(p + 1, q + n);
       if (hi - lo <= 2 * h + 1) return Math.floor((lo + hi - 1) / 2);
-      return p < q ? q + n - 1 - h : q + h;
+      return p < q ? p + h : p - h;
     };
     return { x: axis(you.x, a.x, a.size, half(b.width, t)), y: axis(you.y, a.y, a.size, half(b.height - UI.sheetCover() - 2 * above, d)) };
   }
