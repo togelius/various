@@ -511,7 +511,7 @@ renderer.dispose()
 - **The revert test.** `check-all.sh` copies the repository to a temporary directory, runs `tools/remove-3d.sh` there, then builds and runs the Node tests and the browser smoke and screen checks there. They must all pass.
 - **The guard.** A test scans `index.html`, `js/`, `css/`, `tools/`, `test/` and `art/` for `board3d`, `Board3D`, `THREE`, `x-three`, `vendor/three` and a `'3d'` id, and fails on any file not in the allowlist committed beside the script.
 - **The 3D checks** (Playwright, Chromium with software WebGL, which works here through SwiftShader) run on fixed scenes in all three slice programmes, at both zoom steps, and each first asserts that `Views.active()` is the 3D view, so a silent fallback cannot pass them.
-  - **Occlusion.** From `idBuffer()`: fail if more than 2% of the visible tiles without a mark show less than 25% of their floor pixels (a tile's own case, plinth or bench counts as showing it); marks and actors are drawn on top, and a test confirms each shows at least 90% of its pixels over the scene.
+  - **Occlusion.** From `idBuffer()`: fail if more than 2% of the visible tiles without a mark show less than 25% of their floor pixels (a tile's own case, plinth or bench counts as showing it), or if an entrance or exit on screen shows none of its mat. Marks and actors are drawn on top: each shows at least 90% of its pixels as itself or its own group (an actor's own marks, a telegraph's number), every actor at least 75% as itself, and the 2D layer is the topmost element over each of them on the page as composited.
   - **Tap tolerance.** For every visible tile on screen, the radius of the largest disc round its centre in which every sampled `pick` returns that tile, or an actor standing on it (as `research/isometric.md` §1 measured). Fail if the 10th percentile is below 12 px at the default zoom or below 22 px at the 44-px step. The same check runs in top-down.
   - **Consistency.** Every actor and mark in the vm appears in `inspect()` with a rect inside the board, in both views.
   - **Context loss.** `WEBGL_lose_context` forces a loss and a restore; the board keeps drawing.
@@ -569,12 +569,12 @@ renderer.dispose()
   - the clock dial, with the bell and night-watch segments and module countdowns beside it;
   - the grade badge;
   - the alarm bell, when a department owns one.
-- **The board,** with Zoom as a button in its top-right corner.
-- **A two-row strip:** a short title with the state and pips, then pictograms. In runs 1–3 the Behaviour line follows (DESIGN default 24). The newest log sentence takes its place until the next action.
+- **The board.** Nothing of the interface lies over it, so no button can cover a tile or a mark.
+- **A two-row strip:** a short title with the state and pips, then pictograms. In runs 1–3 the Behaviour line follows (DESIGN default 24). The newest log entry (all the sentences one action produced) takes its place until the next action. Zoom is a button at the strip's right end.
 - **Bottom bar:** Wait · Bag · Q1 · Q2 · Q3 · Map.
 - **The label panel** opens as a bottom sheet. While it is open the camera centres you and the selected exhibit in the part of the board it leaves clear, and closing it keeps the selection, so tapping the exhibit again still acts.
 
-**Laptop:** the board on the left, with Wait · Bag · Map under it; the strip with the last six log sentences, the label panel and six quickslots in a right column.
+**Laptop:** the board on the left, with Wait · Bag · Map and Zoom under it; the strip with the last six log entries (newest kept in view), the label panel and six quickslots in a right column.
 
 **Other screens:**
 - the Entrance Hall;
@@ -1185,7 +1185,7 @@ The support, swarm and ambusher rows and the Centrepiece's Acc, Eva and damage a
 ### 9.1 Art
 
 **The board:**
-- 16×16 sprites as palette-indexed text grids (`art/sprites/*.txt`), as in `vanguard-zero/`;
+- 16×16 sprites as palette-indexed text grids (`art/sprites/*.txt`), as in `vanguard-zero/`; every cell is clear, glass, or a key every department palette has, which `build-art.js` enforces, so no outline changes with the department;
 - silhouettes fixed by archetype;
 - departments differ by palette, wall colour, floor material and ornament;
 - the reserved semantic colours (hostile, hazard, readable, item, player) never appear in a department palette, which a test checks.

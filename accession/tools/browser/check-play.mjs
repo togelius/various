@@ -4,7 +4,7 @@
 // open "How the museum works" from the top bar and from Settings, zoom, switch "Walk" to
 // tap twice and walk with two taps, and switch the board view from Settings.
 import { open } from './lib.mjs';
-import { nextStep, labelVisible, logVisible } from './measure.mjs';
+import { nextStep, labelVisible, logVisible, freeTile as freeTileIn } from './measure.mjs';
 
 const problems = [], lines = [];
 const bad = s => problems.push(s);
@@ -26,18 +26,7 @@ for (const [W, Hh] of SIZES) {
   const clickEl = async sel => click(...await centreOf(sel));
   const you = () => page.evaluate(() => { const a = window.ACCESSION.state.actors[0]; return { x: a.x, y: a.y, turn: window.ACCESSION.state.turn }; });
   const sights = () => page.evaluate(() => window.ACCESSION.vm().actors.map(a => a.uid + a.mode + a.pips).join());
-  // A free, visible, reachable tile 1–3 steps from you, its centre on the board.
-  const freeTile = () => page.evaluate(() => {
-    const A = window.ACCESSION, vm = A.vm(), y = A.state.actors[0], b = document.getElementById('board').getBoundingClientRect();
-    for (let r = 3; r >= 1; r--) for (const [dx, dy] of [[r, 0], [-r, 0], [0, r], [0, -r]]) {
-      const x = y.x + dx, yy = y.y + dy;
-      if (x < 0 || yy < 0 || x >= vm.w || yy >= vm.h || vm.vis[yy * vm.w + x] !== 2 || vm.actors.some(a => x >= a.x && yy >= a.y && x < a.x + a.size && yy < a.y + a.size)) continue;
-      if (Path.to(A.state, x, yy).length !== r) continue;
-      const c = A.renderer.tileRect(x, yy).centre, e = document.elementFromPoint(c.x, c.y);
-      if (c.x > b.left && c.y > b.top && c.x < b.right && c.y < b.bottom && e && e.closest('#board') && A.renderer.pick(c.x, c.y).x === x && A.renderer.pick(c.x, c.y).y === yy) return { x, y: yy, c };
-    }
-    return null;
-  });
+  const freeTile = () => page.evaluate(freeTileIn);
   // A walk reaches the tile clicked, unless something new came into sight or changed state.
   const walkedTo = async (t, before, sightsBefore, tag) => {
     const after = await you(), changed = (await sights()) !== sightsBefore;
@@ -61,10 +50,10 @@ for (const [W, Hh] of SIZES) {
     const start = await you(), s0 = await sights(), w = await freeTile();
     if (!w) bad(`${tag}: no free tile nearby to walk to`);
     else { await click(w.c.x, w.c.y); const m = await walkedTo(w, start, s0, tag); lines.push(`${tag}: walked from ${start.x},${start.y} to ${m.x},${m.y} with one click`); }
-    // The log shows what happened: always on a laptop; on a phone, whenever the action
-    // said something (a bump into a wall says it was refused).
+    // The log shows what happened: on a laptop the last six sentences, the newest in view;
+    // on a phone the newest sentence, whenever the action said something.
     await clickEl('[data-act="wait"]');
-    if (W >= 900 && !await page.evaluate(logVisible)) bad(`${tag}: after Wait, the log is not on screen`);
+    if (W >= 900 && !await page.evaluate(logVisible)) bad(`${tag}: after Wait, the log is not on screen as it should be`);
     const wall = await page.evaluate(() => {
       const A = window.ACCESSION, vm = A.vm(), R = A.renderer;
       for (const d of R.inspect()) if (d.kind === 'tile' && vm.tiles[d.y][d.x] === '#') {
@@ -73,7 +62,13 @@ for (const [W, Hh] of SIZES) {
       }
       return null;
     });
-    if (wall) { await click(wall.x, wall.y); if (!await page.evaluate(logVisible)) bad(`${tag}: clicking a wall says nothing on screen`); }
+    if (wall) {
+      const n0 = await page.evaluate(() => window.ACCESSION.history.length);
+      await click(wall.x, wall.y);
+      const n1 = await page.evaluate(() => window.ACCESSION.history.length);
+      if (n1 === n0 && n0 < 6) bad(`${tag}: clicking a wall added nothing to the log`);
+      if (!await page.evaluate(logVisible)) bad(`${tag}: after clicking a wall, the newest sentence is not on screen`);
+    }
     else bad(`${tag}: no wall tile on screen to click`);
     // Then tap visible tiles towards the nearest exhibit until it is within 2 tiles.
     let target = null;

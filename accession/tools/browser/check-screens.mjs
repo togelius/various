@@ -6,7 +6,7 @@
 // in the view model is on the board or marked at its edge. Each view first asserts that it
 // is the active one, so a silent fallback cannot pass.
 import { open, root } from './lib.mjs';
-import { layout, targets, board, nextStep, labelVisible } from './measure.mjs';
+import { layout, targets, board, nextStep, labelVisible, freeTile } from './measure.mjs';
 import path from 'node:path';
 
 const SIZES = [[390, 844], [1280, 800]];
@@ -65,11 +65,37 @@ for (const [w, h] of SIZES) {
         for (const p of [...await page.evaluate(layout), ...await page.evaluate(targets)]) bad(`${tag} ${name} open: ${p}`);
         await page.click(`#${name} [data-close]`);
       }
-      const near = await page.evaluate(() => { const vm = window.ACCESSION.vm(); return vm.actors.find(a => a.uid !== 'you') || null; });
+      // The path preview is drawn: Walk set to tap twice, one tap on a free tile.
+      await page.evaluate(() => window.ACCESSION.setting('walk', 'two'));
+      const ft = await page.evaluate(freeTile);
+      if (ft) {
+        await page.evaluate(t => window.ACCESSION.tap({ x: t.x, y: t.y }), ft);
+        const m = await page.evaluate(board);
+        if (!m.path) bad(`${tag}: one tap with "tap twice" showed no path preview`);
+        m.problems.forEach(p => bad(`${tag} path preview: ${p}`));
+        await page.keyboard.press('Escape');
+      } else bad(`${tag}: no free tile for the path preview`);
+      await page.evaluate(() => window.ACCESSION.setting('walk', 'one'));
+      // A label opened beside an exhibit, so its action button shows: the label, its button,
+      // the selection, and every hostile on the clear part of the board or at its edge.
+      for (let i = 0; i < 20; i++) {
+        const st = await page.evaluate(nextStep, 1);
+        if (st.done || st.stuck) break;
+        await page.evaluate(t => window.ACCESSION.tap(t), st.tile);
+        await settle(page);
+      }
+      const near = await page.evaluate(() => {
+        const A = window.ACCESSION, you = A.state.actors[0];
+        return A.vm().actors.filter(a => a.uid !== 'you').sort((p, q) => Actors.dist(Actors.byUid(A.state, p.uid), you.x, you.y) - Actors.dist(Actors.byUid(A.state, q.uid), you.x, you.y))[0] || null;
+      });
       if (near) {
         await page.evaluate(a => window.ACCESSION.tap({ x: a.x, y: a.y }), near);
         const title = await page.evaluate(uid => Labels.of(window.ACCESSION.state, uid).title, near.uid);
         if (!await page.evaluate(labelVisible, title)) bad(`${tag}: tapping ${near.uid} did not show its label`);
+        const adjacent = await page.evaluate(uid => Step.adjacent(window.ACCESSION.state, window.ACCESSION.state.actors[0], Actors.byUid(window.ACCESSION.state, uid)), near.uid);
+        const acts = await page.evaluate(() => document.querySelectorAll('#sheet [data-label-act]').length);
+        if (adjacent && !acts) bad(`${tag}: the label of an adjacent exhibit has no action button`);
+        if (!adjacent) bad(`${tag}: could not stand beside an exhibit to check its action button`);
         // With the label open, you and the exhibit stay in view above it, so a second tap
         // on the exhibit can still act (§7.1).
         const hidden = await page.evaluate(uid => {
@@ -81,6 +107,9 @@ for (const [w, h] of SIZES) {
           return out;
         }, near.uid);
         if (hidden.length) bad(`${tag} label open: ${hidden.join(' and ')} hidden behind the label`);
+        const m = await page.evaluate(board);
+        if (!m.selection) bad(`${tag}: the selection was not set with the label open`);
+        m.problems.forEach(p => bad(`${tag} label open: ${p}`));
         for (const p of [...await page.evaluate(layout), ...await page.evaluate(targets)]) bad(`${tag} label open: ${p}`);
         await page.keyboard.press('Escape');
       } else bad(`${tag}: no exhibit in sight to open a label`);

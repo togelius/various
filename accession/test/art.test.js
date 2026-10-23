@@ -15,7 +15,16 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const head = lines.find(l => /^#\s*species:/.test(l)), m = head && head.match(/\(([a-z_]+)(?: piece)?\)/);
     return { rows: lines.filter(l => l.trim() && !l.startsWith('#')).map(l => l.replace(/\s+$/, '')), archetype: m ? m[1] : null };
   };
-  const mask = rows => rows.map(r => r.replace(/[^.]/g, '#')).join('\n');
+  // Opaque exactly as js/view/sprites.js paints: 'g' (glass) or a key of the palette the
+  // sprite is drawn with; '.' and ' ' are clear. Any other character is an error, so a
+  // sprite cannot hide part of its outline behind a letter no palette has.
+  const ART = JSON.parse(fs.readFileSync(path.join(root, 'art/palettes.json'), 'utf8'));
+  const depts = Object.values(ART.dept), deptKeys = new Set(Object.keys(depts[0]).filter(k => k.length === 1 && depts.every(d => d[k])));
+  const mask = (rows, name) => rows.map((r, y) => r.split('').map((c, x) => {
+    if (c === '.' || c === ' ') return '.';
+    if (c === 'g' || deptKeys.has(c)) return '#';
+    throw new Error(`${name}: '${c}' at ${x},${y} is not in every department palette`);
+  }).join('')).join('\n');
   const uses = [];
   for (const p of Packs.list()) for (const sp of [...p.species, ...(p.centrepiece ? [p.centrepiece] : [])])
     uses.push({ id: sp.id, sprite: sp.sprite, archetype: sp.archetype, size: sp.size || 1 });
@@ -52,7 +61,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const fails = [];
     for (const [a, names] of byArchetype) {
       const list = [...names].filter(n => read(n));
-      for (const n of list.slice(1)) if (mask(read(n).rows) !== mask(read(list[0]).rows)) fails.push(`${a}: ${n} has not the outline of ${list[0]}`);
+      for (const n of list.slice(1)) if (mask(read(n).rows, n) !== mask(read(list[0]).rows, list[0])) fails.push(`${a}: ${n} has not the outline of ${list[0]}`);
     }
     assert.deepEqual(fails, []);
   });
@@ -62,7 +71,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     for (const [a, names] of byArchetype) {
       const first = [...names].find(n => read(n));
       if (!first) continue;
-      const k = mask(read(first).rows);
+      const k = mask(read(first).rows, first);
       if (seen.has(k)) fails.push(`${a} (${first}) has the outline of ${seen.get(k)}`); else seen.set(k, `${a} (${first})`);
     }
     assert.deepEqual(fails, []);

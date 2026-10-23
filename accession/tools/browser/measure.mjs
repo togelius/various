@@ -22,21 +22,55 @@ export function layout() {
   return out;
 }
 
-// Is a label showing for this title: its panel displayed, on screen, with the title in it?
+// Is a label showing for this title, with its title really seen: displayed, not
+// transparent, inside every box that clips it, and the topmost thing at its centre? (Each
+// function here is sent to the page on its own, so the check is written into each.)
 export function labelVisible(title) {
-  const l = document.querySelector('#sheet .label'), h = l && l.querySelector('h2');
-  if (!l || !h) return false;
-  const r = l.getBoundingClientRect(), cs = getComputedStyle(document.getElementById('sheet'));
-  return r.width > 0 && r.height > 0 && r.top < window.innerHeight && r.bottom > 0 && cs.display !== 'none' && cs.visibility !== 'hidden'
-    && (!title || h.textContent.includes(title));
+  const seen = e => {
+    if (!e) return false;
+    const r = e.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    for (let p = e; p && p !== document.documentElement; p = p.parentElement) {
+      const cs = getComputedStyle(p);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return false;
+      if (p !== e && cs.overflow !== 'visible') {
+        const q = p.getBoundingClientRect();
+        if (r.bottom <= q.top || r.top >= q.bottom || r.right <= q.left || r.left >= q.right) return false;
+      }
+    }
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    if (cx < 0 || cy < 0 || cx >= window.innerWidth || cy >= window.innerHeight) return false;
+    const top = document.elementFromPoint(cx, cy);
+    return !!top && (top === e || e.contains(top));
+  };
+  const h = document.querySelector('#sheet .label h2');
+  return seen(h) && (!title || h.textContent.includes(title));
 }
 
-// Is the newest log sentence on screen as text?
+// Is the log on screen as it should be: its newest line the newest sentence in the history,
+// really seen; on a laptop, the last six sentences listed?
 export function logVisible() {
-  const lines = document.querySelectorAll('#strip .log .line'), last = lines[lines.length - 1];
-  if (!last || !last.textContent.trim()) return false;
-  const r = last.getBoundingClientRect();
-  return r.width > 0 && r.height > 0 && r.top >= 0 && r.bottom <= window.innerHeight && getComputedStyle(last).display !== 'none';
+  const seen = e => {
+    if (!e) return false;
+    const r = e.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    for (let p = e; p && p !== document.documentElement; p = p.parentElement) {
+      const cs = getComputedStyle(p);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return false;
+      if (p !== e && cs.overflow !== 'visible') {
+        const q = p.getBoundingClientRect();
+        if (r.bottom <= q.top || r.top >= q.bottom || r.right <= q.left || r.left >= q.right) return false;
+      }
+    }
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    if (cx < 0 || cy < 0 || cx >= window.innerWidth || cy >= window.innerHeight) return false;
+    const top = document.elementFromPoint(cx, cy);
+    return !!top && (top === e || e.contains(top));
+  };
+  const history = window.ACCESSION.history, lines = [...document.querySelectorAll('#strip .log .line')], last = lines[lines.length - 1];
+  if (!last || !history.length || last.textContent !== history[history.length - 1] || !seen(last)) return false;
+  if (window.innerWidth >= 900 && lines.filter(l => getComputedStyle(l).display !== 'none').length !== Math.min(6, history.length)) return false;
+  return true;
 }
 
 // Interactive targets under 44×44 CSS pixels that are on screen.
@@ -56,11 +90,19 @@ export function targets() {
 // every hostile, and every actor in the view model either on the board or at an edge.
 export function board() {
   const A = window.ACCESSION, R = A.renderer, vm = A.vm(), b = document.getElementById('board').getBoundingClientRect();
-  const drawn = R.inspect(), inside = q => q.x + q.w / 2 >= b.left && q.y + q.h / 2 >= b.top && q.x + q.w / 2 < b.right && q.y + q.h / 2 < b.bottom;
+  // The clear part of the board: what the phone's label sheet does not cover. Anything said
+  // to be on the board must also be the topmost thing there (a canvas of the board).
+  const clearBottom = b.bottom - UI.sheetCover();
+  const drawn = R.inspect(), inside = q => {
+    const cx = q.x + q.w / 2, cy = q.y + q.h / 2;
+    if (cx < b.left || cy < b.top || cx >= b.right || cy >= clearBottom) return false;
+    const e = document.elementFromPoint(cx, cy);
+    return !!e && !!e.closest('#board');
+  };
   const radii = [];
   for (const t of drawn.filter(d => d.kind === 'tile')) {
     const tr = R.tileRect(t.x, t.y), q = tr.rect, c = tr.centre;
-    if (q.x < b.left || q.y < b.top || q.x + q.w > b.right || q.y + q.h > b.bottom) continue;
+    if (q.x < b.left || q.y < b.top || q.x + q.w > b.right || q.y + q.h > clearBottom) continue;
     const owner = vm.actors.find(a => t.x >= a.x && t.y >= a.y && t.x < a.x + a.size && t.y < a.y + a.size);
     const ok = p => p && ((p.x === t.x && p.y === t.y) || (owner && p.x === owner.x && p.y === owner.y));
     let r = 0;
@@ -90,19 +132,19 @@ export function board() {
     }
   }
   // Every mark the view model holds is drawn: telegraphs, the path preview and the selection.
-  const onBoard = (x, y) => { const c = R.tileRect(x, y).centre; return c.x >= b.left && c.y >= b.top && c.x < b.right && c.y < b.bottom; };
+  const onBoard = (x, y) => { const c = R.tileRect(x, y).centre; return c.x >= b.left && c.y >= b.top && c.x < b.right && c.y < clearBottom; };
   for (const m of vm.marks) if (onBoard(m.x, m.y) && !drawn.find(d => d.kind === 'mark' && d.id === m.kind + ':' + m.x + ',' + m.y && inside(d.rect))) problems.push(`mark ${m.kind} at ${m.x},${m.y} is not drawn`);
   for (const [x, y] of vm.path || []) if (onBoard(x, y) && !drawn.find(d => d.id === 'path:' + x + ',' + y)) problems.push(`path tile ${x},${y} is not drawn`);
   const sel = vm.selectedTile || (vm.selection && vm.actors.find(a => a.uid === vm.selection));
   if (sel && onBoard(sel.x, sel.y) && !drawn.find(d => d.id === 'selection')) problems.push('the selection is not drawn');
-  return { tiles: radii.length, p10, min: radii[0] || 0, disc, hostiles, actors: vm.actors.length, problems };
+  return { tiles: radii.length, p10, min: radii[0] || 0, disc, hostiles, actors: vm.actors.length, path: (vm.path || []).length, selection: !!(vm.selection || vm.selectedTile), problems };
 }
 
 // Walk towards the nearest exhibit until one is in sight and within reach, by tapping
 // visible tiles as a player would. Returns the exhibit's uid, or null.
 export function nextStep(reach) {
   const A = window.ACCESSION, s = A.state, you = s.actors[0], vm = A.vm(), R = A.renderer;
-  const cheb = a => Math.max(Math.abs(a.x - you.x), Math.abs(a.y - you.y));
+  const cheb = a => Actors.dist(Actors.byUid(s, a.uid), you.x, you.y);
   const seen = vm.actors.filter(a => a.uid !== 'you').sort((p, q) => cheb(p) - cheb(q));
   if (seen.length && cheb(seen[0]) <= reach) return { done: seen[0].uid };
   const targets = s.actors.filter(a => a.uid !== 'you' && !a.gone).map(a => ({ a, p: Path.to(s, a.x, a.y) })).filter(t => t.p.length).sort((p, q) => p.p.length - q.p.length);
@@ -117,4 +159,18 @@ export function nextStep(reach) {
     if (c.x > b.left + 4 && c.y > b.top + 4 && c.x < b.right - 4 && c.y < b.bottom - 4) return { tile: { x, y }, at: c };
   }
   return { stuck: 'no visible step towards an exhibit' };
+}
+
+// A free, visible, reachable tile 1–3 steps from you, whose centre picks it and is the
+// topmost thing there: { x, y, c } with c its centre in client pixels, or null.
+export function freeTile() {
+  const A = window.ACCESSION, vm = A.vm(), y = A.state.actors[0], b = document.getElementById('board').getBoundingClientRect();
+  for (let r = 3; r >= 1; r--) for (const [dx, dy] of [[r, 0], [-r, 0], [0, r], [0, -r]]) {
+    const x = y.x + dx, yy = y.y + dy;
+    if (x < 0 || yy < 0 || x >= vm.w || yy >= vm.h || vm.vis[yy * vm.w + x] !== 2 || vm.actors.some(a => x >= a.x && yy >= a.y && x < a.x + a.size && yy < a.y + a.size)) continue;
+    if (Path.to(A.state, x, yy).length !== r) continue;
+    const c = A.renderer.tileRect(x, yy).centre, e = document.elementFromPoint(c.x, c.y), p = A.renderer.pick(c.x, c.y);
+    if (c.x > b.left && c.y > b.top && c.x < b.right && c.y < b.bottom && e && e.closest('#board') && p && p.x === x && p.y === yy) return { x, y: yy, c };
+  }
+  return null;
 }

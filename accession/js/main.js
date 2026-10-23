@@ -73,12 +73,14 @@ const Main = (() => {
   // or closed if its exhibit is gone.
   function act_(action, fromWalk) {
     if (!fromWalk) { stopWalking(); ui.path = null; ui.selectedTile = null; }
+    // After death nothing more happens, and nothing pushes the cause out of the log.
+    if (state.over) { draw(); return []; }
     fresh = false;
     const ev = Step.step(state, action);
     ui.events = ev;
     const nameOf = Labels.nameOf(state);
     const lines = ev.map(e => Text.event(e, nameOf)).filter(Boolean);
-    if (lines.length) say(lines.slice(-2).join(' '));
+    if (lines.length) say(lines.join(' '));
     if (state.over && !ev.some(e => e.k === 'died' && e.who === 'you')) say('You fell.');
     if (ui.selection) {
       const l = Labels.of(state, ui.selection);
@@ -106,7 +108,7 @@ const Main = (() => {
   // tile previews the path and a second tap on the same tile goes.
   function tap(t) {
     if (walking) { stopWalking(); return; }
-    if (state.over) { say('You fell. The run is over.'); draw(); return; }
+    if (state.over) { draw(); return; }
     const you = state.actors[0], vm = ViewModel.derive(state, ui);
     const hit = vm.actors.find(a => t.x >= a.x && t.y >= a.y && t.x < a.x + a.size && t.y < a.y + a.size);
     if (hit && hit.uid === 'you') { act_({ a: 'wait' }); return; }
@@ -154,14 +156,28 @@ const Main = (() => {
   // label sheet's cover is passed on so the camera keeps you and the exhibit above it.
   function draw() {
     const vm = ViewModel.derive(state, ui);
-    // While a label is open the camera centres between you and its exhibit, in the part of
-    // the board the phone's sheet leaves clear.
+    // While a label is open the camera centres between you and its exhibit in the part of
+    // the board the phone's sheet leaves clear; if both cannot fit, it keeps the exhibit in
+    // view and leans as far towards you as it can.
     const open = UI.labelShown() && vm.actors.find(a => a.uid === UI.labelShown());
-    if (open) vm.camera = { x: Math.floor((2 * vm.you.x + 2 * open.x + open.size - 1) / 4), y: Math.floor((2 * vm.you.y + 2 * open.y + open.size - 1) / 4) };
+    if (open) vm.camera = focus(vm.you, open);
     UI.top({ hp: vm.you.hp, maxHp: vm.you.maxHp, grade: vm.you.grade, clock: vm.clock });
     UI.strip(Labels.strip(state), history, fresh);
     renderer.setInset(UI.sheetCover());
     renderer.draw(vm);
+  }
+
+  function focus(you, a) {
+    const tr = renderer.tileRect(you.x, you.y), b = board.getBoundingClientRect();
+    if (!tr || !tr.rect.w) return { x: you.x, y: you.y };
+    const cols = Math.floor(b.width / tr.rect.w), rows = Math.floor((b.height - UI.sheetCover()) / tr.rect.h);
+    const axis = (p, q, n, span) => {
+      const lo = Math.min(p, q), hi = Math.max(p + 1, q + n);
+      if (hi - lo <= span) return Math.floor((lo + hi - 1) / 2);
+      const reach = Math.max(0, Math.floor((span - n) / 2));
+      return p < q ? q - reach : q + n - 1 + reach;
+    };
+    return { x: axis(you.x, a.x, a.size, cols), y: axis(you.y, a.y, a.size, rows) };
   }
 
   // Examine (x): the nearest readable thing first, then each visible exhibit in turn.
@@ -170,7 +186,7 @@ const Main = (() => {
     const you = state.actors[0], s = Labels.strip(state);
     if (s) return s.uid;
     const seen = ViewModel.derive(state, {}).actors.filter(a => a.uid !== 'you')
-      .map(a => ({ uid: a.uid, d: Math.max(Math.abs(a.x - you.x), Math.abs(a.y - you.y)) })).sort((p, q) => p.d - q.d);
+      .map(a => ({ uid: a.uid, d: Actors.dist(Actors.byUid(state, a.uid), you.x, you.y) })).sort((p, q) => p.d - q.d);
     return seen.length ? seen[0].uid : null;
   }
   function examine() {

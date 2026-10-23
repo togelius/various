@@ -25,8 +25,8 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
   -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
 button { font: inherit; color: var(--ink); }
 button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; }
-#app { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr auto auto; grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "top" "board" "strip" "bar"; padding-top: env(safe-area-inset-top); }
+#app { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr auto auto; grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "top top" "board board" "strip zoom" "bar bar"; padding-top: env(safe-area-inset-top); }
 
 /* The top bar. */
 #top { grid-area: top; display: flex; align-items: center; gap: 8px; padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left));
@@ -42,11 +42,11 @@ button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; 
 .badge-grade { font-size: 0.85em; font-weight: 600; }
 #top .btn { min-height: 44px; }
 
-/* The board, with Zoom in its top-right corner. */
+/* The board, with Zoom beside the strip, off the board, so it never covers a tile. */
 #board { grid-area: board; position: relative; min-height: 0; touch-action: none; overflow: hidden; }
 #board canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
-.zoom { grid-area: board; justify-self: end; align-self: start; margin: 8px max(8px, env(safe-area-inset-right)) 0 0; z-index: 2;
-  background: rgba(31, 28, 37, 0.85); }
+.zoom { grid-area: zoom; align-self: center; margin: 0 max(8px, env(safe-area-inset-right)) 0 0; }
+#app::before { content: ""; grid-area: zoom; background: var(--panel); border-top: 1px solid var(--line); }
 
 /* The strip: the nearest label and the log. A phone shows the newest sentence until the
    next action, then the nearest label. */
@@ -110,9 +110,12 @@ button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; 
 .note { color: var(--muted); font-size: 0.9em; }
 
 @media (min-width: 900px) and (min-aspect-ratio: 4/3) {
-  #app { grid-template-columns: minmax(0, 1fr) 380px; grid-template-rows: auto auto minmax(0, 1fr) auto auto;
-    grid-template-areas: "top top" "board strip" "board side" "board slots" "bar slots"; }
-  #strip { cursor: default; border-top: none; border-left: 1px solid var(--line); max-height: 34vh; overflow-y: auto; }
+  #app { grid-template-columns: minmax(0, 1fr) auto 380px; grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "top top top" "board board strip" "board board side" "board board slots" "bar zoom slots"; }
+  #app::before { border-top: none; }
+  .zoom { margin: 6px 8px max(8px, env(safe-area-inset-bottom)) 0; align-self: end; }
+  #strip { cursor: default; border-top: none; border-left: 1px solid var(--line); }
+  #strip .log { max-height: 26vh; overflow-y: auto; }
   #strip .summary, #strip .log, #strip.fresh .summary, #strip.has-summary:not(.fresh) .log { display: block; }
   #strip .log { margin-top: 6px; }
   #strip .log .line { display: block; padding: 2px 0; border-top: 1px solid var(--line); }
@@ -3009,15 +3012,22 @@ const Views = (() => {
 // CSS pixels, and actorRect(a), an actor's sprite square, so the same marks look the same
 // in top-down and 3D, and in 3D nothing in the scene can hide them.
 //
-// list() returns a display list in drawing order: { kind, id, x, y, rect, paint(ctx) }.
+// list() returns a display list in drawing order: { kind, id, group, x, y, rect, paint(ctx) }.
 // A view paints it, keeps it for renderer.inspect(), and the 3D view repaints items one at
-// a time to build its id buffer, so what the checks measure is exactly what was drawn.
+// a time to build its id buffer, so what the checks measure is exactly what was drawn. An
+// actor and its own marks share a group, as do a telegraph's fill and its number.
+//
+// clearBottom is how far down the board is uncovered (the phone's label sheet covers the
+// rest). A hostile whose centre is outside the clear part gets an edge arrow inside it.
 'use strict';
 const Marks = (() => {
   const S = () => ART.palettes.semantic;
 
-  function list(vm, rectOf, actorRect, tile, width, height) {
-    const out = [], add = (kind, id, x, y, rect, paint) => out.push({ kind, id, x, y, rect, paint });
+  function list(vm, rectOf, actorRect, tile, width, height, clearBottom) {
+    const out = [];
+    let group = null;
+    const add = (kind, id, x, y, rect, paint) => out.push({ kind, id, group: group || id, x, y, rect, paint });
+    const bottom = clearBottom == null ? height : Math.min(height, clearBottom);
     const ringAt = (i, j) => i >= 0 && j >= 0 && i < vm.w && j < vm.h && vm.ring[j * vm.w + i];
 
     // Your ring: a faint fill and an outline round the tiles that count as close.
@@ -3056,15 +3066,18 @@ const Marks = (() => {
     const tele = vm.marks.filter(m => m.kind === 'telegraph');
     for (const m of tele) {
       const r = rectOf(m.x, m.y);
+      group = 'telegraph:' + m.x + ',' + m.y;
       add('mark', 'telegraph:' + m.x + ',' + m.y, m.x, m.y, r, ctx => {
         ctx.globalAlpha = 0.35; ctx.fillStyle = S().hazard; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.globalAlpha = 1;
         ctx.strokeStyle = S().hazard; ctx.lineWidth = 2; ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
       });
+      group = null;
     }
 
     // Actors, back to front: northern ones first, so a nearer one is drawn over a farther one.
     const placed = order(vm.actors).map(a => ({ a, r: actorRect(a) }));
     for (const { a, r } of placed) {
+      group = a.uid;
       add('actor', a.uid, a.x, a.y, r, ctx => {
         const img = Sprites.board(a.sprite, vm.dept);
         ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(r.x + r.w * 0.15, r.y + r.h * 0.84, r.w * 0.7, r.h * 0.12);
@@ -3075,8 +3088,10 @@ const Marks = (() => {
 
     // Each actor's marks: the reserved base bar (hostile red, your blue), its state glyph or
     // pips above it, a hit cue, and the selection bracket.
+    group = null;
     const hit = new Set((vm.cues && vm.cues.hit) || []);
     for (const { a, r } of placed) {
+      group = a.uid;
       const bar = { x: r.x + r.w * 0.2, y: r.y + r.h - 3, w: r.w * 0.6, h: 2 };
       add(a.hostile ? 'mark' : 'own', a.hostile ? 'hostile:' + a.uid : 'you-bar', a.x, a.y, bar, ctx => {
         ctx.fillStyle = a.hostile ? S().hostile : S().player; ctx.fillRect(bar.x, bar.y, bar.w, bar.h);
@@ -3105,19 +3120,20 @@ const Marks = (() => {
       }
       if (vm.selection === a.uid) add('mark', 'selection', a.x, a.y, r, ctx => bracket(ctx, r.x, r.y, r.w, r.h));
     }
+    group = null;
 
     if (vm.selectedTile) {
       const r = rectOf(vm.selectedTile.x, vm.selectedTile.y);
       add('mark', 'selection', vm.selectedTile.x, vm.selectedTile.y, r, ctx => bracket(ctx, r.x, r.y, r.w, r.h));
     }
 
-    // Off-screen threats (§7.2): a hostile you can see whose centre is off the board gets a
-    // hostile-red arrow at the nearest edge, pointing towards it.
+    // Off-screen threats (§7.2): a hostile you can see whose centre is outside the clear part
+    // of the board gets a hostile-red arrow at the nearest clear edge, pointing towards it.
     const k = 10;
     for (const { a, r } of placed) {
       const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
-      if (!a.hostile || (cx >= 0 && cy >= 0 && cx < width && cy < height)) continue;
-      const ex = Math.max(k, Math.min(width - k, cx)), ey = Math.max(k, Math.min(height - k, cy)), ang = Math.atan2(cy - ey, cx - ex);
+      if (!a.hostile || (cx >= 0 && cy >= 0 && cx < width && cy < bottom)) continue;
+      const ex = Math.max(k, Math.min(width - k, cx)), ey = Math.max(k, Math.min(bottom - k, cy)), ang = Math.atan2(cy - ey, cx - ex);
       add('mark', 'edge:' + a.uid, a.x, a.y, { x: ex - k, y: ey - k, w: 2 * k, h: 2 * k }, ctx => {
         ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang);
         ctx.fillStyle = S().hostile; ctx.strokeStyle = '#000000'; ctx.lineWidth = 1.5;
@@ -3129,6 +3145,7 @@ const Marks = (() => {
     // The telegraph numbers go on last, so no actor covers them.
     for (const m of tele) {
       const t = rectOf(m.x, m.y), fs = Math.floor(Math.min(t.w, t.h) * 0.42), r = { x: t.x + t.w / 2 - fs, y: t.y + t.h / 2 - fs * 0.6, w: 2 * fs, h: 1.2 * fs };
+      group = 'telegraph:' + m.x + ',' + m.y;
       add('mark', 'telegraph:' + m.x + ',' + m.y, m.x, m.y, r, ctx => {
         ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#000000'; ctx.lineWidth = 3;
         ctx.font = `bold ${fs}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -3284,7 +3301,7 @@ Views.register('topdown', 'Flat', host => {
     }
     const rectOf = (x, y) => ({ x: ox + x * t, y: oy + y * t, w: t, h: t });
     const actorRect = a => ({ x: ox + a.x * t, y: oy + a.y * t, w: t * (a.size || 1), h: t * (a.size || 1) });
-    items = Marks.list(vm, rectOf, actorRect, t, r.width, r.height);
+    items = Marks.list(vm, rectOf, actorRect, t, r.width, r.height, r.height - inset);
     for (const it of items) it.paint(ctx);
   }
 
@@ -7272,6 +7289,23 @@ const Board3D = (() => {
       m.geometry.dispose(); m.geometry = g;
     }
 
+    // The height of whatever stands on a tile, as build() draws it (glass counts as see-through).
+    function top_(ch) {
+      switch (ch) {
+        case '#': case '+': case 'S': return H.wall;
+        case 'o': return H.column;
+        case 'H': case '|': return H.partition;
+        case 'v': case 'k': return H.caseBase;
+        case 'p': case 'C': return H.plinth;
+        case 'f': case 'c': return H.furniture;
+        case 'l': return H.lectern;
+        case 'b': return H.bench;
+        case '~': return H.rail;
+        case '=': return H.rope;
+        default: return 0;
+      }
+    }
+
     // Ids: 0 is nothing; floor tiles are 1 + index; anything standing on a tile is
     // 1 + w·h + index. Actors and marks follow from 1 + 2·w·h (idBuffer()).
     function build(vm) {
@@ -7293,8 +7327,13 @@ const Board3D = (() => {
         quad(fl, [[x, 0, y], [x + 1, 0, y], [x + 1, 0, y + 1], [x, 0, y + 1]], floor, fid);
         const wood = C('#6b4a2e'), mark = (f, c) => quad(fl, [[x + f, 0.004, y + f], [x + 1 - f, 0.004, y + f], [x + 1 - f, 0.004, y + 1 - f], [x + f, 0.004, y + 1 - f]], c, fid);
         switch (ch) {
-          // Entrance and exit: a readable-coloured mat, as the flat board marks them.
-          case 'E': case 'X': mark(0.3, scale(lin(ART.palettes.semantic.readable), 0.55 * k)); break;
+          // Entrance and exit: a readable-coloured mat, as the flat board marks them, laid in
+          // the part of the tile the camera sees in front of whatever stands to the south.
+          case 'E': case 'X': {
+            const seen = 1 - top_(y + 1 < vm.h ? vm.tiles[y + 1][x] : '#') * COS / SIN, z1 = y + Math.max(0.2, Math.min(0.94, seen - 0.04));
+            quad(fl, [[x + 0.15, 0.004, y + 0.06], [x + 0.85, 0.004, y + 0.06], [x + 0.85, 0.004, z1], [x + 0.15, 0.004, z1]], scale(lin(ART.palettes.semantic.readable), 0.55 * k), oid);
+            break;
+          }
           // An open door: the leaf swung back against the west jamb.
           case "'": block(so, x, y + 0.04, x + 0.12, y + 0.96, 0, H.wall - 0.1, C('#7a5232'), C('#7a5232'), oid); break;
           // Shards: glass specks on the floor.
@@ -7369,7 +7408,7 @@ const Board3D = (() => {
         const q = rectOf(x, y);
         if (q.x + q.w > 0 && q.y + q.h > 0 && q.x < size.width && q.y < size.height) tiles.push({ kind: 'tile', id: x + ',' + y, x, y, rect: q });
       }
-      items = Marks.list(vm, rectOf, actorRect, s, size.width, size.height);
+      items = Marks.list(vm, rectOf, actorRect, s, size.width, size.height, size.height - inset);
       for (const it of items) it.paint(octx);
     }
 
@@ -7456,11 +7495,16 @@ const Board3D = (() => {
           sx.save(); d.paint(sx); sx.restore();
           const a = sx.getImageData(x0, y0, x1 - x0, y1 - y0).data, mine = [];
           for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (a[((y - y0) * (x1 - x0) + x - x0) * 4 + 3] > 32) { ids[y * w + x] = id; mine.push(y * w + x); }
+          legend[id].group = d.group;
           own.push([id, mine]);
         }
+        // Shown: the pixels that end up showing the item itself or something of its own group
+        // (an actor's own marks, a telegraph's number), not the scene and not anything else.
+        // Self: the pixels showing the item itself, or a telegraph's number laid over it.
         for (const [id, mine] of own) {
           legend[id].alone = mine.length;
-          legend[id].onTop = mine.filter(i => ids[i] > 2 * n).length;
+          legend[id].onTop = mine.filter(i => legend[ids[i]] && legend[ids[i]].group === legend[id].group).length;
+          legend[id].self = mine.filter(i => ids[i] === id || (legend[ids[i]] && /^telegraph:/.test(legend[ids[i]].id))).length;
         }
       }
       return { w, h, ids, legend };
@@ -7625,6 +7669,9 @@ const UI = (() => {
     const summary = s ? `<div class="summary"><div class="strip-title">${s.stateIcons.map(i => P(i, 14)).join('')}<span>${esc(s.title)}</span></div>
       <div class="strip-sub">${s.pictos.map(p => P(p, 14)).join('')}${s.behaviour ? `<span class="behaviour">${esc(s.behaviour)}</span>` : ''}</div></div>` : '';
     els.strip.innerHTML = summary + `<div class="log">${(lines || []).map(l => `<div class="line">${esc(l)}</div>`).join('')}</div>`;
+    // The laptop's log scrolls inside its own box; keep the newest sentence in view.
+    const log = els.strip.querySelector('.log');
+    if (log) log.scrollTop = log.scrollHeight;
   }
 
   // The full label. Its state icons sit on a dark chip, as the pictograms do, so every
@@ -7784,12 +7831,14 @@ const Main = (() => {
   // or closed if its exhibit is gone.
   function act_(action, fromWalk) {
     if (!fromWalk) { stopWalking(); ui.path = null; ui.selectedTile = null; }
+    // After death nothing more happens, and nothing pushes the cause out of the log.
+    if (state.over) { draw(); return []; }
     fresh = false;
     const ev = Step.step(state, action);
     ui.events = ev;
     const nameOf = Labels.nameOf(state);
     const lines = ev.map(e => Text.event(e, nameOf)).filter(Boolean);
-    if (lines.length) say(lines.slice(-2).join(' '));
+    if (lines.length) say(lines.join(' '));
     if (state.over && !ev.some(e => e.k === 'died' && e.who === 'you')) say('You fell.');
     if (ui.selection) {
       const l = Labels.of(state, ui.selection);
@@ -7817,7 +7866,7 @@ const Main = (() => {
   // tile previews the path and a second tap on the same tile goes.
   function tap(t) {
     if (walking) { stopWalking(); return; }
-    if (state.over) { say('You fell. The run is over.'); draw(); return; }
+    if (state.over) { draw(); return; }
     const you = state.actors[0], vm = ViewModel.derive(state, ui);
     const hit = vm.actors.find(a => t.x >= a.x && t.y >= a.y && t.x < a.x + a.size && t.y < a.y + a.size);
     if (hit && hit.uid === 'you') { act_({ a: 'wait' }); return; }
@@ -7865,14 +7914,28 @@ const Main = (() => {
   // label sheet's cover is passed on so the camera keeps you and the exhibit above it.
   function draw() {
     const vm = ViewModel.derive(state, ui);
-    // While a label is open the camera centres between you and its exhibit, in the part of
-    // the board the phone's sheet leaves clear.
+    // While a label is open the camera centres between you and its exhibit in the part of
+    // the board the phone's sheet leaves clear; if both cannot fit, it keeps the exhibit in
+    // view and leans as far towards you as it can.
     const open = UI.labelShown() && vm.actors.find(a => a.uid === UI.labelShown());
-    if (open) vm.camera = { x: Math.floor((2 * vm.you.x + 2 * open.x + open.size - 1) / 4), y: Math.floor((2 * vm.you.y + 2 * open.y + open.size - 1) / 4) };
+    if (open) vm.camera = focus(vm.you, open);
     UI.top({ hp: vm.you.hp, maxHp: vm.you.maxHp, grade: vm.you.grade, clock: vm.clock });
     UI.strip(Labels.strip(state), history, fresh);
     renderer.setInset(UI.sheetCover());
     renderer.draw(vm);
+  }
+
+  function focus(you, a) {
+    const tr = renderer.tileRect(you.x, you.y), b = board.getBoundingClientRect();
+    if (!tr || !tr.rect.w) return { x: you.x, y: you.y };
+    const cols = Math.floor(b.width / tr.rect.w), rows = Math.floor((b.height - UI.sheetCover()) / tr.rect.h);
+    const axis = (p, q, n, span) => {
+      const lo = Math.min(p, q), hi = Math.max(p + 1, q + n);
+      if (hi - lo <= span) return Math.floor((lo + hi - 1) / 2);
+      const reach = Math.max(0, Math.floor((span - n) / 2));
+      return p < q ? q - reach : q + n - 1 + reach;
+    };
+    return { x: axis(you.x, a.x, a.size, cols), y: axis(you.y, a.y, a.size, rows) };
   }
 
   // Examine (x): the nearest readable thing first, then each visible exhibit in turn.
@@ -7881,7 +7944,7 @@ const Main = (() => {
     const you = state.actors[0], s = Labels.strip(state);
     if (s) return s.uid;
     const seen = ViewModel.derive(state, {}).actors.filter(a => a.uid !== 'you')
-      .map(a => ({ uid: a.uid, d: Math.max(Math.abs(a.x - you.x), Math.abs(a.y - you.y)) })).sort((p, q) => p.d - q.d);
+      .map(a => ({ uid: a.uid, d: Actors.dist(Actors.byUid(state, a.uid), you.x, you.y) })).sort((p, q) => p.d - q.d);
     return seen.length ? seen[0].uid : null;
   }
   function examine() {

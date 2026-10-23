@@ -4,15 +4,22 @@
 // CSS pixels, and actorRect(a), an actor's sprite square, so the same marks look the same
 // in top-down and 3D, and in 3D nothing in the scene can hide them.
 //
-// list() returns a display list in drawing order: { kind, id, x, y, rect, paint(ctx) }.
+// list() returns a display list in drawing order: { kind, id, group, x, y, rect, paint(ctx) }.
 // A view paints it, keeps it for renderer.inspect(), and the 3D view repaints items one at
-// a time to build its id buffer, so what the checks measure is exactly what was drawn.
+// a time to build its id buffer, so what the checks measure is exactly what was drawn. An
+// actor and its own marks share a group, as do a telegraph's fill and its number.
+//
+// clearBottom is how far down the board is uncovered (the phone's label sheet covers the
+// rest). A hostile whose centre is outside the clear part gets an edge arrow inside it.
 'use strict';
 const Marks = (() => {
   const S = () => ART.palettes.semantic;
 
-  function list(vm, rectOf, actorRect, tile, width, height) {
-    const out = [], add = (kind, id, x, y, rect, paint) => out.push({ kind, id, x, y, rect, paint });
+  function list(vm, rectOf, actorRect, tile, width, height, clearBottom) {
+    const out = [];
+    let group = null;
+    const add = (kind, id, x, y, rect, paint) => out.push({ kind, id, group: group || id, x, y, rect, paint });
+    const bottom = clearBottom == null ? height : Math.min(height, clearBottom);
     const ringAt = (i, j) => i >= 0 && j >= 0 && i < vm.w && j < vm.h && vm.ring[j * vm.w + i];
 
     // Your ring: a faint fill and an outline round the tiles that count as close.
@@ -51,15 +58,18 @@ const Marks = (() => {
     const tele = vm.marks.filter(m => m.kind === 'telegraph');
     for (const m of tele) {
       const r = rectOf(m.x, m.y);
+      group = 'telegraph:' + m.x + ',' + m.y;
       add('mark', 'telegraph:' + m.x + ',' + m.y, m.x, m.y, r, ctx => {
         ctx.globalAlpha = 0.35; ctx.fillStyle = S().hazard; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.globalAlpha = 1;
         ctx.strokeStyle = S().hazard; ctx.lineWidth = 2; ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
       });
+      group = null;
     }
 
     // Actors, back to front: northern ones first, so a nearer one is drawn over a farther one.
     const placed = order(vm.actors).map(a => ({ a, r: actorRect(a) }));
     for (const { a, r } of placed) {
+      group = a.uid;
       add('actor', a.uid, a.x, a.y, r, ctx => {
         const img = Sprites.board(a.sprite, vm.dept);
         ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(r.x + r.w * 0.15, r.y + r.h * 0.84, r.w * 0.7, r.h * 0.12);
@@ -70,8 +80,10 @@ const Marks = (() => {
 
     // Each actor's marks: the reserved base bar (hostile red, your blue), its state glyph or
     // pips above it, a hit cue, and the selection bracket.
+    group = null;
     const hit = new Set((vm.cues && vm.cues.hit) || []);
     for (const { a, r } of placed) {
+      group = a.uid;
       const bar = { x: r.x + r.w * 0.2, y: r.y + r.h - 3, w: r.w * 0.6, h: 2 };
       add(a.hostile ? 'mark' : 'own', a.hostile ? 'hostile:' + a.uid : 'you-bar', a.x, a.y, bar, ctx => {
         ctx.fillStyle = a.hostile ? S().hostile : S().player; ctx.fillRect(bar.x, bar.y, bar.w, bar.h);
@@ -100,19 +112,20 @@ const Marks = (() => {
       }
       if (vm.selection === a.uid) add('mark', 'selection', a.x, a.y, r, ctx => bracket(ctx, r.x, r.y, r.w, r.h));
     }
+    group = null;
 
     if (vm.selectedTile) {
       const r = rectOf(vm.selectedTile.x, vm.selectedTile.y);
       add('mark', 'selection', vm.selectedTile.x, vm.selectedTile.y, r, ctx => bracket(ctx, r.x, r.y, r.w, r.h));
     }
 
-    // Off-screen threats (§7.2): a hostile you can see whose centre is off the board gets a
-    // hostile-red arrow at the nearest edge, pointing towards it.
+    // Off-screen threats (§7.2): a hostile you can see whose centre is outside the clear part
+    // of the board gets a hostile-red arrow at the nearest clear edge, pointing towards it.
     const k = 10;
     for (const { a, r } of placed) {
       const cx = r.x + r.w / 2, cy = r.y + r.h / 2;
-      if (!a.hostile || (cx >= 0 && cy >= 0 && cx < width && cy < height)) continue;
-      const ex = Math.max(k, Math.min(width - k, cx)), ey = Math.max(k, Math.min(height - k, cy)), ang = Math.atan2(cy - ey, cx - ex);
+      if (!a.hostile || (cx >= 0 && cy >= 0 && cx < width && cy < bottom)) continue;
+      const ex = Math.max(k, Math.min(width - k, cx)), ey = Math.max(k, Math.min(bottom - k, cy)), ang = Math.atan2(cy - ey, cx - ex);
       add('mark', 'edge:' + a.uid, a.x, a.y, { x: ex - k, y: ey - k, w: 2 * k, h: 2 * k }, ctx => {
         ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang);
         ctx.fillStyle = S().hostile; ctx.strokeStyle = '#000000'; ctx.lineWidth = 1.5;
@@ -124,6 +137,7 @@ const Marks = (() => {
     // The telegraph numbers go on last, so no actor covers them.
     for (const m of tele) {
       const t = rectOf(m.x, m.y), fs = Math.floor(Math.min(t.w, t.h) * 0.42), r = { x: t.x + t.w / 2 - fs, y: t.y + t.h / 2 - fs * 0.6, w: 2 * fs, h: 1.2 * fs };
+      group = 'telegraph:' + m.x + ',' + m.y;
       add('mark', 'telegraph:' + m.x + ',' + m.y, m.x, m.y, r, ctx => {
         ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#000000'; ctx.lineWidth = 3;
         ctx.font = `bold ${fs}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';

@@ -123,6 +123,9 @@ const UI = (() => {
     const summary = s ? `<div class="summary"><div class="strip-title">${s.stateIcons.map(i => P(i, 14)).join('')}<span>${esc(s.title)}</span></div>
       <div class="strip-sub">${s.pictos.map(p => P(p, 14)).join('')}${s.behaviour ? `<span class="behaviour">${esc(s.behaviour)}</span>` : ''}</div></div>` : '';
     els.strip.innerHTML = summary + `<div class="log">${(lines || []).map(l => `<div class="line">${esc(l)}</div>`).join('')}</div>`;
+    // The laptop's log scrolls inside its own box; keep the newest sentence in view.
+    const log = els.strip.querySelector('.log');
+    if (log) log.scrollTop = log.scrollHeight;
   }
 
   // The full label. Its state icons sit on a dark chip, as the pictograms do, so every

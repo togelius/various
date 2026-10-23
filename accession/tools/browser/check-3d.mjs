@@ -18,6 +18,60 @@ const SCENES = [{ dept: 'M11', seed: 3, prog: 'enfilade' }, { dept: 'A4', seed: 
 const lines = [], problems = [];
 const bad = s => problems.push(s);
 
+const measure = page => page.evaluate(() => {
+  const A = window.ACCESSION, R = A.renderer, vm = A.vm();
+  const t = performance.now(); R.draw(vm); const frame = performance.now() - t;
+  const floor = R.idBuffer({ floorOnly: true }), scene = R.idBuffer({ scene: true }), full = R.idBuffer();
+  const count = buf => { const c = new Map(); for (const id of buf.ids) if (id) c.set(id, (c.get(id) || 0) + 1); return c; };
+  const fc = count(floor), sc = count(scene), n = vm.w * vm.h;
+  // Tiles with an actor or a mark on them are left out: what stands there covers them.
+  const marked = new Set();
+  for (const a of vm.actors) for (let dy = 0; dy < a.size; dy++) for (let dx = 0; dx < a.size; dx++) marked.add((a.y + dy) * vm.w + a.x + dx);
+  for (const k of vm.marks) marked.add(k.y * vm.w + k.x);
+  for (const [x, y] of vm.path || []) marked.add(y * vm.w + x);
+  let tiles = 0, hidden = 0, worst = 1;
+  for (const [id, total] of fc) {
+    const i = id - 1;
+    if (i < 0 || i >= n || marked.has(i) || vm.vis[i] !== 2 || total < 20) continue;
+    tiles++;
+    // A tile is shown by its floor or by what stands on it (a case covers its own floor).
+    const f = ((sc.get(id) || 0) + (sc.get(id + n) || 0)) / total;
+    worst = Math.min(worst, f);
+    if (f < 0.25) hidden++;
+  }
+  // Entrances and exits: each one on screen shows its mat (drawn with the tile's object id).
+  const doors = [];
+  for (const [id, total] of fc) {
+    const i = id - 1;
+    if (i < 0 || i >= n || vm.vis[i] !== 2) continue;
+    const x = i % vm.w, y = (i - x) / vm.w, ch = vm.tiles[y][x];
+    if ((ch === 'E' || ch === 'X') && total >= 20 && !(sc.get(id + n) > 0)) doors.push(`${ch} at ${x},${y}`);
+  }
+  const overlays = Object.values(full.legend).filter(l => l.alone);
+  const low = overlays.filter(l => l.onTop / l.alone < 0.9).map(l => `${l.kind} ${l.id} ${Math.round(100 * l.onTop / l.alone)}%`)
+    .concat(overlays.filter(l => l.kind === 'actor' && l.self / l.alone < 0.75).map(l => `actor ${l.id}, under its own marks, ${Math.round(100 * l.self / l.alone)}%`));
+  // The page as composited: the 2D layer is the topmost element over every actor and mark.
+  const top = R.inspect().filter(d => d.kind !== 'tile').filter(d => {
+    const b = document.getElementById('board').getBoundingClientRect(), cx = d.rect.x + d.rect.w / 2, cy = d.rect.y + d.rect.h / 2;
+    if (cx < b.left || cy < b.top || cx >= b.right || cy >= b.bottom) return false;
+    const e = document.elementFromPoint(cx, cy);
+    return !(e && e.classList.contains('board-over'));
+  }).map(d => d.id);
+  return { frame, tiles, hidden, worst, overlays: overlays.length, low, doors, top };
+});
+
+function report(tag, m, b) {
+  const pct = m.tiles ? 100 * m.hidden / m.tiles : 100;
+  lines.push(`${tag}: ${m.tiles} unmarked visible tiles, ${m.hidden} under 25% visible (${pct.toFixed(1)}%), least visible ${Math.round(100 * m.worst)}%; ${m.overlays} actors and marks on top; frame ${m.frame.toFixed(1)} ms`);
+  if (m.tiles < 20) bad(`${tag}: only ${m.tiles} tiles measured`);
+  if (pct > 2) bad(`${tag}: ${pct.toFixed(1)}% of unmarked visible tiles show under 25% of their floor`);
+  if (!m.overlays) bad(`${tag}: no actors or marks in the id buffer`);
+  m.low.forEach(l => bad(`${tag}: ${l} of its pixels show over the scene`));
+  m.doors.forEach(d => bad(`${tag}: the ${d} has no visible mat`));
+  m.top.forEach(d => bad(`${tag}: ${d} is not on the topmost layer of the board`));
+  b.problems.forEach(p => bad(`${tag}: ${p}`));
+}
+
 for (const sc of SCENES) {
   const t0 = Date.now();
   const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 390, height: 844 }, dpr: 1, query: `?dept=${sc.dept}&seed=${sc.seed}&board=board3d` });
@@ -27,6 +81,8 @@ for (const sc of SCENES) {
   const active = await page.evaluate(() => window.ACCESSION.views.active());
   if (active.id !== 'board3d') { bad(`${tag}: the 3D view is not active (${active.note})`); await browser.close(); continue; }
   await page.evaluate(() => window.ACCESSION.setting('motion', 'reduce'));
+  // At the entrance first, where the entrance mat must show.
+  report(`${tag} at the entrance`, await measure(page), await page.evaluate(board));
   // A fixed scene: walk towards the nearest exhibit until it is within 4 tiles.
   for (let i = 0; i < 30; i++) {
     const st = await page.evaluate(nextStep, 4);
@@ -36,39 +92,8 @@ for (const sc of SCENES) {
   }
   for (const z of [0, 1]) {
     await page.evaluate(i => window.ACCESSION.setZoom(i), z);
-    const m = await page.evaluate(() => {
-      const A = window.ACCESSION, R = A.renderer, vm = A.vm();
-      const t = performance.now(); R.draw(vm); const frame = performance.now() - t;
-      const floor = R.idBuffer({ floorOnly: true }), scene = R.idBuffer({ scene: true }), full = R.idBuffer();
-      const count = buf => { const c = new Map(); for (const id of buf.ids) if (id) c.set(id, (c.get(id) || 0) + 1); return c; };
-      const fc = count(floor), sc = count(scene), n = vm.w * vm.h;
-      // Tiles with an actor or a mark on them are left out: what stands there covers them.
-      const marked = new Set();
-      for (const a of vm.actors) for (let dy = 0; dy < a.size; dy++) for (let dx = 0; dx < a.size; dx++) marked.add((a.y + dy) * vm.w + a.x + dx);
-      for (const k of vm.marks) marked.add(k.y * vm.w + k.x);
-      for (const [x, y] of vm.path || []) marked.add(y * vm.w + x);
-      let tiles = 0, hidden = 0, worst = 1;
-      for (const [id, total] of fc) {
-        const i = id - 1;
-        if (i < 0 || i >= n || marked.has(i) || vm.vis[i] !== 2 || total < 20) continue;
-        tiles++;
-        // A tile is shown by its floor or by what stands on it (a case covers its own floor).
-        const f = ((sc.get(id) || 0) + (sc.get(id + n) || 0)) / total;
-        worst = Math.min(worst, f);
-        if (f < 0.25) hidden++;
-      }
-      const overlays = Object.values(full.legend).filter(l => l.alone);
-      const low = overlays.filter(l => l.onTop / l.alone < 0.9).map(l => `${l.kind} ${l.id} ${Math.round(100 * l.onTop / l.alone)}%`);
-      return { frame, tiles, hidden, worst, overlays: overlays.length, low };
-    });
-    const b = await page.evaluate(board);
-    const pct = m.tiles ? 100 * m.hidden / m.tiles : 100;
-    lines.push(`${tag} zoom ${z}: ${m.tiles} unmarked visible tiles, ${m.hidden} under 25% visible (${pct.toFixed(1)}%), least visible ${Math.round(100 * m.worst)}%; ${m.overlays} actors and marks on top; frame ${m.frame.toFixed(1)} ms`);
-    if (m.tiles < 20) bad(`${tag} zoom ${z}: only ${m.tiles} tiles measured`);
-    if (pct > 2) bad(`${tag} zoom ${z}: ${pct.toFixed(1)}% of unmarked visible tiles show under 25% of their floor`);
-    if (!m.overlays) bad(`${tag} zoom ${z}: no actors or marks in the id buffer`);
-    m.low.forEach(l => bad(`${tag} zoom ${z}: ${l} of its pixels show over the scene`));
-    b.problems.forEach(p => bad(`${tag} zoom ${z}: ${p}`));
+    const m = await measure(page);
+    report(`${tag} zoom ${z}`, m, await page.evaluate(board));
   }
   await page.evaluate(() => window.ACCESSION.setZoom(0));
   // Context loss and restore.

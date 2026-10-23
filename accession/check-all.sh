@@ -18,11 +18,13 @@ run() {
 
 run lint-core      node tools/lint-core.js
 run lint-numbers   node tools/lint-numbers.js
-[ -f tools/lint-registry.js ] && run lint-registry node tools/lint-registry.js
-[ -f tools/build-art.js ] && run art-up-to-date node tools/build-art.js --check
+run lint-registry  node tools/lint-registry.js
+run art-up-to-date node tools/build-art.js --check
 run tests          node test/run.js
 run build          python3 tools/build-single.py
-[ -x tools/revert-test.sh ] && run revert-3d tools/revert-test.sh
+# The revert test runs while there is a 3D view to remove; after a real revert there is not.
+if [ -f js/view/board3d.js ]; then run revert-3d bash tools/revert-test.sh
+else echo "ok    revert-3d: no 3D view in this tree, nothing to revert"; fi
 # --no-browser does not run the browser checks: each prints SKIPPED, so the run fails
 # unless --allow-skip is also given (BUILD.md §10.2).
 no_browser=0; for a in "$@"; do [ "$a" = "--no-browser" ] && no_browser=1; done

@@ -117,6 +117,23 @@ const Board3D = (() => {
       m.geometry.dispose(); m.geometry = g;
     }
 
+    // The height of whatever stands on a tile, as build() draws it (glass counts as see-through).
+    function top_(ch) {
+      switch (ch) {
+        case '#': case '+': case 'S': return H.wall;
+        case 'o': return H.column;
+        case 'H': case '|': return H.partition;
+        case 'v': case 'k': return H.caseBase;
+        case 'p': case 'C': return H.plinth;
+        case 'f': case 'c': return H.furniture;
+        case 'l': return H.lectern;
+        case 'b': return H.bench;
+        case '~': return H.rail;
+        case '=': return H.rope;
+        default: return 0;
+      }
+    }
+
     // Ids: 0 is nothing; floor tiles are 1 + index; anything standing on a tile is
     // 1 + w·h + index. Actors and marks follow from 1 + 2·w·h (idBuffer()).
     function build(vm) {
@@ -138,8 +155,13 @@ const Board3D = (() => {
         quad(fl, [[x, 0, y], [x + 1, 0, y], [x + 1, 0, y + 1], [x, 0, y + 1]], floor, fid);
         const wood = C('#6b4a2e'), mark = (f, c) => quad(fl, [[x + f, 0.004, y + f], [x + 1 - f, 0.004, y + f], [x + 1 - f, 0.004, y + 1 - f], [x + f, 0.004, y + 1 - f]], c, fid);
         switch (ch) {
-          // Entrance and exit: a readable-coloured mat, as the flat board marks them.
-          case 'E': case 'X': mark(0.3, scale(lin(ART.palettes.semantic.readable), 0.55 * k)); break;
+          // Entrance and exit: a readable-coloured mat, as the flat board marks them, laid in
+          // the part of the tile the camera sees in front of whatever stands to the south.
+          case 'E': case 'X': {
+            const seen = 1 - top_(y + 1 < vm.h ? vm.tiles[y + 1][x] : '#') * COS / SIN, z1 = y + Math.max(0.2, Math.min(0.94, seen - 0.04));
+            quad(fl, [[x + 0.15, 0.004, y + 0.06], [x + 0.85, 0.004, y + 0.06], [x + 0.85, 0.004, z1], [x + 0.15, 0.004, z1]], scale(lin(ART.palettes.semantic.readable), 0.55 * k), oid);
+            break;
+          }
           // An open door: the leaf swung back against the west jamb.
           case "'": block(so, x, y + 0.04, x + 0.12, y + 0.96, 0, H.wall - 0.1, C('#7a5232'), C('#7a5232'), oid); break;
           // Shards: glass specks on the floor.
@@ -214,7 +236,7 @@ const Board3D = (() => {
         const q = rectOf(x, y);
         if (q.x + q.w > 0 && q.y + q.h > 0 && q.x < size.width && q.y < size.height) tiles.push({ kind: 'tile', id: x + ',' + y, x, y, rect: q });
       }
-      items = Marks.list(vm, rectOf, actorRect, s, size.width, size.height);
+      items = Marks.list(vm, rectOf, actorRect, s, size.width, size.height, size.height - inset);
       for (const it of items) it.paint(octx);
     }
 
@@ -301,11 +323,16 @@ const Board3D = (() => {
           sx.save(); d.paint(sx); sx.restore();
           const a = sx.getImageData(x0, y0, x1 - x0, y1 - y0).data, mine = [];
           for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) if (a[((y - y0) * (x1 - x0) + x - x0) * 4 + 3] > 32) { ids[y * w + x] = id; mine.push(y * w + x); }
+          legend[id].group = d.group;
           own.push([id, mine]);
         }
+        // Shown: the pixels that end up showing the item itself or something of its own group
+        // (an actor's own marks, a telegraph's number), not the scene and not anything else.
+        // Self: the pixels showing the item itself, or a telegraph's number laid over it.
         for (const [id, mine] of own) {
           legend[id].alone = mine.length;
-          legend[id].onTop = mine.filter(i => ids[i] > 2 * n).length;
+          legend[id].onTop = mine.filter(i => legend[ids[i]] && legend[ids[i]].group === legend[id].group).length;
+          legend[id].self = mine.filter(i => ids[i] === id || (legend[ids[i]] && /^telegraph:/.test(legend[ids[i]].id))).length;
         }
       }
       return { w, h, ids, legend };
