@@ -1,6 +1,6 @@
 'use strict';
 // The rules tier (DESIGN §18.8), revision 5b: node tools/rules/run.cjs --tier=1 [--depth=10] [--oracle-depth=10] [--workers=4]
-//   [--compare=path|none]
+//   [--compare=path|none] [--out=dir] [--resume]
 // Tier 1: rules.js loads pure; the golden cases through rules.js; the exhaustive enumeration to depth 10 with every
 // invariant; the coverage floors and thin gaps; the mutants (killed by golden and the enumeration to depth 6). I1 (the
 // game equals the oracle, field by field on every drop) runs when there is a SPEC 5b oracle: --compare=path, or by
@@ -65,11 +65,15 @@ async function tier1() {
   const g = runGolden(R), gbad = g.filter(r => !r.ok);
   line(!gbad.length, 'golden cases (§18.9, SPEC §9)', Date.now() - t, `${g.length - gbad.length}/${g.length}` + (gbad.length ? ' — ' + gbad.map(r => r.n + ': ' + r.msg).join(' | ') : ''));
   // enumeration and invariants
-  t = Date.now();
   const out = arg('out', E.OUT_DEFAULT);
-  const res = await E.enumerate({ depth, half: 2, workers, compare, oracleDepth, fullTo: 6, sampleHeavy: 8, onDepth: p => console.log(`     depth ${p.depth}: ${p.builds} builds (${(p.ms / 1000).toFixed(1)} s)`) });
+  t = Date.now();
+  // a checkpoint in the report directory lets a run that the machine cut short go on with --resume
+  const fmtO = o => o ? `; oracle ${o.drops} drops, cache hits ${o.hits}, misses ${o.misses}, verified ${o.verified}` : '';
+  const res = await E.enumerate({ depth, half: 2, workers, compare, oracleDepth, fullTo: 6, sampleHeavy: 8, checkpoint: path.join(out, 'checkpoint'), resume: process.argv.includes('--resume'),
+    onDepth: (p, s, restored) => console.log(`     depth ${p.depth}: ${p.builds} builds (${(p.ms / 1000).toFixed(1)} s${fmtO(p.oracle)})${restored ? ' [from the checkpoint]' : p.chunksReused ? ` [${p.chunksReused} chunks from the checkpoint]` : ''}`) });
+  if (res.resumed) console.log(`     resumed at depth ${res.resumed.fromDepth}, after ${(res.resumed.elapsedBefore / 1000).toFixed(1)} s of enumeration before the restart`);
   const sum = E.writeReports(out, res, { depth, half: 2, compare, oracleDepth });
-  const tEnum = Date.now() - t;
+  const tEnum = res.ms;
   line(true, `enumeration to depth ${depth} on the real base (mirror images merged)`, tEnum, `${sum.builds} builds, ${sum.drops} drops; per depth ${JSON.stringify(sum.buildsPerDepth)}`);
   for (const k of E.INVS) {
     if ((k === 'I1' || k === 'I1CACHE') && !compare) continue;
@@ -98,7 +102,7 @@ async function tier1() {
   line(!alive.length && M.length >= 15, 'mutants killed by golden + enumeration to depth 6 + invariants' + (compare ? ' (I1 among them)' : ''), Date.now() - t, `${M.length - alive.length}/${M.length}` + (alive.length ? ' — survivors: ' + alive.map(m => m.name).join(', ') : '') +
     (compare ? `; I1 alone kills ${M.filter(m => m.i1).length}/${M.length} (not: ${M.filter(m => !m.i1).map(m => m.name).join(', ') || 'none'})` : ''));
   fs.writeFileSync(path.join(out, 'mutants.json'), JSON.stringify(M, null, 1));
-  console.log(`${failed ? 'FAIL' : 'PASS'} tier 1: ${failed} failing check(s), ${open.size} open question(s) for the designer${open.size ? ' (' + [...open].join(', ') + ')' : ''}, in ${((Date.now() - T0) / 1000).toFixed(1)} s; reports in ${out}`);
+  console.log(`${failed ? 'FAIL' : 'PASS'} tier 1: ${failed} failing check(s), ${open.size} open question(s) for the designer${open.size ? ' (' + [...open].join(', ') + ')' : ''}, in ${((Date.now() - T0 + (res.resumed ? res.resumed.elapsedBefore : 0)) / 1000).toFixed(1)} s${res.resumed ? ' (with the enumeration before the restart)' : ''}; reports in ${out}`);
 }
 
 (async () => {

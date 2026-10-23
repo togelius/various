@@ -20,8 +20,13 @@
 // - 8 filmstrips of a tile falling off (5 frames: held, touching, tipping over the point it touches, falling, and
 //   faint where it would next hit something);
 // - 8 random builds and 4 bot-like end states, from a seeded box of 42 squares and 18 triangles;
-// - 4 planted defects drawn directly (bypassing the rules), from a pool of 14: revision 4's triangle on a point and its
-//   half-off square every round, and 2 more drawn by the seed;
+// - 4 planted defects drawn directly (bypassing the rules), from a pool of 16: revision 4's triangle on a point every
+//   round, and 3 more drawn by the seed, one each of three kinds (a tile floating or hanging in the air; tiles
+//   overlapping or one through another; a tile standing on a point or a corner, or with its middle off its support).
+//   Revision 4's half-off square and the other square at a half step stay in the pool but are not drawn: under 5b a
+//   tile held by half an edge is ordinary (triangles do it in every round), so a reviewer who sees no spec has no
+//   reason to flag a square doing it, and a plant must be a plain defect. Nor is the chain of hung triangles carrying
+//   a square out over the rug (real tiles can hang so; only the hand's reach forbids it);
 // - 4 golden good pictures (§18.9 cases 12, 2, 4 and 8, built).
 // How a fall is drawn (lib.fall): the tile tips about the point it rests on, toward the side its middle is on (a
 // knife-edge, its middle right over the point, tips the way with more room), then only moves down, sliding along
@@ -274,21 +279,25 @@ function runBot(policy, r, maxTiles) {
 const sqAt = (x, y) => lib.shape('sq', x * 2, y);
 const upAt = (x, y) => lib.shape('up', x * 2, y);
 const dnAt = (x, y) => lib.shape('dn', x * 2, y); // x: its top edge's left end, y: its point's height
+// kind: 'air' (floating or hanging in the air), 'overlap' (overlapping, or one tile through another), 'point' (on a
+// point or a corner, or its middle off what holds it); weak: not drawn (see above)
 const PLANTS = [
-  { id: 'P01', rev4: true, name: "revision 4's triangle balanced on a triangle's point", base: ['■-1', '■0', '▲-0.5', '■1'], add: () => [upAt(-0.5, 1 + H)] },
-  { id: 'P02', rev4: true, name: "revision 4's square half a tile off the top of a column", base: ['■-2', '■0', '■0', '▲-2'], add: () => [sqAt(0.5, 2)] },
-  { id: 'P03', name: 'a square floating above the build, touching nothing', base: ['■-2', '■-1', '▲-1.5', '■1'], add: () => [sqAt(1, 1.42)] },
-  { id: 'P04', name: 'two squares overlapping by 0.4 tile', base: ['■-2', '■-1', '▲-2'], add: () => [sqAt(-0.4, 0)] },
-  { id: 'P05', name: 'a square at a half step, half over the gap between two columns', base: ['■-2', '■0', '▲0', '■1'], add: () => [sqAt(-1.5, 1)] },
-  { id: 'P06', name: '▼ standing on its point alone on a flat top', base: ['■-1', '■0', '▲-2'], add: () => [dnAt(-0.5, 1)] },
-  { id: 'P07', name: '▲ with only a quarter of its base on the square under it', base: ['■1', '■-1', '▲-1'], add: () => [upAt(1.75, 1)] },
-  { id: 'P08', name: 'a square hanging in mid-air beside a column, touching it only at a corner', base: ['■-1', '■-1', '■-1', '▲0'], add: () => [sqAt(0, 3)] },
-  { id: 'P09', name: 'a chain of hung triangles carrying a square out over the rug', base: ['■-1', '▲1', '▼1.5', '▲1.5'], add: () => [dnAt(2, H), sqAt(2, 2 * H)] },
-  { id: 'P10', name: 'a square sunk 0.3 tile into the square under it', base: ['■-2', '■-1', '▲0'], add: () => [sqAt(-1, 0.7)] },
-  { id: 'P11', name: '▼ balanced point to point on a ▲', base: ['▲0', '■-2', '■-1'], add: () => [dnAt(0, H)] },
-  { id: 'P12', name: 'two triangles overlapping, one off the lattice', base: ['▲-1', '■1'], add: () => [upAt(-0.6, 0)] },
-  { id: 'P13', name: 'a square on top of a ▼ that stands on its point', base: ['■-2', '■1', '▲1'], add: () => [dnAt(-0.5, 0), sqAt(-0.5, H)] },
-  { id: 'P14', name: 'a triangle floating in the air past the end of the car', base: ['■0', '■1', '▲-1'], add: () => [upAt(2.25, 0.1)] }
+  { id: 'P01', rev4: true, kind: 'point', name: "revision 4's triangle balanced on a triangle's point", base: ['■-1', '■0', '▲-0.5', '■1'], add: () => [upAt(-0.5, 1 + H)] },
+  { id: 'P02', rev4: true, weak: true, name: "revision 4's square half a tile off the top of a column", base: ['■-2', '■0', '■0', '▲-2'], add: () => [sqAt(0.5, 2)] },
+  { id: 'P03', kind: 'air', name: 'a square floating above the build, touching nothing', base: ['■-2', '■-1', '▲-1.5', '■1'], add: () => [sqAt(1, 1.42)] },
+  { id: 'P04', kind: 'overlap', name: 'two squares overlapping by 0.4 tile', base: ['■-2', '■-1', '▲-2'], add: () => [sqAt(-0.4, 0)] },
+  { id: 'P05', weak: true, name: 'a square at a half step, half over the gap between two columns', base: ['■-2', '■0', '▲0', '■1'], add: () => [sqAt(-1.5, 1)] },
+  { id: 'P06', kind: 'point', name: '▼ standing on its point alone on a flat top', base: ['■-1', '■0', '▲-2'], add: () => [dnAt(-0.5, 1)] },
+  { id: 'P07', kind: 'point', name: '▲ with only a quarter of its base on the square under it, its middle past the square', base: ['■1', '■-1', '▲-1'], add: () => [upAt(1.75, 1)] },
+  { id: 'P08', kind: 'air', name: 'a square hanging in mid-air beside a column, touching it only at a corner', base: ['■-1', '■-1', '■-1', '▲0'], add: () => [sqAt(0, 3)] },
+  { id: 'P09', weak: true, name: 'a chain of hung triangles carrying a square out over the rug', base: ['■-1', '▲1', '▼1.5', '▲1.5'], add: () => [dnAt(2, H), sqAt(2, 2 * H)] },
+  { id: 'P10', kind: 'overlap', name: 'a square sunk 0.3 tile into the square under it', base: ['■-2', '■-1', '▲0'], add: () => [sqAt(-1, 0.7)] },
+  { id: 'P11', kind: 'point', name: '▼ balanced point to point on a ▲', base: ['▲0', '■-2', '■-1'], add: () => [dnAt(0, H)] },
+  { id: 'P12', kind: 'overlap', name: 'two triangles overlapping, one off the lattice', base: ['▲-1', '■1'], add: () => [upAt(-0.6, 0)] },
+  { id: 'P13', kind: 'point', name: 'a square on top of a ▼ that stands on its point', base: ['■-2', '■1', '▲1'], add: () => [dnAt(-0.5, 0), sqAt(-0.5, H)] },
+  { id: 'P14', kind: 'air', name: 'a triangle floating in the air past the end of the car', base: ['■0', '■1', '▲-1'], add: () => [upAt(2.25, 0.1)] },
+  { id: 'P15', kind: 'point', name: 'a square held only at a corner: its corner on a triangle\'s point, the rest of it over the empty car', base: ['■-2', '▲-0.5'], add: () => [sqAt(0, H)] },
+  { id: 'P16', kind: 'overlap', name: 'a triangle\'s point poking up through the square on it', base: ['■1', '▲-1'], add: () => [sqAt(-1, 0.55)] }
 ];
 
 // What the pictures show, for the reviewers (nothing about the rules): written next to the sheets as legend.txt
@@ -465,9 +474,9 @@ async function main() {
     const log = runBot(bot, rnd, n);
     pics.push({ kind: 'bot', what: bot + '-like bot after ' + log.length + ' tiles', build: fmtLog(log), svg: rulesPicture(built(log).T) });
   }
-  // 5. planted defects: revision 4's two every round, two more by the seed
-  const rest = rnd.shuffle(PLANTS.filter(p => !p.rev4).slice());
-  const drawn = PLANTS.filter(p => p.rev4).concat(rest.slice(0, 2));
+  // 5. planted defects: revision 4's triangle on a point every round, and one each of three kinds by the seed
+  const always = PLANTS.filter(p => p.rev4 && !p.weak);
+  const drawn = always.concat(['air', 'overlap', 'point'].map(k => rnd.pick(PLANTS.filter(p => p.kind === k && !p.weak && !always.includes(p)))));
   for (const P of drawn) pics.push({ kind: 'plant', plant: P.id, what: 'PLANTED DEFECT ' + P.id + ': ' + P.name, build: P.base.concat(['+ defect drawn directly']), svg: plantPicture(P) });
   // 6. golden good pictures
   for (const n of [12, 2, 4, 8]) {
@@ -517,7 +526,7 @@ async function main() {
     plants: all.filter(p => p.kind === 'plant').map(p => p.id), golden: all.filter(p => p.kind === 'golden').map(p => p.id),
     scoring: 'A reviewer counts only if they flag at least 3 of the 4 plants and at most 1 golden picture. The round passes when no other picture is flagged by 2 or more counted reviewers.',
     falls: 'Falls (filmstrips, pairs) are drawn by tools/review/lib.cjs fall(): the tile tips about the point it rests on toward the side its middle is on (a knife-edge tips the way with more room), then only moves down, sliding along what it meets, and is drawn faint where it would next hit something. Tiles balanced on points either side of their middle are left out.',
-    plantPool: PLANTS.map(p => ({ id: p.id, name: p.name, alwaysDrawn: !!p.rev4, drawnThisRound: drawn.includes(p) })),
+    plantPool: PLANTS.map(p => ({ id: p.id, name: p.name, kind: p.kind || null, alwaysDrawn: always.includes(p), notDrawn: p.weak ? 'held by half an edge or hung like real tiles: not a plain defect under 5b' : null, drawnThisRound: drawn.includes(p) })),
     pictures: all.map(p => {
       const o = { id: p.id, sheet: p.sheet, kind: p.kind, plant: p.kind === 'plant', golden: p.golden || null, what: p.what };
       for (const k of ['measure', 'value', 'build', 'hand', 'outcome', 'outcomes', 'fall']) if (p[k] !== undefined) o[k] = p[k];

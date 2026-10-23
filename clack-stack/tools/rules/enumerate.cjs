@@ -27,7 +27,7 @@
 // ▼ and the farthest overhang) and minimal pairs are written as JSON.
 //
 //   node tools/rules/enumerate.cjs [--depth=10] [--workers=4] [--compare=path] [--oracle-depth=N] [--out=dir]
-//                                  [--fail-fast] [--full-to=6] [--sample=8]
+//                                  [--fail-fast] [--full-to=6] [--sample=8] [--cache-cap=N] [--checkpoint=dir [--resume]]
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -59,6 +59,8 @@ const R3 = Math.sqrt(3);
 const yOf = y => (y[0] + y[1] * R3) / 2;
 
 function fnv(s, seed) { let h = seed || 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+// the oracle cache's value: a 30-bit hash of the oracle's strict string (a small integer, so millions fit in a worker)
+function valueHash(s) { return fnv(s, 0x9747b28c) & 0x3fffffff; }
 // a 53-bit hash of a string (for key() comparisons across millions of builds; a collision is re-checked in full)
 function hash53(s) { return fnv(s) * 2097152 + (fnv(s, 0x811c9dc5 ^ 0x5bd1e995) & 0x1fffff); }
 
@@ -286,8 +288,17 @@ function makeVisitor(R, opts) {
     function i1(piece, col, way, verify, r) {
       let gr = r, gThrew = null;
       if (gr === undefined) { try { gr = R.drop(B, piece, col, way); } catch (e) { gThrew = e.message; } }
-      const o = cmpHook.drop(node.oh, piece, col, way, verify);
+      let o = cmpHook.drop(node.oh, piece, col, way, verify);
       st.oracleDrops++;
+      if (o.hs !== undefined) {
+        // a cache hit holds only a 30-bit hash of the oracle's string: equal hashes are agreement (a disagreement
+        // hidden by a hash clash has odds of 1 in 10^9 per disagreeing drop); otherwise ask the oracle afresh, for
+        // the full diff, and if the fresh answer is not the one the cache held, the cache was wrong (I1CACHE)
+        if (gThrew === null && valueHash(strictStr(gr)) === o.hs) { st.checks.I1++; return true; }
+        const hs = o.hs;
+        o = cmpHook.fresh(node.oh, piece, col, way);
+        if (o.threw === undefined && valueHash(o.s) !== hs) o.unsound = 'hash ' + hs;
+      }
       if (o.unsound !== undefined) check('I1CACHE', false, () => `cached oracle result for ${piece} ${col} ${way || ''} differs from a fresh one: ${o.unsound} vs ${o.s}`);
       else if (verify) st.checks.I1CACHE++;
       const mode = typeof piece === 'string' && piece === 'sq' ? 'sq' : (way || 'auto');
@@ -664,9 +675,40 @@ function localKey(h, piece, col, way) {
   parts.sort();
   return h.half + '|' + piece + '|' + (way === undefined ? '' : String(way)) + '|' + col + '|' + parts.join(' ');
 }
+// The same key, compact (the cache holds millions): two UTF-16 units per tile (kind and col offset; height as
+// p·256 + q, y = (p + q√3)/2), after a prefix for half, piece, way and col. Exactly as discriminating as localKey: it
+// falls back to localKey's text (marked apart) whenever a value is outside the compact ranges.
+const KIND = { sq: 0, up: 1, down: 2, dn: 2 }, WAYC = { sq: 0, up: 1, down: 2, '': 3 };
+function compactKey(h, piece, col, way) {
+  const T = h && h.tiles, half = h && h.half;
+  if (!Array.isArray(T) || typeof col !== 'number' || !Number.isInteger(col) || Math.abs(col) > 1000 || !Number.isInteger(half) || half < 1 || half > 1000) return null;
+  const pw = piece === 'sq' && way === undefined ? 0 : piece === 'tri' ? WAYC[way === undefined ? '' : way] : undefined;
+  const long = () => { const k = localKey(h, piece, col, way); return k === null ? null : '\u0002' + k; };
+  if (pw === undefined) return long();
+  const parts = [];
+  for (const t of T) {
+    let c, k, p, q;
+    if (t && t.y0 && 'kind' in t) {
+      c = t.col; k = KIND[t.kind];
+      const { A, B, D } = t.y0;
+      if (typeof A !== 'bigint' || typeof B !== 'bigint' || typeof D !== 'bigint' || D <= 0n || (2n * A) % D !== 0n || (2n * B) % D !== 0n) return long();
+      p = Number(2n * A / D); q = Number(2n * B / D);
+    } else if (t && 't' in t && 'c' in t && 'a' in t) { c = t.c; k = KIND[t.t]; p = 2 * t.a; q = t.b; }
+    else return null;
+    if (!Number.isInteger(c)) return long();
+    if (c < col - 2 || c > col + 2) continue;
+    if (k === undefined || !(p >= 0 && p < 256 && q >= 0 && q < 256 && Number.isInteger(p) && Number.isInteger(q))) return long();
+    parts.push(String.fromCharCode(0x100 + k * 8 + (c - col + 2), p * 256 + q));
+  }
+  parts.sort();
+  return '\u0001' + String.fromCharCode(half, pw, col + 1000) + parts.join('');
+}
 // a hook is {name, root(half) -> handle, child(handle, {piece, col, way}) -> handle,
-//   drop(handle, piece, col, way, verify) -> {s: strict string, o?: result} | {threw: message}, plus unsound when a
-//   verified cache hit differs from a fresh drop}
+//   drop(handle, piece, col, way, verify) -> {s: strict string, o?: result} | {hs: hash of the strict string} |
+//   {threw: message}, plus unsound when a verified cache hit differs from a fresh drop; fresh(handle, piece, col, way)}
+// The I1 cache maps a drop's compact local key to a 30-bit hash of the oracle's strict string (or the throw message);
+// a hit is checked by hash, and every 16th hit (every hit to depth 3) is verified against a fresh oracle drop
+// (I1CACHE). Placing (child) keeps its own small cache of whole strings, since place needs the oracle's result.
 function hookFromModule(spec, hopts) {
   let O, cacheOn = !(hopts && hopts.cache === false);
   if (spec === 'rules') O = rulesVm.load(); // a second copy of rules.js: tests the plumbing (always agrees)
@@ -676,23 +718,25 @@ function hookFromModule(spec, hopts) {
     cacheOn = false; // a mutant need not be local
   } else O = require(path.resolve(spec));
   const exact = !(spec === 'rules' || spec.startsWith('mutant:'));
-  const cache = new Map(), CAP = (hopts && hopts.cacheCap) || 1500000;
+  const cache = new Map(), CAP = (hopts && hopts.cacheCap) || 8000000;
+  const placeCache = new Map(), PCAP = 300000;
   const stats = { hits: 0, misses: 0, verified: 0, unsound: 0 };
   function fresh(h, piece, col, way) {
     try { const o = O.drop(h, piece, col, way); return { s: strictStr(o, exact), o }; }
     catch (e) { return { threw: String(e && e.message) }; }
   }
-  const enc = x => (x.threw !== undefined ? '!' + x.threw : x.s);
+  // cached value: the throw message (a string) or the hash of the strict string (a number)
+  const enc = x => (x.threw !== undefined ? x.threw : valueHash(x.s));
   function drop(h, piece, col, way, verify) {
-    const k = cacheOn ? localKey(h, piece, col, way) : null;
+    const k = cacheOn ? compactKey(h, piece, col, way) : null;
     if (k === null) return fresh(h, piece, col, way);
     const c = cache.get(k);
     if (c !== undefined) {
       stats.hits++;
-      if (!verify) return c[0] === '!' ? { threw: c.slice(1) } : { s: c };
+      if (!verify) return typeof c === 'string' ? { threw: c } : { hs: c };
       stats.verified++;
       const x = fresh(h, piece, col, way);
-      if (enc(x) !== c) { stats.unsound++; x.unsound = c; }
+      if (enc(x) !== c) { stats.unsound++; x.unsound = typeof c === 'string' ? 'throws: ' + c : 'hash ' + c; }
       return x;
     }
     stats.misses++;
@@ -704,14 +748,21 @@ function hookFromModule(spec, hopts) {
   return {
     name: spec, stats,
     root: half => O.newBuild({ half }),
+    // the oracle's own build, one more tile: its own result for that drop, placed (whole strings cached by local key)
     child: (h, e) => {
-      const way = e.piece === 'sq' ? undefined : e.way, x = drop(h, e.piece, e.col, way, false);
-      if (x.threw !== undefined) throw new Error('the oracle throws on ' + canon.fmtDrop(e) + ': ' + x.threw);
-      let r = x.o;
-      if (!r) { const p = JSON.parse(x.s); r = p.keys || !exact ? O.drop(h, e.piece, e.col, way) : p; }
+      const way = e.piece === 'sq' ? undefined : e.way, k = cacheOn ? compactKey(h, e.piece, e.col, way) : null;
+      let x = k === null ? undefined : placeCache.get(k);
+      if (x === undefined) {
+        x = fresh(h, e.piece, e.col, way);
+        x = x.threw !== undefined ? '!' + x.threw : x.s;
+        if (k !== null) { if (placeCache.size >= PCAP) placeCache.delete(placeCache.keys().next().value); placeCache.set(k, x); }
+      }
+      if (x[0] === '!') throw new Error('the oracle throws on ' + canon.fmtDrop(e) + ': ' + x.slice(1));
+      const p = JSON.parse(x);
+      const r = p.keys || !exact ? O.drop(h, e.piece, e.col, way) : p;
       return O.place(h, r);
     },
-    drop
+    drop, fresh
   };
 }
 
@@ -785,7 +836,67 @@ function processChunk(R, visit, items, opts, hook) {
   return { st, kids: [...kids] };
 }
 
-// in-process or with worker threads; returns {stats, perDepth, ms}
+// ---- checkpoints ----
+// A long run (depth 10 with the oracle takes hours) can be resumed after the machine restarts: with
+// opts.checkpoint = dir, each finished chunk's result and, at the end of each depth, the merged stats and the next
+// frontier are written there; with opts.resume, a run whose settings, rules.js and oracle are the same starts from
+// what is there (the chunks of a depth are the same slices of the same frontier, so a saved chunk stands for its
+// slice). Without opts.resume an old checkpoint is discarded. The directory is removed when the run finishes.
+// what a saved chunk or state means: bump it whenever a change to this file changes what a chunk computes (a change
+// that only makes it faster, such as heap sizes, leaves it)
+const CHECKPOINT_FORMAT = 'rev5b-1';
+function makeCheckpoint(opts, srcText) {
+  const dir = opts.checkpoint, crypto = require('crypto');
+  const sha = t => crypto.createHash('sha256').update(t).digest('hex');
+  const sig = JSON.stringify({
+    depth: opts.depth, half: opts.half, workers: opts.workers, fullTo: opts.fullTo, sampleHeavy: opts.sampleHeavy, failFast: !!opts.failFast,
+    only: opts.only || null, oracleDepth: opts.oracleDepth === undefined ? null : opts.oracleDepth, cache: opts.cache !== false, cacheCap: opts.cacheCap || null,
+    outline: opts.outline !== false, rules: sha(srcText),
+    compare: opts.compare || null, oracle: opts.compare && fs.existsSync(path.resolve(opts.compare)) ? sha(fs.readFileSync(path.resolve(opts.compare))) : null,
+    enumerate: CHECKPOINT_FORMAT
+  });
+  const stateFile = path.join(dir, 'state.json'), frontFile = path.join(dir, 'frontier.txt');
+  const chunkFile = (d, i) => path.join(dir, `chunk-${d}-${i}.json`);
+  const clear = () => fs.rmSync(dir, { recursive: true, force: true });
+  if (!opts.resume) clear();
+  fs.mkdirSync(dir, { recursive: true });
+  function atomic(file, text) { fs.writeFileSync(file + '.tmp', text); fs.renameSync(file + '.tmp', file); }
+  return {
+    load() {
+      if (!fs.existsSync(stateFile)) return null;
+      const s = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+      if (s.sig !== sig) { clear(); fs.mkdirSync(dir, { recursive: true }); return null; }
+      const frontier = [];
+      for (const ln of fs.readFileSync(frontFile, 'utf8').split('\n')) {
+        if (!ln) continue;
+        const i = ln.lastIndexOf(' ');
+        frontier.push({ ck: JSON.parse(ln.slice(0, i)), rkh: +ln.slice(i + 1) });
+      }
+      if (frontier.length !== s.frontierLength) throw new Error('checkpoint: the frontier file is incomplete');
+      return { d: s.d, stats: s.stats, perDepth: s.perDepth, elapsed: s.elapsed, frontier };
+    },
+    chunk(d, i) {
+      const f = chunkFile(d, i);
+      if (!fs.existsSync(f)) return null;
+      try { const c = JSON.parse(fs.readFileSync(f, 'utf8')); return c.sig === sig ? c.r : null; } catch (e) { return null; }
+    },
+    saveChunk(d, i, r) { atomic(chunkFile(d, i), JSON.stringify({ sig, r })); },
+    // after depth d: the merged stats and the frontier of depth d + 1
+    saveDepth(d, stats, perDepth, elapsed, next) {
+      const fd = fs.openSync(frontFile + '.tmp', 'w');
+      let buf = [];
+      for (const [ck, rkh] of next) { buf.push(JSON.stringify(ck) + ' ' + rkh); if (buf.length >= 100000) { fs.writeSync(fd, buf.join('\n') + '\n'); buf = []; } }
+      if (buf.length) fs.writeSync(fd, buf.join('\n') + '\n');
+      fs.closeSync(fd);
+      fs.renameSync(frontFile + '.tmp', frontFile);
+      atomic(stateFile, JSON.stringify({ sig, d, stats, perDepth, elapsed, frontierLength: next.size }));
+      for (const f of fs.readdirSync(dir)) if (f.startsWith(`chunk-${d}-`)) fs.rmSync(path.join(dir, f), { force: true });
+    },
+    clear
+  };
+}
+
+// in-process or with worker threads; returns {stats, perDepth, ms, resumed}
 async function enumerate(opts) {
   opts = Object.assign({ depth: 10, half: 2, workers: 0, fullTo: 6, sampleHeavy: 8 }, opts || {});
   if (opts.half > 3) throw new Error('enumerate: the compact build codes take half ≤ 3');
@@ -793,19 +904,35 @@ async function enumerate(opts) {
   const R = loadRules(opts);
   const hook = opts.compare ? hookFromModule(opts.compare, opts) : null;
   const visit = makeVisitor(R, Object.assign({}, opts, { compare: hook }));
-  const stats = newStats();
+  let stats = newStats();
   let frontier = [{ ck: '', rkh: hash53(R.key(R.newBuild({ half: opts.half }))) }];
-  const perDepth = [];
+  let perDepth = [], d0 = 0, elapsed0 = 0, resumed = null;
+  const ckpt = opts.checkpoint ? makeCheckpoint(opts, opts.source || fs.readFileSync(rulesVm.RULES_JS, 'utf8')) : null;
+  if (ckpt) {
+    const s = ckpt.load();
+    if (s) {
+      stats = s.stats; perDepth = s.perDepth; frontier = s.frontier; d0 = s.d + 1; elapsed0 = s.elapsed;
+      resumed = { fromDepth: d0, elapsedBefore: s.elapsed };
+      if (opts.onDepth) for (const p of perDepth) opts.onDepth(p, stats, true);
+    }
+  }
   let pool = null;
   if (opts.workers > 0) pool = makePool(opts);
+  const ostats = () => Object.assign({ drops: stats.oracleDrops }, stats.oracleCache);
   try {
-    for (let d = 0; d <= opts.depth; d++) {
-      const td = Date.now();
-      let results;
+    for (let d = d0; d <= opts.depth; d++) {
+      const td = Date.now(), o0 = ostats();
+      let results, reused = 0;
       if (pool && frontier.length > 200) {
-        const n = Math.min(frontier.length, pool.size * 24), size = Math.ceil(frontier.length / n), chunks = [];
+        // 24 chunks a worker, and no chunk over 16,000 builds (so a run cut short loses little; a checkpoint keeps
+        // finished chunks)
+        const n = Math.min(frontier.length, Math.max(pool.size * 24, Math.ceil(frontier.length / 16000))), size = Math.ceil(frontier.length / n), chunks = [];
         for (let i = 0; i < frontier.length; i += size) chunks.push(frontier.slice(i, i + size));
-        results = await Promise.all(chunks.map(c => pool.run({ items: c })));
+        results = await Promise.all(chunks.map((c, i) => {
+          const saved = ckpt && ckpt.chunk(d, i);
+          if (saved) { reused++; return saved; }
+          return pool.run({ items: c }).then(r => { if (ckpt && !r.failFast) ckpt.saveChunk(d, i, r); return r; });
+        }));
       } else {
         results = [processChunk(R, visit, frontier, opts, hook)];
       }
@@ -836,23 +963,28 @@ async function enumerate(opts) {
         }
         r.kids = null;
       }
+      results = null;
       stats.checks.I4 += i4n; stats.failCount.I4 += i4f;
-      perDepth.push({ depth: d, builds: stats.builds[d] || 0, ms: Date.now() - td });
+      const o1 = ostats(), od = {};
+      for (const k in o1) od[k] = o1[k] - o0[k];
+      perDepth.push({ depth: d, builds: stats.builds[d] || 0, ms: Date.now() - td, oracle: hook ? od : null, chunksReused: reused });
       if (opts.onDepth) opts.onDepth(perDepth[perDepth.length - 1], stats);
       if (stats.failFast || (opts.failFast && Object.values(stats.failCount).some(x => x))) { stats.failFast = stats.failFast || 'failure'; break; }
       if (d === opts.depth) break;
+      if (ckpt) ckpt.saveDepth(d, stats, perDepth, elapsed0 + Date.now() - t0, next);
       frontier = [];
       for (const [ck, rkh] of next) frontier.push({ ck, rkh });
     }
   } finally { if (pool) await pool.close(); }
-  return { stats, perDepth, ms: Date.now() - t0 };
+  if (ckpt && !stats.failFast) ckpt.clear();
+  return { stats, perDepth, ms: elapsed0 + Date.now() - t0, resumed };
 }
 
 function makePool(opts) {
   const size = opts.workers;
   const ws = [], idle = [], queue = [];
   for (let i = 0; i < size; i++) {
-    const w = new Worker(__filename, { workerData: { opts: { depth: opts.depth, half: opts.half, fullTo: opts.fullTo, sampleHeavy: opts.sampleHeavy, failFast: opts.failFast, compare: opts.compare, only: opts.only, oracleDepth: opts.oracleDepth, cache: opts.cache, cacheCap: opts.cacheCap, source: opts.source, file: opts.file, outline: opts.outline } }, resourceLimits: { maxOldGenerationSizeMb: 2048 } });
+    const w = new Worker(__filename, { workerData: { opts: { depth: opts.depth, half: opts.half, fullTo: opts.fullTo, sampleHeavy: opts.sampleHeavy, failFast: opts.failFast, compare: opts.compare, only: opts.only, oracleDepth: opts.oracleDepth, cache: opts.cache, cacheCap: opts.cacheCap, source: opts.source, file: opts.file, outline: opts.outline } }, resourceLimits: { maxOldGenerationSizeMb: 3072, maxYoungGenerationSizeMb: 192 } });
     w.unref();
     ws.push(w); idle.push(w);
   }
@@ -935,10 +1067,12 @@ if (isMainThread && require.main === module) {
   const opts = {
     depth: +arg('depth', 10), half: 2, workers: +arg('workers', Math.min(4, os.cpus().length)),
     compare: cmp === 'none' ? null : cmp, failFast: process.argv.includes('--fail-fast'), fullTo: +arg('full-to', 6), sampleHeavy: +arg('sample', 8),
-    oracleDepth: arg('oracle-depth', null) === null ? null : +arg('oracle-depth', null), cache: !process.argv.includes('--no-cache')
+    oracleDepth: arg('oracle-depth', null) === null ? null : +arg('oracle-depth', null), cache: !process.argv.includes('--no-cache'),
+    cacheCap: arg('cache-cap', null) === null ? undefined : +arg('cache-cap', null),
+    checkpoint: arg('checkpoint', null), resume: process.argv.includes('--resume')
   };
   const out = arg('out', OUT_DEFAULT);
-  enumerate(Object.assign({}, opts, { onDepth: (p) => console.log(`depth ${p.depth}: ${p.builds} builds, ${(p.ms / 1000).toFixed(1)} s`) })).then(res => {
+  enumerate(Object.assign({}, opts, { onDepth: (p, s, restored) => console.log(`depth ${p.depth}: ${p.builds} builds, ${(p.ms / 1000).toFixed(1)} s${p.oracle ? '; oracle ' + JSON.stringify(p.oracle) : ''}${restored ? ' [from the checkpoint]' : p.chunksReused ? ' [' + p.chunksReused + ' chunks from the checkpoint]' : ''}`) })).then(res => {
     const sum = writeReports(out, res, opts);
     const bad = Object.entries(sum.failCount).filter(([, n]) => n);
     console.log(`${sum.builds} builds, ${sum.drops} drops in ${(res.ms / 1000).toFixed(1)} s; reports in ${out}`);
