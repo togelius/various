@@ -1330,13 +1330,13 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
 | Square or ▲ | part of its bottom edge, at least half of it, lies on a flat top: the car, a square's top or a ▼'s top. The rest may be over a lower step, a slant, or the air past the car. | it touches only at corners or points, for example a triangle's point under its bottom |
 | ▼ | one of its lower sides lies against a ▲'s side, whole; two such sides means it sits in a notch | it touches only at its point |
 
-**The second rule: everything balances** (revision 5c, §18.11). A tile that meets the tower edge to edge still falls off if, with it, some part of the tower would tip: every tile and everything resting on it must have its weight over what holds it up. The magnets give a little grip, so a part may lean out a little past its support, more when it is held along more edge.
+**The second rule: everything balances** (revision 5c, refined in 5d, §18.11–18.12). A tile that meets the tower edge to edge still falls off if, with it, some part of the tower would tip.
 
+- **Whole edges lock.** Tiles that share a whole edge are locked together by their magnets and move as one piece: a tile seated squarely on a top, a ▼ hung on a ▲, two squares side by side. Half an edge or a point holds a piece up but does not lock it. The car holds the tower up but does not lock to it.
 - **Resting on.** A tile rests on whatever is directly under it where they touch: a top, a ▲'s slant it hangs on, an apex or corner its point sits on. Side-by-side contacts don't hold anything up.
-- **The part that tips.** For each tile, its part is the tile and everything resting on it, all the way up. Its support is where that part rests on the rest of the tower or the car.
-- **Weight.** A square weighs 1, a triangle √3/4 (their areas), each at its middle.
-- **Grip.** A part may lean past the end of its support by a moment (weight × distance) of up to a quarter of the length of edge it rests on. A ▼ hung alone, or a tile held by half an edge, is balanced exactly on the edge, and that is fine.
-- **What it rules out:** stairs and hooks that hang a group of tiles past what holds them (a rhombus hung off the end of a half-held ▲, a column of squares on a hung ▼, a stair leaning a tile past its foot). What it keeps: the photo's wall, a ▲ half on a hung ▼'s top (golden case 9), the leaning wall (case 6).
+- **Balance.** Each piece, together with everything resting on it, must have its weight over what it rests on. Exactly over the end is fine; past it, it tips. A square weighs 1 and a triangle √3/4 (their areas), each at its middle.
+- **What it rules out:** stairs and hooks that hang a group of tiles past what holds them (a rhombus hung off the end of a half-held ▲, a column of squares on a hung ▼, a stair leaning a tile past its foot), and a block standing on half an edge with its weight just past it.
+- **What it keeps:** the photo's wall, the leaning wall (golden case 6, one locked piece), a ▲ half on a hung ▼'s top (case 9), and triangles locked into one piece carrying a square on their edge (case 17).
 
 - **Fall-off reasons.** There are two, tested in this order:
   - **ONLY A POINT**: the tile doesn't meet the tower edge to edge. The ghost marks the contact points with red dots.
@@ -1416,7 +1416,7 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
   - `newBuild({half = 2})` takes half the base width in tiles; tests also use 1 and 50.
   - `drop(build, piece, col, way?)`, where piece is 'sq' or 'tri', col is the tile's left x in half tiles (odd cols throw for squares), and way ('up' or 'down') forces a triangle's way for tests. It returns one shape: `{outcome: 'fit'|'off', way: 'up'|'down', pose, verts, reason, contacts: {segments, points}, shine, gap, tips}`:
     - `gap`: the largest thin gap under part of a staying tile, for drawing it open;
-    - `tips`: null, or for TIPS OVER `{base, members, side, pivot, com}`: base is the index in the build of the tile whose part tips (the new tile's index is the build's length), members the sorted indices of that part, side 'left' or 'right', pivot the lattice point it tips over, and com the part's centre of weight in x (a number, for drawing the plumb line).
+    - `tips`: null, or for TIPS OVER `{base, members, side, pivot, com}`: base is the index in the build of the lowest tile of the piece whose group tips (the new tile's index is the build's length), members the sorted indices of that group, side 'left' or 'right', pivot the lattice point it tips over, and com the group's centre of weight in x (a number, for drawing the plumb line).
 
     Without `way`, a triangle takes the way that fits, otherwise the way §18.3 shows.
   - `place(build, result)` returns a new build and never changes its argument.
@@ -1463,10 +1463,10 @@ The strategy bots test depth.
        - I7: locality;
        - I8: replaying the drop log rebuilds the same build;
        - I9: re-dropping a top tile puts it back;
-       - I10: state: no overlap, all on the lattice, squares on whole tiles, everything joined to the car by positive-length contacts, every tile holding by at least half an edge, no tile held only at points, every part balanced within its grip;
+       - I10: state: no overlap, all on the lattice, squares on whole tiles, everything joined to the car by positive-length contacts, every tile holding by at least half an edge, no tile held only at points, every piece's group balanced;
        - I11: at most one way up fits at a column;
        - I12: pull obeys §18.6;
-       - I13: the shine explains the outcome, and for TIPS OVER the reported part really leans past its grip;
+       - I13: the shine explains the outcome, and for TIPS OVER the reported group really has its weight past its support;
      - and every mutant in `tools/rules/mutants.json` killed, at least 15 of them (squares at half steps, a point counting as holding, ▼ on its point, ▼ needing both sides, a whole edge required, the car longer, one column checked, a tolerance on contact, the hand range widened, and others).
   2. The intuition panel: three fresh agents who see only the photos and a plain description of the tiles judge at least 120 sandbox pictures of a tile about to fall, answering STAYS, FALLS OFF or UNSURE. It passes at 90% majority agreement overall and 75% in every stratum. Every disagreement goes to the designer as a question; if he keeps the rule, the case becomes a golden case to teach.
   3. One plausibility round on sandbox renders (below).
@@ -1546,6 +1546,8 @@ Each is a small picture of a build, a tile in the hand, and the outcome. Positio
 | 14 | ▲−2.5, ▼−2, ▲−1.5, then ▼−1: a stair from the car's end | falls off: TIPS OVER, the whole stair over the car's top at x −1.5 |
 | 15 | ■−2, ▲−1.5, then ▼−1: a rhombus hung off a square's corner | falls off: TIPS OVER, over the square's corner |
 | 16 | ▲−1, ▼−0.5, then ■0: a square on a hung ▼'s top, where case 9's lighter ▲ stays | falls off: TIPS OVER, over the ▼'s point |
+| 17 | ▲0.5, ▼0, ▲0, ▼0.5, then ■1: four triangles locked into one piece, a square half on its top | stays (5c tipped it; people said it stays) |
+| 18 | ■−2, ▲−1.5, ▼−2, ■−2, ▲−2.5, ▼−1, ■−1, then ■−1: a block of locked tiles standing on half a square's top and a point | falls off: TIPS OVER, 0.014 L past the square's corner (5c's grip kept it; every reviewer said it tips) |
 
 ### 18.10 What the first sense check found (G2, round 1)
 
@@ -1576,3 +1578,17 @@ Revision 5b matched the sealed oracle on 321 million comparisons to depth 10, ev
 - **The thin-gap sliver (1)** was read as an extra piece. It is now drawn open (§18.2).
 - **Fall paths (11).** The pictures drew a tile tipping off a point and coming to rest on the car or in a slot, then vanishing, and a tile tipping over a half-off tile without dragging it. A tile that falls off now falls out of the wall onto the rug (§18.2), and placed tiles never move.
 - BIG MAGNETS already gives the forgiving version: the magnets pull a tile to the nearest place it fits.
+
+### 18.12 What the third sense check found (G2, round 3) and revision 5d
+
+Revision 5c matched its sealed oracle to depth 10 (tier 2), and the game was built on it (G3: every browser test passes, GhostReaderBot had 0 surprises in 15,000 drops).
+
+**Plausibility review, round 3:** every class from round 2 was gone (groups hanging past their support, knife-edge columns, the gap sliver, falls ending on the car). Three pictures were flagged by all three reviewers:
+- **G45:** a block of tiles standing on half a square's top and a ▼'s point, 0.014 L past the corner. 5c's grip (a lean of up to a quarter of the edge length) kept it; all three said it tips.
+- **G23 and G47:** the part drawn tipping left out a tile joined to it along a whole edge (5c's tie-break chose the smaller of two failing parts, so a mirrored build showed a different part).
+
+**Intuition panel:** two of the three panelists answered only the first 36 of 211 items, so the panel did not count. On those 36 the majority agreed on 30. Panelist A, alone on all 211, was unsure about every knife-edge, and did not call TIPS OVER on parts that people see as held by whole-edge joints.
+
+**What people do:** tiles joined along a whole edge move as one piece, and only a piece standing on half an edge or points has to balance, with no extra grip. A float model of that reading kept every golden case, matched the reviewers on G45, G23 and G47, kept the 9 panel items where 5c's tipping drew no FALLS OFF, and differed from 5c on 0.7% of drops in random play.
+
+**Revision 5d** adopts it (§18.2): whole edges lock, the grip is gone, and the reported group is the one with the lowest point, then the larger. Golden cases 17 and 18 come from items 13 and G45.
