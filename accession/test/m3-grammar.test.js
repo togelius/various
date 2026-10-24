@@ -139,7 +139,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     for (const seed of [1, 2, 3]) {
       const s = TestRoom.create(seed);
       for (let i = 0; i < 400 && !s.over; i++) {
-        const legal = Step.legal(s), a = i % 7 === 3 ? { a: 'move', dir: i % 8 } : legal[(i * 5 + seed) % legal.length];
+        // M2's own actions: Wave 1's item actions (W1-KIT) would change the walk, not the log.
+        const legal = Step.legal(s).filter(x => ['wait', 'move', 'attack'].includes(x.a)), a = i % 7 === 3 ? { a: 'move', dir: i % 8 } : legal[(i * 5 + seed) % legal.length];
         const ev = Step.step(s, a), names = Labels.nameOf(s);
         same(Text.log(ofM2(ev), names, uid => uid === 'you'), m2(ev, names), JSON.stringify(ev));
         compared += ev.length;
