@@ -51,8 +51,20 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       ['in the night watch', { maxHp: 20, clock: WATCH, turns: 120 }, []],
       ['in the night watch, on a bench', { maxHp: 20, clock: WATCH, sit: true, turns: 120 }, []],
       ['with no clock (a test room)', { maxHp: 20, turns: 60 }, [20, 20, 20]],
+      // "Benches double it" means seated on one (D2.8): standing on a bench is the open rate.
+      ['standing on a bench, not seated', { maxHp: 20, clock: OPEN, at: [2, 1], turns: 40 }, [20, 20]],
+      ['standing on a bench after the bell, not seated', { maxHp: 20, clock: BELL, at: [2, 1], turns: 80 }, [40, 40]],
     ];
     for (const [name, opts, want] of cases) assert.equal(json(gaps(regenTurns(X, opts).turns)), json(want), name);
+    // On the bench all along: 40 turns standing (1 every 20), then seated (1 every 10).
+    const b = you(X, { maxHp: 20, hp: 10, clock: OPEN, at: [2, 1] }), got = [];
+    assert.equal(json([Health.onBench(b), Health.rate(b)]), json([false, 2]), 'standing on the bench');
+    const wait = () => { for (const e of X.Step.step(b, { a: 'wait' })) if (e.k === 'regenerated') got.push([e.turn, e.cause.bench]); };
+    while (b.turn < 40) wait();
+    X.Step.step(b, { a: 'sit' });
+    assert.equal(json([Health.onBench(b), Health.rate(b)]), json([true, 4]), 'seated on it');
+    while (b.turn < 60) wait();
+    assert.equal(json(got), json([[20, false], [40, false], [50, true], [60, true]]));
     // The rate a turn, as Health.rate reads it.
     const s = you(X, { maxHp: 20, clock: BELL });
     assert.equal(Health.rate(s), 1);
@@ -106,7 +118,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json(next), json([20]));
   });
 
-  test('Health.heal gives health up to your maximum, with healed and the cause it is given; nothing for a whole or destroyed actor', () => {
+  test('Health.heal gives health up to the healed one\'s maximum, you or an exhibit, with healed naming it and the cause it is given; nothing for a whole or destroyed actor', () => {
     const s = you(C, { maxHp: 20, hp: 12 }), me = s.actors[0], ev = [];
     assert.equal(Health.heal(s, me, 5, { k: 'item', by: 'you', item: 'x.1' }, ev), 5);
     assert.equal(json(ev.map(e => [e.k, e.who, e.amount, e.hp, e.cause])), json([['healed', 'you', 5, 17, { k: 'item', by: 'you', item: 'x.1' }]]));
@@ -118,8 +130,18 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     for (const e of ev) { const line = Text.event(e); assert.ok(/^[A-Z].*\.$/.test(line) && !/undefined|NaN|\[object/.test(line), line); }
     assert.equal(Text.event({ k: 'healed', turn: 1, tick: 100, who: 'you', amount: 3, hp: 15, cause: { k: 'unknown' } }), 'You regained 3 health: now 15.');
     const t = C.Setup.room(1, { acc: 'T0', depth: 1, map: BENCH, you: [3, 1], exhibits: [{ sp: 'dummy', at: [4, 2], mode: 'hunting', stats: { hp: 9, acc: 0, eva: 0, pad: 0, dmin: 1, dmax: 2 } }] });
-    t.actors[1].hp = 4; t.actors[1].gone = 1;
-    assert.equal(Health.heal(t, t.actors[1], 3, { k: 'home', by: t.actors[1].uid }, []), 0);
+    // An exhibit heals as you do, up to its own maximum, and the event names it: a warden
+    // home again (cause home, ARCH-C's), or one in a thrown Consolidant's square.
+    const w = t.actors[1], youHp = t.actors[0].hp, wev = [];
+    assert.equal(w.maxHp, 9);
+    w.hp = 4;
+    assert.equal(Health.heal(t, w, 3, { k: 'home', by: w.uid }, wev), 3);
+    assert.equal(Health.heal(t, w, 20, { k: 'item', by: 'you', item: 'x.2' }, wev), 2, 'capped at its own maximum, 9, not yours');
+    assert.equal(json(wev.map(e => [e.who, e.amount, e.hp, e.cause.k])), json([[w.uid, 3, 7, 'home'], [w.uid, 2, 9, 'item']]));
+    for (const e of wev) assert.equal(Causes.check(e), null, json(e));
+    assert.equal(json([w.hp, t.actors[0].hp]), json([9, youHp]), 'only the one healed regains health');
+    w.hp = 4; w.gone = 1;
+    assert.equal(Health.heal(t, w, 3, { k: 'home', by: w.uid }, []), 0);
     assert.throws(() => Health.heal(s, me, -1, { k: 'item', by: 'you', item: 'x' }, []), /cannot regain -1/);
     assert.throws(() => Health.heal(s, me, 1, null, []), /needs a cause/);
   });
@@ -172,7 +194,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       }
     }
     const s = you(C, { maxHp: 30, hp: 5, at: [2, 1] });
-    const p = H.play(C, s, pick(3), { inv: ['combat'], cap: 300 });
+    const p = H.play(C, s, pick(3), { inv: ['combat'], cap: 300, clone: true });
     assert.deepEqual(p.violations.map(v => v.text), []);
     assert.ok(p.events.some(e => e.k === 'regenerated' && e.cause.bench), 'it sat on the bench at some point');
   });

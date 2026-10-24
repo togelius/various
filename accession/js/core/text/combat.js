@@ -19,12 +19,30 @@
   const whose = (w, uid) => uid === 'you' ? 'Your' : `${w.Name(uid)}’s`;
   // A blow from two tiles away is a Reach blow.
   const reach = c => c && c.how && c.how.kind === 'reach' ? ' with Reach' : '';
+  // When the damage taken is not the sum (net), what made it so: the defender's archetype or a
+  // modifier changed it (Archetypes.adjustDamage, before health falls). Through an old repair
+  // (old_repair marks the side, cause.side) a blow, shot or beam is doubled; a body that falls
+  // to any one blow (mote_swarm) loses all its health; any other change is the defender's
+  // Behaviour line's.
+  const SIDE = { N: 'north', E: 'east', S: 'south', W: 'west' };
+  const sideName = v => typeof v === 'string' && Object.prototype.hasOwnProperty.call(SIDE, v) ? SIDE[v] : String(v);
+  const changed = (e, net) => {
+    const c = e.cause;
+    if (!isInt(net) || !isInt(e.amount) || e.amount === net) return '';
+    if (c.side !== undefined && c.side !== null) {
+      const side = `through its repaired ${sideName(c.side)} side`;
+      return e.amount === 2 * net ? `, doubled ${side}` : `, made ${e.amount} ${side}`;
+    }
+    if (e.who === 'you') return `, made ${e.amount}`;
+    if (e.hp === 0) return `; it falls to any one blow: all ${e.amount} of its health`;
+    return `, which its Behaviour line makes ${e.amount}`;
+  };
 
   // A blow: who struck whom, the roll against the chance (or the surprise), and the damage
-  // less Padding.
+  // less Padding, with what changed it.
   const blow = (e, w) => {
     const c = e.cause;
-    const s = sum(c.raw, c.pad, c.floor);
+    const s = sum(c.raw, c.pad, c.floor) + changed(e, isInt(c.floor) ? c.floor : c.raw - c.pad);
     if (c.surprise) return `${w.Name(c.by)} caught ${w.name(e.who)} unawares${reach(c)}: ${e.amount} damage (${s}).${saved(c)}`;
     if (!isInt(c.roll)) return `${w.Name(c.by)} hit ${w.name(e.who)}${reach(c)} for ${e.amount} (a certain hit; ${s}).${saved(c)}`;
     return `${w.Name(c.by)} hit ${w.name(e.who)}${reach(c)} for ${e.amount} (rolled ${c.roll} against ${c.chance}%; ${s}).${saved(c)}`;
@@ -38,10 +56,11 @@
   Text.defineCause('missed', 'attack', (e, w) => `${w.Name(e.by)} missed ${w.name(e.at)}${reach(e.cause)} (rolled ${e.cause.roll} against ${e.cause.chance}%).`);
   Text.define('damaged', (e, w) => `${w.Name(e.who)} took ${e.amount} damage.`);
   Text.defineCause('damaged', 'attack', blow);
-  // A special's damage has no roll: its gross number, less the Padding of whoever stood there.
+  // A special's damage has no roll: its gross number, less the Padding of whoever stood there,
+  // with what changed it.
   const special = (e, w) => {
     const c = e.cause, floor = isInt(c.net) && c.net > c.gross - c.pad ? c.net : null;
-    return `${whose(w, c.by)} ${spName(c.sp)} struck ${w.name(e.who)} for ${e.amount} (${sum(c.gross, c.pad, floor)}).${saved(c)}`;
+    return `${whose(w, c.by)} ${spName(c.sp)} struck ${w.name(e.who)} for ${e.amount} (${sum(c.gross, c.pad, floor)}${changed(e, c.net)}).${saved(c)}`;
   };
   Text.defineCause('damaged', 'special', special);
   const died = (e, w) => e.who === 'you' ? 'You fell.' : `${w.Name(e.who)} broke apart.`;

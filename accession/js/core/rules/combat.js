@@ -82,15 +82,18 @@ const Combat = (() => {
   }
   // Is the way of a Reach blow from a in direction d clear? Every tile between a and its
   // target must be one you could walk onto and see through (so not a wall, a closed door or a
-  // case) with no actor on it ('blocked' otherwise), and each diagonal step of the way, out of
+  // case, and not under a Fumigant cloud or plaster dust: Grid.clear, the test line of sight
+  // uses) with no actor on it ('blocked' otherwise), and each diagonal step of the way, out of
   // a's tile and into the target's, may not cut past a corner you could not step past ('corner').
+  // A straight line of REACH_RANGE tiles is the line of sight between its ends, so a Reach
+  // blow is only ever made at an actor you can see.
   function reachWay(state, a, d) {
     const m = state.dept, dx = Grid.DX[d], dy = Grid.DY[d], diagonal = dx !== 0 && dy !== 0;
     let px = a.x, py = a.y;
     for (let k = 1; k <= N.REACH_RANGE; k++) {
       const qx = px + dx, qy = py + dy;
       if (diagonal && !(Grid.walkable(m, qx, py) && Grid.walkable(m, px, qy))) return 'corner';
-      if (k < N.REACH_RANGE && (!Grid.walkable(m, qx, qy) || !Grid.seeThrough(m, qx, qy) || Actors.at(state, qx, qy))) return 'blocked';
+      if (k < N.REACH_RANGE && (!Grid.walkable(m, qx, qy) || !Grid.clear(m, qx, qy) || Actors.at(state, qx, qy))) return 'blocked';
       px = qx; py = qy;
     }
     return null;

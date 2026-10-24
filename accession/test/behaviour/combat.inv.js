@@ -4,7 +4,7 @@
 // The registry's combat entries name this file (inv: 'combat').
 'use strict';
 module.exports = C => {
-  const { N, Causes, Combat, Specials, Cases, Archetypes, Registry, Health, Grid } = C;
+  const { N, Causes, Combat, Specials, Cases, Archetypes, Registry, Health, Grid, Vision, Actors } = C;
   const KINDS = ['attacked', 'missed', 'damaged', 'died', 'telegraphed', 'special', 'waited', 'regenerated', 'healed'];
   const ROLLED = ['attack', 'shot', 'item'];
   const isInt = v => Number.isInteger(v);
@@ -139,6 +139,23 @@ module.exports = C => {
       },
     },
     {
+      // A Reach blow of yours is made only at an actor you can see (§8.1): the tile between
+      // must be clear to sight, so some tile of the target was visible from yours the moment
+      // before the step, as the board showed it.
+      id: 'combat_reach_seen',
+      check(pre, events) {
+        let vis = null;
+        for (const e of events) {
+          if (e.k !== 'attacked' || e.by !== 'you' || !e.how || e.how.kind !== 'reach') continue;
+          const t = byUid(pre, e.at);
+          if (!t) return `you struck ${e.at} with Reach, which was not there`;
+          vis = vis || Vision.visible(pre);
+          if (!Actors.footprint(t).some(([x, y]) => vis[y * pre.dept.w + x] === 1)) return `you struck ${e.at} with Reach at ${t.x},${t.y}, which you could not see`;
+        }
+        return null;
+      },
+    },
+    {
       // The order inside one blow (§8.1, §8.2): attacked, then its hit or miss, and last its
       // soft noise from the attacker, after every other wake effect of the blow. (A shot's
       // flight, and what a reflector sends back, are the shooter's rules, Ranged.shoot; only
@@ -164,16 +181,21 @@ module.exports = C => {
     {
       // Health (§8.1): you never have more than your maximum; the regeneration store is a whole
       // number of units, never below 0; each regeneration is 1 health, below your maximum,
-      // when the store reached twice your interval; and you sit only on a bench.
+      // when the store reached twice your interval; you sit only on a bench; and a
+      // regeneration counts the bench exactly when you are seated on one (standing on a
+      // bench is not sitting on it). Nothing in a step moves you or gets you up after your
+      // action, so where you are after the step is where you were at its boundaries.
       id: 'combat_health',
       check(pre, events, post) {
         const you = post.actors[0], before = pre.actors[0];
         if (you.hp > you.maxHp && before.hp <= before.maxHp) return `you have ${you.hp} health, past your maximum ${you.maxHp}`;
         if (!isInt(you.regen) || you.regen < 0) return `the regeneration store is ${you.regen}`;
         if (you.seated && Grid.ch(post.dept, you.x, you.y) !== 'b') return `you are seated at ${you.x},${you.y}, which is not a bench`;
+        const seatedOnBench = !!you.seated && Grid.ch(post.dept, you.x, you.y) === 'b';
         let last = null;
         for (const e of events) {
           if (e.k !== 'regenerated') continue;
+          if (e.cause.bench !== seatedOnBench) return `you regenerated with bench ${e.cause.bench}, ${seatedOnBench ? 'seated on' : 'not seated on'} a bench`;
           if (last === e.turn) return `you regenerated twice on turn ${e.turn}`;
           last = e.turn;
           const c = e.cause;

@@ -146,6 +146,64 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(X.Specials.threat(s, { a: 'equip', uid: 'garment' }).dmg, Math.max(N.DMG_MIN_ON_HIT, dmg - 2));
   });
 
+  test('the threat reads the marks the action leaves: one it calls off (fixed, quieted, lost to the Ticket) or a visit it ends is no threat; one whose owner it may destroy, or an unidentified consumable\'s, still is', () => {
+    // You stand on the ring round (4,2); its owner resolves at 50, before your next decision.
+    const setup = (X, more) => {
+      const s = X.Setup.room((more && more.seed) || 1, { acc: 'T0', depth: 2, map: OPEN, you: YOU, exhibits: [
+        { sp: 'dummy', at: [4, 2], arch: 'planted_ringer', mode: 'hunting', stats: (more && more.stats) || Roles.stats('warden', 2) }] });
+      const w = s.actors[1];
+      X.Specials.mark(s, w, 'ring', X.Specials.tiles(s, w, 'ring'), []);
+      w.next = 50;
+      return { s, w, you: s.actors[0], dmg: Math.max(N.DMG_MIN_ON_HIT, w.telegraph.gross - s.actors[0].pad) };
+    };
+    // Stand-ins for other packages' actions, as their rules say they act (W1-CONSUMABLES,
+    // W1-WAKE-A, W1-CLOCK): a thrown Fixative fixes the owner (which calls its mark off at
+    // once, Status.apply); "Quiet, Please" drops a hunter to awake; the Ticket's hunters lose
+    // you; leaving ends the visit.
+    const X = loadCore();
+    ringer(X);
+    const stand = {
+      use: (state, action, ev) => { X.Status.apply(state, state.actors[1], 'fixed', N.FIXATIVE_TURNS, { k: 'item', by: 'you', item: action.uid }, ev); return N.COST_USE; },
+      read: (state, action, ev) => { X.Wake.setMode(state, state.actors[1], 'awake', { k: 'quiet', by: 'you' }, ev); return N.COST_USE; },
+      throw: (state, action, ev) => { X.Wake.setMode(state, state.actors[1], 'searching', { k: 'ticket', by: 'you' }, ev); return N.COST_USE; },
+      leave: (state, action, ev) => { state.over = { k: 'left', turn: state.turn, by: null, door: 0, cause: { k: 'leave', door: 0, stage: 0 } }; return N.COST_STEP; },
+    };
+    for (const id of ['use', 'read', 'throw', 'leave']) X.Actions.get(id).apply = stand[id];
+    for (const [action, why] of [[{ a: 'use', uid: 'x.fixative' }, 'fixed'], [{ a: 'read', x: 1, y: 1 }, 'quieted'], [{ a: 'throw', uid: 'x.ticket', x: 1, y: 1 }, 'lost you'], [{ a: 'leave', i: 0 }, 'you left']]) {
+      const { s } = setup(X), h = State.hash(s);
+      assert.equal(X.Specials.threat(s, { a: 'wait' }) !== null, true, 'waiting, it would strike you');
+      assert.equal(X.Specials.threat(s, action), null, why);
+      assert.equal(State.hash(s), h, 'the threat changes nothing');
+      // And indeed the special does not go off on you (a quieted owner that sees you again
+      // hunts, and may strike you from beside you, but its mark is gone).
+      const ev = X.Step.step(s, action);
+      assert.ok(!ev.some(e => e.k === 'damaged' && e.who === 'you' && e.cause.k === 'special'), `${why}: ${ev.map(e => e.k).join()}`);
+      assert.ok(ev.some(e => e.k === 'special' && e.cancelled) || s.over, `${why}: ${ev.map(e => e.k).join()}`);
+    }
+    // A consumable whose kind you have not identified is judged as if it did nothing: the
+    // threat stays, so it does not say what the consumable is. Once its kind is known, the
+    // threat is what it does.
+    const known = [];
+    X.Consumables.known = (state, ck) => known.includes(ck);
+    const u = setup(X);
+    u.s.items.push({ uid: 'x.fixative', kind: 'consumable', ref: null, where: { at: 'tote' }, ck: 'fixative', seal: 'sol0', n: 1 });
+    assert.equal(json(X.Specials.threat(u.s, { a: 'use', uid: 'x.fixative' })), json({ x: YOU[0], y: YOU[1], dmg: u.dmg, by: u.w.uid }), 'unidentified');
+    known.push('fixative');
+    assert.equal(X.Specials.threat(u.s, { a: 'use', uid: 'x.fixative' }), null, 'identified');
+    // A blow that may destroy the owner: the threat is the same whether the roll destroys it
+    // or misses, so it does not tell you the roll.
+    const outcomes = new Set(), threats = new Set();
+    for (let seed = 1; seed <= 30; seed++) {
+      const b = setup(X, { seed, stats: { hp: 1, acc: 0, eva: 4, pad: 0, dmin: 1, dmax: 1 } });
+      threats.add(json(X.Specials.threat(b.s, { a: 'attack', uid: b.w.uid })));
+      const ev = X.Step.step(b.s, { a: 'attack', uid: b.w.uid });
+      outcomes.add(ev.some(e => e.k === 'died' && e.who === b.w.uid) ? 'destroyed' : ev.some(e => e.k === 'damaged' && e.who === 'you' && e.cause.k === 'special') ? 'struck you' : 'other');
+    }
+    assert.equal(json([...outcomes].sort()), json(['destroyed', 'struck you']));
+    assert.equal(threats.size, 1);
+    assert.equal(json(JSON.parse([...threats][0])), json({ x: YOU[0], y: YOU[1], dmg: Math.max(N.DMG_MIN_ON_HIT, Roles.at(N.ROLE_WARDEN_SPECIAL, 2) - setup(X).you.pad), by: 'T0.2.room.1' }));
+  });
+
   test('a special\'s sentences name it and its numbers; a mark called off says why', () => {
     const names = uid => uid === 'w.1' ? 'the Warden' : null;
     const say = e => Text.event(Object.assign({ turn: 3, tick: 300 }, e), names);
@@ -155,6 +213,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       'The Warden’s beam struck you for 7 (9 − 2 Padding).');
     assert.equal(say({ k: 'damaged', who: 'you', amount: 1, hp: 13, cause: { k: 'special', by: 'w.1', sp: 'ring', gross: 2, pad: 4, net: 1, x: 1, y: 1, from: [2, 1] } }),
       'The Warden’s ring of blows struck you for 1 (2 − 4 Padding, at least 1).');
+    // Through an old repair (old_repair marks the side), a beam is doubled, and says so.
+    const repaired = { k: 'damaged', who: 'w.1', amount: 14, hp: 3, cause: { k: 'special', by: 'w.1', sp: 'line', gross: 9, pad: 2, net: 7, x: 1, y: 1, from: [0, 1], side: 'W' } };
+    assert.equal(Causes.check(Object.assign({ turn: 3, tick: 300 }, repaired)), null);
+    assert.equal(say(repaired), 'The Warden’s beam struck the Warden for 14 (9 − 2 Padding, doubled through its repaired west side).');
+    assert.equal(say({ k: 'damaged', who: 'w.1', amount: 3, hp: 0, cause: { k: 'special', by: 'w.1', sp: 'ring', gross: 9, pad: 2, net: 7, x: 1, y: 1, from: [2, 1] } }),
+      'The Warden’s ring of blows struck the Warden for 3 (9 − 2 Padding; it falls to any one blow: all 3 of its health).');
     assert.equal(say({ k: 'special', who: 'w.1', sp: 'ring', hits: ['you'], cause: { k: 'special', by: 'w.1', sp: 'ring' } }), 'The Warden used its ring of blows: it struck 1.');
     assert.equal(say({ k: 'special', who: 'w.1', sp: 'call', cancelled: true, cause: { k: 'cancel', by: 'w.1', why: 'fixed' } }), 'The Warden’s call was called off: it was fixed in place.');
     assert.equal(say({ k: 'special', who: 'w.1', sp: 'line', cancelled: true, cause: { k: 'cancel', by: 'w.1', why: 'out_of_sight' } }), 'The Warden’s beam was called off: it stopped hunting you.');

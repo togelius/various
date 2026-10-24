@@ -117,18 +117,24 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   });
 
   // Reach (§8.1): a target exactly 2 tiles away in one of the 8 directions, over a tile
-  // between that you could walk onto and see through and that holds no actor, with the
-  // corner rule on both halves of a diagonal.
-  test('Reach strikes 2 tiles away in a straight line, over a clear tile, with the corner rule on both halves; never into a case, never past a body, a wall or a closed door', () => {
+  // between that you could walk onto and see through (no cloud or dust on it) and that holds
+  // no actor, with the corner rule on both halves of a diagonal.
+  test('Reach strikes 2 tiles away in a straight line, over a clear tile, with the corner rule on both halves; never into a case, never past a body, a wall, a closed door, a cloud or dust, so never at what you cannot see', () => {
     const you0 = [4, 3];
-    const attackAt = (map, exhibits, form) => {
+    // lay(s), if given, changes the room before the blow (a cloud or dust laid on it).
+    const attackAt = (map, exhibits, form, lay) => {
       const s = room(C, map, you0, exhibits, withForm(form || 'reach'));
+      if (lay) lay(s);
       const t = s.actors[s.actors.length - 1], legal = Step.legal(s).some(a => a.a === 'attack' && a.uid === t.uid);
       const copy = State.clone(s), h = State.hash(copy), ev = Step.step(copy, { a: 'attack', uid: t.uid });
       const refused = ev[0].k === 'refused';
       assert.equal(legal, !refused, `legal ⇔ not refused: ${json(ev[0])}`);
       if (refused) assert.equal(State.hash(copy), h, 'a refused blow changes nothing');
-      return { s, t, ev, code: refused ? ev[0].reason : null, targets: Combat.reachTargets(s, s.actors[0]) };
+      // Whatever Reach may strike stands where you can see it (D7.7: the buttons and the
+      // policies' choices give away nothing the board hides).
+      const targets = Combat.reachTargets(s, s.actors[0]), vis = C.Vision.visible(s);
+      for (const uid of targets) { const b = Actors.byUid(s, uid); assert.equal(vis[b.y * s.dept.w + b.x], 1, `Reach lists ${uid} at ${b.x},${b.y}, which you cannot see`); }
+      return { s, t, ev, code: refused ? ev[0].reason : null, targets };
     };
     // Every direction, over open floor: a Reach blow from your tile, for your weapon's cost.
     for (let d = 0; d < 8; d++) {
@@ -147,6 +153,19 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(attackAt(OPEN, [ex([5, 3], { mode: 'dormant' }), ex([6, 3])]).code, 'blocked', 'a body between');
     for (const c of ['o', '#', '+', 'v', 'H']) assert.equal(attackAt(put(OPEN, 5, 3, c), [ex([6, 3])]).code, 'blocked', `${c} between`);
     for (const c of ['x', "'", ',', 'k', 'u']) assert.equal(attackAt(put(OPEN, 5, 3, c), [ex([6, 3])]).code, null, `${c} between is clear`);
+    // A Fumigant cloud or plaster dust on the tile between blocks sight, and so Reach: the one
+    // beyond is hidden, and is neither offered nor struck. On the target's own tile, or on
+    // yours, it hides nothing between you, and the blow is made.
+    for (const kind of ['dust', 'fumigant']) {
+      for (const [x, y, size, code] of [[5, 3, 1, 'blocked'], [6, 3, 3, 'blocked'], [6, 3, 1, null], [4, 3, 1, null], [7, 3, 1, null]]) {
+        const r = attackAt(OPEN, [ex([6, 3])], 'reach', s => C.Surfaces.add(s, kind, x, y, size, 5, null, []));
+        assert.equal(r.code, code, `${kind} of size ${size} at ${x},${y}`);
+        assert.equal(json(r.targets), json(code ? [] : [r.t.uid]), `${kind} of size ${size} at ${x},${y}`);
+      }
+      // Diagonally, over (5,2) to (6,1).
+      const d = attackAt(OPEN, [ex([6, 1])], 'reach', s => C.Surfaces.add(s, kind, 5, 2, 1, 5, null, []));
+      assert.equal(json([d.code, d.targets]), json(['blocked', []]), `${kind} between, diagonally`);
+    }
     // North-east, over (5,2) to (6,1): the corners of the first half are (5,3) and (4,2), of the second (6,2) and (5,1).
     for (const [x, y] of [[5, 3], [4, 2], [6, 2], [5, 1]]) assert.equal(attackAt(put(OPEN, x, y, 'o'), [ex([6, 1])]).code, 'corner', `a column at ${x},${y}`);
     assert.equal(attackAt(put(OPEN, 3, 3, 'o'), [ex([6, 1])]).code, null, 'a column elsewhere');
@@ -167,6 +186,47 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(s.actors[0].next, N.FORM_REACH[3]);
     // canStrike says the same for exhibits: they have no Reach.
     assert.equal(Combat.canStrike(s, s.actors[1], s.actors[0], { kind: 'reach' }), 'out_of_reach');
+  });
+
+  // Reach under every invariant, clone-checked: a hunter 2 tiles away in each of the 8
+  // directions, each struck in turn twice, over several seeds so that blows both hit and
+  // miss. The hunters are scheduled far ahead, so that they stay where they are.
+  const reachAll = H.scenario({
+    name: 'Reach blows at hunters 2 tiles away in each of the 8 directions hold every invariant and are clone-stable',
+    id: null,
+    seeds: [1, 2, 3, 4, 5, 6],
+    build: (params, sp, depth, opts) => Setup.room(opts.seed, { acc: 'T0', depth, map: OPEN, you: [4, 3],
+      kit: withForm('reach').kit,
+      exhibits: Grid.DX.map((dx, d) => ex([4 + 2 * dx, 3 + 2 * Grid.DY[d]], { next: 1000000, sawYou: true, stats: Object.assign({}, DUMMY, { hp: 99 }) })) }, { rulesOff: opts.rulesOff }),
+    actions: (state, i) => i < 16 ? { a: 'attack', uid: state.actors[1 + (i % 8)].uid } : null,
+    expect(r) {
+      if (r.steps.length !== 16) return `${r.steps.length} steps`;
+      for (const st of r.steps) {
+        const ev = st.events, a = ev.find(e => e.k === 'attacked' && e.by === 'you');
+        if (!a || a.how.kind !== 'reach' || a.cause.dist !== 2 || a.at !== st.action.uid) return `not a Reach blow: ${kinds(ev).join()}`;
+        const res = ev.find(e => (e.k === 'damaged' || e.k === 'missed') && e.cause.by === 'you');
+        if (!res || res.cause.how.kind !== 'reach' || !Number.isInteger(res.cause.roll)) return `its result: ${json(res)}`;
+        if (res.k === 'damaged' && json(res.cause.from) !== json([4, 3])) return `it came from ${json(res.cause.from)}`;
+      }
+      return null;
+    },
+    clone: true,
+  });
+
+  test('Reach blows in every direction, hit and miss, hold every invariant (the Reach branches included) and are clone-stable', () => {
+    const results = H.sweep(C, reachAll, [{ sp: null, depth: 1 }, { sp: null, depth: 4 }]);
+    assert.deepEqual(H.failures(results), []);
+    const all = results.flatMap(r => r.events);
+    const hits = all.filter(e => e.k === 'damaged' && e.cause.by === 'you').length, misses = all.filter(e => e.k === 'missed' && e.cause.by === 'you').length;
+    assert.ok(hits > 0 && misses > 0, `${hits} hits and ${misses} misses`);
+    // The invariants check these Reach blows: with the blow's noise planted away, the order
+    // inside a Reach blow breaks, and the runs say so.
+    const X = loadCore(), emit = X.Noise.emit;
+    X.Noise.emit = (state, x, y, cls, cause, ev) => cause && cause.k === 'attack' ? undefined : emit(state, x, y, cls, cause, ev);
+    const planted = H.failures(H.sweep(X, reachAll, [{ sp: null, depth: 1 }]));
+    assert.equal(planted.length, reachAll.seeds.length, planted.join('\n'));
+    for (const f of planted) assert.match(f, /blow at .* made no soft noise after it landed/);
+    console.log(`  Reach: ${results.length} runs, ${hits} hits and ${misses} misses, every invariant checked and clone-checked`);
   });
 
   test('inside one blow: attacked, then the hit or miss, then last the soft noise from the attacker\'s tile; for your blows, Reach blows and exhibits\' blows', () => {
@@ -254,9 +314,44 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       if (invulnerable) {
         assert.equal(json([s.over, s.actors[0].hp]), json([null, 1]));
         assert.ok(saved >= 5, `${saved} saves`);
-        const e = { k: 'damaged', turn: 1, tick: 100, who: 'you', amount: 9, hp: 1, cause: { k: 'attack', by: 'x.1', at: 'you', chance: 95, roll: 3, raw: 9, pad: 1, how: { kind: 'melee' }, from: [3, 2], saved: 1 } };
-        assert.equal(Text.event(e), 'The training dummy hit you for 9 (rolled 3 against 95%; 9 − 1 Padding). You were kept at 1 health.');
+        const e = { k: 'damaged', turn: 1, tick: 100, who: 'you', amount: 8, hp: 1, cause: { k: 'attack', by: 'x.1', at: 'you', chance: 95, roll: 3, raw: 9, pad: 1, how: { kind: 'melee' }, from: [3, 2], saved: 1 } };
+        assert.equal(Text.event(e), 'The training dummy hit you for 8 (rolled 3 against 95%; 9 − 1 Padding). You were kept at 1 health.');
       } else assert.equal(json([s.over.k, s.over.by, s.actors[0].hp, saved]), json(['died', s.actors[1].uid, 0, 0]));
+    }
+  });
+
+  test('a blow\'s sentence gives the arithmetic of the damage it dealt, through an old repair or at a body that falls to one blow too', () => {
+    const names = uid => uid === 'x.1' ? 'the cast' : uid === 'x.2' ? 'the mote' : null;
+    const say = (amount, hp, more, who) => {
+      const e = { k: 'damaged', turn: 3, tick: 300, who: who || 'x.1', amount, hp, cause: Object.assign({ k: 'attack', by: 'you', at: who || 'x.1', chance: 80, roll: 30, raw: 6, pad: 2, how: { kind: 'melee' }, from: [2, 2] }, more) };
+      assert.equal(Causes.check(e), null, json(e));
+      const line = Text.event(e, names);
+      assert.ok(!/undefined|NaN|\[object/.test(line), line);
+      return line;
+    };
+    assert.equal(say(4, 10), 'You hit the cast for 4 (rolled 30 against 80%; 6 − 2 Padding).');
+    assert.equal(say(8, 10, { side: 'W' }), 'You hit the cast for 8 (rolled 30 against 80%; 6 − 2 Padding, doubled through its repaired west side).');
+    assert.equal(say(2, 10, { raw: 1, floor: 1, side: 'N', how: { kind: 'reach' } }), 'You hit the cast with Reach for 2 (rolled 30 against 80%; 1 − 2 Padding, at least 1, doubled through its repaired north side).');
+    assert.equal(say(8, 0, { side: 'E', surprise: 1, roll: undefined }), 'You caught the cast unawares: 8 damage (6 − 2 Padding, doubled through its repaired east side).');
+    assert.equal(say(5, 0, {}, 'x.2'), 'You hit the mote for 5 (rolled 30 against 80%; 6 − 2 Padding; it falls to any one blow: all 5 of its health).');
+    assert.equal(say(3, 0, { raw: 9 }, 'x.2'), 'You hit the mote for 3 (rolled 30 against 80%; 9 − 2 Padding; it falls to any one blow: all 3 of its health).');
+    assert.equal(say(6, 4), 'You hit the cast for 6 (rolled 30 against 80%; 6 − 2 Padding, which its Behaviour line makes 6).');
+    // Through the real path: a stand-in for old_repair (W1-ARCH-B's), which marks the side and
+    // doubles, and one for mote_swarm (W1-ARCH-A's), which takes all the body's health.
+    const X = loadCore();
+    X.Registry.define('MODIFIERS', 'planted_repair', {});
+    X.Archetypes.addModifier('planted_repair', { adjustDamage(state, def, amount, cause) { cause.side = 'W'; return amount * 2; } });
+    X.Registry.define('MODIFIERS', 'planted_mote', {});
+    X.Archetypes.addModifier('planted_mote', { adjustDamage(state, def, amount) { return def.hp; } });
+    for (const [mod, want] of [['planted_repair', /^You hit the training dummy for (\d+) \(rolled \d+ against \d+%; (\d+) − 0 Padding, doubled through its repaired west side\)\.$/],
+      ['planted_mote', /^You hit the training dummy for 7 \(rolled \d+ against \d+%; \d+ − 0 Padding; it falls to any one blow: all 7 of its health\)\.$/]]) {
+      const t = room(X, OPEN, [2, 2], [ex([3, 2], { mods: [mod], sawYou: true, stats: Object.assign({}, DUMMY, { hp: 7, acc: -30, eva: -30 }) })]);
+      const d = X.Step.step(t, { a: 'attack', uid: t.actors[1].uid }).find(e => e.k === 'damaged' && e.cause.by === 'you');
+      assert.ok(d, mod);
+      assert.equal(X.Causes.check(d), null);
+      const line = X.Text.event(d);
+      assert.match(line, want, mod);
+      if (mod === 'planted_repair') { const m = line.match(want); assert.equal(+m[1], 2 * +m[2]); }
     }
   });
 
@@ -301,13 +396,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     for (const form of ['balanced', 'light', 'heavy', 'reach']) {
       const s = Setup.room(4, Object.assign({}, TestRoom.spec, withForm(form)));
       s.actors[0].hp = s.actors[0].maxHp = 999;
-      const p = H.play(C, s, pick(4), { inv: ['combat'], cap: 250 });
+      const p = H.play(C, s, pick(4), { inv: ['combat'], cap: 250, clone: true });
       assert.deepEqual(p.violations.map(v => v.text), [], form);
       steps += p.steps.length;
     }
     for (const [acc, depth] of [['S9', 3], ['A4', 3], ['M11', 3]]) {
       const s = Dept.create(depth, acc, depth, { invulnerable: true });
-      const p = H.play(C, s, pick(depth), { inv: ['combat'], cap: 250 });
+      const p = H.play(C, s, pick(depth), { inv: ['combat'], cap: 250, clone: true });
       assert.deepEqual(p.violations.map(v => v.text), [], acc);
       steps += p.steps.length;
     }

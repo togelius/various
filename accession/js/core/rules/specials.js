@@ -204,10 +204,24 @@ const Specials = (() => {
   // where the action leaves you, and your next decision comes when its ticks are done; a
   // pending damage mark on that tile resolves first if its owner's next action comes earlier
   // (ties go to you, §8.1). dmg is what the mark shows: its gross through your Padding now,
-  // which is what resolves, since your stats change only when your action is done. Both the
-  // tile and the cost are read from the action applied to a copy of the state, which is then
-  // thrown away; nothing the action would roll is looked at, so the answer gives nothing away.
+  // which is what resolves, since your stats change only when your action is done.
+  // The action is applied to a copy of the state, which is then thrown away, and the marks
+  // are read from the copy: so the tile and the cost are the action's own, and a mark the
+  // action calls off (its owner fixed, quieted, or losing you to the Ticket) is no threat,
+  // nor is any mark once the action ends the visit (leaving). Nothing you could not know
+  // before the action is looked at, so the answer gives nothing away:
+  //   - a mark whose owner the action destroys still counts, because whether a blow
+  //     destroys is not known before it is made, so a destroying blow and a miss give the
+  //     same answer;
+  //   - an action with a consumable whose kind you have not identified (Consumables.known)
+  //     is judged as if it left you where you are and called nothing off, so the answer
+  //     does not tell you what the consumable is. Only its cost is the action's own.
   // A refused action, or one that takes no time, has no threat.
+  function unforeseen(state, action) {
+    if (typeof action.uid !== 'string' || !Array.isArray(state.items)) return false;
+    const it = state.items.find(i => i.uid === action.uid);
+    return !!it && it.kind === 'consumable' && !Consumables.known(state, it.ck);
+  }
   function threat(state, action) {
     if (state.over || !action || typeof action.a !== 'string') return null;
     if (state.ui && state.ui.pendingChoice && action.a !== 'choose') return null;
@@ -215,8 +229,14 @@ const Specials = (() => {
     if (!h || Status.blocks(state, you, action)) return null;
     const copy = State.clone(state), r = h.apply(copy, action, []);
     if (typeof r === 'string' || !Number.isInteger(r) || r <= 0) return null;
-    const after = copy.actors[0], x = after.x, y = after.y, decision = you.next + r;
-    for (const a of state.actors) {
+    const seen = unforeseen(state, action) ? state : copy;
+    if (seen.over && seen.over.k === 'left') return null;
+    const after = seen.actors[0], x = after.x, y = after.y, decision = you.next + r;
+    // Actors are never removed during a visit, so the copy's actor i is the state's actor i;
+    // any the action created come after them, and have no mark.
+    for (let i = 1; i < seen.actors.length; i++) {
+      const b = seen.actors[i], was = i < state.actors.length ? state.actors[i] : null;
+      const a = was && !was.gone && b.gone ? was : b;
       const t = a.telegraph;
       if (a.gone || !t || t.effect !== 'damage' || !Actors.scheduled(a) || a.next >= decision) continue;
       if (hasTile(t.tiles, x, y)) return { x, y, dmg: net(t.gross, you.pad), by: a.uid };
