@@ -7,8 +7,10 @@
 //     it takes is a blow from beside you, or the first step of a shortest walk to your actual
 //     tile over the whole map (AI.towards, no limit on distance), never towards a tile it
 //     only last knew you at; it never searches or goes back (it acts here on every turn, so
-//     the timers of AI.byMode never apply to it), and if anything else has made it stop
-//     hunting, its next action takes the hunt up again;
+//     the timers of AI.byMode never apply to it). Its action never changes its mode: the
+//     night watch makes it hunting (ClockRules.spawnWatchman), "Quiet, Please" and the
+//     Ticket pass it by, and the night_watchman.hunts invariant reports any rule that
+//     would change it;
 //   it is never caught by surprise: it is made hunting and stays so (§8.1's surprise needs
 //     an exhibit that sleeps or has not seen you);
 //   staff doors stop it, as they stop every exhibit (§8.2): when no walk reaches you, it goes
@@ -35,7 +37,6 @@
 
   function act(state, a, ev) {
     const you = state.actors[0];
-    if (a.mode !== 'hunting') Wake.setMode(state, a, 'hunting', { k: 'night_watch' }, ev);
     a.lastKnown = [you.x, you.y];
     const blow = AI.strike(state, a, you, ev);
     if (blow !== null) return blow;

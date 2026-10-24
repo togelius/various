@@ -148,6 +148,25 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(X.Text.event(rung[2], names), 'A night-watch bell rings, but no sleeping exhibit is left for it to wake.');
   });
 
+  test('a night-watch bell measures walking distance as the ring does, staff doors counting as doors whatever their grade: it wakes a sleeper behind a staff door you cannot open, and none that no walk reaches', () => {
+    // A staff door of grade VII at (5, 3), above your grade; "behind" sleeps beyond it, and
+    // "pocket" in a walled-off pocket that no walk reaches.
+    const MAP = ['##########', 'E........#', '#........#', '#####S####', '#...#....#', '##########'];
+    const st = Roles.stats('fodder', 2), uid = k => 'T0.2.room.' + k;
+    const s = Setup.room(1, { acc: 'T0', depth: 2, map: MAP, you: [1, 1], clock: { B: 2, G: 2, count: 33 }, entrance: [0, 1], exits: [],
+      fixtures: [{ k: 'staff', x: 5, y: 3, grade: 7 }],
+      exhibits: [{ sp: 'x', at: [7, 4], stats: st, uid: uid('behind'), mode: 'dormant' }, { sp: 'x', at: [2, 4], stats: st, uid: uid('pocket'), mode: 'dormant' }] }, { invulnerable: true });
+    s.dept.clock.watch.k = 1;
+    const grade = s.dept.fixtures.find(f => f.k === 'staff').grade;
+    assert.ok(grade > s.run.grade, `the staff door's grade ${grade} is above yours, ${s.run.grade}`);
+    const yours = walking(MAP, [1, 1]), theirs = walking(MAP, [7, 4], 'exhibit');
+    assert.equal(json([yours(7, 4) > 0, yours(2, 4), theirs(1, 1)]), json([true, -1, -1]), 'a walk reaches behind the door, none the pocket; behind cannot walk to you');
+    assert.equal(json(ClockRules.nearestSleepers(s, 3).map(r => [r.a.uid, r.dist])), json([[uid('behind'), yours(7, 4)]]));
+    const ev = Step.step(s, { a: 'wait' }), bell = ev.find(e => e.k === 'stage');
+    assert.equal(json([bell.stage, bell.woke]), json(['night_bell', [uid('behind')]]));
+    assert.equal(json(s.actors.slice(1).map(a => [a.uid, a.mode])), json([[uid('behind'), 'hunting'], [uid('pocket'), 'dormant']]));
+  });
+
   test('the bell is not a noise: those it wakes know your tile, first act a beat later, and nothing is heard', () => {
     const X = loadCore(); plantPipless(X);
     const s = hall(X, 2);
@@ -199,6 +218,25 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json(ClockRules.entryTile(s)), json([1, 1]), 'the first free tile at 1');
     s.actors[0].x = 6;
     assert.equal(json(ClockRules.entryTile(s)), json([0, 1]), 'the entrance itself when it is free');
+    // A closed door is never a tile to come in on: a step into one only opens it, so no one
+    // stands on one. With you on the entrance and a closed door beside it, the nearest free
+    // tile is beyond the door, and the sentence says it came in near the entrance.
+    const DOOR = ['#####', 'E+..#', '#...#', '#####'];
+    const dd = walking(DOOR, [0, 1], 'exhibit');
+    assert.equal(json([dd(1, 1), dd(2, 1), dd(1, 2), dd(2, 2)]), json([1, 2, 2, 2]));
+    const door = Setup.room(1, { acc: 'T0', depth: 2, map: DOOR, you: [0, 1], exhibits: [], clock: { B: 1, G: 1 }, entrance: [0, 1] }, { invulnerable: true });
+    assert.equal(json(ClockRules.entryTile(door)), json([2, 1]), 'beyond the closed door at (1, 1), first at 2 in row-major order');
+    const came = waits(door, 2).find(e => e.k === 'entered');
+    assert.equal(json([came.at, came.cause]), json([[2, 1], { k: 'night_watch', n: 1, count: 2, near: true }]));
+    assert.equal(Causes.check(came), null);
+    assert.equal(Text.event(came, Labels.nameOf(door)), 'The Night Watchman comes in near the entrance, since someone is standing on it.');
+    const again = Object.assign({}, came, { cause: Object.assign({}, came.cause, { n: 2 }) });
+    assert.equal(Text.event(again, Labels.nameOf(door)), 'The Night Watchman comes in near the entrance, since someone is standing on it, in place of the one that fell.');
+    for (let i = 0; i < 6; i++) {
+      Step.step(door, { a: 'wait' });
+      const w = W(door)[0];
+      assert.notEqual(Grid.ch(door.dept, w.x, w.y), '+', 'it never stands on a closed door');
+    }
     const none = Setup.room(1, { acc: 'T0', depth: 2, map: ROOM, you: [6, 2], exhibits: [], clock: { B: 1, G: 1 } });
     assert.equal(ClockRules.spawnWatchman(none, []), null, 'no entrance, no Night Watchman');
     assert.equal(ClockRules.spawnWatchman(Setup.room(1, { acc: 'T0', depth: 2, map: ROOM, you: [6, 2], exhibits: [], entrance: [0, 1] }), []), null, 'no clock, no Night Watchman');
@@ -340,6 +378,34 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(t.causes.some(c => c.k === 'left'), 'leaving is recorded');
   });
 
+  test('the leaving invariant (clock.leave) holds for leave and its refusals, and catches a leave that takes time, a leave from off the door, a wrong refusal and a refusal that changes something', () => {
+    const MAP = ['############', 'E..........X', '#..........#', '#..........X', '############'];
+    const ACTS = [{ a: 'leave', i: 0 }, { a: 'leave', i: 2 }, { a: 'leave' }, { a: 'move', dir: 2 }, { a: 'leave', i: 1 }, { a: 'leave', i: 0 }];
+    const play = patch => {
+      const X = loadCore();
+      if (patch) patch(X, X.Actions.get('leave'));
+      const s = X.Setup.room(1, { acc: 'T0', depth: 2, map: MAP, you: [10, 3], exhibits: [], clock: { B: 5, G: 4 }, entrance: [0, 1], exits: [[11, 3], [11, 1]] }, { invulnerable: true });
+      const r = H.play(X, s, ACTS, { inv: ['clock.leave'] });
+      return { r, s, found: [...new Set(r.violations.map(v => v.inv))] };
+    };
+    const ok = play(null);
+    assert.equal(json(ok.r.violations), '[]');
+    assert.equal(json([ok.s.over && ok.s.over.k, ok.r.steps.map(t => t.events.map(e => e.reason || e.k).join())]),
+      json(['left', ['not_on_exit', 'no_exit', 'no_exit', 'moved', 'not_on_exit', 'left']]));
+    assert.equal(json(play((X, h) => { const f = h.apply; h.apply = (s, a, ev) => { const r = f(s, a, ev); return r === 0 ? N.TICKS_PER_TURN : r; }; }).found), json(['clock.leave']), 'a leave that takes a turn');
+    assert.equal(json(play((X, h) => {
+      const f = h.apply;
+      h.apply = (s, a, ev) => {
+        const you = s.actors[0], d = Number.isInteger(a.i) && s.dept.exits[a.i];
+        if (!d) return f(s, a, ev);
+        const x = you.x, y = you.y; you.x = d[0]; you.y = d[1];
+        const r = f(s, a, ev); you.x = x; you.y = y; return r;
+      };
+    }).found), json(['clock.leave']), 'a leave from off the door');
+    assert.equal(json(play((X, h) => { const f = h.apply; h.apply = (s, a, ev) => { const r = f(s, a, ev); return r === 'no_exit' ? 'not_on_exit' : r; }; }).found), json(['clock.leave']), 'the wrong refusal');
+    assert.equal(json(play((X, h) => { const f = h.apply; h.apply = (s, a, ev) => { const r = f(s, a, ev); if (typeof r === 'string') s.actors[0].lastAct = 'leave'; return r; }; }).found), json(['clock.leave']), 'a refusal that changes the state');
+  });
+
   test('the dial: Clock.view gives the stage and the turns to the next of the bell, the night watch, a night-watch bell and a returning Watchman, and Text.clock says it', () => {
     const s = room({ you: [1, 1] });
     assert.equal(json(Clock.view(s)), json({ count: 0, B: 5, G: 4, stage: 0, toBell: 5, toWatch: 9, toNightBell: null, watchBack: null }));
@@ -413,5 +479,9 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json([e.ready, e.inv, e.covers]), json(['unit', 'night_watchman', ['attacked', 'missed', 'entered']]));
     for (const id of ['night_bell', 'night_watch']) assert.equal(json([Registry.WAKE_CAUSES[id].ready, Registry.WAKE_CAUSES[id].mode]), json(['unit', 'hunting']));
     for (const code of ['no_exit', 'not_on_exit']) assert.ok(Registry.REFUSALS[code] && Text.refusalDefined(code), code);
+    // Each names an invariant file that checks what it says: leave's refusals, clock.leave.
+    const Inv = require('../tools/invariants.js'), byFile = file => Inv.load(C).filter(i => i.file === file).map(i => i.id);
+    for (const code of ['no_exit', 'not_on_exit']) assert.ok(byFile(Registry.REFUSALS[code].inv).includes('clock.leave'), code);
+    assert.ok(byFile(e.inv).includes('night_watchman.hunts') && byFile(e.inv).includes('night_watchman.unsurprised'));
   });
 };

@@ -1,21 +1,37 @@
 // The Night Watchman's clause and the clock's rules about it, as invariants checked after
 // every step (BUILD.md §5.3, check 1; §8.4). Each is written from the rule's sentence, not
 // from the rule's code:
-//   night_watchman.one     at most one Night Watchman is in the department at a time;
-//   night_watchman.hunts   a Night Watchman is never asleep, searching, going back or
-//                          reinstalling;
-//   night_watchman.acts    each of its actions is a blow at you from beside you, or a step
-//                          (or a door opened) strictly closer to you by an exhibit's walking
-//                          distance, or, when no walk reaches you, strictly closer to the tile
-//                          it can reach that is nearest you; it waits only when no such step is
-//                          free; it never acts in the instant it comes in;
-//   night_watchman.return  a new one comes in exactly WATCHMAN_RETURN clock counts after the
-//                          last one fell, and the first only once the night watch has begun.
+//   night_watchman.one          at most one Night Watchman is in the department at a time;
+//   night_watchman.hunts        a Night Watchman that came in with the night watch is always
+//                               hunting: never asleep, awake, searching, going back or
+//                               reinstalling;
+//   night_watchman.unsurprised  no blow at a Night Watchman that came in with the night watch
+//                               is a surprise blow;
+//   night_watchman.acts         each of its own actions is a blow at you from beside you, or a
+//                               step (or a door opened) strictly closer to you by an exhibit's
+//                               walking distance, or, when no walk reaches you, strictly closer
+//                               to the tile it can reach that is nearest you; it waits only when
+//                               no such step is free; it never acts in the instant it comes in.
+//                               A move another rule makes it take (a Window Pole's push, whose
+//                               moved event has a cause) is not its own step;
+//   night_watchman.return       a new one comes in exactly WATCHMAN_RETURN clock counts after
+//                               the last one fell, and the first only once the night watch has
+//                               begun;
+//   clock.leave                 you leave only by standing on exit door i and choosing leave(i),
+//                               which takes no time, ends the visit as left by that door, and is
+//                               the step's last event; a leave is refused as no_exit when there
+//                               is no door i and as not_on_exit when you are not on it, and a
+//                               refused leave changes nothing.
+// "Came in with the night watch": its story starts with the night watch (woke.cause.k is
+// night_watch), as ClockRules.spawnWatchman makes every Watchman. A scenario elsewhere may
+// place the shared species as an ordinary exhibit (asleep, or awake as its trigger makes it);
+// such a one is not the night watch's, and only .one and .acts speak about it.
 'use strict';
 module.exports = (C) => {
   const { N } = C;
+  const json = JSON.stringify;
   const isW = a => !!a && a.arch === 'night_watchman';
-  const BAD = ['dormant', 'searching', 'returning', 'reinstalling'];
+  const ofTheWatch = a => isW(a) && !!a.woke && !!a.woke.cause && a.woke.cause.k === 'night_watch';
 
   // Walking distances on a map, by the step rule for `who` ('exhibit': staff doors are walls).
   const walkFrom = (m, x, y, who) => C.Grid.distances(m, [[x, y]], m.w * m.h, null, who);
@@ -46,9 +62,21 @@ module.exports = (C) => {
 
   const hunts = {
     id: 'night_watchman.hunts',
-    applies: a => isW(a) && !a.gone,
+    applies: a => ofTheWatch(a) && !a.gone,
     check(pre, events, post, ctx) {
-      return BAD.includes(ctx.actor.mode) ? `${ctx.uid} is ${ctx.actor.mode}; a Night Watchman always comes for you` : null;
+      return ctx.actor.mode !== 'hunting' ? `${ctx.uid} is ${ctx.actor.mode}; a Night Watchman always comes for you` : null;
+    },
+  };
+
+  const unsurprised = {
+    id: 'night_watchman.unsurprised',
+    check(pre, events, post) {
+      for (const e of events) {
+        if (e.k !== 'damaged' || !e.cause || !e.cause.surprise) continue;
+        const a = post.actors.find(x => x.uid === e.who);
+        if (ofTheWatch(a)) return `${e.who} was caught by surprise by ${e.cause.by}'s blow`;
+      }
+      return null;
     },
   };
 
@@ -57,7 +85,12 @@ module.exports = (C) => {
     applies: a => isW(a),
     check(pre, events, post, ctx) {
       const w = ctx.actor, b = ctx.before, m = post.dept, you = post.actors[0];
-      const mine = events.filter(e => (e.k === 'moved' && e.who === w.uid) || (e.k === 'opened' && e.who === w.uid) || (e.k === 'attacked' && e.by === w.uid));
+      // Its own actions: a step (moved with no cause, as a step is told), a door it opened, a
+      // blow. A move with a cause is one another rule made it take (a push): it changes where
+      // it stands, and is not judged as its step.
+      const pushed = e => e.k === 'moved' && e.who === w.uid && !!e.cause;
+      const own = e => (e.k === 'moved' && e.who === w.uid && !e.cause) || (e.k === 'opened' && e.who === w.uid) || (e.k === 'attacked' && e.by === w.uid);
+      const mine = events.filter(own), moves = events.filter(e => own(e) || pushed(e));
       // It comes in at a turn boundary, so the instant it came in is that turn's first tick.
       const came = events.find(e => e.k === 'entered' && e.who === w.uid);
       const arrived = came ? came.tick : w.woke && w.woke.cause && w.woke.cause.k === 'night_watch' ? w.woke.turn * N.TICKS_PER_TURN : null;
@@ -68,7 +101,8 @@ module.exports = (C) => {
       const toYou = walkFrom(m, you.x, you.y, 'exhibit');
       const dist = (x, y) => at(toYou, m, x, y);
       let pos = b ? [b.x, b.y] : came ? came.at.slice() : [w.x, w.y];
-      for (const e of mine) {
+      for (const e of moves) {
+        if (pushed(e)) { pos = e.to.slice(); continue; }
         const reach = dist(pos[0], pos[1]) >= 0;
         const goal = reach ? null : goalFor(m, pos[0], pos[1], you), toGoal = goal ? walkFrom(m, goal[0], goal[1], 'exhibit') : null;
         const near = (x, y) => reach ? dist(x, y) : at(toGoal, m, x, y);
@@ -134,5 +168,35 @@ module.exports = (C) => {
     },
   };
 
-  return [one, hunts, acts, back];
+  const leave = {
+    id: 'clock.leave',
+    check(pre, events, post, ctx) {
+      const ex = (pre.dept && pre.dept.exits) || [], you = pre.actors[0], act = ctx.action || {};
+      const left = events.filter(e => e.k === 'left');
+      if (left.length > 1) return `you left ${left.length} times in one step`;
+      if (left.length) {
+        const e = left[0], d = ex[e.door];
+        if (act.a !== 'leave' || act.i !== e.door) return `you left by exit door ${e.door} on the action ${json(act)}`;
+        if (!d || d[0] !== you.x || d[1] !== you.y) return `you left by exit door ${e.door} from ${you.x},${you.y}, not standing on it`;
+        if (events[events.length - 1] !== e) return `something happened after you left: ${json(events.slice(events.indexOf(e) + 1).map(x => x.k))}`;
+        if (post.tick !== pre.tick || post.turn !== pre.turn || post.actors[0].next !== pre.actors[0].next) {
+          return `leaving took time: tick ${pre.tick} to ${post.tick}, your next decision ${pre.actors[0].next} to ${post.actors[0].next}`;
+        }
+        const o = post.over;
+        if (!o || o.k !== 'left' || o.door !== e.door || o.turn !== e.turn || o.by !== null) return `the visit's end ${json(o)} is not leaving by exit door ${e.door}`;
+        return null;
+      }
+      if (!pre.over && post.over && post.over.k === 'left') return `the visit ended as left with no left event: ${json(post.over)}`;
+      const refused = events.length === 1 && events[0].k === 'refused' ? events[0].reason : null;
+      if (act.a === 'leave' && (refused === 'no_exit' || refused === 'not_on_exit')) {
+        const door = Number.isInteger(act.i) && act.i >= 0 && act.i < ex.length ? ex[act.i] : null;
+        if ((refused === 'no_exit') !== (door === null)) return `leave(${json(act.i)}) was refused as ${refused}, with ${ex.length} exit door(s)`;
+        if (door && door[0] === you.x && door[1] === you.y) return `leave(${act.i}) was refused as ${refused}, though you stand on that exit door`;
+        if (C.State.hash(pre) !== C.State.hash(post)) return `a refused leave (${refused}) changed the state`;
+      }
+      return null;
+    },
+  };
+
+  return [one, hunts, unsurprised, acts, back, leave];
 };

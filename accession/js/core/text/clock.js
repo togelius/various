@@ -19,16 +19,21 @@
   Text.defineCause('stage', 'clock', stage);
 
   Text.define('entered', (e, w) => `${w.Name(e.who)} came in.`);
-  Text.defineCause('entered', 'night_watch', (e, w) => e.cause.n > 1
-    ? `${w.Name(e.who)} comes in at the entrance, in place of the one that fell.`
-    : `${w.Name(e.who)} comes in at the entrance.`);
+  // At the entrance, or, when someone stands on it, on the free tile nearest it (near).
+  Text.defineCause('entered', 'night_watch', (e, w) => {
+    const where = e.cause.near ? 'near the entrance, since someone is standing on it' : 'at the entrance';
+    return `${w.Name(e.who)} comes in ${where}${e.cause.n > 1 ? ', in place of the one that fell' : ''}.`;
+  });
   Text.defineCause('entered', 'visit', () => 'You enter the department.');
 
   const WHEN = ['during open hours', 'after the bell', 'during the night watch'];
   Text.define('left', (e, w) => `${w.Name(e.who)} left.`);
   Text.defineCause('left', 'leave', e => `You left the department ${WHEN[e.cause.stage] || 'by an exit door'}.`);
 
-  const why = { night_bell: 'the night-watch bell rang', night_watch: 'the night watch began' };
+  // The Night Watchman is made hunting with the night watch (a creation woke, with no
+  // hunting event); a night-watch bell wakes sleepers straight into a hunt (woke, then
+  // hunting). Each sentence gives the reason its cause stands for.
+  const why = { night_bell: 'the night-watch bell rang', night_watch: 'the night watch is on' };
   for (const k of ['night_bell', 'night_watch']) {
     Text.defineCause('woke', k, (e, w) => e.was == null
       ? (k === 'night_watch' ? `${w.Name(e.who)} is on its rounds, hunting you from the start.` : `${w.Name(e.who)} is awake: ${why[k]}.`)

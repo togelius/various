@@ -19,8 +19,9 @@
   R.defineEvent('left', { fields: { who: 'uid', door: 'int', at: 'tile' }, record: true });
 
   R.defineCause('stage', 'clock', { fields: { count: 'int', B: 'int', G: 'int' } });
-  // The n-th Night Watchman comes in at clock count `count`.
-  R.defineCause('entered', 'night_watch', { fields: { n: 'int', count: 'int' } });
+  // The n-th Night Watchman comes in at clock count `count`; near is true when someone stood
+  // on the entrance, so it came in on the free tile nearest it.
+  R.defineCause('entered', 'night_watch', { fields: { n: 'int', count: 'int', near: 'bool?' } });
   R.defineCause('entered', 'visit', { fields: {} });
   // You leave by exit door `door`, at clock stage `stage` (0 open, 1 after the bell, 2 the night watch).
   R.defineCause('left', 'leave', { fields: { door: 'int', stage: 'int' } });
@@ -32,6 +33,8 @@
   const wake = { by: 'uid?', n: 'int?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' };
   for (const k of ['night_bell', 'night_watch']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: wake });
 
-  // leave(i)'s refusals (§4.2): no exit door i, or you are not standing on it.
+  // leave(i)'s refusals (§4.2): no exit door i, or you are not standing on it. Their
+  // invariant is clock.leave, in night_watchman.inv.js: a leave is refused with exactly the
+  // code its door and your tile give, and a refused leave changes nothing.
   for (const code of ['no_exit', 'not_on_exit']) R.define('REFUSALS', code, { ready: 'unit', tests: ['m3-clock.test.js'], inv: 'night_watchman' });
 })();

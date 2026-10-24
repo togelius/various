@@ -76,11 +76,13 @@ const ClockRules = (() => {
 
   // Where a Night Watchman comes in: the entrance, or if someone stands there, the free tile
   // nearest it by an exhibit's walking distance (ties row-major); null if there is no
-  // entrance or no free tile. Free: an exhibit could stand there and no actor does.
+  // entrance or no free tile. Free: an exhibit could step onto it and stand there, it is not
+  // a closed door (a step into one only opens it, so no one ever stands on one), and no
+  // actor is on it.
   function entryTile(state) {
     const m = state.dept, e = m.entrance;
     if (!e) return null;
-    const free = (x, y) => Grid.walkable(m, x, y, 'exhibit') && !Actors.at(state, x, y);
+    const free = (x, y) => Grid.walkable(m, x, y, 'exhibit') && !Grid.closedDoor(m, x, y) && !Actors.at(state, x, y);
     if (free(e[0], e[1])) return [e[0], e[1]];
     const d = Grid.distances(m, [[e[0], e[1]]], m.w * m.h, null, 'exhibit');
     let best = null, bd = -1;
@@ -98,7 +100,8 @@ const ClockRules = (() => {
   // hunting, its story starting with the night watch (Wake.created): it hunts you from the
   // start and is never caught by surprise, and it first acts one action after it comes in,
   // never in the instant it appears (§8.1). Events: entered {who, at} with cause
-  // night_watch {n, count}, then its creation woke. A Watchman the visit removes by its uid
+  // night_watch {n, count, near?} (near: true when someone stood on the entrance, so it came
+  // in on the tile nearest it), then its creation woke. A Watchman the visit removes by its uid
   // (options.without, §3.6) is made and at once marked gone, with no event, so it never
   // comes, nor does any after it, and every actor made later keeps its place in the list.
   function spawnWatchman(state, ev) {
@@ -112,7 +115,9 @@ const ClockRules = (() => {
     c.watch.k = k;
     c.watch.back = null;
     if ((state.options.without || []).includes(a.uid)) { a.gone = 1; return a; }
-    Causes.emit(state, ev, 'entered', { who: a.uid, at: [a.x, a.y] }, { k: 'night_watch', n: k, count: c.count });
+    const cause = { k: 'night_watch', n: k, count: c.count };
+    if (at[0] !== m.entrance[0] || at[1] !== m.entrance[1]) cause.near = true;
+    Causes.emit(state, ev, 'entered', { who: a.uid, at: [a.x, a.y] }, cause);
     Wake.created(state, a, 'night_watch', { n: k }, ev);
     return a;
   }
