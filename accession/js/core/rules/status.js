@@ -1,6 +1,5 @@
-// ACCESSION — statuses on actors (BUILD.md §8.1, §8.6), frozen in shape after M3's Wave 0;
-// W1-STATUS fills EFFECTS. A status is { id, until, turns, from } on actor.statuses, in the
-// order applied.
+// ACCESSION — statuses on actors (BUILD.md §8.1, §8.6), owned by W1-STATUS after M3's Wave 0.
+// A status is { id, until, turns, from } on actor.statuses, in the order applied.
 //
 // The timing rule (§8.1): a status of N turns covers the N turns that start at its bearer's
 // next decision. It is applied with until and from null and its N in `turns`; once the action
@@ -9,29 +8,67 @@
 // turn its next decision falls in, since turn k's boundary runs before anyone who acts at
 // tick 100k) and the next turn for a sleeping one. Its per-turn effect runs at the boundaries
 // of turns from … until − 1, and it ends at the boundary of turn until. Applied again while
-// held, it lasts to the later of the two ends.
+// held, it lasts to the later of the two ends, from the same start.
 //
 // At a boundary the timers run at step 2 (Status.tick: expiry), and the per-turn effects
 // after the wake checks of step 4 (Status.effects), so that a cough's noise comes after your
 // ring, as an action's noise comes after its other wake effects (§8.2).
+//
+// What each status does (Registry.STATUSES gives its clause):
+//   fixed      cannot move or act: you may only wait or rest (Status.blocks); an exhibit only
+//              waits (AI.act); blows against it have +HIT_FIXED_TARGET (Combat.hitChance);
+//   rooted     you cannot move off your tile (Status.blocks); a bump into a door, an actor or
+//              a case, which leaves you where you are, is still allowed;
+//   coughing   a soft noise at the bearer's tile each turn (EFFECTS.coughing);
+//   restoring  heals its share each turn, CONSOLIDANT_HOT_PCT% of maximum health in all over
+//              CONSOLIDANT_HOT_TURNS turns (EFFECTS.restoring, Health.heal);
+//   slowed     every action takes SPEED_SLOW_PCT% of its time (Actors.cost);
+//   dazed      the bearer's blows have HIT_DAZED_ATTACKER to hit (Combat.hitChance).
 'use strict';
 const Status = (() => {
+  const own = (o, k) => typeof k === 'string' && Object.prototype.hasOwnProperty.call(o, k);
   const has = (a, id) => !!(a.statuses && a.statuses.some(s => s.id === id));
-  const harmful = id => !!(Registry.STATUSES[id] && Registry.STATUSES[id].harmful);
+  const harmful = id => !!(own(Registry.STATUSES, id) && Registry.STATUSES[id].harmful);
+  const find = (a, id) => { for (const s of a.statuses || []) if (s.id === id) return s; return null; };
 
-  // Per-turn effects by status id, run after boundary step 4 for every status held:
-  // EFFECTS[id](state, a, status, ev). W1-STATUS fills it (coughing, restoring).
-  const EFFECTS = {};
+  // Restoring's share of healing at the k-th turn of its course (k from 0): a course of
+  // CONSOLIDANT_HOT_TURNS turns heals CONSOLIDANT_HOT_PCT% of maximum health in all (rounded
+  // down), spread so that each turn heals within 1 of every other and every run of that many
+  // turns adds up to exactly the total. A status put on again while held lasts longer, and
+  // heals at the same rate for every turn it lasts.
+  function restoreShare(maxHp, k) {
+    const total = Int.pct(maxHp, N.CONSOLIDANT_HOT_PCT), T = N.CONSOLIDANT_HOT_TURNS, i = k % T;
+    return Int.idiv(total * (i + 1), T) - Int.idiv(total * i, T);
+  }
 
-  // Put status id on a for `turns` turns, with its cause; emits status {on: true}. A pending
-  // special of an exhibit made fixed is called off at once (§8.1), inside the action that
-  // fixed it, so the mark is neither shown nor held against other marks once it cannot resolve.
+  // Per-turn effects by status id, run at boundary step 4 after the wake checks, for every
+  // status held whose first turn has come: EFFECTS[id](state, a, status, ev).
+  const EFFECTS = {
+    // A soft noise at the bearer's tile, made by the bearer (so a cough of yours is your noise).
+    coughing(state, a, s, ev) {
+      Noise.emit(state, a.x, a.y, 'soft', { k: 'cough', by: a.uid }, ev);
+    },
+    // This turn's share of healing, never past the bearer's maximum health; nothing to heal,
+    // nothing happens.
+    restoring(state, a, s, ev) {
+      const k = s.from === null || s.from === undefined ? 0 : state.turn - s.from;
+      const n = Math.min(restoreShare(a.maxHp, k), a.maxHp - a.hp);
+      if (n > 0) Health.heal(state, a, n, { k: 'status', id: 'restoring' }, ev);
+    },
+  };
+
+  // Put status id on a for `turns` turns (a whole number, at least 1), with its cause; emits
+  // status {who, id, on: true, turns}. A pending special of an exhibit made fixed is called
+  // off at once (§8.1), inside the action that fixed it, so the mark is neither shown nor
+  // held against other marks once it cannot resolve.
   function apply(state, a, id, turns, cause, ev) {
+    if (!own(Registry.STATUSES, id)) throw new Error(`Status.apply: there is no status ${id}`);
+    if (!Number.isInteger(turns) || turns < 1) throw new Error(`Status.apply: ${id} for ${turns} turns`);
     if (!a.statuses) a.statuses = [];
-    const s = a.statuses.find(s => s.id === id);
+    const s = find(a, id);
     if (s) s.turns = s.turns === null || s.turns === undefined ? turns : Math.max(s.turns, turns);
     else a.statuses.push({ id, until: null, turns, from: null });
-    Causes.emit(state, ev, 'status', { who: a.uid, id, on: true }, cause);
+    Causes.emit(state, ev, 'status', { who: a.uid, id, on: true, turns }, cause);
     if (id === 'fixed' && a.telegraph) Specials.cancel(state, a, 'fixed', ev);
   }
 
@@ -70,10 +107,21 @@ const Status = (() => {
     for (const a of state.actors) {
       if (a.gone || !a.statuses) continue;
       for (const s of a.statuses.slice()) {
-        if (!Object.prototype.hasOwnProperty.call(EFFECTS, s.id) || !a.statuses.includes(s)) continue;
+        if (!own(EFFECTS, s.id) || !a.statuses.includes(s)) continue;
         if (s.from === null || s.from === undefined || state.turn >= s.from) EFFECTS[s.id](state, a, s, ev);
       }
     }
+  }
+
+  // How many turns a status still covers, this one included: until − the current turn once it
+  // has begun, its whole length before (a sleeping exhibit's starts at the next turn), its N
+  // while it is still being applied; 0 if a does not hold it. For labels and the view model.
+  function left(state, a, id) {
+    const s = find(a, id);
+    if (!s) return 0;
+    if (s.until === null || s.until === undefined) return s.turns || 0;
+    const from = s.from === null || s.from === undefined ? state.turn : Math.max(s.from, state.turn);
+    return Math.max(0, s.until - from);
   }
 
   // What a status forbids you to do (§4.2), as a refusal code, before anything is spent:
@@ -97,5 +145,5 @@ const Status = (() => {
     return null;
   }
 
-  return { has, harmful, EFFECTS, apply, settle, tick, effects, blocks };
+  return { has, harmful, EFFECTS, restoreShare, apply, settle, tick, effects, left, blocks };
 })();

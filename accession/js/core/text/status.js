@@ -1,13 +1,29 @@
 // ACCESSION — sentences: statuses and surfaces (BUILD.md §8.1, §8.6), owned by W1-STATUS.
+// A status event about an exhibit is logged only while it is in view, as its pips are.
 'use strict';
 (() => {
   Text.defineRefusal('fixed', () => 'You are fixed in place: you can only wait.');
-  Text.defineRefusal('rooted', () => 'You are rooted to the spot: you cannot move.');
-  const on = (e, w) => e.on ? `${w.Name(e.who)} ${w.is(e.who)} now ${e.id}.` : `${w.Name(e.who)} ${w.is(e.who)} no longer ${e.id}.`;
-  Text.define('status', on);
+  Text.defineRefusal('rooted', () => 'You are rooted to the spot: you cannot step off this tile.');
+
+  // How each status reads after "is now" and "is no longer"; any other id reads as itself.
+  // When it is put on, the sentence also says what it does.
+  const WORDS = { fixed: 'fixed in place', rooted: 'rooted to the spot', coughing: 'coughing', restoring: 'restoring', slowed: 'slowed', dazed: 'dazed' };
+  const word = id => Object.prototype.hasOwnProperty.call(WORDS, id) ? WORDS[id] : String(id);
+  const DOES = {
+    restoring: () => 'healing a share each turn',
+    slowed: () => `every action takes ${N.SPEED_SLOW_PCT}% of its usual time`,
+    dazed: e => `${e.who === 'you' ? 'your' : 'its'} blows have ${N.HIT_DAZED_ATTACKER} to hit`,
+  };
+  const does = e => Object.prototype.hasOwnProperty.call(DOES, e.id) ? ` (${DOES[e.id](e)})` : '';
+  const turns = n => n === 1 ? '1 turn' : `${n} turns`;
+  const on = (e, w) => e.on
+    ? `${w.Name(e.who)} ${w.is(e.who)} now ${word(e.id)}${Number.isInteger(e.turns) ? ' for ' + turns(e.turns) : ''}${does(e)}.`
+    : `${w.Name(e.who)} ${w.is(e.who)} no longer ${word(e.id)}.`;
+  Text.define('status', on, { log: 'seen' });
   Text.defineCause('status', 'status', on);
   Text.defineCause('healed', 'status', (e, w) => `${w.Name(e.who)} healed ${e.amount} while ${e.cause.id}: health ${e.hp}.`);
-  Text.defineCause('pip', 'fumigant', (e, w) => `${w.Name(e.who)} settles in the fumigant (${e.pips} of ${N.PIPS_TO_WAKE} pips).`);
-  const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
-  Text.defineCause('noise', 'cough', e => `${CLS[e.cls] || 'A noise'}: coughing, heard ${e.range} tiles away.`);
+  Text.defineCause('pip', 'fumigant', (e, w) => `${w.Name(e.who)} settles (${e.pips} of ${N.PIPS_TO_WAKE} pips): the Fumigant cloud calms it.`);
+  const CLS = { soft: 'a soft', loud: 'a loud', crash: 'a crashing' };
+  const who = (e, w) => !e.cause.by ? 'A cough' : e.cause.by === 'you' ? 'You cough' : `${w.Name(e.cause.by)} coughs`;
+  Text.defineCause('noise', 'cough', (e, w) => `${who(e, w)}: ${CLS[e.cls] || 'a'} noise, heard ${e.range} tiles away.`);
 })();
