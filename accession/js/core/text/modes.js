@@ -19,6 +19,7 @@
   Text.define('alerted', (e, w) => `${w.Name(e.who)} goes to look.`);
   Text.defineCause('alerted', 'searched', (e, w) => `${w.Name(e.who)} searched where it last saw you, and wanders, for it does not go back to sleep.`);
   Text.defineCause('alerted', 'homeless', (e, w) => `${w.Name(e.who)} has no place left to go back to, and wanders.`);
+  Text.defineCause('alerted', 'blocked', (e, w) => `${w.Name(e.who)} cannot get back to its place, for others stand in the way, and wanders for now.`);
   const back = (e, w) => e.phase === 'reinstalled' ? `${w.Name(e.who)} settled back to sleep.` : `${w.Name(e.who)} is back in its place, settling in.`;
   Text.define('returned', back);
   Text.defineCause('returned', 'home', back);

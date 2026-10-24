@@ -7,6 +7,7 @@
 module.exports = ({ test, assert, loadCore }) => {
   const C = loadCore();
   const { Step, State, Setup, Grid, AI, Wake, Causes, Actions, N } = C;
+  const H = require('./behaviour/_harness.js');
   const json = x => JSON.stringify(x);
   const tough = { hp: 999, acc: 0, eva: 0, pad: 0, dmin: 1, dmax: 1 };
   const ex = (at, extra) => Object.assign({ sp: 'dummy', at, mode: 'hunting', stats: tough }, extra);
@@ -183,19 +184,122 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json(AI.wanderGoal(room(['###', '#.#', '###'], [1, 1], []), C.Actors.make(null, { uid: 'z', x: 1, y: 1, hp: 1 }))), 'null', 'nowhere to go');
   });
 
-  test('an awake exhibit sent to look walks onto the place, or beside it when it cannot stand there, then wanders', () => {
+  test('an awake exhibit sent to look walks onto the place, or beside it when it cannot stand there, one tile nearer a step; there it drops the place, then wanders', () => {
     // You are shut away in the room below, out of its sight.
     const map = ['##########', '#........#', '#......v.#', '#........#', '##########', '#........#', '##########'];
     for (const [target, end] of [[[7, 1], 0], [[7, 2], 1]]) {
       const s = room(map, [1, 5], [ex([1, 1], { mode: 'awake' })]), a = s.actors[1];
       Wake.setMode(s, a, 'awake', { k: 'noise', by: 'you', dist: 3, cls: 'soft' }, [], { target });
-      // Onto a floor tile; for a case, the nearest tile beside it.
-      const here = distances(map, [1, 1]);
-      const want = end === 0 ? here(...target) : Math.min(...DIRS.map(([dx, dy]) => here(target[0] + dx, target[1] + dy)).filter(v => v >= 0));
-      const ev = waits(s, 12), steps = ev.filter(e => e.k === 'moved' && e.who === a.uid);
-      const stop = steps[want - 1].to;
-      assert.equal(Math.max(Math.abs(stop[0] - target[0]), Math.abs(stop[1] - target[1])), end, `to ${target}: it stopped at ${stop}`);
-      assert.ok(steps.length > want, 'then it wandered on');
+      // Onto a floor tile; for a case, the nearest tile beside it: the walking distance to the
+      // place, by an independent walk from the place itself or from each tile beside the case.
+      const goals = end === 0 ? [target] : DIRS.map(([dx, dy]) => [target[0] + dx, target[1] + dy]).filter(([x, y]) => WALK.has(map[y][x]));
+      const fields = goals.map(g => distances(map, g));
+      const left = (x, y) => Math.min(...fields.map(f => f(x, y)).filter(v => v >= 0));
+      let was = left(1, 1), at = -1;
+      const seen = [];
+      for (let i = 0; i < 16; i++) {
+        checked(Step.step(s, { a: 'wait' }));
+        seen.push({ x: a.x, y: a.y, target: a.target });
+        if (at < 0) {
+          // On its way: the place is kept, and each turn's step brings it one tile nearer.
+          assert.equal(json(a.target), json(target), `to ${target}, turn ${i}: it keeps the place it was sent to`);
+          assert.equal(left(a.x, a.y), was - 1, `to ${target}, turn ${i}: one tile nearer, at ${a.x},${a.y}`);
+          was = left(a.x, a.y);
+          if (was === 0) at = i;
+        }
+      }
+      assert.ok(at >= 0, `to ${target}: it got there`);
+      const stop = seen[at];
+      assert.equal(Math.max(Math.abs(stop.x - target[0]), Math.abs(stop.y - target[1])), end, `to ${target}: it stopped at ${stop.x},${stop.y}`);
+      // Its next action drops the place, where it stands; then it wanders on.
+      assert.equal(json([seen[at + 1].x, seen[at + 1].y, seen[at + 1].target]), json([stop.x, stop.y, null]), `to ${target}: then it drops the place`);
+      assert.ok(seen.slice(at + 2).some(p => p.x !== stop.x || p.y !== stop.y), 'then it wandered on');
+    }
+  });
+
+  // An independent walking distance by the exhibits' step rule, with some tiles as walls (the
+  // tiles other actors stand on, for an exhibit walking round them).
+  const roundDistances = (map, from, walls) => distances(map.map((row, y) => row.split('').map((c, x) => walls.some(w => w[0] === x && w[1] === y) ? '#' : c).join('')), from);
+
+  test('going home, an exhibit walks round another actor in its way, along a shortest way round, one tile nearer a step', () => {
+    // A sleeper stands in the gap between two columns, the only first step of every shortest
+    // walking path home; the way round it goes up and over the columns.
+    // You are shut away in the room below, out of its sight and out of its way.
+    const m = ['##########', '#........#', '#..o.....#', '#........#', '#..o.....#', '#........#', '##########', '#........#', '##########'];
+    const s = room(m, [1, 7], [ex([2, 3], { mode: 'returning', home: [8, 3] }), ex([3, 3], { mode: 'dormant' })]), a = s.actors[1];
+    assert.equal(json(DIRS.map(([dx, dy]) => distances(m, [8, 3])(2 + dx, 3 + dy)).map((v, d) => [d, v]).filter(([d, v]) => v >= 0 && v < distances(m, [8, 3])(2, 3)).map(([d]) => d)), json([2]), 'its only shortest first step is the sleeper\'s tile');
+    const toHome = roundDistances(m, [8, 3], [[3, 3]]);
+    assert.ok(toHome(2, 3) > distances(m, [8, 3])(2, 3), 'the way round is longer');
+    let was = toHome(2, 3);
+    const ev = [];
+    for (let i = 0; i < 20 && a.mode === 'returning'; i++) {
+      ev.push(...checked(Step.step(s, { a: 'wait' })));
+      if (a.mode !== 'returning') break;
+      assert.equal(toHome(a.x, a.y), was - 1, `turn ${i}: one tile nearer by the way round, at ${a.x},${a.y}`);
+      was = toHome(a.x, a.y);
+    }
+    assert.equal(json([a.mode, a.x, a.y]), json(['reinstalling', 8, 3]));
+    assert.equal(ev.filter(e => e.k === 'moved' && e.who === a.uid).length, toHome(2, 3));
+    assert.ok(!ev.some(e => e.k === 'moved' && e.who === s.actors[2].uid), 'the sleeper never moved');
+  });
+
+  test('two exhibits going home that stand in each other\'s only way both get home: each walks round the other, or wanders until the way is clear', () => {
+    // A and B face each other between columns, each on the other's only way home.
+    const map = ['#########', '#.......#', '#..o.o..#', '#..o.o..#', '#.......#', '#########', '#.......#', '#########'];
+    const s = room(map, [1, 6], [ex([4, 2], { mode: 'returning', home: [4, 4] }), ex([4, 3], { mode: 'returning', home: [4, 1] })]);
+    const [, a, b] = s.actors;
+    const r = H.play(C, s, Array(80).fill({ a: 'wait' }), { inv: ['modes'], clone: true });
+    assert.equal(json(r.violations.map(v => v.text)), '[]');
+    assert.equal(json([a.mode, a.x, a.y, b.mode, b.x, b.y]), json(['dormant', 4, 4, 'dormant', 4, 1]));
+  });
+
+  test('a wanderer never stands still for long among sleepers: it walks round them, and beside a tile one stands on', () => {
+    const SPLIT = ['##############', '#....#.......#', '#....#.......#', '#....#.......#', '#....#.......#', '##############'];
+    const sleepers = [[9, 1], [11, 1], [8, 3], [10, 3], [12, 3], [7, 4], [9, 4], [11, 4], [12, 1], [6, 2], [12, 2]];
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const s = room(SPLIT, [2, 2], [ex([7, 1], { mode: 'awake', home: null })].concat(sleepers.map(t => ex(t, { mode: 'dormant' }))));
+      s.seed = seed;
+      const a = s.actors[1];
+      let still = 0, most = 0, prev = `${a.x},${a.y}`;
+      for (let i = 0; i < 200; i++) {
+        checked(Step.step(s, { a: 'wait' }));
+        const here = `${a.x},${a.y}`;
+        still = here === prev ? still + 1 : 0; prev = here;
+        if (still > most) most = still;
+      }
+      assert.equal(a.mode, 'awake');
+      // At most a turn to drop a place it reached and one more for a place it could not reach.
+      assert.ok(most <= 3, `seed ${seed}: it stood still for ${most} turns`);
+    }
+    // Sent to a tile a sleeper stands on, it walks beside it, then moves on.
+    const s = room(SPLIT, [2, 2], [ex([7, 2], { mode: 'awake', home: null, target: [11, 3] }), ex([11, 3], { mode: 'dormant' })]), a = s.actors[1];
+    const trail = [];
+    for (let i = 0; i < 12; i++) { checked(Step.step(s, { a: 'wait' })); trail.push([a.x, a.y, a.target ? a.target.join(',') : null]); }
+    const beside = trail.findIndex(([x, y]) => Math.max(Math.abs(x - 11), Math.abs(y - 3)) === 1);
+    assert.ok(beside >= 0 && beside <= 4, json(trail));
+    assert.equal(trail[beside + 1][2], null, 'beside it, it drops the place');
+    assert.ok(trail.slice(beside + 2).some(([x, y]) => x !== trail[beside][0] || y !== trail[beside][1]), 'and moves on');
+  });
+
+  test('walking round actors: exhibits woken in the three departments and left alone get home, or wander when others block every way home', () => {
+    // Departments where, walking through other actors, exhibits got stuck on their way home.
+    for (const [acc, seed, depth] of [['S9', 3, 2], ['A4', 5, 2], ['A4', 7, 6], ['M11', 6, 2]]) {
+      const s = C.Dept.create(seed, acc, depth), you = s.actors[0];
+      s.options.invulnerable = true;
+      const far = s.actors.slice(1).filter(a => !a.gone && a.mode === 'dormant' && C.Actors.dist(a, you.x, you.y) > 14 && !C.Archetypes.pipless(s, a));
+      for (const a of far) Wake.wake(s, a, 'awake', { k: 'noise', by: 'you', dist: 3, cls: 'soft' }, [], { target: [a.x, a.y] });
+      const r = H.play(C, s, Array(150).fill({ a: 'wait' }), { inv: ['modes'] });
+      assert.equal(json(r.violations.map(v => v.text)), '[]', `${acc} ${seed} ${depth}`);
+      const lastTry = uid => r.events.filter(e => e.who === uid && (e.k === 'lost' || e.k === 'alerted' || e.k === 'returned')).pop();
+      let home = 0;
+      for (const a of far) {
+        if (a.mode === 'dormant' && a.x === a.home[0] && a.y === a.home[1]) { home++; continue; }
+        if (a.mode === 'hunting' || a.mode === 'searching' || a.gone) continue;
+        // Otherwise it is on its way, settling in, or wandering because its last try was blocked.
+        const e = lastTry(a.uid);
+        assert.ok(a.mode !== 'awake' || (e && e.k === 'alerted' && e.cause.k === 'blocked'), `${acc} ${seed} ${depth}: ${a.uid} is ${a.mode} after ${e && e.k} ${e && e.cause.k}`);
+      }
+      assert.ok(home * 10 >= far.length * 8, `${acc} ${seed} ${depth}: ${home} of ${far.length} asleep at home`);
     }
   });
 };

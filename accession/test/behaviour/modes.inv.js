@@ -1,24 +1,31 @@
 // Invariants of the modes, movement and the plodder (BUILD.md §8.2; js/core/rules/ai.js,
 // js/core/rules/doors.js), checked after every step of every scenario, monkey, soak and bot
 // run (tools/invariants.js). Each states a rule of §8.2 that must hold for every exhibit,
-// whatever its archetype:
+// whatever its archetype (the last two, for the plodder, whose behaviour is all AI.byMode).
+// They read the state and the events only, never the rule's own functions (AI.atHome,
+// AI.loseTrackTurns), so a fault in those cannot hide from them:
 //   modes_known                 an exhibit is in one of the six modes;
 //   modes_dormant_never_acts    an exhibit asleep before and after a step, and not woken
 //                               during it, took no action (its acts and next are unchanged,
 //                               and it struck and marked nothing);
 //   modes_no_staff_door         no exhibit stands on a staff door, open or closed;
 //   modes_homeless_stays_awake  an exhibit with no home is never returning or reinstalling;
-//   modes_reinstall_at_home     an exhibit starts reinstalling only on its home tile;
+//   modes_reinstall_at_home     an exhibit starts reinstalling only with its anchor on its
+//                               home tile;
 //   modes_search_after_out_of_sight
 //                               a hunter searches for having lost you only after
-//                               AI.loseTrackTurns turns without seeing you;
+//                               LOSE_TRACK_TURNS turns without seeing you;
 //   modes_exhibit_steps         every step an exhibit takes is one step of the exhibits'
 //                               walking rule (Grid.canStep(…, 'exhibit') for its footprint);
+//   modes_returning_walks       a plodder going home never stands still: each of its actions
+//                               while returning is a step (or a door it opens), unless it
+//                               arrives, gives up (blocked) or only waits (fixed, or in an
+//                               intact case);
 //   plodder_one_thing           a plodder makes one step or one blow per action (or opens a
 //                               door), each blow a melee blow from beside its target, and
 //                               never marks a special.
 module.exports = (C) => {
-  const { Grid, Wake, AI } = C;
+  const { Grid, Wake, N, Status, Actors } = C;
   const exhibit = a => a.uid !== 'you';
   const mine = (events, uid) => events.filter(e => e.who === uid || e.by === uid);
   // A step taken by a mover itself (Step.moveInto) is a moved event with no cause; anything
@@ -72,7 +79,8 @@ module.exports = (C) => {
       check(pre, events, post, ctx) {
         const a = ctx.actor, b = ctx.before;
         if (a.gone || a.mode !== 'reinstalling' || (b && b.mode === 'reinstalling')) return null;
-        return AI.atHome(a) ? null : `it began reinstalling at ${a.x},${a.y}, away from its home ${JSON.stringify(a.home)}`;
+        const home = Array.isArray(a.home) && a.x === a.home[0] && a.y === a.home[1];
+        return home ? null : `it began reinstalling at ${a.x},${a.y}, away from its home ${JSON.stringify(a.home)}`;
       },
     },
     {
@@ -82,7 +90,8 @@ module.exports = (C) => {
         const a = ctx.actor, b = ctx.before;
         for (const e of events) {
           if (e.k !== 'lost' || e.who !== a.uid || e.to !== 'searching' || !e.cause || e.cause.k !== 'out_of_sight') continue;
-          const need = AI.loseTrackTurns(post, a);
+          // §8.2's 8 turns (M4's Vanishing Act will shorten them, and this with them).
+          const need = N.LOSE_TRACK_TURNS;
           if (e.from !== 'hunting') return `it began searching for losing you while ${e.from}, not hunting`;
           if (!(e.cause.turns >= need)) return `it began searching after ${e.cause.turns} turns out of sight, before ${need}`;
           if (b && b.mode === 'hunting' && e.turn - b.stim < need) return `it began searching at turn ${e.turn}, ${e.turn - b.stim} turns after it last saw you, before ${need}`;
@@ -103,6 +112,17 @@ module.exports = (C) => {
             if (!Grid.canStep(post.dept, e.from[0] + tx, e.from[1] + ty, d, 'exhibit')) return `its step from ${e.from} to ${e.to} breaks the exhibits' walking rule`;
         }
         return null;
+      },
+    },
+    {
+      id: 'modes_returning_walks',
+      applies: a => exhibit(a) && a.arch === 'plodder',
+      check(pre, events, post, ctx) {
+        const a = ctx.actor, b = ctx.before;
+        if (!b || a.gone || b.mode !== 'returning' || a.mode !== 'returning' || a.acts === b.acts) return null;
+        if (Status.has(b, 'fixed') || Status.has(a, 'fixed') || Actors.footprint(a).some(([x, y]) => Grid.ch(post.dept, x, y) === 'v')) return null;
+        if (events.some(e => (isStep(e) && e.who === a.uid) || (e.k === 'opened' && e.who === a.uid))) return null;
+        return `going home, it acted ${a.acts - b.acts} time(s) without a step, at ${a.x},${a.y} (home ${JSON.stringify(a.home)})`;
       },
     },
     {

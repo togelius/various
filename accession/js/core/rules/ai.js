@@ -11,10 +11,11 @@
 // the exhibit's `stim`, which means one thing per mode:
 //   dormant       not scheduled; it never acts.
 //   awake         stim: its last stimulus (waking, or a noise that sent it to look). It
-//                 walks to what it was sent to look at, then wanders its home room;
-//                 AWAKE_IDLE_TURNS without a stimulus → returning (lost, idle), unless it
-//                 has no home, never sleeps (trigger `awake`) or may not go back
-//                 (AI.mayReturn, M4's alarm).
+//                 walks to what it was sent to look at, then wanders its home room, going
+//                 round other actors; when they leave it no way there, it gives up that
+//                 place (and picks another at its next action). AWAKE_IDLE_TURNS without a
+//                 stimulus → returning (lost, idle), unless it has no home, never sleeps
+//                 (trigger `awake`) or may not go back (AI.mayReturn, M4's alarm).
 //   hunting       stim: the last turn it saw you (or began the hunt). It strikes you if it
 //                 can, walks toward you while it sees you, else to the tile where it last
 //                 knew you were; LOSE_TRACK_TURNS (AI.loseTrackTurns) out of sight →
@@ -22,13 +23,23 @@
 //   searching     stim: its arrival at your last-known tile (or the turn it could get no
 //                 closer). SEARCH_TURNS there → returning (lost, searched), or, if it may
 //                 not go back, awake, wandering (alerted, searched).
-//   returning     walks home; on arriving → reinstalling (returned, arrived), then its
-//                 archetype's onHome.
-//   reinstalling  stim: its arrival. It waits; REINSTALL_TURNS later → dormant with 1 pip
-//                 (returned, reinstalled).
+//   returning     stim: the turn it set off. It walks home, going round other actors; on
+//                 arriving → reinstalling (returned, arrived), then its archetype's onHome.
+//                 When other actors leave it no step home → awake, wandering (alerted,
+//                 blocked), so it goes back again AWAKE_IDLE_TURNS later.
+//   reinstalling  stim: its arrival. It waits; REINSTALL_TURNS later → dormant with 1 pip,
+//                 or none for a pipless exhibit (returned, reinstalled).
 // Seeing you turns awake, searching, returning and reinstalling into hunting (AI.look). An
 // exhibit in an intact case (encased) changes mode by the same timers but only ever waits:
 // it never steps out of its case and never strikes out (§8.3).
+//
+// Two ways of walking (§8.2). After you (hunting, toward you or your last-known tile, and
+// searching, to that tile) it takes the first step of a shortest walking path, on which
+// actors never count (AI.towards, AI.route), and waits if another actor stands on every such
+// step. Anywhere else (to look, to wander, home) it walks round the other actors where they
+// stand now: the first step of a shortest walking path that crosses no tile another actor
+// stands on (AI.around). A place another actor stands on is, like one no exhibit can stand
+// on, reached beside it; home must be stood on.
 'use strict';
 const AI = (() => {
   const SEES = ['awake', 'hunting', 'searching', 'returning', 'reinstalling'];
@@ -98,17 +109,37 @@ const AI = (() => {
     for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) { const o = Actors.at(state, x + dx, y + dy, a); if (o) return o; }
     return null;
   }
+  // The tiles other actors stand on, as a walking round them sees them now: a Uint8Array,
+  // 1 on every tile of the footprint of every actor but a that is not gone. Not part of the
+  // state.
+  function occupied(state, a) {
+    const m = state.dept, occ = new Uint8Array(m.w * m.h);
+    for (const o of state.actors) {
+      if (o === a || o.gone) continue;
+      for (const [x, y] of Actors.footprint(o)) if (Grid.inside(m, x, y)) occ[y * m.w + x] = 1;
+    }
+    return occ;
+  }
+  // Does an s×s body with its anchor at (x, y), inside the map, cover no tile of occ? Always,
+  // if occ is null (actors ignored).
+  function clear(m, occ, s, x, y) {
+    if (!occ) return true;
+    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) if (occ[(y + dy) * m.w + x + dx] === 1) return false;
+    return true;
+  }
 
   // Walking distance for a 2×2 body (§4.1), by anchor tile: 0 wherever its whole footprint
   // stands beside the target without covering it, counting out to maxDist in steps its
-  // whole footprint can take. Actors never block it. An Int32Array, -1 where unreached.
-  function bodyDistances(state, a, target, maxDist) {
+  // whole footprint can take. Actors never block it, unless occ is given (walking round
+  // them): then no anchor counts whose footprint covers a tile of occ. An Int32Array, -1
+  // where unreached.
+  function bodyDistances(state, a, target, maxDist, occ) {
     const m = state.dept, s = a.size || 1, ts = target.size || 1, dist = new Int32Array(m.w * m.h).fill(-1), queue = [];
     const body = { x: 0, y: 0, size: s };
     const covers = (x, y) => x < target.x + ts && target.x < x + s && y < target.y + ts && target.y < y + s;
     for (let y = target.y - s; y <= target.y + ts; y++) for (let x = target.x - s; x <= target.x + ts; x++) {
       body.x = x; body.y = y;
-      if (Grid.inside(m, x, y) && !covers(x, y) && stands(m, s, x, y) && Combat.adjacent(state, body, target)) { dist[y * m.w + x] = 0; queue.push(y * m.w + x); }
+      if (Grid.inside(m, x, y) && !covers(x, y) && stands(m, s, x, y) && clear(m, occ, s, x, y) && Combat.adjacent(state, body, target)) { dist[y * m.w + x] = 0; queue.push(y * m.w + x); }
     }
     for (let i = 0; i < queue.length; i++) {
       const p = queue[i];
@@ -117,7 +148,7 @@ const AI = (() => {
       for (let d = 0; d < 8; d++) {
         if (!fits(m, body, d)) continue;
         const r = (body.y + Grid.DY[d]) * m.w + body.x + Grid.DX[d];
-        if (dist[r] < 0) { dist[r] = dist[p] + 1; queue.push(r); }
+        if (dist[r] < 0 && clear(m, occ, s, body.x + Grid.DX[d], body.y + Grid.DY[d])) { dist[r] = dist[p] + 1; queue.push(r); }
       }
     }
     return dist;
@@ -126,10 +157,11 @@ const AI = (() => {
   // Walking distance for a body of a's size to stand with its anchor on the tile (x, y), by
   // anchor tile: the number of whole-footprint steps from each anchor to it (searched
   // backward from the tile: an anchor r counts when its body can step from r toward it).
-  // An Int32Array, -1 where it cannot. For a 2×2 body going home (§4.1).
-  function anchorDistances(state, a, x, y) {
+  // An Int32Array, -1 where it cannot. For a 2×2 body going home (§4.1). With occ (walking
+  // round other actors), no anchor counts whose footprint covers a tile of occ.
+  function anchorDistances(state, a, x, y, occ) {
     const m = state.dept, s = a.size || 1, dist = new Int32Array(m.w * m.h).fill(-1), queue = [];
-    if (!Grid.inside(m, x, y) || !stands(m, s, x, y)) return dist;
+    if (!Grid.inside(m, x, y) || !stands(m, s, x, y) || !clear(m, occ, s, x, y)) return dist;
     const body = { x: 0, y: 0, size: s };
     dist[y * m.w + x] = 0; queue.push(y * m.w + x);
     for (let i = 0; i < queue.length; i++) {
@@ -138,7 +170,7 @@ const AI = (() => {
         body.x = px - Grid.DX[d]; body.y = py - Grid.DY[d];
         if (!Grid.inside(m, body.x, body.y)) continue;
         const r = body.y * m.w + body.x;
-        if (dist[r] >= 0 || !fits(m, body, d)) continue;
+        if (dist[r] >= 0 || !fits(m, body, d) || !clear(m, occ, s, body.x, body.y)) continue;
         dist[r] = dist[p] + 1; queue.push(r);
       }
     }
@@ -149,23 +181,32 @@ const AI = (() => {
   //   'beside'  standing beside it (as for a blow);
   //   'onto'    standing on the tile; for a 2×2 body, or a tile an exhibit cannot stand on
   //             (a case, a plinth, a wall, a staff door), as near as it can: beside it;
+  //             walking round other actors, also beside a tile another actor stands on;
   //   'anchor'  standing with its anchor on the tile (a 2×2 body going home); for a one-tile
-  //             body the same as 'onto'.
+  //             body the same as 'onto', except that walking round other actors, a tile
+  //             another actor stands on cannot be reached.
   const isTile = g => Array.isArray(g);
   // The walking distances to the goal and the distance at which a has arrived:
-  // {dist: Int32Array (-1 where unreached), stop}. Not part of the state.
-  function goalField(state, a, goal, how) {
+  // {dist: Int32Array (-1 where unreached), stop}. occ: null (actors never count), or the
+  // tiles other actors stand on (occupied), which a walking round them never crosses. Not
+  // part of the state.
+  function goalField(state, a, goal, how, occ) {
     const m = state.dept, far = m.w * m.h, s = a.size || 1;
-    if (isTile(goal) && how === 'anchor' && s > 1) return { dist: anchorDistances(state, a, goal[0], goal[1]), stop: 0 };
-    if (s > 1) return { dist: bodyDistances(state, a, isTile(goal) ? { x: goal[0], y: goal[1], size: 1 } : goal, far), stop: 0 };
-    if (isTile(goal) && !Grid.walkable(m, goal[0], goal[1], 'exhibit')) {
+    if (isTile(goal) && how === 'anchor' && s > 1) return { dist: anchorDistances(state, a, goal[0], goal[1], occ), stop: 0 };
+    if (s > 1) return { dist: bodyDistances(state, a, isTile(goal) ? { x: goal[0], y: goal[1], size: 1 } : goal, far, occ), stop: 0 };
+    // Walking round other actors, a step onto a tile one stands on costs more than any walk.
+    const extra = occ ? (x, y) => occ[y * m.w + x] === 1 ? far + 1 : 0 : null;
+    const free = (x, y) => !occ || occ[y * m.w + x] !== 1;
+    if (isTile(goal) && (!Grid.walkable(m, goal[0], goal[1], 'exhibit') || (how === 'onto' && !free(goal[0], goal[1])))) {
       // A tile it cannot stand on: as near as it can get, beside it.
       const starts = [];
-      for (let d = 0; d < 8; d++) { const x = goal[0] + Grid.DX[d], y = goal[1] + Grid.DY[d]; if (Grid.walkable(m, x, y, 'exhibit')) starts.push([x, y]); }
-      return { dist: Grid.distances(m, starts, far, null, 'exhibit'), stop: 0 };
+      for (let d = 0; d < 8; d++) { const x = goal[0] + Grid.DX[d], y = goal[1] + Grid.DY[d]; if (Grid.walkable(m, x, y, 'exhibit') && free(x, y)) starts.push([x, y]); }
+      return { dist: Grid.distances(m, starts, far, extra, 'exhibit'), stop: 0 };
     }
+    // Home, with another actor standing on it: there is no way onto it now.
+    if (isTile(goal) && !free(goal[0], goal[1])) return { dist: new Int32Array(m.w * m.h).fill(-1), stop: 0 };
     const starts = isTile(goal) ? [goal] : Actors.footprint(goal);
-    return { dist: Grid.distances(m, starts, far, null, 'exhibit'), stop: how === 'beside' ? 1 : 0 };
+    return { dist: Grid.distances(m, starts, far, extra, 'exhibit'), stop: how === 'beside' ? 1 : 0 };
   }
   // AI.field(state, a, goal, how) → Int32Array: a's walking distance to the goal from every
   // anchor tile, by the exhibits' step rule (staff doors are walls; nothing steps out of a
@@ -198,16 +239,24 @@ const AI = (() => {
     return out;
   }
 
-  // The way toward a goal from where a stands: {here, arrived, options}. here is a's walking
-  // distance to it (-1: it cannot get there); arrived is true once it stands where the goal
-  // asks; options are the first steps of a shortest walking path that a may take now (none
-  // if it has arrived, cannot get there, or every such step is blocked).
-  function route(state, a, goal, how) {
-    const m = state.dept, f = goalField(state, a, goal, how), here = f.dist[a.y * m.w + a.x];
+  // AI.route(state, a, goal, how) → {here, arrived, options}: the way toward a goal from where
+  // a stands, actors never counting (as after you). here is a's walking distance to it (-1:
+  // it cannot get there); arrived is true once it stands where the goal asks; options are
+  // the first steps of a shortest walking path that a may take now (none if it has arrived,
+  // cannot get there, or every such step is blocked).
+  function way(state, a, f) {
+    const m = state.dept, here = f.dist[a.y * m.w + a.x];
     if (here < 0) return { here, arrived: false, options: [] };
     if (here <= f.stop) return { here, arrived: true, options: [] };
     return { here, arrived: false, options: options(state, a, f.dist, v => v >= 0 && v < here) };
   }
+  const route = (state, a, goal, how) => way(state, a, goalField(state, a, goal, how, null));
+  // AI.around(state, a, goal, how) → {here, arrived, options}: the same, walking round the
+  // other actors where they stand now (§8.2): here is a's walking distance to the goal over
+  // tiles no other actor stands on (-1: they leave it no way there now), and options are the
+  // first steps of a shortest such walk. A tile goal another actor stands on is reached
+  // beside it ('onto'), or not at all ('anchor').
+  const around = (state, a, goal, how) => way(state, a, goalField(state, a, goal, how, occupied(state, a)));
 
   // AI.towards(state, a, goal, how, ev) → ticks | null: the first step of a shortest walking
   // path toward the goal (§8.2), or null if a has arrived, cannot reach it, or every such
@@ -262,7 +311,9 @@ const AI = (() => {
   }
 
   // Awake (§8.2): AWAKE_IDLE_TURNS without a stimulus and it goes back, if it may; otherwise
-  // it walks to what it was sent to look at, waits there a moment, then wanders its room.
+  // it walks to what it was sent to look at, going round other actors, waits there a moment,
+  // then wanders its room. Once there, or once the others leave it no step there, it drops
+  // that place and waits, and picks a place to wander to at its next action.
   function roam(state, a, ev) {
     if (since(state, a) >= N.AWAKE_IDLE_TURNS && mayGoHome(state, a)) {
       Wake.setMode(state, a, 'returning', { k: 'idle', turns: since(state, a) }, ev);
@@ -271,10 +322,10 @@ const AI = (() => {
     if (Cases.encased(state, a)) return AI.wait(state, a, ev);
     if (!a.target) a.target = AI.wanderGoal(state, a);
     if (!a.target) return AI.wait(state, a, ev);
-    const w = route(state, a, a.target, 'onto');
-    if (w.arrived || w.here < 0) { a.target = null; return AI.wait(state, a, ev); }
-    const t = stepAmong(state, a, w.options, ev);
-    return t !== null ? t : AI.wait(state, a, ev);
+    const w = AI.around(state, a, a.target, 'onto');
+    const t = w.arrived ? null : stepAmong(state, a, w.options, ev);
+    if (t === null) { a.target = null; return AI.wait(state, a, ev); }
+    return t;
   }
 
   // Searching (§8.2): it walks to your last-known tile; once there (or once no step gets it
@@ -299,35 +350,44 @@ const AI = (() => {
     Wake.setMode(state, a, 'awake', { k: 'homeless' }, ev, { target: AI.wanderGoal(state, a) || [a.x, a.y] });
     return AI.wait(state, a, ev);
   }
+  // An exhibit going home that other actors leave no step home (they stand on its home, or
+  // in every way to it), or whose archetype allows it none: it wanders its room instead, and
+  // goes back again after AWAKE_IDLE_TURNS undisturbed (setMode sets stim).
+  function blocked(state, a, ev) {
+    Wake.setMode(state, a, 'awake', { k: 'blocked' }, ev, { target: AI.wanderGoal(state, a) || [a.x, a.y] });
+    return AI.wait(state, a, ev);
+  }
   // On arriving home: it reinstalls (returned, arrived), and its archetype's onHome runs.
   function arrive(state, a, ev) {
     Wake.setMode(state, a, 'reinstalling', { k: 'home', x: a.home[0], y: a.home[1] }, ev);
     Archetypes.onHome(state, a, ev);
   }
 
-  // Returning (§8.2): it walks home, and reinstalls on arriving.
+  // Returning (§8.2): it walks home, going round other actors, and reinstalls on arriving; if
+  // they leave it no step home, it wanders instead (blocked).
   function goHome(state, a, ev) {
     if (!a.home) return homeless(state, a, ev);
-    if (atHome(a)) { arrive(state, a, ev); return AI.wait(state, a, ev); }
+    if (AI.atHome(a)) { arrive(state, a, ev); return AI.wait(state, a, ev); }
     if (Cases.encased(state, a)) return AI.wait(state, a, ev);
-    const t = AI.towards(state, a, a.home, 'anchor', ev);
-    if (t === null) return AI.wait(state, a, ev);
-    if (atHome(a) && a.mode === 'returning') arrive(state, a, ev);
+    const t = stepAmong(state, a, AI.around(state, a, a.home, 'anchor').options, ev);
+    if (t === null) return blocked(state, a, ev);
+    if (AI.atHome(a) && a.mode === 'returning') arrive(state, a, ev);
     return t;
   }
 
   // Reinstalling (§8.2): it waits at home; REINSTALL_TURNS after arriving it is dormant again,
-  // with 1 pip, stirred now. Moved off its home meanwhile, it goes back to it.
+  // with 1 pip (a pipless exhibit gains none, §8.2), stirred now. Moved off its home
+  // meanwhile, it goes back to it.
   function reinstall(state, a, ev) {
     if (!a.home) return homeless(state, a, ev);
-    if (!atHome(a)) {
+    if (!AI.atHome(a)) {
       Wake.setMode(state, a, 'returning', { k: 'displaced' }, ev);
       return goHome(state, a, ev);
     }
     if (since(state, a) < N.REINSTALL_TURNS) return AI.wait(state, a, ev);
     const c = AI.wait(state, a, ev);
     Wake.setMode(state, a, 'dormant', { k: 'home', x: a.home[0], y: a.home[1] }, ev);
-    a.pips = 1;
+    a.pips = Archetypes.pipless(state, a) ? 0 : 1;
     a.stim = state.turn;
     return c;
   }
@@ -336,7 +396,9 @@ const AI = (() => {
   // wanders to (§8.2, "wanders its room"): a tile of its home room (the room it stands in, if
   // it has no home; the whole map in a room made for a test, which has no rooms) that it
   // could stand on and walk to from where it is, other than its own tile, drawn on its own
-  // ai/<uid> stream from those tiles in row-major order. null if there is none.
+  // ai/<uid> stream from those tiles in row-major order. null if there is none. Other actors
+  // do not count here, so where they stand never changes what it draws (§3.2); walking there,
+  // it goes round them, and a tile one stands on it reaches beside it (roam).
   function wanderGoal(state, a) {
     const m = state.dept, s = a.size || 1, ref = a.home || [a.x, a.y];
     const rooms = m.roomOf && m.roomOf.length ? m.roomOf : null;
@@ -375,6 +437,6 @@ const AI = (() => {
   // [M4] After each exhibit step (Single File).
   function afterStep(state, a, ev) {}
 
-  return { act, sees, look, wait, field, arrived, route, towards, away, strike, bodyDistances, anchorDistances, atHome, mayGoHome,
+  return { act, sees, look, wait, field, arrived, route, around, towards, away, strike, bodyDistances, anchorDistances, atHome, mayGoHome,
     byMode, wanderGoal, loseTrackTurns, mayReturn, afterStep };
 })();

@@ -82,6 +82,17 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(rw.failure && /not 1[0-9]* tiles away|steps to cover|two steps/.test(rw.failure), rw.failure);
     const ri = H.run(X, walks, A41, 3);
     assert.ok(ri.failure && /plodder_one_thing/.test(ri.failure), ri.failure);
+    // A plodder that strikes from two tiles away when it sees you there.
+    const Z = loadCore(), byMode = Z.AI.byMode;
+    Z.AI.byMode = (state, a, ev) => {
+      const you = state.actors[0];
+      if (a.arch === 'plodder' && a.mode === 'hunting' && Z.AI.sees(state, a) && Z.Actors.between(a, you) === 2) return Z.Combat.strike(state, a, you, ev);
+      return byMode(state, a, ev);
+    };
+    const zw = H.run(Z, walks, A41, 3, { inv: [] });
+    assert.ok(zw.failure && /struck from 2 tiles away/.test(zw.failure), zw.failure);
+    const zi = H.run(Z, walks, A41, 3);
+    assert.ok(zi.failure && /plodder_one_thing/.test(zi.failure) && /not from beside it/.test(zi.failure), zi.failure);
     // A plodder that hits for one more than its range.
     const Y = loadCore(), M115 = Y.Packs.species('M11', 'M11.5');
     const strike = Y.Combat.strike;

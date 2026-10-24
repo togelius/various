@@ -160,6 +160,53 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json([a.mode, a.x, a.y, homed]), json(['reinstalling', 9, 3, [`${a.uid}:reinstalling:9,3`]]));
   });
 
+  test('a pipless exhibit that settles back to sleep does so with no pip; any other with 1', () => {
+    for (const pipless of [true, false]) {
+      const X = loadCore();
+      X.Registry.define('ARCHETYPES', 'planted_pipless', {});
+      X.Archetypes.add('planted_pipless', { pipless: () => pipless });
+      const s = X.Setup.room(1, { acc: 'T0', depth: 1, map: SPLIT, you: [2, 2], exhibits: [ex([10, 3], { mode: 'reinstalling', home: [10, 3], arch: 'planted_pipless' })] });
+      const a = s.actors[1], ev = [];
+      for (let i = 0; i < N.REINSTALL_TURNS + 1 && a.mode !== 'dormant'; i++) ev.push(...X.Step.step(s, { a: 'wait' }));
+      assert.equal(json(changes(ev, a.uid).map(show)), json([`${N.REINSTALL_TURNS} returned home reinstalled`]));
+      assert.equal(json([a.mode, a.pips]), json(['dormant', pipless ? 0 : 1]), `pipless ${pipless}`);
+    }
+  });
+
+  test('an exhibit going home that others leave no step home wanders instead, and tries again 20 turns later', () => {
+    // A sleeper stands in the only gap, between two columns, on the way home; you are shut away below.
+    const map = ['#########', '#..o....#', '#.......#', '#..o....#', '#########', '#.......#', '#########'];
+    const s = room(map, [1, 5], [ex([2, 2], { mode: 'returning', home: [6, 2] }), ex([3, 2], { mode: 'dormant' })]), a = s.actors[1];
+    const ev = waits(s, 2 * N.AWAKE_IDLE_TURNS + 1);
+    const I = N.AWAKE_IDLE_TURNS;
+    assert.equal(json(changes(ev, a.uid).map(show)), json(['0 alerted blocked returning>awake', `${I} lost idle awake>returning`, `${I} alerted blocked returning>awake`,
+      `${2 * I} lost idle awake>returning`, `${2 * I} alerted blocked returning>awake`]));
+    const al = ev.find(e => e.k === 'alerted');
+    assert.ok(Number.isInteger(al.x) && Number.isInteger(al.y), 'it goes somewhere to wander');
+    assert.ok(a.x <= 2, 'it never got past the sleeper');
+    // Once the way is clear (the sleeper gone), its next try gets it home.
+    s.actors[2].gone = 1;
+    const ev2 = waits(s, 2 * I, (e, t) => t.actors[1].mode === 'dormant');
+    assert.ok(changes(ev2, a.uid).some(e => e.k === 'returned' && e.phase === 'arrived'), changes(ev2, a.uid).map(show).join('; '));
+    assert.equal(json([a.mode, a.x, a.y]), json(['dormant', 6, 2]));
+    // Another actor on its home tile leaves it no way onto it, too.
+    const t = room(SPLIT, [2, 2], [ex([8, 3], { mode: 'returning', home: [11, 3] }), ex([11, 3], { mode: 'dormant' })]);
+    assert.equal(json(changes(waits(t, 1), t.actors[1].uid).map(show)), json(['0 alerted blocked returning>awake']));
+  });
+
+  test('a hunter held back by its archetype, out of your sight, still loses you after 8 turns, as every hunter does', () => {
+    // §8.2's timers hold whatever an archetype's mayStep allows (a tethered warden's leash, say):
+    // here it may take no step at all, and you stand out of its sight behind the wall.
+    const X = loadCore();
+    X.Registry.define('ARCHETYPES', 'planted_leash', {});
+    X.Archetypes.add('planted_leash', { mayStep: () => false });
+    const s = X.Setup.room(1, { acc: 'T0', depth: 1, map: SPLIT, you: [2, 2], exhibits: [ex([7, 2], { mode: 'hunting', lastKnown: [6, 2], home: [7, 2], arch: 'planted_leash' })] });
+    const a = s.actors[1], ev = [];
+    for (let i = 0; i < N.LOSE_TRACK_TURNS + 1; i++) ev.push(...X.Step.step(s, { a: 'wait' }));
+    assert.ok(!ev.some(e => e.k === 'moved' && e.who === a.uid), 'it never stepped');
+    assert.equal(json(changes(ev, a.uid).map(show)), json([`${N.LOSE_TRACK_TURNS} lost out_of_sight hunting>searching`]));
+  });
+
   test('a fixed exhibit only waits, and its pending mark is called off', () => {
     const OPEN = ['#########', '#.......#', '#.......#', '#.......#', '#########'];
     const s = room(OPEN, [1, 2], [ex([2, 2], { mode: 'hunting', statuses: [{ id: 'fixed', turns: 3 }] }), ex([6, 2], { mode: 'hunting', statuses: [{ id: 'fixed', turns: 3 }] })]);
@@ -217,6 +264,7 @@ module.exports = ({ test, assert, loadCore }) => {
       ev('lost', { who: 'x', from: 'reinstalling', to: 'returning' }, { k: 'displaced' }),
       ev('alerted', { who: 'x', from: 'searching', to: 'awake', x: 3, y: 4 }, { k: 'searched' }),
       ev('alerted', { who: 'x', from: 'returning', to: 'awake', x: 3, y: 4 }, { k: 'homeless' }),
+      ev('alerted', { who: 'x', from: 'returning', to: 'awake', x: 3, y: 4 }, { k: 'blocked' }),
       ev('returned', { who: 'x', phase: 'arrived' }, { k: 'home', x: 3, y: 4 }),
       ev('returned', { who: 'x', phase: 'reinstalled' }, { k: 'home', x: 3, y: 4 }),
       ev('hunting', { who: 'x', was: 'awake' }, { k: 'seen', dist: 4 }),
@@ -228,8 +276,9 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(said[3], 'The Marble Faun lost you: it has not seen you for 8 turns, and searches where it last saw you.');
     assert.equal(said[4], 'The Marble Faun lost you: it has not seen you for 1 turn, and searches where it last saw you.');
     assert.equal(said[5], 'The Marble Faun is going back: nothing has disturbed it for 20 turns.');
-    assert.equal(said[11], 'The Marble Faun settled back to sleep.');
-    assert.equal(said[15], 'Soft: a door closing, heard 3 tiles away.');
+    assert.equal(said[10], 'The Marble Faun cannot get back to its place, for others stand in the way, and wanders for now.');
+    assert.equal(said[12], 'The Marble Faun settled back to sleep.');
+    assert.equal(said[16], 'Soft: a door closing, heard 3 tiles away.');
     for (const code of ['no_door', 'doorway_occupied']) assert.ok(clean(Text.refusal(code)) && Text.refusal(code) !== code, code);
     // Every pair of the kinds this package owns has its sentence, distinct from the kind's default where it says more.
     for (const k of ['lost', 'alerted', 'returned']) for (const c of Object.keys(C.Registry.CAUSES[k])) assert.ok(Text.defined(k, c), `${k}.${c}`);
@@ -238,7 +287,7 @@ module.exports = ({ test, assert, loadCore }) => {
   test('the modes invariants hold on the timers above and fail on planted faults', () => {
     const invs = require('../tools/invariants.js').select(C, ['modes']);
     assert.equal(json(invs.map(i => i.id)), json(['modes_known', 'modes_dormant_never_acts', 'modes_no_staff_door', 'modes_homeless_stays_awake', 'modes_reinstall_at_home',
-      'modes_search_after_out_of_sight', 'modes_exhibit_steps', 'plodder_one_thing']));
+      'modes_search_after_out_of_sight', 'modes_exhibit_steps', 'modes_returning_walks', 'plodder_one_thing']));
     const clean = H.play(C, room(SPLIT, [2, 2], [ex([10, 3], { mode: 'hunting', lastKnown: [7, 3], home: [12, 1] }), ex([3, 3], { mode: 'dormant' })]), Array(40).fill({ a: 'wait' }), { inv: ['modes'], clone: true });
     assert.equal(json(clean.violations.map(v => v.text)), '[]');
     // Each planted fault, on its own core, must break its invariant.
@@ -264,6 +313,14 @@ module.exports = ({ test, assert, loadCore }) => {
       const r = X.AI.byMode, lose = X.AI.loseTrackTurns;
       X.AI.byMode = (s, a, ev) => { X.AI.loseTrackTurns = () => 2; try { return r(s, a, ev); } finally { X.AI.loseTrackTurns = lose; } };
     }, X => mk(X, [ex([10, 3], { mode: 'hunting', lastKnown: [10, 3] })]), 6);
+    // The invariants judge home and the 8 turns for themselves: a fault in the rule's own
+    // AI.atHome (home within a tile) or AI.loseTrackTurns (no turns at all) cannot hide.
+    bites('modes_reinstall_at_home', X => { X.AI.atHome = a => !!a.home && Math.max(Math.abs(a.x - a.home[0]), Math.abs(a.y - a.home[1])) <= 1; },
+      X => mk(X, [ex([7, 3], { mode: 'returning', home: [12, 1] })]));
+    bites('modes_search_after_out_of_sight', X => { X.AI.loseTrackTurns = () => 0; }, X => mk(X, [ex([10, 3], { mode: 'hunting', lastKnown: [10, 3] })]), 2);
+    // A plodder going home that waits where it stands (as when another actor blocked its way).
+    bites('modes_returning_walks', X => { const r = X.AI.byMode; X.AI.byMode = (s, a, ev) => a.mode === 'returning' ? X.AI.wait(s, a, ev) : r(s, a, ev); },
+      X => mk(X, [ex([7, 3], { mode: 'returning', home: [12, 1] })]), 2);
     bites('modes_exhibit_steps', by((X, s, a, ev) => { X.Causes.emit(s, ev, 'moved', { who: a.uid, from: [a.x, a.y], to: [a.x - 2, a.y] }); a.x -= 2; return X.AI.wait(s, a, ev); }), X => mk(X, [ex([10, 3])]), 1);
     bites('plodder_one_thing', by((X, s, a, ev) => { X.Combat.strike(s, a, s.actors[0], ev); return X.Combat.strike(s, a, s.actors[0], ev); }), X => mk(X, [ex([3, 2], { mode: 'hunting' })]), 1);
   });
