@@ -1,4 +1,4 @@
-# Oracle specification: Clack Stack tile rules (revision 5d)
+# Oracle specification: Clack Stack tile rules (revision 5e)
 
 You are writing an **independent oracle** for the placement rules of a game about stacking translucent magnetic tiles (squares and equilateral triangles with equal edges) into a flat wall standing on a toy car. You get only this file. You must not read any other file in the repository or anything else about the game. Your oracle is compared, drop by drop, against the game's own implementation; when the two disagree, this text decides which one is wrong. **Where this text does not decide a case, do not guess silently.** Log it in `ambiguities.md` (case, coordinates, what you chose and why).
 
@@ -43,7 +43,7 @@ At the resting position:
 - **Contact segments** are the maximal segments of positive length shared between the tile's boundary and the boundary of a placed tile or of the car top. Report each segment once, per neighbour.
 - **Contact points** are the points where the tile's boundary touches another boundary but that lie on no contact segment.
 
-## 5. Fit and reason (revision 5d)
+## 5. Fit and reason (revision 5e)
 
 At its resting position the tile either **fits** (outcome `'fit'`) or **falls off** (outcome `'off'`). There are two reasons, tested in this order:
 - **ONLY A POINT**: the tile does not meet the tower edge to edge (§5a, §5b).
@@ -62,7 +62,7 @@ At its resting position the tile either **fits** (outcome `'fit'`) or **falls of
 
 §5a and §5b decide whether the tile **meets the tower edge to edge**. A tile that does not is off with ONLY A POINT, and §5c is not applied. A tile that does goes on to §5c.
 
-### 5c. Balance (revision 5d)
+### 5c. Balance (revision 5e)
 
 Apply this to the build with the tile added at its resting position (call it the new build).
 
@@ -75,13 +75,15 @@ Apply this to the build with the tile added at its resting position (call it the
 - **Group.** The group of a piece is the smallest set of tiles that contains the piece, contains every tile that rests on a tile of the set, and contains every tile locked to a tile of the set.
 - **Support.** The support of a group is the set of contacts between a tile U in the group and a V outside it (another tile or the car) such that U rests on V. A contact between two tiles is their whole shared boundary: one segment of positive length, or one point. Let xmin and xmax be the least and greatest x over the support (segments by both endpoints, points by themselves).
 - **Weight.** A square weighs 1 and a triangle √3/4 (their areas). A tile's weight acts at its middle, x = col/2 + ½, for every piece and both ways. For a group, W is the sum of its weights and M the sum of weight × x.
-- **Balanced.** A group is balanced iff W·xmin ≤ M ≤ W·xmax: its weight is over its support, exactly over an end included. There is no other allowance.
+- **Leaning and pivot.** If M > W·xmax the group leans right, and its pivot is, among the points of its support (segment endpoints and contact points) with x = xmax, the one with the least y. If M < W·xmin it leans left, and its pivot is the support point with x = xmin and the least y. Otherwise it does not lean: its weight is over its support, exactly over an end included.
+- **Propped.** A group that leans right is propped iff some tile U in the group and some tile V outside it (never the car) share a vertical contact segment of positive length lying on U's right side (so V is to U's right), and the upper end of that segment is higher than the pivot. Leaning left, the same with U's left side (V to U's left). A side contact on the other side, a contact at a single point, or a vertical contact wholly at or below the pivot's height does not prop.
+- **Balanced.** A group is balanced iff it does not lean, or it leans and is propped. There is no other allowance.
 - **The test.** The tile fits iff the group of every piece of the new build is balanced. Otherwise it is off with reason TIPS OVER.
 - **Which group is reported.** Among the pieces whose group is not balanced, choose the one whose lowest point is lowest; on a tie, the one whose group has more tiles; on a further tie, the one holding the smaller col among its lowest tiles. Report `tips` (§8):
   - `base`: the verts, sorted as in §8, of that piece's lowest tile (on a tie, the one with the smaller col);
   - `members`: the number of tiles in the piece's group;
-  - `side`: `'right'` if M > W·xmax, `'left'` if M < W·xmin;
-  - `pivot`: among the points of the group's support (segment endpoints and contact points) with x = xmax (right) or x = xmin (left), the one with the least y.
+  - `side`: `'right'` if it leans right, `'left'` if it leans left;
+  - `pivot`: its pivot, as defined above.
 - **Exactness.** W and M are in ℚ(√3), so every comparison is exact. No tolerance.
 - When the tile is off with TIPS OVER, `shine` is `[]` and `gap` is null, as for any off result. Its `contacts` are reported as usual.
 
@@ -146,6 +148,7 @@ Each case is a sequence of drops on a bare car with half = 2, given as piece@x w
 | 16 | ▲−1, ▼−0.5, then ■0 | off, TIPS OVER: base ▲−1, members 3, side right, pivot (0, 0) |
 | 17 | ▲0.5, ▼0, ▲0, ▼0.5, then ■1 | fit (the four triangles are one piece standing on the car from x 0.5 to 1.5, and the square, half on ▼0.5's top, keeps the weight over it) |
 | 18 | ■−2, ▲−1.5, ▼−2, ■−2, ▲−2.5, ▼−1, ■−1, then ■−1 | off, TIPS OVER: base ▼−2, members 7, side right, pivot (−1, 1) |
+| 19 | ■0, ▲−2, ▼−1.5, ■−2, ■−1, then ■−1 | fit (the group of the piece ▲−2 + ▼−1.5 leans right past its pivot (−1, 0), but ■−1's right side presses on ■0's left side from y = √3/2 to 1, above the pivot: propped) |
 
 If any golden case disagrees with your reading of §1–8, log it in `ambiguities.md`. Do not change the expectation.
 

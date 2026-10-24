@@ -1330,13 +1330,14 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
 | Square or ▲ | part of its bottom edge, at least half of it, lies on a flat top: the car, a square's top or a ▼'s top. The rest may be over a lower step, a slant, or the air past the car. | it touches only at corners or points, for example a triangle's point under its bottom |
 | ▼ | one of its lower sides lies against a ▲'s side, whole; two such sides means it sits in a notch | it touches only at its point |
 
-**The second rule: everything balances** (revision 5c, refined in 5d, §18.11–18.12). A tile that meets the tower edge to edge still falls off if, with it, some part of the tower would tip.
+**The second rule: everything balances** (revision 5c, refined in 5d and 5e, §18.11–18.13). A tile that meets the tower edge to edge still falls off if, with it, some part of the tower would tip.
 
 - **Whole edges lock.** Tiles that share a whole edge are locked together by their magnets and move as one piece: a tile seated squarely on a top, a ▼ hung on a ▲, two squares side by side. Half an edge or a point holds a piece up but does not lock it. The car holds the tower up but does not lock to it.
 - **Resting on.** A tile rests on whatever is directly under it where they touch: a top, a ▲'s slant it hangs on, an apex or corner its point sits on. Side-by-side contacts don't hold anything up.
 - **Balance.** Each piece, together with everything resting on it, must have its weight over what it rests on. Exactly over the end is fine; past it, it tips. A square weighs 1 and a triangle √3/4 (their areas), each at its middle.
+- **Props.** A part that would tip toward a square beside it, pressing on that square's side above the corner it would tip over, is propped by it and stays. A square on the other side, a touch at a corner, or a side contact only down at the corner's height doesn't prop.
 - **What it rules out:** stairs and hooks that hang a group of tiles past what holds them (a rhombus hung off the end of a half-held ▲, a column of squares on a hung ▼, a stair leaning a tile past its foot), and a block standing on half an edge with its weight just past it.
-- **What it keeps:** the photo's wall, the leaning wall (golden case 6, one locked piece), a ▲ half on a hung ▼'s top (case 9), and triangles locked into one piece carrying a square on their edge (case 17).
+- **What it keeps:** the photo's wall, the leaning wall (golden case 6, one locked piece), a ▲ half on a hung ▼'s top (case 9), triangles locked into one piece carrying a square on their edge (case 17), and a stack leaning on the square beside it (case 19).
 
 - **Fall-off reasons.** There are two, tested in this order:
   - **ONLY A POINT**: the tile doesn't meet the tower edge to edge. The ghost marks the contact points with red dots.
@@ -1553,6 +1554,7 @@ Each is a small picture of a build, a tile in the hand, and the outcome. Positio
 | 16 | ▲−1, ▼−0.5, then ■0: a square on a hung ▼'s top, where case 9's lighter ▲ stays | falls off: TIPS OVER, over the ▼'s point |
 | 17 | ▲0.5, ▼0, ▲0, ▼0.5, then ■1: four triangles locked into one piece, a square half on its top | stays (5c tipped it; people said it stays) |
 | 18 | ■−2, ▲−1.5, ▼−2, ■−2, ▲−2.5, ▼−1, ■−1, then ■−1: a block of locked tiles standing on half a square's top and a point | falls off: TIPS OVER, 0.014 L past the square's corner (5c's grip kept it; every reviewer said it tips) |
+| 19 | ■0, ▲−2, ▼−1.5, ■−2, ■−1, then ■−1: a stack on a hung ▼ that would tip right, pressing on the square beside it | stays: propped (5d tipped it; every panelist said the square holds it) |
 
 ### 18.10 What the first sense check found (G2, round 1)
 
@@ -1597,3 +1599,20 @@ Revision 5c matched its sealed oracle to depth 10 (tier 2), and the game was bui
 **What people do:** tiles joined along a whole edge move as one piece, and only a piece standing on half an edge or points has to balance, with no extra grip. A float model of that reading kept every golden case, matched the reviewers on G45, G23 and G47, kept the 9 panel items where 5c's tipping drew no FALLS OFF, and differed from 5c on 0.7% of drops in random play.
 
 **Revision 5d** adopts it (§18.2): whole edges lock, the grip is gone, and the reported group is the one with the lowest point, then the larger. Golden cases 17 and 18 come from items 13 and G45.
+
+### 18.13 What the 5d checks found, and revision 5e
+
+Revision 5d matched its sealed oracle to depth 8 and on 1.85 million fuzz drops, and the game was joined to it.
+
+**Plausibility check (sandbox):** passed. No unplanted picture was flagged by anyone, and every red part included the tiles locked to it.
+
+**Intuition panel:** complete this time (247 items, three answers each), 215 agree (87.0%, bar 90%). Of the 32 misses, 17 came from single chunks of the panel, where two agents shared a reading no other agent did (exact balances read as falls; hung ▼s on half-held ▲s read as held). The designer's answers:
+- **A group a hair past its support tips** (9 misses, 0.014–0.029 L): kept. A tolerance would be the grip again, which round 3 rejected. The ghost's plumb line teaches it.
+- **Exactly over the end stays; a ▼ hung on a half-held ▲ tips; points don't hold:** confirmed.
+- **A side contact props a tipping group** (4 misses, and the reviewers of rounds 3 and 4 said the same): **adopted as revision 5e** (§18.2, golden case 19). In random play about 12% of 5d's TIPS OVER drops have such a prop.
+
+**Release checks (G4) on 5d:**
+- **Strategy:** passed. Seven percept-only bots are frozen in tools/bots/FROZEN; the sway and fuse were tuned on seeds 1–10 (§18.5) and pass on 11–30.
+- **Real-art plausibility:** G26 was flagged unsure by all three: an 8-tile tower whose weight is exactly over the end of its square's footing on the car. Kept: exactly over the end stays, as for every tile held by half an edge.
+- **Learner quiz:** failed on one belief. Every one of 50 wrong answers was a TIPS OVER drop answered as staying, because the learners never saw a tile tip the tiles under it. The game now rocks the part that would tip while you aim, and the hint says "Too far out: it would tip the tiles under it." The driver now shares its budget across runs and closes the game before the quiz.
+
