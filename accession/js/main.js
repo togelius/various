@@ -128,8 +128,9 @@ const Main = (() => {
     if (!vm.vis[t.y * vm.w + t.x]) { say('You have not seen that part of the room.'); draw(); return; }
     const path = Path.to(state, t.x, t.y);
     if (!path.length) { say('There is no way there from here.'); draw(); return; }
+    // The preview leaves an open label (and so the camera) where it is, so the second tap
+    // lands on the same tile; the walk closes it.
     if (settings.walk === 'two' && !(ui.selectedTile && ui.selectedTile.x === t.x && ui.selectedTile.y === t.y)) {
-      ui.selection = null; UI.closeLabel();
       ui.selectedTile = t; ui.path = path; draw(); return;
     }
     ui.selectedTile = null; ui.path = null; ui.selection = null; UI.closeLabel();
@@ -184,7 +185,8 @@ const Main = (() => {
     const half = (len, step) => Math.max(0, Math.floor((len / step - 1) / 2));
     const axis = (p, q, n, h) => {
       const lo = Math.min(p, q), hi = Math.max(p + 1, q + n);
-      if (hi - lo <= 2 * h + 1) return Math.floor((lo + hi - 1) / 2);
+      // Centred, rounding towards you, so opening an adjacent exhibit's label never moves the board.
+      if (hi - lo <= 2 * h + 1) { const m = (lo + hi - 1) / 2; return p <= m ? Math.floor(m) : Math.ceil(m); }
       return p < q ? p + h : p - h;
     };
     return { x: axis(you.x, a.x, a.size, half(b.width, t)), y: axis(you.y, a.y, a.size, half(b.height - UI.sheetCover() - 2 * above, d)) };

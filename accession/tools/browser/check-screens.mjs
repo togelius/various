@@ -11,7 +11,7 @@ import path from 'node:path';
 
 const SIZES = [[390, 844], [1280, 800]];
 // The narrowest phones in common use, for the top bar at every text size.
-const NARROW = [[360, 740], [375, 667]];
+const NARROW = [[360, 740], [375, 667], [390, 844]];
 const SCENES = [{ dept: 'M11', seed: 3 }, { dept: 'S9', seed: 5 }, { dept: 'A4', seed: 7 }];
 const P10 = { default: 12, big: 22 };
 const shots = process.argv.includes('--shot');
@@ -129,7 +129,39 @@ for (const [w, h] of SIZES) {
     await browser.close();
   }
 }
-for (const l of lines) console.log(l);
+// A far exhibit's label (a fixed frame): in A.4, seed 7, at the 48-px zoom, from (5,5), the
+// bust at (4,17) is in sight 12 rows south. Its label open, you and it cannot both fit above
+// the sheet: you stay in view and it is on the board or marked at its edge.
+const registered = await (async () => {
+  const { browser, page } = await open('dist/accession.html', { viewport: { width: 390, height: 844 }, dpr: 1, query: '?dept=A4&seed=7' });
+  await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
+  const v = await page.evaluate(() => window.ACCESSION.views.list().map(x => x.id));
+  await browser.close();
+  return v;
+})();
+for (const view of registered) {
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 390, height: 844 }, dpr: 1, query: `?dept=A4&seed=7&board=${view}` });
+  await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
+  await page.evaluate(() => window.ACCESSION.renderer.ready.catch(() => {}));
+  const frame = await page.evaluate(() => {
+    const A = window.ACCESSION; A.setZoom(1);
+    for (const [x, y] of Path.to(A.state, 5, 5)) { const me = A.state.actors[0]; A.act({ a: 'move', dir: Path.dirTo([me.x, me.y], [x, y]) }); }
+    const me = A.state.actors[0], a = A.vm().actors.find(q => q.uid !== 'you' && q.y - me.y >= 7);
+    if (!a || me.x !== 5 || me.y !== 5) return null;
+    A.tap({ x: a.x, y: a.y });
+    return a.uid;
+  });
+  const tag = `390×844 A4 far label (${view})`;
+  if (!frame) bad(`${tag}: the fixed frame is no longer reachable; choose another`);
+  else {
+    const youSeen = await page.evaluate(() => { const A = window.ACCESSION, y = A.state.actors[0], c = A.renderer.tileRect(y.x, y.y).centre, e = document.elementFromPoint(c.x, c.y); return !!e && !!e.closest('#board'); });
+    if (!youSeen) bad(`${tag}: you are out of view`);
+    (await page.evaluate(board)).problems.forEach(p => bad(`${tag}: ${p}`));
+    lines.push(`${tag}: label of ${frame} open, you in view`);
+  }
+  if (errors.length) bad(`${tag}: console errors: ${errors.join('; ')}`);
+  await browser.close();
+}
 for (const [w, h] of NARROW) {
   const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: w, height: h }, dpr: 2, query: '?dept=S9&seed=5' });
   await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
@@ -137,12 +169,16 @@ for (const [w, h] of NARROW) {
     await page.evaluate(v => window.ACCESSION.setting('text', v), size);
     const hp = await page.evaluate(() => { const e = document.getElementById('hpnum'), d = document.getElementById('dial').getBoundingClientRect(), r = e.lastElementChild.getBoundingClientRect(); return { cut: e.scrollWidth > e.clientWidth + 1 || r.right > d.left, text: e.textContent }; });
     if (hp.cut) bad(`${w}×${h} text ${size}: the health number "${hp.text}" is cut short or runs into the dial`);
+    // The badge prints the grade's full name (§8.7) wherever it fits: always at 390 px.
+    const caption = await page.evaluate(() => { const r = document.querySelector('.badge-name').getBoundingClientRect(); return r.width > 2 && r.height > 2; });
+    if (w >= 390 && !caption) bad(`${w}×${h} text ${size}: the badge does not show "Handling Clearance"`);
     for (const p of [...await page.evaluate(layout), ...await page.evaluate(targets)]) bad(`${w}×${h} text ${size}: ${p}`);
   }
   lines.push(`${w}×${h}: top bar checked at every text size`);
   if (errors.length) bad(`${w}×${h}: console errors: ${errors.join('; ')}`);
   await browser.close();
 }
+for (const l of lines) console.log(l);
 for (const p of problems) console.log('PROBLEM ' + p);
-console.log(problems.length ? `screens: ${problems.length} problem(s)` : `screens: ${lines.length} board measurements, both sizes, every view, no problems`);
+console.log(problems.length ? `screens: ${problems.length} problem(s)` : `screens: ${lines.length} measurements, both sizes and three narrow phones, every view, no problems`);
 process.exit(problems.length ? 1 : 0);

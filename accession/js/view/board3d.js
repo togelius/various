@@ -203,8 +203,10 @@ const Board3D = (() => {
     // A floor point (wx, wz) in board CSS pixels.
     const screen = (wx, wz) => ({ x: centre.x + (wx - centre.tx) * s, y: centre.y + (wz - centre.tz) * s * SIN });
     function rectOf(x, y) { const a = screen(x, y); return { x: a.x, y: a.y, w: s, h: s * SIN }; }
-    // An actor's billboard: s·n square, standing on the south edge of its footprint.
-    function actorRect(a) { const n = a.size || 1, f = screen(a.x + n / 2, a.y + n); return { x: f.x - n * s / 2, y: f.y - n * s, w: n * s, h: n * s }; }
+    // An actor's billboard stands on the south edge of its footprint: n·s wide, and as tall as
+    // the footprint looks plus the rise of a one-tile figure, so a 2×2 Centrepiece reaches no
+    // further into the row north of it than any other actor does.
+    function actorRect(a) { const n = a.size || 1, f = screen(a.x + n / 2, a.y + n), h = s * (n * SIN + 1 - SIN); return { x: f.x - n * s / 2, y: f.y - h, w: n * s, h }; }
 
     function resize() {
       const r = host.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -326,13 +328,13 @@ const Board3D = (() => {
           legend[id].group = d.group;
           own.push([id, mine]);
         }
-        // Shown: the pixels that end up showing the item, its own group or any mark; only the
-        // scene or another actor's sprite counts as hiding it. Self: the pixels showing the
-        // item itself (or a telegraph's number laid over it), however it is covered.
+        // Shown: the pixels that end up showing any actor or mark; only the scene counts as
+        // hiding it (a nearer actor drawn over a farther one is depth, not occlusion). Self:
+        // the pixels showing the item itself (or a telegraph's number laid over it).
         for (const [id, mine] of own) {
-          const g = legend[id].group, top = i => legend[ids[i]];
+          const top = i => legend[ids[i]];
           legend[id].alone = mine.length;
-          legend[id].onTop = mine.filter(i => top(i) && (top(i).group === g || top(i).kind === 'mark')).length;
+          legend[id].onTop = mine.filter(i => top(i) && (top(i).kind === 'actor' || top(i).kind === 'mark')).length;
           legend[id].self = mine.filter(i => ids[i] === id || (top(i) && /^telegraph:/.test(top(i).id))).length;
         }
       }

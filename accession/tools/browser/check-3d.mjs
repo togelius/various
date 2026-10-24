@@ -124,17 +124,19 @@ for (const sc of SCENES) {
     report(`${tag} zoom ${z}`, m, await page.evaluate(board));
   }
   // A melee frame: you directly north of an exhibit that has just been struck awake, so its
-  // state glyph lies over you. Marks over another actor do not count as hiding it.
+  // state glyph and sprite lie as close over you as they can; the largest exhibit first, so a
+  // 2×2 Centrepiece is tried where one can be reached. Marks over another actor do not count
+  // as hiding it.
   const melee = await page.evaluate(() => {
     const A = window.ACCESSION, s = A.state;
-    for (const a of A.vm().actors.filter(q => q.uid !== 'you')) {
-      const x = a.x, y = a.y - 1, path = Grid.walkable(s.dept, x, y) && !Actors.at(s, x, y) ? Path.to(s, x, y) : [];
-      if (!path.length || path.length > 12) continue;
+    const cands = s.actors.filter(q => q.uid !== 'you' && !q.gone).map(a => ({ a, path: Grid.walkable(s.dept, a.x, a.y - 1) && !Actors.at(s, a.x, a.y - 1) ? Path.to(s, a.x, a.y - 1) : [] }))
+      .filter(c => c.path.length && c.path.length <= 60).sort((p, q) => (q.a.size || 1) - (p.a.size || 1) || p.path.length - q.path.length);
+    for (const { a, path } of cands) {
       for (const [px, py] of path) { const me = s.actors[0], d = Path.dirTo([me.x, me.y], [px, py]); if (d < 0 || A.act({ a: 'move', dir: d }).some(e => e.k === 'refused')) break; }
       const me = s.actors[0];
-      if (me.x !== x || me.y !== y || Actors.byUid(s, a.uid).gone) continue;
+      if (me.x !== a.x || me.y !== a.y - 1 || Actors.byUid(s, a.uid).gone) continue;
       A.act({ a: 'attack', uid: a.uid });
-      return a.uid;
+      return a.uid + (a.size > 1 ? ' (2×2)' : '');
     }
     return null;
   });
