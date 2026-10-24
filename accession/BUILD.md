@@ -938,20 +938,22 @@ At a turn boundary the wake checks (your ring, `axis`, `tether`) are all made fr
 - **The bell:** `B = round10(2.5 × L_tour + 100)` turns after entry; about 220–300 at Cabinet size, from M1's measured `L_tour`.
 - **The night watch:** at B + G, where `G = max(60, round10(0.15 × B))`.
 - **Calibration** happens at the slice gate.
+- **The count.** The clock counts the turns since entry (`dept.clock.count`), one at each turn boundary, at step 6 (§8.1). The bell, the night watch and each night-watch bell come at the boundary where the count reaches them, after that boundary's regeneration (step 3) and pip decay (step 5), so they take effect from the next boundary; each is told by a `stage` event. A clock made part-way through (an arena's or a test's) takes its stage, and the night-watch bells already rung, from its count, with no events.
 
 **The bell:**
 - pips stop decaying;
 - the regeneration interval doubles;
-- an announcement and a section-panel banner.
+- an announcement and a section-panel banner. Section panels come with M4's content, so in M3 the announcement is a plain banner in the strip, with the stage on the dial.
 
 **The night watch:**
 - regeneration stops;
-- a Night Watchman (`night_watchman`, warden curve) enters at the department entrance and walks to your actual position. If defeated, it returns 20 turns later. It is created awake, so its story reads "on its rounds" (§3.4);
-- every 30 turns the bell rings again, and the 3 sleeping exhibits nearest to you by walking distance, not in cases, wake hunting you.
+- a Night Watchman (`night_watchman`, a shared species with the warden curve's numbers at the department's depth) enters at the department entrance, or, if someone stands there, on the nearest free tile by an exhibit's walking distance (ties in row-major order). It is created hunting, its story reading "on its rounds" (cause `night_watch`, §3.4), so it is never caught by surprise, and it first acts one action after it enters (§8.1). It walks to your actual position over the whole map, never to a tile where it only last knew you were, and it never searches or goes back. Staff doors are walls to it, as to every exhibit (§8.2), so when no walk reaches you it goes to the tile it can reach that is nearest you and waits there. There is never more than one. If defeated, the next enters `WATCHMAN_RETURN` (20) clock counts later, as `<acc>.<depth>.watch.<k>` with k counting up (§3.2);
+- the Night Watchman is an exhibit, not a member of staff: DESIGN.md and `design/core-systems.md` §5.3 describe night staff who cannot be harmed, this section wins by precedence, and its label never calls it staff;
+- every 30 turns after the night watch begins (`NIGHT_WAKE_EVERY`; the first at B + G + 30, since the Watchman alone marks B + G), a night-watch bell rings, and the 3 sleeping exhibits nearest to you by walking distance (`NIGHT_WAKE_COUNT`; from your tile, as for the ring, §8.2; ties in spawn order) wake hunting you, with your tile as their last-known tile. It wakes only sleepers that a walk from you reaches, that are not in an intact case and that are not pipless (a mimic in its disguise, §8.2). The bell is not a noise: it wakes them directly.
 
 **A Centrepiece hall** seals while its Centrepiece hunts you (a treasure hall seals later, §5.5). While it is sealed, the count toward the bell and the night watch and the night-watch bells stop, and so does regeneration. Every other turn-boundary step runs as usual: surfaces, statuses, pip decay, alarm decay, module turn rules and chimes. If the Centrepiece has neither reached you nor dealt damage for `SEAL_LIFT_TURNS` (50) turns, the seal lifts. A Re-admission Ticket unseals it and returns you to the entrance; the Centrepiece regains `SEAL_HEAL_PCT` of its maximum health and returns.
 
-**Leaving.** The exit doors work at any time. Leaving forfeits unearned Highlights and the Certificate. There is no time bonus.
+**Leaving.** The exit doors work at any time: `leave(i)`, made standing on exit door i, costs no time and ends the visit (`over` with k `left`, and a `left` event that names the door and the clock's stage); it is refused on any other tile (`not_on_exit`) and for a door that does not exist (`no_exit`). Leaving forfeits unearned Highlights and the Certificate. There is no time bonus. In M3 leaving only ends the visit; the doors' placards and the run's next department are M5's (§8.9).
 
 ### 8.5 Your kit
 
