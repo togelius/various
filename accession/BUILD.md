@@ -851,7 +851,7 @@ These are the rules the slice implements. Each system opens with its sentence fr
 | `tether(r)` | you come within r of the tile it guards (a tethered warden guards its own); no sight is needed | 3 |
 | `touch_case` | its case, or the case it is, is opened or bashed (touched, §8.3) | 3 |
 | `ally_hit` | a member of its group within 5 of it takes any damage (only sleepers whose own trigger is `ally_hit` answer) | 3 |
-| `awake` | it is never dormant | none |
+| `awake` | it is never dormant, and never goes back to sleep: it is never returning or reinstalling | none |
 
 The alarm is not a species trigger: `alarm_network` wakes the department itself (§5.4).
 
