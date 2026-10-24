@@ -208,16 +208,20 @@ const Board3D = (() => {
     // further into the row north of it than any other actor does.
     function actorRect(a) { const n = a.size || 1, f = screen(a.x + n / 2, a.y + n), h = s * (n * SIN + 1 - SIN); return { x: f.x - n * s / 2, y: f.y - h, w: n * s, h }; }
 
+    // Both canvases are a whole number of device pixels, and their boxes exactly that size, so
+    // the page never resamples them: a board of fractional height would otherwise blur the
+    // sprites and shift each mark by up to a device pixel.
     function resize() {
       const r = host.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
-      renderer.setPixelRatio(dpr);
-      renderer.setSize(r.width, r.height, false);
-      const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+      const w = Math.floor(r.width * dpr), h = Math.floor(r.height * dpr);
+      renderer.setPixelRatio(1);
+      renderer.setSize(w, h, false);
       if (over.width !== w || over.height !== h) { over.width = w; over.height = h; }
+      for (const c of [canvas, over]) { c.style.width = w / dpr + 'px'; c.style.height = h / dpr + 'px'; }
       octx.setTransform(dpr, 0, 0, dpr, 0, 0);
       octx.imageSmoothingEnabled = false;
-      size = { width: r.width, height: r.height };
-      return r;
+      size = { width: w / dpr, height: h / dpr };
+      return size;
     }
 
     function render(vm) {
@@ -328,14 +332,16 @@ const Board3D = (() => {
           legend[id].group = d.group;
           own.push([id, mine]);
         }
-        // Shown (for a mark): the pixels that end up showing the mark itself or another mark
-        // drawn after it or of its own group (a telegraph's number); never an actor. Self (for an actor): the pixels showing the actor itself or a
+        // Shown (for a mark): the pixels that end up showing the mark itself, another mark
+        // drawn after it or of its own group (a telegraph's number), or, for the marks §6.2
+        // draws beneath the actors (the path preview, a telegraph's fill), an actor drawn over
+        // it; never the scene. Self (for an actor): the pixels showing the actor itself or a
         // telegraph's number laid over it; a nearer actor drawn over it is depth, which the
         // actor's own threshold allows for.
         for (const [id, mine] of own) {
           const top = i => legend[ids[i]], g = legend[id].group;
           legend[id].alone = mine.length;
-          legend[id].onTop = mine.filter(i => top(i) && (ids[i] === id || (top(i).kind === 'mark' && (ids[i] > id || top(i).group === g)))).length;
+          legend[id].onTop = mine.filter(i => top(i) && (ids[i] === id || ((top(i).kind === 'mark' || top(i).kind === 'actor') && ids[i] > id) || (top(i).kind === 'mark' && top(i).group === g))).length;
           legend[id].self = mine.filter(i => ids[i] === id || (top(i) && /^telegraph:/.test(top(i).id))).length;
         }
       }

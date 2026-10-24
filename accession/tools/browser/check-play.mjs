@@ -41,6 +41,9 @@ for (const [W, Hh] of SIZES) {
   const views = await page.evaluate(() => window.ACCESSION.views.list());
   for (const v of views) {
     const tag = `${W}×${Hh} ${v.label}`;
+    // Each view starts from a fresh visit at the entrance, so each plays the same scene;
+    // the settings chosen by clicks are kept.
+    if (v !== views[0]) { await page.reload(); await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state); await settle(); }
     await clickEl('#setbtn');
     if (views.length > 1) await clickEl(`[data-set="board"][data-value="${v.id}"]`);
     await clickEl('#settings [data-close]');
@@ -120,29 +123,54 @@ for (const [W, Hh] of SIZES) {
     lines.push(`${tag}: examined and read "${title}" (${label.para.trim().split(/\s+/).length} words)`);
     await clickEl('#sheet [data-close]');
     if (await page.evaluate(labelVisible, title)) bad(`${tag}: Close left the label on screen`);
-    // Beside the exhibit: click it, then click the same point again; the second click strikes
-    // it (§7.1), because opening its label leaves the board where it was.
+    // Beside the exhibit, with another exhibit's label open first if one is in sight: click
+    // it, which opens its label and strikes nothing, then click it again, which strikes it
+    // (§7.1). On a laptop the second click is on the same point, because opening the label
+    // leaves the board where it was; on a phone the sheet can move the board, so the second
+    // click is on the exhibit where it now is.
     for (let i = 0; i < 10; i++) {
       const st = await page.evaluate(nextStep, 1);
       if (st.done || st.stuck) break;
       await click(st.at.x, st.at.y);
     }
-    const strike = await page.evaluate(uid => {
+    await page.keyboard.press('Escape'); await settle();
+    if (await page.evaluate(() => window.ACCESSION.vm().selection)) bad(`${tag}: Escape left an exhibit selected`);
+    const pixel = uid => page.evaluate(uid => {
       const A = window.ACCESSION, a = Actors.byUid(A.state, uid), d = A.renderer.inspect().find(q => q.kind === 'actor' && q.id === uid);
-      if (!d || !Step.adjacent(A.state, A.state.actors[0], a)) return null;
+      if (!d) return null;
       for (let j = 0; j < 9; j++) for (let i = 0; i < 9; i++) {
         const x = d.rect.x + d.rect.w * (0.1 + 0.1 * i), y = d.rect.y + d.rect.h * (0.1 + 0.1 * j), p = A.renderer.pick(x, y);
-        if (p && p.x === a.x && p.y === a.y && document.elementFromPoint(x, y).closest('#board')) return { x, y, hp: a.hp, turn: A.state.turn };
+        if (p && p.x === a.x && p.y === a.y && document.elementFromPoint(x, y).closest('#board')) return { x, y };
       }
       return null;
-    }, target);
-    if (!strike) bad(`${tag}: could not stand beside ${target} with a clickable pixel`);
+    }, uid);
+    const now = () => page.evaluate(uid => ({ hp: Actors.byUid(window.ACCESSION.state, uid).hp, turn: window.ACCESSION.state.turn, log: window.ACCESSION.history.slice(-1)[0] || '', shown: UI.labelShown(), sel: window.ACCESSION.vm().selection }), target);
+    const beside = await page.evaluate(uid => Step.adjacent(window.ACCESSION.state, window.ACCESSION.state.actors[0], Actors.byUid(window.ACCESSION.state, uid)), target);
+    const other = await page.evaluate(uid => (window.ACCESSION.vm().actors.find(a => a.uid !== 'you' && a.uid !== uid) || {}).uid || null, target);
+    let first = null;
+    if (other) {
+      const o = await pixel(other);
+      if (o) { await click(o.x, o.y); if (await page.evaluate(() => UI.labelShown()) !== other) bad(`${tag}: clicking ${other} did not open its label`); }
+    }
+    if (beside) first = await pixel(target);
+    if (!beside || !first) bad(`${tag}: could not stand beside ${target} with a clickable pixel`);
     else {
-      await click(strike.x, strike.y); await click(strike.x, strike.y);
-      const after = await page.evaluate(uid => ({ hp: Actors.byUid(window.ACCESSION.state, uid).hp, turn: window.ACCESSION.state.turn, log: window.ACCESSION.history.slice(-1)[0] || '' }), target);
-      if (after.turn === strike.turn || (after.hp === strike.hp && !/miss/i.test(after.log))) bad(`${tag}: a second click on the selected exhibit did not strike it`);
-      else lines.push(`${tag}: second click struck ${target} (${strike.hp} → ${after.hp})`);
-      await page.keyboard.press('Escape');
+      const b0 = await now();
+      if (b0.sel === target) bad(`${tag}: ${target} is selected before the first click, so that click would strike at once`);
+      await click(first.x, first.y);
+      const b1 = await now();
+      if (b1.shown !== target) bad(`${tag}: the first click on ${target} did not open its label`);
+      if (b1.turn !== b0.turn || b1.hp !== b0.hp) bad(`${tag}: the first click on ${target} did more than open its label`);
+      const laptop = await page.evaluate(() => UI.sheetCover() === 0);
+      const second = laptop ? first : await pixel(target);
+      if (!second) bad(`${tag}: with its label open, ${target} has no clickable pixel`);
+      else {
+        await click(second.x, second.y);
+        const b2 = await now();
+        if (b2.turn === b1.turn || (b2.hp === b1.hp && !/miss/i.test(b2.log))) bad(`${tag}: a second click${laptop ? ' on the same point' : ''} on ${target} did not strike it`);
+        else lines.push(`${tag}: ${other ? `with ${other}'s label open, ` : ''}first click opened ${target}'s label, second${laptop ? ' on the same point' : ''} struck (${b1.hp} → ${b2.hp})`);
+      }
+      await page.keyboard.press('Escape'); await settle();
     }
     // How the museum works: from the top bar, and in one click from Settings.
     await clickEl('#howbtn');

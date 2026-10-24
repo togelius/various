@@ -17,7 +17,7 @@ const Main = (() => {
   };
   // ui: what the view model needs from the interface (the selection, the path preview and
   // the last step's events, for one-turn cues). history: the log's recent sentences.
-  let state, renderer, ui = { path: null, selection: null, selectedTile: null, events: null }, walking = null, fresh = false;
+  let state, renderer, ui = { path: null, selection: null, selectedTile: null, events: null }, walking = null, fresh = false, shown = null;
   const history = [], HISTORY = 6;
 
   function newVisit() {
@@ -172,31 +172,35 @@ const Main = (() => {
     // the board the phone's sheet leaves clear; if both cannot fit, it keeps you in view and
     // leans as far towards the exhibit as it can (the label shows the exhibit's picture).
     const open = UI.labelShown() && vm.actors.find(a => a.uid === UI.labelShown());
-    if (open) vm.camera = focus(vm.you, open);
+    if (open) vm.camera = focus(vm.you, open, shown);
     UI.top({ hp: vm.you.hp, maxHp: vm.you.maxHp, grade: vm.you.grade, clock: vm.clock });
     UI.strip(Labels.strip(state), history, fresh);
     renderer.setInset(UI.sheetCover());
     renderer.draw(vm);
+    shown = vm.camera;
   }
 
   // A camera centred on a tile shows half whole tiles either side of it, where half comes
   // from the clear length in tiles; vertically, room is kept above the top row for the
   // state glyphs and, in 3D, for sprites standing taller than their tile.
-  function focus(you, a) {
+  function focus(you, a, last) {
     const tr = renderer.tileRect(you.x, you.y), b = board.getBoundingClientRect();
     if (!tr || !tr.rect.w) return { x: you.x, y: you.y };
     const t = tr.rect.w, d = tr.rect.h, above = Math.max(8, Math.floor(t / 3)) + (t - d);
     const half = (len, step) => Math.max(0, Math.floor((len / step - 1) / 2));
-    // Beside the exhibit, if both already fit round you the board stays put, so a second tap on
-    // any of its tiles still lands on it (§7.1).
+    // Beside the exhibit, if both already fit round the camera the last frame used (or else
+    // round you) the board stays put, so a second tap on any of its tiles still lands on it
+    // (§7.1), whichever label was open before.
     const near = Step.adjacent(state, state.actors[0], Actors.byUid(state, a.uid));
-    const axis = (p, q, n, h) => {
+    const axis = (p, q, n, h, c) => {
       const lo = Math.min(p, q), hi = Math.max(p + 1, q + n);
+      if (near && c !== undefined && lo >= c - h && hi - 1 <= c + h) return c;
       if (near && lo >= p - h && hi - 1 <= p + h) return p;
       if (hi - lo <= 2 * h + 1) { const m = (lo + hi - 1) / 2; return p <= m ? Math.floor(m) : Math.ceil(m); }
       return p < q ? p + h : p - h;
     };
-    return { x: axis(you.x, a.x, a.size, half(b.width, t)), y: axis(you.y, a.y, a.size, half(b.height - UI.sheetCover() - 2 * above, d)) };
+    const c = last || {};
+    return { x: axis(you.x, a.x, a.size, half(b.width, t), c.x), y: axis(you.y, a.y, a.size, half(b.height - UI.sheetCover() - 2 * above, d), c.y) };
   }
 
   // Examine (x): the nearest readable thing first, then each visible exhibit in turn.

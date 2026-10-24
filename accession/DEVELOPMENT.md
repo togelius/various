@@ -158,8 +158,13 @@ The build contract is [`BUILD.md`](BUILD.md); this file records what has been bu
     - an on-top rule that had become a tautology;
     - arrows over sleep glyphs;
     - a band of phone widths where the health number overflowed.
-  - **Round 7:** running when this was written; its outcome will be logged with M2b.
-  - **The trend:** 46, 18, 16, 7, 7 and 7 findings. From round 4 on, they were mostly about how strict the checks were, plus edge cases on the board.
+  - **Round 7:** 7 findings, all fixed. Among them:
+    - with another exhibit's label open, opening an adjacent exhibit's label re-centred the board, so a second click missed; the camera now stays where the last frame had it while you and the exhibit fit there;
+    - the second-click check began with the exhibit already selected, so its first click struck and it tested nothing;
+    - the on-top check hit-tested the 2D layer instead of looking at the page; it now compares a screenshot with what was painted, which also found a real fault: at a fractional board height both views' canvases were resampled by the page, blurring the sprites by a device pixel;
+    - the on-top rule would have failed a telegraph's fill under you, which §6.2 draws beneath the actors on purpose; a telegraphed melee frame now tests it;
+    - a door cut by the board's edge failed the mat check; check-3d now runs at laptop size too.
+  - **The trend:** 46, 18, 16, 7, 7, 7 and 7 findings. From round 4 on, they were mostly about how strict the checks were, plus edge cases on the board.
 - **Findings worth remembering:**
   - **Walls.** From due south at 60°, a wall of height h hides h ÷ tan 60° of the tile behind it. The probe's 1–2% figure came from the south-east.
   - **Colour.** Five reserved colours that stay apart under all three simulations leave little room. The best found clears 15 by 0.5; a sixth reserved colour would not fit.

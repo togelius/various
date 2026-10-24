@@ -11,13 +11,16 @@ Views.register('topdown', 'Flat', host => {
   const PLAIN = ['.', ','];
   let zoom = 0, tile = ZOOM[0], ox = 0, oy = 0, last = null, items = [], tiles = [], size = { width: 0, height: 0 }, inset = 0;
 
+  // The canvas is a whole number of device pixels and its box exactly that size, so the page
+  // never resamples it (a board of fractional height would blur the pixel art).
   function resize() {
     const r = host.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-    const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    const w = Math.floor(r.width * dpr), h = Math.floor(r.height * dpr);
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    canvas.style.width = w / dpr + 'px'; canvas.style.height = h / dpr + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    return r;
+    return { width: w / dpr, height: h / dpr };
   }
 
   const shade = (hex, f) => {

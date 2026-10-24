@@ -3229,13 +3229,16 @@ Views.register('topdown', 'Flat', host => {
   const PLAIN = ['.', ','];
   let zoom = 0, tile = ZOOM[0], ox = 0, oy = 0, last = null, items = [], tiles = [], size = { width: 0, height: 0 }, inset = 0;
 
+  // The canvas is a whole number of device pixels and its box exactly that size, so the page
+  // never resamples it (a board of fractional height would blur the pixel art).
   function resize() {
     const r = host.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-    const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    const w = Math.floor(r.width * dpr), h = Math.floor(r.height * dpr);
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    canvas.style.width = w / dpr + 'px'; canvas.style.height = h / dpr + 'px';
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    return r;
+    return { width: w / dpr, height: h / dpr };
   }
 
   const shade = (hex, f) => {
@@ -7416,16 +7419,20 @@ const Board3D = (() => {
     // further into the row north of it than any other actor does.
     function actorRect(a) { const n = a.size || 1, f = screen(a.x + n / 2, a.y + n), h = s * (n * SIN + 1 - SIN); return { x: f.x - n * s / 2, y: f.y - h, w: n * s, h }; }
 
+    // Both canvases are a whole number of device pixels, and their boxes exactly that size, so
+    // the page never resamples them: a board of fractional height would otherwise blur the
+    // sprites and shift each mark by up to a device pixel.
     function resize() {
       const r = host.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
-      renderer.setPixelRatio(dpr);
-      renderer.setSize(r.width, r.height, false);
-      const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+      const w = Math.floor(r.width * dpr), h = Math.floor(r.height * dpr);
+      renderer.setPixelRatio(1);
+      renderer.setSize(w, h, false);
       if (over.width !== w || over.height !== h) { over.width = w; over.height = h; }
+      for (const c of [canvas, over]) { c.style.width = w / dpr + 'px'; c.style.height = h / dpr + 'px'; }
       octx.setTransform(dpr, 0, 0, dpr, 0, 0);
       octx.imageSmoothingEnabled = false;
-      size = { width: r.width, height: r.height };
-      return r;
+      size = { width: w / dpr, height: h / dpr };
+      return size;
     }
 
     function render(vm) {
@@ -7536,14 +7543,16 @@ const Board3D = (() => {
           legend[id].group = d.group;
           own.push([id, mine]);
         }
-        // Shown (for a mark): the pixels that end up showing the mark itself or another mark
-        // drawn after it or of its own group (a telegraph's number); never an actor. Self (for an actor): the pixels showing the actor itself or a
+        // Shown (for a mark): the pixels that end up showing the mark itself, another mark
+        // drawn after it or of its own group (a telegraph's number), or, for the marks §6.2
+        // draws beneath the actors (the path preview, a telegraph's fill), an actor drawn over
+        // it; never the scene. Self (for an actor): the pixels showing the actor itself or a
         // telegraph's number laid over it; a nearer actor drawn over it is depth, which the
         // actor's own threshold allows for.
         for (const [id, mine] of own) {
           const top = i => legend[ids[i]], g = legend[id].group;
           legend[id].alone = mine.length;
-          legend[id].onTop = mine.filter(i => top(i) && (ids[i] === id || (top(i).kind === 'mark' && (ids[i] > id || top(i).group === g)))).length;
+          legend[id].onTop = mine.filter(i => top(i) && (ids[i] === id || ((top(i).kind === 'mark' || top(i).kind === 'actor') && ids[i] > id) || (top(i).kind === 'mark' && top(i).group === g))).length;
           legend[id].self = mine.filter(i => ids[i] === id || (top(i) && /^telegraph:/.test(top(i).id))).length;
         }
       }
@@ -7818,7 +7827,7 @@ const Main = (() => {
   };
   // ui: what the view model needs from the interface (the selection, the path preview and
   // the last step's events, for one-turn cues). history: the log's recent sentences.
-  let state, renderer, ui = { path: null, selection: null, selectedTile: null, events: null }, walking = null, fresh = false;
+  let state, renderer, ui = { path: null, selection: null, selectedTile: null, events: null }, walking = null, fresh = false, shown = null;
   const history = [], HISTORY = 6;
 
   function newVisit() {
@@ -7973,31 +7982,35 @@ const Main = (() => {
     // the board the phone's sheet leaves clear; if both cannot fit, it keeps you in view and
     // leans as far towards the exhibit as it can (the label shows the exhibit's picture).
     const open = UI.labelShown() && vm.actors.find(a => a.uid === UI.labelShown());
-    if (open) vm.camera = focus(vm.you, open);
+    if (open) vm.camera = focus(vm.you, open, shown);
     UI.top({ hp: vm.you.hp, maxHp: vm.you.maxHp, grade: vm.you.grade, clock: vm.clock });
     UI.strip(Labels.strip(state), history, fresh);
     renderer.setInset(UI.sheetCover());
     renderer.draw(vm);
+    shown = vm.camera;
   }
 
   // A camera centred on a tile shows half whole tiles either side of it, where half comes
   // from the clear length in tiles; vertically, room is kept above the top row for the
   // state glyphs and, in 3D, for sprites standing taller than their tile.
-  function focus(you, a) {
+  function focus(you, a, last) {
     const tr = renderer.tileRect(you.x, you.y), b = board.getBoundingClientRect();
     if (!tr || !tr.rect.w) return { x: you.x, y: you.y };
     const t = tr.rect.w, d = tr.rect.h, above = Math.max(8, Math.floor(t / 3)) + (t - d);
     const half = (len, step) => Math.max(0, Math.floor((len / step - 1) / 2));
-    // Beside the exhibit, if both already fit round you the board stays put, so a second tap on
-    // any of its tiles still lands on it (§7.1).
+    // Beside the exhibit, if both already fit round the camera the last frame used (or else
+    // round you) the board stays put, so a second tap on any of its tiles still lands on it
+    // (§7.1), whichever label was open before.
     const near = Step.adjacent(state, state.actors[0], Actors.byUid(state, a.uid));
-    const axis = (p, q, n, h) => {
+    const axis = (p, q, n, h, c) => {
       const lo = Math.min(p, q), hi = Math.max(p + 1, q + n);
+      if (near && c !== undefined && lo >= c - h && hi - 1 <= c + h) return c;
       if (near && lo >= p - h && hi - 1 <= p + h) return p;
       if (hi - lo <= 2 * h + 1) { const m = (lo + hi - 1) / 2; return p <= m ? Math.floor(m) : Math.ceil(m); }
       return p < q ? p + h : p - h;
     };
-    return { x: axis(you.x, a.x, a.size, half(b.width, t)), y: axis(you.y, a.y, a.size, half(b.height - UI.sheetCover() - 2 * above, d)) };
+    const c = last || {};
+    return { x: axis(you.x, a.x, a.size, half(b.width, t), c.x), y: axis(you.y, a.y, a.size, half(b.height - UI.sheetCover() - 2 * above, d), c.y) };
   }
 
   // Examine (x): the nearest readable thing first, then each visible exhibit in turn.
