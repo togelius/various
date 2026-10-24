@@ -1,7 +1,9 @@
 // ACCESSION — a path for a tap (BUILD.md §4.2): the UI turns it into single moves, so a
 // replay never holds a path. Shortest by the step rule, round other actors' footprints and
 // never through one; ties broken in direction order, so the same tap always gives the same
-// path. If actors close every way, it goes as far as the way is clear.
+// path. If actors close every way, it goes as far as the way is clear. It never goes
+// through a closed staff door your grade cannot open (§8.3: to you it is a wall), though a
+// tap on one walks you up to it, where the bump says why it stays shut.
 'use strict';
 const Path = (() => {
   function to(state, tx, ty) {
@@ -13,15 +15,17 @@ const Path = (() => {
     if (aim) { for (let dy = 0; dy < (aim.size || 1); dy++) for (let dx = 0; dx < (aim.size || 1); dx++) if (Grid.walkable(m, aim.x + dx, aim.y + dy)) target.push([aim.x + dx, aim.y + dy]); }
     else if (Grid.walkable(m, tx, ty)) target.push([tx, ty]);
     if (!target.length) return [];
-    // Every other actor's tiles cost more than the whole map, so the path goes round them.
-    const n = m.w * m.h, busy = new Uint8Array(n);
+    // Every other actor's tiles cost more than the whole map, so the path goes round them;
+    // a staff door above your grade is never entered at all.
+    const n = m.w * m.h, busy = new Uint8Array(n), grade = (state.run && state.run.grade) || N.GRADE_START;
     for (const a of state.actors) {
       if (a === you || a === aim || a.gone) continue;
       for (let dy = 0; dy < (a.size || 1); dy++) for (let dx = 0; dx < (a.size || 1); dx++) if (Grid.inside(m, a.x + dx, a.y + dy)) busy[(a.y + dy) * m.w + a.x + dx] = 1;
     }
-    let d = Grid.distances(m, target, n, (x, y) => busy[y * m.w + x] ? n : 0);
-    // No way round: follow the plain walking distance and stop where an actor stands.
-    if (d[you.y * m.w + you.x] < 0) d = Grid.distances(m, target, n);
+    const shut = (x, y) => Grid.ch(m, x, y) === 'S' && grade < staffNeeds(state, x, y);
+    let d = Grid.distances(m, target, n, (x, y) => shut(x, y) ? n + 1 : busy[y * m.w + x] ? n : 0);
+    // No way round: follow the walking distance and stop where an actor stands.
+    if (d[you.y * m.w + you.x] < 0) d = Grid.distances(m, target, n, (x, y) => shut(x, y) ? n + 1 : 0);
     const out = [];
     let x = you.x, y = you.y, here = d[y * m.w + x];
     if (here < 0) return [];
@@ -38,6 +42,12 @@ const Path = (() => {
       out.push([x, y]);
     }
     return out;
+  }
+  // The grade a closed staff door at (x, y) asks of you (Cases.staffGrade; one with no
+  // fixture, only in a room for tests, asks no more than the grade you start with).
+  function staffNeeds(state, x, y) {
+    const g = typeof Cases !== 'undefined' ? Cases.staffGrade(state, x, y) : null;
+    return g === null ? N.GRADE_START : g;
   }
   const dirTo = (a, b) => { for (let k = 0; k < 8; k++) if (a[0] + Grid.DX[k] === b[0] && a[1] + Grid.DY[k] === b[1]) return k; return -1; };
   return { to, dirTo };
