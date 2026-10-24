@@ -497,14 +497,14 @@ module.exports = ({ test, assert, loadCore }) => {
   });
 
   // ---- The departments still build, and the items work in a room ----
-  // Until W1-KIT's and W1-CONSUMABLES's stand-ins land, Kit.standIn and Consumables.standIn
-  // place nothing (W0e's stubs), so in a department only the species' additions (groups,
-  // modParams) are exercised here; the checks of what the stand-ins place come into force
-  // when they land. The room test below puts every pack item in the state now.
+  // Kit.standIn and Consumables.standIn (W1-KIT, W1-CONSUMABLES) place the pack's pieces and
+  // name its consumables, so each department must hold at least one of its pack's weapons or
+  // garments, one of its curios or instruments and one named consumable, and the checks of
+  // what they place are never empty. The room test below puts every pack item in a state.
   test('each department builds at every depth with the packs\' additions, as plain data, its labels have no gaps, and what its stand-ins place comes from its own pack', () => {
     const SEALS = Registry.order('SEALS');
     for (const acc of ACCS) for (let depth = 1; depth <= 7; depth++) {
-      const s = Dept.create(depth, acc, depth), pack = Packs.get(acc);
+      const s = Dept.create(depth, acc, depth), pack = Packs.get(acc), placed = { piece: 0, curio: 0, consumable: 0 };
       assert.equal(State.plainData(s), null, `${acc} d${depth}`);
       assert.equal(State.hash(State.clone(s)), State.hash(s), `${acc} d${depth}: clone`);
       for (const a of s.actors) {
@@ -517,10 +517,12 @@ module.exports = ({ test, assert, loadCore }) => {
           const rec = pack.items.find(r => r.id === it.ref);
           assert.ok(rec, `${acc} d${depth} ${it.uid}: ${it.ref} is an item of ${acc}`);
           assert.equal(json([it.kind, it.form, it.prims]), json([rec.kind, rec.kind === 'instrument' ? rec.instrument : rec.form, rec.prims]), `${acc} d${depth} ${it.uid}`);
+          placed[it.kind === 'weapon' || it.kind === 'garment' ? 'piece' : 'curio']++;
         }
         const nm = it.kind === 'consumable' ? Consumables.name(s, it) : null;
-        if (nm && nm.seal) assert.equal(nm.local, pack.consumables.names[SEALS.indexOf(nm.seal)], `${acc} d${depth} ${it.uid}: the local name of ${nm.seal}`);
+        if (nm && nm.seal) { assert.equal(nm.local, pack.consumables.names[SEALS.indexOf(nm.seal)], `${acc} d${depth} ${it.uid}: the local name of ${nm.seal}`); placed.consumable++; }
       }
+      assert.ok(placed.piece >= 1 && placed.curio >= 1 && placed.consumable >= 1, `${acc} d${depth}: the stand-ins placed ${json(placed)}`);
     }
   });
 
