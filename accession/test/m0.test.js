@@ -1,8 +1,9 @@
-// M0: the scheduler, step(), combat arithmetic, refusals, plain data, clone stability and
-// the cross-engine hash (BUILD.md §3, §8.1, §11 M0). Each test checks what its name says.
+// M0: the scheduler, step(), combat arithmetic, refusals and plain data (BUILD.md §3, §8.1,
+// §11 M0). Each test checks what its name says. The golden runs, with clone stability and
+// the cross-engine hash, are in golden.test.js.
 module.exports = ({ test, assert, loadCore }) => {
-  const C = loadCore(['tools/monkey.js', 'test/golden/golden.js']);
-  const { Step, State, TestRoom, Setup, Monkey, GOLDEN, N, Combat, Actors } = C;
+  const C = loadCore(['tools/monkey.js']);
+  const { Step, State, TestRoom, Setup, Monkey, N, Combat, Actors } = C;
 
   // A bare room for scenarios: you at (2,2) and exhibits as given.
   function room(exhibits, map) {
@@ -148,14 +149,5 @@ module.exports = ({ test, assert, loadCore }) => {
     }
     assert.ok(damaged > 0);
     assert.ok(s.causes.length > 0 && s.causes.length <= N.CAUSE_RECORDS);
-  });
-
-  test('10,000 monkey actions give the golden hash, twice, and again when cloned after every step', () => {
-    const a = Monkey.run(GOLDEN.m0Monkey.seed, GOLDEN.m0Monkey.actions), b = Monkey.run(GOLDEN.m0Monkey.seed, GOLDEN.m0Monkey.actions);
-    assert.equal(a.hash, b.hash);
-    assert.equal(a.hash, GOLDEN.m0Monkey.hash, 'golden hash changed: if a rule changed on purpose, run node tools/golden.js and log why');
-    assert.deepEqual(a.checkpoints, GOLDEN.m0Monkey.checkpoints);
-    const c = Monkey.run(GOLDEN.m0Monkey.seed, GOLDEN.m0Monkey.actions, { cloneEachStep: true });
-    assert.deepEqual(c.checkpoints, GOLDEN.m0Monkey.checkpoints, 'a cloned state behaves exactly like the original');
   });
 };

@@ -9,9 +9,9 @@ The build contract is [`BUILD.md`](BUILD.md); this file records what has been bu
 | Play (development) | open `index.html` in a browser |
 | Play (single file) | `python3 tools/build-single.py`, then open `dist/accession.html` |
 | Everything | `./check-all.sh` (`--no-browser --allow-skip` leaves out the Playwright checks; never for acceptance) |
-| Tests only | `node test/run.js [filter]` |
-| Cross-browser hash | open `dist/accession-hash.html` in Safari, Firefox or Chrome: every line should say PASS |
-| Regenerate golden hashes | `node tools/golden.js` (only when a rule changed on purpose; log why below) |
+| Tests only | `node test/run.js [filter]` (the filter matches the path from `test/`: `behaviour` runs the Behaviour-line scenarios) |
+| Cross-browser hash | open `dist/accession-hash.html` in Safari, Firefox or Chrome: every line should say PASS (PENDING, with its hash, while a wave changes the state; `check-hash` compares that with Node) |
+| Regenerate golden hashes | `node tools/golden.js` (only when a rule changed on purpose; log why below); `--pending "reason"` marks the runs pending and keeps the pins; `--check` compares without writing |
 | Layout sweep | `node tools/layout-sweep.js 1000 --locality [--maps]` |
 | Screenshots | `node tools/browser/shoot.mjs "dept=M11&board=board3d" name` → `test/shots/name.png` |
 | Pick a department in a link | add `?dept=A4&seed=7`, or `#A4.7` where only an anchor passes (an Artifact page) |
@@ -25,7 +25,7 @@ The build contract is [`BUILD.md`](BUILD.md); this file records what has been bu
 | M1 Layout | accepted, 23 October 2026 |
 | M2 Look and read | accepted, 23 October 2026 |
 | M2b The 3D board | the 3D checks and every M2 screen check pass in both views; waiting on Julian's side-by-side look and device numbers |
-| M3 Exhibits wake | underway: Wave 0 (the backbone), part W0a landed |
+| M3 Exhibits wake | underway: Wave 0 (the backbone), parts W0a and W0b landed |
 | M4 Three departments | not started |
 | M5 A run | not started |
 | M6 Sound | not started |
@@ -191,3 +191,15 @@ The build contract is [`BUILD.md`](BUILD.md); this file records what has been bu
   - **34 new numbers of record** (§8.10, AXIS_RANGE to RESTORE_CHARGES) so that every clause names its number; `ROLE_WARDEN_SPECIAL_EVERY` moved out of a Meaning; the Meanings of `ROLE_WARDEN_SPECIAL` and `ROLE_ARTILLERY_SPECIAL` now name the archetypes that use them (specials belong to archetypes, not roles), and `COST_USE` covers applying a Restoration kit.
   - **The Signal Lamp** (M11.3) names its repaired side, `modParams: { old_repair: { side: 'W' } }`, which its line now states.
   - **lint-registry** checks the kinds against §4.3, a schema and a sentence for every pair, clause templates and their parameters, every pack species' line at depths 1–7, ready entries' tests and invariants, and pack items' primitives; `--strict` is M3's acceptance and fails until every M3 entry is ready.
+
+### 24 October 2026: M3 Wave 0, part W0b (test and determinism infrastructure)
+
+- **The golden run is pending** from this commit until the end of Wave 0 (`pending: "M3 Wave 0 in progress; re-pinned at the end of Wave 0"`), so that W0c can change the state. Nothing in the state changed here: the run still gives 1695131025, its pin, in Node and in Chromium.
+  - `test/golden.test.js` holds the golden test, moved out of `test/m0.test.js`. It plays every run twice and once cloned after every step; the three must agree, and a pinned run must equal its pin.
+  - The hash page prints `PENDING m0Monkey: hash 1695131025, checkpoints …` and titles itself PENDING. `check-hash` then plays the pending run in Node and passes only if the page's hash and all ten checkpoints equal Node's. Planted in the built page, a different seed and a shown hash that differed from the reported one each failed it; with the pending mark removed, the page said ALL PASS, and a pin off by one failed both the page and the Node test.
+  - `node tools/golden.js --pending "reason"` marks the runs pending and keeps their pins; a plain re-pin clears the mark and prints old → new; `--check` reports a pending run's hash beside its old pin. A re-pin of the unchanged tree rewrote `golden.js` byte for byte.
+- **The Behaviour-line harness** (`test/behaviour/_harness.js`, BUILD.md §10.2): `scenario`, `species`, `sweep`, `play` and `sensitivity`, with the invariants of `test/behaviour/*.inv.js` loaded and checked after every step by `tools/invariants.js` (§5.3). Wave 1 writes its scenarios and invariants against it.
+- **`test/run.js`** also runs the `*.test.js` files under `test/behaviour/` and `test/arena/`, and its filter matches the path from `test/`.
+- **`tools/stats.js`** has the Wilson interval, which matches Newcombe (1998), Table I, method 3, on its four worked examples (81/263, 15/148, 0/20, 1/29) to four places.
+- **`test/m2-vm.test.js`** holds M2's two view-model tests, moved unchanged out of `test/m2.test.js`, so that the view model's and the labels' tests are in separate files.
+- **Checks:** `test/m3-infra.test.js` (10 tests): the checker and the harness on planted invariants and scenarios (one the rules break, found on the right actors and steps against an independent count from the events; one they keep; one checked once a step), a planted modifier for sensitivity, the runner's folders and filter end to end, Wilson against the published values, and the pending comparison on seven planted mismatches. `node test/run.js`: 82/82 (72 before: the golden test moved, ten added). `./check-all.sh`: 12 passed, 0 skipped, 0 failed; `check-hash` reports "pending runs equal Node's: m0Monkey 1695131025".

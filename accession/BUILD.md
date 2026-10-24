@@ -110,13 +110,17 @@ accession/
     lint-core.js           the determinism lint on acorn's syntax tree (§3.3); vendor/acorn
     lint-numbers.js        the §8.10 table against js/core/numbers.js
     lint-registry.js       ids, caps, Behaviour-line coverage, ledger coverage
-    golden.js, monkey.js   golden runs and the monkey
+    golden.js, monkey.js   golden runs (re-pin, mark pending, check) and the monkey
+    hash-compare.js        the Node side of the hash page's check of pending runs (§3.5)
+    invariants.js          loads the Behaviour-line invariants and checks them after each step (§5.3)
+    stats.js               the statistics of §10.3; plain Node, never loaded into the core
     layout-sweep.js        the 1,000-seed layout sweep (§11, M1)
     sim.js, report.js      headless bots and paired comparisons; reports from their output
     hash-template.html     the cross-browser hash page (§3.5)
     remove-3d.sh           reverting the 3D view (§6.3); vendor-three.sh
     browser/*.mjs          Playwright scripts: smoke, screens, clicks, kills, 3D checks
-  test/                    *.test.js, golden/ (expected hashes), arena/, behaviour/, run.js
+  test/                    *.test.js, golden/ (expected hashes), behaviour/ (scenarios, invariants and
+                           _harness.js), arena/, run.js
   dist/accession.html      the single-file build (committed, as elsewhere in this repo)
   check-all.sh             every lint and test; the gate before each commit
   DEVELOPMENT.md           milestone status and the validation log (§12)
@@ -198,12 +202,13 @@ accession/
 
 - **The state hash** is a 32-bit FNV-1a over canonical JSON (sorted keys, no whitespace).
 - **Golden runs** live in `test/golden/golden.js` (as JavaScript, so a page opened from `file://` can load them). Each is a seed plus a policy or an action list (a 10,000-action monkey run, and one replay per milestone) with the expected final hash and hashes at fixed checkpoints.
-- **Clone-stability.** `test/run.js` plays every golden run twice: once continuously, and once with `state = State.clone(state)` after every step. The checkpoint hashes must match.
+- **Clone-stability.** `test/golden.test.js` plays every golden run three times: twice continuously, and once with `state = State.clone(state)` after every step. The three must give the same checkpoint hashes, and a pinned run must give its recorded ones.
+- **Pending runs.** While a stretch of work changes the state on purpose (in M3, each wave of the build), a golden run may carry `pending` with its reason (`node tools/golden.js --pending "reason"`). A pending run is still played three times and must agree with itself and with its clone, but it is not held to its pin. The hash page prints `PENDING <name>: hash H, checkpoints …` for it, and its title is PENDING when every pinned run passes; `tools/browser/check-hash.mjs` then plays each pending run in Node through `tools/core-context.js` on the same tree and passes only if the page's hash and every checkpoint equal Node's, so the check that browsers and Node agree never lapses. A re-pin (`node tools/golden.js`) ends the stretch: it writes the new hashes with no `pending`, and the log records the old hash, the new one and why. Julian's browser rows stay "pending" while any run is.
 - **Finding a divergence.** A golden run also stores a hash after every step (4 bytes a step). On a mismatch, Node and the hash page print the first diverging step, its action, and the events of that step; the hash page shows them as a copyable text block with a Download button, so Julian can send it back.
 - **Where they are checked:**
   - Node runs them on every `check-all.sh`;
   - `build-single.py` also writes `dist/accession-hash.html`, with the core and the golden runs inlined; Chromium runs it through Playwright;
-  - Julian opens the hosted copy (§2) in Safari on the Mac and the iPhone, and in Firefox, once per milestone. It prints PASS or the first diverging checkpoint. This environment has only Chromium; WebKit cannot be installed here.
+  - Julian opens the hosted copy (§2) in Safari on the Mac and the iPhone, and in Firefox, once per milestone. It prints PASS, the first diverging checkpoint, or PENDING with its hash. This environment has only Chromium; WebKit cannot be installed here.
 
 ### 3.6 Replays and counterfactual reruns
 
@@ -385,7 +390,7 @@ A pack is data: `content/S9.js` registers one object with `Packs.add({…})`. It
 - **The panel shows it under the title,** above the literary paragraph, and the strip shows it in runs 1–3 (DESIGN default 24).
 - **Length.** The longest line in the packs, with depth 7's numbers, must fit the strip at 390×844 at every text size and leave the board at least 40% of the window's height (`check-screens`); a clause that would break this is reworded, never cut.
 - **Each clause is checked four ways:**
-  1. **An invariant.** Each clause has a predicate over the state before a step, its events, and the state after, in the invariant file its entry names (`test/behaviour/<inv>.inv.js`). The invariant runs after every step of every monkey, soak and bot run; a violation prints the clause, species, seed, step and replay.
+  1. **An invariant.** Each clause has a predicate over the state before a step, its events, and the state after, in the invariant file its entry names (`test/behaviour/<inv>.inv.js`). The file exports `(C) => ({id, applies(actor, state), check(pre, events, post, ctx)})`, or a list of them, one per clause; `check` returns null, or a message saying what broke the clause. `tools/invariants.js` loads every file and checks each invariant after every step of every monkey, soak, scenario and bot run, once for each actor its `applies` accepts (an actor already gone when the step began is skipped; one created during it has no `before`); a violation prints the clause, species, seed, step and replay.
   2. **Scenarios** in `test/behaviour/`, written as functions of the clause's parameters and run for every species and depth that the three packs and the Exit produce, with pack overrides applied.
   3. **Sensitivity.** Each module and modifier clause's scenario is rerun with `rulesOff`, and must then fail.
   4. **Completeness.** Every registry id a species uses (archetype, modifiers, trigger, special, module flag, inflicted status) contributes a clause part, and soak runs flag any event kind an actor causes that is neither universal nor covered by a clause of its line.
@@ -1307,7 +1312,12 @@ The ten layers are in [`DECISIONS.md`](DECISIONS.md) (Automatic playtesting); th
 
 ### 10.2 Tooling
 
-- **`test/run.js`** loads `js/core`, `content/` and the tests into a `vm` context and reports one line per failure. A scenario failure names the rule and gives the seed, the room as text and a replay.
+- **`test/run.js`** loads `js/core`, `content/` and the tests into a `vm` context and reports one line per failure. It runs `test/*.test.js` and every `*.test.js` under `test/behaviour/` and `test/arena/`, and its filter matches a file's path from `test/`, so `node test/run.js behaviour` runs the Behaviour-line scenarios. A scenario failure names the rule and gives the seed, the room as text and a replay.
+- **The scenario harness,** `test/behaviour/_harness.js`, which every Behaviour-line test uses (§5.3, checks 1–3):
+  - `scenario({name, id, build(params, sp, depth), actions, expect})`: a scenario for the clause of registry id `id`, written as a function of that clause's parameters, which the harness reads from `Clauses.of` at the species and depth;
+  - `species(C, id)`: every pack species whose Behaviour line has that clause, at depths 1–7, as the packs give them, so a pack's override fields apply; species whose archetype is not yet built are left out, as departments leave them out;
+  - `sweep` runs a scenario for each of them, with every invariant checked after every step (`play`), and each failure names the scenario, the species, the depth and the seed; a sweep over no species is refused;
+  - `sensitivity(C, scenario, id)` reruns it with `id` in `rulesOff`, and fails unless every run then fails.
 - **Crash cards.** Monkey, soak and golden failures are shrunk with ddmin over the action list, replaying from the seed (time limit 60 s). The card gives the seed, `coreHash`, the shrunk action count, the first bad step with its events and a JSON-path diff of the state, and a replay link.
 - **`tools/sim.js`** runs policies headless over N seeds and writes JSON with the run's `coreHash`, seeds and per-run outcomes. It supports `--policy`, `--seeds`, `--depth`, `--dept`, the counterfactual switches `--rules-off` and `--without`, `--paired` (two policies or two option sets on identical seeds) and `--invulnerable` (a sim-only option that keeps your HP at least 1 and logs the would-be deaths).
 - **The policies.** Random monkey; naive; one counterplay policy per archetype; rule-aware and rule-blind per module; explorer (finishes departments and runs); a 2-ply expert search (layer 6).
@@ -1337,7 +1347,7 @@ The ten layers are in [`DECISIONS.md`](DECISIONS.md) (Automatic playtesting); th
 - **Seeds.** Seed sets are fixed and named: seeds 1–200 for bot gates, 1–1,000 for layout sweeps.
 - **Pairing.** Paired runs share seeds and per-actor streams, so the rooms and every actor's dice are the same. Once two policies act differently, the same draws serve different blows, so a single seed's difference can still be luck; the statistics below are over all seeds.
 - **Statistics, by kind:**
-  - a single rate (death, fires, fallback) gets a 95% Wilson interval;
+  - a single rate (death, fires, fallback) gets a 95% Wilson interval (`Stats.wilson(k, n, z)` in `tools/stats.js`, which runs beside the core, never in it, since it needs floating point);
   - a paired binary difference (death with and without a rule) gets Newcombe's paired-difference interval;
   - a continuous paired quantity (HP lost, turns) is reported as the mean per-seed difference with a 95% percentile-bootstrap interval: 10,000 resamples of seeds on a fixed resampling stream, so the result is deterministic;
   - a ratio margin is a ratio of sums over seeds, with the same bootstrap.

@@ -11,7 +11,7 @@
 </head>
 <body>
 <h1>Same game in every browser?</h1>
-<p>This page replays fixed seeds and action lists through the game's rules and compares the results with the hashes recorded in Node. Every line should say PASS.</p>
+<p>This page replays fixed seeds and action lists through the game's rules and compares the results with the hashes recorded in Node. Every line should say PASS. A line that says PENDING belongs to a run whose rules are being changed on purpose, so for now it has no recorded hash: the page shows the hash it got, and the build compares that with Node's.</p>
 <p><code id="ua"></code></p>
 <pre id="out">Running…</pre>
 <script>
@@ -3725,7 +3725,8 @@ const GOLDEN = {
    479529993,
    3140211285
   ],
-  "visits": 40
+  "visits": 40,
+  "pending": "M3 Wave 0 in progress; re-pinned at the end of Wave 0"
  }
 };
 
@@ -3733,13 +3734,16 @@ const GOLDEN = {
 <script>
 'use strict';
 document.getElementById('ua').textContent = navigator.userAgent + ' · build dev';
+// Each run's result, for tools/browser/check-hash.mjs: {name: {hash, checkpoints, pending, ok}}.
+window.HASH_RESULTS = {};
 const lines = [];
-let all = true;
+let all = true, pending = 0;
 const finish = () => {
   const out = document.getElementById('out');
-  out.textContent = lines.join('\n') + '\n\n' + (all ? 'ALL PASS' : 'SOMETHING DIFFERS');
+  out.textContent = lines.join('\n') + '\n\n' + (!all ? 'SOMETHING DIFFERS' : pending ? 'NOTHING DIFFERS; ' + pending + ' PENDING (no recorded hash to compare with yet)' : 'ALL PASS');
   out.className = all ? 'pass' : 'fail';
-  document.title = all ? 'PASS' : 'FAIL';
+  // PENDING: every run with a recorded hash passed, and at least one has none yet.
+  document.title = !all ? 'FAIL' : pending ? 'PENDING' : 'PASS';
 };
 window.addEventListener('error', e => { all = false; lines.push('FAIL while loading: ' + e.message); finish(); });
 setTimeout(() => {
@@ -3749,13 +3753,21 @@ setTimeout(() => {
         const t0 = performance.now();
         const r = Monkey.run(g.seed, g.actions);
         const ms = Math.round(performance.now() - t0);
+        if (g.pending) {
+          pending++;
+          window.HASH_RESULTS[name] = { hash: r.hash, checkpoints: r.checkpoints.slice(), pending: true, ok: null };
+          lines.push('PENDING ' + name + ': hash ' + r.hash + ', checkpoints ' + r.checkpoints.join(' ') + ' (' + g.actions + ' actions, ' + ms + ' ms; ' + g.pending + ')');
+          continue;
+        }
         let first = -1;
         for (let i = 0; i < g.checkpoints.length; i++) if (r.checkpoints[i] !== g.checkpoints[i]) { first = i; break; }
         const ok = r.hash === g.hash && first < 0;
         all = all && ok;
+        window.HASH_RESULTS[name] = { hash: r.hash, checkpoints: r.checkpoints.slice(), pending: false, ok };
         lines.push((ok ? 'PASS ' : 'FAIL ') + name + ': ' + g.actions + ' actions, hash ' + r.hash + (ok ? '' : ' (expected ' + g.hash + (first >= 0 ? ', first differs by action ' + (first + 1) * 1000 : '') + ')') + ', ' + ms + ' ms');
       } catch (e) {
         all = false;
+        window.HASH_RESULTS[name] = { hash: null, checkpoints: [], pending: !!g.pending, ok: false };
         lines.push('FAIL ' + name + ': threw ' + e.message + ' ' + String(e.stack || '').split('\n')[1]);
       }
     }
