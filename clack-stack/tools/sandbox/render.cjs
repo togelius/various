@@ -1,5 +1,5 @@
 'use strict';
-// The rules sandbox renderer (DESIGN §18.8 G2), revision 5d: draws a build from rules.js alone, as plain outlined
+// The rules sandbox renderer (DESIGN §18.8 G2), revision 5e: draws a build from rules.js alone, as plain outlined
 // shapes in the tiles' colours on white, with the tile in the hand, its dotted fall line and, optionally, the outcome:
 // - stays: the tile where it will sit, its contact segments shining (gold), a ×2 / ×3 chip for several neighbours;
 // - falls off, ONLY A POINT: the tile red and dashed where it stops, and red dots at the points it touches;
@@ -9,6 +9,10 @@
 //   plumb line from the group's centre of weight down past the pivot, labelled TIPS OVER.
 // A thin gap (under 0.3 tile, e.g. 0.134 or 0.268) between part of a tile's bottom and the flat top below it is left
 // OPEN (§18.2): no fill, only a fine dotted outline, so it reads as air, not as a joint or an extra piece.
+// A prop (§18.2, revision 5e): where a group that would tip is held up by a square beside it, pressing on that square's
+// side above the corner it would tip over, the contact is marked with a small double bar across the joint (green, the
+// colour of STAYS), on the tower as the picture shows it standing: with the tile in place when it stays, as it is
+// otherwise (rules.js props(); spec.props = false leaves the marks out).
 //
 //   const S = require('./tools/sandbox/render.cjs');
 //   const png = await S.renderBuild({ drops: ['■1'], hand: '▲1.5', outcome: true, title: '…', caption: '…' });
@@ -27,7 +31,15 @@ try { pw = require('playwright'); } catch (e) { pw = require('/opt/node-tools/no
 // group that would tip
 const COLORS = ['#2F5BEA', '#FFD21F', '#2EBF4F', '#FF7A1A', '#5EC8F2', '#8A4FE0'];
 const STROKE = { '#FFD21F': '#D9A800', '#5EC8F2': '#2FA6D6' }; // pale colours get a deeper outline on white
-const RED = '#E8323C', GOLD = '#FFC531', INK = '#1E2541', SLIVER = '#4a5068';
+const RED = '#E8323C', GOLD = '#FFC531', INK = '#1E2541', SLIVER = '#4a5068', PROP = '#1d8f3a';
+// a prop's mark: a small double bar across the contact segment a–b (in tiles), at its middle; X, Y map to px, L px a tile
+function propSVG(a, b, X, Y, L) {
+  const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len, nx = -uy, ny = ux, half = 0.15, gap = 0.045;
+  const bar = k => { const cx = mx + ux * gap * k, cy = my + uy * gap * k; return `<line x1="${X(cx - nx * half)}" y1="${Y(cy - ny * half)}" x2="${X(cx + nx * half)}" y2="${Y(cy + ny * half)}"/>`; };
+  return `<line x1="${X(a.x)}" y1="${Y(a.y)}" x2="${X(b.x)}" y2="${Y(b.y)}" stroke="${PROP}" stroke-opacity="0.45" stroke-width="5" stroke-linecap="butt"/>` +
+    `<g stroke="#fff" stroke-width="5" stroke-linecap="round">${bar(-1)}${bar(1)}</g><g stroke="${PROP}" stroke-width="2.4" stroke-linecap="round">${bar(-1)}${bar(1)}</g>`;
+}
 // a thin gap, drawn open: no fill, a fine dotted outline (shared with tools/review/lib.cjs)
 function gapSVG(pts) { return `<polygon points="${pts}" fill="none" stroke="${SLIVER}" stroke-width="0.9" stroke-dasharray="1.2 2.2" stroke-linejoin="round"/>`; }
 const R3 = Math.sqrt(3);
@@ -151,7 +163,11 @@ function model(spec) {
   }
   let fits = [];
   if (spec.fits && hand && !err) fits = R.fitsAll(B, hand.piece).filter(r => r.outcome === 'fit');
-  return { R, half, log, B, tiles, hand, res, err, fits };
+  // the props of the tower as the picture shows it standing: with the tile placed when it stays (and its outcome is
+  // drawn), the build as it is otherwise
+  let props = [];
+  if (spec.props !== false && typeof R.props === 'function') props = R.props(res && res.outcome === 'fit' && spec.outcome !== false ? R.place(B, res) : B);
+  return { R, half, log, B, tiles, hand, res, err, fits, props };
 }
 
 // one picture as an SVG string, with its size
@@ -283,6 +299,8 @@ function svgFor(spec) {
       out.push(`<text x="${X(tx)}" y="${Y(top3 + 0.14)}" text-anchor="middle" font-size="13" font-weight="800" fill="${RED}" stroke="#fff" stroke-width="3" paint-order="stroke">${esc(r.reason)}</text>`);
     }
   }
+  // props: a double bar at each contact that holds a group up
+  for (const g of M.props) for (const pr of g.props) out.push(propSVG(P(pr.seg[0]), P(pr.seg[1]), X, Y, L));
   out.push('</svg>');
   return { svg: out.join(''), W, H, M };
 }
@@ -339,7 +357,7 @@ async function renderSheet(items, cols, opts) {
 }
 async function close() { if (browser) { const b = browser; browser = null; await b.close(); } }
 
-module.exports = { renderBuild, renderSheet, svgFor, model, close, COLORS, sliversUnder, sliversOf, topOf, SLIVER, gapSVG, weightCentre, outlineOf };
+module.exports = { renderBuild, renderSheet, svgFor, model, close, COLORS, sliversUnder, sliversOf, topOf, SLIVER, gapSVG, weightCentre, outlineOf, propSVG, PROP };
 
 // node tools/sandbox/render.cjs '<spec JSON or [specs]>' out.png [cols]
 if (require.main === module) {

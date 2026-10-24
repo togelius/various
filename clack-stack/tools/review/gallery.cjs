@@ -1,5 +1,5 @@
 'use strict';
-// The plausibility gallery (DESIGN §18.8 G4's plausibility review, here in the sandbox style for G2.3), revision 5d:
+// The plausibility gallery (DESIGN §18.8 G4's plausibility review, here in the sandbox style for G2.3), revision 5e:
 // pictures of builds and of tiles falling off, every tile numbered, for three fresh reviewers who have seen no spec.
 // They flag any picture that does not look like what real magnet tiles would do. A reviewer counts only if they flag
 // at least 3 of the 4 planted defects and at most 1 of the 4 golden good pictures; a round passes when no unplanted
@@ -28,14 +28,14 @@
 //   wall, and the new tile on the rug;
 // - 8 random builds (more when near-duplicate extremes were skipped, to keep about 50 pictures) and 4 bot-like end
 //   states, from a seeded box of 42 squares and 18 triangles;
-// - 4 planted defects drawn directly (bypassing the rules), from a pool of 18: every round revision 4's triangle on a
-//   point and one of the two groups leaning past what holds it, which revision 5b allowed and 5c and 5d do not (5b's
+// - 4 planted defects drawn directly (bypassing the rules), from a pool of 21: every round revision 4's triangle on a
+//   point and one of the groups leaning past what holds it, which revision 5b allowed and 5c to 5e do not (5b's
 //   stair leaning past its foot, or a column of squares on a ▼ hung off a half-held ▲), and 2 more drawn by the seed,
 //   one each of two of three kinds (a tile floating or hanging in the air; tiles overlapping or one through another; a
 //   tile standing on a point or a corner, or with its middle off its support). Revision 4's half-off square and the
 //   other square at a half step stay in the pool but are not drawn: a tile held by half an edge is ordinary, so a
 //   reviewer who sees no spec has no reason to flag a square doing it, and a plant must be a plain defect;
-// - 4 golden good pictures (§18.9 cases 12, 2, 4 and 8, built).
+// - 4 golden good pictures (§18.9 cases, built: 5d showed 12, 2, 4 and 8; 5e shows 6, 7, 9 and 17).
 // How a fall is drawn (lib.fall, §18.2): a tile that falls off never comes to rest in the wall. It tips a little about
 // the point it touched (a knife-edge to its free side), then falls out of the wall toward the viewer onto the rug, drawn
 // below the car, foreshortened and fading. Placed tiles never move: for TIPS OVER the whole group (revision 5d: the
@@ -45,8 +45,25 @@
 // Near misses at a point (a corner or point 0.134 or 0.268 above another tile's point or corner) get a small dotted
 // ring, as thin gaps under flat tiles get their dotted outline (round 3's G21B and G32A had no marker).
 // The wheels are drawn where the game has them, 0.2 tile in from each end of the car.
+// Revision 5e (props, §18.2, SPEC §5c: a group leaning toward a square beside it and pressing on it above the corner it
+// would tip over stands):
+// - at least 3 propped builds: the enumeration's prop extremes (most tiles in a propped group, most tiles in a group
+//   held by a prop, the highest and the lowest prop), the walk's most propped groups, and golden case 19 shown as an
+//   ordinary picture (it is this round's question, so it is not one of the 4 golden good pictures);
+// - one prop filmstrip pair: two filmstrips of two separate builds, one above the other, labelled A and B: in A a tile
+//   lands and a group leans on a square beside it and stands (two frames: held, where it ends up); B is the same build
+//   without that square, where the same tile tips the group (the TIPS OVER filmstrip). Props are not marked: nothing
+//   in the pictures says what the rules are;
+// - no picture repeats a 5d gallery picture (rev5d/gallery-key and rev5d/real-gallery-key, or --prev=key,key): builds
+//   are compared moved along the car and mirrored, pairs and filmstrips with their hand's tile, plants by their id; so
+//   the 4 golden good pictures are cases 6, 7, 9 and 17 (5d showed 2, 4, 8 and 12), and the plants drawn in 5d (P01,
+//   P04, P06, P10, P14, P17, P18) are not drawn: P19 (revision 4's triangle on a triangle's point, on another build)
+//   takes P01's place, and P20 and P21 are new groups leaning past what holds them;
+// - a near miss at a point whose two ends both lie on another tile's upright side gets no ring (5d's G04: no tile could
+//   pass or fall there).
 // The key (which pictures are plants, which golden, and what every picture is) goes to --key, never to reviewers.
-//   node tools/review/gallery.cjs [--seed=1] [--depth=8] [--out=dir] [--key=file] [--enum=dir (enumerate.cjs output)]
+//   node tools/review/gallery.cjs [--seed=3] [--depth=8] [--out=dir] [--key=file] [--enum=dir (enumerate.cjs output)]
+//                                 [--prev=key.json,key.json (earlier galleries' keys, whose pictures are not repeated)]
 //   node tools/review/gallery.cjs --pool=file.png   (the whole pool of planted defects, labelled, for checking)
 // A new round: a new --seed draws new plants, random builds, bot runs and a new order. The run's log is written next
 // to the key (run.log), so a stale log from another draw can't be mistaken for this one.
@@ -61,12 +78,13 @@ const lib = require('./lib.cjs');
 const { CASES } = require('../rules/golden.cjs');
 const E = require('../rules/enumerate.cjs');
 
-const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5d';
+const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5e';
+const PREV_DIR = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5d';
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = /^--([^=]+)(?:=(.*))?$/.exec(a); return m ? [m[1], m[2] === undefined ? true : m[2]] : [a, true]; }));
-const SEED = +(args.seed || 1), DEPTH = +(args.depth || 8);
+const SEED = +(args.seed || 3), DEPTH = +(args.depth || 8);
 const OUT = args.out || path.join(SCRATCH, 'gallery'), KEY = args.key || path.join(SCRATCH, 'gallery-key', 'key.json');
 // the enumeration's reports: this revision's tier 1 to depth 8 (tools/rules/run.cjs), else the default tier 1 output
-const ENUM = args.enum || [path.join(SCRATCH, 'r3', 'tier1-d8-final'), path.join(SCRATCH, 'r3', 'tier1-d8'), path.join(SCRATCH, 'tier1')].find(d => fs.existsSync(path.join(d, 'extremes.json')));
+const ENUM = args.enum || [path.join(SCRATCH, 'conf', 'tier1-d8'), path.join(SCRATCH, 'tier1-d8'), path.join(SCRATCH, 'tier1')].find(d => fs.existsSync(path.join(d, 'extremes.json')));
 const R = lib.rules(), yv = lib.yv, H = lib.H, HALF = 2;
 const rnd = lib.rng(SEED * 2654435761 + 17);
 const typeOf = lib.typeOf;
@@ -147,7 +165,9 @@ const MEASURES = [
   { id: 'hung-load', name: 'tallest structure standing on a ▼ held by one side', v: a => a.hungH },
   { id: 'hung-air-load', name: 'tallest structure standing on a ▼ hung by one side with its point in the air', v: a => a.hungAirH },
   { id: 'overhang', name: 'farthest overhang (a tile\'s middle past where its supports meet the car)', v: a => a.over },
-  { id: 'sq-apex', name: 'most squares across two ▼ tops over a ▲ point', v: a => a.sqApex }
+  { id: 'sq-apex', name: 'most squares across two ▼ tops over a ▲ point', v: a => a.sqApex },
+  // revision 5e: groups that lean and stand because a square beside them props them (rules.js props())
+  { id: 'propped', name: 'most groups held up by a prop (leaning on a square beside them), then the largest', v: a => a.propN ? a.propN + a.propMax / 100 : -1 }
 ];
 // one picture per measure (round 3 drew two for dn-chain, and they were near duplicates)
 const PER = Object.fromEntries(MEASURES.map(m => [m.id, 1]));
@@ -170,7 +190,8 @@ function extremesWalk(maxDepth) {
         seen.add(ck); count++;
         const log = nd.log.concat([{ piece, col, way: way || null }]);
         if (d < maxDepth) next.push({ B, log });
-        const a = analyse(T);
+        const a = analyse(T), pr = R.props(B);
+        a.propN = pr.length; a.propMax = pr.length ? Math.max(...pr.map(g => g.members.length)) : 0;
         for (const m of MEASURES) {
           const v = m.v(a);
           if (v <= 0) continue;
@@ -235,11 +256,13 @@ function pairScene(side, view, L, tag) {
 // of the wall toward the viewer, lying on the rug below the car. TIPS OVER: held above, touching with the part that
 // would tip tinted (its pivot dot and plumb line), the part rocked a few degrees toward its pivot, the part back where
 // it was while the new tile falls out of the wall, and the new tile on the rug. Placed tiles never move.
-function filmstrip(T, col, fall) {
-  const base = tilesOf(T), num = T.length + 1, color = lib.colorOf(T.length);
+// A tile that stays (revision 5e's filmstrip pair, row A; fall = {type, rest, stays: true}): held above, and where it
+// ends up, placed like any tile.
+function filmFrames(col, fall) {
   const held = lib.shape(fall.type, col, lib.centroid(fall.rest).y - lib.centroid(lib.shape(fall.type, col, 0)).y + 1.0);
-  const tp = fall.tips, path = fall.path;
-  const frames = tp ? [
+  const tp = fall.tips;
+  if (fall.stays) return [{ poly: held }, { poly: fall.rest, placed: true }];
+  return tp ? [
     { poly: held },
     { poly: fall.rest, tint: true, mark: true },
     { poly: fall.tipped, tint: true, rock: true, mark: true, upto: 1 },
@@ -252,13 +275,43 @@ function filmstrip(T, col, fall) {
     { poly: fall.out, style: 'out', upto: 2 },
     { poly: fall.rug, style: 'rug', upto: 3 }
   ];
+}
+// the view that holds every frame of the strips given ([{T, frames, fall}])
+function filmView(strips) {
   let x0 = -HALF - 0.25, x1 = HALF + 0.25, top = 0.6;
-  const all = base.map(t => t.poly).concat(frames.map(f => f.poly), tp ? tp.rocked : []);
-  for (const p of all) for (const v of p) { x0 = Math.min(x0, v.x - 0.2); x1 = Math.max(x1, v.x + 0.2); top = Math.max(top, v.y); }
-  const view = { x0, x1, y0: lib.RUG_Y - 0.4, y1: top + 0.75 };
-  const L = fitL(view, 180, 280, 36);
+  for (const s of strips) {
+    const all = s.T.map(lib.polyOf).concat(s.frames.map(f => f.poly), s.fall.tips ? s.fall.tips.rocked : []);
+    for (const p of all) for (const v of p) { x0 = Math.min(x0, v.x - 0.2); x1 = Math.max(x1, v.x + 0.2); top = Math.max(top, v.y); }
+  }
+  return { x0, x1, y0: lib.RUG_Y - 0.4, y1: top + 0.75 };
+}
+function filmstrip(T, col, fall, opts) {
+  opts = opts || {};
+  const frames = filmFrames(col, fall), view = opts.view || filmView([{ T, frames, fall }]);
+  const L = opts.L || fitL(view, 180, 280, 36);
+  return lib.svgRow(filmScenes(T, col, fall, frames, view, L, opts.tag, opts.nums, opts.num), { gap: 12, arrows: true });
+}
+// two filmstrips one above the other in one picture (rows [{T, col, fall, tag}]), at one scale and view
+function filmPair(rows) {
+  const strips = rows.map(r => ({ T: r.T, frames: filmFrames(r.col, r.fall), fall: r.fall }));
+  const view = filmView(strips), L = fitL(view, 180, 280, 36), gap = 16;
+  const num = Math.max(...rows.map(r => r.nums ? Math.max(0, ...r.nums) : r.T.length)) + 1;
+  const svgs = rows.map(r => filmstrip(r.T, r.col, r.fall, { view, L, tag: r.tag, nums: r.nums, num }));
+  const W = Math.max(...svgs.map(s => s.W));
+  let y = 0;
+  const parts = svgs.map((s, i) => { const o = s.svg.replace(/^<svg /, `<svg x="0" y="${y}" `); y += s.H + (i < svgs.length - 1 ? gap : 0); return o; });
+  const lines = svgs.slice(0, -1).map((s, i) => { const yy = svgs.slice(0, i + 1).reduce((a, q) => a + q.H + gap, 0) - gap / 2; return `<line x1="0" x2="${W}" y1="${yy}" y2="${yy}" stroke="#c9ccd3" stroke-width="3"/>`; });
+  return { svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${y}" viewBox="0 0 ${W} ${y}" font-family="system-ui, 'DejaVu Sans', sans-serif"><rect width="${W}" height="${y}" fill="#fff"/>${parts.join('')}${lines.join('')}</svg>`, W, H: y };
+}
+// (nums: the tiles' numbers, by default 1…n; num: the dropped tile's, by default n + 1; a pair numbers its builds alike)
+function filmScenes(T, col, fall, frames, view, L, tag, nums, num) {
+  num = num || T.length + 1;
+  const base = tilesOf(T, nums), color = lib.colorOf(num - 1);
+  const tp = fall.tips, path = fall.path;
   const polys = T.map(lib.polyOf), slivers = lib.buildSlivers(T, HALF), pointGaps = lib.buildPointGaps(T, HALF);
-  return lib.svgRow(frames.map((f, i) => {
+  // (a tile that stays: its thin gaps and rings with it in place, in its frame)
+  const T2 = fall.stays ? T.concat([fall.tile]) : null;
+  return frames.map((f, i) => {
     let tiles = base.slice();
     const sc = { L, view, tiles, slivers, pointGaps, rug: true };
     if (tp && f.tint) {
@@ -273,13 +326,15 @@ function filmstrip(T, col, fall) {
     if (f.mark) { sc.dots = [fall.pivot]; sc.plumb = { x: tp.com.x, y: tp.com.y, y1: Math.min(fall.pivot.y, tp.com.y) - 0.4 }; }
     if (f.dot) sc.dots = [fall.pivot];
     if (f.upto !== undefined) sc.paths = [path.slice(0, f.upto + 1)];
+    if (f.placed) { sc.slivers = lib.buildSlivers(T2, HALF); sc.pointGaps = lib.buildPointGaps(T2, HALF); }
     if (i === 0) {
       const lx = col / 2, rx = lx + 1, yb = Math.min(...f.poly.map(v => v.y)) + (fall.type === 'dn' ? H : 0);
       sc.lines = [[lx, 1e-6], [rx, -1e-6]].map(([x, e]) => { const o = lib.outlineAt(polys, HALF, x + e); return { a: { x, y: yb - 0.04 }, b: { x, y: o === null ? lib.FLOOR : o }, dotted: true }; });
       sc.grip = { x: lx + 0.5, y: Math.max(...f.poly.map(v => v.y)) };
+      if (tag !== undefined) sc.tag = tag;
     }
     return lib.scene(sc);
-  }), { gap: 12, arrows: true });
+  });
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -332,8 +387,8 @@ function runBot(policy, r, maxTiles) {
 
 // ---------------------------------------------------------------------------------------------------------------
 // Planted defects: drawn directly, bypassing the rules. Each: a small ordinary build (from the rules) plus the defect.
-// Every one breaks revision 5d (a point instead of an edge, off the lattice, a square off whole tiles or past the car,
-// overlap, floating, or a group leaning past what holds it).
+// Every one breaks revision 5e (a point instead of an edge, off the lattice, a square off whole tiles or past the car,
+// overlap, floating, or a group leaning past what holds it with no square beside it to lean on).
 const sqAt = (x, y) => lib.shape('sq', x * 2, y);
 const upAt = (x, y) => lib.shape('up', x * 2, y);
 const dnAt = (x, y) => lib.shape('dn', x * 2, y); // x: its top edge's left end, y: its point's height
@@ -358,7 +413,11 @@ const PLANTS = [
   { id: 'P15', kind: 'point', name: 'a square held only at a corner: its corner on a triangle\'s point, the rest of it over the empty car', base: ['■-2', '▲-0.5'], add: () => [sqAt(0, H)] },
   { id: 'P16', kind: 'overlap', name: 'a triangle\'s point poking up through the square on it', base: ['■1', '▲-1'], add: () => [sqAt(-1, 0.55)] },
   { id: 'P17', kind: 'lean', name: "revision 5b's stair leaning past its foot: four diamonds, each on the right half of the one below, from a triangle half off the car", base: ['▲-2.5', '▼-2', '▲-1.5'], add: () => [dnAt(-1, H), upAt(-0.5, 2 * H), dnAt(0, 2 * H), upAt(0.5, 3 * H), dnAt(1, 3 * H)] },
-  { id: 'P18', kind: 'lean', name: 'a column of squares on a ▼ hung off a triangle that is half on a square', base: ['■-2', '▲-1.5'], add: () => [dnAt(-1, 1), sqAt(-1, 1 + H), sqAt(-1, 2 + H), sqAt(-1, 3 + H)] }
+  { id: 'P18', kind: 'lean', name: 'a column of squares on a ▼ hung off a triangle that is half on a square', base: ['■-2', '▲-1.5'], add: () => [dnAt(-1, 1), sqAt(-1, 1 + H), sqAt(-1, 2 + H), sqAt(-1, 3 + H)] },
+  // revision 5e: new pictures of the same defects, so no plant repeats a 5d picture (P19 takes P01's place every round)
+  { id: 'P19', rev4: true, kind: 'point', name: "revision 4's triangle balanced on a triangle's point (golden case 10's kind), on another build: a ▲ on the apex of a ▲ standing on the car", base: ['■-2', '▲-0.5', '■1', '■1'], add: () => [upAt(-0.5, H)] },
+  { id: 'P20', kind: 'lean', name: 'a stair of three diamonds leaning out from a triangle that is half on a square (golden case 15 carried on)', base: ['■-2', '▲-1.5'], add: () => [dnAt(-1, 1), upAt(-1, 1 + H), dnAt(-0.5, 1 + H), upAt(-0.5, 1 + 2 * H), dnAt(0, 1 + 2 * H)] },
+  { id: 'P21', kind: 'lean', name: 'a column of three squares on a ▼ hung outward off a triangle that is half on a square, at the car\'s right end', base: ['■0', '▲0.5'], add: () => [dnAt(1, 1), sqAt(1, 1 + H), sqAt(1, 2 + H), sqAt(1, 3 + H)] }
 ];
 
 // What the pictures show, for the reviewers (nothing about the rules): written next to the sheets as legend.txt
@@ -389,6 +448,10 @@ const LEGEND = [
   '  the group rocking a little toward that corner, the group back where it was while the new tile falls out of the',
   '  wall toward you, and the new tile on the rug.',
   '  Tiles already in the wall never move.',
+  '- A picture with two rows of frames, marked A and B, is a pair of filmstrips of two separate builds that differ in',
+  '  one tile (not before and after; a tile in both builds has the same number in both). Row A: the tile held above',
+  '  its build, and the tile where it ends up. Row B: the same tile dropped on the other build, frame by frame as in',
+  '  the other filmstrips.',
   'Flag any picture where something does not look like what real magnetic tiles would do, and say which tile numbers.'
 ].join('\n');
 
@@ -425,8 +488,85 @@ function pairPicture(sides, piece) {
   return sides;
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Revision 5e: no picture repeats an earlier gallery's picture. A picture's signature: its build (with the hand's
+// tile where it stopped, for pairs and filmstrips), moved along the car to its leftmost column and the smaller of it
+// and its mirror image, so a build moved along the car or mirrored is the same picture.
+const handTileOf = res => ({ piece: res.way === null ? 'sq' : 'tri', way: res.way, col: res.pose.col, y: res.pose.y });
+// (c0: the least col, so the signature does not depend on where along the car the build stands)
+function canonSigMoved(T, hand) {
+  const forms = [false, true].map(mir => {
+    const c = x => mir ? -x - 2 : x, all = T.concat(hand ? [hand] : []), c0 = Math.min(...all.map(t => c(t.col)));
+    const f = t => typeOf(t) + '@' + (c(t.col) - c0) + ',' + t.y.join(',');
+    return T.map(f).sort().join(' ') + (hand ? ' | ' + f(hand) : '');
+  });
+  return forms[0] <= forms[1] ? forms[0] : forms[1];
+}
+const buildSig = T => 'build:' + canonSigMoved(T);
+const sideSig = (T, res) => canonSigMoved(T, handTileOf(res));
+const pairSig = sides => 'pair:' + sides.map(s => sideSig(s.T, s.res)).sort().join(' || ');
+const filmSig = (T, res) => 'film:' + sideSig(T, res);
+// the signature of a picture of an earlier gallery's key (build: drop strings, or two lists for a pair; hand likewise)
+function prevSig(p) {
+  const side = (b, h) => { const { B, T } = built(b.map(lib.parse)), d = lib.parse(h); return { T, res: R.drop(B, d.piece, d.col, d.way || undefined) }; };
+  if (p.kind === 'pair') return pairSig(p.build.map((b, i) => side(b, p.hand[i])));
+  if (p.kind === 'filmstrip') { const s = side(p.build, p.hand); return filmSig(s.T, s.res); }
+  if (p.kind === 'filmpair') return 'filmpair:' + p.build.map((b, i) => sideSig(...Object.values(side(b, p.hand[i])))).sort().join(' || ');
+  return buildSig(built(p.build.map(lib.parse)).T);
+}
+const PREV = (args.prev ? String(args.prev).split(',') : [path.join(PREV_DIR, 'gallery-key', 'key.json'), path.join(PREV_DIR, 'real-gallery-key', 'key.json')]).filter(f => fs.existsSync(f));
+function loadPrev() {
+  const prev = { sigs: new Map(), plants: new Set(), golden: new Set(), n: 0, files: PREV };
+  for (const f of PREV) {
+    const k = JSON.parse(fs.readFileSync(f, 'utf8'));
+    for (const p of k.pictures) {
+      prev.n++;
+      if (p.kind === 'plant') { prev.plants.add(p.plantId); continue; }
+      if (p.kind === 'golden') prev.golden.add(p.golden);
+      try { prev.sigs.set(prevSig(p), path.basename(path.dirname(f)) + ' ' + p.id); } catch (e) { console.log('!! cannot replay ' + p.id + ' of ' + f + ': ' + e.message); }
+    }
+  }
+  return prev;
+}
+// the propped groups of a build (rules.js props()) in short: [{tiles, side, by (prop contacts)}]
+const propsOf = B => R.props(B).map(g => ({ tiles: g.members.length, side: g.side, pivot: [g.pivot[0] / 2, +yv([g.pivot[1], g.pivot[2]]).toFixed(3)], contacts: g.props.length }));
+// The prop filmstrip pair: a drop that fits because a group with the new tile in it leans on a square beside it (A),
+// and the same build without that square (every other tile where it was), where the same drop tips over (B), its fall
+// drawable (not blocked). From the small builds, smallest first; never golden case 19 (shown on its own).
+function findPropPair(nodes, avoid) {
+  const out = [];
+  for (const nd of nodes) {
+    if (nd.depth < 2) continue;
+    const n = nd.T.length;
+    for (const piece of ['sq', 'tri']) for (const col of R.cols(nd.B, piece)) {
+      const res = R.drop(nd.B, piece, col);
+      if (res.outcome !== 'fit') continue;
+      const held = R.props(R.place(nd.B, res)).filter(g => g.members.includes(n));
+      if (!held.length) continue;
+      for (const v of new Set([].concat(...held.map(g => g.props.map(p => p.by))))) {
+        const log2 = nd.log.slice(0, v).concat(nd.log.slice(v + 1)), B2 = lib.tryReplay(log2);
+        if (!B2) continue;
+        const T2 = R.tiles(B2);
+        if (lib.keysOf(T2).key !== lib.keysOf(nd.T.filter((t, k) => k !== v)).key) continue;
+        const r2 = R.drop(B2, piece, col);
+        if (r2.reason !== 'TIPS OVER' || r2.way !== res.way || !eqY(r2.pose.y, res.pose.y)) continue;
+        const fall = lib.fall(T2, HALF, r2);
+        if (!fall.ok || fall.blocked) continue;
+        const a = { log: nd.log, T: nd.T, B: nd.B, col, piece, res }, b = { log: log2, T: T2, B: B2, col, piece, res: r2, fall };
+        const sig = 'filmpair:' + [sideSig(a.T, a.res), sideSig(b.T, b.res)].sort().join(' || ');
+        if (avoid.some(x => x === buildSig(R.tiles(R.place(nd.B, res))))) continue;
+        out.push({ a, b, v, held: held[0], sig, cost: nd.T.length + Math.max(0, ...R.tiles(R.place(nd.B, res)).map(t => Math.max(...lib.polyOf(t).map(p => p.y)))) });
+      }
+    }
+  }
+  return out.sort((x, y) => x.cost - y.cost);
+}
+
 async function main() {
   if (args.pool) return poolSheet(args.pool);
+  const prev = loadPrev();
+  console.log(`earlier galleries: ${prev.n} pictures in ${prev.files.join(', ')} (${prev.sigs.size} builds, pairs and filmstrips; plants ${[...prev.plants].sort().join(' ')}; golden ${[...prev.golden].sort((a, b) => a - b).join(' ')})`);
+  const repeats = p => prev.sigs.get(p);
   const t0 = Date.now();
   const pics = [];
   // 1. extremes
@@ -453,38 +593,57 @@ async function main() {
   const tooAlike = (x, y) => share(x, y, true) >= 0.5 || share(x, y, false) > 0.6;
   let EX = {};
   try { EX = JSON.parse(fs.readFileSync(path.join(ENUM, 'extremes.json'), 'utf8')).extremes; } catch (e) { console.log('!! no ' + path.join(ENUM, 'extremes.json') + ': ' + e.message); }
-  // one of the enumeration's extremes; must: never skipped as too like another (they are picked first)
+  // one of the enumeration's extremes; must: never skipped as too like another (they are picked first). Never a
+  // picture an earlier gallery showed (5e).
   const enumPick = (name, must) => {
     const e = EX[name];
     let log = e.log.map(lib.parse);
-    if (e.drop) { const B = lib.tryReplay(log), r = R.drop(B, e.drop.piece, e.drop.col, e.drop.way); log = log.concat([{ piece: e.drop.piece, col: e.drop.col, way: r.way }]); }
-    const { T } = built(log), ck = lib.keysOf(T).ck;
+    // (the drop the extreme is about: e.drop, or, for the prop extremes of a drop, value.drop as a string; shown placed)
+    const dr = e.drop || (e.value && typeof e.value.drop === 'string' ? lib.parse(e.value.drop) : null);
+    if (dr) { const B = lib.tryReplay(log), r = R.drop(B, dr.piece, dr.col, dr.way || undefined); if (r.outcome !== 'fit') { console.log(`!! the enumeration's "${name}": its drop does not fit`); return; } log = log.concat([{ piece: dr.piece, col: dr.col, way: r.way }]); }
+    const { B, T } = built(log), ck = lib.keysOf(T).ck, sig = buildSig(T);
     if (usedCk.has(ck)) return;
+    if (repeats(sig)) { console.log(`   (skipped the enumeration's "${name}": it repeats ${repeats(sig)})`); return; }
     // the enumeration's picks against the walk's (and each other), under translation and mirroring too
     const ts = tileSet(log);
     if (!must && picked.some(p => tooAlike(ts, p))) { console.log(`   (skipped the enumeration's "${name}": too like an earlier pick)`); return; }
     picked.push(ts); usedCk.add(ck);
-    pics.push({ kind: 'extreme', what: name + ' (' + JSON.stringify(e.value) + ', depth ' + e.depth + ', from enumerate.cjs)', measure: 'enum:' + name, value: e.value, build: fmtLog(log), svg: rulesPicture(T) });
+    pics.push({ kind: 'extreme', what: name + ' (' + JSON.stringify(e.value) + ', depth ' + e.depth + ', from enumerate.cjs)', measure: 'enum:' + name, value: e.value, build: fmtLog(log), sig, props: propsOf(B), svg: rulesPicture(T) });
   };
-  // the balance rule's own extremes (revision 5d) come first and are always shown: the tallest group standing on half an
-  // edge, the most tiles in a group exactly over an end of its support, the largest locked piece
+  // revision 5e's prop extremes come first (the propped builds), then the balance rule's own extremes of 5d (the tallest
+  // group standing on half an edge, the most tiles in a group exactly over an end of its support, the largest locked
+  // piece), always shown unless an earlier gallery showed them
+  const PROPX = /^(most tiles in a propped group|most tiles in a group held by a prop|the highest prop|the lowest prop)/;
+  for (const name of Object.keys(EX).filter(k => PROPX.test(k))) enumPick(name, false);
+  if (Object.keys(EX).filter(k => PROPX.test(k)).length < 4) console.log('!! the enumeration\'s extremes lack one of revision 5e\'s prop extremes');
   const MUST = /^(tallest group standing on half an edge|most tiles in a group exactly over an end of its support|largest locked piece)/;
   for (const name of Object.keys(EX).filter(k => MUST.test(k))) enumPick(name, true);
   if (Object.keys(EX).filter(k => MUST.test(k)).length < 3) console.log('!! the enumeration\'s extremes lack one of revision 5d\'s balance extremes');
   for (const m of MEASURES) {
-    let k = 0;
+    let k = 0, rep = 0;
     for (const e of W.top[m.id]) {
       if (k >= PER[m.id]) break;
       if (usedCk.has(e.ck)) continue;
+      const { B, T } = built(e.log), sig = buildSig(T);
+      if (repeats(sig)) { rep++; continue; }
       const ts = tileSet(e.log);
       if (picked.some(p => tooAlike(ts, p))) continue;
       usedCk.add(e.ck); picked.push(ts); k++;
-      const { T } = built(e.log);
-      pics.push({ kind: 'extreme', what: m.name + ' (' + (Number.isInteger(e.v) ? e.v : e.v.toFixed(3)) + ')', measure: m.id, value: e.v, build: fmtLog(e.log), svg: rulesPicture(T) });
+      pics.push({ kind: 'extreme', what: m.name + ' (' + (Number.isInteger(e.v) ? e.v : e.v.toFixed(3)) + ')', measure: m.id, value: e.v, build: fmtLog(e.log), sig, props: propsOf(B), svg: rulesPicture(T) });
     }
-    if (k < PER[m.id]) console.log(`!! ${m.id}: only ${k} builds (the others too like an earlier pick)`);
+    if (k < PER[m.id]) console.log(`!! ${m.id}: only ${k} builds (the others too like an earlier pick${rep ? ', or ' + rep + ' repeating an earlier gallery' : ''})`);
   }
-  for (const name of Object.keys(EX).filter(k => !MUST.test(k) && /^(most neighbours touched by one fit|fewest fitting places|tallest structure standing on a ▼ held by one side|farthest overhang|tallest group of a locked piece)/.test(k))) enumPick(name, false);
+  for (const name of Object.keys(EX).filter(k => !MUST.test(k) && !PROPX.test(k) && /^(most neighbours touched by one fit|fewest fitting places|tallest structure standing on a ▼ held by one side|farthest overhang|tallest group of a locked piece)/.test(k))) enumPick(name, false);
+  // golden case 19 (revision 5e: a stack on a hung ▼ that leans on the square beside it), as an ordinary propped
+  // picture: it is this round's question, so it is not a calibration picture
+  {
+    const c = CASES[18], { B } = built(c.log), r = R.drop(B, c.lastDrop.piece, c.lastDrop.col, c.lastDrop.way || undefined);
+    if (r.outcome !== 'fit') throw new Error('golden 19 does not fit');
+    const B2 = R.place(B, r), T = R.tiles(B2), sig = buildSig(T);
+    if (repeats(sig)) console.log('!! golden 19 repeats ' + repeats(sig));
+    else if (!usedCk.has(lib.keysOf(T).ck)) { usedCk.add(lib.keysOf(T).ck); picked.push(tileSet(c.log.concat([{ piece: c.lastDrop.piece, col: c.lastDrop.col, way: r.way }])));
+      pics.push({ kind: 'propped', what: 'golden case 19: ' + c.title + ' (stays: propped), shown as an ordinary picture, not a calibration one', golden19: true, build: fmtLog(c.log.concat([{ piece: c.lastDrop.piece, col: c.lastDrop.col, way: r.way }])), sig, props: propsOf(B2), svg: rulesPicture(T) }); }
+  }
   // 2. minimal pairs, from the enumeration's minimal-pairs.json, checked here with the hand's own way up
   let MP = { neighbouringCols: {}, oneTileAdded: {} };
   try { MP = JSON.parse(fs.readFileSync(path.join(ENUM, 'minimal-pairs.json'), 'utf8')); } catch (e) { console.log('!! no minimal-pairs.json: ' + e.message); }
@@ -494,7 +653,7 @@ async function main() {
     ['neighbouringCols', 'sq: ONLY A POINT | FIT'], ['oneTileAdded', 'auto: TIPS OVER -> FIT'], ['oneTileAdded', 'up: FIT -> TIPS OVER'],
     ['neighbouringCols', 'down: TIPS OVER | FIT'], ['oneTileAdded', 'up: FIT -> ONLY A POINT'], ['neighbouringCols', 'sq: FIT | TIPS OVER'],
     ['oneTileAdded', 'auto: FIT -> TIPS OVER'], ['neighbouringCols', 'up: TIPS OVER | FIT'], ['oneTileAdded', 'sq: ONLY A POINT -> FIT']];
-  let nPairs = 0;
+  let nPairs = 0, pairRepeats = 0;
   for (const [kind, cls] of WANT) {
     if (nPairs >= 8) break;
     const exs = (MP[kind][cls] || []).slice().sort((a, b) => (a.log.length < 2 ? 10 : a.log.length) - (b.log.length < 2 ? 10 : b.log.length));
@@ -511,6 +670,8 @@ async function main() {
       // only falls that can be drawn honestly: none that would push into a tile beside it (round 3's G47B) or come to
       // rest crooked on a top just below
       if (sides.some(s => s.fall && (!s.fall.ok || s.fall.blocked))) continue;
+      const sig = pairSig(sides);
+      if (repeats(sig)) { pairRepeats++; continue; }
       if (rnd() < 0.5) sides.reverse();
       const all = [];
       for (const s of sides) { all.push(...s.T.map(lib.polyOf)); if (s.fall) all.push(s.fall.rest, s.fall.rug); else all.push(lib.shape(s.type, s.col, yv(s.res.pose.y))); }
@@ -518,13 +679,15 @@ async function main() {
       view.y0 = Math.min(view.y0, lib.RUG_Y - 0.4);
       const L = fitL(view, UNIT, 340, 45);
       const svg = lib.svgRow(sides.map((s, i) => pairScene(s, view, L, i ? 'B' : 'A')), { gap: 24, divider: 3 });
-      pics.push({ kind: 'pair', what: 'minimal pair ' + cls + ' (' + kind + ')', units: 2, build: sides.map(s => fmtLog(s.log)), hand: sides.map(s => lib.fmtHand(ex.piece, s.col, s.res.way)),
+      pics.push({ kind: 'pair', what: 'minimal pair ' + cls + ' (' + kind + ')', units: 2, build: sides.map(s => fmtLog(s.log)), hand: sides.map(s => lib.fmtHand(ex.piece, s.col, s.res.way)), sig,
+        props: sides.map(s => s.res.outcome === 'fit' ? propsOf(R.place(s.B, s.res)) : propsOf(s.B)),
         outcomes: sides.map((s, i) => (i ? 'B: ' : 'A: ') + (s.res.outcome === 'fit' ? 'stays' : 'falls off: ' + s.res.reason + (s.fall.knife ? ' (knife-edge)' : '') + ', drawn falling out of the wall onto the rug' + (s.fall.tips ? ', the group that would tip drawn as one piece (' + s.res.tips.members.length + ' tiles, ' + s.res.tips.side + ')' : ''))), svg });
       nPairs++;
       break;
     }
   }
   if (nPairs < 8) console.log('!! only ' + nPairs + ' minimal pairs');
+  if (pairRepeats) console.log(`   (${pairRepeats} minimal pairs skipped: they repeat an earlier gallery's)`);
   // 3. filmstrips: tiles falling off (the hand's own way up), one of each kind, from small builds
   const small = lib.walk(5).nodes.filter(n => n.depth >= 1);
   const POINT = 'ONLY A POINT', TIPS = 'TIPS OVER';
@@ -540,6 +703,7 @@ async function main() {
   ];
   const order = rnd.shuffle(small.slice()).sort((a, b) => a.depth - b.depth);
   const usedFilm = new Set();
+  let filmRepeats = 0;
   for (const K of KINDS) {
     let found = null;
     for (const nd of order) {
@@ -556,6 +720,7 @@ async function main() {
           if (fall.two || !fall.ok || fall.blocked) continue;
           const d = lib.describe(nd.B, piece, col, res);
           if (!K.ok(t, fall, d)) continue;
+          if (repeats(filmSig(nd.T, res))) { filmRepeats++; continue; }
           found = { nd, piece, col, res, fall }; break;
         }
         if (found) break;
@@ -566,34 +731,69 @@ async function main() {
     const { nd, piece, col, res, fall } = found;
     usedFilm.add(nd.ck);
     pics.push({ kind: 'filmstrip', what: 'falls off: ' + K.what + ' (' + res.reason + (fall.knife ? ', knife-edge: tips a little outward' : '') + ')', units: 3,
-      build: fmtLog(nd.log), hand: lib.fmtHand(piece, col, res.way), outcome: res.reason, fall: { dir: fall.dir > 0 ? 'right' : 'left', pivot: [+fall.pivot.x.toFixed(3), +fall.pivot.y.toFixed(3)], knife: fall.knife, tips: res.tips ? { members: res.tips.members.length, side: res.tips.side } : null }, svg: filmstrip(nd.T, col, fall) });
+      build: fmtLog(nd.log), hand: lib.fmtHand(piece, col, res.way), outcome: res.reason, sig: filmSig(nd.T, res), props: propsOf(nd.B), fall: { dir: fall.dir > 0 ? 'right' : 'left', pivot: [+fall.pivot.x.toFixed(3), +fall.pivot.y.toFixed(3)], knife: fall.knife, tips: res.tips ? { members: res.tips.members.length, side: res.tips.side } : null }, svg: filmstrip(nd.T, col, fall) });
+  }
+  if (filmRepeats) console.log(`   (${filmRepeats} filmstrip candidates skipped: they repeat an earlier gallery's)`);
+  // 3b. revision 5e's prop filmstrip pair: A, a tile lands and a group leans on a square beside it and stands; B, the
+  // same build without that square, where the same tile tips the group over (from the small builds, smallest first)
+  {
+    const g19 = (() => { const c = CASES[18], { B } = built(c.log), r = R.drop(B, c.lastDrop.piece, c.lastDrop.col, c.lastDrop.way || undefined); return buildSig(R.tiles(R.place(B, r))); })();
+    const cands = findPropPair(small.filter(n => n.depth >= 2 && n.depth <= 5), [g19]).filter(c => !repeats(c.sig));
+    console.log(`prop filmstrip pairs: ${cands.length} candidates`);
+    const top = cands.filter(c => c.cost <= cands[0].cost + 1.5), pick = top.length ? top[rnd.int(Math.min(top.length, 6))] : null;
+    if (!pick) console.log('!! no prop filmstrip pair');
+    else {
+      const { a, b } = pick, n = a.T.length;
+      const tile = handTileOf(a.res), type = typeOf(tile), rest = lib.polyOf(tile);
+      // B's numbers: the tiles both builds have keep A's numbers; B lacks A's tile v + 1
+      const v = pick.v, numsB = a.log.map((e, i) => i + 1).filter(k => k !== v + 1);
+      const svg = filmPair([{ T: a.T, col: a.col, fall: { type, rest, stays: true, tile }, tag: 'A' }, { T: b.T, col: b.col, fall: b.fall, tag: 'B', nums: numsB }]);
+      const g = pick.held;
+      pics.push({ kind: 'filmpair', what: 'prop filmstrip pair: A, ' + lib.fmtHand(a.piece, a.col, a.res.way) + ' lands and the group it joins (' + g.members.length + ' tiles) leans ' + g.side + ' on tile ' + (v + 1) + ' (' + lib.fmtHand(a.log[v].piece, a.log[v].col, a.log[v].way) + ') beside it and stands (propped); B, the same build without tile ' + (v + 1) + ', where it tips over (TIPS OVER, ' + b.res.tips.members.length + ' tiles, ' + b.res.tips.side + ')', units: 3,
+        build: [fmtLog(a.log), fmtLog(b.log)], hand: [lib.fmtHand(a.piece, a.col, a.res.way), lib.fmtHand(b.piece, b.col, b.res.way)], outcomes: ['A: stays (propped by tile ' + (v + 1) + ')', 'B: falls off: TIPS OVER, the group that would tip drawn as one piece (' + b.res.tips.members.length + ' tiles, ' + b.res.tips.side + ')'],
+        sig: pick.sig, props: [propsOf(R.place(a.B, a.res)), propsOf(b.B)], fall: { dir: b.fall.dir > 0 ? 'right' : 'left', pivot: [+b.fall.pivot.x.toFixed(3), +b.fall.pivot.y.toFixed(3)], tips: { members: b.res.tips.members.length, side: b.res.tips.side } }, svg });
+    }
   }
   // 4. random builds and bot end states
-  // (at least 8; more when near-duplicate extremes were skipped, so the gallery keeps about 50 pictures)
+  // (at least 8; more when near-duplicate extremes were skipped, so the gallery keeps about 50 pictures; never one an
+  // earlier gallery showed)
   const nRandom = Math.max(8, 50 - pics.length - 4 - 4 - 4);
+  const fresh = (make) => { for (let k = 0; k < 50; k++) { const log = make(), T = built(log).T; if (!repeats(buildSig(T))) return log; } throw new Error('every draw repeats an earlier gallery'); };
   for (let i = 0; i < nRandom; i++) {
-    const log = runBot('random', rnd, 8 + rnd.int(9));
-    pics.push({ kind: 'random', what: 'random build of ' + log.length + ' tiles (random fitting drops from a shuffled box)', build: fmtLog(log), svg: rulesPicture(built(log).T) });
+    const log = fresh(() => runBot('random', rnd, 8 + rnd.int(9))), { B, T } = built(log);
+    pics.push({ kind: 'random', what: 'random build of ' + log.length + ' tiles (random fitting drops from a shuffled box)', build: fmtLog(log), sig: buildSig(T), props: propsOf(B), svg: rulesPicture(T) });
   }
   for (const [bot, n] of [['stack', 20], ['careful', 20], ['spire', 12], ['spire2', 14]]) {
-    const log = runBot(bot, rnd, n);
-    pics.push({ kind: 'bot', what: bot + '-like bot after ' + log.length + ' tiles', build: fmtLog(log), svg: rulesPicture(built(log).T) });
+    const log = fresh(() => runBot(bot, rnd, n)), { B, T } = built(log);
+    pics.push({ kind: 'bot', what: bot + '-like bot after ' + log.length + ' tiles', build: fmtLog(log), sig: buildSig(T), props: propsOf(B), svg: rulesPicture(T) });
   }
-  // 5. planted defects: revision 4's triangle on a point and one of the two groups leaning past what holds it every
-  // round (the balance rule), and one each of two of the other three kinds, by the seed
-  const always = PLANTS.filter(p => p.rev4 && !p.weak);
+  // 5. planted defects: revision 4's triangle on a point and one of the groups leaning past what holds it every round
+  // (the balance rule), and one each of two of the other three kinds, by the seed; never a plant an earlier gallery drew
+  const fresher = p => !p.weak && !prev.plants.has(p.id);
+  const always = PLANTS.filter(p => p.rev4 && fresher(p)).slice(0, 1);
   const kinds = ['lean'].concat(rnd.shuffle(['air', 'overlap', 'point']).slice(0, 2));
-  const drawn = always.concat(kinds.map(k => rnd.pick(PLANTS.filter(p => p.kind === k && !p.weak && !always.includes(p)))));
+  const drawn = always.concat(kinds.map(k => rnd.pick(PLANTS.filter(p => p.kind === k && fresher(p) && !always.includes(p)))));
   for (const P of drawn) pics.push({ kind: 'plant', plant: P.id, what: 'PLANTED DEFECT ' + P.id + ': ' + P.name, build: P.base.concat(['+ defect drawn directly']), svg: plantPicture(P) });
-  // 6. golden good pictures
-  for (const n of [12, 2, 4, 8]) {
+  // 6. golden good pictures: four that stay and no earlier gallery showed (5d showed 2, 4, 8 and 12), golden case 19
+  // aside (shown above as an ordinary picture)
+  const GOOD = [6, 7, 9, 17].filter(n => !prev.golden.has(n));
+  if (GOOD.length < 4) console.log('!! only ' + GOOD.length + ' golden good pictures no earlier gallery showed');
+  for (const n of GOOD) {
     const c = CASES[n - 1], { B } = built(c.log), r = R.drop(B, c.lastDrop.piece, c.lastDrop.col, c.lastDrop.way || undefined);
     if (r.outcome !== 'fit') throw new Error('golden ' + n + ' does not fit');
-    const T = R.tiles(R.place(B, r));
-    pics.push({ kind: 'golden', golden: n, what: 'golden case ' + n + ': ' + c.title + ' (every tile stays)', build: fmtLog(c.log.concat([{ piece: c.lastDrop.piece, col: c.lastDrop.col, way: r.way }])), svg: rulesPicture(T) });
+    const B2 = R.place(B, r), T = R.tiles(B2), sig = buildSig(T);
+    if (repeats(sig)) throw new Error('golden ' + n + ' repeats ' + repeats(sig));
+    pics.push({ kind: 'golden', golden: n, what: 'golden case ' + n + ': ' + c.title + ' (every tile stays)', build: fmtLog(c.log.concat([{ piece: c.lastDrop.piece, col: c.lastDrop.col, way: r.way }])), sig, props: propsOf(B2), svg: rulesPicture(T) });
   }
   for (const p of pics) p.units = p.units || 1;
-  console.log(`${pics.length} pictures: ` + ['extreme', 'pair', 'filmstrip', 'random', 'bot', 'plant', 'golden'].map(k => k + ' ' + pics.filter(p => p.kind === k).length).join(', '));
+  console.log(`${pics.length} pictures: ` + ['extreme', 'propped', 'pair', 'filmstrip', 'filmpair', 'random', 'bot', 'plant', 'golden'].map(k => k + ' ' + pics.filter(p => p.kind === k).length).join(', '));
+  // the checks of revision 5e: no picture repeats an earlier gallery's, at least 3 propped builds, one prop filmstrip pair
+  const again = pics.filter(p => p.sig && repeats(p.sig)).concat(pics.filter(p => p.kind === 'plant' && prev.plants.has(p.plant)));
+  if (again.length) throw new Error('pictures repeat an earlier gallery: ' + again.map(p => p.what).join(' | '));
+  const proppedBuilds = pics.filter(p => ['extreme', 'propped', 'random', 'bot', 'golden'].includes(p.kind) && p.props && p.props.length);
+  console.log(`no picture repeats one of the ${prev.n} earlier pictures; ${proppedBuilds.length} single builds have a propped group (${proppedBuilds.map(p => p.kind + ': ' + p.what.slice(0, 40)).join(' | ')}); prop filmstrip pairs ${pics.filter(p => p.kind === 'filmpair').length}`);
+  if (proppedBuilds.length < 3) throw new Error('fewer than 3 propped builds');
+  if (!pics.some(p => p.kind === 'filmpair')) throw new Error('no prop filmstrip pair');
 
   // shuffle and pack into rows of 3 units, 3 rows a sheet; plants on different sheets, golden pictures too
   let sheets;
@@ -628,16 +828,18 @@ async function main() {
   // the key
   const all = sheets.flat(2);
   const key = {
-    what: 'Key for the CLACK STACK revision 5d plausibility gallery (DESIGN §18.8). Never show this to reviewers.',
+    what: 'Key for the CLACK STACK revision 5e plausibility gallery (DESIGN §18.8). Never show this to reviewers.',
+    earlierGalleries: { keys: prev.files, pictures: prev.n, rule: 'no picture repeats one of theirs: builds compared moved along the car and mirrored, pairs and filmstrips with the hand\'s tile where it stopped, plants by id; golden cases they showed are not shown' },
+    props: 'Revision 5e: props lists the propped groups of each standing build (rules.js props(): a group whose weight is past an end of its support, held up by a square beside it that it presses on above its pivot): tiles, side it leans to, pivot (x, y in tiles) and the number of prop contacts. Props are not marked in the pictures.',
     seed: SEED, depth: DEPTH, buildsWalked: W.count, made: new Date().toISOString(), galleryDir: OUT, sheets: files.map(f => path.basename(f)),
     plants: all.filter(p => p.kind === 'plant').map(p => p.id), golden: all.filter(p => p.kind === 'golden').map(p => p.id),
     scoring: 'A reviewer counts only if they flag at least 3 of the 4 plants and at most 1 golden picture. The round passes when no other picture is flagged by 2 or more counted reviewers.',
-    falls: 'Falls (filmstrips, pairs) are drawn by tools/review/lib.cjs fall() (DESIGN §18.2, revision 5d): a tile that falls off never comes to rest in the wall. It tips a little about the point it touched (toward the side its middle is on; a knife-edge tips to its free side, outward when both are free), then falls out of the wall toward the viewer and lies on the rug below the car, drawn foreshortened and faded. For TIPS OVER the whole group of the reported piece (rules tips.members: every tile locked to it by a whole edge and everything resting on it, the new tile among them) is drawn as one piece, tinted red with one red outline, its pivot dot and plumb line, rocks a few degrees toward the pivot and back, and the new tile falls out of the wall. Placed tiles never move. Not filmed or paired: tiles resting on points either side of their middle, and falls whose drawn tip would push into a tile beside them or onto a top just below (blocked).',
+    falls: 'Falls (filmstrips, pairs, row B of the prop filmstrip pair) are drawn by tools/review/lib.cjs fall() (DESIGN §18.2, revisions 5d and 5e): a tile that falls off never comes to rest in the wall. It tips a little about the point it touched (toward the side its middle is on; a knife-edge tips to its free side, outward when both are free), then falls out of the wall toward the viewer and lies on the rug below the car, drawn foreshortened and faded. For TIPS OVER the whole group of the reported piece (rules tips.members: every tile locked to it by a whole edge and everything resting on it, the new tile among them) is drawn as one piece, tinted red with one red outline, its pivot dot and plumb line, rocks a few degrees toward the pivot and back, and the new tile falls out of the wall. Placed tiles never move. Not filmed or paired: tiles resting on points either side of their middle, and falls whose drawn tip would push into a tile beside them or onto a top just below (blocked).',
     drawing: 'Sandbox style. Thin gaps (0.134, 0.268) under flat tiles: a dotted outline; near misses at a point (a corner or point that close above another tile\'s point or corner): a small dotted ring. The wheels are 0.2 tile in from each end of the car, as in the game (index.html CFG: HALF − WHEEL_IN = 1.8).',
     plantPool: PLANTS.map(p => ({ id: p.id, name: p.name, kind: p.kind || null, alwaysDrawn: always.includes(p), notDrawn: p.weak ? 'held by half an edge or hung like real tiles: not a plain defect under 5c or 5d' : null, drawnThisRound: drawn.includes(p) })),
     pictures: all.map(p => {
       const o = { id: p.id, sheet: p.sheet, kind: p.kind, plant: p.kind === 'plant', golden: p.golden || null, what: p.what };
-      for (const k of ['measure', 'value', 'build', 'hand', 'outcome', 'outcomes', 'fall']) if (p[k] !== undefined) o[k] = p[k];
+      for (const k of ['measure', 'value', 'build', 'hand', 'outcome', 'outcomes', 'fall', 'props', 'golden19']) if (p[k] !== undefined) o[k] = p[k];
       if (p.kind === 'plant') o.plantId = p.plant;
       return o;
     })

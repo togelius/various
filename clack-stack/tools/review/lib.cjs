@@ -1,6 +1,7 @@
 'use strict';
 // Shared pieces for the human-style review material (DESIGN §18.8 G2 intuition panel and plausibility review),
-// revision 5d:
+// revisions 5d and 5e (the rules come from rules.js, so a propped group, 5e, stands in every picture; nothing here
+// marks props: the pictures say nothing about the rules):
 // - the exhaustive walk of reachable builds on the real base (fitting drops only, mirror images merged), like
 //   tools/rules/enumerate.cjs but keeping the builds so items and extremes can be picked from them;
 // - what lies under a dropped tile at rest, half by half, in exact numbers (for sorting items into strata);
@@ -414,7 +415,10 @@ function pointGaps(polys, half, thin) {
     polys.forEach((Q, k) => { if (k === skip) return; const sp = span(Q, x); if (sp && sp[0] >= y - E && (best === null || sp[0] < best)) best = sp[0]; });
     return best;
   };
-  const add = (x, y0, y1) => { if (!out.some(g => Math.abs(g.x - x) < 1e-6 && Math.abs(g.y1 - y1) < 1e-6)) out.push({ x, y0, y1 }); };
+  // (revision 5e's fix of 5d's G04: a gap whose two ends both lie on another tile's upright side, from y0 to y1, says
+  // nothing: no tile could pass or fall there, so it gets no ring)
+  const alongSide = (x, y0, y1) => polys.some(Q => Q.some((a, i) => { const b = Q[(i + 1) % Q.length]; return Math.abs(a.x - x) < E && Math.abs(b.x - x) < E && Math.min(a.y, b.y) <= y0 + E && Math.max(a.y, b.y) >= y1 - E; }));
+  const add = (x, y0, y1) => { if (!alongSide(x, y0, y1) && !out.some(g => Math.abs(g.x - x) < 1e-6 && Math.abs(g.y1 - y1) < 1e-6)) out.push({ x, y0, y1 }); };
   // the gap from upper boundary point (x, yU) of tile i down to what is below, beside x by dx (null where i does not reach)
   const gapDown = (i, x) => { const sp = span(polys[i], x); if (!sp) return null; const b = below(x, sp[0] + E, i); return b === null ? null : sp[0] - b; };
   const gapUp = (j, x) => { const sp = span(polys[j], x); if (!sp) return null; const a = above(x, sp[1] - E, j); return a === null ? null : a - sp[1]; };

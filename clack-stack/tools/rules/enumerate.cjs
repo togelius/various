@@ -1,5 +1,5 @@
 'use strict';
-// Exhaustive enumeration (DESIGN §18.8, the rules tier), revision 5d: every build reachable by fitting drops on the
+// Exhaustive enumeration (DESIGN §18.8, the rules tier), revision 5e: every build reachable by fitting drops on the
 // real base, mirror images merged, to a given depth (tier 1: 7; tier 2: 10). At every build, every piece × way × col is
 // dropped (squares; triangles forced up, forced down, and with no way given), and the invariants that need no oracle
 // are checked:
@@ -10,13 +10,17 @@
 // plus FORMAT (SPEC §8, tips included), GAP (the gap of SPEC §5a, recomputed from the polygons), AUTO (the way of SPEC
 // §6, the neither-fits rule included), THROWS (SPEC §2's cols) and OUTLINE (whether the tile meets the tower edge to
 // edge depends only on the top outline under it; whether it then balances does not). I1 (the game equals the
-// oracle) is the pluggable compare hook: --compare=<module exporting {newBuild, drop, place}> (an oracle for SPEC 5d),
+// oracle) is the pluggable compare hook: --compare=<module exporting {newBuild, drop, place}> (an oracle for SPEC 5e),
 // --compare=rules (a second copy of rules.js, to test the plumbing), or --compare=mutant:<name>. Without it the run is
 // rules-only. The balance is checked against tools/rules/geom.cjs balanceOf(), exact polygon geometry that shares
 // nothing with rules.js (its own rests, whole-edge locks, pieces and groups): I10 on every build (every piece's group
-// balanced), I13 on every TIPS OVER (the group named really is unbalanced, and it is the one SPEC §5c reports: base,
-// members, side, pivot) and, on heavy builds, on every fit (with it, every group balances). I5 asks the mirror of a
-// TIPS OVER for the mirror group and side; the base tile may differ, by SPEC's col tie rule.
+// balanced), I13 on every TIPS OVER (the group named really is unbalanced: it leans and nothing props it; and it is the
+// one SPEC §5c reports: base, members, side, pivot) and, on heavy builds, on every fit (with it, every group balances,
+// a group that leans being propped). Since 5e the geometry finds props itself (upright contacts on a group's side
+// toward its lean, with a tile outside it, above the pivot), and PROPS checks that rules.js's props() names exactly
+// the groups it finds propped, with their contacts, on every build. I5 asks the mirror of a TIPS OVER for the mirror
+// group and side; the base tile may differ, by SPEC's col tie rule. I7 counts a tile beside a group the drop joins
+// (an upright contact with one of its tiles: it may prop it) as part of that group.
 // --diff=<another rules.js> (e.g. revision 5c's) also drops every tile with those rules, on every build they can make
 // too, and counts the drops whose outcome changes, in each direction (the 'diff' block of stats.json).
 //
@@ -35,7 +39,10 @@
 // gaps (0.134, 0.268) under staying tiles, how often a triangle fits both ways, how often no square fits and how often
 // nothing fits at all, which of SPEC's tie rules picked the group reported, extremes (among them the largest locked
 // piece, the tallest group standing on half an edge, the tallest structure standing on a hung ▼ and the farthest
-// overhang) and minimal pairs are written as JSON.
+// overhang) and minimal pairs are written as JSON. Props (5e): builds with a propped group (by depth), fits a prop
+// rescues (a group the new tile joins leans past its support and is propped: 5d would tip it), by piece and by the
+// height of the prop's upper end above the pivot, and TIPS OVER drops where the group that tips has an upright contact
+// that does not prop it (on the far side, or wholly at or below the pivot's height).
 //
 //   node tools/rules/enumerate.cjs [--depth=10] [--workers=4] [--compare=path] [--oracle-depth=N] [--out=dir]
 //                                  [--fail-fast] [--full-to=6] [--sample=8] [--cache-cap=N] [--checkpoint=dir [--resume]]
@@ -48,11 +55,11 @@ const canon = require('../lib/canon.cjs');
 const geom = require('./geom.cjs');
 const rulesVm = require('../lib/rules-vm.cjs');
 
-const OUT_DEFAULT = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5d/enum';
-const INVS = ['I1', 'I1CACHE', 'I2', 'I3', 'I4', 'I5', 'I6', 'I7', 'I8', 'I9', 'I10', 'I11', 'I12', 'I13', 'FORMAT', 'GAP', 'AUTO', 'THROWS', 'OUTLINE'];
+const OUT_DEFAULT = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5e/enum';
+const INVS = ['I1', 'I1CACHE', 'I2', 'I3', 'I4', 'I5', 'I6', 'I7', 'I8', 'I9', 'I10', 'I11', 'I12', 'I13', 'PROPS', 'FORMAT', 'GAP', 'AUTO', 'THROWS', 'OUTLINE'];
 // Disagreement classes already triaged as open questions for the designer (SPEC.md does not decide them): counted and
 // reported on every run as OPEN, but they do not fail I1. Revision 5b settled revision 5's only one (A1, the col range);
-// revisions 5c and 5d have none.
+// revisions 5c, 5d and 5e have none.
 const OPEN = [];
 const openOf = k => OPEN.find(o => o.test(k)) || null;
 const THIN = { '2,-1': '0.134', '4,-2': '0.268' };
@@ -145,7 +152,7 @@ function newStats() {
   return {
     builds: {}, drops: 0, cover: {}, thin: {}, gaps: {}, holds: {}, notchDown: 0, oneSideDown: 0, pointAir: 0, pointFlat: 0,
     bothWays: 0, bothWaysCols: 0, triCols: 0, fitsPerBuild: { sq: {}, up: {}, down: {}, tri: {} }, noSquare: 0, noTriangle: 0, noFit: 0, byDepth: {},
-    tips: {}, reordered: 0, locks: {}, ties: {}, diff: {},
+    tips: {}, reordered: 0, locks: {}, ties: {}, diff: {}, props: {},
     checks: Object.fromEntries(INVS.map(k => [k, 0])), fails: [], failCount: Object.fromEntries(INVS.map(k => [k, 0])),
     ext: {}, pairsCol: {}, pairsTile: {}, examples: {}, outline: {},
     i1: {}, oracleCache: { hits: 0, misses: 0, verified: 0, unsound: 0, builds: 0 }, oracleDrops: 0
@@ -164,7 +171,7 @@ function bump(o, k, n) { o[k] = (o[k] || 0) + (n === undefined ? 1 : n); }
 function mergeStats(A, B) {
   for (const k in B.builds) bump(A.builds, k, B.builds[k]);
   A.drops += B.drops;
-  for (const w of ['cover', 'thin', 'gaps', 'holds', 'tips', 'locks', 'ties', 'diff']) for (const k in B[w]) bump(A[w], k, B[w][k]);
+  for (const w of ['cover', 'thin', 'gaps', 'holds', 'tips', 'locks', 'ties', 'diff', 'props']) for (const k in B[w]) bump(A[w], k, B[w][k]);
   for (const k of ['notchDown', 'oneSideDown', 'pointAir', 'pointFlat', 'bothWays', 'bothWaysCols', 'triCols', 'noSquare', 'noTriangle', 'noFit', 'oracleDrops', 'reordered']) A[k] += B[k];
   for (const p in B.fitsPerBuild) for (const k in B.fitsPerBuild[p]) bump(A.fitsPerBuild[p], k, B.fitsPerBuild[p][k]);
   for (const d in B.byDepth) { const a = A.byDepth[d] || (A.byDepth[d] = {}); for (const k in B.byDepth[d]) bump(a, k, B.byDepth[d][k]); }
@@ -311,7 +318,35 @@ function makeVisitor(R, opts) {
         }
       }
       if (halfLocked) { bump(st.locks, 'builds with a locked piece (2+ tiles) standing on half an edge'); addEx(st, 'a locked piece standing on half an edge', log); }
+      // props (5e): the groups standing because they are propped, and PROPS: rules.js's props() names exactly those
+      // groups, with the same sides, pivots and prop contacts
+      if (pieces) {
+        const geo = new Map();
+        for (const pc of pieces) if (pc.side) geo.set(pc.members.join(','), pc);
+        if (geo.size) {
+          bump(st.props, 'builds with a propped group'); bump(st.props, 'builds with a propped group at depth ' + depth); bump(st.props, 'propped groups (summed over builds)', geo.size);
+          for (const pc of geo.values()) {
+            bump(st.props, 'propped groups leaning ' + pc.side);
+            ext(st, 'most tiles in a propped group', pc.members.length, depth, log, { group: pc.members.length, side: pc.side, props: pc.props.length });
+          }
+          addEx(st, 'a build with a propped group', log);
+        }
+        if (R.props && (!only || only.has('PROPS'))) {
+          let rp = null, err = null;
+          try { rp = R.props(B); } catch (e) { err = e.message; }
+          const norm = (members, side, pivot, list) => JSON.stringify([members.slice().sort((a, b) => a - b), side, pivot.map(x => x + 0), list.slice().sort()]);
+          const want = [...geo.values()].map(pc => norm(pc.members, pc.side, pc.pivot, pc.props.map(x => x.u + '>' + x.v + ' ' + JSON.stringify(geom.normSeg(x.seg).map(q => q.map(z => z + 0)))))).sort();
+          const got = rp ? rp.map(g => norm(g.members, g.side, g.pivot, g.props.map(x => x.tile + '>' + x.by + ' ' + JSON.stringify(geom.normSeg(x.seg))))).sort() : null;
+          check('PROPS', !err && JSON.stringify(got) === JSON.stringify(want), () => `props() ${err ? 'threw: ' + err : JSON.stringify(got)}, the geometry finds ${JSON.stringify(want)}`);
+        }
+      }
     }
+    // a build where a prop can matter: two squares beside each other at heights less than a tile apart (an upright
+    // contact that is not a whole side), or one the new square would make (mayProp below)
+    const sqs = T.filter(t => t.piece === 'sq');
+    const apart = (u, v) => Math.abs(u.col - v.col) === 2 && (u.y[0] !== v.y[0] || u.y[1] !== v.y[1]) && sgn(u.y[0] - v.y[0] - 2, u.y[1] - v.y[1]) < 0 && sgn(v.y[0] - u.y[0] - 2, v.y[1] - u.y[1]) < 0;
+    const uprightHere = sqs.some((u, i) => sqs.some((v, j) => j > i && apart(u, v)));
+    const mayProp = (piece, r) => uprightHere || (piece === 'sq' && sqs.some(v => apart(v, { col: r.pose.col, y: r.pose.y })));
     const throws = (b, piece, col, way) => { try { R.drop(b, piece, col, way); return false; } catch (e) { return true; } };
     // THROWS: on the bare car, the API throws exactly where SPEC §2 says (odd or off-car square cols, triangle cols
     // past the hand's range) and nowhere else; the hand's cols are SPEC §2's
@@ -401,11 +436,13 @@ function makeVisitor(R, opts) {
         check('I13', shineOk(r), () => `shine does not explain ${r.outcome}/${r.reason} for ${piece} ${col} ${way || ''}: ${JSON.stringify({ shine: r.shine, contacts: r.contacts })}`);
         // I13, the balance: a TIPS OVER names the group SPEC §5c reports (its base, members, side and pivot), and that
         // group really is unbalanced (exact polygon geometry, every one); a fit leaves every group balanced (heavy builds)
-        if ((r.reason === 'TIPS OVER' || (heavy && r.outcome === 'fit')) && (!only || only.has('I13'))) {
+        // (every fit where a prop can matter, too: a prop that rescues it is counted below)
+        if ((r.reason === 'TIPS OVER' || (r.outcome === 'fit' && (heavy || (m !== 'auto' && mayProp(piece, r))))) && (!only || only.has('I13'))) {
           const TN = T.concat([{ piece, way: r.way, col, y: r.pose.y, verts: r.verts }]);
           let g = null, err = null;
           try { g = geom.tipsReportOf(TN, half, baseRel); } catch (e) { err = e.message; }
           check('I13', !err && tipsOk(r, g, T.length) && comOk(r, TN), () => `the balance does not explain ${r.outcome}/${r.reason} for ${piece} ${col} ${way || ''}: game ${JSON.stringify(r.tips)}, geometry ${err || JSON.stringify(g && (g.none ? 'every group balances' : { base: g.base, members: g.members, side: g.side, pivot: g.pivot, m8: g.m8, piece: g.piece, failing: g.failing, decided: g.decided }))}`);
+          if (g && m !== 'auto') propStats(st, g, r, piece, T.length, depth, log, { piece, col, way });
           if (g && !g.none && r.reason === 'TIPS OVER' && m !== 'auto') {
             const pc = piece === 'sq' ? '■' : r.way === 'up' ? '▲' : '▼', n = T.length;
             const where = g.piece.includes(n) ? "the new tile's own piece" : g.piece.some(i => g.rests[n].some(x => x.j === i)) ? 'a piece it rests on' : 'a piece lower down';
@@ -611,10 +648,11 @@ function makeVisitor(R, opts) {
       }
       // I7 locality and one-tile minimal pairs (sampled: one child per heavy build). A tile X added away from the
       // drop's columns leaves the drop as it was, and one beside them changes only its contacts, unless X is in a
-      // group the dropped tile N joins (5d: worked out by the geometry on the child build with N added). Then X's
-      // weight, or the pieces it joins by its locks, are in a group the drop tests, and whether it fits or tips over
-      // (and what tips) may change, but nothing else. (If X is in no group N joins, every group N joins is the same set
-      // with the same support with X or without it.)
+      // group the dropped tile N joins (5d: worked out by the geometry on the child build with N added) or beside one
+      // (5e: an upright contact with a tile of it, which may prop it). Then X's weight, the pieces it joins by its
+      // locks, or its side, count in a group the drop tests, and whether it fits or tips over (and what tips) may
+      // change, but nothing else. (If X is in no group N joins and beside none, every group N joins is the same set
+      // with the same support and the same props with X or without it.)
       if (heavy && children.length) {
         const ch = children[hsh % children.length], t = ch.t;
         const s0 = t.col, s1 = t.col + 1;
@@ -627,7 +665,9 @@ function makeVisitor(R, opts) {
             let share = false;
             if (!under && r.reason !== 'ONLY A POINT' && rc.reason !== 'ONLY A POINT') {
               const TCN = TC.concat([{ piece, way: rc.way, col, y: rc.pose.y, verts: rc.verts }]);
-              share = geom.groupsHolding(geom.balanceOf(TCN, half, relC).pieces, TCN.length - 1).has(X);
+              // X is in a group N joins, or beside one (an upright contact with one of its tiles: it may prop it, 5e)
+              const held = geom.groupsHolding(geom.balanceOf(TCN, half, relC).pieces, TCN.length - 1);
+              share = held.has(X) || geom.besideUpright(TCN, X, held);
             }
             if (!near && !share) check('I7', canon.str(rc, TC) === canon.str(r, T), () => `a tile at col ${t.col} changed the drop at col ${col} (${piece} ${way || ''})`);
             else if (!under) {
@@ -660,6 +700,52 @@ function makeVisitor(R, opts) {
     }
     return children;
   };
+}
+
+// Props (5e), for one drop (forced way) with the geometry's report g on the build with the new tile n added:
+// - a fit held by a prop: some group the new tile joins leans past its support and is propped (without props, as in
+//   5d, the drop would tip it); per group, its side and size, and per prop contact the height of its upper end above
+//   the pivot (exact), and which tile presses (the new one or one already placed);
+// - a TIPS OVER whose group has upright contacts that do not prop it: on the side away from the lean, or toward it but
+//   wholly at or below the pivot's height (level with it, or lower); and TIPS OVER while another group the tile joins
+//   leans and is propped.
+function propStats(st, g, r, piece, n, depth, log, drop) {
+  const pc = piece === 'sq' ? '■' : r.way === 'up' ? '▲' : '▼', seen = new Set(), lean = [];
+  for (const p of g.pieces) {
+    if (!p.side || !p.members.includes(n)) continue;
+    const k = p.members.join(',');
+    if (!seen.has(k)) { seen.add(k); lean.push(p); }
+  }
+  if (r.outcome === 'fit') {
+    if (!lean.length) return;
+    bump(st.props, 'fits held by a prop'); bump(st.props, pc + ' fits held by a prop'); bump(st.props, 'fits held by a prop at depth ' + (depth + 1));
+    addEx(st, 'a fit held by a prop: ' + pc, log, drop);
+    for (const p of lean) {
+      bump(st.props, 'held groups leaning ' + p.side); bump(st.props, 'held groups of ' + p.members.length + ' tiles');
+      let best = null;
+      for (const x of p.props) {
+        bump(st.props, 'prop contacts: upper end above the pivot by ' + canon.fmtH(x.above));
+        bump(st.props, 'prop contacts: ' + (x.u === n ? 'the new tile presses' : 'a placed tile presses'));
+        if (!best || geom.cmp(x.above, best) > 0) best = x.above;
+        ext(st, 'the lowest prop (its upper end above the pivot, tiles)', -yOf(x.above), depth + 1, log, { above: canon.fmtH(x.above), drop: canon.fmtDrop(drop) });
+      }
+      if (best) {
+        bump(st.props, 'held groups: the highest prop above the pivot by ' + canon.fmtH(best));
+        ext(st, 'the highest prop (its upper end above the pivot, tiles)', yOf(best), depth + 1, log, { above: canon.fmtH(best), drop: canon.fmtDrop(drop) });
+      }
+      bump(st.props, 'held groups: ' + p.props.length + ' prop contact(s)');
+      ext(st, 'most tiles in a group held by a prop', p.members.length, depth + 1, log, { group: p.members.length, side: p.side, drop: canon.fmtDrop(drop) });
+    }
+  } else if (r.reason === 'TIPS OVER' && g.group) {
+    const f = g.group, far = f.unprops.some(x => x.kind === 'far'), low = f.unprops.filter(x => x.kind === 'low');
+    if (far) { bump(st.props, 'TIPS OVER: an upright contact on the side away from the lean'); addEx(st, 'TIPS OVER with an upright contact on the far side', log, drop); }
+    if (low.length) {
+      bump(st.props, 'TIPS OVER: an upright contact toward the lean, wholly at or below the pivot');
+      if (low.some(x => x.level)) { bump(st.props, 'TIPS OVER: an upright contact toward the lean, level with the pivot'); addEx(st, 'TIPS OVER with an upright contact level with the pivot', log, drop); }
+      if (low.some(x => !x.level)) { bump(st.props, 'TIPS OVER: an upright contact toward the lean, below the pivot'); addEx(st, 'TIPS OVER with an upright contact below the pivot', log, drop); }
+    }
+    if (lean.some(p => p.propped)) { bump(st.props, 'TIPS OVER: another group the tile joins leans and is propped'); addEx(st, 'TIPS OVER while another group is propped', log, drop); }
+  }
 }
 
 // --diff: every drop of this build (res, by mode) against the other rules R2 on the same build. Counted per mode:
@@ -717,11 +803,11 @@ function formatOk(r, piece, way, col, n) {
   if (!isPt(t.pivot) || t.pivot[1] % 2 !== 0) return false;
   return typeof t.com === 'number' && isFinite(t.com);
 }
-// I13, the balance: rules.js's tips against SPEC §5c (revision 5d) worked out from the polygons (geom.tipsReportOf on
+// I13, the balance: rules.js's tips against SPEC §5c (revision 5e) worked out from the polygons (geom.tipsReportOf on
 // the build with the new tile, index n, added): a fit leaves every group balanced; a TIPS OVER names the group SPEC
 // reports (of the pieces whose groups tip: the lowest, then the larger group, then the smaller col; its base the
 // piece's lowest tile, the smaller col on a tie), exactly that group's members, its side and pivot; that group really
-// is unbalanced (its weight past its support); and com is its centre of weight in x
+// is unbalanced (its weight past its support, and no prop); and com is its centre of weight in x
 function tipsOk(r, g, n) {
   if (!g) return false;
   if (r.outcome === 'fit') return !!g.none;
@@ -729,7 +815,7 @@ function tipsOk(r, g, n) {
   if (g.none) return false;
   const t = r.tips;
   if (!t || t.base !== g.base || JSON.stringify(t.members) !== JSON.stringify(g.members) || t.side !== g.side || JSON.stringify(t.pivot) !== JSON.stringify(g.pivot)) return false;
-  return sgn(g.m8[0], g.m8[1]) > 0;
+  return sgn(g.m8[0], g.m8[1]) > 0 && !g.group.propped && !g.group.props.length;
 }
 function comOk(r, TN) {
   if (r.reason !== 'TIPS OVER') return true;
@@ -848,13 +934,14 @@ function strictStr(r, exact) {
   if (exact) { const ks = Object.keys(r).sort(); if (ks.join() !== canon.FIELDS.slice().sort().join()) o.keys = ks; }
   return JSON.stringify(o);
 }
-// What the oracle's answer for a drop at col can depend on (revision 5d), from the oracle's own tiles: the tiles
+// What the oracle's answer for a drop at col can depend on (revision 5e), from the oracle's own tiles: the tiles
 // within two cols of col (all a drop at col can touch or rest on: where it lands and how it meets the tower), and for
 // the balance, every tile under those or locked to them, all the way down (every piece whose group the drop can join),
-// every tile in the groups of all of them (everything resting on them or locked to them, all the way up) and every tile
-// those rest on (their groups' supports). Under 5b only the first set mattered; the balance is not local, so a cache
-// keyed by it alone would be unsound. Returns a Set of tile indexes, or null when the tiles are of an unknown form
-// (then nothing is cached). Kept per handle.
+// every tile in the groups of all of them (everything resting on them or locked to them, all the way up), every tile
+// those rest on (their groups' supports) and every tile beside one of them (an upright contact: it may prop their
+// group, 5e). Under 5b only the first set mattered; the balance is not local, so a cache keyed by it alone would be
+// unsound. Returns a Set of tile indexes, or null when the tiles are of an unknown form (then nothing is cached). Kept
+// per handle.
 const RELEVANT = new WeakMap();
 // an integer pair [p, q], y = (p + q√3)/2 (a SPEC oracle's y0)
 const isPQ = y => Array.isArray(y) && y.length === 2 && Number.isInteger(y[0]) && Number.isInteger(y[1]);
@@ -881,14 +968,16 @@ function relevantTiles(h, col) {
     const G = T.map(tileForm);
     if (G.some(g => !g || !Number.isInteger(g.col))) info = null;
     else {
-      const polys = G.map(g => geom.shape(g.piece, g.way, g.col, g.y)), below = G.map(() => []), above = G.map(() => []);
+      const polys = G.map(g => geom.shape(g.piece, g.way, g.col, g.y)), below = G.map(() => []), above = G.map(() => []), beside = G.map(() => []);
       for (let u = 0; u < G.length; u++) for (let v = 0; v < G.length; v++) if (u !== v && geom.restsOnPoly(polys[u], polys[v])) { below[u].push(v); above[v].push(u); }
-      // locks (whole-edge contacts) go both ways and join both closures
+      // locks (whole-edge contacts) go both ways and join both closures; upright contacts that are not whole (props)
+      // are kept apart
       for (let u = 0; u < G.length; u++) for (let v = u + 1; v < G.length; v++) {
         const sg = geom.contactSegs(polys[u], polys[v]);
         if (sg.length === 1 && geom.len2(sg[0]) === 2) { below[u].push(v); below[v].push(u); above[u].push(v); above[v].push(u); }
+        else if (sg.some(x => x[0][0] === x[1][0])) { beside[u].push(v); beside[v].push(u); }
       }
-      info = { G, below, above, byCol: new Map() };
+      info = { G, below, above, beside, byCol: new Map() };
     }
     RELEVANT.set(h, info);
   }
@@ -896,11 +985,11 @@ function relevantTiles(h, col) {
   let set = info.byCol.get(col);
   if (set) return set;
   set = new Set();
-  const { G, below, above } = info, close = (start, next) => { const st = [...start]; while (st.length) for (const j of next[st.pop()]) if (!set.has(j)) { set.add(j); st.push(j); } };
+  const { G, below, above, beside } = info, close = (start, next) => { const st = [...start]; while (st.length) for (const j of next[st.pop()]) if (!set.has(j)) { set.add(j); st.push(j); } };
   G.forEach((g, i) => { if (g.col >= col - 2 && g.col <= col + 2) set.add(i); });
   close([...set], below);
   close([...set], above);
-  for (const i of [...set]) for (const j of below[i]) set.add(j);
+  for (const i of [...set]) for (const j of below[i].concat(beside[i])) set.add(j);
   info.byCol.set(col, set);
   return set;
 }
@@ -1024,10 +1113,10 @@ function hookFromModule(spec, hopts) {
 }
 
 // ---- which oracle ----
-// The I1 oracle by default: tools/oracle/oracle.cjs, but only if it answers SPEC 5d (golden 1, ■1 then ▲1.5, fits;
+// The I1 oracle by default: tools/oracle/oracle.cjs, but only if it answers SPEC 5e (golden 1, ■1 then ▲1.5, fits;
 // golden 16, ▲−1 ▼−0.5 then ■0, tips over; golden 17, four locked triangles and ■1 half on their top, fits, where 5c
-// tipped it; and its results have SPEC 5d's eight fields, tips among them). Returns {path, why}; path is null when
-// there is no 5d oracle to compare with.
+// tipped it; golden 19, a stack leaning on the square beside it, fits, where 5d tipped it; and its results have SPEC's
+// eight fields, tips among them). Returns {path, why}; path is null when there is no 5e oracle to compare with.
 const ORACLE = path.join(__dirname, '..', 'oracle', 'oracle.cjs');
 function defaultOracle() {
   if (!fs.existsSync(ORACLE)) return { path: null, why: 'no tools/oracle/oracle.cjs' };
@@ -1044,9 +1133,12 @@ function defaultOracle() {
     let d = O.newBuild({ half: 2 });
     for (const [p, col, w] of [['tri', 1, 'up'], ['tri', 0, 'down'], ['tri', 0, 'up'], ['tri', 1, 'down']]) d = O.place(d, O.drop(d, p, col, w));
     const u = O.drop(d, 'sq', 2);
-    if (r.outcome !== 'fit' || ks !== canon.FIELDS.slice().sort().join() || t.reason !== 'TIPS OVER' || u.outcome !== 'fit') return { path: null, why: `tools/oracle/oracle.cjs is not a SPEC 5d oracle (golden 1 gives ${r.outcome} ${r.reason || ''} with fields ${ks}; golden 16 gives ${t.outcome} ${t.reason || ''}; golden 17 gives ${u.outcome} ${u.reason || ''}); I1 needs a 5d oracle` };
-    return { path: ORACLE, why: 'tools/oracle/oracle.cjs answers SPEC 5d' };
-  } catch (e) { return { path: null, why: 'tools/oracle/oracle.cjs fails the 5d probe: ' + e.message }; }
+    let e = O.newBuild({ half: 2 });
+    for (const [p, col, w] of [['sq', 0], ['tri', -4, 'up'], ['tri', -3, 'down'], ['sq', -4], ['sq', -2]]) e = O.place(e, O.drop(e, p, col, w));
+    const v = O.drop(e, 'sq', -2);
+    if (r.outcome !== 'fit' || ks !== canon.FIELDS.slice().sort().join() || t.reason !== 'TIPS OVER' || u.outcome !== 'fit' || v.outcome !== 'fit') return { path: null, why: `tools/oracle/oracle.cjs is not a SPEC 5e oracle (golden 1 gives ${r.outcome} ${r.reason || ''} with fields ${ks}; golden 16 gives ${t.outcome} ${t.reason || ''}; golden 17 gives ${u.outcome} ${u.reason || ''}; golden 19 gives ${v.outcome} ${v.reason || ''}); I1 needs a 5e oracle` };
+    return { path: ORACLE, why: 'tools/oracle/oracle.cjs answers SPEC 5e' };
+  } catch (e) { return { path: null, why: 'tools/oracle/oracle.cjs fails the 5e probe: ' + e.message }; }
 }
 
 // ---- the walk ----
@@ -1110,7 +1202,7 @@ function processChunk(R, visit, items, opts, hook) {
 // slice). Without opts.resume an old checkpoint is discarded. The directory is removed when the run finishes.
 // what a saved chunk or state means: bump it whenever a change to this file changes what a chunk computes (a change
 // that only makes it faster, such as heap sizes, leaves it)
-const CHECKPOINT_FORMAT = 'rev5d-1';
+const CHECKPOINT_FORMAT = 'rev5e-1';
 function makeCheckpoint(opts, srcText) {
   const dir = opts.checkpoint, crypto = require('crypto');
   const sha = t => crypto.createHash('sha256').update(t).digest('hex');
@@ -1281,6 +1373,7 @@ if (!isMainThread && workerData && workerData.opts) {
 
 // ---- reports ----
 const EXTREMES = ['largest locked piece (tiles)', 'tallest group standing on half an edge (from its foot to its top, tiles)',
+  'most tiles in a propped group', 'most tiles in a group held by a prop', 'the highest prop (its upper end above the pivot, tiles)', 'the lowest prop (its upper end above the pivot, tiles)',
   'tallest group of a locked piece (2+ tiles) standing on half an edge (tiles)', 'most tiles in a group exactly over an end of its support',
   'tallest structure standing on a ▼ held by one side (its height above the ▼\'s top, tiles)', 'most tiles standing on a ▼ held by one side',
   'farthest overhang (a tile\'s middle past where its supports meet the car, tiles)'];
@@ -1307,6 +1400,12 @@ function floors(stats) {
   for (const dir of ['flat', 'slant', 'side']) out.push({ what: `fits locking ${dir === 'flat' ? 'flat (seated squarely on a top)' : dir === 'slant' ? 'on a slant (a ▼ hung on a ▲)' : 'upright (two level squares side by side)'}`, n: stats.locks['fits locking ' + dir] || 0, min: 100 });
   out.push({ what: 'builds with a locked piece (2+ tiles) standing on half an edge', n: stats.locks['builds with a locked piece (2+ tiles) standing on half an edge'] || 0, min: 100 });
   out.push({ what: 'TIPS OVER of a locked piece (2+ tiles) standing on half an edge', n: stats.locks['TIPS OVER of a locked piece (2+ tiles) standing on half an edge'] || 0, min: 100 });
+  // revision 5e: props
+  const pr = stats.props || {};
+  out.push({ what: 'builds with a propped group (a group that leans past its support, held by a prop)', n: pr['builds with a propped group'] || 0, min: 100 });
+  out.push({ what: 'fits held by a prop (a group the new tile joins leans and is propped)', n: pr['fits held by a prop'] || 0, min: 100 });
+  for (const sd of ['left', 'right']) out.push({ what: `fits held by a prop, the group leaning ${sd}`, n: pr['held groups leaning ' + sd] || 0, min: 100 });
+  out.push({ what: 'TIPS OVER with an upright contact on the side away from the lean (it does not prop)', n: pr['TIPS OVER: an upright contact on the side away from the lean'] || 0, min: 100 });
   return out;
 }
 // TIPS OVER (forced ways), per piece and way: by side, by the number of tiles in the reported piece and in its group,
@@ -1339,12 +1438,12 @@ function writeReports(dir, res, opts) {
   const s = res.stats;
   const totalBuilds = Object.values(s.builds).reduce((a, b) => a + b, 0);
   const summary = {
-    rules: 'revision 5d', depth: opts.depth, half: opts.half, ms: res.ms, builds: totalBuilds, buildsPerDepth: s.builds, drops: s.drops, perDepth: res.perDepth,
+    rules: 'revision 5e', depth: opts.depth, half: opts.half, ms: res.ms, builds: totalBuilds, buildsPerDepth: s.builds, drops: s.drops, perDepth: res.perDepth,
     checks: s.checks, failCount: s.failCount, fails: s.fails.slice(0, 50), failFast: s.failFast || null,
     thin: s.thin, gaps: s.gaps, holds: s.holds, notchDown: s.notchDown, oneSideDown: s.oneSideDown, pointFlat: s.pointFlat, pointAir: s.pointAir,
     bothWays: { builds: s.bothWays, cols: s.bothWaysCols, ofTriangleCols: s.triCols },
     noSquare: s.noSquare, noTriangle: s.noTriangle, noFit: s.noFit, fitsPerBuild: s.fitsPerBuild, byDepth: s.byDepth, floors: floors(s),
-    tips: tipsTable(s), locks: s.locks, ties: s.ties, diff: s.diff, diffWith: opts.diff || null, reordered: s.reordered,
+    tips: tipsTable(s), locks: s.locks, ties: s.ties, props: s.props, diff: s.diff, diffWith: opts.diff || null, reordered: s.reordered,
     extremes: Object.fromEntries(EXTREMES.filter(k => s.ext[k]).map(k => [k, s.ext[k]])),
     diffExamples: Object.fromEntries(Object.entries(s.examples).filter(([k]) => k.startsWith('diff')).map(([k, v]) => [k, v.slice(0, 4)])),
     nothingFits: (s.examples['nothing fits'] || []).slice(0, 4),
@@ -1354,7 +1453,7 @@ function writeReports(dir, res, opts) {
   };
   fs.writeFileSync(path.join(dir, 'stats.json'), JSON.stringify(summary, null, 1));
   if (opts.compare) fs.writeFileSync(path.join(dir, 'i1.json'), JSON.stringify({ compare: opts.compare, oracleDepth: summary.oracleDepth, checks: s.checks.I1, failed: s.failCount.I1, oracleDrops: s.oracleDrops, cache: s.oracleCache, classes: summary.i1, open: OPEN.map(o => ({ id: o.id, what: o.what })) }, null, 1));
-  fs.writeFileSync(path.join(dir, 'coverage.json'), JSON.stringify({ table: coverageTable(s), tips: tipsTable(s), locks: s.locks, ties: s.ties, raw: s.cover, floors: floors(s), thin: s.thin, gaps: s.gaps, holds: s.holds, notchDown: s.notchDown, oneSideDown: s.oneSideDown, pointFlat: s.pointFlat, pointAir: s.pointAir, bothWays: summary.bothWays, noSquare: s.noSquare, noTriangle: s.noTriangle }, null, 1));
+  fs.writeFileSync(path.join(dir, 'coverage.json'), JSON.stringify({ table: coverageTable(s), tips: tipsTable(s), locks: s.locks, ties: s.ties, props: s.props, raw: s.cover, floors: floors(s), thin: s.thin, gaps: s.gaps, holds: s.holds, notchDown: s.notchDown, oneSideDown: s.oneSideDown, pointFlat: s.pointFlat, pointAir: s.pointAir, bothWays: summary.bothWays, noSquare: s.noSquare, noTriangle: s.noTriangle }, null, 1));
   fs.writeFileSync(path.join(dir, 'extremes.json'), JSON.stringify({ extremes: s.ext, examples: s.examples }, null, 1));
   fs.writeFileSync(path.join(dir, 'minimal-pairs.json'), JSON.stringify({ neighbouringCols: s.pairsCol, oneTileAdded: s.pairsTile }, null, 1));
   return summary;

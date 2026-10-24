@@ -46,7 +46,9 @@ const R = lib.rules();
 const rnd = lib.rng(SEED * 7919 + 3);
 
 // layers hidden: every one that tells the answer, and the HUD (not part of any question)
-const OFF_ANSWER = ['ghost', 'column', 'shine', 'chip', 'reason', 'marks', 'aimRock', 'callout', 'ghostGaps', 'markers', 'ticks', 'ghostWeight', 'hint', 'handTint'];
+// (props, propFlash: revision 5e's double bar where a fit leans on the square beside it; it is drawn with the ghost, so
+// it goes with it too, and named here all the same)
+const OFF_ANSWER = ['ghost', 'column', 'shine', 'chip', 'reason', 'marks', 'aimRock', 'callout', 'ghostGaps', 'props', 'propFlash', 'markers', 'ticks', 'ghostWeight', 'hint', 'handTint'];
 const OFF_HUD = ['hud', 'next', 'counter', 'box', 'fuse', 'swap', 'knock'];
 const OFF = {
   fit: OFF_ANSWER.concat(OFF_HUD, ['weight']),
@@ -364,8 +366,10 @@ function instructions(items, files, part) {
     'CLACK STACK quiz, the last part',
     '',
     `${mine.length} more items on ${sh.length} sheets (${sh.map(f => path.basename(f)).join(', ')}): items ${range('ghost')}.`,
-    'Your answers to the first part are kept as they were handed in: do not change them. Add these items\' answers to answers.json',
-    '(their fields are in answers-template-part2.json).',
+    'This is part 2 of the learner protocol, handed out with `node tools/learn/quiz.cjs --hand-out=<your root> --part=2` once',
+    'answers.json answered every item of part 1. Your answers to the first part were kept then, as they were handed in: they',
+    'are the ones graded, so do not change them. Add these items\' answers to answers.json (their fields are in',
+    'answers-template-part2.json).',
     '',
     `Items ${range('ghost')}: as the first items (STAYS or FALLS OFF), but with the game's own aiming help shown.`,
     ''
@@ -376,6 +380,14 @@ function instructions(items, files, part) {
     `${mine.length} items on ${sh.length} sheets (${sh.map(f => path.basename(f)).join(', ')}). Each picture is the game's own screen, cut to the hand and the tower.`,
     'Answer every item in answers.json (in this folder): start from a copy of answers-template.json and fill in each value. If unsure,',
     'give your best guess. A few more items come once these answers are in (ask for the last part when answers.json is complete).',
+    '',
+    'The learner protocol: the quiz comes in two parts, and you do not run these steps yourself.',
+    '  Part 1 (these sheets) was handed out with `node tools/learn/quiz.cjs --hand-out=<your root> --part=1`, which also closed',
+    '    the game for you: from now on the driver refuses every op that plays (zoom, topics and status still work).',
+    '  Part 2 (the last items) is handed out with `node tools/learn/quiz.cjs --hand-out=<your root> --part=2`, and only once',
+    '    answers.json answers every item of part 1. Your part 1 answers are kept as they are at that moment: they are the',
+    '    ones graded.',
+    '',
     'To look at part of a sheet more closely: node tools/learn/driver.cjs --run=<n> zoom <sheet> <x0> <y0> <x1> <y1>.',
     '',
     `Items ${range('fit')}: "Let go here: STAYS or FALLS OFF?" The hand holds a tile over the tower. If it is let go right there, does it`,
@@ -395,6 +407,9 @@ function instructions(items, files, part) {
 
 const USAGE = `usage: node tools/learn/quiz.cjs [--seed=1] [--depth=5] [--out=dir] [--scenes=400] [--no-render]
        node tools/learn/quiz.cjs --hand-out=<learner root> --part=1|2 [--out=dir]
+  the learner protocol: --hand-out=<root> --part=1 when the learner has finished playing (it closes the game for that
+  learner), then --hand-out=<root> --part=2 once <root>/quiz/answers.json answers every item of part 1 (it keeps those
+  answers for grade.cjs --frozen); never part 2 first, and never the held/ sheets by hand
   builds the learner quiz from rules.js and draws it with the game (index.html) through ?quiz=:
   96 fit items (12 strata x 4 minimal pairs), 16 which-way, 12 where-can-it-go, 24 tip and 24 ghost items,
   perception probes on a third; sheets of 4 (sheet-NN.png), instructions.txt and answers-template.json in --out
@@ -521,7 +536,7 @@ async function main() {
       2: { items: items.filter(i => i.kind === 'ghost').map(i => i.n), sheets: files.filter(f => path.dirname(f).endsWith('held')).map(f => path.basename(f)) } },
     items: items.map(it => {
       const o = { n: it.n, kind: it.kind, sheet: it.sheet || null, answer: it.answer, prompt: it.prompt };
-      for (const k of ['pageAnswer', 'stratum', 'pair', 'pairKind', 'reason', 'tips', 'extra', 'held', 'sides', 'gap', 'wrongReason', 'hard', 'fallsAnyway', 'sway', 'weight', 'look', 'runs', 'scene', 'policy', 'mirrored', 'flat', 'flatSet', 'uid']) if (it[k] !== undefined) o[k] = it[k];
+      for (const k of ['pageAnswer', 'stratum', 'pair', 'pairKind', 'reason', 'tips', 'propped', 'extra', 'held', 'sides', 'gap', 'wrongReason', 'hard', 'fallsAnyway', 'sway', 'weight', 'look', 'runs', 'scene', 'policy', 'mirrored', 'flat', 'flatSet', 'uid']) if (it[k] !== undefined) o[k] = it[k];
       o.part = it.kind === 'ghost' ? 2 : 1;
       o.build = it.build.map(fmtE);
       o.hand = it.kind === 'where' ? (it.hand.piece === 'sq' ? '■' : 'triangle') : it.kind === 'way' ? 'triangle at ' + (it.hand.col / 2) : fmtE(it.hand);
@@ -539,7 +554,26 @@ async function main() {
     L.writeJSON(path.join(dir, part === 1 ? 'answers-template.json' : 'answers-template-part2.json'), tpl);
     fs.writeFileSync(path.join(dir, part === 1 ? 'instructions.txt' : 'instructions-part2.txt'), instructions(items, files, part));
   }
+  // (for whoever hands it out: the protocol, beside the key, never in a learner's folder)
+  fs.writeFileSync(path.join(keyDir, 'HANDOUT.txt'), [
+    'CLACK STACK learner quiz: how to hand it out (DESIGN §18.8 G4). For the orchestrator; never give this folder to a learner.',
+    '',
+    `Quiz: ${OUT}`,
+    '1. Each learner plays only through tools/learn/driver.cjs, in its own empty root outside the revision scratch folders',
+    '   (CLACK_LEARN_ROOT=<root>); any other tool call voids its run. Budget: 3 runs or 150 lifts over every run folder in the root.',
+    '2. When it has finished playing (and written its write-up, on the driver\'s `topics`):',
+    `     node tools/learn/quiz.cjs --out=${OUT} --hand-out=<root> --part=1`,
+    '   This closes the game for that learner (<root>/.closed: every driver op that plays is refused) and copies part 1',
+    `   (${key.parts[1].sheets.length} sheets, items ${key.parts[1].items[0]}–${key.parts[1].items[key.parts[1].items.length - 1]}, instructions.txt, answers-template.json) into <root>/quiz/.`,
+    '3. Once <root>/quiz/answers.json answers every item of part 1:',
+    `     node tools/learn/quiz.cjs --out=${OUT} --hand-out=<root> --part=2`,
+    '   This keeps a copy of those answers (<root>/.audit/answers-part1.json) and copies the ghost items (part 2) into',
+    '   <root>/quiz/. It refuses while any part 1 item is unanswered. Never hand out part 2, or the held/ sheets, any other way.',
+    '4. Grade:',
+    `     node tools/learn/grade.cjs --key=${path.join(keyDir, 'key.json')} --answers=<root>/quiz/answers.json --frozen=<root>/.audit/answers-part1.json --writeup=<points>`,
+    ''].join('\n'));
   console.log(`${items.length} items (${Object.entries(key.counts).map(([k, v]) => k + ' ' + v).join(', ')}, ${key.probes} probes) on ${files.length} sheets in ${OUT}; key ${path.join(keyDir, 'key.json')} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+  console.log(`the learner protocol (also in ${path.join(keyDir, 'HANDOUT.txt')}): --hand-out=<root> --part=1, then --part=2 once part 1 is answered`);
 }
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
 module.exports = { tipItems, botBuild, quizOf, OFF };

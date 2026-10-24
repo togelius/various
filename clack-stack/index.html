@@ -80,6 +80,9 @@ const CFG = {
   // tower (the tiles themselves stay put) turning AIM_ROCK_ANG rad toward its corner and back in ROCK_T s, then resting
   // AIM_ROCK_REST s; the TIPS OVER hint comes once the ghost has shown TIPS OVER for AIM_TIPS_HINT s
   AIM_ROCK_ANG: 0.17, AIM_ROCK_REST: 0.45, AIM_TIPS_HINT: 0.5,
+  // a prop (revision 5e, 18.2): where a fit leaves a part leaning on the square beside it, the ghost shows a small double
+  // bar at each contact that holds it up (PROP_LEN L long, PROP_GAP L apart), and on landing it flashes for PROP_FLASH_T s
+  PROP_LEN: 0.34, PROP_GAP: 0.13, PROP_FLASH_T: 0.75,
   // the tower's rims glow amber once the weight is past AMBER_AT of the way to a wheel (the weight strip's red zone)
   AMBER_AT: 0.85,
   // a thin gap under part of a tile (under GAP_THIN L) is drawn open
@@ -4363,7 +4366,7 @@ const Sfx = (() => {
 
 
 /* ==== RULES:BEGIN ==== */
-/* CLACK STACK rules, revision 5d (DESIGN.md §18.1–18.3 and §18.7; the precise reading is tools/oracle/SPEC.md, which
+/* CLACK STACK rules, revision 5e (DESIGN.md §18.1–18.3 and §18.7; the precise reading is tools/oracle/SPEC.md, which
    wins on rules). The one source of where a tile can go and why it falls off. Pure: no DOM, no time, no randomness,
    no globals but the language's own. It runs in an empty vm context (tools/lib/rules-vm.cjs) and is inlined into
    index.html between the RULES markers by tools/build.cjs.
@@ -4374,10 +4377,15 @@ const Sfx = (() => {
         a square's top or a ▼'s top. The rest may be over a lower top, a slant or nothing.
       - A ▼ needs one of its lower sides whole against a ▲'s side (two such sides: it sits in a notch).
       Otherwise it falls off: ONLY A POINT.
-   2. Everything balances (§5c, revision 5d): tiles that share a whole edge are locked together and move as one piece
-      (half an edge or a point holds a piece up but does not lock it; the car locks to nothing). With the tile added,
-      the group of every piece (the piece, everything resting on it and everything locked to that, all the way up)
-      must have its weight over what it rests on, exactly over an end included. There is no grip. Otherwise: TIPS OVER.
+   2. Everything balances (§5c, revisions 5d and 5e): tiles that share a whole edge are locked together and move as one
+      piece (half an edge or a point holds a piece up but does not lock it; the car locks to nothing). With the tile
+      added, the group of every piece (the piece, everything resting on it and everything locked to that, all the way
+      up) must have its weight over what it rests on, exactly over an end included. There is no grip. A group whose
+      weight is past the end of its support leans that way, toward its pivot (the lowest support point at that end);
+      it is still balanced if it is propped (5e): a tile of the group presses with its side on the side of a tile
+      outside it, toward the lean, along an upright contact whose upper end is above the pivot. Only squares have
+      upright sides, so a prop is always a square beside a square at another height (at the same height they share a
+      whole side and are locked, so in one group). Otherwise: TIPS OVER.
 
    Numbers are exact. A point is a lattice point (X, a, b): x = X/2, y = a + b·h with h = √3/2. The comparison format
    writes it as SPEC's [X, p, q] with y = (p + q√3)/2, so p = 2a and q = b. Two heights are compared in integers
@@ -4427,13 +4435,16 @@ var RULES = (function () {
   // ---- builds (immutable) ----
   // { half, tiles: [tile] in placing order, log: [{piece, col, way}], idx: per half-tile column the tiles spanning it,
   //   rests: per tile, what it rests on ([{i: a tile's index or −1 for the car, lo, hi: the contact's ends, hi null for
-  //   a point}]; a tile only ever rests on tiles placed before it), locks: per tile, the tiles locked to it, and the
-  //   pieces and groups those make (pc: per tile its piece; pieces: see structure) }
+  //   a point}]; a tile only ever rests on tiles placed before it), locks: per tile, the tiles locked to it, the
+  //   pieces and groups those make (pc: per tile its piece; pieces: see structure), and the upright contacts that can
+  //   prop (sides: per tile, null or [{j: the tile beside it, side: 'R' when that tile is to its right, 'L' to its
+  //   left, lo, hi: the contact's lower and upper end}]; only squares have any, and only with squares at another
+  //   height) }
   function off(B) { return 2 * B.half + 1; }
   function freezeBuild(B) {
     for (var k = 0; k < B.idx.length; k++) if (B.idx[k]) Object.freeze(B.idx[k]);
     Object.freeze(B.idx); Object.freeze(B.tiles); Object.freeze(B.log); Object.freeze(B.rests); Object.freeze(B.locks);
-    Object.freeze(B.pc); Object.freeze(B.pieces);
+    Object.freeze(B.pc); Object.freeze(B.pieces); Object.freeze(B.sides);
     return Object.freeze(B);
   }
   function newBuild(opts) {
@@ -4441,7 +4452,7 @@ var RULES = (function () {
     if (typeof half !== 'number' || half !== Math.floor(half) || half < 1) throw new Error('newBuild: half must be a whole number of tiles, at least 1');
     var idx = [];
     for (var k = 0; k < 4 * half + 2; k++) idx.push(null);
-    return freezeBuild({ half: half, tiles: [], log: [], idx: idx, rests: [], locks: [], pc: [], pieces: [] });
+    return freezeBuild({ half: half, tiles: [], log: [], idx: idx, rests: [], locks: [], pc: [], pieces: [], sides: [] });
   }
   function inCol(B, s) { var k = s + off(B); return k >= 0 && k < B.idx.length ? B.idx[k] : null; }
   function carIn(B, s) { return s >= -2 * B.half && s < 2 * B.half; }
@@ -4604,7 +4615,7 @@ var RULES = (function () {
     return { segments: S, points: P, nb: nb };
   }
 
-  // ---- BALANCE (SPEC §5c, revision 5d) ----
+  // ---- BALANCE (SPEC §5c, revisions 5d and 5e) ----
   // U rests on V when, over a half-tile column both span, U's underside meets V's top at an end of the column: they
   // touch there and, just inside the column, U's inside lies straight above V's (over one column two tiles are two
   // stacked intervals, so equal ends mean touching, never crossing). Side by side, two tiles share no column. This
@@ -4691,7 +4702,7 @@ var RULES = (function () {
     if (!g.pR || p[0] > g.x1 || (p[0] === g.x1 && cmpH(p[1], p[2], g.pR[1], g.pR[2]) < 0)) { g.x1 = p[0]; g.pR = p; }
   }
   function addContact(g, d) { addPoint(g, d.lo); if (d.hi) addPoint(g, d.hi); }
-  // a group is balanced when W·xmin ≤ M ≤ W·xmax (exactly over an end included; no grip): null then, else the side
+  // a group does not lean when W·xmin ≤ M ≤ W·xmax (exactly over an end included; no grip): null then, else the side
   // it leans to
   function leanOf(g) {
     var A = 4 * (g.sS - g.nS * g.x1), Q = g.sT - g.nT * g.x1;
@@ -4700,14 +4711,44 @@ var RULES = (function () {
     if (sgn3(A, Q) > 0) return 'left';
     return null;
   }
+  // PROPS (SPEC §5c, revision 5e). The upright contact of tile N with tile V (their meet() m), or null: on this
+  // lattice only squares have upright sides, so it is a square's side against a square's side, one tile apart, at
+  // heights less than a tile apart. j: V's index; side 'R' when V is to N's right, 'L' to its left; lo and hi its
+  // lower and upper end (meet() orders a segment's ends by x, then y, so an upright one comes lower end first).
+  function sideOf(N, V, m) {
+    if (!m.seg || m.seg[0][0] !== m.seg[1][0]) return null; // a point never props, nor does a flat or slanted contact
+    return { j: V.i, side: m.seg[0][0] === N.c + 2 ? 'R' : 'L', lo: m.seg[0], hi: m.seg[1] };
+  }
+  // Does upright contact s of a group's tile U with tile s.j prop the group, leaning toward `want` ('R' or 'L') over
+  // pivot pv? The contact is on U's side toward the lean (s.j beside U on that side), s.j is outside the group (inX,
+  // inA: per tile, 1 when it is in the group) and its upper end is higher than the pivot.
+  function propsOn(s, want, inX, inA, pv) {
+    return s.side === want && !(inX[s.j] || (inA && inA[s.j])) && cmpH(s.hi[1], s.hi[2], pv[1], pv[2]) > 0;
+  }
+  // Is a group (its tiles mem) that leans to `side` ('right' or 'left') over pivot pv propped? Some tile U of the group
+  // and some tile V outside it (never the car) share an upright contact that props it (propsOn). The contacts are the
+  // build's (B.sides of the group's placed tiles) and the new tile N's own (S, from balance; N is in every group
+  // tested, so only N can be the U of those).
+  function propped(B, S, mem, n, inX, inA, side, pv) {
+    var want = side === 'right' ? 'R' : 'L', j, k, L;
+    for (j = 0; j < S.length; j++) if (propsOn(S[j], want, inX, inA, pv)) return true;
+    for (j = 0; j < mem.length; j++) {
+      L = mem[j] === n ? null : B.sides[mem[j]];
+      if (L) for (k = 0; k < L.length; k++) if (propsOn(L[k], want, inX, inA, pv)) return true;
+    }
+    return false;
+  }
   // The balance with tile N (not placed yet; it met the tower edge to edge) added to build B: D, what N rests on, with
-  // each contact; L, the tiles N is locked to. Every group of B is balanced (place() only adds tiles that fit), and a
-  // group N does not join is the same set with the same support as before, so only the groups N joins are tested:
+  // each contact; L, the tiles N is locked to; S, N's upright contacts (sideOf). Every group of B is balanced (place()
+  // only adds tiles that fit), and a group N does not join is the same set with the same support as before, and keeps
+  // every prop it had (its props are tiles outside it, and N adds tiles, never takes one away), so only the groups N
+  // joins are tested:
   // - N's own piece: N and every piece it locks to, merged; its group X is N and those pieces' groups;
   // - every other piece of B whose group holds a tile N rests on or is locked to: its group gains X.
-  // Returns {D, L, fails: [{base, members, g, side}] for the groups that are not balanced}.
+  // A group that leans is balanced if it is propped (5e).
+  // Returns {D, L, S, fails: [{base, members, g, side}] for the groups that are not balanced}.
   function balance(B, N, nb) {
-    var n = B.tiles.length, D = [], L = [], h2 = 2 * B.half, j, k, u;
+    var n = B.tiles.length, D = [], L = [], S = [], h2 = 2 * B.half, j, k, u, sd;
     if (restsOnCar(B, N)) {
       if (N.t === 'dn') D.push({ i: -1, lo: [N.c + 1, 0, 0], hi: null });
       else {
@@ -4718,6 +4759,7 @@ var RULES = (function () {
     for (k = 0; k < nb.length; k++) {
       var V = nb[k].t, m = nb[k].m;
       if (lockOf(m)) L.push(V.i);
+      else if ((sd = sideOf(N, V, m))) S.push(sd); // a whole side locks instead (the two are one piece)
       if (!restsOn(N, V)) continue;
       D.push(m.pt ? { i: V.i, lo: m.pt, hi: null } : { i: V.i, lo: m.seg[0], hi: m.seg[1] });
     }
@@ -4753,9 +4795,9 @@ var RULES = (function () {
         for (u = 0; u < rs.length; u++) { var ri = rs[u].i; if (ri < 0 || !(inX[ri] || (inA && inA[ri]))) addContact(g, rs[u]); }
       }
       var side = g.pL ? leanOf(g) : null;
-      if (side) fails.push({ base: gr.base, members: mem, g: g, side: side });
+      if (side && !propped(B, S, mem, n, inX, inA, side, side === 'right' ? g.pR : g.pL)) fails.push({ base: gr.base, members: mem, g: g, side: side });
     }
-    return { D: D, L: L, fails: fails };
+    return { D: D, L: L, S: S, fails: fails };
   }
   // what the result says when something tips (DESIGN §18.7, SPEC §5c): of the pieces whose group is not balanced, the
   // one whose lowest point is lowest; on a tie, the one whose group has more tiles; then the one with the smaller col
@@ -4774,6 +4816,35 @@ var RULES = (function () {
     var g = best.g, members = best.members.slice().sort(num);
     var W = g.nS + g.nT * R3 / 4, M = (g.sS + g.sT * R3 / 4) / 2;
     return { base: best.base, members: members, side: best.side, pivot: out(best.side === 'right' ? g.pR : g.pL), com: M / W };
+  }
+  // props(build): every group of the build that leans and is held up by props (for drawing them; in a build every
+  // group is balanced, so every group that leans is propped). One entry per distinct group: {members (sorted
+  // indices), side, pivot (SPEC's [X, p, q]), props: [{tile: the index of the group's tile that presses, by: the
+  // index of the tile outside the group it presses on, seg: the contact, [[X, p, q] lower end, [X, p, q] upper end]}]},
+  // the props being every upright contact on the group's side toward the lean whose upper end is above the pivot.
+  // To see the props a fitting drop leaves standing, ask the build it makes: props(place(build, result)).
+  function props(B) {
+    var res = [], seen = {}, P = B.pieces, k, j, u;
+    for (k = 0; k < P.length; k++) {
+      var G = P[k].G, inG = P[k].inG, key = G.join(',');
+      if (seen[key]) continue;
+      seen[key] = true;
+      var g = newAgg();
+      for (j = 0; j < G.length; j++) {
+        addWeight(g, B.tiles[G[j]]);
+        var rs = B.rests[G[j]];
+        for (u = 0; u < rs.length; u++) if (rs[u].i < 0 || !inG[rs[u].i]) addContact(g, rs[u]);
+      }
+      var side = g.pL ? leanOf(g) : null;
+      if (!side) continue;
+      var pv = side === 'right' ? g.pR : g.pL, list = [];
+      for (j = 0; j < G.length; j++) {
+        var L = B.sides[G[j]];
+        if (L) for (u = 0; u < L.length; u++) if (propsOn(L[u], side === 'right' ? 'R' : 'L', inG, null, pv)) list.push({ tile: G[j], by: L[u].j, seg: [out(L[u].lo), out(L[u].hi)] });
+      }
+      res.push({ members: G.slice(), side: side, pivot: out(pv), props: list });
+    }
+    return res;
   }
 
   // ---- the API ----
@@ -4885,8 +4956,16 @@ var RULES = (function () {
     var locks = B.locks.slice();
     for (j = 0; j < L.length; j++) locks[L[j]] = Object.freeze(locks[L[j]].concat([n]));
     locks.push(Object.freeze(L.slice()));
+    // the upright contacts that can prop, kept on both tiles (each seen from its own side)
+    var SD = k.bal.S, sides = B.sides.slice(), mine = null;
+    for (j = 0; j < SD.length; j++) {
+      var sd = SD[j], lo = Object.freeze(sd.lo), hi = Object.freeze(sd.hi);
+      (mine || (mine = [])).push(Object.freeze({ j: sd.j, side: sd.side, lo: lo, hi: hi }));
+      sides[sd.j] = Object.freeze((sides[sd.j] || []).concat([Object.freeze({ j: n, side: sd.side === 'R' ? 'L' : 'R', lo: lo, hi: hi })]));
+    }
+    sides.push(mine && Object.freeze(mine));
     var tiles2 = B.tiles.concat([t]), S = structure(tiles2, rests, locks);
-    return freezeBuild({ half: B.half, tiles: tiles2, log: log, idx: idx, rests: rests, locks: locks, pc: S.pc, pieces: S.pieces });
+    return freezeBuild({ half: B.half, tiles: tiles2, log: log, idx: idx, rests: rests, locks: locks, pc: S.pc, pieces: S.pieces, sides: sides });
   }
   // every column's result for a piece, left to right
   function fitsAll(B, piece, way) {
@@ -4932,7 +5011,7 @@ var RULES = (function () {
     return res;
   }
 
-  return { REASONS: REASONS, newBuild: newBuild, drop: drop, place: place, fitsAll: fitsAll, key: key, pull: pull, tiles: tiles, cols: colsFor, chooseWay: chooseWay };
+  return { REASONS: REASONS, newBuild: newBuild, drop: drop, place: place, fitsAll: fitsAll, key: key, pull: pull, tiles: tiles, cols: colsFor, chooseWay: chooseWay, props: props };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = RULES;
 /* ==== RULES:END ==== */
@@ -5994,12 +6073,34 @@ function computeGhost() {
   }
   return GHOST.d;
 }
-// what drawing a result needs beyond the rules' answer: the part that would tip, the thin gaps under it
+// what drawing a result needs beyond the rules' answer: the part that would tip, the thin gaps under it, the props
 function withDetail(d) {
   if (d.reason === 'TIPS OVER' || d.r.tips) d.tips = readTips(d.r.tips || {}, S.T.map(t => t.pose).concat([d.P]));
   if (!d.fit && !d.tips) d.points = touchMarks(d.P, S.T.map(t => t.pose), d.points, d.contactSegs);
   if (d.fit && d.gap) d.gaps = gapsUnder(d.P, S.T.map(t => t.pose));
+  if (d.fit) d.props = propsOf(d.r);
   return d;
+}
+// The props a fit leans on (revision 5e, 18.2): a part the tile joins whose weight is past the end of what it rests on
+// stays because a tile of it presses with its side on the side of a square beside it, above the corner it would tip
+// over. A drop result does not say which contacts those are, so the build the fit makes is asked (RULES.place, as the
+// release does, then RULES.props: every leaning group of that build and its props); the ones for this tile are the
+// groups it is in (its index is the build's length now). Nothing here decides anything: it only names the contacts.
+// Returns null, or the contacts once each: {x1, y1, x2, y2} (L, the lower end first), tile: the index of the tile that
+// presses, by: the tile it presses on, side: the way the part leans, members: the part, seg: the rules' [[X, p, q] × 2].
+function propsOf(r) {
+  if (!r || r.outcome !== 'fit' || !S.RB || typeof RULES.props !== 'function') return null;
+  const n = S.RB.tiles.length, out = [], seen = new Set();
+  for (const g of RULES.props(RULES.place(S.RB, r))) {
+    if (g.members.indexOf(n) < 0) continue;
+    for (const p of g.props) {
+      const k = JSON.stringify(p.seg);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push(Object.assign(segOf(p.seg), { tile: p.tile, by: p.by, side: g.side, members: g.members.slice(), seg: p.seg }));
+    }
+  }
+  return out.length ? out : null;
 }
 // every column's result for the tile in the hand (RULES.fitsAll; BIG MAGNETS: the place each column's pull takes), for
 // the fit markers and the dead-tile check
@@ -6298,6 +6399,8 @@ function land(f) {
   logEvent('land', { id: f.id, key: f.key, piece: f.shape, way: f.pose.way, col: f.pose.col, edges: f.n, kick: f.kick, G: f.G, top: +S.top.toFixed(4),
     W: +WOB.W.toFixed(4), dW: +Math.max(0, dW).toFixed(4), lam: +WOB.lam.toFixed(3), dOmega: +kick.toFixed(5), topper: t.topper });
   juiceLand(f, t);
+  // a fit that leans on a prop: its double bars flash (the ghost showed them while aiming)
+  if (f.d && f.d.props) { FX.props.push({ id: f.id, props: f.d.props, t0: S.gt }); if (FX.props.length > 6) FX.props.shift(); logEvent('prop', { id: f.id, n: f.d.props.length, props: f.d.props.map(p => ({ tile: p.tile, by: p.by, side: p.side })) }); }
   landingWord(f);
   if (S.top > S.best) { S.best = S.top; checkMarks(); if (S.big) saveBestNow(); }
   // THE TOPPER on the very top (its top at least level with the top of everything else: a ▼ topper in a notch is
@@ -7222,6 +7325,7 @@ function render() {
   // (the whole-tile ticks and the fit markers over the weight: its bob, on the car top, must not hide one)
   if (ghostShown()) { if (heldShape() === 'sq') drawTicks(); drawMarkers(); }
   drawGuideMarks();
+  if (showBase) drawPropFlash();
   drawRockMarks();
   if (CUBE.on) drawCubeArm();
   if (ph !== 'over') drawHandAndHeld();
@@ -7349,7 +7453,7 @@ const RED = '#E8323C', INK = '#1E2541';
 // touches, or TIPS OVER with the part that would tip outlined in red, a red dot on the corner it would tip over and a
 // plumb line from that part's centre of weight, past the corner.
 function drawGuide() {
-  GUIDE.on = false; GUIDE.warn = false; GUIDE.tops = false; GUIDE.d = null; GUIDE.chip = null;
+  GUIDE.on = false; GUIDE.warn = false; GUIDE.tops = false; GUIDE.d = null; GUIDE.chip = null; GUIDE.props = null;
   if (!ghostShown()) return;
   const d = computeGhost(), L = CAM.L, piece = HAND.piece, hb = CAM.handY + heldBottom(heldType()) * L + 2;
   const P = d.P, gp = screenPoly(P, 0), gb = boxOfPts(gp);
@@ -7382,6 +7486,9 @@ function drawGuide() {
   GUIDE.lx0 = GUIDE.lx1 = GUIDE.ly0 = GUIDE.ly1 = 0;
   // the tile where it sits (white; amber and solid when it may take the tower over; gold where THE TOPPER tops out), or
   // red and dashed where it would stop
+  // a fit that leaves a part leaning on the square beside it: the double bars at its props, drawn with the ghost's marks
+  // over the weight (drawGuideMarks); a part of the ghost, so hiding the ghost hides them too and the ghost claims them
+  GUIDE.props = d.fit && d.props && shown('ghost') && shown('props') ? propBars(d.props, 1) : null;
   toWorld(P.cx, P.cy, _w); w2s(_w.x, _w.y, _s);
   if (shown('ghost')) {
     const o = tileOpts(1, 0, 'both');
@@ -7391,7 +7498,8 @@ function drawGuide() {
     const m = Math.max(2, (tops ? 0.2 : warn ? 0.075 : 0.055) * L);
     dl('ghost', { outcome: d.r.outcome, piece: P.piece, way: P.way, col: d.col, handCol: d.handCol, y: P.y, poly: gp,
       style: d.fit ? 'fit' : 'off', dashed: !d.fit, color: !d.fit ? 'red' : warn ? 'amber' : tops ? 'gold' : 'white', warn, tops,
-      reason: d.reason, key: d.key, box: { x0: r1(gb.x0 - m), y0: r1(gb.y0 - m), x1: r1(gb.x1 + m), y1: r1(gb.y1 + m) } });
+      reason: d.reason, key: d.key, propped: !!(d.fit && d.props),
+      box: joinBox({ x0: r1(gb.x0 - m), y0: r1(gb.y0 - m), x1: r1(gb.x1 + m), y1: r1(gb.y1 + m) }, GUIDE.props && GUIDE.props.box) });
   }
   if (d.fit) {
     // the contact segments shine
@@ -7439,6 +7547,9 @@ function drawGuideMarks() {
   if (!GUIDE.on || !GUIDE.d) { aimRockAngle(null); return; }
   const d = GUIDE.d, gp = GUIDE.gp, gb = GUIDE.gb, L = CAM.L, ra = aimRockAngle(d);
   if (d.fit) {
+    // a fit that leaves a part leaning on the square beside it: the double bar at each prop (over the weight: a prop low
+    // on the tower must not hide under the bob)
+    if (GUIDE.props) { drawPropBars(GUIDE.props, 1, 0); dl('props', { segs: GUIDE.props.segs, bars: GUIDE.props.bars, items: GUIDE.props.items, box: GUIDE.props.box }); }
     // a fit that may take the tower over: an amber callout by the ghost with a little weight strip, the weight past the
     // wheel it would go over (the words the crash itself uses); THE TOPPER where it tops out: a gold one
     if ((GUIDE.warn || GUIDE.tops) && shown('callout')) {
@@ -7567,6 +7678,59 @@ function drawRockMarks() {
   const box = marksBox(marks);
   // (rocking: every tile drawn turned with the part, the members and any tile landed on them since)
   if (box) dl('rockMarks', Object.assign(marks, { id: o.id, a: +ROCK.a.toFixed(4), rocking: ROCK.a ? Array.from(rockSet()).sort((u, v) => u - v) : [], box }));
+}
+// A prop's mark (revision 5e): a small double bar at the contact that holds a leaning part up, two short bars along the
+// contact (an upright one: a square's side pressing on the side of the square beside it), one either side of it, about
+// its middle, so it reads as two faces pressed together. props: propsOf's contacts; s: a scale (the landing's flash
+// starts larger). Each end goes where the tile that presses is drawn (turned with a rock it is part of). Returns the
+// screen geometry: segs (each contact, [x1, y1, x2, y2]), bars (two per contact, [[x, y], [x, y]]), items (the rules'
+// names of each contact), the line width and the box.
+function propBars(props, s) {
+  const L = CAM.L, hl = Math.max(7, 0.5 * CFG.PROP_LEN * L) * s, hg = Math.max(3, 0.5 * CFG.PROP_GAP * L) * s, lw = Math.max(2.5, 0.065 * L) * s;
+  const segs = [], bars = [], items = [];
+  let box = null;
+  for (const p of props) {
+    const a = rockOf(p.tile), e = [[p.x1, p.y1], [p.x2, p.y2]].map(([x, y]) => { if (a) { rockPt(x, y, a, _rk); x = _rk.x; y = _rk.y; } return screenPt(x, y, TOWER_F); });
+    const dx = e[1][0] - e[0][0], dy = e[1][1] - e[0][1], len = Math.hypot(dx, dy), ux = len > 1e-6 ? dx / len : 0, uy = len > 1e-6 ? dy / len : -1;
+    const mx = (e[0][0] + e[1][0]) / 2, my = (e[0][1] + e[1][1]) / 2, nx = -uy, ny = ux;
+    segs.push([e[0][0], e[0][1], e[1][0], e[1][1]]);
+    for (const k of [-1, 1]) {
+      const cx = mx + nx * hg * k, cy = my + ny * hg * k, b = [[r1(cx - ux * hl), r1(cy - uy * hl)], [r1(cx + ux * hl), r1(cy + uy * hl)]];
+      bars.push(b);
+      const m = lw / 2 + 3;
+      box = joinBox(box, { x0: Math.min(b[0][0], b[1][0]) - m, y0: Math.min(b[0][1], b[1][1]) - m, x1: Math.max(b[0][0], b[1][0]) + m, y1: Math.max(b[0][1], b[1][1]) + m });
+    }
+    items.push({ tile: p.tile, by: p.by, side: p.side, members: p.members, seg: p.seg });
+  }
+  return { segs, bars, items, lw, box: box && { x0: r1(box.x0), y0: r1(box.y0), x1: r1(box.x1), y1: r1(box.y1) } };
+}
+// draw propBars' bars: gold with a navy rim; glow (0..1, the landing's flash) adds a white halo under them; a: alpha
+function drawPropBars(g, a, glow) {
+  ctx.save(); ctx.lineCap = 'round';
+  const pass = (w, col, al) => { ctx.globalAlpha = al; ctx.lineWidth = w; ctx.strokeStyle = col; ctx.beginPath(); for (const b of g.bars) { ctx.moveTo(b[0][0], b[0][1]); ctx.lineTo(b[1][0], b[1][1]); } ctx.stroke(); };
+  if (glow > 0) pass(g.lw + 7, '#ffffff', 0.55 * glow * a);
+  pass(g.lw + 3, INK, 0.9 * a);
+  pass(g.lw, glow > 0.5 ? '#FFF1B8' : '#FFC531', a);
+  ctx.restore();
+}
+// On landing, a fit that leans on a prop flashes its double bars (larger at first, with a white halo, then fading)
+function drawPropFlash() {
+  if (!FX.props.length || !shown('propFlash')) return;
+  const items = [], segs = [], bars = [];
+  let box = null;
+  for (const f of FX.props) {
+    const u = (S.gt - f.t0) / CFG.PROP_FLASH_T;
+    if (u < 0 || u >= 1) continue;
+    // (every tile it names still standing: a crash since takes the flash with it)
+    if (f.props.some(p => !S.T[p.tile] || S.T[p.tile].gone || !S.T[p.by] || S.T[p.by].gone)) continue;
+    const s = 1 + 0.6 * (1 - easeOutCubic(clamp(u / 0.3, 0, 1))), g = propBars(f.props, s), a = u < 0.55 ? 1 : (1 - u) / 0.45;
+    drawPropBars(g, a, 1 - u);
+    const m = 4;
+    box = joinBox(box, { x0: g.box.x0 - m, y0: g.box.y0 - m, x1: g.box.x1 + m, y1: g.box.y1 + m });
+    items.push({ id: f.id, age: +(S.gt - f.t0).toFixed(4), props: g.items });
+    segs.push(...g.segs); bars.push(...g.bars);
+  }
+  if (items.length) dl('propFlash', { items, segs, bars, box });
 }
 function redDot(x, y, r) {
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -8560,12 +8724,12 @@ function syncOverlay(fromRender) {
 }
 
 /* ==== FX ==== */
-const FX = { sparks: [], glows: [], rings: [], words: [], pulses: [], confetti: [], puffs: [], stars: [], dizzy: null, banner: null, bannerBurst: false,
+const FX = { sparks: [], glows: [], rings: [], words: [], pulses: [], confetti: [], puffs: [], stars: [], props: [], dizzy: null, banner: null, bannerBurst: false,
   shakeAmp: 0, shakeT0: 0, shakeDur: 0, hitStop: 0, squashAt: -1, squashAmt: 0, carSquash: 0 };
 const REDUCED = (() => { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } })();
 function fxClear() {
   FX.sparks.length = 0; FX.glows.length = 0; FX.rings.length = 0; FX.words.length = 0; FX.pulses.length = 0; FX.confetti.length = 0;
-  FX.puffs.length = 0; FX.stars.length = 0; FX.dizzy = null; FX.shakeAmp = 0; FX.hitStop = 0; FX.squashAt = -1; FX.banner = null;
+  FX.puffs.length = 0; FX.stars.length = 0; FX.props.length = 0; FX.dizzy = null; FX.shakeAmp = 0; FX.hitStop = 0; FX.squashAt = -1; FX.banner = null;
 }
 function dustPuff(xw, size) {
   if (FX.puffs.length > 24) FX.puffs.shift();
@@ -8685,6 +8849,7 @@ function stepFx(dt) {
     s.vy += g * 0.6 * dt; s.vx *= 1 - 2.5 * dt; s.vy *= 1 - 1.5 * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.rot += s.w * dt;
   }
   for (let i = FX.glows.length - 1; i >= 0; i--) if (S.gt - FX.glows[i].t0 > CFG.GLOW_T) FX.glows.splice(i, 1);
+  for (let i = FX.props.length - 1; i >= 0; i--) if (S.gt - FX.props[i].t0 > CFG.PROP_FLASH_T) FX.props.splice(i, 1);
   for (let i = FX.rings.length - 1; i >= 0; i--) if (S.gt - FX.rings[i].t0 > 0.35) FX.rings.splice(i, 1);
   for (let i = FX.pulses.length - 1; i >= 0; i--) if (S.gt - FX.pulses[i].t0 > CFG.PULSE_T) FX.pulses.splice(i, 1);
   for (let i = FX.words.length - 1; i >= 0; i--) if (S.gt - FX.words[i].t0 > FX.words[i].life) FX.words.splice(i, 1);
@@ -9019,7 +9184,7 @@ function dropInfo(d, look) {
   const o = { key: d.key, outcome: d.r.outcome, reason: d.reason, piece: P.piece, way: P.way, col: d.col, handCol: d.handCol, y: P.y.slice(),
     sx: colToX(d.handCol === undefined ? d.col : d.handCol), gx: _s.x, gy: _s.y, top: P.maxY, base: P.minY, lx: P.cx, ly: P.cy, n: d.n, kick: d.kick, G: d.G,
     verts: d.r.verts, points: d.points.map(p => [p.x, p.y]), tips: d.tips ? { base: d.tips.base, members: d.tips.members.slice(), side: d.tips.side, pivot: [d.tips.pivot.x, d.tips.pivot.y], com: d.tips.com } : null,
-    gap: d.gap };
+    gap: d.gap, props: d.props ? d.props.map(p => ({ tile: p.tile, by: p.by, side: p.side, members: p.members.slice(), seg: p.seg })) : null };
   if (look && d.fit) { const r = dropLook(d, {}); o.settle = r.settle - TW.ox; o.lo = r.lo - TW.ox; o.hi = r.hi - TW.ox; o.tip = r.tip; }
   return o;
 }
@@ -9049,7 +9214,7 @@ function placeTiles(list) {
 }
 // the display list, grouped: the layers drawn (each with the box it covers) and what each one shows
 // a recorded item moved by the screen shake it was drawn with: its screen points, boxes and x / y (not the rules' y)
-const PAIRS = { poly: 1, pts: 1, dots: 1, top: 1, wheels: 1, plumb: 1 }, POLYS = { polys: 1, part: 1 }, BOXES = { box: 1, card: 1, again: 1, strip: 1 };
+const PAIRS = { poly: 1, pts: 1, dots: 1, top: 1, wheels: 1, plumb: 1 }, POLYS = { polys: 1, part: 1, bars: 1 }, BOXES = { box: 1, card: 1, again: 1, strip: 1 };
 function shiftItem(o, dx, dy) {
   const pt = p => [r1(p[0] + dx), r1(p[1] + dy)];
   const bx = b => { const c = Object.assign({}, b); for (const k of ['x', 'x0', 'x1']) if (typeof c[k] === 'number') c[k] = r1(c[k] + dx); for (const k of ['y', 'y0', 'y1']) if (typeof c[k] === 'number') c[k] = r1(c[k] + dy); return c; };
@@ -9085,7 +9250,7 @@ function displayList() {
       case 'ticks': out.ticks = it.items; break;
       case 'falling': out.falling = it.items; break;
       case 'ghost': out.ghost = Object.assign(out.ghost || {}, it); break;
-      case 'column': case 'shine': case 'chip': case 'reason': case 'marks': case 'ghostGaps': case 'callout':
+      case 'column': case 'shine': case 'chip': case 'reason': case 'marks': case 'ghostGaps': case 'callout': case 'props':
         out.ghost = out.ghost || {}; out.ghost[it.layer] = it; break;
       default: out[it.layer] = it;
     }
@@ -9196,7 +9361,8 @@ const CS = window.CS = {
 //    "raw": [[type, x, y, color?]]  tiles drawn where they are given, outside the rules (the plausibility gallery's
 //                             planted defects): type 'sq' | 'up' | 'dn', x its left end, y its lowest point (L)}
 // Layers: car tiles gaps ghost column shine chip reason marks aimRock (TIPS OVER's part rocking while aimed; off with the
-// marks too) callout ghostGaps
+// marks too) callout ghostGaps props (a fit's prop marks, the double bars; off with the ghost too) propFlash (a propped
+// fit's bars flashing on landing)
 // markers ticks falling tipMarks (the point a tile falling off turns about) rockMarks weight ghostWeight
 // hand handTint (the held tile's red or amber rims) fuse swap next counter hint hud ribbon (the next mark's ribbon or stub)
 // knock results. With "hud" off the ribbon is off too: a still picture with no HUD shows no heads-up mark across the build
@@ -9285,11 +9451,24 @@ function runSelftest() {
     ok(golden(['▲0.5', '▼0', '▲0', '▼0.5'], '■1') === 'fit', 'golden 17 (5d)');
     ok(golden(['■-2', '▲-1.5', '▼-2', '■-2', '▲-2.5', '▼-1', '■-1'], '■-1') === 'off TIPS OVER', 'golden 18 (5d)');
   }
+  if (typeof RULES.props === 'function') {
+    // revision 5e: a stack on a hung ▼ that would tip right stays, pressing on the square beside it; the game names that
+    // contact as its prop (■−1's right side on ■0's left, from the ▼'s top up to ■0's top)
+    ok(golden(['■0', '▲-2', '▼-1.5', '■-2', '■-1'], '■-1') === 'fit', 'golden 19 (5e)');
+    const sv = S.RB;
+    try {
+      S.RB = RULES.newBuild({ half: 2 });
+      for (const s of ['■0', '▲-2', '▼-1.5', '■-2', '■-1']) { const o = parseDropStr(s); S.RB = RULES.place(S.RB, RULES.drop(S.RB, o.piece, o.col, o.way)); }
+      const pr = propsOf(RULES.drop(S.RB, 'sq', -2));
+      ok(pr && pr.length === 1 && pr[0].tile === 4 && pr[0].by === 0 && pr[0].side === 'right' && pr[0].x1 === 0 && pr[0].x2 === 0 && Math.abs(pr[0].y1 - H3) < 1e-12 && pr[0].y2 === 1,
+        'golden 19 (5e): its prop is ■−1 against ■0, x 0, y ' + H3.toFixed(3) + ' to 1: ' + JSON.stringify(pr && pr.map(p => [p.tile, p.by, p.side, p.x1, p.y1, p.y2])));
+    } finally { S.RB = sv; }
+  }
   // 2. the ghost is the landing, through the game's own release, on random builds with tiles in the air; both modes
   const save = { phase: S.phase, B: S.B, RB: S.RB, T: S.T, flights: S.flights, offs: S.offs, piece: HAND.piece, ready: HAND.ready, col: HAND.col,
     lock: S.lockUntil, big: S.big, box: S.box.slice(), swap: HAND.swap, ending: S.ending, firstInput: S.firstInput, landed: S.landed, lost: S.lost, rng: S.rng };
   const rnd = mulberry32(12345);
-  let same = 0, trials = 0, fitsN = 0, offsN = 0, pulled = 0, markersOk = 0, overlaps = 0, mirrorOk = 0, tipsN = 0;
+  let same = 0, trials = 0, fitsN = 0, offsN = 0, pulled = 0, markersOk = 0, overlaps = 0, mirrorOk = 0, tipsN = 0, propsN = 0;
   try {
     const muted = Sfx.muted; Sfx.setMuted(true);
     for (let n = 0; n < 1200 && fails.length < 40; n++) {
@@ -9331,6 +9510,17 @@ function runSelftest() {
           let whole = true;
           for (const i of inP) for (let j = 0; j < ps.length; j++) if (!inP.has(j) && sharesEdge(ps[i], ps[j])) whole = false;
           ok(whole, 'the part that tips cuts no whole-edge joint: ' + g.key);
+        }
+        if (g.props) {
+          // a prop (5e): an upright contact, from a tile of the part that leans to a tile beside it outside the part, on
+          // the side it leans to
+          propsN++;
+          for (const p of g.props) {
+            const T = S.T.map(t => t.pose).concat([g.P]), U = T[p.tile], V = T[p.by];
+            ok(U && V && p.x1 === p.x2 && p.y2 > p.y1 && p.members.indexOf(p.tile) >= 0 && p.members.indexOf(p.by) < 0 && p.members.indexOf(S.T.length) >= 0 &&
+              (p.side === 'right' ? Math.abs(U.maxX - p.x1) < 1e-9 && Math.abs(V.minX - p.x1) < 1e-9 : Math.abs(U.minX - p.x1) < 1e-9 && Math.abs(V.maxX - p.x1) < 1e-9),
+              'a prop is an upright contact beside the part, on the side it leans to: ' + g.key + ' ' + JSON.stringify(p.seg));
+          }
         }
         const n0 = S.flights.length, o0 = S.offs.length;
         doRelease('test'); trials++;
@@ -9409,7 +9599,7 @@ function runSelftest() {
   ok(Math.abs(wobDelta(0.7, 16, false) - 0.35) < 1e-12 && Math.abs(wobDelta(1.0, 10, false) - 0.25) < 1e-12 && wobDelta(0.7, 4, false) === 0 && Math.abs(wobDelta(0.7, 10, true) - 0.175 * 0.15) < 1e-12, 'ΔW from λ and G');
   // 6. the boot fit
   ok(Math.abs(CAL.peak - CFG.CAL_GREAT) < 0.01, 'the kick fit: a half-held square\'s weight at the end of the bare base rocks it to ' + CAL.peak.toFixed(3) + ' of its tipping angle');
-  return { pass: fails.length === 0, failures: fails, ms: Math.round(performance.now() - t0), ghostTrials: trials, overlaps, fits: fitsN, offs: offsN, pulled, markers: markersOk, tips: tipsN,
+  return { pass: fails.length === 0, failures: fails, ms: Math.round(performance.now() - t0), ghostTrials: trials, overlaps, fits: fitsN, offs: offsN, pulled, markers: markersOk, tips: tipsN, props: propsN,
     boxes, mirrors: mirrorOk, reasons: RULES.REASONS.slice() };
 }
 

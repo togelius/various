@@ -1365,6 +1365,7 @@ CarefulBot > StackBot > SpamBot, CarefulBot 3.8× SpamBot. All 21 crashes happen
 - **The ghost.** The ghost is the exact result of letting go now, from the same function as the real drop.
   - When it fits, the tile is drawn where it will sit, its contact segments shine (with a ×2 / ×3 chip for several neighbours), and a column the tile's width runs from the hand down to it.
   - When it falls off, the tile is drawn red and dashed where it would stop, with its reason: ONLY A POINT with red dots at the points it touches, or TIPS OVER with the part that would tip outlined in red, its corner dotted and its plumb line drawn.
+  - When it fits leaning on a prop (revision 5e: a part it joins would tip, but presses on the side of a square beside it), a small gold double bar marks each contact that holds it up, and the bar flashes as the tile lands. The contacts are the rules' own (`RULES.props` of the build the fit makes).
 - **What would tip.** While the ghost shows TIPS OVER, the part that would tip rocks toward its corner and back on a loop (the release's rock, 0.17 rad, then a 0.45 s rest), drawn as a red silhouette over the tower; the tiles themselves stay put. It shows that the tiles under the tile tip with it.
 - **Every fit.** While aiming, every place the tile in the hand fits is marked faintly. This is the same function at every column, not a separate rule.
   - Squares: an outline of each fit; they never overlap.

@@ -1,6 +1,6 @@
 'use strict';
 /*
- * Clack Stack placement oracle, written only from SPEC.md (revision 5d).
+ * Clack Stack placement oracle, written only from SPEC.md (revision 5e).
  *
  * Numbers. Every coordinate is used at twice its size: the point [X, p, q] of the spec is
  * x' = X, y' = p + q*sqrt3. Scaling both axes by 2 changes no decision, so every coordinate is an
@@ -28,12 +28,19 @@
  *    (dX^2 + (dp + dq*sqrt3)^2 = 4 in the doubled frame, decided on integers) is a lock; the car
  *    locks to nothing. Pieces are the components of the locks (union-find), a group is its piece
  *    plus every piece reachable upward through "rests on" (a search over the piece graph), and
- *    W, M and the support's ends are summed exactly; balanced iff W*xmin <= M <= W*xmax.
+ *    W, M and the support's ends are summed exactly. A group leans right iff M > W*xmax (left iff
+ *    M < W*xmin); its pivot is the support point at that end with the least y.
+ *  - props (5e): every vertical shared segment between two tiles is kept with the tile on its left
+ *    (the segment is that tile's right side) and the tile on its right, and its two ends. A group
+ *    leaning right is propped iff some kept segment has its left tile in the group, its right tile
+ *    outside it (never the car), and its upper end strictly higher than the pivot; leaning left
+ *    the same with left and right exchanged. Balanced iff it does not lean, or leans and is propped.
  * No lattice keys, edge hashing or precomputed column profiles: every query walks the polygons.
  *
  * API: newBuild({ half = 2 }), drop(build, piece, col, way?), place(build, result).
  * Test hooks (not part of the spec): _details(result), _stats, _resetStats(), _selfCheck(on), _record(on),
- * _variant(opts) (other readings of 5c, for the census only; never on by default).
+ * _variant(opts) (other readings of 5c, for the census only; never on by default), _proppedBy (the prop rule
+ * on its own, for a synthetic test).
  */
 
 // ---------------------------------------------------------------- exact numbers
@@ -242,10 +249,10 @@ function tileInfo(kind, col, poly) {
   // xc4 = 4 * middle x = Xmin + Xmax (the middle col/2 + 1/2 of section 5c)
   return { kind, col, poly, edges, w8p, w8q, xc4: poly.Xmin + poly.Xmax, lowP: poly.loP, lowQ: poly.loQ };
 }
-function makeBuild(half, tiles, rels, locks, pid) {
+function makeBuild(half, tiles, rels, locks, vcs, spts, pid) {
   const car = carPoly(half);
   const st = {
-    half, tiles, rels, locks, pid, car, // pid: the piece of each tile (census only)
+    half, tiles, rels, locks, vcs, spts, pid, car, // pid: the piece of each tile (census only)
     obs: tiles.map((t) => t.poly).concat([car]),
     // the car touches tiles only along its top (nothing is below y = 0)
     nbs: tiles.map((t, i) => ({ idx: i, poly: t.poly, edges: t.edges })).concat([{ idx: -1, poly: car, edges: [[car.v[2], car.v[3]]] }]),
@@ -260,7 +267,7 @@ function newBuild(opts) {
   if (typeof o !== 'object') throw new Error('newBuild: expects an options object');
   const half = o.half === undefined ? 2 : o.half;
   if (!Number.isInteger(half) || half < 1 || half > 100000) throw new Error('newBuild: half must be a positive integer');
-  return makeBuild(half, [], [], [], new Int32Array(0));
+  return makeBuild(half, [], [], [], [], [], new Int32Array(0));
 }
 function checkBuild(b) {
   if (!b || b[BUILD] !== true || !b[STATE]) throw new Error('not a build made by newBuild/place');
@@ -402,19 +409,33 @@ function lockDir(A, B) {
   if (dp * dq !== 0 || dx * dx + dp * dp + 3 * dq * dq !== 4) return null;
   return dx === 0 ? 'v' : dp === 0 && dq === 0 ? 'h' : 's';
 }
-// rests-on relations and the lock between tile u (polygon U) and neighbour v (polygon V, -1 = car),
-// from their shared boundary t
-function relate(u, U, v, V, t, out, locks) {
+// rests-on relations, the lock and the vertical contact between tile u (polygon U) and neighbour v
+// (polygon V, -1 = car), from their shared boundary t. vcs gets every vertical shared segment as
+// { l, r, X, loP, loQ, hiP, hiQ, seg }: l is the tile on its left (the segment lies on l's right side),
+// r the tile on its right, lo and hi its ends by y. spts (test hooks only, no decision uses it) gets every
+// single contact point P on a vertical line x' = X with the tile l wholly left of it and r wholly right.
+function relate(u, U, v, V, t, out, locks, vcs, spts) {
   let uv, vu;
   if (t.seg) {
     const [A, B] = t.seg;
     if (v >= 0) { const d = lockDir(A, B); if (d !== null) locks.push({ a: v, b: u, dir: d }); } // the car locks to nothing
-    if (A[0] === B[0]) return; // vertical: side by side, neither rests on the other
+    if (A[0] === B[0]) { // vertical: side by side, neither rests on the other; kept for the props of 5e
+      const X = A[0];
+      let l, r;
+      if (U.Xmax === X && V.Xmin === X) { l = u; r = v; } else if (U.Xmin === X && V.Xmax === X) { l = v; r = u; } else throw new Error('internal: a vertical contact that is not a right side against a left side');
+      const lo = ycmp(A[1], A[2], B[1], B[2]) < 0 ? A : B, hi = lo === A ? B : A;
+      if (v < 0) { stats.carVertical++; return; } // cannot happen (nothing is below y = 0); the car never props
+      vcs.push({ l, r, X, loP: lo[1], loQ: lo[2], hiP: hi[1], hiQ: hi[2], seg: t.seg });
+      return;
+    }
     const su = sideOf(U, A, B), sv = sideOf(V, A, B);
     if (su === sv) throw new Error('internal: both tiles on one side of their contact');
     uv = su > 0; vu = sv > 0;
   } else {
     uv = aboveAtPoint(U, V, t.pt); vu = aboveAtPoint(V, U, t.pt);
+    const X = t.pt[0];
+    if (U.Xmax === X && V.Xmin === X) spts.push({ l: u, r: v, P: t.pt });
+    else if (U.Xmin === X && V.Xmax === X) spts.push({ l: v, r: u, P: t.pt });
   }
   if (uv && vu) stats.bothWays++;
   if (uv) out.push({ u, v, seg: t.seg, pt: t.pt });
@@ -433,15 +454,65 @@ function resetStats() {
     multiFail: 0, lowTie: 0, sizeDecides: 0, sizeNarrows: 0, colDecides: 0, sameGroupTie: 0, baseTileTie: 0, baseIsNew: 0,
     pivotChoice: 0, altLowestDiffers: 0, altLowestCycle: 0, newLocks: 0, lockH: 0, lockV: 0, lockS: 0, mergeDrops: 0, vMergeDrops: 0,
     groupBelowPiece: 0, neitherTipsWay: 0, neitherTipsDown: 0, bothFit: 0,
+    // 5e props. leaning: groups that lean (unbalanced under 5d); propped: of those, propped
+    leaning: 0, propped: 0, proppedRight: 0, proppedLeft: 0, propContacts: 0, multiProp: 0, carVertical: 0,
+    propUIsNew: 0, propVInSupport: 0, propXInside: 0, propXAtPivot: 0, propXOutside: 0, propStraddles: 0,
+    propNeedsLowPivot: 0, propLength1: 0, propBothSides: 0, propByFailing: 0, propByFailingReport: 0, propMutual: 0,
+    leanOtherSide: 0, leanPoint: 0, leanVerticalBelow: 0, leanVerticalAtPivot: 0,
+    propDrops: 0, propRescues: 0, propTipsAnyway: 0, propReportDiffers: 0,
   });
 }
 resetStats();
 // other readings, for the census only: verticalLocks false drops the locks along vertical sides;
-// lowestOf 'group' compares the lowest point of the group instead of the piece's
-const VARIANT = { verticalLocks: true, lowestOf: 'piece' };
+// lowestOf 'group' compares the lowest point of the group instead of the piece's; props false is 5d;
+// other readings of "propped": propHeight 'atOrAbove' (upper end at or above the pivot), 'whollyAbove' (lower
+// end above it), 'any' (any height); propSide 'either' (a vertical contact on either side); propPivot
+// 'highest' (compared with the highest support point at the leaning end instead of the pivot)
+const VARIANT = { verticalLocks: true, lowestOf: 'piece', props: true, propHeight: 'strict', propSide: 'leaning', propPivot: 'lowest' };
 let firstCycle = null;
 
-function balance(tiles, rels, locks, newIdx) {
+// the pivot of a group G (by piece: G[pid[i]] === 1) leaning towards the support end X: the support
+// point with x' = X and the least y. Also the greatest y there, and whether they differ.
+function pivotOf(rels, pid, G, X) {
+  let lo = null, hi = null;
+  for (let k = 0; k < rels.length; k++) {
+    const r = rels[k];
+    if (G[pid[r.u]] === 0 || (r.v >= 0 && G[pid[r.v]] === 1)) continue;
+    const ps = r.seg ? r.seg : [r.pt];
+    for (let j = 0; j < ps.length; j++) {
+      const P = ps[j];
+      if (P[0] !== X) continue;
+      if (lo === null || ycmp(P[1], P[2], lo[1], lo[2]) < 0) lo = P;
+      if (hi === null || ycmp(P[1], P[2], hi[1], hi[2]) > 0) hi = P;
+    }
+  }
+  if (lo === null) throw new Error('internal: no support point at the leaning end');
+  return { pivot: lo, top: hi, choice: !samePt(lo, hi) };
+}
+// the props of a group G leaning to side ('right' | 'left') about pivot pv: every kept vertical
+// contact with its tile on the leaning side's far end outside G (never the car), its other tile in G,
+// and its upper end strictly higher than the pivot. With all false, only the first is returned.
+function proppedBy(vcs, pid, G, side, pv, all) {
+  const out = [];
+  for (let k = 0; k < vcs.length; k++) {
+    const c = vcs[k];
+    if (c.l < 0 || c.r < 0) continue; // never the car
+    let U = side === 'right' ? c.l : c.r, V = side === 'right' ? c.r : c.l; // U in G, V beyond U's leaning side
+    if (G[pid[U]] !== 1 || G[pid[V]] === 1) {
+      if (VARIANT.propSide !== 'either') continue;
+      const t = U; U = V; V = t; // census only: the other side
+      if (G[pid[U]] !== 1 || G[pid[V]] === 1) continue;
+    }
+    if (VARIANT.propHeight === 'strict') { if (ycmp(c.hiP, c.hiQ, pv[1], pv[2]) <= 0) continue; } // wholly at or below the pivot's height
+    else if (VARIANT.propHeight === 'atOrAbove') { if (ycmp(c.hiP, c.hiQ, pv[1], pv[2]) < 0) continue; }
+    else if (VARIANT.propHeight === 'whollyAbove') { if (ycmp(c.loP, c.loQ, pv[1], pv[2]) <= 0) continue; }
+    out.push(c);
+    if (!all) break;
+  }
+  return out;
+}
+
+function balance(tiles, rels, locks, vcs, spts, newIdx) {
   stats.balanceRuns++;
   const n = tiles.length;
   // pieces: union-find over the locks, numbered 0.. in the order of their first tile
@@ -481,9 +552,9 @@ function balance(tiles, rels, locks, newIdx) {
     if (a === b || seen[b * np + a] === 1) continue;
     seen[b * np + a] = 1; up[b].push(a);
   }
-  const failing = [], record = RECORD ? [] : null;
+  const failing = [], propped = [], record = RECORD ? [] : null;
   const inG = new Uint8Array(np), stack = new Int32Array(np);
-  let cycleHere = false;
+  let cycleHere = false, propR = false, propL = false;
   for (let P = 0; P < np; P++) {
     // the group: P and every piece reachable upward (locks keep pieces whole)
     inG.fill(0); inG[P] = 1;
@@ -525,7 +596,7 @@ function balance(tiles, rels, locks, newIdx) {
       if (firstCycle === null) firstCycle = { tiles: tiles.map((t) => t.kind + t.col + '@' + t.lowP + ',' + t.lowQ), piece: P };
     }
     if (!have) { stats.emptySupport++; throw new Error('internal: a group with an empty support (SPEC 5c gives it no balance)'); }
-    // 32*M against 32*W*x = W8 * 2X
+    // leaning: 32*M against 32*W*x = W8 * 2X
     const rp = gMp - 2 * xmax * gWp, rq = gMq - 2 * xmax * gWq;
     const lp = 2 * xmin * gWp - gMp, lq = 2 * xmin * gWq - gMq;
     const sr = sgn2(rp, rq), sl = sgn2(lp, lq);
@@ -533,19 +604,46 @@ function balance(tiles, rels, locks, newIdx) {
     if (side === null && gs > 1 && (sr === 0 || sl === 0)) stats.knifeEdge++;
     const tb = tiles[lowT[P]], tg = tiles[gLow];
     if (ycmp(tg.lowP, tg.lowQ, tb.lowP, tb.lowQ) < 0) stats.groupBelowPiece++;
+    // the pivot and the props (5e)
+    let pv = null, props = null;
+    if (side !== null) {
+      stats.leaning++;
+      pv = pivotOf(rels, pid, inG, side === 'right' ? xmax : xmin);
+      props = VARIANT.props ? proppedBy(vcs, pid, inG, side, VARIANT.propPivot === 'highest' ? pv.top : pv.pivot, true) : [];
+      if (props.length > 0) propStats(props, side, pv, rels, pid, inG, newIdx);
+      else leanStats(side, pv, vcs, spts, pid, inG);
+    }
+    const fails = side !== null && props.length === 0;
     if (record) {
       const pt = [], gt = [];
       for (let i = 0; i < n; i++) { if (pid[i] === P) pt.push(i); if (inG[pid[i]] === 1) gt.push(i); }
-      record.push({ piece: pt, group: gt, size: gs, W8: [gWp, gWq], M32: [gMp, gMq], xmin, xmax, side, fails: side !== null, base: lowT[P], cycle: cyc });
+      const vside = [], pside = [];
+      for (const c of vcs) {
+        const a = inG[pid[c.l]] === 1, b = c.r >= 0 && inG[pid[c.r]] === 1;
+        if (a !== b) vside.push({ side: a ? 'right' : 'left', u: a ? c.l : c.r, v: a ? c.r : c.l, seg: c.seg.map(triple) });
+      }
+      for (const c of spts) {
+        const a = c.l >= 0 && inG[pid[c.l]] === 1, b = c.r >= 0 && inG[pid[c.r]] === 1;
+        if (a !== b) pside.push({ side: a ? 'right' : 'left', u: a ? c.l : c.r, v: a ? c.r : c.l, pt: triple(c.P) });
+      }
+      record.push({
+        piece: pt, group: gt, size: gs, W8: [gWp, gWq], M32: [gMp, gMq], xmin, xmax, side, fails, base: lowT[P], cycle: cyc,
+        pivot: pv && triple(pv.pivot), props: props && props.map((c) => ({ u: side === 'right' ? c.l : c.r, v: side === 'right' ? c.r : c.l, seg: c.seg.map(triple) })), vside, pside,
+      });
     }
     if (side !== null) {
-      stats.failingGroups++;
-      if (inG[pid[newIdx]] === 0) stats.failExcludesNew++;
-      failing.push({ P, G: inG.slice(), size: gs, side, xmin, xmax, gLow, low: tb });
+      const entry = { P, G: inG.slice(), size: gs, side, xmin, xmax, gLow, low: tb, pivot: pv.pivot, choice: pv.choice, props };
+      if (fails) {
+        stats.failingGroups++;
+        if (inG[pid[newIdx]] === 0) stats.failExcludesNew++;
+        failing.push(entry);
+      } else {
+        propped.push(entry);
+        if (side === 'right') propR = true; else propL = true;
+      }
     }
   }
   if (cycleHere) stats.pieceCycleDrops++;
-  if (failing.length === 0) return { tips: null, failing, record, pid };
   // the reported group: the piece with the lowest lowest point, then the larger group, then the
   // smaller col among its lowest tiles
   const better = (f, g, useGroupLow) => {
@@ -555,10 +653,32 @@ function balance(tiles, rels, locks, newIdx) {
     if (f.size !== g.size) return f.size > g.size;
     return tiles[lowT[f.P]].col < tiles[lowT[g.P]].col;
   };
-  let best = failing[0];
-  for (let i = 1; i < failing.length; i++) if (better(failing[i], best, VARIANT.lowestOf === 'group')) best = failing[i];
-  let alt = failing[0];
-  for (let i = 1; i < failing.length; i++) if (better(failing[i], alt, VARIANT.lowestOf !== 'group')) alt = failing[i];
+  const pick = (L, useGroupLow) => { let best = L[0]; for (let i = 1; i < L.length; i++) if (better(L[i], best, useGroupLow)) best = L[i]; return best; };
+  if (propped.length > 0) {
+    stats.propDrops++;
+    if (propR && propL) {
+      stats.propBothSides++;
+      // two groups leaning towards each other, each propped by a tile of the other
+      const into = (f, g) => f.props.some((c) => g.G[pid[f.side === 'right' ? c.r : c.l]] === 1);
+      if (propped.some((f) => f.side === 'right' && propped.some((g) => g.side === 'left' && into(f, g) && into(g, f)))) stats.propMutual++;
+    }
+    if (failing.length === 0) stats.propRescues++;
+    else {
+      stats.propTipsAnyway++;
+      if (pick(failing.concat(propped), VARIANT.lowestOf === 'group') !== pick(failing, VARIANT.lowestOf === 'group')) stats.propReportDiffers++;
+      // props whose far tile V is in a failing group; if such props did not count (one pass), would the
+      // report change?
+      const vIn = (f, c) => failing.some((g) => g.G[pid[f.side === 'right' ? c.r : c.l]] === 1);
+      if (propped.some((f) => f.props.some((c) => vIn(f, c)))) {
+        stats.propByFailing++;
+        const fallen = propped.filter((f) => f.props.every((c) => vIn(f, c)));
+        if (fallen.length > 0 && pick(failing.concat(fallen), VARIANT.lowestOf === 'group') !== pick(failing, VARIANT.lowestOf === 'group')) stats.propByFailingReport++;
+      }
+    }
+  }
+  if (failing.length === 0) return { tips: null, failing, propped, record, pid };
+  const best = pick(failing, VARIANT.lowestOf === 'group');
+  const alt = pick(failing, VARIANT.lowestOf !== 'group');
   if (alt !== best) { stats.altLowestDiffers++; if (alt.G.every((x, i) => x === best.G[i])) stats.altLowestCycle++; }
   if (failing.length > 1) stats.multiFail++;
   // which tie rule decided
@@ -576,31 +696,59 @@ function balance(tiles, rels, locks, newIdx) {
   if (lowTies[best.P] > 1) stats.baseTileTie++;
   const baseIdx = lowT[best.P];
   if (baseIdx === newIdx) stats.baseIsNew++;
-  // the pivot: the support point at the leaning end with the least y
-  const X = best.side === 'right' ? best.xmax : best.xmin;
-  let pivot = null, choice = false;
-  for (let k = 0; k < rels.length; k++) {
-    const r = rels[k];
-    if (best.G[pid[r.u]] === 0 || (r.v >= 0 && best.G[pid[r.v]] === 1)) continue;
-    const ps = r.seg ? r.seg : [r.pt];
-    for (let j = 0; j < ps.length; j++) {
-      const Pt = ps[j];
-      if (Pt[0] !== X) continue;
-      if (pivot === null) { pivot = Pt; continue; }
-      const c = ycmp(Pt[1], Pt[2], pivot[1], pivot[2]);
-      if (c !== 0) choice = true;
-      if (c < 0) pivot = Pt;
-    }
-  }
-  if (choice) stats.pivotChoice++;
+  if (best.choice) stats.pivotChoice++;
   stats.tips++;
   return {
-    tips: { base: sortedTriples(tiles[baseIdx].poly.v), members: best.size, side: best.side, pivot: triple(pivot) },
-    failing, best, baseIdx, tie, baseTileTie: lowTies[best.P] > 1, record, pid,
+    tips: { base: sortedTriples(tiles[baseIdx].poly.v), members: best.size, side: best.side, pivot: triple(best.pivot) },
+    failing, propped, best, baseIdx, tie, baseTileTie: lowTies[best.P] > 1, record, pid,
   };
 }
 
+// census only: what the props of a propped group look like
+function propStats(props, side, pv, rels, pid, G, newIdx) {
+  stats.propped++;
+  if (side === 'right') stats.proppedRight++; else stats.proppedLeft++;
+  stats.propContacts += props.length;
+  if (props.length > 1) stats.multiProp++;
+  const uOf = (x) => (side === 'right' ? x.l : x.r), vOf = (x) => (side === 'right' ? x.r : x.l);
+  if (props.some((x) => uOf(x) === newIdx)) stats.propUIsNew++;
+  // V is a tile the group rests on
+  if (props.some((x) => rels.some((r) => r.v === vOf(x) && G[pid[r.u]] === 1))) stats.propVInSupport++;
+  // where the prop is, across the pivot (leaning right: X < pivot X is over the support's span)
+  const beyond = (x) => (side === 'right' ? x.X - pv.pivot[0] : pv.pivot[0] - x.X);
+  if (props.every((x) => beyond(x) < 0)) stats.propXInside++;
+  else if (props.some((x) => beyond(x) === 0)) stats.propXAtPivot++;
+  else stats.propXOutside++;
+  // every prop reaches down to or below the pivot's height (none would prop if it had to lie wholly above)
+  if (props.every((x) => ycmp(x.loP, x.loQ, pv.pivot[1], pv.pivot[2]) <= 0)) stats.propStraddles++;
+  // it props only because the pivot is the lowest support point at that end
+  if (props.every((x) => ycmp(x.hiP, x.hiQ, pv.top[1], pv.top[2]) <= 0)) stats.propNeedsLowPivot++;
+  if (props.some((x) => lockDir([x.X, x.loP, x.loQ], [x.X, x.hiP, x.hiQ]) !== null)) stats.propLength1++;
+}
+// census only: why a leaning group is not propped (vertical contacts on the other side only, a point on
+// the leaning side, vertical contacts on the leaning side wholly at or below the pivot, or ending exactly there)
+function leanStats(side, pv, vcs, spts, pid, G) {
+  let other = false, below = false, atPivot = false, point = false;
+  for (const c of vcs) {
+    const a = G[pid[c.l]] === 1, b = c.r >= 0 && G[pid[c.r]] === 1;
+    if (a === b) continue;
+    const leaningSide = (side === 'right') === a;
+    if (!leaningSide) { other = true; continue; }
+    const s = ycmp(c.hiP, c.hiQ, pv.pivot[1], pv.pivot[2]);
+    if (s === 0) atPivot = true; else if (s < 0) below = true;
+  }
+  for (const c of spts) {
+    const a = c.l >= 0 && G[pid[c.l]] === 1, b = c.r >= 0 && G[pid[c.r]] === 1;
+    if (a !== b && (side === 'right') === a) point = true;
+  }
+  if (other) stats.leanOtherSide++;
+  if (point) stats.leanPoint++;
+  if (below) stats.leanVerticalBelow++;
+  if (atPivot) stats.leanVerticalAtPivot++;
+}
+
 // ---------------------------------------------------------------- one evaluation
+const cat = (a, b) => (b.length === 0 ? a : a.concat(b)); // the lists are never changed in place
 const MEMO = new WeakMap(); // result object -> internal record
 
 function evaluate(build, kind, col) {
@@ -623,13 +771,13 @@ function evaluate(build, kind, col) {
     if (!points.some((w) => samePt(w, P))) points.push(triple(P));
   }
   points.sort(cmpTriple);
-  let outcome = 'off', reason = 'ONLY A POINT', gap = null, tips = null, newRels = null, newLocks = null, bal = null, tile = null;
+  let outcome = 'off', reason = 'ONLY A POINT', gap = null, tips = null, newRels = null, newLocks = null, newVcs = null, newSpts = null, bal = null, tile = null;
   if (edge.fit) {
     tile = tileInfo(kind, col, poly);
     const n = st.tiles.length;
-    newRels = []; newLocks = [];
-    for (const { nb, t } of touches) relate(n, poly, nb.idx, nb.poly, t, newRels, newLocks);
-    bal = balance(st.tiles.concat([tile]), st.rels.concat(newRels), st.locks.concat(newLocks), n);
+    newRels = []; newLocks = []; newVcs = []; newSpts = [];
+    for (const { nb, t } of touches) relate(n, poly, nb.idx, nb.poly, t, newRels, newLocks, newVcs, newSpts);
+    bal = balance(st.tiles.concat([tile]), st.rels.concat(newRels), st.locks.concat(newLocks), cat(st.vcs, newVcs), cat(st.spts, newSpts), n);
     if (bal.tips) { reason = 'TIPS OVER'; tips = bal.tips; }
     else {
       outcome = 'fit'; reason = null; gap = edge.gap;
@@ -649,7 +797,7 @@ function evaluate(build, kind, col) {
     gap,
     tips,
   };
-  const rec = { build, kind, col, y0: [p0, q0], tile, newRels, newLocks, bal, edgeFit: edge.fit, json: null };
+  const rec = { build, kind, col, y0: [p0, q0], tile, newRels, newLocks, newVcs, newSpts, bal, edgeFit: edge.fit, json: null };
   MEMO.set(res, rec);
   return { res, rec };
 }
@@ -718,7 +866,7 @@ function place(build, result) {
   }
   const st = build[STATE];
   for (const w of rec.tile.poly.v) if (Math.abs(w[0]) > COORD_LIM || Math.abs(w[1]) > COORD_LIM || Math.abs(w[2]) > COORD_LIM) throw new Error('place: build too tall');
-  return makeBuild(st.half, st.tiles.concat([rec.tile]), st.rels.concat(rec.newRels), st.locks.concat(rec.newLocks), rec.bal.pid);
+  return makeBuild(st.half, st.tiles.concat([rec.tile]), st.rels.concat(rec.newRels), st.locks.concat(rec.newLocks), cat(st.vcs, rec.newVcs), cat(st.spts, rec.newSpts), rec.bal.pid);
 }
 
 // ---------------------------------------------------------------- test hooks (not part of the spec)
@@ -734,7 +882,11 @@ function _details(result) {
     locksAll: rec.newLocks && st.locks.concat(rec.newLocks).map((L) => [L.a, L.b]),
     pieces: rec.bal ? Array.from(rec.bal.pid) : null, // the piece number of every tile of the new build
     // failing groups, by piece: tiles of the piece, size of the group, side
-    failing: rec.bal ? rec.bal.failing.map((f) => ({ piece: f.P, size: f.size, side: f.side, groupPieces: Array.from(f.G) })) : null,
+    failing: rec.bal ? rec.bal.failing.map((f) => ({ piece: f.P, size: f.size, side: f.side, pivot: triple(f.pivot), groupPieces: Array.from(f.G) })) : null,
+    // leaning groups that are propped (5e), by piece
+    propped: rec.bal ? rec.bal.propped.map((f) => ({ piece: f.P, size: f.size, side: f.side, pivot: triple(f.pivot), groupPieces: Array.from(f.G) })) : null,
+    vcsNew: rec.newVcs && rec.newVcs.map((c) => ({ l: c.l, r: c.r, seg: c.seg.map(triple) })), // vertical contacts of the new tile: l on the left
+    vcsAll: rec.newVcs && st.vcs.concat(rec.newVcs).map((c) => ({ l: c.l, r: c.r, seg: c.seg.map(triple) })),
     chosen: rec.bal && rec.bal.tips ? rec.bal.best.P : null,
     baseIdx: rec.bal && rec.bal.tips ? rec.bal.baseIdx : null,
     tie: rec.bal ? rec.bal.tie || null : null, // null, 'size' or 'col': the tie rule that decided
@@ -748,7 +900,20 @@ function _variant(opts) {
   const o = opts || {};
   VARIANT.verticalLocks = o.verticalLocks === undefined ? true : !!o.verticalLocks;
   VARIANT.lowestOf = o.lowestOf === 'group' ? 'group' : 'piece';
+  VARIANT.props = o.props === undefined ? true : !!o.props;
+  VARIANT.propHeight = ['atOrAbove', 'whollyAbove', 'any'].includes(o.propHeight) ? o.propHeight : 'strict';
+  VARIANT.propSide = o.propSide === 'either' ? 'either' : 'leaning';
+  VARIANT.propPivot = o.propPivot === 'highest' ? 'highest' : 'lowest';
+}
+// the prop rule alone: contacts [{ l, r, lo, hi }] (l, r tile indices, -1 = the car; lo, hi the ends as
+// [X, p, q]), the piece of each tile, the pieces of the group, the side and the pivot [X, p, q];
+// returns the indices of the propping contacts
+function _proppedBy(contacts, pieceOf, groupPieces, side, pivot) {
+  const vcs = contacts.map((c) => ({ l: c.l, r: c.r, X: c.hi[0], loP: c.lo[1], loQ: c.lo[2], hiP: c.hi[1], hiQ: c.hi[2], seg: [c.lo, c.hi] }));
+  const G = new Uint8Array(Math.max(0, ...pieceOf) + 1);
+  for (const P of groupPieces) G[P] = 1;
+  return proppedBy(vcs, Int32Array.from(pieceOf), G, side, pivot, true).map((c) => vcs.indexOf(c));
 }
 const _firstCycle = () => firstCycle;
 
-module.exports = { newBuild, drop, place, _details, _stats: stats, _resetStats: resetStats, _selfCheck, _record, _variant, _firstCycle };
+module.exports = { newBuild, drop, place, _details, _stats: stats, _resetStats: resetStats, _selfCheck, _record, _variant, _firstCycle, _proppedBy };

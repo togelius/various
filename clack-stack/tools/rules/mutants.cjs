@@ -1,7 +1,7 @@
 'use strict';
 // Mutation testing of rules.js (DESIGN §18.8): each mutant in mutants.json is a text patch of rules.js
 // ({name, what, find, replace}; `find` must occur exactly once). A mutant is killed when the golden cases fail, or the
-// enumeration to depth 6 breaks an invariant (I1, the oracle, among them when tools/oracle/oracle.cjs answers SPEC 5d) or
+// enumeration to depth 6 breaks an invariant (I1, the oracle, among them when tools/oracle/oracle.cjs answers SPEC 5e) or
 // crashes. Both are run, so the report says what caught each one; a third run checks I1 alone, so the report also says
 // whether the oracle by itself kills each mutant (i1: true/false). A mutant may carry `equivalent` (why no build is known
 // to tell it apart from the rules, with the evidence): if it survives it is reported EQUIVALENT, an open question, not a
@@ -15,7 +15,7 @@ const rulesVm = require('../lib/rules-vm.cjs');
 const { runGolden } = require('./golden.cjs');
 
 const MUTANTS = path.join(__dirname, 'mutants.json');
-// the oracle for I1 only when it answers SPEC 5d (enumerate.cjs defaultOracle); otherwise rules-only
+// the oracle for I1 only when it answers SPEC 5e (enumerate.cjs defaultOracle); otherwise rules-only
 const defaultCompare = () => require('./enumerate.cjs').defaultOracle().path;
 function list() { return JSON.parse(fs.readFileSync(MUTANTS, 'utf8')); }
 function patch(src, m) {

@@ -27,3 +27,6 @@ sentence, and `SEALED` gets the new hash in the same edit.
   on both sides, the oracle author's 80 hand runs and a 1,852,260-drop steered fuzz to 40 tiles on half 1, 2, 3 and 50
   (fitsAll and every new build's rests, locks, pieces and groups compared too) found no disagreement, so neither side
   was changed. A hand-built build where SPEC §5c's last tie rule decides (golden R5, half 4) agrees on both sides.
+- Revision 5e, round 1 (2026-10-24): revision 5e: SPEC changed (side props); oracle updated in isolation.
+  `oracle.cjs`, `test-golden.cjs` and `ambiguities.md` were replaced by the 5e oracle author's delivery (written from
+  SPEC.md 5e alone), and `SEALED` holds its sha256.

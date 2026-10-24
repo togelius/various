@@ -63,6 +63,14 @@ function makeItem(log, B, T, piece, col, way) {
   return { log, B, T, piece, col, way: piece === 'sq' ? null : way, type: typeOf(piece, way), res, d, fit: res.outcome === 'fit', reason: res.reason,
     n: T.length, h: height(T), ck: K.ck, id: K.key + '|' + piece + col + (way || '') };
 }
+// revision 5e: a fit that stands only by a prop (a part it joins leans past what it rests on, and the side of a square
+// beside it holds it up): RULES.props of the build it makes has a group with the new tile in it
+function proppedOf(it) {
+  const Rr = R();
+  if (!it.fit || typeof Rr.props !== 'function') return false;
+  const n = it.B.tiles.length;
+  return Rr.props(Rr.place(it.B, it.res)).some(g => g.members.includes(n));
+}
 // the members of a TIPS OVER's part as tiles' corners (the dropped tile's own for the build's length)
 function memberVerts(it) {
   if (!it.res.tips) return [];
@@ -194,7 +202,7 @@ function fitItems(byStratum, rnd, prefix) {
         const show = mirrorSide(it, m);
         out.push({ kind: prefix ? 'ghost' : 'fit', stratum: sid, stratumName: S.name, pair: pid, pairKind: p.kind, mirrored: m,
           build: show.log, hand: { piece: show.piece, col: show.col, way: show.way }, answer: it.fit ? 'STAYS' : 'FALLS OFF', reason: it.reason || null,
-          tips: it.res.tips ? { side: m ? (it.res.tips.side === 'left' ? 'right' : 'left') : it.res.tips.side, members: it.res.tips.members.length } : null,
+          tips: it.res.tips ? { side: m ? (it.res.tips.side === 'left' ? 'right' : 'left') : it.res.tips.side, members: it.res.tips.members.length } : null, propped: proppedOf(it),
           extra: p.kind === 'add' ? { tile: fmt(p.extra.drop.piece, m ? canon.mirrorCol(p.extra.drop.col) : p.extra.drop.col, p.extra.drop.way), in: (p.extra.on === 'A') === (role === 'stays') ? 'this build' : 'the partner' } : null,
           held: it.d.held, sides: it.d.sides === undefined ? null : it.d.sides, gap: it.d.thin, uid: it.id + (m ? '|m' : '') });
         k++;

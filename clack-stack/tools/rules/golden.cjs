@@ -1,9 +1,10 @@
 'use strict';
-// The golden cases of DESIGN §18.9 / SPEC §9 (revision 5d: cases 1–18) through rules.js. Each case's last drop is
+// The golden cases of DESIGN §18.9 / SPEC §9 (revision 5e: cases 1–19) through rules.js. Each case's last drop is
 // checked in the full comparison format (SPEC §8, tips included). The expectations below were worked out by hand from
 // SPEC §1–8 (not copied from rules.js), and every earlier drop must fit. `also` adds hand-derived checks: the drop with
 // no way given (SPEC §6), how earlier tiles hold, and the game's own form of tips (DESIGN §18.7: the base's index,
-// the members' indices, the centre of weight). After the cases, SPEC §6's way choice is checked on made-up pairs of
+// the members' indices, the centre of weight), and the groups props() names as propped in the build the drop leaves (in
+// the build itself when it does not fit). After the cases, SPEC §6's way choice is checked on made-up pairs of
 // results, because on real builds both ways never fit at once (so the "both fit" branch can't be reached through
 // drop()), and because "neither fits" has its own rule for TIPS OVER.
 // node tools/rules/golden.cjs [--quiet]; exit code 0 when all pass.
@@ -41,11 +42,17 @@ const S = (a, b) => [a, b];
 //     ▲ on the ▼ tops at 1 + h; ▼−1, ▼0 in its notches (tops at 1 + 2h); ■−1, ■0 on those. ■0 (X 0..2, y 1 + 2h →
 //     [2, 2]): on ▼0's top, beside ■−1 along its left side; the apexes and corners it touches lie on those segments.
 //
-// The balance (SPEC §5c, revision 5d), by hand. Weights ×4 (a square 4, a triangle √3) and x in half tiles X (a tile's
+// The balance (SPEC §5c, revisions 5d and 5e), by hand. Weights ×4 (a square 4, a triangle √3) and x in half tiles X (a tile's
 // middle at X = col + 1); a group leans right when 4·Σ■(X − Xmax) + √3·Σ▲▼(X − Xmax) > 0 and left when
 // 4·Σ■(Xmin − X) + √3·Σ▲▼(Xmin − X) > 0, where Xmin, Xmax are the ends of its support; exactly over an end is balanced,
 // and there is no grip. Locks: a contact of length 1 (a whole edge) locks, half an edge or a point does not, the car
 // never does. A group is its piece, everything resting on it and everything locked to that, all the way up.
+// Props (5e): a group that leans is still balanced if a tile U of it shares an upright contact of positive length with
+// a tile V outside it (never the car), on U's side toward the lean, whose upper end is higher than the pivot. Only
+// squares have upright sides, so only a square of the group beside a square outside it can prop it. Re-checked for
+// every case below: in 1–18 no group that leans has such a contact (the TIPS OVER cases: 14 is all triangles; in 15
+// and 16 the square of the group has nothing beside it toward the lean; in 18 the group's squares have nothing beside
+// them at X 0 and the lower ■−2 meets them only at its top corner), so every expectation stands as in 5d.
 //  6. ■−1, ■−1 (flat lock), ▲−1 (flat), ▼−1.5 (slant), ▲−1.5 (flat), ▼−2 (slant): one piece of six, nothing else, so
 //     its group is the same six. It rests on the car X −2..0 only (▼−1.5's point on the square's corner and ▲−1.5's
 //     corner on ▲−1's apex are inside it). Middles ■ −1, ■ −1, ▲ −1, ▼ −2, ▲ −2, ▼ −3. Right, past Xmax 0:
@@ -105,6 +112,21 @@ const S = (a, b) => [a, b];
 //     is ▼−2's (col −4). Base ▼−2, members 7, right, pivot: at X −2 the support has only (−2, 1) = (−1, 1), [−2, 2, 0].
 //     The game's form: base 2, members [1 … 7], centre of weight (−2.5 − 1.25√3)/(3 + √3) = −0.9858. (5c's grip kept
 //     it.)
+// 19. (5e) ■0 (X 0..2) on the car, top at 1. ▲−2 (X −4..−2) on the car, apex (X −3, h); ▼−1.5 (X −3..−1) on its right
+//     side (slant lock), point on the car at X −2, top at h. ■−2 (X −4..−2) stops at h on ▲−2's apex and half on ▼−1.5's
+//     top (X −3..−2; no lock). ■−1 (X −2..0) stops at h half on ▼−1.5's top (X −2..−1; no lock); its left side meets
+//     ■−2's right side whole (X −2, h … 1 + h: an upright lock), and its right side meets ■0's left side over X 0, h … 1
+//     only (an upright contact of 1 − h, no lock). The new ■−1 lands whole on ■−1's top at 1 + h (flat lock): verts
+//     (X −2..0, 1 + h … 2 + h); its contacts are that top (■−2's top corner and the lower ■−1's corner lie on it); no gap.
+//     Pieces: {▲−2, ▼−1.5}, {■−2, ■−1, ■−1'}, {■0}. The group of {▲−2, ▼−1.5}: everything resting on it (■−2, ■−1, and
+//     the new ■−1 on those): five tiles, standing on the car X −4..−2 (▲−2's base, ▼−1.5's point at X −2). Middles ▲ −3,
+//     ▼ −2, ■ −3, ■ −1, ■ −1. Right, past −2: 4·(−1 + 1 + 1) + √3·(−1 + 0) = 4 − √3 > 0: it leans right; its pivot is the
+//     lowest support point at X −2, (−1, 0). Prop: ■−1 (in the group) presses with its right side on ■0 (outside it)
+//     from h to 1, and 1 > 0: propped, balanced. The squares' piece's group (itself) stands on ▲−2's apex and ▼−1.5's
+//     top, X −3..−1: middles −3, −1, −1, right past −1: −8 < 0, left past −3: −16 < 0: balanced. ■0 alone on the car:
+//     balanced. Fit. Before the new square: right 4·(−1 + 1) − √3 < 0, no lean (in this order the prop is not yet
+//     needed). props() of the build it makes: the group [1 … 5], right, pivot (−2, 0, 0), held by tile 4 (the lower ■−1)
+//     on tile 0 (■0) along X 0 from h to 1. (5d tipped it.)
 const CASES = [
   { n: 1, drops: ['■1'], last: '▲1.5', title: '▲ half on a square at the car\'s end, half past it',
     caption: 'A triangle with half of its bottom on the square stays: the magnets on half an edge hold it.',
@@ -199,11 +221,22 @@ const CASES = [
     expect: { outcome: 'off', way: null, verts: [[-2, 4, 1], [-2, 6, 1], [0, 4, 1], [0, 6, 1]], reason: 'TIPS OVER',
       contacts: { segments: [S([-2, 4, 1], [0, 4, 1])], points: [] }, shine: [], gap: null,
       tips: { base: [[-4, 2, 1], [-3, 2, 0], [-2, 2, 1]], members: 7, side: 'right', pivot: [-2, 2, 0] } },
-    also: { oneSide: [2, 5], game: { base: 2, members: [1, 2, 3, 4, 5, 6, 7], com: (-2.5 - 1.25 * Math.sqrt(3)) / (3 + Math.sqrt(3)) } } }
+    also: { oneSide: [2, 5], game: { base: 2, members: [1, 2, 3, 4, 5, 6, 7], com: (-2.5 - 1.25 * Math.sqrt(3)) / (3 + Math.sqrt(3)) }, props: [] } },
+  { n: 19, drops: ['■0', '▲-2', '▼-1.5', '■-2', '■-1'], last: '■-1', title: 'a stack leaning on the square beside it',
+    caption: 'The tiles on the hung triangle lean right past where they stand, but the square beside them holds them up: its side presses on theirs above the corner they would tip over. The square stays.',
+    expect: { outcome: 'fit', way: null, verts: [[-2, 2, 1], [-2, 4, 1], [0, 2, 1], [0, 4, 1]], reason: null,
+      contacts: { segments: [S([-2, 2, 1], [0, 2, 1])], points: [] }, shine: [S([-2, 2, 1], [0, 2, 1])], gap: null, tips: null },
+    also: { oneSide: [2], props: [{ members: [1, 2, 3, 4, 5], side: 'right', pivot: [-2, 0, 0], props: [{ tile: 4, by: 0, seg: [[0, 0, 1], [0, 2, 0]] }] }] } }
 ];
 // The regression corpus (DESIGN §18.8): builds the tiers found that tell a wrong reading of SPEC §5c apart where the
-// golden cases above do not, worked out by hand like them (re-derived for revision 5d). They are not SPEC §9's cases and
+// golden cases above do not, worked out by hand like them (re-derived for revision 5e). They are not SPEC §9's cases and
 // are not on the golden sheet. Weights ×4, x in half tiles X, as in the note above case 6.
+// Re-derived for 5e (props): R1 and R2 have one square each, so no upright contact at all. In R3 and R4 no two squares
+// beside each other meet along part of a side (R3: ■0 meets the upper ■1 along a whole side, a lock, and nothing else;
+// R4: the squares beside each other are locked, and every other pair is a whole tile or more apart in height). In R5
+// the one upright contact that is not a lock (■0's right side on ■1's, 2h … 1 + h) joins two tiles of the same group of
+// 24, which is the whole build, so nothing is outside it to prop it, and column R's group stands exactly over its end
+// without leaning. So no group that leans has a prop, and R1–R5 stand as in 5d.
 // R1 (found at depth 8 under 5c: the pivot is the LOWEST support point at the group's end; it still is under 5d).
 //    ▲−2 (X −4..−2) and ▲−0.5 (X −1..1) on the car; ▼−1.5 (X −3..−1) on ▲−2's right side (slant lock), point on the car
 //    at X −2; ▼0 (X 0..2) on ▲−0.5's right side (slant lock), point on the car at X 1 (tops h); ▲−0.5 again at h, half on
@@ -308,6 +341,116 @@ const CASES = [
 //    col would take P, base ▼0.5). Members 24, right; pivot: at X 4 the support has only (4, 0) (▲1's corner and
 //    ▼1.5's point). The game's form: base 2, members 0 … 23, centre of weight (Σ■ x + √3/4·Σ▲▼ x)/(12 + 12·√3/4) =
 //    (28 + 15√3/4)/(12 + 3√3) = 2.0060.
+// The prop cases (5e), by hand, each telling one wrong reading of SPEC §5c's props apart (tools/rules/mutants.json):
+// P1 (a prop on the other side does not count; props-either-side). ■−2 (X −4..−2) on the car, top at 1. ▲−1 (X −2..0)
+//    on the car; ▼−0.5 (X −1..1) on its right side (slant lock), point on the car at X 0, top at h. ■−1 (X −2..0) stops
+//    at h on ▲−1's apex (X −1) and half on ▼−0.5's top (X −1..0, no lock); its left side meets ■−2's right side over
+//    X −2, h … 1 (upright, no lock). Its group (itself) stands on X −1..0 with its middle X −1 at the end: no lean. ■0
+//    (X 0..2) stops at h half on ▼−0.5's top (X 0..1) and beside ■−1 along a whole side (upright lock): the piece
+//    {■−1, ■0} stands on X −1..1, middles −1, 1: no lean. The group of {▲−1, ▼−0.5} (with the two squares, 4 tiles) on
+//    the car X −2..0: right past 0, 4·(−1 + 1) + √3·(−1 + 0) < 0: no lean. The new ■0 lands whole on ■0's top at 1 + h
+//    (flat lock); the corner of ■−1 it touches lies on that segment. The squares' group (three) on X −1..1: middles −1,
+//    1, 1, right past 1: −8 < 0: no lean. The group of {▲−1, ▼−0.5} (five): middles ▲ −1, ▼ 0, ■ −1, 1, 1 over X −2..0:
+//    right past 0, 4·(−1 + 1 + 1) + √3·(−1 + 0) = 4 − √3 > 0: it leans right, pivot (0, 0). Its squares' right sides
+//    (X 0 inside the group, X 2) meet nothing outside it; ■−1's left side presses on ■−2 above the pivot, but that is
+//    the side away from the lean: no prop. TIPS OVER: base ▲−1 (the piece's lowest tiles ▲−1 and ▼−0.5, the smaller col
+//    ▲−1's), members 5, right, pivot (0, 0, 0). The game's form: base 1, members [1 … 5], centre of weight
+//    (½ − √3/8)/(3 + √3/2). With ■−2 at the right instead (■1 on the car, golden 19 moved one tile right) it stands.
+// P2 (a prop is judged by its upper end, not its lower; prop-height-lower-end). ■−2, ▲−1, ▼−0.5 and ■−1 as in P1.
+//    ▲−1.5 (X −3..−1) stops at 1 + h half on ■−1's top (X −2..−1, no lock); under its other half ■−2's top is h lower
+//    (gap √3/2). Its own group (itself) on X −2..−1, its middle X −2 at the end: no lean. ■−1's group, {■−1, ▲−1.5},
+//    stands on ▲−1's apex and ▼−0.5's top, X −1..0: middles ■ −1, ▲ −2; left past −1: 4·0 + √3·(−1 + 2) = √3 > 0: it
+//    leans left, pivot (X −1, h) (the apex, and the end of the ▼'s top). Prop: ■−1's left side presses on ■−2 (outside
+//    it) over X −2, h … 1: its lower end is level with the pivot, its upper end 1 is above it: propped. The group of
+//    {▲−1, ▼−0.5} (four) on the car X −2..0: middles −1, 0, −1, −2: left past −2, 4·(−1) + √3·(−1 − 2 + 0) < 0, right
+//    past 0 < 0: no lean. ■−2 alone: no lean. Fit. props(): the group [3, 4], left, pivot (−1, 0, 1), tile 3 on tile 0
+//    along X −2 from h to 1.
+// P3 and P8 (a contact level with the pivot, or wholly below it, does not prop; prop-height-at-pivot and
+//    prop-height-ignored). No build of up to 8 tiles has one (exhaustive), nor did 300,000 random games of up to 16
+//    tiles on half 2 and 3: the group must stand on the square it presses on (or on something as high beside it) and
+//    still lean toward it past its far end, against the weight of the square that presses. Both were built by hand.
+//    The footing for both: ▲−2 (X −4..−2) and ▲−1 (X −2..0) on the car, ▼−1.5 (X −3..−1) in their notch (slant locks:
+//    one piece Q, on the car X −4..0), top h. ■−1 (X −2..0), the presser U, stops at h half on ▼−1.5's top (X −2..−1)
+//    and on ▲−1's apex (X −1): alone its middle X −1 is at the end of X −2..−1. ■0 (X 0..2), the square pressed on, V,
+//    on the car: U's right side meets V's left side over X 0, h … 1 (upright, no lock), so its upper end is at 1.
+// P3. ▲−1 (X −2..0) whole on U's top at 1 + h (flat lock): U and it stand on X −2..−1 with both middles at X −1, the
+//    end (no lean). ▲0.5 (X 1..3) stops at 1 half on V's top (X 1..2; over X 2..3 the car, 1 lower), alone with its
+//    middle X 2 at the end. ▼0 (X 0..2) hangs on ▲0.5's left side (slant lock), its point (X 1, 1) on V's top, top at
+//    1 + h; its top-left corner meets U's top-right corner. ▼−0.5 (X −1..1) hangs on the upper ▲−1's right side (slant
+//    lock), its point (X 0, 1 + h) on ▼0's top-left corner: it rests on ▼0 (beside that corner its inside is straight
+//    over ▼0's). (In the other order ▼0 could not get under ▼−0.5's free half.) ▼1 (X 2..4) hangs on ▲0.5's right side
+//    (slant lock), its point (X 3, 1) over the bare car, top at 1 + h; ■1 (X 2..4) whole on that top (flat lock), and
+//    four more ■1 on it (flat locks). Pieces: Q; {V}; U's, {U, ▲−1, ▼−0.5}; A = {▲0.5, ▼0, ▼1, the ■1s}. A's group is A,
+//    and ▼−0.5's piece (it rests on ▼0): it stands on V's top (▲0.5's half base X 1..2, ▼0's point X 1, both at 1) and,
+//    through U, on Q (X −2..−1 at h): X −2..2, and at X 2 the only support point is (2, 1). Middles (X): U −1, ▲−1 −1,
+//    ▼−0.5 0, ▼0 1, ▲0.5 2, ▼1 3, the squares 3. Right past 2 with m squares: 4·(−3 + m) + √3·(−3 − 2 − 1 + 0 + 1)
+//    = 4m − 12 − 5√3: m = 5 gives 8 − 5√3 < 0 (64 < 75), so every drop before the last fits (and every earlier group:
+//    ▼1 alone on half-held ▲0.5 would tip, but ▼−0.5's piece is already on A). The new ■1 lands whole on the fifth at
+//    6 + h (flat lock), m = 6: 12 − 5√3 > 0 (144 > 75): A's group leans right over (2, 1). Its only upright contact
+//    with a tile outside it is U's on V, on U's right side, toward the lean, but its upper end 1 is level with the
+//    pivot, not above: no prop. The other groups: V's (V and A's group, on the car X 0..2 and on Q at X −2..−1): right
+//    past 2, 12 − 5√3 − 4 < 0 (64 < 75); U's piece's (the three, on Q X −2..−1 and on ▼0's corner X 0): right past 0,
+//    −4 − √3 < 0; Q's (Q and U's piece, on the car X −4..0 and ▼0's corner): balanced. TIPS OVER: A's lowest tiles are
+//    ▲0.5 (col 1), ▼0 (col 0) and ▼1 (col 2), all at 1: base ▼0, members 12, right, pivot (2, 2, 0). Its contacts: the
+//    fifth square's top. The game's form: base 7, members [3, 5 … 15], centre of weight (Σ■ x + √3/4·Σ▲▼ x)/(7 + 5√3/4)
+//    = (8.5 + 2.5·√3/4)/(7 + 5√3/4) = 1.0455.
+// P8. ■1 (X 2..4) on the car beside V (upright lock), ▲1 (X 2..4) whole on its top (flat lock), ▼0.5 (X 1..3) hung on
+//    its left side (slant lock), point (X 2, 1) on the two squares' corner, top at 1 + h: V's piece W = {V, ■1, ▲1,
+//    ▼0.5}, on the car X 0..4. ▲−1 whole on U's top at 1 + h (flat lock). ▲0 (X 0..2) stops at 1 + h half on ▼0.5's
+//    top (X 1..2; over X 0..1, V's top h lower), alone with its middle X 1 at the end. ▼−0.5 (X −1..1) in the notch of
+//    the upper ▲−1 and ▲0 (slant locks), point (X 0, 1 + h). ▼0.5 (X 1..3) hung on ▲0's right side (slant lock), its
+//    point (X 2, 1 + h) on the lower ▼0.5's top, top at 1 + 2h. ■1 (X 2..4) stops at 1 + 2h half on that top (X 2..3),
+//    and four more ■1 on it (flat locks): the column stands on X 2..3 with every middle at X 3, the end. U's piece is
+//    now P = {U, ▲−1, ▼−0.5, ▲0, ▼0.5 (upper)}, and its group P and the column, on Q (X −2..−1 at h) and on the lower
+//    ▼0.5's top (▲0's half base X 1..2 and the upper ▼0.5's point X 2, at 1 + h): X −2..2, and at X 2 the only support
+//    point is (2, 1 + h). Middles: U −1, ▲−1 −1, ▼−0.5 0, ▲0 1, ▼0.5 2, the k squares 3. Right past 2:
+//    4·(−3 + k) + √3·(−3 − 2 − 1 + 0) = 4k − 12 − 6√3: k = 5 gives 8 − 6√3 < 0 (64 < 108); the new ■1 (k = 6, at
+//    6 + 2h) gives 12 − 6√3 > 0 (144 > 108): it leans right over (2, 1 + h). U's contact with V reaches only 1, below
+//    the pivot: no prop. The other groups: W's (W, P and the column, on the car X 0..4 and on Q at X −2..−1): every
+//    middle inside, balanced; Q's (Q, P and the column, on the car X −4..0 and the lower ▼0.5's top X 1..2): right past
+//    2, 12 − 6√3 + √3·(−5 − 3 − 4) < 0; the column's own group stands exactly over X 3. TIPS OVER: P's lowest tile is U
+//    (at h): base U, members 11, right, pivot (2, 2, 1). The game's form: base 3, members [3, 8 … 17], centre of weight
+//    (8.5 + √3/4)/(7 + √3) = 1.0230.
+// P4 (a contact at a single point does not prop; prop-at-a-point). ■−2 and ■−2 again (flat lock; X −4..−2, 0 … 2).
+//    ■0 (X 0..2) on the car. ▲−0.5 (X −1..1) stops at 1 half on ■0's top (X 0..1, no lock; under its other half the car,
+//    1 lower); alone it stands with its middle X 0 at the end. ▼−1 (X −2..0) hangs on ▲−0.5's left side (slant lock),
+//    its point (X −1, 1) at ▲−0.5's corner, over air; its top-left corner (X −2, 1 + h) touches the upper ■−2's right
+//    side at a point. The piece {▲−0.5, ▼−1} (nothing on it) stands on ■0's top X 0..1 only: middles ▲ 0, ▼ −1; left
+//    past 0: √3·(0 + 1) > 0: it leans left, pivot (0, 1). Its tiles have no upright side, and the corner on ■−2's side
+//    is a point: no prop. ■0's group (three, on the car X 0..2): left 4·(0 − 1) + √3·(0 + 1) < 0: no lean. TIPS OVER:
+//    the piece's lowest tiles are ▲−0.5 (base at 1) and ▼−1 (point at 1), the smaller col ▼−1's: base ▼−1, members 2,
+//    left, pivot (0, 2, 0); contacts: the slant [−1, 2, 0]–[0, 2, 1] and the point [−2, 2, 1]. The game's form: base 4,
+//    members [3, 4], centre of weight −¼. No way given: ▲−1 would stop at 1 + h on ▲−0.5's apex and touch ■−2 at a
+//    corner (only points), so ▼ (it tips over).
+// P5 (the new tile itself presses; props-new-tile-ignored). ■−2 (X −4..−2) on the car. ▲0 (X 0..2) on the car; ▼−0.5
+//    (X −1..1) on its left side (slant lock), point on the car at X 0, top at h. ■−1 (X −2..0) stops at h half on
+//    ▼−0.5's top (X −1..0, no lock), its left side on ■−2's right side over X −2, h … 1 (upright, no lock); under its
+//    left half the car, h lower (gap √3/2). Its own group (itself) on X −1..0, middle X −1 at the end: no lean. The group
+//    of {▲0, ▼−0.5} (with it, three) stands on the car X 0..2 (▲0's base, ▼−0.5's point at X 0): middles ▲ 1, ▼ 0, ■ −1;
+//    left past 0, 4·(0 + 1) + √3·(0 − 1 + 0) = 4 − √3 > 0: it leans left, pivot (0, 0). Prop: the new ■−1 presses with
+//    its left side on ■−2 (outside) up to 1 > 0: propped. Fit. props(): the group [1, 2, 3], left, pivot (0, 0, 0),
+//    tile 3 on tile 0 along X −2 from h to 1. (Golden 19 at its fourth tile, mirrored, with the pressing square new.)
+// P6 (a square placed beside a group later still props it; prop-one-way-record). Golden 19's tiles, ■0 dropped fifth:
+//    ▲−2, ▼−1.5, ■−2, ■−1 as there (■−2 and ■−1 locked side by side, the group of {▲−2, ▼−1.5} with them over X −4..−2:
+//    right 4·(−1 + 1) − √3 < 0, no lean); ■0 on the car, its left side meeting ■−1's right side over X 0, h … 1; then
+//    the new ■−1 on ■−1: as golden 19 (the five lean right over (−1, 0) and ■−1 presses on ■0 above it): fit. props():
+//    the group [0, 1, 2, 3, 5], right, pivot (−2, 0, 0), tile 3 on tile 4.
+// P7 (a contact inside the group does not prop it; prop-inside-group; found at depth 8, the smallest there is).
+//    ▲−1.5 (X −3..−1) on the car; ▼−2 (X −4..−2) on its left side (slant lock), point on the car at X −3, top h; ■−2
+//    (X −4..−2) whole on that top (flat lock); ▼−1 (X −2..0) on ▲−1.5's right side (slant lock), point on the car at
+//    X −1, top h; ▲−1 (X −2..0) whole on that top (flat lock), apex (X −1, 2h); ▼−0.5 (X −1..1) on ▲−1's right side
+//    (slant lock), point on ▼−1's top corner (X 0, h), top 2h. Those six are one piece, A, on the car X −3..−1 (▲−1.5's
+//    base and the two ▼ points). ■−1 (X −2..0) stops at 2h on ▲−1's apex and half on ▼−0.5's top (no lock); its left
+//    side meets ■−2's right side over X −2, 2h … 1 + h (upright, no lock). ■0 (X 0..2) at 2h half on ▼−0.5's top, beside
+//    ■−1 along a whole side (upright lock): piece B = {■−1, ■0}, on X −1..1, middles −1, 1: no lean. A's group (A and B)
+//    over X −3..−1: middles ▲ −2, ▼ −3, ■ −3, ▼ −1, ▲ −1, ▼ 0, ■ −1, ■ 1; right past −1, 4·(−2 + 0 + 2) + √3·(−1 − 2 +
+//    0 + 0 + 1) = −2√3 < 0: no lean. The new ■0 lands whole on ■0's top at 1 + 2h (flat lock; ■−1's corner lies on that
+//    segment): B's group (three) on X −1..1, middles −1, 1, 1, right past 1: −8: no lean. A's group (nine): right past
+//    −1, 4·(−2 + 0 + 2 + 2) − 2√3 = 8 − 2√3 > 0: it leans right, pivot (−1, 0) (▲−1.5's corner and ▼−1's point). Its
+//    squares' right sides meet nothing outside it (X 0 is ■0, locked; X 2 nothing); ■−2's right side presses on ■−1
+//    above the pivot, but ■−1 is in the same group: no prop. TIPS OVER: A's lowest tiles ▲−1.5 (col −3), ▼−2 (col −4)
+//    and ▼−1 (col −2): base ▼−2, members 9, right, pivot (−1, 0, 0). The game's form: base 1, members [0 … 8], centre of
+//    weight (Σ■ x + √3/4·Σ▲▼ x)/(4 + 5√3/4) = (−1 − 3.5·√3/4)/(4 + 5√3/4).
 const REGRESSION = [
   { n: 'R1', drops: ['▲-2', '▲-0.5', '▼-1.5', '▼0', '▲-0.5', '▼-1', '▲-1', '▼-1.5'], last: '■-2', title: 'the pivot is the lowest support point at the group\'s end',
     expect: { outcome: 'off', way: null, verts: [[-4, 0, 3], [-4, 2, 3], [-2, 0, 3], [-2, 2, 3]], reason: 'TIPS OVER',
@@ -333,7 +476,44 @@ const REGRESSION = [
     expect: { outcome: 'off', way: null, verts: [[6, 12, 3], [6, 14, 3], [8, 12, 3], [8, 14, 3]], reason: 'TIPS OVER',
       contacts: { segments: [S([6, 12, 3], [8, 12, 3])], points: [] }, shine: [], gap: null,
       tips: { base: [[-3, 0, 0], [-2, 0, 1], [-1, 0, 0]], members: 24, side: 'right', pivot: [4, 0, 0] } },
-    also: { oneSide: [1, 3, 6, 8, 11, 14, 16], game: { base: 2, members: Array.from({ length: 24 }, (_, i) => i), com: (28 + 15 * Math.sqrt(3) / 4) / (12 + 3 * Math.sqrt(3)) } } }
+    also: { oneSide: [1, 3, 6, 8, 11, 14, 16], game: { base: 2, members: Array.from({ length: 24 }, (_, i) => i), com: (28 + 15 * Math.sqrt(3) / 4) / (12 + 3 * Math.sqrt(3)) } } },
+  { n: 'P1', drops: ['■-2', '▲-1', '▼-0.5', '■-1', '■0'], last: '■0', title: 'a square pressing on the side away from the lean does not prop it',
+    expect: { outcome: 'off', way: null, verts: [[0, 2, 1], [0, 4, 1], [2, 2, 1], [2, 4, 1]], reason: 'TIPS OVER',
+      contacts: { segments: [S([0, 2, 1], [2, 2, 1])], points: [] }, shine: [], gap: null,
+      tips: { base: [[-2, 0, 0], [-1, 0, 1], [0, 0, 0]], members: 5, side: 'right', pivot: [0, 0, 0] } },
+    also: { oneSide: [2], game: { base: 1, members: [1, 2, 3, 4, 5], com: (0.5 - Math.sqrt(3) / 8) / (3 + Math.sqrt(3) / 2) }, props: [] } },
+  { n: 'P2', drops: ['■-2', '▲-1', '▼-0.5', '■-1'], last: '▲-1.5', title: 'a prop is judged by its upper end: a contact rising from the pivot\'s height props',
+    expect: { outcome: 'fit', way: 'up', verts: [[-3, 2, 1], [-2, 2, 2], [-1, 2, 1]], reason: null,
+      contacts: { segments: [S([-2, 2, 1], [-1, 2, 1])], points: [] }, shine: [S([-2, 2, 1], [-1, 2, 1])], gap: [0, 1], tips: null },
+    also: { oneSide: [2], props: [{ members: [3, 4], side: 'left', pivot: [-1, 0, 1], props: [{ tile: 3, by: 0, seg: [[-2, 0, 1], [-2, 2, 0]] }] }] } },
+  { n: 'P3', drops: ['▲-2', '▲-1', '▼-1.5', '■-1', '■0', '▲-1', '▲0.5', '▼0', '▼-0.5', '▼1', '■1', '■1', '■1', '■1', '■1'], last: '■1', title: 'a contact whose upper end is level with the pivot does not prop',
+    expect: { outcome: 'off', way: null, verts: [[2, 12, 1], [2, 14, 1], [4, 12, 1], [4, 14, 1]], reason: 'TIPS OVER',
+      contacts: { segments: [S([2, 12, 1], [4, 12, 1])], points: [] }, shine: [], gap: null,
+      tips: { base: [[0, 2, 1], [1, 2, 0], [2, 2, 1]], members: 12, side: 'right', pivot: [2, 2, 0] } },
+    also: { notch: [2], oneSide: [7, 8, 9], game: { base: 7, members: [3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], com: (8.5 + 2.5 * Math.sqrt(3) / 4) / (7 + 5 * Math.sqrt(3) / 4) }, props: [] } },
+  { n: 'P8', drops: ['▲-2', '▲-1', '▼-1.5', '■-1', '■0', '■1', '▲1', '▼0.5', '▲-1', '▲0', '▼-0.5', '▼0.5', '■1', '■1', '■1', '■1', '■1'], last: '■1', title: 'a contact wholly below the pivot does not prop',
+    expect: { outcome: 'off', way: null, verts: [[2, 12, 2], [2, 14, 2], [4, 12, 2], [4, 14, 2]], reason: 'TIPS OVER',
+      contacts: { segments: [S([2, 12, 2], [4, 12, 2])], points: [] }, shine: [], gap: null,
+      tips: { base: [[-2, 0, 1], [-2, 2, 1], [0, 0, 1], [0, 2, 1]], members: 11, side: 'right', pivot: [2, 2, 1] } },
+    also: { notch: [2, 10], oneSide: [7, 11], game: { base: 3, members: [3, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17], com: (8.5 + Math.sqrt(3) / 4) / (7 + Math.sqrt(3)) }, props: [] } },
+  { n: 'P4', drops: ['■-2', '■-2', '■0', '▲-0.5'], last: '▼-1', title: 'a corner touching a square\'s side, a point, does not prop',
+    expect: { outcome: 'off', way: 'down', verts: [[-2, 2, 1], [-1, 2, 0], [0, 2, 1]], reason: 'TIPS OVER',
+      contacts: { segments: [S([-1, 2, 0], [0, 2, 1])], points: [[-2, 2, 1]] }, shine: [], gap: null,
+      tips: { base: [[-2, 2, 1], [-1, 2, 0], [0, 2, 1]], members: 2, side: 'left', pivot: [0, 2, 0] } },
+    also: { auto: { outcome: 'off', way: 'down', reason: 'TIPS OVER' }, game: { base: 4, members: [3, 4], com: -0.25 }, props: [] } },
+  { n: 'P5', drops: ['■-2', '▲0', '▼-0.5'], last: '■-1', title: 'the new square itself presses on the square beside it',
+    expect: { outcome: 'fit', way: null, verts: [[-2, 0, 1], [-2, 2, 1], [0, 0, 1], [0, 2, 1]], reason: null,
+      contacts: { segments: [S([-2, 0, 1], [-2, 2, 0]), S([-1, 0, 1], [0, 0, 1])], points: [] }, shine: [S([-2, 0, 1], [-2, 2, 0]), S([-1, 0, 1], [0, 0, 1])], gap: [0, 1], tips: null },
+    also: { oneSide: [2], props: [{ members: [1, 2, 3], side: 'left', pivot: [0, 0, 0], props: [{ tile: 3, by: 0, seg: [[-2, 0, 1], [-2, 2, 0]] }] }] } },
+  { n: 'P6', drops: ['▲-2', '▼-1.5', '■-2', '■-1', '■0'], last: '■-1', title: 'a square placed beside a group after it still props it (golden 19 in another order)',
+    expect: { outcome: 'fit', way: null, verts: [[-2, 2, 1], [-2, 4, 1], [0, 2, 1], [0, 4, 1]], reason: null,
+      contacts: { segments: [S([-2, 2, 1], [0, 2, 1])], points: [] }, shine: [S([-2, 2, 1], [0, 2, 1])], gap: null, tips: null },
+    also: { oneSide: [1], props: [{ members: [0, 1, 2, 3, 5], side: 'right', pivot: [-2, 0, 0], props: [{ tile: 3, by: 4, seg: [[0, 0, 1], [0, 2, 0]] }] }] } },
+  { n: 'P7', drops: ['▲-1.5', '▼-2', '■-2', '▼-1', '▲-1', '▼-0.5', '■-1', '■0'], last: '■0', title: 'a contact between two tiles of the same group does not prop it',
+    expect: { outcome: 'off', way: null, verts: [[0, 2, 2], [0, 4, 2], [2, 2, 2], [2, 4, 2]], reason: 'TIPS OVER',
+      contacts: { segments: [S([0, 2, 2], [2, 2, 2])], points: [] }, shine: [], gap: null,
+      tips: { base: [[-4, 0, 1], [-3, 0, 0], [-2, 0, 1]], members: 9, side: 'right', pivot: [-1, 0, 0] } },
+    also: { oneSide: [1, 3, 5], game: { base: 1, members: [0, 1, 2, 3, 4, 5, 6, 7, 8], com: (-1 - 3.5 * Math.sqrt(3) / 4) / (4 + 5 * Math.sqrt(3) / 4) }, props: [] } }
 ];
 for (const c of CASES.concat(REGRESSION)) {
   c.log = c.drops.map(canon.parseDrop);
@@ -407,6 +587,15 @@ function runGolden(R) {
           const a = R.drop(B, 'tri', d.col);
           for (const f of ['outcome', 'way', 'reason']) if (a[f] !== c.also.auto[f]) fails.push('no way given: ' + f + ' ' + a[f] + ' want ' + c.also.auto[f]);
         }
+        // the groups props() names as propped in the build the drop leaves (the build itself when it does not fit)
+        if (c.also && c.also.props) {
+          if (typeof R.props !== 'function') fails.push('rules.js has no props()');
+          else {
+            const after = res.outcome === 'fit' ? R.place(B, res) : B;
+            const got = JSON.stringify(R.props(after)), want = JSON.stringify(c.also.props);
+            if (got !== want) fails.push('props() ' + got + ' want ' + want);
+          }
+        }
       }
     } catch (e) {
       fails.push('threw: ' + e.message);
@@ -431,7 +620,7 @@ if (require.main === module) {
   const R = require('../lib/rules-vm.cjs').load();
   const res = runGolden(R);
   const quiet = process.argv.includes('--quiet');
-  const title = n => n === 'way' ? 'SPEC §6 way choice on made-up results (' + WAYS.length + ' pairs)' : String(n)[0] === 'R' ? '(regression) ' + REGRESSION.find(c => c.n === n).title : CASES[n - 1].title;
+  const title = n => n === 'way' ? 'SPEC §6 way choice on made-up results (' + WAYS.length + ' pairs)' : typeof n === 'string' ? '(regression) ' + REGRESSION.find(c => c.n === n).title : CASES[n - 1].title;
   for (const x of res) if (!quiet || !x.ok) console.log((x.ok ? 'PASS' : 'FAIL') + ' golden ' + x.n + ' ' + title(x.n) + (x.ok ? '' : ': ' + x.msg));
   const bad = res.filter(x => !x.ok).length;
   console.log((bad ? 'FAIL' : 'PASS') + ' golden: ' + (res.length - bad) + '/' + res.length);

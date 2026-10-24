@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const base = require('../lib.cjs');
 
-const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5d/game';
+const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5e/game';
 const PHONE = { width: 390, height: 844 };
 
 function args(argv) {

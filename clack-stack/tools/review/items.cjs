@@ -1,7 +1,24 @@
 'use strict';
-// The intuition panel's items (DESIGN §18.8 G2.2), revision 5d: pictures of a build with ONE tile held just above it and
+// The intuition panel's items (DESIGN §18.8 G2.2), revision 5e: pictures of a build with ONE tile held just above it and
 // its dotted fall lines, and nothing else (no ghost, no outcome, no hatching, no text but a small item number). Three
 // fresh judges who know only the photos and a plain description of the tiles answer STAYS, FALLS OFF or UNSURE for each.
+//
+// Revision 5e (§18.2, §18.13, SPEC §5c): a group that leans past its support toward a tile beside it, touching that
+// tile along an upright contact whose upper end is above the pivot, is propped and balanced. On this lattice only
+// squares have upright sides, so a prop is a square of the group pressing on a square beside it at another height.
+// - prop ("propped", 6 pairs): a fit held by a prop (a group with the new tile in it leans and a prop holds it),
+//   against the same build without the square it leans on, or with that square on the other side of the group, every
+//   other tile where it was and the hand's tile at the same place, which tips;
+// - prop-low (a side contact only at or below the pivot, which tips, against one above it, which stays) is not drawn:
+//   no build of up to 8 tiles has such a contact (tier 1, exhaustive), nor 300,000 random games of up to 16 tiles
+//   (golden P3, P8); the only ones known are golden P3 and P8, towers of 16 and 18 tiles, and none of the 26 such
+//   drops around them has a minimal variant held by a prop (the contact's upper end is capped by the top of the square
+//   it presses on, which the group stands on: rev5e/review-scratch/lowsearch.cjs);
+// - side-by-side's offset partners now have the offset square on the side away from the tip (so they test the lock,
+//   not a prop; 5d's were mostly blocked on the side they tip to, and those now stay, propped);
+// - outside the prop stratum, a kept item is never held by a prop and no build shown has a propped group, so every
+//   other stratum asks what it asked under 5d;
+// - golden cases 1–19 but 11.
 //
 // Revision 5d (§18.2, §18.12): tiles that share a whole edge are locked into one piece; only a piece standing on half an
 // edge or on points has to balance, and there is no grip. The strata are revision 5c's 19, built from minimal pairs as
@@ -33,9 +50,9 @@
 // force the ▼ (key: wayForced). Thin gaps under the build's tiles are left open with a fine dotted outline, as the game
 // draws them (§18.2), and a near miss at a point in the build gets a small dotted ring (lib.pointGaps).
 //
-// Writes sheets of 6 (3 x 2) to --out (default rev5d/panel/sheet-NN.png) and the answer key to --key (default
-// rev5d/panel-key/key.json), which must never be shown to the panel.
-//   node tools/review/items.cjs [--seed=5] [--depth=6] [--L=64 px per tile] [--out=dir] [--key=file]
+// Writes sheets of 6 (3 x 2) to --out (default rev5e/panel/sheet-NN.png) and the answer key to --key (default
+// rev5e/panel-key/key.json), which must never be shown to the panel.
+//   node tools/review/items.cjs [--seed=7] [--depth=6] [--L=64 px per tile] [--out=dir] [--key=file]
 //                                [--explore: what each stratum has to offer] [--list: the chosen pairs]
 // these keep hundreds of thousands of builds and results: run with a larger heap than Node's default
 if (require.main === module && !process.execArgv.some(a => a.startsWith('--max-old-space-size'))) {
@@ -50,9 +67,9 @@ const { CASES } = require('../rules/golden.cjs');
 const E = require('../rules/enumerate.cjs');
 const G = require('../rules/geom.cjs');
 
-const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5d';
+const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5e';
 const args = Object.fromEntries(process.argv.slice(2).map(a => { const m = /^--([^=]+)(?:=(.*))?$/.exec(a); return m ? [m[1], m[2] === undefined ? true : m[2]] : [a, true]; }));
-const SEED = +(args.seed || 5), DEPTH = +(args.depth || 6), DEEP = +(args.deep || 10);
+const SEED = +(args.seed || 7), DEPTH = +(args.depth || 6), DEEP = +(args.deep || 10);
 const OUT = args.out || path.join(SCRATCH, 'panel'), KEY = args.key || path.join(SCRATCH, 'panel-key', 'key.json');
 const R = lib.rules();
 const yv = lib.yv;
@@ -231,19 +248,48 @@ function balanceWith(T, res) { const T2 = T.concat([handTile(res)]); return { T2
 // it), 'near' under 0.1 tile, else 'clear'. knifeAlone: the new tile's own group, the tile alone (a lone tile held by
 // half an edge always is: its middle is over the end of the half edge); knifeGroup: a group of 2 or more tiles.
 const CLEAR = 0.1;
+// Revision 5e: a group with the new tile in it that leans and is propped makes the fit 'prop' (held by a prop; without
+// props it would tip). propGroup: the largest such group, {members, side, pivot ([X, p, q]), props: [{u (the group's
+// tile that presses; n is the new tile), v (the tile it presses on), top, above (the contact's upper end above the
+// pivot, tiles)}], byNew (the new tile presses), lowest (the least `above`), over (how far its weight is past the end,
+// tiles)}. margin is then over the other groups with the new tile (otherMargin: those alone, Infinity when none).
 function keepOf(bal, n) {
-  let m = Infinity, alone = false, group = false;
+  let m = Infinity, alone = false, group = false, prop = null;
   for (const p of bal.pieces) {
     if (!p.members.includes(n)) continue;
+    if (p.side && p.propped) { if (!prop || p.members.length > prop.members.length) prop = p; continue; }
     if (p.knife) { if (p.members.length > 1) group = true; else alone = true; m = 0; continue; }
     m = Math.min(m, p.com - p.x0 / 2, p.x1 / 2 - p.com);
   }
-  return { margin: m, keep: m === 0 ? 'knife' : m < CLEAR - 1e-9 ? 'near' : 'clear', knifeAlone: alone, knifeGroup: group };
+  const keep = prop ? 'prop' : m === 0 ? 'knife' : m < CLEAR - 1e-9 ? 'near' : 'clear';
+  let propGroup = null;
+  if (prop) {
+    const props = prop.props.map(x => ({ u: x.u, v: x.v, top: x.top, above: +yv(x.above).toFixed(3) }));
+    propGroup = { members: prop.members.slice(), side: prop.side, pivot: prop.pivot, props, byNew: props.some(x => x.u === n),
+      lowest: Math.min(...props.map(x => x.above)), over: +prop.overX.toFixed(3) };
+  }
+  return { margin: prop ? -prop.overX : m, otherMargin: m, keep, knifeAlone: alone, knifeGroup: group, propHeld: !!prop, propGroup };
+}
+// the partial upright contacts of a build (squares beside each other at heights less than a tile apart but not level:
+// a whole side is a lock, never a prop): [{L (the left square), R (the right), top ([p, q]: the contact's upper end, the
+// lower square's top)}]
+function uprightsOf(T) {
+  const out = [];
+  for (let i = 0; i < T.length; i++) for (let j = 0; j < T.length; j++) {
+    const a = T[i], b = T[j];
+    if (a.piece !== 'sq' || b.piece !== 'sq' || b.col !== a.col + 2 || lib.eq(a.y, b.y)) continue;
+    const lowY = lib.cmp(a.y, b.y) < 0 ? a.y : b.y, highY = lowY === a.y ? b.y : a.y, top = [lowY[0] + 2, lowY[1]];
+    if (lib.cmp(top, highY) > 0) out.push({ L: i, R: j, top });
+  }
+  return out;
 }
 // The pieces and groups again, with only the locks keep(lock, u) allows (exact, as SPEC §5c): what the build would do if
 // some whole edges did not lock. keep = () => false reads every joint as a hinge (revision 5c without its grip); keep =
-// l => l.dir !== 'side' unlocks squares side by side. Returns the pieces whose group is not balanced.
+// l => l.dir !== 'side' unlocks squares side by side. Revision 5e: a group that leans is still balanced when a partial
+// upright contact props it (uprightsOf; a whole side the counterfactual unlocks does not prop: in the pictures it asks
+// about, the offset square is on the side away from the tip). Returns the pieces whose group is not balanced.
 function failingWith(bal, T, keep) {
+  const ups = uprightsOf(T);
   const n = T.length, locks = bal.locks.map((ls, u) => ls.filter(l => keep(l, u)));
   const above = T.map(() => []);
   bal.rests.forEach((rs, u) => rs.forEach(r => { if (r.j >= 0) above[r.j].push(u); }));
@@ -261,9 +307,31 @@ function failingWith(bal, T, keep) {
     for (let u = 0; u < n; u++) if (inG[u]) for (const r of bal.rests[u]) { if (r.j >= 0 && inG[r.j]) continue; x0 = Math.min(x0, r.c[0][0], r.c[1][0]); x1 = Math.max(x1, r.c[0][0], r.c[1][0]); }
     let right = [0, 0], left = [0, 0];
     for (let u = 0; u < n; u++) if (inG[u]) { right = G.add(right, G.mul(w[u], [mid[u] - x1, 0])); left = G.add(left, G.mul(w[u], [x0 - mid[u], 0])); }
-    if (G.sgn(...right) > 0 || G.sgn(...left) > 0) fails.push({ tiles: tiles.sort((a, b) => a - b), members: inG.map((v, k) => v ? k : -1).filter(k => k >= 0) });
+    const side = G.sgn(...right) > 0 ? 'right' : G.sgn(...left) > 0 ? 'left' : null;
+    if (!side) continue;
+    // the pivot: the lowest support point at the end it leans past; a prop: a partial upright contact on a member's side
+    // toward the lean, with a square outside the group, its upper end above the pivot
+    const X = side === 'right' ? x1 : x0;
+    let pv = null;
+    for (let u = 0; u < n; u++) if (inG[u]) for (const r of bal.rests[u]) { if (r.j >= 0 && inG[r.j]) continue; for (const p of r.c) if (p[0] === X && (!pv || lib.cmp([p[1], p[2]], pv) < 0)) pv = [p[1], p[2]]; }
+    const propped = pv && ups.some(c => (side === 'right' ? inG[c.L] && !inG[c.R] : inG[c.R] && !inG[c.L]) && lib.cmp(c.top, pv) > 0);
+    if (!propped) fails.push({ tiles: tiles.sort((a, b) => a - b), members: inG.map((v, k) => v ? k : -1).filter(k => k >= 0) });
   }
   return fails;
+}
+// side-by-side's partners (5e): the squares offset beside the group that tips, square j outside the group beside a
+// square i in it: near, on the side the group tips to (it would lean on j: a prop's question, or blocked), far, on the
+// other side (the lock's question alone). {near, far}: how many of each.
+function offsetSidesOf(T, members, side) {
+  const inG = new Set(members), dir = side === 'right' ? 1 : -1;
+  let near = 0, far = 0;
+  for (const [a, b] of offsetSquares(T, members)) {
+    for (const [i, j] of [[a, b], [b, a]]) {
+      if (!inG.has(i) || inG.has(j)) continue;
+      if (Math.sign(T[j].col - T[i].col) === dir) near++; else far++;
+    }
+  }
+  return { near, far };
 }
 // a group as a shape: its tiles relative to its lowest, leftmost corner (mirror images alike), the new tile marked
 function shapeSig(T, members, n) {
@@ -396,17 +464,27 @@ const STRATA = [
     bonus: d => -2 * (d.n + 1 - d.lockShape.members),
     pairCost: (p, q) => 2 * Math.max(0, q.d.n - q.res.tips.members.length),
     mix: [{ id: 'the new tile is a square', n: 2, is: d => d.type === 'sq' }, { id: 'the new tile is a triangle', n: 2, is: d => d.type !== 'sq' }] },
-  // (allowBlocked: the offset square is often on the side the group tips to; §18.2 says side-by-side contacts hold
-  // nothing up, and whether people agree is this stratum's question, so such partners are allowed, at a small cost)
-  { id: 'side-by-side', name: 'side by side: a square locked to another along a whole side, which keeps it, against offset squares that are not locked', strictOnly: true, allowBlocked: true,
+  // (5e: the offset square is on the side away from the tip, so the partner tests the lock and not a prop; 5d allowed it
+  // on the side the group tips to, blocked, and 4 of its 5 falls asked the prop question, now revision 5e's rule)
+  { id: 'side-by-side', name: 'side by side: a square locked to another along a whole side, which keeps it, against offset squares that are not locked, the offset square on the side away from the tip', strictOnly: true,
     pivot: d => d.outcome === 'fit' && d.sideLock && d.noSideTips,
-    like: d => d.reason === 'TIPS OVER' && d.offsetSq,
+    like: d => d.reason === 'TIPS OVER' && d.offsetSq && d.offsetSide.far > 0 && d.offsetSide.near === 0,
     partners: it => variants(it).filter(v => samePose(it, v.item)).concat(offsetVariants(it), offsetLookalikes(it)) },
   // (its fall is blocked by nature: the tile tipping about the point would come to rest, crooked, on the flat top)
   { id: 'near-catch', name: 'the near-catch: a corner landing on a point just above a flat top', pivotOnly: true, allowBlocked: true,
     pivot: d => d.nearCatch,
     like: d => d.type !== 'dn',
-    mix: [{ id: 'a ▲', n: 3, is: d => d.type === 'up' }, { id: 'a square', n: 2, is: d => d.type === 'sq' }] }
+    mix: [{ id: 'a ▲', n: 3, is: d => d.type === 'up' }, { id: 'a square', n: 2, is: d => d.type === 'sq' }] },
+  // revision 5e (golden case 19's kind): kept by a prop, against the same build without the square it leans on, or with
+  // that square on the other side of the group (every other tile where it was, the hand's tile at the same place)
+  { id: 'prop', name: 'propped: a group leaning toward a square beside it and pressing on it above the corner it would tip over, which stays, against the same build without that square, or with it on the other side, which tips', strictOnly: true, prop: true, pairs: 6,
+    pivot: d => d.outcome === 'fit' && d.propHeld,
+    like: d => d.reason === 'TIPS OVER',
+    partners: it => withoutProp(it),
+    mix: [{ id: 'the new tile presses on the square beside it', n: 2, is: d => d.propGroup.byNew },
+      { id: 'a tile under the new one presses on the square beside it', n: 2, is: d => !d.propGroup.byNew },
+      { id: 'the square moved to the other side', n: 1, pairIs: how => /other side/.test(how) },
+      { id: 'the contact only 0.134 above the corner', n: 1, is: d => d.propGroup.lowest < 0.2 }] }
 ];
 // the hand's tile at the same place in both items of a pair (the difference is then only in the build)
 function samePose(p, q) { return p.piece === q.piece && p.col === q.col && p.res.way === q.res.way && lib.eq(p.res.pose.y, q.res.pose.y); }
@@ -417,6 +495,9 @@ const likeOf = S => S.like || S.pivot;
 // ---- the pool: every hand position over every small build ----
 const TILES = new WeakMap();
 function tilesOfB(B) { let T = TILES.get(B); if (!T) TILES.set(B, T = R.tiles(B)); return T; }
+// the build's propped groups (rules.js props(), revision 5e), cached
+const PROPS = new WeakMap();
+function buildProps(B) { let P = PROPS.get(B); if (!P) PROPS.set(B, P = R.props(B)); return P; }
 function describeItem(B, piece, col, res) {
   const d = lib.describe(B, piece, col, res);
   d.col = col;
@@ -446,6 +527,11 @@ function describeItem(B, piece, col, res) {
   d.margin = null; d.keep = null; d.knifeAlone = false; d.knifeGroup = false; d.lockShape = null; d.sideLock = false;
   d.noLockTips = false; d.noSideTips = false; d.lowerOnly = false; d.offsetSq = false; d.tipShape = null;
   d.blocked = false;
+  // revision 5e: held by a prop (keepOf), the build itself has a propped group (rules.js props()), and for TIPS OVER
+  // the upright contacts of the group that tips with tiles outside it, which do not prop it (sideContacts: far, on
+  // the side away from the lean; low, toward it but at or below the pivot) and the offset squares beside it
+  d.propHeld = false; d.propGroup = null; d.otherMargin = null; d.offsetSide = null; d.sideContacts = null;
+  lazy(d, 'buildPropped', () => buildProps(B).length > 0);
   if (res.outcome === 'fit' || res.reason === 'TIPS OVER') {
     const T2 = T.concat([handTile(res)]), below2 = E.supports(T2), st = stairOf(T2, below2, n);
     Object.assign(d, { stair: st.n, stairDir: st.dir, over: overOf(T2, below2, n), handBelow: below2[n] });
@@ -479,6 +565,10 @@ function describeItem(B, piece, col, res) {
       // the reported group as a shape, and whether its piece stands on half an edge (and points)
       lazy(d, 'tipShape', () => { const b = bal(), pc = b.pieces[b.pieceOf[res.tips.base]]; return { sig: shapeSig(withHand(), res.tips.members, n), halfEdge: pc.halfEdge }; });
       lazy(d, 'offsetSq', () => offsetSquares(withHand(), res.tips.members).length > 0);
+      lazy(d, 'offsetSide', () => offsetSidesOf(withHand(), res.tips.members, res.tips.side));
+      lazy(d, 'sideContacts', () => { const b = bal(), pc = b.pieces[b.pieceOf[res.tips.base]], u = pc.unprops || []; return { far: u.filter(x => x.kind === 'far').length, low: u.filter(x => x.kind === 'low').length, farBy: u.filter(x => x.kind === 'far').map(x => x.v) }; });
+      // another group the new tile joins leans and is propped (it tips all the same: some other group fails)
+      lazy(d, 'tipPropOther', () => bal().pieces.some(p => p.members.includes(n) && p.side && p.propped));
     }
   }
   // a fall whose drawn tip would push the tile (or the rocked group) into a tile beside it: a real tile would lean on it
@@ -583,6 +673,40 @@ function withoutOne(it) {
     const b = q.res.tips.base, bo = b === n2.T.length ? T.length : b < i ? b : b + 1;
     const role = bal.pieces[bal.pieceOf[bo]].members.includes(i) ? 'counterweight' : 'brace';
     out.push({ item: q, how: 'without tile ' + (i + 1) + ' (' + lib.fmtHand(node.log[i].piece, node.log[i].col, node.log[i].way) + '), the ' + role, cost: 1.1 });
+  }
+  return out;
+}
+
+// prop (5e): the same build without the square the group leans on (every other tile where it was and the hand's tile at
+// the same place), or with that square moved to the other side of the group, beside one of its squares on the side
+// away from the lean, where it presses but does not prop; where the hand's tile then tips
+function withoutProp(it) {
+  if (!it.fit || !it.d.propHeld) return [];
+  const { node, piece, col, forced } = it, T = node.T || R.tiles(node.B), out = [], pg = it.d.propGroup, n = T.length;
+  const keyWithout = i => lib.keysOf(T.filter((t, k) => k !== i)).key;
+  const dir = pg.side === 'right' ? 1 : -1, sqCols = R.cols(node.B, 'sq');
+  for (const v of [...new Set(pg.props.map(p => p.v))]) {
+    if (v >= n) continue;
+    const rest = node.log.slice(0, v).concat(node.log.slice(v + 1)), tag = lib.fmtHand(node.log[v].piece, node.log[v].col, node.log[v].way);
+    const kw = keyWithout(v), n2 = nodeOfLog(rest);
+    if (n2 && n2.key === kw) {
+      const q = evalItem(n2, piece, col, forced);
+      if (q.res.reason === 'TIPS OVER' && samePose(it, q)) out.push({ item: q, how: 'without tile ' + (v + 1) + ' (' + tag + '), the square it leans on', cost: 1.1 });
+    }
+    // the other side: a square beside one of the group's squares (the hand's too), on its side away from the lean
+    const cands = new Set();
+    for (const u of pg.members) { const t = u < n ? T[u] : { piece: it.piece, col }; if (t.piece === 'sq') cands.add(t.col - 2 * dir); }
+    for (const c of cands) {
+      if (!sqCols.includes(c)) continue;
+      for (const at of [v, rest.length]) {
+        const n3 = nodeOfLog(rest.slice(0, at).concat([{ piece: 'sq', col: c, way: null }], rest.slice(at)));
+        if (!n3 || lib.keysOf(n3.T.filter((t, k) => k !== at)).key !== kw) continue;
+        const q = evalItem(n3, piece, col, forced);
+        if (q.res.reason !== 'TIPS OVER' || !samePose(it, q) || q.res.tips.side !== pg.side || !q.d.sideContacts.farBy.includes(at)) continue;
+        out.push({ item: q, how: 'the square it leans on (tile ' + (v + 1) + ', ' + tag + ') moved to the other side of the group, ' + lib.fmtHand('sq', c), cost: 1.3 });
+        break;
+      }
+    }
   }
   return out;
 }
@@ -723,11 +847,23 @@ function pairRisk(S, a, b) {
   const stay = a.fit ? a : b, off = a.fit ? b : a, k = stay.d;
   const tip = off.res.reason === 'TIPS OVER';
   let bad = null, pen = 0;
-  if (S.id === 'on-edge') { if (!k.knifeGroup) { bad = 'the kept item is no group exactly on the edge'; pen += 10; } }
+  // 5e: the prop stratum's kept item is held by a prop and otherwise clearly balanced; every other stratum's is not held
+  // by a prop, and no build it shows has a propped group (nor a tip beside a propped group)
+  if (S.prop) {
+    if (!k.propHeld) { bad = 'the kept item is not held by a prop'; pen += 10; }
+    else if (k.knifeGroup) { bad = 'kept: a group exactly on the edge as well'; pen += 10; }
+    else if (k.otherMargin < CLEAR - 1e-9 && !k.knifeAlone) { bad = 'kept: another group within 0.1 tile of the edge'; pen += 6; }
+    // (a lone knife-edge is inherent when the new tile is the square that presses, half on a top: golden P5's kind;
+    // where a tile under it presses, the kept item should not be one as well)
+    else if (k.knifeAlone && !k.propGroup.byNew) { bad = 'kept: the new tile alone is exactly on its edge as well'; pen += 4; }
+    else if (k.knifeAlone) pen += 2;
+  } else if (k.propHeld) { bad = 'kept: held by a prop (the prop stratum\'s question)'; pen += 10; }
+  else if (S.id === 'on-edge') { if (!k.knifeGroup) { bad = 'the kept item is no group exactly on the edge'; pen += 10; } }
   else if (k.knifeGroup) { bad = 'kept: a group exactly on the edge'; pen += 10; }
   else if (k.keep === 'near') { bad = 'kept: within 0.1 tile of the edge'; pen += 6; }
   else if (tip && k.keep !== 'clear') { if (!S.loneKnife) bad = 'kept: a lone tile on its edge, against a tip'; pen += 4; }
   if (off.d.blocked) { if (!S.allowBlocked) bad = bad || 'the fall pushes into a tile beside it'; pen += S.allowBlocked ? 2 : 5; }
+  if (!S.prop && (stay.d.buildPropped || off.d.buildPropped || (tip && off.d.tipPropOther))) { bad = bad || 'a build with a propped group'; pen += 5; }
   return { bad, pen };
 }
 function choosePairs(pools) {
@@ -853,21 +989,30 @@ function needY(spec) {
 
 async function main() {
   const t0 = Date.now();
-  const W = lib.walk(DEPTH);
+  // (one tile deeper than the pools, for side-by-side's partners only: see OFFSETS below)
+  const W = lib.walk(DEPTH + 1);
   const small = W.nodes.filter(n => n.depth <= DEPTH);
   const pools = { main: [], forced: [], lean: [], stack: [], stair: [] };
   // the pools keep only what can start a pair (partners are made fresh from the pivot), and the TIPS OVER that can be
   // lock-whole's partners; the forced ▼ only where it is on its point
   const FORCED = STRATA.filter(S => S.forced);
   const shapeCand = it => it.res.reason === 'TIPS OVER' && it.res.tips.members.length >= 3 && it.d.tipShape.halfEdge;
-  const offsetCand = it => it.res.reason === 'TIPS OVER' && it.d.offsetSq;
-  let nAll = 0, nForced = 0;
+  // (5e: only squares offset on the side away from the tip; on the side it tips to they would ask the prop question)
+  const offsetCand = it => it.res.reason === 'TIPS OVER' && it.d.offsetSq && it.d.offsetSide.far > 0 && it.d.offsetSide.near === 0;
+  let nAll = 0, nForced = 0, nTips = 0;
+  const lowTips = [];
   for (const n of small) {
-    for (const it of itemsOf(n)) { nAll++; if (STRATA.some(S => !S.forced && S.pivot(it.d)) || shapeCand(it) || offsetCand(it)) pools.main.push(it); }
+    for (const it of itemsOf(n)) {
+      nAll++;
+      // 5e: prop-low's pivots would be TIPS OVER with an upright contact toward the lean at or below the pivot
+      if (it.res.reason === 'TIPS OVER') { nTips++; if (it.d.sideContacts.low) lowTips.push(fmtItem(it)); }
+      if (STRATA.some(S => !S.forced && S.pivot(it.d)) || shapeCand(it) || offsetCand(it)) pools.main.push(it);
+    }
     // (the forced ▼ on its point: from builds of up to 5 tiles, plenty for its 5 pairs, smallest first anyway)
     if (n.depth <= 5) for (const it of itemsOf(n, true)) { nForced++; if (FORCED.some(S => S.pivot(it.d))) pools.forced.push(it); }
   }
-  console.log(`walk: ${W.nodes.length} builds to depth ${DEPTH}, ${nAll} hand positions (+${nForced} forced ▼), ${pools.main.length} (+${pools.forced.length}) kept in ${Date.now() - t0} ms`);
+  console.log(`walk: ${small.length} builds to depth ${DEPTH} (${W.nodes.length} to ${DEPTH + 1}), ${nAll} hand positions (+${nForced} forced ▼), ${pools.main.length} (+${pools.forced.length}) kept in ${Date.now() - t0} ms`);
+  console.log(`prop-low: ${lowTips.length} of ${nTips} TIPS OVER in the walk have an upright contact toward the lean at or below the pivot` + (lowTips.length ? ': ' + lowTips.slice(0, 5).join(' / ') : ' (none: the stratum is not drawn)'));
   // the deeper walks: only the items that could be pivots of their strata are kept
   const rg = lib.rng(SEED * 13 + 3);
   for (const kind of ['lean', 'stack', 'stair']) {
@@ -900,7 +1045,23 @@ async function main() {
     for (const [k, tiles, mirrored] of forms) { if (!OFFSETS.has(k)) OFFSETS.set(k, []); OFFSETS.get(k).push({ item: it, tiles, mirrored }); }
     nOff++;
   }
-  console.log(`offsets: ${nOff} TIPS OVER with squares offset beside the group that tips (${Date.now() - t0} ms)`);
+  // (5e: with the offset square on the side away from the tip only, builds of DEPTH tiles give few; the drops on builds
+  // one tile deeper are added, as side-by-side's partners only, so that its kept items can be clearly balanced)
+  let nDeep = 0;
+  for (const n of W.nodes) {
+    if (n.depth !== DEPTH + 1) continue;
+    const T = n.T;
+    for (const piece of ['sq', 'tri']) for (const col of R.cols(n.B, piece)) {
+      const r = R.drop(n.B, piece, col);
+      if (r.reason !== 'TIPS OVER' || !offsetSquares(T.concat([handTile(r)]), r.tips.members).length) continue;
+      const it = evalItem(n, piece, col);
+      if (!offsetCand(it) || it.d.blocked) continue;
+      const forms = [[it.piece + '@' + it.col, tileStrs(T), false], [it.piece + '@' + lib.canon.mirrorCol(it.col), T.map(t => lib.typeOf(t) + '@' + lib.canon.mirrorCol(t.col) + ',' + t.y.join(',')), true]];
+      for (const [k, tiles, mirrored] of forms) { if (!OFFSETS.has(k)) OFFSETS.set(k, []); OFFSETS.get(k).push({ item: it, tiles, mirrored }); }
+      nDeep++;
+    }
+  }
+  console.log(`offsets: ${nOff} TIPS OVER with squares offset beside the group that tips, the offset square on the side away from the tip, + ${nDeep} on builds of ${DEPTH + 1} tiles (${Date.now() - t0} ms)`);
   if (args.explore) {
     for (const S of STRATA) {
       const src = S.forced ? pools.forced : S.pool ? pools.main.concat(pools[S.pool]) : pools.main;
@@ -913,7 +1074,8 @@ async function main() {
       const fits = m.filter(x => x.fit), kc = {};
       for (const it of fits) { const k = it.d.keep + (it.d.knifeGroup ? '/group' : it.d.knifeAlone ? '/alone' : ''); kc[k] = (kc[k] || 0) + 1; }
       if (fits.length) console.log('   kept pivots by margin: ' + JSON.stringify(kc));
-      if (['on-edge', 'lock-whole', 'side-by-side', 'near-catch'].includes(S.id)) for (const it of m.slice().sort((a, b) => cost(a) - cost(b)).slice(0, 4)) console.log('   e.g. ' + fmtItem(it) + (it.fit ? ' margin ' + it.d.margin.toFixed(3) : ''));
+      if (['on-edge', 'lock-whole', 'side-by-side', 'near-catch', 'prop'].includes(S.id)) for (const it of m.slice().sort((a, b) => cost(a) - cost(b)).slice(0, 4)) console.log('   e.g. ' + fmtItem(it) + (it.fit ? ' margin ' + it.d.margin.toFixed(3) : '') + (it.d.propHeld ? ' prop ' + JSON.stringify(it.d.propGroup.props) : ''));
+      if (S.id === 'prop') { const ps = m.filter(it => it.d.propHeld); console.log('   presses: the new tile ' + ps.filter(it => it.d.propGroup.byNew).length + ', a tile under it ' + ps.filter(it => !it.d.propGroup.byNew).length + '; lowest prop under 0.2 above the pivot ' + ps.filter(it => it.d.propGroup.lowest < 0.2).length); }
     }
     console.log('near misses that fall off (in the walk): ' + pools.main.filter(it => it.d.nearOff !== null).length);
   }
@@ -1028,14 +1190,15 @@ async function main() {
   // the key
   const fmtLog = log => log.map(e => lib.fmtHand(e.piece, e.col, e.way));
   const key = {
-    what: 'Answer key for the CLACK STACK revision 5d intuition panel (DESIGN §18.8 G2.2). Never show this to the panel.',
+    what: 'Answer key for the CLACK STACK revision 5e intuition panel (DESIGN §18.8 G2.2). Never show this to the panel.',
     seed: SEED, made: new Date().toISOString(), sheets: files.map(f => path.basename(f)), panelDir: OUT,
     rules: 'outcome from clack-stack/rules.js drop(); "expected" is what the panel should answer if the rules match intuition',
     drawing: `${L} CSS px per tile at device scale 1.5 (${(L * 1.5).toFixed(0)} px per tile in the PNG; a 0.134-tile gap is ${(0.134 * L * 1.5).toFixed(1)} px); the held tile is drawn 0.62 tile above where it stops, with dotted lines down from its two ends to what is under them`,
-    pairs: 'A pair is the same build with the hand one step over, or the build with one tile more or less, or (tips-light-heavy, on-edge) a square instead of the triangle, or (tips-stair, on-edge) the next step of the stair, or (lock-whole) the same shape held by half an edge; its two items have different outcomes and are never on one sheet. The pivot is of the stratum\'s kind; ofKind says whether the partner is too.',
+    pairs: 'A pair is the same build with the hand one step over, or the build with one tile more or less, or (tips-light-heavy, on-edge) a square instead of the triangle, or (tips-stair, on-edge) the next step of the stair, or (lock-whole) the same shape held by half an edge, or (side-by-side) the squares offset with the offset square on the side away from the tip, or (prop) the build without the square the group leans on, or with that square moved to the other side of the group; its two items have different outcomes and are never on one sheet. The pivot is of the stratum\'s kind; ofKind says whether the partner is too.',
     wayForced: 'true where the hand would show the triangle the other way up (the "▼ on its point" stratum and golden case 5 only: the hand never shows a ▼ that is only a point, SPEC §6). Every other triangle is shown the way the rules choose (SPEC §6: the way that fits; if neither fits, the way that tips over if exactly one does, else ▲)',
-    reasons: 'FALLS OFF has two reasons: ONLY A POINT (it does not meet the tower edge to edge) and TIPS OVER (it does, but with it the group of some piece would have its weight past what it rests on; revision 5d: tiles sharing a whole edge are locked into one piece, a group is a piece with everything resting on it and everything locked to that, exactly over the end counts as balanced, and there is no grip; tips names the reported piece\'s lowest tile, the group\'s size, its side and the corner it would tip over, in tiles)',
-    margins: 'For an item that stays: margin is the least distance (tiles) of the centre of weight inside its support over the groups with the new tile in them; keep is knife (0: exactly over an end, which SPEC §5c keeps), near (under 0.1) or clear; knifeAlone: the new tile alone is exactly on its edge (a lone tile held by half an edge always is), knifeGroup: a group of 2 or more is. Outside the on-edge stratum, pairs avoid kept groups exactly on the edge or within 0.1 of it, and a TIPS OVER is paired with a clearly balanced stay where the stratum allows; risk names a pair that could not keep to this (null for all others). blocked: the fall as drawn would push the tile, or the rocked group, into a tile beside it.',
+    reasons: 'FALLS OFF has two reasons: ONLY A POINT (it does not meet the tower edge to edge) and TIPS OVER (it does, but with it the group of some piece would have its weight past what it rests on; revision 5d: tiles sharing a whole edge are locked into one piece, a group is a piece with everything resting on it and everything locked to that, exactly over the end counts as balanced, and there is no grip; revision 5e: a group whose weight is past an end of its support leans that way, toward its pivot (the lowest support point at that end), and is still balanced if it is propped: a tile of the group shares an upright contact with a tile outside it, on its side toward the lean, whose upper end is higher than the pivot (on this lattice a square pressing on a square beside it at another height); tips names the reported piece\'s lowest tile, the group\'s size, its side and the corner it would tip over, in tiles)',
+    margins: 'For an item that stays: margin is the least distance (tiles) of the centre of weight inside its support over the groups with the new tile in them; keep is knife (0: exactly over an end, which SPEC §5c keeps), near (under 0.1) or clear; knifeAlone: the new tile alone is exactly on its edge (a lone tile held by half an edge always is), knifeGroup: a group of 2 or more is. Outside the on-edge stratum, pairs avoid kept groups exactly on the edge or within 0.1 of it, and a TIPS OVER is paired with a clearly balanced stay where the stratum allows; risk names a pair that could not keep to this (null for all others). blocked: the fall as drawn would push the tile, or the rocked group, into a tile beside it. Revision 5e: keep is prop when a group with the new tile in it leans and a prop holds it (prop: its side, pivot and contacts; margin is then minus how far its weight is past the end, otherMargin the least margin of the other groups with the new tile); outside the prop stratum no kept item is held by a prop and no build shown has a propped group (buildPropped). For TIPS OVER, sideContacts counts the reported group\'s upright contacts with tiles outside it, which do not prop it: far (on the side away from the lean) and low (toward it, at or below the pivot: none at panel size, so there is no prop-low stratum); offsetSide counts the offset squares beside that group on the side it tips to (near) and away from it (far).',
+    propLow: 'Not drawn: a TIPS OVER with an upright contact toward the lean only at or below the pivot does not occur in any build of up to 8 tiles (tier 1, exhaustive) or in 300,000 random games of up to 16 tiles; the only ones known are hand-built towers of 16 and 18 tiles (golden P3, P8), and none of the 26 such drops around them has a minimal variant (the hand one step over, one tile less or more) that stays held by a prop: the contact\'s upper end is capped by the top of the square it presses on, which the group stands on (P3), or the group stands higher still (P8).',
     strata: {},
     items: order.map(it => ({
       n: it.n, sheet: it.sheet, stratum: it.stratum, stratumName: it.stratumName, mix: it.mix || null, pair: it.pair, pairRole: it.role, ofKind: it.pair ? it.ofKind : true, partner: it.partnerN || null,
@@ -1057,6 +1220,13 @@ async function main() {
       lockedPiece: it.res.outcome === 'fit' && it.d.lockShape ? { tiles: it.d.lockShape.piece, group: it.d.lockShape.members, heldByWholeEdge: it.d.lockShape.wholeFoot, tipsIfJointsWereHinges: it.d.noLockTips } : null,
       sideLock: it.res.outcome === 'fit' && it.d.sideLock ? { tipsWithoutIt: it.d.noSideTips } : null,
       offsetSquares: it.res.reason === 'TIPS OVER' ? it.d.offsetSq : null, groupOnHalfEdge: it.res.reason === 'TIPS OVER' ? it.d.tipShape.halfEdge : null,
+      // revision 5e
+      prop: it.d.propHeld ? { side: it.d.propGroup.side, pivot: [it.d.propGroup.pivot[0] / 2, +yv([it.d.propGroup.pivot[1], it.d.propGroup.pivot[2]]).toFixed(3)], group: it.d.propGroup.members.length, over: it.d.propGroup.over,
+        contacts: it.d.propGroup.props.map(x => ({ presses: x.u === it.log.length ? 'the hand\'s tile' : 'tile ' + (x.u + 1) + ' (' + lib.fmtHand(it.log[x.u].piece, it.log[x.u].col, it.log[x.u].way) + ')', on: 'tile ' + (x.v + 1) + ' (' + lib.fmtHand(it.log[x.v].piece, it.log[x.v].col, it.log[x.v].way) + ')', upperEndAbovePivot: x.above })) } : null,
+      otherMargin: it.d.propHeld ? (isFinite(it.d.otherMargin) ? +it.d.otherMargin.toFixed(3) : null) : undefined,
+      buildPropped: it.d.buildPropped,
+      sideContacts: it.res.reason === 'TIPS OVER' ? { far: it.d.sideContacts.far, low: it.d.sideContacts.low } : null,
+      offsetSide: it.res.reason === 'TIPS OVER' && it.d.offsetSq ? it.d.offsetSide : null,
       risk: it.risk || null
     }))
   };

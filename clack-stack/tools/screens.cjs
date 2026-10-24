@@ -6,7 +6,8 @@
 // chip, every square fit outlined, the whole-tile ticks); a triangle (▲ carets, ▼ chevrons, turned point-down to hang);
 // ONLY A POINT; TIPS OVER (with rules that have it) and its rock when let go (the marks kept through it); whole edges
 // locked (golden cases 17 and 18: a locked piece carrying a square half on its top, and a locked block that tips, the
-// whole group outlined and rocking as one); a drop that
+// whole group outlined and rocking as one); a prop (revision 5e, golden case 19: a stack leaning on the square beside it,
+// the ghost white with a double bar at the contact that holds it up, and the bar flashing as it lands); a drop that
 // may take the tower over (the amber ghost, PAST THE WHEEL!); an open thin gap; a tile falling off and leaving the wall;
 // the box's counter near its end with THE TOPPER next; THE TOPPER aimed where it tops out (gold, TOPS OUT!), TOPPED OUT!
 // and its card; THE BOX IS EMPTY! and its card; the dead-tile swap; a sway; the weight amber; a tall tower (the weight
@@ -199,6 +200,30 @@ const fail = m => { bad++; console.log('  FAIL ' + m); };
           if (!rm || rm.part.length !== 7 || JSON.stringify(rm.rocking) !== '[1,2,3,4,5,6]' || Math.abs(a) < 0.15) fail(`${tag} locked tips rock: ${JSON.stringify({ a, rm: rm && { part: rm.part.length, members: rm.members, rocking: rm.rocking } })}`);
         });
         else console.log(`  (${tag} locked-tips: these rules have no TIPS OVER; skipped)`);
+      }
+      // 6d. a prop (revision 5e, with rules that have props): golden case 19, a stack on a hung ▼ that would tip right,
+      // pressing on the square beside it: the ghost white, a double bar at that contact; let go, the bar flashes as it lands
+      if (want('prop-aim') || want('prop-lands')) {
+        const has = await (async () => { const { context, page } = await open({ autostart: 1, nohint: 1 }); await page.waitForFunction(() => window.CS); const r = await page.evaluate(() => typeof RULES.props === 'function'); await context.close(); return r; })();
+        const G19 = ['■0', '▲-2', '▼-1.5', '■-2', '■-1'];
+        if (has) await quiz('prop-aim', { build: G19, hand: '■-1' }, () => {
+          const d = CS.display(), g = d.ghost;
+          if (!g || g.style !== 'fit' || g.color !== 'white' || g.reason || !g.propped || !g.props || g.props.items.length !== 1 || g.props.bars.length !== 2) return 'ghost ' + JSON.stringify(g && { style: g.style, color: g.color, propped: g.propped, props: g.props && g.props.items });
+          const p = g.props.items[0];
+          return p.tile === 4 && p.by === 0 && p.side === 'right' ? '' : 'the prop is ' + JSON.stringify(p);
+        }, true);
+        if (has) await drive('prop-lands', {}, async (page, ptr) => {
+          await page.evaluate(b => { CS.build(b); CS.setPiece('sq'); CS.setBox(['sq', 'tri', 'sq', 'top']); }, G19);
+          await wait(page, 0.6);
+          await ptr.drop(-2);
+          const id = await page.evaluate(() => CS.lastRelease.id);
+          for (let i = 0; i < 200 && !(await page.evaluate(id => CS.events.some(e => e.type === 'land' && e.id === id), id)); i++) await page.evaluate(() => CS.step(1));
+          await page.evaluate(() => CS.step(8));
+          await shot(page, 'prop-lands-flash');
+          const pf = (await display(page)).propFlash;
+          if (!pf || !pf.items.some(i => i.id === id)) fail(`${tag} prop lands: no flash`);
+        });
+        else console.log(`  (${tag} prop: these rules have no props; skipped)`);
       }
       // 6b. a drop that may take the tower over: the ghost amber and solid, PAST THE WHEEL! by it, the held tile's rims amber
       await drive('topple-warning', {}, async (page, ptr) => {

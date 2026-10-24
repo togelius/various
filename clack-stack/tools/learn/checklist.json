@@ -1,5 +1,5 @@
 {
- "what": "The 10-point rules checklist for grading a learner's write-up (DESIGN §18.8 G4, the learner quiz; the rules of §18.2-18.6, revision 5d). One point per item: the write-up states the rule in its own words, and nothing in it contradicts the rule. Half points are not given. Pass: at least 8 of 10.",
+ "what": "The 10-point rules checklist for grading a learner's write-up (DESIGN §18.8 G4, the learner quiz; the rules of §18.2-18.6, revision 5e). One point per item: the write-up states the rule in its own words, and nothing in it contradicts the rule. Half points are not given. Pass: at least 8 of 10.",
  "how": "For each item, read the whole write-up and mark it 1 when the 'credit' condition holds and none of the 'no credit' statements is made; quote the sentence that earns the point. A rule stated only as a guess ('maybe', 'it seems') counts when it is the write-up's own conclusion. Wrong extra rules cost nothing unless they contradict an item here.",
  "items": [
   {
@@ -46,7 +46,7 @@
    "id": 6,
    "topic": "everything balances (TIPS OVER)",
    "section": "18.2",
-   "rule": "A tile that meets the tower edge to edge still falls off if, with it, some part of the tower would tip: each piece, with everything resting on it, must have its weight over what it rests on (exactly over the end is fine).",
+   "rule": "A tile that meets the tower edge to edge still falls off if, with it, some part of the tower would tip: each piece, with everything resting on it, must have its weight over what it rests on (exactly over the end is fine), unless it leans on the side of a square beside it, above the corner it would tip over (a prop, revision 5e).",
    "credit": "says a tile can fall off even when held by an edge because it would make part of the tower tip or hang too far out past what holds it (overhangs and stairs are limited by balance)",
    "noCredit": ["any tile held by an edge always stays", "tiles only ever fall off because of points"]
   },

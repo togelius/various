@@ -28,8 +28,8 @@
 // 3 runs or 150 lifts (tiles let go by a lift, tap or key), whichever comes first; an op past it is refused. Once the
 // quiz is handed out (tools/learn/quiz.cjs --hand-out=<root>, which writes <root>/.closed) the game is closed: every op
 // that plays is refused (zoom, topics and status still answer).
-// A learner works in its own empty root, outside the rev5d scratch folder (which holds the quiz's key and the other
-// learners' work): a root inside it is refused. The driver is the learner's only tool (DESIGN §18.8: any other tool call
+// A learner works in its own empty root, outside the revision scratch folders (rev5e, where the quiz and its key are
+// now, and rev5d, which holds the last round's key and learners' work): a root inside either is refused. The driver is the learner's only tool (DESIGN §18.8: any other tool call
 // voids the run); zoom is there so that reading a picture closely needs nothing else.
 //
 // State: one session per run folder (--run=3 is <root>/run-3; root: $CLACK_LEARN_ROOT or <scratchpad>/learners/default;
@@ -53,8 +53,10 @@ const L = require('./lib.cjs');
 
 const LIMITS = { runs: 3, lifts: 150 };
 const OPS = ['start', 'move', 'lift', 'tap', 'key', 'wait'];
-// the rev5d scratch folder: the quiz's key, the graders' files and other learners' work live there, so no learner root may
+// the revision scratch folders: the quiz's key, the graders' files and other learners' work live there (rev5e now, rev5d
+// the last round's), so no learner root may be inside one
 const REV = path.dirname(L.SCRATCH);
+const REVS = [REV, path.join(path.dirname(REV), 'rev5d')];
 const TOPICS = path.join(__dirname, 'topics.txt');
 const KEYS = { space: 'Space', ' ': 'Space', enter: 'Enter', escape: 'Escape', esc: 'Escape', left: 'ArrowLeft', right: 'ArrowRight', down: 'ArrowDown', up: 'ArrowUp',
   arrowleft: 'ArrowLeft', arrowright: 'ArrowRight', arrowdown: 'ArrowDown', arrowup: 'ArrowUp', p: 'p', m: 'm', r: 'r', a: 'a', d: 'd', b: 'b', k: 'k', c: 'c', shift: 'Shift' };
@@ -105,9 +107,9 @@ function usedElsewhere(root, dir) {
   }
   return out;
 }
-// a root inside the rev5d scratch folder sits beside the quiz's key and the other learners' work: refused
+// a root inside a revision scratch folder sits beside a quiz's key and other learners' work: refused
 function rootProblem(root) {
-  if (inside(root, REV)) return 'the learner root ' + root + ' is inside ' + REV + ' (the quiz key and other learners are there): use an empty folder outside it (CLACK_LEARN_ROOT)';
+  for (const d of REVS) if (inside(root, d)) return 'the learner root ' + root + ' is inside ' + d + ' (a quiz key and other learners are there): use an empty folder outside it (CLACK_LEARN_ROOT)';
   return null;
 }
 const now = () => new Date().toISOString();

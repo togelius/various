@@ -1,4 +1,4 @@
-/* CLACK STACK rules, revision 5d (DESIGN.md §18.1–18.3 and §18.7; the precise reading is tools/oracle/SPEC.md, which
+/* CLACK STACK rules, revision 5e (DESIGN.md §18.1–18.3 and §18.7; the precise reading is tools/oracle/SPEC.md, which
    wins on rules). The one source of where a tile can go and why it falls off. Pure: no DOM, no time, no randomness,
    no globals but the language's own. It runs in an empty vm context (tools/lib/rules-vm.cjs) and is inlined into
    index.html between the RULES markers by tools/build.cjs.
@@ -9,10 +9,15 @@
         a square's top or a ▼'s top. The rest may be over a lower top, a slant or nothing.
       - A ▼ needs one of its lower sides whole against a ▲'s side (two such sides: it sits in a notch).
       Otherwise it falls off: ONLY A POINT.
-   2. Everything balances (§5c, revision 5d): tiles that share a whole edge are locked together and move as one piece
-      (half an edge or a point holds a piece up but does not lock it; the car locks to nothing). With the tile added,
-      the group of every piece (the piece, everything resting on it and everything locked to that, all the way up)
-      must have its weight over what it rests on, exactly over an end included. There is no grip. Otherwise: TIPS OVER.
+   2. Everything balances (§5c, revisions 5d and 5e): tiles that share a whole edge are locked together and move as one
+      piece (half an edge or a point holds a piece up but does not lock it; the car locks to nothing). With the tile
+      added, the group of every piece (the piece, everything resting on it and everything locked to that, all the way
+      up) must have its weight over what it rests on, exactly over an end included. There is no grip. A group whose
+      weight is past the end of its support leans that way, toward its pivot (the lowest support point at that end);
+      it is still balanced if it is propped (5e): a tile of the group presses with its side on the side of a tile
+      outside it, toward the lean, along an upright contact whose upper end is above the pivot. Only squares have
+      upright sides, so a prop is always a square beside a square at another height (at the same height they share a
+      whole side and are locked, so in one group). Otherwise: TIPS OVER.
 
    Numbers are exact. A point is a lattice point (X, a, b): x = X/2, y = a + b·h with h = √3/2. The comparison format
    writes it as SPEC's [X, p, q] with y = (p + q√3)/2, so p = 2a and q = b. Two heights are compared in integers
@@ -62,13 +67,16 @@ var RULES = (function () {
   // ---- builds (immutable) ----
   // { half, tiles: [tile] in placing order, log: [{piece, col, way}], idx: per half-tile column the tiles spanning it,
   //   rests: per tile, what it rests on ([{i: a tile's index or −1 for the car, lo, hi: the contact's ends, hi null for
-  //   a point}]; a tile only ever rests on tiles placed before it), locks: per tile, the tiles locked to it, and the
-  //   pieces and groups those make (pc: per tile its piece; pieces: see structure) }
+  //   a point}]; a tile only ever rests on tiles placed before it), locks: per tile, the tiles locked to it, the
+  //   pieces and groups those make (pc: per tile its piece; pieces: see structure), and the upright contacts that can
+  //   prop (sides: per tile, null or [{j: the tile beside it, side: 'R' when that tile is to its right, 'L' to its
+  //   left, lo, hi: the contact's lower and upper end}]; only squares have any, and only with squares at another
+  //   height) }
   function off(B) { return 2 * B.half + 1; }
   function freezeBuild(B) {
     for (var k = 0; k < B.idx.length; k++) if (B.idx[k]) Object.freeze(B.idx[k]);
     Object.freeze(B.idx); Object.freeze(B.tiles); Object.freeze(B.log); Object.freeze(B.rests); Object.freeze(B.locks);
-    Object.freeze(B.pc); Object.freeze(B.pieces);
+    Object.freeze(B.pc); Object.freeze(B.pieces); Object.freeze(B.sides);
     return Object.freeze(B);
   }
   function newBuild(opts) {
@@ -76,7 +84,7 @@ var RULES = (function () {
     if (typeof half !== 'number' || half !== Math.floor(half) || half < 1) throw new Error('newBuild: half must be a whole number of tiles, at least 1');
     var idx = [];
     for (var k = 0; k < 4 * half + 2; k++) idx.push(null);
-    return freezeBuild({ half: half, tiles: [], log: [], idx: idx, rests: [], locks: [], pc: [], pieces: [] });
+    return freezeBuild({ half: half, tiles: [], log: [], idx: idx, rests: [], locks: [], pc: [], pieces: [], sides: [] });
   }
   function inCol(B, s) { var k = s + off(B); return k >= 0 && k < B.idx.length ? B.idx[k] : null; }
   function carIn(B, s) { return s >= -2 * B.half && s < 2 * B.half; }
@@ -239,7 +247,7 @@ var RULES = (function () {
     return { segments: S, points: P, nb: nb };
   }
 
-  // ---- BALANCE (SPEC §5c, revision 5d) ----
+  // ---- BALANCE (SPEC §5c, revisions 5d and 5e) ----
   // U rests on V when, over a half-tile column both span, U's underside meets V's top at an end of the column: they
   // touch there and, just inside the column, U's inside lies straight above V's (over one column two tiles are two
   // stacked intervals, so equal ends mean touching, never crossing). Side by side, two tiles share no column. This
@@ -326,7 +334,7 @@ var RULES = (function () {
     if (!g.pR || p[0] > g.x1 || (p[0] === g.x1 && cmpH(p[1], p[2], g.pR[1], g.pR[2]) < 0)) { g.x1 = p[0]; g.pR = p; }
   }
   function addContact(g, d) { addPoint(g, d.lo); if (d.hi) addPoint(g, d.hi); }
-  // a group is balanced when W·xmin ≤ M ≤ W·xmax (exactly over an end included; no grip): null then, else the side
+  // a group does not lean when W·xmin ≤ M ≤ W·xmax (exactly over an end included; no grip): null then, else the side
   // it leans to
   function leanOf(g) {
     var A = 4 * (g.sS - g.nS * g.x1), Q = g.sT - g.nT * g.x1;
@@ -335,14 +343,44 @@ var RULES = (function () {
     if (sgn3(A, Q) > 0) return 'left';
     return null;
   }
+  // PROPS (SPEC §5c, revision 5e). The upright contact of tile N with tile V (their meet() m), or null: on this
+  // lattice only squares have upright sides, so it is a square's side against a square's side, one tile apart, at
+  // heights less than a tile apart. j: V's index; side 'R' when V is to N's right, 'L' to its left; lo and hi its
+  // lower and upper end (meet() orders a segment's ends by x, then y, so an upright one comes lower end first).
+  function sideOf(N, V, m) {
+    if (!m.seg || m.seg[0][0] !== m.seg[1][0]) return null; // a point never props, nor does a flat or slanted contact
+    return { j: V.i, side: m.seg[0][0] === N.c + 2 ? 'R' : 'L', lo: m.seg[0], hi: m.seg[1] };
+  }
+  // Does upright contact s of a group's tile U with tile s.j prop the group, leaning toward `want` ('R' or 'L') over
+  // pivot pv? The contact is on U's side toward the lean (s.j beside U on that side), s.j is outside the group (inX,
+  // inA: per tile, 1 when it is in the group) and its upper end is higher than the pivot.
+  function propsOn(s, want, inX, inA, pv) {
+    return s.side === want && !(inX[s.j] || (inA && inA[s.j])) && cmpH(s.hi[1], s.hi[2], pv[1], pv[2]) > 0;
+  }
+  // Is a group (its tiles mem) that leans to `side` ('right' or 'left') over pivot pv propped? Some tile U of the group
+  // and some tile V outside it (never the car) share an upright contact that props it (propsOn). The contacts are the
+  // build's (B.sides of the group's placed tiles) and the new tile N's own (S, from balance; N is in every group
+  // tested, so only N can be the U of those).
+  function propped(B, S, mem, n, inX, inA, side, pv) {
+    var want = side === 'right' ? 'R' : 'L', j, k, L;
+    for (j = 0; j < S.length; j++) if (propsOn(S[j], want, inX, inA, pv)) return true;
+    for (j = 0; j < mem.length; j++) {
+      L = mem[j] === n ? null : B.sides[mem[j]];
+      if (L) for (k = 0; k < L.length; k++) if (propsOn(L[k], want, inX, inA, pv)) return true;
+    }
+    return false;
+  }
   // The balance with tile N (not placed yet; it met the tower edge to edge) added to build B: D, what N rests on, with
-  // each contact; L, the tiles N is locked to. Every group of B is balanced (place() only adds tiles that fit), and a
-  // group N does not join is the same set with the same support as before, so only the groups N joins are tested:
+  // each contact; L, the tiles N is locked to; S, N's upright contacts (sideOf). Every group of B is balanced (place()
+  // only adds tiles that fit), and a group N does not join is the same set with the same support as before, and keeps
+  // every prop it had (its props are tiles outside it, and N adds tiles, never takes one away), so only the groups N
+  // joins are tested:
   // - N's own piece: N and every piece it locks to, merged; its group X is N and those pieces' groups;
   // - every other piece of B whose group holds a tile N rests on or is locked to: its group gains X.
-  // Returns {D, L, fails: [{base, members, g, side}] for the groups that are not balanced}.
+  // A group that leans is balanced if it is propped (5e).
+  // Returns {D, L, S, fails: [{base, members, g, side}] for the groups that are not balanced}.
   function balance(B, N, nb) {
-    var n = B.tiles.length, D = [], L = [], h2 = 2 * B.half, j, k, u;
+    var n = B.tiles.length, D = [], L = [], S = [], h2 = 2 * B.half, j, k, u, sd;
     if (restsOnCar(B, N)) {
       if (N.t === 'dn') D.push({ i: -1, lo: [N.c + 1, 0, 0], hi: null });
       else {
@@ -353,6 +391,7 @@ var RULES = (function () {
     for (k = 0; k < nb.length; k++) {
       var V = nb[k].t, m = nb[k].m;
       if (lockOf(m)) L.push(V.i);
+      else if ((sd = sideOf(N, V, m))) S.push(sd); // a whole side locks instead (the two are one piece)
       if (!restsOn(N, V)) continue;
       D.push(m.pt ? { i: V.i, lo: m.pt, hi: null } : { i: V.i, lo: m.seg[0], hi: m.seg[1] });
     }
@@ -388,9 +427,9 @@ var RULES = (function () {
         for (u = 0; u < rs.length; u++) { var ri = rs[u].i; if (ri < 0 || !(inX[ri] || (inA && inA[ri]))) addContact(g, rs[u]); }
       }
       var side = g.pL ? leanOf(g) : null;
-      if (side) fails.push({ base: gr.base, members: mem, g: g, side: side });
+      if (side && !propped(B, S, mem, n, inX, inA, side, side === 'right' ? g.pR : g.pL)) fails.push({ base: gr.base, members: mem, g: g, side: side });
     }
-    return { D: D, L: L, fails: fails };
+    return { D: D, L: L, S: S, fails: fails };
   }
   // what the result says when something tips (DESIGN §18.7, SPEC §5c): of the pieces whose group is not balanced, the
   // one whose lowest point is lowest; on a tie, the one whose group has more tiles; then the one with the smaller col
@@ -409,6 +448,35 @@ var RULES = (function () {
     var g = best.g, members = best.members.slice().sort(num);
     var W = g.nS + g.nT * R3 / 4, M = (g.sS + g.sT * R3 / 4) / 2;
     return { base: best.base, members: members, side: best.side, pivot: out(best.side === 'right' ? g.pR : g.pL), com: M / W };
+  }
+  // props(build): every group of the build that leans and is held up by props (for drawing them; in a build every
+  // group is balanced, so every group that leans is propped). One entry per distinct group: {members (sorted
+  // indices), side, pivot (SPEC's [X, p, q]), props: [{tile: the index of the group's tile that presses, by: the
+  // index of the tile outside the group it presses on, seg: the contact, [[X, p, q] lower end, [X, p, q] upper end]}]},
+  // the props being every upright contact on the group's side toward the lean whose upper end is above the pivot.
+  // To see the props a fitting drop leaves standing, ask the build it makes: props(place(build, result)).
+  function props(B) {
+    var res = [], seen = {}, P = B.pieces, k, j, u;
+    for (k = 0; k < P.length; k++) {
+      var G = P[k].G, inG = P[k].inG, key = G.join(',');
+      if (seen[key]) continue;
+      seen[key] = true;
+      var g = newAgg();
+      for (j = 0; j < G.length; j++) {
+        addWeight(g, B.tiles[G[j]]);
+        var rs = B.rests[G[j]];
+        for (u = 0; u < rs.length; u++) if (rs[u].i < 0 || !inG[rs[u].i]) addContact(g, rs[u]);
+      }
+      var side = g.pL ? leanOf(g) : null;
+      if (!side) continue;
+      var pv = side === 'right' ? g.pR : g.pL, list = [];
+      for (j = 0; j < G.length; j++) {
+        var L = B.sides[G[j]];
+        if (L) for (u = 0; u < L.length; u++) if (propsOn(L[u], side === 'right' ? 'R' : 'L', inG, null, pv)) list.push({ tile: G[j], by: L[u].j, seg: [out(L[u].lo), out(L[u].hi)] });
+      }
+      res.push({ members: G.slice(), side: side, pivot: out(pv), props: list });
+    }
+    return res;
   }
 
   // ---- the API ----
@@ -520,8 +588,16 @@ var RULES = (function () {
     var locks = B.locks.slice();
     for (j = 0; j < L.length; j++) locks[L[j]] = Object.freeze(locks[L[j]].concat([n]));
     locks.push(Object.freeze(L.slice()));
+    // the upright contacts that can prop, kept on both tiles (each seen from its own side)
+    var SD = k.bal.S, sides = B.sides.slice(), mine = null;
+    for (j = 0; j < SD.length; j++) {
+      var sd = SD[j], lo = Object.freeze(sd.lo), hi = Object.freeze(sd.hi);
+      (mine || (mine = [])).push(Object.freeze({ j: sd.j, side: sd.side, lo: lo, hi: hi }));
+      sides[sd.j] = Object.freeze((sides[sd.j] || []).concat([Object.freeze({ j: n, side: sd.side === 'R' ? 'L' : 'R', lo: lo, hi: hi })]));
+    }
+    sides.push(mine && Object.freeze(mine));
     var tiles2 = B.tiles.concat([t]), S = structure(tiles2, rests, locks);
-    return freezeBuild({ half: B.half, tiles: tiles2, log: log, idx: idx, rests: rests, locks: locks, pc: S.pc, pieces: S.pieces });
+    return freezeBuild({ half: B.half, tiles: tiles2, log: log, idx: idx, rests: rests, locks: locks, pc: S.pc, pieces: S.pieces, sides: sides });
   }
   // every column's result for a piece, left to right
   function fitsAll(B, piece, way) {
@@ -567,6 +643,6 @@ var RULES = (function () {
     return res;
   }
 
-  return { REASONS: REASONS, newBuild: newBuild, drop: drop, place: place, fitsAll: fitsAll, key: key, pull: pull, tiles: tiles, cols: colsFor, chooseWay: chooseWay };
+  return { REASONS: REASONS, newBuild: newBuild, drop: drop, place: place, fitsAll: fitsAll, key: key, pull: pull, tiles: tiles, cols: colsFor, chooseWay: chooseWay, props: props };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = RULES;

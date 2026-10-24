@@ -9,15 +9,17 @@
 //  - the KNOCK IT DOWN button (a real button over the canvas): hiding it takes it off the screen in its box.
 // Also that the display list holds what §18.7 lists for the scene (the tiles, the hand, the ghost and its parts, the fit
 // markers, the weight and the ghost weight, the fuse, NEXT, the counter, the hint). The scenes: aiming a square, a
-// triangle; ONLY A POINT; TIPS OVER (rules that have it); open gaps (placed and aimed); a tall tower (the weight pinned);
-// BIG MAGNETS; THE TOPPER in the hand; tiles in the air and falling off; the dead-tile swap; a hint and the fuse; a crash;
-// the results card. Quizzes are still pictures; the rest run on the ?drive clock with real input. No console errors.
+// triangle; ONLY A POINT; TIPS OVER (rules that have it); a propped fit, its double bar, and the bar flashing as it lands
+// (rules that have props: golden case 19); open gaps (placed and aimed); a tall tower (the weight pinned); BIG MAGNETS;
+// THE TOPPER in the hand; tiles in the air and falling off; the dead-tile swap; a hint and the fuse; a crash; the results
+// card. Quizzes are still pictures; the rest run on the ?drive clock with real input. No console errors.
 //   node clack-stack/tools/display.cjs [--sizes=...]
 const G = require('./g3lib.cjs');
 
 const T = G.reporter('display');
 const R = G.pageRules();
 const HAS_TIPS = R.REASONS.includes('TIPS OVER');
+const HAS_PROPS = typeof R.props === 'function';   // revision 5e: props
 const TOL = 2;                       // px: antialiasing past a box's edge
 
 async function audit(page, size, name, expect) {
@@ -104,6 +106,7 @@ const fmt = b => b ? `${Math.round(b.x0)},${Math.round(b.y0)}-${Math.round(b.x1)
       await quiz('aim a triangle', { build: ['■-2', '■1', '▲-1', '▲0'], hand: '▼-0.5' }, base.concat(['markers', 'ghost.shine']));
       await quiz('ONLY A POINT', { build: ['▲0', '■-2', '■1'], hand: '▲0' }, base.concat(['ghost.marks', 'ghost.reason']));
       if (HAS_TIPS) await quiz('TIPS OVER', { build: ['▲-1', '▼-0.5', '■-2'], hand: '■0' }, base.concat(['ghost.marks', 'ghost.reason']));
+      if (HAS_PROPS) await quiz('a propped fit (golden 19)', { build: ['■0', '▲-2', '▼-1.5', '■-2', '■-1'], hand: '■-1' }, base.concat(['ghost.props', 'ghost.shine']));
       await quiz('open gaps, placed', { build: ['■-2', '▲-0.5', '▼-1', '▲-1.5', '■1'], hand: '■1' }, base.concat(['gaps']));
       await quiz('an open gap, aimed', { build: ['■-2', '▲-0.5', '▼-1'], hand: '▲-1.5' }, base.concat(['ghost.ghostGaps']));
       { const b = []; for (let r = 0; r < 28; r++) b.push('■-1', '■0'); await quiz('a tall tower', { build: b, hand: '■-2' }, base); }
@@ -121,6 +124,18 @@ const fmt = b => b ? `${Math.round(b.x0)},${Math.round(b.y0)}-${Math.round(b.x1)
       await drop(0);
       for (let i = 0; i < 60; i++) { const f = await page.evaluate(() => (CS.display().falling.find(x => x.outcome === 'off') || {}).stage); if (f === 'tip') break; await G.step(page, 2); }
       total += await audit(page, size, 'a tile falling off', ['falling']);
+      // a propped fit lands (golden 19's last square): its double bar flashes
+      if (HAS_PROPS) {
+        await ready();
+        await page.evaluate(() => { CS.clear(); CS.build(['■0', '▲-2', '▼-1.5', '■-2', '■-1']); CS.setPiece('sq'); CS.setBox(['sq', 'sq', 'tri', 'sq']); });
+        await G.wait(page, 0.6);
+        await ready();
+        await drop(-2);
+        const id = await page.evaluate(() => CS.lastRelease.id);
+        for (let i = 0; i < 200 && !(await page.evaluate(id => CS.events.some(e => e.type === 'land' && e.id === id), id)); i++) await G.step(page, 1);
+        await G.step(page, 12);
+        total += await audit(page, size, 'a propped fit landing: its bar flashes', ['tiles', 'propFlash']);
+      }
       // the dead-tile swap, halfway
       await page.evaluate(() => { CS.clear(); CS.build(['■-2', '■-1', '■0', '■1', '▲-2', '▲-1', '▲0', '▲1']); CS.setPiece('sq'); CS.setBox(['sq', 'sq', 'tri', 'sq', 'top']); });
       await G.wait(page, 0.3);

@@ -1,18 +1,18 @@
 'use strict';
-// The rules tiers (DESIGN §18.8), revision 5d:
+// The rules tiers (DESIGN §18.8), revision 5e:
 //   node tools/rules/run.cjs --tier=1 [--workers=4] [--compare=path|none] [--out=dir] [--resume] [--depth=7] [--mutant-depth=6]
 //                                     [--diff=path/to/other-rules.js]
 //   node tools/rules/run.cjs --tier=2 [--workers=4] [--compare=path|none] [--out=dir] [--resume] [--depth=10] [--diff=…]
 // (also through node tools/run.cjs --tier=N).
 // Tier 1, on every rules change, about 10 minutes: rules.js loads pure; the golden cases through rules.js; the
 // exhaustive enumeration to depth 7 with every invariant (I1, the game equals the oracle field by field on every drop,
-// when there is a SPEC 5d oracle); the coverage floors; the mutants (killed by golden and the enumeration to depth 6);
+// when there is a SPEC 5e oracle); the coverage floors; the mutants (killed by golden and the enumeration to depth 6);
 // and fitsAll's speed on 40-tile builds (the game calls it every frame while aiming). --diff=<another rules.js> (such
-// as revision 5c's) also counts, over the enumeration, the drops whose outcome those rules give otherwise.
+// as revision 5d's) also counts, over the enumeration, the drops whose outcome those rules give otherwise.
 // Tier 2, at G2 and before release, hours: the enumeration to depth 10 with I1 on every drop. It writes a checkpoint in
 // its report directory after every finished chunk and depth, so a run the machine cut short goes on with --resume.
-// I1 runs when there is a SPEC 5d oracle: --compare=path, or by default tools/oracle/oracle.cjs if it is sealed
-// (tools/oracle/SEALED) and answers SPEC 5d (enumerate.cjs defaultOracle); --compare=none runs rules-only (tier 2
+// I1 runs when there is a SPEC 5e oracle: --compare=path, or by default tools/oracle/oracle.cjs if it is sealed
+// (tools/oracle/SEALED) and answers SPEC 5e (enumerate.cjs defaultOracle); --compare=none runs rules-only (tier 2
 // rules-only too, which proves the invariants to depth 10 but not I1). OPEN lines are disagreements triaged as
 // questions SPEC.md does not decide (enumerate.cjs OPEN): reported on every run, they do not fail it. One line per
 // check; exit code 0 when no line FAILs.
@@ -29,13 +29,14 @@ const { spawnSync } = require('child_process');
 const arg = (k, d) => { const a = process.argv.find(x => x.startsWith('--' + k + '=')); return a ? a.slice(k.length + 3) : d; };
 const tier = +arg('tier', 1);
 const ORACLE = E.ORACLE;
-const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5d';
+const SCRATCH = '/tmp/claude-0/-home-user-various/eea7fc80-8598-5a7a-a3e6-cdbd34e6e76d/scratchpad/rev5e';
 const LABEL = {
   I1: 'I1 the game equals the oracle (SPEC §8, field by field, every drop, forced way and none)', I1CACHE: 'I1 the oracle cache gives what a fresh oracle drop gives (sampled)', I2: 'I2 fitsAll equals drop', I3: 'I3 drop is pure',
   I4: 'I4 tile order makes no difference (every build rebuilds from its tiles; key() is canonical)',
   I5: 'I5 mirror symmetry (a TIPS OVER: the mirror group and side; the base may differ by the col tie rule)', I6: 'I6 translation on a wide base', I7: 'I7 locality (a far tile changes a drop only through a group the drop joins)', I8: 'I8 replaying the drop log rebuilds the build',
-  I9: 'I9 re-dropping a top tile puts it back', I10: 'I10 state: no overlap, lattice, whole-tile squares, joined to the car, every tile held by at least half an edge, every piece\'s group balanced',
-  I11: 'I11 at most one way up fits at a column', I12: 'I12 pull obeys §18.6', I13: 'I13 the shine explains the outcome, and a TIPS OVER names the group SPEC §5c reports (base, members, side, pivot), which really is unbalanced',
+  I9: 'I9 re-dropping a top tile puts it back', I10: 'I10 state: no overlap, lattice, whole-tile squares, joined to the car, every tile held by at least half an edge, every piece\'s group balanced (a group that leans propped)',
+  I11: 'I11 at most one way up fits at a column', I12: 'I12 pull obeys §18.6', I13: 'I13 the shine explains the outcome, and a TIPS OVER names the group SPEC §5c reports (base, members, side, pivot), which really is unbalanced (it leans and nothing props it)',
+  PROPS: 'PROPS props() names exactly the groups the geometry finds propped, with their sides, pivots and prop contacts',
   FORMAT: 'comparison format (SPEC §8, tips included)', GAP: 'the gap of SPEC §5a, recomputed from the polygons',
   OUTLINE: 'meeting the tower edge to edge depends only on the top outline under the tile', AUTO: 'no way given: the way of SPEC §6 (the neither-fits rule included)', THROWS: 'the API throws where SPEC §2 says, and only there'
 };
@@ -92,7 +93,7 @@ async function rulesTier(cfg) {
   const oracleDepth = +arg('oracle-depth', depth);
   const open = new Set(); let t;
   const diff = arg('diff', null);
-  console.log(`tier ${tier}: revision 5d rules, enumeration to depth ${depth}${cfg.mutants ? ', mutants' : ''}${compare ? ', I1 against ' + compare : ', rules-only'}${diff ? ', diff against ' + diff : ''}`);
+  console.log(`tier ${tier}: revision 5e rules, enumeration to depth ${depth}${cfg.mutants ? ', mutants' : ''}${compare ? ', I1 against ' + compare : ', rules-only'}${diff ? ', diff against ' + diff : ''}`);
   if (!compare) {
     if (cfg.needsOracle && cmpArg !== 'none') { line(false, 'the oracle (I1)', undefined, probe.why + '; tier 2 is the I1 run (--compare=none runs it rules-only)'); return; }
     else line(null, 'the oracle (I1)', undefined, cmpArg === 'none' ? 'rules-only run (--compare=none)' : probe.why);
@@ -117,7 +118,7 @@ async function rulesTier(cfg) {
   // golden
   t = Date.now();
   const g = runGolden(R), gbad = g.filter(r => !r.ok);
-  line(!gbad.length, 'golden cases (§18.9, SPEC §9: 1–18, the regression cases R1–R5, and §6\'s way pairs)', Date.now() - t, `${g.length - gbad.length}/${g.length}` + (gbad.length ? ' — ' + gbad.map(r => r.n + ': ' + r.msg).join(' | ') : ''));
+  line(!gbad.length, 'golden cases (§18.9, SPEC §9: 1–19, the regression cases R1–R5 and P1–P' + require('./golden.cjs').REGRESSION.filter(c => /^P/.test(c.n)).length + ', and §6\'s way pairs)', Date.now() - t, `${g.length - gbad.length}/${g.length}` + (gbad.length ? ' — ' + gbad.map(r => r.n + ': ' + r.msg).join(' | ') : ''));
   // fitsAll speed
   if (cfg.speed) {
     t = Date.now();
@@ -168,6 +169,18 @@ async function rulesTier(cfg) {
   line('INFO', 'the tallest group of a locked piece (2+ tiles) standing on half an edge', undefined, fx('tallest group of a locked piece (2+ tiles) standing on half an edge (tiles)'));
   line('INFO', 'knife-edges: groups exactly over an end of their support (summed over builds)', undefined, `${sum.locks['groups exactly over an end of their support (knife-edge), summed over builds'] || 0}; the most tiles in one: ${fx('most tiles in a group exactly over an end of its support')}`);
   line('INFO', 'the tallest structure standing on a hung ▼', undefined, fx('tallest structure standing on a ▼ held by one side (its height above the ▼\'s top, tiles)'));
+  // props (5e)
+  const pr = sum.props || {}, prk = (pre) => Object.entries(pr).filter(([k]) => k.startsWith(pre)).map(([k, v]) => [k.slice(pre.length), v]);
+  const tipsN = ['■', '▲', '▼'].reduce((a, pc) => a + (tt[pc].all || 0), 0), held = pr['fits held by a prop'] || 0;
+  line('INFO', 'props: fits held by a prop (a group the new tile joins leans past its support and is propped; without props it would tip)', undefined,
+    `${held} (■ ${pr['■ fits held by a prop'] || 0}, ▲ ${pr['▲ fits held by a prop'] || 0}, ▼ ${pr['▼ fits held by a prop'] || 0}), against ${tipsN} TIPS OVER (forced ways): a prop holds ${(100 * held / Math.max(1, held + tipsN)).toFixed(1)}% of the drops that lean past their support; by depth ${JSON.stringify(Object.fromEntries(prk('fits held by a prop at depth ')))}`);
+  line('INFO', 'props: the groups held, by side and size', undefined, JSON.stringify(Object.fromEntries(prk('held groups leaning ').concat(prk('held groups of ').map(([k, v]) => [k, v])))));
+  line('INFO', 'props: each prop contact by the height of its upper end above the pivot', undefined, JSON.stringify(Object.fromEntries(prk('prop contacts: upper end above the pivot by ').sort((a, b) => parseFloat(a[0].split('(')[1]) - parseFloat(b[0].split('(')[1])))));
+  line('INFO', 'props: each held group by its highest prop above the pivot', undefined, JSON.stringify(Object.fromEntries(prk('held groups: the highest prop above the pivot by ').sort((a, b) => parseFloat(a[0].split('(')[1]) - parseFloat(b[0].split('(')[1])))));
+  line('INFO', 'props: which tile presses, and how many prop contacts a held group has', undefined, JSON.stringify(Object.fromEntries(prk('prop contacts: ').filter(([k]) => /presses/.test(k)).concat(prk('held groups: ').filter(([k]) => /contact/.test(k))))));
+  line('INFO', 'props: builds with a propped group, by depth', undefined, `${pr['builds with a propped group'] || 0} of ${sum.builds} builds (${pr['propped groups (summed over builds)'] || 0} propped groups: left ${pr['propped groups leaning left'] || 0}, right ${pr['propped groups leaning right'] || 0}); ${JSON.stringify(Object.fromEntries(prk('builds with a propped group at depth ')))}`);
+  line('INFO', 'props: TIPS OVER whose group has upright contacts that do not prop it', undefined, JSON.stringify(Object.fromEntries(prk('TIPS OVER: '))));
+  for (const k of ['most tiles in a propped group', 'most tiles in a group held by a prop', 'the highest prop (its upper end above the pivot, tiles)', 'the lowest prop (its upper end above the pivot, tiles)']) line('INFO', 'props: ' + k, undefined, fx(k));
   line('INFO', 'nothing fits at all (no square, no triangle either way, anywhere)', undefined, `${sum.noFit} of ${sum.builds} builds` + (sum.nothingFits.length ? '; e.g. ' + sum.nothingFits.map(e => e.log.join(' ')).join(' | ') : ''));
   line('INFO', 'builds that do not rebuild lowest first (a counterweight must come before the tile it balances)', undefined, `${sum.reordered} of ${sum.builds}`);
   console.log(`INFO both ways fit at ${sum.bothWays.cols} of ${sum.bothWays.ofTriangleCols} triangle columns; no square fits on ${sum.noSquare} of ${sum.builds} builds, no triangle on ${sum.noTriangle}; ▼ fits: ${sum.notchDown} in a notch, ${sum.oneSideDown} by one side, ${sum.pointAir} with the point in the air`);
@@ -184,8 +197,8 @@ async function rulesTier(cfg) {
     t = Date.now();
     const md = +arg('mutant-depth', 6);
     const M = await runAll({ depth: md, jobs: workers, compare });
-    const alive = M.filter(m => !m.killed && !m.equivalent), eq = M.filter(m => !m.killed && m.equivalent), bal = M.filter(m => /^(balance|lock):/.test(m.what)), locks = M.filter(m => /^lock:/.test(m.what));
-    line(!alive.length && M.length >= 15 && bal.length >= 10 && locks.filter(m => m.killed).length >= 10, `mutants killed by golden + enumeration to depth ${md} + invariants` + (compare ? ' (I1 among them)' : ''), Date.now() - t, `${M.length - alive.length - eq.length}/${M.length} killed (${bal.length} balance mutants, ${locks.length} of them lock mutants, ${locks.filter(m => m.killed).length} of those killed)` + (eq.length ? `; ${eq.length} equivalent` : '') + (alive.length ? ' — survivors: ' + alive.map(m => m.name).join(', ') : '') +
+    const alive = M.filter(m => !m.killed && !m.equivalent), eq = M.filter(m => !m.killed && m.equivalent), bal = M.filter(m => /^(balance|lock|prop):/.test(m.what)), locks = M.filter(m => /^lock:/.test(m.what)), props = M.filter(m => /^prop:/.test(m.what));
+    line(!alive.length && M.length >= 15 && bal.length >= 10 && locks.filter(m => m.killed).length >= 10 && props.filter(m => m.killed).length >= 6, `mutants killed by golden + enumeration to depth ${md} + invariants` + (compare ? ' (I1 among them)' : ''), Date.now() - t, `${M.length - alive.length - eq.length}/${M.length} killed (${bal.length} balance mutants: ${locks.length} lock mutants, ${locks.filter(m => m.killed).length} of those killed; ${props.length} prop mutants, ${props.filter(m => m.killed).length} of those killed)` + (eq.length ? `; ${eq.length} equivalent` : '') + (alive.length ? ' — survivors: ' + alive.map(m => m.name).join(', ') : '') +
       (compare ? `; I1 alone kills ${M.filter(m => m.i1).length}/${M.length} (not: ${M.filter(m => !m.i1).map(m => m.name).join(', ') || 'none'})` : ''));
     for (const m of bal) console.log(`     ${m.killed ? 'killed  ' : m.equivalent ? 'EQUIVAL.' : 'SURVIVED'} ${m.name}: ${m.by.join('; ').slice(0, 220)}`);
     if (eq.length) { open.add('mutants'); line('OPEN', `mutants no build tells apart from the rules (marked equivalent in mutants.json): ${eq.map(m => m.name).join(', ')}`, undefined, eq[0].equivalent.slice(0, 200) + '…'); }

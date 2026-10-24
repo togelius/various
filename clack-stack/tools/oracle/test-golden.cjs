@@ -1,8 +1,8 @@
 'use strict';
-// Golden cases of SPEC.md §9 (revision 5d, half = 2). Exit code 0 iff every case passes.
+// Golden cases of SPEC.md §9 (revision 5e, half = 2). Exit code 0 iff every case passes.
 // -v : print every drop's result
-const { newBuild, drop, place, _details, _record } = require('./oracle.cjs');
-_record(true); // keep every piece's group for the notes of cases 6, 9, 17 and 18
+const { newBuild, drop, place, _details, _record, _variant } = require('./oracle.cjs');
+_record(true); // keep every piece's group for the notes of cases 6, 9, 17, 18 and 19
 
 const VERBOSE = process.argv.includes('-v');
 const H = [0, 1]; // sqrt3/2 as [p,q]
@@ -127,6 +127,25 @@ const CASES = [
       const g = groupOf(r, 1);
       if (J(g.piece) !== J([1, 2, 3, 5, 6, 7]) || J(g.group) !== J([1, 2, 3, 4, 5, 6, 7]) || !g.fails) return `failing group ${J(g)}`;
       return d.failing.length === 1 && d.baseTileTie && d.baseIdx === 2 ? null : `failing ${J(d.failing)} base ${d.baseIdx}`;
+    } },
+  { n: 19, drops: '■0 ▲-2 ▼-1.5 ■-2 ■-1 ■-1', expect: { outcome: 'fit', gap: null },
+    note: 'the group of the piece ▲−2 + ▼−1.5 leans right past its pivot (−1, 0); ■−1 (the lower one) presses on ■0 along x = 0 from y = √3/2 to 1, above the pivot: propped',
+    check: (rs) => {
+      const r = rs[5], d = _details(r), g = groupOf(r, 1);
+      // tiles: 0 ■0, 1 ▲-2, 2 ▼-1.5, 3 ■-2, 4 ■-1 (at y = h), 5 ■-1 (on top)
+      if (J(g.piece) !== J([1, 2]) || J(g.group) !== J([1, 2, 3, 4, 5]) || g.side !== 'right' || J(g.pivot) !== J([-2, 0, 0]) || g.fails) return `▲-2 + ▼-1.5 group ${J(g)}`;
+      if (J(g.props) !== J([{ u: 4, v: 0, seg: [[0, 0, 1], [0, 2, 0]] }])) return `props ${J(g.props)}`;
+      if (!hasSeg(rs[4], seg([0, 0, 1], [0, 2, 0]))) return `■-1 not beside ■0 from h to 1 ${J(rs[4].contacts)}`;
+      if (d.groups.some((x) => x !== g && x.side !== null)) return `another group leans ${J(d.groups)}`;
+      if (d.failing.length !== 0 || d.propped.length !== 1) return `failing ${J(d.failing)} propped ${J(d.propped)}`;
+      // without props (5d) the same drop tips, and that group is the one reported
+      let b = newBuild({ half: 2 });
+      for (const x of rs.slice(0, 5)) b = place(b, x);
+      _variant({ props: false });
+      let r5d;
+      try { r5d = drop(b, 'sq', -2); } finally { _variant({}); }
+      const want = { base: [[-4, 0, 0], [-3, 0, 1], [-2, 0, 0]], members: 5, side: 'right', pivot: [-2, 0, 0] };
+      return r5d.reason === 'TIPS OVER' && J(r5d.tips) === J(want) ? null : `5d reading ${J(r5d)}`;
     } },
 ];
 

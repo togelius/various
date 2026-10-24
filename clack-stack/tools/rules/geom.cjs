@@ -1,6 +1,6 @@
 'use strict';
 // Independent exact geometry for the invariants (DESIGN §18.8 I10, I13, the gap of SPEC §5a and the balance of SPEC §5c),
-// revision 5d: it shares no code with rules.js and reads
+// revision 5e (props): it shares no code with rules.js and reads
 // only the public results (tiles(), drop()). Coordinates are scaled by 2: a point [X, p, q] is (X, p + q√3), so every
 // x is an integer and every y is in ℤ[√3]; numbers a + b√3 are pairs [a, b] and compared exactly.
 
@@ -118,14 +118,14 @@ function checkState(T, half) {
     else if (!h.len) errs.push(`tile ${i} (${t.piece === 'sq' ? '■' : '▲'} col ${t.col}): its bottom touches no flat top along an edge`);
     else if (h.short) errs.push(`tile ${i}: a bottom contact shorter than half an edge`);
   });
-  // every piece's group balanced (SPEC §5c, revision 5d)
+  // every piece's group balanced (SPEC §5c, revision 5e: it does not lean, or it leans and is propped)
   let pieces = null, rel = null;
   if (n && !errs.length) {
     const b = balanceOf(T, half);
     pieces = b.pieces; rel = { rests: b.rests, locks: b.locks };
     for (const p of pieces) {
       if (!p.supported) errs.push(`piece ${p.tiles.join(',')}: its group rests on nothing`);
-      else if (p.side) errs.push(`piece ${p.tiles.join(',')}'s group (${p.members.join(',')}) leans ${p.side} past its support by ${p.m8[0]} + ${p.m8[1]}√3 (×8)`);
+      else if (p.side && !p.propped) errs.push(`piece ${p.tiles.join(',')}'s group (${p.members.join(',')}) leans ${p.side} past its support by ${p.m8[0]} + ${p.m8[1]}√3 (×8), and nothing props it`);
     }
   } else if (!n) rel = { rests: [], locks: [] };
   return { errs, holds, pieces, rel };
@@ -313,18 +313,25 @@ function len2(s) {
 }
 // the direction of a whole-edge contact, for coverage: 'flat', 'slant' or 'side' (upright)
 function lockDirOf(s) { return s[0][0] === s[1][0] ? 'side' : s[0][1] === s[1][1] && s[0][2] === s[1][2] ? 'flat' : 'slant'; }
-// The balance of a build T (rules.tiles()) as SPEC §5c (revision 5d) says, in exact numbers:
+// The balance of a build T (rules.tiles()) as SPEC §5c (revision 5e) says, in exact numbers:
 //   rests: per tile, [{j: tile index or −1 (the car), c: contact}] of what it rests on;
 //   locks: per tile, [{j, dir}] of the tiles it shares a whole edge with (a contact of length 1; the car never locks);
 //   pieces: the sets of tiles joined by chains of locks, each {tiles (sorted), low ([p, q] of its lowest point), base
 //     (its lowest tile, the smaller col on a tie), baseTie (more than one lowest tile), members (its group, sorted: the
 //     smallest set holding the piece, every tile resting on a tile of the set and every tile locked to one), x0, x1
 //     (the support's least and greatest X), segs (the support's segments, as 2·length), m8 (8·(W·x past the end) as
-//     [a, b], a + b√3), side ('left' | 'right' | null: balanced), pivot, supported, overX (the lean in tiles, a
-//     float, 0 when balanced), knife (its centre of weight exactly over an end of its support), halfEdge (its support
-//     is one half edge and any points), height (from its lowest support point to its top, in tiles, a float)}.
+//     [a, b], a + b√3), side ('left' | 'right' | null: it does not lean), pivot, props (when it leans: every upright
+//     contact segment of positive length between a tile u of the group and a tile v outside it, on u's side toward
+//     the lean, with its upper end higher than the pivot: [{u, v, seg, top ([X, p, q], the upper end), above
+//     ([p, q], top's height above the pivot)}]), propped (it leans and has a prop: balanced all the same), supported,
+//     overX (the lean in tiles, a float, 0 when it does not lean), knife (its centre of weight exactly over an end of
+//     its support), halfEdge (its support is one half edge and any points), height (from its lowest support point to
+//     its top, in tiles, a float)}.
 // Weights ×4 (a square's area 1 → 4, a triangle's √3/4 → √3) at each tile's middle X ((least + greatest X)/2), x in half
 // tiles; a group leans right when Σ w·(X − x1) > 0 and left when Σ w·(x0 − X) > 0; exactly over an end is balanced.
+// A group that leans is balanced if it is propped (SPEC §5c, revision 5e). U's side toward the lean is the part of its
+// boundary at its greatest x (leaning right) or least x (leaning left): an upright contact there has the other tile on
+// that side of U. The car is never a prop.
 // base (optional): {rests, locks} of T without its last tile (a previous balanceOf or checkState().rel), to add one
 // tile to a build without working out the rest again; the last tile's relations to every other are worked out either way.
 function balanceOf(T, half, base) {
@@ -400,15 +407,34 @@ function balanceOf(T, half, base) {
     if (sgn(...right) > 0) { side = 'right'; m8 = right; } else if (sgn(...left) > 0) { side = 'left'; m8 = left; }
     let pivot = null;
     if (side) for (const p of pts) if (p[0] === (side === 'right' ? x1 : x0) && (!pivot || cmp(Y(p), Y(pivot)) < 0)) pivot = p;
+    // props (5e): upright contacts on a member's side toward the lean, with a tile outside the group, above the pivot;
+    // and, for coverage, the upright contacts with a tile outside that do not prop it (unprops: kind 'far', on the side
+    // away from the lean; 'low', toward it but wholly at or below the pivot's height, with level: its upper end level
+    // with the pivot)
+    const props = [], unprops = [];
+    if (side && pivot) for (const u of members) {
+      const xs = polys[u].map(v => v[0]), sideX = side === 'right' ? Math.max(...xs) : Math.min(...xs);
+      for (let v = 0; v < n; v++) {
+        if (inG[v] || !touch(u, v)) continue;
+        for (const sg of contactSegs(polys[u], polys[v])) {
+          if (sg[0][0] !== sg[1][0]) continue; // upright only
+          const top = cmp(Y(sg[0]), Y(sg[1])) > 0 ? sg[0] : sg[1], c = cmp(Y(top), Y(pivot));
+          if (sg[0][0] !== sideX) unprops.push({ u, v, seg: sg, kind: 'far' }); // on u's other side
+          else if (c > 0) props.push({ u, v, seg: sg, top, above: sub(Y(top), Y(pivot)) });
+          else unprops.push({ u, v, seg: sg, kind: 'low', level: c === 0 });
+        }
+      }
+    }
     const com = M / W / 2; // in tiles
     // it stands on half an edge: its support is one half edge (and any number of points)
     const halfEdge = segs.length === 1 && segs[0] === 1;
-    Object.assign(pc, { members, x0, x1, segs, m8, side, pivot, supported: pts.length > 0, com, halfEdge, height: top - foot,
+    Object.assign(pc, { members, x0, x1, segs, m8, side, pivot, props, unprops, propped: props.length > 0, supported: pts.length > 0, com, halfEdge, height: top - foot,
       overX: side ? (side === 'right' ? com - x1 / 2 : x0 / 2 - com) : 0, knife: !side && (sgn(...right) === 0 || sgn(...left) === 0) });
   }
   return { rests, locks, pieces, pieceOf };
 }
-// SPEC §5c's report for a build whose last tile is the new one: of the pieces whose group is not balanced, the one whose
+// SPEC §5c's report for a build whose last tile is the new one: of the pieces whose group is not balanced (it leans and
+// nothing props it), the one whose
 // lowest point is lowest; on a tie, the one whose group has more tiles; on a further tie, the one holding the smaller col
 // among its lowest tiles. Returns {base (index: that piece's lowest tile, the smaller col on a tie), members (list),
 // side, pivot, m8, piece (its tiles), failing (every failing piece's tiles), decided ('one': a single group tips;
@@ -417,7 +443,7 @@ function balanceOf(T, half, base) {
 // pieces, rests and locks (balanceOf)
 function tipsReportOf(T, half, base) {
   const b = balanceOf(T, half, base);
-  const fails = b.pieces.filter(p => p.side);
+  const fails = b.pieces.filter(p => p.side && !p.propped);
   if (!fails.length) return Object.assign({ none: true }, b);
   const col = p => T[p.base].col;
   let decided = 'one';
@@ -440,5 +466,16 @@ function groupsHolding(pieces, k) {
   for (const p of pieces) if (p.members.includes(k)) for (const m of p.members) out.add(m);
   return out;
 }
+// does tile x (of T) share an upright contact of positive length with a tile in the set (a Set of indexes)? Such a
+// tile can prop a group in the set (SPEC §5c, revision 5e)
+function besideUpright(T, x, set) {
+  const P = shape(T[x].piece, T[x].way, T[x].col, T[x].y);
+  for (const m of set) {
+    if (m === x) continue;
+    const Q = shape(T[m].piece, T[m].way, T[m].col, T[m].y);
+    if (contactSegs(P, Q).some(sg => sg[0][0] === sg[1][0])) return true;
+  }
+  return false;
+}
 
-module.exports = { sgn, onSegment, shape, edges, overlap, contactSegs, carSegs, checkState, holdOf, gapOf, onBoundary, covers, lex, normSeg, balanceOf, tipsReportOf, groupsHolding, restsOnPoly, boundsOf, cmp, add, mul, len2, lockDirOf };
+module.exports = { sgn, onSegment, shape, edges, overlap, contactSegs, carSegs, checkState, holdOf, gapOf, onBoundary, covers, lex, normSeg, balanceOf, tipsReportOf, groupsHolding, besideUpright, restsOnPoly, boundsOf, cmp, add, sub, mul, len2, lockDirOf };
