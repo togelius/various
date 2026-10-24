@@ -830,15 +830,15 @@ These are the rules the slice implements. Each system opens with its sentence fr
   - loud, within 6: bashing glass; an exhibit destroyed;
   - crash, within 10: glass breaking; an alarm.
 - **Doors.** A closed door counts as 3 extra tiles.
-- **Hearing.**
-  - A sleeping exhibit that hears a noise gains 1 pip; it gains at most 1 pip from noise per turn.
-  - An awake exhibit that hears one goes to investigate.
-  - A hunting exhibit updates your last-known tile.
+- **Hearing.** An exhibit never reacts to a noise it made itself.
+  - A sleeping exhibit that hears a noise gains 1 pip; it gains at most 1 pip from noise per turn. If that pip is its third, it wakes awake and goes to look at the noise's tile.
+  - An awake exhibit that hears one goes to investigate the noise's tile, and so does a searching, returning or reinstalling one (it is alerted); a noise from the tile it is already going to look at only counts as a stimulus.
+  - A hunting exhibit moves your last-known tile to the tile of a noise you made (a Tuning Fork's included); another exhibit's noise says nothing about where you are. Noise does not reset its turns out of sight.
 - **What is shown:** the tiles a noise reached flash as a ring for one turn, with a caption ("Crash: glass breaking, heard 10 tiles away").
 
 **Pips:**
 - 3 to wake, for every exhibit;
-- 1 pip decays per 10 turns without stimulus, before the bell;
+- 1 pip decays per 10 turns without stimulus, before the bell, counted from its last pip gained (or the turn it went to sleep) and from its last decay: a sleeper left at 2 pips on turn t has 1 on turn t + 10 and none on turn t + 20;
 - none decay after the bell;
 - each trigger adds at most once per turn.
 
@@ -846,14 +846,16 @@ These are the rules the slice implements. Each system opens with its sentence fr
 
 | Trigger | Fires when | Pips |
 |---|---|---|
-| `axis(r)` | you stand in its row or column within r, in line of sight | 1 a turn |
+| `axis(r)` | you stand in its row or column within r of one of its tiles, in line of sight from that tile | 1 a turn |
 | `period` | its module's chime (§5.4) | wakes for the demonstration, then sleeps again with the pips it had |
-| `tether(r)` | you come within r of the thing it guards | 3 |
+| `tether(r)` | you come within r of the tile it guards (a tethered warden guards its own); no sight is needed | 3 |
 | `touch_case` | its case, or the case it is, is opened or bashed (touched, §8.3) | 3 |
-| `ally_hit` | a member of its group within 5 takes damage | 3 |
+| `ally_hit` | a member of its group within 5 of it takes any damage (only sleepers whose own trigger is `ally_hit` answer) | 3 |
 | `awake` | it is never dormant | none |
 
 The alarm is not a species trigger: `alarm_network` wakes the department itself (§5.4).
+
+At a turn boundary the wake checks (your ring, `axis`, `tether`) are all made from your tile at that tick before any is applied; then each sleeper, in spawn order, takes its ring pip, its `axis` pip and its `tether` pips, in that order, so the one that adds its third pip is what it woke for.
 
 **Damage always wakes, straight to hunting.**
 
@@ -1004,6 +1006,8 @@ The alarm is not a species trigger: `alarm_network` wakes the department itself 
 | Floor Plan | Read: reveals the department's plan (every tile counts as explored) and the rooms of the remaining Highlights | 8 |
 | "Quiet, Please" | Read: every exhibit within 8 walking tiles loses all pips; awake exhibits that are not hunting settle where they stand; hunters drop to awake | 8 |
 | Re-admission Ticket | Read: return to this department's entrance (or, if someone stands there, the free tile nearest it by walking distance, then in row-major order), even while you are rooted, since it is not a step; hunters lose you; unseals a Centrepiece hall. With no entrance to return to, a Ticket not yet identified is identified and does nothing, and a known one cannot be read, so no refusal gives an unknown one away | 5 |
+
+**"Quiet, Please" and the Ticket on exhibits.** "Quiet, Please" measures its 8 walking tiles from you to an exhibit's nearest tile, with no extra for doors. An exhibit awake but not hunting (awake, searching, going back or settling back in) goes to sleep where it stands, its home unchanged; a hunter drops to awake with nothing to look at, and its pending special is called off. It leaves alone the Night Watchman, a species that never sleeps, and a mimic in its disguise. The Ticket's "hunters lose you" means that each hunter but the Night Watchman searches where it last knew you were, and its pending special is called off.
 
 **Seals.** Each run shuffles 4 wax seals over the Solutions and 4 ink stamps over the Ephemera. The seal carries identification through the run. Each department gives every seal a local name ("Rainwater, Collected at Slack Tide · verdigris seal"; its pack's `consumables.names`, by the seal's position), so a name says nothing about the kind from one run to the next; a stack keeps the name of the department where it was first taken.
 
