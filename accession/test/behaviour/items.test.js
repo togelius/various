@@ -32,6 +32,8 @@ module.exports = ({ test, assert, loadCore }) => {
   const json = JSON.stringify;
   const CLS = ['S', 'M', 'L'];
   const P = (table, id, depth) => Clauses.params(R[table][id].params, null, { depth });
+  // A signed term a clause leaves out because it is 0 has no parameter (reg/items.js): read as 0.
+  const or0 = v => v === undefined ? 0 : v;
   const tierAt = depth => N.TIER_LOW_BY_DEPTH[depth - 1];
   const MAP = ['#############', '#...........#', '#...........#', '#...........#', '#...........#', '#...........#', '#############'];
   // A training exhibit that never lands a blow and never falls, unless stats are given.
@@ -140,10 +142,11 @@ module.exports = ({ test, assert, loadCore }) => {
       actions: [{ a: 'use', uid: 'p', x: 7, y: 3 }],
       expect(r, params, sp, depth) {
         const p = P('INSTRUMENTS', 'pin_driver', depth), t = tierAt(depth), acc = N.PLAYER_ACC + P('ITEM_PRIMS', 'acc', depth)[CLS[depth % 3]];
-        const want = { kind: 'shot', item: 'p', dmin: t + p.a, dmax: p.b * t + p.c, acc };
+        const want = { kind: 'shot', item: 'p', dmin: t + or0(p.a), dmax: p.b * t + or0(p.c), acc };
         if (!hows.length || hows.some(h => json(h) !== json(want))) return `the bolt was fired with ${json(hows)}, not ${json(want)}`;
         const hit = r.events.find(e => (e.k === 'damaged' || e.k === 'missed') && e.cause.k === 'item');
         if (!hit || hit.cause.item !== 'p') return 'no bolt reached the exhibit';
+        if (r.steps[0].events[0].k !== 'used') return `the use is told after what it did: ${json(r.steps[0].events.map(e => e.k))}`;
         if (hit.k === 'damaged' && (hit.cause.raw < want.dmin || hit.cause.raw > want.dmax)) return `the bolt rolled ${hit.cause.raw}, outside ${want.dmin}–${want.dmax}`;
         if (you(r.state).next - you(r.start).next !== N.COST_USE) return 'the use did not cost COST_USE';
         return at(r.state, 'p').charges === p.charges - 1 ? null : 'the bolt did not spend one charge';
@@ -203,7 +206,7 @@ module.exports = ({ test, assert, loadCore }) => {
           const p = P('CLAUSES', 'weapon_' + form, depth), t = tierAt(depth), b = you(r.state);
           // At grade VII only a T4 Heavy weapon (grade VIII) is short, by one (item_grade).
           const short = Math.max(0, 2 * t - 1 + (form === 'light' ? -1 : form === 'heavy' ? 1 : 0) - 7);
-          if (json([b.dmin, b.dmax, b.acc, b.weaponForm]) !== json([t + p.a, p.b * t + p.c, N.PLAYER_ACC + p.acc - N.SHORT_ACC * short, form])) return `a ${form} T${t} weapon gives ${json([b.dmin, b.dmax, b.acc])}`;
+          if (json([b.dmin, b.dmax, b.acc, b.weaponForm]) !== json([t + or0(p.a), p.b * t + or0(p.c), N.PLAYER_ACC + or0(p.acc) - N.SHORT_ACC * short, form])) return `a ${form} T${t} weapon gives ${json([b.dmin, b.dmax, b.acc])}`;
           const blows = r.events.filter(e => (e.k === 'damaged' || e.k === 'missed') && e.cause.by === 'you');
           if (blows.length !== 2) return `${blows.length} blows were struck`;
           const most = form === 'light' ? Math.floor(b.dmax * p.surprise / 100) : b.dmax;
@@ -229,7 +232,7 @@ module.exports = ({ test, assert, loadCore }) => {
         expect(r, params, sp, depth) {
           const p = P('CLAUSES', 'garment_' + form, depth), t = tierAt(depth), a = you(r.start), b = you(r.state);
           const short = Math.max(0, 2 * t - 1 + (form === 'heavy' ? 1 : 0) - 7);
-          if (json([b.pad, b.eva]) !== json([Math.max(0, t + p.a - N.SHORT_PAD * short), N.PLAYER_EVA + p.eva])) return `a ${form} T${t} garment gives ${json([b.pad, b.eva])}`;
+          if (json([b.pad, b.eva]) !== json([Math.max(0, t + or0(p.a) - N.SHORT_PAD * short), N.PLAYER_EVA + or0(p.eva)])) return `a ${form} T${t} garment gives ${json([b.pad, b.eva])}`;
           if (r.steps[0].events.length === 0) return 'the equip did nothing';
           const during = r.steps[0].events.filter(e => e.k === 'damaged' && e.who === 'you').map(e => e.cause.pad);
           const after = r.steps.slice(1).flatMap(st => st.events).filter(e => e.k === 'damaged' && e.who === 'you').map(e => e.cause.pad);

@@ -16,8 +16,8 @@ module.exports = (C) => {
 
   return [
     // Every item is in exactly one place: on the floor or in a case on the board, in your tote
-    // (and listed there once), in the one slot that names it, or gone; a case that holds an
-    // item holds it on its own tile.
+    // (and listed there once), in the one slot that names it, or gone; an item in a case is
+    // the one its case holds, and a case that holds an item holds it on its own tile.
     { id: 'kit.one_place', check(pre, events, post) {
       const seen = new Set(), m = post.dept;
       for (const it of post.items) {
@@ -27,7 +27,11 @@ module.exports = (C) => {
         if (!w || typeof w.at !== 'string') return `${it.uid} has no place`;
         if (w.at === 'floor' || w.at === 'case') {
           if (!isInt(w.x) || !isInt(w.y) || w.x < 0 || w.y < 0 || w.x >= m.w || w.y >= m.h) return `${it.uid} lies off the board: ${json(w)}`;
-          if (w.at === 'case' && !(m.fixtures || []).some(f => f.k === 'case' && f.x === w.x && f.y === w.y)) return `${it.uid} is in a case at ${w.x},${w.y}, where there is none`;
+          if (w.at === 'case') {
+            const f = (m.fixtures || []).find(c => c.k === 'case' && c.x === w.x && c.y === w.y);
+            if (!f) return `${it.uid} is in a case at ${w.x},${w.y}, where there is none`;
+            if (f.holds !== it.uid) return `${it.uid} is in the case at ${w.x},${w.y}, which holds ${json(f.holds)}`;
+          }
         } else if (w.at === 'tote') {
           if (post.you.tote.filter(u => u === it.uid).length !== 1) return `${it.uid} is in the tote, which lists it ${post.you.tote.filter(u => u === it.uid).length} times`;
         } else if (w.at === 'kit') {
@@ -108,10 +112,10 @@ module.exports = (C) => {
       return paid === want ? null : `${json(a)} cost ${paid} ticks, not ${want}`;
     } },
 
-    // Each use of an instrument spends one charge (one may come back at a boundary of the
-    // same step); the fork's noise is soft, yours, at the tile it was aimed at; the pole moves
-    // an exhibit exactly one tile, to where the use says; a Restoration kit is used up and its
-    // item is one level higher.
+    // Each use of an instrument spends exactly one charge (and one comes back in the same
+    // step only when its rechargeAt turn's boundary falls in it); the fork's noise is soft,
+    // yours, at the tile it was aimed at; the pole moves an exhibit exactly one tile, to where
+    // the use says; a Restoration kit is used up and its item is one level higher.
     { id: 'kit.uses', check(pre, events, post) {
       for (const e of events) {
         if (e.k !== 'used' || e.who !== 'you' || !e.cause || e.cause.k !== 'use') continue;
@@ -122,7 +126,8 @@ module.exports = (C) => {
           if (!after || after.where.at !== 'gone') return `the Restoration kit ${e.item} was not used up`;
           continue;
         }
-        if (!before || !after || before.charges < 1 || after.charges > before.charges || after.charges < before.charges - 1) return `${e.item} went from ${before && before.charges} to ${after && after.charges} charges in one use`;
+        const back = before && isInt(before.rechargeAt) && before.rechargeAt <= post.turn ? 1 : 0;
+        if (!before || !after || before.charges < 1 || after.charges !== before.charges - 1 + back) return `${e.item} went from ${before && before.charges} to ${after && after.charges} charges in one use${back ? ', one coming back' : ''}`;
         if (e.how === 'fork' && !events.some(n => n.k === 'noise' && n.cls === 'soft' && n.x === c.x && n.y === c.y && n.cause && n.cause.k === 'fork' && n.cause.by === 'you')) return `the fork at ${c.x},${c.y} made no soft noise of yours there`;
         if (e.how === 'push' || e.how === 'pull') {
           const mv = events.find(n => n.k === 'moved' && n.who === c.at && n.cause && n.cause.k === 'pole');
@@ -132,14 +137,14 @@ module.exports = (C) => {
       return null;
     } },
 
-    // Quiet (§8.5): your ring is QUIET_RING smaller while your last action was a move and you
-    // wear an item with the quiet primitive (once, however many), and the kit changes it in no
-    // other way.
+    // Quiet (§8.5): your ring is QUIET_RING smaller while your last action was a move or an
+    // attack (a bump is a move, so a blow counts however it is struck) and you wear an item
+    // with the quiet primitive (once, however many), and the kit changes it in no other way.
     { id: 'kit.quiet', check(pre, events, post) {
       const you = post.actors[0], worn = [post.you.kit.weapon, post.you.kit.garment, post.you.kit.curio[0], post.you.kit.curio[1], post.you.kit.instrument]
         .map(u => byUid(post, u)).filter(Boolean);
       const quiet = worn.some(it => (it.prims || []).some(p => p.id === 'quiet'));
-      const want = quiet && you.lastAct === 'move' ? -N.QUIET_RING : 0, got = Kit.ringDelta(post);
+      const want = quiet && (you.lastAct === 'move' || you.lastAct === 'attack') ? -N.QUIET_RING : 0, got = Kit.ringDelta(post);
       return got === want ? null : `the kit changes your ring by ${got}, not ${want}`;
     } },
 

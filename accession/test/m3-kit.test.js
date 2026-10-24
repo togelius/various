@@ -70,7 +70,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // §8.1 and §8.5, written out again. Weapons [min, max, Acc, grade offset] by form; garments
   // [Padding, Eva, grade offset]; a tier t item needs grade 2t − 1 + offset; each grade short
   // −2 Acc (weapon) or −1 Padding (garment); each level +1 damage, +1 Acc at even levels, +1
-  // Padding; bonuses S 1, M 2, L 3, a curio's rank 1 more each; Padding never below 0.
+  // Padding; the garment's own Padding never below 0; then bonuses S 1, M 2, L 3, a curio's
+  // rank 1 more each, the Padding bonuses on top of the garment's.
   const WEAPON = { light: [t => t, t => 3 * t + 1, 2, -1], balanced: [t => t + 1, t => 3 * t + 3, 0, 0], heavy: [t => t + 2, t => 4 * t + 4, -1, 1], reach: [t => t, t => 3 * t + 1, 0, 0] };
   const GARMENT = { light: [t => t - 1, 1, 0], standard: [t => t, 0, 0], heavy: [t => t + 1, -1, 1] };
   const SIZE = { S: 1, M: 2, L: 3 };
@@ -102,7 +103,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         Object.assign(w, { form: wf, tier: t, level: L }); Object.assign(g, { form: gf, tier: t, level: L });
         const sw = Math.max(0, 2 * t - 1 + woff - grade), sg = Math.max(0, 2 * t - 1 + goff - grade), d = Kit.derive(s);
         const want = {
-          acc: 3 + acc + Math.floor(L / 2) - 2 * sw + sum('acc'), eva: 2 + eva + sum('eva'), pad: Math.max(0, pad(t) + L - sg + sum('pad')),
+          acc: 3 + acc + Math.floor(L / 2) - 2 * sw + sum('acc'), eva: 2 + eva + sum('eva'), pad: Math.max(0, pad(t) + L - sg) + sum('pad'),
           dmin: lo(t) + L + sum('dmg'), dmax: hi(t) + L + sum('dmg'), weaponForm: wf, reach: wf === 'reach' || has('reach'),
           quiet: has('quiet') ? 1 : 0, breaker: has('breaker') ? 1 : 0,
         };
@@ -114,6 +115,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // A primitive with no size, or an unknown one, is an error, never a silent 0.
     c0.prims = [{ id: 'acc', cls: 'XL' }]; assert.throws(() => Kit.derive(s), /size/);
     c0.prims = [{ id: 'fire', cls: 'S' }]; assert.throws(() => Kit.derive(s), /unknown primitive/);
+    // A garment far short of you gives 0 Padding of its own, never less, so a large Padding
+    // curio still gives its 3, the label says 0, and taking the garment off changes nothing.
+    const far = room({ grade: 1, kit: { garment: { form: 'light', tier: 4 } }, items: [{ uid: 'cp', kind: 'curio', where: { at: 'kit', slot: 'curio0' }, prims: [{ id: 'pad', cls: 'L' }] }] });
+    assert.equal(json([you(far).pad, Kit.describe(far, 'you.g').stats.pad, Kit.describe(far, 'you.g').short]), json([3, 0, 6]));
+    checked(step(far, { a: 'unequip', slot: 'garment' }));
+    assert.equal(you(far).pad, 3, 'taking off a garment never raises your Padding');
   });
 
   test('the tote holds 16: an item takes a slot, a kind of consumable one slot however many; a full tote refuses a take and an unequip, never an equip', () => {
@@ -263,7 +270,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // Carried in the tote, it still recharges.
     checked(step(s, { a: 'unequip', slot: 'instrument' }));
     const back = [];
-    while (f.charges < CH) { const c = f.charges; step(s, { a: 'wait' }); if (f.charges !== c) back.push(s.turn); }
+    for (let i = 0; i < 4 * RE && f.charges < CH; i++) { const c = f.charges; step(s, { a: 'wait' }); if (f.charges !== c) back.push(s.turn); }
     assert.equal(json(back), json([used[0] + RE, used[0] + 2 * RE, used[0] + 3 * RE]), 'one charge every recharge turns after the first use');
     assert.equal(f.rechargeAt, null);
     // A Pin-Driver and a pole start full too, with their rows' charges.
@@ -288,9 +295,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(ev[0].k, 'used');
     refuses(s, { a: 'use', uid: 'f', x: 17, y: 4 }, 'out_of_range');
     refuses(s, { a: 'use', uid: 'f', x: 4, y: 3 }, 'no_line');
-    refuses(s, { a: 'use', uid: 'f', x: 6, y: 2 }, 'no_aim');
+    refuses(s, { a: 'use', uid: 'f', x: 6, y: 2 }, 'not_a_place');
     refuses(s, { a: 'use', uid: 'f', x: -1, y: -1 }, 'no_aim');
-    refuses(s, { a: 'use', uid: 'f', x: 8, y: 4 }, 'no_aim');
+    refuses(s, { a: 'use', uid: 'f', x: 8, y: 4 }, 'own_tile');
     refuses(s, { a: 'use', uid: 'f' }, 'no_aim');
     refuses(s, { a: 'use', uid: 'f', x: 9, y: 4, how: 'push' }, 'bad_use');
     refuses(s, { a: 'use', uid: 'f', x: 9, y: 4, on: 'you.w' }, 'bad_use');
@@ -302,17 +309,24 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     let hits = 0;
     for (let t = 1; t <= 4; t++) for (const [form, level, grade, cls] of [['heavy', 3, 1, 'S'], ['light', 0, 7, 'L'], ['balanced', 2, 3, null]]) {
       const curio = cls ? [{ uid: 'c', kind: 'curio', level: 1, where: { at: 'kit', slot: 'curio0' }, prims: [{ id: 'acc', cls }, { id: 'dmg', cls: 'L' }] }] : [];
-      const s = X.Setup.room(t, { acc: 'T0', depth: 1, map: MAP, you: [3, 3], grade, kit: { weapon: { form, tier: 4, level } }, exhibits: [dummy([7, 3], 'hunting', { eva: -10 })],
-        items: [{ uid: 'p', kind: 'instrument', form: 'pin_driver', tier: t, where: { at: 'kit', slot: 'instrument' } }].concat(curio) });
+      // The weapon's own Acc bonus counts for your blows and never for the bolt.
+      const weapon = { uid: 'wp', kind: 'weapon', form, tier: 4, level, where: { at: 'kit', slot: 'weapon' }, prims: [{ id: 'acc', cls: 'L' }, { id: 'dmg', cls: 'M' }] };
+      const s = X.Setup.room(t, { acc: 'T0', depth: 1, map: MAP, you: [3, 3], grade, exhibits: [dummy([7, 3], 'hunting', { eva: -10 })],
+        items: [weapon, { uid: 'p', kind: 'instrument', form: 'pin_driver', tier: t, where: { at: 'kit', slot: 'instrument' } }].concat(curio) });
+      const blowAcc = you(s).acc;
       shots.length = 0;
       const ev = X.Step.step(s, { a: 'use', uid: 'p', x: 7, y: 3 });
       for (const e of ev) assert.equal(X.Causes.check(e), null, json(e));
       const acc = 3 + (cls ? SIZE[cls] + 1 : 0);
-      assert.equal(json(shots), json([{ kind: 'shot', item: 'p', dmin: t, dmax: 2 * t + 2, acc }]), `T${t} with a ${form} weapon`);
+      // (The bolt is tried before it is fired, so shoot may be called more than once.)
+      assert.ok(shots.length >= 1 && shots.every(h => json(h) === json({ kind: 'shot', item: 'p', dmin: t, dmax: 2 * t + 2, acc })), `T${t} with a ${form} weapon: ${json(shots)}`);
+      assert.equal(blowAcc - acc, ({ heavy: -1, light: 2, balanced: 0 })[form] + Math.floor(level / 2) - 2 * Math.max(0, 7 + ({ heavy: 1, light: -1, balanced: 0 })[form] - grade) + SIZE.L, 'your blows have the weapon\'s Acc, the bolt none of it');
       const bolt = ev.find(e => e.k === 'damaged' && e.cause.k === 'item');
       if (bolt) { hits++; assert.ok(bolt.cause.raw >= t && bolt.cause.raw <= 2 * t + 2 && bolt.cause.item === 'p', json(bolt.cause)); }
       assert.equal(json([item(s, 'p').charges, X.Step.legal(s).length > 0]), json([N.PIN_DRIVER[0] - 1, true]));
-      assert.equal(ev[ev.length - 1].k === 'used' || ev.some(e => e.k === 'used'), true);
+      // The use is told first, then the bolt it fired.
+      assert.equal(json([ev[0].k, ev[0].how, ev[0].cause.at, ev[1].k]), json(['used', 'pin_driver', 'T0.1.room.1', 'attacked']), json(ev.map(e => e.k)));
+      assert.equal(ev.filter(e => e.k === 'used').length, 1);
       assert.equal(you(s).next, N.COST_USE, 'a use costs COST_USE, whatever the weapon');
     }
     assert.ok(hits >= 10, `${hits} bolts hit`);
@@ -328,10 +342,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     // A mimic in its disguise shows as a case, so it cannot be aimed at.
     X.Archetypes.present = (state, a) => a.uid === 'T0.1.room.4' ? { as: 'case' } : null;
     refused({ a: 'use', uid: 'p', x: 5, y: 4 }, 'no_target');
-    // With W1-ARCH-B's bolt not yet built, a use is refused and spends nothing.
-    const Y = loadCore(), s2 = room({ exhibits: [dummy([6, 3])], items: [{ uid: 'p', kind: 'instrument', form: 'pin_driver', tier: 1, where: { at: 'kit', slot: 'instrument' } }] }, null, Y);
+    // A bolt Ranged.shoot refuses is refused with its code, spends nothing and says nothing,
+    // even from a shoot that draws on a stream before it refuses: the bolt is tried first.
+    const Y = planted();
+    Y.Ranged.shoot = (state, att) => { Y.Rng.stream(state, 'combat/' + att.uid).u32(); state.actors[1].hp -= 1; return 'no_target'; };
+    const s2 = room({ exhibits: [dummy([6, 3])], items: [{ uid: 'p', kind: 'instrument', form: 'pin_driver', tier: 1, where: { at: 'kit', slot: 'instrument' } }] }, null, Y);
     const before = Y.State.canon(s2);
-    assert.equal(reason(Y.Step.step(s2, { a: 'use', uid: 'p', x: 6, y: 3 })), 'not_built');
+    assert.equal(reason(Y.Step.step(s2, { a: 'use', uid: 'p', x: 6, y: 3 })), 'no_target');
     assert.equal(Y.State.canon(s2), before);
   });
 
@@ -350,12 +367,23 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       assert.ok(!ev.some(e => e.k === 'woke' || (e.k === 'pip' && e.who === a.uid && e.cause.k !== 'ring')), 'the pole wakes nothing');
       assert.equal(json(ev.find(e => e.k === 'moved').cause), json({ k: 'pole', by: 'you', item: 'w' }));
     }
-    // Not onto another exhibit or a closed door; not a 2×2 exhibit or one in a case; not where
-    // its archetype would not step (mayStep).
+    // Not onto another exhibit or a closed door; not at a tile with no exhibit, a 2×2 exhibit,
+    // one in a case or one whose special is marked; not where its archetype would not step
+    // (mayStep); never past a wall (line of sight).
     refuses(make([dummy([4, 2]), dummy([5, 2])]), { a: 'use', uid: 'w', x: 4, y: 2, how: 'push' }, 'cannot_move');
     refuses(make([dummy([4, 2])], { map: map.map((r, y) => y === 2 ? '#....+..#' : r) }), { a: 'use', uid: 'w', x: 4, y: 2, how: 'push' }, 'cannot_move');
-    refuses(make([Object.assign(dummy([4, 1]), { size: 2 })]), { a: 'use', uid: 'w', x: 4, y: 1, how: 'push' }, 'no_target');
-    refuses(make([dummy([4, 3])], { map: map.map((r, y) => y === 3 ? '#...v...#' : r) }), { a: 'use', uid: 'w', x: 4, y: 3, how: 'push' }, 'no_target');
+    refuses(make([dummy([4, 1])]), { a: 'use', uid: 'w', x: 4, y: 2, how: 'push' }, 'no_exhibit');
+    refuses(make([Object.assign(dummy([4, 1]), { size: 2 })]), { a: 'use', uid: 'w', x: 4, y: 1, how: 'push' }, 'too_big');
+    refuses(make([dummy([4, 3])], { map: map.map((r, y) => y === 3 ? '#...v...#' : r) }), { a: 'use', uid: 'w', x: 4, y: 3, how: 'push' }, 'in_case');
+    refuses(make([dummy([5, 2], 'dormant')], { map: map.map((r, y) => y === 2 ? '#...#...#' : r) }), { a: 'use', uid: 'w', x: 5, y: 2, how: 'push' }, 'no_line');
+    // An exhibit whose special is marked cannot be moved off its marks, or onto them: a ring
+    // pulled onto its own shown tiles would strike itself.
+    const marked = make([dummy([5, 2], 'hunting')]), owner = marked.actors[1];
+    C.Specials.mark(marked, owner, 'ring', [[4, 2], [6, 2], [5, 1], [5, 3]], []);
+    refuses(marked, { a: 'use', uid: 'w', x: 5, y: 2, how: 'pull' }, 'marked');
+    assert.ok(!Step.legal(marked).some(a => a.a === 'use' && a.x === 5 && a.y === 2), 'nor is it listed');
+    owner.telegraph = null;
+    assert.ok(Step.legal(marked).some(a => a.a === 'use' && a.x === 5 && a.y === 2 && a.how === 'pull'), 'once its special is gone, it can be pulled');
     const X = planted();
     X.Archetypes.mayStep = (state, a, x, y) => !(x === 5 && y === 2);
     const kept = room({ map, you: [3, 2], exhibits: [dummy([4, 2])], items: [{ uid: 'w', kind: 'instrument', form: 'pole', tier: 1, where: { at: 'kit', slot: 'instrument' } }] }, null, X);
@@ -378,6 +406,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     refuses(s, { a: 'use', uid: 'w', x: 6, y: 5, how: 'lift' }, 'bad_use');
     refuses(s, { a: 'use', uid: 'w', x: 6, y: 5 }, 'bad_use');
     assert.equal(item(s, 'w').charges, N.WINDOW_POLE[0] - 2);
+    // Never past a wall: the opened case two tiles off, a wall between.
+    const walled = make([], { you: [3, 3], map: map.map((r, y) => y === 3 ? '#.......#' : y === 4 ? '#..###..#' : r) });
+    refuses(walled, { a: 'use', uid: 'w', x: 4, y: 5, how: 'take' }, 'no_line');
     // A full tote refuses the take.
     const full = make([], { you: [3, 3] });
     full.dept.tiles[3] = '#.......#';
@@ -385,7 +416,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     refuses(full, { a: 'use', uid: 'w', x: 2, y: 5, how: 'take' }, 'tote_full');
   });
 
-  test('quiet: your ring is QUIET_RING smaller after a move while you wear a quiet item, and the same otherwise', () => {
+  test('quiet: your ring is QUIET_RING smaller after a move or an attack while you wear a quiet item, and the same otherwise', () => {
     const s = room({ items: [{ uid: 'q', kind: 'curio', where: { at: 'tote' }, prims: [{ id: 'quiet', cls: 'S' }] }, { uid: 'q2', kind: 'curio', where: { at: 'tote' }, prims: [{ id: 'quiet', cls: 'L' }] }] });
     const r = () => Vision.ringRadius(s);
     step(s, { a: 'move', dir: 2 }); assert.equal(r(), N.RING_MOVING);
@@ -394,6 +425,18 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     step(s, { a: 'equip', uid: 'q2' }); step(s, { a: 'move', dir: 2 }); assert.equal(r(), N.RING_MOVING - N.QUIET_RING, 'two quiet items do no more than one');
     step(s, { a: 'wait' }); assert.equal(r(), N.RING_STILL, 'still: the ring is not made smaller');
     step(s, { a: 'unequip', slot: 'curio0' }); step(s, { a: 'unequip', slot: 'curio1' }); step(s, { a: 'move', dir: 6 }); assert.equal(r(), N.RING_MOVING);
+    // A blow counts as a move does, however you strike it: walking into an exhibit, or
+    // attack(uid); walking into a closed door to open it is a move. Anything else is not.
+    const b = room({ map: MAP.map((row, y) => y === 3 ? '#.+.........#' : row), exhibits: [dummy([4, 3])],
+      items: [{ uid: 'q', kind: 'curio', where: { at: 'kit', slot: 'curio0' }, prims: [{ id: 'quiet', cls: 'S' }] }, { uid: 'x', kind: 'curio', where: { at: 'floor', x: 3, y: 2 } }] });
+    const after = a => { const ev = checked(step(b, a)); assert.equal(reason(ev), null, key(a)); return Vision.ringRadius(b); };
+    assert.equal(after({ a: 'attack', uid: b.actors[1].uid }), N.RING_MOVING - N.QUIET_RING, 'attack(uid)');
+    assert.equal(after({ a: 'wait' }), N.RING_STILL);
+    assert.equal(after({ a: 'move', dir: 2 }), N.RING_MOVING - N.QUIET_RING, 'a bump into the exhibit');
+    assert.equal(json([you(b).x, you(b).y]), json([3, 3]), 'the bump struck and moved you nowhere');
+    assert.equal(after({ a: 'take', uid: 'x' }), N.RING_MOVING, 'taking is neither a move nor a blow');
+    assert.equal(after({ a: 'move', dir: 6 }), N.RING_MOVING - N.QUIET_RING, 'a bump into the closed door');
+    assert.equal(b.dept.tiles[3][2], "'", 'which opened it');
     // On a loud floor the ring is larger, and quiet still takes its 1.
     const t = room({ map: MAP.map((row, y) => y === 3 ? '#..xx.......#' : row), items: [{ uid: 'q', kind: 'curio', where: { at: 'kit', slot: 'curio0' }, prims: [{ id: 'quiet', cls: 'S' }] }] });
     step(t, { a: 'move', dir: 2 });
@@ -490,12 +533,17 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     return X;
   }
 
+  // The items Kit.standIn places: weapons, garments, curios, instruments and kits (a
+  // department's consumables are Consumables.standIn's, placed after them in each room).
+  const MINE = ['weapon', 'garment', 'curio', 'instrument', 'kit'];
+  const placedByKit = i => MINE.includes(i.kind) && !i.uid.startsWith('you.');
+
   test('item uids are <acc>.<depth>.<roleKey>.i<n>, n counted per room in placement order, and stay as they are when another room is perturbed or an exhibit removed', () => {
     const X = withCases(null);
     let checked = 0, moved = 0;
     for (const acc of ['S9', 'A4', 'M11']) for (const depth of [1, 4, 7]) for (const seed of [1, 2]) {
       const s = X.Dept.create(seed, acc, depth), count = {};
-      for (const it of s.items.filter(i => !i.uid.startsWith('you.'))) {
+      for (const it of s.items.filter(placedByKit)) {
         const k = X.Cases.roomKey(s, it.where.x, it.where.y);
         count[k] = (count[k] || 0) + 1;
         assert.equal(it.uid, `${acc}.${depth}.${k}.i${count[k]}`);
@@ -503,19 +551,19 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         checked++;
       }
       // Perturb one room: the items of every other room keep their uid, place and tier.
-      const rooms = [...new Set(s.items.filter(i => !i.uid.startsWith('you.')).map(i => i.uid.split('.')[2]))];
+      const rooms = [...new Set(s.items.filter(placedByKit).map(i => i.uid.split('.')[2]))], mine = i => i.uid.startsWith('you.') || placedByKit(i);
       for (const r of rooms) {
-        const t = withCases(r).Dept.create(seed, acc, depth), other = it => it.uid.startsWith('you.') || it.uid.split('.')[2] !== r;
+        const t = withCases(r).Dept.create(seed, acc, depth), other = it => mine(it) && (it.uid.startsWith('you.') || it.uid.split('.')[2] !== r), own = it => placedByKit(it) && !other(it);
         assert.equal(json(t.items.filter(other)), json(s.items.filter(other)), `${acc} d${depth}: perturbing ${r}`);
-        if (json(t.items.filter(i => !other(i))) !== json(s.items.filter(i => !other(i)))) moved++;
+        if (json(t.items.filter(own)) !== json(s.items.filter(own))) moved++;
       }
       // Remove an exhibit: every item stays.
       const gone = s.actors[1 + seed % (s.actors.length - 1)].uid;
-      assert.equal(json(X.Dept.create(seed, acc, depth, { without: [gone] }).items), json(s.items), `${acc} d${depth}: without ${gone}`);
+      assert.equal(json(X.Dept.create(seed, acc, depth, { without: [gone] }).items.filter(mine)), json(s.items.filter(mine)), `${acc} d${depth}: without ${gone}`);
     }
     assert.ok(checked > 60 && moved > 5, `${checked} uids; ${moved} perturbed rooms changed their own items`);
     // Kit.make numbers on from the highest uid in the room, so nothing placed later shares one.
-    const s = X.Dept.create(1, 'M11', 2), it = s.items.find(i => i.where.at === 'floor' && !i.uid.startsWith('you.')), k = it.uid.split('.')[2];
+    const s = X.Dept.create(1, 'M11', 2), it = s.items.find(i => i.where.at === 'floor' && placedByKit(i)), k = it.uid.split('.')[2];
     const max = Math.max(...s.items.filter(i => i.uid.split('.')[2] === k).map(i => +i.uid.split('i').pop()));
     assert.equal(X.Kit.nextUid(s, k), `M11.2.${k}.i${max + 1}`);
     const made = X.Kit.make(s, { kind: 'kit' }, { at: 'floor', x: it.where.x, y: it.where.y });
@@ -529,7 +577,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const X = withCases(null);
     let inCase = 0, kitsInCase = 0, depts = 0;
     for (const acc of ['S9', 'A4', 'M11']) for (const depth of [1, 3, 5, 7]) for (const seed of [1, 2, 3, 4, 5]) {
-      const s = X.Dept.create(seed, acc, depth), m = s.dept, pack = Packs.get(acc), placed = s.items.filter(i => !i.uid.startsWith('you.'));
+      const s = X.Dept.create(seed, acc, depth), m = s.dept, pack = Packs.get(acc), placed = s.items.filter(placedByKit);
       depts++;
       const gear = pack.items.filter(i => i.kind === 'weapon' || i.kind === 'garment'), extra = pack.items.filter(i => i.kind === 'curio' || i.kind === 'instrument');
       const kinds = placed.map(i => i.kind);
@@ -541,6 +589,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
         if (it.where.at === 'case') { inCase++; const f = m.fixtures.find(f => f.x === it.where.x && f.y === it.where.y); assert.ok(f && f.holds === it.uid && !f.loan && f.mimic === null, `${it.uid}'s case`); }
         else assert.equal(m.tiles[it.where.y][it.where.x], '.', `${it.uid} lies on a floor tile`);
         assert.ok(!s.actors.some(a => Actors.covers(a, it.where.x, it.where.y)), `${it.uid}: no actor stands on it`);
+        const sharing = placed.filter(o => o !== it && o.where.x === it.where.x && o.where.y === it.where.y);
+        assert.equal(json(sharing.map(o => o.uid)), '[]', `${it.uid} shares its tile`);
       }
       // The Highlights: each kit, with its room's key; walkable to without a staff door.
       assert.equal(json(m.highlights.map(h => h.uid)), json(placed.filter(i => i.kind === 'kit').map(i => i.uid)));
@@ -565,57 +615,105 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       }
     }
     assert.ok(depts === 60 && inCase > 3, `${inCase} items and ${kitsInCase} kits placed in cases`);
-    // One section with no free floor: a dormant exhibit on each floor tile but one beside the
-    // door, and two cases, one locked at grade I, one at grade III; behind a staff door, a
-    // study with free floor. Two pieces of equipment, the pack's instrument and two kits are
-    // placed: the kits go to the case your entry grade opens and to the floor tile left
-    // (never behind the staff door), the others wherever there is room.
-    const Z = withCases(null), map = ['##########', '#....v.v.#', '#........#', 'E........#', '#####S####', '#........#', '##########'];
-    const t = Z.Setup.room(3, { acc: 'S9', depth: 2, map, you: [1, 3], entrance: [0, 3], fixtures: [Z.Cases.make({ x: 5, y: 1, room: 's1', lock: 1 }), Z.Cases.make({ x: 7, y: 1, room: 's1', lock: 3 })],
-      exhibits: [] });
-    const roomOf = map.map((row, y) => Array.from(row, (ch, x) => y >= 1 && y <= 3 && x >= 1 && x <= 8 ? 1 : y === 5 && x >= 1 && x <= 8 ? 2 : 0));
-    Object.assign(t.dept, { roomOf, rooms: [{ id: 1, key: 's1', role: 'section', number: 302, x0: 1, y0: 1, x1: 8, y1: 3 }, { id: 2, key: 'study1', role: 'study', number: 303, x0: 1, y0: 5, x1: 8, y1: 5 }] });
-    let n = 0;
-    for (let y = 1; y <= 3; y++) for (let x = 1; x <= 8; x++) if (map[y][x] === '.' && !(x === 1 && y === 3) && !(x === 2 && y === 3)) Z.Actors.spawn(t, { uid: 'S9.2.s1.' + ++n, sp: 'dummy', x, y, hp: 9, mode: 'dormant' });
-    Z.Kit.standIn(t, 'layout/S9@1/d2/a0', { seed: 3, rng: {} });
-    const kits = t.dept.highlights.map(h => item(t, h.uid).where);
-    assert.equal(json(kits.map(w => [w.at, w.x, w.y]).sort()), json([['case', 5, 1], ['floor', 2, 3]]), 'the kits: the case at grade I and the one free floor tile in reach');
-    assert.equal(json(t.dept.highlights.map(h => h.room)), json(['s1', 's1']));
-    const others = t.items.filter(i => !i.uid.startsWith('you.') && i.kind !== 'kit');
-    assert.ok(others.every(i => (i.where.at === 'case' && i.where.x === 7) || i.where.y === 5), `the rest: ${json(others.map(i => i.where))}`);
-    assert.equal(t.dept.fixtures.find(f => f.x === 5).holds, t.dept.highlights.find(h => item(t, h.uid).where.at === 'case').uid);
+    // A department of the test's own, with a pack of its own so that what is placed does not
+    // hang on the packs' content: one section with no free floor but the tile beside you, a
+    // case locked at grade I and one at grade III; behind a staff door, a study with free
+    // floor and a case locked at grade I. With only the two kits to place, they go to the
+    // section's case at grade I and its one free floor tile, never behind the staff door,
+    // whatever the seed; with three pieces placed before them, every kit that finds a place
+    // still keeps to those two.
+    const staffRoom = (items, seed) => {
+      const Z = loadCore(), keep = Z.Packs.get, pack = { acc: 'S9', items };
+      Z.Packs.get = acc => acc === 'S9' ? pack : keep(acc);
+      Z.Cases.highlightOk = (state, f) => f.lock <= state.dept.entryGrade;
+      const map = ['##########', '#....v.v.#', '#........#', 'E........#', '#####S####', '#...v....#', '##########'];
+      const t = Z.Setup.room(seed, { acc: 'S9', depth: 2, map, you: [1, 3], entrance: [0, 3], exhibits: [],
+        fixtures: [Z.Cases.make({ x: 5, y: 1, room: 's1', lock: 1 }), Z.Cases.make({ x: 7, y: 1, room: 's1', lock: 3 }), Z.Cases.make({ x: 4, y: 5, room: 'study1', lock: 1 })] });
+      const roomOf = map.map((row, y) => Array.from(row, (ch, x) => y >= 1 && y <= 3 && x >= 1 && x <= 8 ? 1 : y === 5 && x >= 1 && x <= 8 ? 2 : 0));
+      Object.assign(t.dept, { roomOf, rooms: [{ id: 1, key: 's1', role: 'section', number: 302, x0: 1, y0: 1, x1: 8, y1: 3 }, { id: 2, key: 'study1', role: 'study', number: 303, x0: 1, y0: 5, x1: 8, y1: 5 }] });
+      let n = 0;
+      for (let y = 1; y <= 3; y++) for (let x = 1; x <= 8; x++) if (map[y][x] === '.' && !(x === 1 && y === 3) && !(x === 2 && y === 3)) Z.Actors.spawn(t, { uid: 'S9.2.s1.' + ++n, sp: 'dummy', x, y, hp: 9, mode: 'dormant' });
+      Z.Kit.standIn(t, 'layout/S9@1/d2/a0', { seed, rng: {} });
+      return t;
+    };
+    const GEAR = [{ id: 'Z.1', kind: 'weapon', form: 'heavy', prims: [] }, { id: 'Z.2', kind: 'garment', form: 'light', prims: [] }, { id: 'Z.3', kind: 'curio', prims: [{ id: 'acc', cls: 'S' }] }];
+    let studied = 0;
+    for (let seed = 1; seed <= 8; seed++) {
+      const t = staffRoom([], seed), kits = t.dept.highlights.map(h => item(t, h.uid).where);
+      assert.equal(json(kits.map(w => [w.at, w.x, w.y]).sort()), json([['case', 5, 1], ['floor', 2, 3]]), `seed ${seed}: the kits are the case at grade I and the one free floor tile in reach`);
+      assert.equal(json(t.dept.highlights.map(h => h.room)), json(['s1', 's1']));
+      assert.equal(json(t.dept.fixtures.map(f => f.holds)), json([t.dept.highlights.find(h => item(t, h.uid).where.at === 'case').uid, null, null]), 'nothing in the study\'s case, nor in the one locked above your grade');
+      const u = staffRoom(GEAR, seed), others = u.items.filter(i => placedByKit(i) && i.kind !== 'kit');
+      assert.equal(others.length, 3);
+      for (const h of u.dept.highlights) { const w = item(u, h.uid).where; assert.ok((w.at === 'case' && w.x === 5 && w.y === 1) || (w.at === 'floor' && w.x === 2 && w.y === 3), `seed ${seed}: ${h.uid} at ${json(w)}`); }
+      studied += others.filter(i => i.where.y === 5).length;
+    }
+    assert.ok(studied > 0, 'the other pieces may go behind the staff door');
+  });
+
+  test('the stand-in placement shuffles the pack\'s lists and puts each piece on a tile of its own', () => {
+    // One section of six floor tiles, you on one: the five pieces (two pieces of equipment, a
+    // curio and two kits) take the other five, one each. The pack has three of each list, so
+    // over the seeds each comes first, and two pieces of equipment are never the same one.
+    const Z = loadCore(), keep = Z.Packs.get;
+    const pack = { acc: 'S9', items: [{ id: 'Z.1', kind: 'weapon', form: 'heavy', prims: [] }, { id: 'Z.2', kind: 'garment', form: 'light', prims: [] }, { id: 'Z.3', kind: 'weapon', form: 'reach', prims: [] },
+      { id: 'Z.4', kind: 'curio', prims: [] }, { id: 'Z.5', kind: 'curio', prims: [{ id: 'eva', cls: 'S' }] }, { id: 'Z.6', kind: 'instrument', instrument: 'fork', prims: [] }] };
+    Z.Packs.get = acc => acc === 'S9' ? pack : keep(acc);
+    Z.Cases.highlightOk = () => true;
+    const firsts = new Set(), extras = new Set();
+    for (let seed = 1; seed <= 40; seed++) {
+      const map = ['########', 'E......#', '########'];
+      const t = Z.Setup.room(seed, { acc: 'S9', depth: 3, map, you: [1, 1], entrance: [0, 1], exhibits: [] });
+      Object.assign(t.dept, { roomOf: map.map((row, y) => Array.from(row, (ch, x) => y === 1 && x >= 1 && x <= 6 ? 1 : 0)), rooms: [{ id: 1, key: 's1', role: 'section', number: 302, x0: 1, y0: 1, x1: 6, y1: 1 }] });
+      Z.Kit.standIn(t, 'layout/S9@1/d3/a0', { seed, rng: {} });
+      const placed = t.items.filter(placedByKit), tiles = placed.map(i => i.where.x + ',' + i.where.y);
+      assert.ok(['weapon', 'garment'].includes(placed[0].kind) && ['weapon', 'garment'].includes(placed[1].kind) && ['curio', 'instrument'].includes(placed[2].kind), json(placed.map(i => i.kind)));
+      assert.equal(json(placed.slice(3).map(i => i.kind)), json(['kit', 'kit']));
+      assert.equal(new Set(tiles).size, 5, `seed ${seed}: the pieces are on ${tiles.join(' ')}`);
+      assert.ok(placed[0].ref !== placed[1].ref, `seed ${seed}: two pieces of equipment, ${placed[0].ref} twice`);
+      firsts.add(placed[0].ref); extras.add(placed[2].ref);
+    }
+    assert.equal(json([[...firsts].sort(), [...extras].sort()]), json([['Z.1', 'Z.2', 'Z.3'], ['Z.4', 'Z.5', 'Z.6']]), 'each of the pack\'s pieces is placed first in some department');
   });
 
   test('Kit.view shows what you wear and carry, your instrument\'s charges, the items in sight and the Highlights not yet taken; Kit.describe gives an item\'s label data', () => {
     const s = room({ map: MAP.map((r, y) => y === 2 ? '#...#.......#' : r), you: [3, 3], items: [
       { uid: 'f', kind: 'instrument', form: 'fork', tier: 2, where: { at: 'kit', slot: 'instrument' } }, { uid: 'c', kind: 'curio', level: 2, where: { at: 'tote' }, prims: [{ id: 'acc', cls: 'M' }] },
       { uid: 'w', kind: 'weapon', form: 'heavy', tier: 3, level: 1, where: { at: 'floor', x: 5, y: 3 }, ref: 'A4.7', prims: [{ id: 'dmg', cls: 'L' }] },
-      { uid: 'hid', kind: 'garment', form: 'light', tier: 1, where: { at: 'floor', x: 5, y: 1 } }, { uid: 'bt', kind: 'consumable', ck: 'card', seal: 'ink1', n: 1, where: { at: 'floor', x: 4, y: 3 } }] });
-    s.dept.highlights.push({ uid: 'w', room: 'room' });
+      { uid: 'hid', kind: 'garment', form: 'light', tier: 1, where: { at: 'floor', x: 5, y: 1 } }, { uid: 'bt', kind: 'consumable', ck: 'card', seal: 'ink1', n: 1, where: { at: 'floor', x: 4, y: 3 } },
+      { uid: 'hk', kind: 'kit', ref: 'restoration', where: { at: 'floor', x: 3, y: 4 } }] });
+    s.dept.highlights.push({ uid: 'w', room: 'room' }, { uid: 'hk', room: 'room' });
     checked(step(s, { a: 'use', uid: 'f', x: 6, y: 3 }));
-    const v = Kit.view(s);
+    let v = Kit.view(s);
     assert.equal(json([v.kit, v.tote]), json([{ weapon: 'you.w', garment: 'you.g', curio: [null, null], instrument: 'f' }, ['c']]));
     assert.equal(json(v.charges), json({ uid: 'f', charges: N.TUNING_FORK[0] - 1, max: N.TUNING_FORK[0], back: N.TUNING_FORK[1] - 1 }));
-    assert.equal(json(v.items), json([{ uid: 'w', x: 5, y: 3, icon: 'weapon', kind: 'weapon', inCase: false }]), 'out of sight (behind the wall) and consumables are not listed');
-    assert.equal(json(v.highlights), json([{ uid: 'w', room: 'room' }]));
-    // describe: a pack weapon at grade I, one tier too high and then some.
-    const d = Kit.describe(s, 'w');
-    assert.equal(json([d.title, d.kind, d.form, d.tier, d.level, d.needs, d.short]), json([Packs.get('A4').items[0].name, 'weapon', 'heavy', 3, 1, 6, 5]));
+    assert.equal(json(v.items), json([{ uid: 'w', x: 5, y: 3, icon: 'weapon', kind: 'weapon', inCase: false }, { uid: 'hk', x: 3, y: 4, icon: 'kit', kind: 'kit', inCase: false }]),
+      'out of sight (behind the wall) and consumables are not listed');
+    assert.equal(json(v.highlights), json([{ uid: 'w', room: 'room' }, { uid: 'hk', room: 'room' }]));
+    // A Highlight taken is no longer a remaining one (§8.6's Floor Plan reads these).
+    checked(step(s, { a: 'take', uid: 'hk' }));
+    v = Kit.view(s);
+    assert.equal(json([v.highlights, v.items.map(i => i.uid), v.tote]), json([[{ uid: 'w', room: 'room' }], ['w'], ['c', 'hk']]));
+    // describe: a pack weapon at grade I, one tier too high and then some; its title is the
+    // name of the pack record its ref names.
+    const d = Kit.describe(s, 'w'), rec = Packs.get('A4').items.find(r => r.id === 'A4.7');
+    assert.ok(rec, 'A4 has the item A4.7');
+    assert.equal(json([d.title, d.kind, d.form, d.tier, d.level, d.needs, d.short]), json([rec.name, 'weapon', 'heavy', 3, 1, 6, 5]));
     assert.equal(json(d.stats), json({ dmin: 3 + 2 + 1, dmax: 4 * 3 + 4 + 1, acc: 3 - 1 + 0 - 2 * 5, cost: 150 }), 'its own numbers, before its bonus');
     assert.equal(json(d.bonuses), json([{ id: 'dmg', cls: 'L', n: 3 }]));
     assert.equal(json(d.parts.map(p => p.table + '.' + p.id)), json(['CLAUSES.weapon_heavy', 'CLAUSES.item_grade', 'ITEM_PRIMS.dmg']));
-    assert.ok(d.line.includes('A Heavy weapon strikes for tier + 2 to 4 × tier + 4 damage') && d.line.includes('adds 1, 2 or 3') && clean(d.line), d.line);
+    assert.ok(d.line.includes('A Heavy weapon strikes for its tier + 2 to 4 × its tier + 4 damage, and changes your Acc by -1;') && d.line.includes('adds 1, 2 or 3') && clean(d.line), d.line);
     const c = Kit.describe(s, 'c'), f = Kit.describe(s, 'f');
     assert.equal(json([c.rank, c.bonuses, c.needs, c.short]), json([2, [{ id: 'acc', cls: 'M', n: 4 }], null, 0]));
     assert.equal(json([f.instrument.id, f.instrument.charges, f.instrument.range, f.parts.map(p => p.id)]), json(['fork', N.TUNING_FORK[0] - 1, 8, ['fork']]));
-    assert.ok(f.line.startsWith('Struck, it makes a soft noise') && f.line.includes('within 8 tiles') && f.line.includes('every 40 turns'), f.line);
+    assert.ok(f.line.startsWith('From your instrument slot, it is struck at a tile') && f.line.includes('within 8 tiles') && f.line.includes('every 40 turns'), f.line);
     assert.equal(Kit.describe(s, 'nobody'), null);
     // Every clause of reg/items.js fills from its numbers of record, cleanly.
     for (const t of ['ITEM_PRIMS', 'INSTRUMENTS', 'KITS', 'CLAUSES', 'REFUSALS']) for (const id of Registry.order(t)) {
       const e = Registry[t][id];
       if (typeof e.clause !== 'string') continue;
       const text = C.Clauses.fill(e.clause, C.Clauses.params(e.params, null, { depth: 1 }));
-      assert.ok(clean(text) && !/[{}]/.test(text), `${t}.${id}: ${text}`);
+      assert.ok(clean(text) && !/[{}]/.test(text) && !/\+ -/.test(text), `${t}.${id}: ${text}`);
     }
   });
 
@@ -637,6 +735,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const faults = [
       ['kit.one_place', t => { t.you.tote.push('c'); }],
       ['kit.one_place', t => { item(t, 'cased').where = { at: 'floor', x: 99, y: 1 }; }],
+      ['kit.one_place', t => { t.dept.fixtures[0].holds = null; }],
       ['kit.tote', t => { for (let i = 0; i < 16; i++) { t.items.push(Kit.item({ uid: 'z' + i, kind: 'curio', where: { at: 'tote' } })); t.you.tote.push('z' + i); } }],
       ['kit.tote', t => { t.items.push(Kit.item({ uid: 'b2', kind: 'consumable', ck: 'card', seal: 'ink1', n: 1, where: { at: 'tote' } })); t.you.tote.push('b2'); }],
       ['kit.slots', t => { item(t, 'c').where = { at: 'kit', slot: 'instrument' }; item(t, 'f').where = { at: 'tote' }; t.you.tote.splice(t.you.tote.indexOf('c'), 1, 'f'); t.you.kit.instrument = 'c'; }],
@@ -654,6 +753,16 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     t.actors[0].next += 1;
     assert.ok(check(pre, { a: 'use', uid: 'f', x: 8, y: 3 }, ev, t).includes('kit.costs'));
     assert.ok(check(pre, { a: 'use', uid: 'f', x: 8, y: 3 }, ev.filter(e => e.k !== 'noise'), t).includes('kit.uses'));
+    // A use that spends no charge.
+    const t2 = State.clone(base), pre2 = State.clone(t2), ev2 = Step.step(t2, { a: 'use', uid: 'f', x: 8, y: 3 });
+    assert.equal(json(check(pre2, { a: 'use', uid: 'f', x: 8, y: 3 }, ev2, t2)), '[]');
+    item(t2, 'f').charges += 1;
+    assert.ok(check(pre2, { a: 'use', uid: 'f', x: 8, y: 3 }, ev2, t2).includes('kit.uses'), 'a use that spends no charge');
+    // A charge that comes back at a boundary of the same step is no fault.
+    const t3 = State.clone(base);
+    item(t3, 'f').charges = 1; item(t3, 'f').rechargeAt = 1;
+    const pre3 = State.clone(t3), ev3 = Step.step(t3, { a: 'use', uid: 'f', x: 8, y: 3 });
+    assert.equal(json([item(t3, 'f').charges, check(pre3, { a: 'use', uid: 'f', x: 8, y: 3 }, ev3, t3)]), json([1, []]), 'spent one, and one came back at the boundary of turn 1');
     const q = State.clone(base); Step.step(q, { a: 'equip', uid: 'c' });
     const qp = State.clone(q), qe = Step.step(q, { a: 'move', dir: 2 });
     const keep = C.Kit.ringDelta; C.Kit.ringDelta = () => 0;

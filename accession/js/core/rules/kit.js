@@ -98,20 +98,25 @@ const Kit = (() => {
   // the grades short,
   //   weapon damage [t + a + L·RESTORE_DMG, b·t + c + L·RESTORE_DMG] from its form's a, b, c;
   //   Acc PLAYER_ACC + the form's Acc + ⌊L / RESTORE_ACC_EVERY⌋ − SHORT_ACC·s;
-  //   Padding t + the garment's a + L·RESTORE_PAD − SHORT_PAD·s, and Eva PLAYER_EVA + the
-  //   garment's Eva (with no garment, Padding 0 and Eva PLAYER_EVA);
+  //   the garment's own Padding max(0, t + its a + L·RESTORE_PAD − SHORT_PAD·s), never below
+  //   0 however far short of it you are, and Eva PLAYER_EVA + the garment's Eva (with no
+  //   garment, Padding 0 and Eva PLAYER_EVA);
   //   then every primitive on what you wear (weapon, garment, curios, instrument): a damage,
-  //   Acc, Eva or Padding bonus adds its size's value (BONUS_*; a curio's rank more), and the
-  //   damage bonus to both ends of the range; Padding is never below 0; reach makes your
-  //   blows Reach blows; quiet and breaker give QUIET_RING and BREAKER_BASHES, once however
-  //   many items have them; charges and observing (M4) change no stat;
-  //   weaponForm the weapon's form, reach for a Reach weapon or a reach primitive.
+  //   Acc, Eva or Padding bonus adds its size's value (BONUS_*; a curio's rank more), the
+  //   damage bonus to both ends of the range and the Padding bonus on top of the garment's
+  //   own (every bonus is at least 1, so taking a garment off never raises your Padding);
+  //   reach makes your blows Reach blows; quiet and breaker give QUIET_RING and
+  //   BREAKER_BASHES, once however many items have them; charges and observing (M4) change
+  //   no stat; weaponForm the weapon's form, reach for a Reach weapon or a reach primitive.
   function derive(state) {
     const grade = state.run ? state.run.grade : N.GRADE_START, kit = state.you && state.you.kit;
     if (!kit) return stats(null, null, grade, []);
     const others = [byUid(state, kit.curio[0]), byUid(state, kit.curio[1]), byUid(state, kit.instrument)].filter(Boolean);
     return stats(byUid(state, kit.weapon), byUid(state, kit.garment), grade, others);
   }
+  // A garment's own Padding at a grade (§8.1): tier + its form's a + its levels' Padding,
+  // less SHORT_PAD a grade short, never below 0.
+  const garmentPad = (g, grade) => Math.max(0, g.tier + N['GARMENT_' + g.form.toUpperCase()][0] + (g.level || 0) * N.RESTORE_PAD - N.SHORT_PAD * short(g, grade));
   // The same, from a weapon and a garment (or null) and the other items worn, at a grade.
   function stats(w, g, grade, others) {
     if (!w) throw new Error('Kit.derive: no weapon is equipped, and the weapon slot is never empty');
@@ -127,7 +132,7 @@ const Kit = (() => {
     if (g) {
       if (!GARMENT_FORMS.includes(g.form)) throw new Error('Kit.derive: no garment form ' + g.form);
       const G = N['GARMENT_' + g.form.toUpperCase()];
-      pad = g.tier + G[0] + (g.level || 0) * N.RESTORE_PAD - N.SHORT_PAD * short(g, grade);
+      pad = garmentPad(g, grade);
       out.eva = N.PLAYER_EVA + G[1];
     }
     for (const it of [w, g].concat(others || [])) {
@@ -143,7 +148,7 @@ const Kit = (() => {
         else if (!own(Registry.ITEM_PRIMS, p.id)) throw new Error(`Kit.derive: ${it.uid} has the unknown primitive ${p.id}`);
       }
     }
-    out.pad = Math.max(0, pad);
+    out.pad = pad;
     out.quiet = quiet ? N.QUIET_RING : 0;
     out.breaker = breaker ? N.BREAKER_BASHES : 0;
     return out;
@@ -157,12 +162,15 @@ const Kit = (() => {
   }
 
   // What your kit does to your ring (§8.2, §8.5): QUIET_RING smaller while your last action
-  // that cost time was a move and you wear a quiet item (read from your settled stats, which
-  // change once an action's ticks are done; an equip or unequip is not a move, so the ring
-  // the view model draws is the one the last boundary used). No Lamp term in M3.
+  // that cost time was a move or an attack (QUIET_ACTS: any move, a bump into an exhibit or
+  // a door included, and any blow, so a blow counts the same however you strike it) and you
+  // wear a quiet item. It is read from your settled stats, which change once an action's
+  // ticks are done; an equip or unequip is neither, so the ring the view model draws is the
+  // one the last boundary used. No Lamp term in M3.
+  const QUIET_ACTS = ['move', 'attack'];
   function ringDelta(state) {
     const you = state.actors[0];
-    return you.lastAct === 'move' && you.quiet ? -you.quiet : 0;
+    return QUIET_ACTS.includes(you.lastAct) && you.quiet ? -you.quiet : 0;
   }
 
   // ---- The tote (§8.5) ----
@@ -364,13 +372,15 @@ const Kit = (() => {
 
   // Why your instrument it cannot be used at (x, y) with `how` now, or null (§8.5). In order:
   // it must be in your instrument slot; a known instrument; aimed (x and y) and nothing else
-  // (`on` is a kit's); with a charge left; at a tile of the board other than yours, within
-  // its range (Grid.disc) and in your line of sight; then:
-  //   fork: any tile an exhibit could stand on (Grid.hold), with no `how`;
-  //   Pin-Driver: an exhibit you can see, with a clear line for a bolt (bolts stop at glass);
-  //   pole: how push or pull with a one-tile exhibit not in a case that can be moved there
-  //     (poleTo), or how take with an item in an opened or broken case (Cases.reach) and room
-  //     in your tote.
+  // (`on` is a kit's); with a charge left; at a tile of the board (no_aim), not your own
+  // (own_tile), within its range (Grid.disc) and in your line of sight; then:
+  //   fork: any tile an exhibit could stand on (Grid.hold; not_a_place), with no `how`;
+  //   Pin-Driver: an exhibit you can see (no_target), with a clear line for a bolt (bolts
+  //     stop at glass);
+  //   pole: how push or pull with an exhibit you can see (no_exhibit), one tile in size
+  //     (too_big), not in a case (in_case), whose special is not marked (marked: it would
+  //     move away from, or onto, tiles already shown), that can be moved there (poleTo); or
+  //     how take with an item in an opened or broken case (Cases.reach) and room in your tote.
   function aimCode(state, it, x, y, how, on) {
     const you = state.actors[0], m = state.dept;
     if (!it || it.kind !== 'instrument') return 'no_item';
@@ -379,13 +389,14 @@ const Kit = (() => {
     if (on !== undefined && on !== null) return 'bad_use';
     if (!isInt(x) || !isInt(y)) return 'no_aim';
     if (it.charges < 1) return 'no_charges';
-    if (!Grid.inside(m, x, y) || (x === you.x && y === you.y)) return 'no_aim';
+    if (!Grid.inside(m, x, y)) return 'no_aim';
+    if (x === you.x && y === you.y) return 'own_tile';
     const range = row(it.form)[2];
     if (!Grid.disc(x - you.x, y - you.y, range)) return 'out_of_range';
     if (!Grid.los(m, you.x, you.y, x, y)) return 'no_line';
     if (it.form === 'fork') {
       if (how !== undefined && how !== null) return 'bad_use';
-      return Grid.hold(m, x, y) ? null : 'no_aim';
+      return Grid.hold(m, x, y) ? null : 'not_a_place';
     }
     if (it.form === 'pin_driver') {
       if (how !== undefined && how !== null) return 'bad_use';
@@ -400,27 +411,34 @@ const Kit = (() => {
       return roomFor(state, thing);
     }
     const a = exhibitAt(state, x, y);
-    if (!a || (a.size || 1) !== 1 || Cases.encased(state, a)) return 'no_target';
+    if (!a) return 'no_exhibit';
+    if ((a.size || 1) !== 1) return 'too_big';
+    if (Cases.encased(state, a)) return 'in_case';
+    if (a.telegraph) return 'marked';
     return poleTo(state, a, how) ? null : 'cannot_move';
   }
 
   // Kit.useInstrument(state, uid, x, y, how, ev) → ticks (COST_USE), or a refusal code with
-  // nothing changed. The fork makes a soft noise at the tile, which is yours (by: you), so
-  // hunters that hear it look there; the Pin-Driver fires a bolt (Ranged.shoot, with
-  // Kit.shot's damage and Acc), and its used event follows the bolt's events, since the bolt
-  // may still be refused as it is fired; the pole pushes or pulls the exhibit one tile
-  // without waking it, or takes the item from the case into your tote. Each use spends one
-  // charge; an instrument that was full starts recharging (rechargeAt).
+  // nothing changed. Each use's used event comes first, then what it did. The fork makes a
+  // soft noise at the tile, which is yours (by: you), so hunters that hear it look there;
+  // the Pin-Driver fires a bolt (Ranged.shoot, with Kit.shot's damage and Acc), tried first
+  // on a copy of the state, so that a bolt Ranged.shoot refuses is refused with nothing
+  // changed and nothing said; the pole pushes or pulls the exhibit one tile without waking
+  // it, or takes the item from the case into your tote. Each use spends one charge; an
+  // instrument that was full starts recharging (rechargeAt).
   function useInstrument(state, uid, x, y, how, ev) {
     const it = byUid(state, uid), code = aimCode(state, it, x, y, how, null);
     if (code) return code;
     const R = row(it.form), cause = { k: 'use', x, y };
     const spend = () => { it.charges -= 1; if (it.rechargeAt === null) it.rechargeAt = state.turn + R[1]; cause.charges = it.charges; };
     if (it.form === 'pin_driver') {
-      const a = exhibitAt(state, x, y), r = Ranged.shoot(state, state.actors[0], x, y, shot(state, uid), ev);
-      if (typeof r === 'string') return r;
+      const probe = State.clone(state), tried = Ranged.shoot(probe, probe.actors[0], x, y, shot(probe, uid), []);
+      if (typeof tried === 'string') return tried;
+      const a = exhibitAt(state, x, y);
       spend(); cause.at = a.uid;
       Causes.emit(state, ev, 'used', { who: 'you', item: uid, how: 'pin_driver' }, cause);
+      const r = Ranged.shoot(state, state.actors[0], x, y, shot(state, uid), ev);
+      if (typeof r === 'string') throw new Error(`Kit: the Pin-Driver's bolt at ${x},${y} was refused (${r}) after the same bolt was not`);
       return paid(state, N.COST_USE);
     }
     if (it.form === 'fork') {
@@ -747,8 +765,7 @@ const Kit = (() => {
       const s = stats(Object.assign({}, it, { prims: [] }), null, g, []);
       out.stats = { dmin: s.dmin, dmax: s.dmax, acc: s.acc, cost: N['FORM_' + it.form.toUpperCase()][3] };
     } else if (worn) {
-      const G = N['GARMENT_' + it.form.toUpperCase()];
-      out.stats = { pad: Math.max(0, it.tier + G[0] + (it.level || 0) * N.RESTORE_PAD - N.SHORT_PAD * short(it, g)), eva: G[1] };
+      out.stats = { pad: garmentPad(it, g), eva: N['GARMENT_' + it.form.toUpperCase()][1] };
     }
     for (const p of it.prims || []) {
       const r = own(Registry.ITEM_PRIMS, p.id) ? Registry.ITEM_PRIMS[p.id] : null;
