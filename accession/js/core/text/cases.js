@@ -10,7 +10,10 @@
   // Refusals (§4.2).
   Text.defineRefusal('behind_glass', () => 'Glass is in the way.');
   Text.defineRefusal('no_case', () => 'There is no closed case there.');
-  Text.defineRefusal('case_locked', () => 'Its lock needs a higher grade than yours; you could break the glass instead.');
+  // A refusal says why, and nothing the rules might then refuse too: whether you could break
+  // the glass instead depends on your weapon (a Light one cannot break Laminated or Security
+  // glass), which the case's label shows and the refusal's code does not carry.
+  Text.defineRefusal('case_locked', () => 'Its lock needs a higher grade than yours.');
   Text.defineRefusal('glass_too_strong', () => 'A Light weapon cannot break Laminated or Security glass.');
   Text.defineRefusal('staff_grade', () => 'Staff only: this door needs a higher grade than yours.');
 

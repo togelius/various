@@ -146,8 +146,11 @@ const Cases = (() => {
     const f = at(state, x, y);
     return f && f.k === 'staff' ? f.grade : null;
   }
-  // The grade a closed staff door asks of you: its fixture's; a staff door with no fixture
-  // (only a room for tests can have one) asks no more than the grade you start with.
+  // The grade a closed staff door asks of you: its fixture's. A staff door with no fixture
+  // asks no more than the grade you start with: a department records every one (place), so
+  // only a room built by Setup.room (for a test or an arena) that was given none has one.
+  // Path.to, which cannot tell such a door from one on a board that records no grades,
+  // never paths through it while it is shut.
   const staffNeeds = (state, x, y) => { const g = staffGrade(state, x, y); return g === null ? N.GRADE_START : g; };
   const gradeOf = state => (state.run && state.run.grade) || N.GRADE_START;
 

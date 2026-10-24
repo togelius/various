@@ -1,9 +1,14 @@
 // ACCESSION — a path for a tap (BUILD.md §4.2): the UI turns it into single moves, so a
 // replay never holds a path. Shortest by the step rule, round other actors' footprints and
 // never through one; ties broken in direction order, so the same tap always gives the same
-// path. If actors close every way, it goes as far as the way is clear. It never goes
-// through a closed staff door your grade cannot open (§8.3: to you it is a wall), though a
-// tap on one walks you up to it, where the bump says why it stays shut.
+// path. If actors close every way, it goes as far as the way is clear. It goes through a
+// closed staff door only where the state records the door's grade (its staff fixture) and
+// that grade is within yours (state.run.grade); every other closed staff door is a wall to
+// it (§8.3), though a tap on one walks you up to it, where the bump opens it or says why it
+// stays shut. So a board with no fixture list (one rebuilt from what the view model shows,
+// say) never paths through a closed staff door, and its paths are never refused at one; to
+// path through the doors you can open, it carries them as {k: 'staff', x, y, grade} in
+// dept.fixtures, and your grade in run.grade.
 'use strict';
 const Path = (() => {
   function to(state, tx, ty) {
@@ -16,13 +21,13 @@ const Path = (() => {
     else if (Grid.walkable(m, tx, ty)) target.push([tx, ty]);
     if (!target.length) return [];
     // Every other actor's tiles cost more than the whole map, so the path goes round them;
-    // a staff door above your grade is never entered at all.
+    // a closed staff door it does not know you can open is never entered at all.
     const n = m.w * m.h, busy = new Uint8Array(n), grade = (state.run && state.run.grade) || N.GRADE_START;
     for (const a of state.actors) {
       if (a === you || a === aim || a.gone) continue;
       for (let dy = 0; dy < (a.size || 1); dy++) for (let dx = 0; dx < (a.size || 1); dx++) if (Grid.inside(m, a.x + dx, a.y + dy)) busy[(a.y + dy) * m.w + a.x + dx] = 1;
     }
-    const shut = (x, y) => Grid.ch(m, x, y) === 'S' && grade < staffNeeds(state, x, y);
+    const shut = (x, y) => Grid.ch(m, x, y) === 'S' && !opens(state, x, y, grade);
     let d = Grid.distances(m, target, n, (x, y) => shut(x, y) ? n + 1 : busy[y * m.w + x] ? n : 0);
     // No way round: follow the walking distance and stop where an actor stands.
     if (d[you.y * m.w + you.x] < 0) d = Grid.distances(m, target, n, (x, y) => shut(x, y) ? n + 1 : 0);
@@ -43,11 +48,14 @@ const Path = (() => {
     }
     return out;
   }
-  // The grade a closed staff door at (x, y) asks of you (Cases.staffGrade; one with no
-  // fixture, only in a room for tests, asks no more than the grade you start with).
-  function staffNeeds(state, x, y) {
+  // Does the closed staff door at (x, y) open for your grade, as the state records it? Only
+  // if a staff fixture there gives its grade (Cases.staffGrade) and that is within yours. A
+  // door with no recorded grade (a bare one in a room built for a test, or any door on a
+  // board with no fixtures) is not known to open, so a path treats it as shut, though a bump
+  // on a real state may still open it (Cases.enter).
+  function opens(state, x, y, grade) {
     const g = typeof Cases !== 'undefined' ? Cases.staffGrade(state, x, y) : null;
-    return g === null ? N.GRADE_START : g;
+    return g !== null && g <= grade;
   }
   const dirTo = (a, b) => { for (let k = 0; k < 8; k++) if (a[0] + Grid.DX[k] === b[0] && a[1] + Grid.DY[k] === b[1]) return k; return -1; };
   return { to, dirTo };

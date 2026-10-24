@@ -48,6 +48,18 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     X.Wake.hear = (state, a, noise, dist, ev) => { if (a.mode === 'dormant') X.Wake.addPips(state, a, 1, { k: 'noise', by: noise.by, dist, cls: noise.cls }, ev, { target: [noise.x, noise.y] }); };
     return X;
   }
+  // A core in which only the case can add a pip: hearing (Wake.hear, W1-WAKE-A's) and the
+  // boundary's wake checks (the ring, axis and tether) do nothing. A test that asserts who
+  // the touch or a release leaves asleep runs here, so that what it asserts is the case's
+  // rule alone, whatever hearing and the ring become; the same steps in the plain core are
+  // asserted only on what belongs to the case.
+  function still(X) {
+    X.Wake.hear = () => {};
+    X.Wake.boundary = () => {};
+    return X;
+  }
+  // The events of ev about the exhibit a whose cause is one of the case's.
+  const byCase = (ev, a) => ev.filter(e => (e.who === a.uid) && e.cause && ['touch_case', 'case_broken', 'dissolved'].includes(e.cause.k));
   // A map with a case south of you: you at (3,1), the case at (3,2).
   const SOUTH = ['#######', '#.....#', '#..v..#', '#.....#', '#######'];
   const count = (s, ch) => s.dept.tiles.join('').split(ch).length - 1;
@@ -167,6 +179,16 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       seen.add(code);
     }
     assert.equal(seen.size, 7);
+    // A refusal's sentence never offers what the rules would then refuse: for every weapon and
+    // glass, the case refused to open for its lock is offered for breaking only where a bash
+    // of it is allowed (a Light weapon cannot break Laminated or Security glass).
+    for (const form of ['light', 'balanced', 'heavy']) for (const g of [1, 2, 3]) {
+      const s = room(C, SOUTH, [3, 1], { fixtures: [kase(C, 3, 2, { glass: g, lock: 4 })], grade: 1, kit: { weapon: { form } } });
+      const ev = C.Step.step(s, { a: 'open', x: 3, y: 2 }), line = C.Text.event(ev[0]);
+      const bash = C.Step.step(C.State.clone(s), { a: 'bash', x: 3, y: 2 }), allowed = bash[0].k !== 'refused';
+      assert.equal(json([ev[0].reason, allowed]), json(['case_locked', !(form === 'light' && g > 1)]), `${form}, glass ${g}`);
+      if (/break|bash|smash/i.test(line)) assert.ok(allowed, `${form}, glass ${g}: "${line}", but the bash is refused (${bash[0].reason}: ${C.Text.event(bash[0])})`);
+    }
   });
 
   test('breaking leaves the case broken (k) and shards on one floor tile on your side: your tile if floor or archway, else its first such neighbour in direction order; the ring is 2 larger on both', () => {
@@ -211,11 +233,34 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const t = room(C, SOUTH, [3, 1], { fixtures: [kase(C, 3, 2)], exhibits: [sleeper([3, 2], { mode: 'awake' })] });
     played(C, t, [{ a: 'bash', x: 3, y: 2 }]);
     assert.equal(json([t.actors[1].mode, t.actors[1].home, t.actors[1].hunted.cause.k]), json(['hunting', null, 'case_broken']));
-    // Opened: the exhibit in it keeps its home, and may now step out (the tile is u).
-    const o = room(C, SOUTH, [3, 1], { fixtures: [kase(C, 3, 2)], exhibits: [sleeper([3, 2])] });
-    played(C, o, [{ a: 'open', x: 3, y: 2 }]);
+    // Opened: the exhibit in it keeps its home, and may now step out (the tile is u). With no
+    // trigger the open does not wake it: where only the case can add a pip it sleeps on; in
+    // the plain core hearing and the ring may wake it, but never the case, and its home stays.
+    const Q = still(loadCore());
+    const o = room(Q, SOUTH, [3, 1], { fixtures: [kase(Q, 3, 2)], exhibits: [sleeper([3, 2])] });
+    played(Q, o, [{ a: 'open', x: 3, y: 2 }]);
     assert.equal(json([o.actors[1].mode, o.actors[1].home]), json(['dormant', [3, 2]]), 'no trigger: the open does not wake it, and its home stays');
     assert.ok([0, 1, 2, 3, 4, 5, 6, 7].some(d => C.Grid.canStep(o.dept, 3, 2, d, 'exhibit')), 'it can step out of an opened case');
+    const po = room(C, SOUTH, [3, 1], { fixtures: [kase(C, 3, 2)], exhibits: [sleeper([3, 2])] });
+    const pv = played(C, po, [{ a: 'open', x: 3, y: 2 }]).events;
+    assert.equal(json([po.actors[1].home, byCase(pv, po.actors[1]).map(e => e.k)]), json([[3, 2], []]), 'in the plain core too: its home stays, and nothing of the case\'s woke it');
+    // An exhibit whose home the case was, standing elsewhere, loses that home when the case
+    // breaks or dissolves; the release frees and wakes only what stood inside, so a sleeper
+    // homed there sleeps on, and an awake one is not turned to the hunt by it. (It stands
+    // beyond a wall, out of your sight, so that nothing else turns it either.)
+    const APART = ['#########', '#...#...#', '#..v#...#', '#...#...#', '#########'];
+    const cause = { k: 'solvent', by: 'you', item: 'T0.1.room.i1' };
+    for (const how of ['bash', 'dissolve']) for (const Y of [still(loadCore()), C]) for (const mode of ['dormant', 'awake']) {
+      const h = room(Y, APART, [3, 1], { fixtures: [kase(Y, 3, 2)], exhibits: [sleeper([6, 2], { home: [3, 2], mode })] });
+      const e = h.actors[1], f = Y.Cases.at(h, 3, 2);
+      let ev = [];
+      if (how === 'bash') ev = played(Y, h, [{ a: 'bash', x: 3, y: 2 }]).events;
+      else { assert.equal(Y.Cases.dissolve(h, f, cause, ev), true); checked(Y, ev); }
+      const where = `${how}, ${mode}, ${Y === C ? 'plain' : 'still'} core`;
+      assert.equal(json([f.st, e.home, ev.find(q => q.k === 'glass_broke').released]), json([how === 'bash' ? 'broken' : 'dissolved', null, null]), `${where}: its home is gone, and nothing stood inside`);
+      assert.equal(json(byCase(ev, e).map(q => q.k)), '[]', `${where}: the release does not wake it or turn it`);
+      if (Y !== C) assert.equal(e.mode, mode, `${where}: its mode is as it was`);
+    }
   });
 
   test('one action\'s wake order: a 2-pip sleeper whose trigger is touch_case wakes hunting when its case is opened, bashed or broken; without the trigger the noise wakes it awake, but the breaking bash still frees it hunting', () => {
@@ -242,28 +287,42 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   });
 
   test('only exhibits in the case or at home in it are touched; only those with touch_case gain pips; each is told (onTouched) how and by whom', () => {
+    const MAP = ['#########', '#.......#', '#..v.v..#', '#.......#', '#########'];
+    const spec = X => ({ fixtures: [kase(X, 3, 2), kase(X, 5, 2)],
+      exhibits: [sleeper([3, 2], { trigger: 'touch_case' }), sleeper([5, 2], { trigger: 'touch_case' }), sleeper([3, 3], { trigger: 'touch_case', home: [3, 2] }), sleeper([1, 3])] });
+    // Where only the case can add a pip (still), the exhibits the open does not touch sleep
+    // on. In the plain core hearing and the ring may wake them too; what is asserted there is
+    // the touch's alone: it reaches the two it touches, which wake by it, hunting, and no other.
+    for (const [X, quiet] of [[still(loadCore()), true], [loadCore(), false]]) {
+      const told = [], where = quiet ? 'still core' : 'plain core';
+      X.Archetypes.onTouched = (state, a, how, by) => told.push(`${a.uid}:${how}:${by}`);
+      const s = room(X, MAP, [4, 1], spec(X));
+      const [, inIt, other, homed, plain] = s.actors;
+      const ev = step(X, s, { a: 'open', x: 3, y: 2 });
+      if (quiet) assert.equal(json([inIt.mode, other.mode, homed.mode, plain.mode]), json(['hunting', 'dormant', 'hunting', 'dormant']));
+      assert.equal(json([inIt, homed].map(a => [a.mode, a.woke.cause.k, a.woke.cause.how])), json([['hunting', 'touch_case', 'opened'], ['hunting', 'touch_case', 'opened']]), where);
+      assert.equal(json([other, plain].map(a => byCase(ev, a).length)), '[0,0]', `${where}: the touch reaches no one else`);
+      assert.equal(json(told), json([`${inIt.uid}:opened:you`, `${homed.uid}:opened:you`]), where);
+      assert.equal(json(ev.filter(e => e.k === 'pip' && e.cause.k === 'touch_case').map(e => [e.who, e.pips, e.delta, e.cause.k])), json([[inIt.uid, 3, 3, 'touch_case'], [homed.uid, 3, 3, 'touch_case']]), `${where}: it wakes at once: 3 pips`);
+    }
+    // A sleeper in the case with no trigger is told, and gains nothing from the touch.
     const X = loadCore(), told = [];
     X.Archetypes.onTouched = (state, a, how, by) => told.push(`${a.uid}:${how}:${by}`);
-    const s = room(X, ['#########', '#.......#', '#..v.v..#', '#.......#', '#########'], [4, 1], {
-      fixtures: [kase(X, 3, 2), kase(X, 5, 2)],
-      exhibits: [sleeper([3, 2], { trigger: 'touch_case' }), sleeper([5, 2], { trigger: 'touch_case' }), sleeper([3, 3], { trigger: 'touch_case', home: [3, 2] }), sleeper([1, 3])] });
-    const [, inIt, other, homed, plain] = s.actors;
-    const ev = step(X, s, { a: 'open', x: 3, y: 2 });
-    assert.equal(json([inIt.mode, other.mode, homed.mode, plain.mode]), json(['hunting', 'dormant', 'hunting', 'dormant']));
-    assert.equal(json(told), json([`${inIt.uid}:opened:you`, `${homed.uid}:opened:you`]));
-    assert.equal(json(ev.filter(e => e.k === 'pip' && e.cause.k === 'touch_case').map(e => [e.who, e.pips, e.delta, e.cause.k])), json([[inIt.uid, 3, 3, 'touch_case'], [homed.uid, 3, 3, 'touch_case']]), 'it wakes at once: 3 pips');
-    // A sleeper in the case with no trigger is told, and gains nothing from the touch.
-    told.length = 0;
     const t = room(X, SOUTH, [3, 1], { fixtures: [kase(X, 3, 2)], exhibits: [sleeper([3, 2])] });
     const tv = [...step(X, t, { a: 'bash', x: 3, y: 2 }), ...step(X, t, { a: 'wait' })];
     assert.equal(json(told), json([`${t.actors[1].uid}:bashed:you`]));
     assert.ok(!tv.some(e => e.k === 'pip' && e.cause.k === 'touch_case'));
-    // Replayed with a clone after every step and the case invariants, in the plain core.
-    const r = room(C, ['#########', '#.......#', '#..v.v..#', '#.......#', '#########'], [4, 1], {
-      fixtures: [kase(C, 3, 2), kase(C, 5, 2)],
-      exhibits: [sleeper([3, 2], { trigger: 'touch_case' }), sleeper([5, 2], { trigger: 'touch_case' }), sleeper([3, 3], { trigger: 'touch_case', home: [3, 2] }), sleeper([1, 3])] });
-    played(C, r, [{ a: 'open', x: 3, y: 2 }, { a: 'bash', x: 5, y: 2 }, { a: 'wait' }]);
-    assert.equal(json(r.actors.slice(1, 4).map(a => a.woke && a.woke.cause.k)), json(['touch_case', 'touch_case', 'touch_case']));
+    // Replayed with a clone after every step and the case invariants: the open wakes the two
+    // it touches by the touch, and the bash of the other case its own exhibit, which is woken
+    // by that touch where only the case can wake it, and in the plain core is hunting at the
+    // end in any case (the bash breaks the Plate glass and frees it).
+    for (const [Y, quiet] of [[still(loadCore()), true], [C, false]]) {
+      const r = room(Y, MAP, [4, 1], spec(Y));
+      played(Y, r, [{ a: 'open', x: 3, y: 2 }, { a: 'bash', x: 5, y: 2 }, { a: 'wait' }]);
+      const [inIt, other, homed] = r.actors.slice(1, 4);
+      assert.equal(json([inIt.woke.cause.k, homed.woke.cause.k, other.mode]), json(['touch_case', 'touch_case', 'hunting']));
+      if (quiet) assert.equal(other.woke.cause.k, 'touch_case');
+    }
   });
 
   test('a mimic\'s case: opening or bashing reveals the mimic and wakes it at once, hunting, with no pips; nothing opens or cracks; the noise still sounds; Solvent reveals it silently, untouched', () => {
@@ -338,6 +397,27 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json(C.Path.to(low, 4, 1)), json([[4, 1]]), 'a tap on it walks you up to it, where the bump says why');
     const s = make(3), you = s.actors[0];
     assert.equal(json(C.Path.to(s, 6, 1)), json([[4, 1], [5, 1], [6, 1]]));
+    // A board that records no staff door's grade (no fixture list and no run: the shape a
+    // policy rebuilds from the view model) never paths through a closed staff door, at any
+    // grade, so none of its paths is refused at one; a tap on the door still walks up to it.
+    // Given the doors' grades (as the view model's staff list shows them) and your grade, it
+    // paths exactly as the state does.
+    const board = st => ({ dept: { w: st.dept.w, h: st.dept.h, tiles: st.dept.tiles }, actors: st.actors });
+    const told = st => ({ dept: { w: st.dept.w, h: st.dept.h, tiles: st.dept.tiles, fixtures: C.Cases.staffView(st).map(f => ({ k: 'staff', x: f.x, y: f.y, grade: f.grade })) },
+      actors: st.actors, run: { grade: st.run.grade } });
+    for (const st of [low, s]) {
+      assert.equal(json([C.Path.to(board(st), 6, 1), C.Path.to(board(st), 4, 1)]), json([[], [[4, 1]]]), `grade ${st.run.grade}: a board with no grades`);
+      assert.equal(json(C.Path.to(told(st), 6, 1)), json(C.Path.to(st, 6, 1)), `grade ${st.run.grade}: a board with the grades`);
+      // Every step of a board's path to a floor tile is a move the state allows.
+      for (const [tx, ty] of [[6, 1], [5, 1], [1, 1], [7, 1]]) {
+        const c = C.State.clone(st);
+        for (const q of C.Path.to(board(st), tx, ty)) {
+          const dir = C.Path.dirTo([c.actors[0].x, c.actors[0].y], q);
+          assert.ok(C.Step.legal(c).some(a => a.a === 'move' && a.dir === dir), `grade ${st.run.grade}, to ${tx},${ty}: the step to ${q} is refused`);
+          C.Step.step(c, { a: 'move', dir });
+        }
+      }
+    }
     const ev = played(C, s, [{ a: 'move', dir: 2 }]).events;
     const op = ev.find(e => e.k === 'opened'), noise = ev.find(e => e.k === 'noise');
     assert.equal(json([op.who, op.x, op.y, op.staff, op.grade, op.cause]), json(['you', 4, 1, true, 3, { k: 'staff', by: 'you', grade: 3 }]));
@@ -345,9 +425,13 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json([s.dept.tiles[1][4], you.x, you.y, you.next]), json(['s', 3, 1, 100]));
     played(C, s, [{ a: 'move', dir: 2 }]);
     assert.equal(json([you.x, you.y]), json([4, 1]), 'then you walk through');
-    // A staff door with no fixture (only a room for tests has one) opens at any grade.
+    // A staff door with no fixture (only a room built for a test or an arena that was given
+    // none has one) opens at any grade when bumped, but no path goes through it while it is
+    // shut, since its grade is not recorded; once open, paths go through it.
     const bare = room(C, MAP, [3, 1], {});
+    assert.equal(json([C.Path.to(bare, 6, 1), C.Path.to(bare, 4, 1)]), json([[], [[4, 1]]]), 'no path through a bare staff door while it is shut');
     assert.ok(step(C, bare, { a: 'move', dir: 2 }).some(e => e.k === 'opened'));
+    assert.equal(json(C.Path.to(bare, 6, 1)), json([[4, 1], [5, 1], [6, 1]]), 'open, it is walked through');
     // Past a corner it is blocked, as any step is.
     const corner = room(C, ['#######', '#.S#..#', '#.....#', '#######'], [3, 2], { fixtures: [{ k: 'staff', x: 2, y: 1, grade: 1 }] });
     assert.equal(step(C, corner, { a: 'move', dir: 7 })[0].reason, 'blocked');
