@@ -40,9 +40,11 @@
 
   Text.defineCause('glass_broke', 'solvent', (e, w) => `${w.Name(e.by)} dissolved the glass of the case, silently.`);
   Text.defineCause('healed', 'item', (e, w) => `${w.Name(e.who)} ${w.is(e.who)} healed by ${e.amount}: health ${e.hp}.`);
-  const STATE = { fixed: 'fixed', rooted: 'rooted', coughing: 'coughing', restoring: 'recovering health', slowed: 'slowed', dazed: 'dazed' };
-  const state = id => own(STATE, id) ? STATE[id] : 'affected';
-  Text.defineCause('status', 'item', (e, w) => e.on ? `${w.Name(e.who)} ${w.is(e.who)} now ${state(e.id)}.` : `${w.Name(e.who)} ${w.is(e.who)} no longer ${state(e.id)}.`);
+  // A status reads in its registry words (Registry.STATUSES[id].words, W1-STATUS's), with its
+  // turns when put on, so that it ends in the words it began with, whatever ends it.
+  const state = id => own(R.STATUSES, id) && R.STATUSES[id].words ? R.STATUSES[id].words : 'affected';
+  const lasts = n => Number.isInteger(n) ? ` for ${n === 1 ? '1 turn' : `${n} turns`}` : '';
+  Text.defineCause('status', 'item', (e, w) => e.on ? `${w.Name(e.who)} ${w.is(e.who)} now ${state(e.id)}${lasts(e.turns)}.` : `${w.Name(e.who)} ${w.is(e.who)} no longer ${state(e.id)}.`);
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
   Text.defineCause('noise', 'throw', e => `${own(CLS, e.cls) ? CLS[e.cls] : 'A noise'}: a thrown phial landing, heard ${e.range} tiles away.`);
 

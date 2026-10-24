@@ -742,6 +742,28 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.match(near, new RegExp(`at least ${X.Consumables.GENTLE + 1} tiles away`));
   });
 
+  test('a status a consumable puts on or ends reads in the status\'s own words (Registry.STATUSES[id].words) with its turns, so it ends in the words it began with', () => {
+    const { X } = core(), N = X.N, R = X.Registry;
+    const lines = ev => ev.filter(e => e.k === 'status').map(e => X.Text.event(e, null));
+    // Fixative drunk: put on by the item and ended by its timer, in the same words.
+    const s = room(X, { tote: [['fixative', 1]], known: ['fixative'] });
+    const put = lines(checked(X, X.Step.step(s, { a: 'use', uid: uidOf(s, 'fixative') })));
+    let ended = [];
+    for (let k = 0; k < N.FIXATIVE_TURNS + 2; k++) ended = ended.concat(lines(X.Step.step(s, { a: 'wait' })));
+    assert.equal(json(put), json([`You are now ${R.STATUSES.fixed.words} for ${N.FIXATIVE_TURNS} turns.`]));
+    assert.equal(json(ended), json([`You are no longer ${R.STATUSES.fixed.words}.`]));
+    // Solvent drunk: each harmful status it ends reads in its own words.
+    const t = room(X, { tote: [['solvent', 1]], known: ['solvent'], youStatuses: [{ id: 'rooted', turns: 3 }, { id: 'coughing', turns: 4 }] });
+    assert.equal(json(lines(checked(X, X.Step.step(t, { a: 'use', uid: uidOf(t, 'solvent') })))), json(['rooted', 'coughing'].map(id => `You are no longer ${R.STATUSES[id].words}.`)));
+    // Every status, put on by an item for 1 or 3 turns, and ended by one.
+    for (const id of R.order('STATUSES')) {
+      const say = (on, turns) => X.Text.event({ k: 'status', turn: 1, tick: 100, who: 'you', id, on, turns, cause: { k: 'item', by: 'you', item: 'T0.1.a.i1' } }, null);
+      assert.equal(say(true, 1), `You are now ${R.STATUSES[id].words} for 1 turn.`);
+      assert.equal(say(true, 3), `You are now ${R.STATUSES[id].words} for 3 turns.`);
+      assert.equal(say(false), `You are no longer ${R.STATUSES[id].words}.`);
+    }
+  });
+
   test('a run using every kind is plain data and clone-stable after every step', () => {
     const { X } = core();
     const map = ['###########', 'E.........#', '#.........#', '#.........#', '#.........#', '#.........#', '###########'];
