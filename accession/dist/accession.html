@@ -43,7 +43,7 @@ button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; 
 /* On a narrow phone at the larger text sizes the badge keeps the grade and drops its caption
    from view (screen readers still read it), so the health number keeps its room. */
 @media (max-width: 365px) { :root[data-text="1.15"] .badge-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
-@media (max-width: 380px) { :root[data-text="1.3"] .badge-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
+@media (max-width: 389px) { :root[data-text="1.3"] .badge-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 #top .btn { min-height: 44px; }
 
@@ -3146,7 +3146,10 @@ const Marks = (() => {
     // of the board gets a hostile-red arrow at the nearest clear edge, pointing towards it,
     // moved along the edge to the nearest spot that covers no visible actor and no other arrow
     // (or, if the whole edge is taken, where it overlaps least).
-    const k = 10, taken = placed.filter(p => { const v = shows(p.r); return v.x1 > v.x0 && v.y1 > v.y0; }).map(p => p.r);
+    // An actor that shows takes its square, and a hostile's state glyph above it too.
+    const g = Math.max(8, Math.floor(tile / 3));
+    const k = 10, taken = placed.filter(p => { const v = shows(p.r); return v.x1 > v.x0 && v.y1 > v.y0; })
+      .map(p => p.a.hostile ? { x: p.r.x, y: p.r.y - g + 2, w: p.r.w, h: p.r.h + g - 2 } : p.r);
     const overlap = (x, y) => taken.reduce((n, q) => n + Math.max(0, Math.min(x + k, q.x + q.w) - Math.max(x - k, q.x)) * Math.max(0, Math.min(y + k, q.y + q.h) - Math.max(y - k, q.y)), 0);
     for (const { a, r } of placed) {
       if (!a.hostile || inClear(r)) continue;
@@ -7533,13 +7536,14 @@ const Board3D = (() => {
           legend[id].group = d.group;
           own.push([id, mine]);
         }
-        // Shown: the pixels that end up showing any actor or mark; only the scene counts as
-        // hiding it (a nearer actor drawn over a farther one is depth, not occlusion). Self:
-        // the pixels showing the item itself (or a telegraph's number laid over it).
+        // Shown (for a mark): the pixels that end up showing the mark itself or another mark
+        // drawn after it or of its own group (a telegraph's number); never an actor. Self (for an actor): the pixels showing the actor itself or a
+        // telegraph's number laid over it; a nearer actor drawn over it is depth, which the
+        // actor's own threshold allows for.
         for (const [id, mine] of own) {
-          const top = i => legend[ids[i]];
+          const top = i => legend[ids[i]], g = legend[id].group;
           legend[id].alone = mine.length;
-          legend[id].onTop = mine.filter(i => top(i) && (top(i).kind === 'actor' || top(i).kind === 'mark')).length;
+          legend[id].onTop = mine.filter(i => top(i) && (ids[i] === id || (top(i).kind === 'mark' && (ids[i] > id || top(i).group === g)))).length;
           legend[id].self = mine.filter(i => ids[i] === id || (top(i) && /^telegraph:/.test(top(i).id))).length;
         }
       }
@@ -7984,9 +7988,12 @@ const Main = (() => {
     if (!tr || !tr.rect.w) return { x: you.x, y: you.y };
     const t = tr.rect.w, d = tr.rect.h, above = Math.max(8, Math.floor(t / 3)) + (t - d);
     const half = (len, step) => Math.max(0, Math.floor((len / step - 1) / 2));
+    // Beside the exhibit, if both already fit round you the board stays put, so a second tap on
+    // any of its tiles still lands on it (§7.1).
+    const near = Step.adjacent(state, state.actors[0], Actors.byUid(state, a.uid));
     const axis = (p, q, n, h) => {
       const lo = Math.min(p, q), hi = Math.max(p + 1, q + n);
-      // Centred, rounding towards you, so opening an adjacent exhibit's label never moves the board.
+      if (near && lo >= p - h && hi - 1 <= p + h) return p;
       if (hi - lo <= 2 * h + 1) { const m = (lo + hi - 1) / 2; return p <= m ? Math.floor(m) : Math.ceil(m); }
       return p < q ? p + h : p - h;
     };

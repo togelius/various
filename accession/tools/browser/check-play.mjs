@@ -25,7 +25,8 @@ for (const [W, Hh] of SIZES) {
   const click = async (x, y) => { await page.mouse.click(x, y, { button: 'left' }); await settle(); };
   const clickEl = async sel => click(...await centreOf(sel));
   const you = () => page.evaluate(() => { const a = window.ACCESSION.state.actors[0]; return { x: a.x, y: a.y, turn: window.ACCESSION.state.turn }; });
-  const sights = () => page.evaluate(() => window.ACCESSION.vm().actors.map(a => a.uid + a.mode + a.pips).join());
+  // What would stop a walk: an exhibit appearing, moving or changing state, or a blow at you.
+  const sights = () => page.evaluate(() => window.ACCESSION.vm().actors.map(a => a.uid === 'you' ? 'you' + a.hp : a.uid + a.mode + a.pips + '@' + a.x + ',' + a.y).join());
   const freeTile = () => page.evaluate(freeTileIn);
   // A walk reaches the tile clicked, unless something new came into sight or changed state.
   const walkedTo = async (t, before, sightsBefore, tag) => {
@@ -119,6 +120,30 @@ for (const [W, Hh] of SIZES) {
     lines.push(`${tag}: examined and read "${title}" (${label.para.trim().split(/\s+/).length} words)`);
     await clickEl('#sheet [data-close]');
     if (await page.evaluate(labelVisible, title)) bad(`${tag}: Close left the label on screen`);
+    // Beside the exhibit: click it, then click the same point again; the second click strikes
+    // it (§7.1), because opening its label leaves the board where it was.
+    for (let i = 0; i < 10; i++) {
+      const st = await page.evaluate(nextStep, 1);
+      if (st.done || st.stuck) break;
+      await click(st.at.x, st.at.y);
+    }
+    const strike = await page.evaluate(uid => {
+      const A = window.ACCESSION, a = Actors.byUid(A.state, uid), d = A.renderer.inspect().find(q => q.kind === 'actor' && q.id === uid);
+      if (!d || !Step.adjacent(A.state, A.state.actors[0], a)) return null;
+      for (let j = 0; j < 9; j++) for (let i = 0; i < 9; i++) {
+        const x = d.rect.x + d.rect.w * (0.1 + 0.1 * i), y = d.rect.y + d.rect.h * (0.1 + 0.1 * j), p = A.renderer.pick(x, y);
+        if (p && p.x === a.x && p.y === a.y && document.elementFromPoint(x, y).closest('#board')) return { x, y, hp: a.hp, turn: A.state.turn };
+      }
+      return null;
+    }, target);
+    if (!strike) bad(`${tag}: could not stand beside ${target} with a clickable pixel`);
+    else {
+      await click(strike.x, strike.y); await click(strike.x, strike.y);
+      const after = await page.evaluate(uid => ({ hp: Actors.byUid(window.ACCESSION.state, uid).hp, turn: window.ACCESSION.state.turn, log: window.ACCESSION.history.slice(-1)[0] || '' }), target);
+      if (after.turn === strike.turn || (after.hp === strike.hp && !/miss/i.test(after.log))) bad(`${tag}: a second click on the selected exhibit did not strike it`);
+      else lines.push(`${tag}: second click struck ${target} (${strike.hp} → ${after.hp})`);
+      await page.keyboard.press('Escape');
+    }
     // How the museum works: from the top bar, and in one click from Settings.
     await clickEl('#howbtn');
     const systems = await page.evaluate(() => document.querySelectorAll('#how .systems li').length);
@@ -133,8 +158,10 @@ for (const [W, Hh] of SIZES) {
     const z1 = await page.evaluate(() => window.ACCESSION.renderer.zoom);
     if (z1 === z0) bad(`${tag}: the Zoom button did not change the zoom`);
     await clickEl('#zoombtn');
-    // Walk: tap twice. The first tap previews, the second goes.
+    // Walk: tap twice, with a label open. The first tap previews and leaves the board still;
+    // the second, on the same point, goes.
     await clickEl('#setbtn'); await clickEl('[data-set="walk"][data-value="two"]'); await clickEl('#settings [data-close]');
+    await page.evaluate(() => { const A = window.ACCESSION, a = A.vm().actors.find(q => q.uid !== 'you'); if (a) A.tap({ x: a.x, y: a.y }); });
     const t = await freeTile();
     if (t) {
       const before = await you(), s1 = await sights();

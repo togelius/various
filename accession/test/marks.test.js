@@ -23,6 +23,8 @@ module.exports = ({ test, assert, root, fs, path }) => {
       const r = b.actorRect(a), vx = Math.min(W, r.x + r.w) - Math.max(0, r.x), vy = Math.min(b.bottom, r.y + r.h) - Math.max(0, r.y);
       const visible = { x: Math.max(0, r.x), y: Math.max(0, r.y), w: Math.max(0, vx), h: Math.max(0, vy) };
       if (vx > 0 && vy > 0) for (const e of edges) assert.ok(!meets(e.rect, visible), `${what}: ${e.id} lies on ${a.uid}`);
+      const glyph = b.items.find(d => d.id === 'state:' + a.uid);
+      if (glyph && vx > 0 && vy > 0) for (const e of edges) assert.ok(!meets(e.rect, glyph.rect), `${what}: ${e.id} lies on ${a.uid}'s state glyph`);
       if (!a.hostile) continue;
       if (vx >= r.w / 4 && vy >= r.h / 4) {
         const bar = b.items.find(d => d.id === 'hostile:' + a.uid).rect;
@@ -40,6 +42,9 @@ module.exports = ({ test, assert, root, fs, path }) => {
     assert.ok(check(board([40, 40], [[30, 60], [31, 61], [32, 62], [33, 63], [34, 64], [35, 65]], 300), 'south edge under a sheet') >= 6);
     // A hostile showing a sliver at the left edge, and others past that edge beside it.
     check(board([40, 40], [[33, 41], [20, 40], [20, 42], [20, 38]]), 'left edge with a sliver');
+    // A hostile on the board at the left edge with another past the edge on its row: the arrow
+    // must clear the first one's sprite and its glyph above it.
+    for (let y = 36; y <= 44; y++) check(board([40, 40], [[34, y], [20, y], [20, y + 1]]), `left edge, row ${y}`);
   });
   test('a hostile cut by the sheet keeps its bar where it shows, or gets an arrow', () => {
     for (let y = 44; y <= 52; y++) check(board([40, 40], [[41, y]], 300), `hostile at row ${y}`);

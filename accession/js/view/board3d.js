@@ -328,13 +328,14 @@ const Board3D = (() => {
           legend[id].group = d.group;
           own.push([id, mine]);
         }
-        // Shown: the pixels that end up showing any actor or mark; only the scene counts as
-        // hiding it (a nearer actor drawn over a farther one is depth, not occlusion). Self:
-        // the pixels showing the item itself (or a telegraph's number laid over it).
+        // Shown (for a mark): the pixels that end up showing the mark itself or another mark
+        // drawn after it or of its own group (a telegraph's number); never an actor. Self (for an actor): the pixels showing the actor itself or a
+        // telegraph's number laid over it; a nearer actor drawn over it is depth, which the
+        // actor's own threshold allows for.
         for (const [id, mine] of own) {
-          const top = i => legend[ids[i]];
+          const top = i => legend[ids[i]], g = legend[id].group;
           legend[id].alone = mine.length;
-          legend[id].onTop = mine.filter(i => top(i) && (top(i).kind === 'actor' || top(i).kind === 'mark')).length;
+          legend[id].onTop = mine.filter(i => top(i) && (ids[i] === id || (top(i).kind === 'mark' && (ids[i] > id || top(i).group === g)))).length;
           legend[id].self = mine.filter(i => ids[i] === id || (top(i) && /^telegraph:/.test(top(i).id))).length;
         }
       }

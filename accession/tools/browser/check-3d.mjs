@@ -53,7 +53,7 @@ const measure = page => page.evaluate(() => {
   const bb = document.getElementById('board').getBoundingClientRect(), clearBottom = bb.bottom - UI.sheetCover();
   const whole = new Set(R.inspect().filter(d => d.kind === 'actor' && d.rect.x >= bb.left && d.rect.y >= bb.top && d.rect.x + d.rect.w <= bb.right && d.rect.y + d.rect.h <= clearBottom).map(d => d.id));
   const overlays = Object.values(full.legend).filter(l => l.alone);
-  const low = overlays.filter(l => l.onTop / l.alone < 0.9).map(l => `${l.kind} ${l.id} ${Math.round(100 * l.onTop / l.alone)}%`)
+  const low = overlays.filter(l => l.kind === 'mark' && l.onTop / l.alone < 0.9).map(l => `mark ${l.id} shows only ${Math.round(100 * l.onTop / l.alone)}% of its pixels`)
     .concat(overlays.filter(l => l.kind === 'actor' && whole.has(l.id) && l.self / l.alone < 0.75).map(l => `actor ${l.id} shows only ${Math.round(100 * l.self / l.alone)}% of itself`));
   // What the 2D layer really painted: the overlay canvas, at its own pixel ratio, against a
   // reference painted here from the same display list, item by item in list order, each in
@@ -93,7 +93,7 @@ function report(tag, m, b) {
   if (m.tiles < 20) bad(`${tag}: only ${m.tiles} tiles measured`);
   if (pct > 2) bad(`${tag}: ${pct.toFixed(1)}% of unmarked visible tiles show under 25% of their floor`);
   if (!m.overlays) bad(`${tag}: no actors or marks in the id buffer`);
-  m.low.forEach(l => bad(`${tag}: ${l} of its pixels show over the scene`));
+  m.low.forEach(l => bad(`${tag}: ${l}`));
   m.doors.forEach(d => bad(`${tag}: the ${d} has no visible mat`));
   m.top.forEach(d => bad(`${tag}: ${d} is not on the topmost layer of the board`));
   if (m.painted < 0.98) bad(`${tag}: the 2D layer matches the display list at only ${(100 * m.painted).toFixed(1)}% of the actors' and marks' pixels`);

@@ -133,7 +133,10 @@ const Marks = (() => {
     // of the board gets a hostile-red arrow at the nearest clear edge, pointing towards it,
     // moved along the edge to the nearest spot that covers no visible actor and no other arrow
     // (or, if the whole edge is taken, where it overlaps least).
-    const k = 10, taken = placed.filter(p => { const v = shows(p.r); return v.x1 > v.x0 && v.y1 > v.y0; }).map(p => p.r);
+    // An actor that shows takes its square, and a hostile's state glyph above it too.
+    const g = Math.max(8, Math.floor(tile / 3));
+    const k = 10, taken = placed.filter(p => { const v = shows(p.r); return v.x1 > v.x0 && v.y1 > v.y0; })
+      .map(p => p.a.hostile ? { x: p.r.x, y: p.r.y - g + 2, w: p.r.w, h: p.r.h + g - 2 } : p.r);
     const overlap = (x, y) => taken.reduce((n, q) => n + Math.max(0, Math.min(x + k, q.x + q.w) - Math.max(x - k, q.x)) * Math.max(0, Math.min(y + k, q.y + q.h) - Math.max(y - k, q.y)), 0);
     for (const { a, r } of placed) {
       if (!a.hostile || inClear(r)) continue;

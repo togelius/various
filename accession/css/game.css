@@ -36,7 +36,7 @@ button:focus-visible { outline: 2px solid var(--readable); outline-offset: 2px; 
 /* On a narrow phone at the larger text sizes the badge keeps the grade and drops its caption
    from view (screen readers still read it), so the health number keeps its room. */
 @media (max-width: 365px) { :root[data-text="1.15"] .badge-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
-@media (max-width: 380px) { :root[data-text="1.3"] .badge-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
+@media (max-width: 389px) { :root[data-text="1.3"] .badge-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 #top .btn { min-height: 44px; }
 

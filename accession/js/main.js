@@ -187,9 +187,12 @@ const Main = (() => {
     if (!tr || !tr.rect.w) return { x: you.x, y: you.y };
     const t = tr.rect.w, d = tr.rect.h, above = Math.max(8, Math.floor(t / 3)) + (t - d);
     const half = (len, step) => Math.max(0, Math.floor((len / step - 1) / 2));
+    // Beside the exhibit, if both already fit round you the board stays put, so a second tap on
+    // any of its tiles still lands on it (§7.1).
+    const near = Step.adjacent(state, state.actors[0], Actors.byUid(state, a.uid));
     const axis = (p, q, n, h) => {
       const lo = Math.min(p, q), hi = Math.max(p + 1, q + n);
-      // Centred, rounding towards you, so opening an adjacent exhibit's label never moves the board.
+      if (near && lo >= p - h && hi - 1 <= p + h) return p;
       if (hi - lo <= 2 * h + 1) { const m = (lo + hi - 1) / 2; return p <= m ? Math.floor(m) : Math.ceil(m); }
       return p < q ? p + h : p - h;
     };

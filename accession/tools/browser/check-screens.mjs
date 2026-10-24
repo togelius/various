@@ -10,8 +10,6 @@ import { layout, targets, board, nextStep, labelVisible, freeTile, actionButton 
 import path from 'node:path';
 
 const SIZES = [[390, 844], [1280, 800]];
-// The narrowest phones in common use, for the top bar at every text size.
-const NARROW = [[360, 740], [375, 667], [390, 844]];
 const SCENES = [{ dept: 'M11', seed: 3 }, { dept: 'S9', seed: 5 }, { dept: 'A4', seed: 7 }];
 const P10 = { default: 12, big: 22 };
 const shots = process.argv.includes('--shot');
@@ -143,6 +141,7 @@ for (const view of registered) {
   const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 390, height: 844 }, dpr: 1, query: `?dept=A4&seed=7&board=${view}` });
   await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
   await page.evaluate(() => window.ACCESSION.renderer.ready.catch(() => {}));
+  await page.evaluate(() => window.ACCESSION.setting('motion', 'reduce'));
   const frame = await page.evaluate(() => {
     const A = window.ACCESSION; A.setZoom(1);
     for (const [x, y] of Path.to(A.state, 5, 5)) { const me = A.state.actors[0]; A.act({ a: 'move', dir: Path.dirTo([me.x, me.y], [x, y]) }); }
@@ -153,6 +152,7 @@ for (const view of registered) {
   });
   const tag = `390×844 A4 far label (${view})`;
   if (!frame) bad(`${tag}: the fixed frame is no longer reachable; choose another`);
+  else if (!await page.evaluate(uid => UI.labelShown() === uid && UI.sheetCover() > 0, frame) || !await page.evaluate(labelVisible, await page.evaluate(uid => Labels.of(window.ACCESSION.state, uid).title, frame))) bad(`${tag}: tapping ${frame} did not open its label over the board`);
   else {
     const youSeen = await page.evaluate(() => { const A = window.ACCESSION, y = A.state.actors[0], c = A.renderer.tileRect(y.x, y.y).centre, e = document.elementFromPoint(c.x, c.y); return !!e && !!e.closest('#board'); });
     if (!youSeen) bad(`${tag}: you are out of view`);
@@ -162,20 +162,57 @@ for (const view of registered) {
   if (errors.length) bad(`${tag}: console errors: ${errors.join('; ')}`);
   await browser.close();
 }
-for (const [w, h] of NARROW) {
-  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: w, height: h }, dpr: 2, query: '?dept=S9&seed=5' });
+// A 2×2 Centrepiece (S.9, seed 5), at laptop size, by real clicks: from the tile north of it,
+// click its far row, then the same point again; the second click strikes it (§7.1), because
+// opening the label beside it leaves the board where it was.
+for (const view of registered) {
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 1280, height: 800 }, dpr: 1, query: `?dept=S9&seed=5&board=${view}` });
   await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
+  await page.evaluate(() => window.ACCESSION.renderer.ready.catch(() => {}));
+  await page.evaluate(() => window.ACCESSION.setting('motion', 'reduce'));
+  const tag = `1280×800 S9 Centrepiece (${view})`;
+  const c = await page.evaluate(() => {
+    const A = window.ACCESSION, s = A.state, a = s.actors.find(q => (q.size || 1) === 2 && !q.gone);
+    if (!a) return null;
+    for (const [x, y] of Path.to(s, a.x, a.y - 1)) { const me = s.actors[0]; if (A.act({ a: 'move', dir: Path.dirTo([me.x, me.y], [x, y]) }).some(e => e.k === 'refused')) return null; }
+    const me = s.actors[0];
+    if (me.x !== a.x || me.y !== a.y - 1) return null;
+    return { uid: a.uid, at: A.renderer.tileRect(a.x, a.y + 1).centre, hp: a.hp };
+  });
+  if (!c) { bad(`${tag}: could not stand north of the Centrepiece`); await browser.close(); continue; }
+  await page.mouse.click(c.at.x, c.at.y);
+  const opened = await page.evaluate(uid => UI.labelShown() === uid, c.uid);
+  await page.mouse.click(c.at.x, c.at.y);
+  const after = await page.evaluate(uid => Actors.byUid(window.ACCESSION.state, uid).hp, c.uid);
+  if (!opened) bad(`${tag}: clicking its far row did not open its label`);
+  else if (after >= c.hp) bad(`${tag}: the second click on its far row did not strike it`);
+  else lines.push(`${tag}: second click on the far row struck it (${c.hp} → ${after})`);
+  if (errors.length) bad(`${tag}: console errors: ${errors.join('; ')}`);
+  await browser.close();
+}
+// The top bar on phones from 360 to 400 px wide, at every text size: the health number is
+// whole and clear of the dial, and the badge prints the grade's full name wherever it fits
+// (always from 390 px).
+{
+  const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 400, height: 800 }, dpr: 2, query: '?dept=S9&seed=5' });
+  await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
+  let checked = 0;
   for (const size of ['1', '1.15', '1.3']) {
     await page.evaluate(v => window.ACCESSION.setting('text', v), size);
-    const hp = await page.evaluate(() => { const e = document.getElementById('hpnum'), d = document.getElementById('dial').getBoundingClientRect(), r = e.lastElementChild.getBoundingClientRect(); return { cut: e.scrollWidth > e.clientWidth + 1 || r.right > d.left, text: e.textContent }; });
-    if (hp.cut) bad(`${w}×${h} text ${size}: the health number "${hp.text}" is cut short or runs into the dial`);
-    // The badge prints the grade's full name (§8.7) wherever it fits: always at 390 px.
-    const caption = await page.evaluate(() => { const r = document.querySelector('.badge-name').getBoundingClientRect(); return r.width > 2 && r.height > 2; });
-    if (w >= 390 && !caption) bad(`${w}×${h} text ${size}: the badge does not show "Handling Clearance"`);
-    for (const p of [...await page.evaluate(layout), ...await page.evaluate(targets)]) bad(`${w}×${h} text ${size}: ${p}`);
+    for (let w = 360; w <= 400; w++) {
+      await page.setViewportSize({ width: w, height: 800 });
+      const r = await page.evaluate(() => {
+        const e = document.getElementById('hpnum'), d = document.getElementById('dial').getBoundingClientRect(), n = e.lastElementChild.getBoundingClientRect(), c = document.querySelector('.badge-name').getBoundingClientRect();
+        return { cut: e.scrollWidth > e.clientWidth + 1 || n.right > d.left, caption: c.width > 2 && c.height > 2 };
+      });
+      if (r.cut) bad(`${w} px wide, text ${size}: the health number is cut short or runs into the dial`);
+      if (w >= 390 && !r.caption) bad(`${w} px wide, text ${size}: the badge does not show "Handling Clearance"`);
+      if (w % 8 === 0) for (const p of [...await page.evaluate(layout), ...await page.evaluate(targets)]) bad(`${w} px wide, text ${size}: ${p}`);
+      checked++;
+    }
   }
-  lines.push(`${w}×${h}: top bar checked at every text size`);
-  if (errors.length) bad(`${w}×${h}: console errors: ${errors.join('; ')}`);
+  lines.push(`top bar: ${checked} widths and text sizes checked`);
+  if (errors.length) bad(`top bar sweep: console errors: ${errors.join('; ')}`);
   await browser.close();
 }
 for (const l of lines) console.log(l);
