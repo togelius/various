@@ -339,7 +339,7 @@ Event kinds (`k`):
 - **Modules:** `module`.
 - **Places and system:** `entered`, `left`, `refused`.
 
-The list is closed and lives in the registry (`Registry.EVENT_KINDS`); `tools/lint-registry.js` fails if it and this list differ. `alerted` sends an exhibit that is not hunting to look at a noise; `healed` is any gain of health but regeneration; `status` is a status put on or ended; unequipping is `equipped` with no item. Each kind has a schema (its fields and their types: uid, uids, int, str, bool, tile, tiles, obj, with `?` for an optional field), and so does each of its causes, `Registry.defineEvent(k, …)` and `Registry.defineCause(k, causeK, …)`, in the fragment of the rule that emits it (§5.1).
+The list is closed and lives in the registry (`Registry.EVENT_KINDS`); `tools/lint-registry.js` fails if it and this list differ. `alerted` sends an exhibit that is not hunting to look at a noise, or, when its search ends and it may not go back, to wander; `healed` is any gain of health but regeneration; `status` is a status put on or ended; unequipping is `equipped` with no item. Each kind has a schema (its fields and their types: uid, uids, int, str, bool, tile, tiles, obj, with `?` for an optional field), and so does each of its causes, `Registry.defineEvent(k, …)` and `Registry.defineCause(k, causeK, …)`, in the fragment of the rule that emits it (§5.1).
 
 **Sentences** are keyed by kind and cause, because many rules emit the same kind for their own reasons:
 - `Text.define(k, fn)` gives a kind's default sentence, `Text.defineCause(k, causeK, fn)` the sentence for one of its causes, and `Text.defineRefusal(code, fn)` a refusal's, each in the owner's fragment `js/core/text/<part>.js`; `Text.provide(name, fn)` supplies the clock dial's sentence and the death recap.
@@ -811,7 +811,15 @@ These are the rules the slice implements. Each system opens with its sentence fr
 | hunting | !! | pursues and attacks | out of sight for 8 turns → searches your last-known tile for 3 turns (sees you → hunting) → returning |
 | returning | ↩ | walks home, then reinstalls for 3 turns | sees you → hunting; reinstalled → dormant with 1 pip |
 
-- **An exhibit with no home** (its case was broken or dissolved) never returns. It stays awake and wanders.
+- **An exhibit with no home** (its case was broken or dissolved) never returns. It stays awake and wanders. Nor does an exhibit that never sleeps (`awake`) go back: when a search of either ends, it wanders instead; and one going back or settling in that loses its home wanders from where it is.
+- **What each mode does** (`AI.byMode`, every exhibit's behaviour when its archetype has nothing of its own to do, and all of the plodder's). Each timer counts turns from the exhibit's `stim`, which is its last stimulus while awake, the last turn it saw you (or began the hunt) while hunting, and its arrival while searching or reinstalling:
+  - **awake:** it walks to what it was sent to look at (onto the tile, or beside it if no exhibit can stand there), then wanders: it walks to a tile of its home room (the room it stands in, if it has no home) that it can reach, drawn on its own stream, then to another;
+  - **hunting:** it strikes you if it can; otherwise it walks toward you while it sees you, else to your last-known tile, and waits there; 8 turns after it last saw you it searches;
+  - **searching:** it walks on to your last-known tile, and its 3 turns start when it arrives, or once no step gets it closer;
+  - **returning:** it walks home (a 2×2 body until its anchor stands on its home tile), and reinstalls on arriving;
+  - **reinstalling:** it waits at home, and 3 turns after arriving it is asleep with 1 pip; moved off its home meanwhile, it goes back to it.
+
+  An exhibit in an intact case changes mode by the same timers, but only ever waits.
 - **A patrolling exhibit** (`awake`) walks its round instead of wandering, and never returns to sleep: after 20 turns without you it resumes the round.
 - **Mode on waking.** Hunting, from the ring, `axis`, `tether`, `touch_case`, `ally_hit`, being seen, damage and the night-watch bell (its last-known tile is yours). Awake, investigating the source, from noise, a herald's call (it goes to look at your tile at the moment of the call) and the alarm. The trigger that adds the third pip decides; if two complete it at once, hunting wins.
 - **One action's wake order.** Within one action, every other wake effect is applied before that action's noise. So a blow wakes the victim's group (`ally_hit`) before its soft noise; a special that hits several actors applies every hit and its wakes before any noise, even the noise of an exhibit it destroys; opening a case, and every bash, touches it (`touch_case`) before its noise; the breaking bash releases the sleeper inside before its crash; and a mimic's grip comes before the noise of the open or bash that touched it. A sleeper at 2 pips touched by any of these therefore wakes hunting, not awake. At a turn boundary, likewise, noise comes after the ring, `axis` and `tether` (§8.1, step 4), so a sleeper at 2 pips inside your ring wakes hunting while you cough.
@@ -826,7 +834,7 @@ These are the rules the slice implements. Each system opens with its sentence fr
 
 **Noise:**
 - **Classes:**
-  - soft, heard within 3 walking tiles: an attack, hit or miss (heard from the attacker's tile, and made last in the blow, after everything else the blow does); opening a case or door (heard from the door); a thrown item landing;
+  - soft, heard within 3 walking tiles: an attack, hit or miss (heard from the attacker's tile, and made last in the blow, after everything else the blow does); opening a case or a door, or closing a door (heard from the door); a thrown item landing;
   - loud, within 6: bashing glass; an exhibit destroyed;
   - crash, within 10: glass breaking; an alarm.
 - **Doors.** A closed door counts as 3 extra tiles.
@@ -869,7 +877,7 @@ At a turn boundary the wake checks (your ring, `axis`, `tether`) are all made fr
 - **Walking distance** (the ring, noise, "walking tiles"): 8-connected steps, where a diagonal step is allowed only if both orthogonal neighbours could be stepped onto; actors never block it, and staff doors count as doors. To something on a tile you cannot step onto (an exhibit in a case or on a plinth, a Centrepiece's footprint, a lectern), it is 1 + the walking distance to the nearest neighbouring tile you could step onto (`Grid.reachDist`). A closed door, ordinary or staff, adds `NOISE_DOOR` (3) for noise (`Noise.reach`). There is no other limit on distance.
 - **Moving:** `move(dir)` follows the same diagonal rule. A pursuing actor takes the first step of a shortest walking path, breaking ties on its own `ai/` stream. For an exhibit, staff doors, open or closed, are walls, also for the diagonal rule, and it never steps out of an intact case (`Grid.canStep(m, x, y, d, 'exhibit')`).
 - **Where an exhibit can stand** (`Grid.hold`): every walkable tile, a vitrine and a plinth.
-- **Doors.** Closed doors block sight and movement. An exhibit opens a closed door by stepping into it, as you do (`COST_DOOR`, a soft noise). Closing a door with an actor in its doorway is refused. Exhibits treat staff doors as walls, so a staff corridor is a refuge you pay a grade for, and its section panel says so.
+- **Doors.** Closed doors block sight and movement. An exhibit opens a closed door by stepping into it, as you do (`COST_DOOR`, a soft noise). You close an open door (`'` or `s`) beside you that you could step into, with `close(x, y)`, for `COST_DOOR` and a soft noise at the door; closing one with an actor in its doorway is refused (`doorway_occupied`), as is a tile that is not an open door beside you (`no_door`) or one past a corner (`corner`). Exhibits treat staff doors as walls, so a staff corridor is a refuge you pay a grade for, and its section panel says so.
 
 ### 8.3 Cases
 
