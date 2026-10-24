@@ -53,21 +53,23 @@ const Ranged = (() => {
   // through, or one a Fumigant cloud or plaster dust covers). On a tile where
   // Ranged.reflectorAt holds it turns back the way it came, and its later steps still count
   // toward the range. Each tile is listed once, at the first step that enters it, with the
-  // tile that step came from, so the way back lists only the tiles the way out did not: the
+  // tile that step came from and the reflector that last turned the beam before that step
+  // (null on its way out), so the way back lists only the tiles the way out did not: the
   // shooter's own tile, then those behind it.
   function trace(state, a, d, range) {
     if (!(Number.isInteger(d) && d >= 0 && d < 8)) throw new Error('Ranged.beam: no direction ' + d);
-    const m = state.dept, crossed = new Uint8Array(m.w * m.h), tiles = [], from = [];
-    let x = a.x, y = a.y, dx = Grid.DX[d], dy = Grid.DY[d];
+    const m = state.dept, crossed = new Uint8Array(m.w * m.h), tiles = [], from = [], via = [];
+    let x = a.x, y = a.y, dx = Grid.DX[d], dy = Grid.DY[d], turned = null;
     for (let s = 0; s < range; s++) {
       const nx = x + dx, ny = y + dy;
       if (!Grid.clear(m, nx, ny)) break;
       const i = ny * m.w + nx;
-      if (!crossed[i]) { crossed[i] = 1; tiles.push([nx, ny]); from.push([x, y]); }
+      if (!crossed[i]) { crossed[i] = 1; tiles.push([nx, ny]); from.push([x, y]); via.push(turned); }
       x = nx; y = ny;
-      if (Ranged.reflectorAt(state, x, y)) { dx = -dx; dy = -dy; }
+      const r = Ranged.reflectorAt(state, x, y);
+      if (r) { dx = -dx; dy = -dy; turned = r; }
     }
-    return { tiles, from };
+    return { tiles, from, via };
   }
 
   // Ranged.beam(state, a, d, range) → [[x, y]…]: the tiles of a's beam in direction d, in the
@@ -76,6 +78,12 @@ const Ranged = (() => {
   // Ranged.beamFrom(state, a, d, range) → [[x, y]…]: for each tile of beam(…), at the same
   // index, the tile the beam entered it from (where its damage comes from, §8.1).
   const beamFrom = (state, a, d, range) => trace(state, a, d, range).from;
+  // Ranged.beamVia(state, a, d, range) → [uid | null…]: for each tile of beam(…), at the same
+  // index, the reflector that sent the beam back before it entered that tile, or null for a
+  // tile on its way out. The beam's damage on a tile it reaches only on its way back is the
+  // reflector's (§8.1, a line a reflector sends back): the shooter's own tile, and those
+  // behind it. A reflector's own tile is entered on the way out.
+  const beamVia = (state, a, d, range) => trace(state, a, d, range).via;
 
   // Ranged.isReflector(state, a) → bool: does a send bolts and beams back along their line?
   // A reflector does, and so does a body with the glass modifier (§5.5), unless glass is
@@ -88,21 +96,29 @@ const Ranged = (() => {
     return a && isReflector(state, a) ? a.uid : null;
   }
 
-  // The most tiles away a shot of att's may be aimed: how.max if given, else the Pin-Driver's
-  // range for you (PIN_DRIVER[2]; you shoot only with it) and ROLE_ARTILLERY_RANGE for an
-  // exhibit (the kiter's).
+  // The range of a shot of att's: how.max if given, else the Pin-Driver's range for you
+  // (PIN_DRIVER[2]; you shoot only with it) and ROLE_ARTILLERY_RANGE for an exhibit (the
+  // kiter's).
   const maxRange = (att, how) => how && Number.isInteger(how.max) ? how.max : att.uid === 'you' ? N.PIN_DRIVER[2] : N.ROLE_ARTILLERY_RANGE;
+  // Ranged.within(att, x, y, range) → bool: is (x, y) within att's range? "Within r" is the
+  // disc of §8.2 (Grid.disc), from att's footprint tile nearest (x, y), as it is for sight,
+  // a thrown Solution and every instrument.
+  function within(att, x, y, range) {
+    const s = att.size || 1, nx = Math.min(Math.max(x, att.x), att.x + s - 1), ny = Math.min(Math.max(y, att.y), att.y + s - 1);
+    return Grid.disc(x - nx, y - ny, range);
+  }
 
   // Ranged.flight(state, att, x, y, range) → {code, tiles, at, dist, victim, reflector, via, viaOut}:
   // where a bolt att shoots toward (x, y) goes, changing nothing. It is refused (code) as a
   // shot would be, in this order: no_target for a tile outside the map or under att;
   // behind_glass when att stands in an intact case (a bolt never passes glass); out_of_reach
-  // beyond `range` tiles (Chebyshev, as the line counts them); blocked without line of sight
+  // outside `range` (Ranged.within: the disc of "within r"); blocked without line of sight
   // (Grid.los). Then the bolt flies along the line toward (x, y), tile by tile, up to the
   // target and no further:
   //   - a tile it cannot pass (Grid.bolt) stops it: behind_glass if that tile is glass (so a
   //     case, an exhibit in one and a mimic's disguise all look the same), else no_target;
-  //   - the first actor it meets (`at`, `dist` tiles from att) is hit (`victim`), unless it is
+  //   - the first actor it meets (`at`, `dist` tiles from att, the tiles the line crossed to
+  //     reach it, which is the larger of its two distances) is hit (`victim`), unless it is
   //     a reflector (`reflector`): then the bolt comes back along the tiles it came by, which
   //     held no actor, and hits the first actor on them, which is att itself. A bolt comes
   //     back at most once, and its way back is not limited by its range;
@@ -115,7 +131,7 @@ const Ranged = (() => {
     const no = code => ({ code, tiles: [], at: null, dist: 0, victim: null, reflector: null, via: null, viaOut: null });
     if (!Number.isInteger(x) || !Number.isInteger(y) || !Grid.inside(m, x, y) || Actors.covers(att, x, y)) return no('no_target');
     if (Cases.encased(state, att)) return no('behind_glass');
-    if (Actors.dist(att, x, y) > range) return no('out_of_reach');
+    if (!within(att, x, y, range)) return no('out_of_reach');
     if (!Grid.los(m, att.x, att.y, x, y)) return no('blocked');
     const pts = bresenham(att.x, att.y, x, y), path = [[att.x, att.y]];
     for (let i = 1; i < pts.length; i++) {
@@ -191,5 +207,5 @@ const Ranged = (() => {
     return cost;
   }
 
-  return { bresenham, line, beam, beamFrom, isReflector, reflectorAt, maxRange, flight, canShoot, shoot };
+  return { bresenham, line, beam, beamFrom, beamVia, isReflector, reflectorAt, maxRange, within, flight, canShoot, shoot };
 })();

@@ -33,19 +33,21 @@ module.exports = (C) => {
   return [
     {
       // §8.1: a special's damage lands only on the tiles it marked, and what you take is what
-      // the mark showed: max(DMG_MIN_ON_HIT, gross − your Padding).
+      // the mark showed: max(DMG_MIN_ON_HIT, gross − your Padding). A beam a reflector sent
+      // back is the reflector's (cause reflected, naming its shooter), and is checked against
+      // the shooter's mark.
       id: 'arch_b_line_hits_marked_tiles',
       check(pre, events, post) {
         if (!pre) return null;
         for (const e of events) {
-          if (e.k !== 'damaged' || !e.cause || e.cause.k !== 'special' || e.cause.sp !== 'line') continue;
-          const c = e.cause, owner = at(pre, c.by), tel = owner && owner.telegraph;
-          if (!tel || tel.sp !== 'line') return `${e.who} took a beam's damage from ${c.by}, which had no beam marked before the step`;
-          if (!tel.tiles.some(t => same(t, c.x, c.y))) return `${c.by}'s beam struck ${e.who} at ${c.x},${c.y}, a tile it never marked`;
-          if (c.gross !== tel.gross) return `${c.by}'s beam struck for gross ${c.gross}, but its mark said ${tel.gross}`;
+          if (e.k !== 'damaged' || !e.cause || e.cause.sp !== 'line' || (e.cause.k !== 'special' && e.cause.k !== 'reflected')) continue;
+          const c = e.cause, by = c.k === 'special' ? c.by : c.shooter, owner = at(pre, by), tel = owner && owner.telegraph;
+          if (!tel || tel.sp !== 'line') return `${e.who} took a beam's damage from ${by}, which had no beam marked before the step`;
+          if (!tel.tiles.some(t => same(t, c.x, c.y))) return `${by}'s beam struck ${e.who} at ${c.x},${c.y}, a tile it never marked`;
+          if (c.gross !== tel.gross) return `${by}'s beam struck for gross ${c.gross}, but its mark said ${tel.gross}`;
           if (e.who === 'you') {
             const pad = pre.actors[0].pad, net = Math.max(N.DMG_MIN_ON_HIT, tel.gross - pad);
-            if (c.pad !== pad || e.amount !== net) return `${c.by}'s beam dealt you ${e.amount} through Padding ${c.pad}; its mark showed ${net} (gross ${tel.gross}, Padding ${pad})`;
+            if (c.pad !== pad || e.amount !== net) return `${by}'s beam dealt you ${e.amount} through Padding ${c.pad}; its mark showed ${net} (gross ${tel.gross}, Padding ${pad})`;
           }
         }
         return null;
@@ -94,27 +96,85 @@ module.exports = (C) => {
       },
     },
     {
-      // The kiter's clause: it shoots up to ROLE_ARTILLERY_RANGE tiles.
+      // The kiter's clause: it shoots within ROLE_ARTILLERY_RANGE tiles, "within r" being the
+      // disc of BUILD.md §8.2 (dx² + dy² ≤ r² + r); a bolt that hits a body nearer than the
+      // tile it was aimed at is within range if that tile is.
       id: 'arch_b_kiter_shot_range',
       check(pre, events, post) {
-        for (const e of events) {
+        const R = N.ROLE_ARTILLERY_RANGE;
+        for (let i = 0; i < events.length; i++) {
+          const e = events[i];
           if (e.k !== 'attacked' || !e.how || e.how.kind !== 'shot') continue;
-          const a = at(post, e.by);
-          if (a && a.arch === 'kiter' && !(e.cause.dist <= N.ROLE_ARTILLERY_RANGE)) return `${e.by}, a kiter, shot ${e.at} from ${e.cause.dist} tiles, beyond ${N.ROLE_ARTILLERY_RANGE}`;
+          const a = at(post, e.by), b = at(post, e.at);
+          if (!a || a.arch !== 'kiter' || !b) continue;
+          const [ax, ay] = tileAt(events, i, a), [bx, by] = tileAt(events, i, b), dx = bx - ax, dy = by - ay;
+          if (dx * dx + dy * dy > R * R + R) return `${e.by}, a kiter, shot ${e.at} from ${ax},${ay} to ${bx},${by}, outside ${R} tiles`;
+        }
+        return null;
+      },
+    },
+    {
+      // The kiter's clause: it keeps KITER_HOLD0 to KITER_HOLD1 tiles from you, counted as it
+      // would walk to you (§8.1). While it hunts and sees you, it never steps of its own accord
+      // from KITER_HOLD0 or more walking steps from you to fewer. Its own steps are the moved
+      // events with no cause (a push or pull by your Window Pole carries one); you act once a
+      // step, before the exhibits, so you stand where the step leaves you. It is lenient where
+      // the step's sight is in doubt: it counts only a kiter that hunts before and after the
+      // step and sees you from where it stepped both before and after it.
+      id: 'arch_b_kiter_keeps_band',
+      check(pre, events, post) {
+        if (!pre) return null;
+        const lo = N.KITER_HOLD[0], you = post.actors[0], m = post.dept;
+        const sees = (s, x, y) => C.Grid.disc(you.x - x, you.y - y, N.SIGHT_EXHIBIT) && C.Grid.los(s.dept, x, y, you.x, you.y);
+        let walk = null;
+        for (const e of events) {
+          if (e.k !== 'moved' || e.cause) continue;
+          const a = at(post, e.who), was = at(pre, e.who);
+          if (!a || !was || a.arch !== 'kiter' || a.mode !== 'hunting' || was.mode !== 'hunting') continue;
+          const [fx, fy] = e.from, [tx, ty] = e.to;
+          if (!sees(pre, fx, fy) || !sees(post, fx, fy)) continue;
+          if (!walk) walk = C.Grid.distances(m, [[you.x, you.y]], m.w * m.h, null, 'exhibit');
+          const wf = walk[fy * m.w + fx], wt = walk[ty * m.w + tx];
+          if (wf >= lo && wt < lo) return `${e.who}, a kiter hunting you, stepped from ${fx},${fy} (${wf} steps from you) to ${tx},${ty} (${wt} steps), nearer than ${lo}`;
         }
         return null;
       },
     },
     {
       // The reflector's clause: a shot that meets a reflector comes back into whoever fired it,
-      // so nothing behind the reflector is hit; and no shot strikes a reflector itself.
+      // so nothing behind the reflector is hit; and no shot strikes a reflector itself. The
+      // bolt sent back is rolled as a shot (§8.1): the shooter's Acc (or the instrument's,
+      // how.acc) against the Eva of the body it comes back into, clamp(HIT_BASE +
+      // HIT_PER_POINT × (Acc − Eva) + mods, HIT_MIN, HIT_MAX), with +HIT_FIXED_TARGET against a
+      // fixed body and HIT_DAZED_ATTACKER for a dazed shooter; it hits on a roll at or below
+      // the chance; its damage is rolled in the shooter's range (or the instrument's, how.dmin
+      // to how.dmax), less Padding, at least DMG_MIN_ON_HIT, doubled through an old repair.
       id: 'arch_b_reflected_shots_come_back',
       check(pre, events, post) {
+        const PLAIN = ['plodder', 'kiter', 'axis_sniper', 'reflector', null], QUIET_MODS = ['old_repair', 'glass', 'marble'];
+        const has = (a, id) => a.statuses.some(st => st.id === id);
         for (const e of events) {
           const c = e.cause;
           if (!c || (e.k !== 'damaged' && e.k !== 'missed')) continue;
           const who = e.k === 'damaged' ? e.who : e.at;
-          if (c.k === 'reflected' && c.sp == null && who !== c.shooter) return `${c.by} sent ${c.shooter}'s shot back into ${who}, not into ${c.shooter}`;
+          if (c.k === 'reflected' && c.sp == null) {
+            if (who !== c.shooter) return `${c.by} sent ${c.shooter}'s shot back into ${who}, not into ${c.shooter}`;
+            const S = pre && at(pre, c.shooter);
+            if (!S) continue;
+            const acc = c.how && c.how.acc !== undefined ? c.how.acc : S.acc;
+            const mods = (has(S, 'fixed') ? N.HIT_FIXED_TARGET : 0) + (has(S, 'dazed') ? N.HIT_DAZED_ATTACKER : 0);
+            const want = Math.min(N.HIT_MAX, Math.max(N.HIT_MIN, N.HIT_BASE + N.HIT_PER_POINT * (acc - S.eva) + mods));
+            if (c.chance !== want) return `${c.by} sent ${c.shooter}'s shot back at ${c.chance}%, where Acc ${acc} against Eva ${S.eva} gives ${want}%`;
+            if (!Number.isInteger(c.roll) || c.roll < 1 || c.roll > 100) return `${c.by} sent ${c.shooter}'s shot back with a roll of ${c.roll}`;
+            if ((e.k === 'damaged') !== (c.roll <= c.chance)) return `${c.by} sent ${c.shooter}'s shot back: it rolled ${c.roll} against ${c.chance}% and ${e.k === 'damaged' ? 'hit' : 'missed'}`;
+            if (e.k !== 'damaged') continue;
+            const lo = c.how && c.how.dmin !== undefined ? c.how.dmin : S.dmin, hi = c.how && c.how.dmax !== undefined ? c.how.dmax : S.dmax;
+            if (!(c.raw >= lo && c.raw <= hi)) return `${c.by} sent ${c.shooter}'s shot back for ${c.raw}, outside its ${lo}–${hi}`;
+            if (c.pad !== S.pad) return `${c.by} sent ${c.shooter}'s shot back through Padding ${c.pad}, not its ${S.pad}`;
+            if (!PLAIN.includes(S.arch) || !S.mods.every(m => QUIET_MODS.includes(m))) continue;
+            const base = Math.max(N.DMG_MIN_ON_HIT, c.raw - c.pad), amount = c.side ? C.Int.pct(base, N.OLD_REPAIR_PCT) : base;
+            if (e.amount !== amount) return `${c.by} sent ${c.shooter}'s shot back for ${e.amount}; ${c.raw} − ${c.pad} Padding${c.side ? ', doubled' : ''} is ${amount}`;
+          }
           if ((c.k === 'shot' || c.k === 'item') && c.how && c.how.kind === 'shot' && e.k === 'damaged') {
             const v = at(post, who);
             if (v && reflects(post, v)) return `${c.by}'s shot struck ${who}, which sends shots back`;

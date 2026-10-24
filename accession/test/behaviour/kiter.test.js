@@ -1,10 +1,11 @@
 // The kiter's Behaviour-line clause (BUILD.md §5.3, §5.5, §8.1): "Keeps {KITER_HOLD0} to
-// {KITER_HOLD1} tiles from you and shoots up to {ROLE_ARTILLERY_RANGE} tiles for {dmg}; its
+// {KITER_HOLD1} tiles from you and shoots within {ROLE_ARTILLERY_RANGE} tiles for {dmg}; its
 // shots hit the first body in their way and stop at glass; backs away when you are beside
-// it." Each scenario is a function of the clause's parameters, run for every species whose
-// line has it (the Signal Lamps), at every depth 1–7, with every invariant checked after
-// every step and a clone check; and the shot itself (Ranged.shoot, Ranged.flight) is checked
-// against BUILD.md's rules on small maps.
+// it." "Within r" is the disc of §8.2, as for sight and every instrument. Each scenario is a
+// function of the clause's parameters, run for every species whose line has it (the Signal
+// Lamps), at every depth 1–7, with every invariant checked after every step and a clone
+// check; and the shot itself (Ranged.shoot, Ranged.flight) is checked against BUILD.md's
+// rules on small maps.
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const H = require(path.join(root, 'test/behaviour/_harness.js'));
   const C = loadCore();
@@ -28,6 +29,30 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     for (const s of r.steps) { for (const e of s.events) if (e.k === 'moved' && e.who === uid) p = e.to; out.push(p); }
     return out;
   }
+  // The posts BUILD.md §8.1 gives a kiter k: tiles an exhibit could stand on, with no actor
+  // on them, KITER_HOLD steps from you by walking, with a clear shot at you (you within
+  // ROLE_ARTILLERY_RANGE, the disc dx² + dy² ≤ r² + r; in line of sight; the first body on
+  // the bolt's line); each with d, its distance from k by a way that never comes nearer than
+  // KITER_HOLD0 steps to you, and w, its walking distance from you. In row-major order.
+  function posts(s, k) {
+    const m = s.dept, you = s.actors[0], [lo, hi] = N.KITER_HOLD, R = N.ROLE_ARTILLERY_RANGE, far = m.w * m.h;
+    const fromYou = C.Grid.distances(m, [[you.x, you.y]], far, null, 'exhibit');
+    const fromK = C.Grid.distances(m, [[k.x, k.y]], far, (x, y) => { const w = fromYou[y * m.w + x]; return w >= 0 && w < lo ? far + 1 : 0; }, 'exhibit');
+    const out = [];
+    for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
+      const i = y * m.w + x, w = fromYou[i], dx = you.x - x, dy = you.y - y;
+      if (!C.Grid.walkable(m, x, y, 'exhibit') || w < lo || w > hi || fromK[i] < 0 || C.Actors.at(s, x, y, k)) continue;
+      if (dx * dx + dy * dy > R * R + R || !C.Grid.los(m, x, y, you.x, you.y)) continue;
+      let first = null;
+      for (const [tx, ty] of Ranged.bresenham(x, y, you.x, you.y).slice(1)) {
+        if (!C.Grid.bolt(m, tx, ty)) { first = 'glass'; break; }
+        const b = C.Actors.at(s, tx, ty, k);
+        if (b) { first = b.uid; break; }
+      }
+      if (first === 'you') out.push({ x, y, d: fromK[i], w });
+    }
+    return out;
+  }
   const shotsBy = (r, uid) => r.steps.map((s, i) => ({ i, e: s.events.filter(e => e.k === 'attacked' && e.by === uid) })).filter(x => x.e.length);
   const sweep = sc => {
     const res = H.sweep(C, sc);
@@ -41,7 +66,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.ok(list.length >= 7 && list.every(x => x.sp.archetype === 'kiter'), json(list.map(x => x.sp.id)));
     assert.equal(C.Registry.ARCHETYPES.kiter.ready, 'unit');
     const line = C.Clauses.line(list[0].sp, { depth: 3 });
-    assert.ok(line.includes(`Keeps ${N.KITER_HOLD[0]} to ${N.KITER_HOLD[1]} tiles from you and shoots up to ${N.ROLE_ARTILLERY_RANGE} tiles`), line);
+    assert.ok(line.includes(`Keeps ${N.KITER_HOLD[0]} to ${N.KITER_HOLD[1]} tiles from you and shoots within ${N.ROLE_ARTILLERY_RANGE} tiles`), line);
   });
 
   test('from its band it shoots you for its damage, and stays there', () => sweep(H.scenario({
@@ -91,9 +116,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   })));
 
   // Across a balustrade (seen through, not walked over) the kiter cannot walk to you, so its
-  // band is out of reach: it shoots up to ROLE_ARTILLERY_RANGE tiles, and never from farther.
+  // band is out of reach: it shoots from ROLE_ARTILLERY_RANGE tiles along and 2 across, within
+  // the range disc, and never from one tile farther.
   const GALLERY = R => ['#'.repeat(R + 6), '#' + '.'.repeat(R + 4) + '#', '#' + '~'.repeat(R + 4) + '#', '#' + '.'.repeat(R + 4) + '#', '#'.repeat(R + 6)];
-  test('it shoots up to ROLE_ARTILLERY_RANGE tiles, and never from farther', () => {
+  test('it shoots from ROLE_ARTILLERY_RANGE tiles along and 2 across, and never from farther', () => {
     for (const extra of [0, 1]) sweep(H.scenario({
       name: `a kiter that cannot walk to you, ROLE_ARTILLERY_RANGE + ${extra} tiles away, ${extra ? 'never shoots' : 'shoots'}`, id: 'kiter', clone: true,
       build: (params, sp, depth, opts) => {
@@ -150,6 +176,93 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     },
   })));
 
+  // Within r is a disc (§8.2): a tile ROLE_ARTILLERY_RANGE along one axis and k along the
+  // other, with k the least that puts it outside the disc, is out of range though it is no
+  // farther along either axis; a tile one nearer along the first is in. Across a balustrade
+  // the kiter cannot walk to you, so it shoots from where it stands or not at all.
+  const offDisc = R => { let k = 1; while (R * R + k * k <= R * R + R) k++; return k; };
+  test('it shoots within ROLE_ARTILLERY_RANGE tiles, a disc: never from a tile outside it, however near along each axis', () => {
+    for (const inside of [true, false]) sweep(H.scenario({
+      name: `a kiter that cannot walk to you, ${inside ? 'inside' : 'just outside'} the ROLE_ARTILLERY_RANGE disc, ${inside ? 'shoots' : 'never shoots'}`, id: 'kiter', clone: true,
+      build: (params, sp, depth, opts) => {
+        const R = params.ROLE_ARTILLERY_RANGE, k = offDisc(R), w = R + 3;
+        const map = ['#'.repeat(w), '#' + '.'.repeat(w - 2) + '#', '#' + '~'.repeat(w - 2) + '#', ...Array.from({ length: k }, () => '#' + '.'.repeat(w - 2) + '#'), '#'.repeat(w)];
+        return room(sp, depth, opts, map, [1, 1], [kiter(sp, depth, [1 + R - (inside ? 1 : 0), 1 + k])]);
+      },
+      actions: waits(6),
+      expect(r, params) {
+        const R = params.ROLE_ARTILLERY_RANGE, k = r.start.actors[1], you = r.start.actors[0], dx = k.x - you.x, dy = k.y - you.y, shots = shotsBy(r, k.uid);
+        if (Math.max(Math.abs(dx), Math.abs(dy)) > R) return `the kiter stands ${dx},${dy} from you, farther than ${R} along an axis`;
+        if (!C.AI.sees(r.start, k)) return 'it does not see you';
+        if (inside) return shots.length >= 5 ? null : `inside the disc it shot ${shots.length} times in 6 turns`;
+        return shots.length ? `it shot from ${dx},${dy}, outside the disc of ${R} (${dx * dx + dy * dy} > ${R * R + R})` : null;
+      },
+    }));
+  });
+
+  // A tile KITER_HOLD1 steps off along both axes is in its band but outside the range disc,
+  // so it is no post: a kiter KITER_HOLD1 + 1 off along both walks on past it to a post
+  // within range, and shoots from there.
+  test('a post is within range by the disc: from a tile in its band but out of range it does not stop, it walks on to shoot', () => sweep(H.scenario({
+    name: 'a kiter KITER_HOLD1 + 1 tiles off along both axes walks to a post within range, not to the nearer tile out of range, and shoots', id: 'kiter', clone: true,
+    build: (params, sp, depth, opts) => room(sp, depth, opts, OPEN, [1, 1], [kiter(sp, depth, [2 + params.KITER_HOLD1, 2 + params.KITER_HOLD1])]),
+    actions: waits(5),
+    expect(r, params) {
+      const R = params.ROLE_ARTILLERY_RANGE, h = params.KITER_HOLD1, uid = r.start.actors[1].uid, me = track(r, uid), shots = shotsBy(r, uid);
+      if (h * h * 2 <= R * R + R) return `a tile ${h} off along both axes is within range here; the scenario shows nothing`;
+      if (!shots.length) return `it never shot (it stood at ${json(me)})`;
+      const at = me[shots[0].i], dx = at[0] - 1, dy = at[1] - 1;
+      return dx * dx + dy * dy <= R * R + R ? null : `it shot from ${at}, outside the range disc`;
+    },
+  })));
+
+  test('in its band with no shot and nowhere to shoot from, it waits there: it never comes nearer than KITER_HOLD0', () => sweep(H.scenario({
+    name: 'a kiter in a corridor with an exhibit between it and you keeps KITER_HOLD0 steps or more from you and never shoots', id: 'kiter', clone: true,
+    build: (params, sp, depth, opts) => room(sp, depth, opts, ['###########', '#.........#', '###########'], [1, 1],
+      [kiter(sp, depth, [1 + params.KITER_HOLD0 + 1, 1]), { sp: 'arch_b_block', arch: 'plodder', at: [3, 1], mode: 'dormant', stats: Object.assign(Roles.stats('fodder', depth), { hp: 999 }) }]),
+    actions: waits(10),
+    expect(r, params) {
+      const uid = r.start.actors[1].uid, me = track(r, uid), you = track(r, 'you');
+      for (let i = 0; i < me.length; i++) if (me[i][0] - you[i][0] < params.KITER_HOLD0) return `before step ${i} it stood ${me[i][0] - you[i][0]} steps from you, nearer than ${params.KITER_HOLD0}`;
+      return shotsBy(r, uid).length ? 'it shot with an exhibit in its way' : null;
+    },
+  })));
+
+  test('in its band with no clear shot, it steps to the nearest post (ties in row-major order), not toward you, and shoots from there', () => sweep(H.scenario({
+    name: 'a kiter KITER_HOLD0 steps off with a case on its line steps sideways onto the first of its nearest posts, then shoots', id: 'kiter', clone: true, seeds: [1, 2],
+    build: (params, sp, depth, opts) => { const map = OPEN.slice(); map[4] = '#...v...........#'; return room(sp, depth, opts, map, [2, 4], [kiter(sp, depth, [2 + params.KITER_HOLD0, 4])]); },
+    actions: waits(3),
+    expect(r, params) {
+      const k = r.start.actors[1], ps = posts(r.start, k), best = Math.min(...ps.map(p => p.d)), near = ps.filter(p => p.d === best), want = near[0];
+      // The map must make this a test of the choice: two or more posts one step off, the
+      // first of them no nearer you than the kiter is (a step toward you is not one).
+      if (best !== 1 || near.length < 2 || want.w < params.KITER_HOLD0) return `the map gives the posts ${json(ps)}`;
+      const me = track(r, k.uid), shots = shotsBy(r, k.uid);
+      if (me[1][0] !== want.x || me[1][1] !== want.y) return `it stepped to ${me[1]}, not to ${want.x},${want.y}, the first of its nearest posts ${json(near.map(p => [p.x, p.y]))}`;
+      return shots.length && shots[0].i === 1 ? null : `it did not shoot from the post at its next action (${json(shots.map(x => x.i))})`;
+    },
+  })));
+
+  // Its way to a post keeps KITER_HOLD0 steps or more from you. Here a case south of you
+  // blocks its line, and the post nearest it by any way (8,5) can be walked to only past
+  // 7,5, two steps from you, since a step never cuts a case's corner; so it goes round by
+  // 7,7 to the post at 8,7 instead.
+  const ROUND = ['#############', '#...........#', '#...........#', '#...........#', '#.......#...#', '#.....v.....#', '#.......v...#', '#...........#', '#############'];
+  test('on its way to a post it never comes nearer than KITER_HOLD0 steps to you', () => sweep(H.scenario({
+    name: 'a kiter KITER_HOLD0 steps off with a case on its line walks round to a post, keeping its distance, then shoots', id: 'kiter', clone: true, seeds: [1, 2],
+    build: (params, sp, depth, opts) => room(sp, depth, opts, ROUND, [6, 4], [kiter(sp, depth, [7, 6])]),
+    actions: waits(4),
+    expect(r, params) {
+      const k = r.start.actors[1], m = r.start.dept, walk = C.Grid.distances(m, [[6, 4]], m.w * m.h, null, 'exhibit'), me = track(r, k.uid);
+      if (walk[k.y * m.w + k.x] !== params.KITER_HOLD0) return `the kiter starts ${walk[k.y * m.w + k.x]} steps from you, not ${params.KITER_HOLD0}`;
+      for (let i = 0; i < me.length; i++) { const w = walk[me[i][1] * m.w + me[i][0]]; if (w < params.KITER_HOLD0) return `before step ${i} it stood at ${me[i]}, ${w} steps from you`; }
+      const shots = shotsBy(r, k.uid);
+      if (!shots.length) return 'it never shot';
+      const at = me[shots[0].i];
+      return at[0] === 8 && at[1] === 7 ? null : `it first shot from ${at}, not from the post at 8,7`;
+    },
+  })));
+
   // The shot itself, on small maps, against BUILD.md §8.1 and §8.3.
   const tough = { hp: 999, acc: 0, eva: 0, pad: 0, dmin: 2, dmax: 5 };
   const ex = (at, extra) => Object.assign({ sp: 'arch_b_target', at, mode: 'hunting', stats: tough }, extra || {});
@@ -178,6 +291,12 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(State.hash(s), h);
     assert.equal(json([Ranged.maxRange(you, {}), Ranged.maxRange(behind, {}), Ranged.maxRange(behind, { max: 2 })]), json([N.PIN_DRIVER[2], N.ROLE_ARTILLERY_RANGE, 2]));
     assert.throws(() => Ranged.shoot(s, Object.assign({}, far, { gone: 1 }), 1, 2, { kind: 'shot' }, []), /not there to shoot/);
+    // Within range is the disc of §8.2, dx² + dy² ≤ r² + r, not the larger of the distances.
+    const o = plain(['############', ...Array.from({ length: 6 }, () => '#..........#'), '############'], [1, 1], [ex([5, 5]), ex([6, 3]), ex([6, 4])]);
+    const oc = (x, y, r) => Ranged.flight(o, o.actors[0], x, y, r).code;
+    assert.equal(json([oc(5, 5, 5), oc(5, 5, 6)]), json(['out_of_reach', null]), '4 and 4 off: 32 is past 30, within 42');
+    assert.equal(json([oc(6, 3, 5), oc(6, 4, 5), oc(6, 4, 6)]), json([null, 'out_of_reach', null]), '5 and 2 off is within 5; 5 and 3 off is not');
+    assert.equal(json([Ranged.within(o.actors[0], 5, 5, 5), Ranged.within(o.actors[0], 6, 3, 5), Ranged.within({ x: 4, y: 4, size: 2 }, 9, 5, 4)]), json([false, true, true]), 'from the nearest tile of a footprint');
   });
 
   test('a shot hits the first actor on its line, rolled as a blow, from the last tile its bolt crossed, then makes a soft noise at the shooter', () => {

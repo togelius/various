@@ -142,6 +142,22 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     expect(r) { return marksBy(r, r.start.actors[1].uid).length ? 'it aimed through the pillar' : null; },
   })));
 
+  // A beam stops before what blocks sight, your own tile included (§8.1), so dust over your
+  // tile leaves it no line on you from anywhere, though it still sees you (sight is not
+  // stopped by what covers its far end): it neither aims nor walks, and never strikes.
+  test('with dust over your own tile it has no line on you: it does not aim, and with nowhere to aim from it waits', () => sweep(H.scenario({
+    name: 'a sniper in your row, with dust over your tile, neither marks nor moves nor strikes', id: 'axis_sniper', clone: true,
+    build: (params, sp, depth, opts) => { const s = room(sp, depth, opts, OPEN, [3, 4], [sniper(sp, depth, [8, 4])]); C.Surfaces.add(s, 'dust', 3, 4, 1, 20, null, []); return s; },
+    actions: waits(8),
+    expect(r) {
+      const a = r.start.actors[1], me = track(r, a.uid);
+      if (!C.AI.sees(r.start, a) || C.Grid.clear(r.start.dept, 3, 4)) return 'the scenario needs it to see you, with your tile not clear';
+      if (marksBy(r, a.uid).length) return 'it aimed a beam that would stop short of you';
+      if (me.some(p => p[0] !== me[0][0] || p[1] !== me[0][1])) return `with no line on you from anywhere it moved: ${json(me)}`;
+      return struck(r, a.uid) ? 'it struck' : null;
+    },
+  })));
+
   test('Specials.tiles for a line: its row or column only, through glass, stopping at what blocks sight, each tile once', () => {
     const s = Setup.room(1, { acc: 'T0', depth: 3, map: ['##########', '#...v..o.#', '#........#', '#........#', '##########'], you: [1, 1],
       exhibits: [{ sp: 'x', arch: 'axis_sniper', at: [6, 1], mode: 'hunting', stats: Roles.stats('artillery', 3) }] });

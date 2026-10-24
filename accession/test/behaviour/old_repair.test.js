@@ -24,7 +24,8 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const lamp = (sp, depth) => ({ sp: sp.id, at: LAMP, mode: 'dormant', stats: Object.assign(Roles.stats(sp.role, depth), { hp: 999 }) });
   const off = (d, k) => [LAMP[0] + DX[d] * k, LAMP[1] + DY[d] * k];
   const PD = 'arch_b.pd';
-  C.Kit.useAction = (state, action, ev) => Ranged.shoot(state, state.actors[0], action.x, action.y, { kind: 'shot', item: action.uid, dmin: 1, dmax: 4 }, ev);
+  // The stand-in fires with its own damage (1–4) and Acc (1), as an instrument's bolt is made.
+  C.Kit.useAction = (state, action, ev) => Ranged.shoot(state, state.actors[0], action.x, action.y, { kind: 'shot', item: action.uid, dmin: 1, dmax: 4, acc: 1 }, ev);
   const pinDriver = [{ uid: PD, kind: 'instrument', where: { at: 'kit', slot: 'instrument' }, tier: 1, charges: N.PIN_DRIVER[0], max: N.PIN_DRIVER[0] }];
   // The first damage the lamp takes, and what it would be without the repair: the damage
   // less its Padding, at least DMG_MIN_ON_HIT (a beam's net).
@@ -96,4 +97,32 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     actions: [{ a: 'wait' }, { a: 'wait' }],
     expect: doubled,
   }), true));
+
+  // The rule on every side (BUILD.md §5.5): the side is a compass point in modParams, and
+  // damage doubles when its `from` tile lies toward that point or either point beside it,
+  // seen from the body (each axis of the direction −1, 0 or +1). Restated here: the
+  // direction's dot product with the side's own is 1 or more. Each side is tried with blows
+  // from all 8 tiles beside a test body and from the 16 tiles 2 off (a Reach blow, a shot).
+  test('the repaired side is the species\' point and the two beside it, on every side, from beside it or 2 tiles off', () => {
+    const map = ['#######', '#.....#', '#.....#', '#.....#', '#.....#', '#.....#', '#######'], sg = v => v < 0 ? -1 : v > 0 ? 1 : 0;
+    for (let d = 0; d < 8; d++) {
+      const side = POINTS[d], s = Setup.room(1, { acc: 'T0', depth: 1, map, you: [1, 1],
+        exhibits: [{ sp: 'arch_b_repair', mods: ['old_repair'], modParams: { old_repair: { side } }, at: [3, 3], mode: 'hunting', stats: { hp: 999, acc: 0, eva: 0, pad: 0, dmin: 1, dmax: 1 } }] });
+      let beside = 0;
+      for (let fy = 1; fy <= 5; fy++) for (let fx = 1; fx <= 5; fx++) {
+        if (fx === 3 && fy === 3) continue;
+        const c = C.State.clone(s), a = c.actors[1], ev = [];
+        C.Combat.hurt(c, a, 5, { k: 'attack', by: 'you', at: a.uid, chance: 75, roll: 1, raw: 5, pad: 0, how: { kind: 'melee' }, from: [fx, fy] }, ev);
+        const e = ev.find(x => x.k === 'damaged'), on = sg(fx - 3) * DX[d] + sg(fy - 3) * DY[d] >= 1;
+        assert.equal(json([e.amount, e.cause.side === undefined ? null : e.cause.side]), json(on ? [Int.pct(5, N.OLD_REPAIR_PCT), side] : [5, null]), `side ${side}, from ${fx},${fy}`);
+        if (on && Math.max(Math.abs(fx - 3), Math.abs(fy - 3)) === 1) beside++;
+      }
+      assert.equal(beside, 3, `side ${side}: 3 of the 8 tiles beside it are on that side`);
+      // Switched off, no side doubles.
+      const o = Setup.room(1, { acc: 'T0', depth: 1, map, you: [1, 1], exhibits: [{ sp: 'arch_b_repair', mods: ['old_repair'], modParams: { old_repair: { side } }, at: [3, 3], mode: 'hunting', stats: { hp: 999, acc: 0, eva: 0, pad: 0, dmin: 1, dmax: 1 } }] }, { rulesOff: ['old_repair'] });
+      const ev = [];
+      C.Combat.hurt(o, o.actors[1], 5, { k: 'attack', by: 'you', at: o.actors[1].uid, chance: 75, roll: 1, raw: 5, pad: 0, how: { kind: 'melee' }, from: [3 + DX[d], 3 + DY[d]] }, ev);
+      assert.equal(ev.find(x => x.k === 'damaged').amount, 5);
+    }
+  });
 };

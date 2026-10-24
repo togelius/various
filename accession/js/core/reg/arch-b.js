@@ -5,8 +5,9 @@
 // The rules behind each clause (js/core/rules/ranged.js, rules/arch/{kiter,axis_sniper,
 // reflector}.js, rules/mods/{glass,old_repair}.js):
 //   - kiter: keeps KITER_HOLD tiles from you (walking), backs away when you are beside it,
-//     and shoots rolled bolts up to ROLE_ARTILLERY_RANGE; a bolt hits the first body on its
-//     line and stops at glass, so it shoots only when you are the first;
+//     and shoots rolled bolts within ROLE_ARTILLERY_RANGE (the disc of "within r"); a bolt
+//     hits the first body on its line and stops at glass, so it shoots only when you are the
+//     first;
 //   - axis_sniper: moves to share your row or column, then marks a `line` beam, unless a
 //     reflector stands between; it never strikes;
 //   - line: a beam of AXIS_BEAM_RANGE tiles along a row or column, through glass, for its
@@ -23,7 +24,7 @@
   const tests = id => ['behaviour/' + id + '.test.js'];
 
   R.define('ARCHETYPES', 'kiter', { icon: null, ranged: true,
-    clause: 'Keeps {KITER_HOLD0} to {KITER_HOLD1} tiles from you and shoots up to {ROLE_ARTILLERY_RANGE} tiles for {dmg}; its shots hit the first body in their way and stop at glass; backs away when you are beside it.',
+    clause: 'Keeps {KITER_HOLD0} to {KITER_HOLD1} tiles from you and shoots within {ROLE_ARTILLERY_RANGE} tiles for {dmg}; its shots hit the first body in their way and stop at glass; backs away when you are beside it.',
     params: { KITER_HOLD0: 'N:KITER_HOLD[0]', KITER_HOLD1: 'N:KITER_HOLD[1]', ROLE_ARTILLERY_RANGE: 'N:ROLE_ARTILLERY_RANGE', dmg: 'role:DMG' },
     covers: ['attacked', 'missed'], ready: 'unit', tests: tests('kiter'), inv: 'arch-b' });
   R.define('ARCHETYPES', 'axis_sniper', { icon: null, ranged: true, special: 'line',
@@ -39,8 +40,9 @@
     clause: 'aims along it for a turn, with the line shown, then fires a beam up to {AXIS_BEAM_RANGE} tiles that passes through glass, for {gross} before your Padding',
     params: { AXIS_BEAM_RANGE: 'N:AXIS_BEAM_RANGE', gross: 'curve:ROLE_ARTILLERY_SPECIAL' }, covers: ['telegraphed', 'special', 'damaged'], ready: 'unit', tests: tests('axis_sniper'), inv: 'arch-b' });
 
+  // A glass body sends shots back, and a shot it sends back that misses is its `missed`.
   R.define('MODIFIERS', 'glass', { icon: null, clause: 'Leaves shards on or beside the tile where it is destroyed, and sends beams and shots back along their line.',
-    params: {}, covers: [], ready: 'unit', tests: tests('glass'), inv: 'arch-b' });
+    params: {}, covers: ['missed'], ready: 'unit', tests: tests('glass'), inv: 'arch-b' });
   // The repaired side is a compass side from the species' modParams.old_repair.side.
   R.define('MODIFIERS', 'old_repair', { icon: null, clause: 'Its {side} side is a later repair: blows, shots and beams from that side deal double damage.',
     params: { side: 'mod:side' }, covers: [], ready: 'unit', tests: tests('old_repair'), inv: 'arch-b' });
@@ -50,10 +52,11 @@
   // reflector sends back is the reflector's (by), naming who fired it (shooter): rolled with
   // the shooter's Acc against the Eva of the body it comes back into, on the shooter's own
   // stream, with its range (how far it flew before it met the reflector) and from the last
-  // tile it crossed coming back (Ranged.shoot). sp is for a beam's, should a rule ever name
-  // one so; this package's beams are the `special` cause's, every tile they cross included.
+  // tile it crossed coming back (Ranged.shoot). A beam a reflector sends back (sp) is the
+  // reflector's on the tiles it reaches only on its way back (Ranged.beamVia), with a beam's
+  // numbers: gross, Padding, net and the marked tile x, y it struck.
   const shot = { by: 'uid', at: 'uid', chance: 'int', roll: 'int?', raw: 'int', pad: 'int', floor: 'int?', surprise: 'int?', side: 'str?', how: 'obj', from: 'tile', saved: 'int?', range: 'int' };
-  const reflected = { by: 'uid', shooter: 'uid', sp: 'str?', chance: 'int?', roll: 'int?', raw: 'int?', pad: 'int', floor: 'int?', how: 'obj?', range: 'int?', from: 'tile', side: 'str?', saved: 'int?' };
+  const reflected = { by: 'uid', shooter: 'uid', sp: 'str?', chance: 'int?', roll: 'int?', raw: 'int?', gross: 'int?', pad: 'int', net: 'int?', floor: 'int?', how: 'obj?', range: 'int?', x: 'int?', y: 'int?', from: 'tile', side: 'str?', saved: 'int?' };
   R.defineCause('missed', 'shot', { fields: { by: 'uid', at: 'uid', chance: 'int', roll: 'int', how: 'obj', range: 'int' } });
   R.defineCause('missed', 'reflected', { fields: { by: 'uid', shooter: 'uid', chance: 'int', roll: 'int', how: 'obj', range: 'int' } });
   R.defineCause('damaged', 'shot', { fields: shot });

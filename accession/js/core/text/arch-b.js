@@ -21,20 +21,27 @@
     return `${w.Name(c.by)} shot ${w.name(e.who)} for ${e.amount} (${rolled(c)}; ${sum(c)}).`;
   });
 
-  // A shot a reflector sends back comes into whoever fired it (Ranged.shoot).
+  // A shot a reflector sends back comes into whoever fired it (Ranged.shoot); a beam it
+  // sends back goes on past its shooter (Ranged.beam), so it can strike others too.
   Text.defineCause('missed', 'reflected', (e, w) =>
     `${w.Name(e.cause.by)} sent ${whose(w, e.cause.shooter)} shot back, and it missed ${into(w, e.at, e.cause.shooter)} (rolled ${e.cause.roll} against ${e.cause.chance}%).`);
+  // A beam's damage: its gross less Padding, the minimum if it applied, and an old repair's doubling.
+  const beamSum = c => `${c.gross} − ${c.pad} Padding${c.gross - c.pad < c.net ? `, at least ${c.net}` : ''}` +
+    (c.side ? `, doubled through its repaired ${POINT[c.side] || c.side} side` : '');
+  const what = c => c.sp ? 'beam' : 'shot';
   Text.defineCause('damaged', 'reflected', (e, w) => {
-    const c = e.cause, what = c.sp ? 'beam' : 'shot';
-    const detail = c.raw == null ? `${e.amount} damage` : `${e.amount} damage (${c.roll == null ? '' : `rolled ${c.roll} against ${c.chance}%; `}${sum(c)})`;
-    return `${w.Name(c.by)} sent ${whose(w, c.shooter)} ${what} back into ${into(w, e.who, c.shooter)}: ${detail}.`;
+    const c = e.cause;
+    let detail = `${e.amount} damage`;
+    if (c.sp && Number.isInteger(c.gross) && Number.isInteger(c.net)) detail += ` (${beamSum(c)})`;
+    else if (c.raw != null) detail += ` (${c.roll == null ? '' : `rolled ${c.roll} against ${c.chance}%; `}${sum(c)})`;
+    return `${w.Name(c.by)} sent ${whose(w, c.shooter)} ${what(c)} back into ${into(w, e.who, c.shooter)}: ${detail}.`;
   });
 
   const died = (e, w) => e.who === 'you' ? 'You fell.' : `${w.Name(e.who)} broke apart.`;
   Text.defineCause('died', 'shot', died);
   Text.defineCause('died', 'reflected', (e, w) => {
-    const c = e.cause, own = e.who === c.shooter;
-    if (e.who === 'you') return own ? `You fell to your own shot, sent back by ${w.name(c.by)}.` : `You fell to ${whose(w, c.shooter)} shot, sent back by ${w.name(c.by)}.`;
-    return own ? `${w.Name(e.who)} broke apart on its own shot, sent back by ${w.name(c.by)}.` : `${w.Name(e.who)} broke apart on ${whose(w, c.shooter)} shot, sent back by ${w.name(c.by)}.`;
+    const c = e.cause, own = e.who === c.shooter, k = what(c);
+    if (e.who === 'you') return own ? `You fell to your own ${k}, sent back by ${w.name(c.by)}.` : `You fell to ${whose(w, c.shooter)} ${k}, sent back by ${w.name(c.by)}.`;
+    return own ? `${w.Name(e.who)} broke apart on its own ${k}, sent back by ${w.name(c.by)}.` : `${w.Name(e.who)} broke apart on ${whose(w, c.shooter)} ${k}, sent back by ${w.name(c.by)}.`;
   });
 })();
