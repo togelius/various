@@ -161,8 +161,8 @@ function sensitivity(C, sc, modifierId, list) {
   return { sensitive: problems.length === 0, problems, runs };
 }
 
-// Every species whose Behaviour line has a part with this id, from the packs (and the
-// shared species, once Packs.sharedList exists), at every depth 1–7 (opts.depths), as
+// Every species whose Behaviour line has a part with this id, from the packs and the shared
+// species (Packs.sharedList: the Night Watchman), at every depth 1–7 (opts.depths), as
 // {sp, depth, acc}. The species records are the packs' own, so the fields by which a pack
 // overrides a number (§5.2; modParams) apply. Species whose archetype M3 does not build are
 // left out, as M3 departments leave them out (§5.5), unless opts.m4.
@@ -170,7 +170,7 @@ function species(C, id, opts) {
   opts = opts || {};
   const depths = opts.depths || DEPTHS, records = [];
   for (const p of C.Packs.list()) for (const sp of [...p.species, p.centrepiece]) if (sp) records.push({ sp, acc: p.acc });
-  if (typeof C.Packs.sharedList === 'function') for (const sp of C.Packs.sharedList()) records.push({ sp, acc: null });
+  for (const sp of C.Packs.sharedList()) records.push({ sp, acc: null });
   const out = [];
   for (const { sp, acc } of records) {
     const arch = Object.prototype.hasOwnProperty.call(C.Registry.ARCHETYPES, sp.archetype) ? C.Registry.ARCHETYPES[sp.archetype] : null;

@@ -146,14 +146,17 @@ const Layout = (() => {
     for (let k = 0; k <= RESEEDS; k++) {
       const r = attempt(programme, size, seed, key + '/a' + k, opts);
       tries.push(r.failed);
-      if (!r.failed.length) return finish(r, { attempt: k, fallback: false, tries, key });
+      if (!r.failed.length) return finish(r, { attempt: k, fallback: false, tries, key, base: key + '/a' + k });
     }
     const r = fallback(programme, size, opts);
     if (r.failed.length) throw new Error(`Layout: the certified fallback for ${programme} failed: ${r.failed.map(f => f.id + ' ' + f.why).join('; ')}`);
-    return finish(r, { attempt: RESEEDS + 1, fallback: true, tries, key });
+    return finish(r, { attempt: RESEEDS + 1, fallback: true, tries, key, base: key + '/a' + (RESEEDS + 1) });
   }
 
-  // The plan as plain data for the state (BUILD.md §4.1), plus the analysis for checks.
+  // The plan as plain data for the state (BUILD.md §4.1), plus the analysis for checks, and
+  // `base`, the department's stream key for the attempt that made the plan (`…/d<depth>/a<k>`;
+  // a certified fallback is attempt RESEEDS + 1), under which its placement streams are named
+  // (§3.2). base is outside the plan, so the plan, and the layout pin, are as they were.
   function finish(r, info) {
     const { L, A } = r, G = L.G;
     const rooms = [];
@@ -164,7 +167,7 @@ const Layout = (() => {
       plan: { programme: L.meta.programme, pin: PIN, w: G.W, h: G.H, tiles: G.rows(), rooms, roomOf, entrance: L.meta.entrance.slice(),
         exits: L.meta.exits.map(e => e.slice()), cpl: L.meta.cpl.slice(), lectern: L.meta.lectern ? L.meta.lectern.slice() : null,
         viewTile: L.meta.viewTile ? L.meta.viewTile.slice() : null, ltour: A.tour, tourOrder: A.order.slice() },
-      analysis: A, failed: r.failed, log: L.log, attempt: info.attempt, fallback: info.fallback, tries: info.tries, knobs: r.K,
+      analysis: A, failed: r.failed, log: L.log, attempt: info.attempt, fallback: info.fallback, tries: info.tries, knobs: r.K, base: info.base,
     };
   }
 

@@ -499,7 +499,7 @@ module.exports = ({ test, assert, loadCore }) => {
 
   test('the M4 hooks and the stubs other parts fill are present, named, and neutral', () => {
     const X = loadCore(), s = TestRoom.create(1), ev = [], h = State.hash(s);
-    for (const [ns, fn] of [['Modules', 'onEvent'], ['Modules', 'alarmDecay'], ['Modules', 'turn'], ['Surfaces', 'tick'], ['ClockRules', 'boundary'], ['Kit', 'settle'],
+    for (const [ns, fn] of [['Modules', 'onEvent'], ['Modules', 'alarmDecay'], ['Modules', 'turn'], ['Surfaces', 'tick'], ['ClockRules', 'boundary'],
       ['Kit', 'recharge'], ['Wake', 'hear'], ['Wake', 'allyHit'], ['Wake', 'decay'], ['Health', 'onLow']]) {
       assert.equal(typeof X[ns][fn], 'function', `${ns}.${fn}`);
       X[ns][fn](s, s.actors[1], {}, 1, ev);

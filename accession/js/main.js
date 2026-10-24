@@ -249,6 +249,7 @@ const Main = (() => {
   draw();
   window.ACCESSION = {
     get state() { return state; }, act: act_, tap, vm: () => ViewModel.derive(state, ui), get renderer() { return renderer; },
+    get events() { return (ui.events || []).slice(); }, stops: [...STOPS],
     views: Views, setZoom, busy: () => !!walking, get history() { return history.slice(); },
     setting: (k, v) => { settings[k] = v; if (k === 'board') makeView(); applySettings(); draw(); },
   };

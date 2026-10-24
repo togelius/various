@@ -37,6 +37,13 @@ Packs.add({
       tomb: { maker: 'Made for the Ordinance Office by the Workshops of the Line', date: 'During the Duplicate Ordinance', medium: 'Brass, steel; escapement; pen arm and inkwell', dims: 'H. 132 cm', credit: 'Transferred from the Ordinance Office' },
       paragraph: 'No spare was valid until it had been countersigned, so the Office had a clerk built to do it, and the human clerks went home. The Office’s records say it countersigns anything damaged within its reach, taking a moment over each signature. It does not like to be approached while it is signing. It has never been countersigned itself.' },
   ],
+  // Items (§5.2): the pack's item schema, seeded with one; W1-CONTENT adds the rest.
+  items: [
+    { id: 'A4.7', kind: 'weapon', form: 'heavy', prims: [{ id: 'dmg', cls: 'L' }],
+      name: 'Paperweight of the Ordinance Office, One of a Pair',
+      tomb: { maker: 'Ordinance Office', date: 'During the Duplicate Ordinance', medium: 'Cast iron', dims: 'H. 11 cm; heavier than it looks', credit: 'Transferred from the Ordinance Office' },
+      paragraph: 'Issued in pairs under the Ordinance, so that a desk would never be without one. The other is lost, which the Office regarded as proof that the rule worked. It is best used once, firmly.' },
+  ],
   centrepiece: { id: 'A4.12', sprite: 'ordinance_original', archetype: 'mp_ensemble', form: 'fight', size: 1,
     name: 'The Duplicate Ordinance, With Its Four Certified Copies',
     tomb: { maker: 'Drafted by the Ordinance Office; copies by the typing pool', date: 'Signed after the Night of the Unlocked Door; repealed after the Second Inventory', medium: 'Ink on paper, five sheets, each framed on its own lectern', dims: 'Each sheet 42 × 30 cm', credit: 'Transferred from the Ordinance Office' },

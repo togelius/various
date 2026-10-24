@@ -28,9 +28,12 @@ for (const [W, Hh] of SIZES) {
   // What would stop a walk: an exhibit appearing, moving or changing state, or a blow at you.
   const sights = () => page.evaluate(() => window.ACCESSION.vm().actors.map(a => a.uid === 'you' ? 'you' + a.hp : a.uid + a.mode + a.pips + '@' + a.x + ',' + a.y).join());
   const freeTile = () => page.evaluate(freeTileIn);
-  // A walk reaches the tile clicked, unless something new came into sight or changed state.
+  // A walk reaches the tile clicked, unless something new came into sight or changed state,
+  // or its last step had an event that stops a walk (§7.1: a blow or a miss, a wake, a door,
+  // a refusal), such as a hunter beside you that missed.
+  const stopped = () => page.evaluate(() => window.ACCESSION.events.some(e => window.ACCESSION.stops.includes(e.k)));
   const walkedTo = async (t, before, sightsBefore, tag) => {
-    const after = await you(), changed = (await sights()) !== sightsBefore;
+    const after = await you(), changed = (await sights()) !== sightsBefore || await stopped();
     if (after.x === before.x && after.y === before.y) bad(`${tag}: clicking a tile did not walk`);
     else if ((after.x !== t.x || after.y !== t.y) && !changed) bad(`${tag}: the walk stopped at ${after.x},${after.y}, short of ${t.x},${t.y}, with nothing new in sight`);
     return after;

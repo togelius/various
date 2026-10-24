@@ -1,51 +1,107 @@
-// ACCESSION — building a fresh state (BUILD.md §4.1).
+// ACCESSION — building a fresh state (BUILD.md §4.1): the parts every state has, and a state
+// for one room, for tests, scenarios and arenas. Dept.create builds a department's.
 'use strict';
 const Setup = (() => {
   const SAVE_VERSION = 1;
 
-  // The visitor at the start of a run: a T1 Balanced weapon and a T1 Standard garment
-  // (BUILD.md §8.1), from the forms in the numbers table. `form` ('light', 'balanced',
-  // 'heavy' or 'reach'; Balanced if absent) swaps the T1 weapon, for tests and scenarios.
+  // The visitor at the start of a run, wearing a T1 Balanced weapon and a T1 Standard
+  // garment at grade I (BUILD.md §8.1), with the stats Kit.stats derives from them. `form`
+  // ('light', 'balanced', 'heavy' or 'reach'; Balanced if absent) swaps the T1 weapon, for
+  // tests and scenarios (a T1 Heavy weapon needs grade II, so at grade I it costs 2 Acc).
   // You carry every actor field (Actors.make), and also: still (your ring's radius comes
   // from your last action that cost time, §8.2), lastAct, seated (on a bench, §8.1), regen
-  // (the regeneration store), and your derived stats, which Kit.settle keeps up to date.
-  const FORMS = { light: N.FORM_LIGHT, balanced: N.FORM_BALANCED, heavy: N.FORM_HEAVY, reach: N.FORM_REACH };
+  // (the regeneration store), and your derived stats, which Kit.settle keeps equal to
+  // Kit.derive of what you wear.
   function you(x, y, form) {
     form = form || 'balanced';
-    const t = 1, F = FORMS[form], G = N.GARMENT_STANDARD;
-    if (!F) throw new Error('Setup.you: no weapon form ' + form);
-    return Object.assign(Actors.make(null, {
-      uid: 'you', sp: 'visitor', size: 1, x, y, hp: N.PLAYER_HP, maxHp: N.PLAYER_HP,
-      acc: N.PLAYER_ACC + F[4], eva: N.PLAYER_EVA + G[1], pad: t + G[0], dmin: t + F[0], dmax: F[1] * t + F[2],
-    }), { still: false, lastAct: null, seated: false, regen: 0, weaponForm: form, reach: form === 'reach', quiet: 0, breaker: 0 });
+    if (!N['FORM_' + form.toUpperCase()]) throw new Error('Setup.you: no weapon form ' + form);
+    const w = Kit.item({ uid: 'you.w', kind: 'weapon', where: { at: 'kit', slot: 'weapon' }, form, tier: 1 });
+    const g = Kit.item({ uid: 'you.g', kind: 'garment', where: { at: 'kit', slot: 'garment' }, form: 'standard', tier: 1 });
+    return Object.assign(Actors.make(null, { uid: 'you', sp: 'visitor', size: 1, x, y, hp: N.PLAYER_HP, maxHp: N.PLAYER_HP }),
+      { still: false, lastAct: null, seated: false, regen: 0 }, Kit.stats(w, g, N.GRADE_START));
   }
 
-  // A state for one room: map rows, your position, and exhibit records. An exhibit record
-  // gives its species id, tile, mode and stats (a role's, Roles.stats), and may give its
-  // size (2 for a Centrepiece, §4.1) and any field Actors.make takes (arch, mods, trigger,
-  // group, home, guards, ax, speed). options: Options.make's (rulesOff, without, invulnerable).
-  function room(seed, spec, options) {
-    const state = {
+  // The run (§4.1): your grade, the seals and what you know of them, the consumable deck
+  // (every card, in DECK's order, until Consumables.startRun and the draws change it), the
+  // counter for split stacks' uids, and the run structure M5 fills.
+  const run = (depth, grade) => ({
+    grade: grade || N.GRADE_START, seals: null, knownSeals: [], deck: N.DECK.slice(), items: 0,
+    floor: null, slot: null, depth, sequence: null, offered: null, certificates: [], perks: [], collectionPicks: [],
+  });
+  // What you wear and carry; Kit.start fills it.
+  const kit = () => ({ kit: { weapon: null, garment: null, curio: [null, null], instrument: null }, tote: [] });
+  // The parts of a department every state has, beyond its map (§4.1).
+  const deptParts = grade => ({ clock: null, fixtures: [], surfaces: [], highlights: [], planRead: null, entryGrade: grade, modules: [] });
+
+  // A state with every top-level field, around the department `dept` and you at (x, y).
+  function base(seed, dept, x, y, options, grade) {
+    return {
       v: SAVE_VERSION, coreHash: null, runId: null, seed, rng: {}, tick: 0, turn: 0,
       options: Options.make(options),
-      dept: { acc: spec.acc, depth: spec.depth || 1, w: spec.map[0].length, h: spec.map.length, tiles: spec.map.slice() },
-      actors: [you(spec.you[0], spec.you[1])],
+      run: run(dept.depth, grade),
+      dept,
+      actors: [you(x, y)],
       items: [],
+      you: kit(),
       causes: [], over: null,
       ui: { pendingChoice: null },
     };
-    let n = 0;
-    for (const e of spec.exhibits) {
-      n++;
-      const rec = Object.assign({}, e, e.stats, {
-        uid: spec.acc + '.' + state.dept.depth + '.' + (e.room || 'room') + '.' + n,
-        x: e.at[0], y: e.at[1], mode: e.mode || 'dormant', maxHp: e.stats.hp,
+  }
+
+  // The actors removed for this visit (options.without, by uid) are marked gone: each has
+  // already taken its uid and its place, so nothing else is renumbered or moved (§3.2). Then
+  // each archetype's init runs, in spawn order, for actors not gone; then each exhibit made
+  // awake gets its story from the starting state (Wake.created, with no event or beat).
+  function settleActors(state, from) {
+    const without = state.options.without || [];
+    for (const a of state.actors) if (without.includes(a.uid)) a.gone = 1;
+    const made = state.actors.slice(from);
+    for (const a of made) if (!a.gone) Archetypes.init(state, a);
+    for (const a of made) if (!a.gone && a.mode !== 'dormant') Wake.created(state, a, 'awake', {}, null);
+  }
+
+  // A state for one room, for tests, scenarios and arenas. spec:
+  //   acc, depth (1 if absent), map (rows), you [x, y];
+  //   exhibits: [{sp, at, mode, stats, size?, arch?, role?, mods?, trigger?, group?, home?,
+  //     guards?, ax?, speed?, room?, uid?}], stats a role's (Roles.stats); each gets the uid
+  //     <acc>.<depth>.<room>.<n>, room 'room' if absent and n counted per room, unless it
+  //     gives one;
+  //   fixtures (full records, such as Cases.make's), items (records for Kit.item), kit
+  //   ({weapon: {form, tier, level}, garment: {form, tier, level}}: your starting kit, else
+  //   the usual one), clock ({ltour} or {B, G, count}: Clock.init's; none if absent),
+  //   entrance [x, y], exits [[x, y]…], grade (your grade, I if absent).
+  // options: Options.make's (rulesOff, without, invulnerable).
+  function room(seed, spec, options) {
+    const depth = spec.depth || 1, grade = spec.grade || N.GRADE_START;
+    const dept = Object.assign({ acc: spec.acc, depth, w: spec.map[0].length, h: spec.map.length, tiles: spec.map.slice(),
+      entrance: spec.entrance ? spec.entrance.slice() : null, exits: (spec.exits || []).map(e => e.slice()), seen: '' }, deptParts(grade));
+    if (spec.clock) dept.clock = Clock.init(spec.clock.ltour || 0, spec.clock);
+    for (const f of spec.fixtures || []) dept.fixtures.push(JSON.parse(JSON.stringify(f)));
+    const state = base(seed, dept, spec.you[0], spec.you[1], options, grade);
+    const counts = {};
+    for (const e of spec.exhibits || []) {
+      const key = e.room || 'room';
+      counts[key] = (counts[key] || 0) + 1;
+      const rec = Object.assign({}, e.stats, e, {
+        uid: e.uid || `${spec.acc}.${depth}.${key}.${counts[key]}`,
+        x: e.at[0], y: e.at[1], mode: e.mode || 'dormant', maxHp: e.maxHp !== undefined ? e.maxHp : (e.hp !== undefined ? e.hp : e.stats.hp),
       });
+      if (e.stats && e.stats.role && e.role === undefined) rec.role = e.stats.role;
       delete rec.stats; delete rec.at; delete rec.room;
       Actors.spawn(state, rec);
     }
+    settleActors(state, 1);
+    const k = spec.kit || {};
+    Kit.start(state, k.weapon && k.weapon.form);
+    for (const [uid, part] of [['you.w', k.weapon], ['you.g', k.garment]]) {
+      if (!part) continue;
+      const it = state.items.find(i => i.uid === uid);
+      for (const f of ['form', 'tier', 'level']) if (part[f] !== undefined) it[f] = part[f];
+    }
+    for (const it of spec.items || []) state.items.push(Kit.item(it));
+    Kit.settle(state);
     return state;
   }
 
-  return { SAVE_VERSION, you, room };
+  return { SAVE_VERSION, you, run, kit, deptParts, base, settleActors, room };
 })();

@@ -1,8 +1,9 @@
 // The art check (BUILD.md §9.1, DESIGN.md §12.1): silhouettes are fixed by archetype, so a
 // kiter looks like a kiter in any department. A sprite's outline is its alpha mask, every
 // cell that is not '.'; every species and Centrepiece of one archetype, across all packs,
-// uses a sprite with the same mask, and two archetypes never share one. Every species names
-// a sprite that exists, 16×16 for each tile of its footprint.
+// uses a sprite with the same mask, and two archetypes never share one. Every species (the
+// shared ones, such as the Night Watchman, included) names a sprite that exists, 16×16 for
+// each tile of its footprint.
 module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const { Packs } = loadCore();
   const dir = path.join(root, 'art/sprites');
@@ -26,7 +27,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     throw new Error(`${name}: '${c}' at ${x},${y} is not in every department palette`);
   }).join('')).join('\n');
   const uses = [];
-  for (const p of Packs.list()) for (const sp of [...p.species, ...(p.centrepiece ? [p.centrepiece] : [])])
+  for (const sp of [...Packs.list().flatMap(p => [...p.species, ...(p.centrepiece ? [p.centrepiece] : [])]), ...Packs.sharedList()])
     uses.push({ id: sp.id, sprite: sp.sprite, archetype: sp.archetype, size: sp.size || 1 });
 
   test('every species and Centrepiece has its sprite, 16×16 a tile', () => {

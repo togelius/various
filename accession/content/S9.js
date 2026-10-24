@@ -33,6 +33,13 @@ Packs.add({
       tomb: { maker: 'Mounted from Round Book 4', date: 'Collected after the Great Reshelving', medium: 'Hide, wire; hind feet of carved boxwood', dims: 'H. 30 cm each', credit: 'Accessioned on the night staff’s report' },
       paragraph: 'Reported, not observed. Round Book 4 calls the hoppers the court’s nuisance. They come in close, nip, and are back out of reach before a keeper can turn round, and then they do it again from the other side. The night staff kept them out of the waders’ way by keeping them busy. The preparators mounted four, which they believe is all of them, and wrote that down as well.' },
   ],
+  // Items (§5.2): the pack's item schema, seeded with one; W1-CONTENT adds the rest.
+  items: [
+    { id: 'S9.9', kind: 'instrument', instrument: 'pin_driver', prims: [],
+      name: 'Spring Pin-Driver',
+      tomb: { maker: 'Preparators’ workshop', date: 'After the Great Reshelving', medium: 'Steel spring, walnut stock, box of long pins', dims: 'L. 34 cm', credit: 'Gift of the Preparators' },
+      paragraph: 'Built to drive mounting pins into a hard plinth from a safe distance, when the specimen on the plinth was not cooperating. The preparators’ notes call it a last resort, twice.' },
+  ],
   centrepiece: { id: 'S9.12', sprite: 'composite', archetype: 'completing_guardian', form: 'treasure', size: 2,
     name: 'The Composite, Assembled From the Round Books',
     tomb: { maker: 'Mounted by the preparators from every description in Round Books 1–8 that matched no other specimen', date: 'After the Great Reshelving', medium: 'Hide, feathers, horn, wire, carved lime; parts added as descriptions were found', dims: 'H. 2.9 m', credit: 'Accessioned on the night staff’s report' },

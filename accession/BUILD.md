@@ -69,7 +69,7 @@ Plain JavaScript, classic `<script>` tags, no bundler for the game. Each file de
 ```
 accession/
   index.html               development entry: one <script> tag per file, in dependency order
-  css/game.css
+  css/game.css, bag.css
   js/core/                 PURE: no DOM, no clock, no Math.random, integers only (§3)
     rng.js, int.js         string-keyed streams (hash → mulberry32); integer helpers with stated rounding
     state.js               canonical serialisation, hashing, cloning, the plain-data check
@@ -78,7 +78,7 @@ accession/
                            waking, modes, combat, …) holding its entries, clause templates and event schemas (§5.1)
     clauses.js             Behaviour lines, filled from the clause templates at the department's depth (§5.3)
     grid.js, vision.js     tiles, line of sight, walking distance; what you see, your ring
-    path.js, clock.js      paths for taps; the clock's budget
+    path.js, clock.js      paths for taps; the clock's budget and reads (rules/clock.js has its turn step)
     roles.js               exhibit numbers from role and depth
     layout/                build kit, programmes, curation, analysis, validation, repair, fallback
     rules/                 step.js (the only mutator); actions.js (the action table, §4.2); actors.js (actor
@@ -89,7 +89,8 @@ accession/
     text.js, text/         sentences keyed by event kind and cause, refusals, the recap; one fragment per
                            owner in text/, as in reg/ (§4.3)
     labels.js              labels, odds readouts, the strip
-    packs.js, dept.js      the pack registry; a department visit's starting state
+    packs.js, dept.js      the pack registry and shared species; a department visit's starting state
+    setup.js               the parts every state has, and a state for one room (tests, scenarios, arenas)
     run.js                 run structure: doors, sequencer, Stair Halls, the Exit (M5)
     viewmodel.js           derive(state, ui) → a plain description of what to draw (§6.1)
   js/view/                 RENDERERS: read the view model, never the state
@@ -99,12 +100,14 @@ accession/
     art.gen.js             sprite grids and palettes, generated from art/ by tools/build-art.js
     sprites.js             sprite canvases per palette, and the 64×64 close-ups (Scale2x twice)
     pictograms.js          pictograms as 8×8 shapes, drawn as SVG or on the board
-  js/ui/                   DOM: top bar, strip, label panel, doors, halls, menus, settings, captions
+  js/ui/                   DOM: top bar, strip, label panel, doors, halls, menus, settings, captions; bag.js,
+                           the Bag (your kit and tote, quickslots, aiming)
   js/input.js              pointer and keyboard → intents (§7)
   js/store.js              autosave, the visitor's card, the archive (§4.4)
   js/audio.js              synthesiser and tracker (M6)
   js/main.js               boot and wiring
-  content/                 department packs, one file each (S9.js, A4.js, M11.js), the test room
+  content/                 department packs, one file each (S9.js, A4.js, M11.js); shared species in no
+                           department (watch.js, the Night Watchman); the test room
   art/                     sprite sources (text grids), palettes, the asset ledger (ledger.json)
   vendor/three/            three.iife.js (built once, pinned), LICENSE, VERSION (§6.4)
   tools/
@@ -166,14 +169,19 @@ accession/
 | `seals` | the per-run seal shuffle |
 | `deck` | the consumable deck |
 | `layout/<acc>@<pin>/d<depth>/a<k>/{knobs,embed,openings,aspace}` and `…/a<k>/room/<roleKey>/curate` | layout, local; k is the reseed attempt. This extends `design/layout.md` §12.1 with the depth |
-| `…/a<k>/room/<roleKey>/populate` and `…/a<k>/staff` | exhibits, items, cases, glass and locks placed in one room; staff-door grades; local. The port replaces the prototype's department-wide `/populate` stream |
+| `…/a<k>/room/<roleKey>/populate` and `…/a<k>/staff` | what is placed in one room, in this order: its cases (each case's glass, then lock, then whether it is on loan), then its items, then its consumables; staff-door grades; local. One holder serves the whole department while it is made, so a room's stream runs on from the cases to the items to the consumables rather than starting again for each. The port replaces the prototype's department-wide `/populate` stream |
+| `…/a<k>/items` | which room each placed item and consumable goes in; local. Added in M3 (§3.2 had no department-level placement stream), for Julian to confirm |
+| `place/<acc>/d<depth>` | the stand-in placement of exhibits, until M4's population replaces it; local |
 | `combat/<actorUid>` | every hit and damage roll made *by* that actor |
-| `ai/<actorUid>` | every choice that actor makes, including ties between equally short steps |
+| `ai/<actorUid>` | every choice that actor makes, including ties between equally short steps, and a mimic's disguise (its case's glass, lock and loan, drawn as a real case's are) |
 | `module/<moduleId>/<acc>/d<depth>` | one module's own draws |
 | `cosmetic/…` | renderer only, derived from the layout key, never stored and never read by the core |
 
-- **Role keys** name rooms without dots: `intro`, `s1`, `s2` … (section galleries in tour order), `centre`, `coda`, `staff`.
-- **Actor uids are stable names, not indices:** `<acc>.<depth>.<roleKey>.<n>`, for example `M11.3.s2.4`. The player is `you`. A body created mid-run (a splitter's half, a summoned trolley) is `<parentUid>/<k>`, with k from the parent's counter; the Night Watchman is `<acc>.<depth>.watch.<k>`; the Exit's recalled exhibits are `exit.7.<k>`.
+- **`…/a<k>`** is the layout attempt that made the plan (k from 0; a certified fallback counts as attempt 5), and a department's placement streams are named under it.
+- **Role keys** name rooms without dots: `intro`, `s1`, `s2` … (section galleries in tour order), `study1` …, `centre`, `coda`, `staff`.
+- **Actor uids are stable names, not indices:** `<acc>.<depth>.<roleKey>.<n>`, n counted from 1 in each room in placement order, for example `M11.3.s2.4`. The player is `you`. A body created mid-run (a splitter's half, a summoned trolley) is `<parentUid>/<k>`, with k from the parent's counter; the Night Watchman is `<acc>.<depth>.watch.<k>`; the Exit's recalled exhibits are `exit.7.<k>`.
+- **Item uids are stable names too,** since replays carry `take(uid)` and `use(uid)`: `you.w` and `you.g` for the weapon and garment you start with; `<acc>.<depth>.<roleKey>.i<n>` for an item placed in a room, n counted per room in placement order; `<parentUid>/<k>` for a stack split from another, with k from the run's counter (`run.items`).
+- **Removing an exhibit** (`without`, §3.6) marks it `gone` after every exhibit has taken its uid and its tile and before anything else is placed; a removed exhibit keeps its tile for placement, so no uid, tile, stream or item of anything else changes.
 - **`<pin>` is the layout version.** A layout code change bumps it.
 
 ### 3.3 What the core may not do
@@ -240,15 +248,19 @@ state = {
   rng: { path: uint32 },
   tick, turn,
   options: { rulesOff, without, invulnerable },   the visit's switches (§3.6)
-  run: { floor, slot, depth, sequence, offered, grade, certificates, perks,
-         seals, knownSeals, collectionPicks, deck },
-  dept: { acc, pin, depth, w, h, tiles, rooms, fixtures, ltour,
-          clock: { B, G, stage, pausedSince },
-          highlights, modules: [ { id, …moduleState } ],   in pack order
+  run: { grade, seals, knownSeals, deck, items,
+         floor, slot, depth, sequence, offered, certificates, perks, collectionPicks },
+  dept: { acc, pin, depth, programme, w, h, tiles, rooms, roomOf, ltour,
+          entrance, exits, lectern, viewTile,
+          clock: { B, G, stage, count, pausedSince, nightBells, watch: { k, back } },
+          fixtures: [ case | staff | plaque ],
+          surfaces: [ { kind, x, y, size, until, by } ],
+          highlights: [ { uid, room } ], planRead, entryGrade,
+          modules: [ { id, …moduleState } ],   in pack order
           seen },                       explored tiles, as a run-length string
   actors: [ actor ],                    in spawn order; actors[0] is you
-  items:  [ { uid, kind, where, … } ],
-  you:    { kit: { weapon, garment, curio: [null, null], instrument }, tote: [ … ] },
+  items:  [ item ],
+  you:    { kit: { weapon, garment, curio: [null, null], instrument }, tote: [ uid … ] },
   causes: [ last 64 cause records ],
   over:   null | { k: 'died' | 'left', turn, by, door, cause },   the visit's end
   ui:     { pendingChoice }             a perk, door or hall choice waiting for an answer
@@ -260,7 +272,21 @@ actor = { uid, sp, arch, role, mods, modParams, trigger, group,     copied from 
           home, target, lastKnown, guards, route, plan, facing,
           statuses: [ { id, until, turns, from } ], telegraph, acts,
           woke, hunted, kids, gen, gone, ax }
+
+item   = { uid, kind, ref, where, form, tier, level, prims, charges, max, rechargeAt, ck, seal, n, from }
+case   = { k: 'case', x, y, room, num, glass, lock, hits, st, loan, holds, mimic }
+staff  = { k: 'staff', x, y, grade }
+plaque = { k: 'plaque', x, y, ck }
 ```
+
+**Every state has every part,** made by `Setup.base` (a department's by `Dept.create`, a room's for tests, scenarios and arenas by `Setup.room`), with plain-data defaults:
+- **The run:** `grade` (I at the start), `seals` (null until the run's seals are shuffled, then `{sol: [4 kind indices], eph: [4]}`), `knownSeals` (those identified), `deck` (the cards left of each kind, in `DECK`'s order, full at the start), `items` (the counter for split stacks' uids, §3.2); the rest is the run structure of M5.
+- **The department:** its rooms keep their id, role key, role and number; `clock` (none in a room for tests unless asked): `stage` 0 while open, 1 after the bell, 2 in the night watch, `count` the clock turns since entry, which a sealed hall stops, `pausedSince` the turn a hall sealed (M4), `nightBells` the night-watch bells rung so far, and `watch`, with `k` the Night Watchmen so far and `back` the count at which the next enters; `fixtures`, in row-major order when the department is made and appended after; `surfaces`, in the order laid (§8.1); `highlights`, each Highlight's uid and room (in M3 the two Restoration kits, §8.5); `planRead`, the turn a Floor Plan was read here, or null; `entryGrade`, your grade when you came in.
+- **An item:** `kind` (weapon, garment, curio, instrument, kit or consumable); `ref` (its pack item's id; null for the kit you start with); `where` (`{at: 'floor' | 'case', x, y}`, `{at: 'tote'}`, `{at: 'kit', slot}` with slot weapon, garment, curio0, curio1 or instrument, or `{at: 'gone'}`); a weapon's or garment's `form`; `tier` (1–4, drawn from depth when it is placed, never from the pack, §8.1); `level` (Restoration levels); `prims` (`[{id, cls}]`); an instrument's `charges`, `max` and `rechargeAt`; a consumable's `ck` (kind), `seal` and `n` (count); `from`, the department it was first taken in.
+- **A case:** `room` (its room's role key), `num` (its accession number: null only for a mimic's case, which is its tell), `glass` (1–3: Plate, Laminated, Security), `lock` (the grade it needs, 1–7), `hits` (bashes taken), `st` (`shut`, `open`, `broken`, `dissolved` or `revealed`), `loan` (on loan elsewhere: a label with no object), `holds` (an item uid or null), `mimic` (the uid of the mimic it is, or null).
+- **You** start with a T1 Balanced weapon (`you.w`) and a T1 Standard garment (`you.g`) equipped, and your derived stats are those `Kit.derive` gives for what you wear (§8.1).
+
+**Tiles change only in these ways,** and a test watches every tile through monkey runs: a door opening or closing (`+` and `'`, `S` and `s`); a case opened or dissolved (`v` to `u`), broken (`v` to `k`), or a mimic revealed (`v` to `.`); a mimic's disguise (`.` to `v`, only when the department is made); shards (`.` or `,` to `x`). So no rule ever writes over an exit, the entrance, a bench, an opened or broken case or a wall.
 
 **Actors** are made by `Actors.spawn(state, rec)`, which appends one with every field set to plain data (`null`, never `undefined`):
 - **From the species,** at spawn: `arch` (an exhibit with none is a plodder), `role`, `mods`, `modParams` (a modifier's own values, such as `old_repair`'s side), `trigger` and `group`. Rules read the actor, never the pack. `speed` is its archetype's or a modifier's (§8.1).
@@ -392,11 +418,13 @@ A pack is data: `content/S9.js` registers one object with `Packs.add({…})`. It
 - **The palette:** material, accent, wall and floor colours, checked against the reserved semantic colours.
 - **Modules,** with parameters.
 - **Species:** the archetype, at most two modifiers, at most one special trigger, a role, the skin (name, silhouette, sprite ids), and the label (tombstone fields and a paragraph of 40–70 words).
-- **Items:** equipment and the Signature piece, with their primitives and labels. Every primitive must be one the slice implements (§8.5).
-- **Local names** for the 8 consumable kinds, and their identifying labels.
+- **Items:** equipment and the Signature piece, with their primitives and labels, each `{ id, kind, form?, instrument?, prims, name, tomb, paragraph }`: `kind` is `weapon`, `garment`, `curio` or `instrument`; `form` a weapon's (`light`, `balanced`, `heavy`, `reach`) or a garment's (`light`, `standard`, `heavy`); `instrument` one of `fork`, `pin_driver`, `pole`; `prims` a list of `{id, cls}`, a primitive with its magnitude class S, M or L. Every primitive must be one the slice implements (§8.5). An item has no tier: its tier is drawn from depth when it is placed (§8.1), and an instrument's charges and recharge come from its row in §8.10.
+- **Local names** for the 8 consumable kinds, and their identifying labels: `consumables: { names: [8 local names, one for each seal: the 4 Solutions' seals, then the 4 Ephemera's], labels: { <kind>: paragraph } }`.
 - **The Centrepiece:** form, core, attachments, phases, gateway label, and lectern position.
 - **Panels:** the intro panel and the section panels.
 - **The audio motif** (M6).
+
+**Shared species** belong to no department: the Night Watchman (`content/watch.js`) is registered with `Packs.addShared`, and an actor's species is looked up in its department's pack, then its Centrepiece, then the shared species (`Packs.speciesFor`), so labels, the view model and the lint treat it as any other.
 
 **Numbers come from depth, never from the pack.** A pack names roles and magnitude classes (S, M, L), and the role curves (§8.10) turn them into numbers at the department's depth. A pack may override a number only through a named field the lint lists in the department's report, so every override is visible.
 
@@ -496,6 +524,7 @@ Species, items and labels come from `design/samples.md` §§2–4, with these tr
 - 14 non-Centrepiece archetypes, plus `night_watchman`, plus three Centrepiece cores (`completing_guardian`, `mp_ensemble`, `mp_tableau`).
 - M3 builds eleven: `plodder`, `darter`, `kiter`, `axis_sniper`, `splitter`, `mote_swarm`, `herald`, `tethered_warden`, `reflector`, `mimic_vitrine`, and `night_watchman` for the clock.
 - M4 builds the rest with the modules.
+- **Until M4, a department places only species whose archetype M3 builds, and no Centrepiece,** since the others' Behaviour lines could not yet be true (§5.3). The stand-in placement puts one of each such species in the sections and studies, outside the safe zone; a `mote_swarm` comes as `SWARM_BODIES[0]` bodies, on the nearest free floor tiles of its room. M4's population places the rest.
 
 ---
 
@@ -679,6 +708,7 @@ These are the rules the slice implements. Each system opens with its sentence fr
 - **Waking costs a beat.** An exhibit that wakes is scheduled to first act at now + its action cost. So is an actor made during the visit (the Night Watchman, a splitter's halves), which therefore never acts in the instant it appears.
 - **An exhibit's turn,** in this order (`AI.act`): if it is fixed, its pending special is called off and it waits; otherwise it looks for you (it sees you as §8.2 says, and if it was not already hunting it now hunts you); a pending special resolves; its archetype acts, if it has something to do; otherwise it acts as its mode says (§8.2). Every turn it takes, a forced wait included, counts as one of its actions (`acts`).
 - **Speed.** Fast actors pay half, slow actors double, for their steps; attacks and every other action cost the usual, unless the archetype says its speed covers every action (the mimic is slow at everything). The `slowed` status doubles every action again. An actor's speed is its archetype's, or a modifier's (marble is slow) unless that modifier is switched off; a fast archetype with a slow modifier moves at the usual speed.
+- **Surfaces.** A surface laid for N turns (a Fumigant cloud, plaster dust) acts at the next N turn boundaries and is cleared at the boundary after them; while it lies, a sight-blocking one blocks line of sight across its square (§8.2).
 - **Statuses.** A status of N turns covers the N turns that start at its bearer's next decision. Once the action that put it on is over, it lasts until the boundary of turn `idiv(next, 100) + N`, where `next` is the bearer's next decision (for a sleeping exhibit, the next turn + N); its per-turn effect acts at the boundaries of those N turns, and it ends at the boundary of the last. A decision at tick t falls in turn `idiv(t, 100)`, because that turn's boundary runs before anyone who acts at its tick. So Fixative gives exactly 4 forced waits whatever the action before it, and a grip of 2 turns put on during a 200-tick open still holds you at your next 2 decisions. Put on again while held, a status lasts to the later end.
 
 **Action costs (ticks):**
@@ -848,6 +878,7 @@ The alarm is not a species trigger: `alarm_network` wakes the department itself 
 **Placement.**
 - Glass by depth follows `GLASS_MIX_D1` … `GLASS_MIX_D6` (§8.10): Security joins the mix from depth 3.
 - A case's lock is drawn uniformly from the overlap of its glass range and I to (depth + 1). If they do not overlap, the lock is the glass range's minimum.
+- Each case draws its glass, then its lock, then whether it is on loan. A mimic's case is drawn the same way, on the mimic's own stream (§3.2), so it differs from a real case only in having no accession number.
 - A Highlight is never behind a lock above the grade you enter the department with.
 
 **Opening** costs 200 ticks, makes a soft noise and fires `touch_case`. An opened case is passable, with no shards (its tile becomes `u`, as a dissolved one's does); an exhibit in it may leave, keeps its home there, and can return to it.
@@ -868,6 +899,7 @@ The alarm is not a species trigger: `alarm_network` wakes the department itself 
 **Staff doors** (the M.11 staff corridor, and any staff layer a programme draws) open like case locks: each carries a grade, drawn as locks are, and opens for 100 ticks with a soft noise at that grade or above (an open staff door is `s`, which can be seen through). Below it, it is a wall. Nothing required lies behind one (`design/layout.md` LV5).
 
 **Other rules:**
+- **Shards** only ever land on floor or an archway (`Cases.shardTile`): on the tile they fall to (a glass exhibit's own tile; for a broken case, the tile on your side), if it is one; otherwise on that tile's first floor or archway neighbour in direction order (N, NE, E, … NW); otherwise nowhere. So shards never cover a door, an exit, the entrance, a bench or a case.
 - Solvent, thrown, dissolves every case in a 3×3 silently: no noise, no shards, no `touch_case`.
 - About one case in six is "on loan elsewhere": a label with no object.
 - Vitrines never stand on gate cells (`design/layout.md` LV10).

@@ -5,10 +5,11 @@ module.exports = ({ test, assert, loadCore }) => {
   const C = loadCore(['tools/monkey.js']);
   const { Step, State, TestRoom, Setup, Monkey, N, Combat, Actors } = C;
 
-  // A bare room for scenarios: you at (2,2) and exhibits as given.
-  function room(exhibits, map) {
-    return Setup.room(1, { acc: 'T0', depth: 1, map: map || ['#########', '#.......#', '#.......#', '#.......#', '#.......#', '#########'], you: [2, 2],
-      exhibits: exhibits.map(e => Object.assign({ sp: 'dummy', mode: 'hunting', stats: { hp: 7, acc: 2, eva: 1, pad: 0, dmin: 1, dmax: 4 } }, e)) });
+  // A bare room for scenarios: you at (2,2) and exhibits as given; more adds to the spec
+  // (your kit, for one).
+  function room(exhibits, map, more) {
+    return Setup.room(1, Object.assign({ acc: 'T0', depth: 1, map: map || ['#########', '#.......#', '#.......#', '#.......#', '#.......#', '#########'], you: [2, 2],
+      exhibits: exhibits.map(e => Object.assign({ sp: 'dummy', mode: 'hunting', stats: { hp: 7, acc: 2, eva: 1, pad: 0, dmin: 1, dmax: 4 } }, e)) }, more));
   }
 
   test('ties go to you, then to actors in spawn order', () => {
@@ -92,11 +93,13 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(Actors.attackCost(s0, brute), N.COST_ATTACK_HEAVY);
     assert.equal(Actors.attackCost(s0, fast), N.COST_ATTACK);
     assert.equal(N.FORM_HEAVY[3], N.COST_ATTACK_HEAVY, 'a Heavy blow costs its form\'s cost');
-    const s = room([{ at: [4, 2], mode: 'dormant' }]);
-    s.actors[0].weaponForm = 'heavy';
+    // Your Heavy weapon, from your kit (Kit.derive), strikes at 150.
+    const s = room([{ at: [4, 2], mode: 'dormant' }], null, { kit: { weapon: { form: 'heavy' } } });
+    assert.equal(s.actors[0].weaponForm, 'heavy');
     s.actors[0].x = 3;
     Step.step(s, { a: 'move', dir: 2 });
     assert.equal(s.actors[0].next, N.COST_ATTACK_HEAVY);
+    assert.equal(s.actors[0].weaponForm, 'heavy', 'and stays Heavy once the step has settled your stats');
   });
 
   test('a refused action costs nothing, draws nothing and changes nothing', () => {

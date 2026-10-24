@@ -4,7 +4,7 @@
 // The expected figures are written out again from BUILD.md's text, never from combat.js.
 module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const C = loadCore(['js/view/art.gen.js', 'js/view/pictograms.js']);
-  const { Dept, Labels, Packs, Setup, Step, State, Status, Roles, Text, Path, Grid, Registry, Pictograms, ART } = C;
+  const { Dept, Labels, Packs, Setup, Step, State, Status, Roles, Text, Path, Grid, Registry, Pictograms, ART, Layout, Actors } = C;
 
   // §8.1, independently. Hit = clamp(75 + 5(Acc − Eva) + 20 if the defender is fixed − 20 if
   // the attacker is dazed, 10, 95); d(r) = max(1, r − Padding); typical = 100·Σd ÷ (n·HP)
@@ -45,12 +45,23 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     return null;
   }
 
+  // M3 departments leave the Centrepiece out until M4 places it (BUILD.md §5.5). These tests
+  // keep their Centrepiece and 2×2 cases by standing the pack's Centrepiece where M2 did, on
+  // its plan's plinth (the same plan Dept.create made, from the same seed), asleep, with the
+  // centrepiece role's numbers at the depth.
+  function withCentrepiece(s) {
+    const p = Packs.get(s.dept.acc), cp = p.centrepiece, stats = Roles.stats('centrepiece', s.dept.depth);
+    const [x, y] = Layout.generate(p.programme, 0, s.seed, { acc: p.acc, depth: s.dept.depth }).plan.cpl;
+    return Actors.spawn(s, Object.assign({}, stats, { uid: `${p.acc}.${s.dept.depth}.centre.1`, sp: cp.id, arch: cp.archetype, size: cp.size || 1, x, y, mode: 'dormant', maxHp: stats.hp }));
+  }
+
   test('the odds readout and the Attack button equal an independent count, over varied states', () => {
     const ran = new Set();
     const FORMS = ['light', 'balanced', 'heavy'], MODES = ['dormant', 'hunting', 'returning', 'awake', 'awake-saw'];
     const STATUS = [[], [['you', 'fixed']], [['you', 'dazed']], [['it', 'fixed']], [['it', 'dazed']], [['you', 'dazed'], ['it', 'fixed']]];
     for (const acc of ['S9', 'A4', 'M11']) for (let depth = 1; depth <= 7; depth += 3) {
       const s = Dept.create(depth * 11, acc, depth), home = s.actors[0];
+      withCentrepiece(s);
       for (const a of s.actors.slice(1)) {
         // Stand beside it, so the label has its button.
         const spot = beside(s, a);
@@ -135,7 +146,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const ran = new Set();
     for (const acc of ['S9', 'M11']) for (let seed = 1; seed <= 3; seed++) {
       const s = Dept.create(seed, acc, 1), you = s.actors[0], m = s.dept;
-      const big = s.actors.find(a => a.size === 2), small = s.actors.find(a => a.uid !== 'you' && a.size === 1);
+      const big = withCentrepiece(s), small = s.actors.find(a => a.uid !== 'you' && a.size === 1);
       for (const a of [small, big]) {
         const sp = Labels.speciesOf(s, a);
         for (let y = a.y - 4; y <= a.y + 5; y++) for (let x = a.x - 4; x <= a.x + 5; x++) {
@@ -299,17 +310,22 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   });
 
   test('sentences name exhibits by species, and keep the test room’s wording without names', () => {
+    // The Dawn-Caller and the Brooder, which M3's S.9 places; and the Centrepiece, stood on
+    // its plinth by hand, since M3 departments leave it out.
     const s = Dept.create(4, 'S9', 1), you = s.actors[0], names = Labels.nameOf(s);
-    const wader = s.actors.find(a => a.sp === 'S9.2'), cp = s.actors.find(a => a.size === 2);
-    assert.equal(names(wader.uid), 'the Lantern-Crop Wader');
+    const caller = s.actors.find(a => a.sp === 'S9.3'), brooder = s.actors.find(a => a.sp === 'S9.4'), cp = withCentrepiece(s);
+    assert.equal(names(caller.uid), 'the Dawn-Caller on a Perch');
+    assert.equal(names(brooder.uid), 'the Ground-Nesting Brooder, With Its Nest');
     assert.equal(names(cp.uid), 'the Composite, Assembled From the Round Books');
     assert.equal(names('you'), null);
-    const struck = { k: 'damaged', turn: 3, who: wader.uid, amount: 6, hp: 10, cause: { k: 'attack', by: 'you', at: wader.uid, chance: 80, surprise: 1, raw: 6, pad: 0 } };
-    assert.equal(Text.event(struck, names), 'You caught the Lantern-Crop Wader unawares: 6 damage (6 − 0 Padding).');
-    const back = { k: 'missed', turn: 4, by: cp.uid, at: 'you', cause: { k: 'attack', by: cp.uid, at: 'you', chance: 70, roll: 88 } };
-    assert.equal(Text.event(back, names), 'The Composite, Assembled From the Round Books missed you (rolled 88 against 70%).');
-    assert.equal(Text.event({ k: 'hunting', turn: 3, who: wader.uid, was: 'dormant', cause: { k: 'damage', by: 'you' } }, names), 'The Lantern-Crop Wader woke: it was struck.');
-    assert.equal(Text.event({ k: 'died', turn: 9, who: wader.uid, cause: {} }, names), 'The Lantern-Crop Wader broke apart.');
+    const struck = { k: 'damaged', turn: 3, who: caller.uid, amount: 6, hp: 10, cause: { k: 'attack', by: 'you', at: caller.uid, chance: 80, surprise: 1, raw: 6, pad: 0 } };
+    assert.equal(Text.event(struck, names), 'You caught the Dawn-Caller on a Perch unawares: 6 damage (6 − 0 Padding).');
+    const back = { k: 'missed', turn: 4, by: brooder.uid, at: 'you', cause: { k: 'attack', by: brooder.uid, at: 'you', chance: 70, roll: 88 } };
+    assert.equal(Text.event(back, names), 'The Ground-Nesting Brooder, With Its Nest missed you (rolled 88 against 70%).');
+    const big = { k: 'missed', turn: 4, by: cp.uid, at: 'you', cause: { k: 'attack', by: cp.uid, at: 'you', chance: 70, roll: 88 } };
+    assert.equal(Text.event(big, names), 'The Composite, Assembled From the Round Books missed you (rolled 88 against 70%).');
+    assert.equal(Text.event({ k: 'hunting', turn: 3, who: caller.uid, was: 'dormant', cause: { k: 'damage', by: 'you' } }, names), 'The Dawn-Caller on a Perch woke: it was struck.');
+    assert.equal(Text.event({ k: 'died', turn: 9, who: caller.uid, cause: {} }, names), 'The Dawn-Caller on a Perch broke apart.');
     assert.equal(Text.event({ k: 'died', turn: 9, who: 'you', cause: {} }, names), 'You fell.');
     // No names, a nameOf that knows nobody, or a map callback's index: the test room's words.
     for (const e of [struck, back]) {
@@ -319,10 +335,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       assert.equal([e].map(Text.event)[0], plain);
     }
     // From a real step: every sentence names the species it is about.
-    [you.x, you.y] = beside(s, wader);
-    const ev = Step.step(s, { a: 'attack', uid: wader.uid }), lines = ev.map(e => Text.event(e, names)).filter(Boolean);
+    [you.x, you.y] = beside(s, caller);
+    const ev = Step.step(s, { a: 'attack', uid: caller.uid }), lines = ev.map(e => Text.event(e, names)).filter(Boolean);
     assert.ok(lines.length && lines.every(l => !/training dummy|undefined|NaN|\[object/.test(l)), lines.join(' / '));
-    assert.ok(lines.some(l => l.includes('the Lantern-Crop Wader')), lines.join(' / '));
+    assert.ok(lines.some(l => l.includes('the Dawn-Caller on a Perch')), lines.join(' / '));
   });
 
 

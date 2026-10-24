@@ -178,6 +178,13 @@ for (const [W, Hh] of [[390, 844], [1280, 800]]) for (const sc of SCENES) {
   // as hiding it. You are placed on that tile (one you could walk to) rather than walked
   // there: since M3 a walk wakes the sleepers it passes (§8.2, the ring), and this frame
   // measures the renderer, so it should not depend on which exhibits the rules bring along.
+  // M3 departments leave the Centrepiece out until M4 places it (§5.5), so it is first stood
+  // on its plinth, asleep, as M2 placed it.
+  await page.evaluate(() => {
+    const s = window.ACCESSION.state, p = Packs.get(s.dept.acc), cp = p.centrepiece, stats = Roles.stats('centrepiece', s.dept.depth);
+    const [x, y] = Layout.generate(p.programme, 0, s.seed, { acc: p.acc, depth: s.dept.depth }).plan.cpl;
+    Actors.spawn(s, Object.assign({}, stats, { uid: `${p.acc}.${s.dept.depth}.centre.1`, sp: cp.id, arch: cp.archetype, size: cp.size || 1, x, y, mode: 'dormant', maxHp: stats.hp }));
+  });
   const melee = await page.evaluate(() => {
     const A = window.ACCESSION, s = A.state;
     const cands = s.actors.filter(q => q.uid !== 'you' && !q.gone).map(a => ({ a, path: Grid.walkable(s.dept, a.x, a.y - 1) && !Actors.at(s, a.x, a.y - 1) ? Path.to(s, a.x, a.y - 1) : [] }))

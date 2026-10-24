@@ -29,6 +29,13 @@ Packs.add({
       tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Oak, iron; logbooks 14–22', dims: 'H. 96 cm', credit: 'Gift of the Retired Line Superintendent' },
       paragraph: 'The trolley carried the day’s logbooks from station to station so that every operator could sign them. Keepers report that it follows the nearest person at a steady walking pace, which on a busy day was the right speed and on a quiet night is not. Logbooks 14 to 22 are still aboard. They record nine years of signals and not one message. Please do not sign them.' },
   ],
+  // Items (§5.2): the pack's item schema, seeded with one; W1-CONTENT adds the rest.
+  items: [
+    { id: 'M11.9', kind: 'weapon', form: 'reach', prims: [{ id: 'dmg', cls: 'M' }],
+      name: 'Signal Flag on Its Staff, Furled',
+      tomb: { maker: 'Line stores', date: 'After the Second Calibration', medium: 'Wool bunting, ash staff, iron ferrule', dims: 'L. 2.6 m', credit: 'Transferred from the Line Superintendent’s Office' },
+      paragraph: 'Flags were used where lamps could not be lit and heliographs could not be carried. Furled, the staff is long enough to reach past the person in front of you, which, the logbooks suggest, is how it was mostly used on busy days. The bunting has faded from red to a colour the Line called signal pink.' },
+  ],
   centrepiece: { id: 'M11.11', sprite: 'great_board', archetype: 'mp_tableau', form: 'fight', size: 2,
     name: 'The Great Board of the Central Station',
     tomb: { maker: 'Painted by the Workshops of the Line, with later panels', date: 'Before the Second Calibration; repainted until the line closed', medium: 'Oil on boards, forty hinged panels; iron frame', dims: 'H. 3.2 m, W. 3.6 m', credit: 'Transferred from the Central Station' },

@@ -3,12 +3,9 @@
 // pack, the registry and the rules' own numbers.
 'use strict';
 const Labels = (() => {
-  function speciesOf(state, a) {
-    const pack = Packs.get(state.dept.acc);
-    if (!pack) return null;
-    if (pack.centrepiece && pack.centrepiece.id === a.sp) return pack.centrepiece;
-    return pack.species.find(s => s.id === a.sp) || null;
-  }
+  // The species an actor was made from: its department's, its Centrepiece, or a shared one
+  // (the Night Watchman); null for you and the test room's dummies.
+  const speciesOf = (state, a) => Packs.speciesFor(state, a);
 
   function stateIcons(a) {
     if (a.uid === 'you') return [];
@@ -93,5 +90,13 @@ const Labels = (() => {
     };
   }
 
-  return { of, strip, speciesOf, stateIcons, nameOf };
+  // [stub → W2a-LABELS] The labels of things that are not exhibits (§8.8): a case (with its
+  // accession number), an item, a plaque, a staff door, and you. null for now.
+  const ofCase = (state, f) => null;
+  const ofItem = (state, uid) => null;
+  const ofPlaque = (state, f) => null;
+  const ofStaffDoor = (state, f) => null;
+  const yours = state => null;
+
+  return { of, strip, speciesOf, stateIcons, nameOf, ofCase, ofItem, ofPlaque, ofStaffDoor, you: yours };
 })();

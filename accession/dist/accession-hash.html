@@ -1790,16 +1790,40 @@ const Noise = (() => {
 
 </script>
 <script>
-// ACCESSION — surfaces on the floor (BUILD.md §8.6): a Fumigant cloud, plaster dust. Each is
-// { kind, x, y, size, until, by } in dept.surfaces, covering the size × size square centred on
-// its tile (Grid.covers); a sight-blocking one blocks line of sight (Grid.los).
-// W0c leaves turn boundary step 1 here, empty; W0e builds add, at and expiry, and W1-STATUS
-// the effects.
+// ACCESSION — surfaces on the floor (BUILD.md §8.1, §8.6): a Fumigant cloud, plaster dust.
+// Each is { kind, x, y, size, until, by } in dept.surfaces, in the order laid, covering the
+// size × size square centred on its tile (Grid.covers); a sight-blocking kind
+// (Registry.SURFACES[kind].blocksSight) blocks line of sight across it (Grid.los).
+// W0e builds add, at and expiry; W1-STATUS the surfaces' effects at turn boundary step 1.
 'use strict';
 const Surfaces = (() => {
-  // Turn boundary step 1 (§8.1): surfaces expire, and act on what stands in them.
-  function tick(state, ev) {}
-  return { tick };
+  // Lay a surface of `kind` centred on (x, y), size tiles a side, for `turns` turns, made by
+  // `by` (a uid, or null). A surface of N turns acts at the next N turn boundaries and is
+  // cleared at the boundary after them (§8.1): until = the current turn + 1 + N. Laying one
+  // makes no event. Returns the surface.
+  function add(state, kind, x, y, size, turns, by, ev) {
+    const S = Registry.SURFACES[kind];
+    if (!S) throw new Error(`Surfaces.add: no surface ${kind}`);
+    if (!Number.isInteger(size) || size < 1 || !Number.isInteger(turns) || turns < 1) throw new Error(`Surfaces.add: ${kind} of size ${size} for ${turns} turns`);
+    const m = state.dept;
+    if (!m.surfaces) m.surfaces = [];
+    const s = { kind, x, y, size, until: state.turn + 1 + turns, by: by === undefined ? null : by };
+    m.surfaces.push(s);
+    return s;
+  }
+
+  // The surfaces that cover (x, y), in the order they were laid.
+  const at = (state, x, y) => ((state.dept && state.dept.surfaces) || []).filter(s => Grid.covers(s, x, y));
+
+  // Turn boundary step 1 (§8.1): first every surface whose time is up is cleared (until ≤ the
+  // turn); then, [stub → W1-STATUS], each surface left acts on what stands in it.
+  function tick(state, ev) {
+    const m = state.dept;
+    if (!m.surfaces || !m.surfaces.length) return;
+    if (m.surfaces.some(s => s.until <= state.turn)) m.surfaces = m.surfaces.filter(s => s.until > state.turn);
+  }
+
+  return { add, at, tick };
 })();
 
 </script>
@@ -2482,52 +2506,310 @@ const Health = (() => {
 
 </script>
 <script>
-// ACCESSION — cases, glass, locks and staff doors (BUILD.md §8.3). W0c names the two calls
-// the action core makes; W0e builds the case fixtures and W1-CASES the rest.
+// ACCESSION — cases, glass, locks and staff doors (BUILD.md §8.3). W0e builds the case
+// fixture, its draws, the shard rule and the mimic's disguise; W1-CASES builds placement,
+// opening, bashing, staff doors and the rest, on these.
+//
+// A case is a fixture in dept.fixtures:
+//   { k: 'case', x, y, room, num, glass, lock, hits, st, loan, holds, mimic }
+// room is its room's role key; num its accession number (null only for a mimic's case, its
+// tell); glass 1–3 (Registry.GLASS: Plate, Laminated, Security); lock the grade it needs,
+// 1–7; hits the bashes it has taken; st 'shut', 'open', 'broken', 'dissolved' or 'revealed';
+// loan true when it is "on loan elsewhere" (a label with no object); holds an item uid or
+// null; mimic the uid of the mimic it is, or null.
 'use strict';
 const Cases = (() => {
+  // The fixture on (x, y), or null. Fixtures never share a tile.
+  function at(state, x, y) {
+    for (const f of (state.dept && state.dept.fixtures) || []) if (f.x === x && f.y === y) return f;
+    return null;
+  }
+
   // Does a stand in an intact case? An exhibit on a `v` is encased (and so is a mimic in its
   // disguise): it cannot step out (Grid.canStep) or strike out, and nothing strikes in.
   const encased = (state, a) => Actors.footprint(a).some(([x, y]) => Grid.ch(state.dept, x, y) === 'v');
 
+  // A case fixture with every field, plain data; rec gives x, y and any field to set.
+  function make(rec) {
+    const or = (k, v) => rec[k] !== undefined ? rec[k] : v;
+    return { k: 'case', x: rec.x, y: rec.y, room: or('room', null), num: or('num', null), glass: or('glass', 1), lock: or('lock', 1),
+      hits: or('hits', 0), st: or('st', 'shut'), loan: or('loan', false), holds: or('holds', null), mimic: or('mimic', null) };
+  }
+
+  // The draws that make a case (§8.3), from a stream (Rng.stream), in this order: its glass,
+  // by depth's mix (GLASS_MIX_D1 … D6, depth 6's mix beyond); its lock; whether it is on loan
+  // (one case in CASE_EMPTY_ONE_IN). W1-CASES's placement and the mimic's disguise both draw
+  // through here, so a mimic's case is drawn exactly as a real one is.
+  const drawGlass = (rng, depth) => 1 + rng.weighted(N['GLASS_MIX_D' + Math.min(6, Math.max(1, depth))]);
+  // A lock is drawn uniformly from the overlap of the glass's range (GLASS_LOCK_MIN … MAX)
+  // and I to depth + 1; if they do not overlap, it is the glass range's minimum, with no draw.
+  function drawLock(rng, glass, depth) {
+    const lo = N.GLASS_LOCK_MIN[glass - 1], hi = Math.min(N.GLASS_LOCK_MAX[glass - 1], depth + 1);
+    return hi < lo ? lo : rng.int(lo, hi);
+  }
+  const drawLoan = rng => rng.int(1, N.CASE_EMPTY_ONE_IN) === 1;
+  function draw(rng, depth) {
+    const glass = drawGlass(rng, depth), lock = drawLock(rng, glass, depth), loan = drawLoan(rng);
+    return { glass, lock, loan };
+  }
+
+  // The one shard rule (§8.3): where shards land when they fall to (x, y) (a glass exhibit's
+  // own tile; for a broken case, the tile on your side). The tile itself if it is floor or
+  // archway; otherwise its first floor or archway neighbour in direction order (N, NE, E, …
+  // NW); otherwise nowhere (null). So shards never cover a door, an exit, the entrance, a
+  // bench, a case or a wall.
+  const SHARDABLE = ch => ch === '.' || ch === ',';
+  function shardTile(state, x, y) {
+    const m = state.dept;
+    if (SHARDABLE(Grid.ch(m, x, y))) return [x, y];
+    for (let d = 0; d < 8; d++) { const nx = x + Grid.DX[d], ny = y + Grid.DY[d]; if (SHARDABLE(Grid.ch(m, nx, ny))) return [nx, ny]; }
+    return null;
+  }
+
+  // The role key of the room holding (x, y), or null outside any room (or in a test room).
+  function roomKey(state, x, y) {
+    const m = state.dept;
+    if (!m.roomOf || !m.rooms) return null;
+    const id = m.roomOf[y] ? m.roomOf[y][x] : 0, rm = m.rooms.find(r => r.id === id);
+    return rm ? rm.key || null : null;
+  }
+
+  // A mimic's disguise (§8.3, §8.8), made by its archetype's init: on its own floor tile it
+  // becomes a case. Its glass, lock and loan are drawn as a real case's are (Cases.draw), on
+  // the mimic's own ai/<uid> stream, so removing it reshuffles nothing else (§3.2); its case
+  // has no accession number, its one tell. The tile becomes `v`, the only time a floor tile
+  // does. Returns the fixture.
+  function disguise(state, a) {
+    const m = state.dept;
+    if ((a.size || 1) !== 1) throw new Error(`Cases.disguise: ${a.uid} is not one tile`);
+    if (Grid.ch(m, a.x, a.y) !== '.') throw new Error(`Cases.disguise: ${a.uid} is not on a floor tile`);
+    if (at(state, a.x, a.y)) throw new Error(`Cases.disguise: there is already a fixture at ${a.x},${a.y}`);
+    const d = draw(Rng.stream(state, 'ai/' + a.uid), m.depth);
+    const f = make({ x: a.x, y: a.y, room: roomKey(state, a.x, a.y), num: null, glass: d.glass, lock: d.lock, loan: d.loan, mimic: a.uid });
+    if (!m.fixtures) m.fixtures = [];
+    m.fixtures.push(f);
+    Grid.set(m, a.x, a.y, 'v');
+    return f;
+  }
+
+  // The mimic shows itself: its case is 'revealed', and its tile, if still a vitrine,
+  // becomes floor again. Returns the fixture, or null if a was never disguised.
+  function reveal(state, a) {
+    const f = ((state.dept && state.dept.fixtures) || []).find(q => q.k === 'case' && q.mimic === a.uid) || null;
+    if (!f) return null;
+    f.st = 'revealed';
+    if (Grid.ch(state.dept, f.x, f.y) === 'v') Grid.set(state.dept, f.x, f.y, '.');
+    return f;
+  }
+
   // Cases.enter(state, a, x, y, d, ev): your step from your tile in direction d onto (x, y),
   // which holds no actor, when that tile is a fixture: null if it is not one (the step goes
   // on), a refusal code, or ticks (W1-CASES: a staff door opened at your grade). With ev
-  // null it changes nothing and says what it would return, for Step.legal. W0c: a bump into
-  // an intact case is refused with behind_glass, as a blow at anything standing in one is
-  // (Combat.canStrike).
+  // null it changes nothing and says what it would return, for Step.legal. Until W1-CASES:
+  // a bump into an intact case is refused with behind_glass, as a blow at anything standing
+  // in one is (Combat.canStrike).
   function enter(state, a, x, y, d, ev) {
     return Grid.ch(state.dept, x, y) === 'v' ? 'behind_glass' : null;
   }
 
-  return { encased, enter };
+  // [stub → W1-CASES] Every in-room vitrine of the plan becomes a case, drawn on its room's
+  // `${base}/room/<key>/populate` stream in pop (one holder for the department, shared with
+  // the stand-in placement of items and consumables, §3.2), with its accession number; staff
+  // doors get their grades on `${base}/staff`. Does nothing for now.
+  function place(state, plan, base, pop) {}
+  // [stub → W1-CASES] The grade a staff door at (x, y) needs, or null if there is none there.
+  const staffGrade = (state, x, y) => null;
+  // [stub → W1-CASES] A case is touched (opened or bashed; §8.3): touch_case wakes what it
+  // holds, and a mimic's grip (Archetypes.onTouched). Does nothing for now.
+  function touch(state, f, how, by, ev) {}
+  // [stub → W1-CASES] Solvent dissolves the case f, silently. Does nothing for now.
+  function dissolve(state, f, by, ev) {}
+  // [stub → W1-CASES] The sleeper in a broken or dissolved case wakes hunting, homeless.
+  function release(state, f, ev) {}
+  // [stub → W1-CASES] Can the item be reached in its case (open or broken, for the pole)? false for now.
+  const reach = (state, item) => false;
+  // [stub → W1-CASES] The cases as the view model shows them. [] for now.
+  const view = (state, vis) => [];
+  // [stub → W1-CASES] A case's label data, with its accession number. null for now.
+  const describe = (state, f) => null;
+  // [stub → W1-CASES] May a Highlight go in the case f: is its lock within the grade you
+  // entered with (§8.3)? Every place is allowed for now, so stand-in placement can run.
+  const highlightOk = (state, f) => true;
+  // [stub → W1-CASES; M4's Light Fingers] What opening a case costs you.
+  const openCost = state => N.COST_OPEN_CASE;
+
+  // open(x, y) and bash(x, y) (§4.2), on a case beside you. [stub → W1-CASES]: nothing is
+  // legal yet, and every candidate is refused as not built.
+  const around = (state, a) => {
+    const you = state.actors[0], out = [];
+    for (let d = 0; d < 8; d++) out.push({ a, x: you.x + Grid.DX[d], y: you.y + Grid.DY[d] });
+    return out.concat([{ a, x: you.x, y: you.y }, { a }]);
+  };
+  for (const id of ['open', 'bash']) Actions.define(id, { legal: state => [], candidates: state => around(state, id), apply: (state, action, ev) => 'not_built' });
+
+  return { at, encased, make, drawGlass, drawLock, drawLoan, draw, shardTile, roomKey, disguise, reveal,
+    enter, place, staffGrade, touch, dissolve, release, reach, view, describe, highlightOk, openCost };
 })();
 
 </script>
 <script>
-// ACCESSION — your kit (BUILD.md §8.5). W0c names the calls the action core makes, each with
-// a neutral body: Kit.settle at the end of every step (§8.1) and Kit.ringDelta for your ring
-// do nothing until W0e builds the kit; recharge and the use of instruments and Restoration
-// kits wait for W1-KIT.
+// ACCESSION — your kit (BUILD.md §8.1, §8.5). W0e builds the item record, the starting kit
+// and your derived stats; W1-KIT builds the tote, the item actions, primitives and curios,
+// instruments, Restoration and the stand-in placement, on these.
+//
+// An item, in state.items:
+//   { uid, kind, ref, where, form, tier, level, prims, charges, max, rechargeAt, ck, seal, n, from }
+// kind 'weapon', 'garment', 'curio', 'instrument', 'kit' or 'consumable'; ref the pack item's
+// id (null for the starting kit); where {at: 'floor' | 'case', x, y}, {at: 'tote'},
+// {at: 'kit', slot} or {at: 'gone'}; form a weapon's or garment's form; tier 1–4; level its
+// Restoration levels; prims [{id, cls}]; charges, max and rechargeAt an instrument's; ck, seal
+// and n a consumable's kind, seal and count; from the department it was first taken in.
+// What you wear: state.you = { kit: { weapon, garment, curio: [a, b], instrument }, tote: [uid…] }.
 'use strict';
 const Kit = (() => {
-  function settle(state) {}                                // [stub → W0e] writes Kit.derive onto you
-  const ringDelta = state => 0;                            // [stub → W0e, W1-KIT] what your kit adds to your ring
-  function recharge(state, ev) {}                          // [stub → W1-KIT] turn boundary step 2
+  // The slots, as an item's where.slot names them.
+  const SLOTS = ['weapon', 'garment', 'curio0', 'curio1', 'instrument'];
+  const WEAPON_FORMS = ['light', 'balanced', 'heavy', 'reach'], GARMENT_FORMS = ['light', 'standard', 'heavy'];
+
+  // An item with every field, plain data; rec gives uid, kind and where, and any field to set.
+  function item(rec) {
+    const or = (k, v) => rec[k] !== undefined ? rec[k] : v, copy = v => v === null ? null : JSON.parse(JSON.stringify(v));
+    if (typeof rec.uid !== 'string' || !rec.kind || !rec.where) throw new Error('Kit.item: an item needs a uid, a kind and a where');
+    return { uid: rec.uid, kind: rec.kind, ref: or('ref', null), where: copy(rec.where), form: or('form', null), tier: or('tier', null),
+      level: or('level', 0), prims: copy(or('prims', [])), charges: or('charges', null), max: or('max', null), rechargeAt: or('rechargeAt', null),
+      ck: or('ck', null), seal: or('seal', null), n: or('n', null), from: or('from', null) };
+  }
+  const byUid = (state, uid) => { if (uid === null || uid === undefined) return null; for (const i of state.items) if (i.uid === uid) return i; return null; };
+
+  // The starting kit (§8.1): a T1 weapon of the given form (Balanced if none) and a T1
+  // Standard garment, equipped, with the uids you.w and you.g (§3.2).
+  function start(state, form) {
+    form = form || 'balanced';
+    if (!WEAPON_FORMS.includes(form)) throw new Error('Kit.start: no weapon form ' + form);
+    if (byUid(state, 'you.w') || byUid(state, 'you.g')) throw new Error('Kit.start: you already have a starting kit');
+    if (!state.you) state.you = { kit: { weapon: null, garment: null, curio: [null, null], instrument: null }, tote: [] };
+    state.items.push(item({ uid: 'you.w', kind: 'weapon', where: { at: 'kit', slot: 'weapon' }, form, tier: 1 }));
+    state.items.push(item({ uid: 'you.g', kind: 'garment', where: { at: 'kit', slot: 'garment' }, form: 'standard', tier: 1 }));
+    state.you.kit.weapon = 'you.w';
+    state.you.kit.garment = 'you.g';
+  }
+
+  // How many grades short of an item you are at `grade` (§8.1): a tier t weapon or garment
+  // needs grade 2t − 1, one less for a Light weapon and one more for a Heavy weapon or garment
+  // (the form's grade offset in §8.10). Other kinds need no grade.
+  function short(it, grade) {
+    let off;
+    if (it.kind === 'weapon') off = N['FORM_' + it.form.toUpperCase()][5];
+    else if (it.kind === 'garment') off = N['GARMENT_' + it.form.toUpperCase()][2];
+    else return 0;
+    return Math.max(0, 2 * it.tier - 1 + off - grade);
+  }
+
+  // Your derived stats from what you wear (§8.1, §8.5): with t the tier, L the level and s
+  // the grades short,
+  //   weapon damage [t + a + L·RESTORE_DMG, b·t + c + L·RESTORE_DMG] from its form's a, b, c;
+  //   Acc PLAYER_ACC + the form's Acc + ⌊L / RESTORE_ACC_EVERY⌋ − SHORT_ACC·s;
+  //   Padding max(0, t + the garment's a + L·RESTORE_PAD − SHORT_PAD·s), and Eva PLAYER_EVA +
+  //   the garment's Eva (with no garment, Padding 0 and Eva PLAYER_EVA);
+  //   weaponForm the weapon's form, reach for a Reach weapon.
+  // W1-KIT adds the primitives' and curios' bonuses, quiet and breaker.
+  function derive(state) {
+    const grade = state.run ? state.run.grade : N.GRADE_START, kit = state.you && state.you.kit;
+    return stats(kit && byUid(state, kit.weapon), kit && byUid(state, kit.garment), grade);
+  }
+  // The same, from a weapon and a garment (or null) worn at a grade.
+  function stats(w, g, grade) {
+    if (!w) throw new Error('Kit.derive: no weapon is equipped, and the weapon slot is never empty');
+    if (!WEAPON_FORMS.includes(w.form)) throw new Error('Kit.derive: no weapon form ' + w.form);
+    const F = N['FORM_' + w.form.toUpperCase()], t = w.tier, L = w.level || 0;
+    const out = {
+      acc: N.PLAYER_ACC + F[4] + Int.idiv(L, N.RESTORE_ACC_EVERY) - N.SHORT_ACC * short(w, grade),
+      eva: N.PLAYER_EVA, pad: 0,
+      dmin: t + F[0] + L * N.RESTORE_DMG, dmax: F[1] * t + F[2] + L * N.RESTORE_DMG,
+      weaponForm: w.form, reach: w.form === 'reach', quiet: 0, breaker: 0,
+    };
+    if (g) {
+      if (!GARMENT_FORMS.includes(g.form)) throw new Error('Kit.derive: no garment form ' + g.form);
+      const G = N['GARMENT_' + g.form.toUpperCase()];
+      out.pad = Math.max(0, g.tier + G[0] + (g.level || 0) * N.RESTORE_PAD - N.SHORT_PAD * short(g, grade));
+      out.eva = N.PLAYER_EVA + G[1];
+    }
+    return out;
+  }
+
+  // Write Kit.derive onto you. It runs when the state is made and at the end of every step
+  // (§8.1), so your stats change once your action's ticks are done.
+  function settle(state) {
+    if (!state.you) return;
+    Object.assign(state.actors[0], derive(state));
+  }
+
+  const ringDelta = state => 0;                            // [stub → W1-KIT] what your kit adds to your ring (quiet: −1 after a move)
+  function recharge(state, ev) {}                          // [stub → W1-KIT] turn boundary step 2: instruments' charges
+  // [stub → W1-KIT] The stand-in placement of equipment, a curio or instrument, and the two
+  // Restoration kits (the Highlights, in dept.highlights): rooms on `${base}/items`, tiles on
+  // each room's populate stream in pop. A removed (without) actor keeps its tile for
+  // placement, so no item moves when one is removed. Does nothing for now.
+  function standIn(state, base, pop) {}
   const useLegal = state => [];                            // [stub → W1-KIT] use(uid, …) of an instrument or kit
   const useAction = (state, action, ev) => 'not_built';    // [stub → W1-KIT]
-  return { settle, ringDelta, recharge, useLegal, useAction };
+  const addToTote = (state, it) => 'not_built';            // [stub → W1-KIT] → a refusal code, or null once it is in the tote
+  const targets = (state, uid) => [];                      // [stub → W1-KIT] the tiles an instrument can be used at
+  const describe = (state, uid) => null;                   // [stub → W1-KIT] an item's label data
+  const view = (state, vis) => null;                       // [stub → W1-KIT] your kit, tote and charges for the view model
+
+  // take(uid), drop(uid), equip(uid), unequip(slot) (§4.2). [stub → W1-KIT]: nothing is legal
+  // yet, and every candidate is refused as not built.
+  const each = (state, a) => state.items.map(i => ({ a, uid: i.uid })).concat([{ a, uid: 'nothing' }, { a }]);
+  for (const id of ['take', 'drop', 'equip']) Actions.define(id, { legal: state => [], candidates: state => each(state, id), apply: (state, action, ev) => 'not_built' });
+  Actions.define('unequip', {
+    legal: state => [],
+    candidates: state => SLOTS.map(slot => ({ a: 'unequip', slot })).concat([{ a: 'unequip', slot: 'nothing' }, { a: 'unequip' }]),
+    apply: (state, action, ev) => 'not_built',
+  });
+
+  return { SLOTS, item, start, short, derive, stats, settle, ringDelta, recharge, standIn, useLegal, useAction, addToTote, targets, describe, view };
 })();
 
 </script>
 <script>
-// ACCESSION — consumables (BUILD.md §8.6). W0c names the two calls the use action makes, with
-// neutral bodies; W0e and W1-CONSUMABLES build the rest.
+// ACCESSION — consumables (BUILD.md §8.6): the eight kinds, their seals, the deck and
+// identification. W0e names each call with a neutral body; W1-CONSUMABLES builds them.
+// The run keeps run.seals ({sol: [4 kind indices], eph: [4]} once shuffled), run.knownSeals
+// (the seals identified) and run.deck (the cards left of each kind, in DECK's order).
 'use strict';
 const Consumables = (() => {
+  function startRun(state) {}                              // [stub → W1-CONSUMABLES] the run's seals, on 'seals'
+  // [stub → W1-CONSUMABLES] The stand-in placement of the department's consumables and its
+  // identifying labels: rooms on `${base}/items`, tiles on each room's populate stream in pop,
+  // after the cases' and the kit's draws. Does nothing for now.
+  function standIn(state, base, pop) {}
   const useLegal = state => [];                            // [stub → W1-CONSUMABLES] use(uid[, x, y]) of a consumable
   const useAction = (state, action, ev) => 'not_built';    // [stub → W1-CONSUMABLES]
-  return { useLegal, useAction };
+  const known = (state, ck) => false;                      // [stub → W1-CONSUMABLES] is the kind ck identified this run
+  const name = (state, it) => null;                        // [stub → W1-CONSUMABLES] {local, seal, kind | null}
+  const targets = (state, uid) => [];                      // [stub → W1-CONSUMABLES] the tiles a consumable can be thrown at
+  const view = (state, vis) => null;                       // [stub → W1-CONSUMABLES] what the view model shows of them
+
+  // throw(uid, x, y), read(x, y) and choose(index) (§4.2). [stub → W1-CONSUMABLES]: nothing
+  // is legal yet, and every candidate is refused as not built.
+  Actions.define('throw', {
+    legal: state => [],
+    candidates: state => state.items.map(i => ({ a: 'throw', uid: i.uid, x: state.actors[0].x, y: state.actors[0].y })).concat([{ a: 'throw', uid: 'nothing', x: 0, y: 0 }, { a: 'throw' }]),
+    apply: (state, action, ev) => 'not_built',
+  });
+  Actions.define('read', {
+    legal: state => [],
+    candidates: state => { const you = state.actors[0], out = [{ a: 'read', x: you.x, y: you.y }]; for (let d = 0; d < 8; d++) out.push({ a: 'read', x: you.x + Grid.DX[d], y: you.y + Grid.DY[d] }); return out.concat([{ a: 'read' }]); },
+    apply: (state, action, ev) => 'not_built',
+  });
+  Actions.define('choose', {
+    legal: state => [],
+    candidates: state => [{ a: 'choose', index: 0 }, { a: 'choose', index: 1 }, { a: 'choose', index: -1 }, { a: 'choose' }],
+    apply: (state, action, ev) => 'not_built',
+  });
+
+  return { startRun, standIn, useLegal, useAction, known, name, targets, view };
 })();
 
 </script>
@@ -2905,12 +3187,33 @@ const Roles = (() => {
 
 </script>
 <script>
-// ACCESSION — the clock's rules (BUILD.md §8.4). W0c names turn boundary step 6, empty;
-// W0e and W1-CLOCK build the bell, the night watch and the Watchman.
+// ACCESSION — the clock's rules (BUILD.md §8.4): turn boundary step 6, the night watch, the
+// Night Watchman, and leaving by an exit door. W0e names each call with a neutral body;
+// W1-CLOCK builds them. The clock's reads are in clock.js (Clock).
 'use strict';
 const ClockRules = (() => {
-  function boundary(state, ev) {}                          // [stub → W1-CLOCK] turn boundary step 6
-  return { boundary };
+  // [stub → W1-CLOCK] Turn boundary step 6 (§8.1): the count, the bell, the night watch,
+  // the Watchman's entry and return, the night-watch bells. Does nothing for now.
+  function boundary(state, ev) {}
+  // [stub → W1-CLOCK] The n sleeping exhibits nearest you by walking distance that a
+  // night-watch bell may wake, as [{a, dist}], nearest first, ties in spawn order. [] for now.
+  const nearestSleepers = (state, n) => [];
+  // [stub → W1-CLOCK] A Night Watchman enters at the department entrance and returns the
+  // actor (uid <acc>.<depth>.watch.<k>, created hunting, after a beat). null for now.
+  const spawnWatchman = (state, ev) => null;
+  // [stub → W1-CLOCK] A Night Watchman was destroyed: the next comes WATCHMAN_RETURN counts
+  // later. Does nothing for now.
+  function fell(state, a, ev) {}
+
+  // leave(i) (§4.2, §8.9): through exit door i, legal only on it. [stub → W1-CLOCK]: nothing
+  // is legal yet, and every candidate is refused as not built.
+  Actions.define('leave', {
+    legal: state => [],
+    candidates: state => ((state.dept && state.dept.exits) || []).map((e, i) => ({ a: 'leave', i })).concat([{ a: 'leave', i: -1 }, { a: 'leave' }]),
+    apply: (state, action, ev) => 'not_built',
+  });
+
+  return { boundary, nearestSleepers, spawnWatchman, fell };
 })();
 
 </script>
@@ -3133,8 +3436,18 @@ const Path = (() => {
 
 </script>
 <script>
-// ACCESSION — the closing clock's budget (BUILD.md §8.4): the bell at B, the night watch at
-// B + G, from the department's tour length.
+// ACCESSION — the closing clock (BUILD.md §8.4): the bell at B, the night watch at B + G,
+// from the department's tour length. These are the clock's reads; its turn-boundary step,
+// the night watch and the Watchman are in rules/clock.js (ClockRules).
+//
+// dept.clock = { B, G, stage, count, pausedSince, nightBells, watch: { k, back } }, or null
+// where there is no clock (the test room):
+//   stage        0 open, 1 after the bell, 2 the night watch;
+//   count        clock turns since entry, which a sealed hall stops (§8.4);
+//   pausedSince  the turn a Centrepiece hall sealed, or null (M3 never seals: M4 sets it);
+//   nightBells   the night-watch bells rung so far;
+//   watch        k, the Night Watchmen that have entered so far; back, the count at which the
+//                next one enters after one is defeated, or null.
 'use strict';
 const Clock = (() => {
   function budget(ltour) {
@@ -3142,7 +3455,33 @@ const Clock = (() => {
     const G = Math.max(N.STAGE_GAP_MIN, Int.round10(N.STAGE_GAP_PCT * B, 100));
     return { B, G };
   }
-  return { budget };
+
+  // A department's clock at entry, from its tour length. over ({B?, G?, count?}) sets the
+  // budget or the count directly, for arenas and tests; the stage follows from the count,
+  // with no events.
+  function init(ltour, over) {
+    over = over || {};
+    const b = budget(ltour);
+    const B = over.B !== undefined ? over.B : b.B, G = over.G !== undefined ? over.G : b.G, count = over.count || 0;
+    return { B, G, stage: count >= B + G ? 2 : count >= B ? 1 : 0, count, pausedSince: null, nightBells: 0, watch: { k: 0, back: null } };
+  }
+
+  const clock = state => (state.dept && state.dept.clock) || null;
+  // 0 open, 1 after the bell, 2 the night watch; 0 where there is no clock.
+  const stage = state => { const c = clock(state); return c ? c.stage : 0; };
+  // Is a Centrepiece hall sealed (§8.4)? Never in M3.
+  const sealed = state => { const c = clock(state); return !!c && c.pausedSince !== null && c.pausedSince !== undefined; };
+  // Do pips decay (§8.2)? Only before the bell. (M4 adds: and no alarm is running.)
+  const pipsDecay = state => stage(state) === 0;
+  // Regeneration units a turn (§8.1): 2 open, 1 after the bell, 0 in the night watch or
+  // while a hall is sealed. A bench doubles it (BENCH_MULT), which regeneration applies.
+  const regenRate = state => sealed(state) ? 0 : [2, 1, 0][stage(state)];
+
+  // [stub → W1-CLOCK] The clock as the view model shows it: {count, B, G, stage, toBell,
+  // toWatch, toNightBell, watchBack}; null for now.
+  const view = state => null;
+
+  return { budget, init, stage, sealed, pipsDecay, regenRate, view };
 })();
 
 </script>
@@ -4227,14 +4566,17 @@ const Layout = (() => {
     for (let k = 0; k <= RESEEDS; k++) {
       const r = attempt(programme, size, seed, key + '/a' + k, opts);
       tries.push(r.failed);
-      if (!r.failed.length) return finish(r, { attempt: k, fallback: false, tries, key });
+      if (!r.failed.length) return finish(r, { attempt: k, fallback: false, tries, key, base: key + '/a' + k });
     }
     const r = fallback(programme, size, opts);
     if (r.failed.length) throw new Error(`Layout: the certified fallback for ${programme} failed: ${r.failed.map(f => f.id + ' ' + f.why).join('; ')}`);
-    return finish(r, { attempt: RESEEDS + 1, fallback: true, tries, key });
+    return finish(r, { attempt: RESEEDS + 1, fallback: true, tries, key, base: key + '/a' + (RESEEDS + 1) });
   }
 
-  // The plan as plain data for the state (BUILD.md §4.1), plus the analysis for checks.
+  // The plan as plain data for the state (BUILD.md §4.1), plus the analysis for checks, and
+  // `base`, the department's stream key for the attempt that made the plan (`…/d<depth>/a<k>`;
+  // a certified fallback is attempt RESEEDS + 1), under which its placement streams are named
+  // (§3.2). base is outside the plan, so the plan, and the layout pin, are as they were.
   function finish(r, info) {
     const { L, A } = r, G = L.G;
     const rooms = [];
@@ -4245,7 +4587,7 @@ const Layout = (() => {
       plan: { programme: L.meta.programme, pin: PIN, w: G.W, h: G.H, tiles: G.rows(), rooms, roomOf, entrance: L.meta.entrance.slice(),
         exits: L.meta.exits.map(e => e.slice()), cpl: L.meta.cpl.slice(), lectern: L.meta.lectern ? L.meta.lectern.slice() : null,
         viewTile: L.meta.viewTile ? L.meta.viewTile.slice() : null, ltour: A.tour, tourOrder: A.order.slice() },
-      analysis: A, failed: r.failed, log: L.log, attempt: info.attempt, fallback: info.fallback, tries: info.tries, knobs: r.K,
+      analysis: A, failed: r.failed, log: L.log, attempt: info.attempt, fallback: info.fallback, tries: info.tries, knobs: r.K, base: info.base,
     };
   }
 
@@ -4271,69 +4613,151 @@ const Layout = (() => {
 
 </script>
 <script>
-// ACCESSION — building a fresh state (BUILD.md §4.1).
+// ACCESSION — building a fresh state (BUILD.md §4.1): the parts every state has, and a state
+// for one room, for tests, scenarios and arenas. Dept.create builds a department's.
 'use strict';
 const Setup = (() => {
   const SAVE_VERSION = 1;
 
-  // The visitor at the start of a run: a T1 Balanced weapon and a T1 Standard garment
-  // (BUILD.md §8.1), from the forms in the numbers table. `form` ('light', 'balanced',
-  // 'heavy' or 'reach'; Balanced if absent) swaps the T1 weapon, for tests and scenarios.
+  // The visitor at the start of a run, wearing a T1 Balanced weapon and a T1 Standard
+  // garment at grade I (BUILD.md §8.1), with the stats Kit.stats derives from them. `form`
+  // ('light', 'balanced', 'heavy' or 'reach'; Balanced if absent) swaps the T1 weapon, for
+  // tests and scenarios (a T1 Heavy weapon needs grade II, so at grade I it costs 2 Acc).
   // You carry every actor field (Actors.make), and also: still (your ring's radius comes
   // from your last action that cost time, §8.2), lastAct, seated (on a bench, §8.1), regen
-  // (the regeneration store), and your derived stats, which Kit.settle keeps up to date.
-  const FORMS = { light: N.FORM_LIGHT, balanced: N.FORM_BALANCED, heavy: N.FORM_HEAVY, reach: N.FORM_REACH };
+  // (the regeneration store), and your derived stats, which Kit.settle keeps equal to
+  // Kit.derive of what you wear.
   function you(x, y, form) {
     form = form || 'balanced';
-    const t = 1, F = FORMS[form], G = N.GARMENT_STANDARD;
-    if (!F) throw new Error('Setup.you: no weapon form ' + form);
-    return Object.assign(Actors.make(null, {
-      uid: 'you', sp: 'visitor', size: 1, x, y, hp: N.PLAYER_HP, maxHp: N.PLAYER_HP,
-      acc: N.PLAYER_ACC + F[4], eva: N.PLAYER_EVA + G[1], pad: t + G[0], dmin: t + F[0], dmax: F[1] * t + F[2],
-    }), { still: false, lastAct: null, seated: false, regen: 0, weaponForm: form, reach: form === 'reach', quiet: 0, breaker: 0 });
+    if (!N['FORM_' + form.toUpperCase()]) throw new Error('Setup.you: no weapon form ' + form);
+    const w = Kit.item({ uid: 'you.w', kind: 'weapon', where: { at: 'kit', slot: 'weapon' }, form, tier: 1 });
+    const g = Kit.item({ uid: 'you.g', kind: 'garment', where: { at: 'kit', slot: 'garment' }, form: 'standard', tier: 1 });
+    return Object.assign(Actors.make(null, { uid: 'you', sp: 'visitor', size: 1, x, y, hp: N.PLAYER_HP, maxHp: N.PLAYER_HP }),
+      { still: false, lastAct: null, seated: false, regen: 0 }, Kit.stats(w, g, N.GRADE_START));
   }
 
-  // A state for one room: map rows, your position, and exhibit records. An exhibit record
-  // gives its species id, tile, mode and stats (a role's, Roles.stats), and may give its
-  // size (2 for a Centrepiece, §4.1) and any field Actors.make takes (arch, mods, trigger,
-  // group, home, guards, ax, speed). options: Options.make's (rulesOff, without, invulnerable).
-  function room(seed, spec, options) {
-    const state = {
+  // The run (§4.1): your grade, the seals and what you know of them, the consumable deck
+  // (every card, in DECK's order, until Consumables.startRun and the draws change it), the
+  // counter for split stacks' uids, and the run structure M5 fills.
+  const run = (depth, grade) => ({
+    grade: grade || N.GRADE_START, seals: null, knownSeals: [], deck: N.DECK.slice(), items: 0,
+    floor: null, slot: null, depth, sequence: null, offered: null, certificates: [], perks: [], collectionPicks: [],
+  });
+  // What you wear and carry; Kit.start fills it.
+  const kit = () => ({ kit: { weapon: null, garment: null, curio: [null, null], instrument: null }, tote: [] });
+  // The parts of a department every state has, beyond its map (§4.1).
+  const deptParts = grade => ({ clock: null, fixtures: [], surfaces: [], highlights: [], planRead: null, entryGrade: grade, modules: [] });
+
+  // A state with every top-level field, around the department `dept` and you at (x, y).
+  function base(seed, dept, x, y, options, grade) {
+    return {
       v: SAVE_VERSION, coreHash: null, runId: null, seed, rng: {}, tick: 0, turn: 0,
       options: Options.make(options),
-      dept: { acc: spec.acc, depth: spec.depth || 1, w: spec.map[0].length, h: spec.map.length, tiles: spec.map.slice() },
-      actors: [you(spec.you[0], spec.you[1])],
+      run: run(dept.depth, grade),
+      dept,
+      actors: [you(x, y)],
       items: [],
+      you: kit(),
       causes: [], over: null,
       ui: { pendingChoice: null },
     };
-    let n = 0;
-    for (const e of spec.exhibits) {
-      n++;
-      const rec = Object.assign({}, e, e.stats, {
-        uid: spec.acc + '.' + state.dept.depth + '.' + (e.room || 'room') + '.' + n,
-        x: e.at[0], y: e.at[1], mode: e.mode || 'dormant', maxHp: e.stats.hp,
+  }
+
+  // The actors removed for this visit (options.without, by uid) are marked gone: each has
+  // already taken its uid and its place, so nothing else is renumbered or moved (§3.2). Then
+  // each archetype's init runs, in spawn order, for actors not gone; then each exhibit made
+  // awake gets its story from the starting state (Wake.created, with no event or beat).
+  function settleActors(state, from) {
+    const without = state.options.without || [];
+    for (const a of state.actors) if (without.includes(a.uid)) a.gone = 1;
+    const made = state.actors.slice(from);
+    for (const a of made) if (!a.gone) Archetypes.init(state, a);
+    for (const a of made) if (!a.gone && a.mode !== 'dormant') Wake.created(state, a, 'awake', {}, null);
+  }
+
+  // A state for one room, for tests, scenarios and arenas. spec:
+  //   acc, depth (1 if absent), map (rows), you [x, y];
+  //   exhibits: [{sp, at, mode, stats, size?, arch?, role?, mods?, trigger?, group?, home?,
+  //     guards?, ax?, speed?, room?, uid?}], stats a role's (Roles.stats); each gets the uid
+  //     <acc>.<depth>.<room>.<n>, room 'room' if absent and n counted per room, unless it
+  //     gives one;
+  //   fixtures (full records, such as Cases.make's), items (records for Kit.item), kit
+  //   ({weapon: {form, tier, level}, garment: {form, tier, level}}: your starting kit, else
+  //   the usual one), clock ({ltour} or {B, G, count}: Clock.init's; none if absent),
+  //   entrance [x, y], exits [[x, y]…], grade (your grade, I if absent).
+  // options: Options.make's (rulesOff, without, invulnerable).
+  function room(seed, spec, options) {
+    const depth = spec.depth || 1, grade = spec.grade || N.GRADE_START;
+    const dept = Object.assign({ acc: spec.acc, depth, w: spec.map[0].length, h: spec.map.length, tiles: spec.map.slice(),
+      entrance: spec.entrance ? spec.entrance.slice() : null, exits: (spec.exits || []).map(e => e.slice()), seen: '' }, deptParts(grade));
+    if (spec.clock) dept.clock = Clock.init(spec.clock.ltour || 0, spec.clock);
+    for (const f of spec.fixtures || []) dept.fixtures.push(JSON.parse(JSON.stringify(f)));
+    const state = base(seed, dept, spec.you[0], spec.you[1], options, grade);
+    const counts = {};
+    for (const e of spec.exhibits || []) {
+      const key = e.room || 'room';
+      counts[key] = (counts[key] || 0) + 1;
+      const rec = Object.assign({}, e.stats, e, {
+        uid: e.uid || `${spec.acc}.${depth}.${key}.${counts[key]}`,
+        x: e.at[0], y: e.at[1], mode: e.mode || 'dormant', maxHp: e.maxHp !== undefined ? e.maxHp : (e.hp !== undefined ? e.hp : e.stats.hp),
       });
+      if (e.stats && e.stats.role && e.role === undefined) rec.role = e.stats.role;
       delete rec.stats; delete rec.at; delete rec.room;
       Actors.spawn(state, rec);
     }
+    settleActors(state, 1);
+    const k = spec.kit || {};
+    Kit.start(state, k.weapon && k.weapon.form);
+    for (const [uid, part] of [['you.w', k.weapon], ['you.g', k.garment]]) {
+      if (!part) continue;
+      const it = state.items.find(i => i.uid === uid);
+      for (const f of ['form', 'tier', 'level']) if (part[f] !== undefined) it[f] = part[f];
+    }
+    for (const it of spec.items || []) state.items.push(Kit.item(it));
+    Kit.settle(state);
     return state;
   }
 
-  return { SAVE_VERSION, you, room };
+  return { SAVE_VERSION, you, run, kit, deptParts, base, settleActors, room };
 })();
 
 </script>
 <script>
 // ACCESSION — the department packs: content files register themselves here (BUILD.md §5.2).
+// A shared species belongs to no department (the Night Watchman, content/watch.js): it is
+// registered with Packs.addShared and found by its id wherever it appears.
 'use strict';
 const Packs = (() => {
-  const all = [];
+  const all = [], shareds = [];
   function add(p) { all.push(p); }
   const get = acc => all.find(p => p.acc === acc) || null;
   const list = () => all.slice();
   function species(acc, id) { const p = get(acc); return p ? p.species.find(s => s.id === id) || null : null; }
-  return { add, get, list, species };
+
+  // Shared species, in the order they were added; an id may be added once.
+  function addShared(sp) {
+    if (!sp || typeof sp.id !== 'string') throw new Error('Packs.addShared: a shared species needs an id');
+    if (shareds.some(s => s.id === sp.id)) throw new Error(`Packs.addShared: ${sp.id} is added twice`);
+    shareds.push(sp);
+  }
+  const shared = id => shareds.find(s => s.id === id) || null;
+  const sharedList = () => shareds.slice();
+
+  // The species record an actor was made from (a.sp): the department's own species first,
+  // then its Centrepiece, then a shared species; null for an actor with none (you, or the
+  // test room's dummies). Labels, the view model and policies read species through this.
+  function speciesFor(state, a) {
+    if (!a || a.sp === null || a.sp === undefined) return null;
+    const p = state && state.dept ? get(state.dept.acc) : null;
+    if (p) {
+      const own = p.species.find(s => s.id === a.sp);
+      if (own) return own;
+      if (p.centrepiece && p.centrepiece.id === a.sp) return p.centrepiece;
+    }
+    return shared(a.sp);
+  }
+
+  return { add, get, list, species, addShared, shared, sharedList, speciesFor };
 })();
 
 </script>
@@ -4754,12 +5178,9 @@ const Text = (() => {
 // pack, the registry and the rules' own numbers.
 'use strict';
 const Labels = (() => {
-  function speciesOf(state, a) {
-    const pack = Packs.get(state.dept.acc);
-    if (!pack) return null;
-    if (pack.centrepiece && pack.centrepiece.id === a.sp) return pack.centrepiece;
-    return pack.species.find(s => s.id === a.sp) || null;
-  }
+  // The species an actor was made from: its department's, its Centrepiece, or a shared one
+  // (the Night Watchman); null for you and the test room's dummies.
+  const speciesOf = (state, a) => Packs.speciesFor(state, a);
 
   function stateIcons(a) {
     if (a.uid === 'you') return [];
@@ -4844,59 +5265,100 @@ const Labels = (() => {
     };
   }
 
-  return { of, strip, speciesOf, stateIcons, nameOf };
+  // [stub → W2a-LABELS] The labels of things that are not exhibits (§8.8): a case (with its
+  // accession number), an item, a plaque, a staff door, and you. null for now.
+  const ofCase = (state, f) => null;
+  const ofItem = (state, uid) => null;
+  const ofPlaque = (state, f) => null;
+  const ofStaffDoor = (state, f) => null;
+  const yours = state => null;
+
+  return { of, strip, speciesOf, stateIcons, nameOf, ofCase, ofItem, ofPlaque, ofStaffDoor, you: yours };
 })();
 
 </script>
 <script>
-// ACCESSION — a department visit's starting state: the generated plan from a pack's
-// programme, you at the entrance, the pack's exhibits placed asleep. M2's placement is a
-// stand-in for M4's population pass: one of each species, in the sections, outside the
-// safe zone, never on a gate cell.
+// ACCESSION — a department visit's starting state (BUILD.md §4.1, §5.5): the generated plan
+// from a pack's programme, you at the entrance, the pack's exhibits placed asleep, then the
+// cases, your kit and the department's items and consumables. The exhibits' placement is a
+// stand-in for M4's population pass: one of each species whose archetype M3 builds (a swarm
+// as SWARM_BODIES[0] bodies), in the sections, outside the safe zone, never on a gate cell.
+// M4's species and the Centrepiece are left out, since their Behaviour lines would not yet
+// be true (§5.5).
 'use strict';
 const Dept = (() => {
   const SAFE = 8;
 
+  const built = sp => { const A = Registry.ARCHETYPES[sp.archetype || 'plodder']; return !!A && A.built === 'M3'; };
+
+  // In this order: the state, with the plan; the cases (Cases.place); the exhibits, on the
+  // place/<acc>/d<depth> stream; options.without marks its actors gone; each archetype's init;
+  // your starting kit; the stand-in equipment and kits (Kit.standIn); the run's seals
+  // (Consumables.startRun); the stand-in consumables (Consumables.standIn); your stats. The
+  // three placement calls share one local holder, pop, so a room's
+  // `${base}/room/<key>/populate` stream runs on from cases to items to consumables instead
+  // of starting again for each (§3.2).
   function create(seed, acc, depth, options) {
     const pack = Packs.get(acc);
     const r = Layout.generate(pack.programme, 0, seed, { acc, depth });
-    const plan = r.plan, nums = Layout.number(plan, depth);
+    const plan = r.plan, nums = Layout.number(plan, depth), grade = N.GRADE_START;
     const tiles = plan.tiles.map(row => row.replace(/C/g, '.'));
-    const state = {
-      v: Setup.SAVE_VERSION, coreHash: null, runId: null, seed, rng: {}, tick: 0, turn: 0, options: Options.make(options),
-      dept: { acc, depth, pin: plan.pin, programme: plan.programme, w: plan.w, h: plan.h, tiles, ltour: plan.ltour,
-        rooms: plan.rooms.map(rm => ({ id: rm.id, role: rm.role, number: nums[rm.id] || 0, x0: rm.x0, y0: rm.y0, x1: rm.x1, y1: rm.y1 })),
-        roomOf: plan.roomOf, entrance: plan.entrance, exits: plan.exits, lectern: plan.lectern, seen: '' },
-      actors: [Setup.you(plan.entrance[0] + 1, plan.entrance[1])],
-      items: [],
-      causes: [], over: null,
-      ui: { pendingChoice: null },
-    };
-    const m = state.dept, d = Grid.distances(m, [plan.entrance], 999);
-    const free = [];
-    for (let y = 1; y < m.h - 1; y++) for (let x = 1; x < m.w - 1; x++) {
-      const i = y * m.w + x, rm = plan.rooms.find(q => q.id === plan.roomOf[y][x]);
-      if (m.tiles[y][x] === '.' && d[i] > SAFE && rm && (rm.role === 'section' || rm.role === 'study')) free.push([x, y]);
-    }
-    const holder = { seed, rng: {} }, pick = Rng.stream(holder, `place/${acc}/d${depth}`);
-    pick.shuffle(free);
-    let n = 0;
-    for (const sp of pack.species) {
-      const at = free.find(([x, y]) => !state.actors.some(a => Math.abs(a.x - x) < 3 && Math.abs(a.y - y) < 3));
-      if (!at) break;
-      add(state, sp, at, ++n, Roles.stats(sp.role, depth));
-    }
-    // The Centrepiece stands where the plan put its plinth.
-    const c = pack.centrepiece;
-    add(state, c, plan.cpl, ++n, Roles.stats('centrepiece', depth));
+    const dept = Object.assign({ acc, depth, pin: plan.pin, programme: plan.programme, w: plan.w, h: plan.h, tiles, ltour: plan.ltour,
+      rooms: plan.rooms.map(rm => ({ id: rm.id, key: rm.key, role: rm.role, number: nums[rm.id] || 0, x0: rm.x0, y0: rm.y0, x1: rm.x1, y1: rm.y1 })),
+      roomOf: plan.roomOf, entrance: plan.entrance, exits: plan.exits, lectern: plan.lectern, viewTile: plan.viewTile, seen: '' }, Setup.deptParts(grade));
+    dept.clock = Clock.init(plan.ltour);
+    const state = Setup.base(seed, dept, plan.entrance[0] + 1, plan.entrance[1], options, grade);
+    const pop = { seed, rng: {} };
+    Cases.place(state, plan, r.base, pop);
+    place(state, pack, plan);
+    Setup.settleActors(state, 1);
+    Kit.start(state, 'balanced');
+    Kit.standIn(state, r.base, pop);
+    Consumables.startRun(state);
+    Consumables.standIn(state, r.base, pop);
+    Kit.settle(state);
     return state;
   }
 
-  // Every field from the species is copied onto the actor (§4.1), so rules never read the pack.
-  function add(state, sp, at, n, stats) {
-    const m = state.dept, rid = m.roomOf[at[1]][at[0]], rm = m.rooms.find(q => q.id === rid);
+  // The stand-in placement of exhibits (M2's, unchanged in its draws): the free floor tiles
+  // of the sections and studies beyond the safe zone, shuffled once on the place/<acc>/d<depth>
+  // stream; each species in pack order takes the first that is 3 or more tiles from every
+  // actor placed. A swarm's further bodies take the nearest free floor tiles of the same room
+  // to its first, with no draw (nearest by Chebyshev distance, then row-major).
+  function place(state, pack, plan) {
+    const m = state.dept, d = Grid.distances(m, [plan.entrance], 999), free = [];
+    const roomAt = (x, y) => plan.rooms.find(q => q.id === plan.roomOf[y][x]);
+    const ok = (x, y) => { const rm = roomAt(x, y); return m.tiles[y][x] === '.' && d[y * m.w + x] > SAFE && !!rm && (rm.role === 'section' || rm.role === 'study'); };
+    for (let y = 1; y < m.h - 1; y++) for (let x = 1; x < m.w - 1; x++) if (ok(x, y)) free.push([x, y]);
+    const holder = { seed: state.seed, rng: {} }, pick = Rng.stream(holder, `place/${pack.acc}/d${m.depth}`);
+    pick.shuffle(free);
+    const counts = {};
+    for (const sp of pack.species) {
+      if (!built(sp)) continue;
+      const at = free.find(([x, y]) => !state.actors.some(a => Math.abs(a.x - x) < 3 && Math.abs(a.y - y) < 3));
+      if (!at) break;
+      const bodies = [at];
+      if ((sp.archetype || 'plodder') === 'mote_swarm') {
+        const rid = plan.roomOf[at[1]][at[0]], near = [];
+        for (const [x, y] of free) if (plan.roomOf[y][x] === rid && !(x === at[0] && y === at[1]) && !state.actors.some(a => Actors.covers(a, x, y))) near.push([x, y]);
+        near.sort((p, q) => (Grid.chebyshev(p[0], p[1], at[0], at[1]) - Grid.chebyshev(q[0], q[1], at[0], at[1])) || (p[1] - q[1]) || (p[0] - q[0]));
+        for (const t of near.slice(0, N.SWARM_BODIES[0] - 1)) bodies.push(t);
+      }
+      for (const b of bodies) add(state, sp, b, counts);
+    }
+  }
+
+  // Every field from the species is copied onto the actor (§4.1), so rules never read the
+  // pack. Its uid is <acc>.<depth>.<roleKey>.<n>, n counted per room in placement order
+  // (§3.2). A species that never sleeps (a trigger that stands for the wake clause, `awake`)
+  // is placed awake.
+  function add(state, sp, at, counts) {
+    const m = state.dept, rid = m.roomOf[at[1]][at[0]], rm = m.rooms.find(q => q.id === rid), key = rm ? rm.key : 'room';
+    counts[key] = (counts[key] || 0) + 1;
+    const stats = Roles.stats(sp.role, m.depth), T = sp.trigger ? Registry.TRIGGERS[sp.trigger] : null;
     Actors.spawn(state, Object.assign({}, stats, {
-      uid: `${m.acc}.${m.depth}.${rm ? rm.role : 'room'}${rid}.${n}`, sp: sp.id, size: sp.size || 1, x: at[0], y: at[1], mode: 'dormant',
+      uid: `${m.acc}.${m.depth}.${key}.${counts[key]}`, sp: sp.id, size: sp.size || 1, x: at[0], y: at[1],
+      mode: T && T.replacesWake ? 'awake' : 'dormant',
       maxHp: stats.hp, arch: sp.archetype || 'plodder', mods: sp.modifiers || [], modParams: sp.modParams || {}, trigger: sp.trigger || null,
       group: sp.group || null,
     }));
@@ -4976,6 +5438,17 @@ const TestRoom = (() => {
 
 </script>
 <script>
+// ACCESSION — the Night Watchman (BUILD.md §8.4): a shared species, in no department's pack,
+// who enters at the night watch. W0e registers its rules-facing fields; W1-CLOCK writes its
+// label (tombstone and paragraph) and its behaviour (rules/arch/night_watchman.js).
+'use strict';
+Packs.addShared({
+  id: 'night_watchman', sprite: 'night_watchman', archetype: 'night_watchman', role: 'warden', modifiers: [], trigger: 'awake',
+  name: 'The Night Watchman', tomb: null, paragraph: '',
+});
+
+</script>
+<script>
 // ACCESSION — S.9 Animals Not Yet Seen by the Day Staff (design/samples.md §3, trimmed per
 // BUILD.md §5.5). Paragraphs are only for reading; the rules are in the Behaviour lines.
 'use strict';
@@ -5010,6 +5483,13 @@ Packs.add({
       name: 'Long-Footed Hopper',
       tomb: { maker: 'Mounted from Round Book 4', date: 'Collected after the Great Reshelving', medium: 'Hide, wire; hind feet of carved boxwood', dims: 'H. 30 cm each', credit: 'Accessioned on the night staff’s report' },
       paragraph: 'Reported, not observed. Round Book 4 calls the hoppers the court’s nuisance. They come in close, nip, and are back out of reach before a keeper can turn round, and then they do it again from the other side. The night staff kept them out of the waders’ way by keeping them busy. The preparators mounted four, which they believe is all of them, and wrote that down as well.' },
+  ],
+  // Items (§5.2): the pack's item schema, seeded with one; W1-CONTENT adds the rest.
+  items: [
+    { id: 'S9.9', kind: 'instrument', instrument: 'pin_driver', prims: [],
+      name: 'Spring Pin-Driver',
+      tomb: { maker: 'Preparators’ workshop', date: 'After the Great Reshelving', medium: 'Steel spring, walnut stock, box of long pins', dims: 'L. 34 cm', credit: 'Gift of the Preparators' },
+      paragraph: 'Built to drive mounting pins into a hard plinth from a safe distance, when the specimen on the plinth was not cooperating. The preparators’ notes call it a last resort, twice.' },
   ],
   centrepiece: { id: 'S9.12', sprite: 'composite', archetype: 'completing_guardian', form: 'treasure', size: 2,
     name: 'The Composite, Assembled From the Round Books',
@@ -5058,6 +5538,13 @@ Packs.add({
       tomb: { maker: 'Made for the Ordinance Office by the Workshops of the Line', date: 'During the Duplicate Ordinance', medium: 'Brass, steel; escapement; pen arm and inkwell', dims: 'H. 132 cm', credit: 'Transferred from the Ordinance Office' },
       paragraph: 'No spare was valid until it had been countersigned, so the Office had a clerk built to do it, and the human clerks went home. The Office’s records say it countersigns anything damaged within its reach, taking a moment over each signature. It does not like to be approached while it is signing. It has never been countersigned itself.' },
   ],
+  // Items (§5.2): the pack's item schema, seeded with one; W1-CONTENT adds the rest.
+  items: [
+    { id: 'A4.7', kind: 'weapon', form: 'heavy', prims: [{ id: 'dmg', cls: 'L' }],
+      name: 'Paperweight of the Ordinance Office, One of a Pair',
+      tomb: { maker: 'Ordinance Office', date: 'During the Duplicate Ordinance', medium: 'Cast iron', dims: 'H. 11 cm; heavier than it looks', credit: 'Transferred from the Ordinance Office' },
+      paragraph: 'Issued in pairs under the Ordinance, so that a desk would never be without one. The other is lost, which the Office regarded as proof that the rule worked. It is best used once, firmly.' },
+  ],
   centrepiece: { id: 'A4.12', sprite: 'ordinance_original', archetype: 'mp_ensemble', form: 'fight', size: 1,
     name: 'The Duplicate Ordinance, With Its Four Certified Copies',
     tomb: { maker: 'Drafted by the Ordinance Office; copies by the typing pool', date: 'Signed after the Night of the Unlocked Door; repealed after the Second Inventory', medium: 'Ink on paper, five sheets, each framed on its own lectern', dims: 'Each sheet 42 × 30 cm', credit: 'Transferred from the Ordinance Office' },
@@ -5096,6 +5583,13 @@ Packs.add({
       name: 'Logbook Trolley, Self-Propelled',
       tomb: { maker: 'Workshops of the Line', date: 'After the Second Calibration', medium: 'Oak, iron; logbooks 14–22', dims: 'H. 96 cm', credit: 'Gift of the Retired Line Superintendent' },
       paragraph: 'The trolley carried the day’s logbooks from station to station so that every operator could sign them. Keepers report that it follows the nearest person at a steady walking pace, which on a busy day was the right speed and on a quiet night is not. Logbooks 14 to 22 are still aboard. They record nine years of signals and not one message. Please do not sign them.' },
+  ],
+  // Items (§5.2): the pack's item schema, seeded with one; W1-CONTENT adds the rest.
+  items: [
+    { id: 'M11.9', kind: 'weapon', form: 'reach', prims: [{ id: 'dmg', cls: 'M' }],
+      name: 'Signal Flag on Its Staff, Furled',
+      tomb: { maker: 'Line stores', date: 'After the Second Calibration', medium: 'Wool bunting, ash staff, iron ferrule', dims: 'L. 2.6 m', credit: 'Transferred from the Line Superintendent’s Office' },
+      paragraph: 'Flags were used where lamps could not be lit and heliographs could not be carried. Furled, the staff is long enough to reach past the person in front of you, which, the logbooks suggest, is how it was mostly used on busy days. The bunting has faded from red to a colour the Line called signal pink.' },
   ],
   centrepiece: { id: 'M11.11', sprite: 'great_board', archetype: 'mp_tableau', form: 'fight', size: 2,
     name: 'The Great Board of the Central Station',

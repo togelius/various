@@ -35,10 +35,9 @@ const keys = o => Object.keys(o || {});
 
 if (R.SYSTEMS.length > R.MAX_SYSTEMS) bad(`${R.SYSTEMS.length} universal systems; the cap is ${R.MAX_SYSTEMS}`);
 
-// The packs. Shared species (the Night Watchman, content/watch.js) are linted with them
-// once packs.js lists them.
+// The packs. Shared species (the Night Watchman, content/watch.js) are linted with them.
 const packs = Packs.list();
-const shared = typeof Packs.sharedList === 'function' ? Packs.sharedList() : [];
+const shared = Packs.sharedList();
 const ids = new Map(), allSpecies = [];
 for (const p of packs) {
   if ((p.modules || []).length > 2) bad(`${p.acc} owns ${p.modules.length} modules; the cap is 2`);

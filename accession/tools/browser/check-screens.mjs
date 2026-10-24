@@ -183,21 +183,30 @@ for (const view of registered) {
 }
 // A 2×2 Centrepiece (S.9, seed 5), at laptop size, by real clicks: from the tile north of it,
 // click its far row, then the same point again; the second click strikes it (§7.1), because
-// opening the label beside it leaves the board where it was.
+// opening the label beside it leaves the board where it was. M3 departments leave the
+// Centrepiece out until M4 places it (§5.5), so it is stood on its plinth here, asleep, as M2
+// placed it, and you are placed on the tile north of it (one you could walk to) rather than
+// walked there, since a walk wakes the sleepers it passes (§8.2).
 for (const view of registered) {
   const { browser, page, errors } = await open('dist/accession.html', { viewport: { width: 1280, height: 800 }, dpr: 1, query: `?dept=S9&seed=5&board=${view}` });
   await page.waitForFunction(() => window.ACCESSION && window.ACCESSION.state);
   await page.evaluate(() => window.ACCESSION.renderer.ready.catch(() => {}));
   await page.evaluate(() => window.ACCESSION.setting('motion', 'reduce'));
   const tag = `1280×800 S9 Centrepiece (${view})`;
-  const c = await page.evaluate(() => {
-    const A = window.ACCESSION, s = A.state, a = s.actors.find(q => (q.size || 1) === 2 && !q.gone);
-    if (!a) return null;
-    for (const [x, y] of Path.to(s, a.x, a.y - 1)) { const me = s.actors[0]; if (A.act({ a: 'move', dir: Path.dirTo([me.x, me.y], [x, y]) }).some(e => e.k === 'refused')) return null; }
+  const placed = await page.evaluate(() => {
+    const A = window.ACCESSION, s = A.state, p = Packs.get(s.dept.acc), cp = p.centrepiece, stats = Roles.stats('centrepiece', s.dept.depth);
+    const [x, y] = Layout.generate(p.programme, 0, s.seed, { acc: p.acc, depth: s.dept.depth }).plan.cpl;
+    const a = Actors.spawn(s, Object.assign({}, stats, { uid: `${p.acc}.${s.dept.depth}.centre.1`, sp: cp.id, arch: cp.archetype, size: cp.size || 1, x, y, mode: 'dormant', maxHp: stats.hp }));
+    if (a.size !== 2 || !Grid.walkable(s.dept, a.x, a.y - 1) || Actors.at(s, a.x, a.y - 1) || !Path.to(s, a.x, a.y - 1).length) return null;
     const me = s.actors[0];
-    if (me.x !== a.x || me.y !== a.y - 1) return null;
-    return { uid: a.uid, at: A.renderer.tileRect(a.x, a.y + 1).centre, hp: a.hp };
+    me.x = a.x; me.y = a.y - 1;
+    return a.uid;
   });
+  if (placed) await page.evaluate(() => window.ACCESSION.setting('motion', 'reduce'));
+  const c = placed && await page.evaluate(uid => {
+    const A = window.ACCESSION, a = Actors.byUid(A.state, uid);
+    return { uid, at: A.renderer.tileRect(a.x, a.y + 1).centre, hp: a.hp };
+  }, placed);
   if (!c) { bad(`${tag}: could not stand north of the Centrepiece`); await browser.close(); continue; }
   await page.mouse.click(c.at.x, c.at.y);
   const opened = await page.evaluate(uid => UI.labelShown() === uid, c.uid);
