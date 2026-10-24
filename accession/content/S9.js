@@ -34,19 +34,22 @@ Packs.add({
       paragraph: 'Reported, not observed. Round Book 4 calls the hoppers the court’s nuisance. They come in close, nip, and are back out of reach before a keeper can turn round, and then they do it again from the other side. The night staff kept them out of the waders’ way by keeping them busy. The preparators mounted four, which they believe is all of them, and wrote that down as well.' },
   ],
   // Items (§5.2, §8.5): the sample's equipment (design/samples.md §3.6), trimmed per §5.5.
-  // A primitive the slice lacks is replaced by one it has, of the same budget (S 1, M 2,
-  // L 3; a flag such as quiet, or an instrument's effect, 2): the Overshoes' muffled(M)
-  // becomes quiet; the Tongs' knockback(S) becomes Acc(S); Round Book 9's perception(L)
-  // becomes Eva(L). The Day Curator's Lamp is the Signature piece, which waits for M4.
+  // Each keeps the sample's form, and a primitive the slice lacks is replaced by one it has,
+  // of the same budget (S 1, M 2, L 3; a flag such as quiet 2; each of the slice's
+  // instruments 2, the Pin-Driver's price as the sample's bolt(edge, M)): the Overshoes'
+  // muffled(M) becomes quiet; the Tongs' knockback(S) becomes Acc(S); Round Book 9's
+  // perception(L) becomes Eva(L). The Day Curator's Lamp is the Signature piece, which waits
+  // for M4. A paragraph says no more than its item does: the Overshoes let you come a little
+  // closer while you move, and the Tongs' bonus is small.
   items: [
     { id: 'S9.7', kind: 'garment', form: 'light', prims: [{ id: 'quiet', cls: 'M' }],
       name: 'Overshoes of the Night Staff',
       tomb: { maker: 'Night staff stores', date: 'After the Great Reshelving', medium: 'Felt over leather', dims: 'L. 31 cm', credit: 'Gift of the Night Staff' },
-      paragraph: 'Worn over ordinary shoes on the rounds, so that the keepers could hear the court and the court could not hear the keepers. The day staff tried them once and complained that they could not hear themselves walk.' },
+      paragraph: 'Worn over ordinary shoes on the rounds, so that a keeper on the move could come a little closer to a sleeping animal without stirring it. The day staff tried them once and complained that they could not hear themselves walk.' },
     { id: 'S9.8', kind: 'weapon', form: 'light', prims: [{ id: 'dmg', cls: 'S' }, { id: 'acc', cls: 'S' }],
       name: 'Taxidermist’s Long Tongs',
       tomb: { maker: 'Preparators’ workshop', date: 'After the Great Reshelving', medium: 'Steel, cork-lined jaws', dims: 'L. 72 cm', credit: 'Gift of the Preparators' },
-      paragraph: 'Used to set a mount’s eyes and teeth from arm’s length, where a steady hand counted for more than a strong one. The preparators keep them sharper than tongs need to be, and the night staff, who borrow them, say they always find the place they were aimed at.' },
+      paragraph: 'Used to set a mount’s eyes and teeth from arm’s length, where a steady hand counted for more than a strong one. The preparators keep them sharper than tongs need to be, and the night staff, who borrow them, say they are a shade more likely than other tools to find the place they were aimed at.' },
     { id: 'S9.9', kind: 'instrument', instrument: 'pin_driver', prims: [],
       name: 'Spring Pin-Driver',
       tomb: { maker: 'Preparators’ workshop', date: 'After the Great Reshelving', medium: 'Steel spring, walnut stock, box of long pins', dims: 'L. 34 cm', credit: 'Gift of the Preparators' },
@@ -58,10 +61,11 @@ Packs.add({
   ],
   // Consumables (§5.2, §8.6): a local name for each seal (the 4 Solutions' seals, then the
   // 4 Ephemera's; a name never says which kind lies under the seal, since the seals are
-  // shuffled every run), and an identifying label for each kind.
+  // shuffled every run, so no label of the pack describes the thing a name is), and an
+  // identifying label for each kind.
   consumables: {
     names: ['Specimen Jar, Stoppered', 'Preparator’s Bottle, Brown Glass', 'Keeper’s Flask, Dented', 'Phial From the Mounting Bench',
-      'Loose Page From a Round Book', 'Night Staff Notice, Folded', 'Feeding Rota, Torn Across', 'Envelope From the Day Office'],
+      'Loose Page From a Round Book', 'Night Staff Letter, Folded', 'Feeding Rota, Torn Across', 'Envelope From the Day Office'],
     labels: {
       consolidant: 'Consolidant is what the preparators brush into a mount that has begun to crumble, and it binds hide and wire back together. The night staff carry some for themselves: drunk, it closes a keeper’s cuts at once and goes on mending them for a little while after. Spilt over an animal, it mends that too, as one keeper discovered with a hopper.',
       fixative: 'Fixative is sprayed on a finished mount so that nothing about it can shift again. Round Book 6 records a keeper who drank some by mistake and stood exactly where they were, unable to lift a hand, until it wore off. Thrown, it holds everything it splashes in place for as long, which the night staff consider its proper use.',

@@ -30,12 +30,14 @@ Packs.add({
       paragraph: 'The trolley carried the day’s logbooks from station to station so that every operator could sign them. Keepers report that it follows the nearest person at a steady walking pace, which on a busy day was the right speed and on a quiet night is not. Logbooks 14 to 22 are still aboard. They record nine years of signals and not one message. Please do not sign them.' },
   ],
   // Items (§5.2, §8.5): the sample's equipment (design/samples.md §2.6), trimmed per §5.5.
-  // A primitive the slice lacks is replaced by one it has, of the same budget (S 1, M 2,
-  // L 3; a flag, or an instrument's effect, 2): the Hand Lamp's bolt(light, M) becomes the
-  // Pin-Driver's ranged attack, which is the same bolt without the damage kind; the Apron's
-  // armour(S) and resist(light, S) become Padding(M). The Spare Lamp Hood is cut: its
-  // extinguish(M) needs light, which the slice lacks. The Pocket Heliograph is the
-  // Signature piece, which waits for M4.
+  // Each keeps the sample's form (Balanced where the sample names none), and a primitive the
+  // slice lacks is replaced by one it has, of the same budget (S 1, M 2, L 3; a flag 2; each
+  // of the slice's instruments 2): the Hand Lamp's bolt(light, M) becomes the Pin-Driver's
+  // ranged attack, which is the same bolt without the damage kind; the Apron's armour(S) and
+  // resist(light, S) become Padding(M); the Signal Flag keeps its reach flag, which the slice
+  // has. The Spare Lamp Hood is cut: its extinguish(M) needs light, which the slice lacks.
+  // The Pocket Heliograph is the Signature piece, which waits for M4. The Flag's paragraph
+  // says what Reach does: it strikes across an empty tile, never past someone.
   items: [
     { id: 'M11.6', kind: 'instrument', instrument: 'pin_driver', prims: [],
       name: 'Hand Lamp With a Signalling Shutter',
@@ -45,19 +47,20 @@ Packs.add({
       name: 'Linesman’s Smoked Apron',
       tomb: { maker: 'Line stores', date: 'After the Second Calibration', medium: 'Smoked leather, iron buckles', dims: 'L. 104 cm', credit: 'Gift of the Retired Line Superintendent' },
       paragraph: 'Worn by anyone working in front of a heliograph. The leather was smoked dark so that it would not shine, and it is thick enough to take the worst of a beam, or of a blow. The rules required it to be buckled, and the rules were ignored.' },
-    { id: 'M11.9', kind: 'weapon', form: 'reach', prims: [{ id: 'dmg', cls: 'M' }],
+    { id: 'M11.9', kind: 'weapon', form: 'balanced', prims: [{ id: 'dmg', cls: 'M' }, { id: 'reach', cls: 'M' }],
       name: 'Signal Flag on Its Staff, Furled',
       tomb: { maker: 'Line stores', date: 'After the Second Calibration', medium: 'Wool bunting, ash staff, iron ferrule', dims: 'L. 2.6 m', credit: 'Transferred from the Line Superintendent’s Office' },
-      paragraph: 'Flags were used where lamps could not be lit and heliographs could not be carried. Furled, the staff is long enough to reach past the person in front of you, which, the logbooks suggest, is how it was mostly used on busy days. The bunting has faded from red to a colour the Line called signal pink.' },
+      paragraph: 'Flags were used where lamps could not be lit and heliographs could not be carried. Furled, the staff is long enough to reach a person across an empty space, though never past someone standing in between, which, the logbooks suggest, is how queues were kept apart on busy days. The bunting has faded from red to a colour the Line called signal pink.' },
   ],
   // Consumables (§5.2, §8.6): a local name for each seal (the 4 Solutions' seals, then the
   // 4 Ephemera's; a name never says which kind lies under the seal, since the seals are
-  // shuffled every run), and an identifying label for each kind.
+  // shuffled every run, so no label of the pack describes the thing a name is), and an
+  // identifying label for each kind.
   consumables: {
     names: ['Enamel Tin, Hinged Lid', 'Battery Jar, Corked', 'Linesman’s Canteen', 'Stoneware Bottle, Line Stores',
-      'Telegram, Undelivered', 'Signal Form, Folded in Four', 'Timetable Slip, Superseded', 'Logbook Leaf, Unsigned'],
+      'Telegram, Undelivered', 'Signal Form, Folded in Four', 'Station Docket, Superseded', 'Logbook Leaf, Unsigned'],
     labels: {
-      consolidant: 'Consolidant was kept at every station to stop old signal arms from splitting along the grain. Drunk, it closes an operator’s cuts at once and goes on mending them for a little while after, and the linesmen swore by it. Thrown, it mends everything it splashes, stations and trolleys included, which the Line considered a waste of a good tin.',
+      consolidant: 'Consolidant was kept at every station to stop old signal arms from splitting along the grain. Drunk, it closes an operator’s cuts at once and goes on mending them for a little while after, and the linesmen swore by it. Thrown, it mends everything it splashes, stations and trolleys included, which the Line considered a waste.',
       fixative: 'Fixative was painted on the Line’s timetables so that no one could alter them. An operator who drank some stood at the signal as if bolted to the floor, unable to move a hand, until it wore off, and the logbooks note that the line was never better kept. Thrown, it holds everything it splashes in place for as long.',
       fumigant: 'Fumigant was sprayed through the long galleries against moth in the bunting. Drunk, the logbooks say, it sets an operator coughing for some time, loudly enough for anyone nearby to hear. Thrown, it rises as a cloud that no lamp or heliograph can see through, and any exhibit asleep inside it sleeps the deeper while the cloud lasts.',
       solvent: 'Solvent was used by the Line to strip old varnish from its instrument cases. Thrown at a case, it takes the glass out of it entirely, without a sound, which the night operators appreciated. Drunk, it rids an operator of every lingering ill the galleries have left on them, though not of their bruises, and the Line did not recommend it.',
