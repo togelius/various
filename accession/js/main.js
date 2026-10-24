@@ -3,6 +3,10 @@
 'use strict';
 const Main = (() => {
   const params = new URLSearchParams(location.search);
+  // A link ending #A4 or #M11.3 picks the department and seed too, for hosts that pass only
+  // a plain anchor (an Artifact page).
+  const anchor = /^#([A-Za-z]+\d+)(?:\.(\d+))?$/.exec(location.hash || '');
+  if (anchor && !params.has('dept')) { params.set('dept', anchor[1]); if (anchor[2]) params.set('seed', anchor[2]); }
   const store = {
     get(k, d) { try { const v = localStorage.getItem('accession.' + k); return v === null ? d : v; } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem('accession.' + k, v); } catch (e) { /* settings are a convenience */ } },
