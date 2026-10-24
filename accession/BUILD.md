@@ -111,14 +111,17 @@ accession/
   art/                     sprite sources (text grids), palettes, the asset ledger (ledger.json)
   vendor/three/            three.iife.js (built once, pinned), LICENSE, VERSION (§6.4)
   tools/
-    build-single.py        inline css and js into dist/ (the game and the hash page)
+    build-single.py        inline css and js into dist/ (the game and the hash page), stamped with coreHash
     build-art.js           art/ → js/view/art.gen.js; art-sheet.py renders a contact sheet
     core-context.js        loads the core into a hardened vm context for tests and tools
     lint-core.js           the determinism lint on acorn's syntax tree (§3.3); vendor/acorn
     lint-numbers.js        the §8.10 table against js/core/numbers.js
     lint-registry.js       ids, caps, Behaviour-line coverage, ledger coverage
-    golden.js, monkey.js   golden runs (re-pin, mark pending, check) and the monkey
+    golden.js, monkey.js   golden runs (re-pin, mark pending, check, add, --against a commit) and the monkey
     hash-compare.js        the Node side of the hash page's check of pending runs (§3.5)
+    replay.js              replays: where they start, playing them, the golden runs' player (§3.5, §3.6)
+    shrink.js              crash cards: ddmin over an action list, the state's JSON-path diff (§10.2)
+    core-hash.js           coreHash and vmHash (§3.6, §6.1)
     invariants.js          loads the Behaviour-line invariants and checks them after each step (§5.3)
     stats.js               the statistics of §10.3; plain Node, never loaded into the core
     layout-sweep.js        the 1,000-seed layout sweep (§11, M1)
@@ -217,10 +220,10 @@ accession/
 ### 3.5 Hashes and the cross-engine check
 
 - **The state hash** is a 32-bit FNV-1a over canonical JSON (sorted keys, no whitespace).
-- **Golden runs** live in `test/golden/golden.js` (as JavaScript, so a page opened from `file://` can load them). Each is a seed plus a policy or an action list (a 10,000-action monkey run, and one replay per milestone) with the expected final hash and hashes at fixed checkpoints.
+- **Golden runs** live in `test/golden/golden.js` (as JavaScript, so a page opened from `file://` can load them). Each is a seed plus a policy or an action list (a 10,000-action monkey run, and one replay per milestone) with the expected final hash and hashes at fixed checkpoints. A run is one of two kinds: a monkey, `{kind: 'monkey', seed, actions, make}`, which plays that many monkey actions in the test room (`make: null`) or a department (`make: {dept, depth}`), folding a checkpoint in every 1,000 actions; or a replay, `{kind: 'replay', start, options, actions}` (§3.6), whose checkpoints are the state's hash after every 100th action and whose hash is its final state's. `node tools/golden.js --add <name> <file>` adds one, pinned, or unpinned and pending.
 - **Clone-stability.** `test/golden.test.js` plays every golden run three times: twice continuously, and once with `state = State.clone(state)` after every step. The three must give the same checkpoint hashes, and a pinned run must give its recorded ones. Until the department golden runs of M3's acceptance exist, `test/m3-backbone-dept.test.js` holds each department to the same check, step by step, with a plain-data check after every step; a scenario can ask the harness for it too (§10.2).
 - **Pending runs.** While a stretch of work changes the state on purpose (in M3, each wave of the build), a golden run may carry `pending` with its reason (`node tools/golden.js --pending "reason"`). A pending run is still played three times and must agree with itself and with its clone, but it is not held to its pin. The hash page prints `PENDING <name>: hash H, checkpoints …` for it, and its title is PENDING when every pinned run passes; `tools/browser/check-hash.mjs` then plays each pending run in Node through `tools/core-context.js` on the same tree and passes only if the page's hash and every checkpoint equal Node's, so the check that browsers and Node agree never lapses. A re-pin (`node tools/golden.js`) ends the stretch: it writes the new hashes with no `pending`, and the log records the old hash, the new one and why. Julian's browser rows stay "pending" while any run is.
-- **Finding a divergence.** A golden run also stores a hash after every step (4 bytes a step). On a mismatch, Node and the hash page print the first diverging step, its action, and the events of that step; the hash page shows them as a copyable text block with a Download button, so Julian can send it back.
+- **Finding a divergence.** A golden run also stores a hash after every step (4 bytes a step, in base64, as `steps`), written at each re-pin. On a mismatch, Node (the golden test and `node tools/golden.js --check`) and the hash page play the run again against those hashes and print, in the same words, the first diverging step, its action, and the events of that step; the hash page shows them as a copyable text block with a Download button, so Julian can send it back. A pin without per-step hashes can name only the first diverging checkpoint. A re-pin prints the first step at which the new hashes leave the old ones, and `node tools/golden.js --against <commit>` plays each run on this tree and on that commit's core (its files from git, in a temporary directory) and prints the first step at which they differ, with each side's action and events, and the first fields that differ when the starting states already do. `check-hash.mjs` also loads the page with planted runs (a replay with one action changed, a monkey whose pin has one step changed) and passes only if the page names each one's first diverging step in Node's words, and its Download button saves them.
 - **Where they are checked:**
   - Node runs them on every `check-all.sh`;
   - `build-single.py` also writes `dist/accession-hash.html`, with the core and the golden runs inlined; Chromium runs it through Playwright;
@@ -228,8 +231,8 @@ accession/
 
 ### 3.6 Replays and counterfactual reruns
 
-- **`coreHash`** is a hash of the source of `js/core` and `content/`, except `viewmodel.js`, stamped into each build. A change to the UI does not change it. Sim output also records `vmHash` (§6.1).
-- **A replay is** `{coreHash, layoutPin, start, options, actions}`. `start` is the run seed, or a snapshot where logging restarted. `options` holds:
+- **`coreHash`** is a hash of the source of `js/core` and `content/`, except `viewmodel.js`, stamped into each build. A change to the UI does not change it. Sim output also records `vmHash` (§6.1). Both are FNV-1a, written as 8 hex digits, over each file's path and text (line endings as `\n`), in path order (`tools/core-hash.js`); `build-single.py` stamps them into the game's head (`<meta name="accession-core-hash">`, `accession-vm-hash`) and onto the hash page.
+- **A replay is** `{coreHash, layoutPin, start, options, actions}`. `start` is the run seed, or a snapshot where logging restarted. Until M5 builds the run, a start is `{seed, room: 'T0'}` (the test room), `{seed, dept, depth}` (one department visit) or `{state}` (a snapshot, which keeps its own options), and a tool may register another (an arena's) with `Replay.starter`. `node tools/replay.js <file> [--log] [--inv]` plays a replay file, or a crash card holding one, and prints what happened. `options` holds:
   - `firstRun` (which adds the Orientation room);
   - `rulesOff` (switch off a rule by id: a modifier in M3, a module from M4);
   - `without` (remove an actor by uid);
@@ -238,7 +241,7 @@ accession/
   These are the hooks the paired bots and the reports use. A visit keeps its own switches in `state.options` (`Options.make`: `rulesOff`, `without`, and `invulnerable`, the sims' and tests' option that keeps your HP at least 1, §10.2), and a rule asks `Options.off(state, id)`.
 - **Replay length.** The save record carries the run's replay so far (§4.4). Loading a save in a build with a different `coreHash` starts a new replay from the loaded snapshot, and the death label then says that the replay starts at turn N.
 - **A replay link** encodes the replay in the URL fragment. Opening it in any build with the same `coreHash` plays it back with a scrubber.
-- **Release builds** (one per milestone and every slice-gate build) are kept as `dist/builds/<coreHash>.html`, so old replays keep working.
+- **Release builds** (one per milestone and every slice-gate build) are kept as `dist/builds/<coreHash>.html` (`python3 tools/build-single.py --release`), so old replays keep working.
 
 ---
 
@@ -1453,7 +1456,7 @@ The ten layers are in [`DECISIONS.md`](DECISIONS.md) (Automatic playtesting); th
   - `sweep` runs a scenario for each of them, with every invariant checked after every step (`play`), and each failure names the scenario, the species, the depth and the seed; a sweep over no species is refused;
   - `play` also checks after every step that the state is plain data (§3.1), whatever the invariants, and with `clone` (a scenario's `clone: true`) plays a twin that is cloned after every step and reports the first step whose hash differs (§3.5);
   - `sensitivity(C, scenario, id)` reruns it with `id` in `rulesOff`, and fails unless every run then fails. A scenario's `build` must pass `rulesOff` on to `Setup.room`'s options, since a rule switched off after the state is made is only half off (a modifier's speed is fixed at spawn); one that does not fails, saying so.
-- **Crash cards.** Monkey, soak and golden failures are shrunk with ddmin over the action list, replaying from the seed (time limit 60 s). The card gives the seed, `coreHash`, the shrunk action count, the first bad step with its events and a JSON-path diff of the state, and a replay link.
+- **Crash cards** (`tools/shrink.js`). Monkey, soak and golden failures are shrunk with ddmin over the action list, replaying from the seed (time limit 60 s); a monkey's failure replays from the seed of the visit it happened in. The shrunk list still fails the same way, and removing any one of its actions makes it pass. The card gives the seed, `coreHash`, the shrunk action count, the first bad step with its events and a JSON-path diff of the state across that step, and the replay with the command that plays it; the replay link is pending M5.
 - **`tools/sim.js`** runs policies headless over N seeds and writes JSON with the run's `coreHash`, `vmHash`, seeds and per-run outcomes. It supports `--policy`, `--seeds`, `--depth`, `--dept`, `--arena`, the counterfactual switches `--rules-off` and `--without`, `--paired` (two policies or two option sets on identical seeds: each side is a policy, optionally with its own switches, `counter@rules-off=marble`) and `--invulnerable` (a sim-only option that keeps your HP at least 1 and logs the would-be deaths); `--help` lists the rest.
   - **A run** stops when its arena's goal is met, the visit is over, or the turn cap is reached; after cap × 10 steps (refusals take no time); after 50 refusals in a row; or on an error, when the policy fails to decide, gives no action or no reason in words, or changes the game state while deciding, or the state stops being plain data. A policy's action that is not legal is refused by `step()`, as a player's would be, and listed as a violation. After every step the state must be plain data, and `--check` runs every invariant and confirms that deciding left the state as it was. A violation names its step, counted from 1.
   - **Removing an exhibit.** In an arena, `--without` may name an exhibit by its letter in the stamp, which stands for its uid on each seed. A uid that no actor of a visit has removes nothing there; the run lists that as a violation, and the verdict names the seeds.
