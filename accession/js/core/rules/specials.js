@@ -10,9 +10,12 @@
 //     next decision (notBefore), and ties go to you, so you always see a mark before it resolves.
 //   - No overlaps: no two pending damage marks share a tile. A call mark never blocks one
 //     and is never blocked.
-//   - Each actor standing on a marked tile is hit once, with its own Padding.
-//   - A pending mark is cancelled when its owner is fixed, leaves hunting, goes dormant or
-//     is destroyed. Only a hunting exhibit marks.
+//   - Each actor standing on a marked tile is hit once, with its own Padding. Only a beam
+//     passes glass: a ring never marks the tile of an intact case, nor strikes into one.
+//   - A special that hits several actors applies every hit, with its wakes, before any
+//     noise, the noise of an exhibit it destroys included (Noise.hold; §8.2).
+//   - A pending mark is cancelled when its owner is fixed (at once, Status.apply), leaves
+//     hunting, goes dormant or is destroyed. Only a hunting exhibit marks.
 'use strict';
 const Specials = (() => {
   const SHAPES = ['ring', 'call', 'line'];
@@ -47,7 +50,9 @@ const Specials = (() => {
   }
 
   // Specials.tiles(state, a, shape) → [[x, y]…], in row-major order, each tile once:
-  //   'ring': the tiles round a's footprint an exhibit could stand on (Grid.hold);
+  //   'ring': the tiles round a's footprint an exhibit could stand on (Grid.hold), except an
+  //           intact case's (a vitrine, a mimic's disguise included): a ring is blows, and
+  //           nothing strikes into a case (§8.3);
   //   'call': the tiles an exhibit could stand on within HERALD_RANGE of a (Grid.disc);
   //   'line': the tiles of a beam of AXIS_BEAM_RANGE along the row or column a shares with
   //           you (Ranged.beam: through glass, and back along its line from a reflector);
@@ -57,7 +62,7 @@ const Specials = (() => {
     if (shape === 'ring') {
       const s = a.size || 1;
       for (let y = a.y - 1; y <= a.y + s; y++) for (let x = a.x - 1; x <= a.x + s; x++)
-        if (Actors.dist(a, x, y) === 1 && Grid.inside(m, x, y) && Grid.hold(m, x, y)) out.push([x, y]);
+        if (Actors.dist(a, x, y) === 1 && Grid.inside(m, x, y) && Grid.hold(m, x, y) && Grid.ch(m, x, y) !== 'v') out.push([x, y]);
     } else if (shape === 'call') {
       const r = N.HERALD_RANGE, foot = Actors.footprint(a), s = a.size || 1;
       for (let y = a.y - r; y < a.y + s + r; y++) for (let x = a.x - r; x < a.x + s + r; x++)
@@ -125,25 +130,31 @@ const Specials = (() => {
   // Specials.resolve(state, a, ev) → ticks: a's pending special goes off. A damage special
   // hurts each actor standing on a marked tile, once (its first marked tile in row-major
   // order), in spawn order, each through its own Padding, with cause special {by, sp, gross,
-  // pad, net, x, y, from}; then a soft noise at a's tile, as any attack makes. A call (a
-  // hook) goes to its archetype's onResolve. Then special {who, sp, hits}. The mark is no
-  // longer pending once it resolves. Costs an attack plus SPECIAL_RECOVERY.
+  // pad, net, x, y, from}; an actor in an intact case is struck only by a shape that passes
+  // glass (a line). Every hit, and the wakes it causes, comes before any noise: the noise of
+  // an exhibit destroyed is held until the last hit (Noise.hold), then comes the soft noise
+  // at a's tile that any attack makes. A call (a hook) goes to its archetype's onResolve.
+  // Then special {who, sp, hits}. The mark is no longer pending once it resolves. Costs an
+  // attack plus SPECIAL_RECOVERY.
+  const PASSES_GLASS = ['line'];
   function resolve(state, a, ev) {
     const tel = a.telegraph;
     if (!tel) throw new Error(`Specials.resolve: ${a.uid} has no mark pending`);
     a.telegraph = null;
     const fields = { who: a.uid, sp: tel.sp };
     if (tel.effect === 'damage') {
-      const hits = [];
-      for (const b of state.actors.slice()) {
-        if (b.gone) continue;
-        let k = -1;
-        for (const [x, y] of Actors.footprint(b)) for (let i = 0; i < tel.tiles.length; i++) if (tel.tiles[i][0] === x && tel.tiles[i][1] === y && (k < 0 || i < k)) k = i;
-        if (k < 0) continue;
-        const d = net(tel.gross, b.pad);
-        Combat.hurt(state, b, d, { k: 'special', by: a.uid, sp: tel.sp, gross: tel.gross, pad: b.pad, net: d, x: tel.tiles[k][0], y: tel.tiles[k][1], from: tel.from[k].slice() }, ev);
-        hits.push(b.uid);
-      }
+      const hits = [], S = Registry.SPECIALS[tel.sp], glass = !!S && PASSES_GLASS.includes(S.shape);
+      Noise.hold(() => {
+        for (const b of state.actors.slice()) {
+          if (b.gone || (!glass && Cases.encased(state, b))) continue;
+          let k = -1;
+          for (const [x, y] of Actors.footprint(b)) for (let i = 0; i < tel.tiles.length; i++) if (tel.tiles[i][0] === x && tel.tiles[i][1] === y && (k < 0 || i < k)) k = i;
+          if (k < 0) continue;
+          const d = net(tel.gross, b.pad);
+          Combat.hurt(state, b, d, { k: 'special', by: a.uid, sp: tel.sp, gross: tel.gross, pad: b.pad, net: d, x: tel.tiles[k][0], y: tel.tiles[k][1], from: tel.from[k].slice() }, ev);
+          hits.push(b.uid);
+        }
+      });
       Noise.emit(state, a.x, a.y, 'soft', { k: 'special', by: a.uid }, ev);
       fields.hits = hits;
     } else Archetypes.onResolve(state, a, tel, ev);

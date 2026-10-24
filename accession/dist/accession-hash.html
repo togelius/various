@@ -465,6 +465,10 @@ const Grid = (() => {
     for (const s of m.surfaces) { const r = Registry.SURFACES[s.kind]; if (r && r.blocksSight && covers(s, x, y)) return true; }
     return false;
   }
+  // Can sight pass through (x, y)? Its tile can be seen through and no sight-blocking surface
+  // covers it. Line of sight (between its ends) and a beam (Ranged.beam) both stop where this
+  // fails, so the two cannot differ.
+  const clear = (m, x, y) => inside(m, x, y) && seeThrough(m, x, y) && !(m.surfaces && m.surfaces.length && veiled(m, x, y));
 
   // Line of sight between two tiles: a Bresenham line, always traced from the endpoint
   // that comes first in row-major order, so sight is symmetric. Endpoints never block; a
@@ -531,7 +535,7 @@ const Grid = (() => {
     return best;
   }
 
-  return { TILES, DX, DY, inside, code, ch, walkable, seeThrough, hold, bolt, closedDoor, set, canStep, disc, covers, los, chebyshev, distances, reachDist };
+  return { TILES, DX, DY, inside, code, ch, walkable, seeThrough, hold, bolt, closedDoor, set, canStep, disc, covers, clear, los, chebyshev, distances, reachDist };
 })();
 
 </script>
@@ -590,8 +594,10 @@ const Vision = (() => {
   const inRing = (state, x, y, f) => ringDist(state, x, y, f) >= 0;
 
   // The tiles your ring covers, for the view model: a Uint8Array, 1 where inRing holds.
-  // Drawn from your current tile with the radius of your last action that cost time, it is
-  // exactly the ring the last turn boundary applied (§8.2).
+  // Drawn from your current tile, on the map as it is now, with the radius of your last
+  // action that cost time (§8.2). That is the ring the last turn boundary applied unless a
+  // tile or surface changed after it, which only exhibits acting between the boundary and a
+  // mid-turn decision of yours (after a 150-tick Heavy blow or bash) can do.
   function ring(state) {
     const m = state.dept, f = field(state), out = new Uint8Array(m.w * m.h);
     for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if (inRing(state, x, y, f)) out[y * m.w + x] = 1;
@@ -829,6 +835,10 @@ const Registry = (() => {
   const wake = extra => Object.assign({ by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' }, extra);
   const fields = { ring: wake({ r: 'int?' }), noise: wake({ cls: 'str?' }), axis: wake({}), tether: wake({}), ally_hit: wake({}), awake: wake({}) };
   for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: fields[k] });
+  // The triggers that wake at once do it through Wake.addPips +3, whose pip event carries the
+  // same cause as the woke and hunting events that follow (lint-registry checks every waking
+  // trigger has its pip schema).
+  for (const k of ['tether', 'ally_hit']) R.defineCause('pip', k, { fields: fields[k] });
 })();
 
 </script>
@@ -887,8 +897,11 @@ const Registry = (() => {
 
   // A blow (§8.1): who struck whom, how, with the chance, the roll and the damage roll.
   const blow = { by: 'uid', at: 'uid', chance: 'int', roll: 'int?', raw: 'int', pad: 'int', floor: 'int?', surprise: 'int?', side: 'str?', how: 'obj', from: 'tile', saved: 'int?' };
-  // A special's resolve (§8.1): no roll, its gross number, your Padding and the net.
-  const special = { by: 'uid', sp: 'str', gross: 'int', pad: 'int', net: 'int', x: 'int', y: 'int', from: 'tile' };
+  // A special's resolve (§8.1): no roll, its gross number, your Padding and the net. Every
+  // damage cause accepts saved (Combat.hurt marks an invulnerable run's save on whatever
+  // cause it is given) and side (old_repair may mark a blow, a shot or a beam from its side);
+  // lint-registry checks that each damaged cause does.
+  const special = { by: 'uid', sp: 'str', gross: 'int', pad: 'int', net: 'int', x: 'int', y: 'int', from: 'tile', side: 'str?', saved: 'int?' };
   R.defineCause('attacked', 'attack', { fields: { by: 'uid', at: 'uid', dist: 'int', how: 'obj' } });
   R.defineCause('missed', 'attack', { fields: { by: 'uid', at: 'uid', chance: 'int', roll: 'int', how: 'obj' } });
   R.defineCause('damaged', 'attack', { fields: blow });
@@ -949,6 +962,8 @@ const Registry = (() => {
   R.define('WAKE_CAUSES', 'dissolved', { mode: 'hunting', creation: false });
   const wake = { by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' };
   for (const k of ['touch_case', 'case_broken', 'dissolved']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: wake });
+  // touch_case wakes at once, through Wake.addPips +3, whose pip event carries the same cause.
+  R.defineCause('pip', 'touch_case', { fields: wake });
 })();
 
 </script>
@@ -1020,8 +1035,11 @@ const Registry = (() => {
   R.defineCause('equipped', 'unequip', { fields: { short: 'int?' } });
   R.defineCause('used', 'use', { fields: { gentle: 'bool?', x: 'int?', y: 'int?' } });
   R.defineCause('noise', 'fork', { fields: { by: 'uid?', item: 'uid?' } });
-  // The Pin-Driver's bolt.
-  const item = { by: 'uid', item: 'uid', raw: 'int', pad: 'int', from: 'tile' };
+  // The Pin-Driver's bolt: a shot (Ranged.shoot, then Combat.attack) whose how names the
+  // instrument, so its cause is a shot's, k 'item', with the item.
+  const item = { by: 'uid', at: 'uid', chance: 'int', roll: 'int?', raw: 'int', pad: 'int', floor: 'int?', surprise: 'int?', side: 'str?', how: 'obj', from: 'tile',
+    saved: 'int?', range: 'int', item: 'uid' };
+  R.defineCause('missed', 'item', { fields: { by: 'uid', at: 'uid', chance: 'int', roll: 'int', how: 'obj', range: 'int', item: 'uid' } });
   R.defineCause('damaged', 'item', { fields: item });
   R.defineCause('died', 'item', { fields: item });
 })();
@@ -1117,9 +1135,10 @@ const Registry = (() => {
     params: { PLASTER_HP_PCT: 'N:PLASTER_HP_PCT', PLASTER_DUST_TURNS: 'N:PLASTER_DUST_TURNS' }, covers: [], ready: false, tests: [], inv: null });
 
   // A body made from another (a splitter's half) wakes in its parent's mode; its story
-  // names how it was made, its parent, and a copy of the parent's own waking.
+  // names how it was made (how: 'split'), its parent (from), and a copy of the parent's own
+  // waking (parent: {turn, cause}).
   R.define('WAKE_CAUSES', 'summoned', { mode: 'parent', creation: true });
-  for (const kind of ['woke', 'hunting']) R.defineCause(kind, 'summoned', { fields: { by: 'uid', how: 'str', from: 'uid', woke: 'obj?' } });
+  for (const kind of ['woke', 'hunting']) R.defineCause(kind, 'summoned', { fields: { by: 'uid?', how: 'str', from: 'uid', parent: 'obj?' } });
 })();
 
 </script>
@@ -1154,10 +1173,11 @@ const Registry = (() => {
   R.define('MODIFIERS', 'old_repair', { icon: null, clause: 'Its {side} side is a later repair: blows from that side deal double damage.',
     params: { side: 'mod:side' }, covers: [], ready: false, tests: [], inv: null });
 
-  // Shots are rolled like blows and carry their range; a reflected line names the reflector
-  // as `by` and who fired it as `shooter`.
+  // Shots are rolled like blows and carry their range (Combat.attack makes k 'shot' when
+  // how.kind is 'shot', with from the last tile the bolt crossed, how.via); a reflected line
+  // names the reflector as `by` and who fired it as `shooter`, and Ranged.shoot makes it.
   const shot = { by: 'uid', at: 'uid', chance: 'int', roll: 'int?', raw: 'int', pad: 'int', floor: 'int?', surprise: 'int?', side: 'str?', how: 'obj', from: 'tile', saved: 'int?', range: 'int' };
-  const reflected = { by: 'uid', shooter: 'uid', sp: 'str?', raw: 'int?', pad: 'int', from: 'tile' };
+  const reflected = { by: 'uid', shooter: 'uid', sp: 'str?', raw: 'int?', pad: 'int', from: 'tile', side: 'str?', saved: 'int?' };
   R.defineCause('missed', 'shot', { fields: { by: 'uid', at: 'uid', chance: 'int', roll: 'int', how: 'obj', range: 'int' } });
   R.defineCause('damaged', 'shot', { fields: shot });
   R.defineCause('damaged', 'reflected', { fields: reflected });
@@ -1358,14 +1378,34 @@ const Modules = (() => {
 // registry's schema for its kind and for its cause.
 'use strict';
 const Causes = (() => {
-  const copy = c => JSON.parse(JSON.stringify(c));
+  // Causes.copy(v, where) → a copy of v, plain data (§3.1). A field left undefined at the
+  // top level is absent, as an optional field may be; anything else that is not plain data
+  // (NaN, an infinity, a fraction, −0, a function, an undefined deeper in) stops with an
+  // error naming where it is, rather than being copied as null and slipping past the
+  // schema's optional fields and the plain-data check. Key order is kept.
+  function copy(v, where) {
+    if (v === null || v === undefined) return null;
+    if (Object.prototype.toString.call(v) === '[object Object]') {
+      const out = {};
+      for (const k of Object.keys(v)) {
+        if (v[k] === undefined) continue;
+        const bad = State.plainData(v[k], where + '.' + k);
+        if (bad) throw new Error(`Causes: ${bad} is not plain data (${String(v[k])})`);
+        out[k] = JSON.parse(JSON.stringify(v[k]));
+      }
+      return out;
+    }
+    const bad = State.plainData(v, where);
+    if (bad) throw new Error(`Causes: ${bad} is not plain data`);
+    return JSON.parse(JSON.stringify(v));
+  }
 
   // An event, not yet emitted: {k, turn, tick, ...fields, cause}. Fields and cause are
-  // copied, so a rule can go on changing its own objects, and nothing outside the state can
-  // reach into it through an event.
+  // copied (Causes.copy), so a rule can go on changing its own objects, nothing outside the
+  // state can reach into it through an event, and nothing that is not plain data gets in.
   function make(state, k, fields, cause) {
-    const e = Object.assign({ k, turn: state.turn, tick: state.tick }, copy(fields || {}));
-    if (cause !== undefined && cause !== null) e.cause = copy(cause);
+    const e = Object.assign({ k, turn: state.turn, tick: state.tick }, copy(fields || {}, k));
+    if (cause !== undefined && cause !== null) e.cause = copy(cause, k + '.cause');
     return e;
   }
 
@@ -1382,7 +1422,7 @@ const Causes = (() => {
 
   // The last CAUSE_RECORDS records, for the recap's narrative. Records are copied in.
   function record(state, rec) {
-    state.causes.push(copy(rec));
+    state.causes.push(JSON.parse(JSON.stringify(rec)));
     if (state.causes.length > N.CAUSE_RECORDS) state.causes.splice(0, state.causes.length - N.CAUSE_RECORDS);
   }
 
@@ -1428,7 +1468,7 @@ const Causes = (() => {
     return fieldsOf(`${e.k}.cause`, e.cause, schema.list, ['k']);
   }
 
-  return { make, emit, record, check };
+  return { copy, make, emit, record, check };
 })();
 
 </script>
@@ -1488,22 +1528,29 @@ const Actions = (() => {
 // tick 100k) and the next turn for a sleeping one. Its per-turn effect runs at the boundaries
 // of turns from … until − 1, and it ends at the boundary of turn until. Applied again while
 // held, it lasts to the later of the two ends.
+//
+// At a boundary the timers run at step 2 (Status.tick: expiry), and the per-turn effects
+// after the wake checks of step 4 (Status.effects), so that a cough's noise comes after your
+// ring, as an action's noise comes after its other wake effects (§8.2).
 'use strict';
 const Status = (() => {
   const has = (a, id) => !!(a.statuses && a.statuses.some(s => s.id === id));
   const harmful = id => !!(Registry.STATUSES[id] && Registry.STATUSES[id].harmful);
 
-  // Per-turn effects by status id, run at boundary step 2 for every status still held after
-  // expiry: EFFECTS[id](state, a, status, ev). W1-STATUS fills it (coughing, restoring).
+  // Per-turn effects by status id, run after boundary step 4 for every status held:
+  // EFFECTS[id](state, a, status, ev). W1-STATUS fills it (coughing, restoring).
   const EFFECTS = {};
 
-  // Put status id on a for `turns` turns, with its cause; emits status {on: true}.
+  // Put status id on a for `turns` turns, with its cause; emits status {on: true}. A pending
+  // special of an exhibit made fixed is called off at once (§8.1), inside the action that
+  // fixed it, so the mark is neither shown nor held against other marks once it cannot resolve.
   function apply(state, a, id, turns, cause, ev) {
     if (!a.statuses) a.statuses = [];
     const s = a.statuses.find(s => s.id === id);
     if (s) s.turns = s.turns === null || s.turns === undefined ? turns : Math.max(s.turns, turns);
     else a.statuses.push({ id, until: null, turns, from: null });
     Causes.emit(state, ev, 'status', { who: a.uid, id, on: true }, cause);
+    if (id === 'fixed' && a.telegraph) Specials.cancel(state, a, 'fixed', ev);
   }
 
   // Give every newly applied status its end turn (see the timing rule above). step() calls
@@ -1521,9 +1568,8 @@ const Status = (() => {
     }
   }
 
-  // Turn boundary step 2 (§8.1): first expire every status whose until ≤ turn (status
-  // {on: false}), then run the per-turn effects of those left whose first turn has come;
-  // actors in spawn order, statuses in the order applied.
+  // Turn boundary step 2 (§8.1): expire every status whose until ≤ turn (status
+  // {on: false}); actors in spawn order, statuses in the order applied.
   function tick(state, ev) {
     for (const a of state.actors) {
       if (a.gone || !a.statuses || !a.statuses.length) continue;
@@ -1534,6 +1580,11 @@ const Status = (() => {
       }
       a.statuses = keep;
     }
+  }
+
+  // After boundary step 4's wake checks (§8.1): the per-turn effects of the statuses held
+  // whose first turn has come, actors in spawn order, statuses in the order applied.
+  function effects(state, ev) {
     for (const a of state.actors) {
       if (a.gone || !a.statuses) continue;
       for (const s of a.statuses.slice()) {
@@ -1546,7 +1597,9 @@ const Status = (() => {
   // What a status forbids you to do (§4.2), as a refusal code, before anything is spent:
   // fixed allows only wait and rest (and the answer to a choice already waiting, which is
   // part of the action that asked it); rooted refuses a move that would change your tile,
-  // and allows a bump into a door or an actor, which leaves you where you are.
+  // and allows a bump into a door, an actor or an intact case, which leaves you where you
+  // are. So a bump into a case is refused as glass whether you are rooted or not, exactly
+  // as a bump into a mimic in its disguise is (§8.3).
   const WHILE_FIXED = ['wait', 'rest', 'choose'];
   function blocks(state, a, action) {
     if (!action || typeof action.a !== 'string') return null;
@@ -1554,14 +1607,15 @@ const Status = (() => {
     if (has(a, 'rooted') && action.a === 'move' && Number.isInteger(action.dir) && action.dir >= 0 && action.dir < 8) {
       const m = state.dept, size = a.size || 1, nx = a.x + Grid.DX[action.dir], ny = a.y + Grid.DY[action.dir];
       for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) {
-        if (Actors.at(state, nx + dx, ny + dy, a) || Grid.closedDoor(m, nx + dx, ny + dy)) return null;
+        const x = nx + dx, y = ny + dy;
+        if (Actors.at(state, x, y, a) || Grid.closedDoor(m, x, y) || Grid.ch(m, x, y) === 'v') return null;
       }
       return 'rooted';
     }
     return null;
   }
 
-  return { has, harmful, EFFECTS, apply, settle, tick, blocks };
+  return { has, harmful, EFFECTS, apply, settle, tick, effects, blocks };
 })();
 
 </script>
@@ -1615,9 +1669,12 @@ const Actors = (() => {
 
   // An actor's fields (BUILD.md §4.1), every one plain data with a default, never undefined.
   // rec gives uid, sp, size, x, y, hp (and maxHp), acc, eva, pad, dmin, dmax, mode, and may
-  // give what the species gives (arch, role, mods, modParams, trigger, group) and the rest.
-  // Rules read these copies, never the pack. An exhibit with no archetype is a plodder.
-  // state may be null for an actor made outside a state (Setup.you).
+  // give what the species gives (arch, role, mods, modParams, trigger, group) and the rest:
+  // next, pips, stim, home, guards, gen, ax, speed, and for a room made for a test its
+  // statuses ([{id, until?, turns?, from?}]: one with until null and turns N is settled by
+  // the next Status.settle), target, lastKnown and sawYou. Rules read these copies, never the
+  // pack. An exhibit with no archetype is a plodder. state may be null for an actor made
+  // outside a state (Setup.you).
   function make(state, rec) {
     const you = rec.uid === 'you', arch = rec.arch !== undefined ? rec.arch : you ? null : 'plodder', mods = (rec.mods || []).slice();
     const or = (k, v) => rec[k] !== undefined ? rec[k] : v;
@@ -1627,13 +1684,15 @@ const Actors = (() => {
       hp: rec.hp, maxHp: or('maxHp', rec.hp), acc: or('acc', 0), eva: or('eva', 0), pad: or('pad', 0), dmin: or('dmin', 0), dmax: or('dmax', 0),
       speed: rec.speed !== undefined ? rec.speed : speedOf(state, arch, mods),
       next: or('next', 0), notBefore: null, mode: or('mode', you ? null : 'dormant'), pips: or('pips', 0), stim: or('stim', state ? state.turn : 0),
-      pipTurns: {}, sawYou: false,
-      home: copy(or('home', you ? null : [rec.x, rec.y])), target: null, lastKnown: null, guards: copy(or('guards', null)),
+      pipTurns: {}, sawYou: or('sawYou', false),
+      home: copy(or('home', you ? null : [rec.x, rec.y])), target: copy(or('target', null)), lastKnown: copy(or('lastKnown', null)), guards: copy(or('guards', null)),
       route: null, plan: null, facing: null,
-      statuses: [], telegraph: null, acts: 0, woke: null, hunted: null, kids: 0, gen: or('gen', 0), gone: 0, ax: copy(or('ax', {})),
+      statuses: or('statuses', []).map(statusOf), telegraph: null, acts: 0, woke: null, hunted: null, kids: 0, gen: or('gen', 0), gone: 0, ax: copy(or('ax', {})),
     };
   }
   const copy = v => v === null ? null : JSON.parse(JSON.stringify(v));
+  const orNull = v => v === undefined ? null : v;
+  const statusOf = s => ({ id: s.id, until: orNull(s.until), turns: orNull(s.turns), from: orNull(s.from) });
   // Create an actor and append it: actors are only ever appended during a visit (§3.3).
   function spawn(state, rec) {
     const a = make(state, rec);
@@ -1647,7 +1706,7 @@ const Actors = (() => {
   // scaled by its archetype's and modifiers' costPct, then doubled again while slowed (§8.1).
   function cost(state, a, base, kind) {
     let c = base;
-    if (a.speed && Archetypes.speedApplies(a).includes(kind)) c = Int.pct(c, a.speed === 'fast' ? N.SPEED_FAST_PCT : N.SPEED_SLOW_PCT);
+    if (a.speed && Archetypes.speedApplies(state, a).includes(kind)) c = Int.pct(c, a.speed === 'fast' ? N.SPEED_FAST_PCT : N.SPEED_SLOW_PCT);
     const p = Archetypes.costPct(state, a, kind);
     if (p !== 100) c = Int.pct(c, p);
     if (Status.has(a, 'slowed')) c = Int.pct(c, N.SPEED_SLOW_PCT);
@@ -1689,6 +1748,9 @@ const Actors = (() => {
 //   mayStep(state, a, x, y) → bool       true unless some hook says false
 //   costPct(state, a, kind) → int %      multiplied together, 100 by default
 //   speedApplies(a) → ['move'] | ['move', 'act']   which costs its speed scales; the first given
+//                                        (the hook takes only a; its dispatcher,
+//                                        Archetypes.speedApplies(state, a), skips a modifier
+//                                        switched off, as every dispatcher does)
 //   adjustDamage(state, def, amount, cause) → int  each in turn; cause.from is the tile the blow came from
 //   onDamaged(state, a, amount, cause, ev), onDied(state, a, cause, ev), onTouched(state, a, how, by, ev),
 //   onWake(state, a), onHome(state, a, ev), onResolve(state, a, tel, ev), init(state, a)   each in turn
@@ -1717,7 +1779,8 @@ const Archetypes = (() => {
   const addedModifier = id => own(MODS, id);
 
   // The hook functions called `name` that answer for a, in order: its archetype's, then its
-  // modifiers' (state null skips the rulesOff check, for hooks that take no state).
+  // modifiers', leaving out a modifier switched off for the visit (Options.off; with no
+  // state, as for an actor made outside one, none is switched off).
   const NONE = [];
   function hooks(state, a, name) {
     let out = NONE;
@@ -1739,7 +1802,7 @@ const Archetypes = (() => {
   const present = first('present');
   function mayStep(state, a, x, y) { for (const f of hooks(state, a, 'mayStep')) if (!f(state, a, x, y)) return false; return true; }
   function costPct(state, a, kind) { let p = 100; for (const f of hooks(state, a, 'costPct')) p = Int.pct(p, f(state, a, kind)); return p; }
-  function speedApplies(a) { const fs = hooks(null, a, 'speedApplies'); return fs.length ? fs[0](a) : ['move']; }
+  function speedApplies(state, a) { const fs = hooks(state, a, 'speedApplies'); return fs.length ? fs[0](a) : ['move']; }
   function adjustDamage(state, def, amount, cause) { for (const f of hooks(state, def, 'adjustDamage')) amount = f(state, def, amount, cause); return amount; }
   function pipless(state, a) { for (const f of hooks(state, a, 'pipless')) if (f(state, a)) return true; return false; }
   function readout(state, a, you) { let out = []; for (const f of hooks(state, a, 'readout')) out = out.concat(f(state, a, you) || []); return out; }
@@ -1765,14 +1828,19 @@ const Noise = (() => {
   // -1 beyond its reach. The view model's noise rings read it too.
   const reach = (m, x, y, range) => Grid.distances(m, [[x, y]], range, (nx, ny) => Grid.closedDoor(m, nx, ny) ? N.NOISE_DOOR : 0);
 
+  // Noises held back (Noise.hold): a stack of lists, one per hold still open. It lives only
+  // while a hold's function runs, inside one call, so it is never part of the state.
+  const held = [];
+
   // A noise of class cls (soft, loud or crash) at (x, y), with its cause. It is an event
   // (noise {x, y, cls, range}); then every exhibit that is not gone and not pipless and
   // stands within its reach hears it, in spawn order: Wake.hear(state, a, noise, dist, ev),
   // with noise = {x, y, cls, range, by, k} (by and k from the cause) and dist the walking
   // distance to the exhibit's nearest tile (one beyond a neighbour, on a tile it cannot be
-  // walked onto, such as a case).
+  // walked onto, such as a case). While a hold is open, the noise waits for its end.
   function emit(state, x, y, cls, cause, ev) {
     if (!RANGE[cls]) throw new Error('Noise.emit: no noise class ' + cls);
+    if (held.length) { held[held.length - 1].push([state, x, y, cls, cause, ev]); return; }
     const m = state.dept, range = N[RANGE[cls]];
     Causes.emit(state, ev, 'noise', { x, y, cls, range }, cause);
     const d = reach(m, x, y, range), noise = { x, y, cls, range, by: (cause && cause.by) || null, k: cause ? cause.k : null };
@@ -1785,7 +1853,20 @@ const Noise = (() => {
     }
   }
 
-  return { reach, emit };
+  // Noise.hold(fn): run fn, holding back every noise it makes until it is done, then make
+  // them in the order they were made (§8.2: within one action, every other wake effect comes
+  // before the action's noise). A special that hits several actors resolves its hits inside
+  // one, so the loud noise of an exhibit it destroys comes after the wakes of every hit,
+  // ally_hit included. Holds nest: an inner one's noises go to the outer one when it ends.
+  // If fn throws, its noises are dropped and the error goes on.
+  function hold(fn) {
+    held.push([]);
+    let list;
+    try { fn(); } finally { list = held.pop(); }
+    for (const n of list) emit(...n);
+  }
+
+  return { reach, emit, hold };
 })();
 
 </script>
@@ -1842,7 +1923,8 @@ const Surfaces = (() => {
 // only by damage, its case touched or its case dissolved (§8.2).
 'use strict';
 const Wake = (() => {
-  const copy = c => c === null || c === undefined ? null : JSON.parse(JSON.stringify(c));
+  // Causes and tiles are copied in as plain data (Causes.copy: anything else stops with an error).
+  const copy = (c, where) => Causes.copy(c, where || 'wake');
   const MODES = ['dormant', 'awake', 'hunting', 'searching', 'returning', 'reinstalling'];
   // The causes that wake a pipless exhibit (§8.2): it is struck, opened or bashed, or dissolved.
   const PIPLESS_WAKES = ['damage', 'touch_case', 'dissolved'];
@@ -1861,14 +1943,15 @@ const Wake = (() => {
     if (a.gone || a.mode !== 'dormant') return false;
     if (Archetypes.pipless(state, a) && !PIPLESS_WAKES.includes(cause && cause.k)) return false;
     opts = opts || {};
+    const story = copy(cause, 'woke.cause');
     a.mode = mode;
     a.pips = 0; a.sawYou = false; a.acts = 0; a.stim = state.turn;
     a.target = mode === 'awake' ? copy(opts.target) : null;
     a.lastKnown = mode === 'hunting' ? copy(opts.lastKnown || yourTile(state)) : copy(opts.lastKnown);
     Archetypes.onWake(state, a);
     a.next = state.tick + Actors.cost(state, a, N.COST_STEP, 'act');
-    a.woke = { turn: state.turn, cause: copy(cause) };
-    if (mode === 'hunting') a.hunted = { turn: state.turn, cause: copy(cause) };
+    a.woke = { turn: state.turn, cause: story };
+    if (mode === 'hunting') a.hunted = { turn: state.turn, cause: copy(story) };
     Causes.emit(state, ev, 'woke', { who: a.uid, was: 'dormant', mode }, cause);
     if (mode === 'hunting') Causes.emit(state, ev, 'hunting', { who: a.uid, was: 'dormant' }, cause);
     return true;
@@ -1894,6 +1977,7 @@ const Wake = (() => {
     if (a.mode === 'dormant') throw new Error(`Wake.setMode: ${a.uid} is dormant; Wake.wake wakes it`);
     if (a.gone) return false;
     opts = opts || {};
+    const story = copy(cause, 'hunting.cause');
     const from = a.mode, retarget = from === 'awake' && mode === 'awake' && !!opts.target;
     if (from === mode && !retarget) return false;
     const alerted = mode === 'awake' && (retarget || from === 'searching' || from === 'returning' || from === 'reinstalling');
@@ -1905,7 +1989,7 @@ const Wake = (() => {
     if (mode !== 'hunting' && a.telegraph) Specials.cancel(state, a, (cause && cause.k) || 'mode', ev);
     if (mode === 'hunting') {
       if (opts.lastKnown === undefined) a.lastKnown = yourTile(state);
-      a.hunted = { turn: state.turn, cause: copy(cause) };
+      a.hunted = { turn: state.turn, cause: story };
       Causes.emit(state, ev, 'hunting', { who: a.uid, was: from }, cause);
     } else if (alerted) {
       Causes.emit(state, ev, 'alerted', { who: a.uid, from, to: mode, x: a.target[0], y: a.target[1] }, cause);
@@ -1927,17 +2011,22 @@ const Wake = (() => {
 
   // Wake.created(state, a, k, extra, ev?): the story of an actor made awake, not woken:
   // woke (and hunted, if it hunts) with cause {k, …extra}, k a creation cause (awake,
-  // night_watch, summoned; patrol in M4). Actors made with the department take their story
-  // from the starting state and pass no ev. One made during the visit passes ev: it emits a
-  // creation woke {who, was: null, mode}, and it first acts after a beat, at now + its action
-  // cost, so it never acts in the instant it appears (§8.1).
+  // night_watch, summoned; patrol in M4). A created hunter's hunt begins, as every hunt
+  // does, with your tile as its last-known tile, unless it was made knowing another (§8.2).
+  // Actors made with the department take their story from the starting state and pass no
+  // ev. One made during the visit passes ev: it emits a creation woke {who, was: null, mode},
+  // and it first acts after a beat, at now + its action cost, so it never acts in the
+  // instant it appears (§8.1).
   function created(state, a, k, extra, ev) {
     const W = Registry.WAKE_CAUSES[k];
     if (!W || !W.creation) throw new Error(`Wake.created: ${k} is not a cause an actor is created with`);
     if (a.mode === 'dormant') throw new Error(`Wake.created: ${a.uid} is dormant`);
-    const cause = Object.assign({ k }, copy(extra || {}));
+    const cause = Object.assign({ k }, copy(extra || {}, 'woke.cause'));
     a.woke = { turn: state.turn, cause: copy(cause) };
-    if (a.mode === 'hunting') a.hunted = { turn: state.turn, cause: copy(cause) };
+    if (a.mode === 'hunting') {
+      a.hunted = { turn: state.turn, cause: copy(cause) };
+      a.lastKnown = copy(a.lastKnown) || yourTile(state);
+    }
     if (ev) {
       a.next = state.tick + Actors.cost(state, a, N.COST_STEP, 'act');
       Causes.emit(state, ev, 'woke', { who: a.uid, was: null, mode: a.mode }, cause);
@@ -1952,6 +2041,7 @@ const Wake = (() => {
   // with the same cause; opts go to Wake.wake.
   function addPips(state, a, n, cause, ev, opts) {
     if (a.gone || a.mode !== 'dormant' || !n || Archetypes.pipless(state, a)) return false;
+    copy(cause, 'pip.cause');
     const k = cause.k;
     if (a.pipTurns[k] === state.turn) return false;
     const pips = Math.max(0, Math.min(N.PIPS_TO_WAKE, a.pips + n)), delta = pips - a.pips;
@@ -2014,13 +2104,16 @@ const Wake = (() => {
 'use strict';
 const Combat = (() => {
   const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
-  const copy = c => JSON.parse(JSON.stringify(c));
+  const copy = c => Causes.copy(c, 'over.cause');
 
-  function hitChance(att, def) {
+  // The chance att hits def (§8.1). how.acc, when given, is the Acc the blow is made with
+  // (an instrument's bolt, made with your Acc without the weapon's), else the attacker's.
+  function hitChance(att, def, how) {
     let mods = 0;
     if (Status.has(def, 'fixed')) mods += N.HIT_FIXED_TARGET;
     if (Status.has(att, 'dazed')) mods += N.HIT_DAZED_ATTACKER;
-    return clamp(N.HIT_BASE + N.HIT_PER_POINT * (att.acc - def.eva) + mods, N.HIT_MIN, N.HIT_MAX);
+    const acc = how && how.acc !== undefined ? how.acc : att.acc;
+    return clamp(N.HIT_BASE + N.HIT_PER_POINT * (acc - def.eva) + mods, N.HIT_MIN, N.HIT_MAX);
   }
 
   // Surprise (BUILD.md §8.1): an exhibit is caught unawares while asleep or stirring (mode
@@ -2040,8 +2133,12 @@ const Combat = (() => {
     }
     return { n, sum, min, max };
   }
-  // A surprise blow's raw damage: the maximum, ×1.5 rounded down with a Light weapon.
-  function surpriseRaw(att) { return att.weaponForm === 'light' ? Int.pct(att.dmax, N.SURPRISE_LIGHT_PCT) : att.dmax; }
+  // A surprise blow's raw damage: the maximum (how.dmax for an instrument's bolt), ×1.5
+  // rounded down for a melee blow with a Light weapon.
+  function surpriseRaw(att, how) {
+    const kind = (how && how.kind) || 'melee', max = how && how.dmax !== undefined ? how.dmax : att.dmax;
+    return kind === 'melee' && att.weaponForm === 'light' ? Int.pct(max, N.SURPRISE_LIGHT_PCT) : max;
+  }
   // What a surprise blow would deal now, after Padding, as { min, max }: one figure, or
   // against a Centrepiece the rolled range, since its surprise blow rolls damage (§8.1).
   function surpriseNet(att, def) {
@@ -2094,22 +2191,38 @@ const Combat = (() => {
     return best;
   }
 
-  // One blow (§8.1), the caller having checked it and paid for it, in this order:
+  // One blow or shot (§8.1), the caller having checked it and paid for it.
+  // how = {kind: 'melee' | 'reach' | 'shot', range?, via?, item?, dmin?, dmax?, acc?}:
+  //   range  a shot's distance in tiles (required for a shot);
+  //   via    for a shot, the last tile the bolt crossed before the target (where it came from);
+  //   item   the instrument that fired it (the Pin-Driver);
+  //   dmin, dmax, acc  the damage range and Acc it is made with, if not the attacker's own.
+  // Its cause is k 'attack' for a blow, 'shot' for a shot, and 'item' for an instrument's
+  // bolt (a shot with how.item, naming the item); a shot's cause carries its range. In order:
   //   1. `attacked` {by, at, how};
   //   2. surprise, or a roll on att's combat stream;
-  //   3. on a miss `missed`; on a hit Combat.hurt, with cause.from the tile the blow came from;
+  //   3. on a miss `missed`; on a hit Combat.hurt, with cause.from the tile the blow came from:
+  //      the attacker's tile nearest the target, or for a shot how.via;
   //   4. last, a soft noise at the attacker's tile, hit or miss, after every other wake
   //      effect of the blow (§8.2).
+  // A line a reflector sends back is not a blow of the reflector's: Ranged.shoot (W1-ARCH-B)
+  // makes its cause, {k: 'reflected', by: the reflector, shooter, …, from}, and calls
+  // Combat.hurt itself.
   function attack(state, att, def, ev, how) {
     how = how || { kind: 'melee' };
+    const shot = how.kind === 'shot';
+    if (shot && !Number.isInteger(how.range)) throw new Error(`Combat.attack: ${att.uid}'s shot at ${def.uid} gives no range`);
     const rng = Rng.stream(state, 'combat/' + att.uid);
-    const chance = hitChance(att, def), from = fromTile(att, def);
+    const chance = hitChance(att, def, how), from = shot && how.via ? how.via.slice() : fromTile(att, def);
+    const dmin = how.dmin !== undefined ? how.dmin : att.dmin, dmax = how.dmax !== undefined ? how.dmax : att.dmax;
     Causes.emit(state, ev, 'attacked', { by: att.uid, at: def.uid, how }, { k: 'attack', by: att.uid, at: def.uid, dist: Actors.between(att, def), how });
-    const cause = { k: 'attack', by: att.uid, at: def.uid, chance };
+    const cause = { k: shot ? (how.item ? 'item' : 'shot') : 'attack', by: att.uid, at: def.uid, chance };
+    if (shot) cause.range = how.range;
+    if (shot && how.item) cause.item = how.item;
     // A surprise blow always hits, and the target then hunts you (hurt). Against a Centrepiece
     // it rolls its damage, and the hunt it starts is the encounter.
     if (surprised(att, def)) {
-      const dmg = Actors.centrepiece(def) ? rng.int(att.dmin, att.dmax) : surpriseRaw(att);
+      const dmg = Actors.centrepiece(def) ? rng.int(dmin, dmax) : surpriseRaw(att, how);
       cause.surprise = 1;
       Object.assign(cause, { raw: dmg, pad: def.pad, how, from });
       hurt(state, def, net(dmg, def.pad, cause), cause, ev);
@@ -2118,7 +2231,7 @@ const Combat = (() => {
       cause.roll = roll;
       if (roll > chance) Causes.emit(state, ev, 'missed', { by: att.uid, at: def.uid }, Object.assign(cause, { how }));
       else {
-        const raw = rng.int(att.dmin, att.dmax);
+        const raw = rng.int(dmin, dmax);
         Object.assign(cause, { raw, pad: def.pad, how, from });
         hurt(state, def, net(raw, def.pad, cause), cause, ev);
       }
@@ -2133,9 +2246,10 @@ const Combat = (() => {
   }
 
   // Damage to who (§8.1), in this order:
-  //   1. the archetype and modifiers adjust it (Archetypes.adjustDamage);
+  //   1. the archetype and modifiers adjust it (Archetypes.adjustDamage; old_repair may mark
+  //      cause.side on a blow, a shot or a beam);
   //   2. health falls; with options.invulnerable your health stays at 1 or more and the
-  //      cause says `saved`;
+  //      cause says `saved` (so every damage cause's schema accepts saved and side);
   //   3. `damaged`;
   //   4. an exhibit not already hunting wakes into a hunt (damage, with its distance);
   //   5. its group hears of it (Wake.allyHit);
@@ -2198,8 +2312,11 @@ const Combat = (() => {
 // Pin-Driver's) and the reflector.
 //
 // A bolt (a shot) passes what can be seen through and is not glass (Grid.bolt); only beams
-// pass glass. A reflector sends a bolt or beam back along its line toward where it came from,
-// so nothing behind the reflector is hit, and the shooter's own tile is on the way back.
+// pass glass. A beam stops at what blocks sight: a tile that cannot be seen through, or one a
+// sight-blocking surface (a Fumigant cloud, plaster dust) covers (Grid.clear). A beam's tiles
+// are fixed when it is marked, so a cloud laid while it is shown does not cut it. A reflector
+// sends a bolt or beam back along its line toward where it came from, so nothing behind the
+// reflector is hit, and the shooter's own tile is on the way back.
 'use strict';
 const Ranged = (() => {
   // The tiles of the Bresenham line between two tiles, both ends included, traced as
@@ -2225,6 +2342,8 @@ const Ranged = (() => {
   // toward (x1, y1) enters, in order, up to and including (x1, y1), at most `range` of them,
   // stopping before the first tile pass(m, x, y) refuses (Grid.seeThrough if pass is not
   // given; Grid.bolt for a shot, which stops at glass). The tile it starts on is not listed.
+  // It looks at tiles only, not surfaces: a shot is made only with line of sight (Grid.los,
+  // which surfaces block), so a bolt never needs to cross a cloud.
   function line(state, x0, y0, x1, y1, range, pass) {
     const m = state.dept, ok = pass || Grid.seeThrough, out = [];
     const pts = bresenham(x0, y0, x1, y1);
@@ -2237,7 +2356,8 @@ const Ranged = (() => {
   }
 
   // The path of a beam from a's tile in direction d, at most `range` steps: it goes straight,
-  // through glass, and stops before a tile it cannot see through. On a tile where
+  // through glass, and stops before a tile sight cannot pass (Grid.clear: one it cannot see
+  // through, or one a Fumigant cloud or plaster dust covers). On a tile where
   // Ranged.reflectorAt holds it turns back the way it came, and its later steps still count
   // toward the range. Each tile is listed once, at the first step that enters it, with the
   // tile that step came from, so the way back lists only the tiles the way out did not: the
@@ -2248,7 +2368,7 @@ const Ranged = (() => {
     let x = a.x, y = a.y, dx = Grid.DX[d], dy = Grid.DY[d];
     for (let s = 0; s < range; s++) {
       const nx = x + dx, ny = y + dy;
-      if (!Grid.inside(m, nx, ny) || !Grid.seeThrough(m, nx, ny)) break;
+      if (!Grid.clear(m, nx, ny)) break;
       const i = ny * m.w + nx;
       if (!crossed[i]) { crossed[i] = 1; tiles.push([nx, ny]); from.push([x, y]); }
       x = nx; y = ny;
@@ -2264,10 +2384,14 @@ const Ranged = (() => {
   // index, the tile the beam entered it from (where its damage comes from, §8.1).
   const beamFrom = (state, a, d, range) => trace(state, a, d, range).from;
 
-  // [stub → W1-ARCH-B] Is there a reflector at (x, y) that turns a bolt or beam back?
+  // [stub → W1-ARCH-B] Is there a reflector at (x, y) that turns a bolt or beam back? Its
+  // uid, or null; false (no reflector anywhere) until built.
   const reflectorAt = (state, x, y) => false;
-  // [stub → W1-ARCH-B] a shoots at target (a rolled bolt): ticks, or a refusal code.
-  const shoot = (state, a, target, ev) => 'not_built';
+  // [stub → W1-ARCH-B] att shoots a rolled bolt toward (x, y), with how {kind: 'shot', dmin?,
+  // dmax?, acc?, item?} (W1-KIT's Pin-Driver passes its own damage and Acc): ticks, or a
+  // refusal code. It hits the first actor on its line through Combat.attack, with how.range
+  // and how.via (the last tile the bolt crossed) filled in.
+  const shoot = (state, att, x, y, how, ev) => 'not_built';
 
   return { bresenham, line, beam, beamFrom, reflectorAt, shoot };
 })();
@@ -2286,9 +2410,12 @@ const Ranged = (() => {
 //     next decision (notBefore), and ties go to you, so you always see a mark before it resolves.
 //   - No overlaps: no two pending damage marks share a tile. A call mark never blocks one
 //     and is never blocked.
-//   - Each actor standing on a marked tile is hit once, with its own Padding.
-//   - A pending mark is cancelled when its owner is fixed, leaves hunting, goes dormant or
-//     is destroyed. Only a hunting exhibit marks.
+//   - Each actor standing on a marked tile is hit once, with its own Padding. Only a beam
+//     passes glass: a ring never marks the tile of an intact case, nor strikes into one.
+//   - A special that hits several actors applies every hit, with its wakes, before any
+//     noise, the noise of an exhibit it destroys included (Noise.hold; §8.2).
+//   - A pending mark is cancelled when its owner is fixed (at once, Status.apply), leaves
+//     hunting, goes dormant or is destroyed. Only a hunting exhibit marks.
 'use strict';
 const Specials = (() => {
   const SHAPES = ['ring', 'call', 'line'];
@@ -2323,7 +2450,9 @@ const Specials = (() => {
   }
 
   // Specials.tiles(state, a, shape) → [[x, y]…], in row-major order, each tile once:
-  //   'ring': the tiles round a's footprint an exhibit could stand on (Grid.hold);
+  //   'ring': the tiles round a's footprint an exhibit could stand on (Grid.hold), except an
+  //           intact case's (a vitrine, a mimic's disguise included): a ring is blows, and
+  //           nothing strikes into a case (§8.3);
   //   'call': the tiles an exhibit could stand on within HERALD_RANGE of a (Grid.disc);
   //   'line': the tiles of a beam of AXIS_BEAM_RANGE along the row or column a shares with
   //           you (Ranged.beam: through glass, and back along its line from a reflector);
@@ -2333,7 +2462,7 @@ const Specials = (() => {
     if (shape === 'ring') {
       const s = a.size || 1;
       for (let y = a.y - 1; y <= a.y + s; y++) for (let x = a.x - 1; x <= a.x + s; x++)
-        if (Actors.dist(a, x, y) === 1 && Grid.inside(m, x, y) && Grid.hold(m, x, y)) out.push([x, y]);
+        if (Actors.dist(a, x, y) === 1 && Grid.inside(m, x, y) && Grid.hold(m, x, y) && Grid.ch(m, x, y) !== 'v') out.push([x, y]);
     } else if (shape === 'call') {
       const r = N.HERALD_RANGE, foot = Actors.footprint(a), s = a.size || 1;
       for (let y = a.y - r; y < a.y + s + r; y++) for (let x = a.x - r; x < a.x + s + r; x++)
@@ -2401,25 +2530,31 @@ const Specials = (() => {
   // Specials.resolve(state, a, ev) → ticks: a's pending special goes off. A damage special
   // hurts each actor standing on a marked tile, once (its first marked tile in row-major
   // order), in spawn order, each through its own Padding, with cause special {by, sp, gross,
-  // pad, net, x, y, from}; then a soft noise at a's tile, as any attack makes. A call (a
-  // hook) goes to its archetype's onResolve. Then special {who, sp, hits}. The mark is no
-  // longer pending once it resolves. Costs an attack plus SPECIAL_RECOVERY.
+  // pad, net, x, y, from}; an actor in an intact case is struck only by a shape that passes
+  // glass (a line). Every hit, and the wakes it causes, comes before any noise: the noise of
+  // an exhibit destroyed is held until the last hit (Noise.hold), then comes the soft noise
+  // at a's tile that any attack makes. A call (a hook) goes to its archetype's onResolve.
+  // Then special {who, sp, hits}. The mark is no longer pending once it resolves. Costs an
+  // attack plus SPECIAL_RECOVERY.
+  const PASSES_GLASS = ['line'];
   function resolve(state, a, ev) {
     const tel = a.telegraph;
     if (!tel) throw new Error(`Specials.resolve: ${a.uid} has no mark pending`);
     a.telegraph = null;
     const fields = { who: a.uid, sp: tel.sp };
     if (tel.effect === 'damage') {
-      const hits = [];
-      for (const b of state.actors.slice()) {
-        if (b.gone) continue;
-        let k = -1;
-        for (const [x, y] of Actors.footprint(b)) for (let i = 0; i < tel.tiles.length; i++) if (tel.tiles[i][0] === x && tel.tiles[i][1] === y && (k < 0 || i < k)) k = i;
-        if (k < 0) continue;
-        const d = net(tel.gross, b.pad);
-        Combat.hurt(state, b, d, { k: 'special', by: a.uid, sp: tel.sp, gross: tel.gross, pad: b.pad, net: d, x: tel.tiles[k][0], y: tel.tiles[k][1], from: tel.from[k].slice() }, ev);
-        hits.push(b.uid);
-      }
+      const hits = [], S = Registry.SPECIALS[tel.sp], glass = !!S && PASSES_GLASS.includes(S.shape);
+      Noise.hold(() => {
+        for (const b of state.actors.slice()) {
+          if (b.gone || (!glass && Cases.encased(state, b))) continue;
+          let k = -1;
+          for (const [x, y] of Actors.footprint(b)) for (let i = 0; i < tel.tiles.length; i++) if (tel.tiles[i][0] === x && tel.tiles[i][1] === y && (k < 0 || i < k)) k = i;
+          if (k < 0) continue;
+          const d = net(tel.gross, b.pad);
+          Combat.hurt(state, b, d, { k: 'special', by: a.uid, sp: tel.sp, gross: tel.gross, pad: b.pad, net: d, x: tel.tiles[k][0], y: tel.tiles[k][1], from: tel.from[k].slice() }, ev);
+          hits.push(b.uid);
+        }
+      });
       Noise.emit(state, a.x, a.y, 'soft', { k: 'special', by: a.uid }, ev);
       fields.hits = hits;
     } else Archetypes.onResolve(state, a, tel, ev);
@@ -2622,8 +2757,13 @@ const Cases = (() => {
   // [stub → W1-CASES] A case is touched (opened or bashed; §8.3): touch_case wakes what it
   // holds, and a mimic's grip (Archetypes.onTouched). Does nothing for now.
   function touch(state, f, how, by, ev) {}
-  // [stub → W1-CASES] Solvent dissolves the case f, silently. Does nothing for now.
-  function dissolve(state, f, by, ev) {}
+  // [stub → W1-CASES] Solvent dissolves the case f, silently (§8.3): no noise, no shards, no
+  // touch_case; the tile becomes u, what it held is released (Cases.release, cause
+  // dissolved), and then it alone emits glass_broke {by: cause.by, x, y, glass, shards: [],
+  // released} with the cause it is given. Consumables (W1-CONSUMABLES) builds that cause,
+  // {k: 'solvent', by, item: the Solvent's uid}, and emits no glass_broke itself. Does
+  // nothing for now.
+  function dissolve(state, f, cause, ev) {}
   // [stub → W1-CASES] The sleeper in a broken or dissolved case wakes hunting, homeless.
   function release(state, f, ev) {}
   // [stub → W1-CASES] Can the item be reached in its case (open or broken, for the pole)? false for now.
@@ -2753,6 +2893,20 @@ const Kit = (() => {
   function standIn(state, base, pop) {}
   const useLegal = state => [];                            // [stub → W1-KIT] use(uid, …) of an instrument or kit
   const useAction = (state, action, ev) => 'not_built';    // [stub → W1-KIT]
+  // [stub → W1-KIT] The use candidates of your instruments and kits, a superset of useLegal
+  // (§4.2; the use dispatcher in step.js offers exactly these): every use(uid, x, y) and
+  // use(uid, on) W1-KIT makes legal must be among them, with targets just outside what is
+  // legal (beyond range or sight, an item it cannot be put on). For now, for each
+  // instrument and kit in state.items, a bare use, and its targeted shape aimed nowhere: an
+  // instrument at a tile off the board, a kit on an item that is not there.
+  function useCandidates(state) {
+    const out = [];
+    for (const i of state.items || []) {
+      if (i.kind === 'instrument') out.push({ a: 'use', uid: i.uid }, { a: 'use', uid: i.uid, x: -1, y: -1 });
+      else if (i.kind === 'kit') out.push({ a: 'use', uid: i.uid }, { a: 'use', uid: i.uid, on: 'nothing' });
+    }
+    return out;
+  }
   const addToTote = (state, it) => 'not_built';            // [stub → W1-KIT] → a refusal code, or null once it is in the tote
   const targets = (state, uid) => [];                      // [stub → W1-KIT] the tiles an instrument can be used at
   const describe = (state, uid) => null;                   // [stub → W1-KIT] an item's label data
@@ -2768,7 +2922,7 @@ const Kit = (() => {
     apply: (state, action, ev) => 'not_built',
   });
 
-  return { SLOTS, item, start, short, derive, stats, settle, ringDelta, recharge, standIn, useLegal, useAction, addToTote, targets, describe, view };
+  return { SLOTS, item, start, short, derive, stats, settle, ringDelta, recharge, standIn, useLegal, useAction, useCandidates, addToTote, targets, describe, view };
 })();
 
 </script>
@@ -2784,15 +2938,21 @@ const Consumables = (() => {
   // identifying labels: rooms on `${base}/items`, tiles on each room's populate stream in pop,
   // after the cases' and the kit's draws. Does nothing for now.
   function standIn(state, base, pop) {}
-  const useLegal = state => [];                            // [stub → W1-CONSUMABLES] use(uid[, x, y]) of a consumable
+  const useLegal = state => [];                            // [stub → W1-CONSUMABLES] use(uid) of a consumable
   const useAction = (state, action, ev) => 'not_built';    // [stub → W1-CONSUMABLES]
+  // [stub → W1-CONSUMABLES] The use candidates of your consumables, a superset of useLegal
+  // (§4.2; the use dispatcher in step.js offers exactly these, with the kit's): for now a
+  // bare use of each consumable in state.items.
+  const useCandidates = state => (state.items || []).filter(i => i.kind === 'consumable').map(i => ({ a: 'use', uid: i.uid }));
   const known = (state, ck) => false;                      // [stub → W1-CONSUMABLES] is the kind ck identified this run
   const name = (state, it) => null;                        // [stub → W1-CONSUMABLES] {local, seal, kind | null}
   const targets = (state, uid) => [];                      // [stub → W1-CONSUMABLES] the tiles a consumable can be thrown at
   const view = (state, vis) => null;                       // [stub → W1-CONSUMABLES] what the view model shows of them
 
   // throw(uid, x, y), read(x, y) and choose(index) (§4.2). [stub → W1-CONSUMABLES]: nothing
-  // is legal yet, and every candidate is refused as not built.
+  // is legal yet, and every candidate is refused as not built. A thrown Solvent dissolves each
+  // intact case in its square through Cases.dissolve(state, f, {k: 'solvent', by, item}, ev),
+  // which emits the glass_broke event; the throw emits none of its own.
   Actions.define('throw', {
     legal: state => [],
     candidates: state => state.items.map(i => ({ a: 'throw', uid: i.uid, x: state.actors[0].x, y: state.actors[0].y })).concat([{ a: 'throw', uid: 'nothing', x: 0, y: 0 }, { a: 'throw' }]),
@@ -2809,7 +2969,7 @@ const Consumables = (() => {
     apply: (state, action, ev) => 'not_built',
   });
 
-  return { startRun, standIn, useLegal, useAction, known, name, targets, view };
+  return { startRun, standIn, useLegal, useAction, useCandidates, known, name, targets, view };
 })();
 
 </script>
@@ -2848,7 +3008,8 @@ const AI = (() => {
 
   // An exhibit's turn, in order (§8.1):
   //   0. it counts the action (acts: its actions since it last woke, this one included);
-  //   1. fixed: a pending mark is cancelled, and it waits;
+  //   1. fixed: it waits (a pending mark was already called off when the status was put
+  //      on, Status.apply; the cancel here is a guard that finds nothing to call off);
   //   2. it looks for you (AI.look);
   //   3. a pending mark resolves (Specials.resolve);
   //   4. its archetype or a modifier acts (Archetypes.act), unless that gives null;
@@ -3141,7 +3302,11 @@ const AI = (() => {
 // W1-ARCH-A. Its Behaviour-line clause and registry entry are in js/core/reg/.
 'use strict';
 (() => {
-  Archetypes.addModifier('marble', {});   // [stub → W1-ARCH-A] no hooks yet
+  // [stub → W1-ARCH-A] Marble's slowness is already built: Registry.MODIFIERS.marble.speed is
+  // 'slow', counted by Actors.speedOf at spawn (§8.1), so a marble step costs 2×. Do not add
+  // a costPct for moves, which would double it again; switch it off with rulesOff passed to
+  // Setup.room, since the speed is fixed at spawn.
+  Archetypes.addModifier('marble', {});
 })();
 
 </script>
@@ -3289,11 +3454,16 @@ const Step = (() => {
   });
 
   // use(uid[, x, y][, on]) (§4.2): an instrument or a Restoration kit goes to the kit's rules,
-  // a consumable to the consumables'.
+  // a consumable to the consumables'. Each owner lists its own candidates, its targeted uses
+  // (use(uid, x, y), use(uid, on)) among them, so that every use it makes legal is a candidate
+  // (Kit.useCandidates, Consumables.useCandidates); the dispatcher adds a bare use of every
+  // other item and of nothing, which it refuses itself.
+  const USED = ['instrument', 'kit', 'consumable'];
   const item = (state, uid) => { for (const i of state.items || []) if (i.uid === uid) return i; return null; };
   Actions.define('use', {
     legal: state => Kit.useLegal(state).concat(Consumables.useLegal(state)),
-    candidates: state => (state.items || []).map(i => ({ a: 'use', uid: i.uid })).concat([{ a: 'use', uid: 'nothing' }]),
+    candidates: state => Kit.useCandidates(state).concat(Consumables.useCandidates(state),
+      (state.items || []).filter(i => !USED.includes(i.kind)).map(i => ({ a: 'use', uid: i.uid })), [{ a: 'use', uid: 'nothing' }, { a: 'use' }]),
     apply(state, action, ev) {
       const it = item(state, action.uid);
       if (it && (it.kind === 'instrument' || it.kind === 'kit')) return Kit.useAction(state, action, ev);
@@ -3303,12 +3473,15 @@ const Step = (() => {
   });
 
   // The turn boundary (§8.1), in its fixed order. Each step is a named function of its
-  // system, called here and nowhere else.
+  // system, called here and nowhere else. The statuses' per-turn effects (a cough's noise,
+  // restoring's healing) come after the wake checks, so that at a boundary, as within an
+  // action, noise comes after the ring, axis and tether (§8.2: hunting wins).
   function boundary(state, ev) {
     Surfaces.tick(state, ev);                        // 1. surfaces
-    Status.tick(state, ev); Kit.recharge(state, ev); // 2. status timers, then instruments' charges
+    Status.tick(state, ev); Kit.recharge(state, ev); // 2. status timers (expiry), then instruments' charges
     Health.regenerate(state, ev);                    // 3. regeneration
-    Wake.boundary(state, ev);                        // 4. wake checks: your ring, axis, tether
+    Wake.boundary(state, ev);                        // 4. wake checks: your ring, axis, tether;
+    Status.effects(state, ev);                       //    then the statuses' per-turn effects
     Wake.decay(state, ev);                           // 5. pip decay
     ClockRules.boundary(state, ev);                  // 6. the clock stage
     Modules.alarmDecay(state, ev);                   // 7. alarm decay (M4)
@@ -3318,7 +3491,9 @@ const Step = (() => {
   // Run the world until it is your turn again. An exhibit's action is charged after it acts:
   // its next becomes next + the action's cost, or notBefore if that is later (a telegraph
   // keeps its resolve until after your next decision, §8.1); then the statuses its action
-  // applied are settled.
+  // applied are settled. Time only moves forward: an actor scheduled behind the clock (one
+  // made during the visit without its beat), or an exhibit's action that costs no time, is a
+  // bug, and stops step() with an error rather than turning the clock back or looping.
   function advance(state, ev) {
     for (;;) {
       if (state.over) return;
@@ -3326,10 +3501,11 @@ const Step = (() => {
       if (!a) return;
       const boundaryTick = (state.turn + 1) * N.TICKS_PER_TURN;
       if (boundaryTick <= a.next) { state.turn++; state.tick = boundaryTick; boundary(state, ev); continue; }
+      if (a.next < state.tick) throw new Error(`Step: ${a.uid} is scheduled at ${a.next}, behind the clock at ${state.tick}`);
       state.tick = a.next;
       if (a.uid === 'you') return;
       const c = AI.act(state, a, ev);
-      if (!Number.isInteger(c) || c < 0) throw new Error(`Step: ${a.uid}'s action cost ${c}`);
+      if (!Number.isInteger(c) || c < 1) throw new Error(`Step: ${a.uid}'s action cost ${c}`);
       const nb = a.notBefore === null || a.notBefore === undefined ? 0 : a.notBefore;
       a.next = Math.max(a.next + c, nb);
       a.notBefore = null;
@@ -4677,16 +4853,75 @@ const Setup = (() => {
 
   // A state for one room, for tests, scenarios and arenas. spec:
   //   acc, depth (1 if absent), map (rows), you [x, y];
-  //   exhibits: [{sp, at, mode, stats, size?, arch?, role?, mods?, trigger?, group?, home?,
-  //     guards?, ax?, speed?, room?, uid?}], stats a role's (Roles.stats); each gets the uid
+  //   exhibits: [{sp, at, mode?, stats, size?, arch?, role?, mods?, modParams?, trigger?,
+  //     group?, home?, guards?, ax?, speed?, statuses?, target?, lastKnown?, sawYou?, pips?,
+  //     stim?, next?, gen?, hp?, maxHp?, room?, uid?}], stats a role's (Roles.stats). An
+  //     exhibit that names a pack or shared species (Packs.speciesFor) takes that species'
+  //     archetype, role, modifiers, modParams, trigger and group unless it gives its own,
+  //     and is made awake, unless it gives a mode, when its trigger stands for the wake
+  //     clause (`awake`), as a department's is. Its statuses are records {id, until?,
+  //     turns?, from?}, settled as the room is made. Each gets the uid
   //     <acc>.<depth>.<room>.<n>, room 'room' if absent and n counted per room, unless it
   //     gives one;
-  //   fixtures (full records, such as Cases.make's), items (records for Kit.item), kit
-  //   ({weapon: {form, tier, level}, garment: {form, tier, level}}: your starting kit, else
-  //   the usual one), clock ({ltour} or {B, G, count}: Clock.init's; none if absent),
-  //   entrance [x, y], exits [[x, y]…], grade (your grade, I if absent).
+  //   fixtures (full records, such as Cases.make's); items (records for Kit.item): an item
+  //   given at {at: 'tote'} is carried, and one given at {at: 'kit', slot} is worn in that
+  //   slot (Kit.SLOTS), a weapon or garment there taking the place of the one you start with,
+  //   which goes {at: 'gone'}; kit ({weapon: {form, tier, level}, garment: {form, tier,
+  //   level}}: your starting kit, else the usual one); youStatuses (your statuses, as an
+  //   exhibit's); clock ({ltour} or {B, G, count}: Clock.init's; none if absent); entrance
+  //   [x, y], exits [[x, y]…], grade (your grade, I if absent).
+  // A field it does not know, a slot given twice, an item of the wrong kind for its slot, a
+  // tote past TOTE_SLOTS, an item uid given twice or a status not in the registry is refused
+  // with an error, so nothing a test gives is silently left out.
   // options: Options.make's (rulesOff, without, invulnerable).
+  const SPEC = ['acc', 'depth', 'map', 'you', 'exhibits', 'fixtures', 'items', 'kit', 'clock', 'entrance', 'exits', 'grade', 'youStatuses'];
+  const EXHIBIT = ['sp', 'at', 'mode', 'stats', 'size', 'arch', 'role', 'mods', 'modParams', 'trigger', 'group', 'home', 'guards', 'ax', 'speed',
+    'statuses', 'target', 'lastKnown', 'sawYou', 'pips', 'stim', 'next', 'gen', 'hp', 'maxHp', 'acc', 'eva', 'pad', 'dmin', 'dmax', 'room', 'uid'];
+  const unknown = (rec, known, where) => { for (const k of Object.keys(rec)) if (!known.includes(k)) throw new Error(`Setup.room: ${where} has the unknown field ${k}`); };
+  function statuses(list, where) {
+    for (const s of list || []) if (!s || typeof s.id !== 'string' || !Registry.STATUSES[s.id]) throw new Error(`Setup.room: ${where} has no status ${s && s.id}`);
+    return list;
+  }
+  // What the species gives, where the exhibit leaves it out (§4.1: copied at spawn).
+  function fromSpecies(state, e, rec) {
+    const sp = Packs.speciesFor(state, { sp: e.sp });
+    if (!sp) return;
+    const fill = (k, v) => { if (e[k] === undefined) rec[k] = v; };
+    fill('arch', sp.archetype || 'plodder');
+    if (e.role === undefined && !(e.stats && e.stats.role)) rec.role = sp.role || null;
+    fill('mods', sp.modifiers || []);
+    fill('modParams', sp.modParams || {});
+    fill('trigger', sp.trigger || null);
+    fill('group', sp.group || null);
+    const T = sp.trigger ? Registry.TRIGGERS[sp.trigger] : null;
+    if (e.mode === undefined && T && T.replacesWake) rec.mode = 'awake';
+  }
+  // The items you are given carry or wear (spec.items), checked as they go in.
+  function carry(state, list, k) {
+    const you = state.you, start = { weapon: 'you.w', garment: 'you.g' }, taken = {};
+    for (const rec of list || []) {
+      const it = Kit.item(rec);
+      if (state.items.some(i => i.uid === it.uid)) throw new Error(`Setup.room: the item ${it.uid} is given twice`);
+      state.items.push(it);
+      if (it.where.at === 'tote') {
+        if (you.tote.length >= N.TOTE_SLOTS) throw new Error(`Setup.room: the tote holds ${N.TOTE_SLOTS} items`);
+        you.tote.push(it.uid);
+      } else if (it.where.at === 'kit') {
+        const slot = it.where.slot, kind = slot === 'curio0' || slot === 'curio1' ? 'curio' : slot;
+        if (!Kit.SLOTS.includes(slot)) throw new Error(`Setup.room: there is no slot ${slot} (Kit.SLOTS)`);
+        if (taken[slot] || (start[slot] && k[slot])) throw new Error(`Setup.room: the kit slot ${slot} is given twice`);
+        const an = w => /^[aeiou]/.test(w) ? 'an ' + w : 'a ' + w;
+        if (it.kind !== kind) throw new Error(`Setup.room: the ${slot} slot holds ${an(kind)}, and ${it.uid} is ${an(it.kind)}`);
+        taken[slot] = 1;
+        if (start[slot]) { state.items.find(i => i.uid === start[slot]).where = { at: 'gone' }; you.kit[slot] = it.uid; }
+        else if (kind === 'curio') you.kit.curio[slot === 'curio0' ? 0 : 1] = it.uid;
+        else you.kit.instrument = it.uid;
+      }
+    }
+  }
+
   function room(seed, spec, options) {
+    unknown(spec, SPEC, 'the spec');
     const depth = spec.depth || 1, grade = spec.grade || N.GRADE_START;
     const dept = Object.assign({ acc: spec.acc, depth, w: spec.map[0].length, h: spec.map.length, tiles: spec.map.slice(),
       entrance: spec.entrance ? spec.entrance.slice() : null, exits: (spec.exits || []).map(e => e.slice()), seen: '' }, deptParts(grade));
@@ -4695,6 +4930,7 @@ const Setup = (() => {
     const state = base(seed, dept, spec.you[0], spec.you[1], options, grade);
     const counts = {};
     for (const e of spec.exhibits || []) {
+      unknown(e, EXHIBIT, `the exhibit ${e.uid || e.sp}`);
       const key = e.room || 'room';
       counts[key] = (counts[key] || 0) + 1;
       const rec = Object.assign({}, e.stats, e, {
@@ -4702,9 +4938,13 @@ const Setup = (() => {
         x: e.at[0], y: e.at[1], mode: e.mode || 'dormant', maxHp: e.maxHp !== undefined ? e.maxHp : (e.hp !== undefined ? e.hp : e.stats.hp),
       });
       if (e.stats && e.stats.role && e.role === undefined) rec.role = e.stats.role;
+      fromSpecies(state, e, rec);
+      statuses(e.statuses, `the exhibit ${rec.uid}`);
       delete rec.stats; delete rec.at; delete rec.room;
       Actors.spawn(state, rec);
     }
+    const orNull = v => v === undefined ? null : v;
+    for (const s of statuses(spec.youStatuses, 'youStatuses') || []) state.actors[0].statuses.push({ id: s.id, until: orNull(s.until), turns: orNull(s.turns), from: orNull(s.from) });
     settleActors(state, 1);
     const k = spec.kit || {};
     Kit.start(state, k.weapon && k.weapon.form);
@@ -4713,7 +4953,8 @@ const Setup = (() => {
       const it = state.items.find(i => i.uid === uid);
       for (const f of ['form', 'tier', 'level']) if (part[f] !== undefined) it[f] = part[f];
     }
-    for (const it of spec.items || []) state.items.push(Kit.item(it));
+    carry(state, spec.items, k);
+    Status.settle(state);
     Kit.settle(state);
     return state;
   }
@@ -4744,8 +4985,11 @@ const Packs = (() => {
   const sharedList = () => shareds.slice();
 
   // The species record an actor was made from (a.sp): the department's own species first,
-  // then its Centrepiece, then a shared species; null for an actor with none (you, or the
-  // test room's dummies). Labels, the view model and policies read species through this.
+  // then its Centrepiece, then a shared species, then any pack's species or Centrepiece with
+  // that id (a room for tests or an arena may stand one pack's species in another place;
+  // ids are unique across the packs, which lint-registry checks); null for an actor with
+  // none (you, or the test room's dummies). Labels, the view model, policies and Setup.room
+  // read species through this.
   function speciesFor(state, a) {
     if (!a || a.sp === null || a.sp === undefined) return null;
     const p = state && state.dept ? get(state.dept.acc) : null;
@@ -4754,7 +4998,14 @@ const Packs = (() => {
       if (own) return own;
       if (p.centrepiece && p.centrepiece.id === a.sp) return p.centrepiece;
     }
-    return shared(a.sp);
+    const sh = shared(a.sp);
+    if (sh) return sh;
+    for (const q of all) {
+      const own = q.species.find(s => s.id === a.sp);
+      if (own) return own;
+      if (q.centrepiece && q.centrepiece.id === a.sp) return q.centrepiece;
+    }
+    return null;
   }
 
   return { add, get, list, species, addShared, shared, sharedList, speciesFor };
@@ -4903,6 +5154,8 @@ const Text = (() => {
   Text.defineCause('pip', 'axis', (e, w) => stir(e, w, 'you are in its row or column'));
   Text.defineCause('pip', 'decay', (e, w) => stir(e, w, 'nothing has disturbed it'));
   Text.defineCause('pip', 'quiet', (e, w) => stir(e, w, '“Quiet, Please” was read'));
+  Text.defineCause('pip', 'tether', (e, w) => stir(e, w, 'you came near what it guards'));
+  Text.defineCause('pip', 'ally_hit', (e, w) => stir(e, w, 'one of its group took damage'));
 
   // Waking. `was` is null for an actor made awake.
   Text.define('woke', (e, w) => e.was == null ? `${w.Name(e.who)} is awake.` : `${w.Name(e.who)} woke.`);
@@ -5028,6 +5281,7 @@ const Text = (() => {
   Text.defineCause('noise', 'glass_broke', noise('glass breaking'));
 
   const why = { touch_case: 'its case was touched', case_broken: 'its case was broken', dissolved: 'its case was dissolved' };
+  Text.defineCause('pip', 'touch_case', (e, w) => `${w.Name(e.who)} stirs (${e.pips} of ${N.PIPS_TO_WAKE} pips): ${why.touch_case}.`);
   for (const k of ['touch_case', 'case_broken', 'dissolved']) {
     Text.defineCause('woke', k, (e, w) => `${w.Name(e.who)} woke: ${why[k]}.`);
     Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: ${why[k]}.` : `${w.Name(e.who)} is hunting you: ${why[k]}.`);
@@ -5079,7 +5333,11 @@ const Text = (() => {
 
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
   Text.defineCause('noise', 'fork', e => `${CLS[e.cls] || 'A noise'}: a tuning fork, heard ${e.range} tiles away.`);
-  const bolt = (e, w) => `${w.Name(e.cause.by)} hit ${w.name(e.who)} with an instrument for ${e.amount} (${e.cause.raw} − ${e.cause.pad} Padding).`;
+  const bolt = (e, w) => {
+    const c = e.cause, sum = `${c.raw} − ${c.pad} Padding${c.floor ? `, at least ${c.floor}` : ''}`;
+    return `${w.Name(c.by)} hit ${w.name(e.who)} with an instrument for ${e.amount} (${c.roll == null ? 'a certain hit' : `rolled ${c.roll} against ${c.chance}%`}; ${sum}).`;
+  };
+  Text.defineCause('missed', 'item', (e, w) => `${w.Name(e.by)} shot at ${w.name(e.at)} with an instrument and missed (rolled ${e.cause.roll} against ${e.cause.chance}%).`);
   Text.defineCause('damaged', 'item', bolt);
   Text.defineCause('died', 'item', (e, w) => e.who === 'you' ? 'You fell.' : `${w.Name(e.who)} broke apart.`);
 })();

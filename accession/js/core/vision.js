@@ -52,8 +52,10 @@ const Vision = (() => {
   const inRing = (state, x, y, f) => ringDist(state, x, y, f) >= 0;
 
   // The tiles your ring covers, for the view model: a Uint8Array, 1 where inRing holds.
-  // Drawn from your current tile with the radius of your last action that cost time, it is
-  // exactly the ring the last turn boundary applied (§8.2).
+  // Drawn from your current tile, on the map as it is now, with the radius of your last
+  // action that cost time (§8.2). That is the ring the last turn boundary applied unless a
+  // tile or surface changed after it, which only exhibits acting between the boundary and a
+  // mid-turn decision of yours (after a 150-tick Heavy blow or bash) can do.
   function ring(state) {
     const m = state.dept, f = field(state), out = new Uint8Array(m.w * m.h);
     for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if (inRing(state, x, y, f)) out[y * m.w + x] = 1;

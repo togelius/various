@@ -25,8 +25,21 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.equal(sorted(Object.keys(s)), sorted(TOP), where);
       assert.equal(sorted(Object.keys(s.run)), sorted(RUN), where);
       for (const k of where === 'room' ? PARTS : DEPT) assert.ok(k in s.dept, `${where}: dept.${k}`);
-      assert.equal(json([s.run.grade, s.run.seals, s.run.knownSeals, s.run.deck, s.run.items, s.run.depth]), json([1, null, [], [20, 8, 10, 8, 14, 8, 8, 5], 0, s.dept.depth]), where);
-      assert.equal(json([s.dept.fixtures, s.dept.surfaces, s.dept.highlights, s.dept.planRead, s.dept.entryGrade, s.dept.modules]), json([[], [], [], null, 1, []]), where);
+      // The run: grade I, nothing known; the seals not yet shuffled (null) or shuffled as
+      // {sol: [4], eph: [4]} (W1-CONSUMABLES); the deck's 8 counts, at most DECK's.
+      const seals = s.run.seals, four = v => Array.isArray(v) && v.length === 4 && v.every(Number.isInteger);
+      assert.ok(seals === null || (four(seals.sol) && four(seals.eph) && Object.keys(seals).length === 2), `${where}: run.seals ${json(seals)}`);
+      assert.equal(json([s.run.grade, s.run.knownSeals, s.run.items, s.run.depth]), json([1, [], 0, s.dept.depth]), where);
+      assert.ok(s.run.deck.length === 8 && s.run.deck.every((n, i) => Number.isInteger(n) && n >= 0 && n <= [20, 8, 10, 8, 14, 8, 8, 5][i]), `${where}: run.deck ${json(s.run.deck)}`);
+      // The department's parts: empty in a room for tests; in a department, lists (cases,
+      // staff doors and plaques, and the Highlights, come with W1-CASES, W1-KIT and W1-CONSUMABLES).
+      if (where === 'room') {
+        assert.equal(json(s.run.deck), json([20, 8, 10, 8, 14, 8, 8, 5]), 'a room for tests draws nothing from the deck');
+        assert.equal(json([s.dept.fixtures, s.dept.surfaces, s.dept.highlights, s.dept.planRead, s.dept.entryGrade, s.dept.modules]), json([[], [], [], null, 1, []]), where);
+      } else {
+        assert.ok(Array.isArray(s.dept.fixtures) && Array.isArray(s.dept.highlights), where);
+        assert.equal(json([s.dept.surfaces, s.dept.planRead, s.dept.entryGrade, s.dept.modules]), json([[], null, 1, []]), where);
+      }
       assert.equal(json(s.you), json({ kit: { weapon: 'you.w', garment: 'you.g', curio: [null, null], instrument: null }, tote: [] }), where);
       for (const it of s.items) assert.equal(sorted(Object.keys(it)), sorted(ITEM), `${where}: ${it.uid}`);
       assert.equal(State.plainData(s), null, where);
@@ -45,7 +58,7 @@ module.exports = ({ test, assert, loadCore }) => {
     for (const s of [Setup.room(1, { acc: 'T0', depth: 1, map: OPEN, you: [2, 2], exhibits: [] }), ...ACCS.map(acc => Dept.create(2, acc, 3))]) {
       const y = s.actors[0];
       assert.equal(json([y.acc, y.eva, y.pad, y.dmin, y.dmax, y.weaponForm, y.reach, y.quiet, y.breaker]), json([3, 2, 1, 2, 6, 'balanced', false, 0, 0]));
-      assert.equal(json(s.items.map(i => [i.uid, i.kind, i.form, i.tier, i.level, i.where])),
+      assert.equal(json(s.items.filter(i => i.uid.startsWith('you.')).map(i => [i.uid, i.kind, i.form, i.tier, i.level, i.where])),
         json([['you.w', 'weapon', 'balanced', 1, 0, { at: 'kit', slot: 'weapon' }], ['you.g', 'garment', 'standard', 1, 0, { at: 'kit', slot: 'garment' }]]));
     }
     // Each T1 form at grade I, as a room's kit and as Setup.you makes you: a Heavy weapon
@@ -82,12 +95,21 @@ module.exports = ({ test, assert, loadCore }) => {
     // No garment: Padding 0, Eva 2. No weapon is an error: the weapon slot is never empty.
     s.you.kit.garment = null; assert.equal(json([Kit.derive(s).pad, Kit.derive(s).eva]), json([0, 2]));
     s.you.kit.weapon = null; assert.throws(() => Kit.derive(s), /no weapon/);
-    // Your stats change at the end of a step, not when the kit changes (§8.1).
-    const r = Setup.room(1, { acc: 'T0', depth: 1, map: OPEN, you: [2, 2], exhibits: [] });
-    r.items[1].tier = 2; r.run.grade = 3;
-    assert.equal(r.actors[0].pad, 1, 'not yet');
-    Step.step(r, { a: 'wait' });
-    assert.equal(r.actors[0].pad, 2, 'settled at the end of the step');
+    // Your stats change at the end of a step, not when the kit changes (§8.1, D2.6): an
+    // exhibit that strikes you during your action meets the old Padding. (The blows are read
+    // from the events: combat.js calls its own hurt, so a wrapper on Combat.hurt sees nothing.)
+    let blows = 0;
+    for (let seed = 1; seed <= 10; seed++) {
+      const r = Setup.room(seed, { acc: 'T0', depth: 1, map: OPEN, you: [2, 2], exhibits: [{ sp: 'x', at: [3, 2], mode: 'hunting', stats: { hp: 50, acc: 100, eva: 0, pad: 0, dmin: 5, dmax: 5 } }] });
+      r.actors[0].hp = r.actors[0].maxHp = 999;
+      r.items[1].tier = 2; r.run.grade = 3;
+      assert.equal(r.actors[0].pad, 1, 'not yet');
+      const pads = Step.step(r, { a: 'wait' }).filter(e => e.k === 'damaged' && e.who === 'you').map(e => e.cause.pad);
+      blows += pads.length;
+      assert.ok(pads.every(p => p === 1), `seed ${seed}: struck against the old Padding, not ${pads}`);
+      assert.equal(r.actors[0].pad, 2, 'settled at the end of the step');
+    }
+    assert.ok(blows > 0, 'the exhibit struck you during your action');
   });
 
   test('actor uids are <acc>.<depth>.<roleKey>.<n>, n counted per room in placement order; your items are you.w and you.g', () => {
@@ -171,7 +193,7 @@ module.exports = ({ test, assert, loadCore }) => {
     const draws = (s, uid) => { const c = X.State.clone(s); return ['combat/', 'ai/'].map(p => { const r = X.Rng.stream(c, p + uid); return Array.from({ length: 50 }, () => r.u32()); }); };
     for (const [acc, seed, depth] of [['S9', 1, 2], ['S9', 5, 4], ['A4', 2, 3], ['M11', 3, 6]]) {
       const base = X.Dept.create(seed, acc, depth);
-      assert.ok(base.items.length > 2 && (acc !== 'S9' || base.dept.fixtures.length === 1), `${acc}: the planted stand-ins placed items and the mimic's case`);
+      assert.ok(base.items.length > 2 && (acc !== 'S9' || base.dept.fixtures.some(f => f.mimic)), `${acc}: the planted stand-ins placed items and the mimic's case`);
       for (const gone of exhibits(base)) {
         calls.length = 0;
         const s = X.Dept.create(seed, acc, depth, { without: [gone.uid] });
@@ -217,6 +239,9 @@ module.exports = ({ test, assert, loadCore }) => {
   });
 
   test('a mimic\'s case has every field a real case has, drawn as a real case\'s are on the mimic\'s own stream, with no accession number', () => {
+    // A core in which no archetype's init runs, so the test makes the disguise itself, as
+    // W1-ARCH-C's mimic init will.
+    const { Setup, Dept, Cases } = (() => { const X = loadCore(); X.Archetypes.init = () => {}; return X; })();
     const FIELDS = ['k', 'x', 'y', 'room', 'num', 'glass', 'lock', 'hits', 'st', 'loan', 'holds', 'mimic'];
     // A real case, as W1-CASES will place one, has the same fields.
     assert.equal(json(Object.keys(Cases.make({ x: 1, y: 1 })).sort()), json(FIELDS.slice().sort()));
@@ -383,30 +408,54 @@ module.exports = ({ test, assert, loadCore }) => {
     }
   });
 
-  test('the stubs Wave 1 fills are present, named and neutral, and the actions they own have nothing legal yet', () => {
-    const X = loadCore(), s = X.Dept.create(2, 'S9', 2), ev = [], h = State.hash(s), a = s.actors[1], it = s.items[0], f = { k: 'case', x: 1, y: 1 };
-    for (const [ns, fn, args] of [['Cases', 'place', [s, {}, 'b', { seed: 1, rng: {} }]], ['Cases', 'touch', [s, f, 'open', 'you', ev]], ['Cases', 'dissolve', [s, f, 'you', ev]],
-      ['Cases', 'release', [s, f, ev]], ['Kit', 'recharge', [s, ev]], ['Kit', 'standIn', [s, 'b', { seed: 1, rng: {} }]], ['Consumables', 'startRun', [s]],
-      ['Consumables', 'standIn', [s, 'b', { seed: 1, rng: {} }]], ['ClockRules', 'boundary', [s, ev]], ['ClockRules', 'fell', [s, a, ev]], ['Kit', 'settle', [s]]]) {
+  // A stub's contract is its name and signature until its owner fills it (plan A17: only the
+  // M4 hooks stay neutral through M3, and none of them is in this file).
+  test('the stubs Wave 1 fills are present and named, and the actions they own have handlers', () => {
+    const X = loadCore();
+    const NAMED = [
+      ['Cases', 'place', null], ['Cases', 'touch', null], ['Cases', 'dissolve', 4], ['Cases', 'release', null], ['Cases', 'enter', null], ['Cases', 'staffGrade', null],
+      ['Cases', 'reach', null], ['Cases', 'view', null], ['Cases', 'describe', null], ['Cases', 'highlightOk', null], ['Cases', 'openCost', null],
+      ['Kit', 'recharge', null], ['Kit', 'standIn', null], ['Kit', 'settle', null], ['Kit', 'ringDelta', null], ['Kit', 'useLegal', null], ['Kit', 'useAction', null],
+      ['Kit', 'useCandidates', 1], ['Kit', 'addToTote', null], ['Kit', 'targets', null], ['Kit', 'describe', null], ['Kit', 'view', null],
+      ['Consumables', 'startRun', null], ['Consumables', 'standIn', null], ['Consumables', 'useLegal', null], ['Consumables', 'useAction', null],
+      ['Consumables', 'useCandidates', 1], ['Consumables', 'known', null], ['Consumables', 'name', null], ['Consumables', 'targets', null], ['Consumables', 'view', null],
+      ['ClockRules', 'boundary', null], ['ClockRules', 'fell', null], ['ClockRules', 'nearestSleepers', null], ['ClockRules', 'spawnWatchman', null], ['Clock', 'view', null],
+      ['Labels', 'ofCase', null], ['Labels', 'ofItem', null], ['Labels', 'ofPlaque', null], ['Labels', 'ofStaffDoor', null], ['Labels', 'you', null],
+    ];
+    for (const [ns, fn, n] of NAMED) {
       assert.equal(typeof X[ns][fn], 'function', `${ns}.${fn}`);
-      X[ns][fn](...args);
+      if (n !== null) assert.equal(X[ns][fn].length, n, `${ns}.${fn} takes ${n} arguments`);
     }
-    assert.equal(State.hash(s), h); assert.equal(ev.length, 0);
-    assert.equal(json([X.Cases.enter(s, s.actors[0], 0, 0, 0, null), X.Cases.staffGrade(s, 1, 1), X.Cases.reach(s, it), X.Cases.view(s, null), X.Cases.describe(s, f), X.Cases.highlightOk(s, f), X.Cases.openCost(s)]),
-      json([null, null, false, [], null, true, N.COST_OPEN_CASE]));
-    assert.equal(json([X.Kit.ringDelta(s), X.Kit.useLegal(s), X.Kit.useAction(s, {}, ev), X.Kit.addToTote(s, it), X.Kit.targets(s, it.uid), X.Kit.describe(s, it.uid), X.Kit.view(s, null)]),
-      json([0, [], 'not_built', 'not_built', [], null, null]));
-    assert.equal(json([X.Consumables.useLegal(s), X.Consumables.useAction(s, {}, ev), X.Consumables.known(s, 'fixative'), X.Consumables.name(s, it), X.Consumables.targets(s, it.uid), X.Consumables.view(s, null)]),
-      json([[], 'not_built', false, null, [], null]));
-    assert.equal(json([X.ClockRules.nearestSleepers(s, 3), X.ClockRules.spawnWatchman(s, ev), X.Clock.view(s)]), json([[], null, null]));
-    assert.equal(json([X.Labels.ofCase(s, f), X.Labels.ofItem(s, it.uid), X.Labels.ofPlaque(s, f), X.Labels.ofStaffDoor(s, f), X.Labels.you(s)]), json([null, null, null, null, null]));
-    assert.equal(State.hash(s), h); assert.equal(ev.length, 0);
+    // Solvent's cause, as W1-CONSUMABLES builds it and Cases.dissolve passes on to glass_broke.
+    assert.equal(X.Causes.check({ k: 'glass_broke', turn: 1, tick: 100, by: 'you', x: 1, y: 1, glass: 1, shards: [], released: null, cause: { k: 'solvent', by: 'you', item: 'T0.1.room.i1' } }), null);
+    const s = X.Dept.create(2, 'S9', 2);
     for (const id of ['open', 'bash', 'take', 'drop', 'equip', 'unequip', 'throw', 'read', 'choose', 'leave']) {
       const hd = X.Actions.get(id);
-      assert.ok(hd, id); assert.equal(json(hd.legal(s)), '[]', id);
-      const cands = hd.candidates(s);
-      assert.ok(cands.length > 1, id);
-      for (const c of cands) assert.equal(X.Step.step(State.clone(s), c)[0].reason, 'not_built', `${id}: ${json(c)}`);
+      assert.ok(hd && typeof hd.legal === 'function' && typeof hd.apply === 'function', id);
+      assert.ok(hd.candidates(s).length > 1, `${id} has candidates`);
     }
+  });
+
+  // Until the department golden runs of Wave 3 (§3.5), this is where a department's own
+  // code (cases, kit, consumables, surfaces, the clock) is held to §3.1 and §3.5 step by step.
+  test('a department is clone-stable and plain data after every step: a monkey with a clone each step gives the same hashes', () => {
+    let runs = 0;
+    for (const acc of ACCS) for (const depth of [2, 5]) {
+      const make = seed => { const s = Dept.create(seed, acc, depth); s.actors[0].hp = s.actors[0].maxHp = 999; return s; };
+      // The hash every 10 steps (a difference, once there, stays) and plain data every step.
+      const hashes = clone => {
+        const out = [];
+        Monkey.run(depth, 300, { make, cloneEachStep: clone, check(state, i) {
+          if (!clone) { const p = State.plainData(state); assert.equal(p, null, `${acc} d${depth} step ${i}: ${p}`); }
+          if (i % 10 === 0) out.push(State.hash(state));
+        } });
+        return out;
+      };
+      const a = hashes(false), b = hashes(true);
+      const at = a.findIndex((h, i) => h !== b[i]);
+      assert.equal(at, -1, `${acc} at depth ${depth}: a clone after every step differs by step ${10 * (at + 1)}`);
+      runs++;
+    }
+    assert.equal(runs, 6);
   });
 };

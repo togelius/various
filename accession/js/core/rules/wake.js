@@ -12,7 +12,8 @@
 // only by damage, its case touched or its case dissolved (§8.2).
 'use strict';
 const Wake = (() => {
-  const copy = c => c === null || c === undefined ? null : JSON.parse(JSON.stringify(c));
+  // Causes and tiles are copied in as plain data (Causes.copy: anything else stops with an error).
+  const copy = (c, where) => Causes.copy(c, where || 'wake');
   const MODES = ['dormant', 'awake', 'hunting', 'searching', 'returning', 'reinstalling'];
   // The causes that wake a pipless exhibit (§8.2): it is struck, opened or bashed, or dissolved.
   const PIPLESS_WAKES = ['damage', 'touch_case', 'dissolved'];
@@ -31,14 +32,15 @@ const Wake = (() => {
     if (a.gone || a.mode !== 'dormant') return false;
     if (Archetypes.pipless(state, a) && !PIPLESS_WAKES.includes(cause && cause.k)) return false;
     opts = opts || {};
+    const story = copy(cause, 'woke.cause');
     a.mode = mode;
     a.pips = 0; a.sawYou = false; a.acts = 0; a.stim = state.turn;
     a.target = mode === 'awake' ? copy(opts.target) : null;
     a.lastKnown = mode === 'hunting' ? copy(opts.lastKnown || yourTile(state)) : copy(opts.lastKnown);
     Archetypes.onWake(state, a);
     a.next = state.tick + Actors.cost(state, a, N.COST_STEP, 'act');
-    a.woke = { turn: state.turn, cause: copy(cause) };
-    if (mode === 'hunting') a.hunted = { turn: state.turn, cause: copy(cause) };
+    a.woke = { turn: state.turn, cause: story };
+    if (mode === 'hunting') a.hunted = { turn: state.turn, cause: copy(story) };
     Causes.emit(state, ev, 'woke', { who: a.uid, was: 'dormant', mode }, cause);
     if (mode === 'hunting') Causes.emit(state, ev, 'hunting', { who: a.uid, was: 'dormant' }, cause);
     return true;
@@ -64,6 +66,7 @@ const Wake = (() => {
     if (a.mode === 'dormant') throw new Error(`Wake.setMode: ${a.uid} is dormant; Wake.wake wakes it`);
     if (a.gone) return false;
     opts = opts || {};
+    const story = copy(cause, 'hunting.cause');
     const from = a.mode, retarget = from === 'awake' && mode === 'awake' && !!opts.target;
     if (from === mode && !retarget) return false;
     const alerted = mode === 'awake' && (retarget || from === 'searching' || from === 'returning' || from === 'reinstalling');
@@ -75,7 +78,7 @@ const Wake = (() => {
     if (mode !== 'hunting' && a.telegraph) Specials.cancel(state, a, (cause && cause.k) || 'mode', ev);
     if (mode === 'hunting') {
       if (opts.lastKnown === undefined) a.lastKnown = yourTile(state);
-      a.hunted = { turn: state.turn, cause: copy(cause) };
+      a.hunted = { turn: state.turn, cause: story };
       Causes.emit(state, ev, 'hunting', { who: a.uid, was: from }, cause);
     } else if (alerted) {
       Causes.emit(state, ev, 'alerted', { who: a.uid, from, to: mode, x: a.target[0], y: a.target[1] }, cause);
@@ -97,17 +100,22 @@ const Wake = (() => {
 
   // Wake.created(state, a, k, extra, ev?): the story of an actor made awake, not woken:
   // woke (and hunted, if it hunts) with cause {k, …extra}, k a creation cause (awake,
-  // night_watch, summoned; patrol in M4). Actors made with the department take their story
-  // from the starting state and pass no ev. One made during the visit passes ev: it emits a
-  // creation woke {who, was: null, mode}, and it first acts after a beat, at now + its action
-  // cost, so it never acts in the instant it appears (§8.1).
+  // night_watch, summoned; patrol in M4). A created hunter's hunt begins, as every hunt
+  // does, with your tile as its last-known tile, unless it was made knowing another (§8.2).
+  // Actors made with the department take their story from the starting state and pass no
+  // ev. One made during the visit passes ev: it emits a creation woke {who, was: null, mode},
+  // and it first acts after a beat, at now + its action cost, so it never acts in the
+  // instant it appears (§8.1).
   function created(state, a, k, extra, ev) {
     const W = Registry.WAKE_CAUSES[k];
     if (!W || !W.creation) throw new Error(`Wake.created: ${k} is not a cause an actor is created with`);
     if (a.mode === 'dormant') throw new Error(`Wake.created: ${a.uid} is dormant`);
-    const cause = Object.assign({ k }, copy(extra || {}));
+    const cause = Object.assign({ k }, copy(extra || {}, 'woke.cause'));
     a.woke = { turn: state.turn, cause: copy(cause) };
-    if (a.mode === 'hunting') a.hunted = { turn: state.turn, cause: copy(cause) };
+    if (a.mode === 'hunting') {
+      a.hunted = { turn: state.turn, cause: copy(cause) };
+      a.lastKnown = copy(a.lastKnown) || yourTile(state);
+    }
     if (ev) {
       a.next = state.tick + Actors.cost(state, a, N.COST_STEP, 'act');
       Causes.emit(state, ev, 'woke', { who: a.uid, was: null, mode: a.mode }, cause);
@@ -122,6 +130,7 @@ const Wake = (() => {
   // with the same cause; opts go to Wake.wake.
   function addPips(state, a, n, cause, ev, opts) {
     if (a.gone || a.mode !== 'dormant' || !n || Archetypes.pipless(state, a)) return false;
+    copy(cause, 'pip.cause');
     const k = cause.k;
     if (a.pipTurns[k] === state.turn) return false;
     const pips = Math.max(0, Math.min(N.PIPS_TO_WAKE, a.pips + n)), delta = pips - a.pips;

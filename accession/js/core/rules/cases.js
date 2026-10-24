@@ -114,8 +114,13 @@ const Cases = (() => {
   // [stub → W1-CASES] A case is touched (opened or bashed; §8.3): touch_case wakes what it
   // holds, and a mimic's grip (Archetypes.onTouched). Does nothing for now.
   function touch(state, f, how, by, ev) {}
-  // [stub → W1-CASES] Solvent dissolves the case f, silently. Does nothing for now.
-  function dissolve(state, f, by, ev) {}
+  // [stub → W1-CASES] Solvent dissolves the case f, silently (§8.3): no noise, no shards, no
+  // touch_case; the tile becomes u, what it held is released (Cases.release, cause
+  // dissolved), and then it alone emits glass_broke {by: cause.by, x, y, glass, shards: [],
+  // released} with the cause it is given. Consumables (W1-CONSUMABLES) builds that cause,
+  // {k: 'solvent', by, item: the Solvent's uid}, and emits no glass_broke itself. Does
+  // nothing for now.
+  function dissolve(state, f, cause, ev) {}
   // [stub → W1-CASES] The sleeper in a broken or dissolved case wakes hunting, homeless.
   function release(state, f, ev) {}
   // [stub → W1-CASES] Can the item be reached in its case (open or broken, for the pole)? false for now.

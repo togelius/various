@@ -84,6 +84,10 @@ const Grid = (() => {
     for (const s of m.surfaces) { const r = Registry.SURFACES[s.kind]; if (r && r.blocksSight && covers(s, x, y)) return true; }
     return false;
   }
+  // Can sight pass through (x, y)? Its tile can be seen through and no sight-blocking surface
+  // covers it. Line of sight (between its ends) and a beam (Ranged.beam) both stop where this
+  // fails, so the two cannot differ.
+  const clear = (m, x, y) => inside(m, x, y) && seeThrough(m, x, y) && !(m.surfaces && m.surfaces.length && veiled(m, x, y));
 
   // Line of sight between two tiles: a Bresenham line, always traced from the endpoint
   // that comes first in row-major order, so sight is symmetric. Endpoints never block; a
@@ -150,5 +154,5 @@ const Grid = (() => {
     return best;
   }
 
-  return { TILES, DX, DY, inside, code, ch, walkable, seeThrough, hold, bolt, closedDoor, set, canStep, disc, covers, los, chebyshev, distances, reachDist };
+  return { TILES, DX, DY, inside, code, ch, walkable, seeThrough, hold, bolt, closedDoor, set, canStep, disc, covers, clear, los, chebyshev, distances, reachDist };
 })();

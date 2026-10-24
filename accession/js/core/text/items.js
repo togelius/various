@@ -15,7 +15,11 @@
 
   const CLS = { soft: 'Soft', loud: 'Loud', crash: 'Crash' };
   Text.defineCause('noise', 'fork', e => `${CLS[e.cls] || 'A noise'}: a tuning fork, heard ${e.range} tiles away.`);
-  const bolt = (e, w) => `${w.Name(e.cause.by)} hit ${w.name(e.who)} with an instrument for ${e.amount} (${e.cause.raw} − ${e.cause.pad} Padding).`;
+  const bolt = (e, w) => {
+    const c = e.cause, sum = `${c.raw} − ${c.pad} Padding${c.floor ? `, at least ${c.floor}` : ''}`;
+    return `${w.Name(c.by)} hit ${w.name(e.who)} with an instrument for ${e.amount} (${c.roll == null ? 'a certain hit' : `rolled ${c.roll} against ${c.chance}%`}; ${sum}).`;
+  };
+  Text.defineCause('missed', 'item', (e, w) => `${w.Name(e.by)} shot at ${w.name(e.at)} with an instrument and missed (rolled ${e.cause.roll} against ${e.cause.chance}%).`);
   Text.defineCause('damaged', 'item', bolt);
   Text.defineCause('died', 'item', (e, w) => e.who === 'you' ? 'You fell.' : `${w.Name(e.who)} broke apart.`);
 })();

@@ -4,13 +4,16 @@
 'use strict';
 const Combat = (() => {
   const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
-  const copy = c => JSON.parse(JSON.stringify(c));
+  const copy = c => Causes.copy(c, 'over.cause');
 
-  function hitChance(att, def) {
+  // The chance att hits def (§8.1). how.acc, when given, is the Acc the blow is made with
+  // (an instrument's bolt, made with your Acc without the weapon's), else the attacker's.
+  function hitChance(att, def, how) {
     let mods = 0;
     if (Status.has(def, 'fixed')) mods += N.HIT_FIXED_TARGET;
     if (Status.has(att, 'dazed')) mods += N.HIT_DAZED_ATTACKER;
-    return clamp(N.HIT_BASE + N.HIT_PER_POINT * (att.acc - def.eva) + mods, N.HIT_MIN, N.HIT_MAX);
+    const acc = how && how.acc !== undefined ? how.acc : att.acc;
+    return clamp(N.HIT_BASE + N.HIT_PER_POINT * (acc - def.eva) + mods, N.HIT_MIN, N.HIT_MAX);
   }
 
   // Surprise (BUILD.md §8.1): an exhibit is caught unawares while asleep or stirring (mode
@@ -30,8 +33,12 @@ const Combat = (() => {
     }
     return { n, sum, min, max };
   }
-  // A surprise blow's raw damage: the maximum, ×1.5 rounded down with a Light weapon.
-  function surpriseRaw(att) { return att.weaponForm === 'light' ? Int.pct(att.dmax, N.SURPRISE_LIGHT_PCT) : att.dmax; }
+  // A surprise blow's raw damage: the maximum (how.dmax for an instrument's bolt), ×1.5
+  // rounded down for a melee blow with a Light weapon.
+  function surpriseRaw(att, how) {
+    const kind = (how && how.kind) || 'melee', max = how && how.dmax !== undefined ? how.dmax : att.dmax;
+    return kind === 'melee' && att.weaponForm === 'light' ? Int.pct(max, N.SURPRISE_LIGHT_PCT) : max;
+  }
   // What a surprise blow would deal now, after Padding, as { min, max }: one figure, or
   // against a Centrepiece the rolled range, since its surprise blow rolls damage (§8.1).
   function surpriseNet(att, def) {
@@ -84,22 +91,38 @@ const Combat = (() => {
     return best;
   }
 
-  // One blow (§8.1), the caller having checked it and paid for it, in this order:
+  // One blow or shot (§8.1), the caller having checked it and paid for it.
+  // how = {kind: 'melee' | 'reach' | 'shot', range?, via?, item?, dmin?, dmax?, acc?}:
+  //   range  a shot's distance in tiles (required for a shot);
+  //   via    for a shot, the last tile the bolt crossed before the target (where it came from);
+  //   item   the instrument that fired it (the Pin-Driver);
+  //   dmin, dmax, acc  the damage range and Acc it is made with, if not the attacker's own.
+  // Its cause is k 'attack' for a blow, 'shot' for a shot, and 'item' for an instrument's
+  // bolt (a shot with how.item, naming the item); a shot's cause carries its range. In order:
   //   1. `attacked` {by, at, how};
   //   2. surprise, or a roll on att's combat stream;
-  //   3. on a miss `missed`; on a hit Combat.hurt, with cause.from the tile the blow came from;
+  //   3. on a miss `missed`; on a hit Combat.hurt, with cause.from the tile the blow came from:
+  //      the attacker's tile nearest the target, or for a shot how.via;
   //   4. last, a soft noise at the attacker's tile, hit or miss, after every other wake
   //      effect of the blow (§8.2).
+  // A line a reflector sends back is not a blow of the reflector's: Ranged.shoot (W1-ARCH-B)
+  // makes its cause, {k: 'reflected', by: the reflector, shooter, …, from}, and calls
+  // Combat.hurt itself.
   function attack(state, att, def, ev, how) {
     how = how || { kind: 'melee' };
+    const shot = how.kind === 'shot';
+    if (shot && !Number.isInteger(how.range)) throw new Error(`Combat.attack: ${att.uid}'s shot at ${def.uid} gives no range`);
     const rng = Rng.stream(state, 'combat/' + att.uid);
-    const chance = hitChance(att, def), from = fromTile(att, def);
+    const chance = hitChance(att, def, how), from = shot && how.via ? how.via.slice() : fromTile(att, def);
+    const dmin = how.dmin !== undefined ? how.dmin : att.dmin, dmax = how.dmax !== undefined ? how.dmax : att.dmax;
     Causes.emit(state, ev, 'attacked', { by: att.uid, at: def.uid, how }, { k: 'attack', by: att.uid, at: def.uid, dist: Actors.between(att, def), how });
-    const cause = { k: 'attack', by: att.uid, at: def.uid, chance };
+    const cause = { k: shot ? (how.item ? 'item' : 'shot') : 'attack', by: att.uid, at: def.uid, chance };
+    if (shot) cause.range = how.range;
+    if (shot && how.item) cause.item = how.item;
     // A surprise blow always hits, and the target then hunts you (hurt). Against a Centrepiece
     // it rolls its damage, and the hunt it starts is the encounter.
     if (surprised(att, def)) {
-      const dmg = Actors.centrepiece(def) ? rng.int(att.dmin, att.dmax) : surpriseRaw(att);
+      const dmg = Actors.centrepiece(def) ? rng.int(dmin, dmax) : surpriseRaw(att, how);
       cause.surprise = 1;
       Object.assign(cause, { raw: dmg, pad: def.pad, how, from });
       hurt(state, def, net(dmg, def.pad, cause), cause, ev);
@@ -108,7 +131,7 @@ const Combat = (() => {
       cause.roll = roll;
       if (roll > chance) Causes.emit(state, ev, 'missed', { by: att.uid, at: def.uid }, Object.assign(cause, { how }));
       else {
-        const raw = rng.int(att.dmin, att.dmax);
+        const raw = rng.int(dmin, dmax);
         Object.assign(cause, { raw, pad: def.pad, how, from });
         hurt(state, def, net(raw, def.pad, cause), cause, ev);
       }
@@ -123,9 +146,10 @@ const Combat = (() => {
   }
 
   // Damage to who (§8.1), in this order:
-  //   1. the archetype and modifiers adjust it (Archetypes.adjustDamage);
+  //   1. the archetype and modifiers adjust it (Archetypes.adjustDamage; old_repair may mark
+  //      cause.side on a blow, a shot or a beam);
   //   2. health falls; with options.invulnerable your health stays at 1 or more and the
-  //      cause says `saved`;
+  //      cause says `saved` (so every damage cause's schema accepts saved and side);
   //   3. `damaged`;
   //   4. an exhibit not already hunting wakes into a hunt (damage, with its distance);
   //   5. its group hears of it (Wake.allyHit);

@@ -49,4 +49,8 @@
   const wake = extra => Object.assign({ by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' }, extra);
   const fields = { ring: wake({ r: 'int?' }), noise: wake({ cls: 'str?' }), axis: wake({}), tether: wake({}), ally_hit: wake({}), awake: wake({}) };
   for (const k of ['ring', 'noise', 'axis', 'tether', 'ally_hit', 'awake']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: fields[k] });
+  // The triggers that wake at once do it through Wake.addPips +3, whose pip event carries the
+  // same cause as the woke and hunting events that follow (lint-registry checks every waking
+  // trigger has its pip schema).
+  for (const k of ['tether', 'ally_hit']) R.defineCause('pip', k, { fields: fields[k] });
 })();

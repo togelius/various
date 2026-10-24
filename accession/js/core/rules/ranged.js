@@ -3,8 +3,11 @@
 // Pin-Driver's) and the reflector.
 //
 // A bolt (a shot) passes what can be seen through and is not glass (Grid.bolt); only beams
-// pass glass. A reflector sends a bolt or beam back along its line toward where it came from,
-// so nothing behind the reflector is hit, and the shooter's own tile is on the way back.
+// pass glass. A beam stops at what blocks sight: a tile that cannot be seen through, or one a
+// sight-blocking surface (a Fumigant cloud, plaster dust) covers (Grid.clear). A beam's tiles
+// are fixed when it is marked, so a cloud laid while it is shown does not cut it. A reflector
+// sends a bolt or beam back along its line toward where it came from, so nothing behind the
+// reflector is hit, and the shooter's own tile is on the way back.
 'use strict';
 const Ranged = (() => {
   // The tiles of the Bresenham line between two tiles, both ends included, traced as
@@ -30,6 +33,8 @@ const Ranged = (() => {
   // toward (x1, y1) enters, in order, up to and including (x1, y1), at most `range` of them,
   // stopping before the first tile pass(m, x, y) refuses (Grid.seeThrough if pass is not
   // given; Grid.bolt for a shot, which stops at glass). The tile it starts on is not listed.
+  // It looks at tiles only, not surfaces: a shot is made only with line of sight (Grid.los,
+  // which surfaces block), so a bolt never needs to cross a cloud.
   function line(state, x0, y0, x1, y1, range, pass) {
     const m = state.dept, ok = pass || Grid.seeThrough, out = [];
     const pts = bresenham(x0, y0, x1, y1);
@@ -42,7 +47,8 @@ const Ranged = (() => {
   }
 
   // The path of a beam from a's tile in direction d, at most `range` steps: it goes straight,
-  // through glass, and stops before a tile it cannot see through. On a tile where
+  // through glass, and stops before a tile sight cannot pass (Grid.clear: one it cannot see
+  // through, or one a Fumigant cloud or plaster dust covers). On a tile where
   // Ranged.reflectorAt holds it turns back the way it came, and its later steps still count
   // toward the range. Each tile is listed once, at the first step that enters it, with the
   // tile that step came from, so the way back lists only the tiles the way out did not: the
@@ -53,7 +59,7 @@ const Ranged = (() => {
     let x = a.x, y = a.y, dx = Grid.DX[d], dy = Grid.DY[d];
     for (let s = 0; s < range; s++) {
       const nx = x + dx, ny = y + dy;
-      if (!Grid.inside(m, nx, ny) || !Grid.seeThrough(m, nx, ny)) break;
+      if (!Grid.clear(m, nx, ny)) break;
       const i = ny * m.w + nx;
       if (!crossed[i]) { crossed[i] = 1; tiles.push([nx, ny]); from.push([x, y]); }
       x = nx; y = ny;
@@ -69,10 +75,14 @@ const Ranged = (() => {
   // index, the tile the beam entered it from (where its damage comes from, §8.1).
   const beamFrom = (state, a, d, range) => trace(state, a, d, range).from;
 
-  // [stub → W1-ARCH-B] Is there a reflector at (x, y) that turns a bolt or beam back?
+  // [stub → W1-ARCH-B] Is there a reflector at (x, y) that turns a bolt or beam back? Its
+  // uid, or null; false (no reflector anywhere) until built.
   const reflectorAt = (state, x, y) => false;
-  // [stub → W1-ARCH-B] a shoots at target (a rolled bolt): ticks, or a refusal code.
-  const shoot = (state, a, target, ev) => 'not_built';
+  // [stub → W1-ARCH-B] att shoots a rolled bolt toward (x, y), with how {kind: 'shot', dmin?,
+  // dmax?, acc?, item?} (W1-KIT's Pin-Driver passes its own damage and Acc): ticks, or a
+  // refusal code. It hits the first actor on its line through Combat.attack, with how.range
+  // and how.via (the last tile the bolt crossed) filled in.
+  const shoot = (state, att, x, y, how, ev) => 'not_built';
 
   return { bresenham, line, beam, beamFrom, reflectorAt, shoot };
 })();

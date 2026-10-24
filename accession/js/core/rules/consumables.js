@@ -9,15 +9,21 @@ const Consumables = (() => {
   // identifying labels: rooms on `${base}/items`, tiles on each room's populate stream in pop,
   // after the cases' and the kit's draws. Does nothing for now.
   function standIn(state, base, pop) {}
-  const useLegal = state => [];                            // [stub → W1-CONSUMABLES] use(uid[, x, y]) of a consumable
+  const useLegal = state => [];                            // [stub → W1-CONSUMABLES] use(uid) of a consumable
   const useAction = (state, action, ev) => 'not_built';    // [stub → W1-CONSUMABLES]
+  // [stub → W1-CONSUMABLES] The use candidates of your consumables, a superset of useLegal
+  // (§4.2; the use dispatcher in step.js offers exactly these, with the kit's): for now a
+  // bare use of each consumable in state.items.
+  const useCandidates = state => (state.items || []).filter(i => i.kind === 'consumable').map(i => ({ a: 'use', uid: i.uid }));
   const known = (state, ck) => false;                      // [stub → W1-CONSUMABLES] is the kind ck identified this run
   const name = (state, it) => null;                        // [stub → W1-CONSUMABLES] {local, seal, kind | null}
   const targets = (state, uid) => [];                      // [stub → W1-CONSUMABLES] the tiles a consumable can be thrown at
   const view = (state, vis) => null;                       // [stub → W1-CONSUMABLES] what the view model shows of them
 
   // throw(uid, x, y), read(x, y) and choose(index) (§4.2). [stub → W1-CONSUMABLES]: nothing
-  // is legal yet, and every candidate is refused as not built.
+  // is legal yet, and every candidate is refused as not built. A thrown Solvent dissolves each
+  // intact case in its square through Cases.dissolve(state, f, {k: 'solvent', by, item}, ev),
+  // which emits the glass_broke event; the throw emits none of its own.
   Actions.define('throw', {
     legal: state => [],
     candidates: state => state.items.map(i => ({ a: 'throw', uid: i.uid, x: state.actors[0].x, y: state.actors[0].y })).concat([{ a: 'throw', uid: 'nothing', x: 0, y: 0 }, { a: 'throw' }]),
@@ -34,5 +40,5 @@ const Consumables = (() => {
     apply: (state, action, ev) => 'not_built',
   });
 
-  return { startRun, standIn, useLegal, useAction, known, name, targets, view };
+  return { startRun, standIn, useLegal, useAction, useCandidates, known, name, targets, view };
 })();

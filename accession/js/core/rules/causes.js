@@ -4,14 +4,34 @@
 // registry's schema for its kind and for its cause.
 'use strict';
 const Causes = (() => {
-  const copy = c => JSON.parse(JSON.stringify(c));
+  // Causes.copy(v, where) → a copy of v, plain data (§3.1). A field left undefined at the
+  // top level is absent, as an optional field may be; anything else that is not plain data
+  // (NaN, an infinity, a fraction, −0, a function, an undefined deeper in) stops with an
+  // error naming where it is, rather than being copied as null and slipping past the
+  // schema's optional fields and the plain-data check. Key order is kept.
+  function copy(v, where) {
+    if (v === null || v === undefined) return null;
+    if (Object.prototype.toString.call(v) === '[object Object]') {
+      const out = {};
+      for (const k of Object.keys(v)) {
+        if (v[k] === undefined) continue;
+        const bad = State.plainData(v[k], where + '.' + k);
+        if (bad) throw new Error(`Causes: ${bad} is not plain data (${String(v[k])})`);
+        out[k] = JSON.parse(JSON.stringify(v[k]));
+      }
+      return out;
+    }
+    const bad = State.plainData(v, where);
+    if (bad) throw new Error(`Causes: ${bad} is not plain data`);
+    return JSON.parse(JSON.stringify(v));
+  }
 
   // An event, not yet emitted: {k, turn, tick, ...fields, cause}. Fields and cause are
-  // copied, so a rule can go on changing its own objects, and nothing outside the state can
-  // reach into it through an event.
+  // copied (Causes.copy), so a rule can go on changing its own objects, nothing outside the
+  // state can reach into it through an event, and nothing that is not plain data gets in.
   function make(state, k, fields, cause) {
-    const e = Object.assign({ k, turn: state.turn, tick: state.tick }, copy(fields || {}));
-    if (cause !== undefined && cause !== null) e.cause = copy(cause);
+    const e = Object.assign({ k, turn: state.turn, tick: state.tick }, copy(fields || {}, k));
+    if (cause !== undefined && cause !== null) e.cause = copy(cause, k + '.cause');
     return e;
   }
 
@@ -28,7 +48,7 @@ const Causes = (() => {
 
   // The last CAUSE_RECORDS records, for the recap's narrative. Records are copied in.
   function record(state, rec) {
-    state.causes.push(copy(rec));
+    state.causes.push(JSON.parse(JSON.stringify(rec)));
     if (state.causes.length > N.CAUSE_RECORDS) state.causes.splice(0, state.causes.length - N.CAUSE_RECORDS);
   }
 
@@ -74,5 +94,5 @@ const Causes = (() => {
     return fieldsOf(`${e.k}.cause`, e.cause, schema.list, ['k']);
   }
 
-  return { make, emit, record, check };
+  return { copy, make, emit, record, check };
 })();

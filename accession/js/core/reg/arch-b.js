@@ -28,10 +28,11 @@
   R.define('MODIFIERS', 'old_repair', { icon: null, clause: 'Its {side} side is a later repair: blows from that side deal double damage.',
     params: { side: 'mod:side' }, covers: [], ready: false, tests: [], inv: null });
 
-  // Shots are rolled like blows and carry their range; a reflected line names the reflector
-  // as `by` and who fired it as `shooter`.
+  // Shots are rolled like blows and carry their range (Combat.attack makes k 'shot' when
+  // how.kind is 'shot', with from the last tile the bolt crossed, how.via); a reflected line
+  // names the reflector as `by` and who fired it as `shooter`, and Ranged.shoot makes it.
   const shot = { by: 'uid', at: 'uid', chance: 'int', roll: 'int?', raw: 'int', pad: 'int', floor: 'int?', surprise: 'int?', side: 'str?', how: 'obj', from: 'tile', saved: 'int?', range: 'int' };
-  const reflected = { by: 'uid', shooter: 'uid', sp: 'str?', raw: 'int?', pad: 'int', from: 'tile' };
+  const reflected = { by: 'uid', shooter: 'uid', sp: 'str?', raw: 'int?', pad: 'int', from: 'tile', side: 'str?', saved: 'int?' };
   R.defineCause('missed', 'shot', { fields: { by: 'uid', at: 'uid', chance: 'int', roll: 'int', how: 'obj', range: 'int' } });
   R.defineCause('damaged', 'shot', { fields: shot });
   R.defineCause('damaged', 'reflected', { fields: reflected });

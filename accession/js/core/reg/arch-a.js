@@ -21,7 +21,8 @@
     params: { PLASTER_HP_PCT: 'N:PLASTER_HP_PCT', PLASTER_DUST_TURNS: 'N:PLASTER_DUST_TURNS' }, covers: [], ready: false, tests: [], inv: null });
 
   // A body made from another (a splitter's half) wakes in its parent's mode; its story
-  // names how it was made, its parent, and a copy of the parent's own waking.
+  // names how it was made (how: 'split'), its parent (from), and a copy of the parent's own
+  // waking (parent: {turn, cause}).
   R.define('WAKE_CAUSES', 'summoned', { mode: 'parent', creation: true });
-  for (const kind of ['woke', 'hunting']) R.defineCause(kind, 'summoned', { fields: { by: 'uid', how: 'str', from: 'uid', woke: 'obj?' } });
+  for (const kind of ['woke', 'hunting']) R.defineCause(kind, 'summoned', { fields: { by: 'uid?', how: 'str', from: 'uid', parent: 'obj?' } });
 })();

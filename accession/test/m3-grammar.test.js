@@ -31,7 +31,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     // Every entry has the standard fields, as plain data.
     for (const t of R.TABLES) for (const id of R.order(t)) {
       const e = R[t][id];
-      assert.ok(['M3', 'M4'].includes(e.built) && R.READY.includes(e.ready) && Array.isArray(e.tests) && e.inv === null, `${t}.${id}`);
+      assert.ok(['M3', 'M4'].includes(e.built) && R.READY.includes(e.ready) && Array.isArray(e.tests) && (e.inv === null || typeof e.inv === 'string'), `${t}.${id}`);
       if (e.clause !== undefined) assert.ok(e.params && Array.isArray(e.covers) && e.icon !== undefined, `${t}.${id} clause fields`);
     }
     assert.equal(new Set(R.EVENT_KINDS).size, R.EVENT_KINDS.length);
@@ -75,12 +75,13 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
 
   test('Text.event dispatches on the kind, then the cause, and falls back to the kind', () => {
     const names = uid => uid === 'x.1' ? 'the Lantern-Crop Wader' : null;
+    // Each cause's own sentence (whose wording its owner refines), and the kind's for any other.
     const hunt = c => Text.event({ k: 'hunting', turn: 3, who: 'x.1', was: 'dormant', cause: c }, names);
-    assert.equal(hunt({ k: 'damage', by: 'you' }), 'The Lantern-Crop Wader woke: it was struck.');
-    assert.equal(hunt({ k: 'seen', dist: 4 }), 'The Lantern-Crop Wader woke and is hunting you: it saw you.');
-    assert.equal(hunt({ k: 'ring', dist: 2, r: 3 }), 'The Lantern-Crop Wader woke and is hunting you: you stayed inside your ring.');
-    assert.equal(hunt({ k: 'no_such_cause' }), 'The Lantern-Crop Wader is hunting you.', 'an unknown cause falls back to the kind');
-    assert.equal(hunt({}), 'The Lantern-Crop Wader is hunting you.');
+    const kind = hunt({}), byCause = [{ k: 'damage', by: 'you' }, { k: 'seen', dist: 4 }, { k: 'ring', dist: 2, r: 3 }].map(hunt);
+    assert.ok(clean(kind) && kind.startsWith('The Lantern-Crop Wader'), kind);
+    for (const s of byCause) assert.ok(clean(s) && s.startsWith('The Lantern-Crop Wader') && s !== kind, s);
+    assert.equal(new Set(byCause).size, 3, 'each cause its own sentence');
+    assert.equal(hunt({ k: 'no_such_cause' }), kind, 'an unknown cause falls back to the kind');
     assert.equal(Text.event({ k: 'no_such_kind', turn: 1 }), null);
     // A fresh context: definitions dispatch as written, and each has one owner.
     const F = loadCore();
@@ -99,9 +100,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(Text.event({ k: 'refused', turn: 1, reason: 'corner' }), 'You cannot reach it past the corner.');
     assert.equal(Text.event({ k: 'refused', turn: 1, reason: 'It is out of reach.' }), 'It is out of reach.');
     for (const code of R.order('REFUSALS')) assert.ok(clean(Text.refusal(code)), code);
-    // The two named sentence makers are stubs with neutral values until their owners build them.
-    assert.equal(Text.clock({ count: 0 }), null);
-    assert.equal(Text.recap({}, () => null), null);
+    // The two named sentence makers are provided (stubs until W1-CLOCK and W2a-LABELS build them).
+    assert.ok(Text.provided('clock') && Text.provided('recap'));
   });
 
   test('Text.log leaves out steps, blows’ announcements, waits and unseen pips, and merges a wake into its hunt', () => {
@@ -119,13 +119,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
       { k: 'closed', turn: 1, who: 'you', x: 3, y: 3 },
       { k: 'opened', turn: 1, who: 'x.2', x: 4, y: 4 },
     ];
+    // The miss, the pip of the exhibit in view, its waking told by the hunt, and the other's
+    // waking: each in its own sentence (whose wording its owner refines).
     const lines = Text.log(ev, null, uid => uid === 'x.1');
-    same(lines, [
-      'You missed the training dummy (rolled 91 against 80%).',
-      'The training dummy stirs (1 of 3 pips): you are inside your ring.',
-      'The training dummy woke and is hunting you: you stayed inside your ring.',
-      'The training dummy woke: it heard a noise.',
-    ]);
+    same(lines, [ev[3], ev[4], ev[7], ev[8]].map(e => Text.event(e, null)));
+    assert.ok(lines.every(clean), lines.join(' / '));
     // Without a visibility test everything is in view.
     assert.equal(Text.log(ev).length, 6);
   });
@@ -133,14 +131,17 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   test('on M2’s events the log says what M2’s log said, and each noise’s sentence', () => {
     // M2 logged blows, misses, deaths, hunts, refusals and your doors, and nothing else. M3
     // adds the noise of every blow and door (W0c), which the log shows as a caption.
-    const m2 = (ev, names) => ev.filter(e => ['damaged', 'missed', 'died', 'hunting', 'refused', 'noise'].includes(e.k) || (e.k === 'opened' && e.who === 'you')).map(e => Text.event(e, names));
+    // Wave 1 adds kinds to the log (a sleeper woken awake, a change of mode), so the check is
+    // on M2's own events: the log of those says what M2's log said.
+    const ofM2 = ev => ev.filter(e => ['damaged', 'missed', 'died', 'hunting', 'refused', 'noise'].includes(e.k) || (e.k === 'opened' && e.who === 'you'));
+    const m2 = (ev, names) => ofM2(ev).map(e => Text.event(e, names));
     let compared = 0;
     for (const seed of [1, 2, 3]) {
       const s = TestRoom.create(seed);
       for (let i = 0; i < 400 && !s.over; i++) {
         const legal = Step.legal(s), a = i % 7 === 3 ? { a: 'move', dir: i % 8 } : legal[(i * 5 + seed) % legal.length];
         const ev = Step.step(s, a), names = Labels.nameOf(s);
-        same(Text.log(ev, names, uid => uid === 'you'), m2(ev, names), JSON.stringify(ev));
+        same(Text.log(ofM2(ev), names, uid => uid === 'you'), m2(ev, names), JSON.stringify(ev));
         compared += ev.length;
       }
     }
@@ -247,11 +248,16 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     fs.writeFileSync(path.join(tmp, 'BUILD.md'), md);
     r = lint(null, ['--build', path.join(tmp, 'BUILD.md')]);
     assert.equal(r.status, 1); assert.match(r.stdout, /dropped is in the registry but not in BUILD\.md §4\.3/);
-    // --strict is M3's acceptance: no M3 entry is ready yet, so it fails now.
+    // A trigger that wakes through pips needs its pip cause; every damage cause accepts saved and side.
+    r = lint("Registry.define('TRIGGERS', 'planted_trigger', { clause: 'wakes when planted', params: {}, covers: [], tests: [], inv: null }); Registry.define('WAKE_CAUSES', 'planted_trigger', { mode: 'hunting', creation: false }); for (const k of ['woke', 'hunting']) { Registry.defineCause(k, 'planted_trigger', { fields: {} }); Text.defineCause(k, 'planted_trigger', () => 'Planted.'); }");
+    assert.equal(r.status, 1); assert.match(r.stdout, /the trigger planted_trigger wakes through pips but has no pip\.planted_trigger cause schema/);
+    r = lint("Registry.defineCause('damaged', 'planted_blow', { fields: { by: 'uid' } }); Text.defineCause('damaged', 'planted_blow', () => 'Planted.');");
+    assert.equal(r.status, 1); assert.match(r.stdout, /damaged\.planted_blow does not accept saved\?/); assert.match(r.stdout, /damaged\.planted_blow does not accept side\?/);
+    // --strict is M3's acceptance: it fails until every M3 entry is ready.
     r = lint(null, ['--strict']);
-    assert.equal(r.status, 1); assert.match(r.stdout, /--strict: ARCHETYPES\.plodder is at ready false/);
+    assert.equal(r.status, 1); assert.match(r.stdout, /--strict: \S+ is at ready (false|"unit")/);
     // And the tree itself is clean, with the readiness counts reported.
     r = lint(null);
-    assert.equal(r.status, 0, r.stdout); assert.match(r.stdout, /M3 entries at ready false \d+, 'unit' 0, true 0/);
+    assert.equal(r.status, 0, r.stdout); assert.match(r.stdout, /M3 entries at ready false \d+, 'unit' \d+, true \d+/);
   });
 };

@@ -6,8 +6,11 @@
 //   special trigger; a department owns more than two modules;
 //   the registry's event kinds differ from BUILD.md §4.3's list;
 //   an event kind or a (kind, cause) pair has no schema or no sentence, or a sentence has
-//   no schema; a wake cause lacks its woke and hunting causes; a refusal code has no
-//   sentence, or a sentence no code;
+//   no schema; a wake cause lacks its woke and hunting causes; a trigger that wakes an
+//   exhibit into a mode (a wake cause waking it hunting or awake, not a creation cause)
+//   lacks its pip cause, which Wake.addPips emits before it wakes; a damaged cause does not accept saved and side (Combat.hurt
+//   marks saved on any cause, old_repair side on a blow, shot or beam); a refusal code has
+//   no sentence, or a sentence no code;
 //   a clause template names a parameter it does not define, or a special or status its
 //   entry does not name; a parameter reference cannot be read; a clause covers an unknown
 //   event kind; a pack species' Behaviour line cannot be filled at some depth 1–7;
@@ -86,6 +89,13 @@ for (const k of R.order('WAKE_CAUSES')) {
   const w = R.WAKE_CAUSES[k];
   if (!['hunting', 'awake', 'parent', 'perform'].includes(w.mode)) bad(`the wake cause ${k} has the mode ${JSON.stringify(w.mode)}`);
   for (const kind of ['woke', 'hunting']) if (!R.CAUSES[kind] || !R.CAUSES[kind][k]) bad(`the wake cause ${k} has no ${kind}.${k} cause schema`);
+}
+for (const k of R.order('TRIGGERS')) {
+  const w = R.WAKE_CAUSES[k];
+  if (w && !w.creation && (w.mode === 'hunting' || w.mode === 'awake') && !(R.CAUSES.pip && R.CAUSES.pip[k])) bad(`the trigger ${k} wakes through pips but has no pip.${k} cause schema`);
+}
+for (const c of keys(R.CAUSES.damaged)) for (const f of ['saved', 'side']) {
+  if (!R.CAUSES.damaged[c].list.some(x => x.name === f && x.optional)) bad(`damaged.${c} does not accept ${f}? (every damage cause may carry it)`);
 }
 for (const code of R.order('REFUSALS')) if (!Text.refusalDefined(code)) bad(`the refusal ${code} has no sentence (Text.defineRefusal)`);
 for (const code of said.refusals) if (!R.REFUSALS[code]) bad(`there is a sentence for the refusal ${code}, which is not in REFUSALS`);

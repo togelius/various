@@ -47,9 +47,12 @@ const Actors = (() => {
 
   // An actor's fields (BUILD.md §4.1), every one plain data with a default, never undefined.
   // rec gives uid, sp, size, x, y, hp (and maxHp), acc, eva, pad, dmin, dmax, mode, and may
-  // give what the species gives (arch, role, mods, modParams, trigger, group) and the rest.
-  // Rules read these copies, never the pack. An exhibit with no archetype is a plodder.
-  // state may be null for an actor made outside a state (Setup.you).
+  // give what the species gives (arch, role, mods, modParams, trigger, group) and the rest:
+  // next, pips, stim, home, guards, gen, ax, speed, and for a room made for a test its
+  // statuses ([{id, until?, turns?, from?}]: one with until null and turns N is settled by
+  // the next Status.settle), target, lastKnown and sawYou. Rules read these copies, never the
+  // pack. An exhibit with no archetype is a plodder. state may be null for an actor made
+  // outside a state (Setup.you).
   function make(state, rec) {
     const you = rec.uid === 'you', arch = rec.arch !== undefined ? rec.arch : you ? null : 'plodder', mods = (rec.mods || []).slice();
     const or = (k, v) => rec[k] !== undefined ? rec[k] : v;
@@ -59,13 +62,15 @@ const Actors = (() => {
       hp: rec.hp, maxHp: or('maxHp', rec.hp), acc: or('acc', 0), eva: or('eva', 0), pad: or('pad', 0), dmin: or('dmin', 0), dmax: or('dmax', 0),
       speed: rec.speed !== undefined ? rec.speed : speedOf(state, arch, mods),
       next: or('next', 0), notBefore: null, mode: or('mode', you ? null : 'dormant'), pips: or('pips', 0), stim: or('stim', state ? state.turn : 0),
-      pipTurns: {}, sawYou: false,
-      home: copy(or('home', you ? null : [rec.x, rec.y])), target: null, lastKnown: null, guards: copy(or('guards', null)),
+      pipTurns: {}, sawYou: or('sawYou', false),
+      home: copy(or('home', you ? null : [rec.x, rec.y])), target: copy(or('target', null)), lastKnown: copy(or('lastKnown', null)), guards: copy(or('guards', null)),
       route: null, plan: null, facing: null,
-      statuses: [], telegraph: null, acts: 0, woke: null, hunted: null, kids: 0, gen: or('gen', 0), gone: 0, ax: copy(or('ax', {})),
+      statuses: or('statuses', []).map(statusOf), telegraph: null, acts: 0, woke: null, hunted: null, kids: 0, gen: or('gen', 0), gone: 0, ax: copy(or('ax', {})),
     };
   }
   const copy = v => v === null ? null : JSON.parse(JSON.stringify(v));
+  const orNull = v => v === undefined ? null : v;
+  const statusOf = s => ({ id: s.id, until: orNull(s.until), turns: orNull(s.turns), from: orNull(s.from) });
   // Create an actor and append it: actors are only ever appended during a visit (§3.3).
   function spawn(state, rec) {
     const a = make(state, rec);
@@ -79,7 +84,7 @@ const Actors = (() => {
   // scaled by its archetype's and modifiers' costPct, then doubled again while slowed (§8.1).
   function cost(state, a, base, kind) {
     let c = base;
-    if (a.speed && Archetypes.speedApplies(a).includes(kind)) c = Int.pct(c, a.speed === 'fast' ? N.SPEED_FAST_PCT : N.SPEED_SLOW_PCT);
+    if (a.speed && Archetypes.speedApplies(state, a).includes(kind)) c = Int.pct(c, a.speed === 'fast' ? N.SPEED_FAST_PCT : N.SPEED_SLOW_PCT);
     const p = Archetypes.costPct(state, a, kind);
     if (p !== 100) c = Int.pct(c, p);
     if (Status.has(a, 'slowed')) c = Int.pct(c, N.SPEED_SLOW_PCT);

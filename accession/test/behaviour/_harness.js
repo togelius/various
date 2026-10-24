@@ -3,9 +3,9 @@
 // has that clause, at every depth 1–7, with the invariants checked after every step.
 // Behaviour tests require it: const H = require('./_harness.js').
 //
-//   play(C, state, actions, {inv, cap}) → {events, violations, steps, state, stopped}
-//   scenario({name, id, build, actions, expect, seeds?, cap?, inv?}) → sc
-//   run(C, sc, sp, depth, {seed, rulesOff, inv}) → result        (also sc.run(C, sp, depth, opts))
+//   play(C, state, actions, {inv, cap, clone}) → {events, violations, steps, state, stopped}
+//   scenario({name, id, build, actions, expect, seeds?, cap?, inv?, clone?}) → sc
+//   run(C, sc, sp, depth, {seed, rulesOff, inv, clone}) → result  (also sc.run(C, sp, depth, opts))
 //   sweep(C, sc, list?, {rulesOff, inv}) → [result]                 every {sp, depth} × seed
 //   failures(results) → [line]
 //   sensitivity(C, sc, modifierId, list?) → {sensitive, problems, runs}
@@ -22,9 +22,14 @@ const message = e => (e && e.message) || String(e);
 //     to stop; last is the previous step's events;
 //   opts.inv: 'all' (the default: every test/behaviour/*.inv.js), false or [] for none, or
 //     a list of ids, file ids or invariant objects (tools/invariants.js);
-//   opts.cap: the most steps a function may take (CAP).
-// It stops early when the visit is over. stopped is 'done', 'over' or 'cap'; steps is
-// [{action, events}] in order; events is every step's events, concatenated.
+//   opts.cap: the most steps a function may take (CAP);
+//   opts.clone: also play the same actions on a twin of the state that is replaced by
+//     State.clone after every step, and report a violation at the first step whose hash
+//     differs (§3.5's clone stability, for a scenario).
+// After every step the state must be plain data (§3.1), whatever the invariants: a step
+// that leaves anything else is a violation. It stops early when the visit is over. stopped
+// is 'done', 'over' or 'cap'; steps is [{action, events}] in order; events is every step's
+// events, concatenated.
 function play(C, state, actions, opts) {
   opts = opts || {};
   const invs = Inv.select(C, opts.inv === undefined ? 'all' : opts.inv);
@@ -33,7 +38,7 @@ function play(C, state, actions, opts) {
   if (!list && typeof actions !== 'function') throw new Error('play: actions must be a list or a function');
   const cap = opts.cap || CAP;
   const events = [], violations = [], steps = [];
-  let stopped = 'done';
+  let stopped = 'done', twin = opts.clone ? C.State.clone(state) : null;
   for (let i = 0; ; i++) {
     if (list && i >= list.length) break;
     if (state.over) { stopped = 'over'; break; }
@@ -44,7 +49,14 @@ function play(C, state, actions, opts) {
     const ev = C.Step.step(state, action);
     for (const e of ev) events.push(e);
     steps.push({ action, events: ev });
+    const bad = C.State.plainData(state);
+    if (bad) { violations.push({ id: 'plain_data', text: `not plain data at ${bad} after step ${i} (${JSON.stringify(action)})` }); break; }
     if (check) for (const v of check(pre, action, ev, state)) violations.push(v);
+    if (twin) {
+      C.Step.step(twin, action);
+      twin = C.State.clone(twin);
+      if (C.State.hash(twin) !== C.State.hash(state)) { violations.push({ id: 'clone', text: `a clone after every step differs from the state at step ${i} (${JSON.stringify(action)})` }); twin = null; }
+    }
   }
   return { events, violations, steps, state, stopped };
 }
@@ -60,7 +72,8 @@ function play(C, state, actions, opts) {
 //            argument;
 //   expect(result, params, sp, depth) → null, or a message saying what the clause promised
 //            and what happened; it may also throw;
-//   seeds    the seeds each species and depth is run with ([1]); cap (CAP); inv ('all').
+//   seeds    the seeds each species and depth is run with ([1]); cap (CAP); inv ('all');
+//   clone    true to clone-check every run (play's opts.clone; false by default).
 function scenario(def) {
   if (!def || typeof def.name !== 'string' || !def.name) throw new Error('scenario: needs a name');
   const where = `scenario "${def.name}"`;
@@ -71,7 +84,7 @@ function scenario(def) {
   const seeds = def.seeds === undefined ? [1] : def.seeds;
   if (!Array.isArray(seeds) || !seeds.length || !seeds.every(Number.isInteger)) throw new Error(`${where}: seeds must be a list of integers`);
   const sc = { name: def.name, id: def.id || null, build: def.build, actions: def.actions, expect: def.expect, seeds: seeds.slice(),
-    cap: def.cap || CAP, inv: def.inv === undefined ? 'all' : def.inv };
+    cap: def.cap || CAP, inv: def.inv === undefined ? 'all' : def.inv, clone: !!def.clone };
   sc.run = (C, sp, depth, opts) => run(C, sc, sp, depth, opts);
   return sc;
 }
@@ -85,8 +98,10 @@ function paramsOf(C, id, sp, depth) {
   return { params: Object.assign({}, part.params), clause: part.text };
 }
 
-// Run a scenario once. opts: seed (the scenario's first), rulesOff (ids switched off, put
-// into the built state's options as well as passed to build), inv (the scenario's).
+// Run a scenario once. opts: seed (the scenario's first), rulesOff (ids switched off, passed
+// to build, which must pass them on to Setup.room's options: a build that leaves one out of
+// the state's options fails, since a rule switched off after the state is made is only half
+// off, its speed for one being fixed at spawn), inv (the scenario's), clone (the scenario's).
 // The result is {name, id, sp, depth, seed, rulesOff, params, clause, start (a clone of
 // the built state), state, events, steps, violations, stopped, error, failure}, where
 // failure is null when the scenario passed: otherwise the first invariant violation, the
@@ -100,13 +115,10 @@ function run(C, sc, sp, depth, opts) {
     Object.assign(r, paramsOf(C, sc.id, sp, depth));
     const state = sc.build(r.params, sp, depth, { seed: r.seed, rulesOff: rulesOff.slice() });
     if (!state || !Array.isArray(state.actors)) throw new Error('build did not return a state');
-    if (rulesOff.length) {
-      state.options = Object.assign({ rulesOff: [], without: [], invulnerable: false }, state.options);
-      for (const id of rulesOff) if (!state.options.rulesOff.includes(id)) state.options.rulesOff.push(id);
-    }
+    for (const id of rulesOff) if (!(state.options && state.options.rulesOff.includes(id))) throw new Error(`build must pass rulesOff to Setup.room's options: ${id} is not switched off in the state it built`);
     r.start = C.State.clone(state);
     const acts = Array.isArray(sc.actions) ? sc.actions : (s, i, c) => sc.actions(s, i, Object.assign({ params: r.params, sp, depth }, c));
-    Object.assign(r, play(C, state, acts, { inv: opts.inv === undefined ? sc.inv : opts.inv, cap: sc.cap }));
+    Object.assign(r, play(C, state, acts, { inv: opts.inv === undefined ? sc.inv : opts.inv, cap: sc.cap, clone: opts.clone === undefined ? sc.clone : opts.clone }));
   } catch (e) {
     r.error = message(e);
     r.failure = 'threw ' + r.error;

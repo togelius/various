@@ -19,8 +19,11 @@ const Packs = (() => {
   const sharedList = () => shareds.slice();
 
   // The species record an actor was made from (a.sp): the department's own species first,
-  // then its Centrepiece, then a shared species; null for an actor with none (you, or the
-  // test room's dummies). Labels, the view model and policies read species through this.
+  // then its Centrepiece, then a shared species, then any pack's species or Centrepiece with
+  // that id (a room for tests or an arena may stand one pack's species in another place;
+  // ids are unique across the packs, which lint-registry checks); null for an actor with
+  // none (you, or the test room's dummies). Labels, the view model, policies and Setup.room
+  // read species through this.
   function speciesFor(state, a) {
     if (!a || a.sp === null || a.sp === undefined) return null;
     const p = state && state.dept ? get(state.dept.acc) : null;
@@ -29,7 +32,14 @@ const Packs = (() => {
       if (own) return own;
       if (p.centrepiece && p.centrepiece.id === a.sp) return p.centrepiece;
     }
-    return shared(a.sp);
+    const sh = shared(a.sp);
+    if (sh) return sh;
+    for (const q of all) {
+      const own = q.species.find(s => s.id === a.sp);
+      if (own) return own;
+      if (q.centrepiece && q.centrepiece.id === a.sp) return q.centrepiece;
+    }
+    return null;
   }
 
   return { add, get, list, species, addShared, shared, sharedList, speciesFor };

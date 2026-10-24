@@ -110,6 +110,27 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.throws(() => H.play(C, TestRoom.create(2), 'wait', { inv: [] }), /actions must be a list or a function/);
   });
 
+  test('play checks after every step that the state is plain data, and with clone that a clone after every step agrees', () => {
+    const X = loadCore(), waits = Array.from({ length: 5 }, () => ({ a: 'wait' }));
+    const wait = X.Actions.get('wait'), apply = wait.apply;
+    let n = 0;
+    wait.apply = (state, action, ev) => { const c = apply(state, action, ev); if (++n === 3) state.actors[0].ax.x = undefined; return c; };
+    const p = H.play(X, X.TestRoom.create(1), waits, { inv: [] });
+    assert.equal(p.violations.length, 1, 'with no invariants at all');
+    assert.match(p.violations[0].text, /^not plain data at state\.actors\[0\]\.ax\.x after step 2 /);
+    assert.equal(p.steps.length, 3, 'it stops there');
+    // A rule that reads the order of an object's keys, which State.clone (canonical JSON) sorts.
+    wait.apply = (state, action, ev) => { if (Object.keys(state)[0] === 'v') state.actors[0].regen++; return apply(state, action, ev); };
+    assert.equal(H.play(X, X.TestRoom.create(1), waits, { inv: [] }).violations.length, 0, 'unseen without the clone check');
+    const q = H.play(X, X.TestRoom.create(1), waits, { inv: [], clone: true });
+    assert.equal(q.violations.length, 1);
+    assert.match(q.violations[0].text, /^a clone after every step differs from the state at step 0 /);
+    wait.apply = apply;
+    // A scenario asks for it with clone: true, and a clean one passes.
+    assert.equal(plodderStrikes({ clone: true }).clone, true);
+    assert.equal(H.run(C, plodderStrikes({ clone: true }), Packs.species('A4', 'A4.1'), 3).failure, null);
+  });
+
   // A scenario for the plodder's clause, "strikes from beside you for {dmg}", as a function
   // of its parameter: every blow it lands rolls within dmg.
   const MAP = ['#########', '#.......#', '#.......#', '#.......#', '#########'];

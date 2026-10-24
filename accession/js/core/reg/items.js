@@ -35,8 +35,11 @@
   R.defineCause('equipped', 'unequip', { fields: { short: 'int?' } });
   R.defineCause('used', 'use', { fields: { gentle: 'bool?', x: 'int?', y: 'int?' } });
   R.defineCause('noise', 'fork', { fields: { by: 'uid?', item: 'uid?' } });
-  // The Pin-Driver's bolt.
-  const item = { by: 'uid', item: 'uid', raw: 'int', pad: 'int', from: 'tile' };
+  // The Pin-Driver's bolt: a shot (Ranged.shoot, then Combat.attack) whose how names the
+  // instrument, so its cause is a shot's, k 'item', with the item.
+  const item = { by: 'uid', at: 'uid', chance: 'int', roll: 'int?', raw: 'int', pad: 'int', floor: 'int?', surprise: 'int?', side: 'str?', how: 'obj', from: 'tile',
+    saved: 'int?', range: 'int', item: 'uid' };
+  R.defineCause('missed', 'item', { fields: { by: 'uid', at: 'uid', chance: 'int', roll: 'int', how: 'obj', range: 'int', item: 'uid' } });
   R.defineCause('damaged', 'item', { fields: item });
   R.defineCause('died', 'item', { fields: item });
 })();

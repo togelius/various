@@ -10,6 +10,9 @@
 //   mayStep(state, a, x, y) → bool       true unless some hook says false
 //   costPct(state, a, kind) → int %      multiplied together, 100 by default
 //   speedApplies(a) → ['move'] | ['move', 'act']   which costs its speed scales; the first given
+//                                        (the hook takes only a; its dispatcher,
+//                                        Archetypes.speedApplies(state, a), skips a modifier
+//                                        switched off, as every dispatcher does)
 //   adjustDamage(state, def, amount, cause) → int  each in turn; cause.from is the tile the blow came from
 //   onDamaged(state, a, amount, cause, ev), onDied(state, a, cause, ev), onTouched(state, a, how, by, ev),
 //   onWake(state, a), onHome(state, a, ev), onResolve(state, a, tel, ev), init(state, a)   each in turn
@@ -38,7 +41,8 @@ const Archetypes = (() => {
   const addedModifier = id => own(MODS, id);
 
   // The hook functions called `name` that answer for a, in order: its archetype's, then its
-  // modifiers' (state null skips the rulesOff check, for hooks that take no state).
+  // modifiers', leaving out a modifier switched off for the visit (Options.off; with no
+  // state, as for an actor made outside one, none is switched off).
   const NONE = [];
   function hooks(state, a, name) {
     let out = NONE;
@@ -60,7 +64,7 @@ const Archetypes = (() => {
   const present = first('present');
   function mayStep(state, a, x, y) { for (const f of hooks(state, a, 'mayStep')) if (!f(state, a, x, y)) return false; return true; }
   function costPct(state, a, kind) { let p = 100; for (const f of hooks(state, a, 'costPct')) p = Int.pct(p, f(state, a, kind)); return p; }
-  function speedApplies(a) { const fs = hooks(null, a, 'speedApplies'); return fs.length ? fs[0](a) : ['move']; }
+  function speedApplies(state, a) { const fs = hooks(state, a, 'speedApplies'); return fs.length ? fs[0](a) : ['move']; }
   function adjustDamage(state, def, amount, cause) { for (const f of hooks(state, def, 'adjustDamage')) amount = f(state, def, amount, cause); return amount; }
   function pipless(state, a) { for (const f of hooks(state, a, 'pipless')) if (f(state, a)) return true; return false; }
   function readout(state, a, you) { let out = []; for (const f of hooks(state, a, 'readout')) out = out.concat(f(state, a, you) || []); return out; }

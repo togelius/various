@@ -196,10 +196,11 @@ module.exports = ({ test, assert, loadCore }) => {
     const watch = Actors.spawn(w, { uid: 'T0.1.watch.1', sp: 'watch', x: 6, y: 3, hp: 9, mode: 'hunting', next: 350 });
     Wake.created(w, watch, 'night_watch', {}, cv);
     assert.equal(json([watch.woke, watch.hunted, watch.next]), json([{ turn: 3, cause: { k: 'night_watch' } }, { turn: 3, cause: { k: 'night_watch' } }, 350 + N.COST_STEP]));
+    assert.equal(json(watch.lastKnown), json([2, 2]), 'its hunt begins with your tile as its last-known tile');
     assert.equal(json(checked(cv).map(e => [e.k, e.was, e.mode])), json([['woke', null, 'hunting']]));
     const half = Actors.spawn(w, { uid: 'T0.1.watch.1/1', sp: 'watch', x: 6, y: 4, hp: 4, mode: 'awake', next: 0 });
-    Wake.created(w, half, 'summoned', { by: watch.uid, how: 'split', from: watch.uid, woke: watch.woke }, null);
-    assert.equal(json([half.woke.cause.how, half.hunted, half.next, cv.length]), json(['split', null, 0, 1]), 'made with the department: no event, no beat');
+    Wake.created(w, half, 'summoned', { how: 'split', from: watch.uid, parent: watch.woke }, null);
+    assert.equal(json([half.woke.cause.how, half.hunted, half.next, half.lastKnown, cv.length]), json(['split', null, 0, null, 1]), 'made with the department: no event, no beat; awake, it knows no tile');
     assert.throws(() => Wake.created(w, half, 'ring', {}, cv), /not a cause an actor is created with/);
   });
 
@@ -490,18 +491,33 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(ev.some(e => e.k === 'moved' && e.who === 'you'), 'you walked about beside them');
   });
 
-  test('the stubs other parts fill, and the M4 hooks, are present, named and neutral; every archetype and modifier file is registered', () => {
+  // A stub's contract is its name and signature until its owner fills it; only the M4 hooks
+  // stay neutral through M3 (plan A17), each checked on its own line, by owner.
+  test('the M4 hooks are present and neutral; the stubs Wave 1 fills are present, with their signatures; every archetype and modifier file is registered', () => {
     const X = loadCore(), s = X.TestRoom.create(1), ev = [], h = State.hash(s), a = s.actors[1];
-    for (const [ns, fn] of [['Wake', 'axis'], ['Wake', 'tether'], ['Wake', 'decay'], ['Wake', 'hear'], ['Wake', 'allyHit'], ['Wake', 'quiet'], ['Wake', 'lose'], ['Wake', 'perform'], ['Wake', 'resleep'], ['AI', 'afterStep']]) {
+    // W1-WAKE-A's file: the chime (Wake.perform, Wake.resleep) and the Lamp (Vision.observed).
+    X.Wake.perform(s, a, { k: 'period' }, ev); X.Wake.resleep(s, a, ev);
+    assert.equal(State.hash(s), h, 'Wake.perform and Wake.resleep change nothing'); assert.equal(ev.length, 0);
+    assert.equal(X.Vision.observed(s, a), false, 'Vision.observed');
+    // W1-WAKE-B's file: the alarm's hold on returning, Single File, Vanishing Act.
+    X.AI.afterStep(s, a, ev);
+    assert.equal(State.hash(s), h, 'AI.afterStep changes nothing'); assert.equal(ev.length, 0);
+    assert.equal(X.AI.mayReturn(s, a), true, 'AI.mayReturn');
+    assert.equal(X.AI.loseTrackTurns(s, a), N.LOSE_TRACK_TURNS, 'AI.loseTrackTurns');
+    // Wave 1 stubs: present and named; the number of arguments where the review set a
+    // signature that parallel packages call (null: not checked).
+    const NAMED = [
+      ['Wake', 'axis', null], ['Wake', 'tether', null], ['Wake', 'decay', null], ['Wake', 'hear', null], ['Wake', 'allyHit', null], ['Wake', 'quiet', null], ['Wake', 'lose', null],
+      ['AI', 'wanderGoal', null], ['AI', 'byMode', null], ['Specials', 'readout', null], ['Specials', 'threat', null],
+      ['Ranged', 'shoot', 6], ['Ranged', 'reflectorAt', 3], ['Grid', 'clear', 3],
+    ];
+    for (const [ns, fn, n] of NAMED) {
       assert.equal(typeof X[ns][fn], 'function', `${ns}.${fn}`);
-      X[ns][fn](s, a, {}, 1, ev);
+      if (n !== null) assert.equal(X[ns][fn].length, n, `${ns}.${fn} takes ${n} arguments`);
     }
-    assert.equal(State.hash(s), h); assert.equal(ev.length, 0);
-    assert.equal(json([X.AI.wanderGoal(s, a), X.AI.loseTrackTurns(s, a), X.AI.mayReturn(s, a), X.Specials.readout(s, a, s.actors[0]), X.Specials.threat(s, { a: 'wait' }),
-      X.Ranged.shoot(s, a, s.actors[0], ev), X.Ranged.reflectorAt(s, 1, 1), X.Vision.observed(s, a)]), json([null, N.LOSE_TRACK_TURNS, true, [], null, 'not_built', false, false]));
-    // close(x, y) is named, with nothing legal yet.
-    assert.equal(json(X.Actions.get('close').legal(s)), '[]');
-    for (const c of X.Actions.get('close').candidates(s)) assert.equal(X.Step.step(State.clone(s), c)[0].reason, 'not_built');
+    // close(x, y) is named, with a legal list and candidates.
+    const close = X.Actions.get('close');
+    assert.ok(close && typeof close.legal === 'function' && typeof close.candidates === 'function' && close.candidates(s).length > 0);
     for (const id of ['plodder', 'darter', 'kiter', 'axis_sniper', 'splitter', 'mote_swarm', 'herald', 'tethered_warden', 'reflector', 'mimic_vitrine', 'night_watchman'])
       assert.ok(X.Archetypes.added(id), id);
     for (const id of ['glass', 'old_repair', 'marble', 'plaster']) assert.ok(X.Archetypes.addedModifier(id), id);

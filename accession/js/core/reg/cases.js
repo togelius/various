@@ -36,4 +36,6 @@
   R.define('WAKE_CAUSES', 'dissolved', { mode: 'hunting', creation: false });
   const wake = { by: 'uid?', dist: 'int?', x: 'int?', y: 'int?', from: 'tile?', how: 'str?' };
   for (const k of ['touch_case', 'case_broken', 'dissolved']) for (const kind of ['woke', 'hunting']) R.defineCause(kind, k, { fields: wake });
+  // touch_case wakes at once, through Wake.addPips +3, whose pip event carries the same cause.
+  R.defineCause('pip', 'touch_case', { fields: wake });
 })();

@@ -14,16 +14,19 @@ module.exports = ({ test, assert, loadCore }) => {
   // A status put on an actor by hand, already settled: held until turn `until`.
   const held = (a, id, until) => a.statuses.push({ id, until, turns: null, from: 0 });
 
-  // Every candidate of every handler, refused or not, against Step.legal.
+  // Every candidate of every handler, refused or not, against Step.legal; and a refused one
+  // leaves the state and every random stream as they were (§4.2), whatever handler refused
+  // it. The streams live in state.rng, so comparing canonical JSON covers both.
   function parity(s, where) {
-    const legal = Step.legal(s), keys = new Set(legal.map(key)), cands = new Set();
+    const legal = Step.legal(s), keys = new Set(legal.map(key)), cands = new Set(), base = State.canon(s);
     for (const id of Actions.ORDER) {
       const h = Actions.get(id);
       if (!h) continue;
       for (const c of h.candidates(s)) {
         cands.add(key(c));
-        const ev = Step.step(State.clone(s), c), refused = ev.length === 1 && ev[0].k === 'refused';
+        const t = JSON.parse(base), ev = Step.step(t, c), refused = ev.length === 1 && ev[0].k === 'refused';
         assert.equal(!refused, keys.has(key(c)), `${where}: ${key(c)} ${refused ? 'refused (' + ev[0].reason + ')' : 'accepted'}`);
+        if (refused) assert.ok(State.canon(t) === base, `${where}: ${key(c)} refused (${ev[0].reason}) but changed the state or a stream`);
       }
     }
     for (const k of keys) assert.ok(cands.has(k), `${where}: legal ${k} is no handler's candidate`);
@@ -47,7 +50,8 @@ module.exports = ({ test, assert, loadCore }) => {
     // Planted states: you fixed; you rooted beside a door and an exhibit; an exhibit in a case
     // beside you; a choice waiting; the visit over.
     const fixed = room(C, OPEN, [2, 2], [ex([3, 2], { mode: 'dormant' })]); held(fixed.actors[0], 'fixed', 9);
-    assert.equal(json(Step.legal(fixed)), json([{ a: 'wait' }]), 'fixed: only wait');
+    const whileFixed = Step.legal(fixed);
+    assert.ok(whileFixed.some(a => a.a === 'wait') && whileFixed.every(a => a.a === 'wait' || a.a === 'rest'), 'fixed: only wait and rest: ' + json(whileFixed));
     parity(fixed, 'fixed');
     const doorMap = ['#######', '#.....#', '#..+..#', '#.....#', '#######'];
     const rooted = room(C, doorMap, [3, 1], [ex([4, 1], { mode: 'dormant' })]); held(rooted.actors[0], 'rooted', 9);
@@ -140,9 +144,9 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.throws(() => X.Step.step(s, { a: 'wait' }), /refused \(blocked\) after emitting events/);
   });
 
-  test('the turn boundary runs its eight steps in §8.1\'s order, before anyone who acts on that tick', () => {
+  test('the turn boundary runs its eight steps in §8.1\'s order, statuses\' per-turn effects after the wake checks, before anyone who acts on that tick', () => {
     const X = loadCore(), log = [];
-    const steps = [['Surfaces', 'tick'], ['Status', 'tick'], ['Kit', 'recharge'], ['Health', 'regenerate'], ['Wake', 'boundary'], ['Wake', 'decay'],
+    const steps = [['Surfaces', 'tick'], ['Status', 'tick'], ['Kit', 'recharge'], ['Health', 'regenerate'], ['Wake', 'boundary'], ['Status', 'effects'], ['Wake', 'decay'],
       ['ClockRules', 'boundary'], ['Modules', 'alarmDecay'], ['Modules', 'turn']];
     for (const [ns, fn] of steps) { const orig = X[ns][fn]; X[ns][fn] = (...args) => { log.push(`${ns}.${fn}@${args[0].tick}`); return orig(...args); }; }
     const s = room(X, OPEN, [2, 2], [ex([6, 2], { stats: { hp: 999, acc: -99, eva: 0, pad: 0, dmin: 1, dmax: 1 } })]);
@@ -328,7 +332,7 @@ module.exports = ({ test, assert, loadCore }) => {
 
   test('a refusal changes nothing and draws nothing, whatever its code, and every code has a sentence', () => {
     const cases = [];
-    const add = (code, s, action) => cases.push({ code, s, action });
+    const add = (code, s, action, X) => cases.push({ code, s, action, X: X || C });
     add('visit_over', Object.assign(TestRoom.create(1), { over: { k: 'died', turn: 0, by: null, door: null, cause: {} } }), { a: 'wait' });
     const p = TestRoom.create(1); p.ui.pendingChoice = { k: 'seal', options: [] }; add('choice_pending', p, { a: 'wait' });
     add('unknown_action', TestRoom.create(1), { a: 'dance' });
@@ -345,18 +349,20 @@ module.exports = ({ test, assert, loadCore }) => {
     add('behind_glass', room(C, caseMap, [3, 1]), { a: 'move', dir: 4 });
     const f = room(C, OPEN, [2, 2]); held(f.actors[0], 'fixed', 5); add('fixed', f, { a: 'move', dir: 2 });
     const r = room(C, OPEN, [2, 2]); held(r.actors[0], 'rooted', 5); add('rooted', r, { a: 'move', dir: 2 });
-    add('not_built', TestRoom.create(1), { a: 'rest' });
+    // not_built, from a handler planted to refuse with it (no handler keeps it once Wave 1 is done).
+    const P = loadCore(); P.Actions.get('wait').apply = () => 'not_built';
+    add('not_built', P.TestRoom.create(1), { a: 'wait' }, P);
     add('no_use', TestRoom.create(1), { a: 'use', uid: 'nothing' });
     const seen = new Set();
     for (const c of cases) {
-      const h = State.hash(c.s), rng = json(c.s.rng), ev = Step.step(c.s, c.action);
+      const X = c.X, h = X.State.hash(c.s), rng = json(c.s.rng), ev = X.Step.step(c.s, c.action);
       assert.equal(ev.length, 1, c.code); assert.equal(ev[0].k, 'refused');
       assert.equal(ev[0].reason, c.code, key(c.action));
-      assert.equal(State.hash(c.s), h, `${c.code}: the state changed`);
+      assert.equal(X.State.hash(c.s), h, `${c.code}: the state changed`);
       assert.equal(json(c.s.rng), rng);
-      assert.equal(Causes.check(ev[0]), null);
-      const line = Text.event(ev[0]);
-      assert.ok(C.Text.refusalDefined(c.code) && line && line !== c.code && /[.:]/.test(line), `${c.code}: ${line}`);
+      assert.equal(X.Causes.check(ev[0]), null);
+      const line = X.Text.event(ev[0]);
+      assert.ok(X.Text.refusalDefined(c.code) && line && line !== c.code && /[.:]/.test(line), `${c.code}: ${line}`);
       seen.add(c.code);
     }
     for (const code of C.Registry.order('REFUSALS')) if (['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach', 'behind_glass', 'fixed', 'rooted', 'not_built', 'no_use'].includes(code)) assert.ok(seen.has(code), code);
@@ -483,7 +489,7 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(A.act(s, a, []), 70, 'the first that is not null');
     assert.equal(A.mayStep(s, a, 1, 1), false); assert.equal(A.pipless(s, a), true);
     assert.equal(json(A.readout(s, a, s.actors[0])), json([{ k: 'b' }]));
-    assert.equal(json(A.speedApplies(a)), json(['move']), 'steps only, by default');
+    assert.equal(json(A.speedApplies(s, a)), json(['move']), 'steps only, by default');
     s.options.rulesOff.push('planted_a');
     log.length = 0;
     assert.equal(A.adjustDamage(s, a, 2, {}), (2 + 1) * 3); assert.equal(log.join(), 'arch,b');
@@ -497,16 +503,29 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json(X.Options.make({ rulesOff: ['x'], invulnerable: 1 })), json({ rulesOff: ['x'], without: [], invulnerable: true }));
   });
 
-  test('the M4 hooks and the stubs other parts fill are present, named, and neutral', () => {
-    const X = loadCore(), s = TestRoom.create(1), ev = [], h = State.hash(s);
-    for (const [ns, fn] of [['Modules', 'onEvent'], ['Modules', 'alarmDecay'], ['Modules', 'turn'], ['Surfaces', 'tick'], ['ClockRules', 'boundary'],
-      ['Kit', 'recharge'], ['Wake', 'hear'], ['Wake', 'allyHit'], ['Wake', 'decay'], ['Health', 'onLow']]) {
+  // A stub's contract is its name and signature until its owner fills it; only the M4 hooks
+  // stay neutral through M3 (plan A17), each checked on its own line, by owner.
+  test('the M4 hooks are present and neutral; the stubs Wave 1 fills are present, with their signatures', () => {
+    const X = loadCore(), s = TestRoom.create(1), ev = [], h = State.hash(s), a = s.actors[1];
+    // M4 hooks, by owner: Modules (system).
+    X.Modules.onEvent(s, { k: 'waited', turn: 0, tick: 0, who: 'you', how: 'wait' }, ev); X.Modules.alarmDecay(s, ev); X.Modules.turn(s, ev);
+    assert.equal(State.hash(s), h, 'Modules: onEvent, alarmDecay and turn change nothing'); assert.equal(ev.length, 0);
+    // W1-COMBAT's file: Health.onLow (Second Wind).
+    X.Health.onLow(s, s.actors[0], ev);
+    assert.equal(State.hash(s), h, 'Health.onLow changes nothing'); assert.equal(ev.length, 0);
+    // Wave 1 stubs and refinable impls: present and named; the number of arguments is checked
+    // where the review set a signature that parallel packages call (null: not checked).
+    const NAMED = [
+      ['Surfaces', 'tick', null], ['ClockRules', 'boundary', null], ['Kit', 'recharge', null], ['Wake', 'hear', null], ['Wake', 'allyHit', null], ['Wake', 'decay', null],
+      ['Kit', 'ringDelta', null], ['Kit', 'useLegal', null], ['Kit', 'useAction', null], ['Kit', 'useCandidates', 1],
+      ['Consumables', 'useLegal', null], ['Consumables', 'useAction', null], ['Consumables', 'useCandidates', 1],
+      ['Combat', 'reachTargets', null], ['Health', 'maxHp', null], ['Health', 'heal', null], ['Health', 'interval', null],
+      ['Status', 'effects', 2], ['Noise', 'hold', 1], ['Archetypes', 'speedApplies', 2],
+    ];
+    for (const [ns, fn, n] of NAMED) {
       assert.equal(typeof X[ns][fn], 'function', `${ns}.${fn}`);
-      X[ns][fn](s, s.actors[1], {}, 1, ev);
+      if (n !== null) assert.equal(X[ns][fn].length, n, `${ns}.${fn} takes ${n} arguments`);
     }
-    assert.equal(State.hash(s), h); assert.equal(ev.length, 0);
-    assert.equal(json([X.Kit.ringDelta(s), X.Kit.useLegal(s), X.Kit.useAction(s, {}, ev), X.Consumables.useLegal(s), X.Consumables.useAction(s, {}, ev),
-      X.Combat.reachTargets(s, s.actors[0]), X.Health.maxHp(1), X.Health.heal(s, s.actors[0], 3, {}, ev)]), json([0, [], 'not_built', [], 'not_built', [], 0, 0]));
     assert.equal(X.Health.interval(20), 20); assert.equal(X.Health.interval(150), N.REGEN_MIN);
     // A step reaches Modules.onEvent once for each event, after it is pushed.
     const seen = [];

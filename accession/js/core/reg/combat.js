@@ -18,8 +18,11 @@
 
   // A blow (§8.1): who struck whom, how, with the chance, the roll and the damage roll.
   const blow = { by: 'uid', at: 'uid', chance: 'int', roll: 'int?', raw: 'int', pad: 'int', floor: 'int?', surprise: 'int?', side: 'str?', how: 'obj', from: 'tile', saved: 'int?' };
-  // A special's resolve (§8.1): no roll, its gross number, your Padding and the net.
-  const special = { by: 'uid', sp: 'str', gross: 'int', pad: 'int', net: 'int', x: 'int', y: 'int', from: 'tile' };
+  // A special's resolve (§8.1): no roll, its gross number, your Padding and the net. Every
+  // damage cause accepts saved (Combat.hurt marks an invulnerable run's save on whatever
+  // cause it is given) and side (old_repair may mark a blow, a shot or a beam from its side);
+  // lint-registry checks that each damaged cause does.
+  const special = { by: 'uid', sp: 'str', gross: 'int', pad: 'int', net: 'int', x: 'int', y: 'int', from: 'tile', side: 'str?', saved: 'int?' };
   R.defineCause('attacked', 'attack', { fields: { by: 'uid', at: 'uid', dist: 'int', how: 'obj' } });
   R.defineCause('missed', 'attack', { fields: { by: 'uid', at: 'uid', chance: 'int', roll: 'int', how: 'obj' } });
   R.defineCause('damaged', 'attack', { fields: blow });

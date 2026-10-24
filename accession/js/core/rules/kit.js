@@ -98,6 +98,20 @@ const Kit = (() => {
   function standIn(state, base, pop) {}
   const useLegal = state => [];                            // [stub → W1-KIT] use(uid, …) of an instrument or kit
   const useAction = (state, action, ev) => 'not_built';    // [stub → W1-KIT]
+  // [stub → W1-KIT] The use candidates of your instruments and kits, a superset of useLegal
+  // (§4.2; the use dispatcher in step.js offers exactly these): every use(uid, x, y) and
+  // use(uid, on) W1-KIT makes legal must be among them, with targets just outside what is
+  // legal (beyond range or sight, an item it cannot be put on). For now, for each
+  // instrument and kit in state.items, a bare use, and its targeted shape aimed nowhere: an
+  // instrument at a tile off the board, a kit on an item that is not there.
+  function useCandidates(state) {
+    const out = [];
+    for (const i of state.items || []) {
+      if (i.kind === 'instrument') out.push({ a: 'use', uid: i.uid }, { a: 'use', uid: i.uid, x: -1, y: -1 });
+      else if (i.kind === 'kit') out.push({ a: 'use', uid: i.uid }, { a: 'use', uid: i.uid, on: 'nothing' });
+    }
+    return out;
+  }
   const addToTote = (state, it) => 'not_built';            // [stub → W1-KIT] → a refusal code, or null once it is in the tote
   const targets = (state, uid) => [];                      // [stub → W1-KIT] the tiles an instrument can be used at
   const describe = (state, uid) => null;                   // [stub → W1-KIT] an item's label data
@@ -113,5 +127,5 @@ const Kit = (() => {
     apply: (state, action, ev) => 'not_built',
   });
 
-  return { SLOTS, item, start, short, derive, stats, settle, ringDelta, recharge, standIn, useLegal, useAction, addToTote, targets, describe, view };
+  return { SLOTS, item, start, short, derive, stats, settle, ringDelta, recharge, standIn, useLegal, useAction, useCandidates, addToTote, targets, describe, view };
 })();

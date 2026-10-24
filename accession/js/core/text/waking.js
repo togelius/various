@@ -14,6 +14,8 @@
   Text.defineCause('pip', 'axis', (e, w) => stir(e, w, 'you are in its row or column'));
   Text.defineCause('pip', 'decay', (e, w) => stir(e, w, 'nothing has disturbed it'));
   Text.defineCause('pip', 'quiet', (e, w) => stir(e, w, '“Quiet, Please” was read'));
+  Text.defineCause('pip', 'tether', (e, w) => stir(e, w, 'you came near what it guards'));
+  Text.defineCause('pip', 'ally_hit', (e, w) => stir(e, w, 'one of its group took damage'));
 
   // Waking. `was` is null for an actor made awake.
   Text.define('woke', (e, w) => e.was == null ? `${w.Name(e.who)} is awake.` : `${w.Name(e.who)} woke.`);

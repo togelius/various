@@ -69,11 +69,16 @@ const Step = (() => {
   });
 
   // use(uid[, x, y][, on]) (§4.2): an instrument or a Restoration kit goes to the kit's rules,
-  // a consumable to the consumables'.
+  // a consumable to the consumables'. Each owner lists its own candidates, its targeted uses
+  // (use(uid, x, y), use(uid, on)) among them, so that every use it makes legal is a candidate
+  // (Kit.useCandidates, Consumables.useCandidates); the dispatcher adds a bare use of every
+  // other item and of nothing, which it refuses itself.
+  const USED = ['instrument', 'kit', 'consumable'];
   const item = (state, uid) => { for (const i of state.items || []) if (i.uid === uid) return i; return null; };
   Actions.define('use', {
     legal: state => Kit.useLegal(state).concat(Consumables.useLegal(state)),
-    candidates: state => (state.items || []).map(i => ({ a: 'use', uid: i.uid })).concat([{ a: 'use', uid: 'nothing' }]),
+    candidates: state => Kit.useCandidates(state).concat(Consumables.useCandidates(state),
+      (state.items || []).filter(i => !USED.includes(i.kind)).map(i => ({ a: 'use', uid: i.uid })), [{ a: 'use', uid: 'nothing' }, { a: 'use' }]),
     apply(state, action, ev) {
       const it = item(state, action.uid);
       if (it && (it.kind === 'instrument' || it.kind === 'kit')) return Kit.useAction(state, action, ev);
@@ -83,12 +88,15 @@ const Step = (() => {
   });
 
   // The turn boundary (§8.1), in its fixed order. Each step is a named function of its
-  // system, called here and nowhere else.
+  // system, called here and nowhere else. The statuses' per-turn effects (a cough's noise,
+  // restoring's healing) come after the wake checks, so that at a boundary, as within an
+  // action, noise comes after the ring, axis and tether (§8.2: hunting wins).
   function boundary(state, ev) {
     Surfaces.tick(state, ev);                        // 1. surfaces
-    Status.tick(state, ev); Kit.recharge(state, ev); // 2. status timers, then instruments' charges
+    Status.tick(state, ev); Kit.recharge(state, ev); // 2. status timers (expiry), then instruments' charges
     Health.regenerate(state, ev);                    // 3. regeneration
-    Wake.boundary(state, ev);                        // 4. wake checks: your ring, axis, tether
+    Wake.boundary(state, ev);                        // 4. wake checks: your ring, axis, tether;
+    Status.effects(state, ev);                       //    then the statuses' per-turn effects
     Wake.decay(state, ev);                           // 5. pip decay
     ClockRules.boundary(state, ev);                  // 6. the clock stage
     Modules.alarmDecay(state, ev);                   // 7. alarm decay (M4)
@@ -98,7 +106,9 @@ const Step = (() => {
   // Run the world until it is your turn again. An exhibit's action is charged after it acts:
   // its next becomes next + the action's cost, or notBefore if that is later (a telegraph
   // keeps its resolve until after your next decision, §8.1); then the statuses its action
-  // applied are settled.
+  // applied are settled. Time only moves forward: an actor scheduled behind the clock (one
+  // made during the visit without its beat), or an exhibit's action that costs no time, is a
+  // bug, and stops step() with an error rather than turning the clock back or looping.
   function advance(state, ev) {
     for (;;) {
       if (state.over) return;
@@ -106,10 +116,11 @@ const Step = (() => {
       if (!a) return;
       const boundaryTick = (state.turn + 1) * N.TICKS_PER_TURN;
       if (boundaryTick <= a.next) { state.turn++; state.tick = boundaryTick; boundary(state, ev); continue; }
+      if (a.next < state.tick) throw new Error(`Step: ${a.uid} is scheduled at ${a.next}, behind the clock at ${state.tick}`);
       state.tick = a.next;
       if (a.uid === 'you') return;
       const c = AI.act(state, a, ev);
-      if (!Number.isInteger(c) || c < 0) throw new Error(`Step: ${a.uid}'s action cost ${c}`);
+      if (!Number.isInteger(c) || c < 1) throw new Error(`Step: ${a.uid}'s action cost ${c}`);
       const nb = a.notBefore === null || a.notBefore === undefined ? 0 : a.notBefore;
       a.next = Math.max(a.next + c, nb);
       a.notBefore = null;

@@ -11,7 +11,8 @@ const AI = (() => {
 
   // An exhibit's turn, in order (§8.1):
   //   0. it counts the action (acts: its actions since it last woke, this one included);
-  //   1. fixed: a pending mark is cancelled, and it waits;
+  //   1. fixed: it waits (a pending mark was already called off when the status was put
+  //      on, Status.apply; the cancel here is a guard that finds nothing to call off);
   //   2. it looks for you (AI.look);
   //   3. a pending mark resolves (Specials.resolve);
   //   4. its archetype or a modifier acts (Archetypes.act), unless that gives null;

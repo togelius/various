@@ -19,6 +19,7 @@
   Text.defineCause('noise', 'glass_broke', noise('glass breaking'));
 
   const why = { touch_case: 'its case was touched', case_broken: 'its case was broken', dissolved: 'its case was dissolved' };
+  Text.defineCause('pip', 'touch_case', (e, w) => `${w.Name(e.who)} stirs (${e.pips} of ${N.PIPS_TO_WAKE} pips): ${why.touch_case}.`);
   for (const k of ['touch_case', 'case_broken', 'dissolved']) {
     Text.defineCause('woke', k, (e, w) => `${w.Name(e.who)} woke: ${why[k]}.`);
     Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: ${why[k]}.` : `${w.Name(e.who)} is hunting you: ${why[k]}.`);

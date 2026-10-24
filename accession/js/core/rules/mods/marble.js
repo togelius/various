@@ -2,5 +2,9 @@
 // W1-ARCH-A. Its Behaviour-line clause and registry entry are in js/core/reg/.
 'use strict';
 (() => {
-  Archetypes.addModifier('marble', {});   // [stub → W1-ARCH-A] no hooks yet
+  // [stub → W1-ARCH-A] Marble's slowness is already built: Registry.MODIFIERS.marble.speed is
+  // 'slow', counted by Actors.speedOf at spawn (§8.1), so a marble step costs 2×. Do not add
+  // a costPct for moves, which would double it again; switch it off with rulesOff passed to
+  // Setup.room, since the speed is fixed at spawn.
+  Archetypes.addModifier('marble', {});
 })();
