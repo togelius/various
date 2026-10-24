@@ -21,13 +21,16 @@ module.exports = ({ test, assert, loadCore }) => {
 
   test('turn boundaries resolve before anyone who acts on that tick', () => {
     const s = room([]);
-    s.actors[0].hp = 10; s.actors[0].maxHp = 20;      // regeneration every max(4, 400/20) = 20 turns
+    // Regeneration every max(4, 400/20) = 20 turns: the store gains 2 units a turn and gives
+    // 1 HP at twice the interval, 40 (BUILD.md §8.1).
+    s.actors[0].hp = 10; s.actors[0].maxHp = 20;
     for (let i = 0; i < 19; i++) Step.step(s, { a: 'wait' });
     assert.equal(s.actors[0].hp, 10);
+    assert.equal(s.actors[0].regen, 2 * 19);
     const ev = Step.step(s, { a: 'wait' });
     assert.equal(s.turn, 20);
-    assert.ok(ev.some(e => e.k === 'regenerated' && e.turn === 20), 'regenerated on turn 20');
-    assert.equal(s.actors[0].hp, 11);
+    assert.ok(ev.some(e => e.k === 'regenerated' && e.turn === 20 && e.cause.units === 40 && e.cause.need === 40), 'regenerated on turn 20');
+    assert.equal(JSON.stringify([s.actors[0].hp, s.actors[0].regen]), JSON.stringify([11, 0]), 'the store gave up its 40 units');
   });
 
   test('a sleeping exhibit is not scheduled; struck awake, it first acts one action later', () => {

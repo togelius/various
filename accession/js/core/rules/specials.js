@@ -1,6 +1,7 @@
-// ACCESSION — specials and their telegraphs (BUILD.md §8.1). W0d builds the core: which special
+// ACCESSION — specials and their telegraphs (BUILD.md §8.1). W0d built the core: which special
 // an exhibit has, the tiles it marks, marking, resolving and cancelling, and the marks the
-// view model draws. W1-COMBAT owns the file after, and adds the readout and the threat.
+// view model draws. W1-COMBAT owns the file after, and adds the readout (the label's line for
+// a special) and the threat (the mark an action of yours would leave you standing on).
 //
 // The rules (§8.1):
 //   - One action marks the tiles; the exhibit's next action resolves the special, with no
@@ -185,10 +186,43 @@ const Specials = (() => {
     return out;
   }
 
-  // [stub → W1-COMBAT] The odds readout's special lines for a: [{sp, net, every, shape, range}].
-  const readout = (state, a, you) => [];
-  // [stub → W1-COMBAT] The mark your action would step you onto: null | {x, y, dmg, by}.
-  const threat = (state, action) => null;
+  // Specials.readout(state, a, you) → [{sp, net, gross, effect, every, shape, range}]: the odds
+  // readout's line for a's special (§8.1: "one line per special, with its exact net damage and
+  // cadence"), none if it has none. net is what it would deal you now through your Padding
+  // (Specials.net, as its marks show), or null for a special that deals no damage (a call);
+  // every its cadence in actions and range its reach in tiles (null where it has none).
+  function readout(state, a, you) {
+    const sp = of(state, a);
+    if (!sp) return [];
+    return [{ sp: sp.id, net: sp.effect === 'damage' ? net(sp.gross, you.pad) : null, gross: sp.gross, effect: sp.effect,
+      every: sp.every, shape: sp.shape, range: sp.range }];
+  }
+
+  // Specials.threat(state, action) → null | {x, y, dmg, by}: does your action leave you on a
+  // tile marked for damage by a special that will resolve before your next decision? The
+  // interface asks before such an action ("Stay in the beam: 9 damage?", §7.1). The tile is
+  // where the action leaves you, and your next decision comes when its ticks are done; a
+  // pending damage mark on that tile resolves first if its owner's next action comes earlier
+  // (ties go to you, §8.1). dmg is what the mark shows: its gross through your Padding now,
+  // which is what resolves, since your stats change only when your action is done. Both the
+  // tile and the cost are read from the action applied to a copy of the state, which is then
+  // thrown away; nothing the action would roll is looked at, so the answer gives nothing away.
+  // A refused action, or one that takes no time, has no threat.
+  function threat(state, action) {
+    if (state.over || !action || typeof action.a !== 'string') return null;
+    if (state.ui && state.ui.pendingChoice && action.a !== 'choose') return null;
+    const h = Actions.get(action.a), you = state.actors[0];
+    if (!h || Status.blocks(state, you, action)) return null;
+    const copy = State.clone(state), r = h.apply(copy, action, []);
+    if (typeof r === 'string' || !Number.isInteger(r) || r <= 0) return null;
+    const after = copy.actors[0], x = after.x, y = after.y, decision = you.next + r;
+    for (const a of state.actors) {
+      const t = a.telegraph;
+      if (a.gone || !t || t.effect !== 'damage' || !Actors.scheduled(a) || a.next >= decision) continue;
+      if (hasTile(t.tiles, x, y)) return { x, y, dmg: net(t.gross, you.pad), by: a.uid };
+    }
+    return null;
+  }
 
   return { SHAPES: SHAPES.slice(), info, of, tiles, canMark, mark, net, resolve, cancel, marks, readout, threat };
 })();

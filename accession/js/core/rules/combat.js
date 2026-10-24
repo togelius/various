@@ -1,10 +1,23 @@
-// ACCESSION — ordinary blows: hit chance, damage, Padding, surprise (BUILD.md §8.1). Every
-// roll is drawn from the attacker's own stream, and every result carries its cause. Owned by
-// W1-COMBAT after M3's Wave 0; the order inside one blow and inside hurt is fixed here.
+// ACCESSION — ordinary blows: hit chance, damage, Padding, surprise and Reach (BUILD.md §8.1).
+// Every roll is drawn from the attacker's own stream, and every result carries its cause.
+// Owned by W1-COMBAT after M3's Wave 0; the order inside one blow and inside hurt is fixed here.
 'use strict';
 const Combat = (() => {
   const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
   const copy = c => Causes.copy(c, 'over.cause');
+  // The kinds of blow canStrike is asked about (it only reads them); a blow made gets its own
+  // how, since its cause keeps it.
+  const MELEE = { kind: 'melee' }, REACH = { kind: 'reach' };
+
+  // Combat.hits(roll, chance): a d100 roll at or below the chance hits (§8.1). This is the one
+  // test of a hit: every blow and shot uses it, and so does the test that the chance shown is
+  // the number of faces that hit.
+  const hits = (roll, chance) => roll <= chance;
+  // Combat.rollHit(rng, chance) → {roll, hit}: one d100 on the stream rng, and whether it hits.
+  function rollHit(rng, chance) {
+    const roll = rng.d100();
+    return { roll, hit: hits(roll, chance) };
+  }
 
   // The chance att hits def (§8.1). how.acc, when given, is the Acc the blow is made with
   // (an instrument's bolt, made with your Acc without the weapon's), else the attacker's.
@@ -61,22 +74,71 @@ const Combat = (() => {
     return false;
   }
 
+  // A Reach blow's way (§8.1): the direction in which some tile of b's footprint lies exactly
+  // REACH_RANGE steps from a's tile, in a straight line (one of the 8 directions), or -1.
+  function reachDir(a, b) {
+    for (let d = 0; d < 8; d++) if (Actors.covers(b, a.x + Grid.DX[d] * N.REACH_RANGE, a.y + Grid.DY[d] * N.REACH_RANGE)) return d;
+    return -1;
+  }
+  // Is the way of a Reach blow from a in direction d clear? Every tile between a and its
+  // target must be one you could walk onto and see through (so not a wall, a closed door or a
+  // case) with no actor on it ('blocked' otherwise), and each diagonal step of the way, out of
+  // a's tile and into the target's, may not cut past a corner you could not step past ('corner').
+  function reachWay(state, a, d) {
+    const m = state.dept, dx = Grid.DX[d], dy = Grid.DY[d], diagonal = dx !== 0 && dy !== 0;
+    let px = a.x, py = a.y;
+    for (let k = 1; k <= N.REACH_RANGE; k++) {
+      const qx = px + dx, qy = py + dy;
+      if (diagonal && !(Grid.walkable(m, qx, py) && Grid.walkable(m, px, qy))) return 'corner';
+      if (k < N.REACH_RANGE && (!Grid.walkable(m, qx, qy) || !Grid.seeThrough(m, qx, qy) || Actors.at(state, qx, qy))) return 'blocked';
+      px = qx; py = qy;
+    }
+    return null;
+  }
+
   // Combat.canStrike(state, att, def, how) → null, or the refusal code for the blow
   // (how = {kind: 'melee' | 'reach' | 'shot', …}). Nothing strikes into or out of an intact
   // case (§8.3): a blow at anything standing on one, an encased exhibit or a mimic in its
-  // disguise, is refused exactly as a bump into an empty case is, so nothing leaks. A melee
-  // blow needs the footprints to touch, and a diagonal one may not cross a corner.
+  // disguise, is refused exactly as a bump into an empty case is, so nothing leaks.
+  //   melee: the footprints touch, and a diagonal blow may not cross a corner;
+  //   reach: a Reach weapon (att.reach), and the target exactly REACH_RANGE tiles away in a
+  //          straight line over a clear tile between (reachWay); the attacker is one tile;
+  //   shot:  only the target and the glass are checked here; a shot's line, range and sight
+  //          are the shooter's to check (Ranged.shoot).
   function canStrike(state, att, def, how) {
     if (!def || def.gone || def === att) return 'no_target';
     if (Cases.encased(state, att) || Cases.encased(state, def)) return 'behind_glass';
     const kind = (how && how.kind) || 'melee';
-    if (kind !== 'melee') return 'not_built';                 // Reach (W1-COMBAT), shots (W1-ARCH-B)
+    if (kind === 'shot') return null;
+    if (kind === 'reach') {
+      if (!att.reach || (att.size || 1) !== 1 || Actors.between(att, def) !== N.REACH_RANGE) return 'out_of_reach';
+      const d = reachDir(att, def);
+      return d < 0 ? 'out_of_reach' : reachWay(state, att, d);
+    }
+    if (kind !== 'melee') return 'not_built';
     if (Actors.between(att, def) !== 1) return 'out_of_reach';
     if (!adjacent(state, att, def)) return 'corner';
     return null;
   }
-  // [stub → W1-COMBAT] The uids a Reach weapon could strike now (§8.1).
-  function reachTargets(state, a) { return []; }
+  // Combat.reachTargets(state, a) → [uid]: the actors a could strike with a Reach blow now,
+  // in spawn order (none without a Reach weapon). An actor beside a is struck as usual, so it
+  // is not among them.
+  function reachTargets(state, a) {
+    const out = [];
+    if (!a.reach) return out;
+    for (const b of state.actors) if (b !== a && !b.gone && !canStrike(state, a, b, REACH)) out.push(b.uid);
+    return out;
+  }
+  // The blow you would make at t now, {kind, code}: a melee blow if one is allowed; otherwise,
+  // with a Reach weapon, a Reach blow if one is allowed; otherwise the refusal, Reach's for a
+  // target REACH_RANGE away and the melee blow's for any other.
+  function yourBlow(state, you, t) {
+    const melee = canStrike(state, you, t, MELEE);
+    if (!melee || !you.reach || melee === 'no_target' || melee === 'behind_glass') return { kind: 'melee', code: melee };
+    const reach = canStrike(state, you, t, REACH);
+    if (!reach) return { kind: 'reach', code: null };
+    return { kind: 'melee', code: Actors.between(you, t) === N.REACH_RANGE ? reach : melee };
+  }
 
   // A melee blow from att at def, which canStrike allowed. Returns its cost in ticks.
   function strike(state, att, def, ev) {
@@ -91,7 +153,9 @@ const Combat = (() => {
     return best;
   }
 
-  // One blow or shot (§8.1), the caller having checked it and paid for it.
+  // One blow or shot (§8.1), the caller having checked it and paid for it. A Reach blow is a
+  // blow like any other, from the attacker's tile; it can surprise, but only a Light weapon's
+  // melee blow deals ×1.5 by surprise.
   // how = {kind: 'melee' | 'reach' | 'shot', range?, via?, item?, dmin?, dmax?, acc?}:
   //   range  a shot's distance in tiles (required for a shot);
   //   via    for a shot, the last tile the bolt crossed before the target (where it came from);
@@ -127,9 +191,9 @@ const Combat = (() => {
       Object.assign(cause, { raw: dmg, pad: def.pad, how, from });
       hurt(state, def, net(dmg, def.pad, cause), cause, ev);
     } else {
-      const roll = rng.d100();
-      cause.roll = roll;
-      if (roll > chance) Causes.emit(state, ev, 'missed', { by: att.uid, at: def.uid }, Object.assign(cause, { how }));
+      const r = rollHit(rng, chance);
+      cause.roll = r.roll;
+      if (!r.hit) Causes.emit(state, ev, 'missed', { by: att.uid, at: def.uid }, Object.assign(cause, { how }));
       else {
         const raw = rng.int(dmin, dmax);
         Object.assign(cause, { raw, pad: def.pad, how, from });
@@ -187,20 +251,24 @@ const Combat = (() => {
     else Noise.emit(state, who.x, who.y, 'loud', { k: 'destroyed', by: cause.by || null }, ev);
   }
 
-  // Your attack(uid) action (§4.2): a melee blow at an actor canStrike allows.
+  // Your attack(uid) action (§4.2): a blow at an actor beside you, or with a Reach weapon at one
+  // REACH_RANGE tiles away in a straight line (yourBlow). It costs your weapon's blow.
   Actions.define('attack', {
     legal(state) {
       const you = state.actors[0], out = [];
-      for (const a of state.actors) if (a !== you && !a.gone && !canStrike(state, you, a, { kind: 'melee' })) out.push({ a: 'attack', uid: a.uid });
+      for (const a of state.actors) if (a !== you && !a.gone && !yourBlow(state, you, a).code) out.push({ a: 'attack', uid: a.uid });
       return out;
     },
     candidates: state => state.actors.map(a => ({ a: 'attack', uid: a.uid })).concat([{ a: 'attack', uid: 'nobody' }, { a: 'attack' }]),
     apply(state, action, ev) {
       const you = state.actors[0], t = typeof action.uid === 'string' ? Actors.byUid(state, action.uid) : null;
-      const code = canStrike(state, you, t, { kind: 'melee' });
-      return code || strike(state, you, t, ev);
+      const b = yourBlow(state, you, t);
+      if (b.code) return b.code;
+      if (b.kind === 'melee') return strike(state, you, t, ev);
+      attack(state, you, t, ev, { kind: 'reach' });
+      return Actors.attackCost(state, you);
     },
   });
 
-  return { hitChance, surprised, netRolls, surpriseRaw, surpriseNet, adjacent, canStrike, reachTargets, strike, attack, hurt, die };
+  return { hits, rollHit, hitChance, surprised, netRolls, surpriseRaw, surpriseNet, adjacent, canStrike, reachTargets, strike, attack, hurt, die };
 })();
