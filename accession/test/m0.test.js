@@ -71,12 +71,22 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(hits > 0 && misses > 0);
   });
 
-  test('action costs: speed scales waiting, and brutes and Heavy weapons strike at 150', () => {
-    const fast = { speed: 'fast' }, slow = { speed: 'slow' };
-    assert.equal(Actors.cost(fast, N.COST_WAIT), N.COST_WAIT * N.SPEED_FAST_PCT / 100);
-    assert.equal(Actors.cost(slow, N.COST_WAIT), N.COST_WAIT * N.SPEED_SLOW_PCT / 100);
-    assert.equal(Actors.attackCost({ weaponForm: 'heavy' }), N.COST_ATTACK_HEAVY);
-    assert.equal(Actors.attackCost({ role: 'brute' }), N.COST_ATTACK_HEAVY);
+  test('action costs: speed scales steps, the slowed status every action, and brutes and Heavy weapons strike at 150', () => {
+    const s0 = room([{ at: [4, 2], speed: 'fast' }, { at: [5, 2], speed: 'slow' }, { at: [6, 2], role: 'brute' }]);
+    const [, fast, slow, brute] = s0.actors;
+    // Fast actors pay half and slow ones double for a step; a blow or a wait costs the usual (§8.1).
+    assert.equal(Actors.cost(s0, fast, N.COST_STEP, 'move'), N.COST_STEP * N.SPEED_FAST_PCT / 100);
+    assert.equal(Actors.cost(s0, slow, N.COST_STEP, 'move'), N.COST_STEP * N.SPEED_SLOW_PCT / 100);
+    assert.equal(Actors.cost(s0, fast, N.COST_WAIT, 'act'), N.COST_WAIT);
+    assert.equal(Actors.cost(s0, slow, N.COST_WAIT, 'act'), N.COST_WAIT);
+    // The slowed status doubles every action again.
+    s0.actors[0].statuses.push({ id: 'slowed', until: 9, turns: null, from: 0 });
+    assert.equal(Actors.cost(s0, s0.actors[0], N.COST_WAIT, 'act'), N.COST_WAIT * N.SPEED_SLOW_PCT / 100);
+    slow.statuses.push({ id: 'slowed', until: 9, turns: null, from: 0 });
+    assert.equal(Actors.cost(s0, slow, N.COST_STEP, 'move'), N.COST_STEP * N.SPEED_SLOW_PCT / 100 * N.SPEED_SLOW_PCT / 100);
+    assert.equal(Actors.attackCost(s0, brute), N.COST_ATTACK_HEAVY);
+    assert.equal(Actors.attackCost(s0, fast), N.COST_ATTACK);
+    assert.equal(N.FORM_HEAVY[3], N.COST_ATTACK_HEAVY, 'a Heavy blow costs its form\'s cost');
     const s = room([{ at: [4, 2], mode: 'dormant' }]);
     s.actors[0].weaponForm = 'heavy';
     s.actors[0].x = 3;

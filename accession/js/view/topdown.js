@@ -8,7 +8,7 @@ Views.register('topdown', 'Flat', host => {
   const ctx = canvas.getContext('2d');
   const ZOOM = [32, 48];
   // Tiles drawn as plain floor on purpose (the tile-art test checks every other tile has a case).
-  const PLAIN = ['.', ','];
+  const PLAIN = ['.', ',', 'u', 's'];
   let zoom = 0, tile = ZOOM[0], ox = 0, oy = 0, last = null, items = [], tiles = [], size = { width: 0, height: 0 }, inset = 0;
 
   // The canvas is a whole number of device pixels and its box exactly that size, so the page

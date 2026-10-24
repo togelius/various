@@ -1,6 +1,8 @@
 // ACCESSION — sentences: statuses and surfaces (BUILD.md §8.1, §8.6), owned by W1-STATUS.
 'use strict';
 (() => {
+  Text.defineRefusal('fixed', () => 'You are fixed in place: you can only wait.');
+  Text.defineRefusal('rooted', () => 'You are rooted to the spot: you cannot move.');
   const on = (e, w) => e.on ? `${w.Name(e.who)} ${w.is(e.who)} now ${e.id}.` : `${w.Name(e.who)} ${w.is(e.who)} no longer ${e.id}.`;
   Text.define('status', on);
   Text.defineCause('status', 'status', on);

@@ -503,11 +503,13 @@ const Int = (() => {
 </script>
 <script>
 // ACCESSION — the tile grid: what each tile character means, line of sight, walking
-// distance and steps. A department's map is an array of row strings (BUILD.md §4.1).
+// distance and steps. A department's map is an array of row strings (BUILD.md §4.1). Every
+// rule's geometry is defined here once (§8.2), frozen after M3's Wave 0.
 'use strict';
 const Grid = (() => {
   // Tile characters. Movement and sight follow the movement × sight matrix
-  // (design/vocabulary.md §7.1); the registry describes each one to the player.
+  // (design/vocabulary.md §7.1); the registry describes each one to the player. `hold`
+  // marks a tile an exhibit can stand on: every walkable tile, a vitrine and a plinth.
   const TILES = {
     '#': { name: 'wall' },
     '.': { name: 'floor', walk: 1, see: 1 },
@@ -515,13 +517,15 @@ const Grid = (() => {
     '+': { name: 'closed door', walk: 1, door: 1 },
     "'": { name: 'open door', walk: 1, see: 1, door: 1 },
     'S': { name: 'staff door', walk: 1, door: 1, staff: 1 },
+    's': { name: 'open staff door', walk: 1, see: 1, door: 1, staff: 1 },
     'E': { name: 'entrance', walk: 1, see: 1 },
     'X': { name: 'exit door', walk: 1, see: 1 },
-    'v': { name: 'vitrine', see: 1, glass: 1 },
+    'v': { name: 'vitrine', see: 1, glass: 1, hold: 1 },
+    'u': { name: 'opened case', walk: 1, see: 1 },
     'k': { name: 'broken case', walk: 1, see: 1, loud: 1 },
     'x': { name: 'shards', walk: 1, see: 1, loud: 1 },
     'w': { name: 'pool', walk: 1, see: 1, loud: 1, slow: 1 },
-    'p': { name: 'plinth', see: 1 },
+    'p': { name: 'plinth', see: 1, hold: 1 },
     'f': { name: 'low furniture', see: 1 },
     'l': { name: 'lectern', see: 1 },
     'b': { name: 'bench', walk: 1, see: 1, bench: 1 },
@@ -531,12 +535,16 @@ const Grid = (() => {
     '~': { name: 'balustrade', see: 1 },
     '=': { name: 'rope line', walk: 1, see: 1 },
   };
-  const WALK = new Uint8Array(128), SEE = new Uint8Array(128);
+  const WALK = new Uint8Array(128), SEE = new Uint8Array(128), STAFF = new Uint8Array(128), HOLD = new Uint8Array(128), BOLT = new Uint8Array(128);
   for (const ch of Object.keys(TILES)) {
-    const c = ch.charCodeAt(0);
-    WALK[c] = TILES[ch].walk ? 1 : 0;
-    SEE[c] = TILES[ch].see ? 1 : 0;
+    const c = ch.charCodeAt(0), t = TILES[ch];
+    WALK[c] = t.walk ? 1 : 0;
+    SEE[c] = t.see ? 1 : 0;
+    STAFF[c] = t.staff ? 1 : 0;
+    HOLD[c] = t.walk || t.hold ? 1 : 0;
+    BOLT[c] = t.see && !t.glass ? 1 : 0;
   }
+  const V = 'v'.charCodeAt(0), PLUS = '+'.charCodeAt(0), S = 'S'.charCodeAt(0);
 
   // Directions in a fixed order: N, NE, E, SE, S, SW, W, NW.
   const DX = [0, 1, 1, 1, 0, -1, -1, -1], DY = [-1, -1, 0, 1, 1, 1, 0, -1];
@@ -544,28 +552,55 @@ const Grid = (() => {
   const inside = (m, x, y) => x >= 0 && y >= 0 && x < m.w && y < m.h;
   const code = (m, x, y) => inside(m, x, y) ? m.tiles[y].charCodeAt(x) : 35; // '#'
   const ch = (m, x, y) => String.fromCharCode(code(m, x, y));
-  const walkable = (m, x, y) => WALK[code(m, x, y)] === 1;
+  // Can `who` stand on (x, y) by walking? For an exhibit ('exhibit') a staff door, closed or
+  // open, is a wall (§8.2); for you (the default) it is a door.
+  const walkable = (m, x, y, who) => { const c = code(m, x, y); return WALK[c] === 1 && !(who === 'exhibit' && STAFF[c] === 1); };
   const seeThrough = (m, x, y) => SEE[code(m, x, y)] === 1;
+  // A tile an exhibit can stand on: walkable, or a vitrine or a plinth (BUILD.md §8.2).
+  const hold = (m, x, y) => HOLD[code(m, x, y)] === 1;
+  // A bolt (a kiter's shot, the Pin-Driver's) passes a tile it can see through that is not
+  // glass; only beams pass glass (§8.3).
+  const bolt = (m, x, y) => BOLT[code(m, x, y)] === 1;
+  // A closed door, ordinary or staff: noise reaching through one counts NOISE_DOOR extra (§8.2).
+  const closedDoor = (m, x, y) => { const c = code(m, x, y); return c === PLUS || c === S; };
   function set(m, x, y, c) { const row = m.tiles[y]; m.tiles[y] = row.slice(0, x) + c + row.slice(x + 1); }
 
-  // A step from (x, y) in direction d: the target must be walkable, and a diagonal step
-  // may not cut past a tile you could not step onto.
-  function canStep(m, x, y, d) {
+  // A step from (x, y) in direction d: the target must be walkable, and a diagonal step may
+  // not cut past a tile you could not step onto. For an exhibit, staff doors are walls and
+  // a step out of an intact case (a `v`, where an encased exhibit stands) is refused (§8.3).
+  function canStep(m, x, y, d, who) {
     const nx = x + DX[d], ny = y + DY[d];
-    if (!walkable(m, nx, ny)) return false;
-    if (DX[d] !== 0 && DY[d] !== 0) return walkable(m, nx, y) && walkable(m, x, ny);
+    if (!walkable(m, nx, ny, who)) return false;
+    if (who === 'exhibit' && code(m, x, y) === V) return false;
+    if (DX[d] !== 0 && DY[d] !== 0) return walkable(m, nx, y, who) && walkable(m, x, ny, who);
     return true;
   }
 
+  // Within r (§8.2: sight, axis, tether, ally_hit, a herald's call): dx² + dy² ≤ r² + r,
+  // the layout prototype's disc.
+  const disc = (dx, dy, r) => dx * dx + dy * dy <= r * r + r;
+
+  // A surface ({kind, x, y, size, until, by} in dept.surfaces) covers the size × size square
+  // centred on its tile. Surfaces.tick removes expired ones at the turn boundary, so every
+  // surface in the list is active.
+  const covers = (s, x, y) => { const h = Int.idiv(s.size, 2); return Math.abs(x - s.x) <= h && Math.abs(y - s.y) <= h; };
+  function veiled(m, x, y) {
+    for (const s of m.surfaces) { const r = Registry.SURFACES[s.kind]; if (r && r.blocksSight && covers(s, x, y)) return true; }
+    return false;
+  }
+
   // Line of sight between two tiles: a Bresenham line, always traced from the endpoint
-  // that comes first in row-major order, so sight is symmetric. Endpoints never block.
+  // that comes first in row-major order, so sight is symmetric. Endpoints never block; a
+  // tile between them blocks if it cannot be seen through or a sight-blocking surface (a
+  // Fumigant cloud, plaster dust) covers it.
   function los(m, x0, y0, x1, y1) {
     if (y1 < y0 || (y1 === y0 && x1 < x0)) { let t = x0; x0 = x1; x1 = t; t = y0; y0 = y1; y1 = t; }
     const dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0), sx = x1 > x0 ? 1 : -1, sy = y1 > y0 ? 1 : -1;
+    const fog = !!(m.surfaces && m.surfaces.length);
     let err = dx - dy, x = x0, y = y0;
     for (;;) {
       if (x === x1 && y === y1) return true;
-      if (!(x === x0 && y === y0) && !seeThrough(m, x, y)) return false;
+      if (!(x === x0 && y === y0) && (!seeThrough(m, x, y) || (fog && veiled(m, x, y)))) return false;
       const e2 = 2 * err;
       if (e2 > -dy) { err -= dy; x += sx; }
       if (e2 < dx) { err += dx; y += sy; }
@@ -574,10 +609,10 @@ const Grid = (() => {
 
   const chebyshev = (x0, y0, x1, y1) => Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
 
-  // Walking distance from one or more start tiles, by the step rule, out to maxDist.
-  // extra(x, y) may add a cost for entering a tile (closed doors for noise). Returns an
-  // Int32Array of distances, -1 where unreached. Not part of the state.
-  function distances(m, starts, maxDist, extra) {
+  // Walking distance from one or more start tiles, by the step rule for `who`, out to
+  // maxDist (no other cap). extra(x, y) may add a cost for entering a tile (closed doors
+  // for noise). Returns an Int32Array of distances, -1 where unreached. Not part of the state.
+  function distances(m, starts, maxDist, extra, who) {
     const n = m.w * m.h, dist = new Int32Array(n).fill(-1);
     // Bucketed Dijkstra: costs are small integers.
     const buckets = [[]];
@@ -590,7 +625,7 @@ const Grid = (() => {
         if (dist[p] !== d) continue;
         const x = p % m.w, y = (p - x) / m.w;
         for (let k = 0; k < 8; k++) {
-          if (!canStep(m, x, y, k)) continue;
+          if (!canStep(m, x, y, k, who)) continue;
           const nx = x + DX[k], ny = y + DY[k], q = ny * m.w + nx;
           const nd = d + 1 + (extra ? extra(nx, ny) : 0);
           if (nd > maxDist || (dist[q] !== -1 && dist[q] <= nd)) continue;
@@ -603,7 +638,23 @@ const Grid = (() => {
     return dist;
   }
 
-  return { TILES, DX, DY, inside, code, ch, walkable, seeThrough, set, canStep, los, chebyshev, distances };
+  // The walking distance to (x, y) from a distances() result (§8.2): its own entry; or, for
+  // a tile `who` cannot step onto (a case, a plinth, a lectern), 1 + the distance of its
+  // nearest neighbour that it can. -1 if neither is reached.
+  function reachDist(dist, m, x, y, who) {
+    const own = dist[y * m.w + x];
+    if (own >= 0 || walkable(m, x, y, who)) return own;
+    let best = -1;
+    for (let k = 0; k < 8; k++) {
+      const nx = x + DX[k], ny = y + DY[k];
+      if (!inside(m, nx, ny) || !walkable(m, nx, ny, who)) continue;
+      const nd = dist[ny * m.w + nx];
+      if (nd >= 0 && (best < 0 || nd + 1 < best)) best = nd + 1;
+    }
+    return best;
+  }
+
+  return { TILES, DX, DY, inside, code, ch, walkable, seeThrough, hold, bolt, closedDoor, set, canStep, disc, covers, los, chebyshev, distances, reachDist };
 })();
 
 </script>
@@ -611,7 +662,8 @@ const Grid = (() => {
 // ACCESSION — what you can see and what your ring covers (BUILD.md §8.2).
 'use strict';
 const Vision = (() => {
-  const within = (dx, dy, r) => dx * dx + dy * dy <= r * r + r;
+  // "Within r" is defined once, in grid.js (§8.2).
+  const within = Grid.disc;
 
   // Visible tiles as a Uint8Array (1 = visible), from your tile. Not stored in the state.
   function visible(state) {
@@ -638,18 +690,8 @@ const Vision = (() => {
     const m = state.dept, you = state.actors[0], r = ringRadius(state);
     const d = Grid.distances(m, [[you.x, you.y]], r), out = new Uint8Array(m.w * m.h);
     for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
-      const i = y * m.w + x;
-      let dist = d[i];
-      if (dist < 0 && !Grid.walkable(m, x, y)) {
-        for (let k = 0; k < 8; k++) {
-          const nx = x + Grid.DX[k], ny = y + Grid.DY[k];
-          if (!Grid.inside(m, nx, ny)) continue;
-          const nd = d[ny * m.w + nx];
-          if (nd >= 0 && Grid.walkable(m, nx, ny) && (dist < 0 || nd + 1 < dist)) dist = nd + 1;
-        }
-        if (dist > r) dist = -1;
-      }
-      if (dist >= 0 && Grid.los(m, you.x, you.y, x, y)) out[i] = 1;
+      const i = y * m.w + x, dist = Grid.reachDist(d, m, x, y);
+      if (dist >= 0 && dist <= r && Grid.los(m, you.x, you.y, x, y)) out[i] = 1;
     }
     return out;
   }
@@ -786,8 +828,10 @@ const Registry = (() => {
 
   // Refusal codes (§4.2). step() refuses an illegal action with a code, and text/system.js
   // gives each its sentence. A rule that refuses with a code of its own defines it in its
-  // own fragment.
-  for (const code of ['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach']) R.define('REFUSALS', code, {});
+  // own fragment. not_built is the code of an action whose rules a later part builds; no_use
+  // is use(uid) of something that is not an instrument, a kit or a consumable.
+  for (const code of ['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach',
+    'not_built', 'no_use']) R.define('REFUSALS', code, {});
   R.defineEvent('refused', { fields: { reason: 'str', data: 'obj?' }, exempt: true });
 
   // The M4 archetypes and modifier keep the clauses M2 gave them, as fixed sentences, until
@@ -972,6 +1016,9 @@ const Registry = (() => {
   R.define('TRIGGERS', 'touch_case', { icon: 'touch_case', clause: 'wakes at once when its case is opened or bashed',
     params: {}, covers: ['woke', 'hunting'], ready: false, tests: [], inv: null });
 
+  // Nothing walks into, or strikes into or out of, an intact case (§8.3).
+  R.define('REFUSALS', 'behind_glass', {});
+
   R.define('FIXTURES', 'case', {});
   R.define('FIXTURES', 'staff', {});
   // The glasses, in order; n indexes the GLASS_BASHES, GLASS_MIX_D*, GLASS_LOCK_MIN and
@@ -1096,6 +1143,11 @@ const Registry = (() => {
   // Surfaces: a square of `size` tiles a side for `turns` turns; both block sight (§8.2).
   R.define('SURFACES', 'fumigant', { blocksSight: true, size: 'FUMIGANT_SIZE', turns: 'FUMIGANT_TURNS' });
   R.define('SURFACES', 'dust', { blocksSight: true, size: 'PLASTER_DUST_SIZE', turns: 'PLASTER_DUST_TURNS' });
+
+  // What a status forbids you (Status.blocks, §4.2): fixed allows only wait, rest and the
+  // answer to a waiting choice; rooted refuses a move that would change your tile.
+  R.define('REFUSALS', 'fixed', {});
+  R.define('REFUSALS', 'rooted', {});
 
   // Events (§4.3): a status put on (on: true) or ended (on: false).
   R.defineEvent('status', { fields: { who: 'uid', id: 'str', on: 'bool', until: 'int?' } });
@@ -1360,51 +1412,268 @@ const Clauses = (() => {
 
 </script>
 <script>
-// ACCESSION — the cause records kept in the state for death recaps (BUILD.md §3.4).
+// ACCESSION — a visit's options (BUILD.md §3.6, §10.2), frozen after M3's Wave 0: the hooks
+// that paired bots, reports and tests use to ask "does this matter?". rulesOff switches off
+// a modifier (M3) or a module (M4) by id; without removes actors by uid (they are marked
+// gone, so nothing else is reshuffled, §3.2); invulnerable keeps your health at 1 or more.
 'use strict';
-const Causes = (() => {
-  // Records are copied in, so nothing outside the state can reach into it.
-  function record(state, rec) {
-    state.causes.push(JSON.parse(JSON.stringify(rec)));
-    if (state.causes.length > N.CAUSE_RECORDS) state.causes.splice(0, state.causes.length - N.CAUSE_RECORDS);
+const Options = (() => {
+  // A fresh, plain options object; o may give any of the three.
+  function make(o) {
+    o = o || {};
+    return { rulesOff: (o.rulesOff || []).slice(), without: (o.without || []).slice(), invulnerable: !!o.invulnerable };
   }
-  return { record };
+  // Is the rule `id` switched off for this visit?
+  const off = (state, id) => !!(state.options && state.options.rulesOff.includes(id));
+  return { make, off };
 })();
 
 </script>
 <script>
-// ACCESSION — status effects on actors, as { id, until } with until a turn number.
+// ACCESSION — the hooks M4's modules use (BUILD.md §5.4), named now and empty in M3, frozen
+// after M3's Wave 0. Each is called from its one place, so M4 fills it without moving a call:
+//   Modules.onEvent(state, e, ev)    by Causes.emit, after an event is pushed and recorded; an
+//                                    event a module emits from it goes through Causes.emit
+//                                    again and lands after e (M4 states the re-entry rule)
+//   Modules.alarmDecay(state, ev)    turn boundary step 7 (§8.1)
+//   Modules.turn(state, ev)          turn boundary step 8, the module turn rules
+'use strict';
+const Modules = (() => {
+  function onEvent(state, e, ev) {}
+  function alarmDecay(state, ev) {}
+  function turn(state, ev) {}
+  return { onEvent, alarmDecay, turn };
+})();
+
+</script>
+<script>
+// ACCESSION — events and their causes (BUILD.md §3.4, §4.3), frozen after M3's Wave 0. Every
+// rule emits its events through Causes.emit, so each carries its turn, tick and cause, the
+// recorded kinds reach the cause records, and Causes.check can test any event against the
+// registry's schema for its kind and for its cause.
+'use strict';
+const Causes = (() => {
+  const copy = c => JSON.parse(JSON.stringify(c));
+
+  // An event, not yet emitted: {k, turn, tick, ...fields, cause}. Fields and cause are
+  // copied, so a rule can go on changing its own objects, and nothing outside the state can
+  // reach into it through an event.
+  function make(state, k, fields, cause) {
+    const e = Object.assign({ k, turn: state.turn, tick: state.tick }, copy(fields || {}));
+    if (cause !== undefined && cause !== null) e.cause = copy(cause);
+    return e;
+  }
+
+  // Emit an event: push it onto ev, keep it in the cause records if its kind is recorded
+  // (§3.4), then give M4's modules their look at it. Returns the event.
+  function emit(state, ev, k, fields, cause) {
+    const e = make(state, k, fields, cause);
+    ev.push(e);
+    const kind = Registry.EVENTS[k];
+    if (kind && kind.record) record(state, e);
+    Modules.onEvent(state, e, ev);
+    return e;
+  }
+
+  // The last CAUSE_RECORDS records, for the recap's narrative. Records are copied in.
+  function record(state, rec) {
+    state.causes.push(copy(rec));
+    if (state.causes.length > N.CAUSE_RECORDS) state.causes.splice(0, state.causes.length - N.CAUSE_RECORDS);
+  }
+
+  // Types of record (§4.3): what each schema type accepts.
+  const isInt = v => Number.isSafeInteger(v);
+  const isTile = v => Array.isArray(v) && v.length === 2 && isInt(v[0]) && isInt(v[1]);
+  const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const TYPE = {
+    uid: v => typeof v === 'string' && v.length > 0,
+    uids: v => Array.isArray(v) && v.every(u => typeof u === 'string' && u.length > 0),
+    int: isInt, str: v => typeof v === 'string', bool: v => typeof v === 'boolean',
+    tile: isTile, tiles: v => Array.isArray(v) && v.every(isTile), obj: isObj,
+  };
+  const show = v => v === undefined ? 'undefined' : JSON.stringify(v);
+  // Check obj's fields against a schema's field list; `where` names it ('damaged' or
+  // 'damaged.cause'); `skip` lists the keys that belong to the envelope, not the schema.
+  function fieldsOf(where, obj, list, skip) {
+    for (const f of list) {
+      const v = obj[f.name];
+      if (v === undefined || v === null) { if (!f.optional) return `${where}.${f.name}: missing ${f.type}`; continue; }
+      if (!TYPE[f.type](v)) return `${where}.${f.name}: ${show(v)} is not a ${f.type}`;
+    }
+    for (const key of Object.keys(obj)) if (!skip.includes(key) && !list.some(f => f.name === key)) return `${where}.${key}: not in the schema`;
+    return null;
+  }
+
+  // Causes.check(e) → null, or the first problem, such as 'damaged.cause.roll: missing int'.
+  // The event's fields are checked against Registry.EVENTS[k], and its cause against
+  // Registry.CAUSES[k][cause.k]; moved, closed and refused are exempt from the cause check
+  // (§3.4). A field marked optional may be absent or null; no field outside the schema is allowed.
+  function check(e) {
+    if (!isObj(e) || typeof e.k !== 'string') return 'event: no kind';
+    const kind = Registry.EVENTS[e.k];
+    if (!kind) return `${e.k}: not an event kind`;
+    if (!isInt(e.turn)) return `${e.k}.turn: missing int`;
+    if (!isInt(e.tick)) return `${e.k}.tick: missing int`;
+    const bad = fieldsOf(e.k, e, kind.list, ['k', 'turn', 'tick', 'cause']);
+    if (bad) return bad;
+    if (kind.exempt) return e.cause === undefined || isObj(e.cause) ? null : `${e.k}.cause: not an object`;
+    if (!isObj(e.cause) || typeof e.cause.k !== 'string') return `${e.k}.cause: missing`;
+    const schema = Registry.CAUSES[e.k] && Registry.CAUSES[e.k][e.cause.k];
+    if (!schema) return `${e.k}.cause: no schema for the cause ${e.cause.k}`;
+    return fieldsOf(`${e.k}.cause`, e.cause, schema.list, ['k']);
+  }
+
+  return { make, emit, record, check };
+})();
+
+</script>
+<script>
+// ACCESSION — the action table (BUILD.md §4.2), frozen after M3's Wave 0. Each of your
+// actions is defined once, by the file of the system that owns it, and step() dispatches on
+// the action's `a`. ORDER is closed: an id outside it cannot be defined, and Step.legal lists
+// the legal actions in this order.
+'use strict';
+const Actions = (() => {
+  // push (weather jars) and view (viewing the Centrepiece) are reserved for M4 and have no
+  // handler in M3, so step() refuses them as unknown.
+  const ORDER = ['wait', 'rest', 'sit', 'move', 'attack', 'close', 'open', 'bash', 'push', 'take', 'drop', 'equip', 'unequip',
+    'use', 'throw', 'read', 'view', 'choose', 'leave'];
+  const handlers = {}, choices = {};
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+  // Actions.define(id, {legal, candidates, apply}):
+  //   legal(state) → [action]       the legal actions of this kind now (step() accepts exactly these)
+  //   candidates(state) → [action]  a superset, illegal ones included, for the parity test (§4.2)
+  //   apply(state, action, ev) → ticks, or a refusal code; it checks everything before it
+  //                                 changes anything, so a refusal leaves the state and every
+  //                                 stream as they were (§4.2)
+  function define(id, h) {
+    if (!ORDER.includes(id)) throw new Error(`Actions: ${id} is not in Actions.ORDER`);
+    if (own(handlers, id)) throw new Error(`Actions: ${id} is defined twice`);
+    for (const k of ['legal', 'candidates', 'apply']) if (typeof (h && h[k]) !== 'function') throw new Error(`Actions: ${id} needs ${k}`);
+    handlers[id] = h;
+    return h;
+  }
+  const get = id => typeof id === 'string' && own(handlers, id) ? handlers[id] : null;
+
+  // A pending choice (state.ui.pendingChoice, such as the Card's seal) is answered by
+  // choose(index), which hands it to the function defined for its k:
+  // (state, index, ev) → ticks or a refusal code.
+  function defineChoice(k, fn) {
+    if (own(choices, k)) throw new Error(`Actions: the choice ${k} is defined twice`);
+    if (typeof fn !== 'function') throw new Error(`Actions: the choice ${k} needs a function`);
+    choices[k] = fn;
+  }
+  const choice = k => typeof k === 'string' && own(choices, k) ? choices[k] : null;
+
+  return { ORDER: ORDER.slice(), define, get, defineChoice, choice };
+})();
+
+</script>
+<script>
+// ACCESSION — statuses on actors (BUILD.md §8.1, §8.6), frozen in shape after M3's Wave 0;
+// W1-STATUS fills EFFECTS. A status is { id, until, turns, from } on actor.statuses, in the
+// order applied.
+//
+// The timing rule (§8.1): a status of N turns covers the N turns that start at its bearer's
+// next decision. It is applied with until and from null and its N in `turns`; once the action
+// that applied it is over and every `next` is final, Status.settle sets from = start and
+// until = start + N, where start is idiv(next, TICKS_PER_TURN) for a scheduled actor (the
+// turn its next decision falls in, since turn k's boundary runs before anyone who acts at
+// tick 100k) and the next turn for a sleeping one. Its per-turn effect runs at the boundaries
+// of turns from … until − 1, and it ends at the boundary of turn until. Applied again while
+// held, it lasts to the later of the two ends.
 'use strict';
 const Status = (() => {
   const has = (a, id) => !!(a.statuses && a.statuses.some(s => s.id === id));
-  function add(a, id, turns, now) {
+  const harmful = id => !!(Registry.STATUSES[id] && Registry.STATUSES[id].harmful);
+
+  // Per-turn effects by status id, run at boundary step 2 for every status still held after
+  // expiry: EFFECTS[id](state, a, status, ev). W1-STATUS fills it (coughing, restoring).
+  const EFFECTS = {};
+
+  // Put status id on a for `turns` turns, with its cause; emits status {on: true}.
+  function apply(state, a, id, turns, cause, ev) {
     if (!a.statuses) a.statuses = [];
     const s = a.statuses.find(s => s.id === id);
-    if (s) s.until = Math.max(s.until, now + turns); else a.statuses.push({ id, until: now + turns });
+    if (s) s.turns = s.turns === null || s.turns === undefined ? turns : Math.max(s.turns, turns);
+    else a.statuses.push({ id, until: null, turns, from: null });
+    Causes.emit(state, ev, 'status', { who: a.uid, id, on: true }, cause);
   }
-  // Called on each turn boundary: expire what has run out.
-  function tick(state, ev) {
+
+  // Give every newly applied status its end turn (see the timing rule above). step() calls
+  // it after each of your actions, and after each exhibit's.
+  function settle(state) {
     for (const a of state.actors) {
       if (!a.statuses || !a.statuses.length) continue;
+      for (const s of a.statuses) {
+        if (s.turns === null || s.turns === undefined) continue;
+        const start = Actors.scheduled(a) ? Int.idiv(a.next, N.TICKS_PER_TURN) : state.turn + 1;
+        const until = start + s.turns;
+        if (s.until === null) { s.until = until; s.from = start; } else s.until = Math.max(s.until, until);
+        s.turns = null;
+      }
+    }
+  }
+
+  // Turn boundary step 2 (§8.1): first expire every status whose until ≤ turn (status
+  // {on: false}), then run the per-turn effects of those left whose first turn has come;
+  // actors in spawn order, statuses in the order applied.
+  function tick(state, ev) {
+    for (const a of state.actors) {
+      if (a.gone || !a.statuses || !a.statuses.length) continue;
       const keep = [];
       for (const s of a.statuses) {
-        if (s.until <= state.turn) ev.push({ k: 'status_ended', turn: state.turn, who: a.uid, status: s.id });
+        if (s.until !== null && s.until <= state.turn) Causes.emit(state, ev, 'status', { who: a.uid, id: s.id, on: false, until: s.until }, { k: 'status', id: s.id });
         else keep.push(s);
       }
       a.statuses = keep;
     }
+    for (const a of state.actors) {
+      if (a.gone || !a.statuses) continue;
+      for (const s of a.statuses.slice()) {
+        if (!Object.prototype.hasOwnProperty.call(EFFECTS, s.id) || !a.statuses.includes(s)) continue;
+        if (s.from === null || s.from === undefined || state.turn >= s.from) EFFECTS[s.id](state, a, s, ev);
+      }
+    }
   }
-  return { has, add, tick };
+
+  // What a status forbids you to do (§4.2), as a refusal code, before anything is spent:
+  // fixed allows only wait and rest (and the answer to a choice already waiting, which is
+  // part of the action that asked it); rooted refuses a move that would change your tile,
+  // and allows a bump into a door or an actor, which leaves you where you are.
+  const WHILE_FIXED = ['wait', 'rest', 'choose'];
+  function blocks(state, a, action) {
+    if (!action || typeof action.a !== 'string') return null;
+    if (has(a, 'fixed') && !WHILE_FIXED.includes(action.a)) return 'fixed';
+    if (has(a, 'rooted') && action.a === 'move' && Number.isInteger(action.dir) && action.dir >= 0 && action.dir < 8) {
+      const m = state.dept, size = a.size || 1, nx = a.x + Grid.DX[action.dir], ny = a.y + Grid.DY[action.dir];
+      for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) {
+        if (Actors.at(state, nx + dx, ny + dy, a) || Grid.closedDoor(m, nx + dx, ny + dy)) return null;
+      }
+      return 'rooted';
+    }
+    return null;
+  }
+
+  return { has, harmful, EFFECTS, apply, settle, tick, blocks };
 })();
 
 </script>
 <script>
-// ACCESSION — actors: lookup, occupancy, action costs and the scheduler.
+// ACCESSION — actors: their fields, lookup, occupancy, action costs and the scheduler
+// (BUILD.md §4.1, §8.1), frozen after M3's Wave 0.
 'use strict';
 const Actors = (() => {
   // An actor covers size × size tiles from its top-left anchor (BUILD.md §4.1): a
   // Centrepiece is 2×2. Occupancy, distance, reach and sight all use the footprint.
   const covers = (a, x, y) => { const s = a.size || 1; return x >= a.x && y >= a.y && x < a.x + s && y < a.y + s; };
+  // a's tiles, in row-major order.
+  function footprint(a) {
+    const s = a.size || 1, out = [];
+    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) out.push([a.x + dx, a.y + dy]);
+    return out;
+  }
   // The actor whose footprint covers (x, y), skipping `except` if given.
   const at = (state, x, y, except) => { for (const a of state.actors) if (a !== except && !a.gone && covers(a, x, y)) return a; return null; };
   const byUid = (state, uid) => { for (const a of state.actors) if (a.uid === uid) return a; return null; };
@@ -1412,6 +1681,12 @@ const Actors = (() => {
   function dist(a, x, y) {
     const s = a.size || 1, nx = Math.min(Math.max(x, a.x), a.x + s - 1), ny = Math.min(Math.max(y, a.y), a.y + s - 1);
     return Math.max(Math.abs(nx - x), Math.abs(ny - y));
+  }
+  // Chebyshev distance between the nearest tiles of two footprints.
+  function between(a, b) {
+    let best = -1;
+    for (const [x, y] of footprint(b)) { const d = dist(a, x, y); if (best < 0 || d < best) best = d; }
+    return best;
   }
   // Is any tile of a's footprint in line of sight from (x, y)? It is observed if any is (§4.1).
   function inSight(state, a, x, y) {
@@ -1421,10 +1696,69 @@ const Actors = (() => {
   }
   // A Centrepiece is known by its role (Roles.stats('centrepiece', …)), whatever its size.
   const centrepiece = a => a.role === 'centrepiece';
-  // Speed scales every action's cost (BUILD.md §8.1).
-  const cost = (a, base) => a.speed === 'fast' ? Int.pct(base, N.SPEED_FAST_PCT) : a.speed === 'slow' ? Int.pct(base, N.SPEED_SLOW_PCT) : base;
-  // A blow with a Heavy weapon, or from a brute, costs more (§8.1, §8.10).
-  const attackCost = a => cost(a, a.weaponForm === 'heavy' || a.role === 'brute' ? N.COST_ATTACK_HEAVY : N.COST_ATTACK);
+
+  // An actor's speed (§8.1): its archetype's, or a modifier's that is not switched off; a
+  // fast archetype with a slow modifier moves at the usual speed.
+  function speedOf(state, arch, mods) {
+    let fast = 0, slow = 0;
+    const count = s => { if (s === 'fast') fast++; else if (s === 'slow') slow++; };
+    const A = arch && Registry.ARCHETYPES[arch];
+    if (A) count(A.speed);
+    for (const id of mods) { const M = Registry.MODIFIERS[id]; if (M && !(state && Options.off(state, id))) count(M.speed); }
+    return fast > slow ? 'fast' : slow > fast ? 'slow' : null;
+  }
+
+  // An actor's fields (BUILD.md §4.1), every one plain data with a default, never undefined.
+  // rec gives uid, sp, size, x, y, hp (and maxHp), acc, eva, pad, dmin, dmax, mode, and may
+  // give what the species gives (arch, role, mods, modParams, trigger, group) and the rest.
+  // Rules read these copies, never the pack. An exhibit with no archetype is a plodder.
+  // state may be null for an actor made outside a state (Setup.you).
+  function make(state, rec) {
+    const you = rec.uid === 'you', arch = rec.arch !== undefined ? rec.arch : you ? null : 'plodder', mods = (rec.mods || []).slice();
+    const or = (k, v) => rec[k] !== undefined ? rec[k] : v;
+    return {
+      uid: rec.uid, sp: or('sp', null), arch, role: or('role', null), mods, modParams: copy(or('modParams', {})),
+      trigger: or('trigger', null), group: or('group', null), size: or('size', 1), x: rec.x, y: rec.y,
+      hp: rec.hp, maxHp: or('maxHp', rec.hp), acc: or('acc', 0), eva: or('eva', 0), pad: or('pad', 0), dmin: or('dmin', 0), dmax: or('dmax', 0),
+      speed: rec.speed !== undefined ? rec.speed : speedOf(state, arch, mods),
+      next: or('next', 0), notBefore: null, mode: or('mode', you ? null : 'dormant'), pips: or('pips', 0), stim: or('stim', state ? state.turn : 0),
+      pipTurns: {}, sawYou: false,
+      home: copy(or('home', you ? null : [rec.x, rec.y])), target: null, lastKnown: null, guards: copy(or('guards', null)),
+      route: null, plan: null, facing: null,
+      statuses: [], telegraph: null, acts: 0, woke: null, hunted: null, kids: 0, gen: or('gen', 0), gone: 0, ax: copy(or('ax', {})),
+    };
+  }
+  const copy = v => v === null ? null : JSON.parse(JSON.stringify(v));
+  // Create an actor and append it: actors are only ever appended during a visit (§3.3).
+  function spawn(state, rec) {
+    const a = make(state, rec);
+    state.actors.push(a);
+    return a;
+  }
+
+  // The cost in ticks of an action of `kind` ('move' for a step, 'act' for anything else):
+  // the base cost, at half (fast) or double (slow) where the actor's speed applies to that
+  // kind (Archetypes.speedApplies: steps only, unless its archetype says otherwise), then
+  // scaled by its archetype's and modifiers' costPct, then doubled again while slowed (§8.1).
+  function cost(state, a, base, kind) {
+    let c = base;
+    if (a.speed && Archetypes.speedApplies(a).includes(kind)) c = Int.pct(c, a.speed === 'fast' ? N.SPEED_FAST_PCT : N.SPEED_SLOW_PCT);
+    const p = Archetypes.costPct(state, a, kind);
+    if (p !== 100) c = Int.pct(c, p);
+    if (Status.has(a, 'slowed')) c = Int.pct(c, N.SPEED_SLOW_PCT);
+    return c;
+  }
+  // A blow costs its weapon form's cost (FORM_<form>[3]: Heavy 150), or for an exhibit
+  // COST_ATTACK, and COST_ATTACK_HEAVY for a brute (§8.1, §8.10).
+  function attackCost(state, a) {
+    let base = a.role === 'brute' ? N.COST_ATTACK_HEAVY : N.COST_ATTACK;
+    if (a.weaponForm) {
+      const F = N['FORM_' + a.weaponForm.toUpperCase()];
+      if (!F) throw new Error('Actors.attackCost: no weapon form ' + a.weaponForm);
+      base = F[3];
+    }
+    return cost(state, a, base, 'act');
+  }
   // Sleeping exhibits are not scheduled (§8.1).
   const scheduled = a => !a.gone && a.mode !== 'dormant';
   // The scheduler: the smallest next tick; ties to you, then to spawn order (array order).
@@ -1433,42 +1767,181 @@ const Actors = (() => {
     for (const a of state.actors) if (scheduled(a) && (best === null || a.next < best.next)) best = a;
     return best;
   }
-  return { covers, at, byUid, dist, inSight, centrepiece, cost, attackCost, scheduled, next };
+  return { covers, footprint, at, byUid, dist, between, inSight, centrepiece, speedOf, make, spawn, cost, attackCost, scheduled, next };
 })();
 
 </script>
 <script>
-// ACCESSION — waking (BUILD.md §8.2). M0 holds only the transitions; the ring, noise,
-// pips and special triggers arrive in M3.
+// ACCESSION — how archetype and modifier behaviour plugs into the rules (BUILD.md §5.1,
+// §5.3), frozen after M3's Wave 0. Each archetype's code is one file, rules/arch/<id>.js,
+// registering its hooks with Archetypes.add; each modifier's is rules/mods/<id>.js, with
+// Archetypes.addModifier. A rule asks through the dispatchers below: the archetype first,
+// then each modifier in the species' order, skipping a modifier switched off for the visit
+// (Options.off). An actor whose archetype or modifier registered no hook gets the default.
 //
-// An exhibit's `sawYou` (true, or absent) says it has seen you since it last woke; an awake
-// exhibit without it is surprised by a blow (§8.1, Combat.surprised). M3's sight check sets
-// it where an exhibit sees you, and every waking clears it. M2 has no exhibit sight and no
-// 'awake' mode, so nothing sets it yet.
+// Hooks, each a function of (state, a, …):
+//   act(state, a, ev) → ticks | null     the first that is not null (null: AI.byMode acts)
+//   mayStep(state, a, x, y) → bool       true unless some hook says false
+//   costPct(state, a, kind) → int %      multiplied together, 100 by default
+//   speedApplies(a) → ['move'] | ['move', 'act']   which costs its speed scales; the first given
+//   adjustDamage(state, def, amount, cause) → int  each in turn; cause.from is the tile the blow came from
+//   onDamaged(state, a, amount, cause, ev), onDied(state, a, cause, ev), onTouched(state, a, how, by, ev),
+//   onWake(state, a), onHome(state, a, ev), onResolve(state, a, tel, ev), init(state, a)   each in turn
+//   present(state, a) → null | {as: 'case'}   the first that is not null
+//   pipless(state, a) → bool             true if any hook says so (a disguised mimic)
+//   readout(state, a, you) → [{k, …}]    every hook's lines, in turn
+'use strict';
+const Archetypes = (() => {
+  const HOOKS = ['act', 'mayStep', 'costPct', 'speedApplies', 'adjustDamage', 'onDamaged', 'onDied', 'onTouched', 'onWake', 'onHome',
+    'onResolve', 'init', 'present', 'pipless', 'readout'];
+  const ARCH = {}, MODS = {};
+  const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  function register(table, kind, reg, id, impl) {
+    if (!Registry[reg][id]) throw new Error(`Archetypes: ${id} is not in Registry.${reg}`);
+    if (own(table, id)) throw new Error(`Archetypes: the ${kind} ${id} is added twice`);
+    impl = impl || {};
+    for (const k of Object.keys(impl)) {
+      if (!HOOKS.includes(k)) throw new Error(`Archetypes: ${id} has no hook called ${k}`);
+      if (typeof impl[k] !== 'function') throw new Error(`Archetypes: ${id}.${k} is not a function`);
+    }
+    table[id] = impl;
+  }
+  const add = (id, impl) => register(ARCH, 'archetype', 'ARCHETYPES', id, impl);
+  const addModifier = (id, impl) => register(MODS, 'modifier', 'MODIFIERS', id, impl);
+  const added = id => own(ARCH, id);
+  const addedModifier = id => own(MODS, id);
+
+  // The hook functions called `name` that answer for a, in order: its archetype's, then its
+  // modifiers' (state null skips the rulesOff check, for hooks that take no state).
+  const NONE = [];
+  function hooks(state, a, name) {
+    let out = NONE;
+    const A = a.arch && own(ARCH, a.arch) ? ARCH[a.arch] : null;
+    if (A && own(A, name)) out = [A[name]];
+    if (a.mods) for (const id of a.mods) {
+      if (!own(MODS, id) || !own(MODS[id], name) || (state && Options.off(state, id))) continue;
+      if (out === NONE) out = [];
+      out.push(MODS[id][name]);
+    }
+    return out;
+  }
+  const each = name => (state, a, ...args) => { for (const f of hooks(state, a, name)) f(state, a, ...args); };
+  function first(name) {
+    return (state, a, ...args) => { for (const f of hooks(state, a, name)) { const r = f(state, a, ...args); if (r !== null && r !== undefined) return r; } return null; };
+  }
+
+  const act = first('act');
+  const present = first('present');
+  function mayStep(state, a, x, y) { for (const f of hooks(state, a, 'mayStep')) if (!f(state, a, x, y)) return false; return true; }
+  function costPct(state, a, kind) { let p = 100; for (const f of hooks(state, a, 'costPct')) p = Int.pct(p, f(state, a, kind)); return p; }
+  function speedApplies(a) { const fs = hooks(null, a, 'speedApplies'); return fs.length ? fs[0](a) : ['move']; }
+  function adjustDamage(state, def, amount, cause) { for (const f of hooks(state, def, 'adjustDamage')) amount = f(state, def, amount, cause); return amount; }
+  function pipless(state, a) { for (const f of hooks(state, a, 'pipless')) if (f(state, a)) return true; return false; }
+  function readout(state, a, you) { let out = []; for (const f of hooks(state, a, 'readout')) out = out.concat(f(state, a, you) || []); return out; }
+
+  return {
+    HOOKS: HOOKS.slice(), add, addModifier, added, addedModifier,
+    act, mayStep, costPct, speedApplies, adjustDamage, present, pipless, readout,
+    onDamaged: each('onDamaged'), onDied: each('onDied'), onTouched: each('onTouched'), onWake: each('onWake'),
+    onHome: each('onHome'), onResolve: each('onResolve'), init: each('init'),
+  };
+})();
+
+</script>
+<script>
+// ACCESSION — noise (BUILD.md §8.2): how far a noise carries and who hears it. Owned by
+// W1-WAKE-A after M3's Wave 0; these signatures stay.
+'use strict';
+const Noise = (() => {
+  const RANGE = { soft: 'NOISE_SOFT', loud: 'NOISE_LOUD', crash: 'NOISE_CRASH' };
+
+  // The walking distance a noise from (x, y) covers within `range` (§8.2): the step rule,
+  // staff doors included, with NOISE_DOOR extra for entering a closed door. An Int32Array,
+  // -1 beyond its reach. The view model's noise rings read it too.
+  const reach = (m, x, y, range) => Grid.distances(m, [[x, y]], range, (nx, ny) => Grid.closedDoor(m, nx, ny) ? N.NOISE_DOOR : 0);
+
+  // A noise of class cls (soft, loud or crash) at (x, y), with its cause. It is an event
+  // (noise {x, y, cls, range}); then every exhibit that is not gone and not pipless and
+  // stands within its reach hears it, in spawn order: Wake.hear(state, a, noise, dist, ev),
+  // with noise = {x, y, cls, range, by, k} (by and k from the cause) and dist the walking
+  // distance to the exhibit's nearest tile (one beyond a neighbour, on a tile it cannot be
+  // walked onto, such as a case).
+  function emit(state, x, y, cls, cause, ev) {
+    if (!RANGE[cls]) throw new Error('Noise.emit: no noise class ' + cls);
+    const m = state.dept, range = N[RANGE[cls]];
+    Causes.emit(state, ev, 'noise', { x, y, cls, range }, cause);
+    const d = reach(m, x, y, range), noise = { x, y, cls, range, by: (cause && cause.by) || null, k: cause ? cause.k : null };
+    for (let i = 1; i < state.actors.length; i++) {
+      const a = state.actors[i];
+      if (a.gone || Archetypes.pipless(state, a)) continue;
+      let dist = -1;
+      for (const [tx, ty] of Actors.footprint(a)) { const t = Grid.reachDist(d, m, tx, ty); if (t >= 0 && (dist < 0 || t < dist)) dist = t; }
+      if (dist >= 0 && dist <= range) Wake.hear(state, a, noise, dist, ev);
+    }
+  }
+
+  return { reach, emit };
+})();
+
+</script>
+<script>
+// ACCESSION — surfaces on the floor (BUILD.md §8.6): a Fumigant cloud, plaster dust. Each is
+// { kind, x, y, size, until, by } in dept.surfaces, covering the size × size square centred on
+// its tile (Grid.covers); a sight-blocking one blocks line of sight (Grid.los).
+// W0c leaves turn boundary step 1 here, empty; W0e builds add, at and expiry, and W1-STATUS
+// the effects.
+'use strict';
+const Surfaces = (() => {
+  // Turn boundary step 1 (§8.1): surfaces expire, and act on what stands in them.
+  function tick(state, ev) {}
+  return { tick };
+})();
+
+</script>
+<script>
+// ACCESSION — waking (BUILD.md §8.2). M3's Wave 0 builds it in two parts: W0c keeps M2's one
+// transition (toHunting) and names the hooks the action core calls, as no-ops; W0d builds
+// waking, modes and the ring; W1-WAKE-A owns it after.
+//
+// An exhibit's `sawYou` says it has seen you since it last woke; an awake exhibit without it
+// is surprised by a blow (§8.1, Combat.surprised).
 'use strict';
 const Wake = (() => {
+  const copy = c => JSON.parse(JSON.stringify(c));
+
   // Straight to hunting (damage, the ring, being seen). An exhibit that was asleep is
-  // scheduled one action from now: waking costs a beat. Each actor keeps its own story.
+  // scheduled one action from now: waking costs a beat (§8.1). Each actor keeps its own story.
   function toHunting(state, a, cause, ev) {
     const was = a.mode;
     a.mode = 'hunting';
     a.pips = 0;
-    if (was === 'dormant') { a.next = state.tick + Actors.cost(a, N.COST_STEP); a.woke = { turn: state.turn, cause: copy(cause) }; }
+    if (was === 'dormant') {
+      a.next = state.tick + Actors.cost(state, a, N.COST_STEP, 'act');
+      a.woke = { turn: state.turn, cause: copy(cause) };
+      a.sawYou = false; a.acts = 0; a.stim = state.turn;
+    }
     a.hunted = { turn: state.turn, cause: copy(cause) };
-    ev.push({ k: 'hunting', turn: state.turn, who: a.uid, was, cause: copy(cause) });
-    Causes.record(state, { turn: state.turn, k: 'hunting', who: a.uid, was, cause });
+    Causes.emit(state, ev, 'hunting', { who: a.uid, was }, cause);
   }
-  const copy = c => JSON.parse(JSON.stringify(c));
-  return { toHunting };
+
+  // Hooks the action core calls; W0d and W1-WAKE-A fill them.
+  function hear(state, a, noise, dist, ev) {}          // Noise.emit: a heard a noise dist away
+  function allyHit(state, victim, cause, ev) {}        // Combat.hurt: victim took damage
+  function boundary(state, ev) {}                      // turn boundary step 4: the ring, axis, tether
+  function decay(state, ev) {}                         // turn boundary step 5: pip decay
+
+  return { toHunting, hear, allyHit, boundary, decay };
 })();
 
 </script>
 <script>
-// ACCESSION — ordinary blows: hit chance, damage, Padding, surprise (BUILD.md §8.1).
-// Every roll is drawn from the attacker's own stream, and every result carries its cause.
+// ACCESSION — ordinary blows: hit chance, damage, Padding, surprise (BUILD.md §8.1). Every
+// roll is drawn from the attacker's own stream, and every result carries its cause. Owned by
+// W1-COMBAT after M3's Wave 0; the order inside one blow and inside hurt is fixed here.
 'use strict';
 const Combat = (() => {
   const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+  const copy = c => JSON.parse(JSON.stringify(c));
 
   function hitChance(att, def) {
     let mods = 0;
@@ -1504,23 +1977,80 @@ const Combat = (() => {
     return { min: d, max: d };
   }
 
-  // Resolve one attack, pushing its events onto ev; the caller has already paid the cost.
-  function attack(state, att, def, ev) {
+  // Can a reach b with a blow? Some tile of a's footprint is next to some tile of b's
+  // (BUILD.md §4.1), and a diagonal blow may not cross a corner you could not step past.
+  function adjacent(state, a, b) {
+    const m = state.dept, sa = a.size || 1, sb = b.size || 1;
+    for (let ay = a.y; ay < a.y + sa; ay++) for (let ax = a.x; ax < a.x + sa; ax++)
+      for (let by = b.y; by < b.y + sb; by++) for (let bx = b.x; bx < b.x + sb; bx++) {
+        const dx = bx - ax, dy = by - ay;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== 1) continue;
+        if (dx === 0 || dy === 0) return true;
+        if (Grid.walkable(m, bx, ay) && Grid.walkable(m, ax, by)) return true;
+      }
+    return false;
+  }
+
+  // Combat.canStrike(state, att, def, how) → null, or the refusal code for the blow
+  // (how = {kind: 'melee' | 'reach' | 'shot', …}). Nothing strikes into or out of an intact
+  // case (§8.3): a blow at anything standing on one, an encased exhibit or a mimic in its
+  // disguise, is refused exactly as a bump into an empty case is, so nothing leaks. A melee
+  // blow needs the footprints to touch, and a diagonal one may not cross a corner.
+  function canStrike(state, att, def, how) {
+    if (!def || def.gone || def === att) return 'no_target';
+    if (Cases.encased(state, att) || Cases.encased(state, def)) return 'behind_glass';
+    const kind = (how && how.kind) || 'melee';
+    if (kind !== 'melee') return 'not_built';                 // Reach (W1-COMBAT), shots (W1-ARCH-B)
+    if (Actors.between(att, def) !== 1) return 'out_of_reach';
+    if (!adjacent(state, att, def)) return 'corner';
+    return null;
+  }
+  // [stub → W1-COMBAT] The uids a Reach weapon could strike now (§8.1).
+  function reachTargets(state, a) { return []; }
+
+  // A melee blow from att at def, which canStrike allowed. Returns its cost in ticks.
+  function strike(state, att, def, ev) {
+    attack(state, att, def, ev, { kind: 'melee' });
+    return Actors.attackCost(state, att);
+  }
+
+  // The tile of att's footprint nearest def (ties in row-major order): where a blow comes from.
+  function fromTile(att, def) {
+    let best = null, bd = -1;
+    for (const t of Actors.footprint(att)) { const d = Actors.dist(def, t[0], t[1]); if (bd < 0 || d < bd) { best = t; bd = d; } }
+    return best;
+  }
+
+  // One blow (§8.1), the caller having checked it and paid for it, in this order:
+  //   1. `attacked` {by, at, how};
+  //   2. surprise, or a roll on att's combat stream;
+  //   3. on a miss `missed`; on a hit Combat.hurt, with cause.from the tile the blow came from;
+  //   4. last, a soft noise at the attacker's tile, hit or miss, after every other wake
+  //      effect of the blow (§8.2).
+  function attack(state, att, def, ev, how) {
+    how = how || { kind: 'melee' };
     const rng = Rng.stream(state, 'combat/' + att.uid);
-    const chance = hitChance(att, def);
+    const chance = hitChance(att, def), from = fromTile(att, def);
+    Causes.emit(state, ev, 'attacked', { by: att.uid, at: def.uid, how }, { k: 'attack', by: att.uid, at: def.uid, dist: Actors.between(att, def), how });
     const cause = { k: 'attack', by: att.uid, at: def.uid, chance };
     // A surprise blow always hits, and the target then hunts you (hurt). Against a Centrepiece
     // it rolls its damage, and the hunt it starts is the encounter.
     if (surprised(att, def)) {
       const dmg = Actors.centrepiece(def) ? rng.int(att.dmin, att.dmax) : surpriseRaw(att);
       cause.surprise = 1;
-      return hurt(state, def, net(dmg, def.pad, cause), Object.assign(cause, { raw: dmg, pad: def.pad }), ev);
+      Object.assign(cause, { raw: dmg, pad: def.pad, how, from });
+      hurt(state, def, net(dmg, def.pad, cause), cause, ev);
+    } else {
+      const roll = rng.d100();
+      cause.roll = roll;
+      if (roll > chance) Causes.emit(state, ev, 'missed', { by: att.uid, at: def.uid }, Object.assign(cause, { how }));
+      else {
+        const raw = rng.int(att.dmin, att.dmax);
+        Object.assign(cause, { raw, pad: def.pad, how, from });
+        hurt(state, def, net(raw, def.pad, cause), cause, ev);
+      }
     }
-    const roll = rng.d100();
-    cause.roll = roll;
-    if (roll > chance) { ev.push({ k: 'missed', turn: state.turn, by: att.uid, at: def.uid, cause: copy(cause) }); return; }
-    const raw = rng.int(att.dmin, att.dmax);
-    hurt(state, def, net(raw, def.pad, cause), Object.assign(cause, { raw, pad: def.pad }), ev);
+    Noise.emit(state, att.x, att.y, 'soft', { k: 'attack', by: att.uid }, ev);
   }
 
   // Damage after Padding, at least the minimum; the cause records when the floor applied.
@@ -1529,25 +2059,243 @@ const Combat = (() => {
     return raw - pad;
   }
 
+  // Damage to who (§8.1), in this order:
+  //   1. the archetype and modifiers adjust it (Archetypes.adjustDamage);
+  //   2. health falls; with options.invulnerable your health stays at 1 or more and the
+  //      cause says `saved`;
+  //   3. `damaged`;
+  //   4. an exhibit not already hunting wakes into a hunt (damage, with its distance);
+  //   5. its group hears of it (Wake.allyHit);
+  //   6. at 0 health it is destroyed (Combat.die); otherwise Archetypes.onDamaged, then the
+  //      M4 low-health hook.
   function hurt(state, who, amount, cause, ev) {
+    amount = Archetypes.adjustDamage(state, who, amount, cause);
     who.hp -= amount;
     if (who.hp < 0) who.hp = 0;
-    ev.push({ k: 'damaged', turn: state.turn, who: who.uid, amount, hp: who.hp, cause: copy(cause) });
-    Causes.record(state, { turn: state.turn, k: 'damaged', who: who.uid, amount, cause });
-    if (who.uid !== 'you' && who.mode !== 'hunting') Wake.toHunting(state, who, { k: 'damage', by: cause.by }, ev);
+    if (who.uid === 'you' && who.hp < 1 && state.options && state.options.invulnerable) { who.hp = 1; cause.saved = 1; }
+    Causes.emit(state, ev, 'damaged', { who: who.uid, amount, hp: who.hp }, cause);
+    if (who.uid !== 'you' && who.mode !== 'hunting') {
+      const wake = { k: 'damage' };
+      if (cause.by) wake.by = cause.by;
+      if (cause.from) wake.dist = Actors.dist(who, cause.from[0], cause.from[1]);
+      Wake.toHunting(state, who, wake, ev);
+    }
+    Wake.allyHit(state, who, cause, ev);
     if (who.hp === 0) die(state, who, cause, ev);
+    else { Archetypes.onDamaged(state, who, amount, cause, ev); Health.onLow(state, who, ev); }
   }
 
+  // who is destroyed (§8.1): `died` with the killing cause; its archetype's and modifiers'
+  // onDied; a loud noise where an exhibit was destroyed; and its own combat and ai streams
+  // are deleted, so state.rng stays small (§3.2). If who is you, the visit is over.
   function die(state, who, cause, ev) {
     who.gone = 1;
-    ev.push({ k: 'died', turn: state.turn, who: who.uid, cause: copy(cause) });
-    Causes.record(state, { turn: state.turn, k: 'died', who: who.uid, cause });
-    if (who.uid === 'you') state.over = { k: 'died', turn: state.turn, by: cause.by || null };
+    Causes.emit(state, ev, 'died', { who: who.uid }, cause);
+    Archetypes.onDied(state, who, cause, ev);
+    delete state.rng['combat/' + who.uid];
+    delete state.rng['ai/' + who.uid];
+    if (who.uid === 'you') state.over = { k: 'died', turn: state.turn, by: cause.by || null, door: null, cause: copy(cause) };
+    else Noise.emit(state, who.x, who.y, 'loud', { k: 'destroyed', by: cause.by || null }, ev);
   }
 
-  const copy = c => JSON.parse(JSON.stringify(c));
+  // Your attack(uid) action (§4.2): a melee blow at an actor canStrike allows.
+  Actions.define('attack', {
+    legal(state) {
+      const you = state.actors[0], out = [];
+      for (const a of state.actors) if (a !== you && !a.gone && !canStrike(state, you, a, { kind: 'melee' })) out.push({ a: 'attack', uid: a.uid });
+      return out;
+    },
+    candidates: state => state.actors.map(a => ({ a: 'attack', uid: a.uid })).concat([{ a: 'attack', uid: 'nobody' }, { a: 'attack' }]),
+    apply(state, action, ev) {
+      const you = state.actors[0], t = typeof action.uid === 'string' ? Actors.byUid(state, action.uid) : null;
+      const code = canStrike(state, you, t, { kind: 'melee' });
+      return code || strike(state, you, t, ev);
+    },
+  });
 
-  return { hitChance, surprised, netRolls, surpriseRaw, surpriseNet, attack, hurt };
+  return { hitChance, surprised, netRolls, surpriseRaw, surpriseNet, adjacent, canStrike, reachTargets, strike, attack, hurt, die };
+})();
+
+</script>
+<script>
+// ACCESSION — waiting, resting, sitting and health (BUILD.md §8.1). W0c moves M2's wait and
+// regeneration here; W1-COMBAT owns the file after M3's Wave 0 and builds rest, sit, healing
+// and the regeneration accumulator.
+'use strict';
+const Health = (() => {
+  // Turns per HP of regeneration (§8.1): max(REGEN_MIN, floor(REGEN_NUM / maxHP)).
+  const interval = maxHp => Math.max(N.REGEN_MIN, Int.idiv(N.REGEN_NUM, maxHp));
+
+  // Turn boundary step 3 (§8.1). M2's rule, until W1-COMBAT's accumulator (D2.7): below full
+  // health you regain 1 HP on every turn that is a multiple of your interval; the cause
+  // counts one unit a turn, so it shows the interval reached.
+  function regenerate(state, ev) {
+    const you = state.actors[0];
+    if (you.gone || you.hp >= you.maxHp) return;
+    const every = interval(you.maxHp);
+    if (state.turn % every === 0) {
+      you.hp++;
+      Causes.emit(state, ev, 'regenerated', { who: 'you', hp: you.hp }, { k: 'regen', units: every, need: every, bench: false });
+    }
+  }
+
+  // [stub → W1-COMBAT] Your maximum health at a grade (§8.1); 0 until built, and nothing calls it yet.
+  const maxHp = grade => 0;
+  // [stub → W1-COMBAT] Healing that is not regeneration (healed, §4.3); does nothing yet.
+  function heal(state, who, n, cause, ev) { return 0; }
+  // [M4] After health falls and who survives (Second Wind); empty in M3.
+  function onLow(state, who, ev) {}
+
+  // wait (§4.2): one turn, always legal.
+  Actions.define('wait', {
+    legal: () => [{ a: 'wait' }],
+    candidates: () => [{ a: 'wait' }],
+    apply(state, action, ev) {
+      const you = state.actors[0];
+      Causes.emit(state, ev, 'waited', { who: 'you', how: 'wait' }, { k: 'action', how: 'wait' });
+      return Actors.cost(state, you, N.COST_WAIT, 'act');
+    },
+  });
+  // [stub → W1-COMBAT] rest (a repeated wait) and sit (on a bench, COST_SIT): never legal yet.
+  for (const id of ['rest', 'sit']) Actions.define(id, { legal: () => [], candidates: () => [{ a: id }], apply: () => 'not_built' });
+
+  return { interval, regenerate, maxHp, heal, onLow };
+})();
+
+</script>
+<script>
+// ACCESSION — cases, glass, locks and staff doors (BUILD.md §8.3). W0c names the two calls
+// the action core makes; W0e builds the case fixtures and W1-CASES the rest.
+'use strict';
+const Cases = (() => {
+  // Does a stand in an intact case? An exhibit on a `v` is encased (and so is a mimic in its
+  // disguise): it cannot step out (Grid.canStep) or strike out, and nothing strikes in.
+  const encased = (state, a) => Actors.footprint(a).some(([x, y]) => Grid.ch(state.dept, x, y) === 'v');
+
+  // Cases.enter(state, a, x, y, d, ev): your step from your tile in direction d onto (x, y),
+  // which holds no actor, when that tile is a fixture: null if it is not one (the step goes
+  // on), a refusal code, or ticks (W1-CASES: a staff door opened at your grade). With ev
+  // null it changes nothing and says what it would return, for Step.legal. W0c: a bump into
+  // an intact case is refused with behind_glass, as a blow at anything standing in one is
+  // (Combat.canStrike).
+  function enter(state, a, x, y, d, ev) {
+    return Grid.ch(state.dept, x, y) === 'v' ? 'behind_glass' : null;
+  }
+
+  return { encased, enter };
+})();
+
+</script>
+<script>
+// ACCESSION — your kit (BUILD.md §8.5). W0c names the calls the action core makes, each with
+// a neutral body: Kit.settle at the end of every step (§8.1) and Kit.ringDelta for your ring
+// do nothing until W0e builds the kit; recharge and the use of instruments and Restoration
+// kits wait for W1-KIT.
+'use strict';
+const Kit = (() => {
+  function settle(state) {}                                // [stub → W0e] writes Kit.derive onto you
+  const ringDelta = state => 0;                            // [stub → W0e, W1-KIT] what your kit adds to your ring
+  function recharge(state, ev) {}                          // [stub → W1-KIT] turn boundary step 2
+  const useLegal = state => [];                            // [stub → W1-KIT] use(uid, …) of an instrument or kit
+  const useAction = (state, action, ev) => 'not_built';    // [stub → W1-KIT]
+  return { settle, ringDelta, recharge, useLegal, useAction };
+})();
+
+</script>
+<script>
+// ACCESSION — consumables (BUILD.md §8.6). W0c names the two calls the use action makes, with
+// neutral bodies; W0e and W1-CONSUMABLES build the rest.
+'use strict';
+const Consumables = (() => {
+  const useLegal = state => [];                            // [stub → W1-CONSUMABLES] use(uid[, x, y]) of a consumable
+  const useAction = (state, action, ev) => 'not_built';    // [stub → W1-CONSUMABLES]
+  return { useLegal, useAction };
+})();
+
+</script>
+<script>
+// ACCESSION — an exhibit's turn (BUILD.md §8.1, §8.2). W0c moves M2's behaviour here from
+// step.js: a hunting exhibit strikes you if it can, or steps toward you; every other exhibit
+// waits. W0d builds the order of an exhibit's turn on it, and W1-WAKE-B owns it after.
+//
+// AI.act(state, a, ev) returns the action's cost in ticks; it never writes a's own `next`,
+// which the scheduler sets after the action (Step, advance).
+'use strict';
+const AI = (() => {
+  function act(state, a, ev) {
+    const you = state.actors[0];
+    if (Status.has(a, 'fixed')) return wait(state, a, ev);
+    if (a.mode === 'hunting') {
+      if (!Combat.canStrike(state, a, you, { kind: 'melee' })) return Combat.strike(state, a, you, ev);
+      const r = chase(state, a, you, ev);
+      if (r !== null) return r;
+    }
+    return wait(state, a, ev);
+  }
+
+  // An exhibit's wait: one action's cost, with no event.
+  const wait = (state, a, ev) => Actors.cost(state, a, N.COST_WAIT, 'act');
+
+  // Can a's whole footprint step in direction d, by the exhibits' step rule? Each of its
+  // tiles follows the step rule (§8.2), so it moves only where all its tiles can go (§4.1).
+  function fits(m, a, d) {
+    const s = a.size || 1;
+    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) if (!Grid.canStep(m, a.x + dx, a.y + dy, d, 'exhibit')) return false;
+    return true;
+  }
+  // The first actor other than a on a tile a would cover with its anchor at (x, y).
+  function blocker(state, a, x, y) {
+    const s = a.size || 1;
+    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) { const o = Actors.at(state, x + dx, y + dy, a); if (o) return o; }
+    return null;
+  }
+
+  // Walking distance for a 2×2 body (§4.1), by anchor tile: 0 wherever its whole footprint
+  // stands beside the target without covering it, counting out to maxDist in steps its
+  // whole footprint can take. Actors never block it. An Int32Array, -1 where unreached.
+  function bodyDistances(state, a, target, maxDist) {
+    const m = state.dept, s = a.size || 1, ts = target.size || 1, dist = new Int32Array(m.w * m.h).fill(-1), queue = [];
+    const body = { x: 0, y: 0, size: s };
+    const stands = () => { for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) if (!Grid.walkable(m, body.x + dx, body.y + dy, 'exhibit')) return false; return true; };
+    const covers = (x, y) => x < target.x + ts && target.x < x + s && y < target.y + ts && target.y < y + s;
+    for (let y = target.y - s; y <= target.y + ts; y++) for (let x = target.x - s; x <= target.x + ts; x++) {
+      body.x = x; body.y = y;
+      if (Grid.inside(m, x, y) && !covers(x, y) && stands() && Combat.adjacent(state, body, target)) { dist[y * m.w + x] = 0; queue.push(y * m.w + x); }
+    }
+    for (let i = 0; i < queue.length; i++) {
+      const p = queue[i];
+      if (dist[p] >= maxDist) continue;
+      body.x = p % m.w; body.y = Int.idiv(p, m.w);
+      for (let d = 0; d < 8; d++) {
+        if (!fits(m, body, d)) continue;
+        const r = (body.y + Grid.DY[d]) * m.w + body.x + Grid.DX[d];
+        if (dist[r] < 0) { dist[r] = dist[p] + 1; queue.push(r); }
+      }
+    }
+    return dist;
+  }
+
+  // Step along the walking-distance gradient toward the target; ties broken on the
+  // exhibit's own ai stream. Returns the cost, or null if it cannot move.
+  function chase(state, a, target, ev) {
+    const m = state.dept, big = (a.size || 1) > 1, far = m.w * m.h;
+    const dist = big ? bodyDistances(state, a, target, far) : Grid.distances(m, [[target.x, target.y]], far, null, 'exhibit');
+    const here = dist[a.y * m.w + a.x];
+    if (here <= 0) return null;
+    const options = [];
+    for (let d = 0; d < 8; d++) {
+      if (!fits(m, a, d)) continue;
+      const nx = a.x + Grid.DX[d], ny = a.y + Grid.DY[d], v = dist[ny * m.w + nx];
+      if (v < 0 || v >= here || blocker(state, a, nx, ny)) continue;
+      options.push(d);
+    }
+    if (!options.length) return null;
+    const d = options.length === 1 ? options[0] : Rng.stream(state, 'ai/' + a.uid).pick(options);
+    const r = Step.moveInto(state, a, d, ev);
+    return typeof r === 'number' ? r : null;
+  }
+
+  return { act, wait, chase, bodyDistances };
 })();
 
 </script>
@@ -1584,26 +2332,28 @@ const Roles = (() => {
 
 </script>
 <script>
+// ACCESSION — the clock's rules (BUILD.md §8.4). W0c names turn boundary step 6, empty;
+// W0e and W1-CLOCK build the bell, the night watch and the Watchman.
+'use strict';
+const ClockRules = (() => {
+  function boundary(state, ev) {}                          // [stub → W1-CLOCK] turn boundary step 6
+  return { boundary };
+})();
+
+</script>
+<script>
 // ACCESSION — step(state, action) → events: the only function that changes the state
-// (BUILD.md §3.1). It applies your action, then lets every other actor act until it is
-// your turn again, resolving turn boundaries on the way (§8.1).
+// (BUILD.md §3.1), frozen after M3's Wave 0. It applies your action through the action table
+// (Actions), then lets every other actor act until it is your turn again, resolving turn
+// boundaries on the way (§8.1).
 'use strict';
 const Step = (() => {
-  const refuse = (state, reason) => [{ k: 'refused', turn: state.turn, reason }];
+  // A refusal (§4.2): one refused event with its code, and nothing else changes.
+  const refuse = (state, code) => [Causes.make(state, 'refused', { reason: code })];
 
-  // Can a reach b with a blow? Some tile of a's footprint is next to some tile of b's
-  // (BUILD.md §4.1), and a diagonal blow may not cross a corner you could not step past.
-  function adjacent(state, a, b) {
-    const m = state.dept, sa = a.size || 1, sb = b.size || 1;
-    for (let ay = a.y; ay < a.y + sa; ay++) for (let ax = a.x; ax < a.x + sa; ax++)
-      for (let by = b.y; by < b.y + sb; by++) for (let bx = b.x; bx < b.x + sb; bx++) {
-        const dx = bx - ax, dy = by - ay;
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== 1) continue;
-        if (dx === 0 || dy === 0) return true;
-        if (Grid.walkable(m, bx, ay) && Grid.walkable(m, ax, by)) return true;
-      }
-    return false;
-  }
+  // Actions that keep your ring at its still radius (§8.2), and those that keep you seated.
+  const STILL = ['wait', 'rest', 'view', 'sit'];
+  const SEATED = ['wait', 'rest', 'sit'];
 
   // The first actor other than a on a tile a would cover with its anchor at (x, y).
   function blocker(state, a, x, y) {
@@ -1611,181 +2361,154 @@ const Step = (() => {
     for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) { const o = Actors.at(state, x + dx, y + dy, a); if (o) return o; }
     return null;
   }
-  // Can a's whole footprint step in direction d? Each of its tiles follows the step rule
-  // (§8.2), so it moves only where all its tiles can go (§4.1).
-  function fits(m, a, d) {
-    const s = a.size || 1;
-    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) if (!Grid.canStep(m, a.x + dx, a.y + dy, d)) return false;
-    return true;
-  }
 
-  // A blow from a at b. Returns the cost.
-  function strike(state, a, b, ev) {
-    Combat.attack(state, a, b, ev);
-    return Actors.attackCost(a);
-  }
-
-  // Moving into a tile: attack what stands there (any tile of its footprint, §7.1), open a
-  // closed door, or walk. Returns the cost in ticks, or a refusal string.
+  // An actor's move in direction d (§4.2, §8.2), yours or an exhibit's. Returns its cost in
+  // ticks, or a refusal code. With ev null it changes nothing and says what it would return,
+  // which is how Step.legal lists your moves with exactly step()'s tests. In order:
+  //   1. into another actor: a blow, if Combat.canStrike allows it (exhibits never bump
+  //      exhibits);
+  //   2. for you, onto a fixture: Cases.enter decides (a case refuses; a staff door opens);
+  //   3. into a closed door: it opens, with a soft noise there, and the mover stays put;
+  //   4. otherwise the step itself, if every tile of the footprint may step (Grid.canStep).
   function moveInto(state, a, d, ev) {
-    const m = state.dept, s = a.size || 1, nx = a.x + Grid.DX[d], ny = a.y + Grid.DY[d];
+    if (!(Number.isInteger(d) && d >= 0 && d < 8)) return 'bad_direction';
+    const m = state.dept, s = a.size || 1, nx = a.x + Grid.DX[d], ny = a.y + Grid.DY[d], you = a.uid === 'you';
+    const who = you ? 'you' : 'exhibit', dry = ev === null;
     const other = blocker(state, a, nx, ny);
     if (other) {
-      if (!adjacent(state, a, other)) return 'You cannot reach it past the corner.';
-      if (a.uid !== 'you' && other.uid !== 'you') return 'blocked';
-      return strike(state, a, other, ev);
+      if (!you && other.uid !== 'you') return 'blocked';
+      const code = Combat.canStrike(state, a, other, { kind: 'melee' });
+      if (code) return code;
+      return dry ? Actors.attackCost(state, a) : Combat.strike(state, a, other, ev);
     }
+    if (you && s === 1) { const r = Cases.enter(state, a, nx, ny, d, ev); if (r !== null) return r; }
     for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) {
       const x = nx + dx, y = ny + dy;
-      if (Grid.ch(m, x, y) === '+' && Grid.canStep(m, a.x + dx, a.y + dy, d)) {
-        Grid.set(m, x, y, "'");
-        ev.push({ k: 'opened', turn: state.turn, who: a.uid, x, y });
-        return Actors.cost(a, N.COST_DOOR);
+      if (Grid.ch(m, x, y) === '+' && Grid.canStep(m, a.x + dx, a.y + dy, d, who)) {
+        if (!dry) {
+          Grid.set(m, x, y, "'");
+          Causes.emit(state, ev, 'opened', { who: a.uid, x, y }, { k: 'door', by: a.uid });
+          Noise.emit(state, x, y, 'soft', { k: 'door', by: a.uid }, ev);
+        }
+        return Actors.cost(state, a, N.COST_DOOR, 'act');
       }
     }
-    if (!fits(m, a, d)) return 'Something is in the way.';
-    ev.push({ k: 'moved', turn: state.turn, who: a.uid, from: [a.x, a.y], to: [nx, ny] });
-    a.x = nx; a.y = ny;
-    return Actors.cost(a, N.COST_STEP);
+    for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) if (!Grid.canStep(m, a.x + dx, a.y + dy, d, who)) return 'blocked';
+    if (!dry) {
+      Causes.emit(state, ev, 'moved', { who: a.uid, from: [a.x, a.y], to: [nx, ny] });
+      a.x = nx; a.y = ny;
+    }
+    return Actors.cost(state, a, N.COST_STEP, 'move');
   }
 
-  // Your action. Returns the cost, or a refusal string.
-  function yours(state, action, ev) {
-    const you = state.actors[0];
-    switch (action.a) {
-      case 'move': {
-        if (!(action.dir >= 0 && action.dir < 8)) return 'No such direction.';
-        return moveInto(state, you, action.dir, ev);
-      }
-      case 'wait':
-        ev.push({ k: 'waited', turn: state.turn, who: 'you' });
-        return N.COST_WAIT;
-      case 'attack': {
-        const t = Actors.byUid(state, action.uid);
-        if (!t || t.gone || t === you) return 'There is nothing there to attack.';
-        if (!adjacent(state, you, t)) return 'It is out of reach.';
-        return strike(state, you, t, ev);
-      }
-      default:
-        return 'Unknown action.';
-    }
-  }
+  // move(dir) (§4.2).
+  Actions.define('move', {
+    legal(state) {
+      const out = [];
+      for (let d = 0; d < 8; d++) if (typeof moveInto(state, state.actors[0], d, null) === 'number') out.push({ a: 'move', dir: d });
+      return out;
+    },
+    candidates: () => [0, 1, 2, 3, 4, 5, 6, 7, 8, -1].map(dir => ({ a: 'move', dir })).concat([{ a: 'move' }]),
+    apply: (state, action, ev) => moveInto(state, state.actors[0], action.dir, ev),
+  });
 
-  // One exhibit's turn. M0: a hunting exhibit closes in and strikes; others wait.
-  function act(state, a, ev) {
-    const you = state.actors[0];
-    let cost = Actors.cost(a, N.COST_WAIT);
-    if (a.mode === 'hunting') {
-      if (adjacent(state, a, you)) cost = strike(state, a, you, ev);
-      else {
-        const r = chase(state, a, you, ev);
-        if (r !== null) cost = r;
-      }
-    }
-    a.next += cost;
-  }
+  // use(uid[, x, y][, on]) (§4.2): an instrument or a Restoration kit goes to the kit's rules,
+  // a consumable to the consumables'.
+  const item = (state, uid) => { for (const i of state.items || []) if (i.uid === uid) return i; return null; };
+  Actions.define('use', {
+    legal: state => Kit.useLegal(state).concat(Consumables.useLegal(state)),
+    candidates: state => (state.items || []).map(i => ({ a: 'use', uid: i.uid })).concat([{ a: 'use', uid: 'nothing' }]),
+    apply(state, action, ev) {
+      const it = item(state, action.uid);
+      if (it && (it.kind === 'instrument' || it.kind === 'kit')) return Kit.useAction(state, action, ev);
+      if (it && it.kind === 'consumable') return Consumables.useAction(state, action, ev);
+      return 'no_use';
+    },
+  });
 
-  // Walking distance for a 2×2 body (§4.1), by anchor tile: 0 wherever its whole footprint
-  // stands beside the target without covering it, counting out to maxDist in steps its
-  // whole footprint can take. Actors never block it. An Int32Array, -1 where unreached.
-  function bodyDistances(state, a, target, maxDist) {
-    const m = state.dept, s = a.size || 1, ts = target.size || 1, dist = new Int32Array(m.w * m.h).fill(-1), queue = [];
-    const body = { x: 0, y: 0, size: s };
-    const stands = () => { for (let dy = 0; dy < s; dy++) for (let dx = 0; dx < s; dx++) if (!Grid.walkable(m, body.x + dx, body.y + dy)) return false; return true; };
-    const covers = (x, y) => x < target.x + ts && target.x < x + s && y < target.y + ts && target.y < y + s;
-    for (let y = target.y - s; y <= target.y + ts; y++) for (let x = target.x - s; x <= target.x + ts; x++) {
-      body.x = x; body.y = y;
-      if (Grid.inside(m, x, y) && !covers(x, y) && stands() && adjacent(state, body, target)) { dist[y * m.w + x] = 0; queue.push(y * m.w + x); }
-    }
-    for (let i = 0; i < queue.length; i++) {
-      const p = queue[i];
-      if (dist[p] >= maxDist) continue;
-      body.x = p % m.w; body.y = Int.idiv(p, m.w);
-      for (let d = 0; d < 8; d++) {
-        if (!fits(m, body, d)) continue;
-        const r = (body.y + Grid.DY[d]) * m.w + body.x + Grid.DX[d];
-        if (dist[r] < 0) { dist[r] = dist[p] + 1; queue.push(r); }
-      }
-    }
-    return dist;
-  }
-
-  // Step along the walking-distance gradient toward the target; ties broken on the
-  // exhibit's own ai stream. Returns the cost, or null if it cannot move.
-  function chase(state, a, target, ev) {
-    const m = state.dept, big = (a.size || 1) > 1;
-    const dist = big ? bodyDistances(state, a, target, 64) : Grid.distances(m, [[target.x, target.y]], 64);
-    const here = dist[a.y * m.w + a.x];
-    if (here <= 0) return null;
-    const options = [];
-    for (let d = 0; d < 8; d++) {
-      if (!fits(m, a, d)) continue;
-      const nx = a.x + Grid.DX[d], ny = a.y + Grid.DY[d], v = dist[ny * m.w + nx];
-      if (v < 0 || v >= here || blocker(state, a, nx, ny)) continue;
-      options.push(d);
-    }
-    if (!options.length) return null;
-    const d = options.length === 1 ? options[0] : Rng.stream(state, 'ai/' + a.uid).pick(options);
-    const r = moveInto(state, a, d, ev);
-    return typeof r === 'number' ? r : null;
-  }
-
-  // Turn-boundary effects, in the fixed order of §8.1.
+  // The turn boundary (§8.1), in its fixed order. Each step is a named function of its
+  // system, called here and nowhere else.
   function boundary(state, ev) {
-    Status.tick(state, ev);
-    regenerate(state, ev);
+    Surfaces.tick(state, ev);                        // 1. surfaces
+    Status.tick(state, ev); Kit.recharge(state, ev); // 2. status timers, then instruments' charges
+    Health.regenerate(state, ev);                    // 3. regeneration
+    Wake.boundary(state, ev);                        // 4. wake checks: your ring, axis, tether
+    Wake.decay(state, ev);                           // 5. pip decay
+    ClockRules.boundary(state, ev);                  // 6. the clock stage
+    Modules.alarmDecay(state, ev);                   // 7. alarm decay (M4)
+    Modules.turn(state, ev);                         // 8. module turn rules (M4)
   }
 
-  function regenerate(state, ev) {
-    const you = state.actors[0];
-    if (you.gone || you.hp >= you.maxHp) return;
-    const every = Math.max(N.REGEN_MIN, Int.idiv(N.REGEN_NUM, you.maxHp));
-    if (state.turn % every === 0) { you.hp++; ev.push({ k: 'regenerated', turn: state.turn, who: 'you', hp: you.hp }); }
-  }
-
-  // Run the world until it is your turn again.
+  // Run the world until it is your turn again. An exhibit's action is charged after it acts:
+  // its next becomes next + the action's cost, or notBefore if that is later (a telegraph
+  // keeps its resolve until after your next decision, §8.1); then the statuses its action
+  // applied are settled.
   function advance(state, ev) {
     for (;;) {
       if (state.over) return;
       const a = Actors.next(state);
+      if (!a) return;
       const boundaryTick = (state.turn + 1) * N.TICKS_PER_TURN;
       if (boundaryTick <= a.next) { state.turn++; state.tick = boundaryTick; boundary(state, ev); continue; }
       state.tick = a.next;
       if (a.uid === 'you') return;
-      act(state, a, ev);
+      const c = AI.act(state, a, ev);
+      if (!Number.isInteger(c) || c < 0) throw new Error(`Step: ${a.uid}'s action cost ${c}`);
+      const nb = a.notBefore === null || a.notBefore === undefined ? 0 : a.notBefore;
+      a.next = Math.max(a.next + c, nb);
+      a.notBefore = null;
+      Status.settle(state);
     }
   }
 
+  // One step (§4.2), refused before anything is spent if the visit is over, a choice is
+  // waiting, the action is unknown, a status forbids it, or its handler refuses it.
   function step(state, action) {
-    if (state.over) return refuse(state, 'The visit is over.');
-    const ev = [];
-    const cost = yours(state, action, ev);
-    if (typeof cost === 'string') return refuse(state, cost);
+    if (state.over) return refuse(state, 'visit_over');
+    if (state.ui && state.ui.pendingChoice && !(action && action.a === 'choose')) return refuse(state, 'choice_pending');
+    const h = action && typeof action.a === 'string' ? Actions.get(action.a) : null;
+    if (!h) return refuse(state, 'unknown_action');
     const you = state.actors[0];
-    you.next += cost;
-    // Your ring is set by your last action that cost time (BUILD.md §8.2).
-    if (cost > 0) you.still = STILL.includes(action.a);
+    const blocked = Status.blocks(state, you, action);
+    if (blocked) return refuse(state, blocked);
+    const ev = [];
+    const r = h.apply(state, action, ev);
+    if (typeof r === 'string') {
+      if (ev.length) throw new Error(`Step: ${action.a} refused (${r}) after emitting events`);
+      return refuse(state, r);
+    }
+    // Every action of yours that costs time costs at least a turn (§8.1), so a turn boundary
+    // runs between any two of your decisions.
+    if (!Number.isInteger(r) || r < 0 || (r > 0 && r < N.TICKS_PER_TURN)) throw new Error(`Step: ${action.a} cost ${r} ticks`);
+    you.next += r;
+    Status.settle(state);
+    // Your ring is set by your last action that cost time (§8.2).
+    if (r > 0) { you.still = STILL.includes(action.a); you.lastAct = action.a; if (!SEATED.includes(action.a)) you.seated = false; }
     advance(state, ev);
+    // Your derived stats change once your action's ticks are done (§8.1).
+    Kit.settle(state);
     Vision.remember(state);
     return ev;
   }
-  const STILL = ['wait', 'rest', 'view', 'sit'];
 
-  // Every legal action for you now (BUILD.md §4.2). step() refuses exactly the others.
+  // Every legal action for you now (§4.2), in Actions.ORDER: step() refuses exactly the
+  // others. While a choice waits only its answers are legal.
   function legal(state) {
     if (state.over) return [];
-    const you = state.actors[0], out = [{ a: 'wait' }];
-    // The same tests as moveInto: an actor on any tile of the step is struck if it can be
-    // reached; otherwise the step (or the door it opens) must follow the step rule.
-    for (let d = 0; d < 8; d++) {
-      const other = blocker(state, you, you.x + Grid.DX[d], you.y + Grid.DY[d]);
-      if (other ? adjacent(state, you, other) : fits(state.dept, you, d)) out.push({ a: 'move', dir: d });
+    const you = state.actors[0], pending = !!(state.ui && state.ui.pendingChoice), out = [];
+    for (const id of Actions.ORDER) {
+      if (pending && id !== 'choose') continue;
+      const h = Actions.get(id);
+      if (!h) continue;
+      for (const act of h.legal(state)) if (!Status.blocks(state, you, act)) out.push(act);
     }
-    for (const a of state.actors) if (a !== you && !a.gone && adjacent(state, you, a)) out.push({ a: 'attack', uid: a.uid });
     return out;
   }
 
-  return { step, adjacent, legal };
+  // Kept for the UI and the browser checks: can a reach b with a blow (Combat.adjacent).
+  const adjacent = (state, a, b) => Combat.adjacent(state, a, b);
+
+  return { step, legal, boundary, advance, moveInto, adjacent, STILL: STILL.slice() };
 })();
 
 </script>
@@ -2981,37 +3704,45 @@ const Setup = (() => {
   const SAVE_VERSION = 1;
 
   // The visitor at the start of a run: a T1 Balanced weapon and a T1 Standard garment
-  // (BUILD.md §8.1), from the forms in the numbers table. `form` ('light', 'balanced' or
-  // 'heavy'; Balanced if absent) swaps the T1 weapon, for tests and scenarios. Reach comes
-  // with its two-tile blow.
-  const FORMS = { light: N.FORM_LIGHT, balanced: N.FORM_BALANCED, heavy: N.FORM_HEAVY };
+  // (BUILD.md §8.1), from the forms in the numbers table. `form` ('light', 'balanced',
+  // 'heavy' or 'reach'; Balanced if absent) swaps the T1 weapon, for tests and scenarios.
+  // You carry every actor field (Actors.make), and also: still (your ring's radius comes
+  // from your last action that cost time, §8.2), lastAct, seated (on a bench, §8.1), regen
+  // (the regeneration store), and your derived stats, which Kit.settle keeps up to date.
+  const FORMS = { light: N.FORM_LIGHT, balanced: N.FORM_BALANCED, heavy: N.FORM_HEAVY, reach: N.FORM_REACH };
   function you(x, y, form) {
     form = form || 'balanced';
     const t = 1, F = FORMS[form], G = N.GARMENT_STANDARD;
     if (!F) throw new Error('Setup.you: no weapon form ' + form);
-    return {
-      uid: 'you', sp: 'visitor', size: 1, x, y, hp: N.PLAYER_HP, maxHp: N.PLAYER_HP, next: 0, still: false,
+    return Object.assign(Actors.make(null, {
+      uid: 'you', sp: 'visitor', size: 1, x, y, hp: N.PLAYER_HP, maxHp: N.PLAYER_HP,
       acc: N.PLAYER_ACC + F[4], eva: N.PLAYER_EVA + G[1], pad: t + G[0], dmin: t + F[0], dmax: F[1] * t + F[2],
-      weaponForm: form, statuses: [],
-    };
+    }), { still: false, lastAct: null, seated: false, regen: 0, weaponForm: form, reach: form === 'reach', quiet: 0, breaker: 0 });
   }
 
-  // A state for one room: map rows, your position, and exhibit records from a pack. An
-  // exhibit record may give its size (2 for a Centrepiece, §4.1) and its stats a role.
-  function room(seed, spec) {
+  // A state for one room: map rows, your position, and exhibit records. An exhibit record
+  // gives its species id, tile, mode and stats (a role's, Roles.stats), and may give its
+  // size (2 for a Centrepiece, §4.1) and any field Actors.make takes (arch, mods, trigger,
+  // group, home, guards, ax, speed). options: Options.make's (rulesOff, without, invulnerable).
+  function room(seed, spec, options) {
     const state = {
-      v: SAVE_VERSION, seed, rng: {}, tick: 0, turn: 0,
+      v: SAVE_VERSION, coreHash: null, runId: null, seed, rng: {}, tick: 0, turn: 0,
+      options: Options.make(options),
       dept: { acc: spec.acc, depth: spec.depth || 1, w: spec.map[0].length, h: spec.map.length, tiles: spec.map.slice() },
       actors: [you(spec.you[0], spec.you[1])],
+      items: [],
       causes: [], over: null,
+      ui: { pendingChoice: null },
     };
     let n = 0;
     for (const e of spec.exhibits) {
       n++;
-      state.actors.push(Object.assign({
+      const rec = Object.assign({}, e, e.stats, {
         uid: spec.acc + '.' + state.dept.depth + '.' + (e.room || 'room') + '.' + n,
-        size: e.size || 1, next: 0, pips: 0, statuses: [],
-      }, e.stats, { sp: e.sp, x: e.at[0], y: e.at[1], mode: e.mode || 'dormant', maxHp: e.stats.hp }));
+        x: e.at[0], y: e.at[1], mode: e.mode || 'dormant', maxHp: e.stats.hp,
+      });
+      delete rec.stats; delete rec.at; delete rec.room;
+      Actors.spawn(state, rec);
     }
     return state;
   }
@@ -3138,6 +3869,8 @@ const Text = (() => {
     blocked: 'Something is in the way.',
     no_target: 'There is nothing there to attack.',
     out_of_reach: 'It is out of reach.',
+    not_built: 'You cannot do that yet.',
+    no_use: 'You have nothing like that to use.',
   };
   for (const code of Registry.order('REFUSALS')) if (REFUSALS[code]) Text.defineRefusal(code, () => REFUSALS[code]);
 
@@ -3280,6 +4013,7 @@ const Text = (() => {
 // ACCESSION — sentences: cases, glass, locks and staff doors (BUILD.md §8.3), owned by W1-CASES.
 'use strict';
 (() => {
+  Text.defineRefusal('behind_glass', () => 'Glass is in the way.');
   const glass = n => { const id = Registry.order('GLASS').find(g => Registry.GLASS[g].n === n); return id ? Registry.GLASS[id].name : 'Glass'; };
   Text.defineCause('opened', 'staff', (e, w) => `${w.Name(e.who)} opened the staff door (grade ${e.cause.grade}).`);
   Text.define('case_opened', (e, w) => `${w.Name(e.by)} opened the case (${glass(e.glass)}, lock ${e.lock}).`);
@@ -3358,6 +4092,8 @@ const Text = (() => {
 // ACCESSION — sentences: statuses and surfaces (BUILD.md §8.1, §8.6), owned by W1-STATUS.
 'use strict';
 (() => {
+  Text.defineRefusal('fixed', () => 'You are fixed in place: you can only wait.');
+  Text.defineRefusal('rooted', () => 'You are rooted to the spot: you cannot move.');
   const on = (e, w) => e.on ? `${w.Name(e.who)} ${w.is(e.who)} now ${e.id}.` : `${w.Name(e.who)} ${w.is(e.who)} no longer ${e.id}.`;
   Text.define('status', on);
   Text.defineCause('status', 'status', on);
@@ -3548,18 +4284,20 @@ const Labels = (() => {
 const Dept = (() => {
   const SAFE = 8;
 
-  function create(seed, acc, depth) {
+  function create(seed, acc, depth, options) {
     const pack = Packs.get(acc);
     const r = Layout.generate(pack.programme, 0, seed, { acc, depth });
     const plan = r.plan, nums = Layout.number(plan, depth);
     const tiles = plan.tiles.map(row => row.replace(/C/g, '.'));
     const state = {
-      v: Setup.SAVE_VERSION, seed, rng: {}, tick: 0, turn: 0,
+      v: Setup.SAVE_VERSION, coreHash: null, runId: null, seed, rng: {}, tick: 0, turn: 0, options: Options.make(options),
       dept: { acc, depth, pin: plan.pin, programme: plan.programme, w: plan.w, h: plan.h, tiles, ltour: plan.ltour,
         rooms: plan.rooms.map(rm => ({ id: rm.id, role: rm.role, number: nums[rm.id] || 0, x0: rm.x0, y0: rm.y0, x1: rm.x1, y1: rm.y1 })),
         roomOf: plan.roomOf, entrance: plan.entrance, exits: plan.exits, lectern: plan.lectern, seen: '' },
       actors: [Setup.you(plan.entrance[0] + 1, plan.entrance[1])],
+      items: [],
       causes: [], over: null,
+      ui: { pendingChoice: null },
     };
     const m = state.dept, d = Grid.distances(m, [plan.entrance], 999);
     const free = [];
@@ -3581,12 +4319,14 @@ const Dept = (() => {
     return state;
   }
 
+  // Every field from the species is copied onto the actor (§4.1), so rules never read the pack.
   function add(state, sp, at, n, stats) {
     const m = state.dept, rid = m.roomOf[at[1]][at[0]], rm = m.rooms.find(q => q.id === rid);
-    state.actors.push(Object.assign({
-      uid: `${m.acc}.${m.depth}.${rm ? rm.role : 'room'}${rid}.${n}`, sp: sp.id, size: sp.size || 1,
-      x: at[0], y: at[1], next: 0, mode: 'dormant', pips: 0, statuses: [],
-    }, stats, { maxHp: stats.hp }));
+    Actors.spawn(state, Object.assign({}, stats, {
+      uid: `${m.acc}.${m.depth}.${rm ? rm.role : 'room'}${rid}.${n}`, sp: sp.id, size: sp.size || 1, x: at[0], y: at[1], mode: 'dormant',
+      maxHp: stats.hp, arch: sp.archetype || 'plodder', mods: sp.modifiers || [], modParams: sp.modParams || {}, trigger: sp.trigger || null,
+      group: sp.group || null,
+    }));
   }
 
   return { create };
@@ -4246,7 +4986,7 @@ Views.register('topdown', 'Flat', host => {
   const ctx = canvas.getContext('2d');
   const ZOOM = [32, 48];
   // Tiles drawn as plain floor on purpose (the tile-art test checks every other tile has a case).
-  const PLAIN = ['.', ','];
+  const PLAIN = ['.', ',', 'u', 's'];
   let zoom = 0, tile = ZOOM[0], ox = 0, oy = 0, last = null, items = [], tiles = [], size = { width: 0, height: 0 }, inset = 0;
 
   // The canvas is a whole number of device pixels and its box exactly that size, so the page
@@ -8239,7 +8979,7 @@ void main() {
 const Board3D = (() => {
   const ELEV = 60, AZ = 0, ZOOM = [40, 52];
   // Tiles drawn as plain floor on purpose (the tile-art test checks every other tile has a case).
-  const PLAIN = ['.', ','];
+  const PLAIN = ['.', ',', 'u', 's'];
   // Heights in tile edges. From due south at 60°, a block of height h hides h ÷ tan 60° of
   // the tile behind it, so walls are 1.2 (69% hidden), not the 1.5 the probe measured
   // from the south-east, which would hide 87% of every room's back row.
@@ -8988,7 +9728,7 @@ const Main = (() => {
       const ev = act_({ a: 'move', dir: d }, true);
       i++;
       const after = seen();
-      if (ev.some(e => STOPS.has(e.k) || (e.k === 'status_ended' && e.who === 'you')) || after !== before) return;
+      if (ev.some(e => STOPS.has(e.k) || (e.k === 'status' && e.on === false && e.who === 'you')) || after !== before) return;
       before = after;
       walking = setTimeout(stepOnce, settings.motion === 'reduce' ? 0 : 70);
     };

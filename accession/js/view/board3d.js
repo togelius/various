@@ -8,7 +8,7 @@
 const Board3D = (() => {
   const ELEV = 60, AZ = 0, ZOOM = [40, 52];
   // Tiles drawn as plain floor on purpose (the tile-art test checks every other tile has a case).
-  const PLAIN = ['.', ','];
+  const PLAIN = ['.', ',', 'u', 's'];
   // Heights in tile edges. From due south at 60°, a block of height h hides h ÷ tan 60° of
   // the tile behind it, so walls are 1.2 (69% hidden), not the 1.5 the probe measured
   // from the south-east, which would hide 87% of every room's back row.

@@ -1,6 +1,7 @@
 // ACCESSION — sentences: cases, glass, locks and staff doors (BUILD.md §8.3), owned by W1-CASES.
 'use strict';
 (() => {
+  Text.defineRefusal('behind_glass', () => 'Glass is in the way.');
   const glass = n => { const id = Registry.order('GLASS').find(g => Registry.GLASS[g].n === n); return id ? Registry.GLASS[id].name : 'Glass'; };
   Text.defineCause('opened', 'staff', (e, w) => `${w.Name(e.who)} opened the staff door (grade ${e.cause.grade}).`);
   Text.define('case_opened', (e, w) => `${w.Name(e.by)} opened the case (${glass(e.glass)}, lock ${e.lock}).`);

@@ -8,6 +8,9 @@
   R.define('TRIGGERS', 'touch_case', { icon: 'touch_case', clause: 'wakes at once when its case is opened or bashed',
     params: {}, covers: ['woke', 'hunting'], ready: false, tests: [], inv: null });
 
+  // Nothing walks into, or strikes into or out of, an intact case (§8.3).
+  R.define('REFUSALS', 'behind_glass', {});
+
   R.define('FIXTURES', 'case', {});
   R.define('FIXTURES', 'staff', {});
   // The glasses, in order; n indexes the GLASS_BASHES, GLASS_MIX_D*, GLASS_LOCK_MIN and

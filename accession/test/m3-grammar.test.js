@@ -130,9 +130,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(Text.log(ev).length, 6);
   });
 
-  test('on M2’s events the log says what M2’s log said', () => {
-    // M2 logged blows, misses, deaths, hunts, refusals and your doors, and nothing else.
-    const m2 = (ev, names) => ev.filter(e => ['damaged', 'missed', 'died', 'hunting', 'refused'].includes(e.k) || (e.k === 'opened' && e.who === 'you')).map(e => Text.event(e, names));
+  test('on M2’s events the log says what M2’s log said, and each noise’s sentence', () => {
+    // M2 logged blows, misses, deaths, hunts, refusals and your doors, and nothing else. M3
+    // adds the noise of every blow and door (W0c), which the log shows as a caption.
+    const m2 = (ev, names) => ev.filter(e => ['damaged', 'missed', 'died', 'hunting', 'refused', 'noise'].includes(e.k) || (e.k === 'opened' && e.who === 'you')).map(e => Text.event(e, names));
     let compared = 0;
     for (const seed of [1, 2, 3]) {
       const s = TestRoom.create(seed);

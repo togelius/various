@@ -13,6 +13,8 @@
     blocked: 'Something is in the way.',
     no_target: 'There is nothing there to attack.',
     out_of_reach: 'It is out of reach.',
+    not_built: 'You cannot do that yet.',
+    no_use: 'You have nothing like that to use.',
   };
   for (const code of Registry.order('REFUSALS')) if (REFUSALS[code]) Text.defineRefusal(code, () => REFUSALS[code]);
 

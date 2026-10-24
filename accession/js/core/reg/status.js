@@ -19,6 +19,11 @@
   R.define('SURFACES', 'fumigant', { blocksSight: true, size: 'FUMIGANT_SIZE', turns: 'FUMIGANT_TURNS' });
   R.define('SURFACES', 'dust', { blocksSight: true, size: 'PLASTER_DUST_SIZE', turns: 'PLASTER_DUST_TURNS' });
 
+  // What a status forbids you (Status.blocks, §4.2): fixed allows only wait, rest and the
+  // answer to a waiting choice; rooted refuses a move that would change your tile.
+  R.define('REFUSALS', 'fixed', {});
+  R.define('REFUSALS', 'rooted', {});
+
   // Events (§4.3): a status put on (on: true) or ended (on: false).
   R.defineEvent('status', { fields: { who: 'uid', id: 'str', on: 'bool', until: 'int?' } });
   R.defineCause('status', 'status', { fields: { id: 'str', by: 'uid?' } });

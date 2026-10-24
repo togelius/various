@@ -64,7 +64,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
           if (mode === 'awake-saw') a.sawYou = true; else delete a.sawYou;
           a.hp = low ? Math.max(1, Math.floor(a.maxHp / 3)) : a.maxHp;
           a.statuses = [];
-          for (const [who, id] of st) Status.add(who === 'you' ? you : a, id, 5, s.turn);
+          for (const [who, id] of st) Status.apply(s, who === 'you' ? you : a, id, 5, { k: 'status', id }, []);
+          Status.settle(s);
           const l = Labels.of(s, a.uid), e = expected(you, a), got = l.odds.join(' ').match(/\d+/g).map(Number);
           const want = [e.toYou, e.typical, e.worst, e.toIt, e.need].concat(e.surprise ? nums(e.surprise) : []);
           const where = `${acc} d${depth} ${a.uid} ${form} hp ${you.hp} ${mode} ${JSON.stringify(st)} ${a.hp}/${a.maxHp}`;
@@ -199,7 +200,9 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const s = centre([3, 2], 'dormant', map), cp = s.actors[1];
     assert.equal(Step.adjacent(s, s.actors[0], cp), false);
     assert.ok(!Step.legal(s).some(l => (l.a === 'move' && l.dir === 3) || l.a === 'attack'));
-    assert.equal(Step.step(State.clone(s), { a: 'move', dir: 3 })[0].reason, 'You cannot reach it past the corner.');
+    const refused = Step.step(State.clone(s), { a: 'move', dir: 3 })[0];
+    assert.equal(refused.reason, 'corner');
+    assert.equal(Text.event(refused), 'You cannot reach it past the corner.');
     agrees(s, 'past the column');
     // From (3,3) the same corner tile is beside you, so the blow lands.
     s.actors[0].y = 3;

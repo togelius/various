@@ -158,7 +158,7 @@ const Main = (() => {
       const ev = act_({ a: 'move', dir: d }, true);
       i++;
       const after = seen();
-      if (ev.some(e => STOPS.has(e.k) || (e.k === 'status_ended' && e.who === 'you')) || after !== before) return;
+      if (ev.some(e => STOPS.has(e.k) || (e.k === 'status' && e.on === false && e.who === 'you')) || after !== before) return;
       before = after;
       walking = setTimeout(stepOnce, settings.motion === 'reduce' ? 0 : 70);
     };

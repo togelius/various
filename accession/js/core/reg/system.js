@@ -8,8 +8,10 @@
 
   // Refusal codes (§4.2). step() refuses an illegal action with a code, and text/system.js
   // gives each its sentence. A rule that refuses with a code of its own defines it in its
-  // own fragment.
-  for (const code of ['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach']) R.define('REFUSALS', code, {});
+  // own fragment. not_built is the code of an action whose rules a later part builds; no_use
+  // is use(uid) of something that is not an instrument, a kit or a consumable.
+  for (const code of ['visit_over', 'choice_pending', 'unknown_action', 'bad_direction', 'corner', 'blocked', 'no_target', 'out_of_reach',
+    'not_built', 'no_use']) R.define('REFUSALS', code, {});
   R.defineEvent('refused', { fields: { reason: 'str', data: 'obj?' }, exempt: true });
 
   // The M4 archetypes and modifier keep the clauses M2 gave them, as fixed sentences, until

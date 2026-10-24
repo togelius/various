@@ -81,7 +81,10 @@ accession/
     path.js, clock.js      paths for taps; the clock's budget
     roles.js               exhibit numbers from role and depth
     layout/                build kit, programmes, curation, analysis, validation, repair, fallback
-    rules/                 step.js (the only mutator) and one file per system
+    rules/                 step.js (the only mutator); actions.js (the action table, §4.2); actors.js (actor
+                           fields, costs, the scheduler); archetypes.js (archetype and modifier hooks, with one
+                           file each in arch/ and mods/); options.js; causes.js (events and their causes, §3.4);
+                           modules.js (M4's hooks); then one file per system (combat, health, wake, noise, …)
     text.js, text/         sentences keyed by event kind and cause, refusals, the recap; one fragment per
                            owner in text/, as in reg/ (§4.3)
     labels.js              labels, odds readouts, the strip
@@ -187,14 +190,14 @@ accession/
 
 ### 3.4 Events carry causes
 
-- **Every event is a plain object:** `{k, turn, …, cause}`.
+- **Every event is a plain object:** `{k, turn, tick, …, cause}`. Every rule makes its events with `Causes.emit(state, ev, k, fields, cause)`, never by hand: it stamps the turn and tick, copies the fields and the cause (so nothing outside the state reaches into it), adds the event to the list `step()` returns, keeps it in the cause records if its kind is recorded, and then calls M4's module hook (`Modules.onEvent`, empty in M3).
 - **`cause` says why, in data:**
   - a wake event names the trigger, the source and the distance;
   - a damage event names the attacker, the attack, the hit chance, the roll, the damage roll, the Padding and the result;
   - a module event names the module and the rule within it.
 - **`text.js` turns events into sentences.** No sentence about the rules is written anywhere else.
 - **Each actor keeps its own story:** `woke: {turn, cause}` for its most recent waking and `hunted: {turn, cause}` for when it began hunting you, set where those happen. An actor created awake (a patrol, the Night Watchman, a summoned body) gets `woke` at its creation, with the cause `awake`, `patrol`, `night_watch` or `summoned`. The death recap ("what killed you, why it was awake, and when it woke") reads them from the killer, so it never depends on how much else happened since.
-- **Every event kind has a cause schema** in the registry (its required fields and their types). A test validates every event's cause against its schema, for all kinds but `moved`, `closed` and `refused`, and checks that no sentence from `text.js` contains "undefined", "NaN" or "[object".
+- **Every event kind has a cause schema** in the registry (its required fields and their types). `Causes.check(e)` checks an event's fields against its kind's schema and its cause against its cause's, allowing no field outside them, and names the first problem (`damaged.cause.roll: missing int`); `moved`, `closed` and `refused` have their fields checked but not their cause. A test runs it on every event of monkey runs in the test room and the three departments, and checks that no sentence from `text.js` contains "undefined", "NaN" or "[object".
 - **The state also keeps the last `CAUSE_RECORDS` (64) cause records,** for the recap's narrative.
 - **Sim runs can log every event in full.**
 
@@ -215,11 +218,11 @@ accession/
 - **`coreHash`** is a hash of the source of `js/core` and `content/`, except `viewmodel.js`, stamped into each build. A change to the UI does not change it. Sim output also records `vmHash` (§6.1).
 - **A replay is** `{coreHash, layoutPin, start, options, actions}`. `start` is the run seed, or a snapshot where logging restarted. `options` holds:
   - `firstRun` (which adds the Orientation room);
-  - `rulesOff` (switch off a module);
+  - `rulesOff` (switch off a rule by id: a modifier in M3, a module from M4);
   - `without` (remove an actor by uid);
   - `sequence` (pin the departments).
 
-  These are the hooks the paired bots and the reports use.
+  These are the hooks the paired bots and the reports use. A visit keeps its own switches in `state.options` (`Options.make`: `rulesOff`, `without`, and `invulnerable`, the sims' and tests' option that keeps your HP at least 1, §10.2), and a rule asks `Options.off(state, id)`.
 - **Replay length.** The save record carries the run's replay so far (§4.4). Loading a save in a build with a different `coreHash` starts a new replay from the loaded snapshot, and the death label then says that the replay starts at turn N.
 - **A replay link** encodes the replay in the URL fragment. Opening it in any build with the same `coreHash` plays it back with a scrubber.
 - **Release builds** (one per milestone and every slice-gate build) are kept as `dist/builds/<coreHash>.html`, so old replays keep working.
@@ -235,20 +238,37 @@ state = {
   v, coreHash, runId, seed,             save format version, core hash, run id, run seed
   rng: { path: uint32 },
   tick, turn,
+  options: { rulesOff, without, invulnerable },   the visit's switches (§3.6)
   run: { floor, slot, depth, sequence, offered, grade, certificates, perks,
          seals, knownSeals, collectionPicks, deck },
   dept: { acc, pin, depth, w, h, tiles, rooms, fixtures, ltour,
           clock: { B, G, stage, pausedSince },
           highlights, modules: [ { id, …moduleState } ],   in pack order
           seen },                       explored tiles, as a run-length string
-  actors: [ { uid, sp, size, x, y, hp, maxHp, next, mode, pips, stim, home, target, lastKnown,
-              facing, statuses, telegraph, woke, hunted, kids, gone } ],   actors[0] is you
+  actors: [ actor ],                    in spawn order; actors[0] is you
   items:  [ { uid, kind, where, … } ],
   you:    { kit: { weapon, garment, curio: [null, null], instrument }, tote: [ … ] },
   causes: [ last 64 cause records ],
+  over:   null | { k: 'died' | 'left', turn, by, door, cause },   the visit's end
   ui:     { pendingChoice }             a perk, door or hall choice waiting for an answer
 }
+
+actor = { uid, sp, arch, role, mods, modParams, trigger, group,     copied from the species at spawn
+          size, x, y, hp, maxHp, acc, eva, pad, dmin, dmax, speed,
+          next, notBefore, mode, pips, stim, pipTurns, sawYou,
+          home, target, lastKnown, guards, route, plan, facing,
+          statuses: [ { id, until, turns, from } ], telegraph, acts,
+          woke, hunted, kids, gen, gone, ax }
 ```
+
+**Actors** are made by `Actors.spawn(state, rec)`, which appends one with every field set to plain data (`null`, never `undefined`):
+- **From the species,** at spawn: `arch` (an exhibit with none is a plodder), `role`, `mods`, `modParams` (a modifier's own values, such as `old_repair`'s side), `trigger` and `group`. Rules read the actor, never the pack. `speed` is its archetype's or a modifier's (§8.1).
+- **Waking and modes** (§8.2): `mode`, `pips`, `stim` (the turn of its last stimulus), `pipTurns` (the turn each trigger last added a pip), `sawYou` (it has seen you since it last woke), `home`, `target`, `lastKnown`, `guards` (the tile a tethered exhibit guards).
+- **Scheduling** (§8.1): `next`, and `notBefore`, the earliest tick of its next action after it marks a special, which only the scheduler reads and clears.
+- **The story** (§3.4): `woke` and `hunted`; `kids` and `gen` count the bodies split from it and its generation; `gone` marks an actor destroyed or removed, which is never taken out of the list during a visit.
+- **`ax`** is plain data that only its archetype's file reads or writes; `acts` counts its actions since it woke; `telegraph` is its marked special.
+- **Kept for M4, always `null` in M3:** `route` (patrols), `plan` (clockwork's shown next move) and `facing` (there is no facing, §5.4).
+- **You** carry the same fields, and also `still` and `lastAct` (your last action that cost time sets your ring, §8.2), `seated` (on a bench), `regen` (the regeneration store) and your derived stats (`weaponForm`, `reach`, `quiet`, `breaker`, `acc`, `eva`, `pad`, `dmin`, `dmax`), which `Kit.settle` keeps up to date at the end of every step.
 
 **The snapshot stores the generated layout itself,** not only its seed (about 1,000 tiles: a few kilobytes). A save therefore resumes correctly even if the layout code has changed since.
 
@@ -262,19 +282,21 @@ state = {
 
 | Kind | Actions |
 |---|---|
-| Moving | `move(dir)` (8 directions; into an exhibit it is an attack, into a closed door it opens it); `wait`; `rest` (one turn of a repeated wait) |
+| Moving | `move(dir)` (8 directions; into an exhibit it is an attack, into a closed door it opens it); `wait`; `rest` (one turn of a repeated wait); `close(x,y)` (a door beside you) |
 | Fighting | `attack(uid)` |
-| Cases | `open(x,y)`; `bash(x,y)`; `push(x,y,dir)` (weather jars) |
-| Items | `take(uid)`; `drop(uid)`; `equip(uid)`; `unequip(slot)`; `use(uid)`; `throw(uid,x,y)` |
-| Reading and viewing | `read(x,y)` (0 ticks); `view` (one turn of the Centrepiece viewing) |
-| Places | `sit` (on a bench); `leave(doorIndex)` |
-| Choices | `choose(index)` (perk, door, hall offer, accession) |
+| Cases | `open(x,y)`; `bash(x,y)`; `push(x,y,dir)` (weather jars, M4) |
+| Items | `take(uid)`; `drop(uid)`; `equip(uid)`; `unequip(slot)`; `use(uid[, x, y][, on])` (an instrument at a tile, a kit on an item, a consumable); `throw(uid,x,y)` |
+| Reading and viewing | `read(x,y)` (0 ticks); `view` (one turn of the Centrepiece viewing, M4) |
+| Places | `sit` (on a bench); `leave(i)` (on exit tile i) |
+| Choices | `choose(index)` (a seal, a perk, a door, a hall offer, an accession) |
+
+**The action table** (`js/core/rules/actions.js`). Each action kind is defined once, by the file of the system that owns it: `Actions.define(id, {legal, candidates, apply})`, where `legal(state)` lists the legal actions of that kind, `candidates(state)` a superset with illegal ones, and `apply(state, action, ev)` returns the cost in ticks or a refusal code, checking everything before it changes anything. The kinds are closed, in the order `wait, rest, sit, move, attack, close, open, bash, push, take, drop, equip, unequip, use, throw, read, view, choose, leave` (`Actions.ORDER`); `push` and `view` are reserved for M4 and have no handler in M3. A pending choice is answered by `choose(index)`, which hands it to the function defined for its kind (`Actions.defineChoice`).
 
 **Paths are a UI feature.** A tap on a distant tile becomes a sequence of `move` actions, issued one at a time and stopped by the interrupt rule (§7.1), so a replay never contains a path.
 
-**Illegal actions are refused before they cost anything:** `step()` returns a single `refused` event with a reason, and neither the state nor any random stream changes.
+**Illegal actions are refused before they cost anything:** `step()` returns a single `refused` event with a reason code (`corner`, `behind_glass`, `rooted`, …), and neither the state nor any random stream changes; `Text.refusal(code)` gives its sentence. `step()` refuses, in this order: when the visit is over (`visit_over`); when a choice is waiting and the action is not `choose` (`choice_pending`); an action with no handler (`unknown_action`); one a status forbids (`Status.blocks`: while fixed you may only wait, rest or answer a choice already waiting, `fixed`; while rooted you may not make a move that would change your tile, `rooted`, though bumping a door or an exhibit, which leaves you where you are, still works); and whatever the action's handler refuses.
 
-**`Rules.legal(state)`** lists every legal action. A test asserts that `step()` refuses exactly the actions it leaves out, and monkeys draw from it.
+**`Step.legal(state)`** lists every legal action: each handler's legal actions in `Actions.ORDER` that no status forbids (only `choose`'s while a choice waits, and none once the visit is over). A test asserts that `step()` refuses exactly the actions it leaves out, over every handler's candidates, and monkeys draw from it.
 
 ### 4.3 Events
 
@@ -650,9 +672,12 @@ These are the rules the slice implements. Each system opens with its sentence fr
   7. alarm decay;
   8. module turn rules.
 
-  Noise, damage and the other event triggers act at once, when their event happens.
+  Each step is one named function, called in this order by `Step.boundary` and nowhere else: `Surfaces.tick`; `Status.tick`, then `Kit.recharge`; `Health.regenerate`; `Wake.boundary`; `Wake.decay`; `ClockRules.boundary`; `Modules.alarmDecay`; `Modules.turn`. Noise, damage and the other event triggers act at once, when their event happens.
+- **Every action of yours that costs time costs at least a turn** (100 ticks; a Heavy blow costs 150), so at least one turn boundary runs between any two of your decisions, after your action has moved you and set your ring. `step()` stops with an error on an action that costs less. (M4's perks Duck and Cover and Close the Distance break this, and must restate the ring's timing and the status rule below when they arrive.)
+- **An exhibit's action is charged after it acts:** its `next` becomes next + the action's cost, or the tick its action set in `notBefore`, if that is later (a special's mark holds its resolve until after your next decision; Specials, below). Nothing an exhibit does in its own turn writes its own `next`.
 - **Waking costs a beat.** An exhibit that wakes is scheduled to first act at now + its action cost.
-- **Speed.** Fast actors pay half, slow actors double, and the `slowed` status doubles again.
+- **Speed.** Fast actors pay half, slow actors double, for their steps; attacks and every other action cost the usual, unless the archetype says its speed covers every action (the mimic is slow at everything). The `slowed` status doubles every action again. An actor's speed is its archetype's, or a modifier's (marble is slow) unless that modifier is switched off; a fast archetype with a slow modifier moves at the usual speed.
+- **Statuses.** A status of N turns covers the N turns that start at its bearer's next decision. Once the action that put it on is over, it lasts until the boundary of turn `idiv(next, 100) + N`, where `next` is the bearer's next decision (for a sleeping exhibit, the next turn + N); its per-turn effect acts at the boundaries of those N turns, and it ends at the boundary of the last. A decision at tick t falls in turn `idiv(t, 100)`, because that turn's boundary runs before anyone who acts at its tick. So Fixative gives exactly 4 forced waits whatever the action before it, and a grip of 2 turns put on during a 200-tick open still holds you at your next 2 decisions. Put on again while held, a status lasts to the later end.
 
 **Action costs (ticks):**
 
@@ -753,7 +778,7 @@ These are the rules the slice implements. Each system opens with its sentence fr
 
 **Noise:**
 - **Classes:**
-  - soft, heard within 3 walking tiles: an attack, hit or miss; opening a case or door; a thrown item landing;
+  - soft, heard within 3 walking tiles: an attack, hit or miss (heard from the attacker's tile, and made last in the blow, after everything else the blow does); opening a case or door (heard from the door); a thrown item landing;
   - loud, within 6: bashing glass; an exhibit destroyed;
   - crash, within 10: glass breaking; an alarm.
 - **Doors.** A closed door counts as 3 extra tiles.
@@ -789,10 +814,11 @@ The alarm is not a species trigger: `alarm_network` wakes the department itself 
 - An awake, searching or returning exhibit sees you within 8 with line of sight.
 
 **Geometry, defined once in `grid.js` and used by every rule:**
-- **Line of sight:** a Bresenham line traced from whichever endpoint comes first in row-major order, blocked by any sight-blocking tile between the ends. Glass passes sight; fog and closed doors block it; actors do not. It is symmetric by construction, and a test checks `los(a, b) === los(b, a)` over whole layouts.
+- **Line of sight:** a Bresenham line traced from whichever endpoint comes first in row-major order, blocked by any sight-blocking tile between the ends, or by a tile between them that a sight-blocking surface covers (a Fumigant cloud or plaster dust: the `size` × `size` square centred on its tile; fog in M4). Glass passes sight; closed doors block it; actors do not. It is symmetric by construction, and a test checks `los(a, b) === los(b, a)` over whole layouts.
 - **Within r** (sight, the Lamp, `axis`, `tether`, `ally_hit`, a herald's call): `dx² + dy² ≤ r² + r`, the layout prototype's disc.
-- **Walking distance** (the ring, noise, "walking tiles"): 8-connected steps, where a diagonal step is allowed only if both orthogonal neighbours could be stepped onto; actors never block it. To something on a tile you cannot step onto (an exhibit in a case or on a plinth, a Centrepiece's footprint, a lectern), it is 1 + the walking distance to the nearest neighbouring tile you could step onto. A closed door adds `NOISE_DOOR` (3) for noise.
-- **Moving:** `move(dir)` follows the same diagonal rule. A pursuing actor takes the first step of a shortest walking path, breaking ties on its own `ai/` stream.
+- **Walking distance** (the ring, noise, "walking tiles"): 8-connected steps, where a diagonal step is allowed only if both orthogonal neighbours could be stepped onto; actors never block it, and staff doors count as doors. To something on a tile you cannot step onto (an exhibit in a case or on a plinth, a Centrepiece's footprint, a lectern), it is 1 + the walking distance to the nearest neighbouring tile you could step onto (`Grid.reachDist`). A closed door, ordinary or staff, adds `NOISE_DOOR` (3) for noise (`Noise.reach`). There is no other limit on distance.
+- **Moving:** `move(dir)` follows the same diagonal rule. A pursuing actor takes the first step of a shortest walking path, breaking ties on its own `ai/` stream. For an exhibit, staff doors, open or closed, are walls, also for the diagonal rule, and it never steps out of an intact case (`Grid.canStep(m, x, y, d, 'exhibit')`).
+- **Where an exhibit can stand** (`Grid.hold`): every walkable tile, a vitrine and a plinth.
 - **Doors.** Closed doors block sight and movement. An exhibit opens a closed door by stepping into it, as you do (`COST_DOOR`, a soft noise). Closing a door with an actor in its doorway is refused. Exhibits treat staff doors as walls, so a staff corridor is a refuge you pay a grade for, and its section panel says so.
 
 ### 8.3 Cases
@@ -812,7 +838,7 @@ The alarm is not a species trigger: `alarm_network` wakes the department itself 
 - A case's lock is drawn uniformly from the overlap of its glass range and I to (depth + 1). If they do not overlap, the lock is the glass range's minimum.
 - A Highlight is never behind a lock above the grade you enter the department with.
 
-**Opening** costs 200 ticks, makes a soft noise and fires `touch_case`. An opened case is passable, with no shards; an exhibit in it may leave, keeps its home there, and can return to it.
+**Opening** costs 200 ticks, makes a soft noise and fires `touch_case`. An opened case is passable, with no shards (its tile becomes `u`, as a dissolved one's does); an exhibit in it may leave, keeps its home there, and can return to it.
 
 **Bashing:**
 - each bash costs 100 ticks and makes a loud noise;
@@ -825,9 +851,9 @@ The alarm is not a species trigger: `alarm_network` wakes the department itself 
 - its contents can be taken from an adjacent tile;
 - a sleeping exhibit inside wakes hunting and has no home.
 
-**An exhibit in an intact case** gains pips as usual. If it wakes, it stays inside, shown awake or hunting, and acts only by specials and ranged attacks that pass glass. Solvent leaves it homeless and wakes it hunting, silently. The night-watch bell never picks an encased exhibit.
+**An exhibit in an intact case** gains pips as usual. If it wakes, it stays inside, shown awake or hunting, and acts only by specials and ranged attacks that pass glass: it can never step out of the case, and nothing strikes into or out of an intact case. A bump into a case, and a blow at anything standing in one, are refused alike (`behind_glass`, "Glass is in the way."), so a mimic in its disguise is refused exactly as a case is. Solvent leaves it homeless and wakes it hunting, silently. The night-watch bell never picks an encased exhibit.
 
-**Staff doors** (the M.11 staff corridor, and any staff layer a programme draws) open like case locks: each carries a grade, drawn as locks are, and opens for 100 ticks with a soft noise at that grade or above. Below it, it is a wall. Nothing required lies behind one (`design/layout.md` LV5).
+**Staff doors** (the M.11 staff corridor, and any staff layer a programme draws) open like case locks: each carries a grade, drawn as locks are, and opens for 100 ticks with a soft noise at that grade or above (an open staff door is `s`, which can be seen through). Below it, it is a wall. Nothing required lies behind one (`design/layout.md` LV5).
 
 **Other rules:**
 - Solvent, thrown, dissolves every case in a 3×3 silently: no noise, no shards, no `touch_case`.
@@ -1399,12 +1425,12 @@ Each milestone ends in an acceptance test that a command shows passing, recorded
 
 | | Weeks | Builds | Accepted when |
 |---|---|---|---|
-| **M0** | 1 | The core skeleton: the repo layout; `rng.js`, `state.js`, `int.js`, `grid.js`, the integer scheduler, `step()` with move, wait and bump attack in a test room, and `Rules.legal`; `numbers.js` and its lint; `lint-core.js`; the plain-data check; the test runner; `build-single.py`; `check-all.sh`; the hash page; `DEVELOPMENT.md` | A 10,000-action monkey log gives the golden hash twice in Node, again when the state is cloned after every step, and the same in Chromium on `dist/accession-hash.html`; scenario tests pin the scheduler's ties, turn boundaries, the waking beat, the damage floor and the hit boundary; a planted `Math.random`, float and undefined each fail; the numbers lint catches a planted mismatch; `dist/accession.html` opens from `file://` and shows the test room |
+| **M0** | 1 | The core skeleton: the repo layout; `rng.js`, `state.js`, `int.js`, `grid.js`, the integer scheduler, `step()` with move, wait and bump attack in a test room, and `Step.legal`; `numbers.js` and its lint; `lint-core.js`; the plain-data check; the test runner; `build-single.py`; `check-all.sh`; the hash page; `DEVELOPMENT.md` | A 10,000-action monkey log gives the golden hash twice in Node, again when the state is cloned after every step, and the same in Chromium on `dist/accession-hash.html`; scenario tests pin the scheduler's ties, turn boundaries, the waking beat, the damage floor and the hit boundary; a planted `Math.random`, float and undefined each fail; the numbers lint catches a planted mismatch; `dist/accession.html` opens from `file://` and shows the test room |
 | **M1** | 1–3 | Layout ported from `prototypes/layout/proto.js`: the enfilade and quadrangle embedders with the labyrinth and court fillers; role keys; the Centrepiece hall rules (a lectern at exactly `VIEW_DISTANCE` walking tiles with line of sight, the arena); room numbers; `L_tour`; the validators that layout alone decides (LV1, LV3–5, LV8–10, LV14 with each programme's identity checks), each reporting the tiles at fault; local repair (both of the prototype's LV4 repairs), up to 4 reseeds and a certified fallback per programme. LV6, LV7 and LV11 need exhibits and arrive in M4 | 3 programmes × 1,000 seeds: no unreachable exit, fallback ≤ 1%, p95 ≤ 25 ms in Node; the fallback path itself is certified by a test that forces it; the locality test (`design/layout.md` §12.2) runs on every curated room over 100 seeds and shows that the perturbed room changed in most of them; planted faults (a blocked gate, a cut room, a column in the arena) are caught, and their plans print as text maps with the offending tiles marked |
 | **M2** | 2–4 | Look and read: the view model; the renderer interface of §6.2; TopDownView; about 20 silhouettes and their close-ups; palettes; the label panel and the strip; about 25 pictograms; one-button input and the keys; zoom; the top bar; "How the museum works"; the revert test and the guard, against the 3D view as it then stands | No horizontal scroll at 390×844 or 1280×800; no UI target under 44 px, and the 48-px zoom step exists; the tap-tolerance check passes in top-down; a left-click-only script walks, examines and reads; every hostile in the viewport carries the hostile mark, by `renderer.inspect()`; the colour check passes (under the Machado et al. 2009 protanopia, deuteranopia and tritanopia simulations, the reserved colours differ pairwise by CIEDE2000 ΔE ≥ 15, and each differs by ΔE ≥ 10 from every floor and wall colour); the revert test passes |
 | **M2b** | 1–2, alongside M3 | **Board3DView behind the setting** (§6.2), vendoring (§6.4) and the 3D checks; shown to Julian side by side with top-down | The 3D checks pass (§6.3); every M2 screen check passes in both views. M2b must pass before M7; if it has not by the end of M6, `tools/remove-3d.sh` is run and the log says why |
 | **M3** | 3–6 | Exhibits wake: modes, the ring, noise, pips and special triggers; combat, specials and the odds readout; cases and glass; the clock with its two stages; regeneration and benches; the kit and Restoration; the 8 consumable kinds with seals and gentle identification; the 11 archetypes of §5.5; cause sentences and the death recap | For every Acc − Eva difference and modifier in the slice, the shown hit chance equals the number of d100 faces that hit, and 10,000 rolls fall inside its 99.9% Wilson interval; for every attacker and defender in the packs at depths 1–7, the odds readout equals an independent enumeration; each special's dealt damage equals its mark in the view model taken immediately before the resolving step; each archetype's counterplay bot beats its naive bot (§10.3); every Behaviour-line clause holds as an invariant over the M3 sim battery and its scenarios are sensitive (§5.3); every event's cause passes its schema, and for every death in the battery the recap's killer, wake turn and wake trigger equal those reconstructed from the full event log |
-| **M4** | 5–8 | Three departments: the S.9, A.4 and M.11 packs, with their Intro stamps and gallery mapping; population, the safe zone and LV6, LV7 and LV11 (the worst-case runner); the five modules in the form of §5.4; the remaining archetypes; three Centrepieces (two fights, one treasure); viewing; Certificates, the grade and the 8 perks; generated Behaviour lines | Each module fires (§10.3); each rule-aware bot beats its rule-blind bot (§10.3); no soft-lock in a 10,000-turn soak per department, restarting on death, where a soft-lock is an exception, a failed state or invariant check, `Rules.legal` holding no time-costing action, no exit door reachable over tiles you could step onto (ignoring actors and statuses; a sealed hall's doors count as reachable while its Centrepiece lives), or 200 turns in which the state hash, ignoring tick, turn and rng, cycles with no damage dealt or taken, each printed as a crash card; the worst-case runner passes on 1,000 seeds per department with no exhibit removed (moves are logged and counted); the expert bot's report is filed; the language-model reader's question set and answer key are committed, and its table is filed when an API key is available, otherwise logged "pending: no API key" |
+| **M4** | 5–8 | Three departments: the S.9, A.4 and M.11 packs, with their Intro stamps and gallery mapping; population, the safe zone and LV6, LV7 and LV11 (the worst-case runner); the five modules in the form of §5.4; the remaining archetypes; three Centrepieces (two fights, one treasure); viewing; Certificates, the grade and the 8 perks; generated Behaviour lines | Each module fires (§10.3); each rule-aware bot beats its rule-blind bot (§10.3); no soft-lock in a 10,000-turn soak per department, restarting on death, where a soft-lock is an exception, a failed state or invariant check, `Step.legal` holding no time-costing action, no exit door reachable over tiles you could step onto (ignoring actors and statuses; a sealed hall's doors count as reachable while its Centrepiece lives), or 200 turns in which the state hash, ignoring tick, turn and rng, cycles with no damage dealt or taken, each printed as a crash card; the worst-case runner passes on 1,000 seeds per department with no exhibit removed (moves are logged and counted); the expert bot's report is filed; the language-model reader's question set and answer key are committed, and its table is filed when an API key is available, otherwise logged "pending: no API key" |
 | **M5** | 7–9 | A run: the Entrance Hall and the Orientation room; doors, placards and the sequencer; two Stair Halls; the Exit; the death label; Your Collection and accession; the Catalogue; autosave, the visitor's card, the archive; replay links; builds kept | With `--invulnerable`, the explorer reaches the revolving doors in 200 of 200 seeds, every failure a crash card; the completion rate with normal rules is reported with its interval and death-cause table, not gating; a reload mid-run resumes with an identical hash; the save tests of §10.4 pass in Chromium; Julian's WebKit and iPhone checks are requested, and their rows read "pending" until they report; the predicted run lies in 25–35 minutes, where it is the sum over six department slots of the median per-department "decision turns" (time-costing actions, not counting the second and later turns of a rest or sit streak) ÷ 55, plus label opens × 10 s, plus 6 minutes of halls, doors and the Exit, taken over invulnerable runs (55 and 10 s are placeholders the M7 fit replaces) |
 | **M6** | 9 | Sound | Every informative sound has a caption and a visual twin; muted play loses no information (a test compares the event-to-cue table) |
 | **M7** | 10 | **The slice gate:** Julian plus 3–5 players who have not seen the design, on phones and laptops, with sessions logged and replays kept; half start in each board view | Comprehension measures exclude Julian. **Wake causes:** after each department the player watches two wakes chosen by rule from their own replay (the last wake before damage they took, and one drawn by seed) and answers "Why did it wake?"; Julian scores it against the trigger class in the cause record; pass at ≥ 70% pooled, with its interval and per-player rates. **Rules, not art:** ≥ 60% of players describe the departments by their rules. **The nine systems:** each is scored against a one-line rubric committed before the gate; any system fewer than half can explain is flagged for redesign. **Time:** turn rate, decision turns and label opens are fitted to the three-term model of DECISIONS on every department visit; pass if the predicted median department is at most 4.5 minutes and the predicted run 30 ± 5 minutes. **Board view:** taps, mis-taps (a tap followed by an undo-like move within 2 s) and switches are logged per view; the view decision is a judgement recorded with those numbers. **Decided here from data:** department size and the clock multiplier; which board view is the default, or whether 3D goes; which department-owned systems survive; what is built next |
