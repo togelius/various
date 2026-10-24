@@ -417,9 +417,9 @@ A pack is data: `content/S9.js` registers one object with `Packs.add({…})`. It
 - **The programme and its knobs,** the Intro stamp (an ASCII map with a legend), and the gallery list with role keys.
 - **The palette:** material, accent, wall and floor colours, checked against the reserved semantic colours.
 - **Modules,** with parameters.
-- **Species:** the archetype, at most two modifiers, at most one special trigger, a role, the skin (name, silhouette, sprite ids), and the label (tombstone fields and a paragraph of 40–70 words).
+- **Species:** the archetype, at most two modifiers, at most one special trigger, a role, the skin (name, silhouette, sprite ids), the label (tombstone fields and a paragraph of 40–70 words), and, where a rule reads them, a `group` (the exhibits an `ally_hit` trigger listens to) and `modParams` (a modifier's own values, such as `old_repair`'s side).
 - **Items:** equipment and the Signature piece, with their primitives and labels, each `{ id, kind, form?, instrument?, prims, name, tomb, paragraph }`: `kind` is `weapon`, `garment`, `curio` or `instrument`; `form` a weapon's (`light`, `balanced`, `heavy`, `reach`) or a garment's (`light`, `standard`, `heavy`); `instrument` one of `fork`, `pin_driver`, `pole`; `prims` a list of `{id, cls}`, a primitive with its magnitude class S, M or L. Every primitive must be one the slice implements (§8.5). An item has no tier: its tier is drawn from depth when it is placed (§8.1), and an instrument's charges and recharge come from its row in §8.10.
-- **Local names** for the 8 consumable kinds, and their identifying labels: `consumables: { names: [8 local names, one for each seal: the 4 Solutions' seals, then the 4 Ephemera's], labels: { <kind>: paragraph } }`.
+- **Local names** for the 8 seals, and identifying labels for the 8 consumable kinds: `consumables: { names: [8 local names, one for each seal: the 4 Solutions' seals, then the 4 Ephemera's], labels: { <kind>: paragraph } }`. Since the seals are shuffled every run, a local name never names a kind or a seal family; a label (40–70 words) names its own kind, no other, and no local name.
 - **The Centrepiece:** form, core, attachments, phases, gateway label, and lectern position.
 - **Panels:** the intro panel and the section panels.
 - **The audio motif** (M6).
@@ -447,7 +447,7 @@ A pack is data: `content/S9.js` registers one object with `Packs.add({…})`. It
   4. **Completeness.** Every registry id a species uses (archetype, modifiers, trigger, special, module flag, inflicted status) contributes a clause part, and soak runs flag any event kind an actor causes that is neither universal nor covered by a clause of its line.
 
   Vague words are not allowed in a clause: "strikes hard" names its number class from §8.10. A Behaviour line therefore cannot say anything the code does not do.
-- **Paragraphs carry no rules** (D10: "a paragraph that is only for reading"). A paragraph may echo, in the museum's voice, something its Behaviour line already states; it never adds a rule. The samples' Essential lines that describe systems the slice cuts (light, lamp cones) are rewritten as flavour.
+- **Paragraphs carry no rules** (D10: "a paragraph that is only for reading"). A paragraph may echo, in the museum's voice, something its Behaviour line already states; it never adds a rule. The samples' Essential lines that describe systems the slice cuts (light, lamp cones) are rewritten as flavour. The paragraph lint (`test/m3-content.test.js`) checks every paragraph, label, tombstone and name in the packs: a number next to a rule word (tiles or paces, turns, damage, %, pips, HP, Padding, Acc, Eva, charges, or a grade word) fails, unless the species' own Behaviour line states the same number of the same thing, so the Brooder's "two paces from the nest" passes on its line's "2 tiles". Plain digits stay legal, as in "Round Book 3".
 
 ### 5.4 Modules: the event–condition–effect form
 
@@ -498,11 +498,12 @@ Species, items and labels come from `design/samples.md` §§2–4, with these tr
 **General trims:**
 - A modifier's effect is the vocabulary's sentence (`design/vocabulary.md` §3) minus any clause that needs a system the slice lacks: fire, light, or damage kinds. The registry stores the trimmed sentence, and the Behaviour line is generated from it.
 - `textile`, `luminous` and `paper` have no slice effect and are dropped from the species that carried them.
-- Item primitives outside the slice's set are replaced with one in it, of the same budget, or the item is cut.
+- Item primitives outside the slice's set are replaced with one in it, of the same budget, or the item is cut. A budget counts S as 1, M as 2 and L as 3, and a flag (`reach`, `quiet`, `breaker`) or an instrument's effect as 2, as the samples price them. Signature pieces wait for M4.
 
 **S.9 (sculpture court):**
 - Grazers (`unobserved_mover`), Waders (`patrol_guard`), the Dawn-Caller (`herald`), the Brooder (`tethered_warden`), the Cabinet-Backed Tortoise (`mimic_vitrine`) and Hoppers (`darter`).
 - The Waders are exhibits on two patrol routes, with no lamp cone: they see as every exhibit sees.
+- Items: the Overshoes' `muffled` becomes `quiet`; the Long Tongs' `knockback` becomes Acc; Round Book 9's `perception` becomes Eva; the Spring Pin-Driver is kept.
 - The Intro gallery is redrawn for all-round vision: a corridor with staggered plinths, so walking past the Grazer breaks sight of it unless you route to keep it in view.
 - The Day Curator's Lamp becomes a toggled curio, taken hooded. Lighting or hooding it costs 100 ticks. While it is lit, exhibits within `LAMP_OBSERVE_RANGE` (4) of you count as observed, even out of sight, and your ring is `LAMP_RING` (1) larger, which stands in for the sample's drawback that you are never in the dark. Any range of 3 or more means a Grazer cannot reach you while the Lamp is lit, so the larger ring is the price; the paired bots check that Lamp-lit play is not strictly better in S.9.
 - The Centrepiece is a treasure, the Composite (`completing_guardian`) standing over the Lamp in a Security case (Laminated at depths 1–2, §8.3):
@@ -514,10 +515,13 @@ Species, items and labels come from `design/samples.md` §§2–4, with these tr
 **A.4 (case labyrinth):**
 - Seated Clerks (`plodder`; the original `marble`, its spares `plaster`), the Proposing Trustee and spares (`splitter`), Carbon Flimsies (`mote_swarm`) and the Countersigning Clerk (`conservator_healer` + `clockwork`).
 - The Spirit Duplicator takes the sample's own fallback: a `herald`, "Copying-Room Bell".
+- The `ally_hit` groups are the clerks (the Seated Clerk and its spare) and the trustees (the Bust and its spare).
+- Items: the Date Stamp's `sweep` becomes the Reach form; the Sleeve Protectors' fire resistance becomes Eva; the Register's `attribution` and `perception` become Acc; the Paperweight is kept; the Stamp Moistener is cut, since it is worth 1 and no instrument is worth less than 2.
 - The Centrepiece is the `mp_ensemble` fight described in `design/samples.md` §4.8, with its gallery hooks.
 
 **M.11 (enfilade, with a parallel staff corridor):**
-- Heliographs (`axis_sniper` + `glass`), Semaphore Stations (`demonstrator` + `clockwork`), Signal Lamps (`kiter` + `old_repair`), Reflecting Dishes (`reflector`) and Logbook Trolleys (`plodder`).
+- Heliographs (`axis_sniper` + `glass`), Semaphore Stations (`demonstrator` + `clockwork`), Signal Lamps (`kiter` + `old_repair`, repaired on the west side), Reflecting Dishes (`reflector`) and Logbook Trolleys (`plodder`).
+- Items: the Hand Lamp's bolt of light becomes the Pin-Driver's ranged attack; the Smoked Apron's armour and light resistance become Padding; the Signal Flag is kept; the Spare Lamp Hood is cut, since it needs light.
 - The Centrepiece is the `mp_tableau` fight in `design/samples.md` §2.8, with rain jars when `weather_cases` is on.
 
 **Archetype count:**
