@@ -6,7 +6,9 @@
 <title>Accession hash check</title>
 <style>
   body { font: 16px/1.5 system-ui, -apple-system, sans-serif; margin: 16px; background: #15131a; color: #ece6d8; }
-  .pass { color: #7fd17f; } .fail { color: #ff7b7b; } code, pre { font: 14px ui-monospace, Menlo, monospace; white-space: pre-wrap; }
+  .pass { color: #7fd17f; } .fail { color: #ff7b7b; } code, pre { font: 14px ui-monospace, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+  #diverged textarea { box-sizing: border-box; width: 100%; min-height: 14em; font: 13px ui-monospace, Menlo, monospace; background: #221f29; color: #ece6d8; border: 1px solid #5a5466; padding: 8px; }
+  #diverged button { min-height: 44px; min-width: 44px; padding: 0 16px; margin: 8px 8px 0 0; font: inherit; background: #2f2a38; color: #ece6d8; border: 1px solid #7a7288; border-radius: 6px; }
 </style>
 </head>
 <body>
@@ -14,47 +16,76 @@
 <p>This page replays fixed seeds and action lists through the game's rules and compares the results with the hashes recorded in Node. Every line should say PASS. A line that says PENDING belongs to a run whose rules are being changed on purpose, so for now it has no recorded hash: the page shows the hash it got, and the build compares that with Node's.</p>
 <p><code id="ua"></code></p>
 <pre id="out">Running…</pre>
+<section id="diverged" hidden>
+  <h2>Where it first differs</h2>
+  <p>Please send this to the developer: copy it, or download it as a file. It names the first step this browser played differently, the action taken there and what happened.</p>
+  <textarea id="report" readonly spellcheck="false"></textarea>
+  <div><button id="copy" type="button">Copy</button><button id="download" type="button">Download</button></div>
+</section>
 <!-- core -->
 <script src="tools/monkey.js"></script>
+<script src="tools/replay.js"></script>
 <script src="test/golden/golden.js"></script>
 <script>
 'use strict';
-document.getElementById('ua').textContent = navigator.userAgent + ' · build __BUILD__';
-// Each run's result, for tools/browser/check-hash.mjs: {name: {hash, checkpoints, pending, ok}}.
+const BUILD = '__BUILD__', CORE_HASH = '__CORE_HASH__';
+document.getElementById('ua').textContent = navigator.userAgent + ' · build ' + BUILD + ' · core ' + CORE_HASH;
+// Each run's result, for tools/browser/check-hash.mjs: {name: {hash, checkpoints, pending, ok, diverged}}.
 window.HASH_RESULTS = {};
-const lines = [];
+const lines = [], reports = [];
 let all = true, pending = 0;
 const finish = () => {
   const out = document.getElementById('out');
   out.textContent = lines.join('\n') + '\n\n' + (!all ? 'SOMETHING DIFFERS' : pending ? 'NOTHING DIFFERS; ' + pending + ' PENDING (no recorded hash to compare with yet)' : 'ALL PASS');
   out.className = all ? 'pass' : 'fail';
+  if (reports.length) {
+    document.getElementById('report').value = ['Accession hash check', navigator.userAgent, 'build ' + BUILD + ', core ' + CORE_HASH, ''].concat(reports).join('\n');
+    document.getElementById('diverged').hidden = false;
+  }
   // PENDING: every run with a recorded hash passed, and at least one has none yet.
   document.title = !all ? 'FAIL' : pending ? 'PENDING' : 'PASS';
 };
+document.getElementById('copy').addEventListener('click', () => {
+  const t = document.getElementById('report');
+  t.select();
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t.value).catch(() => document.execCommand('copy'));
+  else document.execCommand('copy');
+});
+document.getElementById('download').addEventListener('click', () => {
+  const blob = new Blob([document.getElementById('report').value + '\n'], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'accession-hash-' + CORE_HASH + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+});
 window.addEventListener('error', e => { all = false; lines.push('FAIL while loading: ' + e.message); finish(); });
 setTimeout(() => {
   try {
     for (const [name, g] of Object.entries(GOLDEN)) {
       try {
         const t0 = performance.now();
-        const r = Monkey.run(g.seed, g.actions);
+        // Replay.verify plays the run (a monkey or a replay) and, when it differs from a pin
+        // that keeps per-step hashes, plays it again to find the first diverging step.
+        const v = Replay.verify(name, g);
         const ms = Math.round(performance.now() - t0);
         if (g.pending) {
           pending++;
-          window.HASH_RESULTS[name] = { hash: r.hash, checkpoints: r.checkpoints.slice(), pending: true, ok: null };
-          lines.push('PENDING ' + name + ': hash ' + r.hash + ', checkpoints ' + r.checkpoints.join(' ') + ' (' + g.actions + ' actions, ' + ms + ' ms; ' + g.pending + ')');
+          window.HASH_RESULTS[name] = { hash: v.hash, checkpoints: v.checkpoints.slice(), pending: true, ok: null, diverged: null };
+          lines.push('PENDING ' + name + ': hash ' + v.hash + ', checkpoints ' + v.checkpoints.join(' ') + ' (' + v.actions + ' actions, ' + ms + ' ms; ' + g.pending + ')');
           continue;
         }
-        let first = -1;
-        for (let i = 0; i < g.checkpoints.length; i++) if (r.checkpoints[i] !== g.checkpoints[i]) { first = i; break; }
-        const ok = r.hash === g.hash && first < 0;
-        all = all && ok;
-        window.HASH_RESULTS[name] = { hash: r.hash, checkpoints: r.checkpoints.slice(), pending: false, ok };
-        lines.push((ok ? 'PASS ' : 'FAIL ') + name + ': ' + g.actions + ' actions, hash ' + r.hash + (ok ? '' : ' (expected ' + g.hash + (first >= 0 ? ', first differs by action ' + (first + 1) * 1000 : '') + ')') + ', ' + ms + ' ms');
+        all = all && v.ok;
+        window.HASH_RESULTS[name] = { hash: v.hash, checkpoints: v.checkpoints.slice(), pending: false, ok: v.ok,
+          diverged: v.diverged ? { step: v.diverged.step, action: v.diverged.action, got: v.diverged.got, want: v.diverged.want, events: v.diverged.events.length } : null };
+        lines.push((v.ok ? 'PASS ' : 'FAIL ') + name + ': ' + v.kind + ', ' + v.actions + ' actions, hash ' + v.hash + (v.ok ? '' : ' (expected ' + g.hash + ')') + ', ' + ms + ' ms');
+        if (!v.ok) { lines.push(v.text); reports.push(v.text, ''); }
       } catch (e) {
         all = false;
-        window.HASH_RESULTS[name] = { hash: null, checkpoints: [], pending: !!g.pending, ok: false };
-        lines.push('FAIL ' + name + ': threw ' + e.message + ' ' + String(e.stack || '').split('\n')[1]);
+        window.HASH_RESULTS[name] = { hash: null, checkpoints: [], pending: !!g.pending, ok: false, diverged: null };
+        const text = 'FAIL ' + name + ': threw ' + e.message + ' ' + String(e.stack || '').split('\n')[1];
+        lines.push(text); reports.push(text, '');
       }
     }
   } finally { finish(); }

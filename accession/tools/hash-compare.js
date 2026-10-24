@@ -15,18 +15,23 @@ function readGolden(file) {
   return JSON.parse(JSON.stringify(vm.runInNewContext(src + '\n;GOLDEN', {}, { filename: file || GOLDEN_FILE })));
 }
 
-// Each pending run of golden, played in Node through the hardened core context:
-// {name: {hash, checkpoints}}. C is a loaded core with tools/monkey.js (loaded if omitted).
+// Each pending run of golden, of either kind (a monkey, or a replay), played in Node through
+// the hardened core context, as the page plays it (tools/replay.js's Replay.golden):
+// {name: {hash, checkpoints}}. C is a loaded core with tools/monkey.js and tools/replay.js;
+// a core without the replay player gets one loaded.
 function nodeRuns(golden, C) {
   const out = {};
   for (const name of Object.keys(golden)) {
     if (!golden[name].pending) continue;
-    C = C || loadCore(['tools/monkey.js']);
-    const g = golden[name], r = C.Monkey.run(g.seed, g.actions);
+    if (!C || !C.Replay) C = loadCore(['tools/monkey.js', 'tools/replay.js']);
+    const r = C.Replay.golden(golden[name]);
     out[name] = { hash: r.hash, checkpoints: Array.from(r.checkpoints) };
   }
   return out;
 }
+
+// How many actions a run's checkpoints are apart: 1,000 for the monkey, 100 for a replay.
+const every = g => g && g.kind === 'replay' ? 100 : 1000;
 
 // What the page found, against Node. page is {name: {hash, checkpoints, pending, ok}} (the
 // page's HASH_RESULTS); node is nodeRuns(golden). Returns the problems, one line each:
@@ -47,7 +52,7 @@ function compare(golden, page, node) {
     for (let i = 0; i < Math.max(pc.length, nc.length); i++) if (pc[i] !== nc[i]) { first = i; break; }
     if (p.hash !== n.hash || first >= 0) {
       problems.push(`${name}: the page gives hash ${p.hash}, Node ${n.hash}` +
-        (first >= 0 ? `; checkpoint ${first + 1} (action ${(first + 1) * 1000}) differs: page ${pc[first]}, Node ${nc[first]}` : '; every checkpoint agrees'));
+        (first >= 0 ? `; checkpoint ${first + 1} (action ${(first + 1) * every(g)}) differs: page ${pc[first]}, Node ${nc[first]}` : '; every checkpoint agrees'));
     }
   }
   for (const name of Object.keys(page)) if (!Object.prototype.hasOwnProperty.call(golden, name)) problems.push(`${name}: on the page but not in golden.js`);
