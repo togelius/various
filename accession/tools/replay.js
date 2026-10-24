@@ -339,13 +339,19 @@ if (typeof module === 'object' && module && module.exports && typeof require ===
     const USAGE = `Usage: node tools/replay.js <replay.json> [--log] [--inv]
   Plays a replay ({coreHash, layoutPin, start, options, actions}, or a crash card holding
   one) through this tree's core, and prints its final hash, its refusals and any failure.
+  A sim run's replay from an arena is rebuilt by tools/arena.js, as tools/sim.js does.
   --log  prints each step's action and the log's sentences
   --inv  checks every invariant of test/behaviour/*.inv.js after every step`;
 
     function cli(argv) {
       const file = argv.find(a => !a.startsWith('--'));
       if (!file || argv.includes('--help')) { console.log(USAGE); return file ? 0 : 2; }
-      const C = load(), r = read(path.resolve(file));
+      const r = read(path.resolve(file));
+      // An arena's start (a sim run's replay, §10.2) is rebuilt by tools/arena.js, as
+      // tools/sim.js registers it; coreHash does not cover that file, so its hash is compared.
+      const arena = !!(r && r.start && typeof r.start.arena === 'string');
+      const C = load(arena ? ['tools/arena.js'] : []);
+      if (arena) C.Replay.starter('arena', C.Arena.start);
       const here = require('./core-hash.js').coreHash();
       const opts = {};
       if (argv.includes('--inv')) opts.check = invariants(C);
@@ -356,6 +362,11 @@ if (typeof module === 'object' && module && module.exports && typeof require ===
       };
       console.log(`replay: ${r.actions.length} actions from ${JSON.stringify(r.start)}; coreHash ${r.coreHash || 'not recorded'}, this tree ${here}` +
         (r.coreHash && r.coreHash !== here ? ' (a different core: the replay may not play the same)' : ''));
+      if (arena) {
+        const now = require('./sim.js').arenaHash(C);
+        console.log(`arena ${r.start.arena}: built by tools/arena.js ${r.start.arenaHash || 'not recorded'}, this tree ${now}` +
+          (r.start.arenaHash !== now ? ' (another tools/arena.js: the room may not be the same)' : ''));
+      }
       const p = C.Replay.play(r, opts);
       console.log(`played ${p.played} actions, ${p.refused} refused; final hash ${p.hash}${p.state.over ? `; the visit ended (${p.state.over.k}) at turn ${p.state.over.turn}` : ''}`);
       if (p.failure) { console.log(`failure at action ${p.failure.step} (${JSON.stringify(p.failure.action)}): ${p.failure.message}`); return 1; }

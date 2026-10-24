@@ -450,6 +450,27 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(run().status, 2);
   });
 
+  test('node tools/replay.js plays a sim run\'s replay from an arena, rebuilt by tools/arena.js, and says when that file has changed', () => {
+    const Sim = require(path.join(root, 'tools/sim.js'));
+    const run = (...args) => cp.spawnSync('node', [path.join(root, 'tools/replay.js')].concat(args), { encoding: 'utf8' });
+    for (const seed of [1, 2]) {
+      const r = Sim.runArena('dummy', 'random', seed, { cap: 30 });
+      assert.equal(typeof r.replay.start.arena, 'string');
+      const file = path.join(tmp, `arena-${seed}.json`);
+      fs.writeFileSync(file, json(r.replay));
+      const a = run(file);
+      assert.equal(a.status, 0, a.stdout + a.stderr);
+      assert.ok(a.stdout.includes(`played ${r.replay.actions.length} actions`) && a.stdout.includes(`final hash ${r.endHash}`), a.stdout);
+      assert.ok(a.stdout.includes(`arena dummy: built by tools/arena.js ${r.replay.start.arenaHash}, this tree ${r.replay.start.arenaHash}`) && !a.stdout.includes('another tools/arena.js'), a.stdout);
+      const other = Object.assign({}, r.replay, { start: Object.assign({}, r.replay.start, { arenaHash: '00000000' }) });
+      fs.writeFileSync(file, json({ text: 'a card', replay: other }));
+      const b = run(file);
+      assert.equal(b.status, 0, b.stdout + b.stderr);
+      assert.ok(b.stdout.includes('built by tools/arena.js 00000000') && b.stdout.includes('(another tools/arena.js: the room may not be the same)'), b.stdout);
+      assert.ok(clean(a.stdout + b.stdout));
+    }
+  });
+
   test('the tests leave no temporary files behind', () => {
     fs.rmSync(tmp, { recursive: true, force: true });
     assert.ok(!fs.existsSync(tmp));
