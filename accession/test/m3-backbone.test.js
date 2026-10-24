@@ -286,8 +286,9 @@ module.exports = ({ test, assert, loadCore }) => {
     };
     for (let seed = 1; seed <= 6; seed++) { const s = TestRoom.create(seed); s.actors[0].hp = s.actors[0].maxHp = 999; play(s, 500, seed); }
     for (const [acc, depth] of [['S9', 1], ['A4', 4], ['M11', 7]]) { const s = Dept.create(depth, acc, depth); s.actors[0].hp = s.actors[0].maxHp = 999; play(s, 400, depth); }
-    for (const k of ['moved', 'opened', 'attacked', 'missed', 'damaged', 'died', 'hunting', 'noise', 'waited', 'regenerated', 'refused']) assert.ok(kinds.has(k), `no ${k} event`);
-    for (const c of ['damaged.attack', 'noise.attack', 'noise.door', 'noise.destroyed', 'hunting.damage', 'opened.door']) assert.ok(causes.has(c), `no ${c}`);
+    for (const k of ['moved', 'opened', 'attacked', 'missed', 'damaged', 'died', 'pip', 'woke', 'hunting', 'noise', 'waited', 'regenerated', 'refused']) assert.ok(kinds.has(k), `no ${k} event`);
+    // Sleepers now wake in your ring (W0d) before a blow can surprise them; damage wakes are in m3-backbone-ai.
+    for (const c of ['damaged.attack', 'noise.attack', 'noise.door', 'noise.destroyed', 'pip.ring', 'woke.ring', 'hunting.ring', 'opened.door']) assert.ok(causes.has(c), `no ${c}`);
     assert.ok(n > 4000, `${n} events`);
   });
 
@@ -438,8 +439,9 @@ module.exports = ({ test, assert, loadCore }) => {
     const uid = s.actors[1].uid;
     s.rng['ai/' + uid] = 5;
     const ev = Step.step(s, { a: 'move', dir: 2 });
-    assert.equal(json(ev.map(e => e.k)), json(['attacked', 'damaged', 'hunting', 'died', 'noise', 'noise']));
-    const [att, dmg, hunt, , loud, soft] = ev;
+    assert.equal(json(ev.map(e => e.k)), json(['attacked', 'damaged', 'woke', 'hunting', 'died', 'noise', 'noise']));
+    const [att, dmg, woke, hunt, , loud, soft] = ev;
+    assert.equal(json([woke.was, woke.mode, woke.cause.k]), json(['dormant', 'hunting', 'damage']), 'a sleeper struck wakes, then hunts');
     assert.equal(json([att.by, att.at, att.how, att.cause.dist]), json(['you', uid, { kind: 'melee' }, 1]));
     assert.equal(json([dmg.cause.from, dmg.cause.surprise, dmg.cause.how]), json([[2, 2], 1, { kind: 'melee' }]));
     assert.equal(json([hunt.cause.k, hunt.cause.by, hunt.cause.dist]), json(['damage', 'you', 1]));
@@ -498,7 +500,7 @@ module.exports = ({ test, assert, loadCore }) => {
   test('the M4 hooks and the stubs other parts fill are present, named, and neutral', () => {
     const X = loadCore(), s = TestRoom.create(1), ev = [], h = State.hash(s);
     for (const [ns, fn] of [['Modules', 'onEvent'], ['Modules', 'alarmDecay'], ['Modules', 'turn'], ['Surfaces', 'tick'], ['ClockRules', 'boundary'], ['Kit', 'settle'],
-      ['Kit', 'recharge'], ['Wake', 'hear'], ['Wake', 'allyHit'], ['Wake', 'boundary'], ['Wake', 'decay'], ['Health', 'onLow']]) {
+      ['Kit', 'recharge'], ['Wake', 'hear'], ['Wake', 'allyHit'], ['Wake', 'decay'], ['Health', 'onLow']]) {
       assert.equal(typeof X[ns][fn], 'function', `${ns}.${fn}`);
       X[ns][fn](s, s.actors[1], {}, 1, ev);
     }

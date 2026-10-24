@@ -175,16 +175,17 @@ for (const [W, Hh] of [[390, 844], [1280, 800]]) for (const sc of SCENES) {
   // A melee frame: you directly north of an exhibit that has just been struck awake, so its
   // state glyph and sprite lie as close over you as they can; the largest exhibit first, so a
   // 2×2 Centrepiece is tried where one can be reached. Marks over another actor do not count
-  // as hiding it.
+  // as hiding it. You are placed on that tile (one you could walk to) rather than walked
+  // there: since M3 a walk wakes the sleepers it passes (§8.2, the ring), and this frame
+  // measures the renderer, so it should not depend on which exhibits the rules bring along.
   const melee = await page.evaluate(() => {
     const A = window.ACCESSION, s = A.state;
     const cands = s.actors.filter(q => q.uid !== 'you' && !q.gone).map(a => ({ a, path: Grid.walkable(s.dept, a.x, a.y - 1) && !Actors.at(s, a.x, a.y - 1) ? Path.to(s, a.x, a.y - 1) : [] }))
       .filter(c => c.path.length && c.path.length <= 60).sort((p, q) => (q.a.size || 1) - (p.a.size || 1) || p.path.length - q.path.length);
-    for (const { a, path } of cands) {
-      for (const [px, py] of path) { const me = s.actors[0], d = Path.dirTo([me.x, me.y], [px, py]); if (d < 0 || A.act({ a: 'move', dir: d }).some(e => e.k === 'refused')) break; }
+    for (const { a } of cands) {
       const me = s.actors[0];
-      if (me.x !== a.x || me.y !== a.y - 1 || Actors.byUid(s, a.uid).gone) continue;
-      A.act({ a: 'attack', uid: a.uid });
+      me.x = a.x; me.y = a.y - 1;
+      if (A.act({ a: 'attack', uid: a.uid }).some(e => e.k === 'refused')) continue;
       return a.uid + (a.size > 1 ? ' (2×2)' : '');
     }
     return null;

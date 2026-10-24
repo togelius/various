@@ -84,7 +84,8 @@ accession/
     rules/                 step.js (the only mutator); actions.js (the action table, §4.2); actors.js (actor
                            fields, costs, the scheduler); archetypes.js (archetype and modifier hooks, with one
                            file each in arch/ and mods/); options.js; causes.js (events and their causes, §3.4);
-                           modules.js (M4's hooks); then one file per system (combat, health, wake, noise, …)
+                           modules.js (M4's hooks); ai.js (an exhibit's turn); then one file per system
+                           (wake, noise, combat, specials, ranged, health, doors, …)
     text.js, text/         sentences keyed by event kind and cause, refusals, the recap; one fragment per
                            owner in text/, as in reg/ (§4.3)
     labels.js              labels, odds readouts, the strip
@@ -266,7 +267,7 @@ actor = { uid, sp, arch, role, mods, modParams, trigger, group,     copied from 
 - **Waking and modes** (§8.2): `mode`, `pips`, `stim` (the turn of its last stimulus), `pipTurns` (the turn each trigger last added a pip), `sawYou` (it has seen you since it last woke), `home`, `target`, `lastKnown`, `guards` (the tile a tethered exhibit guards).
 - **Scheduling** (§8.1): `next`, and `notBefore`, the earliest tick of its next action after it marks a special, which only the scheduler reads and clears.
 - **The story** (§3.4): `woke` and `hunted`; `kids` and `gen` count the bodies split from it and its generation; `gone` marks an actor destroyed or removed, which is never taken out of the list during a visit.
-- **`ax`** is plain data that only its archetype's file reads or writes; `acts` counts its actions since it woke; `telegraph` is its marked special.
+- **`ax`** is plain data that only its archetype's file reads or writes; `acts` counts its actions since it last woke, the one it is taking included; `telegraph` is its pending special, `{ sp, tiles, from, gross, effect, turn, tick }`: the marked tiles in row-major order, each once and fixed when shown, and for each the tile its damage comes from (§8.1).
 - **Kept for M4, always `null` in M3:** `route` (patrols), `plan` (clockwork's shown next move) and `facing` (there is no facing, §5.4).
 - **You** carry the same fields, and also `still` and `lastAct` (your last action that cost time sets your ring, §8.2), `seated` (on a bench), `regen` (the regeneration store) and your derived stats (`weaponForm`, `reach`, `quiet`, `breaker`, `acc`, `eva`, `pad`, `dmin`, `dmax`), which `Kit.settle` keeps up to date at the end of every step.
 
@@ -675,7 +676,8 @@ These are the rules the slice implements. Each system opens with its sentence fr
   Each step is one named function, called in this order by `Step.boundary` and nowhere else: `Surfaces.tick`; `Status.tick`, then `Kit.recharge`; `Health.regenerate`; `Wake.boundary`; `Wake.decay`; `ClockRules.boundary`; `Modules.alarmDecay`; `Modules.turn`. Noise, damage and the other event triggers act at once, when their event happens.
 - **Every action of yours that costs time costs at least a turn** (100 ticks; a Heavy blow costs 150), so at least one turn boundary runs between any two of your decisions, after your action has moved you and set your ring. `step()` stops with an error on an action that costs less. (M4's perks Duck and Cover and Close the Distance break this, and must restate the ring's timing and the status rule below when they arrive.)
 - **An exhibit's action is charged after it acts:** its `next` becomes next + the action's cost, or the tick its action set in `notBefore`, if that is later (a special's mark holds its resolve until after your next decision; Specials, below). Nothing an exhibit does in its own turn writes its own `next`.
-- **Waking costs a beat.** An exhibit that wakes is scheduled to first act at now + its action cost.
+- **Waking costs a beat.** An exhibit that wakes is scheduled to first act at now + its action cost. So is an actor made during the visit (the Night Watchman, a splitter's halves), which therefore never acts in the instant it appears.
+- **An exhibit's turn,** in this order (`AI.act`): if it is fixed, its pending special is called off and it waits; otherwise it looks for you (it sees you as §8.2 says, and if it was not already hunting it now hunts you); a pending special resolves; its archetype acts, if it has something to do; otherwise it acts as its mode says (§8.2). Every turn it takes, a forced wait included, counts as one of its actions (`acts`).
 - **Speed.** Fast actors pay half, slow actors double, for their steps; attacks and every other action cost the usual, unless the archetype says its speed covers every action (the mimic is slow at everything). The `slowed` status doubles every action again. An actor's speed is its archetype's, or a modifier's (marble is slow) unless that modifier is switched off; a fast archetype with a slow modifier moves at the usual speed.
 - **Statuses.** A status of N turns covers the N turns that start at its bearer's next decision. Once the action that put it on is over, it lasts until the boundary of turn `idiv(next, 100) + N`, where `next` is the bearer's next decision (for a sleeping exhibit, the next turn + N); its per-turn effect acts at the boundaries of those N turns, and it ends at the boundary of the last. A decision at tick t falls in turn `idiv(t, 100)`, because that turn's boundary runs before anyone who acts at its tick. So Fixative gives exactly 4 forced waits whatever the action before it, and a grip of 2 turns put on during a 200-tick open still holds you at your next 2 decisions. Put on again while held, a status lasts to the later end.
 
@@ -704,7 +706,13 @@ These are the rules the slice implements. Each system opens with its sentence fr
 - **No critical hits.**
 - **Surprise.** An attack hits automatically for maximum damage (×1.5, rounded down, with a Light weapon) on an exhibit that is asleep or stirring, or awake and has not seen you since it last woke. The target then hunts you. Searching, returning and reinstalling exhibits are never surprised. Against a Centrepiece a surprise blow hits automatically but rolls damage, and it starts the encounter.
 
-**Specials** (telegraphed): one action marks the tiles, each showing the exact damage you would take. The next action resolves with no rolls; the action after that costs +100. Every special number in §8.10 is gross: a marked tile shows, and the special deals, `max(DMG_MIN_ON_HIT, gross − your Padding)`, recomputed from your Padding at every view-model update, so what resolves is what the floor showed the moment before. Specials ignore Eva.
+**Specials** (telegraphed): one action marks the tiles, each showing the exact damage you would take. The exhibit's next action resolves the special, with no rolls, and costs an attack plus `SPECIAL_RECOVERY` (100), so the exhibit's action after that comes 200 ticks after the resolve: marked at tick 400, resolved at 500, its next action at 700. Every special number in §8.10 is gross: a marked tile shows, and the special deals, `max(DMG_MIN_ON_HIT, gross − your Padding)`, recomputed from your Padding at every view-model update, so what resolves is what the floor showed the moment before. Specials ignore Eva.
+- **Who marks.** Only a hunting exhibit marks a special, and only one at a time. An exhibit in an intact case may mark only a beam (which passes glass) or a call (which is sound), never a ring of blows.
+- **No unseen special.** After a mark, the exhibit's next action comes no earlier than your next decision, and ties go to you, so you always see a mark before it resolves. If you start a 300-tick equip at 400 and an exhibit marks at 400, it resolves at 700, just after your decision at 700; a fast exhibit that marks at 400 while your next decision is at 500 resolves at 500, not at 450.
+- **No overlaps.** No two pending damage marks share a tile: an exhibit whose special would mark a tile already marked for damage does not mark, and acts otherwise. A herald's call neither blocks a damage mark nor is blocked by one, and is drawn beneath them.
+- **Each actor is hit once,** whoever it is, however many of its tiles are marked and however often a beam crosses its tile, each through its own Padding; the marks show only your number. A beam goes straight through glass, stops at what blocks sight, and turns back along its line where it meets a reflector, the way back counting toward its range, so nothing behind the reflector is hit and the shooter's own tile is on the way back: a sniper can be hit by its own beam. The damage of each marked tile comes from the tile next to it that the special came from (the owner's, for a ring; the one the beam crossed before, for a beam), which is the side a blow comes from for `old_repair`.
+- **A damage special is an attack,** so its resolve makes a soft noise at its owner's tile, after its damage. A call makes no noise: it wakes directly.
+- **Cancelling.** A pending special is called off when its owner is fixed, stops hunting (it lost you, was quieted, or you left by the Ticket), goes back to sleep, or is destroyed.
 
 **Weapons** (t is the tier):
 
@@ -769,12 +777,16 @@ These are the rules the slice implements. Each system opens with its sentence fr
 
 - **An exhibit with no home** (its case was broken or dissolved) never returns. It stays awake and wanders.
 - **A patrolling exhibit** (`awake`) walks its round instead of wandering, and never returns to sleep: after 20 turns without you it resumes the round.
-- **Mode on waking.** Hunting, from the ring, `axis`, `tether`, `touch_case`, `ally_hit`, being seen, damage and the night-watch bell (its last-known tile is yours). Awake, investigating the source, from noise and the alarm. The trigger that adds the third pip decides; if two complete it at once, hunting wins.
+- **Mode on waking.** Hunting, from the ring, `axis`, `tether`, `touch_case`, `ally_hit`, being seen, damage and the night-watch bell (its last-known tile is yours). Awake, investigating the source, from noise, a herald's call (it goes to look at your tile at the moment of the call) and the alarm. The trigger that adds the third pip decides; if two complete it at once, hunting wins.
+- **One action's wake order.** Within one action, every other wake effect is applied before that action's noise. So a blow wakes the victim's group (`ally_hit`) before its soft noise; opening a case, and every bash, touches it (`touch_case`) before its noise; the breaking bash releases the sleeper inside before its crash; and a mimic's grip comes before the noise of the open or bash that touched it. A sleeper at 2 pips touched by any of these therefore wakes hunting, not awake.
+- **Waking and changing mode.** Waking is leaving dormant, and only waking resets what belongs to one waking: whether it has seen you (`sawYou`), its count of actions, and its archetype's per-waking state (a herald's one call). It costs a beat, starts the exhibit's story (`woke`, and `hunted` if it hunts), and is told by a `woke` event, then a `hunting` event if it hunts. Every other change of mode resets nothing, so a returning exhibit that has seen you and is sent to look by a noise is not surprised by your blow. Each change has its event: into hunting, `hunting`; from searching, returning or reinstalling to awake, or a new place to look while awake, `alerted`; returning to reinstalling and reinstalling to dormant, `returned`; any other change (losing you, going back, settling), `lost`. A hunt begins with your tile as its last-known tile.
+- **Pipless exhibits.** A mimic in its disguise is pipless: it gains no pips, hears nothing, and only damage, its case being opened or bashed, or its case being dissolved wake it. So your ring, noise, a herald's call, the night-watch bell, "Quiet, Please" and Fumigant never touch it.
 
 **Your ring** is drawn round you at all times:
 - **Radius:** 3 if your last action that cost time was anything but wait, rest, view or sit; otherwise 2. Actions that cost no time (reading, examining) never change it. +2 while you stand on a loud floor (shards, water). Perks and items can shrink it, never below `RING_MIN` (1).
 - **What it does:** a sleeping exhibit within that walking distance, with line of sight to you, gains 1 pip a turn.
-- **What is shown:** a tile is drawn as inside the ring exactly when a sleeping exhibit standing on it would gain a pip this turn. A test checks that equivalence over whole layouts.
+- **What is shown:** a tile is drawn as inside the ring exactly when a sleeping exhibit standing on it would gain a pip this turn; one predicate (`Vision.inRing`) decides both. Only tiles an exhibit can stand on are drawn (`Grid.hold`), and a 2×2 exhibit gains its pip if any of its tiles is inside. A test checks that equivalence over whole layouts.
+- **Which turn.** The ring drawn is the ring the last turn boundary applied: from your current tile, with the radius of your last action that cost time. Since every action of yours that costs time costs at least a turn (§8.1), a boundary runs after each such action and before your next decision, so the board after any step shows exactly the tiles where a sleeper gained a pip at that step's last boundary. It cannot show the next boundary's ring, whose radius depends on the action you have not yet chosen.
 
 **Noise:**
 - **Classes:**
@@ -811,7 +823,7 @@ The alarm is not a species trigger: `alarm_network` wakes the department itself 
 
 **Sight:**
 - You see every tile in line of sight within 12. Since every tile is lit, light plays no part.
-- An awake, searching or returning exhibit sees you within 8 with line of sight.
+- An exhibit that is awake, hunting, searching, returning or reinstalling sees you within 8 (`within r`, below) of any of its tiles, with line of sight from that tile. Seeing you turns any of these modes into a hunt, and a hunter that sees you knows your tile. A sleeping exhibit sees nothing.
 
 **Geometry, defined once in `grid.js` and used by every rule:**
 - **Line of sight:** a Bresenham line traced from whichever endpoint comes first in row-major order, blocked by any sight-blocking tile between the ends, or by a tile between them that a sight-blocking surface covers (a Fumigant cloud or plaster dust: the `size` × `size` square centred on its tile; fog in M4). Glass passes sight; closed doors block it; actors do not. It is symmetric by construction, and a test checks `los(a, b) === los(b, a)` over whole layouts.
@@ -1055,7 +1067,7 @@ The first department is drawn on the `doors` stream from all three. After that, 
 | COST_PUSH | 100 | push a jar |
 | COST_VIEW | 100 | one viewing turn |
 | COST_SIT | 100 | sit on a bench |
-| SPECIAL_RECOVERY | 100 | extra cost of the action after a special |
+| SPECIAL_RECOVERY | 100 | added to the cost of a special's resolve, so the exhibit's next action comes that much later |
 | SPEED_FAST_PCT | 50 | fast actors' cost |
 | SPEED_SLOW_PCT | 200 | slow actors' cost |
 | HIT_BASE | 75 | hit chance at equal Acc and Eva |

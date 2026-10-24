@@ -30,8 +30,13 @@ module.exports = ({ test, assert, loadCore }) => {
   });
 
   test('a sleeping exhibit is not scheduled; struck awake, it first acts one action later', () => {
-    const s = room([{ at: [3, 2], mode: 'dormant', stats: { hp: 30, acc: 2, eva: 1, pad: 0, dmin: 1, dmax: 4 } }]);
+    // It sleeps behind a wall, outside your ring (which would wake it in three turns, §8.2),
+    // while you wait; then you stand beside it for the surprise blow.
+    const walled = ['#########', '#...#...#', '#...#...#', '#...#...#', '#########'];
+    const s = room([{ at: [6, 2], mode: 'dormant', stats: { hp: 30, acc: 2, eva: 1, pad: 0, dmin: 1, dmax: 4 } }], walled);
     for (let i = 0; i < 5; i++) { const ev = Step.step(s, { a: 'wait' }); assert.ok(!ev.some(e => e.who === 'T0.1.room.1' || e.by === 'T0.1.room.1'), 'asleep: it does nothing'); }
+    assert.equal(s.actors[1].pips, 0, 'outside your ring it gains no pip');
+    s.actors[0].x = 5;
     const t = s.tick;
     const ev = Step.step(s, { a: 'move', dir: 2 });          // a surprise blow
     const woke = ev.find(e => e.k === 'hunting');

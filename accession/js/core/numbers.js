@@ -18,7 +18,7 @@ const N = Object.freeze({
   COST_PUSH: 100, // push a jar
   COST_VIEW: 100, // one viewing turn
   COST_SIT: 100, // sit on a bench
-  SPECIAL_RECOVERY: 100, // extra cost of the action after a special
+  SPECIAL_RECOVERY: 100, // added to the cost of a special's resolve, so the exhibit's next action comes that much later
   SPEED_FAST_PCT: 50, // fast actors' cost
   SPEED_SLOW_PCT: 200, // slow actors' cost
   HIT_BASE: 75, // hit chance at equal Acc and Eva

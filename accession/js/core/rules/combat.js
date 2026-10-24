@@ -148,12 +148,14 @@ const Combat = (() => {
     else { Archetypes.onDamaged(state, who, amount, cause, ev); Health.onLow(state, who, ev); }
   }
 
-  // who is destroyed (§8.1): `died` with the killing cause; its archetype's and modifiers'
-  // onDied; a loud noise where an exhibit was destroyed; and its own combat and ai streams
-  // are deleted, so state.rng stays small (§3.2). If who is you, the visit is over.
+  // who is destroyed (§8.1): `died` with the killing cause; its pending mark, if any, is
+  // cancelled; its archetype's and modifiers' onDied; a loud noise where an exhibit was
+  // destroyed; and its own combat and ai streams are deleted, so state.rng stays small
+  // (§3.2). If who is you, the visit is over.
   function die(state, who, cause, ev) {
     who.gone = 1;
     Causes.emit(state, ev, 'died', { who: who.uid }, cause);
+    if (who.telegraph) Specials.cancel(state, who, 'died', ev);
     Archetypes.onDied(state, who, cause, ev);
     delete state.rng['combat/' + who.uid];
     delete state.rng['ai/' + who.uid];

@@ -152,7 +152,7 @@ const N = Object.freeze({
   COST_PUSH: 100, // push a jar
   COST_VIEW: 100, // one viewing turn
   COST_SIT: 100, // sit on a bench
-  SPECIAL_RECOVERY: 100, // extra cost of the action after a special
+  SPECIAL_RECOVERY: 100, // added to the cost of a special's resolve, so the exhibit's next action comes that much later
   SPEED_FAST_PCT: 50, // fast actors' cost
   SPEED_SLOW_PCT: 200, // slow actors' cost
   HIT_BASE: 75, // hit chance at equal Acc and Eva
@@ -536,7 +536,9 @@ const Grid = (() => {
 
 </script>
 <script>
-// ACCESSION — what you can see and what your ring covers (BUILD.md §8.2).
+// ACCESSION — what you can see and what your ring covers (BUILD.md §8.2). The ring has one
+// predicate, Vision.inRing, behind both the ring the board draws and the ring pip a sleeper
+// gains at the turn boundary (Wake.boundary), so the two cannot differ.
 'use strict';
 const Vision = (() => {
   // "Within r" is defined once, in grid.js (§8.2).
@@ -551,27 +553,53 @@ const Vision = (() => {
     return out;
   }
 
-  // Your ring's radius: by your last action that cost time, plus a loud floor.
+  // Your ring's radius (§8.2): by your last action that cost time (still: wait, rest, view
+  // or sit), plus a loud floor under you, plus what your kit adds or takes (Kit.ringDelta:
+  // the Quiet primitive), never below RING_MIN.
   function ringRadius(state) {
     const you = state.actors[0];
     let r = you.still ? N.RING_STILL : N.RING_MOVING;
     const t = Grid.TILES[Grid.ch(state.dept, you.x, you.y)];
     if (t && t.loud) r += N.RING_LOUD_FLOOR;
+    r += Kit.ringDelta(state);
     return Math.max(N.RING_MIN, r);
   }
 
-  // The tiles your ring covers: exactly those where a sleeping exhibit would gain a pip
-  // (BUILD.md §8.2): within its walking distance and in line of sight. A tile you cannot
-  // step onto (a case, a plinth) is one step beyond its nearest neighbour you could.
+  // What the ring is measured with: its radius, and the walking distances from your tile out
+  // to it (§8.2's walking distance: staff doors count as doors, actors never block). Not
+  // part of the state; computing it once lets a caller ask about many tiles.
+  function field(state) {
+    const you = state.actors[0], r = ringRadius(state);
+    return { r, x: you.x, y: you.y, dist: Grid.distances(state.dept, [[you.x, you.y]], r) };
+  }
+
+  // The walking distance from you to (x, y) if the tile is inside your ring, else -1. Inside
+  // means: a tile an exhibit can stand on (Grid.hold: walkable, a vitrine or a plinth), within
+  // the ring's walking distance (a tile you cannot step onto is one beyond its nearest
+  // neighbour you can), and in line of sight from you. f is field(state), computed if absent.
+  function ringDist(state, x, y, f) {
+    const m = state.dept;
+    if (!Grid.inside(m, x, y) || !Grid.hold(m, x, y)) return -1;
+    f = f || field(state);
+    const d = Grid.reachDist(f.dist, m, x, y);
+    return d >= 0 && d <= f.r && Grid.los(m, f.x, f.y, x, y) ? d : -1;
+  }
+
+  // Vision.inRing(state, x, y[, f]): is (x, y) inside your ring, so that a sleeping exhibit
+  // standing on it gains a pip at the turn boundary (§8.2)? The one predicate for both.
+  const inRing = (state, x, y, f) => ringDist(state, x, y, f) >= 0;
+
+  // The tiles your ring covers, for the view model: a Uint8Array, 1 where inRing holds.
+  // Drawn from your current tile with the radius of your last action that cost time, it is
+  // exactly the ring the last turn boundary applied (§8.2).
   function ring(state) {
-    const m = state.dept, you = state.actors[0], r = ringRadius(state);
-    const d = Grid.distances(m, [[you.x, you.y]], r), out = new Uint8Array(m.w * m.h);
-    for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
-      const i = y * m.w + x, dist = Grid.reachDist(d, m, x, y);
-      if (dist >= 0 && dist <= r && Grid.los(m, you.x, you.y, x, y)) out[i] = 1;
-    }
+    const m = state.dept, f = field(state), out = new Uint8Array(m.w * m.h);
+    for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if (inRing(state, x, y, f)) out[y * m.w + x] = 1;
     return out;
   }
+
+  // [M4] Is a observed, for unobserved_motion and the Lamp's `observing`? Never in M3.
+  const observed = (state, a) => false;
 
   // Marks what you can see now as seen, in state.dept.seen (one character a tile).
   function remember(state) {
@@ -583,7 +611,7 @@ const Vision = (() => {
     if (changed || seen !== m.seen) m.seen = chars.join('');
   }
 
-  return { within, visible, ringRadius, ring, remember };
+  return { within, visible, ringRadius, field, ringDist, inRing, ring, observed, remember };
 })();
 
 </script>
@@ -1776,38 +1804,182 @@ const Surfaces = (() => {
 
 </script>
 <script>
-// ACCESSION — waking (BUILD.md §8.2). M3's Wave 0 builds it in two parts: W0c keeps M2's one
-// transition (toHunting) and names the hooks the action core calls, as no-ops; W0d builds
-// waking, modes and the ring; W1-WAKE-A owns it after.
+// ACCESSION — waking and modes (BUILD.md §8.2). W0d builds waking, the changes of mode, pips
+// and the ring pip; W1-WAKE-A owns the file after, and fills hearing, decay, the special
+// triggers, "Quiet, Please" and losing you.
 //
-// An exhibit's `sawYou` says it has seen you since it last woke; an awake exhibit without it
-// is surprised by a blow (§8.1, Combat.surprised).
+// Two functions change an exhibit's mode, and nothing else does:
+//   Wake.wake     takes a sleeping exhibit out of dormant: it resets what belongs to one
+//                 waking (sawYou, acts, its archetype's per-waking ax), costs a beat, and
+//                 starts its story (woke, and hunted if it hunts);
+//   Wake.setMode  every other change: it resets nothing, so "has not seen you since it last
+//                 woke" (§8.1) means since it last left dormant.
+// A pipless exhibit (a mimic in its disguise) gains no pips, hears nothing and is woken
+// only by damage, its case touched or its case dissolved (§8.2).
 'use strict';
 const Wake = (() => {
-  const copy = c => JSON.parse(JSON.stringify(c));
+  const copy = c => c === null || c === undefined ? null : JSON.parse(JSON.stringify(c));
+  const MODES = ['dormant', 'awake', 'hunting', 'searching', 'returning', 'reinstalling'];
+  // The causes that wake a pipless exhibit (§8.2): it is struck, opened or bashed, or dissolved.
+  const PIPLESS_WAKES = ['damage', 'touch_case', 'dissolved'];
+  const yourTile = state => [state.actors[0].x, state.actors[0].y];
 
-  // Straight to hunting (damage, the ring, being seen). An exhibit that was asleep is
-  // scheduled one action from now: waking costs a beat (§8.1). Each actor keeps its own story.
-  function toHunting(state, a, cause, ev) {
-    const was = a.mode;
-    a.mode = 'hunting';
-    a.pips = 0;
-    if (was === 'dormant') {
-      a.next = state.tick + Actors.cost(state, a, N.COST_STEP, 'act');
-      a.woke = { turn: state.turn, cause: copy(cause) };
-      a.sawYou = false; a.acts = 0; a.stim = state.turn;
-    }
-    a.hunted = { turn: state.turn, cause: copy(cause) };
-    Causes.emit(state, ev, 'hunting', { who: a.uid, was }, cause);
+  // Wake.wake(state, a, mode, cause, ev, opts?) → bool. a leaves dormant for mode ('hunting'
+  // or 'awake'), with cause; opts {target?, lastKnown?} give where an awake exhibit goes to
+  // look and where a hunter last knew you were (your tile, if not given: §8.2). Returns
+  // false, changing nothing, if a is not dormant, or is pipless and the cause is not one
+  // that wakes it. In order: its mode, pips 0, sawYou false, acts 0, stim now, its target or
+  // last-known tile; Archetypes.onWake; the beat (it first acts one action from now, §8.1);
+  // its story (woke, and hunted if it hunts); then the events woke {who, was, mode} and, if
+  // it hunts, hunting {who, was}, both with the cause and both recorded.
+  function wake(state, a, mode, cause, ev, opts) {
+    if (mode !== 'hunting' && mode !== 'awake') throw new Error(`Wake.wake: ${a.uid} cannot wake into ${mode}`);
+    if (a.gone || a.mode !== 'dormant') return false;
+    if (Archetypes.pipless(state, a) && !PIPLESS_WAKES.includes(cause && cause.k)) return false;
+    opts = opts || {};
+    a.mode = mode;
+    a.pips = 0; a.sawYou = false; a.acts = 0; a.stim = state.turn;
+    a.target = mode === 'awake' ? copy(opts.target) : null;
+    a.lastKnown = mode === 'hunting' ? copy(opts.lastKnown || yourTile(state)) : copy(opts.lastKnown);
+    Archetypes.onWake(state, a);
+    a.next = state.tick + Actors.cost(state, a, N.COST_STEP, 'act');
+    a.woke = { turn: state.turn, cause: copy(cause) };
+    if (mode === 'hunting') a.hunted = { turn: state.turn, cause: copy(cause) };
+    Causes.emit(state, ev, 'woke', { who: a.uid, was: 'dormant', mode }, cause);
+    if (mode === 'hunting') Causes.emit(state, ev, 'hunting', { who: a.uid, was: 'dormant' }, cause);
+    return true;
   }
 
-  // Hooks the action core calls; W0d and W1-WAKE-A fill them.
-  function hear(state, a, noise, dist, ev) {}          // Noise.emit: a heard a noise dist away
-  function allyHit(state, victim, cause, ev) {}        // Combat.hurt: victim took damage
-  function boundary(state, ev) {}                      // turn boundary step 4: the ring, axis, tether
-  function decay(state, ev) {}                         // turn boundary step 5: pip decay
+  // Wake.setMode(state, a, mode, cause, ev, opts?) → bool: every change of mode that is not
+  // a waking. It resets nothing: sawYou, acts, ax and the story's woke stay as they are. It
+  // sets stim to now (each mode counts its own turns from it), takes opts {target?,
+  // lastKnown?}, and emits, by the change:
+  //   into hunting: hunting {who, was}, and hunted becomes this cause (a hunter's last-known
+  //     tile is yours unless opts says otherwise);
+  //   searching, returning or reinstalling → awake, or a new target while awake:
+  //     alerted {who, from, to, x, y}, x and y the target (opts.target is required);
+  //   returning → reinstalling: returned {phase: 'arrived'}; reinstalling → dormant:
+  //     returned {phase: 'reinstalled'};
+  //   every other change (hunting → searching, searching → returning, awake → returning,
+  //     hunting → awake, awake → dormant, …): lost {who, from, to}.
+  // Leaving hunting cancels a pending telegraph (Specials.cancel), before the change's own
+  // event; only a hunter marks a special (Specials.canMark). A sleeping exhibit is
+  // woken with Wake.wake, never here. Returns false if nothing changed.
+  function setMode(state, a, mode, cause, ev, opts) {
+    if (!MODES.includes(mode)) throw new Error(`Wake.setMode: no mode ${mode}`);
+    if (a.mode === 'dormant') throw new Error(`Wake.setMode: ${a.uid} is dormant; Wake.wake wakes it`);
+    if (a.gone) return false;
+    opts = opts || {};
+    const from = a.mode, retarget = from === 'awake' && mode === 'awake' && !!opts.target;
+    if (from === mode && !retarget) return false;
+    const alerted = mode === 'awake' && (retarget || from === 'searching' || from === 'returning' || from === 'reinstalling');
+    if (alerted && !opts.target) throw new Error(`Wake.setMode: ${a.uid} is alerted with no target`);
+    if (opts.target !== undefined) a.target = copy(opts.target);
+    if (opts.lastKnown !== undefined) a.lastKnown = copy(opts.lastKnown);
+    a.mode = mode;
+    a.stim = state.turn;
+    if (mode !== 'hunting' && a.telegraph) Specials.cancel(state, a, (cause && cause.k) || 'mode', ev);
+    if (mode === 'hunting') {
+      if (opts.lastKnown === undefined) a.lastKnown = yourTile(state);
+      a.hunted = { turn: state.turn, cause: copy(cause) };
+      Causes.emit(state, ev, 'hunting', { who: a.uid, was: from }, cause);
+    } else if (alerted) {
+      Causes.emit(state, ev, 'alerted', { who: a.uid, from, to: mode, x: a.target[0], y: a.target[1] }, cause);
+    } else if (from === 'returning' && mode === 'reinstalling') {
+      Causes.emit(state, ev, 'returned', { who: a.uid, phase: 'arrived' }, cause);
+    } else if (from === 'reinstalling' && mode === 'dormant') {
+      Causes.emit(state, ev, 'returned', { who: a.uid, phase: 'reinstalled' }, cause);
+    } else {
+      Causes.emit(state, ev, 'lost', { who: a.uid, from, to: mode }, cause);
+    }
+    return true;
+  }
 
-  return { toHunting, hear, allyHit, boundary, decay };
+  // Wake.toHunting(state, a, cause, ev): into a hunt, waking it first if it sleeps (damage
+  // always wakes, straight to hunting, §8.2). Combat.hurt calls it.
+  function toHunting(state, a, cause, ev, opts) {
+    return a.mode === 'dormant' ? wake(state, a, 'hunting', cause, ev, opts) : setMode(state, a, 'hunting', cause, ev, opts);
+  }
+
+  // Wake.created(state, a, k, extra, ev?): the story of an actor made awake, not woken:
+  // woke (and hunted, if it hunts) with cause {k, …extra}, k a creation cause (awake,
+  // night_watch, summoned; patrol in M4). Actors made with the department take their story
+  // from the starting state and pass no ev. One made during the visit passes ev: it emits a
+  // creation woke {who, was: null, mode}, and it first acts after a beat, at now + its action
+  // cost, so it never acts in the instant it appears (§8.1).
+  function created(state, a, k, extra, ev) {
+    const W = Registry.WAKE_CAUSES[k];
+    if (!W || !W.creation) throw new Error(`Wake.created: ${k} is not a cause an actor is created with`);
+    if (a.mode === 'dormant') throw new Error(`Wake.created: ${a.uid} is dormant`);
+    const cause = Object.assign({ k }, copy(extra || {}));
+    a.woke = { turn: state.turn, cause: copy(cause) };
+    if (a.mode === 'hunting') a.hunted = { turn: state.turn, cause: copy(cause) };
+    if (ev) {
+      a.next = state.tick + Actors.cost(state, a, N.COST_STEP, 'act');
+      Causes.emit(state, ev, 'woke', { who: a.uid, was: null, mode: a.mode }, cause);
+    }
+  }
+
+  // Wake.addPips(state, a, n, cause, ev, opts?) → bool (did it wake). Only a sleeping exhibit
+  // gains or loses pips, and a pipless one never does. Each trigger (cause.k) adds or takes
+  // at most once a turn (a.pipTurns, §8.2). The count stays between 0 and PIPS_TO_WAKE; a
+  // gain sets stim to now. Each change is a pip event {who, pips, delta} with the cause.
+  // Reaching PIPS_TO_WAKE wakes it, in the mode its wake cause gives (Registry.WAKE_CAUSES),
+  // with the same cause; opts go to Wake.wake.
+  function addPips(state, a, n, cause, ev, opts) {
+    if (a.gone || a.mode !== 'dormant' || !n || Archetypes.pipless(state, a)) return false;
+    const k = cause.k;
+    if (a.pipTurns[k] === state.turn) return false;
+    const pips = Math.max(0, Math.min(N.PIPS_TO_WAKE, a.pips + n)), delta = pips - a.pips;
+    if (!delta) return false;
+    const W = Registry.WAKE_CAUSES[k];
+    if (pips >= N.PIPS_TO_WAKE && !(W && (W.mode === 'hunting' || W.mode === 'awake'))) throw new Error(`Wake.addPips: ${k} cannot wake an exhibit`);
+    a.pipTurns[k] = state.turn;
+    a.pips = pips;
+    if (delta > 0) a.stim = state.turn;
+    Causes.emit(state, ev, 'pip', { who: a.uid, pips, delta }, cause);
+    return pips >= N.PIPS_TO_WAKE ? wake(state, a, W.mode, cause, ev, opts) : false;
+  }
+
+  // Turn boundary step 4 (§8.1): the wake checks, from your tile at this tick. Each sleeping
+  // exhibit that is not gone and not pipless, in spawn order: the ring (a pip if any tile it
+  // stands on is inside your ring, Vision.inRing, with the walking distance and the radius
+  // in the cause), then its axis and tether triggers.
+  function boundary(state, ev) {
+    let f = null;
+    for (let i = 1; i < state.actors.length; i++) {
+      const a = state.actors[i];
+      if (a.gone || a.mode !== 'dormant' || Archetypes.pipless(state, a)) continue;
+      if (!f) f = Vision.field(state);
+      let dist = -1;
+      for (const [x, y] of Actors.footprint(a)) { const d = Vision.ringDist(state, x, y, f); if (d >= 0 && (dist < 0 || d < dist)) dist = d; }
+      if (dist >= 0) addPips(state, a, 1, { k: 'ring', dist, r: f.r }, ev);
+      Wake.axis(state, a, ev);
+      Wake.tether(state, a, ev);
+    }
+  }
+
+  // [stub → W1-WAKE-A] Boundary step 4's special triggers for a: axis (a pip a turn while you
+  // stand in its row or column within AXIS_RANGE, in its sight) and tether (wakes at once
+  // when you come within TETHER_RANGE of what it guards).
+  function axis(state, a, ev) {}
+  function tether(state, a, ev) {}
+  // [stub → W1-WAKE-A] Turn boundary step 5: a pip decays per PIP_DECAY_TURNS turns without
+  // stimulus, before the bell.
+  function decay(state, ev) {}
+  // [stub → W1-WAKE-A] Noise.emit: a heard a noise, dist walking tiles away.
+  function hear(state, a, noise, dist, ev) {}
+  // [stub → W1-WAKE-A] Combat.hurt: victim took damage; its group within ALLY_HIT_RANGE wakes.
+  function allyHit(state, victim, cause, ev) {}
+  // [stub → W1-WAKE-A] "Quiet, Please" read at (x, y): pips fall, hunters lose you, the awake settle.
+  function quiet(state, x, y, range, cause, ev) {}
+  // [stub → W1-WAKE-A] Every hunter loses you (the Re-admission Ticket).
+  function lose(state, cause, ev) {}
+  // [M4] The chime: a period exhibit performs, then sleeps again with the pips it had.
+  function perform(state, a, cause, ev) {}
+  function resleep(state, a, ev) {}
+
+  return { MODES: MODES.slice(), wake, setMode, toHunting, created, addPips, boundary, axis, tether, decay, hear, allyHit, quiet, lose, perform, resleep };
 })();
 
 </script>
@@ -1962,12 +2134,14 @@ const Combat = (() => {
     else { Archetypes.onDamaged(state, who, amount, cause, ev); Health.onLow(state, who, ev); }
   }
 
-  // who is destroyed (§8.1): `died` with the killing cause; its archetype's and modifiers'
-  // onDied; a loud noise where an exhibit was destroyed; and its own combat and ai streams
-  // are deleted, so state.rng stays small (§3.2). If who is you, the visit is over.
+  // who is destroyed (§8.1): `died` with the killing cause; its pending mark, if any, is
+  // cancelled; its archetype's and modifiers' onDied; a loud noise where an exhibit was
+  // destroyed; and its own combat and ai streams are deleted, so state.rng stays small
+  // (§3.2). If who is you, the visit is over.
   function die(state, who, cause, ev) {
     who.gone = 1;
     Causes.emit(state, ev, 'died', { who: who.uid }, cause);
+    if (who.telegraph) Specials.cancel(state, who, 'died', ev);
     Archetypes.onDied(state, who, cause, ev);
     delete state.rng['combat/' + who.uid];
     delete state.rng['ai/' + who.uid];
@@ -1991,6 +2165,273 @@ const Combat = (() => {
   });
 
   return { hitChance, surprised, netRolls, surpriseRaw, surpriseNet, adjacent, canStrike, reachTargets, strike, attack, hurt, die };
+})();
+
+</script>
+<script>
+// ACCESSION — lines, bolts and beams (BUILD.md §8.1, §8.3). W0d builds the geometry of a line
+// and of a beam; W1-ARCH-B owns the file after, and builds shots (the kiter's, the
+// Pin-Driver's) and the reflector.
+//
+// A bolt (a shot) passes what can be seen through and is not glass (Grid.bolt); only beams
+// pass glass. A reflector sends a bolt or beam back along its line toward where it came from,
+// so nothing behind the reflector is hit, and the shooter's own tile is on the way back.
+'use strict';
+const Ranged = (() => {
+  // The tiles of the Bresenham line between two tiles, both ends included, traced as
+  // Grid.los traces it (from the end that comes first in row-major order), so that a line
+  // and line of sight cross the same tiles; listed from (x0, y0).
+  function bresenham(x0, y0, x1, y1) {
+    const flip = y1 < y0 || (y1 === y0 && x1 < x0);
+    let ax = x0, ay = y0, bx = x1, by = y1;
+    if (flip) { ax = x1; ay = y1; bx = x0; by = y0; }
+    const dx = Math.abs(bx - ax), dy = Math.abs(by - ay), sx = bx > ax ? 1 : -1, sy = by > ay ? 1 : -1, out = [];
+    let err = dx - dy, x = ax, y = ay;
+    for (;;) {
+      out.push([x, y]);
+      if (x === bx && y === by) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x += sx; }
+      if (e2 < dx) { err += dx; y += sy; }
+    }
+    return flip ? out.reverse() : out;
+  }
+
+  // Ranged.line(state, x0, y0, x1, y1, range, pass) → [[x, y]…]: the tiles a line from (x0, y0)
+  // toward (x1, y1) enters, in order, up to and including (x1, y1), at most `range` of them,
+  // stopping before the first tile pass(m, x, y) refuses (Grid.seeThrough if pass is not
+  // given; Grid.bolt for a shot, which stops at glass). The tile it starts on is not listed.
+  function line(state, x0, y0, x1, y1, range, pass) {
+    const m = state.dept, ok = pass || Grid.seeThrough, out = [];
+    const pts = bresenham(x0, y0, x1, y1);
+    for (let i = 1; i < pts.length && out.length < range; i++) {
+      const [x, y] = pts[i];
+      if (!Grid.inside(m, x, y) || !ok(m, x, y)) break;
+      out.push([x, y]);
+    }
+    return out;
+  }
+
+  // The path of a beam from a's tile in direction d, at most `range` steps: it goes straight,
+  // through glass, and stops before a tile it cannot see through. On a tile where
+  // Ranged.reflectorAt holds it turns back the way it came, and its later steps still count
+  // toward the range. Each tile is listed once, at the first step that enters it, with the
+  // tile that step came from, so the way back lists only the tiles the way out did not: the
+  // shooter's own tile, then those behind it.
+  function trace(state, a, d, range) {
+    if (!(Number.isInteger(d) && d >= 0 && d < 8)) throw new Error('Ranged.beam: no direction ' + d);
+    const m = state.dept, crossed = new Uint8Array(m.w * m.h), tiles = [], from = [];
+    let x = a.x, y = a.y, dx = Grid.DX[d], dy = Grid.DY[d];
+    for (let s = 0; s < range; s++) {
+      const nx = x + dx, ny = y + dy;
+      if (!Grid.inside(m, nx, ny) || !Grid.seeThrough(m, nx, ny)) break;
+      const i = ny * m.w + nx;
+      if (!crossed[i]) { crossed[i] = 1; tiles.push([nx, ny]); from.push([x, y]); }
+      x = nx; y = ny;
+      if (Ranged.reflectorAt(state, x, y)) { dx = -dx; dy = -dy; }
+    }
+    return { tiles, from };
+  }
+
+  // Ranged.beam(state, a, d, range) → [[x, y]…]: the tiles of a's beam in direction d, in the
+  // order it crosses them, each once (trace, above).
+  const beam = (state, a, d, range) => trace(state, a, d, range).tiles;
+  // Ranged.beamFrom(state, a, d, range) → [[x, y]…]: for each tile of beam(…), at the same
+  // index, the tile the beam entered it from (where its damage comes from, §8.1).
+  const beamFrom = (state, a, d, range) => trace(state, a, d, range).from;
+
+  // [stub → W1-ARCH-B] Is there a reflector at (x, y) that turns a bolt or beam back?
+  const reflectorAt = (state, x, y) => false;
+  // [stub → W1-ARCH-B] a shoots at target (a rolled bolt): ticks, or a refusal code.
+  const shoot = (state, a, target, ev) => 'not_built';
+
+  return { bresenham, line, beam, beamFrom, reflectorAt, shoot };
+})();
+
+</script>
+<script>
+// ACCESSION — specials and their telegraphs (BUILD.md §8.1). W0d builds the core: which special
+// an exhibit has, the tiles it marks, marking, resolving and cancelling, and the marks the
+// view model draws. W1-COMBAT owns the file after, and adds the readout and the threat.
+//
+// The rules (§8.1):
+//   - One action marks the tiles; the exhibit's next action resolves the special, with no
+//     roll; the resolve costs an attack plus SPECIAL_RECOVERY, so its next action comes
+//     after that gap (mark at 400, resolve at 500, next action at 700).
+//   - No unseen special: after a mark, the exhibit's next action comes no earlier than your
+//     next decision (notBefore), and ties go to you, so you always see a mark before it resolves.
+//   - No overlaps: no two pending damage marks share a tile. A call mark never blocks one
+//     and is never blocked.
+//   - Each actor standing on a marked tile is hit once, with its own Padding.
+//   - A pending mark is cancelled when its owner is fixed, leaves hunting, goes dormant or
+//     is destroyed. Only a hunting exhibit marks.
+'use strict';
+const Specials = (() => {
+  const SHAPES = ['ring', 'call', 'line'];
+
+  // What a special does at this depth: {id, shape, effect, gross, every, range}, from its
+  // registry entry; gross is its role curve at the department's depth (0 for a call, which
+  // deals no damage), every and range its §8.10 rows (null where it has none).
+  function info(state, id) {
+    const S = Registry.SPECIALS[id];
+    if (!S) throw new Error('Specials: no special ' + id);
+    const num = key => { if (!(key in N)) throw new Error(`Specials: ${id} names no number ${key}`); return N[key]; };
+    return { id, shape: S.shape, effect: S.effect, gross: S.curve ? Roles.at(num(S.curve), state.dept.depth || 1) : 0,
+      every: S.every ? num(S.every) : null, range: S.range ? num(S.range) : null };
+  }
+  // Specials.of(state, a) → null | {id, shape, effect, gross, every, range}: a's archetype's special.
+  function of(state, a) {
+    const A = a.arch ? Registry.ARCHETYPES[a.arch] : null;
+    return A && A.special ? info(state, A.special) : null;
+  }
+
+  const rowMajor = (p, q) => p[1] - q[1] || p[0] - q[0];
+  function unique(tiles) {
+    const out = [];
+    for (const t of tiles.slice().sort(rowMajor)) if (!out.length || rowMajor(out[out.length - 1], t) !== 0) out.push([t[0], t[1]]);
+    return out;
+  }
+  // The direction from a along the row or column it shares with you (N, E, S or W), or -1.
+  function axisTo(a, you) {
+    if (a.x === you.x && a.y !== you.y) return you.y < a.y ? 0 : 4;
+    if (a.y === you.y && a.x !== you.x) return you.x > a.x ? 2 : 6;
+    return -1;
+  }
+
+  // Specials.tiles(state, a, shape) → [[x, y]…], in row-major order, each tile once:
+  //   'ring': the tiles round a's footprint an exhibit could stand on (Grid.hold);
+  //   'call': the tiles an exhibit could stand on within HERALD_RANGE of a (Grid.disc);
+  //   'line': the tiles of a beam of AXIS_BEAM_RANGE along the row or column a shares with
+  //           you (Ranged.beam: through glass, and back along its line from a reflector);
+  //           none if it shares neither.
+  function tiles(state, a, shape) {
+    const m = state.dept, out = [];
+    if (shape === 'ring') {
+      const s = a.size || 1;
+      for (let y = a.y - 1; y <= a.y + s; y++) for (let x = a.x - 1; x <= a.x + s; x++)
+        if (Actors.dist(a, x, y) === 1 && Grid.inside(m, x, y) && Grid.hold(m, x, y)) out.push([x, y]);
+    } else if (shape === 'call') {
+      const r = N.HERALD_RANGE, foot = Actors.footprint(a), s = a.size || 1;
+      for (let y = a.y - r; y < a.y + s + r; y++) for (let x = a.x - r; x < a.x + s + r; x++)
+        if (Grid.inside(m, x, y) && Grid.hold(m, x, y) && foot.some(([fx, fy]) => Grid.disc(x - fx, y - fy, r))) out.push([x, y]);
+    } else if (shape === 'line') {
+      const d = axisTo(a, state.actors[0]);
+      if (d >= 0) return unique(Ranged.beam(state, a, d, N.AXIS_BEAM_RANGE));
+    } else throw new Error('Specials.tiles: no shape ' + shape);
+    return unique(out);
+  }
+
+  // For each tile, the tile its damage comes from (cause.from, §8.1): for a line, the tile the
+  // beam entered it from; otherwise the tile of a's footprint nearest it (ties in row-major order).
+  function fromFor(state, a, shape, list) {
+    const near = ([x, y]) => {
+      let best = null, bd = -1;
+      for (const t of Actors.footprint(a)) { const d = Math.max(Math.abs(t[0] - x), Math.abs(t[1] - y)); if (bd < 0 || d < bd) { best = t; bd = d; } }
+      return best;
+    };
+    let beam = null, came = null;
+    if (shape === 'line') { const d = axisTo(a, state.actors[0]); if (d >= 0) { beam = Ranged.beam(state, a, d, N.AXIS_BEAM_RANGE); came = Ranged.beamFrom(state, a, d, N.AXIS_BEAM_RANGE); } }
+    return list.map(t => {
+      if (beam) for (let i = 0; i < beam.length; i++) if (beam[i][0] === t[0] && beam[i][1] === t[1]) return came[i].slice();
+      return near(t);
+    });
+  }
+
+  const hasTile = (list, x, y) => list.some(t => t[0] === x && t[1] === y);
+
+  // Specials.canMark(state, a, id, tiles) → bool: may a mark special id on these tiles now?
+  // Only a hunting exhibit that is not gone and has no mark pending, on at least one tile.
+  // An encased exhibit (in an intact case) may mark only a line, which passes glass, or a
+  // call. A damage special may not mark a tile another pending damage mark holds.
+  function canMark(state, a, id, list) {
+    const S = Registry.SPECIALS[id];
+    if (!S || a.gone || a.mode !== 'hunting' || a.telegraph || !list || !list.length) return false;
+    if (Cases.encased(state, a) && S.shape !== 'line' && S.shape !== 'call') return false;
+    if (S.effect === 'damage') for (const b of state.actors) {
+      if (b === a || b.gone || !b.telegraph || b.telegraph.effect !== 'damage') continue;
+      if (list.some(([x, y]) => hasTile(b.telegraph.tiles, x, y))) return false;
+    }
+    return true;
+  }
+
+  // Specials.mark(state, a, id, tiles, ev) → ticks: a marks special id on the tiles, which
+  // canMark must allow. a.telegraph becomes {sp, tiles (row-major, each once, fixed now),
+  // from (for each tile, where its damage comes from), gross, effect, turn, tick}; it emits
+  // telegraphed {who, sp, tiles}; and a's next action may come no earlier than your next
+  // decision (a.notBefore). Marking costs an action (COST_ATTACK).
+  function mark(state, a, id, list, ev) {
+    if (!canMark(state, a, id, list)) throw new Error(`Specials.mark: ${a.uid} may not mark ${id} here`);
+    const sp = info(state, id), t = unique(list);
+    a.telegraph = { sp: id, tiles: t, from: fromFor(state, a, sp.shape, t), gross: sp.gross, effect: sp.effect, turn: state.turn, tick: state.tick };
+    const yours = state.actors[0].next;
+    a.notBefore = a.notBefore === null || a.notBefore < yours ? yours : a.notBefore;
+    const cause = { k: 'special', by: a.uid, sp: id, gross: sp.gross };
+    if (sp.every !== null) cause.every = sp.every;
+    Causes.emit(state, ev, 'telegraphed', { who: a.uid, sp: id, tiles: t }, cause);
+    return Actors.cost(state, a, N.COST_ATTACK, 'act');
+  }
+
+  // Specials.net(gross, pad): what a special deals through Padding, at least DMG_MIN_ON_HIT.
+  const net = (gross, pad) => Math.max(N.DMG_MIN_ON_HIT, gross - pad);
+
+  // Specials.resolve(state, a, ev) → ticks: a's pending special goes off. A damage special
+  // hurts each actor standing on a marked tile, once (its first marked tile in row-major
+  // order), in spawn order, each through its own Padding, with cause special {by, sp, gross,
+  // pad, net, x, y, from}; then a soft noise at a's tile, as any attack makes. A call (a
+  // hook) goes to its archetype's onResolve. Then special {who, sp, hits}. The mark is no
+  // longer pending once it resolves. Costs an attack plus SPECIAL_RECOVERY.
+  function resolve(state, a, ev) {
+    const tel = a.telegraph;
+    if (!tel) throw new Error(`Specials.resolve: ${a.uid} has no mark pending`);
+    a.telegraph = null;
+    const fields = { who: a.uid, sp: tel.sp };
+    if (tel.effect === 'damage') {
+      const hits = [];
+      for (const b of state.actors.slice()) {
+        if (b.gone) continue;
+        let k = -1;
+        for (const [x, y] of Actors.footprint(b)) for (let i = 0; i < tel.tiles.length; i++) if (tel.tiles[i][0] === x && tel.tiles[i][1] === y && (k < 0 || i < k)) k = i;
+        if (k < 0) continue;
+        const d = net(tel.gross, b.pad);
+        Combat.hurt(state, b, d, { k: 'special', by: a.uid, sp: tel.sp, gross: tel.gross, pad: b.pad, net: d, x: tel.tiles[k][0], y: tel.tiles[k][1], from: tel.from[k].slice() }, ev);
+        hits.push(b.uid);
+      }
+      Noise.emit(state, a.x, a.y, 'soft', { k: 'special', by: a.uid }, ev);
+      fields.hits = hits;
+    } else Archetypes.onResolve(state, a, tel, ev);
+    Causes.emit(state, ev, 'special', fields, { k: 'special', by: a.uid, sp: tel.sp });
+    return Actors.cost(state, a, N.COST_ATTACK, 'act') + N.SPECIAL_RECOVERY;
+  }
+
+  // Specials.cancel(state, a, why, ev) → bool: a's pending mark is withdrawn (why: 'fixed',
+  // 'died', or the cause of the change of mode), with special {who, sp, cancelled: true}.
+  function cancel(state, a, why, ev) {
+    if (!a.telegraph) return false;
+    const sp = a.telegraph.sp;
+    a.telegraph = null;
+    Causes.emit(state, ev, 'special', { who: a.uid, sp, cancelled: true }, { k: 'cancel', by: a.uid, why: String(why) });
+    return true;
+  }
+
+  // Specials.marks(state) → [{x, y, dmg, by, kind}]: every pending mark's tiles, in spawn
+  // order: kind 'telegraph' with dmg what you would take there (net of your Padding now),
+  // or kind 'call' (dmg null). The view model keeps those on visible tiles.
+  function marks(state) {
+    const you = state.actors[0], out = [];
+    for (const a of state.actors) {
+      if (a.gone || !a.telegraph) continue;
+      const t = a.telegraph, dmg = t.effect === 'damage' ? net(t.gross, you.pad) : null;
+      for (const [x, y] of t.tiles) out.push({ x, y, dmg, by: a.uid, kind: t.effect === 'damage' ? 'telegraph' : 'call' });
+    }
+    return out;
+  }
+
+  // [stub → W1-COMBAT] The odds readout's special lines for a: [{sp, net, every, shape, range}].
+  const readout = (state, a, you) => [];
+  // [stub → W1-COMBAT] The mark your action would step you onto: null | {x, y, dmg, by}.
+  const threat = (state, action) => null;
+
+  return { SHAPES: SHAPES.slice(), info, of, tiles, canMark, mark, net, resolve, cancel, marks, readout, threat };
 })();
 
 </script>
@@ -2091,23 +2532,79 @@ const Consumables = (() => {
 
 </script>
 <script>
-// ACCESSION — an exhibit's turn (BUILD.md §8.1, §8.2). W0c moves M2's behaviour here from
-// step.js: a hunting exhibit strikes you if it can, or steps toward you; every other exhibit
-// waits. W0d builds the order of an exhibit's turn on it, and W1-WAKE-B owns it after.
+// ACCESSION — closing doors (BUILD.md §4.2, §8.2). W0d names the close(x, y) action with no
+// legal actions, so step() refuses it; W1-WAKE-B owns the file after, and builds it: a door
+// beside you, with no actor in its doorway, closes for COST_DOOR with a soft noise. Opening
+// a door is a bump (Step.moveInto).
+'use strict';
+const Doors = (() => {
+  // close(x, y) (§4.2). [stub → W1-WAKE-B] legal [], and every candidate is refused.
+  Actions.define('close', {
+    legal: state => [],
+    candidates(state) {
+      const you = state.actors[0], out = [];
+      for (let d = 0; d < 8; d++) out.push({ a: 'close', x: you.x + Grid.DX[d], y: you.y + Grid.DY[d] });
+      return out.concat([{ a: 'close' }]);
+    },
+    apply: (state, action, ev) => 'not_built',
+  });
+  return {};
+})();
+
+</script>
+<script>
+// ACCESSION — an exhibit's turn (BUILD.md §8.1, §8.2). W0d builds the order of the turn, sight,
+// and the moves every behaviour is made of; W1-WAKE-B owns the file after, and builds the
+// behaviour by mode (AI.byMode), which is the plodder's.
 //
 // AI.act(state, a, ev) returns the action's cost in ticks; it never writes a's own `next`,
-// which the scheduler sets after the action (Step, advance).
+// which the scheduler sets after the action (Step, advance). Each step below is called
+// through the namespace, so a test can wrap it.
 'use strict';
 const AI = (() => {
+  const SEES = ['awake', 'hunting', 'searching', 'returning', 'reinstalling'];
+
+  // An exhibit's turn, in order (§8.1):
+  //   0. it counts the action (acts: its actions since it last woke, this one included);
+  //   1. fixed: a pending mark is cancelled, and it waits;
+  //   2. it looks for you (AI.look);
+  //   3. a pending mark resolves (Specials.resolve);
+  //   4. its archetype or a modifier acts (Archetypes.act), unless that gives null;
+  //   5. otherwise it acts by its mode (AI.byMode).
   function act(state, a, ev) {
-    const you = state.actors[0];
-    if (Status.has(a, 'fixed')) return wait(state, a, ev);
-    if (a.mode === 'hunting') {
-      if (!Combat.canStrike(state, a, you, { kind: 'melee' })) return Combat.strike(state, a, you, ev);
-      const r = chase(state, a, you, ev);
-      if (r !== null) return r;
+    a.acts++;
+    if (Status.has(a, 'fixed')) {
+      if (a.telegraph) Specials.cancel(state, a, 'fixed', ev);
+      return AI.wait(state, a, ev);
     }
-    return wait(state, a, ev);
+    AI.look(state, a, ev);
+    if (a.telegraph) return Specials.resolve(state, a, ev);
+    const r = Archetypes.act(state, a, ev);
+    if (r !== null) return r;
+    return AI.byMode(state, a, ev);
+  }
+
+  // AI.sees(state, a) → bool: an awake, hunting, searching, returning or reinstalling exhibit
+  // sees you within SIGHT_EXHIBIT (Grid.disc) of some tile of its footprint, with line of
+  // sight from that tile (§8.2). A sleeping exhibit sees nothing.
+  function sees(state, a) {
+    if (a.gone || !SEES.includes(a.mode)) return false;
+    const you = state.actors[0], r = N.SIGHT_EXHIBIT;
+    for (const [x, y] of Actors.footprint(a)) if (Grid.disc(you.x - x, you.y - y, r) && Grid.los(state.dept, x, y, you.x, you.y)) return true;
+    return false;
+  }
+
+  // AI.look(state, a, ev): if a sees you, an exhibit that is awake, searching, returning or
+  // reinstalling starts to hunt you (being seen, with the distance); then, hunting or not,
+  // it has seen you since it woke (sawYou), knows your tile (lastKnown), and was stirred now.
+  function look(state, a, ev) {
+    if (!AI.sees(state, a)) return false;
+    const you = state.actors[0];
+    if (a.mode !== 'hunting') Wake.setMode(state, a, 'hunting', { k: 'seen', dist: Actors.dist(a, you.x, you.y) }, ev);
+    a.sawYou = true;
+    a.lastKnown = [you.x, you.y];
+    a.stim = state.turn;
+    return true;
   }
 
   // An exhibit's wait: one action's cost, with no event.
@@ -2152,27 +2649,226 @@ const AI = (() => {
     return dist;
   }
 
-  // Step along the walking-distance gradient toward the target; ties broken on the
-  // exhibit's own ai stream. Returns the cost, or null if it cannot move.
-  function chase(state, a, target, ev) {
-    const m = state.dept, big = (a.size || 1) > 1, far = m.w * m.h;
-    const dist = big ? bodyDistances(state, a, target, far) : Grid.distances(m, [[target.x, target.y]], far, null, 'exhibit');
-    const here = dist[a.y * m.w + a.x];
-    if (here <= 0) return null;
-    const options = [];
+  // A goal is a tile [x, y] or an actor. `how` is 'beside' (to stand beside it, as for a
+  // blow) or 'onto' (to stand on the tile; for a 2×2 body, beside it).
+  const isTile = g => Array.isArray(g);
+  // AI.field(state, a, goal, how) → Int32Array: a's walking distance to the goal from every
+  // anchor tile, by the exhibits' step rule (staff doors are walls; nothing steps out of a
+  // case), -1 where unreached; with the distance at which a has arrived (AI.arrived).
+  // Actors never block it. Not part of the state.
+  function field(state, a, goal, how) {
+    const m = state.dept, far = m.w * m.h;
+    if ((a.size || 1) > 1) return bodyDistances(state, a, isTile(goal) ? { x: goal[0], y: goal[1], size: 1 } : goal, far);
+    const starts = isTile(goal) ? [goal] : Actors.footprint(goal);
+    return Grid.distances(m, starts, far, null, 'exhibit');
+  }
+  // The distance in AI.field at which a has arrived: beside the goal (1) for a one-tile body
+  // going 'beside', otherwise 0.
+  const arrived = (a, how) => how === 'beside' && (a.size || 1) === 1 ? 1 : 0;
+
+  // One step of a's whole footprint in a direction from `options`, the ties broken on its
+  // own ai stream (§8.2), through Step.moveInto (a closed door on the way is opened, and a
+  // opens it from where it stands). Returns the cost, or null.
+  function stepAmong(state, a, options, ev) {
+    if (!options.length) return null;
+    const d = options.length === 1 ? options[0] : Rng.stream(state, 'ai/' + a.uid).pick(options);
+    const x = a.x, y = a.y, r = Step.moveInto(state, a, d, ev);
+    if (typeof r !== 'number') return null;
+    if (a.x !== x || a.y !== y) AI.afterStep(state, a, ev);
+    return r;
+  }
+  // The directions a may step in toward tile values `ok(v)` of dist: every tile of its
+  // footprint may step there, no other actor stands there, and its archetype allows it.
+  function options(state, a, dist, ok) {
+    const m = state.dept, out = [];
     for (let d = 0; d < 8; d++) {
       if (!fits(m, a, d)) continue;
       const nx = a.x + Grid.DX[d], ny = a.y + Grid.DY[d], v = dist[ny * m.w + nx];
-      if (v < 0 || v >= here || blocker(state, a, nx, ny)) continue;
-      options.push(d);
+      if (!ok(v) || blocker(state, a, nx, ny) || !Archetypes.mayStep(state, a, nx, ny)) continue;
+      out.push(d);
     }
-    if (!options.length) return null;
-    const d = options.length === 1 ? options[0] : Rng.stream(state, 'ai/' + a.uid).pick(options);
-    const r = Step.moveInto(state, a, d, ev);
-    return typeof r === 'number' ? r : null;
+    return out;
   }
 
-  return { act, wait, chase, bodyDistances };
+  // AI.towards(state, a, goal, how, ev) → ticks | null: the first step of a shortest walking
+  // path toward the goal (§8.2), or null if a has arrived, cannot reach it, or every such
+  // step is blocked.
+  function towards(state, a, goal, how, ev) {
+    const m = state.dept, dist = AI.field(state, a, goal, how), here = dist[a.y * m.w + a.x];
+    if (here < 0 || here <= arrived(a, how)) return null;
+    return stepAmong(state, a, options(state, a, dist, v => v >= 0 && v < here), ev);
+  }
+  // AI.away(state, a, from, ev) → ticks | null: a step that takes a further from `from` (a
+  // tile or an actor) by walking distance, or null if there is none.
+  function away(state, a, from, ev) {
+    const m = state.dept, dist = AI.field(state, a, from, 'onto'), here = dist[a.y * m.w + a.x];
+    if (here < 0) return null;
+    return stepAmong(state, a, options(state, a, dist, v => v > here), ev);
+  }
+
+  // AI.strike(state, a, b, ev) → ticks | null: a melee blow at b, if Combat.canStrike allows it.
+  const strike = (state, a, b, ev) => Combat.canStrike(state, a, b, { kind: 'melee' }) ? null : Combat.strike(state, a, b, ev);
+
+  // [stub → W1-WAKE-B] The behaviour by mode, which is the plodder's: an encased exhibit only
+  // waits; a hunter strikes you if it can, or steps toward you; every other exhibit waits.
+  function byMode(state, a, ev) {
+    if (Cases.encased(state, a)) return AI.wait(state, a, ev);
+    if (a.mode === 'hunting') {
+      const you = state.actors[0];
+      const r = AI.strike(state, a, you, ev);
+      if (r !== null) return r;
+      const t = AI.towards(state, a, you, 'beside', ev);
+      if (t !== null) return t;
+    }
+    return AI.wait(state, a, ev);
+  }
+  // [stub → W1-WAKE-B] Where an awake exhibit with nothing to investigate wanders to: null.
+  const wanderGoal = (state, a) => null;
+  // [stub → W1-WAKE-B] Turns out of sight before a hunter searches (§8.2); M4's Vanishing Act shortens it.
+  const loseTrackTurns = (state, a) => N.LOSE_TRACK_TURNS;
+  // [M4] May an idle awake exhibit go back? The alarm says no ("awake exhibits do not return").
+  const mayReturn = (state, a) => true;
+  // [M4] After each exhibit step (Single File).
+  function afterStep(state, a, ev) {}
+
+  return { act, sees, look, wait, field, arrived, towards, away, strike, bodyDistances, byMode, wanderGoal, loseTrackTurns, mayReturn, afterStep };
+})();
+
+</script>
+<script>
+// ACCESSION — the plodder archetype's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-WAKE-B. The plodder is every exhibit's default behaviour, which is AI.byMode, so it
+// needs no hook of its own; an exhibit with no species is a plodder. Its Behaviour-line
+// clause and registry entry are in js/core/reg/modes.js.
+'use strict';
+(() => {
+  Archetypes.add('plodder', {});
+})();
+
+</script>
+<script>
+// ACCESSION — the darter archetype's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-ARCH-A. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.add('darter', {});   // [stub → W1-ARCH-A] no hooks yet
+})();
+
+</script>
+<script>
+// ACCESSION — the kiter archetype's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-ARCH-B. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.add('kiter', {});   // [stub → W1-ARCH-B] no hooks yet
+})();
+
+</script>
+<script>
+// ACCESSION — the axis_sniper archetype's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-ARCH-B. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.add('axis_sniper', {});   // [stub → W1-ARCH-B] no hooks yet
+})();
+
+</script>
+<script>
+// ACCESSION — the splitter archetype's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-ARCH-A. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.add('splitter', {});   // [stub → W1-ARCH-A] no hooks yet
+})();
+
+</script>
+<script>
+// ACCESSION — the mote_swarm archetype's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-ARCH-A. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.add('mote_swarm', {});   // [stub → W1-ARCH-A] no hooks yet
+})();
+
+</script>
+<script>
+// ACCESSION — the herald archetype's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-ARCH-C. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.add('herald', {});   // [stub → W1-ARCH-C] no hooks yet
+})();
+
+</script>
+<script>
+// ACCESSION — the tethered_warden archetype's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-ARCH-C. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.add('tethered_warden', {});   // [stub → W1-ARCH-C] no hooks yet
+})();
+
+</script>
+<script>
+// ACCESSION — the reflector archetype's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-ARCH-B. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.add('reflector', {});   // [stub → W1-ARCH-B] no hooks yet
+})();
+
+</script>
+<script>
+// ACCESSION — the mimic_vitrine archetype's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-ARCH-C. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.add('mimic_vitrine', {});   // [stub → W1-ARCH-C] no hooks yet
+})();
+
+</script>
+<script>
+// ACCESSION — the night_watchman archetype's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-CLOCK. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.add('night_watchman', {});   // [stub → W1-CLOCK] no hooks yet
+})();
+
+</script>
+<script>
+// ACCESSION — the glass modifier's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-ARCH-B. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.addModifier('glass', {});   // [stub → W1-ARCH-B] no hooks yet
+})();
+
+</script>
+<script>
+// ACCESSION — the old_repair modifier's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-ARCH-B. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.addModifier('old_repair', {});   // [stub → W1-ARCH-B] no hooks yet
+})();
+
+</script>
+<script>
+// ACCESSION — the marble modifier's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-ARCH-A. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.addModifier('marble', {});   // [stub → W1-ARCH-A] no hooks yet
+})();
+
+</script>
+<script>
+// ACCESSION — the plaster modifier's hooks (BUILD.md §5.1, §5.3; rules/archetypes.js), owned by
+// W1-ARCH-A. Its Behaviour-line clause and registry entry are in js/core/reg/.
+'use strict';
+(() => {
+  Archetypes.addModifier('plaster', {});   // [stub → W1-ARCH-A] no hooks yet
 })();
 
 </script>

@@ -1,4 +1,6 @@
-// ACCESSION — what you can see and what your ring covers (BUILD.md §8.2).
+// ACCESSION — what you can see and what your ring covers (BUILD.md §8.2). The ring has one
+// predicate, Vision.inRing, behind both the ring the board draws and the ring pip a sleeper
+// gains at the turn boundary (Wake.boundary), so the two cannot differ.
 'use strict';
 const Vision = (() => {
   // "Within r" is defined once, in grid.js (§8.2).
@@ -13,27 +15,53 @@ const Vision = (() => {
     return out;
   }
 
-  // Your ring's radius: by your last action that cost time, plus a loud floor.
+  // Your ring's radius (§8.2): by your last action that cost time (still: wait, rest, view
+  // or sit), plus a loud floor under you, plus what your kit adds or takes (Kit.ringDelta:
+  // the Quiet primitive), never below RING_MIN.
   function ringRadius(state) {
     const you = state.actors[0];
     let r = you.still ? N.RING_STILL : N.RING_MOVING;
     const t = Grid.TILES[Grid.ch(state.dept, you.x, you.y)];
     if (t && t.loud) r += N.RING_LOUD_FLOOR;
+    r += Kit.ringDelta(state);
     return Math.max(N.RING_MIN, r);
   }
 
-  // The tiles your ring covers: exactly those where a sleeping exhibit would gain a pip
-  // (BUILD.md §8.2): within its walking distance and in line of sight. A tile you cannot
-  // step onto (a case, a plinth) is one step beyond its nearest neighbour you could.
+  // What the ring is measured with: its radius, and the walking distances from your tile out
+  // to it (§8.2's walking distance: staff doors count as doors, actors never block). Not
+  // part of the state; computing it once lets a caller ask about many tiles.
+  function field(state) {
+    const you = state.actors[0], r = ringRadius(state);
+    return { r, x: you.x, y: you.y, dist: Grid.distances(state.dept, [[you.x, you.y]], r) };
+  }
+
+  // The walking distance from you to (x, y) if the tile is inside your ring, else -1. Inside
+  // means: a tile an exhibit can stand on (Grid.hold: walkable, a vitrine or a plinth), within
+  // the ring's walking distance (a tile you cannot step onto is one beyond its nearest
+  // neighbour you can), and in line of sight from you. f is field(state), computed if absent.
+  function ringDist(state, x, y, f) {
+    const m = state.dept;
+    if (!Grid.inside(m, x, y) || !Grid.hold(m, x, y)) return -1;
+    f = f || field(state);
+    const d = Grid.reachDist(f.dist, m, x, y);
+    return d >= 0 && d <= f.r && Grid.los(m, f.x, f.y, x, y) ? d : -1;
+  }
+
+  // Vision.inRing(state, x, y[, f]): is (x, y) inside your ring, so that a sleeping exhibit
+  // standing on it gains a pip at the turn boundary (§8.2)? The one predicate for both.
+  const inRing = (state, x, y, f) => ringDist(state, x, y, f) >= 0;
+
+  // The tiles your ring covers, for the view model: a Uint8Array, 1 where inRing holds.
+  // Drawn from your current tile with the radius of your last action that cost time, it is
+  // exactly the ring the last turn boundary applied (§8.2).
   function ring(state) {
-    const m = state.dept, you = state.actors[0], r = ringRadius(state);
-    const d = Grid.distances(m, [[you.x, you.y]], r), out = new Uint8Array(m.w * m.h);
-    for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) {
-      const i = y * m.w + x, dist = Grid.reachDist(d, m, x, y);
-      if (dist >= 0 && dist <= r && Grid.los(m, you.x, you.y, x, y)) out[i] = 1;
-    }
+    const m = state.dept, f = field(state), out = new Uint8Array(m.w * m.h);
+    for (let y = 0; y < m.h; y++) for (let x = 0; x < m.w; x++) if (inRing(state, x, y, f)) out[y * m.w + x] = 1;
     return out;
   }
+
+  // [M4] Is a observed, for unobserved_motion and the Lamp's `observing`? Never in M3.
+  const observed = (state, a) => false;
 
   // Marks what you can see now as seen, in state.dept.seen (one character a tile).
   function remember(state) {
@@ -45,5 +73,5 @@ const Vision = (() => {
     if (changed || seen !== m.seen) m.seen = chars.join('');
   }
 
-  return { within, visible, ringRadius, ring, remember };
+  return { within, visible, ringRadius, field, ringDist, inRing, ring, observed, remember };
 })();
