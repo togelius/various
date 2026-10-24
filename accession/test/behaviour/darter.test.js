@@ -137,6 +137,34 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.match(q.failure || '', /^darter_steps_back: stepped back 2 times|^darter_steps_back: stepped from/);
   });
 
+  // The Re-admission Ticket puts you at the entrance with no `moved` event (§8.6; W1-CONSUMABLES).
+  // A darter beside the entrance then strikes you there and steps back in the same step; its
+  // step back is farther from the entrance, though nearer the tile you read the Ticket on, and
+  // the invariant judges it from where you are. A darter planted to step back from where you
+  // were before the Ticket steps beside the entrance instead, and breaks the invariant.
+  test('darter: after the Re-admission Ticket puts you at the entrance, its step back is judged from there', () => {
+    const map = ['###########', '#.........#', '#.........#', '#.........#', '###########'], sp = list[0].sp, from = [9, 2], door = [3, 2];
+    const run = (X, inv) => {
+      const s = X.Setup.room(1, { acc: 'T0', depth: 3, map, you: from, entrance: door, exhibits: [{ sp: sp.id, at: [4, 2], mode: 'hunting', stats: X.Roles.stats(sp.role, 3) }] }, { invulnerable: true });
+      X.Consumables.startRun(s);
+      const t = X.Consumables.make(s, 'ticket', { at: 'tote' });
+      s.run.knownSeals.push(X.Consumables.sealFor(s, 'ticket'));
+      return H.play(X, s, [{ a: 'use', uid: t.uid }], { inv, clone: true });
+    };
+    const r = run(C, 'all'), ev = r.steps[0].events, uid = r.state.actors[1].uid;
+    assert.deepEqual(r.violations, []);
+    const used = ev.findIndex(e => e.k === 'used'), blow = ev.findIndex(e => e.k === 'attacked' && e.by === uid);
+    assert.ok(used >= 0 && blow > used, 'the darter struck you after the Ticket');
+    assert.equal(JSON.stringify([ev[used].cause.x, ev[used].cause.y]), JSON.stringify(door));
+    const back = ev.slice(blow).find(e => e.k === 'moved' && e.who === uid);
+    assert.ok(back && cheb(back.to, door) === 2 && cheb(back.to, from) < cheb(back.from, from), `stepped back to ${back && back.to}`);
+    // Planted: the darter measures "farther" from the tile you read the Ticket on.
+    const X = loadCore(), real = X.AI.field;
+    X.AI.field = (state, a, goal, how) => a.arch === 'darter' && goal === state.actors[0] ? real(state, a, from, how) : real(state, a, goal, how);
+    const q = run(X, Inv.select(X, ['darter_steps_back']));
+    assert.match(q.violations.map(v => v.text).join(' | '), /darter_steps_back: stepped from 4,2 to 3,[13] after its blow at tick \d+, which is not farther from you/);
+  });
+
   test('darter: with its speed made to cover its blows too, the strike scenarios fail, and so does the speed invariant', () => {
     const X = loadCore(), real = X.Archetypes.speedApplies, half = Int.pct(N.COST_ATTACK, N.SPEED_FAST_PCT);
     X.Archetypes.speedApplies = (state, a) => a.arch === 'darter' ? ['move', 'act'] : real(state, a);

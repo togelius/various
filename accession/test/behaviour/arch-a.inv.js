@@ -33,6 +33,15 @@ module.exports = (C) => {
       if (e.k === 'moved' && pos.has(e.who)) { const p = pos.get(e.who); p.x = e.to[0]; p.y = e.to[1]; }
       else if (e.k === 'died') pos.delete(e.who);
     }
+    // You: your action comes first and only it moves you, but not always by a `moved` event
+    // (the Re-admission Ticket puts you at the entrance, its `used` cause naming the tile,
+    // §8.6). So you stand where the step leaves you, unless a later move of yours in the step
+    // says where you were.
+    const you = post.actors[0];
+    if (pos.has('you') && you && !you.gone) {
+      const later = events.find((e, i) => i >= upto && e.k === 'moved' && e.who === 'you');
+      put('you', later ? later.from : [you.x, you.y], 1);
+    }
     const d = post.dept, m = { w: d.w, h: d.h, tiles: d.tiles.slice(), surfaces: d.surfaces || [] }, done = new Set();
     for (let i = upto; i < events.length; i++) {
       const e = events[i];

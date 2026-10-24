@@ -254,7 +254,10 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.match(run((s, a, h) => { a.gen = 0; h.gen = 0; }), /generation/);
     // A half that is not the same exhibit: weaker blows, another group, or one that has not seen you.
     assert.match(run((s, a, h) => { h.dmin = 1; h.dmax = 1; }), /^splitter_splits: its half \S+ has dmin 1; the body it came from has \d+/);
-    assert.match(run((s, a, h) => { h.group = 'other'; }), /^splitter_splits: its half \S+ has group "other"; the body it came from has null/);
+    // The body keeps its species' group (A.4's busts are 'trustees'; a species with none has null).
+    const group = json(list[0].sp.group || null).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    assert.notEqual(list[0].sp.group, 'other');
+    assert.match(run((s, a, h) => { h.group = 'other'; }), new RegExp(`^splitter_splits: its half \\S+ has group "other"; the body it came from has ${group} `));
     assert.match(run((s, a, h) => { h.sawYou = false; }), /^splitter_splits: its half \S+ has not seen you, though the body it came from had/);
   });
 };
