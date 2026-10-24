@@ -25,7 +25,7 @@ The build contract is [`BUILD.md`](BUILD.md); this file records what has been bu
 | M1 Layout | accepted, 23 October 2026 |
 | M2 Look and read | accepted, 23 October 2026 |
 | M2b The 3D board | the 3D checks and every M2 screen check pass in both views; waiting on Julian's side-by-side look and device numbers |
-| M3 Exhibits wake | underway: Wave 0 (the backbone) done, all five parts landed (W0a–W0e) and the golden re-pinned |
+| M3 Exhibits wake | underway: Wave 0 (the backbone) done, all five parts landed (W0a–W0e) and the golden re-pinned; Wave 1 next, with the golden pending |
 | M4 Three departments | not started |
 | M5 A run | not started |
 | M6 Sound | not started |
@@ -246,4 +246,5 @@ The build contract is [`BUILD.md`](BUILD.md); this file records what has been bu
   - **How the step was found:** the old commit's core (61ecaf0, unpacked into a temporary directory with `git archive`) and this tree's were run side by side on the golden monkey (seed 20261023, 10,000 actions), comparing after every step the state hash and what both state shapes share (the turn, the tick, and every actor's tile, health, mode and gone flag). The old core still gives 1695131025. The state hash differs from the start, since every state now carries M3's new fields, so the first diverging step is step 1. The play itself is the same until step 404, where the sleeping dummy at (9,1) wakes in your ring (it slept through M2's run); from there the runs part, and the new one finishes 37 visits where M2's finished 40.
   - **Checks:** the new checkpoints are 1823402178, 772037959, 1272910340, 29837228, 4262093995, 3366555807, 1747605312, 1587150453, 1337848051 and 2159065831, the same in `node tools/golden.js`, the comparison script and the hash page; `node tools/golden.js --check` passes with nothing pending, and `check-hash` passes on the pin in Chromium.
 - **Wave 0 is done:** lint-registry reports 95 M3 entries at `ready: false`, none at `'unit'` or `true`, and 18 M4 entries; every Wave 1 package can build a state (`Setup.room`, `Dept.create`), call each built interface, and see each stub return its neutral value (`test/m3-backbone*.test.js`).
+- **The golden is pending again for Wave 1** (`pending: "M3 Wave 1 in progress; re-pinned at the end of Wave 1"`), keeping the pin 2478084208, so that Wave 1's packages can change the state; it is re-pinned at the end of Wave 1. Until then the hash page prints PENDING with its hash and `check-hash` compares it with Node's run of the same tree.
 

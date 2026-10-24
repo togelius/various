@@ -18,6 +18,7 @@ const GOLDEN = {
    1337848051,
    2159065831
   ],
-  "visits": 37
+  "visits": 37,
+  "pending": "M3 Wave 1 in progress; re-pinned at the end of Wave 1"
  }
 };
