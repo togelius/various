@@ -1,6 +1,6 @@
-// ACCESSION — waking and modes (BUILD.md §8.2). W0d builds waking, the changes of mode, pips
-// and the ring pip; W1-WAKE-A owns the file after, and fills hearing, decay, the special
-// triggers, "Quiet, Please" and losing you.
+// ACCESSION — waking and modes (BUILD.md §8.2): waking, the changes of mode, pips, the ring
+// pip, hearing, decay, the special triggers (`axis`, `tether`, `ally_hit`), "Quiet, Please"
+// and the Re-admission Ticket's losing you. Owned by W1-WAKE-A.
 //
 // Two functions change an exhibit's mode, and nothing else does:
 //   Wake.wake     takes a sleeping exhibit out of dormant: it resets what belongs to one
@@ -144,43 +144,191 @@ const Wake = (() => {
     return pips >= N.PIPS_TO_WAKE ? wake(state, a, W.mode, cause, ev, opts) : false;
   }
 
-  // Turn boundary step 4 (§8.1): the wake checks, from your tile at this tick. Each sleeping
-  // exhibit that is not gone and not pipless, in spawn order: the ring (a pip if any tile it
-  // stands on is inside your ring, Vision.inRing, with the walking distance and the radius
-  // in the cause), then its axis and tether triggers.
+  // Turn boundary step 4 (§8.1): the wake checks, all made from your tile at this tick and
+  // only then applied, so that what one sleeper's waking does cannot change what another's
+  // checks find. For each sleeping exhibit that is not gone and not pipless, in spawn order:
+  // the ring (a pip if any tile it stands on is inside your ring, Vision.inRing, with the
+  // walking distance and the radius in the cause); its `axis` trigger (a pip while you stand
+  // in its row or column within AXIS_RANGE, in its sight: Wake.onAxis); its `tether` trigger
+  // (all its pips at once while you are within TETHER_RANGE of what it guards: Wake.inTether).
+  // Each is applied in that order, so if the ring's pip is the third, the ring woke it.
   function boundary(state, ev) {
     let f = null;
+    const due = [];
     for (let i = 1; i < state.actors.length; i++) {
       const a = state.actors[i];
       if (a.gone || a.mode !== 'dormant' || Archetypes.pipless(state, a)) continue;
       if (!f) f = Vision.field(state);
       let dist = -1;
       for (const [x, y] of Actors.footprint(a)) { const d = Vision.ringDist(state, x, y, f); if (d >= 0 && (dist < 0 || d < dist)) dist = d; }
-      if (dist >= 0) addPips(state, a, 1, { k: 'ring', dist, r: f.r }, ev);
-      Wake.axis(state, a, ev);
-      Wake.tether(state, a, ev);
+      const axis = a.trigger === 'axis' && Wake.onAxis(state, a) ? axisDist(state, a) : -1;
+      const tether = a.trigger === 'tether' && Wake.inTether(state, a);
+      if (dist >= 0 || axis >= 0 || tether) due.push({ a, dist, axis, tether });
+    }
+    for (const d of due) {
+      if (d.dist >= 0) addPips(state, d.a, 1, { k: 'ring', dist: d.dist, r: f.r }, ev);
+      if (d.axis >= 0) addPips(state, d.a, 1, { k: 'axis', dist: d.axis }, ev);
+      if (d.tether) addPips(state, d.a, N.PIPS_TO_WAKE, tetherCause(state, d.a), ev);
     }
   }
 
-  // [stub → W1-WAKE-A] Boundary step 4's special triggers for a: axis (a pip a turn while you
-  // stand in its row or column within AXIS_RANGE, in its sight) and tether (wakes at once
-  // when you come within TETHER_RANGE of what it guards).
-  function axis(state, a, ev) {}
-  function tether(state, a, ev) {}
-  // [stub → W1-WAKE-A] Turn boundary step 5: a pip decays per PIP_DECAY_TURNS turns without
-  // stimulus, before the bell.
-  function decay(state, ev) {}
-  // [stub → W1-WAKE-A] Noise.emit: a heard a noise, dist walking tiles away.
-  function hear(state, a, noise, dist, ev) {}
-  // [stub → W1-WAKE-A] Combat.hurt: victim took damage; its group within ALLY_HIT_RANGE wakes.
-  function allyHit(state, victim, cause, ev) {}
-  // [stub → W1-WAKE-A] "Quiet, Please" read at (x, y): pips fall, hunters lose you, the awake settle.
-  function quiet(state, x, y, range, cause, ev) {}
-  // [stub → W1-WAKE-A] Every hunter loses you (the Re-admission Ticket).
-  function lose(state, cause, ev) {}
+  // The `axis` trigger (§8.2): you stand in a's row or column, within AXIS_RANGE of one of
+  // its tiles (Grid.disc, which on a row or column is at most AXIS_RANGE tiles), with line of
+  // sight from that tile to yours. axisDist gives the tiles between you along that line (the
+  // nearest of its tiles that qualifies), or -1; onAxis says whether there is one. Neither
+  // asks whether a sleeps or has the trigger: Wake.boundary does.
+  function axisDist(state, a) {
+    const you = state.actors[0], m = state.dept;
+    let best = -1;
+    for (const [x, y] of Actors.footprint(a)) {
+      if ((x !== you.x && y !== you.y) || (x === you.x && y === you.y)) continue;
+      const d = Math.abs(you.x - x) + Math.abs(you.y - y);
+      if (!Grid.disc(you.x - x, you.y - y, N.AXIS_RANGE) || !Grid.los(m, x, y, you.x, you.y)) continue;
+      if (best < 0 || d < best) best = d;
+    }
+    return best;
+  }
+  const onAxis = (state, a) => axisDist(state, a) >= 0;
+
+  // The `tether` trigger (§8.2): you are within TETHER_RANGE (Grid.disc) of the tile a guards
+  // (a.guards: a tethered warden's own tile, set by its archetype). No sight is needed. False
+  // if it guards nothing.
+  function inTether(state, a) {
+    const g = a.guards, you = state.actors[0];
+    return Array.isArray(g) && Grid.disc(you.x - g[0], you.y - g[1], N.TETHER_RANGE);
+  }
+  // The tether's cause: how far you are from what it guards, and that tile.
+  const tetherCause = (state, a) => ({ k: 'tether', dist: Grid.chebyshev(state.actors[0].x, state.actors[0].y, a.guards[0], a.guards[1]), x: a.guards[0], y: a.guards[1] });
+
+  // One trigger for one exhibit, as Wake.boundary applies it: a's axis pip (if it sleeps,
+  // has the axis trigger and you are on its axis) and a's tether (likewise). Each returns
+  // whether it woke a.
+  function axis(state, a, ev) {
+    if (a.gone || a.mode !== 'dormant' || a.trigger !== 'axis' || !Wake.onAxis(state, a)) return false;
+    return addPips(state, a, 1, { k: 'axis', dist: axisDist(state, a) }, ev);
+  }
+  function tether(state, a, ev) {
+    if (a.gone || a.mode !== 'dormant' || a.trigger !== 'tether' || !Wake.inTether(state, a)) return false;
+    return addPips(state, a, N.PIPS_TO_WAKE, tetherCause(state, a), ev);
+  }
+
+  // Turn boundary step 5 (§8.1): pips decay, only before the bell (Clock.pipsDecay). A
+  // sleeping exhibit with pips loses one when PIP_DECAY_TURNS turns have passed since its
+  // last stimulus (stim: its last pip gained, or the turn it went to sleep) and since its
+  // last decay (pipTurns.decay, the turn Wake.addPips last took a pip for decay): so a
+  // sleeper left at 2 pips on turn t is at 1 on turn t + 10 and at 0 on turn t + 20.
+  function decay(state, ev) {
+    if (!Clock.pipsDecay(state)) return;
+    for (let i = 1; i < state.actors.length; i++) {
+      const a = state.actors[i];
+      if (a.gone || a.mode !== 'dormant' || !a.pips || Archetypes.pipless(state, a)) continue;
+      const last = a.pipTurns.decay, since = last !== undefined && last !== null && last > a.stim ? last : a.stim;
+      if (state.turn - since >= N.PIP_DECAY_TURNS) addPips(state, a, -1, { k: 'decay' }, ev);
+    }
+  }
+
+  // Noise.emit: a heard a noise (noise {x, y, cls, range, by, k}) dist walking tiles away
+  // (§8.2). An exhibit never reacts to a noise it made itself. By its mode:
+  //   dormant: a pip (cause noise, at most one a turn); the third wakes it awake, to look at
+  //     the noise's tile;
+  //   awake: it goes to look at the noise's tile (alerted), and the noise counts as a
+  //     stimulus; a noise from the tile it is already going to look at only counts;
+  //   searching, returning or reinstalling: it goes awake, to look there (alerted);
+  //   hunting: if you made the noise, its last-known tile becomes the noise's tile (the
+  //     Tuning Fork's lure is yours too); another exhibit's noise says nothing about where
+  //     you are. Its count of turns out of sight goes on.
+  // Returns whether a changed.
+  function hear(state, a, noise, dist, ev) {
+    if (!a || a.gone || a.uid === 'you' || Archetypes.pipless(state, a)) return false;
+    if (noise.by && noise.by === a.uid) return false;
+    const src = [noise.x, noise.y], cause = { k: 'noise' };
+    if (noise.by) cause.by = noise.by;
+    cause.dist = dist; cause.cls = noise.cls;
+    switch (a.mode) {
+      case 'dormant': { const pips = a.pips; return addPips(state, a, 1, cause, ev, { target: src }) || a.pips !== pips; }
+      case 'awake':
+        if (Array.isArray(a.target) && a.target[0] === src[0] && a.target[1] === src[1]) { a.stim = state.turn; return true; }
+        return setMode(state, a, 'awake', cause, ev, { target: src });
+      case 'searching': case 'returning': case 'reinstalling':
+        return setMode(state, a, 'awake', cause, ev, { target: src });
+      case 'hunting':
+        if (noise.by !== 'you') return false;
+        a.lastKnown = src;
+        return true;
+    }
+    return false;
+  }
+
+  // Combat.hurt: victim took damage (cause, the damage's). Every sleeping exhibit of the
+  // victim's group (a.group, from its species) whose own trigger is `ally_hit`, within
+  // ALLY_HIT_RANGE of the victim (Grid.disc, between any of their tiles), gains all its pips
+  // at once and wakes hunting, in spawn order. The cause names the ally that was hurt, who
+  // hurt it, and the distance between them. A blow applies this before its noise (§8.2).
+  function allyHit(state, victim, cause, ev) {
+    if (!victim || victim.uid === 'you' || !victim.group) return;
+    for (let i = 1; i < state.actors.length; i++) {
+      const b = state.actors[i];
+      if (b === victim || b.gone || b.mode !== 'dormant' || b.group !== victim.group || b.trigger !== 'ally_hit' || Archetypes.pipless(state, b)) continue;
+      if (!near(b, victim, N.ALLY_HIT_RANGE)) continue;
+      const c = { k: 'ally_hit' };
+      if (cause && cause.by) c.by = cause.by;
+      c.ally = victim.uid; c.dist = Actors.between(b, victim);
+      addPips(state, b, N.PIPS_TO_WAKE, c, ev);
+    }
+  }
+  // Is some tile of a within r (Grid.disc) of some tile of b?
+  function near(a, b, r) {
+    for (const [x, y] of Actors.footprint(a)) for (const [u, v] of Actors.footprint(b)) if (Grid.disc(x - u, y - v, r)) return true;
+    return false;
+  }
+
+  // Whom "Quiet, Please" leaves alone: the Night Watchman, who comes for you whatever you
+  // read (§8.4), and a species that never sleeps (trigger `awake`). The Ticket leaves the
+  // Night Watchman alone too.
+  const unmoved = a => a.arch === 'night_watchman' || a.trigger === 'awake';
+  // Their causes, as the events carry them: {k, by, item?}.
+  function calm(k, cause) {
+    const c = { k, by: (cause && cause.by) || 'you' };
+    if (cause && cause.item) c.item = cause.item;
+    return c;
+  }
+
+  // "Quiet, Please" read at (x, y) (§8.6): every exhibit within `range` walking tiles of it
+  // (to its nearest tile, as noise is measured but with no extra for doors, since nothing is
+  // heard), in spawn order: a sleeper loses all its pips; an exhibit awake but not hunting
+  // (awake, searching, returning or reinstalling) goes to sleep where it stands, its home
+  // unchanged, so a later waking still brings it home; a hunter drops to awake, with nothing
+  // to look at, and its pending special is called off. Not the Night Watchman, nor a species
+  // that never sleeps, nor a mimic in its disguise (which has no pips).
+  function quiet(state, x, y, range, cause, ev) {
+    const c = calm('quiet', cause), m = state.dept, d = Grid.distances(m, [[x, y]], range);
+    for (let i = 1; i < state.actors.length; i++) {
+      const a = state.actors[i];
+      if (a.gone || unmoved(a) || Archetypes.pipless(state, a)) continue;
+      let dist = -1;
+      for (const [tx, ty] of Actors.footprint(a)) { const t = Grid.reachDist(d, m, tx, ty); if (t >= 0 && (dist < 0 || t < dist)) dist = t; }
+      if (dist < 0 || dist > range) continue;
+      if (a.mode === 'dormant') { if (a.pips > 0) addPips(state, a, -a.pips, c, ev); }
+      else if (a.mode === 'hunting') setMode(state, a, 'awake', c, ev, { target: null });
+      else setMode(state, a, 'dormant', c, ev);
+    }
+  }
+
+  // The Re-admission Ticket (§8.6): every hunter but the Night Watchman loses you, and
+  // searches where it last knew you were (its last-known tile is unchanged); its pending
+  // special is called off, so nothing it marked resolves on you unseen.
+  function lose(state, cause, ev) {
+    const c = calm('ticket', cause);
+    for (let i = 1; i < state.actors.length; i++) {
+      const a = state.actors[i];
+      if (a.gone || a.mode !== 'hunting' || a.arch === 'night_watchman') continue;
+      setMode(state, a, 'searching', c, ev, { lastKnown: a.lastKnown });
+    }
+  }
+
   // [M4] The chime: a period exhibit performs, then sleeps again with the pips it had.
   function perform(state, a, cause, ev) {}
   function resleep(state, a, ev) {}
 
-  return { MODES: MODES.slice(), wake, setMode, toHunting, created, addPips, boundary, axis, tether, decay, hear, allyHit, quiet, lose, perform, resleep };
+  return { MODES: MODES.slice(), wake, setMode, toHunting, created, addPips, boundary, onAxis, axisDist, inTether, axis, tether, decay, hear, allyHit, quiet, lose, perform, resleep };
 })();

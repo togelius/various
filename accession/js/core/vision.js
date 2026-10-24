@@ -1,6 +1,6 @@
 // ACCESSION — what you can see and what your ring covers (BUILD.md §8.2). The ring has one
 // predicate, Vision.inRing, behind both the ring the board draws and the ring pip a sleeper
-// gains at the turn boundary (Wake.boundary), so the two cannot differ.
+// gains at the turn boundary (Wake.boundary), so the two cannot differ. Owned by W1-WAKE-A.
 'use strict';
 const Vision = (() => {
   // "Within r" is defined once, in grid.js (§8.2).
@@ -17,7 +17,8 @@ const Vision = (() => {
 
   // Your ring's radius (§8.2): by your last action that cost time (still: wait, rest, view
   // or sit), plus a loud floor under you, plus what your kit adds or takes (Kit.ringDelta:
-  // the Quiet primitive), never below RING_MIN.
+  // the Quiet primitive), never below RING_MIN. M4's Soft Soles perk takes its part here too;
+  // the ring drawn and the ring pip both read this one radius.
   function ringRadius(state) {
     const you = state.actors[0];
     let r = you.still ? N.RING_STILL : N.RING_MOVING;
