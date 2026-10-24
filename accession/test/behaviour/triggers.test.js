@@ -110,9 +110,11 @@ module.exports = ({ test, assert, loadCore }) => {
 
   // ---- awake ----
   // It is made awake and you wait out of its sight for longer than an awake exhibit idles
-  // (AWAKE_IDLE_TURNS) before going back to sleep: it never sleeps.
+  // (AWAKE_IDLE_TURNS) before going back to sleep: it never sleeps, nor sets off back to
+  // sleep (§8.2: it "never returns to sleep"), so it is never dormant, returning or reinstalling.
+  const SLEEPWARD = ['dormant', 'returning', 'reinstalling'];
   const awake = H.scenario({
-    name: 'it is awake from the start and is never dormant',
+    name: 'it is awake from the start and is never dormant, nor going back to sleep',
     id: 'awake', clone: true,
     build(params, sp, depth, opts) {
       // A pack or shared species gives its own archetype and trigger, and is made awake; a
@@ -127,8 +129,10 @@ module.exports = ({ test, assert, loadCore }) => {
     expect(r) {
       const a = r.state.actors[1];
       if (!r.start.actors[1].woke || r.start.actors[1].woke.cause.k !== 'awake' || r.start.actors[1].mode === 'dormant') return `made ${r.start.actors[1].mode}, story ${json(r.start.actors[1].woke)}`;
-      const slept = r.steps.findIndex(st => st.events.some(e => e.who === a.uid && ((e.k === 'lost' && e.to === 'dormant') || (e.k === 'returned' && e.phase === 'reinstalled'))));
-      if (slept >= 0 || a.mode === 'dormant') return `it went to sleep (step ${slept})`;
+      // Every change of mode has its event (§8.2), so the steps' events tell each mode it had.
+      const slept = r.steps.findIndex(st => st.events.some(e => e.who === a.uid && ((e.k === 'lost' && SLEEPWARD.includes(e.to)) || e.k === 'returned' || (e.k === 'woke' && e.was === 'dormant'))));
+      if (slept >= 0) return `it went towards sleep at step ${slept}: ${json(r.steps[slept].events.filter(e => e.who === a.uid).map(e => [e.k, e.to || e.phase || e.mode || null]))}`;
+      if (SLEEPWARD.includes(a.mode)) return `it is ${a.mode}`;
       return null;
     },
   });
@@ -156,9 +160,15 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.ok(H.sweep(Y, tetherOn, at3('tether')).every(r => r.failure), 'tether');
     const Z = loadCore(); Z.Wake.allyHit = () => {};
     assert.ok(H.sweep(Z, allyOn, at3('ally_hit')).every(r => r.failure), 'ally_hit');
-    // A rule that sends an awake exhibit to sleep after a while breaks "It never sleeps".
-    const W = loadCore(), act = W.AI.act;
-    W.AI.act = (s, a, ev) => { if (a.mode === 'awake' && s.turn > 10) W.Wake.setMode(s, a, 'dormant', { k: 'quiet', by: 'you' }, ev); return act(s, a, ev); };
-    assert.ok(H.sweep(W, awake, at3('awake')).every(r => r.failure), 'awake');
+    // A rule that sends an awake exhibit to sleep after a while, or only home (the first step
+    // back to sleep), breaks "It never sleeps". The scenario's own expectation catches each,
+    // with the invariants off as well as on.
+    for (const [to, cause] of [['dormant', { k: 'quiet', by: 'you' }], ['returning', { k: 'idle', turns: C.N.AWAKE_IDLE_TURNS }]]) {
+      const W = loadCore(), act = W.AI.act;
+      W.AI.act = (s, a, ev) => { if (a.mode === 'awake' && s.turn > 10) W.Wake.setMode(s, a, to, cause, ev); return act(s, a, ev); };
+      const list = at3('awake').concat([{ sp: PLANTED, depth: 3 }]);
+      assert.ok(H.sweep(W, awake, list).every(r => r.failure), `awake: sent ${to}`);
+      assert.ok(H.sweep(W, awake, list, { inv: [] }).every(r => r.failure && !r.violations.length), `awake: sent ${to}, by the scenario itself`);
+    }
   });
 };

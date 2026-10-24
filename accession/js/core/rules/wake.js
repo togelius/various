@@ -237,13 +237,15 @@ const Wake = (() => {
   //   hunting: if you made the noise, its last-known tile becomes the noise's tile (the
   //     Tuning Fork's lure is yours too); another exhibit's noise says nothing about where
   //     you are. Its count of turns out of sight goes on.
-  // Returns whether a changed.
+  // The cause names the source (who made the noise, when someone did, and its tile x, y),
+  // the walking distance and the class (§3.4: a wake event names the trigger, the source and
+  // the distance). Returns whether a changed.
   function hear(state, a, noise, dist, ev) {
     if (!a || a.gone || a.uid === 'you' || Archetypes.pipless(state, a)) return false;
     if (noise.by && noise.by === a.uid) return false;
     const src = [noise.x, noise.y], cause = { k: 'noise' };
     if (noise.by) cause.by = noise.by;
-    cause.dist = dist; cause.cls = noise.cls;
+    cause.dist = dist; cause.cls = noise.cls; cause.x = noise.x; cause.y = noise.y;
     switch (a.mode) {
       case 'dormant': { const pips = a.pips; return addPips(state, a, 1, cause, ev, { target: src }) || a.pips !== pips; }
       case 'awake':

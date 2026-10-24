@@ -39,7 +39,10 @@
 
   // Why a pip came or went.
   R.defineCause('pip', 'ring', { fields: { dist: 'int', r: 'int' } });
-  R.defineCause('pip', 'noise', { fields: { by: 'uid?', dist: 'int', cls: 'str' } });
+  // A noise names its source: who made it (if anyone did) and its tile. The tile is optional
+  // only for callers that give a noise cause by hand; Wake.hear always gives it.
+  const heard = { by: 'uid?', dist: 'int', cls: 'str', x: 'int?', y: 'int?' };
+  R.defineCause('pip', 'noise', { fields: heard });
   R.defineCause('pip', 'axis', { fields: { dist: 'int' } });
   R.defineCause('pip', 'decay', { fields: {} });
   R.defineCause('pip', 'quiet', { fields: read });
@@ -49,7 +52,7 @@
   R.defineCause('lost', 'ticket', { fields: read });
   R.defineCause('returned', 'quiet', { fields: read });
   // Noise sends a searching, returning or awake exhibit to look (§8.2).
-  R.defineCause('alerted', 'noise', { fields: { by: 'uid?', dist: 'int', cls: 'str' } });
+  R.defineCause('alerted', 'noise', { fields: heard });
 
   // Wake causes (§3.4, §8.2), each with the mode it wakes into; `creation` marks one given
   // to an actor made awake.

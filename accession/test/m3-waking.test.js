@@ -42,7 +42,7 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json(pipsOf(ev2, t.actors[1].uid).map(e => [e.cause.dist, e.cause.r])), json([[3, 3]]));
   });
 
-  test('noise: each class is heard at its range and not one tile further; a closed door adds 3; a sleeper gains at most one noise pip a turn', () => {
+  test('noise: each class is heard at its range and not one tile further; a closed door, ordinary or staff, adds 3; a 2×2 body hears from its nearest tile; a sleeper gains at most one noise pip a turn', () => {
     const X = loadCore();
     const corridor = ['#'.repeat(16), '#' + '.'.repeat(14) + '#', '#'.repeat(16)];
     for (const [cls, range] of [['soft', N.NOISE_SOFT], ['loud', N.NOISE_LOUD], ['crash', N.NOISE_CRASH]]) {
@@ -53,14 +53,23 @@ module.exports = ({ test, assert, loadCore }) => {
       assert.equal(json(ev.filter(e => e.k === 'pip').map(e => [e.who, e.cause.k, e.cause.dist, e.cause.cls, e.cause.by])), json([[s.actors[1].uid, 'noise', range, cls, 'you']]), `${cls}: heard at ${range}, not at ${range + 1}`);
     }
     // A closed door between: the soft noise from (1, 1) reaches (4, 1) beyond the door at (3, 1)
-    // only when the door is open; a loud one reaches it through the closed door, 3 + 3 = 6.
+    // only when the door is open; a loud one reaches it through the closed door, 3 + 3 = 6. A
+    // staff door, closed or open, counts as a door (§8.2: "staff doors count as doors").
     const doors = ['########', '#..+...#', '########'];
-    for (const [tile, cls, heard] of [['+', 'soft', false], ["'", 'soft', true], ['+', 'loud', true]]) {
+    for (const [tile, cls, heard] of [['+', 'soft', false], ["'", 'soft', true], ['+', 'loud', true], ['S', 'soft', false], ['s', 'soft', true], ['S', 'loud', true]]) {
       const map = doors.map(r => r.replace('+', tile)), s = room(X, map, [6, 1], [ex([4, 1])]), ev = [];
       X.Noise.emit(s, 1, 1, cls, { k: 'attack', by: 'you' }, ev);
       const pip = ev.find(e => e.k === 'pip');
       assert.equal(!!pip, heard, `${cls} through ${tile}`);
-      if (pip) assert.equal(pip.cause.dist, tile === '+' ? 3 + N.NOISE_DOOR : 3);
+      if (pip) assert.equal(json([pip.cause.dist, pip.cause.x, pip.cause.y]), json([tile === '+' || tile === 'S' ? 3 + N.NOISE_DOOR : 3, 1, 1]), `${cls} through ${tile}`);
+    }
+    // A 2×2 body hears from its nearest tile: a soft noise at (9, 3) is 3 tiles from (6, 3), the
+    // nearest tile of a body at (5, 2), though 4 from its own tile (5, 2); a body at (4, 2) is
+    // 4 from its nearest tile and hears nothing.
+    for (const [at, dist] of [[[5, 2], 3], [[4, 2], -1]]) {
+      const s = room(X, open(18, 6), [16, 1], [ex(at, { size: 2 })]), ev = [];
+      X.Noise.emit(s, 9, 3, 'soft', { k: 'attack', by: 'you' }, ev);
+      assert.equal(json(checked(X, ev).filter(e => e.k === 'pip').map(e => e.cause.dist)), json(dist < 0 ? [] : [dist]), `a 2×2 body at ${at}`);
     }
     // Two noises in one turn: one pip; the next turn: another; the third pip, from noise,
     // wakes it awake, to look at the noise's tile, not hunting.
@@ -72,6 +81,9 @@ module.exports = ({ test, assert, loadCore }) => {
     s.turn = 2; s.tick = 200; X.Noise.emit(s, 1, 3, 'soft', { k: 'attack', by: 'you' }, ev);
     checked(X, said(X, ev));
     assert.equal(json([a.mode, a.target, a.woke.cause.k, a.hunted]), json(['awake', [1, 3], 'noise', null]));
+    // Each noise's cause names its source: who made it and its tile (§3.4).
+    assert.equal(json(pipsOf(ev, a.uid).map(e => [e.cause.by, e.cause.x, e.cause.y])), json([['you', 2, 2], ['you', 2, 2], ['you', 1, 3]]));
+    assert.equal(json([a.woke.cause.x, a.woke.cause.y, a.woke.cause.dist, a.woke.cause.cls]), json([1, 3, 2, 'soft']));
     assert.ok(!ev.some(e => e.k === 'hunting'), 'noise wakes it awake, not hunting');
     assert.equal(a.next, 200 + N.COST_STEP, 'after a beat');
   });
@@ -89,8 +101,8 @@ module.exports = ({ test, assert, loadCore }) => {
     // The awake one made the noise itself and does not react to it.
     assert.equal(json([aw.mode, aw.target]), json(['awake', [5, 5]]));
     for (const a of [se, re, ri]) assert.equal(json([a.mode, a.target, a.stim]), json(['awake', [3, 3], 4]), a.uid);
-    assert.equal(json(ev.filter(e => e.k === 'alerted').map(e => [e.who, e.from, e.to, e.x, e.y, e.cause.k, e.cause.by, e.cause.cls])),
-      json([[se.uid, 'searching', 'awake', 3, 3, 'noise', aw.uid, 'soft'], [re.uid, 'returning', 'awake', 3, 3, 'noise', aw.uid, 'soft'], [ri.uid, 'reinstalling', 'awake', 3, 3, 'noise', aw.uid, 'soft']]));
+    assert.equal(json(ev.filter(e => e.k === 'alerted').map(e => [e.who, e.from, e.to, e.x, e.y, e.cause.k, e.cause.by, e.cause.cls, e.cause.x, e.cause.y])),
+      json([[se.uid, 'searching', 'awake', 3, 3, 'noise', aw.uid, 'soft', 3, 3], [re.uid, 'returning', 'awake', 3, 3, 'noise', aw.uid, 'soft', 3, 3], [ri.uid, 'reinstalling', 'awake', 3, 3, 'noise', aw.uid, 'soft', 3, 3]]));
     assert.equal(json(hu.lastKnown), json([9, 1]), 'another exhibit\'s noise says nothing about where you are');
     // Your noise: the hunter's last-known tile moves to it, and its turns out of sight go on.
     s.turn = 5;
@@ -134,6 +146,14 @@ module.exports = ({ test, assert, loadCore }) => {
       evt.push(...X.Step.step(t, { a: 'wait' }));
     }
     assert.equal(json(pipsOf(evt, c.uid).map(e => [e.turn, e.pips, e.cause.k])), json([[5, 2, 'noise'], [15, 1, 'decay'], [25, 0, 'decay']]));
+    // A pip gained after a decay counts from the pip: 2 pips on turn 0 decay to 1 on turn 10; a
+    // noise on turn 12 gives the second back; the next decay is on turn 22, not 20.
+    const v = room(X, map, [27, 2], [ex([2, 2], { pips: 2, stim: 0 })]), g = v.actors[1], evv = [];
+    for (let i = 0; i < 40; i++) {
+      if (v.turn === 12) X.Noise.emit(v, 2, 1, 'soft', { k: 'attack', by: 'you' }, evv);
+      evv.push(...X.Step.step(v, { a: 'wait' }));
+    }
+    assert.equal(json(pipsOf(evv, g.uid).map(e => [e.turn, e.pips, e.cause.k])), json([[10, 1, 'decay'], [12, 2, 'noise'], [22, 1, 'decay'], [32, 0, 'decay']]));
     // After the bell (stage 1) pips stay.
     const u = room(X, map, [27, 2], [ex([2, 2], { pips: 2, stim: 0 })], null, { clock: { B: 5, G: 500, count: 5 } });
     assert.equal(X.Clock.stage(u), 1);
@@ -231,6 +251,14 @@ module.exports = ({ test, assert, loadCore }) => {
     const t = room(X, map, [2, 5], [ex([3, 5]), member([6, 5])]);
     X.Step.step(t, { a: 'attack', uid: t.actors[1].uid });
     assert.equal(t.actors[2].mode, 'dormant');
+    // Within 5 counts between the nearest tiles: a 2×2 member at (5, 4) has its tile (6, 5) 5
+    // tiles from the victim at (11, 5) (25 ≤ 30), though its own tile (5, 4) is not (37); a
+    // 2×2 member at (4, 4) has none within 5 (its nearest, (5, 5), is 6 away: 36).
+    for (const [at, wakes] of [[[5, 4], true], [[4, 4], false]]) {
+      const u = room(X, map, [12, 5], [member([11, 5]), member(at, { size: 2 })]), b = u.actors[2];
+      checked(X, X.Step.step(u, { a: 'attack', uid: u.actors[1].uid }));
+      assert.equal(json([b.mode, b.woke && b.woke.cause.k, b.woke && b.woke.cause.dist]), json(wakes ? ['hunting', 'ally_hit', 5] : ['dormant', null, null]), `a 2×2 member at ${at}`);
+    }
   });
 
   test('the beat: whatever wakes it, a sleeper first acts one action after its waking (twice that for one slow at everything)', () => {
@@ -291,6 +319,30 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json([t.actors[1].mode, X.Combat.surprised(t.actors[0], t.actors[1])]), json(['awake', false]));
   });
 
+  test('"Quiet, Please" measures 8 walking tiles to an exhibit\'s nearest tile, one beyond a case\'s nearest open neighbour, with no extra for a closed door', () => {
+    const X = loadCore();
+    const R = N.QUIET_RANGE, read = (s, x, y) => { const ev = []; X.Wake.quiet(s, x, y, R, { k: 'quiet', by: 'you' }, ev); return checked(X, ev); };
+    // A 2×2 body: read at (14, 3), a body at (5, 2) has its tile (6, 3) 8 tiles off (its own
+    // tile is 9); a body at (4, 2) is 9 tiles off at its nearest, (5, 3).
+    for (const [at, quieted] of [[[5, 2], true], [[4, 2], false]]) {
+      const s = room(X, open(18, 6), [14, 3], [ex(at, { size: 2, pips: 2 })]);
+      read(s, 14, 3);
+      assert.equal(s.actors[1].pips, quieted ? 0 : 2, `a 2×2 body at ${at}`);
+    }
+    // In a case: read at (1, 1), the case at (9, 1) is one beyond (8, 1), 7 off: 8; the case at
+    // (10, 3) is one beyond (9, 2) or (9, 3), 8 off: 9.
+    const cased = open(13, 5).map((row, y) => y === 1 ? row.slice(0, 9) + 'v' + row.slice(10) : y === 3 ? row.slice(0, 10) + 'v' + row.slice(11) : row);
+    const c = room(X, cased, [1, 1], [ex([9, 1], { pips: 2 }), ex([10, 3], { pips: 2 })]);
+    read(c, 1, 1);
+    assert.equal(json(c.actors.slice(1).map(a => a.pips)), json([0, 2]), 'in a case 8 walking tiles off, quieted; 9, not');
+    // A closed door on the way adds nothing: (9, 1) is 8 walking tiles from (1, 1) through the
+    // door at (4, 1); (10, 1) is 9.
+    const door = ['############', '#...+......#', '############'];
+    const d = room(X, door, [1, 1], [ex([9, 1], { pips: 2 }), ex([10, 1], { pips: 2 })]);
+    read(d, 1, 1);
+    assert.equal(json(d.actors.slice(1).map(a => a.pips)), json([0, 2]), 'through a closed door, 8 walking tiles is within reach');
+  });
+
   test('Fumigant\'s pip loss: a pip a turn from a sleeper, never below 0, never from a pipless one', () => {
     const X = loadCore();
     X.Registry.define('MODIFIERS', 'planted_disguise', {});
@@ -318,6 +370,11 @@ module.exports = ({ test, assert, loadCore }) => {
     assert.equal(json([hu.mode, hu.lastKnown, hu.telegraph]), json(['searching', [6, 5], null]));
     assert.equal(json([watch.mode, aw.mode, aw.target, sl.mode, sl.pips]), json(['hunting', 'awake', [1, 1], 'dormant', 1]));
     assert.equal(json(ev.map(e => [e.k, e.who, e.cause.k, e.cause.why || e.to || null])), json([['special', hu.uid, 'cancel', 'ticket'], ['lost', hu.uid, 'ticket', 'searching']]));
+    // Its last-known tile may be where a noise of yours was, not where it saw you (§8.2), so
+    // the sentence says where it last knew you were.
+    const line = X.Text.event(ev.find(e => e.k === 'lost'), null);
+    assert.match(line, /searching where it last knew you were: you went back to the entrance\.$/, line);
+    assert.doesNotMatch(line, /saw you/, line);
   });
 
   test('a pipless exhibit hears nothing and gains nothing from the ring, noise, axis, tether, ally_hit, decay or "Quiet, Please"', () => {
@@ -338,7 +395,7 @@ module.exports = ({ test, assert, loadCore }) => {
 
   test('every waking sentence is plain, and every noise is told as its caption: "<Class>: <what>, heard <range> tiles away."', () => {
     const X = loadCore();
-    let n = 0, noises = 0;
+    let n = 0, noises = 0, heardAt = 0;
     for (const acc of ['S9', 'A4', 'M11']) {
       const s = X.Dept.create(3, acc, 3, { invulnerable: true }), pick = X.Rng.stream({ seed: 7, rng: {} }, 'pick');
       for (let i = 0; i < 600 && !s.over; i++) {
@@ -347,6 +404,8 @@ module.exports = ({ test, assert, loadCore }) => {
           const line = X.Text.event(e, names);
           assert.ok(clean(line), `${json(e)} → ${line}`);
           if (e.k === 'noise') { noises++; assert.match(line, /^(Soft|Loud|Crash): .+, heard \d+ tiles away\.$/, line); }
+          // A noise's waking, pip or alert names the noise's tile (§3.4: the source).
+          if (['pip', 'woke', 'hunting', 'alerted'].includes(e.k) && e.cause && e.cause.k === 'noise') { heardAt++; assert.ok(Number.isInteger(e.cause.x) && Number.isInteger(e.cause.y), json(e)); }
           if (['noise', 'pip', 'woke', 'hunting', 'alerted', 'lost', 'returned'].includes(e.k)) n++;
         }
       }
@@ -364,10 +423,10 @@ module.exports = ({ test, assert, loadCore }) => {
     ];
     for (const e of ev) assert.ok(clean(X.Text.event(e, null)), json(e));
     assert.equal(X.Text.event(ev[0], null), 'Loud: a noise, heard 6 tiles away.');
-    assert.ok(n > 100 && noises > 50, `${n} waking events, ${noises} noises`);
+    assert.ok(n > 100 && noises > 50, `${n} waking events, ${noises} noises, ${heardAt} heard`);
   });
 
-  test('the waking invariants hold over department monkeys, and each fails on its planted fault', () => {
+  test('the waking invariants hold over department monkeys, and each fails on its planted fault, a broken trigger or wake rule among them', () => {
     // Monkeys in the three departments with the waking invariants after every step.
     for (const acc of ['S9', 'A4', 'M11']) {
       const s = C.Dept.create(5, acc, 4, { invulnerable: true }), pick = C.Rng.stream({ seed: 11, rng: {} }, 'pick');
@@ -420,6 +479,62 @@ module.exports = ({ test, assert, loadCore }) => {
         X.Causes.emit = (st, ev, k, f, c) => { const e = emit(st, ev, k, f, c); if (k === 'woke') e.was = 'awake'; return e; };
         return [X, room(X, OPEN, [2, 2], [ex([3, 2], { pips: 2 })]), [{ a: 'wait' }]];
       }],
+      // A ring 2 tiles too wide: after a wait (radius 2) a sleeper 4 tiles east gains pips whose
+      // cause says radius 4, distance 4.
+      ['waking.ring_pip', () => {
+        const X = fresh(), field = X.Vision.field;
+        X.Vision.field = st => { const f = field(st); f.r += 2; f.dist = X.Grid.distances(st.dept, [[f.x, f.y]], f.r); return f; };
+        return [X, room(X, open(9, 7), [1, 4], [ex([5, 4])]), [{ a: 'wait' }, { a: 'wait' }]];
+      }],
+      // A ring measured as the crow flies: the sleeper behind the glass at (2, 4) is 2 tiles off
+      // that way, 4 by walking round it.
+      ['waking.ring_pip', () => {
+        const X = fresh();
+        X.Vision.ringDist = (st, x, y, f) => { f = f || X.Vision.field(st); if (!X.Grid.hold(st.dept, x, y)) return -1; const d = X.Grid.chebyshev(f.x, f.y, x, y); return d <= f.r && X.Grid.los(st.dept, f.x, f.y, x, y) ? d : -1; };
+        return [X, room(X, ['#######', '#.....#', '#.....#', '#.....#', '#.v...#', '#.....#', '#######'], [1, 4], [ex([3, 4])]), [{ a: 'wait' }]];
+      }],
+      // No ring pip at all: a sleeper beside you sleeps on.
+      ['waking.ring_due', () => {
+        const X = fresh();
+        X.Vision.ringDist = () => -1;
+        return [X, room(X, OPEN, [2, 2], [ex([3, 2])]), [{ a: 'wait' }]];
+      }],
+      // Hearing that does nothing: you open a door at (2, 1), 3 walking tiles from a sleeper at
+      // (5, 1), which is 4 from you and outside your ring.
+      ['waking.noise_due', () => {
+        const X = fresh();
+        X.Wake.hear = () => false;
+        return [X, room(X, ['#########', '#.+.....#', '#########'], [1, 1], [ex([5, 1])]), [{ a: 'move', dir: 2 }]];
+      }],
+      // An axis that never finds you: you wait 8 tiles along its row.
+      ['waking.axis', () => {
+        const X = fresh();
+        X.Wake.onAxis = () => false;
+        return [X, room(X, open(26, 8), [10, 3], [ex([2, 3], { trigger: 'axis' })]), [{ a: 'wait' }]];
+      }],
+      // A tether that never holds: you wait 2 tiles from what it guards, round a wall from it.
+      ['waking.tether', () => {
+        const X = fresh();
+        X.Wake.inTether = () => false;
+        return [X, room(X, open(20, 12), [14, 4], [ex([2, 9], { trigger: 'tether', guards: [12, 4] })]), [{ a: 'wait' }]];
+      }],
+      // ally_hit that does nothing: you strike one of its group 4 tiles from it.
+      ['waking.ally_hit', () => {
+        const X = fresh();
+        X.Wake.allyHit = () => {};
+        return [X, room(X, open(16, 10), [2, 5], [ex([3, 5], { group: 'g' }), ex([7, 5], { group: 'g', trigger: 'ally_hit' })]), s => s.turn === 0 ? { a: 'attack', uid: s.actors[1].uid } : null];
+      }],
+      // An exhibit that never sleeps sent to sleep, and one sent back home (the first step to sleep).
+      ['waking.awake', () => {
+        const X = fresh(), act = X.AI.act;
+        X.AI.act = (st, a, ev) => { if (a.trigger === 'awake' && a.mode === 'awake') X.Wake.setMode(st, a, 'dormant', { k: 'quiet', by: 'you' }, ev); return act(st, a, ev); };
+        return [X, room(X, open(26, 8), [2, 3], [ex([22, 3], { mode: 'awake', trigger: 'awake', target: [22, 3] })]), Array(3).fill({ a: 'wait' })];
+      }],
+      ['waking.awake', () => {
+        const X = fresh(), act = X.AI.act;
+        X.AI.act = (st, a, ev) => { if (a.trigger === 'awake' && a.mode === 'awake') X.Wake.setMode(st, a, 'returning', { k: 'idle', turns: N.AWAKE_IDLE_TURNS }, ev); return act(st, a, ev); };
+        return [X, room(X, open(26, 8), [2, 3], [ex([22, 3], { mode: 'awake', trigger: 'awake', target: [22, 3] })]), Array(3).fill({ a: 'wait' })];
+      }],
     ];
     for (const [id, make] of faults) {
       const [X, s, actions] = make(), base = X.State.clone(s);
@@ -429,5 +544,8 @@ module.exports = ({ test, assert, loadCore }) => {
       const ok = H.play(C, C.State.clone(base), actions, { inv: ['waking'] });
       assert.equal(json(ok.violations.map(v => v.text)), '[]', id);
     }
+    // Every invariant of the file has a planted fault here.
+    const ids = require('./behaviour/waking.inv.js')(C).map(i => i.id);
+    assert.equal(json(ids.filter(i => !faults.some(([id]) => id === i))), '[]');
   });
 };

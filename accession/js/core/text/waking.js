@@ -42,11 +42,12 @@
     Text.defineCause('hunting', k, (e, w) => e.was === 'dormant' ? `${w.Name(e.who)} woke and is hunting you: ${because(e, w)}.` : `${w.Name(e.who)} is hunting you: ${because(e, w)}.`);
   }
 
-  // Losing you, being settled, and being sent to look, for waking's reasons.
-  const MODES = { dormant: 'asleep', awake: 'awake', searching: 'searching where it last saw you' };
+  // Losing you, being settled, and being sent to look, for waking's reasons. A hunter's
+  // last-known tile may be where a noise of yours was, not where it saw you (§8.2).
+  const MODES = { dormant: 'asleep', awake: 'awake', searching: 'searching where it last knew you were' };
   Text.defineCause('lost', 'quiet', (e, w) => e.to === 'dormant' ? `${w.Name(e.who)} settled where it stands: “Quiet, Please” was read.`
     : `${w.Name(e.who)} lost you, and is now ${MODES[e.to] || 'awake'}: “Quiet, Please” was read.`);
-  Text.defineCause('lost', 'ticket', (e, w) => `${w.Name(e.who)} lost you, and is ${MODES[e.to] || 'searching where it last saw you'}: you went back to the entrance.`);
+  Text.defineCause('lost', 'ticket', (e, w) => `${w.Name(e.who)} lost you, and is ${MODES[e.to] || 'searching where it last knew you were'}: you went back to the entrance.`);
   Text.defineCause('returned', 'quiet', (e, w) => `${w.Name(e.who)} settled back to sleep: “Quiet, Please” was read.`);
   Text.defineCause('alerted', 'noise', (e, w) => `${w.Name(e.who)} heard a ${e.cause.cls} noise ${e.cause.dist} tiles away, and goes to look.`);
 })();
