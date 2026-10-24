@@ -18,8 +18,10 @@
 //                                               nothing; a pinned run that differs fails, with
 //                                               its first diverging step, action and events
 //   node tools/golden.js --add <name> <file.json> [--pending "reason"]
-//                                               add a run from its definition (a JSON file),
-//                                               pinned now, or unpinned and pending
+//                                               add a run from its definition (a JSON file: a
+//                                               golden entry, a replay as tools write it, or a
+//                                               crash card holding one), pinned now, or
+//                                               unpinned and pending
 //   node tools/golden.js --against <commit> [name…]
 //                                               play each run (or the named ones) on this tree
 //                                               and on <commit>'s core, taken from git into a
@@ -40,9 +42,14 @@ const DEFAULTS = { m0Monkey: { kind: 'monkey', seed: 20261023, actions: 10000, m
 const DEFINES = { monkey: ['kind', 'seed', 'actions', 'make'], replay: ['kind', 'start', 'options', 'actions'] };
 const PINS = { monkey: ['hash', 'checkpoints', 'visits', 'steps'], replay: ['hash', 'checkpoints', 'steps'] };
 
-// A run's definition alone (no pin, no pending), checked; an entry with no kind is a monkey.
+// A run's definition alone (no pin, no pending), checked. An entry with no kind is a replay
+// when it has a start or a list of actions (a replay as §3.6 writes it, {coreHash, layoutPin,
+// start, options, actions}, whose coreHash and layoutPin a golden run does not keep), and a
+// monkey otherwise.
+const kindOf = g => g.kind || (g.start !== undefined || Array.isArray(g.actions) ? 'replay' : 'monkey');
 function definition(name, g) {
-  const kind = g.kind || 'monkey';
+  if (!g || typeof g !== 'object') throw new Error(`golden: ${name} is not a run's definition`);
+  const kind = kindOf(g);
   if (!DEFINES[kind]) throw new Error(`golden: ${name} has no kind ${kind} (monkey or replay)`);
   const d = { kind };
   if (kind === 'monkey') {
@@ -63,7 +70,7 @@ function format(golden) {
     ? `  "actions": [${v.length ? '\n   ' + v.map(a => JSON.stringify(a)).join(',\n   ') + '\n  ' : ''}]`
     : `  ${JSON.stringify(k)}: ${JSON.stringify(v)}`;
   const entry = (name, g) => {
-    const kind = g.kind || 'monkey', keys = DEFINES[kind].concat(PINS[kind], ['pending']);
+    const kind = kindOf(g), keys = DEFINES[kind].concat(PINS[kind], ['pending']);
     return ` ${JSON.stringify(name)}: {\n` + keys.filter(k => g[k] !== undefined).map(k => field(k, g[k], kind)).join(',\n') + '\n }';
   };
   return "// ACCESSION — golden runs: expected hashes for fixed seeds and action lists (BUILD.md §3.5).\n" +
@@ -138,15 +145,63 @@ function check(C, file) {
   return { bad, lines };
 }
 
-// --add: a new run from its definition, pinned on C, or unpinned and pending.
+// --add: a new run from its definition, pinned on C, or unpinned and pending. def may also be
+// a crash card (tools/shrink.js), whose replay is taken.
 function add(C, file, name, def, reason) {
   const golden = read(file);
   if (golden[name]) throw new Error(`golden: ${name} is already a golden run`);
-  const d = definition(name, def);
+  const d = definition(name, def && def.replay && typeof def.replay === 'object' ? def.replay : def);
   golden[name] = reason ? Object.assign({}, d, { pending: reason }) : pin(C, name, d);
   write(file, golden);
   const g = golden[name];
   return `golden: ${name} added (${d.kind}, ${C.Replay.count(d)} actions)` + (reason ? `, unpinned and pending: ${reason}` : `, pinned at ${g.hash}`);
+}
+
+// The golden test's check of one run on core C (test/golden.test.js; §3.5): it is played
+// twice, then once with the state cloned after every step, and the three must agree.
+// Returns {run, problem}: run is the first play's result; problem is null, or what went
+// wrong in words. When a play threw, or the second play or the cloned one differs, the
+// problem also holds the crash card (§10.2) of the visit it happened in, replayed from that
+// visit's seed and shrunk within opts.ms (60 s), when the replay fails the same way.
+function selfCheck(C, name, g, opts) {
+  opts = opts || {};
+  const R = C.Replay, kind = R.kindOf(g), n = R.count(g);
+  const plays = [{ what: 'two runs of the same seed and actions differ', o: {} },
+    { what: 'a cloned state does not behave exactly like the original', o: { clone: true } }];
+  let run;
+  try { run = R.golden(g); } catch (e) { return { run: null, problem: crashed(C, name, g, false, e, opts) }; }
+  for (const { what, o } of plays) {
+    let b;
+    try { b = R.golden(g, o); } catch (e) { return { run, problem: crashed(C, name, g, !!o.clone, e, opts) }; }
+    if (b.hash === run.hash && R.firstDiff(b.checkpoints, run.checkpoints) < 0) continue;
+    // Where they first differ: both played again with every step's hash.
+    const a = R.golden(g, { steps: true }), d = R.golden(g, Object.assign({ against: a.steps }, o)).diverged;
+    let text = `${name}: ${what}` + (d ? '\n' + R.describe(name, d, n, 'the first play') : ', though no step\'s hash differs');
+    if (d) text += cardText(C, kind === 'replay' ? { replay: entryOf(g, d.step), index: d.step } : R.visit(g, d.step), Shrink.twin(C, o), opts);
+    return { run, problem: text };
+  }
+  return { run, problem: null };
+}
+const entryOf = (g, k) => ({ kind: 'replay', start: g.start, options: g.options, actions: g.actions.slice(0, k) });
+// A run that threw: where, and its crash card.
+function crashed(C, name, g, clone, e, opts) {
+  const f = C.Replay.failing(g, clone), how = clone ? ', cloned after every step,' : '';
+  if (!f) return `${name}: the ${C.Replay.kindOf(g)}${how} threw ${(e && e.message) || e}, but not when played again to find where`;
+  return `${name}: the ${C.Replay.kindOf(g)}${how} threw at action ${f.step} of ${C.Replay.count(g)}: ${f.message}` +
+    cardText(C, f, (r, lean) => C.Replay.play(r, { clone, lean }).failure, opts);
+}
+// The crash card of a visit replay ({replay, index}) that fails as fails(replay, lean) finds,
+// as text to append to a problem; or why there is none.
+function cardText(C, v, fails, opts) {
+  const seed = v.replay.start.seed;
+  const where = `action ${v.index} of ` + (Number.isSafeInteger(seed) ? `the visit with seed ${seed}` : 'the replay');
+  try {
+    const replay = C.Replay.make(v.replay.start, v.replay.options, v.replay.actions, require('./core-hash.js').coreHash());
+    const s = Shrink.shrinkReplay(C, replay, null, { ms: opts.ms, fails });
+    return `\nIt happens at ${where}. Replayed from that seed and shrunk:\n` + Shrink.card(s.replay, s.failure, s.result).text;
+  } catch (e) {
+    return `\nIt happens at ${where}, but a replay of that visit does not fail the same way, so there is no crash card (${(e && e.message) || e}).`;
+  }
 }
 
 // The core at a commit: index.html, js/core and content/ as git has them there, run with this
@@ -203,7 +258,7 @@ function against(commit, opts) {
   return out;
 }
 
-module.exports = { FILE, DEFAULTS, definition, format, read, write, pin, repin, markPending, check, add, against, commitCore, treeCore };
+module.exports = { FILE, DEFAULTS, definition, format, read, write, pin, repin, markPending, check, add, selfCheck, against, commitCore, treeCore };
 
 if (require.main === module) {
   const argv = process.argv.slice(2);

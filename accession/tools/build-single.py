@@ -12,6 +12,8 @@ tools/core-hash.js: the game as <meta name="accession-core-hash"> and
   python3 tools/build-single.py             the two builds
   python3 tools/build-single.py --release   also keeps the game as dist/builds/<coreHash>.html,
                                             so replays made with it keep working (§3.6)
+  --out <dir>                               writes into <dir> in place of dist/ (the tests
+                                            build into a temporary folder)
 
 An inert placeholder, <script type="text/x-NAME" data-src="FILE"></script>, is inlined
 as an inert block holding FILE's text, which the code that owns it runs on first use
@@ -22,6 +24,13 @@ import html, json, os, re, subprocess, sys
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 build = os.environ.get('ACCESSION_BUILD', 'dev')
+args = sys.argv[1:]
+dist = os.path.join(root, 'dist')
+if '--out' in args:
+    i = args.index('--out')
+    if i + 1 >= len(args) or args[i + 1].startswith('--'):
+        raise SystemExit('build-single: --out needs a folder')
+    dist = os.path.abspath(args[i + 1])
 
 def read(rel):
     return open(os.path.join(root, rel), encoding='utf-8').read()
@@ -46,10 +55,10 @@ def inline(text):
     return text
 
 def write(name, text):
-    out = os.path.join(root, 'dist', name)
+    out = os.path.join(dist, name)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     open(out, 'w', encoding='utf-8').write(text)
-    print('wrote', os.path.relpath(out, root), len(text.encode('utf-8')) // 1024, 'KB')
+    print('wrote', os.path.relpath(out, root) if dist == os.path.join(root, 'dist') else out, len(text.encode('utf-8')) // 1024, 'KB')
 
 h = hashes()
 stamp = '<meta name="accession-core-hash" content="%s">\n<meta name="accession-vm-hash" content="%s">\n<meta name="accession-build" content="%s">\n' % (h['coreHash'], h['vmHash'], html.escape(build, quote=True))
@@ -61,6 +70,6 @@ write('accession.html', game)
 core = '\n'.join(m.group(0) for m in re.finditer(r'<script src="((?:js/core|content)/[^"]+)"></script>', index))
 page = inline(read('tools/hash-template.html').replace('<!-- core -->', core))
 write('accession-hash.html', page.replace("'__BUILD__'", json.dumps(build)).replace("'__CORE_HASH__'", "'%s'" % h['coreHash']))
-if '--release' in sys.argv[1:]:
+if '--release' in args:
     write(os.path.join('builds', h['coreHash'] + '.html'), game)
 print('coreHash', h['coreHash'], 'vmHash', h['vmHash'])

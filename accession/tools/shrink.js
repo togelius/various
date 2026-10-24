@@ -78,25 +78,53 @@ function diff(a, b, opts) {
 // invariant's id, or "threw Step"), so a shrink keeps the failure it started with.
 const sameFailure = (f, g) => !!f && !!g && f.message.split(':')[0] === g.message.split(':')[0];
 
-// shrinkReplay(C, replay, check, {ms, same}) → {replay, failure, result}: replays from the
-// start with check after every step (Replay.play's check) and shrinks the actions to the
-// smallest list whose failure is the same as the full list's.
+// shrinkReplay(C, replay, check, {ms, same, clone, fails}) → {replay, failure, first, result}:
+// replays from the start with check after every step (Replay.play's check; a step that
+// throws fails too), with a clone after every step if clone, and shrinks the actions to the
+// smallest list whose failure is the same as the full list's. fails(replay, lean) → failure
+// | null replaces that replaying (twin below). The shrink's own replays are lean; the
+// failure returned, which the card describes, is played in full: the state before and after
+// its bad step, and the events that step emitted even if it threw.
 function shrinkReplay(C, replay, check, opts) {
   opts = opts || {};
   const same = opts.same || sameFailure;
-  const first = C.Replay.play(replay, { check }).failure;
+  const failOf = opts.fails || ((r, lean) => C.Replay.play(r, { check, clone: !!opts.clone, lean }).failure);
+  const run = (actions, lean) => failOf(Object.assign({}, replay, { actions }), lean);
+  const first = run(replay.actions, true);
   if (!first) throw new Error('Shrink: the replay does not fail');
-  const run = actions => C.Replay.play(Object.assign({}, replay, { actions }), { check }).failure;
-  const result = ddmin(replay.actions, list => { const f = run(list); return f && same(f, first) ? f.step : false; }, { ms: opts.ms });
+  const result = ddmin(replay.actions, list => { const f = run(list, true); return f && same(f, first) ? f.step : false; }, { ms: opts.ms });
   result.firstStep = first.step;
   const shrunk = Object.assign({}, replay, { actions: result.actions });
-  return { replay: shrunk, failure: run(result.actions), first, result };
+  return { replay: shrunk, failure: run(result.actions, false), first, result };
+}
+
+// twin(C, {clone}) → fails(replay, lean) for shrinkReplay: the failure is that a replay
+// played twice (the second time with a clone after every step if clone) gives a different
+// hash after some step: {step, action, events, message, threw: false, pre, post, other},
+// with the second play's events, pre and post the first play's states either side of the
+// step, and other the second play's state after it.
+function twin(C, opts) {
+  const clone = !!(opts && opts.clone);
+  return (r, lean) => {
+    const a = C.Replay.play(r, { steps: true }), d = C.Replay.play(r, { clone, against: a.steps }).diverged;
+    if (!d) return null;
+    const message = clone ? `clone: after this step a state cloned after every step has hash ${d.got}, the original ${d.want}`
+      : `nondeterministic: after this step a second play has hash ${d.got}, the first ${d.want}`;
+    const f = { step: d.step, action: d.action, events: d.events, message, threw: false, pre: null, post: null, other: null };
+    if (!lean) {
+      f.pre = C.Replay.play(r, { upTo: d.step - 1 }).state; f.post = C.Replay.play(r, { upTo: d.step }).state;
+      f.other = C.Replay.play(r, { upTo: d.step, clone }).state;
+    }
+    return f;
+  };
 }
 
 // card(replay, failure, {from, firstStep, tests, ms, timedOut}) → the crash card: its fields,
-// and its text in words. failure is Replay.play's ({step, action, events, message, pre,
-// post}); the rest is ddmin's result (shrinkReplay adds firstStep, where the full list
-// first failed), when the replay was shrunk.
+// and its text in words. failure is Replay.play's ({step, action, events, message, threw,
+// pre, post}) or twin's (with other); the rest is ddmin's result (shrinkReplay adds
+// firstStep, where the full list first failed), when the replay was shrunk. The card says
+// what the bad step changed (pre to post); when it threw, that it threw and which events it
+// had emitted by then; for two plays that part, where their states differ after it.
 function card(replay, failure, info) {
   info = info || {};
   const start = replay.start || {};
@@ -108,17 +136,27 @@ function card(replay, failure, info) {
     shrunk ? `Shrunk to ${replay.actions.length} actions from ${info.from}${info.firstStep ? ` (the full list first failed at action ${info.firstStep})` : ''}, in ${info.tests} replays and ${info.ms} ms${info.timedOut ? ', stopped by the time limit' : ''}.`
       : `${replay.actions.length} actions (not shrunk).`,
     `The first bad step is step ${failure.step}: ${JSON.stringify(failure.action)}.`,
-    failure.events.length ? `Its events (${failure.events.length}):` : 'It made no events.',
+    failure.threw ? (failure.events.length ? `It threw before returning its events; it had emitted these (${failure.events.length}):` : 'It threw before emitting any event.')
+      : failure.events.length ? `Its events (${failure.events.length}):` : 'It made no events.',
   ];
   for (const e of failure.events) lines.push('  ' + JSON.stringify(e));
-  lines.push(changes.length ? `What it changed in the state (${changes.length}${changes.length >= 40 ? ' or more' : ''}):` : 'It changed nothing in the state that can be compared.');
+  const across = failure.threw ? 'up to the point where it threw' : '';
+  if (!failure.pre || !failure.post) lines.push('The states either side of it were not kept, so what it changed is not known.');
+  else lines.push(changes.length ? `What it changed in the state${across ? ' ' + across : ''} (${changes.length}${changes.length >= 40 ? ' or more' : ''}):`
+    : `It changed nothing in the state that can be compared${across ? ' ' + across : ''}.`);
   for (const c of changes) lines.push(`  ${c.path}: ${c.from} → ${c.to}`);
+  // Two plays that part (twin): where the second's state differs from the first's after the step.
+  const differs = failure.post && failure.other ? diff(failure.post, failure.other) : [];
+  if (failure.other) {
+    lines.push(differs.length ? `Where the second play's state differs from the first's after it (${differs.length}${differs.length >= 40 ? ' or more' : ''}):` : 'The two plays\' states differ after it only where they cannot be compared.');
+    for (const c of differs) lines.push(`  ${c.path}: ${c.from} → ${c.to}`);
+  }
   lines.push('Replay (save it as a file and play it with: node tools/replay.js <file> --log):');
   lines.push(JSON.stringify(replay));
   lines.push('Replay link: pending M5.');
   return { seed: start.seed !== undefined ? start.seed : null, coreHash: replay.coreHash || null, layoutPin: replay.layoutPin === undefined ? null : replay.layoutPin,
     actions: replay.actions.length, from: info.from === undefined ? replay.actions.length : info.from, firstStep: info.firstStep || null, step: failure.step, action: failure.action,
-    message: failure.message, events: failure.events, changes, replay, command: 'node tools/replay.js <file> --log', link: 'pending M5', text: lines.join('\n') };
+    message: failure.message, threw: !!failure.threw, events: failure.events, changes, differs, replay, command: 'node tools/replay.js <file> --log', link: 'pending M5', text: lines.join('\n') };
 }
 
-module.exports = { ddmin, diff, card, shrinkReplay, sameFailure };
+module.exports = { ddmin, diff, card, shrinkReplay, twin, sameFailure };

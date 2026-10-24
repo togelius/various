@@ -77,7 +77,11 @@ const Replay = (() => {
   //   clone      replace the state with State.clone after every action (clone stability);
   //   check      (pre, action, events, post, i) → null | message | [violation]: checked after
   //              every action; the first failure stops the replay. A step that throws is a
-  //              failure too. failure = {step, action, events, message, pre, post};
+  //              failure too. failure = {step, action, events, message, threw, pre, post}:
+  //              for a step that threw, pre is the state before it (played again up to there),
+  //              post the state it left, and events those it had emitted before it threw;
+  //   lean       a failure that only says where and why: no post, no events of a step that
+  //              threw, and pre only if check needed it (a shrink's own replays);
   //   log        true: log = [{i, action, events}]; or a function (i, action, events, state);
   //   against    per-step hashes to compare with: the replay stops at the first action whose
   //              hash differs, and diverged = {step, action, events, got, want};
@@ -97,9 +101,13 @@ const Replay = (() => {
       let ev;
       try { ev = Step.step(state, action); }
       catch (e) {
-        let post = null;
-        try { post = State.clone(state); } catch (e2) { post = null; }
-        failure = { step: i, action: plain(action), events: [], message: 'threw ' + said(e), pre, post };
+        failure = { step: i, action: plain(action), events: [], message: 'threw ' + said(e), threw: true, pre, post: null };
+        if (!opts.lean) {
+          try { failure.post = State.clone(state); } catch (e2) { failure.post = null; }
+          const again = threwAt(r, i, !!opts.clone);
+          failure.events = again.events;
+          if (!failure.pre) failure.pre = again.pre;
+        }
         break;
       }
       played = i;
@@ -110,7 +118,7 @@ const Replay = (() => {
       if (opts.check) {
         const m = opts.check(pre, action, ev, state, i);
         const message = Array.isArray(m) ? m.map(v => (v && v.text) || json(v)).join('; ') : m;
-        if (message) { failure = { step: i, action: plain(action), events: ev, message: String(message), pre, post: State.clone(state) }; break; }
+        if (message) { failure = { step: i, action: plain(action), events: ev, message: String(message), threw: false, pre, post: State.clone(state) }; break; }
       }
       const h = keep || i % EVERY === 0 || opts.at === i ? State.hash(state) : 0;
       if (steps) steps.push(h);
@@ -121,6 +129,20 @@ const Replay = (() => {
     return { hash: State.hash(state), checkpoints, steps, startHash, state, played, refused, failure, diverged, log };
   }
 
+  // A step that threw returns no events, so the replay is played again up to the step before
+  // it, which gives the state before it (pre), and the step is taken once more with every
+  // event it emits through Causes.emit seen, until it throws again.
+  function threwAt(r, i, clone) {
+    const s = play(r, { upTo: i - 1, clone }).state, pre = State.clone(s), events = [];
+    if (typeof Causes !== 'object' || !Causes || typeof Causes.emit !== 'function') return { pre, events };
+    const real = Causes.emit;
+    try { Causes.emit = (...args) => { const e = real(...args); events.push(JSON.parse(JSON.stringify(e))); return e; }; }
+    catch (e) { return { pre, events }; }
+    try { Step.step(s, r.actions[i - 1]); } catch (e) { /* it throws again, as it did the first time */ }
+    finally { Causes.emit = real; }
+    return { pre, events };
+  }
+
   // fn() with every Step.step call also reported to spy(state, action, events); Step.step
   // is restored afterwards, whatever happens. This is how the monkey's actions are seen.
   function spying(spy, fn) {
@@ -129,7 +151,9 @@ const Replay = (() => {
     try { return fn(); } finally { Step.step = real; }
   }
 
-  const kindOf = g => g.kind || 'monkey';
+  // A run's kind; one with no kind is a replay when it has a start or a list of actions (a
+  // replay as make writes it), and a monkey otherwise (tools/golden.js reads them alike).
+  const kindOf = g => g.kind || (g.start !== undefined || Array.isArray(g.actions) ? 'replay' : 'monkey');
   const count = g => kindOf(g) === 'replay' ? g.actions.length : g.actions;
   const every = g => kindOf(g) === 'replay' ? EVERY : MONKEY_EVERY;
   // A monkey run's rooms: the test room, or a department at a depth.
@@ -172,27 +196,48 @@ const Replay = (() => {
   // seed, when one ends (you die, or the room is cleared). record(g, n): the first visit, at
   // most n actions of it. visit(g, step): the visit that holds the run's action number step,
   // with its actions up to and including that one; index is that action's place in it.
+  // When the core throws during the run, each stops at the action that threw, which is the
+  // visit's last, and visit's threw = {step, message} says where (null when nothing threw).
   const startFor = (g, seed) => g.make ? { seed, dept: g.make.dept, depth: g.make.depth } : { seed, room: 'T0' };
-  function visits(g, stopAt) {
-    let actions = [], visit = 0, ended = false;
+  function visits(g, stopAt, clone) {
+    let actions = [], visit = 0, done = 0, error = null;
     const over = state => state.over || state.actors.every(a => a.gone || a.uid === 'you');
     const check = (state, i) => {
+      done = i;
       if (stopAt(i, actions.length, over(state))) throw STOP;
       if (over(state)) { visit++; actions = []; }
     };
-    const go = () => Monkey.run(g.seed, g.actions, { make: maker(g), check });
-    try { spying((s, action) => { actions.push(plain(action)); }, go); ended = true; }
-    catch (e) { if (e !== STOP) throw e; }
-    return { kind: 'replay', start: startFor(g, g.seed + visit), options: options(), actions, ended };
+    // Each action is kept before it is taken, so that one that throws is kept too.
+    const real = Step.step;
+    Step.step = (state, action) => { actions.push(plain(action)); return real(state, action); };
+    try { Monkey.run(g.seed, g.actions, { make: maker(g), cloneEachStep: !!clone, check }); }
+    catch (e) { if (e !== STOP) error = e; }
+    finally { Step.step = real; }
+    return { kind: 'replay', start: startFor(g, g.seed + visit), options: options(), actions,
+      threw: error ? { step: done + 1, message: said(error) } : null };
   }
+  const entry = r => ({ kind: r.kind, start: r.start, options: r.options, actions: r.actions });
   function record(g, n) {
-    const r = visits(Object.assign({}, g, { actions: Math.max(g.actions || 0, n) }), (i, k, over) => k >= n || over);
-    return { kind: r.kind, start: r.start, options: r.options, actions: r.actions };
+    return entry(visits(Object.assign({}, g, { actions: Math.max(g.actions || 0, n) }), (i, k, over) => k >= n || over));
   }
   function visit(g, step) {
     if (!Number.isSafeInteger(step) || step < 1 || step > g.actions) throw new Error(`Replay.visit: no action ${step} in a run of ${g.actions}`);
     const r = visits(g, i => i === step);
-    return { replay: { kind: r.kind, start: r.start, options: r.options, actions: r.actions }, index: r.actions.length };
+    return { replay: entry(r), index: r.actions.length, threw: r.threw };
+  }
+
+  // Where a golden run of either kind throws, played once (with a clone after every step if
+  // clone): null if it plays through; else {step, message, replay, index}, where replay is
+  // the visit it threw in as a replay (for a replay, its actions up to that one), ending with
+  // the action that threw, and index is that action's place in it.
+  function failing(g, clone) {
+    if (kindOf(g) === 'replay') {
+      const f = play(g, { clone: !!clone, lean: true }).failure;
+      if (!f) return null;
+      return { step: f.step, message: f.message.replace(/^threw /, ''), replay: entry(Object.assign({ kind: 'replay' }, g, { actions: g.actions.slice(0, f.step) })), index: f.step };
+    }
+    const r = visits(g, () => false, clone);
+    return r.threw ? { step: r.threw.step, message: r.threw.message, replay: entry(r), index: r.actions.length } : null;
   }
 
   // Per-step hashes as text: 4 bytes a step, most significant first, in base64.
@@ -269,7 +314,7 @@ const Replay = (() => {
     return out;
   }
 
-  return { EVERY, MONKEY_EVERY, KINDS, starter, begin, make, play, golden, verify, record, visit, startOf, kindOf, count, every,
+  return { EVERY, MONKEY_EVERY, KINDS, starter, begin, make, play, golden, verify, record, visit, failing, startOf, kindOf, count, every,
     encode, decode, firstDiff, describe, spying, json };
 })();
 

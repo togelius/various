@@ -1,8 +1,12 @@
 // Replays (BUILD.md §3.6) and the golden runs' tooling (§3.5): where a replay starts, that it
-// plays the same in a clone and as the monkey that made it, per-step hashes as base64, the
-// divergence printer on planted one-step changes (one action changed, one rule changed),
-// tools/golden.js's format, re-pin, check, add and pending, --against on a planted pair of
-// commits, coreHash and vmHash, and the `node tools/replay.js` command.
+// plays with its options, the same in a clone and as the monkey that made it, per-step
+// hashes as base64, the divergence printer on planted one-step changes (one action changed,
+// one rule changed), the golden test's check on a planted clone fault, tools/golden.js's
+// format, re-pin, check, add and pending, --against on a planted pair of commits, coreHash,
+// vmHash and the builds' stamps, and the `node tools/replay.js` command.
+// How long a monkey's visit lasts, and what it does there, depend on the rules, which every
+// wave changes; so every expectation here about the monkey is worked out from a watch of
+// Monkey.run or of Step.step on the same core, never written in as a number.
 module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const os = require('node:os'), cp = require('node:child_process');
   const Golden = require(path.join(root, 'tools/golden.js'));
@@ -10,7 +14,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const HashCompare = require(path.join(root, 'tools/hash-compare.js'));
   const EXTRA = ['tools/monkey.js', 'tools/replay.js'];
   const C = loadCore(EXTRA);
-  const { Replay: R, State, TestRoom, Dept, Monkey, Actions, Text } = C;
+  const { Replay: R, State, TestRoom, Dept, Monkey, Text, Setup, Options, Step } = C;
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'accession-replay-'));
   const json = x => JSON.stringify(x);
   const clean = s => !/undefined|NaN|\[object/.test(s);
@@ -19,6 +23,10 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   // first wait at turn 5 or later is the first step that differs. Given a core, plants it.
   const PLANT = 'if (state.turn >= 5) state.dept.planted = state.turn;';
   const plant = K => { const h = K.Actions.get('wait'), f = h.apply; h.apply = (state, action, ev) => { if (state.turn >= 5) state.dept.planted = state.turn; return f(state, action, ev); }; };
+  // A rule that is not stable under cloning: each wait adds a key to an object in the
+  // department and records the object's first key. State.clone writes keys in sorted order,
+  // so once the object holds two keys a cloned state's first key is another one.
+  const plantKeyOrder = K => { const h = K.Actions.get('wait'), f = h.apply; h.apply = (state, action, ev) => { const r = f(state, action, ev); const ko = state.dept.ko || (state.dept.ko = {}); ko['k' + (9999 - state.turn)] = 1; state.dept.kf = Object.keys(ko)[0]; return r; }; };
   // Independently of the replay player: the turn and kind before each Step.step call of fn().
   const watch = (K, fn) => {
     const real = K.Step.step, seen = [];
@@ -29,7 +37,23 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
   const firstPlanted = seen => seen.findIndex(x => x.a === 'wait' && x.turn >= 5) + 1;
 
   const monkey = (seed, actions, make) => ({ kind: 'monkey', seed, actions, make: make || null });
-  const visit419 = R.record(monkey(20261023, 1000), 1000);
+  // Where a monkey run's visits end, watched through Monkey.run's own check rather than the
+  // replay player: the numbers of the actions after which you had died or cleared the room.
+  const visitEnds = (K, g) => {
+    const ends = [];
+    K.Monkey.run(g.seed, g.actions, { make: g.make ? (s => K.Dept.create(s, g.make.dept, g.make.depth)) : undefined,
+      check: (s, i) => { if (s.over || s.actors.every(a => a.gone || a.uid === 'you')) ends.push(i); } });
+    return ends;
+  };
+  // A monkey's first visit of at least `min` actions (up to 1,000), on the first seed from
+  // 20261023 whose first visit is that long.
+  const longVisit = min => {
+    for (let seed = 20261023; seed < 20261043; seed++) { const v = R.record(monkey(seed, 1000), 1000); if (v.actions.length >= min) return v; }
+    throw new Error(`no monkey has a first visit of ${min} actions on 20 seeds`);
+  };
+  // Every state of a replay played by hand with Step.step: states[i] is the state after i actions.
+  const byHand = (K, r) => { const s = K.Replay.begin(r.start, r.options), states = [K.State.clone(s)]; for (const a of r.actions) { K.Step.step(s, a); states.push(K.State.clone(s)); } return states; };
+  const visit = longVisit(300);
 
   test('a replay starts in the test room, a department, a snapshot or a registered start, with its options', () => {
     assert.equal(State.hash(R.begin({ seed: 9, room: 'T0' })), State.hash(TestRoom.create(9)));
@@ -47,6 +71,8 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.ok(Number.isSafeInteger(rd.layoutPin));
     assert.equal(json(rd), json({ coreHash: 'abcdef01', layoutPin: rd.layoutPin, start: { dept: 'S9', depth: 2, seed: 4 }, options: { rulesOff: [], without: [], invulnerable: true }, actions: [{ a: 'wait' }] }));
     assert.equal(R.make({ seed: 1, room: 'T0' }, null, []).layoutPin, null);
+    // A replay as make writes it has no kind, and is read as a replay.
+    assert.equal(R.kindOf(rd), 'replay'); assert.equal(R.kindOf({ seed: 1, actions: 5 }), 'monkey');
     // What it refuses, in words.
     for (const [start, re] of [[5, /a start is \{seed, room\}/], [{ room: 'T0' }, /no whole-number seed/], [{ seed: 1 }, /no way to make the start/], [{ seed: 1, dept: 'S9' }, /has no depth/]]) {
       assert.throws(() => R.begin(start), e => re.test(e.message) && clean(e.message), json(start));
@@ -59,53 +85,107 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.throws(() => K.Replay.starter('custom', () => null), /registered twice/);
   });
 
+  test('a replay plays with its options: an exhibit taken out, a modifier switched off, your health kept, in the test room and a department', () => {
+    // Each replay's hash against a plain Step.step loop from Setup.room or Dept.create, given
+    // the same options; and against the same actions with no options.
+    const t0 = Object.assign({}, visit, { actions: visit.actions.slice(0, 150) });
+    const g = monkey(4, 200, { dept: 'S9', depth: 3 }), dv = R.record(g, 200);
+    const uid = Dept.create(4, 'S9', 3).actors[2].uid;
+    const cases = [
+      [t0, { without: ['T0.1.room.2'] }, o => Setup.room(t0.start.seed, TestRoom.spec, o)],
+      [t0, { invulnerable: true }, o => Setup.room(t0.start.seed, TestRoom.spec, o)],
+      [dv, { rulesOff: ['marble', 'glass'], without: [uid] }, o => Dept.create(4, 'S9', 3, o)],
+      [dv, { invulnerable: true }, o => Dept.create(4, 'S9', 3, o)],
+    ];
+    for (const [base, o, make] of cases) {
+      const s = make(Options.make(o));
+      for (const a of base.actions) Step.step(s, a);
+      const r = R.make(base.start, o, base.actions), what = `${json(base.start)} with ${json(o)}`;
+      assert.equal(json(r.options), json(Options.make(o)), what);
+      assert.equal(R.play(r).hash, State.hash(s), what);
+      assert.notEqual(R.play(R.make(base.start, null, base.actions)).hash, State.hash(s), what + ' differs from the plain replay');
+      // As a golden run: played, pinned by tools/golden.js, and as the hash page's Node side plays it.
+      const entry = Object.assign({ kind: 'replay' }, r);
+      assert.equal(R.golden(entry).hash, State.hash(s), what);
+      assert.equal(R.golden(entry, { clone: true }).hash, State.hash(s), what);
+      assert.equal(Golden.pin(C, 'o', entry).hash, State.hash(s), what);
+      assert.equal(json(Golden.definition('o', r).options), json(r.options), what);
+      assert.equal(HashCompare.nodeRuns({ o: Object.assign({ pending: 'testing' }, entry) }, C).o.hash, State.hash(s), what);
+    }
+  });
+
   test('a replay plays the same twice and with a clone after every step, and a recorded monkey visit replays to the monkey\'s hashes', () => {
-    assert.equal(visit419.actions.length, 419, 'the golden monkey\'s first visit clears the room at its 419th action');
-    const a = R.play(visit419, { steps: true }), b = R.play(visit419), c = R.play(visit419, { clone: true, steps: true });
+    const n = visit.actions.length, seed = visit.start.seed;
+    const ends = visitEnds(C, monkey(seed, 1000));
+    assert.equal(n, ends.length ? ends[0] : 1000, 'a recorded visit ends where the monkey\'s first visit ends');
+    const a = R.play(visit, { steps: true }), b = R.play(visit), c = R.play(visit, { clone: true, steps: true });
     assert.equal(b.hash, a.hash); assert.equal(json(b.checkpoints), json(a.checkpoints)); assert.equal(json(c.steps), json(a.steps));
-    assert.equal(a.checkpoints.length, 4);
-    assert.equal(json(a.checkpoints), json([100, 200, 300, 400].map(i => a.steps[i - 1])), 'a checkpoint every 100 actions');
-    assert.equal(a.hash, a.steps[418]); assert.equal(a.refused, 0); assert.equal(a.played, 419);
+    assert.equal(a.checkpoints.length, Math.floor(n / 100));
+    assert.equal(json(a.checkpoints), json(a.checkpoints.map((_, i) => a.steps[(i + 1) * 100 - 1])), 'a checkpoint every 100 actions');
+    assert.equal(a.hash, a.steps[n - 1]); assert.equal(a.refused, 0); assert.equal(a.played, n);
     // The monkey's own hash after each action, seen independently through Monkey.run's check.
     const mine = [];
-    Monkey.run(20261023, 419, { check: s => mine.push(State.hash(s)) });
+    Monkey.run(seed, n, { check: s => mine.push(State.hash(s)) });
     assert.equal(json(a.steps), json(mine));
-    // Visits after the first replay from their own seed.
-    const g = monkey(20261023, 600), v = R.visit(g, 500);
+    // A visit after the first replays from its own seed: an action halfway through the second.
+    const g = monkey(20261023, 3000), e = visitEnds(C, g);
+    assert.ok(e.length >= 1 && e[0] < 3000, 'the monkey finishes a visit within 3,000 actions');
+    const k = Math.max(1, Math.floor(((e.length > 1 ? e[1] : 3000) - e[0]) / 2)), step = e[0] + k;
+    const v = R.visit(g, step);
     assert.equal(json(v.replay.start), json({ seed: 20261024, room: 'T0' }));
-    assert.equal(v.index, 81);
-    let at500 = null;
-    Monkey.run(20261023, 600, { check: (s, i) => { if (i === 500) at500 = State.hash(s); } });
-    assert.equal(R.play(v.replay).hash, at500);
-    assert.throws(() => R.visit(g, 601), /no action 601/);
+    assert.equal(v.index, k); assert.equal(v.replay.actions.length, k); assert.equal(v.threw, null);
+    let at = null;
+    Monkey.run(20261023, step, { check: (s, i) => { if (i === step) at = State.hash(s); } });
+    assert.equal(R.play(v.replay).hash, at);
+    assert.throws(() => R.visit(g, 3001), /no action 3001/);
     // upTo, log and refusals.
-    assert.equal(R.play(visit419, { upTo: 10 }).hash, a.steps[9]);
-    const odd = Object.assign({}, visit419, { actions: [{ a: 'move', dir: 9 }].concat(visit419.actions.slice(0, 5)) });
+    assert.equal(R.play(visit, { upTo: 10 }).hash, a.steps[9]);
+    const odd = Object.assign({}, visit, { actions: [{ a: 'move', dir: 9 }].concat(visit.actions.slice(0, 5)) });
     const q = R.play(odd, { log: true });
     assert.equal(q.refused, 1); assert.equal(q.log.length, 6); assert.equal(q.log[0].events[0].k, 'refused');
   });
 
-  test('play\'s check stops at the first failure with the states either side; a step that throws is a failure too', () => {
-    const p = R.play(visit419, { check: (pre, action, events, post) => post.actors[0].x >= 8 ? `you are at ${post.actors[0].x},${post.actors[0].y}` : null });
-    const xs = R.play(visit419, { log: true }).log.map((l, i) => i);
-    assert.ok(p.failure, 'you reach the right-hand room');
-    const want = (() => { const st = R.begin(visit419.start); for (let i = 0; i < 419; i++) { C.Step.step(st, visit419.actions[i]); if (st.actors[0].x >= 8) return i + 1; } return -1; })();
-    assert.equal(p.failure.step, want); assert.ok(xs.length === 419);
-    assert.ok(p.failure.pre.actors[0].x < 8 && p.failure.post.actors[0].x >= 8);
-    assert.equal(json(p.failure.action), json(visit419.actions[want - 1]));
+  test('play\'s check stops at the first failure with the states either side; a step that throws is a failure too, with what it did before it threw', () => {
+    // The check: you reach the farthest east this visit goes, found by playing it by hand.
+    const states = byHand(C, visit), x0 = states[0].actors[0].x, xmax = Math.max(...states.map(s => s.actors[0].x));
+    assert.ok(xmax > x0, 'the monkey goes east');
+    const want = states.findIndex(s => s.actors[0].x >= xmax);
+    const p = R.play(visit, { check: (pre, action, events, post) => post.actors[0].x >= xmax ? `you are at ${post.actors[0].x},${post.actors[0].y}` : null });
+    assert.ok(p.failure);
+    assert.equal(p.failure.step, want); assert.equal(p.failure.threw, false);
+    assert.ok(p.failure.pre.actors[0].x < xmax && p.failure.post.actors[0].x >= xmax);
+    assert.equal(State.hash(p.failure.pre), State.hash(states[want - 1])); assert.equal(State.hash(p.failure.post), State.hash(states[want]));
+    assert.equal(json(p.failure.action), json(visit.actions[want - 1]));
     assert.ok(p.failure.events.some(e => e.k === 'moved' && e.who === 'you'));
     assert.equal(p.played, want);
     // A list of invariant violations is a failure too.
-    const q = R.play(visit419, { check: (pre, action, events, post, i) => i === 3 ? [{ text: 'planted: third' }] : [] });
+    const q = R.play(visit, { check: (pre, action, events, post, i) => i === 3 ? [{ text: 'planted: third' }] : [] });
     assert.equal(q.failure.step, 3); assert.equal(q.failure.message, 'planted: third');
-    // A rule that throws, planted in a core of its own.
+    // A rule that throws before it does anything, planted in a core of its own.
     const K = loadCore(EXTRA), h = K.Actions.get('wait'), f = h.apply;
     h.apply = (state, action, ev) => { if (state.turn >= 7) throw new Error('planted crash'); return f(state, action, ev); };
-    const t = K.Replay.play(visit419);
-    assert.equal(t.failure.message, 'threw planted crash');
-    const seen = watch(C, () => R.play(visit419));
-    assert.equal(t.failure.step, seen.findIndex(x => x.a === 'wait' && x.turn >= 7) + 1);
+    const t = K.Replay.play(visit);
+    const seen = watch(C, () => R.play(visit)), at = seen.findIndex(x => x.a === 'wait' && x.turn >= 7) + 1;
+    assert.ok(at > 1);
+    assert.equal(t.failure.message, 'threw planted crash'); assert.equal(t.failure.threw, true);
+    assert.equal(t.failure.step, at); assert.equal(t.played, at - 1);
     assert.equal(t.failure.events.length, 0);
+    assert.equal(State.hash(t.failure.pre), State.hash(states[at - 1]), 'the state before the step that threw');
+    assert.equal(State.hash(t.failure.post), State.hash(states[at - 1]), 'it threw before changing anything');
+    assert.equal(K.Replay.play(visit, { lean: true }).failure.pre, null, 'a lean play keeps no states');
+    // A rule that does its work, then throws: a move (step.js) from turn 7 on. The failure
+    // keeps the events the move had emitted, which are those of the honest move handler
+    // taken by hand on the state before the step, and the state as the throw left it.
+    const K2 = loadCore(EXTRA), h2 = K2.Actions.get('move'), f2 = h2.apply;
+    h2.apply = (state, action, ev) => { const r = f2(state, action, ev); if (state.turn >= 7 && typeof r === 'number') throw new Error('planted crash after moving'); return r; };
+    const t2 = K2.Replay.play(visit), at2 = seen.findIndex(x => x.a === 'move' && x.turn >= 7) + 1;
+    assert.equal(t2.failure.step, at2); assert.equal(t2.failure.threw, true);
+    const mid = State.clone(states[at2 - 1]), ev = [];
+    assert.equal(typeof C.Actions.get('move').apply(mid, visit.actions[at2 - 1], ev), 'number');
+    assert.ok(ev.length > 0, 'the move emits events');
+    assert.equal(json(t2.failure.events), json(ev), 'the events the step had emitted before it threw');
+    assert.equal(State.hash(t2.failure.pre), State.hash(states[at2 - 1]));
+    assert.equal(State.hash(t2.failure.post), State.hash(mid), 'the state as the throw left it');
   });
 
   test('per-step hashes are 4 bytes a step in base64, as Node writes base64', () => {
@@ -126,10 +206,11 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
 
   test('the divergence printer finds a planted one-step change: one action of a replay, or one rule under a monkey', () => {
     // A replay pinned here, then one move becomes a wait.
-    const r = R.record(monkey(20261023, 300), 300), p = R.golden(r, { steps: true });
+    const r = Object.assign({}, visit, { actions: visit.actions.slice(0, 300) }), p = R.golden(r, { steps: true });
     const pinned = Object.assign({}, r, { hash: p.hash, checkpoints: p.checkpoints, steps: R.encode(p.steps) });
     assert.equal(R.verify('pinned', pinned).ok, true);
     const k = r.actions.findIndex((a, i) => i >= 150 && a.a === 'move');
+    assert.ok(k >= 150);
     const changed = Object.assign({}, pinned, { actions: pinned.actions.slice() });
     changed.actions[k] = { a: 'wait' };
     const v = R.verify('changed', changed);
@@ -161,14 +242,44 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.ok(/keeps 10 per-step hashes for 300 actions/.test(R.verify('short', short).text));
   });
 
+  test('the golden test\'s check flags a rule that a cloned state does not follow, for a replay and a monkey, at the step where it first shows', () => {
+    const K = loadCore(EXTRA); plantKeyOrder(K);
+    const r = Object.assign({}, visit, { actions: visit.actions.slice(0, 200) });
+    // The planted rule shows at the third wait: with two keys in the object, a clone sorts them.
+    const third = (seen => { let w = 0; return seen.findIndex(x => x.a === 'wait' && ++w === 3) + 1; })(watch(C, () => R.play(r)));
+    assert.ok(third > 1, 'the replay waits three times');
+    assert.notEqual(K.Replay.play(r, { clone: true }).hash, K.Replay.play(r).hash, 'cloned after every step, the replay ends elsewhere');
+    assert.equal(K.Replay.play(r, { clone: true, against: K.Replay.play(r, { steps: true }).steps }).diverged.step, third);
+    assert.equal(json(K.Replay.play(r, { clone: true, steps: true }).steps.slice(0, third - 1)), json(K.Replay.play(r, { steps: true }).steps.slice(0, third - 1)));
+    // The golden test's check (tools/golden.js selfCheck), on a replay run and a monkey run.
+    const rp = K.Replay.make(r.start, r.options, r.actions);
+    const c = Golden.selfCheck(K, 'rp', Object.assign({ kind: 'replay' }, rp));
+    assert.ok(c.problem, 'the check fails');
+    assert.ok(c.problem.startsWith('rp: a cloned state does not behave exactly like the original\nrp: the first diverging step is step ' + third + ' of 200.'), c.problem);
+    assert.ok(c.problem.includes(`It happens at action ${third} of the visit with seed ${r.start.seed}. Replayed from that seed and shrunk:\nCrash card: clone: after this step a state cloned after every step has hash `), c.problem);
+    assert.ok(c.problem.includes('Shrunk to 3 actions from ' + third), c.problem);
+    // The card's replay, played by hand on the planted core, with and without a clone after
+    // every step: the object's first key is where the two part.
+    const back = JSON.parse(c.problem.split('\n').find(l => l.startsWith('{"coreHash"')));
+    assert.ok(back.actions.every(a => a.a === 'wait'), json(back.actions));
+    const kf = clone => { let s = K.Replay.begin(back.start, back.options); for (const a of back.actions) { K.Step.step(s, a); if (clone) s = K.State.clone(s); } return s.dept.kf; };
+    assert.notEqual(kf(true), kf(false));
+    assert.ok(c.problem.includes(`Where the second play's state differs from the first's after it (1):\n  state.dept.kf: ${json(kf(false))} → ${json(kf(true))}\n`), c.problem);
+    assert.ok(clean(c.problem), c.problem);
+    const mk = Golden.selfCheck(K, 'mk', monkey(r.start.seed, 200));
+    assert.ok(mk.problem && mk.problem.startsWith('mk: a cloned state does not behave exactly like the original\nmk: the first diverging step is step ' + third + ' of 200.'), mk.problem);
+    // On the honest core the same runs pass, and the result is the first play's.
+    const ok = Golden.selfCheck(C, 'rp', Object.assign({ kind: 'replay' }, rp));
+    assert.equal(ok.problem, null); assert.equal(ok.run.hash, R.play(rp).hash);
+  });
+
   test('tools/golden.js keeps its format, re-pins with per-step hashes, checks, adds, marks pending, and names the first changed step', () => {
     // The real file is in the tool's format, and every run in it is a valid definition.
     const real = Golden.read(Golden.FILE);
     assert.equal(fs.readFileSync(Golden.FILE, 'utf8'), Golden.format(real), 'test/golden/golden.js is as tools/golden.js writes it');
     for (const name of Object.keys(real)) { Golden.definition(name, real[name]); assert.ok(R.KINDS.includes(real[name].kind), name); }
-    assert.ok(Object.keys(real).some(n => real[n].kind === 'replay'), 'a replay is among the golden runs');
     // A file of our own.
-    const file = path.join(tmp, 'golden.js'), r = R.record(monkey(20261023, 160), 160);
+    const file = path.join(tmp, 'golden.js'), r = Object.assign({}, visit, { actions: visit.actions.slice(0, 160) });
     Golden.write(file, { mk: monkey(4, 250), rp: r });
     let g = Golden.read(file);
     assert.equal(g.mk.hash, null); assert.equal(g.rp.steps, null);
@@ -209,9 +320,26 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(Golden.check(C, file).bad, 0, 'a pinned department monkey matches its pin, and the pending runs are not held to theirs');
     assert.equal(json(HashCompare.nodeRuns({ dm: g.dm }, C).dm), json({ hash: deptRun.hash, checkpoints: Array.from(deptRun.checkpoints) }));
     assert.equal(json(Golden.read(file)), json(HashCompare.readGolden(file)));
-    for (const bad of [{ kind: 'film' }, { kind: 'monkey', seed: 1.5, actions: 3 }, { kind: 'monkey', seed: 1, actions: 3, make: { dept: 'S9' } }, { kind: 'replay', start: null, actions: [] }]) {
+    for (const bad of [{ kind: 'film' }, { kind: 'monkey', seed: 1.5, actions: 3 }, { kind: 'monkey', seed: 1, actions: 3, make: { dept: 'S9' } }, { kind: 'replay', start: null, actions: [] }, null]) {
       assert.throws(() => Golden.definition('x', bad), /^Error: golden: /);
     }
+    // --add takes a replay as tools write it ({coreHash, layoutPin, start, options, actions},
+    // with no kind) or a crash card holding one, from the command line.
+    const made = R.make(r.start, { invulnerable: true }, r.actions.slice(0, 30), Hashes.coreHash());
+    assert.equal(json(Golden.definition('m', made)), json({ kind: 'replay', start: made.start, options: made.options, actions: made.actions }));
+    assert.equal(Golden.definition('m', { seed: 1, actions: 5 }).kind, 'monkey');
+    const replayFile = path.join(tmp, 'made.json'), cardFile = path.join(tmp, 'made-card.json');
+    fs.writeFileSync(replayFile, json(made)); fs.writeFileSync(cardFile, json({ text: 'a card', seed: made.start.seed, replay: made }));
+    const tool = (...args) => cp.spawnSync('node', [path.join(root, 'tools/golden.js'), '--golden', file].concat(args), { encoding: 'utf8' });
+    const a1 = tool('--add', 'fromFile', replayFile, '--pending', 'new');
+    assert.equal(a1.status, 0, a1.stdout + a1.stderr);
+    assert.ok(a1.stdout.startsWith('golden: fromFile added (replay, 30 actions), unpinned and pending: new'), a1.stdout);
+    const a2 = tool('--add', 'fromCard', cardFile);
+    assert.equal(a2.status, 0, a2.stdout + a2.stderr);
+    g = Golden.read(file);
+    assert.equal(json(g.fromFile.options), json(made.options)); assert.equal(json(g.fromFile.actions), json(made.actions));
+    assert.equal(g.fromCard.kind, 'replay'); assert.equal(g.fromCard.hash, R.play(made).hash);
+    assert.equal(Golden.check(C, file).bad, 0);
     // The page's Node side plays a pending replay as the page does, and counts its checkpoints by 100.
     const open = { rp: Object.assign({}, g.rp, { pending: 'testing' }) };
     const node = HashCompare.nodeRuns(open, C);
@@ -232,7 +360,7 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     const last = require(path.join(repo, 'tools/core-context.js')).coreFiles().slice(-1)[0];
     fs.appendFileSync(path.join(repo, last), `\n;(() => { const h = Actions.get('wait'), f = h.apply; h.apply = (state, action, ev) => { ${PLANT} return f(state, action, ev); }; })();\n`);
     git('commit', '-q', '-am', 'planted');
-    const rp = Object.assign({}, visit419, { actions: visit419.actions.slice(0, 120) });
+    const rp = Object.assign({}, visit, { actions: visit.actions.slice(0, 120) });
     const runs = { rp, mk: monkey(3, 120) };
     const res = Golden.against(before, { root: repo, golden: runs });
     const wantRp = firstPlanted(watch(C, () => R.play(rp))), wantMk = firstPlanted(watch(C, () => Monkey.run(3, 120)));
@@ -281,8 +409,30 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.equal(json(out), json({ coreHash: Hashes.coreHash(), vmHash: Hashes.vmHash() }));
   });
 
+  test('build-single.py stamps the game with coreHash, vmHash and the build, and the hash page with coreHash; --release keeps the game as builds/<coreHash>.html', () => {
+    const want = JSON.parse(cp.execFileSync('node', [path.join(root, 'tools/core-hash.js'), '--json'], { encoding: 'utf8' }));
+    const build = (out, args, name) => {
+      const r = cp.spawnSync('python3', [path.join(root, 'tools/build-single.py'), '--out', out].concat(args), { encoding: 'utf8', env: Object.assign({}, process.env, { ACCESSION_BUILD: name }) });
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+      return r.stdout;
+    };
+    const plain = path.join(tmp, 'dist-plain'), release = path.join(tmp, 'dist-release'), name = 'test "build" <1>';
+    build(plain, [], name);
+    const game = fs.readFileSync(path.join(plain, 'accession.html'), 'utf8'), head = game.slice(0, game.indexOf('</head>'));
+    assert.ok(head.includes(`<head>\n<meta name="accession-core-hash" content="${want.coreHash}">\n<meta name="accession-vm-hash" content="${want.vmHash}">\n<meta name="accession-build" content="test &quot;build&quot; &lt;1&gt;">\n`), head.slice(0, 400));
+    const page = fs.readFileSync(path.join(plain, 'accession-hash.html'), 'utf8');
+    assert.ok(page.includes(`const BUILD = ${json(name)}, CORE_HASH = '${want.coreHash}';`), 'the hash page carries the build and coreHash');
+    assert.ok(!fs.existsSync(path.join(plain, 'builds')), 'no release build unless asked');
+    const out = build(release, ['--release'], 'dev');
+    assert.ok(out.includes(`coreHash ${want.coreHash} vmHash ${want.vmHash}`), out);
+    const kept = path.join(release, 'builds', want.coreHash + '.html');
+    assert.ok(fs.existsSync(kept), 'the release build is kept by its coreHash');
+    assert.equal(fs.readFileSync(kept, 'utf8'), fs.readFileSync(path.join(release, 'accession.html'), 'utf8'));
+    assert.equal(fs.readdirSync(path.join(release, 'builds')).length, 1);
+  });
+
   test('node tools/replay.js plays a replay file, or a crash card holding one, and prints what happened in words', () => {
-    const r = R.make({ seed: 20261023, room: 'T0' }, null, visit419.actions.slice(0, 40), Hashes.coreHash());
+    const r = R.make(visit.start, null, visit.actions.slice(0, 40), Hashes.coreHash());
     const file = path.join(tmp, 'replay.json'), cardFile = path.join(tmp, 'card.json');
     fs.writeFileSync(file, json(r)); fs.writeFileSync(cardFile, json({ text: 'a card', replay: r }));
     const p = R.play(r);
@@ -293,10 +443,15 @@ module.exports = ({ test, assert, loadCore, root, fs, path }) => {
     assert.ok(a.stdout.includes(`coreHash ${Hashes.coreHash()}, this tree ${Hashes.coreHash()}`) && !a.stdout.includes('a different core'), a.stdout);
     const b = run(cardFile, '--log', '--inv');
     assert.equal(b.status, 0, b.stdout + b.stderr);
-    assert.ok(b.stdout.includes('step 1: {"a":"move","dir":5}') && b.stdout.includes(`final hash ${p.hash}`), b.stdout);
+    assert.ok(b.stdout.includes(`step 1: ${json(r.actions[0])}`) && b.stdout.includes(`final hash ${p.hash}`), b.stdout);
     const lines = R.play(r, { log: true }).log.map(l => Text.log(l.events, C.Labels.nameOf(p.state), () => true)).filter(x => x.length);
     assert.ok(lines.length > 0 && b.stdout.includes('  ' + lines[0][0]), b.stdout);
     assert.ok(clean(a.stdout + b.stdout));
     assert.equal(run().status, 2);
+  });
+
+  test('the tests leave no temporary files behind', () => {
+    fs.rmSync(tmp, { recursive: true, force: true });
+    assert.ok(!fs.existsSync(tmp));
   });
 };
