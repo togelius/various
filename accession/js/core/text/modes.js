@@ -12,12 +12,12 @@
   const mode = m => MODES[m] || 'changed';
   const turns = n => n === 1 ? '1 turn' : `${n} turns`;
   Text.define('lost', (e, w) => `${w.Name(e.who)} lost you, and is now ${mode(e.to)}.`);
-  Text.defineCause('lost', 'out_of_sight', (e, w) => `${w.Name(e.who)} lost you: it has not seen you for ${turns(e.cause.turns)}, and searches where it last saw you.`);
+  Text.defineCause('lost', 'out_of_sight', (e, w) => `${w.Name(e.who)} lost you: it has not seen you for ${turns(e.cause.turns)}, and searches where it last knew you were.`);
   Text.defineCause('lost', 'idle', (e, w) => `${w.Name(e.who)} is going back: nothing has disturbed it for ${turns(e.cause.turns)}.`);
-  Text.defineCause('lost', 'searched', (e, w) => `${w.Name(e.who)} searched where it last saw you, and is going back.`);
+  Text.defineCause('lost', 'searched', (e, w) => `${w.Name(e.who)} searched where it last knew you were, and is going back.`);
   Text.defineCause('lost', 'displaced', (e, w) => `${w.Name(e.who)} was moved from its place, and is going back to it.`);
   Text.define('alerted', (e, w) => `${w.Name(e.who)} goes to look.`);
-  Text.defineCause('alerted', 'searched', (e, w) => `${w.Name(e.who)} searched where it last saw you, and wanders, for it does not go back to sleep.`);
+  Text.defineCause('alerted', 'searched', (e, w) => `${w.Name(e.who)} searched where it last knew you were, and wanders, for it does not go back to sleep.`);
   Text.defineCause('alerted', 'homeless', (e, w) => `${w.Name(e.who)} has no place left to go back to, and wanders.`);
   Text.defineCause('alerted', 'blocked', (e, w) => `${w.Name(e.who)} cannot get back to its place, for others stand in the way, and wanders for now.`);
   const back = (e, w) => e.phase === 'reinstalled' ? `${w.Name(e.who)} settled back to sleep.` : `${w.Name(e.who)} is back in its place, settling in.`;

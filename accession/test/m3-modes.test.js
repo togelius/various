@@ -273,9 +273,12 @@ module.exports = ({ test, assert, loadCore }) => {
       ev('noise', { x: 1, y: 2, cls: 'soft', range: 3 }, { k: 'close', by: 'you' }),
     ];
     const said = cases.map(e => { assert.equal(Causes.check(e), null, json(e)); const s = Text.event(e, name); assert.ok(clean(s), `${e.k}: ${s}`); return s; });
-    assert.equal(said[3], 'The Marble Faun lost you: it has not seen you for 8 turns, and searches where it last saw you.');
-    assert.equal(said[4], 'The Marble Faun lost you: it has not seen you for 1 turn, and searches where it last saw you.');
+    // Its last-known tile may come from your noise (D1.4), so a search is of where it last knew you were.
+    assert.equal(said[3], 'The Marble Faun lost you: it has not seen you for 8 turns, and searches where it last knew you were.');
+    assert.equal(said[4], 'The Marble Faun lost you: it has not seen you for 1 turn, and searches where it last knew you were.');
     assert.equal(said[5], 'The Marble Faun is going back: nothing has disturbed it for 20 turns.');
+    assert.equal(said[6], 'The Marble Faun searched where it last knew you were, and is going back.');
+    assert.equal(said[8], 'The Marble Faun searched where it last knew you were, and wanders, for it does not go back to sleep.');
     assert.equal(said[10], 'The Marble Faun cannot get back to its place, for others stand in the way, and wanders for now.');
     assert.equal(said[12], 'The Marble Faun settled back to sleep.');
     assert.equal(said[16], 'Soft: a door closing, heard 3 tiles away.');
