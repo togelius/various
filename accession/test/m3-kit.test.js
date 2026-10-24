@@ -807,4 +807,31 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(X.Text.event(s.items && { k: 'used', turn: 1, tick: 100, who: 'you', item: 'p', how: 'push', cause: { k: 'use', x: 1, y: 1, at: 'T0.4.room.1', charges: 1 } }, uid => uid === 'T0.4.room.1' ? 'the Lantern-Crop Wader' : null),
       'You pushed the Lantern-Crop Wader one tile with the Window Pole (1 charge left).');
   });
+
+  test('a Pin-Driver bolt through an old repair\'s repaired side is doubled, and its sentence says so; from the other side it is not', () => {
+    // §5.5 (M.11): old_repair doubles the damage that comes from its repaired side, a shot's
+    // included, and the cause says side; the log shows what changed the sum (§8.1, Damage).
+    // The real bolt (W1-ARCH-B's Ranged.shoot), from you at (3, 3) or (9, 3) into a body with
+    // its west side repaired at (6, 3).
+    const X = loadCore(), names = uid => uid.startsWith('T0') ? 'the Signal Lamp' : null;
+    const seen = { W: 0, E: 0 };
+    for (let seed = 1; seed <= 12; seed++) for (const [yx, from] of [[3, 'W'], [9, 'E']]) {
+      const s = X.Setup.room(seed, { acc: 'T0', depth: 1, map: MAP, you: [yx, 3], exhibits: [Object.assign(dummy([6, 3], 'hunting', { eva: -99 }), { mods: ['old_repair'], modParams: { old_repair: { side: 'W' } } })],
+        items: [{ uid: 'p', kind: 'instrument', form: 'pin_driver', tier: 2, where: { at: 'kit', slot: 'instrument' } }] });
+      const ev = X.Step.step(s, { a: 'use', uid: 'p', x: 6, y: 3 }), hit = ev.find(e => e.k === 'damaged' && e.cause.k === 'item');
+      assert.ok(hit, `seed ${seed} from the ${from}: ${json(ev.map(e => e.k))}`);
+      const c = hit.cause, net = Math.max(N.DMG_MIN_ON_HIT, c.raw - c.pad), t = X.Text.event(hit, names);
+      assert.equal(X.Causes.check(hit), null, json(hit));
+      if (from === 'W') {
+        assert.equal(json([c.side, hit.amount]), json(['W', 2 * net]), json(c));
+        assert.ok(t.endsWith(`${c.raw} − ${c.pad} Padding, doubled through its repaired west side).`), t);
+      } else {
+        assert.equal(json([c.side, hit.amount]), json([undefined, net]), json(c));
+        assert.ok(!/repaired/.test(t) && t.endsWith(`${c.raw} − ${c.pad} Padding).`), t);
+      }
+      assert.ok(clean(t) && t.startsWith('You hit the Signal Lamp with a Pin-Driver bolt for ' + hit.amount + ' ('), t);
+      seen[from]++;
+    }
+    assert.equal(json(seen), json({ W: 12, E: 12 }));
+  });
 };
