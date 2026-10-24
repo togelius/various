@@ -123,6 +123,9 @@ accession/
     stats.js               the statistics of §10.3; plain Node, never loaded into the core
     layout-sweep.js        the 1,000-seed layout sweep (§11, M1)
     sim.js, report.js      headless bots and paired comparisons; reports from their output
+    arena.js               archetype arenas: the stamp format, building one for a seed, judging its goal (§10.3)
+    policies/              the bots: lib.js (what a policy sees, its helpers, the registry), cards.js, a file
+                           per arena, README.md (generated from the cards)
     hash-template.html     the cross-browser hash page (§3.5)
     remove-3d.sh           reverting the 3D view (§6.3); vendor-three.sh
     browser/*.mjs          Playwright scripts: smoke, screens, clicks, kills, 3D checks
@@ -176,6 +179,7 @@ accession/
 | `ai/<actorUid>` | every choice that actor makes, including ties between equally short steps, and a mimic's disguise (its case's glass, lock and loan, drawn as a real case's are) |
 | `module/<moduleId>/<acc>/d<depth>` | one module's own draws |
 | `cosmetic/…` | renderer only, derived from the layout key, never stored and never read by the core |
+| `policy/<name>/<seed>`, `arena/<id>/variant`, `bootstrap/…` | the tools' own: a policy's choices, an arena's variant for a seed, a bootstrap's resamples (§10.2, §10.3). Each is on a holder of its own, never in the state, so none of them moves a game stream |
 
 - **`…/a<k>`** is the layout attempt that made the plan (k from 0; a certified fallback counts as attempt 5), and a department's placement streams are named under it.
 - **Role keys** name rooms without dots: `intro`, `s1`, `s2` … (section galleries in tour order), `study1` …, `centre`, `coda`, `staff`.
@@ -186,7 +190,7 @@ accession/
 
 ### 3.3 What the core may not do
 
-`tools/lint-core.js` reads each file in `js/core` and `content/` with string literals, template text and comments removed, so "Long-Handled Date Stamp" in a label or `'window'` as a knob value is fine. It fails on:
+`tools/lint-core.js` reads each file in `js/core` and `content/`, and, from `check-all.sh`, `tools/arena.js` and `tools/policies/`, which run beside the core in the same hardened context, with string literals, template text and comments removed, so "Long-Handled Date Stamp" in a label or `'window'` as a knob value is fine. It fails on:
 - the identifiers `Date`, `performance`, `crypto`, `setTimeout`, `setInterval`, `requestAnimationFrame`, `window`, `document`, `globalThis`, `localStorage`, `indexedDB`, `navigator`, `fetch`, `Intl` and `parseFloat`;
 - `Math.X` for any X outside `imul`, `abs`, `min`, `max`, `floor`, `ceil`, `trunc` and `sign`, and any other way of reaching `Math` (`Math[…]`, aliasing `Math`);
 - the members `localeCompare`, `toLocaleString`, `toFixed` and `toPrecision`;
@@ -1450,10 +1454,13 @@ The ten layers are in [`DECISIONS.md`](DECISIONS.md) (Automatic playtesting); th
   - `play` also checks after every step that the state is plain data (§3.1), whatever the invariants, and with `clone` (a scenario's `clone: true`) plays a twin that is cloned after every step and reports the first step whose hash differs (§3.5);
   - `sensitivity(C, scenario, id)` reruns it with `id` in `rulesOff`, and fails unless every run then fails. A scenario's `build` must pass `rulesOff` on to `Setup.room`'s options, since a rule switched off after the state is made is only half off (a modifier's speed is fixed at spawn); one that does not fails, saying so.
 - **Crash cards.** Monkey, soak and golden failures are shrunk with ddmin over the action list, replaying from the seed (time limit 60 s). The card gives the seed, `coreHash`, the shrunk action count, the first bad step with its events and a JSON-path diff of the state, and a replay link.
-- **`tools/sim.js`** runs policies headless over N seeds and writes JSON with the run's `coreHash`, seeds and per-run outcomes. It supports `--policy`, `--seeds`, `--depth`, `--dept`, the counterfactual switches `--rules-off` and `--without`, `--paired` (two policies or two option sets on identical seeds) and `--invulnerable` (a sim-only option that keeps your HP at least 1 and logs the would-be deaths).
+- **`tools/sim.js`** runs policies headless over N seeds and writes JSON with the run's `coreHash`, `vmHash`, seeds and per-run outcomes. It supports `--policy`, `--seeds`, `--depth`, `--dept`, `--arena`, the counterfactual switches `--rules-off` and `--without`, `--paired` (two policies or two option sets on identical seeds: each side is a policy, optionally with its own switches, `counter@rules-off=marble`) and `--invulnerable` (a sim-only option that keeps your HP at least 1 and logs the would-be deaths); `--help` lists the rest.
+  - **A run** stops when its arena's goal is met, the visit is over, the turn cap is reached, or after 50 refusals in a row. A policy's action that is not legal is refused by `step()`, as a player's would be, and listed as a violation. After every step the state must be plain data, and `--check` runs every invariant.
+  - **Each run's JSON** holds its outcome, a reason for every decision, the labels it read, its violations and its replay (`{coreHash, start, options, actions}`, with `start` saying how the state was made); a paired run adds the statistics of §10.3 and the verdict in words.
 - **The policies.** Random monkey; naive; one counterplay policy per archetype; rule-aware and rule-blind per module; explorer (finishes departments and runs); a 2-ply expert search (layer 6).
-  - **They see what a player sees.** Every policy except the monkey and the expert observes only `ViewModel.derive(state, {})` and the text of labels it has read. The view model lists only actors on visible tiles.
-  - **Each has a card** in `tools/policies/README.md`: its rules in order and its weights, printed in every report.
+  - **They see what a player sees.** Every policy except the monkey and the expert observes only `ViewModel.derive(state, {events})` (with the last step's events, so the noise rings and one-turn cues a player sees are there), the log's sentences, and the text of labels it has read, the paragraph only within reading distance (§8.8); it chooses from `Step.legal`, the player's buttons. The view model lists only actors on visible tiles. `Obs.make` in `tools/policies/lib.js` builds exactly this, and its helpers read nothing else.
+  - **They are deterministic.** A policy draws any choice from its own stream, `policy/<name>/<seed>`, on a holder of its own and never in the state, and it runs in the hardened core context, where `Math.random` and the clock are not there; `tools/lint-core.js` checks `tools/policies/` as it checks the core. Two runs on one seed make the same decisions.
+  - **Each has a card** in `tools/policies/README.md`: its rules in order and its weights, printed in every report. The file is generated from the cards (`node tools/sim.js --cards --write`) and a test fails when it is out of date.
   - **Each decision has a reason.** It appends one line to the sim log ("attack M11.3.s2.4: 80% to hit, kills in 2"), and the replay scrubber shows it.
   - **The expert** may read the whole state; each exploit it reports is annotated per step with its evaluation and the cause records of the gain, and flagged when it relies on what the view model does not show.
 - **`tools/report.js`** fills sentence templates from sim JSON, with the statistics of §10.3. Every claim links a replay chosen by rule: for a rate, the commonest outcome and the median seed; for a paired comparison, the seed with the largest paired difference and the median-difference seed; for a failure, its crash card. No language model writes a number in a report.
@@ -1480,12 +1487,13 @@ The ten layers are in [`DECISIONS.md`](DECISIONS.md) (Automatic playtesting); th
 - **Statistics, by kind:**
   - a single rate (death, fires, fallback) gets a 95% Wilson interval (`Stats.wilson(k, n, z)` in `tools/stats.js`, which runs beside the core, never in it, since it needs floating point);
   - the hit-chance check (M3) rolls `Combat.rollHit` 10,000 times at each chance the slice can show, on one fixed `combat/test` stream, and requires each rate inside its 99.9% Wilson interval (z = 3.2905); it prints how many intervals it checked, of which about one in a thousand could fall outside by chance, and any that does is a finding;
-  - a paired binary difference (death with and without a rule) gets Newcombe's paired-difference interval;
-  - a continuous paired quantity (HP lost, turns) is reported as the mean per-seed difference with a 95% percentile-bootstrap interval: 10,000 resamples of seeds on a fixed resampling stream, so the result is deterministic;
-  - a ratio margin is a ratio of sums over seeds, with the same bootstrap.
-- **Pass** = the point estimate meets the margin, and the 95% interval of the per-seed paired difference excludes zero.
+  - a paired binary difference (death with and without a rule) gets Newcombe's paired-difference interval (Newcombe 1998, paired data, method 10; `Stats.newcombe`);
+  - a continuous paired quantity (HP lost, turns) is reported as the mean per-seed difference with a 95% percentile-bootstrap interval: 10,000 resamples of seeds on a fixed resampling stream (the core's derivation, seed 1, `bootstrap/<arena>/<metric>`), so the result is deterministic; the interval runs from the 250th resample from the bottom to the 250th from the top;
+  - a ratio margin is a ratio of sums over seeds (counterplay's total over naive's), with the same bootstrap; there is no ratio when naive's total is zero.
+- **Pass** = the point estimate meets the margin, and the 95% interval of the per-seed paired difference excludes zero (`Stats.margin`). A Newcombe comparison passes when the rate is lower and its interval excludes zero; one in which neither policy ever has the outcome is a finding, not a pass.
 - **"Fires"** means the module's own events (`module` with its id) occur in at least 90% of single-department runs of its department at depths 2 and 5, by the explorer, with the module on.
-- **Archetype arenas** (M3). Each arena is an ASCII stamp in `test/arena/`, with a goal and a turn cap of 200. HP lost counts your maximum HP if you die.
+- **Archetype arenas** (M3). Each arena is an ASCII stamp in `test/arena/<id>.txt`, with a goal and a turn cap of 200: a header (`arena`, `goal`, `cap`, `species`, `depths`, `kit`, `clock`, `seen`, `metric`, `legend`, `variants`), a blank line, then the map, whose letters the legend explains; `tools/arena.js` reads it, and the format is written at the top of that file. HP lost is what the blows, shots and specials you took removed, summed, at most your maximum HP, and it counts your maximum HP if you die.
+  - **Each seed's setting.** Seed s uses depths[(s − 1) mod D] and the pack species of the archetype in turn, species[⌊(s − 1) / D⌋ mod S]; with the usual depths, 2 and 5, odd seeds are at depth 2 and even ones at 5, and every species meets both. A stamp's variant (such as which of two cases is the mimic) is drawn per seed on `arena/<id>/variant`, so paired runs share it.
 
   | Archetype | Arena and goal | Naive | Counterplay | Metric, margin |
   |---|---|---|---|---|
