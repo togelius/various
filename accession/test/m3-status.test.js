@@ -1,9 +1,12 @@
 // W1-STATUS: statuses and surfaces (BUILD.md §8.1, §8.6). The status timing rule as a table
 // (Fixative after 100-, 150-, 200- and 300-tick actions; the mimic's grip after an open, a
-// bash and a Heavy bash), each status's effect (a cough's noises, restoring's healing, the
-// fixed, slowed and dazed numbers), statuses on exhibits, a cloud that blocks sight both ways
-// with the ring still equal to the pips, Fumigant's pips, dust's expiry, the registry entries
-// and sentences, and the invariants of test/behaviour/status.inv.js catching planted faults.
+// bash and a Heavy bash; a status put on twice in one action), each status's effect (a
+// cough's noises, restoring's healing, also when put on again, the fixed, slowed and dazed
+// numbers), statuses on exhibits (Fixative calling off a pending mark), a cloud that blocks
+// sight both ways with the ring still equal to the pips, Fumigant's pips (a 2×2 body partly
+// under the cloud too), dust's expiry, the registry entries and sentences (a status ends in
+// the words it began with), and the invariants of test/behaviour/status.inv.js catching
+// planted faults (a fixed exhibit's own step while the pole moves it among them).
 // Expected figures are worked out here from BUILD.md's text, never read from the rule code.
 module.exports = ({ test, assert, loadCore, root, path }) => {
   const C = loadCore();
@@ -22,12 +25,17 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const of = (ev, k, f) => ev.filter(e => e.k === k && (!f || f(e)));
 
   // A wait that costs `cost` ticks and puts statuses on, or lays surfaces, at its end: the
-  // core's wait, patched in this context only. Its action is {a: 'wait', cost?, put?: [{who,
-  // id, turns, cause?}], lay?: [{kind, size, turns}]} (a surface laid on your tile).
+  // core's wait, patched in this context only. Its action is {a: 'wait', cost?, mark?: uid,
+  // put?: [{who, id, turns, cause?}], lay?: [{kind, size, turns}]} (a surface laid on your
+  // tile); the exhibit `mark` first marks its archetype's special (Specials.mark).
   function plant(X) {
     const h = X.Actions.get('wait'), orig = h.apply;
     h.apply = (state, action, ev) => {
       const c = orig(state, action, ev), you = state.actors[0];
+      if (action.mark) {
+        const a = X.Actors.byUid(state, action.mark), id = R.ARCHETYPES[a.arch].special;
+        X.Specials.mark(state, a, id, X.Specials.tiles(state, a, R.SPECIALS[id].shape), ev);
+      }
       for (const p of action.put || []) X.Status.apply(state, X.Actors.byUid(state, p.who), p.id, p.turns, p.cause || { k: 'status', id: p.id }, ev);
       for (const l of action.lay || []) X.Surfaces.add(state, l.kind, you.x, you.y, l.size, l.turns, 'you', ev);
       return action.cost === undefined ? c : action.cost;
@@ -165,19 +173,39 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const heals = of(all, 'healed', e => e.cause.k === 'status'), healed = heals.reduce((n, e) => n + e.amount, 0);
     assert.ok(healed >= 1 && healed <= 2 && heals.every(e => e.hp <= 80), json(heals));
     assert.equal(you.hp, 80);
-    assert.equal(X.Text.event(heals[0]), `You healed ${heals[0].amount} while restoring: health ${heals[0].hp}.`);
-    // Put on again while held, it lasts to the later end from the same start and heals at the same rate.
-    const t = room(X, OPEN, [2, 2]), me = t.actors[0];
-    me.maxHp = 100; me.hp = 1;
-    const ev2 = X.Step.step(t, put(100, 'you', 'restoring', 5));
-    for (let i = 0; i < 2; i++) ev2.push(...X.Step.step(t, { a: 'wait' }));
-    ev2.push(...X.Step.step(t, put(100, 'you', 'restoring', 5)));
-    assert.equal(json([me.statuses[0].from, me.statuses[0].until]), json([1, 9]), 'from turn 1; again in turn 3, so to turn 4 + 5');
-    for (let i = 0; i < 8; i++) ev2.push(...X.Step.step(t, { a: 'wait' }));
-    const rate = of(ev2, 'healed', e => e.cause.k === 'status');
-    assert.equal(json(rate.map(e => e.turn)), json([1, 2, 3, 4, 5, 6, 7, 8]));
-    assert.ok(rate.every(e => e.amount === 5), 'a fifth of 25 each turn');
+    assert.equal(X.Text.event(heals[0]), `You healed ${heals[0].amount} while recovering health: health ${heals[0].hp}.`);
+    // Put on again while held, it lasts to the later end from the same start and heals at the
+    // same rate: every 5 turns in a row of the longer course heal exactly the total, at
+    // maxima whose shares differ (87: 21 in all, as 4, 4, 4, 4 and 5) as at one whose do not.
+    for (const max of [87, 133, 47, 100]) {
+      const t = room(X, OPEN, [2, 2]), me = t.actors[0];
+      me.maxHp = max; me.hp = 1;
+      const ev2 = X.Step.step(t, put(100, 'you', 'restoring', 5));
+      for (let i = 0; i < 2; i++) ev2.push(...X.Step.step(t, { a: 'wait' }));
+      ev2.push(...X.Step.step(t, put(100, 'you', 'restoring', 5)));
+      assert.equal(json([me.statuses[0].from, me.statuses[0].until]), json([1, 9]), 'from turn 1; again in turn 3, so to turn 4 + 5');
+      for (let i = 0; i < 8; i++) ev2.push(...X.Step.step(t, { a: 'wait' }));
+      const rate = of(ev2, 'healed', e => e.cause.k === 'status'), total = floor(max * N.CONSOLIDANT_HOT_PCT, 100);
+      assert.equal(json(rate.map(e => e.turn)), json([1, 2, 3, 4, 5, 6, 7, 8]), `max ${max}`);
+      const shares = rate.map(e => e.amount);
+      for (let k = 0; k + 5 <= shares.length; k++) assert.equal(shares.slice(k, k + 5).reduce((a, b) => a + b, 0), total, `max ${max}: turns ${k + 1}–${k + 5} of ${json(shares)}`);
+      assert.ok(Math.max(...shares) - Math.min(...shares) <= 1, `max ${max}: ${json(shares)}`);
+    }
     assert.equal(X.Status.restoreShare(100, 0) + X.Status.restoreShare(100, 4), 10);
+  });
+
+  test('a status put on twice in one action covers the longer of the two, from its bearer\'s next decision', () => {
+    for (const [first, second] of [[4, 2], [2, 4], [3, 3]]) {
+      const X = plant(loadCore()), s = room(X, OPEN, [2, 2]), you = s.actors[0];
+      const ev = X.Step.step(s, { a: 'wait', put: [{ who: 'you', id: 'fixed', turns: first }, { who: 'you', id: 'fixed', turns: second }] });
+      assert.equal(json(of(ev, 'status').map(e => [e.id, e.on, e.turns])), json([['fixed', true, first], ['fixed', true, second]]));
+      assert.equal(you.statuses.length, 1, 'one record');
+      const st = you.statuses[0], longer = Math.max(first, second);
+      assert.equal(json([st.from, st.until]), json([1, 1 + longer]), `${first} then ${second}`);
+      let waits = 0;
+      while (!X.Step.legal(s).some(a => a.a === 'move')) { X.Step.step(s, { a: 'wait' }); waits++; assert.ok(waits < 9); }
+      assert.equal(waits, longer, `${first} then ${second}: ${waits} forced waits`);
+    }
   });
 
   test('statuses on exhibits: a fixed slow exhibit makes 2 forced waits, 400 ticks in all; a sleeping one\'s turns start at the next boundary', () => {
@@ -207,6 +235,24 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     for (let i = 0; i < 6; i++) Y.Step.step(t, { a: 'wait' });
     assert.equal(json(waits.filter(w => w[1]).map(w => w[0])), json([6, 7]), json(waits));
     assert.equal(waits.find(w => !w[1])[0], 8);
+  });
+
+  test('Fixative on an exhibit with a mark pending calls the mark off at once, in the action that fixed it, and the mark never goes off', () => {
+    for (const [arch, at] of [['axis_sniper', [7, 2]], ['tethered_warden', [3, 2]], ['herald', [5, 3]]]) {
+      // Its next decision is at 150, after yours at 100: the mark is called off at once all the same.
+      const X = plant(loadCore()), s = room(X, OPEN, [2, 2], [ex(at, { mode: 'hunting', arch, next: 150, stats: stats({ acc: 99, hp: 999 }) })], {}, { invulnerable: true }), a = s.actors[1];
+      const ev = X.Step.step(s, { a: 'wait', mark: a.uid, put: [{ who: a.uid, id: 'fixed', turns: N.FIXATIVE_TURNS }] });
+      const ks = ev.filter(e => e.who === a.uid && ['telegraphed', 'status', 'special'].includes(e.k)).map(e => e.k + (e.cancelled ? ':cancelled' : ''));
+      assert.equal(json(ks.slice(0, 3)), json(['telegraphed', 'status', 'special:cancelled']), `${arch}: ${json(ks)}`);
+      const cancel = of(ev, 'special', e => e.cancelled)[0];
+      assert.equal(json([cancel.sp, cancel.cause.k, cancel.cause.why]), json([R.ARCHETYPES[arch].special, 'cancel', 'fixed']));
+      assert.ok(!a.telegraph && !X.Specials.marks(s).length && !ev.some(e => e.who === a.uid && e.k === 'waited'), `${arch}: no mark is held or shown, before it has had a turn`);
+      // While it is fixed nothing goes off (once free, it may mark again).
+      const all = ev.slice();
+      while (!of(all, 'status', e => e.who === a.uid && !e.on).length) { all.push(...X.Step.step(s, { a: 'wait' })); assert.ok(all.length < 500); }
+      const held = all.slice(0, all.findIndex(e => e.k === 'status' && e.who === a.uid && !e.on));
+      assert.ok(!of(held, 'special', e => !e.cancelled).length && !of(held, 'damaged', e => e.cause.k === 'special').length, `${arch}: the mark never went off`);
+    }
   });
 
   test('slowed doubles every action\'s cost; dazed takes 20 off the bearer\'s chance to hit; blows against a fixed target gain 20', () => {
@@ -294,7 +340,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json(pips(inside).map(e => [e.turn, e.pips, e.delta])), json([[1, 1, -1], [2, 0, -1]]));
     assert.equal(json(pips(edge).map(e => e.turn)), json([1, 2]), 'the square\'s edge is inside');
     assert.equal(pips(outside).length, 0);
-    assert.equal(json(pips(big).map(e => e.turn)), json([1]), 'a 2×2 body is inside if any of its tiles is; at 0 pips nothing more');
+    assert.equal(json(pips(big).map(e => e.turn)), json([1]), 'a 2×2 body under the cloud loses a pip; at 0 pips nothing more');
     assert.equal(json(pips(kept).map(e => e.turn)), json([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), 'one a turn, two clouds or one, for 10 turns');
     assert.equal(pips(awake).length, 0);
     assert.ok(pips(kept).every(e => e.cause.by === 'you'));
@@ -302,6 +348,18 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json([inside.mode, inside.pips, s.dept.surfaces.length]), json(['dormant', 0, 0]));
     // It takes no pips from a sleeper that has none, so it says nothing about one.
     assert.ok(of(all, 'pip', e => e.cause.k === 'fumigant').every(e => e.delta === -1 && e.pips >= 0));
+    // A 2×2 body is inside if any of its tiles is: here only its right-hand tiles are under
+    // the cloud, not the tile it is placed by (its top left), nor its lower row's left tile.
+    const Y = loadCore(), t = room(Y, APART, [1, 2], [ex([7, 1], { pips: 2, size: 2 }), ex([12, 3], { pips: 2, size: 2 })]);
+    const [, left, right] = t.actors;
+    const cloud = Y.Surfaces.add(t, 'fumigant', 10, 2, N.FUMIGANT_SIZE, 3, 'you', []), h = floor(N.FUMIGANT_SIZE, 2);
+    const under = (a, dx, dy) => Math.abs(a.x + dx - cloud.x) <= h && Math.abs(a.y + dy - cloud.y) <= h;
+    assert.ok(!under(left, 0, 0) && !under(left, 0, 1) && under(left, 1, 0) && under(left, 1, 1), 'the cloud covers only the body\'s right-hand tiles');
+    assert.ok(under(right, 0, 0) && !under(right, 1, 0), 'the cloud covers only the other body\'s left-hand tiles');
+    const evs = [];
+    for (let i = 0; i < 4; i++) evs.push(...Y.Step.step(t, { a: 'wait' }));
+    assert.equal(json(of(evs, 'pip', e => e.cause.k === 'fumigant').map(e => [e.who, e.turn, e.pips])),
+      json([[left.uid, 1, 1], [right.uid, 1, 1], [left.uid, 2, 0], [right.uid, 2, 0]]), 'each body loses a pip a turn while any tile of it is under the cloud');
   });
 
   test('plaster dust blocks sight for its 3 turns, is cleared at the boundary after them, and takes no pips', () => {
@@ -346,13 +404,25 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(say('you', 'rooted', true, 2), 'You are now rooted to the spot for 2 turns.');
     assert.equal(say('x.1', 'fixed', true, 4), 'The Tortoise is now fixed in place for 4 turns.');
     assert.equal(say('you', 'coughing', true, 1), 'You are now coughing for 1 turn.');
-    assert.equal(say('you', 'restoring', true, 5), 'You are now restoring for 5 turns (healing a share each turn).');
+    assert.equal(say('you', 'restoring', true, 5), `You are now recovering health for 5 turns (${N.CONSOLIDANT_HOT_PCT}% of your maximum health in all, a share each turn).`);
+    assert.equal(say('x.1', 'restoring', false), 'The Tortoise is no longer recovering health.');
     assert.equal(say('x.1', 'slowed', true, 3), `The Tortoise is now slowed for 3 turns (every action takes ${N.SPEED_SLOW_PCT}% of its usual time).`);
     assert.equal(say('you', 'dazed', true, 3), `You are now dazed for 3 turns (your blows have ${N.HIT_DAZED_ATTACKER} to hit).`);
     assert.equal(say('x.1', 'dazed', false), 'The Tortoise is no longer dazed.');
     for (const id of R.order('STATUSES')) for (const who of ['you', 'x.1']) for (const on of [true, false]) {
       const s = say(who, id, on, on ? 3 : undefined);
       assert.ok(/^[A-Z].*\.$/.test(s) && !/undefined|NaN|\[object|null/.test(s), s);
+    }
+    // Each status has its words, and ends in the words it began with: put on and timed out,
+    // with or without its turns, each sentence reads "now <words>" or "no longer <words>".
+    for (const id of R.order('STATUSES')) {
+      const words = R.STATUSES[id].words;
+      assert.ok(typeof words === 'string' && /^[a-z][a-z ]*[a-z]$/.test(words), `${id}: ${words}`);
+      for (const who of ['you', 'x.1']) {
+        assert.ok(say(who, id, true, 4).includes(` now ${words} for 4 turns`), say(who, id, true, 4));
+        assert.ok(say(who, id, true).includes(` now ${words}`), say(who, id, true));
+        assert.ok(say(who, id, false).endsWith(` no longer ${words}.`), say(who, id, false));
+      }
     }
     // Statuses on exhibits out of view stay out of your log, as their pips do.
     assert.equal(Text.logs('status'), 'seen');
@@ -367,12 +437,15 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   // hunter, then coughing and restoring, with a Fumigant cloud over a sleeper and dust between.
   function run(X, inv) {
     healing(X); plant(X);
-    const s = room(X, APART, [2, 2], [ex([3, 2], { mode: 'hunting', stats: stats({ acc: -99, hp: 999 }) }), ex([9, 2], { pips: 2 }), ex([11, 3], { pips: 2 })]);
+    // The 2×2 sleeper at (7, 3) has only its right-hand tiles under the cloud.
+    const s = room(X, APART, [2, 2], [ex([3, 2], { mode: 'hunting', stats: stats({ acc: -99, hp: 999 }) }), ex([9, 2], { pips: 2 }), ex([11, 3], { pips: 2 }),
+      ex([7, 3], { pips: 2, size: 2 })]);
     s.actors[0].hp = 12;
     const a = s.actors[1];
     X.Surfaces.add(s, 'fumigant', 10, 2, N.FUMIGANT_SIZE, 4, 'you', []);
     X.Surfaces.add(s, 'dust', 2, 3, 1, 2, a.uid, []);
-    const acts = [put(150, a.uid, 'fixed', 3), put(100, 'you', 'fixed', 2), { a: 'move', dir: 6 }, { a: 'wait' }, { a: 'wait' },
+    // You are fixed twice in one action, for 2 turns and then 1: it covers the longer.
+    const acts = [put(150, a.uid, 'fixed', 3), { a: 'wait', put: [{ who: 'you', id: 'fixed', turns: 2 }, { who: 'you', id: 'fixed', turns: 1 }] }, { a: 'move', dir: 6 }, { a: 'wait' }, { a: 'wait' },
       put(200, 'you', 'rooted', 2), { a: 'move', dir: 6 }, { a: 'move', dir: 6 }, { a: 'wait' }, { a: 'move', dir: 6 },
       { a: 'wait', put: [{ who: 'you', id: 'coughing', turns: 3 }, { who: 'you', id: 'restoring', turns: 5 }] }, { a: 'wait' }, { a: 'wait' }, { a: 'wait' }, { a: 'wait' }, { a: 'wait' }];
     return H.play(X, s, acts, { inv, clone: true });
@@ -384,34 +457,80 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.equal(json(clean.violations.map(v => v.text)), '[]');
     assert.ok(of(clean.events, 'status').length >= 10 && of(clean.events, 'noise', e => e.cause.k === 'cough').length === 3);
     assert.ok(of(clean.events, 'healed').length >= 3 && of(clean.events, 'pip', e => e.cause.k === 'fumigant').length >= 3);
-    const faults = {
-      // The start rounded up instead of down: a status put on during a 150-tick action starts a turn late.
-      status_timing: X => { X.Status.settle = state => { for (const a of state.actors) for (const s of a.statuses) if (s.turns !== null) { const st = X.Int.ceilDiv(a.next, 100); if (s.until === null) { s.from = st; s.until = st + s.turns; } else s.until = Math.max(s.until, st + s.turns); s.turns = null; } }; },
-      // A fixed exhibit acts as if it were free.
-      fixed_only_waits: X => { const act = X.AI.act; X.AI.act = (state, a, ev) => { const keep = a.statuses; a.statuses = keep.filter(s => s.id !== 'fixed'); try { return act(state, a, ev); } finally { a.statuses = keep; } }; },
-      // Rooted forgotten by the step rule.
-      rooted_never_steps: X => { const blocks = X.Status.blocks; X.Status.blocks = (state, a, action) => { const c = blocks(state, a, action); return c === 'rooted' ? null : c; }; },
-      // Two coughs a turn.
-      coughing_noise: X => { const f = X.Status.EFFECTS.coughing; X.Status.EFFECTS.coughing = (state, a, s, ev) => { f(state, a, s, ev); f(state, a, s, ev); }; },
-      // The whole course healed at once.
-      restoring_share: X => { X.Status.EFFECTS.restoring = (state, a, s, ev) => { if (state.turn === s.from) X.Health.heal(state, a, X.Int.pct(a.maxHp, 25), { k: 'status', id: 'restoring' }, ev); }; },
-      // Two pips a turn.
-      fumigant_pips: X => { X.Surfaces.EFFECTS.fumigant = (state, s, ev) => { for (const a of state.actors.slice(1)) if (a.mode === 'dormant' && X.Grid.covers(s, a.x, a.y)) X.Wake.addPips(state, a, -2, { k: 'fumigant', by: s.by }, ev); }; },
-      // Surfaces never cleared.
-      surface_timing: X => { X.Surfaces.tick = () => {}; },
-      // Sight traced from its first end only, ignoring surfaces one way.
-      los_symmetric: X => { const los = X.Grid.los; X.Grid.los = (m, x0, y0, x1, y1) => (x1 < x0 && m.surfaces && m.surfaces.length) ? false : los(m, x0, y0, x1, y1); },
-    };
-    for (const id of ids) {
+    // Each invariant's planted faults, as [invariant, what is wrong, plant].
+    const faults = [
+      ['status_timing', 'the start rounded up instead of down, so a status put on during a 150-tick action starts a turn late',
+        X => { X.Status.settle = state => { for (const a of state.actors) for (const s of a.statuses) if (s.turns !== null) { const st = X.Int.ceilDiv(a.next, 100); if (s.until === null) { s.from = st; s.until = st + s.turns; } else s.until = Math.max(s.until, st + s.turns); s.turns = null; } }; }],
+      ['status_timing', 'put on twice in one action, the second length replaces the first',
+        X => { const apply = X.Status.apply; X.Status.apply = (state, a, id, turns, cause, ev) => { const s = (a.statuses || []).find(q => q.id === id && q.until === null); apply(state, a, id, turns, cause, ev); if (s) s.turns = turns; }; }],
+      ['fixed_only_waits', 'a fixed exhibit acts as if it were free',
+        X => { const act = X.AI.act; X.AI.act = (state, a, ev) => { const keep = a.statuses; a.statuses = keep.filter(s => s.id !== 'fixed'); try { return act(state, a, ev); } finally { a.statuses = keep; } }; }],
+      ['rooted_never_steps', 'rooted forgotten by the step rule',
+        X => { const blocks = X.Status.blocks; X.Status.blocks = (state, a, action) => { const c = blocks(state, a, action); return c === 'rooted' ? null : c; }; }],
+      ['coughing_noise', 'two coughs a turn',
+        X => { const f = X.Status.EFFECTS.coughing; X.Status.EFFECTS.coughing = (state, a, s, ev) => { f(state, a, s, ev); f(state, a, s, ev); }; }],
+      ['restoring_share', 'the whole course healed at once',
+        X => { X.Status.EFFECTS.restoring = (state, a, s, ev) => { if (state.turn === s.from) X.Health.heal(state, a, X.Int.pct(a.maxHp, 25), { k: 'status', id: 'restoring' }, ev); }; }],
+      ['fumigant_pips', 'two pips a turn',
+        X => { X.Surfaces.EFFECTS.fumigant = (state, s, ev) => { for (const a of state.actors.slice(1)) if (a.mode === 'dormant' && X.Grid.covers(s, a.x, a.y)) X.Wake.addPips(state, a, -2, { k: 'fumigant', by: s.by }, ev); }; }],
+      ['fumigant_pips', 'only the tile a sleeper is placed by counts, so a 2×2 body with its other tiles under the cloud keeps its pips',
+        X => { X.Surfaces.EFFECTS.fumigant = (state, s, ev) => { for (const a of state.actors.slice(1)) if (a.mode === 'dormant' && a.pips && X.Grid.covers(s, a.x, a.y)) X.Wake.addPips(state, a, -1, { k: 'fumigant', by: s.by }, ev); }; }],
+      ['fumigant_pips', 'the cloud takes no pips at all', X => { X.Surfaces.EFFECTS.fumigant = () => {}; }],
+      ['surface_timing', 'surfaces never cleared', X => { X.Surfaces.tick = () => {}; }],
+      ['los_symmetric', 'sight traced from its first end only, ignoring surfaces one way',
+        X => { const los = X.Grid.los; X.Grid.los = (m, x0, y0, x1, y1) => (x1 < x0 && m.surfaces && m.surfaces.length) ? false : los(m, x0, y0, x1, y1); }],
+      ['los_symmetric', 'from the fifth step on, when the check no longer looks at every tile round a surface, sight into a surface\'s square from its east is blocked one way only',
+        X => { const los = X.Grid.los, step = X.Step.step; let calls = 0; X.Step.step = (st, a) => { calls++; return step(st, a); };
+          X.Grid.los = (m, x0, y0, x1, y1) => (calls > 8 && x1 < x0 && (m.surfaces || []).some(s => X.Grid.covers(s, x1, y1))) ? false : los(m, x0, y0, x1, y1); }],
+    ];
+    for (const id of ids) assert.ok(faults.some(f => f[0] === id), `${id} has a planted fault`);
+    for (const [id, what, fault] of faults) {
       const X = loadCore();
-      faults[id](X);
+      fault(X);
       const r = run(X, [id]);
-      assert.ok(r.violations.some(v => v.inv === id), `${id} misses its planted fault`);
+      assert.ok(r.violations.some(v => v.inv === id), `${id} misses its planted fault: ${what}`);
     }
     // The fixed you: the step rule forgotten, you walk while fixed.
     const X = loadCore(); X.Status.blocks = () => null;
     const r = run(X, ['fixed_only_waits']);
     assert.ok(r.violations.some(v => v.inv === 'fixed_only_waits' && v.uid === 'you'), json(r.violations.map(v => v.text)));
+  });
+
+  test('fixed_only_waits: the pole may move a fixed exhibit, but a step of its own while you use an instrument is caught', () => {
+    // The pole is W1-KIT's: planted here as a use of 100 ticks that pushes the exhibit `push`
+    // one tile in direction `dir`, with the pole's cause naming you, and puts statuses on.
+    const pole = X => {
+      X.Actions.get('use').apply = (state, action, ev) => {
+        const a = action.push ? X.Actors.byUid(state, action.push) : null;
+        if (a) {
+          const to = [a.x + X.Grid.DX[action.dir], a.y + X.Grid.DY[action.dir]];
+          X.Causes.emit(state, ev, 'moved', { who: a.uid, from: [a.x, a.y], to }, { k: 'pole', by: 'you', item: 'pole' });
+          a.x = to[0]; a.y = to[1];
+        }
+        for (const p of action.put || []) X.Status.apply(state, X.Actors.byUid(state, p.who), p.id, p.turns, { k: 'status', id: p.id }, ev);
+        return 100;
+      };
+      return X;
+    };
+    // A hunter three tiles east of you, fixed and pushed east by the pole, then left fixed
+    // while you use the pole on nothing: each of its turns while fixed falls in a use.
+    const go = X => {
+      const s = room(X, WIDE, [1, 4], [ex([4, 4], { mode: 'hunting' })]), a = s.actors[1];
+      const acts = [{ a: 'use', push: a.uid, dir: 2, put: [{ who: a.uid, id: 'fixed', turns: 3 }] }, { a: 'use', push: a.uid, dir: 2 }, { a: 'use' }, { a: 'use' }, { a: 'wait' }];
+      return { a, r: H.play(X, s, acts, { inv: ['fixed_only_waits'], clone: true }) };
+    };
+    const clean = go(pole(loadCore()));
+    assert.equal(json(clean.r.violations.map(v => v.text)), '[]');
+    const pushed = of(clean.r.events, 'moved', e => e.who === clean.a.uid && e.cause && e.cause.k === 'pole');
+    assert.equal(json(pushed.map(e => e.to)), json([[5, 4], [6, 4]]), 'the pole moved it twice');
+    assert.ok(!of(clean.r.events, 'moved', e => e.who === clean.a.uid && !e.cause && e.tick < 300).length, 'it did not step while fixed');
+    // A fixed exhibit that steps as if free, during your use of the pole, is caught.
+    const X = pole(loadCore()), act = X.AI.act;
+    X.AI.act = (state, a, ev) => { const keep = a.statuses; a.statuses = keep.filter(s => s.id !== 'fixed'); try { return act(state, a, ev); } finally { a.statuses = keep; } };
+    const bad = go(X);
+    assert.ok(bad.r.steps.every((st, i) => i > 3 || st.action.a === 'use'), 'every step while it is fixed is a use');
+    assert.ok(!of(bad.r.events, 'attacked', e => e.by === bad.a.uid && e.tick < 300).length, 'it made no blow while fixed, only steps');
+    assert.ok(bad.r.violations.some(v => v.inv === 'fixed_only_waits' && v.uid === bad.a.uid && /stepped/.test(v.message)), json(bad.r.violations.map(v => v.text)));
   });
 
   test('statuses and surfaces are plain data and clone-stable, and the department monkey holds every status invariant', () => {

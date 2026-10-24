@@ -8,11 +8,14 @@
 //                       boundary of its last turn, put on again it keeps its start and lasts to
 //                       the later end, and nothing else changes it;
 //   fixed_only_waits    a fixed actor only waits: you only wait, rest or answer a choice, and an
-//                       exhibit fixed for the whole step makes no step, blow, mark or door;
+//                       exhibit fixed for the whole step makes no step, blow, mark or door (a
+//                       move your own action makes, the pole's, is not its step);
 //   rooted_never_steps  a rooted you never steps off your tile: a move is a bump or nothing;
 //   coughing_noise      a cough is one soft noise a turn, at your tile, while coughing;
 //   restoring_share     restoring heals at most its share a turn, never past full health;
-//   fumigant_pips       a Fumigant cloud takes exactly one pip a turn from a sleeper inside;
+//   fumigant_pips       a Fumigant cloud takes exactly one pip a turn from a sleeper inside:
+//                       none from one with no tile under a cloud, and one from every sleeper
+//                       with a pip and any tile under a cloud, at each boundary it lies;
 //   surface_timing      a surface lies until its last turn and is cleared then, unchanged;
 //   los_symmetric       with surfaces on the map, line of sight is the same both ways.
 'use strict';
@@ -104,11 +107,13 @@ module.exports = (C) => {
       // An exhibit fixed for the whole step: held before and after, from the same start, not ended between.
       const s0 = find(b, 'fixed'), s1 = find(a, 'fixed');
       if (!s1 || s1.from !== s0.from || events.some(e => e.k === 'status' && e.who === a.uid && e.id === 'fixed' && !e.on)) return null;
-      // Your instrument may move it (the pole) without it acting; its own steps show otherwise.
-      const used = ctx.action && ctx.action.a === 'use';
+      // Your action may move it without it acting (the pole pushes or pulls it): such a move
+      // is made at your action's tick and its cause names you as the mover. Any other move of
+      // it, in this step or at another tick, is its own step.
+      const yours = e => e.tick === pre.tick && !!e.cause && e.cause.by === 'you';
       const did = events.find(e => (e.k === 'attacked' && e.by === a.uid) || (e.k === 'telegraphed' && e.who === a.uid) ||
         (e.k === 'special' && e.who === a.uid && !e.cancelled) || ((e.k === 'opened' || e.k === 'closed') && e.who === a.uid) ||
-        (!used && e.k === 'moved' && e.who === a.uid));
+        (e.k === 'moved' && e.who === a.uid && !yours(e)));
       return did ? `it was fixed but ${did.k === 'moved' ? 'stepped' : 'made a ' + did.k + ' event'} at tick ${did.tick}` : null;
     },
   };
@@ -172,6 +177,10 @@ module.exports = (C) => {
     },
   };
 
+  // An actor's footprint, read from its record: size × size tiles from its tile.
+  const tilesOf = a => { const out = [], n = a.size || 1; for (let dy = 0; dy < n; dy++) for (let dx = 0; dx < n; dx++) out.push([a.x + dx, a.y + dy]); return out; };
+  // Events that change where an exhibit stands or whether it sleeps.
+  const STIRS = ['moved', 'woke', 'hunting', 'lost', 'alerted', 'returned', 'died'];
   const fumigant = {
     id: 'fumigant_pips',
     check(pre, events, post) {
@@ -183,8 +192,32 @@ module.exports = (C) => {
         if (seen.includes(key)) return `a Fumigant cloud took two pips from ${e.who} in turn ${e.turn}`;
         seen.push(key);
         // With a cloud on the map, the sleeper is under one (a test may take the pip directly).
-        const tiles = [actorIn(post, e.who), actorIn(pre, e.who)].filter(Boolean).flatMap(x => C.Actors.footprint(x));
+        const tiles = [actorIn(post, e.who), actorIn(pre, e.who)].filter(Boolean).flatMap(tilesOf);
         if (clouds.length && !clouds.some(s => s.until > e.turn && tiles.some(([x, y]) => Grid.covers(s, x, y)))) return `${e.who} lost a pip to a Fumigant cloud in turn ${e.turn} with no cloud over it`;
+      }
+      // The other way: at each boundary of the step, every sleeper with a pip that has any tile
+      // under a cloud lying then loses exactly one. A cloud lies at the boundary of turn t if
+      // it lay when the step began, or you laid it in this step's action (which comes before
+      // its boundaries), and its last turn is t or later. Only sleepers that stayed asleep on
+      // the same tiles all step are checked; their pips at the boundary are read back from
+      // the pip events before it (the boundary of turn t comes before every event of turn t).
+      if (!clouds.length || post.turn <= pre.turn) return null;
+      const before = pre.dept.surfaces || [];
+      const laid = (post.dept.surfaces || []).filter(s => s.kind === 'fumigant' && s.by === 'you' && !before.some(b => same(b, s)));
+      const lying = before.filter(s => s.kind === 'fumigant').concat(laid);
+      for (const b of pre.actors) {
+        if (b.uid === 'you' || b.gone || b.mode !== 'dormant' || !isInt(b.pips)) continue;
+        const a = actorIn(post, b.uid);
+        if (!a || a.gone || a.mode !== 'dormant' || a.x !== b.x || a.y !== b.y || (a.size || 1) !== (b.size || 1) || C.Archetypes.pipless(post, a)) continue;
+        if (events.some(e => e.who === b.uid && STIRS.includes(e.k))) continue;
+        const foot = tilesOf(b);
+        for (let t = pre.turn + 1; t <= post.turn; t++) {
+          if (!lying.some(s => s.until > t && foot.some(([x, y]) => Grid.covers(s, x, y)))) continue;
+          let pips = b.pips;
+          for (const e of events) if (e.k === 'pip' && e.who === b.uid && e.turn < t) pips = e.pips;
+          const took = events.filter(e => e.k === 'pip' && e.who === b.uid && e.turn === t && e.cause && e.cause.k === 'fumigant').length;
+          if (pips > 0 && took !== 1) return `${b.uid}, asleep with ${pips} pips and under a Fumigant cloud at the boundary of turn ${t}, lost ${took} pips to it`;
+        }
       }
       return null;
     },
@@ -203,21 +236,35 @@ module.exports = (C) => {
     },
   };
 
-  // Line of sight both ways, between every actor and every tile in and around each surface,
-  // and between every two actors, while a surface lies.
+  // Line of sight both ways while a surface lies, from the tiles of every actor near one. On
+  // a step that lays a surface, and on the first step checked, to every tile in and round each
+  // surface and to every actor's tile; on the other steps, while the surfaces stay as they
+  // were, to each surface's centre, the corners of its square, and the corners and the middle
+  // of each side of the square one tile larger, and to your tiles. (Sight is the same both
+  // ways by the way it is traced, Grid.los; this keeps it so with surfaces on the map, at a
+  // small cost a step.)
   const los = {
     id: 'los_symmetric',
-    check(pre, events, post) {
+    check(pre, events, post, ctx) {
       const m = post.dept, list = m.surfaces || [];
       if (!list.length) return null;
+      const was = pre.dept.surfaces || [];
+      const whole = !ctx || ctx.step === 1 || list.some(s => !was.some(b => same(b, s)));
       // Actors near enough to a surface to see across it (within your sight of its edge).
       const near = (x, y) => list.some(s => Grid.chebyshev(x, y, s.x, s.y) <= Int.idiv(s.size, 2) + N.SIGHT_PLAYER);
       const from = [];
-      for (const a of post.actors) if (!a.gone) for (const t of C.Actors.footprint(a)) if (near(t[0], t[1])) from.push(t);
-      const to = from.slice();
+      for (const a of post.actors) if (!a.gone) for (const t of tilesOf(a)) if (near(t[0], t[1])) from.push(t);
+      const to = whole ? from.slice() : tilesOf(post.actors[0]);
+      const add = (x, y) => { if (x >= 0 && y >= 0 && x < m.w && y < m.h) to.push([x, y]); };
       for (const s of list) {
-        const h = Int.idiv(s.size, 2) + 2;
-        for (let y = Math.max(0, s.y - h); y <= Math.min(m.h - 1, s.y + h); y++) for (let x = Math.max(0, s.x - h); x <= Math.min(m.w - 1, s.x + h); x++) to.push([x, y]);
+        const h = Int.idiv(s.size, 2);
+        if (whole) {
+          for (let y = s.y - h - 2; y <= s.y + h + 2; y++) for (let x = s.x - h - 2; x <= s.x + h + 2; x++) add(x, y);
+          continue;
+        }
+        add(s.x, s.y);
+        for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { add(s.x + dx * h, s.y + dy * h); add(s.x + dx * (h + 1), s.y + dy * (h + 1)); }
+        for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0], [0, 1]]) add(s.x + dx * (h + 1), s.y + dy * (h + 1));
       }
       for (const [x0, y0] of from) for (const [x1, y1] of to) {
         if (Grid.los(m, x0, y0, x1, y1) !== Grid.los(m, x1, y1, x0, y0)) return `sight between ${x0},${y0} and ${x1},${y1} differs by direction`;

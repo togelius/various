@@ -4,9 +4,11 @@
 // Fixative being thrown at any of them) and, for a status or surface no species inflicts,
 // over depths 1–7 in a room of its own. Every run is clone-checked and holds the invariants
 // of status.inv.js after every step. The other packages' rules are driven directly here: the
-// Fixative, Fumigant, Consolidant and the mimic's grip are planted actions that put the
-// status on at their end, as W1-CONSUMABLES' drinks and throws and W1-ARCH-C's grip will; the
-// joined-up runs, with every package's invariants, are W2a-BEHAVIOUR's.
+// Fixative, Fumigant and Consolidant are planted actions that put the status on during your
+// action, through Status.apply, as W1-CONSUMABLES' drinks and throws do; the mimic's grip is
+// a planted open or bash that touches the mimic through its archetype's hook (W1-ARCH-C's
+// grip), and grips you itself only while that hook does nothing. The joined-up runs, with
+// every package's invariants (INV = 'all'), are W2a-BEHAVIOUR's.
 'use strict';
 const H = require('./_harness.js');
 
@@ -22,8 +24,10 @@ module.exports = ({ test, assert, loadCore }) => {
   // One context for every scenario, with the planted actions:
   //   {a: 'wait', cost?, put?: [{who, id, turns, cause?}], lay?: [{kind, x, y, size, turns}]}
   //     a wait of `cost` ticks that puts statuses on, and lays surfaces, at its end;
-  //   {a: 'open' | 'bash', cost, grip: uid, turns} an open or bash of `cost` ticks whose case
-  //     grips you for `turns` turns, the grip named for the mimic `grip`.
+  //   {a: 'open' | 'bash', cost, grip: uid, turns} an open or bash of `cost` ticks that
+  //     touches the mimic `grip` (Archetypes.onTouched, W1-ARCH-C's grip, which wakes it and
+  //     roots you); while that hook is Wave 0's, which does nothing, the plant grips you for
+  //     `turns` turns itself, the grip named for the mimic.
   // Restoring heals through Health.heal, W1-COMBAT's; while that is Wave 0's stub, a stand-in
   // heals up to the maximum and says so.
   const X = loadCore(), { N, Registry: R, Clauses, Roles, Packs } = X;
@@ -36,7 +40,9 @@ module.exports = ({ test, assert, loadCore }) => {
       return action.cost === undefined ? c : action.cost;
     };
     for (const id of ['open', 'bash']) X.Actions.get(id).apply = (state, action, ev) => {
-      X.Status.apply(state, state.actors[0], 'rooted', action.turns, { k: 'grip', by: action.grip }, ev);
+      const you = state.actors[0], mimic = X.Actors.byUid(state, action.grip);
+      X.Archetypes.onTouched(state, mimic, id === 'open' ? 'opened' : 'bashed', 'you', ev);
+      if (!X.Status.has(you, 'rooted')) X.Status.apply(state, you, 'rooted', action.turns, { k: 'grip', by: action.grip }, ev);
       return action.cost;
     };
     if (/^function heal\([^)]*\)\s*\{\s*return 0;\s*\}$/.test(String(X.Health.heal))) X.Health.heal = (state, who, n, cause, ev) => {
@@ -91,25 +97,50 @@ module.exports = ({ test, assert, loadCore }) => {
     sweep(sc, depths());
   });
 
-  test('fixed (Fixative thrown): an exhibit of every M3 species, at every depth, beside you and hunting, only waits for its FIXATIVE_TURNS turns', () => {
+  test('fixed (Fixative thrown): an exhibit of every M3 species, at every depth, hunting you and fixed during your action, only waits for its FIXATIVE_TURNS turns from its next decision, and a mark it had pending is called off', () => {
+    // The exhibit hunts you from three tiles east. Fixative lands on it during your wait in
+    // turn seed − 1, after it has had that many turns to come at you, or sooner, at your first
+    // decision at which it holds a mark of its own (its archetype's special, once those are
+    // built), so that the Fixative finds the mark pending. With seed 2 it first acts at tick
+    // 50, so that its next decision as Fixative lands is mid-turn, or (a slow species) in a
+    // later turn than yours. The wait that throws it notes, for expect, the exhibit's next
+    // decision then (its `next` field) and whether it held a mark (`held`).
+    const thrown = r => r.steps.findIndex(st => st.action.put);
     const sc = H.scenario({
-      name: 'a fixed exhibit only waits', clone: true, inv: INV,
-      build: (p, sp, depth, opts) => room(WIDE, [3, 3], [{ sp: sp.id, at: [4, 3], mode: 'hunting', stats: Roles.stats(sp.role, depth),
-        statuses: [{ id: 'fixed', turns: params('STATUSES', 'fixed', depth).FIXATIVE_TURNS }] }], {}, opts, { depth, options: { invulnerable: true } }),
-      actions: (s, i, c) => i <= params('STATUSES', 'fixed', c.depth).FIXATIVE_TURNS ? { a: 'wait' } : null,
+      name: 'a fixed exhibit only waits', seeds: [1, 2, 3], clone: true, inv: INV,
+      build: (p, sp, depth, opts) => room(WIDE, [3, 3], [{ sp: sp.id, at: [6, 3], mode: 'hunting', stats: Roles.stats(sp.role, depth), next: opts.seed === 2 ? 50 : 0 }], {}, opts,
+        { depth, options: { invulnerable: true } }),
+      actions: (s, i, c) => {
+        const n = params('STATUSES', 'fixed', c.depth).FIXATIVE_TURNS, a = s.actors[1], prior = c.events.some(e => e.k === 'status' && e.on);
+        if (prior) return (c.events.some(e => e.k === 'status' && !e.on) && i > 3) || i > 2 * n + 4 ? null : { a: 'wait' };
+        if (i < s.seed - 1 && !a.telegraph) return { a: 'wait' };
+        return { a: 'wait', next: a.next, held: !!a.telegraph, put: [{ who: a.uid, id: 'fixed', turns: n, cause: { k: 'status', id: 'fixed', by: 'you' } }] };
+      },
       expect(r, p, sp, depth) {
-        const n = params('STATUSES', 'fixed', depth).FIXATIVE_TURNS, a = r.state.actors[1], uid = a.uid;
+        const n = params('STATUSES', 'fixed', depth).FIXATIVE_TURNS, uid = r.state.actors[1].uid, at = thrown(r);
+        if (at < 0) return 'no Fixative was thrown';
+        const step = r.steps[at], from = Math.floor(step.action.next / N.TICKS_PER_TURN), end = (from + n) * N.TICKS_PER_TURN;
+        const ons = of(r.events, 'status', e => e.who === uid && e.id === 'fixed' && e.on);
+        if (ons.length !== 1 || ons[0].turns !== n || !step.events.includes(ons[0])) return `Fixative put on ${json(ons)}`;
         const off = of(r.events, 'status', e => e.who === uid && e.id === 'fixed' && !e.on)[0];
-        if (!off || off.turn !== n) return `fixed from turn 0 for ${n} turns, it ended at ${off && off.turn}`;
-        const acted = r.events.find(e => e.tick < n * N.TICKS_PER_TURN && ((e.k === 'attacked' && e.by === uid) || (e.k === 'moved' && e.who === uid) ||
+        if (!off || off.turn !== from + n) return `fixed at its next decision, at ${step.action.next} in turn ${from}, for ${n} turns, it ended at ${off && off.turn}`;
+        const after = r.events.slice(r.events.indexOf(ons[0]) + 1);
+        const acted = after.find(e => e.tick < end && ((e.k === 'attacked' && e.by === uid) || (e.k === 'moved' && e.who === uid) ||
           (e.k === 'telegraphed' && e.who === uid) || (e.k === 'special' && e.who === uid && !e.cancelled)));
         if (acted) return `it was fixed and made a ${acted.k} event at tick ${acted.tick}`;
+        // A mark pending as the Fixative lands is called off at once, in the same action.
+        const cancel = after[0];
+        if (step.action.held && !(cancel && cancel.k === 'special' && cancel.who === uid && cancel.cancelled && cancel.cause.why === 'fixed')) return `its pending mark was not called off as Fixative landed: ${json(cancel)}`;
         return null;
       },
     });
     const list = everySpecies();
     assert.ok(list.length >= 7 * 12, `${list.length / 7} species`);
-    sweep(sc, list);
+    const results = sweep(sc, list);
+    const nexts = results.map(x => [x.steps[thrown(x)].action.next, x.steps[thrown(x)].events[0].tick]);
+    assert.ok(nexts.some(([n]) => n % N.TICKS_PER_TURN !== 0), 'a next decision mid-turn');
+    assert.ok(nexts.some(([n, t]) => Math.floor(n / N.TICKS_PER_TURN) > Math.floor(t / N.TICKS_PER_TURN)), 'a next decision in a later turn than yours');
+    assert.ok(nexts.some(([n, t]) => n === t), 'a next decision at the same tick as yours');
   });
 
   test('rooted (the mimic\'s grip): for every mimic species and depth, after an open, a bash or a Heavy bash, your next MIMIC_GRIP_TURNS turns\' steps are refused, and only those', () => {
@@ -181,6 +212,31 @@ module.exports = ({ test, assert, loadCore }) => {
       },
     });
     sweep(sc, depths());
+    // Put on again two turns into its course, it lasts longer at the same rate: a share each
+    // turn of the longer course, and every CONSOLIDANT_HOT_TURNS turns in a row heal the total.
+    const again = H.scenario({
+      name: 'restoring put on again heals at the same rate for longer', seeds: [1, 2, 3, 4], clone: true, inv: INV,
+      build: sc.build,
+      actions: (s, i, c) => {
+        const q = params('STATUSES', 'restoring', c.depth), dose = { who: 'you', id: 'restoring', turns: q.CONSOLIDANT_HOT_TURNS };
+        if (i === 0) return { a: 'wait', cost: COSTS[(s.seed - 1) % 4], put: [dose] };
+        if (i === 2) return { a: 'wait', put: [dose] };
+        return i <= 2 * q.CONSOLIDANT_HOT_TURNS + 2 ? { a: 'wait' } : null;
+      },
+      expect(r, p, sp, depth) {
+        const q = params('STATUSES', 'restoring', depth), T = q.CONSOLIDANT_HOT_TURNS, max = r.start.actors[0].maxHp, total = Math.floor(max * q.CONSOLIDANT_HOT_PCT / 100);
+        const heals = of(r.events, 'healed', e => e.cause.k === 'status' && e.cause.id === 'restoring'), first = Math.floor(COSTS[(r.seed - 1) % 4] / 100);
+        const turns = heals.map(e => e.turn), shares = heals.map(e => e.amount);
+        if (heals.length <= T || turns.some((t, k) => t !== first + k)) return `healed in turns ${json(turns)}, not every turn from ${first} for longer than ${T}`;
+        for (let k = 0; k + T <= shares.length; k++) {
+          const sum = shares.slice(k, k + T).reduce((a, b) => a + b, 0);
+          if (sum !== total) return `${q.CONSOLIDANT_HOT_PCT}% of ${max} is ${total}, but turns ${turns[k]}–${turns[k + T - 1]} healed ${sum} (${json(shares)})`;
+        }
+        const off = of(r.events, 'status', e => e.id === 'restoring' && !e.on);
+        return off.length === 1 && off[0].turn === turns[turns.length - 1] + 1 ? null : `it ended ${json(off.map(e => e.turn))}, after healing in turns ${json(turns)}`;
+      },
+    });
+    sweep(again, depths());
   });
 
   test('slowed and dazed: your actions take SPEED_SLOW_PCT% of their time; your blows have HIT_DAZED_ATTACKER to hit, and +HIT_FIXED_TARGET against a fixed target', () => {
