@@ -7,11 +7,12 @@
 // A POLICY sees only what a player sees (§10.2; the plan's D7.7):
 //   obs = { vm, read(target), legal, rng, log }
 //     vm      ViewModel.derive(state, {events}): the board as drawn, with the last step's
-//             events, so its noise rings and one-turn cues are there;
+//             events, so its noise rings and one-turn cues are there; a frozen copy (its
+//             typed arrays as plain lists), so nothing a policy does to it reaches the game;
 //     read    read(target) → the label's text as the panel shows it, or null for something
 //             not in view; target is an exhibit's uid, 'case:x,y', 'item:<uid>',
 //             'plaque:x,y', 'staff:x,y' or 'you'. Each read is logged;
-//     legal   Step.legal(state): the buttons a player has;
+//     legal   Step.legal(state): the buttons a player has (a frozen copy too);
 //     rng     a stream on the policy's own holder, policy/<name>/<seed> (never in the state):
 //             the only source of a policy's choices;
 //     log     the log's sentences for the last step (Text.log), as a player reads them.
@@ -80,21 +81,34 @@ const Obs = (() => {
     return text(Labels.of(state, target));
   }
 
+  // A deep copy that shares nothing with what it copies, typed arrays (the view model's vis
+  // and ring) made plain lists, every part frozen: what a policy is handed is its own, and
+  // a write into it fails at once instead of reaching the game state (the view model hands
+  // out the state's own tiles array and over record).
+  function own(v) {
+    if (v === null || typeof v !== 'object') return v;
+    if (ArrayBuffer.isView(v)) return Object.freeze(Array.from(v));
+    if (Array.isArray(v)) return Object.freeze(v.map(own));
+    const out = {};
+    // Object.keys gives a record's own keys in the order it was written, on every engine.
+    for (const k of Object.keys(v)) out[k] = own(v[k]);
+    return Object.freeze(out);
+  }
+
   // What a policy sees now (above). events: the last step's (none before the first);
   // readLog: a list each read is appended to, as {turn, target, text}; rng: the policy's
   // stream (Rng.stream on the policy's own holder).
   function make(state, events, readLog, rng) {
     const ev = events || [];
-    const vm = ViewModel.derive(state, { events: ev });
-    const shown = vm.actors.map(a => a.uid);
-    const log = Text.log(ev, Labels.nameOf(state), uid => shown.includes(uid));
-    const legal = Step.legal(state);
+    const drawn = ViewModel.derive(state, { events: ev });
+    const shown = drawn.actors.map(a => a.uid);
+    const log = Object.freeze(Text.log(ev, Labels.nameOf(state), uid => shown.includes(uid)));
     const read = target => {
-      const t = readLabel(state, vm, target);
+      const t = readLabel(state, drawn, target);
       if (readLog) readLog.push({ turn: state.turn, target: String(target), text: t });
       return t;
     };
-    return { vm, read, legal, rng: rng || null, log };
+    return { vm: own(drawn), read, legal: own(Step.legal(state)), rng: rng || null, log };
   }
 
   // HELPERS, on what the policy sees (the view model and its legal actions) and nothing else.
@@ -112,11 +126,16 @@ const Obs = (() => {
       .sort((a, b) => (dist(a, me.x, me.y) - dist(b, me.x, me.y)) || (a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0));
   }
   // The board as Path and Grid read it, from what the view model shows: its tiles (unseen
-  // ones are not walkable) and the actors in view. No surfaces, which the view model draws
-  // but does not hand to Grid.
-  const board = vm => ({ dept: { w: vm.w, h: vm.h, tiles: vm.tiles }, actors: vm.actors });
+  // ones are not walkable), the actors in view, the staff doors it shows with their grades
+  // (vm.staff, the plan's A14: [{x, y, grade, open}]; none until the view model lists
+  // them) as staff fixtures, and your grade as run.grade, so Path.to goes through a closed
+  // staff door just where it would for the tap (§8.3: only within your grade). No surfaces,
+  // which the view model draws but does not hand to Grid.
+  const staffOf = vm => (vm.staff || []).map(f => ({ k: 'staff', x: f.x, y: f.y, grade: f.grade }));
+  const board = vm => ({ dept: { w: vm.w, h: vm.h, tiles: vm.tiles, fixtures: staffOf(vm) }, actors: vm.actors, run: { grade: vm.you.grade } });
   // path(vm, x, y) → [[x, y]…]: the way a tap on (x, y) would walk you (Path.to, the player's
-  // own rule), over the tiles shown and round the actors in view; [] if there is none.
+  // own rule), over the tiles shown, round the actors in view, and through a staff door only
+  // where your grade opens it; [] if there is none.
   const path = (vm, x, y) => Path.to(board(vm), x, y);
   // The legal action that is exactly this one, or null.
   const same = (a, b) => State.canon(a) === State.canon(b);
@@ -174,7 +193,7 @@ const Obs = (() => {
     return bits.join(' ');
   }
 
-  return { make, text, readLabel, you, dist, hostiles, path, step, attack, away, inLine, marked, legalOf, legalAs, same, say, DIRS };
+  return { make, own, text, readLabel, you, dist, hostiles, board, path, step, attack, away, inLine, marked, legalOf, legalAs, same, say, DIRS };
 })();
 
 const Policies = (() => {

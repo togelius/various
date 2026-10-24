@@ -64,18 +64,77 @@ module.exports = ({ test, assert, root, path, fs }) => {
     assert.throws(() => Sim.run({ policy: 'idle', seed: 1 }), /needs make/);
   });
 
-  test('check runs a checker after every step, and its violations are listed with their step', () => {
+  test('check runs a checker after every step, and its violations are listed with their step, counted from 1', () => {
     let calls = 0;
     const r = Sim.run({ make: dummy, outcome: judged, policy: 'fighter', seed: 1, check: (pre, action, events, post) => {
       calls++;
       assert.ok(pre.tick <= post.tick && Array.isArray(events));
-      return post.turn === 3 ? [{ inv: 'planted', text: 'turn 3 is planted' }] : [];
+      return post.turn === 3 ? [{ inv: 'planted', text: 'turn 3 is planted', step: 99 }] : [];
     } });
     assert.equal(calls, r.steps);
-    assert.equal(r.violations.length, 1); assert.equal(r.violations[0].inv, 'planted'); assert.equal(r.violations[0].step, 2);
-    // check: true loads every test/behaviour/*.inv.js through tools/invariants.js.
-    const all = Sim.run({ make: dummy, outcome: judged, policy: 'fighter', seed: 2, check: true });
-    assert.ok(Array.isArray(all.violations));
+    assert.equal(r.violations.length, 1); assert.equal(r.violations[0].inv, 'planted');
+    assert.equal(r.violations[0].step, 3, 'the third step, whatever the checker says');
+    eq(r.replay.actions[2], r.replay.actions[r.violations[0].step - 1]);
+    // check: true loads every *.inv.js of test/behaviour/ (here a planted folder) through
+    // tools/invariants.js, and runs each after every step.
+    const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'accession-inv-'));
+    fs.writeFileSync(path.join(dir, 'planted.inv.js'), [
+      "module.exports = (C) => [",
+      "  { id: 'still_far', check: (pre, events, post) => post.actors[0].x >= 4 ? 'you came within reach of the plodder' : null },",
+      "  { id: 'never_hunts', applies: a => a.uid !== 'you', check: (pre, events, post, ctx) => ctx.actor.mode === 'hunting' ? 'it hunts' : null },",
+      '];',
+    ].join('\n'));
+    const all = Sim.run({ make: dummy, outcome: judged, policy: 'fighter', seed: 1, check: true, invDir: dir });
+    const far = all.violations.filter(v => v.inv === 'still_far');
+    assert.ok(far.length > 0, 'the planted invariant was run');
+    const again = dummy(1, all.replay.options);
+    const reached = all.replay.actions.findIndex(a => { C.Step.step(again, a); return again.actors[0].x >= 4; }) + 1;
+    assert.ok(reached >= 1); assert.equal(far[0].step, reached, 'at the step that took you to x = 4');
+    assert.ok(far.every(v => v.step >= 1 && v.step <= all.steps && /^still_far: you came within reach/.test(v.text)));
+    assert.ok(all.violations.some(v => v.inv === 'never_hunts' && v.uid === C.Arena.layout(DUMMY, 1).exhibits[0].uid));
+    // A list selects among them; the real folder's invariants all hold on the dummy arena.
+    const one = Sim.run({ make: dummy, outcome: judged, policy: 'fighter', seed: 1, check: ['never_hunts'], invDir: dir });
+    assert.ok(one.violations.length > 0 && one.violations.every(v => v.inv === 'never_hunts'));
+    eq(Sim.run({ make: dummy, outcome: judged, policy: 'fighter', seed: 2, check: true }).violations, []);
+    assert.throws(() => Sim.run({ make: dummy, policy: 'idle', seed: 1, check: 'some' }), /check is true/);
+  });
+
+  test("a run stops with an error when the state stops being plain data, or a policy changes it while deciding", () => {
+    const C2 = Sim.load(), step = C2.Step.step;
+    // A planted fault in the core: after the third step, a Map in the state.
+    C2.Step.step = (state, action) => { const ev = step(state, action); if (state.turn === 3) state.ui.x = new Map(); return ev; };
+    const make2 = (s, o) => C2.Arena.build(C2.Arena.parse(C2.Arena.DUMMY), s, { options: o });
+    const r = Sim.run({ C: C2, make: make2, policy: 'idle', seed: 1, cap: 10 });
+    eq([r.stopped, r.steps, r.endHash], ['error', 3, null]);
+    eq(r.violations.map(v => [v.id, v.step]), [['plain_data', 3]]);
+    assert.match(r.error, /^the state is not plain data at state\.ui\.x after step 3, wait$/);
+    // A policy that reaches the state by some route of its own (here, one the test gives it)
+    // and changes it while deciding: with a check on, the run stops and says so.
+    let held = null;
+    const grab = (s, o) => (held = dummy(s, o));
+    const meddler = policy(() => { held.actors[1].hp = 1; return { action: { a: 'wait' }, reason: 'waits' }; });
+    const m = Sim.run({ make: grab, policy: meddler, name: 'test.meddler', seed: 1, cap: 5, check: () => [] });
+    eq([m.stopped, m.steps, m.error], ['error', 0, 'test.meddler changed the game state while deciding at turn 0']);
+    eq(m.violations.map(v => [v.id, v.step]), [['policy', 1]]);
+  });
+
+  test('a policy that writes into what it sees changes nothing, and in a policy file it is stopped', () => {
+    // In code that is not strict, the write is lost: the view model is a frozen copy.
+    const vandal = policy(obs => { const t = obs.vm.tiles; t[2] = t[2].slice(0, 6) + '#' + t[2].slice(7); obs.vm.over = { k: 'won' }; return { action: { a: 'wait' }, reason: 'waits' }; });
+    const r = Sim.run({ make: dummy, policy: vandal, name: 'test.vandal', seed: 1, cap: 5, check: () => [] });
+    eq([r.stopped, r.violations, r.error], ['cap', [], null]);
+    const s = dummy(1, r.replay.options);
+    for (const a of r.replay.actions) C.Step.step(s, a);
+    assert.equal(C.State.hash(s), r.endHash, 'its replay replays');
+    assert.equal(s.dept.tiles[2], C.Arena.parse(C.Arena.DUMMY).map[2].replace('@', '.').replace('P', '.'));
+    // Policy files are strict, so there the write fails at once, naming the policy.
+    const f = path.join(fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'accession-vandal-')), 'vandal.js');
+    fs.writeFileSync(f, "'use strict';\nPolicies.add('vandal', { walls: { card: { summary: 'Draws walls on the map it sees.', rules: ['Draw a wall.'] }, " +
+      "decide(obs) { obs.vm.tiles[2] = '#'; return { action: { a: 'wait' }, reason: 'waits' }; } } });\n");
+    const C2 = Sim.load([f]);
+    const v = Sim.run({ C: C2, make: (sd, o) => C2.Arena.build(C2.Arena.parse(C2.Arena.DUMMY), sd, { options: o }), policy: 'vandal.walls', seed: 1, cap: 5 });
+    eq([v.stopped, v.steps], ['error', 0]);
+    assert.match(v.error, /^vandal\.walls failed to decide at turn 0: .*read.only/);
   });
 
   test('paired runs share seeds: both arms build the same room, with the same streams, from each seed', () => {
@@ -100,41 +159,103 @@ module.exports = ({ test, assert, root, path, fs }) => {
   });
 
   test("--without X leaves an independent Y's combat/ and ai/ draws unchanged", () => {
-    // Two hunting fodder, X and Y, come for you while you wait.
-    const spec = C.Arena.parse('arena: pair\ngoal: kill\ncap: 40\ndepths: 3\nlegend: Q exhibit role=fodder mode=hunting; Y exhibit role=fodder mode=hunting\n\n##########\n#Q......Y#\n#...@....#\n##########\n');
+    // Two hunting fodder, X and Y, come for you from either end while you wait.
+    const spec = C.Arena.parse('arena: pair\ngoal: kill\ndepths: 3\nlegend: Q exhibit role=fodder mode=hunting; Y exhibit role=fodder mode=hunting\n\n##########\n#Q......Y#\n#...@....#\n##########\n');
     const X = 'T0.3.room.1', Y = 'T0.3.room.2';
     const seen = { with: [], without: [] };
-    const record = k => (pre, a, ev, post) => { seen[k].push([post.rng['combat/' + Y], post.rng['ai/' + Y]]); return []; };
+    const mentions = e => e.who === X || e.by === X || (e.cause && e.cause.by === X);
+    const record = k => (pre, a, ev, post) => {
+      const x = C.Actors.byUid(post, X), y = C.Actors.byUid(post, Y);
+      seen[k].push({ xGone: x.gone, xEvents: ev.filter(mentions).map(e => e.k), y: [post.rng['combat/' + Y], post.rng['ai/' + Y], y.x, y.y, y.hp, y.mode] });
+      return [];
+    };
     const make = (s, o) => C.Arena.build(spec, s, { options: o });
-    const w = Sim.run({ make, policy: 'idle', seed: 9, check: record('with'), options: { invulnerable: true } });
-    const wo = Sim.run({ make, policy: 'idle', seed: 9, check: record('without'), options: { invulnerable: true, without: [X] } });
-    assert.ok(w.turns > 10 && wo.turns > 10);
-    // Y keeps its uid and tile.
+    const w = Sim.run({ make, policy: 'idle', seed: 9, cap: 40, check: record('with'), options: { invulnerable: true } });
+    const wo = Sim.run({ make, policy: 'idle', seed: 9, cap: 40, check: record('without'), options: { invulnerable: true, without: [X] } });
+    eq([w.steps, wo.steps, wo.replay.options.without], [40, 40, [X]]);
+    eq(wo.violations, [], 'X was there to remove');
+    // With X: it moves and strikes. Without X: it is gone from the start, and no event of the
+    // run has it act or suffer.
+    assert.ok(seen.with.every(r => r.xGone === 0));
+    const acts = [].concat(...seen.with.map(r => r.xEvents));
+    assert.ok(acts.includes('moved') && acts.includes('attacked'), `X acted: ${acts.join(', ')}`);
+    assert.ok(seen.without.every(r => r.xGone === 1 && r.xEvents.length === 0), 'X is gone at every step, and does nothing');
+    // Y's dice and its whole course are the same, step by step, with X or without it.
+    for (let i = 0; i < 40; i++) eq(seen.without[i].y, seen.with[i].y, `Y at step ${i + 1}`);
+    const first = C.Rng.hash32('9/combat/' + Y), last = seen.with[39].y[0];
+    assert.ok(typeof last === 'number' && last !== first, 'Y struck, so its combat draws were made and compared');
+    assert.ok(typeof seen.with[39].y[1] === 'number', "Y's ai stream was used");
+    // Y keeps its uid and tile in the state as made.
     const a = make(9, {}), b = make(9, { without: [X] });
     eq([C.Actors.byUid(a, Y).x, C.Actors.byUid(a, Y).y], [C.Actors.byUid(b, Y).x, C.Actors.byUid(b, Y).y]);
-    assert.equal(C.Actors.byUid(b, X).gone, 1);
-    // Each stream state Y reaches lies, in order, on the one chain its seed starts: nothing
-    // X did or did not do reseeded or shifted it.
-    for (const [i, name] of [[0, 'combat/'], [1, 'ai/']]) {
-      let st = C.Rng.hash32('9/' + name + Y);
-      const chain = new Map([[st, 0]]);
-      for (let k = 1; k <= 2000; k++) { st = C.Rng.advance(st)[1]; chain.set(st, k); }
-      for (const k of ['with', 'without']) {
-        let at = 0, used = 0;
-        for (const s of seen[k]) {
-          const v = s[i];
-          if (v === undefined) continue;
-          assert.ok(chain.has(v), `${name}${Y} ${k} X: a state off its chain`);
-          assert.ok(chain.get(v) >= at, `${name}${Y} ${k} X: the stream went backwards`);
-          at = chain.get(v); used = at;
-        }
-        if (name === 'combat/') assert.ok(used > 0, `${Y} struck ${k} X, so the test sees its draws`);
-      }
+  });
+
+  test('without names an exhibit by its letter in an arena, and a uid that removes nothing is reported', () => {
+    const seeds = [1, 2, 3, 4, 5, 6], uidOn = sd => C.Arena.layout(DUMMY, sd).exhibits[0].uid;
+    // A letter removes the exhibit drawn with it on every seed, whatever its uid there.
+    const p = Sim.paired('dummy', 'fighter', 'fighter@without=P', seeds);
+    for (const r of p.b.runs) { eq(r.replay.options.without, [uidOn(r.seed)]); eq([r.stopped, r.steps, r.violations], ['won', 0, []]); }
+    eq([p.a.said, p.b.said, p.notes], ['basic.fighter', 'basic.fighter without P', []]);
+    assert.match(p.verdict.sentence, /^dummy: the ratio of HP lost, basic\.fighter without P over basic\.fighter, is /); clean(p.verdict.sentence);
+    // A uid names the exhibit only on the seeds whose depth and species give it; on the
+    // others it removes nothing, each such run says so, and so does the verdict.
+    const uid = uidOn(1), want = seeds.filter(sd => uidOn(sd) !== uid);
+    assert.ok(want.length >= 1 && want.length < seeds.length);
+    const q = Sim.paired('dummy', 'fighter', `fighter@without=${uid}`, seeds);
+    eq(q.b.runs.filter(r => r.violations.length).map(r => r.seed), want);
+    for (const r of q.b.runs.filter(x => want.includes(x.seed))) {
+      eq(r.violations, [{ id: 'without', step: null, text: `without=${uid} removed nothing on seed ${r.seed}: no actor in this visit has that uid` }]);
+      const twin = q.a.runs.find(x => x.seed === r.seed);
+      // The same visit as the other arm (the states differ only in their options).
+      eq([r.reasons, r.replay.actions, r.outcome], [twin.reasons, twin.replay.actions, twin.outcome]);
     }
-    // The first 50 draws from each start are the same.
-    const draws = (s, p) => { const r = C.Rng.stream(s, p); return Array.from({ length: 50 }, () => r.u32()); };
-    eq(draws(make(9, {}), 'combat/' + Y), draws(make(9, { without: [X] }), 'combat/' + Y));
-    eq(draws(make(9, {}), 'ai/' + Y), draws(make(9, { without: [X] }), 'ai/' + Y));
+    const note = `for basic.fighter without ${uid}, without=${uid} removed nothing on ${want.length === 1 ? 'seed' : 'seeds'} ${want.length === 1 ? want[0] : want.slice(0, -1).join(', ') + ' and ' + want[want.length - 1]}, where no actor had that uid`;
+    eq(q.notes, [note]); assert.ok(q.verdict.sentence.endsWith(` Note: ${note}.`)); clean(q.verdict.sentence);
+    // In a department and in one run alike.
+    const d = Sim.runArena({ dept: 'A4' }, 'idle', 1, { cap: 3, options: { without: ['no.such.uid'] } });
+    eq(d.violations, [{ id: 'without', step: null, text: 'without=no.such.uid removed nothing on seed 1: no actor in this visit has that uid' }]);
+    const one = Sim.single('dummy', 'fighter', [1, 2], { options: { without: [uid] } });
+    eq(one.notes, [`for basic.fighter, without=${uid} removed nothing on seed 2, where no actor had that uid`]);
+    // Refused in words.
+    for (const [fn, re] of [[() => Sim.paired('dummy', 'fighter', 'fighter@without=Q', [1]), /without=Q: Q is not the letter of an exhibit in the arena dummy/],
+      [() => Sim.paired('dummy', 'fighter', 'fighter@without=@', [1]), /@ is not the letter of an exhibit/],
+      [() => Sim.runArena({ dept: 'A4' }, 'idle', 1, { options: { without: ['P'] } }), /a letter names an exhibit only in an arena/],
+      [() => Sim.paired('dummy', 'fighter', 'fighter@without', [1]), /without names no uid or letter/],
+      [() => Sim.paired('dummy', 'fighter', 'fighter@rules-off=', [1]), /rules-off names no rule/],
+      [() => Sim.paired('dummy', 'fighter', 'fighter@invulnerable=yes', [1]), /not invulnerable=yes/],
+      [() => Sim.run({ make: dummy, policy: 'idle', seed: 1, options: { without: ['you'] } }), /without may remove exhibits, not you/]]) {
+      let msg = null;
+      try { fn(); } catch (e) { msg = e.message; }
+      assert.match(String(msg), re); clean(msg);
+    }
+  });
+
+  test("a run's replay rebuilds its room from its start alone, in an arena or a department", () => {
+    const tmp = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'accession-stamp-')), file = path.join(tmp, 'pick.txt');
+    const stamp = map => ['arena: pick', 'goal: kill', 'species: plodder', 'kit: weapon heavy', 'legend: P exhibit sp; F exhibit role=fodder', 'variants: swap P F', '', ...map].join('\n') + '\n';
+    fs.writeFileSync(file, stamp(['#########', '#.@..P.F#', '#.......#', '#########']));
+    for (const seed of [1, 2, 3, 4]) {
+      const r = Sim.runArena(file, 'random', seed, { cap: 30 });
+      // The stamp's file changes (or goes): the replay still holds its room.
+      fs.writeFileSync(file, stamp(['#########', '#F.@...P#', '#.......#', '#########']));
+      const start = JSON.parse(JSON.stringify(r.replay.start)), options = JSON.parse(JSON.stringify(r.replay.options));
+      eq([start.arena, start.seed, start.depth, start.sp, start.variant, start.arenaHash], ['pick', seed, r.depth, r.sp, r.variant, Sim.arenaHash(C)]);
+      const s = Sim.rebuild(start, options, C);
+      assert.equal(C.State.hash(s), r.startHash, `seed ${seed}: the same room`);
+      for (const a of r.replay.actions) C.Step.step(s, a);
+      assert.equal(C.State.hash(s), r.endHash, `seed ${seed}: the same end`);
+      if (C.Replay) assert.equal(C.State.hash(C.Replay.begin(start, options)), r.startHash, 'tools/replay.js makes it too');
+      fs.writeFileSync(file, stamp(['#########', '#.@..P.F#', '#.......#', '#########']));
+    }
+    const r = Sim.runArena(file, 'random', 1, { cap: 10 });
+    assert.throws(() => Sim.rebuild(Object.assign({}, r.replay.start, { arenaHash: '00000000' }), r.replay.options, C), /built by another tools\/arena\.js \(00000000, now [0-9a-f]{8}\)/);
+    assert.throws(() => Sim.rebuild(Object.assign({}, r.replay.start, { spec: null }), r.replay.options, C), /holds no parsed stamp/);
+    assert.throws(() => Sim.rebuild({ seed: 1 }, {}, C), /a replay start is/);
+    const d = Sim.runArena({ dept: 'A4' }, 'fighter', 2, { cap: 20, depth: 2 });
+    const s = Sim.rebuild(d.replay.start, d.replay.options, C);
+    assert.equal(C.State.hash(s), d.startHash);
+    for (const a of d.replay.actions) C.Step.step(s, a);
+    assert.equal(C.State.hash(s), d.endHash);
   });
 
   test('--invulnerable keeps you at 1 HP and counts the blows that would have killed you', () => {
@@ -152,7 +273,7 @@ module.exports = ({ test, assert, root, path, fs }) => {
     const naive = runs(Array.from({ length: 40 }, (_, i) => [10 + (i % 5), i % 3 === 0, 3]));
     const counter = runs(Array.from({ length: 40 }, (_, i) => [5 + (i % 4), false, 1]));
     const hp = Sim.compare('test', naive, counter, { name: 'hpLost', test: 'ratio', at: 'most', pct: 90 }, ['n', 'c']);
-    assert.equal(hp.verdict.pass, true); assert.match(hp.verdict.sentence, /^test: c's HP lost over n's is 0\.\d\d \(95% interval/); clean(hp.verdict.sentence);
+    assert.equal(hp.verdict.pass, true); assert.match(hp.verdict.sentence, /^test: the ratio of HP lost, c over n, is 0\.\d\d \(95% interval/); clean(hp.verdict.sentence);
     const wk = Sim.compare('test', naive, counter, { name: 'woken', test: 'ratio', at: 'most', pct: 50 }, ['n', 'c']);
     assert.equal(wk.stats.woken.ratio, 1 / 3); assert.equal(wk.verdict.pass, true, '1/3 meets 50%, and every seed differs by -2');
     eq([wk.stats.woken.lo, wk.stats.woken.hi], [-2, -2]);
@@ -161,7 +282,11 @@ module.exports = ({ test, assert, root, path, fs }) => {
     const never = Sim.compare('test', counter, counter, { name: 'died', test: 'lower', at: null, pct: null }, ['n', 'c']);
     assert.equal(never.verdict.pass, false); assert.match(never.verdict.sentence, /neither ever had the outcome/);
     const zero = Sim.compare('test', runs([[0, false, 0], [0, false, 0]]), runs([[3, false, 0], [1, false, 0]]), { name: 'hpLost', test: 'ratio', at: 'most', pct: 90 }, ['n', 'c']);
-    assert.equal(zero.verdict.pass, false); assert.match(zero.verdict.sentence, /n has no HP lost over 2 seeds, so there is no ratio/); clean(zero.verdict.sentence);
+    assert.equal(zero.verdict.pass, false); clean(zero.verdict.sentence);
+    assert.match(zero.verdict.sentence, /there is no ratio of HP lost, c over n, because the total for n is 0 over 2 seeds;.*because the total for n is zero, so there is no ratio to compare\.$/);
+    const worse = Sim.compare('test', counter, naive, { name: 'died', test: 'lower', at: null, pct: null }, ['c', 'n']);
+    assert.match(worse.verdict.sentence, /because the rate for n is not lower than that for c\.$/);
+    for (const v of [hp, wk, died, never, zero, worse]) assert.doesNotMatch(v.verdict.sentence, /\b[AB]'s\b/, 'the arms are named');
     assert.equal(Sim.compare('test', naive, counter, null).verdict, null);
   });
 
@@ -212,6 +337,17 @@ module.exports = ({ test, assert, root, path, fs }) => {
     assert.equal(dept.status, 0, dept.stderr);
     const d = JSON.parse(dept.stdout);
     eq([d.dept, d.runs[0].turns, d.runs[0].stopped, d.runs[0].replay.start], ['A4', 5, 'cap', { dept: 'A4', seed: 1, depth: 2 }]);
+    // Two arms of one policy are told apart; a limit without bound is written "Infinity",
+    // while a ratio that does not exist stays null.
+    const same = cli(['--arena', 'dummy', '--paired', 'fighter', 'fighter', '--seeds', '1-2']);
+    assert.match(same.stderr, /the ratio of HP lost, basic\.fighter \(arm B\) over basic\.fighter \(arm A\), is/); clean(same.stderr);
+    const hp = j.stats.hpLost;
+    eq([hp.ratio, hp.ratioHi], [null, 'Infinity'], 'idle loses no HP, the fighter some');
+    assert.ok(hp.ratioLo === 'Infinity' || typeof hp.ratioLo === 'number');
+    assert.equal(JSON.stringify({ a: Infinity, b: -Infinity, c: null, d: 2 }, Sim.jsonValue), '{"a":"Infinity","b":"-Infinity","c":null,"d":2}');
+    const noop = cli(['--arena', 'dummy', '--policy', 'idle', '--without', 'no.such.uid', '--seeds', '1', '--cap', '3']);
+    assert.equal(noop.status, 0, noop.stderr);
+    assert.match(noop.stderr, /Note: for basic\.idle, without=no\.such\.uid removed nothing on seed 1, where no actor had that uid\.$/m);
     const cards = cli(['--cards']);
     assert.equal(cards.stdout, fs.readFileSync(Sim.README, 'utf8'));
     // Mistakes are refused in words, with a failing status.

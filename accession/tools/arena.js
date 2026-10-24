@@ -10,10 +10,11 @@
 //   Arena.won(goal, state) → bool
 //   Arena.outcome(spec, state, events, {variant, goal}) → {done, won, died, hpLost, woken, turns, …}
 //   Arena.depthFor(spec, seed), Arena.speciesFor(spec, seed), Arena.variant(spec, seed)
+//   Arena.start(start, options) → state: a sim replay's start rebuilt on its own (below)
 //   Arena.DUMMY: a one-room stamp with one sleeping plodder, for the tools' own tests
 //
-// THE STAMP. A header of `key: value` lines, a blank line, then the map. In the header, a
-// line starting with // is a comment.
+// THE STAMP. A header of `key: value` lines, each key with a value, a blank line, then the
+// map. In the header, a line starting with // is a comment.
 //   arena: <id>        required; the archetype it tests, or another name
 //   goal: <goal>       required:
 //                        kill [<ch>…]   destroy every exhibit drawn with these letters, and
@@ -97,11 +98,13 @@ const Arena = (() => {
     if (s === 'null') return null;
     return s;
   }
-  // Words to {words: [bare…], args: [[key, value]…]} in the order written.
-  function words(text) {
+  // Words to {words: [bare…], args: [[key, value]…]} in the order written; key= with no
+  // value is refused.
+  function words(text, line) {
     const out = { words: [], args: [] };
     for (const w of text.split(/\s+/).filter(Boolean)) {
       const i = w.indexOf('=');
+      if (i > 0 && i === w.length - 1) fail(line, `${w.slice(0, i)} has no value after its =`);
       if (i > 0) out.args.push([w.slice(0, i), w.slice(i + 1)]);
       else out.words.push(w);
     }
@@ -130,11 +133,16 @@ const Arena = (() => {
 
   // One kit entry: `<slot> [<form>] [key=value…]`, or `tote <kind> [<form>] [key=value…]`.
   function kitEntry(text, line) {
-    const w = words(text);
+    const w = words(text, line);
     const slot = w.words[0];
+    if (slot === undefined) fail(line, `a kit entry starts with its slot (${SLOTS.join(', ')}): ${text}`);
     if (!SLOTS.includes(slot)) fail(line, `a kit entry starts with a slot (${SLOTS.join(', ')}), not ${slot}`);
     let rest = w.words.slice(1), kind = slot === 'curio0' || slot === 'curio1' ? 'curio' : slot;
-    if (slot === 'tote') { kind = rest[0]; rest = rest.slice(1); if (!KINDS.includes(kind)) fail(line, `a tote entry names its kind (${KINDS.join(', ')}), not ${kind}`); }
+    if (slot === 'tote') {
+      kind = rest[0]; rest = rest.slice(1);
+      if (kind === undefined) fail(line, `a tote entry names the kind of item it puts in the tote (${KINDS.join(', ')})`);
+      if (!KINDS.includes(kind)) fail(line, `a tote entry names its kind (${KINDS.join(', ')}), not ${kind}`);
+    }
     if (rest.length > 1) fail(line, `a kit entry has one form at most, not ${rest.join(' ')}`);
     const fields = itemFields(w.args, line, false);
     if (rest.length) { if (fields.form !== undefined) fail(line, 'the form is given twice'); fields.form = rest[0]; }
@@ -144,7 +152,8 @@ const Arena = (() => {
 
   // One part of a legend entry: `you …`, `exhibit …`, `case …`, `item …` or `mark …`.
   function part(text, line) {
-    const w = words(text), what = w.words[0];
+    const w = words(text, line), what = w.words[0];
+    if (what === undefined) fail(line, `a legend entry says first what its letter is (${WHATS.join(', ')}): ${text}`);
     if (!WHATS.includes(what)) fail(line, `a legend entry is ${WHATS.join(', ')}, not ${what}`);
     const rest = w.words.slice(1), on = arg(w.args, 'on');
     if (on !== undefined && (on.length !== 1 || !isTile(on))) fail(line, `on= names one tile character, not ${on}`);
@@ -183,6 +192,7 @@ const Arena = (() => {
     }
     // item
     const kind = rest[0];
+    if (kind === undefined) fail(line, `an item names its kind after the word item (${KINDS.join(', ')})`);
     if (!KINDS.includes(kind)) fail(line, `an item names its kind (${KINDS.join(', ')}), not ${kind}`);
     if (rest.length > 2) fail(line, `an item has one form at most, not ${rest.slice(1).join(' ')}`);
     const fields = itemFields(w.args, line, true);
@@ -216,7 +226,7 @@ const Arena = (() => {
   function parseClock(text, line) {
     const t = text.trim();
     if (t === 'none') return null;
-    const w = words(t);
+    const w = words(t, line);
     if (w.words.length) fail(line, `the clock is none, ltour=<n>, or B=<b> G=<g> count=<c>, not ${t}`);
     const out = {};
     for (const [k, v] of w.args) {
@@ -239,13 +249,14 @@ const Arena = (() => {
     const t = text.trim();
     if (t === 'none') return [];
     return t.split('|').map(alt => alt.split(',').map(op => {
+      if (!op.trim()) fail(line, 'a variant is swap <ch> <ch>, and one here is empty');
       const w = op.trim().split(/\s+/);
       if (w.length !== 3 || w[0] !== 'swap' || w[1].length !== 1 || w[2].length !== 1 || w[1] === w[2]) fail(line, `a variant is swap <ch> <ch>, not ${op.trim()}`);
       return ['swap', w[1], w[2]];
     }));
   }
 
-  // The stamp as plain data (it goes into sim output whole).
+  // The stamp as plain data (a sim run's replay keeps it whole in its start; see start).
   function parse(text) {
     if (typeof text !== 'string') fail(0, 'needs the stamp as text');
     const lines = text.replace(/\r\n?/g, '\n').split('\n');
@@ -259,6 +270,7 @@ const Arena = (() => {
       if (!m) fail(i + 1, `a header line is key: value, not ${t} (is the blank line before the map missing?)`);
       if (!KEYS.includes(m[1])) fail(i + 1, `the header has no key ${m[1]} (it takes ${KEYS.join(', ')})`);
       if (Object.prototype.hasOwnProperty.call(head, m[1]) && !REPEAT.includes(m[1])) fail(i + 1, `${m[1]} is given twice`);
+      if (m[2].trim() === '') fail(i + 1, `the header's ${m[1]} has no value`);
       if (!head[m[1]]) head[m[1]] = [];
       head[m[1]].push({ text: m[2], line: i + 1 });
     }
@@ -461,6 +473,16 @@ const Arena = (() => {
     return state;
   }
 
+  // A sim run's start, rebuilt on its own: {arena, seed, depth, sp, variant, kit, spec}, where
+  // spec is the parsed stamp (plain data), so a replay keeps its room when the stamp's file
+  // changes later. tools/sim.js records it (and the hash of this file, which coreHash does not
+  // cover); with tools/replay.js loaded, it is Replay.starter('arena', Arena.start).
+  function start(st, options) {
+    if (!st || typeof st !== 'object' || !st.spec || !Array.isArray(st.spec.map)) throw new Error('Arena.start: the start holds no parsed stamp (spec), so its room cannot be rebuilt');
+    if (!Number.isSafeInteger(st.seed)) throw new Error(`Arena.start: the start of ${st.spec.arena} has no whole-number seed`);
+    return build(st.spec, st.seed, { depth: st.depth, sp: st.sp, variant: st.variant, kit: st.kit, options: options || {} });
+  }
+
   // What the goal asks for in this state, resolved for the state's variant (drawn from its
   // seed unless opts.variant says): {k, uids (kill: the exhibits to destroy), tiles (reach),
   // items (take), cases (open), arena: every exhibit the stamp placed, with its legend mode}.
@@ -567,5 +589,5 @@ const Arena = (() => {
     '##########',
   ].join('\n') + '\n';
 
-  return { parse, layout, build, goal, won, outcome, health, woken, depthFor, speciesFor, speciesList, variant, cells, DUMMY, KEYS };
+  return { parse, layout, build, start, goal, won, outcome, health, woken, depthFor, speciesFor, speciesList, variant, cells, DUMMY, KEYS };
 })();

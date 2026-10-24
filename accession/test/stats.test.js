@@ -70,15 +70,21 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
 
   test('the bootstrap is deterministic and equals an independent resampling on Rng', () => {
     const C = loadCore();
-    const diffs = [3, -1, 4, 1, -5, 9, 2, -6, 5, 3, -5, 8, 9, -7, 9];
+    // Square roots of distinct primes, with signs: no two different resamples have the same
+    // mean, so the oracle below pins which resample each limit is.
+    const diffs = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47].map((p, i) => (i % 3 ? 1 : -1) * Math.sqrt(p));
     const a = Stats.bootstrapMean(diffs, { n: 2000, seed: 4, path: 'bootstrap/test' });
     assert.deepEqual(Stats.bootstrapMean(diffs, { n: 2000, seed: 4, path: 'bootstrap/test' }), a, 'the same seed and path give the same interval');
     // The oracle: 2,000 resamples drawn with Rng.stream's int on the same holder and path,
-    // their means sorted, the 50th from each end (⌊2000 × 5 / 200⌋ = 50).
+    // their means sorted; at 95%, the 50 lowest and the 50 highest (⌊2000 × 5 / 200⌋ = 50)
+    // are set aside, and the limits are the 51st lowest and the 51st highest.
     const r = C.Rng.stream({ seed: 4, rng: {} }, 'bootstrap/test'), means = [];
     for (let k = 0; k < 2000; k++) { let s = 0; for (let i = 0; i < diffs.length; i++) s += diffs[r.int(0, diffs.length - 1)]; means.push(s / diffs.length); }
     means.sort((x, y) => x - y);
+    for (const i of [49, 50, 1949, 1950]) assert.ok(means[i] < means[i + 1], `the means around ${i} differ, so the test can tell them apart`);
     assert.equal(a.lo, means[50]); assert.equal(a.hi, means[2000 - 1 - 50]);
+    assert.equal(means.filter(m => m < a.lo).length, 50); assert.equal(means.filter(m => m > a.hi).length, 50);
+    assert.equal(means.filter(m => m >= a.lo && m <= a.hi).length, 1900, 'the interval holds the middle 95% of the resamples');
     assert.equal(a.mean, diffs.reduce((s, v) => s + v, 0) / diffs.length);
     assert.equal(a.resamples, 2000); assert.equal(a.level, 95);
     const other = Stats.bootstrapMean(diffs, { n: 2000, seed: 5, path: 'bootstrap/test' });

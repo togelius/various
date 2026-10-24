@@ -27,6 +27,34 @@ module.exports = ({ test, assert, root, path, fs }) => {
     assert.equal(obs.rng, rng);
     assert.ok(!shown.includes(s.actors[3].uid), 'the exhibit behind the wall is not in the view model');
     assert.ok(shown.includes(s.actors[1].uid) && shown.includes(s.actors[2].uid));
+    // The one-turn cues a player sees come from the last step's events (the plan's D7.7): a
+    // hunting exhibit in view steps toward you, then strikes you.
+    const H = C.Arena.parse('arena: cue\ngoal: kill\ndepths: 3\nlegend: Q exhibit role=fodder mode=hunting\n\n########\n#@..Q..#\n########\n');
+    const h = C.Arena.build(H, 1), q = h.actors[1].uid;
+    for (const want of [{ movedFrom: [{ uid: q, x: 4, y: 1 }], hit: [] }, { movedFrom: [{ uid: q, x: 3, y: 1 }], hit: [] }, { movedFrom: [], hit: ['you'] }]) {
+      const e = C.Step.step(h, { a: 'wait' }), o = C.Obs.make(h, e, null, null);
+      eq(o.vm.cues, want);
+      eq(o.vm.cues, C.ViewModel.derive(h, { events: e }).cues);
+      assert.notDeepEqual(J(o.vm.cues), J(C.ViewModel.derive(h, {}).cues), 'without the events the cues are gone');
+      if (want.hit.length) assert.ok(o.log.length > 0, 'and the log says you were hit');
+    }
+  });
+
+  test("what a policy is handed is its own: a frozen copy, so nothing it writes reaches the game", () => {
+    const s = C.Arena.build(ROOM, 1), obs = C.Obs.make(s, [], null, null);
+    assert.notEqual(obs.vm.tiles, s.dept.tiles, 'not the state\'s own tiles');
+    for (const v of [obs.vm, obs.vm.tiles, obs.vm.vis, obs.vm.ring, obs.vm.actors, obs.vm.actors[0], obs.vm.you, obs.vm.cues, obs.legal, obs.legal[0], obs.log])
+      assert.ok(Object.isFrozen(v));
+    assert.ok(Array.isArray(obs.vm.vis) && Array.isArray(obs.vm.ring), 'typed arrays become plain lists');
+    const was = C.State.hash(s);
+    assert.equal(Reflect.set(obs.vm.tiles, 2, '##########'), false);
+    assert.equal(Reflect.set(obs.vm.actors[0], 'x', 9), false);
+    assert.equal(Reflect.set(obs.legal[0], 'a', 'fly'), false);
+    assert.equal(C.State.hash(s), was);
+    s.over = { k: 'died', turn: 0, by: null, door: null, cause: null };
+    const ended = C.Obs.make(s, [], null, null);
+    assert.equal(Reflect.set(ended.vm.over, 'k', 'left'), false);
+    assert.equal(s.over.k, 'died');
   });
 
   test("read gives a label's text for what is in view, the paragraph only within reach, and nothing for the rest", () => {
@@ -98,6 +126,48 @@ module.exports = ({ test, assert, root, path, fs }) => {
     eq(['wait', 'move', 'attack', 'use'].map((a, i) => C.Obs.say([{ a: 'wait' }, { a: 'move', dir: 2 }, { a: 'attack', uid: 'u' }, { a: 'use', uid: 'f', x: 3, y: 4 }][i])), ['wait', 'move east', 'attack u', 'use f at 3,4']);
     // A step toward a tile with no way to it is none.
     assert.equal(C.Obs.step(obs, 9, 3), null);
+  });
+
+  // A wall with two staff doors in it, both in view: grade 3 at (4,2) on the short way east,
+  // grade 1 at (4,4) on the way round. You are at (2,2), at grade 2; the whole room is
+  // remembered, so the view model shows the far side.
+  const STAFF = { map: ['#######', '#...#.#', '#...S.#', '#...#.#', '#...S.#', '#######'], doors: [[4, 2, 3], [4, 4, 1]] };
+  const staffSpec = { acc: 'A4', depth: 2, map: STAFF.map, you: [2, 2], grade: 2, fixtures: STAFF.doors.map(([x, y, grade]) => ({ k: 'staff', x, y, grade })) };
+  const staffRoom = (K) => { const s = (K || C).Setup.room(1, staffSpec, {}); s.dept.seen = '1'.repeat(s.dept.w * s.dept.h); return s; };
+  // The view model with the staff doors in view as W2a-VM lists them (the plan's A14) and
+  // your grade from run.grade.
+  const withStaff = (s, vm) => Object.assign({}, vm, { you: Object.assign({}, vm.you, { grade: s.run.grade }),
+    staff: s.dept.fixtures.filter(f => f.k === 'staff' && vm.vis[f.y * vm.w + f.x] === 2).map(f => ({ x: f.x, y: f.y, grade: f.grade, open: false })) });
+
+  test("a policy's path carries the staff doors it sees and your grade, so it is the tap's", () => {
+    const C2 = Sim.load(), boards = [], to = C2.Path.to;
+    C2.Path.to = (b, x, y) => { boards.push(b); return to(b, x, y); };
+    const s = staffRoom(C2), obs = C2.Obs.make(s, [], null, null), vm = withStaff(s, obs.vm);
+    assert.equal(vm.staff.length, 2, 'both doors are in view');
+    C2.Obs.path(vm, 5, 2);
+    const b = boards[0];
+    eq([b.run.grade, b.dept.fixtures], [2, [{ k: 'staff', x: 4, y: 2, grade: 3 }, { k: 'staff', x: 4, y: 4, grade: 1 }]]);
+    eq([C2.Cases.at(b, 4, 2).grade, C2.Cases.at(b, 4, 4).grade], [3, 1], "the case rules find each door's grade on the board");
+    eq([b.dept.w, b.dept.h, b.dept.tiles, b.actors.map(a => a.uid)], [vm.w, vm.h, vm.tiles, vm.actors.map(a => a.uid)]);
+    // Until the view model lists staff doors, the board has none, and Path.to (W1-CASES)
+    // treats every closed staff door as shut.
+    C2.Obs.path(obs.vm, 5, 2);
+    eq([boards[1].dept.fixtures, boards[1].run.grade], [[], obs.vm.you.grade]);
+  });
+
+  test('round staff doors, Obs.path and Obs.step go where the tap goes', () => {
+    const s = staffRoom(), obs = C.Obs.make(s, [], null, null), vm = withStaff(s, obs.vm);
+    for (const [x, y] of [[5, 2], [5, 1], [5, 4], [3, 4], [1, 1]]) eq(C.Obs.path(vm, x, y), C.Path.to(s, x, y), `path to ${x},${y}`);
+    // Walk the policy's steps toward (5, 2): each is the tap's first step, none is refused,
+    // and it arrives.
+    for (let i = 0; i < 12 && !(s.actors[0].x === 5 && s.actors[0].y === 2); i++) {
+      const o = C.Obs.make(s, [], null, null), st = C.Obs.step(Object.assign({}, o, { vm: withStaff(s, o.vm) }), 5, 2), at = `${s.actors[0].x},${s.actors[0].y}`;
+      assert.ok(st, `a step at ${at}`);
+      eq(st, { a: 'move', dir: C.Path.dirTo([s.actors[0].x, s.actors[0].y], C.Path.to(s, 5, 2)[0]) }, `the tap's step at ${at}`);
+      const ev = C.Step.step(s, st);
+      assert.ok(!(ev.length === 1 && ev[0].k === 'refused'), `refused at ${at}: ${JSON.stringify(ev)}`);
+    }
+    eq([s.actors[0].x, s.actors[0].y], [5, 2], 'it arrives');
   });
 
   test('policies run in the hardened context: Math.random and the clock throw', () => {

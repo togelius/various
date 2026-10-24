@@ -62,8 +62,21 @@ module.exports = ({ test, assert, loadCore, root, path, fs }) => {
       [stamp(ok.concat(['variants: swap P']), room), /a variant is swap <ch> <ch>/],
       [stamp(ok.concat(['variants: swap P Q']), room), /the variant's Q is not in the legend/],
       [ok.join('\n') + '\n#####\n#@.P#\n#####\n', /a header line is key: value, not #####/],
+      // A word left out is named, never written as "undefined".
+      [stamp(ok.concat(['legend: Q sp=A4.1']), room), /a legend entry says first what its letter is \(you, exhibit, case, item, mark\): sp=A4\.1/],
+      [stamp(ok.concat(['kit: form=heavy']), room), /a kit entry starts with its slot \(weapon, garment, curio0, curio1, instrument, tote\): form=heavy/],
+      [stamp(ok.concat(['kit: tote']), room), /a tote entry names the kind of item it puts in the tote/],
+      [stamp(['arena: t', 'goal:', 'legend: P exhibit sp'], room), /line 2: the header's goal has no value/],
+      [stamp(ok.concat(['legend: Q item']), room), /an item names its kind after the word item/],
+      [stamp(ok.concat(['clock:']), room), /the header's clock has no value/],
+      [stamp(ok.concat(['legend: Q exhibit role=']), room), /role has no value after its =/],
+      [stamp(ok.concat(['kit: weapon form=']), room), /form has no value after its =/],
+      [stamp(ok.concat(['legend: Q case on=']), room), /on has no value after its =/],
+      [stamp(ok.concat(['variants: swap P @ |']), room), /a variant is swap <ch> <ch>, and one here is empty/],
       [ok.join('\n') + '\n', /no map after its header/],
     ];
+    // Every header key given nothing.
+    for (const k of A.KEYS) cases.push([stamp(ok.filter(l => !l.startsWith(k + ':')).concat([`${k}:`]), room), new RegExp(`the header's ${k} has no value`)]);
     for (const [text, re] of cases) {
       let msg = null;
       try { A.parse(text); } catch (e) { msg = e.message; }

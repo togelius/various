@@ -118,7 +118,10 @@ const Stats = (() => {
   }
   const finite = (xs, what) => { for (const v of xs) if (typeof v !== 'number' || !Number.isFinite(v)) throw new Error(`Stats.${what}: every value must be a finite number, not ${v}`); };
   // The percentile limits of n sorted resample statistics at a level (a whole percentage):
-  // the k-th from each end, k = ⌊n(100 − level)/200⌋ (250 of 10,000 at 95%).
+  // set aside the k lowest and the k highest, k = ⌊n(100 − level)/200⌋, and the limits are
+  // the lowest and the highest of the rest, the (k + 1)-th from each end. At 95% of 10,000,
+  // k = 250: the interval runs from the 251st lowest to the 251st highest, and holds the
+  // middle 9,500 resamples.
   function limits(sorted, level) {
     const k = Math.floor(sorted.length * (100 - level) / 200);
     return { lo: sorted[k], hi: sorted[sorted.length - 1 - k] };
