@@ -169,7 +169,7 @@ accession/
 | `seals` | the per-run seal shuffle |
 | `deck` | the consumable deck |
 | `layout/<acc>@<pin>/d<depth>/a<k>/{knobs,embed,openings,aspace}` and `…/a<k>/room/<roleKey>/curate` | layout, local; k is the reseed attempt. This extends `design/layout.md` §12.1 with the depth |
-| `…/a<k>/room/<roleKey>/populate` and `…/a<k>/staff` | what is placed in one room, in this order: its cases (each case's glass, then lock, then whether it is on loan), then its items, then its consumables; staff-door grades; local. One holder serves the whole department while it is made, so a room's stream runs on from the cases to the items to the consumables rather than starting again for each. The port replaces the prototype's department-wide `/populate` stream |
+| `…/a<k>/room/<roleKey>/populate` and `…/a<k>/staff` | what is placed in one room, in this order: its cases (each case's glass, then lock, then whether it is on loan), then its items, then its consumables; staff-door grades, in row-major order; local. One holder serves the whole department while it is made, so a room's stream runs on from the cases to the items to the consumables rather than starting again for each. The port replaces the prototype's department-wide `/populate` stream |
 | `…/a<k>/items` | which room each placed item and consumable goes in; local. Added in M3 (§3.2 had no department-level placement stream), for Julian to confirm |
 | `place/<acc>/d<depth>` | the stand-in placement of exhibits, until M4's population replaces it; local |
 | `combat/<actorUid>` | every hit and damage roll made *by* that actor |
@@ -849,7 +849,7 @@ These are the rules the slice implements. Each system opens with its sentence fr
 | `axis(r)` | you stand in its row or column within r, in line of sight | 1 a turn |
 | `period` | its module's chime (§5.4) | wakes for the demonstration, then sleeps again with the pips it had |
 | `tether(r)` | you come within r of the thing it guards | 3 |
-| `touch_case` | its case, or the case it is, is opened, bashed or touched | 3 |
+| `touch_case` | its case, or the case it is, is opened or bashed (touched, §8.3) | 3 |
 | `ally_hit` | a member of its group within 5 takes damage | 3 |
 | `awake` | it is never dormant | none |
 
@@ -884,29 +884,39 @@ The alarm is not a species trigger: `alarm_network` wakes the department itself 
 **Placement.**
 - Glass by depth follows `GLASS_MIX_D1` … `GLASS_MIX_D6` (§8.10): Security joins the mix from depth 3.
 - A case's lock is drawn uniformly from the overlap of its glass range and I to (depth + 1). If they do not overlap, the lock is the glass range's minimum.
+- Every vitrine inside a room is a case. A vitrine in a wall's place (a glazed screen, which belongs to no room) is fixed glazing: it is seen through and refused like a case when bumped, and it is never opened or bashed.
+- A case's accession number is the department's number, its room's number and its place among the room's cases in row-major order, counted from 1 (`S.9.103.2`), with no draw; an on-loan case keeps its number.
+- A staff door's grade is drawn uniformly from I to (depth + 1), never above VII, on the department's staff stream, the doors in row-major order.
 - Each case draws its glass, then its lock, then whether it is on loan. A mimic's case is drawn the same way, on the mimic's own stream (§3.2), so it differs from a real case only in having no accession number.
-- A Highlight is never behind a lock above the grade you enter the department with.
+- A Highlight is never behind a lock above the grade you enter the department with, nor in a case on loan, a mimic's case or one that already holds something (`Cases.highlightOk`).
 
 **Opening** costs 200 ticks, makes a soft noise and fires `touch_case`. An opened case is passable, with no shards (its tile becomes `u`, as a dissolved one's does); an exhibit in it may leave, keeps its home there, and can return to it.
+
+**`open(x, y)` and `bash(x, y)`** take an intact case beside you, never diagonally past a corner (as a blow). Anything else is refused before it costs anything: no intact case there (`no_case`), not beside you (`out_of_reach`), past a corner (`corner`), a lock above your grade (`case_locked`, to open), or glass your weapon cannot break (`glass_too_strong`, to bash).
+
+**A touch.** Opening a case, and every bash, touches it (Solvent never does, and a bump is refused). Every exhibit standing in it or at home in it whose trigger is `touch_case` gains 3 pips, so it wakes at once, hunting; the mimic whose case it is wakes at once, hunting, without pips. In one open or bash the touch comes first; then the case changes (it opens, its glass cracks, or it breaks, releasing what stood in it and laying its shards); then the case's event; and last its noise, from the case tile (§8.2, one action's wake order).
 
 **Bashing:**
 - each bash costs 100 ticks and makes a loud noise;
 - the breaking bash makes a crash;
 - a Heavy weapon counts two bashes a swing;
-- a Light weapon cannot break Laminated or Security glass.
+- a Light weapon cannot break Laminated or Security glass;
+- `breaker` adds one bash to each swing (`BREAKER_BASHES`), but never lets a Light weapon break Laminated or Security glass, and no swing counts more bashes than break the glass.
 
 **A broken case:**
-- becomes passable, with shards, and shards spread to one floor tile on your side;
+- becomes passable, with shards, and shards spread to one floor tile on your side: the tile you bashed from, by the shard rule below;
 - its contents can be taken from an adjacent tile;
-- a sleeping exhibit inside wakes hunting and has no home.
+- a sleeping exhibit inside wakes hunting and has no home; one already awake inside turns to the hunt, homeless too; and an exhibit whose home it was, standing elsewhere, loses that home.
+
+**A mimic's case** is opened and bashed as a real case is, with the same refusals, but nothing opens or cracks: the touch reveals the mimic (its tile becomes floor) and wakes it, before the noise. Solvent reveals it and wakes it hunting, silently and without its grip. A case whose mimic is gone shows itself floor when it is touched or dissolved.
 
 **An exhibit in an intact case** gains pips as usual. If it wakes, it stays inside, shown awake or hunting, and acts only by specials and ranged attacks that pass glass: it can never step out of the case, and nothing strikes into or out of an intact case. A bump into a case, and a blow at anything standing in one, are refused alike (`behind_glass`, "Glass is in the way."), so a mimic in its disguise is refused exactly as a case is. Solvent leaves it homeless and wakes it hunting, silently. The night-watch bell never picks an encased exhibit.
 
-**Staff doors** (the M.11 staff corridor, and any staff layer a programme draws) open like case locks: each carries a grade, drawn as locks are, and opens for 100 ticks with a soft noise at that grade or above (an open staff door is `s`, which can be seen through). Below it, it is a wall. Nothing required lies behind one (`design/layout.md` LV5).
+**Staff doors** (the M.11 staff corridor, and any staff layer a programme draws) open like case locks: each carries a grade, drawn as locks are, and opens for 100 ticks with a soft noise at that grade or above (an open staff door is `s`, which can be seen through). Below it, it is a wall (`staff_grade`), and a path for a tap never goes through it. Nothing required lies behind one (`design/layout.md` LV5). A staff door with no recorded grade (only in a room for tests) opens at grade I.
 
 **Other rules:**
 - **Shards** only ever land on floor or an archway (`Cases.shardTile`): on the tile they fall to (a glass exhibit's own tile; for a broken case, the tile on your side), if it is one; otherwise on that tile's first floor or archway neighbour in direction order (N, NE, E, … NW); otherwise nowhere. So shards never cover a door, an exit, the entrance, a bench or a case.
-- Solvent, thrown, dissolves every case in a 3×3 silently: no noise, no shards, no `touch_case`.
+- Solvent, thrown, dissolves every case in a 3×3 silently: no noise, no shards, no `touch_case`. Its tile becomes `u`, what stood in it is released as from a broken case, and each case dissolved is told by one `glass_broke` with no shards.
 - About one case in six is "on loan elsewhere": a label with no object.
 - Vitrines never stand on gate cells (`design/layout.md` LV10).
 
