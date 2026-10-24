@@ -8,7 +8,7 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
   const H = require(path.join(root, 'test/behaviour/_harness.js'));
   const Inv = require(path.join(root, 'tools/invariants.js'));
   const C = loadCore();
-  const { N, Int, Setup, Roles, Grid, Dept, State, Step } = C;
+  const { N, Int, Setup, Roles, Grid, Dept, State, Step, Combat, Causes, Packs } = C;
   const json = x => JSON.stringify(x);
   const ROOM = ['#########', '#.......#', '#.......#', '#.......#', '#.......#', '#.......#', '#########'];
   const make = extra => (params, sp, depth, opts) => Setup.room(opts.seed, { acc: 'T0', depth, map: ROOM, you: [2, 3],
@@ -79,6 +79,29 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
       }
     }
     assert.ok(casts >= 14, `${casts} casts placed`);
+  });
+
+  // "When destroyed it crumbles into dust" (§8.1: "Destroyed, it leaves dust"), whatever
+  // destroyed it: a special, a shot, a reflected line or an item's bolt, from an exhibit or
+  // from you, leaves the same dust as your blow, made by the cast.
+  const hit = (k, a, by, n) => ({
+    special: { k, by: by.uid, sp: 'ring', gross: n, pad: 0, net: n, x: a.x, y: a.y, from: [by.x, by.y] },
+    shot: { k, by: by.uid, at: a.uid, chance: 75, roll: 10, raw: n, pad: 0, how: { kind: 'shot' }, from: [a.x + 1, a.y], range: 3 },
+    reflected: { k, by: by.uid, shooter: 'you', raw: n, pad: 0, from: [a.x + 1, a.y] },
+    item: { k, by: 'you', at: a.uid, chance: 75, roll: 10, raw: n, pad: 0, how: { kind: 'shot' }, from: [a.x - 1, a.y], range: 2, item: 'you.i' },
+  })[k];
+  test('plaster: a cast destroyed by any hit, a special, a shot, a reflected line or an item, from an exhibit or from you, leaves its dust', () => {
+    const sp = Packs.speciesFor(null, { sp: 'A4.1a' }), other = Packs.speciesFor(null, { sp: 'A4.1' });
+    for (const k of ['special', 'shot', 'reflected', 'item']) {
+      const s = Setup.room(1, { acc: 'T0', depth: 3, map: ROOM, you: [1, 1], exhibits: [
+        { sp: 'A4.1a', at: [3, 3], mode: 'hunting', stats: Roles.stats(sp.role, 3) },
+        { sp: 'A4.1', at: [6, 5], mode: 'hunting', stats: Roles.stats(other.role, 3) }] });
+      const [, a, by] = s.actors, ev = [];
+      Combat.hurt(s, a, a.hp, hit(k, a, by, a.hp), ev);
+      assert.ok(a.gone, `${k}: not destroyed`);
+      assert.equal(json(s.dept.surfaces.map(x => [x.kind, x.x, x.y, x.size, x.by])), json([['dust', 3, 3, N.PLASTER_DUST_SIZE, a.uid]]), k);
+      for (const e of ev) assert.equal(Causes.check(e), null, json(e));
+    }
   });
 
   test('plaster: the invariant catches a cast with the usual health in a department, a maximum that changes, and a death with no dust', () => {

@@ -11,7 +11,7 @@
 'use strict';
 module.exports = (C) => {
   const { N, Int, Grid, Roles, Options, Archetypes, Registry } = C;
-  const tile = t => `${t[0]},${t[1]}`;
+  const tile = t => `${t[0]},${t[1]}`, json = x => JSON.stringify(x);
   const has = (a, mod, state) => (a.mods || []).includes(mod) && !Options.off(state, mod);
 
   // The world just before events[upto]: {m, pos, at(x, y, except)}. pos maps each actor
@@ -107,12 +107,18 @@ module.exports = (C) => {
 
   // Speed (§8.1): a darter's and a swarm body's steps cost SPEED_FAST_PCT% of a step ("moves
   // two tiles a turn"), a marble body's SPEED_SLOW_PCT% ("moves at half speed"; the usual, if
-  // its archetype is fast), and their blows the usual blow, a darter's step back included
-  // ("the blow and the step back together cost one blow"). Read from the step's events: each
-  // action is the group of its own events at one tick (its moves, blows and doors), and the
-  // time to its next action (or to its next tick, after its last) is what that action cost.
-  // A step in which some action of it left no event (a wait), it woke, a status touched it,
-  // or an item was used (the Pole moves exhibits) shows nothing, and is not checked.
+  // its archetype is fast), and their blows the usual blow (COST_ATTACK, or COST_ATTACK_HEAVY
+  // for a brute), a darter's step back included ("the blow and the step back together cost
+  // one blow"): none of these clauses makes a blow fast or slow, and §8.1 says speed is for
+  // steps only unless the archetype's own clause says otherwise. So what a blow should cost
+  // is taken from the clauses, never from the code's speedApplies; the one case left out is a
+  // marble body whose archetype has a speed of its own in the registry (the mimic, slow at
+  // everything), whose blows are its archetype's clause's to state. Read from the step's
+  // events: each action is the group of its own events at one tick (its moves, blows and
+  // doors), and the time to its next action (or to its next tick, after its last) is what
+  // that action cost. A step in which some action of it left no event (a wait), it woke, a
+  // status touched it, or an item was used (the Pole moves exhibits) shows nothing, and is
+  // not checked.
   const speed = {
     id: 'arch_a_speed',
     applies: (a, post) => a.uid !== 'you' && (a.arch === 'darter' || a.arch === 'mote_swarm' || has(a, 'marble', post)),
@@ -131,12 +137,12 @@ module.exports = (C) => {
       const A = Registry.ARCHETYPES[a.arch], fast = !!A && A.speed === 'fast', slow = has(a, 'marble', post);
       const pct = fast && !slow ? N.SPEED_FAST_PCT : slow && !fast ? N.SPEED_SLOW_PCT : 100;
       const step = Int.pct(N.COST_STEP, pct), blow = a.role === 'brute' ? N.COST_ATTACK_HEAVY : N.COST_ATTACK;
-      const blowsAtSpeed = Archetypes.speedApplies(post, a).includes('act');
+      const blowsUsual = a.arch === 'darter' || a.arch === 'mote_swarm' || !(A && A.speed);
       for (let i = 0; i < acts.length; i++) {
         const g = acts[i];
         let want = null, what = null;
         if (g.kinds.length === 1 && g.kinds[0] === 'moved') { want = step; what = 'step'; }
-        else if (g.kinds[0] === 'attacked' && !blowsAtSpeed && g.kinds.every((k, j) => j === 0 ? true : k === 'moved' && a.arch === 'darter')) { want = blow; what = g.kinds.length > 1 ? 'blow and step back' : 'blow'; }
+        else if (g.kinds[0] === 'attacked' && blowsUsual && g.kinds.every((k, j) => j === 0 ? true : k === 'moved' && a.arch === 'darter')) { want = blow; what = g.kinds.length > 1 ? 'blow and step back' : 'blow'; }
         if (want === null) continue;
         const next = i + 1 < acts.length ? acts[i + 1].tick : (a.gone || a.mode === 'dormant' ? null : a.next);
         if (next === null) continue;
@@ -154,7 +160,13 @@ module.exports = (C) => {
   // <uid>/<k> (k its count of halves) with max(1, SPLIT_HP_PCT% of h), the body keeping the
   // rest; both are then one generation on, the half hunts as the body does, has its maximum
   // health, and first acts a beat (COST_STEP) after it appears. With no half, there was no free
-  // tile beside it. A hit that leaves 1 health, or a body at SPLIT_MAX, makes none.
+  // tile beside it. A hit that leaves 1 health, or a body at SPLIT_MAX, makes none. The half is
+  // the same exhibit (§8.1, "copies the body's species, numbers, maximum health and speed"):
+  // its species, archetype, role, modifiers and their parameters, trigger, group, Acc, Eva,
+  // Padding, damage and speed are the body's, none of which changes during a visit; and if the
+  // body had seen you before the step and did not wake again in it, the half has seen you too
+  // (sawYou is only cleared by a waking), so your next blow at it is no surprise.
+  const SAME = ['sp', 'arch', 'role', 'mods', 'modParams', 'trigger', 'group', 'acc', 'eva', 'pad', 'dmin', 'dmax', 'speed'];
   const splits = {
     id: 'splitter_splits',
     applies: a => a.arch === 'splitter',
@@ -170,6 +182,7 @@ module.exports = (C) => {
       // Health a body has now is what the split left it, unless something hit or healed it since.
       const hitAfter = (who, from) => events.some((g, j) => j > from && (g.k === 'damaged' || g.k === 'healed') && g.who === who);
       const used = events.some(g => g.k === 'used');
+      const was = pre.actors.find(x => x.uid === uid), rewoke = events.some(g => g.k === 'woke' && g.who === uid);
       for (let i = 0; i < events.length; i++) {
         const e = events[i];
         if (e.k !== 'damaged' || e.who !== uid) continue;
@@ -199,6 +212,8 @@ module.exports = (C) => {
         const ownSplits = events.filter(g => isHalf(g, half.uid)).length;
         if (half.gen - ownSplits !== gen + 1) return `its half ${half.uid} is of generation ${half.gen - ownSplits}; it split at generation ${gen}`;
         if (half.maxHp !== a.maxHp) return `its half ${half.uid} has ${half.maxHp} maximum health; it has ${a.maxHp}`;
+        for (const k of SAME) if (json(half[k]) !== json(a[k])) return `its half ${half.uid} has ${k} ${json(half[k])}; the body it came from has ${json(a[k])}`;
+        if (was && was.sawYou && !rewoke && !half.sawYou) return `its half ${half.uid} has not seen you, though the body it came from had`;
         const first = events.find((g, j) => j > h && (g.k === 'attacked' ? g.by === half.uid : (g.k === 'moved' || g.k === 'opened') && g.who === half.uid));
         if (first && first.tick < f.tick + N.COST_STEP) return `its half ${half.uid} acted at tick ${first.tick}, sooner than a beat after it appeared at ${f.tick}`;
         if (!first && half.acts === 0 && !half.gone && half.next < f.tick + N.COST_STEP) return `its half ${half.uid} is to act at tick ${half.next}, sooner than a beat after it appeared at ${f.tick}`;

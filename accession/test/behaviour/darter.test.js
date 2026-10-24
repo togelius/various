@@ -136,4 +136,34 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     const q = H.run(Y, scenarios(Y).strikes, sp, 2, { inv: Inv.select(Y, ['darter_steps_back']) });
     assert.match(q.failure || '', /^darter_steps_back: stepped back 2 times|^darter_steps_back: stepped from/);
   });
+
+  test('darter: with its speed made to cover its blows too, the strike scenarios fail, and so does the speed invariant', () => {
+    const X = loadCore(), real = X.Archetypes.speedApplies, half = Int.pct(N.COST_ATTACK, N.SPEED_FAST_PCT);
+    X.Archetypes.speedApplies = (state, a) => a.arch === 'darter' ? ['move', 'act'] : real(state, a);
+    const T = scenarios(X), sp = list[0].sp;
+    assert.match(H.run(X, T.cornered, sp, 4, { inv: [] }).failure || '', /are not one blow apart/);
+    // The invariant does not ask the code what a blow costs, so it sees the fault too.
+    for (const key of ['strikes', 'cornered']) {
+      const r = H.run(X, T[key], sp, 4, { inv: Inv.select(X, ['arch_a_speed']) });
+      assert.match(r.failure || '', new RegExp(`^arch_a_speed: its blow( and step back)? at tick \\d+ took ${half} ticks; it takes ${N.COST_ATTACK}`), key);
+    }
+  });
+
+  // "ties broken on its own stream" (§8.1): beside you in an open room, a darter has three
+  // tiles to step back to, all two steps from you; which it takes is its ai stream's draw.
+  test('darter: with several tiles to step back to, it takes the one its own ai stream picks, so seeds differ in which', () => {
+    const { Setup, Roles, State, Archetypes, Rng, Grid } = C;
+    const sp = list[0].sp, you = [5, 3], from = [6, 3], seen = new Set();
+    const options = [0, 1, 2, 3, 4, 5, 6, 7].filter(d => cheb([from[0] + Grid.DX[d], from[1] + Grid.DY[d]], you) === 2);
+    assert.equal(options.length, 3);
+    for (let seed = 1; seed <= 8; seed++) {
+      const s = Setup.room(seed, { acc: 'T0', depth: 3, map: ROOM, you, exhibits: [{ sp: sp.id, at: from, mode: 'hunting', stats: Roles.stats(sp.role, 3) }] }, { invulnerable: true });
+      const a = s.actors[1], d = Rng.stream(State.clone(s), 'ai/' + a.uid).pick(options), ev = [];
+      assert.equal(Archetypes.act(s, a, ev), N.COST_ATTACK, `seed ${seed}: one blow's cost`);
+      assert.ok(ev.some(e => e.k === 'attacked' && e.by === a.uid), `seed ${seed}: it struck`);
+      assert.deepEqual([a.x, a.y], [from[0] + Grid.DX[d], from[1] + Grid.DY[d]], `seed ${seed}: the tile its stream picks`);
+      seen.add(`${a.x},${a.y}`);
+    }
+    assert.ok(seen.size >= 2, `every seed stepped back to ${[...seen].join(' ')}`);
+  });
 };

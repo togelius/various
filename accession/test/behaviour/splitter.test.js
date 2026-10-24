@@ -157,6 +157,52 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     for (const e of [...ev, ...tv, ...uv]) assert.equal(Causes.check(e), null, json(e));
   });
 
+  // "The half copies the body's species, numbers, maximum health and speed, hunts as the body
+  // does" (§8.1): a body given numbers and knowledge unlike its role's and its species', so
+  // that a half made from the role or the species, not the body, shows.
+  test('splitter: the half is the same exhibit: the body\'s species, numbers, damage, speed, trigger, group, and what it knows of you', () => {
+    const sp = Packs.speciesFor(null, { sp: 'A4.4' });
+    const s = Setup.room(1, { acc: 'T0', depth: 2, map: ROOM, you: [1, 1], exhibits: [{ sp: 'A4.4', at: [5, 3], mode: 'hunting', stats: Roles.stats(sp.role, 2),
+      hp: 20, maxHp: 40, acc: 7, eva: 5, pad: 3, dmin: 4, dmax: 9, speed: 'fast', group: 'spares', modParams: { marble: { vein: 'grey' } }, sawYou: true, lastKnown: [2, 2] }] });
+    const a = s.actors[1];
+    blow(s, a, 4, []);
+    const h = s.actors[2], fields = ['sp', 'arch', 'role', 'mods', 'modParams', 'trigger', 'group', 'acc', 'eva', 'pad', 'dmin', 'dmax', 'speed', 'maxHp', 'mode', 'target', 'lastKnown', 'sawYou'];
+    const pick = x => fields.map(k => [k, x[k]]);
+    assert.equal(json(pick(h)), json(pick(a)));
+    // The numbers are the body's, not its role's or its species': it strikes for 4–9, and it has
+    // seen you (so once it stops hunting, a blow at it is no surprise, as at the body).
+    assert.equal(json([h.acc, h.dmin, h.dmax, h.speed, h.trigger, h.group, h.sawYou, h.lastKnown]), json([7, 4, 9, 'fast', 'ally_hit', 'spares', true, [2, 2]]));
+  });
+
+  // "A splitter splits after any hit it survives" (§8.1): a special, a shot, a reflected line or
+  // an item's bolt, from an exhibit or from you, splits it as your blow does, and the half's
+  // story names whoever hit it.
+  const HITS = ['special', 'shot', 'reflected', 'item'];
+  const hit = (k, a, by) => ({
+    special: { k, by: by.uid, sp: 'line', gross: 4, pad: 0, net: 4, x: a.x, y: a.y, from: [by.x, by.y] },
+    shot: { k, by: by.uid, at: a.uid, chance: 75, roll: 10, raw: 4, pad: 0, how: { kind: 'shot' }, from: [a.x + 1, a.y], range: 3 },
+    reflected: { k, by: by.uid, shooter: 'you', raw: 4, pad: 0, from: [a.x + 1, a.y] },
+    item: { k, by: 'you', at: a.uid, chance: 75, roll: 10, raw: 4, pad: 0, how: { kind: 'shot' }, from: [a.x - 1, a.y], range: 2, item: 'you.i' },
+  })[k];
+  test('splitter: any hit it survives splits it, a special, a shot, a reflected line or an item, from an exhibit or from you; the half\'s story names who hit it', () => {
+    const sp = Packs.speciesFor(null, { sp: 'A4.4' }), other = Packs.speciesFor(null, { sp: 'A4.1' });
+    for (const k of HITS) {
+      const s = Setup.room(1, { acc: 'T0', depth: 2, map: ROOM, you: [1, 1], exhibits: [
+        { sp: 'A4.4', at: [5, 3], mode: 'hunting', stats: Roles.stats(sp.role, 2), hp: 20 },
+        { sp: 'A4.1', at: [8, 5], mode: 'hunting', stats: Roles.stats(other.role, 2) }] });
+      const [, a, by] = s.actors, cause = hit(k, a, by), ev = [];
+      const names = { you: null, [a.uid]: 'the Bust of the Proposing Trustee', [by.uid]: 'the Seated Clerk of the Ordinance Office' };
+      Combat.hurt(s, a, 4, cause, ev);
+      const h = s.actors[3], made = ev.find(isHalf);
+      assert.ok(h && made && made.who === h.uid, `${cause.k}: it did not split`);
+      assert.equal(json([a.hp, h.hp, h.gen, made.cause.by]), json([8, 8, 1, cause.by]), cause.k);
+      for (const e of ev) assert.equal(Causes.check(e), null, json(e));
+      const said = Text.event(made, uid => names[uid]);
+      assert.equal(said, cause.by === 'you' ? 'The Bust of the Proposing Trustee splits in two, under your hit; the new half is hunting you.'
+        : 'The Bust of the Proposing Trustee splits in two, hit by the Seated Clerk of the Ordinance Office; the new half is hunting you.', cause.k);
+    }
+  });
+
   test('splitter: the half takes the first free tile beside it in direction order, past walls, you, corners and closed doors; with none, no split', () => {
     const map = ['#######', '#.....#', '#.#+..#', '#.....#', '#######'];
     // At (2,1): N and NE are walls, E is you, SE and SW cut a corner (the wall at (2,2)), S is a wall: W.
@@ -206,5 +252,9 @@ module.exports = ({ test, assert, loadCore, root, path }) => {
     assert.match(run((s, a, h) => { h.hp += 1; }), /^splitter_splits: its half \S+ has \d+ health; half of \d+ is \d+/);
     assert.match(run((s, a, h) => { a.hp += 1; }), /^splitter_splits: kept \d+ health after splitting/);
     assert.match(run((s, a, h) => { a.gen = 0; h.gen = 0; }), /generation/);
+    // A half that is not the same exhibit: weaker blows, another group, or one that has not seen you.
+    assert.match(run((s, a, h) => { h.dmin = 1; h.dmax = 1; }), /^splitter_splits: its half \S+ has dmin 1; the body it came from has \d+/);
+    assert.match(run((s, a, h) => { h.group = 'other'; }), /^splitter_splits: its half \S+ has group "other"; the body it came from has null/);
+    assert.match(run((s, a, h) => { h.sawYou = false; }), /^splitter_splits: its half \S+ has not seen you, though the body it came from had/);
   });
 };
